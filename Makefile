@@ -51,6 +51,7 @@ distclean::
 	rm -f .depend
 
 install: install-files
+	install -d -m 755 $(DESTDIR)/sbin
 	install -s -m 555 wickedd wicked $(DESTDIR)/sbin
 
 install-files:
