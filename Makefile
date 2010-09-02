@@ -43,9 +43,9 @@ SHLIBOBJS= $(addprefix obj-shared/,$(LIBSRCS:.c=.o))
 all: $(TGTLIBS) $(APPS)
 
 distclean clean::
-	rm -f *.o *.a $(APPS) core .depend
+	rm -f *.o *.a $(APPS) core .depend tags
 	rm -rf obj obj-shared
-	rm testing/*.o
+	rm -f testing/*.o
 
 distclean::
 	rm -f .depend
