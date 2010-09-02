@@ -40,6 +40,12 @@ xml_document_root(xml_document_t *doc)
 	return doc->root;
 }
 
+const char *
+xml_document_type(const xml_document_t *doc)
+{
+	return doc->dtd;
+}
+
 void
 xml_document_set_root(xml_document_t *doc, xml_node_t *root)
 {
@@ -53,6 +59,7 @@ void
 xml_document_free(xml_document_t *doc)
 {
 	xml_node_free(doc->root);
+	ni_string_free(&doc->dtd);
 	free(doc);
 }
 

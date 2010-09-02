@@ -71,6 +71,7 @@ xml_document_print(xml_document_t *doc, FILE *fp)
 void
 xml_document_output(xml_document_t *doc, xml_writer_t *writer)
 {
+	xml_writer_printf(writer, "<?xml version=\"1.0\" encoding=\"utf8\"?>\n");
 	xml_node_output(doc->root, writer, 0);
 }
 
@@ -113,6 +114,8 @@ xml_node_output(xml_node_t *node, xml_writer_t *writer, unsigned int indent)
 		}
 		xml_writer_printf(writer, ">");
 		child_indent += 2;
+	} else {
+		newline = 1;
 	}
 
 	if (node->cdata) {

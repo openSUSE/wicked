@@ -60,6 +60,8 @@ typedef struct xml_reader {
 
 	unsigned int		no_close : 1;
 
+	char *			doctype;
+
 	/* This pointer must be unsigned char, else 0xFF would
 	 * be expanded to EOF */
 	unsigned char *		pos;
@@ -174,6 +176,25 @@ xml_node_scan(FILE *fp)
 	return root;
 }
 
+static void
+xml_process_pi_node(xml_reader_t *xr, xml_node_t *pi)
+{
+	const char *attrval;
+
+	if (!strcmp(pi->name, "xml")) {
+		if ((attrval = xml_node_get_attr(pi, "version")) != NULL
+		 && strcmp(attrval, "1.0"))
+			ni_warn("unexpected XML version %s", attrval);
+
+		if ((attrval = xml_node_get_attr(pi, "encoding")) != NULL
+		 && strcasecmp(attrval, "utf8")) {
+			/* TBD: set up iconv to translate from encoding to utf8,
+			   and make sure we process all input that way. */
+		}
+	}
+		
+}
+
 int
 xml_process_element_nested(xml_reader_t *xr, xml_node_t *cur, unsigned int nesting)
 {
@@ -191,6 +212,31 @@ xml_process_element_nested(xml_reader_t *xr, xml_node_t *cur, unsigned int nesti
 		case CData:
 			/* process element content */
 			xml_node_set_cdata(cur, tokenValue.string);
+			break;
+
+		case LeftAngleExclam:
+			/* Most likely <!DOCTYPE ...> */
+			if (!xml_get_identifier(xr, &identifier)) {
+				xml_parse_error(xr, "Bad element: tag open <! not followed by identifier");
+				goto error;
+			}
+
+			if (strcmp(identifier.string, "DOCTYPE")) {
+				xml_parse_error(xr, "Unexpected element: <!%s ...> not supported", identifier);
+				goto error;
+			}
+
+			while (1) {
+				token = xml_get_token(xr, &identifier);
+				if (token == RightAngle)
+					break;
+				if (token == Identifier && !xr->doctype)
+					ni_string_dup(&xr->doctype, identifier.string);
+				if (token != Identifier && token != QuotedString) {
+					xml_parse_error(xr, "Error parsing <!DOCTYPE ...> attributes");
+					goto error;
+				}
+			}
 			break;
 
 		case LeftAngle:
@@ -249,7 +295,7 @@ xml_process_element_nested(xml_reader_t *xr, xml_node_t *cur, unsigned int nesti
 			goto success;
 
 		case LeftAngleQ:
-			/* New element start */
+			/* New PI node starts here */
 			if (!xml_get_identifier(xr, &identifier)) {
 				xml_parse_error(xr, "Bad element: tag open <? not followed by identifier");
 				goto error;
@@ -259,12 +305,13 @@ xml_process_element_nested(xml_reader_t *xr, xml_node_t *cur, unsigned int nesti
 
 			token = xml_get_tag_attributes(xr, child);
 			if (token == None) {
-				xml_parse_error(xr, "Error parsing <%s ...> tag attributes", child->name);
+				xml_parse_error(xr, "Error parsing <?%s ...?> tag attributes", child->name);
 				xml_node_free(child);
 				goto error;
 			} else
 			if (token == RightAngleQ) {
 				xml_debug("%*.*s<%s>\n", nesting, nesting, "", child->name);
+				xml_process_pi_node(xr, child);
 				xml_node_free(child);
 			} else {
 				xml_parse_error(xr, "Unexpected token %s at end of <?%s ...",

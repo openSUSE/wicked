@@ -29,6 +29,7 @@
 #include "types.h"
 
 struct xml_document {
+	char *			dtd;
 	struct xml_node *	root;
 };
 
@@ -49,6 +50,7 @@ extern xml_document_t *	xml_document_read(const char *);
 extern xml_document_t *	xml_document_scan(FILE *);
 extern int		xml_document_write(xml_document_t *, const char *);
 extern int		xml_document_print(xml_document_t *, FILE *fp);
+extern const char *	xml_document_dtd(const xml_document_t *);
 
 extern xml_document_t *	xml_document_new();
 extern xml_node_t *	xml_document_root(xml_document_t *);
