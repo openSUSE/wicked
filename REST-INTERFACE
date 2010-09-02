@@ -1,0 +1,18 @@
+
+/config/interface
+	GET: retrieve all interface configurations
+
+/config/interface/<ifname>
+	GET: retrieve configuration of interface
+	PUT: create/overwrite interface configuration
+	DELETE: delete interface config
+
+/system/interface
+	GET: retrieve status of all interfaces
+
+/system/interface/<ifname>
+	GET: retrieve status of interface
+	PUT: configure interface
+	DELETE: delete interface (for virtual interfaces)
+	POST (for bridge and bonding interfaces): add another child/slave
+

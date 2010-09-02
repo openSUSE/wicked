@@ -1,0 +1,131 @@
+#!/bin/bash
+
+scriptpath=$0
+testbase=${scriptpath%/*}
+testbin=$testbase/../xpath-test
+
+updating=false
+if [ "$1" = "update" ]; then
+	updating=true
+fi
+
+temp=`mktemp /tmp/xptest.XXXXXX`
+trap "rm -f $temp" 0 1 2 15
+
+nfail=0
+nexecuted=0
+nupdated=0
+
+function usefile {
+
+	echo "++ USING FILE $1.xml" >&2
+	thefile="$testbase/$1.xml"
+}
+
+function fail {
+
+	echo "** FAILED: xpath-test \"$1\" $thefile" >&2
+	echo "** Full output found in /tmp/xptest.log" >&2
+	let nfail=$nfail+1
+}
+
+function run {
+
+	expect=$1
+	shift;
+
+	let nexecuted=$nexecuted+1
+	# echo "++ xpath-test $@" >&2
+	if ! $testbin "$@" $thefile >/tmp/xptest.log 2>&1; then
+		fail "$1" "$2"
+		echo "** Command exited with error" >&2
+		return
+	fi
+
+	grep -av '^::: ' /tmp/xptest.log > $temp
+
+	if $updating; then
+		case "$expect" in
+		=*) :;;
+		*)
+			expect="$testbase/$expect.xml"
+			let nupdated=$nupdated+1
+			cp $temp $expect;;
+		esac
+		return
+	fi
+
+	case "$expect" in
+	=*)
+		result=`cat $temp`
+		expect=`expr $expect : '=\(.*\)'`
+		if [ "$expect" != "$result" ]; then
+			fail "$1" "$2"
+			echo "** Expected \"$expect\"; got \"$result\"" >&2
+		fi;;
+
+	*)
+		expect="$testbase/$expect.xml"
+		if ! cmp -s $expect $temp; then
+			fail "$1" "$2"
+
+			{
+				echo "** Expected:"
+				cat $expect
+				echo "** Got result:"
+				cat $temp
+			} >&2
+
+		fi
+
+	esac
+
+}
+
+usefile doc1
+run doc1-paras		"/Document/Para"
+run doc1-paras		"//Para"
+run doc1-para1		"//Para[1]"
+run doc1-para4		"//Para[last()]"
+run "=4"		"//Para/last()"
+run "=unclassified"	"//Para[1]/@classification"
+run doc1-para1		"/Document/Para[1]"
+run doc1-para2		"/Document/Para[@classification = 'secret']"
+run "=false"		"/Document/@classification = 'top-secret'"
+run "=true"		"/Document/@classification != 'top-secret'"
+run "=true"		"(/Document/@classification = 'top-secret') or (/Document/@classification = 'secret')"
+run "=true"		"not(//Para[@classification = 'top-secret'])"
+run doc1-paras		"//Para[@classification != 'top-secret']"
+run doc1-paras		"/Document/child::Para"
+run doc1-paras		"/descendant::Para"
+run doc1-paras		"descendant::Para"
+run doc1-paras		"/Document/child::*"
+run "=2"		"1+1"
+run "=3"		"1+1*2"
+run "=3"		"2*1+1"
+run "=2"		"(2+4) div 3"
+run "=1"		"(2+4) mod 5"
+run "=true"		"0 < 1+1"
+run "=false"		"1+1 < 0"
+
+usefile doc2
+run doc2-members	"//Member[/Name]"
+run doc2-jeff		"//Member[Name = 'Jeff']"
+#run doc2-jeff		"//Member[position() = 2]"
+run doc2-david		"FitnessCenter/Member[FavoriteColor = 'lightblue']"
+
+usefile doc3
+run "=platinum"		"FitnessCenter/Member[1]/attribute::level"
+run doc3-nonmem		"FitnessCenter/child::*[not(self::Member)]/child::Name"
+run doc3-allnames	"FitnessCenter/child::*[not(child::Member)]/child::Name"
+run doc3-allnames	"FitnessCenter/self::*[not(Member)]/Name"
+
+# FIXME
+# ./wicked xpath --reference "interface/protocol[@family = 'ipv4']" --file samples/netcf/vlan-up.xml /ip/@address /ip/@prefix
+
+if $updating; then
+	echo "Updated $nupdated test cases"
+else
+	echo "Executed $nexecuted test cases, $nfail failures"
+	exit $nfail
+fi

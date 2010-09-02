@@ -1,0 +1,26 @@
+#!/bin/bash
+
+cmd=$1
+ifname=$2
+
+case $cmd in
+start)
+	exec /sbin/dhcpcd -t5 $ifname;;
+
+stop)
+	pidfile=/var/run/dhcpcd-$ifname.pid
+	if [ ! -f $pidfile ]; then
+		exit 2
+	fi
+	read pid < $pidfile
+	if [ $pid -gt 0 ]; then
+		kill -TERM $pid
+		for x in `seq 1 50`; do
+			if [ ! -f $pidfile ]; then
+				exit 0
+			fi
+			usleep 20000
+		done
+	fi
+	exit 3;;
+esac

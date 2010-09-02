@@ -1,0 +1,258 @@
+/*
+ * Handle global configuration for netinfo
+ *
+ * Copyright (C) 2010 Olaf Kirch <okir@suse.de>
+ */
+#include <stdlib.h>
+#include <string.h>
+#include <assert.h>
+#include <ctype.h>
+#include "netinfo_priv.h"
+#include "config.h"
+#include "xpath.h"
+
+
+static int		ni_config_parse_afinfo(ni_afinfo_t *, const char *, xml_node_t *);
+static int		ni_config_parse_fslocation(ni_config_fslocation_t *, const char *, xml_node_t *);
+static int		ni_config_parse_extensions(ni_extension_t **, xml_node_t *, const char *,
+						int (*map_type)(const char *));
+static int		ni_config_parse_xpath(xpath_format_t **, const char *);
+
+
+/*
+ * Create an empty config object
+ */
+ni_config_t *
+ni_config_new()
+{
+	ni_config_t *conf;
+
+	conf = calloc(1, sizeof(*conf));
+	conf->ipv4.family = AF_INET;
+	conf->ipv4.enabled = 1;
+	conf->ipv6.family = AF_INET6;
+	conf->ipv6.enabled = 1;
+
+	return conf;
+}
+
+void
+ni_config_free(ni_config_t *conf)
+{
+	ni_extension_list_destroy(&conf->addrconf_extensions);
+	ni_extension_list_destroy(&conf->linktype_extensions);
+	free(conf);
+}
+
+ni_config_t *
+ni_config_parse(const char *filename)
+{
+	xml_document_t *doc;
+	xml_node_t *node;
+	ni_config_t *conf = NULL;
+
+	doc = xml_document_read(filename);
+	if (!doc) {
+		error("%s: error parsing configuration file", filename);
+		goto failed;
+	}
+
+	node = xml_node_get_child(doc->root, "config");
+	if (!node) {
+		error("%s: no <config> element", filename);
+		goto failed;
+	}
+
+	conf = ni_config_new();
+
+	conf->pidfile.mode = 0644;
+	conf->socket.mode = 0600;
+
+	if (ni_config_parse_afinfo(&conf->ipv4, "ipv4", node) < 0
+	 || ni_config_parse_afinfo(&conf->ipv6, "ipv6", node) < 0
+	 || ni_config_parse_fslocation(&conf->pidfile, "pidfile", node) < 0
+	 || ni_config_parse_fslocation(&conf->socket, "socket", node) < 0
+	 || ni_config_parse_fslocation(&conf->policy, "policy", node) < 0)
+		goto failed;
+
+	if (ni_config_parse_extensions(&conf->addrconf_extensions, node, "addrconf", ni_addrconf_name_to_type) < 0
+	 || ni_config_parse_extensions(&conf->linktype_extensions, node, "linktype", ni_linktype_name_to_type) < 0)
+		goto failed;
+
+	xml_document_free(doc);
+	return conf;
+
+failed:
+	if (conf)
+		ni_config_free(conf);
+	if (doc)
+		xml_document_free(doc);
+	return NULL;
+}
+
+int
+ni_config_parse_afinfo(ni_afinfo_t *afi, const char *afname, xml_node_t *node)
+{
+	/* No config data for this address family? use defaults. */
+	if (!(node = xml_node_get_child(node, afname)))
+		return 0;
+
+	if (xml_node_get_child(node, "enabled"))
+		afi->enabled = 1;
+	else if (xml_node_get_child(node, "disabled"))
+		afi->enabled = 0;
+
+	if (xml_node_get_child(node, "forwarding"))
+		afi->forwarding = 1;
+
+	return 0;
+}
+
+int
+ni_config_parse_fslocation(ni_config_fslocation_t *fsloc, const char *name, xml_node_t *node)
+{
+	const char *attrval;
+
+	if (!(node = xml_node_get_child(node, name)))
+		return 0;
+
+	if ((attrval = xml_node_get_attr(node, "path")) != NULL)
+		ni_string_dup(&fsloc->path, attrval);
+	if ((attrval = xml_node_get_attr(node, "mode")) != NULL)
+		ni_parse_int(attrval, &fsloc->mode);
+	return 0;
+}
+
+int
+ni_config_parse_extensions(ni_extension_t **list, xml_node_t *node, const char *exclass,
+				int (*map_type)(const char *))
+{
+	ni_extension_t *ex;
+	const char *attrval;
+	xml_node_t *child;
+
+	if (!(node = xml_node_get_child(node, exclass)))
+		return 0;
+
+	for (node = node->children; node; node = node->next) {
+		const char *name;
+		int type;
+
+		/*
+		 * <extension name="dhcp4" type="dhcp" family="ipv4">
+		 *  <pidfile path="/var/run/dhcpcd-%{@name}.pid"/>
+		 *  <start command="bla bla..."/>
+		 *  <stop command="bla bla..."/>
+		 *  ...
+		 * </extension>
+		 */
+		if (strcmp(node->name, "extension") != 0) {
+			error("cannot parse configuration: %s extension list "
+				"has unexpected child element <%s>", exclass, node->name);
+			return -1;
+		}
+
+		if (!(name = xml_node_get_attr(node, "name"))) {
+			error("cannot parse configuration: %s extension has no name attribute", exclass);
+			return -1;
+		}
+
+		if (!(attrval = xml_node_get_attr(node, "type"))) {
+			error("cannot parse configuration: %s extension %s has no type attribute", exclass, name);
+			return -1;
+		}
+		type = map_type(attrval);
+		if (type < 0) {
+			error("%s extension type %s not recognized (ignored)", exclass, attrval);
+			continue;
+		}
+
+		ex = ni_extension_new(list, name, type);
+
+		if ((attrval = xml_node_get_attr(node, "family")) != NULL) {
+			char *copy, *s;
+
+			copy = strdup(attrval);
+			for (s = strtok(copy, ","); s; s = strtok(NULL, ",")) {
+				if (!strcmp(s, "ipv4"))
+					ex->supported_af |= NI_AF_MASK_IPV4;
+				if (!strcmp(s, "ipv6"))
+					ex->supported_af |= NI_AF_MASK_IPV6;
+			}
+			free(copy);
+		} else {
+			/* Support everything */
+			ex->supported_af = ~0;
+		}
+
+		if ((child = xml_node_get_child(node, "pidfile")) != NULL
+		 && (attrval = xml_node_get_attr(child, "path")) != NULL) {
+			if (ni_config_parse_xpath(&ex->pid_file_path, attrval) < 0)
+				return -1;
+		}
+
+		if ((child = xml_node_get_child(node, "start")) != NULL
+		 && (attrval = xml_node_get_attr(child, "command")) != NULL) {
+			if (ni_config_parse_xpath(&ex->start_command, attrval) < 0)
+				return -1;
+		}
+
+		if ((child = xml_node_get_child(node, "stop")) != NULL
+		 && (attrval = xml_node_get_attr(child, "command")) != NULL) {
+			if (ni_config_parse_xpath(&ex->stop_command, attrval) < 0)
+				return -1;
+		}
+
+		for (child = node->children; child; child = child->next) {
+			xpath_format_t *fmt = NULL;
+
+			if (strcmp(child->name, "environment"))
+				continue;
+
+			if (!(attrval = xml_node_get_attr(child, "putenv"))) {
+				ni_error("environment element without putenv attribute");
+				return -1;
+			}
+			if (ni_config_parse_xpath(&fmt, attrval) < 0)
+				return -1;
+			xpath_format_array_append(&ex->environment, fmt);
+		}
+
+		if (!ex->start_command || !ex->stop_command) {
+			error("cannot parse configuration: %s extension %s has no start/stop commands",
+					exclass, ex->name);
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
+int
+ni_config_parse_xpath(xpath_format_t **varp, const char *expr)
+{
+	if (*varp)
+		xpath_format_free(*varp);
+	*varp = xpath_format_parse(expr);
+	if (*varp == NULL) {
+		error("cannot parse configuration: bad xpath expression \"%s\"", expr);
+		return -1;
+	}
+
+	return 0;
+}
+
+/*
+ * Extension handling
+ */
+ni_extension_t *
+ni_config_find_linktype_extension(ni_config_t *conf, int type)
+{
+	return ni_extension_list_find(conf->linktype_extensions, type, AF_UNSPEC);
+}
+
+ni_extension_t *
+ni_config_find_addrconf_extension(ni_config_t *conf, int type, int af)
+{
+	return ni_extension_list_find(conf->addrconf_extensions, type, af);
+}

@@ -1,0 +1,14 @@
+<interface type="bond" name="bond0">
+  <start mode="none"/>
+  <protocol family="ipv4">
+    <ip address="192.168.50.7" prefix="24"/>
+    <route gateway="192.168.50.1"/>
+  </protocol>
+  <bond mode="active-backup">
+    <arpmon interval="100" validate="active">
+     <target ip="192.168.50.1"/>
+    </arpmon>
+    <interface name="eth1"/>
+    <interface name="eth0"/>
+  </bond>
+</interface>

@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<FitnessCenter>
+    <Member>
+        <Name>Jeff</Name>
+        <FavoriteColor>lightgrey</FavoriteColor>
+    </Member>
+    <Member>
+        <Name>David</Name>
+        <FavoriteColor>lightblue</FavoriteColor>
+    </Member>
+    <Member>
+        <Name>Roger</Name>
+        <FavoriteColor>lightyellow</FavoriteColor>
+    </Member>
+    <Employee>
+        <Name>Erika</Name>
+    </Employee>
+    <Employee>
+        <Name>Linda</Name>
+    </Employee>
+    <CEO>
+        <Name>Jack</Name>
+    </CEO>
+    <VP>
+        <Name>Dora</Name>
+    </VP>
+</FitnessCenter>

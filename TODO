@@ -1,0 +1,74 @@
+
+ifconfig
+	- can we disable IPv6 on a device?
+	- create and configure wireless devices
+
+iflist
+	- Retrieve interface statistics
+
+netcf
+	- introduce <ethernet> element that encapsulates ethtool options
+
+overall
+	- add refresh_interface to ni_ops
+	- move syntax->base_dir to ni_handle->base_dir?
+
+config file
+	- specify which syntax to use for backend config
+
+extensions
+	- escape/reject shell metacharacters when expanding
+	  start/stop command
+	- improve dhcp start/stop script
+	- add dhcp6 client script
+
+events
+	- how to send events to a number of listeners without
+	  blocking on a SOCK_STREAM send?
+
+	  Use SOCK_DGRAM sockets. Listeners establish themselves
+	  by sending a LISTEN_ENABLE message to the server,
+	  which records the sender address.
+
+	  Any notifications are sent to all recorded listener addresses.
+	  If a send fails, the address is removed from the list
+	  of listeners.
+
+policy
+	- Current approach to automatic interface bring-up isn't
+	  really satisfactory yet. We introduce a second location
+	  for storing interface configuration, which is not good.
+	  Maybe create template interfaces instead?
+	- Add ACLs to individual REST nodes
+
+wicked
+	- introduce /config/resolver, /system/resolver
+	- fully support /config/hostname, /system/hostname
+
+	- implement incremental configuration changes
+	  such as adding/removing a single address, or
+	  adding/removing a single bridge port.
+
+	  PUT replaces node content, POST adds child element to
+	  node, DELETE deletes node
+
+	  Use xpath expressions to address which part
+	  of the configuration to change:
+
+	  * Add bridge port:
+		  POST /system/interface/ifname/bridge/ports
+		  (body contains <interface name="eth1">)
+
+	  * Remove bridge port:
+		  DELETE /system/interface/ifname/bridge/ports/interface[name = 'eth1']
+		  (body is empty)
+
+	  * Add address/route to interface
+		  POST /system/interface/ifname/protocol[family = 'ipv4']
+		  (body contains <address> and <route> elements)
+
+other link layers, totally unsupported as of yet
+	- wireless
+	- infiniband
+	- token ring
+	- isdn, ppp, slip

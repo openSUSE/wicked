@@ -1,0 +1,16 @@
+<interface type="ethernet" name="eth0">
+  <start mode="onboot"/>
+  <protocol family="ipv4">
+    <ip address="192.168.5.8" prefix="24"/>
+    <ip address="192.168.178.8" prefix="24"/>
+    <ip address="192.168.178.8" prefix="24"/>
+    <route gateway="192.168.178.1"/>
+  </protocol>
+</interface>
+<interface type="loopback" name="lo">
+  <start mode="onboot"/>
+  <protocol family="ipv4">
+    <ip address="127.0.0.1" prefix="32"/>
+    <ip address="127.0.0.2" prefix="8"/>
+  </protocol>
+</interface>

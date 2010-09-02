@@ -1,0 +1,16 @@
+*~
+*.swp
+*.o
+*.a
+*.lo
+*.la
+*.so
+*.so.*
+.depend
+test
+xml-test
+xpath-test
+core
+tags
+wicked
+wickedd

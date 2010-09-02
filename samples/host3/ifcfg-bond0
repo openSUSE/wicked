@@ -1,0 +1,6 @@
+STARTMODE=manual
+BOOTPROTO="static"
+IPADDR="192.168.50.7/24"
+BONDING_SLAVE_0=eth0
+BONDING_SLAVE_1=eth1
+BONDING_MODULE_OPTS='mode=active-backup primary=eth1 arp_interval=100 arp_ip_target=192.168.50.1 arp_validate=active'
