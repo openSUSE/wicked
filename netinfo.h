@@ -380,6 +380,7 @@ extern unsigned int	ni_address_length(int af);
 extern int		ni_address_can_reach(const ni_address_t *laddr, const struct sockaddr_storage *gw);
 extern int		ni_address_is_loopback(const ni_address_t *laddr);
 extern unsigned int	ni_netmask_bits(const struct sockaddr_storage *mask);
+extern int		ni_build_netmask(int, unsigned int, struct sockaddr_storage *);
 extern int		ni_address_equal(const struct sockaddr_storage *, const struct sockaddr_storage *);
 extern int		__ni_address_info(int, unsigned int *, unsigned int *);
 extern int		__ni_address_probably_dynamic(const ni_afinfo_t *, const ni_address_t *);

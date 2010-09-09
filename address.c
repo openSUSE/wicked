@@ -341,6 +341,28 @@ ni_netmask_bits(const struct sockaddr_storage *mask)
 }
 
 int
+ni_build_netmask(int af, unsigned int prefix_len, struct sockaddr_storage *mask)
+{
+	unsigned int	offset, len, i, bits;
+	unsigned char	*raw;
+
+	memset(mask, 0, sizeof(*mask));
+	mask->ss_family = af;
+
+	if (!__ni_address_info(af, &offset, &len))
+		return -1;
+
+	raw = &((unsigned char *) mask)[offset];
+	for (i = 0; i < len && prefix_len != 0; ++i) {
+		bits = (prefix_len < 8)? prefix_len : 8;
+		*raw++ = 0xFF00 >> bits;
+		prefix_len -= bits;
+	}
+
+	return prefix_len? -1 : 0;
+}
+
+int
 ni_link_address_format(const ni_hwaddr_t *hwa, char *abuf, size_t len)
 {
 	unsigned int i, j;
