@@ -6,6 +6,8 @@
 #ifndef __NETINFO_TYPES_H__
 #define __NETINFO_TYPES_H__
 
+#include <stdint.h>
+
 /*
  * These are used by the XML and XPATH code.
  */
@@ -33,5 +35,10 @@ typedef struct ni_policy_info {
 	xml_document_t *	document;
 	ni_policy_t *		event_policies;
 } ni_policy_info_t;
+
+typedef union ni_uuid {
+	unsigned char		octets[16];
+	uint32_t		words[4];
+} ni_uuid_t;
 
 #endif /* __NETINFO_TYPES_H__ */

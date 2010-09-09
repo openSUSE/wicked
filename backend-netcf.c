@@ -98,6 +98,15 @@ __ni_netcf_xml_to_interface(ni_syntax_t *syntax, ni_handle_t *nih, xml_node_t *i
 		}
 	}
 
+	/* netcf source code claims there's support for a uuid element, but
+	 * I can't see how it's handled. */
+	if ((node = xml_node_get_child(ifnode, "uuid")) != NULL) {
+		if (ni_uuid_parse(&ifp->uuid, node->cdata) < 0) {
+			error("%s: cannot parse uuid", ifp->name);
+			return NULL;
+		}
+	}
+
 	/* Variant netcf */
 	if (!syntax->strict && (node = xml_node_get_child(ifnode, "status")) != NULL) {
 		if ((attrval = xml_node_get_attr(node, "link")) && !strcmp(attrval, "up"))
@@ -542,6 +551,11 @@ __ni_netcf_xml_from_interface(ni_syntax_t *syntax, ni_handle_t *nih,
 	ifnode = xml_node_new("interface", parent);
 	xml_node_add_attr(ifnode, "type", __ni_netcf_get_iftype(ifp));
 	xml_node_add_attr(ifnode, "name", ifp->name);
+
+	if (!ni_uuid_is_null(&ifp->uuid)) {
+		node = xml_node_new("uuid", ifnode);
+		xml_node_set_cdata(node, ni_uuid_print(&ifp->uuid));
+	}
 
 	/* Variant netcf */
 	if (!syntax->strict && ifp->flags) {

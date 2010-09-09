@@ -668,3 +668,72 @@ ni_copy_file(FILE *src, FILE *dst)
 	return 0;
 }
 
+/*
+ * Utility functions for handling uuids
+ */
+const char *
+ni_uuid_print(const ni_uuid_t *uuid)
+{
+	static char buffer[64];
+	const unsigned char *p;
+
+	if (!uuid)
+		return NULL;
+	if (ni_uuid_is_null(uuid))
+		return "";
+
+	p = uuid->octets;
+	snprintf(buffer, sizeof(buffer),
+		"%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-"
+		"%02x%02x%02x%02x%02x%02x",
+		p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8], p[9],
+		p[10], p[11], p[12], p[13], p[14], p[15]);
+	return buffer;
+}
+
+int
+ni_uuid_parse(ni_uuid_t *uuid, const char *string)
+{
+	unsigned int nibbles = 0;
+	uint32_t word = 0;
+
+	if (string == NULL)
+		return -1;
+	if (*string == 0) {
+		memset(uuid, 0, sizeof(uuid));
+		return 0;
+	}
+
+	while (*string) {
+		char cc = tolower(*string++);
+
+		if (nibbles == 32)
+			return -1;
+
+		if (isdigit(cc)) {
+			word = (word << 4) | (cc - '0');
+		} else if ('a' <= cc && cc <= 'f') {
+			word = (word << 4) | (cc - 'a' + 10);
+		} else {
+			return -1;
+		}
+		++nibbles;
+
+		if (nibbles == 8) {
+			uuid->words[nibbles / 8] = word;
+			if (*string == '-' || *string == ':')
+				++string;
+		}
+	}
+
+	if (nibbles < 32)
+		return -1;
+	return 0;
+}
+
+int
+ni_uuid_is_null(const ni_uuid_t *uuid)
+{
+	return uuid->words[0] == 0 && uuid->words[1] == 0 && uuid->words[2] == 0 && uuid->words[3] == 0;
+}
+

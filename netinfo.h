@@ -158,6 +158,8 @@ typedef struct ni_interface {
 	struct ni_interface *	next;
 	unsigned int		seq;
 
+	ni_uuid_t		uuid;
+
 	unsigned int		users;
 
 	char *			name;
