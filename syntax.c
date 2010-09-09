@@ -10,12 +10,18 @@
 #include <limits.h>
 
 #include "netinfo_priv.h"
+#include "config.h"
 #include "xml.h"
 
 ni_syntax_t *
 ni_syntax_new(const char *schema, const char *base_path)
 {
-	/* Make this a compile time option */
+	if (!schema) {
+		schema = ni_global.config->default_syntax;
+		if (schema && !base_path)
+			base_path = ni_global.config->default_syntax_path;
+	}
+
 	if (!schema) {
 		if (ni_file_exists("/etc/SuSE-release"))
 			schema = "suse";

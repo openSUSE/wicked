@@ -6,6 +6,15 @@
     <enabled/>
   </ipv6>
 
+  <!-- Define where network configuration is stored, and in what format.
+       Currently supported are
+         suse		sysconfig-based, usually /etc/sysconfig/network
+         redhat		sysconfig-based, usually /etc/sysconfig/network
+	 netcf-strict	strict netcf syntax, /etc/sysconfig/network/all.xml
+	 netcf		enriched netcf syntax, /etc/sysconfig/network/all.xml
+   -->
+  <syntax name="suse" path="/etc/sysconfig/network"/>
+
   <pidfile path="/var/run/wicked.pid" mode="0644"/>
   <socket path="/var/run/wicked.sock" mode="0600"/>
   <policy path="/etc/wicked/policy.xml"/>

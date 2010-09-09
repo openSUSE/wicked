@@ -41,6 +41,8 @@ ni_config_free(ni_config_t *conf)
 {
 	ni_extension_list_destroy(&conf->addrconf_extensions);
 	ni_extension_list_destroy(&conf->linktype_extensions);
+	ni_string_free(&conf->default_syntax);
+	ni_string_free(&conf->default_syntax_path);
 	free(conf);
 }
 
@@ -48,7 +50,7 @@ ni_config_t *
 ni_config_parse(const char *filename)
 {
 	xml_document_t *doc;
-	xml_node_t *node;
+	xml_node_t *node, *child;
 	ni_config_t *conf = NULL;
 
 	doc = xml_document_read(filename);
@@ -74,6 +76,17 @@ ni_config_parse(const char *filename)
 	 || ni_config_parse_fslocation(&conf->socket, "socket", node) < 0
 	 || ni_config_parse_fslocation(&conf->policy, "policy", node) < 0)
 		goto failed;
+
+	child = xml_node_get_child(node, "backend");
+	if (child) {
+		const char *attrval;
+
+		if ((attrval = xml_node_get_attr(child, "schema")) != NULL)
+			ni_string_dup(&conf->default_syntax, attrval);
+		if ((attrval = xml_node_get_attr(child, "path")) != NULL)
+			ni_string_dup(&conf->default_syntax_path, attrval);
+	}
+
 
 	if (ni_config_parse_extensions(&conf->addrconf_extensions, node, "addrconf", ni_addrconf_name_to_type) < 0
 	 || ni_config_parse_extensions(&conf->linktype_extensions, node, "linktype", ni_linktype_name_to_type) < 0)
