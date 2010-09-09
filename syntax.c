@@ -16,14 +16,23 @@ ni_syntax_t *
 ni_syntax_new(const char *schema, const char *base_path)
 {
 	/* Make this a compile time option */
-	if (!schema)
-		schema = "suse";
+	if (!schema) {
+		if (ni_file_exists("/etc/SuSE-release"))
+			schema = "suse";
+		else if (ni_file_exists("/etc/redhat-release"))
+			schema = "redhat";
+		else {
+			ni_error("Unable to determine default schema");
+			return NULL;
+		}
+	}
 
 	if (!strcasecmp(schema, "suse"))
 		return __ni_syntax_sysconfig_suse(base_path);
 	if (!strcasecmp(schema, "netcf"))
 		return __ni_syntax_netcf(base_path);
 
+	ni_error("schema \"%s\" not supported", schema);
 	return NULL;
 }
 
