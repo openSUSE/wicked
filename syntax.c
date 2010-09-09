@@ -29,6 +29,8 @@ ni_syntax_new(const char *schema, const char *base_path)
 
 	if (!strcasecmp(schema, "suse"))
 		return __ni_syntax_sysconfig_suse(base_path);
+	if (!strcasecmp(schema, "redhat"))
+		return __ni_syntax_sysconfig_redhat(base_path);
 	if (!strcasecmp(schema, "netcf"))
 		return __ni_syntax_netcf(base_path);
 	if (!strcasecmp(schema, "netcf-strict"))

@@ -28,6 +28,7 @@ LIBSRCS	= \
 	  libnetlink.c \
 	  syntax.c \
 	  backend-suse.c \
+	  backend-redhat.c \
 	  backend-netcf.c \
 	  xml.c \
 	  xml-reader.c \

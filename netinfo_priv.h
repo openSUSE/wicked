@@ -80,6 +80,7 @@ extern int		__ni_system_interface_delete(ni_handle_t *, const char *);
 extern int		__ni_rtevent_refresh_all(ni_handle_t *);
 
 extern ni_syntax_t *	__ni_syntax_sysconfig_suse(const char *pathname);
+extern ni_syntax_t *	__ni_syntax_sysconfig_redhat(const char *pathname);
 extern ni_syntax_t *	__ni_syntax_netcf(const char *pathname);
 extern ni_syntax_t *	__ni_syntax_netcf_strict(const char *pathname);
 
