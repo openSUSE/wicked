@@ -46,6 +46,7 @@ struct ni_ops {
 struct ni_syntax {
 	const char *		schema;
 	char *			base_path;
+	unsigned char		strict;
 
 	int			(*parse_all)(ni_syntax_t *, ni_handle_t *);
 	int			(*parse_all_from_file)(ni_syntax_t *, ni_handle_t *, const char *);
@@ -80,6 +81,7 @@ extern int		__ni_rtevent_refresh_all(ni_handle_t *);
 
 extern ni_syntax_t *	__ni_syntax_sysconfig_suse(const char *pathname);
 extern ni_syntax_t *	__ni_syntax_netcf(const char *pathname);
+extern ni_syntax_t *	__ni_syntax_netcf_strict(const char *pathname);
 
 /*
  * Retain warn() error() etc as shorthand for now

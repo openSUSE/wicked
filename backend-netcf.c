@@ -68,6 +68,16 @@ __ni_syntax_netcf(const char *pathname)
 	return syntax;
 }
 
+ni_syntax_t *
+__ni_syntax_netcf_strict(const char *pathname)
+{
+	ni_syntax_t *syntax;
+
+	syntax = __ni_syntax_netcf(pathname);
+	syntax->strict = 1;
+	return syntax;
+}
+
 ni_interface_t *
 __ni_netcf_xml_to_interface(ni_syntax_t *syntax, ni_handle_t *nih, xml_node_t *ifnode)
 {
@@ -88,8 +98,8 @@ __ni_netcf_xml_to_interface(ni_syntax_t *syntax, ni_handle_t *nih, xml_node_t *i
 		}
 	}
 
-	/* XXX: extension */
-	if ((node = xml_node_get_child(ifnode, "status")) != NULL) {
+	/* Variant netcf */
+	if (!syntax->strict && (node = xml_node_get_child(ifnode, "status")) != NULL) {
 		if ((attrval = xml_node_get_attr(node, "link")) && !strcmp(attrval, "up"))
 			ifp->flags |= IFF_LOWER_UP;
 		if ((attrval = xml_node_get_attr(node, "network")) && !strcmp(attrval, "up"))
@@ -337,8 +347,10 @@ __ni_netcf_xml_to_bonding(ni_syntax_t *syntax, ni_handle_t *nih,
 		return -1;
 	}
 
+	ni_string_free(&bonding->primary);
 	for (child = bdnode->children; child; child = child->next) {
 		const char *ifname;
+		int primary = 0;
 
 		if (strcmp(child->name, "interface"))
 			continue;
@@ -348,8 +360,11 @@ __ni_netcf_xml_to_bonding(ni_syntax_t *syntax, ni_handle_t *nih,
 			return -1;
 		}
 
-		if (bonding->primary == NULL)
+		if (__ni_netcf_get_boolean_attr(child, "primary", &primary) >= 0 && primary) {
+			if (bonding->primary != NULL)
+				ni_warn("oops, XML definition specifies more than one primary slave");
 			ni_string_dup(&bonding->primary, ifname);
+		}
 		ni_bonding_add_slave(bonding, ifname);
 	}
 
@@ -419,6 +434,18 @@ __ni_netcf_xml_to_static_ifcfg(ni_syntax_t *syntax, ni_handle_t *nih,
 		/* Check if there's a peer address */
 		if (__ni_netcf_xml_to_address(node, af, "peer", &ap->peer_addr, NULL, NULL))
 			return -1;
+
+		/* strict netcf transports the default gateway as an attribute of the address element */
+		if (syntax->strict) {
+			struct sockaddr_storage gw_addr;
+
+			memset(&gw_addr, 0, sizeof(gw_addr));
+			if (__ni_netcf_xml_to_address(node, af, "gateway", &gw_addr, NULL, NULL))
+				return -1;
+
+			if (gw_addr.ss_family != AF_UNSPEC)
+				ni_interface_add_route(nih, ifp, ap->prefixlen, &ap->local_addr, &gw_addr);
+		}
 	}
 
 	for (node = protnode->children; node; node = node->next) {
@@ -455,6 +482,12 @@ __ni_netcf_xml_to_dhcp(ni_syntax_t *syntax, ni_handle_t *nih,
 {
 	xml_node_t *child;
 	const char *attrval;
+
+	if (syntax->strict) {
+		/* strict netcf only allows peerdns="yes" so far */
+		__ni_netcf_get_boolean_attr(dhnode, "peerdns", &dhcp->update.resolver);
+		return 0;
+	}
 
 	if ((child = xml_node_get_child(dhnode, "lease")) != NULL) {
 		if ((attrval = xml_node_get_attr(child, "timeout")) != NULL) {
@@ -510,8 +543,8 @@ __ni_netcf_xml_from_interface(ni_syntax_t *syntax, ni_handle_t *nih,
 	xml_node_add_attr(ifnode, "type", __ni_netcf_get_iftype(ifp));
 	xml_node_add_attr(ifnode, "name", ifp->name);
 
-	/* XXX: extension */
-	if (ifp->flags) {
+	/* Variant netcf */
+	if (!syntax->strict && ifp->flags) {
 		node = xml_node_new("status", ifnode);
 
 		xml_node_add_attr(node, "link",
@@ -550,7 +583,7 @@ __ni_netcf_xml_from_interface(ni_syntax_t *syntax, ni_handle_t *nih,
  * Build XML structure for a given slave interface (eg the ethernet device
  * unterlying a VLAN device)
  */
-static int
+static xml_node_t *
 __ni_netcf_xml_from_slave_interface(const char *slave_name, xml_node_t *parent)
 {
 	xml_node_t *ifnode;
@@ -558,7 +591,7 @@ __ni_netcf_xml_from_slave_interface(const char *slave_name, xml_node_t *parent)
 	ifnode = xml_node_new("interface", parent);
 	xml_node_add_attr(ifnode, "name", slave_name);
 
-	return 0;
+	return ifnode;
 }
 
 /*
@@ -588,7 +621,7 @@ __ni_netcf_xml_from_address_config(ni_syntax_t *syntax, ni_handle_t *nih,
 		break;
 
 	case NI_ADDRCONF_DHCP:
-	case NI_ADDRCONF_IBFT: /* XXX extension */
+	case NI_ADDRCONF_IBFT: /* Variant netcf */
 		node = xml_node_new("protocol", ifnode);
 		xml_node_add_attr(node, "family", afname);
 
@@ -632,6 +665,16 @@ __ni_netcf_xml_from_static_ifcfg(ni_syntax_t *syntax, ni_handle_t *nih,
 			xml_node_add_attr(addrnode, "peer", ni_address_print(&ap->peer_addr));
 		xml_node_add_attr_uint(addrnode, "prefix", ap->prefixlen);
 
+		if (syntax->strict) {
+			/* strict netcf only understands default gateway attrs */
+			for (rp = ifp->routes; rp; rp = rp->next) {
+				if (rp->family == af && rp->destination.ss_family == AF_UNSPEC) {
+					xml_node_add_attr(addrnode, "gateway", ni_address_print(&rp->gateway));
+					break;
+				}
+			}
+		}
+
 		for (rp = nih->routes; rp; rp = rp->next) {
 			// FIXME: this check works for IPv4 only;
 			// IPv6 routing is different.
@@ -640,7 +683,8 @@ __ni_netcf_xml_from_static_ifcfg(ni_syntax_t *syntax, ni_handle_t *nih,
 		}
 	}
 
-	if (protnode) {
+	if (!syntax->strict && protnode) {
+		/* variant netcf can express a richer variety of IP routes */
 		for (rp = ifp->routes; rp; rp = rp->next) {
 			if (rp->family == af)
 				__ni_netcf_xml_from_route(rp, protnode);
@@ -735,15 +779,13 @@ __ni_netcf_xml_from_bonding(ni_syntax_t *syntax, ni_handle_t *nih,
 		assert(0);
 	}
 
-	/* The primary interface is listed first in netcf.
-	 * So much for XML... */
-	if (bonding->primary)
-		__ni_netcf_xml_from_slave_interface(bonding->primary, bdnode);
 	for (i = 0; i < bonding->slave_names.count; ++i) {
 		const char *slave_name = bonding->slave_names.data[i];
+		xml_node_t *slave_node;
 
-		if (!bonding->primary || strcmp(bonding->primary, slave_name))
-			__ni_netcf_xml_from_slave_interface(slave_name, bdnode);
+		slave_node = __ni_netcf_xml_from_slave_interface(slave_name, bdnode);
+		if (bonding->primary && !strcmp(bonding->primary, slave_name))
+			xml_node_add_attr(slave_node, "primary", "yes");
 	}
 }
 
@@ -778,6 +820,13 @@ __ni_netcf_xml_from_dhcp(ni_syntax_t *syntax, ni_handle_t *nih,
 	dhnode = xml_node_new("dhcp", proto_node);
 	if (dhcp == NULL)
 		return;
+
+	if (syntax->strict) {
+		/* strict netcf only allows peerdns="yes" so far */
+		if (dhcp->update.resolver)
+			xml_node_add_attr(dhnode, "peerdns", "yes");
+		return;
+	}
 
 	if (dhcp->lease.timeout || dhcp->lease.reuse_unexpired || dhcp->lease.release_on_exit) {
 		child = xml_node_new("lease", dhnode);
@@ -992,9 +1041,9 @@ __ni_netcf_get_boolean_attr(xml_node_t *node, const char *attrname, int *var)
 	if (!(attrval = xml_node_get_attr(node, attrname)))
 		return -1;
 
-	if (!strcmp(attrval, "on"))
+	if (!strcmp(attrval, "on") || !strcmp(attrval, "yes"))
 		*var = 1;
-	else if (!strcmp(attrval, "off"))
+	else if (!strcmp(attrval, "off") || !strcmp(attrval, "no"))
 		*var = 0;
 	else
 		error("unexpected boolean value <%s %s=\"%s\"> ignored",

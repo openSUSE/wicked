@@ -31,6 +31,8 @@ ni_syntax_new(const char *schema, const char *base_path)
 		return __ni_syntax_sysconfig_suse(base_path);
 	if (!strcasecmp(schema, "netcf"))
 		return __ni_syntax_netcf(base_path);
+	if (!strcasecmp(schema, "netcf-strict"))
+		return __ni_syntax_netcf_strict(base_path);
 
 	ni_error("schema \"%s\" not supported", schema);
 	return NULL;
