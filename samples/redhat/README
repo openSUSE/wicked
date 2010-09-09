@@ -1,0 +1,15 @@
+These files define the following interfaces:
+
+bond0
+  eth1
+  eth2
+
+br0
+  eth0
+
+lo
+
+eth3 (ifcfg-by-device; used to check that we can lookup by DEVICE=)
+
+eth4 (ifcfg-by-hwaddr, ifcfg-by-hwaddr-decoy; used to check that
+      we can lookup by HWADDR=)

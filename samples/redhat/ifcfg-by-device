@@ -1,0 +1,5 @@
+# This file is used to check that we look up properly by DEVICE
+# even if the filename is not ifcfg-$DEVICE
+DEVICE=eth3
+ONBOOT=yes
+BOOTPROTO=dhcp

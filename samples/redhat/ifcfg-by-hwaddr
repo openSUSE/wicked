@@ -1,0 +1,7 @@
+# This file is used to check that we look up by HWADDR
+# The file ifcfg-by-hwaddr-decoy has another config for eth4,
+# but the wrong HWADDR
+DEVICE=eth4
+HWADDR=00:00:00:00:00:01
+ONBOOT=yes
+BOOTPROTO=dhcp

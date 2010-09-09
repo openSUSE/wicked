@@ -1,0 +1,5 @@
+# See ifcfg-by-hwaddr
+DEVICE=eth4
+HWADDR=00:00:00:00:00:02
+ONBOOT=no
+BOOTPROTO=dhcp

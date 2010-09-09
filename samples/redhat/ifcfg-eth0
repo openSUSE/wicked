@@ -1,0 +1,5 @@
+# Intel Corporation 82566DM-2 Gigabit Network Connection
+DEVICE=eth0
+HWADDR=00:1c:c0:89:dd:01
+ONBOOT=yes
+BRIDGE=br0
