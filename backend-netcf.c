@@ -254,6 +254,7 @@ __ni_netcf_xml_to_bridge(ni_syntax_t *syntax, ni_handle_t *nih,
 		error("bridge interface %s: bridge element lacks stp attribute", ifp->name);
 		return -1;
 	}
+	xml_node_get_attr_uint(brnode, "forward-delay", &bridge->forward_delay);
 
 	for (child = brnode->children; child; child = child->next) {
 		const char *ifname;
@@ -742,7 +743,11 @@ __ni_netcf_xml_from_bridge(ni_syntax_t *syntax, ni_handle_t *nih,
 
 	brnode = xml_node_new("bridge", ifnode);
 	xml_node_add_attr(brnode, "stp", __ni_netcf_get_boolean(bridge->stp_enabled));
+	xml_node_add_attr_uint(brnode, "forward-delay", bridge->forward_delay);
 
+	/* FIXME: strict netcf now wants to represent a VLAN port as
+	 *  <vlan tag="..."><interface ../></vlan>
+	 */
 	for (i = 0; i < bridge->port_names.count; ++i)
 		__ni_netcf_xml_from_slave_interface(bridge->port_names.data[i], brnode);
 }
