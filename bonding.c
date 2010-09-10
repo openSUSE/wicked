@@ -162,7 +162,7 @@ __ni_bonding_set_module_option_mode(ni_bonding_t *bonding, char *value)
 {
 	/* When we parse /sys/net/class/<ifname>/bonding/mode, we end up
 	 * with "balance-rr 0" or similar; strip off the int value */
-	value = strtok(value, " \t\n");
+	value[strcspn(value, " \t\n")] = '\0';
 	return ni_parse_int_mapped(value, __bonding_mode, &bonding->mode);
 }
 
@@ -188,7 +188,7 @@ __ni_bonding_set_module_option_arp_validate(ni_bonding_t *bonding, char *value)
 {
 	/* When we parse /sys/net/class/<ifname>/bonding/arp_validate, we end up
 	 * with "none 0" or similar; strip off the int value */
-	value = strtok(value, " \t\n");
+	value[strcspn(value, " \t\n")] = '\0';
 	return ni_parse_int_mapped(value, __arp_validate, &bonding->arpmon.validate);
 }
 
@@ -230,9 +230,9 @@ ni_bonding_parse_module_attribute(ni_bonding_t *bonding, const char *attr, char 
 		if (ni_parse_int(value, &bonding->arpmon.interval) < 0)
 			return -1;
 	} else if (!strcmp(attr, "arp_ip_target")) {
-		char *s;
+		char *s, *saveptr = NULL;
 
-		for (s = strtok(value, ","); s; s = strtok(NULL, ",")) {
+		for (s = strtok_r(value, ",", &saveptr); s; s = strtok_r(NULL, ",", &saveptr)) {
 			struct in_addr dummy;
 
 			if (inet_aton(value, &dummy) == 0)
@@ -327,14 +327,14 @@ ni_bonding_format_module_attribute(const ni_bonding_t *bonding, const char *attr
 void
 ni_bonding_parse_module_options(ni_bonding_t *bonding)
 {
-	char *temp, *s, *t;
+	char *temp, *s, *t, *saveptr = NULL;
 
 	ni_bonding_clear(bonding);
 	if (!bonding->module_opts)
 		return;
 
 	temp = strdup(bonding->module_opts);
-	for (s = strtok(temp, " \t"); s; s = strtok(NULL, " \t")) {
+	for (s = strtok_r(temp, " \t", &saveptr); s; s = strtok_r(NULL, " \t", &saveptr)) {
 		int rv;
 
 		if ((t = strchr(s, '=')) == NULL) {
