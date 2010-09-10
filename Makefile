@@ -1,13 +1,19 @@
 
-CFLAGS	= -Wall -g -O2 -D_GNU_SOURCE -I.
+CFLAGS	= -Wall -g -O2 -D_GNU_SOURCE -I. -Iinclude/wicked
 
 APPS	= wicked wickedd testing/xml-test testing/xpath-test
 
 TGTLIBS	= libnetinfo.a \
 	  # libnetinfo.so
-SRCS	= $(LIBSRCS) \
-	  $(addsuffix .c,$(APPS))
-LIBSRCS	= \
+# Public header files
+LIBHDRS	= logging.h \
+	  netinfo.h \
+	  types.h \
+	  util.h \
+	  wicked.h \
+	  xml.h \
+	  xpath.h
+__LIBSRCS= \
 	  config.c \
 	  rest-api.c \
 	  extension.c \
@@ -38,14 +44,18 @@ LIBSRCS	= \
 	  util.c \
 	  socket.c \
 	  logging.c
-LIBOBJS	= $(addprefix obj/,$(LIBSRCS:.c=.o))
-SHLIBOBJS= $(addprefix obj-shared/,$(LIBSRCS:.c=.o))
+
+OBJ	= obj
+LIBSRCS	= $(addprefix src/,$(__LIBSRCS))
+LIBOBJS	= $(addprefix $(OBJ)/lib/,$(__LIBSRCS:.c=.o))
+SHLIBOBJS= $(addprefix $(OBJ)/shlib/,$(__LIBSRCS:.c=.o))
+APPSRCS	= $(addsuffix .c,$(APPS))
 
 all: $(TGTLIBS) $(APPS)
 
 distclean clean::
-	rm -f *.o *.a $(APPS) core .depend tags
-	rm -rf obj obj-shared
+	rm -f *.o *.a *.so $(APPS) core tags
+	rm -rf $(OBJ)
 	rm -f testing/*.o
 
 distclean::
@@ -60,14 +70,14 @@ install-files:
 	install -m 644 etc/wicked/*.xml $(DESTDIR)/etc/wicked
 	install -m 555 etc/wicked/wicked-dhcp4 $(DESTDIR)/etc/wicked
 
-wicked: obj/wicked.o $(TGTLIBS)
-	$(CC) -o $@ $(CFLAGS) obj/wicked.o -L. -lnetinfo
+wicked: $(OBJ)/wicked.o $(TGTLIBS)
+	$(CC) -o $@ $(CFLAGS) $(OBJ)/wicked.o -L. -lnetinfo
 
-wickedd: obj/wickedd.o $(TGTLIBS)
-	$(CC) -o $@ $(CFLAGS) obj/wickedd.o -L. -lnetinfo
+wickedd: $(OBJ)/wickedd.o $(TGTLIBS)
+	$(CC) -o $@ $(CFLAGS) $(OBJ)/wickedd.o -L. -lnetinfo
 
-test: obj/test.o $(TGTLIBS)
-	$(CC) -o $@ $(CFLAGS) obj/test.o -L. -lnetinfo
+test: $(OBJ)/test.o $(TGTLIBS)
+	$(CC) -o $@ $(CFLAGS) $(OBJ)/test.o -L. -lnetinfo
 
 testing/xml-test: testing/xml-test.o $(TGTLIBS)
 	$(CC) -o $@ $(CFLAGS) testing/xml-test.o -L. -lnetinfo
@@ -82,14 +92,19 @@ libnetinfo.so: $(SHLIBOBJS)
 	$(CC) $(CFLAGS) -shared -o $@ $(SHLIBOBJS)
 
 depend:
-	gcc $(CFLAGS) -M $(SRCS) | sed 's:^[a-z]:obj/&:' > .depend
+	gcc $(CFLAGS) -M $(LIBSRCS) | sed 's:^[a-z]:$(OBJ)/lib/&:' > .depend
+	gcc $(CFLAGS) -M $(APPSRCS) | sed 's:^[a-z]:$(OBJ)/&:' >> .depend
 
-obj/%.o: %.c
-	@test -d obj || mkdir -p obj
+$(OBJ)/lib/%.o: src/%.c
+	@test -d $(dir $@) || mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-obj-shared/%.o: %.c
-	@test -d obj-shared || mkdir -p obj-shared
+$(OBJ)/%.o: %.c
+	@test -d $(dir $@) || mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+$(OBJ)/shlib/%.o: src/%.c
+	@test -d $(dir $@) || mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -fPIC -c -o $@ $<
 
 -include .depend
