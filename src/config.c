@@ -7,9 +7,10 @@
 #include <string.h>
 #include <assert.h>
 #include <ctype.h>
+
+#include <wicked/xpath.h>
 #include "netinfo_priv.h"
 #include "config.h"
-#include "xpath.h"
 
 
 static int		ni_config_parse_afinfo(ni_afinfo_t *, const char *, xml_node_t *);

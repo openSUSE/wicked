@@ -49,9 +49,12 @@
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
-#include "netinfo_priv.h"
-#include "xml.h"
-#include "xpath.h"
+
+#include <wicked/xml.h>
+#include <wicked/logging.h>
+#include <wicked/xml.h>
+#include <wicked/xpath.h>
+
 
 typedef struct xpath_fnode {
 	ni_stringbuf_t		before;
@@ -97,7 +100,7 @@ xpath_format_parse(const char *format)
 			while (1) {
 				cc = *sf++;
 				if (!cc) {
-					error("xpath: bad format string, unclosed %%{...} format");
+					ni_error("xpath: bad format string, unclosed %%{...} format");
 					goto failed;
 				}
 				if (cc == '}')
@@ -106,7 +109,7 @@ xpath_format_parse(const char *format)
 			}
 
 			if (ni_stringbuf_empty(&cur->expression)) {
-				error("xpath: empty %%{} in format string");
+				ni_error("xpath: empty %%{} in format string");
 				goto failed;
 			} else {
 				cur->enode = xpath_expression_parse(cur->expression.string);
@@ -157,7 +160,7 @@ xpath_format_eval(xpath_format_t *pieces, xml_node_t *xn, ni_string_array_t *res
 
 			fnode->result = result = xpath_expression_eval(fnode->enode, xn);
 			if (!result) {
-				error("xpathfmt: error evaluation expression \"%s\"",
+				ni_error("xpathfmt: error evaluation expression \"%s\"",
 						fnode->expression.string);
 				return 0;
 			}
@@ -169,7 +172,7 @@ xpath_format_eval(xpath_format_t *pieces, xml_node_t *xn, ni_string_array_t *res
 				num_expansions = fnode->result->count;
 			} else
 			if (num_expansions != fnode->result->count) {
-				error("xpathfmt: problem evaluating expression \"%s\" - inconsistent item count",
+				ni_error("xpathfmt: problem evaluating expression \"%s\" - inconsistent item count",
 						fnode->expression.string);
 				return 0;
 			}

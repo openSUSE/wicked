@@ -26,8 +26,8 @@
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
-#include "types.h"
-#include "xml.h"
+#include <wicked/types.h>
+#include <wicked/xml.h>
 
 typedef enum xpath_node_type {
 	XPATH_VOID = 0,

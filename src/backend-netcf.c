@@ -9,9 +9,12 @@
 #include <dirent.h>
 #include <arpa/inet.h>
 #include <net/if_arp.h>
+
+#include <wicked/netinfo.h>
+#include <wicked/xml.h>
+
 #include "netinfo_priv.h"
 #include "kernel.h"
-#include "xml.h"
 
 static ni_interface_t *	__ni_netcf_xml_to_interface(ni_syntax_t *, ni_handle_t *, xml_node_t *);
 static int		__ni_netcf_xml_to_vlan(ni_syntax_t *, ni_handle_t *,

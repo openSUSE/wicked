@@ -16,8 +16,8 @@
 #include <fcntl.h>
 #include <errno.h>
 
-#include "netinfo_priv.h"
-#include "util.h"
+#include <wicked/util.h>
+#include <wicked/logging.h>
 
 static int	__ni_pidfile_write(const char *, unsigned int, pid_t, int);
 
@@ -507,16 +507,16 @@ ni_daemonize(const char *pidfile, unsigned int permissions)
 			return -1;
 
 		if (pid > 0) {
-			error("cannot create pidfile %s: service already running", pidfile);
+			ni_error("cannot create pidfile %s: service already running", pidfile);
 			return -1;
 		}
 
 		if (access(pidfile, F_OK) == 0) {
 			if (unlink(pidfile) < 0) {
-				error("cannot remove stale pidfile %s: %m", pidfile);
+				ni_error("cannot remove stale pidfile %s: %m", pidfile);
 				return -1;
 			}
-			warn("removing stale pidfile %s", pidfile);
+			ni_warn("removing stale pidfile %s", pidfile);
 		}
 	}
 
@@ -525,7 +525,7 @@ ni_daemonize(const char *pidfile, unsigned int permissions)
 
 	pid = fork();
 	if (pid < 0) {
-		error("unable to fork: %m");
+		ni_error("unable to fork: %m");
 		return -1;
 	}
 
@@ -538,7 +538,7 @@ ni_daemonize(const char *pidfile, unsigned int permissions)
 
 	/* chdir to root and close fds */
 	if (daemon(0, 0) < 0)
-		fatal("unable to background process! daemon() failed: %m");
+		ni_fatal("unable to background process! daemon() failed: %m");
 
 	return 0;
 }
@@ -553,7 +553,7 @@ __ni_pidfile_write(const char *pidfile, unsigned int permissions, pid_t pid, int
 	int fd, len, r;
 
 	if ((fd = open(pidfile, O_WRONLY|oflags, permissions)) < 0) {
-		error("unable to open pidfile %s for writing: %m", pidfile);
+		ni_error("unable to open pidfile %s for writing: %m", pidfile);
 		return -1;
 	}
 
@@ -561,7 +561,7 @@ __ni_pidfile_write(const char *pidfile, unsigned int permissions, pid_t pid, int
 	len = strlen(buffer);
 
 	if ((r = write(fd, buffer, len)) < 0) {
-		error("error writing to pidfile %s: %m", pidfile);
+		ni_error("error writing to pidfile %s: %m", pidfile);
 failed:
 		unlink(pidfile);
 		close(fd);
@@ -569,7 +569,7 @@ failed:
 	}
 
 	if (r < len) {
-		error("error writing to pidfile %s: short write", pidfile);
+		ni_error("error writing to pidfile %s: short write", pidfile);
 		goto failed;
 	}
 
@@ -601,7 +601,7 @@ ni_pidfile_check(const char *pidfile)
 
 	if (!(fp = fopen(pidfile, "r"))) {
 		/* pidfile exists but we can't read it. bad. */
-		error("cannot open pidfile %s for reading: %m", pidfile);
+		ni_error("cannot open pidfile %s for reading: %m", pidfile);
 		return -1;
 	}
 
@@ -610,7 +610,7 @@ ni_pidfile_check(const char *pidfile)
 
 		pid = strtoul(buffer, &s, 0);
 		if (*s && !isspace(*s)) {
-			error("cannot parse pidfile %s", pidfile);
+			ni_error("cannot parse pidfile %s", pidfile);
 			pid = -1;
 		}
 	}
@@ -622,7 +622,7 @@ ni_pidfile_check(const char *pidfile)
 		/* Stale pid file, process no longer running */
 		if (errno == ESRCH)
 			return 0;
-		error("unexpected error when checking pidfile %s: kill returns: %m",
+		ni_error("unexpected error when checking pidfile %s: kill returns: %m",
 				pidfile);
 		return -1;
 	}
@@ -654,14 +654,14 @@ ni_copy_file(FILE *src, FILE *dst)
 		for (pos = 0; pos < got; pos += written) {
 			written = fwrite(buffer + pos, 1, got - pos, dst);
 			if (written < 0) {
-				error("ni_copy_file failed to write: %m");
+				ni_error("ni_copy_file failed to write: %m");
 				return -1;
 			}
 		}
 	}
 
 	if (got < 0) {
-		error("ni_copy_file failed to read: %m");
+		ni_error("ni_copy_file failed to read: %m");
 		return -1;
 	}
 

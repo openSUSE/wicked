@@ -24,8 +24,10 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdarg.h>
+
+#include <wicked/xml.h>
+#include <wicked/logging.h>
 #include "netinfo_priv.h"
-#include "xml.h"
 
 typedef struct xml_writer {
 	FILE *		file;

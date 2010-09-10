@@ -13,8 +13,9 @@
 #include <unistd.h>
 #include <errno.h>
 
+#include <wicked/netinfo.h>
+#include <wicked/logging.h>
 #include "netinfo_priv.h"
-#include "logging.h"
 
 int
 ni_local_socket_listen(const char *path, unsigned int permissions)

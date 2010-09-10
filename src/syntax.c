@@ -9,9 +9,10 @@
 #include <string.h>
 #include <limits.h>
 
+#include <wicked/netinfo.h>
+#include <wicked/xml.h>
 #include "netinfo_priv.h"
 #include "config.h"
-#include "xml.h"
 
 ni_syntax_t *
 ni_syntax_new(const char *schema, const char *base_path)

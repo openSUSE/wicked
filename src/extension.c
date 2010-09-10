@@ -7,10 +7,11 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
-#include "config.h"
-#include "sys/wait.h"
+#include <sys/wait.h>
+
+#include <wicked/xpath.h>
 #include "netinfo_priv.h"
-#include "xpath.h"
+#include "config.h"
 
 /*
  * Constructor and destructor for extension config

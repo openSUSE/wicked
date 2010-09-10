@@ -8,8 +8,9 @@
 #include <assert.h>
 #include <stdio.h>
 #include <ctype.h>
-#include "netinfo.h"
-#include "logging.h"
+
+#include <wicked/netinfo.h>
+#include <wicked/logging.h>
 #include "sysconfig.h"
 
 static int	unquote(char *);

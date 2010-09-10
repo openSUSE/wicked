@@ -27,11 +27,13 @@
 #include <linux/ethtool.h>
 #include <arpa/inet.h> /* debug */
 
+#include <wicked/netinfo.h>
+#include <wicked/xml.h>
+
 #include "netinfo_priv.h"
 #include "sysfs.h"
 #include "kernel.h"
 #include "config.h"
-#include "xml.h"
 
 #define BOND_DEVICE_MUST_BE_UP_WHEN_MESSING_WITH_SLAVES 1
 

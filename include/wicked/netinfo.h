@@ -11,8 +11,9 @@
 #include <stdio.h>
 #include <net/if.h>
 #include <netinet/in.h>
-#include "types.h"
-#include "util.h"
+
+#include <wicked/types.h>
+#include <wicked/util.h>
 
 #define NI_MAXADDRLEN		16
 #define NI_MAXHWADDRLEN		64

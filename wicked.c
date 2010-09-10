@@ -15,11 +15,12 @@
 #include <mcheck.h>
 #include <stdlib.h>
 #include <getopt.h>
-#include "netinfo.h"
-#include "logging.h"
-#include "wicked.h"
-#include "xml.h"
-#include "xpath.h"
+
+#include <wicked/netinfo.h>
+#include <wicked/logging.h>
+#include <wicked/wicked.h>
+#include <wicked/xml.h>
+#include <wicked/xpath.h>
 
 enum {
 	OPT_CONFIGFILE,

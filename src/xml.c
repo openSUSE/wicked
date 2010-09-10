@@ -22,7 +22,8 @@
 #include <assert.h>
 #include <string.h>
 #include <stdlib.h>
-#include "xml.h"
+
+#include <wicked/xml.h>
 
 xml_document_t *
 xml_document_new()

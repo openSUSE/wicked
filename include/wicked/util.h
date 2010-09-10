@@ -8,7 +8,7 @@
 #define __NETINFO_UTIL_H__
 
 #include <sys/types.h>
-#include "types.h"
+#include <wicked/types.h>
 
 typedef struct ni_string_array {
 	unsigned int	count;

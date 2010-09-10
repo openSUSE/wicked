@@ -25,8 +25,8 @@
 #define __NETINFO_XML_H__
 
 #include <stdio.h>
-#include "util.h"
-#include "types.h"
+#include <wicked/util.h>
+#include <wicked/types.h>
 
 struct xml_document {
 	char *			dtd;

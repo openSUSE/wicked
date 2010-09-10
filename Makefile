@@ -1,5 +1,5 @@
 
-CFLAGS	= -Wall -g -O2 -D_GNU_SOURCE -I. -Iinclude/wicked
+CFLAGS	= -Wall -g -O2 -D_GNU_SOURCE -I. -Iinclude
 
 APPS	= wicked wickedd testing/xml-test testing/xpath-test
 

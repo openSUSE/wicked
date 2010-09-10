@@ -14,11 +14,11 @@
 #include <getopt.h>
 #include <errno.h>
 
-#include "netinfo.h"
-#include "logging.h"
-#include "wicked.h"
-#include "xml.h"
-#include "xpath.h"
+#include <wicked/netinfo.h>
+#include <wicked/wicked.h>
+#include <wicked/logging.h>
+#include <wicked/xml.h>
+#include <wicked/xpath.h>
 
 int
 ni_rest_request_process(ni_wicked_request_t *req, const char *cmd, const char *path)

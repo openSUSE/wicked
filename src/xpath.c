@@ -25,10 +25,12 @@
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
+
+#include <wicked/xml.h>
+#include <wicked/logging.h>
+#include <wicked/xml.h>
+#include <wicked/xpath.h>
 #include "netinfo_priv.h"
-#include "logging.h"
-#include "xml.h"
-#include "xpath.h"
 
 #define XPATH_DEBUG
 

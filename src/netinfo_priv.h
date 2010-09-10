@@ -10,10 +10,11 @@
 
 #include <stdio.h>
 
-#include "netinfo.h"
+#include <wicked/types.h>
+#include <wicked/netinfo.h>
+#include <wicked/logging.h>
+
 #include "libnetlink.h"
-#include "logging.h"
-#include "types.h"
 
 struct ni_handle {
 	int			preferred_family;

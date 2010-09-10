@@ -6,8 +6,8 @@
 
 #include <stdlib.h>
 #include <getopt.h>
-#include "netinfo.h"
-#include "xpath.h"
+#include <wicked/netinfo.h>
+#include <wicked/xpath.h>
 
 enum {
 	OPT_DEBUG,

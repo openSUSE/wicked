@@ -8,12 +8,14 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <string.h>
+
+#include <wicked/netinfo.h>
 
 #include "netinfo_priv.h"
 #include "sysfs.h"
 #include "kernel.h"
 #include "config.h"
-#include "xpath.h"
 
 static int	__ni_rtevent_process(ni_handle_t *, const struct sockaddr_nl *, struct nlmsghdr *);
 static int	__ni_rtevent_newlink(ni_handle_t *, const struct sockaddr_nl *, struct nlmsghdr *);

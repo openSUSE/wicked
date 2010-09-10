@@ -28,9 +28,10 @@
 #include <string.h>
 #include <stdlib.h>
 #include <assert.h>
+
+#include <wicked/xml.h>
+#include <wicked/logging.h>
 #include "netinfo_priv.h"
-#include "xml.h"
-#include "logging.h"
 
 #undef XMLDEBUG_PARSER
 

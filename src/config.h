@@ -8,9 +8,9 @@
 #ifndef __NI_NETINFO_CONFIG_H__
 #define __NI_NETINFO_CONFIG_H__
 
-#include "types.h"
-#include "netinfo.h"
-#include "logging.h"
+#include <wicked/types.h>
+#include <wicked/netinfo.h>
+#include <wicked/logging.h>
 
 #define NI_DEFAULT_CONFIG_PATH	"/etc/wicked/config.xml"
 #define NI_DEFAULT_POLICY_PATH	"/etc/wicked/policy.xml"

@@ -7,7 +7,7 @@
 #ifndef __NETINFO_SYSCONFIG_H__
 #define __NETINFO_SYSCONFIG_H__
 
-#include "util.h"
+#include <wicked/util.h>
 
 typedef struct ni_sysconfig	ni_sysconfig_t;
 struct ni_sysconfig {

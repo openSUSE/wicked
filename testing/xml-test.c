@@ -5,7 +5,7 @@
  */
 
 #include <stdlib.h>
-#include "xml.h"
+#include <wicked/xml.h>
 
 int
 main(int argc, char **argv)

@@ -9,7 +9,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <syslog.h>
-#include "logging.h"
+
+#include <wicked/logging.h>
 
 unsigned int		ni_debug = 0;
 static unsigned int	ni_log_syslog = 0;

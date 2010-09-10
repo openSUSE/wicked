@@ -22,11 +22,13 @@
 #include <net/if_arp.h>
 #include <linux/ethtool.h>
 
+#include <wicked/netinfo.h>
+#include <wicked/xml.h>
+
 #include "netinfo_priv.h"
 #include "sysfs.h"
 #include "kernel.h"
 #include "config.h"
-#include "xpath.h"
 
 #define _PATH_SYS_CLASS_NET		"/sys/class/net"
 #define _SYSFS_BRIDGE_IFS_ATTR		"brif"

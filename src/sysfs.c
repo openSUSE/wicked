@@ -8,8 +8,9 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <limits.h>
-#include "netinfo.h"
-#include "logging.h"
+
+#include <wicked/netinfo.h>
+#include <wicked/logging.h>
 #include "sysfs.h"
 
 #define _PATH_SYS_CLASS_NET	"/sys/class/net"

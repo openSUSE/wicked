@@ -61,9 +61,9 @@
 #include <net/if_arp.h>
 #include <unistd.h>
 
+#include <wicked/xml.h>
 #include "netinfo_priv.h"
 #include "config.h"
-#include "xml.h"
 
 static ni_policy_t *	ni_policy_match(ni_policy_t *, xml_node_t *);
 
