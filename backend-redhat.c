@@ -163,7 +163,7 @@ __ni_redhat_sysconfig2ifconfig(ni_handle_t *nih, ni_interface_t *ifp, ni_sysconf
 
 	ifp->startmode = onboot? NI_START_ONBOOT : NI_START_MANUAL;
 
-	if (ni_sysconfig_get_string(sc, "BOOTPROTO", &value) >= 0) {
+	if (ni_sysconfig_get_string(sc, "BOOTPROTO", &value) >= 0 && value != NULL) {
 		if (!strcmp(value, "dhcp")) {
 			ifp->ipv4.config = NI_ADDRCONF_DHCP;
 			ifp->ipv6.config = NI_ADDRCONF_DHCP;
@@ -188,7 +188,7 @@ __ni_redhat_sysconfig2ifconfig(ni_handle_t *nih, ni_interface_t *ifp, ni_sysconf
 		__ni_redhat_get_static_ipv4(ifp, sc);
 
 	/* RedHat has TYPE=Bridge for bridge devices */
-	if (ni_sysconfig_get_string(sc, "TYPE", &iftype) >= 0) {
+	if (ni_sysconfig_get_string(sc, "TYPE", &iftype) >= 0 && iftype) {
 		if (!strcasecmp(iftype, "bridge"))
 			__ni_redhat_sysconfig2bridge(ifp, sc);
 	}
@@ -227,7 +227,7 @@ __ni_sysconfig_get_ipv4addr(ni_sysconfig_t *sc, const char *name, struct sockadd
 	var = ni_sysconfig_get(sc, name);
 
 	memset(result, 0, sizeof(*result));
-	if (var && (var->value == NULL || var->value[0] == '\0'))
+	if (var == NULL || var->value == NULL || var->value[0] == '\0')
 		return 0;
 
 	return ni_address_parse(result, var->value, AF_INET);
@@ -279,6 +279,7 @@ try_bonding_master(ni_handle_t *nih, ni_interface_t *ifp, ni_sysconfig_t *sc)
 		bonding = ni_interface_get_bonding(ifp);
 		ni_sysconfig_get_string(sc, "BONDING_OPTS", &bonding->module_opts);
 		ni_bonding_parse_module_options(bonding);
+		ni_trace("primary=%s", bonding->primary);
 	}
 }
 
@@ -325,6 +326,7 @@ __ni_redhat_sysconfig2bridge(ni_interface_t *ifp, ni_sysconfig_t *sc)
 
 	/* Create the interface's bridge data */
 	bridge = ni_interface_get_bridge(ifp);
+	(void) ni_sysconfig_get_integer(sc, "DELAY", &bridge->forward_delay);
 	(void) ni_sysconfig_get_boolean(sc, "STP", &bridge->stp_enabled);
 }
 
