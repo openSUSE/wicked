@@ -3,8 +3,8 @@
  *
  * Copyright (C) 2010 Olaf Kirch <okir@suse.de>
  */
-#ifndef __NETINFO_TYPES_H__
-#define __NETINFO_TYPES_H__
+#ifndef __WICKED_TYPES_H__
+#define __WICKED_TYPES_H__
 
 #include <stdint.h>
 
@@ -41,4 +41,4 @@ typedef union ni_uuid {
 	uint32_t		words[4];
 } ni_uuid_t;
 
-#endif /* __NETINFO_TYPES_H__ */
+#endif /* __WICKED_TYPES_H__ */

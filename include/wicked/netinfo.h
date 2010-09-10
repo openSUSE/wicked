@@ -4,8 +4,8 @@
  * Copyright (C) 2009-2010 Olaf Kirch <okir@suse.de>
  */
 
-#ifndef __NETINFO_H__
-#define __NETINFO_H__
+#ifndef __WICKED_NETINFO_H__
+#define __WICKED_NETINFO_H__
 
 #include <sys/socket.h>
 #include <stdio.h>
@@ -435,4 +435,4 @@ extern const char *	ni_addrfamily_type_to_name(unsigned int);
 extern int		ni_arphrd_name_to_type(const char *);
 extern const char *	ni_arphrd_type_to_name(unsigned int);
 
-#endif /* __NETINFO_H__ */
+#endif /* __WICKED_NETINFO_H__ */

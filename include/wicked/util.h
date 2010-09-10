@@ -4,8 +4,8 @@
  * Copyright (C) 2010 Olaf Kirch <okir@suse.de>
  */
 
-#ifndef __NETINFO_UTIL_H__
-#define __NETINFO_UTIL_H__
+#ifndef __WICKED_UTIL_H__
+#define __WICKED_UTIL_H__
 
 #include <sys/types.h>
 #include <wicked/types.h>
@@ -99,5 +99,5 @@ extern const char *	ni_uuid_print(const ni_uuid_t *);
 extern int		ni_uuid_parse(ni_uuid_t *, const char *);
 extern int		ni_uuid_is_null(const ni_uuid_t *);
 
-#endif /* __NETINFO_UTIL_H__ */
+#endif /* __WICKED_UTIL_H__ */
 

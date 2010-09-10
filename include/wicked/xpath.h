@@ -19,8 +19,8 @@
  *
  */
 
-#ifndef __NETINFO_XPATH_H__
-#define __NETINFO_XPATH_H__
+#ifndef __WICKED_XPATH_H__
+#define __WICKED_XPATH_H__
 
 #include <assert.h>
 #include <string.h>
@@ -141,4 +141,4 @@ __xpath_test_boolean(const xpath_result_t *in)
 }
 
 
-#endif /* __NETINFO_XPATH_H__ */
+#endif /* __WICKED_XPATH_H__ */

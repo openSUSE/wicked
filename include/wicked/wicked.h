@@ -4,8 +4,8 @@
  * Copyright (C) 2010 Olaf Kirch <okir@suse.de>
  */
 
-#ifndef __NETINFO_WICKED_H__
-#define __NETINFO_WICKED_H__
+#ifndef __WICKED_H__
+#define __WICKED_H__
 
 enum {
 	NI_REST_OP_GET = 0,
@@ -45,4 +45,4 @@ extern int			ni_rest_request_process(ni_wicked_request_t *, const char *, const 
 extern ni_rest_node_t *		ni_rest_node_lookup(const char *, const char **);
 extern void			werror(ni_wicked_request_t *, const char *, ...);
 
-#endif /* __NETINFO_WICKED_H__ */
+#endif /* __WICKED_H__ */

@@ -4,8 +4,8 @@
  * Copyright (C) 2010 Olaf Kirch <okir@suse.de>
  */
 
-#ifndef __NETINFO_LOGGING_H__
-#define __NETINFO_LOGGING_H__
+#ifndef __WICKED_LOGGING_H__
+#define __WICKED_LOGGING_H__
 
 #ifdef __GNUC__
 # define __fmtattr	__attribute__ ((format (printf, 1, 2)))
@@ -43,4 +43,4 @@ extern unsigned int	ni_debug;
 #define ni_debug_wicked(fmt, args...)		__ni_debug(NI_TRACE_WICKED, fmt, ##args)
 #define ni_debug_events(fmt, args...)		__ni_debug(NI_TRACE_EVENTS, fmt, ##args)
 
-#endif /* __NETINFO_LOGGING_H__ */
+#endif /* __WICKED_LOGGING_H__ */
