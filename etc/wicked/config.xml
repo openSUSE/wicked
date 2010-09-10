@@ -8,12 +8,17 @@
 
   <!-- Define where network configuration is stored, and in what format.
        Currently supported are
+
          suse		sysconfig-based, usually /etc/sysconfig/network
          redhat		sysconfig-based, usually /etc/sysconfig/network
 	 netcf-strict	strict netcf syntax, /etc/sysconfig/network/all.xml
 	 netcf		enriched netcf syntax, /etc/sysconfig/network/all.xml
+
+       By default, we try to autodetect what schema to use.
    -->
-  <syntax name="suse" path="/etc/sysconfig/network"/>
+  <!--
+   <backend schema="redhat" path="samples/redhat/host1"/>
+   -->
 
   <pidfile path="/var/run/wicked.pid" mode="0644"/>
   <socket path="/var/run/wicked.sock" mode="0600"/>
