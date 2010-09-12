@@ -722,7 +722,7 @@ __ni_rtnl_link_up(ni_handle_t *nih, ni_interface_t *ifp, const ni_interface_t *c
 	if (cfg->txqlen && cfg->txqlen != ifp->txqlen)
 		addattr_l(&req.hdr, sizeof(req), IFLA_TXQLEN, &cfg->txqlen, 4);
 
-	if (cfg->hwaddr.type != ARPHRD_NONE && cfg->hwaddr.len != 0
+	if (cfg->hwaddr.type != NI_IFTYPE_UNKNOWN && cfg->hwaddr.len != 0
 	 && !ni_link_address_equal(&cfg->hwaddr, &ifp->hwaddr))
 		addattr_l(&req.hdr, sizeof(req), IFLA_ADDRESS, cfg->hwaddr.data, cfg->hwaddr.len);
 

@@ -406,7 +406,7 @@ __ni_interface_process_newlink(ni_interface_t *ifp, struct nlmsghdr *h,
 			alen = sizeof(ifp->hwaddr.data);
 		memcpy(ifp->hwaddr.data, data, alen);
 		ifp->hwaddr.len = alen;
-		ifp->hwaddr.type = ifi->ifi_type;
+		ifp->hwaddr.type = ifp->type;
 	} else {
 		memset(&ifp->hwaddr, 0, sizeof(ifp->hwaddr));
 	}

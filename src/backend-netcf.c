@@ -99,6 +99,9 @@ __ni_netcf_xml_to_interface(ni_syntax_t *syntax, ni_handle_t *nih, xml_node_t *i
 			error("unknown/unsupported interface type %s", attrval);
 			return NULL;
 		}
+	} else {
+		ni_error("<interface> element without type");
+		return NULL;
 	}
 
 	/* netcf source code claims there's support for a uuid element, but
@@ -131,7 +134,7 @@ __ni_netcf_xml_to_interface(ni_syntax_t *syntax, ni_handle_t *nih, xml_node_t *i
 
 	node = xml_node_get_child(ifnode, "mac");
 	if (node && (attrval = xml_node_get_attr(node, "address")) != NULL) {
-		if (ni_link_address_parse(&ifp->hwaddr, ifp->arp_type, attrval) < 0) {
+		if (ni_link_address_parse(&ifp->hwaddr, ifp->type, attrval) < 0) {
 			error("cannot parse link level address %s", attrval);
 			return NULL;
 		}

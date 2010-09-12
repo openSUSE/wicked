@@ -368,14 +368,14 @@ ni_link_address_format(const ni_hwaddr_t *hwa, char *abuf, size_t len)
 	unsigned int i, j;
 
 	switch (hwa->type) {
-	case ARPHRD_TUNNEL:
-	case ARPHRD_SIT:
-	case ARPHRD_IPGRE:
+	case NI_IFTYPE_TUNNEL:
+	case NI_IFTYPE_SIT:
+	case NI_IFTYPE_GRE:
 		if (inet_ntop(AF_INET, hwa->data, abuf, len) == 0)
 			return -1;
 		return 0;
 
-	case ARPHRD_TUNNEL6:
+	case NI_IFTYPE_TUNNEL6:
 		if (inet_ntop(AF_INET6, hwa->data, abuf, len) == 0)
 			return -1;
 		return 0;
@@ -402,10 +402,10 @@ ni_link_address_parse(ni_hwaddr_t *hwa, unsigned int type, const char *string)
 
 	memset(hwa, 0, sizeof(*hwa));
 	switch (type) {
-	case ARPHRD_TUNNEL:
-	case ARPHRD_SIT:
-	case ARPHRD_IPGRE:
-	case ARPHRD_TUNNEL6:
+	case NI_IFTYPE_TUNNEL:
+	case NI_IFTYPE_SIT:
+	case NI_IFTYPE_GRE:
+	case NI_IFTYPE_TUNNEL6:
 		error("%s: setting tunnel addrs not yet implemented",
 				__FUNCTION__);
 		return -1;
