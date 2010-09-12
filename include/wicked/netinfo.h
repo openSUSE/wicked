@@ -436,5 +436,7 @@ extern int		ni_addrfamily_name_to_type(const char *);
 extern const char *	ni_addrfamily_type_to_name(unsigned int);
 extern int		ni_arphrd_name_to_type(const char *);
 extern const char *	ni_arphrd_type_to_name(unsigned int);
+extern unsigned int	ni_arphrd_type_to_iftype(int arp_type);
+extern int		ni_iftype_to_arphrd_type(unsigned int iftype);
 
 #endif /* __WICKED_NETINFO_H__ */

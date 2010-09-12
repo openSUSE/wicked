@@ -355,6 +355,56 @@ ni_arphrd_type_to_name(unsigned int type)
 	return ni_format_int_mapped(type, __arphrd_names);
 }
 
+/*
+ * Map netinfo interface types to ARPHRD_ and vice versa
+ */
+static struct __ni_arptype_iftype_map {
+	int		type;
+	unsigned int	arp_type;
+} __ni_arptype_iftype_map[] = {
+      {	NI_IFTYPE_LOOPBACK,	ARPHRD_LOOPBACK	},
+      {	NI_IFTYPE_ETHERNET,	ARPHRD_ETHER	},
+      {	NI_IFTYPE_BRIDGE,	ARPHRD_ETHER	},
+      {	NI_IFTYPE_BOND,		ARPHRD_ETHER	},
+      {	NI_IFTYPE_VLAN,		ARPHRD_ETHER	},
+      {	NI_IFTYPE_WIRELESS,	ARPHRD_ETHER	},
+      {	NI_IFTYPE_INFINIBAND,	ARPHRD_INFINIBAND },
+      {	NI_IFTYPE_PPP,		ARPHRD_PPP	},
+      {	NI_IFTYPE_SLIP,		ARPHRD_SLIP	},
+      {	NI_IFTYPE_SLIP,		ARPHRD_CSLIP	},
+      {	NI_IFTYPE_SIT,		ARPHRD_SIT	},
+      {	NI_IFTYPE_GRE,		ARPHRD_IPGRE	},
+      {	NI_IFTYPE_ISDN,		ARPHRD_NONE	},
+      {	NI_IFTYPE_TUNNEL,	ARPHRD_TUNNEL	},
+      {	NI_IFTYPE_TUNNEL6,	ARPHRD_TUNNEL6	},
+      {	NI_IFTYPE_TUN,		ARPHRD_ETHER	},
+      {	NI_IFTYPE_TAP,		ARPHRD_ETHER	},
+      {	NI_IFTYPE_DUMMY,	ARPHRD_LOOPBACK	},
+
+      {	NI_IFTYPE_UNKNOWN, ARPHRD_NONE }
+};
+
+unsigned int
+ni_arphrd_type_to_iftype(int arp_type)
+{
+	struct __ni_arptype_iftype_map *map;
+
+	for (map = __ni_arptype_iftype_map; map->arp_type != ARPHRD_NONE; ++map)
+		if (map->arp_type == arp_type)
+			break;
+	return map->type;
+}
+
+int
+ni_iftype_to_arphrd_type(unsigned int iftype)
+{
+	struct __ni_arptype_iftype_map *map;
+
+	for (map = __ni_arptype_iftype_map; map->arp_type != ARPHRD_NONE; ++map)
+		if (map->type == iftype)
+			break;
+	return map->arp_type;
+}
 
 /*
  * Configure an interface.
