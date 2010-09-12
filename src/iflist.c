@@ -292,19 +292,6 @@ __ni_interface_process_newlink(ni_interface_t *ifp, struct nlmsghdr *h,
 	__ni_rta_get_string(&ifp->qdisc, tb[IFLA_QDISC]);
 	__ni_rta_get_uint(&ifp->master, tb[IFLA_MASTER]);
 
-	if (tb[IFLA_ADDRESS]) {
-		unsigned int alen = RTA_PAYLOAD(tb[IFLA_ADDRESS]);
-		void *data = RTA_DATA(tb[IFLA_ADDRESS]);
-
-		if (alen > sizeof(ifp->hwaddr.data))
-			alen = sizeof(ifp->hwaddr.data);
-		memcpy(ifp->hwaddr.data, data, alen);
-		ifp->hwaddr.len = alen;
-		ifp->hwaddr.type = ifi->ifi_type;
-	} else {
-		memset(&ifp->hwaddr, 0, sizeof(ifp->hwaddr));
-	}
-
 	if (tb[IFLA_STATS]) {
 		struct rtnl_link_stats *s = RTA_DATA(tb[IFLA_STATS]);
 		ni_link_stats_t *n;
@@ -379,16 +366,12 @@ __ni_interface_process_newlink(ni_interface_t *ifp, struct nlmsghdr *h,
 			warn("iflist: link info data of type %s - don't know what to do with it", ifp->kind);
 	}
 
-	switch (ifp->arp_type) {
-	case ARPHRD_LOOPBACK:
-		ifp->type = NI_IFTYPE_LOOPBACK;
-		break;
+	if (ifp->type == NI_IFTYPE_UNKNOWN) {
+		struct ethtool_drvinfo drv_info;
 
-	case ARPHRD_ETHER:
-	case ARPHRD_NONE:	/* tun driver uses this */
-		if (ifp->type == NI_IFTYPE_UNKNOWN) {
-			struct ethtool_drvinfo drv_info;
-
+		switch (ifp->arp_type) {
+		case ARPHRD_ETHER:
+		case ARPHRD_NONE:	/* tun driver uses this */
 			ifp->type = NI_IFTYPE_ETHERNET;
 			if (__ni_ethtool(nih, ifp, ETHTOOL_GDRVINFO, &drv_info) >= 0) {
 				const char *driver = drv_info.driver;
@@ -405,32 +388,27 @@ __ni_interface_process_newlink(ni_interface_t *ifp, struct nlmsghdr *h,
 					ifp->type = NI_IFTYPE_BOND;
 				}
 			}
+
+			/* FIXME: detect WLAN device */
+			break;
+
+		default:
+			ifp->type = ni_arphrd_type_to_iftype(ifp->arp_type);
+			break;
 		}
+	}
 
-		/* FIXME: detect WLAN device */
-		break;
+	if (tb[IFLA_ADDRESS]) {
+		unsigned int alen = RTA_PAYLOAD(tb[IFLA_ADDRESS]);
+		void *data = RTA_DATA(tb[IFLA_ADDRESS]);
 
-	case ARPHRD_INFINIBAND:
-		ifp->type = NI_IFTYPE_INFINIBAND;
-		break;
-
-	case ARPHRD_SLIP:
-	case ARPHRD_CSLIP:
-		ifp->type = NI_IFTYPE_SLIP;
-		break;
-
-	case ARPHRD_PPP:
-		ifp->type = NI_IFTYPE_PPP;
-		break;
-
-	case ARPHRD_TUNNEL:
-		ifp->type = NI_IFTYPE_TUNNEL;
-		break;
-
-	case ARPHRD_TUNNEL6:
-		ifp->type = NI_IFTYPE_TUNNEL6;
-		break;
-
+		if (alen > sizeof(ifp->hwaddr.data))
+			alen = sizeof(ifp->hwaddr.data);
+		memcpy(ifp->hwaddr.data, data, alen);
+		ifp->hwaddr.len = alen;
+		ifp->hwaddr.type = ifi->ifi_type;
+	} else {
+		memset(&ifp->hwaddr, 0, sizeof(ifp->hwaddr));
 	}
 
 	if (ifp->type == NI_IFTYPE_BRIDGE)
