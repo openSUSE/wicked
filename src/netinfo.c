@@ -759,6 +759,27 @@ ni_interface_by_hwaddr(ni_handle_t *nih, const ni_hwaddr_t *lla)
 }
 
 /*
+ * Helper functions to iterate over all interfaces
+ */
+ni_interface_t *
+ni_interface_first(ni_handle_t *nih, ni_interface_t **pos)
+{
+	ni_interface_t *ifp = nih->iflist;
+
+	*pos = ifp? ifp->next : NULL;
+	return ifp;
+}
+
+ni_interface_t *
+ni_interface_next(ni_handle_t *nih, ni_interface_t **pos)
+{
+	ni_interface_t *ifp = *pos;
+
+	*pos = ifp? ifp->next : NULL;
+	return ifp;
+}
+
+/*
  * Get the interface's VLAN information
  */
 ni_vlan_t *
