@@ -275,3 +275,13 @@ Some of that can probably be accomodated by supporting more path names
 in the REST API, for instance /system/resolver as an interface to modify
 the resolver file in a coherent fashion.
 
+
+A Note on the name
+==================
+
+Only after I started to show my code to a bunch of people, I found out that
+there's a project called WICD, which aims to provide... a network connection
+manager :-)
+
+To make this absolutely plain, wicked is in no way related to WICD, for good
+or bad. It's just coincidence.
