@@ -1,0 +1,253 @@
+.TH WICKED 8 "13 February 2010
+.SH NAME
+wicked \- network management utility
+.SH SYNOPSIS
+.BI "wicked ifup [" options "] " interface
+.BI "wicked ifdown [" options "] " interface
+.BI "wicked (get|put|post|delete) " pathname
+.BI "wicked xpath [" options "] " format ...
+.PP
+.SH DESCRIPTION
+.B wicked
+offers access to the wicked network managment service from the
+command line. It can be used to execute bare calls to the REST
+interface, or to perform more complex operation of bringing up
+interface (in the case of bridges and bonds, including all
+subordinate devices).
+.PP
+Conceptually, the wicked network management system deals two
+very distinct classes of information; one is the stored configuration,
+and the other is the current run-time state of your system. For
+network interfaces, configuration is commonly stored in files residing
+in 
+.BR /etc/sysconfig/network ,
+whereas the run-time information is retrieved by talking to the kernel's
+rtnetlink facility, by reading sysfs files, and by using device specific
+.BR ioctl (2)
+calls. It is useful to bear this notion in mind, as much of
+.BR wicked 's
+functionality is designed along this conceptual separation.
+.PP
+The utility communicates with
+.BR wickedd (8)
+through an
+.BR AF_LOCAL
+socket, using a RESTful interface. For a description of the
+namespace and its operations, see
+.BR wicked (7).
+.SH OPTIONS
+.B wicked
+supports a set of options common to all subcommands. These options
+must precede the subcommand, as in
+.PP
+.nf
+.B " # wicked --dry-run ifup eth0
+.fi
+.TP
+.BI "\-\-config " filename
+By default, the daemon reads its configuration from
+.BR /etc/wicked/config.xml .
+The
+.B \-\-config
+options allows you to specify a different configuration file.
+.TP
+.BI "\-\-debug " facility
+Enable debugging for
+.IR facility .
+The list of available facilities can be obtained using
+.BR "\-\-debug help" .
+.TP
+.BI "\-\-dry-run
+skips all calls to
+.B wickedd
+that would modify the current system settings, instead displaying
+the command that would be sent, along with the XML definition.
+Helpful for getting a feel for how the utility and the protocol work,
+and for debugging.
+.\" ----------------------------------------
+.SH ifup - bring up one or more interfaces
+To bring up interfaces, use
+.BR "wicked ifup" .
+This command supports a number of different modes of operations.
+In its simples form, you just give it the name of an interface, and
+it will bring up the interface using the stored system configuration:
+.PP
+.nf
+.B " wicked ifup eth0
+.fi
+.PP
+Instead of an interface name, you can also use the special name
+.BR all ,
+which will tell
+.B wicked
+to bring up all interfaces.
+.PP
+It is also possible to bring up interfaces that do not have a
+configuration stored in the system; using the
+.B \-\-file
+option you can provide an XML interface description independent from
+any stored configuration. Again, you have to specify the name of the
+interface to bring up, or
+.B all
+to bring up all interfaces described in the file:
+.PP
+.nf
+.B " wicked ifup --file bridgecfg.xml all
+.fi
+.PP
+Note that
+.B wicked
+attempts to bring up interfaces in a "reasonable order": it always
+tries to bring up loopback interfaces first. For VLAN interfaces, the
+underlying bare ethernet device is brought up before the VLAN device.
+For bridges and bonding devices, all subordinate devices are brought up
+before bringing up the composite devices.
+.PP
+The
+.BR ifup
+command supports the following options:
+.TP
+.BI "\-\-file " filename
+Specify an alternative source of network configuration, instead of
+obtaining the system's interface configuration. The named file must
+contain an XML definition of the interface.
+.TP
+.BI "\-\-boot"
+This option tells
+.B wicked
+that interfaces are being brought up during system boot. In the
+case of interfaces using DHCP or similiar services for address
+configuration, wait until we can be certain the interface has
+been brought up.
+.IP
+.B This is not yet implemented
+.SH ifdown - bring down one or more interfaces
+This command does the reverse of
+.BR ifup .
+Again, you have to give it either a specific interface name, or use
+the special name
+.BR all 
+to bring down all devices. When bringing down several interfaces,
+the utility tries to do this in a suitable order.
+.PP
+The
+.BR ifdown
+command supports the following options:
+.TP
+.BI "\-\-delete
+When bringing down a virtual interface such as a VLAN or a bridge,
+delete the virtual interface in addition to shutting it down.
+.SH Using REST commands directly
+You can also use
+.B wicked
+to talk to the service's REST API directly, using one of the commands
+.BR get ", " put ", " post ", or " delete ,
+followed by a pathname from the wicked namespace. For example, the
+following command will retrieve the current interface configuration for
+device
+.BR eth0 :
+.PP
+.nf
+.B " # wicked get /system/interface/eth0"
+.fi
+.PP
+The
+.BR put " and " post
+commands expect to read an XML document from standard input.
+.PP
+For a description of the namespace and the semantics of supported
+operations, please refer to
+.BR wicked (7).
+.SH xpath - retrieve data from an XML blob
+This command tries to provide a convenient interface for extracting
+individual pieces of information from an XML document. As far as XML
+can be convenient to a shell programmer...
+.PP
+For this, wicked supports expressions using a (subset of) the XPATH 1.0
+syntax. These xpath expressions can be embedded into format strings
+using
+.BR "%{" \fIexpression\fP "}" .
+Several expressions can be embedded into one format string; this can
+help to combine pairs of information such as e.g. address and prefix
+length.
+.PP
+The
+.B xpath
+command by default expects an XML document either on standard input.
+You can use the
+.BR \-\-file
+option to specify a filename.
+.PP
+The
+.B xpath
+command supports the following options:
+.TP
+.BR "\-\-reference " xpath-expr
+By default, the command will evaluate all XPATH expressions relative to
+the document's root node. Using this option allows you to "drill into"
+the document: the utility will first evaluate the given expression to
+look up 0 or more XML nodes in the document, and then evaluate all
+format strings relative to these nodes. It is an error for the
+reference expression to yield data other than XML elements (such as
+strings).
+.TP
+.BR "\-\-file " filename
+The file containing the XML document to operate on.
+.PP
+This manual page cannot give a full overview of xpath, of course, 
+however consider the following examples (which assume the input is
+an XML interface description):
+.PP
+.nf
+.B "# wicked xpath \(dq%{/interface/bridge/interface/@name}\(dq"
+.fi
+.PP
+.TI
+Given a bridge interface defition, this will expand to a list
+of strings, representing the names of all devices assigned to the
+bridge as ports.
+.PP
+.nf
+.B "# wicked xpath --reference \(dq/interface/protocol[@family = 'ipv4']/ip\(dq \(rs
+.B "          %{@address}/%{@prefix}
+.fi
+.PP
+This will look up any
+.B protocol
+elements that specify a
+.B family
+attribute of
+.BR ipv4 ,
+and retrieve any and all
+.B ip
+elements with these. In the wicked XML schema, these elements define the
+statically configured IP addresses assigned to the interface. For each of
+these, it will will evaluate the given format string. This format string
+retrieves the
+.BR address " and " prefix
+attributes of each element, and print these, separated by a slash.
+.SH FILES
+.TP
+.BR /etc/wicked/config.xml
+specifies the global configuration of the daemon. This file may pull
+in additional configuration data from the same directory.
+.TP
+.BR /var/run/wicked.pid
+Location of the PID file written by the daemon when backgrounding
+itself.
+Can be changed in the configuration file.
+.TP
+.BR /var/run/wicked.sock
+Path of the
+.B AF_LOCAL
+socket through which clients can communicate
+with the server.
+Can be changed in the configuration file.
+.SH "SEE ALSO"
+.BR wickedd (8),
+.BR wicked (7),
+.BR wicked (5).
+
+.SH AUTHORS
+Written by Olaf Kirch <okir@suse.de>
+

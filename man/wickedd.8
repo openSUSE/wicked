@@ -1,0 +1,64 @@
+.TH WICKEDD 8 "13 February 2010
+.SH NAME
+wickedd \- network management daemon
+.SH SYNOPSIS
+.BI "wickedd [" options "]
+.PP
+.SH DESCRIPTION
+.B wickedd
+provides a service for managing network interfaces. It parses the
+network configuration from the system's network configuration files,
+and monitor the system's current network configuration by retrieving
+it from the kernel via netlink, sysfs and other interfaces.
+.PP
+The service can be accessed via a 
+.B AF_LOCAL
+socket, using a RESTful interface. A command line utility,
+.BR wicked (8),
+can be used to access the service from shell scripts.
+.SH OPTIONS
+.TP
+.BI "\-\-config " filename
+By default, the daemon reads its configuration from
+.BR /etc/wicked/config.xml .
+The
+.B \-\-config
+options allows you to specify a different configuration file.
+.TP
+.BI "\-\-debug " facility
+Enable debugging for
+.IR facility .
+The list of available facilities can be obtained using
+.BR "\-\-debug help" .
+.TP
+.B \-\-foreground
+Tell the daemon to not background itself at startup.
+.TP
+.B \-\-no-fork
+Do not fork when processing an incoming REST call. Mostly useful when
+you wish to debug the server in gdb.
+.SH FILES
+.TP
+.BR /etc/wicked/config.xml
+specifies the global configuration of the daemon. This file may pull
+in additional configuration data from the same directory.
+.TP
+.BR /var/run/wicked.pid
+Location of the PID file written by the daemon when backgrounding
+itself.
+Can be changed in the configuration file.
+.TP
+.BR /var/run/wicked.sock
+Path of the
+.B AF_LOCAL
+socket through which clients can communicate
+with the server.
+Can be changed in the configuration file.
+.SH "SEE ALSO"
+.BR wicked (8),
+.BR wicked (7),
+.BR wicked (5).
+
+.SH AUTHORS
+Written by Olaf Kirch <okir@suse.de>
+

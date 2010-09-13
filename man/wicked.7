@@ -1,0 +1,147 @@
+.TH WICKED 7 "13 February 2010
+.SH NAME
+wicked \- network management service
+.SH SYNOPSIS
+.nf
+.B #include <wicked/wicked.h>
+.fi
+.SH DESCRIPTION
+Wicked provides a new, experimental framework for network configuration.
+.PP
+The idea is to replace much of the shell scripting that happens in
+.B /sbin/ifup
+and the related init scripts with a combination of C code that handles
+most of the basic interface configuration tasks, with a powerful,
+extensible XML representation of the network configuration. The major
+motivation in choosing XML was the ability to represent complex nested
+configurations.
+.PP
+This implementation uses a daemon service and a command
+line utility. These two communicate securely via a local UNIX socket,
+allowing the server to validate the client's user id.
+.PP
+The server offers a REST interface to various aspects of network
+configuration. The client application uses REST calls to retrieve
+interface configuration and status, or to reconfigure interfaces.
+The namespace used by the API can be extended to cover other
+aspects of network configuration as well, such as reading, writing
+and restoring the
+.B resolv.conf
+file.
+.PP
+.SH The Namespace
+Conceptually, the wicked network management system deals two
+very distinct classes of information; one is the stored configuration,
+and the other is the current run-time state of your system. For
+network interfaces, configuration is commonly stored in files residing
+in 
+.BR /etc/sysconfig/network ,
+whereas the run-time information is retrieved by talking to the kernel's
+rtnetlink facility, by reading sysfs files, and by using device specific
+.BR ioctl (2)
+calls.
+.PP
+Based on this premise, the namespace is split into two major pieces,
+.BR /config " and " /system ", respectively.
+Below these two top nodes, the two hierarchies are mostly identical
+in naming. For instance, for a given interface named
+.BR eth0 ,
+there are two nodes in the namespace:
+.BR /config/interface/eth0 ,
+representing the stored configuration, and
+.BR /system/interface/eth0 ", respectively.
+.PP
+The RESTful interface supports four verbs, but not every node necessarily
+supports all of them. Many nodes actually do not support any verbs.
+.TP
+.B GET
+This retrieves the data located at the given node of the namespace, in
+XML representation, and returns it to the client in the response.
+.TP
+.B PUT
+This expects the body of request to contain an XML document, which is
+then used to overwrite the configuration at the given namespace node.
+For instance, by putting an interface definition to
+.BR /system/interface/br0 ,
+you can reconfigure the bridge interface 
+.BR br0 ,
+optionally creating it if it doesn't exist yet.
+.TP
+.B POST
+This expects the body of request to contain an XML document, which is
+then used to augment the configuration at the given namespace node.
+For instance, this could be used to add a new port to a bridge.
+.I None of the existing namespace supports this yet.
+.TP
+.B DELETE
+This deletes the given namespace node. For instance, this can be used
+to delete the stored configuration for an interface, or bring down and
+delete a VLAN virtual interface.
+.\" ------------------------------------------------------------------
+.SS The Configuration hierarchy
+.TP
+.B /config/interface
+This node holds all stored interface configuration. The only supported
+operation is
+.BR GET ,
+which retrieves the XML representation of all interface configurations.
+.TP
+.BI /config/interface/ ifname
+This node represents the interface configuration of interface
+.IR ifname .
+Valid operations are
+.BR GET ", " PUT " and " DELETE ,
+which retrieve, overwrite and destroy the stored configuration, respectively.
+.IP
+.IR "Caveat: Only GET is implemented currently" .
+.TP
+.B /config/resolver
+This node represents that (permanent) resolver configuration.
+.IP
+.IR "Caveat: This is not implemented yet" .
+.\" ------------------------------------------------------------------
+.SS The System hiearchy
+.TP
+.B /system/interface
+This node holds all current interface status. The only supported
+operation is
+.BR GET ,
+which retrieves the XML representation of the runtime state all interfaces.
+.TP
+.BI /system/interface/ ifname
+This node represents the runtime state of the interface
+.IR ifname .
+Valid operations are
+.BR GET ", " PUT " and " DELETE .
+The
+.B GET
+request retrieves the current state. The 
+.B PUT
+request reconfigures the device according to the provided XML document,
+including taking the interface up or down, assigning addresses, assembling
+a bond from a list of slave devices, etc. The
+.B DELETE
+request is only valid for virtual interfaces such as VLANs, bonds or
+bridges, and deletes the virtual interface completely.
+.TP
+.B /system/hostname
+This is an example of how the wicked namespace could be extended. This
+node allows retrieval of the system's hostname via the
+.B GET
+request only.
+.TP
+.B /system/resolver
+This node represents the current resolver configuration. It can be
+changed using the
+.B PUT
+request.
+.IP
+.IR "Caveat: This is not implemented yet" .
+.SH "SEE ALSO"
+.BR wickedd (8),
+.BR wicked (7),
+.BR wicked (5).
+
+.SH AUTHORS
+Written by Olaf Kirch <okir@suse.de>
+

@@ -70,6 +70,9 @@ distclean::
 install: install-files
 	install -d -m 755 $(DESTDIR)/sbin
 	install -s -m 555 wickedd wicked $(DESTDIR)/sbin
+	install -d -m 755 $(DESTDIR)/usr/share/man/man{7,8}
+	install -c -m 444 man/*.7 $(DESTDIR)/usr/share/man/man7
+	install -c -m 444 man/*.8 $(DESTDIR)/usr/share/man/man8
 
 install-files:
 	install -d -m 755 $(DESTDIR)/etc/wicked
