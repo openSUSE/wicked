@@ -335,6 +335,7 @@ extern int		ni_syntax_parse_stream(ni_syntax_t *, ni_handle_t *, FILE *);
 extern int		ni_syntax_format_all(ni_syntax_t *, ni_handle_t *, FILE *);
 extern int		ni_syntax_format_interface(ni_syntax_t *, ni_handle_t *, ni_interface_t *, FILE *);
 extern xml_node_t *	ni_syntax_xml_from_interface(ni_syntax_t *, ni_handle_t *, ni_interface_t *);
+extern ni_interface_t *	ni_syntax_xml_to_interface(ni_syntax_t *, ni_handle_t *, xml_node_t *);
 extern xml_document_t *	ni_syntax_xml_from_all(ni_syntax_t *, ni_handle_t *);
 extern int		ni_syntax_xml_to_all(ni_syntax_t *, ni_handle_t *, xml_document_t *);
 
