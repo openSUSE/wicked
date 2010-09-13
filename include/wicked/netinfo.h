@@ -313,6 +313,7 @@ extern ni_syntax_t *	ni_default_xml_syntax(void);
 extern ni_policy_info_t *ni_default_policies(void);
 
 extern int		ni_enable_debug(const char *);
+extern void		ni_debug_help(FILE *);
 extern void		ni_log_destination_syslog(const char *program);
 
 extern ni_handle_t *	ni_state_open(void);

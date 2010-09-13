@@ -75,6 +75,11 @@ main(int argc, char **argv)
 			break;
 
 		case OPT_DEBUG:
+			if (!strcmp(optarg, "help")) {
+				printf("Supported debug facilities:\n");
+				ni_debug_help(stdout);
+				return 0;
+			}
 			if (ni_enable_debug(optarg) < 0) {
 				fprintf(stderr, "Bad debug facility \"%s\"\n", optarg);
 				return 1;

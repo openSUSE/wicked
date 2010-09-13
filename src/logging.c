@@ -22,7 +22,7 @@ ni_enable_debug(const char *fac)
 		ni_debug = ~0;
 	else if (!strcmp(fac, "most"))
 		ni_debug = ~(NI_TRACE_XPATH);
-	else if (!strcmp(fac, ""))
+	else if (!strcmp(fac, "ifconfig"))
 		ni_debug = NI_TRACE_IFCONFIG;
 	else if (!strcmp(fac, "readwrite"))
 		ni_debug = NI_TRACE_READWRITE;
@@ -38,6 +38,21 @@ ni_enable_debug(const char *fac)
 		return -1;
 
 	return 0;
+}
+
+void
+ni_debug_help(FILE *fp)
+{
+	fprintf(fp,
+        "  all          All debug facilities\n"
+        "  most         All debug facilities except xpath\n"
+        "  wicked       Everything related to the wicked protocol\n"
+        "  ifconfig     Interface configuration\n"
+        "  readwrite    File read/write operations\n"
+        "  extension    Handling of extension scripts\n"
+        "  events       Netlink events (daemon only)\n"
+        "  xpath        Parsing and execution of xpath formats\n"
+	);
 }
 
 void
