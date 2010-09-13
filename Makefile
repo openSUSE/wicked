@@ -4,6 +4,7 @@ CFLAGS	= -Wall -g -O2 -D_GNU_SOURCE -I. -Iinclude
 APPS	= wicked wickedd testing/xml-test testing/xpath-test
 
 TGTLIBS	= libnetinfo.a \
+	  libnetcf.a
 	  # libnetinfo.so
 # Public header files
 LIBHDRS	= logging.h \
@@ -12,7 +13,8 @@ LIBHDRS	= logging.h \
 	  util.h \
 	  wicked.h \
 	  xml.h \
-	  xpath.h
+	  xpath.h \
+	  netcf.h
 __LIBSRCS= \
 	  config.c \
 	  rest-api.c \
@@ -44,11 +46,15 @@ __LIBSRCS= \
 	  util.c \
 	  socket.c \
 	  logging.c
+__NCFSRCS= \
+	  netcf.c
 
 OBJ	= obj
 LIBSRCS	= $(addprefix src/,$(__LIBSRCS))
 LIBOBJS	= $(addprefix $(OBJ)/lib/,$(__LIBSRCS:.c=.o))
 SHLIBOBJS= $(addprefix $(OBJ)/shlib/,$(__LIBSRCS:.c=.o))
+NCFSRCS	= $(addprefix src/,$(__NCFSRCS))
+NCFOBJS	= $(addprefix $(OBJ)/netcf/,$(__NCFSRCS:.c=.o))
 APPSRCS	= $(addsuffix .c,$(APPS))
 
 all: $(TGTLIBS) $(APPS)
@@ -88,24 +94,32 @@ testing/xpath-test: testing/xpath-test.o $(TGTLIBS)
 libnetinfo.a: $(LIBOBJS)
 	ar cr $@ $(LIBOBJS)
 
+libnetcf.a: $(NCFOBJS)
+	ar cr $@ $(NCFOBJS)
+
 libnetinfo.so: $(SHLIBOBJS)
 	$(CC) $(CFLAGS) -shared -o $@ $(SHLIBOBJS)
 
 depend:
 	gcc $(CFLAGS) -M $(LIBSRCS) | sed 's:^[a-z]:$(OBJ)/lib/&:' > .depend
+	gcc $(CFLAGS) -M $(NCFSRCS) | sed 's:^[a-z]:$(OBJ)/netcf/&:' >> .depend
 	gcc $(CFLAGS) -M $(APPSRCS) | sed 's:^[a-z]:$(OBJ)/&:' >> .depend
 
-$(OBJ)/lib/%.o: src/%.c
+$(OBJ)/%.o: %.c
 	@test -d $(dir $@) || mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-$(OBJ)/%.o: %.c
+$(OBJ)/lib/%.o: src/%.c
 	@test -d $(dir $@) || mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 $(OBJ)/shlib/%.o: src/%.c
 	@test -d $(dir $@) || mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -fPIC -c -o $@ $<
+
+$(OBJ)/netcf/%.o: src/%.c
+	@test -d $(dir $@) || mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 -include .depend
 
