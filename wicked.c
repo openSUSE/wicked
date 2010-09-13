@@ -31,6 +31,7 @@ enum {
 static struct option	options[] = {
 	{ "config",		required_argument,	NULL,	OPT_CONFIGFILE },
 	{ "dryrun",		no_argument,		NULL,	OPT_DRYRUN },
+	{ "dry-run",		no_argument,		NULL,	OPT_DRYRUN },
 	{ "debug",		required_argument,	NULL,	OPT_DEBUG },
 
 	{ NULL }
@@ -57,10 +58,16 @@ main(int argc, char **argv)
 			fprintf(stderr,
 				"./wicked [options] cmd path\n"
 				"This command understands the following options\n"
+				"  --config filename\n"
+				"        Use alternative configuration file.\n"
+				"  --dry-run\n"
+				"        Do not change the system in any way.\n"
 				"  --debug facility\n"
 				"        Enable debugging for debug <facility>.\n"
 				"\n"
 				"Supported commands:\n"
+				"  ifup [--boot] [--file xmlspec] ifname\n"
+				"  ifdown [--delete] ifname\n"
 				"  get /config/interface\n"
 				"  get /config/interface/ifname\n"
 				"  put /config/interface/ifname < cfg.xml\n"
