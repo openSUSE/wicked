@@ -218,7 +218,7 @@ wicked_process_network_restcall(int fd)
 	}
 
 	/* Now get the XML document, if any */
-	req.xml_in = xml_document_scan(sock);
+	req.xml_in = xml_node_scan(sock);
 	if (req.xml_in == NULL) {
 		werror(&req, "unable to parse xml document");
 		goto error;
@@ -227,7 +227,7 @@ wicked_process_network_restcall(int fd)
 	if (ni_rest_request_process(&req, cmd, path) >= 0) {
 		fprintf(sock, "OK\n");
 		if (req.xml_out)
-			xml_document_print(req.xml_out, sock);
+			xml_node_print(req.xml_out, sock);
 	} else {
 error:
 		if (req.error_msg == NULL) {
@@ -239,9 +239,9 @@ error:
 
 	fflush(sock);
 	if (req.xml_in)
-		xml_document_free(req.xml_in);
+		xml_node_free(req.xml_in);
 	if (req.xml_out)
-		xml_document_free(req.xml_out);
+		xml_node_free(req.xml_out);
 	ni_string_free(&req.error_msg);
 }
 

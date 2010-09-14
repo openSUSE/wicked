@@ -278,17 +278,24 @@ error:
 int
 ni_syntax_xml_to_all(ni_syntax_t *syntax, ni_handle_t *nih, xml_document_t *doc)
 {
-	xml_node_t *root, *child;
+	if (!doc)
+		return -1;
+	return __ni_syntax_xml_to_all(syntax, nih, doc->root);
+}
+
+int
+__ni_syntax_xml_to_all(ni_syntax_t *syntax, ni_handle_t *nih, xml_node_t *root)
+{
+	xml_node_t *child;
 
 	if (!syntax->xml_to_interface) {
 		error("%s: syntax not capable of creating interface from xml", __FUNCTION__);
 		return -1;
 	}
 
-	if (!doc)
+	if (!root)
 		return -1;
 
-	root = xml_document_root(doc);
 	for (child = root->children; child; child = child->next) {
 		if (strcmp(child->name, "interface"))
 			continue;

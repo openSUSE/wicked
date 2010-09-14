@@ -19,6 +19,7 @@
 #include <wicked/logging.h>
 #include <wicked/xml.h>
 #include <wicked/xpath.h>
+#include "netinfo_priv.h"
 
 int
 ni_rest_request_process(ni_wicked_request_t *req, const char *cmd, const char *path)
@@ -101,15 +102,15 @@ generic_interface_response(ni_handle_t *nih, ni_interface_t *ifp, ni_wicked_requ
 	ni_syntax_t *xmlsyntax = ni_default_xml_syntax();
 
 	if (ifp == NULL) {
-		req->xml_out = ni_syntax_xml_from_all(xmlsyntax, nih);
-	} else {
-		xml_node_t *result;
+		xml_document_t *doc;
 
-		result = ni_syntax_xml_from_interface(xmlsyntax, nih, ifp);
-		if (result) {
-			req->xml_out = xml_document_new();
-			xml_document_set_root(req->xml_out, result);
+		doc = ni_syntax_xml_from_all(xmlsyntax, nih);
+		if (doc) {
+			req->xml_out = xml_document_take_root(doc);
+			xml_document_free(doc);
 		}
+	} else {
+		req->xml_out = ni_syntax_xml_from_interface(xmlsyntax, nih, ifp);
 	}
 
 	if (req->xml_out == NULL) {
@@ -173,7 +174,7 @@ generic_interface_put(ni_handle_t *nih, const char *ifname, ni_wicked_request_t 
 		goto failed;
 	}
 
-	if (ni_syntax_xml_to_all(ni_default_xml_syntax(), cnih, req->xml_in) < 0) {
+	if (__ni_syntax_xml_to_all(ni_default_xml_syntax(), cnih, req->xml_in) < 0) {
 		werror(req, "unable to parse interface configuration");
 		goto failed;
 	}
@@ -185,7 +186,7 @@ generic_interface_put(ni_handle_t *nih, const char *ifname, ni_wicked_request_t 
 
 	/* Find the XML intrface element - we want to pass it to the configure
 	 * routine. This helps us write flexible extensions */
-	for (cfg_xml = req->xml_in->root->children; cfg_xml; cfg_xml = cfg_xml->next) {
+	for (cfg_xml = req->xml_in->children; cfg_xml; cfg_xml = cfg_xml->next) {
 		const char *name;
 
 		if (strcmp(cfg_xml->name, "interface"))
@@ -285,7 +286,6 @@ static int
 system_hostname_get(const char *path, ni_wicked_request_t *req)
 {
 	char hostname[256];
-	xml_node_t *hnode;
 
 	if (path && *path) {
 		werror(req, "excess elements in path");
@@ -297,10 +297,7 @@ system_hostname_get(const char *path, ni_wicked_request_t *req)
 		return 0;
 	}
 
-	req->xml_out = xml_document_new();
-	hnode = xml_node_new("hostname", xml_document_root(req->xml_out));
-	xml_node_set_cdata(hnode, hostname);
-
+	req->xml_out = xml_node_new("hostname", NULL);
 	return 0;
 }
 
