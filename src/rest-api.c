@@ -21,8 +21,90 @@
 #include <wicked/xpath.h>
 #include "netinfo_priv.h"
 
+/*
+ * construct and destroy wicked request object
+ */
+void
+ni_wicked_request_init(ni_wicked_request_t *req)
+{
+	memset(req, 0, sizeof(*req));
+}
+
+void
+ni_wicked_request_destroy(ni_wicked_request_t *req)
+{
+	ni_string_free(&req->error_msg);
+	xml_node_free(req->xml_in);
+	xml_node_free(req->xml_out);
+	memset(req, 0, sizeof(*req));
+}
+
+/*
+ * Call the local wicked server to process a REST call
+ * This is what wicked clients usually call.
+ */
 int
-ni_rest_request_process(ni_wicked_request_t *req, const char *cmd, const char *path)
+ni_wicked_call_indirect(ni_wicked_request_t *req,
+				const char *cmd, const char *path)
+{
+	char respbuf[256];
+	FILE *sock;
+	int fd;
+
+	fd = ni_server_connect();
+	if (fd < 0)
+		return -1;
+
+	if (!(sock = fdopen(fd, "w+"))) {
+		werror(req, "cannot fdopen local socket: %m");
+		return -1;
+	}
+
+	fprintf(sock, "%s %s\n", cmd, path);
+	fflush(sock);
+
+	if (req->xml_in) {
+		if (xml_node_print(req->xml_in, sock) < 0) {
+			werror(req, "write error on socket: %m");
+			goto error;
+		}
+	}
+
+	fflush(sock);
+
+	/* Tell the server we're done sending */
+	shutdown(fd, SHUT_WR);
+
+	if (fgets(respbuf, sizeof(respbuf), sock) == NULL) {
+		werror(req, "error receiving response from server: EOF");
+		goto error;
+	}
+	respbuf[strcspn(respbuf, "\r\n")] = '\0';
+	if (strcmp(respbuf, "OK")) {
+		ni_string_dup(&req->error_msg, respbuf);
+		goto error;
+	}
+
+	if ((req->xml_out = xml_node_scan(sock)) == NULL) {
+		werror(req, "error receiving response from server: %m");
+		goto error;
+	}
+
+	fclose(sock);
+	return 0;
+
+error:
+	fclose(sock);
+	return -1;
+}
+
+/*
+ * Process a REST call directly.
+ * This is what the wicked server calls to handle an incoming request.
+ */
+int
+ni_wicked_call_direct(ni_wicked_request_t *req,
+				const char *cmd, const char *path)
 {
 	ni_rest_node_t *node;
 	int fn;

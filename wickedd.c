@@ -191,7 +191,7 @@ wicked_process_network_restcall(int fd)
 	char *cmd, *path, *s;
 	FILE *sock;
 
-	memset(&req, 0, sizeof(req));
+	ni_wicked_request_init(&req);
 
 	if (!(sock = fdopen(fd, "w+"))) {
 		ni_error("unable to fdopen socket: %m");
@@ -224,7 +224,7 @@ wicked_process_network_restcall(int fd)
 		goto error;
 	}
 
-	if (ni_rest_request_process(&req, cmd, path) >= 0) {
+	if (ni_wicked_call_direct(&req, cmd, path) >= 0) {
 		fprintf(sock, "OK\n");
 		if (req.xml_out)
 			xml_node_print(req.xml_out, sock);
@@ -238,11 +238,7 @@ error:
 	}
 
 	fflush(sock);
-	if (req.xml_in)
-		xml_node_free(req.xml_in);
-	if (req.xml_out)
-		xml_node_free(req.xml_out);
-	ni_string_free(&req.error_msg);
+	ni_wicked_request_destroy(&req);
 }
 
 /*

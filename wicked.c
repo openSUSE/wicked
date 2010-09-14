@@ -137,9 +137,8 @@ __wicked_request(const char *cmd, const char *path,
 		/* const */ xml_node_t *send_xml,
 		xml_node_t **recv_xml)
 {
-	char respbuf[256];
-	FILE *sock;
-	int fd;
+	ni_wicked_request_t req;
+	int rv;
 
 	if (opt_dryrun && strcasecmp(cmd, "GET")) {
 		printf("Would send request %s %s\n", cmd, path);
@@ -148,54 +147,19 @@ __wicked_request(const char *cmd, const char *path,
 		return 0;
 	}
 
-	fd = ni_server_connect();
-	if (fd < 0)
-		return -1;
+	ni_wicked_request_init(&req);
+	req.xml_in = send_xml;
 
-	if (!(sock = fdopen(fd, "w+"))) {
-		ni_error("cannot fdopen local socket: %m");
-		return -1;
+	rv = ni_wicked_call_indirect(&req, cmd, path);
+	if (rv < 0) {
+		ni_error("%s", req.error_msg);
+	} else if (recv_xml) {
+		*recv_xml = req.xml_out;
+		req.xml_out = NULL;
 	}
 
-	fprintf(sock, "%s %s\n", cmd, path);
-	fflush(sock);
-
-	if (send_xml) {
-		if (xml_node_print(send_xml, sock) < 0) {
-			ni_error("write error on socket: %m");
-			goto error;
-		}
-	}
-
-	fflush(sock);
-
-	/* Tell the server we're done sending */
-	shutdown(fd, SHUT_WR);
-
-	if (fgets(respbuf, sizeof(respbuf), sock) == NULL) {
-		ni_error("error receiving response from server: EOF");
-		goto error;
-	}
-	respbuf[strcspn(respbuf, "\r\n")] = '\0';
-	if (strcmp(respbuf, "OK")) {
-		ni_error("server returns error: %s", respbuf);
-		goto error;
-	}
-
-	if (recv_xml == NULL) {
-		/* FIXME: discard server input */
-	} else
-	if ((*recv_xml = xml_node_scan(sock)) == NULL) {
-		ni_error("error receiving response from server: %m");
-		goto error;
-	}
-	
-	fclose(sock);
-	return 0;
-
-error:
-	fclose(sock);
-	return -1;
+	ni_wicked_request_destroy(&req);
+	return rv;
 }
 
 xml_node_t *

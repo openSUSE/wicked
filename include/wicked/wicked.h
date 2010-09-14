@@ -17,8 +17,6 @@ enum {
 };
 
 typedef struct ni_wicked_request {
-	int		op;
-
 	char *		error_msg;
 	xml_node_t *	xml_in;
 	xml_node_t *	xml_out;
@@ -41,7 +39,13 @@ typedef struct ni_rest_node {
 	struct ni_rest_node *	children[__NI_REST_CHILD_MAX];
 } ni_rest_node_t;
 
-extern int			ni_rest_request_process(ni_wicked_request_t *, const char *, const char *);
+extern int			ni_wicked_call_direct(ni_wicked_request_t *,
+					const char *, const char *);
+extern int			ni_wicked_call_indirect(ni_wicked_request_t *,
+					const char *, const char *);
+extern void			ni_wicked_request_init(ni_wicked_request_t *);
+extern void			ni_wicked_request_destroy(ni_wicked_request_t *);
+
 extern ni_rest_node_t *		ni_rest_node_lookup(const char *, const char **);
 extern void			werror(ni_wicked_request_t *, const char *, ...);
 
