@@ -56,6 +56,15 @@ xml_document_set_root(xml_document_t *doc, xml_node_t *root)
 	}
 }
 
+xml_node_t *
+xml_document_take_root(xml_document_t *doc)
+{
+	xml_node_t *root = doc->root;
+
+	doc->root = NULL;
+	return root;
+}
+
 void
 xml_document_free(xml_document_t *doc)
 {
