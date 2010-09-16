@@ -472,14 +472,16 @@ ni_xml_sort_interfaces(xml_document_t *doc, struct ni_interface_dependency **res
 
 	qsort(iflist, count, sizeof(iflist[0]), __ni_xml_interface_dependeny_cmp);
 
-	ni_trace("sorted interfaces");
-	for (i = 0; i < count; ++i) {
-		struct ni_interface_dependency *slave = &iflist[i];
+	if (ni_debug & NI_TRACE_WICKED) {
+		ni_trace("sorted interfaces");
+		for (i = 0; i < count; ++i) {
+			struct ni_interface_dependency *slave = &iflist[i];
 
-		ni_trace("%s prio=%d link %s network %s",
-				slave->name, slave->priority,
-				slave->link_up? "up" : "down",
-				slave->network_up? "up" : "down");
+			ni_trace("%s prio=%d link %s network %s",
+					slave->name, slave->priority,
+					slave->link_up? "up" : "down",
+					slave->network_up? "up" : "down");
+		}
 	}
 
 	*resultp = iflist;
@@ -627,6 +629,7 @@ usage:
 			if (rv < 0)
 				goto failed;
 		}
+		free(sorted);
 	} else {
 		xml_node_t *ifnode;
 
@@ -767,6 +770,7 @@ usage:
 			if ((rv = do_ifdown_one(sorted[i].xml, opt_delete)) < 0)
 				goto failed;
 		}
+		free(sorted);
 	} else {
 		xml_node_t *ifnode;
 
