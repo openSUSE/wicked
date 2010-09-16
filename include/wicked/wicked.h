@@ -17,9 +17,9 @@ enum {
 };
 
 typedef struct ni_wicked_request {
-	char *		error_msg;
-	xml_node_t *	xml_in;
-	xml_node_t *	xml_out;
+	char *			error_msg;
+	const xml_node_t *	xml_in;
+	xml_node_t *		xml_out;
 } ni_wicked_request_t;
 
 typedef int (*ni_rest_handler_t)(const char *, ni_wicked_request_t *req);

@@ -34,7 +34,6 @@ void
 ni_wicked_request_destroy(ni_wicked_request_t *req)
 {
 	ni_string_free(&req->error_msg);
-	xml_node_free(req->xml_in);
 	xml_node_free(req->xml_out);
 	memset(req, 0, sizeof(*req));
 }
