@@ -18,26 +18,47 @@ static unsigned int	ni_log_syslog = 0;
 int
 ni_enable_debug(const char *fac)
 {
-	if (!strcmp(fac, "all"))
-		ni_debug = ~0;
-	else if (!strcmp(fac, "most"))
-		ni_debug = ~(NI_TRACE_XPATH);
-	else if (!strcmp(fac, "ifconfig"))
-		ni_debug = NI_TRACE_IFCONFIG;
-	else if (!strcmp(fac, "readwrite"))
-		ni_debug = NI_TRACE_READWRITE;
-	else if (!strcmp(fac, "extension"))
-		ni_debug = NI_TRACE_EXTENSION;
-	else if (!strcmp(fac, "xpath"))
-		ni_debug = NI_TRACE_XPATH;
-	else if (!strcmp(fac, "wicked"))
-		ni_debug = NI_TRACE_WICKED;
-	else if (!strcmp(fac, "events"))
-		ni_debug = NI_TRACE_EVENTS;
-	else
-		return -1;
+	char *copy, *s;
+	int rv = 0;
 
-	return 0;
+	copy = strdup(fac);
+	for (s = strtok(copy, ","); s; s = strtok(NULL, ",")) {
+		int flags = 0;
+		int not = 0;
+
+		if (*s == '-') {
+			not = 1;
+			++s;
+		}
+
+		if (!strcmp(s, "all"))
+			flags = ~0;
+		else if (!strcmp(s, "most"))
+			flags = ~(NI_TRACE_XPATH);
+		else if (!strcmp(s, "ifconfig"))
+			flags = NI_TRACE_IFCONFIG;
+		else if (!strcmp(s, "readwrite"))
+			flags = NI_TRACE_READWRITE;
+		else if (!strcmp(s, "extension"))
+			flags = NI_TRACE_EXTENSION;
+		else if (!strcmp(s, "xpath"))
+			flags = NI_TRACE_XPATH;
+		else if (!strcmp(s, "wicked"))
+			flags = NI_TRACE_WICKED;
+		else if (!strcmp(s, "events"))
+			flags = NI_TRACE_EVENTS;
+		else {
+			rv = -1;
+			continue;
+		}
+		if (not)
+			ni_debug &= ~flags;
+		else
+			ni_debug |= flags;
+	}
+
+	free(copy);
+	return rv;
 }
 
 void

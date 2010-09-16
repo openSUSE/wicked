@@ -30,6 +30,11 @@ Enable debugging for
 .IR facility .
 The list of available facilities can be obtained using
 .BR "\-\-debug help" .
+You can specify several facilities, separated by commas.
+Prepending a minus will turn off the specified facility. For
+instance, to enable all debugging facilities except reporting of
+events, use
+.BR "all,-events" .
 .TP
 .B \-\-foreground
 Tell the daemon to not background itself at startup.
