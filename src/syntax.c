@@ -276,7 +276,7 @@ error:
  * Produce interfaces from XML
  */
 int
-ni_syntax_xml_to_all(ni_syntax_t *syntax, ni_handle_t *nih, xml_document_t *doc)
+ni_syntax_xml_to_all(ni_syntax_t *syntax, ni_handle_t *nih, const xml_document_t *doc)
 {
 	if (!doc)
 		return -1;
@@ -284,7 +284,7 @@ ni_syntax_xml_to_all(ni_syntax_t *syntax, ni_handle_t *nih, xml_document_t *doc)
 }
 
 int
-__ni_syntax_xml_to_all(ni_syntax_t *syntax, ni_handle_t *nih, xml_node_t *root)
+__ni_syntax_xml_to_all(ni_syntax_t *syntax, ni_handle_t *nih, const xml_node_t *root)
 {
 	xml_node_t *child;
 

@@ -41,13 +41,13 @@ static int		xml_writer_close(xml_writer_t *);
 static int		xml_writer_destroy(xml_writer_t *);
 static void		xml_writer_printf(xml_writer_t *, const char *, ...);
 
-static void		xml_document_output(xml_document_t *, xml_writer_t *);
-static void		xml_node_output(xml_node_t *node, xml_writer_t *, unsigned int indent);
+static void		xml_document_output(const xml_document_t *, xml_writer_t *);
+static void		xml_node_output(const xml_node_t *node, xml_writer_t *, unsigned int indent);
 static const char *	xml_escape_quote(const char *);
 static const char *	xml_escape_entities(const char *);
 
 int
-xml_document_write(xml_document_t *doc, const char *filename)
+xml_document_write(const xml_document_t *doc, const char *filename)
 {
 	xml_writer_t writer;
 
@@ -59,7 +59,7 @@ xml_document_write(xml_document_t *doc, const char *filename)
 }
 
 int
-xml_document_print(xml_document_t *doc, FILE *fp)
+xml_document_print(const xml_document_t *doc, FILE *fp)
 {
 	xml_writer_t writer;
 
@@ -71,14 +71,14 @@ xml_document_print(xml_document_t *doc, FILE *fp)
 }
 
 void
-xml_document_output(xml_document_t *doc, xml_writer_t *writer)
+xml_document_output(const xml_document_t *doc, xml_writer_t *writer)
 {
 	xml_writer_printf(writer, "<?xml version=\"1.0\" encoding=\"utf8\"?>\n");
 	xml_node_output(doc->root, writer, 0);
 }
 
 int
-xml_node_print(xml_node_t *node, FILE *fp)
+xml_node_print(const xml_node_t *node, FILE *fp)
 {
 	xml_writer_t writer;
 	int rv = 0;
@@ -92,7 +92,7 @@ xml_node_print(xml_node_t *node, FILE *fp)
 }
 
 void
-xml_node_output(xml_node_t *node, xml_writer_t *writer, unsigned int indent)
+xml_node_output(const xml_node_t *node, xml_writer_t *writer, unsigned int indent)
 {
 	unsigned int child_indent = indent;
 	int newline = 0;

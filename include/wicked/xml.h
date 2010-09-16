@@ -48,8 +48,8 @@ struct xml_node {
 
 extern xml_document_t *	xml_document_read(const char *);
 extern xml_document_t *	xml_document_scan(FILE *);
-extern int		xml_document_write(xml_document_t *, const char *);
-extern int		xml_document_print(xml_document_t *, FILE *fp);
+extern int		xml_document_write(const xml_document_t *, const char *);
+extern int		xml_document_print(const xml_document_t *, FILE *fp);
 extern const char *	xml_document_dtd(const xml_document_t *);
 
 extern xml_document_t *	xml_document_new();
@@ -61,7 +61,7 @@ extern void		xml_document_free(xml_document_t *);
 extern xml_node_t *	xml_node_new(const char *ident, xml_node_t *);
 extern xml_node_t *	xml_node_clone(const xml_node_t *src, xml_node_t *parent);
 extern void		xml_node_free(xml_node_t *);
-extern int		xml_node_print(xml_node_t *, FILE *fp);
+extern int		xml_node_print(const xml_node_t *, FILE *fp);
 extern xml_node_t *	xml_node_scan(FILE *fp);
 extern void		xml_node_set_cdata(xml_node_t *, const char *);
 extern void		xml_node_add_attr(xml_node_t *, const char *, const char *);
