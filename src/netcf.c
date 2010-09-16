@@ -71,12 +71,12 @@ ncf_init(struct netcf **ncfp, const char *root)
 	ncf->users = 1;
 
 	ncf->state.cache_lft = __NETCF_STATE_CACHE_LFT;
-	ncf->state.handle = ni_state_open();
+	ncf->state.handle = ni_indirect_open("/system");
 	if (!ncf->state.handle)
 		goto failed;
 
 	ncf->state.cache_lft = __NETCF_CONFIG_CACHE_LFT;
-	ncf->config.handle = ni_netconfig_open(NULL);
+	ncf->state.handle = ni_indirect_open("/config");
 	if (!ncf->config.handle)
 		goto failed;
 
@@ -555,9 +555,7 @@ ncf_if_status(struct netcf_if *nif, unsigned int *flags)
 	if (!(ifp = __ncf_if_state(nif))) {
 		/* No error, just consider it down */
 		ncf->error = 0;
-	}
-
-	if (ifp->flags & IFF_UP)
+	} else if (ifp->flags & IFF_UP)
 		*flags = NETCF_IFACE_ACTIVE;
 
 	return 0;
