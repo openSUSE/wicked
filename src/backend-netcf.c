@@ -450,18 +450,6 @@ __ni_netcf_xml_to_static_ifcfg(ni_syntax_t *syntax, ni_handle_t *nih,
 		/* Check if there's a peer address */
 		if (__ni_netcf_xml_to_address(node, af, "peer", &ap->peer_addr, NULL, NULL))
 			return -1;
-
-		/* strict netcf transports the default gateway as an attribute of the address element */
-		if (syntax->strict) {
-			struct sockaddr_storage gw_addr;
-
-			memset(&gw_addr, 0, sizeof(gw_addr));
-			if (__ni_netcf_xml_to_address(node, af, "gateway", &gw_addr, NULL, NULL))
-				return -1;
-
-			if (gw_addr.ss_family != AF_UNSPEC)
-				ni_interface_add_route(nih, ifp, ap->prefixlen, &ap->local_addr, &gw_addr);
-		}
 	}
 
 	for (node = protnode->children; node; node = node->next) {
@@ -686,16 +674,6 @@ __ni_netcf_xml_from_static_ifcfg(ni_syntax_t *syntax, ni_handle_t *nih,
 			xml_node_add_attr(addrnode, "peer", ni_address_print(&ap->peer_addr));
 		xml_node_add_attr_uint(addrnode, "prefix", ap->prefixlen);
 
-		if (syntax->strict) {
-			/* strict netcf only understands default gateway attrs */
-			for (rp = ifp->routes; rp; rp = rp->next) {
-				if (rp->family == af && rp->destination.ss_family == AF_UNSPEC) {
-					xml_node_add_attr(addrnode, "gateway", ni_address_print(&rp->gateway));
-					break;
-				}
-			}
-		}
-
 		for (rp = nih->routes; rp; rp = rp->next) {
 			// FIXME: this check works for IPv4 only;
 			// IPv6 routing is different.
@@ -704,13 +682,19 @@ __ni_netcf_xml_from_static_ifcfg(ni_syntax_t *syntax, ni_handle_t *nih,
 		}
 	}
 
-	if (!syntax->strict && protnode) {
+	if (protnode) {
 		/* variant netcf can express a richer variety of IP routes */
 		for (rp = ifp->routes; rp; rp = rp->next) {
+			/* struct netcf: ignore non-default routes; we cannot map these. */
+			if (syntax->strict && rp->prefixlen != 0)
+				continue;
 			if (rp->family == af)
 				__ni_netcf_xml_from_route(rp, protnode);
 		}
 		for (rp = nih->routes; rp; rp = rp->next) {
+			/* struct netcf: ignore non-default routes; we cannot map these. */
+			if (syntax->strict && rp->prefixlen != 0)
+				continue;
 			if (rp->seq == nih->seqno)
 				__ni_netcf_xml_from_route(rp, protnode);
 		}
