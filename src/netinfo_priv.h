@@ -29,6 +29,9 @@ struct ni_handle {
 	/* For a state handle */
 	struct rtnl_handle	rth;
 	int			iocfd;
+
+	/* For an indirect handle */
+	char *			indirect_path;
 };
 
 struct ni_ops {
