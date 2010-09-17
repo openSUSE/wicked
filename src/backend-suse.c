@@ -298,7 +298,7 @@ __ni_suse_sysconfig2ifconfig(ni_interface_t *ifp, ni_sysconfig_t *sc)
 	}
 	ni_string_free(&value);
 
-	if (ni_sysconfig_get_string(sc, "HWADDR", &hwaddr) >= 0 && hwaddr) {
+	if (ni_sysconfig_get_string(sc, "LLADDR", &hwaddr) >= 0 && hwaddr) {
 		if (ni_link_address_parse(&ifp->hwaddr, NI_IFTYPE_ETHERNET, hwaddr) < 0)
 			return -1;
 		ni_string_free(&hwaddr);
@@ -668,7 +668,7 @@ __ni_suse_ifconfig2sysconfig(ni_interface_t *ifp, ni_sysconfig_t *sc)
 	ni_sysconfig_set(sc, "BOOTPROTO", __ni_suse_bootproto(ifp->startmode));
 
 	if (!ifp->hwaddr.type != NI_IFTYPE_UNKNOWN)
-		ni_sysconfig_set(sc, "HWADDR", ni_link_address_print(&ifp->hwaddr));
+		ni_sysconfig_set(sc, "LLADDR", ni_link_address_print(&ifp->hwaddr));
 
 	/* Only do this if the MTU value differs from the device default? */
 	if (ifp->mtu)
