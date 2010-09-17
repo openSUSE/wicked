@@ -511,7 +511,7 @@ ni_daemonize(const char *pidfile, unsigned int permissions)
 			return -1;
 		}
 
-		if (access(pidfile, F_OK) == 0) {
+		if (ni_file_exists(pidfile)) {
 			if (unlink(pidfile) < 0) {
 				ni_error("cannot remove stale pidfile %s: %m", pidfile);
 				return -1;
@@ -596,7 +596,7 @@ ni_pidfile_check(const char *pidfile)
 	FILE *fp;
 	pid_t pid = 0;
 
-	if (access(pidfile, F_OK) == 0)
+	if (!ni_file_exists(pidfile))
 		return 0;
 
 	if (!(fp = fopen(pidfile, "r"))) {
