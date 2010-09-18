@@ -8,11 +8,15 @@
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
+#include <stdarg.h>
 
 #include <wicked/netinfo.h>
 #include <wicked/xml.h>
 #include "netinfo_priv.h"
 #include "config.h"
+
+static const char *	__ni_syntax_prepend_root(ni_syntax_t *, const char *);
+static const char *	__ni_syntax_prepend_base(ni_syntax_t *, const char *);
 
 ni_syntax_t *
 ni_syntax_new(const char *schema, const char *base_path)
@@ -48,12 +52,79 @@ ni_syntax_new(const char *schema, const char *base_path)
 }
 
 void
+ni_syntax_set_root_directory(ni_syntax_t *syntax, const char *root_dir)
+{
+	ni_string_dup(&syntax->root_dir, root_dir);
+}
+
+void
 ni_syntax_free(ni_syntax_t *syntax)
 {
 	free(syntax->base_path);
+	free(syntax->root_dir);
 	free(syntax);
 }
 
+/*
+ * Build a pathname composed of root_dir, base_path and a format string.
+ *  root_dir would be where a virtual image would be mounted.
+ *  base_path would be something like /etc/sysconfig/network.
+ * If root_dir is set, always prepend it.
+ * If fmt is a relative path, prepend base_path if set.
+ */
+const char *
+ni_syntax_build_path(ni_syntax_t *syntax, const char *fmt, ...)
+{
+	static char pathbuf[PATH_MAX];
+	const char *result;
+	va_list ap;
+
+	va_start(ap, fmt);
+	vsnprintf(pathbuf, sizeof(pathbuf), fmt, ap);
+	result = pathbuf;
+	va_end(ap);
+
+	if (result[0] != '/')
+		result = __ni_syntax_prepend_base(syntax, result);
+	return __ni_syntax_prepend_root(syntax, result);
+}
+
+const char *
+ni_syntax_base_path(ni_syntax_t *syntax)
+{
+	return __ni_syntax_prepend_root(syntax, syntax->base_path);
+}
+
+static const char *
+__ni_syntax_prepend_root(ni_syntax_t *syntax, const char *filename)
+{
+	static char pathbuf[PATH_MAX];
+
+	if (syntax->root_dir == NULL)
+		return filename;
+
+	if (filename[0] == '/')
+		++filename;
+	snprintf(pathbuf, sizeof(pathbuf), "%s/%s", syntax->root_dir, filename);
+	return pathbuf;
+}
+
+static const char *
+__ni_syntax_prepend_base(ni_syntax_t *syntax, const char *filename)
+{
+	static char pathbuf[PATH_MAX];
+
+	if (syntax->base_path == NULL)
+		return filename;
+
+	snprintf(pathbuf, sizeof(pathbuf), "%s/%s", syntax->root_dir, filename);
+	return pathbuf;
+}
+
+/*
+ * Parse interface configuration contained in default
+ * system configuration files.
+ */
 int
 ni_syntax_parse_all(ni_syntax_t *syntax, ni_handle_t *nih)
 {
@@ -61,9 +132,6 @@ ni_syntax_parse_all(ni_syntax_t *syntax, ni_handle_t *nih)
 		return syntax->parse_all(syntax, nih);
 
 	return ni_syntax_parse_file(syntax, nih, syntax->base_path);
-
-	error("%s: syntax not capable of writing a single interface", __FUNCTION__);
-	return -1;
 }
 
 int
@@ -86,13 +154,19 @@ ni_syntax_parse_data(ni_syntax_t *syntax, ni_handle_t *nih, const char *data)
 int
 ni_syntax_parse_file(ni_syntax_t *syntax, ni_handle_t *nih, const char *filename)
 {
-	if (syntax->parse_all_from_file)
+	/* XXX obsolete */
+	if (syntax->parse_all_from_file) {
+		if (filename == NULL)
+			return -1;
 		return syntax->parse_all_from_file(syntax, nih, filename);
+	}
 
 	if (syntax->xml_to_interface) {
 		xml_document_t *doc;
 		int rv;
 
+		/* Relocate filename relative to root */
+		filename = ni_syntax_build_path(syntax, "%s", filename);
 		if (!(doc = xml_document_read(filename))) {
 			error("%s: unable to parse XML document %s", __FUNCTION__, filename);
 			return -1;
@@ -133,7 +207,6 @@ ni_syntax_parse_stream(ni_syntax_t *syntax, ni_handle_t *nih, FILE *input)
 	return -1;
 }
 
-
 int
 ni_syntax_format_all(ni_syntax_t *syntax, ni_handle_t *nih, FILE *outfile)
 {
@@ -156,13 +229,12 @@ ni_syntax_format_all(ni_syntax_t *syntax, ni_handle_t *nih, FILE *outfile)
 		if (!syntax->base_path || !strcmp(syntax->base_path, "-")) {
 			rv = xml_document_print(doc, stdout);
 		} else {
-			char filename[PATH_MAX];
+			const char *filename;
 
 			/* FIXME: create temp file, and use separate commit at
 			 * a later point to rename it to final destination.
 			 * This allows atomic updates and rollback */
-			snprintf(filename, sizeof(filename), "%s/all.xml",
-					syntax->base_path);
+			filename = ni_syntax_build_path(syntax, "all.xml");
 
 			rv = xml_document_write(doc, filename);
 		}
@@ -196,14 +268,12 @@ ni_syntax_format_interface(ni_syntax_t *syntax, ni_handle_t *nih, ni_interface_t
 		if (!syntax->base_path || !strcmp(syntax->base_path, "-")) {
 			rv = xml_document_print(doc, stdout);
 		} else {
-			char filename[PATH_MAX];
+			const char *filename;
 
 			/* FIXME: create temp file, and use separate commit at
 			 * a later point to rename it to final destination.
 			 * This allows atomic updates and rollback */
-			snprintf(filename, sizeof(filename), "%s/%s.xml",
-					syntax->base_path,
-					ifp->name);
+			filename = ni_syntax_build_path(syntax, "%s.xml", ifp->name);
 
 			rv = xml_document_write(doc, filename);
 		}

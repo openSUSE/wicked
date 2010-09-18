@@ -35,7 +35,45 @@ ni_wicked_request_destroy(ni_wicked_request_t *req)
 {
 	ni_string_free(&req->error_msg);
 	xml_node_free(req->xml_out);
+
+	ni_var_array_destroy(&req->options);
 	memset(req, 0, sizeof(*req));
+}
+
+/*
+ * Pass "options" along with a wicked request.
+ * The main motivation for having this kludge is to pass
+ * in the "root" parameter, i.e. the directory relative
+ * to which we should look for sysconfig files.
+ * Needed to support netcf.
+ */
+int
+ni_wicked_request_add_option(ni_wicked_request_t *req,
+		const char *name, const char *value)
+{
+	if (!name || !value)
+		return 0;
+	if (strchr(name, '\n')) {
+		ni_error("bad option name \"%s\"", name);
+		return -1;
+	}
+	if (strchr(value, '\n')) {
+		ni_error("Bad value for option %s", name);
+		return -1;
+	}
+	ni_var_array_set(&req->options, name, value);
+	return 0;
+}
+
+const char *
+ni_wicked_request_get_option(ni_wicked_request_t *req, const char *name)
+{
+	ni_var_t *var;
+
+	var = ni_var_array_get(&req->options, name);
+	if (var && var->value && var->value[0])
+		return var->value;
+	return NULL;
 }
 
 /*
@@ -47,6 +85,7 @@ ni_wicked_call_indirect(ni_wicked_request_t *req,
 				const char *cmd, const char *path)
 {
 	char respbuf[256];
+	unsigned int i;
 	FILE *sock;
 	int fd;
 
@@ -60,6 +99,12 @@ ni_wicked_call_indirect(ni_wicked_request_t *req,
 	}
 
 	fprintf(sock, "%s %s\n", cmd, path);
+	for (i = 0; i < req->options.count; ++i) {
+		ni_var_t *var = &req->options.data[i];
+
+		fprintf(sock, "%s: %s\n", var->name, var->value);
+	}
+	fprintf(sock, "\n");
 	fflush(sock);
 
 	if (req->xml_in) {
@@ -108,7 +153,18 @@ ni_wicked_call_direct(ni_wicked_request_t *req,
 	ni_rest_node_t *node;
 	int fn;
 
-	ni_debug_wicked("Processing REST request %s \"%s\"", cmd, path);
+	if (ni_debug & NI_TRACE_WICKED) {
+		unsigned int i;
+		ni_trace("Processing REST request %s \"%s\"", cmd, path);
+		if (req->options.count)
+			ni_trace("Options:");
+		for (i = 0; i < req->options.count; ++i) {
+			ni_var_t *var = &req->options.data[i];
+
+			ni_trace("  %s=\"%s\"", var->name, var->value);
+		}
+	}
+
 	if (!strcasecmp(cmd, "get")) {
 		fn = NI_REST_OP_GET;
 	} else
@@ -161,9 +217,11 @@ system_handle(ni_wicked_request_t *req)
 static ni_handle_t *
 config_handle(ni_wicked_request_t *req)
 {
+	const char *root_dir;
 	ni_handle_t *nih;
 
-	nih = ni_netconfig_open(ni_syntax_new(NULL, NULL));
+	root_dir = ni_wicked_request_get_option(req, "root");
+	nih = ni_netconfig_open(ni_netconfig_default_syntax(root_dir));
 	if (nih == NULL) {
 		werror(req, "unable to obtain netinfo handle");
 		return NULL;

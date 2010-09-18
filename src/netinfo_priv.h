@@ -50,6 +50,7 @@ struct ni_ops {
 struct ni_syntax {
 	const char *		schema;
 	char *			base_path;
+	char *			root_dir;
 	unsigned char		strict;
 
 	int			(*parse_all)(ni_syntax_t *, ni_handle_t *);

@@ -73,13 +73,15 @@ static int
 __ni_suse_parse_all(ni_syntax_t *syntax, ni_handle_t *nih)
 {
 	ni_string_array_t files = NI_STRING_ARRAY_INIT;
+	const char *base_dir;
 	char pathbuf[PATH_MAX];
 	int i;
 
 	/* Wipe out all interface information */
 	__ni_interfaces_clear(nih);
 
-	if (!ni_sysconfig_scandir(syntax->base_path, "ifcfg-", &files)) {
+	base_dir = ni_syntax_base_path(syntax);
+	if (!ni_sysconfig_scandir(base_dir, "ifcfg-", &files)) {
 		error("No ifcfg files found");
 		return -1;
 	}
@@ -89,16 +91,16 @@ __ni_suse_parse_all(ni_syntax_t *syntax, ni_handle_t *nih)
 		const char *ifname = filename + 6;
 		ni_interface_t *ifp;
 
-		snprintf(pathbuf, sizeof(pathbuf), "%s/%s", syntax->base_path, filename);
+		snprintf(pathbuf, sizeof(pathbuf), "%s/%s", base_dir, filename);
 		ifp = __ni_suse_read_interface(nih, pathbuf, filename + 6);
 		if (ifp == NULL)
 			goto failed;
 
-		snprintf(pathbuf, sizeof(pathbuf), "%s/ifroute-%s", syntax->base_path, ifname);
+		snprintf(pathbuf, sizeof(pathbuf), "%s/ifroute-%s", base_dir, ifname);
 		if (__ni_suse_read_routes(&ifp->routes, pathbuf) < 0)
 			goto failed;
 	}
-	snprintf(pathbuf, sizeof(pathbuf), "%s/routes", syntax->base_path);
+	snprintf(pathbuf, sizeof(pathbuf), "%s/routes", base_dir);
 	if (__ni_suse_read_routes(&nih->routes, pathbuf) < 0)
 		goto failed;
 
@@ -592,16 +594,18 @@ int
 __ni_suse_format_all(ni_syntax_t *syntax, ni_handle_t *nih, FILE *outfile)
 {
 	ni_string_array_t files = NI_STRING_ARRAY_INIT;
+	const char *base_dir;
 	char pathbuf[PATH_MAX];
 	unsigned int i;
 	ni_interface_t *ifp;
 
 	nih->seqno++;
 
+	base_dir = ni_syntax_base_path(syntax);
 	for (ifp = nih->iflist; ifp; ifp = ifp->next) {
 		ni_sysconfig_t *sc;
 
-		snprintf(pathbuf, sizeof(pathbuf), "%s/ifcfg-%s", syntax->base_path, ifp->name);
+		snprintf(pathbuf, sizeof(pathbuf), "%s/ifcfg-%s", base_dir, ifp->name);
 		if (!ni_file_exists(pathbuf)) {
 			sc = ni_sysconfig_new(pathbuf);
 		} else {
@@ -631,21 +635,21 @@ __ni_suse_format_all(ni_syntax_t *syntax, ni_handle_t *nih, FILE *outfile)
 	 * were written to an ifroutes file above.
 	 */
 #if 0
-	snprintf(pathbuf, sizeof(pathbuf), "%s/routes", syntax->base_path);
+	snprintf(pathbuf, sizeof(pathbuf), "%s/routes", base_dir);
 	if (__ni_suse_write_routes(&nih->routes, pathbuf) < 0)
 		return -1;
 #else
 	trace("should really rewrite %s here\n", pathbuf);
 #endif
 
-	(void) ni_sysconfig_scandir(syntax->base_path, "ifcfg-", &files);
+	(void) ni_sysconfig_scandir(base_dir, "ifcfg-", &files);
 	for (i = 0; i < files.count; ++i) {
 		const char *filename = files.data[i];
 		const char *ifname = filename + 6;
 
 		if (ni_interface_by_name(nih, ifname) == NULL) {
 			/* This interface went away */
-			snprintf(pathbuf, sizeof(pathbuf), "%s/%s", syntax->base_path, filename);
+			snprintf(pathbuf, sizeof(pathbuf), "%s/%s", base_dir, filename);
 			trace("should really unlink(%s) here\n", pathbuf);
 		}
 	}

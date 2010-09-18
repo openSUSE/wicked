@@ -285,6 +285,7 @@ ni_scandir(const char *dirname, const char *match_prefix, ni_string_array_t *res
 	unsigned int pfxlen;
 	DIR *dir;
 
+	ni_debug_readwrite("ni_scandir(%s, %s)", dirname, match_prefix);
 	dir = opendir(dirname);
 	if (dir == NULL) {
 		perror(dirname);

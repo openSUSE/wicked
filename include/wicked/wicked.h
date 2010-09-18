@@ -20,6 +20,8 @@ typedef struct ni_wicked_request {
 	char *			error_msg;
 	const xml_node_t *	xml_in;
 	xml_node_t *		xml_out;
+
+	ni_var_array_t		options;
 } ni_wicked_request_t;
 
 typedef int (*ni_rest_handler_t)(const char *, ni_wicked_request_t *req);
@@ -45,6 +47,10 @@ extern int			ni_wicked_call_indirect(ni_wicked_request_t *,
 					const char *, const char *);
 extern void			ni_wicked_request_init(ni_wicked_request_t *);
 extern void			ni_wicked_request_destroy(ni_wicked_request_t *);
+extern int			ni_wicked_request_add_option(ni_wicked_request_t *,
+					const char *, const char *);
+extern const char *		ni_wicked_request_get_option(ni_wicked_request_t *,
+					const char *);
 
 extern ni_rest_node_t *		ni_rest_node_lookup(const char *, const char **);
 extern void			werror(ni_wicked_request_t *, const char *, ...);

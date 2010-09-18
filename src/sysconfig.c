@@ -48,6 +48,7 @@ __ni_sysconfig_read(const char *filename, const char **varnames)
 	char linebuf[512];
 	FILE *fp;
 
+	ni_debug_readwrite("ni_sysconfig_read(%s)", filename);
 	if (!(fp = fopen(filename, "r"))) {
 		perror(filename);
 		return NULL;

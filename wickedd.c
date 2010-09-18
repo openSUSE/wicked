@@ -216,6 +216,27 @@ wicked_process_network_restcall(int fd)
 		werror(&req, "cannot parse REST request");
 		goto error;
 	}
+	cmd = strdup(cmd);
+	path = strdup(path);
+
+	/* Get options */
+	while (fgets(buffer, sizeof(buffer), sock) != NULL) {
+		int len = strlen(buffer);
+		char *s;
+
+		while (len && isspace(buffer[len-1]))
+			buffer[--len] = '\0';
+
+		if (buffer[0] == '\0')
+			break;
+
+		for (s = buffer; isalpha(*s); ++s)
+			*s = tolower(*s);
+		while (*s == ':' || isspace(*s))
+			*s++ = '\0';
+
+		ni_wicked_request_add_option(&req, buffer, s);
+	}
 
 	/* Now get the XML document, if any */
 	req.xml_in = xml_node_scan(sock);
@@ -239,6 +260,8 @@ error:
 
 	fflush(sock);
 	ni_wicked_request_destroy(&req);
+	free(cmd);
+	free(path);
 }
 
 /*

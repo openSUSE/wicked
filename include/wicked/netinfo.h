@@ -340,6 +340,10 @@ extern xml_node_t *	ni_syntax_xml_from_interface(ni_syntax_t *, ni_handle_t *, n
 extern ni_interface_t *	ni_syntax_xml_to_interface(ni_syntax_t *, ni_handle_t *, xml_node_t *);
 extern xml_document_t *	ni_syntax_xml_from_all(ni_syntax_t *, ni_handle_t *);
 extern int		ni_syntax_xml_to_all(ni_syntax_t *, ni_handle_t *, const xml_document_t *);
+extern void		ni_syntax_set_root_directory(ni_syntax_t *, const char *);
+extern const char *	ni_syntax_base_path(ni_syntax_t *);
+extern const char *	ni_syntax_build_path(ni_syntax_t *, const char *, ...);
+extern ni_syntax_t *	ni_netconfig_default_syntax(const char *root_dir);
 
 extern ni_interface_t *	ni_interfaces(ni_handle_t *nic);
 extern ni_interface_t *	ni_interface_by_name(ni_handle_t *nic, const char *name);

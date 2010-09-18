@@ -26,6 +26,7 @@ enum {
 	OPT_CONFIGFILE,
 	OPT_DEBUG,
 	OPT_DRYRUN,
+	OPT_ROOTDIR,
 };
 
 static struct option	options[] = {
@@ -33,11 +34,13 @@ static struct option	options[] = {
 	{ "dryrun",		no_argument,		NULL,	OPT_DRYRUN },
 	{ "dry-run",		no_argument,		NULL,	OPT_DRYRUN },
 	{ "debug",		required_argument,	NULL,	OPT_DEBUG },
+	{ "root-directory",	required_argument,	NULL,	OPT_ROOTDIR },
 
 	{ NULL }
 };
 
 static int	opt_dryrun = 0;
+static char *	opt_rootdir = NULL;
 
 static int	do_rest(const char *, int, char **);
 static int	do_xpath(int, char **);
@@ -86,6 +89,10 @@ main(int argc, char **argv)
 
 		case OPT_DRYRUN:
 			opt_dryrun = 1;
+			break;
+
+		case OPT_ROOTDIR:
+			opt_rootdir = optarg;
 			break;
 
 		case OPT_DEBUG:
@@ -149,6 +156,9 @@ __wicked_request(const char *cmd, const char *path,
 
 	ni_wicked_request_init(&req);
 	req.xml_in = send_xml;
+
+	if (opt_rootdir)
+		ni_wicked_request_add_option(&req, "Root", opt_rootdir);
 
 	rv = ni_wicked_call_indirect(&req, cmd, path);
 	if (rv < 0) {
