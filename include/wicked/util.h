@@ -50,6 +50,7 @@ extern void		ni_string_array_init(ni_string_array_t *);
 extern int		ni_string_array_copy(ni_string_array_t *dst, const ni_string_array_t *src);
 extern void		ni_string_array_destroy(ni_string_array_t *);
 extern int		ni_string_array_append(ni_string_array_t *, const char *);
+extern int		ni_string_array_index(const ni_string_array_t *, const char *);
 extern void		ni_string_array_comm(const ni_string_array_t *a, const ni_string_array_t *b,
 				ni_string_array_t *uniq_a,
 				ni_string_array_t *uniq_b,

@@ -82,6 +82,18 @@ ni_string_array_append(ni_string_array_t *nsa, const char *str)
 	return 1;
 }
 
+int
+ni_string_array_index(const ni_string_array_t *nsa, const char *str)
+{
+	unsigned int i;
+
+	for (i = 0; i < nsa->count; ++i) {
+		if (!strcmp(nsa->data[i], str))
+			return i;
+	}
+	return -1;
+}
+
 /*
  * Compare string arrays, much the same way comm(1) works
  * We ignore order of the input arrays, but expect values to be
@@ -212,9 +224,7 @@ ni_var_array_set(ni_var_array_t *nva, const char *name, const char *value)
 		var->value = NULL;
 	}
 
-	if (var->value)
-		free(var->value);
-	var->value = value? strdup(value) : NULL;
+	ni_string_dup(&var->value, value);
 	return 0;
 }
 
