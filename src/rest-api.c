@@ -307,9 +307,9 @@ generic_interface_put(ni_handle_t *nih, const char *ifname, ni_wicked_request_t 
 		return -1;
 	}
 
-	cnih = ni_netconfig_open(NULL);
+	cnih = ni_dummy_open();
 	if (cnih == NULL) {
-		werror(req, "unable to create config handle");
+		werror(req, "unable to create netinfo dummy handle");
 		goto failed;
 	}
 

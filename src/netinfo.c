@@ -180,6 +180,21 @@ ni_prefer_address_family(ni_handle_t *nih, int af)
 }
 
 /*
+ * Dummy ni_handle - this can be used to convert XML to an
+ * interface description, which is then manipulated further.
+ */
+static struct ni_ops ni_dummy_ops = {
+	/* No operations defined */
+};
+
+ni_handle_t *
+ni_dummy_open(void)
+{
+	return __ni_handle_new(&ni_dummy_ops);
+}
+
+
+/*
  * Map interface link layer types to strings and vice versa
  */
 static ni_intmap_t __linktype_names[] = {
