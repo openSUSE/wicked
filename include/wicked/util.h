@@ -58,7 +58,7 @@ extern int		ni_string_array_is_uniq(const ni_string_array_t *);
 
 extern void		ni_var_array_init(ni_var_array_t *);
 extern void		ni_var_array_destroy(ni_var_array_t *);
-extern ni_var_t *	ni_var_array_get(ni_var_array_t *, const char *name);
+extern ni_var_t *	ni_var_array_get(const ni_var_array_t *, const char *name);
 extern int		ni_var_array_set(ni_var_array_t *, const char *name, const char *value);
 
 extern int		ni_var_array_get_string(ni_var_array_t *, const char *, char **);

@@ -183,7 +183,7 @@ ni_var_array_destroy(ni_var_array_t *nva)
 }
 
 ni_var_t *
-ni_var_array_get(ni_var_array_t *nva, const char *name)
+ni_var_array_get(const ni_var_array_t *nva, const char *name)
 {
 	unsigned int i;
 	ni_var_t *var;

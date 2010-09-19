@@ -218,7 +218,7 @@ ni_sysconfig_set_integer(ni_sysconfig_t *sc, const char *name, unsigned int valu
 }
 
 ni_var_t *
-ni_sysconfig_get(ni_sysconfig_t *sc, const char *name)
+ni_sysconfig_get(const ni_sysconfig_t *sc, const char *name)
 {
 	return ni_var_array_get(&sc->vars, name);
 }
@@ -241,7 +241,7 @@ ni_sysconfig_find_matching(ni_sysconfig_t *sc, const char *prefix,
 }
 
 int
-ni_sysconfig_get_string(ni_sysconfig_t *sc, const char *name, char **p)
+ni_sysconfig_get_string(const ni_sysconfig_t *sc, const char *name, char **p)
 {
 	ni_var_t *var;
 
@@ -252,7 +252,7 @@ ni_sysconfig_get_string(ni_sysconfig_t *sc, const char *name, char **p)
 }
 
 int
-ni_sysconfig_get_integer(ni_sysconfig_t *sc, const char *name, unsigned int *p)
+ni_sysconfig_get_integer(const ni_sysconfig_t *sc, const char *name, unsigned int *p)
 {
 	ni_var_t *var;
 
@@ -263,7 +263,7 @@ ni_sysconfig_get_integer(ni_sysconfig_t *sc, const char *name, unsigned int *p)
 }
 
 int
-ni_sysconfig_get_boolean(ni_sysconfig_t *sc, const char *name, int *p)
+ni_sysconfig_get_boolean(const ni_sysconfig_t *sc, const char *name, int *p)
 {
 	ni_var_t *var;
 
@@ -278,7 +278,7 @@ ni_sysconfig_get_boolean(ni_sysconfig_t *sc, const char *name, int *p)
 }
 
 int
-ni_sysconfig_get_string_optional(ni_sysconfig_t *sc, const char *name, char **p)
+ni_sysconfig_get_string_optional(const ni_sysconfig_t *sc, const char *name, char **p)
 {
 	ni_var_t *var;
 
@@ -288,7 +288,7 @@ ni_sysconfig_get_string_optional(ni_sysconfig_t *sc, const char *name, char **p)
 }
 
 int
-ni_sysconfig_get_integer_optional(ni_sysconfig_t *sc, const char *name, unsigned int *p)
+ni_sysconfig_get_integer_optional(const ni_sysconfig_t *sc, const char *name, unsigned int *p)
 {
 	ni_var_t *var;
 
@@ -298,7 +298,7 @@ ni_sysconfig_get_integer_optional(ni_sysconfig_t *sc, const char *name, unsigned
 }
 
 int
-ni_sysconfig_get_boolean_optional(ni_sysconfig_t *sc, const char *name, int *p)
+ni_sysconfig_get_boolean_optional(const ni_sysconfig_t *sc, const char *name, int *p)
 {
 	ni_var_t *var;
 

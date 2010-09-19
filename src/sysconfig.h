@@ -27,13 +27,13 @@ extern int		ni_sysconfig_set(ni_sysconfig_t *, const char *name, const char *var
 extern int		ni_sysconfig_set_integer(ni_sysconfig_t *, const char *name, unsigned int);
 extern int		ni_sysconfig_set_boolean(ni_sysconfig_t *, const char *name, int);
 
-extern ni_var_t *	ni_sysconfig_get(ni_sysconfig_t *, const char *name);
-extern int		ni_sysconfig_get_string(ni_sysconfig_t *, const char *, char **);
-extern int		ni_sysconfig_get_integer(ni_sysconfig_t *, const char *, unsigned int *);
-extern int		ni_sysconfig_get_boolean(ni_sysconfig_t *, const char *, int *);
-extern int		ni_sysconfig_get_string_optional(ni_sysconfig_t *, const char *, char **);
-extern int		ni_sysconfig_get_integer_optional(ni_sysconfig_t *, const char *, unsigned int *);
-extern int		ni_sysconfig_get_boolean_optional(ni_sysconfig_t *, const char *, int *);
+extern ni_var_t *	ni_sysconfig_get(const ni_sysconfig_t *, const char *name);
+extern int		ni_sysconfig_get_string(const ni_sysconfig_t *, const char *, char **);
+extern int		ni_sysconfig_get_integer(const ni_sysconfig_t *, const char *, unsigned int *);
+extern int		ni_sysconfig_get_boolean(const ni_sysconfig_t *, const char *, int *);
+extern int		ni_sysconfig_get_string_optional(const ni_sysconfig_t *, const char *, char **);
+extern int		ni_sysconfig_get_integer_optional(const ni_sysconfig_t *, const char *, unsigned int *);
+extern int		ni_sysconfig_get_boolean_optional(const ni_sysconfig_t *, const char *, int *);
 
 extern int		ni_sysconfig_find_matching(ni_sysconfig_t *, const char *,
 				struct ni_string_array *);
