@@ -444,13 +444,60 @@ system_hostname_get(const char *path, ni_wicked_request_t *req)
 	return 0;
 }
 
+static int
+system_hostname_put(const char *path, ni_wicked_request_t *req)
+{
+	char *hostname, *sp;
+	xml_node_t *hnode;
+	unsigned int n;
+
+	if (path && *path) {
+		werror(req, "excess elements in path");
+		return -1;
+	}
+
+	if (!req->xml_in
+	 || !(hnode = xml_node_get_child(req->xml_in, "hostname"))
+	 || !(sp = hnode->cdata)) {
+		werror(req, "bad or missing XML document");
+		return -1;
+	}
+
+	while (isspace(*sp))
+		++sp;
+	hostname = sp;
+
+	n = strlen(hostname);
+	while (n && isspace(hostname[n-1]))
+		hostname[--n] = '\0';
+
+	/* Be strict - do not accept garbage in hostnames. Note that
+	 * this also excludes UTF8 encoded names */
+	for (n = 0; hostname[n]; ++n) {
+		unsigned char cc = hostname[n];
+
+		if (cc <= 0x20 || cc >= 0x7f) {
+			werror(req, "illegal character in hostname");
+			return -1;
+		}
+	}
+
+	if (sethostname(hostname, n) < 0) {
+		werror(req, "error setting hostname");
+		return -1;
+	}
+
+	req->xml_out = xml_node_new("hostname", NULL);
+	xml_node_set_cdata(req->xml_out, hostname);
+	return 0;
+}
 
 static ni_rest_node_t	ni_rest_system_hostname_node = {
 	.name		= "hostname",
 	.ops = {
 	    .byname = {
 		.get	= system_hostname_get,
-		//.put	= system_hostname_put,
+		.put	= system_hostname_put,
 	    },
 	},
 };
