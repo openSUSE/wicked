@@ -17,8 +17,6 @@
 #include "libnetlink.h"
 
 struct ni_handle {
-	int			preferred_family;
-
 	ni_interface_t *	iflist;
 	ni_route_t *		routes;
 	unsigned int		seqno;

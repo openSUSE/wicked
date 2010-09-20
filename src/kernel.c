@@ -267,7 +267,7 @@ ni_rtnl_dump(ni_handle_t *nih, int type,
 	};
 	int err;
 
-	err = rtnl_wilddump_request(&nih->rth, nih->preferred_family, type);
+	err = rtnl_wilddump_request(&nih->rth, AF_UNSPEC, type);
 	if (err < 0) {
 		perror("cannot send RTNL dump request");
 		return -1;
@@ -339,7 +339,7 @@ ni_rtnl_dump_store(ni_handle_t *nih, int type,
 {
 	int err;
 
-	err = rtnl_wilddump_request(&nih->rth, nih->preferred_family, type);
+	err = rtnl_wilddump_request(&nih->rth, AF_UNSPEC, type);
 	if (err < 0) {
 		perror("cannot send RTNL dump request");
 		return -1;

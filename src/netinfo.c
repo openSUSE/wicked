@@ -152,7 +152,6 @@ __ni_handle_new(size_t size, struct ni_ops *ops)
 	}
 
 	nih->op = ops;
-	nih->preferred_family = AF_UNSPEC;
 	nih->rth.fd = -1;
 	nih->iocfd = -1;
 
@@ -176,12 +175,6 @@ ni_close(ni_handle_t *nih)
 
 	nih->op = NULL;
 	free(nih);
-}
-
-void
-ni_prefer_address_family(ni_handle_t *nih, int af)
-{
-	nih->preferred_family = af;
 }
 
 /*
