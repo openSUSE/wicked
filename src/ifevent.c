@@ -264,7 +264,7 @@ ni_rtevent_open(void)
 	uint32_t groups;
 	ni_handle_t *nih;
 
-	nih = __ni_handle_new(&ni_rtevent_ops);
+	nih = __ni_handle_new(sizeof(*nih), &ni_rtevent_ops);
 
 	groups = nl_mgrp(RTNLGRP_LINK) |
 		 nl_mgrp(RTNLGRP_IPV4_IFADDR) |

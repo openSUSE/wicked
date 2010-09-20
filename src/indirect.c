@@ -32,7 +32,7 @@ ni_indirect_open(const char *basepath)
 	if (!basepath)
 		return NULL;
 
-	nih = __ni_handle_new(&ni_indirect_ops);
+	nih = __ni_handle_new(sizeof(*nih), &ni_indirect_ops);
 	ni_string_dup(&nih->indirect_path, basepath);
 
 	return nih;

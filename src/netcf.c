@@ -75,8 +75,8 @@ ncf_init(struct netcf **ncfp, const char *root)
 	if (!ncf->state.handle)
 		goto failed;
 
-	ncf->state.cache_lft = __NETCF_CONFIG_CACHE_LFT;
-	ncf->state.handle = ni_indirect_open("/config");
+	ncf->config.cache_lft = __NETCF_CONFIG_CACHE_LFT;
+	ncf->config.handle = ni_indirect_open("/config");
 	if (!ncf->config.handle)
 		goto failed;
 

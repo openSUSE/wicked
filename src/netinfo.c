@@ -136,15 +136,20 @@ ni_server_set_event_handler(void (*ifevent_handler)(ni_handle_t *, ni_interface_
 }
 
 ni_handle_t *
-__ni_handle_new(struct ni_ops *ops)
+__ni_handle_new(size_t size, struct ni_ops *ops)
 {
 	ni_handle_t *nih;
 
 	__ni_assert_initialized();
 
-	nih = calloc(1, sizeof(*nih));
-	if (!nih)
+	if (size < sizeof(*nih))
+		ni_fatal("__ni_handle_new: requested size less than size of ni_handle!");
+
+	nih = calloc(1, size);
+	if (!nih) {
+		ni_error("__ni_handle_new: %m");
 		return NULL;
+	}
 
 	nih->op = ops;
 	nih->preferred_family = AF_UNSPEC;
@@ -190,7 +195,7 @@ static struct ni_ops ni_dummy_ops = {
 ni_handle_t *
 ni_dummy_open(void)
 {
-	return __ni_handle_new(&ni_dummy_ops);
+	return __ni_handle_new(sizeof(ni_handle_t), &ni_dummy_ops);
 }
 
 

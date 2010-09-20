@@ -35,7 +35,7 @@ ni_netconfig_open(ni_syntax_t *syntax)
 		return NULL;
 	}
 
-	nih = __ni_handle_new(&ni_netconfig_ops);
+	nih = __ni_handle_new(sizeof(*nih), &ni_netconfig_ops);
 	if (nih)
 		nih->default_syntax = syntax;
 

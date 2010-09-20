@@ -23,7 +23,7 @@ ni_state_open(void)
 {
 	ni_handle_t *nih;
 
-	nih = __ni_handle_new(&ni_state_ops);
+	nih = __ni_handle_new(sizeof(*nih), &ni_state_ops);
 
 	if (rtnl_open(&nih->rth, 0) < 0) {
 		error("Cannot open rtnetlink: %m");
