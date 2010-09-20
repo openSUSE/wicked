@@ -356,6 +356,47 @@ ni_bonding_parse_module_options(ni_bonding_t *bonding)
 	free(temp);
 }
 
+void
+ni_bonding_build_module_options(ni_bonding_t *bonding)
+{
+	ni_stringbuf_t outbuf = NI_STRINGBUF_INIT_DYNAMIC;
+	const char *attrs[] = {
+		"mode",
+		"miimon",
+		"primary",
+
+		/* ignored for ARP monitoring: */
+		"updelay",
+		"downdelay",
+		"use_carrier",
+
+		/* ignored for MII monitoring: */
+		"arp_interval",
+		"arp_validate",
+		NULL,
+	};
+	unsigned int i;
+
+	for (i = 0; attrs[i]; ++i) {
+		char value[128];
+
+		if (ni_bonding_format_module_attribute(bonding, attrs[i], value, sizeof(value)) < 0)
+			continue;
+
+		if (!ni_stringbuf_empty(&outbuf))
+			ni_stringbuf_putc(&outbuf, ' ');
+		ni_stringbuf_puts(&outbuf, value);
+	}
+
+#if 0
+	/* FIXME: do arp_ip_target */
+#endif
+
+	ni_string_free(&bonding->module_opts);
+	bonding->module_opts = outbuf.string;
+	return;
+}
+
 /*
  * Load bonding configuration from sysfs
  */

@@ -415,6 +415,7 @@ extern void		ni_bonding_free(ni_bonding_t *);
 extern ni_bonding_t *	ni_bonding_clone(const ni_bonding_t *);
 extern void		ni_bonding_add_slave(ni_bonding_t *, const char *);
 extern void		ni_bonding_parse_module_options(ni_bonding_t *);
+extern void		ni_bonding_build_module_options(ni_bonding_t *);
 extern int		ni_bonding_parse_sysfs_attrs(const char *, ni_bonding_t *);
 extern int		ni_bonding_write_sysfs_attrs(const char *ifname,
 				const ni_bonding_t *cfg_bond,
