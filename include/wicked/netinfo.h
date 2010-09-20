@@ -321,6 +321,7 @@ extern void		ni_log_destination_syslog(const char *program);
 extern ni_handle_t *	ni_state_open(void);
 extern ni_handle_t *	ni_netconfig_open(ni_syntax_t *);
 extern ni_handle_t *	ni_indirect_open(const char *);
+extern void		ni_indirect_set_root(ni_handle_t *, const char *);
 extern ni_handle_t *	ni_dummy_open(void);
 extern ni_handle_t *	ni_rtevent_open(void);
 extern int		ni_rtevent_fd(ni_handle_t *);

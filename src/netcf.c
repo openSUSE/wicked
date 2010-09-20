@@ -80,11 +80,12 @@ ncf_init(struct netcf **ncfp, const char *root)
 	if (!ncf->config.handle)
 		goto failed;
 
+	ni_indirect_set_root(ncf->config.handle, root);
+
 	ncf->xmlsyntax = ni_syntax_new("netcf-strict", NULL);
 	if (!ncf->xmlsyntax)
 		goto failed;
 
-	/* ignore root. */
 	/* original netcf code also evaluates
 	 * NETCF_DATADIR and NETCF_DEBUG env vars
 	 */
