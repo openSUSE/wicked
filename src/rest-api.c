@@ -21,6 +21,9 @@
 #include <wicked/xpath.h>
 #include "netinfo_priv.h"
 
+
+static void	ni_rest_generate_meta(ni_rest_node_t *, xml_node_t *);
+
 /*
  * construct and destroy wicked request object
  */
@@ -451,6 +454,28 @@ static ni_rest_node_t	ni_rest_system_hostname_node = {
 	},
 };
 
+static int
+system_meta_get(const char *path, ni_wicked_request_t *req)
+{
+	if (path && *path) {
+		werror(req, "excess elements in path");
+		return -1;
+	}
+
+	req->xml_out = xml_node_new("meta", NULL);
+	ni_rest_generate_meta(NULL, req->xml_out);
+	return 0;
+}
+
+static ni_rest_node_t	ni_rest_meta = {
+	.name		= "meta",
+	.ops = {
+	    .byname = {
+		.get	= system_meta_get,
+	    },
+	},
+};
+
 static ni_rest_node_t	ni_rest_system_node = {
 	.name		= "system",
 	.children = {
@@ -471,6 +496,7 @@ static ni_rest_node_t	ni_rest_root_node = {
 	.children = {
 		&ni_rest_config_node,
 		&ni_rest_system_node,
+		&ni_rest_meta,
 	},
 };
 
@@ -524,6 +550,45 @@ ni_rest_node_lookup(const char *path, const char **remainder)
 		*remainder = path + (pos - copy);
 	free(copy);
 	return node;
+}
+
+static void
+ni_rest_generate_meta(ni_rest_node_t *node, xml_node_t *xml_parent)
+{
+	unsigned int i, j;
+
+	if (node == NULL)
+		node = &ni_rest_root_node;
+
+	for (j = 0; j < __NI_REST_OP_MAX; j++ ) {
+		if (node->ops.fn[j] != NULL) {
+			switch (j) {
+			case NI_REST_OP_GET:
+				xml_node_add_attr(xml_parent, "get", NULL);
+				continue;
+			case NI_REST_OP_PUT:
+				xml_node_add_attr(xml_parent, "put", NULL);
+				continue;
+			case NI_REST_OP_POST:
+				xml_node_add_attr(xml_parent, "post", NULL);
+				continue;
+			case NI_REST_OP_DELETE:
+				xml_node_add_attr(xml_parent, "delete", NULL);
+				continue;
+			}
+
+		}		
+	}
+
+	for (i = 0; i < __NI_REST_CHILD_MAX; ++i) {
+		ni_rest_node_t *child = node->children[i];
+		xml_node_t *child_xml;
+
+		if (child == NULL)
+			break;
+		child_xml = xml_node_new(child->name, xml_parent);
+		ni_rest_generate_meta(child, child_xml);
+	}
 }
 
 void
