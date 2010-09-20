@@ -350,6 +350,12 @@ ni_sysconfig_set_integer(ni_sysconfig_t *sc, const char *name, unsigned int valu
 	return ni_sysconfig_set(sc, name, buffer);
 }
 
+int
+ni_sysconfig_set_boolean(ni_sysconfig_t *sc, const char *name, int value)
+{
+	return ni_sysconfig_set(sc, name, value? "yes" : "no");
+}
+
 ni_var_t *
 ni_sysconfig_get(const ni_sysconfig_t *sc, const char *name)
 {
