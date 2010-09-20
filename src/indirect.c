@@ -6,6 +6,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <assert.h>
+
 #include <wicked/xml.h>
 #include <wicked/wicked.h>
 #include "netinfo_priv.h"
@@ -24,29 +26,44 @@ static struct ni_ops ni_indirect_ops = {
 	.close			= __ni_indirect_close,
 };
 
+typedef struct ni_indirect {
+	ni_handle_t		base;
+	char *			namespace;
+} ni_indirect_t;
+
+static inline ni_indirect_t *
+__to_indirect(ni_handle_t *nih)
+{
+	assert(nih->op == &ni_indirect_ops);
+	return (ni_indirect_t *) nih;
+}
+
 ni_handle_t *
 ni_indirect_open(const char *basepath)
 {
-	ni_handle_t *nih;
+	ni_indirect_t *nih;
 
 	if (!basepath)
 		return NULL;
 
-	nih = __ni_handle_new(sizeof(*nih), &ni_indirect_ops);
-	ni_string_dup(&nih->indirect_path, basepath);
+	nih = (ni_indirect_t *) __ni_handle_new(sizeof(*nih), &ni_indirect_ops);
+	ni_string_dup(&nih->namespace, basepath);
 
-	return nih;
+	return &nih->base;
 }
 
 static void
 __ni_indirect_close(ni_handle_t *nih)
 {
-	ni_string_free(&nih->indirect_path);
+	ni_indirect_t *nid = __to_indirect(nih);
+
+	ni_string_free(&nid->namespace);
 }
 
 int
 __ni_indirect_refresh_all(ni_handle_t *nih)
 {
+	ni_indirect_t *nid = __to_indirect(nih);
 	ni_wicked_request_t req;
 	char pathbuf[64];
 	ni_syntax_t *syntax = NULL;
@@ -55,7 +72,7 @@ __ni_indirect_refresh_all(ni_handle_t *nih)
 	__ni_interfaces_clear(nih);
 
 	ni_wicked_request_init(&req);
-	snprintf(pathbuf, sizeof(pathbuf), "%s/interface", nih->indirect_path);
+	snprintf(pathbuf, sizeof(pathbuf), "%s/interface", nid->namespace);
 	rv = ni_wicked_call_indirect(&req, "GET", pathbuf);
 	if (rv < 0)
 		goto out;
@@ -85,6 +102,7 @@ int
 __ni_indirect_interface_configure(ni_handle_t *nih,
 				ni_interface_t *ifp, xml_node_t *xml)
 {
+	ni_indirect_t *nid = __to_indirect(nih);
 	ni_wicked_request_t req;
 	char pathbuf[64];
 	ni_syntax_t *syntax = NULL;
@@ -106,7 +124,7 @@ __ni_indirect_interface_configure(ni_handle_t *nih,
 	ni_wicked_request_init(&req);
 	req.xml_in = xml;
 
-	snprintf(pathbuf, sizeof(pathbuf), "%s/interface/%s", nih->indirect_path, ifp->name);
+	snprintf(pathbuf, sizeof(pathbuf), "%s/interface/%s", nid->namespace, ifp->name);
 	rv = ni_wicked_call_indirect(&req, "PUT", pathbuf);
 	if (rv < 0)
 		goto out;
@@ -144,13 +162,14 @@ failed:
 int
 __ni_indirect_interface_delete(ni_handle_t *nih, const char *name)
 {
+	ni_indirect_t *nid = __to_indirect(nih);
 	ni_wicked_request_t req;
 	char pathbuf[64];
 	int rv;
 
 	ni_wicked_request_init(&req);
 
-	snprintf(pathbuf, sizeof(pathbuf), "%s/interface/%s", nih->indirect_path, name);
+	snprintf(pathbuf, sizeof(pathbuf), "%s/interface/%s", nid->namespace, name);
 	rv = ni_wicked_call_indirect(&req, "DELETE", pathbuf);
 	ni_wicked_request_destroy(&req);
 	return rv;
