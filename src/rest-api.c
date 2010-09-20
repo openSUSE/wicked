@@ -431,15 +431,16 @@ system_hostname_get(const char *path, ni_wicked_request_t *req)
 
 	if (path && *path) {
 		werror(req, "excess elements in path");
-		return 0;
+		return -1;
 	}
 
 	if (gethostname(hostname, sizeof(hostname)) < 0) {
 		werror(req, "error getting hostname");
-		return 0;
+		return -1;
 	}
 
 	req->xml_out = xml_node_new("hostname", NULL);
+	xml_node_set_cdata(req->xml_out, hostname);
 	return 0;
 }
 
