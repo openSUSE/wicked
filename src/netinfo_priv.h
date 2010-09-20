@@ -75,6 +75,7 @@ extern void		__ni_interfaces_clear(ni_handle_t *);
 extern ni_route_t *	__ni_route_new(ni_route_t **, unsigned int prefix_len,
 				const struct sockaddr_storage *,
 				const struct sockaddr_storage *);
+extern ni_route_t *	__ni_route_list_clone(const ni_route_t *);
 extern void		__ni_route_list_destroy(ni_route_t **);
 extern void		__ni_routes_clear(ni_handle_t *);
 
@@ -89,6 +90,8 @@ extern ni_syntax_t *	__ni_syntax_sysconfig_suse(const char *pathname);
 extern ni_syntax_t *	__ni_syntax_sysconfig_redhat(const char *pathname);
 extern ni_syntax_t *	__ni_syntax_netcf(const char *pathname);
 extern ni_syntax_t *	__ni_syntax_netcf_strict(const char *pathname);
+
+extern ni_address_t *	__ni_address_list_clone(const ni_address_t *);
 
 /*
  * Retain warn() error() etc as shorthand for now

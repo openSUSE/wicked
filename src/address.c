@@ -68,6 +68,21 @@ ni_address_list_destroy(ni_address_t **list)
 	}
 }
 
+ni_address_t *
+__ni_address_list_clone(const ni_address_t *src)
+{
+	ni_address_t *dst;
+
+	if (!src)
+		return NULL;
+
+	dst = malloc(sizeof(*dst));
+	memcpy(dst, src, sizeof(*src));
+
+	dst->next = __ni_address_list_clone(src->next);
+	return dst;
+}
+
 int
 __ni_address_info(int af, unsigned int *offset, unsigned int *len)
 {
@@ -523,3 +538,19 @@ ni_route_list_destroy(ni_route_t **list)
 		ni_route_free(rp);
 	}
 }
+
+ni_route_t *
+__ni_route_list_clone(const ni_route_t *src)
+{
+	ni_route_t *dst;
+
+	if (!src)
+		return NULL;
+
+	dst = malloc(sizeof(*dst));
+	memcpy(dst, src, sizeof(*src));
+
+	dst->next = __ni_route_list_clone(src->next);
+	return dst;
+}
+

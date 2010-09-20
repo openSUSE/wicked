@@ -573,6 +573,8 @@ ni_interface_clone(const ni_interface_t *ofp)
 	D(kind, strdup);
 	C(ipv4);
 	C(ipv6);
+	D(addrs, __ni_address_list_clone);
+	D(routes, __ni_route_list_clone);
 	D(bonding, ni_bonding_clone);
 	D(vlan, ni_vlan_clone);
 	D(bridge, ni_bridge_clone);
