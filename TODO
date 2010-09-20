@@ -1,6 +1,6 @@
 
 ifconfig
-	- can we disable IPv6 on a device?
+	- disable IPv6 on a device if requested
 	- create and configure wireless devices
 
 iflist
@@ -8,19 +8,36 @@ iflist
 
 netcf
 	- introduce <ethernet> element that encapsulates ethtool options
+	- The interface XML should interpret an empty <dhcp> element as
+	  "yes, I want DHCP, and I will just use whatever the admin configured
+	  as default for this system".
+	- Long term, we should get rid of a single "addrconf" type per
+	  interface and address family. It's possible (and practical) to use
+	  a mix of mechanisms on a single interface, eg dhcp *and* zeroconf.
+
+backends:
+	- support writing of rh sysconfig files
+	- complete support for writing of suse sysconfig files
+	- support debian configuration
 
 overall
-	- add refresh_interface to ni_ops
-	- move syntax->base_dir to ni_handle->base_dir?
-
-config file
-	- specify which syntax to use for backend config
+	- add refresh_interface? to ni_ops
+	- in ni_ops, rename functions
+		refresh -> interfaces_get_all
+		configure_interface -> interface_put
+		delete_interface -> interface_delete
+	  add new functions
+	  	hostname_get
+	  	hostname_put
+		resolver_get
+		resolver_put
 
 extensions
 	- escape/reject shell metacharacters when expanding
 	  start/stop command
 	- improve dhcp start/stop script
 	- add dhcp6 client script
+	- Maybe integrate more tightly with dhcpcd?
 
 events
 	- how to send events to a number of listeners without
