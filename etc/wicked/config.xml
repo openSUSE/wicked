@@ -17,7 +17,8 @@
        By default, we try to autodetect what schema to use.
    -->
   <!--
-   <backend schema="redhat" path="samples/redhat/host1"/>
+   <backend schema="redhat" path="/etc/sysconfig/network"/>
+   <backend schema="suse" path="/etc/sysconfig/network"/>
    -->
 
   <pidfile path="/var/run/wicked.pid" mode="0644"/>
