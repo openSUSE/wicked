@@ -9,7 +9,8 @@
 #include <dirent.h>
 #include <errno.h>
 #include <ctype.h>
-#include <net/if_arp.h>
+#include <unistd.h>
+
 #include "netinfo_priv.h"
 #include "sysconfig.h"
 
@@ -24,8 +25,12 @@ static ni_interface_t *	__ni_suse_read_interface(ni_handle_t *, const char *, co
 static int		__ni_suse_sysconfig2ifconfig(ni_interface_t *, ni_sysconfig_t *);
 static int		__ni_suse_sysconfig2dhcp(ni_dhclient_info_t *, ni_sysconfig_t *);
 static int		__ni_suse_ifconfig2sysconfig(ni_interface_t *, ni_sysconfig_t *);
+static int		__ni_suse_dhcp2sysconfig(const ni_dhclient_info_t *, const ni_dhclient_info_t *,
+				ni_sysconfig_t *);
+static int		__ni_suse_bridge2sysconfig(const ni_interface_t *, ni_sysconfig_t *);
+static int		__ni_suse_bonding2sysconfig(const ni_interface_t *, ni_sysconfig_t *);
 static const char *	__ni_suse_startmode(int);
-static const char *	__ni_suse_bootproto(int);
+static const char *	__ni_suse_bootproto(const ni_interface_t *);
 
 static void		__process_indexed_variables(ni_interface_t *, ni_sysconfig_t *,
 				const char *,
@@ -40,6 +45,8 @@ static const char *	__ni_ifcfg_vars_preserve[] = {
 	"NAME",
 	"ETHTOOL_OPTIONS",
 	"USERCONTROL",
+	"BROADCAST",
+	"MTU",
 	"FIREWALL",
 
 	NULL,
@@ -281,7 +288,7 @@ __ni_suse_sysconfig2ifconfig(ni_interface_t *ifp, ni_sysconfig_t *sc)
 					ifp->ipv6.config = NI_ADDRCONF_DHCP;
 				} else if (!strcmp(s, "static")) {
 					ifp->ipv4.config = NI_ADDRCONF_STATIC;
-					ifp->ipv6.config = NI_ADDRCONF_STATIC;
+					ifp->ipv6.config = NI_ADDRCONF_AUTOCONF;
 				} else if (!strcmp(s, "dhcp4"))
 					ifp->ipv4.config = NI_ADDRCONF_DHCP;
 				else if (!strcmp(s, "dhcp6"))
@@ -323,6 +330,21 @@ __ni_suse_sysconfig2ifconfig(ni_interface_t *ifp, ni_sysconfig_t *sc)
 	 */
 
 	return 0;
+}
+
+/*
+ * Build an indexed variable name
+ */
+static const char *
+__build_indexed_name(const char *stem, int index)
+{
+	static char namebuf[64];
+
+	if (index < 0)
+		return stem;
+
+	snprintf(namebuf, sizeof(namebuf), "%s_%u", stem, index);
+	return namebuf;
 }
 
 /*
@@ -472,6 +494,23 @@ try_bonding(ni_interface_t *ifp, ni_sysconfig_t *sc)
 	}
 }
 
+static int
+__ni_suse_bonding2sysconfig(const ni_interface_t *ifp, ni_sysconfig_t *sc)
+{
+	ni_bonding_t *bonding = ifp->bonding;
+	unsigned int i;
+
+	for (i = 0; i < bonding->slave_names.count; ++i) {
+		ni_sysconfig_set(sc, __build_indexed_name("BONDING_SLAVE", i),
+				bonding->slave_names.data[i]);
+	}
+
+	ni_bonding_build_module_options(bonding);
+	ni_sysconfig_set(sc, "BONDING_MODULE_OPTS", ifp->bonding->module_opts);
+
+	return 0;
+}
+
 /*
  * Bridge devices are recognized by BRIDGE=yes
  */
@@ -497,6 +536,27 @@ try_bridge(ni_interface_t *ifp, ni_sysconfig_t *sc)
 			ni_bridge_add_port(bridge, port);
 		ni_string_free(&ports);
 	}
+}
+
+static int
+__ni_suse_bridge2sysconfig(const ni_interface_t *ifp, ni_sysconfig_t *sc)
+{
+	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
+	ni_bridge_t *bridge = ifp->bridge;
+	unsigned int i;
+
+	ni_sysconfig_set_boolean(sc, "BRIDGE", 1);
+	ni_sysconfig_set_integer(sc, "BRIDGE_FORWARDDELAY", bridge->forward_delay);
+	ni_sysconfig_set(sc, "BRIDGE_STP", bridge->stp_enabled? "on" : "off");
+
+	for (i = 0; i < bridge->port_names.count; ++i) {
+		if (i)
+			ni_stringbuf_putc(&buf, ' ');
+		ni_stringbuf_puts(&buf, bridge->port_names.data[i]);
+	}
+	ni_sysconfig_set(sc, "BRIDGE_PORTS", buf.string);
+	ni_stringbuf_destroy(&buf);
+	return 0;
 }
 
 /*
@@ -579,10 +639,41 @@ __ni_suse_sysconfig2dhcp(ni_dhclient_info_t *dhcp, ni_sysconfig_t *sc)
 	ni_sysconfig_get_integer_optional(sc, "DHCLIENT_LEASE_TIME", &dhcp->request.lease_time);
 
 	ni_sysconfig_get_boolean_optional(sc, "WRITE_HOSTNAME_TO_HOSTS", &dhcp->update.hosts_file);
-
 	ni_sysconfig_get_boolean_optional(sc, "DHCLIENT_MODIFY_SMB_CONF", &dhcp->update.smb_config);
 	ni_sysconfig_get_boolean_optional(sc, "DHCLIENT_SET_HOSTNAME", &dhcp->update.hostname);
 	ni_sysconfig_get_boolean_optional(sc, "DHCLIENT_SET_DEFAULT_ROUTE", &dhcp->update.default_route);
+
+	return 0;
+}
+
+int
+__ni_suse_dhcp2sysconfig(const ni_dhclient_info_t *ifdhcp, const ni_dhclient_info_t *sysdhcp,
+				ni_sysconfig_t *sc)
+{
+	if (ifdhcp->lease.timeout != sysdhcp->lease.timeout)
+		ni_sysconfig_set_integer(sc, "DHCLIENT_WAIT_AT_BOOT", ifdhcp->lease.timeout);
+	if (ifdhcp->lease.release_on_exit != sysdhcp->lease.release_on_exit)
+		ni_sysconfig_set_boolean(sc, "DHCLIENT_RELEASE_BEFORE_QUIT", ifdhcp->lease.release_on_exit);
+	if (ifdhcp->lease.reuse_unexpired != sysdhcp->lease.reuse_unexpired)
+		ni_sysconfig_set_boolean(sc, "DHCLIENT_USE_LAST_LEASE", ifdhcp->lease.reuse_unexpired);
+
+	if (!xstreq(ifdhcp->request.hostname, sysdhcp->request.hostname))
+		ni_sysconfig_set(sc, "DHCLIENT_HOSTNAME_OPTION", ifdhcp->request.hostname);
+	if (!xstreq(ifdhcp->request.clientid, sysdhcp->request.clientid))
+		ni_sysconfig_set(sc, "DHCLIENT_CLIENT_ID", ifdhcp->request.clientid);
+	if (!xstreq(ifdhcp->request.vendor_class, sysdhcp->request.vendor_class))
+		ni_sysconfig_set(sc, "DHCLIENT_VENDOR_CLASS_ID", ifdhcp->request.vendor_class);
+	if (ifdhcp->request.lease_time != sysdhcp->request.lease_time)
+		ni_sysconfig_set_integer(sc, "DHCLIENT_LEASE_TIME", ifdhcp->request.lease_time);
+
+	if (ifdhcp->update.hosts_file != sysdhcp->update.hosts_file)
+		ni_sysconfig_set_boolean(sc, "WRITE_HOSTNAME_TO_HOSTS", ifdhcp->update.hosts_file);
+	if (ifdhcp->update.smb_config != sysdhcp->update.smb_config)
+		ni_sysconfig_set_boolean(sc, "DHCLIENT_MODIFY_SMB_CONF", ifdhcp->update.smb_config);
+	if (ifdhcp->update.hostname != sysdhcp->update.hostname)
+		ni_sysconfig_set_boolean(sc, "DHCLIENT_SET_HOSTNAME", ifdhcp->update.hostname);
+	if (ifdhcp->update.default_route != sysdhcp->update.default_route)
+		ni_sysconfig_set_boolean(sc, "DHCLIENT_SET_DEFAULT_ROUTE", ifdhcp->update.default_route);
 
 	return 0;
 }
@@ -594,6 +685,7 @@ int
 __ni_suse_format_all(ni_syntax_t *syntax, ni_handle_t *nih, FILE *outfile)
 {
 	ni_string_array_t files = NI_STRING_ARRAY_INIT;
+	ni_dhclient_info_t *dhcp = NULL;
 	const char *base_dir;
 	char pathbuf[PATH_MAX];
 	unsigned int i;
@@ -606,6 +698,16 @@ __ni_suse_format_all(ni_syntax_t *syntax, ni_handle_t *nih, FILE *outfile)
 		ni_sysconfig_t *sc;
 
 		snprintf(pathbuf, sizeof(pathbuf), "%s/ifcfg-%s", base_dir, ifp->name);
+		if (ifp->deleted) {
+			ni_debug_readwrite("removing %s", pathbuf);
+			if (unlink(pathbuf) < 0)
+				ni_error("unable to remove %s: %m", pathbuf);
+			continue;
+		}
+
+		if (!ifp->modified)
+			continue;
+
 		if (!ni_file_exists(pathbuf)) {
 			sc = ni_sysconfig_new(pathbuf);
 		} else {
@@ -616,12 +718,38 @@ __ni_suse_format_all(ni_syntax_t *syntax, ni_handle_t *nih, FILE *outfile)
 
 		if (__ni_suse_ifconfig2sysconfig(ifp, sc) < 0) {
 			ni_sysconfig_destroy(sc);
-			return -1;
+			goto error;
 		}
 
-		if (ni_sysconfig_overwrite(sc) < 0) {
+		/* Write out DHCP parameters. It would be really cool to know
+		 * whether the client asked to use all system config options
+		 * as-is, or whether he wanted some of them changed specifically
+		 * for this interface.
+		 * The best we can do for now is look for where we differ from the
+		 * system defaults.
+		 */
+		if (ifp->ipv4.config == NI_ADDRCONF_DHCP) {
+			if (!dhcp)
+				dhcp = __ni_suse_read_dhcp(nih);
+			if (__ni_suse_dhcp2sysconfig(ifp->ipv4.dhcp, dhcp, sc) < 0) {
+				ni_sysconfig_destroy(sc);
+				goto error;
+			}
+		}
+
+		if (ni_debug & NI_TRACE_READWRITE) {
+			const ni_var_t *var = sc->vars.data;
+			unsigned int i;
+
+			ni_trace("Rewriting %s:", sc->pathname);
+			for (i = 0; i < sc->vars.count; ++i, ++var)
+				ni_trace("  %s=%s", var->name, var->value);
+		}
+
+		ni_debug_readwrite("rewriting %s", pathbuf);
+		if (ni_sysconfig_rewrite(sc) < 0) {
 			ni_sysconfig_destroy(sc);
-			return -1;
+			goto error;
 		}
 		ni_sysconfig_destroy(sc);
 
@@ -634,12 +762,12 @@ __ni_suse_format_all(ni_syntax_t *syntax, ni_handle_t *nih, FILE *outfile)
 	/* FIXME: write out the routes file. Ignore all routes that
 	 * were written to an ifroutes file above.
 	 */
-#if 0
 	snprintf(pathbuf, sizeof(pathbuf), "%s/routes", base_dir);
+#if 0
 	if (__ni_suse_write_routes(&nih->routes, pathbuf) < 0)
 		return -1;
 #else
-	trace("should really rewrite %s here\n", pathbuf);
+	trace("should really rewrite %s here", pathbuf);
 #endif
 
 	(void) ni_sysconfig_scandir(base_dir, "ifcfg-", &files);
@@ -655,7 +783,14 @@ __ni_suse_format_all(ni_syntax_t *syntax, ni_handle_t *nih, FILE *outfile)
 	}
 	ni_string_array_destroy(&files);
 
+	if (dhcp)
+		ni_dhclient_info_free(dhcp);
 	return 0;
+
+error:
+	if (dhcp)
+		ni_dhclient_info_free(dhcp);
+	return -1;
 }
 
 static int
@@ -665,7 +800,7 @@ __ni_suse_ifconfig2sysconfig(ni_interface_t *ifp, ni_sysconfig_t *sc)
 	ni_address_t *ap;
 
 	ni_sysconfig_set(sc, "STARTMODE", __ni_suse_startmode(ifp->startmode));
-	ni_sysconfig_set(sc, "BOOTPROTO", __ni_suse_bootproto(ifp->startmode));
+	ni_sysconfig_set(sc, "BOOTPROTO", __ni_suse_bootproto(ifp));
 
 	if (!ifp->hwaddr.type != NI_IFTYPE_UNKNOWN)
 		ni_sysconfig_set(sc, "LLADDR", ni_link_address_print(&ifp->hwaddr));
@@ -686,26 +821,33 @@ __ni_suse_ifconfig2sysconfig(ni_interface_t *ifp, ni_sysconfig_t *sc)
 			ni_address_print(&ap->local_addr), ap->prefixlen);
 		ni_sysconfig_set(sc, varname, addrbuf);
 
+		snprintf(varname, sizeof(varname), "BROADCAST%s", suffix);
 		if (ap->bcast_addr.ss_family != AF_UNSPEC) {
-			snprintf(varname, sizeof(varname), "BROADCAST%s", suffix);
 			ni_sysconfig_set(sc, varname,
 					ni_address_print(&ap->bcast_addr));
+		} else {
+			ni_sysconfig_set(sc, varname, NULL);
 		}
 
+		snprintf(varname, sizeof(varname), "NETWORK%s", suffix);
+		/* FIXME: should print network prefix */
+
+		snprintf(varname, sizeof(varname), "REMOTE_IPADDR%s", suffix);
 		if (ap->peer_addr.ss_family != AF_UNSPEC) {
-			snprintf(varname, sizeof(varname), "REMOTE_IPADDR%s", suffix);
 			ni_sysconfig_set(sc, varname,
 					ni_address_print(&ap->peer_addr));
+		} else {
+			ni_sysconfig_set(sc, varname, NULL);
 		}
 	}
 
-#if 0
 	if (ifp->bonding && __ni_suse_bonding2sysconfig(ifp, sc))
 		return -1;
 
 	if (ifp->bridge && __ni_suse_bridge2sysconfig(ifp, sc))
 		return -1;
 
+#if 0
 	if (ifp->vlan && __ni_suse_vlan2sysconfig(ifp, sc))
 		return -1;
 
@@ -724,20 +866,53 @@ __ni_suse_startmode(int mode)
 	default:
 		return "manual";
 	case NI_START_ONBOOT:
-		return "auto";
+		return "onboot";
 	case NI_START_DISABLE:
 		return "off";
 	}
 }
 
 static const char *
-__ni_suse_bootproto(int proto)
+__ni_suse_bootproto(const ni_interface_t *ifp)
 {
-	switch (proto) {
-	default:
-	case NI_ADDRCONF_STATIC:
-		return "static";
-	case NI_ADDRCONF_DHCP:
+	static char protobuf[64];
+	int aconf4 = ifp->ipv4.config;
+	int aconf6 = ifp->ipv6.config;
+	const char *aconf4s = NULL;
+	const char *aconf6s = NULL;
+
+	if (aconf4 == NI_ADDRCONF_DHCP && aconf6 == NI_ADDRCONF_DHCP)
 		return "dhcp";
+	if (aconf4 == NI_ADDRCONF_IBFT && aconf6 == NI_ADDRCONF_IBFT)
+		return "ibft";
+	if (aconf4 == NI_ADDRCONF_STATIC && aconf6 == NI_ADDRCONF_AUTOCONF)
+		return "static";
+
+	switch (aconf4) {
+	case NI_ADDRCONF_AUTOCONF:
+		aconf4s = "autoip"; break;
+	case NI_ADDRCONF_DHCP:
+		aconf4s = "dhcp4"; break;
+	case NI_ADDRCONF_IBFT:
+		aconf4s = "ibft4"; break;
 	}
+
+	switch (aconf6) {
+	case NI_ADDRCONF_DHCP:
+		aconf6s = "dhcp6"; break;
+	case NI_ADDRCONF_IBFT:
+		aconf6s = "ibft6"; break;
+	}
+
+	if (aconf4s && aconf6s) {
+		snprintf(protobuf, sizeof(protobuf), "%s+%s", aconf4s, aconf6s);
+		return protobuf;
+	}
+	if (aconf4s)
+		return aconf4s;
+	if (aconf6s)
+		return aconf6s;
+
+	ni_warn("backend-suse: cannot represent bootproto combination for %s", ifp->name);
+	return "static";
 }
