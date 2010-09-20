@@ -158,6 +158,8 @@ typedef struct ni_afinfo {
 typedef struct ni_interface {
 	struct ni_interface *	next;
 	unsigned int		seq;
+	unsigned int		modified : 1,
+				deleted : 1;
 
 	ni_uuid_t		uuid;
 

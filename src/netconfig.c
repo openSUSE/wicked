@@ -14,10 +14,14 @@
 
 static const char *	ni_netconfig_default_schema(const char *);
 static int		__ni_netonfig_refresh(ni_handle_t *nih);
+static int		__ni_netconfig_interface_configure(ni_handle_t *, ni_interface_t *, xml_node_t *);
+static int		__ni_netconfig_interface_delete(ni_handle_t *, const char *);
 static void		__ni_netonfig_close(ni_handle_t *nih);
 
 static struct ni_ops ni_netconfig_ops = {
 	.refresh	= __ni_netonfig_refresh,
+	.configure_interface = __ni_netconfig_interface_configure,
+	.delete_interface = __ni_netconfig_interface_delete,
 	.close		= __ni_netonfig_close,
 };
 
@@ -102,4 +106,63 @@ __ni_netonfig_refresh(ni_handle_t *nih)
 		return -1;
 	}
 	return ni_syntax_parse_all(nih->default_syntax, nih);
+}
+
+/*
+ * Configure an interface.
+ * @nih is the netconfig handle representing our local configuration files.
+ * @cfg is the interface data to be added/replaced.
+ * @cfg_xml is the original XML blob passed in by the caller, if any. Since we
+ *	do no process information beyond what's in a ni_interface, we ignore
+ *	this argument here.
+ */
+static int
+__ni_netconfig_interface_configure(ni_handle_t *nih, ni_interface_t *cfg, xml_node_t *cfg_xml)
+{
+	ni_interface_t *nfp, *ifp, **pos;
+
+	if (!cfg->name) {
+		ni_error("netconfig: cannot configure unnamed interfaces");
+		return -1;
+	}
+
+	nfp = ni_interface_clone(cfg);
+	if (!nfp) {
+		ni_error("netconfig: unable to clone interface %s", cfg->name);
+		return -1;
+	}
+	nfp->modified = 1;
+
+	for (pos = &nih->iflist; (ifp = *pos) != NULL; pos = &ifp->next) {
+		if (!strcmp(ifp->name, cfg->name)) {
+			nfp->next = ifp->next;
+			ni_interface_put(ifp);
+			break;
+		}
+	}
+
+	/* Insert new interface */
+	*pos = nfp;
+
+	/* write back changes */
+	return ni_syntax_format_all(nih->default_syntax, nih, NULL);
+}
+
+/*
+ * Delete an interface.
+ */
+static int
+__ni_netconfig_interface_delete(ni_handle_t *nih, const char *ifname)
+{
+	ni_interface_t *ifp;
+
+	ifp = ni_interface_by_name(nih, ifname);
+	if (!ifp) {
+		ni_error("netconfig: cannot delete interface %s - not found", ifname);
+		return -1;
+	}
+	ifp->deleted = 1;
+
+	/* write back changes */
+	return ni_syntax_format_all(nih->default_syntax, nih, NULL);
 }
