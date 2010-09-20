@@ -18,7 +18,6 @@
 
 struct ni_handle {
 	int			preferred_family;
-	ni_syntax_t *		default_syntax;
 
 	ni_interface_t *	iflist;
 	ni_route_t *		routes;

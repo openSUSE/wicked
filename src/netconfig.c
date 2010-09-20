@@ -25,21 +25,34 @@ static struct ni_ops ni_netconfig_ops = {
 	.close		= __ni_netonfig_close,
 };
 
+typedef struct ni_netconfig {
+	ni_handle_t		base;
+
+	ni_syntax_t *		syntax;
+} ni_netconfig_t;
+
+static inline ni_netconfig_t *
+__to_netconfig(ni_handle_t *nih)
+{
+	assert(nih->op == &ni_netconfig_ops);
+	return (ni_netconfig_t *) nih;
+}
+
 ni_handle_t *
 ni_netconfig_open(ni_syntax_t *syntax)
 {
-	ni_handle_t *nih;
+	ni_netconfig_t *nih;
 
 	if (!syntax) {
 		ni_error("ni_netconfig_open: syntax is NULL");
 		return NULL;
 	}
 
-	nih = __ni_handle_new(sizeof(*nih), &ni_netconfig_ops);
+	nih = (ni_netconfig_t *) __ni_handle_new(sizeof(*nih), &ni_netconfig_ops);
 	if (nih)
-		nih->default_syntax = syntax;
+		nih->syntax = syntax;
 
-	return nih;
+	return &nih->base;
 }
 
 ni_syntax_t *
@@ -94,18 +107,22 @@ ni_netconfig_default_schema(const char *root_dir)
 static void
 __ni_netonfig_close(ni_handle_t *nih)
 {
-	if (nih->default_syntax)
-		ni_syntax_free(nih->default_syntax);
+	ni_netconfig_t *nit = __to_netconfig(nih);
+
+	if (nit->syntax)
+		ni_syntax_free(nit->syntax);
 }
 
 static int
 __ni_netonfig_refresh(ni_handle_t *nih)
 {
-	if (nih->default_syntax == NULL) {
+	ni_netconfig_t *nit = __to_netconfig(nih);
+
+	if (nit->syntax == NULL) {
 		ni_error("netonfig: cannot refresh, no syntax associated");
 		return -1;
 	}
-	return ni_syntax_parse_all(nih->default_syntax, nih);
+	return ni_syntax_parse_all(nit->syntax, nih);
 }
 
 /*
@@ -119,6 +136,7 @@ __ni_netonfig_refresh(ni_handle_t *nih)
 static int
 __ni_netconfig_interface_configure(ni_handle_t *nih, ni_interface_t *cfg, xml_node_t *cfg_xml)
 {
+	ni_netconfig_t *nit = __to_netconfig(nih);
 	ni_interface_t *nfp, *ifp, **pos;
 
 	if (!cfg->name) {
@@ -145,7 +163,7 @@ __ni_netconfig_interface_configure(ni_handle_t *nih, ni_interface_t *cfg, xml_no
 	*pos = nfp;
 
 	/* write back changes */
-	return ni_syntax_format_all(nih->default_syntax, nih, NULL);
+	return ni_syntax_format_all(nit->syntax, nih, NULL);
 }
 
 /*
@@ -154,6 +172,7 @@ __ni_netconfig_interface_configure(ni_handle_t *nih, ni_interface_t *cfg, xml_no
 static int
 __ni_netconfig_interface_delete(ni_handle_t *nih, const char *ifname)
 {
+	ni_netconfig_t *nit = __to_netconfig(nih);
 	ni_interface_t *ifp;
 
 	ifp = ni_interface_by_name(nih, ifname);
@@ -164,5 +183,5 @@ __ni_netconfig_interface_delete(ni_handle_t *nih, const char *ifname)
 	ifp->deleted = 1;
 
 	/* write back changes */
-	return ni_syntax_format_all(nih->default_syntax, nih, NULL);
+	return ni_syntax_format_all(nit->syntax, nih, NULL);
 }
