@@ -8,6 +8,8 @@
 #include <assert.h>
 #include <stdio.h>
 #include <ctype.h>
+#include <errno.h>
+#include <unistd.h>
 
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
@@ -41,6 +43,10 @@ ni_sysconfig_destroy(ni_sysconfig_t *sc)
 	free(sc);
 }
 
+/*
+ * Read a sysconfig file, and return an object containing all variables
+ * found. Optionally, @varnames will restrict the list of variables we return.
+ */
 ni_sysconfig_t *
 __ni_sysconfig_read(const char *filename, const char **varnames)
 {
@@ -107,6 +113,88 @@ error:
 }
 
 /*
+ * Print a sysconfig variable, using adequate quoting
+ */
+static void
+__ni_sysconfig_write_quoted(FILE *fp, const ni_var_t *var)
+{
+	if (var->value == NULL) {
+		fprintf(fp, "%s=''\n", var->name);
+	} else {
+		char *quoted = quote(var->value);
+
+		fprintf(fp, "%s='%s'\n", var->name, quoted);
+		if (quoted != var->value)
+			free(quoted);
+	}
+}
+
+/*
+ * Rewrite a sysconfig file, replacing all variables with those found in
+ * the changed sysconfig object.
+ * Rewrite is a bit nicer than overwrite, in that it tries to preserve
+ * all comments.
+ */
+int
+__ni_sysconfig_rewrite(FILE *ifp, FILE *ofp, const ni_sysconfig_t *sc)
+{
+	ni_string_array_t written = NI_STRING_ARRAY_INIT;
+	char linebuf[512];
+	unsigned int i;
+
+	while (fgets(linebuf, sizeof(linebuf), ifp) != NULL) {
+		char *sp = linebuf;
+		char *name;
+		ni_var_t *var;
+
+		while (isspace(*sp))
+			++sp;
+		if (*sp == '#') {
+just_copy:
+			fputs(linebuf, ofp);
+			continue;
+		}
+
+		/* Silently ignore fishy strings which do not seem to be
+		   variables . */
+		if (!isalpha(*sp))
+			goto just_copy;
+		name = sp;
+
+		while (isalnum(*sp) || *sp == '_')
+			++sp;
+		if (*sp != '=')
+			goto just_copy;
+		*sp++ = '\0';
+
+		/* Skip variables we've written before. */
+		if (ni_string_array_index(&written, name) >= 0)
+			continue;
+
+		var = ni_sysconfig_get(sc, name);
+		if (var == NULL)
+			continue;
+
+		/* Write out the variable */
+		__ni_sysconfig_write_quoted(ofp, var);
+
+		/* Remember that we've written this one before */
+		ni_string_array_append(&written, var->name);
+	}
+
+	/* Write out remaining variables */
+	for (i = 0; i < sc->vars.count; ++i) {
+		ni_var_t *var = &sc->vars.data[i];
+
+		if (ni_string_array_index(&written, var->name) < 0)
+			__ni_sysconfig_write_quoted(ofp, var);
+	}
+
+	ni_string_array_destroy(&written);
+	return 0;
+}
+
+/*
  * Read all variables from the specified sysconfig file
  */
 ni_sysconfig_t *
@@ -142,19 +230,64 @@ ni_sysconfig_overwrite(ni_sysconfig_t *sc)
 	for (i = 0; i < sc->vars.count; ++i) {
 		ni_var_t *var = &sc->vars.data[i];
 
-		if (var->value == NULL) {
-			fprintf(fp, "%s=''\n", var->name);
-		} else {
-			char *quoted = quote(var->value);
-
-			fprintf(fp, "%s='%s'\n", var->name, quoted);
-			if (quoted != var->value)
-				free(quoted);
-		}
+		__ni_sysconfig_write_quoted(fp, var);
 	}
 
 	fclose(fp);
 	return 0;
+}
+
+/*
+ * Rewrite a sysconfig file, being careful to not overwrite precious
+ * variables.
+ */
+int
+ni_sysconfig_rewrite(ni_sysconfig_t *sc)
+{
+	char pathtemp[4096 /* PATH_MAX */];
+	FILE *ifp = NULL, *ofp = NULL;
+
+	ifp = fopen(sc->pathname, "r");
+	if (ifp == NULL) {
+		if (errno != ENOENT) {
+			ni_error("unable to open %s for reading: %m", sc->pathname);
+			return -1;
+		}
+		return ni_sysconfig_overwrite(sc);
+	}
+
+	snprintf(pathtemp, sizeof(pathtemp), "%s.lock", sc->pathname);
+	if (!strcmp(sc->pathname, pathtemp)) {
+		ni_error("%s: path name too long", sc->pathname);
+		goto error;
+	}
+
+	ofp = fopen(pathtemp, "w");
+	if (ofp == NULL) {
+		ni_error("Unable to open %s for writing: %m", pathtemp);
+		goto error;
+	}
+
+	if (__ni_sysconfig_rewrite(ifp, ofp, sc) < 0)
+		goto error;
+
+	if (rename(pathtemp, sc->pathname) < 0) {
+		ni_error("unable to rename %s to %s: %m", pathtemp, sc->pathname);
+		goto error;
+	}
+
+	fclose(ifp);
+	fclose(ofp);
+	return 0;
+
+error:
+	if (ifp)
+		fclose(ifp);
+	if (ofp) {
+		unlink(pathtemp);
+		fclose(ofp);
+	}
+	return -1;
 }
 
 static int

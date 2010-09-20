@@ -22,6 +22,7 @@ extern void		ni_sysconfig_destroy(ni_sysconfig_t *);
 extern ni_sysconfig_t *	ni_sysconfig_read(const char *);
 extern ni_sysconfig_t *	ni_sysconfig_read_matching(const char *filename, const char **varnames);
 extern int		ni_sysconfig_overwrite(ni_sysconfig_t *);
+extern int		ni_sysconfig_rewrite(ni_sysconfig_t *);
 
 extern int		ni_sysconfig_set(ni_sysconfig_t *, const char *name, const char *variable);
 extern int		ni_sysconfig_set_integer(ni_sysconfig_t *, const char *name, unsigned int);
