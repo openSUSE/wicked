@@ -94,6 +94,17 @@ extern ni_syntax_t *	__ni_syntax_netcf_strict(const char *pathname);
 extern ni_address_t *	__ni_address_list_clone(const ni_address_t *);
 
 /*
+ * Helper function to do strcmp with NULL pointer check
+ */
+static inline int
+xstreq(const char *a, const char *b)
+{
+	if (a == NULL || b == NULL)
+		return a == b;
+	return strcmp(a, b) == 0;
+}
+
+/*
  * Retain warn() error() etc as shorthand for now
  */
 #define warn(fmt, args...)	ni_warn(fmt, ##args)
