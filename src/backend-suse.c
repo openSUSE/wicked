@@ -139,6 +139,7 @@ __ni_suse_read_routes(ni_route_t **route_list, const char *filename)
 		char *dest, *gw, *mask = NULL, *ifname = NULL, *type = NULL;
 		struct sockaddr_storage dest_addr, gw_addr, mask_addr;
 		unsigned int prefixlen = 255;
+		ni_route_t *rp;
 
 		buffer[strcspn(buffer, "#\r\n")] = '\0';
 		
@@ -186,7 +187,7 @@ __ni_suse_read_routes(ni_route_t **route_list, const char *filename)
 					/* No prefix and no mask given - assume the destination
 					   is a single address. Use the full address length
 					   as prefix. */
-					prefixlen = ni_address_length(dest_addr.ss_family);
+					prefixlen = ni_address_length(dest_addr.ss_family) * 8;
 				} else {
 					/* We have a mask. Try to parse it and count the bits. */
 					if (ni_address_parse(&mask_addr, mask, AF_UNSPEC) < 0) {
@@ -199,10 +200,14 @@ __ni_suse_read_routes(ni_route_t **route_list, const char *filename)
 			}
 		}
 
-		if (!__ni_route_new(route_list, prefixlen, &dest_addr, &gw_addr)) {
-			error("Unable to add route %s %s %s", dest, gw, mask?: "-");
+		rp = __ni_route_new(route_list, prefixlen, &dest_addr, &gw_addr);
+		if (rp == NULL) {
+			ni_error("Unable to add route %s %s %s", dest, gw, mask?: "-");
 			goto error;
 		}
+
+		if (ifname && strcmp(ifname, "-"))
+			ni_string_dup(&rp->nh.device, ifname);
 	}
 
 	fclose(fp);

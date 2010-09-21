@@ -677,7 +677,7 @@ __ni_netcf_xml_from_static_ifcfg(ni_syntax_t *syntax, ni_handle_t *nih,
 		for (rp = nih->routes; rp; rp = rp->next) {
 			// FIXME: this check works for IPv4 only;
 			// IPv6 routing is different.
-			if (ni_address_can_reach(ap, &rp->gateway))
+			if (ni_address_can_reach(ap, &rp->nh.gateway))
 				rp->seq = nih->seqno;
 		}
 	}
@@ -685,14 +685,14 @@ __ni_netcf_xml_from_static_ifcfg(ni_syntax_t *syntax, ni_handle_t *nih,
 	if (protnode) {
 		/* variant netcf can express a richer variety of IP routes */
 		for (rp = ifp->routes; rp; rp = rp->next) {
-			/* struct netcf: ignore non-default routes; we cannot map these. */
+			/* strict netcf: ignore non-default routes; we cannot map these. */
 			if (syntax->strict && rp->prefixlen != 0)
 				continue;
 			if (rp->family == af)
 				__ni_netcf_xml_from_route(rp, protnode);
 		}
 		for (rp = nih->routes; rp; rp = rp->next) {
-			/* struct netcf: ignore non-default routes; we cannot map these. */
+			/* strict netcf: ignore non-default routes; we cannot map these. */
 			if (syntax->strict && rp->prefixlen != 0)
 				continue;
 			if (rp->seq == nih->seqno)
@@ -717,8 +717,8 @@ __ni_netcf_xml_from_route(ni_route_t *rp, xml_node_t *protnode)
 		xml_node_add_attr_uint(routenode, "prefix", rp->prefixlen);
 	}
 
-	if (rp->gateway.ss_family != AF_UNSPEC)
-		xml_node_add_attr(routenode, "gateway", ni_address_print(&rp->gateway));
+	if (rp->nh.gateway.ss_family != AF_UNSPEC)
+		xml_node_add_attr(routenode, "gateway", ni_address_print(&rp->nh.gateway));
 }
 
 /*

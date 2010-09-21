@@ -504,7 +504,7 @@ __ni_route_new(ni_route_t **list, unsigned int prefixlen,
 	rp->family = af;
 	rp->prefixlen = prefixlen;
 	rp->destination = *dest;
-	rp->gateway = *gw;
+	rp->nh.gateway = *gw;
 	if (rp->destination.ss_family == AF_UNSPEC) {
 		memset(&rp->destination, 0, sizeof(rp->destination));
 		rp->destination.ss_family = af;

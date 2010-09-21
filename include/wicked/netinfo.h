@@ -41,13 +41,21 @@ typedef struct ni_hwaddr {
 	unsigned char	data[NI_MAXHWADDRLEN];
 } ni_hwaddr_t;
 
+typedef struct ni_route_nexthop {
+	struct ni_route_nexthop *next;
+	struct sockaddr_storage gateway;
+	char *                  device;
+	unsigned int		weight;
+	unsigned int		flags;
+} ni_route_nexthop_t;
+
 typedef struct ni_route {
 	struct ni_route *	next;
 	unsigned int		seq;
 	unsigned int		family;
 	unsigned int		prefixlen;
 	struct sockaddr_storage	destination;
-	struct sockaddr_storage	gateway;
+	ni_route_nexthop_t	nh;
 
 	unsigned int		mtu;
 	unsigned int		tos;

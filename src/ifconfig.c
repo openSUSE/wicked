@@ -926,8 +926,8 @@ __ni_rtnl_send_newroute(ni_handle_t *nih, ni_interface_t *ifp, ni_route_t *rp, i
 	} else if (addattr_sockaddr(&req.hdr, sizeof(req), RTA_DST, &rp->destination))
 		return -1;
 
-	if (rp->gateway.ss_family != AF_UNSPEC
-	 && addattr_sockaddr(&req.hdr, sizeof(req), RTA_GATEWAY, &rp->gateway))
+	if (rp->nh.gateway.ss_family != AF_UNSPEC
+	 && addattr_sockaddr(&req.hdr, sizeof(req), RTA_GATEWAY, &rp->nh.gateway))
 		return -1;
 
 	addattr32(&req.hdr, sizeof(req), RTA_OIF, ifp->ifindex);
@@ -1017,8 +1017,8 @@ __ni_rtnl_send_delroute(ni_handle_t *nih, ni_interface_t *ifp, ni_route_t *rp)
 	} else if (addattr_sockaddr(&req.hdr, sizeof(req), RTA_DST, &rp->destination))
 		return -1;
 
-	if (rp->gateway.ss_family != AF_UNSPEC
-	 && addattr_sockaddr(&req.hdr, sizeof(req), RTA_GATEWAY, &rp->gateway))
+	if (rp->nh.gateway.ss_family != AF_UNSPEC
+	 && addattr_sockaddr(&req.hdr, sizeof(req), RTA_GATEWAY, &rp->nh.gateway))
 		return -1;
 
 	addattr32(&req.hdr, sizeof(req), RTA_OIF, ifp->ifindex);
