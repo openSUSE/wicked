@@ -45,6 +45,8 @@ typedef struct ni_rest_node {
 	struct ni_rest_node *	children[__NI_REST_CHILD_MAX];
 } ni_rest_node_t;
 
+extern ni_rest_node_t		ni_rest_root_node;
+
 extern int			ni_wicked_call_direct(ni_wicked_request_t *);
 extern int			ni_wicked_call_indirect(ni_wicked_request_t *);
 extern void			ni_wicked_request_init(ni_wicked_request_t *);
@@ -58,7 +60,8 @@ extern int			ni_wicked_request_parse(ni_wicked_request_t *, FILE *);
 extern int			ni_wicked_rest_op_parse(const char *);
 extern const char *		ni_wicked_rest_op_print(int);
 
-extern ni_rest_node_t *		ni_rest_node_lookup(const char *, const char **);
+extern int			__ni_wicked_call_direct(ni_wicked_request_t *, ni_rest_node_t *);
+
 extern void			werror(ni_wicked_request_t *, const char *, ...);
 
 #endif /* __WICKED_H__ */

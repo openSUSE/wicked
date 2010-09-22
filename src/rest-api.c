@@ -22,7 +22,8 @@
 #include "netinfo_priv.h"
 
 
-static void	ni_rest_generate_meta(ni_rest_node_t *, xml_node_t *);
+static ni_rest_node_t *	ni_rest_node_lookup(ni_rest_node_t *, const char *, const char **);
+static void		ni_rest_generate_meta(ni_rest_node_t *, xml_node_t *);
 
 /*
  * construct and destroy wicked request object
@@ -253,6 +254,12 @@ error:
 int
 ni_wicked_call_direct(ni_wicked_request_t *req)
 {
+	return __ni_wicked_call_direct(req, &ni_rest_root_node);
+}
+
+int
+__ni_wicked_call_direct(ni_wicked_request_t *req, ni_rest_node_t *root_node)
+{
 	ni_rest_node_t *node;
 	const char *remainder = NULL;
 
@@ -269,7 +276,7 @@ ni_wicked_call_direct(ni_wicked_request_t *req)
 		}
 	}
 
-	node = ni_rest_node_lookup(req->path, &remainder);
+	node = ni_rest_node_lookup(root_node, req->path, &remainder);
 	if (!node) {
 		werror(req, "unknown path \"%s\"", req->path);
 		return -1;
@@ -625,7 +632,7 @@ static ni_rest_node_t	ni_rest_config_node = {
 	},
 };
 
-static ni_rest_node_t	ni_rest_root_node = {
+ni_rest_node_t	ni_rest_root_node = {
 	.name		= "/",
 	.children = {
 		&ni_rest_config_node,
@@ -651,9 +658,9 @@ ni_rest_node_find_child(ni_rest_node_t *node, const char *name)
 }
 
 ni_rest_node_t *
-ni_rest_node_lookup(const char *path, const char **remainder)
+ni_rest_node_lookup(ni_rest_node_t *root, const char *path, const char **remainder)
 {
-	ni_rest_node_t *node = &ni_rest_root_node;
+	ni_rest_node_t *node = root;
 	char *copy, *pos;
 
 	copy = pos = strdup(path);
