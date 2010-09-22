@@ -140,27 +140,30 @@ main(int argc, char **argv)
 }
 
 static int
-__wicked_request(const char *cmd, const char *path,
+__wicked_request(int rest_op, const char *path,
 		/* const */ xml_node_t *send_xml,
 		xml_node_t **recv_xml)
 {
 	ni_wicked_request_t req;
 	int rv;
 
-	if (opt_dryrun && strcasecmp(cmd, "GET")) {
-		printf("Would send request %s %s\n", cmd, path);
+	if (opt_dryrun && rest_op != NI_REST_OP_GET) {
+		printf("Would send request %s %s\n",
+				ni_wicked_rest_op_print(rest_op), path);
 		if (send_xml)
 			xml_node_print(send_xml, stdout);
 		return 0;
 	}
 
 	ni_wicked_request_init(&req);
+	req.cmd = rest_op;
+	req.path = strdup(path);
 	req.xml_in = send_xml;
 
 	if (opt_rootdir)
 		ni_wicked_request_add_option(&req, "Root", opt_rootdir);
 
-	rv = ni_wicked_call_indirect(&req, cmd, path);
+	rv = ni_wicked_call_indirect(&req);
 	if (rv < 0) {
 		ni_error("%s", req.error_msg);
 	} else if (recv_xml) {
@@ -177,7 +180,7 @@ wicked_get(const char *path)
 {
 	xml_node_t *out = NULL;
 
-	if (__wicked_request("GET", path, NULL, &out) < 0)
+	if (__wicked_request(NI_REST_OP_GET, path, NULL, &out) < 0)
 		return NULL;
 
 	return out;
@@ -195,7 +198,7 @@ wicked_get_interface(const char *base_path, const char *ifname)
 int
 wicked_put(const char *path, xml_node_t *in)
 {
-	return __wicked_request("PUT", path, in, NULL);
+	return __wicked_request(NI_REST_OP_PUT, path, in, NULL);
 }
 
 int
@@ -205,7 +208,7 @@ wicked_put_interface(const char *base_path, const char *ifname, xml_node_t *in)
 	char pathbuf[256];
 
 	snprintf(pathbuf, sizeof(pathbuf), "%s/%s", base_path, ifname);
-	if (__wicked_request("PUT", pathbuf, in, &out) < 0)
+	if (__wicked_request(NI_REST_OP_PUT, pathbuf, in, &out) < 0)
 		return -1;
 
 	if (out) {
@@ -222,7 +225,7 @@ wicked_delete_interface(const char *base_path, const char *ifname)
 	char pathbuf[256];
 
 	snprintf(pathbuf, sizeof(pathbuf), "%s/%s", base_path, ifname);
-	if (__wicked_request("DELETE", pathbuf, NULL, NULL) < 0)
+	if (__wicked_request(NI_REST_OP_DELETE, pathbuf, NULL, NULL) < 0)
 		return -1;
 
 	return 0;
@@ -806,6 +809,7 @@ static int
 do_rest(const char *cmd, int argc, char **argv)
 {
 	xml_node_t *send_xml = NULL, *recv_xml = NULL, **recvp = NULL;
+	int rest_op;
 	char *path;
 
 	if (argc != 2) {
@@ -822,16 +826,20 @@ do_rest(const char *cmd, int argc, char **argv)
 
 	path = argv[1];
 
-	if (!strcmp(cmd, "put") || !strcmp(cmd, "post")) {
+	rest_op = ni_wicked_rest_op_parse(cmd);
+	if (rest_op < 0)
+		return 1;
+
+	if (rest_op == NI_REST_OP_PUT || rest_op == NI_REST_OP_POST) {
 		send_xml = xml_node_scan(stdin);
 		if (send_xml == NULL) {
 			ni_error("unable to read XML from standard input");
 			return 1;
 		}
 	}
-	if (strcmp(cmd, "delete"))
+	if (rest_op != NI_REST_OP_DELETE)
 		recvp = &recv_xml;
-	if (__wicked_request(cmd, path, send_xml, recvp) < 0)
+	if (__wicked_request(rest_op, path, send_xml, recvp) < 0)
 		return 1;
 
 	if (recv_xml)

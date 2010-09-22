@@ -187,65 +187,21 @@ void
 wicked_process_network_restcall(int fd)
 {
 	ni_wicked_request_t req;
-	char buffer[1024];
-	char *cmd, *path, *s;
 	FILE *sock;
-
-	ni_wicked_request_init(&req);
 
 	if (!(sock = fdopen(fd, "w+"))) {
 		ni_error("unable to fdopen socket: %m");
 		return;
 	}
 
-	if (fgets(buffer, sizeof(buffer), sock) == NULL)
-		return;
-
-	for (cmd = s = buffer; *s && !isspace(*s); ++s)
-		;
-
-	while (isspace(*s))
-		*s++ = '\0';
-	path = s;
-
-	s = path + strlen(path);
-	while (s > path && isspace(s[-1]))
-		*--s = '\0';
-
-	if (*cmd == '\0' || *path == '\0') {
-		werror(&req, "cannot parse REST request");
-		goto error;
-	}
-	cmd = strdup(cmd);
-	path = strdup(path);
-
-	/* Get options */
-	while (fgets(buffer, sizeof(buffer), sock) != NULL) {
-		int len = strlen(buffer);
-		char *s;
-
-		while (len && isspace(buffer[len-1]))
-			buffer[--len] = '\0';
-
-		if (buffer[0] == '\0')
-			break;
-
-		for (s = buffer; isalpha(*s); ++s)
-			*s = tolower(*s);
-		while (*s == ':' || isspace(*s))
-			*s++ = '\0';
-
-		ni_wicked_request_add_option(&req, buffer, s);
-	}
-
-	/* Now get the XML document, if any */
-	req.xml_in = xml_node_scan(sock);
-	if (req.xml_in == NULL) {
-		werror(&req, "unable to parse xml document");
+	/* Read the request coming in from the socket. */
+	ni_wicked_request_init(&req);
+	if (ni_wicked_request_parse(&req, sock) < 0) {
+		fclose(sock);
 		goto error;
 	}
 
-	if (ni_wicked_call_direct(&req, cmd, path) >= 0) {
+	if (ni_wicked_call_direct(&req) >= 0) {
 		fprintf(sock, "OK\n");
 		if (req.xml_out)
 			xml_node_print(req.xml_out, sock);
@@ -260,8 +216,6 @@ error:
 
 	fflush(sock);
 	ni_wicked_request_destroy(&req);
-	free(cmd);
-	free(path);
 }
 
 /*

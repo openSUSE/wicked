@@ -31,15 +31,17 @@ void
 ni_wicked_request_init(ni_wicked_request_t *req)
 {
 	memset(req, 0, sizeof(*req));
+	req->cmd = -1;
 }
 
 void
 ni_wicked_request_destroy(ni_wicked_request_t *req)
 {
-	ni_string_free(&req->error_msg);
+	ni_string_free(&req->path);
 	xml_node_free(req->xml_out);
 
 	ni_var_array_destroy(&req->options);
+	ni_string_free(&req->error_msg);
 	memset(req, 0, sizeof(*req));
 }
 
@@ -80,12 +82,111 @@ ni_wicked_request_get_option(ni_wicked_request_t *req, const char *name)
 }
 
 /*
+ * Map GET/PUT/POST/DELETE strings
+ */
+int
+ni_wicked_rest_op_parse(const char *cmd)
+{
+	if (!strcasecmp(cmd, "get"))
+		return NI_REST_OP_GET;
+	if (!strcasecmp(cmd, "put"))
+		return NI_REST_OP_PUT;
+	if (!strcasecmp(cmd, "post"))
+		return NI_REST_OP_POST;
+	if (!strcasecmp(cmd, "delete"))
+		return NI_REST_OP_DELETE;
+	return -1;
+}
+
+const char *
+ni_wicked_rest_op_print(int cmd)
+{
+	static const char *op_name[__NI_REST_OP_MAX] = {
+		[NI_REST_OP_GET] = "get",
+		[NI_REST_OP_PUT] = "put",
+		[NI_REST_OP_POST] = "post",
+		[NI_REST_OP_DELETE] = "delete",
+	};
+
+	if (cmd < 0 || cmd >= __NI_REST_OP_MAX)
+		return "unknown";
+
+	return op_name[cmd];
+}
+
+/*
+ * Parse a WICKED request, usually reading from a socket.
+ */
+int
+ni_wicked_request_parse(ni_wicked_request_t *req, FILE *in)
+{
+	char buffer[1024];
+	char *cmd, *s;
+
+	ni_wicked_request_init(req);
+
+	if (fgets(buffer, sizeof(buffer), in) == NULL) {
+		werror(req, "unable to read request from socket");
+		return - 1;
+	}
+
+	for (cmd = s = buffer; *s && !isspace(*s); ++s)
+		;
+
+	while (isspace(*s))
+		*s++ = '\0';
+	ni_string_dup(&req->path, s);
+
+	s = req->path + strlen(req->path);
+	while (s > req->path && isspace(s[-1]))
+		*--s = '\0';
+
+	if (cmd[0] == '\0' || req->path[0] == '\0') {
+		werror(req, "cannot parse REST request");
+		return -1;
+	}
+
+	req->cmd = ni_wicked_rest_op_parse(cmd);
+	if (req->cmd < 0) {
+		werror(req, "unknown command \"%s\"", cmd);
+		return -1;
+	}
+
+	/* Get options */
+	while (fgets(buffer, sizeof(buffer), in) != NULL) {
+		int len = strlen(buffer);
+		char *s;
+
+		while (len && isspace(buffer[len-1]))
+			buffer[--len] = '\0';
+
+		if (buffer[0] == '\0')
+			break;
+
+		for (s = buffer; isalpha(*s); ++s)
+			*s = tolower(*s);
+		while (*s == ':' || isspace(*s))
+			*s++ = '\0';
+
+		ni_wicked_request_add_option(req, buffer, s);
+	}
+
+	/* Now get the XML document, if any */
+	req->xml_in = xml_node_scan(in);
+	if (req->xml_in == NULL) {
+		werror(req, "unable to parse xml document");
+		return -1;
+	}
+
+	return 0;
+}
+
+/*
  * Call the local wicked server to process a REST call
  * This is what wicked clients usually call.
  */
 int
-ni_wicked_call_indirect(ni_wicked_request_t *req,
-				const char *cmd, const char *path)
+ni_wicked_call_indirect(ni_wicked_request_t *req)
 {
 	char respbuf[256];
 	unsigned int i;
@@ -101,7 +202,7 @@ ni_wicked_call_indirect(ni_wicked_request_t *req,
 		return -1;
 	}
 
-	fprintf(sock, "%s %s\n", cmd, path);
+	fprintf(sock, "%s %s\n", ni_wicked_rest_op_print(req->cmd), req->path);
 	for (i = 0; i < req->options.count; ++i) {
 		ni_var_t *var = &req->options.data[i];
 
@@ -150,15 +251,15 @@ error:
  * This is what the wicked server calls to handle an incoming request.
  */
 int
-ni_wicked_call_direct(ni_wicked_request_t *req,
-				const char *cmd, const char *path)
+ni_wicked_call_direct(ni_wicked_request_t *req)
 {
 	ni_rest_node_t *node;
-	int fn;
+	const char *remainder = NULL;
 
 	if (ni_debug & NI_TRACE_WICKED) {
 		unsigned int i;
-		ni_trace("Processing REST request %s \"%s\"", cmd, path);
+		ni_trace("Processing REST request %s \"%s\"",
+				ni_wicked_rest_op_print(req->cmd), req->path);
 		if (req->options.count)
 			ni_trace("Options:");
 		for (i = 0; i < req->options.count; ++i) {
@@ -168,34 +269,19 @@ ni_wicked_call_direct(ni_wicked_request_t *req,
 		}
 	}
 
-	if (!strcasecmp(cmd, "get")) {
-		fn = NI_REST_OP_GET;
-	} else
-	if (!strcasecmp(cmd, "put")) {
-		fn = NI_REST_OP_PUT;
-	} else
-	if (!strcasecmp(cmd, "post")) {
-		fn = NI_REST_OP_POST;
-	} else
-	if (!strcasecmp(cmd, "delete")) {
-		fn = NI_REST_OP_DELETE;
-	} else {
-		werror(req, "unknown command \"%s\"", cmd);
-		return -1;
-	}
-
-	node = ni_rest_node_lookup(path, (const char **) &path);
+	node = ni_rest_node_lookup(req->path, &remainder);
 	if (!node) {
-		werror(req, "unknown path \"%s\"", path);
+		werror(req, "unknown path \"%s\"", req->path);
 		return -1;
 	}
 
-	if (node->ops.fn[fn] == NULL) {
-		werror(req, "%s command not supported for this path", cmd);
+	if (node->ops.fn[req->cmd] == NULL) {
+		werror(req, "%s command not supported for this path",
+				ni_wicked_rest_op_print(req->cmd));
 		return -1;
 	}
 
-	return node->ops.fn[fn](path, req);
+	return node->ops.fn[req->cmd](remainder, req);
 }
 
 static ni_handle_t *

@@ -74,12 +74,15 @@ __ni_indirect_close(ni_handle_t *nih)
  * Construct a wicked request.
  */
 static void
-__ni_indirect_build_request(ni_indirect_t *nid, ni_wicked_request_t *req)
+__ni_indirect_build_request(ni_indirect_t *nid, ni_wicked_request_t *req,
+			int rest_op, const char *path)
 {
 	ni_wicked_request_init(req);
 
+	req->cmd = rest_op;
 	if (nid->root_dir)
 		ni_wicked_request_add_option(req, "root", nid->root_dir);
+	ni_string_dup(&req->path, path);
 }
 
 int
@@ -93,9 +96,10 @@ __ni_indirect_refresh_all(ni_handle_t *nih)
 
 	__ni_interfaces_clear(nih);
 
-	__ni_indirect_build_request(nid, &req);
 	snprintf(pathbuf, sizeof(pathbuf), "%s/interface", nid->namespace);
-	rv = ni_wicked_call_indirect(&req, "GET", pathbuf);
+	__ni_indirect_build_request(nid, &req, NI_REST_OP_GET, pathbuf);
+
+	rv = ni_wicked_call_indirect(&req);
 	if (rv < 0)
 		goto out;
 	if (req.xml_out == NULL) {
@@ -143,11 +147,11 @@ __ni_indirect_interface_configure(ni_handle_t *nih,
 		xml_is_temp = 1;
 	}
 
-	__ni_indirect_build_request(nid, &req);
+	snprintf(pathbuf, sizeof(pathbuf), "%s/interface/%s", nid->namespace, ifp->name);
+	__ni_indirect_build_request(nid, &req, NI_REST_OP_PUT, pathbuf);
 	req.xml_in = xml;
 
-	snprintf(pathbuf, sizeof(pathbuf), "%s/interface/%s", nid->namespace, ifp->name);
-	rv = ni_wicked_call_indirect(&req, "PUT", pathbuf);
+	rv = ni_wicked_call_indirect(&req);
 	if (rv < 0)
 		goto out;
 
@@ -189,10 +193,10 @@ __ni_indirect_interface_delete(ni_handle_t *nih, const char *name)
 	char pathbuf[64];
 	int rv;
 
-	__ni_indirect_build_request(nid, &req);
-
 	snprintf(pathbuf, sizeof(pathbuf), "%s/interface/%s", nid->namespace, name);
-	rv = ni_wicked_call_indirect(&req, "DELETE", pathbuf);
+	__ni_indirect_build_request(nid, &req, NI_REST_OP_DELETE, pathbuf);
+
+	rv = ni_wicked_call_indirect(&req);
 	ni_wicked_request_destroy(&req);
 	return rv;
 }

@@ -17,11 +17,15 @@ enum {
 };
 
 typedef struct ni_wicked_request {
-	char *			error_msg;
-	const xml_node_t *	xml_in;
-	xml_node_t *		xml_out;
+	int			cmd;		/* GET/PUT/POST/DELETE */
+	char *			path;		/* path to operate on */
 
-	ni_var_array_t		options;
+	const xml_node_t *	xml_in;		/* XML blob passed in */
+	xml_node_t *		xml_out;	/* XML blob returned, or NULL */
+
+	ni_var_array_t		options;	/* Additional option, such as "root" */
+
+	char *			error_msg;	/* error message while processing req. */
 } ni_wicked_request_t;
 
 typedef int (*ni_rest_handler_t)(const char *, ni_wicked_request_t *req);
@@ -41,16 +45,18 @@ typedef struct ni_rest_node {
 	struct ni_rest_node *	children[__NI_REST_CHILD_MAX];
 } ni_rest_node_t;
 
-extern int			ni_wicked_call_direct(ni_wicked_request_t *,
-					const char *, const char *);
-extern int			ni_wicked_call_indirect(ni_wicked_request_t *,
-					const char *, const char *);
+extern int			ni_wicked_call_direct(ni_wicked_request_t *);
+extern int			ni_wicked_call_indirect(ni_wicked_request_t *);
 extern void			ni_wicked_request_init(ni_wicked_request_t *);
 extern void			ni_wicked_request_destroy(ni_wicked_request_t *);
 extern int			ni_wicked_request_add_option(ni_wicked_request_t *,
 					const char *, const char *);
 extern const char *		ni_wicked_request_get_option(ni_wicked_request_t *,
 					const char *);
+extern int			ni_wicked_request_parse(ni_wicked_request_t *, FILE *);
+
+extern int			ni_wicked_rest_op_parse(const char *);
+extern const char *		ni_wicked_rest_op_print(int);
 
 extern ni_rest_node_t *		ni_rest_node_lookup(const char *, const char **);
 extern void			werror(ni_wicked_request_t *, const char *, ...);
