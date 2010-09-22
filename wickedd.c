@@ -188,6 +188,7 @@ wicked_process_network_restcall(int fd)
 {
 	ni_wicked_request_t req;
 	FILE *sock;
+	int rv;
 
 	if (!(sock = fdopen(fd, "w+"))) {
 		ni_error("unable to fdopen socket: %m");
@@ -196,25 +197,15 @@ wicked_process_network_restcall(int fd)
 
 	/* Read the request coming in from the socket. */
 	ni_wicked_request_init(&req);
-	if (ni_wicked_request_parse(&req, sock) < 0) {
-		fclose(sock);
-		goto error;
-	}
+	rv = ni_wicked_request_parse(&req, sock);
 
-	if (ni_wicked_call_direct(&req) >= 0) {
-		fprintf(sock, "OK\n");
-		if (req.xml_out)
-			xml_node_print(req.xml_out, sock);
-	} else {
-error:
-		if (req.error_msg == NULL) {
-			fprintf(sock, "ERROR: unable to process request\n");
-		} else {
-			fprintf(sock, "ERROR: %s\n", req.error_msg);
-		}
-	}
+	/* Process the call */
+	if (rv >= 0)
+		rv = ni_wicked_call_direct(&req);
 
-	fflush(sock);
+	/* ... and send the response back. */
+	ni_wicked_response_print(&req, rv, sock);
+
 	ni_wicked_request_destroy(&req);
 }
 

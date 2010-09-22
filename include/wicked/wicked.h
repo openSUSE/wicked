@@ -56,6 +56,7 @@ extern int			ni_wicked_request_add_option(ni_wicked_request_t *,
 extern const char *		ni_wicked_request_get_option(ni_wicked_request_t *,
 					const char *);
 extern int			ni_wicked_request_parse(ni_wicked_request_t *, FILE *);
+extern int			ni_wicked_response_print(ni_wicked_request_t *, int status, FILE *);
 
 extern int			ni_wicked_rest_op_parse(const char *);
 extern const char *		ni_wicked_rest_op_print(int);

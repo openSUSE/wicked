@@ -183,6 +183,27 @@ ni_wicked_request_parse(ni_wicked_request_t *req, FILE *in)
 }
 
 /*
+ * Print the response to a WICKED REST call
+ */
+int
+ni_wicked_response_print(ni_wicked_request_t *req, int status, FILE *fp)
+{
+	if (status >= 0) {
+		fprintf(fp, "OK\n");
+		if (req->xml_out)
+			xml_node_print(req->xml_out, fp);
+	} else {
+		if (req->error_msg == NULL) {
+			fprintf(fp, "ERROR: unable to process request\n");
+		} else {
+			fprintf(fp, "ERROR: %s\n", req->error_msg);
+		}
+	}
+	fflush(fp);
+	return 0;
+}
+
+/*
  * Call the local wicked server to process a REST call
  * This is what wicked clients usually call.
  */
