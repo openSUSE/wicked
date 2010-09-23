@@ -110,6 +110,8 @@ enum {
 	NI_IFTYPE_ISDN,
 	NI_IFTYPE_TUNNEL,	/* ipip tunnel */
 	NI_IFTYPE_TUNNEL6,	/* ip6ip6 tunnel */
+	NI_IFTYPE_TOKENRING,
+	NI_IFTYPE_FIREWIRE,
 
 	NI_IFTYPE_TUN,
 	NI_IFTYPE_TAP,
@@ -412,6 +414,8 @@ extern int		ni_link_address_format(const ni_hwaddr_t *ss,
 extern const char *	ni_link_address_print(const ni_hwaddr_t *ss);
 extern int		ni_link_address_parse(ni_hwaddr_t *, unsigned int, const char *);
 extern int		ni_link_address_equal(const ni_hwaddr_t *, const ni_hwaddr_t *);
+extern unsigned int	ni_link_address_length(int);
+extern int		ni_link_address_get_broadcast(int, ni_hwaddr_t *);
 
 extern ni_route_t *	ni_route_new(ni_handle_t *, unsigned int prefix_len,
 				const struct sockaddr_storage *dest,

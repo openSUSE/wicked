@@ -7,6 +7,9 @@
 
 #include <arpa/inet.h>
 #include <net/if_arp.h>
+#include <netinet/if_ether.h>
+#include <netinet/if_tr.h>
+#include <linux/if_infiniband.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -23,11 +26,19 @@ ni_address_new(ni_interface_t *ifp, int af,
 		unsigned int prefix_len,
 		const struct sockaddr_storage *local_addr)
 {
+	return __ni_address_new(&ifp->addrs, af, prefix_len, local_addr);
+}
+
+ni_address_t *
+__ni_address_new(ni_address_t **list_head, int af,
+		unsigned int prefix_len,
+		const struct sockaddr_storage *local_addr)
+{
 	ni_address_t *ap, **tail;
 
 	assert(!local_addr || local_addr->ss_family == af);
 
-	tail = &ifp->addrs;
+	tail = list_head;
 	while ((ap = *tail) != NULL)
 		tail = &ap->next;
 
@@ -463,6 +474,49 @@ ni_link_address_equal(const ni_hwaddr_t *hwa1, const ni_hwaddr_t *hwa2)
 	 || hwa1->len != hwa2->len)
 		return 0;
 	return !memcmp(hwa1->data, hwa2->data, hwa1->len);
+}
+
+unsigned int
+ni_link_address_length(int iftype)
+{
+	switch (iftype) {
+	case NI_IFTYPE_ETHERNET:
+		return ETH_ALEN;
+
+	case NI_IFTYPE_TOKENRING:
+		return TR_ALEN;
+
+	case NI_IFTYPE_FIREWIRE:
+		return 8;	/* EUI64 */
+
+	case NI_IFTYPE_INFINIBAND:
+		return INFINIBAND_ALEN;
+	}
+
+	return 0;
+}
+
+int
+ni_link_address_get_broadcast(int iftype, ni_hwaddr_t *hwa)
+{
+	hwa->type = iftype;
+	hwa->len = ni_link_address_length(iftype);
+	if (hwa->len == 0)
+		return -1;
+
+	if (iftype == NI_IFTYPE_INFINIBAND) {
+		/* Broadcast address for IPoIB */
+		static const uint8_t ipoib_bcast_addr[] = {
+			0x00, 0xff, 0xff, 0xff,
+			0xff, 0x12, 0x40, 0x1b, 0x00, 0x00, 0x00, 0x00,
+			0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff
+		};
+		memcpy(hwa->data, ipoib_bcast_addr, hwa->len);
+	} else {
+		memset(hwa->data, 0xff, hwa->len);
+	}
+
+	return 0;
 }
 
 ni_route_t *
