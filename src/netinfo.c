@@ -168,7 +168,8 @@ ni_refresh(ni_handle_t *nih)
 void
 ni_close(ni_handle_t *nih)
 {
-	nih->op->close(nih);
+	if (nih->op->close)
+		nih->op->close(nih);
 
 	ni_route_list_destroy(&nih->routes);
 	__ni_interfaces_clear(nih);
