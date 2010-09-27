@@ -129,7 +129,8 @@ __ni_netcf_xml_to_interface(ni_syntax_t *syntax, ni_handle_t *nih, xml_node_t *i
 		}
 	}
 
-	if (xml_node_get_attr_uint(ifnode, "size", &ifp->mtu) < 0)
+	node = xml_node_get_child(ifnode, "mtu");
+	if (node && xml_node_get_attr_uint(node, "size", &ifp->mtu) < 0)
 		return NULL;
 
 	node = xml_node_get_child(ifnode, "mac");
