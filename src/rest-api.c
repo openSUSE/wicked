@@ -208,12 +208,78 @@ ni_wicked_response_print(ni_wicked_request_t *req, int status, FILE *fp)
  * This is what wicked clients usually call.
  */
 int
-ni_wicked_call_indirect(ni_wicked_request_t *req)
+__ni_wicked_call_indirect(ni_wicked_request_t *req, FILE *sock, int sotype)
 {
+	char dgram[65536];
 	char respbuf[256];
 	unsigned int i;
+
+	fprintf(sock, "%s %s\n", ni_wicked_rest_op_print(req->cmd), req->path);
+	for (i = 0; i < req->options.count; ++i) {
+		ni_var_t *var = &req->options.data[i];
+
+		fprintf(sock, "%s: %s\n", var->name, var->value);
+	}
+	fprintf(sock, "\n");
+
+	if (req->xml_in) {
+		if (xml_node_print(req->xml_in, sock) < 0) {
+			werror(req, "write error on socket: %m");
+			return -1;
+		}
+	}
+
+	fflush(sock);
+
+	if (sotype == SOCK_STREAM) {
+		/* Tell the server we're done sending */
+		shutdown(fileno(sock), SHUT_WR);
+	} else {
+		/* Wait for the datagram response, copy it to a buffer
+		 * and substitute a memstream for the @sock file. */
+		int count;
+
+		count = read(fileno(sock), dgram, sizeof(dgram));
+		if (count < 0)
+			goto report_error;
+		if (count == 0)
+			goto report_eof;
+
+		sock = fmemopen(dgram, count, "r");
+	}
+
+	if (fgets(respbuf, sizeof(respbuf), sock) == NULL) {
+		if (ferror(sock))
+			goto report_error;
+		goto report_eof;
+	}
+	respbuf[strcspn(respbuf, "\r\n")] = '\0';
+	if (strcmp(respbuf, "OK")) {
+		ni_string_dup(&req->error_msg, respbuf);
+		return -1;
+	}
+
+	if ((req->xml_out = xml_node_scan(sock)) == NULL) {
+		werror(req, "error receiving response from server: %m");
+		return -1;
+	}
+
+	return 0;
+
+report_error:
+	werror(req, "error receiving response from server: %m");
+	return -1;
+
+report_eof:
+	werror(req, "error receiving response from server: EOF");
+	return -1;
+}
+
+int
+ni_wicked_call_indirect(ni_wicked_request_t *req)
+{
 	FILE *sock;
-	int fd;
+	int fd, rv;
 
 	fd = ni_server_connect();
 	if (fd < 0)
@@ -224,48 +290,15 @@ ni_wicked_call_indirect(ni_wicked_request_t *req)
 		return -1;
 	}
 
-	fprintf(sock, "%s %s\n", ni_wicked_rest_op_print(req->cmd), req->path);
-	for (i = 0; i < req->options.count; ++i) {
-		ni_var_t *var = &req->options.data[i];
-
-		fprintf(sock, "%s: %s\n", var->name, var->value);
-	}
-	fprintf(sock, "\n");
-	fflush(sock);
-
-	if (req->xml_in) {
-		if (xml_node_print(req->xml_in, sock) < 0) {
-			werror(req, "write error on socket: %m");
-			goto error;
-		}
-	}
-
-	fflush(sock);
-
-	/* Tell the server we're done sending */
-	shutdown(fd, SHUT_WR);
-
-	if (fgets(respbuf, sizeof(respbuf), sock) == NULL) {
-		werror(req, "error receiving response from server: EOF");
-		goto error;
-	}
-	respbuf[strcspn(respbuf, "\r\n")] = '\0';
-	if (strcmp(respbuf, "OK")) {
-		ni_string_dup(&req->error_msg, respbuf);
-		goto error;
-	}
-
-	if ((req->xml_out = xml_node_scan(sock)) == NULL) {
-		werror(req, "error receiving response from server: %m");
-		goto error;
-	}
-
+	rv = __ni_wicked_call_indirect(req, sock, SOCK_STREAM);
 	fclose(sock);
-	return 0;
+	return rv;
+}
 
-error:
-	fclose(sock);
-	return -1;
+int
+ni_wicked_call_indirect_dgram(ni_wicked_request_t *req, FILE *sock)
+{
+	return __ni_wicked_call_indirect(req, sock, SOCK_DGRAM);
 }
 
 /*
