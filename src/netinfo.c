@@ -658,8 +658,12 @@ ni_interface_free(ni_interface_t *ifp)
 
 	if (ifp->ipv4.dhcp)
 		ni_dhclient_info_free(ifp->ipv4.dhcp);
+	if (ifp->ipv4.dhcp_lease)
+		ni_addrconf_state_free(ifp->ipv4.dhcp_lease);
 	if (ifp->ipv6.dhcp)
 		ni_dhclient_info_free(ifp->ipv6.dhcp);
+	if (ifp->ipv6.dhcp_lease)
+		ni_addrconf_state_free(ifp->ipv6.dhcp_lease);
 
 	free(ifp);
 }
@@ -929,4 +933,36 @@ ni_dhclient_info_free(ni_dhclient_info_t *dhcp)
 	ni_string_free(&dhcp->request.clientid);
 	ni_string_free(&dhcp->request.vendor_class);
 	free(dhcp);
+}
+
+/*
+ * Address configuration state (aka leases)
+ */
+ni_addrconf_state_t *
+ni_addrconf_state_new(int type, int family)
+{
+	ni_addrconf_state_t *lease;
+
+	lease = calloc(1, sizeof(*lease));
+	lease->type = type;
+	lease->family = family;
+	return lease;
+}
+
+void
+ni_addrconf_state_free(ni_addrconf_state_t *lease)
+{
+	ni_string_free(&lease->hostname);
+	ni_string_free(&lease->nis_domain);
+	ni_string_free(&lease->netbios_domain);
+	ni_string_array_destroy(&lease->log_servers);
+	ni_string_array_destroy(&lease->dns_servers);
+	ni_string_array_destroy(&lease->dns_search);
+	ni_string_array_destroy(&lease->nis_servers);
+	ni_string_array_destroy(&lease->ntp_servers);
+	ni_string_array_destroy(&lease->netbios_servers);
+	ni_string_array_destroy(&lease->slp_servers);
+	ni_string_array_destroy(&lease->slp_scopes);
+	ni_address_list_destroy(&lease->addrs);
+	ni_route_list_destroy(&lease->routes);
 }

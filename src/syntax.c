@@ -311,6 +311,29 @@ ni_syntax_xml_to_interface(ni_syntax_t *syntax, ni_handle_t *nih, xml_node_t *xm
 }
 
 /*
+ * Produce XML for a single lease and vice versa.
+ */
+xml_node_t *
+ni_syntax_xml_from_lease(ni_syntax_t *syntax, ni_addrconf_state_t *lease, xml_node_t *parent)
+{
+	if (!syntax->xml_from_lease) {
+		error("%s: syntax not capable of creating interface from xml", __FUNCTION__);
+		return NULL;
+	}
+	return syntax->xml_from_lease(syntax, lease, parent);
+}
+
+ni_addrconf_state_t *
+ni_syntax_xml_to_lease(ni_syntax_t *syntax, xml_node_t *xmlnode)
+{
+	if (!syntax->xml_to_lease) {
+		error("%s: syntax not capable of creating lease from xml", __FUNCTION__);
+		return NULL;
+	}
+	return syntax->xml_to_lease(syntax, xmlnode);
+}
+
+/*
  * Produce XML for all interfaces
  */
 xml_document_t *

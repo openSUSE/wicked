@@ -155,6 +155,29 @@ typedef struct ni_dhclient_info {
 	} update;
 } ni_dhclient_info_t;
 
+/*
+ * Leases obtained through a dynamic addrconf protocol,
+ * such as DHCP, DHCPv6, IPv4LL, or IBFT.
+ */
+typedef struct ni_addrconf_state {
+	int			type;
+	int			family;
+
+	char *			hostname;
+	ni_string_array_t	log_servers;
+	ni_string_array_t	dns_servers;
+	ni_string_array_t	dns_search;
+	ni_string_array_t	ntp_servers;
+	ni_string_array_t	nis_servers;
+	char *			nis_domain;
+	ni_string_array_t	netbios_servers;
+	char *			netbios_domain;
+	ni_string_array_t	slp_servers;
+	ni_string_array_t	slp_scopes;
+	ni_address_t *		addrs;
+	ni_route_t *		routes;
+} ni_addrconf_state_t;
+
 typedef struct ni_afinfo {
 	int			family;
 	int			enabled;
@@ -163,6 +186,7 @@ typedef struct ni_afinfo {
 
 	/* This is valid if config == NI_ADDRCONF_DHCP */
 	ni_dhclient_info_t *	dhcp;
+	ni_addrconf_state_t *	dhcp_lease;
 } ni_afinfo_t;
 
 typedef struct ni_interface {
@@ -354,6 +378,8 @@ extern xml_node_t *	ni_syntax_xml_from_interface(ni_syntax_t *, ni_handle_t *, n
 extern ni_interface_t *	ni_syntax_xml_to_interface(ni_syntax_t *, ni_handle_t *, xml_node_t *);
 extern xml_document_t *	ni_syntax_xml_from_all(ni_syntax_t *, ni_handle_t *);
 extern int		ni_syntax_xml_to_all(ni_syntax_t *, ni_handle_t *, const xml_document_t *);
+extern xml_node_t *	ni_syntax_xml_from_lease(ni_syntax_t *, ni_addrconf_state_t *, xml_node_t *);
+extern ni_addrconf_state_t *ni_syntax_xml_to_lease(ni_syntax_t *, xml_node_t *);
 extern void		ni_syntax_set_root_directory(ni_syntax_t *, const char *);
 extern const char *	ni_syntax_base_path(ni_syntax_t *);
 extern const char *	ni_syntax_build_path(ni_syntax_t *, const char *, ...);
@@ -447,6 +473,9 @@ extern ni_vlan_t *	ni_vlan_clone(const ni_vlan_t *);
 
 extern ni_dhclient_info_t *ni_dhclient_info_new(void);
 extern void		ni_dhclient_info_free(ni_dhclient_info_t *);
+
+extern ni_addrconf_state_t *ni_addrconf_state_new(int type, int family);
+extern void		ni_addrconf_state_free(ni_addrconf_state_t *);
 
 extern const char *	ni_print_link_flags(int flags);
 extern const char *	ni_print_link_type(int type);
