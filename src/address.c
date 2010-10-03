@@ -706,12 +706,15 @@ int
 ni_addrconf_acquire_lease(const ni_addrconf_t *acm, ni_interface_t *ifp, const xml_node_t *cfg_xml)
 {
 	/* This needs to get better */
-	if (acm->type == NI_ADDRCONF_DHCP) {
-		if (acm->supported_af & NI_AF_MASK_IPV4) {
-			if (!ifp->ipv4.dhcp_lease)
-				ifp->ipv4.dhcp_lease = ni_addrconf_state_new(acm->type, AF_INET);
-			ifp->ipv4.dhcp_lease->state = NI_ADDRCONF_STATE_REQUESTING;
-		}
+	if (acm->supported_af & NI_AF_MASK_IPV4) {
+		if (!ifp->ipv4.lease[acm->type])
+			ifp->ipv4.lease[acm->type] = ni_addrconf_state_new(acm->type, AF_INET);
+		ifp->ipv4.lease[acm->type]->state = NI_ADDRCONF_STATE_REQUESTING;
+	}
+	if (acm->supported_af & NI_AF_MASK_IPV6) {
+		if (!ifp->ipv6.lease[acm->type])
+			ifp->ipv6.lease[acm->type] = ni_addrconf_state_new(acm->type, AF_INET);
+		ifp->ipv6.lease[acm->type]->state = NI_ADDRCONF_STATE_REQUESTING;
 	}
 
 	return acm->request(acm, ifp, cfg_xml);
@@ -724,20 +727,28 @@ ni_addrconf_drop_lease(const ni_addrconf_t *acm, ni_interface_t *ifp)
 	int rv;
 
 	/* This needs to get better */
-	if (acm->type == NI_ADDRCONF_DHCP) {
-		if (acm->supported_af & NI_AF_MASK_IPV4) {
-			lease = ifp->ipv4.dhcp_lease;
-		}
+	if (acm->supported_af & NI_AF_MASK_IPV4) {
+		if ((lease = ifp->ipv4.lease[acm->type]) != NULL)
+			lease->state = NI_ADDRCONF_STATE_RELEASING;
 	}
-
-	if (lease)
-		lease->state = NI_ADDRCONF_STATE_RELEASING;
+	if (acm->supported_af & NI_AF_MASK_IPV6) {
+		if ((lease = ifp->ipv6.lease[acm->type]) != NULL)
+			lease->state = NI_ADDRCONF_STATE_RELEASING;
+	}
 
 	rv = acm->release(acm, ifp, lease);
 
-	if (lease && lease->state == NI_ADDRCONF_STATE_RELEASED) {
-		ni_addrconf_state_free(lease);
-		ifp->ipv4.dhcp_lease = NULL;
+	if (acm->supported_af & NI_AF_MASK_IPV4) {
+		if ((lease = ifp->ipv4.lease[acm->type]) && lease->state == NI_ADDRCONF_STATE_RELEASED) {
+			free(lease);
+			ifp->ipv4.lease[acm->type] = NULL;
+		}
+	}
+	if (acm->supported_af & NI_AF_MASK_IPV6) {
+		if ((lease = ifp->ipv6.lease[acm->type]) && lease->state == NI_ADDRCONF_STATE_RELEASED) {
+			free(lease);
+			ifp->ipv6.lease[acm->type] = NULL;
+		}
 	}
 
 	return rv;

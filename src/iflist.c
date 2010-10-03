@@ -611,13 +611,22 @@ __ni_discover_addrconf(ni_handle_t *nih, ni_interface_t *ifp)
 	const ni_addrconf_t *acm;
 	const void *pos;
 	xml_node_t *xml = NULL;
+	unsigned int i;
 
 	__ni_assert_initialized();
 
-	if (ifp->ipv4.dhcp_lease)
-		ifp->ipv4.config = ifp->ipv4.dhcp_lease->type;
-	if (ifp->ipv6.dhcp_lease)
-		ifp->ipv6.config = ifp->ipv4.dhcp_lease->type;
+	for (i = 0; i < __NI_ADDRCONF_MAX; ++i) {
+		if (ifp->ipv4.lease[i]) {
+			ifp->ipv4.config = i;
+			break;
+		}
+	}
+	for (i = 0; i < __NI_ADDRCONF_MAX; ++i) {
+		if (ifp->ipv6.lease[i]) {
+			ifp->ipv6.config = i;
+			break;
+		}
+	}
 
 	for (acm = ni_addrconf_list_first(&pos); acm; acm = ni_addrconf_list_next(&pos)) {
 		if (!acm->test)

@@ -18,6 +18,15 @@
 #define NI_MAXADDRLEN		16
 #define NI_MAXHWADDRLEN		64
 
+enum {
+	NI_ADDRCONF_DHCP,
+	NI_ADDRCONF_STATIC,
+	NI_ADDRCONF_AUTOCONF,
+	NI_ADDRCONF_IBFT,	/* SUSE extension */
+
+	__NI_ADDRCONF_MAX
+};
+
 typedef struct ni_handle	ni_handle_t;
 typedef struct ni_syntax	ni_syntax_t;
 typedef struct ni_interface	ni_interface_t;
@@ -216,9 +225,10 @@ typedef struct ni_afinfo {
 	int			forwarding;
 	int			config;	/* formerly known as bootproto */
 
+	ni_addrconf_state_t *	lease[__NI_ADDRCONF_MAX];
+
 	/* This is valid if config == NI_ADDRCONF_DHCP */
 	ni_dhclient_info_t *	dhcp;
-	ni_addrconf_state_t *	dhcp_lease;
 } ni_afinfo_t;
 
 struct ni_interface {
@@ -341,12 +351,6 @@ enum {
 	NI_START_HOTPLUG,	/* RHEL extension */
 	NI_START_IFPLUGD,	/* SUSE extension */
 	NI_START_NFSROOT,	/* SUSE extension */
-};
-enum {
-	NI_ADDRCONF_DHCP,
-	NI_ADDRCONF_STATIC,
-	NI_ADDRCONF_AUTOCONF,
-	NI_ADDRCONF_IBFT,	/* SUSE extension */
 };
 
 /*

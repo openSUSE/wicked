@@ -464,37 +464,22 @@ int
 ni_interface_update_lease(ni_handle_t *nih, ni_interface_t *ifp,
 				ni_addrconf_state_t *lease)
 {
-	ni_addrconf_state_t **p;
 	ni_afinfo_t *afi;
 
-	switch (lease->family) {
-	case AF_INET:
-		afi = &ifp->ipv4;
-		break;
-
-	case AF_INET6:
-		afi = &ifp->ipv6;
-		break;
-
-	default:
+	afi = __ni_interface_address_info(ifp, lease->family);
+	if (afi == NULL) {
 		ni_error("unknown address family %d in lease update", lease->family);
 		return -1;
 	}
 
-	switch (lease->type) {
-	case NI_ADDRCONF_DHCP:
-		p = &afi->dhcp_lease;
-		break;
-
-	default:
+	if (lease->type >= __NI_ADDRCONF_MAX) {
 		ni_error("unknown addrconf type %d in lease type", lease->type);
 		return -1;
 	}
 
-	if (*p)
-		ni_addrconf_state_free(*p);
-	*p = lease;
-
+	if (afi->lease[lease->type] != NULL)
+		free(afi->lease[lease->type]);
+	afi->lease[lease->type] = lease;
 	return 0;
 }
 
@@ -507,14 +492,18 @@ ni_addrconf_state_t *
 __ni_interface_address_to_lease(ni_interface_t *ifp, const ni_address_t *ap)
 {
 	ni_afinfo_t *afi = __ni_interface_address_info(ifp, ap->family);
+	unsigned int type;
 
 	if (!afi)
 		return NULL;
 
-	if (__ni_lease_owns_address(afi->dhcp_lease, ap))
-		return afi->dhcp_lease;
+	for (type = 0; type < __NI_ADDRCONF_MAX; ++type) {
+		ni_addrconf_state_t *lease;
 
-	/* Try other lease types as well */
+		if ((lease = afi->lease[type])
+		 && __ni_lease_owns_address(lease, ap))
+			return lease;
+	}
 
 	return NULL;
 }
@@ -745,6 +734,19 @@ __ni_interface_clear_stats(ni_interface_t *ifp)
 }
 
 static void
+__ni_afinfo_destroy(ni_afinfo_t *afi)
+{
+	unsigned int i;
+
+	if (afi->dhcp)
+		ni_dhclient_info_free(afi->dhcp);
+	for (i = 0; i < __NI_ADDRCONF_MAX; ++i) {
+		if (afi->lease[i])
+			ni_addrconf_state_free(afi->lease[i]);
+	}
+}
+
+static void
 ni_interface_free(ni_interface_t *ifp)
 {
 	free(ifp->name);
@@ -758,14 +760,8 @@ ni_interface_free(ni_interface_t *ifp)
 	__ni_interface_clear_bridge(ifp);
 	__ni_interface_clear_vlan(ifp);
 
-	if (ifp->ipv4.dhcp)
-		ni_dhclient_info_free(ifp->ipv4.dhcp);
-	if (ifp->ipv4.dhcp_lease)
-		ni_addrconf_state_free(ifp->ipv4.dhcp_lease);
-	if (ifp->ipv6.dhcp)
-		ni_dhclient_info_free(ifp->ipv6.dhcp);
-	if (ifp->ipv6.dhcp_lease)
-		ni_addrconf_state_free(ifp->ipv6.dhcp_lease);
+	__ni_afinfo_destroy(&ifp->ipv4);
+	__ni_afinfo_destroy(&ifp->ipv6);
 
 	free(ifp);
 }
