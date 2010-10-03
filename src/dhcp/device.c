@@ -39,6 +39,30 @@ ni_dhcp_device_new(const char *ifname, unsigned int iftype)
 	dev->start_time = time(NULL);
 	dev->state = NI_DHCP_STATE_INIT;
 
+	dev->lease = ni_lease_file_read(ifname, NI_ADDRCONF_DHCP, AF_INET);
+	if (dev->lease) {
+		/* Check if has expired */
+		ni_addrconf_lease_t *lease = dev->lease;
+		time_t then = lease->time_acquired;
+		time_t now = time(NULL);
+
+		if (now < then) {
+			/* time warp - hi, grand-grand-father */
+		} else if (then + lease->dhcp.lease_time < now) {
+			/* lease expired */
+		} else if (then + lease->dhcp.rebind_time < now) {
+			dev->state = NI_DHCP_STATE_REBINDING;
+		} else if (then + lease->dhcp.renewal_time < now) {
+			dev->state = NI_DHCP_STATE_RENEWING;
+		} else {
+			dev->state = NI_DHCP_STATE_BOUND;
+		}
+		if (dev->state == NI_DHCP_STATE_INIT) {
+			ni_lease_file_remove(ifname, NI_ADDRCONF_DHCP, AF_INET);
+			ni_dhcp_device_set_lease(dev, NULL);
+		}
+	} 
+
 	/* FIXME: should add to end of list */
 	dev->next = ni_dhcp_active;
 	ni_dhcp_active = dev;
@@ -143,7 +167,7 @@ ni_dhcp_device_reconfigure(ni_dhcp_device_t *dev, const ni_interface_t *ifp)
 	ni_addrconf_request_t *info;
 	ni_dhcp_config_t *config;
 	const char *classid;
-	int changed = 0;
+	int rediscover = 0;
 
 	if (!(info = ifp->ipv4.dhcp)) {
 		ni_error("%s: no DHCP config data given", ifp->name);
@@ -164,12 +188,38 @@ ni_dhcp_device_reconfigure(ni_dhcp_device_t *dev, const ni_interface_t *ifp)
 
 	if (!ni_link_address_equal(&ifp->hwaddr, &dev->system.hwaddr)) {
 		dev->system.hwaddr = ifp->hwaddr;
-		changed = 1;
+		rediscover = 1;
 	}
 
 	if (dev->system.arp_type == ARPHRD_NONE) {
 		ni_warn("%s: no arp_type, using ether", __FUNCTION__);
 		dev->system.arp_type = ARPHRD_ETHER;
+	}
+
+	if (dev->lease == NULL) {
+		rediscover = 1;
+	} else {
+		ni_addrconf_lease_t *lease = dev->lease;
+
+		/*
+		 * Reuse an existing lease, unless one of the following
+		 * is true:
+		 *  -	we are asked to ignore existing leases
+		 *  -	the lease has expired, or is past its rebind/renew interval
+		 *  -	we are requesting a different hostname
+		 *  -	we are using a different client id
+		 */
+		if (!info->reuse_unexpired || dev->state != NI_DHCP_STATE_BOUND
+		 || (info->dhcp.hostname && !xstreq(info->dhcp.hostname, lease->hostname))
+		 || (info->dhcp.clientid && !xstreq(info->dhcp.clientid, lease->dhcp.client_id))) {
+			ni_debug_dhcp("ignoring existing lease");
+			rediscover = 1;
+		}
+	}
+
+	if (!rediscover) {
+		ni_debug_dhcp("reusing existing lease");
+		return 0;
 	}
 
 	config = calloc(1, sizeof(*config));
@@ -204,15 +254,10 @@ ni_dhcp_device_reconfigure(ni_dhcp_device_t *dev, const ni_interface_t *ifp)
 	if (ni_addrconf_should_update(info, NI_ADDRCONF_UPDATE_DEFAULT_ROUTE))
 		config->flags |= DHCP_DO_GATEWAY;
 
-	if (dev->config == NULL || memcmp(dev->config, config, sizeof(*config)) != 0) {
-		if (dev->config)
-			free(dev->config);
-		dev->config = config;
-		changed = 1;
-	} else {
-		free(config);
-	}
-	return changed;
+	if (dev->config)
+		free(dev->config);
+	dev->config = config;
+	return 1;
 }
 
 int

@@ -213,6 +213,7 @@ typedef struct ni_addrconf_lease {
 	    struct ni_addrconf_lease_dhcp {
 		struct in_addr		serveraddress;
 		char			servername[64];
+		char			client_id[64];
 
 		struct in_addr		address;
 		struct in_addr		netmask;

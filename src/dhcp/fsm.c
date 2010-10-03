@@ -442,6 +442,10 @@ ni_dhcp_fsm_commit_lease(ni_dhcp_device_t *dev, ni_addrconf_lease_t *lease)
 				dev->ifname, lease->dhcp.renewal_time);
 		ni_dhcp_fsm_set_timeout(dev, lease->dhcp.renewal_time);
 
+		/* Save the client id we used */
+		strncpy(lease->dhcp.client_id, dev->config->client_id,
+				sizeof(lease->dhcp.client_id)-1);
+
 		ni_dhcp_device_set_lease(dev, lease);
 		dev->state = NI_DHCP_STATE_BOUND;
 

@@ -7,6 +7,7 @@
 #include <limits.h>
 #include <unistd.h>
 #include <string.h>
+#include <errno.h>
 
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
@@ -73,7 +74,8 @@ ni_lease_file_read(const char *ifname, int type, int family)
 
 	ni_debug_dhcp("reading lease from %s", filename);
 	if ((fp = fopen(filename, "r")) == NULL) {
-		ni_error("unable to open %s for reading: %m", filename);
+		if (errno != ENOENT)
+			ni_error("unable to open %s for reading: %m", filename);
 		return NULL;
 	}
 
