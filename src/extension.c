@@ -35,13 +35,17 @@ ni_extension_new(ni_extension_t **list, const char *name, unsigned int type)
 void
 ni_extension_free(ni_extension_t *ex)
 {
+	ni_script_action_t *act;
+
 	ni_string_free(&ex->name);
 	if (ex->pid_file_path)
 		xpath_format_free(ex->pid_file_path);
-	if (ex->start_command)
-		xpath_format_free(ex->start_command);
-	if (ex->stop_command)
-		xpath_format_free(ex->stop_command);
+
+	while ((act = ex->actions) != NULL) {
+		ex->actions = act->next;
+		ni_script_action_free(act);
+	}
+
 	xpath_format_array_destroy(&ex->environment);
 }
 
@@ -120,9 +124,9 @@ ni_extension_active(const ni_extension_t *ex, const char *ifname, xml_node_t *xm
  * Run an extension command
  */
 static int
-__ni_extension_run(const ni_extension_t *ex, const char *ifname, xml_node_t *xml,
-			const char *command_name, xpath_format_t *command)
+__ni_extension_run(const ni_extension_t *ex, const char *ifname, xml_node_t *xml, const char *command_name)
 {
+	ni_script_action_t *script;
 	const char *command_string;
 	ni_string_array_t result;
 	ni_string_array_t env;
@@ -130,11 +134,14 @@ __ni_extension_run(const ni_extension_t *ex, const char *ifname, xml_node_t *xml
 	pid_t pid;
 	int rv = -1;
 
+	if (!(script = ni_script_action_find(ex->actions, command_name))) {
+		ni_error("extension %s: no %s script defined",
+				ex->name, command_name);
+		return -1;
+	}
+
 	ni_string_array_init(&result);
 	ni_string_array_init(&env);
-
-	if (command == NULL)
-		return 0;
 
 	debug_extension("%s extension %s for interface %s", command_name, ex->name, ifname);
 
@@ -153,7 +160,7 @@ __ni_extension_run(const ni_extension_t *ex, const char *ifname, xml_node_t *xml
 		ni_string_array_destroy(&result);
 	}
 
-	if (!xpath_format_eval(command, xml, &result) || result.count != 1) {
+	if (!xpath_format_eval(script->command, xml, &result) || result.count != 1) {
 		error("unable to %s extension %s for %s: error evaluating xpath expression",
 				command_name, ex->name, ifname);
 		goto done;
@@ -236,7 +243,7 @@ done:
 int
 ni_extension_start(const ni_extension_t *ex, const char *ifname, xml_node_t *xml)
 {
-	return __ni_extension_run(ex, ifname, xml, "start", ex->start_command);
+	return __ni_extension_run(ex, ifname, xml, "start");
 }
 
 /*
@@ -245,7 +252,46 @@ ni_extension_start(const ni_extension_t *ex, const char *ifname, xml_node_t *xml
 int
 ni_extension_stop(const ni_extension_t *ex, const char *ifname, xml_node_t *xml)
 {
-	return __ni_extension_run(ex, ifname, xml, "stop", ex->stop_command);
+	return __ni_extension_run(ex, ifname, xml, "stop");
+}
+
+/*
+ * Create/destroy script actions
+ */
+ni_script_action_t *
+ni_script_action_new(const char *name, ni_script_action_t **list)
+{
+	ni_script_action_t *script;
+
+	while ((script = *list) != NULL)
+		list = &script->next;
+
+	script = calloc(1, sizeof(*script));
+	ni_string_dup(&script->name, name);
+	*list = script;
+
+	return script;
+}
+
+void
+ni_script_action_free(ni_script_action_t *script)
+{
+	if (script->command)
+		xpath_format_free(script->command);
+	ni_string_free(&script->name);
+	free(script);
+}
+
+ni_script_action_t *
+ni_script_action_find(ni_script_action_t *list, const char *name)
+{
+	ni_script_action_t *script;
+
+	for (script = list; script; script = script->next) {
+		if (!strcmp(script->name, name))
+			return script;
+	}
+	return NULL;
 }
 
 /*

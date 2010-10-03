@@ -205,37 +205,31 @@ ni_config_parse_extensions(ni_extension_t **list, xml_node_t *node, const char *
 				return -1;
 		}
 
-		if ((child = xml_node_get_child(node, "start")) != NULL
-		 && (attrval = xml_node_get_attr(child, "command")) != NULL) {
-			if (ni_config_parse_xpath(&ex->start_command, attrval) < 0)
-				return -1;
-		}
-
-		if ((child = xml_node_get_child(node, "stop")) != NULL
-		 && (attrval = xml_node_get_attr(child, "command")) != NULL) {
-			if (ni_config_parse_xpath(&ex->stop_command, attrval) < 0)
-				return -1;
-		}
-
 		for (child = node->children; child; child = child->next) {
 			xpath_format_t *fmt = NULL;
 
-			if (strcmp(child->name, "environment"))
-				continue;
+			if (!strcmp(child->name, "action")) {
+				ni_script_action_t *act;
 
-			if (!(attrval = xml_node_get_attr(child, "putenv"))) {
-				ni_error("environment element without putenv attribute");
-				return -1;
+				if (!(attrval = xml_node_get_attr(child, "name"))) {
+					ni_error("action element without name attribute");
+					return -1;
+				}
+
+				act = ni_script_action_new(attrval, &ex->actions);
+				if ((attrval = xml_node_get_attr(child, "command")) != NULL
+				 && ni_config_parse_xpath(&act->command, attrval) < 0)
+					return -1;
+			} else
+			if (!strcmp(child->name, "environment")) {
+				if (!(attrval = xml_node_get_attr(child, "putenv"))) {
+					ni_error("environment element without putenv attribute");
+					return -1;
+				}
+				if (ni_config_parse_xpath(&fmt, attrval) < 0)
+					return -1;
+				xpath_format_array_append(&ex->environment, fmt);
 			}
-			if (ni_config_parse_xpath(&fmt, attrval) < 0)
-				return -1;
-			xpath_format_array_append(&ex->environment, fmt);
-		}
-
-		if (!ex->start_command || !ex->stop_command) {
-			error("cannot parse configuration: %s extension %s has no start/stop commands",
-					exclass, ex->name);
-			return -1;
 		}
 	}
 

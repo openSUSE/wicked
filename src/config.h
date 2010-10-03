@@ -15,6 +15,12 @@
 #define NI_DEFAULT_CONFIG_PATH	"/etc/wicked/config.xml"
 #define NI_DEFAULT_POLICY_PATH	"/etc/wicked/policy.xml"
 
+typedef struct ni_script_action {
+	struct ni_script_action *next;
+	char *			name;
+	xpath_format_t *	command;
+} ni_script_action_t;
+
 typedef struct ni_extension {
 	struct ni_extension *	next;
 
@@ -39,11 +45,8 @@ typedef struct ni_extension {
 	 */
 	xpath_format_t *	pid_file_path;
 
-	/* Shell command to start the service */
-	xpath_format_t *	start_command;
-
-	/* Shell command to stop the service */
-	xpath_format_t *	stop_command;
+	/* Shell commands */
+	ni_script_action_t *	actions;
 
 	/* Environment variables */
 	xpath_format_array_t	environment;
@@ -84,6 +87,9 @@ extern int		ni_extension_start(const ni_extension_t *, const char *, xml_node_t 
 extern int		ni_extension_stop(const ni_extension_t *, const char *, xml_node_t *);
 extern void		ni_extension_free(ni_extension_t *);
 
+extern ni_script_action_t *ni_script_action_new(const char *name, ni_script_action_t **list);
+extern void		ni_script_action_free(ni_script_action_t *);
+extern ni_script_action_t *ni_script_action_find(ni_script_action_t *, const char *);
 
 typedef struct ni_global {
 	int			initialized;

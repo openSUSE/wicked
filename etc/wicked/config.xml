@@ -27,8 +27,8 @@
 
   <linktype>
     <extension name="infiniband" type="infiniband">
-      <start command="/etc/wicked/wicked-infiniband start %{@name}"/>
-      <stop command="/etc/wicked/wicked-infiniband stop %{@name}"/>
+      <action name="start" command="/etc/wicked/wicked-infiniband start %{@name}"/>
+      <action name="stop" command="/etc/wicked/wicked-infiniband stop %{@name}"/>
       <environment putenv="IPOIB_MODE=%{/protocol/infiniband/@mode}"/>
       <environment putenv="IPOIB_UMCAST=%{/protocol/infiniband/@umcast}"/>
     </extension>
@@ -38,8 +38,8 @@
   <addrconf>
     <extension name="dhcp4" type="dhcp" family="ipv4">
       <pidfile path="/var/run/dhcpcd-%{@name}.pid"/>
-      <start command="/etc/wicked/wicked-dhcp4 start %{@name}"/>
-      <stop command="/etc/wicked/wicked-dhcp4 stop %{@name}"/>
+      <action name="start" command="/etc/wicked/wicked-dhcp4 start %{@name}"/>
+      <action name="stop" command="/etc/wicked/wicked-dhcp4 stop %{@name}"/>
       <environment putenv="DHCP_TIMEOUT=%{/protocol[@family = 'ipv4']/dhcp/lease/@timeout}"/>
       <environment putenv="DHCP_REQ_HOSTNAME=%{/protocol[@family = 'ipv4']/dhcp/request/@hostname}"/>
     </extension>

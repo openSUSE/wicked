@@ -206,8 +206,8 @@ DHCPv6 extension is defined:
 
   <addrconf>
     <extension name="dhcp6" type="dhcp" family="ipv6">
-      <start command="/etc/wicked/wicked-dhcp6 start %{@name}"/>
-      <stop command="/etc/wicked/wicked-dhcp6 stop %{@name}"/>
+      <action name="start" command="/etc/wicked/wicked-dhcp6 start %{@name}"/>
+      <action name="stop" command="/etc/wicked/wicked-dhcp6 stop %{@name}"/>
       <pidfile path="/var/run/dhcpcd-%{@name}.pid"/>
       <environment putenv="DHCP_TIMEOUT=%{/protocol[@family = 'ipv6']/dhcp/lease/@timeout}"/>
       <environment putenv="DHCP_REQ_HOSTNAME=%{/protocol[@family = 'ipv6']/dhcp/request/@hostname}"/>
