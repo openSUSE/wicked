@@ -214,6 +214,7 @@ __ni_wicked_call_indirect(ni_socket_t *sock, ni_wicked_request_t *req, int expec
 	char respbuf[256];
 	unsigned int i;
 
+	ni_debug_wicked("ni_wicked_call_indirect: %s %s", ni_wicked_rest_op_print(req->cmd), req->path);
 	ni_socket_printf(sock, "%s %s\n", ni_wicked_rest_op_print(req->cmd), req->path);
 	for (i = 0; i < req->options.count; ++i) {
 		ni_var_t *var = &req->options.data[i];
@@ -324,12 +325,13 @@ ni_proxy_fork_subprocess(const char *name, void (*mainloop)(ni_socket_t *))
 		return NULL;
 	}
 
-	/* parent */
 	if (pid != 0) {
+		/* Parent process */
 		proxy = calloc(1, sizeof(*proxy));
 		ni_string_dup(&proxy->name, name);
 		proxy->pid = pid;
 
+		ni_socket_activate(sock_child);
 		proxy->sock = sock_child;
 		ni_socket_close(sock_parent);
 
@@ -338,7 +340,11 @@ ni_proxy_fork_subprocess(const char *name, void (*mainloop)(ni_socket_t *))
 		return proxy;
 	}
 
-	/* Parent */
+	/* Child process */
+
+	/* Don't interfere with parent process sockets. */
+	ni_socket_deactivate_all();
+
 	ni_socket_close(sock_child);
 	mainloop(sock_parent);
 
