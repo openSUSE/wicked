@@ -94,6 +94,19 @@ ni_extension_list_find(ni_extension_t *head, int type, int af)
 	return NULL;
 }
 
+ni_extension_t *
+ni_extension_by_name(ni_extension_t *head, const char *name)
+{
+	ni_extension_t *ex;
+
+	for (ex = head; ex; ex = ex->next) {
+		if (!strcmp(ex->name, name))
+			return ex;
+	}
+
+	return NULL;
+}
+
 /*
  * Check if a given extension is running for a given interface.
  */
@@ -217,6 +230,16 @@ done:
 	return rv;
 }
 
+int
+ni_extension_run(const ni_extension_t *ex, ni_script_action_t *script)
+{
+	xml_node_t *node = xml_node_new(NULL, NULL);
+	int rv;
+
+	rv = __ni_extension_run(ex, script, node);
+	xml_node_free(node);
+	return rv;
+}
 
 /*
  * Start extension for a given interface.

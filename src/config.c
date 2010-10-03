@@ -42,6 +42,7 @@ ni_config_free(ni_config_t *conf)
 {
 	ni_extension_list_destroy(&conf->addrconf_extensions);
 	ni_extension_list_destroy(&conf->linktype_extensions);
+	ni_extension_list_destroy(&conf->conffile_extensions);
 	ni_string_free(&conf->default_syntax);
 	ni_string_free(&conf->default_syntax_path);
 	free(conf);
@@ -90,7 +91,8 @@ ni_config_parse(const char *filename)
 
 
 	if (ni_config_parse_extensions(&conf->addrconf_extensions, node, "addrconf", ni_addrconf_name_to_type) < 0
-	 || ni_config_parse_extensions(&conf->linktype_extensions, node, "linktype", ni_linktype_name_to_type) < 0)
+	 || ni_config_parse_extensions(&conf->linktype_extensions, node, "linktype", ni_linktype_name_to_type) < 0
+	 || ni_config_parse_extensions(&conf->conffile_extensions, node, "files", ni_linktype_name_to_type) < 0)
 		goto failed;
 
 	xml_document_free(doc);
@@ -263,4 +265,10 @@ ni_extension_t *
 ni_config_find_addrconf_extension(ni_config_t *conf, int type, int af)
 {
 	return ni_extension_list_find(conf->addrconf_extensions, type, af);
+}
+
+ni_extension_t *
+ni_config_find_file_extension(ni_config_t *conf, const char *name)
+{
+	return ni_extension_by_name(conf->conffile_extensions, name);
 }

@@ -193,6 +193,24 @@ __ni_netconfig_interface_delete(ni_handle_t *nih, const char *ifname)
 }
 
 /*
+ * After updating a config file, we may need to do some post-processing
+ * through an external script
+ */
+static int
+__ni_netconfig_postprocess(ni_handle_t *nih, const char *node)
+{
+	ni_extension_t *ex;
+	ni_script_action_t *script;
+
+	if ((ex = ni_config_find_file_extension(ni_global.config, node)) == NULL)
+		return 0;
+	if ((script = ni_script_action_find(ex->actions, "update")) == NULL)
+		return 0;
+
+	return ni_extension_run(ex, script);
+}
+
+/*
  * Read/write /etc/HOSTNAME
  * We should allow runtime configuration to change the location of the
  * file, and to specify an "updater" script that can be called to rewrite
@@ -210,7 +228,8 @@ __ni_netconfig_hostname_put(ni_handle_t *nih, const char *hostname)
 	}
 	fprintf(fp, "%s\n", hostname);
 	fclose(fp);
-	return 0;
+
+	return __ni_netconfig_postprocess(nih, "system.hostname");
 }
 
 static int

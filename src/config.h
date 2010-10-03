@@ -65,6 +65,7 @@ typedef struct ni_config {
 	ni_config_fslocation_t	pidfile;
 	ni_config_fslocation_t	socket;
 
+	ni_extension_t *	conffile_extensions;
 	ni_extension_t *	linktype_extensions;
 	ni_extension_t *	addrconf_extensions;
 
@@ -78,13 +79,16 @@ extern ni_config_t *	ni_config_new();
 extern ni_config_t *	ni_config_parse(const char *);
 extern ni_extension_t *	ni_config_find_linktype_extension(ni_config_t *, int);
 extern ni_extension_t *	ni_config_find_addrconf_extension(ni_config_t *, int, int);
+extern ni_extension_t *	ni_config_find_file_extension(ni_config_t *, const char *);
 
 extern ni_extension_t *	ni_extension_list_find(ni_extension_t *, int type, int af);
+extern ni_extension_t *	ni_extension_by_name(ni_extension_t *, const char *);
 extern void		ni_extension_list_destroy(ni_extension_t **);
 extern ni_extension_t *	ni_extension_new(ni_extension_t **, const char *, unsigned int);
 extern int		ni_extension_active(const ni_extension_t *, const char *, xml_node_t *);
 extern int		ni_extension_start(const ni_extension_t *, const char *, xml_node_t *);
 extern int		ni_extension_stop(const ni_extension_t *, const char *, xml_node_t *);
+extern int		ni_extension_run(const ni_extension_t *, ni_script_action_t *);
 extern void		ni_extension_free(ni_extension_t *);
 
 extern ni_script_action_t *ni_script_action_new(const char *name, ni_script_action_t **list);

@@ -267,6 +267,24 @@ For link configuration, any request to bring up an interface's
 link layer will invoke the "start" script. The "stop" script is
 used when the client asks for an interface to be deleted.
 
+Wicked extensions - configuration files
+=======================================
+
+You can extend the handling of configuration with scripts, as well.
+For instance, when you configure the system's hostname by doing a
+PUT request on /config/hostname, by default it will write the provided
+name to /etc/HOSTNAME. You may want to trigger additional actions
+when this happens, for instance you may want to update the hosts file
+as well.
+
+This can be done by defining an extension in the <files> section:
+
+  <files>
+   <extension name="config.hostname">
+    <action name="update" command="/sbin/netconfig hostname-updated" />
+   </extension>
+  </files>
+
 Future wickedness
 =================
 
