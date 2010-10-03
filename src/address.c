@@ -747,6 +747,7 @@ int
 ni_addrconf_drop_lease(const ni_addrconf_t *acm, ni_interface_t *ifp)
 {
 	ni_addrconf_state_t *lease = NULL;
+	int oflags = ifp->flags;
 	int rv;
 
 	/* This needs to get better */
@@ -759,7 +760,15 @@ ni_addrconf_drop_lease(const ni_addrconf_t *acm, ni_interface_t *ifp)
 			lease->state = NI_ADDRCONF_STATE_RELEASING;
 	}
 
+	/* Call the release handler for this aconf mechanism. Note
+	 * we give it the *intended* interface state (which is down)
+	 * even though the interface is still up at this point.
+	 * (It has to be up, otherwise DHCP would have a hard time
+	 * sending any packets).
+	 */
+	ifp->flags &= ~IFF_UP;
 	rv = acm->release(acm, ifp, lease);
+	ifp->flags = oflags;
 
 	if (acm->supported_af & NI_AF_MASK_IPV4) {
 		if ((lease = ifp->ipv4.lease[acm->type]) && lease->state == NI_ADDRCONF_STATE_RELEASED) {
