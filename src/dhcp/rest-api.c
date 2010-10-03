@@ -104,6 +104,8 @@ ni_addrconf_t ni_dhcp_addrconf = {
 
 	.request = ni_dhcp_addrconf_request,
 	.release = ni_dhcp_addrconf_release,
+	.xml_from_lease = ni_dhcp_xml_from_lease,
+	.xml_to_lease = ni_dhcp_xml_to_lease,
 };
 
 /*

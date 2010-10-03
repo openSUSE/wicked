@@ -247,6 +247,10 @@ typedef struct ni_addrconf {
 	int			(*request)(const struct ni_addrconf *, ni_interface_t *, const xml_node_t *);
 	int			(*release)(const struct ni_addrconf *, ni_interface_t *, ni_addrconf_lease_t *);
 	int			(*test)(const struct ni_addrconf *, const ni_interface_t *, const xml_node_t *);
+
+	/* Convert protocol specific lease information */
+	int			(*xml_to_lease)(const struct ni_addrconf *, ni_addrconf_lease_t *, const xml_node_t *);
+	int			(*xml_from_lease)(const struct ni_addrconf *, const ni_addrconf_lease_t *, xml_node_t *);
 } ni_addrconf_t;
 
 typedef struct ni_afinfo {

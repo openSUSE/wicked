@@ -52,6 +52,7 @@ __LIBSRCS= \
 	  dhcp/fsm.c \
 	  dhcp/device.c \
 	  dhcp/protocol.c \
+	  dhcp/lease.c \
 	  dhcp/arp.c \
 	  dhcp/socket-linux.c
 __NCFSRCS= \
