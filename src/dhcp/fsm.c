@@ -1,0 +1,584 @@
+/*
+ * DHCP client for wicked - finite state machine.
+ *
+ * Copyright (C) 2010 Olaf Kirch <okir@suse.de>
+ */
+
+#include <sys/poll.h>
+#include <arpa/inet.h>
+#include <net/if_arp.h>
+#include <time.h>
+#include <errno.h>
+#include <string.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <assert.h>
+
+#include <wicked/netinfo.h>
+#include <wicked/logging.h>
+#include "dhcp.h"
+#include "protocol.h"
+#include "buffer.h"
+#include "arp.h"
+
+#define NAK_BACKOFF_MAX		60	/* seconds */
+
+static int	ni_dhcp_process_offer(ni_dhcp_device_t *, ni_dhcp_lease_t *);
+static int	ni_dhcp_process_ack(ni_dhcp_device_t *, ni_dhcp_lease_t *);
+static int	ni_dhcp_process_nak(ni_dhcp_device_t *);
+static int	ni_dhcp_fsm_commit_lease(ni_dhcp_device_t *, ni_dhcp_lease_t *);
+static void	ni_dhcp_fsm_fail_lease(ni_dhcp_device_t *);
+static int	ni_dhcp_fsm_validate_lease(ni_dhcp_device_t *, ni_dhcp_lease_t *);
+
+int
+ni_dhcp_fsm_process_dhcp_packet(ni_dhcp_device_t *dev, ni_buffer_t *msgbuf)
+{
+	ni_dhcp_message_t *message;
+	ni_dhcp_lease_t *lease = NULL;
+	int msg_code;
+
+	if (dev->state == NI_DHCP_STATE_VALIDATING) {
+		ni_error("%s: shouldn't get here in state VALIDATING", __FUNCTION__);
+		return -1;
+	}
+
+	if (!(message = ni_buffer_pull_head(msgbuf, sizeof(*message)))) {
+		ni_debug_dhcp("short DHCP packet (%u bytes)", ni_buffer_count(msgbuf));
+		return -1;
+	}
+	if (dev->xid == 0) {
+		ni_debug_dhcp("unexpected packet on %s", dev->ifname);
+		return -1;
+	}
+	if (dev->xid != message->xid) {
+		ni_debug_dhcp("ignoring packet with wrong xid 0x%x (expected 0x%x)",
+				message->xid, dev->xid);
+		return -1;
+	}
+
+	msg_code = ni_dhcp_parse_response(message, msgbuf, &lease);
+	if (msg_code < 0) {
+		/* Ignore this message, time out later */
+		ni_error("unable to parse DHCP response");
+		return -1;
+	}
+
+	ni_debug_dhcp("%s: received %s message in state %s",
+			dev->ifname, ni_dhcp_message_name(msg_code),
+			ni_dhcp_fsm_state_name(dev->state));
+
+	/* We've received a valid response; if something goes wrong now
+	 * it's nothing that could be fixed by retransmitting the message.
+	 *
+	 * The only exception would be if we ever do some filtering or
+	 * matching of OFFERs - then we would certainly want to keep
+	 * waiting for additional packets.
+	 */
+	ni_dhcp_device_disarm_retransmit(dev);
+	dev->xid = 0;
+
+	/* move to next stage of protocol */
+	switch (msg_code) {
+	case DHCP_OFFER:
+		if (dev->state != NI_DHCP_STATE_SELECTING)
+			goto ignore;
+		ni_dhcp_process_offer(dev, lease);
+		break;
+
+	case DHCP_ACK:
+		if (dev->state != NI_DHCP_STATE_REQUESTING
+		 && dev->state != NI_DHCP_STATE_RENEWING
+		 && dev->state != NI_DHCP_STATE_REBINDING)
+			goto ignore;
+		ni_dhcp_process_ack(dev, lease);
+		break;
+
+	case DHCP_NAK:
+		/* The RFC 2131 state diagram says, ignore NAKs in state BOUND.
+		 * I guess we also have no use for NAK replies to a DHCP_DISCOVER
+		 */
+		if (dev->state == NI_DHCP_STATE_SELECTING
+		 || dev->state == NI_DHCP_STATE_BOUND)
+			goto ignore;
+		ni_dhcp_process_nak(dev);
+		break;
+
+	default:
+	ignore:
+		ni_debug_dhcp("ignoring %s in state %s",
+				ni_dhcp_message_name(msg_code),
+				ni_dhcp_fsm_state_name(dev->state));
+		break;
+	}
+
+	if (dev->lease != lease)
+		ni_dhcp_lease_free(lease);
+
+	/* If we received a message other than NAK, reset the NAK
+	 * backoff timer. */
+	if (msg_code != DHCP_NAK)
+		dev->nak_backoff = 1;
+
+	return 0;
+}
+
+static void
+ni_dhcp_fsm_restart(ni_dhcp_device_t *dev)
+{
+	dev->state = NI_DHCP_STATE_INIT;
+
+	ni_dhcp_device_disarm_retransmit(dev);
+	timerclear(&dev->expires);
+	dev->timeout = 0;
+	dev->xid = 0;
+
+	ni_dhcp_device_drop_lease(dev);
+}
+
+void
+ni_dhcp_fsm_set_timeout(ni_dhcp_device_t *dev, unsigned int seconds)
+{
+	ni_debug_dhcp("%s: setting timeout to %u seconds", dev->ifname, seconds);
+	if (seconds != DHCP_TIMEOUT_INFINITE) {
+		gettimeofday(&dev->expires, NULL);
+		dev->expires.tv_sec += seconds;
+	}
+}
+
+int
+ni_dhcp_fsm_discover(ni_dhcp_device_t *dev)
+{
+	ni_dhcp_lease_t *lease;
+	int rv;
+
+	ni_debug_dhcp("initiating discovery for %s", dev->ifname);
+
+	/* If we already have a lease, try asking for the same.
+	 * If not, create a dummy lease with NULL fields.
+	 * Note: if DISCOVER for the old lease times out,
+	 * we should fall back to asking for anything.
+	 */
+	if ((lease = dev->lease) == NULL)
+		lease = ni_dhcp_lease_new();
+
+	rv = ni_dhcp_device_send_message(dev, DHCP_DISCOVER, lease);
+
+	ni_dhcp_fsm_set_timeout(dev, dev->config->request_timeout);
+	dev->state = NI_DHCP_STATE_SELECTING;
+
+	if (lease != dev->lease)
+		ni_dhcp_lease_free(lease);
+	return rv;
+}
+
+int
+ni_dhcp_fsm_request(ni_dhcp_device_t *dev, const ni_dhcp_lease_t *lease)
+{
+	int rv;
+
+	ni_debug_dhcp("requesting lease for %s, timeout %d",
+			dev->ifname, dev->config->request_timeout);
+	rv = ni_dhcp_device_send_message(dev, DHCP_REQUEST, lease);
+
+	/* Ignore the return value; sending the request may actually
+	 * fail transiently */
+	ni_dhcp_fsm_set_timeout(dev, dev->config->request_timeout);
+	dev->state = NI_DHCP_STATE_REQUESTING;
+
+	return rv;
+}
+
+int
+ni_dhcp_fsm_renewal(ni_dhcp_device_t *dev)
+{
+	int rv;
+
+	ni_debug_dhcp("trying to renew lease for %s", dev->ifname);
+
+	/* FIXME: we should really unicast the request here. */
+	rv = ni_dhcp_device_send_message(dev, DHCP_REQUEST, dev->lease);
+
+	ni_dhcp_fsm_set_timeout(dev,
+			dev->lease->rebindtime -
+			dev->lease->renewaltime);
+	dev->state = NI_DHCP_STATE_RENEWING;
+	return rv;
+}
+
+int
+ni_dhcp_fsm_rebind(ni_dhcp_device_t *dev)
+{
+	int rv;
+
+	ni_debug_dhcp("trying to rebind lease for %s", dev->ifname);
+	dev->lease->serveraddress.s_addr = 0;
+
+	rv = ni_dhcp_device_send_message(dev, DHCP_REQUEST, dev->lease);
+
+	ni_dhcp_fsm_set_timeout(dev,
+			dev->lease->leasetime -
+			dev->lease->rebindtime);
+	dev->state = NI_DHCP_STATE_REBINDING;
+	return rv;
+}
+
+int
+ni_dhcp_fsm_decline(ni_dhcp_device_t *dev)
+{
+	ni_debug_dhcp("%s: declining lease", dev->ifname);
+	ni_dhcp_device_send_message(dev, DHCP_DECLINE, dev->lease);
+
+	/* FIXME: we should record the bad lease, and ignore it
+	 * when the server offers it again. */
+
+	/* RFC 2131 mandates we should wait for 10 seconds before
+	 * retrying discovery. */
+	ni_dhcp_fsm_set_timeout(dev, 10);
+	dev->state = NI_DHCP_STATE_INIT;
+	return 0;
+}
+
+/*
+ * We never received any response. Deal with the traumatic rejection.
+ */
+static void
+ni_dhcp_fsm_timeout(ni_dhcp_device_t *dev)
+{
+	ni_debug_dhcp("%s: timeout in state %s", dev->ifname, ni_dhcp_fsm_state_name(dev->state));
+	timerclear(&dev->expires);
+
+	switch (dev->state) {
+	case NI_DHCP_STATE_INIT:
+		/* We get here if we previously received a NAK, and have
+		 * started to back off. */
+		ni_dhcp_fsm_discover(dev);
+		break;
+
+	case NI_DHCP_STATE_SELECTING:
+	case NI_DHCP_STATE_REQUESTING:
+		ni_error("%s: DHCP discovery failed", dev->ifname);
+		ni_dhcp_fsm_fail_lease(dev);
+		ni_dhcp_fsm_restart(dev);
+
+		/* Now decide whether we should keep trying */
+		if (dev->config->request_timeout == ~0U)
+			ni_dhcp_fsm_discover(dev);
+		break;
+
+	case NI_DHCP_STATE_VALIDATING:
+		/* Send the next ARP probe */
+		ni_dhcp_fsm_arp_validate(dev);
+		break;
+
+	case NI_DHCP_STATE_BOUND:
+		ni_dhcp_fsm_renewal(dev);
+		break;
+
+	case NI_DHCP_STATE_RENEWING:
+		ni_error("unable to renew lease within renewal period; trying to rebind");
+		ni_dhcp_fsm_rebind(dev);
+		break;
+
+	case NI_DHCP_STATE_REBINDING:
+		ni_error("unable to rebind lease");
+		ni_dhcp_fsm_restart(dev);
+		/* FIXME: now decide whether we should try to re-discover */
+		break;
+
+	default:
+		;
+	}
+}
+
+/*
+ * Check whether we have any timeouts set for any of our monitored
+ * devices, and if we do, return the timeout value as number of
+ * milliseconds.
+ */
+long
+ni_dhcp_fsm_get_timeout(void)
+{
+	struct timeval now, expires, delta;
+	ni_dhcp_device_t *dev;
+
+	gettimeofday(&now, NULL);
+	timerclear(&expires);
+	for (dev = ni_dhcp_active; dev; dev = dev->next) {
+		if (timerisset(&dev->expires)
+		&& (!timerisset(&expires) || timercmp(&dev->expires, &expires, <)))
+			expires = dev->expires;
+	}
+
+	if (!timerisset(&expires))
+		return -1;
+	if (timercmp(&expires, &now, <))
+		return 0;
+
+	timersub(&expires, &now, &delta);
+	return 1000 * delta.tv_sec + delta.tv_usec / 1000;
+}
+
+/*
+ * Check whether we need to process any FSM timeouts
+ */
+void
+ni_dhcp_fsm_check_timeout(void)
+{
+	struct timeval now;
+	ni_dhcp_device_t *dev;
+
+	gettimeofday(&now, NULL);
+	for (dev = ni_dhcp_active; dev; dev = dev->next) {
+		if (timerisset(&dev->expires) && timercmp(&dev->expires, &now, <=))
+			ni_dhcp_fsm_timeout(dev);
+	}
+}
+
+static int
+ni_dhcp_process_offer(ni_dhcp_device_t *dev, ni_dhcp_lease_t *lease)
+{
+	char abuf1[INET_ADDRSTRLEN];
+	char abuf2[INET_ADDRSTRLEN];
+
+	/* TBD: We should be smarter here.
+	 *
+	 *  -	track "bad" leases, and blacklist them for a while.
+	 *	(eg addresses that fail the ARP check).
+	 *
+	 *  -	try to detect if we woke up in a different network
+	 *	environment; in that case there's no point in attempting
+	 *	to renew the same old lease forever. Some MS based DHCP
+	 *	servers in airports and hotels never seem to send NAKs
+	 *	in such as case.
+	 */
+
+	inet_ntop(AF_INET, &lease->address, abuf1, sizeof(abuf1));
+	inet_ntop(AF_INET, &lease->serveraddress, abuf2, sizeof(abuf2));
+
+	if (lease->servername[0])
+		ni_debug_dhcp("Received offer for %s from %s (%s)",
+			abuf1, abuf2, lease->servername);
+	else
+		ni_debug_dhcp("Received offer for %s from %s", abuf1, abuf2);
+
+	ni_dhcp_fsm_request(dev, lease);
+	return 0;
+}
+
+static int
+ni_dhcp_process_ack(ni_dhcp_device_t *dev, ni_dhcp_lease_t *lease)
+{
+	if (lease->leasetime == 0) {
+		lease->leasetime = DHCP_DEFAULT_LEASETIME;
+		ni_debug_dhcp("server supplied no lease time, assuming %u seconds",
+				lease->leasetime);
+	}
+
+	if (lease->rebindtime >= lease->leasetime) {
+		ni_debug_dhcp("%s: rebindtime greater than leasetime, using default", dev->ifname);
+		lease->rebindtime = lease->leasetime * 7 / 8;
+	} else if (lease->rebindtime == 0) {
+		ni_debug_dhcp("%s: no rebindtime supplied, using default", dev->ifname);
+		lease->rebindtime = lease->leasetime * 7 / 8;
+	}
+
+	if (lease->renewaltime >= lease->rebindtime) {
+		ni_debug_dhcp("%s: renewaltime greater than rebindtime, using default", dev->ifname);
+		lease->renewaltime = lease->leasetime / 2;
+	} else if (lease->renewaltime == 0) {
+		ni_debug_dhcp("%s: no renewaltime supplied, using default", dev->ifname);
+		lease->renewaltime = lease->leasetime / 2;
+	}
+
+	ni_trace("Debug code active");
+	if (lease->renewaltime > 120)
+		lease->renewaltime = 120;
+
+	if (dev->config->flags & DHCP_DO_ARP) {
+		/* should we do this on renew as well? */
+		ni_dhcp_fsm_validate_lease(dev, lease);
+	} else {
+		ni_dhcp_fsm_commit_lease(dev, lease);
+	}
+
+	return 0;
+}
+
+int
+ni_dhcp_fsm_commit_lease(ni_dhcp_device_t *dev, ni_dhcp_lease_t *lease)
+{
+	ni_debug_dhcp("%s: committing lease", dev->ifname);
+        if (dev->capture)
+		ni_capture_free(dev->capture);
+	dev->capture = NULL;
+
+	ni_debug_dhcp("%s: schedule renewal of lease in %u seconds",
+			dev->ifname, lease->renewaltime);
+	ni_dhcp_fsm_set_timeout(dev, lease->renewaltime);
+
+	ni_dhcp_device_set_lease(dev, lease);
+	dev->state = NI_DHCP_STATE_BOUND;
+	dev->notify = 1;
+
+	/* FIXME: Write the lease to lease cache */
+
+	/* TBD: Inform the master about the newly acquired lease */
+
+	return 0;
+}
+
+void
+ni_dhcp_fsm_fail_lease(ni_dhcp_device_t *dev)
+{
+	ni_debug_dhcp("%s: failing lease", dev->ifname);
+
+	ni_dhcp_fsm_restart(dev);
+        if (dev->capture)
+		ni_capture_free(dev->capture);
+	dev->capture = NULL;
+
+	ni_dhcp_device_set_lease(dev, NULL);
+	dev->notify = 1;
+	dev->failed = 1;
+}
+
+int
+ni_dhcp_fsm_validate_lease(ni_dhcp_device_t *dev, ni_dhcp_lease_t *lease)
+{
+	/* For ARP validations, we will send 3 ARP queries with a timeout
+	 * of 200ms each.
+	 * The "claims" part is really for IPv4LL
+	 */
+	dev->arp.nprobes = 3;
+	dev->arp.nclaims = 0;
+
+	/* dhcpcd source code says:
+	 * IEEE1394 cannot set ARP target address according to RFC2734
+	 */
+	if (dev->system.arp_type == ARPHRD_IEEE1394)
+		dev->arp.nclaims = 0;
+
+	if (lease)
+		ni_dhcp_device_set_lease(dev, lease);
+
+	if (ni_dhcp_fsm_arp_validate(dev) < 0)
+		goto decline;
+
+	dev->state = NI_DHCP_STATE_VALIDATING;
+	return 0;
+
+decline:
+	ni_debug_dhcp("unable to validate lease, declining");
+	return -1;
+}
+
+int
+ni_dhcp_fsm_arp_validate(ni_dhcp_device_t *dev)
+{
+	struct in_addr claim = dev->lease->address;
+	struct in_addr null = { 0 };
+
+	if (dev->arp.nprobes) {
+		ni_debug_dhcp("arp_validate: probing for %s", inet_ntoa(claim));
+		ni_arp_send_request(dev, null, NULL, claim);
+		dev->arp.nprobes--;
+	} else if (dev->arp.nclaims) {
+		ni_debug_dhcp("arp_validate: claiming %s", inet_ntoa(claim));
+		ni_arp_send_request(dev, claim, &dev->system.hwaddr, claim);
+		dev->arp.nclaims--;
+	} else {
+		/* Wow, we're done! */
+		ni_debug_dhcp("successfully validated %s", inet_ntoa(claim));
+		ni_dhcp_fsm_commit_lease(dev, dev->lease);
+		return 0;
+	}
+	gettimeofday(&dev->expires, NULL);
+	dev->expires.tv_usec += NI_DHCP_ARP_TIMEOUT * 1000;
+	return 0;
+}
+
+int
+ni_dhcp_fsm_process_arp_packet(ni_dhcp_device_t *dev, ni_buffer_t *bp)
+{
+	struct in_addr sip;
+	ni_hwaddr_t sha;
+
+	if (ni_arp_parse_reply(dev, bp, &sip, &sha) < 0)
+		return -1;
+
+	/* Ignore any ARP replies that seem to come from our own
+	 * MAC address. Some helpful switches seem to generate
+	 * these. */
+	if (ni_link_address_equal(&dev->system.hwaddr, &sha))
+		return 0;
+
+	if (sip.s_addr == dev->lease->address.s_addr) {
+		ni_debug_dhcp("address %s already in use by %s",
+				inet_ntoa(sip),
+				ni_link_address_print(&sha));
+		ni_dhcp_fsm_decline(dev);
+	}
+
+	return 0;
+}
+
+/*
+ * FIXME: NAKs in different states need to be treated differently.
+ */
+static int
+ni_dhcp_process_nak(ni_dhcp_device_t *dev)
+{
+	ni_dhcp_fsm_restart(dev);
+
+	switch (dev->state) {
+	case NI_DHCP_STATE_BOUND:
+		/* RFC says discard NAKs received in state BOUND */
+		return 0;
+
+	default:
+		/* FIXME: how do we handle a NAK response to an INFORM? */
+		ni_dhcp_device_drop_lease(dev);
+		break;
+	}
+
+	/* FIXME: move back to state INIT */
+	ni_dhcp_fsm_restart(dev);
+
+	if (dev->nak_backoff == 0)
+		dev->nak_backoff = 1;
+
+	/* If we constantly get NAKS then we should slowly back off */
+	ni_debug_dhcp("Received NAK, backing off for %u seconds", dev->nak_backoff);
+	ni_dhcp_fsm_set_timeout(dev, dev->nak_backoff);
+
+	dev->nak_backoff *= 2;
+	if (dev->nak_backoff > NAK_BACKOFF_MAX)
+		dev->nak_backoff = NAK_BACKOFF_MAX;
+	return 0;
+}
+
+/*
+ * Helper function to print name of DHCP FSM state
+ */
+static const char *__dhcp_state_name[__NI_DHCP_STATE_MAX] = {
+ [NI_DHCP_STATE_INIT]		= "INIT",
+ [NI_DHCP_STATE_SELECTING]	= "SELECTING",
+ [NI_DHCP_STATE_REQUESTING]	= "REQUESTING",
+ [NI_DHCP_STATE_VALIDATING]	= "VALIDATING",
+ [NI_DHCP_STATE_BOUND]		= "BOUND",
+ [NI_DHCP_STATE_RENEWING]	= "RENEWING",
+ [NI_DHCP_STATE_REBINDING]	= "REBINDING",
+ [NI_DHCP_STATE_REBOOT]		= "REBOOT",
+ [NI_DHCP_STATE_RENEW_REQUESTED]= "RENEW_REQUESTED",
+ [NI_DHCP_STATE_RELEASED]	= "RELEASED",
+};
+
+const char *
+ni_dhcp_fsm_state_name(int state)
+{
+	const char *name = NULL;
+
+	if (0 <= state && state < __NI_DHCP_STATE_MAX)
+		name = __dhcp_state_name[state];
+	return name? name : "UNKNOWN STATE";
+}

@@ -42,7 +42,9 @@ wicked currently supports
 
 	Wireless is not supported yet.
 
- -	DHCPv4, but no DHCPv6 yet
+ -	A built-in DHCPv4 client
+
+ -	no DHCPv6 yet
 
  -	There is some experimental code that should help to
  	automatically bring up interfaces as soon as a link
@@ -191,24 +193,24 @@ Currently, two classes of extensions are supported:
 
  *	address configruation: these are scripts responsible for
  	managing a device's address configuration.
-	Static address configuration is managed by wicked itself,
-	but dynamic address configuration schemes such as DHCP
+	Static address configuration and DHCPv4 are managed by wicked
+	itself, but dynamic address configuration schemes such as DHCPv6
 	or IBFT need to be implemented via extensions.
 
 Typically, extensions have a start and a stop command, an optional
 "pid file", and a set of environment variables that get passed to
 the script.
 
-To illustrate how this is supposed to work, let's look at how the
-DHCP extension is defined:
+To illustrate how this is supposed to work, let's look at how a
+DHCPv6 extension is defined:
 
   <addrconf>
-    <extension name="dhcp4" type="dhcp" family="ipv4">
-      <start command="/etc/wicked/wicked-dhcp4 start %{@name}"/>
-      <stop command="/etc/wicked/wicked-dhcp4 stop %{@name}"/>
+    <extension name="dhcp6" type="dhcp" family="ipv6">
+      <start command="/etc/wicked/wicked-dhcp6 start %{@name}"/>
+      <stop command="/etc/wicked/wicked-dhcp6 stop %{@name}"/>
       <pidfile path="/var/run/dhcpcd-%{@name}.pid"/>
-      <environment putenv="DHCP_TIMEOUT=%{/protocol[@family = 'ipv4']/dhcp/lease/@timeout}"/>
-      <environment putenv="DHCP_REQ_HOSTNAME=%{/protocol[@family = 'ipv4']/dhcp/request/@hostname}"/>
+      <environment putenv="DHCP_TIMEOUT=%{/protocol[@family = 'ipv6']/dhcp/lease/@timeout}"/>
+      <environment putenv="DHCP_REQ_HOSTNAME=%{/protocol[@family = 'ipv6']/dhcp/request/@hostname}"/>
     </extension>
   </addrconf>
 
@@ -220,7 +222,7 @@ configuration mode (these names are reserved; if nothing else, wicked
 at least needs to know this configuration mode exists, and assign
 it a reserved name).
 
-The family attribute says this DHCP extension supports IPv4 only; if
+The family attribute says this DHCP extension supports IPv6 only; if
 you create an extension supporting both IPv4 and IPv6, you would use
 "ipv4,ipv6".
 
@@ -240,9 +242,9 @@ relative to the interface that needs to be managed. For instance,
 "%{@name}" will extract the <interface name="..."> attribute.
 
 A somewhat more complicated expression is shown in the environment
-definitions. "/protocol[@family = 'ipv4']" will search the
+definitions. "/protocol[@family = 'ipv6']" will search the
 <interface> element for a child named "protocol" with a "family"
-attribute of "ipv4". Relative to this element, it will then retrieve
+attribute of "ipv6". Relative to this element, it will then retrieve
 the "timeout" attribute from the <lease> element nested within <dhcp>.
 
 The XPATH syntax is admittedly a little awkward, but this approach

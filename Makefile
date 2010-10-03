@@ -1,5 +1,5 @@
 
-CFLAGS	= -Wall -Werror -g -O2 -D_GNU_SOURCE -I. -Iinclude
+CFLAGS	= -Wall -Werror -g -O2 -D_GNU_SOURCE -I. -Iinclude -Isrc
 
 APPS	= wicked wickedd testing/xml-test testing/xpath-test
 
@@ -46,7 +46,13 @@ __LIBSRCS= \
 	  xpath-fmt.c \
 	  util.c \
 	  socket.c \
-	  logging.c
+	  logging.c \
+	  dhcp/rest-api.c \
+	  dhcp/fsm.c \
+	  dhcp/device.c \
+	  dhcp/protocol.c \
+	  dhcp/arp.c \
+	  dhcp/socket-linux.c
 __NCFSRCS= \
 	  netcf.c
 
@@ -96,17 +102,21 @@ testing/xpath-test: testing/xpath-test.o $(TGTLIBS)
 	$(CC) -o $@ $(CFLAGS) testing/xpath-test.o -L. -lnetinfo
 
 libnetinfo.a: $(LIBOBJS)
+	@rm -f $@
 	ar cr $@ $(LIBOBJS)
 
 libnetcf.a: $(NCFOBJS)
+	@rm -f $@
 	ar cr $@ $(NCFOBJS)
 
 libnetinfo.so: $(SHLIBOBJS)
 	$(CC) $(CFLAGS) -shared -o $@ $(SHLIBOBJS)
 
 depend:
-	gcc $(CFLAGS) -M $(LIBSRCS) | sed 's:^[a-z]:$(OBJ)/lib/&:' > .depend
-	gcc $(CFLAGS) -M $(NCFSRCS) | sed 's:^[a-z]:$(OBJ)/netcf/&:' >> .depend
+	gcc $(CFLAGS) -M $(LIBSRCS) | \
+		sed 's@^\([^.]*\)\.o: src/\([a-z/]*\)\1.c@obj/lib/\2&@' > .depend
+	gcc $(CFLAGS) -M $(NCFSRCS) | \
+		sed 's@^\([^.]*\)\.o: src/\([a-z/]*\)\1.c@obj/netcf/\2&@' > .depend
 	gcc $(CFLAGS) -M $(APPSRCS) | sed 's:^[a-z]:$(OBJ)/&:' >> .depend
 
 $(OBJ)/%.o: %.c
