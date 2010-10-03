@@ -33,6 +33,7 @@ struct ni_ops {
 	int			(*configure_interface)(ni_handle_t *, ni_interface_t *, xml_node_t *);
 	int			(*delete_interface)(ni_handle_t *, const char *);
 	void			(*close)(ni_handle_t *);
+	int			(*update_lease)(ni_handle_t *, ni_interface_t *, ni_addrconf_state_t *);
 };
 
 /*
@@ -94,6 +95,7 @@ extern int		__ni_system_refresh_all(ni_handle_t *);
 extern int		__ni_system_refresh_interface(ni_handle_t *, ni_interface_t *);
 extern int		__ni_system_interface_configure(ni_handle_t *, ni_interface_t *, xml_node_t *);
 extern int		__ni_system_interface_delete(ni_handle_t *, const char *);
+extern int		__ni_system_interface_update_lease(ni_handle_t *, ni_interface_t *, ni_addrconf_state_t *);
 extern int		__ni_rtevent_refresh_all(ni_handle_t *);
 
 extern int		__ni_syntax_xml_to_all(ni_syntax_t *, ni_handle_t *, const xml_node_t *);

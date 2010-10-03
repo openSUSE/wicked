@@ -463,8 +463,7 @@ ni_interface_configure(ni_handle_t *nih, ni_interface_t *cfg, xml_node_t *cfg_xm
  * We received an updated lease from an addrconf agent-.
  */
 int
-ni_interface_update_lease(ni_handle_t *nih, ni_interface_t *ifp,
-				ni_addrconf_state_t *lease)
+ni_interface_set_lease(ni_handle_t *nih, ni_interface_t *ifp, ni_addrconf_state_t *lease)
 {
 	ni_afinfo_t *afi;
 
@@ -482,7 +481,16 @@ ni_interface_update_lease(ni_handle_t *nih, ni_interface_t *ifp,
 	if (afi->lease[lease->type] != NULL)
 		free(afi->lease[lease->type]);
 	afi->lease[lease->type] = lease;
+
 	return 0;
+}
+
+int
+ni_interface_update_lease(ni_handle_t *nih, ni_interface_t *ifp, ni_addrconf_state_t *lease)
+{
+	if (nih->op->update_lease)
+		return nih->op->update_lease(nih, ifp, lease);
+	return ni_interface_set_lease(nih, ifp, lease);
 }
 
 /*
