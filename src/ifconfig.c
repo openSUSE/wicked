@@ -1215,7 +1215,7 @@ __ni_interface_addrconf(ni_handle_t *nih, int family, ni_interface_t *ifp, ni_in
 			xml_node_t *cfg_xml)
 {
 	ni_afinfo_t *cfg_afi, *cur_afi;
-	ni_addrconf_t *acm;
+	ni_addrconf_t *cfg_acm, *cur_acm;
 	xml_node_t *xml = NULL;
 
 	debug_ifconfig("__ni_interface_addrconf(%s, af=%s)", ifp->name,
@@ -1232,10 +1232,11 @@ __ni_interface_addrconf(ni_handle_t *nih, int family, ni_interface_t *ifp, ni_in
 
 	/* If we're chaging to a different addrconf mode, stop the current
 	 * service. */
-	if (cfg_afi->config != cur_afi->config
-	 && (acm = ni_addrconf_get(cur_afi->config, family)) != NULL) {
-		if (ni_addrconf_drop_lease(acm, ifp) < 0)
+	cur_acm = ni_addrconf_get(cur_afi->config, family);
+	if (cur_acm && cfg_afi->config != cur_afi->config) {
+		if (ni_addrconf_drop_lease(cur_acm, ifp) < 0)
 			return -1;
+		cur_acm = NULL;
 	}
 
 	if (cfg_afi->config == NI_ADDRCONF_STATIC) {
@@ -1361,7 +1362,8 @@ __ni_interface_addrconf(ni_handle_t *nih, int family, ni_interface_t *ifp, ni_in
 			goto error;
 		}
 	} else
-	if ((acm = ni_addrconf_get(cfg_afi->config, family)) != NULL) {
+	if ((cfg_acm = ni_addrconf_get(cfg_afi->config, family)) != NULL) {
+		ni_addrconf_state_t *lease;
 		ni_dhclient_info_t *tmp;
 
 		tmp = cur_afi->dhcp;
@@ -1370,21 +1372,24 @@ __ni_interface_addrconf(ni_handle_t *nih, int family, ni_interface_t *ifp, ni_in
 
 		/* If the extension is already active, no need to start it once
 		 * more. If needed, we could do a restart in this case. */
-		if (cfg_afi->config == cur_afi->config)
-			return 0;
+		if (cfg_afi->config == cur_afi->config) {
+			lease = cur_afi->lease[cfg_afi->config];
+			if (lease && lease->state == NI_ADDRCONF_STATE_GRANTED)
+				return 0;
+		}
 
 		cur_afi->config = cfg_afi->config;
-		if (ni_addrconf_acquire_lease(acm, ifp, NULL) < 0)
+		if (ni_addrconf_acquire_lease(cfg_acm, ifp, NULL) < 0)
 			goto error;
 
 		/* If the extension supports more than just this address
 		 * family, make sure we update the interface status accordingly.
 		 * Otherwise we will start the service multiple times.
 		 */
-		if (acm->supported_af & NI_AF_MASK_IPV4)
-			ifp->ipv4.config = acm->type;
-		if (acm->supported_af & NI_AF_MASK_IPV6)
-			ifp->ipv6.config = acm->type;
+		if (cfg_acm->supported_af & NI_AF_MASK_IPV4)
+			ifp->ipv4.config = cfg_acm->type;
+		if (cfg_acm->supported_af & NI_AF_MASK_IPV6)
+			ifp->ipv6.config = cfg_acm->type;
 	} else {
 		error("address configuration mode %s not supported for %s",
 				ni_addrconf_type_to_name(cfg_afi->config),
