@@ -731,12 +731,12 @@ ni_addrconf_acquire_lease(const ni_addrconf_t *acm, ni_interface_t *ifp, const x
 	/* This needs to get better */
 	if (acm->supported_af & NI_AF_MASK_IPV4) {
 		if (!ifp->ipv4.lease[acm->type])
-			ifp->ipv4.lease[acm->type] = ni_addrconf_state_new(acm->type, AF_INET);
+			ifp->ipv4.lease[acm->type] = ni_addrconf_lease_new(acm->type, AF_INET);
 		ifp->ipv4.lease[acm->type]->state = NI_ADDRCONF_STATE_REQUESTING;
 	}
 	if (acm->supported_af & NI_AF_MASK_IPV6) {
 		if (!ifp->ipv6.lease[acm->type])
-			ifp->ipv6.lease[acm->type] = ni_addrconf_state_new(acm->type, AF_INET);
+			ifp->ipv6.lease[acm->type] = ni_addrconf_lease_new(acm->type, AF_INET);
 		ifp->ipv6.lease[acm->type]->state = NI_ADDRCONF_STATE_REQUESTING;
 	}
 
@@ -746,7 +746,7 @@ ni_addrconf_acquire_lease(const ni_addrconf_t *acm, ni_interface_t *ifp, const x
 int
 ni_addrconf_drop_lease(const ni_addrconf_t *acm, ni_interface_t *ifp)
 {
-	ni_addrconf_state_t *lease = NULL;
+	ni_addrconf_lease_t *lease = NULL;
 	int oflags = ifp->flags;
 	int rv;
 

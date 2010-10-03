@@ -430,7 +430,7 @@ __ni_interface_process_newaddr(ni_interface_t *ifp, struct nlmsghdr *h,
 				struct ifaddrmsg *ifa, ni_handle_t *nih)
 {
 	struct rtattr *tb[IFA_MAX+1];
-	ni_addrconf_state_t *lease;
+	ni_addrconf_lease_t *lease;
 	ni_address_t tmp, *ap;
 
 	memset(tb, 0, sizeof(tb));
@@ -474,7 +474,7 @@ __ni_interface_process_newroute(ni_interface_t *ifp, struct nlmsghdr *h,
 				struct rtmsg *rtm, ni_handle_t *nih)
 {
 	struct sockaddr_storage src_addr, dst_addr, gw_addr;
-	ni_addrconf_state_t *lease;
+	ni_addrconf_lease_t *lease;
 	struct rtattr *tb[RTN_MAX+1];
 	ni_route_t *rp;
 

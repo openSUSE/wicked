@@ -93,7 +93,7 @@ ni_dhcp_addrconf_request(const ni_addrconf_t *acm, ni_interface_t *ifp, const xm
 }
 
 static int
-ni_dhcp_addrconf_release(const ni_addrconf_t *acm, ni_interface_t *ifp, ni_addrconf_state_t *lease)
+ni_dhcp_addrconf_release(const ni_addrconf_t *acm, ni_interface_t *ifp, ni_addrconf_lease_t *lease)
 {
 	return __ni_dhcp_addrconf_do(acm, ifp, 0);
 }
@@ -216,7 +216,7 @@ static xml_node_t *
 dhcp_device_xml(const ni_dhcp_device_t *dev)
 {
 	ni_syntax_t *xmlsyntax = ni_default_xml_syntax();
-	ni_addrconf_state_t dummy, *lease;
+	ni_addrconf_lease_t dummy, *lease;
 
 	/* This could be more elegant. */
 	memset(&dummy, 0, sizeof(dummy));

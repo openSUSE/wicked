@@ -34,26 +34,6 @@
 #include "buffer.h"
 
 /*
- * Allocate/free a DHCP lease object
- */
-ni_dhcp_lease_t *
-ni_dhcp_lease_new(void)
-{
-	ni_dhcp_lease_t *lease;
-
-	lease = calloc(1, sizeof(*lease));
-	return lease;
-}
-
-void
-ni_dhcp_lease_free(ni_dhcp_lease_t *dhcp)
-{
-	if (!dhcp)
-		return;
-	ni_addrconf_state_free(dhcp);
-}
-
-/*
  * Inline functions for setting/retrieving options from a buffer
  */
 static inline void
@@ -202,7 +182,7 @@ ni_dhcp_option_get_string(ni_buffer_t *bp, char **var)
 int
 ni_dhcp_build_message(const ni_dhcp_device_t *dev,
 			unsigned int msg_code,
-			const ni_dhcp_lease_t *lease,
+			const ni_addrconf_lease_t *lease,
 			ni_buffer_t *msgbuf)
 {
 	const ni_dhcp_config_t *options = dev->config;
@@ -642,9 +622,9 @@ ni_dhcp_decode_routers(ni_buffer_t *bp, ni_route_t **route_list)
  * handle this yet.
  */
 int
-ni_dhcp_parse_response(const ni_dhcp_message_t *message, ni_buffer_t *options, ni_dhcp_lease_t **leasep)
+ni_dhcp_parse_response(const ni_dhcp_message_t *message, ni_buffer_t *options, ni_addrconf_lease_t **leasep)
 {
-	ni_dhcp_lease_t *lease;
+	ni_addrconf_lease_t *lease;
 	ni_route_t *default_routes = NULL;
 	ni_route_t *static_routes = NULL;
 	ni_route_t *classless_routes = NULL;
@@ -652,7 +632,7 @@ ni_dhcp_parse_response(const ni_dhcp_message_t *message, ni_buffer_t *options, n
 	int msg_type = -1;
 	int retval = -1;
 
-	lease = ni_dhcp_lease_new();
+	lease = ni_addrconf_lease_new(NI_ADDRCONF_DHCP, AF_INET);
 
 	lease->state = NI_ADDRCONF_STATE_GRANTED;
 	lease->type = NI_ADDRCONF_DHCP;
@@ -892,7 +872,7 @@ done:
 
 error:
 	if (lease)
-		ni_dhcp_lease_free(lease);
+		ni_addrconf_lease_free(lease);
 	msg_type = -1;
 	goto done;
 }

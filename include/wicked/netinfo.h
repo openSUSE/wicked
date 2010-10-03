@@ -181,7 +181,7 @@ enum {
 	NI_ADDRCONF_STATE_RELEASED,
 	NI_ADDRCONF_STATE_FAILED,
 };
-typedef struct ni_addrconf_state {
+typedef struct ni_addrconf_lease {
 	int			type;
 	int			family;
 	int			state;
@@ -210,7 +210,7 @@ typedef struct ni_addrconf_state {
 
 	/* Information specific to some addrconf protocol */
 	union {
-	    struct ni_addrconf_state_dhcp {
+	    struct ni_addrconf_lease_dhcp {
 		struct in_addr		serveraddress;
 		char			servername[64];
 
@@ -227,7 +227,7 @@ typedef struct ni_addrconf_state {
 		char *			rootpath;
 	    } dhcp;
 	};
-} ni_addrconf_state_t;
+} ni_addrconf_lease_t;
 
 enum {
 	NI_AF_MASK_IPV4		= 0x0001,
@@ -245,7 +245,7 @@ typedef struct ni_addrconf {
 	void *			private;
 
 	int			(*request)(const struct ni_addrconf *, ni_interface_t *, const xml_node_t *);
-	int			(*release)(const struct ni_addrconf *, ni_interface_t *, ni_addrconf_state_t *);
+	int			(*release)(const struct ni_addrconf *, ni_interface_t *, ni_addrconf_lease_t *);
 	int			(*test)(const struct ni_addrconf *, const ni_interface_t *, const xml_node_t *);
 } ni_addrconf_t;
 
@@ -255,7 +255,7 @@ typedef struct ni_afinfo {
 	int			forwarding;
 	int			config;	/* formerly known as bootproto */
 
-	ni_addrconf_state_t *	lease[__NI_ADDRCONF_MAX];
+	ni_addrconf_lease_t *	lease[__NI_ADDRCONF_MAX];
 
 	/* This is valid if config == NI_ADDRCONF_DHCP */
 	ni_dhclient_info_t *	dhcp;
@@ -442,8 +442,8 @@ extern xml_node_t *	ni_syntax_xml_from_interface(ni_syntax_t *, ni_handle_t *, n
 extern ni_interface_t *	ni_syntax_xml_to_interface(ni_syntax_t *, ni_handle_t *, xml_node_t *);
 extern xml_document_t *	ni_syntax_xml_from_all(ni_syntax_t *, ni_handle_t *);
 extern int		ni_syntax_xml_to_all(ni_syntax_t *, ni_handle_t *, const xml_document_t *);
-extern xml_node_t *	ni_syntax_xml_from_lease(ni_syntax_t *, ni_addrconf_state_t *, xml_node_t *);
-extern ni_addrconf_state_t *ni_syntax_xml_to_lease(ni_syntax_t *, const xml_node_t *);
+extern xml_node_t *	ni_syntax_xml_from_lease(ni_syntax_t *, ni_addrconf_lease_t *, xml_node_t *);
+extern ni_addrconf_lease_t *ni_syntax_xml_to_lease(ni_syntax_t *, const xml_node_t *);
 extern void		ni_syntax_set_root_directory(ni_syntax_t *, const char *);
 extern const char *	ni_syntax_base_path(ni_syntax_t *);
 extern const char *	ni_syntax_build_path(ni_syntax_t *, const char *, ...);
@@ -465,8 +465,8 @@ extern int		ni_interface_update(ni_interface_t *ifp);
 extern int		ni_interface_guess_type(ni_interface_t *ifp);
 extern int		ni_interface_configure(ni_handle_t *, ni_interface_t *, xml_node_t *);
 extern int		ni_interface_update_lease(ni_handle_t *, ni_interface_t *ifp,
-				ni_addrconf_state_t *);
-extern int		ni_interface_set_lease(ni_handle_t *, ni_interface_t *, ni_addrconf_state_t *);
+				ni_addrconf_lease_t *);
+extern int		ni_interface_set_lease(ni_handle_t *, ni_interface_t *, ni_addrconf_lease_t *);
 extern int		ni_interface_delete(ni_handle_t *, const char *);
 
 extern ni_route_t *	ni_interface_add_route(ni_handle_t *, ni_interface_t *,
@@ -544,9 +544,9 @@ extern ni_vlan_t *	ni_vlan_clone(const ni_vlan_t *);
 extern ni_dhclient_info_t *ni_dhclient_info_new(void);
 extern void		ni_dhclient_info_free(ni_dhclient_info_t *);
 
-extern ni_addrconf_state_t *ni_addrconf_state_new(int type, int family);
-extern void		ni_addrconf_state_destroy(ni_addrconf_state_t *);
-extern void		ni_addrconf_state_free(ni_addrconf_state_t *);
+extern ni_addrconf_lease_t *ni_addrconf_lease_new(int type, int family);
+extern void		ni_addrconf_lease_destroy(ni_addrconf_lease_t *);
+extern void		ni_addrconf_lease_free(ni_addrconf_lease_t *);
 extern void		ni_addrconf_register(ni_addrconf_t *);
 extern ni_addrconf_t *	ni_addrconf_get(int type, int family);
 extern int		ni_addrconf_acquire_lease(const ni_addrconf_t *,
@@ -565,7 +565,7 @@ extern const char *	ni_linktype_type_to_name(unsigned int);
 extern int		ni_addrconf_name_to_type(const char *);
 extern const char *	ni_addrconf_type_to_name(unsigned int);
 extern int		ni_addrconf_name_to_state(const char *);
-extern const char *	ni_addrconf_state_to_name(unsigned int);
+extern const char *	ni_addrconf_lease_to_name(unsigned int);
 extern int		ni_addrfamily_name_to_type(const char *);
 extern const char *	ni_addrfamily_type_to_name(unsigned int);
 extern int		ni_arphrd_name_to_type(const char *);

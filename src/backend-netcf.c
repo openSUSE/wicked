@@ -44,8 +44,8 @@ static void		__ni_netcf_xml_from_vlan(ni_syntax_t *syntax, ni_handle_t *nih,
 				ni_vlan_t *vlan, xml_node_t *fp);
 static void		__ni_netcf_xml_from_dhcp(ni_syntax_t *, ni_handle_t *,
 				ni_dhclient_info_t *, xml_node_t *);
-static xml_node_t *	__ni_netcf_xml_from_lease(ni_syntax_t *, const ni_addrconf_state_t *, xml_node_t *parent);
-static ni_addrconf_state_t *__ni_netcf_xml_to_lease(ni_syntax_t *, const xml_node_t *);
+static xml_node_t *	__ni_netcf_xml_from_lease(ni_syntax_t *, const ni_addrconf_lease_t *, xml_node_t *parent);
+static ni_addrconf_lease_t *__ni_netcf_xml_to_lease(ni_syntax_t *, const xml_node_t *);
 
 static const char *	__ni_netcf_get_iftype(const ni_interface_t *);
 static int		__ni_netcf_set_iftype(ni_interface_t *, const char *);
@@ -659,7 +659,7 @@ __ni_netcf_xml_from_address_config(ni_syntax_t *syntax, ni_handle_t *nih,
 	}
 
 	for (type = 0; type < __NI_ADDRCONF_MAX; ++type) {
-		ni_addrconf_state_t *lease = afi->lease[type];
+		ni_addrconf_lease_t *lease = afi->lease[type];
 
 		if (lease) {
 			if (!protnode)
@@ -919,14 +919,14 @@ __ni_netcf_xml_from_dhcp(ni_syntax_t *syntax, ni_handle_t *nih,
  * Generate XML from lease
  */
 static xml_node_t *
-__ni_netcf_xml_from_lease(ni_syntax_t *syntax, const ni_addrconf_state_t *lease, xml_node_t *parent)
+__ni_netcf_xml_from_lease(ni_syntax_t *syntax, const ni_addrconf_lease_t *lease, xml_node_t *parent)
 {
 	xml_node_t *node;
 
 	node = xml_node_new("lease", parent);
 	xml_node_add_attr(node, "type", ni_addrconf_type_to_name(lease->type));
 	xml_node_add_attr(node, "family", ni_addrfamily_type_to_name(lease->family));
-	xml_node_add_attr(node, "state", ni_addrconf_state_to_name(lease->state));
+	xml_node_add_attr(node, "state", ni_addrconf_lease_to_name(lease->state));
 	xml_node_add_attr_uint(node, "time", lease->time_acquired);
 
 	__ni_netcf_add_string_child(node, "hostname", lease->hostname);
@@ -959,10 +959,10 @@ __ni_netcf_xml_from_lease(ni_syntax_t *syntax, const ni_addrconf_state_t *lease,
 	return node;
 }
 
-static ni_addrconf_state_t *
+static ni_addrconf_lease_t *
 __ni_netcf_xml_to_lease(ni_syntax_t *syntax, const xml_node_t *node)
 {
-	ni_addrconf_state_t *lease = NULL;
+	ni_addrconf_lease_t *lease = NULL;
 	ni_handle_t *nih = NULL;
 	xml_node_t *prot;
 	const char *name;
@@ -986,7 +986,7 @@ __ni_netcf_xml_to_lease(ni_syntax_t *syntax, const xml_node_t *node)
 		return NULL;
 	}
 
-	lease = ni_addrconf_state_new(lease_type, lease_family);
+	lease = ni_addrconf_lease_new(lease_type, lease_family);
 	lease->state = lease_state;
 	xml_node_get_attr_uint(node, "time", &lease->time_acquired);
 	__ni_netcf_get_string_child(node, "hostname", &lease->hostname);
@@ -1041,7 +1041,7 @@ __ni_netcf_xml_to_lease(ni_syntax_t *syntax, const xml_node_t *node)
 
 failed:
 	if (lease)
-		ni_addrconf_state_free(lease);
+		ni_addrconf_lease_free(lease);
 	if (nih)
 		ni_close(nih);
 	return NULL;

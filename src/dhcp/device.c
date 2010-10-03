@@ -112,11 +112,11 @@ ni_dhcp_device_uptime(const ni_dhcp_device_t *dev, unsigned int clamp)
 }
 
 void
-ni_dhcp_device_set_lease(ni_dhcp_device_t *dev, ni_dhcp_lease_t *lease)
+ni_dhcp_device_set_lease(ni_dhcp_device_t *dev, ni_addrconf_lease_t *lease)
 {
 	if (dev->lease != lease) {
 		if (dev->lease)
-			ni_dhcp_lease_free(dev->lease);
+			ni_addrconf_lease_free(dev->lease);
 		dev->lease = lease;
 	}
 }
@@ -129,7 +129,7 @@ ni_dhcp_device_drop_lease(ni_dhcp_device_t *dev)
 		 * lease, we need to isse a link down request */
 
 		/* FIXME: delete the lease file. */
-		ni_dhcp_lease_free(dev->lease);
+		ni_addrconf_lease_free(dev->lease);
 		dev->lease = NULL;
 	}
 }
@@ -342,7 +342,7 @@ ni_dhcp_device_get_changed(void)
 }
 
 int
-ni_dhcp_device_send_message(ni_dhcp_device_t *dev, unsigned int msg_code, const ni_dhcp_lease_t *lease)
+ni_dhcp_device_send_message(ni_dhcp_device_t *dev, unsigned int msg_code, const ni_addrconf_lease_t *lease)
 {
 	static uint32_t ni_dhcp_xid;
 	int rv;

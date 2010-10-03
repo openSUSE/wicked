@@ -32,7 +32,7 @@ struct ni_ops {
 	int			(*refresh)(ni_handle_t *);
 	int			(*configure_interface)(ni_handle_t *, ni_interface_t *, xml_node_t *);
 	int			(*delete_interface)(ni_handle_t *, const char *);
-	int			(*update_lease)(ni_handle_t *, ni_interface_t *, ni_addrconf_state_t *);
+	int			(*update_lease)(ni_handle_t *, ni_interface_t *, ni_addrconf_lease_t *);
 	int			(*hostname_get)(ni_handle_t *, char *, size_t);
 	int			(*hostname_put)(ni_handle_t *, const char *);
 	void			(*close)(ni_handle_t *);
@@ -58,8 +58,8 @@ struct ni_syntax {
 						xml_node_t *parent);
 	ni_interface_t *	(*xml_to_interface)(ni_syntax_t *, ni_handle_t *, xml_node_t *);
 
-	xml_node_t *		(*xml_from_lease)(ni_syntax_t *, const ni_addrconf_state_t *, xml_node_t *parent);
-	ni_addrconf_state_t *	(*xml_to_lease)(ni_syntax_t *, const xml_node_t *);
+	xml_node_t *		(*xml_from_lease)(ni_syntax_t *, const ni_addrconf_lease_t *, xml_node_t *parent);
+	ni_addrconf_lease_t *	(*xml_to_lease)(ni_syntax_t *, const xml_node_t *);
 };
 
 extern ni_handle_t *	__ni_handle_new(size_t, struct ni_ops *);
@@ -69,8 +69,8 @@ extern void		__ni_interface_clear_routes(ni_interface_t *);
 extern void		__ni_interface_clear_addresses(ni_interface_t *);
 extern void		__ni_interface_clear_stats(ni_interface_t *);
 extern void		__ni_interfaces_clear(ni_handle_t *);
-extern ni_addrconf_state_t *__ni_interface_address_to_lease(ni_interface_t *, const ni_address_t *);
-extern ni_addrconf_state_t *__ni_interface_route_to_lease(ni_interface_t *, const ni_route_t *);
+extern ni_addrconf_lease_t *__ni_interface_address_to_lease(ni_interface_t *, const ni_address_t *);
+extern ni_addrconf_lease_t *__ni_interface_route_to_lease(ni_interface_t *, const ni_route_t *);
 
 static inline ni_afinfo_t *
 __ni_interface_address_info(ni_interface_t *ifp, int af)
@@ -96,7 +96,7 @@ extern int		__ni_system_refresh_all(ni_handle_t *);
 extern int		__ni_system_refresh_interface(ni_handle_t *, ni_interface_t *);
 extern int		__ni_system_interface_configure(ni_handle_t *, ni_interface_t *, xml_node_t *);
 extern int		__ni_system_interface_delete(ni_handle_t *, const char *);
-extern int		__ni_system_interface_update_lease(ni_handle_t *, ni_interface_t *, ni_addrconf_state_t *);
+extern int		__ni_system_interface_update_lease(ni_handle_t *, ni_interface_t *, ni_addrconf_lease_t *);
 extern int		__ni_rtevent_refresh_all(ni_handle_t *);
 
 extern int		__ni_syntax_xml_to_all(ni_syntax_t *, ni_handle_t *, const xml_node_t *);
@@ -107,10 +107,10 @@ extern ni_syntax_t *	__ni_syntax_netcf_strict(const char *pathname);
 
 extern ni_address_t *	__ni_address_list_clone(const ni_address_t *);
 
-extern ni_address_t *	__ni_lease_owns_address(const ni_addrconf_state_t *, const ni_address_t *);
-extern ni_route_t *	__ni_lease_owns_route(const ni_addrconf_state_t *, const ni_route_t *);
-extern int		ni_lease_file_write(const char *, ni_addrconf_state_t *);
-extern ni_addrconf_state_t *ni_lease_file_read(const char *, int);
+extern ni_address_t *	__ni_lease_owns_address(const ni_addrconf_lease_t *, const ni_address_t *);
+extern ni_route_t *	__ni_lease_owns_route(const ni_addrconf_lease_t *, const ni_route_t *);
+extern int		ni_lease_file_write(const char *, ni_addrconf_lease_t *);
+extern ni_addrconf_lease_t *ni_lease_file_read(const char *, int);
 
 /*
  * Helper function to do strcmp with NULL pointer check

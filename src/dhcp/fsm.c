@@ -23,17 +23,17 @@
 
 #define NAK_BACKOFF_MAX		60	/* seconds */
 
-static int	ni_dhcp_process_offer(ni_dhcp_device_t *, ni_dhcp_lease_t *);
-static int	ni_dhcp_process_ack(ni_dhcp_device_t *, ni_dhcp_lease_t *);
+static int	ni_dhcp_process_offer(ni_dhcp_device_t *, ni_addrconf_lease_t *);
+static int	ni_dhcp_process_ack(ni_dhcp_device_t *, ni_addrconf_lease_t *);
 static int	ni_dhcp_process_nak(ni_dhcp_device_t *);
 static void	ni_dhcp_fsm_fail_lease(ni_dhcp_device_t *);
-static int	ni_dhcp_fsm_validate_lease(ni_dhcp_device_t *, ni_dhcp_lease_t *);
+static int	ni_dhcp_fsm_validate_lease(ni_dhcp_device_t *, ni_addrconf_lease_t *);
 
 int
 ni_dhcp_fsm_process_dhcp_packet(ni_dhcp_device_t *dev, ni_buffer_t *msgbuf)
 {
 	ni_dhcp_message_t *message;
-	ni_dhcp_lease_t *lease = NULL;
+	ni_addrconf_lease_t *lease = NULL;
 	int msg_code;
 
 	if (dev->state == NI_DHCP_STATE_VALIDATING) {
@@ -111,7 +111,7 @@ ni_dhcp_fsm_process_dhcp_packet(ni_dhcp_device_t *dev, ni_buffer_t *msgbuf)
 	}
 
 	if (dev->lease != lease)
-		ni_dhcp_lease_free(lease);
+		ni_addrconf_lease_free(lease);
 
 	/* If we received a message other than NAK, reset the NAK
 	 * backoff timer. */
@@ -147,7 +147,7 @@ ni_dhcp_fsm_set_timeout(ni_dhcp_device_t *dev, unsigned int seconds)
 int
 ni_dhcp_fsm_discover(ni_dhcp_device_t *dev)
 {
-	ni_dhcp_lease_t *lease;
+	ni_addrconf_lease_t *lease;
 	int rv;
 
 	ni_debug_dhcp("initiating discovery for %s", dev->ifname);
@@ -158,7 +158,7 @@ ni_dhcp_fsm_discover(ni_dhcp_device_t *dev)
 	 * we should fall back to asking for anything.
 	 */
 	if ((lease = dev->lease) == NULL)
-		lease = ni_dhcp_lease_new();
+		lease = ni_addrconf_lease_new(NI_ADDRCONF_DHCP, AF_INET);
 
 	rv = ni_dhcp_device_send_message(dev, DHCP_DISCOVER, lease);
 
@@ -166,12 +166,12 @@ ni_dhcp_fsm_discover(ni_dhcp_device_t *dev)
 	dev->state = NI_DHCP_STATE_SELECTING;
 
 	if (lease != dev->lease)
-		ni_dhcp_lease_free(lease);
+		ni_addrconf_lease_free(lease);
 	return rv;
 }
 
 int
-ni_dhcp_fsm_request(ni_dhcp_device_t *dev, const ni_dhcp_lease_t *lease)
+ni_dhcp_fsm_request(ni_dhcp_device_t *dev, const ni_addrconf_lease_t *lease)
 {
 	int rv;
 
@@ -359,7 +359,7 @@ ni_dhcp_fsm_check_timeout(void)
 }
 
 static int
-ni_dhcp_process_offer(ni_dhcp_device_t *dev, ni_dhcp_lease_t *lease)
+ni_dhcp_process_offer(ni_dhcp_device_t *dev, ni_addrconf_lease_t *lease)
 {
 	char abuf1[INET_ADDRSTRLEN];
 	char abuf2[INET_ADDRSTRLEN];
@@ -390,7 +390,7 @@ ni_dhcp_process_offer(ni_dhcp_device_t *dev, ni_dhcp_lease_t *lease)
 }
 
 static int
-ni_dhcp_process_ack(ni_dhcp_device_t *dev, ni_dhcp_lease_t *lease)
+ni_dhcp_process_ack(ni_dhcp_device_t *dev, ni_addrconf_lease_t *lease)
 {
 	if (lease->dhcp.lease_time == 0) {
 		lease->dhcp.lease_time = DHCP_DEFAULT_LEASETIME;
@@ -429,7 +429,7 @@ ni_dhcp_process_ack(ni_dhcp_device_t *dev, ni_dhcp_lease_t *lease)
 }
 
 int
-ni_dhcp_fsm_commit_lease(ni_dhcp_device_t *dev, ni_dhcp_lease_t *lease)
+ni_dhcp_fsm_commit_lease(ni_dhcp_device_t *dev, ni_addrconf_lease_t *lease)
 {
         if (dev->capture)
 		ni_capture_free(dev->capture);
@@ -474,7 +474,7 @@ ni_dhcp_fsm_fail_lease(ni_dhcp_device_t *dev)
 }
 
 int
-ni_dhcp_fsm_validate_lease(ni_dhcp_device_t *dev, ni_dhcp_lease_t *lease)
+ni_dhcp_fsm_validate_lease(ni_dhcp_device_t *dev, ni_addrconf_lease_t *lease)
 {
 	/* For ARP validations, we will send 3 ARP queries with a timeout
 	 * of 200ms each.

@@ -281,7 +281,7 @@ ni_addrconf_name_to_state(const char *name)
 }
 
 const char *
-ni_addrconf_state_to_name(unsigned int type)
+ni_addrconf_lease_to_name(unsigned int type)
 {
 	return ni_format_int_mapped(type, __addrconf_states);
 }
@@ -463,7 +463,7 @@ ni_interface_configure(ni_handle_t *nih, ni_interface_t *cfg, xml_node_t *cfg_xm
  * We received an updated lease from an addrconf agent-.
  */
 int
-ni_interface_set_lease(ni_handle_t *nih, ni_interface_t *ifp, ni_addrconf_state_t *lease)
+ni_interface_set_lease(ni_handle_t *nih, ni_interface_t *ifp, ni_addrconf_lease_t *lease)
 {
 	ni_afinfo_t *afi;
 
@@ -486,7 +486,7 @@ ni_interface_set_lease(ni_handle_t *nih, ni_interface_t *ifp, ni_addrconf_state_
 }
 
 int
-ni_interface_update_lease(ni_handle_t *nih, ni_interface_t *ifp, ni_addrconf_state_t *lease)
+ni_interface_update_lease(ni_handle_t *nih, ni_interface_t *ifp, ni_addrconf_lease_t *lease)
 {
 	if (nih->op->update_lease)
 		return nih->op->update_lease(nih, ifp, lease);
@@ -496,7 +496,7 @@ ni_interface_update_lease(ni_handle_t *nih, ni_interface_t *ifp, ni_addrconf_sta
 /*
  * Given an address, look up the lease owning it
  */
-ni_addrconf_state_t *
+ni_addrconf_lease_t *
 __ni_interface_address_to_lease(ni_interface_t *ifp, const ni_address_t *ap)
 {
 	ni_afinfo_t *afi = __ni_interface_address_info(ifp, ap->family);
@@ -506,7 +506,7 @@ __ni_interface_address_to_lease(ni_interface_t *ifp, const ni_address_t *ap)
 		return NULL;
 
 	for (type = 0; type < __NI_ADDRCONF_MAX; ++type) {
-		ni_addrconf_state_t *lease;
+		ni_addrconf_lease_t *lease;
 
 		if ((lease = afi->lease[type])
 		 && __ni_lease_owns_address(lease, ap))
@@ -517,7 +517,7 @@ __ni_interface_address_to_lease(ni_interface_t *ifp, const ni_address_t *ap)
 }
 
 ni_address_t *
-__ni_lease_owns_address(const ni_addrconf_state_t *lease, const ni_address_t *ap)
+__ni_lease_owns_address(const ni_addrconf_lease_t *lease, const ni_address_t *ap)
 {
 	ni_address_t *own;
 
@@ -536,7 +536,7 @@ __ni_lease_owns_address(const ni_addrconf_state_t *lease, const ni_address_t *ap
 /*
  * Given a route, look up the lease owning it
  */
-ni_addrconf_state_t *
+ni_addrconf_lease_t *
 __ni_interface_route_to_lease(ni_interface_t *ifp, const ni_route_t *rp)
 {
 	ni_afinfo_t *afi = __ni_interface_address_info(ifp, rp->family);
@@ -547,7 +547,7 @@ __ni_interface_route_to_lease(ni_interface_t *ifp, const ni_route_t *rp)
 		return NULL;
 
 	for (type = 0; type < __NI_ADDRCONF_MAX; ++type) {
-		ni_addrconf_state_t *lease;
+		ni_addrconf_lease_t *lease;
 
 		if ((lease = afi->lease[type]) == NULL)
 			continue;
@@ -567,7 +567,7 @@ __ni_interface_route_to_lease(ni_interface_t *ifp, const ni_route_t *rp)
 }
 
 ni_route_t *
-__ni_lease_owns_route(const ni_addrconf_state_t *lease, const ni_route_t *rp)
+__ni_lease_owns_route(const ni_addrconf_lease_t *lease, const ni_route_t *rp)
 {
 	ni_route_t *own;
 
@@ -798,7 +798,7 @@ __ni_afinfo_destroy(ni_afinfo_t *afi)
 		ni_dhclient_info_free(afi->dhcp);
 	for (i = 0; i < __NI_ADDRCONF_MAX; ++i) {
 		if (afi->lease[i])
-			ni_addrconf_state_free(afi->lease[i]);
+			ni_addrconf_lease_free(afi->lease[i]);
 	}
 }
 
@@ -1092,10 +1092,10 @@ ni_dhclient_info_free(ni_dhclient_info_t *dhcp)
 /*
  * Address configuration state (aka leases)
  */
-ni_addrconf_state_t *
-ni_addrconf_state_new(int type, int family)
+ni_addrconf_lease_t *
+ni_addrconf_lease_new(int type, int family)
 {
-	ni_addrconf_state_t *lease;
+	ni_addrconf_lease_t *lease;
 
 	lease = calloc(1, sizeof(*lease));
 	lease->type = type;
@@ -1104,14 +1104,14 @@ ni_addrconf_state_new(int type, int family)
 }
 
 void
-ni_addrconf_state_free(ni_addrconf_state_t *lease)
+ni_addrconf_lease_free(ni_addrconf_lease_t *lease)
 {
-	ni_addrconf_state_destroy(lease);
+	ni_addrconf_lease_destroy(lease);
 	free(lease);
 }
 
 void
-ni_addrconf_state_destroy(ni_addrconf_state_t *lease)
+ni_addrconf_lease_destroy(ni_addrconf_lease_t *lease)
 {
 	ni_string_free(&lease->hostname);
 	ni_string_free(&lease->nis_domain);

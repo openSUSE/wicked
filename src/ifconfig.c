@@ -152,7 +152,7 @@ failed:
  * An address configuration agent sends a lease update.
  */
 int
-__ni_system_interface_update_lease(ni_handle_t *nih, ni_interface_t *ifp, ni_addrconf_state_t *lease)
+__ni_system_interface_update_lease(ni_handle_t *nih, ni_interface_t *ifp, ni_addrconf_lease_t *lease)
 {
 	int res, changed = 0;
 	ni_afinfo_t *afi;
@@ -160,7 +160,7 @@ __ni_system_interface_update_lease(ni_handle_t *nih, ni_interface_t *ifp, ni_add
 	ni_route_t *rp;
 
 	ni_debug_ifconfig("%s: received new lease (state %s)", ifp->name,
-			ni_addrconf_state_to_name(lease->state));
+			ni_addrconf_lease_to_name(lease->state));
 
 	if ((res = __ni_system_refresh_interface(nih, ifp)) < 0)
 		return -1;
@@ -1363,7 +1363,7 @@ __ni_interface_addrconf(ni_handle_t *nih, int family, ni_interface_t *ifp, ni_in
 		}
 	} else
 	if ((cfg_acm = ni_addrconf_get(cfg_afi->config, family)) != NULL) {
-		ni_addrconf_state_t *lease;
+		ni_addrconf_lease_t *lease;
 		ni_dhclient_info_t *tmp;
 
 		tmp = cur_afi->dhcp;

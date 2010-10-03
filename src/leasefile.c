@@ -21,7 +21,7 @@ static const char *		__ni_lease_file_path(const char *, const char *);
  * Write a lease to a file
  */
 int
-ni_lease_file_write(const char *ifname, ni_addrconf_state_t *lease)
+ni_lease_file_write(const char *ifname, ni_addrconf_lease_t *lease)
 {
 	const char *filename;
 	xml_node_t *xml = NULL;
@@ -58,10 +58,10 @@ failed:
 /*
  * Read a lease from a file
  */
-ni_addrconf_state_t *
+ni_addrconf_lease_t *
 ni_lease_file_read(const char *ifname, int type)
 {
-	ni_addrconf_state_t *lease;
+	ni_addrconf_lease_t *lease;
 	const char *filename;
 	xml_node_t *xml = NULL, *lnode;
 	FILE *fp;

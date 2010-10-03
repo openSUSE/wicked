@@ -842,16 +842,16 @@ system_event_post(const char *ifname, ni_wicked_request_t *req)
 		arg = arg->children;
 
 	if (!strcmp(arg->name, "lease")) {
-		ni_addrconf_state_t *lease;
+		ni_addrconf_lease_t *lease;
 
 		lease = ni_syntax_xml_to_lease(ni_default_xml_syntax(), arg);
 		if (!lease)
 			goto syntax_error;
 
 		ni_debug_wicked("%s: received lease event, state=%s", ifname,
-				ni_addrconf_state_to_name(lease->state));
+				ni_addrconf_lease_to_name(lease->state));
 		if (ni_interface_update_lease(nih, ifp, lease) < 0)
-			ni_addrconf_state_free(lease);
+			ni_addrconf_lease_free(lease);
 	} else {
 		ni_debug_wicked("%s: received %s event", ifname, arg->name);
 	}

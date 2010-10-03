@@ -30,7 +30,6 @@ enum {
 };
 
 typedef struct ni_capture ni_capture_t;
-typedef ni_addrconf_state_t ni_dhcp_lease_t;
 typedef struct ni_dhcp_message ni_dhcp_message_t;
 typedef struct ni_dhcp_config ni_dhcp_config_t;
 typedef struct ni_dhcp_config options_t;
@@ -55,7 +54,7 @@ typedef struct ni_dhcp_device {
 	time_t		start_time;	/* when we starting managing */
 
 	ni_dhcp_config_t *config;
-	ni_dhcp_lease_t *lease;
+	ni_addrconf_lease_t *lease;
 
 	ni_capture_t *	capture;
 	int		listen_fd;	/* for DHCP only */
@@ -124,7 +123,7 @@ extern int		ni_dhcp_wait(struct pollfd *, unsigned int, unsigned int);
 extern void		ni_dhcp_device_stop(ni_dhcp_device_t *);
 
 extern int		ni_dhcp_fsm_discover(ni_dhcp_device_t *);
-extern int		ni_dhcp_fsm_request(ni_dhcp_device_t *, const ni_dhcp_lease_t *);
+extern int		ni_dhcp_fsm_request(ni_dhcp_device_t *, const ni_addrconf_lease_t *);
 extern int		ni_dhcp_fsm_arp_validate(ni_dhcp_device_t *);
 extern int		ni_dhcp_fsm_renewal(ni_dhcp_device_t *);
 extern int		ni_dhcp_fsm_rebind(ni_dhcp_device_t *);
@@ -135,12 +134,12 @@ extern void		ni_dhcp_fsm_check_timeout(void);
 extern const char *	ni_dhcp_fsm_state_name(int);
 extern int		ni_dhcp_fsm_process_dhcp_packet(ni_dhcp_device_t *, ni_buffer_t *);
 extern int		ni_dhcp_fsm_process_arp_packet(ni_dhcp_device_t *, ni_buffer_t *);
-extern int		ni_dhcp_fsm_commit_lease(ni_dhcp_device_t *, ni_dhcp_lease_t *);
+extern int		ni_dhcp_fsm_commit_lease(ni_dhcp_device_t *, ni_addrconf_lease_t *);
 extern int		ni_dhcp_build_message(const ni_dhcp_device_t *,
-				unsigned int, const ni_dhcp_lease_t *, ni_buffer_t *);
+				unsigned int, const ni_addrconf_lease_t *, ni_buffer_t *);
 
 extern int		ni_dhcp_build_send_header(ni_buffer_t *, struct in_addr, struct in_addr);
-extern int		ni_dhcp_parse_response(const ni_dhcp_message_t *, ni_buffer_t *, ni_dhcp_lease_t **);
+extern int		ni_dhcp_parse_response(const ni_dhcp_message_t *, ni_buffer_t *, ni_addrconf_lease_t **);
 
 extern int		ni_dhcp_socket_open(ni_dhcp_device_t *);
 extern ssize_t		ni_capture_broadcast(const ni_capture_t *, const void *, size_t);
@@ -153,17 +152,14 @@ extern ni_dhcp_device_t *ni_dhcp_device_new(const char *, unsigned int);
 extern ni_dhcp_device_t *ni_dhcp_device_find(const char *);
 extern ni_dhcp_device_t *ni_dhcp_device_get_changed(void);
 extern int		ni_dhcp_device_reconfigure(ni_dhcp_device_t *, const ni_interface_t *);
-extern void		ni_dhcp_device_set_lease(ni_dhcp_device_t *, ni_dhcp_lease_t *);
+extern void		ni_dhcp_device_set_lease(ni_dhcp_device_t *, ni_addrconf_lease_t *);
 extern void		ni_dhcp_device_drop_lease(ni_dhcp_device_t *);
 extern void		ni_dhcp_device_alloc_buffer(ni_dhcp_device_t *);
 extern void		ni_dhcp_device_drop_buffer(ni_dhcp_device_t *);
-extern int		ni_dhcp_device_send_message(ni_dhcp_device_t *, unsigned int, const ni_dhcp_lease_t *);
+extern int		ni_dhcp_device_send_message(ni_dhcp_device_t *, unsigned int, const ni_addrconf_lease_t *);
 extern void		ni_dhcp_device_arm_retransmit(ni_dhcp_device_t *dev);
 extern void		ni_dhcp_device_disarm_retransmit(ni_dhcp_device_t *dev);
 extern void		ni_dhcp_device_retransmit(ni_dhcp_device_t *);
-
-extern ni_dhcp_lease_t *ni_dhcp_lease_new(void);
-extern void		ni_dhcp_lease_free(ni_dhcp_lease_t *);
 
 extern void		ni_dhcp_config_free(ni_dhcp_config_t *);
 

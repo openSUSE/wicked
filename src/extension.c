@@ -341,7 +341,7 @@ ni_addrconf_extension_request(const ni_addrconf_t *ace, ni_interface_t *ifp, con
 }
 
 static int
-ni_addrconf_extension_release(const ni_addrconf_t *ace, ni_interface_t *ifp, ni_addrconf_state_t *lease)
+ni_addrconf_extension_release(const ni_addrconf_t *ace, ni_interface_t *ifp, ni_addrconf_lease_t *lease)
 {
 	const ni_extension_t *ex = ace->private;
 	ni_handle_t *nih = ni_dummy_open();
