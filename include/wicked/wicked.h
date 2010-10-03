@@ -63,6 +63,24 @@ extern int			ni_wicked_response_print(ni_wicked_request_t *, int status, FILE *)
 extern int			ni_wicked_rest_op_parse(const char *);
 extern const char *		ni_wicked_rest_op_print(int);
 
+/*
+ * This is for functionality moved into separate processes,
+ * with which we communicate through messages and events.
+ */
+typedef struct ni_proxy {
+	struct ni_proxy *	next;
+	char *			name;
+	pid_t			pid;
+	int			sotype;
+	FILE *			sock;
+} ni_proxy_t;
+
+extern ni_proxy_t *		ni_proxy_find(const char *);
+extern ni_proxy_t *		ni_proxy_fork_subprocess(const char *, void (*mainloop)(int));
+extern int			ni_proxy_get_request(const ni_proxy_t *, ni_wicked_request_t *);
+extern void			ni_proxy_stop(ni_proxy_t *);
+extern void			ni_proxy_stop_all(void);
+
 extern int			__ni_wicked_call_direct(ni_wicked_request_t *, ni_rest_node_t *);
 
 extern void			werror(ni_wicked_request_t *, const char *, ...);

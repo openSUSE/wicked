@@ -311,6 +311,140 @@ ni_wicked_send_event(ni_wicked_request_t *req, FILE *sock)
 }
 
 /*
+ * Proxies (or supplicants) are driven through a DGRAM socket,
+ * and are usually subprocesses.
+ */
+static ni_proxy_t *	all_proxies;
+
+ni_proxy_t *
+ni_proxy_find(const char *name)
+{
+	ni_proxy_t *proxy;
+
+	for (proxy = all_proxies; proxy; proxy = proxy->next) {
+		if (!strcmp(proxy->name, name))
+			return proxy;
+	}
+	return NULL;
+}
+
+ni_proxy_t *
+ni_proxy_fork_subprocess(const char *name, void (*mainloop)(int))
+{
+	ni_proxy_t *proxy;
+	pid_t pid;
+	int fd[2];
+
+	if (socketpair(AF_LOCAL, SOCK_DGRAM, 0, fd) < 0) {
+		ni_error("unable to create AF_LOCAL socketpair: %m");
+		return NULL;
+	}
+
+	pid = fork();
+	if (pid < 0) {
+		ni_error("unable to fork proxy subprocess: %m");
+		return NULL;
+	}
+
+	/* parent */
+	if (pid != 0) {
+		proxy = calloc(1, sizeof(*proxy));
+		ni_string_dup(&proxy->name, name);
+
+		proxy->sotype = SOCK_DGRAM;
+		proxy->sock = fdopen(fd[0], "w+");
+		setvbuf(proxy->sock, NULL, _IOFBF, 8192);
+		close(fd[1]);
+
+		proxy->pid = pid;
+
+		proxy->next = all_proxies;
+		all_proxies = proxy;
+		return proxy;
+	}
+
+	/* Parent */
+	close(fd[0]);
+	mainloop(fd[1]);
+
+	exit(1);
+
+}
+
+/*
+ * Stop proxies
+ */
+static void
+__ni_proxy_free(ni_proxy_t *proxy)
+{
+	if (proxy->sock >= 0)
+		fclose(proxy->sock);
+	if (proxy->pid)
+		kill(proxy->pid, SIGTERM);
+	ni_string_free(&proxy->name);
+	free(proxy);
+}
+
+void
+ni_proxy_stop(ni_proxy_t *proxy)
+{
+	ni_proxy_t **pos;
+
+	for (pos = &all_proxies; *pos; pos = &(*pos)->next) {
+		if (*pos == proxy) {
+			*pos = proxy->next;
+			break;
+		}
+	}
+
+	__ni_proxy_free(proxy);
+}
+
+void
+ni_proxy_stop_all(void)
+{
+	ni_proxy_t *proxy;
+
+	while ((proxy = all_proxies) != NULL) {
+		all_proxies = proxy->next;
+		__ni_proxy_free(proxy);
+	}
+}
+
+int
+ni_proxy_get_request(const ni_proxy_t *proxy, ni_wicked_request_t *req)
+{
+	int rv;
+
+	if (proxy->sotype == SOCK_DGRAM) {
+		char dgram[65536];
+		int r;
+		FILE *fp;
+
+		r = recv(fileno(proxy->sock), dgram, sizeof(dgram), 0);
+		if (r < 0) {
+			ni_error("unable to receive from %s proxy: %m", proxy->name);
+			return -1;
+		}
+
+		fp = fmemopen(dgram, r, "r");
+		if (!fp) {
+			ni_error("unable to open memstream for request from %s proxy",
+					proxy->name);
+			return -1;
+		}
+
+		/* Parse the request */
+		rv = ni_wicked_request_parse(req, fp);
+		fclose(fp);
+	} else {
+		rv = ni_wicked_request_parse(req, proxy->sock);
+	}
+
+	return rv;
+}
+
+/*
  * Process a REST call directly.
  * This is what the wicked server calls to handle an incoming request.
  */
