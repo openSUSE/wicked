@@ -435,6 +435,47 @@ ni_interface_configure(ni_handle_t *nih, ni_interface_t *cfg, xml_node_t *cfg_xm
 }
 
 /*
+ * We received an updated lease from an addrconf agent-.
+ */
+int
+ni_interface_update_lease(ni_handle_t *nih, ni_interface_t *ifp,
+				ni_addrconf_state_t *lease)
+{
+	ni_addrconf_state_t **p;
+	ni_afinfo_t *afi;
+
+	switch (lease->family) {
+	case AF_INET:
+		afi = &ifp->ipv4;
+		break;
+
+	case AF_INET6:
+		afi = &ifp->ipv6;
+		break;
+
+	default:
+		ni_error("unknown address family %d in lease update", lease->family);
+		return -1;
+	}
+
+	switch (lease->type) {
+	case NI_ADDRCONF_DHCP:
+		p = &afi->dhcp_lease;
+		break;
+
+	default:
+		ni_error("unknown addrconf type %d in lease type", lease->type);
+		return -1;
+	}
+
+	if (*p)
+		ni_addrconf_state_free(*p);
+	*p = lease;
+
+	return 0;
+}
+
+/*
  * Delete an interface, by removing its configuration file, or
  * by destroying the kernel network interface (only possible for
  * virtual interfaces like bridges, bonds or VLANs

@@ -400,6 +400,8 @@ extern int		ni_interface_put(ni_interface_t *ifp);
 extern int		ni_interface_update(ni_interface_t *ifp);
 extern int		ni_interface_guess_type(ni_interface_t *ifp);
 extern int		ni_interface_configure(ni_handle_t *, ni_interface_t *, xml_node_t *);
+extern int		ni_interface_update_lease(ni_handle_t *, ni_interface_t *ifp,
+				ni_addrconf_state_t *);
 extern int		ni_interface_delete(ni_handle_t *, const char *);
 
 extern ni_route_t *	ni_interface_add_route(ni_handle_t *, ni_interface_t *,

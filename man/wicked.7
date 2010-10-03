@@ -137,6 +137,17 @@ changed using the
 request.
 .IP
 .IR "Caveat: This is not implemented yet" .
+.TP
+.BI /system/event/ ifname
+This is an event sink, used for instance by address configuration agent.
+The only supported operation is
+.BR POST ,
+which sends and event to interface
+.I ifname .
+The event is described by an XML document.
+Currently, only
+.B lease
+events are supported.
 .\" ------------------------------------------------------------------
 .SS The meta node
 .TP

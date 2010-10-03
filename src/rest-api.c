@@ -793,6 +793,59 @@ static ni_rest_node_t	ni_rest_system_hostname_node = {
 };
 
 static int
+system_event_post(const char *ifname, ni_wicked_request_t *req)
+{
+	ni_handle_t *nih = system_handle(req);
+	ni_interface_t *ifp = NULL;
+	const xml_node_t *arg;
+
+	if (nih == NULL)
+		return -1;
+
+	if (ifname == NULL) {
+		werror(req, "no interface name given");
+		return -1;
+	}
+
+	ifp = ni_interface_by_name(nih, ifname);
+	if (ifp == NULL) {
+		ni_warn("event for unknown interface %s", ifname);
+		return 0;
+	}
+
+	if ((arg = req->xml_in) == NULL) {
+		werror(req, "no xml arguments given");
+		return -1;
+	}
+
+	if (!strcmp(arg->name, "lease")) {
+		ni_addrconf_state_t *lease;
+
+		lease = ni_syntax_xml_to_lease(ni_default_xml_syntax(), arg);
+		if (!lease)
+			goto syntax_error;
+
+		if (ni_interface_update_lease(nih, ifp, lease) < 0)
+			ni_addrconf_state_free(lease);
+	}
+
+	return 0;
+
+syntax_error:
+	werror(req, "unable to parse event argument");
+	return -1;
+}
+
+static ni_rest_node_t	ni_rest_system_event_node = {
+	.name		= "event",
+	.ops = {
+	    .byname = {
+		.post	= system_event_post,
+	    },
+	},
+};
+
+static int
 system_meta_get(const char *path, ni_wicked_request_t *req)
 {
 	if (path && *path) {
@@ -819,6 +872,7 @@ static ni_rest_node_t	ni_rest_system_node = {
 	.children = {
 		&ni_rest_system_interface_node,
 		&ni_rest_system_hostname_node,
+		&ni_rest_system_event_node,
 	},
 };
 
