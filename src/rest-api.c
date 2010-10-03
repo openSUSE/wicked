@@ -802,6 +802,9 @@ system_event_post(const char *ifname, ni_wicked_request_t *req)
 		return -1;
 	}
 
+	if (arg->name == NULL && arg->children)
+		arg = arg->children;
+
 	if (!strcmp(arg->name, "lease")) {
 		ni_addrconf_state_t *lease;
 
@@ -809,8 +812,12 @@ system_event_post(const char *ifname, ni_wicked_request_t *req)
 		if (!lease)
 			goto syntax_error;
 
+		ni_debug_wicked("%s: received lease event, state=%s", ifname,
+				ni_addrconf_state_to_name(lease->state));
 		if (ni_interface_update_lease(nih, ifp, lease) < 0)
 			ni_addrconf_state_free(lease);
+	} else {
+		ni_debug_wicked("%s: received %s event", ifname, arg->name);
 	}
 
 	return 0;
