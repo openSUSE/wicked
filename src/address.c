@@ -691,8 +691,10 @@ ni_addrconf_list_next(const void **pos)
 {
 	const struct ni_addrconfig_list_entry *ace = *pos;
 
-	if (ace)
-		*(struct ni_addrconfig_list_entry **) pos = ace->next;
+	if (!ace)
+		return NULL;
+
+	*(struct ni_addrconfig_list_entry **) pos = ace->next;
 	return &ace->mech;
 }
 
