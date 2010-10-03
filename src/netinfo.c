@@ -496,8 +496,6 @@ ni_interface_update_lease(ni_handle_t *nih, ni_interface_t *ifp, ni_addrconf_sta
 /*
  * Given an address, look up the lease owning it
  */
-static int	__ni_lease_owns_address(const ni_addrconf_state_t *, const ni_address_t *);
-
 ni_addrconf_state_t *
 __ni_interface_address_to_lease(ni_interface_t *ifp, const ni_address_t *ap)
 {
@@ -518,10 +516,10 @@ __ni_interface_address_to_lease(ni_interface_t *ifp, const ni_address_t *ap)
 	return NULL;
 }
 
-int
+ni_address_t *
 __ni_lease_owns_address(const ni_addrconf_state_t *lease, const ni_address_t *ap)
 {
-	const ni_address_t *own;
+	ni_address_t *own;
 
 	if (!lease)
 		return 0;
@@ -530,9 +528,9 @@ __ni_lease_owns_address(const ni_addrconf_state_t *lease, const ni_address_t *ap
 		 && ni_address_equal(&own->local_addr, &ap->local_addr)
 		 && ni_address_equal(&own->peer_addr, &ap->peer_addr)
 		 && ni_address_equal(&own->anycast_addr, &ap->anycast_addr))
-			return 1;
+			return own;
 	}
-	return 0;
+	return NULL;
 }
 
 /*

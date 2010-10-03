@@ -106,6 +106,9 @@ extern ni_syntax_t *	__ni_syntax_netcf_strict(const char *pathname);
 
 extern ni_address_t *	__ni_address_list_clone(const ni_address_t *);
 
+extern ni_address_t *	__ni_lease_owns_address(const ni_addrconf_state_t *, const ni_address_t *);
+
+
 /*
  * Helper function to do strcmp with NULL pointer check
  */
