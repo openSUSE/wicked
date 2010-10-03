@@ -149,7 +149,7 @@ enum {
 	__NI_ADDRCONF_UPDATE_MAX,
 };
 
-typedef struct ni_dhclient_info {
+typedef struct ni_addrconf_request {
 	/* Controlling general behavior */
 	int			reuse_unexpired;
 	unsigned int		settle_timeout;	/* wait that long before starting DHCP */
@@ -161,12 +161,12 @@ typedef struct ni_dhclient_info {
 		char *		clientid;
 		char *		vendor_class;
 		unsigned int	lease_time;
-	} request;
+	} dhcp;
 
 	/* Options what to update based on the info received from 
 	 * the DHCP server. */
 	unsigned int		update;
-} ni_dhclient_info_t;
+} ni_addrconf_request_t;
 
 /*
  * Leases obtained through a dynamic addrconf protocol,
@@ -262,7 +262,7 @@ typedef struct ni_afinfo {
 	ni_addrconf_lease_t *	lease[__NI_ADDRCONF_MAX];
 
 	/* This is valid if config == NI_ADDRCONF_DHCP */
-	ni_dhclient_info_t *	dhcp;
+	ni_addrconf_request_t *	dhcp;
 } ni_afinfo_t;
 
 struct ni_interface {
@@ -545,8 +545,8 @@ extern int		ni_vlan_bind_ifindex(ni_vlan_t *, ni_handle_t *);
 extern void		ni_vlan_free(ni_vlan_t *);
 extern ni_vlan_t *	ni_vlan_clone(const ni_vlan_t *);
 
-extern ni_dhclient_info_t *ni_dhclient_info_new(void);
-extern void		ni_dhclient_info_free(ni_dhclient_info_t *);
+extern ni_addrconf_request_t *ni_addrconf_request_new(void);
+extern void		ni_addrconf_request_free(ni_addrconf_request_t *);
 
 extern ni_addrconf_lease_t *ni_addrconf_lease_new(int type, int family);
 extern void		ni_addrconf_lease_destroy(ni_addrconf_lease_t *);
@@ -580,13 +580,13 @@ extern unsigned int	ni_arphrd_type_to_iftype(int arp_type);
 extern int		ni_iftype_to_arphrd_type(unsigned int iftype);
 
 static inline void
-ni_addrconf_set_update(ni_dhclient_info_t *req, unsigned int target)
+ni_addrconf_set_update(ni_addrconf_request_t *req, unsigned int target)
 {
 	req->update |= (1 << target);
 }
 
 static inline int
-ni_addrconf_should_update(const ni_dhclient_info_t *req, unsigned int target)
+ni_addrconf_should_update(const ni_addrconf_request_t *req, unsigned int target)
 {
 	return req->update & (1 << target);
 }

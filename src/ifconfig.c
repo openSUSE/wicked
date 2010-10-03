@@ -1364,7 +1364,7 @@ __ni_interface_addrconf(ni_handle_t *nih, int family, ni_interface_t *ifp, ni_in
 	} else
 	if ((cfg_acm = ni_addrconf_get(cfg_afi->config, family)) != NULL) {
 		ni_addrconf_lease_t *lease;
-		ni_dhclient_info_t *tmp;
+		ni_addrconf_request_t *tmp;
 
 		tmp = cur_afi->dhcp;
 		cur_afi->dhcp = cfg_afi->dhcp;

@@ -795,7 +795,7 @@ __ni_afinfo_destroy(ni_afinfo_t *afi)
 	unsigned int i;
 
 	if (afi->dhcp)
-		ni_dhclient_info_free(afi->dhcp);
+		ni_addrconf_request_free(afi->dhcp);
 	for (i = 0; i < __NI_ADDRCONF_MAX; ++i) {
 		if (afi->lease[i])
 			ni_addrconf_lease_free(afi->lease[i]);
@@ -1067,10 +1067,10 @@ __ni_interface_clear_bonding(ni_interface_t *ifp)
 /*
  * dhcp client info
  */
-ni_dhclient_info_t *
-ni_dhclient_info_new(void)
+ni_addrconf_request_t *
+ni_addrconf_request_new(void)
 {
-	ni_dhclient_info_t *dhcp;
+	ni_addrconf_request_t *dhcp;
 
 	dhcp = calloc(1, sizeof(*dhcp));
 
@@ -1082,11 +1082,11 @@ ni_dhclient_info_new(void)
 }
 
 void
-ni_dhclient_info_free(ni_dhclient_info_t *dhcp)
+ni_addrconf_request_free(ni_addrconf_request_t *dhcp)
 {
-	ni_string_free(&dhcp->request.hostname);
-	ni_string_free(&dhcp->request.clientid);
-	ni_string_free(&dhcp->request.vendor_class);
+	ni_string_free(&dhcp->dhcp.hostname);
+	ni_string_free(&dhcp->dhcp.clientid);
+	ni_string_free(&dhcp->dhcp.vendor_class);
 	free(dhcp);
 }
 

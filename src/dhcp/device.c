@@ -140,7 +140,7 @@ ni_dhcp_device_drop_lease(ni_dhcp_device_t *dev)
 int
 ni_dhcp_device_reconfigure(ni_dhcp_device_t *dev, const ni_interface_t *ifp)
 {
-	ni_dhclient_info_t *info;
+	ni_addrconf_request_t *info;
 	ni_dhcp_config_t *config;
 	const char *classid;
 	int changed = 0;
@@ -176,12 +176,12 @@ ni_dhcp_device_reconfigure(ni_dhcp_device_t *dev, const ni_interface_t *ifp)
 	config->resend_timeout = NI_DHCP_RESEND_TIMEOUT_INIT;
 	config->request_timeout = info->acquire_timeout?: NI_DHCP_REQUEST_TIMEOUT;
 
-	if (info->request.hostname)
-		strncpy(config->hostname, info->request.hostname, sizeof(config->hostname) - 1);
+	if (info->dhcp.hostname)
+		strncpy(config->hostname, info->dhcp.hostname, sizeof(config->hostname) - 1);
 
-	if (info->request.clientid) {
-		strncpy(config->client_id, info->request.clientid, sizeof(config->client_id)-1);
-		ni_dhcp_parse_client_id(&config->raw_client_id, ifp->type, info->request.clientid);
+	if (info->dhcp.clientid) {
+		strncpy(config->client_id, info->dhcp.clientid, sizeof(config->client_id)-1);
+		ni_dhcp_parse_client_id(&config->raw_client_id, ifp->type, info->dhcp.clientid);
 	} else {
 		/* Set client ID from interface hwaddr */
 		strncpy(config->client_id, ni_link_address_print(&dev->system.hwaddr), sizeof(config->client_id)-1);

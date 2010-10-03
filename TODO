@@ -1,3 +1,5 @@
+netinfo:
+	- split out addrconf stuff into wicked/addrconf.h
 
 ifconfig
 	- support security supplicants (radius, wpa, ...)

@@ -26,7 +26,7 @@ static int		__ni_netcf_xml_to_bonding(ni_syntax_t *, ni_handle_t *,
 static int		__ni_netcf_xml_to_static_ifcfg(ni_syntax_t *syntax, ni_handle_t *nih,
 				int af, ni_interface_t *ifp, xml_node_t *protnode);
 static int		__ni_netcf_xml_to_dhcp(ni_syntax_t *, ni_handle_t *,
-				ni_dhclient_info_t *, xml_node_t *);
+				ni_addrconf_request_t *, xml_node_t *);
 
 static xml_node_t *	__ni_netcf_xml_from_interface(ni_syntax_t *, ni_handle_t *,
 				const ni_interface_t *, xml_node_t *);
@@ -43,7 +43,7 @@ static void		__ni_netcf_xml_from_bonding(ni_syntax_t *syntax, ni_handle_t *nih,
 static void		__ni_netcf_xml_from_vlan(ni_syntax_t *syntax, ni_handle_t *nih,
 				ni_vlan_t *vlan, xml_node_t *fp);
 static void		__ni_netcf_xml_from_dhcp(ni_syntax_t *, ni_handle_t *,
-				ni_dhclient_info_t *, xml_node_t *);
+				ni_addrconf_request_t *, xml_node_t *);
 static xml_node_t *	__ni_netcf_xml_from_lease(ni_syntax_t *, const ni_addrconf_lease_t *, xml_node_t *parent);
 static ni_addrconf_lease_t *__ni_netcf_xml_to_lease(ni_syntax_t *, const xml_node_t *);
 
@@ -185,7 +185,7 @@ __ni_netcf_xml_to_interface(ni_syntax_t *syntax, ni_handle_t *nih, xml_node_t *i
 		}
 
 		if ((child = xml_node_get_child(node, "dhcp")) != NULL) {
-			afi->dhcp = ni_dhclient_info_new();
+			afi->dhcp = ni_addrconf_request_new();
 			afi->config = NI_ADDRCONF_DHCP;
 			if (__ni_netcf_xml_to_dhcp(syntax, nih, afi->dhcp, child) < 0) {
 				ni_error("error parsing dhcp information");
@@ -494,7 +494,7 @@ __ni_netcf_xml_to_static_ifcfg(ni_syntax_t *syntax, ni_handle_t *nih,
  */
 static int
 __ni_netcf_xml_to_dhcp(ni_syntax_t *syntax, ni_handle_t *nih,
-			ni_dhclient_info_t *dhcp, xml_node_t *dhnode)
+			ni_addrconf_request_t *dhcp, xml_node_t *dhnode)
 {
 	xml_node_t *child;
 
@@ -511,10 +511,10 @@ __ni_netcf_xml_to_dhcp(ni_syntax_t *syntax, ni_handle_t *nih,
 	__ni_netcf_get_uint_child(dhnode, "acquire-timeout", &dhcp->acquire_timeout);
 	dhcp->reuse_unexpired = !!xml_node_get_child(dhnode, "reuse-unexpired");
 
-	__ni_netcf_get_string_child(dhnode, "hostname", &dhcp->request.hostname);
-	__ni_netcf_get_string_child(dhnode, "client-id", &dhcp->request.clientid);
-	__ni_netcf_get_string_child(dhnode, "vendor-class", &dhcp->request.vendor_class);
-	__ni_netcf_get_uint_child(dhnode, "lease-time", &dhcp->request.lease_time);
+	__ni_netcf_get_string_child(dhnode, "hostname", &dhcp->dhcp.hostname);
+	__ni_netcf_get_string_child(dhnode, "client-id", &dhcp->dhcp.clientid);
+	__ni_netcf_get_string_child(dhnode, "vendor-class", &dhcp->dhcp.vendor_class);
+	__ni_netcf_get_uint_child(dhnode, "lease-time", &dhcp->dhcp.lease_time);
 
 	if ((child = xml_node_get_child(dhnode, "update")) != NULL) {
 		if (xml_node_get_child(child, "hostname"))
@@ -835,7 +835,7 @@ __ni_netcf_xml_from_vlan(ni_syntax_t *syntax, ni_handle_t *nih, ni_vlan_t *vlan,
  */
 static void
 __ni_netcf_xml_from_dhcp(ni_syntax_t *syntax, ni_handle_t *nih,
-			ni_dhclient_info_t *dhcp, xml_node_t *proto_node)
+			ni_addrconf_request_t *dhcp, xml_node_t *proto_node)
 {
 	xml_node_t *dhnode, *child;
 
@@ -855,14 +855,13 @@ __ni_netcf_xml_from_dhcp(ni_syntax_t *syntax, ni_handle_t *nih,
 	if (dhcp->reuse_unexpired)
 		xml_node_new("reuse-unexpired", dhnode);
 
-	if (dhcp->request.hostname || dhcp->request.clientid
-	 || dhcp->request.vendor_class || dhcp->request.lease_time) {
-		child = xml_node_new("request", dhnode);
+	if (dhcp->dhcp.hostname || dhcp->dhcp.clientid || dhcp->dhcp.vendor_class || dhcp->dhcp.lease_time) {
+		child = xml_node_new("dhcp", dhnode);
 
-		__ni_netcf_add_string_child(child, "hostname", dhcp->request.hostname);
-		__ni_netcf_add_string_child(child, "client-id", dhcp->request.clientid);
-		__ni_netcf_add_string_child(child, "vendor-class", dhcp->request.vendor_class);
-		__ni_netcf_add_uint_child(child, "lease-time", dhcp->request.lease_time);
+		__ni_netcf_add_string_child(child, "hostname", dhcp->dhcp.hostname);
+		__ni_netcf_add_string_child(child, "client-id", dhcp->dhcp.clientid);
+		__ni_netcf_add_string_child(child, "vendor-class", dhcp->dhcp.vendor_class);
+		__ni_netcf_add_uint_child(child, "lease-time", dhcp->dhcp.lease_time);
 	}
 
 	if (dhcp->update != 0) {

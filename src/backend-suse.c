@@ -20,12 +20,12 @@
 static int		__ni_suse_get_interfaces(ni_syntax_t *, ni_handle_t *);
 static int		__ni_suse_put_interfaces(ni_syntax_t *, ni_handle_t *, FILE *);
 static int		__ni_suse_read_routes(ni_route_t **, const char *);
-static ni_dhclient_info_t *__ni_suse_read_dhcp(ni_handle_t *);
+static ni_addrconf_request_t *__ni_suse_read_dhcp(ni_handle_t *);
 static ni_interface_t *	__ni_suse_read_interface(ni_handle_t *, const char *, const char *);
 static int		__ni_suse_sysconfig2ifconfig(ni_interface_t *, ni_sysconfig_t *);
-static int		__ni_suse_sysconfig2dhcp(ni_dhclient_info_t *, ni_sysconfig_t *);
+static int		__ni_suse_sysconfig2dhcp(ni_addrconf_request_t *, ni_sysconfig_t *);
 static int		__ni_suse_ifconfig2sysconfig(ni_interface_t *, ni_sysconfig_t *);
-static int		__ni_suse_dhcp2sysconfig(const ni_dhclient_info_t *, const ni_dhclient_info_t *,
+static int		__ni_suse_dhcp2sysconfig(const ni_addrconf_request_t *, const ni_addrconf_request_t *,
 				ni_sysconfig_t *);
 static int		__ni_suse_bridge2sysconfig(const ni_interface_t *, ni_sysconfig_t *);
 static int		__ni_suse_bonding2sysconfig(const ni_interface_t *, ni_sysconfig_t *);
@@ -596,10 +596,10 @@ try_vlan(ni_interface_t *ifp, ni_sysconfig_t *sc)
 /*
  * Read the global DHCP configuration
  */
-static ni_dhclient_info_t *
+static ni_addrconf_request_t *
 __ni_suse_read_dhcp(ni_handle_t *nih)
 {
-	ni_dhclient_info_t *dhcp = ni_dhclient_info_new();
+	ni_addrconf_request_t *dhcp = ni_addrconf_request_new();
 	ni_sysconfig_t *sc;
 
 	sc = ni_sysconfig_read("/etc/sysconfig/network/dhcp");
@@ -618,18 +618,18 @@ error:
 	if (sc)
 		ni_sysconfig_destroy(sc);
 	if (dhcp)
-		ni_dhclient_info_free(dhcp);
+		ni_addrconf_request_free(dhcp);
 	return NULL;
 }
 
 static int
-__ni_suse_sysconfig2dhcp(ni_dhclient_info_t *dhcp, ni_sysconfig_t *sc)
+__ni_suse_sysconfig2dhcp(ni_addrconf_request_t *dhcp, ni_sysconfig_t *sc)
 {
-	ni_sysconfig_get_string_optional(sc, "DHCLIENT_HOSTNAME_OPTION", &dhcp->request.hostname);
+	ni_sysconfig_get_string_optional(sc, "DHCLIENT_HOSTNAME_OPTION", &dhcp->dhcp.hostname);
 
 	/* Convert to lower-case (AUTO -> auto) */
-	if (dhcp->request.hostname != NULL) {
-		char *s = dhcp->request.hostname;
+	if (dhcp->dhcp.hostname != NULL) {
+		char *s = dhcp->dhcp.hostname;
 
 		for (; *s; ++s)
 			*s = tolower(*s);
@@ -638,9 +638,9 @@ __ni_suse_sysconfig2dhcp(ni_dhclient_info_t *dhcp, ni_sysconfig_t *sc)
 	ni_sysconfig_get_integer_optional(sc, "DHCLIENT_WAIT_AT_BOOT", &dhcp->acquire_timeout);
 	ni_sysconfig_get_boolean_optional(sc, "DHCLIENT_USE_LAST_LEASE", &dhcp->reuse_unexpired);
 
-	ni_sysconfig_get_string_optional(sc, "DHCLIENT_CLIENT_ID", &dhcp->request.clientid);
-	ni_sysconfig_get_string_optional(sc, "DHCLIENT_VENDOR_CLASS_ID", &dhcp->request.vendor_class);
-	ni_sysconfig_get_integer_optional(sc, "DHCLIENT_LEASE_TIME", &dhcp->request.lease_time);
+	ni_sysconfig_get_string_optional(sc, "DHCLIENT_CLIENT_ID", &dhcp->dhcp.clientid);
+	ni_sysconfig_get_string_optional(sc, "DHCLIENT_VENDOR_CLASS_ID", &dhcp->dhcp.vendor_class);
+	ni_sysconfig_get_integer_optional(sc, "DHCLIENT_LEASE_TIME", &dhcp->dhcp.lease_time);
 
 	if (ni_sysconfig_test_boolean(sc, "WRITE_HOSTNAME_TO_HOSTS"))
 		ni_addrconf_set_update(dhcp, NI_ADDRCONF_UPDATE_HOSTSFILE);
@@ -655,7 +655,7 @@ __ni_suse_sysconfig2dhcp(ni_dhclient_info_t *dhcp, ni_sysconfig_t *sc)
 }
 
 int
-__ni_suse_dhcp2sysconfig(const ni_dhclient_info_t *ifdhcp, const ni_dhclient_info_t *sysdhcp,
+__ni_suse_dhcp2sysconfig(const ni_addrconf_request_t *ifdhcp, const ni_addrconf_request_t *sysdhcp,
 				ni_sysconfig_t *sc)
 {
 	if (ifdhcp->acquire_timeout != sysdhcp->acquire_timeout)
@@ -663,14 +663,14 @@ __ni_suse_dhcp2sysconfig(const ni_dhclient_info_t *ifdhcp, const ni_dhclient_inf
 	if (ifdhcp->reuse_unexpired != sysdhcp->reuse_unexpired)
 		ni_sysconfig_set_boolean(sc, "DHCLIENT_USE_LAST_LEASE", ifdhcp->reuse_unexpired);
 
-	if (!xstreq(ifdhcp->request.hostname, sysdhcp->request.hostname))
-		ni_sysconfig_set(sc, "DHCLIENT_HOSTNAME_OPTION", ifdhcp->request.hostname);
-	if (!xstreq(ifdhcp->request.clientid, sysdhcp->request.clientid))
-		ni_sysconfig_set(sc, "DHCLIENT_CLIENT_ID", ifdhcp->request.clientid);
-	if (!xstreq(ifdhcp->request.vendor_class, sysdhcp->request.vendor_class))
-		ni_sysconfig_set(sc, "DHCLIENT_VENDOR_CLASS_ID", ifdhcp->request.vendor_class);
-	if (ifdhcp->request.lease_time != sysdhcp->request.lease_time)
-		ni_sysconfig_set_integer(sc, "DHCLIENT_LEASE_TIME", ifdhcp->request.lease_time);
+	if (!xstreq(ifdhcp->dhcp.hostname, sysdhcp->dhcp.hostname))
+		ni_sysconfig_set(sc, "DHCLIENT_HOSTNAME_OPTION", ifdhcp->dhcp.hostname);
+	if (!xstreq(ifdhcp->dhcp.clientid, sysdhcp->dhcp.clientid))
+		ni_sysconfig_set(sc, "DHCLIENT_CLIENT_ID", ifdhcp->dhcp.clientid);
+	if (!xstreq(ifdhcp->dhcp.vendor_class, sysdhcp->dhcp.vendor_class))
+		ni_sysconfig_set(sc, "DHCLIENT_VENDOR_CLASS_ID", ifdhcp->dhcp.vendor_class);
+	if (ifdhcp->dhcp.lease_time != sysdhcp->dhcp.lease_time)
+		ni_sysconfig_set_integer(sc, "DHCLIENT_LEASE_TIME", ifdhcp->dhcp.lease_time);
 
 	ni_sysconfig_set_boolean(sc, "WRITE_HOSTNAME_TO_HOSTS",
 			ni_addrconf_should_update(ifdhcp, NI_ADDRCONF_UPDATE_HOSTSFILE));
@@ -694,7 +694,7 @@ int
 __ni_suse_put_interfaces(ni_syntax_t *syntax, ni_handle_t *nih, FILE *outfile)
 {
 	ni_string_array_t files = NI_STRING_ARRAY_INIT;
-	ni_dhclient_info_t *dhcp = NULL;
+	ni_addrconf_request_t *dhcp = NULL;
 	const char *base_dir;
 	char pathbuf[PATH_MAX];
 	unsigned int i;
@@ -793,12 +793,12 @@ __ni_suse_put_interfaces(ni_syntax_t *syntax, ni_handle_t *nih, FILE *outfile)
 	ni_string_array_destroy(&files);
 
 	if (dhcp)
-		ni_dhclient_info_free(dhcp);
+		ni_addrconf_request_free(dhcp);
 	return 0;
 
 error:
 	if (dhcp)
-		ni_dhclient_info_free(dhcp);
+		ni_addrconf_request_free(dhcp);
 	return -1;
 }
 
