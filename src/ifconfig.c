@@ -733,6 +733,9 @@ __ni_rtnl_link_up(ni_handle_t *nih, ni_interface_t *ifp, const ni_interface_t *c
 		return -1;
 	}
 
+	/* Refresh from rtnl response? */
+	ifp->flags |= IFF_UP;
+
 	return 0;
 }
 
