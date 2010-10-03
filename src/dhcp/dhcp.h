@@ -34,11 +34,6 @@ typedef struct ni_dhcp_message ni_dhcp_message_t;
 typedef struct ni_dhcp_config ni_dhcp_config_t;
 typedef struct ni_dhcp_config options_t;
 
-typedef struct ni_opaque {
-	unsigned char	data[128];
-	size_t		len;
-} ni_opaque_t;
-
 typedef struct ni_dhcp_device {
 	struct ni_dhcp_device *next;
 
@@ -167,14 +162,5 @@ extern int		ni_dhcp_xml_to_lease(const ni_addrconf_t *,
 				ni_addrconf_lease_t *, const xml_node_t *);
 
 extern void		ni_dhcp_config_free(ni_dhcp_config_t *);
-
-static inline void
-ni_opaque_set(ni_opaque_t *obj, const void *data, size_t len)
-{
-	if (len > sizeof(obj->data))
-		len = sizeof(obj->data);
-	memcpy(obj->data, data, len);
-	obj->len = len;
-}
 
 #endif /* __WICKED_DHCP_PRIVATE_H__ */

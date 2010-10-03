@@ -9,6 +9,7 @@
 
 #include <sys/types.h>
 #include <wicked/types.h>
+#include <string.h>
 
 typedef struct ni_string_array {
 	unsigned int	count;
@@ -42,6 +43,11 @@ typedef struct ni_stringbuf {
 
 #define NI_STRINGBUF_INIT_BUFFER(buf)	{ sizeof(buf), buf, 0 }
 #define NI_STRINGBUF_INIT_DYNAMIC	{ 0, NULL, 1 }
+
+typedef struct ni_opaque {
+	unsigned char	data[128];
+	size_t		len;
+} ni_opaque_t;
 
 extern void		ni_string_free(char **);
 extern void		ni_string_dup(char **, const char *);
@@ -95,6 +101,15 @@ extern const char *	ni_format_int_mapped(unsigned int, const ni_intmap_t *);
 extern const char *	ni_uuid_print(const ni_uuid_t *);
 extern int		ni_uuid_parse(ni_uuid_t *, const char *);
 extern int		ni_uuid_is_null(const ni_uuid_t *);
+
+static inline void
+ni_opaque_set(ni_opaque_t *obj, const void *data, size_t len)
+{
+	if (len > sizeof(obj->data))
+		len = sizeof(obj->data);
+	memcpy(obj->data, data, len);
+	obj->len = len;
+}
 
 #endif /* __WICKED_UTIL_H__ */
 
