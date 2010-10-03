@@ -8,6 +8,8 @@
 
 #include <stdint.h>
 
+typedef struct ni_socket	ni_socket_t;
+
 /*
  * These are used by the XML and XPATH code.
  */

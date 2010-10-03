@@ -7,6 +7,8 @@
 #ifndef __WICKED_H__
 #define __WICKED_H__
 
+#include <wicked/types.h>
+
 enum {
 	NI_REST_OP_GET = 0,
 	NI_REST_OP_PUT,
@@ -49,16 +51,16 @@ extern ni_rest_node_t		ni_rest_root_node;
 
 extern int			ni_wicked_call_direct(ni_wicked_request_t *);
 extern int			ni_wicked_call_indirect(ni_wicked_request_t *);
-extern int			ni_wicked_call_indirect_dgram(ni_wicked_request_t *, FILE *);
-extern int			ni_wicked_send_event(ni_wicked_request_t *, FILE *);
+extern int			ni_wicked_call_indirect_dgram(ni_socket_t *, ni_wicked_request_t *);
+extern int			ni_wicked_send_event(ni_socket_t *, ni_wicked_request_t *);
 extern void			ni_wicked_request_init(ni_wicked_request_t *);
 extern void			ni_wicked_request_destroy(ni_wicked_request_t *);
 extern int			ni_wicked_request_add_option(ni_wicked_request_t *,
 					const char *, const char *);
 extern const char *		ni_wicked_request_get_option(ni_wicked_request_t *,
 					const char *);
-extern int			ni_wicked_request_parse(ni_wicked_request_t *, FILE *);
-extern int			ni_wicked_response_print(ni_wicked_request_t *, int status, FILE *);
+extern int			ni_wicked_request_parse(ni_socket_t *, ni_wicked_request_t *);
+extern int			ni_wicked_response_print(ni_socket_t *, ni_wicked_request_t *, int status);
 
 extern int			ni_wicked_rest_op_parse(const char *);
 extern const char *		ni_wicked_rest_op_print(int);
@@ -71,12 +73,11 @@ typedef struct ni_proxy {
 	struct ni_proxy *	next;
 	char *			name;
 	pid_t			pid;
-	int			sotype;
-	FILE *			sock;
+	ni_socket_t *		sock;
 } ni_proxy_t;
 
 extern ni_proxy_t *		ni_proxy_find(const char *);
-extern ni_proxy_t *		ni_proxy_fork_subprocess(const char *, void (*mainloop)(int));
+extern ni_proxy_t *		ni_proxy_fork_subprocess(const char *, void (*mainloop)(ni_socket_t *));
 extern int			ni_proxy_get_request(const ni_proxy_t *, ni_wicked_request_t *);
 extern void			ni_proxy_stop(ni_proxy_t *);
 extern void			ni_proxy_stop_all(void);

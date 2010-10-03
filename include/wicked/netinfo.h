@@ -363,10 +363,10 @@ extern void		ni_policy_info_destroy(ni_policy_info_t *);
 extern ni_policy_t *	ni_policy_match_event(ni_policy_info_t *, xml_node_t *);
 extern int		ni_policy_apply(const ni_policy_t *, xml_node_t *);
 
-extern int		ni_server_listen(void);
-extern int		ni_server_connect(void);
+extern ni_socket_t *	ni_server_listen(void);
+extern ni_socket_t *	ni_server_connect(void);
 extern int		ni_server_background(void);
-extern void		ni_server_set_event_handler(void (*ifevent_handler)(ni_handle_t *, ni_interface_t *, ni_event_t));
+extern int		ni_server_listen_events(void (*handler)(ni_handle_t *, ni_interface_t *, ni_event_t));
 extern ni_syntax_t *	ni_default_xml_syntax(void);
 extern ni_policy_info_t *ni_default_policies(void);
 
@@ -379,8 +379,6 @@ extern ni_handle_t *	ni_netconfig_open(ni_syntax_t *);
 extern ni_handle_t *	ni_indirect_open(const char *);
 extern void		ni_indirect_set_root(ni_handle_t *, const char *);
 extern ni_handle_t *	ni_dummy_open(void);
-extern ni_handle_t *	ni_rtevent_open(void);
-extern int		ni_rtevent_fd(ni_handle_t *);
 extern int		ni_refresh(ni_handle_t *);
 extern int		ni_create_topology(ni_handle_t *);
 extern void		ni_close(ni_handle_t *);

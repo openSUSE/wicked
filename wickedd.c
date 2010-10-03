@@ -25,7 +25,7 @@
 #include <wicked/logging.h>
 #include <wicked/wicked.h>
 #include <wicked/xml.h>
-#include <wicked/xpath.h>
+#include <wicked/socket.h>
 
 enum {
 	OPT_CONFIGFILE,
@@ -46,14 +46,14 @@ static struct option	options[] = {
 static int		opt_foreground = 0;
 static int		opt_nofork = 0;
 
+static int		wicked_accept_connection(ni_socket_t *, uid_t, gid_t);
 static void		wicked_interface_event(ni_handle_t *, ni_interface_t *, ni_event_t);
-static void		wicked_process_network_restcall(int fd);
+static void		wicked_process_network_restcall(ni_socket_t *);
 
 int
 main(int argc, char **argv)
 {
-	ni_handle_t *listener;
-	int sockfd;
+	ni_socket_t *sock;
 	int c;
 
 	while ((c = getopt_long(argc, argv, "+", options, NULL)) != EOF) {
@@ -103,12 +103,12 @@ main(int argc, char **argv)
 	if (optind != argc)
 		goto usage;
 
-	if ((sockfd = ni_server_listen()) < 0)
+	if ((sock = ni_server_listen()) < 0)
 		ni_fatal("unable to initialize server socket");
+	sock->accept = wicked_accept_connection;
 
 	/* open global RTNL socket to listen for kernel events */
-	ni_server_set_event_handler(wicked_interface_event);
-	if ((listener = ni_rtevent_open()) == NULL)
+	if (ni_server_listen_events(wicked_interface_event) < 0)
 		ni_fatal("unable to initialize netlink listener");
 
 	if (!opt_foreground) {
@@ -117,94 +117,64 @@ main(int argc, char **argv)
 		ni_log_destination_syslog("wickedd");
 	}
 
-	/* We don't care about the exit status of children */
-	signal(SIGCHLD, SIG_IGN);
-
 	while (1) {
-		struct pollfd pfd[3];
-		int nfds = 0;
-
-		pfd[nfds].fd = sockfd;
-		pfd[nfds].events = POLLIN;
-		nfds++;
-
-		pfd[nfds].fd = ni_rtevent_fd(listener);
-		pfd[nfds].events = POLLIN;
-		nfds++;
-
-		if (poll(pfd, nfds, -1) < 0) {
-			if (errno == EINTR)
-				continue;
-			ni_fatal("poll returns error: %m");
-		}
-
-		if (pfd[0].revents & POLLIN) {
-			uid_t uid;
-			gid_t gid;
-			pid_t pid;
-			int fd;
-
-			fd = ni_local_socket_accept(sockfd, &uid, &gid);
-			if (fd < 0)
-				continue;
-			if (uid != 0) {
-				ni_error("refusing attempted connection by user %u", uid);
-				goto drop_connection;
-			}
-
-			ni_trace("accepted connection from uid=%u", uid);
-
-			if (opt_nofork == 0) {
-				/* Now fork the worker child */
-				pid = fork();
-				if (pid < 0) {
-					ni_error("unable to fork worker child: %m");
-					goto drop_connection;
-				}
-
-				if (pid == 0) {
-					close(sockfd);
-					wicked_process_network_restcall(fd);
-					exit(0);
-				}
-			} else {
-				wicked_process_network_restcall(fd);
-			}
-
-drop_connection:
-			close(fd);
-		}
-
-		if (pfd[1].revents & POLLIN) {
-			ni_refresh(listener);
-		}
+		if (ni_socket_wait(-1) < 0)
+			ni_fatal("ni_socket_wait failed");
 	}
 
 	exit(0);
 }
 
+/*
+ * Accept an incoming connection.
+ * Return value of -1 means close the socket.
+ */
+static int
+wicked_accept_connection(ni_socket_t *sock, uid_t uid, gid_t gid)
+{
+	if (uid != 0) {
+		ni_error("refusing attempted connection by user %u", uid);
+		return -1;
+	}
+
+	ni_debug_wicked("accepted connection from uid=%u", uid);
+	if (opt_nofork) {
+		wicked_process_network_restcall(sock);
+	} else {
+		pid_t pid;
+
+		/* Fork the worker child */
+		pid = fork();
+		if (pid < 0) {
+			ni_error("unable to fork worker child: %m");
+			return -1;
+		}
+
+		if (pid == 0) {
+			wicked_process_network_restcall(sock);
+			exit(0);
+		}
+	}
+
+	return -1;
+}
+
 void
-wicked_process_network_restcall(int fd)
+wicked_process_network_restcall(ni_socket_t *sock)
 {
 	ni_wicked_request_t req;
-	FILE *sock;
 	int rv;
-
-	if (!(sock = fdopen(fd, "w+"))) {
-		ni_error("unable to fdopen socket: %m");
-		return;
-	}
 
 	/* Read the request coming in from the socket. */
 	ni_wicked_request_init(&req);
-	rv = ni_wicked_request_parse(&req, sock);
+	rv = ni_wicked_request_parse(sock, &req);
 
 	/* Process the call */
 	if (rv >= 0)
 		rv = ni_wicked_call_direct(&req);
 
 	/* ... and send the response back. */
-	ni_wicked_response_print(&req, rv, sock);
+	ni_wicked_response_print(sock, &req, rv);
 
 	ni_wicked_request_destroy(&req);
 }

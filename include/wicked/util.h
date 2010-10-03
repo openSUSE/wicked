@@ -92,10 +92,6 @@ extern int		ni_parse_int_mapped(const char *, const struct ni_intmap *, unsigned
 extern int		ni_parse_int(const char *, unsigned int *);
 extern const char *	ni_format_int_mapped(unsigned int, const ni_intmap_t *);
 
-extern int		ni_local_socket_listen(const char *, unsigned int);
-extern int		ni_local_socket_connect(const char *);
-extern int		ni_local_socket_accept(int, uid_t *, gid_t *);
-
 extern const char *	ni_uuid_print(const ni_uuid_t *);
 extern int		ni_uuid_parse(ni_uuid_t *, const char *);
 extern int		ni_uuid_is_null(const ni_uuid_t *);

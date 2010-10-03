@@ -6,27 +6,318 @@
 
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/time.h>
+#include <sys/poll.h>
 #include <sys/un.h>
+#include <signal.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdarg.h>
 #include <unistd.h>
 #include <errno.h>
+#include <assert.h>
 
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
+#include <wicked/xml.h>
+#include <wicked/socket.h>
 #include "netinfo_priv.h"
 
+static void			__ni_socket_accept(ni_socket_t *);
+
+static struct ni_socket_ops	__ni_listener_ops;
+static struct ni_socket_ops	__ni_stream_ops;
+static struct ni_socket_ops	__ni_dgram_ops;
+
+static unsigned int		__ni_socket_count;
+static ni_socket_t **		__ni_sockets;
+
+/*
+ * Install a socket so we check it for incoming data.
+ */
+void
+ni_socket_activate(ni_socket_t *sock)
+{
+	if (sock->active)
+		return;
+
+	if ((__ni_socket_count % 16) == 0) {
+		__ni_sockets = realloc(__ni_sockets, (__ni_socket_count + 16) * sizeof(ni_socket_t *));
+		if (__ni_sockets == NULL)
+			ni_fatal("%s: realloc failed", __FUNCTION__);
+	}
+
+	__ni_sockets[__ni_socket_count++] = sock;
+	sock->active = 1;
+}
+
+void
+ni_socket_deactivate(ni_socket_t *sock)
+{
+	unsigned int i;
+
+	if (!sock->active)
+		return;
+
+	for (i = 0; i < __ni_socket_count; ++i) {
+		if (__ni_sockets[i] == sock) {
+			__ni_sockets[i] = NULL;
+			sock->active = 0;
+			return;
+		}
+	}
+
+	ni_error("%s: socket not found", __FUNCTION__);
+}
+
+/*
+ * Wait for incoming data on any of the sockets.
+ */
 int
+ni_socket_wait(long timeout)
+{
+	struct pollfd pfd[__ni_socket_count];
+	struct timeval now, expires;
+	unsigned int i, j;
+
+	/* We don't care about the exit status of children */
+	signal(SIGCHLD, SIG_IGN);
+
+	/* First step - remove all inactive sockets from the array. */
+	for (i = j = 0; i < __ni_socket_count; ++i) {
+		if (__ni_sockets[i])
+			__ni_sockets[j++] = __ni_sockets[i];
+	}
+	__ni_socket_count = j;
+
+	/* Second step - build pollfd array and get timeouts */
+	timerclear(&expires);
+	for (i = 0; i < __ni_socket_count; ++i) {
+		ni_socket_t *sock = __ni_sockets[i];
+		struct timeval socket_expires;
+
+		timerclear(&socket_expires);
+		if (sock->get_timeout && sock->get_timeout(sock, &socket_expires) == 0) {
+			if (!timerisset(&expires) || timercmp(&socket_expires, &expires, <))
+				expires = socket_expires;
+		}
+
+		pfd[i].fd = sock->__fd;
+		pfd[i].events = POLLIN;
+	}
+
+	gettimeofday(&now, NULL);
+	if (timerisset(&expires)) {
+		struct timeval delta;
+		long delta_ms;
+
+		if (timercmp(&expires, &now, <)) {
+			timeout = 0;
+		} else {
+			timersub(&expires, &now, &delta);
+			delta_ms = 1000 * delta.tv_sec + delta.tv_usec / 1000;
+			if (timeout < 0 || delta_ms < timeout)
+				timeout = delta_ms;
+		}
+	}
+
+	if (poll(pfd, __ni_socket_count, timeout) < 0) {
+		if (errno == EINTR)
+			return 0;
+		ni_error("poll returns error: %m");
+		return -1;
+	}
+
+	for (i = 0; i < __ni_socket_count; ++i) {
+		ni_socket_t *sock = __ni_sockets[i];
+
+		if (sock && (pfd[i].revents & POLLIN))
+			sock->data_ready(sock);
+	}
+
+	gettimeofday(&now, NULL);
+	for (i = 0; i < __ni_socket_count; ++i) {
+		ni_socket_t *sock = __ni_sockets[i];
+
+		if (sock && sock->check_timeout)
+			sock->check_timeout(sock, &now);
+	}
+
+	return 0;
+}
+
+/*
+ * Wrap a file descriptor in a ni_socket object
+ */
+static ni_socket_t *
+__ni_socket_wrap(int fd, int sotype, const struct ni_socket_ops *iops)
+{
+	ni_socket_t *socket;
+
+	socket = calloc(1, sizeof(*socket));
+	socket->__fd = fd;
+	socket->stream = (sotype == SOCK_STREAM)? 1 : 0;
+	socket->iops = iops;
+
+	if (sotype == SOCK_STREAM) {
+		socket->wfile = fdopen(dup(fd), "w");
+		socket->rfile = fdopen(dup(fd), "r");
+	}
+
+	return socket;
+}
+
+ni_socket_t *
+ni_socket_wrap(int fd, int sotype)
+{
+	ni_socket_t *sock;
+
+	switch (sotype) {
+	case SOCK_DGRAM:
+		sock = __ni_socket_wrap(fd, sotype, &__ni_dgram_ops);
+		break;
+	case SOCK_STREAM:
+		sock = __ni_socket_wrap(fd, sotype, &__ni_stream_ops);
+		break;
+	default:
+		ni_error("ni_socket_wrap: unsupported socket type %d", sotype);
+		return NULL;
+	}
+
+	return sock;
+}
+
+/*
+ * Close socket
+ */
+void
+ni_socket_close(ni_socket_t *sock)
+{
+	if (sock->__fd)
+		close(sock->__fd);
+	if (sock->rfile)
+		fclose(sock->rfile);
+	if (sock->wfile)
+		fclose(sock->wfile);
+	if (sock->dgram.rbuf)
+		free(sock->dgram.rbuf);
+	if (sock->dgram.wbuf)
+		free(sock->dgram.wbuf);
+	ni_socket_deactivate(sock);
+	free(sock);
+}
+
+/*
+ * Begin send buffering
+ */
+static inline int
+ni_socket_begin_send(ni_socket_t *sock)
+{
+	if (sock->wfile)
+		return 0;
+	if (!sock->iops || !sock->iops->begin_buffering)
+		return -1;
+	return sock->iops->begin_buffering(sock);
+}
+
+/*
+ * Write data to socket, printf style
+ */
+int
+ni_socket_printf(ni_socket_t *sock, const char *fmt, ...)
+{
+	va_list ap;
+
+	if (ni_socket_begin_send(sock) < 0)
+		return -1;
+
+	va_start(ap, fmt);
+	vfprintf(sock->wfile, fmt, ap);
+	va_end(ap);
+
+	if (ferror(sock->wfile)) {
+		ni_error("send error: %m");
+		return -1;
+	}
+	return 0;
+}
+
+/*
+ * Send XML to socket
+ */
+int
+ni_socket_send_xml(ni_socket_t *sock, const xml_node_t *node)
+{
+	if (ni_socket_begin_send(sock) < 0)
+		return -1;
+
+	xml_node_print(node, sock->wfile);
+
+	if (ferror(sock->wfile)) {
+		ni_error("send error: %m");
+		return -1;
+	}
+	return 0;
+}
+
+/*
+ * Receive line of text from socket
+ */
+char *
+ni_socket_gets(ni_socket_t *sock, char *buffer, size_t size)
+{
+	if (!sock->rfile)
+		return NULL;
+	return fgets(buffer, size, sock->rfile);
+}
+
+xml_node_t *
+ni_socket_recv_xml(ni_socket_t *sock)
+{
+	if (!sock->rfile)
+		return NULL;
+	return xml_node_scan(sock->rfile);
+}
+
+/*
+ * Push data to socket
+ */
+int
+ni_socket_push(ni_socket_t *sock)
+{
+	if (sock->wfile)
+		fflush(sock->wfile);
+	if (sock->iops && sock->iops->push)
+		return sock->iops->push(sock);
+	return 0;
+}
+
+/*
+ * Pull next message from socket
+ */
+int
+ni_socket_pull(ni_socket_t *sock)
+{
+	if (sock->iops && sock->iops->pull)
+		return sock->iops->pull(sock);
+	return 0;
+}
+
+/*
+ * Create a listener socket
+ */
+ni_socket_t *
 ni_local_socket_listen(const char *path, unsigned int permissions)
 {
+	ni_socket_t *sock;
 	int fd, bound = 0;
 
 	permissions &= 0777;
 	fd = socket(AF_LOCAL, SOCK_STREAM, 0);
 	if (fd < 0) {
 		error("cannot open AF_LOCAL socket: %m");
-		return -1;
+		return NULL;
 	}
 
 	if (path) {
@@ -35,7 +326,7 @@ ni_local_socket_listen(const char *path, unsigned int permissions)
 
 		if (len + 1 > sizeof(sun.sun_path)) {
 			error("can't set AF_LOCAL address: path too long!");
-			return -1;
+			return NULL;
 		}
 
 		memset(&sun, 0, sizeof(sun));
@@ -60,29 +351,34 @@ ni_local_socket_listen(const char *path, unsigned int permissions)
 		error("cannot listen on local socket: %m");
 		goto failed;
 	}
-	return fd;
+
+	sock = __ni_socket_wrap(fd, SOCK_STREAM, &__ni_listener_ops);
+	sock->data_ready = __ni_socket_accept;
+
+	ni_socket_activate(sock);
+	return sock;
 
 failed:
 	if (bound && path)
 		unlink(path);
 	close(fd);
-	return -1;
+	return NULL;
 }
 
-int
+ni_socket_t *
 ni_local_socket_connect(const char *path)
 {
 	int fd;
 
 	if (!path) {
 		error("cannot connect to server - no server socket path specified");
-		return -1;
+		return NULL;
 	}
 
 	fd = socket(AF_LOCAL, SOCK_STREAM, 0);
 	if (fd < 0) {
 		error("cannot open AF_LOCAL socket: %m");
-		return -1;
+		return NULL;
 	}
 
 	{
@@ -91,7 +387,7 @@ ni_local_socket_connect(const char *path)
 
 		if (len + 1 > sizeof(sun.sun_path)) {
 			error("can't set AF_LOCAL address: path too long!");
-			return -1;
+			goto failed;
 		}
 
 		memset(&sun, 0, sizeof(sun));
@@ -104,32 +400,129 @@ ni_local_socket_connect(const char *path)
 		}
 	}
 
-	return fd;
+	return ni_socket_wrap(fd, SOCK_STREAM);
 
 failed:
 	close(fd);
-	return -1;
+	return NULL;
 }
 
-int
-ni_local_socket_accept(int master, uid_t *uidp, gid_t *gidp)
+void
+__ni_socket_accept(ni_socket_t *master)
 {
+	ni_socket_t *sock;
 	struct ucred cred;
 	socklen_t clen;
 	int fd;
 
-	fd = accept(master, NULL, NULL);
+	fd = accept(master->__fd, NULL, NULL);
 	if (fd < 0)
-		return -1;
+		return;
 
 	clen = sizeof(cred);
 	if (getsockopt(fd, SOL_SOCKET, SO_PEERCRED, &cred, &clen) < 0) {
 		error("failed to get client credentials: %m");
+		close(fd);
+		return;
+	}
+
+	sock = __ni_socket_wrap(fd, SOCK_STREAM, &__ni_stream_ops);
+	if (master->accept && master->accept(sock, cred.uid, cred.gid) < 0)
+		ni_socket_close(sock);
+	else if (master->active)
+		ni_socket_activate(sock);
+}
+
+/*
+ * Create a local socket pair
+ */
+int
+ni_local_socket_pair(ni_socket_t **p1, ni_socket_t **p2)
+{
+	int fd[2];
+
+	if (socketpair(AF_LOCAL, SOCK_DGRAM, 0, fd) < 0) {
+		ni_error("unable to create AF_LOCAL socketpair: %m");
 		return -1;
 	}
 
-	*uidp = cred.uid;
-	*gidp = cred.gid;
-
-	return fd;
+	*p1 = ni_socket_wrap(fd[0], SOCK_DGRAM);
+	*p2 = ni_socket_wrap(fd[1], SOCK_DGRAM);
+	return 0;
 }
+
+/*
+ * Datagram sockets
+ */
+static int
+__ni_socket_dgram_begin_buffering(ni_socket_t *sock)
+{
+	if (sock->wfile == NULL) {
+		if (sock->dgram.wbuf)
+			free(sock->dgram.wbuf);
+		sock->dgram.wbuf = NULL;
+		sock->dgram.wsize = 0;
+
+		sock->wfile = open_memstream(&sock->dgram.wbuf, &sock->dgram.wsize);
+	}
+	return 0;
+}
+
+static int
+__ni_socket_dgram_push(ni_socket_t *sock)
+{
+	if (sock->wfile == NULL)
+		return 0;
+
+	fclose(sock->wfile);
+	sock->wfile = NULL;
+
+	if (send(sock->__fd, sock->dgram.wbuf, sock->dgram.wsize, 0) < 0) {
+		ni_error("datagram send failed: %m");
+		return -1;
+	}
+
+	return 0;
+}
+
+static int
+__ni_socket_dgram_pull(ni_socket_t *sock)
+{
+	int count;
+
+	if (sock->rfile)
+		fclose(sock->rfile);
+
+	if (sock->dgram.rbuf == NULL)
+		sock->dgram.rbuf = malloc(65536);
+
+	count = recv(sock->__fd, sock->dgram.rbuf, 65536, 0);
+	if (count < 0) {
+		ni_error("datagram recv failed: %m");
+		return -1;
+	}
+
+	sock->dgram.rsize = count;
+	sock->rfile = fmemopen(sock->dgram.rbuf, sock->dgram.rsize, "r");
+	return 0;
+}
+
+static struct ni_socket_ops __ni_dgram_ops = {
+	.begin_buffering = __ni_socket_dgram_begin_buffering,
+	.push = __ni_socket_dgram_pull,
+	.push = __ni_socket_dgram_push,
+};
+
+/*
+ * Stream sockets
+ */
+static int
+__ni_socket_stream_push(ni_socket_t *sock)
+{
+	shutdown(sock->__fd, SHUT_WR);
+	return 0;
+}
+
+static struct ni_socket_ops __ni_stream_ops = {
+	.push = __ni_socket_stream_push,
+};

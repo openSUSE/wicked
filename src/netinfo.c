@@ -12,6 +12,7 @@
 #include <assert.h>
 #include <ctype.h>
 #include <net/if_arp.h>
+#include <wicked/socket.h>
 #include "netinfo_priv.h"
 #include "config.h"
 
@@ -106,33 +107,25 @@ ni_server_background(void)
 	return ni_daemonize(fsloc->path, fsloc->mode);
 }
 
-int
+ni_socket_t *
 ni_server_listen(void)
 {
 	ni_config_fslocation_t *fsloc = &ni_global.config->socket;
-	int sockfd;
 
 	__ni_assert_initialized();
 	if (fsloc->path == NULL) {
 		error("no socket path set for server socket");
-		return -1;
+		return NULL;
 	}
 
-	sockfd = ni_local_socket_listen(fsloc->path, fsloc->mode);
-	return sockfd;
+	return ni_local_socket_listen(fsloc->path, fsloc->mode);
 }
 
-int
+ni_socket_t *
 ni_server_connect(void)
 {
 	__ni_assert_initialized();
 	return ni_local_socket_connect(ni_global.config->socket.path);
-}
-
-void
-ni_server_set_event_handler(void (*ifevent_handler)(ni_handle_t *, ni_interface_t *, ni_event_t))
-{
-	ni_global.interface_event = ifevent_handler;
 }
 
 ni_handle_t *

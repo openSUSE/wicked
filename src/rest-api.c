@@ -20,6 +20,7 @@
 #include <wicked/xml.h>
 #include <wicked/xpath.h>
 #include "netinfo_priv.h"
+#include <wicked/socket.h>
 
 
 static ni_rest_node_t *	ni_rest_node_lookup(ni_rest_node_t *, const char *, const char **);
@@ -119,14 +120,14 @@ ni_wicked_rest_op_print(int cmd)
  * Parse a WICKED request, usually reading from a socket.
  */
 int
-ni_wicked_request_parse(ni_wicked_request_t *req, FILE *in)
+ni_wicked_request_parse(ni_socket_t *sock, ni_wicked_request_t *req)
 {
 	char buffer[1024];
 	char *cmd, *s;
 
 	ni_wicked_request_init(req);
 
-	if (fgets(buffer, sizeof(buffer), in) == NULL) {
+	if (ni_socket_gets(sock, buffer, sizeof(buffer)) == NULL) {
 		werror(req, "unable to read request from socket");
 		return - 1;
 	}
@@ -154,7 +155,7 @@ ni_wicked_request_parse(ni_wicked_request_t *req, FILE *in)
 	}
 
 	/* Get options */
-	while (fgets(buffer, sizeof(buffer), in) != NULL) {
+	while (ni_socket_gets(sock, buffer, sizeof(buffer)) != NULL) {
 		int len = strlen(buffer);
 		char *s;
 
@@ -173,7 +174,7 @@ ni_wicked_request_parse(ni_wicked_request_t *req, FILE *in)
 	}
 
 	/* Now get the XML document, if any */
-	req->xml_in = xml_node_scan(in);
+	req->xml_in = ni_socket_recv_xml(sock);
 	if (req->xml_in == NULL) {
 		werror(req, "unable to parse xml document");
 		return -1;
@@ -186,20 +187,20 @@ ni_wicked_request_parse(ni_wicked_request_t *req, FILE *in)
  * Print the response to a WICKED REST call
  */
 int
-ni_wicked_response_print(ni_wicked_request_t *req, int status, FILE *fp)
+ni_wicked_response_print(ni_socket_t *sock, ni_wicked_request_t *req, int status)
 {
 	if (status >= 0) {
-		fprintf(fp, "OK\n");
+		ni_socket_printf(sock, "OK\n");
 		if (req->xml_out)
-			xml_node_print(req->xml_out, fp);
+			ni_socket_send_xml(sock, req->xml_out);
 	} else {
 		if (req->error_msg == NULL) {
-			fprintf(fp, "ERROR: unable to process request\n");
+			ni_socket_printf(sock, "ERROR: unable to process request\n");
 		} else {
-			fprintf(fp, "ERROR: %s\n", req->error_msg);
+			ni_socket_printf(sock, "ERROR: %s\n", req->error_msg);
 		}
 	}
-	fflush(fp);
+	ni_socket_push(sock);
 	return 0;
 }
 
@@ -208,51 +209,33 @@ ni_wicked_response_print(ni_wicked_request_t *req, int status, FILE *fp)
  * This is what wicked clients usually call.
  */
 int
-__ni_wicked_call_indirect(ni_wicked_request_t *req, FILE *sock, int sotype, int expect_response)
+__ni_wicked_call_indirect(ni_socket_t *sock, ni_wicked_request_t *req, int expect_response)
 {
-	char dgram[65536];
 	char respbuf[256];
 	unsigned int i;
 
-	fprintf(sock, "%s %s\n", ni_wicked_rest_op_print(req->cmd), req->path);
+	ni_socket_printf(sock, "%s %s\n", ni_wicked_rest_op_print(req->cmd), req->path);
 	for (i = 0; i < req->options.count; ++i) {
 		ni_var_t *var = &req->options.data[i];
 
-		fprintf(sock, "%s: %s\n", var->name, var->value);
+		ni_socket_printf(sock, "%s: %s\n", var->name, var->value);
 	}
-	fprintf(sock, "\n");
+	ni_socket_printf(sock, "\n");
 
 	if (req->xml_in) {
-		if (xml_node_print(req->xml_in, sock) < 0) {
+		if (ni_socket_send_xml(sock, req->xml_in) < 0) {
 			werror(req, "write error on socket: %m");
 			return -1;
 		}
 	}
 
-	fflush(sock);
+	ni_socket_push(sock);
 
 	if (!expect_response)
 		return 0;
 
-	if (sotype == SOCK_STREAM) {
-		/* Tell the server we're done sending */
-		shutdown(fileno(sock), SHUT_WR);
-	} else {
-		/* Wait for the datagram response, copy it to a buffer
-		 * and substitute a memstream for the @sock file. */
-		int count;
-
-		count = read(fileno(sock), dgram, sizeof(dgram));
-		if (count < 0)
-			goto report_error;
-		if (count == 0)
-			goto report_eof;
-
-		sock = fmemopen(dgram, count, "r");
-	}
-
-	if (fgets(respbuf, sizeof(respbuf), sock) == NULL) {
-		if (ferror(sock))
+	if (ni_socket_gets(sock, respbuf, sizeof(respbuf)) == NULL) {
+		if (sock->error)
 			goto report_error;
 		goto report_eof;
 	}
@@ -262,7 +245,7 @@ __ni_wicked_call_indirect(ni_wicked_request_t *req, FILE *sock, int sotype, int 
 		return -1;
 	}
 
-	if ((req->xml_out = xml_node_scan(sock)) == NULL) {
+	if ((req->xml_out = ni_socket_recv_xml(sock)) == NULL) {
 		werror(req, "error receiving response from server: %m");
 		return -1;
 	}
@@ -281,33 +264,28 @@ report_eof:
 int
 ni_wicked_call_indirect(ni_wicked_request_t *req)
 {
-	FILE *sock;
-	int fd, rv;
+	ni_socket_t *sock;
+	int rv;
 
-	fd = ni_server_connect();
-	if (fd < 0)
+	sock = ni_server_connect();
+	if (sock == NULL)
 		return -1;
 
-	if (!(sock = fdopen(fd, "w+"))) {
-		werror(req, "cannot fdopen local socket: %m");
-		return -1;
-	}
-
-	rv = __ni_wicked_call_indirect(req, sock, SOCK_STREAM, 1);
-	fclose(sock);
+	rv = __ni_wicked_call_indirect(sock, req, 1);
+	ni_socket_close(sock);
 	return rv;
 }
 
 int
-ni_wicked_call_indirect_dgram(ni_wicked_request_t *req, FILE *sock)
+ni_wicked_call_indirect_dgram(ni_socket_t *sock, ni_wicked_request_t *req)
 {
-	return __ni_wicked_call_indirect(req, sock, SOCK_DGRAM, 1);
+	return __ni_wicked_call_indirect(sock, req, 1);
 }
 
 int
-ni_wicked_send_event(ni_wicked_request_t *req, FILE *sock)
+ni_wicked_send_event(ni_socket_t *sock, ni_wicked_request_t *req)
 {
-	return __ni_wicked_call_indirect(req, sock, SOCK_DGRAM, 0);
+	return __ni_wicked_call_indirect(sock, req, 0);
 }
 
 /*
@@ -329,20 +307,20 @@ ni_proxy_find(const char *name)
 }
 
 ni_proxy_t *
-ni_proxy_fork_subprocess(const char *name, void (*mainloop)(int))
+ni_proxy_fork_subprocess(const char *name, void (*mainloop)(ni_socket_t *))
 {
+	ni_socket_t *sock_parent, *sock_child;
 	ni_proxy_t *proxy;
 	pid_t pid;
-	int fd[2];
 
-	if (socketpair(AF_LOCAL, SOCK_DGRAM, 0, fd) < 0) {
-		ni_error("unable to create AF_LOCAL socketpair: %m");
+	if (ni_local_socket_pair(&sock_parent, &sock_child) < 0)
 		return NULL;
-	}
 
 	pid = fork();
 	if (pid < 0) {
 		ni_error("unable to fork proxy subprocess: %m");
+		ni_socket_close(sock_parent);
+		ni_socket_close(sock_child);
 		return NULL;
 	}
 
@@ -350,13 +328,10 @@ ni_proxy_fork_subprocess(const char *name, void (*mainloop)(int))
 	if (pid != 0) {
 		proxy = calloc(1, sizeof(*proxy));
 		ni_string_dup(&proxy->name, name);
-
-		proxy->sotype = SOCK_DGRAM;
-		proxy->sock = fdopen(fd[0], "w+");
-		setvbuf(proxy->sock, NULL, _IOFBF, 8192);
-		close(fd[1]);
-
 		proxy->pid = pid;
+
+		proxy->sock = sock_child;
+		ni_socket_close(sock_parent);
 
 		proxy->next = all_proxies;
 		all_proxies = proxy;
@@ -364,8 +339,8 @@ ni_proxy_fork_subprocess(const char *name, void (*mainloop)(int))
 	}
 
 	/* Parent */
-	close(fd[0]);
-	mainloop(fd[1]);
+	ni_socket_close(sock_child);
+	mainloop(sock_parent);
 
 	exit(1);
 
@@ -378,7 +353,7 @@ static void
 __ni_proxy_free(ni_proxy_t *proxy)
 {
 	if (proxy->sock >= 0)
-		fclose(proxy->sock);
+		ni_socket_close(proxy->sock);
 	if (proxy->pid)
 		kill(proxy->pid, SIGTERM);
 	ni_string_free(&proxy->name);
@@ -416,6 +391,7 @@ ni_proxy_get_request(const ni_proxy_t *proxy, ni_wicked_request_t *req)
 {
 	int rv;
 
+#if  0
 	if (proxy->sotype == SOCK_DGRAM) {
 		char dgram[65536];
 		int r;
@@ -437,8 +413,10 @@ ni_proxy_get_request(const ni_proxy_t *proxy, ni_wicked_request_t *req)
 		/* Parse the request */
 		rv = ni_wicked_request_parse(req, fp);
 		fclose(fp);
-	} else {
-		rv = ni_wicked_request_parse(req, proxy->sock);
+	} else
+#endif
+	{
+		rv = ni_wicked_request_parse(proxy->sock, req);
 	}
 
 	return rv;

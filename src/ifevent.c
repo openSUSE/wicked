@@ -11,6 +11,7 @@
 #include <string.h>
 
 #include <wicked/netinfo.h>
+#include <wicked/socket.h>
 
 #include "netinfo_priv.h"
 #include "sysfs.h"
@@ -24,9 +25,10 @@ static int	__ni_rtevent_dellink(ni_handle_t *, const struct sockaddr_nl *, struc
 /*
  * Receive events from netlink socket and generate events.
  */
-int
-__ni_rtevent_refresh_all(ni_handle_t *nih)
+void
+__ni_rtevent_read(ni_socket_t *sock)
 {
+	ni_handle_t *nih = sock->user_data;
 	struct nlmsghdr *h;
 	struct sockaddr_nl nladdr;
 	struct iovec iov;
@@ -48,18 +50,20 @@ __ni_rtevent_refresh_all(ni_handle_t *nih)
 		iov.iov_len = sizeof(buf);
 		int status;
 
-		status = recvmsg(nih->rth.fd, &msg, 0);
+		status = recvmsg(sock->__fd, &msg, 0);
 		if (status < 0) {
 			if (errno == EINTR || errno == EAGAIN)
-				return 0;
+				return;
 
 			ni_error("netlink receive error: %m");
-			return -1;
+			ni_error("shutting down event listener");
+			ni_socket_close(sock);
+			return;
 		}
 
 		if (status == 0) {
 			ni_warn("EOF on netlink");
-			return 0;
+			return;
 		}
 
 		if (msg.msg_namelen != sizeof(nladdr)) {
@@ -234,37 +238,14 @@ __ni_rtevent_dellink(ni_handle_t *nih, const struct sockaddr_nl *nladdr, struct 
 	return 0;
 }
 
-/*
- * Close event handle
- */
-void
-__ni_rtevent_close(ni_handle_t *nih)
-{
-	if (nih->rth.fd >= 0) {
-		rtnl_close(&nih->rth);
-		nih->rth.fd = -1;
-	}
-
-	if (nih->iocfd >= 0) {
-		close(nih->iocfd);
-		nih->iocfd = -1;
-	}
-}
-
-static struct ni_ops ni_rtevent_ops = {
-	.refresh		= __ni_rtevent_refresh_all,
-	.close			= __ni_rtevent_close,
-};
-
 #define nl_mgrp(x)	(1 << ((x) - 1))
 
-ni_handle_t *
-ni_rtevent_open(void)
+int
+ni_server_listen_events(void (*ifevent_handler)(ni_handle_t *, ni_interface_t *, ni_event_t))
 {
+	struct rtnl_handle rth;
+	ni_socket_t *sock;
 	uint32_t groups;
-	ni_handle_t *nih;
-
-	nih = __ni_handle_new(sizeof(*nih), &ni_rtevent_ops);
 
 	groups = nl_mgrp(RTNLGRP_LINK) |
 		 nl_mgrp(RTNLGRP_IPV4_IFADDR) |
@@ -272,14 +253,20 @@ ni_rtevent_open(void)
 		 nl_mgrp(RTNLGRP_IPV4_ROUTE) |
 		 nl_mgrp(RTNLGRP_IPV6_ROUTE) |
 		 nl_mgrp(RTNLGRP_IPV6_PREFIX);
-	if (rtnl_open(&nih->rth, groups) < 0) {
+	if (rtnl_open(&rth, groups) < 0) {
 		error("Cannot open rtnetlink: %m");
-		ni_close(nih);
-		return NULL;
+		return -1;
 	}
 
-	fcntl(nih->rth.fd, F_SETFL, O_NONBLOCK);
-	return nih;
+	fcntl(rth.fd, F_SETFL, O_NONBLOCK);
+
+	sock = ni_socket_wrap(rth.fd, SOCK_DGRAM);
+	sock->user_data = ni_dummy_open();
+	sock->data_ready = __ni_rtevent_read;
+	ni_socket_activate(sock);
+
+	ni_global.interface_event = ifevent_handler;
+	return 0;
 }
 
 int
