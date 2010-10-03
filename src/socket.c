@@ -155,8 +155,15 @@ ni_socket_wait(long timeout)
 			sock->active = 0;
 			sock->error = 1;
 		} else
-		if (pfd[i].revents & POLLIN)
-			sock->data_ready(sock);
+		if (pfd[i].revents & POLLIN) {
+			if (sock->data_ready == NULL) {
+				ni_error("socket %d has no data_ready callback", sock->__fd);
+				__ni_sockets[i] = NULL;
+				sock->active = 0;
+			} else {
+				sock->data_ready(sock);
+			}
+		}
 	}
 
 	gettimeofday(&now, NULL);
