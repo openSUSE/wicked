@@ -160,7 +160,7 @@ __ni_system_interface_update_lease(ni_handle_t *nih, ni_interface_t *ifp, ni_add
 	ni_route_t *rp;
 
 	ni_debug_ifconfig("%s: received new lease (state %s)", ifp->name,
-			ni_addrconf_lease_to_name(lease->state));
+			ni_addrconf_state_to_name(lease->state));
 
 	if ((res = __ni_system_refresh_interface(nih, ifp)) < 0)
 		return -1;

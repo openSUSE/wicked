@@ -102,7 +102,8 @@ struct ni_dhcp_config {
 	char		classid[48];
 	int		fqdn;
 
-	ni_opaque_t	clientid;
+	char		client_id[256];
+	ni_opaque_t	raw_client_id;
 	ni_opaque_t	userclass;
 
 	unsigned int	request_timeout;
@@ -155,6 +156,7 @@ extern int		ni_dhcp_device_send_message(ni_dhcp_device_t *, unsigned int, const 
 extern void		ni_dhcp_device_arm_retransmit(ni_dhcp_device_t *dev);
 extern void		ni_dhcp_device_disarm_retransmit(ni_dhcp_device_t *dev);
 extern void		ni_dhcp_device_retransmit(ni_dhcp_device_t *);
+extern void		ni_dhcp_parse_client_id(ni_opaque_t *, int, const char *);
 
 extern int		ni_dhcp_xml_from_lease(const ni_addrconf_t *,
 				const ni_addrconf_lease_t *, xml_node_t *);

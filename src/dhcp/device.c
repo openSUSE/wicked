@@ -174,29 +174,18 @@ ni_dhcp_device_reconfigure(ni_dhcp_device_t *dev, const ni_interface_t *ifp)
 
 	config = calloc(1, sizeof(*config));
 	config->resend_timeout = NI_DHCP_RESEND_TIMEOUT_INIT;
-	config->request_timeout = info->lease.timeout?: NI_DHCP_REQUEST_TIMEOUT;
+	config->request_timeout = info->acquire_timeout?: NI_DHCP_REQUEST_TIMEOUT;
 
-	if (info->request.hostname
-	 && strcmp(config->hostname, info->request.hostname)) {
-		strncpy(config->hostname, info->request.hostname,
-				sizeof(config->hostname) - 1);
-		changed = 1;
-	}
+	if (info->request.hostname)
+		strncpy(config->hostname, info->request.hostname, sizeof(config->hostname) - 1);
+
 	if (info->request.clientid) {
-		ni_hwaddr_t hwaddr;
-
-		/* Check if it's a hardware address */
-		if (ni_link_address_parse(&hwaddr, ifp->type, info->request.clientid) == 0) {
-			ni_opaque_set(&config->clientid, hwaddr.data, hwaddr.len);
-		} else {
-			/* nope, use as-is */
-			unsigned int len = strlen(info->request.clientid) + 1;
-
-			ni_opaque_set(&config->clientid, info->request.clientid, len);
-		}
+		strncpy(config->client_id, info->request.clientid, sizeof(config->client_id)-1);
+		ni_dhcp_parse_client_id(&config->raw_client_id, ifp->type, info->request.clientid);
 	} else {
 		/* Set client ID from interface hwaddr */
-		ni_opaque_set(&config->clientid, dev->system.hwaddr.data, dev->system.hwaddr.len);
+		strncpy(config->client_id, ni_link_address_print(&dev->system.hwaddr), sizeof(config->client_id)-1);
+		ni_opaque_set(&config->raw_client_id, dev->system.hwaddr.data, dev->system.hwaddr.len);
 	}
 
 	classid = ni_global.config->addrconf.dhcp.vendor_class;
@@ -204,21 +193,22 @@ ni_dhcp_device_reconfigure(ni_dhcp_device_t *dev, const ni_interface_t *ifp)
 		strncpy(config->classid, classid, sizeof(config->classid) - 1);
 
 	config->flags = DHCP_DO_ARP | DHCP_DO_CSR | DHCP_DO_MSCSR;
-	if (info->update.hostname)
+	if (ni_addrconf_should_update(info, NI_ADDRCONF_UPDATE_HOSTNAME))
 		config->flags |= DHCP_DO_HOSTNAME;
-	if (info->update.resolver)
+	if (ni_addrconf_should_update(info, NI_ADDRCONF_UPDATE_RESOLVER))
 		config->flags |= DHCP_DO_RESOLVER;
-	if (info->update.nis_servers)
+	if (ni_addrconf_should_update(info, NI_ADDRCONF_UPDATE_NIS))
 		config->flags |= DHCP_DO_NIS;
-	if (info->update.ntp_servers)
+	if (ni_addrconf_should_update(info, NI_ADDRCONF_UPDATE_NTP))
 		config->flags |= DHCP_DO_NTP;
-	if (info->update.default_route)
+	if (ni_addrconf_should_update(info, NI_ADDRCONF_UPDATE_DEFAULT_ROUTE))
 		config->flags |= DHCP_DO_GATEWAY;
 
 	if (dev->config == NULL || memcmp(dev->config, config, sizeof(*config)) != 0) {
 		if (dev->config)
 			free(dev->config);
 		dev->config = config;
+		changed = 1;
 	} else {
 		free(config);
 	}
@@ -464,4 +454,23 @@ ni_dhcp_device_disarm_retransmit(ni_dhcp_device_t *dev)
 
 	/* Drop the message buffer */
 	ni_dhcp_device_drop_buffer(dev);
+}
+
+/*
+ * Parse a client id
+ */
+void
+ni_dhcp_parse_client_id(ni_opaque_t *raw, int iftype, const char *cooked)
+{
+	ni_hwaddr_t hwaddr;
+
+	/* Check if it's a hardware address */
+	if (ni_link_address_parse(&hwaddr, iftype, cooked) == 0) {
+		ni_opaque_set(raw, hwaddr.data, hwaddr.len);
+	} else {
+		/* nope, use as-is */
+		unsigned int len = strlen(cooked) + 1;
+
+		ni_opaque_set(raw, cooked, len);
+	}
 }

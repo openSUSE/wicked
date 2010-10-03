@@ -281,7 +281,7 @@ ni_addrconf_name_to_state(const char *name)
 }
 
 const char *
-ni_addrconf_lease_to_name(unsigned int type)
+ni_addrconf_state_to_name(unsigned int type)
 {
 	return ni_format_int_mapped(type, __addrconf_states);
 }
@@ -1075,7 +1075,8 @@ ni_dhclient_info_new(void)
 	dhcp = calloc(1, sizeof(*dhcp));
 
 	/* Set defaults */
-	dhcp->lease.timeout = DHCP_TIMEOUT_INFINITE;
+	dhcp->acquire_timeout = 0;	/* means infinite */
+	dhcp->reuse_unexpired = 1;
 
 	return dhcp;
 }

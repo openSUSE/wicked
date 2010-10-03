@@ -60,8 +60,10 @@ static int		__ni_netcf_set_af(const char *, int *);
 static const char *	__ni_netcf_get_boolean(int val);
 static int		__ni_netcf_get_boolean_attr(xml_node_t *, const char *, int *);
 static void		__ni_netcf_add_string_child(xml_node_t *, const char *, const char *);
+static void		__ni_netcf_add_uint_child(xml_node_t *, const char *, unsigned int);
 static void		__ni_netcf_add_string_array_child(xml_node_t *, const char *, const ni_string_array_t *);
 static void		__ni_netcf_get_string_child(const xml_node_t *, const char *, char **);
+static void		__ni_netcf_get_uint_child(const xml_node_t *, const char *, unsigned int *);
 static void		__ni_netcf_get_string_array_child(const xml_node_t *, const char *, ni_string_array_t *);
 
 ni_syntax_t *
@@ -488,57 +490,47 @@ __ni_netcf_xml_to_static_ifcfg(ni_syntax_t *syntax, ni_handle_t *nih,
 }
 
 /*
- * Extract DHCP configuration from XML
+ * Extract dynamic addrconf options from XML
  */
 static int
 __ni_netcf_xml_to_dhcp(ni_syntax_t *syntax, ni_handle_t *nih,
 			ni_dhclient_info_t *dhcp, xml_node_t *dhnode)
 {
 	xml_node_t *child;
-	const char *attrval;
 
 	if (syntax->strict) {
 		/* strict netcf only allows peerdns="yes" so far */
-		__ni_netcf_get_boolean_attr(dhnode, "peerdns", &dhcp->update.resolver);
+		int dodns = 0;
+
+		__ni_netcf_get_boolean_attr(dhnode, "peerdns", &dodns);
+		if (dodns)
+			ni_addrconf_set_update(dhcp, NI_ADDRCONF_UPDATE_RESOLVER);
 		return 0;
 	}
 
-	if ((child = xml_node_get_child(dhnode, "lease")) != NULL) {
-		if ((attrval = xml_node_get_attr(child, "timeout")) != NULL) {
-			if (!strcmp(attrval, "infinite"))
-				dhcp->lease.timeout = DHCP_TIMEOUT_INFINITE;
-			else if (ni_parse_int(attrval, &dhcp->lease.timeout) < 0)
-				return -1;
-		}
+	__ni_netcf_get_uint_child(dhnode, "acquire-timeout", &dhcp->acquire_timeout);
+	dhcp->reuse_unexpired = !!xml_node_get_child(dhnode, "reuse-unexpired");
 
-		dhcp->lease.reuse_unexpired = !!xml_node_get_child(child, "reuse-unexpired");
-		dhcp->lease.release_on_exit = !!xml_node_get_child(child, "release-on-exit");
-	}
-
-	if ((child = xml_node_get_child(dhnode, "request")) != NULL) {
-		if ((attrval = xml_node_get_attr(child, "hostname")) != NULL)
-			ni_string_dup(&dhcp->request.hostname, attrval);
-		if ((attrval = xml_node_get_attr(child, "clientid")) != NULL)
-			ni_string_dup(&dhcp->request.clientid, attrval);
-		if ((attrval = xml_node_get_attr(child, "vendor-class")) != NULL)
-			ni_string_dup(&dhcp->request.vendor_class, attrval);
-
-		if ((attrval = xml_node_get_attr(child, "lease-time")) != NULL) {
-			if (!strcmp(attrval, "infinite"))
-				dhcp->request.lease_time = DHCP_TIMEOUT_INFINITE;
-			else if (ni_parse_int(attrval, &dhcp->request.lease_time) < 0)
-				return -1;
-		}
-	}
+	__ni_netcf_get_string_child(dhnode, "hostname", &dhcp->request.hostname);
+	__ni_netcf_get_string_child(dhnode, "client-id", &dhcp->request.clientid);
+	__ni_netcf_get_string_child(dhnode, "vendor-class", &dhcp->request.vendor_class);
+	__ni_netcf_get_uint_child(dhnode, "lease-time", &dhcp->request.lease_time);
 
 	if ((child = xml_node_get_child(dhnode, "update")) != NULL) {
-		dhcp->update.hostname = !!xml_node_get_child(child, "hostname");
-		dhcp->update.resolver = !!xml_node_get_child(child, "resolver");
-		dhcp->update.hosts_file = !!xml_node_get_child(child, "hosts-file");
-		dhcp->update.default_route = !!xml_node_get_child(child, "default-route");
-		dhcp->update.ntp_servers = !!xml_node_get_child(child, "ntp-servers");
-		dhcp->update.nis_servers = !!xml_node_get_child(child, "nis-servers");
-		dhcp->update.smb_config = !!xml_node_get_child(child, "smb-config");
+		if (xml_node_get_child(child, "hostname"))
+			ni_addrconf_set_update(dhcp, NI_ADDRCONF_UPDATE_HOSTNAME);
+		if (xml_node_get_child(child, "resolver"))
+			ni_addrconf_set_update(dhcp, NI_ADDRCONF_UPDATE_RESOLVER);
+		if (xml_node_get_child(child, "hosts-file"))
+			ni_addrconf_set_update(dhcp, NI_ADDRCONF_UPDATE_HOSTSFILE);
+		if (xml_node_get_child(child, "default-route"))
+			ni_addrconf_set_update(dhcp, NI_ADDRCONF_UPDATE_DEFAULT_ROUTE);
+		if (xml_node_get_child(child, "ntp-servers"))
+			ni_addrconf_set_update(dhcp, NI_ADDRCONF_UPDATE_NTP);
+		if (xml_node_get_child(child, "nis-servers"))
+			ni_addrconf_set_update(dhcp, NI_ADDRCONF_UPDATE_NIS);
+		if (xml_node_get_child(child, "smb-config"))
+			ni_addrconf_set_update(dhcp, NI_ADDRCONF_UPDATE_NETBIOS);
 	}
 
 	return 0;
@@ -853,64 +845,42 @@ __ni_netcf_xml_from_dhcp(ni_syntax_t *syntax, ni_handle_t *nih,
 
 	if (syntax->strict) {
 		/* strict netcf only allows peerdns="yes" so far */
-		if (dhcp->update.resolver)
+		if (ni_addrconf_should_update(dhcp, NI_ADDRCONF_UPDATE_RESOLVER))
 			xml_node_add_attr(dhnode, "peerdns", "yes");
 		return;
 	}
 
-	if (dhcp->lease.timeout || dhcp->lease.reuse_unexpired || dhcp->lease.release_on_exit) {
-		child = xml_node_new("lease", dhnode);
-
-		if (dhcp->lease.timeout == DHCP_TIMEOUT_INFINITE)
-			xml_node_add_attr(child, "timeout", "infinite");
-		else if (dhcp->lease.timeout)
-			xml_node_add_attr_uint(child, "timeout", dhcp->lease.timeout);
-
-		if (dhcp->lease.reuse_unexpired)
-			xml_node_new("reuse-unexpired", child);
-		if (dhcp->lease.release_on_exit)
-			xml_node_new("release-on-exit", child);
-	}
+	if (dhcp->acquire_timeout)
+		__ni_netcf_add_uint_child(dhnode, "acquire-timeout", dhcp->acquire_timeout);
+	if (dhcp->reuse_unexpired)
+		xml_node_new("reuse-unexpired", dhnode);
 
 	if (dhcp->request.hostname || dhcp->request.clientid
 	 || dhcp->request.vendor_class || dhcp->request.lease_time) {
 		child = xml_node_new("request", dhnode);
 
-		if (dhcp->request.hostname)
-			xml_node_add_attr(child, "hostname", dhcp->request.hostname);
-		if (dhcp->request.clientid)
-			xml_node_add_attr(child, "clientid", dhcp->request.clientid);
-		if (dhcp->request.vendor_class)
-			xml_node_add_attr(child, "vendor-class", dhcp->request.vendor_class);
-
-		if (dhcp->request.lease_time == DHCP_TIMEOUT_INFINITE)
-			xml_node_add_attr(child, "lease-time", "infinite");
-		else if (dhcp->request.lease_time)
-			xml_node_add_attr_uint(child, "lease-time", dhcp->request.lease_time);
+		__ni_netcf_add_string_child(child, "hostname", dhcp->request.hostname);
+		__ni_netcf_add_string_child(child, "client-id", dhcp->request.clientid);
+		__ni_netcf_add_string_child(child, "vendor-class", dhcp->request.vendor_class);
+		__ni_netcf_add_uint_child(child, "lease-time", dhcp->request.lease_time);
 	}
 
-	if (dhcp->update.hostname
-	 || dhcp->update.resolver
-	 || dhcp->update.hosts_file
-	 || dhcp->update.default_route
-	 || dhcp->update.ntp_servers
-	 || dhcp->update.nis_servers
-	 || dhcp->update.smb_config) {
+	if (dhcp->update != 0) {
 		child = xml_node_new("update", dhnode);
 
-		if (dhcp->update.hostname)
+		if (ni_addrconf_should_update(dhcp, NI_ADDRCONF_UPDATE_HOSTNAME))
 			xml_node_new("hostname", child);
-		if (dhcp->update.resolver)
+		if (ni_addrconf_should_update(dhcp, NI_ADDRCONF_UPDATE_RESOLVER))
 			xml_node_new("resolver", child);
-		if (dhcp->update.hosts_file)
+		if (ni_addrconf_should_update(dhcp, NI_ADDRCONF_UPDATE_HOSTSFILE))
 			xml_node_new("hosts-file", child);
-		if (dhcp->update.default_route)
+		if (ni_addrconf_should_update(dhcp, NI_ADDRCONF_UPDATE_DEFAULT_ROUTE))
 			xml_node_new("default-route", child);
-		if (dhcp->update.ntp_servers)
+		if (ni_addrconf_should_update(dhcp, NI_ADDRCONF_UPDATE_NTP))
 			xml_node_new("ntp-servers", child);
-		if (dhcp->update.nis_servers)
+		if (ni_addrconf_should_update(dhcp, NI_ADDRCONF_UPDATE_NIS))
 			xml_node_new("nis-servers", child);
-		if (dhcp->update.smb_config)
+		if (ni_addrconf_should_update(dhcp, NI_ADDRCONF_UPDATE_NETBIOS))
 			xml_node_new("smb-config", child);
 	}
 }
@@ -927,7 +897,7 @@ __ni_netcf_xml_from_lease(ni_syntax_t *syntax, const ni_addrconf_lease_t *lease,
 	node = xml_node_new("lease", parent);
 	xml_node_add_attr(node, "type", ni_addrconf_type_to_name(lease->type));
 	xml_node_add_attr(node, "family", ni_addrfamily_type_to_name(lease->family));
-	xml_node_add_attr(node, "state", ni_addrconf_lease_to_name(lease->state));
+	xml_node_add_attr(node, "state", ni_addrconf_state_to_name(lease->state));
 	xml_node_add_attr_uint(node, "time", lease->time_acquired);
 
 	__ni_netcf_add_string_child(node, "hostname", lease->hostname);
@@ -1263,6 +1233,15 @@ __ni_netcf_add_string_child(xml_node_t *node, const char *name, const char *valu
 }
 
 static void
+__ni_netcf_add_uint_child(xml_node_t *node, const char *name, unsigned int value)
+{
+	char buffer[64];
+
+	snprintf(buffer, sizeof(buffer), "%u", value);
+	__ni_netcf_add_string_child(node, name, buffer);
+}
+
+static void
 __ni_netcf_add_string_array_child(xml_node_t *node, const char *name, const ni_string_array_t *list)
 {
 	unsigned int i;
@@ -1281,6 +1260,17 @@ __ni_netcf_get_string_child(const xml_node_t *node, const char *name, char **var
 	ni_string_free(var);
 	if (node && node->cdata)
 		ni_string_dup(var, node->cdata);
+}
+
+static void
+__ni_netcf_get_uint_child(const xml_node_t *node, const char *name, unsigned int *var)
+{
+	node = xml_node_get_child(node, name);
+
+	if (node && node->cdata)
+		*var = strtoul(node->cdata, NULL, 0);
+	else
+		*var = 0;
 }
 
 static void

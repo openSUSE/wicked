@@ -635,18 +635,21 @@ __ni_suse_sysconfig2dhcp(ni_dhclient_info_t *dhcp, ni_sysconfig_t *sc)
 			*s = tolower(*s);
 	}
 
-	ni_sysconfig_get_integer_optional(sc, "DHCLIENT_WAIT_AT_BOOT", &dhcp->lease.timeout);
-	ni_sysconfig_get_boolean_optional(sc, "DHCLIENT_RELEASE_BEFORE_QUIT", &dhcp->lease.release_on_exit);
-	ni_sysconfig_get_boolean_optional(sc, "DHCLIENT_USE_LAST_LEASE", &dhcp->lease.reuse_unexpired);
+	ni_sysconfig_get_integer_optional(sc, "DHCLIENT_WAIT_AT_BOOT", &dhcp->acquire_timeout);
+	ni_sysconfig_get_boolean_optional(sc, "DHCLIENT_USE_LAST_LEASE", &dhcp->reuse_unexpired);
 
 	ni_sysconfig_get_string_optional(sc, "DHCLIENT_CLIENT_ID", &dhcp->request.clientid);
 	ni_sysconfig_get_string_optional(sc, "DHCLIENT_VENDOR_CLASS_ID", &dhcp->request.vendor_class);
 	ni_sysconfig_get_integer_optional(sc, "DHCLIENT_LEASE_TIME", &dhcp->request.lease_time);
 
-	ni_sysconfig_get_boolean_optional(sc, "WRITE_HOSTNAME_TO_HOSTS", &dhcp->update.hosts_file);
-	ni_sysconfig_get_boolean_optional(sc, "DHCLIENT_MODIFY_SMB_CONF", &dhcp->update.smb_config);
-	ni_sysconfig_get_boolean_optional(sc, "DHCLIENT_SET_HOSTNAME", &dhcp->update.hostname);
-	ni_sysconfig_get_boolean_optional(sc, "DHCLIENT_SET_DEFAULT_ROUTE", &dhcp->update.default_route);
+	if (ni_sysconfig_test_boolean(sc, "WRITE_HOSTNAME_TO_HOSTS"))
+		ni_addrconf_set_update(dhcp, NI_ADDRCONF_UPDATE_HOSTSFILE);
+	if (ni_sysconfig_test_boolean(sc, "DHCLIENT_MODIFY_SMB_CONF"))
+		ni_addrconf_set_update(dhcp, NI_ADDRCONF_UPDATE_NETBIOS);
+	if (ni_sysconfig_test_boolean(sc, "DHCLIENT_SET_HOSTNAME"))
+		ni_addrconf_set_update(dhcp, NI_ADDRCONF_UPDATE_HOSTNAME);
+	if (ni_sysconfig_test_boolean(sc, "DHCLIENT_SET_DEFAULT_ROUTE"))
+		ni_addrconf_set_update(dhcp, NI_ADDRCONF_UPDATE_DEFAULT_ROUTE);
 
 	return 0;
 }
@@ -655,12 +658,10 @@ int
 __ni_suse_dhcp2sysconfig(const ni_dhclient_info_t *ifdhcp, const ni_dhclient_info_t *sysdhcp,
 				ni_sysconfig_t *sc)
 {
-	if (ifdhcp->lease.timeout != sysdhcp->lease.timeout)
-		ni_sysconfig_set_integer(sc, "DHCLIENT_WAIT_AT_BOOT", ifdhcp->lease.timeout);
-	if (ifdhcp->lease.release_on_exit != sysdhcp->lease.release_on_exit)
-		ni_sysconfig_set_boolean(sc, "DHCLIENT_RELEASE_BEFORE_QUIT", ifdhcp->lease.release_on_exit);
-	if (ifdhcp->lease.reuse_unexpired != sysdhcp->lease.reuse_unexpired)
-		ni_sysconfig_set_boolean(sc, "DHCLIENT_USE_LAST_LEASE", ifdhcp->lease.reuse_unexpired);
+	if (ifdhcp->acquire_timeout != sysdhcp->acquire_timeout)
+		ni_sysconfig_set_integer(sc, "DHCLIENT_WAIT_AT_BOOT", ifdhcp->acquire_timeout);
+	if (ifdhcp->reuse_unexpired != sysdhcp->reuse_unexpired)
+		ni_sysconfig_set_boolean(sc, "DHCLIENT_USE_LAST_LEASE", ifdhcp->reuse_unexpired);
 
 	if (!xstreq(ifdhcp->request.hostname, sysdhcp->request.hostname))
 		ni_sysconfig_set(sc, "DHCLIENT_HOSTNAME_OPTION", ifdhcp->request.hostname);
@@ -671,14 +672,17 @@ __ni_suse_dhcp2sysconfig(const ni_dhclient_info_t *ifdhcp, const ni_dhclient_inf
 	if (ifdhcp->request.lease_time != sysdhcp->request.lease_time)
 		ni_sysconfig_set_integer(sc, "DHCLIENT_LEASE_TIME", ifdhcp->request.lease_time);
 
-	if (ifdhcp->update.hosts_file != sysdhcp->update.hosts_file)
-		ni_sysconfig_set_boolean(sc, "WRITE_HOSTNAME_TO_HOSTS", ifdhcp->update.hosts_file);
-	if (ifdhcp->update.smb_config != sysdhcp->update.smb_config)
-		ni_sysconfig_set_boolean(sc, "DHCLIENT_MODIFY_SMB_CONF", ifdhcp->update.smb_config);
-	if (ifdhcp->update.hostname != sysdhcp->update.hostname)
-		ni_sysconfig_set_boolean(sc, "DHCLIENT_SET_HOSTNAME", ifdhcp->update.hostname);
-	if (ifdhcp->update.default_route != sysdhcp->update.default_route)
-		ni_sysconfig_set_boolean(sc, "DHCLIENT_SET_DEFAULT_ROUTE", ifdhcp->update.default_route);
+	ni_sysconfig_set_boolean(sc, "WRITE_HOSTNAME_TO_HOSTS",
+			ni_addrconf_should_update(ifdhcp, NI_ADDRCONF_UPDATE_HOSTSFILE));
+	ni_sysconfig_set_boolean(sc, "DHCLIENT_MODIFY_SMB_CONF",
+			ni_addrconf_should_update(ifdhcp, NI_ADDRCONF_UPDATE_NETBIOS));
+	ni_sysconfig_set_boolean(sc, "DHCLIENT_SET_HOSTNAME",
+			ni_addrconf_should_update(ifdhcp, NI_ADDRCONF_UPDATE_HOSTNAME));
+	ni_sysconfig_set_boolean(sc, "DHCLIENT_SET_DEFAULT_ROUTE",
+			ni_addrconf_should_update(ifdhcp, NI_ADDRCONF_UPDATE_DEFAULT_ROUTE));
+	ni_sysconfig_set_boolean(sc, "DHCLIENT_MODIFY_NIS_CONF",
+			ni_addrconf_should_update(ifdhcp, NI_ADDRCONF_UPDATE_NIS));
+
 
 	return 0;
 }

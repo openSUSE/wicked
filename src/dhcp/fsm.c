@@ -138,8 +138,8 @@ ni_dhcp_fsm_restart(ni_dhcp_device_t *dev)
 void
 ni_dhcp_fsm_set_timeout(ni_dhcp_device_t *dev, unsigned int seconds)
 {
-	ni_debug_dhcp("%s: setting timeout to %u seconds", dev->ifname, seconds);
-	if (seconds != DHCP_TIMEOUT_INFINITE) {
+	if (seconds != 0) {
+		ni_debug_dhcp("%s: setting timeout to %u seconds", dev->ifname, seconds);
 		gettimeofday(&dev->expires, NULL);
 		dev->expires.tv_sec += seconds;
 	}

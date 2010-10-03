@@ -260,8 +260,8 @@ ni_dhcp_build_message(const ni_dhcp_device_t *dev,
 		ni_dhcp_option_put16(msgbuf, DHCP_MAXMESSAGESIZE, dev->system.mtu);
 
 	ni_dhcp_option_put(msgbuf, DHCP_CLIENTID,
-			options->clientid.data,
-			options->clientid.len);
+			options->raw_client_id.data,
+			options->raw_client_id.len);
 
 	if (msg_code != DHCP_DECLINE && msg_code != DHCP_RELEASE) {
 		if (options->userclass.len > 0)

@@ -135,18 +135,25 @@ enum {
 /*
  * DHCP configuration info
  */
-#define DHCP_TIMEOUT_INFINITE	(~0U)
+enum {
+	NI_ADDRCONF_UPDATE_DEFAULT_ROUTE,
+	NI_ADDRCONF_UPDATE_HOSTNAME,
+	NI_ADDRCONF_UPDATE_HOSTSFILE,
+	NI_ADDRCONF_UPDATE_SYSLOG,
+	NI_ADDRCONF_UPDATE_RESOLVER,
+	NI_ADDRCONF_UPDATE_NIS,
+	NI_ADDRCONF_UPDATE_NTP,
+	NI_ADDRCONF_UPDATE_NETBIOS,
+	NI_ADDRCONF_UPDATE_SLP,
+
+	__NI_ADDRCONF_UPDATE_MAX,
+};
 
 typedef struct ni_dhclient_info {
 	/* Controlling general behavior */
-	unsigned int		settle_timeout;
-
-	/* How to manange leases */
-	struct {
-		unsigned int	timeout;
-		int		reuse_unexpired;
-		int		release_on_exit;
-	} lease;
+	int			reuse_unexpired;
+	unsigned int		settle_timeout;	/* wait that long before starting DHCP */
+	unsigned int		acquire_timeout;/* acquiry of the lease times out after this */
 
 	/* Options controlling what to put into the lease request */
 	struct {
@@ -158,15 +165,7 @@ typedef struct ni_dhclient_info {
 
 	/* Options what to update based on the info received from 
 	 * the DHCP server. */
-	struct {
-		int		hostname;
-		int		resolver;
-		int		hosts_file;
-		int		default_route;
-		int		ntp_servers;
-		int		nis_servers;
-		int		smb_config;
-	} update;
+	unsigned int		update;
 } ni_dhclient_info_t;
 
 /*
@@ -181,6 +180,7 @@ enum {
 	NI_ADDRCONF_STATE_RELEASED,
 	NI_ADDRCONF_STATE_FAILED,
 };
+
 typedef struct ni_addrconf_lease {
 	int			type;
 	int			family;
@@ -569,12 +569,26 @@ extern const char *	ni_linktype_type_to_name(unsigned int);
 extern int		ni_addrconf_name_to_type(const char *);
 extern const char *	ni_addrconf_type_to_name(unsigned int);
 extern int		ni_addrconf_name_to_state(const char *);
-extern const char *	ni_addrconf_lease_to_name(unsigned int);
+extern const char *	ni_addrconf_state_to_name(unsigned int);
+extern int		ni_addrconf_name_to_update_target(const char *);
+extern const char *	ni_addrconf_update_target_to_name(unsigned int);
 extern int		ni_addrfamily_name_to_type(const char *);
 extern const char *	ni_addrfamily_type_to_name(unsigned int);
 extern int		ni_arphrd_name_to_type(const char *);
 extern const char *	ni_arphrd_type_to_name(unsigned int);
 extern unsigned int	ni_arphrd_type_to_iftype(int arp_type);
 extern int		ni_iftype_to_arphrd_type(unsigned int iftype);
+
+static inline void
+ni_addrconf_set_update(ni_dhclient_info_t *req, unsigned int target)
+{
+	req->update |= (1 << target);
+}
+
+static inline int
+ni_addrconf_should_update(const ni_dhclient_info_t *req, unsigned int target)
+{
+	return req->update & (1 << target);
+}
 
 #endif /* __WICKED_NETINFO_H__ */
