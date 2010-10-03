@@ -48,6 +48,8 @@ static int	__ni_interface_extension_delete(ni_handle_t *, ni_interface_t *);
 static int	__ni_rtnl_link_create(ni_handle_t *, ni_interface_t *);
 static int	__ni_rtnl_link_up(ni_handle_t *, ni_interface_t *, const ni_interface_t *);
 static int	__ni_rtnl_link_down(ni_handle_t *, ni_interface_t *, int);
+static int	__ni_rtnl_send_deladdr(ni_handle_t *, ni_interface_t *, const ni_address_t *);
+static int	__ni_rtnl_send_newaddr(ni_handle_t *, ni_interface_t *, const ni_address_t *, int);
 
 /*
  * Configure a given interface
@@ -145,6 +147,71 @@ failed:
 }
 
 /*
+ * An address configuration agent sends a lease update.
+ */
+int
+__ni_system_interface_update_lease(ni_handle_t *nih, ni_interface_t *ifp, ni_addrconf_state_t *lease)
+{
+	ni_afinfo_t *afi;
+	ni_address_t *ap;
+	int res;
+
+	ni_debug_ifconfig("%s: received new lease (state %s)", ifp->name,
+			ni_addrconf_state_to_name(lease->state));
+
+	if ((res = __ni_system_refresh_interface(nih, ifp)) < 0)
+		return -1;
+
+	if (!(afi = __ni_interface_address_info(ifp, lease->family))) {
+		ni_error("%s: unable to update lease - unknown address family", ifp->name);
+		return -1;
+	}
+	ni_trace("existing lease: %p", afi->lease[lease->type]);
+
+	/* Loop over all addresses and remove those no longer covered by the lease.
+	 * Ignore all addresses covered by other address config mechanisms.
+	 */
+	nih->seqno++;
+	for (ap = ifp->addrs; ap; ap = ap->next) {
+		ni_address_t *lap;
+
+		if (ap->family != lease->family)
+			continue;
+
+		/* We do NOT check whether we classified the address correctly.
+		 * It may still be around for some reason after we exited
+		 * previously, or we lost track of it for some other reason. */
+		lap = __ni_lease_owns_address(lease, ap);
+		ni_debug_ifconfig("%s: %s/%u %s", __FUNCTION__,
+				ni_address_print(&ap->local_addr),
+				ap->prefixlen,
+				lap? "exists" : "went away");
+		if (lap) {
+			lap->seq = nih->seqno;
+			if (ap->config_method != lease->type)
+				ni_warn("leased address exists already");
+			ap->config_method = lease->type;
+		} else if (__ni_rtnl_send_deladdr(nih, ifp, ap))
+			return -1;
+	}
+
+	/* Loop over all lease addresses and add those not yet configured */
+	for (ap = lease->addrs; ap; ap = ap->next) {
+		if (ap->seq == nih->seqno)
+			continue;
+
+		if (__ni_rtnl_send_newaddr(nih, ifp, ap, NLM_F_CREATE))
+			return -1;
+	}
+
+	if ((res = __ni_system_refresh_interface(nih, ifp)) < 0)
+		return -1;
+
+	ni_interface_set_lease(nih, ifp, lease);
+	return 0;
+}
+
+/*
  * Bringup a network interface.
  * This is used eg when we're asked to bring up a VLAN device and find
  * that the underlying NIC is still down.
@@ -235,8 +302,7 @@ __ni_system_interface_delete(ni_handle_t *nih, const char *ifname)
  *  -	possibly more
  */
 static int
-__ni_interface_for_config(ni_handle_t *nih, const ni_interface_t *cfg,
-			ni_interface_t **res)
+__ni_interface_for_config(ni_handle_t *nih, const ni_interface_t *cfg, ni_interface_t **res)
 {
 	ni_interface_t *ifp = NULL;
 
@@ -800,6 +866,8 @@ __ni_rtnl_send_newaddr(ni_handle_t *nih, ni_interface_t *ifp, const ni_address_t
 	} req;
 	int len;
 
+	ni_debug_ifconfig("%s(%s/%u)", __FUNCTION__, ni_address_print(&ap->local_addr), ap->prefixlen);
+
 	memset(&req, 0, sizeof(req));
 	req.ifa.ifa_index = ifp->ifindex;
 	req.ifa.ifa_family = ap->family;
@@ -847,7 +915,7 @@ __ni_rtnl_send_newaddr(ni_handle_t *nih, ni_interface_t *ifp, const ni_address_t
 		req.ifa.ifa_scope = RT_SCOPE_UNIVERSE;
 
 	if (ni_rtnl_talk(nih, &req.hdr) < 0) {
-		ni_error("%s(%s/%u): rtnl_talk failed\n", __FUNCTION__,
+		ni_error("%s(%s/%u): rtnl_talk failed", __FUNCTION__,
 				ni_address_print(&ap->local_addr),
 				ap->prefixlen);
 		return -1;
@@ -857,8 +925,7 @@ __ni_rtnl_send_newaddr(ni_handle_t *nih, ni_interface_t *ifp, const ni_address_t
 }
 
 static int
-__ni_rtnl_send_deladdr(ni_handle_t *nih, ni_interface_t *ifp,
-				const ni_address_t *ap)
+__ni_rtnl_send_deladdr(ni_handle_t *nih, ni_interface_t *ifp, const ni_address_t *ap)
 {
 	struct {
 		struct nlmsghdr	hdr;
@@ -866,8 +933,7 @@ __ni_rtnl_send_deladdr(ni_handle_t *nih, ni_interface_t *ifp,
 		char		buffer[1024];
 	} req;
 
-	ni_debug_ifconfig("%s(%s/%u)", __FUNCTION__,
-			ni_address_print(&ap->local_addr), ap->prefixlen);
+	ni_debug_ifconfig("%s(%s/%u)", __FUNCTION__, ni_address_print(&ap->local_addr), ap->prefixlen);
 
 	memset(&req, 0, sizeof(req));
 	req.ifa.ifa_index = ifp->ifindex;
@@ -889,7 +955,7 @@ __ni_rtnl_send_deladdr(ni_handle_t *nih, ni_interface_t *ifp,
 	}
 
 	if (ni_rtnl_talk(nih, &req.hdr) < 0) {
-		ni_error("%s(%s/%u): rtnl_talk failed\n", __FUNCTION__,
+		ni_error("%s(%s/%u): rtnl_talk failed", __FUNCTION__,
 				ni_address_print(&ap->local_addr),
 				ap->prefixlen);
 		return -1;
@@ -980,7 +1046,7 @@ __ni_rtnl_send_newroute(ni_handle_t *nih, ni_interface_t *ifp, ni_route_t *rp, i
 #endif
 
 	if (ni_rtnl_talk(nih, &req.hdr) < 0) {
-		error("%s(%s/%u): rtnl_talk failed\n", __FUNCTION__,
+		error("%s(%s/%u): rtnl_talk failed", __FUNCTION__,
 				ni_address_print(&rp->destination),
 				rp->prefixlen);
 		return -1;
@@ -998,7 +1064,7 @@ __ni_rtnl_send_delroute(ni_handle_t *nih, ni_interface_t *ifp, ni_route_t *rp)
 		char buffer[1024];
 	} req;
 
-	ni_debug_ifconfig("%s(%s/%u)\n", __FUNCTION__,
+	ni_debug_ifconfig("%s(%s/%u)", __FUNCTION__,
 			ni_address_print(&rp->destination), rp->prefixlen);
 
 	memset(&req, 0, sizeof(req));
@@ -1027,7 +1093,7 @@ __ni_rtnl_send_delroute(ni_handle_t *nih, ni_interface_t *ifp, ni_route_t *rp)
 	addattr32(&req.hdr, sizeof(req), RTA_OIF, ifp->ifindex);
 
 	if (ni_rtnl_talk(nih, &req.hdr) < 0) {
-		error("%s(%s/%u): rtnl_talk failed\n", __FUNCTION__,
+		error("%s(%s/%u): rtnl_talk failed", __FUNCTION__,
 				ni_address_print(&rp->destination),
 				rp->prefixlen);
 		return -1;
@@ -1230,12 +1296,19 @@ __ni_interface_addrconf(ni_handle_t *nih, int family, ni_interface_t *ifp, ni_in
 		}
 	} else
 	if ((acm = ni_addrconf_get(cfg_afi->config, family)) != NULL) {
+		ni_dhclient_info_t *tmp;
+
+		tmp = cur_afi->dhcp;
+		cur_afi->dhcp = cfg_afi->dhcp;
+		cfg_afi->dhcp = tmp;
+
 		/* If the extension is already active, no need to start it once
 		 * more. If needed, we could do a restart in this case. */
 		if (cfg_afi->config == cur_afi->config)
 			return 0;
 
-		if (ni_addrconf_acquire_lease(acm, ifp, cfg_xml) < 0)
+		cur_afi->config = cfg_afi->config;
+		if (ni_addrconf_acquire_lease(acm, ifp, NULL) < 0)
 			goto error;
 
 		/* If the extension supports more than just this address

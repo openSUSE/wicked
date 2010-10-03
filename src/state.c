@@ -15,6 +15,7 @@ static struct ni_ops ni_state_ops = {
 	.refresh		= __ni_system_refresh_all,
 	.configure_interface	= __ni_system_interface_configure,
 	.delete_interface	= __ni_system_interface_delete,
+	.update_lease		= __ni_system_interface_update_lease,
 	.close			= __ni_system_close,
 };
 
