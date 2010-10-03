@@ -1041,6 +1041,8 @@ __ni_rtnl_send_newroute(ni_handle_t *nih, ni_interface_t *ifp, ni_route_t *rp, i
 		char buffer[1024];
 	} req;
 
+	ni_debug_ifconfig("%s(%s/%u)", __FUNCTION__, ni_address_print(&rp->destination), rp->prefixlen);
+
 	memset(&req, 0, sizeof(req));
 
 	req.hdr.nlmsg_len = NLMSG_LENGTH(sizeof(struct rtmsg));
@@ -1129,8 +1131,7 @@ __ni_rtnl_send_delroute(ni_handle_t *nih, ni_interface_t *ifp, ni_route_t *rp)
 		char buffer[1024];
 	} req;
 
-	ni_debug_ifconfig("%s(%s/%u)", __FUNCTION__,
-			ni_address_print(&rp->destination), rp->prefixlen);
+	ni_debug_ifconfig("%s(%s/%u)", __FUNCTION__, ni_address_print(&rp->destination), rp->prefixlen);
 
 	memset(&req, 0, sizeof(req));
 
