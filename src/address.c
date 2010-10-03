@@ -629,6 +629,25 @@ __ni_route_list_clone(const ni_route_t *src)
 	return dst;
 }
 
+int
+ni_route_equal(const ni_route_t *r1, const ni_route_t *r2)
+{
+	const ni_route_nexthop_t *nh1, *nh2;
+	if (r1->prefixlen != r2->prefixlen
+	 || !ni_address_equal(&r1->destination, &r2->destination))
+		return 0;
+
+	nh1 = &r1->nh;
+	nh2 = &r2->nh;
+	while (nh1 && nh2) {
+		if (!ni_address_equal(&nh1->gateway, &nh2->gateway))
+			return 0;
+		nh1 = nh1->next;
+		nh2 = nh2->next;
+	}
+	return nh1 == nh2;
+}
+
 /*
  * Address configuration mechanisms
  */

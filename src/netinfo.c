@@ -534,6 +534,54 @@ __ni_lease_owns_address(const ni_addrconf_state_t *lease, const ni_address_t *ap
 }
 
 /*
+ * Given a route, look up the lease owning it
+ */
+ni_addrconf_state_t *
+__ni_interface_route_to_lease(ni_interface_t *ifp, const ni_route_t *rp)
+{
+	ni_afinfo_t *afi = __ni_interface_address_info(ifp, rp->family);
+	ni_address_t *ap;
+	unsigned int type;
+
+	if (!afi)
+		return NULL;
+
+	for (type = 0; type < __NI_ADDRCONF_MAX; ++type) {
+		ni_addrconf_state_t *lease;
+
+		if ((lease = afi->lease[type]) == NULL)
+			continue;
+
+		/* First, check if this is an interface route */
+		for (ap = lease->addrs; ap; ap = ap->next) {
+			if (rp->prefixlen == ap->prefixlen
+			 && ni_address_prefix_match(ap->prefixlen, &rp->destination, &ap->local_addr))
+				return lease;
+		}
+
+		if (__ni_lease_owns_route(lease, rp))
+			return lease;
+	}
+
+	return NULL;
+}
+
+ni_route_t *
+__ni_lease_owns_route(const ni_addrconf_state_t *lease, const ni_route_t *rp)
+{
+	ni_route_t *own;
+
+	if (!lease)
+		return 0;
+
+	for (own = lease->routes; own; own = own->next) {
+		if (ni_route_equal(own, rp))
+			return own;
+	}
+	return NULL;
+}
+
+/*
  * Delete an interface, by removing its configuration file, or
  * by destroying the kernel network interface (only possible for
  * virtual interfaces like bridges, bonds or VLANs

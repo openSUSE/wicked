@@ -63,6 +63,8 @@ typedef struct ni_route_nexthop {
 
 typedef struct ni_route {
 	struct ni_route *	next;
+
+	unsigned int		config_method;		/* usually static, but can be dhcp or autoip */
 	unsigned int		seq;
 	unsigned int		family;
 	unsigned int		prefixlen;
@@ -468,6 +470,8 @@ extern int		ni_address_can_reach(const ni_address_t *laddr, const struct sockadd
 extern int		ni_address_is_loopback(const ni_address_t *laddr);
 extern unsigned int	ni_netmask_bits(const struct sockaddr_storage *mask);
 extern int		ni_build_netmask(int, unsigned int, struct sockaddr_storage *);
+extern int		ni_address_prefix_match(unsigned int, const struct sockaddr_storage *,
+				const struct sockaddr_storage *);
 extern int		ni_address_equal(const struct sockaddr_storage *, const struct sockaddr_storage *);
 extern int		__ni_address_info(int, unsigned int *, unsigned int *);
 extern int		__ni_address_probably_dynamic(const ni_afinfo_t *, const ni_address_t *);
@@ -485,6 +489,7 @@ extern ni_route_t *	ni_route_new(ni_handle_t *, unsigned int prefix_len,
 				const struct sockaddr_storage *gw);
 extern void		ni_route_list_destroy(ni_route_t **);
 extern void		ni_route_free(ni_route_t *);
+extern int		ni_route_equal(const ni_route_t *, const ni_route_t *);
 
 extern int		ni_bonding_bind(ni_interface_t *, ni_handle_t *);
 extern void		ni_bonding_free(ni_bonding_t *);

@@ -204,6 +204,9 @@ __ni_system_interface_update_lease(ni_handle_t *nih, ni_interface_t *ifp, ni_add
 			return -1;
 	}
 
+	/* Loop over all addresses and remove those no longer covered by the lease.
+	 * Ignore all addresses covered by other address config mechanisms.
+	 */
 	if ((res = __ni_system_refresh_interface(nih, ifp)) < 0)
 		return -1;
 

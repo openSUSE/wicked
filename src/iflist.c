@@ -474,6 +474,7 @@ __ni_interface_process_newroute(ni_interface_t *ifp, struct nlmsghdr *h,
 				struct rtmsg *rtm, ni_handle_t *nih)
 {
 	struct sockaddr_storage src_addr, dst_addr, gw_addr;
+	ni_addrconf_state_t *lease;
 	struct rtattr *tb[RTN_MAX+1];
 	ni_route_t *rp;
 
@@ -553,6 +554,11 @@ __ni_interface_process_newroute(ni_interface_t *ifp, struct nlmsghdr *h,
 	if (tb[RTA_PRIORITY] != NULL)
 		__ni_rta_get_uint(&rp->priority, tb[RTA_PRIORITY]);
 	rp->tos = rtm->rtm_tos;
+
+	/* See if this route is owned by a lease */
+	lease = __ni_interface_route_to_lease(ifp, rp);
+	if (lease)
+		rp->config_method = lease->type;
 
 	return 0;
 }
