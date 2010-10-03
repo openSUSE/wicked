@@ -274,7 +274,10 @@ ni_addrconf_extension_release(const ni_addrconf_t *ace, ni_interface_t *ifp, ni_
 	rv = ni_extension_stop(ex, ifp->name, cfg_xml);
 	xml_node_free(cfg_xml);
 	ni_close(nih);
-	
+
+	if (lease)
+		lease->state = NI_ADDRCONF_STATE_RELEASED;
+
 	return rv;
 }
 

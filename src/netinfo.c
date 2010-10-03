@@ -255,6 +255,36 @@ ni_addrconf_type_to_name(unsigned int type)
 }
 
 /*
+ * Map addrconf states to strings and vice versa
+ */
+static ni_intmap_t __addrconf_states[] = {
+	{ "none",		NI_ADDRCONF_STATE_NONE },
+	{ "requesting",		NI_ADDRCONF_STATE_REQUESTING },
+	{ "granted",		NI_ADDRCONF_STATE_GRANTED },
+	{ "releasing",		NI_ADDRCONF_STATE_RELEASING },
+	{ "released",		NI_ADDRCONF_STATE_RELEASED },
+	{ "failed",		NI_ADDRCONF_STATE_FAILED },
+
+	{ NULL }
+};
+
+int
+ni_addrconf_name_to_state(const char *name)
+{
+	unsigned int value;
+
+	if (ni_parse_int_mapped(name, __addrconf_states, &value) < 0)
+		return -1;
+	return value;
+}
+
+const char *
+ni_addrconf_state_to_name(unsigned int type)
+{
+	return ni_format_int_mapped(type, __addrconf_states);
+}
+
+/*
  * Map address family names to type constants and vice versa
  */
 static ni_intmap_t __addrfamily_names[] = {

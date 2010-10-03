@@ -162,9 +162,18 @@ typedef struct ni_dhclient_info {
  * Leases obtained through a dynamic addrconf protocol,
  * such as DHCP, DHCPv6, IPv4LL, or IBFT.
  */
+enum {
+	NI_ADDRCONF_STATE_NONE,
+	NI_ADDRCONF_STATE_REQUESTING,
+	NI_ADDRCONF_STATE_GRANTED,
+	NI_ADDRCONF_STATE_RELEASING,
+	NI_ADDRCONF_STATE_RELEASED,
+	NI_ADDRCONF_STATE_FAILED,
+};
 typedef struct ni_addrconf_state {
 	int			type;
 	int			family;
+	int			state;
 
 	char *			hostname;
 	ni_string_array_t	log_servers;
@@ -516,6 +525,8 @@ extern int		ni_linktype_name_to_type(const char *);
 extern const char *	ni_linktype_type_to_name(unsigned int);
 extern int		ni_addrconf_name_to_type(const char *);
 extern const char *	ni_addrconf_type_to_name(unsigned int);
+extern int		ni_addrconf_name_to_state(const char *);
+extern const char *	ni_addrconf_state_to_name(unsigned int);
 extern int		ni_addrfamily_name_to_type(const char *);
 extern const char *	ni_addrfamily_type_to_name(unsigned int);
 extern int		ni_arphrd_name_to_type(const char *);

@@ -705,13 +705,42 @@ ni_addrconf_list_next(const void **pos)
 int
 ni_addrconf_acquire_lease(const ni_addrconf_t *acm, ni_interface_t *ifp, const xml_node_t *cfg_xml)
 {
+	/* This needs to get better */
+	if (acm->type == NI_ADDRCONF_DHCP) {
+		if (acm->supported_af & NI_AF_MASK_IPV4) {
+			if (!ifp->ipv4.dhcp_lease)
+				ifp->ipv4.dhcp_lease = ni_addrconf_state_new(acm->type, AF_INET);
+			ifp->ipv4.dhcp_lease->state = NI_ADDRCONF_STATE_REQUESTING;
+		}
+	}
+
 	return acm->request(acm, ifp, cfg_xml);
 }
 
 int
 ni_addrconf_drop_lease(const ni_addrconf_t *acm, ni_interface_t *ifp)
 {
-	return acm->release(acm, ifp, NULL);
+	ni_addrconf_state_t *lease = NULL;
+	int rv;
+
+	/* This needs to get better */
+	if (acm->type == NI_ADDRCONF_DHCP) {
+		if (acm->supported_af & NI_AF_MASK_IPV4) {
+			lease = ifp->ipv4.dhcp_lease;
+		}
+	}
+
+	if (lease)
+		lease->state = NI_ADDRCONF_STATE_RELEASING;
+
+	rv = acm->release(acm, ifp, lease);
+
+	if (lease && lease->state == NI_ADDRCONF_STATE_RELEASED) {
+		ni_addrconf_state_free(lease);
+		ifp->ipv4.dhcp_lease = NULL;
+	}
+
+	return rv;
 }
 
 /*

@@ -918,6 +918,7 @@ __ni_netcf_xml_from_lease(ni_syntax_t *syntax, const ni_addrconf_state_t *lease,
 	node = xml_node_new("lease", parent);
 	xml_node_add_attr(node, "type", ni_addrconf_type_to_name(lease->type));
 	xml_node_add_attr(node, "family", ni_addrfamily_type_to_name(lease->family));
+	xml_node_add_attr(node, "state", ni_addrconf_state_to_name(lease->state));
 
 	__ni_netcf_add_string_child(node, "hostname", lease->hostname);
 	__ni_netcf_add_string_array_child(node, "log-server", &lease->log_servers);
@@ -952,7 +953,7 @@ __ni_netcf_xml_to_lease(ni_syntax_t *syntax, const xml_node_t *node)
 	ni_addrconf_state_t *lease;
 	xml_node_t *prot;
 	const char *name;
-	int lease_type, lease_family;
+	int lease_type, lease_family, lease_state;
 
 	if (!(name = xml_node_get_attr(node, "type"))
 	 || (lease_type = ni_addrconf_name_to_type(name)) < 0) {
@@ -966,7 +967,14 @@ __ni_netcf_xml_to_lease(ni_syntax_t *syntax, const xml_node_t *node)
 		return NULL;
 	}
 
+	if (!(name = xml_node_get_attr(node, "state"))
+	 || (lease_state = ni_addrconf_name_to_state(name)) < 0) {
+		ni_error("netcf: cannot parse lease; no or unsupported state");
+		return NULL;
+	}
+
 	lease = ni_addrconf_state_new(lease_type, lease_family);
+	lease->state = lease_state;
 	__ni_netcf_get_string_child(node, "hostname", &lease->hostname);
 	__ni_netcf_get_string_array_child(node, "log-server", &lease->log_servers);
 	__ni_netcf_get_string_array_child(node, "dns-server", &lease->dns_servers);
