@@ -116,7 +116,7 @@ depend:
 	gcc $(CFLAGS) -M $(LIBSRCS) | \
 		sed 's@^\([^.]*\)\.o: src/\([a-z/]*\)\1.c@obj/lib/\2&@' > .depend
 	gcc $(CFLAGS) -M $(NCFSRCS) | \
-		sed 's@^\([^.]*\)\.o: src/\([a-z/]*\)\1.c@obj/netcf/\2&@' > .depend
+		sed 's@^\([^.]*\)\.o: src/\([a-z/]*\)\1.c@obj/netcf/\2&@' >> .depend
 	gcc $(CFLAGS) -M $(APPSRCS) | sed 's:^[a-z]:$(OBJ)/&:' >> .depend
 
 $(OBJ)/%.o: %.c
