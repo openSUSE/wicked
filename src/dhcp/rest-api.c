@@ -229,6 +229,7 @@ dhcp_device_xml(const ni_dhcp_device_t *dev)
 		ni_dhcp_lease_t *lease = dev->lease;
 
 		dummy.state = NI_ADDRCONF_STATE_GRANTED;
+		dummy.time_acquired = lease->leasedfrom;
 		dummy.addrs = lease->addrs;
 		dummy.routes = lease->routes;
 		dummy.hostname = lease->hostname;

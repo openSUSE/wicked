@@ -927,6 +927,7 @@ __ni_netcf_xml_from_lease(ni_syntax_t *syntax, const ni_addrconf_state_t *lease,
 	xml_node_add_attr(node, "type", ni_addrconf_type_to_name(lease->type));
 	xml_node_add_attr(node, "family", ni_addrfamily_type_to_name(lease->family));
 	xml_node_add_attr(node, "state", ni_addrconf_state_to_name(lease->state));
+	xml_node_add_attr_uint(node, "time", lease->time_acquired);
 
 	__ni_netcf_add_string_child(node, "hostname", lease->hostname);
 	__ni_netcf_add_string_array_child(node, "log-server", &lease->log_servers);
@@ -983,6 +984,7 @@ __ni_netcf_xml_to_lease(ni_syntax_t *syntax, const xml_node_t *node)
 
 	lease = ni_addrconf_state_new(lease_type, lease_family);
 	lease->state = lease_state;
+	xml_node_get_attr_uint(node, "time", &lease->time_acquired);
 	__ni_netcf_get_string_child(node, "hostname", &lease->hostname);
 	__ni_netcf_get_string_array_child(node, "log-server", &lease->log_servers);
 	__ni_netcf_get_string_array_child(node, "dns-server", &lease->dns_servers);

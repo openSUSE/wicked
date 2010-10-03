@@ -186,6 +186,8 @@ typedef struct ni_addrconf_state {
 	int			family;
 	int			state;
 
+	unsigned int		time_acquired;
+
 	char *			hostname;
 	ni_string_array_t	log_servers;
 	ni_string_array_t	dns_servers;
