@@ -12,17 +12,23 @@
 #include "sysconfig.h"
 #include "config.h"
 
+#define _PATH_HOSTNAME	"/etc/HOSTNAME"
+
 static const char *	ni_netconfig_default_schema(const char *);
 static int		__ni_netonfig_refresh(ni_handle_t *nih);
 static int		__ni_netconfig_interface_configure(ni_handle_t *, ni_interface_t *, xml_node_t *);
 static int		__ni_netconfig_interface_delete(ni_handle_t *, const char *);
+static int		__ni_netconfig_hostname_put(ni_handle_t *, const char *);
+static int		__ni_netconfig_hostname_get(ni_handle_t *, char *, size_t);
 static void		__ni_netonfig_close(ni_handle_t *nih);
 
 static struct ni_ops ni_netconfig_ops = {
-	.refresh	= __ni_netonfig_refresh,
-	.configure_interface = __ni_netconfig_interface_configure,
-	.delete_interface = __ni_netconfig_interface_delete,
-	.close		= __ni_netonfig_close,
+	.refresh		= __ni_netonfig_refresh,
+	.configure_interface	= __ni_netconfig_interface_configure,
+	.delete_interface	= __ni_netconfig_interface_delete,
+	.hostname_get		= __ni_netconfig_hostname_get,
+	.hostname_put		= __ni_netconfig_hostname_put,
+	.close			= __ni_netonfig_close,
 };
 
 typedef struct ni_netconfig {
@@ -184,4 +190,46 @@ __ni_netconfig_interface_delete(ni_handle_t *nih, const char *ifname)
 
 	/* write back changes */
 	return ni_syntax_format_all(nit->syntax, nih, NULL);
+}
+
+/*
+ * Read/write /etc/HOSTNAME
+ * We should allow runtime configuration to change the location of the
+ * file, and to specify an "updater" script that can be called to rewrite
+ * other depedencies (eg if we have a special entry in the hosts file,
+ * or httpd.conf, or whatever)
+ */
+static int
+__ni_netconfig_hostname_put(ni_handle_t *nih, const char *hostname)
+{
+	FILE *fp;
+
+	if ((fp = fopen(_PATH_HOSTNAME, "w")) == NULL) {
+		ni_error("cannot open %s: %m", _PATH_HOSTNAME);
+		return -1;
+	}
+	fprintf(fp, "%s\n", hostname);
+	fclose(fp);
+	return 0;
+}
+
+static int
+__ni_netconfig_hostname_get(ni_handle_t *nih, char *buffer, size_t size)
+{
+	FILE *fp;
+	int rv = 0;
+
+	if ((fp = fopen(_PATH_HOSTNAME, "r")) == NULL) {
+		ni_error("cannot open %s: %m", _PATH_HOSTNAME);
+		return -1;
+	}
+
+	if (fgets(buffer, size, fp) == NULL) {
+		rv = -1;
+	} else {
+		/* strip off trailing newline */
+		buffer[strcspn(buffer, "\r\n")] = '\0';
+	}
+	fclose(fp);
+	return rv;
 }

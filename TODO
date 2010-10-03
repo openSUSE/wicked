@@ -28,8 +28,6 @@ overall
 		configure_interface -> interface_put
 		delete_interface -> interface_delete
 	  add new functions
-	  	hostname_get
-	  	hostname_put
 		resolver_get
 		resolver_put
 
@@ -59,7 +57,6 @@ policy
 
 wicked
 	- introduce /config/resolver, /system/resolver
-	- fully support /config/hostname, /system/hostname
 
 	- implement incremental configuration changes
 	  such as adding/removing a single address, or

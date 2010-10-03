@@ -791,6 +791,28 @@ static ni_rest_node_t	ni_rest_system_hostname_node = {
 };
 
 static int
+config_hostname_get(const char *path, ni_wicked_request_t *req)
+{
+	return generic_hostname_get(config_handle(req), path, req);
+}
+
+static int
+config_hostname_put(const char *path, ni_wicked_request_t *req)
+{
+	return generic_hostname_put(config_handle(req), path, req);
+}
+
+static ni_rest_node_t	ni_rest_config_hostname_node = {
+	.name		= "hostname",
+	.ops = {
+	    .byname = {
+		.get	= config_hostname_get,
+		.put	= config_hostname_put,
+	    },
+	},
+};
+
+static int
 system_event_post(const char *ifname, ni_wicked_request_t *req)
 {
 	ni_handle_t *nih = system_handle(req);
@@ -885,6 +907,7 @@ static ni_rest_node_t	ni_rest_config_node = {
 	.name		= "config",
 	.children = {
 		&ni_rest_config_interface_node,
+		&ni_rest_config_hostname_node,
 	},
 };
 
