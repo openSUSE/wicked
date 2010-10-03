@@ -46,7 +46,7 @@ static void		__ni_netcf_xml_from_vlan(ni_syntax_t *syntax, ni_handle_t *nih,
 static void		__ni_netcf_xml_from_dhcp(ni_syntax_t *, ni_handle_t *,
 				ni_dhclient_info_t *, xml_node_t *);
 static xml_node_t *	__ni_netcf_xml_from_lease(ni_syntax_t *, const ni_addrconf_state_t *, xml_node_t *parent);
-static ni_addrconf_state_t *__ni_netcf_xml_to_lease(ni_syntax_t *, xml_node_t *);
+static ni_addrconf_state_t *__ni_netcf_xml_to_lease(ni_syntax_t *, const xml_node_t *);
 
 static const char *	__ni_netcf_get_iftype(const ni_interface_t *);
 static int		__ni_netcf_set_iftype(ni_interface_t *, const char *);
@@ -60,8 +60,8 @@ static const char *	__ni_netcf_get_boolean(int val);
 static int		__ni_netcf_get_boolean_attr(xml_node_t *, const char *, int *);
 static void		__ni_netcf_add_string_child(xml_node_t *, const char *, const char *);
 static void		__ni_netcf_add_string_array_child(xml_node_t *, const char *, const ni_string_array_t *);
-static void		__ni_netcf_get_string_child(xml_node_t *, const char *, char **);
-static void		__ni_netcf_get_string_array_child(xml_node_t *, const char *, ni_string_array_t *);
+static void		__ni_netcf_get_string_child(const xml_node_t *, const char *, char **);
+static void		__ni_netcf_get_string_array_child(const xml_node_t *, const char *, ni_string_array_t *);
 
 ni_syntax_t *
 __ni_syntax_netcf(const char *pathname)
@@ -943,7 +943,7 @@ __ni_netcf_xml_from_lease(ni_syntax_t *syntax, const ni_addrconf_state_t *lease,
 }
 
 static ni_addrconf_state_t *
-__ni_netcf_xml_to_lease(ni_syntax_t *syntax, xml_node_t *node)
+__ni_netcf_xml_to_lease(ni_syntax_t *syntax, const xml_node_t *node)
 {
 	ni_addrconf_state_t *lease;
 	xml_node_t *prot;
@@ -1195,7 +1195,7 @@ __ni_netcf_add_string_array_child(xml_node_t *node, const char *name, const ni_s
 }
 
 static void
-__ni_netcf_get_string_child(xml_node_t *node, const char *name, char **var)
+__ni_netcf_get_string_child(const xml_node_t *node, const char *name, char **var)
 {
 	node = xml_node_get_child(node, name);
 
@@ -1205,7 +1205,7 @@ __ni_netcf_get_string_child(xml_node_t *node, const char *name, char **var)
 }
 
 static void
-__ni_netcf_get_string_array_child(xml_node_t *node, const char *name, ni_string_array_t *list)
+__ni_netcf_get_string_array_child(const xml_node_t *node, const char *name, ni_string_array_t *list)
 {
 	for (node = node->children; node; node = node->next) {
 		if (node->name && !strcmp(node->name, name) && node->cdata)

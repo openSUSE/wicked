@@ -58,7 +58,7 @@ struct ni_syntax {
 	ni_interface_t *	(*xml_to_interface)(ni_syntax_t *, ni_handle_t *, xml_node_t *);
 
 	xml_node_t *		(*xml_from_lease)(ni_syntax_t *, const ni_addrconf_state_t *, xml_node_t *parent);
-	ni_addrconf_state_t *	(*xml_to_lease)(ni_syntax_t *, xml_node_t *);
+	ni_addrconf_state_t *	(*xml_to_lease)(ni_syntax_t *, const xml_node_t *);
 };
 
 extern ni_handle_t *	__ni_handle_new(size_t, struct ni_ops *);

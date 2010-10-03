@@ -324,7 +324,7 @@ ni_syntax_xml_from_lease(ni_syntax_t *syntax, ni_addrconf_state_t *lease, xml_no
 }
 
 ni_addrconf_state_t *
-ni_syntax_xml_to_lease(ni_syntax_t *syntax, xml_node_t *xmlnode)
+ni_syntax_xml_to_lease(ni_syntax_t *syntax, const xml_node_t *xmlnode)
 {
 	if (!syntax->xml_to_lease) {
 		error("%s: syntax not capable of creating lease from xml", __FUNCTION__);
