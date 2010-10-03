@@ -71,6 +71,19 @@ ni_socket_deactivate(ni_socket_t *sock)
 	ni_error("%s: socket not found", __FUNCTION__);
 }
 
+void
+ni_socket_deactivate_all(void)
+{
+	unsigned int i;
+
+	for (i = 0; i < __ni_socket_count; ++i) {
+		if (__ni_sockets[i]) {
+			__ni_sockets[i]->active = 0;
+			__ni_sockets[i] = NULL;
+		}
+	}
+}
+
 /*
  * Wait for incoming data on any of the sockets.
  */
@@ -79,7 +92,7 @@ ni_socket_wait(long timeout)
 {
 	struct pollfd pfd[__ni_socket_count];
 	struct timeval now, expires;
-	unsigned int i, j;
+	unsigned int i, j, socket_count;
 
 	/* We don't care about the exit status of children */
 	signal(SIGCHLD, SIG_IGN);
@@ -106,6 +119,7 @@ ni_socket_wait(long timeout)
 		pfd[i].fd = sock->__fd;
 		pfd[i].events = POLLIN;
 	}
+	socket_count = __ni_socket_count;
 
 	gettimeofday(&now, NULL);
 	if (timerisset(&expires)) {
@@ -122,22 +136,31 @@ ni_socket_wait(long timeout)
 		}
 	}
 
-	if (poll(pfd, __ni_socket_count, timeout) < 0) {
+	if (poll(pfd, socket_count, timeout) < 0) {
 		if (errno == EINTR)
 			return 0;
 		ni_error("poll returns error: %m");
 		return -1;
 	}
 
-	for (i = 0; i < __ni_socket_count; ++i) {
+	for (i = 0; i < socket_count; ++i) {
 		ni_socket_t *sock = __ni_sockets[i];
 
-		if (sock && (pfd[i].revents & POLLIN))
+		if (sock == NULL)
+			continue;
+		if (pfd[i].revents & POLLERR) {
+			/* Deactivate socket */
+			ni_warn("POLLERR on socket - deactivating. Note: this is not the right approach, fix it");
+			__ni_sockets[i] = NULL;
+			sock->active = 0;
+			sock->error = 1;
+		} else
+		if (pfd[i].revents & POLLIN)
 			sock->data_ready(sock);
 	}
 
 	gettimeofday(&now, NULL);
-	for (i = 0; i < __ni_socket_count; ++i) {
+	for (i = 0; i < socket_count; ++i) {
 		ni_socket_t *sock = __ni_sockets[i];
 
 		if (sock && sock->check_timeout)
@@ -509,7 +532,7 @@ __ni_socket_dgram_pull(ni_socket_t *sock)
 
 static struct ni_socket_ops __ni_dgram_ops = {
 	.begin_buffering = __ni_socket_dgram_begin_buffering,
-	.push = __ni_socket_dgram_pull,
+	.pull = __ni_socket_dgram_pull,
 	.push = __ni_socket_dgram_push,
 };
 
