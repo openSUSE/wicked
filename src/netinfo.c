@@ -1019,7 +1019,7 @@ ni_dhclient_info_new(void)
 	dhcp = calloc(1, sizeof(*dhcp));
 
 	/* Set defaults */
-	dhcp->lease.timeout = -1;
+	dhcp->lease.timeout = DHCP_TIMEOUT_INFINITE;
 
 	return dhcp;
 }
