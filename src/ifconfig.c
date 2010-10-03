@@ -50,6 +50,8 @@ static int	__ni_rtnl_link_up(ni_handle_t *, ni_interface_t *, const ni_interface
 static int	__ni_rtnl_link_down(ni_handle_t *, ni_interface_t *, int);
 static int	__ni_rtnl_send_deladdr(ni_handle_t *, ni_interface_t *, const ni_address_t *);
 static int	__ni_rtnl_send_newaddr(ni_handle_t *, ni_interface_t *, const ni_address_t *, int);
+static int	__ni_rtnl_send_delroute(ni_handle_t *, ni_interface_t *, ni_route_t *);
+static int	__ni_rtnl_send_newroute(ni_handle_t *, ni_interface_t *, ni_route_t *, int);
 
 /*
  * Configure a given interface
@@ -152,9 +154,10 @@ failed:
 int
 __ni_system_interface_update_lease(ni_handle_t *nih, ni_interface_t *ifp, ni_addrconf_state_t *lease)
 {
+	int res, changed = 0;
 	ni_afinfo_t *afi;
 	ni_address_t *ap;
-	int res;
+	ni_route_t *rp;
 
 	ni_debug_ifconfig("%s: received new lease (state %s)", ifp->name,
 			ni_addrconf_state_to_name(lease->state));
@@ -182,17 +185,28 @@ __ni_system_interface_update_lease(ni_handle_t *nih, ni_interface_t *ifp, ni_add
 		 * It may still be around for some reason after we exited
 		 * previously, or we lost track of it for some other reason. */
 		lap = __ni_lease_owns_address(lease, ap);
-		ni_debug_ifconfig("%s: %s/%u %s", __FUNCTION__,
-				ni_address_print(&ap->local_addr),
-				ap->prefixlen,
-				lap? "exists" : "went away");
 		if (lap) {
-			lap->seq = nih->seqno;
-			if (ap->config_method != lease->type)
-				ni_warn("leased address exists already");
+			ni_debug_ifconfig("%s: %s/%u exists already",
+				ni_addrconf_type_to_name(lease->type),
+				ni_address_print(&ap->local_addr),
+				ap->prefixlen);
+
+			if (ap->config_method != lease->type
+			 && ap->config_method != NI_ADDRCONF_STATIC) {
+				ni_warn("address covered by a %s lease",
+					ni_addrconf_type_to_name(ap->config_method));
+			}
 			ap->config_method = lease->type;
-		} else if (__ni_rtnl_send_deladdr(nih, ifp, ap))
-			return -1;
+			lap->seq = nih->seqno;
+		} else if (ap->config_method == lease->type) {
+			ni_debug_ifconfig("%s: removing address %s/%u",
+				ni_addrconf_type_to_name(lease->type),
+				ni_address_print(&ap->local_addr),
+				ap->prefixlen);
+			if (__ni_rtnl_send_deladdr(nih, ifp, ap))
+				return -1;
+			changed = 1;
+		}
 	}
 
 	/* Loop over all lease addresses and add those not yet configured */
@@ -202,13 +216,61 @@ __ni_system_interface_update_lease(ni_handle_t *nih, ni_interface_t *ifp, ni_add
 
 		if (__ni_rtnl_send_newaddr(nih, ifp, ap, NLM_F_CREATE))
 			return -1;
+		changed = 1;
 	}
 
-	/* Loop over all addresses and remove those no longer covered by the lease.
-	 * Ignore all addresses covered by other address config mechanisms.
-	 */
-	if ((res = __ni_system_refresh_interface(nih, ifp)) < 0)
+	/* Refresh state here - routes may have disappeared, for instance,
+	 * when we took away the address. */
+	if (changed && __ni_system_refresh_interface(nih, ifp) < 0)
 		return -1;
+	changed = 0;
+
+	/* Loop over all routes and remove those no longer covered by the lease.
+	 * Ignore all routes covered by other address config mechanisms.
+	 */
+	for (rp = ifp->routes; rp; rp = rp->next) {
+		ni_route_t *lrp;
+
+		if (rp->family != lease->family)
+			continue;
+
+		/* We do NOT check whether we classified the address correctly.
+		 * It may still be around for some reason after we exited
+		 * previously, or we lost track of it for some other reason. */
+		lrp = __ni_lease_owns_route(lease, rp);
+		if (lrp) {
+			ni_debug_ifconfig("%s: route %s/%u exists already",
+				ni_addrconf_type_to_name(lease->type),
+				ni_address_print(&rp->destination),
+				rp->prefixlen);
+
+			if (rp->config_method != lease->type
+			 && rp->config_method != NI_ADDRCONF_STATIC) {
+				ni_warn("route covered by a %s lease",
+					ni_addrconf_type_to_name(rp->config_method));
+			}
+			rp->config_method = lease->type;
+			lrp->seq = nih->seqno;
+		} else if (rp->config_method == lease->type) {
+			ni_debug_ifconfig("%s: removing route %s/%u",
+				ni_addrconf_type_to_name(lease->type),
+				ni_address_print(&rp->destination),
+				rp->prefixlen);
+			if (__ni_rtnl_send_delroute(nih, ifp, rp))
+				return -1;
+			changed = 1;
+		}
+	}
+
+	/* Loop over all lease routes and add those not yet configured */
+	for (rp = lease->routes; rp; rp = rp->next) {
+		if (rp->seq == nih->seqno)
+			continue;
+
+		if (__ni_rtnl_send_newroute(nih, ifp, rp, NLM_F_CREATE))
+			return -1;
+		changed = 1;
+	}
 
 	ni_interface_set_lease(nih, ifp, lease);
 	return 0;
