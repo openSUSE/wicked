@@ -40,7 +40,7 @@ static xml_node_t *	dhcp_device_xml(const ni_dhcp_device_t *);
 static int
 __ni_dhcp_addrconf_do(const ni_addrconf_t *acm, ni_interface_t *ifp, const xml_node_t *cfg_xml)
 {
-	ni_handle_t *dummy = ni_dummy_open();
+	ni_handle_t *dummy = NULL;
 	ni_wicked_request_t req;
 	xml_node_t *tmp_xml = NULL;
 	ni_proxy_t *proxy;
@@ -56,11 +56,12 @@ __ni_dhcp_addrconf_do(const ni_addrconf_t *acm, ni_interface_t *ifp, const xml_n
 	ni_wicked_request_init(&req);
 	req.cmd = NI_REST_OP_PUT;
 	req.path = strdup(pathbuf);
-	// req.noreply = 1;
 
 	req.xml_in = cfg_xml;
-	if (req.xml_in == NULL)
+	if (req.xml_in == NULL) {
+		dummy = ni_dummy_open();
 		req.xml_in = tmp_xml = ni_syntax_xml_from_interface(ni_default_xml_syntax(), dummy, ifp);
+	}
 
 	if (req.xml_in == NULL) {
 		ni_error("%s: unable to create XML representation", ifp->name);
@@ -175,16 +176,12 @@ ni_dhcp_process_request(ni_socket_t *sock)
 		return;
 	}
 
-	/* Parse the request */
+	/* Process the request */
 	rv = ni_wicked_request_parse(sock, &req);
-
-	/* Process it... */
 	if (rv >= 0)
 		rv = __ni_wicked_call_direct(&req, &ni_dhcp_root_node);
-
-	/* .. and send the response */
-	ni_wicked_response_print(sock, &req, rv);
-	ni_socket_push(sock);
+	if (rv < 0)
+		ni_error("unable to process dhcp request");
 
 	ni_wicked_request_destroy(&req);
 }
