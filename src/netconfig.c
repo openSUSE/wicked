@@ -222,6 +222,8 @@ __ni_netconfig_hostname_put(ni_handle_t *nih, const char *hostname)
 {
 	FILE *fp;
 
+	/* FIXME: this should go through a syntax object, so that we can
+	 * handle chrooted access correctly. */
 	if ((fp = fopen(_PATH_HOSTNAME, "w")) == NULL) {
 		ni_error("cannot open %s: %m", _PATH_HOSTNAME);
 		return -1;
@@ -238,6 +240,8 @@ __ni_netconfig_hostname_get(ni_handle_t *nih, char *buffer, size_t size)
 	FILE *fp;
 	int rv = 0;
 
+	/* FIXME: this should go through a syntax object, so that we can
+	 * handle chrooted access correctly. */
 	if ((fp = fopen(_PATH_HOSTNAME, "r")) == NULL) {
 		ni_error("cannot open %s: %m", _PATH_HOSTNAME);
 		return -1;
