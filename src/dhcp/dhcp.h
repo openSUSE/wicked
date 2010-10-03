@@ -126,7 +126,7 @@ extern ni_proxy_t *	ni_dhcp_proxy_start(void);
 extern int		ni_dhcp_proxy_notify(ni_proxy_t *, const char *, xml_node_t *);
 
 extern int		ni_dhcp_wait(struct pollfd *, unsigned int, unsigned int);
-extern void		ni_dhcp_device_stop(const char *);
+extern void		ni_dhcp_device_stop(ni_dhcp_device_t *);
 
 extern int		ni_dhcp_fsm_discover(ni_dhcp_device_t *);
 extern int		ni_dhcp_fsm_request(ni_dhcp_device_t *, const ni_dhcp_lease_t *);
@@ -134,11 +134,13 @@ extern int		ni_dhcp_fsm_arp_validate(ni_dhcp_device_t *);
 extern int		ni_dhcp_fsm_renewal(ni_dhcp_device_t *);
 extern int		ni_dhcp_fsm_rebind(ni_dhcp_device_t *);
 extern int		ni_dhcp_fsm_decline(ni_dhcp_device_t *);
+extern int		ni_dhcp_fsm_release(ni_dhcp_device_t *);
 extern long		ni_dhcp_fsm_get_timeout(void);
 extern void		ni_dhcp_fsm_check_timeout(void);
 extern const char *	ni_dhcp_fsm_state_name(int);
 extern int		ni_dhcp_fsm_process_dhcp_packet(ni_dhcp_device_t *, ni_buffer_t *);
 extern int		ni_dhcp_fsm_process_arp_packet(ni_dhcp_device_t *, ni_buffer_t *);
+extern int		ni_dhcp_fsm_commit_lease(ni_dhcp_device_t *, ni_dhcp_lease_t *);
 extern int		ni_dhcp_build_message(const ni_dhcp_device_t *,
 				unsigned int, const ni_dhcp_lease_t *, ni_buffer_t *);
 

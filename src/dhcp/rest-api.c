@@ -321,6 +321,7 @@ dhcp_interface_put(const char *ifname, ni_wicked_request_t *req)
 
 	/* FIXME: if nothing changed, we don't need to do anything. */
 
+	dev = ni_dhcp_device_find(ifp->name);
 	if (ifp->flags & IFF_UP) {
 		ni_debug_dhcp("%s: received request to acquire lease", ifp->name);
 		dev = ni_dhcp_device_find(ifp->name);
@@ -336,7 +337,7 @@ dhcp_interface_put(const char *ifname, ni_wicked_request_t *req)
 		}
 	} else {
 		ni_debug_dhcp("%s: received request to release lease", ifp->name);
-		ni_dhcp_device_stop(ifp->name);
+		ni_dhcp_device_stop(dev);
 	}
 	if (ifp->flags & IFF_LOWER_UP) {
 		/* Link came back. If we're binding, resend next packet right away */
@@ -361,12 +362,15 @@ failed:
 static int
 dhcp_interface_delete(const char *ifname, ni_wicked_request_t *req)
 {
+	ni_dhcp_device_t *dev;
+
 	if (ifname == NULL) {
 		werror(req, "no interface name given");
 		return -1;
 	}
 
-	ni_dhcp_device_stop(ifname);
+	if ((dev = ni_dhcp_device_find(ifname)) != NULL)
+		ni_dhcp_device_stop(dev);
 	return 0;
 }
 

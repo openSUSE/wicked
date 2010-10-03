@@ -26,7 +26,6 @@
 static int	ni_dhcp_process_offer(ni_dhcp_device_t *, ni_dhcp_lease_t *);
 static int	ni_dhcp_process_ack(ni_dhcp_device_t *, ni_dhcp_lease_t *);
 static int	ni_dhcp_process_nak(ni_dhcp_device_t *);
-static int	ni_dhcp_fsm_commit_lease(ni_dhcp_device_t *, ni_dhcp_lease_t *);
 static void	ni_dhcp_fsm_fail_lease(ni_dhcp_device_t *);
 static int	ni_dhcp_fsm_validate_lease(ni_dhcp_device_t *, ni_dhcp_lease_t *);
 
@@ -238,6 +237,31 @@ ni_dhcp_fsm_decline(ni_dhcp_device_t *dev)
 	return 0;
 }
 
+int
+ni_dhcp_fsm_release(ni_dhcp_device_t *dev)
+{
+	if (!dev->lease)
+		return 0;
+
+	if (dev->state != NI_DHCP_STATE_BOUND) {
+		ni_error("%s called in state %s", __FUNCTION__,
+				ni_dhcp_fsm_state_name(dev->state));
+		return -1;
+	}
+
+	ni_debug_dhcp("%s: releasing lease", dev->ifname);
+	ni_dhcp_device_send_message(dev, DHCP_RELEASE, dev->lease);
+
+	/* FIXME: we should record the bad lease, and ignore it
+	 * when the server offers it again. */
+
+	/* RFC 2131 mandates we should wait for 10 seconds before
+	 * retrying discovery. */
+	ni_dhcp_fsm_set_timeout(dev, 10);
+	dev->state = NI_DHCP_STATE_INIT;
+	return 0;
+}
+
 /*
  * We never received any response. Deal with the traumatic rejection.
  */
@@ -407,20 +431,27 @@ ni_dhcp_process_ack(ni_dhcp_device_t *dev, ni_dhcp_lease_t *lease)
 int
 ni_dhcp_fsm_commit_lease(ni_dhcp_device_t *dev, ni_dhcp_lease_t *lease)
 {
-	ni_debug_dhcp("%s: committing lease", dev->ifname);
         if (dev->capture)
 		ni_capture_free(dev->capture);
 	dev->capture = NULL;
 
-	ni_debug_dhcp("%s: schedule renewal of lease in %u seconds",
-			dev->ifname, lease->renewaltime);
-	ni_dhcp_fsm_set_timeout(dev, lease->renewaltime);
+	if (lease) {
+		ni_debug_dhcp("%s: committing lease", dev->ifname);
+		ni_debug_dhcp("%s: schedule renewal of lease in %u seconds",
+				dev->ifname, lease->renewaltime);
+		ni_dhcp_fsm_set_timeout(dev, lease->renewaltime);
 
-	ni_dhcp_device_set_lease(dev, lease);
-	dev->state = NI_DHCP_STATE_BOUND;
+		ni_dhcp_device_set_lease(dev, lease);
+		dev->state = NI_DHCP_STATE_BOUND;
+
+		/* FIXME: Write the lease to lease cache */
+	} else {
+		ni_debug_dhcp("%s: dropped lease", dev->ifname);
+		ni_dhcp_fsm_restart(dev);
+
+		/* FIXME: delete the lease file */
+	}
 	dev->notify = 1;
-
-	/* FIXME: Write the lease to lease cache */
 
 	/* TBD: Inform the master about the newly acquired lease */
 

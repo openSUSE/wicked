@@ -19,8 +19,6 @@
 
 ni_dhcp_device_t *	ni_dhcp_active;
 
-static void		ni_dhcp_device_free(ni_dhcp_device_t *);
-
 /*
  * Create and destroy dhcp device handles
  */
@@ -59,21 +57,6 @@ ni_dhcp_device_find(const char *ifname)
 	return NULL;
 }
 
-void
-ni_dhcp_device_stop(const char *ifname)
-{
-	ni_dhcp_device_t *dev, **pos;
-
-	for (pos = &ni_dhcp_active; (dev = *pos) != NULL; pos = &dev->next) {
-		if (!strcmp(dev->ifname, ifname)) {
-			*pos = dev->next;
-			ni_dhcp_device_free(dev);
-			return;
-		}
-	}
-}
-
-
 static void
 ni_dhcp_device_close(ni_dhcp_device_t *dev)
 {
@@ -86,13 +69,36 @@ ni_dhcp_device_close(ni_dhcp_device_t *dev)
 	dev->listen_fd = -1;
 }
 
-static void
+void
+ni_dhcp_device_stop(ni_dhcp_device_t *dev)
+{
+	/* Clear the lease. This will trigger an event to wickedd
+	 * with a lease that has state RELEASED. */
+	ni_dhcp_fsm_commit_lease(dev, NULL);
+	ni_dhcp_device_close(dev);
+
+	/* Drop existing config */
+	if (dev->config)
+		free(dev->config);
+	dev->config = NULL;
+}
+
+void
 ni_dhcp_device_free(ni_dhcp_device_t *dev)
 {
+	ni_dhcp_device_t **pos;
+
 	ni_dhcp_device_drop_buffer(dev);
 	ni_dhcp_device_drop_lease(dev);
-	ni_string_free(&dev->ifname);
 	ni_dhcp_device_close(dev);
+	ni_string_free(&dev->ifname);
+
+	for (pos = &ni_dhcp_active; *pos; pos = &(*pos)->next) {
+		if (*pos == dev) {
+			*pos = dev->next;
+			break;
+		}
+	}
 	free(dev);
 }
 
@@ -142,6 +148,10 @@ ni_dhcp_device_reconfigure(ni_dhcp_device_t *dev, const ni_interface_t *ifp)
 
 	if (dev->system.iftype != ifp->type) {
 		ni_error("%s: reconfig changes device type!", dev->ifname);
+		return -1;
+	}
+	if (ifp->hwaddr.len == 0) {
+		ni_error("%s: empty MAC address, cannot do DHCP", dev->ifname);
 		return -1;
 	}
 	dev->system.arp_type = ifp->arp_type;
@@ -362,10 +372,24 @@ ni_dhcp_device_send_message(ni_dhcp_device_t *dev, unsigned int msg_code, const 
 					ni_buffer_count(&dev->message));
 	}
 
-	if (rv >= 0) {
-		dev->retrans.timeout = dev->config->resend_timeout;
-		dev->retrans.increment = dev->config->resend_timeout;
-		ni_dhcp_device_arm_retransmit(dev);
+	switch (msg_code) {
+	case DHCP_DECLINE:
+	case DHCP_RELEASE:
+		break;
+
+	case DHCP_DISCOVER:
+	case DHCP_REQUEST:
+	case DHCP_INFORM:
+		if (rv >= 0) {
+			dev->retrans.timeout = dev->config->resend_timeout;
+			dev->retrans.increment = dev->config->resend_timeout;
+			ni_dhcp_device_arm_retransmit(dev);
+		}
+		break;
+
+	default:
+		ni_warn("not sure whether I should retransmit %s message",
+				ni_dhcp_message_name(msg_code));
 	}
 
 	return rv;
