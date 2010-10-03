@@ -669,7 +669,7 @@ __ni_netcf_xml_from_static_ifcfg(ni_syntax_t *syntax, ni_handle_t *nih,
 	for (ap = ifp->addrs; ap; ap = ap->next) {
 		xml_node_t *addrnode;
 
-		if (ap->family != af)
+		if (ap->family != af || ap->config_method != NI_ADDRCONF_STATIC)
 			continue;
 
 		if (!protnode) {
@@ -682,10 +682,6 @@ __ni_netcf_xml_from_static_ifcfg(ni_syntax_t *syntax, ni_handle_t *nih,
 		if (ap->peer_addr.ss_family != AF_UNSPEC)
 			xml_node_add_attr(addrnode, "peer", ni_address_print(&ap->peer_addr));
 		xml_node_add_attr_uint(addrnode, "prefix", ap->prefixlen);
-
-		if (!syntax->strict)
-			xml_node_add_attr(addrnode, "config",
-					ni_addrconf_type_to_name(ap->config_method));
 
 		for (rp = nih->routes; rp; rp = rp->next) {
 			// FIXME: this check works for IPv4 only;
