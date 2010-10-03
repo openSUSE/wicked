@@ -124,9 +124,8 @@ ni_extension_active(const ni_extension_t *ex, const char *ifname, xml_node_t *xm
  * Run an extension command
  */
 static int
-__ni_extension_run(const ni_extension_t *ex, const char *ifname, xml_node_t *xml, const char *command_name)
+__ni_extension_run(const ni_extension_t *ex, ni_script_action_t *script, xml_node_t *xml)
 {
-	ni_script_action_t *script;
 	const char *command_string;
 	ni_string_array_t result;
 	ni_string_array_t env;
@@ -134,22 +133,16 @@ __ni_extension_run(const ni_extension_t *ex, const char *ifname, xml_node_t *xml
 	pid_t pid;
 	int rv = -1;
 
-	if (!(script = ni_script_action_find(ex->actions, command_name))) {
-		ni_error("extension %s: no %s script defined",
-				ex->name, command_name);
-		return -1;
-	}
-
 	ni_string_array_init(&result);
 	ni_string_array_init(&env);
 
-	debug_extension("%s extension %s for interface %s", command_name, ex->name, ifname);
+	debug_extension("running extension %s %s", ex->name, script->name);
 
 	/* First, expand any environment variables. */
 	for (i = 0; i < ex->environment.count; ++i) {
 		if (!xpath_format_eval(ex->environment.data[i], xml, &result) || result.count > 1) {
-			error("unable to %s extension %s for %s: error evaluating xpath expression",
-					command_name, ex->name, ifname);
+			error("unable to %s extension %s: error evaluating xpath expression",
+					script->name, ex->name);
 			goto done;
 		}
 
@@ -161,8 +154,8 @@ __ni_extension_run(const ni_extension_t *ex, const char *ifname, xml_node_t *xml
 	}
 
 	if (!xpath_format_eval(script->command, xml, &result) || result.count != 1) {
-		error("unable to %s extension %s for %s: error evaluating xpath expression",
-				command_name, ex->name, ifname);
+		error("unable to %s extension %s: error evaluating xpath expression",
+				script->name, ex->name);
 		goto done;
 	}
 	command_string = result.data[0];
@@ -209,22 +202,10 @@ __ni_extension_run(const ni_extension_t *ex, const char *ifname, xml_node_t *xml
 
 		if (!WIFEXITED(status)) {
 			error("extension %s: %s command terminated abnormally",
-					ex->name, command_name);
+					ex->name, script->name);
 		} else if (WEXITSTATUS(status) != 0) {
 			error("extension %s: %s command exited with error status %d",
-					ex->name, command_name, WEXITSTATUS(status));
-		} else if (ex->pid_file_path) {
-			int is_active = ni_extension_active(ex, ifname, xml);
-
-			if (!strcmp(command_name, "start") && !is_active) {
-				error("extension %s: %s command succeeded, but service not running",
-						ex->name, command_name);
-			} else if (!strcmp(command_name, "stop") && is_active) {
-				error("extension %s: %s command succeeded, but service still running",
-						ex->name, command_name);
-			} else {
-				rv = 0;
-			}
+					ex->name, script->name, WEXITSTATUS(status));
 		} else {
 			rv = 0;
 		}
@@ -243,7 +224,21 @@ done:
 int
 ni_extension_start(const ni_extension_t *ex, const char *ifname, xml_node_t *xml)
 {
-	return __ni_extension_run(ex, ifname, xml, "start");
+	ni_script_action_t *script;
+
+	if (!(script = ni_script_action_find(ex->actions, "start"))) {
+		ni_error("extension %s: no start script defined", ex->name);
+		return -1;
+	}
+
+	if (__ni_extension_run(ex, script, xml) < 0)
+		return -1;
+
+	if (ex->pid_file_path && !ni_extension_active(ex, ifname, xml)) {
+		error("extension %s: start command succeeded, but service not running", ex->name);
+		return -1;
+	}
+	return 0;
 }
 
 /*
@@ -252,7 +247,21 @@ ni_extension_start(const ni_extension_t *ex, const char *ifname, xml_node_t *xml
 int
 ni_extension_stop(const ni_extension_t *ex, const char *ifname, xml_node_t *xml)
 {
-	return __ni_extension_run(ex, ifname, xml, "stop");
+	ni_script_action_t *script;
+
+	if (!(script = ni_script_action_find(ex->actions, "stop"))) {
+		ni_error("extension %s: no stop script defined", ex->name);
+		return -1;
+	}
+
+	if (__ni_extension_run(ex, script, xml) < 0)
+		return -1;
+
+	if (ex->pid_file_path && ni_extension_active(ex, ifname, xml)) {
+		error("extension %s: stop command succeeded, but service still running", ex->name);
+		return -1;
+	}
+	return 0;
 }
 
 /*
