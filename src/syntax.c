@@ -126,10 +126,10 @@ __ni_syntax_prepend_base(ni_syntax_t *syntax, const char *filename)
  * system configuration files.
  */
 int
-ni_syntax_parse_all(ni_syntax_t *syntax, ni_handle_t *nih)
+ni_syntax_get_interfaces(ni_syntax_t *syntax, ni_handle_t *nih)
 {
-	if (syntax->parse_all)
-		return syntax->parse_all(syntax, nih);
+	if (syntax->get_interfaces)
+		return syntax->get_interfaces(syntax, nih);
 
 	return ni_syntax_parse_file(syntax, nih, syntax->base_path);
 }
@@ -198,10 +198,10 @@ ni_syntax_parse_stream(ni_syntax_t *syntax, ni_handle_t *nih, FILE *input)
 }
 
 int
-ni_syntax_format_all(ni_syntax_t *syntax, ni_handle_t *nih, FILE *outfile)
+ni_syntax_put_interfaces(ni_syntax_t *syntax, ni_handle_t *nih, FILE *outfile)
 {
-	if (syntax->format_all)
-		return syntax->format_all(syntax, nih, outfile);
+	if (syntax->put_interfaces)
+		return syntax->put_interfaces(syntax, nih, outfile);
 
 	if (syntax->xml_from_interface) {
 		xml_document_t *doc;
@@ -238,10 +238,10 @@ ni_syntax_format_all(ni_syntax_t *syntax, ni_handle_t *nih, FILE *outfile)
 }
 
 int
-ni_syntax_format_interface(ni_syntax_t *syntax, ni_handle_t *nih, ni_interface_t *ifp, FILE *outfile)
+ni_syntax_put_one_interface(ni_syntax_t *syntax, ni_handle_t *nih, ni_interface_t *ifp, FILE *outfile)
 {
-	if (syntax->format_interface)
-		return syntax->format_interface(syntax, nih, ifp, outfile);
+	if (syntax->put_one_interface)
+		return syntax->put_one_interface(syntax, nih, ifp, outfile);
 
 	if (syntax->xml_from_interface) {
 		xml_document_t *doc;

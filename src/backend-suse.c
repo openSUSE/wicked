@@ -17,8 +17,8 @@
 
 #define _PATH_NETCONFIG_DIR		"/etc/sysconfig/network"
 
-static int		__ni_suse_parse_all(ni_syntax_t *, ni_handle_t *);
-static int		__ni_suse_format_all(ni_syntax_t *, ni_handle_t *, FILE *);
+static int		__ni_suse_get_interfaces(ni_syntax_t *, ni_handle_t *);
+static int		__ni_suse_put_interfaces(ni_syntax_t *, ni_handle_t *, FILE *);
 static int		__ni_suse_read_routes(ni_route_t **, const char *);
 static ni_dhclient_info_t *__ni_suse_read_dhcp(ni_handle_t *);
 static ni_interface_t *	__ni_suse_read_interface(ni_handle_t *, const char *, const char *);
@@ -67,8 +67,8 @@ __ni_syntax_sysconfig_suse(const char *pathname)
 
 	syntax->schema = "suse";
 	syntax->base_path = strdup(pathname);
-	syntax->parse_all = __ni_suse_parse_all;
-	syntax->format_all = __ni_suse_format_all;
+	syntax->get_interfaces = __ni_suse_get_interfaces;
+	syntax->put_interfaces = __ni_suse_put_interfaces;
 
 	return syntax;
 }
@@ -77,7 +77,7 @@ __ni_syntax_sysconfig_suse(const char *pathname)
  * Refresh network configuration by reading all ifcfg files.
  */
 static int
-__ni_suse_parse_all(ni_syntax_t *syntax, ni_handle_t *nih)
+__ni_suse_get_interfaces(ni_syntax_t *syntax, ni_handle_t *nih)
 {
 	ni_string_array_t files = NI_STRING_ARRAY_INIT;
 	const char *base_dir;
@@ -687,7 +687,7 @@ __ni_suse_dhcp2sysconfig(const ni_dhclient_info_t *ifdhcp, const ni_dhclient_inf
  * Produce sysconfig files
  */
 int
-__ni_suse_format_all(ni_syntax_t *syntax, ni_handle_t *nih, FILE *outfile)
+__ni_suse_put_interfaces(ni_syntax_t *syntax, ni_handle_t *nih, FILE *outfile)
 {
 	ni_string_array_t files = NI_STRING_ARRAY_INIT;
 	ni_dhclient_info_t *dhcp = NULL;

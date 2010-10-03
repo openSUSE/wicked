@@ -128,7 +128,7 @@ __ni_netonfig_refresh(ni_handle_t *nih)
 		ni_error("netonfig: cannot refresh, no syntax associated");
 		return -1;
 	}
-	return ni_syntax_parse_all(nit->syntax, nih);
+	return ni_syntax_get_interfaces(nit->syntax, nih);
 }
 
 /*
@@ -169,7 +169,7 @@ __ni_netconfig_interface_configure(ni_handle_t *nih, ni_interface_t *cfg, xml_no
 	*pos = nfp;
 
 	/* write back changes */
-	return ni_syntax_format_all(nit->syntax, nih, NULL);
+	return ni_syntax_put_interfaces(nit->syntax, nih, NULL);
 }
 
 /*
@@ -189,7 +189,7 @@ __ni_netconfig_interface_delete(ni_handle_t *nih, const char *ifname)
 	ifp->deleted = 1;
 
 	/* write back changes */
-	return ni_syntax_format_all(nit->syntax, nih, NULL);
+	return ni_syntax_put_interfaces(nit->syntax, nih, NULL);
 }
 
 /*

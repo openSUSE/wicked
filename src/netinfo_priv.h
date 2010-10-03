@@ -50,9 +50,9 @@ struct ni_syntax {
 	char *			root_dir;
 	unsigned char		strict;
 
-	int			(*parse_all)(ni_syntax_t *, ni_handle_t *);
-	int			(*format_all)(ni_syntax_t *, ni_handle_t *, FILE *);
-	int			(*format_interface)(ni_syntax_t *, ni_handle_t *, ni_interface_t *, FILE *);
+	int			(*get_interfaces)(ni_syntax_t *, ni_handle_t *);
+	int			(*put_interfaces)(ni_syntax_t *, ni_handle_t *, FILE *);
+	int			(*put_one_interface)(ni_syntax_t *, ni_handle_t *, ni_interface_t *, FILE *);
 
 	xml_node_t *		(*xml_from_interface)(ni_syntax_t *, ni_handle_t *, const ni_interface_t *,
 						xml_node_t *parent);
