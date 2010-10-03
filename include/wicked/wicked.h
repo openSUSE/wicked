@@ -50,6 +50,7 @@ extern ni_rest_node_t		ni_rest_root_node;
 extern int			ni_wicked_call_direct(ni_wicked_request_t *);
 extern int			ni_wicked_call_indirect(ni_wicked_request_t *);
 extern int			ni_wicked_call_indirect_dgram(ni_wicked_request_t *, FILE *);
+extern int			ni_wicked_send_event(ni_wicked_request_t *, FILE *);
 extern void			ni_wicked_request_init(ni_wicked_request_t *);
 extern void			ni_wicked_request_destroy(ni_wicked_request_t *);
 extern int			ni_wicked_request_add_option(ni_wicked_request_t *,

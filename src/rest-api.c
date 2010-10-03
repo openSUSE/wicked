@@ -208,7 +208,7 @@ ni_wicked_response_print(ni_wicked_request_t *req, int status, FILE *fp)
  * This is what wicked clients usually call.
  */
 int
-__ni_wicked_call_indirect(ni_wicked_request_t *req, FILE *sock, int sotype)
+__ni_wicked_call_indirect(ni_wicked_request_t *req, FILE *sock, int sotype, int expect_response)
 {
 	char dgram[65536];
 	char respbuf[256];
@@ -230,6 +230,9 @@ __ni_wicked_call_indirect(ni_wicked_request_t *req, FILE *sock, int sotype)
 	}
 
 	fflush(sock);
+
+	if (!expect_response)
+		return 0;
 
 	if (sotype == SOCK_STREAM) {
 		/* Tell the server we're done sending */
@@ -290,7 +293,7 @@ ni_wicked_call_indirect(ni_wicked_request_t *req)
 		return -1;
 	}
 
-	rv = __ni_wicked_call_indirect(req, sock, SOCK_STREAM);
+	rv = __ni_wicked_call_indirect(req, sock, SOCK_STREAM, 1);
 	fclose(sock);
 	return rv;
 }
@@ -298,7 +301,13 @@ ni_wicked_call_indirect(ni_wicked_request_t *req)
 int
 ni_wicked_call_indirect_dgram(ni_wicked_request_t *req, FILE *sock)
 {
-	return __ni_wicked_call_indirect(req, sock, SOCK_DGRAM);
+	return __ni_wicked_call_indirect(req, sock, SOCK_DGRAM, 1);
+}
+
+int
+ni_wicked_send_event(ni_wicked_request_t *req, FILE *sock)
+{
+	return __ni_wicked_call_indirect(req, sock, SOCK_DGRAM, 0);
 }
 
 /*
