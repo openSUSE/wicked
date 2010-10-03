@@ -35,11 +35,6 @@ typedef struct ni_dhcp_message ni_dhcp_message_t;
 typedef struct ni_dhcp_config ni_dhcp_config_t;
 typedef struct ni_dhcp_config options_t;
 
-typedef struct ni_packet {
-	unsigned char *	data;
-	size_t		len;
-} ni_packet_t;
-
 typedef struct ni_opaque {
 	unsigned char	data[128];
 	size_t		len;
