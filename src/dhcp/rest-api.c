@@ -130,19 +130,37 @@ ni_dhcp_process_event(ni_socket_t *sock)
 }
 
 /*
+ * Handle terminal signals
+ */
+static int	ni_dhcp_stop = 0;
+
+static void
+catch_fatal_signals(int sig)
+{
+	ni_dhcp_stop = sig;
+}
+
+/*
  * Mainloop for dhcp supplicant side
  */
 void
 ni_dhcp_run(ni_socket_t *sock)
 {
+	struct sigaction sa;
+	ni_dhcp_device_t *dev;
+
 	ni_srandom();
+
+	memset(&sa, 0, sizeof(sa));
+	sa.sa_handler = catch_fatal_signals;
+	sigaction(SIGTERM, &sa, NULL);
+	sigaction(SIGINT, &sa, NULL);
 
 	sock->data_ready = ni_dhcp_process_request;
 	ni_socket_activate(sock);
 
 	/* event loop */
 	while (1) {
-		ni_dhcp_device_t *dev;
 		long timeout;
 
 		/* Get timeout from FSM */
@@ -155,12 +173,32 @@ ni_dhcp_run(ni_socket_t *sock)
 		if (ni_socket_wait(timeout) < 0)
 			ni_fatal("ni_socket_wait failed");
 
+		if (ni_dhcp_stop) {
+			ni_debug_dhcp("received exit signal %d", ni_dhcp_stop);
+			break;
+		}
+
 		/* See if anything timed out */
 		ni_dhcp_fsm_check_timeout();
 
 		while ((dev = ni_dhcp_device_get_changed()) != NULL)
 			ni_dhcp_send_device_event(sock, dev);
 	}
+
+	for (dev = ni_dhcp_active; dev; dev = dev->next) {
+		switch (dev->state) {
+		case NI_DHCP_STATE_REQUESTING:
+		case NI_DHCP_STATE_RENEWING:
+		case NI_DHCP_STATE_REBINDING:
+		case NI_DHCP_STATE_BOUND:
+			if (dev->lease)
+				ni_dhcp_fsm_release(dev);
+			break;
+		}
+		ni_dhcp_device_stop(dev);
+	}
+
+	exit(0);
 }
 
 /*
