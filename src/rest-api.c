@@ -701,7 +701,7 @@ static ni_rest_node_t	ni_rest_config_interface_node = {
 };
 
 static int
-system_hostname_get(const char *path, ni_wicked_request_t *req)
+generic_hostname_get(ni_handle_t *nih, const char *path, ni_wicked_request_t *req)
 {
 	char hostname[256];
 
@@ -710,7 +710,7 @@ system_hostname_get(const char *path, ni_wicked_request_t *req)
 		return -1;
 	}
 
-	if (gethostname(hostname, sizeof(hostname)) < 0) {
+	if (nih->op->hostname_get(nih, hostname, sizeof(hostname)) < 0) {
 		werror(req, "error getting hostname");
 		return -1;
 	}
@@ -721,7 +721,7 @@ system_hostname_get(const char *path, ni_wicked_request_t *req)
 }
 
 static int
-system_hostname_put(const char *path, ni_wicked_request_t *req)
+generic_hostname_put(ni_handle_t *nih, const char *path, ni_wicked_request_t *req)
 {
 	char *hostname, *sp;
 	xml_node_t *hnode;
@@ -758,7 +758,7 @@ system_hostname_put(const char *path, ni_wicked_request_t *req)
 		}
 	}
 
-	if (sethostname(hostname, n) < 0) {
+	if (nih->op->hostname_put(nih, hostname) < 0) {
 		werror(req, "error setting hostname");
 		return -1;
 	}
@@ -766,6 +766,18 @@ system_hostname_put(const char *path, ni_wicked_request_t *req)
 	req->xml_out = xml_node_new("hostname", NULL);
 	xml_node_set_cdata(req->xml_out, hostname);
 	return 0;
+}
+
+static int
+system_hostname_get(const char *path, ni_wicked_request_t *req)
+{
+	return generic_hostname_get(system_handle(req), path, req);
+}
+
+static int
+system_hostname_put(const char *path, ni_wicked_request_t *req)
+{
+	return generic_hostname_put(system_handle(req), path, req);
 }
 
 static ni_rest_node_t	ni_rest_system_hostname_node = {

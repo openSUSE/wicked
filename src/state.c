@@ -6,9 +6,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <errno.h>
 #include "netinfo_priv.h"
 #include "config.h"
 
+static int	__ni_system_hostname_put(ni_handle_t *, const char *);
+static int	__ni_system_hostname_get(ni_handle_t *, char *, size_t);
 static void	__ni_system_close(ni_handle_t *nih);
 
 static struct ni_ops ni_state_ops = {
@@ -16,6 +19,8 @@ static struct ni_ops ni_state_ops = {
 	.configure_interface	= __ni_system_interface_configure,
 	.delete_interface	= __ni_system_interface_delete,
 	.update_lease		= __ni_system_interface_update_lease,
+	.hostname_get		= __ni_system_hostname_get,
+	.hostname_put		= __ni_system_hostname_put,
 	.close			= __ni_system_close,
 };
 
@@ -34,6 +39,24 @@ ni_state_open(void)
 
 	return nih;
 }
+
+static int
+__ni_system_hostname_get(ni_handle_t *nih, char *buffer, size_t size)
+{
+	return gethostname(buffer, size);
+}
+
+
+static int
+__ni_system_hostname_put(ni_handle_t *nih, const char *hostname)
+{
+	if (!hostname || !*hostname) {
+		errno = EINVAL;
+		return -1;
+	}
+	return sethostname(hostname, strlen(hostname));
+}
+
 
 static void
 __ni_system_close(ni_handle_t *nih)

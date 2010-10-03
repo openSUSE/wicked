@@ -32,8 +32,10 @@ struct ni_ops {
 	int			(*refresh)(ni_handle_t *);
 	int			(*configure_interface)(ni_handle_t *, ni_interface_t *, xml_node_t *);
 	int			(*delete_interface)(ni_handle_t *, const char *);
-	void			(*close)(ni_handle_t *);
 	int			(*update_lease)(ni_handle_t *, ni_interface_t *, ni_addrconf_state_t *);
+	int			(*hostname_get)(ni_handle_t *, char *, size_t);
+	int			(*hostname_put)(ni_handle_t *, const char *);
+	void			(*close)(ni_handle_t *);
 };
 
 /*
