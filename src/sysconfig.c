@@ -404,14 +404,20 @@ ni_sysconfig_get_integer(const ni_sysconfig_t *sc, const char *name, unsigned in
 int
 ni_sysconfig_get_boolean(const ni_sysconfig_t *sc, const char *name, int *p)
 {
+	*p = ni_sysconfig_test_boolean(sc, name);
+	return 0;
+}
+
+int
+ni_sysconfig_test_boolean(const ni_sysconfig_t *sc, const char *name)
+{
 	ni_var_t *var;
 
-	*p = 0;
 	if ((var = ni_sysconfig_get(sc, name)) != NULL) {
 		if (!strcasecmp(var->value, "on")
 		 || !strcasecmp(var->value, "true")
 		 || !strcasecmp(var->value, "yes"))
-			*p = 1;
+			return 1;
 	}
 	return 0;
 }
