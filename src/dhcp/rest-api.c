@@ -346,7 +346,7 @@ dhcp_interface_put(const char *ifname, ni_wicked_request_t *req)
 	} else {
 		/* Link went away. */
 	}
-	if (reacquire)
+	if (reacquire && dev->config)
 		ni_dhcp_device_start(dev);
 
 	rv = dhcp_device_response(dev, req);
