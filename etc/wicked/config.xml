@@ -34,6 +34,7 @@
     </extension>
   </linktype>
 
+  <!-- we no longer require dhcp4 to be provided through an extension
   <addrconf>
     <extension name="dhcp4" type="dhcp" family="ipv4">
       <pidfile path="/var/run/dhcpcd-%{@name}.pid"/>
@@ -43,5 +44,6 @@
       <environment putenv="DHCP_REQ_HOSTNAME=%{/protocol[@family = 'ipv4']/dhcp/request/@hostname}"/>
     </extension>
   </addrconf>
+   -->
 
 </config>
