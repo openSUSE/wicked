@@ -235,7 +235,7 @@ ni_dhcp_device_reconfigure(ni_dhcp_device_t *dev, const ni_interface_t *ifp)
 	} else {
 		/* Set client ID from interface hwaddr */
 		strncpy(config->client_id, ni_link_address_print(&dev->system.hwaddr), sizeof(config->client_id)-1);
-		ni_opaque_set(&config->raw_client_id, dev->system.hwaddr.data, dev->system.hwaddr.len);
+		ni_dhcp_set_client_id(&config->raw_client_id, &dev->system.hwaddr);
 	}
 
 	classid = ni_global.config->addrconf.dhcp.vendor_class;
@@ -511,11 +511,29 @@ ni_dhcp_parse_client_id(ni_opaque_t *raw, int iftype, const char *cooked)
 
 	/* Check if it's a hardware address */
 	if (ni_link_address_parse(&hwaddr, iftype, cooked) == 0) {
-		ni_opaque_set(raw, hwaddr.data, hwaddr.len);
+		ni_dhcp_set_client_id(raw, &hwaddr);
 	} else {
 		/* nope, use as-is */
-		unsigned int len = strlen(cooked) + 1;
+		unsigned int len = strlen(cooked);
 
-		ni_opaque_set(raw, cooked, len);
+		if (len > sizeof(raw->data) - 1)
+			len = sizeof(raw->data) - 1;
+
+		raw->data[0] = 0;
+		memcpy(raw->data + 1, cooked, len);
+		raw->len = len + 1;
 	}
+}
+
+/*
+ * Set the client ID from a link layer address, according to RFC 2131
+ */
+void
+ni_dhcp_set_client_id(ni_opaque_t *raw, const ni_hwaddr_t *hwa)
+{
+	if (hwa->len + 1 > sizeof(raw->data))
+		ni_fatal("%s: not enough room for MAC address", __FUNCTION__);
+	raw->data[0] = ni_iftype_to_arphrd_type(hwa->type);
+	memcpy(raw->data + 1, hwa->data, hwa->len);
+	raw->len = hwa->len + 1;
 }
