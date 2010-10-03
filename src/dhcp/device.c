@@ -14,8 +14,10 @@
 
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
+#include "netinfo_priv.h"
 #include "dhcp.h"
 #include "protocol.h"
+#include "config.h"
 
 ni_dhcp_device_t *	ni_dhcp_active;
 
@@ -128,7 +130,8 @@ ni_dhcp_device_drop_lease(ni_dhcp_device_t *dev)
 		/* FIXME: if we've configured the network using this
 		 * lease, we need to isse a link down request */
 
-		/* FIXME: delete the lease file. */
+		/* delete the lease file. */
+		ni_lease_file_remove(dev->ifname, NI_ADDRCONF_DHCP, AF_INET);
 		ni_addrconf_lease_free(dev->lease);
 		dev->lease = NULL;
 	}
@@ -139,6 +142,7 @@ ni_dhcp_device_reconfigure(ni_dhcp_device_t *dev, const ni_interface_t *ifp)
 {
 	ni_dhclient_info_t *info;
 	ni_dhcp_config_t *config;
+	const char *classid;
 	int changed = 0;
 
 	if (!(info = ifp->ipv4.dhcp)) {
@@ -195,8 +199,9 @@ ni_dhcp_device_reconfigure(ni_dhcp_device_t *dev, const ni_interface_t *ifp)
 		ni_opaque_set(&config->clientid, dev->system.hwaddr.data, dev->system.hwaddr.len);
 	}
 
-	if (info->request.vendor_class)
-		strncpy(config->classid, info->request.vendor_class, sizeof(config->classid) - 1);
+	classid = ni_global.config->addrconf.dhcp.vendor_class;
+	if (classid)
+		strncpy(config->classid, classid, sizeof(config->classid) - 1);
 
 	config->flags = DHCP_DO_ARP | DHCP_DO_CSR | DHCP_DO_MSCSR;
 	if (info->update.hostname)

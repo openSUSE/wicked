@@ -15,7 +15,7 @@
 
 #define CONFIG_DHCP_LEASE_DIRECTORY	"/var/run/wicked"
 
-static const char *		__ni_lease_file_path(const char *, const char *);
+static const char *		__ni_lease_file_path(int, int, const char *);
 
 /*
  * Write a lease to a file
@@ -27,10 +27,13 @@ ni_lease_file_write(const char *ifname, ni_addrconf_lease_t *lease)
 	xml_node_t *xml = NULL;
 	FILE *fp;
 
-	filename = __ni_lease_file_path(ni_addrconf_type_to_name(lease->type), ifname);
-	if (lease->state == NI_ADDRCONF_STATE_RELEASED)
+	filename = __ni_lease_file_path(lease->type, lease->family, ifname);
+	if (lease->state == NI_ADDRCONF_STATE_RELEASED) {
+		ni_debug_dhcp("removing %s", filename);
 		return unlink(filename);
+	}
 
+	ni_debug_dhcp("writing lease to %s", filename);
 	xml = ni_syntax_xml_from_lease(ni_default_xml_syntax(), lease, NULL);
 	if (!xml) {
 		ni_error("cannot store lease: unable to represent lease as XML");
@@ -59,15 +62,16 @@ failed:
  * Read a lease from a file
  */
 ni_addrconf_lease_t *
-ni_lease_file_read(const char *ifname, int type)
+ni_lease_file_read(const char *ifname, int type, int family)
 {
 	ni_addrconf_lease_t *lease;
 	const char *filename;
 	xml_node_t *xml = NULL, *lnode;
 	FILE *fp;
 
-	filename = __ni_lease_file_path(ni_addrconf_type_to_name(type), ifname);
+	filename = __ni_lease_file_path(type, family, ifname);
 
+	ni_debug_dhcp("reading lease from %s", filename);
 	if ((fp = fopen(filename, "r")) == NULL) {
 		ni_error("unable to open %s for reading: %m", filename);
 		return NULL;
@@ -103,12 +107,28 @@ ni_lease_file_read(const char *ifname, int type)
 	return lease;
 }
 
+/*
+ * Remove a lease file
+ */
+void
+ni_lease_file_remove(const char *ifname, int type, int family)
+{
+	const char *filename;
+
+	filename = __ni_lease_file_path(type, family, ifname);
+	ni_debug_dhcp("removing %s", filename);
+	unlink(filename);
+}
+
 static const char *
-__ni_lease_file_path(const char *mech, const char *ifname)
+__ni_lease_file_path(int type, int family, const char *ifname)
 {
 	static char pathname[PATH_MAX];
 
-	snprintf(pathname, sizeof(pathname), "%s/lease-%s-%s.xml",
-			CONFIG_DHCP_LEASE_DIRECTORY, mech, ifname);
+	snprintf(pathname, sizeof(pathname), "%s/lease-%s-%s-%s.xml",
+			CONFIG_DHCP_LEASE_DIRECTORY,
+			ni_addrconf_type_to_name(type),
+			ni_addrfamily_type_to_name(family),
+			ifname);
 	return pathname;
 }

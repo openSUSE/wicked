@@ -16,6 +16,7 @@
 
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
+#include "netinfo_priv.h"
 #include "dhcp.h"
 #include "protocol.h"
 #include "buffer.h"
@@ -444,12 +445,14 @@ ni_dhcp_fsm_commit_lease(ni_dhcp_device_t *dev, ni_addrconf_lease_t *lease)
 		ni_dhcp_device_set_lease(dev, lease);
 		dev->state = NI_DHCP_STATE_BOUND;
 
-		/* FIXME: Write the lease to lease cache */
+		/* Write the lease to lease cache */
+		ni_lease_file_write(dev->ifname, lease);
 	} else {
 		ni_debug_dhcp("%s: dropped lease", dev->ifname);
 		ni_dhcp_fsm_restart(dev);
 
-		/* FIXME: delete the lease file */
+		/* Delete the lease file */
+		ni_lease_file_remove(dev->ifname, NI_ADDRCONF_DHCP, AF_INET);
 	}
 	dev->notify = 1;
 
