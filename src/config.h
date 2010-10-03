@@ -65,6 +65,13 @@ typedef struct ni_config {
 	ni_config_fslocation_t	pidfile;
 	ni_config_fslocation_t	socket;
 
+	struct {
+	    struct ni_config_dhcp {
+		char *		vendor_class;
+		unsigned int	lease_time;
+	    } dhcp;
+	} addrconf;
+
 	ni_extension_t *	conffile_extensions;
 	ni_extension_t *	linktype_extensions;
 	ni_extension_t *	addrconf_extensions;

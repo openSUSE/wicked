@@ -12,7 +12,7 @@
 #include "netinfo_priv.h"
 #include "config.h"
 
-
+static int		ni_config_parse_addrconf_dhcp(struct ni_config_dhcp *, xml_node_t *);
 static int		ni_config_parse_afinfo(ni_afinfo_t *, const char *, xml_node_t *);
 static int		ni_config_parse_fslocation(ni_config_fslocation_t *, const char *, xml_node_t *);
 static int		ni_config_parse_extensions(ni_extension_t **, xml_node_t *, const char *,
@@ -89,6 +89,14 @@ ni_config_parse(const char *filename)
 			ni_string_dup(&conf->default_syntax_path, attrval);
 	}
 
+	child = xml_node_get_child(node, "addrconf");
+	if (child) {
+		for (child = child->children; child; child = child->next) {
+			if (!strcmp(child->name, "dhcp")
+			 && ni_config_parse_addrconf_dhcp(&conf->addrconf.dhcp, child) < 0)
+				goto failed;
+		}
+	}
 
 	if (ni_config_parse_extensions(&conf->addrconf_extensions, node, "addrconf", ni_addrconf_name_to_type) < 0
 	 || ni_config_parse_extensions(&conf->linktype_extensions, node, "linktype", ni_linktype_name_to_type) < 0
@@ -104,6 +112,20 @@ failed:
 	if (doc)
 		xml_document_free(doc);
 	return NULL;
+}
+
+int
+ni_config_parse_addrconf_dhcp(struct ni_config_dhcp *dhcp, xml_node_t *node)
+{
+	xml_node_t *child;
+
+	for (child = node->children; child; child = child->next) {
+		if (!strcmp(child->name, "vendor-class"))
+			ni_string_dup(&dhcp->vendor_class, child->cdata);
+		if (!strcmp(child->name, "lease-time") && child->cdata)
+			dhcp->lease_time = strtoul(child->cdata, NULL, 0);
+	}
+	return 0;
 }
 
 int

@@ -43,6 +43,13 @@
       <environment putenv="DHCP_TIMEOUT=%{/protocol[@family = 'ipv4']/dhcp/lease/@timeout}"/>
       <environment putenv="DHCP_REQ_HOSTNAME=%{/protocol[@family = 'ipv4']/dhcp/request/@hostname}"/>
     </extension>
+
+    <dhcp>
+     <!--
+      <vendor-class>somestring</vendor-class>
+      <lease-time>7200</lease-time>
+     -->
+    </dhcp>
   </addrconf>
    -->
 
