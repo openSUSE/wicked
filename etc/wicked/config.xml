@@ -34,8 +34,8 @@
     </extension>
   </linktype>
 
-  <!-- we no longer require dhcp4 to be provided through an extension
   <addrconf>
+  <!-- we no longer require dhcp4 to be provided through an extension
     <extension name="dhcp4" type="dhcp" family="ipv4">
       <pidfile path="/var/run/dhcpcd-%{@name}.pid"/>
       <action name="start" command="/etc/wicked/wicked-dhcp4 start %{@name}"/>
@@ -43,6 +43,7 @@
       <environment putenv="DHCP_TIMEOUT=%{/protocol[@family = 'ipv4']/dhcp/lease/@timeout}"/>
       <environment putenv="DHCP_REQ_HOSTNAME=%{/protocol[@family = 'ipv4']/dhcp/request/@hostname}"/>
     </extension>
+   -->
 
     <dhcp>
      <!--
@@ -51,6 +52,5 @@
      -->
     </dhcp>
   </addrconf>
-   -->
 
 </config>

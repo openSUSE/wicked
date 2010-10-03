@@ -184,11 +184,8 @@ ni_config_parse_extensions(ni_extension_t **list, xml_node_t *node, const char *
 		 *  ...
 		 * </extension>
 		 */
-		if (strcmp(node->name, "extension") != 0) {
-			error("cannot parse configuration: %s extension list "
-				"has unexpected child element <%s>", exclass, node->name);
-			return -1;
-		}
+		if (strcmp(node->name, "extension") != 0)
+			continue;
 
 		if (!(name = xml_node_get_attr(node, "name"))) {
 			error("cannot parse configuration: %s extension has no name attribute", exclass);
