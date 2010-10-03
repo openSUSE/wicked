@@ -45,6 +45,8 @@ static void		__ni_netcf_xml_from_vlan(ni_syntax_t *syntax, ni_handle_t *nih,
 				ni_vlan_t *vlan, xml_node_t *fp);
 static void		__ni_netcf_xml_from_dhcp(ni_syntax_t *, ni_handle_t *,
 				ni_dhclient_info_t *, xml_node_t *);
+static xml_node_t *	__ni_netcf_xml_from_lease(ni_syntax_t *, const ni_addrconf_state_t *, xml_node_t *parent);
+static ni_addrconf_state_t *__ni_netcf_xml_to_lease(ni_syntax_t *, xml_node_t *);
 
 static const char *	__ni_netcf_get_iftype(const ni_interface_t *);
 static int		__ni_netcf_set_iftype(ni_interface_t *, const char *);
@@ -56,6 +58,10 @@ static const char *	__ni_netcf_get_arpmon_validation(int mode);
 static int		__ni_netcf_set_arpmon_validation(const char *, unsigned int *);
 static const char *	__ni_netcf_get_boolean(int val);
 static int		__ni_netcf_get_boolean_attr(xml_node_t *, const char *, int *);
+static void		__ni_netcf_add_string_child(xml_node_t *, const char *, const char *);
+static void		__ni_netcf_add_string_array_child(xml_node_t *, const char *, const ni_string_array_t *);
+static void		__ni_netcf_get_string_child(xml_node_t *, const char *, char **);
+static void		__ni_netcf_get_string_array_child(xml_node_t *, const char *, ni_string_array_t *);
 
 ni_syntax_t *
 __ni_syntax_netcf(const char *pathname)
@@ -67,6 +73,8 @@ __ni_syntax_netcf(const char *pathname)
 	syntax->base_path = pathname? strdup(pathname) : NULL;
 	syntax->xml_from_interface = __ni_netcf_xml_from_interface;
 	syntax->xml_to_interface = __ni_netcf_xml_to_interface;
+	syntax->xml_from_lease = __ni_netcf_xml_from_lease;
+	syntax->xml_to_lease = __ni_netcf_xml_to_lease;
 
 	return syntax;
 }
@@ -895,6 +903,111 @@ __ni_netcf_xml_from_dhcp(ni_syntax_t *syntax, ni_handle_t *nih,
 	}
 }
 
+/*
+ * Generate XML from lease
+ */
+static xml_node_t *
+__ni_netcf_xml_from_lease(ni_syntax_t *syntax, const ni_addrconf_state_t *lease, xml_node_t *parent)
+{
+	xml_node_t *node;
+
+	node = xml_node_new("lease", parent);
+	xml_node_add_attr(node, "type", ni_addrconf_type_to_name(lease->type));
+	xml_node_add_attr(node, "family", ni_addrfamily_type_to_name(lease->family));
+
+	__ni_netcf_add_string_child(node, "hostname", lease->hostname);
+	__ni_netcf_add_string_array_child(node, "log-server", &lease->log_servers);
+	__ni_netcf_add_string_array_child(node, "dns-server", &lease->dns_servers);
+	__ni_netcf_add_string_array_child(node, "dns-search", &lease->dns_search);
+	__ni_netcf_add_string_array_child(node, "nis-server", &lease->nis_servers);
+	__ni_netcf_add_string_child(node, "nis-domain", lease->nis_domain);
+	__ni_netcf_add_string_array_child(node, "ntp-server", &lease->ntp_servers);
+	__ni_netcf_add_string_array_child(node, "slp-server", &lease->slp_servers);
+	__ni_netcf_add_string_array_child(node, "netbios-server", &lease->netbios_servers);
+	__ni_netcf_add_string_child(node, "netbios-domain", lease->netbios_domain);
+
+	{
+		ni_handle_t dummy_handle;
+		ni_interface_t dummy;
+
+		memset(&dummy_handle, 0, sizeof(dummy_handle));
+		memset(&dummy, 0, sizeof(dummy));
+		dummy.addrs = lease->addrs;
+		dummy.routes = lease->routes;
+		__ni_netcf_xml_from_static_ifcfg(syntax, &dummy_handle,
+			lease->family, ni_addrfamily_type_to_name(lease->family),
+			&dummy, node);
+	}
+
+	return node;
+}
+
+static ni_addrconf_state_t *
+__ni_netcf_xml_to_lease(ni_syntax_t *syntax, xml_node_t *node)
+{
+	ni_addrconf_state_t *lease;
+	xml_node_t *prot;
+	const char *name;
+	int lease_type, lease_family;
+
+	if (!(name = xml_node_get_attr(node, "type"))
+	 || (lease_type = ni_addrconf_name_to_type(name)) < 0) {
+		ni_error("netcf: cannot parse lease; no or unsupported type");
+		return NULL;
+	}
+
+	if (!(name = xml_node_get_attr(node, "family"))
+	 || (lease_family = ni_addrfamily_name_to_type(name)) < 0) {
+		ni_error("netcf: cannot parse lease; no or unsupported address family");
+		return NULL;
+	}
+
+	lease = ni_addrconf_state_new(lease_type, lease_family);
+	__ni_netcf_get_string_child(node, "hostname", &lease->hostname);
+	__ni_netcf_get_string_array_child(node, "log-server", &lease->log_servers);
+	__ni_netcf_get_string_array_child(node, "dns-server", &lease->dns_servers);
+	__ni_netcf_get_string_array_child(node, "dns-search", &lease->dns_search);
+	__ni_netcf_get_string_array_child(node, "nis-server", &lease->nis_servers);
+	__ni_netcf_get_string_child(node, "nis-domain", &lease->nis_domain);
+	__ni_netcf_get_string_array_child(node, "ntp-server", &lease->ntp_servers);
+	__ni_netcf_get_string_array_child(node, "slp-server", &lease->slp_servers);
+	__ni_netcf_get_string_array_child(node, "netbios-server", &lease->netbios_servers);
+	__ni_netcf_get_string_child(node, "netbios-domain", &lease->netbios_domain);
+
+	/* Hunt for "protocol" children */
+	for (prot = node->children; prot; prot = prot->next) {
+		ni_interface_t dummy;
+		int af;
+
+		if (strcmp(prot->name, "protocol") != 0)
+			continue;
+
+		name = xml_node_get_attr(prot, "family");
+		if (!name) {
+			error("interface protocol node without family attribute");
+			return NULL;
+		}
+
+		if (!strcmp(name, "ipv4")) {
+			af = AF_INET;
+		} else if (!strcmp(name, "ipv6")) {
+			af = AF_INET6;
+		} else {
+			ni_error("ignoring unknown address family %s", name);
+			continue;
+		}
+
+		memset(&dummy, 0, sizeof(dummy));
+		if (__ni_netcf_xml_to_static_ifcfg(syntax, NULL, af, &dummy, prot))
+			return NULL;
+
+		lease->addrs = dummy.addrs;
+		lease->routes = dummy.routes;
+	}
+
+	return lease;
+}
+
 struct __ni_netcf_iftype_map {
 	int		type;
 	const char *	name;
@@ -1059,4 +1172,43 @@ __ni_netcf_get_boolean_attr(xml_node_t *node, const char *attrname, int *var)
 		error("unexpected boolean value <%s %s=\"%s\"> ignored",
 				node->name, attrname, attrval);
 	return 0;
+}
+
+static void
+__ni_netcf_add_string_child(xml_node_t *node, const char *name, const char *value)
+{
+	if (value) {
+		node = xml_node_new(name, node);
+		xml_node_set_cdata(node, value);
+	}
+}
+
+static void
+__ni_netcf_add_string_array_child(xml_node_t *node, const char *name, const ni_string_array_t *list)
+{
+	unsigned int i;
+
+	if (list && list->count) {
+		for (i = 0; i < list->count; ++i)
+			__ni_netcf_add_string_child(node, name, list->data[i]);
+	}
+}
+
+static void
+__ni_netcf_get_string_child(xml_node_t *node, const char *name, char **var)
+{
+	node = xml_node_get_child(node, name);
+
+	ni_string_free(var);
+	if (node && node->cdata)
+		ni_string_dup(var, node->cdata);
+}
+
+static void
+__ni_netcf_get_string_array_child(xml_node_t *node, const char *name, ni_string_array_t *list)
+{
+	for (node = node->children; node; node = node->next) {
+		if (node->name && !strcmp(node->name, name) && node->cdata)
+			ni_string_array_append(list, node->cdata);
+	}
 }
