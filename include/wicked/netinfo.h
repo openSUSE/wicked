@@ -23,6 +23,8 @@ typedef struct ni_syntax	ni_syntax_t;
 
 typedef struct ni_address {
 	struct ni_address *	next;
+
+	unsigned int		config_method;		/* usually static, but can be dhcp or autoip */
 	unsigned int		seq;
 	unsigned int		family;
 	unsigned int		flags;

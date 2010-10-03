@@ -21,6 +21,8 @@
 #define offsetof(type, member) \
 	((unsigned long) &(((type *) NULL)->member))
 
+static const unsigned char *__ni_address_data(const struct sockaddr_storage *, unsigned int *);
+
 ni_address_t *
 ni_address_new(ni_interface_t *ifp, int af,
 		unsigned int prefix_len,
@@ -43,6 +45,7 @@ __ni_address_new(ni_address_t **list_head, int af,
 		tail = &ap->next;
 
 	ap = calloc(1, sizeof(*ap));
+	ap->config_method = NI_ADDRCONF_STATIC;
 	ap->family = af;
 	ap->prefixlen = prefix_len;
 	ap->scope = -1;
@@ -56,6 +59,22 @@ __ni_address_new(ni_address_t **list_head, int af,
 		sin = (struct sockaddr_in *) &ap->bcast_addr;
 		memcpy(sin, local_addr, sizeof(*sin));
 		sin->sin_addr.s_addr |= htonl(0xFFFFFFFFUL >> prefix_len);
+	}
+
+	/* FIXME: we need to do this as long as we don't track the IPv6
+	 * prefixes received via RAs. */
+	if (af == AF_INET6) {
+		const unsigned char *data;
+		unsigned int len;
+
+		data = __ni_address_data(&ap->local_addr, &len);
+		if (data && data[0] == 0xFE && data[1] == 0x80) {
+			/* Link-local; always autoconf */
+			ap->config_method = NI_ADDRCONF_AUTOCONF;
+		} else {
+			/* Else: check whether we received the prefix via RA. */
+			ap->config_method = NI_ADDRCONF_AUTOCONF;
+		}
 	}
 
 	*tail = ap;
