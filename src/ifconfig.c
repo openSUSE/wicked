@@ -1080,7 +1080,7 @@ __ni_interface_addrconf(ni_handle_t *nih, int family, ni_interface_t *ifp, ni_in
 			xml_node_t *cfg_xml)
 {
 	ni_afinfo_t *cfg_afi, *cur_afi;
-	ni_extension_t *ex;
+	ni_addrconf_t *acm;
 	xml_node_t *xml = NULL;
 
 	debug_ifconfig("__ni_interface_addrconf(%s, af=%s)", ifp->name,
@@ -1098,8 +1098,8 @@ __ni_interface_addrconf(ni_handle_t *nih, int family, ni_interface_t *ifp, ni_in
 	/* If we're chaging to a different addrconf mode, stop the current
 	 * service. */
 	if (cfg_afi->config != cur_afi->config
-	 && (ex = __ni_addrconf_extension(cur_afi->config, family)) != NULL) {
-		if (ni_extension_stop(ex, ifp->name, cfg_xml) < 0)
+	 && (acm = ni_addrconf_get(cur_afi->config, family)) != NULL) {
+		if (ni_addrconf_drop_lease(acm, ifp) < 0)
 			return -1;
 	}
 
@@ -1226,23 +1226,23 @@ __ni_interface_addrconf(ni_handle_t *nih, int family, ni_interface_t *ifp, ni_in
 			goto error;
 		}
 	} else
-	if ((ex = __ni_addrconf_extension(cfg_afi->config, family)) != NULL) {
+	if ((acm = ni_addrconf_get(cfg_afi->config, family)) != NULL) {
 		/* If the extension is already active, no need to start it once
 		 * more. If needed, we could do a restart in this case. */
 		if (cfg_afi->config == cur_afi->config)
 			return 0;
 
-		if (ni_extension_start(ex, ifp->name, cfg_xml) < 0)
+		if (ni_addrconf_acquire_lease(acm, ifp, cfg_xml) < 0)
 			goto error;
 
 		/* If the extension supports more than just this address
 		 * family, make sure we update the interface status accordingly.
 		 * Otherwise we will start the service multiple times.
 		 */
-		if (ex->supported_af & NI_AF_MASK_IPV4)
-			ifp->ipv4.config = ex->type;
-		if (ex->supported_af & NI_AF_MASK_IPV6)
-			ifp->ipv6.config = ex->type;
+		if (acm->supported_af & NI_AF_MASK_IPV4)
+			ifp->ipv4.config = acm->type;
+		if (acm->supported_af & NI_AF_MASK_IPV6)
+			ifp->ipv6.config = acm->type;
 	} else {
 		error("address configuration mode %s not supported for %s",
 				ni_addrconf_type_to_name(cfg_afi->config),

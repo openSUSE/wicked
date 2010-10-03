@@ -608,31 +608,38 @@ __ni_discover_bond(ni_interface_t *ifp)
 int
 __ni_discover_addrconf(ni_handle_t *nih, ni_interface_t *ifp)
 {
-	ni_extension_t *ex;
+	const ni_addrconf_t *acm;
+	const void *pos;
 	xml_node_t *xml = NULL;
 
 	__ni_assert_initialized();
 
-	for (ex = ni_global.config->addrconf_extensions; ex; ex = ex->next) {
-		if (!ex->pid_file_path)
+	if (ifp->ipv4.dhcp_lease)
+		ifp->ipv4.config = ifp->ipv4.dhcp_lease->type;
+	if (ifp->ipv6.dhcp_lease)
+		ifp->ipv6.config = ifp->ipv4.dhcp_lease->type;
+
+	for (acm = ni_addrconf_list_first(&pos); acm; acm = ni_addrconf_list_next(&pos)) {
+		if (!acm->test)
 			continue;
 
 		/* Represent interface as XML */
 		if (xml == NULL) {
-			xml = ni_syntax_xml_from_interface(ni_global.xml_syntax, nih, ifp);
+			xml = ni_syntax_xml_from_interface(ni_default_xml_syntax(), nih, ifp);
 			if (!xml)
 				return 0;
 		}
 
 		/* Check if the extension is active */
-		if (ni_extension_active(ex, ifp->name, xml)) {
-			debug_ifconfig("%s: extension %s is active on%s%s", ifp->name, ex->name,
-					(ex->supported_af & NI_AF_MASK_IPV4)? " ipv4" : "",
-					(ex->supported_af & NI_AF_MASK_IPV6)? " ipv6" : "");
-			if (ex->supported_af & NI_AF_MASK_IPV4)
-				ifp->ipv4.config = ex->type;
-			if (ex->supported_af & NI_AF_MASK_IPV6)
-				ifp->ipv6.config = ex->type;
+		if (ni_addrconf_check(acm, ifp, xml)) {
+			debug_ifconfig("%s: %s is active on%s%s", ifp->name,
+					ni_addrconf_type_to_name(acm->type),
+					(acm->supported_af & NI_AF_MASK_IPV4)? " ipv4" : "",
+					(acm->supported_af & NI_AF_MASK_IPV6)? " ipv6" : "");
+			if (acm->supported_af & NI_AF_MASK_IPV4)
+				ifp->ipv4.config = acm->type;
+			if (acm->supported_af & NI_AF_MASK_IPV6)
+				ifp->ipv6.config = acm->type;
 		}
 	}
 

@@ -677,3 +677,50 @@ ni_addrconf_get(int type, int af)
 
 	return NULL;
 }
+
+const ni_addrconf_t *
+ni_addrconf_list_first(const void **pos)
+{
+	*(struct ni_addrconfig_list_entry **) pos = ni_addrconf_list;
+
+	return ni_addrconf_list_next(pos);
+}
+
+const ni_addrconf_t *
+ni_addrconf_list_next(const void **pos)
+{
+	const struct ni_addrconfig_list_entry *ace = *pos;
+
+	if (ace)
+		*(struct ni_addrconfig_list_entry **) pos = ace->next;
+	return &ace->mech;
+}
+
+/*
+ * Acquire/drop an addrconf lease
+ * Note, this may not be instantaneous - rather, this will usually trigger
+ * the acquisition of a lease. We will receive an event later on informing
+ * us of the lease.
+ */
+int
+ni_addrconf_acquire_lease(const ni_addrconf_t *acm, ni_interface_t *ifp, const xml_node_t *cfg_xml)
+{
+	return acm->request(acm, ifp, cfg_xml);
+}
+
+int
+ni_addrconf_drop_lease(const ni_addrconf_t *acm, ni_interface_t *ifp)
+{
+	return acm->release(acm, ifp, NULL);
+}
+
+/*
+ * Test whether an address configuration method is active
+ */
+int
+ni_addrconf_check(const ni_addrconf_t *acm, const ni_interface_t *ifp, const xml_node_t *cfg_xml)
+{
+	if (!acm->test)
+		return 0;
+	return acm->test(acm, ifp, cfg_xml);
+}

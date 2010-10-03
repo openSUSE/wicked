@@ -247,3 +247,58 @@ ni_extension_stop(const ni_extension_t *ex, const char *ifname, xml_node_t *xml)
 {
 	return __ni_extension_run(ex, ifname, xml, "stop", ex->stop_command);
 }
+
+/*
+ * Register addrconf extensions
+ */
+static int
+ni_addrconf_extension_request(const ni_addrconf_t *ace, ni_interface_t *ifp, const xml_node_t *cfg_xml)
+{
+	const ni_extension_t *ex = ace->private;
+
+	if (ni_extension_start(ex, ifp->name, (xml_node_t *) cfg_xml) < 0)
+		return -1;
+
+	return 0;
+}
+
+static int
+ni_addrconf_extension_release(const ni_addrconf_t *ace, ni_interface_t *ifp, ni_addrconf_state_t *lease)
+{
+	const ni_extension_t *ex = ace->private;
+	ni_handle_t *nih = ni_dummy_open();
+	xml_node_t *cfg_xml;
+	int rv;
+
+	cfg_xml = ni_syntax_xml_from_interface(ni_default_xml_syntax(), nih, ifp);
+	rv = ni_extension_stop(ex, ifp->name, cfg_xml);
+	xml_node_free(cfg_xml);
+	ni_close(nih);
+	
+	return rv;
+}
+
+static int
+ni_addrconf_extension_test(const ni_addrconf_t *ace, const ni_interface_t *ifp, const xml_node_t *cfg_xml)
+{
+	const ni_extension_t *ex = ace->private;
+
+	return ni_extension_active(ex, ifp->name, (xml_node_t *) cfg_xml);
+}
+
+void
+ni_addrconf_extension_register(ni_extension_t *ex)
+{
+	ni_addrconf_t *ace = calloc(1, sizeof(*ace));
+
+	ace->type = ex->type;
+	ace->supported_af = ex->supported_af;
+	ace->private = ex;
+
+	ace->request = ni_addrconf_extension_request;
+	ace->release = ni_addrconf_extension_release;
+	if (ex->pid_file_path)
+		ace->test = ni_addrconf_extension_test;
+	ni_addrconf_register(ace);
+}
+

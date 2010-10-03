@@ -196,8 +196,9 @@ typedef struct ni_addrconf {
 
 	void *			private;
 
-	int			(*request)(struct ni_addrconf *, ni_interface_t *);
-	int			(*release)(struct ni_addrconf *, ni_interface_t *, ni_addrconf_state_t *);
+	int			(*request)(const struct ni_addrconf *, ni_interface_t *, const xml_node_t *);
+	int			(*release)(const struct ni_addrconf *, ni_interface_t *, ni_addrconf_state_t *);
+	int			(*test)(const struct ni_addrconf *, const ni_interface_t *, const xml_node_t *);
 } ni_addrconf_t;
 
 typedef struct ni_afinfo {
@@ -500,6 +501,12 @@ extern ni_addrconf_state_t *ni_addrconf_state_new(int type, int family);
 extern void		ni_addrconf_state_free(ni_addrconf_state_t *);
 extern void		ni_addrconf_register(ni_addrconf_t *);
 extern ni_addrconf_t *	ni_addrconf_get(int type, int family);
+extern int		ni_addrconf_acquire_lease(const ni_addrconf_t *,
+				ni_interface_t *, const xml_node_t *);
+extern int		ni_addrconf_drop_lease(const ni_addrconf_t *, ni_interface_t *);
+extern int		ni_addrconf_check(const ni_addrconf_t *, const ni_interface_t *, const xml_node_t *);
+extern const ni_addrconf_t *ni_addrconf_list_first(const void **);
+extern const ni_addrconf_t *ni_addrconf_list_next(const void **);
 
 extern const char *	ni_print_link_flags(int flags);
 extern const char *	ni_print_link_type(int type);
