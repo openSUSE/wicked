@@ -687,6 +687,7 @@ ni_dhcp_parse_response(const ni_dhcp_message_t *message, ni_buffer_t *options, n
 	dhcp->aconf.state = NI_ADDRCONF_STATE_GRANTED;
 	dhcp->aconf.type = NI_ADDRCONF_DHCP;
 	dhcp->aconf.family = AF_INET;
+	dhcp->aconf.time_acquired = time(NULL);
 
 	/* Loop as long as we still have data in the buffer. */
 	while (ni_buffer_count(options) && !options->underflow) {
