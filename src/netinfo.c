@@ -1106,15 +1106,24 @@ ni_addrconf_state_new(int type, int family)
 void
 ni_addrconf_state_free(ni_addrconf_state_t *lease)
 {
+	ni_addrconf_state_destroy(lease);
+	free(lease);
+}
+
+void
+ni_addrconf_state_destroy(ni_addrconf_state_t *lease)
+{
 	ni_string_free(&lease->hostname);
 	ni_string_free(&lease->nis_domain);
 	ni_string_free(&lease->netbios_domain);
+	ni_string_free(&lease->netbios_scope);
 	ni_string_array_destroy(&lease->log_servers);
 	ni_string_array_destroy(&lease->dns_servers);
 	ni_string_array_destroy(&lease->dns_search);
 	ni_string_array_destroy(&lease->nis_servers);
 	ni_string_array_destroy(&lease->ntp_servers);
-	ni_string_array_destroy(&lease->netbios_servers);
+	ni_string_array_destroy(&lease->netbios_name_servers);
+	ni_string_array_destroy(&lease->netbios_dd_servers);
 	ni_string_array_destroy(&lease->slp_servers);
 	ni_string_array_destroy(&lease->slp_scopes);
 	ni_address_list_destroy(&lease->addrs);

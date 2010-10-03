@@ -195,10 +195,13 @@ typedef struct ni_addrconf_state {
 	ni_string_array_t	ntp_servers;
 	ni_string_array_t	nis_servers;
 	char *			nis_domain;
-	ni_string_array_t	netbios_servers;
+	ni_string_array_t	netbios_name_servers;
+	ni_string_array_t	netbios_dd_servers;
 	char *			netbios_domain;
+	char *			netbios_scope;
 	ni_string_array_t	slp_servers;
 	ni_string_array_t	slp_scopes;
+	ni_string_array_t	lpr_servers;
 	ni_address_t *		addrs;
 	ni_route_t *		routes;
 } ni_addrconf_state_t;
@@ -519,6 +522,7 @@ extern ni_dhclient_info_t *ni_dhclient_info_new(void);
 extern void		ni_dhclient_info_free(ni_dhclient_info_t *);
 
 extern ni_addrconf_state_t *ni_addrconf_state_new(int type, int family);
+extern void		ni_addrconf_state_destroy(ni_addrconf_state_t *);
 extern void		ni_addrconf_state_free(ni_addrconf_state_t *);
 extern void		ni_addrconf_register(ni_addrconf_t *);
 extern ni_addrconf_t *	ni_addrconf_get(int type, int family);
