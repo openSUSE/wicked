@@ -189,6 +189,10 @@ typedef struct ni_addrconf_state {
 	unsigned int		time_acquired;
 
 	char *			hostname;
+	ni_address_t *		addrs;
+	ni_route_t *		routes;
+
+	/* Services discovered through the DHCP and similar */
 	ni_string_array_t	log_servers;
 	ni_string_array_t	dns_servers;
 	ni_string_array_t	dns_search;
@@ -201,9 +205,8 @@ typedef struct ni_addrconf_state {
 	char *			netbios_scope;
 	ni_string_array_t	slp_servers;
 	ni_string_array_t	slp_scopes;
+	ni_string_array_t	sip_servers;
 	ni_string_array_t	lpr_servers;
-	ni_address_t *		addrs;
-	ni_route_t *		routes;
 } ni_addrconf_state_t;
 
 enum {

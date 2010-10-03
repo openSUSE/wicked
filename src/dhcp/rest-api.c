@@ -216,36 +216,23 @@ static xml_node_t *
 dhcp_device_xml(const ni_dhcp_device_t *dev)
 {
 	ni_syntax_t *xmlsyntax = ni_default_xml_syntax();
-	ni_addrconf_state_t dummy;
+	ni_addrconf_state_t dummy, *lease;
 
 	/* This could be more elegant. */
 	memset(&dummy, 0, sizeof(dummy));
 	dummy.type = NI_ADDRCONF_DHCP;
 	dummy.family = AF_INET;
+	lease = &dummy;
 
 	if (dev->failed) {
 		dummy.state = NI_ADDRCONF_STATE_FAILED;
 	} else if (dev->lease) {
-		ni_dhcp_lease_t *lease = dev->lease;
-
-		dummy.state = NI_ADDRCONF_STATE_GRANTED;
-		dummy.time_acquired = lease->leasedfrom;
-		dummy.addrs = lease->addrs;
-		dummy.routes = lease->routes;
-		dummy.hostname = lease->hostname;
-		dummy.log_servers = lease->logservers;
-		dummy.dns_servers = lease->dnsservers;
-		dummy.dns_search = lease->dnssearch;
-		dummy.ntp_servers = lease->ntpservers;
-		dummy.nis_servers = lease->nisservers;
-		dummy.nis_domain = lease->nisdomain;
-		dummy.netbios_servers = lease->netbiosnameservers;
-		dummy.netbios_domain = lease->netbiosscope;
+		lease = &dev->lease->aconf;
 	} else {
 		dummy.state = NI_ADDRCONF_STATE_RELEASED;
 	}
 
-	return ni_syntax_xml_from_lease(xmlsyntax, &dummy, NULL);
+	return ni_syntax_xml_from_lease(xmlsyntax, lease, NULL);
 }
 
 /*
@@ -345,10 +332,14 @@ dhcp_interface_put(const char *ifname, ni_wicked_request_t *req)
 	} else {
 		/* Link went away. */
 	}
-	if (reacquire && dev->config)
+	/* If nothing changed, make sure we at least inform the master of the
+	 * current lease state */
+	if (!reacquire)
+		dev->notify = 1;
+	else if (dev->config)
 		ni_dhcp_device_start(dev);
 
-	rv = dhcp_device_response(dev, req);
+	rv = 0;
 
 failed:
 	if (cnih)

@@ -137,6 +137,8 @@ struct ni_dhcp_lease {
 	struct in_addr		serveraddress;
 	char			servername[64];
 
+	ni_addrconf_state_t	aconf;
+
 	struct in_addr		address;
 	struct in_addr		netmask;
 	struct in_addr		broadcast;
@@ -147,32 +149,11 @@ struct ni_dhcp_lease {
 	uint32_t		renewaltime;
 	uint32_t		rebindtime;
 
-	ni_address_t *		addrs;
-	ni_route_t *		routes;
-
-	char *			hostname;
 	fqdn_t *		fqdn;
-
-	ni_string_array_t	dnsservers;
-	char *			dnsdomain;
-	ni_string_array_t	dnssearch;
-
-	ni_string_array_t	ntpservers;
-
-	ni_string_array_t	nisservers;
-	char *			nisdomain;
-
-	ni_string_array_t	sipservers;
 
 	char *			message;
 	char *			rootpath;
-
-	ni_string_array_t	lprservers;
-	ni_string_array_t	logservers;
-	ni_string_array_t	netbiosnameservers;
-	ni_string_array_t	netbiosddservers;
-	char *			netbiosscope;
-	char *			netbiosnodetype;
+	char *			dnsdomain;
 };
 
 /* Sizes for DHCP options */

@@ -51,26 +51,28 @@ ni_dhcp_lease_free(ni_dhcp_lease_t *dhcp)
 	if (!dhcp)
 		return;
 
-	ni_route_list_destroy(&dhcp->routes);
-	ni_string_free(&dhcp->hostname);
+	ni_addrconf_state_destroy(&dhcp->aconf);
+#if 0
 	ni_string_array_destroy(&dhcp->dnsservers);
-	ni_string_free(&dhcp->dnsdomain);
 	ni_string_array_destroy(&dhcp->dnssearch);
 	ni_string_array_destroy(&dhcp->ntpservers);
 	ni_string_free(&dhcp->nisdomain);
 	ni_string_array_destroy(&dhcp->nisservers);
 	ni_string_free(&dhcp->rootpath);
 	ni_string_array_destroy(&dhcp->sipservers);
-	if (dhcp->fqdn) {
-		free(dhcp->fqdn->name);
-		free(dhcp->fqdn);
-	}
 	ni_string_array_destroy(&dhcp->lprservers);
 	ni_string_array_destroy(&dhcp->logservers);
 	ni_string_array_destroy(&dhcp->netbiosnameservers);
 	ni_string_array_destroy(&dhcp->netbiosddservers);
 	ni_string_free(&dhcp->netbiosscope);
 	ni_string_free(&dhcp->netbiosnodetype);
+#endif
+	ni_string_free(&dhcp->rootpath);
+	ni_string_free(&dhcp->dnsdomain);
+	if (dhcp->fqdn) {
+		free(dhcp->fqdn->name);
+		free(dhcp->fqdn);
+	}
 }
 
 /*
@@ -668,6 +670,7 @@ ni_dhcp_parse_response(const ni_dhcp_message_t *message, ni_buffer_t *options, n
 	ni_route_t *default_routes = NULL;
 	ni_route_t *static_routes = NULL;
 	ni_route_t *classless_routes = NULL;
+	char *dnsdomain = NULL;
 	int msg_type = -1;
 	int retval = -1;
 
@@ -680,6 +683,10 @@ ni_dhcp_parse_response(const ni_dhcp_message_t *message, ni_buffer_t *options, n
 
 	assert(sizeof(dhcp->servername) == sizeof(message->servername));
 	memcpy(dhcp->servername, message->servername, sizeof(dhcp->servername));
+
+	dhcp->aconf.state = NI_ADDRCONF_STATE_GRANTED;
+	dhcp->aconf.type = NI_ADDRCONF_DHCP;
+	dhcp->aconf.family = AF_INET;
 
 	/* Loop as long as we still have data in the buffer. */
 	while (ni_buffer_count(options) && !options->underflow) {
@@ -743,10 +750,10 @@ ni_dhcp_parse_response(const ni_dhcp_message_t *message, ni_buffer_t *options, n
 			}
 			break;
 		case DHCP_HOSTNAME:
-			ni_dhcp_option_get_string(&buf, &dhcp->hostname);
+			ni_dhcp_option_get_string(&buf, &dhcp->aconf.hostname);
 			break;
 		case DHCP_DNSDOMAIN:
-			ni_dhcp_option_get_string(&buf, &dhcp->dnsdomain);
+			ni_dhcp_option_get_string(&buf, &dnsdomain);
 			break;
 		case DHCP_MESSAGE:
 			ni_dhcp_option_get_string(&buf, &dhcp->message);
@@ -755,37 +762,37 @@ ni_dhcp_parse_response(const ni_dhcp_message_t *message, ni_buffer_t *options, n
 			ni_dhcp_option_get_string(&buf, &dhcp->rootpath);
 			break;
 		case DHCP_NISDOMAIN:
-			ni_dhcp_option_get_string(&buf, &dhcp->nisdomain);
+			ni_dhcp_option_get_string(&buf, &dhcp->aconf.nis_domain);
 			break;
 		case DHCP_NETBIOSNODETYPE:
-			ni_dhcp_option_get_string(&buf, &dhcp->netbiosnodetype);
+			ni_dhcp_option_get_string(&buf, &dhcp->aconf.netbios_domain);
 			break;
 		case DHCP_NETBIOSSCOPE:
-			ni_dhcp_option_get_string(&buf, &dhcp->netbiosscope);
+			ni_dhcp_option_get_string(&buf, &dhcp->aconf.netbios_scope);
 			break;
 		case DHCP_DNSSERVER:
-			ni_dhcp_decode_address_list(&buf, &dhcp->dnsservers);
+			ni_dhcp_decode_address_list(&buf, &dhcp->aconf.dns_servers);
 			break;
 		case DHCP_NTPSERVER:
-			ni_dhcp_decode_address_list(&buf, &dhcp->ntpservers);
+			ni_dhcp_decode_address_list(&buf, &dhcp->aconf.ntp_servers);
 			break;
 		case DHCP_NISSERVER:
-			ni_dhcp_decode_address_list(&buf, &dhcp->nisservers);
+			ni_dhcp_decode_address_list(&buf, &dhcp->aconf.nis_servers);
 			break;
 		case DHCP_LPRSERVER:
-			ni_dhcp_decode_address_list(&buf, &dhcp->lprservers);
+			ni_dhcp_decode_address_list(&buf, &dhcp->aconf.lpr_servers);
 			break;
 		case DHCP_LOGSERVER:
-			ni_dhcp_decode_address_list(&buf, &dhcp->logservers);
+			ni_dhcp_decode_address_list(&buf, &dhcp->aconf.log_servers);
 			break;
 		case DHCP_NETBIOSNAMESERVER:
-			ni_dhcp_decode_address_list(&buf, &dhcp->netbiosnameservers);
+			ni_dhcp_decode_address_list(&buf, &dhcp->aconf.netbios_name_servers);
 			break;
 		case DHCP_NETBIOSDDSERVER:
-			ni_dhcp_decode_address_list(&buf, &dhcp->netbiosddservers);
+			ni_dhcp_decode_address_list(&buf, &dhcp->aconf.netbios_dd_servers);
 			break;
 		case DHCP_DNSSEARCH:
-			ni_dhcp_decode_dnssearch(&buf, &dhcp->dnssearch);
+			ni_dhcp_decode_dnssearch(&buf, &dhcp->aconf.dns_search);
 			break;
 
 		case DHCP_CSR:
@@ -796,7 +803,7 @@ ni_dhcp_parse_response(const ni_dhcp_message_t *message, ni_buffer_t *options, n
 			break;
 
 		case DHCP_SIPSERVER:
-			ni_dhcp_decode_sipservers(&buf, &dhcp->sipservers);
+			ni_dhcp_decode_sipservers(&buf, &dhcp->aconf.sip_servers);
 			break;
 
 		case DHCP_STATICROUTE:
@@ -860,7 +867,7 @@ failed:
 	if (classless_routes) {
 		/* CSR and MSCSR take precedence over static routes */
 	} else {
-		ni_route_t **tail = &dhcp->routes, *rp;
+		ni_route_t **tail = &dhcp->aconf.routes, *rp;
 
 		if (static_routes) {
 			*tail = static_routes;
@@ -875,8 +882,8 @@ failed:
 		}
 	}
 
-	if (dhcp->dnssearch.count == 0 && dhcp->dnsdomain)
-		ni_string_array_append(&dhcp->dnssearch, dhcp->dnsdomain);
+	if (dhcp->aconf.dns_search.count == 0 && dnsdomain)
+		ni_string_array_append(&dhcp->aconf.dns_search, dnsdomain);
 
 	if (dhcp->address.s_addr) {
 		struct sockaddr_storage local_addr;
@@ -885,7 +892,7 @@ failed:
 		memset(&local_addr, 0, sizeof(local_addr));
 		local_addr.ss_family = AF_INET;
 		((struct sockaddr_in *) &local_addr)->sin_addr = dhcp->address;
-		ap = __ni_address_new(&dhcp->addrs, AF_INET,
+		ap = __ni_address_new(&dhcp->aconf.addrs, AF_INET,
 				__count_net_bits(ntohl(dhcp->netmask.s_addr)),
 				&local_addr);
 
@@ -898,15 +905,16 @@ failed:
 	dhcp = NULL;
 
 done:
-	if (dhcp)
-		ni_dhcp_lease_free(dhcp);
 	ni_route_list_destroy(&default_routes);
 	ni_route_list_destroy(&static_routes);
 	ni_route_list_destroy(&classless_routes);
+	ni_string_free(&dnsdomain);
 
 	return msg_type;
 
 error:
+	if (dhcp)
+		ni_dhcp_lease_free(dhcp);
 	msg_type = -1;
 	goto done;
 }
