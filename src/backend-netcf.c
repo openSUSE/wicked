@@ -33,9 +33,8 @@ static xml_node_t *	__ni_netcf_xml_from_interface(ni_syntax_t *, ni_handle_t *,
 static void		__ni_netcf_xml_from_address_config(ni_syntax_t *syntax, ni_handle_t *nih,
 				const ni_afinfo_t *afi,
 				const ni_interface_t *ifp, xml_node_t *ifnode);
-static void		__ni_netcf_xml_from_static_ifcfg(ni_syntax_t *syntax, ni_handle_t *nih,
-				int af, const char *afname,
-				const ni_interface_t *ifp, xml_node_t *);
+static xml_node_t *	__ni_netcf_xml_from_static_ifcfg(ni_syntax_t *syntax, ni_handle_t *nih,
+				int af, const ni_interface_t *ifp, xml_node_t *);
 static void		__ni_netcf_xml_from_route(ni_route_t *, xml_node_t *);
 static void		__ni_netcf_xml_from_bridge(ni_syntax_t *syntax, ni_handle_t *nih,
 				ni_bridge_t *bridge, xml_node_t *);
@@ -56,6 +55,8 @@ static const char *	__ni_netcf_get_bonding_mode(int mode);
 static int		__ni_netcf_set_bonding_mode(const char *, unsigned int *);
 static const char *	__ni_netcf_get_arpmon_validation(int mode);
 static int		__ni_netcf_set_arpmon_validation(const char *, unsigned int *);
+static const char *	__ni_netcf_get_af(int af);
+static int		__ni_netcf_set_af(const char *, int *);
 static const char *	__ni_netcf_get_boolean(int val);
 static int		__ni_netcf_get_boolean_attr(xml_node_t *, const char *, int *);
 static void		__ni_netcf_add_string_child(xml_node_t *, const char *, const char *);
@@ -612,6 +613,16 @@ __ni_netcf_xml_from_slave_interface(const char *slave_name, xml_node_t *parent)
 	return ifnode;
 }
 
+static inline xml_node_t *
+__ni_netcf_make_protocol_node(xml_node_t *ifnode, int af)
+{
+	xml_node_t *node;
+
+	node = xml_node_new("protocol", ifnode);
+	xml_node_add_attr(node, "family", __ni_netcf_get_af(af));
+	return node;
+}
+
 /*
  * For a given address family, produce XML describing the address configuration
  * (static, with all addresses used; or DHCP; or possibly others too)
@@ -621,44 +632,45 @@ __ni_netcf_xml_from_address_config(ni_syntax_t *syntax, ni_handle_t *nih,
 			const ni_afinfo_t *afi,
 			const ni_interface_t *ifp, xml_node_t *ifnode)
 {
-	const char *afname, *acname;
-	xml_node_t *node;
-
-	switch (afi->family) {
-	case AF_INET:
-		afname = "ipv4"; break;
-	case AF_INET6:
-		afname = "ipv6"; break;
-	default:
-		return;
-	}
+	const char *acname;
+	unsigned int type;
+	xml_node_t *protnode = NULL;
 
 	switch (afi->config) {
 	case NI_ADDRCONF_STATIC:
-		__ni_netcf_xml_from_static_ifcfg(syntax, nih, afi->family, afname, ifp, ifnode);
+		protnode = __ni_netcf_xml_from_static_ifcfg(syntax, nih, afi->family, ifp, ifnode);
 		break;
 
 	case NI_ADDRCONF_DHCP:
 	case NI_ADDRCONF_IBFT: /* Variant netcf */
-		node = xml_node_new("protocol", ifnode);
-		xml_node_add_attr(node, "family", afname);
+		if (!protnode)
+			protnode = __ni_netcf_make_protocol_node(ifnode, afi->family);
 
 		if (afi->config == NI_ADDRCONF_DHCP) {
-			__ni_netcf_xml_from_dhcp(syntax, nih, afi->dhcp, node);
+			__ni_netcf_xml_from_dhcp(syntax, nih, afi->dhcp, protnode);
 		} else {
 			/* Create node with no attrs or children */
 			acname = ni_addrconf_type_to_name(afi->config);
 			assert(acname);
 
-			xml_node_new(acname, node);
+			xml_node_new(acname, protnode);
 		}
 		break;
 	}
+
+	for (type = 0; type < __NI_ADDRCONF_MAX; ++type) {
+		ni_addrconf_state_t *lease = afi->lease[type];
+
+		if (lease) {
+			if (!protnode)
+				protnode = __ni_netcf_make_protocol_node(ifnode, afi->family);
+			__ni_netcf_xml_from_lease(syntax, lease, ifnode);
+		}
+	}
 }
 
-static void
-__ni_netcf_xml_from_static_ifcfg(ni_syntax_t *syntax, ni_handle_t *nih,
-			int af, const char *afname,
+static xml_node_t *
+__ni_netcf_xml_from_static_ifcfg(ni_syntax_t *syntax, ni_handle_t *nih, int af,
 			const ni_interface_t *ifp, xml_node_t *ifnode)
 {
 	xml_node_t *protnode = NULL;
@@ -672,10 +684,8 @@ __ni_netcf_xml_from_static_ifcfg(ni_syntax_t *syntax, ni_handle_t *nih,
 		if (ap->family != af || ap->config_method != NI_ADDRCONF_STATIC)
 			continue;
 
-		if (!protnode) {
-			protnode = xml_node_new("protocol", ifnode);
-			xml_node_add_attr(protnode, "family", afname);
-		}
+		if (!protnode)
+			protnode = __ni_netcf_make_protocol_node(ifnode, af);
 
 		addrnode = xml_node_new("ip", protnode);
 		xml_node_add_attr(addrnode, "address", ni_address_print(&ap->local_addr));
@@ -708,6 +718,8 @@ __ni_netcf_xml_from_static_ifcfg(ni_syntax_t *syntax, ni_handle_t *nih,
 				__ni_netcf_xml_from_route(rp, protnode);
 		}
 	}
+
+	return protnode;
 }
 
 /*
@@ -936,8 +948,7 @@ __ni_netcf_xml_from_lease(ni_syntax_t *syntax, const ni_addrconf_state_t *lease,
 		dummy.addrs = lease->addrs;
 		dummy.routes = lease->routes;
 		__ni_netcf_xml_from_static_ifcfg(syntax, &dummy_handle,
-			lease->family, ni_addrfamily_type_to_name(lease->family),
-			&dummy, node);
+				lease->family, &dummy, node);
 	}
 
 	return node;
@@ -997,11 +1008,7 @@ __ni_netcf_xml_to_lease(ni_syntax_t *syntax, const xml_node_t *node)
 			goto failed;
 		}
 
-		if (!strcmp(name, "ipv4")) {
-			af = AF_INET;
-		} else if (!strcmp(name, "ipv6")) {
-			af = AF_INET6;
-		} else {
+		if (__ni_netcf_set_af(name, &af) < 0) {
 			ni_error("ignoring unknown address family %s", name);
 			continue;
 		}
@@ -1028,6 +1035,34 @@ failed:
 	if (nih)
 		ni_close(nih);
 	return NULL;
+}
+
+/*
+ * Map address family to string and vice versa
+ */
+const char *
+__ni_netcf_get_af(int af)
+{
+	switch (af) {
+	case AF_INET:
+		return "ipv4";
+	case AF_INET6:
+		return "ipv6";
+	}
+	return NULL;
+}
+
+int
+__ni_netcf_set_af(const char *name, int *afp)
+{
+	if (!strcmp(name, "ipv4")) {
+		*afp = AF_INET;
+	} else if (!strcmp(name, "ipv6")) {
+		*afp = AF_INET6;
+	} else {
+		return -1;
+	}
+	return 0;
 }
 
 struct __ni_netcf_iftype_map {
