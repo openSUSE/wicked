@@ -50,29 +50,7 @@ ni_dhcp_lease_free(ni_dhcp_lease_t *dhcp)
 {
 	if (!dhcp)
 		return;
-
-	ni_addrconf_state_destroy(&dhcp->aconf);
-#if 0
-	ni_string_array_destroy(&dhcp->dnsservers);
-	ni_string_array_destroy(&dhcp->dnssearch);
-	ni_string_array_destroy(&dhcp->ntpservers);
-	ni_string_free(&dhcp->nisdomain);
-	ni_string_array_destroy(&dhcp->nisservers);
-	ni_string_free(&dhcp->rootpath);
-	ni_string_array_destroy(&dhcp->sipservers);
-	ni_string_array_destroy(&dhcp->lprservers);
-	ni_string_array_destroy(&dhcp->logservers);
-	ni_string_array_destroy(&dhcp->netbiosnameservers);
-	ni_string_array_destroy(&dhcp->netbiosddservers);
-	ni_string_free(&dhcp->netbiosscope);
-	ni_string_free(&dhcp->netbiosnodetype);
-#endif
-	ni_string_free(&dhcp->rootpath);
-	ni_string_free(&dhcp->dnsdomain);
-	if (dhcp->fqdn) {
-		free(dhcp->fqdn->name);
-		free(dhcp->fqdn);
-	}
+	ni_addrconf_state_free(dhcp);
 }
 
 /*
@@ -234,7 +212,7 @@ ni_dhcp_build_message(const ni_dhcp_device_t *dev,
 	if (!options || !dhcp)
 		return -1;
 
-	if (IN_LINKLOCAL(ntohl(dhcp->address.s_addr))) {
+	if (IN_LINKLOCAL(ntohl(dhcp->dhcp.address.s_addr))) {
 		ni_error("cannot request a link local address");
 		goto failed;
 	}
@@ -242,17 +220,17 @@ ni_dhcp_build_message(const ni_dhcp_device_t *dev,
 	src_addr.s_addr = dst_addr.s_addr = 0;
 	switch (msg_code) {
 	case DHCP_DISCOVER:
-		if (dhcp->serveraddress.s_addr != 0)
+		if (dhcp->dhcp.serveraddress.s_addr != 0)
 			return -1;
 		break;
 
 	case DHCP_REQUEST:
 	case DHCP_RELEASE:
 	case DHCP_INFORM:
-		if (dhcp->address.s_addr == 0 || dhcp->serveraddress.s_addr == 0)
+		if (dhcp->dhcp.address.s_addr == 0 || dhcp->dhcp.serveraddress.s_addr == 0)
 			return -1;
-		src_addr = dhcp->address;
-		dst_addr = dhcp->serveraddress;
+		src_addr = dhcp->dhcp.address;
+		dst_addr = dhcp->dhcp.serveraddress;
 		break;
 	}
 
@@ -271,7 +249,7 @@ ni_dhcp_build_message(const ni_dhcp_device_t *dev,
 	if (dev->state == NI_DHCP_STATE_BOUND
 	 || dev->state == NI_DHCP_STATE_RENEWING
 	 || dev->state == NI_DHCP_STATE_REBINDING)
-		message->ciaddr = dhcp->address.s_addr;
+		message->ciaddr = dhcp->dhcp.address.s_addr;
 
 	switch (dev->system.arp_type) {
 	case ARPHRD_ETHER:
@@ -316,15 +294,15 @@ ni_dhcp_build_message(const ni_dhcp_device_t *dev,
 	}
 
 	if (msg_code == DHCP_DISCOVER || msg_code == DHCP_REQUEST) {
-		if (dhcp->address.s_addr)
-			ni_dhcp_option_put_ipv4(msgbuf, DHCP_ADDRESS, dhcp->address);
-		if (dhcp->leasetime != 0)
-			ni_dhcp_option_put32(msgbuf, DHCP_LEASETIME, dhcp->leasetime);
+		if (dhcp->dhcp.address.s_addr)
+			ni_dhcp_option_put_ipv4(msgbuf, DHCP_ADDRESS, dhcp->dhcp.address);
+		if (dhcp->dhcp.lease_time != 0)
+			ni_dhcp_option_put32(msgbuf, DHCP_LEASETIME, dhcp->dhcp.lease_time);
 	}
 
 	if (msg_code == DHCP_REQUEST) {
-		if (dhcp->serveraddress.s_addr)
-			ni_dhcp_option_put_ipv4(msgbuf, DHCP_SERVERIDENTIFIER, dhcp->serveraddress);
+		if (dhcp->dhcp.serveraddress.s_addr)
+			ni_dhcp_option_put_ipv4(msgbuf, DHCP_SERVERIDENTIFIER, dhcp->dhcp.serveraddress);
 	}
 
 	if (msg_code == DHCP_DISCOVER || msg_code == DHCP_INFORM || msg_code == DHCP_REQUEST) {
@@ -676,18 +654,17 @@ ni_dhcp_parse_response(const ni_dhcp_message_t *message, ni_buffer_t *options, n
 
 	dhcp = ni_dhcp_lease_new();
 
-	dhcp->address.s_addr = message->yiaddr;
-	dhcp->serveraddress.s_addr = message->siaddr;
-	dhcp->leasedfrom = time(NULL);
-	dhcp->address.s_addr = message->yiaddr;
+	dhcp->state = NI_ADDRCONF_STATE_GRANTED;
+	dhcp->type = NI_ADDRCONF_DHCP;
+	dhcp->family = AF_INET;
+	dhcp->time_acquired = time(NULL);
 
-	assert(sizeof(dhcp->servername) == sizeof(message->servername));
-	memcpy(dhcp->servername, message->servername, sizeof(dhcp->servername));
+	dhcp->dhcp.address.s_addr = message->yiaddr;
+	dhcp->dhcp.serveraddress.s_addr = message->siaddr;
+	dhcp->dhcp.address.s_addr = message->yiaddr;
 
-	dhcp->aconf.state = NI_ADDRCONF_STATE_GRANTED;
-	dhcp->aconf.type = NI_ADDRCONF_DHCP;
-	dhcp->aconf.family = AF_INET;
-	dhcp->aconf.time_acquired = time(NULL);
+	assert(sizeof(dhcp->dhcp.servername) == sizeof(message->servername));
+	memcpy(dhcp->dhcp.servername, message->servername, sizeof(dhcp->dhcp.servername));
 
 	/* Loop as long as we still have data in the buffer. */
 	while (ni_buffer_count(options) && !options->underflow) {
@@ -719,81 +696,81 @@ ni_dhcp_parse_response(const ni_dhcp_message_t *message, ni_buffer_t *options, n
 				goto failed;
 			continue;
 		case DHCP_ADDRESS:
-			ni_dhcp_option_get_ipv4(&buf, &dhcp->address);
+			ni_dhcp_option_get_ipv4(&buf, &dhcp->dhcp.address);
 			break;
 		case DHCP_NETMASK:
-			ni_dhcp_option_get_ipv4(&buf, &dhcp->netmask);
+			ni_dhcp_option_get_ipv4(&buf, &dhcp->dhcp.netmask);
 			break;
 		case DHCP_BROADCAST:
-			ni_dhcp_option_get_ipv4(&buf, &dhcp->broadcast);
+			ni_dhcp_option_get_ipv4(&buf, &dhcp->dhcp.broadcast);
 			break;
 		case DHCP_SERVERIDENTIFIER:
-			ni_dhcp_option_get_ipv4(&buf, &dhcp->serveraddress);
+			ni_dhcp_option_get_ipv4(&buf, &dhcp->dhcp.serveraddress);
 			break;
 		case DHCP_LEASETIME:
-			ni_dhcp_option_get32(&buf, &dhcp->leasetime);
+			ni_dhcp_option_get32(&buf, &dhcp->dhcp.lease_time);
 			break;
 		case DHCP_RENEWALTIME:
-			ni_dhcp_option_get32(&buf, &dhcp->renewaltime);
+			ni_dhcp_option_get32(&buf, &dhcp->dhcp.renewal_time);
 			break;
 		case DHCP_REBINDTIME:
-			ni_dhcp_option_get32(&buf, &dhcp->rebindtime);
+			ni_dhcp_option_get32(&buf, &dhcp->dhcp.rebind_time);
 			break;
 		case DHCP_MTU:
-			ni_dhcp_option_get16(&buf, &dhcp->mtu);
+			ni_dhcp_option_get16(&buf, &dhcp->dhcp.mtu);
 			/* Minimum legal mtu is 68 accoridng to
 			 * RFC 2132. In practise it's 576 which is the
 			 * minimum maximum message size. */
-			if (dhcp->mtu < MTU_MIN) {
+			if (dhcp->dhcp.mtu < MTU_MIN) {
 				ni_debug_dhcp("MTU %u is too low, minimum is %d; ignoring",
-						dhcp->mtu, MTU_MIN);
-				dhcp->mtu = 0;
+						dhcp->dhcp.mtu, MTU_MIN);
+				dhcp->dhcp.mtu = 0;
 			}
 			break;
 		case DHCP_HOSTNAME:
-			ni_dhcp_option_get_string(&buf, &dhcp->aconf.hostname);
+			ni_dhcp_option_get_string(&buf, &dhcp->hostname);
 			break;
 		case DHCP_DNSDOMAIN:
 			ni_dhcp_option_get_string(&buf, &dnsdomain);
 			break;
 		case DHCP_MESSAGE:
-			ni_dhcp_option_get_string(&buf, &dhcp->message);
+			ni_dhcp_option_get_string(&buf, &dhcp->dhcp.message);
 			break;
 		case DHCP_ROOTPATH:
-			ni_dhcp_option_get_string(&buf, &dhcp->rootpath);
+			ni_dhcp_option_get_string(&buf, &dhcp->dhcp.rootpath);
 			break;
 		case DHCP_NISDOMAIN:
-			ni_dhcp_option_get_string(&buf, &dhcp->aconf.nis_domain);
+			ni_dhcp_option_get_string(&buf, &dhcp->nis_domain);
 			break;
 		case DHCP_NETBIOSNODETYPE:
-			ni_dhcp_option_get_string(&buf, &dhcp->aconf.netbios_domain);
+			ni_dhcp_option_get_string(&buf, &dhcp->netbios_domain);
 			break;
 		case DHCP_NETBIOSSCOPE:
-			ni_dhcp_option_get_string(&buf, &dhcp->aconf.netbios_scope);
+			ni_dhcp_option_get_string(&buf, &dhcp->netbios_scope);
 			break;
 		case DHCP_DNSSERVER:
-			ni_dhcp_decode_address_list(&buf, &dhcp->aconf.dns_servers);
+			ni_dhcp_decode_address_list(&buf, &dhcp->dns_servers);
 			break;
 		case DHCP_NTPSERVER:
-			ni_dhcp_decode_address_list(&buf, &dhcp->aconf.ntp_servers);
+			ni_dhcp_decode_address_list(&buf, &dhcp->ntp_servers);
 			break;
 		case DHCP_NISSERVER:
-			ni_dhcp_decode_address_list(&buf, &dhcp->aconf.nis_servers);
+			ni_dhcp_decode_address_list(&buf, &dhcp->nis_servers);
 			break;
 		case DHCP_LPRSERVER:
-			ni_dhcp_decode_address_list(&buf, &dhcp->aconf.lpr_servers);
+			ni_dhcp_decode_address_list(&buf, &dhcp->lpr_servers);
 			break;
 		case DHCP_LOGSERVER:
-			ni_dhcp_decode_address_list(&buf, &dhcp->aconf.log_servers);
+			ni_dhcp_decode_address_list(&buf, &dhcp->log_servers);
 			break;
 		case DHCP_NETBIOSNAMESERVER:
-			ni_dhcp_decode_address_list(&buf, &dhcp->aconf.netbios_name_servers);
+			ni_dhcp_decode_address_list(&buf, &dhcp->netbios_name_servers);
 			break;
 		case DHCP_NETBIOSDDSERVER:
-			ni_dhcp_decode_address_list(&buf, &dhcp->aconf.netbios_dd_servers);
+			ni_dhcp_decode_address_list(&buf, &dhcp->netbios_dd_servers);
 			break;
 		case DHCP_DNSSEARCH:
-			ni_dhcp_decode_dnssearch(&buf, &dhcp->aconf.dns_search);
+			ni_dhcp_decode_dnssearch(&buf, &dhcp->dns_search);
 			break;
 
 		case DHCP_CSR:
@@ -804,7 +781,7 @@ ni_dhcp_parse_response(const ni_dhcp_message_t *message, ni_buffer_t *options, n
 			break;
 
 		case DHCP_SIPSERVER:
-			ni_dhcp_decode_sipservers(&buf, &dhcp->aconf.sip_servers);
+			ni_dhcp_decode_sipservers(&buf, &dhcp->sip_servers);
 			break;
 
 		case DHCP_STATICROUTE:
@@ -856,19 +833,19 @@ failed:
 	/* FIXME: handle overloaded options */
 
 	/* Fill in any missing fields */
-	if (!dhcp->netmask.s_addr) {
-		unsigned int pfxlen = guess_prefix_len(dhcp->address);
+	if (!dhcp->dhcp.netmask.s_addr) {
+		unsigned int pfxlen = guess_prefix_len(dhcp->dhcp.address);
 
-		dhcp->netmask.s_addr = htonl(~(0xFFFFFFFF >> pfxlen));
+		dhcp->dhcp.netmask.s_addr = htonl(~(0xFFFFFFFF >> pfxlen));
 	}
-	if (!dhcp->broadcast.s_addr) {
-		dhcp->broadcast.s_addr = dhcp->address.s_addr | ~dhcp->netmask.s_addr;
+	if (!dhcp->dhcp.broadcast.s_addr) {
+		dhcp->dhcp.broadcast.s_addr = dhcp->dhcp.address.s_addr | ~dhcp->dhcp.netmask.s_addr;
 	}
 
 	if (classless_routes) {
 		/* CSR and MSCSR take precedence over static routes */
 	} else {
-		ni_route_t **tail = &dhcp->aconf.routes, *rp;
+		ni_route_t **tail = &dhcp->routes, *rp;
 
 		if (static_routes) {
 			*tail = static_routes;
@@ -883,23 +860,23 @@ failed:
 		}
 	}
 
-	if (dhcp->aconf.dns_search.count == 0 && dnsdomain)
-		ni_string_array_append(&dhcp->aconf.dns_search, dnsdomain);
+	if (dhcp->dns_search.count == 0 && dnsdomain)
+		ni_string_array_append(&dhcp->dns_search, dnsdomain);
 
-	if (dhcp->address.s_addr) {
+	if (dhcp->dhcp.address.s_addr) {
 		struct sockaddr_storage local_addr;
 		ni_address_t *ap;
 
 		memset(&local_addr, 0, sizeof(local_addr));
 		local_addr.ss_family = AF_INET;
-		((struct sockaddr_in *) &local_addr)->sin_addr = dhcp->address;
-		ap = __ni_address_new(&dhcp->aconf.addrs, AF_INET,
-				__count_net_bits(ntohl(dhcp->netmask.s_addr)),
+		((struct sockaddr_in *) &local_addr)->sin_addr = dhcp->dhcp.address;
+		ap = __ni_address_new(&dhcp->addrs, AF_INET,
+				__count_net_bits(ntohl(dhcp->dhcp.netmask.s_addr)),
 				&local_addr);
 
 		memset(&ap->bcast_addr, 0, sizeof(ap->bcast_addr));
 		ap->bcast_addr.ss_family = AF_INET;
-		((struct sockaddr_in *) &ap->bcast_addr)->sin_addr = dhcp->broadcast;
+		((struct sockaddr_in *) &ap->bcast_addr)->sin_addr = dhcp->dhcp.broadcast;
 	}
 
 	*leasep = dhcp;

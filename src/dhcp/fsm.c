@@ -198,8 +198,8 @@ ni_dhcp_fsm_renewal(ni_dhcp_device_t *dev)
 	rv = ni_dhcp_device_send_message(dev, DHCP_REQUEST, dev->lease);
 
 	ni_dhcp_fsm_set_timeout(dev,
-			dev->lease->rebindtime -
-			dev->lease->renewaltime);
+			dev->lease->dhcp.rebind_time -
+			dev->lease->dhcp.renewal_time);
 	dev->state = NI_DHCP_STATE_RENEWING;
 	return rv;
 }
@@ -210,13 +210,13 @@ ni_dhcp_fsm_rebind(ni_dhcp_device_t *dev)
 	int rv;
 
 	ni_debug_dhcp("trying to rebind lease for %s", dev->ifname);
-	dev->lease->serveraddress.s_addr = 0;
+	dev->lease->dhcp.serveraddress.s_addr = 0;
 
 	rv = ni_dhcp_device_send_message(dev, DHCP_REQUEST, dev->lease);
 
 	ni_dhcp_fsm_set_timeout(dev,
-			dev->lease->leasetime -
-			dev->lease->rebindtime);
+			dev->lease->dhcp.lease_time -
+			dev->lease->dhcp.rebind_time);
 	dev->state = NI_DHCP_STATE_REBINDING;
 	return rv;
 }
@@ -376,12 +376,12 @@ ni_dhcp_process_offer(ni_dhcp_device_t *dev, ni_dhcp_lease_t *lease)
 	 *	in such as case.
 	 */
 
-	inet_ntop(AF_INET, &lease->address, abuf1, sizeof(abuf1));
-	inet_ntop(AF_INET, &lease->serveraddress, abuf2, sizeof(abuf2));
+	inet_ntop(AF_INET, &lease->dhcp.address, abuf1, sizeof(abuf1));
+	inet_ntop(AF_INET, &lease->dhcp.serveraddress, abuf2, sizeof(abuf2));
 
-	if (lease->servername[0])
+	if (lease->dhcp.servername[0])
 		ni_debug_dhcp("Received offer for %s from %s (%s)",
-			abuf1, abuf2, lease->servername);
+			abuf1, abuf2, lease->dhcp.servername);
 	else
 		ni_debug_dhcp("Received offer for %s from %s", abuf1, abuf2);
 
@@ -392,31 +392,31 @@ ni_dhcp_process_offer(ni_dhcp_device_t *dev, ni_dhcp_lease_t *lease)
 static int
 ni_dhcp_process_ack(ni_dhcp_device_t *dev, ni_dhcp_lease_t *lease)
 {
-	if (lease->leasetime == 0) {
-		lease->leasetime = DHCP_DEFAULT_LEASETIME;
+	if (lease->dhcp.lease_time == 0) {
+		lease->dhcp.lease_time = DHCP_DEFAULT_LEASETIME;
 		ni_debug_dhcp("server supplied no lease time, assuming %u seconds",
-				lease->leasetime);
+				lease->dhcp.lease_time);
 	}
 
-	if (lease->rebindtime >= lease->leasetime) {
-		ni_debug_dhcp("%s: rebindtime greater than leasetime, using default", dev->ifname);
-		lease->rebindtime = lease->leasetime * 7 / 8;
-	} else if (lease->rebindtime == 0) {
-		ni_debug_dhcp("%s: no rebindtime supplied, using default", dev->ifname);
-		lease->rebindtime = lease->leasetime * 7 / 8;
+	if (lease->dhcp.rebind_time >= lease->dhcp.lease_time) {
+		ni_debug_dhcp("%s: dhcp.rebind_time greater than dhcp.lease_time, using default", dev->ifname);
+		lease->dhcp.rebind_time = lease->dhcp.lease_time * 7 / 8;
+	} else if (lease->dhcp.rebind_time == 0) {
+		ni_debug_dhcp("%s: no dhcp.rebind_time supplied, using default", dev->ifname);
+		lease->dhcp.rebind_time = lease->dhcp.lease_time * 7 / 8;
 	}
 
-	if (lease->renewaltime >= lease->rebindtime) {
-		ni_debug_dhcp("%s: renewaltime greater than rebindtime, using default", dev->ifname);
-		lease->renewaltime = lease->leasetime / 2;
-	} else if (lease->renewaltime == 0) {
-		ni_debug_dhcp("%s: no renewaltime supplied, using default", dev->ifname);
-		lease->renewaltime = lease->leasetime / 2;
+	if (lease->dhcp.renewal_time >= lease->dhcp.rebind_time) {
+		ni_debug_dhcp("%s: dhcp.renewal_time greater than dhcp.rebind_time, using default", dev->ifname);
+		lease->dhcp.renewal_time = lease->dhcp.lease_time / 2;
+	} else if (lease->dhcp.renewal_time == 0) {
+		ni_debug_dhcp("%s: no dhcp.renewal_time supplied, using default", dev->ifname);
+		lease->dhcp.renewal_time = lease->dhcp.lease_time / 2;
 	}
 
 	ni_trace("Debug code active");
-	if (lease->renewaltime > 120)
-		lease->renewaltime = 120;
+	if (lease->dhcp.renewal_time > 120)
+		lease->dhcp.renewal_time = 120;
 
 	if (dev->config->flags & DHCP_DO_ARP) {
 		/* should we do this on renew as well? */
@@ -438,8 +438,8 @@ ni_dhcp_fsm_commit_lease(ni_dhcp_device_t *dev, ni_dhcp_lease_t *lease)
 	if (lease) {
 		ni_debug_dhcp("%s: committing lease", dev->ifname);
 		ni_debug_dhcp("%s: schedule renewal of lease in %u seconds",
-				dev->ifname, lease->renewaltime);
-		ni_dhcp_fsm_set_timeout(dev, lease->renewaltime);
+				dev->ifname, lease->dhcp.renewal_time);
+		ni_dhcp_fsm_set_timeout(dev, lease->dhcp.renewal_time);
 
 		ni_dhcp_device_set_lease(dev, lease);
 		dev->state = NI_DHCP_STATE_BOUND;
@@ -506,7 +506,7 @@ decline:
 int
 ni_dhcp_fsm_arp_validate(ni_dhcp_device_t *dev)
 {
-	struct in_addr claim = dev->lease->address;
+	struct in_addr claim = dev->lease->dhcp.address;
 	struct in_addr null = { 0 };
 
 	if (dev->arp.nprobes) {
@@ -543,7 +543,7 @@ ni_dhcp_fsm_process_arp_packet(ni_dhcp_device_t *dev, ni_buffer_t *bp)
 	if (ni_link_address_equal(&dev->system.hwaddr, &sha))
 		return 0;
 
-	if (sip.s_addr == dev->lease->address.s_addr) {
+	if (sip.s_addr == dev->lease->dhcp.address.s_addr) {
 		ni_debug_dhcp("address %s already in use by %s",
 				inet_ntoa(sip),
 				ni_link_address_print(&sha));

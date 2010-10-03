@@ -1128,4 +1128,10 @@ ni_addrconf_state_destroy(ni_addrconf_state_t *lease)
 	ni_string_array_destroy(&lease->slp_scopes);
 	ni_address_list_destroy(&lease->addrs);
 	ni_route_list_destroy(&lease->routes);
+
+	switch (lease->type) {
+	case NI_ADDRCONF_DHCP:
+		ni_string_free(&lease->dhcp.message);
+		ni_string_free(&lease->dhcp.rootpath);
+	}
 }

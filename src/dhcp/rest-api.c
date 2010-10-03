@@ -227,7 +227,7 @@ dhcp_device_xml(const ni_dhcp_device_t *dev)
 	if (dev->failed) {
 		dummy.state = NI_ADDRCONF_STATE_FAILED;
 	} else if (dev->lease) {
-		lease = &dev->lease->aconf;
+		lease = dev->lease;
 	} else {
 		dummy.state = NI_ADDRCONF_STATE_RELEASED;
 	}

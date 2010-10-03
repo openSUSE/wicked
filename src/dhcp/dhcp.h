@@ -30,7 +30,7 @@ enum {
 };
 
 typedef struct ni_capture ni_capture_t;
-typedef struct ni_dhcp_lease ni_dhcp_lease_t;
+typedef ni_addrconf_state_t ni_dhcp_lease_t;
 typedef struct ni_dhcp_message ni_dhcp_message_t;
 typedef struct ni_dhcp_config ni_dhcp_config_t;
 typedef struct ni_dhcp_config options_t;

@@ -207,6 +207,26 @@ typedef struct ni_addrconf_state {
 	ni_string_array_t	slp_scopes;
 	ni_string_array_t	sip_servers;
 	ni_string_array_t	lpr_servers;
+
+	/* Information specific to some addrconf protocol */
+	union {
+	    struct ni_addrconf_state_dhcp {
+		struct in_addr		serveraddress;
+		char			servername[64];
+
+		struct in_addr		address;
+		struct in_addr		netmask;
+		struct in_addr		broadcast;
+		uint16_t		mtu;
+
+		uint32_t		lease_time;
+		uint32_t		renewal_time;
+		uint32_t		rebind_time;
+
+		char *			message;
+		char *			rootpath;
+	    } dhcp;
+	};
 } ni_addrconf_state_t;
 
 enum {

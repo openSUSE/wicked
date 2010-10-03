@@ -126,36 +126,6 @@ enum FQQN {
 	FQDN_BOTH       = 0x31
 };
 
-typedef struct fqdn_t {
-	uint8_t flags;
-	uint8_t r1;
-	uint8_t r2;
-	char *name;
-} fqdn_t;
-
-struct ni_dhcp_lease {
-	struct in_addr		serveraddress;
-	char			servername[64];
-
-	ni_addrconf_state_t	aconf;
-
-	struct in_addr		address;
-	struct in_addr		netmask;
-	struct in_addr		broadcast;
-	uint16_t		mtu;
-
-	uint32_t		leasedfrom;
-	uint32_t		leasetime;
-	uint32_t		renewaltime;
-	uint32_t		rebindtime;
-
-	fqdn_t *		fqdn;
-
-	char *			message;
-	char *			rootpath;
-	char *			dnsdomain;
-};
-
 /* Sizes for DHCP options */
 #define DHCP_CHADDR_LEN         16
 #define SERVERNAME_LEN          64
