@@ -48,6 +48,7 @@ __LIBSRCS= \
 	  util.c \
 	  socket.c \
 	  logging.c \
+	  dhcp/addrconf.c \
 	  dhcp/rest-api.c \
 	  dhcp/fsm.c \
 	  dhcp/device.c \
