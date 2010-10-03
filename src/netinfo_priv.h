@@ -51,8 +51,6 @@ struct ni_syntax {
 	unsigned char		strict;
 
 	int			(*parse_all)(ni_syntax_t *, ni_handle_t *);
-	int			(*parse_all_from_file)(ni_syntax_t *, ni_handle_t *, const char *);
-	int			(*parse_all_from_stream)(ni_syntax_t *, ni_handle_t *, FILE *);
 	int			(*format_all)(ni_syntax_t *, ni_handle_t *, FILE *);
 	int			(*format_interface)(ni_syntax_t *, ni_handle_t *, ni_interface_t *, FILE *);
 

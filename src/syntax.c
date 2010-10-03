@@ -154,13 +154,6 @@ ni_syntax_parse_data(ni_syntax_t *syntax, ni_handle_t *nih, const char *data)
 int
 ni_syntax_parse_file(ni_syntax_t *syntax, ni_handle_t *nih, const char *filename)
 {
-	/* XXX obsolete */
-	if (syntax->parse_all_from_file) {
-		if (filename == NULL)
-			return -1;
-		return syntax->parse_all_from_file(syntax, nih, filename);
-	}
-
 	if (syntax->xml_to_interface) {
 		xml_document_t *doc;
 		int rv;
@@ -185,9 +178,6 @@ ni_syntax_parse_file(ni_syntax_t *syntax, ni_handle_t *nih, const char *filename
 int
 ni_syntax_parse_stream(ni_syntax_t *syntax, ni_handle_t *nih, FILE *input)
 {
-	if (syntax->parse_all_from_stream)
-		return syntax->parse_all_from_stream(syntax, nih, input);
-
 	if (syntax->xml_to_interface) {
 		xml_document_t *doc;
 		int rv;
