@@ -68,6 +68,17 @@ extern void		__ni_interface_clear_routes(ni_interface_t *);
 extern void		__ni_interface_clear_addresses(ni_interface_t *);
 extern void		__ni_interface_clear_stats(ni_interface_t *);
 extern void		__ni_interfaces_clear(ni_handle_t *);
+extern ni_addrconf_state_t *__ni_interface_address_to_lease(ni_interface_t *, const ni_address_t *);
+
+static inline ni_afinfo_t *
+__ni_interface_address_info(ni_interface_t *ifp, int af)
+{
+	if (af == AF_INET)
+		return &ifp->ipv4;
+	if (af == AF_INET6)
+		return &ifp->ipv6;
+	return NULL;
+}
 
 extern ni_route_t *	__ni_route_new(ni_route_t **, unsigned int prefix_len,
 				const struct sockaddr_storage *,

@@ -476,6 +476,44 @@ ni_interface_update_lease(ni_handle_t *nih, ni_interface_t *ifp,
 }
 
 /*
+ * Given an address, look up the lease owning it
+ */
+static int	__ni_lease_owns_address(const ni_addrconf_state_t *, const ni_address_t *);
+
+ni_addrconf_state_t *
+__ni_interface_address_to_lease(ni_interface_t *ifp, const ni_address_t *ap)
+{
+	ni_afinfo_t *afi = __ni_interface_address_info(ifp, ap->family);
+
+	if (!afi)
+		return NULL;
+
+	if (__ni_lease_owns_address(afi->dhcp_lease, ap))
+		return afi->dhcp_lease;
+
+	/* Try other lease types as well */
+
+	return NULL;
+}
+
+int
+__ni_lease_owns_address(const ni_addrconf_state_t *lease, const ni_address_t *ap)
+{
+	const ni_address_t *own;
+
+	if (!lease)
+		return 0;
+	for (own = lease->addrs; own; own = own->next) {
+		if (own->prefixlen == ap->prefixlen
+		 && ni_address_equal(&own->local_addr, &ap->local_addr)
+		 && ni_address_equal(&own->peer_addr, &ap->peer_addr)
+		 && ni_address_equal(&own->anycast_addr, &ap->anycast_addr))
+			return 1;
+	}
+	return 0;
+}
+
+/*
  * Delete an interface, by removing its configuration file, or
  * by destroying the kernel network interface (only possible for
  * virtual interfaces like bridges, bonds or VLANs

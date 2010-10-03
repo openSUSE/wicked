@@ -430,6 +430,7 @@ __ni_interface_process_newaddr(ni_interface_t *ifp, struct nlmsghdr *h,
 				struct ifaddrmsg *ifa, ni_handle_t *nih)
 {
 	struct rtattr *tb[IFA_MAX+1];
+	ni_addrconf_state_t *lease;
 	ni_address_t tmp, *ap;
 
 	memset(tb, 0, sizeof(tb));
@@ -459,6 +460,11 @@ __ni_interface_process_newaddr(ni_interface_t *ifp, struct nlmsghdr *h,
 	ap->peer_addr = tmp.peer_addr;
 	ap->bcast_addr = tmp.bcast_addr;
 	ap->anycast_addr = tmp.anycast_addr;
+
+	/* See if this address is owned by a lease */
+	lease = __ni_interface_address_to_lease(ifp, ap);
+	if (lease)
+		ap->config_method = lease->type;
 
 	return 0;
 }
