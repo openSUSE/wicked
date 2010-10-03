@@ -500,6 +500,8 @@ ni_link_address_length(int iftype)
 {
 	switch (iftype) {
 	case NI_IFTYPE_ETHERNET:
+	case NI_IFTYPE_VLAN:
+	case NI_IFTYPE_BRIDGE:
 		return ETH_ALEN;
 
 	case NI_IFTYPE_TOKENRING:
