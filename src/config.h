@@ -15,11 +15,6 @@
 #define NI_DEFAULT_CONFIG_PATH	"/etc/wicked/config.xml"
 #define NI_DEFAULT_POLICY_PATH	"/etc/wicked/policy.xml"
 
-enum {
-	NI_AF_MASK_IPV4		= 0x0001,
-	NI_AF_MASK_IPV6		= 0x0002,
-};
-
 typedef struct ni_extension {
 	struct ni_extension *	next;
 

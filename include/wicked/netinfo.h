@@ -20,6 +20,7 @@
 
 typedef struct ni_handle	ni_handle_t;
 typedef struct ni_syntax	ni_syntax_t;
+typedef struct ni_interface	ni_interface_t;
 
 typedef struct ni_address {
 	struct ni_address *	next;
@@ -180,6 +181,25 @@ typedef struct ni_addrconf_state {
 	ni_route_t *		routes;
 } ni_addrconf_state_t;
 
+enum {
+	NI_AF_MASK_IPV4		= 0x0001,
+	NI_AF_MASK_IPV6		= 0x0002,
+};
+
+typedef struct ni_addrconf {
+	int			type;
+
+	/* Supported address families.
+	 * Bitwise OR of NI_AF_MASK_* values
+	 */
+	unsigned int		supported_af;
+
+	void *			private;
+
+	int			(*request)(struct ni_addrconf *, ni_interface_t *);
+	int			(*release)(struct ni_addrconf *, ni_interface_t *, ni_addrconf_state_t *);
+} ni_addrconf_t;
+
 typedef struct ni_afinfo {
 	int			family;
 	int			enabled;
@@ -191,7 +211,7 @@ typedef struct ni_afinfo {
 	ni_addrconf_state_t *	dhcp_lease;
 } ni_afinfo_t;
 
-typedef struct ni_interface {
+struct ni_interface {
 	struct ni_interface *	next;
 	unsigned int		seq;
 	unsigned int		modified : 1,
@@ -232,7 +252,7 @@ typedef struct ni_interface {
 
 	/* Configuration data */
 	unsigned int		startmode;
-} ni_interface_t;
+};
 
 typedef struct ni_interface_array {
 	unsigned int		count;
@@ -480,6 +500,8 @@ extern void		ni_dhclient_info_free(ni_dhclient_info_t *);
 
 extern ni_addrconf_state_t *ni_addrconf_state_new(int type, int family);
 extern void		ni_addrconf_state_free(ni_addrconf_state_t *);
+extern void		ni_addrconf_register(ni_addrconf_t *);
+extern ni_addrconf_t *	ni_addrconf_get(int type, int family);
 
 extern const char *	ni_print_link_flags(int flags);
 extern const char *	ni_print_link_type(int type);

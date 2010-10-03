@@ -627,3 +627,53 @@ __ni_route_list_clone(const ni_route_t *src)
 	return dst;
 }
 
+/*
+ * Address configuration mechanisms
+ */
+struct ni_addrconfig_list_entry {
+	struct ni_addrconfig_list_entry *next;
+	ni_addrconf_t		mech;
+};
+
+static struct ni_addrconfig_list_entry *ni_addrconf_list;
+
+void
+ni_addrconf_register(ni_addrconf_t *acm)
+{
+	struct ni_addrconfig_list_entry *ace, **pos;
+
+	for (pos = &ni_addrconf_list; (ace = *pos); pos = &ace->next)
+		;
+
+	ace = calloc(1, sizeof(*ace));
+	ace->mech = *acm;
+	*pos = ace;
+}
+
+ni_addrconf_t *
+ni_addrconf_get(int type, int af)
+{
+	struct ni_addrconfig_list_entry *ace;
+	unsigned int mask;
+
+	switch (af) {
+	case AF_UNSPEC:
+		mask = ~0;
+		break;
+	case AF_INET:
+		mask = NI_AF_MASK_IPV4;
+		break;
+	case AF_INET6:
+		mask = NI_AF_MASK_IPV6;
+		break;
+	default:
+		return NULL;
+	}
+
+	for (ace = ni_addrconf_list; ace != NULL; ace = ace->next) {
+		if (ace->mech.type == type && (ace->mech.supported_af & mask))
+			return &ace->mech;
+	}
+
+	return NULL;
+}
