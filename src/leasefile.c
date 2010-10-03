@@ -1,0 +1,114 @@
+/*
+ * DHCP client for wicked - handle lease files
+ *
+ * Copyright (C) 2010 Olaf Kirch <okir@suse.de>
+ */
+
+#include <limits.h>
+#include <unistd.h>
+#include <string.h>
+
+#include <wicked/netinfo.h>
+#include <wicked/logging.h>
+#include <wicked/xml.h>
+#include "netinfo_priv.h"
+
+#define CONFIG_DHCP_LEASE_DIRECTORY	"/var/run/wicked"
+
+static const char *		__ni_lease_file_path(const char *, const char *);
+
+/*
+ * Write a lease to a file
+ */
+int
+ni_lease_file_write(const char *ifname, ni_addrconf_state_t *lease)
+{
+	const char *filename;
+	xml_node_t *xml = NULL;
+	FILE *fp;
+
+	filename = __ni_lease_file_path(ni_addrconf_type_to_name(lease->type), ifname);
+	if (lease->state == NI_ADDRCONF_STATE_RELEASED)
+		return unlink(filename);
+
+	xml = ni_syntax_xml_from_lease(ni_default_xml_syntax(), lease, NULL);
+	if (!xml) {
+		ni_error("cannot store lease: unable to represent lease as XML");
+		goto failed;
+	}
+
+	if ((fp = fopen(filename, "w")) == NULL) {
+		ni_error("unable to open %s for writing: %m", filename);
+		goto failed;
+	}
+
+	xml_node_print(xml, fp);
+	fclose(fp);
+
+	xml_node_free(xml);
+	return 0;
+
+failed:
+	if (xml)
+		xml_node_free(xml);
+	unlink(filename);
+	return -1;
+}
+
+/*
+ * Read a lease from a file
+ */
+ni_addrconf_state_t *
+ni_lease_file_read(const char *ifname, int type)
+{
+	ni_addrconf_state_t *lease;
+	const char *filename;
+	xml_node_t *xml = NULL, *lnode;
+	FILE *fp;
+
+	filename = __ni_lease_file_path(ni_addrconf_type_to_name(type), ifname);
+
+	if ((fp = fopen(filename, "r")) == NULL) {
+		ni_error("unable to open %s for reading: %m", filename);
+		return NULL;
+	}
+
+	xml = xml_node_scan(fp);
+	fclose(fp);
+
+	if (xml == NULL) {
+		ni_error("unable to parse %s", filename);
+		return NULL;
+	}
+
+	if (xml->name == NULL)
+		lnode = xml->children;
+	else
+		lnode = xml;
+	if (!lnode || !lnode->name || strcmp(lnode->name, "lease")) {
+		ni_error("%s: does not contain a lease", filename);
+		xml_node_free(xml);
+		return NULL;
+	}
+
+	lease = ni_syntax_xml_to_lease(ni_default_xml_syntax(), lnode);
+
+	if (lease == NULL) {
+		ni_error("%s: unable to parse lease xml", filename);
+		xml_node_free(xml);
+		return NULL;
+	}
+
+	xml_node_free(xml);
+	return lease;
+}
+
+static const char *
+__ni_lease_file_path(const char *mech, const char *ifname)
+{
+	static char pathname[PATH_MAX];
+
+	snprintf(pathname, sizeof(pathname), "%s/lease-%s-%s.xml",
+			CONFIG_DHCP_LEASE_DIRECTORY, mech, ifname);
+	return pathname;
+}
