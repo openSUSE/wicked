@@ -950,7 +950,8 @@ __ni_netcf_xml_from_lease(ni_syntax_t *syntax, const ni_addrconf_state_t *lease,
 static ni_addrconf_state_t *
 __ni_netcf_xml_to_lease(ni_syntax_t *syntax, const xml_node_t *node)
 {
-	ni_addrconf_state_t *lease;
+	ni_addrconf_state_t *lease = NULL;
+	ni_handle_t *nih = NULL;
 	xml_node_t *prot;
 	const char *name;
 	int lease_type, lease_family, lease_state;
@@ -997,7 +998,7 @@ __ni_netcf_xml_to_lease(ni_syntax_t *syntax, const xml_node_t *node)
 		name = xml_node_get_attr(prot, "family");
 		if (!name) {
 			error("interface protocol node without family attribute");
-			return NULL;
+			goto failed;
 		}
 
 		if (!strcmp(name, "ipv4")) {
@@ -1009,15 +1010,28 @@ __ni_netcf_xml_to_lease(ni_syntax_t *syntax, const xml_node_t *node)
 			continue;
 		}
 
+		/* We need this freaking handle only for the seqno thing :-( */
+		if (!nih)
+			nih = ni_dummy_open();
+
 		memset(&dummy, 0, sizeof(dummy));
-		if (__ni_netcf_xml_to_static_ifcfg(syntax, NULL, af, &dummy, prot))
-			return NULL;
+		if (__ni_netcf_xml_to_static_ifcfg(syntax, nih, af, &dummy, prot))
+			goto failed;
 
 		lease->addrs = dummy.addrs;
 		lease->routes = dummy.routes;
 	}
 
+	if (nih)
+		ni_close(nih);
 	return lease;
+
+failed:
+	if (lease)
+		ni_addrconf_state_free(lease);
+	if (nih)
+		ni_close(nih);
+	return NULL;
 }
 
 struct __ni_netcf_iftype_map {
