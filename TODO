@@ -1,5 +1,6 @@
 
 ifconfig
+	- support security supplicants (radius, wpa, ...)
 	- disable IPv6 on a device if requested
 	- create and configure wireless devices
 
@@ -35,9 +36,7 @@ overall
 extensions
 	- escape/reject shell metacharacters when expanding
 	  start/stop command
-	- improve dhcp start/stop script
 	- add dhcp6 client script
-	- Maybe integrate more tightly with dhcpcd?
 
 events
 	- how to send events to a number of listeners without
