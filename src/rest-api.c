@@ -5,6 +5,7 @@
  */
 
 #include <sys/poll.h>
+#include <sys/utsname.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
@@ -872,6 +873,123 @@ static ni_rest_node_t	ni_rest_system_event_node = {
 	},
 };
 
+/*
+ * 	/wicked/debug subtree
+ */
+static int
+ni_rest_debug_add(unsigned int facility, const char *title, const char *comment, xml_node_t *xml_parent)
+{
+	xml_node_t	*node;
+
+	node = xml_node_new(title, xml_parent);
+	if (comment)
+		xml_node_add_attr(node, "comment", comment);
+	xml_node_add_attr_uint(node, "enabled", !!(ni_debug & facility));
+	return 0;
+}
+
+static int
+debug_get(const char *path, ni_wicked_request_t *req)
+{
+	unsigned long i;
+
+	if (path && *path) {
+		werror(req, "excess elements in path");
+		return -1;
+	}
+
+	req->xml_out = xml_node_new("debug", NULL);
+	for (i = 1; i; i = i << 1) {
+		const char *name = ni_debug_facility_to_name(i);
+
+		if (name)
+			ni_rest_debug_add(i, name,
+					ni_debug_facility_to_description(i),
+					req->xml_out);
+	}
+	return 0;
+}
+
+static int
+__wicked_debug_put(ni_wicked_request_t *req, unsigned int *newflags)
+{
+	const xml_node_t *node = NULL;
+
+	node = req->xml_in;
+	if (node && !node->name)
+		node = node->children;
+	if (!node)
+		return 0;
+	if (strcmp(node->name, "debug")) {
+		werror(req, "expected <debug> element");
+		return -1;
+	}
+
+	for (node = node->children; node; node = node->next) {
+		unsigned int facility, ena = 0;
+
+		if (ni_debug_name_to_facility(node->name, &facility) < 0) {
+			werror(req, "debug facility %s not known", node->name);
+			return -1;
+		}
+		if (xml_node_get_attr_uint(node, "enabled", &ena) < 0) {
+			werror(req, "debug facility %s: cannot parse attr enabled=\"...\"",
+					node->name);
+			return -1;
+		}
+		if (ena)
+			*newflags |= facility;
+		else
+			*newflags &= ~facility;
+	}
+	return 0;
+}
+
+static int
+debug_put(const char *path, ni_wicked_request_t *req)
+{
+	unsigned int newflags = 0;
+
+	if (path && *path) {
+		werror(req, "excess elements in path");
+		return -1;
+	}
+
+	if (__wicked_debug_put(req, &newflags) < 0)
+		return -1;
+
+	ni_debug = newflags;
+	return 0;
+}
+
+static int
+debug_post(const char *path, ni_wicked_request_t *req)
+{
+	unsigned int newflags = ni_debug;
+
+	if (path && *path) {
+		werror(req, "excess elements in path");
+		return -1;
+	}
+
+	if (__wicked_debug_put(req, &newflags) < 0)
+		return -1;
+
+	ni_debug = newflags;
+	return 0;
+}
+
+static ni_rest_node_t	ni_rest_wicked_debug_node = {
+	.name		= "debug",
+	.ops = {
+	    .byname = {
+		.get	= debug_get,
+		.put	= debug_put,
+		.post	= debug_post,
+	    },
+	},
+};
+
 static int
 system_meta_get(const char *path, ni_wicked_request_t *req)
 {
@@ -885,7 +1003,7 @@ system_meta_get(const char *path, ni_wicked_request_t *req)
 	return 0;
 }
 
-static ni_rest_node_t	ni_rest_meta = {
+static ni_rest_node_t	ni_rest_wicked_meta_node = {
 	.name		= "meta",
 	.ops = {
 	    .byname = {
@@ -911,12 +1029,23 @@ static ni_rest_node_t	ni_rest_config_node = {
 	},
 };
 
+/*
+ *	/wicked subtree
+ */
+static ni_rest_node_t	ni_rest_wicked_node = {
+	.name		= "wicked",
+	.children = {
+		&ni_rest_wicked_meta_node,
+		&ni_rest_wicked_debug_node,
+	},
+};
+
 ni_rest_node_t	ni_rest_root_node = {
 	.name		= "/",
 	.children = {
 		&ni_rest_config_node,
 		&ni_rest_system_node,
-		&ni_rest_meta,
+		&ni_rest_wicked_node,
 	},
 };
 
@@ -980,23 +1109,11 @@ ni_rest_generate_meta(ni_rest_node_t *node, xml_node_t *xml_parent)
 	if (node == NULL)
 		node = &ni_rest_root_node;
 
-	for (j = 0; j < __NI_REST_OP_MAX; j++ ) {
+	for (j = 0; j < __NI_REST_OP_MAX; j++) {
 		if (node->ops.fn[j] != NULL) {
-			switch (j) {
-			case NI_REST_OP_GET:
-				xml_node_add_attr(xml_parent, "get", NULL);
-				continue;
-			case NI_REST_OP_PUT:
-				xml_node_add_attr(xml_parent, "put", NULL);
-				continue;
-			case NI_REST_OP_POST:
-				xml_node_add_attr(xml_parent, "post", NULL);
-				continue;
-			case NI_REST_OP_DELETE:
-				xml_node_add_attr(xml_parent, "delete", NULL);
-				continue;
-			}
-
+			xml_node_add_attr(xml_parent,
+					ni_wicked_rest_op_print(j),
+					"1");
 		}		
 	}
 

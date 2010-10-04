@@ -11,9 +11,66 @@
 #include <syslog.h>
 
 #include <wicked/logging.h>
+#include <wicked/util.h>
+
+#define NI_TRACE_MOST	~(NI_TRACE_XPATH)
+#define NI_TRACE_ALL	~0U
 
 unsigned int		ni_debug = 0;
 static unsigned int	ni_log_syslog = 0;
+
+/*
+ * debug options short text representation
+ */
+static ni_intmap_t __debug_flags_names[] = {
+	{ "ifconfig", 	NI_TRACE_IFCONFIG },
+	{ "readwrite", 	NI_TRACE_READWRITE },
+	{ "xpath", 	NI_TRACE_XPATH },
+	{ "extension", 	NI_TRACE_EXTENSION },
+	{ "wicked", 	NI_TRACE_WICKED },
+	{ "events", 	NI_TRACE_EVENTS },
+	{ "dhcp", 	NI_TRACE_DHCP },
+
+	{ "most", 	NI_TRACE_MOST },
+	{ "all", 	NI_TRACE_ALL },
+	{ NULL }
+};
+
+/*
+ * debug options long text representation
+ */
+static ni_intmap_t __debug_flags_descriptions[] = {
+	{ "Interface configuration", 			NI_TRACE_IFCONFIG },
+	{ "File read/write operations", 		NI_TRACE_READWRITE },
+	{ "Parsing and execution of xpath formats", 	NI_TRACE_XPATH },
+	{ "Handling of extension scripts", 		NI_TRACE_EXTENSION },
+	{ "Everything related to the wicked protocol", 	NI_TRACE_WICKED },
+	{ "Netlink events (daemon only)", 		NI_TRACE_EVENTS },
+	{ "DHCP supplicant", 				NI_TRACE_DHCP },
+
+	{ "All useful debug facilities :-)", 		NI_TRACE_MOST },
+	{ "All debug facilities", 			NI_TRACE_ALL },
+
+	{ NULL }
+};
+
+const char *
+ni_debug_facility_to_name(unsigned int facility)
+{
+	return ni_format_int_mapped(facility, __debug_flags_names);
+}
+
+int
+ni_debug_name_to_facility(const char *name, unsigned int *fac)
+{
+	return ni_parse_int_mapped(name, __debug_flags_names, fac);
+}
+
+const char *
+ni_debug_facility_to_description(unsigned int facility)
+{
+	return ni_format_int_mapped(facility, __debug_flags_descriptions);
+}
 
 int
 ni_enable_debug(const char *fac)
@@ -23,7 +80,7 @@ ni_enable_debug(const char *fac)
 
 	copy = strdup(fac);
 	for (s = strtok(copy, ","); s; s = strtok(NULL, ",")) {
-		int flags = 0;
+		unsigned int flags = 0;
 		int not = 0;
 
 		if (*s == '-') {
@@ -31,23 +88,7 @@ ni_enable_debug(const char *fac)
 			++s;
 		}
 
-		if (!strcmp(s, "all"))
-			flags = ~0;
-		else if (!strcmp(s, "most"))
-			flags = ~(NI_TRACE_XPATH);
-		else if (!strcmp(s, "ifconfig"))
-			flags = NI_TRACE_IFCONFIG;
-		else if (!strcmp(s, "readwrite"))
-			flags = NI_TRACE_READWRITE;
-		else if (!strcmp(s, "extension"))
-			flags = NI_TRACE_EXTENSION;
-		else if (!strcmp(s, "xpath"))
-			flags = NI_TRACE_XPATH;
-		else if (!strcmp(s, "wicked"))
-			flags = NI_TRACE_WICKED;
-		else if (!strcmp(s, "events"))
-			flags = NI_TRACE_EVENTS;
-		else {
+		if (ni_debug_name_to_facility(s, &flags) < 0) {
 			rv = -1;
 			continue;
 		}
@@ -64,16 +105,13 @@ ni_enable_debug(const char *fac)
 void
 ni_debug_help(FILE *fp)
 {
-	fprintf(fp,
-        "  all          All debug facilities\n"
-        "  most         All debug facilities except xpath\n"
-        "  wicked       Everything related to the wicked protocol\n"
-        "  ifconfig     Interface configuration\n"
-        "  readwrite    File read/write operations\n"
-        "  extension    Handling of extension scripts\n"
-        "  events       Netlink events (daemon only)\n"
-        "  xpath        Parsing and execution of xpath formats\n"
-	);
+	unsigned int i;
+
+	for (i = 0; __debug_flags_descriptions[i].name; ++i) {
+		fprintf(fp, "  %-10s\t%s\n",
+				ni_debug_facility_to_name(__debug_flags_descriptions[i].value),
+				__debug_flags_descriptions[i].name);
+	}
 }
 
 void

@@ -421,6 +421,10 @@ extern ni_policy_info_t *ni_default_policies(void);
 
 extern int		ni_enable_debug(const char *);
 extern void		ni_debug_help(FILE *);
+extern const char * 	ni_debug_facility_to_name(unsigned int);
+extern int		ni_debug_name_to_facility(const char *, unsigned int *);
+extern const char *	ni_debug_facility_to_description(int);
+
 extern void		ni_log_destination_syslog(const char *program);
 
 extern ni_handle_t *	ni_state_open(void);

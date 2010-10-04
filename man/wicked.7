@@ -149,11 +149,19 @@ Currently, only
 .B lease
 events are supported.
 .\" ------------------------------------------------------------------
-.SS The meta node
+.SS The wicked node
 .TP
-.B /meta
-This node supports the GET request only. It will return and XML document
+.B /wicked/meta
+This node supports the GET request only. It will return an XML document
 describing the supported namespace, along with the supported operations.
+.TP
+.B /wicked/debug
+This node lets you query and change the current debugging level of the
+wicked daemon. Using GET will give you a
+.BR <debug>
+element with the current debug settings. Using PUT with such a document
+will set the debug status according to the given data. A POST command
+will change the named debug flacilities, but leave the others untouched.
 .\" ------------------------------------------------------------------
 .SH "SEE ALSO"
 .BR wickedd (8),
