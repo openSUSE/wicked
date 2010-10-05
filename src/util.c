@@ -19,6 +19,8 @@
 #include <wicked/util.h>
 #include <wicked/logging.h>
 
+#define NI_STRINGARRAY_CHUNK	16
+
 static int	__ni_pidfile_write(const char *, unsigned int, pid_t, int);
 
 void
@@ -49,19 +51,45 @@ ni_string_array_destroy(ni_string_array_t *nsa)
 	memset(nsa, 0, sizeof(*nsa));
 }
 
+static void
+__ni_string_array_realloc(ni_string_array_t *nsa, unsigned int newsize)
+{
+	char **newdata;
+	unsigned int i;
+
+	newsize = (newsize + NI_STRINGARRAY_CHUNK) + 1;
+	newdata = realloc(nsa->data, newsize * sizeof(char *));
+	if (!newdata)
+		ni_fatal("%s: out of memory", __FUNCTION__);
+
+	nsa->data = newdata;
+	for (i = nsa->count; i < newsize; ++i)
+		nsa->data[i] = NULL;
+}
+
 static int
 __ni_string_array_append(ni_string_array_t *nsa, char *str)
 {
-	if ((nsa->count & 15) == 0) {
-		char **newdata;
-
-		newdata = realloc(nsa->data, (nsa->count + 17) * sizeof(char *));
-		if (!newdata)
-			return 0;
-		nsa->data = newdata;
-	}
+	if ((nsa->count % NI_STRINGARRAY_CHUNK) == 0)
+		__ni_string_array_realloc(nsa, nsa->count);
 
 	nsa->data[nsa->count++] = str;
+	return 1;
+}
+
+static int
+__ni_string_array_insert(ni_string_array_t *nsa, char *str, unsigned int pos)
+{
+	if ((nsa->count % NI_STRINGARRAY_CHUNK) == 0)
+		__ni_string_array_realloc(nsa, nsa->count);
+
+	if (pos >= nsa->count) {
+		nsa->data[nsa->count++] = str;
+	} else {
+		memmove(&nsa->data[pos + 1], &nsa->data[pos], (nsa->count - pos) * sizeof(char *));
+		nsa->data[pos] = str;
+		nsa->count++;
+	}
 	return 1;
 }
 
@@ -83,6 +111,23 @@ ni_string_array_append(ni_string_array_t *nsa, const char *str)
 }
 
 int
+ni_string_array_insert(ni_string_array_t *nsa, const char *str, unsigned int pos)
+{
+	char *newstr;
+
+	newstr = strdup(str);
+	if (!newstr)
+		return 0;
+
+	if (!__ni_string_array_insert(nsa, newstr, pos)) {
+		free(newstr);
+		return 0;
+	}
+
+	return 1;
+}
+
+int
 ni_string_array_index(const ni_string_array_t *nsa, const char *str)
 {
 	unsigned int i;
@@ -92,6 +137,52 @@ ni_string_array_index(const ni_string_array_t *nsa, const char *str)
 			return i;
 	}
 	return -1;
+}
+
+/*
+ * Remove string at index @pos
+ */
+int
+ni_string_array_remove_index(ni_string_array_t *nsa, unsigned int pos)
+{
+	if (pos >= nsa->count)
+		return 0;
+
+	free(nsa->data[pos]);
+
+	/* Note: this also copies the NULL pointer following the last element */
+	memmove(&nsa->data[pos], &nsa->data[pos + 1], (nsa->count - pos) * sizeof(char *));
+	nsa->count--;
+
+	/* Don't bother with shrinking the array. It's not worth the trouble */
+	return 1;
+}
+
+/*
+ * Remove up to @maxkill occurrences of string @str from the array.
+ */
+int
+ni_string_array_remove_match(ni_string_array_t *nsa, const char *str, unsigned int maxkill)
+{
+	unsigned int i, j, killed = 0;
+
+	if (!maxkill)
+		maxkill = nsa->count;
+	for (i = j = 0; i < nsa->count; ++i) {
+		if (killed < maxkill && !strcmp(nsa->data[i], str)) {
+			free(nsa->data[i]);
+			killed++;
+		} else {
+			nsa->data[j++] = nsa->data[i];
+		}
+	}
+
+	/* assert(j + killed == nsa->count); */
+	memset(&nsa->data[j], 0, killed * sizeof(char *));
+	nsa->count = j;
+
+	/* Don't bother with shrinking the array. It's not worth the trouble */
+	return killed;
 }
 
 /*
