@@ -359,7 +359,7 @@ ni_proxy_fork_subprocess(const char *name, void (*mainloop)(ni_socket_t *))
 static void
 __ni_proxy_free(ni_proxy_t *proxy)
 {
-	if (proxy->sock >= 0)
+	if (proxy->sock)
 		ni_socket_close(proxy->sock);
 	if (proxy->pid)
 		kill(proxy->pid, SIGTERM);
