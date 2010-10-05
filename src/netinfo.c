@@ -539,10 +539,14 @@ __ni_lease_owns_address(const ni_addrconf_lease_t *lease, const ni_address_t *ap
 ni_addrconf_lease_t *
 __ni_interface_route_to_lease(ni_interface_t *ifp, const ni_route_t *rp)
 {
-	ni_afinfo_t *afi = __ni_interface_address_info(ifp, rp->family);
+	ni_afinfo_t *afi;
 	ni_address_t *ap;
 	unsigned int type;
 
+	if (!ifp || !rp)
+		return NULL;
+
+	afi = __ni_interface_address_info(ifp, rp->family);
 	if (!afi)
 		return NULL;
 

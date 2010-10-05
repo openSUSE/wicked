@@ -556,9 +556,11 @@ __ni_interface_process_newroute(ni_interface_t *ifp, struct nlmsghdr *h,
 	rp->tos = rtm->rtm_tos;
 
 	/* See if this route is owned by a lease */
-	lease = __ni_interface_route_to_lease(ifp, rp);
-	if (lease)
-		rp->config_method = lease->type;
+	if (ifp) {
+		lease = __ni_interface_route_to_lease(ifp, rp);
+		if (lease)
+			rp->config_method = lease->type;
+	}
 
 	return 0;
 }
