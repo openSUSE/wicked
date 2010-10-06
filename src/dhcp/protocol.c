@@ -624,11 +624,13 @@ ni_dhcp_decode_routers(ni_buffer_t *bp, ni_route_t **route_list)
 int
 ni_dhcp_parse_response(const ni_dhcp_message_t *message, ni_buffer_t *options, ni_addrconf_lease_t **leasep)
 {
+	ni_buffer_t overload_buf;
 	ni_addrconf_lease_t *lease;
 	ni_route_t *default_routes = NULL;
 	ni_route_t *static_routes = NULL;
 	ni_route_t *classless_routes = NULL;
 	char *dnsdomain = NULL;
+	int opt_overload = 0;
 	int msg_type = -1;
 	int retval = -1;
 
@@ -646,6 +648,7 @@ ni_dhcp_parse_response(const ni_dhcp_message_t *message, ni_buffer_t *options, n
 	assert(sizeof(lease->dhcp.servername) == sizeof(message->servername));
 	memcpy(lease->dhcp.servername, message->servername, sizeof(lease->dhcp.servername));
 
+parse_more:
 	/* Loop as long as we still have data in the buffer. */
 	while (ni_buffer_count(options) && !options->underflow) {
 		ni_buffer_t buf;
@@ -774,19 +777,14 @@ ni_dhcp_parse_response(const ni_dhcp_message_t *message, ni_buffer_t *options, n
 				goto error;
 			break;
 
-#if 0
 		case DHCP_OPTIONSOVERLOADED:
-			/* The overloaded option in an overloaded option
-			 * should be ignored, overwise we may get an
-			 * infinite loop */
-			if (!in_overload) {
-				if (*p & 1)
-					parse_file = true;
-				if (*p & 2)
-					parse_sname = true;
+			if (options != &overload_buf) {
+				opt_overload = ni_buffer_getc(&buf);
+			} else {
+				ni_debug_dhcp("DHCP: ignoring OVERLOAD option in overloaded data");
+				(void) ni_buffer_getc(&buf);
 			}
 			break;
-#endif
 
 		case DHCP_FQDN:
 			/* We ignore replies about FQDN */
@@ -809,8 +807,34 @@ ni_dhcp_parse_response(const ni_dhcp_message_t *message, ni_buffer_t *options, n
 
 	}
 
+	if (options->underflow) {
+		ni_debug_dhcp("unable to parse DHCP response: truncated packet");
+		goto error;
+	}
+
 failed:
-	/* FIXME: handle overloaded options */
+	if (opt_overload) {
+		const void *more_data = NULL;
+		size_t size = 0;
+
+		if (opt_overload & DHCP_OVERLOAD_BOOTFILE) {
+			more_data = message->bootfile;
+			size = sizeof(message->bootfile);
+			opt_overload &= ~DHCP_OVERLOAD_BOOTFILE;
+		} else
+		if (opt_overload & DHCP_OVERLOAD_SERVERNAME) {
+			more_data = message->servername;
+			size = sizeof(message->servername);
+			opt_overload &= ~DHCP_OVERLOAD_SERVERNAME;
+		} else {
+			opt_overload = 0;
+		}
+		if (more_data) {
+			ni_buffer_init_reader(&overload_buf, (void *) more_data, size);
+			options = &overload_buf;
+			goto parse_more;
+		}
+	}
 
 	/* Fill in any missing fields */
 	if (!lease->dhcp.netmask.s_addr) {

@@ -115,6 +115,9 @@ enum DHCP_OPTIONS {
 	DHCP_END                    = 255
 };
 
+#define DHCP_OVERLOAD_BOOTFILE		0x01
+#define DHCP_OVERLOAD_SERVERNAME	0x02
+
 /* SetFQDNHostName values - lsnybble used in flags
  * byte (see buildmsg.c), hsnybble to create order
  * and to allow 0x00 to mean disable
