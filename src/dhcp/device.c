@@ -317,56 +317,6 @@ ni_dhcp_device_drop_buffer(ni_dhcp_device_t *dev)
 	memset(&dev->message, 0, sizeof(dev->message));
 }
 
-#if 0
-int
-ni_dhcp_wait(struct pollfd *pfd, unsigned int count, unsigned int maxfd)
-{
-	ni_dhcp_device_t *monitor[maxfd];
-	ni_dhcp_device_t *dev;
-	struct timeval now;
-	long timeout = -1;
-	unsigned int i, offset = count;
-
-	gettimeofday(&now, NULL);
-	for (dev = ni_dhcp_active; dev && count < maxfd; dev = dev->next) {
-		if (dev->capture) {
-			monitor[count] = dev;
-			pfd[count].fd = ni_capture_desc(dev->capture);
-			pfd[count].events = POLLIN;
-			count++;
-		}
-
-		timeout = __ni_dhcp_timeout(timeout, &now, &dev->expires);
-		timeout = __ni_dhcp_timeout(timeout, &now, &dev->retrans.deadline);
-	}
-
-	if (poll(pfd, count, timeout) < 0) {
-		if (errno == EINTR)
-			return 0;
-		ni_fatal("poll returns error: %m");
-	}
-
-	for (i = offset; i < count; ++i) {
-		ni_dhcp_device_t *dev = monitor[i];
-
-		if (pfd[i].revents & POLLIN)
-			ni_dhcp_device_process_packet(dev);
-	}
-
-	gettimeofday(&now, NULL);
-	for (dev = ni_dhcp_active; dev && count < maxfd; dev = dev->next) {
-		if (__ni_dhcp_timed_out(&now, &dev->expires)) {
-			ni_dhcp_fsm_timeout(dev);
-		} else
-		if (__ni_dhcp_timed_out(&now, &dev->retrans.deadline)) {
-			ni_dhcp_device_retransmit(dev);
-		}
-	}
-
-	return 0;
-}
-#endif
-
 ni_dhcp_device_t *
 ni_dhcp_device_get_changed(void)
 {
