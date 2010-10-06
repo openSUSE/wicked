@@ -238,7 +238,7 @@ ni_dhcp_device_reconfigure(ni_dhcp_device_t *dev, const ni_interface_t *ifp)
 		ni_dhcp_set_client_id(&config->raw_client_id, &dev->system.hwaddr);
 	}
 
-	classid = ni_global.config->addrconf.dhcp.vendor_class;
+	classid = ni_dhcp_config_vendor_class();
 	if (classid)
 		strncpy(config->classid, classid, sizeof(config->classid) - 1);
 
@@ -536,4 +536,13 @@ ni_dhcp_set_client_id(ni_opaque_t *raw, const ni_hwaddr_t *hwa)
 	raw->data[0] = ni_iftype_to_arphrd_type(hwa->type);
 	memcpy(raw->data + 1, hwa->data, hwa->len);
 	raw->len = hwa->len + 1;
+}
+
+/*
+ * Functions for accessing various global DHCP configuration options
+ */
+const char *
+ni_dhcp_config_vendor_class(void)
+{
+	return ni_global.config->addrconf.dhcp.vendor_class;
 }
