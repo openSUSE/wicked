@@ -163,6 +163,7 @@ extern int		ni_dhcp_xml_to_lease(const ni_addrconf_t *,
 				ni_addrconf_lease_t *, const xml_node_t *);
 
 extern const char *	ni_dhcp_config_vendor_class(void);
+extern int		ni_dhcp_config_ignore_server(struct in_addr);
 extern void		ni_dhcp_config_free(ni_dhcp_config_t *);
 
 #endif /* __WICKED_DHCP_PRIVATE_H__ */

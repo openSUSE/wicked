@@ -120,10 +120,15 @@ ni_config_parse_addrconf_dhcp(struct ni_config_dhcp *dhcp, xml_node_t *node)
 	xml_node_t *child;
 
 	for (child = node->children; child; child = child->next) {
+		const char *attrval;
+
 		if (!strcmp(child->name, "vendor-class"))
 			ni_string_dup(&dhcp->vendor_class, child->cdata);
 		if (!strcmp(child->name, "lease-time") && child->cdata)
 			dhcp->lease_time = strtoul(child->cdata, NULL, 0);
+		if (!strcmp(child->name, "ignore-server")
+		 && (attrval = xml_node_get_attr(child, "ip")) != NULL)
+			ni_string_array_append(&dhcp->ignore_servers, attrval);
 	}
 	return 0;
 }

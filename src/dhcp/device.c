@@ -6,6 +6,7 @@
 
 #include <sys/poll.h>
 #include <net/if_arp.h>
+#include <arpa/inet.h>
 #include <time.h>
 #include <errno.h>
 #include <string.h>
@@ -544,5 +545,16 @@ ni_dhcp_set_client_id(ni_opaque_t *raw, const ni_hwaddr_t *hwa)
 const char *
 ni_dhcp_config_vendor_class(void)
 {
-	return ni_global.config->addrconf.dhcp.vendor_class;
+	const struct ni_config_dhcp *dhconf = &ni_global.config->addrconf.dhcp;
+
+	return dhconf->vendor_class;
+}
+
+int
+ni_dhcp_config_ignore_server(struct in_addr addr)
+{
+	const struct ni_config_dhcp *dhconf = &ni_global.config->addrconf.dhcp;
+	const char *name = inet_ntoa(addr);
+
+	return (ni_string_array_index(&dhconf->ignore_servers, name) >= 0);
 }

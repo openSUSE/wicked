@@ -69,6 +69,7 @@ typedef struct ni_config {
 	    struct ni_config_dhcp {
 		char *		vendor_class;
 		unsigned int	lease_time;
+		ni_string_array_t ignore_servers;
 	    } dhcp;
 	} addrconf;
 

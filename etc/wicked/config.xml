@@ -49,6 +49,7 @@
      <!--
       <vendor-class>somestring</vendor-class>
       <lease-time>7200</lease-time>
+      <ignore-server ip="192.168.255.255" />
      -->
     </dhcp>
   </addrconf>

@@ -67,6 +67,18 @@ ni_dhcp_fsm_process_dhcp_packet(ni_dhcp_device_t *dev, ni_buffer_t *msgbuf)
 			dev->ifname, ni_dhcp_message_name(msg_code),
 			ni_dhcp_fsm_state_name(dev->state));
 
+	/* When receiving a DHCP OFFER, verify sender address against list of
+	 * servers to ignore. */
+	if (msg_code == DHCP_OFFER && dev->state == NI_DHCP_STATE_SELECTING) {
+		struct in_addr srv_addr = { .s_addr = message->siaddr };
+
+		if (ni_dhcp_config_ignore_server(srv_addr)) {
+			ni_debug_dhcp("%s: ignoring DHCP offer from %s",
+					dev->ifname, inet_ntoa(srv_addr));
+			return 0;
+		}
+	}
+
 	/* We've received a valid response; if something goes wrong now
 	 * it's nothing that could be fixed by retransmitting the message.
 	 *
