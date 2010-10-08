@@ -78,7 +78,7 @@ __ni_string_array_append(ni_string_array_t *nsa, char *str)
 }
 
 static int
-__ni_string_array_insert(ni_string_array_t *nsa, char *str, unsigned int pos)
+__ni_string_array_insert(ni_string_array_t *nsa, unsigned int pos, char *str)
 {
 	if ((nsa->count % NI_STRINGARRAY_CHUNK) == 0)
 		__ni_string_array_realloc(nsa, nsa->count);
@@ -111,7 +111,7 @@ ni_string_array_append(ni_string_array_t *nsa, const char *str)
 }
 
 int
-ni_string_array_insert(ni_string_array_t *nsa, const char *str, unsigned int pos)
+ni_string_array_insert(ni_string_array_t *nsa, unsigned int pos, const char *str)
 {
 	char *newstr;
 
@@ -119,7 +119,7 @@ ni_string_array_insert(ni_string_array_t *nsa, const char *str, unsigned int pos
 	if (!newstr)
 		return 0;
 
-	if (!__ni_string_array_insert(nsa, newstr, pos)) {
+	if (!__ni_string_array_insert(nsa, pos, newstr)) {
 		free(newstr);
 		return 0;
 	}
