@@ -36,10 +36,10 @@ ni_string_array_copy(ni_string_array_t *dst, const ni_string_array_t *src)
 
 	ni_string_array_destroy(dst);
 	for (i = 0; i < src->count; ++i) {
-		if (!ni_string_array_append(dst, src->data[i]))
-			return 0;
+		if (ni_string_array_append(dst, src->data[i]) < 0)
+			return -1;
 	}
-	return 1;
+	return 0;
 }
 
 void
@@ -74,7 +74,7 @@ __ni_string_array_append(ni_string_array_t *nsa, char *str)
 		__ni_string_array_realloc(nsa, nsa->count);
 
 	nsa->data[nsa->count++] = str;
-	return 1;
+	return 0;
 }
 
 static int
@@ -90,29 +90,29 @@ __ni_string_array_insert(ni_string_array_t *nsa, unsigned int pos, char *str)
 		nsa->data[pos] = str;
 		nsa->count++;
 	}
-	return 1;
+	return 0;
 }
 
 int
 ni_string_array_set(ni_string_array_t *nsa, unsigned int pos, const char *str)
 {
 	if (pos >= nsa->count)
-		return 0;
+		return -1;
 
 	ni_string_dup(&nsa->data[pos], str);
 
-	return nsa->data[pos] ? 1 : 0;
+	return nsa->data[pos] ? 0 : -1;
 }
 
 int
 ni_string_array_get(ni_string_array_t *nsa, unsigned int pos, char **str)
 {
 	if (pos >= nsa->count)
-		return 0;
+		return -1;
 
 	ni_string_dup(str, nsa->data[pos]);
 
-	return *str ? 1 : 0;
+	return *str ? 0 : -1;
 }
 
 int
@@ -122,14 +122,14 @@ ni_string_array_append(ni_string_array_t *nsa, const char *str)
 
 	newstr = strdup(str);
 	if (!newstr)
-		return 0;
+		return -1;
 
-	if (!__ni_string_array_append(nsa, newstr)) {
+	if (__ni_string_array_append(nsa, newstr) < 0) {
 		free(newstr);
-		return 0;
+		return -1;
 	}
 
-	return 1;
+	return 0;
 }
 
 int
@@ -139,14 +139,14 @@ ni_string_array_insert(ni_string_array_t *nsa, unsigned int pos, const char *str
 
 	newstr = strdup(str);
 	if (!newstr)
-		return 0;
+		return -1;
 
-	if (!__ni_string_array_insert(nsa, pos, newstr)) {
+	if (__ni_string_array_insert(nsa, pos, newstr) < 0) {
 		free(newstr);
-		return 0;
+		return -1;
 	}
 
-	return 1;
+	return 0;
 }
 
 int
@@ -168,7 +168,7 @@ int
 ni_string_array_remove_index(ni_string_array_t *nsa, unsigned int pos)
 {
 	if (pos >= nsa->count)
-		return 0;
+		return -1;
 
 	free(nsa->data[pos]);
 
@@ -177,7 +177,7 @@ ni_string_array_remove_index(ni_string_array_t *nsa, unsigned int pos)
 	nsa->count--;
 
 	/* Don't bother with shrinking the array. It's not worth the trouble */
-	return 1;
+	return 0;
 }
 
 /*
@@ -279,10 +279,10 @@ ni_string_array_is_uniq(const ni_string_array_t *nsa)
 			char *val_b = nsa->data[i];
 
 			if (!strcmp(val_a, val_b))
-				return 0;
+				return -1;
 		}
 	}
-	return 1;
+	return 0;
 }
 
 /*
@@ -433,7 +433,7 @@ ni_scandir(const char *dirname, const char *match_prefix, ni_string_array_t *res
 extern int
 ni_file_exists(const char *filename)
 {
-	return access(filename, F_OK) == 0;
+	return access(filename, F_OK) == 0; /* bool */
 }
 
 void
@@ -527,7 +527,7 @@ ni_stringbuf_destroy(ni_stringbuf_t *sb)
 int
 ni_stringbuf_empty(const ni_stringbuf_t *sb)
 {
-	return sb->len == 0;
+	return sb->len == 0; /* bool */
 }
 
 static void

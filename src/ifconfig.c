@@ -438,7 +438,7 @@ __ni_interface_bridge_configure(ni_handle_t *nih, ni_interface_t *cfg, ni_interf
 		return -1;
 
 	/* make sure port names in bridge config are unique */
-	if (!ni_string_array_is_uniq(&cfg_bridge->port_names)) {
+	if (ni_string_array_is_uniq(&cfg_bridge->port_names) < 0) {
 		error("%s: duplicate port names in configuration", cfg->name);
 		return -1;
 	}

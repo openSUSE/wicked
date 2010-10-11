@@ -60,7 +60,7 @@ ni_bridge_clone(const ni_bridge_t *src)
 		return NULL;
 
 	dst->stp_enabled = src->stp_enabled;
-	if (!ni_string_array_copy(&dst->port_names, &src->port_names))
+	if (ni_string_array_copy(&dst->port_names, &src->port_names) < 0)
 		goto failed;
 
 	return dst;

@@ -97,7 +97,7 @@ ni_bonding_clone(const ni_bonding_t *src)
 	D(primary, strdup);
 	D(extra_options, strdup);
 
-	if (!ni_string_array_copy(&dst->slave_names, &src->slave_names))
+	if (ni_string_array_copy(&dst->slave_names, &src->slave_names) < 0)
 		goto failed;
 #undef C
 #undef D
