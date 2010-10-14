@@ -266,6 +266,7 @@ ni_string_array_comm(const ni_string_array_t *a, const ni_string_array_t *b,
 
 /*
  * Check that all strings in a string array are unique
+ * Returns bool.
  */
 int
 ni_string_array_is_uniq(const ni_string_array_t *nsa)
@@ -279,10 +280,10 @@ ni_string_array_is_uniq(const ni_string_array_t *nsa)
 			char *val_b = nsa->data[i];
 
 			if (!strcmp(val_a, val_b))
-				return -1;
+				return 0;
 		}
 	}
-	return 0;
+	return 1;
 }
 
 /*
