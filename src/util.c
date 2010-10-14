@@ -94,6 +94,28 @@ __ni_string_array_insert(ni_string_array_t *nsa, unsigned int pos, char *str)
 }
 
 int
+ni_string_array_set(ni_string_array_t *nsa, unsigned int pos, const char *str)
+{
+	if (pos >= nsa->count)
+		return 0;
+
+	ni_string_dup(&nsa->data[pos], str);
+
+	return nsa->data[pos] ? 1 : 0;
+}
+
+int
+ni_string_array_get(ni_string_array_t *nsa, unsigned int pos, char **str)
+{
+	if (pos >= nsa->count)
+		return 0;
+
+	ni_string_dup(str, nsa->data[pos]);
+
+	return *str ? 1 : 0;
+}
+
+int
 ni_string_array_append(ni_string_array_t *nsa, const char *str)
 {
 	char *newstr;
