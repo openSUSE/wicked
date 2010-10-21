@@ -372,9 +372,34 @@ typedef struct ni_vlan {
 	ni_interface_t *	interface_dev;
 } ni_vlan_t;
 
+typedef struct ni_bridge_port_config {
+	uint8_t			prio;
+	uint32_t		cost;
+} ni_bridge_port_config_t;
+
+typedef struct ni_bridge_port {
+	char *			name;
+	ni_bridge_port_config_t config;
+} ni_bridge_port_t;
+
+typedef struct ni_bridge_port_array {
+	unsigned int		count;
+	ni_bridge_port_t **	data;
+} ni_bridge_port_array_t;
+
+typedef struct ni_bridge_config {
+	int			stp_enabled;
+	unsigned long		forward_delay;	/* time in 1/100 sec */
+	unsigned long		ageing_time;	/* time in 1/100 sec */
+	unsigned long		hello_time;	/* time in 1/100 sec */
+	unsigned long		max_age;	/* time in 1/100 sec */
+	uint16_t		priority;
+} ni_bridge_config_t;
 typedef struct ni_bridge {
 	int			stp_enabled;
 	unsigned int		forward_delay;
+	ni_bridge_config_t	config;
+	ni_bridge_port_array_t	ports;
 	struct ni_string_array	port_names;
 	ni_interface_array_t	port_devs;
 } ni_bridge_t;
