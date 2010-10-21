@@ -130,6 +130,8 @@ __ni_bridge_port_destroy(ni_bridge_port_t *port)
 {
 	if (port->name)
 		free(port->name);
+	if (port->status)
+		ni_bridge_port_status_free(port->status);
 	free(port);
 }
 
@@ -521,6 +523,9 @@ ni_bridge_init(ni_bridge_t *bridge)
 	ni_bridge_port_array_destroy(&bridge->ports);
 	ni_interface_array_destroy(&bridge->port_devs);
 
+	if (bridge->status)
+		ni_bridge_status_free(bridge->status);
+
 	memset(bridge, 0, sizeof(*bridge));
 
 	/* apply "not set" defaults */
@@ -529,6 +534,27 @@ ni_bridge_init(ni_bridge_t *bridge)
 	bridge->config.hello_time = NI_BRIDGE_VALUE_NOT_SET;
 	bridge->config.max_age = NI_BRIDGE_VALUE_NOT_SET;
 	bridge->config.priority = NI_BRIDGE_VALUE_NOT_SET;
+}
+
+void
+ni_bridge_status_free(ni_bridge_status_t *bs)
+{
+	if (bs->root_id)
+		free(bs->root_id);
+	if (bs->bridge_id)
+		free(bs->bridge_id);
+	if (bs->group_addr);
+		free(bs->group_addr);
+	free(bs);
+}
+void
+ni_bridge_port_status_free(ni_bridge_port_status_t *ps)
+{
+	if (ps->designated_root)
+		free(ps->designated_root);
+	if (ps->designated_bridge)
+		free(ps->designated_bridge);
+	free(ps);
 }
 
 /*

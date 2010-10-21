@@ -576,7 +576,9 @@ __ni_discover_bridge(ni_interface_t *ifp)
 		return 0;
 
 	bridge = ni_interface_get_bridge(ifp);
+
 	ni_sysfs_bridge_get_config(ifp->name, &bridge->config);
+	ni_sysfs_bridge_get_status(ifp->name, &bridge->status);
 
 	ni_string_array_init(&ports);
 	ni_sysfs_bridge_get_port_names(ifp->name, &ports);
@@ -587,6 +589,7 @@ __ni_discover_bridge(ni_interface_t *ifp)
 	for (i = 0; i < bridge->ports.count; ++i) {
 		ni_bridge_port_t *port = bridge->ports.data[i];
 		ni_sysfs_bridge_port_get_config(port->name, &port->config);
+		ni_sysfs_bridge_port_get_status(port->name, &port->status);
 	}
 
 	return 0;

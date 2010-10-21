@@ -393,9 +393,33 @@ typedef struct ni_bridge_port_config {
 	unsigned int		path_cost;
 } ni_bridge_port_config_t;
 
+typedef struct ni_bridge_port_status {
+	unsigned int		priority;
+	unsigned int		path_cost;
+
+	int			state;
+	unsigned int		port_id;
+	unsigned int		port_no;
+
+	char *			designated_root;
+	char *			designated_bridge;
+
+	unsigned int		designated_cost;
+	unsigned int		designated_port;
+
+	unsigned int		change_ack;
+	unsigned int		hairpin_mode;
+	unsigned int		config_pending;
+
+	unsigned long		hold_timer;
+	unsigned long		message_age_timer;
+	unsigned long		forward_delay_timer;
+} ni_bridge_port_status_t;
+
 typedef struct ni_bridge_port {
 	char *			name;
 	ni_bridge_port_config_t config;
+	ni_bridge_port_status_t	*status;
 } ni_bridge_port_t;
 
 typedef struct ni_bridge_port_array {
@@ -412,8 +436,32 @@ typedef struct ni_bridge_config {
 	unsigned long		max_age;	/* time in 1/100 sec */
 } ni_bridge_config_t;
 
+typedef struct ni_bridge_status {
+	unsigned int		priority;
+	int			stp_state;
+	unsigned long		forward_delay;
+	unsigned long		ageing_time;
+	unsigned long		hello_time;
+	unsigned long		max_age;
+
+	char *			root_id;
+	char *			bridge_id;
+	char *			group_addr;
+
+	unsigned int		root_port;
+	unsigned int		root_path_cost;
+	unsigned int		topology_change;
+	unsigned int		topology_change_detected;
+
+	unsigned long		gc_timer;
+	unsigned long		tcn_timer;
+	unsigned long		hello_timer;
+	unsigned long		topology_change_timer;
+} ni_bridge_status_t;
+
 typedef struct ni_bridge {
 	ni_bridge_config_t	config;
+	ni_bridge_status_t	*status;
 	ni_bridge_port_array_t	ports;
 	ni_interface_array_t	port_devs;
 } ni_bridge_t;
@@ -582,6 +630,8 @@ extern int		ni_bonding_write_sysfs_attrs(const char *ifname,
 extern int		ni_bridge_bind(ni_interface_t *, ni_handle_t *);
 extern void		ni_bridge_init(ni_bridge_t *);
 extern void		ni_bridge_free(ni_bridge_t *);
+extern void		ni_bridge_status_free(ni_bridge_status_t *);
+extern void		ni_bridge_port_status_free(ni_bridge_port_status_t *);
 extern ni_bridge_t *	ni_bridge_clone(const ni_bridge_t *);
 extern int		ni_bridge_add_port(ni_bridge_t *, const char *);
 extern int		ni_bridge_del_port(ni_bridge_t *, const char *);

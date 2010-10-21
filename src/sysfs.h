@@ -28,7 +28,9 @@ extern int	ni_sysfs_bonding_add_arp_target(const char *, const char *);
 extern int	ni_sysfs_bonding_delete_arp_target(const char *, const char *);
 extern int	ni_sysfs_bonding_set_list_attr(const char *, const char *, const ni_string_array_t *);
 extern void	ni_sysfs_bridge_get_config(const char *, ni_bridge_config_t *);
+extern void	ni_sysfs_bridge_get_status(const char *, ni_bridge_status_t **);
 extern int	ni_sysfs_bridge_get_port_names(const char *, ni_string_array_t *);
 extern void	ni_sysfs_bridge_port_get_config(const char *, ni_bridge_port_config_t *);
+extern void	ni_sysfs_bridge_port_get_status(const char *, ni_bridge_port_status_t **);
 
 #endif /* __NETINFO_SYSFS_H__ */
