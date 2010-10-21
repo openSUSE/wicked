@@ -323,13 +323,15 @@ static void
 __ni_redhat_sysconfig2bridge(ni_interface_t *ifp, ni_sysconfig_t *sc)
 {
 	ni_bridge_t *bridge;
-
 	ifp->type = NI_IFTYPE_BRIDGE;
+	ni_var_t *var;
 
 	/* Create the interface's bridge data */
 	bridge = ni_interface_get_bridge(ifp);
-	(void) ni_sysconfig_get_integer(sc, "DELAY", &bridge->forward_delay);
-	(void) ni_sysconfig_get_boolean(sc, "STP", &bridge->stp_enabled);
+	if ((var = ni_sysconfig_get(sc, "STP")) != NULL)
+		ni_bridge_set_stp(bridge, var->value);
+	if ((var = ni_sysconfig_get(sc, "DELAY")) != NULL)
+		ni_bridge_set_forward_delay(bridge, var->value);
 }
 
 /*

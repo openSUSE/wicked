@@ -433,12 +433,16 @@ __ni_interface_bridge_configure(ni_handle_t *nih, ni_interface_t *cfg, ni_interf
 {
 	ni_interface_t *ifp = *ifpp;
 	ni_bridge_t *cur_bridge = NULL, *cfg_bridge;
+	ni_string_array_t cfg_bridge_ports;
 
 	if (!(cfg_bridge = cfg->bridge))
 		return -1;
 
+	/* FIXME: IMO bridge_add_port should enforce this */
+	ni_string_array_init(&cfg_bridge_ports);
+	ni_bridge_get_port_names(cfg_bridge, &cfg_bridge_ports);
 	/* make sure port names in bridge config are unique */
-	if (!ni_string_array_is_uniq(&cfg_bridge->port_names)) {
+	if (!ni_string_array_is_uniq(&cfg_bridge_ports)) {
 		error("%s: duplicate port names in configuration", cfg->name);
 		return -1;
 	}
@@ -464,13 +468,17 @@ __ni_interface_bridge_configure(ni_handle_t *nih, ni_interface_t *cfg, ni_interf
 
 	{
 		ni_string_array_t add_ports, del_ports, comm_ports;
+		ni_string_array_t cur_bridge_ports;
 		int rv;
 
 		ni_string_array_init(&add_ports);
 		ni_string_array_init(&del_ports);
 		ni_string_array_init(&comm_ports);
 
-		ni_string_array_comm(&cur_bridge->port_names, &cfg_bridge->port_names,
+		ni_string_array_init(&cur_bridge_ports);
+		ni_bridge_get_port_names(cur_bridge, &cur_bridge_ports);
+
+		ni_string_array_comm(&cur_bridge_ports, &cfg_bridge_ports,
 				&del_ports,	/* names only in cur_bridge */
 				&add_ports,	/* names only in cfg_bridge */
 				&comm_ports);	/* names in both definitions */
@@ -489,6 +497,8 @@ __ni_interface_bridge_configure(ni_handle_t *nih, ni_interface_t *cfg, ni_interf
 		ni_string_array_destroy(&add_ports);
 		ni_string_array_destroy(&del_ports);
 		ni_string_array_destroy(&comm_ports);
+		ni_string_array_destroy(&cur_bridge_ports);
+		ni_string_array_destroy(&cfg_bridge_ports);
 
 		if (rv < 0)
 			return -1;

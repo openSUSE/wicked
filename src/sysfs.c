@@ -13,7 +13,21 @@
 #include <wicked/logging.h>
 #include "sysfs.h"
 
-#define _PATH_SYS_CLASS_NET	"/sys/class/net"
+#define _PATH_SYS_CLASS_NET		"/sys/class/net"
+
+/* #include <linux/if_bridge.h> */
+#ifndef SYSFS_BRIDGE_ATTR
+#define SYSFS_BRIDGE_ATTR		"bridge"
+#endif
+#ifndef SYSFS_BRIDGE_PORT_SUBDIR
+#define SYSFS_BRIDGE_PORT_SUBDIR	"brif"
+#endif
+#ifndef SYSFS_BRIDGE_PORT_ATTR
+#define SYSFS_BRIDGE_PORT_ATTR		"brport"
+#endif
+#ifndef SYSFS_BRIDGE_PORT_LINK
+#define SYSFS_BRIDGE_PORT_LINK		"bridge"
+#endif
 
 static const char *	__ni_sysfs_netif_attrpath(const char *ifname, const char *attr);
 static const char *	__ni_sysfs_netif_get_attr(const char *ifname, const char *attr);
@@ -31,6 +45,45 @@ ni_sysfs_netif_get_int(const char *ifname, const char *attr_name, int *result)
 		return -1;
 
 	*result = strtol(attr, NULL, 0);
+	return 0;
+}
+
+int
+ni_sysfs_netif_get_long(const char *ifname, const char *attr_name, long *result)
+{
+	const char *attr;
+
+	attr = __ni_sysfs_netif_get_attr(ifname, attr_name);
+	if (!attr)
+		return -1;
+
+	*result = strtol(attr, NULL, 0);
+	return 0;
+}
+
+int
+ni_sysfs_netif_get_uint(const char *ifname, const char *attr_name, unsigned int *result)
+{
+	const char *attr;
+
+	attr = __ni_sysfs_netif_get_attr(ifname, attr_name);
+	if (!attr)
+		return -1;
+
+	*result = strtoul(attr, NULL, 0);
+	return 0;
+}
+
+int
+ni_sysfs_netif_get_ulong(const char *ifname, const char *attr_name, unsigned long *result)
+{
+	const char *attr;
+
+	attr = __ni_sysfs_netif_get_attr(ifname, attr_name);
+	if (!attr)
+		return -1;
+
+	*result = strtoul(attr, NULL, 0);
 	return 0;
 }
 
@@ -229,6 +282,33 @@ done:
 	ni_string_array_init(&add);
 	ni_string_array_init(&unchanged);
 	return rv;
+}
+
+/*
+ * Bridge support
+ */
+void
+ni_sysfs_bridge_get_config(const char *ifname, ni_bridge_config_t *config)
+{
+	ni_sysfs_netif_get_int(ifname, SYSFS_BRIDGE_ATTR "/stp_state", &config->stp_enabled);
+	ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_ATTR "/priority", &config->priority);
+	ni_sysfs_netif_get_ulong(ifname, SYSFS_BRIDGE_ATTR "/forward_delay", &config->forward_delay);
+	ni_sysfs_netif_get_ulong(ifname, SYSFS_BRIDGE_ATTR "/ageing_time", &config->ageing_time);
+	ni_sysfs_netif_get_ulong(ifname, SYSFS_BRIDGE_ATTR "/hello_time", &config->hello_time);
+	ni_sysfs_netif_get_ulong(ifname, SYSFS_BRIDGE_ATTR "/max_age", &config->max_age);
+}
+
+int
+ni_sysfs_bridge_get_port_names(const char *ifname, ni_string_array_t *names)
+{
+	return ni_scandir(__ni_sysfs_netif_attrpath(ifname, SYSFS_BRIDGE_PORT_SUBDIR), NULL, names);
+}
+
+void
+ni_sysfs_bridge_port_get_config(const char *ifname, ni_bridge_port_config_t *config)
+{
+	ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_PORT_ATTR "/priority", &config->priority);
+	ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_PORT_ATTR "/path_cost", &config->path_cost);
 }
 
 /*

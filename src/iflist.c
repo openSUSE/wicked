@@ -30,9 +30,6 @@
 #include "kernel.h"
 #include "config.h"
 
-#define _PATH_SYS_CLASS_NET		"/sys/class/net"
-#define _SYSFS_BRIDGE_IFS_ATTR		"brif"
-
 static int	__ni_interface_process_newaddr(ni_interface_t *, struct nlmsghdr *,
 				struct ifaddrmsg *, ni_handle_t *);
 static int	__ni_interface_process_newroute(ni_interface_t *, struct nlmsghdr *,
@@ -571,20 +568,26 @@ __ni_interface_process_newroute(ni_interface_t *ifp, struct nlmsghdr *h,
 static int
 __ni_discover_bridge(ni_interface_t *ifp)
 {
-	char pathbuf[PATH_MAX];
 	ni_bridge_t *bridge;
+	ni_string_array_t ports;
+	unsigned int i;
 
 	if (ifp->type != NI_IFTYPE_BRIDGE)
 		return 0;
+
 	bridge = ni_interface_get_bridge(ifp);
-	ni_string_array_destroy(&bridge->port_names);
+	ni_sysfs_bridge_get_config(ifp->name, &bridge->config);
 
-	snprintf(pathbuf, sizeof(pathbuf), "%s/%s/%s",
-			_PATH_SYS_CLASS_NET, ifp->name, _SYSFS_BRIDGE_IFS_ATTR);
-	ni_scandir(pathbuf, NULL, &bridge->port_names);
+	ni_string_array_init(&ports);
+	ni_sysfs_bridge_get_port_names(ifp->name, &ports);
+	for (i = 0; i < ports.count; ++i)
+		ni_bridge_add_port(bridge, ports.data[i]);
+	ni_string_array_destroy(&ports);
 
-	/* Find out whether STP is enabled or not */
-	ni_sysfs_netif_get_int(ifp->name, "bridge/stp_state", &bridge->stp_enabled);
+	for (i = 0; i < bridge->ports.count; ++i) {
+		ni_bridge_port_t *port = bridge->ports.data[i];
+		ni_sysfs_bridge_port_get_config(port->name, &port->config);
+	}
 
 	return 0;
 }

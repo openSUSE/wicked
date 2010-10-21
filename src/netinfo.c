@@ -1033,8 +1033,10 @@ __ni_interface_clear_vlan(ni_interface_t *ifp)
 ni_bridge_t *
 ni_interface_get_bridge(ni_interface_t *ifp)
 {
-	if (!ifp->bridge)
+	if (!ifp->bridge) {
 		ifp->bridge = calloc(1, sizeof(ni_bridge_t));
+		ni_bridge_init(ifp->bridge);
+	}
 	return ifp->bridge;
 }
 

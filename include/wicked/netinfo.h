@@ -372,9 +372,25 @@ typedef struct ni_vlan {
 	ni_interface_t *	interface_dev;
 } ni_vlan_t;
 
+enum {
+	NI_BRIDGE_NO_STP = 0,			/* no spanning tree */
+	NI_BRIDGE_STP,				/* old STP in kernel */
+	NI_BRIDGE_RSTP,				/* new RSTP in userspace */
+};
+enum {
+	NI_BRIDGE_STP_ENABLED	= 1,		/* bridge config options */
+	NI_BRIDGE_FORWARD_DELAY	= 2,
+	NI_BRIDGE_AGEING_TIME	= 3,
+	NI_BRIDGE_HELLO_TIME	= 4,
+	NI_BRIDGE_MAX_AGE	= 5,
+	NI_BRIDGE_PRIORITY	= 6,
+	NI_BRIDGE_PORT_PRIORITY	= 7,		/* bridge port config options */
+	NI_BRIDGE_PORT_PATH_COST= 8,
+};
+
 typedef struct ni_bridge_port_config {
-	uint8_t			prio;
-	uint32_t		cost;
+	unsigned int		priority;
+	unsigned int		path_cost;
 } ni_bridge_port_config_t;
 
 typedef struct ni_bridge_port {
@@ -388,19 +404,17 @@ typedef struct ni_bridge_port_array {
 } ni_bridge_port_array_t;
 
 typedef struct ni_bridge_config {
+	unsigned int		priority;
 	int			stp_enabled;
 	unsigned long		forward_delay;	/* time in 1/100 sec */
 	unsigned long		ageing_time;	/* time in 1/100 sec */
 	unsigned long		hello_time;	/* time in 1/100 sec */
 	unsigned long		max_age;	/* time in 1/100 sec */
-	uint16_t		priority;
 } ni_bridge_config_t;
+
 typedef struct ni_bridge {
-	int			stp_enabled;
-	unsigned int		forward_delay;
 	ni_bridge_config_t	config;
 	ni_bridge_port_array_t	ports;
-	struct ni_string_array	port_names;
 	ni_interface_array_t	port_devs;
 } ni_bridge_t;
 
@@ -566,9 +580,30 @@ extern int		ni_bonding_write_sysfs_attrs(const char *ifname,
 				int state);
 
 extern int		ni_bridge_bind(ni_interface_t *, ni_handle_t *);
+extern void		ni_bridge_init(ni_bridge_t *);
 extern void		ni_bridge_free(ni_bridge_t *);
 extern ni_bridge_t *	ni_bridge_clone(const ni_bridge_t *);
-extern void		ni_bridge_add_port(ni_bridge_t *, const char *);
+extern int		ni_bridge_add_port(ni_bridge_t *, const char *);
+extern int		ni_bridge_del_port(ni_bridge_t *, const char *);
+extern void		ni_bridge_get_port_names(const ni_bridge_t *, ni_string_array_t *);
+extern int		ni_bridge_get(ni_bridge_t *, unsigned int, char **);
+extern int		ni_bridge_get_stp(ni_bridge_t *, char **);
+extern int		ni_bridge_get_forward_delay(ni_bridge_t *, char **);
+extern int		ni_bridge_get_ageing_time(ni_bridge_t *, char **);
+extern int		ni_bridge_get_hello_time(ni_bridge_t *, char **);
+extern int		ni_bridge_get_max_age(ni_bridge_t *, char **);
+extern int		ni_bridge_get_priority(ni_bridge_t *, char **);
+extern int		ni_bridge_set_stp(ni_bridge_t *, const char *);
+extern int		ni_bridge_set_forward_delay(ni_bridge_t *, const char *);
+extern int		ni_bridge_set_ageing_time(ni_bridge_t *, const char *);
+extern int		ni_bridge_set_hello_time(ni_bridge_t *, const char *);
+extern int		ni_bridge_set_max_age(ni_bridge_t *, const char *);
+extern int		ni_bridge_set_priority(ni_bridge_t *, const char *);
+extern int		ni_bridge_port_get(ni_bridge_t *, const char *, unsigned int, char **);
+extern int		ni_bridge_port_get_priority(ni_bridge_t *,const char *, char **);
+extern int		ni_bridge_port_get_path_cost(ni_bridge_t *,const char *, char **);
+extern int		ni_bridge_port_set_priority(ni_bridge_t *,const char *, const char *);
+extern int		ni_bridge_port_set_path_cost(ni_bridge_t *,const char *, const char *);
 
 extern int		ni_vlan_bind(ni_interface_t *, ni_handle_t *);
 extern int		ni_vlan_bind_ifindex(ni_vlan_t *, ni_handle_t *);

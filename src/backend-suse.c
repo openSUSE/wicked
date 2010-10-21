@@ -523,8 +523,9 @@ static void
 try_bridge(ni_interface_t *ifp, ni_sysconfig_t *sc)
 {
 	ni_bridge_t *bridge;
-	char *ports = NULL, *port;
+	char *value = NULL, *token;
 	int enabled;
+	ni_var_t *var;
 
 	if (ni_sysconfig_get_boolean(sc, "BRIDGE", &enabled) < 0 || !enabled)
 		return;
@@ -533,13 +534,46 @@ try_bridge(ni_interface_t *ifp, ni_sysconfig_t *sc)
 	bridge = ni_interface_get_bridge(ifp);
 	ifp->type = NI_IFTYPE_BRIDGE;
 
-	(void) ni_sysconfig_get_integer(sc, "BRIDGE_FORWARDDELAY", &bridge->forward_delay);
-	(void) ni_sysconfig_get_boolean(sc, "BRIDGE_STP", &bridge->stp_enabled);
+	if ((var = ni_sysconfig_get(sc, "BRIDGE_STP")) != NULL)
+		ni_bridge_set_stp(bridge, var->value);
+	if ((var = ni_sysconfig_get(sc, "BRIDGE_FORWARDDELAY")) != NULL)
+		ni_bridge_set_forward_delay(bridge, var->value);
+	if ((var = ni_sysconfig_get(sc, "BRIDGE_AGEINGTIME")) != NULL)
+		ni_bridge_set_ageing_time(bridge, var->value);
+	if( (var = ni_sysconfig_get(sc, "BRIDGE_HELLOTIME")) != NULL)
+		ni_bridge_set_hello_time(bridge, var->value);
+	if( (var = ni_sysconfig_get(sc, "BRIDGE_MAXAGE")) != NULL)
+		ni_bridge_set_max_age(bridge, var->value);
+	if( (var = ni_sysconfig_get(sc, "BRIDGE_PRIORITY")) != NULL)
+		ni_bridge_set_priority(bridge, var->value);
 
-	if (ni_sysconfig_get_string(sc, "BRIDGE_PORTS", &ports) >= 0) {
-		for (port = strtok(ports, " \t"); port; port = strtok(NULL, " \t"))
-			ni_bridge_add_port(bridge, port);
-		ni_string_free(&ports);
+	if (ni_sysconfig_get_string(sc, "BRIDGE_PORTS", &value) >= 0) {
+		for (token = strtok(value, " \t"); token; token = strtok(NULL, " \t"))
+			ni_bridge_add_port(bridge, token);
+		ni_string_free(&value);
+	}
+
+	if (ni_sysconfig_get_string(sc, "BRIDGE_PORTPRIORITIES", &value) >= 0) {
+		unsigned int i = 0;
+		for (token = strtok(value, " \t"); token; token = strtok(NULL, " \t"), ++i) {
+			if (i >= bridge->ports.count)
+				break;
+			const char *port = bridge->ports.data[i]->name;
+			if( ni_bridge_port_set_priority(bridge, port, token) < 0)
+				break;
+		}
+		ni_string_free(&value);
+	}
+	if (ni_sysconfig_get_string(sc, "BRIDGE_PATHCOSTS", &value) >= 0) {
+		unsigned int i = 0;
+		for (token = strtok(value, " \t"); token; token = strtok(NULL, " \t"), ++i) {
+			if (i >= bridge->ports.count)
+				break;
+			const char *port = bridge->ports.data[i]->name;
+			if( ni_bridge_port_set_path_cost(bridge, port, token) < 0)
+				break;
+		}
+		ni_string_free(&value);
 	}
 }
 
@@ -549,18 +583,67 @@ __ni_suse_bridge2sysconfig(const ni_interface_t *ifp, ni_sysconfig_t *sc)
 	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 	ni_bridge_t *bridge = ifp->bridge;
 	unsigned int i;
+	char *value = NULL;
 
 	ni_sysconfig_set_boolean(sc, "BRIDGE", 1);
-	ni_sysconfig_set_integer(sc, "BRIDGE_FORWARDDELAY", bridge->forward_delay);
-	ni_sysconfig_set(sc, "BRIDGE_STP", bridge->stp_enabled? "on" : "off");
+	if (ni_bridge_get_stp(bridge, &value) >= 0) {
+		ni_sysconfig_set(sc, "BRIDGE_STP", value);
+		ni_string_free(&value);
+	}
+	if (ni_bridge_get_forward_delay(bridge, &value) >= 0) {
+		ni_sysconfig_set(sc, "BRIDGE_FORWARDDELAY", value);
+		ni_string_free(&value);
+	}
+	if (ni_bridge_get_ageing_time(bridge, &value) >= 0) {
+		ni_sysconfig_set(sc, "BRIDGE_AGEINGTIME", value);
+		ni_string_free(&value);
+	}
+	if (ni_bridge_get_hello_time(bridge, &value) >= 0) {
+		ni_sysconfig_set(sc, "BRIDGE_HELLOTIME", value);
+		ni_string_free(&value);
+	}
+	if (ni_bridge_get_priority(bridge, &value) >= 0) {
+		ni_sysconfig_set(sc, "BRIDGE_PRIORITY", value);
+		ni_string_free(&value);
+	}
+	if (ni_bridge_get_max_age(bridge, &value) >= 0) {
+		ni_sysconfig_set(sc, "BRIDGE_MAXAGE", value);
+		ni_string_free(&value);
+	}
 
-	for (i = 0; i < bridge->port_names.count; ++i) {
+	for (i = 0; i < bridge->ports.count; ++i) {
+		const char *port = bridge->ports.data[i]->name;
 		if (i)
 			ni_stringbuf_putc(&buf, ' ');
-		ni_stringbuf_puts(&buf, bridge->port_names.data[i]);
+		ni_stringbuf_puts(&buf, port);
 	}
 	ni_sysconfig_set(sc, "BRIDGE_PORTS", buf.string);
+	ni_stringbuf_clear(&buf);
+
+	for (i = 0; i < bridge->ports.count; ++i) {
+		const char *port = bridge->ports.data[i]->name;
+		if (ni_bridge_port_get_priority(bridge, port, &value) <= 0)
+			break;
+		if (i)
+			ni_stringbuf_putc(&buf, ' ');
+		ni_stringbuf_puts(&buf, value);
+		ni_string_free(&value);
+	}
+	ni_sysconfig_set(sc, "BRIDGE_PORTPRIORITIES", buf.string);
+	ni_stringbuf_clear(&buf);
+
+	for (i = 0; i < bridge->ports.count; ++i) {
+		const char *port = bridge->ports.data[i]->name;
+		if (ni_bridge_port_get_path_cost(bridge, port, &value) <= 0)
+			break;
+		if (i)
+			ni_stringbuf_putc(&buf, ' ');
+		ni_stringbuf_puts(&buf, value);
+		ni_string_free(&value);
+	}
+	ni_sysconfig_set(sc, "BRIDGE_PATHCOSTS", buf.string);
 	ni_stringbuf_destroy(&buf);
+
 	return 0;
 }
 

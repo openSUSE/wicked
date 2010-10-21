@@ -8,6 +8,10 @@
 #define __NETINFO_SYSFS_H__
 
 extern int	ni_sysfs_netif_get_int(const char *, const char *, int *);
+extern int	ni_sysfs_netif_get_long(const char *, const char *, long *);
+extern int	ni_sysfs_netif_get_uint(const char *, const char *, unsigned int *);
+extern int	ni_sysfs_netif_get_ulong(const char *, const char *, unsigned long *);
+extern int	ni_sysfs_netif_get_string(const char *, const char *, char **);
 extern int	ni_sysfs_bonding_available(void);
 extern int	ni_sysfs_bonding_get_masters(ni_string_array_t *list);
 extern int	ni_sysfs_bonding_is_master(const char *);
@@ -23,5 +27,8 @@ extern int	ni_sysfs_bonding_get_arp_targets(const char *, ni_string_array_t *);
 extern int	ni_sysfs_bonding_add_arp_target(const char *, const char *);
 extern int	ni_sysfs_bonding_delete_arp_target(const char *, const char *);
 extern int	ni_sysfs_bonding_set_list_attr(const char *, const char *, const ni_string_array_t *);
+extern void	ni_sysfs_bridge_get_config(const char *, ni_bridge_config_t *);
+extern int	ni_sysfs_bridge_get_port_names(const char *, ni_string_array_t *);
+extern void	ni_sysfs_bridge_port_get_config(const char *, ni_bridge_port_config_t *);
 
 #endif /* __NETINFO_SYSFS_H__ */

@@ -38,6 +38,10 @@ static xml_node_t *	__ni_netcf_xml_from_static_ifcfg(ni_syntax_t *syntax, ni_han
 static void		__ni_netcf_xml_from_route(ni_route_t *, xml_node_t *);
 static void		__ni_netcf_xml_from_bridge(ni_syntax_t *syntax, ni_handle_t *nih,
 				ni_bridge_t *bridge, xml_node_t *);
+static void		__ni_netcf_xml_from_bridge_config(ni_bridge_t *, const char *,
+				xml_node_t *);
+static void		__ni_netcf_xml_from_bridge_port_config(ni_bridge_t *, const char *,
+				const char *, xml_node_t *);
 static void		__ni_netcf_xml_from_bonding(ni_syntax_t *syntax, ni_handle_t *nih,
 				ni_bonding_t *bonding, xml_node_t *);
 static void		__ni_netcf_xml_from_vlan(ni_syntax_t *syntax, ni_handle_t *nih,
@@ -57,7 +61,9 @@ static const char *	__ni_netcf_get_arpmon_validation(int mode);
 static int		__ni_netcf_set_arpmon_validation(const char *, unsigned int *);
 static const char *	__ni_netcf_get_af(int af);
 static int		__ni_netcf_set_af(const char *, int *);
+/*
 static const char *	__ni_netcf_get_boolean(int val);
+*/
 static int		__ni_netcf_get_boolean_attr(xml_node_t *, const char *, int *);
 static void		__ni_netcf_add_string_child(xml_node_t *, const char *, const char *);
 static void		__ni_netcf_add_uint_child(xml_node_t *, const char *, unsigned int);
@@ -268,11 +274,19 @@ __ni_netcf_xml_to_bridge(ni_syntax_t *syntax, ni_handle_t *nih,
 
 	bridge = ni_interface_get_bridge(ifp);
 
-	if (__ni_netcf_get_boolean_attr(brnode, "stp", &bridge->stp_enabled) < 0) {
+	/* stp disabled is default -- is it mandatory for netcf? */
+	if (ni_bridge_set_stp(bridge, xml_node_get_attr(brnode, "stp")) < 0) {
 		error("bridge interface %s: bridge element lacks stp attribute", ifp->name);
 		return -1;
 	}
-	xml_node_get_attr_uint(brnode, "forward-delay", &bridge->forward_delay);
+
+	ni_bridge_set_forward_delay(bridge, xml_node_get_attr(brnode, "forward-delay"));
+	if (!syntax->strict) {
+		ni_bridge_set_ageing_time(bridge, xml_node_get_attr(brnode, "ageing-time"));
+		ni_bridge_set_hello_time(bridge, xml_node_get_attr(brnode, "hello-time"));
+		ni_bridge_set_max_age(bridge, xml_node_get_attr(brnode, "max-age"));
+		ni_bridge_set_priority(bridge, xml_node_get_attr(brnode, "priority"));
+	}
 
 	for (child = brnode->children; child; child = child->next) {
 		const char *ifname;
@@ -286,6 +300,12 @@ __ni_netcf_xml_to_bridge(ni_syntax_t *syntax, ni_handle_t *nih,
 		}
 
 		ni_bridge_add_port(bridge, ifname);
+		if (!syntax->strict) {
+			ni_bridge_port_set_priority(bridge, ifname,
+				xml_node_get_attr(child, "priority"));
+			ni_bridge_port_set_path_cost(bridge, ifname,
+				xml_node_get_attr(child, "path-cost"));
+		}
 	}
 
 	return 0;
@@ -737,6 +757,52 @@ __ni_netcf_xml_from_route(ni_route_t *rp, xml_node_t *protnode)
 /*
  * Generate XML representation of a bridge configuration
  */
+static ni_intmap_t	__ni_netcf_bridge_cfg_attr_map[] = {
+	{ "stp",		NI_BRIDGE_STP_ENABLED	},
+	{ "forward-delay",	NI_BRIDGE_FORWARD_DELAY	},
+	{ "ageing-time",	NI_BRIDGE_AGEING_TIME	},
+	{ "hello-time",		NI_BRIDGE_HELLO_TIME	},
+	{ "max-age",		NI_BRIDGE_MAX_AGE	},
+	{ "priority",		NI_BRIDGE_PRIORITY	},
+	{ NULL						}
+};
+static ni_intmap_t	__ni_netcf_bridge_port_cfg_attr_map[] = {
+	{ "priority",		NI_BRIDGE_PORT_PRIORITY	},
+	{ "path-cost",		NI_BRIDGE_PORT_PATH_COST},
+	{ NULL						}
+};
+
+static void
+__ni_netcf_xml_from_bridge_config(ni_bridge_t *bridge, const char *attr,
+					xml_node_t *node)
+{
+	unsigned int opt;
+	char *value = NULL;
+
+	if (ni_parse_int_mapped(attr, __ni_netcf_bridge_cfg_attr_map, &opt) < 0)
+		return;
+
+	if (ni_bridge_get(bridge, opt, &value) > 0) {
+		xml_node_add_attr(node, attr, value);
+		ni_string_free(&value);
+	}
+}
+
+static void
+__ni_netcf_xml_from_bridge_port_config(ni_bridge_t *bridge, const char *port,
+					const char *attr, xml_node_t *node)
+{
+	unsigned int opt;
+	char *value = NULL;
+	if (ni_parse_int_mapped(attr, __ni_netcf_bridge_port_cfg_attr_map, &opt) < 0)
+		return;
+
+	if (ni_bridge_port_get(bridge, port, opt, &value) > 0) {
+		xml_node_add_attr(node, attr, value);
+		ni_string_free(&value);
+	}
+}
+
 static void
 __ni_netcf_xml_from_bridge(ni_syntax_t *syntax, ni_handle_t *nih,
 				ni_bridge_t *bridge, xml_node_t *ifnode)
@@ -745,14 +811,31 @@ __ni_netcf_xml_from_bridge(ni_syntax_t *syntax, ni_handle_t *nih,
 	unsigned int i;
 
 	brnode = xml_node_new("bridge", ifnode);
-	xml_node_add_attr(brnode, "stp", __ni_netcf_get_boolean(bridge->stp_enabled));
-	xml_node_add_attr_uint(brnode, "forward-delay", bridge->forward_delay);
+	__ni_netcf_xml_from_bridge_config(bridge, "stp", brnode);
+	__ni_netcf_xml_from_bridge_config(bridge, "forward-delay", brnode);
+	if (!syntax->strict) {
+		__ni_netcf_xml_from_bridge_config(bridge, "ageing-time", brnode);
+		__ni_netcf_xml_from_bridge_config(bridge, "hello-time", brnode);
+		__ni_netcf_xml_from_bridge_config(bridge, "priority", brnode);
+		__ni_netcf_xml_from_bridge_config(bridge, "max-age", brnode);
+	}
 
 	/* FIXME: strict netcf now wants to represent a VLAN port as
 	 *  <vlan tag="..."><interface ../></vlan>
 	 */
-	for (i = 0; i < bridge->port_names.count; ++i)
-		__ni_netcf_xml_from_slave_interface(bridge->port_names.data[i], brnode);
+	for (i = 0; i < bridge->ports.count; ++i) {
+		xml_node_t *port_node;
+		char       *port_name;
+
+		port_name = bridge->ports.data[i]->name;
+		port_node = __ni_netcf_xml_from_slave_interface(port_name, brnode);
+		if (!syntax->strict) {
+			__ni_netcf_xml_from_bridge_port_config(bridge, port_name,
+				"priority", port_node);
+			__ni_netcf_xml_from_bridge_port_config(bridge, port_name,
+				"path-cost", port_node);
+		}
+	}
 }
 
 /*
@@ -1196,12 +1279,13 @@ __ni_netcf_set_arpmon_validation(const char *value, unsigned int *var)
 	return ni_parse_int_mapped(value, __arpmon_validation, var);
 }
 
-
+/*
 static const char *
 __ni_netcf_get_boolean(int val)
 {
 	return val? "on" : "off";
 }
+*/
 
 static int
 __ni_netcf_get_boolean_attr(xml_node_t *node, const char *attrname, int *var)
