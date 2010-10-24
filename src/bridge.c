@@ -19,9 +19,9 @@ static int			__ni_bridge_uint_to_str(unsigned int, char **);
 static int			__ni_bridge_str_to_time(const char *, unsigned long *);
 static int			__ni_bridge_time_to_str(unsigned long, char **);
 
-static ni_bridge_port_t *	__ni_bridge_port_create(const char *);
+static ni_bridge_port_t *	__ni_bridge_port_new(const char *);
 static ni_bridge_port_t *	__ni_bridge_port_clone(const ni_bridge_port_t *);
-static void			__ni_bridge_port_destroy(ni_bridge_port_t *);
+static void			__ni_bridge_port_free(ni_bridge_port_t *);
 
 static void			ni_bridge_port_array_init(ni_bridge_port_array_t *);
 static int			ni_bridge_port_array_copy(ni_bridge_port_array_t *,
@@ -106,7 +106,7 @@ __ni_bridge_time_to_str(unsigned long val, char **str)
 }
 
 static ni_bridge_port_t *
-__ni_bridge_port_create(const char *name)
+__ni_bridge_port_new(const char *name)
 {
 	ni_bridge_port_t *newport;
 
@@ -125,13 +125,13 @@ __ni_bridge_port_clone(const ni_bridge_port_t *port)
 {
 	ni_bridge_port_t *newport;
 
-	newport = __ni_bridge_port_create(port->name);
+	newport = __ni_bridge_port_new(port->name);
 	memcpy(&newport->config, &port->config, sizeof(newport->config));
 	return newport;
 }
 
 static void
-__ni_bridge_port_destroy(ni_bridge_port_t *port)
+__ni_bridge_port_free(ni_bridge_port_t *port)
 {
 	if (port->name)
 		free(port->name);
@@ -152,6 +152,7 @@ static int
 ni_bridge_port_array_copy(ni_bridge_port_array_t *dst, const ni_bridge_port_array_t *src)
 {
 	unsigned int i;
+
 	ni_bridge_port_array_destroy(dst);
 	for (i = 0; i < src->count; ++i) {
 		if (__ni_bridge_port_array_append(dst,
@@ -165,7 +166,7 @@ static void
 ni_bridge_port_array_destroy(ni_bridge_port_array_t *array)
 {
 	while (array->count > 0)
-		__ni_bridge_port_destroy(array->data[--array->count]);
+		__ni_bridge_port_free(array->data[--array->count]);
 	free(array->data);
 	ni_bridge_port_array_init(array);
 }
@@ -215,7 +216,7 @@ ni_bridge_port_array_remove_index(ni_bridge_port_array_t *array, unsigned int po
 	if (pos >= array->count)
 		return -1;
 
-	__ni_bridge_port_destroy(array->data[pos]);
+	__ni_bridge_port_free(array->data[pos]);
 	/* make it less cumbersome... */
 	array->data[pos] = NULL;
 	for (i = pos + 1; i < array->count; ++i) {
@@ -237,7 +238,7 @@ ni_bridge_add_port(ni_bridge_t *bridge, const char *ifname)
 
 	if (__ni_bridge_port_array_index(&bridge->ports, ifname) < 0) {
 		return __ni_bridge_port_array_append(&bridge->ports,
-			__ni_bridge_port_create(ifname));
+			__ni_bridge_port_new(ifname));
 	}
 	return -1;
 }
@@ -246,6 +247,7 @@ int
 ni_bridge_del_port(ni_bridge_t *bridge, const char *ifname)
 {
 	unsigned int i;
+
 	for (i = 0; i < bridge->ports.count; ++i) {
 		if (!strcmp(bridge->ports.data[i]->name, ifname)) {
 			ni_bridge_port_array_remove_index(&bridge->ports, i);
@@ -409,6 +411,7 @@ int
 ni_bridge_port_get_priority(ni_bridge_t *bridge, const char *port, char **value)
 {
 	int i = __ni_bridge_port_array_index(&bridge->ports, port);
+
 	if (i < 0)
 		return -1;
 	return __ni_bridge_uint_to_str(bridge->ports.data[i]->config.priority, value);
@@ -418,6 +421,7 @@ int
 ni_bridge_port_get_path_cost(ni_bridge_t *bridge, const char *port, char **value)
 {
 	int i = __ni_bridge_port_array_index(&bridge->ports, port);
+
 	if (i < 0)
 		return -1;
 	return __ni_bridge_uint_to_str(bridge->ports.data[i]->config.path_cost, value);
@@ -442,6 +446,7 @@ int
 ni_bridge_port_set_priority(ni_bridge_t *bridge, const char *port, const char *value)
 {
 	int i = __ni_bridge_port_array_index(&bridge->ports, port);
+
 	if (i < 0)
 		return -1;
 	return __ni_bridge_str_to_uint(value, &bridge->ports.data[i]->config.priority);
@@ -451,6 +456,7 @@ int
 ni_bridge_port_set_path_cost(ni_bridge_t *bridge, const char *port, const char *value)
 {
 	int i = __ni_bridge_port_array_index(&bridge->ports, port);
+
 	if (i < 0)
 		return -1;
 	return __ni_bridge_str_to_uint(value, &bridge->ports.data[i]->config.path_cost);
@@ -476,7 +482,7 @@ int
 ni_bridge_bind(ni_interface_t *parent, ni_handle_t *nih)
 {
 	ni_bridge_t *bridge = parent->bridge;
-	unsigned int i = 0;
+	unsigned int i;
 
 	for (i = 0; i < bridge->ports.count; ++i) {
 		ni_bridge_port_t *port = bridge->ports.data[i];
@@ -524,22 +530,49 @@ failed:
 	return NULL;
 }
 
-void
-ni_bridge_init(ni_bridge_t *bridge)
+/*
+ * Bridge constructor and new operator
+ */
+static void
+__ni_bridge_init(ni_bridge_t *bridge)
 {
-	ni_bridge_port_array_destroy(&bridge->ports);
-
-	if (bridge->status)
-		ni_bridge_status_free(bridge->status);
-
-	memset(bridge, 0, sizeof(*bridge));
-
 	/* apply "not set" defaults */
 	bridge->config.forward_delay = NI_BRIDGE_VALUE_NOT_SET;
 	bridge->config.ageing_time = NI_BRIDGE_VALUE_NOT_SET;
 	bridge->config.hello_time = NI_BRIDGE_VALUE_NOT_SET;
 	bridge->config.max_age = NI_BRIDGE_VALUE_NOT_SET;
 	bridge->config.priority = NI_BRIDGE_VALUE_NOT_SET;
+}
+
+ni_bridge_t *
+ni_bridge_new(void)
+{
+	ni_bridge_t *bridge;
+
+	bridge = calloc(1, sizeof(*bridge));
+	__ni_bridge_init(bridge);
+	return bridge;
+}
+
+/*
+ * Bridge destructor and delete operator
+ */
+static void
+__ni_bridge_destroy(ni_bridge_t *bridge)
+{
+	ni_bridge_port_array_destroy(&bridge->ports);
+
+	if (bridge->status) {
+		ni_bridge_status_free(bridge->status);
+		bridge->status = NULL;
+	}
+}
+
+void
+ni_bridge_free(ni_bridge_t *bridge)
+{
+	__ni_bridge_destroy(bridge);
+	free(bridge);
 }
 
 void
@@ -562,14 +595,4 @@ ni_bridge_port_status_free(ni_bridge_port_status_t *ps)
 	if (ps->designated_bridge)
 		free(ps->designated_bridge);
 	free(ps);
-}
-
-/*
- * Free bridge information
- */
-void
-ni_bridge_free(ni_bridge_t *bridge)
-{
-	ni_bridge_init(bridge);
-	free(bridge);
 }
