@@ -45,6 +45,7 @@ static int	__ni_interface_vlan_configure(ni_handle_t *, ni_interface_t *, ni_int
 static int	__ni_interface_bond_configure(ni_handle_t *, ni_interface_t *, ni_interface_t **);
 static int	__ni_interface_extension_configure(ni_handle_t *, ni_interface_t *, xml_node_t *, ni_interface_t **);
 static int	__ni_interface_extension_delete(ni_handle_t *, ni_interface_t *);
+static int	__ni_interface_update_ipv6_settings(ni_interface_t *);
 static int	__ni_rtnl_link_create(ni_handle_t *, ni_interface_t *);
 static int	__ni_rtnl_link_up(ni_handle_t *, ni_interface_t *, const ni_interface_t *);
 static int	__ni_rtnl_link_down(ni_handle_t *, ni_interface_t *, int);
@@ -115,6 +116,11 @@ __ni_system_interface_configure(ni_handle_t *nih, ni_interface_t *cfg, xml_node_
 		ni_error("shouldn't happen: interface doesn't exist after creation");
 		return -1;
 	}
+
+	/* If we want to disable ipv6 or ipv6 autoconf, we need to do so prior to bringing
+	 * the interface up. */
+	if (__ni_interface_update_ipv6_settings(cfg) < 0)
+		return -1;
 
 	if (cfg->flags & IFF_UP) {
 		debug_ifconfig("bringing up interface %s", ifp->name);
@@ -737,6 +743,31 @@ __ni_interface_extension_delete(ni_handle_t *nih, ni_interface_t *ifp)
 }
 
 /*
+ * Update the IPv6 sysctl settings for the given interface
+ */
+int
+__ni_interface_update_ipv6_settings(ni_interface_t *cfg)
+{
+	if (ni_sysctl_ipv6_ifconfig_set_uint(cfg->name, "ipv6_enabled", !cfg->ipv6.enabled) < 0) {
+		ni_error("%s: cannot %s ipv6", cfg->name, cfg->ipv6.enabled? "enable" : "disable");
+		return -1;
+	}
+	if (cfg->ipv6.enabled) {
+		int autoconf = (cfg->ipv6.config != NI_ADDRCONF_STATIC);
+
+		if (ni_sysctl_ipv6_ifconfig_set_uint(cfg->name, "autoconf", autoconf) < 0) {
+			ni_error("%s: cannot %s ipv6 autoconf", cfg->name, autoconf? "enable" : "disable");
+			return -1;
+		}
+		if (ni_sysctl_ipv6_ifconfig_set_uint(cfg->name, "forwarding", cfg->ipv6.forwarding) < 0) {
+			ni_error("%s: cannot %s ipv6 forwarding", cfg->name, cfg->ipv6.forwarding? "enable" : "disable");
+			return -1;
+		}
+	}
+	return 0;
+}
+
+/*
  * Create an interface via netlink - currently used by VLAN only
  */
 static int
@@ -1239,6 +1270,9 @@ __ni_interface_addrconf(ni_handle_t *nih, int family, ni_interface_t *ifp, ni_in
 		cur_afi = &ifp->ipv6;
 	} else
 		return -1;
+
+	if (!cfg_afi->enabled)
+		return 0;
 
 	/* If we're chaging to a different addrconf mode, stop the current
 	 * service. */
