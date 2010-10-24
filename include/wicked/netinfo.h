@@ -45,6 +45,7 @@ typedef struct ni_address {
 	struct sockaddr_storage	anycast_addr;
 	struct sockaddr_storage	bcast_addr;
 	char			label[IFNAMSIZ];
+	time_t			expires;		/* when address expires (ipv6) */
 } ni_address_t;
 
 typedef struct ni_hwaddr {
@@ -74,6 +75,7 @@ typedef struct ni_route {
 	unsigned int		mtu;
 	unsigned int		tos;
 	unsigned int		priority;
+	time_t			expires;		/* when route expires (ipv6) */
 } ni_route_t;
 
 typedef struct ni_link_stats {
@@ -299,6 +301,7 @@ struct ni_interface {
 	/* Network layer */
 	ni_afinfo_t		ipv4;
 	ni_afinfo_t		ipv6;
+	ni_socket_t *		ipv6ra_listener;
 
 	struct ni_interface *	parent;
 	struct ni_bonding *	bonding;

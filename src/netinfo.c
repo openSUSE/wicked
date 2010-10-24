@@ -823,6 +823,9 @@ ni_interface_free(ni_interface_t *ifp)
 	__ni_afinfo_destroy(&ifp->ipv4);
 	__ni_afinfo_destroy(&ifp->ipv6);
 
+	if (ifp->ipv6ra_listener)
+		ni_socket_close(ifp->ipv6ra_listener);
+
 	free(ifp);
 }
 
