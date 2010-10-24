@@ -167,11 +167,10 @@ __ni_redhat_sysconfig2ifconfig(ni_handle_t *nih, ni_interface_t *ifp, ni_sysconf
 
 	if (ni_sysconfig_get_string(sc, "BOOTPROTO", &value) >= 0 && value != NULL) {
 		if (!strcmp(value, "dhcp")) {
-			ifp->ipv4.config = NI_ADDRCONF_DHCP;
-			ifp->ipv6.config = NI_ADDRCONF_DHCP;
+			ni_afinfo_addrconf_enable(&ifp->ipv4, NI_ADDRCONF_DHCP);
 		} else if (!strcmp(value, "none")) {
-			ifp->ipv4.config = NI_ADDRCONF_STATIC;
-			ifp->ipv6.config = NI_ADDRCONF_STATIC;
+			ifp->ipv4.addrconf = NI_ADDRCONF_MASK(NI_ADDRCONF_STATIC);
+			ifp->ipv6.addrconf = NI_ADDRCONF_MASK(NI_ADDRCONF_STATIC) | NI_ADDRCONF_MASK(NI_ADDRCONF_AUTOCONF);
 		} else
 			ni_warn("%s: unhandled BOOTPROTO \"%s\"", sc->pathname, value);
 	}
@@ -186,7 +185,7 @@ __ni_redhat_sysconfig2ifconfig(ni_handle_t *nih, ni_interface_t *ifp, ni_sysconf
 	if (ni_sysconfig_get_integer(sc, "MTU", &ifp->mtu) < 0)
 		return -1;
 
-	if (ifp->ipv4.config == NI_ADDRCONF_STATIC)
+	if (ni_afinfo_addrconf_test(&ifp->ipv4, NI_ADDRCONF_STATIC))
 		__ni_redhat_get_static_ipv4(ifp, sc);
 
 	/* RedHat has TYPE=Bridge for bridge devices */

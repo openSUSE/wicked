@@ -392,8 +392,15 @@ ni_sysctl_ipv6_ifconfig_get_uint(const char *ifname, const char *ctl_name, unsig
 	const char *pathname = __ni_sysctl_ipv6_ifconfig_path(ifname, ctl_name);
 	char *result = NULL;
 
-	if (__ni_sysfs_read_string(pathname, &result) < 0 || !result)
+	*value = 0;
+	if (__ni_sysfs_read_string(pathname, &result) < 0) {
+		ni_error("%s: unable to read file: %m", pathname);
 		return -1;
+	}
+	if (result == NULL) {
+		ni_error("%s: empty file", pathname);
+		return -1;
+	}
 	*value = strtoul(result, NULL, 0);
 	ni_string_free(&result);
 	return 0;

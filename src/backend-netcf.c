@@ -196,18 +196,17 @@ __ni_netcf_xml_to_interface(ni_syntax_t *syntax, ni_handle_t *nih, xml_node_t *i
 
 		if ((child = xml_node_get_child(node, "dhcp")) != NULL) {
 			afi->request[NI_ADDRCONF_DHCP] = ni_addrconf_request_new();
-			afi->config = NI_ADDRCONF_DHCP;
+			ni_afinfo_addrconf_enable(afi, NI_ADDRCONF_DHCP);
 			if (__ni_netcf_xml_to_dhcp(syntax, nih, afi->request[NI_ADDRCONF_DHCP], child) < 0) {
 				ni_error("error parsing dhcp information");
 				return NULL;
 			}
-			continue;
 		}
 
-		/* Looks like we have a static configuration */
+		/* Pull in static configuration */
 		if (__ni_netcf_xml_to_static_ifcfg(syntax, nih, afi->family, ifp, node))
 			return NULL;
-		afi->config = NI_ADDRCONF_STATIC;
+		ni_afinfo_addrconf_enable(afi, NI_ADDRCONF_STATIC);
 	}
 
 	switch (ifp->type) {
@@ -648,43 +647,43 @@ __ni_netcf_xml_from_address_config(ni_syntax_t *syntax, ni_handle_t *nih,
 			const ni_afinfo_t *afi,
 			const ni_interface_t *ifp, xml_node_t *ifnode)
 {
-	const char *acname;
-	unsigned int type;
 	xml_node_t *protnode = NULL;
+	unsigned int mode;
 
-	switch (afi->config) {
-	case NI_ADDRCONF_STATIC:
-		protnode = __ni_netcf_xml_from_static_ifcfg(syntax, nih, afi->family, ifp, ifnode);
-		break;
+	if (afi->enabled) {
+		if (ni_afinfo_addrconf_test(afi, NI_ADDRCONF_STATIC))
+			protnode = __ni_netcf_xml_from_static_ifcfg(syntax, nih, afi->family, ifp, ifnode);
 
-	case NI_ADDRCONF_DHCP:
-	case NI_ADDRCONF_IBFT: /* Variant netcf */
-		if (!protnode)
-			protnode = __ni_netcf_make_protocol_node(ifnode, afi->family);
+		for (mode = 0; mode < __NI_ADDRCONF_MAX; ++mode) {
+			ni_addrconf_lease_t *lease;
 
-		if (afi->config == NI_ADDRCONF_DHCP) {
-			__ni_netcf_xml_from_dhcp(syntax, nih, afi->request[NI_ADDRCONF_DHCP], protnode);
-		} else {
-			/* Create node with no attrs or children */
-			acname = ni_addrconf_type_to_name(afi->config);
-			assert(acname);
+			if (mode == NI_ADDRCONF_STATIC || !ni_afinfo_addrconf_test(afi, mode))
+				continue;
 
-			xml_node_new(acname, protnode);
-		}
-		break;
-	}
+			if (syntax->strict && mode != NI_ADDRCONF_DHCP)
+				continue;
 
-	if (!syntax->strict && !afi->enabled)
-		xml_node_new("disabled", protnode);
-
-	for (type = 0; type < __NI_ADDRCONF_MAX; ++type) {
-		ni_addrconf_lease_t *lease = afi->lease[type];
-
-		if (lease) {
 			if (!protnode)
 				protnode = __ni_netcf_make_protocol_node(ifnode, afi->family);
-			__ni_netcf_xml_from_lease(syntax, lease, ifnode);
+
+			if (mode == NI_ADDRCONF_DHCP) {
+				__ni_netcf_xml_from_dhcp(syntax, nih, afi->request[NI_ADDRCONF_DHCP], protnode);
+			} else {
+				const char *acname;
+
+				/* Create node with no attrs or children */
+				acname = ni_addrconf_type_to_name(mode);
+				assert(acname);
+
+				xml_node_new(acname, protnode);
+			}
+
+			if ((lease = afi->lease[mode]) != NULL)
+				__ni_netcf_xml_from_lease(syntax, lease, ifnode);
 		}
+	} else if (!syntax->strict) {
+		protnode = __ni_netcf_make_protocol_node(ifnode, afi->family);
+		xml_node_new("disabled", protnode);
 	}
 }
 

@@ -261,11 +261,31 @@ typedef struct ni_afinfo {
 	int			enabled;
 	int			forwarding;
 
-	int			config;	/* formerly known as bootproto */
+	unsigned int		addrconf;	/* bitmask of enabled addrconf modes */
 
 	ni_addrconf_lease_t *	lease[__NI_ADDRCONF_MAX];
 	ni_addrconf_request_t *	request[__NI_ADDRCONF_MAX];
 } ni_afinfo_t;
+
+#define NI_ADDRCONF_MASK(mode)		(1 << (mode))
+
+static inline void
+ni_afinfo_addrconf_enable(struct ni_afinfo *afi, unsigned int mode)
+{
+	afi->addrconf |= NI_ADDRCONF_MASK(mode);
+}
+
+static inline void
+ni_afinfo_addrconf_disable(struct ni_afinfo *afi, unsigned int mode)
+{
+	afi->addrconf &= ~NI_ADDRCONF_MASK(mode);
+}
+
+static inline int
+ni_afinfo_addrconf_test(const struct ni_afinfo *afi, unsigned int mode)
+{
+	return !!(afi->addrconf & NI_ADDRCONF_MASK(mode));
+}
 
 struct ni_interface {
 	struct ni_interface *	next;

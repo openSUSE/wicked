@@ -30,7 +30,8 @@ static int		__ni_suse_dhcp2sysconfig(const ni_addrconf_request_t *, const ni_add
 static int		__ni_suse_bridge2sysconfig(const ni_interface_t *, ni_sysconfig_t *);
 static int		__ni_suse_bonding2sysconfig(const ni_interface_t *, ni_sysconfig_t *);
 static const char *	__ni_suse_startmode(int);
-static const char *	__ni_suse_bootproto(const ni_interface_t *);
+static const char *	__ni_suse_bootproto_get(const ni_interface_t *);
+static int		__ni_suse_bootproto_set(ni_interface_t *, char *);
 
 static void		__process_indexed_variables(ni_interface_t *, ni_sysconfig_t *,
 				const char *,
@@ -242,7 +243,7 @@ __ni_suse_read_interface(ni_handle_t *nih, const char *filename, const char *ifn
 	if (__ni_suse_sysconfig2ifconfig(ifp, sc) < 0)
 		goto error;
 
-	if (ifp->ipv4.config == NI_ADDRCONF_DHCP) {
+	if (ni_afinfo_addrconf_test(&ifp->ipv4, NI_ADDRCONF_DHCP)) {
 		/* Read default DHCP config */
 		if (!(ifp->ipv4.request[NI_ADDRCONF_DHCP] = __ni_suse_read_dhcp(nih)))
 			goto error;
@@ -281,33 +282,8 @@ __ni_suse_sysconfig2ifconfig(ni_interface_t *ifp, ni_sysconfig_t *sc)
 		else
 			ifp->startmode = NI_START_MANUAL;
 	}
-	if (ni_sysconfig_get_string(sc, "BOOTPROTO", &value) >= 0) {
-		if (!value) {
-			ifp->ipv4.config = ifp->ipv6.config = NI_ADDRCONF_STATIC;
-		} else {
-			char *s;
-
-			for (s = strtok(value, "+"); s; s = strtok(NULL, "+")) {
-				if (!strcmp(s, "dhcp")) {
-					ifp->ipv4.config = NI_ADDRCONF_DHCP;
-					ifp->ipv6.config = NI_ADDRCONF_DHCP;
-				} else if (!strcmp(s, "static")) {
-					ifp->ipv4.config = NI_ADDRCONF_STATIC;
-					ifp->ipv6.config = NI_ADDRCONF_AUTOCONF;
-				} else if (!strcmp(s, "dhcp4"))
-					ifp->ipv4.config = NI_ADDRCONF_DHCP;
-				else if (!strcmp(s, "dhcp6"))
-					ifp->ipv6.config = NI_ADDRCONF_DHCP;
-				else if (!strcmp(s, "ibft")) {
-					ifp->ipv4.config = NI_ADDRCONF_IBFT;
-					ifp->ipv6.config = NI_ADDRCONF_IBFT;
-				}
-				else
-					warn("%s: unhandled BOOTPROTO \"%s\"",
-							sc->pathname, s);
-			}
-		}
-	}
+	if (ni_sysconfig_get_string(sc, "BOOTPROTO", &value) >= 0)
+		__ni_suse_bootproto_set(ifp, value);
 	ni_string_free(&value);
 
 	if (ni_sysconfig_get_string(sc, "LLADDR", &hwaddr) >= 0 && hwaddr) {
@@ -820,7 +796,7 @@ __ni_suse_put_interfaces(ni_syntax_t *syntax, ni_handle_t *nih, FILE *outfile)
 		 * The best we can do for now is look for where we differ from the
 		 * system defaults.
 		 */
-		if (ifp->ipv4.config == NI_ADDRCONF_DHCP) {
+		if (ni_afinfo_addrconf_test(&ifp->ipv4, NI_ADDRCONF_DHCP)) {
 			if (!dhcp)
 				dhcp = __ni_suse_read_dhcp(nih);
 			if (__ni_suse_dhcp2sysconfig(ifp->ipv4.request[NI_ADDRCONF_DHCP], dhcp, sc) < 0) {
@@ -892,7 +868,7 @@ __ni_suse_ifconfig2sysconfig(ni_interface_t *ifp, ni_sysconfig_t *sc)
 	ni_address_t *ap;
 
 	ni_sysconfig_set(sc, "STARTMODE", __ni_suse_startmode(ifp->startmode));
-	ni_sysconfig_set(sc, "BOOTPROTO", __ni_suse_bootproto(ifp));
+	ni_sysconfig_set(sc, "BOOTPROTO", __ni_suse_bootproto_get(ifp));
 
 	if (!ifp->hwaddr.type != NI_IFTYPE_UNKNOWN)
 		ni_sysconfig_set(sc, "LLADDR", ni_link_address_print(&ifp->hwaddr));
@@ -964,47 +940,115 @@ __ni_suse_startmode(int mode)
 	}
 }
 
+/*
+ * Handle BOOTPROTO settings.
+ */
+struct __ni_suse_bootproto {
+	const char *		name;
+	unsigned int		ipv4_mask;
+	unsigned int		ipv6_mask;
+};
+
+#define _(x)		NI_ADDRCONF_MASK(x)
+#define AUTO6		NI_ADDRCONF_MASK(NI_ADDRCONF_AUTOCONF)
+static struct __ni_suse_bootproto __ni_suse_bootprotos[] = {
+	{ "static",	_(NI_ADDRCONF_STATIC),		_(NI_ADDRCONF_STATIC) | AUTO6 },
+	{ "static4",	_(NI_ADDRCONF_STATIC),		0 },
+	{ "static6",	0,				_(NI_ADDRCONF_STATIC) },
+
+	{ "dhcp",	_(NI_ADDRCONF_DHCP),		AUTO6 },
+	{ "dhcp4",	_(NI_ADDRCONF_DHCP),		0 },
+	{ "dhcp6",	0,				_(NI_ADDRCONF_DHCP) | AUTO6 },
+
+	{ "ibft",	_(NI_ADDRCONF_IBFT),		_(NI_ADDRCONF_IBFT) | AUTO6 },
+	{ "ibft4",	_(NI_ADDRCONF_IBFT),		0 },
+	{ "ibft6",	0,				_(NI_ADDRCONF_IBFT) | AUTO6 },
+
+	{ "autoip",	_(NI_ADDRCONF_AUTOCONF),	AUTO6 },
+	{ "auto4",	_(NI_ADDRCONF_AUTOCONF),	0 },
+	{ "auto6",	0,				AUTO6 },
+
+	{ NULL }
+};
+#undef _
+
+/* Test whether all bits in @mustbeset are also present in @value */
+#define mask_at_least(value, mustbeset)	(((mustbeset) & ~(value)) == 0)
+
 static const char *
-__ni_suse_bootproto(const ni_interface_t *ifp)
+__ni_suse_bootproto_get(const ni_interface_t *ifp)
 {
-	static char protobuf[64];
-	int aconf4 = ifp->ipv4.config;
-	int aconf6 = ifp->ipv6.config;
-	const char *aconf4s = NULL;
-	const char *aconf6s = NULL;
+	static char protobuf[256];
+	unsigned int aconf4, missing4;
+	unsigned int aconf6, missing6;
+	struct __ni_suse_bootproto *bp;
 
-	if (aconf4 == NI_ADDRCONF_DHCP && aconf6 == NI_ADDRCONF_DHCP)
-		return "dhcp";
-	if (aconf4 == NI_ADDRCONF_IBFT && aconf6 == NI_ADDRCONF_IBFT)
-		return "ibft";
-	if (aconf4 == NI_ADDRCONF_STATIC && aconf6 == NI_ADDRCONF_AUTOCONF)
-		return "static";
+	aconf4 = missing4 = ifp->ipv4.addrconf;
+	aconf6 = missing6 = ifp->ipv6.addrconf;
 
-	switch (aconf4) {
-	case NI_ADDRCONF_AUTOCONF:
-		aconf4s = "autoip"; break;
-	case NI_ADDRCONF_DHCP:
-		aconf4s = "dhcp4"; break;
-	case NI_ADDRCONF_IBFT:
-		aconf4s = "ibft4"; break;
+	if (aconf4 == 0 && aconf6 == 0)
+		return "none";
+
+	protobuf[0] = '\0';
+	for (bp = __ni_suse_bootprotos; bp->name; ++bp) {
+		/* Skip this entry if it doesn't cover any new bits */
+		if (!(bp->ipv4_mask & missing4) && !(bp->ipv6_mask & missing6))
+			continue;
+
+		if (mask_at_least(aconf4, bp->ipv4_mask)
+		 && mask_at_least(aconf6, bp->ipv6_mask)) {
+			missing4 &= ~bp->ipv4_mask;
+			missing6 &= ~bp->ipv6_mask;
+
+			if (protobuf[0])
+				strcat(protobuf, "+");
+			strcat(protobuf, bp->name);
+
+			/* Are we done yet? */
+			if (missing4 == 0 && missing6 == 0)
+				break;
+		}
 	}
 
-	switch (aconf6) {
-	case NI_ADDRCONF_DHCP:
-		aconf6s = "dhcp6"; break;
-	case NI_ADDRCONF_IBFT:
-		aconf6s = "ibft6"; break;
+	if (missing4 || missing6)
+		ni_warn("%s: unable to represent addrconf modes", ifp->name);
+
+	return protobuf;
+}
+
+static int
+__ni_suse_bootproto_set(ni_interface_t *ifp, char *value)
+{
+	char *s;
+
+	if (value == NULL) {
+		ifp->ipv4.addrconf = NI_ADDRCONF_MASK(NI_ADDRCONF_STATIC);
+		ifp->ipv6.addrconf = NI_ADDRCONF_MASK(NI_ADDRCONF_STATIC) | NI_ADDRCONF_MASK(NI_ADDRCONF_AUTOCONF);
+		return 0;
 	}
 
-	if (aconf4s && aconf6s) {
-		snprintf(protobuf, sizeof(protobuf), "%s+%s", aconf4s, aconf6s);
-		return protobuf;
-	}
-	if (aconf4s)
-		return aconf4s;
-	if (aconf6s)
-		return aconf6s;
+	ifp->ipv4.addrconf = 0;
+	ifp->ipv6.addrconf = 0;
+	for (s = strtok(value, "+"); s; s = strtok(NULL, "+")) {
+		if (!strcmp(s, "none")) {
+			ifp->ipv4.addrconf = 0;
+			ifp->ipv6.addrconf = 0;
+		} else {
+			struct __ni_suse_bootproto *bp;
 
-	ni_warn("backend-suse: cannot represent bootproto combination for %s", ifp->name);
-	return "static";
+			for (bp = __ni_suse_bootprotos; bp->name; ++bp) {
+				if (!strcmp(bp->name, s)) {
+					ifp->ipv4.addrconf |= bp->ipv4_mask;
+					ifp->ipv6.addrconf |= bp->ipv6_mask;
+					goto found;
+				}
+			}
+
+			ni_warn("%s: unhandled BOOTPROTO \"%s\"", ifp->name, s);
+
+found: ;
+		}
+	}
+
+	return 0;
 }

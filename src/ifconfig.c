@@ -136,8 +136,8 @@ __ni_system_interface_configure(ni_handle_t *nih, ni_interface_t *cfg, xml_node_
 		}
 
 		/* This will take care of shutting down dhcp */
-		cfg->ipv4.config = NI_ADDRCONF_STATIC;
-		cfg->ipv6.config = NI_ADDRCONF_STATIC;
+		cfg->ipv4.addrconf = 0;
+		cfg->ipv6.addrconf = 0;
 	}
 
 	nih->seqno++;
@@ -753,7 +753,7 @@ __ni_interface_update_ipv6_settings(ni_interface_t *cfg)
 		return -1;
 	}
 	if (cfg->ipv6.enabled) {
-		int autoconf = (cfg->ipv6.config != NI_ADDRCONF_STATIC);
+		int autoconf = ni_afinfo_addrconf_test(&cfg->ipv6, NI_ADDRCONF_STATIC);
 
 		if (ni_sysctl_ipv6_ifconfig_set_uint(cfg->name, "autoconf", autoconf) < 0) {
 			ni_error("%s: cannot %s ipv6 autoconf", cfg->name, autoconf? "enable" : "disable");
@@ -1256,8 +1256,8 @@ __ni_interface_addrconf(ni_handle_t *nih, int family, ni_interface_t *ifp, ni_in
 			xml_node_t *cfg_xml)
 {
 	ni_afinfo_t *cfg_afi, *cur_afi;
-	ni_addrconf_t *cfg_acm, *cur_acm;
 	xml_node_t *xml = NULL;
+	unsigned int mode;
 
 	debug_ifconfig("__ni_interface_addrconf(%s, af=%s)", ifp->name,
 			ni_addrfamily_type_to_name(family));
@@ -1274,16 +1274,19 @@ __ni_interface_addrconf(ni_handle_t *nih, int family, ni_interface_t *ifp, ni_in
 	if (!cfg_afi->enabled)
 		return 0;
 
-	/* If we're chaging to a different addrconf mode, stop the current
-	 * service. */
-	cur_acm = ni_addrconf_get(cur_afi->config, family);
-	if (cur_acm && cfg_afi->config != cur_afi->config) {
-		if (ni_addrconf_drop_lease(cur_acm, ifp) < 0)
-			return -1;
-		cur_acm = NULL;
+	/* If we're disabling an addrconf mode, stop the respective service */
+	for (mode = 0; mode < __NI_ADDRCONF_MAX; ++mode) {
+		ni_addrconf_t *acm;
+
+		if (ni_afinfo_addrconf_test(cur_afi, mode)
+		 && !ni_afinfo_addrconf_test(cfg_afi, mode)) {
+			acm = ni_addrconf_get(mode, family);
+			if (acm && ni_addrconf_drop_lease(acm, ifp) < 0)
+				return -1;
+		}
 	}
 
-	if (cfg_afi->config == NI_ADDRCONF_STATIC) {
+	if (ni_afinfo_addrconf_test(cfg_afi, NI_ADDRCONF_STATIC)) {
 		ni_address_t *ap, *next;
 		ni_route_t *rp;
 
@@ -1307,6 +1310,8 @@ __ni_interface_addrconf(ni_handle_t *nih, int family, ni_interface_t *ifp, ni_in
 			 * the admin or via autoconf is not part of the NEWADDR
 			 * message. We have to guess, thus.
 			 */
+			if (ap->config_method != NI_ADDRCONF_STATIC)
+				continue;
 			if (__ni_address_probably_dynamic(cfg_afi, ap))
 				continue;
 
@@ -1400,45 +1405,53 @@ __ni_interface_addrconf(ni_handle_t *nih, int family, ni_interface_t *ifp, ni_in
 			if (__ni_rtnl_send_newroute(nih, ifp, rp, NLM_F_CREATE))
 				goto error;
 		}
-	} else if (cfg_afi->config == NI_ADDRCONF_AUTOCONF) {
-		if (family != AF_INET6) {
-			error("autoconf not supported for address family");
-			goto error;
-		}
-	} else
-	if ((cfg_acm = ni_addrconf_get(cfg_afi->config, family)) != NULL) {
+	}
+
+	/* Now bring up addrconf services */
+	for (mode = 0; mode < __NI_ADDRCONF_MAX; ++mode) {
 		ni_addrconf_lease_t *lease;
 		ni_addrconf_request_t *tmp;
+		ni_addrconf_t *acm;
 
-		tmp = cur_afi->request[cfg_afi->config];
-		cur_afi->request[cfg_afi->config] = cfg_afi->request[cfg_afi->config];
-		cfg_afi->request[cfg_afi->config] = tmp;
+		if (!ni_afinfo_addrconf_test(cfg_afi, mode))
+			continue;
+
+		/* IPv6 autoconf takes care of itself */
+		if (family == AF_INET6 && mode == NI_ADDRCONF_AUTOCONF)
+			continue;
+
+		acm = ni_addrconf_get(mode, family);
+		if (acm == NULL) {
+			ni_error("address configuration mode %s not supported for %s",
+				ni_addrconf_type_to_name(mode),
+				ni_addrfamily_type_to_name(cfg_afi->family));
+			continue;
+		}
+
+		tmp = cur_afi->request[mode];
+		cur_afi->request[mode] = cfg_afi->request[mode];
+		cfg_afi->request[mode] = tmp;
 
 		/* If the extension is already active, no need to start it once
 		 * more. If needed, we could do a restart in this case. */
-		if (cfg_afi->config == cur_afi->config) {
-			lease = cur_afi->lease[cfg_afi->config];
+		if (ni_afinfo_addrconf_test(cur_afi, mode)) {
+			lease = cur_afi->lease[mode];
 			if (lease && lease->state == NI_ADDRCONF_STATE_GRANTED)
 				return 0;
 		}
 
-		cur_afi->config = cfg_afi->config;
-		if (ni_addrconf_acquire_lease(cfg_acm, ifp, NULL) < 0)
+		ni_afinfo_addrconf_enable(cur_afi, mode);
+		if (ni_addrconf_acquire_lease(acm, ifp, NULL) < 0)
 			goto error;
 
 		/* If the extension supports more than just this address
 		 * family, make sure we update the interface status accordingly.
 		 * Otherwise we will start the service multiple times.
 		 */
-		if (cfg_acm->supported_af & NI_AF_MASK_IPV4)
-			ifp->ipv4.config = cfg_acm->type;
-		if (cfg_acm->supported_af & NI_AF_MASK_IPV6)
-			ifp->ipv6.config = cfg_acm->type;
-	} else {
-		error("address configuration mode %s not supported for %s",
-				ni_addrconf_type_to_name(cfg_afi->config),
-				ni_addrfamily_type_to_name(cfg_afi->family));
-		goto error;
+		if (acm->supported_af & NI_AF_MASK_IPV4)
+			ni_afinfo_addrconf_enable(&ifp->ipv4, acm->type);
+		if (acm->supported_af & NI_AF_MASK_IPV6)
+			ni_afinfo_addrconf_enable(&ifp->ipv6, acm->type);
 	}
 
 	if (xml)

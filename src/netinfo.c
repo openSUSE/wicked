@@ -16,6 +16,13 @@
 #include "netinfo_priv.h"
 #include "config.h"
 
+#define DEFAULT_ADDRCONF_IPV4 (\
+			NI_ADDRCONF_MASK(NI_ADDRCONF_STATIC) |\
+			NI_ADDRCONF_MASK(NI_ADDRCONF_DHCP))
+#define DEFAULT_ADDRCONF_IPV6 (\
+			NI_ADDRCONF_MASK(NI_ADDRCONF_STATIC) |\
+			NI_ADDRCONF_MASK(NI_ADDRCONF_AUTOCONF))
+
 static void	__ni_interface_clear_vlan(ni_interface_t *);
 static void	__ni_interface_clear_bonding(ni_interface_t *);
 static void	__ni_interface_clear_bridge(ni_interface_t *);
@@ -668,10 +675,10 @@ __ni_interface_new(const char *name, unsigned int index)
 
 	/* Initialize address family specific info */
 	ifp->ipv4.family = AF_INET;
-	ifp->ipv4.config = NI_ADDRCONF_DHCP;
+	ifp->ipv4.addrconf = DEFAULT_ADDRCONF_IPV4;
 	ifp->ipv4.enabled = 1;
 	ifp->ipv6.family = AF_INET6;
-	ifp->ipv6.config = NI_ADDRCONF_AUTOCONF;
+	ifp->ipv6.addrconf = DEFAULT_ADDRCONF_IPV6;
 	ifp->ipv6.enabled = 1;
 
 	return ifp;

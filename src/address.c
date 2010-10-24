@@ -243,9 +243,11 @@ __ni_address_probably_dynamic(const ni_afinfo_t *afi, const ni_address_t *ap)
 		return 0;
 	switch (afi->family) {
 	case AF_INET6:
+#if 0
 		/* For IPv6 autoconf, simply assume all addresses are dynamic */
 		if (afi->config == NI_ADDRCONF_AUTOCONF)
 			return 1;
+#endif
 
 		/* For IPv6 with static configuration, consider all link-local
 		 * prefixes as dynamic.

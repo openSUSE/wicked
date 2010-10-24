@@ -266,10 +266,6 @@ __ni_system_refresh_all(ni_handle_t *nih)
 
 		if (__ni_interface_process_newlink_ipv6(ifp, h, ifi, nih) < 0)
 			error("Problem parsing IPv6 RTM_NEWLINK message for %s", ifp->name);
-
-		ni_debug_ifconfig("%s: addrconf ipv4=%s ipv6=%s", ifp->name,
-				ni_addrconf_type_to_name(ifp->ipv4.config),
-				ni_addrconf_type_to_name(ifp->ipv6.config));
 	}
 
 	while (1) {
@@ -406,8 +402,8 @@ __ni_interface_process_newlink(ni_interface_t *ifp, struct nlmsghdr *h,
 
 	ifp->arp_type = ifi->ifi_type;
 	ifp->flags = ifi->ifi_flags;
-	ifp->ipv4.config = NI_ADDRCONF_STATIC;
-	ifp->ipv6.config = NI_ADDRCONF_AUTOCONF;
+	ifp->ipv4.addrconf = NI_ADDRCONF_MASK(NI_ADDRCONF_STATIC);
+	ifp->ipv6.addrconf = NI_ADDRCONF_MASK(NI_ADDRCONF_AUTOCONF) | NI_ADDRCONF_MASK(NI_ADDRCONF_STATIC);
 	ifp->type = NI_IFTYPE_UNKNOWN;
 
 	__ni_rta_get_uint(&ifp->mtu, tb[IFLA_MTU]);
@@ -545,7 +541,10 @@ __ni_interface_process_newlink(ni_interface_t *ifp, struct nlmsghdr *h,
 		ifp->ipv6.forwarding = val;
 
 		ni_sysctl_ipv6_ifconfig_get_uint(ifp->name, "autoconf", &val);
-		ifp->ipv6.config = val? NI_ADDRCONF_AUTOCONF : NI_ADDRCONF_STATIC;
+		if (val)
+			ni_afinfo_addrconf_enable(&ifp->ipv6, NI_ADDRCONF_AUTOCONF);
+		else
+			ni_afinfo_addrconf_disable(&ifp->ipv6, NI_ADDRCONF_AUTOCONF);
 	}
 
 	if (ifp->type == NI_IFTYPE_BRIDGE)
@@ -574,7 +573,6 @@ __ni_interface_process_newlink_ipv6(ni_interface_t *ifp, struct nlmsghdr *h,
 	ni_debug_ifconfig("%s: ipv6 ifinfo", ifp->name);
 	if (tb[IFLA_PROTINFO]) {
 		struct rtattr *protinfo[IFLA_INET6_MAX + 1];
-		struct rtattr *rta;
 		unsigned int flags = 0;
 
 		parse_rtattr_nested(protinfo, IFLA_INET6_MAX, tb[IFLA_PROTINFO]);
@@ -585,27 +583,6 @@ __ni_interface_process_newlink_ipv6(ni_interface_t *ifp, struct nlmsghdr *h,
 		} else
 		if (flags & IF_RA_OTHERCONF) {
 			ni_debug_ifconfig("%s: obtain additional config via DHCPv6", ifp->name);
-		}
-
-		rta = protinfo[IFLA_INET6_CONF];
-		if (rta) {
-			unsigned int count = RTA_PAYLOAD(rta) / 4;
-			uint32_t *conf;
-
-			conf = (uint32_t *) RTA_DATA(rta);
-
-			if (DEVCONF_DISABLE_IPV6 < count)
-				ifp->ipv6.enabled = !conf[DEVCONF_DISABLE_IPV6];
-			if (DEVCONF_FORWARDING < count)
-				ifp->ipv6.forwarding = !!conf[DEVCONF_FORWARDING];
-
-			/* autoconf enabled/disabled? */
-			if (DEVCONF_AUTOCONF < count) {
-				if (conf[DEVCONF_AUTOCONF])
-					ifp->ipv6.config = NI_ADDRCONF_AUTOCONF;
-				else
-					ifp->ipv6.config = NI_ADDRCONF_STATIC;
-			}
 		}
 	}
 
@@ -851,16 +828,12 @@ __ni_discover_addrconf(ni_handle_t *nih, ni_interface_t *ifp)
 	__ni_assert_initialized();
 
 	for (i = 0; i < __NI_ADDRCONF_MAX; ++i) {
-		if (ifp->ipv4.lease[i]) {
-			ifp->ipv4.config = i;
-			break;
-		}
+		if (ifp->ipv4.lease[i])
+			ni_afinfo_addrconf_enable(&ifp->ipv4, i);
 	}
 	for (i = 0; i < __NI_ADDRCONF_MAX; ++i) {
-		if (ifp->ipv6.lease[i]) {
-			ifp->ipv6.config = i;
-			break;
-		}
+		if (ifp->ipv6.lease[i])
+			ni_afinfo_addrconf_enable(&ifp->ipv6, i);
 	}
 
 	for (acm = ni_addrconf_list_first(&pos); acm; acm = ni_addrconf_list_next(&pos)) {
@@ -881,9 +854,9 @@ __ni_discover_addrconf(ni_handle_t *nih, ni_interface_t *ifp)
 					(acm->supported_af & NI_AF_MASK_IPV4)? " ipv4" : "",
 					(acm->supported_af & NI_AF_MASK_IPV6)? " ipv6" : "");
 			if (acm->supported_af & NI_AF_MASK_IPV4)
-				ifp->ipv4.config = acm->type;
+				ni_afinfo_addrconf_enable(&ifp->ipv4, acm->type);
 			if (acm->supported_af & NI_AF_MASK_IPV6)
-				ifp->ipv6.config = acm->type;
+				ni_afinfo_addrconf_enable(&ifp->ipv6, acm->type);
 		}
 	}
 
