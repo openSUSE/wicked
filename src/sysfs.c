@@ -374,6 +374,38 @@ ni_sysfs_bridge_port_get_status(const char *ifname, ni_bridge_port_status_t **pp
 }
 
 /*
+ * Get/set IPv6 sysctls
+ */
+static inline const char *
+__ni_sysctl_ipv6_ifconfig_path(const char *ifname, const char *ctl_name)
+{
+	static char pathname[PATH_MAX];
+
+	snprintf(pathname, sizeof(pathname),
+			"/proc/sys/net/ipv6/conf/%s/%s", ifname, ctl_name);
+	return pathname;
+}
+
+int
+ni_sysctl_ipv6_ifconfig_get_uint(const char *ifname, const char *ctl_name, unsigned int *value)
+{
+	const char *pathname = __ni_sysctl_ipv6_ifconfig_path(ifname, ctl_name);
+	char *result = NULL;
+
+	if (__ni_sysfs_read_string(pathname, &result) < 0 || !result)
+		return -1;
+	*value = strtoul(result, NULL, 0);
+	ni_string_free(&result);
+	return 0;
+}
+
+int
+ni_sysctl_ipv6_ifconfig_set_uint(const char *ifname, const char *ctl_name, unsigned int newval)
+{
+	return __ni_sysfs_printf(__ni_sysctl_ipv6_ifconfig_path(ifname, ctl_name), "%u", newval);
+}
+
+/*
  * Print a value to a sysfs file
  */
 static int
