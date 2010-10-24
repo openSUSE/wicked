@@ -9,6 +9,9 @@
 
 #include <net/if.h>
 
+#define __user /* unclean header file */
+#include <wireless.h>
+
 static inline int
 __ni_rta_get_uint(uint *val, struct rtattr *rta)
 {
@@ -30,6 +33,9 @@ extern int		__ni_brioctl_add_bridge(ni_handle_t *, const char *);
 extern int		__ni_brioctl_del_bridge(ni_handle_t *, const char *);
 extern int		__ni_brioctl_add_port(ni_handle_t *, const char *, unsigned int);
 extern int		__ni_brioctl_del_port(ni_handle_t *, const char *, unsigned int);
+
+extern int		__ni_wireless_get_name(ni_handle_t *, const ni_interface_t *, char *, size_t);
+extern int		__ni_wireless_get_essid(ni_handle_t *, const ni_interface_t *, char *, size_t);
 
 extern int		__ni_rta_get_addr(int, struct sockaddr_storage *, struct rtattr *);
 extern int		__ni_rta_get_string(char **, struct rtattr *);

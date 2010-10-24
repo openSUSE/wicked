@@ -332,6 +332,7 @@ __ni_system_interface_delete(ni_handle_t *nih, const char *ifname)
 	switch (ifp->type) {
 	case NI_IFTYPE_LOOPBACK:
 	case NI_IFTYPE_ETHERNET:
+	case NI_IFTYPE_WIRELESS:
 	case NI_IFTYPE_DUMMY:
 		ni_error("cannot destroy %s interfaces", ni_linktype_type_to_name(ifp->type));
 		return -1;

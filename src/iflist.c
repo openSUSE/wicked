@@ -509,7 +509,12 @@ __ni_interface_process_newlink(ni_interface_t *ifp, struct nlmsghdr *h,
 				}
 			}
 
-			/* FIXME: detect WLAN device */
+			/* Detect WLAN device.
+			 * The official way of doing this is to check whether
+			 * ioctl(SIOCGIWNAME) succeeds.
+			 */
+			if (__ni_wireless_get_name(nih, ifp, NULL, 0) == 0)
+				ifp->type = NI_IFTYPE_WIRELESS;
 			break;
 
 		default:

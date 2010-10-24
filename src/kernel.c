@@ -96,6 +96,49 @@ __ni_brioctl_del_port(ni_handle_t *nih, const char *ifname, unsigned int port_in
 	return __ni_ioctl(nih, SIOCBRDELIF, &ifr);
 }
 
+/*
+ * Wireless extension ioctls
+ */
+int
+__ni_wireless_get_name(ni_handle_t *nih, const ni_interface_t *ifp, char *result, size_t size)
+{
+	struct iwreq iwreq;
+
+	memset(&iwreq, 0, sizeof(iwreq));
+	strncpy(iwreq.ifr_name, ifp->name, IFNAMSIZ);
+	if (__ni_ioctl(nih, SIOCGIWNAME, &iwreq) < 0)
+		return -1;
+
+	if (size) {
+		strncpy(result, iwreq.ifr_name, size-1);
+		result[size-1] = '\0';
+	}
+	return 0;
+}
+
+int
+__ni_wireless_get_essid(ni_handle_t *nih, const ni_interface_t *ifp, char *result, size_t size)
+{
+	char buffer[IW_ESSID_MAX_SIZE];
+	struct iwreq iwreq;
+
+	memset(&iwreq, 0, sizeof(iwreq));
+	strncpy(iwreq.ifr_name, ifp->name, IFNAMSIZ);
+	iwreq.u.essid.pointer = buffer;
+	iwreq.u.essid.length = sizeof(buffer);
+	if (__ni_ioctl(nih, SIOCGIWESSID, &iwreq) < 0)
+		return -1;
+
+	if (size) {
+		strncpy(result, buffer, size-1);
+		result[size-1] = '\0';
+	}
+	return 0;
+}
+
+/*
+ * rtnetlink attribute handling
+ */
 int
 __ni_rta_get_addr(int af, struct sockaddr_storage *ss, struct rtattr *rta)
 {
