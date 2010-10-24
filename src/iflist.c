@@ -535,6 +535,19 @@ __ni_interface_process_newlink(ni_interface_t *ifp, struct nlmsghdr *h,
 		memset(&ifp->hwaddr, 0, sizeof(ifp->hwaddr));
 	}
 
+	{
+		unsigned int val;
+
+		ni_sysctl_ipv6_ifconfig_get_uint(ifp->name, "ipv6_disabled", &val);
+		ifp->ipv6.enabled = !val;
+
+		ni_sysctl_ipv6_ifconfig_get_uint(ifp->name, "forwarding", &val);
+		ifp->ipv6.forwarding = val;
+
+		ni_sysctl_ipv6_ifconfig_get_uint(ifp->name, "autoconf", &val);
+		ifp->ipv6.config = val? NI_ADDRCONF_AUTOCONF : NI_ADDRCONF_STATIC;
+	}
+
 	if (ifp->type == NI_IFTYPE_BRIDGE)
 		__ni_discover_bridge(ifp);
 	if (ifp->type == NI_IFTYPE_BOND)
