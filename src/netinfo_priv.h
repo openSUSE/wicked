@@ -86,6 +86,7 @@ extern ni_route_t *	__ni_route_new(ni_route_t **, unsigned int prefix_len,
 				const struct sockaddr_storage *,
 				const struct sockaddr_storage *);
 extern ni_route_t *	__ni_route_list_clone(const ni_route_t *);
+extern void		__ni_route_list_append(ni_route_t **, ni_route_t *);
 extern void		__ni_route_list_destroy(ni_route_t **);
 extern void		__ni_routes_clear(ni_handle_t *);
 

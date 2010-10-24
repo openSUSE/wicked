@@ -571,10 +571,6 @@ __ni_route_new(ni_route_t **list, unsigned int prefixlen,
 		}
 	}
 
-	/* Find the list tail */
-	while ((rp = *list) != NULL)
-		list = &rp->next;
-
 	rp = calloc(1, sizeof(ni_route_t));
 	rp->family = af;
 	rp->prefixlen = prefixlen;
@@ -585,7 +581,9 @@ __ni_route_new(ni_route_t **list, unsigned int prefixlen,
 		rp->destination.ss_family = af;
 	}
 
-	*list = rp;
+	if (list)
+		__ni_route_list_append(list, rp);
+
 	return rp;
 }
 
@@ -613,6 +611,17 @@ ni_route_list_destroy(ni_route_t **list)
 		ni_route_free(rp);
 	}
 }
+
+void
+__ni_route_list_append(ni_route_t **list, ni_route_t *new_route)
+{
+	ni_route_t *rp;
+
+	while ((rp = *list) != NULL)
+		list = &rp->next;
+	*list = new_route;
+}
+
 
 ni_route_t *
 __ni_route_list_clone(const ni_route_t *src)
