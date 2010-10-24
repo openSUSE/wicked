@@ -67,7 +67,7 @@ ni_dhcp_xml_to_lease(const ni_addrconf_t *aconf, ni_addrconf_lease_t *lease, con
 	__ni_dhcp_get_uint32(node, "lease-time", &lease->dhcp.lease_time);
 	__ni_dhcp_get_uint32(node, "renewal-time", &lease->dhcp.renewal_time);
 	__ni_dhcp_get_uint32(node, "rebind-time", &lease->dhcp.rebind_time);
-	__ni_dhcp_get_uint16(node, "rebind-time", &lease->dhcp.mtu);
+	__ni_dhcp_get_uint16(node, "mtu", &lease->dhcp.mtu);
 	return 0;
 }
 
