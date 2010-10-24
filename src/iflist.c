@@ -538,7 +538,7 @@ __ni_interface_process_newlink(ni_interface_t *ifp, struct nlmsghdr *h,
 	{
 		unsigned int val;
 
-		ni_sysctl_ipv6_ifconfig_get_uint(ifp->name, "ipv6_disabled", &val);
+		ni_sysctl_ipv6_ifconfig_get_uint(ifp->name, "disable_ipv6", &val);
 		ifp->ipv6.enabled = !val;
 
 		ni_sysctl_ipv6_ifconfig_get_uint(ifp->name, "forwarding", &val);
