@@ -1312,8 +1312,6 @@ __ni_interface_addrconf(ni_handle_t *nih, int family, ni_interface_t *ifp, ni_in
 			 */
 			if (ap->config_method != NI_ADDRCONF_STATIC)
 				continue;
-			if (__ni_address_probably_dynamic(cfg_afi, ap))
-				continue;
 
 			ap2 = __ni_interface_address_exists(cfg, ap);
 			if (ap2 != NULL) {

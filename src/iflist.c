@@ -649,9 +649,15 @@ __ni_interface_process_newaddr(ni_interface_t *ifp, struct nlmsghdr *h,
 		if (!(ifa->ifa_flags & IFA_F_PERMANENT)
 		 || (ifa->ifa_scope == RT_SCOPE_LINK)) {
 			ap->config_method = NI_ADDRCONF_AUTOCONF;
-		} else {
-			ap->config_method = NI_ADDRCONF_STATIC;
 		}
+	}
+
+	if (ap->config_method == NI_ADDRCONF_STATIC && ni_address_probably_dynamic(ap))
+		ap->config_method = NI_ADDRCONF_AUTOCONF;
+
+	if (ap->config_method == NI_ADDRCONF_AUTOCONF) {
+		/* FIXME: create a lease for AUTOCONF, and add this
+		 * address to it. */
 	}
 
 	/* See if this address is owned by a lease */

@@ -621,7 +621,7 @@ extern int		ni_address_prefix_match(unsigned int, const struct sockaddr_storage 
 				const struct sockaddr_storage *);
 extern int		ni_address_equal(const struct sockaddr_storage *, const struct sockaddr_storage *);
 extern int		__ni_address_info(int, unsigned int *, unsigned int *);
-extern int		__ni_address_probably_dynamic(const ni_afinfo_t *, const ni_address_t *);
+extern int		ni_address_probably_dynamic(const ni_address_t *);
 
 extern int		ni_link_address_format(const ni_hwaddr_t *ss,
 				char *abuf, size_t buflen);
