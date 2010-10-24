@@ -46,6 +46,7 @@ struct ni_rtnl_info {
 struct ni_rtnl_query {
 	struct ni_rtnl_info	link_info;
 	struct ni_rtnl_info	addr_info;
+	struct ni_rtnl_info	ipv6_info;
 	struct ni_rtnl_info	route_info;
 	int			ifindex;
 };
@@ -84,10 +85,12 @@ ni_rtnl_query(ni_handle_t *nih, struct ni_rtnl_query *q, int ifindex)
 	q->ifindex = ifindex;
 
 	if (__ni_rtnl_query(nih, &q->link_info, AF_UNSPEC, RTM_GETLINK) < 0
+	 || __ni_rtnl_query(nih, &q->ipv6_info, AF_INET6, RTM_GETLINK) < 0
 	 || __ni_rtnl_query(nih, &q->addr_info, AF_UNSPEC, RTM_GETADDR) < 0
 	 || __ni_rtnl_query(nih, &q->route_info, AF_UNSPEC, RTM_GETROUTE) < 0) {
 		ni_nlmsg_list_destroy(&q->link_info.nlmsg_list);
 		ni_nlmsg_list_destroy(&q->addr_info.nlmsg_list);
+		ni_nlmsg_list_destroy(&q->ipv6_info.nlmsg_list);
 		ni_nlmsg_list_destroy(&q->route_info.nlmsg_list);
 		return -1;
 	}
@@ -100,6 +103,7 @@ ni_rtnl_query_destroy(struct ni_rtnl_query *q)
 {
 	ni_nlmsg_list_destroy(&q->link_info.nlmsg_list);
 	ni_nlmsg_list_destroy(&q->addr_info.nlmsg_list);
+	ni_nlmsg_list_destroy(&q->ipv6_info.nlmsg_list);
 	ni_nlmsg_list_destroy(&q->route_info.nlmsg_list);
 }
 
@@ -109,6 +113,25 @@ ni_rtnl_query_next_link_info(struct ni_rtnl_query *q, struct nlmsghdr **hp)
 	struct nlmsghdr *h;
 
 	while ((h = __ni_rtnl_info_next(&q->link_info)) != NULL) {
+		struct ifinfomsg *ifi;
+
+		if ((ifi = ni_rtnl_ifinfomsg(h, RTM_NEWLINK)) != NULL) {
+			if (q->ifindex < 0 || q->ifindex == ifi->ifi_index) {
+				*hp = h;
+				return ifi;
+			}
+		}
+	}
+
+	return NULL;
+}
+
+static inline struct ifinfomsg *
+ni_rtnl_query_next_ipv6_link_info(struct ni_rtnl_query *q, struct nlmsghdr **hp)
+{
+	struct nlmsghdr *h;
+
+	while ((h = __ni_rtnl_info_next(&q->ipv6_info)) != NULL) {
 		struct ifinfomsg *ifi;
 
 		if ((ifi = ni_rtnl_ifinfomsg(h, RTM_NEWLINK)) != NULL) {
@@ -230,6 +253,23 @@ __ni_system_refresh_all(ni_handle_t *nih)
 			/* Ignore error and proceed */
 			ni_string_dup(&ifp->vlan->interface_name, "unknown");
 		}
+	}
+
+	while (1) {
+		struct ifinfomsg *ifi;
+
+		if (!(ifi = ni_rtnl_query_next_ipv6_link_info(&query, &h)))
+			break;
+
+		if ((ifp = ni_interface_by_index(nih, ifi->ifi_index)) == NULL)
+			continue;
+
+		if (__ni_interface_process_newlink_ipv6(ifp, h, ifi, nih) < 0)
+			error("Problem parsing IPv6 RTM_NEWLINK message for %s", ifp->name);
+
+		ni_debug_ifconfig("%s: addrconf ipv4=%s ipv6=%s", ifp->name,
+				ni_addrconf_type_to_name(ifp->ipv4.config),
+				ni_addrconf_type_to_name(ifp->ipv6.config));
 	}
 
 	while (1) {
@@ -507,6 +547,59 @@ __ni_interface_process_newlink(ni_interface_t *ifp, struct nlmsghdr *h,
 }
 
 /*
+ * Refresh interface link layer IPv6 info given a RTM_NEWLINK message
+ */
+int
+__ni_interface_process_newlink_ipv6(ni_interface_t *ifp, struct nlmsghdr *h,
+				struct ifinfomsg *ifi, ni_handle_t *nih)
+{
+	struct rtattr *tb[IFLA_MAX+1];
+
+	memset(tb, 0, sizeof(tb));
+	parse_rtattr(tb, IFLA_MAX, IFLA_RTA(ifi), IFLA_PAYLOAD(h));
+
+	ni_debug_ifconfig("%s: ipv6 ifinfo", ifp->name);
+	if (tb[IFLA_PROTINFO]) {
+		struct rtattr *protinfo[IFLA_INET6_MAX + 1];
+		struct rtattr *rta;
+		unsigned int flags = 0;
+
+		parse_rtattr_nested(protinfo, IFLA_INET6_MAX, tb[IFLA_PROTINFO]);
+
+		__ni_rta_get_uint(&flags, protinfo[IFLA_INET6_FLAGS]);
+		if (flags & IF_RA_MANAGED) {
+			ni_debug_ifconfig("%s: obtain addrconf via DHCPv6", ifp->name);
+		} else
+		if (flags & IF_RA_OTHERCONF) {
+			ni_debug_ifconfig("%s: obtain additional config via DHCPv6", ifp->name);
+		}
+
+		rta = protinfo[IFLA_INET6_CONF];
+		if (rta) {
+			unsigned int count = RTA_PAYLOAD(rta) / 4;
+			uint32_t *conf;
+
+			conf = (uint32_t *) RTA_DATA(rta);
+
+			if (DEVCONF_DISABLE_IPV6 < count)
+				ifp->ipv6.enabled = !conf[DEVCONF_DISABLE_IPV6];
+			if (DEVCONF_FORWARDING < count)
+				ifp->ipv6.forwarding = !!conf[DEVCONF_FORWARDING];
+
+			/* autoconf enabled/disabled? */
+			if (DEVCONF_AUTOCONF < count) {
+				if (conf[DEVCONF_AUTOCONF])
+					ifp->ipv6.config = NI_ADDRCONF_AUTOCONF;
+				else
+					ifp->ipv6.config = NI_ADDRCONF_STATIC;
+			}
+		}
+	}
+
+	return 0;
+}
+
+/*
  * Update interface address list given a RTM_NEWADDR message
  */
 static int
@@ -545,10 +638,38 @@ __ni_interface_process_newaddr(ni_interface_t *ifp, struct nlmsghdr *h,
 	ap->bcast_addr = tmp.bcast_addr;
 	ap->anycast_addr = tmp.anycast_addr;
 
+	ni_debug_ifconfig("%s: %s, scope %s, flags%s%s%s",
+				ifp->name, ni_address_print(&tmp.local_addr),
+				(ifa->ifa_scope == RT_SCOPE_HOST)? "host" :
+				 (ifa->ifa_scope == RT_SCOPE_LINK)? "link" :
+				  (ifa->ifa_scope == RT_SCOPE_SITE)? "site" :
+				   "universe",
+				(ifa->ifa_flags & IFA_F_PERMANENT)? " permanent" : "",
+				(ifa->ifa_flags & IFA_F_TEMPORARY)? " temporary" : "",
+				(ifa->ifa_flags & IFA_F_TENTATIVE)? " tentative" : "");
+
+	/* We don't have a strict criterion to distinguish autoconf addresses
+	 * from manually assigned addresses. The best approximation is the
+	 * IFA_F_PERMANENT flag, which is set for all statically assigned addresses,
+	 * and for all link-local addresses. Strictly speaking, you can also administratively
+	 * add interface addresses with a limited lifetime, but that would probably be done
+	 * by some out-of-kernel autoconf mechanism, too.
+	 */
+	if (ifa->ifa_family == AF_INET6) {
+		if (!(ifa->ifa_flags & IFA_F_PERMANENT)
+		 || (ifa->ifa_scope == RT_SCOPE_LINK)) {
+			ap->config_method = NI_ADDRCONF_AUTOCONF;
+		} else {
+			ap->config_method = NI_ADDRCONF_STATIC;
+		}
+	}
+
 	/* See if this address is owned by a lease */
-	lease = __ni_interface_address_to_lease(ifp, ap);
-	if (lease)
-		ap->config_method = lease->type;
+	if (ap->config_method == NI_ADDRCONF_STATIC) {
+		lease = __ni_interface_address_to_lease(ifp, ap);
+		if (lease)
+			ap->config_method = lease->type;
+	}
 
 	return 0;
 }
@@ -728,10 +849,6 @@ __ni_discover_addrconf(ni_handle_t *nih, ni_interface_t *ifp)
 			break;
 		}
 	}
-
-	ni_debug_ifconfig("%s: addrconf ipv4=%s ipv6=%s", ifp->name,
-			ni_addrconf_type_to_name(ifp->ipv4.config),
-			ni_addrconf_type_to_name(ifp->ipv6.config));
 
 	for (acm = ni_addrconf_list_first(&pos); acm; acm = ni_addrconf_list_next(&pos)) {
 		if (!acm->test)

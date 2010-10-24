@@ -98,9 +98,53 @@ ni_rtnl_rtmsg(struct nlmsghdr *h, int expected_type)
 
 extern int	__ni_interface_process_newlink(ni_interface_t *, struct nlmsghdr *,
 				struct ifinfomsg *, ni_handle_t *);
+extern int	__ni_interface_process_newlink_ipv6(ni_interface_t *, struct nlmsghdr *,
+				struct ifinfomsg *, ni_handle_t *);
 
 #ifndef IFF_LOWER_UP
 # define IFF_LOWER_UP	0x10000
+#endif
+
+/*
+ * Copied from linux/ipv6.h (which doesn't include cleanly in user space code)
+ *
+ * Index values for the variables in ipv6_devconf:
+ */
+enum {
+	DEVCONF_FORWARDING = 0,
+	DEVCONF_HOPLIMIT,
+	DEVCONF_MTU6,
+	DEVCONF_ACCEPT_RA,
+	DEVCONF_ACCEPT_REDIRECTS,
+	DEVCONF_AUTOCONF,
+	DEVCONF_DAD_TRANSMITS,
+	DEVCONF_RTR_SOLICITS,
+	DEVCONF_RTR_SOLICIT_INTERVAL,
+	DEVCONF_RTR_SOLICIT_DELAY,
+	DEVCONF_USE_TEMPADDR,
+	DEVCONF_TEMP_VALID_LFT,
+	DEVCONF_TEMP_PREFERED_LFT,
+	DEVCONF_REGEN_MAX_RETRY,
+	DEVCONF_MAX_DESYNC_FACTOR,
+	DEVCONF_MAX_ADDRESSES,
+	DEVCONF_FORCE_MLD_VERSION,
+	DEVCONF_ACCEPT_RA_DEFRTR,
+	DEVCONF_ACCEPT_RA_PINFO,
+	DEVCONF_ACCEPT_RA_RTR_PREF,
+	DEVCONF_RTR_PROBE_INTERVAL,
+	DEVCONF_ACCEPT_RA_RT_INFO_MAX_PLEN,
+	DEVCONF_PROXY_NDP,
+	DEVCONF_OPTIMISTIC_DAD,
+	DEVCONF_ACCEPT_SOURCE_ROUTE,
+	DEVCONF_MC_FORWARDING,
+	DEVCONF_DISABLE_IPV6,
+	DEVCONF_ACCEPT_DAD,
+	DEVCONF_MAX
+};
+
+#ifndef IF_RA_OTHERCONF
+#define IF_RA_OTHERCONF 0x80
+#define IF_RA_MANAGED   0x40
 #endif
 
 #endif /* __NETINFO_KERNEL_H__ */
