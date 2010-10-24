@@ -62,7 +62,7 @@ extern int	ni_rtnl_dump(struct ni_handle *nih, int type,
 			ni_rtnl_callback_t *junk_cb,
 			ni_rtnl_callback_t *filter_cb,
 			void *user_data);
-extern int	ni_rtnl_dump_store(struct ni_handle *nih, int type,
+extern int	ni_rtnl_dump_store(struct ni_handle *nih, int af, int type,
 			struct ni_nlmsg_list *list);
 
 extern void	ni_nlmsg_list_init(struct ni_nlmsg_list *);

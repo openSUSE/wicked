@@ -334,12 +334,12 @@ __ni_rtnl_store_nlmsg(const struct sockaddr_nl *nla,
 }
 
 int
-ni_rtnl_dump_store(ni_handle_t *nih, int type,
+ni_rtnl_dump_store(ni_handle_t *nih, int af, int type,
 			struct ni_nlmsg_list *list)
 {
 	int err;
 
-	err = rtnl_wilddump_request(&nih->rth, AF_UNSPEC, type);
+	err = rtnl_wilddump_request(&nih->rth, af, type);
 	if (err < 0) {
 		perror("cannot send RTNL dump request");
 		return -1;

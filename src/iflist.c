@@ -56,9 +56,9 @@ __ni_system_refresh_all(ni_handle_t *nih)
 	ni_nlmsg_list_init(&addr_info);
 	ni_nlmsg_list_init(&route_info);
 
-	if (ni_rtnl_dump_store(nih, RTM_GETLINK, &link_info) < 0
-	 || ni_rtnl_dump_store(nih, RTM_GETADDR, &addr_info) < 0
-	 || ni_rtnl_dump_store(nih, RTM_GETROUTE, &route_info) < 0)
+	if (ni_rtnl_dump_store(nih, AF_UNSPEC, RTM_GETLINK, &link_info) < 0
+	 || ni_rtnl_dump_store(nih, AF_UNSPEC, RTM_GETADDR, &addr_info) < 0
+	 || ni_rtnl_dump_store(nih, AF_UNSPEC, RTM_GETROUTE, &route_info) < 0)
 		goto failed;
 
 	/* Find tail of iflist */
@@ -185,9 +185,9 @@ __ni_system_refresh_interface(ni_handle_t *nih, ni_interface_t *ifp)
 	ni_nlmsg_list_init(&addr_info);
 	ni_nlmsg_list_init(&route_info);
 
-	if (ni_rtnl_dump_store(nih, RTM_GETLINK, &link_info) < 0
-	 || ni_rtnl_dump_store(nih, RTM_GETADDR, &addr_info) < 0
-	 || ni_rtnl_dump_store(nih, RTM_GETROUTE, &route_info) < 0)
+	if (ni_rtnl_dump_store(nih, AF_UNSPEC, RTM_GETLINK, &link_info) < 0
+	 || ni_rtnl_dump_store(nih, AF_UNSPEC, RTM_GETADDR, &addr_info) < 0
+	 || ni_rtnl_dump_store(nih, AF_UNSPEC, RTM_GETROUTE, &route_info) < 0)
 		goto failed;
 
 	for (entry = link_info.head; entry; entry = entry->next) {
@@ -641,6 +641,10 @@ __ni_discover_addrconf(ni_handle_t *nih, ni_interface_t *ifp)
 			break;
 		}
 	}
+
+	ni_debug_ifconfig("%s: addrconf ipv4=%s ipv6=%s", ifp->name,
+			ni_addrconf_type_to_name(ifp->ipv4.config),
+			ni_addrconf_type_to_name(ifp->ipv6.config));
 
 	for (acm = ni_addrconf_list_first(&pos); acm; acm = ni_addrconf_list_next(&pos)) {
 		if (!acm->test)
