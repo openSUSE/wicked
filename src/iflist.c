@@ -38,27 +38,151 @@ static int	__ni_discover_bridge(ni_interface_t *);
 static int	__ni_discover_bond(ni_interface_t *);
 static int	__ni_discover_addrconf(ni_handle_t *, ni_interface_t *);
 
+struct ni_rtnl_info {
+	struct ni_nlmsg_list	nlmsg_list;
+	struct ni_nlmsg *	entry;
+};
+
+struct ni_rtnl_query {
+	struct ni_rtnl_info	link_info;
+	struct ni_rtnl_info	addr_info;
+	struct ni_rtnl_info	route_info;
+	int			ifindex;
+};
+
+/*
+ * Query netlink for all relevant information
+ */
+static inline int
+__ni_rtnl_query(ni_handle_t *nih, struct ni_rtnl_info *qr, int af, int type)
+{
+	ni_nlmsg_list_init(&qr->nlmsg_list);
+	if (ni_rtnl_dump_store(nih, af, type, &qr->nlmsg_list) < 0)
+		return -1;
+
+	qr->entry = qr->nlmsg_list.head;
+	return 0;
+}
+
+static inline struct nlmsghdr *
+__ni_rtnl_info_next(struct ni_rtnl_info *qr)
+{
+	struct ni_nlmsg *entry;
+
+	if ((entry = qr->entry) != NULL) {
+		qr->entry = entry->next;
+		return &entry->h;
+	}
+
+	return NULL;
+}
+
+static int
+ni_rtnl_query(ni_handle_t *nih, struct ni_rtnl_query *q, int ifindex)
+{
+	memset(q, 0, sizeof(*q));
+	q->ifindex = ifindex;
+
+	if (__ni_rtnl_query(nih, &q->link_info, AF_UNSPEC, RTM_GETLINK) < 0
+	 || __ni_rtnl_query(nih, &q->addr_info, AF_UNSPEC, RTM_GETADDR) < 0
+	 || __ni_rtnl_query(nih, &q->route_info, AF_UNSPEC, RTM_GETROUTE) < 0) {
+		ni_nlmsg_list_destroy(&q->link_info.nlmsg_list);
+		ni_nlmsg_list_destroy(&q->addr_info.nlmsg_list);
+		ni_nlmsg_list_destroy(&q->route_info.nlmsg_list);
+		return -1;
+	}
+
+	return 0;
+}
+
+static void
+ni_rtnl_query_destroy(struct ni_rtnl_query *q)
+{
+	ni_nlmsg_list_destroy(&q->link_info.nlmsg_list);
+	ni_nlmsg_list_destroy(&q->addr_info.nlmsg_list);
+	ni_nlmsg_list_destroy(&q->route_info.nlmsg_list);
+}
+
+static inline struct ifinfomsg *
+ni_rtnl_query_next_link_info(struct ni_rtnl_query *q, struct nlmsghdr **hp)
+{
+	struct nlmsghdr *h;
+
+	while ((h = __ni_rtnl_info_next(&q->link_info)) != NULL) {
+		struct ifinfomsg *ifi;
+
+		if ((ifi = ni_rtnl_ifinfomsg(h, RTM_NEWLINK)) != NULL) {
+			if (q->ifindex < 0 || q->ifindex == ifi->ifi_index) {
+				*hp = h;
+				return ifi;
+			}
+		}
+	}
+
+	return NULL;
+}
+
+static inline struct ifaddrmsg *
+ni_rtnl_query_next_addr_info(struct ni_rtnl_query *q, struct nlmsghdr **hp)
+{
+	struct nlmsghdr *h;
+
+	while ((h = __ni_rtnl_info_next(&q->addr_info)) != NULL) {
+		struct ifaddrmsg *ifa;
+
+		if ((ifa = ni_rtnl_ifaddrmsg(h, RTM_NEWADDR)) != NULL) {
+			if (q->ifindex < 0 || q->ifindex == ifa->ifa_index) {
+				*hp = h;
+				return ifa;
+			}
+		}
+	}
+	return NULL;
+}
+
+static inline struct rtmsg *
+ni_rtnl_query_next_route_info(struct ni_rtnl_query *q, struct nlmsghdr **hp, int *oif_idxp)
+{
+	struct nlmsghdr *h;
+
+	while ((h = __ni_rtnl_info_next(&q->route_info)) != NULL) {
+		int oif_index = -1;
+		struct rtattr *rta;
+		struct rtmsg *rtm;
+
+		if (!(rtm = ni_rtnl_rtmsg(h, RTM_NEWROUTE)))
+			continue;
+
+		rta = __ni_rta_find(RTM_RTA(rtm), RTM_PAYLOAD(h), RTA_OIF);
+		if (rta != NULL)
+			__ni_rta_get_uint((unsigned int *) &oif_index, rta);
+
+		if (q->ifindex >= 0 && oif_index != q->ifindex)
+			continue;
+
+		if (oif_idxp)
+			*oif_idxp = oif_index;
+		*hp = h;
+		return rtm;
+	}
+	return NULL;
+}
+
 /*
  * Refresh all interfaces
  */
 int
 __ni_system_refresh_all(ni_handle_t *nih)
 {
+	struct ni_rtnl_query query;
+	struct nlmsghdr *h;
 	ni_interface_t **tail, *ifp;
-	struct ni_nlmsg_list link_info, addr_info, route_info;
-	struct ni_nlmsg *entry;
 	unsigned int seqno;
 	int res = -1;
 
 	seqno = ++(nih->seqno);
 
-	ni_nlmsg_list_init(&link_info);
-	ni_nlmsg_list_init(&addr_info);
-	ni_nlmsg_list_init(&route_info);
-
-	if (ni_rtnl_dump_store(nih, AF_UNSPEC, RTM_GETLINK, &link_info) < 0
-	 || ni_rtnl_dump_store(nih, AF_UNSPEC, RTM_GETADDR, &addr_info) < 0
-	 || ni_rtnl_dump_store(nih, AF_UNSPEC, RTM_GETROUTE, &route_info) < 0)
+	if (ni_rtnl_query(nih, &query, -1) < 0)
 		goto failed;
 
 	/* Find tail of iflist */
@@ -66,14 +190,13 @@ __ni_system_refresh_all(ni_handle_t *nih)
 	while ((ifp = *tail) != NULL)
 		tail = &ifp->next;
 
-	for (entry = link_info.head; entry; entry = entry->next) {
-		struct nlmsghdr *h = &entry->h;
+	while (1) {
 		struct ifinfomsg *ifi;
 		struct rtattr *rta;
 		char *ifname = NULL;
 
-		if (!(ifi = ni_rtnl_ifinfomsg(h, RTM_NEWLINK)))
-			continue;
+		if (!(ifi = ni_rtnl_query_next_link_info(&query, &h)))
+			break;
 
 		if ((rta = __ni_rta_find(IFLA_RTA(ifi), IFLA_PAYLOAD(h), IFLA_IFNAME)) == NULL) {
 			warn("RTM_NEWLINK message without IFNAME");
@@ -109,12 +232,11 @@ __ni_system_refresh_all(ni_handle_t *nih)
 		}
 	}
 
-	for (entry = addr_info.head; entry; entry = entry->next) {
-		struct nlmsghdr *h = &entry->h;
+	while (1) {
 		struct ifaddrmsg *ifa;
 
-		if (!(ifa = ni_rtnl_ifaddrmsg(h, RTM_NEWADDR)))
-			continue;
+		if (!(ifa = ni_rtnl_query_next_addr_info(&query, &h)))
+			break;
 
 		if ((ifp = ni_interface_by_index(nih, ifa->ifa_index)) == NULL)
 			continue;
@@ -123,19 +245,14 @@ __ni_system_refresh_all(ni_handle_t *nih)
 			error("Problem parsing RTM_NEWADDR message for %s", ifp->name);
 	}
 
-	for (entry = route_info.head; entry; entry = entry->next) {
-		struct nlmsghdr *h = &entry->h;
-		struct rtattr *rta;
+	while (1) {
 		struct rtmsg *rtm;
+		int oif_index;
 
-		if (!(rtm = ni_rtnl_rtmsg(h, RTM_NEWROUTE)))
-			continue;
+		if (!(rtm = ni_rtnl_query_next_route_info(&query, &h, &oif_index)))
+			break;
 
-		rta = __ni_rta_find(RTM_RTA(rtm), RTM_PAYLOAD(h), RTA_OIF);
-		if (rta != NULL) {
-			unsigned int oif_index;
-
-			__ni_rta_get_uint(&oif_index, rta);
+		if (oif_index >= 0) {
 			ifp = ni_interface_by_index(nih, oif_index);
 			if (ifp == NULL) {
 				error("route specifies OIF=%u; not found!", oif_index);
@@ -163,9 +280,7 @@ __ni_system_refresh_all(ni_handle_t *nih)
 	res = 0;
 
 failed:
-	ni_nlmsg_list_destroy(&link_info);
-	ni_nlmsg_list_destroy(&addr_info);
-	ni_nlmsg_list_destroy(&route_info);
+	ni_rtnl_query_destroy(&query);
 	return res;
 }
 
@@ -175,31 +290,20 @@ failed:
 int
 __ni_system_refresh_interface(ni_handle_t *nih, ni_interface_t *ifp)
 {
-	struct ni_nlmsg_list link_info, addr_info, route_info;
-	struct ni_nlmsg *entry;
-	int	res = -1;
+	struct ni_rtnl_query query;
+	struct nlmsghdr *h;
+	int res = -1;
 
 	nih->seqno++;
 
-	ni_nlmsg_list_init(&link_info);
-	ni_nlmsg_list_init(&addr_info);
-	ni_nlmsg_list_init(&route_info);
-
-	if (ni_rtnl_dump_store(nih, AF_UNSPEC, RTM_GETLINK, &link_info) < 0
-	 || ni_rtnl_dump_store(nih, AF_UNSPEC, RTM_GETADDR, &addr_info) < 0
-	 || ni_rtnl_dump_store(nih, AF_UNSPEC, RTM_GETROUTE, &route_info) < 0)
+	if (ni_rtnl_query(nih, &query, ifp->ifindex) < 0)
 		goto failed;
 
-	for (entry = link_info.head; entry; entry = entry->next) {
-		struct nlmsghdr *h = &entry->h;
+	while (1) {
 		struct ifinfomsg *ifi;
 
-		if (!(ifi = ni_rtnl_ifinfomsg(h, RTM_NEWLINK)))
-			continue;
-
-		/* Only refresh the interface we're interested in. */
-		if (ifp->ifindex != ifi->ifi_index)
-			continue;
+		if (!(ifi = ni_rtnl_query_next_link_info(&query, &h)))
+			break;
 
 		/* Clear out addresses and routes */
 		__ni_interface_clear_addresses(ifp);
@@ -216,36 +320,21 @@ __ni_system_refresh_interface(ni_handle_t *nih, ni_interface_t *ifp)
 		ni_string_dup(&ifp->vlan->interface_name, "unknown");
 	}
 
-	for (entry = addr_info.head; entry; entry = entry->next) {
-		struct nlmsghdr *h = &entry->h;
+	while (1) {
 		struct ifaddrmsg *ifa;
 
-		if (!(ifa = ni_rtnl_ifaddrmsg(h, RTM_NEWADDR)))
-			continue;
-
-		if (ifa->ifa_index != ifp->ifindex)
-			continue;
+		if (!(ifa = ni_rtnl_query_next_addr_info(&query, &h)))
+			break;
 
 		if (__ni_interface_process_newaddr(ifp, h, ifa, nih) < 0)
 			error("Problem parsing RTM_NEWADDR message for %s", ifp->name);
 	}
 
-	for (entry = route_info.head; entry; entry = entry->next) {
-		struct nlmsghdr *h = &entry->h;
-		unsigned int oif_index;
-		struct rtattr *rta;
+	while (1) {
 		struct rtmsg *rtm;
 
-		if (!(rtm = ni_rtnl_rtmsg(h, RTM_NEWROUTE)))
-			continue;
-
-		rta = __ni_rta_find(RTM_RTA(rtm), RTM_PAYLOAD(h), RTA_OIF);
-		if (rta == NULL)
-			continue;
-		
-		__ni_rta_get_uint(&oif_index, rta);
-		if (oif_index != ifp->ifindex)
-			continue;
+		if (!(rtm = ni_rtnl_query_next_route_info(&query, &h, NULL)))
+			break;
 
 		if (__ni_interface_process_newroute(ifp, h, rtm, NULL) < 0)
 			error("Problem parsing RTM_NEWROUTE message");
@@ -254,9 +343,7 @@ __ni_system_refresh_interface(ni_handle_t *nih, ni_interface_t *ifp)
 	res = 0;
 
 failed:
-	ni_nlmsg_list_destroy(&link_info);
-	ni_nlmsg_list_destroy(&addr_info);
-	ni_nlmsg_list_destroy(&route_info);
+	ni_rtnl_query_destroy(&query);
 	return res;
 }
 
