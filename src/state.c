@@ -25,6 +25,16 @@ static struct ni_ops ni_state_ops = {
 };
 
 ni_handle_t *
+ni_global_state_handle(void)
+{
+	static ni_handle_t *nih = NULL;
+
+	if (nih == NULL)
+		nih = ni_state_open();
+	return nih;
+}
+
+ni_handle_t *
 ni_state_open(void)
 {
 	ni_handle_t *nih;

@@ -517,6 +517,7 @@ extern const char *	ni_debug_facility_to_description(int);
 
 extern void		ni_log_destination_syslog(const char *program);
 
+extern ni_handle_t *	ni_global_state_handle(void);
 extern ni_handle_t *	ni_state_open(void);
 extern ni_handle_t *	ni_netconfig_open(ni_syntax_t *);
 extern ni_handle_t *	ni_indirect_open(const char *);

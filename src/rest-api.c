@@ -476,18 +476,14 @@ __ni_wicked_call_direct(ni_wicked_request_t *req, ni_rest_node_t *root_node)
 static ni_handle_t *
 system_handle(ni_wicked_request_t *req)
 {
-	static ni_handle_t *nih = NULL;
+	ni_handle_t *nih;
 
-	if (nih == NULL) {
-		nih = ni_state_open();
-		if (nih == NULL) {
-			werror(req, "unable to obtain netinfo handle");
-			return NULL;
-		}
+	if (!(nih = ni_global_state_handle())) {
+		werror(req, "unable to obtain netinfo handle");
+		return NULL;
 	}
 	if (ni_refresh(nih) < 0) {
 		werror(req, "cannot refresh interface list!");
-		ni_close(nih);
 		return NULL;
 	}
 
