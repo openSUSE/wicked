@@ -190,6 +190,10 @@ __ni_netcf_xml_to_interface(ni_syntax_t *syntax, ni_handle_t *nih, xml_node_t *i
 			continue;
 		}
 
+		afi->enabled = 1;
+		if (!syntax->strict && xml_node_get_child(node, "disable") != NULL)
+			afi->enabled = 0;
+
 		if ((child = xml_node_get_child(node, "dhcp")) != NULL) {
 			afi->dhcp = ni_addrconf_request_new();
 			afi->config = NI_ADDRCONF_DHCP;
@@ -669,6 +673,9 @@ __ni_netcf_xml_from_address_config(ni_syntax_t *syntax, ni_handle_t *nih,
 		}
 		break;
 	}
+
+	if (!syntax->strict && !afi->enabled)
+		xml_node_new("disabled", protnode);
 
 	for (type = 0; type < __NI_ADDRCONF_MAX; ++type) {
 		ni_addrconf_lease_t *lease = afi->lease[type];
