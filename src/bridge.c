@@ -135,6 +135,8 @@ __ni_bridge_port_destroy(ni_bridge_port_t *port)
 {
 	if (port->name)
 		free(port->name);
+	if (port->device)
+		ni_interface_put(port->device);
 	if (port->status)
 		ni_bridge_port_status_free(port->status);
 	free(port);
@@ -162,7 +164,7 @@ ni_bridge_port_array_copy(ni_bridge_port_array_t *dst, const ni_bridge_port_arra
 static void
 ni_bridge_port_array_destroy(ni_bridge_port_array_t *array)
 {
-	while(array->count > 0)
+	while (array->count > 0)
 		__ni_bridge_port_destroy(array->data[--array->count]);
 	free(array->data);
 	ni_bridge_port_array_init(array);
@@ -476,10 +478,15 @@ ni_bridge_bind(ni_interface_t *parent, ni_handle_t *nih)
 	ni_bridge_t *bridge = parent->bridge;
 	unsigned int i = 0;
 
-	ni_interface_array_destroy(&bridge->port_devs);
 	for (i = 0; i < bridge->ports.count; ++i) {
-		const char *ifname = bridge->ports.data[i]->name;
+		ni_bridge_port_t *port = bridge->ports.data[i];
+		const char *ifname = port->name;
 		ni_interface_t *slave;
+
+		if (port->device) {
+			ni_interface_put(port->device);
+			port->device = NULL;
+		}
 
 		slave = ni_interface_by_name(nih, ifname);
 		if (slave == NULL) {
@@ -487,7 +494,7 @@ ni_bridge_bind(ni_interface_t *parent, ni_handle_t *nih)
 			return -1;
 		}
 
-		ni_interface_array_append(&bridge->port_devs, slave);
+		port->device = ni_interface_get(slave);
 		slave->parent = parent;
 	}
 	return 0;
@@ -521,7 +528,6 @@ void
 ni_bridge_init(ni_bridge_t *bridge)
 {
 	ni_bridge_port_array_destroy(&bridge->ports);
-	ni_interface_array_destroy(&bridge->port_devs);
 
 	if (bridge->status)
 		ni_bridge_status_free(bridge->status);

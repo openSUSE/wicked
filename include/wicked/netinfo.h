@@ -418,6 +418,7 @@ typedef struct ni_bridge_port_status {
 
 typedef struct ni_bridge_port {
 	char *			name;
+	ni_interface_t *	device;
 	ni_bridge_port_config_t config;
 	ni_bridge_port_status_t	*status;
 } ni_bridge_port_t;
@@ -461,9 +462,8 @@ typedef struct ni_bridge_status {
 
 typedef struct ni_bridge {
 	ni_bridge_config_t	config;
-	ni_bridge_status_t	*status;
+	ni_bridge_status_t *	status;
 	ni_bridge_port_array_t	ports;
-	ni_interface_array_t	port_devs;
 } ni_bridge_t;
 
 enum {
