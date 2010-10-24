@@ -766,6 +766,7 @@ static ni_intmap_t	__ni_netcf_bridge_cfg_attr_map[] = {
 	{ "priority",		NI_BRIDGE_PRIORITY	},
 	{ NULL						}
 };
+
 static ni_intmap_t	__ni_netcf_bridge_port_cfg_attr_map[] = {
 	{ "priority",		NI_BRIDGE_PORT_PRIORITY	},
 	{ "path-cost",		NI_BRIDGE_PORT_PATH_COST},
@@ -773,8 +774,7 @@ static ni_intmap_t	__ni_netcf_bridge_port_cfg_attr_map[] = {
 };
 
 static void
-__ni_netcf_xml_from_bridge_config(ni_bridge_t *bridge, const char *attr,
-					xml_node_t *node)
+__ni_netcf_xml_from_bridge_config(ni_bridge_t *bridge, const char *attr, xml_node_t *node)
 {
 	unsigned int opt;
 	char *value = NULL;
@@ -794,6 +794,7 @@ __ni_netcf_xml_from_bridge_port_config(ni_bridge_t *bridge, const char *port,
 {
 	unsigned int opt;
 	char *value = NULL;
+
 	if (ni_parse_int_mapped(attr, __ni_netcf_bridge_port_cfg_attr_map, &opt) < 0)
 		return;
 
@@ -806,8 +807,8 @@ static void
 __ni_netcf_xml_from_bridge_status(ni_bridge_t *bridge, xml_node_t *brnode)
 {
 	xml_node_t *snode;
-	snode = xml_node_new("status", brnode);
 
+	snode = xml_node_new("status", brnode);
 	if (bridge->status->root_id)
 		xml_node_set_cdata(xml_node_new("root-id", snode), bridge->status->root_id);
 	if (bridge->status->bridge_id)
@@ -826,6 +827,7 @@ __ni_netcf_xml_from_bridge(ni_syntax_t *syntax, ni_handle_t *nih,
 	brnode = xml_node_new("bridge", ifnode);
 	__ni_netcf_xml_from_bridge_config(bridge, "stp", brnode);
 	__ni_netcf_xml_from_bridge_config(bridge, "forward-delay", brnode);
+
 	if (!syntax->strict) {
 		__ni_netcf_xml_from_bridge_config(bridge, "ageing-time", brnode);
 		__ni_netcf_xml_from_bridge_config(bridge, "hello-time", brnode);

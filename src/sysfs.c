@@ -303,7 +303,7 @@ ni_sysfs_bridge_get_status(const char *ifname, ni_bridge_status_t **pbs)
 {
 	ni_bridge_status_t *bs;
 
-	if ( *pbs)
+	if (*pbs)
 		ni_bridge_status_free(*pbs);
 
 	*pbs = bs = calloc(1, sizeof(ni_bridge_status_t));
