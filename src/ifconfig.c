@@ -1410,9 +1410,9 @@ __ni_interface_addrconf(ni_handle_t *nih, int family, ni_interface_t *ifp, ni_in
 		ni_addrconf_lease_t *lease;
 		ni_addrconf_request_t *tmp;
 
-		tmp = cur_afi->dhcp;
-		cur_afi->dhcp = cfg_afi->dhcp;
-		cfg_afi->dhcp = tmp;
+		tmp = cur_afi->request[cfg_afi->config];
+		cur_afi->request[cfg_afi->config] = cfg_afi->request[cfg_afi->config];
+		cfg_afi->request[cfg_afi->config] = tmp;
 
 		/* If the extension is already active, no need to start it once
 		 * more. If needed, we could do a restart in this case. */

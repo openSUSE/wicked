@@ -260,12 +260,11 @@ typedef struct ni_afinfo {
 	int			family;
 	int			enabled;
 	int			forwarding;
+
 	int			config;	/* formerly known as bootproto */
 
 	ni_addrconf_lease_t *	lease[__NI_ADDRCONF_MAX];
-
-	/* This is valid if config == NI_ADDRCONF_DHCP */
-	ni_addrconf_request_t *	dhcp;
+	ni_addrconf_request_t *	request[__NI_ADDRCONF_MAX];
 } ni_afinfo_t;
 
 struct ni_interface {

@@ -170,7 +170,7 @@ ni_dhcp_device_reconfigure(ni_dhcp_device_t *dev, const ni_interface_t *ifp)
 	const char *classid;
 	int rediscover = 0;
 
-	if (!(info = ifp->ipv4.dhcp)) {
+	if (!(info = ifp->ipv4.request[NI_ADDRCONF_DHCP])) {
 		ni_error("%s: no DHCP config data given", ifp->name);
 		return -1;
 	}

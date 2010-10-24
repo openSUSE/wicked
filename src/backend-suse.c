@@ -244,11 +244,11 @@ __ni_suse_read_interface(ni_handle_t *nih, const char *filename, const char *ifn
 
 	if (ifp->ipv4.config == NI_ADDRCONF_DHCP) {
 		/* Read default DHCP config */
-		if (!(ifp->ipv4.dhcp = __ni_suse_read_dhcp(nih)))
+		if (!(ifp->ipv4.request[NI_ADDRCONF_DHCP] = __ni_suse_read_dhcp(nih)))
 			goto error;
 
 		/* Now check whether the ifcfg file overwrites any of these */
-		if (__ni_suse_sysconfig2dhcp(ifp->ipv4.dhcp, sc) < 0)
+		if (__ni_suse_sysconfig2dhcp(ifp->ipv4.request[NI_ADDRCONF_DHCP], sc) < 0)
 			goto error;
 	}
 
@@ -823,7 +823,7 @@ __ni_suse_put_interfaces(ni_syntax_t *syntax, ni_handle_t *nih, FILE *outfile)
 		if (ifp->ipv4.config == NI_ADDRCONF_DHCP) {
 			if (!dhcp)
 				dhcp = __ni_suse_read_dhcp(nih);
-			if (__ni_suse_dhcp2sysconfig(ifp->ipv4.dhcp, dhcp, sc) < 0) {
+			if (__ni_suse_dhcp2sysconfig(ifp->ipv4.request[NI_ADDRCONF_DHCP], dhcp, sc) < 0) {
 				ni_sysconfig_destroy(sc);
 				goto error;
 			}

@@ -798,9 +798,9 @@ __ni_afinfo_destroy(ni_afinfo_t *afi)
 {
 	unsigned int i;
 
-	if (afi->dhcp)
-		ni_addrconf_request_free(afi->dhcp);
 	for (i = 0; i < __NI_ADDRCONF_MAX; ++i) {
+		if (afi->request[i])
+			ni_addrconf_request_free(afi->request[i]);
 		if (afi->lease[i])
 			ni_addrconf_lease_free(afi->lease[i]);
 	}

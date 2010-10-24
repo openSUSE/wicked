@@ -195,9 +195,9 @@ __ni_netcf_xml_to_interface(ni_syntax_t *syntax, ni_handle_t *nih, xml_node_t *i
 			afi->enabled = 0;
 
 		if ((child = xml_node_get_child(node, "dhcp")) != NULL) {
-			afi->dhcp = ni_addrconf_request_new();
+			afi->request[NI_ADDRCONF_DHCP] = ni_addrconf_request_new();
 			afi->config = NI_ADDRCONF_DHCP;
-			if (__ni_netcf_xml_to_dhcp(syntax, nih, afi->dhcp, child) < 0) {
+			if (__ni_netcf_xml_to_dhcp(syntax, nih, afi->request[NI_ADDRCONF_DHCP], child) < 0) {
 				ni_error("error parsing dhcp information");
 				return NULL;
 			}
@@ -663,7 +663,7 @@ __ni_netcf_xml_from_address_config(ni_syntax_t *syntax, ni_handle_t *nih,
 			protnode = __ni_netcf_make_protocol_node(ifnode, afi->family);
 
 		if (afi->config == NI_ADDRCONF_DHCP) {
-			__ni_netcf_xml_from_dhcp(syntax, nih, afi->dhcp, protnode);
+			__ni_netcf_xml_from_dhcp(syntax, nih, afi->request[NI_ADDRCONF_DHCP], protnode);
 		} else {
 			/* Create node with no attrs or children */
 			acname = ni_addrconf_type_to_name(afi->config);
