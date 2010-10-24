@@ -545,11 +545,14 @@ __ni_route_new(ni_route_t **list, unsigned int prefixlen,
 		const struct sockaddr_storage *dest,
 		const struct sockaddr_storage *gw)
 {
+	static const struct sockaddr_storage null_addr;
 	ni_route_t *rp;
 	int af;
 
-	if (!dest || !gw)
-		return NULL;
+	if (!dest)
+		dest = &null_addr;
+	if (!gw)
+		gw = &null_addr;
 
 	af = dest->ss_family;
 	if (gw->ss_family == AF_UNSPEC) {
