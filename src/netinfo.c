@@ -420,7 +420,6 @@ static struct __ni_arptype_iftype_map {
       {	NI_IFTYPE_SLIP,		ARPHRD_CSLIP	},
       {	NI_IFTYPE_SIT,		ARPHRD_SIT	},
       {	NI_IFTYPE_GRE,		ARPHRD_IPGRE	},
-      {	NI_IFTYPE_ISDN,		ARPHRD_NONE	},
       {	NI_IFTYPE_TUNNEL,	ARPHRD_TUNNEL	},
       {	NI_IFTYPE_TUNNEL6,	ARPHRD_TUNNEL6	},
       {	NI_IFTYPE_TUN,		ARPHRD_ETHER	},
