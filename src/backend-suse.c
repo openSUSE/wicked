@@ -658,7 +658,7 @@ try_vlan(ni_interface_t *ifp, ni_sysconfig_t *sc)
 static ni_addrconf_request_t *
 __ni_suse_read_dhcp(ni_handle_t *nih)
 {
-	ni_addrconf_request_t *dhcp = ni_addrconf_request_new();
+	ni_addrconf_request_t *dhcp = ni_addrconf_request_new(NI_ADDRCONF_DHCP);
 	ni_sysconfig_t *sc;
 
 	sc = ni_sysconfig_read("/etc/sysconfig/network/dhcp");

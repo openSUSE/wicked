@@ -1081,13 +1081,13 @@ __ni_interface_clear_bonding(ni_interface_t *ifp)
  * dhcp client info
  */
 ni_addrconf_request_t *
-ni_addrconf_request_new(void)
+ni_addrconf_request_new(unsigned int type)
 {
 	ni_addrconf_request_t *dhcp;
 
 	dhcp = calloc(1, sizeof(*dhcp));
 
-	/* Set defaults */
+	dhcp->type = type;
 	dhcp->acquire_timeout = 0;	/* means infinite */
 	dhcp->reuse_unexpired = 1;
 
