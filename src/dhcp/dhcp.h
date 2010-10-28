@@ -31,7 +31,6 @@ enum {
 typedef struct ni_capture ni_capture_t;
 typedef struct ni_dhcp_message ni_dhcp_message_t;
 typedef struct ni_dhcp_config ni_dhcp_config_t;
-typedef struct ni_dhcp_config options_t;
 
 typedef struct ni_dhcp_device {
 	struct ni_dhcp_device *next;
