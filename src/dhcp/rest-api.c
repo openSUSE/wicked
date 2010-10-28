@@ -218,12 +218,27 @@ dhcp_device_get(const char *ifname, ni_wicked_request_t *req)
  * The XML blob uses the standard interface XML description.
  */
 static int
+dhcp_argument_as_event(const xml_node_t *node)
+{
+	const char *attrval;
+
+	if (node && node->name == NULL)
+		node = node->children;
+	if (!node || !node->name || strcmp(node->name, "event"))
+		return -1;
+	if ((attrval = xml_node_get_attr(node, "type")) == NULL)
+		return -1;
+
+	return ni_event_name_to_type(attrval);
+}
+
+static int
 dhcp_interface_put(const char *ifname, ni_wicked_request_t *req)
 {
 	ni_interface_t *ifp = NULL;
 	ni_handle_t *cnih = NULL;
 	ni_dhcp_device_t *dev = NULL;
-	int rv = -1;
+	int rv = -1, event;
 
 	if (ifname == NULL) {
 		werror(req, "no interface name given");
@@ -235,6 +250,32 @@ dhcp_interface_put(const char *ifname, ni_wicked_request_t *req)
 	if (cnih == NULL) {
 		werror(req, "unable to create netinfo dummy handle");
 		goto failed;
+	}
+
+	/* Check if this is an event */
+	if ((event = dhcp_argument_as_event(req->xml_in)) >= 0) {
+		ni_debug_dhcp("dhcp: process %s event on %s",
+				ni_event_type_to_name(event), ifname);
+		dev = ni_dhcp_device_find(ifname);
+		if (!dev)
+			goto failed;
+
+		switch (event) {
+		case NI_EVENT_LINK_DELETE:
+			ni_dhcp_device_stop(dev);
+			break;
+		case NI_EVENT_LINK_UP:
+			/* If the retrans timer is set, change it to the current time
+			 * to trigger an immediate retransmit */
+			if (timerisset(&dev->retrans.deadline)) {
+				gettimeofday(&dev->retrans.deadline, NULL);
+				dev->retrans.deadline.tv_sec += 2; /* settle delay */
+			}
+			break;
+		case NI_EVENT_LINK_DOWN:
+			break;
+		}
+		goto success;
 	}
 
 	if (__ni_syntax_xml_to_all(ni_default_xml_syntax(), cnih, req->xml_in) < 0) {
@@ -253,13 +294,14 @@ dhcp_interface_put(const char *ifname, ni_wicked_request_t *req)
 	if (ifp->flags & IFF_UP) {
 		ni_debug_dhcp("%s: received request to acquire lease", ifp->name);
 
-		dev = ni_dhcp_device_find(ifp->name);
 		if (dev == NULL)
 			dev = ni_dhcp_device_new(ifp->name, ifp->type);
-
 		ni_dhcp_device_reconfigure(dev, ifp);
 	} else {
 		ni_debug_dhcp("%s: received request to release lease", ifp->name);
+
+		if (dev == NULL)
+			goto failed;
 		ni_dhcp_device_stop(dev);
 	}
 
@@ -278,6 +320,7 @@ dhcp_interface_put(const char *ifname, ni_wicked_request_t *req)
 		dev->notify = 1;
 	}
 
+success:
 	rv = 0;
 
 failed:

@@ -98,8 +98,25 @@ __ni_rtevent_read(ni_socket_t *sock)
 static void
 __ni_interface_event(ni_handle_t *nih, ni_interface_t *ifp, ni_event_t ev)
 {
+	unsigned int mode;
+
 	if (ni_global.interface_event)
 		ni_global.interface_event(nih, ifp, ev);
+
+	ni_debug_dhcp("%s(%s, %s)", __FUNCTION__, ifp->name, ni_event_type_to_name(ev));
+	for (mode = 0; mode < __NI_ADDRCONF_MAX; ++mode) {
+		ni_addrconf_t *acm4 = NULL, *acm6;
+
+		if (ni_afinfo_addrconf_test(&ifp->ipv4, mode)
+		 && (acm4 = ni_addrconf_get(mode, AF_INET)) != NULL
+		 && acm4->interface_event)
+			acm4->interface_event(acm4, ifp, ev);
+
+		if (ni_afinfo_addrconf_test(&ifp->ipv6, mode)
+		 && (acm6 = ni_addrconf_get(mode, AF_INET6)) != NULL
+		 && acm6 != acm4 && acm6->interface_event)
+			acm6->interface_event(acm6, ifp, ev);
+	}
 }
 
 int
@@ -261,7 +278,7 @@ ni_server_listen_events(void (*ifevent_handler)(ni_handle_t *, ni_interface_t *,
 	fcntl(rth.fd, F_SETFL, O_NONBLOCK);
 
 	sock = ni_socket_wrap(rth.fd, SOCK_DGRAM);
-	sock->user_data = ni_dummy_open();
+	sock->user_data = ni_global_state_handle();
 	sock->data_ready = __ni_rtevent_read;
 	ni_socket_activate(sock);
 

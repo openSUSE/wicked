@@ -69,7 +69,8 @@ out:
 	ni_wicked_request_destroy(&req);
 	if (tmp_xml)
 		xml_node_free(tmp_xml);
-	ni_close(dummy);
+	if (dummy)
+		ni_close(dummy);
 	return rv;
 }
 
@@ -102,12 +103,30 @@ ni_dhcp_is_valid(const ni_addrconf_t *acm, const ni_addrconf_lease_t *lease)
 	return 1;
 }
 
+static void
+ni_dhcp_interface_event(const ni_addrconf_t *acm, ni_interface_t *ifp, ni_event_t ev)
+{
+	xml_node_t *evnode;
+
+	if (ev != NI_EVENT_LINK_DELETE
+	 && ev != NI_EVENT_LINK_UP
+	 && ev != NI_EVENT_LINK_DOWN)
+		return;
+
+	ni_debug_dhcp("%s(%s, %s)", __FUNCTION__, ifp->name, ni_event_type_to_name(ev));
+	evnode = xml_node_new("event", NULL);
+	xml_node_add_attr(evnode, "type", ni_event_type_to_name(ev));
+	__ni_dhcp_addrconf_do(acm, ifp, evnode);
+	xml_node_free(evnode);
+}
+
 ni_addrconf_t ni_dhcp_addrconf = {
 	.type = NI_ADDRCONF_DHCP,
 	.supported_af = NI_AF_MASK_IPV4,
 
 	.request = ni_dhcp_addrconf_request,
 	.release = ni_dhcp_addrconf_release,
+	.interface_event = ni_dhcp_interface_event,
 	.is_valid = ni_dhcp_is_valid,
 	.xml_from_lease = ni_dhcp_xml_from_lease,
 	.xml_to_lease = ni_dhcp_xml_to_lease,

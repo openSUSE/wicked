@@ -165,7 +165,9 @@ __ni_system_interface_update_lease(ni_handle_t *nih, ni_interface_t *ifp, ni_add
 	ni_address_t *ap;
 	ni_route_t *rp;
 
-	ni_debug_ifconfig("%s: received new lease (state %s)", ifp->name,
+	ni_debug_ifconfig("%s: received %s/%s lease update; state %s", ifp->name,
+			ni_addrconf_type_to_name(lease->type),
+			ni_addrfamily_type_to_name(lease->family),
 			ni_addrconf_state_to_name(lease->state));
 
 	if ((res = __ni_system_refresh_interface(nih, ifp)) < 0)
@@ -175,7 +177,6 @@ __ni_system_interface_update_lease(ni_handle_t *nih, ni_interface_t *ifp, ni_add
 		ni_error("%s: unable to update lease - unknown address family", ifp->name);
 		return -1;
 	}
-	ni_trace("existing lease: %p", afi->lease[lease->type]);
 
 	/* Loop over all addresses and remove those no longer covered by the lease.
 	 * Ignore all addresses covered by other address config mechanisms.
@@ -279,6 +280,7 @@ __ni_system_interface_update_lease(ni_handle_t *nih, ni_interface_t *ifp, ni_add
 	}
 
 	ni_interface_set_lease(nih, ifp, lease);
+
 	return 0;
 }
 
@@ -1448,7 +1450,7 @@ __ni_interface_addrconf(ni_handle_t *nih, int family, ni_interface_t *ifp, ni_in
 		if (ni_afinfo_addrconf_test(cur_afi, mode)) {
 			lease = cur_afi->lease[mode];
 			if (lease && lease->state == NI_ADDRCONF_STATE_GRANTED)
-				return 0;
+				continue;
 		}
 
 		ni_afinfo_addrconf_enable(cur_afi, mode);
@@ -1472,6 +1474,7 @@ __ni_interface_addrconf(ni_handle_t *nih, int family, ni_interface_t *ifp, ni_in
 
 	if (xml)
 		xml_node_free(xml);
+
 	cur_afi->addrconf = cfg_afi->addrconf;
 	return 0;
 

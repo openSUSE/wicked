@@ -402,6 +402,36 @@ ni_arphrd_type_to_name(unsigned int type)
 }
 
 /*
+ * Map event names to type constants and vice versa
+ */
+static ni_intmap_t __event_names[] = {
+	{ "link-create",	NI_EVENT_LINK_CREATE },
+	{ "link-delete",	NI_EVENT_LINK_DELETE },
+	{ "link-up",		NI_EVENT_LINK_UP },
+	{ "link-down",		NI_EVENT_LINK_DOWN },
+	{ "network-up",		NI_EVENT_NETWORK_UP },
+	{ "network-down",	NI_EVENT_NETWORK_DOWN },
+
+	{ NULL }
+};
+
+ni_event_t
+ni_event_name_to_type(const char *name)
+{
+	unsigned int value;
+
+	if (ni_parse_int_mapped(name, __event_names, &value) < 0)
+		return -1;
+	return value;
+}
+
+const char *
+ni_event_type_to_name(ni_event_t type)
+{
+	return ni_format_int_mapped(type, __event_names);
+}
+
+/*
  * Map netinfo interface types to ARPHRD_ and vice versa
  */
 static struct __ni_arptype_iftype_map {
@@ -486,7 +516,13 @@ ni_interface_set_lease(ni_handle_t *nih, ni_interface_t *ifp, ni_addrconf_lease_
 
 	if (afi->lease[lease->type] != NULL)
 		ni_addrconf_lease_free(afi->lease[lease->type]);
-	afi->lease[lease->type] = lease;
+	if (lease->state == NI_ADDRCONF_STATE_GRANTED) {
+		ni_afinfo_addrconf_enable(afi, lease->type);
+		afi->lease[lease->type] = lease;
+	} else {
+		ni_afinfo_addrconf_disable(afi, lease->type);
+		afi->lease[lease->type] = NULL;
+	}
 
 	return 0;
 }
