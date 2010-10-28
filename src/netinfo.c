@@ -485,7 +485,7 @@ ni_interface_set_lease(ni_handle_t *nih, ni_interface_t *ifp, ni_addrconf_lease_
 	}
 
 	if (afi->lease[lease->type] != NULL)
-		free(afi->lease[lease->type]);
+		ni_addrconf_lease_free(afi->lease[lease->type]);
 	afi->lease[lease->type] = lease;
 
 	return 0;
