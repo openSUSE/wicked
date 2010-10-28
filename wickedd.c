@@ -47,6 +47,8 @@ static struct option	options[] = {
 static int		opt_foreground = 0;
 static int		opt_nofork = 0;
 
+static void		wicked_discover_state(void);
+static void		wicked_try_restart_addrconf(ni_interface_t *, ni_afinfo_t *, unsigned int, xml_node_t **);
 static int		wicked_accept_connection(ni_socket_t *, uid_t, gid_t);
 static void		wicked_interface_event(ni_handle_t *, ni_interface_t *, ni_event_t);
 static void		wicked_process_network_restcall(ni_socket_t *);
@@ -120,12 +122,99 @@ main(int argc, char **argv)
 		ni_log_destination_syslog("wickedd");
 	}
 
+	wicked_discover_state();
+
 	while (1) {
 		if (ni_socket_wait(-1) < 0)
 			ni_fatal("ni_socket_wait failed");
 	}
 
 	exit(0);
+}
+
+/*
+ * At startup, discover current configuration.
+ * If we have any live leases, restart address configuration for them.
+ * This allows a daemon restart without losing lease state.
+ */
+void
+wicked_discover_state(void)
+{
+	ni_handle_t *nih;
+	ni_interface_t *ifp;
+
+	nih = ni_global_state_handle();
+	if (nih == NULL)
+		ni_fatal("Unable to get global state handle");
+	if (ni_refresh(nih) < 0)
+		ni_fatal("failed to discover interface state");
+
+	for (ifp = ni_interfaces(nih); ifp; ifp = ifp->next) {
+		xml_node_t *cfg_xml = NULL;
+		unsigned int mode;
+
+		for (mode = 0; mode < __NI_ADDRCONF_MAX; ++mode) {
+			wicked_try_restart_addrconf(ifp, &ifp->ipv4, mode, &cfg_xml);
+			wicked_try_restart_addrconf(ifp, &ifp->ipv6, mode, &cfg_xml);
+		}
+
+		if (cfg_xml)
+			xml_node_free(cfg_xml);
+	}
+}
+
+void
+wicked_try_restart_addrconf(ni_interface_t *ifp, ni_afinfo_t *afi, unsigned int mode, xml_node_t **cfg_xml)
+{
+	ni_addrconf_lease_t *lease;
+	ni_addrconf_t *acm;
+
+	if (!ni_afinfo_addrconf_test(afi, mode))
+		return;
+
+	/* Don't do anything if we already have a lease for this. */
+	if (afi->lease[mode] != NULL)
+		return;
+
+	/* Some addrconf modes do not have a backend (like ipv6 autoconf) */
+	acm = ni_addrconf_get(mode, afi->family);
+	if (acm == NULL)
+		return;
+
+	lease = ni_lease_file_read(ifp->name, mode, afi->family);
+	if (lease == NULL)
+		return;
+
+	/* if lease expired, return and remove stale lease file */
+	if (!ni_addrconf_lease_is_valid(lease)) {
+		ni_debug_wicked("%s: removing stale %s/%s lease file", ifp->name,
+				ni_addrconf_type_to_name(lease->type),
+				ni_addrfamily_type_to_name(lease->family));
+		ni_lease_file_remove(ifp->name, mode, afi->family);
+		ni_addrconf_lease_free(lease);
+		return;
+	}
+
+	/* Do not install the lease; let the addrconf mechanism fill in all
+	 * the details. */
+	ni_addrconf_lease_free(lease);
+
+	/* FIXME: we want to recover the original addrconf request data here */
+
+	if (*cfg_xml == NULL)
+		*cfg_xml = ni_syntax_xml_from_interface(ni_default_xml_syntax(),
+				ni_global_state_handle(), ifp);
+
+	if (ni_addrconf_acquire_lease(acm, ifp, *cfg_xml) < 0) {
+		ni_error("%s: unable to reacquire lease %s/%s", ifp->name,
+				ni_addrconf_type_to_name(lease->type),
+				ni_addrfamily_type_to_name(lease->family));
+		return;
+	}
+
+	ni_debug_wicked("%s: initiated recovery of %s/%s lease", ifp->name,
+				ni_addrconf_type_to_name(lease->type),
+				ni_addrfamily_type_to_name(lease->family));
 }
 
 /*

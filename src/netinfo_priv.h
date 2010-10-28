@@ -110,9 +110,6 @@ extern ni_address_t *	__ni_address_list_clone(const ni_address_t *);
 
 extern ni_address_t *	__ni_lease_owns_address(const ni_addrconf_lease_t *, const ni_address_t *);
 extern ni_route_t *	__ni_lease_owns_route(const ni_addrconf_lease_t *, const ni_route_t *);
-extern int		ni_lease_file_write(const char *, ni_addrconf_lease_t *);
-extern ni_addrconf_lease_t *ni_lease_file_read(const char *, int, int);
-extern void		ni_lease_file_remove(const char *, int, int);
 
 /*
  * Helper function to do strcmp with NULL pointer check
