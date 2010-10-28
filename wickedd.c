@@ -208,7 +208,13 @@ wicked_try_restart_addrconf(ni_interface_t *ifp, ni_afinfo_t *afi, unsigned int 
 	 * the details. */
 	ni_addrconf_lease_free(lease);
 
-	/* FIXME: we want to recover the original addrconf request data here */
+	/* Recover the original addrconf request data here */
+	afi->request[mode] = ni_addrconf_request_file_read(ifp->name, mode, afi->family);
+	if (afi->request[mode] == NULL) {
+		ni_error("%s: seem to have valid lease, but lost original request", ifp->name);
+		return;
+	}
+	afi->request[mode]->reuse_unexpired = 1;
 
 	if (*cfg_xml == NULL)
 		*cfg_xml = ni_syntax_xml_from_interface(ni_default_xml_syntax(),
