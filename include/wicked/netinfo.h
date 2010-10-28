@@ -568,6 +568,8 @@ extern xml_document_t *	ni_syntax_xml_from_all(ni_syntax_t *, ni_handle_t *);
 extern int		ni_syntax_xml_to_all(ni_syntax_t *, ni_handle_t *, const xml_document_t *);
 extern xml_node_t *	ni_syntax_xml_from_lease(ni_syntax_t *, ni_addrconf_lease_t *, xml_node_t *);
 extern ni_addrconf_lease_t *ni_syntax_xml_to_lease(ni_syntax_t *, const xml_node_t *);
+extern xml_node_t *	ni_syntax_xml_from_addrconf_request(ni_syntax_t *, ni_addrconf_request_t *, xml_node_t *);
+extern ni_addrconf_request_t *ni_syntax_xml_to_addrconf_request(ni_syntax_t *, const xml_node_t *);
 extern void		ni_syntax_set_root_directory(ni_syntax_t *, const char *);
 extern const char *	ni_syntax_base_path(ni_syntax_t *);
 extern const char *	ni_syntax_build_path(ni_syntax_t *, const char *, ...);

@@ -301,13 +301,36 @@ ni_syntax_xml_to_interface(ni_syntax_t *syntax, ni_handle_t *nih, xml_node_t *xm
 }
 
 /*
+ * Produce XML for a single addrconf request and vice versa.
+ */
+xml_node_t *
+ni_syntax_xml_from_addrconf_request(ni_syntax_t *syntax, ni_addrconf_request_t *request, xml_node_t *parent)
+{
+	if (!syntax->xml_from_request) {
+		ni_error("%s: syntax not capable of representing addrconf request as XML", __FUNCTION__);
+		return NULL;
+	}
+	return syntax->xml_from_request(syntax, request, parent);
+}
+
+ni_addrconf_request_t *
+ni_syntax_xml_to_addrconf_request(ni_syntax_t *syntax, const xml_node_t *xmlnode)
+{
+	if (!syntax->xml_to_request) {
+		ni_error("%s: syntax not capable of creating request from xml", __FUNCTION__);
+		return NULL;
+	}
+	return syntax->xml_to_request(syntax, xmlnode);
+}
+
+/*
  * Produce XML for a single lease and vice versa.
  */
 xml_node_t *
 ni_syntax_xml_from_lease(ni_syntax_t *syntax, ni_addrconf_lease_t *lease, xml_node_t *parent)
 {
 	if (!syntax->xml_from_lease) {
-		error("%s: syntax not capable of creating interface from xml", __FUNCTION__);
+		ni_error("%s: syntax not capable of representing addrconf lease as XML", __FUNCTION__);
 		return NULL;
 	}
 	return syntax->xml_from_lease(syntax, lease, parent);
