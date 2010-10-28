@@ -522,9 +522,10 @@ ni_dhcp_process_ack(ni_dhcp_device_t *dev, ni_addrconf_lease_t *lease)
 		lease->dhcp.renewal_time = lease->dhcp.lease_time / 2;
 	}
 
-	ni_trace("Debug code active");
-	if (lease->dhcp.renewal_time > 120)
-		lease->dhcp.renewal_time = 120;
+	if (lease->dhcp.renewal_time > dev->config->max_lease_time) {
+		ni_debug_dhcp("clamping lease time to %u sec", dev->config->max_lease_time);
+		lease->dhcp.renewal_time = dev->config->max_lease_time;
+	}
 
 	if (dev->config->flags & DHCP_DO_ARP) {
 		/* should we do this on renew as well? */

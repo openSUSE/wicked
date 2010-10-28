@@ -114,6 +114,7 @@ struct ni_dhcp_config {
 	unsigned int	initial_discovery_timeout;
 	unsigned int	request_timeout;
 	unsigned int	resend_timeout;
+	unsigned int	max_lease_time;
 };
 
 extern ni_dhcp_device_t *ni_dhcp_active;
@@ -176,6 +177,7 @@ extern const char *	ni_dhcp_config_vendor_class(void);
 extern int		ni_dhcp_config_ignore_server(struct in_addr);
 extern int		ni_dhcp_config_have_server_preference(void);
 extern int		ni_dhcp_config_server_preference(struct in_addr);
+extern unsigned int	ni_dhcp_config_max_lease_time(void);
 extern void		ni_dhcp_config_free(ni_dhcp_config_t *);
 
 #endif /* __WICKED_DHCP_PRIVATE_H__ */

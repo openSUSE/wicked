@@ -200,6 +200,12 @@ ni_dhcp_device_reconfigure(ni_dhcp_device_t *dev, const ni_interface_t *ifp)
 	config->request_timeout = info->acquire_timeout?: NI_DHCP_REQUEST_TIMEOUT;
 	config->initial_discovery_timeout = NI_DHCP_DISCOVERY_TIMEOUT;
 
+	config->max_lease_time = ni_dhcp_config_max_lease_time();
+	if (config->max_lease_time == 0)
+		config->max_lease_time = ~0U;
+	if (info->dhcp.lease_time && info->dhcp.lease_time < config->max_lease_time)
+		config->max_lease_time = info->dhcp.lease_time;
+
 	if (info->dhcp.hostname)
 		strncpy(config->hostname, info->dhcp.hostname, sizeof(config->hostname) - 1);
 
@@ -509,4 +515,10 @@ ni_dhcp_config_server_preference(struct in_addr addr)
 			return pref->weight;
 	}
 	return 0;
+}
+
+unsigned int
+ni_dhcp_config_max_lease_time(void)
+{
+	return ni_global.config->addrconf.dhcp.lease_time;
 }
