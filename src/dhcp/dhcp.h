@@ -74,8 +74,6 @@ typedef struct ni_dhcp_device {
 	   unsigned int	nprobes;
 	   unsigned int	nclaims;
 	} arp;
-
-	char *		lease_filename;
 } ni_dhcp_device_t;
 
 #define NI_DHCP_RESEND_TIMEOUT_INIT	3 /* seconds */
