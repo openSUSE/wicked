@@ -831,7 +831,7 @@ int
 __ni_discover_addrconf(ni_handle_t *nih, ni_interface_t *ifp)
 {
 	const ni_addrconf_t *acm;
-	const void *pos;
+	unsigned int pos;
 	xml_node_t *xml = NULL;
 	unsigned int i;
 

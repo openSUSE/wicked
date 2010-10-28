@@ -657,72 +657,87 @@ ni_route_equal(const ni_route_t *r1, const ni_route_t *r2)
 /*
  * Address configuration mechanisms
  */
-struct ni_addrconfig_list_entry {
-	struct ni_addrconfig_list_entry *next;
-	ni_addrconf_t		mech;
-};
-
-static struct ni_addrconfig_list_entry *ni_addrconf_list;
+static ni_addrconf_t *		ni_addrconf_table_ipv4[__NI_ADDRCONF_MAX];
+static ni_addrconf_t *		ni_addrconf_table_ipv6[__NI_ADDRCONF_MAX];
 
 void
 ni_addrconf_register(ni_addrconf_t *acm)
 {
-	struct ni_addrconfig_list_entry *ace, **pos;
+	if (acm->type >= __NI_ADDRCONF_MAX)
+		return;
 
-	for (pos = &ni_addrconf_list; (ace = *pos); pos = &ace->next)
-		;
+	if ((acm->supported_af & NI_AF_MASK_IPV4)
+	 && !ni_addrconf_table_ipv4[acm->type])
+		ni_addrconf_table_ipv4[acm->type] = acm;
+	if ((acm->supported_af & NI_AF_MASK_IPV6)
+	 && !ni_addrconf_table_ipv6[acm->type])
+		ni_addrconf_table_ipv6[acm->type] = acm;
+}
 
-	ace = calloc(1, sizeof(*ace));
-	ace->mech = *acm;
-	*pos = ace;
+static inline ni_addrconf_t *
+__ni_addrconf_get(unsigned int type, unsigned int af)
+{
+	ni_addrconf_t *mech;
+
+	if (type >= __NI_ADDRCONF_MAX)
+		return NULL;
+
+	switch (af) {
+	case AF_UNSPEC:
+		if ((mech = ni_addrconf_table_ipv4[type]) == NULL)
+			mech = ni_addrconf_table_ipv6[type];
+		break;
+	case AF_INET:
+		mech = ni_addrconf_table_ipv4[type];
+		break;
+	case AF_INET6:
+		mech = ni_addrconf_table_ipv6[type];
+		break;
+	default:
+		return NULL;
+	}
+	return mech;
 }
 
 ni_addrconf_t *
 ni_addrconf_get(int type, int af)
 {
-	struct ni_addrconfig_list_entry *ace;
-	unsigned int mask;
-
-	switch (af) {
-	case AF_UNSPEC:
-		mask = ~0;
-		break;
-	case AF_INET:
-		mask = NI_AF_MASK_IPV4;
-		break;
-	case AF_INET6:
-		mask = NI_AF_MASK_IPV6;
-		break;
-	default:
-		return NULL;
-	}
-
-	for (ace = ni_addrconf_list; ace != NULL; ace = ace->next) {
-		if (ace->mech.type == type && (ace->mech.supported_af & mask))
-			return &ace->mech;
-	}
-
-	return NULL;
+	return __ni_addrconf_get(type, af);
 }
 
 const ni_addrconf_t *
-ni_addrconf_list_first(const void **pos)
+ni_addrconf_list_first(unsigned int *pos)
 {
-	*(struct ni_addrconfig_list_entry **) pos = ni_addrconf_list;
-
+	*pos = 0;
 	return ni_addrconf_list_next(pos);
 }
 
 const ni_addrconf_t *
-ni_addrconf_list_next(const void **pos)
+ni_addrconf_list_next(unsigned int *pos)
 {
-	const struct ni_addrconfig_list_entry *ace = *pos;
+	unsigned int afidx = *pos & 0xFF;
+	unsigned int mode = *pos >> 8;
+	ni_addrconf_t *mech = NULL;
 
-	if (!ace)
-		return NULL;
+	switch (afidx) {
+	case 0:
+		while (mode < __NI_ADDRCONF_MAX) {
+			if ((mech = __ni_addrconf_get(mode++, AF_INET)) != NULL)
+				goto done;
+		}
+		mode = 0;
+		afidx++;
+	case 1:
+		while (mode < __NI_ADDRCONF_MAX) {
+			if ((mech = __ni_addrconf_get(mode++, AF_INET6)) != NULL)
+				goto done;
+		}
+		afidx++;
+	}
 
-	*(struct ni_addrconfig_list_entry **) pos = ace->next;
-	return &ace->mech;
+done:
+	*pos = afidx | (mode << 8);
+	return mech;
 }
 
 /*
