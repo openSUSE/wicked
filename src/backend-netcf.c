@@ -192,15 +192,39 @@ __ni_netcf_xml_to_interface(ni_syntax_t *syntax, ni_handle_t *nih, xml_node_t *i
 		}
 
 		afi->enabled = 1;
-		if (!syntax->strict && xml_node_get_child(node, "disable") != NULL)
-			afi->enabled = 0;
 
-		if ((child = xml_node_get_child(node, "dhcp")) != NULL) {
-			ni_afinfo_addrconf_enable(afi, NI_ADDRCONF_DHCP);
-			afi->request[NI_ADDRCONF_DHCP] = __ni_netcf_xml_to_addrconf_req(syntax, child, afi->family);
-			if (afi->request[NI_ADDRCONF_DHCP] == NULL) {
-				ni_error("error parsing dhcp information");
-				return NULL;
+		for (child = node->children; child; child = child->next) {
+			int mode;
+
+			mode = ni_addrconf_name_to_type(child->name);
+			if (mode >= 0) {
+				ni_afinfo_addrconf_enable(afi, mode);
+				afi->request[mode] = __ni_netcf_xml_to_addrconf_req(syntax, child, afi->family);
+				if (afi->request[mode] == NULL) {
+					ni_error("error parsing %s information", child->name);
+					return NULL;
+				}
+				continue;
+			}
+
+			if (!syntax->strict) {
+				if (!strcmp(child->name, "disable")) {
+					afi->enabled = 0;
+					continue;
+				}
+				if (!strcmp(child->name, "lease")) {
+					ni_addrconf_lease_t *lease;
+
+					lease = __ni_netcf_xml_to_lease(syntax, child);
+					if (!lease) {
+						ni_error("error parsing lease element");
+						return NULL;
+					}
+					if (ni_interface_set_lease(nih, ifp, lease) < 0) {
+						ni_addrconf_lease_free(lease);
+						return NULL;
+					}
+				}
 			}
 		}
 
@@ -625,7 +649,7 @@ __ni_netcf_xml_from_address_config(ni_syntax_t *syntax, ni_handle_t *nih,
 				__ni_netcf_xml_from_addrconf_req(syntax, req, protnode);
 
 			if ((lease = afi->lease[mode]) != NULL)
-				__ni_netcf_xml_from_lease(syntax, lease, ifnode);
+				__ni_netcf_xml_from_lease(syntax, lease, protnode);
 		}
 	} else if (!syntax->strict) {
 		protnode = __ni_netcf_make_protocol_node(ifnode, afi->family);
