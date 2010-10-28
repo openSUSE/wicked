@@ -296,7 +296,8 @@ ni_dhcp_fsm_timeout(ni_dhcp_device_t *dev)
 	switch (dev->state) {
 	case NI_DHCP_STATE_INIT:
 		/* We get here if we previously received a NAK, and have
-		 * started to back off. */
+		 * started to back off, or if we declined a lease because
+		 * the address was already in use. */
 		ni_dhcp_fsm_discover(dev);
 		break;
 
@@ -660,13 +661,13 @@ ni_dhcp_process_nak(ni_dhcp_device_t *dev)
 		break;
 	}
 
-	/* FIXME: move back to state INIT */
+	/* Move back to state INIT */
 	ni_dhcp_fsm_restart(dev);
 
 	if (dev->nak_backoff == 0)
 		dev->nak_backoff = 1;
 
-	/* If we constantly get NAKS then we should slowly back off */
+	/* If we constantly get NAKs then we should slowly back off */
 	ni_debug_dhcp("Received NAK, backing off for %u seconds", dev->nak_backoff);
 	ni_dhcp_fsm_set_timeout(dev, dev->nak_backoff);
 
