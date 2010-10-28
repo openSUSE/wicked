@@ -778,13 +778,13 @@ ni_addrconf_drop_lease(const ni_addrconf_t *acm, ni_interface_t *ifp)
 
 	if (acm->supported_af & NI_AF_MASK_IPV4) {
 		if ((lease = ifp->ipv4.lease[acm->type]) && lease->state == NI_ADDRCONF_STATE_RELEASED) {
-			free(lease);
+			ni_addrconf_lease_free(lease);
 			ifp->ipv4.lease[acm->type] = NULL;
 		}
 	}
 	if (acm->supported_af & NI_AF_MASK_IPV6) {
 		if ((lease = ifp->ipv6.lease[acm->type]) && lease->state == NI_ADDRCONF_STATE_RELEASED) {
-			free(lease);
+			ni_addrconf_lease_free(lease);
 			ifp->ipv6.lease[acm->type] = NULL;
 		}
 	}
