@@ -93,6 +93,7 @@ ni_dhcp_device_free(ni_dhcp_device_t *dev)
 
 	ni_dhcp_device_drop_buffer(dev);
 	ni_dhcp_device_drop_lease(dev);
+	ni_dhcp_device_drop_best_offer(dev);
 	ni_dhcp_device_close(dev);
 	ni_string_free(&dev->ifname);
 
@@ -139,6 +140,15 @@ ni_dhcp_device_drop_lease(ni_dhcp_device_t *dev)
 		/* Go back to square one */
 		dev->state = NI_DHCP_STATE_INIT;
 	}
+}
+
+void
+ni_dhcp_device_drop_best_offer(ni_dhcp_device_t *dev)
+{
+	dev->best_offer.weight = -1;
+	if (dev->best_offer.lease)
+		ni_addrconf_lease_free(dev->best_offer.lease);
+	dev->best_offer.lease = NULL;
 }
 
 /*
@@ -188,6 +198,7 @@ ni_dhcp_device_reconfigure(ni_dhcp_device_t *dev, const ni_interface_t *ifp)
 	config = calloc(1, sizeof(*config));
 	config->resend_timeout = NI_DHCP_RESEND_TIMEOUT_INIT;
 	config->request_timeout = info->acquire_timeout?: NI_DHCP_REQUEST_TIMEOUT;
+	config->initial_discovery_timeout = NI_DHCP_DISCOVERY_TIMEOUT;
 
 	if (info->dhcp.hostname)
 		strncpy(config->hostname, info->dhcp.hostname, sizeof(config->hostname) - 1);
@@ -472,4 +483,30 @@ ni_dhcp_config_ignore_server(struct in_addr addr)
 	const char *name = inet_ntoa(addr);
 
 	return (ni_string_array_index(&dhconf->ignore_servers, name) >= 0);
+}
+
+int
+ni_dhcp_config_have_server_preference(void)
+{
+	const struct ni_config_dhcp *dhconf = &ni_global.config->addrconf.dhcp;
+	return dhconf->num_preferred_servers != 0;
+}
+
+int
+ni_dhcp_config_server_preference(struct in_addr addr)
+{
+	const struct ni_config_dhcp *dhconf = &ni_global.config->addrconf.dhcp;
+	const ni_server_preference_t *pref = dhconf->preferred_server;
+	unsigned int i;
+
+	for (i = 0; i < dhconf->num_preferred_servers; ++i, ++pref) {
+		const struct sockaddr_in *sin;
+
+		if (pref->address.ss_family != AF_INET)
+			continue;
+		sin = (const struct sockaddr_in *) &pref->address;
+		if (sin->sin_addr.s_addr == addr.s_addr)
+			return pref->weight;
+	}
+	return 0;
 }

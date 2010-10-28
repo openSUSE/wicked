@@ -68,14 +68,56 @@ ni_dhcp_fsm_process_dhcp_packet(ni_dhcp_device_t *dev, ni_buffer_t *msgbuf)
 			ni_dhcp_fsm_state_name(dev->state));
 
 	/* When receiving a DHCP OFFER, verify sender address against list of
-	 * servers to ignore. */
+	 * servers to ignore, and preferred servers. */
 	if (msg_code == DHCP_OFFER && dev->state == NI_DHCP_STATE_SELECTING) {
 		struct in_addr srv_addr = { .s_addr = message->siaddr };
 
 		if (ni_dhcp_config_ignore_server(srv_addr)) {
 			ni_debug_dhcp("%s: ignoring DHCP offer from %s",
 					dev->ifname, inet_ntoa(srv_addr));
-			return 0;
+			goto out;
+		}
+
+		/* If we're scanning all offers, we need to decide whether
+		 * this offer is accepted, or whether we want to wait for
+		 * more.
+		 */
+		if (!dev->accept_any_offer) {
+			int weight = 0;
+
+			/* Check if we have any preferred servers. */
+			weight = ni_dhcp_config_server_preference(srv_addr);
+
+			/* If we're refreshing an existing lease (eg after link disconnect
+			 * and reconnect), we accept the offer if it comes from the same
+			 * server as the original one.
+			 */
+			if (dev->lease
+			 && dev->lease->dhcp.serveraddress.s_addr == srv_addr.s_addr)
+				weight = 100;
+
+			ni_debug_dhcp("received lease offer from %s; server weight=%d (best offer=%d)",
+					inet_ntoa(lease->dhcp.serveraddress), weight,
+					dev->best_offer.weight);
+
+			/* negative weight means never. */
+			if (weight < 0)
+				goto out;
+
+			/* weight between 0 and 100 means maybe. */
+			if (weight < 100) {
+				if (dev->best_offer.weight < weight) {
+					if (dev->best_offer.lease != NULL)
+						ni_addrconf_lease_free(dev->best_offer.lease);
+					dev->best_offer.lease = NULL;
+					dev->best_offer.weight = weight;
+					dev->best_offer.lease = lease;
+					return 0;
+				}
+				goto out;
+			}
+
+			/* If the weight has maximum value, just accept this offer. */
 		}
 	}
 
@@ -123,6 +165,7 @@ ni_dhcp_fsm_process_dhcp_packet(ni_dhcp_device_t *dev, ni_buffer_t *msgbuf)
 		break;
 	}
 
+out:
 	if (dev->lease != lease)
 		ni_addrconf_lease_free(lease);
 
@@ -169,7 +212,7 @@ ni_dhcp_fsm_set_deadline(ni_dhcp_device_t *dev, time_t deadline)
 }
 
 int
-ni_dhcp_fsm_discover(ni_dhcp_device_t *dev)
+__ni_dhcp_fsm_discover(ni_dhcp_device_t *dev, int scan_offers)
 {
 	ni_addrconf_lease_t *lease;
 	int rv;
@@ -186,12 +229,31 @@ ni_dhcp_fsm_discover(ni_dhcp_device_t *dev)
 
 	rv = ni_dhcp_device_send_message(dev, DHCP_DISCOVER, lease);
 
-	ni_dhcp_fsm_set_timeout(dev, dev->config->request_timeout);
 	dev->state = NI_DHCP_STATE_SELECTING;
+
+	dev->accept_any_offer = 1;
+	ni_debug_dhcp("valid lease: %d; have prefs: %d",
+			ni_addrconf_lease_is_valid(dev->lease),
+			ni_dhcp_config_have_server_preference());
+	if (ni_addrconf_lease_is_valid(dev->lease)
+	 || (scan_offers && ni_dhcp_config_have_server_preference())) {
+		ni_dhcp_fsm_set_timeout(dev, dev->config->initial_discovery_timeout);
+		dev->accept_any_offer = 0;
+	} else {
+		ni_dhcp_fsm_set_timeout(dev, dev->config->request_timeout);
+	}
+
+	ni_dhcp_device_drop_best_offer(dev);
 
 	if (lease != dev->lease)
 		ni_addrconf_lease_free(lease);
 	return rv;
+}
+
+int
+ni_dhcp_fsm_discover(ni_dhcp_device_t *dev)
+{
+	return __ni_dhcp_fsm_discover(dev, 1);
 }
 
 int
@@ -302,6 +364,29 @@ ni_dhcp_fsm_timeout(ni_dhcp_device_t *dev)
 		break;
 
 	case NI_DHCP_STATE_SELECTING:
+		if (!dev->accept_any_offer) {
+			ni_dhcp_config_t *conf = dev->config;
+
+			/* We were scanning all offers to check for a best offer.
+			 * There was no perfect match, but we may have a "good enough"
+			 * match. Check for it. */
+			if (dev->best_offer.lease) {
+				ni_addrconf_lease_t *lease = dev->best_offer.lease;
+
+				ni_debug_dhcp("accepting lease offer from %s; server weight=%d",
+						inet_ntoa(lease->dhcp.serveraddress),
+						dev->best_offer.weight);
+				ni_dhcp_process_offer(dev, lease);
+				return;
+			}
+
+			ni_dhcp_fsm_fail_lease(dev);
+			if (conf->initial_discovery_timeout < conf->request_timeout) {
+				__ni_dhcp_fsm_discover(dev, 0);
+				return;
+			}
+		}
+
 	case NI_DHCP_STATE_REQUESTING:
 		ni_error("%s: DHCP discovery failed", dev->ifname);
 		ni_dhcp_fsm_fail_lease(dev);

@@ -53,7 +53,8 @@ typedef struct ni_dhcp_device {
 	int		listen_fd;	/* for DHCP only */
 
 	unsigned int	failed : 1,
-			notify : 1;
+			notify : 1,
+			accept_any_offer : 1;
 
 	int		state;
 	uint32_t	xid;
@@ -73,11 +74,19 @@ typedef struct ni_dhcp_device {
 	   unsigned int	nprobes;
 	   unsigned int	nclaims;
 	} arp;
+
+	struct {
+	   ni_addrconf_lease_t *lease;
+	   int			weight;
+	} best_offer;
 } ni_dhcp_device_t;
 
-#define NI_DHCP_RESEND_TIMEOUT_INIT	3 /* seconds */
-#define NI_DHCP_RESEND_TIMEOUT_MAX	60 /* seconds */
-#define NI_DHCP_REQUEST_TIMEOUT		60 /* seconds */
+#define NI_DHCP_RESEND_TIMEOUT_INIT	3	/* seconds */
+#define NI_DHCP_RESEND_TIMEOUT_MAX	60	/* seconds */
+#define NI_DHCP_REQUEST_TIMEOUT		60	/* seconds */
+
+/* Initial discovery period while we scan all available leases. */
+#define NI_DHCP_DISCOVERY_TIMEOUT	20	/* seconds */
 
 enum {
 	DHCP_DO_ARP		= 0x0001,
@@ -102,6 +111,7 @@ struct ni_dhcp_config {
 	ni_opaque_t	raw_client_id;
 	ni_opaque_t	userclass;
 
+	unsigned int	initial_discovery_timeout;
 	unsigned int	request_timeout;
 	unsigned int	resend_timeout;
 };
@@ -155,6 +165,7 @@ extern void		ni_dhcp_device_retransmit(ni_dhcp_device_t *);
 extern void		ni_dhcp_parse_client_id(ni_opaque_t *, int, const char *);
 extern void		ni_dhcp_set_client_id(ni_opaque_t *, const ni_hwaddr_t *);
 extern int		ni_dhcp_lease_matches_request(const ni_addrconf_lease_t *, const ni_addrconf_request_t *);
+extern void		ni_dhcp_device_drop_best_offer(ni_dhcp_device_t *);
 
 extern int		ni_dhcp_xml_from_lease(const ni_addrconf_t *,
 				const ni_addrconf_lease_t *, xml_node_t *);
@@ -163,6 +174,8 @@ extern int		ni_dhcp_xml_to_lease(const ni_addrconf_t *,
 
 extern const char *	ni_dhcp_config_vendor_class(void);
 extern int		ni_dhcp_config_ignore_server(struct in_addr);
+extern int		ni_dhcp_config_have_server_preference(void);
+extern int		ni_dhcp_config_server_preference(struct in_addr);
 extern void		ni_dhcp_config_free(ni_dhcp_config_t *);
 
 #endif /* __WICKED_DHCP_PRIVATE_H__ */
