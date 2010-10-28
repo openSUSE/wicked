@@ -749,7 +749,7 @@ __ni_interface_extension_delete(ni_handle_t *nih, ni_interface_t *ifp)
 int
 __ni_interface_update_ipv6_settings(ni_interface_t *cfg)
 {
-	if (ni_sysctl_ipv6_ifconfig_set_uint(cfg->name, "ipv6_enabled", !cfg->ipv6.enabled) < 0) {
+	if (ni_sysctl_ipv6_ifconfig_set_uint(cfg->name, "disable_ipv6", !cfg->ipv6.enabled) < 0) {
 		ni_error("%s: cannot %s ipv6", cfg->name, cfg->ipv6.enabled? "enable" : "disable");
 		return -1;
 	}
@@ -1454,7 +1454,8 @@ __ni_interface_addrconf(ni_handle_t *nih, int family, ni_interface_t *ifp, ni_in
 
 		/* Write out the addrconf request data; this is used when
 		 * we restart the wicked service. */
-		ni_addrconf_request_file_write(ifp->name, tmp);
+		if ((tmp = cur_afi->request[mode]) != NULL)
+			ni_addrconf_request_file_write(ifp->name, tmp);
 	}
 
 	if (xml)
