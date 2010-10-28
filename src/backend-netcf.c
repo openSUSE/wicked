@@ -25,7 +25,6 @@ static int		__ni_netcf_xml_to_bonding(ni_syntax_t *, ni_handle_t *,
 					ni_interface_t *, xml_node_t *);
 static int		__ni_netcf_xml_to_static_ifcfg(ni_syntax_t *syntax, ni_handle_t *nih,
 				int af, ni_interface_t *ifp, xml_node_t *protnode);
-static ni_addrconf_request_t *__ni_netcf_xml_to_addrconf_req(ni_syntax_t *, xml_node_t *);
 
 static xml_node_t *	__ni_netcf_xml_from_interface(ni_syntax_t *, ni_handle_t *,
 				const ni_interface_t *, xml_node_t *);
@@ -45,8 +44,10 @@ static void		__ni_netcf_xml_from_bonding(ni_syntax_t *syntax, ni_handle_t *nih,
 				ni_bonding_t *bonding, xml_node_t *);
 static void		__ni_netcf_xml_from_vlan(ni_syntax_t *syntax, ni_handle_t *nih,
 				ni_vlan_t *vlan, xml_node_t *fp);
-static void		__ni_netcf_xml_from_addrconf_req(ni_syntax_t *, ni_addrconf_request_t *, xml_node_t *);
+
+static xml_node_t *	__ni_netcf_xml_from_addrconf_req(ni_syntax_t *, const ni_addrconf_request_t *, xml_node_t *);
 static xml_node_t *	__ni_netcf_xml_from_lease(ni_syntax_t *, const ni_addrconf_lease_t *, xml_node_t *parent);
+static ni_addrconf_request_t *__ni_netcf_xml_to_addrconf_req(ni_syntax_t *, const xml_node_t *);
 static ni_addrconf_lease_t *__ni_netcf_xml_to_lease(ni_syntax_t *, const xml_node_t *);
 
 static const char *	__ni_netcf_get_iftype(const ni_interface_t *);
@@ -62,7 +63,7 @@ static int		__ni_netcf_set_af(const char *, int *);
 /*
 static const char *	__ni_netcf_get_boolean(int val);
 */
-static int		__ni_netcf_get_boolean_attr(xml_node_t *, const char *, int *);
+static int		__ni_netcf_get_boolean_attr(const xml_node_t *, const char *, int *);
 static void		__ni_netcf_add_string_child(xml_node_t *, const char *, const char *);
 static void		__ni_netcf_add_uint_child(xml_node_t *, const char *, unsigned int);
 static void		__ni_netcf_add_string_array_child(xml_node_t *, const char *, const ni_string_array_t *);
@@ -82,6 +83,8 @@ __ni_syntax_netcf(const char *pathname)
 	syntax->xml_to_interface = __ni_netcf_xml_to_interface;
 	syntax->xml_from_lease = __ni_netcf_xml_from_lease;
 	syntax->xml_to_lease = __ni_netcf_xml_to_lease;
+	syntax->xml_from_request = __ni_netcf_xml_from_addrconf_req;
+	syntax->xml_to_request = __ni_netcf_xml_to_addrconf_req;
 
 	return syntax;
 }
@@ -606,6 +609,7 @@ __ni_netcf_xml_from_address_config(ni_syntax_t *syntax, ni_handle_t *nih,
 			protnode = __ni_netcf_xml_from_static_ifcfg(syntax, nih, afi->family, ifp, ifnode);
 
 		for (mode = 0; mode < __NI_ADDRCONF_MAX; ++mode) {
+			ni_addrconf_request_t *req;
 			ni_addrconf_lease_t *lease;
 
 			if (mode == NI_ADDRCONF_STATIC || !ni_afinfo_addrconf_test(afi, mode))
@@ -617,17 +621,8 @@ __ni_netcf_xml_from_address_config(ni_syntax_t *syntax, ni_handle_t *nih,
 			if (!protnode)
 				protnode = __ni_netcf_make_protocol_node(ifnode, afi->family);
 
-			if (mode == NI_ADDRCONF_DHCP) {
-				__ni_netcf_xml_from_addrconf_req(syntax, afi->request[NI_ADDRCONF_DHCP], protnode);
-			} else {
-				const char *acname;
-
-				/* Create node with no attrs or children */
-				acname = ni_addrconf_type_to_name(mode);
-				assert(acname);
-
-				xml_node_new(acname, protnode);
-			}
+			if ((req = afi->request[mode]) != NULL)
+				__ni_netcf_xml_from_addrconf_req(syntax, req, protnode);
 
 			if ((lease = afi->lease[mode]) != NULL)
 				__ni_netcf_xml_from_lease(syntax, lease, ifnode);
@@ -890,27 +885,28 @@ __ni_netcf_xml_from_vlan(ni_syntax_t *syntax, ni_handle_t *nih, ni_vlan_t *vlan,
 /*
  * XML addrconf request representation
  */
-static void
-__ni_netcf_xml_from_addrconf_req(ni_syntax_t *syntax, ni_addrconf_request_t *req, xml_node_t *proto_node)
+static xml_node_t *
+__ni_netcf_xml_from_addrconf_req(ni_syntax_t *syntax, const ni_addrconf_request_t *req, xml_node_t *proto_node)
 {
 	xml_node_t *dhnode, *child;
 	const char *acname;
 
+	if (req == NULL)
+		return NULL;
+
 	acname = ni_addrconf_type_to_name(req->type);
 	if (acname == NULL) {
 		ni_error("Oops, unexpected addrconf request of type %u", req->type);
-		return;
+		return NULL;
 	}
 
 	dhnode = xml_node_new(acname, proto_node);
-	if (req == NULL)
-		return;
 
 	if (syntax->strict) {
 		/* strict netcf only allows peerdns="yes" so far */
 		if (ni_addrconf_should_update(req, NI_ADDRCONF_UPDATE_RESOLVER))
 			xml_node_add_attr(dhnode, "peerdns", "yes");
-		return;
+		return dhnode;
 	}
 
 	if (req->acquire_timeout)
@@ -943,10 +939,12 @@ __ni_netcf_xml_from_addrconf_req(ni_syntax_t *syntax, ni_addrconf_request_t *req
 		if (ni_addrconf_should_update(req, NI_ADDRCONF_UPDATE_NETBIOS))
 			xml_node_new("smb-config", child);
 	}
+
+	return dhnode;
 }
 
 static ni_addrconf_request_t *
-__ni_netcf_xml_to_addrconf_req(ni_syntax_t *syntax, xml_node_t *dhnode)
+__ni_netcf_xml_to_addrconf_req(ni_syntax_t *syntax, const xml_node_t *dhnode)
 {
 	int req_type = -1;
 	ni_addrconf_request_t *req;
@@ -1321,7 +1319,7 @@ __ni_netcf_get_boolean(int val)
 */
 
 static int
-__ni_netcf_get_boolean_attr(xml_node_t *node, const char *attrname, int *var)
+__ni_netcf_get_boolean_attr(const xml_node_t *node, const char *attrname, int *var)
 {
 	const char *attrval;
 
