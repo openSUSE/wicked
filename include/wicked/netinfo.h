@@ -153,6 +153,7 @@ enum {
 
 typedef struct ni_addrconf_request {
 	unsigned int		type;		/* addrconf type */
+	int			family;		/* address family */
 
 	/* Controlling general behavior */
 	int			reuse_unexpired;
@@ -690,7 +691,7 @@ extern int		ni_vlan_bind_ifindex(ni_vlan_t *, ni_handle_t *);
 extern void		ni_vlan_free(ni_vlan_t *);
 extern ni_vlan_t *	ni_vlan_clone(const ni_vlan_t *);
 
-extern ni_addrconf_request_t *ni_addrconf_request_new(unsigned int);
+extern ni_addrconf_request_t *ni_addrconf_request_new(unsigned int mode, int af);
 extern void		ni_addrconf_request_free(ni_addrconf_request_t *);
 
 extern ni_addrconf_lease_t *ni_addrconf_lease_new(int type, int family);
