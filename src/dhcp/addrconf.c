@@ -6,6 +6,7 @@
 
 #include <sys/poll.h>
 #include <sys/time.h>
+#include <time.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
@@ -89,12 +90,25 @@ ni_dhcp_addrconf_release(const ni_addrconf_t *acm, ni_interface_t *ifp, ni_addrc
 	return __ni_dhcp_addrconf_do(acm, ifp, 0);
 }
 
+static int
+ni_dhcp_is_valid(const ni_addrconf_t *acm, const ni_addrconf_lease_t *lease)
+{
+	time_t now = time(NULL);
+
+	if (lease->state != NI_ADDRCONF_STATE_GRANTED)
+		return 0;
+	if (lease->time_acquired + lease->dhcp.lease_time <= now)
+		return 0;
+	return 1;
+}
+
 ni_addrconf_t ni_dhcp_addrconf = {
 	.type = NI_ADDRCONF_DHCP,
 	.supported_af = NI_AF_MASK_IPV4,
 
 	.request = ni_dhcp_addrconf_request,
 	.release = ni_dhcp_addrconf_release,
+	.is_valid = ni_dhcp_is_valid,
 	.xml_from_lease = ni_dhcp_xml_from_lease,
 	.xml_to_lease = ni_dhcp_xml_to_lease,
 };

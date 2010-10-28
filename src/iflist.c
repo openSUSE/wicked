@@ -839,11 +839,11 @@ __ni_discover_addrconf(ni_handle_t *nih, ni_interface_t *ifp)
 	__ni_assert_initialized();
 
 	for (i = 0; i < __NI_ADDRCONF_MAX; ++i) {
-		if (ifp->ipv4.lease[i])
+		if (ni_addrconf_lease_is_valid(ifp->ipv4.lease[i]))
 			ni_afinfo_addrconf_enable(&ifp->ipv4, i);
 	}
 	for (i = 0; i < __NI_ADDRCONF_MAX; ++i) {
-		if (ifp->ipv6.lease[i])
+		if (ni_addrconf_lease_is_valid(ifp->ipv6.lease[i]))
 			ni_afinfo_addrconf_enable(&ifp->ipv6, i);
 	}
 

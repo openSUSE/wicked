@@ -792,6 +792,20 @@ ni_addrconf_drop_lease(const ni_addrconf_t *acm, ni_interface_t *ifp)
 	return rv;
 }
 
+int
+ni_addrconf_lease_is_valid(const ni_addrconf_lease_t *lease)
+{
+	ni_addrconf_t *acm;
+
+	if (lease == NULL)
+		return 0;
+	if ((acm = ni_addrconf_get(lease->type, lease->family)) != NULL
+	 && acm->is_valid)
+		return acm->is_valid(acm, lease);
+
+	return lease->state == NI_ADDRCONF_STATE_GRANTED;
+}
+
 /*
  * Test whether an address configuration method is active
  */

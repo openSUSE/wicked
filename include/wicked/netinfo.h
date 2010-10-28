@@ -250,6 +250,7 @@ typedef struct ni_addrconf {
 	int			(*request)(const struct ni_addrconf *, ni_interface_t *, const xml_node_t *);
 	int			(*release)(const struct ni_addrconf *, ni_interface_t *, ni_addrconf_lease_t *);
 	int			(*test)(const struct ni_addrconf *, const ni_interface_t *, const xml_node_t *);
+	int			(*is_valid)(const struct ni_addrconf *, const ni_addrconf_lease_t *);
 
 	/* Convert protocol specific lease information */
 	int			(*xml_to_request)(const struct ni_addrconf *, ni_addrconf_request_t *, const xml_node_t *);
@@ -696,6 +697,7 @@ extern ni_addrconf_t *	ni_addrconf_get(int type, int family);
 extern int		ni_addrconf_acquire_lease(const ni_addrconf_t *,
 				ni_interface_t *, const xml_node_t *);
 extern int		ni_addrconf_drop_lease(const ni_addrconf_t *, ni_interface_t *);
+extern int		ni_addrconf_lease_is_valid(const ni_addrconf_lease_t *);
 extern int		ni_addrconf_check(const ni_addrconf_t *, const ni_interface_t *, const xml_node_t *);
 extern const ni_addrconf_t *ni_addrconf_list_first(const void **);
 extern const ni_addrconf_t *ni_addrconf_list_next(const void **);
