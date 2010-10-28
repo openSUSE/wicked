@@ -17,6 +17,7 @@
 #define CONFIG_DHCP_LEASE_DIRECTORY	"/var/run/wicked"
 
 static const char *		__ni_addrconf_lease_file_path(int, int, const char *);
+static const char *		__ni_addrconf_request_file_path(int, int, const char *);
 
 /*
  * Write a lease to a file
@@ -131,6 +132,118 @@ __ni_addrconf_lease_file_path(int type, int family, const char *ifname)
 			CONFIG_DHCP_LEASE_DIRECTORY,
 			ni_addrconf_type_to_name(type),
 			ni_addrfamily_type_to_name(family),
+			ifname);
+	return pathname;
+}
+
+/*
+ * Write a request to a file
+ */
+int
+ni_addrconf_request_file_write(const char *ifname, ni_addrconf_request_t *request)
+{
+	const char *filename;
+	xml_node_t *xml = NULL;
+	FILE *fp;
+
+	filename = __ni_addrconf_request_file_path(request->type, request->family, ifname);
+
+	ni_debug_dhcp("writing request to %s", filename);
+	xml = ni_syntax_xml_from_addrconf_request(ni_default_xml_syntax(), request, NULL);
+	if (!xml) {
+		ni_error("cannot store request: unable to represent request as XML");
+		goto failed;
+	}
+
+	if ((fp = fopen(filename, "w")) == NULL) {
+		ni_error("unable to open %s for writing: %m", filename);
+		goto failed;
+	}
+
+	xml_node_print(xml, fp);
+	fclose(fp);
+
+	xml_node_free(xml);
+	return 0;
+
+failed:
+	if (xml)
+		xml_node_free(xml);
+	unlink(filename);
+	return -1;
+}
+
+/*
+ * Read a request from a file
+ */
+ni_addrconf_request_t *
+ni_addrconf_request_file_read(const char *ifname, int type, int family)
+{
+	ni_addrconf_request_t *request = NULL;
+	const char *filename;
+	xml_node_t *xml = NULL, *lnode;
+	FILE *fp;
+
+	filename = __ni_addrconf_request_file_path(type, family, ifname);
+
+	ni_debug_dhcp("reading request from %s", filename);
+	if ((fp = fopen(filename, "r")) == NULL) {
+		if (errno != ENOENT)
+			ni_error("unable to open %s for reading: %m", filename);
+		return NULL;
+	}
+
+	xml = xml_node_scan(fp);
+	fclose(fp);
+
+	if (xml == NULL) {
+		ni_error("unable to parse %s", filename);
+		return NULL;
+	}
+
+	if (xml->name == NULL)
+		lnode = xml->children;
+	else
+		lnode = xml;
+	if (!lnode || !lnode->name) {
+		ni_error("%s: does not contain an addrconf request", filename);
+		goto out;
+	}
+
+	request = ni_syntax_xml_to_addrconf_request(ni_default_xml_syntax(), lnode);
+
+	if (request == NULL) {
+		ni_error("%s: unable to parse request xml", filename);
+		goto out;
+	}
+
+out:
+	xml_node_free(xml);
+	return request;
+}
+
+/*
+ * Remove a request file
+ */
+void
+ni_addrconf_request_file_remove(const char *ifname, int type, int family)
+{
+	const char *filename;
+
+	filename = __ni_addrconf_request_file_path(type, family, ifname);
+	ni_debug_dhcp("removing %s", filename);
+	unlink(filename);
+}
+
+static const char *
+__ni_addrconf_request_file_path(int type, int family, const char *ifname)
+{
+	static char pathname[PATH_MAX];
+
+	snprintf(pathname, sizeof(pathname), "%s/request-%s-%s-%s.xml",
+			CONFIG_DHCP_LEASE_DIRECTORY,
+			ni_addrconf_type_to_name(type),
+			(family >= 0)? ni_addrfamily_type_to_name(family) : "any",
 			ifname);
 	return pathname;
 }
