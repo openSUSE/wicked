@@ -314,13 +314,13 @@ ni_syntax_xml_from_addrconf_request(ni_syntax_t *syntax, ni_addrconf_request_t *
 }
 
 ni_addrconf_request_t *
-ni_syntax_xml_to_addrconf_request(ni_syntax_t *syntax, const xml_node_t *xmlnode)
+ni_syntax_xml_to_addrconf_request(ni_syntax_t *syntax, const xml_node_t *xmlnode, int af)
 {
 	if (!syntax->xml_to_request) {
 		ni_error("%s: syntax not capable of creating request from xml", __FUNCTION__);
 		return NULL;
 	}
-	return syntax->xml_to_request(syntax, xmlnode);
+	return syntax->xml_to_request(syntax, xmlnode, af);
 }
 
 /*

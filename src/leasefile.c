@@ -210,8 +210,7 @@ ni_addrconf_request_file_read(const char *ifname, int type, int family)
 		goto out;
 	}
 
-	request = ni_syntax_xml_to_addrconf_request(ni_default_xml_syntax(), lnode);
-
+	request = ni_syntax_xml_to_addrconf_request(ni_default_xml_syntax(), lnode, family);
 	if (request == NULL) {
 		ni_error("%s: unable to parse request xml", filename);
 		goto out;
@@ -243,7 +242,7 @@ __ni_addrconf_request_file_path(int type, int family, const char *ifname)
 	snprintf(pathname, sizeof(pathname), "%s/request-%s-%s-%s.xml",
 			CONFIG_DHCP_LEASE_DIRECTORY,
 			ni_addrconf_type_to_name(type),
-			(family >= 0)? ni_addrfamily_type_to_name(family) : "any",
+			ni_addrfamily_type_to_name(family),
 			ifname);
 	return pathname;
 }

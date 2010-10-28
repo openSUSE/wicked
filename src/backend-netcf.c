@@ -47,7 +47,7 @@ static void		__ni_netcf_xml_from_vlan(ni_syntax_t *syntax, ni_handle_t *nih,
 
 static xml_node_t *	__ni_netcf_xml_from_addrconf_req(ni_syntax_t *, const ni_addrconf_request_t *, xml_node_t *);
 static xml_node_t *	__ni_netcf_xml_from_lease(ni_syntax_t *, const ni_addrconf_lease_t *, xml_node_t *parent);
-static ni_addrconf_request_t *__ni_netcf_xml_to_addrconf_req(ni_syntax_t *, const xml_node_t *);
+static ni_addrconf_request_t *__ni_netcf_xml_to_addrconf_req(ni_syntax_t *, const xml_node_t *, int);
 static ni_addrconf_lease_t *__ni_netcf_xml_to_lease(ni_syntax_t *, const xml_node_t *);
 
 static const char *	__ni_netcf_get_iftype(const ni_interface_t *);
@@ -197,7 +197,7 @@ __ni_netcf_xml_to_interface(ni_syntax_t *syntax, ni_handle_t *nih, xml_node_t *i
 
 		if ((child = xml_node_get_child(node, "dhcp")) != NULL) {
 			ni_afinfo_addrconf_enable(afi, NI_ADDRCONF_DHCP);
-			afi->request[NI_ADDRCONF_DHCP] = __ni_netcf_xml_to_addrconf_req(syntax, child);
+			afi->request[NI_ADDRCONF_DHCP] = __ni_netcf_xml_to_addrconf_req(syntax, child, afi->family);
 			if (afi->request[NI_ADDRCONF_DHCP] == NULL) {
 				ni_error("error parsing dhcp information");
 				return NULL;
@@ -902,15 +902,6 @@ __ni_netcf_xml_from_addrconf_req(ni_syntax_t *syntax, const ni_addrconf_request_
 
 	dhnode = xml_node_new(acname, proto_node);
 
-	if (req->family >= 0) {
-		acname = ni_addrfamily_type_to_name(req->family);
-		if (!acname) {
-			ni_error("%s: unknown address family %u", __FUNCTION__, req->family);
-			return NULL;
-		}
-		xml_node_add_attr(dhnode, "family", acname);
-	}
-
 	if (syntax->strict) {
 		/* strict netcf only allows peerdns="yes" so far */
 		if (ni_addrconf_should_update(req, NI_ADDRCONF_UPDATE_RESOLVER))
@@ -953,26 +944,16 @@ __ni_netcf_xml_from_addrconf_req(ni_syntax_t *syntax, const ni_addrconf_request_
 }
 
 static ni_addrconf_request_t *
-__ni_netcf_xml_to_addrconf_req(ni_syntax_t *syntax, const xml_node_t *dhnode)
+__ni_netcf_xml_to_addrconf_req(ni_syntax_t *syntax, const xml_node_t *dhnode, int req_family)
 {
-	int req_type = -1, req_family = -1;
+	int req_type = -1;
 	ni_addrconf_request_t *req;
-	const char *attrval;
 	xml_node_t *child;
 
 	req_type = ni_addrconf_name_to_type(dhnode->name);
 	if (req_type < 0) {
 		ni_error("cannot parse addrconf element <%s>", dhnode->name);
 		return NULL;
-	}
-
-	attrval = xml_node_get_attr(dhnode, "family");
-	if (attrval != NULL) {
-		req_family = ni_addrfamily_name_to_type(attrval);
-		if (req_family < 0) {
-			ni_error("unable to parse address family \"%s\"", attrval);
-			return NULL;
-		}
 	}
 
 	req = ni_addrconf_request_new(req_type, req_family);

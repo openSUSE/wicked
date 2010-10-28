@@ -1081,7 +1081,7 @@ __ni_interface_clear_bonding(ni_interface_t *ifp)
  * dhcp client info
  */
 ni_addrconf_request_t *
-ni_addrconf_request_new(unsigned int type, int af)
+ni_addrconf_request_new(unsigned int type, unsigned int af)
 {
 	ni_addrconf_request_t *dhcp;
 
