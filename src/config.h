@@ -57,6 +57,12 @@ typedef struct ni_config_fslocation {
 	unsigned int		mode;
 } ni_config_fslocation_t;
 
+#define NI_DHCP_SERVER_PREFERENCES_MAX	16
+typedef struct ni_server_preference {
+	struct sockaddr_storage	address;
+	int			weight;
+} ni_server_preference_t;
+
 typedef struct ni_config {
 	/* Mostly using enabled, forwarding from these: */
 	ni_afinfo_t		ipv4;
@@ -70,6 +76,9 @@ typedef struct ni_config {
 		char *		vendor_class;
 		unsigned int	lease_time;
 		ni_string_array_t ignore_servers;
+
+		unsigned int	num_preferred_servers;
+		ni_server_preference_t preferred_server[NI_DHCP_SERVER_PREFERENCES_MAX];
 	    } dhcp;
 	} addrconf;
 

@@ -129,6 +129,39 @@ ni_config_parse_addrconf_dhcp(struct ni_config_dhcp *dhcp, xml_node_t *node)
 		if (!strcmp(child->name, "ignore-server")
 		 && (attrval = xml_node_get_attr(child, "ip")) != NULL)
 			ni_string_array_append(&dhcp->ignore_servers, attrval);
+		if (!strcmp(child->name, "prefer-server")
+		 && (attrval = xml_node_get_attr(child, "ip")) != NULL) {
+			ni_server_preference_t *pref;
+
+			if (dhcp->num_preferred_servers >= NI_DHCP_SERVER_PREFERENCES_MAX) {
+				ni_warn("config: too many <prefer-server> elements");
+				continue;
+			}
+
+			pref = &dhcp->preferred_server[dhcp->num_preferred_servers++];
+			if (ni_address_parse(&pref->address, attrval, AF_UNSPEC) < 0) {
+				ni_error("config: unable to parse <prefer-server ip=\"%s\"",
+						attrval);
+				return -1;
+			}
+
+			pref->weight = 100;
+			if ((attrval = xml_node_get_attr(child, "weight")) != NULL) {
+				if (!strcmp(attrval, "always")) {
+					pref->weight = 100;
+				} else if (!strcmp(attrval, "never")) {
+					pref->weight = -1;
+				} else {
+					pref->weight = strtol(attrval, NULL, 0);
+					if (pref->weight > 100) {
+						pref->weight = 100;
+						ni_warn("preferred dhcp server weight exceeds max, "
+							"clamping to %d",
+							pref->weight);
+					}
+				}
+			}
+		}
 	}
 	return 0;
 }
