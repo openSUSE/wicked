@@ -28,47 +28,21 @@ ni_dhcp_device_t *	ni_dhcp_active;
 ni_dhcp_device_t *
 ni_dhcp_device_new(const char *ifname, unsigned int iftype)
 {
-	ni_dhcp_device_t *dev;
+	ni_dhcp_device_t *dev, **pos;
+
+	for (pos = &ni_dhcp_active; (dev = *pos) != NULL; pos = &dev->next)
+		;
 
 	dev = calloc(1, sizeof(*dev));
 	ni_string_dup(&dev->ifname, ifname);
 	dev->system.iftype = iftype;
 	dev->system.mtu = MTU_MAX;
-
 	dev->listen_fd = -1;
-
 	dev->start_time = time(NULL);
 	dev->state = NI_DHCP_STATE_INIT;
 
-#if 0
-	dev->lease = ni_addrconf_lease_file_read(ifname, NI_ADDRCONF_DHCP, AF_INET);
-	if (dev->lease) {
-		/* Check if has expired */
-		ni_addrconf_lease_t *lease = dev->lease;
-		time_t then = lease->time_acquired;
-		time_t now = time(NULL);
-
-		if (now < then) {
-			/* time warp - hi, grand-grand-father */
-		} else if (then + lease->dhcp.lease_time < now) {
-			/* lease expired */
-		} else if (then + lease->dhcp.rebind_time < now) {
-			dev->state = NI_DHCP_STATE_REBINDING;
-		} else if (then + lease->dhcp.renewal_time < now) {
-			dev->state = NI_DHCP_STATE_RENEWING;
-		} else {
-			dev->state = NI_DHCP_STATE_BOUND;
-		}
-		if (dev->state == NI_DHCP_STATE_INIT) {
-			ni_addrconf_lease_file_remove(ifname, NI_ADDRCONF_DHCP, AF_INET);
-			ni_dhcp_device_set_lease(dev, NULL);
-		}
-	} 
-#endif
-
-	/* FIXME: should add to end of list */
-	dev->next = ni_dhcp_active;
-	ni_dhcp_active = dev;
+	/* append to end of list */
+	*pos = dev;
 
 	return dev;
 }
