@@ -575,7 +575,6 @@ __ni_interface_process_newlink_ipv6(ni_interface_t *ifp, struct nlmsghdr *h,
 	memset(tb, 0, sizeof(tb));
 	parse_rtattr(tb, IFLA_MAX, IFLA_RTA(ifi), IFLA_PAYLOAD(h));
 
-	ni_debug_ifconfig("%s: ipv6 ifinfo", ifp->name);
 	if (tb[IFLA_PROTINFO]) {
 		struct rtattr *protinfo[IFLA_INET6_MAX + 1];
 		unsigned int flags = 0;
@@ -633,7 +632,7 @@ __ni_interface_process_newaddr(ni_interface_t *ifp, struct nlmsghdr *h,
 	ap->bcast_addr = tmp.bcast_addr;
 	ap->anycast_addr = tmp.anycast_addr;
 
-	ni_debug_ifconfig("%s: %s, scope %s, flags%s%s%s",
+	ni_debug_ifconfig("%-5s %-20s scope %s, flags%s%s%s",
 				ifp->name, ni_address_print(&tmp.local_addr),
 				(ifa->ifa_scope == RT_SCOPE_HOST)? "host" :
 				 (ifa->ifa_scope == RT_SCOPE_LINK)? "link" :
