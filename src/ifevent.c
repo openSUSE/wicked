@@ -11,6 +11,7 @@
 #include <string.h>
 
 #include <wicked/netinfo.h>
+#include <wicked/addrconf.h>
 #include <wicked/socket.h>
 
 #include "netinfo_priv.h"

@@ -22,6 +22,7 @@
 #include <errno.h>
 
 #include <wicked/netinfo.h>
+#include <wicked/addrconf.h>
 #include <wicked/logging.h>
 #include <wicked/wicked.h>
 #include <wicked/xml.h>

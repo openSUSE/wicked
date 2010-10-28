@@ -11,6 +11,10 @@
 #include <ctype.h>
 #include <unistd.h>
 
+#include <wicked/netinfo.h>
+#include <wicked/addrconf.h>
+#include <wicked/bridge.h>
+#include <wicked/bonding.h>
 #include "netinfo_priv.h"
 #include "sysconfig.h"
 

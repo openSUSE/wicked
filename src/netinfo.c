@@ -12,6 +12,11 @@
 #include <assert.h>
 #include <ctype.h>
 #include <net/if_arp.h>
+
+#include <wicked/netinfo.h>
+#include <wicked/addrconf.h>
+#include <wicked/bridge.h>
+#include <wicked/bonding.h>
 #include <wicked/socket.h>
 #include "netinfo_priv.h"
 #include "config.h"
@@ -1184,5 +1189,8 @@ ni_addrconf_lease_destroy(ni_addrconf_lease_t *lease)
 	case NI_ADDRCONF_DHCP:
 		ni_string_free(&lease->dhcp.message);
 		ni_string_free(&lease->dhcp.rootpath);
+		break;
+
+	default: ;
 	}
 }

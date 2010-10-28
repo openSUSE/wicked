@@ -9,6 +9,8 @@
 #include <errno.h>
 #include <sys/wait.h>
 
+#include <wicked/netinfo.h>
+#include <wicked/addrconf.h>
 #include <wicked/xpath.h>
 #include "netinfo_priv.h"
 #include "config.h"

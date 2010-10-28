@@ -10,6 +10,7 @@
 
 #include <sys/time.h>
 #include <wicked/netinfo.h>
+#include <wicked/addrconf.h>
 #include <wicked/wicked.h>
 #include "buffer.h"
 

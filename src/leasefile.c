@@ -10,6 +10,7 @@
 #include <errno.h>
 
 #include <wicked/netinfo.h>
+#include <wicked/addrconf.h>
 #include <wicked/logging.h>
 #include <wicked/xml.h>
 #include "netinfo_priv.h"

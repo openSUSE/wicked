@@ -11,6 +11,9 @@
 #include <net/if_arp.h>
 
 #include <wicked/netinfo.h>
+#include <wicked/addrconf.h>
+#include <wicked/bridge.h>
+#include <wicked/bonding.h>
 #include <wicked/xml.h>
 
 #include "netinfo_priv.h"
@@ -247,6 +250,8 @@ __ni_netcf_xml_to_interface(ni_syntax_t *syntax, ni_handle_t *nih, xml_node_t *i
 		if (__ni_netcf_xml_to_vlan(syntax, nih, ifp, ifnode))
 			return NULL;
 		break;
+
+	default: ;
 	}
 	return ifp;
 }

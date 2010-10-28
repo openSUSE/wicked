@@ -9,6 +9,10 @@
 #include <ctype.h>
 #include <net/if_arp.h>
 #include <arpa/inet.h>
+
+#include <wicked/netinfo.h>
+#include <wicked/bridge.h>
+#include <wicked/bonding.h>
 #include "netinfo_priv.h"
 #include "sysfs.h"
 

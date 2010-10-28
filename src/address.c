@@ -15,6 +15,9 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <assert.h>
+
+#include <wicked/netinfo.h>
+#include <wicked/addrconf.h>
 #include "netinfo_priv.h"
 
 

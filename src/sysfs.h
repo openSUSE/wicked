@@ -7,6 +7,8 @@
 #ifndef __NETINFO_SYSFS_H__
 #define __NETINFO_SYSFS_H__
 
+#include <wicked/bridge.h>
+
 extern int	ni_sysfs_netif_get_int(const char *, const char *, int *);
 extern int	ni_sysfs_netif_get_long(const char *, const char *, long *);
 extern int	ni_sysfs_netif_get_uint(const char *, const char *, unsigned int *);

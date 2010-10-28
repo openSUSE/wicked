@@ -8,6 +8,15 @@
 
 #include <stdint.h>
 
+typedef struct ni_handle	ni_handle_t;
+typedef struct ni_syntax	ni_syntax_t;
+typedef struct ni_interface	ni_interface_t;
+typedef struct ni_bridge	ni_bridge_t;
+typedef struct ni_bonding	ni_bonding_t;
+typedef struct ni_addrconf	ni_addrconf_t;
+typedef struct ni_addrconf_request ni_addrconf_request_t;
+typedef struct ni_addrconf_lease  ni_addrconf_lease_t;
+
 typedef struct ni_socket	ni_socket_t;
 
 /*

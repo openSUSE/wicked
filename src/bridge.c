@@ -9,6 +9,9 @@
 #include <ctype.h>
 #include <net/if_arp.h>
 #include <arpa/inet.h>
+
+#include <wicked/netinfo.h>
+#include <wicked/bridge.h>
 #include "netinfo_priv.h"
 
 #define NI_BRIDGE_VALUE_NOT_SET		~0U

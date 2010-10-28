@@ -7,7 +7,9 @@
 #include <string.h>
 #include <stdlib.h>
 #include <arpa/inet.h>
+
 #include <wicked/netinfo.h>
+#include <wicked/addrconf.h>
 #include <wicked/xml.h>
 #include "netinfo_priv.h" /* just for xstreq - what a waste */
 

@@ -28,6 +28,9 @@
 #include <arpa/inet.h> /* debug */
 
 #include <wicked/netinfo.h>
+#include <wicked/addrconf.h>
+#include <wicked/bridge.h>
+#include <wicked/bonding.h>
 #include <wicked/xml.h>
 
 #include "netinfo_priv.h"
