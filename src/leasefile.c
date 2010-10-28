@@ -16,19 +16,19 @@
 
 #define CONFIG_DHCP_LEASE_DIRECTORY	"/var/run/wicked"
 
-static const char *		__ni_lease_file_path(int, int, const char *);
+static const char *		__ni_addrconf_lease_file_path(int, int, const char *);
 
 /*
  * Write a lease to a file
  */
 int
-ni_lease_file_write(const char *ifname, ni_addrconf_lease_t *lease)
+ni_addrconf_lease_file_write(const char *ifname, ni_addrconf_lease_t *lease)
 {
 	const char *filename;
 	xml_node_t *xml = NULL;
 	FILE *fp;
 
-	filename = __ni_lease_file_path(lease->type, lease->family, ifname);
+	filename = __ni_addrconf_lease_file_path(lease->type, lease->family, ifname);
 	if (lease->state == NI_ADDRCONF_STATE_RELEASED) {
 		ni_debug_dhcp("removing %s", filename);
 		return unlink(filename);
@@ -63,14 +63,14 @@ failed:
  * Read a lease from a file
  */
 ni_addrconf_lease_t *
-ni_lease_file_read(const char *ifname, int type, int family)
+ni_addrconf_lease_file_read(const char *ifname, int type, int family)
 {
 	ni_addrconf_lease_t *lease;
 	const char *filename;
 	xml_node_t *xml = NULL, *lnode;
 	FILE *fp;
 
-	filename = __ni_lease_file_path(type, family, ifname);
+	filename = __ni_addrconf_lease_file_path(type, family, ifname);
 
 	ni_debug_dhcp("reading lease from %s", filename);
 	if ((fp = fopen(filename, "r")) == NULL) {
@@ -113,17 +113,17 @@ ni_lease_file_read(const char *ifname, int type, int family)
  * Remove a lease file
  */
 void
-ni_lease_file_remove(const char *ifname, int type, int family)
+ni_addrconf_lease_file_remove(const char *ifname, int type, int family)
 {
 	const char *filename;
 
-	filename = __ni_lease_file_path(type, family, ifname);
+	filename = __ni_addrconf_lease_file_path(type, family, ifname);
 	ni_debug_dhcp("removing %s", filename);
 	unlink(filename);
 }
 
 static const char *
-__ni_lease_file_path(int type, int family, const char *ifname)
+__ni_addrconf_lease_file_path(int type, int family, const char *ifname)
 {
 	static char pathname[PATH_MAX];
 

@@ -40,7 +40,7 @@ ni_dhcp_device_new(const char *ifname, unsigned int iftype)
 	dev->start_time = time(NULL);
 	dev->state = NI_DHCP_STATE_INIT;
 
-	dev->lease = ni_lease_file_read(ifname, NI_ADDRCONF_DHCP, AF_INET);
+	dev->lease = ni_addrconf_lease_file_read(ifname, NI_ADDRCONF_DHCP, AF_INET);
 	if (dev->lease) {
 		/* Check if has expired */
 		ni_addrconf_lease_t *lease = dev->lease;
@@ -59,7 +59,7 @@ ni_dhcp_device_new(const char *ifname, unsigned int iftype)
 			dev->state = NI_DHCP_STATE_BOUND;
 		}
 		if (dev->state == NI_DHCP_STATE_INIT) {
-			ni_lease_file_remove(ifname, NI_ADDRCONF_DHCP, AF_INET);
+			ni_addrconf_lease_file_remove(ifname, NI_ADDRCONF_DHCP, AF_INET);
 			ni_dhcp_device_set_lease(dev, NULL);
 		}
 	} 
@@ -156,7 +156,7 @@ ni_dhcp_device_drop_lease(ni_dhcp_device_t *dev)
 		 * lease, we need to isse a link down request */
 
 		/* delete the lease file. */
-		ni_lease_file_remove(dev->ifname, NI_ADDRCONF_DHCP, AF_INET);
+		ni_addrconf_lease_file_remove(dev->ifname, NI_ADDRCONF_DHCP, AF_INET);
 		ni_addrconf_lease_free(dev->lease);
 		dev->lease = NULL;
 	}

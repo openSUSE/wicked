@@ -462,13 +462,13 @@ ni_dhcp_fsm_commit_lease(ni_dhcp_device_t *dev, ni_addrconf_lease_t *lease)
 		dev->state = NI_DHCP_STATE_BOUND;
 
 		/* Write the lease to lease cache */
-		ni_lease_file_write(dev->ifname, lease);
+		ni_addrconf_lease_file_write(dev->ifname, lease);
 	} else {
 		ni_debug_dhcp("%s: dropped lease", dev->ifname);
 		ni_dhcp_fsm_restart(dev);
 
 		/* Delete the lease file */
-		ni_lease_file_remove(dev->ifname, NI_ADDRCONF_DHCP, AF_INET);
+		ni_addrconf_lease_file_remove(dev->ifname, NI_ADDRCONF_DHCP, AF_INET);
 	}
 	dev->notify = 1;
 

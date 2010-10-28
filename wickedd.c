@@ -190,7 +190,7 @@ wicked_try_restart_addrconf(ni_interface_t *ifp, ni_afinfo_t *afi, unsigned int 
 	if (acm == NULL)
 		return;
 
-	lease = ni_lease_file_read(ifp->name, mode, afi->family);
+	lease = ni_addrconf_lease_file_read(ifp->name, mode, afi->family);
 	if (lease == NULL)
 		return;
 
@@ -199,7 +199,7 @@ wicked_try_restart_addrconf(ni_interface_t *ifp, ni_afinfo_t *afi, unsigned int 
 		ni_debug_wicked("%s: removing stale %s/%s lease file", ifp->name,
 				ni_addrconf_type_to_name(lease->type),
 				ni_addrfamily_type_to_name(lease->family));
-		ni_lease_file_remove(ifp->name, mode, afi->family);
+		ni_addrconf_lease_file_remove(ifp->name, mode, afi->family);
 		ni_addrconf_lease_free(lease);
 		return;
 	}
