@@ -128,6 +128,7 @@ extern const char *	ni_dhcp_fsm_state_name(int);
 extern int		ni_dhcp_fsm_process_dhcp_packet(ni_dhcp_device_t *, ni_buffer_t *);
 extern int		ni_dhcp_fsm_process_arp_packet(ni_dhcp_device_t *, ni_buffer_t *);
 extern int		ni_dhcp_fsm_commit_lease(ni_dhcp_device_t *, ni_addrconf_lease_t *);
+extern int		ni_dhcp_fsm_recover_lease(ni_dhcp_device_t *, const ni_addrconf_request_t *);
 extern int		ni_dhcp_build_message(const ni_dhcp_device_t *,
 				unsigned int, const ni_addrconf_lease_t *, ni_buffer_t *);
 
@@ -156,6 +157,7 @@ extern void		ni_dhcp_device_disarm_retransmit(ni_dhcp_device_t *dev);
 extern void		ni_dhcp_device_retransmit(ni_dhcp_device_t *);
 extern void		ni_dhcp_parse_client_id(ni_opaque_t *, int, const char *);
 extern void		ni_dhcp_set_client_id(ni_opaque_t *, const ni_hwaddr_t *);
+extern int		ni_dhcp_lease_matches_request(const ni_addrconf_lease_t *, const ni_addrconf_request_t *);
 
 extern int		ni_dhcp_xml_from_lease(const ni_addrconf_t *,
 				const ni_addrconf_lease_t *, xml_node_t *);

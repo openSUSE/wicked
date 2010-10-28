@@ -1451,6 +1451,10 @@ __ni_interface_addrconf(ni_handle_t *nih, int family, ni_interface_t *ifp, ni_in
 			ni_afinfo_addrconf_enable(&ifp->ipv4, acm->type);
 		if (acm->supported_af & NI_AF_MASK_IPV6)
 			ni_afinfo_addrconf_enable(&ifp->ipv6, acm->type);
+
+		/* Write out the addrconf request data; this is used when
+		 * we restart the wicked service. */
+		ni_addrconf_request_file_write(ifp->name, tmp);
 	}
 
 	if (xml)

@@ -157,6 +157,17 @@ ni_dhcp_fsm_set_timeout(ni_dhcp_device_t *dev, unsigned int seconds)
 	}
 }
 
+void
+ni_dhcp_fsm_set_deadline(ni_dhcp_device_t *dev, time_t deadline)
+{
+	time_t now = time(NULL);
+
+	if (now < deadline)
+		ni_dhcp_fsm_set_timeout(dev, deadline - now);
+	else
+		ni_error("ni_dhcp_fsm_set_deadline(%s): cannot go back in time", dev->ifname);
+}
+
 int
 ni_dhcp_fsm_discover(ni_dhcp_device_t *dev)
 {
@@ -210,9 +221,8 @@ ni_dhcp_fsm_renewal(ni_dhcp_device_t *dev)
 	/* FIXME: we should really unicast the request here. */
 	rv = ni_dhcp_device_send_message(dev, DHCP_REQUEST, dev->lease);
 
-	ni_dhcp_fsm_set_timeout(dev,
-			dev->lease->dhcp.rebind_time -
-			dev->lease->dhcp.renewal_time);
+	ni_dhcp_fsm_set_deadline(dev,
+			dev->lease->time_acquired + dev->lease->dhcp.rebind_time);
 	dev->state = NI_DHCP_STATE_RENEWING;
 	return rv;
 }
@@ -227,9 +237,8 @@ ni_dhcp_fsm_rebind(ni_dhcp_device_t *dev)
 
 	rv = ni_dhcp_device_send_message(dev, DHCP_REQUEST, dev->lease);
 
-	ni_dhcp_fsm_set_timeout(dev,
-			dev->lease->dhcp.lease_time -
-			dev->lease->dhcp.rebind_time);
+	ni_dhcp_fsm_set_deadline(dev,
+			dev->lease->time_acquired + dev->lease->dhcp.lease_time);
 	dev->state = NI_DHCP_STATE_REBINDING;
 	return rv;
 }
@@ -475,6 +484,66 @@ ni_dhcp_fsm_commit_lease(ni_dhcp_device_t *dev, ni_addrconf_lease_t *lease)
 	/* TBD: Inform the master about the newly acquired lease */
 
 	return 0;
+}
+
+/*
+ * Reload an old lease from file, and see whether we can reuse it.
+ * This is used during restart of wickedd.
+ */
+int
+ni_dhcp_fsm_recover_lease(ni_dhcp_device_t *dev, const ni_addrconf_request_t *req)
+{
+	ni_addrconf_lease_t *lease;
+	time_t now = time(NULL), then;
+
+	/* Don't recover anything if we already have a lease attached. */
+	if (dev->lease != NULL)
+		return -1;
+
+	lease = ni_addrconf_lease_file_read(dev->ifname, NI_ADDRCONF_DHCP, AF_INET);
+	if (!lease)
+		return -1;
+
+	if (lease->state != NI_ADDRCONF_STATE_GRANTED)
+		goto discard;
+
+	ni_debug_dhcp("trying to recover dhcp lease, now inspecting");
+	then = lease->time_acquired;
+	if (now < then) {
+		ni_debug_dhcp("%s: found time-warped lease (hi, grand-grand-pa)", __FUNCTION__);
+		goto discard;
+	}
+
+	if (now >= then + lease->dhcp.lease_time) {
+		ni_debug_dhcp("%s: found expired lease", __FUNCTION__);
+		goto discard;
+	}
+
+	if (!ni_dhcp_lease_matches_request(lease, req)) {
+		ni_debug_dhcp("%s: lease doesn't match request", __FUNCTION__);
+		goto discard;
+	}
+
+	ni_dhcp_device_set_lease(dev, lease);
+
+	if (now >= then + lease->dhcp.rebind_time) {
+		ni_dhcp_fsm_rebind(dev);
+	} else
+	if (now >= then + lease->dhcp.renewal_time) {
+		ni_dhcp_fsm_renewal(dev);
+	} else {
+		ni_dhcp_fsm_set_deadline(dev, then + lease->dhcp.renewal_time);
+		dev->state = NI_DHCP_STATE_BOUND;
+	}
+
+	ni_debug_dhcp("%s: recovered old lease; now in state=%s",
+			dev->ifname, ni_dhcp_fsm_state_name(dev->state));
+	dev->notify = 1;
+	return 0;
+
+discard:
+	ni_addrconf_lease_free(lease);
+	return -1;
 }
 
 void

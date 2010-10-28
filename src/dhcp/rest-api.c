@@ -223,7 +223,6 @@ dhcp_interface_put(const char *ifname, ni_wicked_request_t *req)
 	ni_interface_t *ifp = NULL;
 	ni_handle_t *cnih = NULL;
 	ni_dhcp_device_t *dev = NULL;
-	int reacquire = 0;
 	int rv = -1;
 
 	if (ifname == NULL) {
@@ -253,32 +252,31 @@ dhcp_interface_put(const char *ifname, ni_wicked_request_t *req)
 	dev = ni_dhcp_device_find(ifp->name);
 	if (ifp->flags & IFF_UP) {
 		ni_debug_dhcp("%s: received request to acquire lease", ifp->name);
+
 		dev = ni_dhcp_device_find(ifp->name);
-		if (dev != NULL) {
-			if (ni_dhcp_device_reconfigure(dev, ifp))
-				reacquire = 1;
-			if (dev->state != NI_DHCP_STATE_BOUND)
-				reacquire = 1;
-		} else {
+		if (dev == NULL)
 			dev = ni_dhcp_device_new(ifp->name, ifp->type);
-			ni_dhcp_device_reconfigure(dev, ifp);
-			reacquire = 1;
-		}
+
+		ni_dhcp_device_reconfigure(dev, ifp);
 	} else {
 		ni_debug_dhcp("%s: received request to release lease", ifp->name);
 		ni_dhcp_device_stop(dev);
 	}
+
 	if (ifp->flags & IFF_LOWER_UP) {
 		/* Link came back. If we're binding, resend next packet right away */
 	} else {
 		/* Link went away. */
 	}
-	/* If nothing changed, make sure we at least inform the master of the
-	 * current lease state */
-	if (!reacquire)
-		dev->notify = 1;
-	else if (dev->config)
+
+	if (dev->state == NI_DHCP_STATE_INIT && dev->config) {
+		/* We're asked to (re-)start discovery */
 		ni_dhcp_device_start(dev);
+	} else {
+		/* Even if nothing changed, we should at least inform the master of
+		 * the current lease state */
+		dev->notify = 1;
+	}
 
 	rv = 0;
 

@@ -40,6 +40,7 @@ ni_dhcp_device_new(const char *ifname, unsigned int iftype)
 	dev->start_time = time(NULL);
 	dev->state = NI_DHCP_STATE_INIT;
 
+#if 0
 	dev->lease = ni_addrconf_lease_file_read(ifname, NI_ADDRCONF_DHCP, AF_INET);
 	if (dev->lease) {
 		/* Check if has expired */
@@ -63,6 +64,7 @@ ni_dhcp_device_new(const char *ifname, unsigned int iftype)
 			ni_dhcp_device_set_lease(dev, NULL);
 		}
 	} 
+#endif
 
 	/* FIXME: should add to end of list */
 	dev->next = ni_dhcp_active;
@@ -159,9 +161,21 @@ ni_dhcp_device_drop_lease(ni_dhcp_device_t *dev)
 		ni_addrconf_lease_file_remove(dev->ifname, NI_ADDRCONF_DHCP, AF_INET);
 		ni_addrconf_lease_free(dev->lease);
 		dev->lease = NULL;
+
+		/* Go back to square one */
+		dev->state = NI_DHCP_STATE_INIT;
 	}
 }
 
+/*
+ * Process a request to reconfigure the device (ie rebind a lease, or discover
+ * a new lease).
+ *
+ * NOTE: we should really have a way to put a lease on "probation".
+ * We want to do a parallel rebind + discovery. This should help a lot with things
+ * like cable disconnect/reconnect, where we want to do the right thing, regardless
+ * of whether we got plugged into the same network (rebind), or a different one (discover).
+ */
 int
 ni_dhcp_device_reconfigure(ni_dhcp_device_t *dev, const ni_interface_t *ifp)
 {
@@ -195,32 +209,6 @@ ni_dhcp_device_reconfigure(ni_dhcp_device_t *dev, const ni_interface_t *ifp)
 	if (dev->system.arp_type == ARPHRD_NONE) {
 		ni_warn("%s: no arp_type, using ether", __FUNCTION__);
 		dev->system.arp_type = ARPHRD_ETHER;
-	}
-
-	if (dev->lease == NULL) {
-		rediscover = 1;
-	} else {
-		ni_addrconf_lease_t *lease = dev->lease;
-
-		/*
-		 * Reuse an existing lease, unless one of the following
-		 * is true:
-		 *  -	we are asked to ignore existing leases
-		 *  -	the lease has expired, or is past its rebind/renew interval
-		 *  -	we are requesting a different hostname
-		 *  -	we are using a different client id
-		 */
-		if (!info->reuse_unexpired || dev->state != NI_DHCP_STATE_BOUND
-		 || (info->dhcp.hostname && !xstreq(info->dhcp.hostname, lease->hostname))
-		 || (info->dhcp.clientid && !xstreq(info->dhcp.clientid, lease->dhcp.client_id))) {
-			ni_debug_dhcp("ignoring existing lease");
-			rediscover = 1;
-		}
-	}
-
-	if (!rediscover) {
-		ni_debug_dhcp("reusing existing lease");
-		return 0;
 	}
 
 	config = calloc(1, sizeof(*config));
@@ -258,29 +246,32 @@ ni_dhcp_device_reconfigure(ni_dhcp_device_t *dev, const ni_interface_t *ifp)
 	if (dev->config)
 		free(dev->config);
 	dev->config = config;
+
+	/* If we're asked to reclaim an existing lease, try to load it. */
+	if (info->reuse_unexpired && ni_dhcp_fsm_recover_lease(dev, info) >= 0)
+		return 0;
+
+	if (dev->lease) {
+		if (!ni_addrconf_lease_is_valid(dev->lease)
+		 || !ni_dhcp_lease_matches_request(dev->lease, info)) {
+			ni_debug_dhcp("%s: lease doesn't match request", dev->ifname);
+			ni_dhcp_device_drop_lease(dev);
+			dev->notify = 1;
+		}
+	}
+
+	/* Go back to INIT state to force a rediscovery */
+	dev->state = NI_DHCP_STATE_INIT;
 	return 1;
 }
 
 int
 ni_dhcp_device_start(ni_dhcp_device_t *dev)
 {
-	if (0 /* && info->lease.reuse_unexpired */) {
-		if (!dev->lease) {
-			/* TBD: retrieve existing lease */
-			/* TBD: check whether it matches our config
-			 * (eg the hostname we're supposed to request) */
-		}
-
-		/* check if it is still valid. */
-		if (dev->lease /* && !still_valid(dev->lease) */)
-			ni_dhcp_device_drop_lease(dev);
-	} else {
-		ni_dhcp_device_drop_lease(dev);
-	}
-
+	ni_dhcp_device_drop_lease(dev);
 	ni_dhcp_device_drop_buffer(dev);
-
 	dev->failed = 0;
+
 	if (ni_dhcp_fsm_discover(dev) < 0) {
 		ni_error("unable to initiate discovery");
 		return -1;
