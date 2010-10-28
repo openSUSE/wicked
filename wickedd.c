@@ -33,6 +33,7 @@ enum {
 	OPT_DEBUG,
 	OPT_FOREGROUND,
 	OPT_NOFORK,
+	OPT_NORECOVER,
 };
 
 static struct option	options[] = {
@@ -40,12 +41,14 @@ static struct option	options[] = {
 	{ "debug",		required_argument,	NULL,	OPT_DEBUG },
 	{ "foreground",		no_argument,		NULL,	OPT_FOREGROUND },
 	{ "no-fork",		no_argument,		NULL,	OPT_NOFORK },
+	{ "no-recovery",	no_argument,		NULL,	OPT_NORECOVER },
 
 	{ NULL }
 };
 
 static int		opt_foreground = 0;
 static int		opt_nofork = 0;
+static int		opt_recover_leases = 1;
 
 static void		wicked_discover_state(void);
 static void		wicked_try_restart_addrconf(ni_interface_t *, ni_afinfo_t *, unsigned int, xml_node_t **);
@@ -95,6 +98,10 @@ main(int argc, char **argv)
 
 		case OPT_NOFORK:
 			opt_nofork = 1;
+			break;
+
+		case OPT_NORECOVER:
+			opt_recover_leases = 0;
 			break;
 
 		}
@@ -149,17 +156,19 @@ wicked_discover_state(void)
 	if (ni_refresh(nih) < 0)
 		ni_fatal("failed to discover interface state");
 
-	for (ifp = ni_interfaces(nih); ifp; ifp = ifp->next) {
-		xml_node_t *cfg_xml = NULL;
-		unsigned int mode;
+	if (opt_recover_leases) {
+		for (ifp = ni_interfaces(nih); ifp; ifp = ifp->next) {
+			xml_node_t *cfg_xml = NULL;
+			unsigned int mode;
 
-		for (mode = 0; mode < __NI_ADDRCONF_MAX; ++mode) {
-			wicked_try_restart_addrconf(ifp, &ifp->ipv4, mode, &cfg_xml);
-			wicked_try_restart_addrconf(ifp, &ifp->ipv6, mode, &cfg_xml);
+			for (mode = 0; mode < __NI_ADDRCONF_MAX; ++mode) {
+				wicked_try_restart_addrconf(ifp, &ifp->ipv4, mode, &cfg_xml);
+				wicked_try_restart_addrconf(ifp, &ifp->ipv6, mode, &cfg_xml);
+			}
+
+			if (cfg_xml)
+				xml_node_free(cfg_xml);
 		}
-
-		if (cfg_xml)
-			xml_node_free(cfg_xml);
 	}
 }
 

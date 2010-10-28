@@ -42,6 +42,13 @@ Tell the daemon to not background itself at startup.
 .B \-\-no-fork
 Do not fork when processing an incoming REST call. Mostly useful when
 you wish to debug the server in gdb.
+.TP
+.B \-\-no-recovery
+By default,
+.B wickedd
+will try to restart address configuration daemons such as the DHCP
+client when it finds unexpired leases for a given interface. By
+specifying this option, this behavior is suppressed.
 .SH FILES
 .TP
 .BR /etc/wicked/config.xml
