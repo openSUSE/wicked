@@ -1281,6 +1281,9 @@ __ni_interface_addrconf(ni_handle_t *nih, int family, ni_interface_t *ifp, ni_in
 
 		if (ni_afinfo_addrconf_test(cur_afi, mode)
 		 && !ni_afinfo_addrconf_test(cfg_afi, mode)) {
+			ni_debug_ifconfig("%s: disabling %s/%s", ifp->name,
+					ni_addrfamily_type_to_name(family),
+					ni_addrconf_type_to_name(mode));
 			acm = ni_addrconf_get(mode, family);
 			if (acm && ni_addrconf_drop_lease(acm, ifp) < 0)
 				return -1;
@@ -1371,6 +1374,12 @@ __ni_interface_addrconf(ni_handle_t *nih, int family, ni_interface_t *ifp, ni_in
 			if (rp->family != family)
 				continue;
 
+			/* Even interfaces with static network config may have
+			 * dynamically configured routes. Don't touch these.
+			 */
+			if (rp->config_method != NI_ADDRCONF_STATIC)
+				continue;
+
 			rp2 = __ni_interface_route_exists(cfg, rp);
 			if (rp2 != NULL) {
 				if (__ni_rtnl_send_newroute(nih, ifp, rp2, NLM_F_REPLACE) >= 0) {
@@ -1411,6 +1420,9 @@ __ni_interface_addrconf(ni_handle_t *nih, int family, ni_interface_t *ifp, ni_in
 		ni_addrconf_lease_t *lease;
 		ni_addrconf_request_t *tmp;
 		ni_addrconf_t *acm;
+
+		if (mode == NI_ADDRCONF_STATIC)
+			continue;
 
 		if (!ni_afinfo_addrconf_test(cfg_afi, mode))
 			continue;
@@ -1460,6 +1472,7 @@ __ni_interface_addrconf(ni_handle_t *nih, int family, ni_interface_t *ifp, ni_in
 
 	if (xml)
 		xml_node_free(xml);
+	cur_afi->addrconf = cfg_afi->addrconf;
 	return 0;
 
 error:
