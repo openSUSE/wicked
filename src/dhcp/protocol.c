@@ -411,6 +411,7 @@ ni_dhcp_decode_dnssearch(ni_buffer_t *optbuf, ni_string_array_t *list)
 				/* Plain name component */
 				if (ni_buffer_get(bp, label, length) < 0)
 					return -1;
+				label[length] = '\0';
 
 				if (!ni_stringbuf_empty(&namebuf))
 					ni_stringbuf_putc(&namebuf, '.');
@@ -478,6 +479,9 @@ ni_dhcp_decode_csr(ni_buffer_t *bp, ni_route_t **route_list)
 				(struct sockaddr_storage *) &gateway);
 	}
 
+	if (bp->underflow)
+		return -1;
+
 	return 0;
 }
 
@@ -492,7 +496,10 @@ ni_dhcp_decode_address_list(ni_buffer_t *bp, ni_string_array_t *list)
 		ni_string_array_append(list, inet_ntoa(addr));
 	}
 
-	return -1;
+	if (bp->underflow)
+		return -1;
+
+	return 0;
 }
 
 static int
@@ -510,14 +517,7 @@ ni_dhcp_decode_sipservers(ni_buffer_t *bp, ni_string_array_t *list)
 		return ni_dhcp_decode_dnssearch(bp, list);
 
 	case 1:
-		while (ni_buffer_count(bp) && bp->underflow) {
-			struct in_addr addr;
-
-			if (ni_dhcp_option_get_ipv4(bp, &addr) < 0)
-				return -1;
-			ni_string_array_append(list, inet_ntoa(addr));
-		}
-		break;
+		return ni_dhcp_decode_address_list(bp, list);
 
 	default:
 		ni_error("unknown sip encoding %d", encoding);
@@ -848,6 +848,8 @@ failed:
 
 	if (classless_routes) {
 		/* CSR and MSCSR take precedence over static routes */
+		lease->routes = classless_routes;
+		classless_routes = NULL;
 	} else {
 		ni_route_t **tail = &lease->routes, *rp;
 
@@ -1008,7 +1010,7 @@ ni_dhcp_message_name(unsigned int code)
 	static char namebuf[64];
 	const char *name = NULL;
 
-	if (code < 256)
+	if (code < 16)
 		name = __dhcp_message_names[code];
 	if (!name) {
 		snprintf(namebuf, sizeof(namebuf), "DHCP_MSG_<%u>", code);
