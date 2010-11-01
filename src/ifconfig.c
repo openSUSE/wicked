@@ -48,10 +48,10 @@ static int	__ni_interface_vlan_configure(ni_handle_t *, ni_interface_t *, ni_int
 static int	__ni_interface_bond_configure(ni_handle_t *, ni_interface_t *, ni_interface_t **);
 static int	__ni_interface_extension_configure(ni_handle_t *, ni_interface_t *, xml_node_t *, ni_interface_t **);
 static int	__ni_interface_extension_delete(ni_handle_t *, ni_interface_t *);
-static int	__ni_interface_update_ipv6_settings(ni_interface_t *);
+static int	__ni_interface_update_ipv6_settings(ni_handle_t *, ni_interface_t *, const ni_interface_t *);
 static int	__ni_rtnl_link_create(ni_handle_t *, ni_interface_t *);
-static int	__ni_rtnl_link_up(ni_handle_t *, ni_interface_t *, const ni_interface_t *);
-static int	__ni_rtnl_link_down(ni_handle_t *, ni_interface_t *, int);
+static int	__ni_rtnl_link_up(ni_handle_t *, const ni_interface_t *, const ni_interface_t *);
+static int	__ni_rtnl_link_down(ni_handle_t *, const ni_interface_t *, int);
 static int	__ni_rtnl_send_deladdr(ni_handle_t *, ni_interface_t *, const ni_address_t *);
 static int	__ni_rtnl_send_newaddr(ni_handle_t *, ni_interface_t *, const ni_address_t *, int);
 static int	__ni_rtnl_send_delroute(ni_handle_t *, ni_interface_t *, ni_route_t *);
@@ -122,7 +122,7 @@ __ni_system_interface_configure(ni_handle_t *nih, ni_interface_t *cfg, xml_node_
 
 	/* If we want to disable ipv6 or ipv6 autoconf, we need to do so prior to bringing
 	 * the interface up. */
-	if (__ni_interface_update_ipv6_settings(cfg) < 0)
+	if (__ni_interface_update_ipv6_settings(nih, ifp, cfg) < 0)
 		return -1;
 
 	if (cfg->flags & IFF_UP) {
@@ -131,6 +131,7 @@ __ni_system_interface_configure(ni_handle_t *nih, ni_interface_t *cfg, xml_node_
 			error("__ni_rtnl_link_up(%s) failed", ifp->name);
 			return -1;
 		}
+		ifp->flags |= IFF_UP;
 	} else {
 		debug_ifconfig("shutting down interface %s", ifp->name);
 		if (__ni_rtnl_link_down(nih, ifp, RTM_NEWLINK)) {
@@ -324,9 +325,8 @@ __ni_system_interface_bringup(ni_handle_t *nih, ni_interface_t *ifp)
 	cfg->flags |= IFF_UP;
 
 	res = __ni_rtnl_link_up(nih, ifp, cfg);
-	if (res >= 0) {
+	if (res >= 0)
 		__ni_system_refresh_interface(nih, ifp);
-	}
 
 	ni_interface_put(cfg);
 	return res;
@@ -768,25 +768,49 @@ __ni_interface_extension_delete(ni_handle_t *nih, ni_interface_t *ifp)
  * Update the IPv6 sysctl settings for the given interface
  */
 int
-__ni_interface_update_ipv6_settings(ni_interface_t *cfg)
+__ni_interface_update_ipv6_settings(ni_handle_t *nih, ni_interface_t *ifp, const ni_interface_t *cfg)
 {
+	int brought_up = 0;
+	int rv = -1;
+
+	/* You can confuse the kernel IPv6 code to a degree that it will
+	 * remove /proc/sys/ipv6/conf/<ifname> completely. dhcpcd in particular
+	 * seems rather good at that. 
+	 * The only way to recover from that is by upping the interface briefly.
+	 */
+	if (!ni_sysctl_ipv6_ifconfig_is_present(cfg->name)) {
+		if (__ni_rtnl_link_up(nih, ifp, cfg) >= 0) {
+			unsigned int count = 100;
+
+			while (count-- && !ni_sysctl_ipv6_ifconfig_is_present(cfg->name))
+				usleep(100000);
+			brought_up = 1;
+		}
+	}
+
 	if (ni_sysctl_ipv6_ifconfig_set_uint(cfg->name, "disable_ipv6", !cfg->ipv6.enabled) < 0) {
 		ni_error("%s: cannot %s ipv6", cfg->name, cfg->ipv6.enabled? "enable" : "disable");
-		return -1;
+		goto out;
 	}
 	if (cfg->ipv6.enabled) {
 		int autoconf = ni_afinfo_addrconf_test(&cfg->ipv6, NI_ADDRCONF_STATIC);
 
 		if (ni_sysctl_ipv6_ifconfig_set_uint(cfg->name, "autoconf", autoconf) < 0) {
 			ni_error("%s: cannot %s ipv6 autoconf", cfg->name, autoconf? "enable" : "disable");
-			return -1;
+			goto out;
 		}
 		if (ni_sysctl_ipv6_ifconfig_set_uint(cfg->name, "forwarding", cfg->ipv6.forwarding) < 0) {
 			ni_error("%s: cannot %s ipv6 forwarding", cfg->name, cfg->ipv6.forwarding? "enable" : "disable");
-			return -1;
+			goto out;
 		}
 	}
-	return 0;
+	rv = 0;
+
+out:
+	if (brought_up)
+		__ni_rtnl_link_down(nih, cfg, RTM_NEWLINK);
+
+	return rv;
 }
 
 /*
@@ -868,7 +892,7 @@ __ni_rtnl_link_create(ni_handle_t *nih, ni_interface_t *cfg)
  * Bring down/delete an interface
  */
 static int
-__ni_rtnl_link_down(ni_handle_t *nih, ni_interface_t *ifp, int cmd)
+__ni_rtnl_link_down(ni_handle_t *nih, const ni_interface_t *ifp, int cmd)
 {
 	struct {
 		struct nlmsghdr	hdr;
@@ -893,7 +917,7 @@ __ni_rtnl_link_down(ni_handle_t *nih, ni_interface_t *ifp, int cmd)
  * (Re-)configure an interface
  */
 static int
-__ni_rtnl_link_up(ni_handle_t *nih, ni_interface_t *ifp, const ni_interface_t *cfg)
+__ni_rtnl_link_up(ni_handle_t *nih, const ni_interface_t *ifp, const ni_interface_t *cfg)
 {
 	struct {
 		struct nlmsghdr	hdr;
@@ -926,9 +950,6 @@ __ni_rtnl_link_up(ni_handle_t *nih, ni_interface_t *ifp, const ni_interface_t *c
 		debug_ifconfig("%s: rtnl_talk failed", __FUNCTION__);
 		return -1;
 	}
-
-	/* Refresh from rtnl response? */
-	ifp->flags |= IFF_UP;
 
 	return 0;
 }

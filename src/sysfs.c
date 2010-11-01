@@ -7,6 +7,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <unistd.h>
 #include <limits.h>
 
 #include <wicked/netinfo.h>
@@ -381,9 +382,19 @@ __ni_sysctl_ipv6_ifconfig_path(const char *ifname, const char *ctl_name)
 {
 	static char pathname[PATH_MAX];
 
-	snprintf(pathname, sizeof(pathname),
-			"/proc/sys/net/ipv6/conf/%s/%s", ifname, ctl_name);
+	if (ctl_name)
+		snprintf(pathname, sizeof(pathname), "/proc/sys/net/ipv6/conf/%s/%s", ifname, ctl_name);
+	else
+		snprintf(pathname, sizeof(pathname), "/proc/sys/net/ipv6/conf/%s", ifname);
 	return pathname;
+}
+
+int
+ni_sysctl_ipv6_ifconfig_is_present(const char *ifname)
+{
+	const char *pathname = __ni_sysctl_ipv6_ifconfig_path(ifname, NULL);
+
+	return access(pathname, F_OK) == 0;
 }
 
 int
