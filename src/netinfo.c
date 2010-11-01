@@ -803,8 +803,12 @@ ni_interface_clone(const ni_interface_t *ofp)
 	C(master);
 	D(qdisc, strdup);
 	D(kind, strdup);
-	C(ipv4);
-	C(ipv6);
+	C(ipv4.enabled);
+	C(ipv4.forwarding);
+	C(ipv4.addrconf);
+	C(ipv6.enabled);
+	C(ipv6.forwarding);
+	C(ipv6.addrconf);
 	D(addrs, __ni_address_list_clone);
 	D(routes, __ni_route_list_clone);
 	D(bonding, ni_bonding_clone);
