@@ -33,6 +33,14 @@ typedef struct ni_capture ni_capture_t;
 typedef struct ni_dhcp_message ni_dhcp_message_t;
 typedef struct ni_dhcp_config ni_dhcp_config_t;
 
+typedef struct ni_timeout_param {
+	unsigned int		timeout;
+	unsigned int		increment;
+	unsigned int		max_jitter;
+	unsigned int		max_timeout;
+	struct timeval		deadline;
+} ni_timeout_param_t;
+
 typedef struct ni_dhcp_device {
 	struct ni_dhcp_device *	next;
 
@@ -68,11 +76,6 @@ typedef struct ni_dhcp_device {
 	} dhcp;
 
 	ni_buffer_t		message;
-	struct {
-	   unsigned int		timeout;
-	   unsigned int		increment;
-	   struct timeval	deadline;
-	} retrans;
 
 	struct {
 	   unsigned int		nprobes;
@@ -148,7 +151,9 @@ extern int		ni_dhcp_build_send_header(ni_buffer_t *, struct in_addr, struct in_a
 extern int		ni_dhcp_parse_response(const ni_dhcp_message_t *, ni_buffer_t *, ni_addrconf_lease_t **);
 
 extern int		ni_dhcp_socket_open(ni_dhcp_device_t *);
-extern ssize_t		ni_capture_broadcast(const ni_capture_t *, const void *, size_t);
+extern ssize_t		ni_capture_broadcast(ni_capture_t *, const ni_buffer_t *, const ni_timeout_param_t *);
+extern void		ni_capture_disarm_retransmit(ni_capture_t *);
+extern void		ni_capture_force_retransmit(ni_capture_t *, unsigned int);
 extern void		ni_capture_free(ni_capture_t *);
 extern int		ni_capture_desc(const ni_capture_t *);
 
@@ -167,6 +172,7 @@ extern int		ni_dhcp_device_send_message(ni_dhcp_device_t *, unsigned int, const 
 extern void		ni_dhcp_device_arm_retransmit(ni_dhcp_device_t *dev);
 extern void		ni_dhcp_device_disarm_retransmit(ni_dhcp_device_t *dev);
 extern void		ni_dhcp_device_retransmit(ni_dhcp_device_t *);
+extern void		ni_dhcp_device_force_retransmit(ni_dhcp_device_t *, unsigned int);
 extern void		ni_dhcp_parse_client_id(ni_opaque_t *, int, const char *);
 extern void		ni_dhcp_set_client_id(ni_opaque_t *, const ni_hwaddr_t *);
 extern int		ni_dhcp_lease_matches_request(const ni_addrconf_lease_t *, const ni_addrconf_request_t *);

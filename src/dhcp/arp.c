@@ -62,9 +62,7 @@ ni_arp_send(ni_dhcp_device_t *dev, unsigned int arpop,
 	}
 	ni_buffer_put(&buf, &tip, 4);
 
-	rv = ni_capture_broadcast(dev->capture,
-			ni_buffer_head(&buf),
-			ni_buffer_count(&buf));
+	rv = ni_capture_broadcast(dev->capture, &buf, NULL);
 	free(buf.base);
 	return rv;
 }

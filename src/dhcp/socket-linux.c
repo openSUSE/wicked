@@ -87,16 +87,25 @@ static struct bpf_insn arp_bpf_filter [] = {
  * Platform specific
  */
 struct ni_capture {
-	ni_dhcp_device_t *dev;
-	ni_socket_t *	sock;
-	int		protocol;
-	struct sockaddr_ll sll;
+	ni_dhcp_device_t *	dev;
+	ni_socket_t *		sock;
+	int			protocol;
+	struct sockaddr_ll	sll;
 
-	void *		buffer;
-	size_t		mtu;
+	const char *		ifname;
+
+	void *			buffer;
+	size_t			mtu;
+
+	struct {
+		struct timeval		deadline;
+		const ni_buffer_t *	buffer;
+		ni_timeout_param_t	timeout;
+	} retrans;
 };
 
 static ni_capture_t *	ni_capture_open(const ni_dhcp_device_t *, int, void (*)(ni_socket_t *));
+static ssize_t		__ni_capture_broadcast(const ni_capture_t *, const ni_buffer_t *);
 
 static uint32_t
 checksum_partial(uint32_t sum, const void *data, uint16_t len)
@@ -257,49 +266,125 @@ check_packet_header(unsigned char *data, size_t bytes, size_t *payload_len)
 }
 
 /*
+ * Timeout handling
+ */
+void
+ni_timeout_increase(ni_timeout_param_t *tmo)
+{
+	if (tmo->increment)
+		tmo->timeout += tmo->increment;
+	else
+		tmo->timeout <<= 1;
+	if (tmo->timeout > tmo->max_timeout)
+		tmo->timeout = tmo->max_timeout;
+}
+
+int
+ni_timeout_arm(struct timeval *deadline, unsigned long timeout, unsigned int jitter)
+{
+	timeout *= 1000;
+	if (jitter) {
+		jitter *= 1000;
+		timeout += (random() % (2 * jitter)) - jitter;
+	}
+
+	ni_debug_dhcp("arming retransmit timer (%lu msec)", timeout);
+	gettimeofday(deadline, NULL);
+	deadline->tv_sec += timeout / 1000;
+	deadline->tv_usec += (timeout % 1000) * 1000;
+	if (deadline->tv_usec < 0) {
+		deadline->tv_sec -= 1;
+		deadline->tv_usec += 1000000;
+	} else
+	if (deadline->tv_usec > 1000000) {
+		deadline->tv_sec += 1;
+		deadline->tv_usec -= 1000000;
+	}
+	return 0;
+}
+
+void
+ni_capture_arm_retransmit(ni_capture_t *capture)
+{
+	ni_timeout_arm(&capture->retrans.deadline,
+			capture->retrans.timeout.timeout,
+			capture->retrans.timeout.max_jitter);
+}
+
+void
+ni_capture_disarm_retransmit(ni_capture_t *capture)
+{
+	/* Clear retransmit timer, buffer, and everything else */
+	memset(&capture->retrans, 0, sizeof(capture->retrans));
+}
+
+void
+ni_capture_force_retransmit(ni_capture_t *capture, unsigned int delay)
+{
+	if (timerisset(&capture->retrans.deadline))
+		ni_timeout_arm(&capture->retrans.deadline, delay, 0);
+}
+
+/*
+ * Retransmit handling
+ */
+void
+ni_capture_retransmit(ni_capture_t *capture)
+{
+	int rv;
+
+	ni_debug_dhcp("%s: retransmit request", capture->ifname);
+
+	if (capture->retrans.buffer == NULL) {
+		ni_error("ni_capture_retransmit: no message!?");
+		ni_capture_disarm_retransmit(capture);
+		return;
+	}
+
+	ni_timeout_increase(&capture->retrans.timeout);
+	rv = __ni_capture_broadcast(capture, capture->retrans.buffer);
+
+	/* We don't care whether sending failed or not. Quite possibly
+	 * it's a temporary condition, so continue */
+	if (rv < 0)
+		ni_warn("%s: sending message failed", capture->ifname);
+	ni_capture_arm_retransmit(capture);
+}
+
+/*
  * Common functions for handling timeouts
  * (Common as in: working for DHCP and ARP)
  * These are a bit of a layering violation, but I don't like too many
  * callbacks nested in callbacks...
  */
 static int
-__ni_dhcp_socket_get_timeout(const ni_socket_t *sock, struct timeval *tv)
+__ni_capture_socket_get_timeout(const ni_socket_t *sock, struct timeval *tv)
 {
 	ni_capture_t *capture;
-	ni_dhcp_device_t *dev;
 
 	if (!(capture = sock->user_data)) {
 		ni_error("dhcp socket without capture?!");
-		return -1;
-	}
-	if (!(dev = capture->dev)) {
-		ni_error("dhcp socket without device?!");
 		return -1;
 	}
 
 	timerclear(tv);
-	if (timerisset(&dev->retrans.deadline))
-		*tv = dev->retrans.deadline;
+	if (timerisset(&capture->retrans.deadline))
+		*tv = capture->retrans.deadline;
 	return timerisset(tv)? 0 : -1;
 }
 
 static void
-__ni_dhcp_socket_check_timeout(ni_socket_t *sock, const struct timeval *now)
+__ni_capture_socket_check_timeout(ni_socket_t *sock, const struct timeval *now)
 {
 	ni_capture_t *capture;
-	ni_dhcp_device_t *dev;
 
 	if (!(capture = sock->user_data)) {
 		ni_error("dhcp socket without capture?!");
 		return;
 	}
-	if (!(dev = capture->dev)) {
-		ni_error("dhcp socket without device?!");
-		return;
-	}
 
-	if (timerisset(&dev->retrans.deadline) && timercmp(&dev->retrans.deadline, now, <))
-		ni_dhcp_device_retransmit(dev);
+	if (timerisset(&capture->retrans.deadline) && timercmp(&capture->retrans.deadline, now, <))
+		ni_capture_retransmit(capture);
 }
 
 static int
@@ -321,8 +406,6 @@ __ni_dhcp_common_open(ni_dhcp_device_t *dev, int protocol, void (*data_ready)(ni
 	capture = ni_capture_open(dev, protocol, data_ready);
 	if (!capture)
 		return -1;
-	capture->sock->get_timeout = __ni_dhcp_socket_get_timeout;
-	capture->sock->check_timeout = __ni_dhcp_socket_check_timeout;
 
 	dev->capture = capture;
 	capture->dev = dev;
@@ -343,7 +426,7 @@ ni_dhcp_socket_recv(ni_socket_t *sock)
 	ni_buffer_t buf;
 	ssize_t bytes;
 
-	ni_debug_dhcp("%s: incoming DHCP packet", capture->dev->ifname);
+	ni_debug_dhcp("%s: incoming DHCP packet", capture->ifname);
 	bytes = read(sock->__fd, capture->buffer, capture->mtu);
 	if (bytes < 0) {
 		ni_error("ni_dhcp_socket_recv: cannot read from socket: %m");
@@ -472,11 +555,12 @@ ni_capture_open(const ni_dhcp_device_t *dev, int protocol, void (*data_ready)(ni
 	fcntl(fd, F_SETFD, FD_CLOEXEC);
 
 	capture = calloc(1, sizeof(*capture));
+	capture->ifname = dev->ifname;
 	capture->sock = ni_socket_wrap(fd, SOCK_DGRAM);
 	capture->protocol = protocol;
 
 	capture->sll.sll_family = AF_PACKET;
-	capture->sll.sll_protocol = htons(protocol); // 0; /* will be filled in on xmit */
+	capture->sll.sll_protocol = htons(protocol);
 	capture->sll.sll_ifindex = dev->system.ifindex;
 	capture->sll.sll_hatype = htons(dev->system.arp_type);
 	capture->sll.sll_halen = brdaddr.len;
@@ -501,6 +585,8 @@ ni_capture_open(const ni_dhcp_device_t *dev, int protocol, void (*data_ready)(ni
 	capture->buffer = malloc(capture->mtu);
 
 	capture->sock->data_ready = data_ready;
+	capture->sock->get_timeout = __ni_capture_socket_get_timeout;
+	capture->sock->check_timeout = __ni_capture_socket_check_timeout;
 	capture->sock->user_data = capture;
 	ni_socket_activate(capture->sock);
 	return capture;
@@ -553,7 +639,7 @@ ni_capture_set_filter(ni_capture_t *cap, int protocol)
 }
 
 ssize_t
-ni_capture_broadcast(const ni_capture_t *capture, const void *data, size_t len)
+__ni_capture_broadcast(const ni_capture_t *capture, const ni_buffer_t *buf)
 {
 	ssize_t rv;
 
@@ -562,12 +648,27 @@ ni_capture_broadcast(const ni_capture_t *capture, const void *data, size_t len)
 		return -1;
 	}
 
-	rv = sendto(capture->sock->__fd, data, len, 0,
-			(struct sockaddr *) &capture->sll,
-			sizeof(capture->sll));
+	rv = sendto(capture->sock->__fd, ni_buffer_head(buf), ni_buffer_count(buf), 0,
+			(struct sockaddr *) &capture->sll, sizeof(capture->sll));
 	if (rv < 0)
 		ni_error("unable to send dhcp packet: %m");
 
+	return rv;
+}
+
+ssize_t
+ni_capture_broadcast(ni_capture_t *capture, const ni_buffer_t *buf, const ni_timeout_param_t *tmo)
+{
+	ssize_t rv;
+
+	rv = __ni_capture_broadcast(capture, buf);
+	if (tmo) {
+		capture->retrans.buffer = buf;
+		capture->retrans.timeout = *tmo;
+		ni_capture_arm_retransmit(capture);
+	} else {
+		ni_capture_disarm_retransmit(capture);
+	}
 	return rv;
 }
 

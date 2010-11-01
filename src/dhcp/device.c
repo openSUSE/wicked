@@ -310,6 +310,7 @@ int
 ni_dhcp_device_send_message(ni_dhcp_device_t *dev, unsigned int msg_code, const ni_addrconf_lease_t *lease)
 {
 	static uint32_t ni_dhcp_xid;
+	ni_timeout_param_t timeout;
 	int rv;
 
 	/* Assign a new XID to this message */
@@ -334,30 +335,31 @@ ni_dhcp_device_send_message(ni_dhcp_device_t *dev, unsigned int msg_code, const 
 		return -1;
 	}
 
-	/* FIXME: during renewal, we really want to unicast the request */
-	rv = ni_capture_broadcast(dev->capture,
-				ni_buffer_head(&dev->message),
-				ni_buffer_count(&dev->message));
-	if (rv < 0)
-		ni_debug_dhcp("unable to broadcast message");
-
 	switch (msg_code) {
 	case DHCP_DECLINE:
 	case DHCP_RELEASE:
+		rv = ni_capture_broadcast(dev->capture, &dev->message, NULL);
 		break;
 
 	case DHCP_DISCOVER:
 	case DHCP_REQUEST:
 	case DHCP_INFORM:
-		dev->retrans.timeout = dev->config->resend_timeout;
-		dev->retrans.increment = dev->config->resend_timeout;
-		ni_dhcp_device_arm_retransmit(dev);
+		memset(&timeout, 0, sizeof(timeout));
+		timeout.timeout = dev->config->resend_timeout;
+		timeout.increment = dev->config->resend_timeout;
+		timeout.max_jitter = 1;	/* add a random jitter of +/-1 sec */
+		timeout.max_timeout = NI_DHCP_RESEND_TIMEOUT_MAX;
+
+		/* FIXME: during renewal, we really want to unicast the request */
+		rv = ni_capture_broadcast(dev->capture, &dev->message, &timeout);
 		break;
 
 	default:
 		ni_warn("not sure whether I should retransmit %s message",
 				ni_dhcp_message_name(msg_code));
 	}
+	if (rv < 0)
+		ni_debug_dhcp("unable to broadcast message");
 
 	return 0;
 
@@ -370,69 +372,21 @@ transient_failure:
 }
 
 void
-ni_dhcp_device_retransmit(ni_dhcp_device_t *dev)
-{
-	int rv;
-
-	ni_debug_dhcp("%s: retransmit request", dev->ifname);
-
-	if (ni_buffer_count(&dev->message) == 0) {
-		ni_error("ni_dhcp_device_retransmit: no message!?");
-		ni_dhcp_device_disarm_retransmit(dev);
-		return;
-	}
-
-	if (dev->retrans.increment)
-		dev->retrans.timeout += dev->retrans.increment;
-	else
-		dev->retrans.timeout <<= 1;
-	if (dev->retrans.timeout > NI_DHCP_RESEND_TIMEOUT_MAX)
-		dev->retrans.timeout = NI_DHCP_RESEND_TIMEOUT_MAX;
-
-	rv = ni_capture_broadcast(dev->capture,
-				ni_buffer_head(&dev->message),
-				ni_buffer_count(&dev->message));
-
-	/* We don't care whether sending failed or not. Quite possibly
-	 * it's a temporary condition, so continue */
-	if (rv < 0)
-		ni_warn("%s: sending message failed", dev->ifname);
-	ni_dhcp_device_arm_retransmit(dev);
-}
-
-void
-ni_dhcp_device_arm_retransmit(ni_dhcp_device_t *dev)
-{
-	unsigned long timeout = dev->retrans.timeout * 1000;
-
-	/* We're supposed to add a random jitter of +/-1 sec */
-	timeout += (random() % 2000) - 1000;
-
-	ni_debug_dhcp("%s: arming retransmit timer (%lu msec)",
-			dev->ifname, timeout);
-
-	gettimeofday(&dev->retrans.deadline, NULL);
-	dev->retrans.deadline.tv_sec += timeout / 1000;
-	dev->retrans.deadline.tv_usec += (timeout % 1000) * 1000;
-	if (dev->retrans.deadline.tv_usec < 0) {
-		dev->retrans.deadline.tv_sec -= 1;
-		dev->retrans.deadline.tv_usec += 1000000;
-	} else
-	if (dev->retrans.deadline.tv_usec > 1000000) {
-		dev->retrans.deadline.tv_sec += 1;
-		dev->retrans.deadline.tv_usec -= 1000000;
-	}
-}
-
-void
 ni_dhcp_device_disarm_retransmit(ni_dhcp_device_t *dev)
 {
 	/* Clear retransmit timer */
-	timerclear(&dev->retrans.deadline);
-	dev->retrans.timeout = 0;
+	if (dev->capture)
+		ni_capture_disarm_retransmit(dev->capture);
 
 	/* Drop the message buffer */
 	ni_dhcp_device_drop_buffer(dev);
+}
+
+void
+ni_dhcp_device_force_retransmit(ni_dhcp_device_t *dev, unsigned int delay)
+{
+	if (dev->capture)
+		ni_capture_force_retransmit(dev->capture, delay);
 }
 
 /*

@@ -267,12 +267,12 @@ dhcp_interface_put(const char *ifname, ni_wicked_request_t *req)
 			ni_dhcp_device_stop(dev);
 			break;
 		case NI_EVENT_LINK_UP:
-			/* If the retrans timer is set, change it to the current time
-			 * to trigger an immediate retransmit */
-			if (timerisset(&dev->retrans.deadline)) {
-				gettimeofday(&dev->retrans.deadline, NULL);
-				dev->retrans.deadline.tv_sec += 2; /* settle delay */
-			}
+			/* If the retrans timer is set, change it to the near future
+			 * to trigger an almost immediate retransmit.
+			 * Use a 2 second settle delay to cope with the kernel being
+			 * a little slow sometimes...
+			 */
+			ni_dhcp_device_force_retransmit(dev, 2);
 			break;
 		case NI_EVENT_LINK_DOWN:
 			break;
