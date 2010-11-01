@@ -1289,9 +1289,11 @@ __ni_interface_addrconf(ni_handle_t *nih, int family, ni_interface_t *ifp, ni_in
 			ni_debug_ifconfig("%s: disabling %s/%s", ifp->name,
 					ni_addrfamily_type_to_name(family),
 					ni_addrconf_type_to_name(mode));
+			ni_afinfo_addrconf_disable(cur_afi, mode);
 			acm = ni_addrconf_get(mode, family);
 			if (acm && ni_addrconf_drop_lease(acm, ifp) < 0)
 				return -1;
+			// ni_interface_clear_lease(ifp, mode, family);
 		}
 	}
 
@@ -1304,6 +1306,7 @@ __ni_interface_addrconf(ni_handle_t *nih, int family, ni_interface_t *ifp, ni_in
 		 * We need to mimic the kernel's matching behavior when modifying
 		 * the configuration of existing addresses.
 		 */
+		ni_afinfo_addrconf_enable(cur_afi, NI_ADDRCONF_STATIC);
 		for (ap = ifp->addrs; ap; ap = next) {
 			ni_address_t *ap2;
 
@@ -1478,7 +1481,6 @@ __ni_interface_addrconf(ni_handle_t *nih, int family, ni_interface_t *ifp, ni_in
 	if (xml)
 		xml_node_free(xml);
 
-	cur_afi->addrconf = cfg_afi->addrconf;
 	return 0;
 
 error:
