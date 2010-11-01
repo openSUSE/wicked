@@ -28,6 +28,7 @@
 #include <wicked/xml.h>
 #include <wicked/socket.h>
 #include <wicked/dhcp.h>
+#include <wicked/ipv4ll.h>
 
 enum {
 	OPT_CONFIGFILE,
@@ -112,6 +113,7 @@ main(int argc, char **argv)
 		return 1;
 
 	ni_addrconf_register(&ni_dhcp_addrconf);
+	ni_addrconf_register(&ni_autoip_addrconf);
 
 	if (optind != argc)
 		goto usage;

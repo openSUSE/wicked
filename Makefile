@@ -56,7 +56,12 @@ __LIBSRCS= \
 	  dhcp/device.c \
 	  dhcp/protocol.c \
 	  dhcp/lease.c \
-	  dhcp/arp.c
+	  dhcp/arp.c \
+	  ipv4ll/addrconf.c \
+	  ipv4ll/rest-api.c \
+	  ipv4ll/device.c \
+	  ipv4ll/fsm.c \
+	  ipv4ll/arp.c
 __NCFSRCS= \
 	  netcf.c
 
@@ -119,9 +124,9 @@ libnetinfo.so: $(SHLIBOBJS)
 
 depend:
 	gcc $(CFLAGS) -M $(LIBSRCS) | \
-		sed 's@^\([^.]*\)\.o: src/\([a-z/]*\)\1.c@obj/lib/\2&@' > .depend
+		sed 's@^\([^.]*\)\.o: src/\([a-z0-9/]*\)\1.c@obj/lib/\2&@' > .depend
 	gcc $(CFLAGS) -M $(NCFSRCS) | \
-		sed 's@^\([^.]*\)\.o: src/\([a-z/]*\)\1.c@obj/netcf/\2&@' >> .depend
+		sed 's@^\([^.]*\)\.o: src/\([a-z0-9/]*\)\1.c@obj/netcf/\2&@' >> .depend
 	gcc $(CFLAGS) -M $(APPSRCS) | sed 's:^[a-z]:$(OBJ)/&:' >> .depend
 
 $(OBJ)/%.o: %.c

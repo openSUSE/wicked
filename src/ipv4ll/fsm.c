@@ -1,0 +1,339 @@
+/*
+ * An IPv4LL RFC 3927 supplicant for wicked
+ *
+ * Copyright (C) 2010 Olaf Kirch <okir@suse.de>
+ */
+
+#include <sys/time.h>
+#include <arpa/inet.h>
+#include <stdlib.h>
+#include <time.h>
+
+#include <wicked/netinfo.h>
+#include <wicked/addrconf.h>
+#include <wicked/logging.h>
+#include "netinfo_priv.h"
+#include "autoip.h"
+
+/* The IPv4LL address range is 169.254.1.0 to 169.254.254.255 inclusive */
+#define IPV4LL_ADDRESS_FIRST		0xA9FE0100
+#define IPV4LL_ADDRESS_LAST		0xA9FEFEFF
+#define IPV4LL_ADDRESS_RANGE		(IPV4LL_ADDRESS_LAST - IPV4LL_ADDRESS_FIRST + 1)
+
+/* How long we wait before we send out the first probe */
+#define IPV4LL_PROBE_DELAY_MIN		0
+#define IPV4LL_PROBE_DELAY_MAX		1000
+
+/* How long we wait between probes */
+#define IPV4LL_PROBE_WAIT_MIN		1000
+#define IPV4LL_PROBE_WAIT_MAX		2000
+
+/* How long we wait after the last probe */
+#define IPV4LL_ANNOUNCE_DELAY		2000
+#define IPV4LL_ANNOUNCE_WAIT		2000
+
+#define IPV4LL_PROBE_COUNT		3
+#define IPV4LL_ANNOUNCE_COUNT		2
+#define IPV4LL_MAX_CONFLICTS		10
+#define IPV4LL_RATE_LIMIT_INTERVAL	60000
+#define IPV4LL_DEFEND_INTERVAL		10000
+
+extern int	ni_autoip_device_get_address(ni_autoip_device_t *, struct in_addr *);
+static int	ni_autoip_send_arp(ni_autoip_device_t *);
+static void	ni_autoip_fsm_set_timeout(ni_autoip_device_t *, unsigned int, unsigned int);
+static void	ni_autoip_fsm_timeout(ni_autoip_device_t *);
+
+
+int
+ni_autoip_fsm_select(ni_autoip_device_t *dev)
+{
+	/*
+	 * RFC 3927, Section 2.1:
+	 * Hosts that are equipped with persistent storage MAY, for each
+	 * interface, record the IPv4 address they have selected.  On booting,
+	 * hosts with a previously recorded address SHOULD use that address as
+	 * their first candidate when probing.
+	 */
+	if (dev->fsm.state == NI_AUTOIP_STATE_CLAIMED && dev->autoip.candidate.s_addr != 0) {
+		ni_debug_autoip("%s: trying to reclaim %s",
+				dev->ifname, inet_ntoa(dev->autoip.candidate));
+	} else {
+		dev->autoip.candidate.s_addr = htonl(IPV4LL_ADDRESS_FIRST + (random() % IPV4LL_ADDRESS_RANGE));
+		ni_debug_autoip("%s: selected new candidate address %s",
+				dev->ifname, inet_ntoa(dev->autoip.candidate));
+	}
+
+	dev->fsm.state = NI_AUTOIP_STATE_CLAIMING;
+	dev->autoip.nprobes = IPV4LL_PROBE_COUNT;
+	dev->autoip.nclaims = IPV4LL_ANNOUNCE_COUNT;
+
+	/*
+	 * RFC 3927, Section 2.2.1:
+	 * When ready to begin probing, the host should then wait for a random
+	 * time interval selected uniformly in the range zero to PROBE_WAIT
+	 * seconds [...]
+	 *
+	 * [...] if the number of conflicts exceeds MAX_CONFLICTS then the host
+	 * MUST limit the rate at which it probes for new addresses to no more
+	 * than one new address per RATE_LIMIT_INTERVAL.
+	 */
+	if (dev->autoip.nconflicts > IPV4LL_MAX_CONFLICTS)
+		ni_autoip_fsm_set_timeout(dev, IPV4LL_RATE_LIMIT_INTERVAL, IPV4LL_RATE_LIMIT_INTERVAL);
+	else
+		ni_autoip_fsm_set_timeout(dev, IPV4LL_PROBE_DELAY_MIN, IPV4LL_PROBE_DELAY_MAX);
+	return 0;
+}
+
+void
+ni_autoip_fsm_conflict(ni_autoip_device_t *dev)
+{
+	ni_autoip_device_drop_lease(dev);
+	dev->autoip.nconflicts++;
+	ni_autoip_fsm_select(dev);
+}
+
+/*
+ * (b) If a host currently has active TCP connections or other reasons
+ * to prefer to keep the same IPv4 address, and it has not seen any
+ * other conflicting ARP packets within the last DEFEND_INTERVAL
+ * seconds, then it MAY elect to attempt to defend its address by
+ * recording the time that the conflicting ARP packet was received, and
+ * then broadcasting one single ARP announcement, giving its own IP and
+ * hardware addresses as the sender addresses of the ARP.  Having done
+ * this, the host can then continue to use the address normally without
+ * any further special action.  However, if this is not the first
+ * conflicting ARP packet the host has seen, and the time recorded for
+ * the previous conflicting ARP packet is recent, within DEFEND_INTERVAL
+ * seconds, then the host MUST immediately cease using this address and
+ * configure a new IPv4 Link-Local address as described above.  This is
+ * necessary to ensure that two hosts do not get stuck in an endless
+ * loop with both hosts trying to defend the same address.
+ */
+void
+ni_autoip_fsm_defend(ni_autoip_device_t *dev)
+{
+	time_t now = time(NULL);
+
+	if (dev->fsm.state != NI_AUTOIP_STATE_CLAIMED) {
+		ni_error("%s: shouldn't be called in state %s", __FUNCTION__,
+				ni_autoip_fsm_state_name(dev->fsm.state));
+		return;
+	}
+
+	if (dev->autoip.last_defense && now - dev->autoip.last_defense < IPV4LL_DEFEND_INTERVAL) {
+		ni_debug_autoip("%s: failed to defend address %s", dev->ifname,
+				inet_ntoa(dev->autoip.candidate));
+		ni_autoip_fsm_conflict(dev);
+	} else {
+		dev->autoip.last_defense = now;
+		ni_arp_send_request(dev, dev->autoip.candidate,
+					&dev->devinfo.hwaddr, dev->autoip.candidate);
+	}
+}
+
+int
+ni_autoip_fsm_build_lease(ni_autoip_device_t *dev)
+{
+	struct sockaddr_storage addr;
+	struct sockaddr_in *sin;
+	ni_addrconf_lease_t *lease;
+
+	ni_debug_autoip("%s: building lease", dev->ifname);
+	lease = ni_addrconf_lease_new(NI_ADDRCONF_AUTOCONF, AF_INET);
+
+	memset(&addr, 0, sizeof(addr));
+	sin = (struct sockaddr_in *) &addr;
+	sin->sin_family = AF_INET;
+	sin->sin_addr = dev->autoip.candidate;
+	__ni_address_new(&lease->addrs, AF_INET, 16, &addr);
+
+	ni_address_parse(&addr, "169.254.0.0", AF_INET);
+	__ni_route_new(&lease->routes, 16, &addr, NULL);
+
+	ni_autoip_device_set_lease(dev, lease);
+
+	/* Write the lease to lease cache */
+	ni_addrconf_lease_file_write(dev->ifname, lease);
+
+	/* Inform the master about the newly acquired lease */
+	dev->notify = 1;
+	return 0;
+}
+
+
+int
+ni_autoip_send_arp(ni_autoip_device_t *dev)
+{
+	struct in_addr claim = dev->autoip.candidate;
+	struct in_addr null = { 0 };
+
+	if (dev->autoip.nprobes) {
+		ni_debug_autoip("arp_validate: probing for %s", inet_ntoa(claim));
+		ni_arp_send_request(dev, null, NULL, claim);
+
+		dev->autoip.nprobes -= 1;
+		if (dev->autoip.nprobes != 0)
+			ni_autoip_fsm_set_timeout(dev, IPV4LL_PROBE_WAIT_MIN, IPV4LL_PROBE_WAIT_MAX);
+		else
+			ni_autoip_fsm_set_timeout(dev, IPV4LL_ANNOUNCE_DELAY, IPV4LL_ANNOUNCE_DELAY);
+	} else if (dev->autoip.nclaims) {
+		ni_debug_autoip("arp_validate: claiming %s", inet_ntoa(claim));
+		ni_arp_send_request(dev, claim, &dev->devinfo.hwaddr, claim);
+
+		dev->autoip.nclaims -= 1;
+		if (dev->autoip.nclaims != 0) {
+			ni_autoip_fsm_set_timeout(dev, IPV4LL_ANNOUNCE_WAIT, IPV4LL_ANNOUNCE_WAIT);
+		} else {
+			/* Wow, we're done! */
+			ni_debug_autoip("%s: successfully claimed %s", dev->ifname, inet_ntoa(claim));
+
+			/* Build the lease */
+			ni_autoip_fsm_build_lease(dev);
+
+			dev->fsm.state = NI_AUTOIP_STATE_CLAIMED;
+			dev->autoip.nconflicts = 0;
+			dev->autoip.last_defense = 0;
+		}
+	} else {
+		ni_error("%s: nprobes and nclaims are zero; shouldn't be here", __FUNCTION__);
+		ni_autoip_fsm_conflict(dev);
+		return -1;
+	}
+	return 0;
+}
+
+int
+ni_autoip_fsm_process_arp_packet(ni_autoip_device_t *dev, ni_buffer_t *bp)
+{
+	struct in_addr sip;
+	ni_hwaddr_t sha;
+
+	if (ni_arp_parse_reply(dev, bp, &sip, &sha) < 0)
+		return -1;
+
+	/* Ignore any ARP replies that seem to come from our own
+	 * MAC address. Some helpful switches seem to generate
+	 * these. */
+	if (ni_link_address_equal(&dev->devinfo.hwaddr, &sha))
+		return 0;
+
+	if (sip.s_addr != dev->autoip.candidate.s_addr)
+		return 0;
+
+	switch (dev->fsm.state) {
+	case NI_AUTOIP_STATE_CLAIMING:
+		ni_debug_autoip("address %s already in use by %s",
+				inet_ntoa(sip),
+				ni_link_address_print(&sha));
+		ni_autoip_fsm_conflict(dev);
+		break;
+
+	case NI_AUTOIP_STATE_CLAIMED:
+		ni_autoip_fsm_defend(dev);
+		break;
+
+	default:
+		/* ignore */;
+	}
+
+	return 0;
+}
+
+void
+ni_autoip_fsm_set_timeout(ni_autoip_device_t *dev, unsigned int wait_min, unsigned int wait_max)
+{
+	if (wait_max != 0) {
+		unsigned int wait = wait_min;
+
+		if (wait_min < wait_max)
+			wait += (unsigned int) random() % (wait_max - wait_min);
+
+		ni_debug_autoip("%s: setting timeout to %u ms", dev->ifname, wait);
+		gettimeofday(&dev->fsm.expires, NULL);
+		dev->fsm.expires.tv_sec += wait / 1000;
+		dev->fsm.expires.tv_usec += wait % 1000;
+		if (dev->fsm.expires.tv_usec > 1000000) {
+			dev->fsm.expires.tv_usec -= 1000000;
+			dev->fsm.expires.tv_sec += 1;
+		}
+	}
+}
+
+/*
+ * Check whether we have any timeouts set for any of our monitored
+ * devices, and if we do, return the timeout value as number of
+ * milliseconds.
+ */
+long
+ni_autoip_fsm_get_timeout(void)
+{
+	struct timeval now, delta, *expires = NULL;
+	ni_autoip_device_t *dev;
+
+	for (dev = ni_autoip_active; dev; dev = dev->next) {
+		if (timerisset(&dev->fsm.expires)
+		&& (expires == NULL || timercmp(&dev->fsm.expires, expires, <)))
+			expires = &dev->fsm.expires;
+	}
+
+	if (expires == NULL)
+		return -1;
+
+	gettimeofday(&now, NULL);
+	if (timercmp(expires, &now, <))
+		return 0;
+
+	timersub(expires, &now, &delta);
+	return 1000 * delta.tv_sec + delta.tv_usec / 1000;
+}
+
+/*
+ * Check whether we need to process any FSM timeouts
+ */
+void
+ni_autoip_fsm_check_timeout(void)
+{
+	struct timeval now;
+	ni_autoip_device_t *dev;
+
+	gettimeofday(&now, NULL);
+	for (dev = ni_autoip_active; dev; dev = dev->next) {
+		if (timerisset(&dev->fsm.expires) && timercmp(&dev->fsm.expires, &now, <=))
+			ni_autoip_fsm_timeout(dev);
+	}
+}
+
+static void
+ni_autoip_fsm_timeout(ni_autoip_device_t *dev)
+{
+	ni_debug_autoip("%s: timeout in state %s", dev->ifname, ni_autoip_fsm_state_name(dev->fsm.state));
+	timerclear(&dev->fsm.expires);
+
+	switch (dev->fsm.state) {
+	case NI_AUTOIP_STATE_INIT:
+		ni_autoip_fsm_select(dev);
+		break;
+
+	case NI_AUTOIP_STATE_CLAIMING:
+		ni_autoip_send_arp(dev);
+		return;
+
+	default:
+		ni_error("%s: unexpected state", __FUNCTION__);
+	}
+}
+
+const char *
+ni_autoip_fsm_state_name(ni_autoip_state_t state)
+{
+	switch (state) {
+	case NI_AUTOIP_STATE_INIT:
+		return "INIT";
+	case NI_AUTOIP_STATE_CLAIMING:
+		return "CLAIMING";
+	case NI_AUTOIP_STATE_CLAIMED:
+		return "CLAIMED";
+	}
+
+	return "UNKNOWN";
+}

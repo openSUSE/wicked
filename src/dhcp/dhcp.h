@@ -1,5 +1,5 @@
 /*
- * netinfo dhcp and autoip supplicant
+ * netinfo dhcp supplicant
  *
  * Copyright (C) 2010 Olaf Kirch <okir@suse.de>
  */
