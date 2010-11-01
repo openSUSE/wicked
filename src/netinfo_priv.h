@@ -58,6 +58,9 @@ struct ni_syntax {
 	int			(*put_interfaces)(ni_syntax_t *, ni_handle_t *, FILE *);
 	int			(*put_one_interface)(ni_syntax_t *, ni_handle_t *, ni_interface_t *, FILE *);
 
+	int			(*get_hostname)(ni_syntax_t *, char *, size_t);
+	int			(*put_hostname)(ni_syntax_t *, const char *);
+
 	xml_node_t *		(*xml_from_interface)(ni_syntax_t *, ni_handle_t *, const ni_interface_t *,
 						xml_node_t *parent);
 	ni_interface_t *	(*xml_to_interface)(ni_syntax_t *, ni_handle_t *, xml_node_t *);

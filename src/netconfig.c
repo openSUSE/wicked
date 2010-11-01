@@ -38,7 +38,7 @@ typedef struct ni_netconfig {
 } ni_netconfig_t;
 
 static inline ni_netconfig_t *
-__to_netconfig(ni_handle_t *nih)
+__to_netconfig(const ni_handle_t *nih)
 {
 	assert(nih->op == &ni_netconfig_ops);
 	return (ni_netconfig_t *) nih;
@@ -59,6 +59,13 @@ ni_netconfig_open(ni_syntax_t *syntax)
 		nih->syntax = syntax;
 
 	return &nih->base;
+}
+
+static inline ni_syntax_t *
+__ni_netconfig_syntax(const ni_handle_t *nih)
+{
+	ni_netconfig_t *nit = __to_netconfig(nih);
+	return nit->syntax;
 }
 
 ni_syntax_t *
@@ -232,16 +239,23 @@ __ni_netconfig_build_path(ni_handle_t *nih, const char *path)
 static int
 __ni_netconfig_hostname_put(ni_handle_t *nih, const char *hostname)
 {
-	const char *path;
-	FILE *fp;
+	ni_syntax_t *syntax = __ni_netconfig_syntax(nih);
 
-	path = __ni_netconfig_build_path(nih, _PATH_HOSTNAME);
-	if ((fp = fopen(path, "w")) == NULL) {
-		ni_error("cannot open %s: %m", path);
-		return -1;
+	if (syntax->put_hostname) {
+		if (syntax->put_hostname(syntax, hostname) < 0)
+			return -1;
+	} else {
+		const char *path;
+		FILE *fp;
+
+		path = __ni_netconfig_build_path(nih, _PATH_HOSTNAME);
+		if ((fp = fopen(path, "w")) == NULL) {
+			ni_error("cannot open %s: %m", path);
+			return -1;
+		}
+		fprintf(fp, "%s\n", hostname);
+		fclose(fp);
 	}
-	fprintf(fp, "%s\n", hostname);
-	fclose(fp);
 
 	return __ni_netconfig_postprocess(nih, "system.hostname");
 }
@@ -249,22 +263,29 @@ __ni_netconfig_hostname_put(ni_handle_t *nih, const char *hostname)
 static int
 __ni_netconfig_hostname_get(ni_handle_t *nih, char *buffer, size_t size)
 {
-	const char *path;
-	FILE *fp;
+	ni_syntax_t *syntax = __ni_netconfig_syntax(nih);
 	int rv = 0;
 
-	path = __ni_netconfig_build_path(nih, _PATH_HOSTNAME);
-	if ((fp = fopen(path, "r")) == NULL) {
-		ni_error("cannot open %s: %m", path);
-		return -1;
+	if (syntax->get_hostname) {
+		rv = syntax->get_hostname(syntax, buffer, size);
+	} else {
+		const char *path;
+		FILE *fp;
+
+		path = __ni_netconfig_build_path(nih, _PATH_HOSTNAME);
+		if ((fp = fopen(path, "r")) == NULL) {
+			ni_error("cannot open %s: %m", path);
+			return -1;
+		}
+
+		if (fgets(buffer, size, fp) == NULL) {
+			rv = -1;
+		} else {
+			/* strip off trailing newline */
+			buffer[strcspn(buffer, "\r\n")] = '\0';
+		}
+		fclose(fp);
 	}
 
-	if (fgets(buffer, size, fp) == NULL) {
-		rv = -1;
-	} else {
-		/* strip off trailing newline */
-		buffer[strcspn(buffer, "\r\n")] = '\0';
-	}
-	fclose(fp);
 	return rv;
-}
+	}
