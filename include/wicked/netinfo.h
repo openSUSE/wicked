@@ -171,6 +171,8 @@ typedef struct ni_vlan {
 	ni_interface_t *	interface_dev;
 } ni_vlan_t;
 
+#define CONFIG_WICKED_STATEDIR	"/var/run/wicked"
+
 extern void		ni_set_global_config_path(const char *);
 extern int		ni_init(void);
 

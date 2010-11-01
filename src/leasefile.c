@@ -15,8 +15,6 @@
 #include <wicked/xml.h>
 #include "netinfo_priv.h"
 
-#define CONFIG_DHCP_LEASE_DIRECTORY	"/var/run/wicked"
-
 static const char *		__ni_addrconf_lease_file_path(int, int, const char *);
 static const char *		__ni_addrconf_request_file_path(int, int, const char *);
 
@@ -130,7 +128,7 @@ __ni_addrconf_lease_file_path(int type, int family, const char *ifname)
 	static char pathname[PATH_MAX];
 
 	snprintf(pathname, sizeof(pathname), "%s/lease-%s-%s-%s.xml",
-			CONFIG_DHCP_LEASE_DIRECTORY,
+			CONFIG_WICKED_STATEDIR,
 			ni_addrconf_type_to_name(type),
 			ni_addrfamily_type_to_name(family),
 			ifname);
@@ -241,7 +239,7 @@ __ni_addrconf_request_file_path(int type, int family, const char *ifname)
 	static char pathname[PATH_MAX];
 
 	snprintf(pathname, sizeof(pathname), "%s/request-%s-%s-%s.xml",
-			CONFIG_DHCP_LEASE_DIRECTORY,
+			CONFIG_WICKED_STATEDIR,
 			ni_addrconf_type_to_name(type),
 			ni_addrfamily_type_to_name(family),
 			ifname);
