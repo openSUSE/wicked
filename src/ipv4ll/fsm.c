@@ -159,6 +159,7 @@ ni_autoip_fsm_build_lease(ni_autoip_device_t *dev)
 	ni_address_parse(&addr, "169.254.0.0", AF_INET);
 	__ni_route_new(&lease->routes, 16, &addr, NULL);
 
+	lease->state = NI_ADDRCONF_STATE_GRANTED;
 	ni_autoip_device_set_lease(dev, lease);
 
 	/* Write the lease to lease cache */
