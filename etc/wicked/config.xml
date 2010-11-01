@@ -35,13 +35,13 @@
   </linktype>
 
   <addrconf>
-  <!-- we no longer require dhcp4 to be provided through an extension
-    <extension name="dhcp4" type="dhcp" family="ipv4">
+  <!-- sample extension for dhcp6
+    <extension name="dhcp6" type="dhcp" family="ipv6">
       <pidfile path="/var/run/dhcpcd-%{@name}.pid"/>
-      <action name="start" command="/etc/wicked/wicked-dhcp4 start %{@name}"/>
-      <action name="stop" command="/etc/wicked/wicked-dhcp4 stop %{@name}"/>
-      <environment putenv="DHCP_TIMEOUT=%{/protocol[@family = 'ipv4']/dhcp/lease/@timeout}"/>
-      <environment putenv="DHCP_REQ_HOSTNAME=%{/protocol[@family = 'ipv4']/dhcp/request/@hostname}"/>
+      <action name="start" command="/etc/wicked/wicked-dhcp6 start %{@name}"/>
+      <action name="stop" command="/etc/wicked/wicked-dhcp6 stop %{@name}"/>
+      <environment putenv="DHCP_TIMEOUT=%{/protocol[@family = 'ipv6']/dhcp/lease/@timeout}"/>
+      <environment putenv="DHCP_REQ_HOSTNAME=%{/protocol[@family = 'ipv6']/dhcp/request/@hostname}"/>
     </extension>
    -->
 
@@ -50,8 +50,21 @@
       <vendor-class>somestring</vendor-class>
       <lease-time>7200</lease-time>
       <ignore-server ip="192.168.255.255" />
+      <prefer-server ip="10.1.1.1" weight="10" />
      -->
     </dhcp>
   </addrconf>
+
+  <!--
+    -- These extensions can be used to invoke helper scripts after updating
+    -- specific configuration files.
+    -- Currently supported:
+    --    system.hostname
+    -->
+  <files>
+   <extension name="system.foobar">
+    <action name="update" command="/sbin/netconfig foobar-updated"/>
+   </extension>
+  </files>
 
 </config>
