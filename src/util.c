@@ -837,6 +837,8 @@ ni_backup_file_to(const char *srcpath, const char *backupdir)
 
 	if (!(dstpath = __ni_build_backup_path(srcpath, backupdir)))
 		return -1;
+	if (access(backupdir, F_OK) < 0 && errno == ENOENT)
+		mkdir(backupdir, 0700);
 	if (access(dstpath, F_OK) == 0) {
 		ni_debug_readwrite("%s(%s, %s): backup copy already exists",
 				__FUNCTION__, srcpath, backupdir);
