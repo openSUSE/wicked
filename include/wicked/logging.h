@@ -29,6 +29,7 @@ enum {
 	NI_TRACE_EVENTS		= 0x000020,
 	NI_TRACE_DHCP		= 0x000040,
 	NI_TRACE_IPV6		= 0x000080,
+	NI_TRACE_SOCKET		= 0x000100,
 };
 
 extern unsigned int	ni_debug;
@@ -46,5 +47,6 @@ extern unsigned int	ni_debug;
 #define ni_debug_events(fmt, args...)		__ni_debug(NI_TRACE_EVENTS, fmt, ##args)
 #define ni_debug_dhcp(fmt, args...)		__ni_debug(NI_TRACE_DHCP, fmt, ##args)
 #define ni_debug_ipv6(fmt, args...)		__ni_debug(NI_TRACE_IPV6, fmt, ##args)
+#define ni_debug_socket(fmt, args...)		__ni_debug(NI_TRACE_SOCKET, fmt, ##args)
 
 #endif /* __WICKED_LOGGING_H__ */
