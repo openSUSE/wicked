@@ -72,7 +72,10 @@ typedef struct ni_config {
 	ni_config_fslocation_t	socket;
 
 	struct {
+	    unsigned int	default_allow_update;
+
 	    struct ni_config_dhcp {
+	        unsigned int	allow_update;
 		char *		vendor_class;
 		unsigned int	lease_time;
 		ni_string_array_t ignore_servers;
@@ -80,6 +83,14 @@ typedef struct ni_config {
 		unsigned int	num_preferred_servers;
 		ni_server_preference_t preferred_server[NI_DHCP_SERVER_PREFERENCES_MAX];
 	    } dhcp;
+
+	    struct ni_config_autoip {
+	        unsigned int	allow_update;
+	    } autoip;
+
+	    struct ni_config_ibft {
+	        unsigned int	allow_update;
+	    } ibft;
 	} addrconf;
 
 	ni_extension_t *	api_extensions;
@@ -97,6 +108,7 @@ extern ni_config_t *	ni_config_parse(const char *);
 extern ni_extension_t *	ni_config_find_linktype_extension(ni_config_t *, int);
 extern ni_extension_t *	ni_config_find_addrconf_extension(ni_config_t *, int, int);
 extern ni_extension_t *	ni_config_find_file_extension(ni_config_t *, const char *);
+extern unsigned int	ni_config_addrconf_update_mask(ni_config_t *, ni_addrconf_mode_t);
 
 extern ni_extension_t *	ni_extension_list_find(ni_extension_t *, int type, int af);
 extern ni_extension_t *	ni_extension_by_name(ni_extension_t *, const char *);

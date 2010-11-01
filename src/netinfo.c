@@ -1165,6 +1165,7 @@ ni_addrconf_request_new(unsigned int type, unsigned int af)
 	dhcp->family = af;
 	dhcp->acquire_timeout = 0;	/* means infinite */
 	dhcp->reuse_unexpired = 1;
+	dhcp->update = ~0;
 
 	return dhcp;
 }

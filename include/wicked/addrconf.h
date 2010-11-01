@@ -8,6 +8,7 @@
 #define __WICKED_ADDRCONF_H__
 
 #include <wicked/types.h>
+#include <wicked/constants.h>
 
 struct ni_addrconf {
 	ni_addrconf_mode_t	type;
@@ -164,6 +165,12 @@ static inline int
 ni_addrconf_should_update(const ni_addrconf_request_t *req, unsigned int target)
 {
 	return req->update & (1 << target);
+}
+
+static inline int
+__ni_addrconf_should_update(unsigned int mask, unsigned int target)
+{
+	return mask & (1 << target);
 }
 
 extern ni_addrconf_request_t *ni_addrconf_request_new(unsigned int mode, unsigned int af);

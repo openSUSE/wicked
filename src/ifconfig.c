@@ -163,6 +163,7 @@ failed:
 int
 __ni_system_interface_update_lease(ni_handle_t *nih, ni_interface_t *ifp, ni_addrconf_lease_t *lease)
 {
+	unsigned int update_mask;
 	int res, changed = 0;
 	ni_afinfo_t *afi;
 	ni_address_t *ap;
@@ -180,6 +181,11 @@ __ni_system_interface_update_lease(ni_handle_t *nih, ni_interface_t *ifp, ni_add
 		ni_error("%s: unable to update lease - unknown address family", ifp->name);
 		return -1;
 	}
+
+	update_mask = ni_config_addrconf_update_mask(ni_global.config, lease->type);
+#if 0
+	update_mask &= afi->request[lease->type]->update;
+#endif
 
 	/* Loop over all addresses and remove those no longer covered by the lease.
 	 * Ignore all addresses covered by other address config mechanisms.
@@ -244,6 +250,14 @@ __ni_system_interface_update_lease(ni_handle_t *nih, ni_interface_t *ifp, ni_add
 		if (rp->family != lease->family)
 			continue;
 
+#if 0
+		if (ni_route_is_default(rp)
+		 && !__ni_addrconf_should_update(update_mask, NI_ADDRCONF_UPDATE_DEFAULT_ROUTE)) {
+			ni_debug_ifconfig("%s: ignoring default route update", ifp->name);
+			continue;
+		}
+#endif
+
 		/* We do NOT check whether we classified the address correctly.
 		 * It may still be around for some reason after we exited
 		 * previously, or we lost track of it for some other reason. */
@@ -283,6 +297,36 @@ __ni_system_interface_update_lease(ni_handle_t *nih, ni_interface_t *ifp, ni_add
 	}
 
 	ni_interface_set_lease(nih, ifp, lease);
+
+	/* Update hostname, NIS etc. */
+	if (__ni_addrconf_should_update(update_mask, NI_ADDRCONF_UPDATE_HOSTNAME)) {
+		if (lease->hostname)
+			ni_debug_ifconfig("Should update system hostname: \"%s\"", lease->hostname);
+	}
+	if (__ni_addrconf_should_update(update_mask, NI_ADDRCONF_UPDATE_RESOLVER)) {
+		if (lease->dns_servers.count != 0)
+			ni_debug_ifconfig("Should update system resolver");
+	}
+	if (__ni_addrconf_should_update(update_mask, NI_ADDRCONF_UPDATE_NIS)) {
+		if (lease->nis_domain || lease->nis_servers.count != 0)
+			ni_debug_ifconfig("Should update system NIS settings");
+	}
+	if (__ni_addrconf_should_update(update_mask, NI_ADDRCONF_UPDATE_NTP)) {
+		if (lease->ntp_servers.count != 0)
+			ni_debug_ifconfig("Should update system NTP servers");
+	}
+	if (__ni_addrconf_should_update(update_mask, NI_ADDRCONF_UPDATE_NETBIOS)) {
+		if (lease->netbios_name_servers.count != 0)
+			ni_debug_ifconfig("Should update system NETBIOS servers");
+	}
+	if (__ni_addrconf_should_update(update_mask, NI_ADDRCONF_UPDATE_SLP)) {
+		if (lease->slp_servers.count != 0)
+			ni_debug_ifconfig("Should update system SLP servers");
+	}
+	if (__ni_addrconf_should_update(update_mask, NI_ADDRCONF_UPDATE_SYSLOG)) {
+		if (lease->log_servers.count != 0)
+			ni_debug_ifconfig("Should update system syslog servers");
+	}
 
 	return 0;
 }

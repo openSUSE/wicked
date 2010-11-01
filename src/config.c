@@ -10,12 +10,15 @@
 
 #include <wicked/util.h>
 #include <wicked/wicked.h>
+#include <wicked/netinfo.h>
+#include <wicked/addrconf.h>
 #include <wicked/xpath.h>
 #include "netinfo_priv.h"
 #include "config.h"
 
 static int		ni_config_parse_addrconf_dhcp(struct ni_config_dhcp *, xml_node_t *);
 static int		ni_config_parse_afinfo(ni_afinfo_t *, const char *, xml_node_t *);
+static int		ni_config_parse_update_targets(unsigned int *, const xml_node_t *);
 static int		ni_config_parse_fslocation(ni_config_fslocation_t *, const char *, xml_node_t *);
 static int		ni_config_parse_extensions(ni_extension_t **, xml_node_t *, const char *,
 						int (*map_type)(const char *));
@@ -35,6 +38,11 @@ ni_config_new()
 	conf->ipv4.enabled = 1;
 	conf->ipv6.family = AF_INET6;
 	conf->ipv6.enabled = 1;
+
+	conf->addrconf.default_allow_update = ~0;
+	conf->addrconf.dhcp.allow_update = ~0;
+	conf->addrconf.ibft.allow_update = ~0;
+	conf->addrconf.autoip.allow_update = ~0;
 
 	return conf;
 }
@@ -95,6 +103,10 @@ ni_config_parse(const char *filename)
 	child = xml_node_get_child(node, "addrconf");
 	if (child) {
 		for (child = child->children; child; child = child->next) {
+			if (!strcmp(child->name, "default-allow-update")
+			 && ni_config_parse_update_targets(&conf->addrconf.default_allow_update, child) < 0)
+				goto failed;
+
 			if (!strcmp(child->name, "dhcp")
 			 && ni_config_parse_addrconf_dhcp(&conf->addrconf.dhcp, child) < 0)
 				goto failed;
@@ -200,6 +212,31 @@ ni_config_parse_addrconf_dhcp(struct ni_config_dhcp *dhcp, xml_node_t *node)
 					}
 				}
 			}
+		}
+		if (!strcmp(child->name, "allow-update"))
+			ni_config_parse_update_targets(&dhcp->allow_update, child);
+	}
+	return 0;
+}
+
+int
+ni_config_parse_update_targets(unsigned int *update_mask, const xml_node_t *node)
+{
+	const xml_node_t *child;
+
+	for (child = node->children; child; child = child->next) {
+		int target;
+
+		if (!strcmp(child->name, "all")) {
+			*update_mask = ~0;
+		} else
+		if (!strcmp(child->name, "none")) {
+			*update_mask = 0;
+		} else
+		if ((target = ni_addrconf_name_to_update_target(child->name)) >= 0) {
+			*update_mask |= (1 << target);
+		} else {
+			ni_warn("ignoring unknown addrconf update target \"%s\"", child->name);
 		}
 	}
 	return 0;
@@ -369,4 +406,22 @@ ni_extension_t *
 ni_config_find_file_extension(ni_config_t *conf, const char *name)
 {
 	return ni_extension_by_name(conf->api_extensions, name);
+}
+
+/*
+ * Query the default update mask
+ */
+unsigned int
+ni_config_addrconf_update_mask(ni_config_t *conf, ni_addrconf_mode_t type)
+{
+	unsigned int update_mask = conf->addrconf.default_allow_update;
+
+	switch (type) {
+	case NI_ADDRCONF_DHCP:
+		update_mask &= conf->addrconf.dhcp.allow_update;
+		break;
+
+	default: ;
+	}
+	return update_mask;
 }

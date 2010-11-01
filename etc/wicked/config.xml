@@ -45,7 +45,14 @@
     </extension>
    -->
 
+     <default-allow-update>
+      <all/>
+     </default-allow-update>
+
     <dhcp>
+     <allow-update>
+      <all/>
+     </allow-update>
      <!--
       <vendor-class>somestring</vendor-class>
       <lease-time>7200</lease-time>
@@ -53,6 +60,19 @@
       <prefer-server ip="10.1.1.1" weight="10" />
      -->
     </dhcp>
+
+    <autoip>
+     <allow-update>
+      <all/>
+     </allow-update>
+    </autoip>
+
+    <ibft>
+     <allow-update>
+      <all/>
+     </allow-update>
+    </ibft>
+
   </addrconf>
 
   <!--
