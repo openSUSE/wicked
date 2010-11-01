@@ -149,6 +149,35 @@ extern void		ni_capture_set_user_data(ni_capture_t *, void *);
 extern void *		ni_capture_get_user_data(const ni_capture_t *);
 extern int		ni_capture_is_valid(const ni_capture_t *, int protocol);
 
+typedef struct ni_arp_socket ni_arp_socket_t;
+
+typedef struct ni_arp_packet {
+	unsigned int		op;
+	ni_hwaddr_t		sha;
+	struct in_addr		sip;
+	ni_hwaddr_t		tha;
+	struct in_addr		tip;
+} ni_arp_packet_t;
+
+typedef void		ni_arp_callback_t(ni_arp_socket_t *, const ni_arp_packet_t *, void *);
+
+struct ni_arp_socket {
+	ni_capture_t *		capture;
+	ni_capture_devinfo_t	dev_info;
+
+	ni_arp_callback_t *	callback;
+	void *			user_data;
+};
+
+extern ni_arp_socket_t *ni_arp_socket_open(const ni_capture_devinfo_t *,
+					ni_arp_callback_t *, void *);
+extern void		ni_arp_socket_close(ni_arp_socket_t *);
+extern int		ni_arp_send_request(ni_arp_socket_t *, struct in_addr, struct in_addr);
+extern int		ni_arp_send_reply(ni_arp_socket_t *, struct in_addr,
+				const ni_hwaddr_t *, struct in_addr);
+extern int		ni_arp_send_grat_reply(ni_arp_socket_t *, struct in_addr);
+extern int		ni_arp_send(ni_arp_socket_t *, const ni_arp_packet_t *);
+
 /*
  * Helper function to do strcmp with NULL pointer check
  */

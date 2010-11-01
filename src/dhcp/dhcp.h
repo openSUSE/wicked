@@ -64,6 +64,7 @@ typedef struct ni_dhcp_device {
 	ni_buffer_t		message;
 
 	struct {
+	   ni_arp_socket_t *	handle;
 	   unsigned int		nprobes;
 	   unsigned int		nclaims;
 	} arp;
@@ -77,6 +78,7 @@ typedef struct ni_dhcp_device {
 #define NI_DHCP_RESEND_TIMEOUT_INIT	3	/* seconds */
 #define NI_DHCP_RESEND_TIMEOUT_MAX	60	/* seconds */
 #define NI_DHCP_REQUEST_TIMEOUT		60	/* seconds */
+#define NI_DHCP_ARP_TIMEOUT		200	/* msec */
 
 /* Initial discovery period while we scan all available leases. */
 #define NI_DHCP_DISCOVERY_TIMEOUT	20	/* seconds */
@@ -127,7 +129,6 @@ extern long		ni_dhcp_fsm_get_timeout(void);
 extern void		ni_dhcp_fsm_check_timeout(void);
 extern const char *	ni_dhcp_fsm_state_name(int);
 extern int		ni_dhcp_fsm_process_dhcp_packet(ni_dhcp_device_t *, ni_buffer_t *);
-extern int		ni_dhcp_fsm_process_arp_packet(ni_dhcp_device_t *, ni_buffer_t *);
 extern int		ni_dhcp_fsm_commit_lease(ni_dhcp_device_t *, ni_addrconf_lease_t *);
 extern int		ni_dhcp_fsm_recover_lease(ni_dhcp_device_t *, const ni_addrconf_request_t *);
 extern int		ni_dhcp_build_message(const ni_dhcp_device_t *,
@@ -153,6 +154,7 @@ extern void		ni_dhcp_device_arm_retransmit(ni_dhcp_device_t *dev);
 extern void		ni_dhcp_device_disarm_retransmit(ni_dhcp_device_t *dev);
 extern void		ni_dhcp_device_retransmit(ni_dhcp_device_t *);
 extern void		ni_dhcp_device_force_retransmit(ni_dhcp_device_t *, unsigned int);
+extern void		ni_dhcp_device_arp_close(ni_dhcp_device_t *);
 extern void		ni_dhcp_parse_client_id(ni_opaque_t *, int, const char *);
 extern void		ni_dhcp_set_client_id(ni_opaque_t *, const ni_hwaddr_t *);
 extern int		ni_dhcp_lease_matches_request(const ni_addrconf_lease_t *, const ni_addrconf_request_t *);

@@ -48,6 +48,7 @@ __LIBSRCS= \
 	  util.c \
 	  socket.c \
 	  capture.c \
+	  arp.c \
 	  logging.c \
 	  ipv6/addrconf.c \
 	  dhcp/addrconf.c \
@@ -56,12 +57,10 @@ __LIBSRCS= \
 	  dhcp/device.c \
 	  dhcp/protocol.c \
 	  dhcp/lease.c \
-	  dhcp/arp.c \
 	  ipv4ll/addrconf.c \
 	  ipv4ll/rest-api.c \
 	  ipv4ll/device.c \
-	  ipv4ll/fsm.c \
-	  ipv4ll/arp.c
+	  ipv4ll/fsm.c
 __NCFSRCS= \
 	  netcf.c
 

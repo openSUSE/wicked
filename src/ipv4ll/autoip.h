@@ -19,7 +19,7 @@ struct ni_autoip_device {
 	ni_autoip_device_t *	next;
 	char *			ifname;
 
-	ni_capture_t *		capture;
+	ni_arp_socket_t *	arp_socket;
 	ni_capture_devinfo_t	devinfo;
 
 	unsigned int		notify : 1,
@@ -49,7 +49,6 @@ extern long             ni_autoip_fsm_get_timeout(void);
 extern void             ni_autoip_fsm_check_timeout(void);
 extern int		ni_autoip_fsm_select(ni_autoip_device_t *);
 extern const char *     ni_autoip_fsm_state_name(ni_autoip_state_t);
-extern int              ni_autoip_fsm_process_arp_packet(ni_autoip_device_t *, ni_buffer_t *);
 extern int              ni_autoip_fsm_commit_lease(ni_autoip_device_t *, ni_addrconf_lease_t *);
 
 extern int              ni_autoip_device_start(ni_autoip_device_t *);
@@ -60,10 +59,5 @@ extern unsigned int     ni_autoip_device_uptime(const ni_autoip_device_t *, unsi
 extern ni_autoip_device_t *ni_autoip_device_new(const char *, unsigned int);
 extern ni_autoip_device_t *ni_autoip_device_find(const char *);
 extern int              ni_autoip_device_reconfigure(ni_autoip_device_t *, const ni_interface_t *);
-
-extern int		ni_arp_socket_open(ni_autoip_device_t *);
-extern void		ni_arp_socket_close(void);
-extern int		ni_arp_send_request(ni_autoip_device_t *, struct in_addr, const ni_hwaddr_t *, struct in_addr);
-extern int		ni_arp_parse_reply(ni_autoip_device_t *, ni_buffer_t *, struct in_addr *, ni_hwaddr_t *);
 
 #endif /* __WICKED_AUTOIP_PRIVATE_H__ */

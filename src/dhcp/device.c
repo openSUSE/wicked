@@ -71,6 +71,8 @@ ni_dhcp_device_close(ni_dhcp_device_t *dev)
 	if (dev->listen_fd >= 0)
 		close(dev->listen_fd);
 	dev->listen_fd = -1;
+
+	ni_dhcp_device_arp_close(dev);
 }
 
 void
@@ -388,6 +390,15 @@ ni_dhcp_device_force_retransmit(ni_dhcp_device_t *dev, unsigned int delay)
 {
 	if (dev->capture)
 		ni_capture_force_retransmit(dev->capture, delay);
+}
+
+void
+ni_dhcp_device_arp_close(ni_dhcp_device_t *dev)
+{
+	if (dev->arp.handle) {
+		ni_arp_socket_close(dev->arp.handle);
+		dev->arp.handle = NULL;
+	}
 }
 
 /*

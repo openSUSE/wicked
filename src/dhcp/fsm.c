@@ -20,13 +20,13 @@
 #include "dhcp.h"
 #include "protocol.h"
 #include "buffer.h"
-#include "arp.h"
 
 #define NAK_BACKOFF_MAX		60	/* seconds */
 
 static int	ni_dhcp_process_offer(ni_dhcp_device_t *, ni_addrconf_lease_t *);
 static int	ni_dhcp_process_ack(ni_dhcp_device_t *, ni_addrconf_lease_t *);
 static int	ni_dhcp_process_nak(ni_dhcp_device_t *);
+static void	ni_dhcp_fsm_process_arp_packet(ni_arp_socket_t *, const ni_arp_packet_t *, void *);
 static void	ni_dhcp_fsm_fail_lease(ni_dhcp_device_t *);
 static int	ni_dhcp_fsm_validate_lease(ni_dhcp_device_t *, ni_addrconf_lease_t *);
 
@@ -689,18 +689,27 @@ ni_dhcp_fsm_arp_validate(ni_dhcp_device_t *dev)
 	struct in_addr claim = dev->lease->dhcp.address;
 	struct in_addr null = { 0 };
 
+	if (dev->arp.handle == NULL) {
+		dev->arp.handle = ni_arp_socket_open(&dev->system, ni_dhcp_fsm_process_arp_packet, dev);
+		if (!dev->arp.handle->user_data) {
+			ni_error("unable to create ARP handle");
+			return -1;
+		}
+	}
+
 	if (dev->arp.nprobes) {
 		ni_debug_dhcp("arp_validate: probing for %s", inet_ntoa(claim));
-		ni_arp_send_request(dev, null, NULL, claim);
+		ni_arp_send_request(dev->arp.handle, null, claim);
 		dev->arp.nprobes--;
 	} else if (dev->arp.nclaims) {
 		ni_debug_dhcp("arp_validate: claiming %s", inet_ntoa(claim));
-		ni_arp_send_request(dev, claim, &dev->system.hwaddr, claim);
+		ni_arp_send_grat_reply(dev->arp.handle, claim);
 		dev->arp.nclaims--;
 	} else {
 		/* Wow, we're done! */
 		ni_debug_dhcp("successfully validated %s", inet_ntoa(claim));
 		ni_dhcp_fsm_commit_lease(dev, dev->lease);
+		ni_dhcp_device_arp_close(dev);
 		return 0;
 	}
 	gettimeofday(&dev->fsm.expires, NULL);
@@ -708,29 +717,26 @@ ni_dhcp_fsm_arp_validate(ni_dhcp_device_t *dev)
 	return 0;
 }
 
-int
-ni_dhcp_fsm_process_arp_packet(ni_dhcp_device_t *dev, ni_buffer_t *bp)
+void
+ni_dhcp_fsm_process_arp_packet(ni_arp_socket_t *arph, const ni_arp_packet_t *pkt, void *user_data)
 {
-	struct in_addr sip;
-	ni_hwaddr_t sha;
+	ni_dhcp_device_t *dev = user_data;
 
-	if (ni_arp_parse_reply(dev, bp, &sip, &sha) < 0)
-		return -1;
+	if (pkt->op != ARPOP_REPLY)
+		return;
 
 	/* Ignore any ARP replies that seem to come from our own
 	 * MAC address. Some helpful switches seem to generate
 	 * these. */
-	if (ni_link_address_equal(&dev->system.hwaddr, &sha))
-		return 0;
+	if (ni_link_address_equal(&dev->system.hwaddr, &pkt->sha))
+		return;
 
-	if (sip.s_addr == dev->lease->dhcp.address.s_addr) {
+	if (pkt->sip.s_addr == dev->lease->dhcp.address.s_addr) {
 		ni_debug_dhcp("address %s already in use by %s",
-				inet_ntoa(sip),
-				ni_link_address_print(&sha));
+				inet_ntoa(pkt->sip),
+				ni_link_address_print(&pkt->sha));
 		ni_dhcp_fsm_decline(dev);
 	}
-
-	return 0;
 }
 
 /*

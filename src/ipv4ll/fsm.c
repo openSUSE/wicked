@@ -40,6 +40,7 @@
 
 extern int	ni_autoip_device_get_address(ni_autoip_device_t *, struct in_addr *);
 static int	ni_autoip_send_arp(ni_autoip_device_t *);
+static void	ni_autoip_fsm_process_arp_packet(ni_arp_socket_t *, const ni_arp_packet_t *, void *);
 static void	ni_autoip_fsm_set_timeout(ni_autoip_device_t *, unsigned int, unsigned int);
 static void	ni_autoip_fsm_timeout(ni_autoip_device_t *);
 
@@ -110,7 +111,7 @@ ni_autoip_fsm_conflict(ni_autoip_device_t *dev)
  * loop with both hosts trying to defend the same address.
  */
 void
-ni_autoip_fsm_defend(ni_autoip_device_t *dev)
+ni_autoip_fsm_defend(ni_autoip_device_t *dev, const ni_hwaddr_t *hwa)
 {
 	time_t now = time(NULL);
 
@@ -121,13 +122,15 @@ ni_autoip_fsm_defend(ni_autoip_device_t *dev)
 	}
 
 	if (dev->autoip.last_defense && now - dev->autoip.last_defense < IPV4LL_DEFEND_INTERVAL) {
-		ni_debug_autoip("%s: failed to defend address %s", dev->ifname,
-				inet_ntoa(dev->autoip.candidate));
+		ni_debug_autoip("%s: failed to defend address %s (claimed by %s)", dev->ifname,
+				inet_ntoa(dev->autoip.candidate),
+				ni_link_address_print(hwa));
 		ni_autoip_fsm_conflict(dev);
 	} else {
 		dev->autoip.last_defense = now;
-		ni_arp_send_request(dev, dev->autoip.candidate,
-					&dev->devinfo.hwaddr, dev->autoip.candidate);
+		ni_arp_send_reply(dev->arp_socket,
+				dev->autoip.candidate,
+				hwa, dev->autoip.candidate);
 	}
 }
 
@@ -167,9 +170,17 @@ ni_autoip_send_arp(ni_autoip_device_t *dev)
 	struct in_addr claim = dev->autoip.candidate;
 	struct in_addr null = { 0 };
 
+	if (dev->arp_socket == NULL) {
+		dev->arp_socket = ni_arp_socket_open(&dev->devinfo,
+				ni_autoip_fsm_process_arp_packet,
+				dev);
+		if (dev->arp_socket == NULL)
+			return -1;
+	}
+
 	if (dev->autoip.nprobes) {
 		ni_debug_autoip("arp_validate: probing for %s", inet_ntoa(claim));
-		ni_arp_send_request(dev, null, NULL, claim);
+		ni_arp_send_request(dev->arp_socket, null, claim);
 
 		dev->autoip.nprobes -= 1;
 		if (dev->autoip.nprobes != 0)
@@ -178,7 +189,7 @@ ni_autoip_send_arp(ni_autoip_device_t *dev)
 			ni_autoip_fsm_set_timeout(dev, IPV4LL_ANNOUNCE_DELAY, IPV4LL_ANNOUNCE_DELAY);
 	} else if (dev->autoip.nclaims) {
 		ni_debug_autoip("arp_validate: claiming %s", inet_ntoa(claim));
-		ni_arp_send_request(dev, claim, &dev->devinfo.hwaddr, claim);
+		ni_arp_send_grat_reply(dev->arp_socket, claim);
 
 		dev->autoip.nclaims -= 1;
 		if (dev->autoip.nclaims != 0) {
@@ -202,41 +213,35 @@ ni_autoip_send_arp(ni_autoip_device_t *dev)
 	return 0;
 }
 
-int
-ni_autoip_fsm_process_arp_packet(ni_autoip_device_t *dev, ni_buffer_t *bp)
+void
+ni_autoip_fsm_process_arp_packet(ni_arp_socket_t *arph, const ni_arp_packet_t *pkt, void *user_data)
 {
-	struct in_addr sip;
-	ni_hwaddr_t sha;
-
-	if (ni_arp_parse_reply(dev, bp, &sip, &sha) < 0)
-		return -1;
+	ni_autoip_device_t *dev = user_data;
 
 	/* Ignore any ARP replies that seem to come from our own
 	 * MAC address. Some helpful switches seem to generate
 	 * these. */
-	if (ni_link_address_equal(&dev->devinfo.hwaddr, &sha))
-		return 0;
+	if (ni_link_address_equal(&dev->devinfo.hwaddr, &pkt->sha))
+		return;
 
-	if (sip.s_addr != dev->autoip.candidate.s_addr)
-		return 0;
+	if (pkt->sip.s_addr != dev->autoip.candidate.s_addr)
+		return;
 
 	switch (dev->fsm.state) {
 	case NI_AUTOIP_STATE_CLAIMING:
 		ni_debug_autoip("address %s already in use by %s",
-				inet_ntoa(sip),
-				ni_link_address_print(&sha));
+				inet_ntoa(pkt->sip),
+				ni_link_address_print(&pkt->sha));
 		ni_autoip_fsm_conflict(dev);
 		break;
 
 	case NI_AUTOIP_STATE_CLAIMED:
-		ni_autoip_fsm_defend(dev);
+		ni_autoip_fsm_defend(dev, &pkt->sha);
 		break;
 
 	default:
 		/* ignore */;
 	}
-
-	return 0;
 }
 
 void

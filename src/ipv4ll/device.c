@@ -62,9 +62,9 @@ ni_autoip_device_find(const char *ifname)
 static void
 ni_autoip_device_close(ni_autoip_device_t *dev)
 {
-	if (dev->capture)
-		ni_capture_free(dev->capture);
-	dev->capture = NULL;
+	if (dev->arp_socket)
+		ni_arp_socket_close(dev->arp_socket);
+	dev->arp_socket = NULL;
 }
 
 void
