@@ -1068,10 +1068,6 @@ __ni_netcf_xml_from_lease(ni_syntax_t *syntax, const ni_addrconf_lease_t *lease,
 	__ni_netcf_add_string_child(node, "hostname", lease->hostname);
 	__ni_netcf_add_string_array_child(node, "log-server", &lease->log_servers);
 	__ni_netcf_add_string_array_child(node, "lpr-server", &lease->lpr_servers);
-	__ni_netcf_add_string_array_child(node, "dns-server", &lease->dns_servers);
-	__ni_netcf_add_string_array_child(node, "dns-search", &lease->dns_search);
-	__ni_netcf_add_string_array_child(node, "nis-server", &lease->nis_servers);
-	__ni_netcf_add_string_child(node, "nis-domain", lease->nis_domain);
 	__ni_netcf_add_string_array_child(node, "ntp-server", &lease->ntp_servers);
 	__ni_netcf_add_string_array_child(node, "slp-server", &lease->slp_servers);
 	__ni_netcf_add_string_array_child(node, "slp-scopes", &lease->slp_scopes);
@@ -1079,6 +1075,11 @@ __ni_netcf_xml_from_lease(ni_syntax_t *syntax, const ni_addrconf_lease_t *lease,
 	__ni_netcf_add_string_array_child(node, "netbios-dd-server", &lease->netbios_dd_servers);
 	__ni_netcf_add_string_child(node, "netbios-domain", lease->netbios_domain);
 	__ni_netcf_add_string_child(node, "netbios-scope", lease->netbios_scope);
+
+	if (lease->resolver)
+		__ni_netcf_xml_from_resolver(syntax, lease->resolver, node);
+	if (lease->nis)
+		__ni_netcf_xml_from_nis(syntax, lease->nis, node);
 
 	{
 		ni_handle_t dummy_handle;
@@ -1106,7 +1107,7 @@ __ni_netcf_xml_to_lease(ni_syntax_t *syntax, const xml_node_t *node)
 	const ni_addrconf_t *mech;
 	ni_addrconf_lease_t *lease = NULL;
 	ni_handle_t *nih = NULL;
-	xml_node_t *prot;
+	xml_node_t *prot, *child;
 	const char *name;
 	int lease_type, lease_family, lease_state;
 
@@ -1134,10 +1135,6 @@ __ni_netcf_xml_to_lease(ni_syntax_t *syntax, const xml_node_t *node)
 	__ni_netcf_get_string_child(node, "hostname", &lease->hostname);
 	__ni_netcf_get_string_array_child(node, "log-server", &lease->log_servers);
 	__ni_netcf_get_string_array_child(node, "lpr-server", &lease->lpr_servers);
-	__ni_netcf_get_string_array_child(node, "dns-server", &lease->dns_servers);
-	__ni_netcf_get_string_array_child(node, "dns-search", &lease->dns_search);
-	__ni_netcf_get_string_array_child(node, "nis-server", &lease->nis_servers);
-	__ni_netcf_get_string_child(node, "nis-domain", &lease->nis_domain);
 	__ni_netcf_get_string_array_child(node, "ntp-server", &lease->ntp_servers);
 	__ni_netcf_get_string_array_child(node, "slp-server", &lease->slp_servers);
 	__ni_netcf_get_string_array_child(node, "slp-scopes", &lease->slp_scopes);
@@ -1145,6 +1142,20 @@ __ni_netcf_xml_to_lease(ni_syntax_t *syntax, const xml_node_t *node)
 	__ni_netcf_get_string_array_child(node, "netbios-dd-server", &lease->netbios_dd_servers);
 	__ni_netcf_get_string_child(node, "netbios-domain", &lease->netbios_domain);
 	__ni_netcf_get_string_child(node, "netbios-scope", &lease->netbios_scope);
+
+	/* FIXME: we want to have one single loop over all children. */
+	for (child = node->children; child; child = child->next) {
+		if (!strcmp(child->name, "resolver")) {
+			if (lease->resolver == NULL)
+				lease->resolver = __ni_netcf_xml_to_resolver(syntax, child);
+			continue;
+		}
+		if (!strcmp(child->name, "nis")) {
+			if (lease->nis == NULL)
+				lease->nis = __ni_netcf_xml_to_nis(syntax, child);
+			continue;
+		}
+	}
 
 	/* Hunt for "protocol" children */
 	for (prot = node->children; prot; prot = prot->next) {

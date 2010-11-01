@@ -98,12 +98,11 @@ struct ni_addrconf_lease {
 	ni_route_t *		routes;
 
 	/* Services discovered through the DHCP and similar */
+	ni_nis_info_t *		nis;
+	ni_resolver_info_t *	resolver;
+
 	ni_string_array_t	log_servers;
-	ni_string_array_t	dns_servers;
-	ni_string_array_t	dns_search;
 	ni_string_array_t	ntp_servers;
-	ni_string_array_t	nis_servers;
-	char *			nis_domain;
 	ni_string_array_t	netbios_name_servers;
 	ni_string_array_t	netbios_dd_servers;
 	char *			netbios_domain;

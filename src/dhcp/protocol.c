@@ -31,6 +31,8 @@
 
 #include <wicked/logging.h>
 #include <wicked/socket.h>
+#include <wicked/resolver.h>
+#include <wicked/nis.h>
 #include "dhcp.h"
 #include "protocol.h"
 #include "buffer.h"
@@ -717,6 +719,10 @@ ni_dhcp_parse_response(const ni_dhcp_message_t *message, ni_buffer_t *options, n
 	ni_route_t *default_routes = NULL;
 	ni_route_t *static_routes = NULL;
 	ni_route_t *classless_routes = NULL;
+	ni_string_array_t dns_servers = NI_STRING_ARRAY_INIT;
+	ni_string_array_t dns_search = NI_STRING_ARRAY_INIT;
+	ni_string_array_t nis_servers = NI_STRING_ARRAY_INIT;
+	char *nisdomain = NULL;
 	char *dnsdomain = NULL;
 	int opt_overload = 0;
 	int msg_type = -1;
@@ -811,7 +817,7 @@ parse_more:
 			ni_dhcp_option_get_string(&buf, &lease->dhcp.rootpath);
 			break;
 		case DHCP_NISDOMAIN:
-			ni_dhcp_option_get_string(&buf, &lease->nis_domain);
+			ni_dhcp_option_get_string(&buf, &nisdomain);
 			break;
 		case DHCP_NETBIOSNODETYPE:
 			ni_dhcp_option_get_string(&buf, &lease->netbios_domain);
@@ -820,13 +826,13 @@ parse_more:
 			ni_dhcp_option_get_string(&buf, &lease->netbios_scope);
 			break;
 		case DHCP_DNSSERVER:
-			ni_dhcp_decode_address_list(&buf, &lease->dns_servers);
+			ni_dhcp_decode_address_list(&buf, &dns_servers);
 			break;
 		case DHCP_NTPSERVER:
 			ni_dhcp_decode_address_list(&buf, &lease->ntp_servers);
 			break;
 		case DHCP_NISSERVER:
-			ni_dhcp_decode_address_list(&buf, &lease->nis_servers);
+			ni_dhcp_decode_address_list(&buf, &nis_servers);
 			break;
 		case DHCP_LPRSERVER:
 			ni_dhcp_decode_address_list(&buf, &lease->lpr_servers);
@@ -841,7 +847,7 @@ parse_more:
 			ni_dhcp_decode_address_list(&buf, &lease->netbios_dd_servers);
 			break;
 		case DHCP_DNSSEARCH:
-			ni_dhcp_decode_dnssearch(&buf, &lease->dns_search);
+			ni_dhcp_decode_dnssearch(&buf, &dns_search);
 			break;
 
 		case DHCP_CSR:
@@ -954,8 +960,28 @@ failed:
 		}
 	}
 
-	if (lease->dns_search.count == 0 && dnsdomain)
-		ni_string_array_append(&lease->dns_search, dnsdomain);
+	if (dns_servers.count != 0) {
+		ni_resolver_info_t *resolver = ni_resolver_info_new();
+
+		resolver->default_domain = dnsdomain;
+		dnsdomain = NULL;
+
+		ni_string_array_move(&resolver->dns_servers, &dns_servers);
+		ni_string_array_move(&resolver->dns_search, &dns_search);
+		lease->resolver = resolver;
+	}
+	if (nisdomain != NULL) {
+		ni_nis_info_t *nis = ni_nis_info_new();
+
+		nis->domainname = nisdomain;
+		nisdomain = NULL;
+
+		if (nis_servers.count == 0)
+			nis->default_binding = NI_NISCONF_BROADCAST;
+		else
+			ni_string_array_move(&nis->default_servers, &nis_servers);
+		lease->nis = nis;
+	}
 
 	if (lease->dhcp.address.s_addr) {
 		struct sockaddr_storage local_addr;
@@ -980,7 +1006,11 @@ done:
 	ni_route_list_destroy(&default_routes);
 	ni_route_list_destroy(&static_routes);
 	ni_route_list_destroy(&classless_routes);
+	ni_string_array_destroy(&nis_servers);
+	ni_string_array_destroy(&dns_servers);
+	ni_string_array_destroy(&dns_search);
 	ni_string_free(&dnsdomain);
+	ni_string_free(&nisdomain);
 
 	return msg_type;
 

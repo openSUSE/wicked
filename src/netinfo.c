@@ -18,6 +18,8 @@
 #include <wicked/bridge.h>
 #include <wicked/bonding.h>
 #include <wicked/socket.h>
+#include <wicked/resolver.h>
+#include <wicked/nis.h>
 #include "netinfo_priv.h"
 #include "config.h"
 
@@ -1204,13 +1206,9 @@ void
 ni_addrconf_lease_destroy(ni_addrconf_lease_t *lease)
 {
 	ni_string_free(&lease->hostname);
-	ni_string_free(&lease->nis_domain);
 	ni_string_free(&lease->netbios_domain);
 	ni_string_free(&lease->netbios_scope);
 	ni_string_array_destroy(&lease->log_servers);
-	ni_string_array_destroy(&lease->dns_servers);
-	ni_string_array_destroy(&lease->dns_search);
-	ni_string_array_destroy(&lease->nis_servers);
 	ni_string_array_destroy(&lease->ntp_servers);
 	ni_string_array_destroy(&lease->netbios_name_servers);
 	ni_string_array_destroy(&lease->netbios_dd_servers);
@@ -1218,6 +1216,15 @@ ni_addrconf_lease_destroy(ni_addrconf_lease_t *lease)
 	ni_string_array_destroy(&lease->slp_scopes);
 	ni_address_list_destroy(&lease->addrs);
 	ni_route_list_destroy(&lease->routes);
+
+	if (lease->nis) {
+		ni_nis_info_free(lease->nis);
+		lease->nis = NULL;
+	}
+	if (lease->resolver) {
+		ni_resolver_info_free(lease->resolver);
+		lease->resolver = NULL;
+	}
 
 	switch (lease->type) {
 	case NI_ADDRCONF_DHCP:

@@ -304,11 +304,11 @@ __ni_system_interface_update_lease(ni_handle_t *nih, ni_interface_t *ifp, ni_add
 			ni_debug_ifconfig("Should update system hostname: \"%s\"", lease->hostname);
 	}
 	if (__ni_addrconf_should_update(update_mask, NI_ADDRCONF_UPDATE_RESOLVER)) {
-		if (lease->dns_servers.count != 0)
+		if (lease->resolver)
 			ni_debug_ifconfig("Should update system resolver");
 	}
 	if (__ni_addrconf_should_update(update_mask, NI_ADDRCONF_UPDATE_NIS)) {
-		if (lease->nis_domain || lease->nis_servers.count != 0)
+		if (lease->nis)
 			ni_debug_ifconfig("Should update system NIS settings");
 	}
 	if (__ni_addrconf_should_update(update_mask, NI_ADDRCONF_UPDATE_NTP)) {
