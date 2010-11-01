@@ -200,24 +200,6 @@ __ni_netconfig_interface_delete(ni_handle_t *nih, const char *ifname)
 }
 
 /*
- * After updating a config file, we may need to do some post-processing
- * through an external script
- */
-static int
-__ni_netconfig_postprocess(ni_handle_t *nih, const char *node)
-{
-	ni_extension_t *ex;
-	ni_script_action_t *script;
-
-	if ((ex = ni_config_find_file_extension(ni_global.config, node)) == NULL)
-		return 0;
-	if ((script = ni_script_action_find(ex->actions, "update")) == NULL)
-		return 0;
-
-	return ni_extension_run(ex, script);
-}
-
-/*
  * Build path relative to root directory, if one is given. Otherwise,
  * just return pathname as-is.
  */
@@ -257,7 +239,7 @@ __ni_netconfig_hostname_put(ni_handle_t *nih, const char *hostname)
 		fclose(fp);
 	}
 
-	return __ni_netconfig_postprocess(nih, "system.hostname");
+	return 0;
 }
 
 static int
@@ -288,4 +270,4 @@ __ni_netconfig_hostname_get(ni_handle_t *nih, char *buffer, size_t size)
 	}
 
 	return rv;
-	}
+}
