@@ -15,6 +15,7 @@ typedef struct ni_bridge	ni_bridge_t;
 typedef struct ni_bonding	ni_bonding_t;
 typedef struct ni_addrconf	ni_addrconf_t;
 typedef struct ni_nis_info	ni_nis_info_t;
+typedef struct ni_resolver_info	ni_resolver_info_t;
 typedef struct ni_addrconf_request ni_addrconf_request_t;
 typedef struct ni_addrconf_lease  ni_addrconf_lease_t;
 

@@ -347,6 +347,29 @@ ni_syntax_xml_to_nis(ni_syntax_t *syntax, const xml_node_t *xmlnode)
 }
 
 /*
+ * Produce XML for resolver config and vice versa.
+ */
+xml_node_t *
+ni_syntax_xml_from_resolver(ni_syntax_t *syntax, const ni_resolver_info_t *resolver, xml_node_t *parent)
+{
+	if (!syntax->xml_from_resolver) {
+		ni_error("%s: syntax not capable of representing resolver config as XML", __FUNCTION__);
+		return NULL;
+	}
+	return syntax->xml_from_resolver(syntax, resolver, parent);
+}
+
+ni_resolver_info_t *
+ni_syntax_xml_to_resolver(ni_syntax_t *syntax, const xml_node_t *xmlnode)
+{
+	if (!syntax->xml_to_resolver) {
+		ni_error("%s: syntax not capable of creating resolver config from xml", __FUNCTION__);
+		return NULL;
+	}
+	return syntax->xml_to_resolver(syntax, xmlnode);
+}
+
+/*
  * Produce XML for a single lease and vice versa.
  */
 xml_node_t *

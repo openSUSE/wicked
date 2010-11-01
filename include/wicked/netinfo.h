@@ -226,6 +226,8 @@ extern xml_node_t *	ni_syntax_xml_from_addrconf_request(ni_syntax_t *, ni_addrco
 extern ni_addrconf_request_t *ni_syntax_xml_to_addrconf_request(ni_syntax_t *, const xml_node_t *, int);
 extern xml_node_t *	ni_syntax_xml_from_nis(ni_syntax_t *, const ni_nis_info_t *, xml_node_t *);
 extern ni_nis_info_t *	ni_syntax_xml_to_nis(ni_syntax_t *, const xml_node_t *);
+extern xml_node_t *	ni_syntax_xml_from_resolver(ni_syntax_t *, const ni_resolver_info_t *, xml_node_t *);
+extern ni_resolver_info_t *ni_syntax_xml_to_resolver(ni_syntax_t *, const xml_node_t *);
 extern void		ni_syntax_set_root_directory(ni_syntax_t *, const char *);
 extern const char *	ni_syntax_base_path(ni_syntax_t *);
 extern const char *	ni_syntax_build_path(ni_syntax_t *, const char *, ...);

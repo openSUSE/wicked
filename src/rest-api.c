@@ -20,6 +20,7 @@
 #include <wicked/wicked.h>
 #include <wicked/logging.h>
 #include <wicked/nis.h>
+#include <wicked/resolver.h>
 #include <wicked/xml.h>
 #include <wicked/xpath.h>
 #include <wicked/socket.h>
@@ -876,6 +877,9 @@ static ni_rest_node_t	ni_rest_system_nis_domain_node = {
 	},
 };
 
+/*
+ * NIS Configuration
+ */
 static int
 generic_nis_response(ni_wicked_request_t *req, const ni_nis_info_t *nis)
 {
@@ -982,6 +986,114 @@ static ni_rest_node_t	ni_rest_system_nis_node = {
 		&ni_rest_system_nis_domain_node,
 	},
 };
+
+/*
+ * Name resolver Configuration
+ */
+static int
+generic_resolver_response(ni_wicked_request_t *req, const ni_resolver_info_t *resolver)
+{
+	req->xml_out = ni_syntax_xml_from_resolver(ni_default_xml_syntax(), resolver, NULL);
+	if (req->xml_out == NULL) {
+		werror(req, "unable to render resolver information");
+		return -1;
+	}
+	return 0;
+}
+
+static int
+generic_resolver_get(ni_handle_t *nih, const char *path, ni_wicked_request_t *req)
+{
+	ni_resolver_info_t *resolver;
+	int rv;
+
+	if (path && *path) {
+		werror(req, "excess elements in path");
+		return -1;
+	}
+
+	if (nih->op->resolver_get == NULL) {
+		werror(req, "operation not supported");
+		return -1;
+	}
+
+	if ((resolver = nih->op->resolver_get(nih)) == NULL) {
+		werror(req, "error getting resolver domain");
+		return -1;
+	}
+
+	rv = generic_resolver_response(req, resolver);
+	ni_resolver_info_free(resolver);
+	return rv;
+}
+
+static int
+generic_resolver_put(ni_handle_t *nih, const char *path, ni_wicked_request_t *req)
+{
+	ni_resolver_info_t *resolver = NULL;
+	const xml_node_t *arg;
+	int rv = -1;
+
+	if (nih == NULL)
+		return -1;
+
+	if (path && *path) {
+		werror(req, "excess elements in path");
+		return -1;
+	}
+
+	if (nih->op->resolver_put == NULL) {
+		werror(req, "operation not supported");
+		return -1;
+	}
+
+	if ((arg = req->xml_in) == NULL) {
+		werror(req, "no xml arguments given");
+		return -1;
+	}
+	if (arg->name == NULL && arg->children)
+		arg = arg->children;
+
+	if (!(resolver = ni_syntax_xml_to_resolver(ni_default_xml_syntax(), arg))) {
+		werror(req, "unable to parse resolver XML");
+		goto failed;
+	}
+
+	if (nih->op->resolver_put(nih, resolver) < 0) {
+		werror(req, "error configuring resolver");
+		goto failed;
+	}
+
+	rv = generic_resolver_response(req, resolver);
+
+failed:
+	if (resolver)
+		ni_resolver_info_free(resolver);
+	return rv;
+}
+
+static int
+system_resolver_get(const char *path, ni_wicked_request_t *req)
+{
+	return generic_resolver_get(system_handle(req), path, req);
+}
+
+static int
+system_resolver_put(const char *path, ni_wicked_request_t *req)
+{
+	return generic_resolver_put(system_handle(req), path, req);
+}
+
+static ni_rest_node_t	ni_rest_system_resolver_node = {
+	.name		= "resolver",
+	.ops = {
+	    .byname = {
+		.get	= system_resolver_get,
+		.put	= system_resolver_put,
+	    },
+	},
+};
+
 /*
  * Event receiver
  */
@@ -1188,6 +1300,7 @@ static ni_rest_node_t	ni_rest_system_node = {
 		&ni_rest_system_interface_node,
 		&ni_rest_system_hostname_node,
 		&ni_rest_system_nis_node,
+		&ni_rest_system_resolver_node,
 		&ni_rest_system_event_node,
 	},
 };

@@ -40,6 +40,7 @@ __LIBSRCS= \
 	  backend-redhat.c \
 	  backend-netcf.c \
 	  nis.c \
+	  resolver.c \
 	  leasefile.c \
 	  xml.c \
 	  xml-reader.c \

@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <wicked/nis.h>
+#include <wicked/resolver.h>
 #include "netinfo_priv.h"
 #include "config.h"
 
@@ -17,6 +18,8 @@ static int		__ni_system_nis_domain_put(ni_handle_t *, const char *);
 static int		__ni_system_nis_domain_get(ni_handle_t *, char *, size_t);
 static int		__ni_system_nis_put(ni_handle_t *, const ni_nis_info_t *);
 static ni_nis_info_t *	__ni_system_nis_get(ni_handle_t *);
+static int		__ni_system_resolver_put(ni_handle_t *, const ni_resolver_info_t *);
+static ni_resolver_info_t *__ni_system_resolver_get(ni_handle_t *);
 static void		__ni_system_close(ni_handle_t *nih);
 
 static struct ni_ops ni_state_ops = {
@@ -30,6 +33,8 @@ static struct ni_ops ni_state_ops = {
 	.nis_domain_put		= __ni_system_nis_domain_put,
 	.nis_get		= __ni_system_nis_get,
 	.nis_put		= __ni_system_nis_put,
+	.resolver_get		= __ni_system_resolver_get,
+	.resolver_put		= __ni_system_resolver_put,
 	.close			= __ni_system_close,
 };
 
@@ -74,8 +79,6 @@ __ni_system_hostname_put(ni_handle_t *nih, const char *hostname)
 		return -1;
 	}
 	return sethostname(hostname, strlen(hostname));
-
-	/* FIXME: run update helper */
 }
 
 static int
@@ -91,8 +94,6 @@ __ni_system_nis_domain_put(ni_handle_t *nih, const char *domainname)
 	if (!domainname || !*domainname)
 		return setdomainname("", 0);
 	return setdomainname(domainname, strlen(domainname));
-
-	/* FIXME: run update helper */
 }
 
 static ni_nis_info_t *
@@ -131,7 +132,35 @@ __ni_system_nis_put(ni_handle_t *nih, const ni_nis_info_t *nis)
 		return -1;
 	}
 
-	/* FIXME: run update helper */
+	return 0;
+}
+
+static ni_resolver_info_t *
+__ni_system_resolver_get(ni_handle_t *nih)
+{
+	ni_resolver_info_t *resolver;
+
+	if ((resolver = ni_resolver_parse_resolv_conf(_PATH_RESOLV_CONF)) == NULL)
+		return NULL;
+
+	return resolver;
+}
+
+static int
+__ni_system_resolver_put(ni_handle_t *nih, const ni_resolver_info_t *resolver)
+{
+	const char *tempfile = _PATH_RESOLV_CONF ".new";
+
+	if (ni_resolver_write_resolv_conf(tempfile, resolver, NULL) < 0) {
+		unlink(tempfile);
+		return -1;
+	}
+	if (rename(tempfile, _PATH_RESOLV_CONF) < 0) {
+		ni_error("cannot move temp file to %s: %m", _PATH_RESOLV_CONF);
+		unlink(tempfile);
+		return -1;
+	}
+
 	return 0;
 }
 

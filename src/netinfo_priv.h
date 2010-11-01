@@ -42,6 +42,8 @@ struct ni_ops {
 
 	ni_nis_info_t *		(*nis_get)(ni_handle_t *);
 	int			(*nis_put)(ni_handle_t *, const ni_nis_info_t *);
+	ni_resolver_info_t *	(*resolver_get)(ni_handle_t *);
+	int			(*resolver_put)(ni_handle_t *, const ni_resolver_info_t *);
 	void			(*close)(ni_handle_t *);
 };
 
@@ -77,6 +79,8 @@ struct ni_syntax {
 
 	xml_node_t *		(*xml_from_nis)(ni_syntax_t *, const ni_nis_info_t *, xml_node_t *parent);
 	ni_nis_info_t *		(*xml_to_nis)(ni_syntax_t *, const xml_node_t *);
+	xml_node_t *		(*xml_from_resolver)(ni_syntax_t *, const ni_resolver_info_t *, xml_node_t *parent);
+	ni_resolver_info_t *	(*xml_to_resolver)(ni_syntax_t *, const xml_node_t *);
 };
 
 extern ni_handle_t *	__ni_handle_new(size_t, struct ni_ops *);

@@ -14,6 +14,7 @@
 #include <wicked/addrconf.h>
 #include <wicked/bridge.h>
 #include <wicked/bonding.h>
+#include <wicked/resolver.h>
 #include <wicked/nis.h>
 #include <wicked/xml.h>
 
@@ -52,9 +53,11 @@ static void		__ni_netcf_xml_from_vlan(ni_syntax_t *syntax, ni_handle_t *nih,
 static xml_node_t *	__ni_netcf_xml_from_addrconf_req(ni_syntax_t *, const ni_addrconf_request_t *, xml_node_t *);
 static xml_node_t *	__ni_netcf_xml_from_lease(ni_syntax_t *, const ni_addrconf_lease_t *, xml_node_t *parent);
 static xml_node_t *	__ni_netcf_xml_from_nis(ni_syntax_t *, const ni_nis_info_t *, xml_node_t *);
+static xml_node_t *	__ni_netcf_xml_from_resolver(ni_syntax_t *, const ni_resolver_info_t *, xml_node_t *);
 static ni_addrconf_request_t *__ni_netcf_xml_to_addrconf_req(ni_syntax_t *, const xml_node_t *, int);
 static ni_addrconf_lease_t *__ni_netcf_xml_to_lease(ni_syntax_t *, const xml_node_t *);
 static ni_nis_info_t *	__ni_netcf_xml_to_nis(ni_syntax_t *, const xml_node_t *);
+static ni_resolver_info_t *__ni_netcf_xml_to_resolver(ni_syntax_t *, const xml_node_t *);
 
 static const char *	__ni_netcf_get_iftype(const ni_interface_t *);
 static int		__ni_netcf_set_iftype(ni_interface_t *, const char *);
@@ -93,6 +96,8 @@ __ni_syntax_netcf(const char *pathname)
 	syntax->xml_to_request = __ni_netcf_xml_to_addrconf_req;
 	syntax->xml_from_nis = __ni_netcf_xml_from_nis;
 	syntax->xml_to_nis = __ni_netcf_xml_to_nis;
+	syntax->xml_from_resolver = __ni_netcf_xml_from_resolver;
+	syntax->xml_to_resolver = __ni_netcf_xml_to_resolver;
 
 	return syntax;
 }
@@ -1280,6 +1285,84 @@ __ni_netcf_xml_to_nis(ni_syntax_t *syntax, const xml_node_t *node)
 
 error:
 	ni_nis_info_free(nis);
+	return NULL;
+}
+
+/*
+ * Render resolver config as XML
+ */
+static xml_node_t *
+__ni_netcf_xml_from_resolver(ni_syntax_t *syntax, const ni_resolver_info_t *resolver, xml_node_t *parent)
+{
+	xml_node_t *node, *child;
+	unsigned int i;
+
+	node = xml_node_new("resolver", parent);
+	if (resolver->default_domain)
+		xml_node_new_element("default-domain", node, resolver->default_domain);
+
+	if (resolver->dns_servers.count) {
+		child = xml_node_new("name-servers", node);
+		for (i = 0; i < resolver->dns_servers.count; ++i) {
+			xml_node_t *anode = xml_node_new("address", child);
+
+			xml_node_add_attr(anode, "ip", resolver->dns_servers.data[i]);
+		}
+	}
+
+	if (resolver->dns_search.count) {
+		child = xml_node_new("search-list", node);
+		for (i = 0; i < resolver->dns_search.count; ++i)
+			xml_node_new_element("domain", child, resolver->dns_search.data[i]);
+	}
+
+	return node;
+}
+
+static ni_resolver_info_t *
+__ni_netcf_xml_to_resolver(ni_syntax_t *syntax, const xml_node_t *node)
+{
+	ni_resolver_info_t *resolver;
+	xml_node_t *child;
+	const char *attrval;
+
+	resolver = ni_resolver_info_new();
+	for (child = node->children; child; child = child->next) {
+		if (!strcmp(child->name, "default-domain")) {
+			ni_string_dup(&resolver->default_domain, child->cdata);
+		} else
+		if (!strcmp(child->name, "name-servers")) {
+			xml_node_t *nsnode;
+
+			for (nsnode = child->children; nsnode; nsnode = nsnode->next) {
+				struct in_addr addr;
+
+				if (strcmp(nsnode->name, "address"))
+					continue;
+				if (!(attrval = xml_node_get_attr(nsnode, "ip")))
+					continue;
+				if (inet_aton(attrval, &addr) == 0) {
+					ni_error("invalid name server address \"%s\"", attrval);
+					goto error;
+				}
+				ni_string_array_append(&resolver->dns_servers, attrval);
+			}
+		} else
+		if (!strcmp(child->name, "search-list")) {
+			xml_node_t *senode;
+
+			for (senode = child->children; senode; senode = senode->next) {
+				if (strcmp(senode->name, "domain") || senode->cdata == NULL)
+					continue;
+				ni_string_array_append(&resolver->dns_search, senode->cdata);
+			}
+		}
+	}
+
+	return resolver;
+
+error:
+	ni_resolver_info_free(resolver);
 	return NULL;
 }
 
