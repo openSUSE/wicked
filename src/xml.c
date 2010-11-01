@@ -96,6 +96,16 @@ xml_node_new(const char *ident, xml_node_t *parent)
 	return node;
 }
 
+xml_node_t *
+xml_node_new_element(const char *ident, xml_node_t *parent, const char *cdata)
+{
+	xml_node_t *node = xml_node_new(ident, parent);
+
+	if (cdata)
+		xml_node_set_cdata(node, cdata);
+	return node;
+}
+
 /*
  * Clone an XML node and all its descendants
  */

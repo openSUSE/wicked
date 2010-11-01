@@ -59,6 +59,7 @@ extern xml_node_t *	xml_document_take_root(xml_document_t *);
 extern void		xml_document_free(xml_document_t *);
 
 extern xml_node_t *	xml_node_new(const char *ident, xml_node_t *);
+extern xml_node_t *	xml_node_new_element(const char *ident, xml_node_t *, const char *cdata);
 extern xml_node_t *	xml_node_clone(const xml_node_t *src, xml_node_t *parent);
 extern void		xml_node_free(xml_node_t *);
 extern int		xml_node_print(const xml_node_t *, FILE *fp);
