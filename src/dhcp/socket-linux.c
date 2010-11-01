@@ -87,7 +87,6 @@ static struct bpf_insn arp_bpf_filter [] = {
  * Platform specific
  */
 struct ni_capture {
-	ni_dhcp_device_t *	dev;
 	ni_socket_t *		sock;
 	int			protocol;
 	struct sockaddr_ll	sll;
@@ -102,6 +101,8 @@ struct ni_capture {
 		const ni_buffer_t *	buffer;
 		ni_timeout_param_t	timeout;
 	} retrans;
+
+	void *			user_data;
 };
 
 static ni_capture_t *	ni_capture_open(const ni_capture_devinfo_t *, int, void (*)(ni_socket_t *));
@@ -438,6 +439,20 @@ ni_capture_recv(ni_capture_t *capture, ni_buffer_t *bp)
 	return payload_len;
 }
 
+/*
+ * Get/set user data
+ */
+void
+ni_capture_set_user_data(ni_capture_t *capture, void *user_data)
+{
+	capture->user_data = user_data;
+}
+
+void *
+ni_capture_get_user_data(const ni_capture_t *capture)
+{
+	return capture->user_data;
+}
 
 static int
 __ni_dhcp_common_open(ni_dhcp_device_t *dev, int protocol, void (*data_ready)(ni_socket_t *))
@@ -460,7 +475,7 @@ __ni_dhcp_common_open(ni_dhcp_device_t *dev, int protocol, void (*data_ready)(ni
 		return -1;
 
 	dev->capture = capture;
-	capture->dev = dev;
+	ni_capture_set_user_data(capture, dev);
 
 	return 0;
 }
@@ -475,8 +490,11 @@ ni_dhcp_socket_recv(ni_socket_t *sock)
 	ni_capture_t *capture = sock->user_data;
 	ni_buffer_t buf;
 
-	if (ni_capture_recv(capture, &buf) >= 0)
-		ni_dhcp_fsm_process_dhcp_packet(capture->dev, &buf);
+	if (ni_capture_recv(capture, &buf) >= 0) {
+		ni_dhcp_device_t *dev = ni_capture_get_user_data(capture);
+
+		ni_dhcp_fsm_process_dhcp_packet(dev, &buf);
+	}
 }
 
 /*
@@ -541,8 +559,11 @@ ni_arp_socket_recv(ni_socket_t *sock)
 	ni_capture_t *capture = sock->user_data;
 	ni_buffer_t buf;
 
-	if (ni_capture_recv(capture, &buf) >= 0)
-		ni_dhcp_fsm_process_arp_packet(capture->dev, &buf);
+	if (ni_capture_recv(capture, &buf) >= 0) {
+		ni_dhcp_device_t *dev = ni_capture_get_user_data(capture);
+
+		ni_dhcp_fsm_process_arp_packet(dev, &buf);
+	}
 }
 
 

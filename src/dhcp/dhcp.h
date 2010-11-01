@@ -161,6 +161,8 @@ extern int		ni_capture_desc(const ni_capture_t *);
 extern int		ni_capture_build_udp_header(ni_buffer_t *,
 					struct in_addr src_addr, uint16_t src_port,
 					struct in_addr dst_addr, uint16_t dst_port);
+extern void		ni_capture_set_user_data(ni_capture_t *, void *);
+extern void *		ni_capture_get_user_data(const ni_capture_t *);
 
 extern int		ni_dhcp_device_start(ni_dhcp_device_t *);
 extern void		ni_dhcp_device_stop(ni_dhcp_device_t *);
