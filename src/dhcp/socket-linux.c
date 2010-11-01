@@ -220,22 +220,22 @@ check_packet_header(unsigned char *data, size_t bytes, size_t *payload_len)
 
 	ihl = iph->ip_hl << 2;
 	if (iph->ip_v != 4 || ihl < 20) {
-		ni_debug_dhcp("bad IP header, ignoring");
+		ni_debug_socket("bad IP header, ignoring");
 		return NULL;
 	}
 
 	if (bytes < ihl) {
-		ni_debug_dhcp("truncated IP header, ignoring");
+		ni_debug_socket("truncated IP header, ignoring");
 		return NULL;
 	}
 
 	if (checksum(iph, ihl) != 0) {
-		ni_debug_dhcp("bad IP header checksum, ignoring");
+		ni_debug_socket("bad IP header checksum, ignoring");
 		return NULL;
 	}
 
 	if (bytes < ntohs(iph->ip_len)) {
-		ni_debug_dhcp("truncated IP packet, ignoring");
+		ni_debug_socket("truncated IP packet, ignoring");
 		return NULL;
 	}
 
@@ -243,12 +243,12 @@ check_packet_header(unsigned char *data, size_t bytes, size_t *payload_len)
 	bytes -= ihl;
 
 	if (iph->ip_p != IPPROTO_UDP) {
-		ni_debug_dhcp("unexpected IP protocol, ignoring");
+		ni_debug_socket("unexpected IP protocol, ignoring");
 		return NULL;
 	}
 
 	if (bytes < sizeof(*uh)) {
-		ni_debug_dhcp("truncated IP packet, ignoring");
+		ni_debug_socket("truncated IP packet, ignoring");
 		return NULL;
 	}
 
@@ -257,7 +257,7 @@ check_packet_header(unsigned char *data, size_t bytes, size_t *payload_len)
 	bytes -= sizeof(*uh);
 
 	if (ipudp_checksum(iph, uh, data, bytes) != 0) {
-		ni_debug_dhcp("bad UDP checksum, ignoring");
+		ni_debug_socket("bad UDP checksum, ignoring");
 		return NULL;
 	}
 
@@ -288,7 +288,7 @@ ni_timeout_arm(struct timeval *deadline, unsigned long timeout, unsigned int jit
 		timeout += (random() % (2 * jitter)) - jitter;
 	}
 
-	ni_debug_dhcp("arming retransmit timer (%lu msec)", timeout);
+	ni_debug_socket("arming retransmit timer (%lu msec)", timeout);
 	gettimeofday(deadline, NULL);
 	deadline->tv_sec += timeout / 1000;
 	deadline->tv_usec += (timeout % 1000) * 1000;
@@ -333,7 +333,7 @@ ni_capture_retransmit(ni_capture_t *capture)
 {
 	int rv;
 
-	ni_debug_dhcp("%s: retransmit request", capture->ifname);
+	ni_debug_socket("%s: retransmit request", capture->ifname);
 
 	if (capture->retrans.buffer == NULL) {
 		ni_error("ni_capture_retransmit: no message!?");
