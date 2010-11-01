@@ -49,6 +49,7 @@ ni_dhcp_run(ni_socket_t *sock)
 	struct sigaction sa;
 	ni_dhcp_device_t *dev;
 
+	ni_debug_dhcp("IPv4 dhcp supplicant starting");
 	ni_srandom();
 
 	memset(&sa, 0, sizeof(sa));

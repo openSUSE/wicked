@@ -50,6 +50,7 @@ ni_autoip_run(ni_socket_t *sock)
 	struct sigaction sa;
 	ni_autoip_device_t *dev;
 
+	ni_debug_autoip("IPv4 autoip supplicant starting");
 	ni_srandom();
 
 	memset(&sa, 0, sizeof(sa));
