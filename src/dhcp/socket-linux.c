@@ -387,6 +387,48 @@ __ni_capture_socket_check_timeout(ni_socket_t *sock, const struct timeval *now)
 		ni_capture_retransmit(capture);
 }
 
+/*
+ * Capture receive handling
+ */
+int
+ni_capture_recv(ni_capture_t *capture, ni_buffer_t *bp)
+{
+	void *payload;
+	size_t payload_len;
+	ssize_t bytes;
+
+	ni_debug_socket("%s: incoming packet", capture->ifname);
+	bytes = read(capture->sock->__fd, capture->buffer, capture->mtu);
+	if (bytes < 0) {
+		ni_error("%s: cannot read from socket: %m", __FUNCTION__);
+		return -1;
+	}
+
+	switch (capture->protocol) {
+	case ETHERTYPE_IP:
+		/* Make sure IP and UDP header are sane */
+		payload = check_packet_header(capture->buffer, bytes, &payload_len);
+		if (payload == NULL) {
+			ni_debug_socket("bad IP/UDP packet header");
+			return -1;
+		}
+		break;
+
+	case ETHERTYPE_ARP:
+		payload = capture->buffer;
+		payload_len = bytes;
+		break;
+
+	default:
+		ni_error("%s: cannot handle ethertype %u", __FUNCTION__, capture->protocol);
+		return -1;
+	}
+
+	ni_buffer_init_reader(bp, payload, payload_len);
+	return payload_len;
+}
+
+
 static int
 __ni_dhcp_common_open(ni_dhcp_device_t *dev, int protocol, void (*data_ready)(ni_socket_t *))
 {
@@ -421,27 +463,10 @@ static void
 ni_dhcp_socket_recv(ni_socket_t *sock)
 {
 	ni_capture_t *capture = sock->user_data;
-	void *payload;
-	size_t payload_len;
 	ni_buffer_t buf;
-	ssize_t bytes;
 
-	ni_debug_dhcp("%s: incoming DHCP packet", capture->ifname);
-	bytes = read(sock->__fd, capture->buffer, capture->mtu);
-	if (bytes < 0) {
-		ni_error("ni_dhcp_socket_recv: cannot read from socket: %m");
-		return;
-	}
-
-	/* Make sure IP and UDP header are sane */
-	payload = check_packet_header(capture->buffer, bytes, &payload_len);
-	if (payload == NULL) {
-		ni_debug_dhcp("bad IP/UDP packet header");
-		return;
-	}
-
-	ni_buffer_init_reader(&buf, payload, payload_len);
-	ni_dhcp_fsm_process_dhcp_packet(capture->dev, &buf);
+	if (ni_capture_recv(capture, &buf) >= 0)
+		ni_dhcp_fsm_process_dhcp_packet(capture->dev, &buf);
 }
 
 /*
@@ -505,17 +530,9 @@ ni_arp_socket_recv(ni_socket_t *sock)
 {
 	ni_capture_t *capture = sock->user_data;
 	ni_buffer_t buf;
-	ssize_t bytes;
 
-	ni_debug_dhcp("%s: incoming ARP packet", capture->dev->ifname);
-	bytes = read(sock->__fd, capture->buffer, capture->mtu);
-	if (bytes < 0) {
-		ni_error("ni_arp_socket_recv: cannot read from socket: %m");
-		return;
-	}
-
-	ni_buffer_init_reader(&buf, capture->buffer, capture->mtu);
-	ni_dhcp_fsm_process_arp_packet(capture->dev, &buf);
+	if (ni_capture_recv(capture, &buf) >= 0)
+		ni_dhcp_fsm_process_arp_packet(capture->dev, &buf);
 }
 
 
