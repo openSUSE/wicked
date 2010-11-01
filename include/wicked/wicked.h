@@ -9,14 +9,14 @@
 
 #include <wicked/types.h>
 
-enum {
+typedef enum ni_rest_op {
 	NI_REST_OP_GET = 0,
 	NI_REST_OP_PUT,
 	NI_REST_OP_POST,
 	NI_REST_OP_DELETE,
 
 	__NI_REST_OP_MAX
-};
+} ni_rest_op_t;
 
 typedef struct ni_wicked_request {
 	int			cmd;		/* GET/PUT/POST/DELETE */
@@ -73,6 +73,7 @@ extern ni_rest_node_t *		ni_wicked_rest_lookup(const char *, const char **);
 
 extern void			ni_rest_node_add_update_callback(ni_rest_node_t *,
 						ni_extension_t *, ni_script_action_t *);
+extern int			ni_rest_node_supports_operation(const char *, ni_rest_op_t);
 
 /*
  * This is for functionality moved into separate processes,

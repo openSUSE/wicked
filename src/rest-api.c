@@ -1403,6 +1403,25 @@ ni_rest_node_add_update_callback(ni_rest_node_t *node, ni_extension_t *ex, ni_sc
 	node->update.callback = act;
 }
 
+/*
+ * Check whether the named REST node supports the given operation
+ */
+int
+ni_rest_node_supports_operation(const char *path, ni_rest_op_t op)
+{
+	const char *remainder;
+	ni_rest_node_t *node;
+
+	if (op >= __NI_REST_OP_MAX)
+		return 0;
+
+	node = ni_rest_node_lookup(&ni_rest_root_node, path, &remainder);
+	if (!node || (remainder && *remainder))
+		return 0;
+
+	return node->ops.fn[op] != NULL;
+}
+
 static void
 ni_rest_generate_meta(ni_rest_node_t *node, xml_node_t *xml_parent)
 {
