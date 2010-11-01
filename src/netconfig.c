@@ -211,6 +211,18 @@ __ni_netconfig_postprocess(ni_handle_t *nih, const char *node)
 }
 
 /*
+ * Build path relative to root directory, if one is given. Otherwise,
+ * just return pathname as-is.
+ */
+static const char *
+__ni_netconfig_build_path(ni_handle_t *nih, const char *path)
+{
+	ni_netconfig_t *nit = __to_netconfig(nih);
+
+	return ni_syntax_build_path(nit->syntax, "%s", path);
+}
+
+/*
  * Read/write /etc/HOSTNAME
  * We should allow runtime configuration to change the location of the
  * file, and to specify an "updater" script that can be called to rewrite
@@ -220,12 +232,12 @@ __ni_netconfig_postprocess(ni_handle_t *nih, const char *node)
 static int
 __ni_netconfig_hostname_put(ni_handle_t *nih, const char *hostname)
 {
+	const char *path;
 	FILE *fp;
 
-	/* FIXME: this should go through a syntax object, so that we can
-	 * handle chrooted access correctly. */
-	if ((fp = fopen(_PATH_HOSTNAME, "w")) == NULL) {
-		ni_error("cannot open %s: %m", _PATH_HOSTNAME);
+	path = __ni_netconfig_build_path(nih, _PATH_HOSTNAME);
+	if ((fp = fopen(path, "w")) == NULL) {
+		ni_error("cannot open %s: %m", path);
 		return -1;
 	}
 	fprintf(fp, "%s\n", hostname);
@@ -237,13 +249,13 @@ __ni_netconfig_hostname_put(ni_handle_t *nih, const char *hostname)
 static int
 __ni_netconfig_hostname_get(ni_handle_t *nih, char *buffer, size_t size)
 {
+	const char *path;
 	FILE *fp;
 	int rv = 0;
 
-	/* FIXME: this should go through a syntax object, so that we can
-	 * handle chrooted access correctly. */
-	if ((fp = fopen(_PATH_HOSTNAME, "r")) == NULL) {
-		ni_error("cannot open %s: %m", _PATH_HOSTNAME);
+	path = __ni_netconfig_build_path(nih, _PATH_HOSTNAME);
+	if ((fp = fopen(path, "r")) == NULL) {
+		ni_error("cannot open %s: %m", path);
 		return -1;
 	}
 
