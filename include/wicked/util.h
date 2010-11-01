@@ -98,6 +98,8 @@ extern int		ni_pidfile_write(const char *, unsigned int, pid_t);
 
 extern FILE *		ni_mkstemp(void);
 extern int		ni_copy_file(FILE *, FILE *);
+extern int		ni_backup_file_to(const char *, const char *);
+extern int		ni_restore_file_from(const char *, const char *);
 
 extern int		ni_parse_int_mapped(const char *, const struct ni_intmap *, unsigned int *);
 extern int		ni_parse_int(const char *, unsigned int *);

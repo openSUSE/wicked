@@ -22,7 +22,8 @@
 
 #define NI_STRINGARRAY_CHUNK	16
 
-static int	__ni_pidfile_write(const char *, unsigned int, pid_t, int);
+static int		__ni_pidfile_write(const char *, unsigned int, pid_t, int);
+static const char *	__ni_build_backup_path(const char *, const char *);
 
 void
 ni_string_array_init(ni_string_array_t *nsa)
@@ -792,6 +793,96 @@ ni_copy_file(FILE *src, FILE *dst)
 	}
 
 	return 0;
+}
+
+int
+ni_copy_file_path(const char *srcpath, const char *dstpath)
+{
+	FILE *srcfp = NULL, *dstfp = NULL;
+	int rv = -1;
+
+	if ((srcfp = fopen(srcpath, "r")) == NULL) {
+		ni_error("cannot copy \"%s\": %m", srcpath);
+		goto out;
+	}
+	if ((dstfp = fopen(dstpath, "w")) == NULL) {
+		ni_error("cannot copy \"%s\" to \"%s\": %m", srcpath, dstpath);
+		goto out;
+	}
+	rv = ni_copy_file(srcfp, dstfp);
+
+out:
+	if (dstfp)
+		fclose(dstfp);
+	if (srcfp)
+		fclose(srcfp);
+	return rv;
+}
+
+/*
+ * Copy file for backup
+ */
+int
+ni_backup_file_to(const char *srcpath, const char *backupdir)
+{
+	const char *dstpath;
+
+	if (!(dstpath = __ni_build_backup_path(srcpath, backupdir)))
+		return -1;
+	if (access(dstpath, F_OK) == 0) {
+		ni_debug_readwrite("%s(%s, %s): backup copy already exists",
+				__FUNCTION__, srcpath, backupdir);
+		return 0;
+	}
+	return ni_copy_file_path(srcpath, dstpath);
+}
+
+/*
+ * Restore file from backup
+ */
+int
+ni_restore_file_from(const char *dstpath, const char *backupdir)
+{
+	const char *srcpath;
+
+	if (!(srcpath = __ni_build_backup_path(dstpath, backupdir)))
+		return -1;
+	if (access(srcpath, R_OK) < 0) {
+		if (errno == ENOENT) {
+			ni_debug_readwrite("%s(%s, %s): no backup copy to restore",
+				__FUNCTION__, dstpath, backupdir);
+			return 0;
+		}
+		ni_error("cannot restore %s from %s: %m", dstpath, srcpath);
+		return -1;
+	}
+
+	if (ni_copy_file_path(srcpath, dstpath) < 0)
+		return -1;
+
+	unlink(srcpath);
+	return 0;
+}
+
+const char *
+__ni_build_backup_path(const char *syspath, const char *backupdir)
+{
+	static char backupfile[PATH_MAX];
+	const char *basename;
+
+	if (syspath[0] != '/') {
+		ni_error("cannot backup files by relative path \"%s\"", syspath);
+		return NULL;
+	}
+
+	basename = strrchr(syspath, '/') + 1;
+	if (basename[0] == '\0') {
+		ni_error("cannot backup file: filename \"%s\" ends with slash", syspath);
+		return NULL;
+	}
+
+	snprintf(backupfile, sizeof(backupfile), "%s/%s", backupdir, basename);
+	return backupfile;
 }
 
 /*
