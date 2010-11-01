@@ -299,6 +299,39 @@ ni_addrconf_state_to_name(unsigned int type)
 }
 
 /*
+ * Map addrconf update values to strings and vice versa
+ */
+static ni_intmap_t __addrconf_updates[] = {
+	{ "default-route",	NI_ADDRCONF_UPDATE_DEFAULT_ROUTE },
+	{ "hostname",		NI_ADDRCONF_UPDATE_HOSTNAME },
+	{ "hosts-file",		NI_ADDRCONF_UPDATE_HOSTSFILE },
+	{ "syslog",		NI_ADDRCONF_UPDATE_SYSLOG },
+	{ "resolver",		NI_ADDRCONF_UPDATE_RESOLVER },
+	{ "nis",		NI_ADDRCONF_UPDATE_NIS },
+	{ "ntp",		NI_ADDRCONF_UPDATE_NTP },
+	{ "smb",		NI_ADDRCONF_UPDATE_NETBIOS },
+	{ "slp",		NI_ADDRCONF_UPDATE_SLP },
+
+	{ NULL }
+};
+
+int
+ni_addrconf_name_to_update_target(const char *name)
+{
+	unsigned int value;
+
+	if (ni_parse_int_mapped(name, __addrconf_updates, &value) < 0)
+		return -1;
+	return value;
+}
+
+const char *
+ni_addrconf_update_target_to_name(unsigned int type)
+{
+	return ni_format_int_mapped(type, __addrconf_updates);
+}
+
+/*
  * Map address family names to type constants and vice versa
  */
 static ni_intmap_t __addrfamily_names[] = {

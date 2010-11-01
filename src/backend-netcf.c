@@ -961,30 +961,34 @@ __ni_netcf_xml_from_addrconf_req(ni_syntax_t *syntax, const ni_addrconf_request_
 	if (req->reuse_unexpired)
 		xml_node_new("reuse-unexpired", dhnode);
 
-	if (req->dhcp.hostname || req->dhcp.clientid || req->dhcp.vendor_class || req->dhcp.lease_time) {
-		__ni_netcf_add_string_child(dhnode, "hostname", req->dhcp.hostname);
-		__ni_netcf_add_string_child(dhnode, "client-id", req->dhcp.clientid);
-		__ni_netcf_add_string_child(dhnode, "vendor-class", req->dhcp.vendor_class);
-		__ni_netcf_add_uint_child(dhnode, "lease-time", req->dhcp.lease_time);
+	if (req->type == NI_ADDRCONF_DHCP) {
+		if (req->dhcp.hostname)
+			__ni_netcf_add_string_child(dhnode, "hostname", req->dhcp.hostname);
+		if (req->dhcp.clientid)
+			__ni_netcf_add_string_child(dhnode, "client-id", req->dhcp.clientid);
+		if (req->dhcp.vendor_class)
+			__ni_netcf_add_string_child(dhnode, "vendor-class", req->dhcp.vendor_class);
+		if (req->dhcp.lease_time)
+			__ni_netcf_add_uint_child(dhnode, "lease-time", req->dhcp.lease_time);
 	}
 
 	if (req->update != 0) {
-		child = xml_node_new("update", dhnode);
+		unsigned int target;
 
-		if (ni_addrconf_should_update(req, NI_ADDRCONF_UPDATE_HOSTNAME))
-			xml_node_new("hostname", child);
-		if (ni_addrconf_should_update(req, NI_ADDRCONF_UPDATE_RESOLVER))
-			xml_node_new("resolver", child);
-		if (ni_addrconf_should_update(req, NI_ADDRCONF_UPDATE_HOSTSFILE))
-			xml_node_new("hosts-file", child);
-		if (ni_addrconf_should_update(req, NI_ADDRCONF_UPDATE_DEFAULT_ROUTE))
-			xml_node_new("default-route", child);
-		if (ni_addrconf_should_update(req, NI_ADDRCONF_UPDATE_NTP))
-			xml_node_new("ntp-servers", child);
-		if (ni_addrconf_should_update(req, NI_ADDRCONF_UPDATE_NIS))
-			xml_node_new("nis-servers", child);
-		if (ni_addrconf_should_update(req, NI_ADDRCONF_UPDATE_NETBIOS))
-			xml_node_new("smb-config", child);
+		child = xml_node_new("update", dhnode);
+		for (target = 0; target < __NI_ADDRCONF_UPDATE_MAX; ++target) {
+			const char *name;
+
+			if (!ni_addrconf_should_update(req, target))
+				continue;
+
+			if (!(name = ni_addrconf_update_target_to_name(target))) {
+				ni_warn("cannot represent update target %u", target);
+				continue;
+			}
+
+			xml_node_new(name, child);
+		}
 	}
 
 	return dhnode;
@@ -1025,25 +1029,21 @@ __ni_netcf_xml_to_addrconf_req(ni_syntax_t *syntax, const xml_node_t *dhnode, in
 	}
 
 	if ((child = xml_node_get_child(dhnode, "update")) != NULL) {
-		if (xml_node_get_child(child, "hostname"))
-			ni_addrconf_set_update(req, NI_ADDRCONF_UPDATE_HOSTNAME);
-		if (xml_node_get_child(child, "resolver"))
-			ni_addrconf_set_update(req, NI_ADDRCONF_UPDATE_RESOLVER);
-		if (xml_node_get_child(child, "hosts-file"))
-			ni_addrconf_set_update(req, NI_ADDRCONF_UPDATE_HOSTSFILE);
-		if (xml_node_get_child(child, "default-route"))
-			ni_addrconf_set_update(req, NI_ADDRCONF_UPDATE_DEFAULT_ROUTE);
-		if (xml_node_get_child(child, "ntp-servers"))
-			ni_addrconf_set_update(req, NI_ADDRCONF_UPDATE_NTP);
-		if (xml_node_get_child(child, "nis-servers"))
-			ni_addrconf_set_update(req, NI_ADDRCONF_UPDATE_NIS);
-		if (xml_node_get_child(child, "smb-config"))
-			ni_addrconf_set_update(req, NI_ADDRCONF_UPDATE_NETBIOS);
+		xml_node_t *node;
+
+		for (node = child->children; node; node = node->next) {
+			int target;
+
+			if ((target = ni_addrconf_name_to_update_target(node->name)) < 0) {
+				ni_warn("ignoring unknown addrconf update target \"%s\"", node->name);
+			} else {
+				ni_addrconf_set_update(req, target);
+			}
+		}
 	}
 
 	return req;
 }
-
 
 /*
  * XML addrconf lease representation
