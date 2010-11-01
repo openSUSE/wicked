@@ -183,8 +183,7 @@ ni_dhcp_fsm_restart(ni_dhcp_device_t *dev)
 	dev->fsm.state = NI_DHCP_STATE_INIT;
 
 	ni_dhcp_device_disarm_retransmit(dev);
-	timerclear(&dev->expires);
-	dev->timeout = 0;
+	timerclear(&dev->fsm.expires);
 	dev->xid = 0;
 
 	ni_dhcp_device_drop_lease(dev);
@@ -195,8 +194,8 @@ ni_dhcp_fsm_set_timeout(ni_dhcp_device_t *dev, unsigned int seconds)
 {
 	if (seconds != 0) {
 		ni_debug_dhcp("%s: setting timeout to %u seconds", dev->ifname, seconds);
-		gettimeofday(&dev->expires, NULL);
-		dev->expires.tv_sec += seconds;
+		gettimeofday(&dev->fsm.expires, NULL);
+		dev->fsm.expires.tv_sec += seconds;
 	}
 }
 
@@ -353,7 +352,7 @@ static void
 ni_dhcp_fsm_timeout(ni_dhcp_device_t *dev)
 {
 	ni_debug_dhcp("%s: timeout in state %s", dev->ifname, ni_dhcp_fsm_state_name(dev->fsm.state));
-	timerclear(&dev->expires);
+	timerclear(&dev->fsm.expires);
 
 	switch (dev->fsm.state) {
 	case NI_DHCP_STATE_INIT:
@@ -436,9 +435,9 @@ ni_dhcp_fsm_get_timeout(void)
 	gettimeofday(&now, NULL);
 	timerclear(&expires);
 	for (dev = ni_dhcp_active; dev; dev = dev->next) {
-		if (timerisset(&dev->expires)
-		&& (!timerisset(&expires) || timercmp(&dev->expires, &expires, <)))
-			expires = dev->expires;
+		if (timerisset(&dev->fsm.expires)
+		&& (!timerisset(&expires) || timercmp(&dev->fsm.expires, &expires, <)))
+			expires = dev->fsm.expires;
 	}
 
 	if (!timerisset(&expires))
@@ -461,7 +460,7 @@ ni_dhcp_fsm_check_timeout(void)
 
 	gettimeofday(&now, NULL);
 	for (dev = ni_dhcp_active; dev; dev = dev->next) {
-		if (timerisset(&dev->expires) && timercmp(&dev->expires, &now, <=))
+		if (timerisset(&dev->fsm.expires) && timercmp(&dev->fsm.expires, &now, <=))
 			ni_dhcp_fsm_timeout(dev);
 	}
 }
@@ -703,8 +702,8 @@ ni_dhcp_fsm_arp_validate(ni_dhcp_device_t *dev)
 		ni_dhcp_fsm_commit_lease(dev, dev->lease);
 		return 0;
 	}
-	gettimeofday(&dev->expires, NULL);
-	dev->expires.tv_usec += NI_DHCP_ARP_TIMEOUT * 1000;
+	gettimeofday(&dev->fsm.expires, NULL);
+	dev->fsm.expires.tv_usec += NI_DHCP_ARP_TIMEOUT * 1000;
 	return 0;
 }
 

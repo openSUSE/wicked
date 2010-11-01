@@ -39,6 +39,7 @@ typedef struct ni_dhcp_device {
 	char *		ifname;
 	struct {
 	    int		state;
+	    struct timeval	expires;
 	} fsm;
 
 	struct {
@@ -70,9 +71,7 @@ typedef struct ni_dhcp_device {
 	   struct timeval deadline;
 	} retrans;
 
-	unsigned int	timeout;
 	unsigned int	nak_backoff;	/* backoff timer when we get NAKs */
-	struct timeval	expires;
 
 	struct {
 	   unsigned int	nprobes;
