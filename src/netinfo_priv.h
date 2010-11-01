@@ -39,6 +39,9 @@ struct ni_ops {
 	int			(*hostname_put)(ni_handle_t *, const char *);
 	int			(*nis_domain_get)(ni_handle_t *, char *, size_t);
 	int			(*nis_domain_put)(ni_handle_t *, const char *);
+
+	ni_nis_info_t *		(*nis_get)(ni_handle_t *);
+	int			(*nis_put)(ni_handle_t *, const ni_nis_info_t *);
 	void			(*close)(ni_handle_t *);
 };
 
@@ -60,6 +63,8 @@ struct ni_syntax {
 
 	int			(*get_hostname)(ni_syntax_t *, char *, size_t);
 	int			(*put_hostname)(ni_syntax_t *, const char *);
+	int			(*get_nis)(ni_syntax_t *, ni_nis_info_t *);
+	int			(*put_nis)(ni_syntax_t *, const ni_nis_info_t *);
 
 	xml_node_t *		(*xml_from_interface)(ni_syntax_t *, ni_handle_t *, const ni_interface_t *,
 						xml_node_t *parent);
@@ -69,6 +74,9 @@ struct ni_syntax {
 	ni_addrconf_lease_t *	(*xml_to_lease)(ni_syntax_t *, const xml_node_t *);
 	xml_node_t *		(*xml_from_request)(ni_syntax_t *, const ni_addrconf_request_t *, xml_node_t *parent);
 	ni_addrconf_request_t *	(*xml_to_request)(ni_syntax_t *, const xml_node_t *, int);
+
+	xml_node_t *		(*xml_from_nis)(ni_syntax_t *, const ni_nis_info_t *, xml_node_t *parent);
+	ni_nis_info_t *		(*xml_to_nis)(ni_syntax_t *, const xml_node_t *);
 };
 
 extern ni_handle_t *	__ni_handle_new(size_t, struct ni_ops *);

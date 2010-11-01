@@ -324,6 +324,29 @@ ni_syntax_xml_to_addrconf_request(ni_syntax_t *syntax, const xml_node_t *xmlnode
 }
 
 /*
+ * Produce XML for NIS config and vice versa.
+ */
+xml_node_t *
+ni_syntax_xml_from_nis(ni_syntax_t *syntax, const ni_nis_info_t *nis, xml_node_t *parent)
+{
+	if (!syntax->xml_from_nis) {
+		ni_error("%s: syntax not capable of representing NIS config as XML", __FUNCTION__);
+		return NULL;
+	}
+	return syntax->xml_from_nis(syntax, nis, parent);
+}
+
+ni_nis_info_t *
+ni_syntax_xml_to_nis(ni_syntax_t *syntax, const xml_node_t *xmlnode)
+{
+	if (!syntax->xml_to_nis) {
+		ni_error("%s: syntax not capable of creating NIS config from xml", __FUNCTION__);
+		return NULL;
+	}
+	return syntax->xml_to_nis(syntax, xmlnode);
+}
+
+/*
  * Produce XML for a single lease and vice versa.
  */
 xml_node_t *

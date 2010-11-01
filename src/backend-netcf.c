@@ -14,6 +14,7 @@
 #include <wicked/addrconf.h>
 #include <wicked/bridge.h>
 #include <wicked/bonding.h>
+#include <wicked/nis.h>
 #include <wicked/xml.h>
 
 #include "netinfo_priv.h"
@@ -50,8 +51,10 @@ static void		__ni_netcf_xml_from_vlan(ni_syntax_t *syntax, ni_handle_t *nih,
 
 static xml_node_t *	__ni_netcf_xml_from_addrconf_req(ni_syntax_t *, const ni_addrconf_request_t *, xml_node_t *);
 static xml_node_t *	__ni_netcf_xml_from_lease(ni_syntax_t *, const ni_addrconf_lease_t *, xml_node_t *parent);
+static xml_node_t *	__ni_netcf_xml_from_nis(ni_syntax_t *, const ni_nis_info_t *, xml_node_t *);
 static ni_addrconf_request_t *__ni_netcf_xml_to_addrconf_req(ni_syntax_t *, const xml_node_t *, int);
 static ni_addrconf_lease_t *__ni_netcf_xml_to_lease(ni_syntax_t *, const xml_node_t *);
+static ni_nis_info_t *	__ni_netcf_xml_to_nis(ni_syntax_t *, const xml_node_t *);
 
 static const char *	__ni_netcf_get_iftype(const ni_interface_t *);
 static int		__ni_netcf_set_iftype(ni_interface_t *, const char *);
@@ -88,6 +91,8 @@ __ni_syntax_netcf(const char *pathname)
 	syntax->xml_to_lease = __ni_netcf_xml_to_lease;
 	syntax->xml_from_request = __ni_netcf_xml_from_addrconf_req;
 	syntax->xml_to_request = __ni_netcf_xml_to_addrconf_req;
+	syntax->xml_from_nis = __ni_netcf_xml_from_nis;
+	syntax->xml_to_nis = __ni_netcf_xml_to_nis;
 
 	return syntax;
 }
@@ -1181,6 +1186,100 @@ failed:
 		ni_addrconf_lease_free(lease);
 	if (nih)
 		ni_close(nih);
+	return NULL;
+}
+
+/*
+ * Render NIS config as XML
+ */
+static xml_node_t *
+__ni_netcf_xml_from_nis(ni_syntax_t *syntax, const ni_nis_info_t *nis, xml_node_t *parent)
+{
+	xml_node_t *node, *domnode;
+	unsigned int i, j;
+
+	node = xml_node_new("nis", parent);
+
+	if (nis->domainname)
+		xml_node_new_element("domainname", node, nis->domainname);
+
+	for (i = 0; i < nis->domains.count; ++i) {
+		ni_nis_domain_t *dom = nis->domains.data[i];
+
+		domnode = xml_node_new("domain", node);
+		xml_node_add_attr(domnode, "name", dom->domainname);
+		xml_node_add_attr(domnode, "binding", ni_nis_binding_type_to_name(dom->binding));
+		for (j = 0; j < dom->servers.count; ++j)
+			xml_node_new_element("server", domnode, dom->servers.data[j]);
+	}
+
+	domnode = xml_node_new("default", node);
+	xml_node_add_attr(domnode, "binding", ni_nis_binding_type_to_name(nis->default_binding));
+	for (j = 0; j < nis->default_servers.count; ++j)
+		xml_node_new_element("server", domnode, nis->default_servers.data[j]);
+
+	return node;
+}
+
+static ni_nis_info_t *
+__ni_netcf_xml_to_nis(ni_syntax_t *syntax, const xml_node_t *node)
+{
+	ni_nis_info_t *nis;
+	xml_node_t *child;
+	const char *attrval;
+
+	nis = ni_nis_info_new();
+	for (child = node->children; child; child = child->next) {
+		ni_string_array_t *servers = NULL;
+		xml_node_t *snode;
+		int binding;
+
+		if (!strcmp(child->name, "domainname")) {
+			ni_string_dup(&nis->domainname, child->cdata);
+		} else
+		if (!strcmp(child->name, "domain")) {
+			ni_nis_domain_t *dom;
+
+			if (!(attrval = xml_node_get_attr(child, "name"))) {
+				ni_error("NIS domain without name attribute");
+				goto error;
+			}
+			dom = ni_nis_domain_new(nis, attrval);
+
+			if ((attrval = xml_node_get_attr(child, "binding")) != NULL) {
+				if ((binding = ni_nis_binding_name_to_type(attrval)) < 0) {
+					ni_error("unsupported NIS binding mode %s", attrval);
+					goto error;
+				}
+				dom->binding = binding;
+			}
+
+			servers = &dom->servers;
+		} else
+		if (!strcmp(child->name, "default")) {
+			if ((attrval = xml_node_get_attr(child, "binding")) != NULL) {
+				if ((binding = ni_nis_binding_name_to_type(attrval)) < 0) {
+					ni_error("unsupported NIS binding mode %s", attrval);
+					goto error;
+				}
+				nis->default_binding = binding;
+			}
+
+			servers = &nis->default_servers;
+		}
+
+		if (servers) {
+			for (snode = child->children; snode; snode = snode->next) {
+				if (!strcmp(snode->name, "server") && snode->cdata)
+					ni_string_array_append(servers, snode->cdata);
+			}
+		}
+	}
+
+	return nis;
+
+error:
+	ni_nis_info_free(nis);
 	return NULL;
 }
 

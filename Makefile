@@ -39,6 +39,7 @@ __LIBSRCS= \
 	  backend-suse.c \
 	  backend-redhat.c \
 	  backend-netcf.c \
+	  nis.c \
 	  leasefile.c \
 	  xml.c \
 	  xml-reader.c \

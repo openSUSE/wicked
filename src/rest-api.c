@@ -19,6 +19,7 @@
 #include <wicked/addrconf.h>
 #include <wicked/wicked.h>
 #include <wicked/logging.h>
+#include <wicked/nis.h>
 #include <wicked/xml.h>
 #include <wicked/xpath.h>
 #include "netinfo_priv.h"
@@ -800,6 +801,11 @@ generic_nis_domain_get(ni_handle_t *nih, const char *path, ni_wicked_request_t *
 		return -1;
 	}
 
+	if (nih->op->nis_domain_get == NULL) {
+		werror(req, "operation not supported");
+		return -1;
+	}
+
 	if (nih->op->nis_domain_get(nih, domainname, sizeof(domainname)) < 0) {
 		werror(req, "error getting NIS domain");
 		return -1;
@@ -817,6 +823,11 @@ generic_nis_domain_put(ni_handle_t *nih, const char *path, ni_wicked_request_t *
 
 	if (path && *path) {
 		werror(req, "excess elements in path");
+		return -1;
+	}
+
+	if (nih->op->nis_domain_put == NULL) {
+		werror(req, "operation not supported");
 		return -1;
 	}
 
@@ -856,16 +867,108 @@ static ni_rest_node_t	ni_rest_system_nis_domain_node = {
 	},
 };
 
+static int
+generic_nis_response(ni_wicked_request_t *req, const ni_nis_info_t *nis)
+{
+	req->xml_out = ni_syntax_xml_from_nis(ni_default_xml_syntax(), nis, NULL);
+	if (req->xml_out == NULL) {
+		werror(req, "unable to render NIS information");
+		return -1;
+	}
+	return 0;
+}
+
+static int
+generic_nis_get(ni_handle_t *nih, const char *path, ni_wicked_request_t *req)
+{
+	ni_nis_info_t *nis;
+	int rv;
+
+	if (path && *path) {
+		werror(req, "excess elements in path");
+		return -1;
+	}
+
+	if (nih->op->nis_get == NULL) {
+		werror(req, "operation not supported");
+		return -1;
+	}
+
+	if ((nis = nih->op->nis_get(nih)) == NULL) {
+		werror(req, "error getting NIS domain");
+		return -1;
+	}
+
+	rv = generic_nis_response(req, nis);
+	ni_nis_info_free(nis);
+	return rv;
+}
+
+static int
+generic_nis_put(ni_handle_t *nih, const char *path, ni_wicked_request_t *req)
+{
+	ni_nis_info_t *nis = NULL;
+	const xml_node_t *arg;
+	int rv = -1;
+
+	if (nih == NULL)
+		return -1;
+
+	if (path && *path) {
+		werror(req, "excess elements in path");
+		return -1;
+	}
+
+	if (nih->op->nis_put == NULL) {
+		werror(req, "operation not supported");
+		return -1;
+	}
+
+	if ((arg = req->xml_in) == NULL) {
+		werror(req, "no xml arguments given");
+		return -1;
+	}
+	if (arg->name == NULL && arg->children)
+		arg = arg->children;
+
+	if (!(nis = ni_syntax_xml_to_nis(ni_default_xml_syntax(), arg))) {
+		werror(req, "unable to parse nis XML");
+		goto failed;
+	}
+
+	if (nih->op->nis_put(nih, nis) < 0) {
+		werror(req, "error configuring NIS");
+		goto failed;
+	}
+
+	rv = generic_nis_response(req, nis);
+
+failed:
+	if (nis)
+		ni_nis_info_free(nis);
+	return rv;
+}
+
+static int
+system_nis_get(const char *path, ni_wicked_request_t *req)
+{
+	return generic_nis_get(system_handle(req), path, req);
+}
+
+static int
+system_nis_put(const char *path, ni_wicked_request_t *req)
+{
+	return generic_nis_put(system_handle(req), path, req);
+}
+
 static ni_rest_node_t	ni_rest_system_nis_node = {
 	.name		= "nis",
-#if 0
 	.ops = {
 	    .byname = {
 		.get	= system_nis_get,
 		.put	= system_nis_put,
 	    },
 	},
-#endif
 	.children = {
 		&ni_rest_system_nis_domain_node,
 	},
