@@ -36,46 +36,46 @@ typedef struct ni_dhcp_config ni_dhcp_config_t;
 typedef struct ni_dhcp_device {
 	struct ni_dhcp_device *next;
 
-	char *		ifname;
+	char *			ifname;
 	struct {
-	    int		state;
+	    int			state;
 	    struct timeval	expires;
 	} fsm;
 
 	struct {
-	    int		iftype;
-	    int		arp_type;
-	    int		ifindex;
-	    unsigned	mtu;
-	    ni_hwaddr_t	hwaddr;
+	    int			iftype;
+	    int			arp_type;
+	    int			ifindex;
+	    unsigned		mtu;
+	    ni_hwaddr_t		hwaddr;
 	} system;
 
-	time_t		start_time;	/* when we starting managing */
+	time_t			start_time;	/* when we starting managing */
 
-	ni_dhcp_config_t *config;
-	ni_addrconf_lease_t *lease;
+	ni_dhcp_config_t *	config;
+	ni_addrconf_lease_t *	lease;
 
-	ni_capture_t *	capture;
-	int		listen_fd;	/* for DHCP only */
+	ni_capture_t *		capture;
+	int			listen_fd;	/* for DHCP only */
 
-	unsigned int	failed : 1,
-			notify : 1,
-			accept_any_offer : 1;
+	unsigned int		failed : 1,
+				notify : 1,
+				accept_any_offer : 1;
 
-	uint32_t	xid;
+	uint32_t		xid;
 
-	ni_buffer_t	message;
+	ni_buffer_t		message;
 	struct {
-	   unsigned int	timeout;
-	   unsigned int	increment;
-	   struct timeval deadline;
+	   unsigned int		timeout;
+	   unsigned int		increment;
+	   struct timeval	deadline;
 	} retrans;
 
-	unsigned int	nak_backoff;	/* backoff timer when we get NAKs */
+	unsigned int		nak_backoff;	/* backoff timer when we get NAKs */
 
 	struct {
-	   unsigned int	nprobes;
-	   unsigned int	nclaims;
+	   unsigned int		nprobes;
+	   unsigned int		nclaims;
 	} arp;
 
 	struct {
@@ -104,20 +104,20 @@ enum {
 
 struct ni_dhcp_config {
 	/* A combination of DHCP_DO_* flags above */
-	unsigned int	flags;
+	unsigned int		flags;
 
-	char		hostname[256];
-	char		classid[48];
-	int		fqdn;
+	char			hostname[256];
+	char			classid[48];
+	int			fqdn;
 
-	char		client_id[256];
-	ni_opaque_t	raw_client_id;
-	ni_opaque_t	userclass;
+	char			client_id[256];
+	ni_opaque_t		raw_client_id;
+	ni_opaque_t		userclass;
 
-	unsigned int	initial_discovery_timeout;
-	unsigned int	request_timeout;
-	unsigned int	resend_timeout;
-	unsigned int	max_lease_time;
+	unsigned int		initial_discovery_timeout;
+	unsigned int		request_timeout;
+	unsigned int		resend_timeout;
+	unsigned int		max_lease_time;
 };
 
 extern ni_dhcp_device_t *ni_dhcp_active;
