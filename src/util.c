@@ -844,6 +844,7 @@ ni_backup_file_to(const char *srcpath, const char *backupdir)
 				__FUNCTION__, srcpath, backupdir);
 		return 0;
 	}
+	ni_debug_readwrite("%s(%s, %s)", __FUNCTION__, srcpath, backupdir);
 	return ni_copy_file_path(srcpath, dstpath);
 }
 
@@ -867,6 +868,7 @@ ni_restore_file_from(const char *dstpath, const char *backupdir)
 		return -1;
 	}
 
+	ni_debug_readwrite("%s(%s, %s)", __FUNCTION__, dstpath, backupdir);
 	if (ni_copy_file_path(srcpath, dstpath) < 0)
 		return -1;
 
