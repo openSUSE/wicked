@@ -367,7 +367,7 @@ ni_dhcp_build_message(const ni_dhcp_device_t *dev,
 	ni_buffer_pad(msgbuf, BOOTP_MESSAGE_LENGTH_MIN, DHCP_PAD);
 #endif
 
-	if (ni_dhcp_build_send_header(msgbuf, src_addr, dst_addr) < 0) {
+	if (ni_capture_build_udp_header(msgbuf, src_addr, DHCP_CLIENT_PORT, dst_addr, DHCP_SERVER_PORT) < 0) {
 		ni_error("unable to build packet header");
 		goto failed;
 	}

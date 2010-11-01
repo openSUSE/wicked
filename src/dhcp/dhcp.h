@@ -150,7 +150,6 @@ extern int		ni_dhcp_fsm_recover_lease(ni_dhcp_device_t *, const ni_addrconf_requ
 extern int		ni_dhcp_build_message(const ni_dhcp_device_t *,
 				unsigned int, const ni_addrconf_lease_t *, ni_buffer_t *);
 
-extern int		ni_dhcp_build_send_header(ni_buffer_t *, struct in_addr, struct in_addr);
 extern int		ni_dhcp_parse_response(const ni_dhcp_message_t *, ni_buffer_t *, ni_addrconf_lease_t **);
 
 extern int		ni_dhcp_socket_open(ni_dhcp_device_t *);
@@ -159,6 +158,9 @@ extern void		ni_capture_disarm_retransmit(ni_capture_t *);
 extern void		ni_capture_force_retransmit(ni_capture_t *, unsigned int);
 extern void		ni_capture_free(ni_capture_t *);
 extern int		ni_capture_desc(const ni_capture_t *);
+extern int		ni_capture_build_udp_header(ni_buffer_t *,
+					struct in_addr src_addr, uint16_t src_port,
+					struct in_addr dst_addr, uint16_t dst_port);
 
 extern int		ni_dhcp_device_start(ni_dhcp_device_t *);
 extern void		ni_dhcp_device_stop(ni_dhcp_device_t *);

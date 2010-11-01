@@ -168,7 +168,9 @@ ipudp_checksum(const struct ip *iph, const struct udphdr *uh,
 }
 
 int
-ni_dhcp_build_send_header(ni_buffer_t *bp, struct in_addr src, struct in_addr dst)
+ni_capture_build_udp_header(ni_buffer_t *bp,
+		struct in_addr src_addr, uint16_t src_port,
+		struct in_addr dst_addr, uint16_t dst_port)
 {
 	const unsigned char *payload;
 	unsigned int payload_len;
@@ -181,14 +183,22 @@ ni_dhcp_build_send_header(ni_buffer_t *bp, struct in_addr src, struct in_addr ds
 
 	/* Build the UDP header */
 	udp = ni_buffer_push_head(bp, sizeof(struct udphdr));
+	if (udp == NULL) {
+		ni_error("not enough headroom for UDP header");
+		return -1;
+	}
 	udp_len = ni_buffer_count(bp);
-	udp->uh_sport = htons(DHCP_CLIENT_PORT);
-	udp->uh_dport = htons(DHCP_SERVER_PORT);
+	udp->uh_sport = htons(src_port);
+	udp->uh_dport = htons(dst_port);
 	udp->uh_ulen = htons(udp_len);
 	udp->uh_sum = 0;
 
 	/* Build the IP header */
 	ip = ni_buffer_push_head(bp, sizeof(struct ip));
+	if (ip == NULL) {
+		ni_error("not enough headroom for IP header");
+		return -1;
+	}
 	ip->ip_v = 4;
 	ip->ip_hl = 5;
 	ip->ip_id = 0;
@@ -198,8 +208,8 @@ ni_dhcp_build_send_header(ni_buffer_t *bp, struct in_addr src, struct in_addr ds
 	ip->ip_off = htons(IP_DF);
 	ip->ip_ttl = IPDEFTTL;
 	ip->ip_p = IPPROTO_UDP;
-	ip->ip_src = src;
-	ip->ip_dst = dst;
+	ip->ip_src = src_addr;
+	ip->ip_dst = dst_addr;
 	if (ip->ip_dst.s_addr == 0)
 		ip->ip_dst.s_addr = INADDR_BROADCAST;
 	ip->ip_sum = 0;
