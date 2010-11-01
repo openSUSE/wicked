@@ -1,5 +1,6 @@
 /*
- * DHCP client for wicked.
+ * DHCP and autoip client for wicked.
+ * Note, this REST interface is used for both dhcp and IPv4LL,
  *
  * Copyright (C) 2010 Olaf Kirch <okir@suse.de>
  */
@@ -177,7 +178,7 @@ dhcp_device_xml(const ni_dhcp_device_t *dev)
 }
 
 /*
- * When responding to a /dhcp/interface request, send the interface status as
+ * When responding to a /interface request, send the interface status as
  * response.
  */
 static int
@@ -215,7 +216,8 @@ dhcp_device_get(const char *ifname, ni_wicked_request_t *req)
 
 /*
  * PUT /interface.
- * The XML blob uses the standard interface XML description.
+ * The XML blob uses the standard interface XML description,
+ * or an <event> element.
  */
 static int
 dhcp_argument_as_event(const xml_node_t *node)

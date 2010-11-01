@@ -128,13 +128,15 @@ ni_dhcp_device_set_lease(ni_dhcp_device_t *dev, ni_addrconf_lease_t *lease)
 void
 ni_dhcp_device_drop_lease(ni_dhcp_device_t *dev)
 {
-	if (dev->lease) {
+	ni_addrconf_lease_t *lease;
+
+	if ((lease = dev->lease) != NULL) {
 		/* FIXME: if we've configured the network using this
 		 * lease, we need to isse a link down request */
 
 		/* delete the lease file. */
-		ni_addrconf_lease_file_remove(dev->ifname, NI_ADDRCONF_DHCP, AF_INET);
-		ni_addrconf_lease_free(dev->lease);
+		ni_addrconf_lease_file_remove(dev->ifname, lease->type, lease->family);
+		ni_addrconf_lease_free(lease);
 		dev->lease = NULL;
 
 		/* Go back to square one */
@@ -154,11 +156,6 @@ ni_dhcp_device_drop_best_offer(ni_dhcp_device_t *dev)
 /*
  * Process a request to reconfigure the device (ie rebind a lease, or discover
  * a new lease).
- *
- * NOTE: we should really have a way to put a lease on "probation".
- * We want to do a parallel rebind + discovery. This should help a lot with things
- * like cable disconnect/reconnect, where we want to do the right thing, regardless
- * of whether we got plugged into the same network (rebind), or a different one (discover).
  */
 int
 ni_dhcp_device_reconfigure(ni_dhcp_device_t *dev, const ni_interface_t *ifp)
@@ -166,7 +163,6 @@ ni_dhcp_device_reconfigure(ni_dhcp_device_t *dev, const ni_interface_t *ifp)
 	ni_addrconf_request_t *info;
 	ni_dhcp_config_t *config;
 	const char *classid;
-	int rediscover = 0;
 
 	if (!(info = ifp->ipv4.request[NI_ADDRCONF_DHCP])) {
 		ni_error("%s: no DHCP config data given", ifp->name);
@@ -184,11 +180,7 @@ ni_dhcp_device_reconfigure(ni_dhcp_device_t *dev, const ni_interface_t *ifp)
 	dev->system.arp_type = ifp->arp_type;
 	dev->system.ifindex = if_nametoindex(ifp->name);
 	dev->system.mtu = ifp->mtu;
-
-	if (!ni_link_address_equal(&ifp->hwaddr, &dev->system.hwaddr)) {
-		dev->system.hwaddr = ifp->hwaddr;
-		rediscover = 1;
-	}
+	dev->system.hwaddr = ifp->hwaddr;
 
 	if (dev->system.arp_type == ARPHRD_NONE) {
 		ni_warn("%s: no arp_type, using ether", __FUNCTION__);

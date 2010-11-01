@@ -561,10 +561,15 @@ ni_dhcp_fsm_commit_lease(ni_dhcp_device_t *dev, ni_addrconf_lease_t *lease)
 		ni_addrconf_lease_file_write(dev->ifname, lease);
 	} else {
 		ni_debug_dhcp("%s: dropped lease", dev->ifname);
-		ni_dhcp_fsm_restart(dev);
 
-		/* Delete the lease file */
-		ni_addrconf_lease_file_remove(dev->ifname, NI_ADDRCONF_DHCP, AF_INET);
+		/* Delete old lease file */
+		if ((lease = dev->lease) != NULL) {
+			ni_addrconf_lease_file_remove(dev->ifname, lease->type, lease->family);
+			ni_dhcp_device_drop_lease(dev);
+			lease = NULL;
+		}
+
+		ni_dhcp_fsm_restart(dev);
 	}
 	dev->notify = 1;
 
