@@ -46,13 +46,13 @@ ni_dhcp_fsm_process_dhcp_packet(ni_dhcp_device_t *dev, ni_buffer_t *msgbuf)
 		ni_debug_dhcp("short DHCP packet (%u bytes)", ni_buffer_count(msgbuf));
 		return -1;
 	}
-	if (dev->xid == 0) {
+	if (dev->dhcp.xid == 0) {
 		ni_debug_dhcp("unexpected packet on %s", dev->ifname);
 		return -1;
 	}
-	if (dev->xid != message->xid) {
+	if (dev->dhcp.xid != message->xid) {
 		ni_debug_dhcp("ignoring packet with wrong xid 0x%x (expected 0x%x)",
-				message->xid, dev->xid);
+				message->xid, dev->dhcp.xid);
 		return -1;
 	}
 
@@ -82,7 +82,7 @@ ni_dhcp_fsm_process_dhcp_packet(ni_dhcp_device_t *dev, ni_buffer_t *msgbuf)
 		 * this offer is accepted, or whether we want to wait for
 		 * more.
 		 */
-		if (!dev->accept_any_offer) {
+		if (!dev->dhcp.accept_any_offer) {
 			int weight = 0;
 
 			/* Check if we have any preferred servers. */
@@ -129,7 +129,7 @@ ni_dhcp_fsm_process_dhcp_packet(ni_dhcp_device_t *dev, ni_buffer_t *msgbuf)
 	 * waiting for additional packets.
 	 */
 	ni_dhcp_device_disarm_retransmit(dev);
-	dev->xid = 0;
+	dev->dhcp.xid = 0;
 
 	/* move to next stage of protocol */
 	switch (msg_code) {
@@ -172,7 +172,7 @@ out:
 	/* If we received a message other than NAK, reset the NAK
 	 * backoff timer. */
 	if (msg_code != DHCP_NAK)
-		dev->nak_backoff = 1;
+		dev->dhcp.nak_backoff = 1;
 
 	return 0;
 }
@@ -184,7 +184,7 @@ ni_dhcp_fsm_restart(ni_dhcp_device_t *dev)
 
 	ni_dhcp_device_disarm_retransmit(dev);
 	timerclear(&dev->fsm.expires);
-	dev->xid = 0;
+	dev->dhcp.xid = 0;
 
 	ni_dhcp_device_drop_lease(dev);
 }
@@ -230,14 +230,14 @@ __ni_dhcp_fsm_discover(ni_dhcp_device_t *dev, int scan_offers)
 
 	dev->fsm.state = NI_DHCP_STATE_SELECTING;
 
-	dev->accept_any_offer = 1;
+	dev->dhcp.accept_any_offer = 1;
 	ni_debug_dhcp("valid lease: %d; have prefs: %d",
 			ni_addrconf_lease_is_valid(dev->lease),
 			ni_dhcp_config_have_server_preference());
 	if (ni_addrconf_lease_is_valid(dev->lease)
 	 || (scan_offers && ni_dhcp_config_have_server_preference())) {
 		ni_dhcp_fsm_set_timeout(dev, dev->config->initial_discovery_timeout);
-		dev->accept_any_offer = 0;
+		dev->dhcp.accept_any_offer = 0;
 	} else {
 		ni_dhcp_fsm_set_timeout(dev, dev->config->request_timeout);
 	}
@@ -363,7 +363,7 @@ ni_dhcp_fsm_timeout(ni_dhcp_device_t *dev)
 		break;
 
 	case NI_DHCP_STATE_SELECTING:
-		if (!dev->accept_any_offer) {
+		if (!dev->dhcp.accept_any_offer) {
 			ni_dhcp_config_t *conf = dev->config;
 
 			/* We were scanning all offers to check for a best offer.
@@ -385,6 +385,7 @@ ni_dhcp_fsm_timeout(ni_dhcp_device_t *dev)
 				return;
 			}
 		}
+		/* fallthrough */
 
 	case NI_DHCP_STATE_REQUESTING:
 		ni_error("%s: DHCP discovery failed", dev->ifname);
@@ -754,16 +755,16 @@ ni_dhcp_process_nak(ni_dhcp_device_t *dev)
 	/* Move back to state INIT */
 	ni_dhcp_fsm_restart(dev);
 
-	if (dev->nak_backoff == 0)
-		dev->nak_backoff = 1;
+	if (dev->dhcp.nak_backoff == 0)
+		dev->dhcp.nak_backoff = 1;
 
 	/* If we constantly get NAKs then we should slowly back off */
-	ni_debug_dhcp("Received NAK, backing off for %u seconds", dev->nak_backoff);
-	ni_dhcp_fsm_set_timeout(dev, dev->nak_backoff);
+	ni_debug_dhcp("Received NAK, backing off for %u seconds", dev->dhcp.nak_backoff);
+	ni_dhcp_fsm_set_timeout(dev, dev->dhcp.nak_backoff);
 
-	dev->nak_backoff *= 2;
-	if (dev->nak_backoff > NAK_BACKOFF_MAX)
-		dev->nak_backoff = NAK_BACKOFF_MAX;
+	dev->dhcp.nak_backoff *= 2;
+	if (dev->dhcp.nak_backoff > NAK_BACKOFF_MAX)
+		dev->dhcp.nak_backoff = NAK_BACKOFF_MAX;
 	return 0;
 }
 

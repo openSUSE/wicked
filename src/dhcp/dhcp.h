@@ -34,7 +34,7 @@ typedef struct ni_dhcp_message ni_dhcp_message_t;
 typedef struct ni_dhcp_config ni_dhcp_config_t;
 
 typedef struct ni_dhcp_device {
-	struct ni_dhcp_device *next;
+	struct ni_dhcp_device *	next;
 
 	char *			ifname;
 	struct {
@@ -59,10 +59,13 @@ typedef struct ni_dhcp_device {
 	int			listen_fd;	/* for DHCP only */
 
 	unsigned int		failed : 1,
-				notify : 1,
-				accept_any_offer : 1;
+				notify : 1;
 
-	uint32_t		xid;
+	struct {
+	    uint32_t		xid;
+	    unsigned int	nak_backoff;	/* backoff timer when we get NAKs */
+	    unsigned int	accept_any_offer : 1;
+	} dhcp;
 
 	ni_buffer_t		message;
 	struct {
@@ -70,8 +73,6 @@ typedef struct ni_dhcp_device {
 	   unsigned int		increment;
 	   struct timeval	deadline;
 	} retrans;
-
-	unsigned int		nak_backoff;	/* backoff timer when we get NAKs */
 
 	struct {
 	   unsigned int		nprobes;

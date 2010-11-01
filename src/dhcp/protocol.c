@@ -222,7 +222,7 @@ ni_dhcp_build_message(const ni_dhcp_device_t *dev,
 
 	message->op = DHCP_BOOTREQUEST;
 	message->hwtype = dev->system.arp_type;
-	message->xid = dev->xid;
+	message->xid = dev->dhcp.xid;
 	message->cookie = htonl(MAGIC_COOKIE);
 	message->secs = htons(ni_dhcp_device_uptime(dev, 0xFFFF));
 

@@ -315,14 +315,14 @@ ni_dhcp_device_send_message(ni_dhcp_device_t *dev, unsigned int msg_code, const 
 	/* Assign a new XID to this message */
 	if (ni_dhcp_xid == 0)
 		ni_dhcp_xid = random();
-	dev->xid = ni_dhcp_xid++;
+	dev->dhcp.xid = ni_dhcp_xid++;
 
 	if (ni_dhcp_socket_open(dev) < 0) {
 		ni_error("unable to open capture socket");
 		return -1;
 	}
 
-	ni_debug_dhcp("sending %s with xid 0x%x", ni_dhcp_message_name(msg_code), dev->xid);
+	ni_debug_dhcp("sending %s with xid 0x%x", ni_dhcp_message_name(msg_code), dev->dhcp.xid);
 
 	/* Allocate an empty buffer */
 	ni_dhcp_device_alloc_buffer(dev);
