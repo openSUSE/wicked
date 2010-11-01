@@ -60,6 +60,12 @@ ni_autoip_fsm_select(ni_autoip_device_t *dev)
 				dev->ifname, inet_ntoa(dev->autoip.candidate));
 	} else {
 		dev->autoip.candidate.s_addr = htonl(IPV4LL_ADDRESS_FIRST + (random() % IPV4LL_ADDRESS_RANGE));
+#if 0
+		if (dev->autoip.nconflicts == 0) {
+			ni_trace("DEBUG CODE ACTIVE");
+			inet_aton("169.254.102.187", &dev->autoip.candidate);
+		}
+#endif
 		ni_debug_autoip("%s: selected new candidate address %s",
 				dev->ifname, inet_ntoa(dev->autoip.candidate));
 	}
@@ -311,7 +317,6 @@ ni_autoip_fsm_check_timeout(void)
 static void
 ni_autoip_fsm_timeout(ni_autoip_device_t *dev)
 {
-	ni_debug_autoip("%s: timeout in state %s", dev->ifname, ni_autoip_fsm_state_name(dev->fsm.state));
 	timerclear(&dev->fsm.expires);
 
 	switch (dev->fsm.state) {
