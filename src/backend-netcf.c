@@ -224,10 +224,15 @@ __ni_netcf_xml_to_interface(ni_syntax_t *syntax, ni_handle_t *nih, xml_node_t *i
 						ni_error("error parsing lease element");
 						return NULL;
 					}
-					if (ni_interface_set_lease(nih, ifp, lease) < 0) {
+					if (lease->family != afi->family || lease->type >= __NI_ADDRCONF_MAX) {
 						ni_addrconf_lease_free(lease);
-						return NULL;
+						continue;
 					}
+
+					mode = lease->type;
+					if (afi->lease[mode])
+						ni_addrconf_lease_free(afi->lease[mode]);
+					afi->lease[mode] = lease;
 				}
 			}
 		}
@@ -651,8 +656,15 @@ __ni_netcf_xml_from_address_config(ni_syntax_t *syntax, ni_handle_t *nih,
 			if (!protnode)
 				protnode = __ni_netcf_make_protocol_node(ifnode, afi->family);
 
-			if ((req = afi->request[mode]) != NULL)
+			if ((req = afi->request[mode]) != NULL) {
 				__ni_netcf_xml_from_addrconf_req(syntax, req, protnode);
+			} else {
+				const char *acname;
+
+				acname = ni_addrconf_type_to_name(mode);
+				if (acname != NULL)
+					xml_node_new(acname, protnode);
+			}
 
 			if ((lease = afi->lease[mode]) != NULL)
 				__ni_netcf_xml_from_lease(syntax, lease, protnode);
