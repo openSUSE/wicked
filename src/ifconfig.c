@@ -316,19 +316,12 @@ __ni_system_interface_update_lease(ni_handle_t *nih, ni_interface_t *ifp, ni_add
 int
 __ni_system_interface_bringup(ni_handle_t *nih, ni_interface_t *ifp)
 {
-	ni_interface_t *cfg;
 	int res = -1;
 
-	if (!(cfg = ni_interface_clone(ifp)))
-		return -1;
-
-	cfg->flags |= IFF_UP;
-
-	res = __ni_rtnl_link_up(nih, ifp, cfg);
+	res = __ni_rtnl_link_up(nih, ifp, ifp);
 	if (res >= 0)
 		__ni_system_refresh_interface(nih, ifp);
 
-	ni_interface_put(cfg);
 	return res;
 }
 
