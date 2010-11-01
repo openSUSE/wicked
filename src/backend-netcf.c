@@ -194,6 +194,7 @@ __ni_netcf_xml_to_interface(ni_syntax_t *syntax, ni_handle_t *nih, xml_node_t *i
 			continue;
 		}
 
+		afi->addrconf = 0;
 		afi->enabled = 1;
 
 		for (child = node->children; child; child = child->next) {
