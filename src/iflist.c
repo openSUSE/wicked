@@ -635,6 +635,7 @@ __ni_interface_process_newaddr(ni_interface_t *ifp, struct nlmsghdr *h,
 	ap->bcast_addr = tmp.bcast_addr;
 	ap->anycast_addr = tmp.anycast_addr;
 
+#if 0
 	ni_debug_ifconfig("%-5s %-20s scope %s, flags%s%s%s",
 				ifp->name, ni_address_print(&tmp.local_addr),
 				(ifa->ifa_scope == RT_SCOPE_HOST)? "host" :
@@ -644,6 +645,7 @@ __ni_interface_process_newaddr(ni_interface_t *ifp, struct nlmsghdr *h,
 				(ifa->ifa_flags & IFA_F_PERMANENT)? " permanent" : "",
 				(ifa->ifa_flags & IFA_F_TEMPORARY)? " temporary" : "",
 				(ifa->ifa_flags & IFA_F_TENTATIVE)? " tentative" : "");
+#endif
 
 	/* We don't have a strict criterion to distinguish autoconf addresses
 	 * from manually assigned addresses. The best approximation is the
