@@ -10,6 +10,7 @@
 #include <sys/types.h>
 #include <wicked/types.h>
 #include <string.h>
+#include <stdio.h>
 
 typedef struct ni_string_array {
 	unsigned int	count;
