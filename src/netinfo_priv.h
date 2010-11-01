@@ -35,15 +35,25 @@ struct ni_ops {
 	int			(*configure_interface)(ni_handle_t *, ni_interface_t *, xml_node_t *);
 	int			(*delete_interface)(ni_handle_t *, const char *);
 	int			(*update_lease)(ni_handle_t *, ni_interface_t *, ni_addrconf_lease_t *);
+
 	int			(*hostname_get)(ni_handle_t *, char *, size_t);
 	int			(*hostname_put)(ni_handle_t *, const char *);
+	int			(*hostname_backup)(ni_handle_t *);
+	int			(*hostname_restore)(ni_handle_t *);
+
 	int			(*nis_domain_get)(ni_handle_t *, char *, size_t);
 	int			(*nis_domain_put)(ni_handle_t *, const char *);
 
 	ni_nis_info_t *		(*nis_get)(ni_handle_t *);
 	int			(*nis_put)(ni_handle_t *, const ni_nis_info_t *);
+	int			(*nis_backup)(ni_handle_t *);
+	int			(*nis_restore)(ni_handle_t *);
+
 	ni_resolver_info_t *	(*resolver_get)(ni_handle_t *);
 	int			(*resolver_put)(ni_handle_t *, const ni_resolver_info_t *);
+	int			(*resolver_backup)(ni_handle_t *);
+	int			(*resolver_restore)(ni_handle_t *);
+
 	void			(*close)(ni_handle_t *);
 };
 

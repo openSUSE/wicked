@@ -113,6 +113,9 @@ ni_config_parse(const char *filename)
 		}
 	}
 
+	/* Intersect addrconf update capabilities with what the system supports. */
+	conf->addrconf.default_allow_update &= ni_system_update_capabilities();
+
 	if (ni_config_parse_extensions(&conf->addrconf_extensions, node, "addrconf", ni_addrconf_name_to_type) < 0
 	 || ni_config_parse_extensions(&conf->linktype_extensions, node, "linktype", ni_linktype_name_to_type) < 0
 	 || ni_config_parse_extensions(&conf->api_extensions, node, "api", NULL) < 0)

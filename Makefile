@@ -41,6 +41,7 @@ __LIBSRCS= \
 	  backend-netcf.c \
 	  nis.c \
 	  resolver.c \
+	  update.c \
 	  leasefile.c \
 	  xml.c \
 	  xml-reader.c \

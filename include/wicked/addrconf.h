@@ -166,6 +166,18 @@ ni_addrconf_should_update(const ni_addrconf_request_t *req, unsigned int target)
 	return req->update & (1 << target);
 }
 
+static inline void
+__ni_addrconf_set_update(unsigned int *mask_p, unsigned int target)
+{
+	*mask_p |= (1 << target);
+}
+
+static inline void
+__ni_addrconf_clear_update(unsigned int *mask_p, unsigned int target)
+{
+	*mask_p &= ~(1 << target);
+}
+
 static inline int
 __ni_addrconf_should_update(unsigned int mask, unsigned int target)
 {
@@ -193,5 +205,8 @@ extern void		ni_addrconf_lease_file_remove(const char *, int, int);
 extern int		ni_addrconf_request_file_write(const char *, ni_addrconf_request_t *);
 extern ni_addrconf_request_t *ni_addrconf_request_file_read(const char *, int, int);
 extern void		ni_addrconf_request_file_remove(const char *, int, int);
+
+extern unsigned int	ni_system_update_capabilities(void);
+extern int		ni_system_update_from_lease(ni_handle_t *, ni_interface_t *, const ni_addrconf_lease_t *);
 
 #endif /* __WICKED_ADDRCONF_H__ */

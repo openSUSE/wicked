@@ -12,14 +12,20 @@
 #include "netinfo_priv.h"
 #include "config.h"
 
+#define CONFIG_WICKED_BACKUP_DIR	CONFIG_WICKED_STATEDIR "/backup"
+
 static int		__ni_system_hostname_put(ni_handle_t *, const char *);
 static int		__ni_system_hostname_get(ni_handle_t *, char *, size_t);
 static int		__ni_system_nis_domain_put(ni_handle_t *, const char *);
 static int		__ni_system_nis_domain_get(ni_handle_t *, char *, size_t);
 static int		__ni_system_nis_put(ni_handle_t *, const ni_nis_info_t *);
 static ni_nis_info_t *	__ni_system_nis_get(ni_handle_t *);
+static int		__ni_system_nis_backup(ni_handle_t *);
+static int		__ni_system_nis_restore(ni_handle_t *);
 static int		__ni_system_resolver_put(ni_handle_t *, const ni_resolver_info_t *);
 static ni_resolver_info_t *__ni_system_resolver_get(ni_handle_t *);
+static int		__ni_system_resolver_backup(ni_handle_t *);
+static int		__ni_system_resolver_restore(ni_handle_t *);
 static void		__ni_system_close(ni_handle_t *nih);
 
 static struct ni_ops ni_state_ops = {
@@ -33,8 +39,12 @@ static struct ni_ops ni_state_ops = {
 	.nis_domain_put		= __ni_system_nis_domain_put,
 	.nis_get		= __ni_system_nis_get,
 	.nis_put		= __ni_system_nis_put,
+	.nis_backup		= __ni_system_nis_backup,
+	.nis_restore		= __ni_system_nis_restore,
 	.resolver_get		= __ni_system_resolver_get,
 	.resolver_put		= __ni_system_resolver_put,
+	.resolver_backup	= __ni_system_resolver_backup,
+	.resolver_restore	= __ni_system_resolver_restore,
 	.close			= __ni_system_close,
 };
 
@@ -135,6 +145,19 @@ __ni_system_nis_put(ni_handle_t *nih, const ni_nis_info_t *nis)
 	return 0;
 }
 
+static int
+__ni_system_nis_backup(ni_handle_t *nih)
+{
+	return ni_backup_file_to(_PATH_YP_CONF, CONFIG_WICKED_BACKUP_DIR);
+}
+
+static int
+__ni_system_nis_restore(ni_handle_t *nih)
+{
+	__ni_system_nis_domain_put(nih, NULL);
+	return ni_restore_file_from(_PATH_YP_CONF, CONFIG_WICKED_BACKUP_DIR);
+}
+
 static ni_resolver_info_t *
 __ni_system_resolver_get(ni_handle_t *nih)
 {
@@ -162,6 +185,18 @@ __ni_system_resolver_put(ni_handle_t *nih, const ni_resolver_info_t *resolver)
 	}
 
 	return 0;
+}
+
+static int
+__ni_system_resolver_backup(ni_handle_t *nih)
+{
+	return ni_backup_file_to(_PATH_RESOLV_CONF, CONFIG_WICKED_BACKUP_DIR);
+}
+
+static int
+__ni_system_resolver_restore(ni_handle_t *nih)
+{
+	return ni_restore_file_from(_PATH_RESOLV_CONF, CONFIG_WICKED_BACKUP_DIR);
 }
 
 static void

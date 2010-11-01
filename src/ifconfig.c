@@ -298,35 +298,7 @@ __ni_system_interface_update_lease(ni_handle_t *nih, ni_interface_t *ifp, ni_add
 
 	ni_interface_set_lease(nih, ifp, lease);
 
-	/* Update hostname, NIS etc. */
-	if (__ni_addrconf_should_update(update_mask, NI_ADDRCONF_UPDATE_HOSTNAME)) {
-		if (lease->hostname)
-			ni_debug_ifconfig("Should update system hostname: \"%s\"", lease->hostname);
-	}
-	if (__ni_addrconf_should_update(update_mask, NI_ADDRCONF_UPDATE_RESOLVER)) {
-		if (lease->resolver)
-			ni_debug_ifconfig("Should update system resolver");
-	}
-	if (__ni_addrconf_should_update(update_mask, NI_ADDRCONF_UPDATE_NIS)) {
-		if (lease->nis)
-			ni_debug_ifconfig("Should update system NIS settings");
-	}
-	if (__ni_addrconf_should_update(update_mask, NI_ADDRCONF_UPDATE_NTP)) {
-		if (lease->ntp_servers.count != 0)
-			ni_debug_ifconfig("Should update system NTP servers");
-	}
-	if (__ni_addrconf_should_update(update_mask, NI_ADDRCONF_UPDATE_NETBIOS)) {
-		if (lease->netbios_name_servers.count != 0)
-			ni_debug_ifconfig("Should update system NETBIOS servers");
-	}
-	if (__ni_addrconf_should_update(update_mask, NI_ADDRCONF_UPDATE_SLP)) {
-		if (lease->slp_servers.count != 0)
-			ni_debug_ifconfig("Should update system SLP servers");
-	}
-	if (__ni_addrconf_should_update(update_mask, NI_ADDRCONF_UPDATE_SYSLOG)) {
-		if (lease->log_servers.count != 0)
-			ni_debug_ifconfig("Should update system syslog servers");
-	}
+	ni_system_update_from_lease(nih, ifp, lease);
 
 	return 0;
 }
