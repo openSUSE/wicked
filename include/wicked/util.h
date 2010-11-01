@@ -107,6 +107,8 @@ extern const char *	ni_uuid_print(const ni_uuid_t *);
 extern int		ni_uuid_parse(ni_uuid_t *, const char *);
 extern int		ni_uuid_is_null(const ni_uuid_t *);
 
+extern void		ni_srandom(void);
+
 static inline void
 ni_opaque_set(ni_opaque_t *obj, const void *data, size_t len)
 {

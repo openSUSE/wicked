@@ -1,6 +1,5 @@
 /*
- * DHCP and autoip client for wicked.
- * Note, this REST interface is used for both dhcp and IPv4LL,
+ * DHCP client for wicked.
  *
  * Copyright (C) 2010 Olaf Kirch <okir@suse.de>
  */
@@ -28,7 +27,6 @@ static ni_rest_node_t	ni_dhcp_root_node;
 
 static void		ni_dhcp_process_request(ni_socket_t *);
 static void		ni_dhcp_send_device_event(ni_socket_t *, const ni_dhcp_device_t *);
-static void		ni_srandom(void);
 static xml_node_t *	dhcp_device_xml(const ni_dhcp_device_t *);
 
 /*
@@ -376,32 +374,3 @@ static ni_rest_node_t  ni_dhcp_root_node = {
 		&ni_dhcp_device_node,
 	},
 };
-
-/*
- * Seed the RNG from /dev/urandom
- */
-static void
-ni_srandom(void)
-{
-	uint32_t seed = 0;
-	int fd;
-
-	if ((fd = open("/dev/urandom", O_RDONLY)) >= 0) {
-		if (read(fd, &seed, 4) < 4)
-			seed = 0;
-		close(fd);
-	} else {
-		ni_warn("unable to open /dev/random: %m");
-	}
-
-	if (seed == 0) {
-		struct timeval tv;
-
-		gettimeofday(&tv, NULL);
-		seed = tv.tv_usec ^ tv.tv_usec / 1024;
-		seed = seed ^ tv.tv_sec;
-		seed = seed ^ getpid();
-	}
-
-	srandom(seed);
-}

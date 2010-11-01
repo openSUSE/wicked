@@ -4,6 +4,7 @@
  * Copyright (C) 2010 Olaf Kirch <okir@suse.de>
  */
 
+#include <sys/time.h>
 #include <string.h>
 #include <stdlib.h>
 #include <dirent.h>
@@ -862,3 +863,31 @@ ni_uuid_is_null(const ni_uuid_t *uuid)
 	return uuid->words[0] == 0 && uuid->words[1] == 0 && uuid->words[2] == 0 && uuid->words[3] == 0;
 }
 
+/*
+ * Seed the RNG from /dev/urandom
+ */
+void
+ni_srandom(void)
+{
+	uint32_t seed = 0;
+	int fd;
+
+	if ((fd = open("/dev/urandom", O_RDONLY)) >= 0) {
+		if (read(fd, &seed, 4) < 4)
+			seed = 0;
+		close(fd);
+	} else {
+		ni_warn("unable to open /dev/random: %m");
+	}
+
+	if (seed == 0) {
+		struct timeval tv;
+
+		gettimeofday(&tv, NULL);
+		seed = tv.tv_usec ^ tv.tv_usec / 1024;
+		seed = seed ^ tv.tv_sec;
+		seed = seed ^ getpid();
+	}
+
+	srandom(seed);
+}
