@@ -11,14 +11,14 @@
 
 #include <string.h>
 
-typedef struct ni_buffer {
+struct ni_buffer {
 	unsigned char *		base;
 	unsigned int		head;
 	unsigned int		tail;
 	unsigned int		size;
 	unsigned int		overflow : 1,
 				underflow : 1;
-} ni_buffer_t;
+};
 
 /* this should really be named init_writer */
 static inline void

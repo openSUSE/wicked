@@ -9,12 +9,55 @@
 #include <stdlib.h>
 
 #include <wicked/netinfo.h>
+#include <wicked/socket.h>
 #include "dhcp.h"
 #include "arp.h"
 
-static int		ni_arp_send(ni_dhcp_device_t *dev, unsigned int arpop,
+static void	ni_arp_socket_recv(ni_socket_t *);
+static int	ni_arp_send(ni_dhcp_device_t *dev, unsigned int arpop,
 				const ni_hwaddr_t *sha, struct in_addr sip,
 				const ni_hwaddr_t *tha, struct in_addr tip);
+
+/*
+ * Open ARP socket
+ */
+int
+ni_arp_socket_open(ni_dhcp_device_t *dev)
+{
+	ni_capture_t *capture;
+
+	if ((capture = dev->capture) != NULL) {
+		if (ni_capture_is_valid(capture, ETHERTYPE_ARP))
+			return 0;
+
+		ni_capture_free(dev->capture);
+		dev->capture = NULL;
+	}
+
+	dev->capture = ni_capture_open(&dev->system, ETHERTYPE_ARP, ni_arp_socket_recv);
+	if (!dev->capture)
+		return -1;
+
+	ni_capture_set_user_data(capture, dev);
+	return 0;
+}
+
+/*
+ * This callback is invoked from the socket code when we
+ * detect an incoming ARP packet on the raw socket.
+ */
+static void
+ni_arp_socket_recv(ni_socket_t *sock)
+{
+	ni_capture_t *capture = sock->user_data;
+	ni_buffer_t buf;
+
+	if (ni_capture_recv(capture, &buf) >= 0) {
+		ni_dhcp_device_t *dev = ni_capture_get_user_data(capture);
+
+		ni_dhcp_fsm_process_arp_packet(dev, &buf);
+	}
+}
 
 int
 ni_arp_send_request(ni_dhcp_device_t *dev, struct in_addr sip,

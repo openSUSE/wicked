@@ -16,22 +16,110 @@
 #include <netinet/ip.h>
 #include <netinet/udp.h>
 #include <net/if_arp.h>
+#include <net/ethernet.h>
 
 #include <arpa/inet.h>
 
 #include <errno.h>
 #include <limits.h>
-#include <math.h>
+#include <fcntl.h>
+#include <unistd.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include <wicked/logging.h>
-#include "netinfo_priv.h"
+#include <wicked/socket.h>
 #include "dhcp.h"
 #include "protocol.h"
 #include "buffer.h"
+
+static void	ni_dhcp_socket_recv(ni_socket_t *);
+
+/*
+ * Open a DHCP socket for send and receive
+ */
+int
+ni_dhcp_socket_open(ni_dhcp_device_t *dev)
+{
+	ni_capture_t *capture;
+
+	/* We need to bind to a port, otherwise Linux will generate
+	 * ICMP_UNREACHABLE messages telling the server that there's
+	 * no DHCP client listening at all.
+	 *
+	 * We don't actually use this fd at all, instead using our packet
+	 * filter socket.
+	 *
+	 * (It would be nice if we did, at least in BOUND/RENEWING state
+	 * where good manners would dictate unicast requests anyway).
+	 */
+	if (dev->listen_fd == -1) {
+		struct sockaddr_in sin;
+		struct ifreq ifr;
+		int on = 1;
+		int fd;
+
+		if ((fd = socket (PF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
+			ni_error("socket: %m");
+			return -1;
+		}
+
+		if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)) == -1)
+			ni_error("SO_REUSEADDR: %m");
+		if (setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &on, sizeof(on)) == -1)
+			ni_error("SO_RCVBUF: %m");
+
+		memset(&ifr, 0, sizeof(ifr));
+		strncpy(ifr.ifr_name, dev->ifname, sizeof(ifr.ifr_name));
+		if (setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE, &ifr, sizeof(ifr)) == -1)
+			ni_error("SO_SOBINDTODEVICE: %m");
+
+		memset(&sin, 0, sizeof(sin));
+		sin.sin_family = AF_INET;
+		sin.sin_port = htons(DHCP_CLIENT_PORT);
+		if (bind(fd, (struct sockaddr *) &sin, sizeof(sin)) == -1) {
+			ni_error("bind: %m");
+			close(fd);
+		} else {
+			dev->listen_fd = fd;
+			fcntl(fd, F_SETFD, FD_CLOEXEC);
+		}
+	}
+
+	if ((capture = dev->capture) != NULL) {
+		if (ni_capture_is_valid(capture, ETHERTYPE_IP))
+			return 0;
+
+		ni_capture_free(dev->capture);
+		dev->capture = NULL;
+	}
+
+	dev->capture = ni_capture_open(&dev->system, ETHERTYPE_IP, ni_dhcp_socket_recv);
+	if (!dev->capture)
+		return -1;
+
+	ni_capture_set_user_data(capture, dev);
+	return 0;
+}
+
+/*
+ * This callback is invoked from the socket code when we
+ * detect an incoming DHCP packet on the raw socket.
+ */
+static void
+ni_dhcp_socket_recv(ni_socket_t *sock)
+{
+	ni_capture_t *capture = sock->user_data;
+	ni_buffer_t buf;
+
+	if (ni_capture_recv(capture, &buf) >= 0) {
+		ni_dhcp_device_t *dev = ni_capture_get_user_data(capture);
+
+		ni_dhcp_fsm_process_dhcp_packet(dev, &buf);
+	}
+}
 
 /*
  * Inline functions for setting/retrieving options from a buffer

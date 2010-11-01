@@ -47,6 +47,7 @@ __LIBSRCS= \
 	  xpath-fmt.c \
 	  util.c \
 	  socket.c \
+	  capture.c \
 	  logging.c \
 	  ipv6/addrconf.c \
 	  dhcp/addrconf.c \
@@ -55,8 +56,7 @@ __LIBSRCS= \
 	  dhcp/device.c \
 	  dhcp/protocol.c \
 	  dhcp/lease.c \
-	  dhcp/arp.c \
-	  dhcp/socket-linux.c
+	  dhcp/arp.c
 __NCFSRCS= \
 	  netcf.c
 

@@ -12,6 +12,7 @@
 #include <wicked/netinfo.h>
 #include <wicked/addrconf.h>
 #include <wicked/wicked.h>
+#include "netinfo_priv.h"
 #include "buffer.h"
 
 enum {
@@ -29,26 +30,8 @@ enum {
 	__NI_DHCP_STATE_MAX,
 };
 
-typedef struct ni_capture ni_capture_t;
 typedef struct ni_dhcp_message ni_dhcp_message_t;
 typedef struct ni_dhcp_config ni_dhcp_config_t;
-
-typedef struct ni_timeout_param {
-	unsigned int		timeout;
-	unsigned int		increment;
-	unsigned int		max_jitter;
-	unsigned int		max_timeout;
-	struct timeval		deadline;
-} ni_timeout_param_t;
-
-typedef struct ni_capture_devinfo {
-	const char *		ifname;
-	int			ifindex;
-	int			iftype;
-	int			arp_type;
-	unsigned		mtu;
-	ni_hwaddr_t		hwaddr;
-} ni_capture_devinfo_t;
 
 typedef struct ni_dhcp_device {
 	struct ni_dhcp_device *	next;
@@ -153,16 +136,6 @@ extern int		ni_dhcp_build_message(const ni_dhcp_device_t *,
 extern int		ni_dhcp_parse_response(const ni_dhcp_message_t *, ni_buffer_t *, ni_addrconf_lease_t **);
 
 extern int		ni_dhcp_socket_open(ni_dhcp_device_t *);
-extern ssize_t		ni_capture_broadcast(ni_capture_t *, const ni_buffer_t *, const ni_timeout_param_t *);
-extern void		ni_capture_disarm_retransmit(ni_capture_t *);
-extern void		ni_capture_force_retransmit(ni_capture_t *, unsigned int);
-extern void		ni_capture_free(ni_capture_t *);
-extern int		ni_capture_desc(const ni_capture_t *);
-extern int		ni_capture_build_udp_header(ni_buffer_t *,
-					struct in_addr src_addr, uint16_t src_port,
-					struct in_addr dst_addr, uint16_t dst_port);
-extern void		ni_capture_set_user_data(ni_capture_t *, void *);
-extern void *		ni_capture_get_user_data(const ni_capture_t *);
 
 extern int		ni_dhcp_device_start(ni_dhcp_device_t *);
 extern void		ni_dhcp_device_stop(ni_dhcp_device_t *);

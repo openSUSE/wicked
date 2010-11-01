@@ -16,6 +16,8 @@
 
 #include "libnetlink.h"
 
+typedef struct ni_capture	ni_capture_t;
+
 struct ni_handle {
 	ni_interface_t *	iflist;
 	ni_route_t *		routes;
@@ -112,6 +114,40 @@ extern ni_address_t *	__ni_address_list_clone(const ni_address_t *);
 
 extern ni_address_t *	__ni_lease_owns_address(const ni_addrconf_lease_t *, const ni_address_t *);
 extern ni_route_t *	__ni_lease_owns_route(const ni_addrconf_lease_t *, const ni_route_t *);
+
+/*
+ * Packet capture and raw sockets
+ */
+typedef struct ni_timeout_param {
+	unsigned int		timeout;
+	unsigned int		increment;
+	unsigned int		max_jitter;
+	unsigned int		max_timeout;
+	struct timeval		deadline;
+} ni_timeout_param_t;
+
+typedef struct ni_capture_devinfo {
+	const char *		ifname;
+	int			ifindex;
+	int			iftype;
+	int			arp_type;
+	unsigned		mtu;
+	ni_hwaddr_t		hwaddr;
+} ni_capture_devinfo_t;
+
+extern ni_capture_t *	ni_capture_open(const ni_capture_devinfo_t *, int, void (*)(ni_socket_t *));
+extern int		ni_capture_recv(ni_capture_t *, ni_buffer_t *);
+extern ssize_t		ni_capture_broadcast(ni_capture_t *, const ni_buffer_t *, const ni_timeout_param_t *);
+extern void		ni_capture_disarm_retransmit(ni_capture_t *);
+extern void		ni_capture_force_retransmit(ni_capture_t *, unsigned int);
+extern void		ni_capture_free(ni_capture_t *);
+extern int		ni_capture_desc(const ni_capture_t *);
+extern int		ni_capture_build_udp_header(ni_buffer_t *,
+					struct in_addr src_addr, uint16_t src_port,
+					struct in_addr dst_addr, uint16_t dst_port);
+extern void		ni_capture_set_user_data(ni_capture_t *, void *);
+extern void *		ni_capture_get_user_data(const ni_capture_t *);
+extern int		ni_capture_is_valid(const ni_capture_t *, int protocol);
 
 /*
  * Helper function to do strcmp with NULL pointer check
