@@ -100,7 +100,7 @@ ni_config_parse(const char *filename)
 
 	if (ni_config_parse_extensions(&conf->addrconf_extensions, node, "addrconf", ni_addrconf_name_to_type) < 0
 	 || ni_config_parse_extensions(&conf->linktype_extensions, node, "linktype", ni_linktype_name_to_type) < 0
-	 || ni_config_parse_extensions(&conf->conffile_extensions, node, "files", ni_linktype_name_to_type) < 0)
+	 || ni_config_parse_extensions(&conf->conffile_extensions, node, "files", NULL) < 0)
 		goto failed;
 
 	xml_document_free(doc);
@@ -212,7 +212,7 @@ ni_config_parse_extensions(ni_extension_t **list, xml_node_t *node, const char *
 
 	for (node = node->children; node; node = node->next) {
 		const char *name;
-		int type;
+		int type = 0;
 
 		/*
 		 * <extension name="dhcp4" type="dhcp" family="ipv4">
@@ -226,18 +226,20 @@ ni_config_parse_extensions(ni_extension_t **list, xml_node_t *node, const char *
 			continue;
 
 		if (!(name = xml_node_get_attr(node, "name"))) {
-			error("cannot parse configuration: %s extension has no name attribute", exclass);
+			ni_error("cannot parse configuration: %s extension has no name attribute", exclass);
 			return -1;
 		}
 
-		if (!(attrval = xml_node_get_attr(node, "type"))) {
-			error("cannot parse configuration: %s extension %s has no type attribute", exclass, name);
-			return -1;
-		}
-		type = map_type(attrval);
-		if (type < 0) {
-			error("%s extension type %s not recognized (ignored)", exclass, attrval);
-			continue;
+		if (map_type) {
+			if (!(attrval = xml_node_get_attr(node, "type"))) {
+				ni_error("cannot parse configuration: %s extension %s has no type attribute", exclass, name);
+				return -1;
+			}
+			type = map_type(attrval);
+			if (type < 0) {
+				ni_error("%s extension type %s not recognized (ignored)", exclass, attrval);
+				continue;
+			}
 		}
 
 		ex = ni_extension_new(list, name, type);
