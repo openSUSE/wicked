@@ -102,9 +102,9 @@ ni_nis_write_yp_conf(const char *filename, const ni_nis_info_t *nis, const char 
 		unsigned int j;
 
 		if (dom->binding == NI_NISCONF_BROADCAST)
-			fprintf(fp, "domain %s broadcast", dom->domainname);
+			fprintf(fp, "domain %s broadcast\n", dom->domainname);
 		if (dom->binding == NI_NISCONF_SLP)
-			fprintf(fp, "domain %s slp", dom->domainname);
+			fprintf(fp, "domain %s slp\n", dom->domainname);
 		for (j = 0; j < dom->servers.count; ++j)
 			fprintf(fp, "domain %s server %s\n", dom->domainname, dom->servers.data[j]);
 	}
