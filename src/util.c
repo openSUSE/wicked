@@ -45,6 +45,14 @@ ni_string_array_copy(ni_string_array_t *dst, const ni_string_array_t *src)
 }
 
 void
+ni_string_array_move(ni_string_array_t *dst, ni_string_array_t *src)
+{
+	ni_string_array_destroy(dst);
+	*dst = *src;
+	memset(src, 0, sizeof(*src));
+}
+
+void
 ni_string_array_destroy(ni_string_array_t *nsa)
 {
 	while (nsa->count--)

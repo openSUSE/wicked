@@ -55,6 +55,7 @@ extern void		ni_string_dup(char **, const char *);
 
 extern void		ni_string_array_init(ni_string_array_t *);
 extern int		ni_string_array_copy(ni_string_array_t *dst, const ni_string_array_t *src);
+extern void		ni_string_array_move(ni_string_array_t *dst, ni_string_array_t *src);
 extern void		ni_string_array_destroy(ni_string_array_t *);
 extern int		ni_string_array_append(ni_string_array_t *, const char *);
 extern int		ni_string_array_insert(ni_string_array_t *, unsigned int, const char *);
