@@ -319,7 +319,7 @@ ni_dhcp_device_send_message(ni_dhcp_device_t *dev, unsigned int msg_code, const 
 
 	if (ni_dhcp_socket_open(dev) < 0) {
 		ni_error("unable to open capture socket");
-		return -1;
+		goto transient_failure;
 	}
 
 	ni_debug_dhcp("sending %s with xid 0x%x", ni_dhcp_message_name(msg_code), dev->dhcp.xid);
@@ -328,14 +328,18 @@ ni_dhcp_device_send_message(ni_dhcp_device_t *dev, unsigned int msg_code, const 
 	ni_dhcp_device_alloc_buffer(dev);
 
 	/* Build the DHCP message */
-	rv = ni_dhcp_build_message(dev, msg_code, lease, &dev->message);
+	if ((rv = ni_dhcp_build_message(dev, msg_code, lease, &dev->message)) < 0) {
+		/* This is really terminal */
+		ni_error("unable to build DHCP message");
+		return -1;
+	}
 
 	/* FIXME: during renewal, we really want to unicast the request */
-	if (rv >= 0) {
-		rv = ni_capture_broadcast(dev->capture,
-					ni_buffer_head(&dev->message),
-					ni_buffer_count(&dev->message));
-	}
+	rv = ni_capture_broadcast(dev->capture,
+				ni_buffer_head(&dev->message),
+				ni_buffer_count(&dev->message));
+	if (rv < 0)
+		ni_debug_dhcp("unable to broadcast message");
 
 	switch (msg_code) {
 	case DHCP_DECLINE:
@@ -345,11 +349,9 @@ ni_dhcp_device_send_message(ni_dhcp_device_t *dev, unsigned int msg_code, const 
 	case DHCP_DISCOVER:
 	case DHCP_REQUEST:
 	case DHCP_INFORM:
-		if (rv >= 0) {
-			dev->retrans.timeout = dev->config->resend_timeout;
-			dev->retrans.increment = dev->config->resend_timeout;
-			ni_dhcp_device_arm_retransmit(dev);
-		}
+		dev->retrans.timeout = dev->config->resend_timeout;
+		dev->retrans.increment = dev->config->resend_timeout;
+		ni_dhcp_device_arm_retransmit(dev);
 		break;
 
 	default:
@@ -357,7 +359,14 @@ ni_dhcp_device_send_message(ni_dhcp_device_t *dev, unsigned int msg_code, const 
 				ni_dhcp_message_name(msg_code));
 	}
 
-	return rv;
+	return 0;
+
+transient_failure:
+	/* We ran into a transient problem, such as being unable to open
+	 * a raw socket. We should schedule a "short" timeout after which
+	 * we should re-try the operation. */
+	/* FIXME: Not done yet. */
+	return 0;
 }
 
 void
