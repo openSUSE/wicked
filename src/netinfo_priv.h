@@ -37,6 +37,8 @@ struct ni_ops {
 	int			(*update_lease)(ni_handle_t *, ni_interface_t *, ni_addrconf_lease_t *);
 	int			(*hostname_get)(ni_handle_t *, char *, size_t);
 	int			(*hostname_put)(ni_handle_t *, const char *);
+	int			(*nis_domain_get)(ni_handle_t *, char *, size_t);
+	int			(*nis_domain_put)(ni_handle_t *, const char *);
 	void			(*close)(ni_handle_t *);
 };
 

@@ -27,6 +27,7 @@
 
 static ni_rest_node_t *	ni_rest_node_lookup(ni_rest_node_t *, const char *, const char **);
 static void		ni_rest_generate_meta(ni_rest_node_t *, xml_node_t *);
+static char *		ni_request_get_domain_element(ni_wicked_request_t *, const char *);
 
 /*
  * construct and destroy wicked request object
@@ -721,40 +722,16 @@ generic_hostname_get(ni_handle_t *nih, const char *path, ni_wicked_request_t *re
 static int
 generic_hostname_put(ni_handle_t *nih, const char *path, ni_wicked_request_t *req)
 {
-	char *hostname, *sp;
-	xml_node_t *hnode;
-	unsigned int n;
+	char *hostname;
 
 	if (path && *path) {
 		werror(req, "excess elements in path");
 		return -1;
 	}
 
-	if (!req->xml_in
-	 || !(hnode = xml_node_get_child(req->xml_in, "hostname"))
-	 || !(sp = hnode->cdata)) {
-		werror(req, "bad or missing XML document");
+	hostname = ni_request_get_domain_element(req, "hostname");
+	if (hostname == NULL)
 		return -1;
-	}
-
-	while (isspace(*sp))
-		++sp;
-	hostname = sp;
-
-	n = strlen(hostname);
-	while (n && isspace(hostname[n-1]))
-		hostname[--n] = '\0';
-
-	/* Be strict - do not accept garbage in hostnames. Note that
-	 * this also excludes UTF8 encoded names */
-	for (n = 0; hostname[n]; ++n) {
-		unsigned char cc = hostname[n];
-
-		if (cc <= 0x20 || cc >= 0x7f) {
-			werror(req, "illegal character in hostname");
-			return -1;
-		}
-	}
 
 	if (nih->op->hostname_put(nih, hostname) < 0) {
 		werror(req, "error setting hostname");
@@ -810,6 +787,92 @@ static ni_rest_node_t	ni_rest_config_hostname_node = {
 	},
 };
 
+/*
+ * NIS objects
+ */
+static int
+generic_nis_domain_get(ni_handle_t *nih, const char *path, ni_wicked_request_t *req)
+{
+	char domainname[256];
+
+	if (path && *path) {
+		werror(req, "excess elements in path");
+		return -1;
+	}
+
+	if (nih->op->nis_domain_get(nih, domainname, sizeof(domainname)) < 0) {
+		werror(req, "error getting NIS domain");
+		return -1;
+	}
+
+	req->xml_out = xml_node_new("domain", NULL);
+	xml_node_set_cdata(req->xml_out, domainname);
+	return 0;
+}
+
+static int
+generic_nis_domain_put(ni_handle_t *nih, const char *path, ni_wicked_request_t *req)
+{
+	char *domainname;
+
+	if (path && *path) {
+		werror(req, "excess elements in path");
+		return -1;
+	}
+
+	domainname = ni_request_get_domain_element(req, "domain");
+	if (domainname == NULL)
+		return -1;
+
+	if (nih->op->nis_domain_put(nih, domainname) < 0) {
+		werror(req, "error setting NIS domain");
+		return -1;
+	}
+
+	req->xml_out = xml_node_new("domain", NULL);
+	xml_node_set_cdata(req->xml_out, domainname);
+	return 0;
+}
+
+static int
+system_nis_domain_get(const char *path, ni_wicked_request_t *req)
+{
+	return generic_nis_domain_get(system_handle(req), path, req);
+}
+
+static int
+system_nis_domain_put(const char *path, ni_wicked_request_t *req)
+{
+	return generic_nis_domain_put(system_handle(req), path, req);
+}
+
+static ni_rest_node_t	ni_rest_system_nis_domain_node = {
+	.name		= "domain",
+	.ops = {
+	    .byname = {
+		.get	= system_nis_domain_get,
+		.put	= system_nis_domain_put,
+	    },
+	},
+};
+
+static ni_rest_node_t	ni_rest_system_nis_node = {
+	.name		= "nis",
+#if 0
+	.ops = {
+	    .byname = {
+		.get	= system_nis_get,
+		.put	= system_nis_put,
+	    },
+	},
+#endif
+	.children = {
+		&ni_rest_system_nis_domain_node,
+	},
+};
+/*
+ * Event receiver
+ */
 static int
 system_event_post(const char *ifname, ni_wicked_request_t *req)
 {
@@ -1012,6 +1075,7 @@ static ni_rest_node_t	ni_rest_system_node = {
 	.children = {
 		&ni_rest_system_interface_node,
 		&ni_rest_system_hostname_node,
+		&ni_rest_system_nis_node,
 		&ni_rest_system_event_node,
 	},
 };
@@ -1121,6 +1185,42 @@ ni_rest_generate_meta(ni_rest_node_t *node, xml_node_t *xml_parent)
 		child_xml = xml_node_new(child->name, xml_parent);
 		ni_rest_generate_meta(child, child_xml);
 	}
+}
+
+static char *
+ni_request_get_domain_element(ni_wicked_request_t *req, const char *element_name)
+{
+	char *hostname, *sp;
+	xml_node_t *hnode;
+	unsigned int n;
+
+	if (!req->xml_in
+	 || !(hnode = xml_node_get_child(req->xml_in, element_name))
+	 || !(sp = hnode->cdata)) {
+		werror(req, "bad or missing XML document");
+		return NULL;
+	}
+
+	while (isspace(*sp))
+		++sp;
+	hostname = sp;
+
+	n = strlen(hostname);
+	while (n && isspace(hostname[n-1]))
+		hostname[--n] = '\0';
+
+	/* Be strict - do not accept garbage in hostnames. Note that
+	 * this also excludes UTF8 encoded names */
+	for (n = 0; hostname[n]; ++n) {
+		unsigned char cc = hostname[n];
+
+		if (cc <= 0x20 || cc >= 0x7f) {
+			werror(req, "illegal character in %s element", element_name);
+			return NULL;
+		}
+	}
+
+	return hostname;
 }
 
 void

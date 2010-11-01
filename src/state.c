@@ -12,6 +12,8 @@
 
 static int	__ni_system_hostname_put(ni_handle_t *, const char *);
 static int	__ni_system_hostname_get(ni_handle_t *, char *, size_t);
+static int	__ni_system_nis_domain_put(ni_handle_t *, const char *);
+static int	__ni_system_nis_domain_get(ni_handle_t *, char *, size_t);
 static void	__ni_system_close(ni_handle_t *nih);
 
 static struct ni_ops ni_state_ops = {
@@ -21,6 +23,8 @@ static struct ni_ops ni_state_ops = {
 	.update_lease		= __ni_system_interface_update_lease,
 	.hostname_get		= __ni_system_hostname_get,
 	.hostname_put		= __ni_system_hostname_put,
+	.nis_domain_get		= __ni_system_nis_domain_get,
+	.nis_domain_put		= __ni_system_nis_domain_put,
 	.close			= __ni_system_close,
 };
 
@@ -65,6 +69,23 @@ __ni_system_hostname_put(ni_handle_t *nih, const char *hostname)
 		return -1;
 	}
 	return sethostname(hostname, strlen(hostname));
+}
+
+static int
+__ni_system_nis_domain_get(ni_handle_t *nih, char *buffer, size_t size)
+{
+	return getdomainname(buffer, size);
+}
+
+
+static int
+__ni_system_nis_domain_put(ni_handle_t *nih, const char *domainname)
+{
+	if (!domainname || !*domainname) {
+		errno = EINVAL;
+		return -1;
+	}
+	return setdomainname(domainname, strlen(domainname));
 }
 
 
