@@ -41,6 +41,15 @@ typedef struct ni_timeout_param {
 	struct timeval		deadline;
 } ni_timeout_param_t;
 
+typedef struct ni_capture_devinfo {
+	const char *		ifname;
+	int			ifindex;
+	int			iftype;
+	int			arp_type;
+	unsigned		mtu;
+	ni_hwaddr_t		hwaddr;
+} ni_capture_devinfo_t;
+
 typedef struct ni_dhcp_device {
 	struct ni_dhcp_device *	next;
 
@@ -50,13 +59,7 @@ typedef struct ni_dhcp_device {
 	    struct timeval	expires;
 	} fsm;
 
-	struct {
-	    int			iftype;
-	    int			arp_type;
-	    int			ifindex;
-	    unsigned		mtu;
-	    ni_hwaddr_t		hwaddr;
-	} system;
+	ni_capture_devinfo_t	system;
 
 	time_t			start_time;	/* when we starting managing */
 

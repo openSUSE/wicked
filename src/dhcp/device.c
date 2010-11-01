@@ -35,6 +35,7 @@ ni_dhcp_device_new(const char *ifname, unsigned int iftype)
 
 	dev = calloc(1, sizeof(*dev));
 	ni_string_dup(&dev->ifname, ifname);
+	dev->system.ifname = dev->ifname;
 	dev->system.iftype = iftype;
 	dev->system.mtu = MTU_MAX;
 	dev->listen_fd = -1;

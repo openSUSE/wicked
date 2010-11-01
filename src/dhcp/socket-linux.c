@@ -104,7 +104,7 @@ struct ni_capture {
 	} retrans;
 };
 
-static ni_capture_t *	ni_capture_open(const ni_dhcp_device_t *, int, void (*)(ni_socket_t *));
+static ni_capture_t *	ni_capture_open(const ni_capture_devinfo_t *, int, void (*)(ni_socket_t *));
 static ssize_t		__ni_capture_broadcast(const ni_capture_t *, const ni_buffer_t *);
 
 static uint32_t
@@ -445,7 +445,7 @@ __ni_dhcp_common_open(ni_dhcp_device_t *dev, int protocol, void (*data_ready)(ni
 		dev->capture = NULL;
 	}
 
-	capture = ni_capture_open(dev, protocol, data_ready);
+	capture = ni_capture_open(&dev->system, protocol, data_ready);
 	if (!capture)
 		return -1;
 
@@ -548,20 +548,20 @@ ni_arp_socket_open(ni_dhcp_device_t *dev)
 static int	ni_capture_set_filter(ni_capture_t *, int);
 
 ni_capture_t *
-ni_capture_open(const ni_dhcp_device_t *dev, int protocol, void (*data_ready)(ni_socket_t *))
+ni_capture_open(const ni_capture_devinfo_t *devinfo, int protocol, void (*data_ready)(ni_socket_t *))
 {
 	struct sockaddr_ll sll;
 	ni_capture_t *capture = NULL;
 	ni_hwaddr_t brdaddr;
 	int fd = -1;
 
-	if (dev->system.ifindex == 0) {
-		ni_error("no ifindex for interface `%s'", dev->ifname);
+	if (devinfo->ifindex == 0) {
+		ni_error("no ifindex for interface `%s'", devinfo->ifname);
 		return NULL;
 	}
 
-	if (ni_link_address_get_broadcast(dev->system.iftype, &brdaddr) < 0) {
-		ni_error("cannot get broadcast address for %s (bad iftype)", dev->ifname);
+	if (ni_link_address_get_broadcast(devinfo->iftype, &brdaddr) < 0) {
+		ni_error("cannot get broadcast address for %s (bad iftype)", devinfo->ifname);
 		return NULL;
 	}
 
@@ -572,14 +572,14 @@ ni_capture_open(const ni_dhcp_device_t *dev, int protocol, void (*data_ready)(ni
 	fcntl(fd, F_SETFD, FD_CLOEXEC);
 
 	capture = calloc(1, sizeof(*capture));
-	capture->ifname = dev->ifname;
+	capture->ifname = devinfo->ifname;
 	capture->sock = ni_socket_wrap(fd, SOCK_DGRAM);
 	capture->protocol = protocol;
 
 	capture->sll.sll_family = AF_PACKET;
 	capture->sll.sll_protocol = htons(protocol);
-	capture->sll.sll_ifindex = dev->system.ifindex;
-	capture->sll.sll_hatype = htons(dev->system.arp_type);
+	capture->sll.sll_ifindex = devinfo->ifindex;
+	capture->sll.sll_hatype = htons(devinfo->arp_type);
 	capture->sll.sll_halen = brdaddr.len;
 	memcpy(&capture->sll.sll_addr, brdaddr.data, brdaddr.len);
 
@@ -589,14 +589,14 @@ ni_capture_open(const ni_dhcp_device_t *dev, int protocol, void (*data_ready)(ni
 	memset(&sll, 0, sizeof(sll));
 	sll.sll_family = PF_PACKET;
 	sll.sll_protocol = htons(protocol);
-	sll.sll_ifindex = dev->system.ifindex;
+	sll.sll_ifindex = devinfo->ifindex;
 
 	if (bind(fd, (struct sockaddr *) &sll, sizeof(sll)) == -1) {
 		ni_error("bind: %m");
 		goto failed;
 	}
 
-	capture->mtu = dev->system.mtu;
+	capture->mtu = devinfo->mtu;
 	if (capture->mtu == 0)
 		capture->mtu = MTU_MAX;
 	capture->buffer = malloc(capture->mtu);
