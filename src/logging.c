@@ -32,6 +32,7 @@ static ni_intmap_t __debug_flags_names[] = {
 	{ "dhcp", 	NI_TRACE_DHCP },
 	{ "ipv6", 	NI_TRACE_IPV6 },
 	{ "socket", 	NI_TRACE_SOCKET },
+	{ "autoip", 	NI_TRACE_AUTOIP },
 
 	{ "most", 	NI_TRACE_MOST },
 	{ "all", 	NI_TRACE_ALL },
@@ -49,6 +50,7 @@ static ni_intmap_t __debug_flags_descriptions[] = {
 	{ "Everything related to the wicked protocol", 	NI_TRACE_WICKED },
 	{ "Netlink events (daemon only)", 		NI_TRACE_EVENTS },
 	{ "DHCP supplicant", 				NI_TRACE_DHCP },
+	{ "IPv4LL supplicant", 				NI_TRACE_AUTOIP },
 	{ "IPv6 address configuration", 		NI_TRACE_IPV6 },
 	{ "Network socket send/receive", 		NI_TRACE_SOCKET },
 
