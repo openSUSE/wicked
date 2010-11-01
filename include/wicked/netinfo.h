@@ -26,7 +26,7 @@ typedef struct ni_address {
 	unsigned int		seq;
 	unsigned int		family;
 	unsigned int		flags;
-	unsigned int		scope;
+	int			scope;
 	unsigned int		prefixlen;
 	struct sockaddr_storage	local_addr;
 	struct sockaddr_storage	peer_addr;

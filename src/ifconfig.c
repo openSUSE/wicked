@@ -1040,7 +1040,7 @@ __ni_rtnl_send_newaddr(ni_handle_t *nih, ni_interface_t *ifp, const ni_address_t
 	else if (ni_address_is_loopback(ap))
 		req.ifa.ifa_scope = RT_SCOPE_HOST;
 	else
-		req.ifa.ifa_scope = RT_SCOPE_UNIVERSE;
+		req.ifa.ifa_scope = 0; /* aka global */
 
 	if (ni_rtnl_talk(nih, &req.hdr) < 0) {
 		ni_error("%s(%s/%u): rtnl_talk failed", __FUNCTION__,
