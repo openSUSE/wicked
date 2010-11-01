@@ -179,6 +179,9 @@ xpath_format_eval(xpath_format_t *pieces, xml_node_t *xn, ni_string_array_t *res
 		}
 	}
 
+	if (num_expansions == ~0)
+		num_expansions = 1;
+
 	for (n = 0; n < num_expansions; ++n) {
 		for (m = 0; m < pieces->count; ++m) {
 			xpath_fnode_t *fnode = &pieces->node[m];
