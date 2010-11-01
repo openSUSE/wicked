@@ -38,7 +38,7 @@ ni_arp_socket_open(ni_dhcp_device_t *dev)
 	if (!dev->capture)
 		return -1;
 
-	ni_capture_set_user_data(capture, dev);
+	ni_capture_set_user_data(dev->capture, dev);
 	return 0;
 }
 
