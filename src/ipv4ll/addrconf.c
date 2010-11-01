@@ -85,6 +85,10 @@ ni_autoip_addrconf_request(const ni_addrconf_t *acm, ni_interface_t *ifp, const 
 		ni_error("%s: device does not support ARP, cannot configure for IPv4LL", ifp->name);
 		return -1;
 	}
+	if (!ni_afinfo_addrconf_test(&ifp->ipv4, NI_ADDRCONF_AUTOCONF)) {
+		ni_error("%s: interface %s doesn't have autoip enabled", __FUNCTION__, ifp->name);
+		return -1;
+	}
 
 	return __ni_autoip_addrconf_do(acm, ifp, cfg_xml);
 }

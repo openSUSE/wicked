@@ -252,28 +252,27 @@ autoip_interface_put(const char *ifname, ni_wicked_request_t *req)
 	/* FIXME: if nothing changed, we don't need to do anything. */
 
 	dev = ni_autoip_device_find(ifp->name);
-	if (ifp->flags & IFF_UP) {
-		ni_debug_autoip("%s: received request to acquire lease", ifp->name);
+	if (ni_afinfo_addrconf_test(&ifp->ipv4, NI_ADDRCONF_AUTOCONF)) {
+		ni_debug_autoip("%s: received request to acquire IPv4LL lease", ifp->name);
 
 		if (dev == NULL)
 			dev = ni_autoip_device_new(ifp->name, ifp->type);
 		ni_autoip_device_reconfigure(dev, ifp);
+
+		/* We're asked to (re-)start */
+		if (dev->fsm.state == NI_AUTOIP_STATE_INIT)
+			ni_autoip_device_start(dev);
 	} else {
-		ni_debug_autoip("%s: received request to release lease", ifp->name);
+		ni_debug_autoip("%s: received request to release IPv4LL lease", ifp->name);
 
 		if (dev == NULL)
 			goto failed;
 		ni_autoip_device_stop(dev);
 	}
 
-	if (dev->fsm.state == NI_AUTOIP_STATE_INIT) {
-		/* We're asked to (re-)start */
-		ni_autoip_device_start(dev);
-	} else {
-		/* Even if nothing changed, we should at least inform the master of
-		 * the current lease state */
-		dev->notify = 1;
-	}
+	/* Even if nothing changed, we should at least inform the master of
+	 * the current lease state */
+	dev->notify = 1;
 
 success:
 	rv = 0;
