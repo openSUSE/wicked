@@ -226,9 +226,9 @@ ni_dhcp_build_message(const ni_dhcp_device_t *dev,
 	message->cookie = htonl(MAGIC_COOKIE);
 	message->secs = htons(ni_dhcp_device_uptime(dev, 0xFFFF));
 
-	if (dev->state == NI_DHCP_STATE_BOUND
-	 || dev->state == NI_DHCP_STATE_RENEWING
-	 || dev->state == NI_DHCP_STATE_REBINDING)
+	if (dev->fsm.state == NI_DHCP_STATE_BOUND
+	 || dev->fsm.state == NI_DHCP_STATE_RENEWING
+	 || dev->fsm.state == NI_DHCP_STATE_REBINDING)
 		message->ciaddr = lease->dhcp.address.s_addr;
 
 	switch (dev->system.arp_type) {

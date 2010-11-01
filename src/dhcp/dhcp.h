@@ -38,6 +38,10 @@ typedef struct ni_dhcp_device {
 
 	char *		ifname;
 	struct {
+	    int		state;
+	} fsm;
+
+	struct {
 	    int		iftype;
 	    int		arp_type;
 	    int		ifindex;
@@ -57,7 +61,6 @@ typedef struct ni_dhcp_device {
 			notify : 1,
 			accept_any_offer : 1;
 
-	int		state;
 	uint32_t	xid;
 
 	ni_buffer_t	message;

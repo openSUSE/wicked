@@ -88,7 +88,7 @@ ni_dhcp_run(ni_socket_t *sock)
 	}
 
 	for (dev = ni_dhcp_active; dev; dev = dev->next) {
-		switch (dev->state) {
+		switch (dev->fsm.state) {
 		case NI_DHCP_STATE_REQUESTING:
 		case NI_DHCP_STATE_RENEWING:
 		case NI_DHCP_STATE_REBINDING:
@@ -313,7 +313,7 @@ dhcp_interface_put(const char *ifname, ni_wicked_request_t *req)
 		/* Link went away. */
 	}
 
-	if (dev->state == NI_DHCP_STATE_INIT && dev->config) {
+	if (dev->fsm.state == NI_DHCP_STATE_INIT && dev->config) {
 		/* We're asked to (re-)start discovery */
 		ni_dhcp_device_start(dev);
 	} else {

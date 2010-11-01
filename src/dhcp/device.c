@@ -39,7 +39,7 @@ ni_dhcp_device_new(const char *ifname, unsigned int iftype)
 	dev->system.mtu = MTU_MAX;
 	dev->listen_fd = -1;
 	dev->start_time = time(NULL);
-	dev->state = NI_DHCP_STATE_INIT;
+	dev->fsm.state = NI_DHCP_STATE_INIT;
 
 	/* append to end of list */
 	*pos = dev;
@@ -140,7 +140,7 @@ ni_dhcp_device_drop_lease(ni_dhcp_device_t *dev)
 		dev->lease = NULL;
 
 		/* Go back to square one */
-		dev->state = NI_DHCP_STATE_INIT;
+		dev->fsm.state = NI_DHCP_STATE_INIT;
 	}
 }
 
@@ -244,7 +244,7 @@ ni_dhcp_device_reconfigure(ni_dhcp_device_t *dev, const ni_interface_t *ifp)
 	}
 
 	/* Go back to INIT state to force a rediscovery */
-	dev->state = NI_DHCP_STATE_INIT;
+	dev->fsm.state = NI_DHCP_STATE_INIT;
 	return 1;
 }
 
