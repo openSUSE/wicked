@@ -1,5 +1,4 @@
 netinfo:
-	- split out addrconf stuff into wicked/addrconf.h
 
 ifconfig
 	- support security supplicants (radius, wpa, ...)
@@ -14,9 +13,6 @@ netcf
 	- The interface XML should interpret an empty <dhcp> element as
 	  "yes, I want DHCP, and I will just use whatever the admin configured
 	  as default for this system".
-	- Long term, we should get rid of a single "addrconf" type per
-	  interface and address family. It's possible (and practical) to use
-	  a mix of mechanisms on a single interface, eg dhcp *and* zeroconf.
 
 backends:
 	- support writing of rh sysconfig files
@@ -29,13 +25,9 @@ overall
 		refresh -> interfaces_get_all
 		configure_interface -> interface_put
 		delete_interface -> interface_delete
-	  add new functions
-		resolver_get
-		resolver_put
 
 extensions
-	- escape/reject shell metacharacters when expanding
-	  start/stop command
+	- escape/reject shell metacharacters when expanding start/stop command
 	- add dhcp6 client script
 
 events
@@ -58,8 +50,6 @@ policy
 	- Add ACLs to individual REST nodes
 
 wicked
-	- introduce /config/resolver, /system/resolver
-
 	- implement incremental configuration changes
 	  such as adding/removing a single address, or
 	  adding/removing a single bridge port.
