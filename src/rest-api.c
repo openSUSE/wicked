@@ -22,8 +22,9 @@
 #include <wicked/nis.h>
 #include <wicked/xml.h>
 #include <wicked/xpath.h>
-#include "netinfo_priv.h"
 #include <wicked/socket.h>
+#include "netinfo_priv.h"
+#include "config.h"
 
 
 static ni_rest_node_t *	ni_rest_node_lookup(ni_rest_node_t *, const char *, const char **);
@@ -473,7 +474,15 @@ __ni_wicked_call_direct(ni_wicked_request_t *req, ni_rest_node_t *root_node)
 		return -1;
 	}
 
-	return node->ops.fn[req->cmd](remainder, req);
+	if (node->ops.fn[req->cmd](remainder, req) < 0)
+		return -1;
+
+	if (req->cmd != NI_REST_OP_GET && node->update.callback) {
+		ni_debug_wicked("Running update extension");
+		ni_extension_run(node->update.extension, node->update.callback);
+	}
+
+	return 0;
 }
 
 static ni_handle_t *
@@ -1228,6 +1237,12 @@ ni_rest_node_find_child(ni_rest_node_t *node, const char *name)
 }
 
 ni_rest_node_t *
+ni_wicked_rest_lookup(const char *path, const char **remainder)
+{
+	return ni_rest_node_lookup(&ni_rest_root_node, path, remainder);
+}
+
+ni_rest_node_t *
 ni_rest_node_lookup(ni_rest_node_t *root, const char *path, const char **remainder)
 {
 	ni_rest_node_t *node = root;
@@ -1261,6 +1276,18 @@ ni_rest_node_lookup(ni_rest_node_t *root, const char *path, const char **remaind
 		*remainder = path + (pos - copy);
 	free(copy);
 	return node;
+}
+
+void
+ni_rest_node_add_update_callback(ni_rest_node_t *node, ni_extension_t *ex, ni_script_action_t *act)
+{
+	/* For now, we support just a single update callback */
+	if (node->update.callback) {
+		ni_error("duplicate update callback for node %s", node->name);
+		return;
+	}
+	node->update.extension = ex;
+	node->update.callback = act;
 }
 
 static void

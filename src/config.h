@@ -15,13 +15,13 @@
 #define NI_DEFAULT_CONFIG_PATH	"/etc/wicked/config.xml"
 #define NI_DEFAULT_POLICY_PATH	"/etc/wicked/policy.xml"
 
-typedef struct ni_script_action {
+struct ni_script_action {
 	struct ni_script_action *next;
 	char *			name;
 	xpath_format_t *	command;
-} ni_script_action_t;
+};
 
-typedef struct ni_extension {
+struct ni_extension {
 	struct ni_extension *	next;
 
 	/* Name of the extension; could be "dhcp4" or "ibft". */
@@ -50,7 +50,7 @@ typedef struct ni_extension {
 
 	/* Environment variables */
 	xpath_format_array_t	environment;
-} ni_extension_t;
+};
 
 typedef struct ni_config_fslocation {
 	char *			path;
@@ -82,7 +82,7 @@ typedef struct ni_config {
 	    } dhcp;
 	} addrconf;
 
-	ni_extension_t *	conffile_extensions;
+	ni_extension_t *	api_extensions;
 	ni_extension_t *	linktype_extensions;
 	ni_extension_t *	addrconf_extensions;
 

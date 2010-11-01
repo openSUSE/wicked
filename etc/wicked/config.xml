@@ -58,13 +58,18 @@
   <!--
     -- These extensions can be used to invoke helper scripts after updating
     -- specific configuration files.
+    -- The extension's name attribute specifies the REST node (eg "system.nis"
+    -- refers to "/system/nis") to which to attach the API extension to.
+    -- The action name specifies how to use the helper script.
     -- Currently supported:
-    --    system.hostname
+    --  update:		run this command after any operation that modifies the node
     -->
-  <files>
-   <extension name="system.foobar">
-    <action name="update" command="/sbin/netconfig foobar-updated"/>
+  <api>
+   <!--
+   <extension name="system.nis">
+    <action name="update" command="/sbin/wicked-helper nis-updated"/>
    </extension>
-  </files>
+    -->
+  </api>
 
 </config>

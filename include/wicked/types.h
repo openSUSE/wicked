@@ -20,6 +20,8 @@ typedef struct ni_addrconf_lease  ni_addrconf_lease_t;
 
 typedef struct ni_socket	ni_socket_t;
 typedef struct ni_buffer	ni_buffer_t;
+typedef struct ni_extension	ni_extension_t;
+typedef struct ni_script_action	ni_script_action_t;
 
 /*
  * These are used by the XML and XPATH code.

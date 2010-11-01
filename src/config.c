@@ -8,6 +8,8 @@
 #include <assert.h>
 #include <ctype.h>
 
+#include <wicked/util.h>
+#include <wicked/wicked.h>
 #include <wicked/xpath.h>
 #include "netinfo_priv.h"
 #include "config.h"
@@ -42,7 +44,7 @@ ni_config_free(ni_config_t *conf)
 {
 	ni_extension_list_destroy(&conf->addrconf_extensions);
 	ni_extension_list_destroy(&conf->linktype_extensions);
-	ni_extension_list_destroy(&conf->conffile_extensions);
+	ni_extension_list_destroy(&conf->api_extensions);
 	ni_string_free(&conf->default_syntax);
 	ni_string_free(&conf->default_syntax_path);
 	free(conf);
@@ -55,6 +57,7 @@ ni_config_parse(const char *filename)
 	xml_node_t *node, *child;
 	ni_config_t *conf = NULL;
 
+	ni_debug_wicked("Reading config file %s", filename);
 	doc = xml_document_read(filename);
 	if (!doc) {
 		error("%s: error parsing configuration file", filename);
@@ -100,8 +103,44 @@ ni_config_parse(const char *filename)
 
 	if (ni_config_parse_extensions(&conf->addrconf_extensions, node, "addrconf", ni_addrconf_name_to_type) < 0
 	 || ni_config_parse_extensions(&conf->linktype_extensions, node, "linktype", ni_linktype_name_to_type) < 0
-	 || ni_config_parse_extensions(&conf->conffile_extensions, node, "files", NULL) < 0)
+	 || ni_config_parse_extensions(&conf->api_extensions, node, "api", NULL) < 0)
 		goto failed;
+
+	/* If we have API extensions, register them with the REST API */
+	if (conf->api_extensions) {
+		ni_stringbuf_t sbuf = NI_STRINGBUF_INIT_DYNAMIC;
+		ni_extension_t *ex;
+
+		for (ex = conf->api_extensions; ex; ex = ex->next) {
+			ni_script_action_t *act;
+			ni_rest_node_t *rnode;
+			char *copy, *sp;
+
+			ni_stringbuf_clear(&sbuf);
+			copy = strdup(ex->name);
+			for (sp = strtok(copy, "."); sp; sp = strtok(NULL, ".")) {
+				ni_stringbuf_putc(&sbuf, '/');
+				ni_stringbuf_puts(&sbuf, sp);
+			}
+			free(copy);
+
+			if (ni_stringbuf_empty(&sbuf))
+				continue;
+			rnode = ni_wicked_rest_lookup(sbuf.string, (const char **) &sp);
+			if (rnode == NULL || sp != NULL) {
+				ni_warn("ignoring API extension %s", ex->name);
+				continue;
+			}
+
+			for (act = ex->actions; act; act = act->next) {
+				if (!strcmp(act->name, "update")) {
+					ni_debug_wicked("Registering update extension for %s", sbuf.string);
+					ni_rest_node_add_update_callback(rnode, ex, act);
+				}
+			}
+		}
+		ni_stringbuf_clear(&sbuf);
+	}
 
 	xml_document_free(doc);
 	return conf;
@@ -329,5 +368,5 @@ ni_config_find_addrconf_extension(ni_config_t *conf, int type, int af)
 ni_extension_t *
 ni_config_find_file_extension(ni_config_t *conf, const char *name)
 {
-	return ni_extension_by_name(conf->conffile_extensions, name);
+	return ni_extension_by_name(conf->api_extensions, name);
 }

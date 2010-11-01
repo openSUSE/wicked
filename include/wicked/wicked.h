@@ -44,6 +44,11 @@ typedef struct ni_rest_node {
 			ni_rest_handler_t delete;
 		} byname;
 	} ops;
+
+	struct {
+		ni_extension_t *	extension;
+		ni_script_action_t *	callback;
+	} update;
 	struct ni_rest_node *	children[__NI_REST_CHILD_MAX];
 } ni_rest_node_t;
 
@@ -64,6 +69,10 @@ extern int			ni_wicked_response_print(ni_socket_t *, ni_wicked_request_t *, int 
 
 extern int			ni_wicked_rest_op_parse(const char *);
 extern const char *		ni_wicked_rest_op_print(int);
+extern ni_rest_node_t *		ni_wicked_rest_lookup(const char *, const char **);
+
+extern void			ni_rest_node_add_update_callback(ni_rest_node_t *,
+						ni_extension_t *, ni_script_action_t *);
 
 /*
  * This is for functionality moved into separate processes,
