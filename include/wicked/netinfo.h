@@ -288,6 +288,7 @@ extern ni_bridge_t *	ni_interface_get_bridge(ni_interface_t *);
 extern void		ni_interface_array_init(ni_interface_array_t *);
 extern void		ni_interface_array_append(ni_interface_array_t *, ni_interface_t *);
 extern void		ni_interface_array_destroy(ni_interface_array_t *);
+extern int		ni_interface_array_index(const ni_interface_array_t *, const ni_interface_t *);
 
 extern ni_address_t *	ni_address_new(ni_interface_t *ifp, int af,
 				unsigned int prefix_len,

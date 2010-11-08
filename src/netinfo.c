@@ -999,6 +999,18 @@ ni_interface_array_append(ni_interface_array_t *array, ni_interface_t *ifp)
 	array->data[array->count++] = ifp;
 }
 
+int
+ni_interface_array_index(const ni_interface_array_t *array, const ni_interface_t *ifp)
+{
+	unsigned int i;
+
+	for (i = 0; i < array->count; ++i) {
+		if (array->data[i] == ifp)
+			return i;
+	}
+	return -1;
+}
+
 void
 ni_interface_array_destroy(ni_interface_array_t *array)
 {
