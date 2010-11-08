@@ -362,12 +362,16 @@ struct ni_interface_xdependency {
 #define IFF_LOWER_UP 0x10000
 
 static int
-ni_build_partial_topology(ni_handle_t *config)
+ni_build_partial_topology(ni_handle_t *config, ni_evaction_t ifaction)
 {
 	ni_interface_t *pos = NULL, *ifp;
+	unsigned int flmask;
 
-	for (ifp = ni_interface_first(config, &pos); ifp; ifp = ni_interface_next(config, &pos))
-		ifp->flags |= IFF_UP|IFF_LOWER_UP;
+	flmask = (ifaction == NI_INTERFACE_START)? (IFF_UP | IFF_LOWER_UP) : 0;
+	for (ifp = ni_interface_first(config, &pos); ifp; ifp = ni_interface_next(config, &pos)) {
+		ifp->flags &= ~(IFF_UP|IFF_LOWER_UP);
+		ifp->flags |= flmask;
+	}
 
 	for (ifp = ni_interface_first(config, &pos); ifp; ifp = ni_interface_next(config, &pos)) {
 		ni_interface_t *slave;
@@ -397,7 +401,6 @@ ni_build_partial_topology(ni_handle_t *config)
 			slave->parent = ifp;
 
 			vlan->interface_dev = slave;
-			slave->flags |= IFF_UP|IFF_LOWER_UP;
 			break;
 
 		case NI_IFTYPE_BOND:
@@ -414,8 +417,9 @@ ni_build_partial_topology(ni_handle_t *config)
 					if (slave->parent)
 						goto multiple_masters;
 					slave->parent = ifp;
-					slave->flags &= ~(IFF_UP|IFF_LOWER_UP);
-					slave->flags |= IFF_LOWER_UP;
+					/* Whatever we do, bonding slave devices should never
+					 * have their network configured. */
+					slave->flags &= ~IFF_UP;
 				}
 			}
 			break;
@@ -431,7 +435,6 @@ ni_build_partial_topology(ni_handle_t *config)
 					continue;
 
 				port->device = ni_interface_get(slave);
-				slave->flags |= IFF_UP|IFF_LOWER_UP;
 
 				if (slave->parent)
 					goto multiple_masters;
@@ -826,9 +829,13 @@ usage:
 	}
 
 	system = ni_indirect_open("/system");
+	if ((rv = ni_refresh(system)) < 0) {
+		ni_error("cannot refresh interface state");
+		goto failed;
+	}
 
 	if (!strcmp(ifname, "all")) {
-		if (ni_build_partial_topology(config)) {
+		if (ni_build_partial_topology(config, NI_INTERFACE_START)) {
 			ni_error("failed to build interface hierarchy");
 			goto failed;
 		}
@@ -848,6 +855,7 @@ usage:
 
 	for (i = 0; rv >= 0 && i < iflist.count; ++i)
 		rv = do_ifup_one(system, iflist.data[i]);
+
 
 	/* Wait for all interfaces to come up */
 	if (rv >= 0)
@@ -930,7 +938,7 @@ usage:
 	}
 
 	if (!strcmp(ifname, "all")) {
-		if (ni_build_partial_topology(system)) {
+		if (ni_build_partial_topology(system, NI_INTERFACE_STOP)) {
 			ni_error("failed to build interface hierarchy");
 			goto failed;
 		}
