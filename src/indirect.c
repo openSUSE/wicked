@@ -192,8 +192,7 @@ __ni_indirect_interface_refresh_one(ni_handle_t *nih, const char *ifname)
 		goto out;
 	}
 
-	ifp->next = *pos;
-	*pos = ifp;
+	rv = 0;
 
 out:
 	if (result)
