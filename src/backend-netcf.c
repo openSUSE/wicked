@@ -1422,6 +1422,8 @@ __ni_netcf_xml_from_behavior(const ni_ifbehavior_t *beh, xml_node_t *parent)
 		xml_node_add_attr(child, "action", response);
 		if (ifa->mandatory)
 			xml_node_new("mandatory", child);
+		if (ifa->only_if_link)
+			xml_node_new("only-if-link", child);
 		if (ifa->wait) {
 			grandchild = xml_node_new("wait", child);
 			xml_node_add_attr_uint(grandchild, "seconds", ifa->wait);
@@ -1465,6 +1467,8 @@ __ni_netcf_xml_to_behavior(ni_ifbehavior_t *beh, const xml_node_t *node)
 
 		if (xml_node_get_child(child, "mandatory"))
 			ifa->mandatory = 1;
+		if (xml_node_get_child(child, "only-if-link"))
+			ifa->only_if_link = 1;
 		if ((grandchild = xml_node_get_child(child, "wait")) != NULL)
 			xml_node_get_attr_uint(grandchild, "seconds", &ifa->wait);
 	}

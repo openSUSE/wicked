@@ -922,7 +922,8 @@ __ni_suse_ifconfig2sysconfig(ni_interface_t *ifp, ni_sysconfig_t *sc)
 /*
  * Mapping STARTMODE values to behaviors and vice versa
  */
-#define __DO_START_WAIT(flag, timeo)	{ .action = NI_INTERFACE_START, .mandatory = flag, .wait = timeo }
+#define __DO_START_WAIT(mand, link, timeo) \
+					{ .action = NI_INTERFACE_START, .mandatory = mand, .only_if_link = link, .wait = timeo }
 #define __DO_START_NOWAIT		{ .action = NI_INTERFACE_START }
 #define __DO_STOP_NOWAIT		{ .action = NI_INTERFACE_STOP }
 #define __DO_IGNORE			{ .action = NI_INTERFACE_IGNORE }
@@ -930,7 +931,7 @@ static struct __ni_ifbehavior_map __ni_suse_startmodes[] = {
 	{
 		"manual",
 		.behavior.ifaction = {
-			[NI_IFACTION_MANUAL_UP]	= __DO_START_WAIT(1, 30),
+			[NI_IFACTION_MANUAL_UP]	= __DO_START_WAIT(1, 0, 30),
 			[NI_IFACTION_MANUAL_DOWN]= __DO_STOP_NOWAIT,
 			[NI_IFACTION_BOOT]	= __DO_IGNORE,
 			[NI_IFACTION_SHUTDOWN]	= __DO_IGNORE,
@@ -941,9 +942,9 @@ static struct __ni_ifbehavior_map __ni_suse_startmodes[] = {
 	{
 		"auto",
 		.behavior.ifaction = {
-			[NI_IFACTION_MANUAL_UP]	= __DO_START_WAIT(1, 30),
+			[NI_IFACTION_MANUAL_UP]	= __DO_START_WAIT(1, 0, 30),
 			[NI_IFACTION_MANUAL_DOWN]= __DO_STOP_NOWAIT,
-			[NI_IFACTION_BOOT]	= __DO_START_WAIT(1, 30),
+			[NI_IFACTION_BOOT]	= __DO_START_WAIT(1, 1, 30),
 			[NI_IFACTION_SHUTDOWN]	= __DO_STOP_NOWAIT,
 			[NI_IFACTION_LINK_UP]	= __DO_START_NOWAIT,
 			[NI_IFACTION_LINK_DOWN]	= __DO_STOP_NOWAIT,
@@ -952,9 +953,9 @@ static struct __ni_ifbehavior_map __ni_suse_startmodes[] = {
 	{
 		"hotplug",	/* exactly like onboot, except we don't fail during network boot */
 		.behavior.ifaction = {
-			[NI_IFACTION_MANUAL_UP]	= __DO_START_WAIT(1, 30),
+			[NI_IFACTION_MANUAL_UP]	= __DO_START_WAIT(1, 0, 30),
 			[NI_IFACTION_MANUAL_DOWN]= __DO_STOP_NOWAIT,
-			[NI_IFACTION_BOOT]	= __DO_START_WAIT(0, 30),
+			[NI_IFACTION_BOOT]	= __DO_START_WAIT(0, 1, 30),
 			[NI_IFACTION_SHUTDOWN]	= __DO_STOP_NOWAIT,
 			[NI_IFACTION_LINK_UP]	= __DO_START_NOWAIT,
 			[NI_IFACTION_LINK_DOWN]	= __DO_STOP_NOWAIT,
@@ -963,7 +964,7 @@ static struct __ni_ifbehavior_map __ni_suse_startmodes[] = {
 	{
 		"ifplugd",
 		.behavior.ifaction = {
-			[NI_IFACTION_MANUAL_UP]	= __DO_START_WAIT(1, 30),
+			[NI_IFACTION_MANUAL_UP]	= __DO_START_WAIT(1, 0, 30),
 			[NI_IFACTION_MANUAL_DOWN]= __DO_STOP_NOWAIT,
 			[NI_IFACTION_BOOT]	= __DO_IGNORE,
 			[NI_IFACTION_SHUTDOWN]	= __DO_STOP_NOWAIT,
@@ -974,9 +975,9 @@ static struct __ni_ifbehavior_map __ni_suse_startmodes[] = {
 	{
 		"nfsroot",
 		.behavior.ifaction = {
-			[NI_IFACTION_MANUAL_UP]	= __DO_START_WAIT(1, 30),
+			[NI_IFACTION_MANUAL_UP]	= __DO_START_WAIT(1, 0, 30),
 			[NI_IFACTION_MANUAL_DOWN]= __DO_STOP_NOWAIT,
-			[NI_IFACTION_BOOT]	= __DO_START_WAIT(1, ~0U),
+			[NI_IFACTION_BOOT]	= __DO_START_WAIT(1, 0, ~0U),
 			[NI_IFACTION_SHUTDOWN]	= __DO_IGNORE,
 			[NI_IFACTION_LINK_UP]	= __DO_START_NOWAIT,
 			[NI_IFACTION_LINK_DOWN]	= __DO_STOP_NOWAIT,

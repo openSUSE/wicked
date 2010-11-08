@@ -117,7 +117,8 @@ typedef struct ni_afinfo {
 typedef struct ni_ifaction {
 	ni_evaction_t		action;
 	unsigned int		wait;
-	unsigned int		mandatory : 1;
+	unsigned int		mandatory : 1,
+				only_if_link : 1;
 } ni_ifaction_t;
 
 /*
