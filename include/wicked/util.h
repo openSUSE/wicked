@@ -122,5 +122,16 @@ ni_opaque_set(ni_opaque_t *obj, const void *data, size_t len)
 	obj->len = len;
 }
 
+/*
+ * Helper function to do strcmp with NULL pointer check
+ */
+static inline int
+ni_string_eq(const char *a, const char *b)
+{
+	if (a == NULL || b == NULL)
+		return a == b;
+	return strcmp(a, b) == 0;
+}
+
 #endif /* __WICKED_UTIL_H__ */
 
