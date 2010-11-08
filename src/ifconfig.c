@@ -69,6 +69,12 @@ __ni_system_interface_configure(ni_handle_t *nih, ni_interface_t *cfg, xml_node_
 	debug_ifconfig("__ni_system_interface_configure(%s)", cfg->name);
 	/* FIXME: perform sanity check on configuration data */
 
+	/* Deduplicate address list */
+	if (__ni_address_list_dedup(&cfg->addrs) < 0) {
+		ni_error("%s: configuration contains duplicate/conflicting addresses", cfg->name);
+		return -1;
+	}
+
 	res = __ni_interface_for_config(nih, cfg, &ifp);
 	if (res) {
 		error("interface config does not uniquely determine an interface");
