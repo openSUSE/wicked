@@ -302,6 +302,8 @@ extern void             ni_interface_clear_routes(ni_interface_t *);
 extern ni_address_t *	ni_address_new(ni_interface_t *ifp, int af,
 				unsigned int prefix_len,
 				const struct sockaddr_storage *local_addr);
+extern ni_address_t *	ni_address_clone(const ni_address_t *);
+extern void		ni_address_list_append(ni_address_t **, ni_address_t *);
 extern void		ni_address_list_destroy(ni_address_t **);
 extern void		ni_address_free(ni_address_t *);
 

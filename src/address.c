@@ -84,10 +84,31 @@ __ni_address_new(ni_address_t **list_head, int af,
 	return ap;
 }
 
+ni_address_t *
+ni_address_clone(const ni_address_t *src)
+{
+	ni_address_t *dst;
+
+	if (!src)
+		return NULL;
+
+	dst = malloc(sizeof(*dst));
+	memcpy(dst, src, sizeof(*src));
+	return dst;
+}
+
 void
 ni_address_free(ni_address_t *ap)
 {
 	free(ap);
+}
+
+void
+ni_address_list_append(ni_address_t **list, ni_address_t *ap)
+{
+	while (*list)
+		list = &(*list)->next;
+	*list = ap;
 }
 
 void
@@ -104,15 +125,13 @@ ni_address_list_destroy(ni_address_t **list)
 ni_address_t *
 __ni_address_list_clone(const ni_address_t *src)
 {
-	ni_address_t *dst;
+	ni_address_t *dst = NULL, **tail = &dst;
 
-	if (!src)
-		return NULL;
-
-	dst = malloc(sizeof(*dst));
-	memcpy(dst, src, sizeof(*src));
-
-	dst->next = __ni_address_list_clone(src->next);
+	while (src) {
+		*tail = ni_address_clone(src);
+		tail = &(*tail)->next;
+		src = src->next;
+	}
 	return dst;
 }
 
