@@ -36,6 +36,14 @@ failed:
 	return NULL;
 }
 
+static inline void
+__ni_vlan_unbind(ni_vlan_t *vlan)
+{
+	if (vlan->interface_dev)
+		ni_interface_put(vlan->interface_dev);
+	vlan->interface_dev = NULL;
+}
+
 /*
  * Given an interface index, locate the the base interface
  */
@@ -52,27 +60,27 @@ ni_vlan_bind_ifindex(ni_vlan_t *vlan, ni_handle_t *nih)
 		return -1;
 
 	ni_string_dup(&vlan->interface_name, real_dev->name);
-	vlan->interface_dev = real_dev;
+	vlan->interface_dev = ni_interface_get(real_dev);
 	return 0;
 }
 
 int
 ni_vlan_bind(ni_interface_t *ifp, ni_handle_t *nih)
 {
-	const char *ifname = ifp->vlan->interface_name;
+	ni_vlan_t *vlan;
 	ni_interface_t *child;
 
-	if (!ifp->vlan)
+	if (!(vlan = ifp->vlan))
 		return 0;
 
-	ifp->vlan->interface_dev = NULL;
-	
-	child = ni_interface_by_name(nih, ifname);
+	__ni_vlan_unbind(vlan);
+
+	child = ni_interface_by_name(nih, vlan->interface_name);
 	if (!child) {
-		ni_bad_reference(nih, ifp, ifname);
+		ni_bad_reference(nih, ifp, vlan->interface_name);
 		return -1;
 	}
-	ifp->vlan->interface_dev = child;
+	vlan->interface_dev = ni_interface_get(child);
 
 	/* We do not mark the child as being owned by the VLAN.
 	 * In fact, there can be many VLANs per eth device, and
@@ -87,6 +95,7 @@ ni_vlan_bind(ni_interface_t *ifp, ni_handle_t *nih)
 void
 ni_vlan_free(ni_vlan_t *vlan)
 {
+	__ni_vlan_unbind(vlan);
 	free(vlan->interface_name);
 	free(vlan);
 }
