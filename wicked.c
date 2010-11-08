@@ -911,7 +911,7 @@ usage:
 	 */
 	{
 		system = ni_indirect_open("/system");
-		if (!strcmp(ifname, "all") || !strcmp(ifname, "boot")) {
+		if (!strcmp(ifname, "all") || !strcmp(ifname, "shutdown")) {
 			rv = ni_refresh(system);
 		} else {
 			rv = ni_interface_refresh_one(system, ifname);
