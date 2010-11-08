@@ -7,6 +7,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <assert.h>
+#include <stdarg.h>
 
 #include <wicked/xml.h>
 #include <wicked/wicked.h>
@@ -14,6 +15,7 @@
 #include "config.h"
 
 static int	__ni_indirect_refresh_all(ni_handle_t *);
+static int	__ni_indirect_interface_refresh_one(ni_handle_t *, const char *);
 static int	__ni_indirect_interface_configure(ni_handle_t *,
 				ni_interface_t *, xml_node_t *);
 static int	__ni_indirect_interface_delete(ni_handle_t *, const char *);
@@ -21,6 +23,7 @@ static void	__ni_indirect_close(ni_handle_t *nih);
 
 static struct ni_ops ni_indirect_ops = {
 	.refresh		= __ni_indirect_refresh_all,
+	.interface_refresh_one	= __ni_indirect_interface_refresh_one,
 	.configure_interface	= __ni_indirect_interface_configure,
 	.delete_interface	= __ni_indirect_interface_delete,
 	.close			= __ni_indirect_close,
@@ -85,43 +88,114 @@ __ni_indirect_build_request(ni_indirect_t *nid, ni_wicked_request_t *req,
 	ni_string_dup(&req->path, path);
 }
 
-int
-__ni_indirect_refresh_all(ni_handle_t *nih)
+/*
+ * Execute a GET call
+ */
+static xml_node_t *
+__ni_indirect_get(ni_handle_t *nih, const char *fmt, ...)
 {
+	xml_node_t *result = NULL;
 	ni_indirect_t *nid = __to_indirect(nih);
 	ni_wicked_request_t req;
-	char pathbuf[64];
-	ni_syntax_t *syntax = NULL;
-	int rv;
+	char pathbuf[256];
+	va_list ap;
 
-	__ni_interfaces_clear(nih);
+	{
+		unsigned int len;
 
-	snprintf(pathbuf, sizeof(pathbuf), "%s/interface", nid->namespace);
-	__ni_indirect_build_request(nid, &req, NI_REST_OP_GET, pathbuf);
+		snprintf(pathbuf, sizeof(pathbuf), "%s/", nid->namespace);
+		len = strlen(pathbuf);
 
-	rv = ni_wicked_call_indirect(&req);
-	if (rv < 0)
-		goto out;
-	if (req.xml_out == NULL) {
-		ni_error("wicked server returned no information");
-		goto failed;
+		va_start(ap, fmt);
+		vsnprintf(pathbuf + len, sizeof(pathbuf) - len, fmt, ap);
+		va_end(ap);
 	}
 
-	syntax = ni_default_xml_syntax();
-	if (!syntax)
-		goto failed;
+	__ni_indirect_build_request(nid, &req, NI_REST_OP_GET, pathbuf);
 
-	rv = __ni_syntax_xml_to_all(syntax, nih, req.xml_out);
-	if (rv < 0)
-		goto failed;
+	if (ni_wicked_call_indirect(&req) < 0) {
+		ni_error("wicked server returned error: %s", req.error_msg);
+		goto out;
+	}
+	if ((result = req.xml_out) == NULL) {
+		ni_error("wicked server returned no information");
+		goto out;
+	}
+	req.xml_out = NULL;
 
 out:
 	ni_wicked_request_destroy(&req);
-	return rv;
+	return result;
+}
 
-failed:
-	rv = -1;
-	goto out;
+/*
+ * Refresh all interfaces
+ */
+int
+__ni_indirect_refresh_all(ni_handle_t *nih)
+{
+	ni_syntax_t *syntax = NULL;
+	xml_node_t *result;
+	int rv = -1;
+
+	__ni_interfaces_clear(nih);
+
+	result = __ni_indirect_get(nih, "interface");
+	if (result == NULL)
+		goto out;
+
+	syntax = ni_default_xml_syntax();
+	if (!syntax)
+		goto out;
+
+	rv = __ni_syntax_xml_to_all(syntax, nih, result);
+
+out:
+	if (result)
+		xml_node_free(result);
+	return rv;
+}
+
+/*
+ * Refresh one interface
+ */
+int
+__ni_indirect_interface_refresh_one(ni_handle_t *nih, const char *ifname)
+{
+	ni_syntax_t *syntax = NULL;
+	ni_interface_t *ifp, **pos;
+	xml_node_t *result;
+	int rv = -1;
+
+	for (pos = &nih->iflist; (ifp = *pos) != NULL; pos = &ifp->next) {
+		if (!strcmp(ifp->name, ifname)) {
+			*pos = ifp->next;
+			ni_interface_put(ifp);
+			break;
+		}
+	}
+
+	result = __ni_indirect_get(nih, "interface/%s", ifname);
+	if (result == NULL)
+		goto out;
+
+	syntax = ni_default_xml_syntax();
+	if (!syntax)
+		goto out;
+
+	ifp = ni_syntax_xml_to_interface(syntax, nih, result);
+	if (ifp == NULL) {
+		ni_error("failed to parse interface xml");
+		goto out;
+	}
+
+	ifp->next = *pos;
+	*pos = ifp;
+
+out:
+	if (result)
+		xml_node_free(result);
+	return rv;
 }
 
 int
@@ -152,8 +226,10 @@ __ni_indirect_interface_configure(ni_handle_t *nih,
 	req.xml_in = xml;
 
 	rv = ni_wicked_call_indirect(&req);
-	if (rv < 0)
+	if (rv < 0) {
+		ni_error("unable to configure %s, server responds: %s", ifp->name, req.error_msg);
 		goto out;
+	}
 
 	/* If we received XML data from server, update cached interface desc */
 	if (req.xml_out != NULL) {
