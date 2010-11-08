@@ -1,3 +1,7 @@
+wicked:
+	- fully implement only_if_link behavivor
+	  (check for IFF_RUNNING. Need multi-stage config/wait approach)
+
 netinfo:
 
 ifconfig
