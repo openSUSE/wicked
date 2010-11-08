@@ -220,16 +220,19 @@ __ni_behavior_to_mask(const ni_ifbehavior_t *beh)
 
 #define INSPECT(what) { \
 	mask <<= 2; \
-	if (beh->what.action == NI_INTERFACE_START) \
-		mask |= 1; \
-	else if (beh->what.action == NI_INTERFACE_STOP) \
-		mask |= 2; \
-	}
-	INSPECT(manual);
-	INSPECT(boot);
-	INSPECT(shutdown);
-	INSPECT(link_up);
-	INSPECT(link_down);
+	switch (beh->ifaction[NI_IFACTION_##what].action) { \
+	case NI_INTERFACE_START: \
+		mask |= 1; break; \
+	case NI_INTERFACE_STOP: \
+		mask |= 2; break; \
+	default: ; \
+	} \
+}
+	INSPECT(MANUAL);
+	INSPECT(BOOT);
+	INSPECT(SHUTDOWN);
+	INSPECT(LINK_UP);
+	INSPECT(LINK_DOWN);
 #undef INSPECT
 
 	return mask;

@@ -479,6 +479,32 @@ ni_event_type_to_name(ni_event_t type)
 	return ni_format_int_mapped(type, __event_names);
 }
 
+static ni_intmap_t __ifaction_names[] = {
+	{ "boot",		NI_IFACTION_BOOT },
+	{ "shutdown",		NI_IFACTION_SHUTDOWN },
+	{ "manual",		NI_IFACTION_MANUAL },
+	{ "link-up",		NI_IFACTION_LINK_UP },
+	{ "link-down",		NI_IFACTION_LINK_DOWN },
+
+	{ NULL }
+};
+
+int
+ni_ifaction_name_to_type(const char *name)
+{
+	unsigned int value;
+
+	if (ni_parse_int_mapped(name, __ifaction_names, &value) < 0)
+		return -1;
+	return value;
+}
+
+const char *
+ni_ifaction_type_to_name(unsigned int type)
+{
+	return ni_format_int_mapped(type, __ifaction_names);
+}
+
 /*
  * Map netinfo interface types to ARPHRD_ and vice versa
  */
@@ -745,10 +771,10 @@ __ni_interface_new(const char *name, unsigned int index)
 		return NULL;
 
 	ifp->users = 1;
-	ifp->startmode.boot.action = NI_INTERFACE_START;
-	ifp->startmode.boot.mandatory = 1;
-	ifp->startmode.boot.wait = 30;
-	ifp->startmode.shutdown.action = NI_INTERFACE_STOP;
+	ifp->startmode.ifaction[NI_IFACTION_BOOT].action = NI_INTERFACE_START;
+	ifp->startmode.ifaction[NI_IFACTION_BOOT].mandatory = 1;
+	ifp->startmode.ifaction[NI_IFACTION_BOOT].wait = 30;
+	ifp->startmode.ifaction[NI_IFACTION_SHUTDOWN].action = NI_INTERFACE_STOP;
 	ifp->type = NI_IFTYPE_UNKNOWN;
 	ifp->arp_type = ARPHRD_NONE;
 	ifp->hwaddr.type = ARPHRD_NONE;

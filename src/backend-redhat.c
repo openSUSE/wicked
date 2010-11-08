@@ -559,25 +559,25 @@ __ni_redhat_bootproto(unsigned int addrconf_mask)
 static struct __ni_ifbehavior_map __ni_redhat_startmodes[] = {
 	{
 		"manual",
-		{
-			.manual		= { .action = NI_INTERFACE_START, },
-			.boot		= { .action = NI_INTERFACE_IGNORE, },
-			.shutdown	= { .action = NI_INTERFACE_IGNORE, },
-			.link_up	= { .action = NI_INTERFACE_IGNORE, },
-			.link_down	= { .action = NI_INTERFACE_IGNORE, },
+		.behavior.ifaction = {
+			[NI_IFACTION_MANUAL]	= { .action = NI_INTERFACE_START, },
+			[NI_IFACTION_BOOT]	= { .action = NI_INTERFACE_IGNORE, },
+			[NI_IFACTION_SHUTDOWN]	= { .action = NI_INTERFACE_IGNORE, },
+			[NI_IFACTION_LINK_UP]	= { .action = NI_INTERFACE_IGNORE, },
+			[NI_IFACTION_LINK_DOWN]	= { .action = NI_INTERFACE_IGNORE, },
 		}
 	},
 	{
 		"onboot",
-		{
-			.manual		= { .action = NI_INTERFACE_START, },
-			.boot		= { .action = NI_INTERFACE_START,
+		.behavior.ifaction = {
+			[NI_IFACTION_MANUAL]	= { .action = NI_INTERFACE_START, },
+			[NI_IFACTION_BOOT]	= { .action = NI_INTERFACE_START,
 					    .mandatory = 1,
 					    .wait = 30
 					  },
-			.shutdown	= { .action = NI_INTERFACE_STOP, },
-			.link_up	= { .action = NI_INTERFACE_START, },
-			.link_down	= { .action = NI_INTERFACE_STOP, },
+			[NI_IFACTION_SHUTDOWN]	= { .action = NI_INTERFACE_STOP, },
+			[NI_IFACTION_LINK_UP]	= { .action = NI_INTERFACE_START, },
+			[NI_IFACTION_LINK_DOWN]	= { .action = NI_INTERFACE_STOP, },
 		}
 	},
 

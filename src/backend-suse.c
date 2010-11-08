@@ -922,74 +922,79 @@ __ni_suse_ifconfig2sysconfig(ni_interface_t *ifp, ni_sysconfig_t *sc)
 /*
  * Mapping STARTMODE values to behaviors and vice versa
  */
+#define manual		ifaction[NI_IFACTION_MANUAL]
+#define boot		ifaction[NI_IFACTION_BOOT]
+#define shutdown	ifaction[NI_IFACTION_SHUTDOWN]
+#define link_up		ifaction[NI_IFACTION_LINK_UP]
+#define link_down	ifaction[NI_IFACTION_LINK_DOWN]
 static struct __ni_ifbehavior_map __ni_suse_startmodes[] = {
 	{
 		"manual",
-		{
-			.manual		= { .action = NI_INTERFACE_START, },
-			.boot		= { .action = NI_INTERFACE_IGNORE, },
-			.shutdown	= { .action = NI_INTERFACE_IGNORE, },
-			.link_up	= { .action = NI_INTERFACE_IGNORE, },
-			.link_down	= { .action = NI_INTERFACE_IGNORE, },
+		.behavior.ifaction = {
+			[NI_IFACTION_MANUAL]	= { .action = NI_INTERFACE_START, },
+			[NI_IFACTION_BOOT]	= { .action = NI_INTERFACE_IGNORE, },
+			[NI_IFACTION_SHUTDOWN]	= { .action = NI_INTERFACE_IGNORE, },
+			[NI_IFACTION_LINK_UP]	= { .action = NI_INTERFACE_IGNORE, },
+			[NI_IFACTION_LINK_DOWN]	= { .action = NI_INTERFACE_IGNORE, },
 		}
 	},
 	{
 		"auto",
-		{
-			.manual		= { .action = NI_INTERFACE_START, },
-			.boot		= { .action = NI_INTERFACE_START,
+		.behavior.ifaction = {
+			[NI_IFACTION_MANUAL]	= { .action = NI_INTERFACE_START, },
+			[NI_IFACTION_BOOT]	= { .action = NI_INTERFACE_START,
 					    .mandatory = 1,
 					    .wait = 30
 					  },
-			.shutdown	= { .action = NI_INTERFACE_STOP, },
-			.link_up	= { .action = NI_INTERFACE_START, },
-			.link_down	= { .action = NI_INTERFACE_STOP, },
+			[NI_IFACTION_SHUTDOWN]	= { .action = NI_INTERFACE_STOP, },
+			[NI_IFACTION_LINK_UP]	= { .action = NI_INTERFACE_START, },
+			[NI_IFACTION_LINK_DOWN]	= { .action = NI_INTERFACE_STOP, },
 		}
 	},
 	{
 		"hotplug",	/* exactly like onboot, except we don't fail during network boot */
-		{
-			.manual		= { .action = NI_INTERFACE_START, },
-			.boot		= { .action = NI_INTERFACE_START,
+		.behavior.ifaction = {
+			[NI_IFACTION_MANUAL]	= { .action = NI_INTERFACE_START, },
+			[NI_IFACTION_BOOT]	= { .action = NI_INTERFACE_START,
 					    .mandatory = 0,
 					    .wait = 30
 					  },
-			.shutdown	= { .action = NI_INTERFACE_STOP, },
-			.link_up	= { .action = NI_INTERFACE_START, },
-			.link_down	= { .action = NI_INTERFACE_STOP, },
+			[NI_IFACTION_SHUTDOWN]	= { .action = NI_INTERFACE_STOP, },
+			[NI_IFACTION_LINK_UP]	= { .action = NI_INTERFACE_START, },
+			[NI_IFACTION_LINK_DOWN]	= { .action = NI_INTERFACE_STOP, },
 		}
 	},
 	{
 		"ifplugd",
-		{
-			.manual		= { .action = NI_INTERFACE_START, },
-			.boot		= { .action = NI_INTERFACE_IGNORE },
-			.shutdown	= { .action = NI_INTERFACE_STOP, },
-			.link_up	= { .action = NI_INTERFACE_START, },
-			.link_down	= { .action = NI_INTERFACE_STOP, },
+		.behavior.ifaction = {
+			[NI_IFACTION_MANUAL]	= { .action = NI_INTERFACE_START, },
+			[NI_IFACTION_BOOT]	= { .action = NI_INTERFACE_IGNORE },
+			[NI_IFACTION_SHUTDOWN]	= { .action = NI_INTERFACE_STOP, },
+			[NI_IFACTION_LINK_UP]	= { .action = NI_INTERFACE_START, },
+			[NI_IFACTION_LINK_DOWN]	= { .action = NI_INTERFACE_STOP, },
 		},
 	},
 	{
 		"nfsroot",
-		{
-			.manual		= { .action = NI_INTERFACE_START, },
-			.boot		= { .action = NI_INTERFACE_START,
+		.behavior.ifaction = {
+			[NI_IFACTION_MANUAL]	= { .action = NI_INTERFACE_START, },
+			[NI_IFACTION_BOOT]	= { .action = NI_INTERFACE_START,
 					    .mandatory = 1,
 					    .wait = ~0
 					  },
-			.shutdown	= { .action = NI_INTERFACE_IGNORE, },
-			.link_up	= { .action = NI_INTERFACE_START, },
-			.link_down	= { .action = NI_INTERFACE_STOP, },
+			[NI_IFACTION_SHUTDOWN]	= { .action = NI_INTERFACE_IGNORE, },
+			[NI_IFACTION_LINK_UP]	= { .action = NI_INTERFACE_START, },
+			[NI_IFACTION_LINK_DOWN]	= { .action = NI_INTERFACE_STOP, },
 		}
 	},
 	{
 		"off",
-		{
-			.manual		= { .action = NI_INTERFACE_IGNORE, },
-			.boot		= { .action = NI_INTERFACE_IGNORE, },
-			.shutdown	= { .action = NI_INTERFACE_IGNORE, },
-			.link_up	= { .action = NI_INTERFACE_IGNORE, },
-			.link_down	= { .action = NI_INTERFACE_IGNORE, },
+		.behavior.ifaction = {
+			[NI_IFACTION_MANUAL]	= { .action = NI_INTERFACE_IGNORE, },
+			[NI_IFACTION_BOOT]	= { .action = NI_INTERFACE_IGNORE, },
+			[NI_IFACTION_SHUTDOWN]	= { .action = NI_INTERFACE_IGNORE, },
+			[NI_IFACTION_LINK_UP]	= { .action = NI_INTERFACE_IGNORE, },
+			[NI_IFACTION_LINK_DOWN]	= { .action = NI_INTERFACE_IGNORE, },
 		}
 	},
 

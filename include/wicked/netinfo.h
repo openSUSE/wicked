@@ -114,24 +114,28 @@ typedef struct ni_afinfo {
 	ni_addrconf_request_t *	request[__NI_ADDRCONF_MAX];
 } ni_afinfo_t;
 
+typedef struct ni_ifaction {
+	ni_evaction_t		action;
+	unsigned int		wait;
+	unsigned int		mandatory : 1;
+} ni_ifaction_t;
+
+/*
+ * Note: do not change order - NI_IFACTION_* constants need to match order
+ * of ifaction members in ni_ifbehavior
+ */
+enum {
+	NI_IFACTION_BOOT,
+	NI_IFACTION_SHUTDOWN,
+	NI_IFACTION_LINK_UP,
+	NI_IFACTION_LINK_DOWN,
+	NI_IFACTION_MANUAL,
+
+	__NI_IFACTION_MAX
+};
+
 typedef struct ni_ifbehavior {
-	struct {
-	    ni_evaction_t	action;
-	    unsigned int	wait;
-	    unsigned int	mandatory : 1;
-	} boot;
-	struct {
-	    ni_evaction_t	action;
-	} shutdown;
-	struct {
-	    ni_evaction_t	action;
-	} link_up;
-	struct {
-	    ni_evaction_t	action;
-	} link_down;
-	struct {
-	    ni_evaction_t	action;
-	} manual;
+	ni_ifaction_t		ifaction[__NI_IFACTION_MAX];
 } ni_ifbehavior_t;
 
 struct ni_interface {
@@ -354,6 +358,8 @@ extern const char *	ni_arphrd_type_to_name(unsigned int);
 extern unsigned int	ni_arphrd_type_to_iftype(int arp_type);
 extern ni_event_t	ni_event_name_to_type(const char *);
 extern const char *	ni_event_type_to_name(ni_event_t);
+extern int		ni_ifaction_name_to_type(const char *);
+extern const char *	ni_ifaction_type_to_name(unsigned int);
 extern int		ni_iftype_to_arphrd_type(unsigned int iftype);
 
 #endif /* __WICKED_NETINFO_H__ */

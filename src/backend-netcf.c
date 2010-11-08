@@ -1395,37 +1395,38 @@ error:
  * Handle interface behavior
  */
 static xml_node_t *
-__ni_netcf_xml_from_evaction(const char *name, ni_evaction_t action, xml_node_t *parent)
-{
-	xml_node_t *evnode;
-	const char *acname;
-
-	switch (action) {
-	case NI_INTERFACE_START:
-		acname = "start";
-		break;
-	case NI_INTERFACE_STOP:
-		acname = "stop";
-		break;
-	default:
-		return NULL;
-	}
-	evnode = xml_node_new(name, parent);
-	xml_node_add_attr(evnode, "action", acname);
-	return evnode;
-}
-
-static xml_node_t *
 __ni_netcf_xml_from_behavior(const ni_ifbehavior_t *beh, xml_node_t *parent)
 {
 	xml_node_t *node = xml_node_new("behavior", parent);
-	xml_node_t *child;
+	xml_node_t *child, *grandchild;
+	unsigned int type;
 
-	child = __ni_netcf_xml_from_evaction("boot", beh->boot.action, node);
-	__ni_netcf_xml_from_evaction("shutdown", beh->shutdown.action, node);
-	__ni_netcf_xml_from_evaction("manual", beh->manual.action, node);
-	__ni_netcf_xml_from_evaction("link-up", beh->link_up.action, node);
-	__ni_netcf_xml_from_evaction("link-down", beh->link_down.action, node);
+	for (type = 0; type < __NI_IFACTION_MAX; ++type) {
+		const ni_ifaction_t *ifa = &beh->ifaction[type];
+		const char *acname, *response;
+
+		switch (ifa->action) {
+		case NI_INTERFACE_START:
+			response = "start";
+			break;
+		case NI_INTERFACE_STOP:
+			response = "stop";
+			break;
+		default:
+			continue;
+		}
+		if (!(acname = ni_ifaction_type_to_name(type)))
+			continue;
+
+		child = xml_node_new(acname, node);
+		xml_node_add_attr(child, "action", response);
+		if (ifa->mandatory)
+			xml_node_new("mandatory", child);
+		if (ifa->wait) {
+			grandchild = xml_node_new("wait", child);
+			xml_node_add_attr_uint(grandchild, "seconds", ifa->wait);
+		}
+	}
 
 	return node;
 }
@@ -1433,12 +1434,14 @@ __ni_netcf_xml_from_behavior(const ni_ifbehavior_t *beh, xml_node_t *parent)
 static int
 __ni_netcf_xml_to_behavior(ni_ifbehavior_t *beh, const xml_node_t *node)
 {
-	xml_node_t *child;
+	xml_node_t *child, *grandchild;
 
 	memset(beh, 0, sizeof(*beh));
 	for (child = node->children; child; child = child->next) {
 		ni_evaction_t action = NI_INTERFACE_IGNORE;
+		ni_ifaction_t *ifa;
 		const char *attrval;
+		int idx;
 
 		if ((attrval = xml_node_get_attr(child, "action")) != NULL) {
 			if (!strcmp(attrval, "start"))
@@ -1451,21 +1454,19 @@ __ni_netcf_xml_to_behavior(ni_ifbehavior_t *beh, const xml_node_t *node)
 				return -1;
 			}
 		}
-		if (!strcmp(child->name, "boot")) {
-			beh->boot.action = action;
-		} else
-		if (!strcmp(child->name, "shutdown")) {
-			beh->shutdown.action = action;
-		} else
-		if (!strcmp(child->name, "manual")) {
-			beh->manual.action = action;
-		} else
-		if (!strcmp(child->name, "link-up")) {
-			beh->link_up.action = action;
-		} else
-		if (!strcmp(child->name, "link-down")) {
-			beh->link_down.action = action;
+
+		if ((idx = ni_ifaction_name_to_type(child->name)) < 0 || idx >= __NI_IFACTION_MAX) {
+			ni_warn("ignoring unsupported interface behavior element <%s>", child->name);
+			continue;
 		}
+
+		ifa = &beh->ifaction[idx];
+		ifa->action = action;
+
+		if (xml_node_get_child(child, "mandatory"))
+			ifa->mandatory = 1;
+		if ((grandchild = xml_node_get_child(child, "wait")) != NULL)
+			xml_node_get_attr_uint(grandchild, "seconds", &ifa->wait);
 	}
 	return 0;
 }
@@ -1557,7 +1558,7 @@ __ni_netcf_set_iftype(ni_interface_t *ifp, const char *name)
 static const char *
 __ni_netcf_get_startmode(const ni_interface_t *ifp)
 {
-	if (ifp->startmode.boot.action == NI_INTERFACE_START)
+	if (ifp->startmode.ifaction[NI_IFACTION_BOOT].action == NI_INTERFACE_START)
 		return "onboot";
 	return "none";
 }
@@ -1566,13 +1567,13 @@ static int
 __ni_netcf_set_startmode(ni_interface_t *ifp, const char *name)
 {
 	if (!strcmp(name, "onboot")) {
-		ifp->startmode.boot.action  = NI_INTERFACE_START;
-		ifp->startmode.shutdown.action  = NI_INTERFACE_STOP;
-		ifp->startmode.manual.action  = NI_INTERFACE_START;
+		ifp->startmode.ifaction[NI_IFACTION_BOOT].action  = NI_INTERFACE_START;
+		ifp->startmode.ifaction[NI_IFACTION_SHUTDOWN].action  = NI_INTERFACE_STOP;
+		ifp->startmode.ifaction[NI_IFACTION_MANUAL].action  = NI_INTERFACE_START;
 	} else if (!strcmp(name, "none")) {
-		ifp->startmode.boot.action  = NI_INTERFACE_IGNORE;
-		ifp->startmode.shutdown.action  = NI_INTERFACE_STOP;
-		ifp->startmode.manual.action  = NI_INTERFACE_START;
+		ifp->startmode.ifaction[NI_IFACTION_BOOT].action  = NI_INTERFACE_IGNORE;
+		ifp->startmode.ifaction[NI_IFACTION_SHUTDOWN].action  = NI_INTERFACE_STOP;
+		ifp->startmode.ifaction[NI_IFACTION_MANUAL].action  = NI_INTERFACE_START;
 	} else
 		return -1;
 	return 0;

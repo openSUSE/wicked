@@ -31,13 +31,6 @@ enum {
 	OPT_ROOTDIR,
 };
 
-enum {
-	FILTER_NONE,
-	FILTER_MANUAL,
-	FILTER_BOOT,
-	FILTER_SHUTDOWN
-};
-
 static struct option	options[] = {
 	{ "config",		required_argument,	NULL,	OPT_CONFIGFILE },
 	{ "dryrun",		no_argument,		NULL,	OPT_DRYRUN },
@@ -517,17 +510,9 @@ __ni_interface_flatten(ni_interface_t *ifp, ni_interface_array_t *out)
 static int
 __ni_interfact_filter(const ni_interface_t *ifp, int filter, ni_evaction_t action)
 {
-	switch (filter) {
-	case FILTER_NONE:
+	if (filter < 0)
 		return 1;
-	case FILTER_MANUAL:
-		return ifp->startmode.manual.action == action;
-	case FILTER_BOOT:
-		return ifp->startmode.boot.action == action;
-	case FILTER_SHUTDOWN:
-		return ifp->startmode.shutdown.action == action;
-	}
-	return 0;
+	return ifp->startmode.ifaction[filter].action == action;
 }
 
 static int
@@ -716,9 +701,9 @@ usage:
 
 		ni_interface_array_init(&iflist);
 		if (!strcmp(ifname, "boot"))
-			rv = ni_interface_topology_flatten(config, &iflist, FILTER_BOOT, NI_INTERFACE_START);
+			rv = ni_interface_topology_flatten(config, &iflist, NI_IFACTION_BOOT, NI_INTERFACE_START);
 		else
-			rv = ni_interface_topology_flatten(config, &iflist, FILTER_NONE, NI_INTERFACE_IGNORE);
+			rv = ni_interface_topology_flatten(config, &iflist, -1, NI_INTERFACE_IGNORE);
 
 
 		for (i = 0; rv >= 0 && i < iflist.count; ++i)
@@ -819,9 +804,9 @@ usage:
 
 		ni_interface_array_init(&iflist);
 		if (!strcmp(ifname, "boot"))
-			rv = ni_interface_topology_flatten(system, &iflist, FILTER_BOOT, NI_INTERFACE_START);
+			rv = ni_interface_topology_flatten(system, &iflist, NI_IFACTION_BOOT, NI_INTERFACE_START);
 		else
-			rv = ni_interface_topology_flatten(system, &iflist, FILTER_NONE, NI_INTERFACE_IGNORE);
+			rv = ni_interface_topology_flatten(system, &iflist, -1, NI_INTERFACE_IGNORE);
 
 
 		for (i = iflist.count - 1; rv >= 0 && i >= 0; --i) {
