@@ -552,7 +552,7 @@ ni_interface_topology_flatten(ni_handle_t *config, ni_interface_array_t *out, in
  * Bring a single interface up
  */
 static int
-do_if_up_down(ni_handle_t *nih, ni_interface_t *ifp)
+do_ifup_one(ni_handle_t *nih, ni_interface_t *ifp)
 {
 	if (opt_dryrun) {
 		xml_node_t *ifnode;
@@ -572,6 +572,65 @@ do_if_up_down(ni_handle_t *nih, ni_interface_t *ifp)
 
 	ni_debug_wicked("%s: asked to bring up", ifp->name);
 	return 0;
+}
+
+/*
+ * Bring a single interface down
+ */
+static int
+do_ifdown_one(ni_handle_t *system, ni_interface_t *ifp, int delete)
+{
+	int rv;
+
+	if (delete) {
+		switch (ifp->type) {
+		case NI_IFTYPE_VLAN:
+		case NI_IFTYPE_BRIDGE:
+		case NI_IFTYPE_BOND:
+			break;
+
+		default:
+			delete = 0;
+			break;
+		}
+	}
+
+	ifp->flags &= ~(IFF_UP | IFF_LOWER_UP);
+
+	/* Clear IP addressing; this will make sure all addresses are
+	 * removed from the interface, and dhcp is shut down etc.
+	 */
+	ni_interface_clear_addresses(ifp);
+	ni_interface_clear_routes(ifp);
+
+	if (opt_dryrun) {
+		xml_node_t *ifnode;
+
+		printf("Would send configure(%s, down)\n", ifp->name);
+		ifnode = ni_syntax_xml_from_interface(ni_default_xml_syntax(), system, ifp);
+		if (ifnode) {
+			xml_node_print(ifnode, stdout);
+			xml_node_free(ifnode);
+		}
+		return 0;
+	}
+
+	rv = ni_interface_configure(system, ifp, NULL);
+	if (rv < 0) {
+		ni_error("Unable to shut down interface %s\n", ifp->name);
+		return -1;
+	}
+	ni_debug_wicked("%s: asked to bring down", ifp->name);
+
+	if (delete) {
+		rv = ni_interface_delete(system, ifp->name);
+		if (rv < 0) {
+			ni_error("Unable to delete interface %s\n", ifp->name);
+			return -1;
+		}
+	}
+
+	return rv;
 }
 
 /*
@@ -663,7 +722,7 @@ usage:
 
 
 		for (i = 0; rv >= 0 && i < iflist.count; ++i)
-			rv = do_if_up_down(system, iflist.data[i]);
+			rv = do_ifup_one(system, iflist.data[i]);
 
 		ni_interface_array_destroy(&iflist);
 		if (rv < 0)
@@ -677,7 +736,7 @@ usage:
 		}
 
 		ifp->flags |= IFF_UP | IFF_LOWER_UP;
-		rv = do_if_up_down(system, ifp);
+		rv = do_ifup_one(system, ifp);
 	}
 
 	/* TBD: Wait for all interfaces to come up */
@@ -688,64 +747,6 @@ failed:
 	if (system)
 		ni_close(system);
 	return (rv == 0);
-}
-
-/*
- * Bring a single interface down
- */
-static int
-do_ifdown_one(ni_handle_t *system, ni_interface_t *ifp, int delete)
-{
-	int rv;
-
-	if (delete) {
-		switch (ifp->type) {
-		case NI_IFTYPE_VLAN:
-		case NI_IFTYPE_BRIDGE:
-		case NI_IFTYPE_BOND:
-			break;
-
-		default:
-			delete = 0;
-			break;
-		}
-	}
-
-	ifp->flags &= ~(IFF_UP | IFF_LOWER_UP);
-
-	/* Clear IP addressing; this will make sure all addresses are
-	 * removed from the interface, and dhcp is shut down etc.
-	 */
-	ni_interface_clear_addresses(ifp);
-	ni_interface_clear_routes(ifp);
-
-	if (opt_dryrun) {
-		xml_node_t *ifnode;
-
-		printf("Would send configure(%s, down)\n", ifp->name);
-		ifnode = ni_syntax_xml_from_interface(ni_default_xml_syntax(), system, ifp);
-		if (ifnode) {
-			xml_node_print(ifnode, stdout);
-			xml_node_free(ifnode);
-		}
-		return 0;
-	}
-
-	rv = ni_interface_configure(system, ifp, NULL);
-	if (rv < 0) {
-		ni_error("Unable to shut down interface %s\n", ifp->name);
-		return -1;
-	}
-
-	if (delete) {
-		rv = ni_interface_delete(system, ifp->name);
-		if (rv < 0) {
-			ni_error("Unable to delete interface %s\n", ifp->name);
-			return -1;
-		}
-	}
-
-	return rv;
 }
 
 /*
@@ -840,7 +841,7 @@ usage:
 		}
 
 		ifp->flags &= ~(IFF_UP | IFF_LOWER_UP);
-		rv = do_if_up_down(system, ifp);
+		rv = do_ifdown_one(system, ifp, opt_delete);
 	}
 
 failed:
