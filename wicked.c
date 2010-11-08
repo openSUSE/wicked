@@ -757,7 +757,7 @@ do_ifup(int argc, char **argv)
 	};
 	const char *ifname = NULL;
 	const char *opt_file = NULL;
-	unsigned int ifevent = NI_IFACTION_MANUAL;
+	unsigned int ifevent = NI_IFACTION_MANUAL_UP;
 	ni_handle_t *config = NULL;
 	ni_handle_t *system = NULL;
 	ni_interface_array_t iflist;
@@ -874,9 +874,10 @@ do_ifdown(int argc, char **argv)
 	};
 	int opt_delete = 0;
 	const char *ifname = NULL;
-	unsigned int ifevent = NI_IFACTION_MANUAL;
+	unsigned int ifevent = NI_IFACTION_MANUAL_DOWN;
 	ni_handle_t *system = NULL;
-	int c, rv;
+	ni_interface_array_t iflist;
+	int i, c, rv;
 
 	optind = 1;
 	while ((c = getopt_long(argc, argv, "", ifdown_options, NULL)) != EOF) {
@@ -922,16 +923,13 @@ usage:
 		}
 	}
 
-	ifevent = NI_IFACTION_MANUAL;
+	ifevent = NI_IFACTION_MANUAL_DOWN;
 	if (!strcmp(ifname, "shutdown")) {
 		ifevent = NI_IFACTION_SHUTDOWN;
 		ifname = "all";
 	}
 
 	if (!strcmp(ifname, "all")) {
-		ni_interface_array_t iflist;
-		int i;
-
 		if (ni_build_partial_topology(system)) {
 			ni_error("failed to build interface hierarchy");
 			goto failed;
@@ -939,15 +937,6 @@ usage:
 
 		ni_interface_array_init(&iflist);
 		rv = ni_interface_topology_flatten(system, &iflist, ifevent, NI_INTERFACE_STOP);
-
-		for (i = iflist.count - 1; rv >= 0 && i >= 0; --i) {
-			iflist.data[i]->flags &= ~(IFF_UP | IFF_LOWER_UP);
-			rv = do_ifdown_one(system, iflist.data[i], opt_delete);
-		}
-
-		ni_interface_array_destroy(&iflist);
-		if (rv < 0)
-			goto failed;
 	} else {
 		ni_interface_t *ifp;
 
@@ -955,9 +944,16 @@ usage:
 			ni_error("cannot find interface %s in interface description", ifname);
 			goto failed;
 		}
+		ni_interface_array_append(&iflist, ifp);
+	}
 
-		ifp->flags &= ~(IFF_UP | IFF_LOWER_UP);
-		rv = do_ifdown_one(system, ifp, opt_delete);
+	if (rv >= 0) {
+		for (i = iflist.count - 1; rv >= 0 && i >= 0; --i) {
+			iflist.data[i]->flags &= ~(IFF_UP | IFF_LOWER_UP);
+			rv = do_ifdown_one(system, iflist.data[i], opt_delete);
+		}
+
+		ni_interface_array_destroy(&iflist);
 	}
 
 failed:

@@ -1569,11 +1569,13 @@ __ni_netcf_set_startmode(ni_interface_t *ifp, const char *name)
 	if (!strcmp(name, "onboot")) {
 		ifp->startmode.ifaction[NI_IFACTION_BOOT].action  = NI_INTERFACE_START;
 		ifp->startmode.ifaction[NI_IFACTION_SHUTDOWN].action  = NI_INTERFACE_STOP;
-		ifp->startmode.ifaction[NI_IFACTION_MANUAL].action  = NI_INTERFACE_START;
+		ifp->startmode.ifaction[NI_IFACTION_MANUAL_UP].action  = NI_INTERFACE_START;
+		ifp->startmode.ifaction[NI_IFACTION_MANUAL_DOWN].action  = NI_INTERFACE_STOP;
 	} else if (!strcmp(name, "none")) {
 		ifp->startmode.ifaction[NI_IFACTION_BOOT].action  = NI_INTERFACE_IGNORE;
 		ifp->startmode.ifaction[NI_IFACTION_SHUTDOWN].action  = NI_INTERFACE_STOP;
-		ifp->startmode.ifaction[NI_IFACTION_MANUAL].action  = NI_INTERFACE_START;
+		ifp->startmode.ifaction[NI_IFACTION_MANUAL_UP].action  = NI_INTERFACE_START;
+		ifp->startmode.ifaction[NI_IFACTION_MANUAL_DOWN].action  = NI_INTERFACE_STOP;
 	} else
 		return -1;
 	return 0;

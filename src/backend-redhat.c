@@ -560,10 +560,11 @@ static struct __ni_ifbehavior_map __ni_redhat_startmodes[] = {
 	{
 		"manual",
 		.behavior.ifaction = {
-			[NI_IFACTION_MANUAL]	= { .action = NI_INTERFACE_START,
+			[NI_IFACTION_MANUAL_UP]	= { .action = NI_INTERFACE_START,
 						    .mandatory = 1,
 						    .wait = 30
 						  },
+			[NI_IFACTION_MANUAL_DOWN]= { .action = NI_INTERFACE_STOP },
 			[NI_IFACTION_BOOT]	= { .action = NI_INTERFACE_IGNORE, },
 			[NI_IFACTION_SHUTDOWN]	= { .action = NI_INTERFACE_IGNORE, },
 			[NI_IFACTION_LINK_UP]	= { .action = NI_INTERFACE_IGNORE, },
@@ -573,10 +574,11 @@ static struct __ni_ifbehavior_map __ni_redhat_startmodes[] = {
 	{
 		"onboot",
 		.behavior.ifaction = {
-			[NI_IFACTION_MANUAL]	= { .action = NI_INTERFACE_START,
+			[NI_IFACTION_MANUAL_UP]	= { .action = NI_INTERFACE_START,
 						    .mandatory = 1,
 						    .wait = 30
 						  },
+			[NI_IFACTION_MANUAL_DOWN]= { .action = NI_INTERFACE_STOP },
 			[NI_IFACTION_BOOT]	= { .action = NI_INTERFACE_START,
 						    .mandatory = 1,
 						    .wait = 30

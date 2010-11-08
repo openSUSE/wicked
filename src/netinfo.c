@@ -482,7 +482,8 @@ ni_event_type_to_name(ni_event_t type)
 static ni_intmap_t __ifaction_names[] = {
 	{ "boot",		NI_IFACTION_BOOT },
 	{ "shutdown",		NI_IFACTION_SHUTDOWN },
-	{ "manual",		NI_IFACTION_MANUAL },
+	{ "manual-up",		NI_IFACTION_MANUAL_UP },
+	{ "manual-down",	NI_IFACTION_MANUAL_DOWN },
 	{ "link-up",		NI_IFACTION_LINK_UP },
 	{ "link-down",		NI_IFACTION_LINK_DOWN },
 

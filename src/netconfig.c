@@ -228,7 +228,8 @@ __ni_behavior_to_mask(const ni_ifbehavior_t *beh)
 	default: ; \
 	} \
 }
-	INSPECT(MANUAL);
+	INSPECT(MANUAL_UP);
+	INSPECT(MANUAL_DOWN);
 	INSPECT(BOOT);
 	INSPECT(SHUTDOWN);
 	INSPECT(LINK_UP);
