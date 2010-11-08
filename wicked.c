@@ -370,6 +370,9 @@ ni_build_partial_topology(ni_handle_t *config)
 {
 	ni_interface_t *pos = NULL, *ifp;
 
+	for (ifp = ni_interface_first(config, &pos); ifp; ifp = ni_interface_next(config, &pos))
+		ifp->flags |= IFF_UP|IFF_LOWER_UP;
+
 	for (ifp = ni_interface_first(config, &pos); ifp; ifp = ni_interface_next(config, &pos)) {
 		ni_interface_t *slave;
 		const char *slave_name;
@@ -552,10 +555,23 @@ static int
 do_if_up_down(ni_handle_t *nih, ni_interface_t *ifp)
 {
 	if (opt_dryrun) {
-		printf("Would send configure(%s)\n", ifp->name);
+		xml_node_t *ifnode;
+
+		printf("Would send configure(%s, up)\n", ifp->name);
+		ifnode = ni_syntax_xml_from_interface(ni_default_xml_syntax(), nih, ifp);
+		if (ifnode) {
+			xml_node_print(ifnode, stdout);
+			xml_node_free(ifnode);
+		}
 		return 0;
 	}
-	return ni_interface_configure(nih, ifp, NULL);
+	if (ni_interface_configure(nih, ifp, NULL) < 0) {
+		ni_error("%s: unable to bring up", ifp->name);
+		return -1;
+	}
+
+	ni_debug_wicked("%s: asked to bring up", ifp->name);
+	return 0;
 }
 
 /*
@@ -704,7 +720,14 @@ do_ifdown_one(ni_handle_t *system, ni_interface_t *ifp, int delete)
 	ni_interface_clear_routes(ifp);
 
 	if (opt_dryrun) {
-		printf("Would send configure(%s)\n", ifp->name);
+		xml_node_t *ifnode;
+
+		printf("Would send configure(%s, down)\n", ifp->name);
+		ifnode = ni_syntax_xml_from_interface(ni_default_xml_syntax(), system, ifp);
+		if (ifnode) {
+			xml_node_print(ifnode, stdout);
+			xml_node_free(ifnode);
+		}
 		return 0;
 	}
 
