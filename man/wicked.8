@@ -3,9 +3,13 @@
 wicked \- network management utility
 .SH SYNOPSIS
 .BI "wicked ifup [" options "] " interface
+.br
 .BI "wicked ifdown [" options "] " interface
+.br
 .BI "wicked (get|put|post|delete) " pathname
+.br
 .BI "wicked xpath [" options "] " format ...
+.br
 .PP
 .SH DESCRIPTION
 .B wicked
@@ -76,11 +80,18 @@ it will bring up the interface using the stored system configuration:
 .B " wicked ifup eth0
 .fi
 .PP
-Instead of an interface name, you can also use the special name
-.BR all ,
+Instead of an interface name, you can also use the special names
+.BR all " or " boot ,
 which will tell
 .B wicked
-to bring up all interfaces.
+to bring up all interfaces. The difference between
+.BR all " and " boot
+is in behavior. When using the latter,
+.B wicked
+will ignore any interfaces that are not configured as boot time
+interfaces. Depending on the expected default behavior of the
+Linux distribution we're on, this may also change how long we
+wait for an interface to come up, etc.
 .PP
 It is also possible to bring up interfaces that do not have a
 configuration stored in the system; using the
@@ -111,24 +122,21 @@ command supports the following options:
 Specify an alternative source of network configuration, instead of
 obtaining the system's interface configuration. The named file must
 contain an XML definition of the interface.
-.TP
-.BI "\-\-boot"
-This option tells
-.B wicked
-that interfaces are being brought up during system boot. In the
-case of interfaces using DHCP or similiar services for address
-configuration, wait until we can be certain the interface has
-been brought up.
-.IP
-.B This is not yet implemented
 .SH ifdown - bring down one or more interfaces
 This command does the reverse of
 .BR ifup .
-Again, you have to give it either a specific interface name, or use
-the special name
-.BR all 
+Again, you can give it either a specific interface name, or use
+the special names
+.BR all " or " shutdown
 to bring down all devices. When bringing down several interfaces,
-the utility tries to do this in a suitable order.
+the utility tries to do this in a suitable order. The difference
+between
+.BR all " and " shutdown
+is again in behavior. Some Linux distributions allow to configure
+a device to not be deconfigured during system shutdown - e.g. when
+for diskless clients that mount their root file system via NFS.
+If you invoke \fBwicked\rP with the \fBshutdown\fP option, it will
+respect these settings.
 .PP
 The
 .BR ifdown
@@ -203,7 +211,7 @@ an XML interface description):
 .fi
 .PP
 .TI
-Given a bridge interface defition, this will expand to a list
+Given a bridge interface definition, this will expand to a list
 of strings, representing the names of all devices assigned to the
 bridge as ports.
 .PP
