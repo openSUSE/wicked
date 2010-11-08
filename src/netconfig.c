@@ -200,6 +200,68 @@ __ni_netconfig_interface_delete(ni_handle_t *nih, const char *ifname)
 }
 
 /*
+ * Helper functions for backends like RedHat's or SUSE.
+ * This is used to make interface behavior to STARTMODE and vice versa.
+ */
+const ni_ifbehavior_t *
+__ni_netinfo_get_behavior(const char *name, const struct __ni_ifbehavior_map *map)
+{
+	for (; map->name; ++map) {
+		if (!strcmp(map->name, name))
+			return &map->behavior;
+	}
+	return NULL;
+}
+
+static unsigned int
+__ni_behavior_to_mask(const ni_ifbehavior_t *beh)
+{
+	unsigned int mask = 0;
+
+#define INSPECT(what) { \
+	mask <<= 2; \
+	if (beh->what.action == NI_INTERFACE_START) \
+		mask |= 1; \
+	else if (beh->what.action == NI_INTERFACE_STOP) \
+		mask |= 2; \
+	}
+	INSPECT(manual);
+	INSPECT(boot);
+	INSPECT(shutdown);
+	INSPECT(link_up);
+	INSPECT(link_down);
+#undef INSPECT
+
+	return mask;
+}
+
+/*
+ * Out of a set of predefined interface behaviors, try to find the one that matches
+ * best.
+ * In the approach implemented here, we compare the action configured as response to specific
+ * events. In order of decreasing precedence, we check:
+ *	manual, boot, shutdown, link_up, link_down
+ */
+const char *
+__ni_netinfo_best_behavior(const ni_ifbehavior_t *beh, const struct __ni_ifbehavior_map *map)
+{
+	unsigned int beh_mask = __ni_behavior_to_mask(beh);
+	const char *best_match = NULL;
+	unsigned int best_mask = 0;
+
+	for (; map->name; ++map) {
+		unsigned int this_mask = __ni_behavior_to_mask(&map->behavior) & beh_mask;
+
+		if (this_mask > best_mask) {
+			best_match = map->name;
+			best_mask = this_mask;
+		}
+	}
+
+	return best_match;
+}
+
+/*
  * Build path relative to root directory, if one is given. Otherwise,
  * just return pathname as-is.
  */

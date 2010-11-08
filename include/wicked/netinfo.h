@@ -114,6 +114,26 @@ typedef struct ni_afinfo {
 	ni_addrconf_request_t *	request[__NI_ADDRCONF_MAX];
 } ni_afinfo_t;
 
+typedef struct ni_ifbehavior {
+	struct {
+	    ni_evaction_t	action;
+	    unsigned int	wait;
+	    unsigned int	mandatory : 1;
+	} boot;
+	struct {
+	    ni_evaction_t	action;
+	} shutdown;
+	struct {
+	    ni_evaction_t	action;
+	} link_up;
+	struct {
+	    ni_evaction_t	action;
+	} link_down;
+	struct {
+	    ni_evaction_t	action;
+	} manual;
+} ni_ifbehavior_t;
+
 struct ni_interface {
 	ni_interface_t *	next;
 	unsigned int		seq;
@@ -155,7 +175,7 @@ struct ni_interface {
 	struct ni_bridge *	bridge;
 
 	/* Configuration data */
-	unsigned int		startmode;
+	ni_ifbehavior_t		startmode;
 };
 
 typedef struct ni_interface_array {

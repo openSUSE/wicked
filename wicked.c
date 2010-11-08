@@ -246,16 +246,6 @@ ni_xml_interface_get_type(const xml_node_t *ifnode)
 	return xml_node_get_attr(ifnode, "type");
 }
 
-static const char *
-ni_xml_interface_get_startmode(const xml_node_t *ifnode)
-{
-	xml_node_t *child;
-
-	if (!(child = xml_node_get_child(ifnode, "start")))
-		return NULL;
-	return xml_node_get_attr(child, "mode");
-}
-
 void
 ni_xml_interface_change_status(xml_node_t *ifnode,
 			const char *link_status,
@@ -516,11 +506,15 @@ do_ifup_one(xml_node_t *ifnode, int link_up, int network_up, int boot_only)
 
 	ifname = ni_xml_interface_get_name(ifnode);
 
-	if (boot_only) {
-		const char *start_mode;
+	if (boot_only && network_up) {
+		xml_node_t *behnode, *child;
+		const char *action;
 
-		start_mode = ni_xml_interface_get_startmode(ifnode);
-		if (!start_mode || strcmp(start_mode, "onboot") != 0)
+		if (!(behnode = xml_node_get_child(ifnode, "behavior"))
+		 || !(child = xml_node_get_child(behnode, "boot")))
+			return 0;
+		action = xml_node_get_attr(child, "action");
+		if (!action || strcmp(action, "start") != 0)
 			return 0;
 
 		/* For DHCP interfaces, we could tell the server here

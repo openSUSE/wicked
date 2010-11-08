@@ -58,6 +58,8 @@ static ni_addrconf_request_t *__ni_netcf_xml_to_addrconf_req(ni_syntax_t *, cons
 static ni_addrconf_lease_t *__ni_netcf_xml_to_lease(ni_syntax_t *, const xml_node_t *);
 static ni_nis_info_t *	__ni_netcf_xml_to_nis(ni_syntax_t *, const xml_node_t *);
 static ni_resolver_info_t *__ni_netcf_xml_to_resolver(ni_syntax_t *, const xml_node_t *);
+static xml_node_t *	__ni_netcf_xml_from_behavior(const ni_ifbehavior_t *, xml_node_t *);
+static int		__ni_netcf_xml_to_behavior(ni_ifbehavior_t *, const xml_node_t *);
 
 static const char *	__ni_netcf_get_iftype(const ni_interface_t *);
 static int		__ni_netcf_set_iftype(ni_interface_t *, const char *);
@@ -152,10 +154,18 @@ __ni_netcf_xml_to_interface(ni_syntax_t *syntax, ni_handle_t *nih, xml_node_t *i
 			ifp->flags |= IFF_UP;
 	}
 
-	node = xml_node_get_child(ifnode, "start");
-	if (node && (attrval = xml_node_get_attr(node, "mode")) != NULL) {
-		if (__ni_netcf_set_startmode(ifp, attrval) < 0) {
-			error("unknown/unsupported interface start mode %s", attrval);
+	if (syntax->strict) {
+		node = xml_node_get_child(ifnode, "start");
+		if (node && (attrval = xml_node_get_attr(node, "mode")) != NULL) {
+			if (__ni_netcf_set_startmode(ifp, attrval) < 0) {
+				ni_error("unknown/unsupported interface start mode %s", attrval);
+				return NULL;
+			}
+		}
+	} else {
+		node = xml_node_get_child(ifnode, "behavior");
+		if (node && __ni_netcf_xml_to_behavior(&ifp->startmode, node) < 0) {
+			ni_error("cannot parse interface <behavior> element");
 			return NULL;
 		}
 	}
@@ -586,11 +596,15 @@ __ni_netcf_xml_from_interface(ni_syntax_t *syntax, ni_handle_t *nih,
 				(ifp->flags & IFF_UP)? "up" : "down");
 	}
 
-	node = xml_node_new("start", ifnode);
-	xml_node_add_attr(node, "mode", __ni_netcf_get_startmode(ifp));
-	if (ifp->mtu) {
-		node = xml_node_new("mtu", ifnode);
-		xml_node_add_attr_uint(node, "size", ifp->mtu);
+	if (syntax->strict) {
+		node = xml_node_new("start", ifnode);
+		xml_node_add_attr(node, "mode", __ni_netcf_get_startmode(ifp));
+		if (ifp->mtu) {
+			node = xml_node_new("mtu", ifnode);
+			xml_node_add_attr_uint(node, "size", ifp->mtu);
+		}
+	} else {
+		__ni_netcf_xml_from_behavior(&ifp->startmode, ifnode);
 	}
 
 	if (ifp->hwaddr.len) {
@@ -1378,6 +1392,85 @@ error:
 }
 
 /*
+ * Handle interface behavior
+ */
+static xml_node_t *
+__ni_netcf_xml_from_evaction(const char *name, ni_evaction_t action, xml_node_t *parent)
+{
+	xml_node_t *evnode;
+	const char *acname;
+
+	switch (action) {
+	case NI_INTERFACE_START:
+		acname = "start";
+		break;
+	case NI_INTERFACE_STOP:
+		acname = "stop";
+		break;
+	default:
+		return NULL;
+	}
+	evnode = xml_node_new(name, parent);
+	xml_node_add_attr(evnode, "action", acname);
+	return evnode;
+}
+
+static xml_node_t *
+__ni_netcf_xml_from_behavior(const ni_ifbehavior_t *beh, xml_node_t *parent)
+{
+	xml_node_t *node = xml_node_new("behavior", parent);
+	xml_node_t *child;
+
+	child = __ni_netcf_xml_from_evaction("boot", beh->boot.action, node);
+	__ni_netcf_xml_from_evaction("shutdown", beh->shutdown.action, node);
+	__ni_netcf_xml_from_evaction("manual", beh->manual.action, node);
+	__ni_netcf_xml_from_evaction("link-up", beh->link_up.action, node);
+	__ni_netcf_xml_from_evaction("link-down", beh->link_down.action, node);
+
+	return node;
+}
+
+static int
+__ni_netcf_xml_to_behavior(ni_ifbehavior_t *beh, const xml_node_t *node)
+{
+	xml_node_t *child;
+
+	memset(beh, 0, sizeof(*beh));
+	for (child = node->children; child; child = child->next) {
+		ni_evaction_t action = NI_INTERFACE_IGNORE;
+		const char *attrval;
+
+		if ((attrval = xml_node_get_attr(child, "action")) != NULL) {
+			if (!strcmp(attrval, "start"))
+				action = NI_INTERFACE_START;
+			else if (!strcmp(attrval, "stop"))
+				action = NI_INTERFACE_STOP;
+			else {
+				ni_error("cannot parse interface behavior; bad <%s action=\"%s\">",
+						child->name, attrval);
+				return -1;
+			}
+		}
+		if (!strcmp(child->name, "boot")) {
+			beh->boot.action = action;
+		} else
+		if (!strcmp(child->name, "shutdown")) {
+			beh->shutdown.action = action;
+		} else
+		if (!strcmp(child->name, "manual")) {
+			beh->manual.action = action;
+		} else
+		if (!strcmp(child->name, "link-up")) {
+			beh->link_up.action = action;
+		} else
+		if (!strcmp(child->name, "link-down")) {
+			beh->link_down.action = action;
+		}
+	}
+	return 0;
+}
+
+/*
  * Map address family to string and vice versa
  */
 const char *
@@ -1464,25 +1557,23 @@ __ni_netcf_set_iftype(ni_interface_t *ifp, const char *name)
 static const char *
 __ni_netcf_get_startmode(const ni_interface_t *ifp)
 {
-	switch (ifp->startmode) {
-	default:
-	case NI_START_ONBOOT:
+	if (ifp->startmode.boot.action == NI_INTERFACE_START)
 		return "onboot";
-	case NI_START_DISABLE:
-	case NI_START_MANUAL:
-		return "none";
-	}
+	return "none";
 }
 
 static int
 __ni_netcf_set_startmode(ni_interface_t *ifp, const char *name)
 {
-	if (!strcmp(name, "onboot"))
-		ifp->startmode = NI_START_ONBOOT;
-	else
-	if (!strcmp(name, "none"))
-		ifp->startmode = NI_START_MANUAL;
-	else
+	if (!strcmp(name, "onboot")) {
+		ifp->startmode.boot.action  = NI_INTERFACE_START;
+		ifp->startmode.shutdown.action  = NI_INTERFACE_STOP;
+		ifp->startmode.manual.action  = NI_INTERFACE_START;
+	} else if (!strcmp(name, "none")) {
+		ifp->startmode.boot.action  = NI_INTERFACE_IGNORE;
+		ifp->startmode.shutdown.action  = NI_INTERFACE_STOP;
+		ifp->startmode.manual.action  = NI_INTERFACE_START;
+	} else
 		return -1;
 	return 0;
 }

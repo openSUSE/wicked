@@ -143,6 +143,16 @@ extern ni_address_t *	__ni_lease_owns_address(const ni_addrconf_lease_t *, const
 extern ni_route_t *	__ni_lease_owns_route(const ni_addrconf_lease_t *, const ni_route_t *);
 
 /*
+ * Helper function to match interface "behaviors" to names
+ */
+struct __ni_ifbehavior_map {
+	const char *	name;
+	ni_ifbehavior_t	behavior;
+};
+extern const char *	__ni_netinfo_best_behavior(const ni_ifbehavior_t *, const struct __ni_ifbehavior_map *);
+extern const ni_ifbehavior_t *__ni_netinfo_get_behavior(const char *, const struct __ni_ifbehavior_map *);
+
+/*
  * Packet capture and raw sockets
  */
 typedef struct ni_timeout_param {

@@ -26,7 +26,9 @@ static int		__ni_redhat_put_interfaces(ni_syntax_t *, ni_handle_t *, FILE *);
 static ni_interface_t *	__ni_redhat_read_interface(ni_handle_t *, const char *);
 static int		__ni_redhat_sysconfig2ifconfig(ni_handle_t *, ni_interface_t *, ni_sysconfig_t *);
 static int		__ni_redhat_ifconfig2sysconfig(ni_interface_t *, ni_sysconfig_t *);
-static const char *	__ni_redhat_bootproto(int);
+static int		__ni_redhat_startmode_set(ni_ifbehavior_t *, const char *);
+static const char *	__ni_redhat_startmode_get(const ni_ifbehavior_t *);
+static const char *	__ni_redhat_bootproto(unsigned int);
 
 static void		__ni_redhat_sysconfig2bridge(ni_interface_t *ifp, ni_sysconfig_t *);
 static int		__ni_redhat_get_static_ipv4(ni_interface_t *, ni_sysconfig_t *);
@@ -167,8 +169,7 @@ __ni_redhat_sysconfig2ifconfig(ni_handle_t *nih, ni_interface_t *ifp, ni_sysconf
 
 	if (ni_sysconfig_get_boolean(sc, "ONBOOT", &onboot) < 0)
 		return -1;
-
-	ifp->startmode = onboot? NI_START_ONBOOT : NI_START_MANUAL;
+	__ni_redhat_startmode_set(&ifp->startmode, onboot? "onboot" : "manual");
 
 	if (ni_sysconfig_get_string(sc, "BOOTPROTO", &value) >= 0 && value != NULL) {
 		if (!strcmp(value, "dhcp")) {
@@ -480,13 +481,15 @@ __ni_redhat_ifconfig2sysconfig(ni_interface_t *ifp, ni_sysconfig_t *sc)
 {
 	unsigned int aindex;
 	ni_address_t *ap;
+	const char *startmode;
 
-	if (ifp->startmode == NI_START_ONBOOT)
+	startmode = __ni_redhat_startmode_get(&ifp->startmode);
+	if (startmode && !strcmp(startmode, "onboot"))
 		ni_sysconfig_set(sc, "ONBOOT", "yes");
 	else
 		ni_sysconfig_set(sc, "ONBOOT", "no");
 
-	ni_sysconfig_set(sc, "BOOTPROTO", __ni_redhat_bootproto(ifp->startmode));
+	ni_sysconfig_set(sc, "BOOTPROTO", __ni_redhat_bootproto(ifp->ipv4.addrconf));
 
 	if (!ifp->hwaddr.type != NI_IFTYPE_UNKNOWN)
 		ni_sysconfig_set(sc, "HWADDR", ni_link_address_print(&ifp->hwaddr));
@@ -540,13 +543,71 @@ __ni_redhat_ifconfig2sysconfig(ni_interface_t *ifp, ni_sysconfig_t *sc)
 }
 
 static const char *
-__ni_redhat_bootproto(int proto)
+__ni_redhat_bootproto(unsigned int addrconf_mask)
 {
-	switch (proto) {
-	default:
-	case NI_ADDRCONF_STATIC:
-		return "none";
-	case NI_ADDRCONF_DHCP:
+	if (addrconf_mask & NI_ADDRCONF_MASK(NI_ADDRCONF_DHCP))
 		return "dhcp";
-	}
+	if (addrconf_mask & NI_ADDRCONF_MASK(NI_ADDRCONF_STATIC))
+		return "none";
+
+	return "none";
 }
+
+/*
+ * Mapping ONBOOT values to behaviors and vice versa
+ */
+static struct __ni_ifbehavior_map __ni_redhat_startmodes[] = {
+	{
+		"manual",
+		{
+			.manual		= { .action = NI_INTERFACE_START, },
+			.boot		= { .action = NI_INTERFACE_IGNORE, },
+			.shutdown	= { .action = NI_INTERFACE_IGNORE, },
+			.link_up	= { .action = NI_INTERFACE_IGNORE, },
+			.link_down	= { .action = NI_INTERFACE_IGNORE, },
+		}
+	},
+	{
+		"onboot",
+		{
+			.manual		= { .action = NI_INTERFACE_START, },
+			.boot		= { .action = NI_INTERFACE_START,
+					    .mandatory = 1,
+					    .wait = 30
+					  },
+			.shutdown	= { .action = NI_INTERFACE_STOP, },
+			.link_up	= { .action = NI_INTERFACE_START, },
+			.link_down	= { .action = NI_INTERFACE_STOP, },
+		}
+	},
+
+	{ NULL }
+};
+
+static int
+__ni_redhat_startmode_set(ni_ifbehavior_t *beh, const char *name)
+{
+	const ni_ifbehavior_t *match = NULL;
+
+	if (name) {
+		if (!strcmp(name, "on")
+		 || !strcmp(name, "boot")
+		 || !strcmp(name, "onboot"))
+			name = "auto";
+
+		match = __ni_netinfo_get_behavior(name, __ni_redhat_startmodes);
+	}
+
+	if (match)
+		*beh = *match;
+	else
+		*beh = __ni_redhat_startmodes[0].behavior;
+	return 0;
+}
+
+static const char *
+__ni_redhat_startmode_get(const ni_ifbehavior_t *beh)
+{
+	return __ni_netinfo_best_behavior(beh, __ni_redhat_startmodes);
+}
+

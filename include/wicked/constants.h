@@ -7,17 +7,11 @@
 #ifndef __WICKED_CONSTANTS_H__
 #define __WICKED_CONSTANTS_H__
 
-/*
- * Interface start modes.
- */
-typedef enum ni_start_mode {
-	NI_START_DISABLE,
-	NI_START_ONBOOT,
-	NI_START_MANUAL,
-	NI_START_HOTPLUG,	/* RHEL extension */
-	NI_START_IFPLUGD,	/* SUSE extension */
-	NI_START_NFSROOT,	/* SUSE extension */
-} ni_start_mode_t;
+typedef enum ni_evaction {
+	NI_INTERFACE_IGNORE = 0,
+	NI_INTERFACE_START,
+	NI_INTERFACE_STOP,
+} ni_evaction_t;
 
 /*
  * Address configuration modes

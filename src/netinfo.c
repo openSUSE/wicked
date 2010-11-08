@@ -737,7 +737,10 @@ __ni_interface_new(const char *name, unsigned int index)
 		return NULL;
 
 	ifp->users = 1;
-	ifp->startmode = NI_START_ONBOOT;
+	ifp->startmode.boot.action = NI_INTERFACE_START;
+	ifp->startmode.boot.mandatory = 1;
+	ifp->startmode.boot.wait = 30;
+	ifp->startmode.shutdown.action = NI_INTERFACE_STOP;
 	ifp->type = NI_IFTYPE_UNKNOWN;
 	ifp->arp_type = ARPHRD_NONE;
 	ifp->hwaddr.type = ARPHRD_NONE;

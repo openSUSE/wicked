@@ -33,7 +33,8 @@ static int		__ni_suse_dhcp2sysconfig(const ni_addrconf_request_t *, const ni_add
 				ni_sysconfig_t *);
 static int		__ni_suse_bridge2sysconfig(const ni_interface_t *, ni_sysconfig_t *);
 static int		__ni_suse_bonding2sysconfig(const ni_interface_t *, ni_sysconfig_t *);
-static const char *	__ni_suse_startmode(int);
+static const char *	__ni_suse_startmode_get(const ni_ifbehavior_t *);
+static int		__ni_suse_startmode_set(ni_ifbehavior_t *, const char *);
 static const char *	__ni_suse_bootproto_get(const ni_interface_t *);
 static int		__ni_suse_bootproto_set(ni_interface_t *, char *);
 
@@ -56,6 +57,7 @@ static const char *	__ni_ifcfg_vars_preserve[] = {
 
 	NULL,
 };
+
 
 /*
  * Create a syntax object for SUSE style ifcfg files
@@ -271,21 +273,8 @@ __ni_suse_sysconfig2ifconfig(ni_interface_t *ifp, ni_sysconfig_t *sc)
 {
 	char *value = NULL, *hwaddr = NULL;
 
-	if (ni_sysconfig_get_string(sc, "STARTMODE", &value) >= 0) {
-		/* The following are equivalent */
-		if (!value)
-			ifp->startmode = NI_START_MANUAL;
-		else if (!strcmp(value, "auto")
-		 || !strcmp(value, "on")
-		 || !strcmp(value, "boot")
-		 || !strcmp(value, "onboot")
-		 || !strcmp(value, "hotplug"))
-			ifp->startmode = NI_START_ONBOOT;
-		else if (!strcmp(value, "off"))
-			ifp->startmode = NI_START_DISABLE;
-		else
-			ifp->startmode = NI_START_MANUAL;
-	}
+	if (ni_sysconfig_get_string(sc, "STARTMODE", &value) >= 0)
+		__ni_suse_startmode_set(&ifp->startmode, value);
 	if (ni_sysconfig_get_string(sc, "BOOTPROTO", &value) >= 0)
 		__ni_suse_bootproto_set(ifp, value);
 	ni_string_free(&value);
@@ -871,7 +860,7 @@ __ni_suse_ifconfig2sysconfig(ni_interface_t *ifp, ni_sysconfig_t *sc)
 	unsigned int aindex;
 	ni_address_t *ap;
 
-	ni_sysconfig_set(sc, "STARTMODE", __ni_suse_startmode(ifp->startmode));
+	ni_sysconfig_set(sc, "STARTMODE", __ni_suse_startmode_get(&ifp->startmode));
 	ni_sysconfig_set(sc, "BOOTPROTO", __ni_suse_bootproto_get(ifp));
 
 	if (!ifp->hwaddr.type != NI_IFTYPE_UNKNOWN)
@@ -930,18 +919,108 @@ __ni_suse_ifconfig2sysconfig(ni_interface_t *ifp, ni_sysconfig_t *sc)
 	return 0;
 }
 
-static const char *
-__ni_suse_startmode(int mode)
+/*
+ * Mapping STARTMODE values to behaviors and vice versa
+ */
+static struct __ni_ifbehavior_map __ni_suse_startmodes[] = {
+	{
+		"manual",
+		{
+			.manual		= { .action = NI_INTERFACE_START, },
+			.boot		= { .action = NI_INTERFACE_IGNORE, },
+			.shutdown	= { .action = NI_INTERFACE_IGNORE, },
+			.link_up	= { .action = NI_INTERFACE_IGNORE, },
+			.link_down	= { .action = NI_INTERFACE_IGNORE, },
+		}
+	},
+	{
+		"auto",
+		{
+			.manual		= { .action = NI_INTERFACE_START, },
+			.boot		= { .action = NI_INTERFACE_START,
+					    .mandatory = 1,
+					    .wait = 30
+					  },
+			.shutdown	= { .action = NI_INTERFACE_STOP, },
+			.link_up	= { .action = NI_INTERFACE_START, },
+			.link_down	= { .action = NI_INTERFACE_STOP, },
+		}
+	},
+	{
+		"hotplug",	/* exactly like onboot, except we don't fail during network boot */
+		{
+			.manual		= { .action = NI_INTERFACE_START, },
+			.boot		= { .action = NI_INTERFACE_START,
+					    .mandatory = 0,
+					    .wait = 30
+					  },
+			.shutdown	= { .action = NI_INTERFACE_STOP, },
+			.link_up	= { .action = NI_INTERFACE_START, },
+			.link_down	= { .action = NI_INTERFACE_STOP, },
+		}
+	},
+	{
+		"ifplugd",
+		{
+			.manual		= { .action = NI_INTERFACE_START, },
+			.boot		= { .action = NI_INTERFACE_IGNORE },
+			.shutdown	= { .action = NI_INTERFACE_STOP, },
+			.link_up	= { .action = NI_INTERFACE_START, },
+			.link_down	= { .action = NI_INTERFACE_STOP, },
+		},
+	},
+	{
+		"nfsroot",
+		{
+			.manual		= { .action = NI_INTERFACE_START, },
+			.boot		= { .action = NI_INTERFACE_START,
+					    .mandatory = 1,
+					    .wait = ~0
+					  },
+			.shutdown	= { .action = NI_INTERFACE_IGNORE, },
+			.link_up	= { .action = NI_INTERFACE_START, },
+			.link_down	= { .action = NI_INTERFACE_STOP, },
+		}
+	},
+	{
+		"off",
+		{
+			.manual		= { .action = NI_INTERFACE_IGNORE, },
+			.boot		= { .action = NI_INTERFACE_IGNORE, },
+			.shutdown	= { .action = NI_INTERFACE_IGNORE, },
+			.link_up	= { .action = NI_INTERFACE_IGNORE, },
+			.link_down	= { .action = NI_INTERFACE_IGNORE, },
+		}
+	},
+
+	{ NULL }
+};
+
+static int
+__ni_suse_startmode_set(ni_ifbehavior_t *beh, const char *name)
 {
-	switch (mode) {
-	case NI_START_MANUAL:
-	default:
-		return "manual";
-	case NI_START_ONBOOT:
-		return "onboot";
-	case NI_START_DISABLE:
-		return "off";
+	const ni_ifbehavior_t *match = NULL;
+
+	if (name) {
+		if (!strcmp(name, "on")
+		 || !strcmp(name, "boot")
+		 || !strcmp(name, "onboot"))
+			name = "auto";
+
+		match = __ni_netinfo_get_behavior(name, __ni_suse_startmodes);
 	}
+
+	if (match)
+		*beh = *match;
+	else
+		*beh = __ni_suse_startmodes[0].behavior;
+	return 0;
+}
+
+static const char *
+__ni_suse_startmode_get(const ni_ifbehavior_t *beh)
+{
+	return __ni_netinfo_best_behavior(beh, __ni_suse_startmodes);
 }
 
 /*
