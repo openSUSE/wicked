@@ -965,14 +965,13 @@ __ni_interface_address_exists(const ni_interface_t *ifp, const ni_address_t *ap)
 
 	if (ap->local_addr.ss_family == AF_INET) {
 		const struct sockaddr_in *sin1, *sin2;
-		uint32_t mask = ~(0xFFFFFFFF >> ap->prefixlen);
 
 		sin1 = (const struct sockaddr_in *) &ap->local_addr;
 		for (ap2 = ifp->addrs; ap2; ap2 = ap2->next) {
 			if (ap2->local_addr.ss_family != AF_INET)
 				continue;
 			sin2 = (const struct sockaddr_in *) &ap2->local_addr;
-			if ((ntohl(sin1->sin_addr.s_addr ^ sin2->sin_addr.s_addr) & mask) != 0)
+			if (sin1->sin_addr.s_addr != sin2->sin_addr.s_addr)
 				continue;
 
 			if (!ni_address_equal(&ap->peer_addr, &ap2->peer_addr))
@@ -987,7 +986,7 @@ __ni_interface_address_exists(const ni_interface_t *ifp, const ni_address_t *ap)
 
 		sin1 = (const struct sockaddr_in6 *) &ap->local_addr;
 		for (ap2 = ifp->addrs; ap2; ap2 = ap2->next) {
-			if (ap2->local_addr.ss_family != AF_INET)
+			if (ap2->local_addr.ss_family != AF_INET6)
 				continue;
 			sin2 = (const struct sockaddr_in6 *) &ap2->local_addr;
 			if (!memcmp(&sin1->sin6_addr, &sin2->sin6_addr, 16))
@@ -1376,9 +1375,6 @@ __ni_interface_addrconf(ni_handle_t *nih, int family, ni_interface_t *ifp, ni_in
 
 			if (__ni_rtnl_send_deladdr(nih, ifp, ap))
 				goto error;
-
-			/* rtnl should not delete interfaces right away,
-			 * but it's okay to mark them as deleted. */
 		}
 
 		/* Loop over all addresses in the configuration and create
