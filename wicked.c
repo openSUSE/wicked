@@ -19,6 +19,8 @@
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
 #include <wicked/wicked.h>
+#include <wicked/bonding.h>
+#include <wicked/bridge.h>
 #include <wicked/xml.h>
 #include <wicked/xpath.h>
 
@@ -27,6 +29,13 @@ enum {
 	OPT_DEBUG,
 	OPT_DRYRUN,
 	OPT_ROOTDIR,
+};
+
+enum {
+	FILTER_NONE,
+	FILTER_MANUAL,
+	FILTER_BOOT,
+	FILTER_SHUTDOWN
 };
 
 static struct option	options[] = {
@@ -231,6 +240,7 @@ wicked_delete_interface(const char *base_path, const char *ifname)
 	return 0;
 }
 
+#if 0
 /*
  * For an XML interface definition, get the interface name
  */
@@ -264,23 +274,6 @@ void
 ni_xml_interface_clear_addresses(xml_node_t *ifnode)
 {
 	xml_node_delete_child(ifnode, "protocol");
-}
-
-static xml_node_t *
-ni_xml_interface_find(xml_document_t *doc, const char *ifname)
-{
-	xml_node_t *node;
-
-	for (node = xml_document_root(doc)->children; node; node = node->next) {
-		if (!strcmp(node->name, "interface")) {
-			const char *other_name;
-
-			if ((other_name = ni_xml_interface_get_name(node)) != NULL
-			 && strcmp(other_name, ifname) == 0)
-				return node;
-		}
-	}
-	return 0;
 }
 
 /*
@@ -358,194 +351,211 @@ struct ni_interface_dependency {
 	struct ni_interface_dependency *parent;
 };
 
-static int
-__ni_xml_interface_dependeny_cmp(const void *p1, const void *p2)
-{
-	const struct ni_interface_dependency *d1 = p1;
-	const struct ni_interface_dependency *d2 = p2;
+struct ni_interface_xdependency {
+	ni_interface_t *	interface;
+	const char *		name;
+	unsigned int		type;
+	int			priority;
+	unsigned int		link_up : 1,
+				network_up : 1;
 
-	return d1->priority - d2->priority;
+	struct ni_interface_xdependency *parent;
+};
+#endif
+
+#define IFF_LOWER_UP 0x10000
+
+static int
+ni_build_partial_topology(ni_handle_t *config)
+{
+	ni_interface_t *pos = NULL, *ifp;
+
+	for (ifp = ni_interface_first(config, &pos); ifp; ifp = ni_interface_next(config, &pos)) {
+		ni_interface_t *slave;
+		const char *slave_name;
+		ni_bonding_t *bond;
+		ni_bridge_t *bridge;
+		ni_vlan_t *vlan;
+		unsigned int i;
+
+		switch (ifp->type) {
+		case NI_IFTYPE_VLAN:
+			if ((vlan = ifp->vlan) == NULL)
+				continue;
+
+			slave_name = vlan->interface_name;
+			if (!(slave = ni_interface_by_name(config, slave_name)))
+				continue;
+
+			/* VLANs are special, real device must be an ether device,
+			 * and can be referenced by more than one vlan */
+			if (slave->type != NI_IFTYPE_ETHERNET) {
+				ni_error("vlan interface %s references non-ethernet device", ifp->name);
+				goto failed;
+			}
+			if (slave->parent && slave->parent->type != NI_IFTYPE_VLAN)
+				goto multiple_masters;
+			slave->parent = ifp;
+
+			vlan->interface_dev = slave;
+			slave->flags |= IFF_UP|IFF_LOWER_UP;
+			break;
+
+		case NI_IFTYPE_BOND:
+			if ((bond = ifp->bonding) == NULL)
+				continue;
+
+			for (i = 0; i < bond->slave_names.count; ++i) {
+				slave_name = bond->slave_names.data[i];
+
+				slave = ni_interface_by_name(config, slave_name);
+				ni_interface_array_append(&bond->slave_devs, slave);
+
+				if (slave) {
+					if (slave->parent)
+						goto multiple_masters;
+					slave->parent = ifp;
+					slave->flags &= ~(IFF_UP|IFF_LOWER_UP);
+					slave->flags |= IFF_LOWER_UP;
+				}
+			}
+			break;
+
+		case NI_IFTYPE_BRIDGE:
+			if ((bridge = ifp->bridge) == NULL)
+				continue;
+
+			for (i = 0; i < bridge->ports.count; ++i) {
+				ni_bridge_port_t *port = bridge->ports.data[i];
+
+				if (!(slave = ni_interface_by_name(config, port->name)))
+					continue;
+
+				port->device = ni_interface_get(slave);
+				slave->flags |= IFF_UP|IFF_LOWER_UP;
+
+				if (slave->parent)
+					goto multiple_masters;
+				slave->parent = ifp;
+			}
+			break;
+
+		default:
+			break;
+
+		multiple_masters:
+			ni_error("interface %s used by more than one device (%s and %s)",
+					slave->name, ifp->name, slave->parent->name);
+		failed:
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
+/*
+ * Flatten the interface topology, putting subordinate interfaces
+ * before aggregations like bridges, bonds and vlans.
+ */
+static int
+__ni_interface_flatten(ni_interface_t *ifp, ni_interface_array_t *out)
+{
+	unsigned int i;
+
+	if (ni_interface_array_index(out, ifp) >= 0)
+		return 0;
+
+	ni_interface_array_append(out, ifp);
+
+	switch (ifp->type) {
+	case NI_IFTYPE_VLAN:
+		if (ifp->vlan) {
+			ni_vlan_t *vlan = ifp->vlan;
+
+			if (vlan->interface_dev)
+				__ni_interface_flatten(vlan->interface_dev, out);
+		}
+		break;
+
+	case NI_IFTYPE_BOND:
+		if (ifp->bonding != NULL) {
+			ni_bonding_t *bond = ifp->bonding;
+
+			for (i = 0; i < bond->slave_devs.count; ++i) {
+				ni_interface_t *slave = bond->slave_devs.data[i];
+
+				if (slave)
+					ni_interface_array_append(out, slave);
+			}
+		}
+		break;
+
+	case NI_IFTYPE_BRIDGE:
+		if (ifp->bridge == NULL) {
+			ni_bridge_t *bridge = ifp->bridge;
+
+			for (i = 0; i < bridge->ports.count; ++i) {
+				ni_bridge_port_t *port = bridge->ports.data[i];
+
+				ni_interface_array_append(out, port->device);
+			}
+		}
+		break;
+
+	default:
+		break;
+
+	}
+
+	return 0;
 }
 
 static int
-ni_xml_sort_interfaces(xml_document_t *doc, struct ni_interface_dependency **resultp)
+__ni_interfact_filter(const ni_interface_t *ifp, int filter, ni_evaction_t action)
 {
-	struct ni_interface_dependency *iflist = NULL;
-	unsigned int i, j, count;
-
-	/* Do this twice; first iteration: count devices,
-	 * second iteration: store them in array. */
-	while (1) {
-		xml_node_t *ifnode, *pos = NULL;
-
-		count = 0;
-
-		ifnode = ni_xml_interface_first(doc, &pos);
-		while (ifnode) {
-			if (iflist) {
-				const char *ifname, *iftype;
-
-				ifname = ni_xml_interface_get_name(ifnode);
-				if (!ifname) {
-					ni_error("interface element without name");
-					goto failed;
-				}
-
-				iftype = ni_xml_interface_get_type(ifnode);
-				if (!iftype) {
-					ni_error("interface element without type");
-					goto failed;
-				}
-
-				iflist[count].name = ifname;
-				iflist[count].type = iftype;
-				iflist[count].xml = ifnode;
-				if (!strcmp(ifname, "lo"))
-					iflist[count].priority = 0;
-				else
-					iflist[count].priority = 1;
-			}
-			ifnode = ni_xml_interface_next(&pos);
-			count++;
-		}
-
-		if (iflist)
-			break;
-
-		iflist = calloc(count, sizeof(iflist[0]));
-		if (!iflist)
-			return -1;
+	switch (filter) {
+	case FILTER_NONE:
+		return 1;
+	case FILTER_MANUAL:
+		return ifp->startmode.manual.action == action;
+	case FILTER_BOOT:
+		return ifp->startmode.boot.action == action;
+	case FILTER_SHUTDOWN:
+		return ifp->startmode.shutdown.action == action;
 	}
+	return 0;
+}
 
-	/* Resolve master/slave dependencies */
-	for (i = 0; i < count; ++i) {
-		struct ni_interface_dependency *master = &iflist[i];
-		xml_node_t *link_config, *slave_dev, *pos;
+static int
+ni_interface_topology_flatten(ni_handle_t *config, ni_interface_array_t *out, int filter, ni_evaction_t action)
+{
+	ni_interface_t *pos = NULL, *ifp;
 
-		/* bridge, bond, vlan all have a child element
-		 * of the same name, with <interface name="...">
-		 * elements. */
-		link_config = xml_node_get_child(master->xml, master->type);
-		if (!link_config)
+	for (ifp = ni_interface_first(config, &pos); ifp; ifp = ni_interface_next(config, &pos)) {
+		if (ifp->type == NI_IFTYPE_LOOPBACK && __ni_interfact_filter(ifp, filter, action))
+			ni_interface_array_append(out, ifp);
+	}
+	for (ifp = ni_interface_first(config, &pos); ifp; ifp = ni_interface_next(config, &pos)) {
+		if (ifp->type == NI_IFTYPE_LOOPBACK || !__ni_interfact_filter(ifp, filter, action))
 			continue;
 
-		pos = link_config->children;
-		while ((slave_dev = ni_xml_interface_next(&pos)) != NULL) {
-			struct ni_interface_dependency *slave;
-			const char *slave_name;
-
-			slave_name = ni_xml_interface_get_name(slave_dev);
-			if (!slave_name) {
-				ni_error("interface %s specifies bad %s child device",
-						master->name, master->type);
-				goto failed;
-			}
-
-			for (j = 0, slave = iflist; j < count; ++j, ++slave) {
-				if (strcmp(slave->name, slave_name))
-					continue;
-
-				if (slave->parent) {
-					ni_error("interface %s used by more than one device",
-							slave->name);
-					goto failed;
-				}
-
-				if (!strcmp(master->type, "vlan")) {
-					/* VLANs are special, real device must
-					 * be an ether device, and can be referenced
-					 * by more than one vlan */
-					if (strcmp(slave->type, "ethernet")) {
-						ni_error("vlan interface %s references non-ethernet device",
-							 master->name);
-						goto failed;
-					}
-					master->priority = 2;
-
-					slave->link_up = 1;
-					slave->network_up = 1;
-				} else if (!strcmp(master->type, "bridge")) {
-					slave->parent = master;
-
-					slave->link_up = 1;
-					slave->network_up = 1;
-				} else if (!strcmp(master->type, "bond")) {
-					slave->parent = master;
-
-					slave->link_up = 1;
-					slave->network_up = 0;
-				}
-				break;
-			}
-		}
+		__ni_interface_flatten(ifp, out);
 	}
-
-	/* Propagate priorities: master devices get slave->priority + 1 */
-	for (i = 0; i < count; ++i) {
-		struct ni_interface_dependency *slave = &iflist[i];
-		struct ni_interface_dependency *master;
-		unsigned int priority;
-
-		priority = slave->priority + 1;
-		for (master = slave->parent, j = 0; master; master = master->parent, ++j) {
-			if (j > count) {
-				ni_error("detected dependency loop in interface definition");
-				goto failed;
-			}
-
-			if (priority > master->priority)
-				master->priority = priority;
-			priority = master->priority + 1;
-		}
-
-		if (!slave->link_up) {
-			slave->link_up = 1;
-			slave->network_up = 1;
-		}
-	}
-
-	qsort(iflist, count, sizeof(iflist[0]), __ni_xml_interface_dependeny_cmp);
-
-	if (ni_debug & NI_TRACE_WICKED) {
-		ni_trace("sorted interfaces");
-		for (i = 0; i < count; ++i) {
-			struct ni_interface_dependency *slave = &iflist[i];
-
-			ni_trace("%s prio=%d link %s network %s",
-					slave->name, slave->priority,
-					slave->link_up? "up" : "down",
-					slave->network_up? "up" : "down");
-		}
-	}
-
-	*resultp = iflist;
-	return count;
-
-failed:
-	free(iflist);
-	return -1;
+	return 0;
 }
 
 /*
  * Bring a single interface up
  */
 static int
-do_ifup_one(xml_node_t *ifnode, int link_up, int network_up)
+do_if_up_down(ni_handle_t *nih, ni_interface_t *ifp)
 {
-	const char *ifname;
-	int rv;
-
-	ifname = ni_xml_interface_get_name(ifnode);
-
-	ni_xml_interface_change_status(ifnode,
-					link_up? "up" : "down",
-					network_up? "up" : "down");
-
-	rv = wicked_put_interface("/system/interface", ifname, ifnode);
-	if (rv < 0)
-		fprintf(stderr, "Unable to bring up interface %s\n", ifname);
-
-	return rv;
+	if (opt_dryrun) {
+		printf("Would send configure(%s)\n", ifp->name);
+		return 0;
+	}
+	return ni_interface_configure(nih, ifp, NULL);
 }
 
 /*
@@ -560,9 +570,8 @@ do_ifup(int argc, char **argv)
 	};
 	const char *ifname = NULL;
 	const char *opt_file = NULL;
-	int opt_boot = 0;
-	xml_document_t *doc;
-	FILE *ifdesc = NULL;
+	ni_handle_t *config = NULL;
+	ni_handle_t *system = NULL;
 	int c, rv = -1;
 
 	optind = 1;
@@ -598,80 +607,70 @@ usage:
 	 * change <status> to up, and send it back.
 	 */
 	if (opt_file) {
-		if ((ifdesc = fopen(opt_file, "r")) == NULL) {
-			fprintf(stderr, "Unable to open file %s: %m\n", opt_file);
-			return 1;
-		}
+		ni_syntax_t *syntax = ni_syntax_new("netcf", opt_file);
 
-		doc = xml_document_scan(ifdesc);
-		if (!doc) {
-			fprintf(stderr, "Cannot parse interface description\n");
-			fclose(ifdesc);
-			return 1;
+		config = ni_netconfig_open(syntax);
+		if ((rv = ni_refresh(config)) < 0) {
+			ni_error("unable to load interface definition from %s", opt_file);
+			goto failed;
 		}
-		fclose(ifdesc);
-
-		fprintf(stderr, "Read network configuration from %s\n", opt_file);
 	} else {
-		xml_node_t *response;
-
-		if (!strcmp(ifname, "all")) {
-			response = wicked_get("/config/interface");
-			response = wicked_filter_behavior(response, "manual", "start");
-		} else if (!strcmp(ifname, "boot")) {
-			response = wicked_get("/config/interface");
-			response = wicked_filter_behavior(response, "boot", "start");
-			opt_boot = 1;
+		config = ni_indirect_open("/config");
+		if (!strcmp(ifname, "all") || !strcmp(ifname, "boot")) {
+			rv = ni_refresh(config);
 		} else {
-			response = wicked_get_interface("/config/interface", ifname);
+			rv = ni_interface_refresh_one(config, ifname);
 		}
 
-		if (!response) {
-			fprintf(stderr, "Unable to obtain interface configuration\n");
-			return 1;
+		if (rv < 0) {
+			ni_error("unable to obtain interface configuration");
+			goto failed;
 		}
-		if (response->children == NULL) {
-			fprintf(stderr, "no matching interfaces found\n");
-			xml_node_free(response);
-			return 0;
-		}
-
-		doc = xml_document_new();
-		xml_document_set_root(doc, response);
 	}
 
+	system = ni_indirect_open("/system");
+
 	if (!strcmp(ifname, "all") || !strcmp(ifname, "boot")) {
-		struct ni_interface_dependency *sorted;
-		int i, ifcount;
+		ni_interface_array_t iflist;
+		unsigned int i;
 
-		ifcount = ni_xml_sort_interfaces(doc, &sorted);
-		if (ifcount < 0)
+		if (ni_build_partial_topology(config)) {
+			ni_error("failed to build interface hierarchy");
 			goto failed;
-
-		for (i = 0; i < ifcount; ++i) {
-			rv = do_ifup_one(sorted[i].xml, sorted[i].link_up, sorted[i].network_up);
-			if (rv < 0)
-				goto failed;
 		}
-		free(sorted);
+
+		ni_interface_array_init(&iflist);
+		if (!strcmp(ifname, "boot"))
+			rv = ni_interface_topology_flatten(config, &iflist, FILTER_BOOT, NI_INTERFACE_START);
+		else
+			rv = ni_interface_topology_flatten(config, &iflist, FILTER_NONE, NI_INTERFACE_IGNORE);
+
+
+		for (i = 0; rv >= 0 && i < iflist.count; ++i)
+			rv = do_if_up_down(system, iflist.data[i]);
+
+		ni_interface_array_destroy(&iflist);
+		if (rv < 0)
+			goto failed;
 	} else {
-		xml_node_t *ifnode;
+		ni_interface_t *ifp;
 
-		if (!(ifnode = ni_xml_interface_find(doc, ifname))) {
-			fprintf(stderr,
-				"Unable to find interface %s in interface description\n",
-				ifname);
-			xml_document_free(doc);
-			return 1;
+		if (!(ifp = ni_interface_by_name(config, ifname))) {
+			ni_error("cannot find interface %s in interface description", ifname);
+			goto failed;
 		}
 
-		rv = do_ifup_one(ifnode, 1, 1);
+		ifp->flags |= IFF_UP | IFF_LOWER_UP;
+		rv = do_if_up_down(system, ifp);
 	}
 
 	/* TBD: Wait for all interfaces to come up */
 
 failed:
-	xml_document_free(doc);
+	if (config)
+		ni_close(config);
+	if (system)
+		ni_close(system);
 	return (rv == 0);
 }
 
@@ -679,41 +678,46 @@ failed:
  * Bring a single interface down
  */
 static int
-do_ifdown_one(xml_node_t *ifnode, int delete)
+do_ifdown_one(ni_handle_t *system, ni_interface_t *ifp, int delete)
 {
-	const char *ifname, *iftype;
 	int rv;
 
-	ifname = ni_xml_interface_get_name(ifnode);
-
 	if (delete) {
-		iftype = ni_xml_interface_get_type(ifnode);
-		if (!iftype)
-			return -1;
+		switch (ifp->type) {
+		case NI_IFTYPE_VLAN:
+		case NI_IFTYPE_BRIDGE:
+		case NI_IFTYPE_BOND:
+			break;
 
-		if (strcmp(iftype, "vlan")
-		 && strcmp(iftype, "bridge")
-		 && strcmp(iftype, "bond"))
+		default:
 			delete = 0;
+			break;
+		}
 	}
 
-	ni_xml_interface_change_status(ifnode, "down", "down");
+	ifp->flags &= ~(IFF_UP | IFF_LOWER_UP);
 
 	/* Clear IP addressing; this will make sure all addresses are
 	 * removed from the interface, and dhcp is shut down etc.
 	 */
-	ni_xml_interface_clear_addresses(ifnode);
+	ni_interface_clear_addresses(ifp);
+	ni_interface_clear_routes(ifp);
 
-	rv = wicked_put_interface("/system/interface", ifname, ifnode);
+	if (opt_dryrun) {
+		printf("Would send configure(%s)\n", ifp->name);
+		return 0;
+	}
+
+	rv = ni_interface_configure(system, ifp, NULL);
 	if (rv < 0) {
-		ni_error("Unable to shut down interface %s\n", ifname);
+		ni_error("Unable to shut down interface %s\n", ifp->name);
 		return -1;
 	}
 
 	if (delete) {
-		rv = wicked_delete_interface("/system/interface", ifname);
+		rv = ni_interface_delete(system, ifp->name);
 		if (rv < 0) {
-			ni_error("Unable to delete interface %s\n", ifname);
+			ni_error("Unable to delete interface %s\n", ifp->name);
 			return -1;
 		}
 	}
@@ -733,7 +737,7 @@ do_ifdown(int argc, char **argv)
 	};
 	int opt_delete = 0;
 	const char *ifname = NULL;
-	xml_document_t *doc;
+	ni_handle_t *system = NULL;
 	int c, rv;
 
 	optind = 1;
@@ -763,54 +767,62 @@ usage:
 	}
 	ifname = argv[optind++];
 
-	/* Otherwise, first retrieve /config/interface/<ifname> from the server,
+	/* Otherwise, first retrieve /system/interface/<ifname> from the server,
 	 * change <status> to down, and send it back.
 	 */
 	{
-		xml_node_t *response;
-
-		if (!strcmp(ifname, "all")) {
-			response = wicked_get("/system/interface");
+		system = ni_indirect_open("/system");
+		if (!strcmp(ifname, "all") || !strcmp(ifname, "boot")) {
+			rv = ni_refresh(system);
 		} else {
-			response = wicked_get_interface("/system/interface", ifname);
+			rv = ni_interface_refresh_one(system, ifname);
 		}
 
-		if (!response) {
+		if (rv < 0) {
 			ni_error("unable to obtain interface configuration");
-			return 1;
+			goto failed;
 		}
-
-		doc = xml_document_new();
-		xml_document_set_root(doc, response);
 	}
 
 	if (!strcmp(ifname, "all")) {
-		struct ni_interface_dependency *sorted;
-		int i, ifcount;
+		ni_interface_array_t iflist;
+		int i;
 
-		ifcount = ni_xml_sort_interfaces(doc, &sorted);
-		if (ifcount < 0)
+		if (ni_build_partial_topology(system)) {
+			ni_error("failed to build interface hierarchy");
 			goto failed;
-
-		for (i = ifcount - 1; i >= 0; --i) {
-			if ((rv = do_ifdown_one(sorted[i].xml, opt_delete)) < 0)
-				goto failed;
 		}
-		free(sorted);
+
+		ni_interface_array_init(&iflist);
+		if (!strcmp(ifname, "boot"))
+			rv = ni_interface_topology_flatten(system, &iflist, FILTER_BOOT, NI_INTERFACE_START);
+		else
+			rv = ni_interface_topology_flatten(system, &iflist, FILTER_NONE, NI_INTERFACE_IGNORE);
+
+
+		for (i = iflist.count - 1; rv >= 0 && i >= 0; --i) {
+			iflist.data[i]->flags &= ~(IFF_UP | IFF_LOWER_UP);
+			rv = do_ifdown_one(system, iflist.data[i], opt_delete);
+		}
+
+		ni_interface_array_destroy(&iflist);
+		if (rv < 0)
+			goto failed;
 	} else {
-		xml_node_t *ifnode;
+		ni_interface_t *ifp;
 
-		if (!(ifnode = ni_xml_interface_find(doc, ifname))) {
-			ni_error("unable to find interface %s in interface description", ifname);
-			xml_document_free(doc);
-			return 1;
+		if (!(ifp = ni_interface_by_name(system, ifname))) {
+			ni_error("cannot find interface %s in interface description", ifname);
+			goto failed;
 		}
 
-		rv = do_ifdown_one(ifnode, opt_delete);
+		ifp->flags &= ~(IFF_UP | IFF_LOWER_UP);
+		rv = do_if_up_down(system, ifp);
 	}
 
 failed:
-	xml_document_free(doc);
+	if (system)
+		ni_close(system);
 	return (rv == 0);
 }
 
