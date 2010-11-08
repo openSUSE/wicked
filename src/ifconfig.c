@@ -722,9 +722,9 @@ __ni_interface_extension_configure(ni_handle_t *nih, ni_interface_t *cfg, xml_no
 
 	ex = ni_config_find_linktype_extension(ni_global.config, cfg->type);
 	if (ex == NULL) {
-		error("cannot configure %s interface - not implemented yet",
+		ni_debug_ifconfig("cannot configure %s interface - not implemented yet",
 				ni_linktype_type_to_name(cfg->type));
-		return -1;
+		return 0;
 	}
 
 	return ni_extension_start(ex, cfg->name, cfg_xml);
