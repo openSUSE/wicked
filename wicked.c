@@ -312,6 +312,37 @@ ni_xml_interface_first(xml_document_t *doc, xml_node_t **nextp)
 	return ni_xml_interface_next(nextp);
 }
 
+static xml_node_t *
+wicked_filter_behavior(xml_node_t *response, const char *event, const char *action)
+{
+	xml_node_t *result, *ifnode, **tail;
+
+	if (response == NULL)
+		return NULL;
+
+	result = xml_node_new(NULL, NULL);
+	tail = &result->children;
+
+	while ((ifnode = response->children) != NULL) {
+		xml_node_t *child;
+		const char *attrval;
+
+		response->children = ifnode->next;
+		if (ni_string_eq(ifnode->name, "interface")
+		 && (child = xml_node_get_child(ifnode, "behavior")) != NULL
+		 && (child = xml_node_get_child(child, event)) != NULL
+		 && (attrval = xml_node_get_attr(child, "action")) != NULL
+		 && ni_string_eq(attrval, action)) {
+			*tail = ifnode;
+			tail = &ifnode->next;
+		} else {
+			xml_node_free(ifnode);
+		}
+	}
+
+	return result;
+}
+
 /*
  * Sort all interfaces of a list, taking into account master/slave
  * relationships of VLANs, bridges and bonds.
@@ -499,29 +530,12 @@ failed:
  * Bring a single interface up
  */
 static int
-do_ifup_one(xml_node_t *ifnode, int link_up, int network_up, int boot_only)
+do_ifup_one(xml_node_t *ifnode, int link_up, int network_up)
 {
 	const char *ifname;
 	int rv;
 
 	ifname = ni_xml_interface_get_name(ifnode);
-
-	if (boot_only && network_up) {
-		xml_node_t *behnode, *child;
-		const char *action;
-
-		if (!(behnode = xml_node_get_child(ifnode, "behavior"))
-		 || !(child = xml_node_get_child(behnode, "boot")))
-			return 0;
-		action = xml_node_get_attr(child, "action");
-		if (!action || strcmp(action, "start") != 0)
-			return 0;
-
-		/* For DHCP interfaces, we could tell the server here
-		 * that it should wait for the interface to come up.
-		 * Alternatively, we could keep checking that all interfaces
-		 * are up after we're done. */
-	}
 
 	ni_xml_interface_change_status(ifnode,
 					link_up? "up" : "down",
@@ -541,7 +555,6 @@ int
 do_ifup(int argc, char **argv)
 {
 	static struct option ifup_options[] = {
-		{ "boot", no_argument, NULL, 'b' },
 		{ "file", required_argument, NULL, 'f' },
 		{ NULL }
 	};
@@ -555,10 +568,6 @@ do_ifup(int argc, char **argv)
 	optind = 1;
 	while ((c = getopt_long(argc, argv, "", ifup_options, NULL)) != EOF) {
 		switch (c) {
-		case 'b':
-			opt_boot = 1;
-			break;
-
 		case 'f':
 			opt_file = optarg;
 			break;
@@ -607,21 +616,31 @@ usage:
 		xml_node_t *response;
 
 		if (!strcmp(ifname, "all")) {
-			response = wicked_get("/system/interface");
+			response = wicked_get("/config/interface");
+			response = wicked_filter_behavior(response, "manual", "start");
+		} else if (!strcmp(ifname, "boot")) {
+			response = wicked_get("/config/interface");
+			response = wicked_filter_behavior(response, "boot", "start");
+			opt_boot = 1;
 		} else {
-			response = wicked_get_interface("/system/interface", ifname);
+			response = wicked_get_interface("/config/interface", ifname);
 		}
 
 		if (!response) {
 			fprintf(stderr, "Unable to obtain interface configuration\n");
 			return 1;
 		}
+		if (response->children == NULL) {
+			fprintf(stderr, "no matching interfaces found\n");
+			xml_node_free(response);
+			return 0;
+		}
 
 		doc = xml_document_new();
 		xml_document_set_root(doc, response);
 	}
 
-	if (!strcmp(ifname, "all")) {
+	if (!strcmp(ifname, "all") || !strcmp(ifname, "boot")) {
 		struct ni_interface_dependency *sorted;
 		int i, ifcount;
 
@@ -630,9 +649,7 @@ usage:
 			goto failed;
 
 		for (i = 0; i < ifcount; ++i) {
-			rv = do_ifup_one(sorted[i].xml,
-						sorted[i].link_up, sorted[i].network_up,
-						opt_boot);
+			rv = do_ifup_one(sorted[i].xml, sorted[i].link_up, sorted[i].network_up);
 			if (rv < 0)
 				goto failed;
 		}
@@ -648,8 +665,10 @@ usage:
 			return 1;
 		}
 
-		rv = do_ifup_one(ifnode, 1, 1, opt_boot);
+		rv = do_ifup_one(ifnode, 1, 1);
 	}
+
+	/* TBD: Wait for all interfaces to come up */
 
 failed:
 	xml_document_free(doc);
