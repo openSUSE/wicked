@@ -1466,8 +1466,13 @@ __ni_interface_addrconf(ni_handle_t *nih, int family, ni_interface_t *ifp, ni_in
 			continue;
 
 		/* IPv6 autoconf takes care of itself */
-		if (family == AF_INET6 && mode == NI_ADDRCONF_AUTOCONF)
+		if (family == AF_INET6 && mode == NI_ADDRCONF_AUTOCONF) {
+			if (!cur_afi->lease[NI_ADDRCONF_AUTOCONF]) {
+				cur_afi->lease[NI_ADDRCONF_AUTOCONF] = ni_addrconf_lease_new(NI_ADDRCONF_AUTOCONF, family);
+				cur_afi->lease[NI_ADDRCONF_AUTOCONF]->state = NI_ADDRCONF_STATE_GRANTED;
+			}
 			continue;
+		}
 
 		acm = ni_addrconf_get(mode, family);
 		if (acm == NULL) {
