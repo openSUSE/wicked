@@ -871,13 +871,13 @@ ni_interface_add_route(ni_handle_t *nih, ni_interface_t *ifp,
  * Destructor function (and assorted helpers)
  */
 void
-__ni_interface_clear_addresses(ni_interface_t *ifp)
+ni_interface_clear_addresses(ni_interface_t *ifp)
 {
 	ni_address_list_destroy(&ifp->addrs);
 }
 
 void
-__ni_interface_clear_routes(ni_interface_t *ifp)
+ni_interface_clear_routes(ni_interface_t *ifp)
 {
 	ni_route_list_destroy(&ifp->routes);
 }
@@ -910,8 +910,8 @@ ni_interface_free(ni_interface_t *ifp)
 	free(ifp->qdisc);
 
 	/* Clear out addresses, stats */
-	__ni_interface_clear_addresses(ifp);
-	__ni_interface_clear_routes(ifp);
+	ni_interface_clear_addresses(ifp);
+	ni_interface_clear_routes(ifp);
 	__ni_interface_clear_stats(ifp);
 	__ni_interface_clear_bonding(ifp);
 	__ni_interface_clear_bridge(ifp);

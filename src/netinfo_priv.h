@@ -97,8 +97,6 @@ struct ni_syntax {
 extern ni_handle_t *	__ni_handle_new(size_t, struct ni_ops *);
 extern ni_interface_t *	__ni_interface_new(const char *name, unsigned int index);
 extern void		__ni_interface_list_destroy(ni_interface_t **);
-extern void		__ni_interface_clear_routes(ni_interface_t *);
-extern void		__ni_interface_clear_addresses(ni_interface_t *);
 extern void		__ni_interface_clear_stats(ni_interface_t *);
 extern void		__ni_interfaces_clear(ni_handle_t *);
 extern ni_addrconf_lease_t *__ni_interface_address_to_lease(ni_interface_t *, const ni_address_t *);

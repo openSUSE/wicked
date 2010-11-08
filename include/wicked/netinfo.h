@@ -291,6 +291,9 @@ extern void		ni_interface_array_append(ni_interface_array_t *, ni_interface_t *)
 extern void		ni_interface_array_destroy(ni_interface_array_t *);
 extern int		ni_interface_array_index(const ni_interface_array_t *, const ni_interface_t *);
 
+extern void             ni_interface_clear_addresses(ni_interface_t *);
+extern void             ni_interface_clear_routes(ni_interface_t *);
+
 extern ni_address_t *	ni_address_new(ni_interface_t *ifp, int af,
 				unsigned int prefix_len,
 				const struct sockaddr_storage *local_addr);

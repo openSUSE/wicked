@@ -239,8 +239,8 @@ __ni_system_refresh_all(ni_handle_t *nih)
 			tail = &ifp->next;
 		} else {
 			/* Clear out addresses and routes */
-			__ni_interface_clear_addresses(ifp);
-			__ni_interface_clear_routes(ifp);
+			ni_interface_clear_addresses(ifp);
+			ni_interface_clear_routes(ifp);
 		}
 
 		ifp->seq = seqno;
@@ -345,8 +345,8 @@ __ni_system_refresh_interface(ni_handle_t *nih, ni_interface_t *ifp)
 			break;
 
 		/* Clear out addresses and routes */
-		__ni_interface_clear_addresses(ifp);
-		__ni_interface_clear_routes(ifp);
+		ni_interface_clear_addresses(ifp);
+		ni_interface_clear_routes(ifp);
 
 		if (__ni_interface_process_newlink(ifp, h, ifi, nih) < 0)
 			error("Problem parsing RTM_NEWLINK message for %s", ifp->name);
