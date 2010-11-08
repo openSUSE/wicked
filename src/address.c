@@ -111,6 +111,28 @@ ni_address_list_append(ni_address_t **list, ni_address_t *ap)
 	*list = ap;
 }
 
+int
+__ni_address_list_dedup(ni_address_t **list)
+{
+	ni_address_t **pos, *ap;
+	ni_address_t **pos2, *ap2;
+
+	for (pos = list; (ap = *pos) != NULL; pos = &ap->next) {
+		for (pos2 = &ap->next; (ap2 = *pos2) != NULL; ) {
+			if (ni_address_equal(&ap->local_addr, &ap2->local_addr)) {
+				if (memcmp(ap, ap2, sizeof(*ap)) != 0)
+					return -1; // duplicate address
+				*pos2 = ap2->next;
+				ni_address_free(ap2);
+			} else {
+				pos2 = &ap2->next;
+			}
+		}
+	}
+
+	return 0;
+}
+
 void
 ni_address_list_destroy(ni_address_t **list)
 {

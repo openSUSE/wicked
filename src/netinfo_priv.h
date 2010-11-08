@@ -122,6 +122,7 @@ extern void		__ni_routes_clear(ni_handle_t *);
 
 extern ni_address_t *	__ni_address_new(ni_address_t **, int, unsigned int,
 				const struct sockaddr_storage *);
+extern int		__ni_address_list_dedup(ni_address_t **);
 
 extern int		__ni_system_refresh_all(ni_handle_t *);
 extern int		__ni_system_refresh_interface(ni_handle_t *, ni_interface_t *);
