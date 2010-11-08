@@ -12,6 +12,7 @@
  */
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 #include <mcheck.h>
 #include <stdlib.h>
 #include <getopt.h>
@@ -19,6 +20,7 @@
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
 #include <wicked/wicked.h>
+#include <wicked/addrconf.h>
 #include <wicked/bonding.h>
 #include <wicked/bridge.h>
 #include <wicked/xml.h>
@@ -48,6 +50,7 @@ static int	do_rest(const char *, int, char **);
 static int	do_xpath(int, char **);
 static int	do_ifup(int, char **);
 static int	do_ifdown(int, char **);
+static void	clear_line(FILE *);
 
 int
 main(int argc, char **argv)
@@ -534,6 +537,130 @@ ni_interface_topology_flatten(ni_handle_t *config, ni_interface_array_t *out, in
 }
 
 /*
+ * Check whether we have all requested leases
+ */
+static int
+ni_interface_is_up_afinfo(const char *ifname, const ni_afinfo_t *cfg_afi, const ni_afinfo_t *cur_afi)
+{
+	unsigned int type;
+
+	for (type = 0; type < __NI_ADDRCONF_MAX; ++type) {
+		if (type == NI_ADDRCONF_STATIC || !ni_afinfo_addrconf_test(cfg_afi, type))
+			continue;
+		if (!ni_afinfo_addrconf_test(cur_afi, type)) {
+			ni_debug_wicked("%s: addrconf mode %s/%s not enabled", ifname,
+					ni_addrfamily_type_to_name(cfg_afi->family),
+					ni_addrconf_type_to_name(type));
+			return 0;
+		}
+		if (!ni_addrconf_lease_is_valid(cur_afi->lease[type])) {
+			ni_debug_wicked("%s: addrconf mode %s/%s enabled; no lease yet", ifname,
+					ni_addrfamily_type_to_name(cfg_afi->family),
+					ni_addrconf_type_to_name(type));
+			return 0;
+		}
+	}
+
+	return 1;
+}
+
+/*
+ * Check whether interface is up
+ */
+static int
+ni_interface_is_up(ni_handle_t *system, const ni_interface_t *cfg)
+{
+	ni_interface_t *cur;
+
+	/* Ignore subordinate interfaces (bridge ports, bond members) for now */
+	if (cfg->parent)
+		return 1;
+
+	/* The interface pointer we were given contains the *config* view
+	 * of the interface, ie the state we want it to be in.
+	 * To inspect the current (system) state, we need to look it up
+	 * first. */
+	cur = ni_interface_by_name(system, cfg->name);
+	if (cur == NULL)
+		return 0;
+
+	if ((cfg->flags ^ cur->flags) & (IFF_UP | IFF_LOWER_UP))
+		return 0;
+
+	if (!ni_interface_is_up_afinfo(cfg->name, &cfg->ipv4, &cur->ipv4)
+	 || !ni_interface_is_up_afinfo(cfg->name, &cfg->ipv6, &cur->ipv6))
+		return 0;
+
+	return 1;
+}
+
+/*
+ * Wait for interfaces to come up
+ */
+static int
+ni_interfaces_wait(ni_handle_t *system, const ni_interface_array_t *iflist, unsigned int ifevent, ni_evaction_t action)
+{
+	unsigned int i, waited = 0, dots = 0;
+	int rv;
+
+	setvbuf(stdout, NULL,_IONBF,  0);
+	while (1) {
+		unsigned int wait = 0;
+
+		for (i = 0; i < iflist->count; ++i) {
+			ni_interface_t *ifp = iflist->data[i];
+			ni_ifaction_t *ifa = &ifp->startmode.ifaction[ifevent];
+
+			if (ifa->wait == 0)
+				continue;
+			if (action == NI_INTERFACE_START) {
+				/* We're trying to start the interface. */
+				if (ni_interface_is_up(system, ifp)) {
+					printf("\r"); clear_line(stdout);
+					printf("%s: up\n", ifp->name);
+					ifa->wait = 0;
+					continue;
+				}
+			} else {
+				/* We're trying to stop the interface */
+				/* To be done */
+				ifa->wait = 0;
+				continue;
+			}
+
+			if (dots == 0) {
+				printf("%s: ", ifp->name);
+				dots = strlen(ifp->name + 2);
+			}
+
+			if (ifa->wait < waited) {
+				printf("\r"); clear_line(stdout);
+				ni_error("%s: failed to come up", ifp->name);
+				ifa->wait = 0;
+				if (ifa->mandatory)
+					rv = -1;
+				continue;
+			}
+			wait++;
+		}
+
+		if (!wait)
+			break;
+
+		sleep(1);
+
+		printf(".");
+		dots++;
+		waited++;
+
+		if ((rv = ni_refresh(system)) < 0)
+			return -1;
+	}
+
+	return 0;
+}
+
+/*
  * Bring a single interface up
  */
 static int
@@ -630,9 +757,14 @@ do_ifup(int argc, char **argv)
 	};
 	const char *ifname = NULL;
 	const char *opt_file = NULL;
+	unsigned int ifevent = NI_IFACTION_MANUAL;
 	ni_handle_t *config = NULL;
 	ni_handle_t *system = NULL;
+	ni_interface_array_t iflist;
+	unsigned int i;
 	int c, rv = -1;
+
+	ni_interface_array_init(&iflist);
 
 	optind = 1;
 	while ((c = getopt_long(argc, argv, "", ifup_options, NULL)) != EOF) {
@@ -662,6 +794,11 @@ usage:
 	}
 	ifname = argv[optind++];
 
+	if (!strcmp(ifname, "boot")) {
+		ifevent = NI_IFACTION_BOOT;
+		ifname = "all";
+	}
+
 	/* Using --file means, read the interface definition from a local file.
 	 * Otherwise, first retrieve /config/interface/<ifname> from the server,
 	 * change <status> to up, and send it back.
@@ -676,7 +813,7 @@ usage:
 		}
 	} else {
 		config = ni_indirect_open("/config");
-		if (!strcmp(ifname, "all") || !strcmp(ifname, "boot")) {
+		if (!strcmp(ifname, "all")) {
 			rv = ni_refresh(config);
 		} else {
 			rv = ni_interface_refresh_one(config, ifname);
@@ -690,28 +827,13 @@ usage:
 
 	system = ni_indirect_open("/system");
 
-	if (!strcmp(ifname, "all") || !strcmp(ifname, "boot")) {
-		ni_interface_array_t iflist;
-		unsigned int i;
-
+	if (!strcmp(ifname, "all")) {
 		if (ni_build_partial_topology(config)) {
 			ni_error("failed to build interface hierarchy");
 			goto failed;
 		}
 
-		ni_interface_array_init(&iflist);
-		if (!strcmp(ifname, "boot"))
-			rv = ni_interface_topology_flatten(config, &iflist, NI_IFACTION_BOOT, NI_INTERFACE_START);
-		else
-			rv = ni_interface_topology_flatten(config, &iflist, -1, NI_INTERFACE_IGNORE);
-
-
-		for (i = 0; rv >= 0 && i < iflist.count; ++i)
-			rv = do_ifup_one(system, iflist.data[i]);
-
-		ni_interface_array_destroy(&iflist);
-		if (rv < 0)
-			goto failed;
+		rv = ni_interface_topology_flatten(config, &iflist, ifevent, NI_INTERFACE_START);
 	} else {
 		ni_interface_t *ifp;
 
@@ -720,17 +842,23 @@ usage:
 			goto failed;
 		}
 
+		ni_interface_array_append(&iflist, ifp);
 		ifp->flags |= IFF_UP | IFF_LOWER_UP;
-		rv = do_ifup_one(system, ifp);
 	}
 
-	/* TBD: Wait for all interfaces to come up */
+	for (i = 0; rv >= 0 && i < iflist.count; ++i)
+		rv = do_ifup_one(system, iflist.data[i]);
+
+	/* Wait for all interfaces to come up */
+	if (rv >= 0)
+		rv = ni_interfaces_wait(system, &iflist, ifevent, NI_INTERFACE_START);
 
 failed:
 	if (config)
 		ni_close(config);
 	if (system)
 		ni_close(system);
+	ni_interface_array_destroy(&iflist);
 	return (rv == 0);
 }
 
@@ -746,6 +874,7 @@ do_ifdown(int argc, char **argv)
 	};
 	int opt_delete = 0;
 	const char *ifname = NULL;
+	unsigned int ifevent = NI_IFACTION_MANUAL;
 	ni_handle_t *system = NULL;
 	int c, rv;
 
@@ -793,6 +922,12 @@ usage:
 		}
 	}
 
+	ifevent = NI_IFACTION_MANUAL;
+	if (!strcmp(ifname, "shutdown")) {
+		ifevent = NI_IFACTION_SHUTDOWN;
+		ifname = "all";
+	}
+
 	if (!strcmp(ifname, "all")) {
 		ni_interface_array_t iflist;
 		int i;
@@ -803,11 +938,7 @@ usage:
 		}
 
 		ni_interface_array_init(&iflist);
-		if (!strcmp(ifname, "boot"))
-			rv = ni_interface_topology_flatten(system, &iflist, NI_IFACTION_BOOT, NI_INTERFACE_START);
-		else
-			rv = ni_interface_topology_flatten(system, &iflist, -1, NI_INTERFACE_IGNORE);
-
+		rv = ni_interface_topology_flatten(system, &iflist, ifevent, NI_INTERFACE_STOP);
 
 		for (i = iflist.count - 1; rv >= 0 && i >= 0; --i) {
 			iflist.data[i]->flags &= ~(IFF_UP | IFF_LOWER_UP);
@@ -1005,4 +1136,13 @@ do_xpath(int argc, char **argv)
 	}
 
 	return 0;
+}
+
+static void
+clear_line(FILE *fp)
+{
+	if (isatty(fileno(fp))) {
+		/* use termcap to do this */
+	}
+	fprintf(fp, "%20s\r", "");
 }
