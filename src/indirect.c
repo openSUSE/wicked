@@ -179,6 +179,9 @@ __ni_indirect_interface_refresh_one(ni_handle_t *nih, const char *ifname)
 	if (result == NULL)
 		goto out;
 
+	if (result->name == NULL && result->children)
+		result = result->children;
+
 	syntax = ni_default_xml_syntax();
 	if (!syntax)
 		goto out;
@@ -233,7 +236,11 @@ __ni_indirect_interface_configure(ni_handle_t *nih,
 
 	/* If we received XML data from server, update cached interface desc */
 	if (req.xml_out != NULL) {
+		xml_node_t *response = req.xml_out;
 		ni_interface_t **pos;
+
+		if (response->name == NULL && response->children)
+			response = response->children;
 
 		for (pos = &nih->iflist; *pos; pos = &(*pos)->next) {
 			if (*pos == ifp) {
@@ -243,7 +250,7 @@ __ni_indirect_interface_configure(ni_handle_t *nih,
 			}
 		}
 
-		ifp = ni_syntax_xml_to_interface(syntax, nih, req.xml_out);
+		ifp = ni_syntax_xml_to_interface(syntax, nih, response);
 		if (ifp < 0) {
 			ni_error("failed to parse server xml");
 			rv = -1;
