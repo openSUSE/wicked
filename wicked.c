@@ -195,62 +195,6 @@ __wicked_request(int rest_op, const char *path,
 	return rv;
 }
 
-xml_node_t *
-wicked_get(const char *path)
-{
-	xml_node_t *out = NULL;
-
-	if (__wicked_request(NI_REST_OP_GET, path, NULL, &out) < 0)
-		return NULL;
-
-	return out;
-}
-
-xml_node_t *
-wicked_get_interface(const char *base_path, const char *ifname)
-{
-	char pathbuf[256];
-
-	snprintf(pathbuf, sizeof(pathbuf), "%s/%s", base_path, ifname);
-	return wicked_get(pathbuf);
-}
-
-int
-wicked_put(const char *path, xml_node_t *in)
-{
-	return __wicked_request(NI_REST_OP_PUT, path, in, NULL);
-}
-
-int
-wicked_put_interface(const char *base_path, const char *ifname, xml_node_t *in)
-{
-	xml_node_t *out = NULL;
-	char pathbuf[256];
-
-	snprintf(pathbuf, sizeof(pathbuf), "%s/%s", base_path, ifname);
-	if (__wicked_request(NI_REST_OP_PUT, pathbuf, in, &out) < 0)
-		return -1;
-
-	if (out) {
-		xml_node_print(out, stdout);
-		xml_node_free(out);
-	}
-
-	return 0;
-}
-
-int
-wicked_delete_interface(const char *base_path, const char *ifname)
-{
-	char pathbuf[256];
-
-	snprintf(pathbuf, sizeof(pathbuf), "%s/%s", base_path, ifname);
-	if (__wicked_request(NI_REST_OP_DELETE, pathbuf, NULL, NULL) < 0)
-		return -1;
-
-	return 0;
-}
-
 enum {
 	STATE_UNKNOWN = 0,
 	STATE_DEVICE_DOWN,
