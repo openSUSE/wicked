@@ -77,12 +77,22 @@ out:
 static int
 ni_dhcp_addrconf_request(const ni_addrconf_t *acm, ni_interface_t *ifp, const xml_node_t *cfg_xml)
 {
+	if (!ni_afinfo_addrconf_test(&ifp->ipv4, NI_ADDRCONF_DHCP)) {
+		ni_warn("%s: DHCP not enabled", __FUNCTION__);
+		ni_afinfo_addrconf_enable(&ifp->ipv4, NI_ADDRCONF_DHCP);
+	}
+
 	return __ni_dhcp_addrconf_do(acm, ifp, cfg_xml);
 }
 
 static int
 ni_dhcp_addrconf_release(const ni_addrconf_t *acm, ni_interface_t *ifp, ni_addrconf_lease_t *lease)
 {
+	if (ni_afinfo_addrconf_test(&ifp->ipv4, NI_ADDRCONF_DHCP)) {
+		ni_warn("%s: DHCP still marked enabled", __FUNCTION__);
+		ni_afinfo_addrconf_disable(&ifp->ipv4, NI_ADDRCONF_DHCP);
+	}
+
 	return __ni_dhcp_addrconf_do(acm, ifp, 0);
 }
 
