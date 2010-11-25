@@ -650,7 +650,10 @@ again:
 				if (state->behavior.only_if_link
 				 && state->have_state == STATE_DEVICE_UP
 				 && state->next_state == STATE_LINK_UP) {
+					/* Dang, link didn't come up. We're supposed to bring up
+					 * the network later, when the link comes up, so trigger that now. */
 					print_message("%s: no link", state->ifname);
+					interface_change(state, system, NULL, state->want_state, 0);
 					continue;
 				}
 
