@@ -9,12 +9,11 @@ wicked \- network management service
 Wicked provides a new, experimental framework for network configuration.
 .PP
 The idea is to replace much of the shell scripting that happens in
-.B /sbin/ifup
-and the related init scripts with a combination of C code that handles
-most of the basic interface configuration tasks, with a powerful,
-extensible XML representation of the network configuration. The major
-motivation in choosing XML was the ability to represent complex nested
-configurations.
+\fB/sbin/ifup\fP and the related init scripts with a combination of C
+code that handles most of the basic interface configuration tasks, with a
+powerful, extensible XML representation of the network configuration. The
+major motivation in choosing XML was the ability to represent complex
+nested configurations.
 .PP
 This implementation uses a daemon service and a command
 line utility. These two communicate securely via a local UNIX socket,
@@ -25,31 +24,23 @@ configuration. The client application uses REST calls to retrieve
 interface configuration and status, or to reconfigure interfaces.
 The namespace used by the API can be extended to cover other
 aspects of network configuration as well, such as reading, writing
-and restoring the
-.B resolv.conf
-file.
+and restoring the \fBresolv.conf\fP file.
 .PP
 .SH The Namespace
-Conceptually, the wicked network management system deals two
+Conceptually, the wicked network management system deals with two
 very distinct classes of information; one is the stored configuration,
 and the other is the current run-time state of your system. For
 network interfaces, configuration is commonly stored in files residing
-in 
-.BR /etc/sysconfig/network ,
-whereas the run-time information is retrieved by talking to the kernel's
-rtnetlink facility, by reading sysfs files, and by using device specific
-.BR ioctl (2)
-calls.
+in \fB/etc/sysconfig/network\fP, whereas the run-time information is
+retrieved by talking to the kernel's rtnetlink facility, by reading
+sysfs files, and by using device specific \fBioctl\fP(2) calls.
 .PP
 Based on this premise, the namespace is split into two major pieces,
-.BR /config " and " /system ", respectively.
-Below these two top nodes, the two hierarchies are mostly identical
-in naming. For instance, for a given interface named
-.BR eth0 ,
-there are two nodes in the namespace:
-.BR /config/interface/eth0 ,
-representing the stored configuration, and
-.BR /system/interface/eth0 ", respectively.
+\fB/config\fP and \fB/system\fP, respectively.  Below these two top
+nodes, the two hierarchies are mostly identical in naming. For instance,
+for a given interface named \fBeth0\fP, there are two nodes in the namespace:
+\fB/config/interface/eth0\fP, representing the stored configuration,
+and \fB/system/interface/eth0\fP, respectively.
 .PP
 The RESTful interface supports four verbs, but not every node necessarily
 supports all of them. Many nodes actually do not support any verbs.
@@ -62,16 +53,14 @@ XML representation, and returns it to the client in the response.
 This expects the body of request to contain an XML document, which is
 then used to overwrite the configuration at the given namespace node.
 For instance, by putting an interface definition to
-.BR /system/interface/br0 ,
-you can reconfigure the bridge interface 
-.BR br0 ,
-optionally creating it if it doesn't exist yet.
+\fB/system/interface/br0\fP, you can reconfigure the bridge interface 
+\fBbr0\fP, optionally creating it if it doesn't exist yet.
 .TP
 .B POST
 This expects the body of request to contain an XML document, which is
 then used to augment the configuration at the given namespace node.
-For instance, this could be used to add a new port to a bridge.
-.I None of the existing namespace supports this yet.
+For instance, this is used to add an interface policy to the daemon's
+list of policies.
 .TP
 .B DELETE
 This deletes the given namespace node. For instance, this can be used
@@ -82,21 +71,17 @@ delete a VLAN virtual interface.
 .TP
 .B /config/interface
 This node holds all stored interface configuration. The only supported
-operation is
-.BR GET ,
-which retrieves the XML representation of all interface configurations.
+operation is \fBGET\fP, which retrieves the XML representation of all
+interface configurations.
 .TP
 .BI /config/interface/ ifname
-This node represents the interface configuration of interface
-.IR ifname .
-Valid operations are
-.BR GET ", " PUT " and " DELETE ,
+This node represents the interface configuration of interface \fIifname\fP.
+Valid operations are \fBGET\fP, \fBPUT\fP and \fBDELETE\fP,
 which retrieve, overwrite and destroy the stored configuration, respectively.
-.IP
-.IR "Caveat: Only GET is implemented currently" .
 .TP
 .B /config/resolver
-This node represents that (permanent) resolver configuration.
+This node represents the (permanent) resolver configuration, which may be
+different from what is currently active in the system.
 .IP
 .IR "Caveat: This is not implemented yet" .
 .\" ------------------------------------------------------------------
@@ -109,59 +94,64 @@ operation is
 which retrieves the XML representation of the runtime state all interfaces.
 .TP
 .BI /system/interface/ ifname
-This node represents the runtime state of the interface
-.IR ifname .
-Valid operations are
-.BR GET ", " PUT " and " DELETE .
-The
-.B GET
-request retrieves the current state. The 
-.B PUT
+This node represents the runtime state of the interface \fIifname\fP.
+Valid operations are \fBGET\fP, \fBPUT\fP and \fBDELETE\fP.
+The \fBGET\fP request retrieves the current state. The \fBPUT\fP
 request reconfigures the device according to the provided XML document,
 including taking the interface up or down, assigning addresses, assembling
-a bond from a list of slave devices, etc. The
-.B DELETE
+a bond from a list of slave devices, etc. The \fBDELETE\fP
 request is only valid for virtual interfaces such as VLANs, bonds or
 bridges, and deletes the virtual interface completely.
 .TP
+.B /system/policy
+This node represents how the system reacts to interfaces coming online
+(for instance, the link layer on an Ethernet interface coming up), or
+going offline. By default, \fBwickedd\fP does not react to such events
+at all. By posting a policy to this node, it can be instructed to configure
+such an interface, for instance, or take it down.
+.IP
+Valid operations are \fBGET\fP and \fBPOST\fP.
+.TP
 .B /system/hostname
-This is an example of how the wicked namespace could be extended. This
-node allows retrieval of the system's hostname via the
-.B GET
-request only.
+This node provides access to the system's hostname. Obviously, an application
+could easily use the \fBgethostname\fP(2) and \fBsethostname\fP(2) system
+calls instead of this interface. This node is used by address configuration
+mechanisms such as DHCP to set the hostname, if desired.
+.IP
+Valid operations are \fBGET\fP and \fBPUT\fP.
 .TP
 .B /system/resolver
 This node represents the current resolver configuration. It can be
-changed using the
-.B PUT
-request.
-.IP
-.IR "Caveat: This is not implemented yet" .
+retrieved and changed using the \fBGET\fP and \fBPUT\fP requests,
+respectively.
+.TP
+.B /system/nis
+This node represents the current NIS client configuration. It can be
+retrieved and changed using the \fBGET\fP and \fBPUT\fP requests,
+respectively.
 .TP
 .BI /system/event/ ifname
 This is an event sink, used for instance by address configuration agent.
-The only supported operation is
-.BR POST ,
-which sends and event to interface
-.I ifname .
-The event is described by an XML document.
-Currently, only
-.B lease
-events are supported.
+The only supported operation is \fBPOST\fP, which sends an event to interface
+\fIifname\fP. Currently, only \fBlease\fP events are supported, which inform
+the service when DHCP or a similar address configuration mechanism has
+obtained or dropped a lease.
+.IP
+This interface is internal, and should not be used by applications.
 .\" ------------------------------------------------------------------
 .SS The wicked node
 .TP
 .B /wicked/meta
-This node supports the GET request only. It will return an XML document
+This node supports the \fBGET\fP request only. It will return an XML document
 describing the supported namespace, along with the supported operations.
 .TP
 .B /wicked/debug
 This node lets you query and change the current debugging level of the
-wicked daemon. Using GET will give you a
+wicked daemon. Using \fBGET\fP will give you a
 .BR <debug>
-element with the current debug settings. Using PUT with such a document
-will set the debug status according to the given data. A POST command
-will change the named debug flacilities, but leave the others untouched.
+element with the current debug settings. Using \fBPUT\fP with such a document
+will set the debug status according to the given data. A \fBPOST\fP command
+will change the named debug facilities, but leave the others untouched.
 .\" ------------------------------------------------------------------
 .SH "SEE ALSO"
 .BR wickedd (8),
