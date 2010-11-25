@@ -711,6 +711,56 @@ static ni_rest_node_t	ni_rest_config_interface_node = {
 };
 
 static int
+system_policy_post(const char *ifname, ni_wicked_request_t *req)
+{
+	ni_policy_info_t policy_info = { NULL };
+	ni_policy_t *policy;
+	int rv = -1;
+
+	if (ifname != NULL) {
+		werror(req, "unexpected parameter");
+		return -1;
+	}
+
+	if (__ni_syntax_xml_to_policy_info(ni_default_xml_syntax(), &policy_info, req->xml_in) < 0) {
+		werror(req, "unable to parse interface policies");
+		goto failed;
+	}
+
+	for (policy = policy_info.event_policies; policy; policy = policy->next)
+		ni_policy_add(ni_global_policies(), policy);
+
+	rv = 0;
+
+failed:
+	ni_policy_info_destroy(&policy_info);
+	return rv;
+}
+
+static int
+system_policy_get(const char *path, ni_wicked_request_t *req)
+{
+	req->xml_out = __ni_syntax_xml_from_policy_info(ni_default_xml_syntax(),
+					ni_global_policies());
+	if (req->xml_out == NULL) {
+		werror(req, "unable to represent policies as XML");
+		return -1;
+	}
+
+	return 0;
+}
+
+static ni_rest_node_t	ni_rest_system_policy_node = {
+	.name		= "policy",
+	.ops = {
+	    .byname = {
+		.get	= system_policy_get,
+		.post	= system_policy_post,
+	    },
+	},
+};
+
+static int
 generic_hostname_get(ni_handle_t *nih, const char *path, ni_wicked_request_t *req)
 {
 	char hostname[256];
@@ -1298,6 +1348,7 @@ static ni_rest_node_t	ni_rest_system_node = {
 	.name		= "system",
 	.children = {
 		&ni_rest_system_interface_node,
+		&ni_rest_system_policy_node,
 		&ni_rest_system_hostname_node,
 		&ni_rest_system_nis_node,
 		&ni_rest_system_resolver_node,

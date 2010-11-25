@@ -50,10 +50,12 @@ static void		__ni_netcf_xml_from_bonding(ni_syntax_t *syntax, ni_handle_t *nih,
 static void		__ni_netcf_xml_from_vlan(ni_syntax_t *syntax, ni_handle_t *nih,
 				ni_vlan_t *vlan, xml_node_t *fp);
 
+static xml_node_t *	__ni_netcf_xml_from_policy(ni_syntax_t *, const ni_policy_t *, xml_node_t *);
 static xml_node_t *	__ni_netcf_xml_from_addrconf_req(ni_syntax_t *, const ni_addrconf_request_t *, xml_node_t *);
 static xml_node_t *	__ni_netcf_xml_from_lease(ni_syntax_t *, const ni_addrconf_lease_t *, xml_node_t *parent);
 static xml_node_t *	__ni_netcf_xml_from_nis(ni_syntax_t *, const ni_nis_info_t *, xml_node_t *);
 static xml_node_t *	__ni_netcf_xml_from_resolver(ni_syntax_t *, const ni_resolver_info_t *, xml_node_t *);
+static ni_policy_t *	__ni_netcf_xml_to_policy(ni_syntax_t *, xml_node_t *);
 static ni_addrconf_request_t *__ni_netcf_xml_to_addrconf_req(ni_syntax_t *, const xml_node_t *, int);
 static ni_addrconf_lease_t *__ni_netcf_xml_to_lease(ni_syntax_t *, const xml_node_t *);
 static ni_nis_info_t *	__ni_netcf_xml_to_nis(ni_syntax_t *, const xml_node_t *);
@@ -92,6 +94,8 @@ __ni_syntax_netcf(const char *pathname)
 	syntax->base_path = pathname? strdup(pathname) : NULL;
 	syntax->xml_from_interface = __ni_netcf_xml_from_interface;
 	syntax->xml_to_interface = __ni_netcf_xml_to_interface;
+	syntax->xml_from_policy = __ni_netcf_xml_from_policy;
+	syntax->xml_to_policy = __ni_netcf_xml_to_policy;
 	syntax->xml_from_lease = __ni_netcf_xml_from_lease;
 	syntax->xml_to_lease = __ni_netcf_xml_to_lease;
 	syntax->xml_from_request = __ni_netcf_xml_from_addrconf_req;
@@ -1506,6 +1510,77 @@ __ni_netcf_xml_to_behavior(ni_ifbehavior_t *beh, const xml_node_t *node)
 			xml_node_get_attr_uint(grandchild, "seconds", &ifa->wait);
 	}
 	return 0;
+}
+
+/*
+ * Represent policy objects
+ */
+static xml_node_t *
+__ni_netcf_xml_from_policy(ni_syntax_t *syntax, const ni_policy_t *policy, xml_node_t *parent)
+{
+	const char *event_name;
+	xml_node_t *node;
+
+	if ((event_name = ni_event_type_to_name(policy->event)) == NULL) {
+		ni_error("unknown event type %u", policy->event);
+		return NULL;
+	}
+
+	node = xml_node_new("policy", parent);
+	xml_node_add_attr(node, "event", event_name);
+
+	if (policy->interface) {
+		ni_handle_t *nih = ni_dummy_open();
+
+		if (__ni_netcf_xml_from_interface(syntax, nih, policy->interface, node) < 0) {
+			ni_close(nih);
+			return NULL;
+		}
+		ni_close(nih);
+	}
+	return node;
+}
+
+static ni_policy_t *
+__ni_netcf_xml_to_policy(ni_syntax_t *syntax, xml_node_t *node)
+{
+	ni_policy_t *policy = NULL;
+	const char *event_name;
+	xml_node_t *child;
+	int event;
+
+	if (!(event_name = xml_node_get_attr(node, "event"))) {
+		ni_error("%s: missing policy event", __FUNCTION__);
+		return NULL;
+	}
+	if ((event = ni_event_name_to_type(event_name)) < 0) {
+		ni_error("%s: unknown policy event \"%s\"", __FUNCTION__, event_name);
+		return NULL;
+	}
+
+	policy = ni_policy_new(event);
+	if ((child = xml_node_get_child(node, "interface")) != NULL) {
+		ni_interface_t *ifp;
+		ni_handle_t *nih;
+
+		nih = ni_dummy_open();
+		ifp = __ni_netcf_xml_to_interface(syntax, nih, child);
+
+		if (ifp == NULL) {
+			ni_error("%s: cannot parse interface descriptor", __FUNCTION__);
+			ni_close(nih);
+			goto failed;
+		}
+		policy->interface = ni_interface_get(ifp);
+		ni_close(nih);
+	}
+
+	return policy;
+
+failed:
+	if (policy)
+		ni_policy_free(policy);
+	return NULL;
 }
 
 /*

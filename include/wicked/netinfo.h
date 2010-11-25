@@ -204,9 +204,12 @@ extern void		ni_set_global_config_path(const char *);
 extern int		ni_init(void);
 
 extern ni_policy_info_t *ni_global_policies(void);
+extern int		ni_policy_add(ni_policy_info_t *, const ni_policy_t *);
 extern ni_policy_t *	ni_policy_match_event(ni_policy_info_t *, ni_event_t, const ni_interface_t *);
 extern void		ni_policy_info_destroy(ni_policy_info_t *);
 extern int		ni_policy_apply(const ni_policy_t *, xml_node_t *);
+extern ni_policy_t *	ni_policy_new(ni_event_t);
+extern void		ni_policy_free(ni_policy_t *);
 
 extern ni_socket_t *	ni_server_listen(void);
 extern ni_socket_t *	ni_server_connect(void);

@@ -83,6 +83,10 @@ struct ni_syntax {
 						xml_node_t *parent);
 	ni_interface_t *	(*xml_to_interface)(ni_syntax_t *, ni_handle_t *, xml_node_t *);
 
+	xml_node_t *		(*xml_from_policy)(ni_syntax_t *, const ni_policy_t *,
+						xml_node_t *parent);
+	ni_policy_t *		(*xml_to_policy)(ni_syntax_t *, xml_node_t *);
+
 	xml_node_t *		(*xml_from_lease)(ni_syntax_t *, const ni_addrconf_lease_t *, xml_node_t *parent);
 	ni_addrconf_lease_t *	(*xml_to_lease)(ni_syntax_t *, const xml_node_t *);
 	xml_node_t *		(*xml_from_request)(ni_syntax_t *, const ni_addrconf_request_t *, xml_node_t *parent);
@@ -133,6 +137,10 @@ extern int		__ni_system_interface_update_lease(ni_handle_t *, ni_interface_t *, 
 extern int		__ni_rtevent_refresh_all(ni_handle_t *);
 
 extern int		__ni_syntax_xml_to_all(ni_syntax_t *, ni_handle_t *, const xml_node_t *);
+extern int		__ni_syntax_xml_to_policy_info(ni_syntax_t *, ni_policy_info_t *,
+					const xml_node_t *);
+extern xml_node_t *	__ni_syntax_xml_from_policy_info(ni_syntax_t *, const ni_policy_info_t *);
+
 extern ni_syntax_t *	__ni_syntax_sysconfig_suse(const char *pathname);
 extern ni_syntax_t *	__ni_syntax_sysconfig_redhat(const char *pathname);
 extern ni_syntax_t *	__ni_syntax_netcf(const char *pathname);

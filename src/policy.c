@@ -67,10 +67,71 @@
 
 static ni_policy_info_t	__ni_global_policies;
 
+static int		ni_policy_match_interface(const ni_policy_t *, const ni_interface_t *);
+
+/*
+ * Do not expose this global variable directly.
+ */
 ni_policy_info_t *
 ni_global_policies()
 {
 	return &__ni_global_policies;
+}
+
+/*
+ * Constructor/destructor
+ */
+ni_policy_t *
+ni_policy_new(ni_event_t event)
+{
+	ni_policy_t *policy;
+
+	policy = calloc(1, sizeof(*policy));
+	policy->event = event;
+
+	return policy;
+}
+
+void
+ni_policy_free(ni_policy_t *policy)
+{
+	if (policy->interface)
+		ni_interface_put(policy->interface);
+	free(policy);
+}
+
+/*
+ * Add or update a policy
+ */
+int
+ni_policy_add(ni_policy_info_t *info, const ni_policy_t *new_policy)
+{
+	ni_policy_t *policy, **pos;
+
+	if (new_policy->interface == NULL) {
+		ni_error("%s: interface is NULL", __FUNCTION__);
+		return -1;
+	}
+
+	for (pos = &info->event_policies; (policy = *pos) != NULL; pos = &policy->next) {
+		if (policy->event != new_policy->event)
+			continue;
+
+		if (ni_policy_match_interface(policy, new_policy->interface) >= 0
+		 && ni_policy_match_interface(new_policy, policy->interface) >= 0) {
+			ni_interface_put(policy->interface);
+			policy->interface = ni_interface_get(new_policy->interface);
+			return 0;
+		}
+	}
+
+	policy = calloc(1, sizeof(*policy));
+	policy->event = new_policy->event;
+	policy->interface = ni_interface_get(new_policy->interface);
+
+	policy->next = *pos;
+	*pos = policy;
+	return 0;
 }
 
 /*
@@ -79,7 +140,8 @@ ni_global_policies()
 ni_policy_t *
 ni_policy_match_event(ni_policy_info_t *info, ni_event_t event, const ni_interface_t *dev)
 {
-	ni_policy_t *policy;
+	ni_policy_t *policy, *best = NULL;
+	int best_weight = -1;
 	int ifaction;
 
 	if (info == NULL)
@@ -94,23 +156,44 @@ ni_policy_match_event(ni_policy_info_t *info, ni_event_t event, const ni_interfa
 
 	for (policy = info->event_policies; policy; policy = policy->next) {
 		ni_interface_t *cfg = policy->interface;
+		int weight;
 
 		if (cfg->startmode.ifaction[ifaction].action == NI_INTERFACE_IGNORE)
 			continue;
 
-		/* We do the same matching as __ni_interface_for_config here.
-		 * We should unify these. */
-		if (cfg->type != dev->type)
-			continue;
-		if (cfg->hwaddr.len && !ni_link_address_equal(&dev->hwaddr, &cfg->hwaddr))
-			continue;
-		if (cfg->name && strcmp(cfg->name, dev->name))
+		weight = ni_policy_match_interface(policy, dev);
+		if (weight <= best_weight)
 			continue;
 
-		return policy;
+		best = policy;
+		best_weight = weight;
 	}
 
-	return NULL;
+	return best;
+}
+static int
+ni_policy_match_interface(const ni_policy_t *policy, const ni_interface_t *dev)
+{
+	const ni_interface_t *cfg = policy->interface;
+	unsigned int weight = 0;
+
+	/* We do the same matching as __ni_interface_for_config here.
+	 * We should unify these. */
+	if (cfg->type != dev->type)
+		return -1;
+
+	if (cfg->hwaddr.len) {
+		if (!ni_link_address_equal(&dev->hwaddr, &cfg->hwaddr))
+			return -1;
+		weight |= 2;
+	}
+	if (cfg->name) {
+		if (strcmp(cfg->name, dev->name))
+			return -1;
+		weight |= 1;
+	}
+
+	return weight;
 }
 
 /*
@@ -124,7 +207,7 @@ __ni_policy_list_destroy(ni_policy_t **list)
 	while ((pos = *list) != NULL) {
 		*list = NULL;
 		list = &pos->next;
-		free(pos);
+		ni_policy_free(pos);
 	}
 }
 

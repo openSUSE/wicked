@@ -460,3 +460,68 @@ __ni_syntax_xml_to_all(ni_syntax_t *syntax, ni_handle_t *nih, const xml_node_t *
 
 	return 0;
 }
+
+/*
+ * Handle policy_info representation
+ */
+int
+__ni_syntax_xml_to_policy_info(ni_syntax_t *syntax, ni_policy_info_t *info, const xml_node_t *root)
+{
+	xml_node_t *child;
+
+	if (!syntax->xml_to_policy) {
+		error("%s: syntax not capable of creating interface from xml", __FUNCTION__);
+		return -1;
+	}
+
+	if (!root)
+		return -1;
+
+	for (child = root->children; child; child = child->next) {
+		ni_policy_t *policy;
+
+		if (strcmp(child->name, "policy"))
+			continue;
+
+		policy = syntax->xml_to_policy(syntax, child);
+		if (policy == NULL) {
+			ni_error("%s: failed to parse policy element", __FUNCTION__);
+			return -1;
+		}
+
+		if (ni_policy_add(info, policy) < 0) {
+			ni_error("%s: rejected bad policy", __FUNCTION__);
+			ni_policy_free(policy);
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
+xml_node_t *
+__ni_syntax_xml_from_policy_info(ni_syntax_t *syntax, const ni_policy_info_t *info)
+{
+	const ni_policy_t *policy;
+	xml_node_t *root;
+
+	if (!syntax->xml_from_policy) {
+		error("%s: syntax not capable of creating xml for policy", __FUNCTION__);
+		return NULL;
+	}
+
+	root = xml_node_new(NULL, NULL);
+
+	for (policy = info->event_policies; policy; policy = policy->next) {
+		if (syntax->xml_from_policy(syntax, policy, root) == NULL)
+			goto error;
+	}
+
+	return root;
+
+error:
+	if (root)
+		xml_node_free(root);
+	return NULL;
+}
+
