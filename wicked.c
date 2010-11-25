@@ -480,10 +480,11 @@ ni_interface_network_is_up_afinfo(const char *ifname, const ni_afinfo_t *cfg_afi
 	return 1;
 }
 
-static int
-ni_interface_state(const ni_interface_t *have, const ni_interface_t *want, int want_state)
+static void
+interface_update_state(ni_interface_state_t *state, const ni_interface_t *have)
 {
-	int have_state = STATE_DEVICE_DOWN;
+	ni_interface_t *want = state->config;
+	int new_state = STATE_DEVICE_DOWN;
 
 	if (!(have->ifflags & NI_IFF_DEVICE_UP))
 		goto out;
@@ -493,11 +494,11 @@ ni_interface_state(const ni_interface_t *have, const ni_interface_t *want, int w
 		 * composition. */
 	}
 
-	have_state = STATE_DEVICE_UP;
+	new_state = STATE_DEVICE_UP;
 	if (!(have->ifflags & NI_IFF_LINK_UP))
 		goto out;
 
-	have_state = STATE_LINK_UP;
+	new_state = STATE_LINK_UP;
 	if (!(have->ifflags & NI_IFF_NETWORK_UP))
 		goto out;
 
@@ -507,10 +508,16 @@ ni_interface_state(const ni_interface_t *have, const ni_interface_t *want, int w
 			goto out;
 	}
 
-	have_state = STATE_NETWORK_UP;
+	new_state = STATE_NETWORK_UP;
 
 out:
-	return have_state;
+	if (state->have_state != new_state)
+		ni_debug_wicked("%s: state changed from %s to %s",
+				state->ifname,
+				ni_interface_state_name(state->have_state),
+				ni_interface_state_name(new_state));
+
+	state->have_state = new_state;
 }
 
 static void
@@ -530,20 +537,10 @@ interface_update(ni_interface_state_t *state, ni_handle_t *system, ni_interface_
 {
 	ni_interface_t *ifp;
 
-	*ifpp = NULL;
-
 	/* Interface may not be present yet (eg for bridge or bond interfaces) */
-	if ((ifp = ni_interface_by_name(system, state->ifname)) != NULL) {
-		int new_state = ni_interface_state(ifp, state->config, state->want_state);
-
-		if (state->have_state != new_state)
-			ni_debug_wicked("%s: state changed from %s to %s",
-					state->ifname,
-					ni_interface_state_name(state->have_state),
-					ni_interface_state_name(new_state));
-		state->have_state = new_state;
-		*ifpp = ifp;
-	}
+	if ((ifp = ni_interface_by_name(system, state->ifname)) != NULL)
+		interface_update_state(state, ifp);
+	*ifpp = ifp;
 
 	ni_debug_wicked("%s: state is current=%s, next=%s, wanted=%s%s", state->ifname,
 			ni_interface_state_name(state->have_state),
