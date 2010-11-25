@@ -39,7 +39,7 @@ struct ni_ops {
 	int			(*delete_interface)(ni_handle_t *, const char *);
 	int			(*update_lease)(ni_handle_t *, ni_interface_t *, ni_addrconf_lease_t *);
 
-	int			(*policy_put)(ni_handle_t *, const ni_policy_t *);
+	int			(*policy_update)(ni_handle_t *, const ni_policy_t *);
 
 	int			(*hostname_get)(ni_handle_t *, char *, size_t);
 	int			(*hostname_put)(ni_handle_t *, const char *);
@@ -128,6 +128,9 @@ extern ni_route_t *	__ni_route_list_clone(const ni_route_t *);
 extern void		__ni_route_list_append(ni_route_t **, ni_route_t *);
 extern void		__ni_route_list_destroy(ni_route_t **);
 extern void		__ni_routes_clear(ni_handle_t *);
+
+extern int		__ni_generic_policy_update(ni_handle_t *, const ni_policy_t *);
+extern ni_policy_t *	__ni_policy_clone(const ni_policy_t *);
 
 extern ni_address_t *	__ni_address_new(ni_address_t **, int, unsigned int,
 				const struct sockaddr_storage *);

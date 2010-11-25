@@ -82,6 +82,17 @@ ni_policy_new(ni_event_t event)
 	return policy;
 }
 
+ni_policy_t *
+__ni_policy_clone(const ni_policy_t *src)
+{
+	ni_policy_t *policy;
+
+	policy = ni_policy_new(src->event);
+	if (src->interface)
+		policy->interface = ni_interface_get(src->interface);
+	return policy;
+}
+
 void
 ni_policy_free(ni_policy_t *policy)
 {
@@ -94,7 +105,7 @@ ni_policy_free(ni_policy_t *policy)
  * Add or update a policy
  */
 int
-ni_policy_update(ni_handle_t *nih, const ni_policy_t *new_policy)
+__ni_generic_policy_update(ni_handle_t *nih, const ni_policy_t *new_policy)
 {
 	ni_policy_info_t *info = &nih->policy;
 	ni_policy_t *policy, **pos;
@@ -116,13 +127,18 @@ ni_policy_update(ni_handle_t *nih, const ni_policy_t *new_policy)
 		}
 	}
 
-	policy = calloc(1, sizeof(*policy));
-	policy->event = new_policy->event;
-	policy->interface = ni_interface_get(new_policy->interface);
-
+	policy = __ni_policy_clone(new_policy);
 	policy->next = *pos;
 	*pos = policy;
 	return 0;
+}
+
+int
+ni_policy_update(ni_handle_t *nih, const ni_policy_t *new_policy)
+{
+	if (nih->op->policy_update)
+		return nih->op->policy_update(nih, new_policy);
+	return __ni_generic_policy_update(nih, new_policy);
 }
 
 /*
