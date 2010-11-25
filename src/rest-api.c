@@ -628,6 +628,12 @@ generic_interface_put(ni_handle_t *nih, const char *ifname, ni_wicked_request_t 
 	}
 #endif
 
+	/* Deduplicate address list */
+	if (__ni_address_list_dedup(&ifp->addrs) < 0) {
+		ni_error("%s: configuration contains duplicate/conflicting addresses", ifp->name);
+		goto failed;
+	}
+
 	if (ni_interface_configure(nih, ifp) < 0) {
 		werror(req, "error configuring interface %s", ifname);
 		goto failed;

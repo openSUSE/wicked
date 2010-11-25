@@ -248,7 +248,7 @@ extern int		ni_syntax_parse_data(ni_syntax_t *, ni_handle_t *, const char *);
 extern int		ni_syntax_parse_stream(ni_syntax_t *, ni_handle_t *, FILE *);
 extern int		ni_syntax_put_interfaces(ni_syntax_t *, ni_handle_t *, FILE *);
 extern int		ni_syntax_put_one_interface(ni_syntax_t *, ni_handle_t *, ni_interface_t *, FILE *);
-extern xml_node_t *	ni_syntax_xml_from_interface(ni_syntax_t *, ni_handle_t *, ni_interface_t *);
+extern xml_node_t *	ni_syntax_xml_from_interface(ni_syntax_t *, ni_handle_t *, const ni_interface_t *);
 extern ni_interface_t *	ni_syntax_xml_to_interface(ni_syntax_t *, ni_handle_t *, xml_node_t *);
 extern xml_document_t *	ni_syntax_xml_from_all(ni_syntax_t *, ni_handle_t *);
 extern int		ni_syntax_xml_to_all(ni_syntax_t *, ni_handle_t *, const xml_document_t *);
@@ -279,7 +279,8 @@ extern ni_interface_t *	ni_interface_get(ni_interface_t *ifp);
 extern int		ni_interface_put(ni_interface_t *ifp);
 extern int		ni_interface_update(ni_interface_t *ifp);
 extern int		ni_interface_guess_type(ni_interface_t *ifp);
-extern int		ni_interface_configure(ni_handle_t *, ni_interface_t *);
+extern int		ni_interface_configure(ni_handle_t *, const ni_interface_t *);
+extern int		ni_interface_configure2(ni_handle_t *, ni_interface_t *, const ni_interface_t *);
 extern int		ni_interface_update_lease(ni_handle_t *, ni_interface_t *ifp,
 				ni_addrconf_lease_t *);
 extern int		ni_interface_set_lease(ni_handle_t *, ni_interface_t *, ni_addrconf_lease_t *);

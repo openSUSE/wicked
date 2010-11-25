@@ -35,7 +35,7 @@ struct ni_handle {
 struct ni_ops {
 	int			(*refresh)(ni_handle_t *);
 	int			(*interface_refresh_one)(ni_handle_t *, const char *);
-	int			(*configure_interface)(ni_handle_t *, ni_interface_t *, xml_node_t *);
+	int			(*configure_interface)(ni_handle_t *, ni_interface_t *, const ni_interface_t *);
 	int			(*delete_interface)(ni_handle_t *, const char *);
 	int			(*update_lease)(ni_handle_t *, ni_interface_t *, ni_addrconf_lease_t *);
 
@@ -111,15 +111,10 @@ extern ni_addrconf_lease_t *__ni_interface_address_to_lease(ni_interface_t *, co
 extern ni_addrconf_lease_t *__ni_interface_route_to_lease(ni_interface_t *, const ni_route_t *);
 extern unsigned int	__ni_interface_translate_ifflags(unsigned int);
 
-static inline ni_afinfo_t *
-__ni_interface_address_info(ni_interface_t *ifp, int af)
-{
-	if (af == AF_INET)
-		return &ifp->ipv4;
-	if (af == AF_INET6)
-		return &ifp->ipv6;
-	return NULL;
-}
+#define __ni_interface_address_info(ifp, af) \
+	((af) == AF_INET? &((ifp)->ipv4) : \
+	 ((af) == AF_INET6? &((ifp)->ipv6) : \
+	  NULL))
 
 extern ni_route_t *	__ni_route_new(ni_route_t **, unsigned int prefix_len,
 				const struct sockaddr_storage *,
@@ -139,7 +134,7 @@ extern ni_address_t *	__ni_address_list_find(ni_address_t *, const struct sockad
 
 extern int		__ni_system_refresh_all(ni_handle_t *);
 extern int		__ni_system_refresh_interface(ni_handle_t *, ni_interface_t *);
-extern int		__ni_system_interface_configure(ni_handle_t *, ni_interface_t *, xml_node_t *);
+extern int		__ni_system_interface_configure(ni_handle_t *, ni_interface_t *, const ni_interface_t *);
 extern int		__ni_system_interface_delete(ni_handle_t *, const char *);
 extern int		__ni_system_interface_update_lease(ni_handle_t *, ni_interface_t *, ni_addrconf_lease_t *);
 extern int		__ni_rtevent_refresh_all(ni_handle_t *);

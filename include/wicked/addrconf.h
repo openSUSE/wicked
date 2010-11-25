@@ -135,6 +135,7 @@ struct ni_addrconf_lease {
 };
 
 #define NI_ADDRCONF_MASK(mode)		(1 << (mode))
+#define NI_ADDRCONF_TEST(mask, mode)	!!((mask) & NI_ADDRCONF_MASK(mode))
 
 static inline void
 ni_afinfo_addrconf_enable(struct ni_afinfo *afi, ni_addrconf_mode_t mode)

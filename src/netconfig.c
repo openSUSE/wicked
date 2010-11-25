@@ -16,7 +16,7 @@
 
 static const char *	ni_netconfig_default_schema(const char *);
 static int		__ni_netonfig_refresh(ni_handle_t *nih);
-static int		__ni_netconfig_interface_configure(ni_handle_t *, ni_interface_t *, xml_node_t *);
+static int		__ni_netconfig_interface_configure(ni_handle_t *, ni_interface_t *, const ni_interface_t *);
 static int		__ni_netconfig_interface_delete(ni_handle_t *, const char *);
 static int		__ni_netconfig_hostname_put(ni_handle_t *, const char *);
 static int		__ni_netconfig_hostname_get(ni_handle_t *, char *, size_t);
@@ -147,7 +147,7 @@ __ni_netonfig_refresh(ni_handle_t *nih)
  *	this argument here.
  */
 static int
-__ni_netconfig_interface_configure(ni_handle_t *nih, ni_interface_t *cfg, xml_node_t *cfg_xml)
+__ni_netconfig_interface_configure(ni_handle_t *nih, ni_interface_t *replace_if, const ni_interface_t *cfg)
 {
 	ni_netconfig_t *nit = __to_netconfig(nih);
 	ni_interface_t *nfp, *ifp, **pos;
@@ -165,7 +165,9 @@ __ni_netconfig_interface_configure(ni_handle_t *nih, ni_interface_t *cfg, xml_no
 	nfp->modified = 1;
 
 	for (pos = &nih->iflist; (ifp = *pos) != NULL; pos = &ifp->next) {
-		if (!strcmp(ifp->name, cfg->name)) {
+		if (replace_if && replace_if != ifp)
+			continue;
+		if (xstreq(ifp->name, cfg->name)) {
 			nfp->next = ifp->next;
 			ni_interface_put(ifp);
 			break;

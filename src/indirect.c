@@ -19,8 +19,7 @@
 
 static int	__ni_indirect_refresh_all(ni_handle_t *);
 static int	__ni_indirect_interface_refresh_one(ni_handle_t *, const char *);
-static int	__ni_indirect_interface_configure(ni_handle_t *,
-				ni_interface_t *, xml_node_t *);
+static int	__ni_indirect_interface_configure(ni_handle_t *, ni_interface_t *, const ni_interface_t *);
 static int	__ni_indirect_interface_delete(ni_handle_t *, const char *);
 static int	__ni_indirect_policy_update(ni_handle_t *, const ni_policy_t *);
 static void	__ni_indirect_close(ni_handle_t *nih);
@@ -210,24 +209,20 @@ out:
 
 int
 __ni_indirect_interface_configure(ni_handle_t *nih,
-				ni_interface_t *ifp, xml_node_t *xml)
+				ni_interface_t *change_if,
+				const ni_interface_t *ifp)
 {
 	ni_syntax_t *syntax = NULL;
-	xml_node_t *result = NULL;
-	int xml_is_temp = 0;
+	xml_node_t *xml = NULL, *result = NULL;
 	int rv = -1;
 
 	syntax = ni_default_xml_syntax();
 	if (!syntax)
 		goto failed;
 
-	if (xml == NULL) {
-		xml = ni_syntax_xml_from_interface(syntax, nih, ifp);
-		if (!xml)
-			goto failed;
-
-		xml_is_temp = 1;
-	}
+	xml = ni_syntax_xml_from_interface(syntax, nih, ifp);
+	if (!xml)
+		goto failed;
 
 	result = __ni_indirect_vcall(nih, NI_REST_OP_PUT, xml, "interface/%s", ifp->name);
 	if (XML_IS_ERR(result)) {
@@ -238,15 +233,17 @@ __ni_indirect_interface_configure(ni_handle_t *nih,
 	/* If we received XML data from server, update cached interface desc */
 	if (result != NULL) {
 		xml_node_t *response = result;
-		ni_interface_t **pos;
+		ni_interface_t **pos, *rover;
 
 		if (response->name == NULL && response->children)
 			response = response->children;
 
-		for (pos = &nih->iflist; *pos; pos = &(*pos)->next) {
-			if (*pos == ifp) {
-				*pos = ifp->next;
-				ni_interface_put(ifp);
+		for (pos = &nih->iflist; (rover = *pos) != NULL; pos = &rover->next) {
+			if (change_if && change_if != rover)
+				continue;
+			if (xstreq(ifp->name, rover->name)) {
+				*pos = rover->next;
+				ni_interface_put(rover);
 				break;
 			}
 		}
@@ -260,7 +257,7 @@ __ni_indirect_interface_configure(ni_handle_t *nih,
 	rv = 0;
 
 out:
-	if (xml_is_temp)
+	if (xml)
 		xml_node_free(xml);
 	if (result && !XML_IS_ERR(result))
 		xml_node_free(result);

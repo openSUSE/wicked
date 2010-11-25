@@ -281,7 +281,7 @@ error:
  * Produce XML for a single interface and vice versa
  */
 xml_node_t *
-ni_syntax_xml_from_interface(ni_syntax_t *syntax, ni_handle_t *nih, ni_interface_t *ifp)
+ni_syntax_xml_from_interface(ni_syntax_t *syntax, ni_handle_t *nih, const ni_interface_t *ifp)
 {
 	if (!syntax->xml_from_interface) {
 		error("%s: syntax not capable of creating xml for interface", __FUNCTION__);
