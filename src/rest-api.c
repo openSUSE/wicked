@@ -585,7 +585,6 @@ generic_interface_put(ni_handle_t *nih, const char *ifname, ni_wicked_request_t 
 {
 	ni_interface_t *ifp = NULL;
 	ni_handle_t *cnih = NULL;
-	xml_node_t *cfg_xml;
 	int rv = -1;
 
 	if (nih == NULL)
@@ -612,6 +611,7 @@ generic_interface_put(ni_handle_t *nih, const char *ifname, ni_wicked_request_t 
 		goto failed;
 	}
 
+#ifdef not_used
 	/* Find the XML intrface element - we want to pass it to the configure
 	 * routine. This helps us write flexible extensions */
 	for (cfg_xml = req->xml_in->children; cfg_xml; cfg_xml = cfg_xml->next) {
@@ -626,8 +626,9 @@ generic_interface_put(ni_handle_t *nih, const char *ifname, ni_wicked_request_t 
 		werror(req, "surprising, found interface %s but no xml?!", ifname);
 		goto failed;
 	}
+#endif
 
-	if (ni_interface_configure(nih, ifp, cfg_xml) < 0) {
+	if (ni_interface_configure(nih, ifp) < 0) {
 		werror(req, "error configuring interface %s", ifname);
 		goto failed;
 	}

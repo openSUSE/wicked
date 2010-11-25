@@ -611,7 +611,7 @@ interface_change(ni_interface_state_t *state, ni_handle_t *system, ni_interface_
 	ifp->ifflags &= ~(NI_IFF_DEVICE_UP | NI_IFF_LINK_UP | NI_IFF_NETWORK_UP);
 	ifp->ifflags |= ifflags;
 
-	if (ni_interface_configure(system, ifp, NULL) < 0) {
+	if (ni_interface_configure(system, ifp) < 0) {
 		ni_error("%s: unable to configure", ifp->name);
 		return -1;
 	}

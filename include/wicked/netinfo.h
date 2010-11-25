@@ -279,7 +279,7 @@ extern ni_interface_t *	ni_interface_get(ni_interface_t *ifp);
 extern int		ni_interface_put(ni_interface_t *ifp);
 extern int		ni_interface_update(ni_interface_t *ifp);
 extern int		ni_interface_guess_type(ni_interface_t *ifp);
-extern int		ni_interface_configure(ni_handle_t *, ni_interface_t *, xml_node_t *);
+extern int		ni_interface_configure(ni_handle_t *, ni_interface_t *);
 extern int		ni_interface_update_lease(ni_handle_t *, ni_interface_t *ifp,
 				ni_addrconf_lease_t *);
 extern int		ni_interface_set_lease(ni_handle_t *, ni_interface_t *, ni_addrconf_lease_t *);

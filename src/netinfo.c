@@ -544,14 +544,14 @@ ni_iftype_to_arphrd_type(unsigned int iftype)
  * Configure an interface.
  */
 int
-ni_interface_configure(ni_handle_t *nih, ni_interface_t *cfg, xml_node_t *cfg_xml)
+ni_interface_configure(ni_handle_t *nih, ni_interface_t *cfg)
 {
 	if (nih->op->configure_interface == NULL) {
 		error("cannot configure interface; not supported by this handle");
 		return -1;
 	}
 
-	return nih->op->configure_interface(nih, cfg, cfg_xml);
+	return nih->op->configure_interface(nih, cfg, NULL);
 }
 
 /*
