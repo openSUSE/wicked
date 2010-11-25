@@ -352,8 +352,11 @@ ni_build_partial_topology2(ni_handle_t *config, int filter, ni_evaction_t ifacti
 		state->behavior = *ifa;
 
 		if (ifaction == NI_INTERFACE_START
-		 && ifp->startmode.ifaction[NI_IFACTION_LINK_UP].action == NI_INTERFACE_START)
+		 && ifp->startmode.ifaction[NI_IFACTION_LINK_UP].action == NI_INTERFACE_START) {
+			ni_debug_wicked("%s: interface has auto-start mode", ifp->name);
+			ifp->ifflags |= (NI_IFF_DEVICE_UP | NI_IFF_LINK_UP | NI_IFF_NETWORK_UP);
 			state->is_policy = 1;
+		}
 
 		ni_interface_state_array_append(&state_array, state);
 	}
@@ -601,7 +604,7 @@ interface_change(ni_interface_state_t *state, ni_handle_t *system, ni_interface_
 
 	/* If we're trying to go to the final desired state, use the config
 	 * object if there is one. */
-	if (state->next_state == state->want_state && state->config)
+	if (next_state == state->want_state && state->config)
 		ifp = state->config;
 	if (ifp == NULL) {
 		ni_error("%s: unknown device", state->ifname);
@@ -724,8 +727,7 @@ again:
 					state->done = 1;
 					continue;
 				}
-			}
-
+			} else
 			if (state->children.count) {
 				rv = ni_topology_update(&state->children, system, waited);
 				if (rv < 0)
@@ -760,7 +762,8 @@ again:
 		}
 
 		if (state->want_state == STATE_NETWORK_UP
-		 && state->have_state < STATE_LINK_UP) {
+		 && state->have_state < STATE_LINK_UP
+		 && state->is_policy) {
 			ni_interface_t *cfg;
 
 			/* Send the device our desired device configuration.
@@ -918,6 +921,7 @@ usage:
 
 		state = ni_interface_state_new(ifname, ifp);
 		state->behavior = ifp->startmode.ifaction[ifevent];
+		state->behavior.only_if_link = 0;
 		state->want_state = STATE_NETWORK_UP;
 		ni_interface_state_array_append(&state_array, state);
 	}
