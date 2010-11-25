@@ -1,5 +1,4 @@
 <interface type="bridge" name="br0">
-  <start mode="onboot"/>
   <protocol family="ipv4">
     <dhcp/>
   </protocol>

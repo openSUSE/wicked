@@ -1,5 +1,4 @@
 <interface type="infiniband" name="ib0">
-  <start mode="onboot"/>
   <infiniband mode="datagram" umcast="0"/>
   <protocol family="ipv4">
     <ip address="10.99.0.1" prefix="24"/>
