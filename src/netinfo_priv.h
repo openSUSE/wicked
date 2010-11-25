@@ -129,7 +129,7 @@ extern void		__ni_route_list_append(ni_route_t **, ni_route_t *);
 extern void		__ni_route_list_destroy(ni_route_t **);
 extern void		__ni_routes_clear(ni_handle_t *);
 
-extern int		__ni_generic_policy_update(ni_handle_t *, const ni_policy_t *);
+extern int		__ni_generic_policy_update(ni_handle_t *, const ni_policy_t *, ni_policy_t **);
 extern ni_policy_t *	__ni_policy_clone(const ni_policy_t *);
 
 extern ni_address_t *	__ni_address_new(ni_address_t **, int, unsigned int,

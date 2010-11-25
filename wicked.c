@@ -219,10 +219,11 @@ struct ni_interface_state {
 	int			state;
 	char *			ifname;
 	ni_interface_t *	config;
-	unsigned int		done     : 1,
-				error    : 1,
-				is_slave : 1,
-				waiting  : 1;
+	unsigned int		done      : 1,
+				error     : 1,
+				is_slave  : 1,
+				is_policy : 1,
+				waiting   : 1;
 
 	int			next_state;
 	int			want_state;
@@ -349,6 +350,10 @@ ni_build_partial_topology2(ni_handle_t *config, int filter, ni_evaction_t ifacti
 		state = ni_interface_state_new(ifp->name, ifp);
 		state->want_state = want_state;
 		state->behavior = *ifa;
+
+		if (ifaction == NI_INTERFACE_START
+		 && ifp->startmode.ifaction[NI_IFACTION_LINK_UP].action == NI_INTERFACE_START)
+			state->is_policy = 1;
 
 		ni_interface_state_array_append(&state_array, state);
 	}
@@ -567,9 +572,6 @@ interface_change(ni_interface_state_t *state, ni_handle_t *system, ni_interface_
 {
 	unsigned int ifflags;
 
-	state->next_state = next_state;
-	state->timeout = timeout;
-
 	switch (next_state) {
 	case STATE_DEVICE_DOWN:
 		ni_debug_wicked("%s: trying to shut down device", state->ifname);
@@ -615,10 +617,32 @@ interface_change(ni_interface_state_t *state, ni_handle_t *system, ni_interface_
 	}
 
 	state->waiting = 1;
+	state->next_state = next_state;
+	state->timeout = timeout;
 	if (state->timeout == 0)
 		state->timeout = 10;
 
 	return 0;
+}
+
+static int
+send_policy(ni_interface_state_t *state, ni_handle_t *system, ni_interface_t *ifp)
+{
+	ni_policy_t policy;
+
+	memset(&policy, 0, sizeof(policy));
+	policy.event = NI_EVENT_LINK_UP;
+	policy.interface = ifp;
+	return ni_policy_update(system, &policy);
+}
+
+static int
+interface_failed(ni_interface_state_t *state, const char *how)
+{
+	print_message("%s: %s", state->ifname, how?: "failed");
+	state->done = 1;
+	state->error = 1;
+	return -1;
 }
 
 static int
@@ -631,7 +655,6 @@ ni_topology_update(ni_interface_state_array_t *state_array, ni_handle_t *system,
 	for (i = 0; i < state_array->count; ++i) {
 		ni_interface_state_t *state = state_array->data[i];
 		ni_interface_t *ifp;
-		unsigned int ifflags = 0;
 
 again:
 		if (state->done)
@@ -645,25 +668,21 @@ again:
 						ni_interface_state_name(state->want_state),
 						state->behavior.only_if_link? " (only-if-link)" : "");
 
-				state->done = 1;
-
 				if (state->behavior.only_if_link
 				 && state->have_state == STATE_DEVICE_UP
 				 && state->next_state == STATE_LINK_UP) {
 					/* Dang, link didn't come up. We're supposed to bring up
 					 * the network later, when the link comes up, so trigger that now. */
 					print_message("%s: no link", state->ifname);
-					interface_change(state, system, NULL, state->want_state, 0);
+					state->done = 1;
 					continue;
 				}
 
 				ready = 0;
 
-				print_message("%s: timed out", state->ifname);
-				if (state->behavior.mandatory) {
-					state->error = 1;
+				interface_failed(state, "timed out");
+				if (state->behavior.mandatory)
 					return -1;
-				}
 
 				continue;
 			}
@@ -679,11 +698,8 @@ again:
 			 * go for the subordinate devices. */
 			if (state->want_state == state->have_state) {
 				rv = ni_topology_update(&state->children, system, waited);
-				if (rv < 0) {
-					state->done = 1;
-					state->error = 1;
-					return -1;
-				}
+				if (rv < 0)
+					return interface_failed(state, NULL);
 				if (rv == 0)
 					ready = 0;
 
@@ -698,10 +714,10 @@ again:
 		} else {
 			/* Bring up devices - first bring up subordinate devices,
 			 * then do the parent devices.
-			 * FIXME: Even if the device is up, we should send it our
-			 * desired configuration at least once!
 			 */
 			if (state->want_state == state->have_state) {
+				/* Even if the device is already up, we should send it our
+				 * desired configuration at least once... */
 				if (state->next_state != STATE_UNKNOWN) {
 					print_message("%s: %s", state->ifname,
 							ni_interface_state_name(state->have_state));
@@ -712,11 +728,8 @@ again:
 
 			if (state->children.count) {
 				rv = ni_topology_update(&state->children, system, waited);
-				if (rv < 0) {
-					state->done = 1;
-					state->error = 1;
-					return -1;
-				}
+				if (rv < 0)
+					return interface_failed(state, NULL);
 				if (rv == 0) {
 					ready = 0;
 					continue;
@@ -732,18 +745,28 @@ again:
 		 * is down; here we first go to an intermediate state to see
 		 * whether the link is ready.
 		 */
+		if (state->want_state == STATE_NETWORK_UP && state->is_policy) {
+			if (state->next_state == STATE_UNKNOWN) {
+				rv = send_policy(state, system, state->config);
+				if (rv < 0)
+					return rv;
+			}
+			if (state->have_state >= STATE_LINK_UP) {
+				state->next_state = STATE_NETWORK_UP;
+				state->timeout = state->behavior.wait;
+				state->waiting = 1;
+				continue;
+			}
+		}
+
 		if (state->want_state == STATE_NETWORK_UP
 		 && state->have_state < STATE_LINK_UP) {
 			ni_interface_t *cfg;
 
-			/* Note, we do NOT use the final interface config, but just modify
-			 * the current config (from device down to device up). */
-			ni_debug_wicked("%s: trying to bring device up", state->ifname);
-			ifflags |= NI_IFF_DEVICE_UP;
-
 			/* Send the device our desired device configuration.
 			 * This includes VLAN, bridge and bonding topology info, as
-			 * well as ethtool settings etc */
+			 * well as ethtool settings etc, but none of the network config.
+			 */
 			if ((cfg = state->config) != NULL) {
 				if (cfg->ethernet)
 					ni_interface_set_ethernet(ifp, ni_ethernet_clone(cfg->ethernet));

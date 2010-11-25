@@ -728,8 +728,18 @@ system_policy_post(const char *ifname, ni_wicked_request_t *req)
 		goto failed;
 	}
 
-	for (policy = policy_info.event_policies; policy; policy = policy->next)
-		ni_policy_update(nih, policy);
+	if (ni_refresh(nih) < 0) {
+		werror(req, "could not refresh interface list");
+		goto failed;
+	}
+
+	for (policy = policy_info.event_policies; policy; policy = policy->next) {
+		rv = ni_policy_update(nih, policy);
+		if (rv < 0) {
+			werror(req, "failed to update policy");
+			goto failed;
+		}
+	}
 
 	rv = 0;
 

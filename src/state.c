@@ -14,6 +14,7 @@
 
 #define CONFIG_WICKED_BACKUP_DIR	CONFIG_WICKED_STATEDIR "/backup"
 
+static int		__ni_system_policy_update(ni_handle_t *, const ni_policy_t *);
 static int		__ni_system_hostname_put(ni_handle_t *, const char *);
 static int		__ni_system_hostname_get(ni_handle_t *, char *, size_t);
 static int		__ni_system_nis_domain_put(ni_handle_t *, const char *);
@@ -33,6 +34,7 @@ static struct ni_ops ni_state_ops = {
 	.configure_interface	= __ni_system_interface_configure,
 	.delete_interface	= __ni_system_interface_delete,
 	.update_lease		= __ni_system_interface_update_lease,
+	.policy_update		= __ni_system_policy_update,
 	.hostname_get		= __ni_system_hostname_get,
 	.hostname_put		= __ni_system_hostname_put,
 	.nis_domain_get		= __ni_system_nis_domain_get,
@@ -72,6 +74,28 @@ ni_state_open(void)
 	}
 
 	return nih;
+}
+
+static int
+__ni_system_policy_update(ni_handle_t *nih, const ni_policy_t *new_policy)
+{
+	ni_interface_array_t iflist = NI_INTERFACE_ARRAY_INIT;
+	ni_policy_t *policy;
+	ni_interface_t *ifp;
+
+	ni_debug_ifconfig("%s()", __FUNCTION__);
+	if (__ni_generic_policy_update(nih, new_policy, &policy) < 0)
+		return -1;
+
+	for (ifp = nih->iflist; ifp; ifp = ifp->next) {
+		if (ni_policy_match_event(nih, policy->event, ifp) == policy) {
+			ni_debug_ifconfig("%s: matches new policy", ifp->name);
+			ni_interface_array_append(&iflist, ifp);
+		}
+	}
+
+	ni_interface_array_destroy(&iflist);
+	return 0;
 }
 
 static int

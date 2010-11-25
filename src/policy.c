@@ -105,10 +105,13 @@ ni_policy_free(ni_policy_t *policy)
  * Add or update a policy
  */
 int
-__ni_generic_policy_update(ni_handle_t *nih, const ni_policy_t *new_policy)
+__ni_generic_policy_update(ni_handle_t *nih, const ni_policy_t *new_policy, ni_policy_t **found)
 {
 	ni_policy_info_t *info = &nih->policy;
 	ni_policy_t *policy, **pos;
+
+	if (found)
+		*found = NULL;
 
 	if (new_policy->interface == NULL) {
 		ni_error("%s: interface is NULL", __FUNCTION__);
@@ -123,6 +126,8 @@ __ni_generic_policy_update(ni_handle_t *nih, const ni_policy_t *new_policy)
 		 && ni_policy_match_interface(new_policy, policy->interface) >= 0) {
 			ni_interface_put(policy->interface);
 			policy->interface = ni_interface_get(new_policy->interface);
+			if (found)
+				*found = policy;
 			return 0;
 		}
 	}
@@ -130,6 +135,9 @@ __ni_generic_policy_update(ni_handle_t *nih, const ni_policy_t *new_policy)
 	policy = __ni_policy_clone(new_policy);
 	policy->next = *pos;
 	*pos = policy;
+
+	if (found)
+		*found = policy;
 	return 0;
 }
 
@@ -138,7 +146,9 @@ ni_policy_update(ni_handle_t *nih, const ni_policy_t *new_policy)
 {
 	if (nih->op->policy_update)
 		return nih->op->policy_update(nih, new_policy);
-	return __ni_generic_policy_update(nih, new_policy);
+
+	ni_error("ni_policy_update: not supported by this handle");
+	return -1;
 }
 
 /*
@@ -158,15 +168,15 @@ ni_policy_match_event(const ni_handle_t *nih, ni_event_t event, const ni_interfa
 	switch (event) {
 	case NI_EVENT_LINK_UP:
 		ifaction = NI_IFACTION_LINK_UP;
+		break;
 	default:
 		return NULL;
 	}
 
 	for (policy = info->event_policies; policy; policy = policy->next) {
-		ni_interface_t *cfg = policy->interface;
 		int weight;
 
-		if (cfg->startmode.ifaction[ifaction].action == NI_INTERFACE_IGNORE)
+		if (policy->event != event)
 			continue;
 
 		weight = ni_policy_match_interface(policy, dev);
@@ -195,9 +205,7 @@ ni_policy_match_interface(const ni_policy_t *policy, const ni_interface_t *dev)
 			return -1;
 		weight |= 2;
 	}
-	if (cfg->name) {
-		if (strcmp(cfg->name, dev->name))
-			return -1;
+	if (xstreq(cfg->name, dev->name)) {
 		weight |= 1;
 	}
 
