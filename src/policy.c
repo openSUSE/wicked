@@ -210,13 +210,13 @@ ni_policy_match_interface(const ni_policy_t *policy, const ni_interface_t *dev)
 static void
 __ni_policy_list_destroy(ni_policy_t **list)
 {
-	ni_policy_t *pos;
+	ni_policy_t *pos, *next;
 
-	while ((pos = *list) != NULL) {
-		*list = NULL;
-		list = &pos->next;
+	for (pos = *list; pos != NULL; pos = next) {
+		next = pos->next;
 		ni_policy_free(pos);
 	}
+	*list = NULL;
 }
 
 void
