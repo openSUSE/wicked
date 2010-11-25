@@ -14,6 +14,9 @@
 #include "netinfo_priv.h"
 #include "config.h"
 
+#define XML_ERR_PTR	((xml_node_t *) -1)
+#define XML_IS_ERR(p)	((p) == XML_ERR_PTR)
+
 static int	__ni_indirect_refresh_all(ni_handle_t *);
 static int	__ni_indirect_interface_refresh_one(ni_handle_t *, const char *);
 static int	__ni_indirect_interface_configure(ni_handle_t *,
@@ -89,44 +92,39 @@ __ni_indirect_build_request(ni_indirect_t *nid, ni_wicked_request_t *req,
 }
 
 /*
- * Execute a GET call
+ * Execute a remote call
  */
 static xml_node_t *
-__ni_indirect_get(ni_handle_t *nih, const char *fmt, ...)
+__ni_indirect_vcall(ni_handle_t *nih, ni_rest_op_t rop, const xml_node_t *args, const char *fmt, ...)
 {
-	xml_node_t *result = NULL;
+	xml_node_t *result = XML_ERR_PTR;
 	ni_indirect_t *nid = __to_indirect(nih);
 	ni_wicked_request_t req;
 	char pathbuf[256];
+	unsigned int len;
 	va_list ap;
 
-	{
-		unsigned int len;
+	snprintf(pathbuf, sizeof(pathbuf), "%s/", nid->namespace);
+	len = strlen(pathbuf);
 
-		snprintf(pathbuf, sizeof(pathbuf), "%s/", nid->namespace);
-		len = strlen(pathbuf);
+	va_start(ap, fmt);
+	vsnprintf(pathbuf + len, sizeof(pathbuf) - len, fmt, ap);
+	va_end(ap);
 
-		va_start(ap, fmt);
-		vsnprintf(pathbuf + len, sizeof(pathbuf) - len, fmt, ap);
-		va_end(ap);
-	}
-
-	__ni_indirect_build_request(nid, &req, NI_REST_OP_GET, pathbuf);
+	__ni_indirect_build_request(nid, &req, rop, pathbuf);
+	req.xml_in = args;
 
 	if (ni_wicked_call_indirect(&req) < 0) {
 		ni_error("wicked server returned error: %s", req.error_msg);
-		goto out;
+	} else {
+		result = req.xml_out;
+		req.xml_out = NULL;
 	}
-	if ((result = req.xml_out) == NULL) {
-		ni_error("wicked server returned no information");
-		goto out;
-	}
-	req.xml_out = NULL;
 
-out:
 	ni_wicked_request_destroy(&req);
 	return result;
 }
+
 
 /*
  * Refresh all interfaces
@@ -140,9 +138,13 @@ __ni_indirect_refresh_all(ni_handle_t *nih)
 
 	__ni_interfaces_clear(nih);
 
-	result = __ni_indirect_get(nih, "interface");
-	if (result == NULL)
+	result = __ni_indirect_vcall(nih, NI_REST_OP_GET, NULL, "interface");
+	if (XML_IS_ERR(result))
 		goto out;
+	if (result == NULL) {
+		ni_error("wicked server returned no information");
+		goto out;
+	}
 
 	syntax = ni_default_xml_syntax();
 	if (!syntax)
@@ -151,7 +153,7 @@ __ni_indirect_refresh_all(ni_handle_t *nih)
 	rv = __ni_syntax_xml_to_all(syntax, nih, result);
 
 out:
-	if (result)
+	if (result && !XML_IS_ERR(result))
 		xml_node_free(result);
 	return rv;
 }
@@ -175,9 +177,13 @@ __ni_indirect_interface_refresh_one(ni_handle_t *nih, const char *ifname)
 		}
 	}
 
-	result = __ni_indirect_get(nih, "interface/%s", ifname);
-	if (result == NULL)
+	result = __ni_indirect_vcall(nih, NI_REST_OP_GET, NULL, "interface/%s", ifname);
+	if (XML_IS_ERR(result))
 		goto out;
+	if (result == NULL) {
+		ni_error("wicked server returned no information");
+		goto out;
+	}
 
 	if (result->name == NULL && result->children)
 		result = result->children;
@@ -195,7 +201,7 @@ __ni_indirect_interface_refresh_one(ni_handle_t *nih, const char *ifname)
 	rv = 0;
 
 out:
-	if (result)
+	if (result && !XML_IS_ERR(result))
 		xml_node_free(result);
 	return rv;
 }
@@ -204,10 +210,8 @@ int
 __ni_indirect_interface_configure(ni_handle_t *nih,
 				ni_interface_t *ifp, xml_node_t *xml)
 {
-	ni_indirect_t *nid = __to_indirect(nih);
-	ni_wicked_request_t req;
-	char pathbuf[64];
 	ni_syntax_t *syntax = NULL;
+	xml_node_t *result = NULL;
 	int xml_is_temp = 0;
 	int rv;
 
@@ -223,19 +227,15 @@ __ni_indirect_interface_configure(ni_handle_t *nih,
 		xml_is_temp = 1;
 	}
 
-	snprintf(pathbuf, sizeof(pathbuf), "%s/interface/%s", nid->namespace, ifp->name);
-	__ni_indirect_build_request(nid, &req, NI_REST_OP_PUT, pathbuf);
-	req.xml_in = xml;
-
-	rv = ni_wicked_call_indirect(&req);
-	if (rv < 0) {
-		ni_error("unable to configure %s, server responds: %s", ifp->name, req.error_msg);
+	result = __ni_indirect_vcall(nih, NI_REST_OP_PUT, xml, "interface/%s", ifp->name);
+	if (XML_IS_ERR(result)) {
+		ni_error("unable to configure %s", ifp->name);
 		goto out;
 	}
 
 	/* If we received XML data from server, update cached interface desc */
-	if (req.xml_out != NULL) {
-		xml_node_t *response = req.xml_out;
+	if (result != NULL) {
+		xml_node_t *response = result;
 		ni_interface_t **pos;
 
 		if (response->name == NULL && response->children)
@@ -259,7 +259,8 @@ __ni_indirect_interface_configure(ni_handle_t *nih,
 out:
 	if (xml_is_temp)
 		xml_node_free(xml);
-	ni_wicked_request_destroy(&req);
+	if (result && !XML_IS_ERR(result))
+		xml_node_free(result);
 	return rv;
 
 failed:
@@ -270,15 +271,15 @@ failed:
 int
 __ni_indirect_interface_delete(ni_handle_t *nih, const char *name)
 {
-	ni_indirect_t *nid = __to_indirect(nih);
-	ni_wicked_request_t req;
-	char pathbuf[64];
-	int rv;
+	xml_node_t *result;
 
-	snprintf(pathbuf, sizeof(pathbuf), "%s/interface/%s", nid->namespace, name);
-	__ni_indirect_build_request(nid, &req, NI_REST_OP_DELETE, pathbuf);
+	result = __ni_indirect_vcall(nih, NI_REST_OP_DELETE, NULL, "interface/%s", name);
+	if (XML_IS_ERR(result)) {
+		ni_error("unable to delete %s", name);
+		return -1;
+	}
 
-	rv = ni_wicked_call_indirect(&req);
-	ni_wicked_request_destroy(&req);
-	return rv;
+	if (result)
+		xml_node_free(result);
+	return 0;
 }
