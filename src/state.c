@@ -82,15 +82,40 @@ __ni_system_policy_update(ni_handle_t *nih, const ni_policy_t *new_policy)
 	ni_interface_array_t iflist = NI_INTERFACE_ARRAY_INIT;
 	ni_policy_t *policy;
 	ni_interface_t *ifp;
+	unsigned int i;
 
 	ni_debug_ifconfig("%s()", __FUNCTION__);
 	if (__ni_generic_policy_update(nih, new_policy, &policy) < 0)
 		return -1;
 
 	for (ifp = nih->iflist; ifp; ifp = ifp->next) {
+		switch (policy->event) {
+		case NI_EVENT_LINK_UP:
+			if (!ni_interface_link_is_up(ifp))
+				continue;
+			break;
+
+		case NI_EVENT_LINK_DOWN:
+			if (ni_interface_link_is_up(ifp))
+				continue;
+			break;
+
+		default:
+			continue;
+		}
+
 		if (ni_policy_match_event(nih, policy->event, ifp) == policy) {
 			ni_debug_ifconfig("%s: matches new policy", ifp->name);
 			ni_interface_array_append(&iflist, ifp);
+		}
+	}
+
+	for (i = 0; i < iflist.count; ++i) {
+		ifp = iflist.data[i];
+
+		ni_debug_ifconfig("%s: requested flags 0x%x", ifp->name, policy->interface->ifflags);
+		if (ni_interface_configure2(nih, ifp, policy->interface) < 0) {
+			ni_error("%s: error applying new policy", ifp->name);
 		}
 	}
 
