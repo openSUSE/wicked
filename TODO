@@ -1,5 +1,7 @@
 wicked:
 	- may want to move finite state machinery into the library
+	- when installing a policy for an auto device, also include a
+	  link-down policy that shuts it down again.
 
 netinfo:
 

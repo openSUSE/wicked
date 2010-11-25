@@ -27,11 +27,14 @@ What's currently supported
 
 wicked currently supports
 
- -	a configuration file backend to parse SUSE style
- 	/etc/sysconfig/network files
+ -	configuration file backends to parse SUSE and RedHat style
+ 	/etc/sysconfig/network files. Since I'm doing my development
+	on a SUSE installation, the former are probably significantly
+	more stable than the RedHat ones.
 
- -	a configuration file backend to store network
- 	interface configuration as XML
+ -	a configuration file backend to represent network interface
+ 	configuration in XML. The syntax evolved out of what netcf
+	uses.
 
  -	bring-up and shutdown of "normal" network interfaces
  	such as Ethernet, loopback, Token Ring etc, as well
@@ -48,8 +51,7 @@ wicked currently supports
 
  -	There is some experimental code that should help to
  	automatically bring up interfaces as soon as a link
-	is detected; but that's not tested yet, and most likely
-	will change in the future.
+	is detected.
 
  -	A homegrown XML reader/writer implementation, which is far
  	from being fully standards conforming, but which has a
@@ -103,12 +105,20 @@ Since the file contains only one interface, you could also have used
 "all" instead of the interface name. As the name implies, this brings
 up all interfaces listed in the file.
 
-Bringing up an interface is easy - what really happens here is
+Bringing up a single interface is easy - what really happens here is
 the client adds an XML element to the interface description
 tell the server that the desired interface state is "up", and
 sending the entire description to the server using a PUT call.
 Note that this operation will create the VLAN interface on
 the fly if it's not yet there.
+
+You can also shut down and bring all interfaces configured on your
+system using things like
+
+	./wicked ifdown all
+	./wicked ifup boot
+
+Please refer to the wicked(8) manpage for details.
 
 The analogous approach can be used to bring down the interface
 again. For your convenience, you could use use
