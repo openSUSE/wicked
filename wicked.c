@@ -332,6 +332,164 @@ ni_interface_state_array_destroy(ni_interface_state_array_t *array)
 }
 
 static int
+get_managed_interfaces(ni_handle_t *config, int filter, ni_evaction_t ifaction, ni_interface_state_array_t *result)
+{
+	ni_interface_t *pos = NULL, *ifp;
+	int want_state;
+
+	want_state = (ifaction == NI_INTERFACE_START)? STATE_NETWORK_UP : STATE_DEVICE_DOWN;
+
+	for (ifp = ni_interface_first(config, &pos); ifp; ifp = ni_interface_next(config, &pos)) {
+		const ni_ifaction_t *ifa = &ifp->startmode.ifaction[filter];
+		ni_interface_state_t *state;
+
+		if (ifa->action != ifaction)
+			continue;
+
+		state = ni_interface_state_new(ifp->name, ifp);
+		state->want_state = want_state;
+		state->behavior = *ifa;
+
+		ni_interface_state_array_append(result, state);
+	}
+
+	return 0;
+}
+
+static int
+interface_topology_build(ni_handle_t *config, ni_interface_state_array_t *result)
+{
+	ni_interface_t *pos = NULL, *ifp;
+
+	for (ifp = ni_interface_first(config, &pos); ifp; ifp = ni_interface_next(config, &pos)) {
+		ni_interface_state_t *master_state, *slave_state;
+		ni_interface_t *slave;
+		const char *slave_name;
+		ni_bonding_t *bond;
+		ni_bridge_t *bridge;
+		ni_vlan_t *vlan;
+		unsigned int i;
+
+		master_state = ni_interface_state_array_find(result, ifp->name);
+		assert(master_state->config == ifp);
+
+		switch (ifp->type) {
+		case NI_IFTYPE_VLAN:
+			if ((vlan = ifp->vlan) == NULL)
+				continue;
+
+			slave_name = vlan->interface_name;
+
+			slave = ni_interface_by_name(config, slave_name);
+			if (slave != NULL) {
+				/* VLANs are special, real device must be an ether device,
+				 * and can be referenced by more than one vlan */
+				if (slave->type != NI_IFTYPE_ETHERNET) {
+					ni_error("vlan interface %s references non-ethernet device", ifp->name);
+					goto failed;
+				}
+			}
+
+			slave_state = ni_interface_state_add_child(master_state, slave_name, slave);
+			if (slave_state->parent)
+				goto multiple_masters;
+			break;
+
+		case NI_IFTYPE_BOND:
+			if ((bond = ifp->bonding) == NULL)
+				continue;
+
+			for (i = 0; i < bond->slave_names.count; ++i) {
+				slave_name = bond->slave_names.data[i];
+
+				slave = ni_interface_by_name(config, slave_name);
+
+				slave_state = ni_interface_state_add_child(master_state, slave_name, slave);
+				if (slave_state->parent)
+					goto multiple_masters;
+				slave_state->parent = master_state;
+			}
+			break;
+
+		case NI_IFTYPE_BRIDGE:
+			if ((bridge = ifp->bridge) == NULL)
+				continue;
+
+			for (i = 0; i < bridge->ports.count; ++i) {
+				ni_bridge_port_t *port = bridge->ports.data[i];
+
+				slave = ni_interface_by_name(config, port->name);
+
+				slave_state = ni_interface_state_add_child(master_state, port->name, slave);
+				if (slave_state->parent)
+					goto multiple_masters;
+				slave_state->parent = master_state;
+			}
+			break;
+
+		default:
+			break;
+
+		multiple_masters:
+			ni_error("interface %s used by more than one device (%s and %s)",
+					slave_state->ifname, master_state->ifname,
+					slave_state->parent->ifname);
+		failed:
+			ni_interface_state_array_destroy(result);
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
+static int
+interface_mark_up(ni_interface_state_t *state)
+{
+	ni_interface_t *ifp = state->config;
+	unsigned int i;
+
+	if (ifp != NULL) {
+		if (ifp->startmode.ifaction[NI_IFACTION_LINK_UP].action == NI_INTERFACE_START) {
+			ni_debug_wicked("%s: interface has auto-start mode", ifp->name);
+			ifp->ifflags |= (NI_IFF_DEVICE_UP | NI_IFF_LINK_UP | NI_IFF_NETWORK_UP);
+			state->is_policy = 1;
+		}
+	}
+
+	for (i = 0; i < state->children.count; ++i) {
+		ni_interface_state_t *slave_state = state->children.data[i];
+
+		/* Subordinate device which we're not explicitly asked to configure
+		 * should have their link brought up, however.
+		 * Bonding slave devices should never have their network configured.
+		 */
+		if (slave_state->want_state == STATE_UNKNOWN)
+			slave_state->want_state = STATE_LINK_UP;
+		interface_mark_up(slave_state);
+	}
+
+	return 0;
+}
+
+static int
+interface_mark_down(ni_interface_state_t *state)
+{
+	ni_interface_state_t *ancestore = state;
+
+	while ((ancestore = ancestore->parent) != NULL) {
+		if (ancestore->want_state == STATE_UNKNOWN) {
+			ni_error("cannot shut down %s: ancestore %s still active",
+					state->ifname, ancestore->ifname);
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
+#if 0
+static int
 ni_build_partial_topology2(ni_handle_t *config, int filter, ni_evaction_t ifaction, ni_interface_state_array_t *result)
 {
 	ni_interface_state_array_t state_array = { 0, NULL };
@@ -459,6 +617,7 @@ ni_build_partial_topology2(ni_handle_t *config, int filter, ni_evaction_t ifacti
 	ni_interface_state_array_destroy(&state_array);
 	return 0;
 }
+#endif
 
 /*
  * Check whether we have all requested leases
@@ -906,7 +1065,7 @@ usage:
 	}
 
 	if (!strcmp(ifname, "all")) {
-		if (ni_build_partial_topology2(config, ifevent, NI_INTERFACE_START, &state_array) < 0) {
+		if (get_managed_interfaces(config, ifevent, NI_INTERFACE_START, &state_array) < 0) {
 			ni_error("failed to build interface hierarchy");
 			goto failed;
 		}
@@ -919,11 +1078,31 @@ usage:
 			goto failed;
 		}
 
+		if (ifp->startmode.ifaction[ifevent].action == NI_INTERFACE_IGNORE) {
+			ni_error("not permitted to bring up interface");
+			goto failed;
+		}
+
 		state = ni_interface_state_new(ifname, ifp);
 		state->behavior = ifp->startmode.ifaction[ifevent];
 		state->behavior.only_if_link = 0;
 		state->want_state = STATE_NETWORK_UP;
 		ni_interface_state_array_append(&state_array, state);
+	}
+
+	if (state_array.count == 0) {
+		printf("Nothing to be done\n");
+		rv = 0;
+		goto failed;
+	} else {
+		unsigned int i, ifcount = state_array.count;
+
+		rv = interface_topology_build(config, &state_array);
+		for (i = 0; rv >= 0 && i < ifcount; ++i)
+			rv = interface_mark_up(state_array.data[i]);
+
+		if (rv < 0)
+			goto failed;
 	}
 
 	rv = ni_interfaces_wait(system, &state_array);
@@ -1005,7 +1184,7 @@ usage:
 	}
 
 	if (!strcmp(ifname, "all")) {
-		if (ni_build_partial_topology2(system, ifevent, NI_INTERFACE_STOP, &state_array) < 0) {
+		if (get_managed_interfaces(system, ifevent, NI_INTERFACE_STOP, &state_array) < 0) {
 			ni_error("failed to build interface hierarchy");
 			goto failed;
 		}
@@ -1027,6 +1206,21 @@ usage:
 	/* For VLAN, bridge, bonding and other virtual devices, implement delete */
 	if (opt_delete)
 		ni_warn("FIXME: --delete currently not supported");
+
+	if (state_array.count == 0) {
+		printf("Nothing to be done\n");
+		rv = 0;
+		goto failed;
+	} else {
+		unsigned int i, ifcount = state_array.count;
+
+		rv = interface_topology_build(system, &state_array);
+		for (i = 0; rv >= 0 && i < ifcount; ++i)
+			rv = interface_mark_down(state_array.data[i]);
+
+		if (rv < 0)
+			goto failed;
+	}
 
 	rv = ni_interfaces_wait(system, &state_array);
 
