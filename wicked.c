@@ -213,6 +213,13 @@ typedef struct ni_interface_state_array {
 	ni_interface_state_t **	data;
 } ni_interface_state_array_t;
 
+typedef struct ni_interface_op {
+	const char *		name;
+	int			(*call)(ni_interface_state_t *, ni_handle_t *);
+	int			(*check)(ni_interface_state_t *, ni_handle_t *, unsigned int);
+	int			(*timeout)(ni_interface_state_t *);
+} ni_interface_op_t;
+
 struct ni_interface_state {
 	unsigned int		refcount;
 
@@ -220,16 +227,17 @@ struct ni_interface_state {
 	char *			ifname;
 	ni_interface_t *	config;
 	unsigned int		done      : 1,
-				error     : 1,
 				is_slave  : 1,
 				is_policy : 1,
-				waiting   : 1;
+				waiting   : 1,
+				called    : 1;
+	int			result;
 
-	int			next_state;
-	int			want_state;
 	int			have_state;
 	unsigned int		timeout;
 	ni_ifaction_t		behavior;
+
+	const ni_interface_op_t	*fsm;
 
 	ni_interface_state_t *	parent;
 	ni_interface_state_array_t children;
@@ -335,9 +343,6 @@ static int
 get_managed_interfaces(ni_handle_t *config, int filter, ni_evaction_t ifaction, ni_interface_state_array_t *result)
 {
 	ni_interface_t *pos = NULL, *ifp;
-	int want_state;
-
-	want_state = (ifaction == NI_INTERFACE_START)? STATE_NETWORK_UP : STATE_DEVICE_DOWN;
 
 	for (ifp = ni_interface_first(config, &pos); ifp; ifp = ni_interface_next(config, &pos)) {
 		const ni_ifaction_t *ifa = &ifp->startmode.ifaction[filter];
@@ -347,7 +352,6 @@ get_managed_interfaces(ni_handle_t *config, int filter, ni_evaction_t ifaction, 
 			continue;
 
 		state = ni_interface_state_new(ifp->name, ifp);
-		state->want_state = want_state;
 		state->behavior = *ifa;
 
 		ni_interface_state_array_append(result, state);
@@ -359,23 +363,24 @@ get_managed_interfaces(ni_handle_t *config, int filter, ni_evaction_t ifaction, 
 static int
 interface_topology_build(ni_handle_t *config, ni_interface_state_array_t *result)
 {
-	ni_interface_t *pos = NULL, *ifp;
+	unsigned int i;
 
-	for (ifp = ni_interface_first(config, &pos); ifp; ifp = ni_interface_next(config, &pos)) {
-		ni_interface_state_t *master_state, *slave_state;
-		ni_interface_t *slave;
+	for (i = 0; i < result->count; ++i) {
+		ni_interface_state_t *master_state = result->data[i];
+		ni_interface_state_t *slave_state;
+		ni_interface_t *master, *slave;
 		const char *slave_name;
 		ni_bonding_t *bond;
 		ni_bridge_t *bridge;
 		ni_vlan_t *vlan;
 		unsigned int i;
 
-		master_state = ni_interface_state_array_find(result, ifp->name);
-		assert(master_state->config == ifp);
+		if ((master = master_state->config) == NULL)
+			continue;
 
-		switch (ifp->type) {
+		switch (master->type) {
 		case NI_IFTYPE_VLAN:
-			if ((vlan = ifp->vlan) == NULL)
+			if ((vlan = master->vlan) == NULL)
 				continue;
 
 			slave_name = vlan->interface_name;
@@ -385,7 +390,7 @@ interface_topology_build(ni_handle_t *config, ni_interface_state_array_t *result
 				/* VLANs are special, real device must be an ether device,
 				 * and can be referenced by more than one vlan */
 				if (slave->type != NI_IFTYPE_ETHERNET) {
-					ni_error("vlan interface %s references non-ethernet device", ifp->name);
+					ni_error("vlan interface %s references non-ethernet device", master->name);
 					goto failed;
 				}
 			}
@@ -396,7 +401,7 @@ interface_topology_build(ni_handle_t *config, ni_interface_state_array_t *result
 			break;
 
 		case NI_IFTYPE_BOND:
-			if ((bond = ifp->bonding) == NULL)
+			if ((bond = master->bonding) == NULL)
 				continue;
 
 			for (i = 0; i < bond->slave_names.count; ++i) {
@@ -412,7 +417,7 @@ interface_topology_build(ni_handle_t *config, ni_interface_state_array_t *result
 			break;
 
 		case NI_IFTYPE_BRIDGE:
-			if ((bridge = ifp->bridge) == NULL)
+			if ((bridge = master->bridge) == NULL)
 				continue;
 
 			for (i = 0; i < bridge->ports.count; ++i) {
@@ -435,54 +440,12 @@ interface_topology_build(ni_handle_t *config, ni_interface_state_array_t *result
 					slave_state->ifname, master_state->ifname,
 					slave_state->parent->ifname);
 		failed:
-			ni_interface_state_array_destroy(result);
 			return -1;
 		}
-	}
 
-	return 0;
-}
-
-static int
-interface_mark_up(ni_interface_state_t *state)
-{
-	ni_interface_t *ifp = state->config;
-	unsigned int i;
-
-	if (ifp != NULL) {
-		if (ifp->startmode.ifaction[NI_IFACTION_LINK_UP].action == NI_INTERFACE_START) {
-			ni_debug_wicked("%s: interface has auto-start mode", ifp->name);
-			ifp->ifflags |= (NI_IFF_DEVICE_UP | NI_IFF_LINK_UP | NI_IFF_NETWORK_UP);
-			state->is_policy = 1;
-		}
-	}
-
-	for (i = 0; i < state->children.count; ++i) {
-		ni_interface_state_t *slave_state = state->children.data[i];
-
-		/* Subordinate device which we're not explicitly asked to configure
-		 * should have their link brought up, however.
-		 * Bonding slave devices should never have their network configured.
-		 */
-		if (slave_state->want_state == STATE_UNKNOWN)
-			slave_state->want_state = STATE_LINK_UP;
-		interface_mark_up(slave_state);
-	}
-
-	return 0;
-}
-
-static int
-interface_mark_down(ni_interface_state_t *state)
-{
-	ni_interface_state_t *ancestore = state;
-
-	while ((ancestore = ancestore->parent) != NULL) {
-		if (ancestore->want_state == STATE_UNKNOWN) {
-			ni_error("cannot shut down %s: ancestore %s still active",
-					state->ifname, ancestore->ifname);
+		if (master_state->children.count
+		 && interface_topology_build(config, &master_state->children) < 0)
 			return -1;
-		}
 	}
 
 	return 0;
@@ -648,11 +611,29 @@ ni_interface_network_is_up_afinfo(const char *ifname, const ni_afinfo_t *cfg_afi
 }
 
 static void
-interface_update_state(ni_interface_state_t *state, const ni_interface_t *have)
+print_message(const char *fmt, ...)
 {
-	ni_interface_t *want = state->config;
-	int new_state = STATE_DEVICE_DOWN;
+	va_list ap;
 
+	va_start(ap, fmt);
+	vfprintf(stdout, fmt, ap);
+	va_end(ap);
+
+	printf("\n");
+}
+
+static void
+interface_update(ni_interface_state_t *state, ni_handle_t *system)
+{
+	const ni_interface_t *have = NULL;
+	ni_interface_t *want = state->config;
+	int new_state = STATE_UNKNOWN;
+
+	/* Interface may not be present yet (eg for bridge or bond interfaces) */
+	if ((have = ni_interface_by_name(system, state->ifname)) == NULL)
+		goto out;
+
+	new_state = STATE_DEVICE_DOWN;
 	if (!(have->ifflags & NI_IFF_DEVICE_UP))
 		goto out;
 
@@ -679,53 +660,19 @@ interface_update_state(ni_interface_state_t *state, const ni_interface_t *have)
 
 out:
 	if (state->have_state != new_state)
-		ni_debug_wicked("%s: state changed from %s to %s",
+		ni_debug_wicked("%s: state changed from %s to %s, fsm=%s%s",
 				state->ifname,
 				ni_interface_state_name(state->have_state),
-				ni_interface_state_name(new_state));
+				ni_interface_state_name(new_state),
+				state->fsm->name,
+				state->waiting? ", waiting": "");
+	else
+		ni_debug_wicked("%s: state is current=%s, fsm=%s%s", state->ifname,
+				ni_interface_state_name(state->have_state),
+				state->fsm->name,
+				state->waiting? ", waiting": "");
 
 	state->have_state = new_state;
-}
-
-static void
-print_message(const char *fmt, ...)
-{
-	va_list ap;
-
-	va_start(ap, fmt);
-	vfprintf(stdout, fmt, ap);
-	va_end(ap);
-
-	printf("\n");
-}
-
-static int
-interface_update(ni_interface_state_t *state, ni_handle_t *system, ni_interface_t **ifpp)
-{
-	ni_interface_t *ifp;
-
-	/* Interface may not be present yet (eg for bridge or bond interfaces) */
-	if ((ifp = ni_interface_by_name(system, state->ifname)) != NULL)
-		interface_update_state(state, ifp);
-	*ifpp = ifp;
-
-	ni_debug_wicked("%s: state is current=%s, next=%s, wanted=%s%s", state->ifname,
-			ni_interface_state_name(state->have_state),
-			ni_interface_state_name(state->next_state),
-			ni_interface_state_name(state->want_state),
-			state->waiting? ", waiting": "");
-
-	/* Were we waiting to get to the next state? */
-	if (state->waiting) {
-		if (state->next_state == state->have_state
-		 || state->want_state == state->have_state) {
-			state->waiting = 0;
-		 } else {
-			return 0;
-		}
-	}
-
-	return !state->waiting;
 }
 
 static int
@@ -761,10 +708,6 @@ interface_change(ni_interface_state_t *state, ni_handle_t *system, ni_interface_
 		return -1;
 	}
 
-	/* If we're trying to go to the final desired state, use the config
-	 * object if there is one. */
-	if (next_state == state->want_state && state->config)
-		ifp = state->config;
 	if (ifp == NULL) {
 		ni_error("%s: unknown device", state->ifname);
 		return -1;
@@ -779,7 +722,6 @@ interface_change(ni_interface_state_t *state, ni_handle_t *system, ni_interface_
 	}
 
 	state->waiting = 1;
-	state->next_state = next_state;
 	state->timeout = timeout;
 	if (state->timeout == 0)
 		state->timeout = 10;
@@ -787,6 +729,7 @@ interface_change(ni_interface_state_t *state, ni_handle_t *system, ni_interface_
 	return 0;
 }
 
+#ifdef disabled
 static int
 send_policy(ni_interface_state_t *state, ni_handle_t *system, ni_interface_t *ifp)
 {
@@ -797,16 +740,326 @@ send_policy(ni_interface_state_t *state, ni_handle_t *system, ni_interface_t *if
 	policy.interface = ifp;
 	return ni_policy_update(system, &policy);
 }
+#endif
 
 static int
 interface_failed(ni_interface_state_t *state, const char *how)
 {
 	print_message("%s: %s", state->ifname, how?: "failed");
+	state->result = -1;
 	state->done = 1;
-	state->error = 1;
 	return -1;
 }
 
+static int
+__fsm_next(ni_interface_state_t *state)
+{
+	if (state->fsm == NULL)
+		return interface_failed(state, "FSM bug");
+
+	state->called = 0;
+	state->fsm++;
+	if (state->fsm->call == NULL && state->fsm->check == NULL) {
+		ni_debug_wicked("%s: reached FSM final state", state->ifname);
+		state->result = 0;
+		state->done = 1;
+	} else {
+		ni_debug_wicked("%s: enter FSM state %s", state->ifname, state->fsm->name);
+	}
+
+	return 0;
+}
+
+static int
+__interface_check_timeout(ni_interface_state_t *state, unsigned int waited)
+{
+	if (waited > state->timeout) {
+		ni_debug_wicked("%s: TIMEOUT: state is current=%s, fsm=%s%s", state->ifname,
+				ni_interface_state_name(state->have_state),
+				state->fsm->name,
+				state->behavior.only_if_link? " (only-if-link)" : "");
+
+		if (state->fsm->timeout)
+			return state->fsm->timeout(state);
+
+		interface_failed(state, "timed out");
+		if (state->behavior.mandatory)
+			return -1;
+	}
+
+	return 0;
+}
+
+static inline int
+__fsm_interface_check(ni_interface_state_t *state, ni_handle_t *system, unsigned int waited)
+{
+	int rv = 1;
+
+	while (rv > 0) {
+		if (state->done)
+			return state->result;
+
+		if (!state->called && state->fsm->call) {
+			rv = state->fsm->call(state, system);
+
+			ni_debug_wicked("%s: called %s() = %d", state->ifname, state->fsm->name, rv);
+			if (rv <= 0)
+				break;
+
+			state->called = 1;
+		}
+
+		if (state->waiting && __interface_check_timeout(state, waited) < 0)
+			return -1;
+
+		rv = state->fsm->check(state, system, waited);
+		if (rv > 0) {
+			if (state->done)
+				return state->result;
+
+			if (state->fsm->name == NULL)
+				return interface_failed(state, "BUG: ran past end of FSM state array");
+		}
+	}
+	return rv;
+}
+
+static int
+__fsm_children_check(ni_interface_state_t *state, ni_handle_t *system, unsigned int waited)
+{
+	int child_failed = 0, all_done = 1;
+	unsigned int i;
+
+	for (i = 0; i < state->children.count; ++i) {
+		ni_interface_state_t *slave_state = state->children.data[i];
+
+		if (__fsm_interface_check(slave_state, system, waited) < 0)
+			child_failed = 1;
+
+		if (!slave_state->done)
+			all_done = 0;
+	}
+
+	if (!all_done)
+		return 0;
+
+	if (child_failed)
+		return interface_failed(state, "could not bring up all subordinate interfaces");
+
+	return __fsm_next(state);
+}
+
+static int
+__fsm_network_up_call(ni_interface_state_t *state, ni_handle_t *system)
+{
+	ni_interface_t *ifp;
+
+	if ((ifp = state->config) == NULL)
+		ifp = ni_interface_by_name(system, state->ifname);
+
+	if  (interface_change(state, system, ifp, STATE_NETWORK_UP, state->behavior.wait) < 0)
+		return interface_failed(state, "could not send device config");
+
+	return 1;
+}
+
+static int
+__fsm_network_up_check(ni_interface_state_t *state, ni_handle_t *system, unsigned int waited)
+{
+	interface_update(state, system);
+
+	if (state->have_state != STATE_NETWORK_UP)
+		return 0;
+	state->waiting = 0;
+
+	return __fsm_next(state);
+}
+
+static int
+__fsm_network_down_call(ni_interface_state_t *state, ni_handle_t *system)
+{
+	ni_interface_t *ifp;
+
+	if ((ifp = state->config) == NULL)
+		ifp = ni_interface_by_name(system, state->ifname);
+
+	if  (interface_change(state, system, ifp, STATE_DEVICE_DOWN, state->behavior.wait) < 0)
+		return interface_failed(state, "could not send device config");
+
+	return 1;
+}
+
+static int
+__fsm_network_down_check(ni_interface_state_t *state, ni_handle_t *system, unsigned int waited)
+{
+	interface_update(state, system);
+
+	if (state->have_state != STATE_DEVICE_DOWN)
+		return 0;
+	state->waiting = 0;
+
+	return __fsm_next(state);
+}
+
+static int
+__fsm_link_up_call(ni_interface_state_t *state, ni_handle_t *system)
+{
+	ni_interface_t *cfg;
+	ni_interface_t *ifp;
+
+	ifp = ni_interface_by_name(system, state->ifname);
+	if (ifp == NULL)
+		/* FIXME: we should create the device here. */
+		return interface_failed(state, "interface doesn't exist");
+
+	/* Send the device our desired device configuration.
+	 * This includes VLAN, bridge and bonding topology info, as
+	 * well as ethtool settings etc, but none of the network config.
+	 */
+	if ((cfg = state->config) != NULL) {
+		if (cfg->ethernet)
+			ni_interface_set_ethernet(ifp, ni_ethernet_clone(cfg->ethernet));
+		if (cfg->vlan)
+			ni_interface_set_vlan(ifp, ni_vlan_clone(cfg->vlan));
+		if (cfg->bridge)
+			ni_interface_set_bridge(ifp, ni_bridge_clone(cfg->bridge));
+		if (cfg->bonding)
+			ni_interface_set_bonding(ifp, ni_bonding_clone(cfg->bonding));
+
+		if (cfg->hwaddr.len)
+			ifp->hwaddr = cfg->hwaddr;
+		ifp->mtu = cfg->mtu;
+	}
+	return interface_change(state, system, ifp, STATE_LINK_UP, opt_link_timeout);
+}
+
+static int
+__fsm_link_up_check(ni_interface_state_t *state, ni_handle_t *system, unsigned int waited)
+{
+	interface_update(state, system);
+
+	if (state->have_state < STATE_LINK_UP)
+		return 0;
+	state->waiting = 0;
+
+	return __fsm_next(state);
+}
+
+static int
+__fsm_link_up_timeout(ni_interface_state_t *state)
+{
+	if (state->behavior.only_if_link) {
+		/* Dang, link didn't come up. We're supposed to bring up
+		 * the network later, when the link comes up, so trigger that now. */
+		print_message("%s: no link", state->ifname);
+		state->done = 1;
+		return 0;
+	}
+
+	if (state->behavior.mandatory)
+		return interface_failed(state, "timed out");
+
+	print_message("%s: no link (optional interface)", state->ifname);
+	state->done = 1;
+	return 0;
+}
+
+#define __NI_INTERFACE_OP(__name, __call, __check, __timeout) { \
+		.name = __name, \
+		.call = __call, \
+		.check = __check, \
+		.timeout = __timeout, \
+	}
+#define NI_INTERFACE_OP(__name, __call, __check) \
+		__NI_INTERFACE_OP(__name, __call, __check, NULL)
+#define NI_FSM_DONE	{ .name = NULL }
+
+static ni_interface_op_t	__fsm_network_up_generic[] = {
+	NI_INTERFACE_OP("children-up",	NULL,				__fsm_children_check),
+	NI_INTERFACE_OP("network-up",	__fsm_network_up_call,		__fsm_network_up_check),
+
+	NI_FSM_DONE
+};
+
+/* static */ ni_interface_op_t	__fsm_network_up_iflink[] = {
+	NI_INTERFACE_OP("children-up",	NULL,				__fsm_children_check),
+	__NI_INTERFACE_OP("link-up",	__fsm_link_up_call,		__fsm_link_up_check,	__fsm_link_up_timeout),
+	NI_INTERFACE_OP("network-up",	__fsm_network_up_call,		__fsm_network_up_check),
+
+	NI_FSM_DONE
+};
+
+static ni_interface_op_t	__fsm_link_up_generic[] = {
+	NI_INTERFACE_OP("children-up",	NULL,				__fsm_children_check),
+	__NI_INTERFACE_OP("link-up",	__fsm_link_up_call,		__fsm_link_up_check,	__fsm_link_up_timeout),
+
+	NI_FSM_DONE
+};
+
+static ni_interface_op_t	__fsm_network_down_generic[] = {
+	NI_INTERFACE_OP("device-down",	__fsm_network_down_call,	__fsm_network_down_check),
+	NI_INTERFACE_OP("children-down",NULL,				__fsm_children_check),
+
+	NI_FSM_DONE
+};
+
+static int
+interface_mark_up(ni_interface_state_t *state)
+{
+	unsigned int i;
+
+	if (state->fsm == NULL && state->config != NULL) {
+		ni_interface_t *ifp = state->config;
+
+		if (ifp->startmode.ifaction[NI_IFACTION_LINK_UP].action == NI_INTERFACE_START) {
+			ni_debug_wicked("%s: interface has auto-start mode", ifp->name);
+			state->is_policy = 1;
+			/* state->fsm = __ni_interface_up_policy; */
+		}
+	}
+
+	if (state->fsm == NULL) {
+		state->fsm = state->config?  __fsm_network_up_generic
+					  : __fsm_link_up_generic;
+	}
+
+	for (i = 0; i < state->children.count; ++i) {
+		ni_interface_state_t *slave_state = state->children.data[i];
+
+		/* Subordinate device which we're not explicitly asked to configure
+		 * should have their link brought up, however.
+		 * Bonding slave devices should never have their network configured.
+		 * Note, we should tear down any network config on such devices.
+		 */
+		if (state->config && state->config->type == NI_IFTYPE_BOND)
+			slave_state->fsm = __fsm_link_up_generic;
+
+		interface_mark_up(slave_state);
+	}
+
+	return 0;
+}
+
+static int
+interface_mark_down(ni_interface_state_t *state)
+{
+	ni_interface_state_t *ancestore = state;
+
+	state->fsm = __fsm_network_down_generic;
+	while ((ancestore = ancestore->parent) != NULL) {
+#if 0
+		if (ancestore->want_state == STATE_UNKNOWN) {
+			ni_error("cannot shut down %s: ancestore %s still active",
+					state->ifname, ancestore->ifname);
+			return -1;
+		}
+#endif
+	}
+
+	return 0;
+}
+
+#if 0
 static int
 ni_topology_update(ni_interface_state_array_t *state_array, ni_handle_t *system, unsigned int waited)
 {
@@ -952,6 +1205,7 @@ again:
 	}
 	return ready;
 }
+#endif
 
 static int
 ni_interfaces_wait(ni_handle_t *system, ni_interface_state_array_t *state_array)
@@ -963,13 +1217,23 @@ ni_interfaces_wait(ni_handle_t *system, ni_interface_state_array_t *state_array)
 
 	setvbuf(stdout, NULL,_IONBF,  0);
 	while (1) {
+		unsigned int i, all_done = 1;
+
 		if ((rv = ni_refresh(system)) < 0) {
 			ni_error("failed to get system state");
 			return -1;
 		}
 
-		if (ni_topology_update(state_array, system, waited / TEST_FREQ))
-			return 0;
+		for (rv = i = 0; i < state_array->count; ++i) {
+			ni_interface_state_t *state = state_array->data[i];
+			if (__fsm_interface_check(state, system, waited / TEST_FREQ) < 0)
+				rv = -1;
+			if (!state->done)
+				all_done = 0;
+		}
+
+		if (all_done)
+			break;
 
 		usleep(1000000 / TEST_FREQ);
 		if (opt_progressmeter)
@@ -978,7 +1242,7 @@ ni_interfaces_wait(ni_handle_t *system, ni_interface_state_array_t *state_array)
 		dots++;
 	}
 
-	return 0;
+	return rv;
 }
 
 /*
@@ -1086,7 +1350,6 @@ usage:
 		state = ni_interface_state_new(ifname, ifp);
 		state->behavior = ifp->startmode.ifaction[ifevent];
 		state->behavior.only_if_link = 0;
-		state->want_state = STATE_NETWORK_UP;
 		ni_interface_state_array_append(&state_array, state);
 	}
 
@@ -1199,7 +1462,6 @@ usage:
 
 		state = ni_interface_state_new(ifname, ifp);
 		state->behavior = ifp->startmode.ifaction[ifevent];
-		state->want_state = STATE_DEVICE_DOWN;
 		ni_interface_state_array_append(&state_array, state);
 	}
 
