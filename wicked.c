@@ -744,6 +744,7 @@ __fsm_next(ni_interface_state_t *state)
 	if (state->fsm == NULL)
 		return interface_failed(state, "FSM bug");
 
+	state->waiting = 0;
 	state->called = 0;
 	state->fsm++;
 	if (state->fsm->call == NULL && state->fsm->check == NULL) {
@@ -787,7 +788,7 @@ __fsm_interface_check(ni_interface_state_t *state, ni_handle_t *system, unsigned
 	if (state->fsm == NULL)
 		return 0;
 
-	while (rv > 0) {
+	while (1) {
 		if (state->done)
 			return state->result;
 
@@ -798,7 +799,7 @@ __fsm_interface_check(ni_interface_state_t *state, ni_handle_t *system, unsigned
 			rv = state->fsm->call(state, system);
 
 			ni_debug_wicked("%s: called %s() = %d", state->ifname, state->fsm->name, rv);
-			if (rv <= 0)
+			if (rv < 0)
 				break;
 
 			state->called = 1;
@@ -807,10 +808,19 @@ __fsm_interface_check(ni_interface_state_t *state, ni_handle_t *system, unsigned
 		if (state->waiting && __interface_check_timeout(state, waited) < 0)
 			return -1;
 
-		rv = state->fsm->check(state, system, waited);
-		if (rv > 0) {
-			if (state->done)
-				return state->result;
+		if (state->fsm->check != NULL) {
+			/* Check whether we're done. Negative return value
+			 * means error, 0 means we're still waiting to proceed,
+			 * and positive means we moved to the next FSM state,
+			 * and should retry.
+			 */
+			rv = state->fsm->check(state, system, waited);
+			if (rv <= 0)
+				break;
+		} else {
+			rv = __fsm_next(state);
+			if (rv < 0)
+				break;
 		}
 	}
 	return rv;
@@ -852,7 +862,7 @@ __fsm_network_up_call(ni_interface_state_t *state, ni_handle_t *system)
 	if  (interface_request_state(state, system, ifp, STATE_NETWORK_UP, state->behavior.wait) < 0)
 		return interface_failed(state, "could not send device config");
 
-	return 1;
+	return 0;
 }
 
 static int
@@ -862,7 +872,6 @@ __fsm_network_up_check(ni_interface_state_t *state, ni_handle_t *system, unsigne
 
 	if (state->have_state != STATE_NETWORK_UP)
 		return 0;
-	state->waiting = 0;
 
 	return __fsm_next(state);
 }
@@ -878,7 +887,7 @@ __fsm_network_down_call(ni_interface_state_t *state, ni_handle_t *system)
 	if  (interface_request_state(state, system, ifp, STATE_DEVICE_DOWN, state->behavior.wait) < 0)
 		return interface_failed(state, "could not send device config");
 
-	return 1;
+	return 0;
 }
 
 static int
@@ -888,7 +897,6 @@ __fsm_network_down_check(ni_interface_state_t *state, ni_handle_t *system, unsig
 
 	if (state->have_state != STATE_DEVICE_DOWN)
 		return 0;
-	state->waiting = 0;
 
 	return __fsm_next(state);
 }
@@ -900,9 +908,13 @@ __fsm_link_up_call(ni_interface_state_t *state, ni_handle_t *system)
 	ni_interface_t *ifp;
 
 	ifp = ni_interface_by_name(system, state->ifname);
-	if (ifp == NULL)
+	if (ifp != NULL) {
+		if (ifp->ifflags & NI_IFF_LINK_UP)
+			return 0;
+	} else {
 		/* FIXME: we should create the device here. */
 		return interface_failed(state, "interface doesn't exist");
+	}
 
 	/* Send the device our desired device configuration.
 	 * This includes VLAN, bridge and bonding topology info, as
@@ -932,7 +944,6 @@ __fsm_link_up_check(ni_interface_state_t *state, ni_handle_t *system, unsigned i
 
 	if (state->have_state < STATE_LINK_UP)
 		return 0;
-	state->waiting = 0;
 
 	return __fsm_next(state);
 }
@@ -956,6 +967,27 @@ __fsm_link_up_timeout(ni_interface_state_t *state)
 	return 0;
 }
 
+static int
+__fsm_policy_call(ni_interface_state_t *state, ni_handle_t *system)
+{
+	ni_interface_t *ifp;
+	ni_policy_t policy;
+
+	if ((ifp = state->config) == NULL)
+		return interface_failed(state, "no policy for interface?"); /* this would be a bug */
+
+	memset(&policy, 0, sizeof(policy));
+	policy.event = NI_EVENT_LINK_UP;
+	policy.interface = ifp;
+	if (ni_policy_update(system, &policy) < 0)
+		return -1;
+
+	/* Note: don't set state->waiting = 1 here, as we're not waiting for
+	 * anything (yet). */
+	state->timeout = 0;
+	return 1;
+}
+
 #define __NI_INTERFACE_OP(__name, __call, __check, __timeout) { \
 		.name = __name, \
 		.call = __call, \
@@ -966,6 +998,9 @@ __fsm_link_up_timeout(ni_interface_state_t *state)
 		__NI_INTERFACE_OP(__name, __call, __check, NULL)
 #define NI_FSM_DONE	{ .name = NULL }
 
+/*
+ * Bring up the network by sending the network config right away.
+ */
 static ni_interface_op_t	__fsm_network_up_generic[] = {
 	NI_INTERFACE_OP("children-up",	NULL,				__fsm_children_check),
 	NI_INTERFACE_OP("network-up",	__fsm_network_up_call,		__fsm_network_up_check),
@@ -973,10 +1008,30 @@ static ni_interface_op_t	__fsm_network_up_generic[] = {
 	NI_FSM_DONE
 };
 
-/* static */ ni_interface_op_t	__fsm_network_up_iflink[] = {
+/*
+ * Ask interface to bring up the link, and wait for it.
+ * Do not try to bring up the network unless the link is up.
+ */
+#ifdef notyet
+static ni_interface_op_t	__fsm_network_up_iflink[] = {
 	NI_INTERFACE_OP("children-up",	NULL,				__fsm_children_check),
 	__NI_INTERFACE_OP("link-up",	__fsm_link_up_call,		__fsm_link_up_check,	__fsm_link_up_timeout),
 	NI_INTERFACE_OP("network-up",	__fsm_network_up_call,		__fsm_network_up_check),
+
+	NI_FSM_DONE
+};
+#endif
+
+/*
+ * Bring up an "auto" interface by sending the server the network
+ * configuration as policy, then pull up the link and wait for the
+ * network to be configured.
+ */
+static ni_interface_op_t	__fsm_network_up_policy[] = {
+	NI_INTERFACE_OP("children-up",	NULL,				__fsm_children_check),
+	NI_INTERFACE_OP("policy",	__fsm_policy_call,		NULL),
+	__NI_INTERFACE_OP("link-up",	__fsm_link_up_call,		__fsm_link_up_check,	__fsm_link_up_timeout),
+	NI_INTERFACE_OP("network-up",	NULL,				__fsm_network_up_check),
 
 	NI_FSM_DONE
 };
@@ -1006,7 +1061,8 @@ interface_mark_up(ni_interface_state_t *state)
 		if (ifp->startmode.ifaction[NI_IFACTION_LINK_UP].action == NI_INTERFACE_START) {
 			ni_debug_wicked("%s: interface has auto-start mode", ifp->name);
 			state->is_policy = 1;
-			/* state->fsm = __ni_interface_up_policy; */
+			state->fsm = __fsm_network_up_policy;
+			ifp->ifflags |= (NI_IFF_DEVICE_UP | NI_IFF_LINK_UP | NI_IFF_NETWORK_UP);
 		}
 	}
 
