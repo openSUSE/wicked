@@ -1,0 +1,40 @@
+
+Presenting wicked network configuration
+=======================================
+
+This is the first public release of wicked, an experimental framework
+for network configuration.
+
+You may ask, don't we have enough of those already? Don't we have
+NetworkManager, connman, netcf, and a few more?
+
+The point I started from was the desire to unify what is usually provided
+through the traditional ifup script kudzu, with some of the more desktop
+oriented services provided by facilities like NetworkManager. I also
+wanted to move towards a more powerful set of functionality written in
+C, which is able to subsume functionality provided by ifconfig, ip(8),
+brctl, vconfig, ethtool, etc, and be able to drive these through an
+extensible XML representation of the network configuration.
+
+Kind of the Grand Unified Theory of network configuration :-)
+
+Right now, this implementation uses a daemon service and a command
+line utility. These two communicate securely via a local UNIX socket,
+allowing the server to validate the client's user id.
+
+The server offers a REST interface to various aspects of network
+configuration. The client application uses REST calls to retrieve
+interface configuration and status, or to reconfigure interfaces.
+The path space used by the API can be extended to cover other aspects
+of network configuration as well, such as reading, writing and restoring
+the resolv.conf file.
+
+After having hacked on this for a while, I want to release this to
+the community for feedback.
+
+If you're interested in finding out more, you will find a README
+and several manpages in the source code, which is available from
+http://gitorious.org/wicked
+
+Regards,
+Olaf Kirch <okir@suse.de>
