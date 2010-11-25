@@ -140,17 +140,17 @@ __ni_system_interface_configure(ni_handle_t *nih, ni_interface_t *cfg, xml_node_
 	if (__ni_interface_update_ipv6_settings(nih, ifp, cfg) < 0)
 		return -1;
 
-	if (ni_interface_network_is_up(cfg)) {
-		debug_ifconfig("bringing up interface %s", ifp->name);
+	if (cfg->ifflags & (NI_IFF_DEVICE_UP|NI_IFF_LINK_UP|NI_IFF_NETWORK_UP)) {
+		ni_debug_ifconfig("bringing up %s", ifp->name);
 		if (__ni_rtnl_link_up(nih, ifp, cfg)) {
-			error("__ni_rtnl_link_up(%s) failed", ifp->name);
+			ni_error("%s: failed to bring up interface (rtnl error)", ifp->name);
 			return -1;
 		}
-		ni_interface_network_mark_up(ifp);
+		ifp->ifflags |= cfg->ifflags;
 	} else {
-		debug_ifconfig("shutting down interface %s", ifp->name);
+		ni_debug_ifconfig("shutting down interface %s", ifp->name);
 		if (__ni_rtnl_link_down(nih, ifp, RTM_NEWLINK)) {
-			error("unable to shut down interface %s", ifp->name);
+			ni_error("unable to shut down interface %s", ifp->name);
 			return -1;
 		}
 
@@ -1312,17 +1312,16 @@ __ni_interface_addrconf(ni_handle_t *nih, int family, ni_interface_t *ifp, ni_in
 	debug_ifconfig("__ni_interface_addrconf(%s, af=%s)", ifp->name,
 			ni_addrfamily_type_to_name(family));
 
-	if (family == AF_INET) {
-		cfg_afi = &cfg->ipv4;
-		cur_afi = &ifp->ipv4;
-	} else if (family == AF_INET6) {
-		cfg_afi = &cfg->ipv6;
-		cur_afi = &ifp->ipv6;
-	} else
+	cfg_afi = __ni_interface_address_info(cfg, family);
+	cur_afi = __ni_interface_address_info(ifp, family);
+	if (!cfg_afi || !cur_afi)
 		return -1;
 
 	if (!cfg_afi->enabled)
 		return 0;
+
+	if (!ni_interface_network_is_up(cfg))
+		cfg_afi->addrconf = 0;
 
 	/* If we're disabling an addrconf mode, stop the respective service */
 	for (mode = 0; mode < __NI_ADDRCONF_MAX; ++mode) {
@@ -1444,6 +1443,9 @@ __ni_interface_addrconf(ni_handle_t *nih, int family, ni_interface_t *ifp, ni_in
 						rp->prefixlen);
 			}
 
+			ni_debug_ifconfig("%s: trying to delete existing route %s/%u",
+					ifp->name, ni_address_print(&rp->destination),
+					rp->prefixlen);
 			if (__ni_rtnl_send_delroute(nih, ifp, rp))
 				goto error;
 		}

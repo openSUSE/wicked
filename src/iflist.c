@@ -394,16 +394,28 @@ __ni_interface_translate_ifflags(unsigned int ifflags)
 {
 	unsigned int retval = 0;
 
-	if (ifflags & IFF_RUNNING)
-		retval |= NI_IFF_DEVICE_UP;
-	if (ifflags & IFF_LOWER_UP)
-		retval |= NI_IFF_LINK_UP;
+	switch (ifflags & (IFF_RUNNING | IFF_LOWER_UP | IFF_UP)) {
+	case IFF_UP:
+	case IFF_UP | IFF_RUNNING:
+		retval = NI_IFF_DEVICE_UP;
+		break;
+
+	case IFF_UP | IFF_LOWER_UP:
+	case IFF_UP | IFF_LOWER_UP | IFF_RUNNING:
+		retval = NI_IFF_DEVICE_UP | NI_IFF_LINK_UP | NI_IFF_NETWORK_UP;
+		break;
+
+	case 0:
+		break;
+
+	default:
+		ni_warn("unexpected combination of interface flags 0x%x", ifflags);
+	}
+
 #ifdef IFF_DORMANT
 	if (ifflags & IFF_DORMANT)
 		retval |= NI_IFF_POWERSAVE;
 #endif
-	if (ifflags & IFF_UP)
-		retval |= NI_IFF_NETWORK_UP;
 	if (ifflags & IFF_POINTOPOINT)
 		retval |= NI_IFF_POINT_TO_POINT;
 	if (!(ifflags & IFF_NOARP))
@@ -437,6 +449,16 @@ __ni_interface_process_newlink(ni_interface_t *ifp, struct nlmsghdr *h,
 	ifp->ipv4.addrconf = NI_ADDRCONF_MASK(NI_ADDRCONF_STATIC);
 	ifp->ipv6.addrconf = NI_ADDRCONF_MASK(NI_ADDRCONF_AUTOCONF) | NI_ADDRCONF_MASK(NI_ADDRCONF_STATIC);
 	ifp->type = NI_IFTYPE_UNKNOWN;
+
+#if 0
+	ni_debug_ifconfig("%s: ifi flags:%s%s%s, my flags:%s%s%s", ifp->name,
+		(ifi->ifi_flags & IFF_RUNNING)? " running" : "",
+		(ifi->ifi_flags & IFF_LOWER_UP)? " lower_up" : "",
+		(ifi->ifi_flags & IFF_UP)? " up" : "",
+		(ifp->ifflags & NI_IFF_DEVICE_UP)? " device-up" : "",
+		(ifp->ifflags & NI_IFF_LINK_UP)? " link-up" : "",
+		(ifp->ifflags & NI_IFF_NETWORK_UP)? " network-up" : "");
+#endif
 
 	__ni_rta_get_uint(&ifp->mtu, tb[IFLA_MTU]);
 	__ni_rta_get_uint(&ifp->txqlen, tb[IFLA_TXQLEN]);
@@ -806,6 +828,7 @@ __ni_interface_process_newroute(ni_interface_t *ifp, struct nlmsghdr *h,
 	rp->tos = rtm->rtm_tos;
 
 	/* See if this route is owned by a lease */
+	rp->config_method = NI_ADDRCONF_STATIC;
 	if (ifp) {
 		lease = __ni_interface_route_to_lease(ifp, rp);
 		if (lease)

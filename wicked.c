@@ -12,6 +12,7 @@
  */
 #include <stdio.h>
 #include <string.h>
+#include <stdarg.h>
 #include <unistd.h>
 #include <mcheck.h>
 #include <stdlib.h>
@@ -31,26 +32,29 @@ enum {
 	OPT_DEBUG,
 	OPT_DRYRUN,
 	OPT_ROOTDIR,
+	OPT_LINK_TIMEOUT,
 };
 
 static struct option	options[] = {
 	{ "config",		required_argument,	NULL,	OPT_CONFIGFILE },
 	{ "dryrun",		no_argument,		NULL,	OPT_DRYRUN },
 	{ "dry-run",		no_argument,		NULL,	OPT_DRYRUN },
+	{ "link-timeout",	required_argument,	NULL,	OPT_LINK_TIMEOUT },
 	{ "debug",		required_argument,	NULL,	OPT_DEBUG },
 	{ "root-directory",	required_argument,	NULL,	OPT_ROOTDIR },
 
 	{ NULL }
 };
 
-static int	opt_dryrun = 0;
-static char *	opt_rootdir = NULL;
+static int		opt_dryrun = 0;
+static char *		opt_rootdir = NULL;
+static unsigned int	opt_link_timeout = 10;
 
-static int	do_rest(const char *, int, char **);
-static int	do_xpath(int, char **);
-static int	do_ifup(int, char **);
-static int	do_ifdown(int, char **);
-static void	clear_line(FILE *);
+static int		do_rest(const char *, int, char **);
+static int		do_xpath(int, char **);
+static int		do_ifup(int, char **);
+static int		do_ifdown(int, char **);
+static void		clear_line(FILE *);
 
 int
 main(int argc, char **argv)
@@ -98,6 +102,11 @@ main(int argc, char **argv)
 
 		case OPT_ROOTDIR:
 			opt_rootdir = optarg;
+			break;
+
+		case OPT_LINK_TIMEOUT:
+			if (ni_parse_int(optarg, &opt_link_timeout) < 0)
+				ni_fatal("unable to parse link timeout value");
 			break;
 
 		case OPT_DEBUG:
@@ -237,19 +246,11 @@ wicked_delete_interface(const char *base_path, const char *ifname)
 }
 
 enum {
-	OPER_IDLE,
-	OPER_CONFIGURE,
-	OPER_WAIT
-};
-enum {
 	STATE_UNKNOWN = 0,
 	STATE_DEVICE_DOWN,
 	STATE_DEVICE_UP,
 	STATE_LINK_UP,
 	STATE_NETWORK_UP,
-
-	STATE_ERROR,
-	STATE_DONE
 };
 
 /*
@@ -268,7 +269,9 @@ struct ni_interface_state {
 	int			state;
 	char *			ifname;
 	ni_interface_t *	config;
-	unsigned int		is_slave : 1,
+	unsigned int		done     : 1,
+				error    : 1,
+				is_slave : 1,
 				waiting  : 1;
 
 	int			next_state;
@@ -284,6 +287,22 @@ struct ni_interface_state {
 static ni_interface_state_t *ni_interface_state_array_find(ni_interface_state_array_t *, const char *);
 static void	ni_interface_state_array_append(ni_interface_state_array_t *, ni_interface_state_t *);
 static void	ni_interface_state_array_destroy(ni_interface_state_array_t *);
+
+static ni_intmap_t __state_names[] = {
+	{ "unknown",		STATE_UNKNOWN		},
+	{ "device-down",	STATE_DEVICE_DOWN	},
+	{ "device-up",		STATE_DEVICE_UP		},
+	{ "link-up",		STATE_LINK_UP		},
+	{ "network-up",		STATE_NETWORK_UP	},
+
+	{ NULL }
+};
+
+const char *
+ni_interface_state_name(int state)
+{
+	return ni_format_int_mapped(state, __state_names);
+}
 
 static ni_interface_state_t *
 ni_interface_state_new(const char *name, ni_interface_t *dev)
@@ -550,6 +569,18 @@ out:
 	return have_state;
 }
 
+static void
+print_message(const char *fmt, ...)
+{
+	va_list ap;
+
+	va_start(ap, fmt);
+	vfprintf(stdout, fmt, ap);
+	va_end(ap);
+
+	printf("\n");
+}
+
 static int
 ni_topology_update(ni_interface_state_array_t *state_array, ni_handle_t *system, unsigned int waited)
 {
@@ -562,29 +593,66 @@ ni_topology_update(ni_interface_state_array_t *state_array, ni_handle_t *system,
 		ni_interface_t *ifp;
 		unsigned int ifflags = 0;
 
-		if (state->have_state == STATE_ERROR || state->have_state == STATE_DONE)
+		if (state->done)
 			continue;
+
+		if (state->waiting) {
+			if (waited > state->timeout) {
+				ni_debug_wicked("%s: state is current=%s, next=%s, wanted=%s%s%s", state->ifname,
+						ni_interface_state_name(state->have_state),
+						ni_interface_state_name(state->next_state),
+						ni_interface_state_name(state->want_state),
+						state->waiting? ", waiting": "",
+						state->behavior.only_if_link? " (only-if-link)" : "");
+
+				state->done = 1;
+
+				if (state->behavior.only_if_link
+				 && state->have_state == STATE_DEVICE_UP
+				 && state->next_state == STATE_LINK_UP) {
+					print_message("%s: no link", state->ifname);
+					continue;
+				}
+
+				ready = 0;
+
+				print_message("%s: timed out", state->ifname);
+				if (state->behavior.mandatory) {
+					state->error = 1;
+					return -1;
+				}
+
+				continue;
+			}
+		}
 
 		/* Interface may not be present yet (eg for bridge or bond interfaces) */
 		if ((ifp = ni_interface_by_name(system, state->ifname)) != NULL) {
 			int new_state = ni_interface_state(ifp, state->config, state->want_state);
 
 			if (state->have_state != new_state)
-				ni_debug_wicked("%s: state changed from %d to %d",
-						state->ifname, state->have_state, new_state);
+				ni_debug_wicked("%s: state changed from %s to %s",
+						state->ifname,
+						ni_interface_state_name(state->have_state),
+						ni_interface_state_name(new_state));
 			state->have_state = new_state;
 		}
 
-		ni_debug_wicked("%s: state is %d%s", state->ifname, state->have_state,
+		ni_debug_wicked("%s: state is current=%s, next=%s, wanted=%s%s", state->ifname,
+				ni_interface_state_name(state->have_state),
+				ni_interface_state_name(state->next_state),
+				ni_interface_state_name(state->want_state),
 				state->waiting? ", waiting": "");
 
 		/* Were we waiting to get to the next state? */
 		if (state->waiting) {
-			if (state->next_state != state->have_state) {
+			if (state->next_state == state->have_state
+			 || state->want_state == state->have_state) {
+				state->waiting = 0;
+			 } else {
 				ready = 0;
 				continue;
 			}
-			state->waiting = 0;
 		}
 
 		if (state->want_state == STATE_DEVICE_DOWN) {
@@ -592,8 +660,11 @@ ni_topology_update(ni_interface_state_array_t *state_array, ni_handle_t *system,
 			 * go for the subordinate devices. */
 			if (state->want_state == state->have_state) {
 				rv = ni_topology_update(&state->children, system, waited);
-				if (rv < 0)
+				if (rv < 0) {
+					state->done = 1;
+					state->error = 1;
 					return -1;
+				}
 				if (rv == 0)
 					ready = 0;
 				continue;
@@ -604,13 +675,22 @@ ni_topology_update(ni_interface_state_array_t *state_array, ni_handle_t *system,
 			 * FIXME: Even if the device is up, we should send it our
 			 * desired configuration at least once!
 			 */
-			if (state->want_state == state->have_state)
-				continue;
+			if (state->want_state == state->have_state) {
+				if (state->next_state != STATE_UNKNOWN) {
+					print_message("%s: %s", state->ifname,
+							ni_interface_state_name(state->have_state));
+					state->done = 1;
+					continue;
+				}
+			}
 
 			if (state->children.count) {
 				rv = ni_topology_update(&state->children, system, waited);
-				if (rv < 0)
+				if (rv < 0) {
+					state->done = 1;
+					state->error = 1;
 					return -1;
+				}
 				if (rv == 0) {
 					ready = 0;
 					continue;
@@ -619,15 +699,6 @@ ni_topology_update(ni_interface_state_array_t *state_array, ni_handle_t *system,
 		}
 
 		ready = 0;
-		if (state->waiting) {
-			if (waited > state->timeout) {
-				ni_error("%s: timed out", state->ifname);
-				state->have_state = STATE_ERROR;
-				continue;
-			}
-			ni_debug_wicked("%s: still waiting", state->ifname);
-			continue;
-		}
 
 		/* Try to reach the next state, which by default is our
 		 * final desired state.
@@ -651,14 +722,15 @@ ni_topology_update(ni_interface_state_array_t *state_array, ni_handle_t *system,
 
 		case STATE_LINK_UP:
 		case STATE_NETWORK_UP:
-			if (state->have_state == STATE_DEVICE_DOWN) {
+			if (state->have_state == STATE_DEVICE_DOWN
+			 || state->have_state == STATE_DEVICE_UP) {
 				ni_interface_t *cfg;
 
 				/* Note, we do NOT use the final interface config, but just modify
 				 * the current config (from device down to device up). */
 				ni_debug_wicked("%s: trying to bring device up", state->ifname);
 				state->next_state = STATE_LINK_UP;
-				state->timeout = 10;
+				state->timeout = opt_link_timeout;
 				ifflags |= NI_IFF_DEVICE_UP;
 
 				/* Send the device our desired device configuration.
@@ -696,7 +768,8 @@ ni_topology_update(ni_interface_state_array_t *state_array, ni_handle_t *system,
 			break;
 
 		default:
-			ni_error("%s: bad want_state=%d", state->ifname, state->want_state);
+			ni_error("%s: bad want_state=%s", state->ifname,
+					ni_interface_state_name(state->want_state));
 			return -1;
 		}
 
@@ -727,6 +800,7 @@ ni_topology_update(ni_interface_state_array_t *state_array, ni_handle_t *system,
 static int
 ni_interfaces_wait2(ni_handle_t *system, ni_interface_state_array_t *state_array)
 {
+	static const char rotate[4] = "-\\|/";
 	unsigned int waited = 0, dots = 0;
 	int rv;
 
@@ -782,10 +856,10 @@ ni_interfaces_wait2(ni_handle_t *system, ni_interface_state_array_t *state_array
 			break;
 #endif
 
-		sleep(1);
-
-		printf(".");
-		dots++;
+		for (dots = 0; dots < 4; ++dots) {
+			usleep(250000);
+			printf("%c\r", rotate[dots%4]);
+		}
 		waited++;
 	}
 
@@ -1364,7 +1438,7 @@ usage:
 
 	if (rv >= 0) {
 		for (i = iflist.count - 1; rv >= 0 && i >= 0; --i) {
-			iflist.data[i]->ifflags &= ~(NI_IFF_NETWORK_UP | NI_IFF_LINK_UP);
+			iflist.data[i]->ifflags &= ~(NI_IFF_NETWORK_UP | NI_IFF_LINK_UP | NI_IFF_DEVICE_UP);
 			rv = do_ifdown_one(system, iflist.data[i], opt_delete);
 		}
 
