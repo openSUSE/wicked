@@ -135,6 +135,7 @@ extern ni_policy_t *	__ni_policy_clone(const ni_policy_t *);
 extern ni_address_t *	__ni_address_new(ni_address_t **, int, unsigned int,
 				const struct sockaddr_storage *);
 extern int		__ni_address_list_dedup(ni_address_t **);
+extern ni_address_t *	__ni_address_list_find(ni_address_t *, const struct sockaddr_storage *);
 
 extern int		__ni_system_refresh_all(ni_handle_t *);
 extern int		__ni_system_refresh_interface(ni_handle_t *, ni_interface_t *);

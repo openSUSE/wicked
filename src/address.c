@@ -74,9 +74,6 @@ __ni_address_new(ni_address_t **list_head, int af,
 		if (data && data[0] == 0xFE && data[1] == 0x80) {
 			/* Link-local; always autoconf */
 			ap->config_method = NI_ADDRCONF_AUTOCONF;
-		} else {
-			/* Else: check whether we received the prefix via RA. */
-			ap->config_method = NI_ADDRCONF_AUTOCONF;
 		}
 	}
 
@@ -131,6 +128,18 @@ __ni_address_list_dedup(ni_address_t **list)
 	}
 
 	return 0;
+}
+
+ni_address_t *
+__ni_address_list_find(ni_address_t *list, const struct sockaddr_storage *addr)
+{
+	ni_address_t *ap;
+
+	for (ap = list; ap != NULL; ap = ap->next) {
+		if (ni_address_equal(&ap->local_addr, addr))
+			return ap;
+	}
+	return NULL;
 }
 
 void
