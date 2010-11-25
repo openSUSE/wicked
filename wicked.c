@@ -33,6 +33,7 @@ enum {
 	OPT_DRYRUN,
 	OPT_ROOTDIR,
 	OPT_LINK_TIMEOUT,
+	OPT_NOPROGMETER,
 };
 
 static struct option	options[] = {
@@ -40,6 +41,7 @@ static struct option	options[] = {
 	{ "dryrun",		no_argument,		NULL,	OPT_DRYRUN },
 	{ "dry-run",		no_argument,		NULL,	OPT_DRYRUN },
 	{ "link-timeout",	required_argument,	NULL,	OPT_LINK_TIMEOUT },
+	{ "no-progress-meter",	no_argument,		NULL,	OPT_NOPROGMETER },
 	{ "debug",		required_argument,	NULL,	OPT_DEBUG },
 	{ "root-directory",	required_argument,	NULL,	OPT_ROOTDIR },
 
@@ -49,6 +51,7 @@ static struct option	options[] = {
 static int		opt_dryrun = 0;
 static char *		opt_rootdir = NULL;
 static unsigned int	opt_link_timeout = 10;
+static int		opt_progressmeter = 1;
 
 static int		do_rest(const char *, int, char **);
 static int		do_xpath(int, char **);
@@ -106,6 +109,10 @@ main(int argc, char **argv)
 		case OPT_LINK_TIMEOUT:
 			if (ni_parse_int(optarg, &opt_link_timeout) < 0)
 				ni_fatal("unable to parse link timeout value");
+			break;
+
+		case OPT_NOPROGMETER:
+			opt_progressmeter = 0;
 			break;
 
 		case OPT_DEBUG:
@@ -800,6 +807,7 @@ ni_topology_update(ni_interface_state_array_t *state_array, ni_handle_t *system,
 static int
 ni_interfaces_wait2(ni_handle_t *system, ni_interface_state_array_t *state_array)
 {
+	static const unsigned int TEST_FREQ = 4;
 	static const char rotate[4] = "-\\|/";
 	unsigned int waited = 0, dots = 0;
 	int rv;
@@ -811,14 +819,14 @@ ni_interfaces_wait2(ni_handle_t *system, ni_interface_state_array_t *state_array
 			return -1;
 		}
 
-		if (ni_topology_update(state_array, system, waited))
+		if (ni_topology_update(state_array, system, waited / TEST_FREQ))
 			return 0;
 
-		for (dots = 0; dots < 4; ++dots) {
-			usleep(250000);
+		usleep(1000000 / TEST_FREQ);
+		if (opt_progressmeter)
 			printf("%c\r", rotate[dots%4]);
-		}
 		waited++;
+		dots++;
 	}
 
 	return 0;
