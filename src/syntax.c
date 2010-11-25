@@ -117,7 +117,7 @@ __ni_syntax_prepend_base(ni_syntax_t *syntax, const char *filename)
 	if (syntax->base_path == NULL)
 		return filename;
 
-	snprintf(pathbuf, sizeof(pathbuf), "%s/%s", syntax->root_dir, filename);
+	snprintf(pathbuf, sizeof(pathbuf), "%s/%s", syntax->base_path, filename);
 	return pathbuf;
 }
 
@@ -158,10 +158,13 @@ ni_syntax_parse_file(ni_syntax_t *syntax, ni_handle_t *nih, const char *filename
 		xml_document_t *doc;
 		int rv;
 
-		/* Relocate filename relative to root */
-		filename = ni_syntax_build_path(syntax, "%s", filename);
+		/* Relocate filename relative to root and/or base_path */
+		if (filename == syntax->base_path)
+			filename = __ni_syntax_prepend_root(syntax, filename);
+		else
+			filename = ni_syntax_build_path(syntax, "%s", filename);
 		if (!(doc = xml_document_read(filename))) {
-			error("%s: unable to parse XML document %s", __FUNCTION__, filename);
+			ni_error("unable to parse XML document %s", filename);
 			return -1;
 		}
 
