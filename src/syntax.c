@@ -511,11 +511,7 @@ __ni_syntax_xml_to_policy_info(ni_syntax_t *syntax, ni_policy_info_t *info, cons
 			return -1;
 		}
 
-		if (ni_policy_add(info, policy) < 0) {
-			ni_error("%s: rejected bad policy", __FUNCTION__);
-			ni_policy_free(policy);
-			return -1;
-		}
+		ni_policy_info_append(info, policy);
 	}
 
 	return 0;

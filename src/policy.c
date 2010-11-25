@@ -94,8 +94,9 @@ ni_policy_free(ni_policy_t *policy)
  * Add or update a policy
  */
 int
-ni_policy_add(ni_policy_info_t *info, const ni_policy_t *new_policy)
+ni_policy_update(ni_handle_t *nih, const ni_policy_t *new_policy)
 {
+	ni_policy_info_t *info = &nih->policy;
 	ni_policy_t *policy, **pos;
 
 	if (new_policy->interface == NULL) {
@@ -200,6 +201,17 @@ __ni_policy_list_destroy(ni_policy_t **list)
 		list = &pos->next;
 		ni_policy_free(pos);
 	}
+}
+
+void
+ni_policy_info_append(ni_policy_info_t *info, ni_policy_t *policy)
+{
+	ni_policy_t **pos, *tail;
+
+	pos = &info->event_policies;
+	while ((tail = *pos) != NULL)
+		pos = &tail->next;
+	*pos = policy;
 }
 
 void

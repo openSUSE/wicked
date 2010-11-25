@@ -729,7 +729,7 @@ system_policy_post(const char *ifname, ni_wicked_request_t *req)
 	}
 
 	for (policy = policy_info.event_policies; policy; policy = policy->next)
-		ni_policy_add(&nih->policy, policy);
+		ni_policy_update(nih, policy);
 
 	rv = 0;
 
