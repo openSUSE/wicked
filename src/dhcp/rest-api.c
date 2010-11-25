@@ -292,7 +292,7 @@ dhcp_interface_put(const char *ifname, ni_wicked_request_t *req)
 	/* FIXME: if nothing changed, we don't need to do anything. */
 
 	dev = ni_dhcp_device_find(ifp->name);
-	if (ni_interface_network_is_up(ifp)) {
+	if (ni_afinfo_addrconf_test(&ifp->ipv4, NI_ADDRCONF_DHCP)) {
 		ni_debug_dhcp("%s: received request to acquire lease", ifp->name);
 
 		if (dev == NULL)
