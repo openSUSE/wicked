@@ -278,6 +278,9 @@ __ni_suse_read_interface(ni_handle_t *nih, const char *filename, const char *ifn
 		ni_afinfo_addrconf_enable(&ifp->ipv6, NI_ADDRCONF_STATIC);
 	}
 
+	if (ifp->type == NI_IFTYPE_LOOPBACK)
+		ni_afinfo_addrconf_disable(&ifp->ipv6, NI_ADDRCONF_AUTOCONF);
+
 	ni_sysconfig_destroy(sc);
 	return ifp;
 
