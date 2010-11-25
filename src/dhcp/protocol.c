@@ -763,14 +763,14 @@ parse_more:
 		if (ni_buffer_count(&buf) == 0) {
 			ni_error("option %d has zero length", option);
 			retval = -1;
-			goto failed;
+			goto error;
 		}
 
 		switch (option) {
 		case DHCP_MESSAGETYPE:
 			msg_type = ni_buffer_getc(&buf);
 			if (msg_type < 0)
-				goto failed;
+				goto error;
 			continue;
 		case DHCP_ADDRESS:
 			ni_dhcp_option_get_ipv4(&buf, &lease->dhcp.address);
@@ -906,7 +906,6 @@ parse_more:
 		goto error;
 	}
 
-failed:
 	if (opt_overload) {
 		const void *more_data = NULL;
 		size_t size = 0;
