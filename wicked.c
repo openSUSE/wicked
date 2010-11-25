@@ -582,6 +582,105 @@ print_message(const char *fmt, ...)
 }
 
 static int
+interface_update(ni_interface_state_t *state, ni_handle_t *system, ni_interface_t **ifpp)
+{
+	ni_interface_t *ifp;
+
+	*ifpp = NULL;
+
+	/* Interface may not be present yet (eg for bridge or bond interfaces) */
+	if ((ifp = ni_interface_by_name(system, state->ifname)) != NULL) {
+		int new_state = ni_interface_state(ifp, state->config, state->want_state);
+
+		if (state->have_state != new_state)
+			ni_debug_wicked("%s: state changed from %s to %s",
+					state->ifname,
+					ni_interface_state_name(state->have_state),
+					ni_interface_state_name(new_state));
+		state->have_state = new_state;
+		*ifpp = ifp;
+	}
+
+	ni_debug_wicked("%s: state is current=%s, next=%s, wanted=%s%s", state->ifname,
+			ni_interface_state_name(state->have_state),
+			ni_interface_state_name(state->next_state),
+			ni_interface_state_name(state->want_state),
+			state->waiting? ", waiting": "");
+
+	/* Were we waiting to get to the next state? */
+	if (state->waiting) {
+		if (state->next_state == state->have_state
+		 || state->want_state == state->have_state) {
+			state->waiting = 0;
+		 } else {
+			return 0;
+		}
+	}
+
+	return !state->waiting;
+}
+
+static int
+interface_change(ni_interface_state_t *state, ni_handle_t *system, ni_interface_t *ifp,
+			int next_state, unsigned int timeout)
+{
+	unsigned int ifflags;
+
+	state->next_state = next_state;
+	state->timeout = timeout;
+
+	switch (next_state) {
+	case STATE_DEVICE_DOWN:
+		ni_debug_wicked("%s: trying to shut down device", state->ifname);
+		ifflags = 0;
+		break;
+
+	case STATE_DEVICE_UP:
+		ni_debug_wicked("%s: trying to bring device up", state->ifname);
+		ifflags = NI_IFF_DEVICE_UP;
+		break;
+
+	case STATE_LINK_UP:
+		ni_debug_wicked("%s: trying to bring link up", state->ifname);
+		ifflags = NI_IFF_DEVICE_UP | NI_IFF_LINK_UP;
+		break;
+
+	case STATE_NETWORK_UP:
+		ni_debug_wicked("%s: trying to bring network up", state->ifname);
+		ifflags = NI_IFF_DEVICE_UP | NI_IFF_LINK_UP | NI_IFF_NETWORK_UP;
+		break;
+
+	default:
+		ni_error("%s: bad next_state=%s", state->ifname,
+				ni_interface_state_name(next_state));
+		return -1;
+	}
+
+	/* If we're trying to go to the final desired state, use the config
+	 * object if there is one. */
+	if (state->next_state == state->want_state && state->config)
+		ifp = state->config;
+	if (ifp == NULL) {
+		ni_error("%s: unknown device", state->ifname);
+		return -1;
+	}
+
+	ifp->ifflags &= ~(NI_IFF_DEVICE_UP | NI_IFF_LINK_UP | NI_IFF_NETWORK_UP);
+	ifp->ifflags |= ifflags;
+
+	if (ni_interface_configure(system, ifp, NULL) < 0) {
+		ni_error("%s: unable to configure", ifp->name);
+		return -1;
+	}
+
+	state->waiting = 1;
+	if (state->timeout == 0)
+		state->timeout = 10;
+
+	return 0;
+}
+
+static int
 ni_topology_update(ni_interface_state_array_t *state_array, ni_handle_t *system, unsigned int waited)
 {
 	unsigned int i;
@@ -593,16 +692,16 @@ ni_topology_update(ni_interface_state_array_t *state_array, ni_handle_t *system,
 		ni_interface_t *ifp;
 		unsigned int ifflags = 0;
 
+again:
 		if (state->done)
 			continue;
 
 		if (state->waiting) {
 			if (waited > state->timeout) {
-				ni_debug_wicked("%s: state is current=%s, next=%s, wanted=%s%s%s", state->ifname,
+				ni_debug_wicked("%s: TIMEOUT: state is current=%s, next=%s, wanted=%s%s", state->ifname,
 						ni_interface_state_name(state->have_state),
 						ni_interface_state_name(state->next_state),
 						ni_interface_state_name(state->want_state),
-						state->waiting? ", waiting": "",
 						state->behavior.only_if_link? " (only-if-link)" : "");
 
 				state->done = 1;
@@ -626,33 +725,9 @@ ni_topology_update(ni_interface_state_array_t *state_array, ni_handle_t *system,
 			}
 		}
 
-		/* Interface may not be present yet (eg for bridge or bond interfaces) */
-		if ((ifp = ni_interface_by_name(system, state->ifname)) != NULL) {
-			int new_state = ni_interface_state(ifp, state->config, state->want_state);
-
-			if (state->have_state != new_state)
-				ni_debug_wicked("%s: state changed from %s to %s",
-						state->ifname,
-						ni_interface_state_name(state->have_state),
-						ni_interface_state_name(new_state));
-			state->have_state = new_state;
-		}
-
-		ni_debug_wicked("%s: state is current=%s, next=%s, wanted=%s%s", state->ifname,
-				ni_interface_state_name(state->have_state),
-				ni_interface_state_name(state->next_state),
-				ni_interface_state_name(state->want_state),
-				state->waiting? ", waiting": "");
-
-		/* Were we waiting to get to the next state? */
-		if (state->waiting) {
-			if (state->next_state == state->have_state
-			 || state->want_state == state->have_state) {
-				state->waiting = 0;
-			 } else {
-				ready = 0;
-				continue;
-			}
+		if (!interface_update(state, system, &ifp)) {
+			ready = 0;
+			continue;
 		}
 
 		if (state->want_state == STATE_DEVICE_DOWN) {
@@ -713,87 +788,44 @@ ni_topology_update(ni_interface_state_array_t *state_array, ni_handle_t *system,
 		 * is down; here we first go to an intermediate state to see
 		 * whether the link is ready.
 		 */
-		state->next_state = state->want_state;
-		state->timeout = state->behavior.wait;
+		if (state->want_state == STATE_NETWORK_UP
+		 && state->have_state < STATE_LINK_UP) {
+			ni_interface_t *cfg;
 
-		switch (state->want_state) {
-		case STATE_DEVICE_DOWN:
-			ni_debug_wicked("%s: trying to shut down device", state->ifname);
-			ifflags = 0;
-			break;
-
-		case STATE_DEVICE_UP:
+			/* Note, we do NOT use the final interface config, but just modify
+			 * the current config (from device down to device up). */
 			ni_debug_wicked("%s: trying to bring device up", state->ifname);
-			ifflags = NI_IFF_DEVICE_UP;
-			break;
+			ifflags |= NI_IFF_DEVICE_UP;
 
-		case STATE_LINK_UP:
-		case STATE_NETWORK_UP:
-			if (state->have_state == STATE_DEVICE_DOWN
-			 || state->have_state == STATE_DEVICE_UP) {
-				ni_interface_t *cfg;
-
-				/* Note, we do NOT use the final interface config, but just modify
-				 * the current config (from device down to device up). */
-				ni_debug_wicked("%s: trying to bring device up", state->ifname);
-				state->next_state = STATE_LINK_UP;
-				state->timeout = opt_link_timeout;
-				ifflags |= NI_IFF_DEVICE_UP;
-
-				/* Send the device our desired device configuration.
-				 * This includes VLAN, bridge and bonding topology info, as
-				 * well as ethtool settings etc */
-				if ((cfg = state->config) != NULL) {
-					if (cfg->ethernet)
-						ni_interface_set_ethernet(ifp, ni_ethernet_clone(cfg->ethernet));
-					if (cfg->vlan)
-						ni_interface_set_vlan(ifp, ni_vlan_clone(cfg->vlan));
-					if (cfg->bridge)
-						ni_interface_set_bridge(ifp, ni_bridge_clone(cfg->bridge));
-					if (cfg->bonding)
-						ni_interface_set_bonding(ifp, ni_bonding_clone(cfg->bonding));
-				}
-			} else if (state->want_state == STATE_LINK_UP) {
-				ni_debug_wicked("%s: trying to bring link up", state->ifname);
-				ifflags = NI_IFF_DEVICE_UP | NI_IFF_LINK_UP;
-			} else {
-				ni_debug_wicked("%s: trying to bring network up", state->ifname);
-				ifflags = NI_IFF_DEVICE_UP | NI_IFF_LINK_UP | NI_IFF_NETWORK_UP;
+			/* Send the device our desired device configuration.
+			 * This includes VLAN, bridge and bonding topology info, as
+			 * well as ethtool settings etc */
+			if ((cfg = state->config) != NULL) {
+				if (cfg->ethernet)
+					ni_interface_set_ethernet(ifp, ni_ethernet_clone(cfg->ethernet));
+				if (cfg->vlan)
+					ni_interface_set_vlan(ifp, ni_vlan_clone(cfg->vlan));
+				if (cfg->bridge)
+					ni_interface_set_bridge(ifp, ni_bridge_clone(cfg->bridge));
+				if (cfg->bonding)
+					ni_interface_set_bonding(ifp, ni_bonding_clone(cfg->bonding));
 			}
-			break;
-
-		default:
-			ni_error("%s: bad want_state=%s", state->ifname,
-					ni_interface_state_name(state->want_state));
-			return -1;
+			rv = interface_change(state, system, ifp, STATE_LINK_UP, opt_link_timeout);
+		} else {
+			rv = interface_change(state, system, ifp, state->want_state, state->behavior.wait);
 		}
 
-		/* If we're trying to go to the final desired state, use the config
-		 * object if there is one. */
-		if (state->next_state == state->want_state && state->config)
-			ifp = state->config;
-		if (ifp == NULL) {
-			ni_error("%s: unknown device", state->ifname);
-			return -1;
-		}
+		if (rv < 0)
+			return rv;
 
-		ifp->ifflags &= ~(NI_IFF_DEVICE_UP | NI_IFF_LINK_UP | NI_IFF_NETWORK_UP);
-		ifp->ifflags |= ifflags;
-
-		if (ni_interface_configure(system, ifp, NULL) < 0) {
-			ni_error("%s: unable to configure", ifp->name);
-			return -1;
-		}
-
-		state->waiting = 1;
-		if (state->timeout == 0)
-			state->timeout = 10;
+		if (interface_update(state, system, &ifp))
+			goto again;
 	}
 	return ready;
 }
 
 static int
-ni_interfaces_wait2(ni_handle_t *system, ni_interface_state_array_t *state_array)
+ni_interfaces_wait(ni_handle_t *system, ni_interface_state_array_t *state_array)
 {
 	static const unsigned int TEST_FREQ = 4;
 	static const char rotate[4] = "-\\|/";
@@ -923,7 +955,7 @@ usage:
 		ni_interface_state_array_append(&state_array, state);
 	}
 
-	rv = ni_interfaces_wait2(system, &state_array);
+	rv = ni_interfaces_wait(system, &state_array);
 
 failed:
 	if (config)
@@ -1025,7 +1057,7 @@ usage:
 	if (opt_delete)
 		ni_warn("FIXME: --delete currently not supported");
 
-	rv = ni_interfaces_wait2(system, &state_array);
+	rv = ni_interfaces_wait(system, &state_array);
 
 failed:
 	if (system)
