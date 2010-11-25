@@ -215,7 +215,7 @@ __ni_indirect_interface_configure(ni_handle_t *nih,
 	ni_syntax_t *syntax = NULL;
 	xml_node_t *result = NULL;
 	int xml_is_temp = 0;
-	int rv;
+	int rv = -1;
 
 	syntax = ni_default_xml_syntax();
 	if (!syntax)
@@ -232,7 +232,7 @@ __ni_indirect_interface_configure(ni_handle_t *nih,
 	result = __ni_indirect_vcall(nih, NI_REST_OP_PUT, xml, "interface/%s", ifp->name);
 	if (XML_IS_ERR(result)) {
 		ni_error("unable to configure %s", ifp->name);
-		goto out;
+		goto failed;
 	}
 
 	/* If we received XML data from server, update cached interface desc */
@@ -257,6 +257,7 @@ __ni_indirect_interface_configure(ni_handle_t *nih,
 			rv = -1;
 		}
 	}
+	rv = 0;
 
 out:
 	if (xml_is_temp)
