@@ -393,12 +393,6 @@ ni_build_partial_topology2(ni_handle_t *config, int filter, ni_evaction_t ifacti
 		const ni_ifaction_t *ifa = &ifp->startmode.ifaction[filter];
 		ni_interface_state_t *state;
 
-#if 0
-		static const unsigned int updownmask = NI_IFF_NETWORK_UP | NI_IFF_LINK_UP | NI_IFF_DEVICE_UP;
-		ifp->ifflags &= ~updownmask;
-		ifp->ifflags |= flmask;
-#endif
-
 		if (ifa->action != ifaction)
 			continue;
 
@@ -813,48 +807,6 @@ ni_interfaces_wait2(ni_handle_t *system, ni_interface_state_array_t *state_array
 
 		if (ni_topology_update(state_array, system, waited))
 			return 0;
-
-#if 0
-		for (i = 0; i < iflist->count; ++i) {
-			ni_interface_t *ifp = iflist->data[i];
-			ni_ifaction_t *ifa = &ifp->startmode.ifaction[ifevent];
-
-			if (ifa->wait == 0)
-				continue;
-			if (action == NI_INTERFACE_START) {
-				/* We're trying to start the interface. */
-				if (ni_interface_ensure_up(system, ifp)) {
-					printf("\r"); clear_line(stdout);
-					printf("%s: up\n", ifp->name);
-					ifa->wait = 0;
-					continue;
-				}
-			} else {
-				/* We're trying to stop the interface */
-				/* To be done */
-				ifa->wait = 0;
-				continue;
-			}
-
-			if (dots == 0) {
-				printf("%s: ", ifp->name);
-				dots = strlen(ifp->name + 2);
-			}
-
-			if (ifa->wait < waited) {
-				printf("\r"); clear_line(stdout);
-				ni_error("%s: failed to come up", ifp->name);
-				ifa->wait = 0;
-				if (ifa->mandatory)
-					rv = -1;
-				continue;
-			}
-			wait++;
-		}
-
-		if (!wait)
-			break;
-#endif
 
 		for (dots = 0; dots < 4; ++dots) {
 			usleep(250000);
@@ -1330,17 +1282,7 @@ usage:
 		ni_interface_state_array_append(&state_array, state);
 	}
 
-#if 1
 	rv = ni_interfaces_wait2(system, &state_array);
-#else
-	for (i = 0; rv >= 0 && i < iflist.count; ++i)
-		rv = do_ifup_one(system, iflist.data[i]);
-
-
-	/* Wait for all interfaces to come up */
-	if (rv >= 0)
-		rv = ni_interfaces_wait(system, &iflist, ifevent, NI_INTERFACE_START);
-#endif
 
 failed:
 	if (config)
