@@ -31,11 +31,6 @@
 			NI_ADDRCONF_MASK(NI_ADDRCONF_STATIC) |\
 			NI_ADDRCONF_MASK(NI_ADDRCONF_AUTOCONF))
 
-static void	__ni_interface_clear_vlan(ni_interface_t *);
-static void	__ni_interface_clear_bonding(ni_interface_t *);
-static void	__ni_interface_clear_bridge(ni_interface_t *);
-static void	__ni_interface_clear_ethernet(ni_interface_t *);
-
 /*
  * Global data for netinfo library
  */
@@ -943,10 +938,10 @@ ni_interface_free(ni_interface_t *ifp)
 	ni_interface_clear_addresses(ifp);
 	ni_interface_clear_routes(ifp);
 	__ni_interface_clear_stats(ifp);
-	__ni_interface_clear_ethernet(ifp);
-	__ni_interface_clear_bonding(ifp);
-	__ni_interface_clear_bridge(ifp);
-	__ni_interface_clear_vlan(ifp);
+	ni_interface_set_ethernet(ifp, NULL);
+	ni_interface_set_bonding(ifp, NULL);
+	ni_interface_set_bridge(ifp, NULL);
+	ni_interface_set_vlan(ifp, NULL);
 
 	__ni_afinfo_destroy(&ifp->ipv4);
 	__ni_afinfo_destroy(&ifp->ipv6);
@@ -1162,12 +1157,11 @@ ni_interface_get_vlan(ni_interface_t *ifp)
 }
 
 void
-__ni_interface_clear_vlan(ni_interface_t *ifp)
+ni_interface_set_vlan(ni_interface_t *ifp, ni_vlan_t *vlan)
 {
-	if (ifp->vlan) {
+	if (ifp->vlan)
 		ni_vlan_free(ifp->vlan);
-		ifp->vlan = NULL;
-	}
+	ifp->vlan = vlan;
 }
 
 /*
@@ -1182,12 +1176,11 @@ ni_interface_get_bridge(ni_interface_t *ifp)
 }
 
 void
-__ni_interface_clear_bridge(ni_interface_t *ifp)
+ni_interface_set_bridge(ni_interface_t *ifp, ni_bridge_t *bridge)
 {
-	if (ifp->bridge) {
+	if (ifp->bridge)
 		ni_bridge_free(ifp->bridge);
-		ifp->bridge = NULL;
-	}
+	ifp->bridge = bridge;
 }
 
 /*
@@ -1202,12 +1195,11 @@ ni_interface_get_bonding(ni_interface_t *ifp)
 }
 
 void
-__ni_interface_clear_bonding(ni_interface_t *ifp)
+ni_interface_set_bonding(ni_interface_t *ifp, ni_bonding_t *bonding)
 {
-	if (ifp->bonding) {
+	if (ifp->bonding)
 		ni_bonding_free(ifp->bonding);
-		ifp->bonding = NULL;
-	}
+	ifp->bonding = bonding;
 }
 
 /*
@@ -1222,14 +1214,12 @@ ni_interface_get_ethernet(ni_interface_t *ifp)
 }
 
 void
-__ni_interface_clear_ethernet(ni_interface_t *ifp)
+ni_interface_set_ethernet(ni_interface_t *ifp, ni_ethernet_t *ethernet)
 {
-	if (ifp->ethernet) {
+	if (ifp->ethernet)
 		ni_ethernet_free(ifp->ethernet);
-		ifp->ethernet = NULL;
-	}
+	ifp->ethernet = ethernet;
 }
-
 
 /*
  * dhcp client info

@@ -744,26 +744,14 @@ ni_topology_update(ni_interface_state_array_t *state_array, ni_handle_t *system,
 				 * This includes VLAN, bridge and bonding topology info, as
 				 * well as ethtool settings etc */
 				if ((cfg = state->config) != NULL) {
-					if (cfg->ethernet) {
-						if (ifp->ethernet)
-							ni_ethernet_free(ifp->ethernet);
-						ifp->ethernet = ni_ethernet_clone(cfg->ethernet);
-					}
-					if (cfg->vlan) {
-						if (ifp->vlan)
-							ni_vlan_free(ifp->vlan);
-						ifp->vlan = ni_vlan_clone(cfg->vlan);
-					}
-					if (cfg->bridge) {
-						if (ifp->bridge)
-							ni_bridge_free(ifp->bridge);
-						ifp->bridge = ni_bridge_clone(cfg->bridge);
-					}
-					if (cfg->bonding) {
-						if (ifp->bonding)
-							ni_bonding_free(ifp->bonding);
-						ifp->bonding = ni_bonding_clone(cfg->bonding);
-					}
+					if (cfg->ethernet)
+						ni_interface_set_ethernet(ifp, ni_ethernet_clone(cfg->ethernet));
+					if (cfg->vlan)
+						ni_interface_set_vlan(ifp, ni_vlan_clone(cfg->vlan));
+					if (cfg->bridge)
+						ni_interface_set_bridge(ifp, ni_bridge_clone(cfg->bridge));
+					if (cfg->bonding)
+						ni_interface_set_bonding(ifp, ni_bonding_clone(cfg->bonding));
 				}
 			} else if (state->want_state == STATE_LINK_UP) {
 				ni_debug_wicked("%s: trying to bring link up", state->ifname);

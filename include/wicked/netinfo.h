@@ -292,6 +292,10 @@ extern ni_address_t *	ni_interface_get_addresses(ni_interface_t *, int af);
 extern ni_bonding_t *	ni_interface_get_bonding(ni_interface_t *);
 extern ni_vlan_t *	ni_interface_get_vlan(ni_interface_t *);
 extern ni_bridge_t *	ni_interface_get_bridge(ni_interface_t *);
+extern void		ni_interface_set_bonding(ni_interface_t *, ni_bonding_t *);
+extern void		ni_interface_set_vlan(ni_interface_t *, ni_vlan_t *);
+extern void		ni_interface_set_bridge(ni_interface_t *, ni_bridge_t *);
+extern void		ni_interface_set_ethernet(ni_interface_t *, ni_ethernet_t *);
 
 extern void		ni_interface_array_init(ni_interface_array_t *);
 extern void		ni_interface_array_append(ni_interface_array_t *, ni_interface_t *);
