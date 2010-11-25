@@ -1,6 +1,5 @@
 wicked:
-	- fully implement only_if_link behavivor
-	  (check for IFF_RUNNING. Need multi-stage config/wait approach)
+	- may want to move finite state machinery into the library
 
 netinfo:
 
