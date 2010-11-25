@@ -762,11 +762,9 @@ __ni_interface_new(const char *name, unsigned int index)
 	ifp->arp_type = ARPHRD_NONE;
 	ifp->hwaddr.type = ARPHRD_NONE;
 	ifp->ifindex = index;
-	ifp->name = strdup(name);
-	if (!ifp->name) {
-		free(ifp);
-		return NULL;
-	}
+
+	if (name)
+		ifp->name = xstrdup(name);
 
 	/* Initialize address family specific info */
 	ifp->ipv4.family = AF_INET;
@@ -955,6 +953,9 @@ ni_interface_guess_type(ni_interface_t *ifp)
 	if (ifp->type != NI_IFTYPE_UNKNOWN)
 		return ifp->type;
 
+	if (ifp->name == NULL)
+		return ifp->type;
+
 	ifp->type = NI_IFTYPE_ETHERNET;
 	if (!strcmp(ifp->name, "lo")) {
 		ifp->type = NI_IFTYPE_LOOPBACK;
@@ -1067,7 +1068,7 @@ ni_interface_by_name(ni_handle_t *nih, const char *name)
 	ni_interface_t *ifp;
 
 	for (ifp = nih->iflist; ifp; ifp = ifp->next) {
-		if (!strcmp(ifp->name, name))
+		if (ifp->name && !strcmp(ifp->name, name))
 			return ifp;
 	}
 

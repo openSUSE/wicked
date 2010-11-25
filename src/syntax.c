@@ -293,11 +293,23 @@ ni_syntax_xml_from_interface(ni_syntax_t *syntax, ni_handle_t *nih, ni_interface
 ni_interface_t *
 ni_syntax_xml_to_interface(ni_syntax_t *syntax, ni_handle_t *nih, xml_node_t *xmlnode)
 {
+	ni_interface_t *ifp;
+
 	if (!syntax->xml_to_interface) {
 		error("%s: syntax not capable of creating interface from xml", __FUNCTION__);
 		return NULL;
 	}
-	return syntax->xml_to_interface(syntax, nih, xmlnode);
+
+	ifp = syntax->xml_to_interface(syntax, nih, xmlnode);
+
+	/* The only occasion where we allow interfaces without name is in
+	 * policy descriptors. */
+	if (ifp->name == NULL) {
+		ni_error("%s: interface descriptor without name", __FUNCTION__);
+		return NULL;
+	}
+
+	return ifp;
 }
 
 /*
@@ -449,11 +461,21 @@ __ni_syntax_xml_to_all(ni_syntax_t *syntax, ni_handle_t *nih, const xml_node_t *
 		return -1;
 
 	for (child = root->children; child; child = child->next) {
+		ni_interface_t *ifp;
+
 		if (strcmp(child->name, "interface"))
 			continue;
 
-		if (syntax->xml_to_interface(syntax, nih, child) < 0) {
-			error("%s: failed to parse configuration data", __FUNCTION__);
+		ifp = syntax->xml_to_interface(syntax, nih, child);
+		if (ifp == NULL) {
+			ni_error("%s: failed to parse configuration data", __FUNCTION__);
+			return -1;
+		}
+
+		/* The only occasion where we allow interfaces without name is in
+		 * policy descriptors. */
+		if (ifp->name == NULL) {
+			ni_error("%s: interface descriptor without name", __FUNCTION__);
 			return -1;
 		}
 	}

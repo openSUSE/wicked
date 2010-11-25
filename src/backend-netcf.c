@@ -128,7 +128,7 @@ __ni_netcf_xml_to_interface(ni_syntax_t *syntax, ni_handle_t *nih, xml_node_t *i
 	if ((attrval = xml_node_get_attr(ifnode, "name")) != NULL) {
 		ifp = ni_interface_new(nih, attrval, 0);
 	} else {
-		ifp = ni_interface_new(nih, "anon", 0);
+		ifp = ni_interface_new(nih, NULL, 0);
 	}
 
 	if ((attrval = xml_node_get_attr(ifnode, "type")) != NULL) {
@@ -604,7 +604,8 @@ __ni_netcf_xml_from_interface(ni_syntax_t *syntax, ni_handle_t *nih,
 
 	ifnode = xml_node_new("interface", parent);
 	xml_node_add_attr(ifnode, "type", __ni_netcf_get_iftype(ifp));
-	xml_node_add_attr(ifnode, "name", ifp->name);
+	if (ifp->name)
+		xml_node_add_attr(ifnode, "name", ifp->name);
 
 	if (!ni_uuid_is_null(&ifp->uuid)) {
 		node = xml_node_new("uuid", ifnode);
