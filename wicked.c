@@ -236,141 +236,17 @@ wicked_delete_interface(const char *base_path, const char *ifname)
 	return 0;
 }
 
-#if 0
-/*
- * For an XML interface definition, get the interface name
- */
-static const char *
-ni_xml_interface_get_name(const xml_node_t *ifnode)
-{
-	return xml_node_get_attr(ifnode, "name");
-}
-
-static const char *
-ni_xml_interface_get_type(const xml_node_t *ifnode)
-{
-	return xml_node_get_attr(ifnode, "type");
-}
-
-void
-ni_xml_interface_change_status(xml_node_t *ifnode,
-			const char *link_status,
-			const char *network_status)
-{
-	xml_node_t *child;
-
-	child = xml_node_new("status", NULL);
-	(void) xml_node_add_attr(child, "link", link_status);
-	(void) xml_node_add_attr(child, "network", network_status);
-
-	xml_node_replace_child(ifnode, child);
-}
-
-void
-ni_xml_interface_clear_addresses(xml_node_t *ifnode)
-{
-	xml_node_delete_child(ifnode, "protocol");
-}
-
-/*
- * Helper functions to iterate over all interfaces of an XML definition
- */
-static xml_node_t *
-ni_xml_interface_next(xml_node_t **nextp)
-{
-	xml_node_t *node = *nextp;
-
-	while (node && strcmp(node->name, "interface"))
-		node = node->next;
-
-	if (node)
-		*nextp = node->next;
-	return node;
-}
-
-static xml_node_t *
-ni_xml_interface_first(xml_document_t *doc, xml_node_t **nextp)
-{
-	xml_node_t *root = xml_document_root(doc);
-
-	*nextp = NULL;
-	if (!root)
-		return NULL;
-
-	*nextp = root->children;
-	return ni_xml_interface_next(nextp);
-}
-
-static xml_node_t *
-wicked_filter_behavior(xml_node_t *response, const char *event, const char *action)
-{
-	xml_node_t *result, *ifnode, **tail;
-
-	if (response == NULL)
-		return NULL;
-
-	result = xml_node_new(NULL, NULL);
-	tail = &result->children;
-
-	while ((ifnode = response->children) != NULL) {
-		xml_node_t *child;
-		const char *attrval;
-
-		response->children = ifnode->next;
-		if (ni_string_eq(ifnode->name, "interface")
-		 && (child = xml_node_get_child(ifnode, "behavior")) != NULL
-		 && (child = xml_node_get_child(child, event)) != NULL
-		 && (attrval = xml_node_get_attr(child, "action")) != NULL
-		 && ni_string_eq(attrval, action)) {
-			*tail = ifnode;
-			tail = &ifnode->next;
-		} else {
-			xml_node_free(ifnode);
-		}
-	}
-
-	return result;
-}
-
-/*
- * Sort all interfaces of a list, taking into account master/slave
- * relationships of VLANs, bridges and bonds.
- */
-struct ni_interface_dependency {
-	const char *		name;
-	const char *		type;
-	xml_node_t *		xml;
-	int			priority;
-	unsigned int		link_up : 1,
-				network_up : 1;
-
-	struct ni_interface_dependency *parent;
-};
-
-struct ni_interface_xdependency {
-	ni_interface_t *	interface;
-	const char *		name;
-	unsigned int		type;
-	int			priority;
-	unsigned int		link_up : 1,
-				network_up : 1;
-
-	struct ni_interface_xdependency *parent;
-};
-#endif
-
-#define IFF_LOWER_UP 0x10000
-
 static int
 ni_build_partial_topology(ni_handle_t *config, ni_evaction_t ifaction)
 {
+	static const unsigned int updownmask = NI_IFF_NETWORK_UP | NI_IFF_LINK_UP | NI_IFF_DEVICE_UP;
 	ni_interface_t *pos = NULL, *ifp;
 	unsigned int flmask;
 
-	flmask = (ifaction == NI_INTERFACE_START)? (IFF_UP | IFF_LOWER_UP) : 0;
+	flmask = (ifaction == NI_INTERFACE_START)? updownmask : 0;
 	for (ifp = ni_interface_first(config, &pos); ifp; ifp = ni_interface_next(config, &pos)) {
-		ifp->flags &= ~(IFF_UP|IFF_LOWER_UP);
-		ifp->flags |= flmask;
+		ifp->ifflags &= ~updownmask;
+		ifp->ifflags |= flmask;
 	}
 
 	for (ifp = ni_interface_first(config, &pos); ifp; ifp = ni_interface_next(config, &pos)) {
@@ -417,9 +293,10 @@ ni_build_partial_topology(ni_handle_t *config, ni_evaction_t ifaction)
 					if (slave->parent)
 						goto multiple_masters;
 					slave->parent = ifp;
+
 					/* Whatever we do, bonding slave devices should never
 					 * have their network configured. */
-					slave->flags &= ~IFF_UP;
+					slave->ifflags &= ~NI_IFF_NETWORK_UP;
 				}
 			}
 			break;
@@ -543,7 +420,7 @@ ni_interface_topology_flatten(ni_handle_t *config, ni_interface_array_t *out, in
  * Check whether we have all requested leases
  */
 static int
-ni_interface_is_up_afinfo(const char *ifname, const ni_afinfo_t *cfg_afi, const ni_afinfo_t *cur_afi)
+ni_interface_network_is_up_afinfo(const char *ifname, const ni_afinfo_t *cfg_afi, const ni_afinfo_t *cur_afi)
 {
 	unsigned int type;
 
@@ -571,7 +448,7 @@ ni_interface_is_up_afinfo(const char *ifname, const ni_afinfo_t *cfg_afi, const 
  * Check whether interface is up
  */
 static int
-ni_interface_is_up(ni_handle_t *system, const ni_interface_t *cfg)
+ni_interface_ensure_up(ni_handle_t *system, const ni_interface_t *cfg)
 {
 	ni_interface_t *cur;
 
@@ -587,11 +464,11 @@ ni_interface_is_up(ni_handle_t *system, const ni_interface_t *cfg)
 	if (cur == NULL)
 		return 0;
 
-	if ((cfg->flags ^ cur->flags) & (IFF_UP | IFF_LOWER_UP))
+	if ((cfg->ifflags ^ cur->ifflags) & (NI_IFF_NETWORK_UP | NI_IFF_LINK_UP))
 		return 0;
 
-	if (!ni_interface_is_up_afinfo(cfg->name, &cfg->ipv4, &cur->ipv4)
-	 || !ni_interface_is_up_afinfo(cfg->name, &cfg->ipv6, &cur->ipv6))
+	if (!ni_interface_network_is_up_afinfo(cfg->name, &cfg->ipv4, &cur->ipv4)
+	 || !ni_interface_network_is_up_afinfo(cfg->name, &cfg->ipv6, &cur->ipv6))
 		return 0;
 
 	return 1;
@@ -618,7 +495,7 @@ ni_interfaces_wait(ni_handle_t *system, const ni_interface_array_t *iflist, unsi
 				continue;
 			if (action == NI_INTERFACE_START) {
 				/* We're trying to start the interface. */
-				if (ni_interface_is_up(system, ifp)) {
+				if (ni_interface_ensure_up(system, ifp)) {
 					printf("\r"); clear_line(stdout);
 					printf("%s: up\n", ifp->name);
 					ifa->wait = 0;
@@ -710,7 +587,7 @@ do_ifdown_one(ni_handle_t *system, ni_interface_t *ifp, int delete)
 		}
 	}
 
-	ifp->flags &= ~(IFF_UP | IFF_LOWER_UP);
+	ifp->ifflags &= ~(NI_IFF_NETWORK_UP | NI_IFF_LINK_UP);
 
 	/* Clear IP addressing; this will make sure all addresses are
 	 * removed from the interface, and dhcp is shut down etc.
@@ -850,7 +727,7 @@ usage:
 		}
 
 		ni_interface_array_append(&iflist, ifp);
-		ifp->flags |= IFF_UP | IFF_LOWER_UP;
+		ifp->ifflags |= (NI_IFF_NETWORK_UP | NI_IFF_LINK_UP | NI_IFF_DEVICE_UP);
 	}
 
 	for (i = 0; rv >= 0 && i < iflist.count; ++i)
@@ -957,7 +834,7 @@ usage:
 
 	if (rv >= 0) {
 		for (i = iflist.count - 1; rv >= 0 && i >= 0; --i) {
-			iflist.data[i]->flags &= ~(IFF_UP | IFF_LOWER_UP);
+			iflist.data[i]->ifflags &= ~(NI_IFF_NETWORK_UP | NI_IFF_LINK_UP);
 			rv = do_ifdown_one(system, iflist.data[i], opt_delete);
 		}
 

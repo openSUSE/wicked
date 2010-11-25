@@ -196,7 +196,7 @@ __ncf_list_interfaces(struct netcf *ncf, unsigned int flags,
 			if (!cur)
 				continue;
 
-			state = (cur->flags & IFF_UP)? NETCF_IFACE_ACTIVE : NETCF_IFACE_INACTIVE;
+			state = ni_interface_network_is_up(cur)? NETCF_IFACE_ACTIVE : NETCF_IFACE_INACTIVE;
 			if (count < maxnames && (flags & state))
 				result[count++] = strdup(cur->name);
 		}
@@ -556,7 +556,7 @@ ncf_if_status(struct netcf_if *nif, unsigned int *flags)
 	if (!(ifp = __ncf_if_state(nif))) {
 		/* No error, just consider it down */
 		ncf->error = 0;
-	} else if (ifp->flags & IFF_UP)
+	} else if (ni_interface_network_is_up(ifp))
 		*flags = NETCF_IFACE_ACTIVE;
 
 	return 0;

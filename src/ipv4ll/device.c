@@ -130,7 +130,7 @@ ni_autoip_device_free(ni_autoip_device_t *dev)
 int
 ni_autoip_device_reconfigure(ni_autoip_device_t *dev, const ni_interface_t *ifp)
 {
-	if (ifp->flags & IFF_NOARP) {
+	if (!(ifp->ifflags & NI_IFF_ARP_ENABLED)) {
 		ni_error("%s: device does not support ARP, cannot configure for IPv4LL", ifp->name);
 		return -1;
 	}

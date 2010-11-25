@@ -152,7 +152,7 @@ struct ni_interface {
 
 	char *			name;
 	unsigned int		ifindex;
-	unsigned int		flags;
+	unsigned int		ifflags;
 	ni_iftype_t		type;
 
 	unsigned int		arp_type;
@@ -365,5 +365,59 @@ extern const char *	ni_event_type_to_name(ni_event_t);
 extern int		ni_ifaction_name_to_type(const char *);
 extern const char *	ni_ifaction_type_to_name(unsigned int);
 extern int		ni_iftype_to_arphrd_type(unsigned int iftype);
+
+static inline int
+ni_interface_device_is_up(const ni_interface_t *ifp)
+{
+	return ifp->ifflags & NI_IFF_DEVICE_UP;
+}
+
+static inline void
+ni_interface_device_mark_up(ni_interface_t *ifp)
+{
+	ifp->ifflags |= NI_IFF_DEVICE_UP;
+}
+
+static inline void
+ni_interface_device_mark_down(ni_interface_t *ifp)
+{
+	ifp->ifflags &= ~NI_IFF_DEVICE_UP;
+}
+
+static inline int
+ni_interface_link_is_up(const ni_interface_t *ifp)
+{
+	return ifp->ifflags & NI_IFF_LINK_UP;
+}
+
+static inline void
+ni_interface_link_mark_up(ni_interface_t *ifp)
+{
+	ifp->ifflags |= NI_IFF_LINK_UP;
+}
+
+static inline void
+ni_interface_link_mark_down(ni_interface_t *ifp)
+{
+	ifp->ifflags &= ~NI_IFF_LINK_UP;
+}
+
+static inline int
+ni_interface_network_is_up(const ni_interface_t *ifp)
+{
+	return ifp->ifflags & NI_IFF_NETWORK_UP;
+}
+
+static inline void
+ni_interface_network_mark_up(ni_interface_t *ifp)
+{
+	ifp->ifflags |= NI_IFF_NETWORK_UP;
+}
+
+static inline void
+ni_interface_network_mark_down(ni_interface_t *ifp)
+{
+	ifp->ifflags &= ~NI_IFF_NETWORK_UP;
+}
 
 #endif /* __WICKED_NETINFO_H__ */

@@ -77,11 +77,11 @@ out:
 static int
 ni_autoip_addrconf_request(const ni_addrconf_t *acm, ni_interface_t *ifp, const xml_node_t *cfg_xml)
 {
-	if ((ifp->flags & IFF_UP) == 0) {
+	if (!ni_interface_network_is_up(ifp)) {
 		ni_error("autoip: unexpected links flags - link is not up");
 		return -1;
 	}
-	if (ifp->flags & IFF_NOARP) {
+	if (!(ifp->ifflags & NI_IFF_ARP_ENABLED)) {
 		ni_error("%s: device does not support ARP, cannot configure for IPv4LL", ifp->name);
 		return -1;
 	}

@@ -387,6 +387,35 @@ failed:
 }
 
 /*
+ * Translate interface flags
+ */
+unsigned int
+__ni_interface_translate_ifflags(unsigned int ifflags)
+{
+	unsigned int retval = 0;
+
+	if (ifflags & IFF_RUNNING)
+		retval |= NI_IFF_DEVICE_UP;
+	if (ifflags & IFF_LOWER_UP)
+		retval |= NI_IFF_LINK_UP;
+#ifdef IFF_DORMANT
+	if (ifflags & IFF_DORMANT)
+		retval |= NI_IFF_POWERSAVE;
+#endif
+	if (ifflags & IFF_UP)
+		retval |= NI_IFF_NETWORK_UP;
+	if (ifflags & IFF_POINTOPOINT)
+		retval |= NI_IFF_POINT_TO_POINT;
+	if (!(ifflags & IFF_NOARP))
+		retval |= NI_IFF_ARP_ENABLED;
+	if (ifflags & IFF_BROADCAST)
+		retval |= NI_IFF_BROADCAST_ENABLED;
+	if (ifflags & IFF_MULTICAST)
+		retval |= NI_IFF_MULTICAST_ENABLED;
+	return retval;
+}
+
+/*
  * Refresh interface link layer given a RTM_NEWLINK message
  */
 int
@@ -404,7 +433,7 @@ __ni_interface_process_newlink(ni_interface_t *ifp, struct nlmsghdr *h,
 		strncpy(ifp->name, ifname, sizeof(ifp->name) - 1);
 
 	ifp->arp_type = ifi->ifi_type;
-	ifp->flags = ifi->ifi_flags;
+	ifp->ifflags = __ni_interface_translate_ifflags(ifi->ifi_flags);
 	ifp->ipv4.addrconf = NI_ADDRCONF_MASK(NI_ADDRCONF_STATIC);
 	ifp->ipv6.addrconf = NI_ADDRCONF_MASK(NI_ADDRCONF_AUTOCONF) | NI_ADDRCONF_MASK(NI_ADDRCONF_STATIC);
 	ifp->type = NI_IFTYPE_UNKNOWN;
@@ -629,7 +658,7 @@ __ni_interface_process_newaddr(ni_interface_t *ifp, struct nlmsghdr *h,
 	 * but for point-to-point IFA_ADDRESS is DESTINATION address,
 	 * local address is supplied in IFA_LOCAL attribute.
 	 */
-	if (ifp->flags & IFF_POINTOPOINT) {
+	if (ifp->ifflags & NI_IFF_POINT_TO_POINT) {
 		__ni_rta_get_addr(ifa->ifa_family, &tmp.local_addr, tb[IFA_LOCAL]);
 		__ni_rta_get_addr(ifa->ifa_family, &tmp.peer_addr, tb[IFA_ADDRESS]);
 		/* Note iproute2 code obtains peer_addr from IFA_BROADCAST */

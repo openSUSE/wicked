@@ -148,10 +148,31 @@ __ni_netcf_xml_to_interface(ni_syntax_t *syntax, ni_handle_t *nih, xml_node_t *i
 
 	/* Variant netcf */
 	if (!syntax->strict && (node = xml_node_get_child(ifnode, "status")) != NULL) {
+		const char *opmode = NULL;
+
+		if ((attrval = xml_node_get_attr(node, "device")) && !strcmp(attrval, "up"))
+			ifp->ifflags |= NI_IFF_DEVICE_UP;
 		if ((attrval = xml_node_get_attr(node, "link")) && !strcmp(attrval, "up"))
-			ifp->flags |= IFF_LOWER_UP;
+			ifp->ifflags |= NI_IFF_LINK_UP;
 		if ((attrval = xml_node_get_attr(node, "network")) && !strcmp(attrval, "up"))
-			ifp->flags |= IFF_UP;
+			ifp->ifflags |= NI_IFF_NETWORK_UP;
+		if ((opmode = xml_node_get_attr(node, "mode")) != NULL) {
+			if (!strcmp(opmode, "point-to-point")) {
+				ifp->ifflags |= NI_IFF_POINT_TO_POINT;
+			} else {
+				ni_warn("%s: unsupported attribute <status mode=\"%s\">", ifp->name, opmode);
+				opmode = NULL;
+			}
+		}
+		if (opmode == NULL) {
+			ifp->ifflags |= NI_IFF_ARP_ENABLED | NI_IFF_BROADCAST_ENABLED | NI_IFF_MULTICAST_ENABLED;
+			if ((attrval = xml_node_get_attr(node, "arp")) && !strcmp(attrval, "disabled"))
+				ifp->ifflags &= ~NI_IFF_ARP_ENABLED;
+			if ((attrval = xml_node_get_attr(node, "broadcast")) && !strcmp(attrval, "disabled"))
+				ifp->ifflags &= ~NI_IFF_BROADCAST_ENABLED;
+			if ((attrval = xml_node_get_attr(node, "broadcast")) && !strcmp(attrval, "disabled"))
+				ifp->ifflags &= ~NI_IFF_MULTICAST_ENABLED;
+		}
 	}
 
 	if (syntax->strict) {
@@ -587,13 +608,25 @@ __ni_netcf_xml_from_interface(ni_syntax_t *syntax, ni_handle_t *nih,
 	}
 
 	/* Variant netcf */
-	if (!syntax->strict && ifp->flags) {
+	if (!syntax->strict && ifp->ifflags) {
 		node = xml_node_new("status", ifnode);
 
+		xml_node_add_attr(node, "device",
+				(ifp->ifflags & NI_IFF_DEVICE_UP)? "up" : "down");
 		xml_node_add_attr(node, "link",
-				(ifp->flags & IFF_LOWER_UP)? "up" : "down");
+				(ifp->ifflags & NI_IFF_LINK_UP)? "up" : "down");
 		xml_node_add_attr(node, "network",
-				(ifp->flags & IFF_UP)? "up" : "down");
+				(ifp->ifflags & NI_IFF_NETWORK_UP)? "up" : "down");
+		if (ifp->ifflags & NI_IFF_POINT_TO_POINT) {
+			xml_node_add_attr(node, "mode", "point-to-point");
+		} else {
+			if (!(ifp->ifflags & NI_IFF_ARP_ENABLED))
+				xml_node_add_attr(node, "arp", "disabled");
+			if (!(ifp->ifflags & NI_IFF_BROADCAST_ENABLED))
+				xml_node_add_attr(node, "broadcast", "disabled");
+			if (!(ifp->ifflags & NI_IFF_MULTICAST_ENABLED))
+				xml_node_add_attr(node, "multicast", "disabled");
+		}
 	}
 
 	if (syntax->strict) {

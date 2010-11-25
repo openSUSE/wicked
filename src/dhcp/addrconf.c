@@ -77,7 +77,7 @@ out:
 static int
 ni_dhcp_addrconf_request(const ni_addrconf_t *acm, ni_interface_t *ifp, const xml_node_t *cfg_xml)
 {
-	if ((ifp->flags & IFF_UP) == 0) {
+	if (!ni_interface_network_is_up(ifp)) {
 		ni_error("dhcp: unexpected links flags - link is not up");
 		return -1;
 	}

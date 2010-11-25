@@ -101,6 +101,7 @@ extern void		__ni_interface_clear_stats(ni_interface_t *);
 extern void		__ni_interfaces_clear(ni_handle_t *);
 extern ni_addrconf_lease_t *__ni_interface_address_to_lease(ni_interface_t *, const ni_address_t *);
 extern ni_addrconf_lease_t *__ni_interface_route_to_lease(ni_interface_t *, const ni_route_t *);
+extern unsigned int	__ni_interface_translate_ifflags(unsigned int);
 
 static inline ni_afinfo_t *
 __ni_interface_address_info(ni_interface_t *ifp, int af)

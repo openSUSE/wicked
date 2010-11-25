@@ -26,6 +26,20 @@ typedef enum ni_addrconf_mode {
 } ni_addrconf_mode_t;
 
 /*
+ * Interface flags
+ */
+enum {
+	NI_IFF_DEVICE_UP		= 0x0001,
+	NI_IFF_LINK_UP			= 0x0002,
+	NI_IFF_POWERSAVE		= 0x0004,
+	NI_IFF_NETWORK_UP		= 0x0008,
+	NI_IFF_POINT_TO_POINT		= 0x0010,
+	NI_IFF_ARP_ENABLED		= 0x0020,
+	NI_IFF_BROADCAST_ENABLED	= 0x0040,
+	NI_IFF_MULTICAST_ENABLED	= 0x0080,
+};
+
+/*
  * Interface types
  */
 typedef enum ni_iftype {

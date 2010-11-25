@@ -191,26 +191,27 @@ __ni_rtevent_newlink(ni_handle_t *nih, const struct sockaddr_nl *nladdr, struct 
 
 	old = ni_interface_by_index(nih, ifi->ifi_index);
 	if (old) {
-		unsigned int flags_changed;
+		unsigned int new_flags, flags_changed;
 
 		/* If the interface name changed, update it */
 		if (strcmp(ifname, old->name))
 			strncpy(old->name, ifname, sizeof(old->name) - 1);
 
-		flags_changed = old->flags ^ ifi->ifi_flags;
-		old->flags = ifi->ifi_flags;
+		new_flags = __ni_interface_translate_ifflags(ifi->ifi_flags);
+		flags_changed = old->ifflags ^ new_flags;
+		old->ifflags = new_flags;
 
 		/* Discard interface created by parsing new newlink event. */
 		ni_interface_put(ifp);
 
-		if (flags_changed & IFF_LOWER_UP) {
-			if (ifi->ifi_flags & IFF_LOWER_UP)
+		if (flags_changed & NI_IFF_LINK_UP) {
+			if (new_flags & NI_IFF_LINK_UP)
 				__ni_interface_event(nih, old, NI_EVENT_LINK_UP);
 			else
 				__ni_interface_event(nih, old, NI_EVENT_LINK_DOWN);
 		}
-		if (flags_changed & IFF_UP) {
-			if (ifi->ifi_flags & IFF_UP)
+		if (flags_changed & NI_IFF_NETWORK_UP) {
+			if (new_flags & NI_IFF_NETWORK_UP)
 				__ni_interface_event(nih, old, NI_EVENT_NETWORK_UP);
 			else
 				__ni_interface_event(nih, old, NI_EVENT_NETWORK_DOWN);
@@ -223,7 +224,7 @@ __ni_rtevent_newlink(ni_handle_t *nih, const struct sockaddr_nl *nladdr, struct 
 			;
 		*pos = ifp;
 
-		ifp->flags = ifi->ifi_flags;
+		ifp->ifflags = __ni_interface_translate_ifflags(ifi->ifi_flags);
 		__ni_interface_event(nih, ifp, NI_EVENT_LINK_CREATE);
 	}
 

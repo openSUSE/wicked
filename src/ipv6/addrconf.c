@@ -52,7 +52,7 @@ ni_ipv6_addrconf_request(const ni_addrconf_t *acm, ni_interface_t *ifp, const xm
 	struct ipv6_mreq mreq;
 	int fd = -1;
 
-	if ((ifp->flags & IFF_UP) == 0) {
+	if (!ni_interface_network_is_up(ifp)) {
 		ni_error("ipv6: unexpected links flags - link is not up");
 		return -1;
 	}

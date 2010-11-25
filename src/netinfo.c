@@ -830,7 +830,7 @@ ni_interface_clone(const ni_interface_t *ofp)
 					goto failed; \
 			} \
 		} while (0)
-	C(flags);
+	C(ifflags);
 	C(type);
 	C(arp_type);
 	C(hwaddr);

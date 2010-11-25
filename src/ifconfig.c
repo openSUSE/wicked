@@ -75,6 +75,15 @@ __ni_system_interface_configure(ni_handle_t *nih, ni_interface_t *cfg, xml_node_
 		return -1;
 	}
 
+	if (ni_interface_network_is_up(cfg) && !ni_interface_link_is_up(cfg)) {
+		ni_error("%s: configuration specifies network-up and link-down", cfg->name);
+		return -1;
+	}
+	if (ni_interface_link_is_up(cfg) && !ni_interface_device_is_up(cfg)) {
+		ni_error("%s: configuration specifies link-up and device-down", cfg->name);
+		return -1;
+	}
+
 	res = __ni_interface_for_config(nih, cfg, &ifp);
 	if (res) {
 		error("interface config does not uniquely determine an interface");
@@ -92,7 +101,7 @@ __ni_system_interface_configure(ni_handle_t *nih, ni_interface_t *cfg, xml_node_
 	 * up its network layer; that happens eg when you want to build a
 	 * bridge containing virtual interfaces like a bond, or a VLAN */
 	if (ifp == NULL) {
-		if ((cfg->flags & (IFF_LOWER_UP|IFF_UP)) == 0)
+		if (!ni_interface_device_is_up(cfg))
 			return 0;
 	}
 
@@ -131,13 +140,13 @@ __ni_system_interface_configure(ni_handle_t *nih, ni_interface_t *cfg, xml_node_
 	if (__ni_interface_update_ipv6_settings(nih, ifp, cfg) < 0)
 		return -1;
 
-	if (cfg->flags & IFF_UP) {
+	if (ni_interface_network_is_up(cfg)) {
 		debug_ifconfig("bringing up interface %s", ifp->name);
 		if (__ni_rtnl_link_up(nih, ifp, cfg)) {
 			error("__ni_rtnl_link_up(%s) failed", ifp->name);
 			return -1;
 		}
-		ifp->flags |= IFF_UP;
+		ni_interface_network_mark_up(ifp);
 	} else {
 		debug_ifconfig("shutting down interface %s", ifp->name);
 		if (__ni_rtnl_link_down(nih, ifp, RTM_NEWLINK)) {
@@ -580,7 +589,7 @@ __ni_interface_vlan_configure(ni_handle_t *nih, ni_interface_t *cfg, ni_interfac
 
 		/* Now bring up the underlying ethernet device if it's not up yet.
 		 * Note, we don't change anything except its link status */
-		if (!(real_dev->flags & IFF_UP)
+		if (!ni_interface_network_is_up(real_dev)
 		 && __ni_system_interface_bringup(nih, real_dev) < 0) {
 			error("Cannot bring up VLAN interface %s: %s not ready yet",
 					cfg->name, cfg_vlan->interface_name);
@@ -615,7 +624,7 @@ __ni_interface_bond_configure(ni_handle_t *nih, ni_interface_t *cfg, ni_interfac
 			return -1;
 		}
 
-		if (slave_dev->flags & IFF_UP) {
+		if (ni_interface_network_is_up(slave_dev)) {
 			ni_error("%s: cannot enslave interface %s - device is UP, should be down",
 					cfg->name, slave_name);
 			return -1;
@@ -677,7 +686,7 @@ __ni_interface_bond_configure(ni_handle_t *nih, ni_interface_t *cfg, ni_interfac
 	if (!(cur_bond = ifp->bonding))
 		return -1;
 
-	if (ifp->flags & IFF_UP) {
+	if (ni_interface_network_is_up(ifp)) {
 		/* FIXME: we ought to compare attributes that can only be
 		 * changed when interface is down, and return an error if
 		 * they're not current. */
@@ -693,8 +702,8 @@ __ni_interface_bond_configure(ni_handle_t *nih, ni_interface_t *cfg, ni_interfac
 	/* Bring up the interface now - we need to do this if we ultimately
 	 * wish to shut it down. Otherwise the kernel won't let us mess
 	 * with the list of slaves. */
-	if (BOND_DEVICE_MUST_BE_UP_WHEN_MESSING_WITH_SLAVES || (cfg->flags & IFF_UP)) {
-		if (!(ifp->flags & IFF_UP) && __ni_system_interface_bringup(nih, ifp) < 0) {
+	if (BOND_DEVICE_MUST_BE_UP_WHEN_MESSING_WITH_SLAVES || ni_interface_network_is_up(cfg)) {
+		if (!ni_interface_network_is_up(ifp) && __ni_system_interface_bringup(nih, ifp) < 0) {
 			ni_error("%s: unable to bring up interface", cfg->name);
 			return -1;
 		}
@@ -708,7 +717,7 @@ __ni_interface_bond_configure(ni_handle_t *nih, ni_interface_t *cfg, ni_interfac
 		return -1;
 	}
 
-	if ((ifp->flags & IFF_UP)
+	if (ni_interface_network_is_up(ifp)
 	 && ni_bonding_write_sysfs_attrs(cfg->name, cfg_bond, cur_bond, 1) < 0) {
 		ni_error("%s: error configuring bonding device (stage 1)", cfg->name);
 		return -1;
