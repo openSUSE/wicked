@@ -189,6 +189,7 @@ typedef struct ni_interface_array {
 	unsigned int		count;
 	ni_interface_t **	data;
 } ni_interface_array_t;
+#define NI_INTERFACE_ARRAY_INIT	{ .count = 0, .data = NULL }
 
 struct ni_vlan {
 	char *			interface_name;
