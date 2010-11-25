@@ -225,6 +225,12 @@ extern int		ni_arp_send_grat_reply(ni_arp_socket_t *, struct in_addr);
 extern int		ni_arp_send(ni_arp_socket_t *, const ni_arp_packet_t *);
 
 /*
+ * Allocation helpers
+ */
+extern void *		xcalloc(unsigned int, size_t);
+extern char *		xstrdup(const char *);
+
+/*
  * Helper function to do strcmp with NULL pointer check
  */
 static inline int

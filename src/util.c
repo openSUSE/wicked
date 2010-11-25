@@ -993,3 +993,29 @@ ni_srandom(void)
 
 	srandom(seed);
 }
+
+/*
+ * Alloc helpers with NULLL check
+ */
+void *
+xcalloc(unsigned int count, size_t size)
+{
+	void *p = calloc(count, size);
+
+	if (p == NULL)
+		ni_fatal("allocation failed calloc(%u, %lu): %m", count, (unsigned long) size);
+	return p;
+}
+
+char *
+xstrdup(const char *string)
+{
+	char *p;
+
+	if (string == NULL)
+		return NULL;
+	p = strdup(string);
+	if (p == NULL)
+		ni_fatal("allocation failed strdup(%s): %m", string);
+	return p;
+}
