@@ -1015,7 +1015,6 @@ static ni_interface_op_t	__fsm_network_up_generic[] = {
  * Ask interface to bring up the link, and wait for it.
  * Do not try to bring up the network unless the link is up.
  */
-#ifdef notyet
 static ni_interface_op_t	__fsm_network_up_iflink[] = {
 	NI_INTERFACE_OP("children-up",	NULL,				__fsm_children_check),
 	__NI_INTERFACE_OP("link-up",	__fsm_link_up_call,		__fsm_link_up_check,	__fsm_link_up_timeout),
@@ -1023,7 +1022,6 @@ static ni_interface_op_t	__fsm_network_up_iflink[] = {
 
 	NI_FSM_DONE
 };
-#endif
 
 /*
  * Bring up an "auto" interface by sending the server the network
@@ -1062,16 +1060,26 @@ interface_mark_up(ni_interface_state_t *state)
 		ni_interface_t *ifp = state->config;
 
 		if (ifp->startmode.ifaction[NI_IFACTION_LINK_UP].action == NI_INTERFACE_START) {
-			ni_debug_wicked("%s: interface has auto-start mode", ifp->name);
+			ni_debug_wicked("%s: will bring up interface via policy", ifp->name);
 			state->is_policy = 1;
 			state->fsm = __fsm_network_up_policy;
 			ifp->ifflags |= (NI_IFF_DEVICE_UP | NI_IFF_LINK_UP | NI_IFF_NETWORK_UP);
 		}
 	}
 
+	if (state->fsm == NULL && state->behavior.only_if_link) {
+		ni_debug_wicked("%s: will bring up interface if link is present", state->ifname);
+		state->fsm = __fsm_network_up_iflink;
+	}
+
+	if (state->fsm == NULL && state->config) {
+		ni_debug_wicked("%s: will bring up interface and configure network", state->ifname);
+		state->fsm =  __fsm_network_up_generic;
+	}
+
 	if (state->fsm == NULL) {
-		state->fsm = state->config?  __fsm_network_up_generic
-					  : __fsm_link_up_generic;
+		ni_debug_wicked("%s: will bring up interface (link layer only)", state->ifname);
+		state->fsm = __fsm_link_up_generic;
 	}
 
 	for (i = 0; i < state->children.count; ++i) {
