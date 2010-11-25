@@ -13,7 +13,6 @@
 #include <wicked/logging.h>
 
 #define NI_DEFAULT_CONFIG_PATH	"/etc/wicked/config.xml"
-#define NI_DEFAULT_POLICY_PATH	"/etc/wicked/policy.xml"
 
 struct ni_script_action {
 	struct ni_script_action *next;
@@ -96,8 +95,6 @@ typedef struct ni_config {
 	ni_extension_t *	api_extensions;
 	ni_extension_t *	linktype_extensions;
 	ni_extension_t *	addrconf_extensions;
-
-	ni_config_fslocation_t	policy;
 
 	char *			default_syntax;
 	char *			default_syntax_path;

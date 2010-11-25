@@ -306,46 +306,15 @@ wicked_interface_event(ni_handle_t *nih, ni_interface_t *ifp, ni_event_t event)
 		[NI_EVENT_NETWORK_UP]	= "network-up",
 		[NI_EVENT_NETWORK_DOWN]	= "network-down",
 	};
-	xml_node_t *evnode = NULL;
-	xml_node_t *ifnode = NULL;
 	ni_policy_t *policy;
 
 	if (event >= __NI_EVENT_MAX || !evtype[event])
 		return;
 
 	ni_debug_events("%s: %s event", ifp->name, evtype[event]);
-
-	evnode = xml_node_new("event", NULL);
-	xml_node_add_attr(evnode, "type", evtype[event]);
-
-	ifnode = ni_syntax_xml_from_interface(ni_default_xml_syntax(), nih, ifp);
-	if (!ifnode)
-		goto out;
-
-	xml_node_replace_child(evnode, ifnode);
-	policy = ni_policy_match_event(ni_default_policies(), evnode);
-	if (!policy)
-		goto out;
-
-	ni_debug_events("matched a policy (action=%s)", policy->action);
-	if (ni_policy_apply(policy, ifnode) < 0)
-		goto out;
-
-#if 0
-	ni_debug_events("Policy transformation: apply %s to %s", policy->action, ifp->name);
-	xml_node_print(ifnode, stderr);
-#endif
-
-	/* Finally, invoke REST function */
-	{
-		char restpath[256];
-
-		snprintf(restpath, sizeof(restpath), "/system/interface/%s", ifp->name);
-		/* wicked_rest_call(policy->action, restpath, ifnode); */
+	policy = ni_policy_match_event(ni_global_policies(), event, ifp);
+	if (policy != NULL) {
+		ni_debug_events("matched interface policy; configuring device");
+		ni_interface_configure(ni_global_state_handle(), policy->interface, NULL);
 	}
-
-out:
-	/* No need to free ifnode; it's a child of evnode */
-	if (evnode)
-		xml_node_free(evnode);
 }

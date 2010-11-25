@@ -6,6 +6,7 @@
 #ifndef __WICKED_TYPES_H__
 #define __WICKED_TYPES_H__
 
+#include <wicked/constants.h>
 #include <stdint.h>
 
 typedef struct ni_handle	ni_handle_t;
@@ -42,15 +43,14 @@ typedef struct xpath_format_array {
 /*
  * Policies
  */
-typedef struct ni_policy {
-	struct ni_policy *	next;
-	xml_node_t *		match;
-	const char *		action;
-	xml_node_t *		transform;
-} ni_policy_t;
+typedef struct ni_policy	ni_policy_t;
+struct ni_policy {
+	ni_policy_t *		next;
+	ni_event_t		event;
+	ni_interface_t *	interface;
+};
 
 typedef struct ni_policy_info {
-	xml_document_t *	document;
 	ni_policy_t *		event_policies;
 } ni_policy_info_t;
 

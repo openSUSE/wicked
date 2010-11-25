@@ -65,144 +65,52 @@
 #include "netinfo_priv.h"
 #include "config.h"
 
-static ni_policy_t *	ni_policy_match(ni_policy_t *, xml_node_t *);
+static ni_policy_info_t	__ni_global_policies;
 
-/*
- * Parse the global XML policy file
- */
-int
-ni_policy_file_parse(const char *filename, ni_policy_info_t *info)
+ni_policy_info_t *
+ni_global_policies()
 {
-	ni_policy_t *policy;
-	xml_document_t *doc;
-	xml_node_t *pnode;
-
-	ni_policy_info_destroy(info);
-
-	if (!ni_file_exists(filename))
-		return 0;
-
-	doc = xml_document_read(filename);
-	if (!doc) {
-		ni_error("unable to parse policy file %s", filename);
-		return -1;
-	}
-
-	info->document = doc;
-	for (pnode = xml_document_root(doc)->children; pnode; pnode = pnode->next) {
-		xml_node_t *match, *xfrm;
-		const char *type, *xfrm_action;
-		ni_policy_t **list, *tail;
-
-		if (strcmp(pnode->name, "policy")) {
-			ni_warn("%s: ignoring unexpected element <%s>", filename, pnode->name);
-			continue;
-		}
-
-		if (!(type = xml_node_get_attr(pnode, "type"))
-		 || !(match = xml_node_get_child(pnode, "match"))
-		 || !(xfrm = xml_node_get_child(pnode, "transformation"))
-		 || !(xfrm_action = xml_node_get_attr(xfrm, "action"))) {
-			ni_error("%s: incomplete policy definition", filename);
-			return -1;
-		}
-
-		if (!strcmp(type, "event")) {
-			list = &info->event_policies;
-		} else {
-			ni_error("%s: unknown policy type \"%s\"", filename, type);
-			return -1;
-		}
-
-		policy = calloc(1, sizeof(*policy));
-		policy->match = match->children;
-		policy->transform = xfrm;
-		policy->action = xfrm_action;
-
-		while ((tail = *list) != NULL)
-			list = &tail->next;
-
-		*list = policy;
-	}
-
-	return 0;
+	return &__ni_global_policies;
 }
 
 /*
  * Find a policy object for a given input (event)
  */
 ni_policy_t *
-ni_policy_match_event(ni_policy_info_t *info, xml_node_t *event)
-{
-	return ni_policy_match(info->event_policies, event);
-}
-
-/*
- * Matching policies is mostly a recursive XML comparison exercise
- */
-static int
-__xml_element_match(const xml_node_t *match, const xml_node_t *input)
-{
-	for (; match; match = match->next) {
-		const xml_node_t *found = NULL;
-
-		found = xml_node_get_child_with_attrs(input, match->name, &match->attrs);
-		if (!found)
-			return 0;
-
-		/* Now make sure that all descendant elements match */
-		if (match->children && !__xml_element_match(match->children, found))
-			return 0;
-	}
-
-	return 1;
-}
-
-ni_policy_t *
-ni_policy_match(ni_policy_t *list, xml_node_t *event)
+ni_policy_match_event(ni_policy_info_t *info, ni_event_t event, const ni_interface_t *dev)
 {
 	ni_policy_t *policy;
+	int ifaction;
 
-	for (policy = list; policy; policy = policy->next) {
-		const xml_node_t *match = policy->match;
+	if (info == NULL)
+		return NULL;
 
-		if (strcmp(event->name, match->name)
-		 || !xml_node_match_attrs(event, &match->attrs))
+	switch (event) {
+	case NI_EVENT_LINK_UP:
+		ifaction = NI_IFACTION_LINK_UP;
+	default:
+		return NULL;
+	}
+
+	for (policy = info->event_policies; policy; policy = policy->next) {
+		ni_interface_t *cfg = policy->interface;
+
+		if (cfg->startmode.ifaction[ifaction].action == NI_INTERFACE_IGNORE)
 			continue;
 
-		if (__xml_element_match(match->children, event))
-			return policy;
+		/* We do the same matching as __ni_interface_for_config here.
+		 * We should unify these. */
+		if (cfg->type != dev->type)
+			continue;
+		if (cfg->hwaddr.len && !ni_link_address_equal(&dev->hwaddr, &cfg->hwaddr))
+			continue;
+		if (cfg->name && strcmp(cfg->name, dev->name))
+			continue;
+
+		return policy;
 	}
 
 	return NULL;
-}
-
-/*
- * Apply a policy transformation to an interface
- */
-int
-ni_policy_apply(const ni_policy_t *policy, xml_node_t *transformee)
-{
-	xml_node_t *changes, *replace;
-
-	changes = xml_node_get_child(policy->transform, transformee->name);
-	if (!changes) {
-		ni_error("policy does not contain a <%s> transform", transformee->name);
-		return -1;
-	}
-
-	for (replace = changes->children; replace; replace = replace->next) {
-		xml_node_t *match;
-
-		/* delete the child node we're about to replace */
-		match = xml_node_get_child_with_attrs(transformee, replace->name, &replace->attrs);
-		if (match)
-			xml_node_delete_child_node(transformee, match);
-
-		/* Create a clone of this node and its descendants */
-		xml_node_clone(replace, transformee);
-	}
-	return 0;
 }
 
 /*
@@ -214,6 +122,7 @@ __ni_policy_list_destroy(ni_policy_t **list)
 	ni_policy_t *pos;
 
 	while ((pos = *list) != NULL) {
+		*list = NULL;
 		list = &pos->next;
 		free(pos);
 	}
@@ -222,9 +131,5 @@ __ni_policy_list_destroy(ni_policy_t **list)
 void
 ni_policy_info_destroy(ni_policy_info_t *info)
 {
-	if (info->document) {
-		xml_document_free(info->document);
-		info->document = NULL;
-	}
 	__ni_policy_list_destroy(&info->event_policies);
 }

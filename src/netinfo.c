@@ -43,7 +43,6 @@ int
 ni_init()
 {
 	int explicit_config = 1;
-	ni_config_t *conf;
 
 	if (ni_global.initialized) {
 		error("ni_init called twice");
@@ -71,13 +70,6 @@ ni_init()
 		ni_global.config = ni_config_new();
 	}
 
-	conf = ni_global.config;
-	if (conf->policy.path
-	 && ni_policy_file_parse(conf->policy.path, &ni_global.policies) < 0) {
-		ni_error("error parsing policy file %s", conf->policy.path);
-		return -1;
-	}
-
 	if (!ni_global.default_syntax)
 		ni_global.default_syntax = ni_syntax_new("netcf", NULL);
 	ni_global.xml_syntax = ni_syntax_new("netcf", NULL);
@@ -91,13 +83,6 @@ ni_default_xml_syntax(void)
 {
 	__ni_assert_initialized();
 	return ni_global.xml_syntax;
-}
-
-ni_policy_info_t *
-ni_default_policies(void)
-{
-	__ni_assert_initialized();
-	return &ni_global.policies;
 }
 
 void
