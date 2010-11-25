@@ -22,6 +22,7 @@ static int	__ni_indirect_interface_refresh_one(ni_handle_t *, const char *);
 static int	__ni_indirect_interface_configure(ni_handle_t *,
 				ni_interface_t *, xml_node_t *);
 static int	__ni_indirect_interface_delete(ni_handle_t *, const char *);
+static int	__ni_indirect_policy_update(ni_handle_t *, const ni_policy_t *);
 static void	__ni_indirect_close(ni_handle_t *nih);
 
 static struct ni_ops ni_indirect_ops = {
@@ -29,6 +30,7 @@ static struct ni_ops ni_indirect_ops = {
 	.interface_refresh_one	= __ni_indirect_interface_refresh_one,
 	.configure_interface	= __ni_indirect_interface_configure,
 	.delete_interface	= __ni_indirect_interface_delete,
+	.policy_update		= __ni_indirect_policy_update,
 	.close			= __ni_indirect_close,
 };
 
@@ -282,4 +284,34 @@ __ni_indirect_interface_delete(ni_handle_t *nih, const char *name)
 	if (result)
 		xml_node_free(result);
 	return 0;
+}
+
+static int
+__ni_indirect_policy_update(ni_handle_t *nih, const ni_policy_t *new_policy)
+{
+	ni_policy_info_t policy_info = { NULL };
+	xml_node_t *args, *result;
+	int rv = -1;
+
+	ni_policy_info_append(&policy_info, __ni_policy_clone(new_policy));
+	args = __ni_syntax_xml_from_policy_info(ni_default_xml_syntax(), &policy_info);
+	ni_policy_info_destroy(&policy_info);
+
+	if (!args)
+		return -1;
+
+	result = __ni_indirect_vcall(nih, NI_REST_OP_POST, args, "policy");
+	if (XML_IS_ERR(result)) {
+		ni_error("unable to post policy");
+		goto out;
+	}
+
+	if (result)
+		xml_node_free(result);
+	rv = 0;
+
+out:
+	if (args)
+		xml_node_free(args);
+	return rv;
 }
