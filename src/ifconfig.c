@@ -1487,19 +1487,8 @@ __ni_interface_addrconf(ni_handle_t *nih, int family, ni_interface_t *ifp, const
 			continue;
 		}
 
-		/* This is a lousy hack */
-		if (cur_afi->request[mode]) {
-			ni_addrconf_request_free(cur_afi->request[mode]);
-			cur_afi->request[mode] = NULL;
-		}
-		if (cfg_afi->request[mode]) {
-			ni_afinfo_t *cfg_mod = (ni_afinfo_t *) cfg_afi;
-			ni_addrconf_request_t *tmp;
-
-			tmp = cur_afi->request[mode];
-			cur_afi->request[mode] = cfg_mod->request[mode];
-			cfg_mod->request[mode] = tmp;
-		}
+		__ni_afinfo_set_addrconf_request(cur_afi, mode,
+				ni_addrconf_request_clone(cfg_afi->request[mode]));
 
 		/* If the extension is already active, no need to start it once
 		 * more. If needed, we could do a restart in this case. */

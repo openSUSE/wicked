@@ -547,11 +547,22 @@ int
 ni_interface_configure(ni_handle_t *nih, const ni_interface_t *cfg)
 {
 	if (nih->op->configure_interface == NULL) {
-		error("cannot configure interface; not supported by this handle");
+		ni_error("cannot configure interface; not supported by this handle");
 		return -1;
 	}
 
 	return nih->op->configure_interface(nih, NULL, cfg);
+}
+
+int
+ni_interface_configure2(ni_handle_t *nih, ni_interface_t *change_if, const ni_interface_t *cfg)
+{
+	if (nih->op->configure_interface == NULL) {
+		ni_error("cannot configure interface; not supported by this handle");
+		return -1;
+	}
+
+	return nih->op->configure_interface(nih, change_if, cfg);
 }
 
 /*
@@ -913,6 +924,18 @@ __ni_afinfo_destroy(ni_afinfo_t *afi)
 	}
 }
 
+void
+__ni_afinfo_set_addrconf_request(ni_afinfo_t *afi, unsigned int mode, ni_addrconf_request_t *req)
+{
+	if (mode >= __NI_ADDRCONF_MAX) {
+		ni_error("%s: bad addrconf mode %u", __FUNCTION__, mode);
+		return;
+	}
+	if (afi->request[mode])
+		ni_addrconf_request_free(afi->request[mode]);
+	afi->request[mode] = req;
+}
+
 static void
 ni_interface_free(ni_interface_t *ifp)
 {
@@ -1217,7 +1240,7 @@ ni_addrconf_request_new(unsigned int type, unsigned int af)
 {
 	ni_addrconf_request_t *dhcp;
 
-	dhcp = calloc(1, sizeof(*dhcp));
+	dhcp = xcalloc(1, sizeof(*dhcp));
 
 	dhcp->type = type;
 	dhcp->family = af;
@@ -1226,6 +1249,27 @@ ni_addrconf_request_new(unsigned int type, unsigned int af)
 	dhcp->update = ~0;
 
 	return dhcp;
+}
+
+ni_addrconf_request_t *
+ni_addrconf_request_clone(const ni_addrconf_request_t *src)
+{
+	ni_addrconf_request_t *dst;
+
+	if (src == NULL)
+		return NULL;
+
+	dst = ni_addrconf_request_new(src->type, src->family);
+	dst->reuse_unexpired = src->reuse_unexpired;
+	dst->settle_timeout = src->settle_timeout;
+	dst->acquire_timeout = src->acquire_timeout;
+	ni_string_dup(&dst->dhcp.hostname, src->dhcp.hostname);
+	ni_string_dup(&dst->dhcp.clientid, src->dhcp.clientid);
+	ni_string_dup(&dst->dhcp.vendor_class, src->dhcp.vendor_class);
+	dst->dhcp.lease_time = src->dhcp.lease_time;
+	dst->update = src->update;
+
+	return dst;
 }
 
 void

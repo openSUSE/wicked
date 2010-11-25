@@ -116,6 +116,8 @@ extern unsigned int	__ni_interface_translate_ifflags(unsigned int);
 	 ((af) == AF_INET6? &((ifp)->ipv6) : \
 	  NULL))
 
+extern void		__ni_afinfo_set_addrconf_request(ni_afinfo_t *, unsigned int, ni_addrconf_request_t *);
+
 extern ni_route_t *	__ni_route_new(ni_route_t **, unsigned int prefix_len,
 				const struct sockaddr_storage *,
 				const struct sockaddr_storage *);
