@@ -215,6 +215,10 @@ __ni_netcf_xml_to_interface(ni_syntax_t *syntax, ni_handle_t *nih, xml_node_t *i
 	 * IPv4: No <protocol> element means DHCP
 	 * IPv6: No <protocol> element means AUTOCONF
 	 */
+	ifp->ipv4.addrconf = NI_ADDRCONF_MASK(NI_ADDRCONF_STATIC) |
+			     NI_ADDRCONF_MASK(NI_ADDRCONF_DHCP);
+	ifp->ipv6.addrconf = NI_ADDRCONF_MASK(NI_ADDRCONF_STATIC) |
+			     NI_ADDRCONF_MASK(NI_ADDRCONF_AUTOCONF);
 
 	/* Hunt for "protocol" children */
 	for (node = ifnode->children; node; node = node->next) {
@@ -705,6 +709,9 @@ __ni_netcf_xml_from_address_config(ni_syntax_t *syntax, ni_handle_t *nih,
 		if (ni_afinfo_addrconf_test(afi, NI_ADDRCONF_STATIC))
 			protnode = __ni_netcf_xml_from_static_ifcfg(syntax, nih, afi->family, ifp, ifnode);
 
+		if (!protnode)
+			protnode = __ni_netcf_make_protocol_node(ifnode, afi->family);
+
 		for (mode = 0; mode < __NI_ADDRCONF_MAX; ++mode) {
 			ni_addrconf_request_t *req;
 			ni_addrconf_lease_t *lease;
@@ -714,9 +721,6 @@ __ni_netcf_xml_from_address_config(ni_syntax_t *syntax, ni_handle_t *nih,
 
 			if (syntax->strict && mode != NI_ADDRCONF_DHCP)
 				continue;
-
-			if (!protnode)
-				protnode = __ni_netcf_make_protocol_node(ifnode, afi->family);
 
 			if ((req = afi->request[mode]) != NULL) {
 				__ni_netcf_xml_from_addrconf_req(syntax, req, protnode);
