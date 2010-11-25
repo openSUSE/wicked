@@ -65,18 +65,8 @@
 #include "netinfo_priv.h"
 #include "config.h"
 
-static ni_policy_info_t	__ni_global_policies;
 
 static int		ni_policy_match_interface(const ni_policy_t *, const ni_interface_t *);
-
-/*
- * Do not expose this global variable directly.
- */
-ni_policy_info_t *
-ni_global_policies()
-{
-	return &__ni_global_policies;
-}
 
 /*
  * Constructor/destructor
@@ -138,8 +128,9 @@ ni_policy_add(ni_policy_info_t *info, const ni_policy_t *new_policy)
  * Find a policy object for a given input (event)
  */
 ni_policy_t *
-ni_policy_match_event(ni_policy_info_t *info, ni_event_t event, const ni_interface_t *dev)
+ni_policy_match_event(const ni_handle_t *nih, ni_event_t event, const ni_interface_t *dev)
 {
+	const ni_policy_info_t *info = &nih->policy;
 	ni_policy_t *policy, *best = NULL;
 	int best_weight = -1;
 	int ifaction;

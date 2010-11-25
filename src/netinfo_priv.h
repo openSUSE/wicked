@@ -21,6 +21,8 @@ typedef struct ni_capture	ni_capture_t;
 struct ni_handle {
 	ni_interface_t *	iflist;
 	ni_route_t *		routes;
+	ni_policy_info_t	policy;
+
 	unsigned int		seqno;
 
 	struct ni_ops *		op;
@@ -36,6 +38,8 @@ struct ni_ops {
 	int			(*configure_interface)(ni_handle_t *, ni_interface_t *, xml_node_t *);
 	int			(*delete_interface)(ni_handle_t *, const char *);
 	int			(*update_lease)(ni_handle_t *, ni_interface_t *, ni_addrconf_lease_t *);
+
+	int			(*policy_put)(ni_handle_t *, const ni_policy_t *);
 
 	int			(*hostname_get)(ni_handle_t *, char *, size_t);
 	int			(*hostname_put)(ni_handle_t *, const char *);

@@ -312,9 +312,9 @@ wicked_interface_event(ni_handle_t *nih, ni_interface_t *ifp, ni_event_t event)
 		return;
 
 	ni_debug_events("%s: %s event", ifp->name, evtype[event]);
-	policy = ni_policy_match_event(ni_global_policies(), event, ifp);
+	policy = ni_policy_match_event(nih, event, ifp);
 	if (policy != NULL) {
 		ni_debug_events("matched interface policy; configuring device");
-		ni_interface_configure(ni_global_state_handle(), policy->interface, NULL);
+		ni_interface_configure(nih, policy->interface, NULL);
 	}
 }

@@ -713,6 +713,7 @@ static ni_rest_node_t	ni_rest_config_interface_node = {
 static int
 system_policy_post(const char *ifname, ni_wicked_request_t *req)
 {
+	ni_handle_t *nih = ni_global_state_handle();
 	ni_policy_info_t policy_info = { NULL };
 	ni_policy_t *policy;
 	int rv = -1;
@@ -728,7 +729,7 @@ system_policy_post(const char *ifname, ni_wicked_request_t *req)
 	}
 
 	for (policy = policy_info.event_policies; policy; policy = policy->next)
-		ni_policy_add(ni_global_policies(), policy);
+		ni_policy_add(&nih->policy, policy);
 
 	rv = 0;
 
@@ -740,8 +741,10 @@ failed:
 static int
 system_policy_get(const char *path, ni_wicked_request_t *req)
 {
-	req->xml_out = __ni_syntax_xml_from_policy_info(ni_default_xml_syntax(),
-					ni_global_policies());
+	ni_syntax_t *xmlsyntax = ni_default_xml_syntax();
+	ni_handle_t *nih = ni_global_state_handle();
+
+	req->xml_out = __ni_syntax_xml_from_policy_info(xmlsyntax, &nih->policy);
 	if (req->xml_out == NULL) {
 		werror(req, "unable to represent policies as XML");
 		return -1;

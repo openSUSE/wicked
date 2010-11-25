@@ -171,6 +171,8 @@ ni_close(ni_handle_t *nih)
 	ni_route_list_destroy(&nih->routes);
 	__ni_interfaces_clear(nih);
 
+	ni_policy_info_destroy(&nih->policy);
+
 	nih->op = NULL;
 	free(nih);
 }
