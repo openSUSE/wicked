@@ -205,7 +205,9 @@ ni_policy_match_interface(const ni_policy_t *policy, const ni_interface_t *dev)
 			return -1;
 		weight |= 2;
 	}
-	if (xstreq(cfg->name, dev->name)) {
+	if (cfg->name) {
+		if (!xstreq(cfg->name, dev->name))
+			return -1;
 		weight |= 1;
 	}
 
