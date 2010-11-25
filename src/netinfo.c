@@ -771,6 +771,10 @@ __ni_interface_new(const char *name, unsigned int index)
 	ifp->startmode.ifaction[NI_IFACTION_BOOT].mandatory = 1;
 	ifp->startmode.ifaction[NI_IFACTION_BOOT].wait = 30;
 	ifp->startmode.ifaction[NI_IFACTION_SHUTDOWN].action = NI_INTERFACE_STOP;
+	ifp->startmode.ifaction[NI_IFACTION_MANUAL_UP].action = NI_INTERFACE_START;
+	ifp->startmode.ifaction[NI_IFACTION_MANUAL_UP].mandatory = 1;
+	ifp->startmode.ifaction[NI_IFACTION_MANUAL_UP].wait = 30;
+	ifp->startmode.ifaction[NI_IFACTION_MANUAL_DOWN].action = NI_INTERFACE_STOP;
 	ifp->type = NI_IFTYPE_UNKNOWN;
 	ifp->arp_type = ARPHRD_NONE;
 	ifp->hwaddr.type = ARPHRD_NONE;
