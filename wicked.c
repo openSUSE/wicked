@@ -658,8 +658,10 @@ __fsm_interface_check(ni_interface_state_t *state, ni_handle_t *system, unsigned
 	int rv = 1;
 
 	/* During ifdown, not all interface have an FSM associated with them. */
-	if (state->fsm == NULL)
+	if (state->fsm == NULL) {
+		state->done = 1;
 		return 0;
+	}
 
 	while (1) {
 		if (state->done)
