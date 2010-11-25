@@ -425,7 +425,7 @@ ni_local_socket_connect(const char *path)
 		strcpy(sun.sun_path, path);
 
 		if (connect(fd, (struct sockaddr *) &sun, sizeof(sun)) < 0) {
-			error("bind(%s) failed: %m", path);
+			ni_error("connect(%s) failed: %m", path);
 			goto failed;
 		}
 	}
