@@ -52,6 +52,7 @@ static int		opt_dryrun = 0;
 static char *		opt_rootdir = NULL;
 static unsigned int	opt_link_timeout = 10;
 static int		opt_progressmeter = 1;
+static int		opt_shutdown_parents = 1;
 
 static int		do_rest(const char *, int, char **);
 static int		do_xpath(int, char **);
@@ -774,6 +775,28 @@ __fsm_network_down_check(ni_interface_state_t *state, ni_handle_t *system, unsig
 }
 
 static int
+__fsm_device_delete_call(ni_interface_state_t *state, ni_handle_t *system)
+{
+	ni_interface_t *ifp;
+
+	ifp = ni_interface_by_name(system, state->ifname);
+	if (ifp == NULL)
+		return 0; /* already deleted */
+
+	switch (ifp->type) {
+	case NI_IFTYPE_VLAN:
+	case NI_IFTYPE_BRIDGE:
+	case NI_IFTYPE_BOND:
+		ni_debug_wicked("%s: trying to delete device", state->ifname);
+		return ni_interface_delete(system, state->ifname);
+
+	default: ;
+	}
+
+	return 0;
+}
+
+static int
 __fsm_link_up_call(ni_interface_state_t *state, ni_handle_t *system)
 {
 	ni_interface_t *cfg;
@@ -920,6 +943,14 @@ static ni_interface_op_t	__fsm_network_down_generic[] = {
 	NI_FSM_DONE
 };
 
+static ni_interface_op_t	__fsm_network_down_delete[] = {
+	NI_INTERFACE_OP("device-down",	__fsm_network_down_call,	__fsm_network_down_check),
+	NI_INTERFACE_OP("device-delete", __fsm_device_delete_call,	NULL),
+	NI_INTERFACE_OP("children-down",NULL,				__fsm_children_check),
+
+	NI_FSM_DONE
+};
+
 static int
 interface_mark_up(ni_interface_state_t *state)
 {
@@ -969,19 +1000,22 @@ interface_mark_up(ni_interface_state_t *state)
 }
 
 static int
-interface_mark_down(ni_interface_state_t *state)
+interface_mark_down(ni_interface_state_t *state, int delete)
 {
-	ni_interface_state_t *ancestore = state;
+	ni_interface_state_t *ancestor = state;
 
 	state->fsm = __fsm_network_down_generic;
-	while ((ancestore = ancestore->parent) != NULL) {
-#if 0
-		if (ancestore->want_state == STATE_UNKNOWN) {
-			ni_error("cannot shut down %s: ancestore %s still active",
-					state->ifname, ancestore->ifname);
+	if (delete)
+		state->fsm = __fsm_network_down_delete;
+
+	while ((ancestor = ancestor->parent) != NULL) {
+		if (opt_shutdown_parents) {
+			ancestor->fsm = __fsm_network_down_generic;
+		} else if (ancestor->fsm == NULL) {
+			ni_error("cannot shut down %s: ancestor %s still active",
+					state->ifname, ancestor->ifname);
 			return -1;
 		}
-#endif
 	}
 
 	return 0;
@@ -1006,6 +1040,12 @@ ni_interfaces_wait(ni_handle_t *system, ni_interface_state_array_t *state_array)
 
 		for (rv = i = 0; i < state_array->count; ++i) {
 			ni_interface_state_t *state = state_array->data[i];
+
+			/* Do not explicitly drive slave devices - they are
+			 * already covered by the device tree they're part of. */
+			if (state->is_slave)
+				continue;
+
 			if (__fsm_interface_check(state, system, waited / TEST_FREQ) < 0)
 				rv = -1;
 			if (!state->done)
@@ -1136,7 +1176,6 @@ usage:
 	if (state_array.count == 0) {
 		printf("Nothing to be done\n");
 		rv = 0;
-		goto failed;
 	} else {
 		unsigned int i, ifcount = state_array.count;
 
@@ -1146,9 +1185,9 @@ usage:
 
 		if (rv < 0)
 			goto failed;
-	}
 
-	rv = ni_interfaces_wait(system, &state_array);
+		rv = ni_interfaces_wait(system, &state_array);
+	}
 
 failed:
 	if (config)
@@ -1245,10 +1284,6 @@ usage:
 		ni_interface_state_array_append(&state_array, state);
 	}
 
-	/* For VLAN, bridge, bonding and other virtual devices, implement delete */
-	if (opt_delete)
-		ni_warn("FIXME: --delete currently not supported");
-
 	if (state_array.count == 0) {
 		printf("Nothing to be done\n");
 		rv = 0;
@@ -1258,7 +1293,7 @@ usage:
 
 		rv = interface_topology_build(system, &state_array);
 		for (i = 0; rv >= 0 && i < ifcount; ++i)
-			rv = interface_mark_down(state_array.data[i]);
+			rv = interface_mark_down(state_array.data[i], opt_delete);
 
 		if (rv < 0)
 			goto failed;
