@@ -22,6 +22,7 @@ __LIBSRCS= \
 	  policy.c \
 	  netinfo.c \
 	  netconfig.c \
+	  ethernet.c \
 	  vlan.c \
 	  bonding.c \
 	  bridge.c \

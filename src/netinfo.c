@@ -17,6 +17,7 @@
 #include <wicked/addrconf.h>
 #include <wicked/bridge.h>
 #include <wicked/bonding.h>
+#include <wicked/ethernet.h>
 #include <wicked/socket.h>
 #include <wicked/resolver.h>
 #include <wicked/nis.h>
@@ -33,6 +34,7 @@
 static void	__ni_interface_clear_vlan(ni_interface_t *);
 static void	__ni_interface_clear_bonding(ni_interface_t *);
 static void	__ni_interface_clear_bridge(ni_interface_t *);
+static void	__ni_interface_clear_ethernet(ni_interface_t *);
 
 /*
  * Global data for netinfo library
@@ -852,6 +854,7 @@ ni_interface_clone(const ni_interface_t *ofp)
 	D(bonding, ni_bonding_clone);
 	D(vlan, ni_vlan_clone);
 	D(bridge, ni_bridge_clone);
+	D(ethernet, ni_ethernet_clone);
 	C(startmode);
 #undef C
 #undef D
@@ -940,6 +943,7 @@ ni_interface_free(ni_interface_t *ifp)
 	ni_interface_clear_addresses(ifp);
 	ni_interface_clear_routes(ifp);
 	__ni_interface_clear_stats(ifp);
+	__ni_interface_clear_ethernet(ifp);
 	__ni_interface_clear_bonding(ifp);
 	__ni_interface_clear_bridge(ifp);
 	__ni_interface_clear_vlan(ifp);
@@ -1203,6 +1207,26 @@ __ni_interface_clear_bonding(ni_interface_t *ifp)
 	if (ifp->bonding) {
 		ni_bonding_free(ifp->bonding);
 		ifp->bonding = NULL;
+	}
+}
+
+/*
+ * Get the interface's ethernet information
+ */
+ni_ethernet_t *
+ni_interface_get_ethernet(ni_interface_t *ifp)
+{
+	if (!ifp->ethernet)
+		ifp->ethernet = calloc(1, sizeof(ni_ethernet_t));
+	return ifp->ethernet;
+}
+
+void
+__ni_interface_clear_ethernet(ni_interface_t *ifp)
+{
+	if (ifp->ethernet) {
+		ni_ethernet_free(ifp->ethernet);
+		ifp->ethernet = NULL;
 	}
 }
 

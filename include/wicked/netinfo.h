@@ -175,10 +175,11 @@ struct ni_interface {
 	ni_afinfo_t		ipv6;
 	ni_socket_t *		ipv6ra_listener;
 
-	struct ni_interface *	parent;
-	struct ni_bonding *	bonding;
-	struct ni_vlan *	vlan;
-	struct ni_bridge *	bridge;
+	ni_interface_t *	parent;
+	ni_bonding_t *		bonding;
+	ni_vlan_t *		vlan;
+	ni_bridge_t *		bridge;
+	ni_ethernet_t *		ethernet;
 
 	/* Configuration data */
 	ni_ifbehavior_t		startmode;
@@ -189,13 +190,13 @@ typedef struct ni_interface_array {
 	ni_interface_t **	data;
 } ni_interface_array_t;
 
-typedef struct ni_vlan {
+struct ni_vlan {
 	char *			interface_name;
 	unsigned int		link;		/* when parsing system state, this is the
 						 * ifindex of the master */
 	uint16_t		tag;
 	ni_interface_t *	interface_dev;
-} ni_vlan_t;
+};
 
 #define CONFIG_WICKED_STATEDIR	"/var/run/wicked"
 
@@ -342,6 +343,9 @@ extern int		ni_vlan_bind(ni_interface_t *, ni_handle_t *);
 extern int		ni_vlan_bind_ifindex(ni_vlan_t *, ni_handle_t *);
 extern void		ni_vlan_free(ni_vlan_t *);
 extern ni_vlan_t *	ni_vlan_clone(const ni_vlan_t *);
+
+extern void		ni_ethernet_free(ni_ethernet_t *);
+extern ni_ethernet_t *	ni_ethernet_clone(const ni_ethernet_t *);
 
 extern const char *	ni_print_link_flags(int flags);
 extern const char *	ni_print_link_type(int type);
