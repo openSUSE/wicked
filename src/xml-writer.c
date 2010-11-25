@@ -24,6 +24,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdarg.h>
+#include <stdlib.h>
 
 #include <wicked/xml.h>
 #include <wicked/logging.h>
@@ -89,6 +90,32 @@ xml_node_print(const xml_node_t *node, FILE *fp)
 	}
 
 	return 0;
+}
+
+int
+xml_node_print_fn(const xml_node_t *node, void (*writefn)(const char *, void *), void *user_data)
+{
+	char *membuf = NULL;
+	size_t memsz = 0;
+	FILE *memf;
+	int rv;
+
+	memf = open_memstream(&membuf, &memsz);
+	rv = xml_node_print(node, memf);
+	fclose(memf);
+
+	if (rv >= 0) {
+		char *s, *t;
+
+		for (s = membuf; s; s = t) {
+			if ((t = strchr(s, '\n')) != NULL)
+				*t++ = '\0';
+			writefn(s, user_data);
+		}
+	}
+
+	free(membuf);
+	return rv;
 }
 
 void

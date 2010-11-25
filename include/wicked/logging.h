@@ -31,6 +31,7 @@ enum {
 	NI_TRACE_IPV6		= 0x000080,
 	NI_TRACE_SOCKET		= 0x000100,
 	NI_TRACE_AUTOIP		= 0x000200,
+	NI_TRACE_WICKED_XML	= 0x000400,
 };
 
 extern unsigned int	ni_debug;
@@ -50,5 +51,13 @@ extern unsigned int	ni_debug;
 #define ni_debug_ipv6(fmt, args...)		__ni_debug(NI_TRACE_IPV6, fmt, ##args)
 #define ni_debug_socket(fmt, args...)		__ni_debug(NI_TRACE_SOCKET, fmt, ##args)
 #define ni_debug_autoip(fmt, args...)		__ni_debug(NI_TRACE_AUTOIP, fmt, ##args)
+
+#define ni_debug_wicked_xml(xml_node, fmt, args...) \
+	do { \
+		if (ni_debug & NI_TRACE_WICKED_XML) { \
+			ni_trace(fmt, ##args); \
+			xml_node_print_fn(xml_node, (void (*)(const char *, void *)) ni_trace, NULL); \
+		} \
+	} while (0)
 
 #endif /* __WICKED_LOGGING_H__ */

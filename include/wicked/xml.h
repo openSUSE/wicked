@@ -63,6 +63,7 @@ extern xml_node_t *	xml_node_new_element(const char *ident, xml_node_t *, const 
 extern xml_node_t *	xml_node_clone(const xml_node_t *src, xml_node_t *parent);
 extern void		xml_node_free(xml_node_t *);
 extern int		xml_node_print(const xml_node_t *, FILE *fp);
+extern int		xml_node_print_fn(const xml_node_t *, void (*)(const char *, void *), void *);
 extern xml_node_t *	xml_node_scan(FILE *fp);
 extern void		xml_node_set_cdata(xml_node_t *, const char *);
 extern void		xml_node_add_attr(xml_node_t *, const char *, const char *);

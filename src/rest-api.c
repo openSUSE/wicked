@@ -230,6 +230,7 @@ __ni_wicked_call_indirect(ni_socket_t *sock, ni_wicked_request_t *req, int expec
 	ni_socket_printf(sock, "\n");
 
 	if (req->xml_in) {
+		ni_debug_wicked_xml(req->xml_in, "Arguments:");
 		if (ni_socket_send_xml(sock, req->xml_in) < 0) {
 			werror(req, "write error on socket: %m");
 			return -1;
@@ -255,6 +256,8 @@ __ni_wicked_call_indirect(ni_socket_t *sock, ni_wicked_request_t *req, int expec
 	if ((req->xml_out = ni_socket_recv_xml(sock)) == NULL) {
 		werror(req, "error receiving response from server: %m");
 		return -1;
+	} else {
+		ni_debug_wicked_xml(req->xml_out, "Server response:");
 	}
 
 	return 0;
@@ -461,6 +464,8 @@ __ni_wicked_call_direct(ni_wicked_request_t *req, ni_rest_node_t *root_node)
 
 			ni_trace("  %s=\"%s\"", var->name, var->value);
 		}
+		if (req->xml_in)
+			ni_debug_wicked_xml(req->xml_in, "Arguments:");
 	}
 
 	node = ni_rest_node_lookup(root_node, req->path, &remainder);
@@ -483,6 +488,8 @@ __ni_wicked_call_direct(ni_wicked_request_t *req, ni_rest_node_t *root_node)
 		ni_extension_run(node->update.extension, node->update.callback);
 	}
 
+	if (req->xml_out)
+		ni_debug_wicked_xml(req->xml_out, "REST call returns:");
 	return 0;
 }
 
