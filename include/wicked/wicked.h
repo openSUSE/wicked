@@ -18,9 +18,15 @@ typedef enum ni_rest_op {
 	__NI_REST_OP_MAX
 } ni_rest_op_t;
 
+#define __NI_REST_ARGS_MAX	2
+
 typedef struct ni_wicked_request {
 	int			cmd;		/* GET/PUT/POST/DELETE */
 	char *			path;		/* path to operate on */
+
+	/* This is really only used on the server side */
+	unsigned int		argc;
+	char *			argv[__NI_REST_ARGS_MAX];
 
 	const xml_node_t *	xml_in;		/* XML blob passed in */
 	xml_node_t *		xml_out;	/* XML blob returned, or NULL */
@@ -30,7 +36,7 @@ typedef struct ni_wicked_request {
 	char *			error_msg;	/* error message while processing req. */
 } ni_wicked_request_t;
 
-typedef int (*ni_rest_handler_t)(const char *, ni_wicked_request_t *req);
+typedef int (*ni_rest_handler_t)(ni_wicked_request_t *req);
 
 #define __NI_REST_CHILD_MAX	8
 typedef struct ni_rest_node {
@@ -50,6 +56,7 @@ typedef struct ni_rest_node {
 		ni_script_action_t *	callback;
 	} update;
 	struct ni_rest_node *	children[__NI_REST_CHILD_MAX];
+	struct ni_rest_node *	wildcard;
 } ni_rest_node_t;
 
 extern ni_rest_node_t		ni_rest_root_node;
@@ -69,7 +76,7 @@ extern int			ni_wicked_response_print(ni_socket_t *, ni_wicked_request_t *, int 
 
 extern int			ni_wicked_rest_op_parse(const char *);
 extern const char *		ni_wicked_rest_op_print(int);
-extern ni_rest_node_t *		ni_wicked_rest_lookup(const char *, const char **);
+extern ni_rest_node_t *		ni_wicked_rest_lookup(const char *);
 
 extern void			ni_rest_node_add_update_callback(ni_rest_node_t *,
 						ni_extension_t *, ni_script_action_t *);

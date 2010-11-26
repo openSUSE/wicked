@@ -190,8 +190,9 @@ autoip_argument_as_event(const xml_node_t *node)
 }
 
 static int
-autoip_interface_put(const char *ifname, ni_wicked_request_t *req)
+autoip_interface_put(ni_wicked_request_t *req)
 {
+	const char *ifname = req->argv[0];
 	ni_interface_t *ifp = NULL;
 	ni_handle_t *cnih = NULL;
 	ni_autoip_device_t *dev = NULL;
@@ -288,8 +289,9 @@ failed:
  * DELETE /interface/<ifname>
  */
 static int
-autoip_interface_delete(const char *ifname, ni_wicked_request_t *req)
+autoip_interface_delete(ni_wicked_request_t *req)
 {
+	const char *ifname = req->argv[0];
 	ni_autoip_device_t *dev;
 
 	if (ifname == NULL) {
@@ -302,14 +304,19 @@ autoip_interface_delete(const char *ifname, ni_wicked_request_t *req)
 	return 0;
 }
 
-static ni_rest_node_t  ni_autoip_interface_node = {
-	.name		= "interface",
+static ni_rest_node_t  ni_autoip_interface_wildcard_node = {
+	.name		= NULL,
 	.ops = {
 	    .byname = {
 		.put	= autoip_interface_put,
 		.delete	= autoip_interface_delete,
 	    },
 	},
+};
+
+static ni_rest_node_t  ni_autoip_interface_node = {
+	.name		= "interface",
+	.wildcard	= &ni_autoip_interface_wildcard_node,
 };
 
 static ni_rest_node_t  ni_autoip_root_node = {

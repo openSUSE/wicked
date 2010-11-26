@@ -28,7 +28,7 @@
 #include "config.h"
 
 
-static ni_rest_node_t *	ni_rest_node_lookup(ni_rest_node_t *, const char *, const char **);
+static ni_rest_node_t *	ni_rest_node_lookup(ni_rest_node_t *, const char *, ni_wicked_request_t *);
 static void		ni_rest_generate_meta(ni_rest_node_t *, xml_node_t *);
 static char *		ni_request_get_domain_element(ni_wicked_request_t *, const char *);
 
@@ -45,11 +45,16 @@ ni_wicked_request_init(ni_wicked_request_t *req)
 void
 ni_wicked_request_destroy(ni_wicked_request_t *req)
 {
+	unsigned int i;
+
 	ni_string_free(&req->path);
 	xml_node_free(req->xml_out);
 
 	ni_var_array_destroy(&req->options);
 	ni_string_free(&req->error_msg);
+
+	for (i = 0; i < __NI_REST_ARGS_MAX; ++i)
+		ni_string_free(&req->argv[i]);
 	memset(req, 0, sizeof(*req));
 }
 
@@ -451,7 +456,6 @@ int
 __ni_wicked_call_direct(ni_wicked_request_t *req, ni_rest_node_t *root_node)
 {
 	ni_rest_node_t *node;
-	const char *remainder = NULL;
 
 	if (ni_debug & NI_TRACE_WICKED) {
 		unsigned int i;
@@ -468,11 +472,12 @@ __ni_wicked_call_direct(ni_wicked_request_t *req, ni_rest_node_t *root_node)
 			ni_debug_wicked_xml(req->xml_in, "Arguments:");
 	}
 
-	node = ni_rest_node_lookup(root_node, req->path, &remainder);
+	node = ni_rest_node_lookup(root_node, req->path, req);
 	if (!node) {
 		werror(req, "unknown path \"%s\"", req->path);
 		return -1;
 	}
+ni_trace("argv[0] = %s", req->argv[0]);
 
 	if (node->ops.fn[req->cmd] == NULL) {
 		werror(req, "%s command not supported for this path",
@@ -480,7 +485,10 @@ __ni_wicked_call_direct(ni_wicked_request_t *req, ni_rest_node_t *root_node)
 		return -1;
 	}
 
-	if (node->ops.fn[req->cmd](remainder, req) < 0)
+	if (req->cmd == NI_REST_OP_DELETE && req->argc == 0)
+		ni_warn("oops, this looks like a bug: DELETE command but argc == 0");
+
+	if (node->ops.fn[req->cmd](req) < 0)
 		return -1;
 
 	if (req->cmd != NI_REST_OP_GET && node->update.callback) {
@@ -557,17 +565,18 @@ generic_interface_response(ni_handle_t *nih, ni_interface_t *ifp, ni_wicked_requ
 }
 
 static int
-generic_interface_get(ni_handle_t *nih, const char *path, ni_wicked_request_t *req)
+generic_interface_get(ni_handle_t *nih, ni_wicked_request_t *req)
 {
+	const char *ifname = req->argv[0];
 	ni_interface_t *ifp = NULL;
 
 	if (nih == NULL)
 		return -1;
 
-	if (path != NULL) {
+	if (ifname != NULL) {
 		/* select interface and display only that */
-		if (!(ifp = ni_interface_by_name(nih, path))) {
-			werror(req, "interface %s not known", path);
+		if (!(ifp = ni_interface_by_name(nih, ifname))) {
+			werror(req, "interface %s not known", ifname);
 			return -1;
 		}
 	}
@@ -576,20 +585,21 @@ generic_interface_get(ni_handle_t *nih, const char *path, ni_wicked_request_t *r
 }
 
 static int
-system_interface_get(const char *path, ni_wicked_request_t *req)
+system_interface_get(ni_wicked_request_t *req)
 {
-	return generic_interface_get(system_handle(req), path, req);
+	return generic_interface_get(system_handle(req), req);
 }
 
 static int
-config_interface_get(const char *path, ni_wicked_request_t *req)
+config_interface_get(ni_wicked_request_t *req)
 {
-	return generic_interface_get(config_handle(req), path, req);
+	return generic_interface_get(config_handle(req), req);
 }
 
 static int
-generic_interface_put(ni_handle_t *nih, const char *ifname, ni_wicked_request_t *req)
+generic_interface_put(ni_handle_t *nih, ni_wicked_request_t *req)
 {
+	const char *ifname = req->argv[0];
 	ni_interface_t *ifp = NULL;
 	ni_handle_t *cnih = NULL;
 	int rv = -1;
@@ -660,20 +670,22 @@ failed:
 }
 
 static int
-system_interface_put(const char *path, ni_wicked_request_t *req)
+system_interface_put(ni_wicked_request_t *req)
 {
-	return generic_interface_put(system_handle(req), path, req);
+	return generic_interface_put(system_handle(req), req);
 }
 
 static int
-config_interface_put(const char *path, ni_wicked_request_t *req)
+config_interface_put(ni_wicked_request_t *req)
 {
-	return generic_interface_put(config_handle(req), path, req);
+	return generic_interface_put(config_handle(req), req);
 }
 
 static int
-generic_interface_delete(ni_handle_t *nih, const char *ifname, ni_wicked_request_t *req)
+generic_interface_delete(ni_handle_t *nih, ni_wicked_request_t *req)
 {
+	const char *ifname = req->argv[0];
+
 	if (nih == NULL)
 		return -1;
 
@@ -691,19 +703,19 @@ generic_interface_delete(ni_handle_t *nih, const char *ifname, ni_wicked_request
 }
 
 static int
-system_interface_delete(const char *path, ni_wicked_request_t *req)
+system_interface_delete(ni_wicked_request_t *req)
 {
-	return generic_interface_delete(system_handle(req), path, req);
+	return generic_interface_delete(system_handle(req), req);
 }
 
 static int
-config_interface_delete(const char *path, ni_wicked_request_t *req)
+config_interface_delete(ni_wicked_request_t *req)
 {
-	return generic_interface_delete(config_handle(req), path, req);
+	return generic_interface_delete(config_handle(req), req);
 }
 
-static ni_rest_node_t	ni_rest_system_interface_node = {
-	.name		= "interface",
+static ni_rest_node_t	ni_rest_system_interface_wildcard_node = {
+	.name		= NULL,
 	.ops = {
 	    .byname = {
 		.get	= system_interface_get,
@@ -713,8 +725,18 @@ static ni_rest_node_t	ni_rest_system_interface_node = {
 	},
 };
 
-static ni_rest_node_t	ni_rest_config_interface_node = {
+static ni_rest_node_t	ni_rest_system_interface_node = {
 	.name		= "interface",
+	.ops = {
+	    .byname = {
+		.get	= system_interface_get,
+	    },
+	},
+	.wildcard = &ni_rest_system_interface_wildcard_node,
+};
+
+static ni_rest_node_t	ni_rest_config_interface_wildcard_node = {
+	.name		= NULL,
 	.ops = {
 	    .byname = {
 		.get	= config_interface_get,
@@ -724,18 +746,23 @@ static ni_rest_node_t	ni_rest_config_interface_node = {
 	},
 };
 
+static ni_rest_node_t	ni_rest_config_interface_node = {
+	.name		= "interface",
+	.ops = {
+	    .byname = {
+		.get	= config_interface_get,
+	    },
+	},
+	.wildcard = &ni_rest_config_interface_wildcard_node,
+};
+
 static int
-system_policy_post(const char *ifname, ni_wicked_request_t *req)
+system_policy_post(ni_wicked_request_t *req)
 {
 	ni_handle_t *nih = ni_global_state_handle();
 	ni_policy_info_t policy_info = { NULL };
 	ni_policy_t *policy;
 	int rv = -1;
-
-	if (ifname != NULL) {
-		werror(req, "unexpected parameter");
-		return -1;
-	}
 
 	if (__ni_syntax_xml_to_policy_info(ni_default_xml_syntax(), &policy_info, req->xml_in) < 0) {
 		werror(req, "unable to parse interface policies");
@@ -763,7 +790,7 @@ failed:
 }
 
 static int
-system_policy_get(const char *path, ni_wicked_request_t *req)
+system_policy_get(ni_wicked_request_t *req)
 {
 	ni_syntax_t *xmlsyntax = ni_default_xml_syntax();
 	ni_handle_t *nih = ni_global_state_handle();
@@ -788,14 +815,9 @@ static ni_rest_node_t	ni_rest_system_policy_node = {
 };
 
 static int
-generic_hostname_get(ni_handle_t *nih, const char *path, ni_wicked_request_t *req)
+generic_hostname_get(ni_handle_t *nih, ni_wicked_request_t *req)
 {
 	char hostname[256];
-
-	if (path && *path) {
-		werror(req, "excess elements in path");
-		return -1;
-	}
 
 	if (nih->op->hostname_get(nih, hostname, sizeof(hostname)) < 0) {
 		werror(req, "error getting hostname");
@@ -808,14 +830,9 @@ generic_hostname_get(ni_handle_t *nih, const char *path, ni_wicked_request_t *re
 }
 
 static int
-generic_hostname_put(ni_handle_t *nih, const char *path, ni_wicked_request_t *req)
+generic_hostname_put(ni_handle_t *nih, ni_wicked_request_t *req)
 {
 	char *hostname;
-
-	if (path && *path) {
-		werror(req, "excess elements in path");
-		return -1;
-	}
 
 	hostname = ni_request_get_domain_element(req, "hostname");
 	if (hostname == NULL)
@@ -832,15 +849,15 @@ generic_hostname_put(ni_handle_t *nih, const char *path, ni_wicked_request_t *re
 }
 
 static int
-system_hostname_get(const char *path, ni_wicked_request_t *req)
+system_hostname_get(ni_wicked_request_t *req)
 {
-	return generic_hostname_get(system_handle(req), path, req);
+	return generic_hostname_get(system_handle(req), req);
 }
 
 static int
-system_hostname_put(const char *path, ni_wicked_request_t *req)
+system_hostname_put(ni_wicked_request_t *req)
 {
-	return generic_hostname_put(system_handle(req), path, req);
+	return generic_hostname_put(system_handle(req), req);
 }
 
 static ni_rest_node_t	ni_rest_system_hostname_node = {
@@ -854,15 +871,15 @@ static ni_rest_node_t	ni_rest_system_hostname_node = {
 };
 
 static int
-config_hostname_get(const char *path, ni_wicked_request_t *req)
+config_hostname_get(ni_wicked_request_t *req)
 {
-	return generic_hostname_get(config_handle(req), path, req);
+	return generic_hostname_get(config_handle(req), req);
 }
 
 static int
-config_hostname_put(const char *path, ni_wicked_request_t *req)
+config_hostname_put(ni_wicked_request_t *req)
 {
-	return generic_hostname_put(config_handle(req), path, req);
+	return generic_hostname_put(config_handle(req), req);
 }
 
 static ni_rest_node_t	ni_rest_config_hostname_node = {
@@ -879,14 +896,9 @@ static ni_rest_node_t	ni_rest_config_hostname_node = {
  * NIS objects
  */
 static int
-generic_nis_domain_get(ni_handle_t *nih, const char *path, ni_wicked_request_t *req)
+generic_nis_domain_get(ni_handle_t *nih, ni_wicked_request_t *req)
 {
 	char domainname[256];
-
-	if (path && *path) {
-		werror(req, "excess elements in path");
-		return -1;
-	}
 
 	if (nih->op->nis_domain_get == NULL) {
 		werror(req, "operation not supported");
@@ -904,14 +916,9 @@ generic_nis_domain_get(ni_handle_t *nih, const char *path, ni_wicked_request_t *
 }
 
 static int
-generic_nis_domain_put(ni_handle_t *nih, const char *path, ni_wicked_request_t *req)
+generic_nis_domain_put(ni_handle_t *nih, ni_wicked_request_t *req)
 {
 	char *domainname;
-
-	if (path && *path) {
-		werror(req, "excess elements in path");
-		return -1;
-	}
 
 	if (nih->op->nis_domain_put == NULL) {
 		werror(req, "operation not supported");
@@ -933,15 +940,15 @@ generic_nis_domain_put(ni_handle_t *nih, const char *path, ni_wicked_request_t *
 }
 
 static int
-system_nis_domain_get(const char *path, ni_wicked_request_t *req)
+system_nis_domain_get(ni_wicked_request_t *req)
 {
-	return generic_nis_domain_get(system_handle(req), path, req);
+	return generic_nis_domain_get(system_handle(req), req);
 }
 
 static int
-system_nis_domain_put(const char *path, ni_wicked_request_t *req)
+system_nis_domain_put(ni_wicked_request_t *req)
 {
-	return generic_nis_domain_put(system_handle(req), path, req);
+	return generic_nis_domain_put(system_handle(req), req);
 }
 
 static ni_rest_node_t	ni_rest_system_nis_domain_node = {
@@ -969,15 +976,10 @@ generic_nis_response(ni_wicked_request_t *req, const ni_nis_info_t *nis)
 }
 
 static int
-generic_nis_get(ni_handle_t *nih, const char *path, ni_wicked_request_t *req)
+generic_nis_get(ni_handle_t *nih, ni_wicked_request_t *req)
 {
 	ni_nis_info_t *nis;
 	int rv;
-
-	if (path && *path) {
-		werror(req, "excess elements in path");
-		return -1;
-	}
 
 	if (nih->op->nis_get == NULL) {
 		werror(req, "operation not supported");
@@ -995,7 +997,7 @@ generic_nis_get(ni_handle_t *nih, const char *path, ni_wicked_request_t *req)
 }
 
 static int
-generic_nis_put(ni_handle_t *nih, const char *path, ni_wicked_request_t *req)
+generic_nis_put(ni_handle_t *nih, ni_wicked_request_t *req)
 {
 	ni_nis_info_t *nis = NULL;
 	const xml_node_t *arg;
@@ -1003,11 +1005,6 @@ generic_nis_put(ni_handle_t *nih, const char *path, ni_wicked_request_t *req)
 
 	if (nih == NULL)
 		return -1;
-
-	if (path && *path) {
-		werror(req, "excess elements in path");
-		return -1;
-	}
 
 	if (nih->op->nis_put == NULL) {
 		werror(req, "operation not supported");
@@ -1040,15 +1037,15 @@ failed:
 }
 
 static int
-system_nis_get(const char *path, ni_wicked_request_t *req)
+system_nis_get(ni_wicked_request_t *req)
 {
-	return generic_nis_get(system_handle(req), path, req);
+	return generic_nis_get(system_handle(req), req);
 }
 
 static int
-system_nis_put(const char *path, ni_wicked_request_t *req)
+system_nis_put(ni_wicked_request_t *req)
 {
-	return generic_nis_put(system_handle(req), path, req);
+	return generic_nis_put(system_handle(req), req);
 }
 
 static ni_rest_node_t	ni_rest_system_nis_node = {
@@ -1079,15 +1076,10 @@ generic_resolver_response(ni_wicked_request_t *req, const ni_resolver_info_t *re
 }
 
 static int
-generic_resolver_get(ni_handle_t *nih, const char *path, ni_wicked_request_t *req)
+generic_resolver_get(ni_handle_t *nih, ni_wicked_request_t *req)
 {
 	ni_resolver_info_t *resolver;
 	int rv;
-
-	if (path && *path) {
-		werror(req, "excess elements in path");
-		return -1;
-	}
 
 	if (nih->op->resolver_get == NULL) {
 		werror(req, "operation not supported");
@@ -1105,7 +1097,7 @@ generic_resolver_get(ni_handle_t *nih, const char *path, ni_wicked_request_t *re
 }
 
 static int
-generic_resolver_put(ni_handle_t *nih, const char *path, ni_wicked_request_t *req)
+generic_resolver_put(ni_handle_t *nih, ni_wicked_request_t *req)
 {
 	ni_resolver_info_t *resolver = NULL;
 	const xml_node_t *arg;
@@ -1113,11 +1105,6 @@ generic_resolver_put(ni_handle_t *nih, const char *path, ni_wicked_request_t *re
 
 	if (nih == NULL)
 		return -1;
-
-	if (path && *path) {
-		werror(req, "excess elements in path");
-		return -1;
-	}
 
 	if (nih->op->resolver_put == NULL) {
 		werror(req, "operation not supported");
@@ -1150,15 +1137,15 @@ failed:
 }
 
 static int
-system_resolver_get(const char *path, ni_wicked_request_t *req)
+system_resolver_get(ni_wicked_request_t *req)
 {
-	return generic_resolver_get(system_handle(req), path, req);
+	return generic_resolver_get(system_handle(req), req);
 }
 
 static int
-system_resolver_put(const char *path, ni_wicked_request_t *req)
+system_resolver_put(ni_wicked_request_t *req)
 {
-	return generic_resolver_put(system_handle(req), path, req);
+	return generic_resolver_put(system_handle(req), req);
 }
 
 static ni_rest_node_t	ni_rest_system_resolver_node = {
@@ -1175,8 +1162,9 @@ static ni_rest_node_t	ni_rest_system_resolver_node = {
  * Event receiver
  */
 static int
-system_event_post(const char *ifname, ni_wicked_request_t *req)
+system_event_post(ni_wicked_request_t *req)
 {
+	const char *ifname = req->argv[0];
 	ni_handle_t *nih = system_handle(req);
 	ni_interface_t *ifp = NULL;
 	const xml_node_t *arg;
@@ -1223,13 +1211,17 @@ syntax_error:
 	return -1;
 }
 
-static ni_rest_node_t	ni_rest_system_event_node = {
-	.name		= "event",
+static ni_rest_node_t	ni_rest_system_event_wildcard_node = {
+	.name		= NULL,
 	.ops = {
 	    .byname = {
 		.post	= system_event_post,
 	    },
 	},
+};
+static ni_rest_node_t	ni_rest_system_event_node = {
+	.name		= "event",
+	.wildcard	= &ni_rest_system_event_wildcard_node,
 };
 
 /*
@@ -1248,14 +1240,9 @@ ni_rest_debug_add(unsigned int facility, const char *title, const char *comment,
 }
 
 static int
-debug_get(const char *path, ni_wicked_request_t *req)
+debug_get(ni_wicked_request_t *req)
 {
 	unsigned long i;
-
-	if (path && *path) {
-		werror(req, "excess elements in path");
-		return -1;
-	}
 
 	req->xml_out = xml_node_new("debug", NULL);
 	for (i = 1; i; i = i << 1) {
@@ -1305,14 +1292,9 @@ __wicked_debug_put(ni_wicked_request_t *req, unsigned int *newflags)
 }
 
 static int
-debug_put(const char *path, ni_wicked_request_t *req)
+debug_put(ni_wicked_request_t *req)
 {
 	unsigned int newflags = 0;
-
-	if (path && *path) {
-		werror(req, "excess elements in path");
-		return -1;
-	}
 
 	if (__wicked_debug_put(req, &newflags) < 0)
 		return -1;
@@ -1322,14 +1304,9 @@ debug_put(const char *path, ni_wicked_request_t *req)
 }
 
 static int
-debug_post(const char *path, ni_wicked_request_t *req)
+debug_post(ni_wicked_request_t *req)
 {
 	unsigned int newflags = ni_debug;
-
-	if (path && *path) {
-		werror(req, "excess elements in path");
-		return -1;
-	}
 
 	if (__wicked_debug_put(req, &newflags) < 0)
 		return -1;
@@ -1350,13 +1327,8 @@ static ni_rest_node_t	ni_rest_wicked_debug_node = {
 };
 
 static int
-system_meta_get(const char *path, ni_wicked_request_t *req)
+system_meta_get(ni_wicked_request_t *req)
 {
-	if (path && *path) {
-		werror(req, "excess elements in path");
-		return -1;
-	}
-
 	req->xml_out = xml_node_new("meta", NULL);
 	ni_rest_generate_meta(NULL, req->xml_out);
 	return 0;
@@ -1428,45 +1400,57 @@ ni_rest_node_find_child(ni_rest_node_t *node, const char *name)
 }
 
 ni_rest_node_t *
-ni_wicked_rest_lookup(const char *path, const char **remainder)
+ni_wicked_rest_lookup(const char *path)
 {
-	return ni_rest_node_lookup(&ni_rest_root_node, path, remainder);
+	return ni_rest_node_lookup(&ni_rest_root_node, path, NULL);
 }
 
 ni_rest_node_t *
-ni_rest_node_lookup(ni_rest_node_t *root, const char *path, const char **remainder)
+ni_rest_node_lookup(ni_rest_node_t *root, const char *path, ni_wicked_request_t *req)
 {
 	ni_rest_node_t *node = root;
 	char *copy, *pos;
 
 	copy = pos = strdup(path);
 	while (*pos) {
+		ni_rest_node_t *child;
 		char *comp;
 
 		while (*pos == '/')
 			++pos;
 		comp = pos;
 
-		/* No more children; remainder of path is interpreted by node */
-		if (node->children[0] == NULL)
-			break;
-
 		/* Find end of component, and NUL terminate it */
 		pos += strcspn(pos, "/");
-		if (*pos)
+		while (*pos == '/')
 			*pos++ = '\0';
 
-		node = ni_rest_node_find_child(node, comp);
-		if (!node)
-			return NULL;
+		child = ni_rest_node_find_child(node, comp);
+		if (child == NULL) {
+			if ((child = node->wildcard) == NULL)
+				goto failed;
+
+			if (req) {
+				/* request may be NULL if we're just checking for
+				 * resolvability of a path. */
+				if (req->argc >= __NI_REST_ARGS_MAX) {
+					ni_error("too many lookups in REST node tree");
+					goto failed;
+				}
+				ni_string_dup(&req->argv[req->argc], comp);
+				req->argc++;
+			}
+		}
+
+		node = child;
 	}
 
-	if (*pos == '\0')
-		*remainder = NULL;
-	else
-		*remainder = path + (pos - copy);
 	free(copy);
 	return node;
+
+failed:
+	free(copy);
+	return NULL;
 }
 
 void
@@ -1487,17 +1471,13 @@ ni_rest_node_add_update_callback(ni_rest_node_t *node, ni_extension_t *ex, ni_sc
 int
 ni_rest_node_supports_operation(const char *path, ni_rest_op_t op)
 {
-	const char *remainder;
 	ni_rest_node_t *node;
 
 	if (op >= __NI_REST_OP_MAX)
 		return 0;
 
-	node = ni_rest_node_lookup(&ni_rest_root_node, path, &remainder);
-	if (!node || (remainder && *remainder))
-		return 0;
-
-	return node->ops.fn[op] != NULL;
+	node = ni_rest_node_lookup(&ni_rest_root_node, path, NULL);
+	return node && node->ops.fn[op] != NULL;
 }
 
 static void

@@ -197,8 +197,9 @@ dhcp_device_response(ni_dhcp_device_t *dev, ni_wicked_request_t *req)
  * Handle GET /device
  */
 static int
-dhcp_device_get(const char *ifname, ni_wicked_request_t *req)
+dhcp_device_get(ni_wicked_request_t *req)
 {
+	const char *ifname = req->argv[0];
 	ni_dhcp_device_t *dev;
 
 	if (ifname == NULL) {
@@ -236,8 +237,9 @@ dhcp_argument_as_event(const xml_node_t *node)
 }
 
 static int
-dhcp_interface_put(const char *ifname, ni_wicked_request_t *req)
+dhcp_interface_put(ni_wicked_request_t *req)
 {
+	const char *ifname = req->argv[0];
 	ni_interface_t *ifp = NULL;
 	ni_handle_t *cnih = NULL;
 	ni_dhcp_device_t *dev = NULL;
@@ -331,8 +333,9 @@ failed:
  * The XML blob uses the standard interface XML description.
  */
 static int
-dhcp_interface_delete(const char *ifname, ni_wicked_request_t *req)
+dhcp_interface_delete(ni_wicked_request_t *req)
 {
+	const char *ifname = req->argv[0];
 	ni_dhcp_device_t *dev;
 
 	if (ifname == NULL) {
@@ -345,8 +348,8 @@ dhcp_interface_delete(const char *ifname, ni_wicked_request_t *req)
 	return 0;
 }
 
-static ni_rest_node_t  ni_dhcp_interface_node = {
-	.name		= "interface",
+static ni_rest_node_t  ni_dhcp_interface_wildcard_node = {
+	.name		= NULL,
 	.ops = {
 	    .byname = {
 		.put	= dhcp_interface_put,
@@ -355,13 +358,23 @@ static ni_rest_node_t  ni_dhcp_interface_node = {
 	},
 };
 
-static ni_rest_node_t  ni_dhcp_device_node = {
-	.name		= "device",
+static ni_rest_node_t  ni_dhcp_interface_node = {
+	.name		= "interface",
+	.wildcard	= &ni_dhcp_interface_wildcard_node,
+};
+
+static ni_rest_node_t  ni_dhcp_device_wildcard_node = {
+	.name		= NULL,
 	.ops = {
 	    .byname = {
 		.get	= dhcp_device_get,
 	    },
 	},
+};
+
+static ni_rest_node_t  ni_dhcp_device_node = {
+	.name		= "device",
+	.wildcard	= &ni_dhcp_device_wildcard_node,
 };
 
 static ni_rest_node_t  ni_dhcp_root_node = {

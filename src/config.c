@@ -140,8 +140,8 @@ ni_config_parse(const char *filename)
 
 			if (ni_stringbuf_empty(&sbuf))
 				continue;
-			rnode = ni_wicked_rest_lookup(sbuf.string, (const char **) &sp);
-			if (rnode == NULL || sp != NULL) {
+			rnode = ni_wicked_rest_lookup(sbuf.string);
+			if (rnode == NULL) {
 				ni_warn("ignoring API extension %s", ex->name);
 				continue;
 			}
