@@ -37,7 +37,7 @@ extern int		__ni_brioctl_del_port(ni_handle_t *, const char *, unsigned int);
 extern int		__ni_wireless_get_name(ni_handle_t *, const ni_interface_t *, char *, size_t);
 extern int		__ni_wireless_get_essid(ni_handle_t *, const ni_interface_t *, char *, size_t);
 
-extern int		__ni_rta_get_addr(int, struct sockaddr_storage *, struct rtattr *);
+extern int		__ni_rta_get_addr(int, ni_sockaddr_t *, struct rtattr *);
 extern int		__ni_rta_get_string(char **, struct rtattr *);
 extern struct rtattr *	__ni_rta_find(struct rtattr *, size_t len, int type);
 extern struct rtattr *	__ni_rta_begin_nested(struct nlmsghdr *, size_t, int);

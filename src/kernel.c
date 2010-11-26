@@ -140,7 +140,7 @@ __ni_wireless_get_essid(ni_handle_t *nih, const ni_interface_t *ifp, char *resul
  * rtnetlink attribute handling
  */
 int
-__ni_rta_get_addr(int af, struct sockaddr_storage *ss, struct rtattr *rta)
+__ni_rta_get_addr(int af, ni_sockaddr_t *ss, struct rtattr *rta)
 {
 	unsigned int alen, maxlen;
 	void *dst;
@@ -157,12 +157,12 @@ __ni_rta_get_addr(int af, struct sockaddr_storage *ss, struct rtattr *rta)
 
 	switch (af) {
 	case AF_INET:
-		dst = &((struct sockaddr_in *) ss)->sin_addr;
+		dst = &ss->sin.sin_addr;
 		maxlen = 4;
 		break;
 
 	case AF_INET6:
-		dst = &((struct sockaddr_in6 *) ss)->sin6_addr;
+		dst = &ss->six.sin6_addr;
 		maxlen = 16;
 		break;
 

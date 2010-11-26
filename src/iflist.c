@@ -681,14 +681,14 @@ __ni_interface_process_newaddr(ni_interface_t *ifp, struct nlmsghdr *h,
 	 * local address is supplied in IFA_LOCAL attribute.
 	 */
 	if (ifp->ifflags & NI_IFF_POINT_TO_POINT) {
-		__ni_rta_get_addr(ifa->ifa_family, &tmp.local_addr.ss, tb[IFA_LOCAL]);
-		__ni_rta_get_addr(ifa->ifa_family, &tmp.peer_addr.ss, tb[IFA_ADDRESS]);
+		__ni_rta_get_addr(ifa->ifa_family, &tmp.local_addr, tb[IFA_LOCAL]);
+		__ni_rta_get_addr(ifa->ifa_family, &tmp.peer_addr, tb[IFA_ADDRESS]);
 		/* Note iproute2 code obtains peer_addr from IFA_BROADCAST */
 	} else {
-		__ni_rta_get_addr(ifa->ifa_family, &tmp.local_addr.ss, tb[IFA_ADDRESS]);
-		__ni_rta_get_addr(ifa->ifa_family, &tmp.bcast_addr.ss, tb[IFA_BROADCAST]);
+		__ni_rta_get_addr(ifa->ifa_family, &tmp.local_addr, tb[IFA_ADDRESS]);
+		__ni_rta_get_addr(ifa->ifa_family, &tmp.bcast_addr, tb[IFA_BROADCAST]);
 	}
-	__ni_rta_get_addr(ifa->ifa_family, &tmp.anycast_addr.ss, tb[IFA_ANYCAST]);
+	__ni_rta_get_addr(ifa->ifa_family, &tmp.anycast_addr, tb[IFA_ANYCAST]);
 
 	ap = ni_address_new(ifp, ifa->ifa_family, ifa->ifa_prefixlen, &tmp.local_addr);
 	ap->scope = ifa->ifa_scope;
@@ -777,18 +777,18 @@ __ni_interface_process_newroute(ni_interface_t *ifp, struct nlmsghdr *h,
 
 	memset(&src_addr, 0, sizeof(src_addr));
 	if (tb[RTA_SRC])
-		__ni_rta_get_addr(rtm->rtm_family, &src_addr.ss, tb[RTA_SRC]);
+		__ni_rta_get_addr(rtm->rtm_family, &src_addr, tb[RTA_SRC]);
 
 	memset(&dst_addr, 0, sizeof(dst_addr));
 	if (rtm->rtm_dst_len != 0) {
 		if (tb[RTA_DST] == NULL)
 			return 0;
-		__ni_rta_get_addr(rtm->rtm_family, &dst_addr.ss, tb[RTA_DST]);
+		__ni_rta_get_addr(rtm->rtm_family, &dst_addr, tb[RTA_DST]);
 	}
 
 	memset(&gw_addr, 0, sizeof(gw_addr));
 	if (tb[RTA_GATEWAY] != NULL)
-		__ni_rta_get_addr(rtm->rtm_family, &gw_addr.ss, tb[RTA_GATEWAY]);
+		__ni_rta_get_addr(rtm->rtm_family, &gw_addr, tb[RTA_GATEWAY]);
 
 	if (rtm->rtm_src_len != 0) {
 		static int warned = 0;

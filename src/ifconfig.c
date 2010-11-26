@@ -972,11 +972,11 @@ __ni_interface_address_exists(const ni_interface_t *ifp, const ni_address_t *ap)
 	if (ap->local_addr.ss_family == AF_INET) {
 		const struct sockaddr_in *sin1, *sin2;
 
-		sin1 = (const struct sockaddr_in *) &ap->local_addr;
+		sin1 = &ap->local_addr.sin;
 		for (ap2 = ifp->addrs; ap2; ap2 = ap2->next) {
 			if (ap2->local_addr.ss_family != AF_INET)
 				continue;
-			sin2 = (const struct sockaddr_in *) &ap2->local_addr;
+			sin2 = &ap2->local_addr.sin;
 			if (sin1->sin_addr.s_addr != sin2->sin_addr.s_addr)
 				continue;
 
@@ -990,11 +990,11 @@ __ni_interface_address_exists(const ni_interface_t *ifp, const ni_address_t *ap)
 	if (ap->local_addr.ss_family == AF_INET6) {
 		const struct sockaddr_in6 *sin1, *sin2;
 
-		sin1 = (const struct sockaddr_in6 *) &ap->local_addr;
+		sin1 = &ap->local_addr.six;
 		for (ap2 = ifp->addrs; ap2; ap2 = ap2->next) {
 			if (ap2->local_addr.ss_family != AF_INET6)
 				continue;
-			sin2 = (const struct sockaddr_in6 *) &ap2->local_addr;
+			sin2 = &ap2->local_addr.six;
 			if (!memcmp(&sin1->sin6_addr, &sin2->sin6_addr, 16))
 				return ap2;
 		}

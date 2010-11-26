@@ -222,7 +222,7 @@ underflow:
 static int
 ni_dhcp_option_get_sockaddr(ni_buffer_t *bp, ni_sockaddr_t *addr)
 {
-	struct sockaddr_in *sin = (struct sockaddr_in *) addr;
+	struct sockaddr_in *sin = &addr->sin;
 
 	memset(sin, 0, sizeof(*addr));
 	sin->sin_family = AF_INET;
@@ -544,6 +544,7 @@ ni_dhcp_decode_csr(ni_buffer_t *bp, ni_route_t **route_list)
 {
 	while (ni_buffer_count(bp) && !bp->underflow) {
 		ni_sockaddr_t destination, gateway;
+		struct in_addr prefix = { 0 };
 		unsigned int prefix_len;
 
 		prefix_len = ni_buffer_getc(bp);
@@ -552,14 +553,9 @@ ni_dhcp_decode_csr(ni_buffer_t *bp, ni_route_t **route_list)
 			return -1;
 		}
 
-		memset(&destination, 0, sizeof(destination));
-		destination.ss_family = AF_INET;
-
-		if (prefix_len) {
-			struct sockaddr_in *sin = (struct sockaddr_in *) &destination;
-
-			ni_buffer_get(bp, &sin->sin_addr, (prefix_len + 7) / 8);
-		}
+		if (prefix_len)
+			ni_buffer_get(bp, &prefix, (prefix_len + 7) / 8);
+		ni_sockaddr_set_ipv4(&destination, prefix, 0);
 
 		if (ni_dhcp_option_get_sockaddr(bp, &gateway) < 0)
 			return -1;

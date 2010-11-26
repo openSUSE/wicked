@@ -53,11 +53,8 @@ __ni_address_new(ni_address_t **list_head, int af, unsigned int prefix_len, cons
 
 	/* FIXME: is this the right place to do this? */
 	if (af == AF_INET && local_addr) {
-		struct sockaddr_in *sin;
-
-		sin = (struct sockaddr_in *) &ap->bcast_addr;
-		memcpy(sin, local_addr, sizeof(*sin));
-		sin->sin_addr.s_addr |= htonl(0xFFFFFFFFUL >> prefix_len);
+		ap->bcast_addr = *local_addr;
+		ap->bcast_addr.sin.sin_addr.s_addr |= htonl(0xFFFFFFFFUL >> prefix_len);
 	}
 
 	/* FIXME: we need to do this as long as we don't track the IPv6
@@ -271,10 +268,9 @@ ni_address_is_loopback(const ni_address_t *laddr)
 {
 	if (laddr->family == AF_INET
 	 && laddr->local_addr.ss_family == AF_INET) {
-		const struct sockaddr_in *sin = (const struct sockaddr_in *) &laddr->local_addr;
 		uint32_t inaddr;
 
-		inaddr = ntohl(sin->sin_addr.s_addr);
+		inaddr = ntohl(laddr->local_addr.sin.sin_addr.s_addr);
 		return (inaddr >> 24) == IN_LOOPBACKNET;
 	}
 
@@ -330,13 +326,11 @@ ni_address_format(const ni_sockaddr_t *ss, char *abuf, size_t buflen)
 {
 	switch (ss->ss_family) {
 	case AF_INET:
-		inet_ntop(AF_INET, &((struct sockaddr_in *) ss)->sin_addr,
-				abuf, buflen);
+		inet_ntop(AF_INET, &ss->sin.sin_addr, abuf, buflen);
 		break;
 
 	case AF_INET6:
-		inet_ntop(AF_INET6, &((struct sockaddr_in6 *) ss)->sin6_addr,
-				abuf, buflen);
+		inet_ntop(AF_INET6, &ss->six.sin6_addr, abuf, buflen);
 		break;
 
 	default:
@@ -361,19 +355,18 @@ ni_address_print(const ni_sockaddr_t *ss)
 static int
 __ni_parse_ipv4shorthand(ni_sockaddr_t *ss, const char *string)
 {
-	struct sockaddr_in *sin = (struct sockaddr_in *) ss;
-	uint32_t addr = 0;
+	struct in_addr in_addr = { .s_addr = 0 };
 	unsigned int i;
 
 	for (i = 0; i < 4; ++i) {
 		unsigned long octet;
 
-		addr <<= 8;
+		in_addr.s_addr <<= 8;
 		if (*string) {
 			octet = strtoul(string, (char **) &string, 10);
 			if (octet > 255)
 				return -1;
-			addr |= octet;
+			in_addr.s_addr |= octet;
 			if (*string) {
 				if (*string != '.')
 					return -1;
@@ -382,9 +375,7 @@ __ni_parse_ipv4shorthand(ni_sockaddr_t *ss, const char *string)
 		}
 	}
 
-	memset(sin, 0, sizeof(*sin));
-	sin->sin_family = AF_INET;
-	sin->sin_addr.s_addr = htonl(addr);
+	ni_sockaddr_set_ipv4(ss, in_addr, 0);
 	return 0;
 }
 
@@ -397,12 +388,12 @@ ni_address_parse(ni_sockaddr_t *ss, const char *string, int af)
 		return -1;
 
 	if ((af == AF_UNSPEC || af == AF_INET6)
-	 && inet_pton(AF_INET6, string, &((struct sockaddr_in6 *) ss)->sin6_addr) == 1) {
+	 && inet_pton(AF_INET6, string, &ss->six.sin6_addr) == 1) {
 		ss->ss_family = AF_INET6;
 		return 0;
 	}
 	if ((af == AF_UNSPEC || af == AF_INET)
-	 && inet_pton(AF_INET, string, &((struct sockaddr_in *) ss)->sin_addr) == 1) {
+	 && inet_pton(AF_INET, string, &ss->sin.sin_addr) == 1) {
 		ss->ss_family = AF_INET;
 		return 0;
 	}

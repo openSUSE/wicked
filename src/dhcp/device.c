@@ -473,12 +473,9 @@ ni_dhcp_config_server_preference(struct in_addr addr)
 	unsigned int i;
 
 	for (i = 0; i < dhconf->num_preferred_servers; ++i, ++pref) {
-		const struct sockaddr_in *sin;
-
 		if (pref->address.ss_family != AF_INET)
 			continue;
-		sin = (const struct sockaddr_in *) &pref->address;
-		if (sin->sin_addr.s_addr == addr.s_addr)
+		if (pref->address.sin.sin_addr.s_addr == addr.s_addr)
 			return pref->weight;
 	}
 	return 0;

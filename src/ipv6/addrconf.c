@@ -245,11 +245,9 @@ ni_ipv6_add_prefix(ni_interface_t *ifp, const struct nd_opt_prefix_info *pi, uns
 
 	memset(&prefix, 0, sizeof(prefix));
 	if (pi->nd_opt_pi_prefix_len) {
-		struct sockaddr_in6 *six = (struct sockaddr_in6 *) &prefix;
-
-		six->sin6_family = AF_INET6;
-		six->sin6_addr = pi->nd_opt_pi_prefix;
-		six->sin6_scope_id = ifp->ifindex;
+		prefix.six.sin6_family = AF_INET6;
+		prefix.six.sin6_addr = pi->nd_opt_pi_prefix;
+		prefix.six.sin6_scope_id = ifp->ifindex;
 	}
 
 	for (ap = lease->addrs; ap; ap = ap->next) {
