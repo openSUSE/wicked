@@ -5,6 +5,7 @@
  */
 
 #include <sys/time.h>
+#include <sys/stat.h>
 #include <string.h>
 #include <stdlib.h>
 #include <dirent.h>
