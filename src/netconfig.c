@@ -167,7 +167,7 @@ __ni_netconfig_interface_configure(ni_handle_t *nih, ni_interface_t *replace_if,
 	for (pos = &nih->iflist; (ifp = *pos) != NULL; pos = &ifp->next) {
 		if (replace_if && replace_if != ifp)
 			continue;
-		if (xstreq(ifp->name, cfg->name)) {
+		if (ni_string_eq(ifp->name, cfg->name)) {
 			nfp->next = ifp->next;
 			ni_interface_put(ifp);
 			break;

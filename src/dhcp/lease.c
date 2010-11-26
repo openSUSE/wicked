@@ -11,7 +11,6 @@
 #include <wicked/netinfo.h>
 #include <wicked/addrconf.h>
 #include <wicked/xml.h>
-#include "netinfo_priv.h" /* just for xstreq - what a waste */
 
 static void		__ni_dhcp_put_string(xml_node_t *, const char *, const char *);
 static void		__ni_dhcp_put_addr(xml_node_t *, const char *, struct in_addr);
@@ -25,10 +24,10 @@ static int		__ni_dhcp_get_uint16(const xml_node_t *, const char *, uint16_t *);
 int
 ni_dhcp_lease_matches_request(const ni_addrconf_lease_t *lease, const ni_addrconf_request_t *req)
 {
-	if (req->dhcp.hostname && !xstreq(req->dhcp.hostname, lease->hostname))
+	if (req->dhcp.hostname && !ni_string_eq(req->dhcp.hostname, lease->hostname))
 		return 0;
 
-	if (req->dhcp.clientid && !xstreq(req->dhcp.clientid, lease->dhcp.client_id))
+	if (req->dhcp.clientid && !ni_string_eq(req->dhcp.clientid, lease->dhcp.client_id))
 		return 0;
 
 	return 1;

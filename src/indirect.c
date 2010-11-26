@@ -241,7 +241,7 @@ __ni_indirect_interface_configure(ni_handle_t *nih,
 		for (pos = &nih->iflist; (rover = *pos) != NULL; pos = &rover->next) {
 			if (change_if && change_if != rover)
 				continue;
-			if (xstreq(ifp->name, rover->name)) {
+			if (ni_string_eq(ifp->name, rover->name)) {
 				*pos = rover->next;
 				ni_interface_put(rover);
 				break;

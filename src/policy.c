@@ -206,7 +206,7 @@ ni_policy_match_interface(const ni_policy_t *policy, const ni_interface_t *dev)
 		weight |= 2;
 	}
 	if (cfg->name) {
-		if (!xstreq(cfg->name, dev->name))
+		if (!ni_string_eq(cfg->name, dev->name))
 			return -1;
 		weight |= 1;
 	}

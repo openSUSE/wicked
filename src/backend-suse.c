@@ -737,11 +737,11 @@ __ni_suse_dhcp2sysconfig(const ni_addrconf_request_t *ifdhcp, const ni_addrconf_
 	if (ifdhcp->reuse_unexpired != sysdhcp->reuse_unexpired)
 		ni_sysconfig_set_boolean(sc, "DHCLIENT_USE_LAST_LEASE", ifdhcp->reuse_unexpired);
 
-	if (!xstreq(ifdhcp->dhcp.hostname, sysdhcp->dhcp.hostname))
+	if (!ni_string_eq(ifdhcp->dhcp.hostname, sysdhcp->dhcp.hostname))
 		ni_sysconfig_set(sc, "DHCLIENT_HOSTNAME_OPTION", ifdhcp->dhcp.hostname);
-	if (!xstreq(ifdhcp->dhcp.clientid, sysdhcp->dhcp.clientid))
+	if (!ni_string_eq(ifdhcp->dhcp.clientid, sysdhcp->dhcp.clientid))
 		ni_sysconfig_set(sc, "DHCLIENT_CLIENT_ID", ifdhcp->dhcp.clientid);
-	if (!xstreq(ifdhcp->dhcp.vendor_class, sysdhcp->dhcp.vendor_class))
+	if (!ni_string_eq(ifdhcp->dhcp.vendor_class, sysdhcp->dhcp.vendor_class))
 		ni_sysconfig_set(sc, "DHCLIENT_VENDOR_CLASS_ID", ifdhcp->dhcp.vendor_class);
 	if (ifdhcp->dhcp.lease_time != sysdhcp->dhcp.lease_time)
 		ni_sysconfig_set_integer(sc, "DHCLIENT_LEASE_TIME", ifdhcp->dhcp.lease_time);
