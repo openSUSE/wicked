@@ -96,7 +96,6 @@ install: install-files
 install-files:
 	install -d -m 755 $(DESTDIR)/etc/wicked
 	install -m 644 etc/wicked/*.xml $(DESTDIR)/etc/wicked
-	install -m 555 etc/wicked/wicked-dhcp4 $(DESTDIR)/etc/wicked
 	install -d -m 755 $(DESTDIR)/var/run/wicked
 
 wicked: $(OBJ)/wicked.o $(TGTLIBS)
