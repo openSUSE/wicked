@@ -188,6 +188,7 @@ __ni_address_data(const struct sockaddr_storage *ss, unsigned int *len)
 {
 	unsigned int offset;
 
+	*len = 0;
 	if (ss == NULL)
 		return NULL;
 	if (!__ni_address_info(ss->ss_family, &offset, len))
