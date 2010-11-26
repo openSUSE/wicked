@@ -147,7 +147,8 @@ ni_dhcp_send_device_event(ni_socket_t *sock, const ni_dhcp_device_t *dev)
 	xml_node_print(devnode, fp);
 	fclose(fp);
 
-	write(sock->__fd, event, strlen(event));
+	if (write(sock->__fd, event, strlen(event)) < 0)
+		ni_error("error sending dhcp event: %m");
 	xml_node_free(devnode);
 }
 
