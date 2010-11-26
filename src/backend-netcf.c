@@ -49,6 +49,8 @@ static void		__ni_netcf_xml_from_bonding(ni_syntax_t *syntax, ni_handle_t *nih,
 				ni_bonding_t *bonding, xml_node_t *);
 static void		__ni_netcf_xml_from_vlan(ni_syntax_t *syntax, ni_handle_t *nih,
 				ni_vlan_t *vlan, xml_node_t *fp);
+static xml_node_t *	__ni_netcf_xml_from_interface_stats(ni_syntax_t *, ni_handle_t *,
+				const ni_interface_t *, xml_node_t *);
 
 static xml_node_t *	__ni_netcf_xml_from_policy(ni_syntax_t *, const ni_policy_t *, xml_node_t *);
 static xml_node_t *	__ni_netcf_xml_from_addrconf_req(ni_syntax_t *, const ni_addrconf_request_t *, xml_node_t *);
@@ -94,6 +96,7 @@ __ni_syntax_netcf(const char *pathname)
 	syntax->base_path = pathname? strdup(pathname) : NULL;
 	syntax->xml_from_interface = __ni_netcf_xml_from_interface;
 	syntax->xml_to_interface = __ni_netcf_xml_to_interface;
+	syntax->xml_from_interface_stats = __ni_netcf_xml_from_interface_stats;
 	syntax->xml_from_policy = __ni_netcf_xml_from_policy;
 	syntax->xml_to_policy = __ni_netcf_xml_to_policy;
 	syntax->xml_from_lease = __ni_netcf_xml_from_lease;
@@ -1586,6 +1589,128 @@ failed:
 	if (policy)
 		ni_policy_free(policy);
 	return NULL;
+}
+
+/*
+ * Encode/decode interface statistics
+ */
+static inline void
+__ni_netcf_xml_from_rxtx(xml_node_t *parent, const char *name, unsigned long rx_value, unsigned long tx_value)
+{
+	xml_node_t *child = NULL;
+
+	if (rx_value) {
+		child = xml_node_new(name, parent);
+		xml_node_add_attr_ulong(child, "rx", rx_value);
+	}
+
+	if (tx_value) {
+		if (!child)
+			child = xml_node_new(name, parent);
+		xml_node_add_attr_ulong(child, "tx", tx_value);
+	}
+}
+
+static inline void
+__ni_netcf_xml_to_rxtx(xml_node_t *node, unsigned long *rx_value, unsigned long *tx_value)
+{
+	if (rx_value)
+		xml_node_get_attr_ulong(node, "rx", rx_value);
+	if (tx_value)
+		xml_node_get_attr_ulong(node, "tx", tx_value);
+}
+
+xml_node_t *
+__ni_netcf_xml_from_interface_stats(ni_syntax_t *syntax, ni_handle_t *nih,
+				const ni_interface_t *ifp, xml_node_t *parent)
+{
+	xml_node_t *node = xml_node_new("stats", parent);
+	xml_node_t *stats;
+
+	if (ifp->link_stats) {
+		const ni_link_stats_t *ls = ifp->link_stats;
+		xml_node_t *child;
+
+		stats = xml_node_new("link", node);
+		__ni_netcf_xml_from_rxtx(stats, "packets", ls->rx_packets, ls->tx_packets);
+		__ni_netcf_xml_from_rxtx(stats, "bytes", ls->rx_bytes, ls->tx_bytes);
+		__ni_netcf_xml_from_rxtx(stats, "errors", ls->rx_errors, ls->tx_errors);
+		__ni_netcf_xml_from_rxtx(stats, "dropped", ls->rx_dropped, ls->tx_dropped);
+		__ni_netcf_xml_from_rxtx(stats, "compressed", ls->rx_compressed, ls->tx_compressed);
+
+		child = xml_node_new("rx-errors", stats);
+		if (ls->rx_length_errors)
+			xml_node_add_attr_ulong(child, "bad-length", ls->rx_length_errors);
+		if (ls->rx_over_errors)
+			xml_node_add_attr_ulong(child, "ring-overrun", ls->rx_over_errors);
+		if (ls->rx_crc_errors)
+			xml_node_add_attr_ulong(child, "bad-crc", ls->rx_crc_errors);
+		if (ls->rx_frame_errors)
+			xml_node_add_attr_ulong(child, "bad-frame", ls->rx_frame_errors);
+		if (ls->rx_fifo_errors)
+			xml_node_add_attr_ulong(child, "fifo-overrun", ls->rx_fifo_errors);
+		if (ls->rx_missed_errors)
+			xml_node_add_attr_ulong(child, "missed", ls->rx_missed_errors);
+
+		child = xml_node_new("tx-errors", stats);
+		if (ls->tx_aborted_errors)
+			xml_node_add_attr_ulong(child, "aborted", ls->tx_aborted_errors);
+		if (ls->tx_carrier_errors)
+			xml_node_add_attr_ulong(child, "carrier", ls->tx_carrier_errors);
+		if (ls->tx_fifo_errors)
+			xml_node_add_attr_ulong(child, "fifo", ls->tx_fifo_errors);
+		if (ls->tx_heartbeat_errors)
+			xml_node_add_attr_ulong(child, "heartbeat", ls->tx_heartbeat_errors);
+		if (ls->tx_window_errors)
+			xml_node_add_attr_ulong(child, "window", ls->tx_window_errors);
+	}
+
+	return node;
+}
+
+xml_node_t *
+__ni_netcf_xml_to_interface_stats(ni_syntax_t *syntax, ni_handle_t *nih,
+				ni_interface_t *ifp, xml_node_t *node)
+{
+	xml_node_t *stats;
+
+	for (stats = node->children; stats; stats = stats->next) {
+		if (!strcmp(stats->name, "link")) {
+			ni_link_stats_t *ls = xcalloc(1, sizeof(*ls));
+			xml_node_t *child;
+
+			for (child = stats->children; child; child = child->next) {
+				if (!strcmp(child->name, "packets"))
+					__ni_netcf_xml_to_rxtx(child, &ls->rx_packets, &ls->tx_packets);
+				else if (!strcmp(child->name, "bytes"))
+					__ni_netcf_xml_to_rxtx(child, &ls->rx_bytes, &ls->tx_bytes);
+				else if (!strcmp(child->name, "errors"))
+					__ni_netcf_xml_to_rxtx(child, &ls->rx_errors, &ls->tx_errors);
+				else if (!strcmp(child->name, "dropped"))
+					__ni_netcf_xml_to_rxtx(child, &ls->rx_dropped, &ls->tx_dropped);
+				else if (!strcmp(child->name, "compressed"))
+					__ni_netcf_xml_to_rxtx(child, &ls->rx_compressed, &ls->tx_compressed);
+				else if (!strcmp(child->name, "rx-errors")) {
+					xml_node_get_attr_ulong(child, "bad-length", &ls->rx_length_errors);
+					xml_node_get_attr_ulong(child, "ring-overrun", &ls->rx_over_errors);
+					xml_node_get_attr_ulong(child, "bad-crc", &ls->rx_crc_errors);
+					xml_node_get_attr_ulong(child, "bad-frame", &ls->rx_frame_errors);
+					xml_node_get_attr_ulong(child, "fifo-overrun", &ls->rx_fifo_errors);
+					xml_node_get_attr_ulong(child, "missed", &ls->rx_missed_errors);
+				} else if (!strcmp(child->name, "tx-errors")) {
+					xml_node_get_attr_ulong(child, "aborted", &ls->tx_aborted_errors);
+					xml_node_get_attr_ulong(child, "carrier", &ls->tx_carrier_errors);
+					xml_node_get_attr_ulong(child, "fifo", &ls->tx_fifo_errors);
+					xml_node_get_attr_ulong(child, "heartbeat", &ls->tx_heartbeat_errors);
+					xml_node_get_attr_ulong(child, "window", &ls->tx_window_errors);
+				}
+			}
+
+			ni_interface_set_link_stats(ifp, ls);
+		}
+	}
+
+	return node;
 }
 
 /*

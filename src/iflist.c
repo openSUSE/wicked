@@ -387,6 +387,19 @@ failed:
 }
 
 /*
+ * Refresh interface statistics.
+ * We assume that IFLA_STATS have already been covered by a generic ni_refresh;
+ * all we want to do here is potentially retrieve additional stats eg via
+ * ethtool.
+ */
+int
+__ni_system_interface_stats_refresh(ni_handle_t *nih, ni_interface_t *ifp)
+{
+	/* This is a NOP for now */
+	return 0;
+}
+
+/*
  * Translate interface flags
  */
 unsigned int
@@ -537,7 +550,9 @@ __ni_interface_process_newlink(ni_interface_t *ifp, struct nlmsghdr *h,
 		}
 
 		if (linkinfo[IFLA_INFO_DATA] && !info_data_used)
-			warn("iflist: link info data of type %s - don't know what to do with it", ifp->kind);
+			ni_warn("%s: link info data of type %s - don't know what to do with it", ifp->name, ifp->kind);
+
+		/* We may also want to inspect linkinfo[IFLA_INFO_XSTATS] */
 	}
 
 	if (ifp->type == NI_IFTYPE_UNKNOWN) {

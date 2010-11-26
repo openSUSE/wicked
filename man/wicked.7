@@ -103,6 +103,12 @@ a bond from a list of slave devices, etc. The \fBDELETE\fP
 request is only valid for virtual interfaces such as VLANs, bonds or
 bridges, and deletes the virtual interface completely.
 .TP
+.BI /system/interface/ ifname /stats
+This node allows clients to retrieve the statistics of an interface using
+a \fBGET\fP request.  At a minimum, this will include general link and
+device statistics. Depending on the type of device, additional statistics
+may be present.
+.TP
 .B /system/policy
 This node represents how the system reacts to interfaces coming online
 (for instance, the link layer on an Ethernet interface coming up), or

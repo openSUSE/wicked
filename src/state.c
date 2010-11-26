@@ -34,6 +34,7 @@ static struct ni_ops ni_state_ops = {
 	.configure_interface	= __ni_system_interface_configure,
 	.delete_interface	= __ni_system_interface_delete,
 	.update_lease		= __ni_system_interface_update_lease,
+	.interface_stats_refresh= __ni_system_interface_stats_refresh,
 	.policy_update		= __ni_system_policy_update,
 	.hostname_get		= __ni_system_hostname_get,
 	.hostname_put		= __ni_system_hostname_put,

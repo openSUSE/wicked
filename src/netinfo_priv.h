@@ -39,6 +39,8 @@ struct ni_ops {
 	int			(*delete_interface)(ni_handle_t *, const char *);
 	int			(*update_lease)(ni_handle_t *, ni_interface_t *, ni_addrconf_lease_t *);
 
+	int			(*interface_stats_refresh)(ni_handle_t *, ni_interface_t *);
+
 	int			(*policy_update)(ni_handle_t *, const ni_policy_t *);
 
 	int			(*hostname_get)(ni_handle_t *, char *, size_t);
@@ -87,6 +89,9 @@ struct ni_syntax {
 						xml_node_t *parent);
 	ni_interface_t *	(*xml_to_interface)(ni_syntax_t *, ni_handle_t *, xml_node_t *);
 
+	xml_node_t *		(*xml_from_interface_stats)(ni_syntax_t *, ni_handle_t *, const ni_interface_t *, xml_node_t *);
+	int			(*xml_to_interface_stats)(ni_syntax_t *, ni_handle_t *, ni_interface_t *, const xml_node_t *);
+
 	xml_node_t *		(*xml_from_policy)(ni_syntax_t *, const ni_policy_t *,
 						xml_node_t *parent);
 	ni_policy_t *		(*xml_to_policy)(ni_syntax_t *, xml_node_t *);
@@ -105,7 +110,6 @@ struct ni_syntax {
 extern ni_handle_t *	__ni_handle_new(size_t, struct ni_ops *);
 extern ni_interface_t *	__ni_interface_new(const char *name, unsigned int index);
 extern void		__ni_interface_list_destroy(ni_interface_t **);
-extern void		__ni_interface_clear_stats(ni_interface_t *);
 extern void		__ni_interfaces_clear(ni_handle_t *);
 extern ni_addrconf_lease_t *__ni_interface_address_to_lease(ni_interface_t *, const ni_address_t *);
 extern ni_addrconf_lease_t *__ni_interface_route_to_lease(ni_interface_t *, const ni_route_t *);
@@ -138,6 +142,7 @@ extern int		__ni_system_refresh_interface(ni_handle_t *, ni_interface_t *);
 extern int		__ni_system_interface_configure(ni_handle_t *, ni_interface_t *, const ni_interface_t *);
 extern int		__ni_system_interface_delete(ni_handle_t *, const char *);
 extern int		__ni_system_interface_update_lease(ni_handle_t *, ni_interface_t *, ni_addrconf_lease_t *);
+extern int		__ni_system_interface_stats_refresh(ni_handle_t *, ni_interface_t *);
 extern int		__ni_rtevent_refresh_all(ni_handle_t *);
 
 extern int		__ni_syntax_xml_to_all(ni_syntax_t *, ni_handle_t *, const xml_node_t *);

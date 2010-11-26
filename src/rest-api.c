@@ -477,7 +477,6 @@ __ni_wicked_call_direct(ni_wicked_request_t *req, ni_rest_node_t *root_node)
 		werror(req, "unknown path \"%s\"", req->path);
 		return -1;
 	}
-ni_trace("argv[0] = %s", req->argv[0]);
 
 	if (node->ops.fn[req->cmd] == NULL) {
 		werror(req, "%s command not supported for this path",
@@ -714,6 +713,50 @@ config_interface_delete(ni_wicked_request_t *req)
 	return generic_interface_delete(config_handle(req), req);
 }
 
+static int
+system_interface_stats_get(ni_wicked_request_t *req)
+{
+	ni_syntax_t *xmlsyntax = ni_default_xml_syntax();
+	const char *ifname = req->argv[0];
+	ni_interface_t *ifp;
+	ni_handle_t *nih;
+
+	if (ifname == NULL) {
+		werror(req, "Missing interface name");
+		return -1;
+	}
+
+	if ((nih = system_handle(req)) == NULL)
+		return -1;
+
+	if (!(ifp = ni_interface_by_name(nih, ifname))) {
+		werror(req, "cannot find interface %s", ifname);
+		return -1;
+	}
+
+	if (ni_interface_stats_refresh(nih, ifp) < 0) {
+		werror(req, "Unable to refresh interface stats");
+		return -1;
+	}
+
+	req->xml_out = ni_syntax_xml_from_interface_stats(xmlsyntax, nih, ifp);
+	if (!req->xml_out) {
+		werror(req, "could not generate xml");
+		return -1;
+	}
+
+	return 0;
+}
+
+static ni_rest_node_t	ni_rest_system_interface_stats_node = {
+	.name		= "stats",
+	.ops = {
+	    .byname = {
+		.get	= system_interface_stats_get,
+	    },
+	},
+};
+
 static ni_rest_node_t	ni_rest_system_interface_wildcard_node = {
 	.name		= NULL,
 	.ops = {
@@ -722,6 +765,9 @@ static ni_rest_node_t	ni_rest_system_interface_wildcard_node = {
 		.put	= system_interface_put,
 		.delete	= system_interface_delete,
 	    },
+	},
+	.children = {
+		&ni_rest_system_interface_stats_node,
 	},
 };
 

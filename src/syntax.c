@@ -315,6 +315,27 @@ ni_syntax_xml_to_interface(ni_syntax_t *syntax, ni_handle_t *nih, xml_node_t *xm
 	return ifp;
 }
 
+xml_node_t *
+ni_syntax_xml_from_interface_stats(ni_syntax_t *syntax, ni_handle_t *nih, const ni_interface_t *ifp)
+{
+	if (!syntax->xml_from_interface_stats) {
+		ni_error("%s: syntax not capable of creating xml for interface stats", __FUNCTION__);
+		return NULL;
+	}
+	return syntax->xml_from_interface_stats(syntax, nih, ifp, NULL);
+}
+
+int
+ni_syntax_xml_to_interface_stats(ni_syntax_t *syntax, ni_handle_t *nih, ni_interface_t *ifp, xml_node_t *xmlnode)
+{
+	if (!syntax->xml_to_interface_stats) {
+		ni_error("%s: syntax not capable of creating interface stats from xml", __FUNCTION__);
+		return -1;
+	}
+
+	return syntax->xml_to_interface_stats(syntax, nih, ifp, xmlnode);
+}
+
 /*
  * Produce XML for a single addrconf request and vice versa.
  */

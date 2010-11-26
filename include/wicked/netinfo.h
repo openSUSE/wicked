@@ -257,6 +257,8 @@ extern int		ni_syntax_put_interfaces(ni_syntax_t *, ni_handle_t *, FILE *);
 extern int		ni_syntax_put_one_interface(ni_syntax_t *, ni_handle_t *, ni_interface_t *, FILE *);
 extern xml_node_t *	ni_syntax_xml_from_interface(ni_syntax_t *, ni_handle_t *, const ni_interface_t *);
 extern ni_interface_t *	ni_syntax_xml_to_interface(ni_syntax_t *, ni_handle_t *, xml_node_t *);
+extern xml_node_t *	ni_syntax_xml_from_interface_stats(ni_syntax_t *, ni_handle_t *, const ni_interface_t *);
+extern int		ni_syntax_xml_to_interface_stats(ni_syntax_t *, ni_handle_t *, ni_interface_t *, xml_node_t *);
 extern xml_document_t *	ni_syntax_xml_from_all(ni_syntax_t *, ni_handle_t *);
 extern int		ni_syntax_xml_to_all(ni_syntax_t *, ni_handle_t *, const xml_document_t *);
 extern xml_node_t *	ni_syntax_xml_from_lease(ni_syntax_t *, ni_addrconf_lease_t *, xml_node_t *);
@@ -291,6 +293,7 @@ extern int		ni_interface_configure2(ni_handle_t *, ni_interface_t *, const ni_in
 extern int		ni_interface_update_lease(ni_handle_t *, ni_interface_t *ifp,
 				ni_addrconf_lease_t *);
 extern int		ni_interface_set_lease(ni_handle_t *, ni_interface_t *, ni_addrconf_lease_t *);
+extern int		ni_interface_stats_refresh(ni_handle_t *, ni_interface_t *);
 extern int		ni_interface_delete(ni_handle_t *, const char *);
 
 extern ni_route_t *	ni_interface_add_route(ni_handle_t *, ni_interface_t *,
@@ -306,6 +309,7 @@ extern void		ni_interface_set_bonding(ni_interface_t *, ni_bonding_t *);
 extern void		ni_interface_set_vlan(ni_interface_t *, ni_vlan_t *);
 extern void		ni_interface_set_bridge(ni_interface_t *, ni_bridge_t *);
 extern void		ni_interface_set_ethernet(ni_interface_t *, ni_ethernet_t *);
+extern void		ni_interface_set_link_stats(ni_interface_t *, ni_link_stats_t *);
 
 extern void		ni_interface_array_init(ni_interface_array_t *);
 extern void		ni_interface_array_append(ni_interface_array_t *, ni_interface_t *);

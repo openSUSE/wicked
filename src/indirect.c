@@ -21,6 +21,7 @@ static int	__ni_indirect_refresh_all(ni_handle_t *);
 static int	__ni_indirect_interface_refresh_one(ni_handle_t *, const char *);
 static int	__ni_indirect_interface_configure(ni_handle_t *, ni_interface_t *, const ni_interface_t *);
 static int	__ni_indirect_interface_delete(ni_handle_t *, const char *);
+static int	__ni_indirect_interface_stats_refresh(ni_handle_t *, ni_interface_t *);
 static int	__ni_indirect_policy_update(ni_handle_t *, const ni_policy_t *);
 static void	__ni_indirect_close(ni_handle_t *nih);
 
@@ -29,6 +30,7 @@ static struct ni_ops ni_indirect_ops = {
 	.interface_refresh_one	= __ni_indirect_interface_refresh_one,
 	.configure_interface	= __ni_indirect_interface_configure,
 	.delete_interface	= __ni_indirect_interface_delete,
+	.interface_stats_refresh= __ni_indirect_interface_stats_refresh,
 	.policy_update		= __ni_indirect_policy_update,
 	.close			= __ni_indirect_close,
 };
@@ -278,6 +280,27 @@ __ni_indirect_interface_delete(ni_handle_t *nih, const char *name)
 		ni_error("unable to delete %s", name);
 		return -1;
 	}
+
+	if (result)
+		xml_node_free(result);
+	return 0;
+}
+
+int
+__ni_indirect_interface_stats_refresh(ni_handle_t *nih, ni_interface_t *ifp)
+{
+	xml_node_t *result;
+	int rv;
+
+	result = __ni_indirect_vcall(nih, NI_REST_OP_GET, NULL, "interface/%s/stats", ifp->name);
+	if (XML_IS_ERR(result)) {
+		ni_error("unable to get interface statistics for %s", ifp->name);
+		return -1;
+	}
+
+	rv = ni_syntax_xml_to_interface_stats(ni_default_xml_syntax(), nih, ifp, result);
+	if (rv < 0)
+		ni_error("could not parse interface XML");
 
 	if (result)
 		xml_node_free(result);

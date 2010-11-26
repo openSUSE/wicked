@@ -566,6 +566,20 @@ ni_interface_configure2(ni_handle_t *nih, ni_interface_t *change_if, const ni_in
 }
 
 /*
+ * Refresh interface statistics
+ */
+int
+ni_interface_stats_refresh(ni_handle_t *nih, ni_interface_t *ifp)
+{
+	if (nih->op->interface_stats_refresh == NULL) {
+		ni_error("cannot refresh interface stats; not supported by this handle");
+		return -1;
+	}
+
+	return nih->op->interface_stats_refresh(nih, ifp);
+}
+
+/*
  * We received an updated lease from an addrconf agent-.
  */
 int
@@ -907,14 +921,6 @@ ni_interface_clear_routes(ni_interface_t *ifp)
 	ni_route_list_destroy(&ifp->routes);
 }
 
-void
-__ni_interface_clear_stats(ni_interface_t *ifp)
-{
-	if (ifp->link_stats)
-		free(ifp->link_stats);
-	ifp->link_stats = NULL;
-}
-
 static void
 __ni_afinfo_destroy(ni_afinfo_t *afi)
 {
@@ -949,7 +955,7 @@ ni_interface_free(ni_interface_t *ifp)
 	/* Clear out addresses, stats */
 	ni_interface_clear_addresses(ifp);
 	ni_interface_clear_routes(ifp);
-	__ni_interface_clear_stats(ifp);
+	ni_interface_set_link_stats(ifp, NULL);
 	ni_interface_set_ethernet(ifp, NULL);
 	ni_interface_set_bonding(ifp, NULL);
 	ni_interface_set_bridge(ifp, NULL);
@@ -1234,6 +1240,17 @@ ni_interface_set_ethernet(ni_interface_t *ifp, ni_ethernet_t *ethernet)
 	if (ifp->ethernet)
 		ni_ethernet_free(ifp->ethernet);
 	ifp->ethernet = ethernet;
+}
+
+/*
+ * Set the interface's link stats
+ */
+void
+ni_interface_set_link_stats(ni_interface_t *ifp, ni_link_stats_t *stats)
+{
+	if (ifp->link_stats)
+		free(ifp->link_stats);
+	ifp->link_stats = stats;
 }
 
 /*
