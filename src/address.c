@@ -205,6 +205,24 @@ ni_address_length(int af)
 	return 0;
 }
 
+void
+ni_sockaddr_set_ipv4(ni_sockaddr_t *ap, struct in_addr ipv4, uint16_t port)
+{
+	memset(ap, 0, sizeof(*ap));
+	ap->sin.sin_family = AF_INET;
+	ap->sin.sin_addr = ipv4;
+	ap->sin.sin_port = htons(port);
+}
+
+void
+ni_sockaddr_set_ipv6(ni_sockaddr_t *ap, struct in6_addr ipv6, uint16_t port)
+{
+	memset(ap, 0, sizeof(*ap));
+	ap->six.sin6_family = AF_INET6;
+	ap->six.sin6_addr = ipv6;
+	ap->six.sin6_port = htons(port);
+}
+
 int
 ni_address_prefix_match(unsigned int prefix_bits, const ni_sockaddr_t *laddr, const ni_sockaddr_t *gw)
 {

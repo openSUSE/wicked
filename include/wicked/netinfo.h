@@ -361,6 +361,9 @@ extern ni_vlan_t *	ni_vlan_clone(const ni_vlan_t *);
 extern void		ni_ethernet_free(ni_ethernet_t *);
 extern ni_ethernet_t *	ni_ethernet_clone(const ni_ethernet_t *);
 
+extern void		ni_sockaddr_set_ipv4(ni_sockaddr_t *, struct in_addr, uint16_t);
+extern void		ni_sockaddr_set_ipv6(ni_sockaddr_t *, struct in6_addr, uint16_t);
+
 extern const char *	ni_print_link_flags(int flags);
 extern const char *	ni_print_link_type(int type);
 extern const char *	ni_print_integer_nice(unsigned long long, const char *);
