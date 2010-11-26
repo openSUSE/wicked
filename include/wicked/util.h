@@ -77,8 +77,10 @@ extern int		ni_var_array_set(ni_var_array_t *, const char *name, const char *val
 
 extern int		ni_var_array_get_string(ni_var_array_t *, const char *, char **);
 extern int		ni_var_array_get_integer(ni_var_array_t *, const char *, unsigned int *);
+extern int		ni_var_array_get_long(ni_var_array_t *, const char *, unsigned long *);
 extern int		ni_var_array_get_boolean(ni_var_array_t *, const char *, int *);
 extern int		ni_var_array_set_integer(ni_var_array_t *, const char *name, unsigned int);
+extern int		ni_var_array_set_long(ni_var_array_t *, const char *name, unsigned long);
 extern int		ni_var_array_set_boolean(ni_var_array_t *, const char *name, int);
 
 extern void		ni_stringbuf_set(ni_stringbuf_t *, const char *);

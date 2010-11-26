@@ -167,6 +167,12 @@ xml_node_add_attr_uint(xml_node_t *node, const char *name, unsigned int value)
 	ni_var_array_set_integer(&node->attrs, name, value);
 }
 
+void
+xml_node_add_attr_ulong(xml_node_t *node, const char *name, unsigned long value)
+{
+	ni_var_array_set_long(&node->attrs, name, value);
+}
+
 static const ni_var_t *
 __xml_node_get_attr(const xml_node_t *node, const char *name)
 {
@@ -197,6 +203,21 @@ xml_node_get_attr(const xml_node_t *node, const char *name)
 
 int
 xml_node_get_attr_uint(const xml_node_t *node, const char *name, unsigned int *valp)
+{
+	const ni_var_t *attr;
+	char *pos;
+
+	if (!(attr = __xml_node_get_attr(node, name)) || !attr->value)
+		return 0;
+
+	*valp = strtoul(attr->value, &pos, 0);
+	if (*pos)
+		return -1;
+	return 0;
+}
+
+int
+xml_node_get_attr_ulong(const xml_node_t *node, const char *name, unsigned long *valp)
 {
 	const ni_var_t *attr;
 	char *pos;

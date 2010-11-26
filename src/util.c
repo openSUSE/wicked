@@ -404,6 +404,15 @@ ni_var_array_set_integer(ni_var_array_t *nva, const char *name, unsigned int val
 }
 
 int
+ni_var_array_set_long(ni_var_array_t *nva, const char *name, unsigned long value)
+{
+	char buffer[32];
+
+	snprintf(buffer, sizeof(buffer), "%lu", value);
+	return ni_var_array_set(nva, name, buffer);
+}
+
+int
 ni_var_array_set_boolean(ni_var_array_t *nva, const char *name, int value)
 {
 	return ni_var_array_set(nva, name, value? "yes" : "no");
