@@ -19,6 +19,13 @@
 #define NI_MAXADDRLEN		16
 #define NI_MAXHWADDRLEN		64
 
+typedef union ni_sockaddr {
+	sa_family_t		ss_family;
+	struct sockaddr_storage	ss;
+	struct sockaddr_in	sin;
+	struct sockaddr_in6	six;
+} ni_sockaddr_t;
+
 typedef struct ni_address {
 	struct ni_address *	next;
 
