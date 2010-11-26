@@ -58,7 +58,7 @@ typedef struct ni_config_fslocation {
 
 #define NI_DHCP_SERVER_PREFERENCES_MAX	16
 typedef struct ni_server_preference {
-	struct sockaddr_storage	address;
+	ni_sockaddr_t		address;
 	int			weight;
 } ni_server_preference_t;
 

@@ -143,17 +143,15 @@ ni_autoip_fsm_defend(ni_autoip_device_t *dev, const ni_hwaddr_t *hwa)
 int
 ni_autoip_fsm_build_lease(ni_autoip_device_t *dev)
 {
-	struct sockaddr_storage addr;
-	struct sockaddr_in *sin;
 	ni_addrconf_lease_t *lease;
+	ni_sockaddr_t addr;
 
 	ni_debug_autoip("%s: building lease", dev->ifname);
 	lease = ni_addrconf_lease_new(NI_ADDRCONF_AUTOCONF, AF_INET);
 
 	memset(&addr, 0, sizeof(addr));
-	sin = (struct sockaddr_in *) &addr;
-	sin->sin_family = AF_INET;
-	sin->sin_addr = dev->autoip.candidate;
+	addr.sin.sin_family = AF_INET;
+	addr.sin.sin_addr = dev->autoip.candidate;
 	__ni_address_new(&lease->addrs, AF_INET, 16, &addr);
 
 	ni_address_parse(&addr, "169.254.0.0", AF_INET);

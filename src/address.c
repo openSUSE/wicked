@@ -24,20 +24,16 @@
 #define offsetof(type, member) \
 	((unsigned long) &(((type *) NULL)->member))
 
-static const unsigned char *__ni_address_data(const struct sockaddr_storage *, unsigned int *);
+static const unsigned char *__ni_address_data(const ni_sockaddr_t *, unsigned int *);
 
 ni_address_t *
-ni_address_new(ni_interface_t *ifp, int af,
-		unsigned int prefix_len,
-		const struct sockaddr_storage *local_addr)
+ni_address_new(ni_interface_t *ifp, int af, unsigned int prefix_len, const ni_sockaddr_t *local_addr)
 {
 	return __ni_address_new(&ifp->addrs, af, prefix_len, local_addr);
 }
 
 ni_address_t *
-__ni_address_new(ni_address_t **list_head, int af,
-		unsigned int prefix_len,
-		const struct sockaddr_storage *local_addr)
+__ni_address_new(ni_address_t **list_head, int af, unsigned int prefix_len, const ni_sockaddr_t *local_addr)
 {
 	ni_address_t *ap, **tail;
 
@@ -131,7 +127,7 @@ __ni_address_list_dedup(ni_address_t **list)
 }
 
 ni_address_t *
-__ni_address_list_find(ni_address_t *list, const struct sockaddr_storage *addr)
+__ni_address_list_find(ni_address_t *list, const ni_sockaddr_t *addr)
 {
 	ni_address_t *ap;
 
@@ -184,7 +180,7 @@ __ni_address_info(int af, unsigned int *offset, unsigned int *len)
 }
 
 const unsigned char *
-__ni_address_data(const struct sockaddr_storage *ss, unsigned int *len)
+__ni_address_data(const ni_sockaddr_t *ss, unsigned int *len)
 {
 	unsigned int offset;
 
@@ -210,8 +206,7 @@ ni_address_length(int af)
 }
 
 int
-ni_address_prefix_match(unsigned int prefix_bits, const struct sockaddr_storage *laddr,
-			const struct sockaddr_storage *gw)
+ni_address_prefix_match(unsigned int prefix_bits, const ni_sockaddr_t *laddr, const ni_sockaddr_t *gw)
 {
 	const unsigned char *laddr_ptr, *gw_ptr;
 	unsigned int offset = 0, len;
@@ -244,7 +239,7 @@ ni_address_prefix_match(unsigned int prefix_bits, const struct sockaddr_storage 
 }
 
 int
-ni_address_can_reach(const ni_address_t *laddr, const struct sockaddr_storage *gw)
+ni_address_can_reach(const ni_address_t *laddr, const ni_sockaddr_t *gw)
 {
 	if (laddr->family != gw->ss_family)
 		return 0;
@@ -269,7 +264,7 @@ ni_address_is_loopback(const ni_address_t *laddr)
 }
 
 int
-ni_address_equal(const struct sockaddr_storage *ss1, const struct sockaddr_storage *ss2)
+ni_address_equal(const ni_sockaddr_t *ss1, const ni_sockaddr_t *ss2)
 {
 	const unsigned char *ap1, *ap2;
 	unsigned int len;
@@ -313,8 +308,7 @@ ni_address_probably_dynamic(const ni_address_t *ap)
 }
 
 int
-ni_address_format(const struct sockaddr_storage *ss,
-				char *abuf, size_t buflen)
+ni_address_format(const ni_sockaddr_t *ss, char *abuf, size_t buflen)
 {
 	switch (ss->ss_family) {
 	case AF_INET:
@@ -337,7 +331,7 @@ ni_address_format(const struct sockaddr_storage *ss,
 }
 
 const char *
-ni_address_print(const struct sockaddr_storage *ss)
+ni_address_print(const ni_sockaddr_t *ss)
 {
 	static char abuf[128];
 
@@ -347,7 +341,7 @@ ni_address_print(const struct sockaddr_storage *ss)
 }
 
 static int
-__ni_parse_ipv4shorthand(struct sockaddr_storage *ss, const char *string)
+__ni_parse_ipv4shorthand(ni_sockaddr_t *ss, const char *string)
 {
 	struct sockaddr_in *sin = (struct sockaddr_in *) ss;
 	uint32_t addr = 0;
@@ -377,7 +371,7 @@ __ni_parse_ipv4shorthand(struct sockaddr_storage *ss, const char *string)
 }
 
 int
-ni_address_parse(struct sockaddr_storage *ss, const char *string, int af)
+ni_address_parse(ni_sockaddr_t *ss, const char *string, int af)
 {
 	memset(ss, 0, sizeof(*ss));
 
@@ -407,7 +401,7 @@ ni_address_parse(struct sockaddr_storage *ss, const char *string, int af)
 }
 
 unsigned int
-ni_netmask_bits(const struct sockaddr_storage *mask)
+ni_netmask_bits(const ni_sockaddr_t *mask)
 {
 	unsigned int	offset, len, i, bits = 0;
 	unsigned char	*raw;
@@ -434,7 +428,7 @@ ni_netmask_bits(const struct sockaddr_storage *mask)
 }
 
 int
-ni_build_netmask(int af, unsigned int prefix_len, struct sockaddr_storage *mask)
+ni_build_netmask(int af, unsigned int prefix_len, ni_sockaddr_t *mask)
 {
 	unsigned int	offset, len, i, bits;
 	unsigned char	*raw;
@@ -589,11 +583,9 @@ ni_link_address_get_broadcast(int iftype, ni_hwaddr_t *hwa)
 }
 
 ni_route_t *
-__ni_route_new(ni_route_t **list, unsigned int prefixlen,
-		const struct sockaddr_storage *dest,
-		const struct sockaddr_storage *gw)
+__ni_route_new(ni_route_t **list, unsigned int prefixlen, const ni_sockaddr_t *dest, const ni_sockaddr_t *gw)
 {
-	static const struct sockaddr_storage null_addr;
+	static const ni_sockaddr_t null_addr;
 	ni_route_t *rp;
 	int af;
 
@@ -639,9 +631,7 @@ __ni_route_new(ni_route_t **list, unsigned int prefixlen,
 }
 
 ni_route_t *
-ni_route_new(ni_handle_t *nih, unsigned int prefixlen,
-		const struct sockaddr_storage *dest,
-		const struct sockaddr_storage *gw)
+ni_route_new(ni_handle_t *nih, unsigned int prefixlen, const ni_sockaddr_t *dest, const ni_sockaddr_t *gw)
 {
 	return __ni_route_new(&nih->routes, prefixlen, dest, gw);
 }

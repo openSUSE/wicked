@@ -119,8 +119,7 @@ extern unsigned int	__ni_interface_translate_ifflags(unsigned int);
 extern void		__ni_afinfo_set_addrconf_request(ni_afinfo_t *, unsigned int, ni_addrconf_request_t *);
 
 extern ni_route_t *	__ni_route_new(ni_route_t **, unsigned int prefix_len,
-				const struct sockaddr_storage *,
-				const struct sockaddr_storage *);
+				const ni_sockaddr_t *, const ni_sockaddr_t *);
 extern ni_route_t *	__ni_route_list_clone(const ni_route_t *);
 extern void		__ni_route_list_append(ni_route_t **, ni_route_t *);
 extern void		__ni_route_list_destroy(ni_route_t **);
@@ -130,9 +129,9 @@ extern int		__ni_generic_policy_update(ni_handle_t *, const ni_policy_t *, ni_po
 extern ni_policy_t *	__ni_policy_clone(const ni_policy_t *);
 
 extern ni_address_t *	__ni_address_new(ni_address_t **, int, unsigned int,
-				const struct sockaddr_storage *);
+				const ni_sockaddr_t *);
 extern int		__ni_address_list_dedup(ni_address_t **);
-extern ni_address_t *	__ni_address_list_find(ni_address_t *, const struct sockaddr_storage *);
+extern ni_address_t *	__ni_address_list_find(ni_address_t *, const ni_sockaddr_t *);
 
 extern int		__ni_system_refresh_all(ni_handle_t *);
 extern int		__ni_system_refresh_interface(ni_handle_t *, ni_interface_t *);

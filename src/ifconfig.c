@@ -954,7 +954,7 @@ __ni_rtnl_link_up(ni_handle_t *nih, const ni_interface_t *ifp, const ni_interfac
 }
 
 static inline int
-addattr_sockaddr(struct nlmsghdr *h, size_t size, int type, const struct sockaddr_storage *addr)
+addattr_sockaddr(struct nlmsghdr *h, size_t size, int type, const ni_sockaddr_t *addr)
 {
 	unsigned int offset, len;
 

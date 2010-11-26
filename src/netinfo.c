@@ -886,8 +886,8 @@ ni_interface_get_addresses(ni_interface_t *ifp, int af)
 ni_route_t *
 ni_interface_add_route(ni_handle_t *nih, ni_interface_t *ifp,
 				unsigned int prefix_len,
-				const struct sockaddr_storage *dest,
-				const struct sockaddr_storage *gw)
+				const ni_sockaddr_t *dest,
+				const ni_sockaddr_t *gw)
 {
 	return __ni_route_new(&ifp->routes, prefix_len, dest, gw);
 }

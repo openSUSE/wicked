@@ -228,7 +228,7 @@ __ni_redhat_sysconfig2ifconfig(ni_handle_t *nih, ni_interface_t *ifp, ni_sysconf
  * and look it up.
  */
 static int
-__ni_sysconfig_get_ipv4addr(ni_sysconfig_t *sc, const char *name, struct sockaddr_storage *result)
+__ni_sysconfig_get_ipv4addr(ni_sysconfig_t *sc, const char *name, ni_sockaddr_t *result)
 {
 	ni_var_t *var;
 	var = ni_sysconfig_get(sc, name);
@@ -248,7 +248,7 @@ __ni_sysconfig_get_ipv4addr(ni_sysconfig_t *sc, const char *name, struct sockadd
 static int
 __ni_redhat_get_static_ipv4(ni_interface_t *ifp, ni_sysconfig_t *sc)
 {
-	struct sockaddr_storage address, netmask;
+	ni_sockaddr_t address, netmask;
 	unsigned int prefix_len = 32;
 
 	if (__ni_sysconfig_get_ipv4addr(sc, "IPADDR", &address) < 0
@@ -499,7 +499,7 @@ __ni_redhat_ifconfig2sysconfig(ni_interface_t *ifp, ni_sysconfig_t *sc)
 		ni_sysconfig_set_integer(sc, "MTU", ifp->mtu);
 
 	for (ap = ifp->addrs, aindex = 0; ap; ap = ap->next, aindex++) {
-		struct sockaddr_storage netmask;
+		ni_sockaddr_t netmask;
 
 		/* Cannot handle anything but IPv4 */
 		if (ap->family != AF_INET)

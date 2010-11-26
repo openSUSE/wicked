@@ -510,7 +510,7 @@ __ni_netcf_xml_to_bonding(ni_syntax_t *syntax, ni_handle_t *nih,
 
 static int
 __ni_netcf_xml_to_address(xml_node_t *node, int af,
-			const char *addrname, struct sockaddr_storage *addr,
+			const char *addrname, ni_sockaddr_t *addr,
 			const char *pfxname, unsigned int *prefixlen)
 {
 	const char *attrval;
@@ -549,7 +549,7 @@ __ni_netcf_xml_to_static_ifcfg(ni_syntax_t *syntax, ni_handle_t *nih,
 	nih->seqno++;
 
 	for (node = protnode->children; node; node = node->next) {
-		struct sockaddr_storage addr;
+		ni_sockaddr_t addr;
 		unsigned int prefixlen;
 		ni_address_t *ap;
 
@@ -573,7 +573,7 @@ __ni_netcf_xml_to_static_ifcfg(ni_syntax_t *syntax, ni_handle_t *nih,
 	}
 
 	for (node = protnode->children; node; node = node->next) {
-		struct sockaddr_storage dest_addr, gw_addr;
+		ni_sockaddr_t dest_addr, gw_addr;
 		unsigned int prefixlen;
 
 		if (strcmp(node->name, "route") != 0)

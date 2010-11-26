@@ -35,10 +35,10 @@ typedef struct ni_address {
 	unsigned int		flags;
 	int			scope;
 	unsigned int		prefixlen;
-	struct sockaddr_storage	local_addr;
-	struct sockaddr_storage	peer_addr;
-	struct sockaddr_storage	anycast_addr;
-	struct sockaddr_storage	bcast_addr;
+	ni_sockaddr_t		local_addr;
+	ni_sockaddr_t		peer_addr;
+	ni_sockaddr_t		anycast_addr;
+	ni_sockaddr_t		bcast_addr;
 	char			label[IFNAMSIZ];
 	time_t			expires;		/* when address expires (ipv6) */
 } ni_address_t;
@@ -51,7 +51,7 @@ typedef struct ni_hwaddr {
 
 typedef struct ni_route_nexthop {
 	struct ni_route_nexthop *next;
-	struct sockaddr_storage gateway;
+	ni_sockaddr_t		 gateway;
 	char *                  device;
 	unsigned int		weight;
 	unsigned int		flags;
@@ -64,7 +64,7 @@ typedef struct ni_route {
 	unsigned int		seq;
 	unsigned int		family;
 	unsigned int		prefixlen;
-	struct sockaddr_storage	destination;
+	ni_sockaddr_t		destination;
 	ni_route_nexthop_t	nh;
 
 	unsigned int		mtu;
@@ -295,8 +295,8 @@ extern int		ni_interface_delete(ni_handle_t *, const char *);
 
 extern ni_route_t *	ni_interface_add_route(ni_handle_t *, ni_interface_t *,
 				unsigned int prefix_len,
-				const struct sockaddr_storage *dest,
-				const struct sockaddr_storage *gw);
+				const ni_sockaddr_t *dest,
+				const ni_sockaddr_t *gw);
 
 extern ni_address_t *	ni_interface_get_addresses(ni_interface_t *, int af);
 extern ni_bonding_t *	ni_interface_get_bonding(ni_interface_t *);
@@ -317,24 +317,24 @@ extern void             ni_interface_clear_routes(ni_interface_t *);
 
 extern ni_address_t *	ni_address_new(ni_interface_t *ifp, int af,
 				unsigned int prefix_len,
-				const struct sockaddr_storage *local_addr);
+				const ni_sockaddr_t *local_addr);
 extern ni_address_t *	ni_address_clone(const ni_address_t *);
 extern void		ni_address_list_append(ni_address_t **, ni_address_t *);
 extern void		ni_address_list_destroy(ni_address_t **);
 extern void		ni_address_free(ni_address_t *);
 
-extern int		ni_address_format(const struct sockaddr_storage *ss,
+extern int		ni_address_format(const ni_sockaddr_t *ss,
 				char *abuf, size_t buflen);
-extern const char *	ni_address_print(const struct sockaddr_storage *ss);
-extern int		ni_address_parse(struct sockaddr_storage *ss, const char *string, int af);
+extern const char *	ni_address_print(const ni_sockaddr_t *ss);
+extern int		ni_address_parse(ni_sockaddr_t *ss, const char *string, int af);
 extern unsigned int	ni_address_length(int af);
-extern int		ni_address_can_reach(const ni_address_t *laddr, const struct sockaddr_storage *gw);
+extern int		ni_address_can_reach(const ni_address_t *laddr, const ni_sockaddr_t *gw);
 extern int		ni_address_is_loopback(const ni_address_t *laddr);
-extern unsigned int	ni_netmask_bits(const struct sockaddr_storage *mask);
-extern int		ni_build_netmask(int, unsigned int, struct sockaddr_storage *);
-extern int		ni_address_prefix_match(unsigned int, const struct sockaddr_storage *,
-				const struct sockaddr_storage *);
-extern int		ni_address_equal(const struct sockaddr_storage *, const struct sockaddr_storage *);
+extern unsigned int	ni_netmask_bits(const ni_sockaddr_t *mask);
+extern int		ni_build_netmask(int, unsigned int, ni_sockaddr_t *);
+extern int		ni_address_prefix_match(unsigned int, const ni_sockaddr_t *,
+				const ni_sockaddr_t *);
+extern int		ni_address_equal(const ni_sockaddr_t *, const ni_sockaddr_t *);
 extern int		__ni_address_info(int, unsigned int *, unsigned int *);
 extern int		ni_address_probably_dynamic(const ni_address_t *);
 
@@ -347,8 +347,8 @@ extern unsigned int	ni_link_address_length(int);
 extern int		ni_link_address_get_broadcast(int, ni_hwaddr_t *);
 
 extern ni_route_t *	ni_route_new(ni_handle_t *, unsigned int prefix_len,
-				const struct sockaddr_storage *dest,
-				const struct sockaddr_storage *gw);
+				const ni_sockaddr_t *dest,
+				const ni_sockaddr_t *gw);
 extern void		ni_route_list_destroy(ni_route_t **);
 extern void		ni_route_free(ni_route_t *);
 extern int		ni_route_equal(const ni_route_t *, const ni_route_t *);

@@ -144,7 +144,7 @@ __ni_suse_read_routes(ni_route_t **route_list, const char *filename)
 
 	while (fgets(buffer, sizeof(buffer), fp) != NULL) {
 		char *dest, *gw, *mask = NULL, *ifname = NULL, *type = NULL;
-		struct sockaddr_storage dest_addr, gw_addr, mask_addr;
+		ni_sockaddr_t dest_addr, gw_addr, mask_addr;
 		unsigned int prefixlen = 255;
 		ni_route_t *rp;
 
@@ -261,7 +261,7 @@ __ni_suse_read_interface(ni_handle_t *nih, const char *filename, const char *ifn
 
 	/* We rely on the kernel to set up the ::1 device (if ipv6 is enabled) */
 	if (ifp->type == NI_IFTYPE_LOOPBACK) {
-		struct sockaddr_storage local_addr;
+		ni_sockaddr_t local_addr;
 
 		ni_address_parse(&local_addr, "127.0.0.1", AF_INET);
 		if (__ni_address_list_find(ifp->addrs, &local_addr) == NULL) {
@@ -393,7 +393,7 @@ __get_ipaddr(ni_interface_t *ifp, ni_sysconfig_t *sc, const char *suffix)
 {
 	ni_var_t *var;
 	char *address_string;
-	struct sockaddr_storage addr;
+	ni_sockaddr_t addr;
 	unsigned int prefix_len = 32;
 	char *sp;
 
@@ -406,7 +406,7 @@ __get_ipaddr(ni_interface_t *ifp, ni_sysconfig_t *sc, const char *suffix)
 		*sp++ = '\0';
 		prefix_len = strtoul(sp, NULL, 0);
 	} else {
-		struct sockaddr_storage netmask;
+		ni_sockaddr_t netmask;
 
 		/* Try PREFIXLEN variable */
 		var = __find_indexed_variable(sc, "PREFIXLEN", suffix);

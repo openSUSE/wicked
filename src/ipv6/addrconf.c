@@ -35,7 +35,7 @@
 #include "kernel.h"
 
 static void		ni_ipv6_process_packet(ni_socket_t *);
-static void		ni_ipv6_add_router(ni_interface_t *, struct sockaddr_storage *, unsigned int);
+static void		ni_ipv6_add_router(ni_interface_t *, ni_sockaddr_t *, unsigned int);
 static void		ni_ipv6_add_prefix(ni_interface_t *, const struct nd_opt_prefix_info *, unsigned int);
 
 /*
@@ -127,7 +127,7 @@ ni_addrconf_t ni_ipv6_addrconf = {
 void
 ni_ipv6_process_packet(ni_socket_t *sock)
 {
-	struct sockaddr_storage router_addr;
+	ni_sockaddr_t router_addr;
 	ni_interface_t *ifp = sock->user_data;
 	unsigned char buffer[256 * 1024];
 	struct nd_router_advert *ra;
@@ -210,7 +210,7 @@ short_packet:
 }
 
 void
-ni_ipv6_add_router(ni_interface_t *ifp, struct sockaddr_storage *router_addr, unsigned int lifetime)
+ni_ipv6_add_router(ni_interface_t *ifp, ni_sockaddr_t *router_addr, unsigned int lifetime)
 {
 	ni_addrconf_lease_t *lease = ifp->ipv6.lease[NI_ADDRCONF_AUTOCONF];
 	ni_route_t **pos, *rp;
@@ -236,7 +236,7 @@ void
 ni_ipv6_add_prefix(ni_interface_t *ifp, const struct nd_opt_prefix_info *pi, unsigned int lifetime)
 {
 	ni_addrconf_lease_t *lease = ifp->ipv6.lease[NI_ADDRCONF_AUTOCONF];
-	struct sockaddr_storage prefix;
+	ni_sockaddr_t prefix;
 	ni_address_t *ap;
 	uint8_t flags;
 
@@ -264,7 +264,7 @@ ni_ipv6_add_prefix(ni_interface_t *ifp, const struct nd_opt_prefix_info *pi, uns
 	// ap->expires = time(NULL) + lifetime + 1;
 
 #if 0
-	struct sockaddr_storage *gw = NULL;
+	ni_sockaddr_t *gw = NULL;
 	ni_route_t *rp, *nrp;
 
 	/* Add link-local routes */

@@ -220,7 +220,7 @@ underflow:
 }
 
 static int
-ni_dhcp_option_get_sockaddr(ni_buffer_t *bp, struct sockaddr_storage *addr)
+ni_dhcp_option_get_sockaddr(ni_buffer_t *bp, ni_sockaddr_t *addr)
 {
 	struct sockaddr_in *sin = (struct sockaddr_in *) addr;
 
@@ -543,7 +543,7 @@ static int
 ni_dhcp_decode_csr(ni_buffer_t *bp, ni_route_t **route_list)
 {
 	while (ni_buffer_count(bp) && !bp->underflow) {
-		struct sockaddr_storage destination, gateway;
+		ni_sockaddr_t destination, gateway;
 		unsigned int prefix_len;
 
 		prefix_len = ni_buffer_getc(bp);
@@ -564,9 +564,7 @@ ni_dhcp_decode_csr(ni_buffer_t *bp, ni_route_t **route_list)
 		if (ni_dhcp_option_get_sockaddr(bp, &gateway) < 0)
 			return -1;
 
-		__ni_route_new(route_list, prefix_len,
-				(struct sockaddr_storage *) &destination,
-				(struct sockaddr_storage *) &gateway);
+		__ni_route_new(route_list, prefix_len, &destination, &gateway);
 	}
 
 	if (bp->underflow)
@@ -654,9 +652,9 @@ guess_prefix_len(struct in_addr addr)
 }
 
 static unsigned int
-guess_prefix_len_sockaddr(const struct sockaddr_storage *ap)
+guess_prefix_len_sockaddr(const ni_sockaddr_t *ap)
 {
-	return guess_prefix_len(((struct sockaddr_in *) ap)->sin_addr);
+	return guess_prefix_len(ap->sin.sin_addr);
 }
 
 /*
@@ -668,7 +666,7 @@ ni_dhcp_decode_static_routes(ni_buffer_t *bp, ni_route_t **route_list)
 {
 	ni_route_list_destroy(route_list);
 	while (ni_buffer_count(bp) && !bp->underflow) {
-		struct sockaddr_storage destination, gateway;
+		ni_sockaddr_t destination, gateway;
 
 		if (ni_dhcp_option_get_sockaddr(bp, &destination) < 0
 		 || ni_dhcp_option_get_sockaddr(bp, &gateway) < 0)
@@ -690,7 +688,7 @@ ni_dhcp_decode_static_routes(ni_buffer_t *bp, ni_route_t **route_list)
 static int
 ni_dhcp_decode_routers(ni_buffer_t *bp, ni_route_t **route_list)
 {
-	struct sockaddr_storage destination, gateway;
+	ni_sockaddr_t destination, gateway;
 
 	ni_route_list_destroy(route_list);
 
@@ -983,19 +981,19 @@ parse_more:
 	}
 
 	if (lease->dhcp.address.s_addr) {
-		struct sockaddr_storage local_addr;
+		ni_sockaddr_t local_addr;
 		ni_address_t *ap;
 
 		memset(&local_addr, 0, sizeof(local_addr));
-		local_addr.ss_family = AF_INET;
-		((struct sockaddr_in *) &local_addr)->sin_addr = lease->dhcp.address;
+		local_addr.sin.sin_family = AF_INET;
+		local_addr.sin.sin_addr = lease->dhcp.address;
 		ap = __ni_address_new(&lease->addrs, AF_INET,
 				__count_net_bits(ntohl(lease->dhcp.netmask.s_addr)),
 				&local_addr);
 
 		memset(&ap->bcast_addr, 0, sizeof(ap->bcast_addr));
-		ap->bcast_addr.ss_family = AF_INET;
-		((struct sockaddr_in *) &ap->bcast_addr)->sin_addr = lease->dhcp.broadcast;
+		ap->bcast_addr.sin.sin_family = AF_INET;
+		ap->bcast_addr.sin.sin_addr = lease->dhcp.broadcast;
 	}
 
 	*leasep = lease;
