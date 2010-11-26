@@ -9,8 +9,48 @@
 
 #include <wicked/types.h>
 
+typedef enum {
+	NI_ETHERNET_PORT_DEFAULT = 0,
+	NI_ETHERNET_PORT_TP,
+	NI_ETHERNET_PORT_AUI,
+	NI_ETHERNET_PORT_BNC,
+	NI_ETHERNET_PORT_MII,
+	NI_ETHERNET_PORT_FIBRE,
+} ni_ether_port_t;
+
+typedef enum {
+	NI_ETHERNET_DUPLEX_DEFAULT = 0,
+	NI_ETHERNET_DUPLEX_HALF,
+	NI_ETHERNET_DUPLEX_FULL,
+} ni_ether_duplex_t;
+
+typedef enum {
+	NI_ETHERNET_SETTING_DEFAULT = 0,
+	NI_ETHERNET_SETTING_ENABLE,
+	NI_ETHERNET_SETTING_DISABLE,
+} ni_ether_tristate_t;
+
 struct ni_ethernet {
 	unsigned int		link_speed;
+	ni_ether_port_t		port_type;
+	ni_ether_duplex_t	duplex;
+	ni_ether_tristate_t	autoneg_enable;
+
+	struct {
+		ni_ether_tristate_t	rx_csum;
+		ni_ether_tristate_t	tx_csum;
+		ni_ether_tristate_t	scatter_gather;
+		ni_ether_tristate_t	tso;
+		ni_ether_tristate_t	ufo;
+		ni_ether_tristate_t	gso;
+		ni_ether_tristate_t	gro;
+		ni_ether_tristate_t	lro;
+	} offload;
+
+	unsigned int		identify_time;
 };
+
+extern ni_ether_port_t	ni_ethernet_name_to_port_type(const char *);
+extern const char *	ni_ethernet_port_type_to_name(ni_ether_port_t);
 
 #endif /* __WICKED_ETHERNET_H__ */

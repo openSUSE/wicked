@@ -632,6 +632,9 @@ __ni_interface_process_newlink(ni_interface_t *ifp, struct nlmsghdr *h,
 		ifp->ipv6.enabled = ifp->ipv6.forwarding = 0;
 	}
 
+	if (ifp->type == NI_IFTYPE_ETHERNET)
+		__ni_system_ethernet_refresh(nih, ifp);
+
 	if (ifp->type == NI_IFTYPE_BRIDGE)
 		__ni_discover_bridge(ifp);
 	if (ifp->type == NI_IFTYPE_BOND)

@@ -567,3 +567,40 @@ error:
 	return NULL;
 }
 
+/*
+ * Handle ethtool representation
+ */
+ni_ethernet_t *
+__ni_syntax_xml_to_ethernet(ni_syntax_t *syntax, const xml_node_t *node)
+{
+	ni_ethernet_t *ethernet;
+
+	if (!syntax->xml_to_ethernet) {
+		ni_error("%s: syntax not capable of creating ethernet info from xml", __FUNCTION__);
+		return NULL;
+	}
+
+	if (!node)
+		return NULL;
+
+
+	ethernet = syntax->xml_to_ethernet(syntax, node);
+	if (ethernet == NULL) {
+		ni_error("%s: failed to parse ethernet element", __FUNCTION__);
+		return NULL;
+	}
+
+	return ethernet;
+}
+
+xml_node_t *
+__ni_syntax_xml_from_ethernet(ni_syntax_t *syntax, const ni_ethernet_t *ethernet, xml_node_t *parent)
+{
+	if (!syntax->xml_from_ethernet) {
+		error("%s: syntax not capable of creating xml for ethernet", __FUNCTION__);
+		return NULL;
+	}
+
+	return syntax->xml_from_ethernet(syntax, ethernet, parent);
+}
+

@@ -92,9 +92,11 @@ struct ni_syntax {
 	xml_node_t *		(*xml_from_interface_stats)(ni_syntax_t *, ni_handle_t *, const ni_interface_t *, xml_node_t *);
 	int			(*xml_to_interface_stats)(ni_syntax_t *, ni_handle_t *, ni_interface_t *, const xml_node_t *);
 
-	xml_node_t *		(*xml_from_policy)(ni_syntax_t *, const ni_policy_t *,
-						xml_node_t *parent);
+	xml_node_t *		(*xml_from_policy)(ni_syntax_t *, const ni_policy_t *, xml_node_t *parent);
 	ni_policy_t *		(*xml_to_policy)(ni_syntax_t *, xml_node_t *);
+
+	xml_node_t *		(*xml_from_ethernet)(ni_syntax_t *, const ni_ethernet_t *, xml_node_t *parent);
+	ni_ethernet_t *		(*xml_to_ethernet)(ni_syntax_t *, const xml_node_t *);
 
 	xml_node_t *		(*xml_from_lease)(ni_syntax_t *, const ni_addrconf_lease_t *, xml_node_t *parent);
 	ni_addrconf_lease_t *	(*xml_to_lease)(ni_syntax_t *, const xml_node_t *);
@@ -143,6 +145,7 @@ extern int		__ni_system_interface_configure(ni_handle_t *, ni_interface_t *, con
 extern int		__ni_system_interface_delete(ni_handle_t *, const char *);
 extern int		__ni_system_interface_update_lease(ni_handle_t *, ni_interface_t *, ni_addrconf_lease_t *);
 extern int		__ni_system_interface_stats_refresh(ni_handle_t *, ni_interface_t *);
+extern int		__ni_system_ethernet_refresh(ni_handle_t *, ni_interface_t *);
 extern int		__ni_rtevent_refresh_all(ni_handle_t *);
 
 extern int		__ni_syntax_xml_to_all(ni_syntax_t *, ni_handle_t *, const xml_node_t *);

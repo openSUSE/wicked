@@ -15,6 +15,7 @@
 #include <wicked/bridge.h>
 #include <wicked/bonding.h>
 #include <wicked/resolver.h>
+#include <wicked/ethernet.h>
 #include <wicked/nis.h>
 #include <wicked/xml.h>
 
@@ -53,11 +54,13 @@ static xml_node_t *	__ni_netcf_xml_from_interface_stats(ni_syntax_t *, ni_handle
 				const ni_interface_t *, xml_node_t *);
 
 static xml_node_t *	__ni_netcf_xml_from_policy(ni_syntax_t *, const ni_policy_t *, xml_node_t *);
+static xml_node_t *	__ni_netcf_xml_from_ethernet(ni_syntax_t *, const ni_ethernet_t *, xml_node_t *);
 static xml_node_t *	__ni_netcf_xml_from_addrconf_req(ni_syntax_t *, const ni_addrconf_request_t *, xml_node_t *);
 static xml_node_t *	__ni_netcf_xml_from_lease(ni_syntax_t *, const ni_addrconf_lease_t *, xml_node_t *parent);
 static xml_node_t *	__ni_netcf_xml_from_nis(ni_syntax_t *, const ni_nis_info_t *, xml_node_t *);
 static xml_node_t *	__ni_netcf_xml_from_resolver(ni_syntax_t *, const ni_resolver_info_t *, xml_node_t *);
 static ni_policy_t *	__ni_netcf_xml_to_policy(ni_syntax_t *, xml_node_t *);
+static ni_ethernet_t *	__ni_netcf_xml_to_ethernet(ni_syntax_t *, const xml_node_t *);
 static ni_addrconf_request_t *__ni_netcf_xml_to_addrconf_req(ni_syntax_t *, const xml_node_t *, int);
 static ni_addrconf_lease_t *__ni_netcf_xml_to_lease(ni_syntax_t *, const xml_node_t *);
 static ni_nis_info_t *	__ni_netcf_xml_to_nis(ni_syntax_t *, const xml_node_t *);
@@ -99,6 +102,8 @@ __ni_syntax_netcf(const char *pathname)
 	syntax->xml_from_interface_stats = __ni_netcf_xml_from_interface_stats;
 	syntax->xml_from_policy = __ni_netcf_xml_from_policy;
 	syntax->xml_to_policy = __ni_netcf_xml_to_policy;
+	syntax->xml_from_ethernet = __ni_netcf_xml_from_ethernet;
+	syntax->xml_to_ethernet = __ni_netcf_xml_to_ethernet;
 	syntax->xml_from_lease = __ni_netcf_xml_from_lease;
 	syntax->xml_to_lease = __ni_netcf_xml_to_lease;
 	syntax->xml_from_request = __ni_netcf_xml_from_addrconf_req;
@@ -126,7 +131,7 @@ __ni_netcf_xml_to_interface(ni_syntax_t *syntax, ni_handle_t *nih, xml_node_t *i
 {
 	ni_interface_t *ifp;
 	const char *attrval;
-	xml_node_t *node;
+	xml_node_t *node, *child;
 
 	if ((attrval = xml_node_get_attr(ifnode, "name")) != NULL) {
 		ifp = ni_interface_new(nih, attrval, 0);
@@ -226,7 +231,6 @@ __ni_netcf_xml_to_interface(ni_syntax_t *syntax, ni_handle_t *nih, xml_node_t *i
 	/* Hunt for "protocol" children */
 	for (node = ifnode->children; node; node = node->next) {
 		ni_afinfo_t *afi;
-		xml_node_t *child;
 
 		if (strcmp(node->name, "protocol") != 0)
 			continue;
@@ -307,6 +311,11 @@ __ni_netcf_xml_to_interface(ni_syntax_t *syntax, ni_handle_t *nih, xml_node_t *i
 	case NI_IFTYPE_VLAN:
 		if (__ni_netcf_xml_to_vlan(syntax, nih, ifp, ifnode))
 			return NULL;
+		break;
+	case NI_IFTYPE_ETHERNET:
+		child = xml_node_get_child(ifnode, "ethernet");
+		if (child)
+			ni_interface_set_ethernet(ifp, __ni_netcf_xml_to_ethernet(syntax, child));
 		break;
 
 	default: ;
@@ -666,6 +675,8 @@ __ni_netcf_xml_from_interface(ni_syntax_t *syntax, ni_handle_t *nih,
 		__ni_netcf_xml_from_bonding(syntax, nih, ifp->bonding, ifnode);
 	if (ifp->vlan)
 		__ni_netcf_xml_from_vlan(syntax, nih, ifp->vlan, ifnode);
+	if (ifp->ethernet)
+		__ni_netcf_xml_from_ethernet(syntax, ifp->ethernet, ifnode);
 
 	return ifnode;
 }
@@ -1592,6 +1603,114 @@ failed:
 }
 
 /*
+ * Encode/decode ethtool settings
+ */
+static inline void
+__ni_netcf_put_tristate(xml_node_t *node, const char *name, ni_ether_tristate_t value)
+{
+	switch (value) {
+	case NI_ETHERNET_SETTING_ENABLE:
+		xml_node_add_attr(node, name, "on");
+		break;
+
+	case NI_ETHERNET_SETTING_DISABLE:
+		xml_node_add_attr(node, name, "off");
+		break;
+
+	default: ;
+	}
+}
+
+static inline void
+__ni_netcf_get_tristate(const xml_node_t *node, const char *name, ni_ether_tristate_t *value)
+{
+	int bv;
+
+	if (__ni_netcf_get_boolean_attr(node, name, &bv) >= 0)
+		*value = bv? NI_ETHERNET_SETTING_ENABLE : NI_ETHERNET_SETTING_DISABLE;
+}
+
+xml_node_t *
+__ni_netcf_xml_from_ethernet(ni_syntax_t *syntax, const ni_ethernet_t *ether, xml_node_t *parent)
+{
+	xml_node_t *node, *child;
+	const char *attrval;
+
+	node = xml_node_new("ethernet", parent);
+	if (ether->link_speed)
+		xml_node_add_attr_uint(node, "speed", ether->link_speed);
+
+	switch (ether->duplex) {
+	case NI_ETHERNET_DUPLEX_FULL:
+		xml_node_add_attr(node, "duplex", "full"); break;
+
+	case NI_ETHERNET_DUPLEX_HALF:
+		xml_node_add_attr(node, "duplex", "half"); break;
+
+	default: ;
+	}
+
+	__ni_netcf_put_tristate(node, "autoneg", ether->autoneg_enable);
+
+	if ((attrval = ni_ethernet_port_type_to_name(ether->port_type)) != NULL)
+		xml_node_add_attr(node, "port", attrval);
+
+	child = xml_node_new("offload", node);
+	__ni_netcf_put_tristate(child, "rx-csum", ether->offload.rx_csum);
+	__ni_netcf_put_tristate(child, "tx-csum", ether->offload.tx_csum);
+	__ni_netcf_put_tristate(child, "scatter-gather", ether->offload.scatter_gather);
+	__ni_netcf_put_tristate(child, "tso", ether->offload.tso);
+	__ni_netcf_put_tristate(child, "ufo", ether->offload.ufo);
+	__ni_netcf_put_tristate(child, "gso", ether->offload.gso);
+	__ni_netcf_put_tristate(child, "gro", ether->offload.gro);
+	__ni_netcf_put_tristate(child, "lro", ether->offload.lro);
+
+	/* FIXME: need intmap for port type */
+
+	if (ether->identify_time) {
+		child = xml_node_new("identify", node);
+		xml_node_add_attr_uint(child, "time", ether->identify_time);
+	}
+
+	return node;
+}
+
+ni_ethernet_t *
+__ni_netcf_xml_to_ethernet(ni_syntax_t *syntax, const xml_node_t *node)
+{
+	ni_ethernet_t *ether = ni_ethernet_alloc();
+	const char *attrval;
+	xml_node_t *child;
+
+	xml_node_get_attr_uint(node, "speed", &ether->link_speed);
+
+	if ((attrval = xml_node_get_attr(node, "duplex")) != NULL) {
+		if (!strcmp(attrval, "full"))
+			ether->duplex = NI_ETHERNET_DUPLEX_FULL;
+		else if (!strcmp(attrval, "half"))
+			ether->duplex = NI_ETHERNET_DUPLEX_HALF;
+	}
+
+	if ((attrval = xml_node_get_attr(node, "port")) != NULL)
+		ether->port_type = ni_ethernet_name_to_port_type(attrval);
+
+	__ni_netcf_get_tristate(node, "autoneg", &ether->autoneg_enable);
+
+	if ((child = xml_node_get_child(node, "offload")) != NULL) {
+		__ni_netcf_get_tristate(child, "rx-csum", &ether->offload.rx_csum);
+		__ni_netcf_get_tristate(child, "tx-csum", &ether->offload.tx_csum);
+		__ni_netcf_get_tristate(child, "scatter-gather", &ether->offload.scatter_gather);
+		__ni_netcf_get_tristate(child, "tso", &ether->offload.tso);
+		__ni_netcf_get_tristate(child, "ufo", &ether->offload.ufo);
+		__ni_netcf_get_tristate(child, "gso", &ether->offload.gso);
+		__ni_netcf_get_tristate(child, "gro", &ether->offload.gro);
+		__ni_netcf_get_tristate(child, "lro", &ether->offload.lro);
+	}
+
+	return ether;
+}
+
+/*
  * Encode/decode interface statistics
  */
 static inline void
@@ -1902,9 +2021,11 @@ __ni_netcf_get_boolean_attr(const xml_node_t *node, const char *attrname, int *v
 		*var = 1;
 	else if (!strcmp(attrval, "off") || !strcmp(attrval, "no"))
 		*var = 0;
-	else
-		error("unexpected boolean value <%s %s=\"%s\"> ignored",
+	else {
+		ni_error("unexpected boolean value <%s %s=\"%s\"> ignored",
 				node->name, attrname, attrval);
+		return -1;
+	}
 	return 0;
 }
 

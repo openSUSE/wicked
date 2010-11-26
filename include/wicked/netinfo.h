@@ -362,6 +362,7 @@ extern int		ni_vlan_bind_ifindex(ni_vlan_t *, ni_handle_t *);
 extern void		ni_vlan_free(ni_vlan_t *);
 extern ni_vlan_t *	ni_vlan_clone(const ni_vlan_t *);
 
+extern ni_ethernet_t *	ni_ethernet_alloc(void);
 extern void		ni_ethernet_free(ni_ethernet_t *);
 extern ni_ethernet_t *	ni_ethernet_clone(const ni_ethernet_t *);
 
