@@ -11,6 +11,7 @@
 #include <wicked/netinfo.h>
 #include <wicked/socket.h>
 #include "netinfo_priv.h"
+#include "socket_priv.h"
 #include "buffer.h"
 
 static void	ni_arp_socket_recv(ni_socket_t *);

@@ -31,6 +31,7 @@
 #include <wicked/wicked.h>
 #include <wicked/socket.h>
 #include "netinfo_priv.h"
+#include "socket_priv.h"
 #include "buffer.h"
 #include "kernel.h"
 

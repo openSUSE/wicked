@@ -36,6 +36,7 @@
 #include "dhcp.h"
 #include "protocol.h"
 #include "buffer.h"
+#include "socket_priv.h"
 
 static void	ni_dhcp_socket_recv(ni_socket_t *);
 

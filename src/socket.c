@@ -23,6 +23,8 @@
 #include <wicked/xml.h>
 #include <wicked/socket.h>
 #include "netinfo_priv.h"
+#include "socket_priv.h"
+#include "config.h"
 
 static void			__ni_socket_accept(ni_socket_t *);
 
@@ -82,6 +84,12 @@ ni_socket_deactivate_all(void)
 			__ni_sockets[i] = NULL;
 		}
 	}
+}
+
+void
+ni_socket_set_accept_callback(ni_socket_t *sock, ni_socket_accept_callback_t fn)
+{
+	sock->accept = fn;
 }
 
 /*

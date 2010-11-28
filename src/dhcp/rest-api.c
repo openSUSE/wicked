@@ -20,6 +20,7 @@
 #include <wicked/xml.h>
 #include <wicked/socket.h>
 #include "netinfo_priv.h"
+#include "socket_priv.h"
 #include "kernel.h"
 #include "dhcp.h"
 #include "protocol.h"

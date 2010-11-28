@@ -22,6 +22,7 @@
 #include <wicked/socket.h>
 #include <wicked/ipv4ll.h>
 #include "netinfo_priv.h"
+#include "socket_priv.h"
 #include "kernel.h"
 #include "autoip.h"
 

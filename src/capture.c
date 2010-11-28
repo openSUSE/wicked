@@ -35,6 +35,7 @@
 #include <wicked/logging.h>
 #include <wicked/socket.h>
 #include "netinfo_priv.h"
+#include "socket_priv.h"
 #include "buffer.h"
 
 #define MTU_MAX			1500

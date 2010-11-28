@@ -120,7 +120,7 @@ main(int argc, char **argv)
 
 	if ((sock = ni_server_listen()) < 0)
 		ni_fatal("unable to initialize server socket");
-	sock->accept = wicked_accept_connection;
+	ni_socket_set_accept_callback(sock, wicked_accept_connection);
 
 	/* open global RTNL socket to listen for kernel events */
 	if (ni_server_listen_events(wicked_interface_event) < 0)

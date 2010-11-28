@@ -21,6 +21,7 @@
 #include <wicked/xml.h>
 #include <wicked/socket.h>
 #include "netinfo_priv.h"
+#include "socket_priv.h"
 #include "kernel.h"
 #include "autoip.h"
 

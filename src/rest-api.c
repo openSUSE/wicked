@@ -25,6 +25,7 @@
 #include <wicked/xpath.h>
 #include <wicked/socket.h>
 #include "netinfo_priv.h"
+#include "socket_priv.h"
 #include "config.h"
 
 
