@@ -69,6 +69,7 @@ typedef struct ni_config {
 
 	ni_config_fslocation_t	pidfile;
 	ni_config_fslocation_t	socket;
+	unsigned int		recv_max;
 
 	struct {
 	    unsigned int	default_allow_update;

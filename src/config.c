@@ -44,6 +44,8 @@ ni_config_new()
 	conf->addrconf.ibft.allow_update = ~0;
 	conf->addrconf.autoip.allow_update = ~0;
 
+	conf->recv_max = 64 * 1024;
+
 	return conf;
 }
 
