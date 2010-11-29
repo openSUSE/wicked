@@ -691,6 +691,7 @@ __ni_socket_response_sent(ni_socket_t *sock)
 static void
 __ni_dgram_data_ready(ni_socket_t *sock)
 {
+	ni_buffer_init_dynamic(&sock->rbuf, 65536);
 	if (__ni_socket_recv_generic(sock) >= 0)
 		__ni_socket_process_request(sock);
 }
