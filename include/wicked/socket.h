@@ -17,6 +17,7 @@ extern ni_socket_t *	ni_local_socket_connect(const char *);
 extern ni_socket_t *	ni_local_socket_accept(ni_socket_t *, uid_t *, gid_t *);
 extern int		ni_local_socket_pair(ni_socket_t **, ni_socket_t **);
 
+extern void		ni_socket_release(ni_socket_t *);
 extern ni_socket_t *	ni_socket_wrap(int fd, int sotype);
 extern void		ni_socket_activate(ni_socket_t *);
 extern void		ni_socket_deactivate(ni_socket_t *);
@@ -24,7 +25,9 @@ extern void		ni_socket_deactivate_all(void);
 extern int		ni_socket_wait(long timeout);
 
 typedef int		ni_socket_accept_callback_t(ni_socket_t *, uid_t, gid_t);
+typedef int		ni_socket_request_callback_t(ni_socket_t *);
 extern void		ni_socket_set_accept_callback(ni_socket_t *, ni_socket_accept_callback_t);
+extern void		ni_socket_set_request_callback(ni_socket_t *, ni_socket_request_callback_t);
 
 extern int		ni_socket_printf(ni_socket_t *, const char *, ...);
 extern int		ni_socket_send_xml(ni_socket_t *, const xml_node_t *);

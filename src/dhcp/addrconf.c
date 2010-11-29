@@ -25,7 +25,7 @@
 #include "dhcp.h"
 #include "protocol.h"
 
-static void		ni_dhcp_process_event(ni_socket_t *);
+static int		ni_dhcp_process_event(ni_socket_t *);
 
 /*
  * Netinfo side of DHCP addrconf mechanism
@@ -42,7 +42,7 @@ __ni_dhcp_addrconf_do(const ni_addrconf_t *acm, ni_interface_t *ifp, const xml_n
 
 	if (!(proxy = ni_proxy_find("dhcp"))) {
 		proxy = ni_proxy_fork_subprocess("dhcp", ni_dhcp_run);
-		proxy->sock->data_ready = ni_dhcp_process_event;
+		ni_socket_set_request_callback(proxy->sock, ni_dhcp_process_event);
 	}
 
 	snprintf(pathbuf, sizeof(pathbuf), "/interface/%s", ifp->name);
@@ -141,7 +141,7 @@ ni_addrconf_t ni_dhcp_addrconf = {
 /*
  * netinfo side - handle event sent by dhcp supplicant
  */
-static void
+static int
 ni_dhcp_process_event(ni_socket_t *sock)
 {
 	ni_wicked_request_t req;
@@ -150,11 +150,11 @@ ni_dhcp_process_event(ni_socket_t *sock)
 	/* Read the request coming in from the socket. */
 	ni_wicked_request_init(&req);
 
-	ni_socket_pull(sock);
 	if (ni_wicked_request_parse(sock, &req) < 0)
 		ni_error("cannot parse dhcp event");
 	else if (ni_wicked_call_direct(&req) < 0)
 		ni_error("failed to process dhcp event");
 
 	ni_wicked_request_destroy(&req);
+	return 0;
 }

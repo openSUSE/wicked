@@ -56,7 +56,7 @@ static void		wicked_discover_state(void);
 static void		wicked_try_restart_addrconf(ni_interface_t *, ni_afinfo_t *, unsigned int, xml_node_t **);
 static int		wicked_accept_connection(ni_socket_t *, uid_t, gid_t);
 static void		wicked_interface_event(ni_handle_t *, ni_interface_t *, ni_event_t);
-static void		wicked_process_network_restcall(ni_socket_t *);
+static int		wicked_process_network_restcall(ni_socket_t *);
 
 int
 main(int argc, char **argv)
@@ -248,32 +248,17 @@ wicked_accept_connection(ni_socket_t *sock, uid_t uid, gid_t gid)
 	}
 
 	ni_debug_wicked("accepted connection from uid=%u", uid);
-	if (opt_nofork) {
-		wicked_process_network_restcall(sock);
-	} else {
-		pid_t pid;
-
-		/* Fork the worker child */
-		pid = fork();
-		if (pid < 0) {
-			ni_error("unable to fork worker child: %m");
-			return -1;
-		}
-
-		if (pid == 0) {
-			wicked_process_network_restcall(sock);
-			exit(0);
-		}
-	}
-
-	return -1;
+	ni_socket_set_request_callback(sock, wicked_process_network_restcall);
+	return 0;
 }
 
-void
+int
 wicked_process_network_restcall(ni_socket_t *sock)
 {
 	ni_wicked_request_t req;
 	int rv;
+
+	/* FIXME: we may want to fork to handle this call. */
 
 	/* Read the request coming in from the socket. */
 	ni_wicked_request_init(&req);
@@ -287,6 +272,8 @@ wicked_process_network_restcall(ni_socket_t *sock)
 	ni_wicked_response_print(sock, &req, rv);
 
 	ni_wicked_request_destroy(&req);
+
+	return 0;
 }
 
 /*

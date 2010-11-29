@@ -17,6 +17,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <assert.h>
+#include <fcntl.h>
 
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
@@ -26,7 +27,12 @@
 #include "socket_priv.h"
 #include "config.h"
 
+static void			__ni_socket_close(ni_socket_t *);
 static void			__ni_socket_accept(ni_socket_t *);
+static void			__ni_stream_data_ready(ni_socket_t *);
+static void			__ni_stream_ready_to_send(ni_socket_t *);
+static void			__ni_dgram_data_ready(ni_socket_t *);
+static void			__ni_dgram_ready_to_send(ni_socket_t *);
 
 static struct ni_socket_ops	__ni_listener_ops;
 static struct ni_socket_ops	__ni_stream_ops;
@@ -51,7 +57,19 @@ ni_socket_activate(ni_socket_t *sock)
 	}
 
 	__ni_sockets[__ni_socket_count++] = sock;
+	sock->refcount++;
 	sock->active = 1;
+	sock->poll_flags = POLLIN;
+}
+
+static inline void
+__ni_socket_deactivate(ni_socket_t **slot)
+{
+	ni_socket_t *sock = *slot;
+
+	*slot = NULL;
+	sock->active = 0;
+	ni_socket_release(sock);
 }
 
 void
@@ -64,8 +82,7 @@ ni_socket_deactivate(ni_socket_t *sock)
 
 	for (i = 0; i < __ni_socket_count; ++i) {
 		if (__ni_sockets[i] == sock) {
-			__ni_sockets[i] = NULL;
-			sock->active = 0;
+			__ni_socket_deactivate(&__ni_sockets[i]);
 			return;
 		}
 	}
@@ -79,10 +96,21 @@ ni_socket_deactivate_all(void)
 	unsigned int i;
 
 	for (i = 0; i < __ni_socket_count; ++i) {
-		if (__ni_sockets[i]) {
-			__ni_sockets[i]->active = 0;
-			__ni_sockets[i] = NULL;
-		}
+		if (__ni_sockets[i] != NULL)
+			__ni_socket_deactivate(&__ni_sockets[i]);
+	}
+}
+
+void
+ni_socket_release(ni_socket_t *sock)
+{
+	if (sock->refcount == 0)
+		ni_fatal("refcounting error in ni_socket_release");
+	sock->refcount--;
+	if (sock->refcount == 0) {
+		__ni_socket_close(sock);
+		assert(!sock->active);
+		free(sock);
 	}
 }
 
@@ -90,6 +118,71 @@ void
 ni_socket_set_accept_callback(ni_socket_t *sock, ni_socket_accept_callback_t fn)
 {
 	sock->accept = fn;
+}
+
+void
+ni_socket_set_request_callback(ni_socket_t *sock, ni_socket_request_callback_t fn)
+{
+	sock->process_request = fn;
+	if (sock->stream) {
+		sock->data_ready = __ni_stream_data_ready;
+		sock->ready_to_send = __ni_stream_ready_to_send;
+	} else {
+		sock->data_ready = __ni_dgram_data_ready;
+		sock->ready_to_send = __ni_dgram_ready_to_send;
+	}
+}
+
+static inline void
+__ni_socket_set_rfile(ni_socket_t *sock, FILE *fp)
+{
+	if (sock->rfile && sock->rfile != fp)
+		fclose(sock->rfile);
+	sock->rfile = fp;
+}
+
+static inline void
+__ni_socket_set_wfile(ni_socket_t *sock, FILE *fp)
+{
+	if (sock->wfile && sock->wfile != fp) {
+		fflush(sock->wfile);
+		fclose(sock->wfile);
+	}
+	sock->wfile = fp;
+}
+
+static inline int
+__ni_socket_open_rfile(ni_socket_t *sock, ni_buffer_t *bp)
+{
+	FILE *fp;
+
+	fp = fmemopen(ni_buffer_head(bp), ni_buffer_count(bp), "r");
+	__ni_socket_set_rfile(sock, fp);
+	if (fp == NULL) {
+		ni_error("Unable to open memstream for reading: %m");
+		return -1;
+	}
+
+	return 0;
+}
+
+static inline int
+__ni_socket_open_wfile(ni_socket_t *sock, ni_buffer_t *bp)
+{
+	FILE *fp;
+
+	ni_buffer_destroy(bp);
+
+	fp = open_memstream((char **) &bp->base, &bp->tail);
+	__ni_socket_set_wfile(sock, fp);
+
+	if (fp == NULL) {
+		ni_error("Unable to open memstream for writing: %m");
+		return -1;
+	}
+
+	bp->allocated = 1;
+	return 0;
 }
 
 /*
@@ -125,7 +218,7 @@ ni_socket_wait(long timeout)
 		}
 
 		pfd[i].fd = sock->__fd;
-		pfd[i].events = POLLIN;
+		pfd[i].events = sock->poll_flags;
 	}
 	socket_count = __ni_socket_count;
 
@@ -159,17 +252,26 @@ ni_socket_wait(long timeout)
 		if (pfd[i].revents & POLLERR) {
 			/* Deactivate socket */
 			ni_warn("POLLERR on socket - deactivating. Note: this is not the right approach, fix it");
-			__ni_sockets[i] = NULL;
-			sock->active = 0;
 			sock->error = 1;
-		} else
+			__ni_socket_deactivate(&__ni_sockets[i]);
+			continue;
+		}
+
 		if (pfd[i].revents & POLLIN) {
 			if (sock->data_ready == NULL) {
 				ni_error("socket %d has no data_ready callback", sock->__fd);
-				__ni_sockets[i] = NULL;
-				sock->active = 0;
+				__ni_socket_deactivate(&__ni_sockets[i]);
 			} else {
 				sock->data_ready(sock);
+			}
+		}
+
+		if (pfd[i].revents & POLLOUT) {
+			if (sock->ready_to_send == NULL) {
+				ni_error("socket %d has no ready_to_send callback", sock->__fd);
+				__ni_socket_deactivate(&__ni_sockets[i]);
+			} else {
+				sock->ready_to_send(sock);
 			}
 		}
 	}
@@ -194,6 +296,7 @@ __ni_socket_wrap(int fd, int sotype, const struct ni_socket_ops *iops)
 	ni_socket_t *socket;
 
 	socket = calloc(1, sizeof(*socket));
+	socket->refcount = 1;
 	socket->__fd = fd;
 	socket->stream = (sotype == SOCK_STREAM)? 1 : 0;
 	socket->iops = iops;
@@ -229,22 +332,33 @@ ni_socket_wrap(int fd, int sotype)
 /*
  * Close socket
  */
+static void
+__ni_socket_close(ni_socket_t *sock)
+{
+	if (sock->__fd >= 0)
+		close(sock->__fd);
+	sock->__fd = -1;
+	if (sock->rfile)
+		fclose(sock->rfile);
+	sock->rfile = NULL;
+	if (sock->wfile)
+		fclose(sock->wfile);
+	sock->wfile = NULL;
+
+	ni_buffer_destroy(&sock->wbuf);
+	ni_buffer_destroy(&sock->rbuf);
+
+	if (sock->active)
+		ni_socket_deactivate(sock);
+}
+
 void
 ni_socket_close(ni_socket_t *sock)
 {
-	if (sock->__fd)
-		close(sock->__fd);
-	if (sock->rfile)
-		fclose(sock->rfile);
-	if (sock->wfile)
-		fclose(sock->wfile);
-	if (sock->dgram.rbuf)
-		free(sock->dgram.rbuf);
-	if (sock->dgram.wbuf)
-		free(sock->dgram.wbuf);
-	ni_socket_deactivate(sock);
-	free(sock);
+	__ni_socket_close(sock);
+	ni_socket_release(sock);
 }
+
 
 /*
  * Begin send buffering
@@ -465,10 +579,11 @@ __ni_socket_accept(ni_socket_t *master)
 	}
 
 	sock = __ni_socket_wrap(fd, SOCK_STREAM, &__ni_stream_ops);
-	if (master->accept && master->accept(sock, cred.uid, cred.gid) < 0)
-		ni_socket_close(sock);
-	else if (master->active)
+	if (master->accept == NULL || master->accept(sock, cred.uid, cred.gid) >= 0) {
+		ni_buffer_init_dynamic(&sock->rbuf, ni_global.config->recv_max);
 		ni_socket_activate(sock);
+	}
+	ni_socket_release(sock);
 }
 
 /*
@@ -490,19 +605,108 @@ ni_local_socket_pair(ni_socket_t **p1, ni_socket_t **p2)
 }
 
 /*
+ * Generic socket functions (dgram and stream)
+ */
+static int
+__ni_socket_recv_generic(ni_socket_t *sock)
+{
+	ni_buffer_t *bp = &sock->rbuf;
+	int cnt;
+
+	cnt = recv(sock->__fd, ni_buffer_tail(bp), ni_buffer_tailroom(bp), MSG_DONTWAIT);
+	if (cnt >= 0) {
+		bp->tail += cnt;
+	} else if (errno != EWOULDBLOCK) {
+		ni_error("recv error on socket: %m");
+		ni_socket_deactivate(sock);
+	}
+	return cnt;
+}
+
+static int
+__ni_socket_send_generic(ni_socket_t *sock)
+{
+	ni_buffer_t *bp = &sock->wbuf;
+	int cnt;
+
+	cnt = send(sock->__fd, ni_buffer_head(bp), ni_buffer_count(bp), MSG_DONTWAIT);
+	if (cnt >= 0) {
+		bp->head += cnt;
+	} else if (errno != EWOULDBLOCK) {
+		ni_error("send error on socket: %m");
+		ni_socket_deactivate(sock);
+	}
+
+	return cnt;
+}
+
+static void
+__ni_socket_process_request(ni_socket_t *sock)
+{
+	if (ni_buffer_count(&sock->rbuf) != 0) {
+		int rv;
+
+		/* rbuf contains the data we read from the socket.
+		 * Create a memstream that reads from this buffer. */
+		__ni_socket_open_rfile(sock, &sock->rbuf);
+
+		/* We want to buffer our response in wbuf. Open a memstream
+		 * that writes to the buffer. */
+		__ni_socket_open_wfile(sock, &sock->wbuf);
+
+		rv = sock->process_request(sock);
+
+		/* Closing the wfile memstream flushes its content
+		 * to wbuf. */
+		__ni_socket_set_wfile(sock, NULL);
+
+		/* Get rid of the request; we're done */
+		ni_buffer_destroy(&sock->rbuf);
+
+		/* If we have a response, send it back. */
+		if (rv >= 0 && ni_buffer_count(&sock->wbuf))
+			sock->poll_flags |= POLLOUT;
+	}
+
+	if (sock->poll_flags == 0)
+		ni_socket_deactivate(sock);
+}
+
+static void
+__ni_socket_response_sent(ni_socket_t *sock)
+{
+	ni_buffer_destroy(&sock->wbuf);
+
+	if (sock->shutdown_after_send && sock->stream)
+		shutdown(sock->__fd, SHUT_WR);
+
+	sock->poll_flags &= ~POLLOUT;
+	if (sock->poll_flags == 0)
+		ni_socket_deactivate(sock);
+}
+
+/*
  * Datagram sockets
  */
+static void
+__ni_dgram_data_ready(ni_socket_t *sock)
+{
+	if (__ni_socket_recv_generic(sock) >= 0)
+		__ni_socket_process_request(sock);
+}
+
+static void
+__ni_dgram_ready_to_send(ni_socket_t *sock)
+{
+	if (__ni_socket_send_generic(sock) >= 0)
+		__ni_socket_response_sent(sock);
+}
+
 static int
 __ni_socket_dgram_begin_buffering(ni_socket_t *sock)
 {
-	if (sock->wfile == NULL) {
-		if (sock->dgram.wbuf)
-			free(sock->dgram.wbuf);
-		sock->dgram.wbuf = NULL;
-		sock->dgram.wsize = 0;
-
-		sock->wfile = open_memstream(&sock->dgram.wbuf, &sock->dgram.wsize);
-	}
+	if (sock->wfile == NULL)
+		__ni_socket_open_wfile(sock, &sock->wbuf);
 	return 0;
 }
 
@@ -512,37 +716,24 @@ __ni_socket_dgram_push(ni_socket_t *sock)
 	if (sock->wfile == NULL)
 		return 0;
 
-	fclose(sock->wfile);
-	sock->wfile = NULL;
+	/* Closing the wfile memstream flushes everything to wbuf */
+	__ni_socket_set_wfile(sock, NULL);
 
-	if (send(sock->__fd, sock->dgram.wbuf, sock->dgram.wsize, 0) < 0) {
-		ni_error("datagram send failed: %m");
+	if (__ni_socket_send_generic(sock) < 0)
 		return -1;
-	}
 
+	ni_buffer_destroy(&sock->wbuf);
 	return 0;
 }
 
 static int
 __ni_socket_dgram_pull(ni_socket_t *sock)
 {
-	int count;
-
-	if (sock->rfile)
-		fclose(sock->rfile);
-
-	if (sock->dgram.rbuf == NULL)
-		sock->dgram.rbuf = malloc(65536);
-
-	count = recv(sock->__fd, sock->dgram.rbuf, 65536, 0);
-	if (count < 0) {
-		ni_error("datagram recv failed: %m");
+	ni_buffer_init_dynamic(&sock->rbuf, 65536);
+	if (__ni_socket_recv_generic(sock) < 0)
 		return -1;
-	}
 
-	sock->dgram.rsize = count;
-	sock->rfile = fmemopen(sock->dgram.rbuf, sock->dgram.rsize, "r");
-	return 0;
+	return __ni_socket_open_rfile(sock, &sock->rbuf);
 }
 
 static struct ni_socket_ops __ni_dgram_ops = {
@@ -554,10 +745,44 @@ static struct ni_socket_ops __ni_dgram_ops = {
 /*
  * Stream sockets
  */
+static void
+__ni_stream_data_ready(ni_socket_t *sock)
+{
+	ni_buffer_t *bp = &sock->rbuf;
+	int cnt;
+
+	cnt = __ni_socket_recv_generic(sock);
+	if (cnt < 0)
+		return;
+
+	if (cnt == 0 || ni_buffer_tailroom(bp) == 0) {
+		/* We're done receiving this request. */
+		sock->poll_flags &= ~POLLIN;
+
+		__ni_socket_process_request(sock);
+	}
+}
+
+static void
+__ni_stream_ready_to_send(ni_socket_t *sock)
+{
+	if (__ni_socket_send_generic(sock) < 0)
+		return;
+
+	if (ni_buffer_count(&sock->wbuf) == 0)
+		__ni_socket_response_sent(sock);
+}
+
 static int
 __ni_socket_stream_push(ni_socket_t *sock)
 {
-	shutdown(sock->__fd, SHUT_WR);
+	if (sock->active) {
+		sock->shutdown_after_send = 1;
+	} else {
+		/* client side socket */
+		__ni_socket_set_wfile(sock, NULL);
+		shutdown(sock->__fd, SHUT_WR);
+	}
 	return 0;
 }
 

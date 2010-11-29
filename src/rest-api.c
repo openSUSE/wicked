@@ -212,7 +212,6 @@ ni_wicked_response_print(ni_socket_t *sock, ni_wicked_request_t *req, int status
 			ni_socket_printf(sock, "ERROR: %s\n", req->error_msg);
 		}
 	}
-	ni_socket_push(sock);
 	return 0;
 }
 
@@ -243,6 +242,7 @@ __ni_wicked_call_indirect(ni_socket_t *sock, ni_wicked_request_t *req, int expec
 		}
 	}
 
+	/* Explicitly flush out all data. */
 	ni_socket_push(sock);
 
 	if (!expect_response)
