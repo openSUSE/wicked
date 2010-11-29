@@ -12,6 +12,7 @@
 #include <assert.h>
 #include <ctype.h>
 #include <net/if_arp.h>
+#include <signal.h>
 
 #include <wicked/netinfo.h>
 #include <wicked/addrconf.h>
@@ -73,6 +74,9 @@ ni_init()
 	if (!ni_global.default_syntax)
 		ni_global.default_syntax = ni_syntax_new("netcf", NULL);
 	ni_global.xml_syntax = ni_syntax_new("netcf", NULL);
+
+	/* Our socket code relies on us ignoring this */
+	signal(SIGPIPE, SIG_IGN);
 
 	ni_global.initialized = 1;
 	return 0;
