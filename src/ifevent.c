@@ -282,7 +282,7 @@ ni_server_listen_events(void (*ifevent_handler)(ni_handle_t *, ni_interface_t *,
 
 	sock = ni_socket_wrap(rth.fd, SOCK_DGRAM);
 	sock->user_data = ni_global_state_handle();
-	sock->data_ready = __ni_rtevent_read;
+	sock->receive = __ni_rtevent_read;
 	ni_socket_activate(sock);
 
 	ni_global.interface_event = ifevent_handler;

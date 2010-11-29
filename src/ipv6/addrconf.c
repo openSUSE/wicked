@@ -84,7 +84,7 @@ ni_ipv6_addrconf_request(const ni_addrconf_t *acm, ni_interface_t *ifp, const xm
 	}
 
 	sock = ni_socket_wrap(fd, SOCK_DGRAM);
-	sock->data_ready = ni_ipv6_process_packet;
+	sock->receive = ni_ipv6_process_packet;
 	sock->user_data = ifp;
 	ni_socket_activate(sock);
 	ifp->ipv6ra_listener = sock;

@@ -33,20 +33,11 @@ struct ni_socket {
 	ni_buffer_t	rbuf;
 	ni_buffer_t	wbuf;
 
-#if 0
-	struct {
-		char *	rbuf;
-		size_t	rsize;
-		char *	wbuf;
-		size_t	wsize;
-	} dgram;
-#endif
-
 	const struct ni_socket_ops *iops;
 
 	int		(*get_timeout)(const ni_socket_t *, struct timeval *);
-	void		(*data_ready)(ni_socket_t *);
-	void		(*ready_to_send)(ni_socket_t *);
+	void		(*receive)(ni_socket_t *);
+	void		(*transmit)(ni_socket_t *);
 	int		(*process_request)(ni_socket_t *);
 	int		(*accept)(ni_socket_t *, uid_t, gid_t);
 	void		(*check_timeout)(ni_socket_t *, const struct timeval *);

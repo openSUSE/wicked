@@ -475,7 +475,7 @@ ni_capture_is_valid(const ni_capture_t *capture, int protocol)
  * some point.
  */
 ni_capture_t *
-ni_capture_open(const ni_capture_devinfo_t *devinfo, int protocol, void (*data_ready)(ni_socket_t *))
+ni_capture_open(const ni_capture_devinfo_t *devinfo, int protocol, void (*receive)(ni_socket_t *))
 {
 	struct sockaddr_ll sll;
 	ni_capture_t *capture = NULL;
@@ -528,7 +528,7 @@ ni_capture_open(const ni_capture_devinfo_t *devinfo, int protocol, void (*data_r
 		capture->mtu = MTU_MAX;
 	capture->buffer = malloc(capture->mtu);
 
-	capture->sock->data_ready = data_ready;
+	capture->sock->receive = receive;
 	capture->sock->get_timeout = __ni_capture_socket_get_timeout;
 	capture->sock->check_timeout = __ni_capture_socket_check_timeout;
 	capture->sock->user_data = capture;

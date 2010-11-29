@@ -29,10 +29,10 @@
 
 static void			__ni_socket_close(ni_socket_t *);
 static void			__ni_socket_accept(ni_socket_t *);
-static void			__ni_stream_data_ready(ni_socket_t *);
-static void			__ni_stream_ready_to_send(ni_socket_t *);
-static void			__ni_dgram_data_ready(ni_socket_t *);
-static void			__ni_dgram_ready_to_send(ni_socket_t *);
+static void			__ni_stream_receive(ni_socket_t *);
+static void			__ni_stream_transmit(ni_socket_t *);
+static void			__ni_dgram_receive(ni_socket_t *);
+static void			__ni_dgram_transmit(ni_socket_t *);
 
 static struct ni_socket_ops	__ni_listener_ops;
 static struct ni_socket_ops	__ni_stream_ops;
@@ -125,11 +125,11 @@ ni_socket_set_request_callback(ni_socket_t *sock, ni_socket_request_callback_t f
 {
 	sock->process_request = fn;
 	if (sock->stream) {
-		sock->data_ready = __ni_stream_data_ready;
-		sock->ready_to_send = __ni_stream_ready_to_send;
+		sock->receive = __ni_stream_receive;
+		sock->transmit = __ni_stream_transmit;
 	} else {
-		sock->data_ready = __ni_dgram_data_ready;
-		sock->ready_to_send = __ni_dgram_ready_to_send;
+		sock->receive = __ni_dgram_receive;
+		sock->transmit = __ni_dgram_transmit;
 	}
 }
 
@@ -258,20 +258,20 @@ ni_socket_wait(long timeout)
 		}
 
 		if (pfd[i].revents & POLLIN) {
-			if (sock->data_ready == NULL) {
-				ni_error("socket %d has no data_ready callback", sock->__fd);
+			if (sock->receive == NULL) {
+				ni_error("socket %d has no receive callback", sock->__fd);
 				__ni_socket_deactivate(&__ni_sockets[i]);
 			} else {
-				sock->data_ready(sock);
+				sock->receive(sock);
 			}
 		}
 
 		if (pfd[i].revents & POLLOUT) {
-			if (sock->ready_to_send == NULL) {
-				ni_error("socket %d has no ready_to_send callback", sock->__fd);
+			if (sock->transmit == NULL) {
+				ni_error("socket %d has no transmit callback", sock->__fd);
 				__ni_socket_deactivate(&__ni_sockets[i]);
 			} else {
-				sock->ready_to_send(sock);
+				sock->transmit(sock);
 			}
 		}
 	}
@@ -494,7 +494,7 @@ ni_local_socket_listen(const char *path, unsigned int permissions)
 	}
 
 	sock = __ni_socket_wrap(fd, SOCK_STREAM, &__ni_listener_ops);
-	sock->data_ready = __ni_socket_accept;
+	sock->receive = __ni_socket_accept;
 
 	ni_socket_activate(sock);
 	return sock;
@@ -678,7 +678,7 @@ __ni_socket_response_sent(ni_socket_t *sock)
  * Datagram sockets
  */
 static void
-__ni_dgram_data_ready(ni_socket_t *sock)
+__ni_dgram_receive(ni_socket_t *sock)
 {
 	ni_buffer_init_dynamic(&sock->rbuf, 65536);
 	if (__ni_socket_recv_generic(sock) >= 0)
@@ -686,7 +686,7 @@ __ni_dgram_data_ready(ni_socket_t *sock)
 }
 
 static void
-__ni_dgram_ready_to_send(ni_socket_t *sock)
+__ni_dgram_transmit(ni_socket_t *sock)
 {
 	if (__ni_socket_send_generic(sock) >= 0)
 		__ni_socket_response_sent(sock);
@@ -725,7 +725,7 @@ static struct ni_socket_ops __ni_dgram_ops = {
  * Stream sockets
  */
 static void
-__ni_stream_data_ready(ni_socket_t *sock)
+__ni_stream_receive(ni_socket_t *sock)
 {
 	ni_buffer_t *bp = &sock->rbuf;
 	int cnt;
@@ -743,7 +743,7 @@ __ni_stream_data_ready(ni_socket_t *sock)
 }
 
 static void
-__ni_stream_ready_to_send(ni_socket_t *sock)
+__ni_stream_transmit(ni_socket_t *sock)
 {
 	if (__ni_socket_send_generic(sock) < 0)
 		return;
