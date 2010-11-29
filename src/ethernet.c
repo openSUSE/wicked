@@ -11,6 +11,7 @@
 #include <net/if_arp.h>
 #include <arpa/inet.h>
 #include <linux/ethtool.h>
+#include <errno.h>
 
 #include <wicked/ethernet.h>
 #include "netinfo_priv.h"
@@ -123,13 +124,26 @@ __ni_ethtool_to_wicked(const __ni_ethtool_map_t *map, int value)
 /*
  * Get a value from ethtool
  */
+typedef struct __ni_ioctl_info {
+	int		number;
+	const char *	name;
+	unsigned int	not_supported;
+} __ni_ioctl_info_t;
+
 static int
-__ni_ethtool_get_value(ni_handle_t *nih, const ni_interface_t *ifp, int cmd, const char *cmd_name)
+__ni_ethtool_get_value(ni_handle_t *nih, const ni_interface_t *ifp, __ni_ioctl_info_t *ioc)
 {
 	struct ethtool_value eval;
 
-	if (__ni_ethtool(nih, ifp, cmd, &eval) < 0) {
-		ni_error("%s: ETHTOOL_%s failed: %m", ifp->name, cmd_name);
+	if (ioc->not_supported) {
+		errno = EOPNOTSUPP;
+		return -1;
+	}
+
+	if (__ni_ethtool(nih, ifp, ioc->number, &eval) < 0) {
+		ni_error("%s: ETHTOOL_%s failed: %m", ifp->name, ioc->name);
+		if (errno == EOPNOTSUPP)
+			ioc->not_supported = 1;
 		return -1;
 	}
 
@@ -140,11 +154,11 @@ __ni_ethtool_get_value(ni_handle_t *nih, const ni_interface_t *ifp, int cmd, con
  * Get a value from ethtool, and convert to tristate.
  */
 static int
-__ni_ethtool_get_tristate(ni_handle_t *nih, const ni_interface_t *ifp, int cmd, const char *cmd_name)
+__ni_ethtool_get_tristate(ni_handle_t *nih, const ni_interface_t *ifp, __ni_ioctl_info_t *ioc)
 {
 	int value;
 
-	if ((value = __ni_ethtool_get_value(nih, ifp, cmd, cmd_name)) < 0)
+	if ((value = __ni_ethtool_get_value(nih, ifp, ioc)) < 0)
 		return NI_ETHERNET_SETTING_DEFAULT;
 
 	return value? NI_ETHERNET_SETTING_ENABLE : NI_ETHERNET_SETTING_DISABLE;
@@ -171,6 +185,18 @@ __ni_system_ethernet_refresh(ni_handle_t *nih, ni_interface_t *ifp)
 int
 __ni_system_ethernet_get(ni_handle_t *nih, const ni_interface_t *ifp, ni_ethernet_t *ether)
 {
+	static __ni_ioctl_info_t __ethtool_gflags = { ETHTOOL_GFLAGS, "GFLAGS" };
+	static __ni_ioctl_info_t __ethtool_grxcsum = { ETHTOOL_GRXCSUM, "GRXCSUM" };
+	static __ni_ioctl_info_t __ethtool_gtxcsum = { ETHTOOL_GTXCSUM, "GTXCSUM" };
+	static __ni_ioctl_info_t __ethtool_gsg = { ETHTOOL_GSG, "GSG" };
+	static __ni_ioctl_info_t __ethtool_gtso = { ETHTOOL_GTSO, "GTSO" };
+	static __ni_ioctl_info_t __ethtool_gufo = { ETHTOOL_GUFO, "GUFO" };
+	static __ni_ioctl_info_t __ethtool_ggso = { ETHTOOL_GGSO, "GGSO" };
+#ifdef ETHTOOL_GGRO
+	static __ni_ioctl_info_t __ethtool_ggro = { ETHTOOL_GGRO, "GGRO" };
+#else
+	static __ni_ioctl_info_t __ethtool_ggro = { -1, "GGRO", 1 };
+#endif
 	struct ethtool_cmd ecmd;
 	int mapped, value;
 
@@ -207,15 +233,15 @@ __ni_system_ethernet_get(ni_handle_t *nih, const ni_interface_t *ifp, ni_etherne
 	    transceiver
 	 */
 
-	ether->offload.rx_csum = __ni_ethtool_get_tristate(nih, ifp, ETHTOOL_GRXCSUM, "GRXCSUM");
-	ether->offload.tx_csum = __ni_ethtool_get_tristate(nih, ifp, ETHTOOL_GTXCSUM, "GTXCSUM");
-	ether->offload.scatter_gather = __ni_ethtool_get_tristate(nih, ifp, ETHTOOL_GSG, "GSG");
-	ether->offload.tso = __ni_ethtool_get_tristate(nih, ifp, ETHTOOL_GTSO, "GTSO");
-	ether->offload.ufo = __ni_ethtool_get_tristate(nih, ifp, ETHTOOL_GUFO, "GUFO");
-	ether->offload.gso = __ni_ethtool_get_tristate(nih, ifp, ETHTOOL_GGSO, "GGSO");
-	ether->offload.gro = __ni_ethtool_get_tristate(nih, ifp, ETHTOOL_GGRO, "GGRO");
+	ether->offload.rx_csum = __ni_ethtool_get_tristate(nih, ifp, &__ethtool_grxcsum);
+	ether->offload.tx_csum = __ni_ethtool_get_tristate(nih, ifp, &__ethtool_gtxcsum);
+	ether->offload.scatter_gather = __ni_ethtool_get_tristate(nih, ifp, &__ethtool_gsg);
+	ether->offload.tso = __ni_ethtool_get_tristate(nih, ifp, &__ethtool_gtso);
+	ether->offload.ufo = __ni_ethtool_get_tristate(nih, ifp, &__ethtool_gufo);
+	ether->offload.gso = __ni_ethtool_get_tristate(nih, ifp, &__ethtool_ggso);
+	ether->offload.gro = __ni_ethtool_get_tristate(nih, ifp, &__ethtool_ggro);
 
-	value = __ni_ethtool_get_value(nih, ifp, ETHTOOL_GFLAGS, "GFLAGS");
+	value = __ni_ethtool_get_value(nih, ifp, &__ethtool_gflags);
 	if (value >= 0)
 		ether->offload.lro = (value & ETH_FLAG_LRO)? NI_ETHERNET_SETTING_ENABLE : NI_ETHERNET_SETTING_DISABLE;
 
