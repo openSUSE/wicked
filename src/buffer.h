@@ -10,14 +10,16 @@
 #define __WICKED_DHCP_BUFFER_H__
 
 #include <string.h>
+#include <stdlib.h>
 
 struct ni_buffer {
 	unsigned char *		base;
-	unsigned int		head;
-	unsigned int		tail;
-	unsigned int		size;
+	size_t			head;
+	size_t			tail;
+	size_t			size;
 	unsigned int		overflow : 1,
-				underflow : 1;
+				underflow : 1,
+				allocated : 1;
 };
 
 /* this should really be named init_writer */
@@ -28,6 +30,24 @@ ni_buffer_init(ni_buffer_t *bp, void *base, size_t size)
 	bp->base = (unsigned char *) base;
 	bp->size = size;
 }
+
+static inline void
+ni_buffer_init_dynamic(ni_buffer_t *bp, size_t size)
+{
+	memset(bp, 0, sizeof(*bp));
+	bp->base = (unsigned char *) xcalloc(1, size);
+	bp->size = size;
+	bp->allocated = 1;
+}
+
+static inline void
+ni_buffer_destroy(ni_buffer_t *bp)
+{
+	if (bp->allocated)
+		free(bp->base);
+	memset(bp, 0, sizeof(*bp));
+}
+
 
 static inline void
 ni_buffer_init_reader(ni_buffer_t *bp, void *base, size_t size)
@@ -86,6 +106,12 @@ static inline unsigned int
 ni_buffer_count(const ni_buffer_t *bp)
 {
 	return bp->tail - bp->head;
+}
+
+static inline unsigned int
+ni_buffer_tailroom(const ni_buffer_t *bp)
+{
+	return bp->size - bp->tail;
 }
 
 static inline int
