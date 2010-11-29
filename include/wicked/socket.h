@@ -35,7 +35,6 @@ extern int		ni_socket_push(ni_socket_t *);
 extern char *		ni_socket_gets(ni_socket_t *, char *, size_t);
 extern xml_node_t *	ni_socket_recv_xml(ni_socket_t *);
 extern void		ni_socket_close(ni_socket_t *);
-extern int		ni_socket_pull(ni_socket_t *);
 
 
 #endif /* __WICKED_SOCKET_H__ */

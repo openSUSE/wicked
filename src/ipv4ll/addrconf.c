@@ -26,7 +26,7 @@
 #include "kernel.h"
 #include "autoip.h"
 
-static void		ni_autoip_process_event(ni_socket_t *);
+static int		ni_autoip_process_event(ni_socket_t *);
 
 /*
  * Netinfo side of IPv4LL addrconf mechanism
@@ -43,7 +43,7 @@ __ni_autoip_addrconf_do(const ni_addrconf_t *acm, ni_interface_t *ifp, const xml
 
 	if (!(proxy = ni_proxy_find("autoip"))) {
 		proxy = ni_proxy_fork_subprocess("autoip", ni_autoip_run);
-		proxy->sock->data_ready = ni_autoip_process_event;
+		ni_socket_set_request_callback(proxy->sock, ni_autoip_process_event);
 	}
 
 	snprintf(pathbuf, sizeof(pathbuf), "/interface/%s", ifp->name);
@@ -129,7 +129,7 @@ ni_addrconf_t ni_autoip_addrconf = {
 /*
  * netinfo side - handle event sent by autoip supplicant
  */
-static void
+static int
 ni_autoip_process_event(ni_socket_t *sock)
 {
 	ni_wicked_request_t req;
@@ -138,11 +138,11 @@ ni_autoip_process_event(ni_socket_t *sock)
 	/* Read the request coming in from the socket. */
 	ni_wicked_request_init(&req);
 
-	ni_socket_pull(sock);
 	if (ni_wicked_request_parse(sock, &req) < 0)
 		ni_error("cannot parse autoip event");
 	else if (ni_wicked_call_direct(&req) < 0)
 		ni_error("failed to process autoip event");
 
 	ni_wicked_request_destroy(&req);
+	return -1;
 }

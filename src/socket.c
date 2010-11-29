@@ -446,17 +446,6 @@ ni_socket_push(ni_socket_t *sock)
 }
 
 /*
- * Pull next message from socket
- */
-int
-ni_socket_pull(ni_socket_t *sock)
-{
-	if (sock->iops && sock->iops->pull)
-		return sock->iops->pull(sock);
-	return 0;
-}
-
-/*
  * Create a listener socket
  */
 ni_socket_t *
@@ -727,19 +716,8 @@ __ni_socket_dgram_push(ni_socket_t *sock)
 	return 0;
 }
 
-static int
-__ni_socket_dgram_pull(ni_socket_t *sock)
-{
-	ni_buffer_init_dynamic(&sock->rbuf, 65536);
-	if (__ni_socket_recv_generic(sock) < 0)
-		return -1;
-
-	return __ni_socket_open_rfile(sock, &sock->rbuf);
-}
-
 static struct ni_socket_ops __ni_dgram_ops = {
 	.begin_buffering = __ni_socket_dgram_begin_buffering,
-	.pull = __ni_socket_dgram_pull,
 	.push = __ni_socket_dgram_push,
 };
 

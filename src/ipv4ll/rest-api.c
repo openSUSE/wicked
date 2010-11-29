@@ -27,7 +27,7 @@
 
 static ni_rest_node_t	ni_autoip_root_node;
 
-static void		ni_autoip_process_request(ni_socket_t *);
+static int		ni_autoip_process_request(ni_socket_t *);
 static void		ni_autoip_send_device_event(ni_socket_t *, const ni_autoip_device_t *);
 static xml_node_t *	autoip_device_xml(const ni_autoip_device_t *);
 
@@ -59,7 +59,7 @@ ni_autoip_run(ni_socket_t *sock)
 	sigaction(SIGTERM, &sa, NULL);
 	sigaction(SIGINT, &sa, NULL);
 
-	sock->data_ready = ni_autoip_process_request;
+	ni_socket_set_request_callback(sock, ni_autoip_process_request);
 	ni_socket_activate(sock);
 
 	/* event loop */
@@ -98,17 +98,11 @@ ni_autoip_run(ni_socket_t *sock)
 /*
  * Process an incoming WICKED request
  */
-void
+int
 ni_autoip_process_request(ni_socket_t *sock)
 {
 	ni_wicked_request_t req;
 	int rv;
-
-	/* Pull the next message from the socket */
-	if (ni_socket_pull(sock) < 0) {
-		ni_error("unable to receive: %m");
-		return;
-	}
 
 	/* Process the request */
 	rv = ni_wicked_request_parse(sock, &req);
@@ -118,6 +112,7 @@ ni_autoip_process_request(ni_socket_t *sock)
 		ni_error("unable to process autoip request");
 
 	ni_wicked_request_destroy(&req);
+	return rv;
 }
 
 void

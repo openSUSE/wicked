@@ -14,11 +14,8 @@
 #include "buffer.h"
 
 struct ni_socket_ops {
-	int		(*pull)(ni_socket_t *);
 	int		(*begin_buffering)(ni_socket_t *);
 	int		(*push)(ni_socket_t *);
-	int		(*send)(ni_socket_t *, const void *, size_t);
-	int		(*recv)(ni_socket_t *, void *, size_t);
 };
 
 struct ni_socket {
