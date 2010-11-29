@@ -1,14 +1,28 @@
+wickedd:
+	- do not fork for each incoming connection. Buffer input
+	  and decide whether to fork when we have the full request.
+	  Otherwise things like posting policy or initiating wifi
+	  scans will not work
+
 wicked:
 	- may want to move finite state machinery into the library
 	- when installing a policy for an auto device, also include a
 	  link-down policy that shuts it down again.
 
 netinfo:
+	- Introduce an <access-provider> abstraction; this can be either
+	  a wireless network (ESSID, security information); an Internet
+	  dialup network (eg providing a phone number, security information),
+	  a mobile IP provider (UMTS), etc.
+	- wireless: need configurable scanning interval; we shouldn't
+	  enable scanning unless there's either a policy, or the device
+	  is up anyway.
 
 ifconfig
 	- support security supplicants (radius, wpa, ...)
 	- disable IPv6 on a device if requested
 	- create and configure wireless devices
+	- support ppp, pppoe
 
 iflist
 	- Retrieve ethtool interface statistics
