@@ -66,6 +66,8 @@ __ni_wireless_request_scan(ni_handle_t *nih, ni_interface_t *ifp)
 		return -1;
 	}
 
+	/* FIXME: if we have a pending scan, cancel it (and its timer) first */
+
 	scan = ni_wireless_scan_new();
 	ni_interface_set_wireless_scan(ifp, scan);
 	scan->timestamp = time(NULL);
@@ -122,6 +124,9 @@ __ni_wireless_get_scan_results(ni_handle_t *nih, ni_interface_t *ifp)
 	ni_buffer_t evbuf;
 	void *buffer = NULL;
 	size_t buflen = 8192;
+
+	if (!__ni_interface_check_activity(nih, ifp, NI_INTERFACE_WIRELESS_SCAN))
+		return 0;
 
 	while (1) {
 		void *nb;
