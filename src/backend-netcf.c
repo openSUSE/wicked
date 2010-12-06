@@ -1863,6 +1863,29 @@ __ni_netcf_xml_from_wireless_auth_info(ni_syntax_t *syntax, ni_wireless_auth_inf
 	return node;
 }
 
+static ni_wireless_auth_info_t *
+__ni_netcf_xml_to_wireless_auth_info(ni_syntax_t *syntax, xml_node_t *node)
+{
+	ni_wireless_auth_info_t *auth;
+	const char *attrval;
+	unsigned int version;
+	int mode;
+
+	if (!(attrval = xml_node_get_attr(node, "mode"))
+	 || (mode = ni_wireless_name_to_auth_mode(attrval)) < 0
+	 || !(attrval = xml_node_get_attr(node, "version"))
+	 || ni_parse_int(attrval, &version) < 0) {
+		ni_error("wireless auth info: bad or missing mode/version attr");
+		return NULL;
+	}
+
+	auth = ni_wireless_auth_info_new(mode, version);
+
+	/* FIXME: add cipher info */
+
+	return auth;
+}
+
 /*
  * Encode/decode wireless network
  */
@@ -1918,9 +1941,8 @@ __ni_netcf_xml_from_wireless_network(ni_syntax_t *syntax, const ni_wireless_netw
 		xml_node_add_attr_uint(child, "index", net->encode.key_index);
 	if (net->encode.key_required)
 		xml_node_add_attr_uint(child, "required", 1);
-	if (net->encode.key_len) {
-		/* Print hex key */
-	}
+	if (net->encode.key_len)
+		xml_node_set_cdata(child, ni_print_hex(net->encode.key_data, net->encode.key_len));
 
 	/* add authentication data */
 	if (net->auth_info.count) {
@@ -1936,6 +1958,106 @@ __ni_netcf_xml_from_wireless_network(ni_syntax_t *syntax, const ni_wireless_netw
 	}
 
 	return node;
+}
+
+static ni_wireless_network_t *
+__ni_netcf_xml_to_wireless_network(ni_syntax_t *syntax, xml_node_t *node)
+{
+	ni_wireless_network_t *net = ni_wireless_network_new();
+	xml_node_t *child;
+	const char *attrval;
+
+	if ((attrval = xml_node_get_attr(node, "access-point")) != NULL
+	 && ni_link_address_parse(&net->access_point, NI_IFTYPE_WIRELESS, attrval) < 0) {
+		ni_error("cannot parse %s: bad attribute access-point=%s",
+				node->name, attrval);
+		goto failed;
+	}
+
+	for (child = node->children; child; child = child->next) {
+		if (!strcmp(child->name, "mode")) {
+			net->mode = ni_wireless_name_to_mode(child->cdata);
+			if (net->mode == NI_WIRELESS_MODE_UNKNOWN) {
+				ni_error("cannot parse %s: bad mode %s",
+						node->name, child->cdata);
+				goto failed;
+			}
+		} else
+		if (!strcmp(child->name, "essid")) {
+			ni_string_dup(&net->essid, child->cdata);
+			if ((attrval = xml_node_get_attr(child, "key-index")) != NULL)
+				ni_parse_int(attrval, &net->essid_encode_index);
+		} else
+		if (!strcmp(child->name, "channel")) {
+			if ((attrval = xml_node_get_attr(child, "index")) != NULL)
+				ni_parse_int(attrval, &net->channel);
+			if ((attrval = xml_node_get_attr(child, "frequency")) != NULL)
+				ni_parse_double(attrval, &net->frequency);
+		} else
+		if (!strcmp(child->name, "bitrates")) {
+			xml_node_t *gchild;
+
+			for (gchild = child->children; gchild; gchild = gchild->next) {
+				unsigned int rate;
+
+				if (ni_parse_int(gchild->cdata, &rate) >= 0
+				 && net->bitrates.count < NI_WIRELESS_BITRATES_MAX)
+					net->bitrates.value[net->bitrates.count++] = rate;
+			}
+		} else
+		if (!strcmp(child->name, "security")) {
+			xml_node_t *gchild;
+
+			if ((attrval = xml_node_get_attr(child, "mode")) != NULL) {
+				net->encode.mode = ni_wireless_name_to_security(attrval);
+			}
+
+			if ((gchild = xml_node_get_child(child, "key")) != NULL) {
+				if ((attrval = xml_node_get_attr(gchild, "index")) != NULL
+				 && ni_parse_int(attrval, &net->encode.key_index) < 0) {
+					ni_error("wireless security: bad key index=\"%s\" attr",
+							attrval);
+					goto failed;
+				}
+				if ((attrval = xml_node_get_attr(gchild, "required")) != NULL
+				 && !strcmp(attrval, "1"))
+					net->encode.key_required = 1;
+
+				if (gchild->cdata) {
+					unsigned char key_data[512];
+					int key_len;
+
+					key_len = ni_parse_hex(gchild->cdata, key_data, sizeof(key_data));
+					if (key_len) {
+						ni_error("wireless security: cannot parse key data");
+						goto failed;
+					}
+					ni_wireless_network_set_key(net, key_data, key_len);
+					memset(key_data, 0, sizeof(key_data));
+				}
+			}
+		} else
+		if (!strcmp(child->name, "auth-supported")) {
+			xml_node_t *gchild;
+
+			for (gchild = child->children; gchild; gchild = gchild->next) {
+				ni_wireless_auth_info_t *auth;
+
+				if (!strcmp(gchild->name, "auth")) {
+					auth = __ni_netcf_xml_to_wireless_auth_info(syntax, gchild);
+					if (!auth)
+						goto failed;
+					ni_wireless_auth_info_array_append(&net->auth_info, auth);
+				}
+			}
+		} else
+			continue;
+	}
+	return net;
+
+failed:
+	ni_wireless_network_free(net);
+	return NULL;
 }
 
 /*
@@ -1961,8 +2083,24 @@ static ni_wireless_scan_t *
 __ni_netcf_xml_to_wireless_scan(ni_syntax_t *syntax, const xml_node_t *node)
 {
 	ni_wireless_scan_t *scan = ni_wireless_scan_new();
+	xml_node_t *child;
+
+	for (child = node->children; child; child = child->next) {
+		if (!strcmp(child->name, "network")) {
+			ni_wireless_network_t *net;
+
+			net = __ni_netcf_xml_to_wireless_network(syntax, child);
+			if (!net)
+				goto failed;
+			ni_wireless_network_array_append(&scan->networks, net);
+		}
+	}
 
 	return scan;
+
+failed:
+	ni_wireless_scan_free(scan);
+	return NULL;
 }
 
 /*
