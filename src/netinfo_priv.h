@@ -40,6 +40,7 @@ struct ni_ops {
 	int			(*update_lease)(ni_handle_t *, ni_interface_t *, ni_addrconf_lease_t *);
 
 	int			(*interface_stats_refresh)(ni_handle_t *, ni_interface_t *);
+	int			(*wireless_scan)(ni_handle_t *, ni_interface_t *);
 
 	int			(*policy_update)(ni_handle_t *, const ni_policy_t *);
 
@@ -109,6 +110,14 @@ struct ni_syntax {
 	ni_resolver_info_t *	(*xml_to_resolver)(ni_syntax_t *, const xml_node_t *);
 };
 
+/*
+ * These constants describe why/how the interface has been brought up
+ */
+typedef enum {
+	NI_INTERFACE_ADMIN = 0,
+	NI_INTERFACE_WIRELESS_SCAN,
+} ni_interface_activity_t;
+
 extern ni_handle_t *	__ni_handle_new(size_t, struct ni_ops *);
 extern ni_interface_t *	__ni_interface_new(const char *name, unsigned int index);
 extern void		__ni_interface_list_destroy(ni_interface_t **);
@@ -116,6 +125,8 @@ extern void		__ni_interfaces_clear(ni_handle_t *);
 extern ni_addrconf_lease_t *__ni_interface_address_to_lease(ni_interface_t *, const ni_address_t *);
 extern ni_addrconf_lease_t *__ni_interface_route_to_lease(ni_interface_t *, const ni_route_t *);
 extern unsigned int	__ni_interface_translate_ifflags(unsigned int);
+extern int		__ni_interface_begin_activity(ni_handle_t *, ni_interface_t *, ni_interface_activity_t);
+extern int		__ni_interface_end_activity(ni_handle_t *, ni_interface_t *, ni_interface_activity_t);
 
 #define __ni_interface_address_info(ifp, af) \
 	((af) == AF_INET? &((ifp)->ipv4) : \

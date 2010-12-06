@@ -26,6 +26,7 @@ __LIBSRCS= \
 	  vlan.c \
 	  bonding.c \
 	  bridge.c \
+	  wireless.c \
 	  state.c \
 	  iflist.c \
 	  ifconfig.c \

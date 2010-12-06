@@ -148,6 +148,8 @@ __ni_system_interface_configure(ni_handle_t *nih, ni_interface_t *ifp, const ni_
 			ni_error("unable to shut down interface %s", ifp->name);
 			return -1;
 		}
+		/* down is down is down */
+		ifp->up_requesters = 0;
 	}
 
 	nih->seqno++;
@@ -324,11 +326,48 @@ __ni_system_interface_bringup(ni_handle_t *nih, ni_interface_t *ifp)
 {
 	int res = -1;
 
-	res = __ni_rtnl_link_up(nih, ifp, ifp);
+	res = __ni_rtnl_link_up(nih, ifp, NULL);
 	if (res >= 0)
 		__ni_system_refresh_interface(nih, ifp);
 
 	return res;
+}
+
+/*
+ * Bring up a network interface temporarily, e.g. for a wireless scan.
+ */
+int
+__ni_interface_begin_activity(ni_handle_t *nih, ni_interface_t *ifp, ni_interface_activity_t activity)
+{
+	if (ifp->ifflags & NI_IFF_DEVICE_UP) {
+		/* Remember that the interface was up by admin's choice */
+		if (ifp->up_requesters == 0)
+			ifp->up_requesters |= 1 << NI_INTERFACE_ADMIN;
+	} else {
+		if (__ni_system_interface_bringup(nih, ifp) < 0)
+			return -1;
+	}
+
+	ifp->up_requesters |= 1 << activity;
+	return 0;
+}
+
+int
+__ni_interface_end_activity(ni_handle_t *nih, ni_interface_t *ifp, ni_interface_activity_t activity)
+{
+	if (ifp->up_requesters & (1 << activity)) {
+		ifp->up_requesters &= ~(1 << activity);
+
+		if (ifp->up_requesters == 0) {
+			/* Bring it down */
+			__ni_rtnl_link_down(nih, ifp, RTM_NEWLINK);
+		} else if (ifp->up_requesters == 1 << NI_INTERFACE_ADMIN) {
+			/* The only ongoing activity is "administration", which
+			 * is the default activity. Just clear the bitfield */
+			ifp->up_requesters = 0;
+		}
+	}
+	return 0;
 }
 
 /*
@@ -933,20 +972,22 @@ __ni_rtnl_link_up(ni_handle_t *nih, const ni_interface_t *ifp, const ni_interfac
 	req.hdr.nlmsg_flags = NLM_F_REQUEST;
 	req.hdr.nlmsg_type = RTM_NEWLINK;
 
-	if (cfg->mtu && cfg->mtu != ifp->mtu)
-		addattr_l(&req.hdr, sizeof(req), IFLA_MTU, &cfg->mtu, 4);
+	if (cfg) {
+		if (cfg->mtu && cfg->mtu != ifp->mtu)
+			addattr_l(&req.hdr, sizeof(req), IFLA_MTU, &cfg->mtu, 4);
 
-	if (cfg->txqlen && cfg->txqlen != ifp->txqlen)
-		addattr_l(&req.hdr, sizeof(req), IFLA_TXQLEN, &cfg->txqlen, 4);
+		if (cfg->txqlen && cfg->txqlen != ifp->txqlen)
+			addattr_l(&req.hdr, sizeof(req), IFLA_TXQLEN, &cfg->txqlen, 4);
 
-	if (cfg->hwaddr.type != NI_IFTYPE_UNKNOWN && cfg->hwaddr.len != 0
-	 && !ni_link_address_equal(&cfg->hwaddr, &ifp->hwaddr))
-		addattr_l(&req.hdr, sizeof(req), IFLA_ADDRESS, cfg->hwaddr.data, cfg->hwaddr.len);
+		if (cfg->hwaddr.type != NI_IFTYPE_UNKNOWN && cfg->hwaddr.len != 0
+		 && !ni_link_address_equal(&cfg->hwaddr, &ifp->hwaddr))
+			addattr_l(&req.hdr, sizeof(req), IFLA_ADDRESS, cfg->hwaddr.data, cfg->hwaddr.len);
 
-	/* FIXME: handle COST, QDISC, MASTER */
+		/* FIXME: handle COST, QDISC, MASTER */
+	}
 
 	if (ni_rtnl_talk(nih, &req.hdr) < 0) {
-		debug_ifconfig("%s: rtnl_talk failed", __FUNCTION__);
+		ni_debug_ifconfig("%s: rtnl_talk failed", __FUNCTION__);
 		return -1;
 	}
 

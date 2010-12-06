@@ -15,6 +15,8 @@ typedef struct ni_interface	ni_interface_t;
 typedef struct ni_vlan		ni_vlan_t;
 typedef struct ni_bridge	ni_bridge_t;
 typedef struct ni_bonding	ni_bonding_t;
+typedef struct ni_wireless	ni_wireless_t;
+typedef struct ni_wireless_scan	ni_wireless_scan_t;
 typedef struct ni_ethernet	ni_ethernet_t;
 typedef struct ni_addrconf	ni_addrconf_t;
 typedef struct ni_nis_info	ni_nis_info_t;
@@ -58,5 +60,15 @@ typedef union ni_uuid {
 	unsigned char		octets[16];
 	uint32_t		words[4];
 } ni_uuid_t;
+
+/*
+ * Link layer address
+ */
+#define NI_MAXHWADDRLEN		64
+typedef struct ni_hwaddr {
+	unsigned short		type;
+	unsigned short		len;
+	unsigned char		data[NI_MAXHWADDRLEN];
+} ni_hwaddr_t;
 
 #endif /* __WICKED_TYPES_H__ */

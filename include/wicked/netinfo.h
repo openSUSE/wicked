@@ -17,7 +17,6 @@
 #include <wicked/util.h>
 
 #define NI_MAXADDRLEN		16
-#define NI_MAXHWADDRLEN		64
 
 typedef union ni_sockaddr {
 	sa_family_t		ss_family;
@@ -42,12 +41,6 @@ typedef struct ni_address {
 	char			label[IFNAMSIZ];
 	time_t			expires;		/* when address expires (ipv6) */
 } ni_address_t;
-
-typedef struct ni_hwaddr {
-	unsigned short		type;
-	unsigned short		len;
-	unsigned char		data[NI_MAXHWADDRLEN];
-} ni_hwaddr_t;
 
 typedef struct ni_route_nexthop {
 	struct ni_route_nexthop *next;
@@ -161,6 +154,7 @@ struct ni_interface {
 	unsigned int		ifindex;
 	unsigned int		ifflags;
 	ni_iftype_t		type;
+	unsigned int		up_requesters;
 
 	unsigned int		arp_type;
 
@@ -187,6 +181,8 @@ struct ni_interface {
 	ni_vlan_t *		vlan;
 	ni_bridge_t *		bridge;
 	ni_ethernet_t *		ethernet;
+	ni_wireless_t *		wireless;
+	ni_wireless_scan_t *	wireless_scan;
 
 	/* Configuration data */
 	ni_ifbehavior_t		startmode;
@@ -310,6 +306,8 @@ extern void		ni_interface_set_vlan(ni_interface_t *, ni_vlan_t *);
 extern void		ni_interface_set_bridge(ni_interface_t *, ni_bridge_t *);
 extern void		ni_interface_set_ethernet(ni_interface_t *, ni_ethernet_t *);
 extern void		ni_interface_set_link_stats(ni_interface_t *, ni_link_stats_t *);
+extern void		ni_interface_set_wireless(ni_interface_t *, ni_wireless_t *);
+extern void		ni_interface_set_wireless_scan(ni_interface_t *, ni_wireless_scan_t *);
 
 extern void		ni_interface_array_init(ni_interface_array_t *);
 extern void		ni_interface_array_append(ni_interface_array_t *, ni_interface_t *);

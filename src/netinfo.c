@@ -19,6 +19,7 @@
 #include <wicked/bridge.h>
 #include <wicked/bonding.h>
 #include <wicked/ethernet.h>
+#include <wicked/wireless.h>
 #include <wicked/socket.h>
 #include <wicked/resolver.h>
 #include <wicked/nis.h>
@@ -964,6 +965,8 @@ ni_interface_free(ni_interface_t *ifp)
 	ni_interface_set_bonding(ifp, NULL);
 	ni_interface_set_bridge(ifp, NULL);
 	ni_interface_set_vlan(ifp, NULL);
+	ni_interface_set_wireless(ifp, NULL);
+	ni_interface_set_wireless_scan(ifp, NULL);
 
 	__ni_afinfo_destroy(&ifp->ipv4);
 	__ni_afinfo_destroy(&ifp->ipv6);
@@ -1244,6 +1247,25 @@ ni_interface_set_ethernet(ni_interface_t *ifp, ni_ethernet_t *ethernet)
 	if (ifp->ethernet)
 		ni_ethernet_free(ifp->ethernet);
 	ifp->ethernet = ethernet;
+}
+
+/*
+ * Set the interface's wireless info
+ */
+void
+ni_interface_set_wireless(ni_interface_t *ifp, ni_wireless_t *wireless)
+{
+	if (ifp->wireless)
+		ni_wireless_free(ifp->wireless);
+	ifp->wireless = wireless;
+}
+
+void
+ni_interface_set_wireless_scan(ni_interface_t *ifp, ni_wireless_scan_t *scan)
+{
+	if (ifp->wireless_scan)
+		ni_wireless_scan_free(ifp->wireless_scan);
+	ifp->wireless_scan = scan;
 }
 
 /*
