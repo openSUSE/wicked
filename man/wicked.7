@@ -109,6 +109,15 @@ a \fBGET\fP request.  At a minimum, this will include general link and
 device statistics. Depending on the type of device, additional statistics
 may be present.
 .TP
+.BI /system/interface/ ifname /scan
+This node provides access to link layer scanning for those devices that
+support it. For now, this is provided for wireless interfaces only.
+A \fBPUT\fP request without any arguments will trigger a scan. Results
+can be retrieved using a subsequent \fBGET\fP request. Note that results
+will remain accessible long after the scan completed, and will not be
+purged automatically. The user can purge scan results manually by issuing
+a \fBDELETE\fP request.
+.TP
 .B /system/policy
 This node represents how the system reacts to interfaces coming online
 (for instance, the link layer on an Ethernet interface coming up), or
