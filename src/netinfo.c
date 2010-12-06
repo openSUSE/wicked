@@ -585,7 +585,32 @@ ni_interface_stats_refresh(ni_handle_t *nih, ni_interface_t *ifp)
 }
 
 /*
- * We received an updated lease from an addrconf agent-.
+ * Trigger wireless scan
+ */
+int
+ni_interface_request_scan(ni_handle_t *nih, ni_interface_t *ifp)
+{
+	if (nih->op->request_scan == NULL) {
+		ni_error("cannot initiate wireless scan; not supported by this handle");
+		return -1;
+	}
+
+	return nih->op->request_scan(nih, ifp);
+}
+
+int
+ni_interface_get_scan_results(ni_handle_t *nih, ni_interface_t *ifp)
+{
+	if (nih->op->get_scan_results == NULL) {
+		ni_error("cannot initiate wireless scan; not supported by this handle");
+		return -1;
+	}
+
+	return nih->op->get_scan_results(nih, ifp);
+}
+
+/*
+ * We received an updated lease from an addrconf agent.
  */
 int
 ni_interface_set_lease(ni_handle_t *nih, ni_interface_t *ifp, ni_addrconf_lease_t *lease)

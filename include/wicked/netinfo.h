@@ -255,6 +255,8 @@ extern xml_node_t *	ni_syntax_xml_from_interface(ni_syntax_t *, ni_handle_t *, c
 extern ni_interface_t *	ni_syntax_xml_to_interface(ni_syntax_t *, ni_handle_t *, xml_node_t *);
 extern xml_node_t *	ni_syntax_xml_from_interface_stats(ni_syntax_t *, ni_handle_t *, const ni_interface_t *);
 extern int		ni_syntax_xml_to_interface_stats(ni_syntax_t *, ni_handle_t *, ni_interface_t *, xml_node_t *);
+extern xml_node_t *	ni_syntax_xml_from_wireless_scan(ni_syntax_t *, ni_handle_t *, const ni_wireless_scan_t *);
+extern ni_wireless_scan_t *ni_syntax_xml_to_wireless_scan(ni_syntax_t *, ni_handle_t *, xml_node_t *);
 extern xml_document_t *	ni_syntax_xml_from_all(ni_syntax_t *, ni_handle_t *);
 extern int		ni_syntax_xml_to_all(ni_syntax_t *, ni_handle_t *, const xml_document_t *);
 extern xml_node_t *	ni_syntax_xml_from_lease(ni_syntax_t *, ni_addrconf_lease_t *, xml_node_t *);
@@ -290,6 +292,8 @@ extern int		ni_interface_update_lease(ni_handle_t *, ni_interface_t *ifp,
 				ni_addrconf_lease_t *);
 extern int		ni_interface_set_lease(ni_handle_t *, ni_interface_t *, ni_addrconf_lease_t *);
 extern int		ni_interface_stats_refresh(ni_handle_t *, ni_interface_t *);
+extern int		ni_interface_request_scan(ni_handle_t *, ni_interface_t *);
+extern int		ni_interface_get_scan_results(ni_handle_t *, ni_interface_t *);
 extern int		ni_interface_delete(ni_handle_t *, const char *);
 
 extern ni_route_t *	ni_interface_add_route(ni_handle_t *, ni_interface_t *,

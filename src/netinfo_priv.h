@@ -40,7 +40,8 @@ struct ni_ops {
 	int			(*update_lease)(ni_handle_t *, ni_interface_t *, ni_addrconf_lease_t *);
 
 	int			(*interface_stats_refresh)(ni_handle_t *, ni_interface_t *);
-	int			(*wireless_scan)(ni_handle_t *, ni_interface_t *);
+	int			(*request_scan)(ni_handle_t *, ni_interface_t *);
+	int			(*get_scan_results)(ni_handle_t *, ni_interface_t *);
 
 	int			(*policy_update)(ni_handle_t *, const ni_policy_t *);
 
@@ -98,6 +99,9 @@ struct ni_syntax {
 
 	xml_node_t *		(*xml_from_ethernet)(ni_syntax_t *, const ni_ethernet_t *, xml_node_t *parent);
 	ni_ethernet_t *		(*xml_to_ethernet)(ni_syntax_t *, const xml_node_t *);
+
+	xml_node_t *		(*xml_from_wireless_scan)(ni_syntax_t *, const ni_wireless_scan_t *, xml_node_t *parent);
+	ni_wireless_scan_t *	(*xml_to_wireless_scan)(ni_syntax_t *, const xml_node_t *);
 
 	xml_node_t *		(*xml_from_lease)(ni_syntax_t *, const ni_addrconf_lease_t *, xml_node_t *parent);
 	ni_addrconf_lease_t *	(*xml_to_lease)(ni_syntax_t *, const xml_node_t *);
@@ -173,6 +177,9 @@ extern ni_address_t *	__ni_address_list_clone(const ni_address_t *);
 
 extern ni_address_t *	__ni_lease_owns_address(const ni_addrconf_lease_t *, const ni_address_t *);
 extern ni_route_t *	__ni_lease_owns_route(const ni_addrconf_lease_t *, const ni_route_t *);
+
+extern int		__ni_wireless_request_scan(ni_handle_t *, ni_interface_t *);
+extern int		__ni_wireless_get_scan_results(ni_handle_t *, ni_interface_t *);
 
 /*
  * Helper function to match interface "behaviors" to names

@@ -14,6 +14,8 @@
 
 #define CONFIG_WICKED_BACKUP_DIR	CONFIG_WICKED_STATEDIR "/backup"
 
+static int		__ni_system_interface_request_scan(ni_handle_t *, ni_interface_t *);
+static int		__ni_system_interface_get_scan_results(ni_handle_t *, ni_interface_t *);
 static int		__ni_system_policy_update(ni_handle_t *, const ni_policy_t *);
 static int		__ni_system_hostname_put(ni_handle_t *, const char *);
 static int		__ni_system_hostname_get(ni_handle_t *, char *, size_t);
@@ -35,6 +37,8 @@ static struct ni_ops ni_state_ops = {
 	.delete_interface	= __ni_system_interface_delete,
 	.update_lease		= __ni_system_interface_update_lease,
 	.interface_stats_refresh= __ni_system_interface_stats_refresh,
+	.request_scan		= __ni_system_interface_request_scan,
+	.get_scan_results	= __ni_system_interface_get_scan_results,
 	.policy_update		= __ni_system_policy_update,
 	.hostname_get		= __ni_system_hostname_get,
 	.hostname_put		= __ni_system_hostname_put,
@@ -75,6 +79,32 @@ ni_state_open(void)
 	}
 
 	return nih;
+}
+
+static int
+__ni_system_interface_request_scan(ni_handle_t *nih, ni_interface_t *ifp)
+{
+	switch (ifp->type) {
+	case NI_IFTYPE_WIRELESS:
+		return __ni_wireless_request_scan(nih, ifp);
+
+	default:
+		ni_error("%s: scanning not supported for this interface", ifp->name);
+		return -1;
+	}
+}
+
+static int
+__ni_system_interface_get_scan_results(ni_handle_t *nih, ni_interface_t *ifp)
+{
+	switch (ifp->type) {
+	case NI_IFTYPE_WIRELESS:
+		return __ni_wireless_get_scan_results(nih, ifp);
+
+	default:
+		ni_error("%s: scanning not supported for this interface", ifp->name);
+		return -1;
+	}
 }
 
 static int

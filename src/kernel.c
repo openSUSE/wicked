@@ -14,7 +14,6 @@
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 #include <netinet/in.h>
-#include <net/if.h>
 #include <net/if_arp.h>
 #include <linux/ethtool.h>
 #include <linux/sockios.h>
@@ -59,6 +58,26 @@ __ni_ethtool(ni_handle_t *nih, const ni_interface_t *ifp, int cmd, void *data)
 	if (__ni_ioctl(nih, SIOCETHTOOL, &ifr) < 0)
 		return -1;
 	return 0;
+}
+
+/*
+ * Call a wireless extension
+ */
+int
+__ni_wireless_ext(ni_handle_t *nih, const ni_interface_t *ifp, int cmd,
+			void *data, size_t data_len, unsigned int flags)
+{
+	struct iwreq iwr;
+
+	strncpy(iwr.ifr_name, ifp->name, IFNAMSIZ);
+	iwr.u.data.pointer = data;
+	iwr.u.data.length = data_len;
+	iwr.u.data.flags = flags;
+
+	if (__ni_ioctl(nih, cmd, &iwr) < 0)
+		return -1;
+	/* Not optimal yet */
+	return iwr.u.data.length;
 }
 
 /*

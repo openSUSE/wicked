@@ -315,6 +315,9 @@ ni_syntax_xml_to_interface(ni_syntax_t *syntax, ni_handle_t *nih, xml_node_t *xm
 	return ifp;
 }
 
+/*
+ * XML to/from interface stats
+ */
 xml_node_t *
 ni_syntax_xml_from_interface_stats(ni_syntax_t *syntax, ni_handle_t *nih, const ni_interface_t *ifp)
 {
@@ -334,6 +337,25 @@ ni_syntax_xml_to_interface_stats(ni_syntax_t *syntax, ni_handle_t *nih, ni_inter
 	}
 
 	return syntax->xml_to_interface_stats(syntax, nih, ifp, xmlnode);
+}
+
+/*
+ * XML to/from wireless scan results
+ */
+xml_node_t *
+ni_syntax_xml_from_wireless_scan(ni_syntax_t *syntax, ni_handle_t *nih, const ni_wireless_scan_t *scan)
+{
+	if (!syntax->xml_from_wireless_scan) {
+		ni_error("%s: syntax not capable of creating xml for wireless scan", __FUNCTION__);
+		return NULL;
+	}
+	return syntax->xml_from_wireless_scan(syntax, scan, NULL);
+}
+
+ni_wireless_scan_t *
+ni_syntax_xml_to_wireless_scan(ni_syntax_t *syntax, ni_handle_t *nih, xml_node_t *parent)
+{
+	return NULL;
 }
 
 /*

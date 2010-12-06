@@ -413,6 +413,15 @@ ni_var_array_set_long(ni_var_array_t *nva, const char *name, unsigned long value
 }
 
 int
+ni_var_array_set_double(ni_var_array_t *nva, const char *name, double value)
+{
+	char buffer[32];
+
+	snprintf(buffer, sizeof(buffer), "%g", value);
+	return ni_var_array_set(nva, name, buffer);
+}
+
+int
 ni_var_array_set_boolean(ni_var_array_t *nva, const char *name, int value)
 {
 	return ni_var_array_set(nva, name, value? "yes" : "no");
@@ -471,6 +480,21 @@ ni_string_dup(char **pp, const char *value)
 	if (*pp)
 		free(*pp);
 	*pp = value? strdup(value) : NULL;
+}
+
+void
+ni_string_set(char **pp, const char *value, unsigned int len)
+{
+	if (*pp) {
+		free(*pp);
+		*pp = NULL;
+	}
+
+	if (len) {
+		*pp = malloc(len + 1);
+		memcpy(*pp, value, len);
+		(*pp)[len] = '\0';
+	}
 }
 
 int

@@ -100,10 +100,10 @@ install-files:
 	install -d -m 755 $(DESTDIR)/var/run/wicked
 
 wicked: $(OBJ)/wicked.o $(TGTLIBS)
-	$(CC) -o $@ $(CFLAGS) $(OBJ)/wicked.o -L. -lnetinfo
+	$(CC) -o $@ $(CFLAGS) $(OBJ)/wicked.o -L. -lnetinfo -lm
 
 wickedd: $(OBJ)/wickedd.o $(TGTLIBS)
-	$(CC) -o $@ $(CFLAGS) $(OBJ)/wickedd.o -L. -lnetinfo
+	$(CC) -o $@ $(CFLAGS) $(OBJ)/wickedd.o -L. -lnetinfo -lm
 
 test: $(OBJ)/test.o $(TGTLIBS)
 	$(CC) -o $@ $(CFLAGS) $(OBJ)/test.o -L. -lnetinfo

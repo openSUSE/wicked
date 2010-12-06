@@ -16,6 +16,7 @@
 #include <wicked/bonding.h>
 #include <wicked/resolver.h>
 #include <wicked/ethernet.h>
+#include <wicked/wireless.h>
 #include <wicked/nis.h>
 #include <wicked/xml.h>
 
@@ -55,12 +56,14 @@ static xml_node_t *	__ni_netcf_xml_from_interface_stats(ni_syntax_t *, ni_handle
 
 static xml_node_t *	__ni_netcf_xml_from_policy(ni_syntax_t *, const ni_policy_t *, xml_node_t *);
 static xml_node_t *	__ni_netcf_xml_from_ethernet(ni_syntax_t *, const ni_ethernet_t *, xml_node_t *);
+static xml_node_t *	__ni_netcf_xml_from_wireless_scan(ni_syntax_t *, const ni_wireless_scan_t *, xml_node_t *);
 static xml_node_t *	__ni_netcf_xml_from_addrconf_req(ni_syntax_t *, const ni_addrconf_request_t *, xml_node_t *);
 static xml_node_t *	__ni_netcf_xml_from_lease(ni_syntax_t *, const ni_addrconf_lease_t *, xml_node_t *parent);
 static xml_node_t *	__ni_netcf_xml_from_nis(ni_syntax_t *, const ni_nis_info_t *, xml_node_t *);
 static xml_node_t *	__ni_netcf_xml_from_resolver(ni_syntax_t *, const ni_resolver_info_t *, xml_node_t *);
 static ni_policy_t *	__ni_netcf_xml_to_policy(ni_syntax_t *, xml_node_t *);
 static ni_ethernet_t *	__ni_netcf_xml_to_ethernet(ni_syntax_t *, const xml_node_t *);
+static ni_wireless_scan_t *__ni_netcf_xml_to_wireless_scan(ni_syntax_t *, const xml_node_t *);
 static ni_addrconf_request_t *__ni_netcf_xml_to_addrconf_req(ni_syntax_t *, const xml_node_t *, int);
 static ni_addrconf_lease_t *__ni_netcf_xml_to_lease(ni_syntax_t *, const xml_node_t *);
 static ni_nis_info_t *	__ni_netcf_xml_to_nis(ni_syntax_t *, const xml_node_t *);
@@ -104,6 +107,8 @@ __ni_syntax_netcf(const char *pathname)
 	syntax->xml_to_policy = __ni_netcf_xml_to_policy;
 	syntax->xml_from_ethernet = __ni_netcf_xml_from_ethernet;
 	syntax->xml_to_ethernet = __ni_netcf_xml_to_ethernet;
+	syntax->xml_from_wireless_scan = __ni_netcf_xml_from_wireless_scan;
+	syntax->xml_to_wireless_scan = __ni_netcf_xml_to_wireless_scan;
 	syntax->xml_from_lease = __ni_netcf_xml_from_lease;
 	syntax->xml_to_lease = __ni_netcf_xml_to_lease;
 	syntax->xml_from_request = __ni_netcf_xml_from_addrconf_req;
@@ -1830,6 +1835,134 @@ __ni_netcf_xml_to_interface_stats(ni_syntax_t *syntax, ni_handle_t *nih,
 	}
 
 	return node;
+}
+
+/*
+ * Encode/decode wireless auth info
+ */
+static xml_node_t *
+__ni_netcf_xml_from_wireless_auth_info(ni_syntax_t *syntax, ni_wireless_auth_info_t *auth, xml_node_t *parent)
+{
+	xml_node_t *node = xml_node_new("auth", parent);
+	xml_node_t *child;
+	unsigned int i;
+
+	xml_node_add_attr(node, "mode", ni_wireless_auth_mode_to_name(auth->mode));
+	xml_node_add_attr_uint(node, "version", auth->version);
+	xml_node_new_element("group-cipher", node, ni_wireless_cipher_to_name(auth->group_cipher));
+
+	child = xml_node_new("pairwise-ciphers", node);
+	for (i = 0; i < auth->pairwise_ciphers.count; ++i) {
+		xml_node_new_element("cipher", child, ni_wireless_cipher_to_name(auth->pairwise_ciphers.value[i]));
+	}
+
+	child = xml_node_new("key-management", node);
+	for (i = 0; i < auth->key_management.count; ++i) {
+		xml_node_new_element("algorithm", child, ni_wireless_key_management_to_name(auth->key_management.value[i]));
+	}
+	return node;
+}
+
+/*
+ * Encode/decode wireless network
+ */
+static xml_node_t *
+__ni_netcf_xml_from_wireless_network(ni_syntax_t *syntax, const ni_wireless_network_t *net, xml_node_t *parent)
+{
+	xml_node_t *node = xml_node_new("network", parent);
+	xml_node_t *child;
+
+	if (net->access_point.len)
+		xml_node_new_element("access-point", node, ni_link_address_print(&net->access_point));
+	xml_node_new_element("mode", node, ni_wireless_mode_to_name(net->mode));
+
+	/* We need to escape the ESSID; it may be the result of a wireless
+	 * scan; thus we cannot assume it is safe to use as XML CDATA.
+	 * FIXME: we really want to handle this in the xml reader/writer code!
+	 */
+	if (net->essid) {
+		const char *essid = net->essid;
+
+		if (strchr(essid, '<') || strchr(essid, '>'))
+			essid = "INVALID";
+		child = xml_node_new_element("essid", node, essid);
+
+		if (net->essid_encode_index)
+			xml_node_add_attr_uint(child, "key-index", net->essid_encode_index);
+	}
+
+	if (net->channel || net->frequency) {
+		child = xml_node_new("channel", node);
+		if (net->channel)
+			xml_node_add_attr_uint(child, "index", net->channel);
+		if (net->frequency)
+			xml_node_add_attr_double(child, "frequency", net->frequency);
+	}
+
+	if (net->bitrates.count) {
+		char ratebuf[64];
+		unsigned int i;
+
+		child = xml_node_new("bitrates", node);
+		for (i = 0; i < net->bitrates.count; ++i) {
+			snprintf(ratebuf, sizeof(ratebuf), "%u", net->bitrates.value[i]);
+			xml_node_new_element("rate", child, ratebuf);
+		}
+	}
+
+	child = xml_node_new("security", node);
+	xml_node_add_attr(child, "mode", ni_wireless_security_to_name(net->encode.mode));
+
+	child = xml_node_new("key", child);
+	if (net->encode.key_index)
+		xml_node_add_attr_uint(child, "index", net->encode.key_index);
+	if (net->encode.key_required)
+		xml_node_add_attr_uint(child, "required", 1);
+	if (net->encode.key_len) {
+		/* Print hex key */
+	}
+
+	/* add authentication data */
+	if (net->auth_info.count) {
+		unsigned int i;
+
+		child = xml_node_new("auth-supported", node);
+		for (i = 0; i < net->auth_info.count; ++i) {
+			ni_wireless_auth_info_t *auth = net->auth_info.data[i];
+
+			if (!__ni_netcf_xml_from_wireless_auth_info(syntax, auth, child))
+				return NULL;
+		}
+	}
+
+	return node;
+}
+
+/*
+ * Encode/decode wireless scan results
+ */
+static xml_node_t *
+__ni_netcf_xml_from_wireless_scan(ni_syntax_t *syntax, const ni_wireless_scan_t *scan, xml_node_t *parent)
+{
+	xml_node_t *node = xml_node_new("wireless-scan", parent);
+	unsigned int i;
+
+	for (i = 0; i < scan->networks.count; ++i) {
+		ni_wireless_network_t *net = scan->networks.data[i];
+
+		if (!__ni_netcf_xml_from_wireless_network(syntax, net, node))
+			return NULL;
+	}
+
+	return node;
+}
+
+static ni_wireless_scan_t *
+__ni_netcf_xml_to_wireless_scan(ni_syntax_t *syntax, const xml_node_t *node)
+{
+	ni_wireless_scan_t *scan = ni_wireless_scan_new();
+
+	return scan;
 }
 
 /*

@@ -69,11 +69,13 @@ extern void		xml_node_set_cdata(xml_node_t *, const char *);
 extern void		xml_node_add_attr(xml_node_t *, const char *, const char *);
 extern void		xml_node_add_attr_uint(xml_node_t *, const char *, unsigned int);
 extern void		xml_node_add_attr_ulong(xml_node_t *, const char *, unsigned long);
+extern void		xml_node_add_attr_double(xml_node_t *, const char *, double);
 
 extern int		xml_node_has_attr(const xml_node_t *, const char *);
 extern const char *	xml_node_get_attr(const xml_node_t *, const char *);
 extern int		xml_node_get_attr_uint(const xml_node_t *, const char *, unsigned int *);
 extern int		xml_node_get_attr_ulong(const xml_node_t *, const char *, unsigned long *);
+extern int		xml_node_get_attr_double(const xml_node_t *, const char *, double *);
 extern xml_node_t *	xml_node_get_child(const xml_node_t *, const char *);
 extern xml_node_t *	xml_node_get_child_with_attrs(const xml_node_t *, const char *,
 					const ni_var_array_t *);
