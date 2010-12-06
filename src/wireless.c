@@ -289,6 +289,16 @@ ni_wireless_mode_to_name(ni_wireless_mode_t mode)
 	return ni_format_int_mapped(mode, __ni_wireless_mode_names);
 }
 
+ni_wireless_mode_t
+ni_wireless_name_to_mode(const char *string)
+{
+	unsigned int value;
+
+	if (ni_parse_int_mapped(string, __ni_wireless_mode_names, &value) < 0)
+		return NI_WIRELESS_MODE_UNKNOWN;
+	return value;
+}
+
 static ni_intmap_t __ni_wireless_security_names[] = {
 	{ "default",		NI_WIRELESS_SECURITY_DEFAULT },
 	{ "open",		NI_WIRELESS_SECURITY_OPEN },
@@ -300,6 +310,16 @@ const char *
 ni_wireless_security_to_name(ni_wireless_security_t mode)
 {
 	return ni_format_int_mapped(mode, __ni_wireless_security_names);
+}
+
+ni_wireless_security_t
+ni_wireless_name_to_security(const char *string)
+{
+	unsigned int value;
+
+	if (ni_parse_int_mapped(string, __ni_wireless_security_names, &value) < 0)
+		return NI_WIRELESS_SECURITY_DEFAULT;
+	return value;
 }
 
 static ni_intmap_t __ni_wireless_auth_mode_names[] = {
@@ -314,6 +334,16 @@ const char *
 ni_wireless_auth_mode_to_name(ni_wireless_auth_mode_t mode)
 {
 	return ni_format_int_mapped(mode, __ni_wireless_auth_mode_names);
+}
+
+ni_wireless_auth_mode_t
+ni_wireless_name_to_auth_mode(const char *string)
+{
+	unsigned int value;
+
+	if (ni_parse_int_mapped(string, __ni_wireless_auth_mode_names, &value) < 0)
+		return -1;
+	return value;
 }
 
 static ni_intmap_t __ni_wireless_cipher_names[] = {
@@ -669,9 +699,8 @@ __ni_wireless_get_scan_event(struct __ni_wireless_event_stream *stream, ni_wirel
 	case SIOCGIWENCODE:
 		if (iwe.u.data.pointer) {
 			/* set the encoding key */
-			net->encode.key_len = iwe.u.data.length;
-			net->encode.key_data = malloc(net->encode.key_len);
-			memcpy(net->encode.key_data, iwe.u.data.pointer, net->encode.key_len);
+			ni_wireless_network_set_key(net, iwe.u.data.pointer, net->encode.key_len);
+			memset(iwe.u.data.pointer, 0, net->encode.key_len);
 		}
 		net->encode.key_required = !(iwe.u.data.flags & IW_ENCODE_DISABLED);
 
@@ -767,14 +796,29 @@ ni_wireless_network_new(void)
 }
 
 void
+ni_wireless_network_set_key(ni_wireless_network_t *net, const unsigned char *key_data, size_t key_len)
+{
+	if (net->encode.key_data) {
+		memset(net->encode.key_data, 0, net->encode.key_len);
+		free(net->encode.key_data);
+		net->encode.key_data = NULL;
+		net->encode.key_len = 0;
+	}
+
+	if (key_len) {
+		net->encode.key_data = malloc(key_len);
+		net->encode.key_len = key_len;
+		memcpy(net->encode.key_data, key_data, key_len);
+	}
+}
+
+void
 __ni_wireless_network_destroy(ni_wireless_network_t *net)
 {
 	ni_string_free(&net->essid);
-	if (net->encode.key_data) {
-		free(net->encode.key_data);
-		memset(&net->encode, 0, sizeof(net->encode));
-	}
+	ni_wireless_network_set_key(net, NULL, 0);
 	ni_wireless_auth_info_array_destroy(&net->auth_info);
+	memset(net, 0, sizeof(*net));
 }
 
 void

@@ -125,6 +125,7 @@ extern ni_wireless_network_t *ni_wireless_network_new(void);
 extern void		ni_wireless_free(ni_wireless_t *);
 extern ni_wireless_scan_t *ni_wireless_scan_new(void);
 extern void		ni_wireless_scan_free(ni_wireless_scan_t *);
+extern void		ni_wireless_network_set_key(ni_wireless_network_t *, const unsigned char *, size_t);
 extern void		ni_wireless_network_free(ni_wireless_network_t *);
 extern void		ni_wireless_network_array_init(ni_wireless_network_array_t *);
 extern void		ni_wireless_network_array_append(ni_wireless_network_array_t *, ni_wireless_network_t *);
