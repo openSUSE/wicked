@@ -22,6 +22,7 @@ typedef enum {
 	NI_ETHERNET_DUPLEX_DEFAULT = 0,
 	NI_ETHERNET_DUPLEX_HALF,
 	NI_ETHERNET_DUPLEX_FULL,
+	NI_ETHERNET_DUPLEX_NONE,	/* autoneg not complete */
 } ni_ether_duplex_t;
 
 typedef enum {

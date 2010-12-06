@@ -92,12 +92,14 @@ static __ni_ethtool_map_t	__ni_ethtool_speed_map[] = {
 	{ SPEED_1000,		1000	},
 	{ SPEED_2500,		2500	},
 	{ SPEED_10000,		10000	},
+	{ 65535,		0	},
 	{ -1 }
 };
 
 static __ni_ethtool_map_t	__ni_ethtool_duplex_map[] = {
 	{ DUPLEX_HALF,		NI_ETHERNET_DUPLEX_HALF },
 	{ DUPLEX_FULL,		NI_ETHERNET_DUPLEX_FULL },
+	{ 255,			NI_ETHERNET_DUPLEX_NONE },
 	{ -1 }
 };
 
