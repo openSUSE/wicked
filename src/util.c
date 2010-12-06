@@ -562,6 +562,57 @@ ni_parse_double(const char *input, double *result)
 }
 
 /*
+ * Format and parse hex data as aa:bb:cc:... striung
+ */
+const char *
+ni_format_hex(const unsigned char *data, unsigned int datalen, char *namebuf, size_t namelen)
+{
+	unsigned int i, j;
+
+	for (i = j = 0; i < datalen; ++i) {
+		if (j + 4 >= namelen)
+			break;
+		if (i)
+			namebuf[j++] = ':';
+		snprintf(namebuf + j, namelen - j, "%02x", data[i]);
+		j += 2;
+	}
+	return namebuf;
+}
+
+const char *
+ni_print_hex(const unsigned char *data, unsigned int datalen)
+{
+	static char addrbuf[256];
+
+	return ni_format_hex(data, datalen, addrbuf, sizeof(addrbuf));
+}
+
+int
+ni_parse_hex(const char *string, unsigned char *data, unsigned int datasize)
+{
+	unsigned int len = 0;
+
+	while (1) {
+		unsigned int octet;
+
+		octet = strtoul(string, (char **) &string, 16);
+		if (octet > 255)
+			return -1;
+
+		data[len++] = octet;
+		if (*string == '\0')
+			break;
+		if (*string++ != ':')
+			return -1;
+		if (len >= datasize)
+			return -1;
+	}
+
+	return len;
+}
+
+/*
  * stringbuf functions
  */
 void

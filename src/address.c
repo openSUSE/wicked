@@ -461,8 +461,6 @@ ni_build_netmask(int af, unsigned int prefix_len, ni_sockaddr_t *mask)
 int
 ni_link_address_format(const ni_hwaddr_t *hwa, char *abuf, size_t len)
 {
-	unsigned int i, j;
-
 	switch (hwa->type) {
 	case NI_IFTYPE_TUNNEL:
 	case NI_IFTYPE_SIT:
@@ -477,14 +475,7 @@ ni_link_address_format(const ni_hwaddr_t *hwa, char *abuf, size_t len)
 		return 0;
 
 	default:
-		for (i = j = 0; i < hwa->len; ++i) {
-			if (j + 4 >= len)
-				break;
-			if (i)
-				abuf[j++] = ':';
-			snprintf(abuf + j, len - j, "%02x", hwa->data[i]);
-			j += 2;
-		}
+		ni_format_hex(hwa->data, hwa->len, abuf, len);
 		break;
 	}
 
@@ -494,7 +485,7 @@ ni_link_address_format(const ni_hwaddr_t *hwa, char *abuf, size_t len)
 int
 ni_link_address_parse(ni_hwaddr_t *hwa, unsigned int type, const char *string)
 {
-	unsigned int len = 0, octet;
+	int len;
 
 	memset(hwa, 0, sizeof(*hwa));
 	switch (type) {
@@ -508,19 +499,8 @@ ni_link_address_parse(ni_hwaddr_t *hwa, unsigned int type, const char *string)
 	}
 
 	/* Default format is aa:bb:cc:.. with hex octets */
-	while (1) {
-		octet = strtoul(string, (char **) &string, 16);
-		if (octet > 255)
-			return -1;
-		hwa->data[len++] = octet;
-		if (*string == '\0')
-			break;
-		if (*string != ':')
-			return -1;
-		++string;
-		if (len >= NI_MAXHWADDRLEN)
-			return -1;
-	}
+	if ((len = ni_parse_hex(string, hwa->data, NI_MAXHWADDRLEN)) < 0)
+		return len;
 
 	hwa->type = type;
 	hwa->len = len;

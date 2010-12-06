@@ -112,6 +112,10 @@ extern int		ni_parse_int_mapped(const char *, const struct ni_intmap *, unsigned
 extern int		ni_parse_int(const char *, unsigned int *);
 extern const char *	ni_format_int_mapped(unsigned int, const ni_intmap_t *);
 extern int		ni_parse_double(const char *, double *);
+extern const char *	ni_format_hex(const unsigned char *data, unsigned int data_len,
+				char *namebuf, size_t name_max);
+extern const char *	ni_print_hex(const unsigned char *data, unsigned int data_len);
+extern int		ni_parse_hex(const char *, unsigned char *, unsigned int);
 
 extern const char *	ni_uuid_print(const ni_uuid_t *);
 extern int		ni_uuid_parse(ni_uuid_t *, const char *);
