@@ -200,6 +200,21 @@ __ni_nla_get_addr(int af, ni_sockaddr_t *ss, struct nlattr *nla)
 	return 0;
 }
 
+static int
+__ni_nl_ack_handler(struct nl_msg *msg, void *arg)
+{
+	*(int *) arg = 0;
+	return NL_STOP;
+}
+
+static int
+__ni_nl_error_handler(struct sockaddr_nl *sender, struct nlmsgerr *err, void *arg)
+{
+	ni_debug_ifconfig("netlink reports error %d", err->error);
+	*(int *) arg = - err->error;
+	return NL_STOP;
+}
+
 /*
  * Handle a message exchange with the netlink layer.
  */
@@ -208,9 +223,15 @@ ni_nl_talk(ni_handle_t *nih, struct nl_msg *msg)
 {
 	struct nl_handle *handle;
 	struct nl_cb *cb, *ocb;
+	int err = 0;
 
 	if (!(handle = nih->nlh)) {
 		ni_error("%s: no netlink handle", __func__);
+		return -1;
+	}
+
+	if (nl_send_auto_complete(handle, msg) < 0) {
+		ni_error("%s: unable to send", __func__);
 		return -1;
 	}
 
@@ -221,21 +242,23 @@ ni_nl_talk(ni_handle_t *nih, struct nl_msg *msg)
 	if (!cb)
 		return -1;
 
-	if (nl_send_auto_complete(handle, msg) < 0) {
-		ni_error("%s: unable to send", __func__);
-		return -1;
-	}
-
+	nl_cb_err(cb, NL_CB_CUSTOM, __ni_nl_error_handler, &err);
+	nl_cb_set(cb, NL_CB_ACK, NL_CB_CUSTOM, __ni_nl_ack_handler, &err);
 #if 0
-	nl_cb_err(cb, NL_CB_CUSTOM, error_handler, &err);
 	nl_cb_set(cb, NL_CB_FINISH, NL_CB_CUSTOM, finish_handler, &err);
-	nl_cb_set(cb, NL_CB_ACK, NL_CB_CUSTOM, ack_handler, &err);
 
 	if (valid_handler)
 		nl_cb_set(cb, NL_CB_VALID, NL_CB_CUSTOM, valid_handler, valid_data);
 #endif
 
-	return nl_wait_for_ack(handle);
+	if ((err = nl_recvmsgs(handle, cb)) < 0) {
+		ni_error("%s: recv failed: %s", __func__, nl_geterror());
+		nl_cb_put(cb);
+		return -1;
+	}
+
+	nl_cb_put(cb);
+	return err;
 }
 
 struct __ni_nl_dump_state {
@@ -289,7 +312,10 @@ __ni_nl_dump_valid(struct nl_msg *msg, void *p)
 	struct __ni_nl_dump_state *data = p;
 	struct nlmsghdr *nlh;
 
-	ni_debug_socket("received netlink message from %d", sender->nl_pid);
+	if (sender->nl_pid) {
+		ni_warn("received netlink message from %d - spoof", sender->nl_pid);
+		return -1;
+	}
 
 	if (data->list == NULL)
 		return 0;

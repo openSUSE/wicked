@@ -804,7 +804,7 @@ __ni_interface_process_newroute(ni_interface_t *ifp, struct nlmsghdr *h,
 		return -1;
 	}
 
-#if 1
+#if 0
 	printf("RTM_NEWROUTE family=%d dstlen=%u srclen=%u type=%u proto=%d flags=0x%x table=%u\n",
 			rtm->rtm_family,
 			rtm->rtm_dst_len,
@@ -839,7 +839,7 @@ __ni_interface_process_newroute(ni_interface_t *ifp, struct nlmsghdr *h,
 		return 0;
 	}
 
-#if 1
+#if 0
 	if (dst_addr.ss_family == AF_UNSPEC)
 		printf("Add route dst=default");
 	else

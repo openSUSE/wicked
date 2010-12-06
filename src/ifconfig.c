@@ -301,7 +301,10 @@ __ni_system_interface_update_lease(ni_handle_t *nih, ni_interface_t *ifp, ni_add
 		if (rp->seq == nih->seqno)
 			continue;
 
-		if (__ni_rtnl_send_newroute(nih, ifp, rp, NLM_F_CREATE))
+		ni_debug_ifconfig("%s: adding new route %s/%u from lease",
+				ifp->name, ni_address_print(&rp->destination),
+				rp->prefixlen);
+		if (__ni_rtnl_send_newroute(nih, ifp, rp, NLM_F_CREATE) < 0)
 			return -1;
 		changed = 1;
 	}
@@ -1262,7 +1265,7 @@ __ni_rtnl_send_newroute(ni_handle_t *nih, ni_interface_t *ifp, ni_route_t *rp, i
 	NLA_PUT_U32(msg, RTA_OIF, ifp->ifindex);
 
 	/* Add metrics if needed */
-	if (1) {
+	if (rp->mtu) {
 		struct nlattr *mxrta;
 
 		mxrta = nla_nest_start(msg, RTA_METRICS);
