@@ -225,7 +225,7 @@ ni_nl_talk(ni_handle_t *nih, struct nl_msg *msg)
 	struct nl_cb *cb, *ocb;
 	int err = 0;
 
-	if (!(handle = nih->nlh)) {
+	if (!nih->netlink || !(handle = nih->netlink->nl_handle)) {
 		ni_error("%s: no netlink handle", __func__);
 		return -1;
 	}
@@ -351,7 +351,7 @@ ni_nl_dump_store(ni_handle_t *nih, int af, int type,
 		.list = list,
 	};
 
-	if (!(handle = nih->nlh)) {
+	if (!nih->netlink || !(handle = nih->netlink->nl_handle)) {
 		ni_error("%s: no netlink handle", __func__);
 		return -1;
 	}

@@ -18,6 +18,14 @@
 
 typedef struct ni_capture	ni_capture_t;
 
+typedef struct __ni_netlink {
+	struct nl_handle *	nl_handle;
+	struct nl_cache *	nl_cache;
+	struct nl_cb *		nl_cb;
+	struct genl_family *	nl_family;
+} ni_netlink_t;
+
+
 struct ni_handle {
 	ni_interface_t *	iflist;
 	ni_route_t *		routes;
@@ -28,7 +36,7 @@ struct ni_handle {
 	struct ni_ops *		op;
 
 	/* For a state handle */
-	struct nl_handle *	nlh;
+	ni_netlink_t *		netlink;
 	int			iocfd;
 };
 
@@ -121,6 +129,9 @@ typedef enum {
 	NI_INTERFACE_ADMIN = 0,
 	NI_INTERFACE_WIRELESS_SCAN,
 } ni_interface_activity_t;
+
+extern ni_netlink_t *	__ni_netlink_open(int);
+extern void		__ni_netlink_close(ni_netlink_t *);
 
 extern ni_handle_t *	__ni_handle_new(size_t, struct ni_ops *);
 extern ni_interface_t *	__ni_interface_new(const char *name, unsigned int index);

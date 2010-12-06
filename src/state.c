@@ -72,14 +72,37 @@ ni_state_open(void)
 
 	nih = __ni_handle_new(sizeof(*nih), &ni_state_ops);
 
-	nih->nlh = nl_handle_alloc();
-	if (nl_connect(nih->nlh, 0) < 0) {
-		ni_error("Cannot open rtnetlink: %m");
+	nih->netlink = __ni_netlink_open(0);
+	if (nih->netlink == NULL) {
 		ni_close(nih);
 		return NULL;
 	}
 
 	return nih;
+}
+
+ni_netlink_t *
+__ni_netlink_open(int protocol)
+{
+	ni_netlink_t *nl;
+	
+	nl = xcalloc(1, sizeof(*nl));
+	nl->nl_handle = nl_handle_alloc();
+	if (nl_connect(nl->nl_handle, protocol) < 0) {
+		ni_error("Cannot open rtnetlink: %m");
+		__ni_netlink_close(nl);
+		return NULL;
+	}
+
+	return nl;
+}
+
+void
+__ni_netlink_close(ni_netlink_t *nl)
+{
+	if (nl->nl_handle)
+		nl_handle_destroy(nl->nl_handle);
+	free(nl);
 }
 
 static int
@@ -283,9 +306,9 @@ __ni_system_resolver_restore(ni_handle_t *nih)
 static void
 __ni_system_close(ni_handle_t *nih)
 {
-	if (nih->nlh) {
-		nl_handle_destroy(nih->nlh);
-		nih->nlh = NULL;
+	if (nih->netlink) {
+		__ni_netlink_close(nih->netlink);
+		nih->netlink = NULL;
 	}
 
 	if (nih->iocfd >= 0) {
