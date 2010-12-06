@@ -16,6 +16,7 @@
 #include <math.h>
 
 #include <wicked/wireless.h>
+#include <wicked/socket.h>
 #include "netinfo_priv.h"
 #include "buffer.h"
 #include "kernel.h"
@@ -37,10 +38,16 @@
 #endif
 
 
+static void		__ni_wireless_end_scan(void *);
 static int		__ni_wireless_get_scan_event(ni_buffer_t *, ni_wireless_scan_t *, ni_wireless_network_t **);
 static void		__ni_wireless_network_destroy(ni_wireless_network_t *net);
 
 typedef int		__ni_wireless_event_dissector(ni_buffer_t *, struct iw_event *);
+
+struct __ni_wireless_scan_data {
+	ni_handle_t *	handle;
+	ni_interface_t *interface;
+};
 
 static __ni_wireless_event_dissector *standard_ioctl_handlers[SIOCIWLAST - SIOCIWFIRST + 1];
 static __ni_wireless_event_dissector *standard_event_handlers[IWEVLAST - IWEVFIRST + 1];
@@ -50,6 +57,7 @@ static const char *	standard_event_names[IWEVLAST - IWEVFIRST + 1];
 int
 __ni_wireless_request_scan(ni_handle_t *nih, ni_interface_t *ifp)
 {
+	struct __ni_wireless_scan_data *helper;
 	ni_wireless_scan_t *scan;
 	struct iwreq wrq;
 
@@ -81,7 +89,29 @@ __ni_wireless_request_scan(ni_handle_t *nih, ni_interface_t *ifp)
 	}
 
 	ni_debug_ifconfig("%s: requested wireless scan", ifp->name);
+
+	helper = xcalloc(1, sizeof(*helper));
+	helper->handle = nih;
+	helper->interface = ni_interface_get(ifp);
+
+	ni_timer_register(25000, __ni_wireless_end_scan, helper);
 	return 0;
+}
+
+void
+__ni_wireless_end_scan(void *data)
+{
+	struct __ni_wireless_scan_data *helper = data;
+	ni_interface_t *ifp = helper->interface;
+	ni_handle_t *nih = helper->handle;
+
+	ni_debug_ifconfig("%s() called", __func__);
+	if (__ni_wireless_get_scan_results(nih, ifp) < 0)
+		ni_warn("%s: scan failed", ifp->name);
+	__ni_interface_end_activity(nih, ifp, NI_INTERFACE_WIRELESS_SCAN);
+
+	ni_interface_put(helper->interface);
+	free(helper);
 }
 
 int
