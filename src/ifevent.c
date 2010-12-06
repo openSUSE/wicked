@@ -171,11 +171,9 @@ __ni_rtevent_newlink(ni_handle_t *nih, const struct sockaddr_nl *nladdr, struct 
 	if (!(ifi = ni_rtnl_ifinfomsg(h, RTM_NEWLINK)))
 		return -1;
 
-	if ((rta = __ni_rta_find(IFLA_RTA(ifi), IFLA_PAYLOAD(h), IFLA_IFNAME)) == NULL) {
-		warn("RTM_xxxLINK message without IFNAME");
-		return -1;
+	if ((rta = __ni_rta_find(IFLA_RTA(ifi), IFLA_PAYLOAD(h), IFLA_IFNAME)) != NULL) {
+		ifname = (char *) RTA_DATA(rta);
 	}
-	ifname = (char *) RTA_DATA(rta);
 
 	ifp = __ni_interface_new(ifname, ifi->ifi_index);
 	if (__ni_interface_process_newlink(ifp, h, ifi, nih) < 0) {
@@ -183,11 +181,13 @@ __ni_rtevent_newlink(ni_handle_t *nih, const struct sockaddr_nl *nladdr, struct 
 		return -1;
 	}
 
-	old = ni_interface_by_name(nih, ifname);
-	if (old && old->ifindex != ifi->ifi_index) {
-		/* We probably missed a deletion event. Just clobber the old interface. */
-		warn("linkchange event: found interface %s with different ifindex", ifname);
-		old->ifindex = ifi->ifi_index;
+	if (ifname) {
+		old = ni_interface_by_name(nih, ifname);
+		if (old && old->ifindex != ifi->ifi_index) {
+			/* We probably missed a deletion event. Just clobber the old interface. */
+			ni_warn("linkchange event: found interface %s with different ifindex", ifname);
+			old->ifindex = ifi->ifi_index;
+		}
 	}
 
 	old = ni_interface_by_index(nih, ifi->ifi_index);
@@ -195,7 +195,7 @@ __ni_rtevent_newlink(ni_handle_t *nih, const struct sockaddr_nl *nladdr, struct 
 		unsigned int new_flags, flags_changed;
 
 		/* If the interface name changed, update it */
-		if (strcmp(ifname, old->name))
+		if (ifname && strcmp(ifname, old->name))
 			strncpy(old->name, ifname, sizeof(old->name) - 1);
 
 		new_flags = __ni_interface_translate_ifflags(ifi->ifi_flags);
@@ -229,6 +229,9 @@ __ni_rtevent_newlink(ni_handle_t *nih, const struct sockaddr_nl *nladdr, struct 
 		__ni_interface_event(nih, ifp, NI_EVENT_LINK_CREATE);
 	}
 
+	if ((rta = __ni_rta_find(IFLA_RTA(ifi), IFLA_PAYLOAD(h), IFLA_WIRELESS)) != NULL) {
+		__ni_wireless_link_event(nih, ifp, RTA_DATA(rta), RTA_PAYLOAD(rta));
+	}
 
 	return 0;
 }

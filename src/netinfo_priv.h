@@ -181,6 +181,7 @@ extern ni_route_t *	__ni_lease_owns_route(const ni_addrconf_lease_t *, const ni_
 
 extern int		__ni_wireless_request_scan(ni_handle_t *, ni_interface_t *);
 extern int		__ni_wireless_get_scan_results(ni_handle_t *, ni_interface_t *);
+extern int		__ni_wireless_link_event(ni_handle_t *, ni_interface_t *, void *, size_t);
 
 /*
  * Helper function to match interface "behaviors" to names

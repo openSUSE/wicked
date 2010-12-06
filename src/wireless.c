@@ -1,6 +1,8 @@
 /*
  * Routines for handling Wireless devices.
  *
+ * Holie cowe, the desygne of thefe Wyreless Extensions is indisputablie baroque!
+ *
  * Copyright (C) 2010 Olaf Kirch <okir@suse.de>
  */
 
@@ -37,12 +39,25 @@
 # define IW_IE_KEY_MGMT_PSK      2
 #endif
 
+typedef int		__ni_wireless_event_dissector(ni_buffer_t *, struct iw_event *);
+
+struct __ni_wireless_event_stream {
+	ni_buffer_t		buffer;
+
+	__ni_wireless_event_dissector *ev_dissect;
+	const char *		ev_name;
+	ni_buffer_t		ev_buffer;
+	struct iw_event		ev_data;
+};
 
 static void		__ni_wireless_end_scan(void *);
-static int		__ni_wireless_get_scan_event(ni_buffer_t *, ni_wireless_scan_t *, ni_wireless_network_t **);
+static int		__ni_wireless_get_scan_event(struct __ni_wireless_event_stream *,
+					ni_wireless_scan_t *, ni_wireless_network_t **);
+static int		__ni_wireless_get_link_event(struct __ni_wireless_event_stream *, ni_interface_t *);
 static void		__ni_wireless_network_destroy(ni_wireless_network_t *net);
 
-typedef int		__ni_wireless_event_dissector(ni_buffer_t *, struct iw_event *);
+static void		__ni_wireless_event_stream_init(struct __ni_wireless_event_stream *, void *, size_t);
+static int		__ni_wireless_event_stream_eof(const struct __ni_wireless_event_stream *);
 
 struct __ni_wireless_scan_data {
 	ni_handle_t *	handle;
@@ -121,12 +136,14 @@ __ni_wireless_get_scan_results(ni_handle_t *nih, ni_interface_t *ifp)
 {
 	ni_wireless_scan_t *scan;
 	ni_wireless_network_t *current = NULL;
-	ni_buffer_t evbuf;
+	struct __ni_wireless_event_stream stream;
 	void *buffer = NULL;
 	size_t buflen = 8192;
 
 	if (!__ni_interface_check_activity(nih, ifp, NI_INTERFACE_WIRELESS_SCAN))
 		return 0;
+
+	ni_debug_ifconfig("%s(%s)", __func__, ifp->name);
 
 	while (1) {
 		void *nb;
@@ -163,23 +180,40 @@ __ni_wireless_get_scan_results(ni_handle_t *nih, ni_interface_t *ifp)
 	/* We're done with this scan */
 	__ni_interface_end_activity(nih, ifp, NI_INTERFACE_WIRELESS_SCAN);
 
-	ni_buffer_init_reader(&evbuf, buffer, buflen);
-
 	scan = ni_wireless_scan_new();
 	ni_interface_set_wireless_scan(ifp, scan);
 
-	ni_debug_ifconfig("%s(%s)", __func__, ifp->name);
-	while (ni_buffer_count(&evbuf)) {
-		if (__ni_wireless_get_scan_event(&evbuf, scan, &current) < 0)
+	__ni_wireless_event_stream_init(&stream, buffer, buflen);
+	while (!__ni_wireless_event_stream_eof(&stream)) {
+		if (__ni_wireless_get_scan_event(&stream, scan, &current) < 0)
 			goto failed;
 	}
 
+	if (buffer)
+		free(buffer);
 	return 0;
 
 failed:
 	if (buffer)
 		free(buffer);
 	return -1;
+}
+
+/*
+ * rtnetlink sent us an RTM_NEWLINK event with IFLA_WIRELESS info
+ */
+int
+__ni_wireless_link_event(ni_handle_t *nih, ni_interface_t *ifp, void *data, size_t len)
+{
+	struct __ni_wireless_event_stream stream;
+
+	__ni_wireless_event_stream_init(&stream, data, len);
+	while (!__ni_wireless_event_stream_eof(&stream)) {
+		if (__ni_wireless_get_link_event(&stream, ifp) < 0)
+			return -1;
+	}
+
+	return 0;
 }
 
 /*
@@ -493,143 +527,203 @@ format_error:
 }
 
 /*
- * Extract wireless event.
- * Holie cowe, the desygne of thif Inter-face is indisputablie baroque!
+ * Extract ioctl/event values from a sequence of such
  */
-static int
-__ni_wireless_get_scan_event(ni_buffer_t *bp, ni_wireless_scan_t *scan, ni_wireless_network_t **netp)
+static void
+__ni_wireless_event_stream_init(struct __ni_wireless_event_stream *stream, void *data, size_t len)
 {
-	struct iw_event iwe;
-	const char *ioctl_name = NULL;
-	ni_wireless_network_t *net;
-	ni_buffer_t packet = { NULL };
-	__ni_wireless_event_dissector *dissect = NULL;
+	memset(stream, 0, sizeof(*stream));
+	ni_buffer_init_reader(&stream->buffer, data, len);
+}
 
-	/* Peek at the command/length part of the event */
-	if (ni_buffer_get(bp, &iwe, IW_EV_LCP_PK_LEN) < 0)
-		goto format_error;
+static int
+__ni_wireless_event_stream_eof(const struct __ni_wireless_event_stream *stream)
+{
+	return ni_buffer_count(&stream->buffer) == 0 && ni_buffer_count(&stream->ev_buffer) == 0;
+}
 
-	switch (iwe.cmd) {
-	case SIOCIWFIRST ... SIOCIWLAST:
-		ioctl_name = standard_ioctl_names[iwe.cmd - SIOCIWFIRST];
-		dissect = standard_ioctl_handlers[iwe.cmd - SIOCIWFIRST];
-		break;
-
-	case IWEVFIRST ... IWEVLAST:
-		ioctl_name = standard_event_names[iwe.cmd - IWEVFIRST];
-		dissect = standard_event_handlers[iwe.cmd - IWEVFIRST];
-		break;
-	}
-
-#if 0
-	ni_trace("%s: cmd=0x%x/%s len=%d; left=%u", __func__, iwe.cmd,
-			ioctl_name?: "SIOC***", iwe.len, ni_buffer_count(bp));
-#endif
-
-	{
+static int
+__ni_wireless_event_stream_get(struct __ni_wireless_event_stream *stream, struct iw_event *iwe)
+{
+	while (ni_buffer_count(&stream->ev_buffer) == 0) {
 		unsigned int payload_len;
 
-		if (iwe.len < IW_EV_LCP_PK_LEN)
+		stream->ev_name = NULL;
+		stream->ev_dissect = NULL;
+
+		if (ni_buffer_count(&stream->buffer) == 0)
+			return 0;
+
+		/* Peek at the command/length part of the event */
+		if (ni_buffer_get(&stream->buffer, &stream->ev_data, IW_EV_LCP_PK_LEN) < 0)
 			goto format_error;
-		payload_len = iwe.len - IW_EV_LCP_PK_LEN;
-		if (payload_len > ni_buffer_count(bp))
+
+		switch (stream->ev_data.cmd) {
+		case SIOCIWFIRST ... SIOCIWLAST:
+			stream->ev_name = standard_ioctl_names[stream->ev_data.cmd - SIOCIWFIRST];
+			stream->ev_dissect = standard_ioctl_handlers[stream->ev_data.cmd - SIOCIWFIRST];
+			break;
+
+		case IWEVFIRST ... IWEVLAST:
+			stream->ev_name = standard_event_names[stream->ev_data.cmd - IWEVFIRST];
+			stream->ev_dissect = standard_event_handlers[stream->ev_data.cmd - IWEVFIRST];
+			break;
+		}
+
+		if (!stream->ev_name)
+			stream->ev_name = "unknown";
+
+#if 0
+		ni_trace("%s: cmd=0x%x/%s len=%d; left=%u", __func__,
+				stream->ev_data.cmd,
+				stream->ev_name?: "SIOC***",
+				stream->ev_data.len,
+				ni_buffer_count(&stream->buffer) + IW_EV_LCP_PK_LEN);
+#endif
+
+		if (stream->ev_data.len < IW_EV_LCP_PK_LEN)
 			goto format_error;
-		ni_buffer_init_reader(&packet, ni_buffer_head(bp), payload_len);
-		bp->head += payload_len;
+
+		payload_len = stream->ev_data.len - IW_EV_LCP_PK_LEN;
+		if (payload_len > ni_buffer_count(&stream->buffer))
+			goto format_error;
+
+		if (stream->ev_dissect != NULL)
+			ni_buffer_init_reader(&stream->ev_buffer, ni_buffer_head(&stream->buffer), payload_len);
+		stream->buffer.head += payload_len;
 	}
 
-	if (dissect == NULL)
+	if (stream->ev_dissect(&stream->ev_buffer, &stream->ev_data) < 0) {
+		ni_debug_ifconfig("%s: unable to parse packet (ioctl 0x%x/%s)", __func__,
+				stream->ev_data.cmd, stream->ev_name);
+		return -1;
+	}
+
+	*iwe = stream->ev_data;
+	return 1;
+
+format_error:
+	ni_error("%s: format error in wireless event stream", __func__);
+	return -1;
+}
+
+/*
+ * Extract information from wireless scan result
+ */
+static int
+__ni_wireless_get_scan_event(struct __ni_wireless_event_stream *stream, ni_wireless_scan_t *scan, ni_wireless_network_t **netp)
+{
+	struct iw_event iwe;
+	ni_wireless_network_t *net;
+	double freq;
+	int mapped;
+	int rv;
+
+	rv = __ni_wireless_event_stream_get(stream, &iwe);
+	if (rv == 0)
+		return 0; /* EOF */
+	if (rv < 0)
+		return -1; /* error */
+
+	if (iwe.cmd == SIOCGIWAP) {
+		const struct sockaddr *sap = &iwe.u.ap_addr;
+
+		*netp = net = ni_wireless_network_new();
+		ni_wireless_network_array_append(&scan->networks, net);
+		__ni_wireless_set_ap(&net->access_point, &sap->sa_data);
 		return 0;
+	}
 
-	while (ni_buffer_count(&packet)) {
-		double freq;
-		int mapped;
+	if ((net = *netp) == NULL) {
+		ni_warn("%s: skipping wireless event %d", __func__, iwe.cmd);
+		return 0;
+	}
 
-		if (dissect(&packet, &iwe) < 0) {
-			ni_debug_ifconfig("%s(): unable to parse packet (ioctl 0x%x)", __func__, iwe.cmd);
-			goto format_error;
+	switch (iwe.cmd) {
+	case SIOCGIWESSID:
+		if (iwe.u.essid.flags == 0) {
+			ni_string_free(&net->essid);
+		} else {
+			/* FIXME: properly escape non-ascii characters */
+			ni_string_set(&net->essid, (char *) iwe.u.data.pointer, iwe.u.data.length);
+
+			__ni_wireless_set_key_index(&net->essid_encode_index, iwe.u.essid.flags);
 		}
+		break;
+	case SIOCGIWFREQ:
+		// freq = iw_freq2float(&iwe.u.freq);
+		freq = iwe.u.freq.m * pow(10, iwe.u.freq.e);
+		if (freq < 1024)
+			net->channel = freq;
+		else
+			net->frequency = freq;
+		break;
+	case SIOCGIWMODE:
+		mapped = __ni_kernel_to_wicked(__ni_wireless_mode_map, iwe.u.mode);
+		if (mapped < 0)
+			ni_warn("unknown wireless mode %d", iwe.u.mode);
+		else
+			net->mode = mapped;
+		break;
 
-		if (iwe.cmd == SIOCGIWAP) {
-			const struct sockaddr *sap = &iwe.u.ap_addr;
-
-			*netp = net = ni_wireless_network_new();
-			ni_wireless_network_array_append(&scan->networks, net);
-			__ni_wireless_set_ap(&net->access_point, &sap->sa_data);
-			return 0;
+	case SIOCGIWENCODE:
+		if (iwe.u.data.pointer) {
+			/* set the encoding key */
+			net->encode.key_len = iwe.u.data.length;
+			net->encode.key_data = malloc(net->encode.key_len);
+			memcpy(net->encode.key_data, iwe.u.data.pointer, net->encode.key_len);
 		}
+		net->encode.key_required = !(iwe.u.data.flags & IW_ENCODE_DISABLED);
 
-		if ((net = *netp) == NULL) {
-			ni_warn("%s: skipping wireless event %d", __func__, iwe.cmd);
-			return 0;
-		}
+		__ni_wireless_set_key_index(&net->encode.key_index, iwe.u.data.flags);
+		if (iwe.u.data.flags & IW_ENCODE_RESTRICTED)
+			net->encode.mode = NI_WIRELESS_SECURITY_RESTRICTED;
+		else if (iwe.u.data.flags & IW_ENCODE_OPEN)
+			net->encode.mode = NI_WIRELESS_SECURITY_OPEN;
 
-		switch (iwe.cmd) {
-		case SIOCGIWESSID:
-			/* FIXME: properly escape non-ascii characters; handle encode index
-			 * and hidden ESSID */
-			if (iwe.u.essid.flags == 0) {
-				ni_string_free(&net->essid);
-			} else {
-				ni_string_set(&net->essid, (char *) iwe.u.data.pointer, iwe.u.data.length);
+		break;
 
-				__ni_wireless_set_key_index(&net->essid_encode_index, iwe.u.essid.flags);
-			}
-			break;
-		case SIOCGIWFREQ:
-			// freq = iw_freq2float(&iwe.u.freq);
-			freq = iwe.u.freq.m * pow(10, iwe.u.freq.e);
-			if (freq < 1024)
-				net->channel = freq;
-			else
-				net->frequency = freq;
-			break;
-		case SIOCGIWMODE:
-			mapped = __ni_kernel_to_wicked(__ni_wireless_mode_map, iwe.u.mode);
-			if (mapped < 0)
-				ni_warn("unknown wireless mode %d", iwe.u.mode);
-			else
-				net->mode = mapped;
-			break;
+	case SIOCGIWRATE:
+		if (net->bitrates.count < NI_WIRELESS_BITRATES_MAX)
+			net->bitrates.value[net->bitrates.count++] = iwe.u.bitrate.value;
+		break;
 
-		case SIOCGIWENCODE:
-			if (iwe.u.data.pointer) {
-				/* set the encoding key */
-				net->encode.key_len = iwe.u.data.length;
-				net->encode.key_data = malloc(net->encode.key_len);
-				memcpy(net->encode.key_data, iwe.u.data.pointer, net->encode.key_len);
-			}
-			net->encode.key_required = !(iwe.u.data.flags & IW_ENCODE_DISABLED);
+	case IWEVQUAL:
+		/* We should really try to get the link quality info here... */
+		break;
 
-			__ni_wireless_set_key_index(&net->encode.key_index, iwe.u.data.flags);
-			if (iwe.u.data.flags & IW_ENCODE_RESTRICTED)
-				net->encode.mode = NI_WIRELESS_SECURITY_RESTRICTED;
-			else if (iwe.u.data.flags & IW_ENCODE_OPEN)
-				net->encode.mode = NI_WIRELESS_SECURITY_OPEN;
-
-			break;
-
-		case SIOCGIWRATE:
-			if (net->bitrates.count < NI_WIRELESS_BITRATES_MAX)
-				net->bitrates.value[net->bitrates.count++] = iwe.u.bitrate.value;
-			break;
-
-		case IWEVQUAL:
-			/* We should really try to get the link quality info here... */
-			break;
-
-		case IWEVGENIE:
-			if (__ni_wireless_process_ie(net, iwe.u.data.pointer, iwe.u.data.length) < 0)
-				return -1;
-			break;
-		}
+	case IWEVGENIE:
+		if (__ni_wireless_process_ie(net, iwe.u.data.pointer, iwe.u.data.length) < 0)
+			return -1;
+		break;
 	}
 
 	return 0;
+}
 
-format_error:
-	ni_error("format error in wireless event stream");
-	return -1;
+/*
+ * Handle wireless event
+ */
+static int
+__ni_wireless_get_link_event(struct __ni_wireless_event_stream *stream, ni_interface_t *ifp)
+{
+	struct iw_event iwe;
+	int rv;
+
+	rv = __ni_wireless_event_stream_get(stream, &iwe);
+	if (rv == 0)
+		return 0; /* EOF */
+	if (rv < 0)
+		return -1; /* error */
+
+	switch (iwe.cmd) {
+	case SIOCGIWAP:
+		/* AP associated/disassociated */
+		ni_debug_ifconfig("%s: AP (dis)associated", ifp->name);
+		break;
+	}
+
+	return 0;
 }
 
 /*
