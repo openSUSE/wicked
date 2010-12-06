@@ -200,76 +200,6 @@ __ni_nla_get_addr(int af, ni_sockaddr_t *ss, struct nlattr *nla)
 	return 0;
 }
 
-#if 0
-int
-__ni_rta_get_string(char **val, struct rtattr *rta)
-{
-	char *s = NULL;
-
-	if (*val) {
-		free(*val);
-		*val = NULL;
-	}
-	if (rta) {
-		unsigned int len = RTA_PAYLOAD(rta);
-
-		if (len > 128)
-			return -1;
-		*val = s = malloc(len + 1);
-		if (!s)
-			return -1;
-		memcpy(s, RTA_DATA(rta), len);
-		s[len] = '\0';
-	}
-	return 0;
-}
-
-struct rtattr *
-__ni_rta_begin_nested(struct nlmsghdr *nh, size_t size, int type)
-{
-	struct rtattr *rtattr = NLMSG_TAIL(nh);
-
-	if (addattr_l(nh, size, type, NULL, 0) < 0)
-		return NULL;
-	return rtattr;
-}
-
-void
-__ni_rta_end_nested(struct nlmsghdr *nh, struct rtattr *rtattr)
-{
-	rtattr->rta_len = (void *) NLMSG_TAIL(nh) - (void *) rtattr;
-}
-
-struct rtattr *
-__ni_rta_begin_linkinfo(struct nlmsghdr *nh, size_t size, const char *kind)
-{
-	struct rtattr *linkinfo;
-
-	if (!(linkinfo = __ni_rta_begin_nested(nh, size, IFLA_LINKINFO)))
-		return NULL;
-
-	if (kind) {
-		int len = strlen(kind);
-
-		if (addattr_l(nh, size, IFLA_INFO_KIND, kind, len) < 0)
-			return NULL;
-	}
-
-	return linkinfo;
-}
-
-struct rtattr *
-__ni_rta_find(struct rtattr *rta, size_t len, int type)
-{
-	while (RTA_OK(rta, len)) {
-		if (rta->rta_type == type)
-			return rta;
-		rta = RTA_NEXT(rta, len);
-	}
-	return NULL;
-}
-#endif
-
 /*
  * Handle a message exchange with the netlink layer.
  */
@@ -308,24 +238,7 @@ ni_nl_talk(ni_handle_t *nih, struct nl_msg *msg)
 	return nl_wait_for_ack(handle);
 }
 
-#if 0
-static int
-__ni_rtnl_junk_handler(const struct sockaddr_nl *nladdr, struct nlmsghdr *nh, ni_handle_t *nih)
-{
-	warn("ni_rtnl_talk: received junk message of type=%d, flags=0x%x\n",
-			nh->nlmsg_type, nh->nlmsg_flags);
-	return 0;
-}
-
-
-int
-ni_rtnl_talk(ni_handle_t *nih, struct nlmsghdr *nh)
-{
-	return rtnl_talk(&nih->rth, nh, 0, 0, NULL, (rtnl_filter_t) __ni_rtnl_junk_handler, nih);
-}
-#endif
-
-struct __ni_rtnl_dump_state {
+struct __ni_nl_dump_state {
 	ni_handle_t *		nih;
 	int			msg_type;
 	unsigned int		hdrlen;
@@ -373,7 +286,7 @@ static int
 __ni_nl_dump_valid(struct nl_msg *msg, void *p)
 {
 	const struct sockaddr_nl *sender = nlmsg_get_src(msg);
-	struct __ni_rtnl_dump_state *data = p;
+	struct __ni_nl_dump_state *data = p;
 	struct nlmsghdr *nlh;
 
 	ni_debug_socket("received netlink message from %d", sender->nl_pid);
@@ -406,7 +319,7 @@ ni_nl_dump_store(ni_handle_t *nih, int af, int type,
 {
 	struct nl_handle *handle;
 	struct nl_cb *cb, *ocb;
-	struct __ni_rtnl_dump_state data = {
+	struct __ni_nl_dump_state data = {
 		.nih = nih,
 		.msg_type = -1,
 		.list = list,
