@@ -488,6 +488,9 @@ __ni_interface_process_newlink(ni_interface_t *ifp, struct nlmsghdr *h,
 		ni_string_dup(&ifp->qdisc, nla_get_string(tb[IFLA_QDISC]));
 	if (tb[IFLA_MASTER])
 		ifp->master = nla_get_u32(tb[IFLA_MASTER]);
+	if (tb[IFLA_OPERSTATE]) {
+		/* get the RFC 2863 operational status - IF_OPER_* */
+	}
 
 	if (tb[IFLA_STATS]) {
 		struct rtnl_link_stats *s = nla_data(tb[IFLA_STATS]);
