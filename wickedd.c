@@ -135,7 +135,10 @@ main(int argc, char **argv)
 	wicked_discover_state();
 
 	while (1) {
-		if (ni_socket_wait(-1) < 0)
+		long timeout;
+
+		timeout = ni_timer_next_timeout();
+		if (ni_socket_wait(timeout) < 0)
 			ni_fatal("ni_socket_wait failed");
 	}
 

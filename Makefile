@@ -52,6 +52,7 @@ __LIBSRCS= \
 	  xpath-fmt.c \
 	  util.c \
 	  socket.c \
+	  timer.c \
 	  capture.c \
 	  arp.c \
 	  logging.c \

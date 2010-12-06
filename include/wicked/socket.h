@@ -11,6 +11,14 @@
 #include <stdio.h>
 
 #include <wicked/types.h>
+#include <sys/types.h>
+
+typedef struct ni_timer	ni_timer_t;
+typedef void		ni_timeout_callback_t(void *);
+
+extern const ni_timer_t *ni_timer_register(unsigned long, ni_timeout_callback_t *, void *);
+extern void *		ni_timer_cancel(const ni_timer_t *);
+extern long		ni_timer_next_timeout(void);
 
 extern ni_socket_t *	ni_local_socket_listen(const char *, unsigned int);
 extern ni_socket_t *	ni_local_socket_connect(const char *);
