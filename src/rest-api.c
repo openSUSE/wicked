@@ -819,12 +819,39 @@ system_interface_scan_get(ni_wicked_request_t *req)
 	return 0;
 }
 
+static int
+system_interface_scan_delete(ni_wicked_request_t *req)
+{
+	const char *ifname = req->argv[0];
+	ni_interface_t *ifp;
+	ni_handle_t *nih;
+
+	if (ifname == NULL) {
+		werror(req, "Missing interface name");
+		return -1;
+	}
+
+	if ((nih = system_handle(req)) == NULL)
+		return -1;
+
+	if (!(ifp = ni_interface_by_name(nih, ifname))) {
+		werror(req, "cannot find interface %s", ifname);
+		return -1;
+	}
+
+	/* Note, this should also cancel any pending scan */
+
+	ni_interface_set_wireless_scan(ifp, NULL);
+	return 0;
+}
+
 static ni_rest_node_t	ni_rest_system_interface_scan_node = {
 	.name		= "scan",
 	.ops = {
 	    .byname = {
 		.get	= system_interface_scan_get,
 		.put	= system_interface_scan_put,
+		.delete	= system_interface_scan_delete,
 	    },
 	},
 };
