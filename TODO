@@ -44,6 +44,7 @@ overall
 		refresh -> interfaces_get_all
 		configure_interface -> interface_put
 		delete_interface -> interface_delete
+	- Add INSTALL file describing how to build wicked
 
 extensions
 	- escape/reject shell metacharacters when expanding start/stop command

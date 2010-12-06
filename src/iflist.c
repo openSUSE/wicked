@@ -20,6 +20,8 @@
 #include <netinet/in.h>
 #include <net/if.h>
 #include <net/if_arp.h>
+#include <netlink/attr.h>
+#include <netlink/msg.h>
 #include <linux/ethtool.h>
 
 #include <wicked/netinfo.h>
@@ -61,7 +63,7 @@ static inline int
 __ni_rtnl_query(ni_handle_t *nih, struct ni_rtnl_info *qr, int af, int type)
 {
 	ni_nlmsg_list_init(&qr->nlmsg_list);
-	if (ni_rtnl_dump_store(nih, af, type, &qr->nlmsg_list) < 0)
+	if (ni_nl_dump_store(nih, af, type, &qr->nlmsg_list) < 0)
 		return -1;
 
 	qr->entry = qr->nlmsg_list.head;
@@ -173,15 +175,15 @@ ni_rtnl_query_next_route_info(struct ni_rtnl_query *q, struct nlmsghdr **hp, int
 
 	while ((h = __ni_rtnl_info_next(&q->route_info)) != NULL) {
 		int oif_index = -1;
-		struct rtattr *rta;
+		struct nlattr *rta;
 		struct rtmsg *rtm;
 
 		if (!(rtm = ni_rtnl_rtmsg(h, RTM_NEWROUTE)))
 			continue;
 
-		rta = __ni_rta_find(RTM_RTA(rtm), RTM_PAYLOAD(h), RTA_OIF);
+		rta = nlmsg_find_attr(h, sizeof(*rtm), RTA_OIF);
 		if (rta != NULL)
-			__ni_rta_get_uint((unsigned int *) &oif_index, rta);
+			oif_index = nla_get_u32(rta);
 
 		if (q->ifindex >= 0 && oif_index != q->ifindex)
 			continue;
@@ -218,17 +220,17 @@ __ni_system_refresh_all(ni_handle_t *nih)
 
 	while (1) {
 		struct ifinfomsg *ifi;
-		struct rtattr *rta;
+		struct nlattr *nla;
 		char *ifname = NULL;
 
 		if (!(ifi = ni_rtnl_query_next_link_info(&query, &h)))
 			break;
 
-		if ((rta = __ni_rta_find(IFLA_RTA(ifi), IFLA_PAYLOAD(h), IFLA_IFNAME)) == NULL) {
-			warn("RTM_NEWLINK message without IFNAME");
+		if ((nla = nlmsg_find_attr(h, sizeof(*ifi), IFLA_IFNAME)) == NULL) {
+			ni_warn("RTM_NEWLINK message without IFNAME");
 			continue;
 		}
-		ifname = (char *) RTA_DATA(rta);
+		ifname = (char *) nla_data(nla);
 
 		/* Create interface if it doesn't exist. */
 		if ((ifp = ni_interface_by_index(nih, ifi->ifi_index)) == NULL) {
@@ -447,14 +449,17 @@ int
 __ni_interface_process_newlink(ni_interface_t *ifp, struct nlmsghdr *h,
 				struct ifinfomsg *ifi, ni_handle_t *nih)
 {
-	struct rtattr *tb[IFLA_MAX+1];
+	struct nlattr *tb[IFLA_MAX+1];
 	char *ifname;
 
 	memset(tb, 0, sizeof(tb));
-	parse_rtattr(tb, IFLA_MAX, IFLA_RTA(ifi), IFLA_PAYLOAD(h));
+	if (nlmsg_parse(h, sizeof(*ifi), tb, IFLA_MAX, NULL) < 0) {
+		ni_error("unable to parse rtnl LINK message");
+		return -1;
+	}
 
 	/* Update interface name in case it changed */
-	if ((ifname = (char *) RTA_DATA(tb[IFLA_IFNAME])) != NULL)
+	if ((ifname = (char *) nla_data(tb[IFLA_IFNAME])) != NULL)
 		strncpy(ifp->name, ifname, sizeof(ifp->name) - 1);
 
 	ifp->arp_type = ifi->ifi_type;
@@ -473,14 +478,19 @@ __ni_interface_process_newlink(ni_interface_t *ifp, struct nlmsghdr *h,
 		(ifp->ifflags & NI_IFF_NETWORK_UP)? " network-up" : "");
 #endif
 
-	__ni_rta_get_uint(&ifp->mtu, tb[IFLA_MTU]);
-	__ni_rta_get_uint(&ifp->txqlen, tb[IFLA_TXQLEN]);
-	__ni_rta_get_uint(&ifp->metric, tb[IFLA_COST]);
-	__ni_rta_get_string(&ifp->qdisc, tb[IFLA_QDISC]);
-	__ni_rta_get_uint(&ifp->master, tb[IFLA_MASTER]);
+	if (tb[IFLA_MTU])
+		ifp->mtu = nla_get_u32(tb[IFLA_MTU]);
+	if (tb[IFLA_TXQLEN])
+		ifp->txqlen = nla_get_u32(tb[IFLA_TXQLEN]);
+	if (tb[IFLA_COST])
+		ifp->metric = nla_get_u32(tb[IFLA_COST]);
+	if (tb[IFLA_QDISC])
+		ni_string_dup(&ifp->qdisc, nla_get_string(tb[IFLA_QDISC]));
+	if (tb[IFLA_MASTER])
+		ifp->master = nla_get_u32(tb[IFLA_MASTER]);
 
 	if (tb[IFLA_STATS]) {
-		struct rtnl_link_stats *s = RTA_DATA(tb[IFLA_STATS]);
+		struct rtnl_link_stats *s = nla_data(tb[IFLA_STATS]);
 		ni_link_stats_t *n;
 
 		if (!ifp->link_stats)
@@ -524,16 +534,19 @@ __ni_interface_process_newlink(ni_interface_t *ifp, struct nlmsghdr *h,
 	 * The generic tuntap driver has a LINKINFO containing only KIND ("tun").
 	 */
 	if (tb[IFLA_LINKINFO]) {
-		struct rtattr *linkinfo[IFLA_INFO_MAX+1];
+		struct nlattr *linkinfo[IFLA_INFO_MAX+1];
 		int info_data_used = 0;
 
-		parse_rtattr_nested(linkinfo, IFLA_INFO_MAX, tb[IFLA_LINKINFO]);
-		__ni_rta_get_string(&ifp->kind, linkinfo[IFLA_INFO_KIND]);
+		if (nla_parse_nested(linkinfo, IFLA_INFO_MAX, tb[IFLA_LINKINFO], NULL) < 0) {
+			ni_error("unable to parse IFLA_LINKINFO");
+			return -1;
+		}
+		ni_string_dup(&ifp->kind, nla_get_string(linkinfo[IFLA_INFO_KIND]));
 
 		if (ifp->kind) {
 			/* Do something with these */
 			if (!strcmp(ifp->kind, "vlan")) {
-				struct rtattr *vlan_info[IFLA_VLAN_MAX+1];
+				struct nlattr *vlan_info[IFLA_VLAN_MAX+1];
 				ni_vlan_t *vlancfg;
 
 				ifp->type = NI_IFTYPE_VLAN;
@@ -541,11 +554,13 @@ __ni_interface_process_newlink(ni_interface_t *ifp, struct nlmsghdr *h,
 				vlancfg->link = 0;
 
 				/* IFLA_LINK contains the ifindex of the real ether dev */
-				__ni_rta_get_uint(&vlancfg->link, tb[IFLA_LINK]);
+				if (tb[IFLA_LINK])
+					vlancfg->link = nla_get_u32(tb[IFLA_LINK]);
 
-				parse_rtattr_nested(vlan_info, IFLA_VLAN_MAX, linkinfo[IFLA_INFO_DATA]);
-				__ni_rta_get_uint16(&vlancfg->tag, vlan_info[IFLA_VLAN_ID]);
-				info_data_used = 1;
+				if (nla_parse_nested(vlan_info, IFLA_VLAN_MAX, linkinfo[IFLA_INFO_DATA], NULL) >= 0) {
+					vlancfg->tag = nla_get_u16(vlan_info[IFLA_VLAN_ID]);
+					info_data_used = 1;
+				}
 			}
 		}
 
@@ -593,8 +608,8 @@ __ni_interface_process_newlink(ni_interface_t *ifp, struct nlmsghdr *h,
 	}
 
 	if (tb[IFLA_ADDRESS]) {
-		unsigned int alen = RTA_PAYLOAD(tb[IFLA_ADDRESS]);
-		void *data = RTA_DATA(tb[IFLA_ADDRESS]);
+		unsigned int alen = nla_len(tb[IFLA_ADDRESS]);
+		void *data = nla_data(tb[IFLA_ADDRESS]);
 
 		if (alen > sizeof(ifp->hwaddr.data))
 			alen = sizeof(ifp->hwaddr.data);
@@ -653,18 +668,21 @@ int
 __ni_interface_process_newlink_ipv6(ni_interface_t *ifp, struct nlmsghdr *h,
 				struct ifinfomsg *ifi, ni_handle_t *nih)
 {
-	struct rtattr *tb[IFLA_MAX+1];
+	struct nlattr *tb[IFLA_MAX+1];
 
-	memset(tb, 0, sizeof(tb));
-	parse_rtattr(tb, IFLA_MAX, IFLA_RTA(ifi), IFLA_PAYLOAD(h));
+	if (nlmsg_parse(h, sizeof(*ifi), tb, IFLA_MAX, NULL) < 0) {
+		ni_error("unable to parse rtnl LINK message");
+		return -1;
+	}
 
 	if (tb[IFLA_PROTINFO]) {
-		struct rtattr *protinfo[IFLA_INET6_MAX + 1];
+		struct nlattr *protinfo[IFLA_INET6_MAX + 1];
 		unsigned int flags = 0;
 
-		parse_rtattr_nested(protinfo, IFLA_INET6_MAX, tb[IFLA_PROTINFO]);
+		nla_parse_nested(protinfo, IFLA_INET6_MAX, tb[IFLA_PROTINFO], NULL);
 
-		__ni_rta_get_uint(&flags, protinfo[IFLA_INET6_FLAGS]);
+		if (protinfo[IFLA_INET6_FLAGS])
+			flags = nla_get_u32(protinfo[IFLA_INET6_FLAGS]);
 		if (flags & IF_RA_MANAGED) {
 			ni_debug_ifconfig("%s: obtain addrconf via DHCPv6", ifp->name);
 		} else
@@ -683,12 +701,14 @@ static int
 __ni_interface_process_newaddr(ni_interface_t *ifp, struct nlmsghdr *h,
 				struct ifaddrmsg *ifa, ni_handle_t *nih)
 {
-	struct rtattr *tb[IFA_MAX+1];
+	struct nlattr *tb[IFA_MAX+1];
 	ni_addrconf_lease_t *lease;
 	ni_address_t tmp, *ap;
 
-	memset(tb, 0, sizeof(tb));
-	parse_rtattr(tb, IFA_MAX, IFA_RTA(ifa), IFA_PAYLOAD(h));
+	if (nlmsg_parse(h, sizeof(*ifa), tb, IFA_MAX, NULL) < 0) {
+		ni_error("unable to parse rtnl ADDR message");
+		return -1;
+	}
 	memset(&tmp, 0, sizeof(tmp));
 
 	/*
@@ -699,14 +719,14 @@ __ni_interface_process_newaddr(ni_interface_t *ifp, struct nlmsghdr *h,
 	 * local address is supplied in IFA_LOCAL attribute.
 	 */
 	if (ifp->ifflags & NI_IFF_POINT_TO_POINT) {
-		__ni_rta_get_addr(ifa->ifa_family, &tmp.local_addr, tb[IFA_LOCAL]);
-		__ni_rta_get_addr(ifa->ifa_family, &tmp.peer_addr, tb[IFA_ADDRESS]);
+		__ni_nla_get_addr(ifa->ifa_family, &tmp.local_addr, tb[IFA_LOCAL]);
+		__ni_nla_get_addr(ifa->ifa_family, &tmp.peer_addr, tb[IFA_ADDRESS]);
 		/* Note iproute2 code obtains peer_addr from IFA_BROADCAST */
 	} else {
-		__ni_rta_get_addr(ifa->ifa_family, &tmp.local_addr, tb[IFA_ADDRESS]);
-		__ni_rta_get_addr(ifa->ifa_family, &tmp.bcast_addr, tb[IFA_BROADCAST]);
+		__ni_nla_get_addr(ifa->ifa_family, &tmp.local_addr, tb[IFA_ADDRESS]);
+		__ni_nla_get_addr(ifa->ifa_family, &tmp.bcast_addr, tb[IFA_BROADCAST]);
 	}
-	__ni_rta_get_addr(ifa->ifa_family, &tmp.anycast_addr, tb[IFA_ANYCAST]);
+	__ni_nla_get_addr(ifa->ifa_family, &tmp.anycast_addr, tb[IFA_ANYCAST]);
 
 	ap = ni_address_new(ifp, ifa->ifa_family, ifa->ifa_prefixlen, &tmp.local_addr);
 	ap->scope = ifa->ifa_scope;
@@ -765,7 +785,7 @@ __ni_interface_process_newroute(ni_interface_t *ifp, struct nlmsghdr *h,
 {
 	ni_sockaddr_t src_addr, dst_addr, gw_addr;
 	ni_addrconf_lease_t *lease;
-	struct rtattr *tb[RTN_MAX+1];
+	struct nlattr *tb[RTN_MAX+1];
 	ni_route_t *rp;
 
 	if (rtm->rtm_table != RT_TABLE_MAIN)
@@ -779,9 +799,12 @@ __ni_interface_process_newroute(ni_interface_t *ifp, struct nlmsghdr *h,
 		return 0;
 
 	memset(tb, 0, sizeof(tb));
-	parse_rtattr(tb, RTN_MAX, RTM_RTA(rtm), RTM_PAYLOAD(h));
+	if (nlmsg_parse(h, sizeof(*rtm), tb, RTN_MAX, NULL) < 0) {
+		ni_error("unable to parse rtnl ROUTE message");
+		return -1;
+	}
 
-#if 0
+#if 1
 	printf("RTM_NEWROUTE family=%d dstlen=%u srclen=%u type=%u proto=%d flags=0x%x table=%u\n",
 			rtm->rtm_family,
 			rtm->rtm_dst_len,
@@ -795,18 +818,18 @@ __ni_interface_process_newroute(ni_interface_t *ifp, struct nlmsghdr *h,
 
 	memset(&src_addr, 0, sizeof(src_addr));
 	if (tb[RTA_SRC])
-		__ni_rta_get_addr(rtm->rtm_family, &src_addr, tb[RTA_SRC]);
+		__ni_nla_get_addr(rtm->rtm_family, &src_addr, tb[RTA_SRC]);
 
 	memset(&dst_addr, 0, sizeof(dst_addr));
 	if (rtm->rtm_dst_len != 0) {
 		if (tb[RTA_DST] == NULL)
 			return 0;
-		__ni_rta_get_addr(rtm->rtm_family, &dst_addr, tb[RTA_DST]);
+		__ni_nla_get_addr(rtm->rtm_family, &dst_addr, tb[RTA_DST]);
 	}
 
 	memset(&gw_addr, 0, sizeof(gw_addr));
 	if (tb[RTA_GATEWAY] != NULL)
-		__ni_rta_get_addr(rtm->rtm_family, &gw_addr, tb[RTA_GATEWAY]);
+		__ni_nla_get_addr(rtm->rtm_family, &gw_addr, tb[RTA_GATEWAY]);
 
 	if (rtm->rtm_src_len != 0) {
 		static int warned = 0;
@@ -816,15 +839,15 @@ __ni_interface_process_newroute(ni_interface_t *ifp, struct nlmsghdr *h,
 		return 0;
 	}
 
-#if 0
+#if 1
 	if (dst_addr.ss_family == AF_UNSPEC)
 		printf("Add route dst=default");
 	else
 		printf("Add route dst=%s/%u", ni_address_print(&dst_addr), rtm->rtm_dst_len);
 	if (gw_addr.ss_family != AF_UNSPEC)
 		printf(" gw=%s", ni_address_print(&gw_addr));
-	if (oif_index)
-		printf(" oif=%u", oif_index);
+	if (ifp && ifp->ifindex)
+		printf(" oif=%u", ifp->ifindex);
 	printf("\n");
 #endif
 
@@ -842,7 +865,7 @@ __ni_interface_process_newroute(ni_interface_t *ifp, struct nlmsghdr *h,
 	}
 
 	if (tb[RTA_PRIORITY] != NULL)
-		__ni_rta_get_uint(&rp->priority, tb[RTA_PRIORITY]);
+		rp->priority = nla_get_u32(tb[RTA_PRIORITY]);
 	rp->tos = rtm->rtm_tos;
 
 	/* See if this route is owned by a lease */

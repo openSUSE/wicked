@@ -36,7 +36,6 @@ __LIBSRCS= \
 	  address.c \
 	  sysconfig.c \
 	  sysfs.c \
-	  libnetlink.c \
 	  syntax.c \
 	  backend-suse.c \
 	  backend-redhat.c \
@@ -101,10 +100,10 @@ install-files:
 	install -d -m 755 $(DESTDIR)/var/run/wicked
 
 wicked: $(OBJ)/wicked.o $(TGTLIBS)
-	$(CC) -o $@ $(CFLAGS) $(OBJ)/wicked.o -L. -lnetinfo -lm
+	$(CC) -o $@ $(CFLAGS) $(OBJ)/wicked.o -L. -lnetinfo -lm -lnl
 
 wickedd: $(OBJ)/wickedd.o $(TGTLIBS)
-	$(CC) -o $@ $(CFLAGS) $(OBJ)/wickedd.o -L. -lnetinfo -lm
+	$(CC) -o $@ $(CFLAGS) $(OBJ)/wickedd.o -L. -lnetinfo -lm -lnl
 
 test: $(OBJ)/test.o $(TGTLIBS)
 	$(CC) -o $@ $(CFLAGS) $(OBJ)/test.o -L. -lnetinfo

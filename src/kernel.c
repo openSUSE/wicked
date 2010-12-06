@@ -17,6 +17,8 @@
 #include <net/if_arp.h>
 #include <linux/ethtool.h>
 #include <linux/sockios.h>
+#include <netlink/msg.h>
+#include <netlink/route/rtnl.h>
 
 #include "netinfo_priv.h"
 #include "sysfs.h"
@@ -159,7 +161,7 @@ __ni_wireless_get_essid(ni_handle_t *nih, const ni_interface_t *ifp, char *resul
  * rtnetlink attribute handling
  */
 int
-__ni_rta_get_addr(int af, ni_sockaddr_t *ss, struct rtattr *rta)
+__ni_nla_get_addr(int af, ni_sockaddr_t *ss, struct nlattr *nla)
 {
 	unsigned int alen, maxlen;
 	void *dst;
@@ -167,10 +169,10 @@ __ni_rta_get_addr(int af, ni_sockaddr_t *ss, struct rtattr *rta)
 	memset(ss, 0, sizeof(*ss));
 	ss->ss_family = AF_UNSPEC;
 
-	if (!rta)
+	if (!nla)
 		return 0;
 
-	alen = RTA_PAYLOAD(rta);
+	alen = nla_len(nla);
 	if (alen > sizeof(*ss))
 		alen = sizeof(*ss);
 
@@ -193,11 +195,12 @@ __ni_rta_get_addr(int af, ni_sockaddr_t *ss, struct rtattr *rta)
 
 	if (alen != maxlen)
 		return 0;
-	memcpy(dst, RTA_DATA(rta), alen);
+	memcpy(dst, nla_data(nla), alen);
 	ss->ss_family = af;
 	return 0;
 }
 
+#if 0
 int
 __ni_rta_get_string(char **val, struct rtattr *rta)
 {
@@ -265,10 +268,47 @@ __ni_rta_find(struct rtattr *rta, size_t len, int type)
 	}
 	return NULL;
 }
+#endif
 
 /*
  * Handle a message exchange with the netlink layer.
  */
+int
+ni_nl_talk(ni_handle_t *nih, struct nl_msg *msg)
+{
+	struct nl_handle *handle;
+	struct nl_cb *cb, *ocb;
+
+	if (!(handle = nih->nlh)) {
+		ni_error("%s: no netlink handle", __func__);
+		return -1;
+	}
+
+	ocb = nl_socket_get_cb(handle);
+	cb = nl_cb_clone(ocb);
+	nl_cb_put(ocb);
+
+	if (!cb)
+		return -1;
+
+	if (nl_send_auto_complete(handle, msg) < 0) {
+		ni_error("%s: unable to send", __func__);
+		return -1;
+	}
+
+#if 0
+	nl_cb_err(cb, NL_CB_CUSTOM, error_handler, &err);
+	nl_cb_set(cb, NL_CB_FINISH, NL_CB_CUSTOM, finish_handler, &err);
+	nl_cb_set(cb, NL_CB_ACK, NL_CB_CUSTOM, ack_handler, &err);
+
+	if (valid_handler)
+		nl_cb_set(cb, NL_CB_VALID, NL_CB_CUSTOM, valid_handler, valid_data);
+#endif
+
+	return nl_wait_for_ack(handle);
+}
+
+#if 0
 static int
 __ni_rtnl_junk_handler(const struct sockaddr_nl *nladdr, struct nlmsghdr *nh, ni_handle_t *nih)
 {
@@ -283,66 +323,14 @@ ni_rtnl_talk(ni_handle_t *nih, struct nlmsghdr *nh)
 {
 	return rtnl_talk(&nih->rth, nh, 0, 0, NULL, (rtnl_filter_t) __ni_rtnl_junk_handler, nih);
 }
+#endif
 
 struct __ni_rtnl_dump_state {
-	ni_handle_t *	nih;
-	void *			user_data;
-	ni_rtnl_callback_t *	junk;
-	ni_rtnl_callback_t *	filter;
+	ni_handle_t *		nih;
+	int			msg_type;
+	unsigned int		hdrlen;
+	struct ni_nlmsg_list *	list;
 };
-
-static int
-__ni_rtnl_dump_junk(const struct sockaddr_nl *nla,
-		struct nlmsghdr *h,
-		void *p)
-{
-	struct __ni_rtnl_dump_state *data = p;
-
-	if (data->junk)
-		return data->junk(data->nih, nla, h, data->user_data);
-	return 0;
-}
-
-static int
-__ni_rtnl_dump_filter(const struct sockaddr_nl *nla,
-		struct nlmsghdr *h,
-		void *p)
-{
-	struct __ni_rtnl_dump_state *data = p;
-
-	if (data->filter)
-		return data->filter(data->nih, nla, h, data->user_data);
-	return 0;
-}
-
-int
-ni_rtnl_dump(ni_handle_t *nih, int type,
-		ni_rtnl_callback_t *junk_cb,
-		ni_rtnl_callback_t *filter_cb,
-		void *user_data)
-{
-	struct __ni_rtnl_dump_state data = {
-		.nih = nih,
-		.filter = filter_cb,
-		.junk = junk_cb,
-		.user_data = user_data,
-	};
-	int err;
-
-	err = rtnl_wilddump_request(&nih->rth, AF_UNSPEC, type);
-	if (err < 0) {
-		perror("cannot send RTNL dump request");
-		return -1;
-	}
-
-	err = rtnl_dump_filter(&nih->rth,
-			__ni_rtnl_dump_filter, &data,
-			__ni_rtnl_dump_junk, &data);
-	if (err < 0)
-		return err;
-
-	return 0;
-}
 
 void
 ni_nlmsg_list_init(struct ni_nlmsg_list *nll)
@@ -382,36 +370,74 @@ ni_nlmsg_list_append(struct ni_nlmsg_list *nll, struct nlmsghdr *h)
 }
 
 static int
-__ni_rtnl_store_nlmsg(const struct sockaddr_nl *nla,
-		struct nlmsghdr *h,
-		void *p)
+__ni_nl_dump_valid(struct nl_msg *msg, void *p)
 {
-	struct ni_nlmsg_list *nll = p;
+	const struct sockaddr_nl *sender = nlmsg_get_src(msg);
+	struct __ni_rtnl_dump_state *data = p;
+	struct nlmsghdr *nlh;
 
-	/* FIXME: look at sender addr to prevent rtnetlink spoofing */
+	ni_debug_socket("received netlink message from %d", sender->nl_pid);
 
-	if (!ni_nlmsg_list_append(nll, h))
+	if (data->list == NULL)
+		return 0;
+
+	nlh = nlmsg_hdr(msg);
+	if (data->hdrlen && !nlmsg_valid_hdr(nlh, data->hdrlen)) {
+		ni_error("netlink message too short");
+		return -EINVAL;
+	}
+
+	if (data->msg_type >= 0 && nlh->nlmsg_type != data->msg_type) {
+		ni_error("netlink has unexpected message type %d; expected %d",
+				nlh->nlmsg_type, data->msg_type);
+		return -EINVAL;
+	}
+
+
+	if (!ni_nlmsg_list_append(data->list, nlh))
 		return -1;
+
 	return 0;
 }
 
 int
-ni_rtnl_dump_store(ni_handle_t *nih, int af, int type,
+ni_nl_dump_store(ni_handle_t *nih, int af, int type,
 			struct ni_nlmsg_list *list)
 {
-	int err;
+	struct nl_handle *handle;
+	struct nl_cb *cb, *ocb;
+	struct __ni_rtnl_dump_state data = {
+		.nih = nih,
+		.msg_type = -1,
+		.list = list,
+	};
 
-	err = rtnl_wilddump_request(&nih->rth, af, type);
-	if (err < 0) {
-		perror("cannot send RTNL dump request");
+	if (!(handle = nih->nlh)) {
+		ni_error("%s: no netlink handle", __func__);
 		return -1;
 	}
 
-	err = rtnl_dump_filter(&nih->rth,
-			__ni_rtnl_store_nlmsg, list,
-			NULL, NULL);
-	if (err < 0)
-		return err;
+	if (nl_rtgen_request(handle, type, af, NLM_F_DUMP) < 0) {
+		ni_error("%s: failed to send request", __func__);
+		return -1;
+	}
 
+	ocb = nl_socket_get_cb(handle);
+	cb = nl_cb_clone(ocb);
+	nl_cb_put(ocb);
+
+	if (!cb)
+		return -1;
+
+	nl_cb_set(cb, NL_CB_VALID, NL_CB_CUSTOM, __ni_nl_dump_valid, &data);
+
+	if (nl_recvmsgs(handle, cb) < 0) {
+		ni_error("%s: failed to receive response", __func__);
+		nl_cb_put(cb);
+		return -1;
+	}
+
+	nl_cb_put(cb);
 	return 0;
 }
+

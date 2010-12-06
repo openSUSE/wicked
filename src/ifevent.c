@@ -9,6 +9,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <string.h>
+#include <netlink/msg.h>
 
 #include <wicked/netinfo.h>
 #include <wicked/addrconf.h>
@@ -30,7 +31,8 @@ static int	__ni_rtevent_dellink(ni_handle_t *, const struct sockaddr_nl *, struc
 void
 __ni_rtevent_read(ni_socket_t *sock)
 {
-	ni_handle_t *nih = sock->user_data;
+	ni_handle_t *nih = ni_global_state_handle();
+	//struct nl_handle *handle = sock->user_data;
 	struct nlmsghdr *h;
 	struct sockaddr_nl nladdr;
 	struct iovec iov;
@@ -165,14 +167,14 @@ __ni_rtevent_newlink(ni_handle_t *nih, const struct sockaddr_nl *nladdr, struct 
 {
 	ni_interface_t *ifp, *old;
 	struct ifinfomsg *ifi;
-	struct rtattr *rta;
+	struct nlattr *nla;
 	char *ifname = NULL;
 
 	if (!(ifi = ni_rtnl_ifinfomsg(h, RTM_NEWLINK)))
 		return -1;
 
-	if ((rta = __ni_rta_find(IFLA_RTA(ifi), IFLA_PAYLOAD(h), IFLA_IFNAME)) != NULL) {
-		ifname = (char *) RTA_DATA(rta);
+	if ((nla = nlmsg_find_attr(h, sizeof(*ifi), IFLA_IFNAME)) != NULL) {
+		ifname = (char *) nla_data(nla);
 	}
 
 	ifp = __ni_interface_new(ifname, ifi->ifi_index);
@@ -229,9 +231,8 @@ __ni_rtevent_newlink(ni_handle_t *nih, const struct sockaddr_nl *nladdr, struct 
 		__ni_interface_event(nih, ifp, NI_EVENT_LINK_CREATE);
 	}
 
-	if ((rta = __ni_rta_find(IFLA_RTA(ifi), IFLA_PAYLOAD(h), IFLA_WIRELESS)) != NULL) {
-		__ni_wireless_link_event(nih, ifp, RTA_DATA(rta), RTA_PAYLOAD(rta));
-	}
+	if ((nla = nlmsg_find_attr(h, sizeof(*ifi), IFLA_WIRELESS)) != NULL)
+		__ni_wireless_link_event(nih, ifp, nla_data(nla), nla_len(nla));
 
 	return 0;
 }
@@ -266,9 +267,10 @@ __ni_rtevent_dellink(ni_handle_t *nih, const struct sockaddr_nl *nladdr, struct 
 int
 ni_server_listen_events(void (*ifevent_handler)(ni_handle_t *, ni_interface_t *, ni_event_t))
 {
-	struct rtnl_handle rth;
+	struct nl_handle *handle;
 	ni_socket_t *sock;
 	uint32_t groups;
+	int fd;
 
 	groups = nl_mgrp(RTNLGRP_LINK) |
 		 nl_mgrp(RTNLGRP_IPV4_IFADDR) |
@@ -276,15 +278,21 @@ ni_server_listen_events(void (*ifevent_handler)(ni_handle_t *, ni_interface_t *,
 		 nl_mgrp(RTNLGRP_IPV4_ROUTE) |
 		 nl_mgrp(RTNLGRP_IPV6_ROUTE) |
 		 nl_mgrp(RTNLGRP_IPV6_PREFIX);
-	if (rtnl_open(&rth, groups) < 0) {
-		error("Cannot open rtnetlink: %m");
+
+	handle = nl_handle_alloc();
+	nl_join_groups(handle, groups);
+
+	if (nl_connect(handle, 0) < 0) {
+		ni_error("Cannot open rtnetlink: %m");
+		nl_handle_destroy(handle);
 		return -1;
 	}
 
-	fcntl(rth.fd, F_SETFL, O_NONBLOCK);
+	fd = nl_socket_get_fd(handle);
+	fcntl(fd, F_SETFL, O_NONBLOCK);
 
-	sock = ni_socket_wrap(rth.fd, SOCK_DGRAM);
-	sock->user_data = ni_global_state_handle();
+	sock = ni_socket_wrap(fd, SOCK_DGRAM);
+	sock->user_data = handle;
 	sock->receive = __ni_rtevent_read;
 	ni_socket_activate(sock);
 
@@ -292,9 +300,12 @@ ni_server_listen_events(void (*ifevent_handler)(ni_handle_t *, ni_interface_t *,
 	return 0;
 }
 
+#if 0
 int
 ni_rtevent_fd(ni_handle_t *nih)
 {
-	return nih->rth.fd;
+	if (!nih->nlh)
+		return -1;
+	return nl_socket_get_fd(nih->nlh);
 }
-
+#endif

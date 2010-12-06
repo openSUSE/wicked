@@ -146,7 +146,6 @@ __ni_handle_new(size_t size, struct ni_ops *ops)
 	}
 
 	nih->op = ops;
-	nih->rth.fd = -1;
 	nih->iocfd = -1;
 
 	return nih;

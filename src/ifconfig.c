@@ -25,6 +25,7 @@
 #include <net/if.h>
 #include <net/if_arp.h>
 #include <linux/ethtool.h>
+#include <netlink/msg.h>
 #include <arpa/inet.h> /* debug */
 
 #include <wicked/netinfo.h>
@@ -864,22 +865,21 @@ static int
 __ni_rtnl_link_create(ni_handle_t *nih, const ni_interface_t *cfg)
 {
 	ni_interface_t *real_dev;
-	struct {
-		struct nlmsghdr	hdr;
-		struct ifinfomsg ii;
-		char buffer[1024];
-	} req;
+	struct ifinfomsg ifi;
+	struct nl_msg *msg;
 	int len;
 
-	memset(&req, 0, sizeof(req));
-	req.ii.ifi_family = AF_UNSPEC;
-	req.hdr.nlmsg_len = NLMSG_LENGTH(sizeof(req.ii));
-	req.hdr.nlmsg_flags = NLM_F_REQUEST | NLM_F_CREATE | NLM_F_EXCL;
-	req.hdr.nlmsg_type = RTM_NEWLINK;
+	memset(&ifi, 0, sizeof(ifi));
+	ifi.ifi_family = AF_UNSPEC;
+
+	msg = nlmsg_alloc_simple(RTM_NEWLINK, NLM_F_CREATE | NLM_F_EXCL);
+
+	if (nlmsg_append(msg, &ifi, sizeof(ifi), NLMSG_ALIGNTO) < 0)
+		goto nla_put_failure;
 
 	if (cfg->type == NI_IFTYPE_VLAN) {
-		struct rtattr *linkinfo;
-		struct rtattr *data;
+		struct nlattr *linkinfo;
+		struct nlattr *data;
 		ni_vlan_t *vlan;
 
 		/* VLAN:
@@ -895,16 +895,18 @@ __ni_rtnl_link_create(ni_handle_t *nih, const ni_interface_t *cfg)
 		debug_ifconfig("__ni_rtnl_link_create(%s, vlan, %u, %s)",
 				cfg->name, vlan->tag, vlan->interface_name);
 
-		if (!(linkinfo = __ni_rta_begin_linkinfo(&req.hdr, sizeof(req), "vlan")))
+		if (!(linkinfo = nla_nest_start(msg, IFLA_LINKINFO)))
+			return -1;
+		NLA_PUT_STRING(msg, IFLA_INFO_KIND, "vlan");
+
+		if (!(data = nla_nest_start(msg, IFLA_INFO_DATA)))
 			return -1;
 
-		data = __ni_rta_begin_nested(&req.hdr, sizeof(req), IFLA_INFO_DATA);
-		addattr16(&req.hdr, sizeof(req), IFLA_VLAN_ID, vlan->tag);
-		__ni_rta_end_nested(&req.hdr, data);
+		NLA_PUT_U16(msg, IFLA_VLAN_ID, vlan->tag);
+		nla_nest_end(msg, data);
+		nla_nest_end(msg, linkinfo);
 
-		/* IFLA_LINK - must be outside of IFLA_LINKINFO, so first
-		 * close off the linkinfo part */
-		__ni_rta_end_nested(&req.hdr, linkinfo);
+		/* Note, IFLA_LINK must be outside of IFLA_LINKINFO */
 
 		real_dev = ni_interface_by_name(nih, cfg->vlan->interface_name);
 		if (!real_dev || !real_dev->ifindex) {
@@ -912,7 +914,7 @@ __ni_rtnl_link_create(ni_handle_t *nih, const ni_interface_t *cfg)
 					cfg->name, cfg->vlan->interface_name);
 			return -1;
 		}
-		addattr32(&req.hdr, sizeof(req), IFLA_LINK, real_dev->ifindex);
+		NLA_PUT_U32(msg, IFLA_LINK, real_dev->ifindex);
 	} else {
 		error("Cannot create an interface of type %d through netlink", cfg->type);
 		return -1;
@@ -923,13 +925,44 @@ __ni_rtnl_link_create(ni_handle_t *nih, const ni_interface_t *cfg)
 		error("\"%s\" is not a valid device identifier", cfg->name);
 		return -1;
 	}
-	addattr_l(&req.hdr, sizeof(req), IFLA_IFNAME, cfg->name, len);
+	NLA_PUT_STRING(msg, IFLA_IFNAME, cfg->name);
 
-	if (ni_rtnl_talk(nih, &req.hdr) < 0)
-		return -1;
+	if (ni_nl_talk(nih, msg) < 0)
+		goto failed;
 
-	debug_ifconfig("successfully created interface %s", cfg->name);
+	ni_debug_ifconfig("successfully created interface %s", cfg->name);
+	nlmsg_free(msg);
 	return 0;
+
+nla_put_failure:
+	ni_error("failed to encode netlink attr");
+failed:
+	nlmsg_free(msg);
+	return -1;
+}
+
+/*
+ * Simple rtnl message without attributes
+ */
+static inline int
+__ni_rtnl_simple(ni_handle_t *nih, int msgtype, unsigned int flags, void *data, size_t len)
+{
+	struct nl_msg *msg;
+	int rv = -1;
+
+	msg = nlmsg_alloc_simple(msgtype, flags);
+
+	if (nlmsg_append(msg, data, len, NLMSG_ALIGNTO) < 0) {
+		ni_error("%s: nlmsg_append failed", __func__);
+	} else
+	if (ni_nl_talk(nih, msg) < 0) {
+		ni_debug_ifconfig("%s: rtnl_talk failed", __func__);
+	} else {
+		rv = 0; /* success */
+	}
+
+	nlmsg_free(msg);
+	return rv;
 }
 
 /*
@@ -938,23 +971,14 @@ __ni_rtnl_link_create(ni_handle_t *nih, const ni_interface_t *cfg)
 static int
 __ni_rtnl_link_down(ni_handle_t *nih, const ni_interface_t *ifp, int cmd)
 {
-	struct {
-		struct nlmsghdr	hdr;
-		struct ifinfomsg ii;
-	} req;
+	struct ifinfomsg ifi;
 
-	memset(&req, 0, sizeof(req));
-	req.ii.ifi_family = AF_UNSPEC;
-	req.ii.ifi_index = ifp->ifindex;
-	req.ii.ifi_change = IFF_UP;
-	req.hdr.nlmsg_len = NLMSG_LENGTH(sizeof(req.ii));
-	req.hdr.nlmsg_flags = NLM_F_REQUEST;
-	req.hdr.nlmsg_type = cmd;
+	memset(&ifi, 0, sizeof(ifi));
+	ifi.ifi_family = AF_UNSPEC;
+	ifi.ifi_index = ifp->ifindex;
+	ifi.ifi_change = IFF_UP;
 
-	if (ni_rtnl_talk(nih, &req.hdr) < 0)
-		return -1;
-
-	return 0;
+	return __ni_rtnl_simple(nih, cmd, 0, &ifi, sizeof(ifi));
 }
 
 /*
@@ -963,52 +987,58 @@ __ni_rtnl_link_down(ni_handle_t *nih, const ni_interface_t *ifp, int cmd)
 static int
 __ni_rtnl_link_up(ni_handle_t *nih, const ni_interface_t *ifp, const ni_interface_t *cfg)
 {
-	struct {
-		struct nlmsghdr	hdr;
-		struct ifinfomsg ii;
-		char		buffer[1024];
-	} req;
+	struct ifinfomsg ifi;
+	struct nl_msg *msg;
 
-	memset(&req, 0, sizeof(req));
-	req.ii.ifi_family = AF_UNSPEC;
-	req.ii.ifi_index = ifp->ifindex;
-	req.ii.ifi_change = IFF_UP;
-	req.ii.ifi_flags = IFF_UP;
-	req.hdr.nlmsg_len = NLMSG_LENGTH(sizeof(req.ii));
-	req.hdr.nlmsg_flags = NLM_F_REQUEST;
-	req.hdr.nlmsg_type = RTM_NEWLINK;
+	memset(&ifi, 0, sizeof(ifi));
+	ifi.ifi_family = AF_UNSPEC;
+	ifi.ifi_index = ifp->ifindex;
+	ifi.ifi_change = IFF_UP;
+	ifi.ifi_flags = IFF_UP;
+
+	msg = nlmsg_alloc_simple(RTM_NEWLINK, NLM_F_CREATE);
+
+	if (nlmsg_append(msg, &ifi, sizeof(ifi), NLMSG_ALIGNTO) < 0)
+		goto nla_put_failure;
 
 	if (cfg) {
 		if (cfg->mtu && cfg->mtu != ifp->mtu)
-			addattr_l(&req.hdr, sizeof(req), IFLA_MTU, &cfg->mtu, 4);
+			NLA_PUT_U32(msg, IFLA_MTU, cfg->mtu);
 
 		if (cfg->txqlen && cfg->txqlen != ifp->txqlen)
-			addattr_l(&req.hdr, sizeof(req), IFLA_TXQLEN, &cfg->txqlen, 4);
+			NLA_PUT_U32(msg, IFLA_TXQLEN, cfg->txqlen);
 
 		if (cfg->hwaddr.type != NI_IFTYPE_UNKNOWN && cfg->hwaddr.len != 0
 		 && !ni_link_address_equal(&cfg->hwaddr, &ifp->hwaddr))
-			addattr_l(&req.hdr, sizeof(req), IFLA_ADDRESS, cfg->hwaddr.data, cfg->hwaddr.len);
+			NLA_PUT(msg, IFLA_ADDRESS, cfg->hwaddr.len, cfg->hwaddr.data);
 
 		/* FIXME: handle COST, QDISC, MASTER */
 	}
 
-	if (ni_rtnl_talk(nih, &req.hdr) < 0) {
-		ni_debug_ifconfig("%s: rtnl_talk failed", __FUNCTION__);
-		return -1;
+	if (ni_nl_talk(nih, msg) < 0) {
+		ni_debug_ifconfig("%s: rtnl_talk failed", __func__);
+		goto failed;
 	}
 
+	nlmsg_free(msg);
 	return 0;
+
+nla_put_failure:
+	ni_error("failed to encode netlink attr");
+failed:
+	nlmsg_free(msg);
+	return -1;
 }
 
 static inline int
-addattr_sockaddr(struct nlmsghdr *h, size_t size, int type, const ni_sockaddr_t *addr)
+addattr_sockaddr(struct nl_msg *msg, int type, const ni_sockaddr_t *addr)
 {
 	unsigned int offset, len;
 
 	if (!__ni_address_info(addr->ss_family, &offset, &len))
 		return -1;
 
-	return addattr_l(h, size, type, ((const caddr_t) addr) + offset, len);
+	return nla_put(msg, type, len, ((const caddr_t) addr) + offset);
 }
 
 static ni_address_t *
@@ -1053,109 +1083,118 @@ __ni_interface_address_exists(const ni_interface_t *ifp, const ni_address_t *ap)
 static int
 __ni_rtnl_send_newaddr(ni_handle_t *nih, ni_interface_t *ifp, const ni_address_t *ap, int flags)
 {
-	struct {
-		struct nlmsghdr	hdr;
-		struct ifaddrmsg ifa;
-		char		buffer[1024];
-	} req;
+	struct ifaddrmsg ifa;
+	struct nl_msg *msg;
 	int len;
 
 	ni_debug_ifconfig("%s(%s/%u)", __FUNCTION__, ni_address_print(&ap->local_addr), ap->prefixlen);
 
-	memset(&req, 0, sizeof(req));
-	req.ifa.ifa_index = ifp->ifindex;
-	req.ifa.ifa_family = ap->family;
-	req.ifa.ifa_prefixlen = ap->prefixlen;
-	req.hdr.nlmsg_len = NLMSG_LENGTH(sizeof(req.ifa));
-	req.hdr.nlmsg_flags = NLM_F_REQUEST | flags;
-	req.hdr.nlmsg_type = RTM_NEWADDR;
+	memset(&ifa, 0, sizeof(ifa));
+	ifa.ifa_index = ifp->ifindex;
+	ifa.ifa_family = ap->family;
+	ifa.ifa_prefixlen = ap->prefixlen;
 
-	if (addattr_sockaddr(&req.hdr, sizeof(req), IFA_LOCAL, &ap->local_addr))
-		return -1;
+	/* Handle ifa_scope */
+	if (ap->scope >= 0)
+		ifa.ifa_scope = ap->scope;
+	else if (ni_address_is_loopback(ap))
+		ifa.ifa_scope = RT_SCOPE_HOST;
+	else
+		ifa.ifa_scope = 0; /* aka global */
+
+	msg = nlmsg_alloc_simple(RTM_NEWADDR, flags);
+	if (nlmsg_append(msg, &ifa, sizeof(ifa), NLMSG_ALIGNTO) < 0)
+		goto nla_put_failure;
+
+	if (addattr_sockaddr(msg, IFA_LOCAL, &ap->local_addr))
+		goto nla_put_failure;
 
 	if (ap->peer_addr.ss_family != AF_UNSPEC) {
-		if (addattr_sockaddr(&req.hdr, sizeof(req), IFA_ADDRESS, &ap->peer_addr))
-			return -1;
+		if (addattr_sockaddr(msg, IFA_ADDRESS, &ap->peer_addr))
+			goto nla_put_failure;
 	} else {
-		if (addattr_sockaddr(&req.hdr, sizeof(req), IFA_ADDRESS, &ap->local_addr))
-			return -1;
+		if (addattr_sockaddr(msg, IFA_ADDRESS, &ap->local_addr))
+			goto nla_put_failure;
 	}
 
 	if (ap->bcast_addr.ss_family != AF_UNSPEC
-	 && addattr_sockaddr(&req.hdr, sizeof(req), IFA_BROADCAST, &ap->bcast_addr))
-		return -1;
+	 && addattr_sockaddr(msg, IFA_BROADCAST, &ap->bcast_addr))
+		goto nla_put_failure;
 
 	if (ap->anycast_addr.ss_family != AF_UNSPEC
-	 && addattr_sockaddr(&req.hdr, sizeof(req), IFA_ANYCAST, &ap->anycast_addr))
-		return -1;
+	 && addattr_sockaddr(msg, IFA_ANYCAST, &ap->anycast_addr))
+		goto nla_put_failure;
 
 	len = strlen(ap->label);
 	if (len) {
 		if (memcmp(ap->label, ifp->name, len) != 0) {
-			error("when specifying an interface label, the device name must "
+			ni_error("when specifying an interface label, the device name must "
 			   "be a prefix of the label");
-			return -1;
+			goto failed;
 		}
-		if (addattr_l(&req.hdr, sizeof(req), IFA_LABEL, ap->label, len + 1))
-			return -1;
+		NLA_PUT_STRING(msg, IFA_LABEL, ap->label);
 	}
 
-	/* Handle ifa_scope */
-	if (ap->scope >= 0)
-		req.ifa.ifa_scope = ap->scope;
-	else if (ni_address_is_loopback(ap))
-		req.ifa.ifa_scope = RT_SCOPE_HOST;
-	else
-		req.ifa.ifa_scope = 0; /* aka global */
-
-	if (ni_rtnl_talk(nih, &req.hdr) < 0) {
-		ni_error("%s(%s/%u): rtnl_talk failed", __FUNCTION__,
+	if (ni_nl_talk(nih, msg) < 0) {
+		ni_error("%s(%s/%u): ni_nl_talk failed", __func__,
 				ni_address_print(&ap->local_addr),
 				ap->prefixlen);
-		return -1;
+		goto failed;
 	}
 
+	nlmsg_free(msg);
 	return 0;
+
+nla_put_failure:
+	ni_error("failed to encode netlink attr");
+failed:
+	nlmsg_free(msg);
+	return -1;
 }
 
 static int
 __ni_rtnl_send_deladdr(ni_handle_t *nih, ni_interface_t *ifp, const ni_address_t *ap)
 {
-	struct {
-		struct nlmsghdr	hdr;
-		struct ifaddrmsg ifa;
-		char		buffer[1024];
-	} req;
+	struct ifaddrmsg ifa;
+	struct nl_msg *msg;
 
 	ni_debug_ifconfig("%s(%s/%u)", __FUNCTION__, ni_address_print(&ap->local_addr), ap->prefixlen);
 
-	memset(&req, 0, sizeof(req));
-	req.ifa.ifa_index = ifp->ifindex;
-	req.ifa.ifa_family = ap->family;
-	req.ifa.ifa_prefixlen = ap->prefixlen;
-	req.hdr.nlmsg_len = NLMSG_LENGTH(sizeof(req.ifa));
-	req.hdr.nlmsg_flags = NLM_F_REQUEST;
-	req.hdr.nlmsg_type = RTM_DELADDR;
+	memset(&ifa, 0, sizeof(ifa));
+	ifa.ifa_index = ifp->ifindex;
+	ifa.ifa_family = ap->family;
+	ifa.ifa_prefixlen = ap->prefixlen;
 
-	if (addattr_sockaddr(&req.hdr, sizeof(req), IFA_LOCAL, &ap->local_addr))
-		return -1;
+	msg = nlmsg_alloc_simple(RTM_DELADDR, 0);
+	if (nlmsg_append(msg, &ifa, sizeof(ifa), NLMSG_ALIGNTO) < 0)
+		goto nla_put_failure;
+
+	if (addattr_sockaddr(msg, IFA_LOCAL, &ap->local_addr))
+		goto nla_put_failure;
 
 	if (ap->peer_addr.ss_family != AF_UNSPEC) {
-		if (addattr_sockaddr(&req.hdr, sizeof(req), IFA_ADDRESS, &ap->peer_addr))
-			return -1;
+		if (addattr_sockaddr(msg, IFA_ADDRESS, &ap->peer_addr))
+			goto nla_put_failure;
 	} else {
-		if (addattr_sockaddr(&req.hdr, sizeof(req), IFA_ADDRESS, &ap->local_addr))
-			return -1;
+		if (addattr_sockaddr(msg, IFA_ADDRESS, &ap->local_addr))
+			goto nla_put_failure;
 	}
 
-	if (ni_rtnl_talk(nih, &req.hdr) < 0) {
-		ni_error("%s(%s/%u): rtnl_talk failed", __FUNCTION__,
+	if (ni_nl_talk(nih, msg) < 0) {
+		ni_error("%s(%s/%u): rtnl_talk failed", __func__,
 				ni_address_print(&ap->local_addr),
 				ap->prefixlen);
-		return -1;
+		goto failed;
 	}
 
+	nlmsg_free(msg);
 	return 0;
+
+nla_put_failure:
+	ni_error("failed to encode netlink attr");
+failed:
+	nlmsg_free(msg);
+	return -1;
 }
 
 /*
@@ -1164,55 +1203,21 @@ __ni_rtnl_send_deladdr(ni_handle_t *nih, ni_interface_t *ifp, const ni_address_t
 static int
 __ni_rtnl_send_newroute(ni_handle_t *nih, ni_interface_t *ifp, ni_route_t *rp, int flags)
 {
-	struct {
-		struct nlmsghdr hdr;
-		struct rtmsg rt;
-		char buffer[1024];
-	} req;
+	struct rtmsg rt;
+	struct nl_msg *msg;
 
 	ni_debug_ifconfig("%s(%s/%u)", __FUNCTION__, ni_address_print(&rp->destination), rp->prefixlen);
 
-	memset(&req, 0, sizeof(req));
+	memset(&rt, 0, sizeof(rt));
 
-	req.hdr.nlmsg_len = NLMSG_LENGTH(sizeof(struct rtmsg));
-	req.hdr.nlmsg_flags = NLM_F_REQUEST|flags;
-	req.hdr.nlmsg_type = RTM_NEWROUTE;
-	req.rt.rtm_family = rp->family;
-	req.rt.rtm_table = RT_TABLE_MAIN;
-	req.rt.rtm_protocol = RTPROT_BOOT;
-	req.rt.rtm_scope = RT_SCOPE_UNIVERSE;
-	req.rt.rtm_type = RTN_UNICAST;
-	req.rt.rtm_tos = rp->tos;
+	rt.rtm_family = rp->family;
+	rt.rtm_table = RT_TABLE_MAIN;
+	rt.rtm_protocol = RTPROT_BOOT;
+	rt.rtm_scope = RT_SCOPE_UNIVERSE;
+	rt.rtm_type = RTN_UNICAST;
+	rt.rtm_tos = rp->tos;
 
-	req.rt.rtm_dst_len = rp->prefixlen;
-
-	if (rp->destination.ss_family == AF_UNSPEC) {
-		/* default destination, just leave RTA_DST blank */
-	} else if (addattr_sockaddr(&req.hdr, sizeof(req), RTA_DST, &rp->destination))
-		return -1;
-
-	if (rp->nh.gateway.ss_family != AF_UNSPEC
-	 && addattr_sockaddr(&req.hdr, sizeof(req), RTA_GATEWAY, &rp->nh.gateway))
-		return -1;
-
-	addattr32(&req.hdr, sizeof(req), RTA_OIF, ifp->ifindex);
-
-	/* Add metrics if needed */
-	if (1) {
-		struct rtattr *mxrta;
-		char  mxbuf[256];
-
-		mxrta = (void*) mxbuf;
-		mxrta->rta_type = RTA_METRICS;
-		mxrta->rta_len = RTA_LENGTH(0);
-
-		if (rp->mtu)
-			rta_addattr32(mxrta, sizeof(mxbuf), RTAX_MTU, rp->mtu);
-
-		if (mxrta->rta_len > RTA_LENGTH(0)
-		 && addattr_l(&req.hdr, sizeof(req), RTA_METRICS, RTA_DATA(mxrta), RTA_PAYLOAD(mxrta)))
-			return -1;
-	}
+	rt.rtm_dst_len = rp->prefixlen;
 
 #ifdef notyet
 	if (req.rt.rtm_type == RTN_LOCAL ||
@@ -1241,60 +1246,100 @@ __ni_rtnl_send_newroute(ni_handle_t *nih, ni_interface_t *ifp, ni_route_t *rp, i
 	}
 #endif
 
-	if (ni_rtnl_talk(nih, &req.hdr) < 0) {
+	msg = nlmsg_alloc_simple(RTM_NEWROUTE, flags);
+	if (nlmsg_append(msg, &rt, sizeof(rt), NLMSG_ALIGNTO) < 0)
+		goto nla_put_failure;
+
+	if (rp->destination.ss_family == AF_UNSPEC) {
+		/* default destination, just leave RTA_DST blank */
+	} else if (addattr_sockaddr(msg, RTA_DST, &rp->destination))
+		goto nla_put_failure;
+
+	if (rp->nh.gateway.ss_family != AF_UNSPEC
+	 && addattr_sockaddr(msg, RTA_GATEWAY, &rp->nh.gateway))
+		goto nla_put_failure;
+
+	NLA_PUT_U32(msg, RTA_OIF, ifp->ifindex);
+
+	/* Add metrics if needed */
+	if (1) {
+		struct nlattr *mxrta;
+
+		mxrta = nla_nest_start(msg, RTA_METRICS);
+		if (mxrta == NULL)
+			goto nla_put_failure;
+
+		if (rp->mtu)
+			NLA_PUT_U32(msg, RTAX_MTU, rp->mtu);
+
+		nla_nest_end(msg, mxrta);
+	}
+
+	if (ni_nl_talk(nih, msg) < 0) {
 		error("%s(%s/%u): rtnl_talk failed", __FUNCTION__,
 				ni_address_print(&rp->destination),
 				rp->prefixlen);
-		return -1;
+		goto failed;
 	}
 
+	nlmsg_free(msg);
 	return 0;
+
+nla_put_failure:
+	ni_error("failed to encode netlink attr");
+failed:
+	nlmsg_free(msg);
+	return -1;
 }
 
 static int
 __ni_rtnl_send_delroute(ni_handle_t *nih, ni_interface_t *ifp, ni_route_t *rp)
 {
-	struct {
-		struct nlmsghdr hdr;
-		struct rtmsg rt;
-		char buffer[1024];
-	} req;
+	struct rtmsg rt;
+	struct nl_msg *msg;
 
 	ni_debug_ifconfig("%s(%s/%u)", __FUNCTION__, ni_address_print(&rp->destination), rp->prefixlen);
 
-	memset(&req, 0, sizeof(req));
+	memset(&rt, 0, sizeof(rt));
+	rt.rtm_family = rp->family;
+	rt.rtm_table = RT_TABLE_MAIN;
+	rt.rtm_protocol = RTPROT_BOOT;
+	rt.rtm_scope = RT_SCOPE_NOWHERE;
+	rt.rtm_type = RTN_UNICAST;
+	rt.rtm_tos = rp->tos;
 
-	req.hdr.nlmsg_len = NLMSG_LENGTH(sizeof(struct rtmsg));
-	req.hdr.nlmsg_flags = NLM_F_REQUEST;
-	req.hdr.nlmsg_type = RTM_DELROUTE;
-	req.rt.rtm_family = rp->family;
-	req.rt.rtm_table = RT_TABLE_MAIN;
-	req.rt.rtm_protocol = RTPROT_BOOT;
-	req.rt.rtm_scope = RT_SCOPE_NOWHERE;
-	req.rt.rtm_type = RTN_UNICAST;
-	req.rt.rtm_tos = rp->tos;
+	rt.rtm_dst_len = rp->prefixlen;
 
-	req.rt.rtm_dst_len = rp->prefixlen;
+	msg = nlmsg_alloc_simple(RTM_DELROUTE, 0);
+	if (nlmsg_append(msg, &rt, sizeof(rt), NLMSG_ALIGNTO) < 0)
+		goto nla_put_failure;
 
-	if (rp->destination.ss_family == AF_UNSPEC) {
-		/* default destination, just leave RTA_DST blank */
-	} else if (addattr_sockaddr(&req.hdr, sizeof(req), RTA_DST, &rp->destination))
-		return -1;
+	/* For the default route, just leave RTA_DST blank */
+	if (rp->destination.ss_family != AF_UNSPEC
+	 && addattr_sockaddr(msg, RTA_DST, &rp->destination))
+		goto nla_put_failure;
 
 	if (rp->nh.gateway.ss_family != AF_UNSPEC
-	 && addattr_sockaddr(&req.hdr, sizeof(req), RTA_GATEWAY, &rp->nh.gateway))
-		return -1;
+	 && addattr_sockaddr(msg, RTA_GATEWAY, &rp->nh.gateway))
+		goto nla_put_failure;
 
-	addattr32(&req.hdr, sizeof(req), RTA_OIF, ifp->ifindex);
+	NLA_PUT_U32(msg, RTA_OIF, ifp->ifindex);
 
-	if (ni_rtnl_talk(nih, &req.hdr) < 0) {
-		error("%s(%s/%u): rtnl_talk failed", __FUNCTION__,
+	if (ni_nl_talk(nih, msg) < 0) {
+		ni_error("%s(%s/%u): rtnl_talk failed", __FUNCTION__,
 				ni_address_print(&rp->destination),
 				rp->prefixlen);
-		return -1;
+		goto failed;
 	}
 
+	nlmsg_free(msg);
 	return 0;
+
+nla_put_failure:
+	ni_error("failed to encode netlink attr");
+failed:
+	nlmsg_free(msg);
+	return -1;
 }
 
 /*

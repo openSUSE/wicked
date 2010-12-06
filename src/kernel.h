@@ -39,12 +39,8 @@ extern int		__ni_brioctl_del_port(ni_handle_t *, const char *, unsigned int);
 extern int		__ni_wireless_get_name(ni_handle_t *, const ni_interface_t *, char *, size_t);
 extern int		__ni_wireless_get_essid(ni_handle_t *, const ni_interface_t *, char *, size_t);
 
-extern int		__ni_rta_get_addr(int, ni_sockaddr_t *, struct rtattr *);
-extern int		__ni_rta_get_string(char **, struct rtattr *);
-extern struct rtattr *	__ni_rta_find(struct rtattr *, size_t len, int type);
-extern struct rtattr *	__ni_rta_begin_nested(struct nlmsghdr *, size_t, int);
-extern struct rtattr *	__ni_rta_begin_linkinfo(struct nlmsghdr *, size_t, const char *);
-extern void		__ni_rta_end_nested(struct nlmsghdr *, struct rtattr *);
+extern int		__ni_nla_get_addr(int, ni_sockaddr_t *, struct nlattr *);
+extern struct nlattr *	__ni_nla_find(struct nlattr *, size_t len, int type);
 
 /*
  * Chain nlmsghdrs together.
@@ -65,12 +61,13 @@ typedef int	ni_rtnl_callback_t(ni_handle_t *,
 			void *arg);
 
 
+extern int	ni_nl_talk(ni_handle_t *, struct nl_msg *);
 extern int	ni_rtnl_talk(ni_handle_t *, struct nlmsghdr *);
 extern int	ni_rtnl_dump(struct ni_handle *nih, int type,
 			ni_rtnl_callback_t *junk_cb,
 			ni_rtnl_callback_t *filter_cb,
 			void *user_data);
-extern int	ni_rtnl_dump_store(struct ni_handle *nih, int af, int type,
+extern int	ni_nl_dump_store(struct ni_handle *nih, int af, int type,
 			struct ni_nlmsg_list *list);
 
 extern void	ni_nlmsg_list_init(struct ni_nlmsg_list *);
