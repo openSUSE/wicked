@@ -206,6 +206,7 @@ __ni_rtevent_newlink(ni_handle_t *nih, const struct sockaddr_nl *nladdr, struct 
 
 		/* Discard interface created by parsing new newlink event. */
 		ni_interface_put(ifp);
+		ifp = old;
 
 		if (flags_changed & NI_IFF_LINK_UP) {
 			if (new_flags & NI_IFF_LINK_UP)
