@@ -353,6 +353,12 @@ __ni_interface_begin_activity(ni_handle_t *nih, ni_interface_t *ifp, ni_interfac
 }
 
 int
+__ni_interface_check_activity(ni_handle_t *nih, ni_interface_t *ifp, ni_interface_activity_t activity)
+{
+	return !!(ifp->up_requesters & (1 << activity));
+}
+
+int
 __ni_interface_end_activity(ni_handle_t *nih, ni_interface_t *ifp, ni_interface_activity_t activity)
 {
 	if (ifp->up_requesters & (1 << activity)) {

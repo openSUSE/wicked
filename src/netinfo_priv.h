@@ -131,6 +131,7 @@ extern ni_addrconf_lease_t *__ni_interface_route_to_lease(ni_interface_t *, cons
 extern unsigned int	__ni_interface_translate_ifflags(unsigned int);
 extern int		__ni_interface_begin_activity(ni_handle_t *, ni_interface_t *, ni_interface_activity_t);
 extern int		__ni_interface_end_activity(ni_handle_t *, ni_interface_t *, ni_interface_activity_t);
+extern int		__ni_interface_check_activity(ni_handle_t *, ni_interface_t *, ni_interface_activity_t);
 
 #define __ni_interface_address_info(ifp, af) \
 	((af) == AF_INET? &((ifp)->ipv4) : \
