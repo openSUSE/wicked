@@ -502,6 +502,8 @@ ni_parse_int(const char *input, unsigned int *result)
 {
 	char *end;
 
+	if (!input)
+		return -1;
 	*result = strtoul(input, (char **) &end, 0);
 	if (*end == '\0')
 		return 0;
@@ -514,6 +516,8 @@ ni_parse_int_mapped(const char *input, const ni_intmap_t *map, unsigned int *res
 {
 	char *end;
 
+	if (!input)
+		return -1;
 	if (isdigit(input[0])) {
 		*result = strtoul(input, (char **) &end, 0);
 		if (*end == '\0')
@@ -548,6 +552,8 @@ ni_parse_double(const char *input, double *result)
 {
 	char *end;
 
+	if (!input)
+		return -1;
 	*result = strtod(input, (char **) &end);
 	if (*end == '\0')
 		return 0;
