@@ -111,6 +111,7 @@ extern int		ni_restore_file_from(const char *, const char *);
 extern int		ni_parse_int_mapped(const char *, const struct ni_intmap *, unsigned int *);
 extern int		ni_parse_int(const char *, unsigned int *);
 extern const char *	ni_format_int_mapped(unsigned int, const ni_intmap_t *);
+extern int		ni_parse_double(const char *, double *);
 
 extern const char *	ni_uuid_print(const ni_uuid_t *);
 extern int		ni_uuid_parse(ni_uuid_t *, const char *);

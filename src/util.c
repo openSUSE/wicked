@@ -543,8 +543,20 @@ ni_format_int_mapped(unsigned int value, const ni_intmap_t *map)
 	return NULL;
 }
 
+int
+ni_parse_double(const char *input, double *result)
+{
+	char *end;
+
+	*result = strtod(input, (char **) &end);
+	if (*end == '\0')
+		return 0;
+
+	return -1;
+}
+
 /*
- * strinbuf functions
+ * stringbuf functions
  */
 void
 ni_stringbuf_init(ni_stringbuf_t *sb)
