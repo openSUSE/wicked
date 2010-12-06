@@ -160,6 +160,9 @@ __ni_wireless_get_scan_results(ni_handle_t *nih, ni_interface_t *ifp)
 		goto failed;
 	}
 
+	/* We're done with this scan */
+	__ni_interface_end_activity(nih, ifp, NI_INTERFACE_WIRELESS_SCAN);
+
 	ni_buffer_init_reader(&evbuf, buffer, buflen);
 
 	scan = ni_wireless_scan_new();
