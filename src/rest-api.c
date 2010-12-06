@@ -759,9 +759,8 @@ static ni_rest_node_t	ni_rest_system_interface_stats_node = {
 };
 
 static int
-system_interface_scan_get(ni_wicked_request_t *req)
+system_interface_scan_put(ni_wicked_request_t *req)
 {
-	ni_syntax_t *xmlsyntax = ni_default_xml_syntax();
 	const char *ifname = req->argv[0];
 	ni_interface_t *ifp;
 	ni_handle_t *nih;
@@ -784,18 +783,37 @@ system_interface_scan_get(ni_wicked_request_t *req)
 		return -1;
 	}
 
-	/* For now, wait 250ms */
-	usleep(250000);
+	return 0;
+}
+
+static int
+system_interface_scan_get(ni_wicked_request_t *req)
+{
+	ni_syntax_t *xmlsyntax = ni_default_xml_syntax();
+	const char *ifname = req->argv[0];
+	ni_interface_t *ifp;
+	ni_handle_t *nih;
+
+	if (ifname == NULL) {
+		werror(req, "Missing interface name");
+		return -1;
+	}
+
+	if ((nih = system_handle(req)) == NULL)
+		return -1;
+
+	if (!(ifp = ni_interface_by_name(nih, ifname))) {
+		werror(req, "cannot find interface %s", ifname);
+		return -1;
+	}
 
 	ni_interface_get_scan_results(nih, ifp);
-
-	if (ifp->wireless_scan != NULL)
+	if (ifp->wireless_scan != NULL) {
 		req->xml_out = ni_syntax_xml_from_wireless_scan(xmlsyntax, nih, ifp->wireless_scan);
-	else
-		req->xml_out = xml_node_new(NULL, NULL);
-	if (!req->xml_out) {
-		werror(req, "could not generate xml");
-		return -1;
+		if (!req->xml_out) {
+			werror(req, "could not generate xml");
+			return -1;
+		}
 	}
 
 	return 0;
@@ -806,6 +824,7 @@ static ni_rest_node_t	ni_rest_system_interface_scan_node = {
 	.ops = {
 	    .byname = {
 		.get	= system_interface_scan_get,
+		.put	= system_interface_scan_put,
 	    },
 	},
 };
