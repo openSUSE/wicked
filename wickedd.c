@@ -118,7 +118,7 @@ main(int argc, char **argv)
 	if (optind != argc)
 		goto usage;
 
-	if ((sock = ni_server_listen()) < 0)
+	if ((sock = ni_server_listen()) == NULL)
 		ni_fatal("unable to initialize server socket");
 	ni_socket_set_accept_callback(sock, wicked_accept_connection);
 
