@@ -83,7 +83,8 @@ ni_resolver_write_resolv_conf(const char *filename, const ni_resolver_info_t *re
 	if (resolv->dns_search.count) {
 		fprintf(fp, "search");
 		for (i = 0; i < resolv->dns_search.count; ++i)
-			fprintf(fp, " %s\n", resolv->dns_search.data[i]);
+			fprintf(fp, " %s", resolv->dns_search.data[i]);
+		fprintf(fp, "\n");
 	}
 
 	fclose(fp);
