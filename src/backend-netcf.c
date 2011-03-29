@@ -56,6 +56,7 @@ static xml_node_t *	__ni_netcf_xml_from_interface_stats(ni_syntax_t *, ni_handle
 
 static xml_node_t *	__ni_netcf_xml_from_policy(ni_syntax_t *, const ni_policy_t *, xml_node_t *);
 static xml_node_t *	__ni_netcf_xml_from_ethernet(ni_syntax_t *, const ni_ethernet_t *, xml_node_t *);
+static xml_node_t *	__ni_netcf_xml_from_wireless(ni_syntax_t *, const ni_wireless_t *, xml_node_t *);
 static xml_node_t *	__ni_netcf_xml_from_wireless_scan(ni_syntax_t *, const ni_wireless_scan_t *, xml_node_t *);
 static xml_node_t *	__ni_netcf_xml_from_addrconf_req(ni_syntax_t *, const ni_addrconf_request_t *, xml_node_t *);
 static xml_node_t *	__ni_netcf_xml_from_lease(ni_syntax_t *, const ni_addrconf_lease_t *, xml_node_t *parent);
@@ -682,6 +683,8 @@ __ni_netcf_xml_from_interface(ni_syntax_t *syntax, ni_handle_t *nih,
 		__ni_netcf_xml_from_vlan(syntax, nih, ifp->vlan, ifnode);
 	if (ifp->ethernet)
 		__ni_netcf_xml_from_ethernet(syntax, ifp->ethernet, ifnode);
+	if (ifp->wireless)
+		__ni_netcf_xml_from_wireless(syntax, ifp->wireless, ifnode);
 
 	return ifnode;
 }
@@ -1713,6 +1716,69 @@ __ni_netcf_xml_to_ethernet(ni_syntax_t *syntax, const xml_node_t *node)
 	}
 
 	return ether;
+}
+
+/*
+ * Helper function for representing bitmaps
+ */
+static int
+__ni_netcf_xml_from_bitmap(xml_node_t *node, const char *name,
+				unsigned int bitmap,
+				const char *(*mapfunc)(unsigned int))
+{
+	unsigned int bit;
+
+	if (bitmap == 0)
+		return 0;
+
+	node = xml_node_new(name, node);
+	for (bit = 0; bit < 8 * sizeof(bitmap); ++bit) {
+		const char *bit_name;
+
+		if (!(bitmap & (1 << bit)))
+			continue;
+
+		if (!(bit_name = mapfunc(bit)))
+			continue;
+
+		xml_node_new(bit_name, node);
+	}
+	return 0;
+}
+
+/*
+ * Represent wireless interface info
+ */
+xml_node_t *
+__ni_netcf_xml_from_wireless(ni_syntax_t *syntax, const ni_wireless_t *wlan, xml_node_t *parent)
+{
+	xml_node_t *node, *child;
+
+	node = xml_node_new("wireless", parent);
+
+	child = xml_node_new("capabilities", node);
+	__ni_netcf_xml_from_bitmap(child, "eap-methods",
+			wlan->capabilities.eap_methods,
+			ni_wireless_eap_method_to_name);
+	__ni_netcf_xml_from_bitmap(child, "pairwise-ciphers",
+			wlan->capabilities.pairwise_ciphers,
+			ni_wireless_cipher_to_name);
+	__ni_netcf_xml_from_bitmap(child, "group-ciphers",
+			wlan->capabilities.group_ciphers,
+			ni_wireless_cipher_to_name);
+	__ni_netcf_xml_from_bitmap(child, "key-management",
+			wlan->capabilities.keymgmt_algos,
+			ni_wireless_key_management_to_name);
+#ifdef notyet
+	__ni_netcf_xml_from_bitmap(child, "auth-algos",
+			wlan->capabilities.auth_algos,
+			ni_wireless_auth_algo_to_name);
+#endif
+	__ni_netcf_xml_from_bitmap(child, "wpa-protocols",
+			wlan->capabilities.wpa_protocols,
+			ni_wireless_auth_mode_to_name);
+
+	return 0;
 }
 
 /*

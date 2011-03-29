@@ -28,6 +28,7 @@
 #include <wicked/addrconf.h>
 #include <wicked/bridge.h>
 #include <wicked/bonding.h>
+#include <wicked/wireless.h>
 #include <wicked/xml.h>
 
 #include "netinfo_priv.h"
@@ -657,6 +658,11 @@ __ni_interface_process_newlink(ni_interface_t *ifp, struct nlmsghdr *h,
 		__ni_discover_bridge(ifp);
 	if (ifp->type == NI_IFTYPE_BOND)
 		__ni_discover_bond(ifp);
+	if (ifp->type == NI_IFTYPE_WIRELESS) {
+		if (ni_wireless_interface_refresh(ifp) < 0)
+			ni_error("%s: failed to refresh wireless info", ifp->name);
+	}
+
 
 	/* Check if we have DHCP running for this interface */
 	__ni_discover_addrconf(nih, ifp);
