@@ -40,15 +40,7 @@
 #endif
 
 static ni_wireless_t *	ni_wireless_new(void);
-static void		__ni_wireless_end_scan(void *);
 static void		__ni_wireless_network_destroy(ni_wireless_network_t *net);
-
-struct ni_pending_scan {
-	ni_handle_t *	handle;
-	ni_interface_t *interface;
-
-	ni_wireless_network_array_t networks;
-};
 
 static ni_wpa_client_t *wpa_client;
 
@@ -83,7 +75,7 @@ ni_wireless_interface_refresh(ni_interface_t *ifp)
 }
 
 int
-__ni_wireless_retrieve_scan(ni_handle_t *nih, ni_interface_t *ifp)
+__ni_wireless_get_scan_results(ni_handle_t *nih, ni_interface_t *ifp)
 {
 	ni_wireless_scan_t *scan;
 	ni_wpa_interface_t *wif;
@@ -115,7 +107,6 @@ __ni_wireless_retrieve_scan(ni_handle_t *nih, ni_interface_t *ifp)
 int
 __ni_wireless_request_scan(ni_handle_t *nih, ni_interface_t *ifp)
 {
-	struct ni_pending_scan *helper;
 	ni_wireless_scan_t *scan;
 	ni_wpa_interface_t *wif;
 
@@ -154,51 +145,7 @@ __ni_wireless_request_scan(ni_handle_t *nih, ni_interface_t *ifp)
 	}
 
 	ni_debug_ifconfig("%s: requested wireless scan", ifp->name);
-
-	helper = xcalloc(1, sizeof(*helper));
-	helper->handle = nih;
-	helper->interface = ni_interface_get(ifp);
-
-	ni_timer_register(25000, __ni_wireless_end_scan, helper);
 	return 0;
-}
-
-void
-__ni_wireless_end_scan(void *data)
-{
-	struct ni_pending_scan *helper = data;
-	ni_interface_t *ifp = helper->interface;
-	ni_handle_t *nih = helper->handle;
-
-	ni_debug_ifconfig("%s() called", __func__);
-
-	if (wpa_client == NULL) {
-		ni_error("%s: internal error: wpa_client NULL", __func__);
-		return;
-	}
-
-	if (__ni_wireless_get_scan_results(nih, ifp) < 0)
-		ni_warn("%s: scan failed", ifp->name);
-	__ni_interface_end_activity(nih, ifp, NI_INTERFACE_WIRELESS_SCAN);
-
-	ni_interface_put(helper->interface);
-	free(helper);
-}
-
-int
-__ni_wireless_get_scan_results(ni_handle_t *nih, ni_interface_t *ifp)
-{
-#if 0
-	if (!__ni_interface_check_activity(nih, ifp, NI_INTERFACE_WIRELESS_SCAN))
-		return 0;
-#endif
-
-	ni_debug_ifconfig("%s(%s)", __func__, ifp->name);
-
-	/* We're done with this scan */
-	__ni_interface_end_activity(nih, ifp, NI_INTERFACE_WIRELESS_SCAN);
-
-	return __ni_wireless_retrieve_scan(nih, ifp);
 }
 
 /*
