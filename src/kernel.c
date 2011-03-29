@@ -19,6 +19,9 @@
 #include <linux/sockios.h>
 #include <netlink/msg.h>
 #include <netlink/route/rtnl.h>
+#include <netlink/genl/genl.h>
+#include <netlink/genl/ctrl.h>
+#include <netlink/genl/family.h>
 
 #include "netinfo_priv.h"
 #include "sysfs.h"
@@ -200,6 +203,49 @@ __ni_nla_get_addr(int af, ni_sockaddr_t *ss, struct nlattr *nla)
 	return 0;
 }
 
+/*
+ * Open netlink handle; usually for rtnetlink
+ */
+ni_netlink_t *
+__ni_netlink_open(int protocol)
+{
+	ni_netlink_t *nl;
+
+	nl = xcalloc(1, sizeof(*nl));
+	nl->nl_cb = nl_cb_alloc(NL_CB_DEFAULT);
+	if (nl->nl_cb == NULL) {
+		ni_error("nl_cb_alloc failed");
+		goto failed;
+	}
+
+	nl->nl_handle = nl_handle_alloc_cb(nl->nl_cb);
+	if (nl_connect(nl->nl_handle, protocol) < 0) {
+		ni_error("nl_connect failed: %m");
+		goto failed;
+	}
+
+	return nl;
+
+failed:
+	__ni_netlink_close(nl);
+	return NULL;
+}
+
+void
+__ni_netlink_close(ni_netlink_t *nl)
+{
+	if (nl->nl_family)
+		genl_family_put(nl->nl_family);
+	if (nl->nl_cache)
+		nl_cache_free(nl->nl_cache);
+	if (nl->nl_handle)
+		nl_handle_destroy(nl->nl_handle);
+	if (nl->nl_cb)
+		nl_cb_put(nl->nl_cb);
+
+	free(nl);
+}
+
 static int
 __ni_nl_ack_handler(struct nl_msg *msg, void *arg)
 {
@@ -215,17 +261,33 @@ __ni_nl_error_handler(struct sockaddr_nl *sender, struct nlmsgerr *err, void *ar
 	return NL_STOP;
 }
 
+static struct nl_cb *
+__ni_nl_cb_clone(ni_netlink_t *nl)
+{
+	struct nl_cb *cb, *ocb;
+
+	if ((cb = nl->nl_cb) != NULL) {
+		cb = nl_cb_clone(cb);
+	} else {
+		ocb = nl_socket_get_cb(nl->nl_handle);
+		cb = nl_cb_clone(ocb);
+		nl_cb_put(ocb);
+	}
+	return cb;
+}
+
 /*
  * Handle a message exchange with the netlink layer.
  */
 int
-ni_nl_talk(ni_handle_t *nih, struct nl_msg *msg)
+__ni_nl_talk(ni_netlink_t *nl, struct nl_msg *msg,
+		int (*valid_handler)(struct nl_msg *, void *), void *user_data)
 {
 	struct nl_handle *handle;
-	struct nl_cb *cb, *ocb;
+	struct nl_cb *cb;
 	int err = 0;
 
-	if (!nih->netlink || !(handle = nih->netlink->nl_handle)) {
+	if (!(handle = nl->nl_handle)) {
 		ni_error("%s: no netlink handle", __func__);
 		return -1;
 	}
@@ -235,21 +297,17 @@ ni_nl_talk(ni_handle_t *nih, struct nl_msg *msg)
 		return -1;
 	}
 
-	ocb = nl_socket_get_cb(handle);
-	cb = nl_cb_clone(ocb);
-	nl_cb_put(ocb);
-
-	if (!cb)
+	if (!(cb = __ni_nl_cb_clone(nl)))
 		return -1;
 
 	nl_cb_err(cb, NL_CB_CUSTOM, __ni_nl_error_handler, &err);
 	nl_cb_set(cb, NL_CB_ACK, NL_CB_CUSTOM, __ni_nl_ack_handler, &err);
 #if 0
 	nl_cb_set(cb, NL_CB_FINISH, NL_CB_CUSTOM, finish_handler, &err);
+#endif
 
 	if (valid_handler)
-		nl_cb_set(cb, NL_CB_VALID, NL_CB_CUSTOM, valid_handler, valid_data);
-#endif
+		nl_cb_set(cb, NL_CB_VALID, NL_CB_CUSTOM, valid_handler, user_data);
 
 	if ((err = nl_recvmsgs(handle, cb)) < 0) {
 		ni_error("%s: recv failed: %s", __func__, nl_geterror());
@@ -261,6 +319,20 @@ ni_nl_talk(ni_handle_t *nih, struct nl_msg *msg)
 	return err;
 }
 
+int
+ni_nl_talk(ni_handle_t *nih, struct nl_msg *msg)
+{
+	if (!nih->netlink) {
+		ni_error("%s: no netlink handle", __func__);
+		return -1;
+	}
+
+	return __ni_nl_talk(nih->netlink, msg, NULL, NULL);
+}
+
+/*
+ * Helper functions for storing all netlink responses in a list
+ */
 struct __ni_nl_dump_state {
 	ni_handle_t *		nih;
 	int			msg_type;
@@ -339,17 +411,20 @@ __ni_nl_dump_valid(struct nl_msg *msg, void *p)
 	return 0;
 }
 
+/*
+ * Issue a DUMP request and store all replies in list
+ */
 int
 ni_nl_dump_store(ni_handle_t *nih, int af, int type,
 			struct ni_nlmsg_list *list)
 {
 	struct nl_handle *handle;
-	struct nl_cb *cb, *ocb;
 	struct __ni_nl_dump_state data = {
 		.nih = nih,
 		.msg_type = -1,
 		.list = list,
 	};
+	struct nl_cb *cb;
 
 	if (!nih->netlink || !(handle = nih->netlink->nl_handle)) {
 		ni_error("%s: no netlink handle", __func__);
@@ -361,11 +436,7 @@ ni_nl_dump_store(ni_handle_t *nih, int af, int type,
 		return -1;
 	}
 
-	ocb = nl_socket_get_cb(handle);
-	cb = nl_cb_clone(ocb);
-	nl_cb_put(ocb);
-
-	if (!cb)
+	if (!(cb = __ni_nl_cb_clone(nih->netlink)))
 		return -1;
 
 	nl_cb_set(cb, NL_CB_VALID, NL_CB_CUSTOM, __ni_nl_dump_valid, &data);
