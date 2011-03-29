@@ -132,6 +132,9 @@ ni_opaque_set(ni_opaque_t *obj, const void *data, size_t len)
 	obj->len = len;
 }
 
+extern ni_opaque_t *	ni_opaque_new(const void *data, size_t len);
+extern void		ni_opaque_free(ni_opaque_t *);
+
 /*
  * Helper function to do strcmp with NULL pointer check
  */

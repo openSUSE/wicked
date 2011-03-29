@@ -1122,3 +1122,27 @@ xstrdup(const char *string)
 		ni_fatal("allocation failed strdup(%s): %m", string);
 	return p;
 }
+
+ni_opaque_t *
+ni_opaque_new(const void *data, size_t len)
+{
+	ni_opaque_t *opaq;
+
+	if (len > sizeof(opaq->data)) {
+		ni_error("%s: data too large for buffer (len=%lu)",
+				__FUNCTION__, (long) len);
+		return NULL;
+	}
+
+	opaq = calloc(1, sizeof(*opaq));
+	memcpy(opaq->data, data, len);
+	opaq->len = len;
+
+	return opaq;
+}
+
+void
+ni_opaque_free(ni_opaque_t *opaq)
+{
+	free(opaq);
+}
