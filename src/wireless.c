@@ -377,6 +377,42 @@ ni_wireless_key_management_to_name(ni_wireless_key_mgmt_t mode)
 	return ni_format_int_mapped(mode, __ni_wireless_key_mgmt_names);
 }
 
+static ni_intmap_t __ni_wireless_eap_method_names[] = {
+	{ "md5",	NI_WIRELESS_EAP_MD5	},
+	{ "tls",	NI_WIRELESS_EAP_TLS	},
+	{ "mschapv2",	NI_WIRELESS_EAP_MSCHAPV2},
+	{ "peap",	NI_WIRELESS_EAP_PEAP	},
+	{ "ttls",	NI_WIRELESS_EAP_TTLS	},
+	{ "gtc",	NI_WIRELESS_EAP_GTC	},
+	{ "otp",	NI_WIRELESS_EAP_OTP	},
+	{ "leap",	NI_WIRELESS_EAP_LEAP	},
+	{ "psk",	NI_WIRELESS_EAP_PSK	},
+	{ "pax",	NI_WIRELESS_EAP_PAX	},
+	{ "sake",	NI_WIRELESS_EAP_SAKE	},
+	{ "gpsk",	NI_WIRELESS_EAP_GPSK	},
+	{ "wsc",	NI_WIRELESS_EAP_WSC	},
+	{ "ikev2",	NI_WIRELESS_EAP_IKEV2	},
+	{ "tnc",	NI_WIRELESS_EAP_TNC	},
+
+	{ NULL }
+};
+
+const char *
+ni_wireless_eap_method_to_name(ni_wireless_eap_method_t mode)
+{
+	return ni_format_int_mapped(mode, __ni_wireless_eap_method_names);
+}
+
+ni_wireless_eap_method_t
+ni_wireless_name_to_eap_method(const char *string)
+{
+	unsigned int value;
+
+	if (ni_parse_int_mapped(string, __ni_wireless_eap_method_names, &value) < 0)
+		return -1;
+	return value;
+}
+
 /*
  * Key index is 1-based.
  */
@@ -518,7 +554,7 @@ __ni_wireless_process_wpa2(ni_wireless_network_t *net, void *ptr, size_t len)
 	return __ni_wireless_process_wpa_common(net, &data, NI_WIRELESS_AUTH_WPA2, wpa2_oui);
 }
 
-static inline int
+int
 __ni_wireless_process_ie(ni_wireless_network_t *net, void *ptr, size_t len)
 {
 	ni_buffer_t data;
@@ -526,7 +562,7 @@ __ni_wireless_process_ie(ni_wireless_network_t *net, void *ptr, size_t len)
 	ni_buffer_init_reader(&data, ptr, len);
 	while (ni_buffer_count(&data) >= 2) {
 		unsigned char type, len;
-		int rv;
+		int rv = -1;
 
 		if (ni_buffer_get(&data, &type, 1) < 0
 		 || ni_buffer_get(&data, &len, 1) < 0)
@@ -545,6 +581,10 @@ __ni_wireless_process_ie(ni_wireless_network_t *net, void *ptr, size_t len)
 		case 0x30:
 			rv = __ni_wireless_process_wpa2(net, ptr, len);
 			break;
+
+		default:
+			ni_debug_wireless("Skipping unsupported Informaton Element 0x%02x", type);
+			continue;
 		}
 		if (rv < 0)
 			return -1;

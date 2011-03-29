@@ -38,10 +38,29 @@ typedef enum ni_wireless_cipher {
 
 typedef enum ni_wireless_key_mgmt {
 	NI_WIRELESS_KEY_MGMT_NONE,
+	NI_WIRELESS_KEY_MGMT_EAP,
 	NI_WIRELESS_KEY_MGMT_PSK,
 	NI_WIRELESS_KEY_MGMT_802_1X,
 	NI_WIRELESS_KEY_MGMT_PROPRIETARY,
 } ni_wireless_key_mgmt_t;
+
+typedef enum ni_wireless_eap_method {
+	NI_WIRELESS_EAP_MD5,
+	NI_WIRELESS_EAP_TLS,
+	NI_WIRELESS_EAP_MSCHAPV2,
+	NI_WIRELESS_EAP_PEAP,
+	NI_WIRELESS_EAP_TTLS,
+	NI_WIRELESS_EAP_GTC,
+	NI_WIRELESS_EAP_OTP,
+	NI_WIRELESS_EAP_LEAP,
+	NI_WIRELESS_EAP_PSK,
+	NI_WIRELESS_EAP_PAX,
+	NI_WIRELESS_EAP_SAKE,
+	NI_WIRELESS_EAP_GPSK,
+	NI_WIRELESS_EAP_WSC,
+	NI_WIRELESS_EAP_IKEV2,
+	NI_WIRELESS_EAP_TNC,
+} ni_wireless_eap_method_t;
 
 /*
  * The wireless auth stuff should probably go to its own header
@@ -105,7 +124,19 @@ struct ni_wireless_network {
 	} bitrates;
 };
 
+typedef struct ni_wireless_interface_capabilities {
+	unsigned int		eap_methods;
+	unsigned int		pairwise_ciphers;
+	unsigned int		group_ciphers;
+	unsigned int		keymgmt_algos;
+	unsigned int		auth_algos;
+	unsigned int		wpa_protocols;
+} ni_wireless_interface_capabilities_t;
+
 struct ni_wireless {
+	ni_wireless_interface_capabilities_t capabilities;
+
+	/* Association information */
 	ni_wireless_network_t	network;
 	ni_hwaddr_t		access_point;
 };
@@ -115,12 +146,21 @@ typedef struct ni_wireless_network_array {
 	ni_wireless_network_t **data;
 } ni_wireless_network_array_t;
 
+
+#define NI_WIRELESS_SCAN_MAX_AGE	600
+
 struct ni_wireless_scan {
+	/* Time in seconds after which we forget BSSes */
+	unsigned int		max_age;
+
 	time_t			timestamp;
 	time_t			lifetime;
 	ni_wireless_network_array_t networks;
+
+	void *			pending;
 };
 
+extern int		ni_wireless_interface_refresh(ni_interface_t *);
 extern ni_wireless_network_t *ni_wireless_network_new(void);
 extern void		ni_wireless_free(ni_wireless_t *);
 extern ni_wireless_scan_t *ni_wireless_scan_new(void);
@@ -148,5 +188,7 @@ extern const char *	ni_wireless_cipher_to_name(ni_wireless_cipher_t);
 extern ni_wireless_cipher_t ni_wireless_name_to_cipher(const char *);
 extern const char *	ni_wireless_key_management_to_name(ni_wireless_key_mgmt_t);
 extern ni_wireless_key_mgmt_t ni_wireless_name_to_key_management(const char *);
+extern const char *	ni_wireless_eap_method_to_name(ni_wireless_eap_method_t);
+extern ni_wireless_eap_method_t ni_wireless_name_to_eap_method(const char *);
 
 #endif /* __WICKED_WIRELESS_H__ */
