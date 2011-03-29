@@ -351,6 +351,7 @@ extern int		ni_link_address_parse(ni_hwaddr_t *, unsigned int, const char *);
 extern int		ni_link_address_equal(const ni_hwaddr_t *, const ni_hwaddr_t *);
 extern unsigned int	ni_link_address_length(int);
 extern int		ni_link_address_get_broadcast(int, ni_hwaddr_t *);
+extern int		ni_link_address_set(ni_hwaddr_t *, int iftype, const void *data, size_t len);
 
 extern ni_route_t *	ni_route_new(ni_handle_t *, unsigned int prefix_len,
 				const ni_sockaddr_t *dest,

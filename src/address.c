@@ -483,6 +483,23 @@ ni_link_address_format(const ni_hwaddr_t *hwa, char *abuf, size_t len)
 }
 
 int
+ni_link_address_set(ni_hwaddr_t *hwa, int iftype, const void *data, size_t len)
+{
+	memset(hwa, 0, sizeof(*hwa));
+	if (len > NI_MAXHWADDRLEN) {
+		ni_error("%s: link address too long (len = %lu)",
+				__FUNCTION__, (long) len);
+		return -1;
+	}
+
+	memcpy(hwa->data, data, len);
+	hwa->type = iftype;
+	hwa->len = len;
+
+	return 0;
+}
+
+int
 ni_link_address_parse(ni_hwaddr_t *hwa, unsigned int type, const char *string)
 {
 	int len;
