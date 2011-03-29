@@ -60,4 +60,14 @@ extern unsigned int	ni_debug;
 		} \
 	} while (0)
 
+#define __ni_string(x) #x
+#define ni_assert(stmt) \
+	do { \
+		if (!(stmt)) { \
+			ni_error("Assertion failed: %s, line %u: %s", \
+					__FILE__, __LINE__, __ni_string(stmt)); \
+			abort(); \
+		} \
+	} while(0)
+
 #endif /* __WICKED_LOGGING_H__ */
