@@ -724,7 +724,7 @@ static dbus_bool_t __ni_dbus_dict_entry_get_string_array(
 		entry->strarray_value = buffer;
 
 		dbus_message_iter_get_basic(iter, &value);
-		str = strdup(value);
+		str = xstrdup(value);
 		if (str == NULL) {
 			perror("__ni_dbus_dict_entry_get_string_array[dbus] "
 			       "out of memory trying to duplicate the string "
@@ -789,7 +789,7 @@ static dbus_bool_t __ni_dbus_dict_fill_value_from_variant(
 	case DBUS_TYPE_STRING: {
 		const char *v;
 		dbus_message_iter_get_basic(iter_dict_val, &v);
-		entry->str_value = strdup(v);
+		entry->str_value = xstrdup(v);
 		break;
 	}
 	case DBUS_TYPE_BOOLEAN: {
@@ -849,7 +849,7 @@ static dbus_bool_t __ni_dbus_dict_fill_value_from_variant(
 	case DBUS_TYPE_OBJECT_PATH: {
 		char *v;
 		dbus_message_iter_get_basic(iter_dict_val, &v);
-		entry->str_value = strdup(v);
+		entry->str_value = xstrdup(v);
 		break;
 	}
 	case DBUS_TYPE_ARRAY: {

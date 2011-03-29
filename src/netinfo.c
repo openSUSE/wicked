@@ -879,8 +879,8 @@ ni_interface_clone(const ni_interface_t *ofp)
 	C(metric);
 	C(txqlen);
 	C(master);
-	D(qdisc, strdup);
-	D(kind, strdup);
+	D(qdisc, xstrdup);
+	D(kind, xstrdup);
 	C(ipv4.enabled);
 	C(ipv4.forwarding);
 	C(ipv4.addrconf);

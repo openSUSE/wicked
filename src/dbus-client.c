@@ -419,7 +419,7 @@ ni_dbus_message_extract(ni_dbus_client_t *dbus, ni_dbus_message_t *reply, ...)
 		case DBUS_TYPE_STRING:
 		case DBUS_TYPE_OBJECT_PATH:
 			if (data && *data)
-				*data = strdup(*data);
+				*data = xstrdup(*data);
 			break;
 		}
 
@@ -550,7 +550,7 @@ ni_dbus_call_simple(ni_dbus_client_t *dbc, const ni_dbus_object_t *dbo, const ch
 		char **res_string = (char **) res_ptr;
 
 		if (*res_string)
-			*res_string = strdup(*res_string);
+			*res_string = xstrdup(*res_string);
 	}
 
 out:

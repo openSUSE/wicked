@@ -100,7 +100,7 @@ __ni_syntax_netcf(const char *pathname)
 
 	syntax = calloc(1, sizeof(ni_syntax_t));
 	syntax->schema = "netcf";
-	syntax->base_path = pathname? strdup(pathname) : NULL;
+	syntax->base_path = xstrdup(pathname);
 	syntax->xml_from_interface = __ni_netcf_xml_from_interface;
 	syntax->xml_to_interface = __ni_netcf_xml_to_interface;
 	syntax->xml_from_interface_stats = __ni_netcf_xml_from_interface_stats;
@@ -358,7 +358,7 @@ __ni_netcf_xml_to_vlan(ni_syntax_t *syntax, ni_handle_t *nih,
 		error("VLAN interface %s: vlan interface element has no name attribute", ifp->name);
 		return -1;
 	}
-	vlan->interface_name = strdup(attrval);
+	vlan->interface_name = xstrdup(attrval);
 
 	return 0;
 }

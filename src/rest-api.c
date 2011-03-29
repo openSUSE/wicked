@@ -1557,7 +1557,7 @@ ni_rest_node_lookup(ni_rest_node_t *root, const char *path, ni_wicked_request_t 
 	ni_rest_node_t *node = root;
 	char *copy, *pos;
 
-	copy = pos = strdup(path);
+	copy = pos = xstrdup(path);
 	while (*pos) {
 		ni_rest_node_t *child;
 		char *comp;

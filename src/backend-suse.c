@@ -73,7 +73,7 @@ __ni_syntax_sysconfig_suse(const char *pathname)
 	syntax = calloc(1, sizeof(ni_syntax_t));
 
 	syntax->schema = "suse";
-	syntax->base_path = strdup(pathname);
+	syntax->base_path = xstrdup(pathname);
 	syntax->get_interfaces = __ni_suse_get_interfaces;
 	syntax->put_interfaces = __ni_suse_put_interfaces;
 
@@ -401,7 +401,7 @@ __get_ipaddr(ni_interface_t *ifp, ni_sysconfig_t *sc, const char *suffix)
 	if (!var)
 		return NULL;
 
-	address_string = strdup(var->value);
+	address_string = xstrdup(var->value);
 	if ((sp = strchr(address_string, '/')) != NULL) {
 		*sp++ = '\0';
 		prefix_len = strtoul(sp, NULL, 0);

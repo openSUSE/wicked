@@ -24,6 +24,7 @@
 #include <stdlib.h>
 
 #include <wicked/xml.h>
+#include "util_priv.h"
 
 xml_document_t *
 xml_document_new()
@@ -80,7 +81,7 @@ xml_node_new(const char *ident, xml_node_t *parent)
 
 	node = calloc(1, sizeof(xml_node_t));
 	if (ident)
-		node->name = strdup(ident);
+		node->name = xstrdup(ident);
 
 	if (parent) {
 		xml_node_t **tail, *np;

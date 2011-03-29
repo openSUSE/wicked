@@ -25,7 +25,7 @@ ni_vlan_clone(const ni_vlan_t *src)
 
 	dst->tag = src->tag;
 	if (src->interface_name
-	 && !(dst->interface_name = strdup(src->interface_name)))
+	 && !(dst->interface_name = xstrdup(src->interface_name)))
 		goto failed;
 
 	return dst;

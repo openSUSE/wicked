@@ -133,7 +133,7 @@ ni_config_parse(const char *filename)
 			char *copy, *sp;
 
 			ni_stringbuf_clear(&sbuf);
-			copy = strdup(ex->name);
+			copy = xstrdup(ex->name);
 			for (sp = strtok(copy, "."); sp; sp = strtok(NULL, ".")) {
 				ni_stringbuf_putc(&sbuf, '/');
 				ni_stringbuf_puts(&sbuf, sp);
@@ -327,7 +327,7 @@ ni_config_parse_extensions(ni_extension_t **list, xml_node_t *node, const char *
 		if ((attrval = xml_node_get_attr(node, "family")) != NULL) {
 			char *copy, *s;
 
-			copy = strdup(attrval);
+			copy = xstrdup(attrval);
 			for (s = strtok(copy, ","); s; s = strtok(NULL, ",")) {
 				if (!strcmp(s, "ipv4"))
 					ex->supported_af |= NI_AF_MASK_IPV4;

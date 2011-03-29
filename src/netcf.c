@@ -27,6 +27,7 @@
 #include <netcf.h>
 #include <wicked/netinfo.h>
 #include <wicked/xml.h>
+#include "util_priv.h"
 
 typedef struct netcf_ifinfo {
 	ni_handle_t *		handle;		/* netinfo handle */
@@ -198,14 +199,14 @@ __ncf_list_interfaces(struct netcf *ncf, unsigned int flags,
 
 			state = ni_interface_network_is_up(cur)? NETCF_IFACE_ACTIVE : NETCF_IFACE_INACTIVE;
 			if (count < maxnames && (flags & state))
-				result[count++] = strdup(cur->name);
+				result[count++] = xstrdup(cur->name);
 		}
 	} else {
 		ni_handle_t *nih = ncf->config.handle;
 
 		for (ifp = ni_interface_first(nih, &pos); ifp; ifp = ni_interface_next(nih, &pos)) {
 			if (count < maxnames)
-				result[count++] = strdup(ifp->name);
+				result[count++] = xstrdup(ifp->name);
 		}
 	}
 

@@ -48,7 +48,7 @@ __ni_dhcp_addrconf_do(const ni_addrconf_t *acm, ni_interface_t *ifp, const xml_n
 	snprintf(pathbuf, sizeof(pathbuf), "/interface/%s", ifp->name);
 	ni_wicked_request_init(&req);
 	req.cmd = NI_REST_OP_PUT;
-	req.path = strdup(pathbuf);
+	req.path = xstrdup(pathbuf);
 
 	req.xml_in = cfg_xml;
 	if (req.xml_in == NULL) {

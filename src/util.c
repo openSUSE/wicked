@@ -20,6 +20,7 @@
 
 #include <wicked/util.h>
 #include <wicked/logging.h>
+#include "util_priv.h"
 
 #define NI_STRINGARRAY_CHUNK	16
 
@@ -345,7 +346,7 @@ ni_var_array_set(ni_var_array_t *nva, const char *name, const char *value)
 		}
 
 		var = &nva->data[nva->count++];
-		var->name = strdup(name);
+		var->name = xstrdup(name);
 		var->value = NULL;
 	}
 
@@ -364,7 +365,7 @@ ni_var_array_get_string(ni_var_array_t *nva, const char *name, char **p)
 	}
 
 	if ((var = ni_var_array_get(nva, name)) != NULL)
-		*p = strdup(var->value);
+		*p = xstrdup(var->value);
 	return 0;
 }
 
@@ -479,7 +480,7 @@ ni_string_dup(char **pp, const char *value)
 {
 	if (*pp)
 		free(*pp);
-	*pp = value? strdup(value) : NULL;
+	*pp = value? xstrdup(value) : NULL;
 }
 
 void
@@ -1134,7 +1135,7 @@ ni_opaque_new(const void *data, size_t len)
 		return NULL;
 	}
 
-	opaq = calloc(1, sizeof(*opaq));
+	opaq = xcalloc(1, sizeof(*opaq));
 	memcpy(opaq->data, data, len);
 	opaq->len = len;
 

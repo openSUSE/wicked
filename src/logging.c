@@ -12,6 +12,7 @@
 
 #include <wicked/logging.h>
 #include <wicked/util.h>
+#include "util_priv.h"
 
 #define NI_TRACE_MOST	~(NI_TRACE_XPATH | NI_TRACE_WICKED_XML | NI_TRACE_DBUS)
 #define NI_TRACE_ALL	~0U
@@ -90,7 +91,7 @@ ni_enable_debug(const char *fac)
 	char *copy, *s;
 	int rv = 0;
 
-	copy = strdup(fac);
+	copy = xstrdup(fac);
 	for (s = strtok(copy, ","); s; s = strtok(NULL, ",")) {
 		unsigned int flags = 0;
 		int not = 0;

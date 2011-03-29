@@ -61,7 +61,7 @@ __ni_syntax_sysconfig_redhat(const char *pathname)
 	syntax = calloc(1, sizeof(ni_syntax_t));
 
 	syntax->schema = "redhat";
-	syntax->base_path = strdup(pathname);
+	syntax->base_path = xstrdup(pathname);
 	syntax->get_interfaces = __ni_redhat_get_interfaces;
 	syntax->put_interfaces = __ni_redhat_put_interfaces;
 

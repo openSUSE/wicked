@@ -93,13 +93,13 @@ ni_bonding_clone(const ni_bonding_t *src)
 					goto failed; \
 			} \
 		} while (0)
-	D(module_opts, strdup);
+	D(module_opts, xstrdup);
 	C(mode);
 	C(monitoring);
 	C(arpmon);
 	C(miimon);
-	D(primary, strdup);
-	D(extra_options, strdup);
+	D(primary, xstrdup);
+	D(extra_options, xstrdup);
 
 	if (ni_string_array_copy(&dst->slave_names, &src->slave_names) < 0)
 		goto failed;
@@ -337,7 +337,7 @@ ni_bonding_parse_module_options(ni_bonding_t *bonding)
 	if (!bonding->module_opts)
 		return;
 
-	temp = strdup(bonding->module_opts);
+	temp = xstrdup(bonding->module_opts);
 	for (s = strtok_r(temp, " \t", &saveptr); s; s = strtok_r(NULL, " \t", &saveptr)) {
 		int rv;
 

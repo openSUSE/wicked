@@ -14,6 +14,7 @@
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
 #include "sysconfig.h"
+#include "util_priv.h"
 
 static int	unquote(char *);
 static char *	quote(char *);
@@ -30,7 +31,7 @@ ni_sysconfig_new(const char *pathname)
 	ni_sysconfig_t *sc;
 
 	sc = calloc(1, sizeof(ni_sysconfig_t));
-	sc->pathname = pathname? strdup(pathname) : NULL;
+	sc->pathname = xstrdup(pathname);
 
 	return sc;
 }
@@ -329,7 +330,7 @@ quote(char *string)
 		return string;
 
 	/* For now, just remove ticks. We don't want them */
-	quoted = strdup(string);
+	quoted = xstrdup(string);
 	while ((s = strchr(quoted, '\'')) != NULL)
 		*s = ' ';
 	return quoted;

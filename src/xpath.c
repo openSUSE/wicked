@@ -174,7 +174,7 @@ xml_xpath_eval_string(xml_document_t *doc, xml_node_t *xn, const char *expr)
 	if (!xresult)
 		return NULL;
 	if (xresult->type == XPATH_STRING && xresult->count)
-		result = strdup(xresult->node[0].value.string);
+		result = xstrdup(xresult->node[0].value.string);
 	xpath_result_free(xresult);
 
 	return result;
@@ -591,10 +591,10 @@ __xpath_node_array_print_short(const xpath_result_t *na)
 	unsigned int n;
 
 	if (na->type == XPATH_BOOLEAN)
-		return strdup(__xpath_test_boolean(na)? "[true]" : "[false]");
+		return xstrdup(__xpath_test_boolean(na)? "[true]" : "[false]");
 
 	if (na->count == 0)
-		return strdup("[]");
+		return xstrdup("[]");
 
 	ni_stringbuf_init(&buf);
 	ni_stringbuf_putc(&buf, '[');
@@ -1661,7 +1661,7 @@ xpath_result_append_string(xpath_result_t *na, const char *string)
 	xpath_node_t *xpn;
 
 	xpn = __xpath_node_array_append(na, XPATH_STRING);
-	xpn->value.string = strdup(string);
+	xpn->value.string = xstrdup(string);
 }
 
 void

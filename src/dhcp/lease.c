@@ -11,6 +11,7 @@
 #include <wicked/netinfo.h>
 #include <wicked/addrconf.h>
 #include <wicked/xml.h>
+#include "util_priv.h"
 
 static void		__ni_dhcp_put_string(xml_node_t *, const char *, const char *);
 static void		__ni_dhcp_put_addr(xml_node_t *, const char *, struct in_addr);
@@ -89,7 +90,7 @@ static void
 __ni_dhcp_put_string(xml_node_t *node, const char *name, const char *value)
 {
 	node = xml_node_new(name, node);
-	node->cdata = strdup(value);
+	node->cdata = xstrdup(value);
 }
 
 static void
