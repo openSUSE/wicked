@@ -33,6 +33,8 @@ static void			__ni_stream_receive(ni_socket_t *);
 static void			__ni_stream_transmit(ni_socket_t *);
 static void			__ni_dgram_receive(ni_socket_t *);
 static void			__ni_dgram_transmit(ni_socket_t *);
+static void			__ni_default_error_handler(ni_socket_t *);
+static void			__ni_default_hangup_handler(ni_socket_t *);
 
 static struct ni_socket_ops	__ni_listener_ops;
 static struct ni_socket_ops	__ni_stream_ops;
@@ -185,6 +187,20 @@ __ni_socket_open_wfile(ni_socket_t *sock, ni_buffer_t *bp)
 	return 0;
 }
 
+void
+__ni_default_error_handler(ni_socket_t *sock)
+{
+	/* Deactivate socket */
+	ni_warn("POLLERR on socket - deactivating. Note: this is not the right approach, fix it");
+	sock->error = 1;
+}
+
+void
+__ni_default_hangup_handler(ni_socket_t *sock)
+{
+}
+
+
 /*
  * Wait for incoming data on any of the sockets.
  */
@@ -237,6 +253,11 @@ ni_socket_wait(long timeout)
 		}
 	}
 
+	if (socket_count == 0 && timeout < 0) {
+		ni_error("no sockets left to watch");
+		return -1;
+	}
+
 	if (poll(pfd, socket_count, timeout) < 0) {
 		if (errno == EINTR)
 			return 0;
@@ -251,9 +272,8 @@ ni_socket_wait(long timeout)
 			continue;
 		if (pfd[i].revents & POLLERR) {
 			/* Deactivate socket */
-			ni_warn("POLLERR on socket - deactivating. Note: this is not the right approach, fix it");
-			sock->error = 1;
 			__ni_socket_deactivate(&__ni_sockets[i]);
+			sock->handle_error(sock);
 			continue;
 		}
 
@@ -301,6 +321,9 @@ __ni_socket_wrap(int fd, int sotype, const struct ni_socket_ops *iops)
 	socket->stream = (sotype == SOCK_STREAM)? 1 : 0;
 	socket->iops = iops;
 
+	socket->handle_error = __ni_default_error_handler;
+	socket->handle_hangup = __ni_default_hangup_handler;
+
 	if (sotype == SOCK_STREAM) {
 		socket->wfile = fdopen(dup(fd), "w");
 		socket->rfile = fdopen(dup(fd), "r");
@@ -313,6 +336,15 @@ ni_socket_t *
 ni_socket_wrap(int fd, int sotype)
 {
 	ni_socket_t *sock;
+
+	if (sotype < 0) {
+		socklen_t len = sizeof(sotype);
+
+		if (getsockopt(fd, SOL_SOCKET, SO_TYPE, &sotype, &len) < 0) {
+			ni_error("%s: cannot determine socket type", __FUNCTION__);
+			return NULL;
+		}
+	}
 
 	switch (sotype) {
 	case SOCK_DGRAM:
@@ -335,9 +367,13 @@ ni_socket_wrap(int fd, int sotype)
 static void
 __ni_socket_close(ni_socket_t *sock)
 {
-	if (sock->__fd >= 0)
+	if (sock->close) {
+		sock->close(sock);
+	} else if (sock->__fd >= 0) {
 		close(sock->__fd);
+	}
 	sock->__fd = -1;
+
 	if (sock->rfile)
 		fclose(sock->rfile);
 	sock->rfile = NULL;

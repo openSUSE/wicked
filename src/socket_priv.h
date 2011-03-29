@@ -35,11 +35,17 @@ struct ni_socket {
 
 	const struct ni_socket_ops *iops;
 
-	int		(*get_timeout)(const ni_socket_t *, struct timeval *);
+	void		(*close)(ni_socket_t *);
+
 	void		(*receive)(ni_socket_t *);
 	void		(*transmit)(ni_socket_t *);
+	void		(*handle_error)(ni_socket_t *);
+	void		(*handle_hangup)(ni_socket_t *);
+
 	int		(*process_request)(ni_socket_t *);
 	int		(*accept)(ni_socket_t *, uid_t, gid_t);
+
+	int		(*get_timeout)(const ni_socket_t *, struct timeval *);
 	void		(*check_timeout)(ni_socket_t *, const struct timeval *);
 
 	void *		user_data;
