@@ -1,5 +1,7 @@
 
-CFLAGS	= -Wall -Werror -g -O2 -D_GNU_SOURCE -I. -Iinclude -Isrc
+CFLAGS	= -Wall -Werror -g -O2 -D_GNU_SOURCE -I. -Iinclude -Isrc \
+	  $(CFLAGS_DBUS)
+CFLAGS_DBUS := $(shell pkg-config --cflags dbus-1)
 
 APPS	= wicked wickedd testing/xml-test testing/xpath-test
 
@@ -55,6 +57,8 @@ __LIBSRCS= \
 	  capture.c \
 	  arp.c \
 	  logging.c \
+	  dbus-client.c \
+	  dbus-dict.c \
 	  ipv6/addrconf.c \
 	  dhcp/addrconf.c \
 	  dhcp/rest-api.c \
@@ -100,19 +104,19 @@ install-files:
 	install -d -m 755 $(DESTDIR)/var/run/wicked
 
 wicked: $(OBJ)/wicked.o $(TGTLIBS)
-	$(CC) -o $@ $(CFLAGS) $(OBJ)/wicked.o -L. -lnetinfo -lm -lnl
+	$(CC) -o $@ $(CFLAGS) $(OBJ)/wicked.o -L. -lnetinfo -lm -lnl -ldbus-1
 
 wickedd: $(OBJ)/wickedd.o $(TGTLIBS)
-	$(CC) -o $@ $(CFLAGS) $(OBJ)/wickedd.o -L. -lnetinfo -lm -lnl
+	$(CC) -o $@ $(CFLAGS) $(OBJ)/wickedd.o -L. -lnetinfo -lm -lnl -ldbus-1
 
 test: $(OBJ)/test.o $(TGTLIBS)
-	$(CC) -o $@ $(CFLAGS) $(OBJ)/test.o -L. -lnetinfo
+	$(CC) -o $@ $(CFLAGS) $(OBJ)/test.o -L. -lnetinfo -ldbus-1
 
 testing/xml-test: testing/xml-test.o $(TGTLIBS)
-	$(CC) -o $@ $(CFLAGS) testing/xml-test.o -L. -lnetinfo
+	$(CC) -o $@ $(CFLAGS) testing/xml-test.o -L. -lnetinfo -ldbus-1
 
 testing/xpath-test: testing/xpath-test.o $(TGTLIBS)
-	$(CC) -o $@ $(CFLAGS) testing/xpath-test.o -L. -lnetinfo
+	$(CC) -o $@ $(CFLAGS) testing/xpath-test.o -L. -lnetinfo -ldbus-1
 
 libnetinfo.a: $(LIBOBJS)
 	@rm -f $@
