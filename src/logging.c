@@ -13,7 +13,7 @@
 #include <wicked/logging.h>
 #include <wicked/util.h>
 
-#define NI_TRACE_MOST	~(NI_TRACE_XPATH | NI_TRACE_WICKED_XML)
+#define NI_TRACE_MOST	~(NI_TRACE_XPATH | NI_TRACE_WICKED_XML | NI_TRACE_DBUS)
 #define NI_TRACE_ALL	~0U
 
 unsigned int		ni_debug = 0;
@@ -34,6 +34,8 @@ static ni_intmap_t __debug_flags_names[] = {
 	{ "ipv6", 	NI_TRACE_IPV6 },
 	{ "socket", 	NI_TRACE_SOCKET },
 	{ "autoip", 	NI_TRACE_AUTOIP },
+	{ "dbus", 	NI_TRACE_DBUS },
+	{ "wireless", 	NI_TRACE_WIRELESS },
 
 	{ "most", 	NI_TRACE_MOST },
 	{ "all", 	NI_TRACE_ALL },
@@ -55,6 +57,8 @@ static ni_intmap_t __debug_flags_descriptions[] = {
 	{ "IPv4LL supplicant", 				NI_TRACE_AUTOIP },
 	{ "IPv6 address configuration", 		NI_TRACE_IPV6 },
 	{ "Network socket send/receive", 		NI_TRACE_SOCKET },
+	{ "DBus protocol",		 		NI_TRACE_DBUS },
+	{ "Wireless handling",		 		NI_TRACE_WIRELESS },
 
 	{ "All useful debug facilities :-)", 		NI_TRACE_MOST },
 	{ "All debug facilities", 			NI_TRACE_ALL },
