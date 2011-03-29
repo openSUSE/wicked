@@ -11,6 +11,7 @@
 
 #include <string.h>
 #include <stdlib.h>
+#include "util_priv.h"
 
 struct ni_buffer {
 	unsigned char *		base;
