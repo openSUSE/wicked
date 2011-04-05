@@ -8,9 +8,9 @@ License:	GPL v2
 Buildroot:	%{_tmppath}/%{name}%{version}-buildroot/
 
 %if 0%{?suse_version} > 1110
-BuildRequires:	libiw-devel libnl-devel
+BuildRequires:	libiw-devel libnl-devel dbus-1-devel
 %else
-BuildRequires:	wireless-tools libnl-devel
+BuildRequires:	wireless-tools libnl-devel dbus-1-devel
 %endif
 
 %if 0%{?suse_version:1}
