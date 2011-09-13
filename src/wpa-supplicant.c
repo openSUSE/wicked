@@ -2,6 +2,28 @@
  * Interfacing with wpa_supplicant through dbus interface
  *
  * Copyright (C) 2011 Olaf Kirch <okir@suse.de>
+ *
+ * Activating interface
+ *  interface.setAPScan(1) (or 2)
+ *
+ *  interface.addNetwork(void)
+ *	returns an object handle for the network
+ *
+ *  [watch for signals on this handle]
+ *	type='signal',sender='fi.epitest.hostap.WPASupplicant',path='/fi/epitest/hostap/WPASupplicant/Interfaces/0/Networks/0',interface='fi.epitest.hostap.WPASupplicant.Network'
+ *
+ *  network.set(dict)
+ *	Supported dict elements
+ *	key_mgmt (string)
+ *	scan_ssid (integer): 1
+ *	psk (byte array): funny encoding?
+ *	ssid (byte array)
+ *
+ *  interface.selectNetwork(objectPath)
+ *
+ * On timeout:
+ *  interface.disconnect()
+ *  interface.removeNetwork(objectPath)
  */
 
 #include <dbus/dbus.h>
@@ -391,6 +413,11 @@ static ni_intmap_t	__ni_wpa_state_names[] = {
 	{ "INACTIVE",		NI_WPA_IFSTATE_INACTIVE	},
 	{ "SCANNING",		NI_WPA_IFSTATE_SCANNING	},
 	{ "DISCONNECTED",	NI_WPA_IFSTATE_DISCONNECTED },
+	{ "ASSOCIATING",	NI_WPA_IFSTATE_ASSOCIATING },
+	{ "ASSOCIATED",		NI_WPA_IFSTATE_ASSOCIATED },
+	{ "COMPLETED",		NI_WPA_IFSTATE_COMPLETED },
+	{ "4WAY_HANDSHAKE",	NI_WPA_IFSTATE_4WAY_HANDSHAKE },
+	{ "GROUP_HANDSHAKE",	NI_WPA_IFSTATE_GROUP_HANDSHAKE },
 
 	{ NULL }
 };
