@@ -12,12 +12,9 @@
 #include <wicked/util.h>
 #include <wicked/logging.h>
 #include "socket_priv.h"
+#include "dbus-common.h"
 #include "dbus-client.h"
 #include "dbus-dict.h"
-
-#define NI_DBUS_BUS_NAME	"org.freedesktop.DBus"
-#define NI_DBUS_OBJECT_PATH	"/org/freedesktop/DBus"
-#define NI_DBUS_INTERFACE	"org.freedesktop.DBus"
 
 #define TRACE_ENTER()		ni_debug_dbus("%s()", __FUNCTION__)
 #define TP()			ni_debug_dbus("TP - %s:%u", __FUNCTION__, __LINE__)
@@ -55,14 +52,6 @@ static void			__ni_dbus_pending_free(ni_dbus_pending_t *);
 static dbus_bool_t		__ni_dbus_add_watch(DBusWatch *, void *);
 static void			__ni_dbus_remove_watch(DBusWatch *, void *);
 static DBusHandlerResult	__ni_dbus_msg_filter(DBusConnection *, DBusMessage *, void *);
-
-static ni_intmap_t      __ni_dbus_error_map[] = {
-	{ "org.freedesktop.DBus.Error.AccessDenied",	EACCES },
-	{ "org.freedesktop.DBus.Error.InvalidArgs",	EINVAL },
-	{ "org.freedesktop.DBus.Error.UnknownMethod",	EOPNOTSUPP },
-
-	{ NULL }
-};
 
 
 /*
@@ -324,19 +313,7 @@ ni_dbus_client_set_error_map(ni_dbus_client_t *dbc, const ni_intmap_t *error_map
 int
 ni_dbus_client_translate_error(ni_dbus_client_t *dbc, const DBusError *err)
 {
-	unsigned int errcode;
-
-	ni_debug_dbus("%s(%s, msg=%s)", __FUNCTION__, err->name, err->message);
-
-	if (dbc->error_map
-	 && ni_parse_int_mapped(err->name, dbc->error_map, &errcode) >= 0)
-		return errcode;
-
-	if (ni_parse_int_mapped(err->name, __ni_dbus_error_map, &errcode) >= 0)
-		return errcode;
-
-	ni_warn("Cannot translate DBus error <%s>", err->name);
-	return EIO;
+	return ni_dbus_translate_error(err, dbc->error_map);
 }
 
 /*
