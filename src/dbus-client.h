@@ -45,8 +45,6 @@ extern void			ni_dbus_add_signal_handler(ni_dbus_connection_t *conn,
 					ni_dbus_signal_handler_t *callback,
 					void *user_data);
 extern void			ni_dbus_client_set_call_timeout(ni_dbus_client_t *, unsigned int msec);
-extern void			ni_dbus_client_set_application_data(ni_dbus_client_t *, void *);
-extern void *			ni_dbus_client_application_data(const ni_dbus_client_t *);
 extern void			ni_dbus_client_set_error_map(ni_dbus_client_t *, const ni_intmap_t *);
 extern int			ni_dbus_client_translate_error(ni_dbus_client_t *, const DBusError *);
 extern ni_dbus_proxy_t *	ni_dbus_proxy_new(ni_dbus_client_t *, const char *, const char *, const char *, void *);

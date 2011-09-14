@@ -365,21 +365,6 @@ ni_dbus_client_translate_error(ni_dbus_client_t *dbc, const DBusError *err)
 }
 
 /*
- * The caller can stash application specific data into the DBus clint handle
- */
-void
-ni_dbus_client_set_application_data(ni_dbus_client_t *dbc, void *user_data)
-{
-	dbc->user_data = user_data;
-}
-
-void *
-ni_dbus_client_application_data(const ni_dbus_client_t *dbc)
-{
-	return dbc->user_data;
-}
-
-/*
  * Set the timeout, specifying how long we wait for the dbus response before
  * timing out
  */

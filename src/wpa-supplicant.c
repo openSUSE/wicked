@@ -108,7 +108,6 @@ ni_wpa_client_open(void)
 				ni_wpa_signal,
 				wpa);
 
-	ni_dbus_client_set_application_data(dbc, wpa);
 	return wpa;
 }
 
