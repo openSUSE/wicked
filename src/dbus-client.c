@@ -531,7 +531,7 @@ ni_dbus_client_call(ni_dbus_client_t *client, ni_dbus_message_t *call, ni_dbus_m
 }
 
 int
-ni_dbus_call_simple(ni_dbus_client_t *dbc, const ni_dbus_proxy_t *dbo, const char *method,
+ni_dbus_proxy_call_simple(const ni_dbus_proxy_t *proxy, const char *method,
 				int arg_type, void *arg_ptr,
 				int res_type, void *res_ptr)
 {
@@ -543,7 +543,7 @@ ni_dbus_call_simple(ni_dbus_client_t *dbc, const ni_dbus_proxy_t *dbo, const cha
 			arg_type, arg_ptr, res_type, res_ptr);
 	dbus_error_init(&error);
 
-	msg = dbus_message_new_method_call(dbo->bus_name, dbo->path, dbo->interface, method);
+	msg = dbus_message_new_method_call(proxy->bus_name, proxy->path, proxy->interface, method);
 	if (msg == NULL) {
 		ni_error("%s: unable to build %s() message", __FUNCTION__, method);
 		return -EIO;
@@ -556,12 +556,12 @@ ni_dbus_call_simple(ni_dbus_client_t *dbc, const ni_dbus_proxy_t *dbo, const cha
 		goto out;
 	}
 
-	if ((rv = ni_dbus_client_call(dbc, msg, &reply)) < 0)
+	if ((rv = ni_dbus_client_call(proxy->client, msg, &reply)) < 0)
 		goto out;
 
 	if (res_type && !dbus_message_get_args(reply, &error, res_type, res_ptr, 0)) {
 		ni_error("%s: unable to deserialize %s() response", __FUNCTION__, method);
-		rv = -ni_dbus_client_translate_error(dbc, &error);
+		rv = -ni_dbus_client_translate_error(proxy->client, &error);
 		goto out;
 	}
 	if (res_type == DBUS_TYPE_STRING
