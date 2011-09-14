@@ -68,6 +68,8 @@ struct ni_wpa_interface_capabilities {
 struct ni_wpa_interface {
 	ni_wpa_interface_t *	next;
 
+	ni_wpa_client_t *	wpa_client;
+
 	char *			ifname;
 	ni_wpa_ifstate_t	state;
 	ni_dbus_proxy_t *	proxy;

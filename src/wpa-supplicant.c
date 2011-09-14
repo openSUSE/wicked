@@ -174,6 +174,7 @@ ni_wpa_interface_new(ni_wpa_client_t *wpa, const char *ifname)
 
 	ifp = xcalloc(1, sizeof(*ifp));
 	ni_string_dup(&ifp->ifname, ifname);
+	ifp->wpa_client = wpa;
 
 	ifp->next = wpa->iflist;
 	wpa->iflist = ifp;
@@ -639,10 +640,10 @@ ni_wpa_interface_state_change_event(ni_wpa_client_t *wpa,
  * each of which identifies a BSS object.
  */
 static void
-ni_wpa_interface_scan_results(ni_dbus_client_t *dbus, ni_dbus_message_t *msg, void *user_data)
+ni_wpa_interface_scan_results(ni_dbus_proxy_t *proxy, ni_dbus_message_t *msg)
 {
-	ni_wpa_client_t *wpa = ni_dbus_client_application_data(dbus);
-	ni_wpa_interface_t *ifp = user_data;
+	ni_wpa_interface_t *ifp = proxy->local_data;
+	ni_wpa_client_t *wpa = ifp->wpa_client;
 	char **object_path_array = NULL;
 	unsigned int object_path_count = 0;
 	int rv;
@@ -711,7 +712,7 @@ ni_wpa_interface_scan_results_available_event(ni_wpa_client_t *wpa, const char *
 
 	ni_debug_wireless("%s: scan results available - retrieving them", ifp->ifname);
 	ni_dbus_proxy_call_async(ifp->proxy,
-			ni_wpa_interface_scan_results, ifp,
+			ni_wpa_interface_scan_results,
 			"scanResults",
 			0);
 }
@@ -825,9 +826,9 @@ static struct ni_dbus_dict_entry_handler __bss_property_handlers[] = {
  * Callback invoked when the properties() call on a BSS object returns.
  */
 static void
-ni_wpa_bss_properties_result(ni_dbus_client_t *dbus, ni_dbus_message_t *msg, void *user_data)
+ni_wpa_bss_properties_result(ni_dbus_proxy_t *proxy, ni_dbus_message_t *msg)
 {
-	ni_wpa_bss_t *bss = user_data;
+	ni_wpa_bss_t *bss = proxy->local_data;
 	ni_wpa_scan_t *scan;
 	struct ni_wpa_bss_properties *props;
 	DBusMessageIter iter, dict_iter;
@@ -870,7 +871,7 @@ static void
 ni_wpa_bss_request_properties(ni_wpa_client_t *wpa, ni_wpa_bss_t *bss)
 {
 	ni_dbus_proxy_call_async(bss->proxy,
-			ni_wpa_bss_properties_result, bss,
+			ni_wpa_bss_properties_result,
 			"properties",
 			0);
 }

@@ -22,10 +22,10 @@
 typedef struct ni_dbus_pending ni_dbus_pending_t;
 struct ni_dbus_pending {
 	ni_dbus_pending_t *	next;
-	ni_dbus_client_t *	client;
+
 	DBusPendingCall *	call;
-	ni_dbus_msg_callback_t *callback;
-	void *			callback_data;
+	ni_dbus_async_callback_t *callback;
+	ni_dbus_proxy_t *	proxy;
 };
 
 typedef struct ni_dbus_sigaction ni_dbus_sigaction_t;
@@ -164,21 +164,20 @@ ni_dbus_connection_free(ni_dbus_connection_t *dbc)
 }
 
 static void
-ni_dbus_client_add_pending(ni_dbus_client_t *client,
+ni_dbus_client_add_pending(ni_dbus_connection_t *connection,
 			DBusPendingCall *call,
-			ni_dbus_msg_callback_t *callback,
-			void *callback_data)
+			ni_dbus_async_callback_t *callback,
+			ni_dbus_proxy_t *proxy)
 {
 	ni_dbus_pending_t *pd;
 
 	pd = calloc(1, sizeof(*pd));
-	pd->client = client;
+	pd->proxy = proxy;
 	pd->call = call;
 	pd->callback = callback;
-	pd->callback_data = callback_data;
 
-	pd->next = client->connection->pending;
-	client->connection->pending = pd;
+	pd->next = connection->pending;
+	connection->pending = pd;
 }
 
 static void
@@ -198,7 +197,7 @@ ni_dbus_process_pending(ni_dbus_connection_t *dbc, DBusPendingCall *call)
 	for (pos = &dbc->pending; (pd = *pos) != NULL; pos = &pd->next) {
 		if (pd->call == call) {
 			*pos = pd->next;
-			pd->callback(pd->client, msg, pd->callback_data);
+			pd->callback(pd->proxy, msg);
 			__ni_dbus_pending_free(pd);
 			rv = 1;
 			break;
@@ -609,8 +608,8 @@ __ni_dbus_notify_async(DBusPendingCall *pending, void *call_data)
 }
 
 int
-ni_dbus_proxy_call_async(const ni_dbus_proxy_t *proxy,
-			ni_dbus_msg_callback_t *callback, void *user_data, const char *method, ...)
+ni_dbus_proxy_call_async(ni_dbus_proxy_t *proxy,
+			ni_dbus_async_callback_t *callback, const char *method, ...)
 {
 	ni_dbus_client_t *client = proxy->client;
 	ni_dbus_connection_t *conn = client->connection;
@@ -636,7 +635,7 @@ ni_dbus_proxy_call_async(const ni_dbus_proxy_t *proxy,
 		goto done;
 	}
 
-	ni_dbus_client_add_pending(client, pending, callback, user_data);
+	ni_dbus_client_add_pending(conn, pending, callback, proxy);
 	dbus_pending_call_set_notify(pending, __ni_dbus_notify_async, conn, NULL);
 
 done:
