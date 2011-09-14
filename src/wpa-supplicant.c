@@ -51,7 +51,7 @@
 struct ni_wpa_client {
 	ni_dbus_client_t *	dbus;
 
-	ni_dbus_object_t *	proxy;
+	ni_dbus_proxy_t *	proxy;
 	ni_wpa_interface_t *	iflist;
 };
 
@@ -98,7 +98,7 @@ ni_wpa_client_open(void)
 	ni_dbus_client_set_error_map(dbc, __ni_wpa_error_names);
 
 	wpa = xcalloc(1, sizeof(*wpa));
-	wpa->proxy = ni_dbus_object_new(NI_WPA_BUS_NAME, NI_WPA_OBJECT_PATH, NI_WPA_INTERFACE);
+	wpa->proxy = ni_dbus_proxy_new(dbc, NI_WPA_BUS_NAME, NI_WPA_OBJECT_PATH, NI_WPA_INTERFACE, wpa);
 	wpa->dbus = dbc;
 
 	ni_dbus_client_add_signal_handler(dbc,
@@ -128,7 +128,7 @@ ni_wpa_client_free(ni_wpa_client_t *wpa)
 	}
 
 	if (wpa->proxy) {
-		ni_dbus_object_free(wpa->proxy);
+		ni_dbus_proxy_free(wpa->proxy);
 		wpa->proxy = NULL;
 	}
 
@@ -159,7 +159,7 @@ ni_wpa_client_interface_by_path(ni_wpa_client_t *wpa, const char *object_path)
 	ni_wpa_interface_t *ifp;
 
 	for (ifp = wpa->iflist; ifp; ifp = ifp->next) {
-		ni_dbus_object_t *obj = ifp->proxy;
+		ni_dbus_proxy_t *obj = ifp->proxy;
 
 		if (obj && !strcmp(obj->path, object_path))
 			return ifp;
@@ -186,15 +186,16 @@ ni_wpa_interface_bss_by_path(ni_wpa_interface_t *ifp, const char *object_path)
 {
 	ni_wpa_bss_t *bss;
 
+	ni_assert(ifp->proxy != NULL);
 	for (bss = ifp->bss_list; bss; bss = bss->next) {
-		ni_dbus_object_t *obj = bss->proxy;
+		ni_dbus_proxy_t *obj = bss->proxy;
 
 		if (obj && !strcmp(obj->path, object_path))
 			return bss;
 	}
 
 	bss = xcalloc(1, sizeof(*bss));
-	bss->proxy = ni_dbus_object_new(NI_WPA_BUS_NAME, object_path, NI_WPA_BSS_INTERFACE);
+	bss->proxy = ni_dbus_proxy_new(ifp->proxy->client, NI_WPA_BUS_NAME, object_path, NI_WPA_BSS_INTERFACE, bss);
 	bss->next = ifp->bss_list;
 	ifp->bss_list = bss;
 
@@ -217,7 +218,7 @@ static void
 ni_wpa_bss_free(ni_wpa_bss_t *bss)
 {
 	if (bss->proxy) {
-		ni_dbus_object_free(bss->proxy);
+		ni_dbus_proxy_free(bss->proxy);
 		bss->proxy = NULL;
 	}
 	if (bss->scan) {
@@ -268,7 +269,7 @@ ni_wpa_interface_unbind(ni_wpa_interface_t *ifp)
 	ni_wpa_bss_t *bss;
 
 	if (ifp->proxy) {
-		ni_dbus_object_free(ifp->proxy);
+		ni_dbus_proxy_free(ifp->proxy);
 		ifp->proxy = NULL;
 	}
 
@@ -393,7 +394,7 @@ ni_wpa_prepare_interface(ni_wpa_client_t *wpa, ni_wpa_interface_t *ifp, const ch
 {
 	int rv;
 
-	ifp->proxy = ni_dbus_object_new(NI_WPA_BUS_NAME, object_path, NI_WPA_IF_INTERFACE);
+	ifp->proxy = ni_dbus_proxy_new(wpa->dbus, NI_WPA_BUS_NAME, object_path, NI_WPA_IF_INTERFACE, ifp);
 
 	/* Get current interface state. */
 	rv = ni_wpa_interface_get_state(wpa, ifp);

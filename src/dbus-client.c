@@ -392,7 +392,7 @@ ni_dbus_client_set_call_timeout(ni_dbus_client_t *dbc, unsigned int msec)
 
 ni_dbus_message_t *
 ni_dbus_method_call_new(ni_dbus_client_t *dbc,
-				const ni_dbus_object_t *dbo,
+				const ni_dbus_proxy_t *dbo,
 				const char *method, ...)
 {
 	ni_dbus_message_t *msg;
@@ -463,7 +463,7 @@ done:
 }
 
 ni_dbus_message_t *
-ni_dbus_method_call_new_va(const ni_dbus_object_t *dbo, const char *method, va_list *app)
+ni_dbus_method_call_new_va(const ni_dbus_proxy_t *dbo, const char *method, va_list *app)
 {
 	ni_dbus_message_t *msg;
 
@@ -547,7 +547,7 @@ ni_dbus_client_call(ni_dbus_client_t *client, ni_dbus_message_t *call, ni_dbus_m
 }
 
 int
-ni_dbus_call_simple(ni_dbus_client_t *dbc, const ni_dbus_object_t *dbo, const char *method,
+ni_dbus_call_simple(ni_dbus_client_t *dbc, const ni_dbus_proxy_t *dbo, const char *method,
 				int arg_type, void *arg_ptr,
 				int res_type, void *res_ptr)
 {
@@ -609,7 +609,7 @@ __ni_dbus_notify_async(DBusPendingCall *pending, void *call_data)
 }
 
 int
-ni_dbus_call_async(ni_dbus_client_t *dbc, const ni_dbus_object_t *dbo,
+ni_dbus_call_async(ni_dbus_client_t *dbc, const ni_dbus_proxy_t *dbo,
 			ni_dbus_msg_callback_t *callback, void *user_data, const char *method, ...)
 {
 	ni_dbus_connection_t *conn = dbc->connection;
@@ -644,12 +644,14 @@ done:
 	return rv;
 }
 
-ni_dbus_object_t *
-ni_dbus_object_new(const char *bus_name, const char *path, const char *interface)
+ni_dbus_proxy_t *
+ni_dbus_proxy_new(ni_dbus_client_t *client, const char *bus_name, const char *path, const char *interface, void *local_data)
 {
-	ni_dbus_object_t *dbo;
+	ni_dbus_proxy_t *dbo;
 
 	dbo = calloc(1, sizeof(*dbo));
+	dbo->client = client;
+	dbo->local_data = local_data;
 	ni_string_dup(&dbo->bus_name, bus_name);
 	ni_string_dup(&dbo->path, path);
 	ni_string_dup(&dbo->interface, interface);
@@ -657,7 +659,7 @@ ni_dbus_object_new(const char *bus_name, const char *path, const char *interface
 }
 
 void
-ni_dbus_object_free(ni_dbus_object_t *dbo)
+ni_dbus_proxy_free(ni_dbus_proxy_t *dbo)
 {
 	ni_string_free(&dbo->bus_name);
 	ni_string_free(&dbo->path);

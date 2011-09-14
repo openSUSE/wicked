@@ -48,7 +48,7 @@ struct ni_wpa_bss_properties {
 struct ni_wpa_bss {
 	ni_wpa_bss_t *		next;
 
-	ni_dbus_object_t *	proxy;
+	ni_dbus_proxy_t *	proxy;
 
 	ni_wpa_scan_t *		scan;
 	time_t			last_seen;
@@ -70,7 +70,7 @@ struct ni_wpa_interface {
 
 	char *			ifname;
 	ni_wpa_ifstate_t	state;
-	ni_dbus_object_t *	proxy;
+	ni_dbus_proxy_t *	proxy;
 
 	time_t			last_scan;
 	ni_wpa_bss_t *		bss_list;

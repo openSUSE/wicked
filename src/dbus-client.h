@@ -13,12 +13,14 @@
 typedef struct ni_dbus_client	ni_dbus_client_t;
 typedef struct ni_dbus_connection ni_dbus_connection_t;
 
-typedef struct ni_dbus_object {
+typedef struct ni_dbus_proxy {
+	ni_dbus_client_t *	client;
 	char *			bus_name;
 	char *			path;
 	char *			interface;
 	char *			local_name;
-} ni_dbus_object_t;
+	void *			local_data;
+} ni_dbus_proxy_t;
 
 typedef DBusMessage		ni_dbus_message_t;
 
@@ -47,19 +49,19 @@ extern void			ni_dbus_client_set_application_data(ni_dbus_client_t *, void *);
 extern void *			ni_dbus_client_application_data(const ni_dbus_client_t *);
 extern void			ni_dbus_client_set_error_map(ni_dbus_client_t *, const ni_intmap_t *);
 extern int			ni_dbus_client_translate_error(ni_dbus_client_t *, const DBusError *);
-extern ni_dbus_object_t *	ni_dbus_object_new(const char *, const char *, const char *);
-extern void			ni_dbus_object_free(ni_dbus_object_t *);
+extern ni_dbus_proxy_t *	ni_dbus_proxy_new(ni_dbus_client_t *, const char *, const char *, const char *, void *);
+extern void			ni_dbus_proxy_free(ni_dbus_proxy_t *);
 
 extern ni_dbus_message_t *	ni_dbus_method_call_new(ni_dbus_client_t *,
-					const ni_dbus_object_t *, const char *method, ...);
-extern ni_dbus_message_t *	ni_dbus_method_call_new_va(const ni_dbus_object_t *obj,
+					const ni_dbus_proxy_t *, const char *method, ...);
+extern ni_dbus_message_t *	ni_dbus_method_call_new_va(const ni_dbus_proxy_t *obj,
 					const char *method, va_list *app);
-extern int			ni_dbus_call_simple(ni_dbus_client_t *, const ni_dbus_object_t *, const char *method,
+extern int			ni_dbus_call_simple(ni_dbus_client_t *, const ni_dbus_proxy_t *, const char *method,
 					int arg_type, void *arg_ptr,
 					int res_type, void *res_ptr);
 extern int			ni_dbus_message_get_args(ni_dbus_message_t *reply, ...);
 extern int			ni_dbus_client_call(ni_dbus_client_t *client, ni_dbus_message_t *call, ni_dbus_message_t **reply_p);
-extern int			ni_dbus_call_async(ni_dbus_client_t *dbus, const ni_dbus_object_t *obj,
+extern int			ni_dbus_call_async(ni_dbus_client_t *dbus, const ni_dbus_proxy_t *obj,
 					ni_dbus_msg_callback_t *callback, void *user_data, const char *method, ...);
 extern void			ni_dbus_mainloop(ni_dbus_client_t *);
 
