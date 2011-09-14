@@ -710,7 +710,7 @@ ni_wpa_interface_scan_results_available_event(ni_wpa_client_t *wpa, const char *
 		scan->state = NI_WPA_SCAN_BSSLIST;
 
 	ni_debug_wireless("%s: scan results available - retrieving them", ifp->ifname);
-	ni_dbus_call_async(wpa->dbus, ifp->proxy,
+	ni_dbus_proxy_call_async(ifp->proxy,
 			ni_wpa_interface_scan_results, ifp,
 			"scanResults",
 			0);
@@ -869,7 +869,7 @@ failed:
 static void
 ni_wpa_bss_request_properties(ni_wpa_client_t *wpa, ni_wpa_bss_t *bss)
 {
-	ni_dbus_call_async(wpa->dbus, bss->proxy,
+	ni_dbus_proxy_call_async(bss->proxy,
 			ni_wpa_bss_properties_result, bss,
 			"properties",
 			0);

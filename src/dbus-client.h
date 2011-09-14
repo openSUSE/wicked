@@ -51,6 +51,8 @@ extern void			ni_dbus_client_set_error_map(ni_dbus_client_t *, const ni_intmap_t
 extern int			ni_dbus_client_translate_error(ni_dbus_client_t *, const DBusError *);
 extern ni_dbus_proxy_t *	ni_dbus_proxy_new(ni_dbus_client_t *, const char *, const char *, const char *, void *);
 extern void			ni_dbus_proxy_free(ni_dbus_proxy_t *);
+extern int			ni_dbus_proxy_call_async(const ni_dbus_proxy_t *obj,
+					ni_dbus_msg_callback_t *callback, void *user_data, const char *method, ...);
 
 extern ni_dbus_message_t *	ni_dbus_method_call_new(ni_dbus_client_t *,
 					const ni_dbus_proxy_t *, const char *method, ...);
@@ -61,8 +63,6 @@ extern int			ni_dbus_call_simple(ni_dbus_client_t *, const ni_dbus_proxy_t *, co
 					int res_type, void *res_ptr);
 extern int			ni_dbus_message_get_args(ni_dbus_message_t *reply, ...);
 extern int			ni_dbus_client_call(ni_dbus_client_t *client, ni_dbus_message_t *call, ni_dbus_message_t **reply_p);
-extern int			ni_dbus_call_async(ni_dbus_client_t *dbus, const ni_dbus_proxy_t *obj,
-					ni_dbus_msg_callback_t *callback, void *user_data, const char *method, ...);
 extern void			ni_dbus_mainloop(ni_dbus_client_t *);
 
 struct ni_dbus_dict_entry;

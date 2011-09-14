@@ -609,10 +609,11 @@ __ni_dbus_notify_async(DBusPendingCall *pending, void *call_data)
 }
 
 int
-ni_dbus_call_async(ni_dbus_client_t *dbc, const ni_dbus_proxy_t *dbo,
+ni_dbus_proxy_call_async(const ni_dbus_proxy_t *proxy,
 			ni_dbus_msg_callback_t *callback, void *user_data, const char *method, ...)
 {
-	ni_dbus_connection_t *conn = dbc->connection;
+	ni_dbus_client_t *client = proxy->client;
+	ni_dbus_connection_t *conn = client->connection;
 	ni_dbus_message_t *call = NULL;
 	DBusPendingCall *pending;
 	va_list ap;
@@ -620,7 +621,7 @@ ni_dbus_call_async(ni_dbus_client_t *dbc, const ni_dbus_proxy_t *dbo,
 
 	ni_debug_dbus("%s(method=%s)", __FUNCTION__, method);
 	va_start(ap, method);
-	call = ni_dbus_method_call_new_va(dbo, method, &ap);
+	call = ni_dbus_method_call_new_va(proxy, method, &ap);
 	va_end(ap);
 
 	if (call == NULL) {
@@ -629,13 +630,13 @@ ni_dbus_call_async(ni_dbus_client_t *dbc, const ni_dbus_proxy_t *dbo,
 		goto done;
 	}
 
-	if (!dbus_connection_send_with_reply(conn->conn, call, &pending, dbc->call_timeout)) {
+	if (!dbus_connection_send_with_reply(conn->conn, call, &pending, client->call_timeout)) {
 		ni_error("dbus_connection_send_with_reply: %m");
 		rv = -EIO;
 		goto done;
 	}
 
-	ni_dbus_client_add_pending(dbc, pending, callback, user_data);
+	ni_dbus_client_add_pending(client, pending, callback, user_data);
 	dbus_pending_call_set_notify(pending, __ni_dbus_notify_async, conn, NULL);
 
 done:
