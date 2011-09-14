@@ -13,6 +13,7 @@
 typedef struct ni_dbus_client	ni_dbus_client_t;
 
 typedef struct ni_dbus_object {
+	char *			bus_name;
 	char *			path;
 	char *			interface;
 	char *			local_name;
@@ -34,7 +35,7 @@ extern void			ni_dbus_client_set_application_data(ni_dbus_client_t *, void *);
 extern void *			ni_dbus_client_application_data(const ni_dbus_client_t *);
 extern void			ni_dbus_client_set_error_map(ni_dbus_client_t *, const ni_intmap_t *);
 extern int			ni_dbus_client_translate_error(ni_dbus_client_t *, const DBusError *);
-extern ni_dbus_object_t *	ni_dbus_object_new(const char *, const char *);
+extern ni_dbus_object_t *	ni_dbus_object_new(const char *, const char *, const char *);
 extern void			ni_dbus_object_free(ni_dbus_object_t *);
 
 extern ni_dbus_message_t *	ni_dbus_method_call_new(ni_dbus_client_t *,

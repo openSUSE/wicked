@@ -28,7 +28,6 @@ struct ni_dbus_pending {
 };
 
 struct ni_dbus_client {
-	char *			bus;
 	DBusConnection *	conn;
 
 	unsigned int		call_timeout;
@@ -85,7 +84,6 @@ ni_dbus_client_open(const char *bus_name)
 				NULL);		/* free_data_function */
 
 	dbc->call_timeout = 1000;
-	ni_string_dup(&dbc->bus, bus_name);
 	return dbc;
 }
 
@@ -110,7 +108,6 @@ ni_dbus_client_free(ni_dbus_client_t *dbc)
 		dbus_connection_unref(dbc->conn);
 		dbc->conn = NULL;
 	}
-	ni_string_free(&dbc->bus);
 
 	free(dbc);
 }
@@ -417,7 +414,7 @@ ni_dbus_method_call_new_va(ni_dbus_client_t *dbc,
 	ni_dbus_message_t *msg;
 
 	ni_debug_dbus("%s(obj=%s, intf=%s, method=%s)", __FUNCTION__, dbo->path, dbo->interface, method);
-	msg = dbus_message_new_method_call(dbc->bus, dbo->path, dbo->interface, method);
+	msg = dbus_message_new_method_call(dbo->bus_name, dbo->path, dbo->interface, method);
 
 	/* Serialize arguments */
 	if (msg && app) {
@@ -501,7 +498,7 @@ ni_dbus_call_simple(ni_dbus_client_t *dbc, const ni_dbus_object_t *dbo, const ch
 			arg_type, arg_ptr, res_type, res_ptr);
 	dbus_error_init(&error);
 
-	msg = dbus_message_new_method_call(dbc->bus, dbo->path, dbo->interface, method);
+	msg = dbus_message_new_method_call(dbo->bus_name, dbo->path, dbo->interface, method);
 	if (msg == NULL) {
 		ni_error("%s: unable to build %s() message", __FUNCTION__, method);
 		return -EIO;
@@ -586,11 +583,12 @@ done:
 }
 
 ni_dbus_object_t *
-ni_dbus_object_new(const char *path, const char *interface)
+ni_dbus_object_new(const char *bus_name, const char *path, const char *interface)
 {
 	ni_dbus_object_t *dbo;
 
 	dbo = calloc(1, sizeof(*dbo));
+	ni_string_dup(&dbo->bus_name, bus_name);
 	ni_string_dup(&dbo->path, path);
 	ni_string_dup(&dbo->interface, interface);
 	return dbo;
@@ -599,6 +597,7 @@ ni_dbus_object_new(const char *path, const char *interface)
 void
 ni_dbus_object_free(ni_dbus_object_t *dbo)
 {
+	ni_string_free(&dbo->bus_name);
 	ni_string_free(&dbo->path);
 	ni_string_free(&dbo->interface);
 	free(dbo);
