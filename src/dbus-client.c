@@ -22,20 +22,33 @@
 typedef struct ni_dbus_pending ni_dbus_pending_t;
 struct ni_dbus_pending {
 	ni_dbus_pending_t *	next;
+	ni_dbus_client_t *	client;
 	DBusPendingCall *	call;
 	ni_dbus_msg_callback_t *callback;
 	void *			callback_data;
 };
 
-struct ni_dbus_client {
-	DBusConnection *	conn;
+typedef struct ni_dbus_sigaction ni_dbus_sigaction_t;
+struct ni_dbus_sigaction {
+	ni_dbus_sigaction_t *	next;
+	char *			sender;
+	char *			object_path;
+	char *			object_interface;
+	ni_dbus_signal_handler_t *signal_handler;
+	void *			user_data;
+};
 
+struct ni_dbus_connection {
+	DBusConnection *	conn;
+	ni_dbus_pending_t *	pending;
+	ni_dbus_sigaction_t *	sighandlers;
+};
+
+struct ni_dbus_client {
+	ni_dbus_connection_t *	connection;
 	unsigned int		call_timeout;
-	ni_dbus_msg_callback_t *signal_handler;
 	void *			user_data;
 	const ni_intmap_t *	error_map;
-
-	ni_dbus_pending_t *	pending;
 };
 
 typedef struct ni_dbus_watch_data ni_dbus_watch_data_t;
@@ -47,6 +60,7 @@ struct ni_dbus_watch_data {
 };
 static ni_dbus_watch_data_t *	ni_dbus_watches;
 
+static void			__ni_dbus_sigaction_free(ni_dbus_sigaction_t *);
 static void			__ni_dbus_pending_free(ni_dbus_pending_t *);
 static dbus_bool_t		__ni_dbus_add_watch(DBusWatch *, void *);
 static void			__ni_dbus_remove_watch(DBusWatch *, void *);
@@ -59,30 +73,16 @@ static DBusHandlerResult	__ni_dbus_msg_filter(DBusConnection *, DBusMessage *, v
 ni_dbus_client_t *
 ni_dbus_client_open(const char *bus_name)
 {
+	ni_dbus_connection_t *busconn;
 	ni_dbus_client_t *dbc;
-	DBusError error;
 
 	ni_debug_dbus("%s(%s)", __FUNCTION__, bus_name);
-
-	dbc = calloc(1, sizeof(*dbc));
-	dbus_error_init(&error);
-
-	dbc->conn = dbus_bus_get_private(DBUS_BUS_SYSTEM, &error);
-	if (dbc->conn == NULL) {
-		ni_error("Cannot get dbus system bus handle");
-		ni_dbus_client_free(dbc);
+	busconn = ni_dbus_connection_open();
+	if (busconn == NULL)
 		return NULL;
 
-	}
-
-	dbus_connection_add_filter(dbc->conn, __ni_dbus_msg_filter, dbc, NULL);
-	dbus_connection_set_watch_functions(dbc->conn,
-				__ni_dbus_add_watch,
-				__ni_dbus_remove_watch,
-				NULL,		/* toggle_function */
-				dbc->conn,	/* data */
-				NULL);		/* free_data_function */
-
+	dbc = calloc(1, sizeof(*dbc));
+	dbc->connection = busconn;
 	dbc->call_timeout = 1000;
 	return dbc;
 }
@@ -93,7 +93,53 @@ ni_dbus_client_open(const char *bus_name)
 void
 ni_dbus_client_free(ni_dbus_client_t *dbc)
 {
+	TRACE_ENTER();
+
+	ni_dbus_connection_free(dbc->connection);
+	dbc->connection = NULL;
+	free(dbc);
+}
+
+/*
+ * Constructor for DBus client handle
+ */
+ni_dbus_connection_t *
+ni_dbus_connection_open(void)
+{
+	ni_dbus_connection_t *connection;
+	DBusError error;
+
+	TRACE_ENTER();
+
+	dbus_error_init(&error);
+
+	connection = calloc(1, sizeof(*connection));
+	connection->conn = dbus_bus_get_private(DBUS_BUS_SYSTEM, &error);
+	if (connection->conn == NULL) {
+		ni_error("Cannot get dbus system bus handle");
+		ni_dbus_connection_free(connection);
+		return NULL;
+	}
+
+	dbus_connection_add_filter(connection->conn, __ni_dbus_msg_filter, connection, NULL);
+	dbus_connection_set_watch_functions(connection->conn,
+				__ni_dbus_add_watch,
+				__ni_dbus_remove_watch,
+				NULL,			/* toggle_function */
+				connection->conn,	/* data */
+				NULL);			/* free_data_function */
+
+	return connection;
+}
+
+/*
+ * Destructor for DBus connection handle
+ */
+void
+ni_dbus_connection_free(ni_dbus_connection_t *dbc)
+{
 	ni_dbus_pending_t *pd;
+	ni_dbus_sigaction_t *sig;
 
 	TRACE_ENTER();
 
@@ -101,6 +147,11 @@ ni_dbus_client_free(ni_dbus_client_t *dbc)
 		dbc->pending = pd->next;
 		dbus_pending_call_cancel(pd->call);
 		__ni_dbus_pending_free(pd);
+	}
+
+	while ((sig = dbc->sighandlers) != NULL) {
+		dbc->sighandlers = sig->next;
+		__ni_dbus_sigaction_free(sig);
 	}
 
 	if (dbc->conn) {
@@ -113,7 +164,7 @@ ni_dbus_client_free(ni_dbus_client_t *dbc)
 }
 
 static void
-ni_dbus_client_add_pending(ni_dbus_client_t *dbc,
+ni_dbus_client_add_pending(ni_dbus_client_t *client,
 			DBusPendingCall *call,
 			ni_dbus_msg_callback_t *callback,
 			void *callback_data)
@@ -121,12 +172,13 @@ ni_dbus_client_add_pending(ni_dbus_client_t *dbc,
 	ni_dbus_pending_t *pd;
 
 	pd = calloc(1, sizeof(*pd));
+	pd->client = client;
 	pd->call = call;
 	pd->callback = callback;
 	pd->callback_data = callback_data;
 
-	pd->next = dbc->pending;
-	dbc->pending = pd;
+	pd->next = client->connection->pending;
+	client->connection->pending = pd;
 }
 
 static void
@@ -137,7 +189,7 @@ __ni_dbus_pending_free(ni_dbus_pending_t *pd)
 }
 
 static int
-ni_dbus_client_process_pending(ni_dbus_client_t *dbc, DBusPendingCall *call)
+ni_dbus_process_pending(ni_dbus_connection_t *dbc, DBusPendingCall *call)
 {
 	DBusMessage *msg = dbus_pending_call_steal_reply(call);
 	ni_dbus_pending_t *pd, **pos;
@@ -146,7 +198,7 @@ ni_dbus_client_process_pending(ni_dbus_client_t *dbc, DBusPendingCall *call)
 	for (pos = &dbc->pending; (pd = *pos) != NULL; pos = &pd->next) {
 		if (pd->call == call) {
 			*pos = pd->next;
-			pd->callback(dbc, msg, pd->callback_data);
+			pd->callback(pd->client, msg, pd->callback_data);
 			__ni_dbus_pending_free(pd);
 			rv = 1;
 			break;
@@ -165,7 +217,7 @@ void
 ni_dbus_mainloop(ni_dbus_client_t *dbc)
 {
 	TRACE_ENTER();
-	while (dbus_connection_dispatch(dbc->conn) == DBUS_DISPATCH_DATA_REMAINS)
+	while (dbus_connection_dispatch(dbc->connection->conn) == DBUS_DISPATCH_DATA_REMAINS)
 		;
 	while (ni_socket_wait(1000) >= 0) {
 #if 0
@@ -250,7 +302,7 @@ __ni_dbus_watch_close(ni_socket_t *sock)
 dbus_bool_t
 __ni_dbus_add_watch(DBusWatch *watch, void *data)
 {
-	DBusConnection *conn = data;
+		DBusConnection *conn = data;
 	ni_dbus_watch_data_t *wd;
 	ni_socket_t *sock;
 
@@ -347,7 +399,7 @@ ni_dbus_method_call_new(ni_dbus_client_t *dbc,
 	va_list ap;
 
 	va_start(ap, method);
-	msg = ni_dbus_method_call_new_va(dbc, dbo, method, &ap);
+	msg = ni_dbus_method_call_new_va(dbo, method, &ap);
 	va_end(ap);
 
 	return msg;
@@ -366,9 +418,14 @@ ni_dbus_message_serialize_va(DBusMessage *msg, va_list ap)
 
 /*
  * Deserialize response
+ *
+ * We need this wrapper function because dbus_message_get_args_valist
+ * does not copy any strings, but returns char pointers that point at
+ * the message body. Which is bad if you want to access these strings
+ * after you've freed the message.
  */
 int
-ni_dbus_message_extract(ni_dbus_client_t *dbus, ni_dbus_message_t *reply, ...)
+ni_dbus_message_get_args(ni_dbus_message_t *reply, ...)
 {
 	DBusError error;
 	va_list ap;
@@ -406,10 +463,7 @@ done:
 }
 
 ni_dbus_message_t *
-ni_dbus_method_call_new_va(ni_dbus_client_t *dbc,
-				const ni_dbus_object_t *dbo,
-				const char *method,
-				va_list *app)
+ni_dbus_method_call_new_va(const ni_dbus_object_t *dbo, const char *method, va_list *app)
 {
 	ni_dbus_message_t *msg;
 
@@ -427,15 +481,16 @@ ni_dbus_method_call_new_va(ni_dbus_client_t *dbc,
 	return msg;
 }
 
-extern int
-ni_dbus_message_send(ni_dbus_client_t *dbc, ni_dbus_message_t *call, ni_dbus_message_t **reply_p)
+static int
+ni_dbus_call(ni_dbus_connection_t *connection, ni_dbus_message_t *call, ni_dbus_message_t **reply_p,
+		unsigned int call_timeout, const ni_intmap_t *error_map)
 {
 	DBusPendingCall *pending;
 	DBusMessage *reply;
 	int rv;
 
 	TRACE_ENTER();
-	if (!dbus_connection_send_with_reply(dbc->conn, call, &pending, dbc->call_timeout)) {
+	if (!dbus_connection_send_with_reply(connection->conn, call, &pending, call_timeout)) {
 		ni_error("dbus_connection_send_with_reply: %m");
 		return -EIO;
 	}
@@ -465,7 +520,7 @@ ni_dbus_message_send(ni_dbus_client_t *dbc, ni_dbus_message_t *call, ni_dbus_mes
 
 		case DBUS_MESSAGE_TYPE_ERROR:
 			dbus_set_error_from_message(&error, reply);
-			rv = -ni_dbus_client_translate_error(dbc, &error);
+			rv = -ni_dbus_translate_error(&error, error_map);
 			dbus_error_free(&error);
 			goto failed;
 
@@ -483,6 +538,12 @@ failed:	if (reply)
 		dbus_message_unref(reply);
 	ni_debug_dbus("%s returns %d", __FUNCTION__, rv);
 	return rv;
+}
+
+extern int
+ni_dbus_client_call(ni_dbus_client_t *client, ni_dbus_message_t *call, ni_dbus_message_t **reply_p)
+{
+	return ni_dbus_call(client->connection, call, reply_p, client->call_timeout, client->error_map);
 }
 
 int
@@ -511,7 +572,7 @@ ni_dbus_call_simple(ni_dbus_client_t *dbc, const ni_dbus_object_t *dbo, const ch
 		goto out;
 	}
 
-	if ((rv = ni_dbus_message_send(dbc, msg, &reply)) < 0)
+	if ((rv = ni_dbus_client_call(dbc, msg, &reply)) < 0)
 		goto out;
 
 	if (res_type && !dbus_message_get_args(reply, &error, res_type, res_ptr, 0)) {
@@ -542,15 +603,16 @@ out:
 static void
 __ni_dbus_notify_async(DBusPendingCall *pending, void *call_data)
 {
-	ni_dbus_client_t *dbc = call_data;
+	ni_dbus_connection_t *conn = call_data;
 
-	ni_dbus_client_process_pending(dbc, pending);
+	ni_dbus_process_pending(conn, pending);
 }
 
 int
 ni_dbus_call_async(ni_dbus_client_t *dbc, const ni_dbus_object_t *dbo,
 			ni_dbus_msg_callback_t *callback, void *user_data, const char *method, ...)
 {
+	ni_dbus_connection_t *conn = dbc->connection;
 	ni_dbus_message_t *call = NULL;
 	DBusPendingCall *pending;
 	va_list ap;
@@ -558,7 +620,7 @@ ni_dbus_call_async(ni_dbus_client_t *dbc, const ni_dbus_object_t *dbo,
 
 	ni_debug_dbus("%s(method=%s)", __FUNCTION__, method);
 	va_start(ap, method);
-	call = ni_dbus_method_call_new_va(dbc, dbo, method, &ap);
+	call = ni_dbus_method_call_new_va(dbo, method, &ap);
 	va_end(ap);
 
 	if (call == NULL) {
@@ -567,14 +629,14 @@ ni_dbus_call_async(ni_dbus_client_t *dbc, const ni_dbus_object_t *dbo,
 		goto done;
 	}
 
-	if (!dbus_connection_send_with_reply(dbc->conn, call, &pending, dbc->call_timeout)) {
+	if (!dbus_connection_send_with_reply(conn->conn, call, &pending, dbc->call_timeout)) {
 		ni_error("dbus_connection_send_with_reply: %m");
 		rv = -EIO;
 		goto done;
 	}
 
 	ni_dbus_client_add_pending(dbc, pending, callback, user_data);
-	dbus_pending_call_set_notify(pending, __ni_dbus_notify_async, dbc, NULL);
+	dbus_pending_call_set_notify(pending, __ni_dbus_notify_async, conn, NULL);
 
 done:
 	if (call)
@@ -663,15 +725,54 @@ ni_dbus_process_properties(DBusMessageIter *iter, const struct ni_dbus_dict_entr
 	return rv;
 }
 
+/*
+ * Signal handling
+ */
+static ni_dbus_sigaction_t *
+__ni_sigaction_new(const char *object_interface,
+				ni_dbus_signal_handler_t *callback,
+				void *user_data)
+{
+	ni_dbus_sigaction_t *s;
+
+	s = calloc(1, sizeof(*s));
+	ni_string_dup(&s->object_interface, object_interface);
+	s->signal_handler = callback;
+	s->user_data = user_data;
+
+	return s;
+}
+
+static void
+__ni_dbus_sigaction_free(ni_dbus_sigaction_t *s)
+{
+	ni_string_free(&s->object_interface);
+	free(s);
+}
 
 void
-ni_dbus_client_add_signal_handler(ni_dbus_client_t *dbc,
+ni_dbus_client_add_signal_handler(ni_dbus_client_t *client,
 					const char *sender,
 					const char *object_path,
 					const char *object_interface,
-					ni_dbus_msg_callback_t *callback)
+					ni_dbus_signal_handler_t *callback,
+					void *user_data)
+{
+	ni_dbus_add_signal_handler(client->connection,
+					sender, object_path, object_interface,
+					callback, user_data);
+}
+
+void
+ni_dbus_add_signal_handler(ni_dbus_connection_t *connection,
+					const char *sender,
+					const char *object_path,
+					const char *object_interface,
+					ni_dbus_signal_handler_t *callback,
+					void *user_data)
 {
 	DBusMessage *call = NULL, *reply = NULL;
+	ni_dbus_sigaction_t *sigact;
 	char specbuf[1024], *arg;
 	int rv;
 
@@ -686,11 +787,12 @@ ni_dbus_client_add_signal_handler(ni_dbus_client_t *dbc,
 	if (!dbus_message_append_args(call, DBUS_TYPE_STRING, &arg, 0))
 		goto failed;
 
-	if ((rv = ni_dbus_message_send(dbc, call, &reply)) < 0)
+	if ((rv = ni_dbus_call(connection, call, &reply, 1000, NULL)) < 0)
 		goto out;
 
-	/* FIXME: enable signal sending for the given object */
-	dbc->signal_handler = callback;
+	sigact = __ni_sigaction_new(object_interface, callback, user_data);
+	sigact->next = connection->sighandlers;
+	connection->sighandlers = sigact;
 
 out:
 	if (call)
@@ -707,26 +809,26 @@ failed:
 static DBusHandlerResult
 __ni_dbus_msg_filter(DBusConnection *conn, DBusMessage *msg, void *user_data)
 {
-	ni_dbus_client_t *dbc = user_data;
+	ni_dbus_connection_t *connection = user_data;
+	ni_dbus_sigaction_t *sigact;
+	const char *interface;
+	int handled = 0;
 
-	if (dbc->conn != conn)
+	if (connection->conn != conn)
 		return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
 
-	switch (dbus_message_get_type(msg)) {
-	case DBUS_MESSAGE_TYPE_SIGNAL:
-		{
-			const char *member = dbus_message_get_member(msg);
+	if (dbus_message_get_type(msg) != DBUS_MESSAGE_TYPE_SIGNAL)
+		return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
 
-			if (!strcmp(member, "NameAcquired")) {
-				/* ignore for now */
-			} else
-			if (dbc->signal_handler) {
-				dbc->signal_handler(dbc, msg, NULL);
-				return DBUS_HANDLER_RESULT_HANDLED;
-			}
+	interface = dbus_message_get_interface(msg);
+	for (sigact = connection->sighandlers; sigact; sigact = sigact->next) {
+		if (!strcmp(sigact->object_interface, interface)) {
+			sigact->signal_handler(connection, msg, sigact->user_data);
+			handled++;
 		}
-		break;
 	}
 
+	if (handled)
+		return DBUS_HANDLER_RESULT_HANDLED;
 	return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
 }

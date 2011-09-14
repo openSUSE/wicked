@@ -70,7 +70,7 @@ static int		ni_wpa_prepare_interface(ni_wpa_client_t *, ni_wpa_interface_t *, co
 static int		ni_wpa_interface_get_state(ni_wpa_client_t *, ni_wpa_interface_t *);
 static int		ni_wpa_interface_get_capabilities(ni_wpa_client_t *, ni_wpa_interface_t *);
 static void		ni_wpa_bss_request_properties(ni_wpa_client_t *wpa, ni_wpa_bss_t *bss);
-static void		ni_wpa_signal(ni_dbus_client_t *, ni_dbus_message_t *, void *);
+static void		ni_wpa_signal(ni_dbus_connection_t *, ni_dbus_message_t *, void *);
 static void		ni_wpa_scan_put(ni_wpa_scan_t *);
 static ni_wpa_scan_t *	ni_wpa_scan_get(ni_wpa_scan_t *);
 static char *		__ni_wpa_escape_essid(const struct ni_wpa_bss_properties *);
@@ -97,15 +97,16 @@ ni_wpa_client_open(void)
 
 	ni_dbus_client_set_error_map(dbc, __ni_wpa_error_names);
 
+	wpa = xcalloc(1, sizeof(*wpa));
+	wpa->proxy = ni_dbus_object_new(NI_WPA_BUS_NAME, NI_WPA_OBJECT_PATH, NI_WPA_INTERFACE);
+	wpa->dbus = dbc;
+
 	ni_dbus_client_add_signal_handler(dbc,
 				NI_WPA_BUS_NAME,
 				NI_WPA_IF_PATH_PFX,
 				NI_WPA_IF_INTERFACE,
-				ni_wpa_signal);
-
-	wpa = xcalloc(1, sizeof(*wpa));
-	wpa->proxy = ni_dbus_object_new(NI_WPA_BUS_NAME, NI_WPA_OBJECT_PATH, NI_WPA_INTERFACE);
-	wpa->dbus = dbc;
+				ni_wpa_signal,
+				wpa);
 
 	ni_dbus_client_set_application_data(dbc, wpa);
 	return wpa;
@@ -339,7 +340,7 @@ ni_wpa_add_interface(ni_wpa_client_t *wpa, const char *ifname, ni_wpa_interface_
 
 		/* Build the addInterface call, using the given interface name
 		 * and specify "wext" as the driver parameter. */
-		call = ni_dbus_method_call_new_va(wpa->dbus, wpa->proxy, "addInterface", NULL);
+		call = ni_dbus_method_call_new_va(wpa->proxy, "addInterface", NULL);
 		if (call == NULL) {
 			ni_error("%s: could not build message", __func__);
 			rv = -EINVAL;
@@ -357,12 +358,12 @@ ni_wpa_add_interface(ni_wpa_client_t *wpa, const char *ifname, ni_wpa_interface_
 		}
 
 		/* Do the message call */
-		if ((rv = ni_dbus_message_send(wpa->dbus, call, &reply)) < 0) {
+		if ((rv = ni_dbus_client_call(wpa->dbus, call, &reply)) < 0) {
 			ni_error("dbus call failed: %s", strerror(-rv));
 			goto failed;
 		}
 
-		rv = ni_dbus_message_extract(wpa->dbus, reply, DBUS_TYPE_OBJECT_PATH, &object_path, 0);
+		rv = ni_dbus_message_get_args(reply, DBUS_TYPE_OBJECT_PATH, &object_path, 0);
 		if (rv < 0)
 			goto failed;
 
@@ -646,7 +647,7 @@ ni_wpa_interface_scan_results(ni_dbus_client_t *dbus, ni_dbus_message_t *msg, vo
 	int rv;
 
 	ni_debug_wireless("%s(%s)", __func__, ifp->ifname);
-	rv = ni_dbus_message_extract(dbus, msg,
+	rv = ni_dbus_message_get_args(msg,
 			DBUS_TYPE_ARRAY, DBUS_TYPE_OBJECT_PATH,
 			&object_path_array,
 			&object_path_count,
@@ -1094,7 +1095,7 @@ ni_wpa_interface_get_capabilities(ni_wpa_client_t *wpa, ni_wpa_interface_t *ifp)
 		goto failed;
 	}
 
-	if ((rv = ni_dbus_message_send(wpa->dbus, call, &reply)) < 0) {
+	if ((rv = ni_dbus_client_call(wpa->dbus, call, &reply)) < 0) {
 		ni_error("dbus call failed: %s", strerror(-rv));
 		goto failed;
 	}
@@ -1121,16 +1122,16 @@ ni_wpa_interface_retrieve_capabilities(ni_wpa_interface_t *wif,
 }
 
 void
-ni_wpa_signal(ni_dbus_client_t *dbc, ni_dbus_message_t *msg, void *user_data)
+ni_wpa_signal(ni_dbus_connection_t *connection, ni_dbus_message_t *msg, void *user_data)
 {
-	ni_wpa_client_t *wpa = ni_dbus_client_application_data(dbc);
+	ni_wpa_client_t *wpa = user_data;
 	const char *member = dbus_message_get_member(msg);
 	int rv;
 
 	if (!strcmp(member, "StateChange")) {
 		char *from_state = NULL, *to_state = NULL;
 
-		rv = ni_dbus_message_extract(dbc, msg,
+		rv = ni_dbus_message_get_args(msg,
 					DBUS_TYPE_STRING, &to_state,
 					DBUS_TYPE_STRING, &from_state,
 					0);
