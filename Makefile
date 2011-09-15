@@ -59,6 +59,7 @@ __LIBSRCS= \
 	  logging.c \
 	  dbus-client.c \
 	  dbus-common.c \
+	  dbus-connection.c \
 	  dbus-dict.c \
 	  wpa-supplicant.c \
 	  ipv6/addrconf.c \

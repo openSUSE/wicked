@@ -29,6 +29,13 @@ typedef void			ni_dbus_signal_handler_t(ni_dbus_connection_t *, ni_dbus_message_
 
 extern ni_dbus_connection_t *	ni_dbus_connection_open(void);
 extern void			ni_dbus_connection_free(ni_dbus_connection_t *);
+extern int			ni_dbus_connection_call(ni_dbus_connection_t *connection,
+					ni_dbus_message_t *call, ni_dbus_message_t **reply_p,
+					unsigned int call_timeout, const ni_intmap_t *error_map);
+extern int			ni_dbus_connection_call_async(ni_dbus_connection_t *connection,
+					ni_dbus_message_t *call, unsigned int timeout,
+					ni_dbus_async_callback_t *callback, ni_dbus_proxy_t *proxy);
+extern int			ni_dbus_process_pending(ni_dbus_connection_t *dbc, DBusPendingCall *call);
 
 extern ni_dbus_client_t *	ni_dbus_client_open(const char *bus_name);
 extern void			ni_dbus_client_free(ni_dbus_client_t *);
@@ -61,7 +68,7 @@ extern ni_dbus_message_t *	ni_dbus_method_call_new_va(const ni_dbus_proxy_t *obj
 					const char *method, va_list *app);
 extern int			ni_dbus_message_get_args(ni_dbus_message_t *reply, ...);
 extern int			ni_dbus_client_call(ni_dbus_client_t *client, ni_dbus_message_t *call, ni_dbus_message_t **reply_p);
-extern void			ni_dbus_mainloop(ni_dbus_client_t *);
+extern void			ni_dbus_mainloop(ni_dbus_connection_t *);
 
 struct ni_dbus_dict_entry;
 
