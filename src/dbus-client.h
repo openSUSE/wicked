@@ -9,6 +9,7 @@
 #define __WICKED_DBUS_CLIENT_H__
 
 #include <dbus/dbus.h>
+#include "dbus-common.h"
 
 typedef struct ni_dbus_client	ni_dbus_client_t;
 typedef struct ni_dbus_connection ni_dbus_connection_t;
@@ -22,7 +23,6 @@ typedef struct ni_dbus_proxy {
 	void *			local_data;
 } ni_dbus_proxy_t;
 
-typedef DBusMessage		ni_dbus_message_t;
 
 typedef void			ni_dbus_async_callback_t(ni_dbus_proxy_t *, ni_dbus_message_t *);
 typedef void			ni_dbus_signal_handler_t(ni_dbus_connection_t *, ni_dbus_message_t *, void *);
@@ -68,24 +68,5 @@ extern ni_dbus_message_t *	ni_dbus_proxy_call_new_va(const ni_dbus_proxy_t *obj,
 extern int			ni_dbus_message_get_args(ni_dbus_message_t *reply, ...);
 extern int			ni_dbus_client_call(ni_dbus_client_t *client, ni_dbus_message_t *call, ni_dbus_message_t **reply_p);
 extern void			ni_dbus_mainloop(ni_dbus_connection_t *);
-
-struct ni_dbus_dict_entry;
-
-struct ni_dbus_dict_entry_handler {
-	const char *		name;
-	int			type;
-	int			array_type;
-	unsigned int		array_len_min;
-	unsigned int		array_len_max;
-
-	int			(*set)(struct ni_dbus_dict_entry *, void *);
-};
-
-#define NI_DBUS_BASIC_PROPERTY(__name, __type, __setfn) \
-{ .name = __name, .type = __type, .set = __setfn }
-#define NI_DBUS_ARRAY_PROPERTY(__name, __array_type, __setfn) \
-{ .name = __name, .type = DBUS_TYPE_ARRAY, .array_type = __array_type, .set = __setfn }
-
-extern int			ni_dbus_process_properties(DBusMessageIter *, const struct ni_dbus_dict_entry_handler *, void *);
 
 #endif /* __WICKED_DBUS_CLIENT_H__ */

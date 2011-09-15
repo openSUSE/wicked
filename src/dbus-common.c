@@ -1,5 +1,5 @@
 /*
- * Simple DBus client functions
+ * Common DBus functions
  *
  * Copyright (C) 2011 Olaf Kirch <okir@suse.de>
  */
@@ -42,4 +42,110 @@ ni_dbus_translate_error(const DBusError *err, const ni_intmap_t *error_map)
 
 	ni_warn("Cannot translate DBus error <%s>", err->name);
 	return EIO;
+}
+
+/*
+ * Deserialize response
+ *
+ * We need this wrapper function because dbus_message_get_args_valist
+ * does not copy any strings, but returns char pointers that point at
+ * the message body. Which is bad if you want to access these strings
+ * after you've freed the message.
+ */
+int
+ni_dbus_message_get_args(ni_dbus_message_t *reply, ...)
+{
+	DBusError error;
+	va_list ap;
+	int rv = 0, type;
+
+	TRACE_ENTER();
+	dbus_error_init(&error);
+	va_start(ap, reply);
+
+	type = va_arg(ap, int);
+	if (type
+	 && !dbus_message_get_args_valist(reply, &error, type, ap)) {
+		ni_error("%s: unable to retrieve reply data", __FUNCTION__);
+		rv = -EINVAL;
+		goto done;
+	}
+
+	while (type) {
+		char **data = va_arg(ap, char **);
+
+		switch (type) {
+		case DBUS_TYPE_STRING:
+		case DBUS_TYPE_OBJECT_PATH:
+			if (data && *data)
+				*data = xstrdup(*data);
+			break;
+		}
+
+		type = va_arg(ap, int);
+	}
+
+done:
+	va_end(ap);
+	return rv;
+}
+
+/*
+ * Helper function for processing a DBusDict
+ */
+static inline const struct ni_dbus_dict_entry_handler *
+__ni_dbus_get_property_handler(const struct ni_dbus_dict_entry_handler *handlers, const char *name)
+{
+	const struct ni_dbus_dict_entry_handler *h;
+
+	for (h = handlers; h->type; ++h) {
+		if (!strcmp(h->name, name))
+			return h;
+	}
+	return NULL;
+}
+
+int
+ni_dbus_process_properties(DBusMessageIter *iter, const struct ni_dbus_dict_entry_handler *handlers, void *user_object)
+{
+	struct ni_dbus_dict_entry entry;
+	int rv = 0;
+
+	TRACE_ENTER();
+	while (ni_dbus_dict_get_entry(iter, &entry)) {
+		const struct ni_dbus_dict_entry_handler *h;
+
+#if 0
+		if (entry.type == DBUS_TYPE_ARRAY) {
+			ni_debug_dbus("++%s -- array of type %c", entry.key, entry.array_type);
+		} else {
+			ni_debug_dbus("++%s -- type %c", entry.key, entry.type);
+		}
+#endif
+
+		if (!(h = __ni_dbus_get_property_handler(handlers, entry.key))) {
+			ni_debug_dbus("%s: ignore unknown dict element \"%s\"", __FUNCTION__, entry.key);
+			continue;
+		}
+
+		if (h->type != entry.type
+		 || (h->type == DBUS_TYPE_ARRAY && h->array_type != entry.array_type)) {
+			ni_error("%s: unexpected type for dict element \"%s\"", __FUNCTION__, entry.key);
+			rv = -EINVAL;
+			break;
+		}
+
+		if (h->type == DBUS_TYPE_ARRAY && h->array_len_max != 0
+		 && (entry.array_len < h->array_len_min || h->array_len_max < entry.array_len)) {
+			ni_error("%s: unexpected array length %u for dict element \"%s\"",
+					__FUNCTION__, (int) entry.array_len, entry.key);
+			rv = -EINVAL;
+			break;
+		}
+
+		if (h->set)
+			h->set(&entry, user_object);
+	}
+
+	return rv;
 }

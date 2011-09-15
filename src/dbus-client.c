@@ -22,7 +22,6 @@
 struct ni_dbus_client {
 	ni_dbus_connection_t *	connection;
 	unsigned int		call_timeout;
-	void *			user_data;
 	const ni_intmap_t *	error_map;
 };
 
@@ -86,6 +85,34 @@ ni_dbus_client_set_call_timeout(ni_dbus_client_t *dbc, unsigned int msec)
 	dbc->call_timeout = msec;
 }
 
+/*
+ * Place a synchronous call
+ */
+int
+ni_dbus_client_call(ni_dbus_client_t *client, ni_dbus_message_t *call, ni_dbus_message_t **reply_p)
+{
+	return ni_dbus_connection_call(client->connection, call, reply_p, client->call_timeout, client->error_map);
+}
+
+/*
+ * Signal handling
+ */
+void
+ni_dbus_client_add_signal_handler(ni_dbus_client_t *client,
+					const char *sender,
+					const char *object_path,
+					const char *object_interface,
+					ni_dbus_signal_handler_t *callback,
+					void *user_data)
+{
+	ni_dbus_add_signal_handler(client->connection,
+					sender, object_path, object_interface,
+					callback, user_data);
+}
+
+/*
+ * Proxy objects, and calling through proxies
+ */
 ni_dbus_message_t *
 ni_dbus_proxy_call_new(const ni_dbus_proxy_t *dbo, const char *method, ...)
 {
@@ -110,52 +137,6 @@ ni_dbus_message_serialize_va(DBusMessage *msg, va_list ap)
 	return 0;
 }
 
-/*
- * Deserialize response
- *
- * We need this wrapper function because dbus_message_get_args_valist
- * does not copy any strings, but returns char pointers that point at
- * the message body. Which is bad if you want to access these strings
- * after you've freed the message.
- */
-int
-ni_dbus_message_get_args(ni_dbus_message_t *reply, ...)
-{
-	DBusError error;
-	va_list ap;
-	int rv = 0, type;
-
-	TRACE_ENTER();
-	dbus_error_init(&error);
-	va_start(ap, reply);
-
-	type = va_arg(ap, int);
-	if (type
-	 && !dbus_message_get_args_valist(reply, &error, type, ap)) {
-		ni_error("%s: unable to retrieve reply data", __FUNCTION__);
-		rv = -EINVAL;
-		goto done;
-	}
-
-	while (type) {
-		char **data = va_arg(ap, char **);
-
-		switch (type) {
-		case DBUS_TYPE_STRING:
-		case DBUS_TYPE_OBJECT_PATH:
-			if (data && *data)
-				*data = xstrdup(*data);
-			break;
-		}
-
-		type = va_arg(ap, int);
-	}
-
-done:
-	va_end(ap);
-	return rv;
-}
-
 ni_dbus_message_t *
 ni_dbus_proxy_call_new_va(const ni_dbus_proxy_t *dbo, const char *method, va_list *app)
 {
@@ -173,12 +154,6 @@ ni_dbus_proxy_call_new_va(const ni_dbus_proxy_t *dbo, const char *method, va_lis
 		}
 	}
 	return msg;
-}
-
-extern int
-ni_dbus_client_call(ni_dbus_client_t *client, ni_dbus_message_t *call, ni_dbus_message_t **reply_p)
-{
-	return ni_dbus_connection_call(client->connection, call, reply_p, client->call_timeout, client->error_map);
 }
 
 int
@@ -262,22 +237,6 @@ ni_dbus_proxy_call_async(ni_dbus_proxy_t *proxy,
 	return rv;
 }
 
-/*
- * Signal handling
- */
-void
-ni_dbus_client_add_signal_handler(ni_dbus_client_t *client,
-					const char *sender,
-					const char *object_path,
-					const char *object_interface,
-					ni_dbus_signal_handler_t *callback,
-					void *user_data)
-{
-	ni_dbus_add_signal_handler(client->connection,
-					sender, object_path, object_interface,
-					callback, user_data);
-}
-
 ni_dbus_proxy_t *
 ni_dbus_proxy_new(ni_dbus_client_t *client, const char *bus_name, const char *path, const char *interface, void *local_data)
 {
@@ -299,64 +258,4 @@ ni_dbus_proxy_free(ni_dbus_proxy_t *dbo)
 	ni_string_free(&dbo->path);
 	ni_string_free(&dbo->interface);
 	free(dbo);
-}
-
-/*
- * Helper function for processing a DBusDict
- */
-static inline const struct ni_dbus_dict_entry_handler *
-__ni_dbus_get_property_handler(const struct ni_dbus_dict_entry_handler *handlers, const char *name)
-{
-	const struct ni_dbus_dict_entry_handler *h;
-
-	for (h = handlers; h->type; ++h) {
-		if (!strcmp(h->name, name))
-			return h;
-	}
-	return NULL;
-}
-
-int
-ni_dbus_process_properties(DBusMessageIter *iter, const struct ni_dbus_dict_entry_handler *handlers, void *user_object)
-{
-	struct ni_dbus_dict_entry entry;
-	int rv = 0;
-
-	TRACE_ENTER();
-	while (ni_dbus_dict_get_entry(iter, &entry)) {
-		const struct ni_dbus_dict_entry_handler *h;
-
-#if 0
-		if (entry.type == DBUS_TYPE_ARRAY) {
-			ni_debug_dbus("++%s -- array of type %c", entry.key, entry.array_type);
-		} else {
-			ni_debug_dbus("++%s -- type %c", entry.key, entry.type);
-		}
-#endif
-
-		if (!(h = __ni_dbus_get_property_handler(handlers, entry.key))) {
-			ni_debug_dbus("%s: ignore unknown dict element \"%s\"", __FUNCTION__, entry.key);
-			continue;
-		}
-
-		if (h->type != entry.type
-		 || (h->type == DBUS_TYPE_ARRAY && h->array_type != entry.array_type)) {
-			ni_error("%s: unexpected type for dict element \"%s\"", __FUNCTION__, entry.key);
-			rv = -EINVAL;
-			break;
-		}
-
-		if (h->type == DBUS_TYPE_ARRAY && h->array_len_max != 0
-		 && (entry.array_len < h->array_len_min || h->array_len_max < entry.array_len)) {
-			ni_error("%s: unexpected array length %u for dict element \"%s\"",
-					__FUNCTION__, (int) entry.array_len, entry.key);
-			rv = -EINVAL;
-			break;
-		}
-
-		if (h->set)
-			h->set(&entry, user_object);
-	}
-
-	return rv;
 }
