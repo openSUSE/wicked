@@ -12,8 +12,7 @@
 #include <wicked/util.h>
 #include <wicked/logging.h>
 #include "socket_priv.h"
-#include "dbus-common.h"
-#include "dbus-client.h"
+#include "dbus-connection.h"
 #include "dbus-dict.h"
 
 #define TRACE_ENTER()		ni_debug_dbus("%s()", __FUNCTION__)
@@ -61,7 +60,7 @@ static dbus_bool_t		__ni_dbus_add_watch(DBusWatch *, void *);
 static void			__ni_dbus_remove_watch(DBusWatch *, void *);
 static DBusHandlerResult	__ni_dbus_signal_filter(DBusConnection *, DBusMessage *, void *);
 
-static int			ni_dbus_use_socket_mainloop = 0;
+static int			ni_dbus_use_socket_mainloop = 1;
 
 /*
  * Constructor for DBus connection handle
@@ -189,8 +188,8 @@ __ni_dbus_pending_free(ni_dbus_pending_t *pd)
 	free(pd);
 }
 
-int
-ni_dbus_process_pending(ni_dbus_connection_t *dbc, DBusPendingCall *call)
+static int
+__ni_dbus_process_pending(ni_dbus_connection_t *dbc, DBusPendingCall *call)
 {
 	DBusMessage *msg = dbus_pending_call_steal_reply(call);
 	ni_dbus_pending_t *pd, **pos;
@@ -299,7 +298,18 @@ __ni_dbus_notify_async(DBusPendingCall *pending, void *call_data)
 {
 	ni_dbus_connection_t *conn = call_data;
 
-	ni_dbus_process_pending(conn, pending);
+	__ni_dbus_process_pending(conn, pending);
+}
+
+/*
+ * Send a message out
+ */
+int
+ni_dbus_connection_send_message(ni_dbus_connection_t *connection, ni_dbus_message_t *msg)
+{
+	if (!dbus_connection_send(connection->conn, msg, NULL))
+		return -ENOMEM;
+	return 0;
 }
 
 /*
@@ -419,6 +429,25 @@ __ni_dbus_signal_filter(DBusConnection *conn, DBusMessage *msg, void *user_data)
 	if (handled)
 		return DBUS_HANDLER_RESULT_HANDLED;
 	return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+}
+
+/*
+ * Handle server-side objects and dispatch incoming call
+ */
+void
+ni_dbus_connection_register_object(ni_dbus_connection_t *connection, ni_dbus_object_t *object)
+{
+	dbus_connection_register_object_path(connection->conn,
+			ni_dbus_object_get_path(object),
+			ni_dbus_object_get_vtable(object),
+			object);
+}
+
+void
+ni_dbus_connection_unregister_object(ni_dbus_connection_t *connection, ni_dbus_object_t *object)
+{
+	dbus_connection_unregister_object_path(connection->conn,
+			ni_dbus_object_get_path(object));
 }
 
 /*
