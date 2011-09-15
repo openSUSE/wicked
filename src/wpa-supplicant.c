@@ -102,9 +102,9 @@ ni_wpa_client_open(void)
 	wpa->dbus = dbc;
 
 	ni_dbus_client_add_signal_handler(dbc,
-				NI_WPA_BUS_NAME,
-				NI_WPA_IF_PATH_PFX,
-				NI_WPA_IF_INTERFACE,
+				NI_WPA_BUS_NAME,	/* sender */
+				NULL,			/* object path */
+				NI_WPA_IF_INTERFACE,	/* object interface */
 				ni_wpa_signal,
 				wpa);
 

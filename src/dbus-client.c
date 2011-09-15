@@ -763,10 +763,16 @@ ni_dbus_add_signal_handler(ni_dbus_connection_t *connection,
 	char specbuf[1024], *arg;
 	int rv;
 
-	snprintf(specbuf, sizeof(specbuf), "type='signal',sender='%s',path='%s',interface='%s'",
+	if (sender && object_path && object_interface) {
+		snprintf(specbuf, sizeof(specbuf), "type='signal',sender='%s',path='%s',interface='%s'",
 			sender, object_path, object_interface);
-	snprintf(specbuf, sizeof(specbuf), "type='signal',sender='%s',interface='%s'",
+	} else if (sender && object_interface) {
+		snprintf(specbuf, sizeof(specbuf), "type='signal',sender='%s',interface='%s'",
 			sender, object_interface);
+	} else {
+		snprintf(specbuf, sizeof(specbuf), "type='signal',interface='%s'",
+			object_interface);
+	}
 	arg = specbuf;
 
 	call = dbus_message_new_method_call(NI_DBUS_BUS_NAME,
