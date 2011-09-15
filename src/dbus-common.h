@@ -14,8 +14,15 @@
 #define NI_DBUS_INTERFACE	"org.freedesktop.DBus"
 
 typedef DBusMessage		ni_dbus_message_t;
+typedef struct ni_dbus_connection ni_dbus_connection_t;
+typedef struct ni_dbus_client	ni_dbus_client_t;
+typedef struct ni_dbus_proxy	ni_dbus_proxy_t;
 
-extern int ni_dbus_translate_error(const DBusError *, const ni_intmap_t *);
+typedef void			ni_dbus_async_callback_t(ni_dbus_proxy_t *, ni_dbus_message_t *);
+typedef void			ni_dbus_signal_handler_t(ni_dbus_connection_t *, ni_dbus_message_t *, void *);
+
+
+extern int			ni_dbus_translate_error(const DBusError *, const ni_intmap_t *);
 
 
 /*

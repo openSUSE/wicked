@@ -35,7 +35,7 @@ ni_dbus_client_open(const char *bus_name)
 	ni_dbus_client_t *dbc;
 
 	ni_debug_dbus("%s(%s)", __FUNCTION__, bus_name);
-	busconn = ni_dbus_connection_open();
+	busconn = ni_dbus_connection_open(NULL);
 	if (busconn == NULL)
 		return NULL;
 

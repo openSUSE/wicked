@@ -59,14 +59,15 @@ static void			__ni_dbus_pending_free(ni_dbus_pending_t *);
 static void			__ni_dbus_notify_async(DBusPendingCall *, void *);
 static dbus_bool_t		__ni_dbus_add_watch(DBusWatch *, void *);
 static void			__ni_dbus_remove_watch(DBusWatch *, void *);
-static DBusHandlerResult	__ni_dbus_msg_filter(DBusConnection *, DBusMessage *, void *);
+static DBusHandlerResult	__ni_dbus_signal_filter(DBusConnection *, DBusMessage *, void *);
 
+static int			ni_dbus_use_socket_mainloop = 0;
 
 /*
  * Constructor for DBus connection handle
  */
 ni_dbus_connection_t *
-ni_dbus_connection_open(void)
+ni_dbus_connection_open(const char *bus_name)
 {
 	ni_dbus_connection_t *connection;
 	DBusError error;
@@ -76,22 +77,58 @@ ni_dbus_connection_open(void)
 	dbus_error_init(&error);
 
 	connection = calloc(1, sizeof(*connection));
-	connection->conn = dbus_bus_get_private(DBUS_BUS_SYSTEM, &error);
-	if (connection->conn == NULL) {
-		ni_error("Cannot get dbus system bus handle");
-		ni_dbus_connection_free(connection);
-		return NULL;
+	if (bus_name == NULL) {
+		connection->conn = dbus_bus_get_private(DBUS_BUS_SYSTEM, &error);
+		if (dbus_error_is_set(&error)) {
+			ni_error("Cannot get dbus system bus handle (%s)",
+					error.message);
+			goto failed;
+		}
+		if (connection->conn == NULL)
+			goto failed_unexpectedly;
+	} else {
+		int rv;
+
+		connection->conn = dbus_bus_get(DBUS_BUS_SYSTEM, &error);
+		if (dbus_error_is_set(&error)) {
+			ni_error("Cannot get dbus system bus handle (%s)",
+					error.message);
+			goto failed;
+		}
+		if (connection->conn == NULL)
+			goto failed_unexpectedly;
+
+		rv = dbus_bus_request_name(connection->conn, bus_name,
+				DBUS_NAME_FLAG_REPLACE_EXISTING,
+				&error);
+		if (dbus_error_is_set(&error)) {
+			ni_error("Failed to register dbus bus name \"%s\" (%s)",
+					bus_name, error.message);
+			goto failed;
+		}
+		if (rv != DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER)
+			goto failed_unexpectedly;
 	}
 
-	dbus_connection_add_filter(connection->conn, __ni_dbus_msg_filter, connection, NULL);
-	dbus_connection_set_watch_functions(connection->conn,
+	dbus_connection_add_filter(connection->conn, __ni_dbus_signal_filter, connection, NULL);
+	if (ni_dbus_use_socket_mainloop) {
+		dbus_connection_set_watch_functions(connection->conn,
 				__ni_dbus_add_watch,
 				__ni_dbus_remove_watch,
 				NULL,			/* toggle_function */
 				connection->conn,	/* data */
 				NULL);			/* free_data_function */
+	}
 
 	return connection;
+
+failed_unexpectedly:
+	ni_error("%s: unexpected error", __FUNCTION__);
+
+failed:
+	ni_dbus_connection_free(connection);
+	dbus_error_free(&error);
+	return NULL;
 }
 
 /*
@@ -358,7 +395,7 @@ failed:
 }
 
 static DBusHandlerResult
-__ni_dbus_msg_filter(DBusConnection *conn, DBusMessage *msg, void *user_data)
+__ni_dbus_signal_filter(DBusConnection *conn, DBusMessage *msg, void *user_data)
 {
 	ni_dbus_connection_t *connection = user_data;
 	ni_dbus_sigaction_t *sigact;
@@ -458,7 +495,7 @@ __ni_dbus_watch_close(ni_socket_t *sock)
 dbus_bool_t
 __ni_dbus_add_watch(DBusWatch *watch, void *data)
 {
-		DBusConnection *conn = data;
+	DBusConnection *conn = data;
 	ni_dbus_watch_data_t *wd;
 	ni_socket_t *sock;
 
