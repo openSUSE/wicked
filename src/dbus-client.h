@@ -62,9 +62,8 @@ extern int			ni_dbus_proxy_call_simple(const ni_dbus_proxy_t *, const char *meth
 extern int			ni_dbus_proxy_call_async(ni_dbus_proxy_t *obj,
 					ni_dbus_async_callback_t *callback, const char *method, ...);
 
-extern ni_dbus_message_t *	ni_dbus_method_call_new(ni_dbus_client_t *,
-					const ni_dbus_proxy_t *, const char *method, ...);
-extern ni_dbus_message_t *	ni_dbus_method_call_new_va(const ni_dbus_proxy_t *obj,
+extern ni_dbus_message_t *	ni_dbus_proxy_call_new(const ni_dbus_proxy_t *, const char *method, ...);
+extern ni_dbus_message_t *	ni_dbus_proxy_call_new_va(const ni_dbus_proxy_t *obj,
 					const char *method, va_list *app);
 extern int			ni_dbus_message_get_args(ni_dbus_message_t *reply, ...);
 extern int			ni_dbus_client_call(ni_dbus_client_t *client, ni_dbus_message_t *call, ni_dbus_message_t **reply_p);

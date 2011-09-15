@@ -86,17 +86,14 @@ ni_dbus_client_set_call_timeout(ni_dbus_client_t *dbc, unsigned int msec)
 	dbc->call_timeout = msec;
 }
 
-/* FIXME: remove client arg */
 ni_dbus_message_t *
-ni_dbus_method_call_new(ni_dbus_client_t *dbc,
-				const ni_dbus_proxy_t *dbo,
-				const char *method, ...)
+ni_dbus_proxy_call_new(const ni_dbus_proxy_t *dbo, const char *method, ...)
 {
 	ni_dbus_message_t *msg;
 	va_list ap;
 
 	va_start(ap, method);
-	msg = ni_dbus_method_call_new_va(dbo, method, &ap);
+	msg = ni_dbus_proxy_call_new_va(dbo, method, &ap);
 	va_end(ap);
 
 	return msg;
@@ -160,7 +157,7 @@ done:
 }
 
 ni_dbus_message_t *
-ni_dbus_method_call_new_va(const ni_dbus_proxy_t *dbo, const char *method, va_list *app)
+ni_dbus_proxy_call_new_va(const ni_dbus_proxy_t *dbo, const char *method, va_list *app)
 {
 	ni_dbus_message_t *msg;
 
@@ -170,7 +167,7 @@ ni_dbus_method_call_new_va(const ni_dbus_proxy_t *dbo, const char *method, va_li
 	/* Serialize arguments */
 	if (msg && app) {
 		if (ni_dbus_message_serialize_va(msg, *app) < 0) {
-			ni_error("ni_dbus_method_call_new: failed to serialize args");
+			ni_error("ni_dbus_proxy_call_new: failed to serialize args");
 			dbus_message_unref(msg);
 			return NULL;
 		}
@@ -249,7 +246,7 @@ ni_dbus_proxy_call_async(ni_dbus_proxy_t *proxy,
 
 	ni_debug_dbus("%s(method=%s)", __FUNCTION__, method);
 	va_start(ap, method);
-	call = ni_dbus_method_call_new_va(proxy, method, &ap);
+	call = ni_dbus_proxy_call_new_va(proxy, method, &ap);
 	va_end(ap);
 
 	if (call == NULL) {

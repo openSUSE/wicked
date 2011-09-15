@@ -341,7 +341,7 @@ ni_wpa_add_interface(ni_wpa_client_t *wpa, const char *ifname, ni_wpa_interface_
 
 		/* Build the addInterface call, using the given interface name
 		 * and specify "wext" as the driver parameter. */
-		call = ni_dbus_method_call_new_va(wpa->proxy, "addInterface", NULL);
+		call = ni_dbus_proxy_call_new_va(wpa->proxy, "addInterface", NULL);
 		if (call == NULL) {
 			ni_error("%s: could not build message", __func__);
 			rv = -EINVAL;
@@ -1088,8 +1088,7 @@ ni_wpa_interface_get_capabilities(ni_wpa_client_t *wpa, ni_wpa_interface_t *ifp)
 	ni_dbus_message_t *call = NULL, *reply = NULL;
 	int rv = -1;
 
-	call = ni_dbus_method_call_new(wpa->dbus, ifp->proxy, "capabilities",
-			0);
+	call = ni_dbus_proxy_call_new(ifp->proxy, "capabilities", 0);
 	if (call == NULL) {
 		ni_error("%s: could not build message", __func__);
 		rv = -EINVAL;
