@@ -54,6 +54,7 @@ static int		opt_foreground = 0;
 static int		opt_nofork = 0;
 static int		opt_dbus = 0;
 static int		opt_recover_leases = 1;
+static ni_dbus_server_t *wicked_dbus_server;
 
 static void		wicked_discover_state(void);
 static void		wicked_try_restart_addrconf(ni_interface_t *, ni_afinfo_t *, unsigned int, xml_node_t **);
@@ -61,6 +62,7 @@ static int		wicked_accept_connection(ni_socket_t *, uid_t, gid_t);
 static void		wicked_interface_event(ni_handle_t *, ni_interface_t *, ni_event_t);
 static int		wicked_process_network_restcall(ni_socket_t *);
 static void		wicked_register_dbus_services(ni_dbus_server_t *);
+static void		wicked_dbus_register_interface(ni_interface_t *);
 
 int
 main(int argc, char **argv)
@@ -130,13 +132,11 @@ main(int argc, char **argv)
 			ni_fatal("unable to initialize server socket");
 		ni_socket_set_accept_callback(sock, wicked_accept_connection);
 	} else {
-		ni_dbus_server_t *dbus_server;
-
-		dbus_server = ni_server_listen_dbus(WICKED_DBUS_BUS_NAME);
-		if (dbus_server == NULL)
+		wicked_dbus_server = ni_server_listen_dbus(WICKED_DBUS_BUS_NAME);
+		if (wicked_dbus_server == NULL)
 			ni_fatal("unable to initialize dbus service");
 
-		wicked_register_dbus_services(dbus_server);
+		wicked_register_dbus_services(wicked_dbus_server);
 	}
 
 	/* open global RTNL socket to listen for kernel events */
@@ -192,6 +192,12 @@ wicked_discover_state(void)
 			if (cfg_xml)
 				xml_node_free(cfg_xml);
 		}
+	}
+
+	if (wicked_dbus_server) {
+
+		for (ifp = ni_interfaces(nih); ifp; ifp = ifp->next)
+			wicked_dbus_register_interface(ifp);
 	}
 }
 
@@ -320,6 +326,30 @@ __wicked_root_dbus_call(ni_dbus_object_t *object, const char *method,
 	return 0;
 }
 
+static int
+__wicked_dbus_interface_handler(ni_dbus_object_t *object, const char *method,
+				ni_dbus_message_t *call,
+				ni_dbus_message_t *reply,
+				DBusError *error)
+{
+	return 0;
+}
+
+void
+wicked_dbus_register_interface(ni_interface_t *ifp)
+{
+	ni_dbus_object_t *object;
+	char object_path[256];
+
+	snprintf(object_path, sizeof(object_path), "interface/%s", ifp->name);
+	object = ni_dbus_server_register_object(wicked_dbus_server, object_path, ifp);
+	if (object == NULL)
+		ni_fatal("Unable to create dbus object for interface %s", ifp->name);
+
+	ni_dbus_object_register_service(object, WICKED_DBUS_INTERFACE ".Interface",
+			__wicked_dbus_interface_handler);
+}
+
 /*
  * Handle network layer events.
  * FIXME: There should be some locking here, which prevents us from
@@ -338,6 +368,20 @@ wicked_interface_event(ni_handle_t *nih, ni_interface_t *ifp, ni_event_t event)
 		[NI_EVENT_NETWORK_DOWN]	= "network-down",
 	};
 	ni_policy_t *policy;
+
+	if (wicked_dbus_server) {
+		switch (event) {
+		case NI_EVENT_LINK_CREATE:
+			/* Create dbus object and emit event */
+			break;
+
+		case NI_EVENT_LINK_DELETE:
+			/* Delete dbus object and emit event */
+			break;
+
+		default: ;
+		}
+	}
 
 	if (event >= __NI_EVENT_MAX || !evtype[event])
 		return;

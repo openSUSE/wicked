@@ -123,12 +123,20 @@ __ni_dbus_server_get_object(ni_dbus_object_t *parent, const char *name, int crea
 
 	if (create) {
 		unsigned int len;
+		char *child_path;
+
+		len = strlen(parent->object_path) + strlen(name) + 2;
+		child_path = malloc(len);
+		snprintf(child_path, len, "%s/%s", parent->object_path, name);
 
 		object = calloc(1, sizeof(*object));
 		ni_string_dup(&object->object_name, name);
-		len = strlen(parent->object_path) + strlen(name) + 2;
-		object->object_path = malloc(len);
-		snprintf(object->object_path, len, "%s/%s", parent->object_path, name);
+		object->object_path = child_path;
+		object->server = parent->server;
+
+		ni_debug_dbus("created %s as child of %s",
+			object->object_path,
+			parent->object_path);
 
 		*pos = object;
 	}
@@ -161,6 +169,8 @@ ni_dbus_object_t *
 ni_dbus_server_register_object(ni_dbus_server_t *server, const char *object_path, void *object_handle)
 {
 	ni_dbus_object_t *object;
+
+	TRACE_ENTERN("path=%s, handle=%p", object_path, object_handle);
 
 	object = __ni_dbus_server_find_object(server, object_path, 1);
 	if (object == NULL) {
