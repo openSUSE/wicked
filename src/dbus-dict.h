@@ -93,6 +93,17 @@ dbus_bool_t ni_dbus_dict_append_string_array(DBusMessageIter *iter_dict,
 					      const char **items,
 					      const dbus_uint32_t num_items);
 
+dbus_bool_t ni_dbus_dict_begin_string_dict(DBusMessageIter *iter_parent_dict,
+					     const char *key,
+					     DBusMessageIter *iter_parent_entry,
+					     DBusMessageIter *iter_parent_val,
+					     DBusMessageIter *iter_child_dict);
+
+dbus_bool_t ni_dbus_dict_end_string_dict(DBusMessageIter *iter_parent_dict,
+					   DBusMessageIter *iter_parent_entry,
+					   DBusMessageIter *iter_parent_val,
+					   DBusMessageIter *iter_child_dict);
+
 /*
  * Reading a dict from a DBusMessage
  */

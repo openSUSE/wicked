@@ -104,7 +104,7 @@ static const char * _wpa_get_type_as_string_from_type(const int type)
 
 static dbus_bool_t __ni_dbus_add_dict_entry_start(
 	DBusMessageIter *iter_dict, DBusMessageIter *iter_dict_entry,
-	const char *key, const int value_type)
+	const char *key)
 {
 	if (!dbus_message_iter_open_container(iter_dict,
 					      DBUS_TYPE_DICT_ENTRY, NULL,
@@ -144,8 +144,7 @@ static dbus_bool_t __ni_dbus_add_dict_entry_basic(DBusMessageIter *iter_dict,
 	if (!type_as_string)
 		return FALSE;
 
-	if (!__ni_dbus_add_dict_entry_start(iter_dict, &iter_dict_entry,
-					    key, value_type))
+	if (!__ni_dbus_add_dict_entry_start(iter_dict, &iter_dict_entry, key))
 		return FALSE;
 
 	if (!dbus_message_iter_open_container(&iter_dict_entry,
@@ -171,8 +170,7 @@ static dbus_bool_t __ni_dbus_add_dict_entry_byte_array(
 	DBusMessageIter iter_dict_entry, iter_dict_val, iter_array;
 	dbus_uint32_t i;
 
-	if (!__ni_dbus_add_dict_entry_start(iter_dict, &iter_dict_entry,
-					    key, DBUS_TYPE_ARRAY))
+	if (!__ni_dbus_add_dict_entry_start(iter_dict, &iter_dict_entry, key))
 		return FALSE;
 
 	if (!dbus_message_iter_open_container(&iter_dict_entry,
@@ -482,8 +480,7 @@ dbus_bool_t ni_dbus_dict_begin_string_array(DBusMessageIter *iter_dict,
 	if (!iter_dict || !iter_dict_entry || !iter_dict_val || !iter_array)
 		return FALSE;
 
-	if (!__ni_dbus_add_dict_entry_start(iter_dict, iter_dict_entry,
-					    key, DBUS_TYPE_ARRAY))
+	if (!__ni_dbus_add_dict_entry_start(iter_dict, iter_dict_entry, key))
 		return FALSE;
 
 	if (!dbus_message_iter_open_container(iter_dict_entry,
@@ -593,6 +590,91 @@ dbus_bool_t ni_dbus_dict_append_string_array(DBusMessageIter *iter_dict,
 
 	if (!ni_dbus_dict_end_string_array(iter_dict, &iter_dict_entry,
 					    &iter_dict_val, &iter_array))
+		return FALSE;
+
+	return TRUE;
+}
+
+
+/**
+ * Begin a string dict entry in the dict
+ *
+ * @param iter_parent_dict A valid DBusMessageIter returned from
+ *                  ni_dbus_dict_open_write()
+ * @param key The key of the dict item
+ * @param iter_parent_entry A private DBusMessageIter provided by the caller to
+ *                        be passed to ni_dbus_dict_end_string_dict()
+ * @param iter_parent_val A private DBusMessageIter provided by the caller to
+ *                      be passed to ni_dbus_dict_end_string_dict()
+ * @param iter_child_dict On return, the DBusMessageIter to be passed to
+ *                   ni_dbus_dict_string_dict_add_element()
+ * @return TRUE on success, FALSE on failure
+ *
+ */
+dbus_bool_t ni_dbus_dict_begin_string_dict(DBusMessageIter *iter_parent_dict,
+					     const char *key,
+					     DBusMessageIter *iter_parent_entry,
+					     DBusMessageIter *iter_parent_val,
+					     DBusMessageIter *iter_child_dict)
+{
+	if (!iter_parent_dict || !iter_parent_entry || !iter_parent_val || !iter_child_dict)
+		return FALSE;
+
+	if (!__ni_dbus_add_dict_entry_start(iter_parent_dict, iter_parent_entry, key))
+		return FALSE;
+
+	ni_debug_dbus("dbus_message_iter_open_container(%d, %s)",
+					      DBUS_TYPE_VARIANT,
+					      DBUS_TYPE_ARRAY_AS_STRING
+					      DBUS_DICT_ENTRY_BEGIN_CHAR_AS_STRING
+					      DBUS_TYPE_STRING_AS_STRING
+					      DBUS_TYPE_VARIANT_AS_STRING
+					      DBUS_DICT_ENTRY_END_CHAR_AS_STRING);
+
+	if (!dbus_message_iter_open_container(iter_parent_entry,
+					      DBUS_TYPE_VARIANT,
+					      DBUS_TYPE_ARRAY_AS_STRING
+					      DBUS_DICT_ENTRY_BEGIN_CHAR_AS_STRING
+					      DBUS_TYPE_STRING_AS_STRING
+					      DBUS_TYPE_VARIANT_AS_STRING
+					      DBUS_DICT_ENTRY_END_CHAR_AS_STRING,
+					      iter_parent_val))
+		return FALSE;
+
+	if (!ni_dbus_dict_open_write(iter_parent_val, iter_child_dict))
+		return FALSE;
+
+	return TRUE;
+}
+
+
+/**
+ * End a string dict dict entry
+ *
+ * @param iter_parent_dict A valid DBusMessageIter returned from
+ *                  ni_dbus_dict_open_write()
+ * @param iter_parent_entry A private DBusMessageIter returned from
+ *                        ni_dbus_dict_end_string_dict()
+ * @param iter_parent_val A private DBusMessageIter returned from
+ *                      ni_dbus_dict_end_string_dict()
+ * @param iter_child_dict A DBusMessageIter returned from
+ *                   ni_dbus_dict_end_string_dict()
+ * @return TRUE on success, FALSE on failure
+ *
+ */
+dbus_bool_t ni_dbus_dict_end_string_dict(DBusMessageIter *iter_parent_dict,
+					   DBusMessageIter *iter_parent_entry,
+					   DBusMessageIter *iter_parent_val,
+					   DBusMessageIter *iter_child_dict)
+{
+	if (!iter_parent_dict || !iter_parent_entry || !iter_parent_val || !iter_child_dict)
+		return FALSE;
+
+	if (!dbus_message_iter_close_container(iter_parent_val, iter_child_dict))
+		return FALSE;
+
+	if (!__ni_dbus_add_dict_entry_end(iter_parent_dict, iter_parent_entry,
+					  iter_parent_val))
 		return FALSE;
 
 	return TRUE;

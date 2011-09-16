@@ -16,6 +16,8 @@
 #include "dbus-dict.h"
 
 #define TRACE_ENTER()		ni_debug_dbus("%s()", __FUNCTION__)
+#define TRACE_ENTERN(fmt, args...) \
+				ni_debug_dbus("%s(" fmt ")", __FUNCTION__, ##args)
 #define TP()			ni_debug_dbus("TP - %s:%u", __FUNCTION__, __LINE__)
 
 
@@ -40,6 +42,7 @@ struct ni_dbus_server {
 	ni_dbus_object_t *	root_object;
 };
 
+static ni_dbus_service_t *	ni_dbus_object_register_object_manager(ni_dbus_object_t *);
 static char *			__ni_dbus_server_root_path(const char *);
 static void			__ni_dbus_object_free(ni_dbus_object_t *);
 static void			__ni_dbus_service_free(ni_dbus_service_t *);
@@ -67,6 +70,8 @@ ni_dbus_server_open(const char *bus_name, void *root_object_handle)
 	server->root_object->server = server;
 	server->root_object->object_path = __ni_dbus_server_root_path(bus_name);
 	server->root_object->object_handle = root_object_handle;
+
+	ni_dbus_object_register_object_manager(server->root_object);
 
 	return server;
 }
@@ -198,14 +203,19 @@ ni_dbus_object_register_service(ni_dbus_object_t *object, const char *interface,
 {
 	ni_dbus_service_t *svc;
 
+	TRACE_ENTERN("path=%s, interface=%s", object->object_path, interface);
+
 	svc = ni_dbus_object_get_service(object, interface);
 	if (svc == NULL) {
 		svc = calloc(1, sizeof(*svc));
 		ni_string_dup(&svc->object_interface, interface);
 		svc->handler = handler;
 
-		if (object->interfaces == NULL)
+		if (object->interfaces == NULL) {
 			ni_dbus_connection_register_object(object->server->connection, object);
+
+			/* FIXME: register ObjectManager interface */
+		}
 
 		svc->next = object->interfaces;
 		object->interfaces = svc;
@@ -217,9 +227,10 @@ ni_dbus_object_register_service(ni_dbus_object_t *object, const char *interface,
 /*
  * Support the built-in ObjectManager interface
  */
-static int	__ni_dbus_object_manager_handler(void *object_handle, const char *method,
+static int	__ni_dbus_object_manager_handler(ni_dbus_object_t *object, const char *method,
 				ni_dbus_message_t *call, ni_dbus_message_t *reply,
 				DBusError *error);
+static int	__ni_dbus_object_manager_enumerate_object(ni_dbus_object_t *, DBusMessageIter *);
 
 ni_dbus_service_t *
 ni_dbus_object_register_object_manager(ni_dbus_object_t *object)
@@ -233,11 +244,71 @@ ni_dbus_object_register_object_manager(ni_dbus_object_t *object)
 }
 
 static int
-__ni_dbus_object_manager_handler(void *object, const char *method,
+__ni_dbus_object_manager_handler(ni_dbus_object_t *object, const char *method,
 		ni_dbus_message_t *call, ni_dbus_message_t *reply,
 		DBusError *error)
 {
-	return 0;
+	DBusMessageIter iter, dict_iter;
+
+	TRACE_ENTERN("path=%s, method=%s", object->object_path, method);
+	if (!strcmp(method, "GetManagedObjects")) {
+		int rv = 0;
+
+		dbus_message_iter_init_append(reply, &iter);
+		if (!ni_dbus_dict_open_write(&iter, &dict_iter))
+			rv = -1;
+		if (!__ni_dbus_object_manager_enumerate_object(object, &dict_iter))
+			rv = -1;
+		ni_dbus_dict_close_write(&iter, &dict_iter);
+		return rv;
+	}
+
+	dbus_set_error_const(error,
+			"org.freedesktop.DBus.Error.UnknownMethod",
+			"Method does not exist");
+	return -1;
+}
+
+static int
+__ni_dbus_object_manager_enumerate_interface(ni_dbus_service_t *service, DBusMessageIter *dict_iter)
+{
+	DBusMessageIter entry_iter, val_iter, prop_iter;
+	int rv = TRUE;
+
+	if (!ni_dbus_dict_begin_string_dict(dict_iter, service->object_interface,
+					&entry_iter, &val_iter, &prop_iter))
+		return FALSE;
+
+	/* FIXME: Loop over properties and add them here */
+
+	ni_dbus_dict_end_string_dict(dict_iter, &entry_iter, &val_iter, &prop_iter);
+	return rv;
+}
+
+int
+__ni_dbus_object_manager_enumerate_object(ni_dbus_object_t *object, DBusMessageIter *dict_iter)
+{
+	DBusMessageIter entry_iter, val_iter, interface_iter;
+	ni_dbus_object_t *child;
+	int rv = TRUE;
+
+	if (object->interfaces) {
+		ni_dbus_service_t *svc;
+
+		if (!ni_dbus_dict_begin_string_dict(dict_iter, object->object_path,
+						&entry_iter, &val_iter, &interface_iter))
+			return FALSE;
+
+		for (svc = object->interfaces; svc && rv; svc = svc->next)
+			rv = __ni_dbus_object_manager_enumerate_interface(svc, &interface_iter);
+
+		ni_dbus_dict_end_string_dict(dict_iter, &entry_iter, &val_iter, &interface_iter);
+	}
+
+	for (child = object->children; child && rv; child = child->next)
+		rv = __ni_dbus_object_manager_enumerate_object(child, dict_iter);
+
+	return rv;
 }
 
 /*
@@ -271,7 +342,7 @@ __ni_dbus_object_message(DBusConnection *conn, DBusMessage *call, void *user_dat
 
 	dbus_error_init(&error);
 	reply = dbus_message_new_method_return(call);
-	rv = svc->handler(object->object_handle, method, call, reply, &error);
+	rv = svc->handler(object, method, call, reply, &error);
 	if (rv < 0) {
 		dbus_message_unref(reply);
 		reply = dbus_message_new_error(call, error.name, error.message);
@@ -377,10 +448,10 @@ __ni_dbus_server_root_path(const char *bus_name)
 	for (i = 1; *bus_name != '\0'; ) {
 		if (*bus_name == '.') {
 			root_path[i++] = '/';
-			while (*bus_name++ == '.')
-				;
+			while (*bus_name == '.')
+				++bus_name;
 		} else {
-			root_path[i] = *bus_name++;
+			root_path[i++] = *bus_name++;
 		}
 	}
 	root_path[i] = '\0';
