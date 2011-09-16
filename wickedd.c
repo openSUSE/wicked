@@ -341,7 +341,7 @@ wicked_dbus_register_interface(ni_interface_t *ifp)
 	ni_dbus_object_t *object;
 	char object_path[256];
 
-	snprintf(object_path, sizeof(object_path), "interface/%s", ifp->name);
+	snprintf(object_path, sizeof(object_path), "Interface/%s", ifp->name);
 	object = ni_dbus_server_register_object(wicked_dbus_server, object_path, ifp);
 	if (object == NULL)
 		ni_fatal("Unable to create dbus object for interface %s", ifp->name);
