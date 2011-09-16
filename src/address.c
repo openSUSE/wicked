@@ -21,8 +21,10 @@
 #include "netinfo_priv.h"
 
 
-#define offsetof(type, member) \
+#ifndef offsetof
+# define offsetof(type, member) \
 	((unsigned long) &(((type *) NULL)->member))
+#endif
 
 static const unsigned char *__ni_address_data(const ni_sockaddr_t *, unsigned int *);
 
