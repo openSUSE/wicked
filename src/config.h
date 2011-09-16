@@ -97,6 +97,8 @@ typedef struct ni_config {
 	ni_extension_t *	linktype_extensions;
 	ni_extension_t *	addrconf_extensions;
 
+	char *			dbus_name;
+
 	char *			default_syntax;
 	char *			default_syntax_path;
 } ni_config_t;

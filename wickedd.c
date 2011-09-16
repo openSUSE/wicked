@@ -8,7 +8,7 @@
  * The idea is to make it easier to extend this to some smallish daemon
  * with a AF_LOCAL socket interface.
  *
- * Copyright (C) 2010 Olaf Kirch <okir@suse.de>
+ * Copyright (C) 2010, 2011 Olaf Kirch <okir@suse.de>
  */
 
 #include <sys/poll.h>
@@ -36,6 +36,7 @@ enum {
 	OPT_FOREGROUND,
 	OPT_NOFORK,
 	OPT_NORECOVER,
+	OPT_DBUS,
 };
 
 static struct option	options[] = {
@@ -44,12 +45,14 @@ static struct option	options[] = {
 	{ "foreground",		no_argument,		NULL,	OPT_FOREGROUND },
 	{ "no-fork",		no_argument,		NULL,	OPT_NOFORK },
 	{ "no-recovery",	no_argument,		NULL,	OPT_NORECOVER },
+	{ "dbus",		no_argument,		NULL,	OPT_DBUS },
 
 	{ NULL }
 };
 
 static int		opt_foreground = 0;
 static int		opt_nofork = 0;
+static int		opt_dbus = 0;
 static int		opt_recover_leases = 1;
 
 static void		wicked_discover_state(void);
@@ -57,6 +60,7 @@ static void		wicked_try_restart_addrconf(ni_interface_t *, ni_afinfo_t *, unsign
 static int		wicked_accept_connection(ni_socket_t *, uid_t, gid_t);
 static void		wicked_interface_event(ni_handle_t *, ni_interface_t *, ni_event_t);
 static int		wicked_process_network_restcall(ni_socket_t *);
+static void		wicked_register_dbus_services(ni_dbus_server_t *);
 
 int
 main(int argc, char **argv)
@@ -106,6 +110,9 @@ main(int argc, char **argv)
 			opt_recover_leases = 0;
 			break;
 
+		case OPT_DBUS:
+			opt_dbus = 1;
+			break;
 		}
 	}
 
@@ -118,9 +125,19 @@ main(int argc, char **argv)
 	if (optind != argc)
 		goto usage;
 
-	if ((sock = ni_server_listen()) == NULL)
-		ni_fatal("unable to initialize server socket");
-	ni_socket_set_accept_callback(sock, wicked_accept_connection);
+	if (opt_dbus == 0) {
+		if ((sock = ni_server_listen()) == NULL)
+			ni_fatal("unable to initialize server socket");
+		ni_socket_set_accept_callback(sock, wicked_accept_connection);
+	} else {
+		ni_dbus_server_t *dbus_server;
+
+		dbus_server = ni_server_listen_dbus(WICKED_DBUS_BUS_NAME);
+		if (dbus_server == NULL)
+			ni_fatal("unable to initialize dbus service");
+
+		wicked_register_dbus_services(dbus_server);
+	}
 
 	/* open global RTNL socket to listen for kernel events */
 	if (ni_server_listen_events(wicked_interface_event) < 0)
@@ -276,6 +293,30 @@ wicked_process_network_restcall(ni_socket_t *sock)
 
 	ni_wicked_request_destroy(&req);
 
+	return 0;
+}
+
+/*
+ * Functions to support the DBus binding
+ */
+static int __wicked_root_dbus_call(void *obj_handle, const char *method,
+		ni_dbus_message_t *call, ni_dbus_message_t *reply,
+		DBusError *error);
+
+void
+wicked_register_dbus_services(ni_dbus_server_t *server)
+{
+	ni_dbus_object_t *root_object = ni_dbus_server_get_root_object(server);
+
+	ni_dbus_object_register_service(root_object, WICKED_DBUS_INTERFACE,
+			__wicked_root_dbus_call);
+}
+
+static int
+__wicked_root_dbus_call(void *obj_handle, const char *method,
+		ni_dbus_message_t *call, ni_dbus_message_t *reply,
+		DBusError *error)
+{
 	return 0;
 }
 

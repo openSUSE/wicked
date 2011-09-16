@@ -24,6 +24,7 @@
 #include <wicked/resolver.h>
 #include <wicked/nis.h>
 #include "netinfo_priv.h"
+#include "dbus-server.h"
 #include "config.h"
 
 #define DEFAULT_ADDRCONF_IPV4 (\
@@ -120,6 +121,20 @@ ni_server_listen(void)
 	}
 
 	return ni_local_socket_listen(fsloc->path, fsloc->mode);
+}
+
+ni_dbus_server_t *
+ni_server_listen_dbus(const char *dbus_name)
+{
+	__ni_assert_initialized();
+	if (dbus_name == NULL)
+		dbus_name = ni_global.config->dbus_name;
+	if (dbus_name == NULL) {
+		ni_error("%s: no bus name specified", __FUNCTION__);
+		return NULL;
+	}
+
+	return ni_dbus_server_open(dbus_name, NULL);
 }
 
 ni_socket_t *

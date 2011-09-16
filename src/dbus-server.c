@@ -18,13 +18,6 @@
 #define TRACE_ENTER()		ni_debug_dbus("%s()", __FUNCTION__)
 #define TP()			ni_debug_dbus("TP - %s:%u", __FUNCTION__, __LINE__)
 
-typedef int			ni_dbus_service_handler_t(void *object_handle,
-					const char *method,
-					ni_dbus_message_t *call,
-					ni_dbus_message_t *reply,
-					DBusError *err);
-
-typedef struct ni_dbus_service	ni_dbus_service_t;
 
 struct ni_dbus_object {
 	ni_dbus_object_t *	next;
@@ -93,6 +86,15 @@ ni_dbus_server_free(ni_dbus_server_t *server)
 	server->connection = NULL;
 
 	free(server);
+}
+
+/*
+ * Retrieve the server's root object
+ */
+ni_dbus_object_t *
+ni_dbus_server_get_root_object(const ni_dbus_server_t *server)
+{
+	return server->root_object;
 }
 
 /*
@@ -210,6 +212,32 @@ ni_dbus_object_register_service(ni_dbus_object_t *object, const char *interface,
 	}
 
 	return svc;
+}
+
+/*
+ * Support the built-in ObjectManager interface
+ */
+static int	__ni_dbus_object_manager_handler(void *object_handle, const char *method,
+				ni_dbus_message_t *call, ni_dbus_message_t *reply,
+				DBusError *error);
+
+ni_dbus_service_t *
+ni_dbus_object_register_object_manager(ni_dbus_object_t *object)
+{
+	ni_dbus_service_t *service;
+
+	service = ni_dbus_object_register_service(object, NI_DBUS_INTERFACE ".ObjectManager",
+					__ni_dbus_object_manager_handler);
+
+	return service;
+}
+
+static int
+__ni_dbus_object_manager_handler(void *object, const char *method,
+		ni_dbus_message_t *call, ni_dbus_message_t *reply,
+		DBusError *error)
+{
+	return 0;
 }
 
 /*

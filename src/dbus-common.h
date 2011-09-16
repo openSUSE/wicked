@@ -9,20 +9,11 @@
 #define __WICKED_DBUS_COMMON_H__
 
 
+#include <wicked/dbus.h>
+
 #define NI_DBUS_BUS_NAME	"org.freedesktop.DBus"
 #define NI_DBUS_OBJECT_PATH	"/org/freedesktop/DBus"
 #define NI_DBUS_INTERFACE	"org.freedesktop.DBus"
-
-typedef DBusMessage		ni_dbus_message_t;
-typedef struct ni_dbus_connection ni_dbus_connection_t;
-typedef struct ni_dbus_client	ni_dbus_client_t;
-typedef struct ni_dbus_server	ni_dbus_server_t;
-typedef struct ni_dbus_proxy	ni_dbus_proxy_t;
-typedef struct ni_dbus_object	ni_dbus_object_t;
-
-typedef void			ni_dbus_async_callback_t(ni_dbus_proxy_t *, ni_dbus_message_t *);
-typedef void			ni_dbus_signal_handler_t(ni_dbus_connection_t *, ni_dbus_message_t *, void *);
-
 
 extern const char *		ni_dbus_object_get_path(const ni_dbus_object_t *);
 extern const DBusObjectPathVTable *ni_dbus_object_get_vtable(const ni_dbus_object_t *);

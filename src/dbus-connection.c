@@ -16,6 +16,8 @@
 #include "dbus-dict.h"
 
 #define TRACE_ENTER()		ni_debug_dbus("%s()", __FUNCTION__)
+#define TRACE_ENTERN(fmt, args...) \
+				ni_debug_dbus("%s(" fmt ")", __FUNCTION__, ##args)
 #define TP()			ni_debug_dbus("TP - %s:%u", __FUNCTION__, __LINE__)
 
 
@@ -71,7 +73,7 @@ ni_dbus_connection_open(const char *bus_name)
 	ni_dbus_connection_t *connection;
 	DBusError error;
 
-	TRACE_ENTER();
+	TRACE_ENTERN("%s", bus_name?: "");
 
 	dbus_error_init(&error);
 
@@ -107,6 +109,7 @@ ni_dbus_connection_open(const char *bus_name)
 		}
 		if (rv != DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER)
 			goto failed_unexpectedly;
+		ni_debug_dbus("Successfully acquired bus name \"%s\"", bus_name);
 	}
 
 	dbus_connection_add_filter(connection->conn, __ni_dbus_signal_filter, connection, NULL);

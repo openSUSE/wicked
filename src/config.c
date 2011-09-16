@@ -55,6 +55,7 @@ ni_config_free(ni_config_t *conf)
 	ni_extension_list_destroy(&conf->addrconf_extensions);
 	ni_extension_list_destroy(&conf->linktype_extensions);
 	ni_extension_list_destroy(&conf->api_extensions);
+	ni_string_free(&conf->dbus_name);
 	ni_string_free(&conf->default_syntax);
 	ni_string_free(&conf->default_syntax_path);
 	free(conf);
@@ -99,6 +100,14 @@ ni_config_parse(const char *filename)
 			ni_string_dup(&conf->default_syntax, attrval);
 		if ((attrval = xml_node_get_attr(child, "path")) != NULL)
 			ni_string_dup(&conf->default_syntax_path, attrval);
+	}
+
+	child = xml_node_get_child(node, "dbus");
+	if (child) {
+		const char *attrval;
+
+		if ((attrval = xml_node_get_attr(child, "name")) != NULL)
+			ni_string_dup(&conf->dbus_name, attrval);
 	}
 
 	child = xml_node_get_child(node, "addrconf");
