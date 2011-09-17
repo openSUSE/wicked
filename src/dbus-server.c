@@ -458,14 +458,10 @@ failed:
 static int
 __ni_dbus_object_manager_enumerate_interface(ni_dbus_object_t *object, ni_dbus_service_t *service, DBusMessageIter *dict_iter)
 {
-	DBusMessageIter entry_iter, val_iter, prop_iter;
 	const ni_dbus_property_t *property;
 	int rv = TRUE;
 
 	TRACE_ENTERN("object=%s, interface=%s", object->object_path, service->object_interface);
-	if (!ni_dbus_dict_begin_string_dict(dict_iter, service->object_interface,
-					&entry_iter, &val_iter, &prop_iter))
-		return FALSE;
 
 	/* Loop over properties and add them here */
 	if (service->properties) {
@@ -476,13 +472,12 @@ __ni_dbus_object_manager_enumerate_interface(ni_dbus_object_t *object, ni_dbus_s
 			if (property->get == NULL)
 				continue;
 			if (property->get(object, property, &value, &error))
-				ni_dbus_dict_append_variant(&prop_iter, property->name, &value);
+				ni_dbus_dict_append_variant(dict_iter, property->name, &value);
 			ni_dbus_variant_destroy(&value);
 			dbus_error_free(&error);
 		}
 	}
 
-	ni_dbus_dict_end_string_dict(dict_iter, &entry_iter, &val_iter, &prop_iter);
 	return rv;
 }
 
@@ -500,8 +495,16 @@ __ni_dbus_object_manager_enumerate_object(ni_dbus_object_t *object, DBusMessageI
 						&entry_iter, &val_iter, &interface_iter))
 			return FALSE;
 
-		for (svc = object->interfaces; svc && rv; svc = svc->next)
-			rv = __ni_dbus_object_manager_enumerate_interface(object, svc, &interface_iter);
+		for (svc = object->interfaces; svc && rv; svc = svc->next) {
+			DBusMessageIter entry_iter, val_iter, prop_iter;
+
+			if (!ni_dbus_dict_begin_string_dict(&interface_iter, svc->object_interface,
+							&entry_iter, &val_iter, &prop_iter))
+				return FALSE;
+			rv = __ni_dbus_object_manager_enumerate_interface(object, svc, &prop_iter);
+
+			ni_dbus_dict_end_string_dict(&interface_iter, &entry_iter, &val_iter, &prop_iter);
+		}
 
 		ni_dbus_dict_end_string_dict(dict_iter, &entry_iter, &val_iter, &interface_iter);
 	}
