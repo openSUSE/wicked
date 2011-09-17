@@ -315,7 +315,8 @@ wicked_register_dbus_services(ni_dbus_server_t *server)
 	ni_dbus_object_t *root_object = ni_dbus_server_get_root_object(server);
 
 	ni_dbus_object_register_service(root_object, WICKED_DBUS_INTERFACE,
-			__wicked_root_dbus_call);
+			__wicked_root_dbus_call,
+			NULL);
 }
 
 static int
@@ -335,6 +336,32 @@ __wicked_dbus_interface_handler(ni_dbus_object_t *object, const char *method,
 	return 0;
 }
 
+static int
+__wicked_dbus_interface_get_status(const ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				ni_dbus_variant_t *result,
+				DBusError *error)
+{
+	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
+
+	ni_dbus_variant_set_uint32(result, ifp->ifflags);
+	return TRUE;
+}
+
+#define NI_DBUS_PROPERTY_METHODS_RO(fstem, __name) \
+	.get = fstem ## _get_ ## __name, .set = NULL
+#define NI_DBUS_PROPERTY_METHODS_RW(fstem, __name) \
+	.get = fstem ## _get_ ## __name, .set = fstem ## _set_ ## __name
+#define NI_DBUS_PROPERTY(type, __name, fstem, rw) \
+{ .name = #__name, .id = 0, .signature = DBUS_TYPE_##type##_AS_STRING, NI_DBUS_PROPERTY_METHODS_##rw(fstem, __name) }
+#define WICKED_INTERFACE_PROPERTY(type, __name, rw) \
+	NI_DBUS_PROPERTY(type, __name, __wicked_dbus_interface, rw)
+
+static ni_dbus_property_t	wicked_dbus_interface_properties[] = {
+	WICKED_INTERFACE_PROPERTY(UINT32, status, RO),
+	{ NULL }
+};
+
 void
 wicked_dbus_register_interface(ni_interface_t *ifp)
 {
@@ -347,7 +374,8 @@ wicked_dbus_register_interface(ni_interface_t *ifp)
 		ni_fatal("Unable to create dbus object for interface %s", ifp->name);
 
 	ni_dbus_object_register_service(object, WICKED_DBUS_INTERFACE ".Interface",
-			__wicked_dbus_interface_handler);
+			__wicked_dbus_interface_handler,
+			wicked_dbus_interface_properties);
 }
 
 /*

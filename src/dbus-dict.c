@@ -69,7 +69,7 @@ dbus_bool_t ni_dbus_dict_close_write(DBusMessageIter *iter,
 }
 
 
-static const char * _wpa_get_type_as_string_from_type(const int type)
+static const char * __ni_dbus_get_type_as_string_from_type(const int type)
 {
 	switch(type) {
 	case DBUS_TYPE_BYTE:
@@ -140,7 +140,7 @@ static dbus_bool_t __ni_dbus_add_dict_entry_basic(DBusMessageIter *iter_dict,
 	DBusMessageIter iter_dict_entry, iter_dict_val;
 	const char *type_as_string = NULL;
 
-	type_as_string = _wpa_get_type_as_string_from_type(value_type);
+	type_as_string = __ni_dbus_get_type_as_string_from_type(value_type);
 	if (!type_as_string)
 		return FALSE;
 
@@ -202,6 +202,42 @@ static dbus_bool_t __ni_dbus_add_dict_entry_byte_array(
 	return TRUE;
 }
 
+dbus_bool_t ni_dbus_dict_append_variant(DBusMessageIter *iter_dict,
+				      const char *key, const ni_dbus_variant_t *variant)
+{
+	switch (variant->type) {
+	case DBUS_TYPE_BYTE:
+		return __ni_dbus_add_dict_entry_basic(iter_dict, key,
+				variant->type, &variant->byte_value);
+	case DBUS_TYPE_BOOLEAN:
+		return __ni_dbus_add_dict_entry_basic(iter_dict, key,
+				variant->type, &variant->bool_value);
+	case DBUS_TYPE_STRING:
+		return __ni_dbus_add_dict_entry_basic(iter_dict, key,
+				variant->type, &variant->string_value);
+	case DBUS_TYPE_INT16:
+		return __ni_dbus_add_dict_entry_basic(iter_dict, key,
+				variant->type, &variant->int16_value);
+	case DBUS_TYPE_UINT16:
+		return __ni_dbus_add_dict_entry_basic(iter_dict, key,
+				variant->type, &variant->uint16_value);
+	case DBUS_TYPE_INT32:
+		return __ni_dbus_add_dict_entry_basic(iter_dict, key,
+				variant->type, &variant->int32_value);
+	case DBUS_TYPE_UINT32:
+		return __ni_dbus_add_dict_entry_basic(iter_dict, key,
+				variant->type, &variant->uint32_value);
+	case DBUS_TYPE_INT64:
+		return __ni_dbus_add_dict_entry_basic(iter_dict, key,
+				variant->type, &variant->int64_value);
+	case DBUS_TYPE_UINT64:
+		return __ni_dbus_add_dict_entry_basic(iter_dict, key,
+				variant->type, &variant->uint64_value);
+
+	default:
+		return FALSE;
+	}
+}
 
 /**
  * Add a string entry to the dict.
@@ -623,6 +659,7 @@ dbus_bool_t ni_dbus_dict_begin_string_dict(DBusMessageIter *iter_parent_dict,
 	if (!__ni_dbus_add_dict_entry_start(iter_parent_dict, iter_parent_entry, key))
 		return FALSE;
 
+#if 0
 	ni_debug_dbus("dbus_message_iter_open_container(%d, %s)",
 					      DBUS_TYPE_VARIANT,
 					      DBUS_TYPE_ARRAY_AS_STRING
@@ -630,6 +667,7 @@ dbus_bool_t ni_dbus_dict_begin_string_dict(DBusMessageIter *iter_parent_dict,
 					      DBUS_TYPE_STRING_AS_STRING
 					      DBUS_TYPE_VARIANT_AS_STRING
 					      DBUS_DICT_ENTRY_END_CHAR_AS_STRING);
+#endif
 
 	if (!dbus_message_iter_open_container(iter_parent_entry,
 					      DBUS_TYPE_VARIANT,
@@ -680,6 +718,68 @@ dbus_bool_t ni_dbus_dict_end_string_dict(DBusMessageIter *iter_parent_dict,
 	return TRUE;
 }
 
+int
+ni_dbus_message_iter_append_variant(DBusMessageIter *iter, const ni_dbus_variant_t *variant)
+{
+	const char *type_as_string = NULL;
+	DBusMessageIter iter_val;
+	dbus_bool_t rv;
+
+	type_as_string = __ni_dbus_get_type_as_string_from_type(variant->type);
+	if (!type_as_string)
+		return FALSE;
+
+	if (!dbus_message_iter_open_container(iter, DBUS_TYPE_VARIANT, type_as_string, &iter_val))
+		return FALSE;
+
+	switch (variant->type) {
+	case DBUS_TYPE_BYTE:
+		rv = dbus_message_iter_append_basic(&iter_val, 
+				variant->type, &variant->byte_value);
+		break;
+	case DBUS_TYPE_BOOLEAN:
+		rv = dbus_message_iter_append_basic(&iter_val,
+				variant->type, &variant->bool_value);
+		break;
+	case DBUS_TYPE_STRING:
+		rv = dbus_message_iter_append_basic(&iter_val,
+				variant->type, &variant->string_value);
+		break;
+		break;
+	case DBUS_TYPE_INT16:
+		rv = dbus_message_iter_append_basic(&iter_val,
+				variant->type, &variant->int16_value);
+		break;
+	case DBUS_TYPE_UINT16:
+		rv = dbus_message_iter_append_basic(&iter_val,
+				variant->type, &variant->uint16_value);
+		break;
+	case DBUS_TYPE_INT32:
+		rv = dbus_message_iter_append_basic(&iter_val,
+				variant->type, &variant->int32_value);
+		break;
+	case DBUS_TYPE_UINT32:
+		rv = dbus_message_iter_append_basic(&iter_val,
+				variant->type, &variant->uint32_value);
+		break;
+	case DBUS_TYPE_INT64:
+		rv = dbus_message_iter_append_basic(&iter_val,
+				variant->type, &variant->int64_value);
+		break;
+	case DBUS_TYPE_UINT64:
+		rv = dbus_message_iter_append_basic(&iter_val,
+				variant->type, &variant->uint64_value);
+		break;
+
+	default:
+		return FALSE;
+	}
+
+	if (rv)
+		rv = dbus_message_iter_close_container(iter, &iter_val);
+
+	return rv;
+}
 
 /*****************************************************/
 /* Stuff for reading dicts                           */

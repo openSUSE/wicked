@@ -67,6 +67,9 @@ dbus_bool_t ni_dbus_dict_append_object_path(DBusMessageIter *iter_dict,
 					     const char *key,
 					     const char *value);
 
+dbus_bool_t ni_dbus_dict_append_variant(DBusMessageIter *iter_dict,
+				      const char *key, const ni_dbus_variant_t *);
+
 dbus_bool_t ni_dbus_dict_append_byte_array(DBusMessageIter *iter_dict,
 					    const char *key,
 					    const char *value,
@@ -103,6 +106,9 @@ dbus_bool_t ni_dbus_dict_end_string_dict(DBusMessageIter *iter_parent_dict,
 					   DBusMessageIter *iter_parent_entry,
 					   DBusMessageIter *iter_parent_val,
 					   DBusMessageIter *iter_child_dict);
+
+extern int	ni_dbus_message_iter_append_variant(DBusMessageIter *iter,
+					const ni_dbus_variant_t *variant);
 
 /*
  * Reading a dict from a DBusMessage

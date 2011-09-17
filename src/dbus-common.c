@@ -149,3 +149,90 @@ ni_dbus_process_properties(DBusMessageIter *iter, const struct ni_dbus_dict_entr
 
 	return rv;
 }
+
+/*
+ * Get/set functions for variant values
+ */
+static inline void
+__ni_dbus_variant_change_type(ni_dbus_variant_t *var, int new_type)
+{
+	if (var->type == new_type)
+		return;
+	if (var->type != DBUS_TYPE_INVALID) {
+		if (var->type == DBUS_TYPE_STRING
+		 || var->type == DBUS_TYPE_OBJECT_PATH
+		 || var->type == DBUS_TYPE_ARRAY)
+			ni_dbus_variant_destroy(var);
+	}
+	var->type = new_type;
+}
+
+void
+ni_dbus_variant_set_string(ni_dbus_variant_t *var, const char *value)
+{
+	__ni_dbus_variant_change_type(var, DBUS_TYPE_BOOLEAN);
+	ni_string_dup(&var->string_value, value);
+}
+
+void
+ni_dbus_variant_set_bool(ni_dbus_variant_t *var, dbus_bool_t value)
+{
+	__ni_dbus_variant_change_type(var, DBUS_TYPE_BOOLEAN);
+	var->bool_value = value;
+}
+
+void
+ni_dbus_variant_set_byte(ni_dbus_variant_t *var, unsigned char value)
+{
+	__ni_dbus_variant_change_type(var, DBUS_TYPE_BYTE);
+	var->byte_value = value;
+}
+
+void
+ni_dbus_variant_set_uint16(ni_dbus_variant_t *var, uint16_t value)
+{
+	__ni_dbus_variant_change_type(var, DBUS_TYPE_UINT16);
+	var->uint16_value = value;
+}
+
+void
+ni_dbus_variant_set_int16(ni_dbus_variant_t *var, int16_t value)
+{
+	__ni_dbus_variant_change_type(var, DBUS_TYPE_INT16);
+	var->int16_value = value;
+}
+
+void
+ni_dbus_variant_set_uint32(ni_dbus_variant_t *var, uint32_t value)
+{
+	__ni_dbus_variant_change_type(var, DBUS_TYPE_UINT32);
+	var->uint32_value = value;
+}
+
+void
+ni_dbus_variant_set_int32(ni_dbus_variant_t *var, int32_t value)
+{
+	__ni_dbus_variant_change_type(var, DBUS_TYPE_INT32);
+	var->int32_value = value;
+}
+
+void
+ni_dbus_variant_set_uint64(ni_dbus_variant_t *var, uint64_t value)
+{
+	__ni_dbus_variant_change_type(var, DBUS_TYPE_UINT64);
+	var->uint64_value = value;
+}
+
+void
+ni_dbus_variant_set_int64(ni_dbus_variant_t *var, int64_t value)
+{
+	__ni_dbus_variant_change_type(var, DBUS_TYPE_INT64);
+	var->int64_value = value;
+}
+
+void
+ni_dbus_variant_destroy(ni_dbus_variant_t *var)
+{
+	if (var->type == DBUS_TYPE_STRING)
+		ni_string_free(&var->string_value);
+}

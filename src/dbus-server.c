@@ -35,6 +35,8 @@ struct ni_dbus_service {
 	ni_dbus_service_t *	next;
 	char *			object_interface;
 	ni_dbus_service_handler_t *handler;
+
+	const ni_dbus_property_t *properties;
 };
 
 struct ni_dbus_server {
@@ -43,6 +45,7 @@ struct ni_dbus_server {
 };
 
 static ni_dbus_service_t *	ni_dbus_object_register_object_manager(ni_dbus_object_t *);
+static ni_dbus_service_t *	ni_dbus_object_register_property_interface(ni_dbus_object_t *object);
 static char *			__ni_dbus_server_root_path(const char *);
 static void			__ni_dbus_object_free(ni_dbus_object_t *);
 static void			__ni_dbus_service_free(ni_dbus_service_t *);
@@ -209,7 +212,9 @@ ni_dbus_object_get_service(ni_dbus_object_t *object, const char *interface)
  * Note, we cannot register fallback services yet.
  */
 ni_dbus_service_t *
-ni_dbus_object_register_service(ni_dbus_object_t *object, const char *interface, ni_dbus_service_handler_t *handler)
+ni_dbus_object_register_service(ni_dbus_object_t *object, const char *interface,
+				ni_dbus_service_handler_t *handler,
+				const ni_dbus_property_t *properties)
 {
 	ni_dbus_service_t *svc;
 
@@ -231,7 +236,33 @@ ni_dbus_object_register_service(ni_dbus_object_t *object, const char *interface,
 		object->interfaces = svc;
 	}
 
+	if (svc->properties == NULL) {
+		svc->properties = properties;
+		if (svc->properties)
+			ni_dbus_object_register_property_interface(object);
+	} else if (svc->properties != properties) {
+		ni_warn("Cannot override properties for object %s (interface %s)",
+				object->object_path, interface);
+	}
+
 	return svc;
+}
+
+/*
+ * Find the named property
+ */
+const ni_dbus_property_t *
+ni_dbus_service_get_property(ni_dbus_service_t *service, const char *name)
+{
+	const ni_dbus_property_t *property;
+
+	if (service->properties == NULL)
+		return NULL;
+	for (property = service->properties; property->name; ++property) {
+		if (!strcmp(property->name, name))
+			return property;
+	}
+	return NULL;
 }
 
 /*
@@ -240,7 +271,11 @@ ni_dbus_object_register_service(ni_dbus_object_t *object, const char *interface,
 static int	__ni_dbus_object_manager_handler(ni_dbus_object_t *object, const char *method,
 				ni_dbus_message_t *call, ni_dbus_message_t *reply,
 				DBusError *error);
+static int	__ni_dbus_object_properties_handler(ni_dbus_object_t *object, const char *method,
+				ni_dbus_message_t *call, ni_dbus_message_t *reply,
+				DBusError *error);
 static int	__ni_dbus_object_manager_enumerate_object(ni_dbus_object_t *, DBusMessageIter *);
+static int	__ni_dbus_object_manager_enumerate_interface(ni_dbus_object_t *, ni_dbus_service_t *, DBusMessageIter *);
 
 ni_dbus_service_t *
 ni_dbus_object_register_object_manager(ni_dbus_object_t *object)
@@ -248,7 +283,20 @@ ni_dbus_object_register_object_manager(ni_dbus_object_t *object)
 	ni_dbus_service_t *service;
 
 	service = ni_dbus_object_register_service(object, NI_DBUS_INTERFACE ".ObjectManager",
-					__ni_dbus_object_manager_handler);
+					__ni_dbus_object_manager_handler,
+					NULL);
+
+	return service;
+}
+
+ni_dbus_service_t *
+ni_dbus_object_register_property_interface(ni_dbus_object_t *object)
+{
+	ni_dbus_service_t *service;
+
+	service = ni_dbus_object_register_service(object, NI_DBUS_INTERFACE ".Properties",
+					__ni_dbus_object_properties_handler,
+					NULL);
 
 	return service;
 }
@@ -280,16 +328,127 @@ __ni_dbus_object_manager_handler(ni_dbus_object_t *object, const char *method,
 }
 
 static int
-__ni_dbus_object_manager_enumerate_interface(ni_dbus_service_t *service, DBusMessageIter *dict_iter)
+__ni_dbus_object_properties_handler(ni_dbus_object_t *object, const char *method,
+		ni_dbus_message_t *call, ni_dbus_message_t *reply,
+		DBusError *error)
+{
+	DBusMessageIter iter, args_iter, dict_iter;
+	const ni_dbus_property_t *property;
+	ni_dbus_service_t *service;
+	const char *interface_name, *property_name;
+	int type;
+
+	TRACE_ENTERN("path=%s, method=%s", object->object_path, method);
+	if (strcmp(method, "Get") && strcmp(method, "Set") && strcmp(method, "GetAll")) {
+		dbus_set_error_const(error,
+				"org.freedesktop.DBus.Error.UnknownMethod",
+				"Method does not exist");
+		return -1;
+	}
+
+	dbus_message_iter_init(call, &args_iter);
+	type = dbus_message_iter_get_arg_type(&args_iter);
+	if (type != DBUS_TYPE_STRING)
+		goto failed;
+	dbus_message_iter_get_basic(&args_iter, &interface_name);
+	service = ni_dbus_object_get_service(object, interface_name);
+	if (service == NULL) {
+		dbus_set_error(error, DBUS_ERROR_SERVICE_UNKNOWN, "interface not known");
+		return -1;
+	}
+
+	if (!strcmp(method, "GetAll")) {
+		int rv = 0;
+
+		dbus_message_iter_init_append(reply, &iter);
+		if (!ni_dbus_dict_open_write(&iter, &dict_iter))
+			rv = -1;
+		if (!__ni_dbus_object_manager_enumerate_interface(object, service, &dict_iter))
+			rv = -1;
+		ni_dbus_dict_close_write(&iter, &dict_iter);
+		return rv;
+	}
+
+	if (!dbus_message_iter_next(&args_iter)) {
+		ni_debug_dbus("Missing property name in %s call to object %s interface %s",
+				method, object->object_path, service->object_interface);
+		goto failed;
+	}
+
+	type = dbus_message_iter_get_arg_type(&args_iter);
+	if (type != DBUS_TYPE_STRING)
+		goto failed;
+	dbus_message_iter_get_basic(&args_iter, &property_name);
+	property = ni_dbus_service_get_property(service, property_name);
+	if (property == NULL) {
+		ni_debug_dbus("Unknown property \"%s\" on object %s interface %s",
+				property_name, object->object_path, service->object_interface);
+		goto failed;
+	}
+
+	dbus_message_iter_init_append(reply, &iter);
+	if (!strcmp(method, "Get")) {
+		ni_dbus_variant_t result = NI_DBUS_VARIANT_INIT;
+
+		if (property->get == NULL)
+			goto failed;
+		if (!property->get(object, property, &result, error))
+			return -1;
+
+		/* Add variant to reply */
+		if (!ni_dbus_message_iter_append_variant(&iter, &result))
+			goto failed;
+
+		ni_dbus_variant_destroy(&result);
+	} else
+	if (!strcmp(method, "Set")) {
+		ni_dbus_variant_t value = NI_DBUS_VARIANT_INIT;
+
+		if (property->set == NULL)
+			goto failed;
+
+		/* FIXME: get variant from message */
+		// if (!ni_dbus_message_iter_get_variant(&args_iter, &value);
+
+		if (!property->set(object, property, &value, error))
+			return -1;
+		ni_dbus_variant_destroy(&value);
+	}
+
+	return 0;
+
+failed:
+	/* the Properties interface should really define some errors... */
+	dbus_set_error(error, DBUS_ERROR_FAILED, "Error getting/setting property");
+	return -1;
+}
+
+static int
+__ni_dbus_object_manager_enumerate_interface(ni_dbus_object_t *object, ni_dbus_service_t *service, DBusMessageIter *dict_iter)
 {
 	DBusMessageIter entry_iter, val_iter, prop_iter;
+	const ni_dbus_property_t *property;
 	int rv = TRUE;
 
+	TRACE_ENTERN("object=%s, interface=%s", object->object_path, service->object_interface);
 	if (!ni_dbus_dict_begin_string_dict(dict_iter, service->object_interface,
 					&entry_iter, &val_iter, &prop_iter))
 		return FALSE;
 
-	/* FIXME: Loop over properties and add them here */
+	/* Loop over properties and add them here */
+	if (service->properties) {
+		for (property = service->properties; property->name; ++property) {
+			ni_dbus_variant_t value = NI_DBUS_VARIANT_INIT;
+			DBusError error = DBUS_ERROR_INIT;
+
+			if (property->get == NULL)
+				continue;
+			if (property->get(object, property, &value, &error))
+				ni_dbus_dict_append_variant(&prop_iter, property->name, &value);
+			ni_dbus_variant_destroy(&value);
+			dbus_error_free(&error);
+		}
+	}
 
 	ni_dbus_dict_end_string_dict(dict_iter, &entry_iter, &val_iter, &prop_iter);
 	return rv;
@@ -310,7 +469,7 @@ __ni_dbus_object_manager_enumerate_object(ni_dbus_object_t *object, DBusMessageI
 			return FALSE;
 
 		for (svc = object->interfaces; svc && rv; svc = svc->next)
-			rv = __ni_dbus_object_manager_enumerate_interface(svc, &interface_iter);
+			rv = __ni_dbus_object_manager_enumerate_interface(object, svc, &interface_iter);
 
 		ni_dbus_dict_end_string_dict(dict_iter, &entry_iter, &val_iter, &interface_iter);
 	}
@@ -329,7 +488,7 @@ __ni_dbus_object_unregister(DBusConnection *conn, void *user_data)
 {
 	ni_dbus_object_t *object = user_data;
 
-	ni_warn("%s(path=%s) called\n", __FUNCTION__, object->object_path);
+	ni_warn("%s(path=%s) called", __FUNCTION__, object->object_path);
 }
 
 static DBusHandlerResult
@@ -345,7 +504,7 @@ __ni_dbus_object_message(DBusConnection *conn, DBusMessage *call, void *user_dat
 
 	/* FIXME: check for type CALL */
 
-	ni_debug_dbus("%s(path=%s, interface=%s, method=%s) called\n", __FUNCTION__, object->object_path, interface, method);
+	ni_debug_dbus("%s(path=%s, interface=%s, method=%s) called", __FUNCTION__, object->object_path, interface, method);
 	svc = ni_dbus_object_get_service(object, interface);
 	if (svc == NULL)
 		return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
@@ -355,6 +514,8 @@ __ni_dbus_object_message(DBusConnection *conn, DBusMessage *call, void *user_dat
 	rv = svc->handler(object, method, call, reply, &error);
 	if (rv < 0) {
 		dbus_message_unref(reply);
+		if (error.name == NULL)
+			dbus_set_error(&error, DBUS_ERROR_FAILED, "Unexpected error in method call");
 		reply = dbus_message_new_error(call, error.name, error.message);
 	}
 
@@ -375,6 +536,12 @@ const char *
 ni_dbus_object_get_path(const ni_dbus_object_t *object)
 {
 	return object->object_path;
+}
+
+void *
+ni_dbus_object_get_handle(const ni_dbus_object_t *object)
+{
+	return object->object_handle;
 }
 
 const DBusObjectPathVTable *
