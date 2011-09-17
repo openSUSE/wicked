@@ -402,7 +402,8 @@ __ni_dbus_object_properties_handler(ni_dbus_object_t *object, const char *method
 	}
 	if (property == NULL) {
 		ni_debug_dbus("Unknown property \"%s\" on object %s interface %s",
-				property_name, object->object_path, service->object_interface);
+				property_name, object->object_path,
+				interface_name);
 		goto failed;
 	}
 
