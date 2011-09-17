@@ -216,13 +216,19 @@ static dbus_bool_t __ni_dbus_add_dict_entry_byte_array(
 dbus_bool_t ni_dbus_dict_append_variant(DBusMessageIter *iter_dict,
 				      const char *key, const ni_dbus_variant_t *variant)
 {
-	const void *value;
+	DBusMessageIter iter_dict_entry;
+	const char *type_as_string = NULL;
 
-	value = ni_dbus_variant_datum_const_ptr(variant);
-	if (value == NULL)
+	type_as_string = ni_dbus_variant_signature(variant);
+	if (!type_as_string)
 		return FALSE;
 
-	return __ni_dbus_add_dict_entry_basic(iter_dict, key, variant->type, value);
+	if (!__ni_dbus_add_dict_entry_start(iter_dict, &iter_dict_entry, key)
+	 || !ni_dbus_message_iter_append_variant(&iter_dict_entry, variant)
+	 || !dbus_message_iter_close_container(iter_dict, &iter_dict_entry))
+		return FALSE;
+
+	return TRUE;
 }
 
 /**
