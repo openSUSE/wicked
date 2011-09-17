@@ -55,11 +55,11 @@ struct ni_dbus_variant {
 
 typedef struct ni_dbus_property	ni_dbus_property_t;
 
-typedef int			ni_dbus_property_get_fn_t(const ni_dbus_object_t *,
+typedef dbus_bool_t		ni_dbus_property_get_fn_t(const ni_dbus_object_t *,
 					const ni_dbus_property_t *property,
 					ni_dbus_variant_t *result,
 					DBusError *error);
-typedef int			ni_dbus_property_set_fn_t(ni_dbus_object_t *,
+typedef dbus_bool_t		ni_dbus_property_set_fn_t(ni_dbus_object_t *,
 					const ni_dbus_property_t *property,
 					const ni_dbus_variant_t *value,
 					DBusError *error);
@@ -78,7 +78,7 @@ typedef void			ni_dbus_async_callback_t(ni_dbus_proxy_t *proxy,
 typedef void			ni_dbus_signal_handler_t(ni_dbus_connection_t *connection,
 					ni_dbus_message_t *signal_msg,
 					void *user_data);
-typedef int			ni_dbus_service_handler_t(ni_dbus_object_t *object,
+typedef dbus_bool_t		ni_dbus_service_handler_t(ni_dbus_object_t *object,
 					const char *method,
 					ni_dbus_message_t *call,
 					ni_dbus_message_t *reply,

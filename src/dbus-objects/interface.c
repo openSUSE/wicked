@@ -55,7 +55,7 @@ __wicked_dbus_interface_handler(ni_dbus_object_t *object, const char *method,
 				ni_dbus_message_t *reply,
 				DBusError *error)
 {
-	return 0;
+	return FALSE;
 }
 
 static int

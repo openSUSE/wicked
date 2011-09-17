@@ -303,9 +303,9 @@ wicked_process_network_restcall(ni_socket_t *sock)
 /*
  * Functions to support the DBus binding
  */
-static int __wicked_root_dbus_call(ni_dbus_object_t *object, const char *method,
-		ni_dbus_message_t *call, ni_dbus_message_t *reply,
-		DBusError *error);
+static dbus_bool_t __wicked_root_dbus_handler(ni_dbus_object_t *object, const char *method,
+					ni_dbus_message_t *call, ni_dbus_message_t *reply,
+					DBusError *error);
 
 void
 wicked_register_dbus_services(ni_dbus_server_t *server)
@@ -313,16 +313,16 @@ wicked_register_dbus_services(ni_dbus_server_t *server)
 	ni_dbus_object_t *root_object = ni_dbus_server_get_root_object(server);
 
 	ni_dbus_object_register_service(root_object, WICKED_DBUS_INTERFACE,
-			__wicked_root_dbus_call,
+			__wicked_root_dbus_handler,
 			NULL);
 }
 
-static int
-__wicked_root_dbus_call(ni_dbus_object_t *object, const char *method,
+static dbus_bool_t
+__wicked_root_dbus_handler(ni_dbus_object_t *object, const char *method,
 		ni_dbus_message_t *call, ni_dbus_message_t *reply,
 		DBusError *error)
 {
-	return 0;
+	return FALSE;
 }
 
 /*
