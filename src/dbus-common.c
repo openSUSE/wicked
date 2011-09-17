@@ -239,6 +239,56 @@ ni_dbus_variant_destroy(ni_dbus_variant_t *var)
 	var->type = DBUS_TYPE_INVALID;
 }
 
+const char *
+ni_dbus_variant_sprint(const ni_dbus_variant_t *var)
+{
+	static char buffer[256];
+
+	switch (var->type) {
+	case DBUS_TYPE_STRING:
+	case DBUS_TYPE_OBJECT_PATH:
+		return var->string_value;
+
+	case DBUS_TYPE_BYTE:
+		snprintf(buffer, sizeof(buffer), "0x%02x", var->byte_value);
+		break;
+
+	case DBUS_TYPE_BOOLEAN:
+		return var->bool_value? "true" : "false";
+		break;
+
+	case DBUS_TYPE_INT16:
+		snprintf(buffer, sizeof(buffer), "%d", var->int16_value);
+		break;
+
+	case DBUS_TYPE_UINT16:
+		snprintf(buffer, sizeof(buffer), "%u", var->uint16_value);
+		break;
+
+	case DBUS_TYPE_INT32:
+		snprintf(buffer, sizeof(buffer), "%d", var->int32_value);
+		break;
+
+	case DBUS_TYPE_UINT32:
+		snprintf(buffer, sizeof(buffer), "%u", var->uint32_value);
+		break;
+
+	case DBUS_TYPE_INT64:
+		snprintf(buffer, sizeof(buffer), "%lld", (long long) var->int64_value);
+		break;
+
+	case DBUS_TYPE_UINT64:
+		snprintf(buffer, sizeof(buffer), "%llu", (unsigned long long) var->uint64_value);
+		break;
+
+	default:
+		return "<unknown type>";
+	}
+
+
+	return buffer;
+}
+
 /*
  * Offsets of all elements in the variant struct
  */

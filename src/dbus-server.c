@@ -414,10 +414,12 @@ __ni_dbus_object_properties_handler(ni_dbus_object_t *object, const char *method
 		if (!ni_dbus_message_iter_get_variant(&args_iter, &value))
 			goto failed;
 
-		// ni_debug_dbus("Set %s=%s", property->name, value.string_value);
+		ni_debug_dbus("Set %s %s=%s", object->object_path, property->name, ni_dbus_variant_sprint(&value));
 
 		if (property->set == NULL)
 			goto failed;
+
+		/* FIXME: Verify variant against property's signature */
 
 		if (!property->set(object, property, &value, error))
 			return -1;

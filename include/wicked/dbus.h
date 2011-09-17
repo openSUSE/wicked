@@ -98,6 +98,7 @@ extern void *			ni_dbus_object_get_handle(const ni_dbus_object_t *);
 
 extern void			ni_dbus_variant_init(ni_dbus_variant_t *);
 extern void			ni_dbus_variant_destroy(ni_dbus_variant_t *);
+extern const char *		ni_dbus_variant_sprint(const ni_dbus_variant_t *);
 extern void			ni_dbus_variant_set_string(ni_dbus_variant_t *, const char *);
 extern void			ni_dbus_variant_set_bool(ni_dbus_variant_t *, dbus_bool_t);
 extern void			ni_dbus_variant_set_byte(ni_dbus_variant_t *, unsigned char);
