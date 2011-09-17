@@ -205,38 +205,13 @@ static dbus_bool_t __ni_dbus_add_dict_entry_byte_array(
 dbus_bool_t ni_dbus_dict_append_variant(DBusMessageIter *iter_dict,
 				      const char *key, const ni_dbus_variant_t *variant)
 {
-	switch (variant->type) {
-	case DBUS_TYPE_BYTE:
-		return __ni_dbus_add_dict_entry_basic(iter_dict, key,
-				variant->type, &variant->byte_value);
-	case DBUS_TYPE_BOOLEAN:
-		return __ni_dbus_add_dict_entry_basic(iter_dict, key,
-				variant->type, &variant->bool_value);
-	case DBUS_TYPE_STRING:
-		return __ni_dbus_add_dict_entry_basic(iter_dict, key,
-				variant->type, &variant->string_value);
-	case DBUS_TYPE_INT16:
-		return __ni_dbus_add_dict_entry_basic(iter_dict, key,
-				variant->type, &variant->int16_value);
-	case DBUS_TYPE_UINT16:
-		return __ni_dbus_add_dict_entry_basic(iter_dict, key,
-				variant->type, &variant->uint16_value);
-	case DBUS_TYPE_INT32:
-		return __ni_dbus_add_dict_entry_basic(iter_dict, key,
-				variant->type, &variant->int32_value);
-	case DBUS_TYPE_UINT32:
-		return __ni_dbus_add_dict_entry_basic(iter_dict, key,
-				variant->type, &variant->uint32_value);
-	case DBUS_TYPE_INT64:
-		return __ni_dbus_add_dict_entry_basic(iter_dict, key,
-				variant->type, &variant->int64_value);
-	case DBUS_TYPE_UINT64:
-		return __ni_dbus_add_dict_entry_basic(iter_dict, key,
-				variant->type, &variant->uint64_value);
+	const void *value;
 
-	default:
+	value = ni_dbus_variant_datum_const_ptr(variant);
+	if (value == NULL)
 		return FALSE;
-	}
+
+	return __ni_dbus_add_dict_entry_basic(iter_dict, key, variant->type, value);
 }
 
 /**
@@ -722,6 +697,7 @@ int
 ni_dbus_message_iter_append_variant(DBusMessageIter *iter, const ni_dbus_variant_t *variant)
 {
 	const char *type_as_string = NULL;
+	const void *value;
 	DBusMessageIter iter_val;
 	dbus_bool_t rv;
 
@@ -729,52 +705,14 @@ ni_dbus_message_iter_append_variant(DBusMessageIter *iter, const ni_dbus_variant
 	if (!type_as_string)
 		return FALSE;
 
+	value = ni_dbus_variant_datum_const_ptr(variant);
+	if (!value)
+		return FALSE;
+
 	if (!dbus_message_iter_open_container(iter, DBUS_TYPE_VARIANT, type_as_string, &iter_val))
 		return FALSE;
 
-	switch (variant->type) {
-	case DBUS_TYPE_BYTE:
-		rv = dbus_message_iter_append_basic(&iter_val, 
-				variant->type, &variant->byte_value);
-		break;
-	case DBUS_TYPE_BOOLEAN:
-		rv = dbus_message_iter_append_basic(&iter_val,
-				variant->type, &variant->bool_value);
-		break;
-	case DBUS_TYPE_STRING:
-		rv = dbus_message_iter_append_basic(&iter_val,
-				variant->type, &variant->string_value);
-		break;
-		break;
-	case DBUS_TYPE_INT16:
-		rv = dbus_message_iter_append_basic(&iter_val,
-				variant->type, &variant->int16_value);
-		break;
-	case DBUS_TYPE_UINT16:
-		rv = dbus_message_iter_append_basic(&iter_val,
-				variant->type, &variant->uint16_value);
-		break;
-	case DBUS_TYPE_INT32:
-		rv = dbus_message_iter_append_basic(&iter_val,
-				variant->type, &variant->int32_value);
-		break;
-	case DBUS_TYPE_UINT32:
-		rv = dbus_message_iter_append_basic(&iter_val,
-				variant->type, &variant->uint32_value);
-		break;
-	case DBUS_TYPE_INT64:
-		rv = dbus_message_iter_append_basic(&iter_val,
-				variant->type, &variant->int64_value);
-		break;
-	case DBUS_TYPE_UINT64:
-		rv = dbus_message_iter_append_basic(&iter_val,
-				variant->type, &variant->uint64_value);
-		break;
-
-	default:
-		return FALSE;
-	}
-
+	rv = dbus_message_iter_append_basic(&iter_val, variant->type, value);
 	if (rv)
 		rv = dbus_message_iter_close_container(iter, &iter_val);
 

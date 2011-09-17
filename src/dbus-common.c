@@ -236,3 +236,19 @@ ni_dbus_variant_destroy(ni_dbus_variant_t *var)
 	if (var->type == DBUS_TYPE_STRING)
 		ni_string_free(&var->string_value);
 }
+
+/*
+ * Offsets of all elements in the variant struct
+ */
+unsigned int
+__ni_dbus_variant_offsets[256] = {
+[DBUS_TYPE_BYTE]		= offsetof(ni_dbus_variant_t, byte_value),
+[DBUS_TYPE_BOOLEAN]		= offsetof(ni_dbus_variant_t, bool_value),
+[DBUS_TYPE_STRING]		= offsetof(ni_dbus_variant_t, string_value),
+[DBUS_TYPE_INT16]		= offsetof(ni_dbus_variant_t, int16_value),
+[DBUS_TYPE_UINT16]		= offsetof(ni_dbus_variant_t, uint16_value),
+[DBUS_TYPE_INT32]		= offsetof(ni_dbus_variant_t, int32_value),
+[DBUS_TYPE_UINT32]		= offsetof(ni_dbus_variant_t, uint32_value),
+[DBUS_TYPE_INT64]		= offsetof(ni_dbus_variant_t, int64_value),
+[DBUS_TYPE_UINT64]		= offsetof(ni_dbus_variant_t, uint64_value),
+};

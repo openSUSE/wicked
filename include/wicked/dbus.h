@@ -108,6 +108,29 @@ extern void			ni_dbus_variant_set_int32(ni_dbus_variant_t *, int32_t);
 extern void			ni_dbus_variant_set_uint64(ni_dbus_variant_t *, uint64_t);
 extern void			ni_dbus_variant_set_int64(ni_dbus_variant_t *, int64_t);
 
+extern unsigned int		__ni_dbus_variant_offsets[256];
+
+static inline void *
+ni_dbus_variant_datum_ptr(ni_dbus_variant_t *variant)
+{
+	unsigned int type = variant->type;
+	unsigned int offset;
+
+	if (type > 255 || (offset = __ni_dbus_variant_offsets[type]) == 0)
+		return NULL;
+	return (void *) (((caddr_t) variant) + offset);
+}
+
+static inline const void *
+ni_dbus_variant_datum_const_ptr(const ni_dbus_variant_t *variant)
+{
+	unsigned int type = variant->type;
+	unsigned int offset;
+
+	if (type > 255 || (offset = __ni_dbus_variant_offsets[type]) == 0)
+		return NULL;
+	return (const void *) (((const caddr_t) variant) + offset);
+}
 
 #endif /* __WICKED_DBUS_H__ */
 
