@@ -111,6 +111,8 @@ dbus_bool_t	ni_dbus_message_iter_append_variant(DBusMessageIter *iter,
 					const ni_dbus_variant_t *variant);
 dbus_bool_t	ni_dbus_message_iter_get_variant(DBusMessageIter *iter,
 					ni_dbus_variant_t *variant);
+dbus_bool_t	ni_dbus_message_iter_append_byte_array(DBusMessageIter *iter,
+					const unsigned char *value, unsigned int len);
 
 /*
  * Reading a dict from a DBusMessage

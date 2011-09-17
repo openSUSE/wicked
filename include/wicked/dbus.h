@@ -46,7 +46,7 @@ struct ni_dbus_variant {
 		dbus_int64_t	int64_value;
 		dbus_uint64_t	uint64_value;
 		double		double_value;
-		char *		byte_array_value;
+		unsigned char *	byte_array_value;
 		char **		string_array_value;
 		ni_dbus_variant_t *struct_value;
 	};
@@ -99,6 +99,7 @@ extern void *			ni_dbus_object_get_handle(const ni_dbus_object_t *);
 extern void			ni_dbus_variant_init(ni_dbus_variant_t *);
 extern void			ni_dbus_variant_destroy(ni_dbus_variant_t *);
 extern const char *		ni_dbus_variant_sprint(const ni_dbus_variant_t *);
+extern const char *		ni_dbus_variant_signature(const ni_dbus_variant_t *);
 extern void			ni_dbus_variant_set_string(ni_dbus_variant_t *, const char *);
 extern void			ni_dbus_variant_set_bool(ni_dbus_variant_t *, dbus_bool_t);
 extern void			ni_dbus_variant_set_byte(ni_dbus_variant_t *, unsigned char);
@@ -108,6 +109,8 @@ extern void			ni_dbus_variant_set_uint32(ni_dbus_variant_t *, uint32_t);
 extern void			ni_dbus_variant_set_int32(ni_dbus_variant_t *, int32_t);
 extern void			ni_dbus_variant_set_uint64(ni_dbus_variant_t *, uint64_t);
 extern void			ni_dbus_variant_set_int64(ni_dbus_variant_t *, int64_t);
+extern void			ni_dbus_variant_set_byte_array(ni_dbus_variant_t *,
+					unsigned int len, const unsigned char *);
 
 extern unsigned int		__ni_dbus_variant_offsets[256];
 

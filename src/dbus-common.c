@@ -231,10 +231,32 @@ ni_dbus_variant_set_int64(ni_dbus_variant_t *var, int64_t value)
 }
 
 void
+ni_dbus_variant_set_byte_array(ni_dbus_variant_t *var,
+				unsigned int len, const unsigned char *data)
+{
+	ni_dbus_variant_destroy(var);
+	var->type = DBUS_TYPE_ARRAY;
+	var->array.element_type = DBUS_TYPE_BYTE;
+	var->array.len = len;
+
+	if (len) {
+		var->byte_array_value = malloc(len);
+		memcpy(var->byte_array_value, data, len);
+	}
+}
+
+void
 ni_dbus_variant_destroy(ni_dbus_variant_t *var)
 {
 	if (var->type == DBUS_TYPE_STRING)
 		ni_string_free(&var->string_value);
+	else if (var->type == DBUS_TYPE_ARRAY) {
+		switch (var->array.element_type) {
+		case DBUS_TYPE_BYTE:
+			free(var->byte_array_value);
+			break;
+		}
+	}
 	memset(var, 0, sizeof(*var));
 	var->type = DBUS_TYPE_INVALID;
 }
