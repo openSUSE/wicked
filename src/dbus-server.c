@@ -351,10 +351,14 @@ __ni_dbus_object_properties_handler(ni_dbus_object_t *object, const char *method
 	if (type != DBUS_TYPE_STRING)
 		goto failed;
 	dbus_message_iter_get_basic(&args_iter, &interface_name);
-	service = ni_dbus_object_get_service(object, interface_name);
-	if (service == NULL) {
-		dbus_set_error(error, DBUS_ERROR_SERVICE_UNKNOWN, "interface not known");
-		return -1;
+	if (interface_name == NULL || interface_name[0] == '\0') {
+		service = NULL;
+	} else {
+		service = ni_dbus_object_get_service(object, interface_name);
+		if (service == NULL) {
+			dbus_set_error(error, DBUS_ERROR_SERVICE_UNKNOWN, "interface not known");
+			return -1;
+		}
 	}
 
 	if (!strcmp(method, "GetAll")) {
@@ -363,8 +367,15 @@ __ni_dbus_object_properties_handler(ni_dbus_object_t *object, const char *method
 		dbus_message_iter_init_append(reply, &iter);
 		if (!ni_dbus_dict_open_write(&iter, &dict_iter))
 			rv = -1;
-		if (!__ni_dbus_object_manager_enumerate_interface(object, service, &dict_iter))
-			rv = -1;
+		if (service != NULL) {
+			if (!__ni_dbus_object_manager_enumerate_interface(object, service, &dict_iter))
+				rv = -1;
+		} else {
+			for (service = object->interfaces; service; service = service->next) {
+				if (!__ni_dbus_object_manager_enumerate_interface(object, service, &dict_iter))
+					rv = -1;
+			}
+		}
 		ni_dbus_dict_close_write(&iter, &dict_iter);
 		return rv;
 	}
@@ -379,7 +390,16 @@ __ni_dbus_object_properties_handler(ni_dbus_object_t *object, const char *method
 	if (type != DBUS_TYPE_STRING)
 		goto failed;
 	dbus_message_iter_get_basic(&args_iter, &property_name);
-	property = ni_dbus_service_get_property(service, property_name);
+	if (service != NULL) {
+		property = ni_dbus_service_get_property(service, property_name);
+	} else {
+		property = NULL;
+		for (service = object->interfaces; service; service = service->next) {
+			property = ni_dbus_service_get_property(service, property_name);
+			if (property)
+				break;
+		}
+	}
 	if (property == NULL) {
 		ni_debug_dbus("Unknown property \"%s\" on object %s interface %s",
 				property_name, object->object_path, service->object_interface);
