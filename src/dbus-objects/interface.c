@@ -19,7 +19,7 @@
 #include "model.h"
 
 static ni_dbus_property_t	wicked_dbus_interface_properties[];
-static int			__wicked_dbus_interface_handler(ni_dbus_object_t *object, const char *method,
+static dbus_bool_t		__wicked_dbus_interface_handler(ni_dbus_object_t *object, const char *method,
 						ni_dbus_message_t *call,
 						ni_dbus_message_t *reply,
 						DBusError *error);
@@ -49,7 +49,7 @@ ni_objectmodel_register_interface(ni_dbus_server_t *server, ni_interface_t *ifp)
 }
 
 
-static int
+static dbus_bool_t
 __wicked_dbus_interface_handler(ni_dbus_object_t *object, const char *method,
 				ni_dbus_message_t *call,
 				ni_dbus_message_t *reply,
@@ -58,7 +58,7 @@ __wicked_dbus_interface_handler(ni_dbus_object_t *object, const char *method,
 	return FALSE;
 }
 
-static int
+static dbus_bool_t
 __wicked_dbus_interface_get_type(const ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				ni_dbus_variant_t *result,
@@ -70,7 +70,7 @@ __wicked_dbus_interface_get_type(const ni_dbus_object_t *object,
 	return TRUE;
 }
 
-static int
+static dbus_bool_t
 __wicked_dbus_interface_get_status(const ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				ni_dbus_variant_t *result,
@@ -82,7 +82,7 @@ __wicked_dbus_interface_get_status(const ni_dbus_object_t *object,
 	return TRUE;
 }
 
-static int
+static dbus_bool_t
 __wicked_dbus_interface_get_mtu(const ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				ni_dbus_variant_t *result,
@@ -94,7 +94,7 @@ __wicked_dbus_interface_get_mtu(const ni_dbus_object_t *object,
 	return TRUE;
 }
 
-static int
+static dbus_bool_t
 __wicked_dbus_interface_get_hwaddr(const ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				ni_dbus_variant_t *result,
