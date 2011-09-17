@@ -337,6 +337,18 @@ __wicked_dbus_interface_handler(ni_dbus_object_t *object, const char *method,
 }
 
 static int
+__wicked_dbus_interface_get_type(const ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				ni_dbus_variant_t *result,
+				DBusError *error)
+{
+	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
+
+	ni_dbus_variant_set_uint32(result, ifp->type);
+	return TRUE;
+}
+
+static int
 __wicked_dbus_interface_get_status(const ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				ni_dbus_variant_t *result,
@@ -348,17 +360,50 @@ __wicked_dbus_interface_get_status(const ni_dbus_object_t *object,
 	return TRUE;
 }
 
+static int
+__wicked_dbus_interface_get_mtu(const ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				ni_dbus_variant_t *result,
+				DBusError *error)
+{
+	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
+
+	ni_dbus_variant_set_uint32(result, ifp->mtu);
+	return TRUE;
+}
+
+static int
+__wicked_dbus_interface_get_hwaddr(const ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				ni_dbus_variant_t *result,
+				DBusError *error)
+{
+	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
+
+	ni_dbus_variant_set_byte_array(result, ifp->hwaddr.len, ifp->hwaddr.data);
+	return TRUE;
+}
+
 #define NI_DBUS_PROPERTY_METHODS_RO(fstem, __name) \
 	.get = fstem ## _get_ ## __name, .set = NULL
 #define NI_DBUS_PROPERTY_METHODS_RW(fstem, __name) \
 	.get = fstem ## _get_ ## __name, .set = fstem ## _set_ ## __name
+#define __NI_DBUS_PROPERTY(__signature, __name, fstem, rw) \
+{ .name = #__name, .id = 0, .signature = __signature, NI_DBUS_PROPERTY_METHODS_##rw(fstem, __name) }
 #define NI_DBUS_PROPERTY(type, __name, fstem, rw) \
-{ .name = #__name, .id = 0, .signature = DBUS_TYPE_##type##_AS_STRING, NI_DBUS_PROPERTY_METHODS_##rw(fstem, __name) }
+	__NI_DBUS_PROPERTY(DBUS_TYPE_##type##_AS_STRING, __name, fstem, rw)
 #define WICKED_INTERFACE_PROPERTY(type, __name, rw) \
 	NI_DBUS_PROPERTY(type, __name, __wicked_dbus_interface, rw)
+#define WICKED_INTERFACE_PROPERTY_SIGNATURE(signature, __name, rw) \
+	__NI_DBUS_PROPERTY(signature, __name, __wicked_dbus_interface, rw)
 
 static ni_dbus_property_t	wicked_dbus_interface_properties[] = {
 	WICKED_INTERFACE_PROPERTY(UINT32, status, RO),
+	WICKED_INTERFACE_PROPERTY(UINT32, type, RO),
+	WICKED_INTERFACE_PROPERTY(UINT32, mtu, RO),
+	WICKED_INTERFACE_PROPERTY_SIGNATURE(
+			DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING,
+			hwaddr, RO),
 	{ NULL }
 };
 
