@@ -216,7 +216,7 @@ ni_dbus_object_register_service(ni_dbus_object_t *object, const char *interface,
 				ni_dbus_service_handler_t *handler,
 				const ni_dbus_property_t *properties)
 {
-	ni_dbus_service_t *svc;
+	ni_dbus_service_t *svc, **pos;
 
 	TRACE_ENTERN("path=%s, interface=%s", object->object_path, interface);
 
@@ -232,8 +232,10 @@ ni_dbus_object_register_service(ni_dbus_object_t *object, const char *interface,
 			/* FIXME: register ObjectManager interface */
 		}
 
-		svc->next = object->interfaces;
-		object->interfaces = svc;
+		for (pos = &object->interfaces; *pos; pos = &(*pos)->next)
+			;
+
+		*pos = svc;
 	}
 
 	if (svc->properties == NULL) {
