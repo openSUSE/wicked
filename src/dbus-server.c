@@ -501,8 +501,8 @@ __ni_dbus_object_manager_enumerate_object(ni_dbus_object_t *object, DBusMessageI
 			if (!ni_dbus_dict_begin_string_dict(&interface_iter, svc->object_interface,
 							&entry_iter, &val_iter, &prop_iter))
 				return FALSE;
-			rv = __ni_dbus_object_manager_enumerate_interface(object, svc, &prop_iter);
 
+			rv = __ni_dbus_object_manager_enumerate_interface(object, svc, &prop_iter);
 			ni_dbus_dict_end_string_dict(&interface_iter, &entry_iter, &val_iter, &prop_iter);
 		}
 

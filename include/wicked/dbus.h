@@ -136,5 +136,9 @@ ni_dbus_variant_datum_const_ptr(const ni_dbus_variant_t *variant)
 	return (const void *) (((const caddr_t) variant) + offset);
 }
 
+extern void		ni_objectmodel_register_interface(ni_dbus_server_t *server, ni_interface_t *ifp);
+extern void		ni_objectmodel_register_interface_ethernet(ni_dbus_server_t *server, ni_interface_t *ifp);
+
+
 #endif /* __WICKED_DBUS_H__ */
 
