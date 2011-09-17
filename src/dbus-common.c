@@ -235,6 +235,8 @@ ni_dbus_variant_destroy(ni_dbus_variant_t *var)
 {
 	if (var->type == DBUS_TYPE_STRING)
 		ni_string_free(&var->string_value);
+	memset(var, 0, sizeof(*var));
+	var->type = DBUS_TYPE_INVALID;
 }
 
 /*

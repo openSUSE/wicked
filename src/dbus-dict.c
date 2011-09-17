@@ -693,7 +693,7 @@ dbus_bool_t ni_dbus_dict_end_string_dict(DBusMessageIter *iter_parent_dict,
 	return TRUE;
 }
 
-int
+dbus_bool_t
 ni_dbus_message_iter_append_variant(DBusMessageIter *iter, const ni_dbus_variant_t *variant)
 {
 	const char *type_as_string = NULL;
@@ -717,6 +717,40 @@ ni_dbus_message_iter_append_variant(DBusMessageIter *iter, const ni_dbus_variant
 		rv = dbus_message_iter_close_container(iter, &iter_val);
 
 	return rv;
+}
+
+dbus_bool_t
+ni_dbus_message_iter_get_variant(DBusMessageIter *iter,
+					ni_dbus_variant_t *variant)
+{
+	DBusMessageIter iter_val;
+	void *value;
+	int type;
+
+	ni_dbus_variant_destroy(variant);
+
+	type = dbus_message_iter_get_arg_type(iter);
+	if (type != DBUS_TYPE_VARIANT)
+		return FALSE;
+
+	dbus_message_iter_recurse(iter, &iter_val);
+	variant->type = dbus_message_iter_get_arg_type(&iter_val);
+
+	value = ni_dbus_variant_datum_ptr(variant);
+	if (value != NULL) {
+		/* Basic types */
+		dbus_message_iter_get_basic(&iter_val, value);
+
+		if (variant->type == DBUS_TYPE_STRING
+		 || variant->type == DBUS_TYPE_OBJECT_PATH)
+			variant->string_value = xstrdup(variant->string_value);
+	} else {
+		/* FIXME: need to handle arrays here */
+		return FALSE;
+	}
+
+	dbus_message_iter_next(iter);
+	return TRUE;
 }
 
 /*****************************************************/

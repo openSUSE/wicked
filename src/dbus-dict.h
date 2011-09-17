@@ -107,8 +107,10 @@ dbus_bool_t ni_dbus_dict_end_string_dict(DBusMessageIter *iter_parent_dict,
 					   DBusMessageIter *iter_parent_val,
 					   DBusMessageIter *iter_child_dict);
 
-extern int	ni_dbus_message_iter_append_variant(DBusMessageIter *iter,
+dbus_bool_t	ni_dbus_message_iter_append_variant(DBusMessageIter *iter,
 					const ni_dbus_variant_t *variant);
+dbus_bool_t	ni_dbus_message_iter_get_variant(DBusMessageIter *iter,
+					ni_dbus_variant_t *variant);
 
 /*
  * Reading a dict from a DBusMessage

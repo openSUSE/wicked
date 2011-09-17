@@ -404,11 +404,20 @@ __ni_dbus_object_properties_handler(ni_dbus_object_t *object, const char *method
 	if (!strcmp(method, "Set")) {
 		ni_dbus_variant_t value = NI_DBUS_VARIANT_INIT;
 
-		if (property->set == NULL)
+		if (!dbus_message_iter_next(&args_iter)) {
+			ni_debug_dbus("Missing value in %s call to object %s interface %s",
+					method, object->object_path, service->object_interface);
+			goto failed;
+		}
+
+		/* get variant from message */
+		if (!ni_dbus_message_iter_get_variant(&args_iter, &value))
 			goto failed;
 
-		/* FIXME: get variant from message */
-		// if (!ni_dbus_message_iter_get_variant(&args_iter, &value);
+		// ni_debug_dbus("Set %s=%s", property->name, value.string_value);
+
+		if (property->set == NULL)
+			goto failed;
 
 		if (!property->set(object, property, &value, error))
 			return -1;
