@@ -106,6 +106,18 @@ __wicked_dbus_interface_get_hwaddr(const ni_dbus_object_t *object,
 	return TRUE;
 }
 
+static dbus_bool_t
+__wicked_dbus_interface_get_addresses(const ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				ni_dbus_variant_t *result,
+				DBusError *error)
+{
+	//ni_interface_t *ifp = ni_dbus_object_get_handle(object);
+
+	dbus_set_error(error, DBUS_ERROR_UNKNOWN_METHOD, "Method not known");
+	return FALSE;
+}
+
 #define WICKED_INTERFACE_PROPERTY(type, __name, rw) \
 	NI_DBUS_PROPERTY(type, __name, __wicked_dbus_interface, rw)
 #define WICKED_INTERFACE_PROPERTY_SIGNATURE(signature, __name, rw) \
@@ -118,6 +130,16 @@ static ni_dbus_property_t	wicked_dbus_interface_properties[] = {
 	WICKED_INTERFACE_PROPERTY_SIGNATURE(
 			DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING,
 			hwaddr, RO),
+
+	/* addresses is an array of dicts */
+	WICKED_INTERFACE_PROPERTY_SIGNATURE(
+			DBUS_TYPE_ARRAY_AS_STRING
+			DBUS_TYPE_ARRAY_AS_STRING
+			DBUS_DICT_ENTRY_BEGIN_CHAR_AS_STRING
+				DBUS_TYPE_STRING_AS_STRING
+				DBUS_TYPE_VARIANT_AS_STRING
+			DBUS_DICT_ENTRY_END_CHAR_AS_STRING,
+			addresses, RO),
 	{ NULL }
 };
 
