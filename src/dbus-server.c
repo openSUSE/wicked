@@ -334,11 +334,13 @@ __ni_dbus_object_properties_handler(ni_dbus_object_t *object, const char *method
 		ni_dbus_message_t *call, ni_dbus_message_t *reply,
 		DBusError *error)
 {
-	DBusMessageIter iter, args_iter, dict_iter;
+	DBusMessageIter iter, dict_iter;
 	const ni_dbus_property_t *property;
 	ni_dbus_service_t *service;
 	const char *interface_name, *property_name;
-	int type;
+	const char *expect_sig;
+	ni_dbus_variant_t argv[16];
+	int argc;
 
 	TRACE_ENTERN("path=%s, method=%s", object->object_path, method);
 	if (strcmp(method, "Get") && strcmp(method, "Set") && strcmp(method, "GetAll")) {
@@ -348,11 +350,26 @@ __ni_dbus_object_properties_handler(ni_dbus_object_t *object, const char *method
 		return FALSE;
 	}
 
-	dbus_message_iter_init(call, &args_iter);
-	type = dbus_message_iter_get_arg_type(&args_iter);
-	if (type != DBUS_TYPE_STRING)
+	memset(argv, 0, sizeof(argv));
+
+	if (!strcmp(method, "GetAll"))
+		expect_sig = "s";
+	if (!strcmp(method, "Get"))
+		expect_sig = "ss";
+	if (!strcmp(method, "Set"))
+		expect_sig = "ssv";
+	{
+		const char *msg_sig = dbus_message_get_signature(call);
+
+		if (!msg_sig || strcmp(msg_sig, expect_sig))
+			goto failed;
+	}
+
+	argc = ni_dbus_message_get_args_variants(call, argv, 16);
+	if (argc < 0)
 		goto failed;
-	dbus_message_iter_get_basic(&args_iter, &interface_name);
+
+	interface_name = argv[0].string_value;
 	if (interface_name == NULL || interface_name[0] == '\0') {
 		service = NULL;
 	} else {
@@ -382,16 +399,7 @@ __ni_dbus_object_properties_handler(ni_dbus_object_t *object, const char *method
 		return rv;
 	}
 
-	if (!dbus_message_iter_next(&args_iter)) {
-		ni_debug_dbus("Missing property name in %s call to object %s interface %s",
-				method, object->object_path, service->object_interface);
-		goto failed;
-	}
-
-	type = dbus_message_iter_get_arg_type(&args_iter);
-	if (type != DBUS_TYPE_STRING)
-		goto failed;
-	dbus_message_iter_get_basic(&args_iter, &property_name);
+	property_name = argv[1].string_value;
 	if (service != NULL) {
 		property = ni_dbus_service_get_property(service, property_name);
 	} else {
@@ -425,28 +433,16 @@ __ni_dbus_object_properties_handler(ni_dbus_object_t *object, const char *method
 		ni_dbus_variant_destroy(&result);
 	} else
 	if (!strcmp(method, "Set")) {
-		ni_dbus_variant_t value = NI_DBUS_VARIANT_INIT;
-
-		if (!dbus_message_iter_next(&args_iter)) {
-			ni_debug_dbus("Missing value in %s call to object %s interface %s",
-					method, object->object_path, service->object_interface);
-			goto failed;
-		}
-
-		/* get variant from message */
-		if (!ni_dbus_message_iter_get_variant(&args_iter, &value))
-			goto failed;
-
-		ni_debug_dbus("Set %s %s=%s", object->object_path, property->name, ni_dbus_variant_sprint(&value));
+		ni_debug_dbus("Set %s %s=%s", object->object_path, property->name,
+				ni_dbus_variant_sprint(&argv[2]));
 
 		if (property->set == NULL)
 			goto failed;
 
 		/* FIXME: Verify variant against property's signature */
 
-		if (!property->set(object, property, &value, error))
+		if (!property->set(object, property, &argv[2], error))
 			return FALSE;
-		ni_dbus_variant_destroy(&value);
 	}
 
 	return TRUE;

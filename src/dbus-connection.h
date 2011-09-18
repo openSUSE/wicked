@@ -28,7 +28,6 @@ extern void			ni_dbus_add_signal_handler(ni_dbus_connection_t *conn,
 					void *user_data);
 extern void			ni_dbus_connection_register_object(ni_dbus_connection_t *, ni_dbus_object_t *);
 extern void			ni_dbus_connection_unregister_object(ni_dbus_connection_t *, ni_dbus_object_t *);
-extern int			ni_dbus_message_get_args(ni_dbus_message_t *reply, ...);
 extern void			ni_dbus_mainloop(ni_dbus_connection_t *);
 
 #endif /* __WICKED_DBUS_CONNECTION_H__ */

@@ -774,6 +774,31 @@ ni_dbus_message_iter_append_variant(DBusMessageIter *iter, const ni_dbus_variant
 }
 
 dbus_bool_t
+ni_dbus_message_iter_get_variant_data(DBusMessageIter *iter,
+					ni_dbus_variant_t *variant)
+{
+	void *value;
+
+	ni_dbus_variant_destroy(variant);
+	variant->type = dbus_message_iter_get_arg_type(iter);
+
+	value = ni_dbus_variant_datum_ptr(variant);
+	if (value != NULL) {
+		/* Basic types */
+		dbus_message_iter_get_basic(iter, value);
+
+		if (variant->type == DBUS_TYPE_STRING
+		 || variant->type == DBUS_TYPE_OBJECT_PATH)
+			variant->string_value = xstrdup(variant->string_value);
+	} else {
+		/* FIXME: need to handle arrays here */
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+dbus_bool_t
 ni_dbus_message_iter_get_variant(DBusMessageIter *iter,
 					ni_dbus_variant_t *variant)
 {

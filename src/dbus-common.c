@@ -45,7 +45,7 @@ ni_dbus_translate_error(const DBusError *err, const ni_intmap_t *error_map)
 }
 
 /*
- * Deserialize response
+ * Deserialize message
  *
  * We need this wrapper function because dbus_message_get_args_valist
  * does not copy any strings, but returns char pointers that point at
@@ -53,7 +53,7 @@ ni_dbus_translate_error(const DBusError *err, const ni_intmap_t *error_map)
  * after you've freed the message.
  */
 int
-ni_dbus_message_get_args(ni_dbus_message_t *reply, ...)
+ni_dbus_message_get_args(ni_dbus_message_t *msg, ...)
 {
 	DBusError error;
 	va_list ap;
@@ -61,12 +61,12 @@ ni_dbus_message_get_args(ni_dbus_message_t *reply, ...)
 
 	TRACE_ENTER();
 	dbus_error_init(&error);
-	va_start(ap, reply);
+	va_start(ap, msg);
 
 	type = va_arg(ap, int);
 	if (type
-	 && !dbus_message_get_args_valist(reply, &error, type, ap)) {
-		ni_error("%s: unable to retrieve reply data", __FUNCTION__);
+	 && !dbus_message_get_args_valist(msg, &error, type, ap)) {
+		ni_error("%s: unable to retrieve msg data", __FUNCTION__);
 		rv = -EINVAL;
 		goto done;
 	}
@@ -88,6 +88,26 @@ ni_dbus_message_get_args(ni_dbus_message_t *reply, ...)
 done:
 	va_end(ap);
 	return rv;
+}
+
+/*
+ * Deserialize message and store data in an array of variant objects
+ */
+int
+ni_dbus_message_get_args_variants(ni_dbus_message_t *msg, ni_dbus_variant_t *argv, unsigned int max_args)
+{
+	DBusMessageIter iter;
+	unsigned int argc = 0;
+
+	dbus_message_iter_init(msg, &iter);
+	for (argc = 0; argc < max_args; ++argc) {
+		if (!ni_dbus_message_iter_get_variant_data(&iter, &argv[argc]))
+			return -1;
+		if (!dbus_message_iter_next(&iter))
+			break;
+	}
+
+	return argc;
 }
 
 /*
