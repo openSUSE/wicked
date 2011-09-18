@@ -777,10 +777,17 @@ dbus_bool_t
 ni_dbus_message_iter_get_variant_data(DBusMessageIter *iter,
 					ni_dbus_variant_t *variant)
 {
+	DBusMessageIter iter_variant;
 	void *value;
 
 	ni_dbus_variant_destroy(variant);
 	variant->type = dbus_message_iter_get_arg_type(iter);
+
+	if (variant->type == DBUS_TYPE_VARIANT) {
+		dbus_message_iter_recurse(iter, &iter_variant);
+		variant->type = dbus_message_iter_get_arg_type(&iter_variant);
+		iter = &iter_variant;
+	}
 
 	value = ni_dbus_variant_datum_ptr(variant);
 	if (value != NULL) {

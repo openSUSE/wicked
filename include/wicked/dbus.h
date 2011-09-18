@@ -53,6 +53,21 @@ struct ni_dbus_variant {
 };
 #define NI_DBUS_VARIANT_INIT	{ .type = DBUS_TYPE_INVALID }
 
+typedef struct ni_dbus_method	ni_dbus_method_t;
+
+typedef dbus_bool_t		ni_dbus_method_handler_t(ni_dbus_object_t *object,
+					const ni_dbus_method_t *method,
+					unsigned int argc,
+					const ni_dbus_variant_t *argv,
+					ni_dbus_message_t *reply,
+					DBusError *error);
+
+struct ni_dbus_method {
+	const char *		name;
+	const char *		call_signature;
+	ni_dbus_method_handler_t *handler;
+};
+
 typedef struct ni_dbus_property	ni_dbus_property_t;
 
 typedef dbus_bool_t		ni_dbus_property_get_fn_t(const ni_dbus_object_t *,
@@ -78,18 +93,12 @@ typedef void			ni_dbus_async_callback_t(ni_dbus_proxy_t *proxy,
 typedef void			ni_dbus_signal_handler_t(ni_dbus_connection_t *connection,
 					ni_dbus_message_t *signal_msg,
 					void *user_data);
-typedef dbus_bool_t		ni_dbus_service_handler_t(ni_dbus_object_t *object,
-					const char *method,
-					ni_dbus_message_t *call,
-					ni_dbus_message_t *reply,
-					DBusError *err);
-
 
 extern ni_dbus_object_t *	ni_dbus_server_register_object(ni_dbus_server_t *server,
 					const char *object_path, void *object_handle);
 extern ni_dbus_service_t *	ni_dbus_object_register_service(ni_dbus_object_t *object,
 					const char *interface,
-					ni_dbus_service_handler_t *handler,
+					const ni_dbus_method_t *methods,
 					const ni_dbus_property_t *properties);
 
 extern ni_dbus_object_t *	ni_dbus_server_get_root_object(const ni_dbus_server_t *);
