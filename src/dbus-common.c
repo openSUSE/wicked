@@ -134,12 +134,13 @@ ni_dbus_process_properties(DBusMessageIter *iter, const struct ni_dbus_dict_entr
 	TRACE_ENTER();
 	while (ni_dbus_dict_get_entry(iter, &entry)) {
 		const struct ni_dbus_dict_entry_handler *h;
+		const ni_dbus_variant_t *v = &entry.datum;
 
 #if 0
-		if (entry.type == DBUS_TYPE_ARRAY) {
-			ni_debug_dbus("++%s -- array of type %c", entry.key, entry.array_type);
+		if (v->type == DBUS_TYPE_ARRAY) {
+			ni_debug_dbus("++%s -- array of type %c", entry.key, v->array.type);
 		} else {
-			ni_debug_dbus("++%s -- type %c", entry.key, entry.type);
+			ni_debug_dbus("++%s -- type %c", entry.key, v->type);
 		}
 #endif
 
@@ -148,17 +149,17 @@ ni_dbus_process_properties(DBusMessageIter *iter, const struct ni_dbus_dict_entr
 			continue;
 		}
 
-		if (h->type != entry.type
-		 || (h->type == DBUS_TYPE_ARRAY && h->array_type != entry.array_type)) {
+		if (h->type != v->type
+		 || (h->type == DBUS_TYPE_ARRAY && h->array_type != v->array.element_type)) {
 			ni_error("%s: unexpected type for dict element \"%s\"", __FUNCTION__, entry.key);
 			rv = -EINVAL;
 			break;
 		}
 
 		if (h->type == DBUS_TYPE_ARRAY && h->array_len_max != 0
-		 && (entry.array_len < h->array_len_min || h->array_len_max < entry.array_len)) {
+		 && (v->array.len < h->array_len_min || h->array_len_max < v->array.len)) {
 			ni_error("%s: unexpected array length %u for dict element \"%s\"",
-					__FUNCTION__, (int) entry.array_len, entry.key);
+					__FUNCTION__, (int) v->array.len, entry.key);
 			rv = -EINVAL;
 			break;
 		}
@@ -250,6 +251,32 @@ ni_dbus_variant_set_int64(ni_dbus_variant_t *var, int64_t value)
 	var->int64_value = value;
 }
 
+/*
+ * Helper function for handling arrays
+ */
+#define NI_DBUS_ARRAY_CHUNK		32
+#define NI_DBUS_ARRAY_ALLOCATION(len)	(((len) + NI_DBUS_ARRAY_CHUNK - 1) & ~(NI_DBUS_ARRAY_CHUNK - 1))
+static inline void
+__ni_dbus_array_grow(ni_dbus_variant_t *var, size_t element_size, unsigned int grow_by)
+{
+	unsigned int max = NI_DBUS_ARRAY_ALLOCATION(var->array.len);
+	unsigned int len = var->array.len;
+
+	if (len + grow_by >= max) {
+		void *new_data;
+
+		max = NI_DBUS_ARRAY_ALLOCATION(len + grow_by);
+		new_data = xcalloc(max, element_size);
+		if (new_data == NULL)
+			ni_fatal("%s: out of memory try to grow array to %u elements",
+					__FUNCTION__, len + grow_by);
+
+		memcpy(new_data, var->byte_array_value, len * element_size);
+		free(var->byte_array_value);
+		var->byte_array_value = new_data;
+	}
+}
+
 void
 ni_dbus_variant_set_byte_array(ni_dbus_variant_t *var,
 				unsigned int len, const unsigned char *data)
@@ -257,12 +284,22 @@ ni_dbus_variant_set_byte_array(ni_dbus_variant_t *var,
 	ni_dbus_variant_destroy(var);
 	var->type = DBUS_TYPE_ARRAY;
 	var->array.element_type = DBUS_TYPE_BYTE;
-	var->array.len = len;
 
-	if (len) {
-		var->byte_array_value = malloc(len);
+	__ni_dbus_array_grow(var, sizeof(unsigned char), len);
+	if (len)
 		memcpy(var->byte_array_value, data, len);
-	}
+}
+
+dbus_bool_t
+ni_dbus_variant_append_byte_array(ni_dbus_variant_t *var, unsigned char byte)
+{
+	if (var->type != DBUS_TYPE_ARRAY
+	 || var->array.element_type != DBUS_TYPE_BYTE)
+		return FALSE;
+
+	__ni_dbus_array_grow(var, sizeof(unsigned char), 1);
+	var->byte_array_value[var->array.len++] = byte;
+	return TRUE;
 }
 
 void
@@ -272,12 +309,11 @@ ni_dbus_variant_set_string_array(ni_dbus_variant_t *var,
 	ni_dbus_variant_destroy(var);
 	var->type = DBUS_TYPE_ARRAY;
 	var->array.element_type = DBUS_TYPE_STRING;
-	var->array.len = len;
 
+	__ni_dbus_array_grow(var, sizeof(char *), len);
 	if (len) {
 		unsigned int i;
 
-		var->string_array_value = calloc(len, sizeof(data[0]));
 		for (i = 0; i < len; ++i)
 			var->string_array_value[i] = xstrdup(data[i]?: "");
 	}
@@ -292,7 +328,7 @@ ni_dbus_variant_append_string_array(ni_dbus_variant_t *var, const char *string)
 	 || var->array.element_type != DBUS_TYPE_STRING)
 		return FALSE;
 
-	var->string_array_value = realloc(var->string_array_value, (len + 1) * sizeof(string));
+	__ni_dbus_array_grow(var, sizeof(char *), 1);
 	var->string_array_value[len] = xstrdup(string?: "");
 	var->array.len++;
 

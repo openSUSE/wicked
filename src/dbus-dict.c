@@ -812,6 +812,65 @@ ni_dbus_message_iter_append_variant(DBusMessageIter *iter, const ni_dbus_variant
 }
 
 dbus_bool_t
+ni_dbus_message_iter_get_byte_array(DBusMessageIter *iter, ni_dbus_variant_t *variant)
+{
+	ni_dbus_variant_set_byte_array(variant, 0, NULL);
+
+	while (dbus_message_iter_get_arg_type(iter) == DBUS_TYPE_BYTE) {
+		unsigned char byte;
+
+		dbus_message_iter_get_basic(iter, &byte);
+		ni_dbus_variant_append_byte_array(variant, byte);
+		dbus_message_iter_next(iter);
+	}
+
+	return TRUE;
+}
+
+dbus_bool_t
+ni_dbus_message_iter_get_string_array(DBusMessageIter *iter, ni_dbus_variant_t *variant)
+{
+	ni_dbus_variant_set_string_array(variant, 0, NULL);
+	while (dbus_message_iter_get_arg_type(iter) == DBUS_TYPE_STRING) {
+		const char *value;
+
+		dbus_message_iter_get_basic(iter, &value);
+		ni_dbus_variant_append_string_array(variant, value);
+		dbus_message_iter_next(iter);
+	}
+
+	return TRUE;
+}
+
+
+static dbus_bool_t
+ni_dbus_message_iter_get_array(DBusMessageIter *iter, ni_dbus_variant_t *variant)
+{
+	int array_type = dbus_message_iter_get_element_type(iter);
+	dbus_bool_t success = FALSE;
+	DBusMessageIter iter_array;
+
+	if (!variant)
+		return FALSE;
+
+	dbus_message_iter_recurse(iter, &iter_array);
+
+	switch (array_type) {
+	case DBUS_TYPE_BYTE:
+		success = ni_dbus_message_iter_get_byte_array(&iter_array, variant);
+		break;
+	case DBUS_TYPE_STRING:
+		success = ni_dbus_message_iter_get_string_array(&iter_array, variant);
+		break;
+	default:
+		break;
+	}
+
+	return success;
+}
+
+
+dbus_bool_t
 ni_dbus_message_iter_get_variant_data(DBusMessageIter *iter,
 					ni_dbus_variant_t *variant)
 {
@@ -835,8 +894,11 @@ ni_dbus_message_iter_get_variant_data(DBusMessageIter *iter,
 		if (variant->type == DBUS_TYPE_STRING
 		 || variant->type == DBUS_TYPE_OBJECT_PATH)
 			variant->string_value = xstrdup(variant->string_value);
+	} else if (variant->type == DBUS_TYPE_ARRAY) {
+		if (!ni_dbus_message_iter_get_array(iter, variant))
+			return FALSE;
 	} else {
-		/* FIXME: need to handle arrays here */
+		/* FIXME: need to handle other types here */
 		return FALSE;
 	}
 
@@ -905,233 +967,81 @@ dbus_bool_t ni_dbus_dict_open_read(DBusMessageIter *iter,
 }
 
 
-#define BYTE_ARRAY_CHUNK_SIZE 34
-#define BYTE_ARRAY_ITEM_SIZE (sizeof(char))
-
-static dbus_bool_t __ni_dbus_dict_entry_get_byte_array(
-	DBusMessageIter *iter, int array_type,
-	struct ni_dbus_dict_entry *entry)
-{
-	dbus_uint32_t count = 0;
-	dbus_bool_t success = FALSE;
-	char *buffer;
-
-	entry->bytearray_value = NULL;
-	entry->array_type = DBUS_TYPE_BYTE;
-
-	buffer = xcalloc(1, BYTE_ARRAY_ITEM_SIZE * BYTE_ARRAY_CHUNK_SIZE);
-	if (!buffer) {
-		perror("__ni_dbus_dict_entry_get_byte_array[dbus]: out of "
-		       "memory");
-		goto done;
-	}
-
-	entry->bytearray_value = buffer;
-	entry->array_len = 0;
-	while (dbus_message_iter_get_arg_type(iter) == DBUS_TYPE_BYTE) {
-		char byte;
-
-		if ((count % BYTE_ARRAY_CHUNK_SIZE) == 0 && count != 0) {
-			buffer = realloc(buffer, BYTE_ARRAY_ITEM_SIZE *
-					 (count + BYTE_ARRAY_CHUNK_SIZE));
-			if (buffer == NULL) {
-				perror("__ni_dbus_dict_entry_get_byte_array["
-				       "dbus] out of memory trying to "
-				       "retrieve the string array");
-				goto done;
-			}
-		}
-		entry->bytearray_value = buffer;
-
-		dbus_message_iter_get_basic(iter, &byte);
-		entry->bytearray_value[count] = byte;
-		entry->array_len = ++count;
-		dbus_message_iter_next(iter);
-	}
-
-	/* Zero-length arrays are valid. */
-	if (entry->array_len == 0) {
-		free(entry->bytearray_value);
-		entry->bytearray_value = NULL;
-	}
-
-	success = TRUE;
-
-done:
-	return success;
-}
-
-
-#define STR_ARRAY_CHUNK_SIZE 8
-#define STR_ARRAY_ITEM_SIZE (sizeof(char *))
-
-static dbus_bool_t __ni_dbus_dict_entry_get_string_array(
-	DBusMessageIter *iter, int array_type,
-	struct ni_dbus_dict_entry *entry)
-{
-	dbus_uint32_t count = 0;
-	dbus_bool_t success = FALSE;
-	char **buffer;
-
-	entry->strarray_value = NULL;
-	entry->array_type = DBUS_TYPE_STRING;
-
-	buffer = xcalloc(1, STR_ARRAY_ITEM_SIZE * STR_ARRAY_CHUNK_SIZE);
-	if (buffer == NULL) {
-		perror("__ni_dbus_dict_entry_get_string_array[dbus] out of "
-		       "memory trying to retrieve a string array");
-		goto done;
-	}
-
-	entry->strarray_value = buffer;
-	entry->array_len = 0;
-	while (dbus_message_iter_get_arg_type(iter) == DBUS_TYPE_STRING) {
-		const char *value;
-		char *str;
-
-		if ((count % STR_ARRAY_CHUNK_SIZE) == 0 && count != 0) {
-			buffer = realloc(buffer, STR_ARRAY_ITEM_SIZE *
-					 (count + STR_ARRAY_CHUNK_SIZE));
-			if (buffer == NULL) {
-				perror("__ni_dbus_dict_entry_get_string_array["
-				       "dbus] out of memory trying to "
-				       "retrieve the string array");
-				goto done;
-			}
-		}
-		entry->strarray_value = buffer;
-
-		dbus_message_iter_get_basic(iter, &value);
-		str = xstrdup(value);
-		if (str == NULL) {
-			perror("__ni_dbus_dict_entry_get_string_array[dbus] "
-			       "out of memory trying to duplicate the string "
-			       "array");
-			goto done;
-		}
-		entry->strarray_value[count] = str;
-		entry->array_len = ++count;
-		dbus_message_iter_next(iter);
-	}
-
-	/* Zero-length arrays are valid. */
-	if (entry->array_len == 0) {
-		free(entry->strarray_value);
-		entry->strarray_value = NULL;
-	}
-
-	success = TRUE;
-
-done:
-	return success;
-}
-
-
-static dbus_bool_t __ni_dbus_dict_entry_get_array(
-	DBusMessageIter *iter_dict_val, struct ni_dbus_dict_entry *entry)
-{
-	int array_type = dbus_message_iter_get_element_type(iter_dict_val);
-	dbus_bool_t success = FALSE;
-	DBusMessageIter iter_array;
-
-	if (!entry)
-		return FALSE;
-
-	dbus_message_iter_recurse(iter_dict_val, &iter_array);
-
-	switch (array_type) {
-	case DBUS_TYPE_BYTE:
-		success = __ni_dbus_dict_entry_get_byte_array(&iter_array,
-							      array_type,
-							      entry);
-		break;
-	case DBUS_TYPE_STRING:
-		success = __ni_dbus_dict_entry_get_string_array(&iter_array,
-								array_type,
-								entry);
-		break;
-	default:
-		break;
-	}
-
-	return success;
-}
-
-
-static dbus_bool_t __ni_dbus_dict_fill_value_from_variant(
-	struct ni_dbus_dict_entry *entry, DBusMessageIter *iter_dict_val)
+static dbus_bool_t
+__ni_dbus_dict_fill_value_from_variant(ni_dbus_variant_t *variant, DBusMessageIter *iter_dict_val)
 {
 	dbus_bool_t success = TRUE;
 
-	switch (entry->type) {
+	variant->type = dbus_message_iter_get_arg_type(iter_dict_val);
+	switch (variant->type) {
 	case DBUS_TYPE_STRING: {
 		const char *v;
 		dbus_message_iter_get_basic(iter_dict_val, &v);
-		entry->str_value = xstrdup(v);
+		variant->string_value = xstrdup(v);
 		break;
 	}
 	case DBUS_TYPE_BOOLEAN: {
 		dbus_bool_t v;
 		dbus_message_iter_get_basic(iter_dict_val, &v);
-		entry->bool_value = v;
+		variant->bool_value = v;
 		break;
 	}
 	case DBUS_TYPE_BYTE: {
 		char v;
 		dbus_message_iter_get_basic(iter_dict_val, &v);
-		entry->byte_value = v;
+		variant->byte_value = v;
 		break;
 	}
 	case DBUS_TYPE_INT16: {
 		dbus_int16_t v;
 		dbus_message_iter_get_basic(iter_dict_val, &v);
-		entry->int16_value = v;
+		variant->int16_value = v;
 		break;
 	}
 	case DBUS_TYPE_UINT16: {
 		dbus_uint16_t v;
 		dbus_message_iter_get_basic(iter_dict_val, &v);
-		entry->uint16_value = v;
+		variant->uint16_value = v;
 		break;
 	}
 	case DBUS_TYPE_INT32: {
 		dbus_int32_t v;
 		dbus_message_iter_get_basic(iter_dict_val, &v);
-		entry->int32_value = v;
+		variant->int32_value = v;
 		break;
 	}
 	case DBUS_TYPE_UINT32: {
 		dbus_uint32_t v;
 		dbus_message_iter_get_basic(iter_dict_val, &v);
-		entry->uint32_value = v;
+		variant->uint32_value = v;
 		break;
 	}
 	case DBUS_TYPE_INT64: {
 		dbus_int64_t v;
 		dbus_message_iter_get_basic(iter_dict_val, &v);
-		entry->int64_value = v;
+		variant->int64_value = v;
 		break;
 	}
 	case DBUS_TYPE_UINT64: {
 		dbus_uint64_t v;
 		dbus_message_iter_get_basic(iter_dict_val, &v);
-		entry->uint64_value = v;
+		variant->uint64_value = v;
 		break;
 	}
 	case DBUS_TYPE_DOUBLE: {
 		double v;
 		dbus_message_iter_get_basic(iter_dict_val, &v);
-		entry->double_value = v;
+		variant->double_value = v;
 		break;
 	}
 	case DBUS_TYPE_OBJECT_PATH: {
 		char *v;
 		dbus_message_iter_get_basic(iter_dict_val, &v);
-		entry->str_value = xstrdup(v);
+		variant->string_value = xstrdup(v);
 		break;
 	}
 	case DBUS_TYPE_ARRAY: {
-		success = __ni_dbus_dict_entry_get_array(iter_dict_val, entry);
+		success = ni_dbus_message_iter_get_array(iter_dict_val, variant);
 		break;
 	}
 	default:
@@ -1159,8 +1069,8 @@ static dbus_bool_t __ni_dbus_dict_fill_value_from_variant(
  * @return TRUE on success, FALSE on failure
  *
  */
-dbus_bool_t ni_dbus_dict_get_entry(DBusMessageIter *iter_dict,
-				    struct ni_dbus_dict_entry * entry)
+dbus_bool_t
+ni_dbus_dict_get_entry(DBusMessageIter *iter_dict, struct ni_dbus_dict_entry *entry)
 {
 	DBusMessageIter iter_dict_entry, iter_dict_val;
 	int type;
@@ -1183,19 +1093,15 @@ dbus_bool_t ni_dbus_dict_get_entry(DBusMessageIter *iter_dict,
 		goto error;
 
 	dbus_message_iter_recurse(&iter_dict_entry, &iter_dict_val);
-	entry->type = dbus_message_iter_get_arg_type(&iter_dict_val);
-	if (!__ni_dbus_dict_fill_value_from_variant(entry, &iter_dict_val))
+	if (!__ni_dbus_dict_fill_value_from_variant(&entry->datum, &iter_dict_val))
 		goto error;
 
 	dbus_message_iter_next(iter_dict);
 	return TRUE;
 
 error:
-	if (entry) {
+	if (entry)
 		ni_dbus_dict_entry_clear(entry);
-		entry->type = DBUS_TYPE_INVALID;
-		entry->array_type = DBUS_TYPE_INVALID;
-	}
 
 	return FALSE;
 }
@@ -1227,28 +1133,8 @@ dbus_bool_t ni_dbus_dict_has_dict_entry(DBusMessageIter *iter_dict)
  */
 void ni_dbus_dict_entry_clear(struct ni_dbus_dict_entry *entry)
 {
-	unsigned int i;
-
 	if (!entry)
 		return;
-	switch (entry->type) {
-	case DBUS_TYPE_OBJECT_PATH:
-	case DBUS_TYPE_STRING:
-		free(entry->str_value);
-		break;
-	case DBUS_TYPE_ARRAY:
-		switch (entry->array_type) {
-		case DBUS_TYPE_BYTE:
-			free(entry->bytearray_value);
-			break;
-		case DBUS_TYPE_STRING:
-			for (i = 0; i < entry->array_len; i++)
-				free(entry->strarray_value[i]);
-			free(entry->strarray_value);
-			break;
-		}
-		break;
-	}
-
-	memset(entry, 0, sizeof(struct ni_dbus_dict_entry));
+	ni_dbus_variant_destroy(&entry->datum);
+	memset(entry, 0, sizeof(*entry));
 }

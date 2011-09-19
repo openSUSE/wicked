@@ -725,24 +725,26 @@ __ni_wpa_bss_set_bssid(struct ni_dbus_dict_entry *entry, void *ptr)
 {
 	struct ni_wpa_bss_properties *props = ptr;
 
-	return ni_link_address_set(&props->bssid, NI_IFTYPE_WIRELESS, entry->bytearray_value, entry->array_len);
+	return ni_link_address_set(&props->bssid, NI_IFTYPE_WIRELESS,
+			entry->datum.byte_array_value, entry->datum.array.len);
 }
 
 static int
 __ni_wpa_bss_set_essid(struct ni_dbus_dict_entry *entry, void *ptr)
 {
 	struct ni_wpa_bss_properties *props = ptr;
+	ni_dbus_variant_t *variant = &entry->datum;
 
-	if (entry->array_len > sizeof(props->essid.data))
+	if (variant->array.len > sizeof(props->essid.data))
 		return -1;
 
-	memcpy(props->essid.data, entry->bytearray_value, entry->array_len);
-	props->essid.len = entry->array_len;
+	memcpy(props->essid.data, variant->byte_array_value, variant->array.len);
+	props->essid.len = variant->array.len;
 	return 0;
 }
 
 #define __set_basic(field_name, type) \
-	({ ((struct ni_wpa_bss_properties *) ptr)->field_name = entry->type ##_value; 0;})
+	({ ((struct ni_wpa_bss_properties *) ptr)->field_name = entry->datum.type ##_value; 0;})
 
 static int
 __ni_wpa_bss_set_frequency(struct ni_dbus_dict_entry *entry, void *ptr)
@@ -777,9 +779,11 @@ __ni_wpa_bss_set_quality(struct ni_dbus_dict_entry *entry, void *ptr)
 static int
 __ni_wpa_set_blob(struct ni_dbus_dict_entry *entry, ni_opaque_t **op)
 {
+	ni_dbus_variant_t *variant = &entry->datum;
+
 	if (*op)
 		ni_opaque_free(*op);
-	*op = ni_opaque_new(entry->bytearray_value, entry->array_len);
+	*op = ni_opaque_new(variant->byte_array_value, variant->array.len);
 	return 0;
 }
 
@@ -881,10 +885,11 @@ ni_wpa_bss_request_properties(ni_wpa_client_t *wpa, ni_wpa_bss_t *bss)
 static inline int
 __ni_wpa_set_string_array(struct ni_dbus_dict_entry *entry, ni_string_array_t *array)
 {
+	ni_dbus_variant_t *variant = &entry->datum;
 	unsigned int i;
 
-	for (i = 0; i < entry->array_len; ++i)
-		ni_string_array_append(array, entry->strarray_value[i]);
+	for (i = 0; i < variant->array.len; ++i)
+		ni_string_array_append(array, variant->string_array_value[i]);
 
 	return 0;
 }
@@ -893,11 +898,12 @@ static inline int
 __ni_wpa_translate_caps(struct ni_dbus_dict_entry *entry, unsigned int *bits,
 				const char *what, const ni_intmap_t *names)
 {
+	ni_dbus_variant_t *variant = &entry->datum;
 	unsigned int i;
 
 	*bits = 0;
-	for (i = 0; i < entry->array_len; ++i) {
-		const char *name = entry->strarray_value[i];
+	for (i = 0; i < variant->array.len; ++i) {
+		const char *name = variant->string_array_value[i];
 		unsigned int value;
 
 		if (ni_parse_int_mapped(name, names, &value) < 0)

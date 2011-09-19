@@ -121,34 +121,11 @@ dbus_bool_t	ni_dbus_message_iter_append_byte_array(DBusMessageIter *iter,
  */
 
 struct ni_dbus_dict_entry {
-	/* the dbus type of the dict entry's value */
-	int			type;
-
-	/* the dbus type of the array elements if the dict
-	 * entry value contains an array */
-	int			array_type;
-
 	/* key of the dict entry */
 	const char *		key;
 
-	/* Possible values of the property */
-	union {
-		char *		str_value;
-		char		byte_value;
-		dbus_bool_t	bool_value;
-		dbus_int16_t	int16_value;
-		dbus_uint16_t	uint16_value;
-		dbus_int32_t	int32_value;
-		dbus_uint32_t	uint32_value;
-		dbus_int64_t	int64_value;
-		dbus_uint64_t	uint64_value;
-		double		double_value;
-		char *		bytearray_value;
-		char **		strarray_value;
-	};
-
-	/* length of the array if the dict entry's value contains an array */
-	dbus_uint32_t		array_len;
+	/* datum associated with key */
+	ni_dbus_variant_t	datum;
 };
 
 extern dbus_bool_t	ni_dbus_dict_open_read(DBusMessageIter *iter,
