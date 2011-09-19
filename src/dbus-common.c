@@ -417,6 +417,58 @@ ni_dbus_variant_sprint(const ni_dbus_variant_t *var)
 	return buffer;
 }
 
+const char *
+ni_dbus_variant_signature(const ni_dbus_variant_t *var)
+{
+	static char buffer[64];
+	const char *sig;
+
+	sig = ni_dbus_type_as_string(var->type);
+	if (sig)
+		return sig;
+
+	switch (var->type) {
+	case DBUS_TYPE_ARRAY:
+		strcpy(buffer, DBUS_TYPE_ARRAY_AS_STRING);
+		switch (var->array.element_type) {
+		case DBUS_TYPE_BYTE:
+			return DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING;
+		case DBUS_TYPE_STRING:
+			return DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_STRING_AS_STRING;
+		case DBUS_TYPE_VARIANT:
+			return DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_VARIANT_AS_STRING;
+		}
+		break;
+	}
+
+	return NULL;
+}
+
+/*
+ * Translate basic dbus types to signature strings
+ */
+static const char * __ni_dbus_basic_type_as_string[256] = {
+[DBUS_TYPE_BYTE]	= DBUS_TYPE_BYTE_AS_STRING,
+[DBUS_TYPE_BOOLEAN]	= DBUS_TYPE_BOOLEAN_AS_STRING,
+[DBUS_TYPE_INT16]	= DBUS_TYPE_INT16_AS_STRING,
+[DBUS_TYPE_UINT16]	= DBUS_TYPE_UINT16_AS_STRING,
+[DBUS_TYPE_INT32]	= DBUS_TYPE_INT32_AS_STRING,
+[DBUS_TYPE_UINT32]	= DBUS_TYPE_UINT32_AS_STRING,
+[DBUS_TYPE_INT64]	= DBUS_TYPE_INT64_AS_STRING,
+[DBUS_TYPE_UINT64]	= DBUS_TYPE_UINT64_AS_STRING,
+[DBUS_TYPE_DOUBLE]	= DBUS_TYPE_DOUBLE_AS_STRING,
+[DBUS_TYPE_STRING]	= DBUS_TYPE_STRING_AS_STRING,
+[DBUS_TYPE_OBJECT_PATH]	= DBUS_TYPE_OBJECT_PATH_AS_STRING,
+};
+
+const char *
+ni_dbus_type_as_string(int type)
+{
+	if (type < 0 || type >= 256)
+		return NULL;
+	return __ni_dbus_basic_type_as_string[(unsigned int) type];
+}
+
 /*
  * Offsets of all elements in the variant struct
  */

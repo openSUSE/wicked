@@ -58,6 +58,7 @@ __LIBSRCS= \
 	  arp.c \
 	  logging.c \
 	  dbus-client.c \
+	  dbus-message.c \
 	  dbus-common.c \
 	  dbus-connection.c \
 	  dbus-dict.c \

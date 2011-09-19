@@ -19,6 +19,8 @@ extern const char *		ni_dbus_object_get_path(const ni_dbus_object_t *);
 extern const DBusObjectPathVTable *ni_dbus_object_get_vtable(const ni_dbus_object_t *);
 extern int			ni_dbus_translate_error(const DBusError *, const ni_intmap_t *);
 
+extern const char *		ni_dbus_type_as_string(int type);
+
 extern int			ni_dbus_message_get_args(ni_dbus_message_t *, ...);
 extern int			ni_dbus_message_get_args_variants(ni_dbus_message_t *msg,
 					ni_dbus_variant_t *argv, unsigned int max_args);
