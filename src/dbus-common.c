@@ -302,12 +302,20 @@ ni_dbus_variant_append_string_array(ni_dbus_variant_t *var, const char *string)
 void
 ni_dbus_variant_destroy(ni_dbus_variant_t *var)
 {
-	if (var->type == DBUS_TYPE_STRING)
+	if (var->type == DBUS_TYPE_STRING
+	 || var->type == DBUS_TYPE_OBJECT_PATH)
 		ni_string_free(&var->string_value);
 	else if (var->type == DBUS_TYPE_ARRAY) {
+		unsigned int i;
+
 		switch (var->array.element_type) {
 		case DBUS_TYPE_BYTE:
 			free(var->byte_array_value);
+			break;
+		case DBUS_TYPE_STRING:
+			for (i = 0; i < var->array.len; ++i)
+				free(var->string_array_value[i]);
+			free(var->string_array_value);
 			break;
 		}
 	}
