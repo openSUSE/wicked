@@ -871,20 +871,12 @@ ni_dbus_message_iter_get_array(DBusMessageIter *iter, ni_dbus_variant_t *variant
 
 
 dbus_bool_t
-ni_dbus_message_iter_get_variant_data(DBusMessageIter *iter,
-					ni_dbus_variant_t *variant)
+ni_dbus_message_iter_get_variant_data(DBusMessageIter *iter, ni_dbus_variant_t *variant)
 {
-	DBusMessageIter iter_variant;
 	void *value;
 
 	ni_dbus_variant_destroy(variant);
 	variant->type = dbus_message_iter_get_arg_type(iter);
-
-	if (variant->type == DBUS_TYPE_VARIANT) {
-		dbus_message_iter_recurse(iter, &iter_variant);
-		variant->type = dbus_message_iter_get_arg_type(&iter_variant);
-		iter = &iter_variant;
-	}
 
 	value = ni_dbus_variant_datum_ptr(variant);
 	if (value != NULL) {
@@ -906,11 +898,9 @@ ni_dbus_message_iter_get_variant_data(DBusMessageIter *iter,
 }
 
 dbus_bool_t
-ni_dbus_message_iter_get_variant(DBusMessageIter *iter,
-					ni_dbus_variant_t *variant)
+ni_dbus_message_iter_get_variant(DBusMessageIter *iter, ni_dbus_variant_t *variant)
 {
 	DBusMessageIter iter_val;
-	void *value;
 	int type;
 
 	ni_dbus_variant_destroy(variant);
@@ -920,26 +910,7 @@ ni_dbus_message_iter_get_variant(DBusMessageIter *iter,
 		return FALSE;
 
 	dbus_message_iter_recurse(iter, &iter_val);
-	variant->type = dbus_message_iter_get_arg_type(&iter_val);
-
-	value = ni_dbus_variant_datum_ptr(variant);
-	if (value != NULL) {
-		/* Basic types */
-		dbus_message_iter_get_basic(&iter_val, value);
-
-		if (variant->type == DBUS_TYPE_STRING
-		 || variant->type == DBUS_TYPE_OBJECT_PATH)
-			variant->string_value = xstrdup(variant->string_value);
-	} else if (variant->type == DBUS_TYPE_ARRAY) {
-		if (!ni_dbus_message_iter_get_array(&iter_val, variant))
-			return FALSE;
-	} else {
-		/* FIXME: need to handle other types here */
-		return FALSE;
-	}
-
-	dbus_message_iter_next(iter);
-	return TRUE;
+	return ni_dbus_message_iter_get_variant_data(&iter_val, variant);
 }
 
 /*****************************************************/

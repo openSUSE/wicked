@@ -101,7 +101,15 @@ ni_dbus_message_get_args_variants(ni_dbus_message_t *msg, ni_dbus_variant_t *arg
 
 	dbus_message_iter_init(msg, &iter);
 	for (argc = 0; argc < max_args; ++argc) {
-		if (!ni_dbus_message_iter_get_variant_data(&iter, &argv[argc]))
+		DBusMessageIter *iter_p = &iter, iter_val;
+
+		/* As a matter of convenience to the coder,
+		 * automatically drill into arguments that are wrapped in a variant */
+		if (dbus_message_iter_get_arg_type(&iter) == DBUS_TYPE_VARIANT) {
+			dbus_message_iter_recurse(&iter, &iter_val);
+			iter_p = &iter_val;
+		}
+		if (!ni_dbus_message_iter_get_variant_data(iter_p, &argv[argc]))
 			return -1;
 		if (!dbus_message_iter_next(&iter))
 			break;
