@@ -18,11 +18,8 @@
 #include <wicked/logging.h>
 #include "model.h"
 
+static ni_dbus_method_t		wicked_dbus_interface_methods[];
 static ni_dbus_property_t	wicked_dbus_interface_properties[];
-static dbus_bool_t		__wicked_dbus_interface_handler(ni_dbus_object_t *object, const char *method,
-						ni_dbus_message_t *call,
-						ni_dbus_message_t *reply,
-						DBusError *error);
 
 void
 ni_objectmodel_register_interface(ni_dbus_server_t *server, ni_interface_t *ifp)
@@ -36,7 +33,7 @@ ni_objectmodel_register_interface(ni_dbus_server_t *server, ni_interface_t *ifp)
 		ni_fatal("Unable to create dbus object for interface %s", ifp->name);
 
 	ni_dbus_object_register_service(object, WICKED_DBUS_INTERFACE ".Interface",
-			__wicked_dbus_interface_handler,
+			wicked_dbus_interface_methods,
 			wicked_dbus_interface_properties);
 
 	switch (ifp->type) {
@@ -49,14 +46,9 @@ ni_objectmodel_register_interface(ni_dbus_server_t *server, ni_interface_t *ifp)
 }
 
 
-static dbus_bool_t
-__wicked_dbus_interface_handler(ni_dbus_object_t *object, const char *method,
-				ni_dbus_message_t *call,
-				ni_dbus_message_t *reply,
-				DBusError *error)
-{
-	return FALSE;
-}
+static ni_dbus_method_t		wicked_dbus_interface_methods[] = {
+	{ NULL }
+};
 
 static dbus_bool_t
 __wicked_dbus_interface_get_type(const ni_dbus_object_t *object,
@@ -112,10 +104,17 @@ __wicked_dbus_interface_get_addresses(const ni_dbus_object_t *object,
 				ni_dbus_variant_t *result,
 				DBusError *error)
 {
-	//ni_interface_t *ifp = ni_dbus_object_get_handle(object);
+	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
+	const ni_address_t *addr;
 
-	dbus_set_error(error, DBUS_ERROR_UNKNOWN_METHOD, "Method not known");
-	return FALSE;
+	ni_dbus_variant_set_string_array(result, 0, NULL);
+	for (addr = ifp->addrs; addr; addr = addr->next) {
+		const char *string = ni_address_print(&addr->local_addr);
+
+		ni_dbus_variant_append_string_array(result, string);
+	}
+
+	return TRUE;
 }
 
 #define WICKED_INTERFACE_PROPERTY(type, __name, rw) \

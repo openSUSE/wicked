@@ -107,6 +107,10 @@ ni_dbus_variant_signature(const ni_dbus_variant_t *var)
 		switch (var->array.element_type) {
 		case DBUS_TYPE_BYTE:
 			return DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING;
+		case DBUS_TYPE_STRING:
+			return DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_STRING_AS_STRING;
+		case DBUS_TYPE_VARIANT:
+			return DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_VARIANT_AS_STRING;
 		}
 		break;
 	}
@@ -118,6 +122,9 @@ static dbus_bool_t __ni_dbus_add_dict_entry_start(
 	DBusMessageIter *iter_dict, DBusMessageIter *iter_dict_entry,
 	const char *key)
 {
+	if (!key)
+		return FALSE;
+
 	if (!dbus_message_iter_open_container(iter_dict,
 					      DBUS_TYPE_DICT_ENTRY, NULL,
 					      iter_dict_entry))
@@ -736,12 +743,37 @@ ni_dbus_message_iter_append_byte_array(DBusMessageIter *iter,
 }
 
 dbus_bool_t
+ni_dbus_message_iter_append_string_array(DBusMessageIter *iter,
+				char **string_array, unsigned int len)
+{
+	DBusMessageIter iter_array;
+	unsigned int i;
+
+	if (!dbus_message_iter_open_container(iter, DBUS_TYPE_ARRAY,
+					      DBUS_TYPE_STRING_AS_STRING,
+					      &iter_array))
+		return FALSE;
+
+	for (i = 0; i < len; i++) {
+		if (!dbus_message_iter_append_basic(&iter_array,
+						    DBUS_TYPE_STRING,
+						    &string_array[i]))
+			return FALSE;
+	}
+
+	if (!dbus_message_iter_close_container(iter, &iter_array))
+		return FALSE;
+
+	return TRUE;
+}
+
+dbus_bool_t
 ni_dbus_message_iter_append_variant(DBusMessageIter *iter, const ni_dbus_variant_t *variant)
 {
 	const char *type_as_string = NULL;
 	const void *value;
 	DBusMessageIter iter_val;
-	dbus_bool_t rv;
+	dbus_bool_t rv = FALSE;
 
 	type_as_string = ni_dbus_variant_signature(variant);
 	if (!type_as_string)
@@ -753,18 +785,24 @@ ni_dbus_message_iter_append_variant(DBusMessageIter *iter, const ni_dbus_variant
 	value = ni_dbus_variant_datum_const_ptr(variant);
 	if (value != NULL) {
 		rv = dbus_message_iter_append_basic(&iter_val, variant->type, value);
-	} else {
-		rv = FALSE;
-
-		switch (variant->type) {
-		case DBUS_TYPE_ARRAY:
+	} else
+	if (variant->type == DBUS_TYPE_ARRAY) {
+		switch (variant->array.element_type) {
+		case DBUS_TYPE_BYTE:
 			rv = ni_dbus_message_iter_append_byte_array(&iter_val,
 					variant->byte_array_value, variant->array.len);
 			break;
-		}
 
-		if (!rv)
+		case DBUS_TYPE_STRING:
+			rv = ni_dbus_message_iter_append_string_array(&iter_val,
+					variant->string_array_value, variant->array.len);
+			break;
+
+		default:
 			ni_warn("%s: variant type %s not supported", __FUNCTION__, type_as_string);
+		}
+	} else {
+		ni_warn("%s: variant type %s not supported", __FUNCTION__, type_as_string);
 	}
 
 	if (rv)

@@ -266,6 +266,40 @@ ni_dbus_variant_set_byte_array(ni_dbus_variant_t *var,
 }
 
 void
+ni_dbus_variant_set_string_array(ni_dbus_variant_t *var,
+				unsigned int len, const char **data)
+{
+	ni_dbus_variant_destroy(var);
+	var->type = DBUS_TYPE_ARRAY;
+	var->array.element_type = DBUS_TYPE_STRING;
+	var->array.len = len;
+
+	if (len) {
+		unsigned int i;
+
+		var->string_array_value = calloc(len, sizeof(data[0]));
+		for (i = 0; i < len; ++i)
+			var->string_array_value[i] = xstrdup(data[i]?: "");
+	}
+}
+
+dbus_bool_t
+ni_dbus_variant_append_string_array(ni_dbus_variant_t *var, const char *string)
+{
+	unsigned int len = var->array.len;
+
+	if (var->type != DBUS_TYPE_ARRAY
+	 || var->array.element_type != DBUS_TYPE_STRING)
+		return FALSE;
+
+	var->string_array_value = realloc(var->string_array_value, (len + 1) * sizeof(string));
+	var->string_array_value[len] = xstrdup(string?: "");
+	var->array.len++;
+
+	return TRUE;
+}
+
+void
 ni_dbus_variant_destroy(ni_dbus_variant_t *var)
 {
 	if (var->type == DBUS_TYPE_STRING)
