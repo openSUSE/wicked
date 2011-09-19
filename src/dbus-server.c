@@ -338,7 +338,7 @@ __ni_dbus_object_manager_get_managed_objects(ni_dbus_object_t *object,
 }
 
 static ni_dbus_method_t	__ni_dbus_object_manager_methods[] = {
-	{ "GetManagedObjects",		"",		__ni_dbus_object_manager_get_managed_objects },
+	{ "GetManagedObjects",		NULL,		__ni_dbus_object_manager_get_managed_objects },
 	{ NULL }
 };
 
