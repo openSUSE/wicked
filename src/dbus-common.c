@@ -294,8 +294,10 @@ ni_dbus_variant_set_byte_array(ni_dbus_variant_t *var,
 	var->array.element_type = DBUS_TYPE_BYTE;
 
 	__ni_dbus_array_grow(var, sizeof(unsigned char), len);
-	if (len)
+	if (len) {
 		memcpy(var->byte_array_value, data, len);
+		var->array.len = len;
+	}
 }
 
 dbus_bool_t
@@ -324,6 +326,7 @@ ni_dbus_variant_set_string_array(ni_dbus_variant_t *var,
 
 		for (i = 0; i < len; ++i)
 			var->string_array_value[i] = xstrdup(data[i]?: "");
+		var->array.len = len;
 	}
 }
 
