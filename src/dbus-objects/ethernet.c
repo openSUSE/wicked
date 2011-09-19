@@ -18,11 +18,8 @@
 #include <wicked/logging.h>
 #include "model.h"
 
+static ni_dbus_method_t		wicked_dbus_ethernet_methods[];
 static ni_dbus_property_t	wicked_dbus_ethernet_properties[];
-static int			__wicked_dbus_ethernet_handler(ni_dbus_object_t *object, const char *method,
-						ni_dbus_message_t *call,
-						ni_dbus_message_t *reply,
-						DBusError *error);
 
 void
 ni_objectmodel_register_interface_ethernet(ni_dbus_server_t *server, ni_interface_t *ifp)
@@ -36,18 +33,13 @@ ni_objectmodel_register_interface_ethernet(ni_dbus_server_t *server, ni_interfac
 		ni_fatal("Unable to create dbus object for interface %s", ifp->name);
 
 	ni_dbus_object_register_service(object, WICKED_DBUS_INTERFACE ".Interface.Ethernet",
-			__wicked_dbus_ethernet_handler,
+			wicked_dbus_ethernet_methods,
 			wicked_dbus_ethernet_properties);
 }
 
-static int
-__wicked_dbus_ethernet_handler(ni_dbus_object_t *object, const char *method,
-				ni_dbus_message_t *call,
-				ni_dbus_message_t *reply,
-				DBusError *error)
-{
-	return FALSE;
-}
+static ni_dbus_method_t		wicked_dbus_ethernet_methods[] = {
+	{ NULL }
+};
 
 #include <wicked/ethernet.h>
 
@@ -101,7 +93,7 @@ __wicked_dbus_ethernet_get_uint(const ni_dbus_object_t *object,
 	return TRUE;
 }
 
-static int
+static dbus_bool_t
 __wicked_dbus_ethernet_get_link_speed(const ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				ni_dbus_variant_t *result,
@@ -110,7 +102,7 @@ __wicked_dbus_ethernet_get_link_speed(const ni_dbus_object_t *object,
 	return __wicked_dbus_ethernet_get_uint(object, &NULL_ether->link_speed, result, error);
 }
 
-static int
+static dbus_bool_t
 __wicked_dbus_ethernet_get_port_type(const ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				ni_dbus_variant_t *result,
@@ -119,7 +111,7 @@ __wicked_dbus_ethernet_get_port_type(const ni_dbus_object_t *object,
 	return __wicked_dbus_ethernet_get_uint(object, &NULL_ether->port_type, result, error);
 }
 
-static int
+static dbus_bool_t
 __wicked_dbus_ethernet_get_duplex(const ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				ni_dbus_variant_t *result,
@@ -128,7 +120,7 @@ __wicked_dbus_ethernet_get_duplex(const ni_dbus_object_t *object,
 	return __wicked_dbus_ethernet_get_uint(object, &NULL_ether->duplex, result, error);
 }
 
-static int
+static dbus_bool_t
 __wicked_dbus_ethernet_get_autoneg(const ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				ni_dbus_variant_t *result,
