@@ -930,8 +930,11 @@ ni_dbus_message_iter_get_variant(DBusMessageIter *iter,
 		if (variant->type == DBUS_TYPE_STRING
 		 || variant->type == DBUS_TYPE_OBJECT_PATH)
 			variant->string_value = xstrdup(variant->string_value);
+	} else if (variant->type == DBUS_TYPE_ARRAY) {
+		if (!ni_dbus_message_iter_get_array(&iter_val, variant))
+			return FALSE;
 	} else {
-		/* FIXME: need to handle arrays here */
+		/* FIXME: need to handle other types here */
 		return FALSE;
 	}
 
@@ -967,92 +970,6 @@ dbus_bool_t ni_dbus_dict_open_read(DBusMessageIter *iter,
 }
 
 
-static dbus_bool_t
-__ni_dbus_dict_fill_value_from_variant(ni_dbus_variant_t *variant, DBusMessageIter *iter_dict_val)
-{
-	dbus_bool_t success = TRUE;
-
-	variant->type = dbus_message_iter_get_arg_type(iter_dict_val);
-	switch (variant->type) {
-	case DBUS_TYPE_STRING: {
-		const char *v;
-		dbus_message_iter_get_basic(iter_dict_val, &v);
-		variant->string_value = xstrdup(v);
-		break;
-	}
-	case DBUS_TYPE_BOOLEAN: {
-		dbus_bool_t v;
-		dbus_message_iter_get_basic(iter_dict_val, &v);
-		variant->bool_value = v;
-		break;
-	}
-	case DBUS_TYPE_BYTE: {
-		char v;
-		dbus_message_iter_get_basic(iter_dict_val, &v);
-		variant->byte_value = v;
-		break;
-	}
-	case DBUS_TYPE_INT16: {
-		dbus_int16_t v;
-		dbus_message_iter_get_basic(iter_dict_val, &v);
-		variant->int16_value = v;
-		break;
-	}
-	case DBUS_TYPE_UINT16: {
-		dbus_uint16_t v;
-		dbus_message_iter_get_basic(iter_dict_val, &v);
-		variant->uint16_value = v;
-		break;
-	}
-	case DBUS_TYPE_INT32: {
-		dbus_int32_t v;
-		dbus_message_iter_get_basic(iter_dict_val, &v);
-		variant->int32_value = v;
-		break;
-	}
-	case DBUS_TYPE_UINT32: {
-		dbus_uint32_t v;
-		dbus_message_iter_get_basic(iter_dict_val, &v);
-		variant->uint32_value = v;
-		break;
-	}
-	case DBUS_TYPE_INT64: {
-		dbus_int64_t v;
-		dbus_message_iter_get_basic(iter_dict_val, &v);
-		variant->int64_value = v;
-		break;
-	}
-	case DBUS_TYPE_UINT64: {
-		dbus_uint64_t v;
-		dbus_message_iter_get_basic(iter_dict_val, &v);
-		variant->uint64_value = v;
-		break;
-	}
-	case DBUS_TYPE_DOUBLE: {
-		double v;
-		dbus_message_iter_get_basic(iter_dict_val, &v);
-		variant->double_value = v;
-		break;
-	}
-	case DBUS_TYPE_OBJECT_PATH: {
-		char *v;
-		dbus_message_iter_get_basic(iter_dict_val, &v);
-		variant->string_value = xstrdup(v);
-		break;
-	}
-	case DBUS_TYPE_ARRAY: {
-		success = ni_dbus_message_iter_get_array(iter_dict_val, variant);
-		break;
-	}
-	default:
-		success = FALSE;
-		break;
-	}
-
-	return success;
-}
-
-
 /**
  * Read the current key/value entry from the dict.  Entries are dynamically
  * allocated when needed and must be freed after use with the
@@ -1072,8 +989,7 @@ __ni_dbus_dict_fill_value_from_variant(ni_dbus_variant_t *variant, DBusMessageIt
 dbus_bool_t
 ni_dbus_dict_get_entry(DBusMessageIter *iter_dict, struct ni_dbus_dict_entry *entry)
 {
-	DBusMessageIter iter_dict_entry, iter_dict_val;
-	int type;
+	DBusMessageIter iter_dict_entry;
 	const char *key;
 
 	if (!iter_dict || !entry)
@@ -1083,17 +999,16 @@ ni_dbus_dict_get_entry(DBusMessageIter *iter_dict, struct ni_dbus_dict_entry *en
 		goto error;
 
 	dbus_message_iter_recurse(iter_dict, &iter_dict_entry);
+
+	if (dbus_message_iter_get_arg_type(&iter_dict_entry) != DBUS_TYPE_STRING)
+		goto error;
 	dbus_message_iter_get_basic(&iter_dict_entry, &key);
 	entry->key = key;
 
 	if (!dbus_message_iter_next(&iter_dict_entry))
 		goto error;
-	type = dbus_message_iter_get_arg_type(&iter_dict_entry);
-	if (type != DBUS_TYPE_VARIANT)
-		goto error;
 
-	dbus_message_iter_recurse(&iter_dict_entry, &iter_dict_val);
-	if (!__ni_dbus_dict_fill_value_from_variant(&entry->datum, &iter_dict_val))
+	if (!ni_dbus_message_iter_get_variant(&iter_dict_entry, &entry->datum))
 		goto error;
 
 	dbus_message_iter_next(iter_dict);
