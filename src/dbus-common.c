@@ -347,6 +347,55 @@ ni_dbus_variant_append_string_array(ni_dbus_variant_t *var, const char *string)
 }
 
 void
+ni_dbus_variant_init_dict(ni_dbus_variant_t *var)
+{
+	ni_dbus_variant_destroy(var);
+	var->type = DBUS_TYPE_ARRAY;
+	var->array.element_type = DBUS_TYPE_DICT_ENTRY;
+}
+
+dbus_bool_t
+ni_dbus_variant_append_dict_entry(ni_dbus_variant_t *var,
+				const ni_dbus_dict_entry_t *entry)
+{
+	ni_dbus_dict_entry_t *dst;
+
+	if (var->type != DBUS_TYPE_ARRAY
+	 || var->array.element_type != DBUS_TYPE_DICT_ENTRY)
+		return FALSE;
+
+	__ni_dbus_array_grow(var, sizeof(*entry), 1);
+	dst = &var->dict_array_value[var->array.len];
+	dst->key = entry->key;
+	ni_dbus_variant_copy(&dst->datum, &entry->datum);
+	var->array.len++;
+
+	return TRUE;
+}
+
+ni_dbus_dict_entry_t *
+ni_dbus_variant_dict_new_tail(ni_dbus_variant_t *var)
+{
+	ni_dbus_dict_entry_t *dst;
+
+	if (var->type != DBUS_TYPE_ARRAY
+	 || var->array.element_type != DBUS_TYPE_DICT_ENTRY)
+		return NULL;
+
+	__ni_dbus_array_grow(var, sizeof(ni_dbus_dict_entry_t), 1);
+	dst = &var->dict_array_value[var->array.len++];
+
+	return dst;
+}
+
+void
+ni_dbus_variant_copy(ni_dbus_variant_t *dst, const ni_dbus_variant_t *src)
+{
+	ni_dbus_variant_destroy(dst);
+	ni_fatal("%s: not implemented", __FUNCTION__);
+}
+
+void
 ni_dbus_variant_destroy(ni_dbus_variant_t *var)
 {
 	if (var->type == DBUS_TYPE_STRING
@@ -363,6 +412,12 @@ ni_dbus_variant_destroy(ni_dbus_variant_t *var)
 			for (i = 0; i < var->array.len; ++i)
 				free(var->string_array_value[i]);
 			free(var->string_array_value);
+			break;
+		case DBUS_TYPE_DICT_ENTRY:
+			for (i = 0; i < var->array.len; ++i) {
+				ni_dbus_variant_destroy(&var->dict_array_value[i].datum);
+			}
+			free(var->dict_array_value);
 			break;
 		}
 	}

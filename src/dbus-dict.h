@@ -124,6 +124,6 @@ extern dbus_bool_t	ni_dbus_dict_open_read(DBusMessageIter *iter,
 extern dbus_bool_t	ni_dbus_dict_get_entry(DBusMessageIter *iter_dict,
 				    struct ni_dbus_dict_entry *entry);
 extern dbus_bool_t	ni_dbus_dict_has_dict_entry(DBusMessageIter *iter_dict);
-extern void		ni_dbus_dict_entry_clear(struct ni_dbus_dict_entry *);
+extern void		ni_dbus_dict_entry_clear(ni_dbus_dict_entry_t *);
 
 #endif  /* DBUS_DICT_HELPERS_H */
