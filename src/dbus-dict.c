@@ -178,17 +178,20 @@ ni_dbus_dict_append_variant(DBusMessageIter *iter_dict,
 {
 	DBusMessageIter iter_dict_entry;
 	const char *type_as_string = NULL;
+	dbus_bool_t rv;
 
 	type_as_string = ni_dbus_variant_signature(variant);
 	if (!type_as_string)
 		return FALSE;
 
-	if (!__ni_dbus_add_dict_entry_start(iter_dict, &iter_dict_entry, key)
-	 || !ni_dbus_message_iter_append_variant(&iter_dict_entry, variant)
-	 || !dbus_message_iter_close_container(iter_dict, &iter_dict_entry))
+	if (!__ni_dbus_add_dict_entry_start(iter_dict, &iter_dict_entry, key))
 		return FALSE;
 
-	return TRUE;
+	rv = ni_dbus_message_iter_append_variant(&iter_dict_entry, variant);
+	if (!dbus_message_iter_close_container(iter_dict, &iter_dict_entry))
+		rv = FALSE;
+
+	return rv;
 }
 
 /**

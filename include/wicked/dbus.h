@@ -50,7 +50,7 @@ struct ni_dbus_variant {
 		unsigned char *	byte_array_value;
 		char **		string_array_value;
 		ni_dbus_dict_entry_t *dict_array_value;
-		ni_dbus_variant_t *variant_value;
+		ni_dbus_variant_t *variant_array_value;
 		ni_dbus_variant_t *struct_value;
 	};
 };
@@ -125,16 +125,28 @@ extern void			ni_dbus_variant_set_uint64(ni_dbus_variant_t *, uint64_t);
 extern void			ni_dbus_variant_set_int64(ni_dbus_variant_t *, int64_t);
 extern void			ni_dbus_variant_init_byte_array(ni_dbus_variant_t *);
 extern void			ni_dbus_variant_set_byte_array(ni_dbus_variant_t *,
-					unsigned int len, const unsigned char *);
+					const unsigned char *, unsigned int len);
 extern dbus_bool_t		ni_dbus_variant_append_byte_array(ni_dbus_variant_t *, unsigned char);
 extern void			ni_dbus_variant_init_string_array(ni_dbus_variant_t *);
 extern void			ni_dbus_variant_set_string_array(ni_dbus_variant_t *,
-					unsigned int len, const char **);
+					const char **, unsigned int len);
 extern dbus_bool_t		ni_dbus_variant_append_string_array(ni_dbus_variant_t *, const char *);
+extern void			ni_dbus_variant_init_variant_array(ni_dbus_variant_t *);
+extern ni_dbus_variant_t *	ni_dbus_variant_append_variant_element(ni_dbus_variant_t *);
+
+/* handle dicts */
 extern void			ni_dbus_variant_init_dict(ni_dbus_variant_t *);
-extern dbus_bool_t		ni_dbus_variant_append_dict_entry(ni_dbus_variant_t *,
-					const ni_dbus_dict_entry_t *);
-extern ni_dbus_dict_entry_t *	ni_dbus_variant_dict_new_tail(ni_dbus_variant_t *);
+extern dbus_bool_t		ni_dbus_dict_add_entry(ni_dbus_variant_t *, const ni_dbus_dict_entry_t *);
+extern ni_dbus_dict_entry_t *	ni_dbus_dict_add(ni_dbus_variant_t *, const char *);
+extern dbus_bool_t		ni_dbus_dict_add_int16(ni_dbus_variant_t *, const char *, int16_t);
+extern dbus_bool_t		ni_dbus_dict_add_uint16(ni_dbus_variant_t *, const char *, uint16_t);
+extern dbus_bool_t		ni_dbus_dict_add_int32(ni_dbus_variant_t *, const char *, int32_t);
+extern dbus_bool_t		ni_dbus_dict_add_uint32(ni_dbus_variant_t *, const char *, uint32_t);
+extern dbus_bool_t		ni_dbus_dict_add_int64(ni_dbus_variant_t *, const char *, int64_t);
+extern dbus_bool_t		ni_dbus_dict_add_uint64(ni_dbus_variant_t *, const char *, uint64_t);
+extern dbus_bool_t		ni_dbus_dict_add_string(ni_dbus_variant_t *, const char *, const char *);
+extern dbus_bool_t		ni_dbus_dict_add_byte_array(ni_dbus_variant_t *, const char *,
+					const unsigned char *byte_array, unsigned int len);
 
 extern unsigned int		__ni_dbus_variant_offsets[256];
 

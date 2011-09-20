@@ -287,7 +287,7 @@ __ni_dbus_array_grow(ni_dbus_variant_t *var, size_t element_size, unsigned int g
 
 void
 ni_dbus_variant_set_byte_array(ni_dbus_variant_t *var,
-				unsigned int len, const unsigned char *data)
+				const unsigned char *data, unsigned int len)
 {
 	ni_dbus_variant_destroy(var);
 	var->type = DBUS_TYPE_ARRAY;
@@ -314,7 +314,7 @@ ni_dbus_variant_append_byte_array(ni_dbus_variant_t *var, unsigned char byte)
 
 void
 ni_dbus_variant_set_string_array(ni_dbus_variant_t *var,
-				unsigned int len, const char **data)
+				const char **data, unsigned int len)
 {
 	ni_dbus_variant_destroy(var);
 	var->type = DBUS_TYPE_ARRAY;
@@ -347,43 +347,24 @@ ni_dbus_variant_append_string_array(ni_dbus_variant_t *var, const char *string)
 }
 
 void
-ni_dbus_variant_init_dict(ni_dbus_variant_t *var)
+ni_dbus_variant_init_variant_array(ni_dbus_variant_t *var)
 {
 	ni_dbus_variant_destroy(var);
 	var->type = DBUS_TYPE_ARRAY;
-	var->array.element_type = DBUS_TYPE_DICT_ENTRY;
+	var->array.element_type = DBUS_TYPE_VARIANT;
 }
 
-dbus_bool_t
-ni_dbus_variant_append_dict_entry(ni_dbus_variant_t *var,
-				const ni_dbus_dict_entry_t *entry)
+ni_dbus_variant_t *
+ni_dbus_variant_append_variant_element(ni_dbus_variant_t *var)
 {
-	ni_dbus_dict_entry_t *dst;
+	ni_dbus_variant_t *dst;
 
 	if (var->type != DBUS_TYPE_ARRAY
-	 || var->array.element_type != DBUS_TYPE_DICT_ENTRY)
-		return FALSE;
-
-	__ni_dbus_array_grow(var, sizeof(*entry), 1);
-	dst = &var->dict_array_value[var->array.len];
-	dst->key = entry->key;
-	ni_dbus_variant_copy(&dst->datum, &entry->datum);
-	var->array.len++;
-
-	return TRUE;
-}
-
-ni_dbus_dict_entry_t *
-ni_dbus_variant_dict_new_tail(ni_dbus_variant_t *var)
-{
-	ni_dbus_dict_entry_t *dst;
-
-	if (var->type != DBUS_TYPE_ARRAY
-	 || var->array.element_type != DBUS_TYPE_DICT_ENTRY)
+	 || var->array.element_type != DBUS_TYPE_VARIANT)
 		return NULL;
 
-	__ni_dbus_array_grow(var, sizeof(ni_dbus_dict_entry_t), 1);
-	dst = &var->dict_array_value[var->array.len++];
+	__ni_dbus_array_grow(var, sizeof(ni_dbus_variant_t), 1);
+	dst = &var->variant_array_value[var->array.len++];
 
 	return dst;
 }
@@ -414,10 +395,14 @@ ni_dbus_variant_destroy(ni_dbus_variant_t *var)
 			free(var->string_array_value);
 			break;
 		case DBUS_TYPE_DICT_ENTRY:
-			for (i = 0; i < var->array.len; ++i) {
+			for (i = 0; i < var->array.len; ++i)
 				ni_dbus_variant_destroy(&var->dict_array_value[i].datum);
-			}
 			free(var->dict_array_value);
+			break;
+		case DBUS_TYPE_VARIANT:
+			for (i = 0; i < var->array.len; ++i)
+				ni_dbus_variant_destroy(&var->variant_array_value[i]);
+			free(var->variant_array_value);
 			break;
 		}
 	}
@@ -478,7 +463,6 @@ ni_dbus_variant_sprint(const ni_dbus_variant_t *var)
 const char *
 ni_dbus_variant_signature(const ni_dbus_variant_t *var)
 {
-	static char buffer[64];
 	const char *sig;
 
 	sig = ni_dbus_type_as_string(var->type);
@@ -487,7 +471,6 @@ ni_dbus_variant_signature(const ni_dbus_variant_t *var)
 
 	switch (var->type) {
 	case DBUS_TYPE_ARRAY:
-		strcpy(buffer, DBUS_TYPE_ARRAY_AS_STRING);
 		switch (var->array.element_type) {
 		case DBUS_TYPE_BYTE:
 			return DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING;
@@ -495,11 +478,134 @@ ni_dbus_variant_signature(const ni_dbus_variant_t *var)
 			return DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_STRING_AS_STRING;
 		case DBUS_TYPE_VARIANT:
 			return DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_VARIANT_AS_STRING;
+		case DBUS_TYPE_DICT_ENTRY:
+			return DBUS_TYPE_ARRAY_AS_STRING
+				DBUS_DICT_ENTRY_BEGIN_CHAR_AS_STRING
+				DBUS_TYPE_STRING_AS_STRING
+				DBUS_TYPE_VARIANT_AS_STRING
+				DBUS_DICT_ENTRY_END_CHAR_AS_STRING
+				;
 		}
 		break;
 	}
 
 	return NULL;
+}
+
+/*
+ * Dict handling
+ */
+void
+ni_dbus_variant_init_dict(ni_dbus_variant_t *var)
+{
+	ni_dbus_variant_destroy(var);
+	var->type = DBUS_TYPE_ARRAY;
+	var->array.element_type = DBUS_TYPE_DICT_ENTRY;
+}
+
+ni_dbus_dict_entry_t *
+ni_dbus_dict_add(ni_dbus_variant_t *dict, const char *key)
+{
+	ni_dbus_dict_entry_t *dst;
+
+	if (dict->type != DBUS_TYPE_ARRAY
+	 || dict->array.element_type != DBUS_TYPE_DICT_ENTRY)
+		return NULL;
+
+	__ni_dbus_array_grow(dict, sizeof(ni_dbus_dict_entry_t), 1);
+	dst = &dict->dict_array_value[dict->array.len++];
+	dst->key = key;
+
+	return dst;
+}
+
+dbus_bool_t
+ni_dbus_dict_add_entry(ni_dbus_variant_t *dict, const ni_dbus_dict_entry_t *entry)
+{
+	ni_dbus_dict_entry_t *dst;
+
+	if (!(dst = ni_dbus_dict_add(dict, entry->key)))
+		return FALSE;
+	ni_dbus_variant_copy(&dst->datum, &entry->datum);
+	return TRUE;
+}
+
+dbus_bool_t
+ni_dbus_dict_add_uint16(ni_dbus_variant_t *dict, const char *key, uint16_t value)
+{
+	ni_dbus_dict_entry_t *dst;
+
+	if (!(dst = ni_dbus_dict_add(dict, key)))
+		return FALSE;
+	ni_dbus_variant_set_uint16(&dst->datum, value);
+	return TRUE;
+}
+
+dbus_bool_t
+ni_dbus_dict_add_int16(ni_dbus_variant_t *dict, const char *key, int16_t value)
+{
+	ni_dbus_dict_entry_t *dst;
+
+	if (!(dst = ni_dbus_dict_add(dict, key)))
+		return FALSE;
+	ni_dbus_variant_set_int16(&dst->datum, value);
+	return TRUE;
+}
+
+dbus_bool_t
+ni_dbus_dict_add_uint32(ni_dbus_variant_t *dict, const char *key, uint32_t value)
+{
+	ni_dbus_dict_entry_t *dst;
+
+	if (!(dst = ni_dbus_dict_add(dict, key)))
+		return FALSE;
+	ni_dbus_variant_set_uint32(&dst->datum, value);
+	return TRUE;
+}
+
+dbus_bool_t
+ni_dbus_dict_add_int32(ni_dbus_variant_t *dict, const char *key, int32_t value)
+{
+	ni_dbus_dict_entry_t *dst;
+
+	if (!(dst = ni_dbus_dict_add(dict, key)))
+		return FALSE;
+	ni_dbus_variant_set_int32(&dst->datum, value);
+	return TRUE;
+}
+
+dbus_bool_t
+ni_dbus_dict_add_uint64(ni_dbus_variant_t *dict, const char *key, uint64_t value)
+{
+	ni_dbus_dict_entry_t *dst;
+
+	if (!(dst = ni_dbus_dict_add(dict, key)))
+		return FALSE;
+	ni_dbus_variant_set_uint64(&dst->datum, value);
+	return TRUE;
+}
+
+dbus_bool_t
+ni_dbus_dict_add_int64(ni_dbus_variant_t *dict, const char *key, int64_t value)
+{
+	ni_dbus_dict_entry_t *dst;
+
+	if (!(dst = ni_dbus_dict_add(dict, key)))
+		return FALSE;
+	ni_dbus_variant_set_int64(&dst->datum, value);
+	return TRUE;
+}
+
+dbus_bool_t
+ni_dbus_dict_add_byte_array(ni_dbus_variant_t *dict, const char *key,
+			const unsigned char *byte_array, unsigned int len)
+{
+	ni_dbus_dict_entry_t *dst;
+
+	if (!(dst = ni_dbus_dict_add(dict, key)))
+		return FALSE;
+	ni_dbus_variant_set_byte_array(&dst->datum, byte_array, len);
+	return TRUE;
 }
 
 /*

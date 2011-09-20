@@ -10,6 +10,8 @@
 #include "netinfo_priv.h"
 #include "dbus-common.h"
 
+#define TP()		ni_debug_dbus("TP - %s:%u", __FUNCTION__, __LINE__)
+
 
 dbus_bool_t
 ni_dbus_message_iter_append_byte_array(DBusMessageIter *iter,
@@ -113,6 +115,30 @@ ni_dbus_message_iter_append_dict(DBusMessageIter *iter,
 }
 
 dbus_bool_t
+ni_dbus_message_iter_append_variant_array(DBusMessageIter *iter,
+				const ni_dbus_variant_t *variant_array, unsigned int len)
+{
+	DBusMessageIter iter_array;
+	unsigned int i;
+	dbus_bool_t rv = TRUE;
+
+	if (!dbus_message_iter_open_container(iter, DBUS_TYPE_ARRAY,
+					      DBUS_TYPE_VARIANT_AS_STRING,
+					      &iter_array))
+		return FALSE;
+
+	for (i = 0; rv && i < len; i++) {
+		rv = ni_dbus_message_iter_append_variant(&iter_array,
+						    &variant_array[i]);
+	}
+
+	if (!dbus_message_iter_close_container(iter, &iter_array))
+		rv = FALSE;
+
+	return rv;
+}
+
+dbus_bool_t
 ni_dbus_message_iter_append_variant(DBusMessageIter *iter, const ni_dbus_variant_t *variant)
 {
 	const char *type_as_string = NULL;
@@ -143,6 +169,11 @@ ni_dbus_message_iter_append_variant(DBusMessageIter *iter, const ni_dbus_variant
 					variant->string_array_value, variant->array.len);
 			break;
 
+		case DBUS_TYPE_VARIANT:
+			rv = ni_dbus_message_iter_append_variant_array(&iter_val,
+					variant->variant_array_value, variant->array.len);
+			break;
+
 		case DBUS_TYPE_DICT_ENTRY:
 			rv = ni_dbus_message_iter_append_dict(&iter_val,
 					variant->dict_array_value, variant->array.len);
@@ -155,8 +186,8 @@ ni_dbus_message_iter_append_variant(DBusMessageIter *iter, const ni_dbus_variant
 		ni_warn("%s: variant type %s not supported", __FUNCTION__, type_as_string);
 	}
 
-	if (rv)
-		rv = dbus_message_iter_close_container(iter, &iter_val);
+	if (!dbus_message_iter_close_container(iter, &iter_val))
+		rv = FALSE;
 
 	return rv;
 }
@@ -164,7 +195,7 @@ ni_dbus_message_iter_append_variant(DBusMessageIter *iter, const ni_dbus_variant
 dbus_bool_t
 ni_dbus_message_iter_get_byte_array(DBusMessageIter *iter, ni_dbus_variant_t *variant)
 {
-	ni_dbus_variant_set_byte_array(variant, 0, NULL);
+	ni_dbus_variant_set_byte_array(variant, NULL, 0);
 
 	while (dbus_message_iter_get_arg_type(iter) == DBUS_TYPE_BYTE) {
 		unsigned char byte;
@@ -180,7 +211,7 @@ ni_dbus_message_iter_get_byte_array(DBusMessageIter *iter, ni_dbus_variant_t *va
 dbus_bool_t
 ni_dbus_message_iter_get_string_array(DBusMessageIter *iter, ni_dbus_variant_t *variant)
 {
-	ni_dbus_variant_set_string_array(variant, 0, NULL);
+	ni_dbus_variant_set_string_array(variant, NULL, 0);
 	while (dbus_message_iter_get_arg_type(iter) == DBUS_TYPE_STRING) {
 		const char *value;
 
