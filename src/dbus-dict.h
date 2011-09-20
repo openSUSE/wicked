@@ -111,14 +111,6 @@ dbus_bool_t ni_dbus_dict_end_string_dict(DBusMessageIter *iter_parent_dict,
  * Reading a dict from a DBusMessage
  */
 
-struct ni_dbus_dict_entry {
-	/* key of the dict entry */
-	const char *		key;
-
-	/* datum associated with key */
-	ni_dbus_variant_t	datum;
-};
-
 extern dbus_bool_t	ni_dbus_dict_open_read(DBusMessageIter *iter,
 				    DBusMessageIter *iter_dict);
 extern dbus_bool_t	ni_dbus_dict_get_entry(DBusMessageIter *iter_dict,

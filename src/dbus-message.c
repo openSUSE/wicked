@@ -5,7 +5,7 @@
  */
 
 #include <wicked/util.h>
-#include <dbus/dbus.h>
+#include <wicked/dbus.h>
 
 #include "netinfo_priv.h"
 #include "dbus-common.h"
@@ -62,6 +62,57 @@ ni_dbus_message_iter_append_string_array(DBusMessageIter *iter,
 }
 
 dbus_bool_t
+ni_dbus_message_iter_append_dict_entry(DBusMessageIter *iter,
+				const ni_dbus_dict_entry_t *entry)
+{
+	DBusMessageIter iter_dict_entry;
+
+	if (!dbus_message_iter_open_container(iter,
+					      DBUS_TYPE_DICT_ENTRY, NULL,
+					      &iter_dict_entry))
+		return FALSE;
+
+	if (!dbus_message_iter_append_basic(&iter_dict_entry, DBUS_TYPE_STRING,
+					    &entry->key))
+		return FALSE;
+
+	if (!ni_dbus_message_iter_append_variant(&iter_dict_entry, &entry->datum))
+		return FALSE;
+
+	if (!dbus_message_iter_close_container(iter, &iter_dict_entry))
+		return FALSE;
+
+	return TRUE;
+}
+
+dbus_bool_t
+ni_dbus_message_iter_append_dict(DBusMessageIter *iter,
+				const ni_dbus_dict_entry_t *dict_array, unsigned int len)
+{
+	DBusMessageIter iter_array;
+	unsigned int i;
+
+	if (!dbus_message_iter_open_container(iter, DBUS_TYPE_ARRAY,
+					      DBUS_DICT_ENTRY_BEGIN_CHAR_AS_STRING
+					      DBUS_TYPE_STRING_AS_STRING
+					      DBUS_TYPE_VARIANT_AS_STRING
+					      DBUS_DICT_ENTRY_END_CHAR_AS_STRING,
+					      &iter_array))
+		return FALSE;
+
+	for (i = 0; i < len; i++) {
+		if (!ni_dbus_message_iter_append_dict_entry(&iter_array,
+							&dict_array[i]))
+			return FALSE;
+	}
+
+	if (!dbus_message_iter_close_container(iter, &iter_array))
+		return FALSE;
+
+	return TRUE;
+}
+
+dbus_bool_t
 ni_dbus_message_iter_append_variant(DBusMessageIter *iter, const ni_dbus_variant_t *variant)
 {
 	const char *type_as_string = NULL;
@@ -90,6 +141,11 @@ ni_dbus_message_iter_append_variant(DBusMessageIter *iter, const ni_dbus_variant
 		case DBUS_TYPE_STRING:
 			rv = ni_dbus_message_iter_append_string_array(&iter_val,
 					variant->string_array_value, variant->array.len);
+			break;
+
+		case DBUS_TYPE_DICT_ENTRY:
+			rv = ni_dbus_message_iter_append_dict(&iter_val,
+					variant->dict_array_value, variant->array.len);
 			break;
 
 		default:

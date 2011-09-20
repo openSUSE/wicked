@@ -37,7 +37,13 @@ extern dbus_bool_t		ni_dbus_message_iter_append_byte_array(DBusMessageIter *iter
 /*
  * Efficient handling of dbus dicts
  */
-struct ni_dbus_dict_entry;
+struct ni_dbus_dict_entry {
+	/* key of the dict entry */
+	const char *		key;
+
+	/* datum associated with key */
+	ni_dbus_variant_t	datum;
+};
 
 struct ni_dbus_dict_entry_handler {
 	const char *		name;
