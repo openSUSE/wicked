@@ -534,8 +534,18 @@ __ni_dbus_object_manager_enumerate_interface(ni_dbus_object_t *object, ni_dbus_s
 
 			if (property->get == NULL)
 				continue;
-			if (property->get(object, property, &value, &error))
-				ni_dbus_dict_append_variant(dict_iter, property->name, &value);
+			if (!property->get(object, property, &value, &error)) {
+				ni_debug_dbus("%s: unable to get property %s.%s",
+						object->object_path,
+						service->object_interface,
+						property->name);
+			} else if (!ni_dbus_dict_append_variant(dict_iter, property->name, &value)) {
+				ni_debug_dbus("%s: unable to encode property %s.%s",
+						object->object_path,
+						service->object_interface,
+						property->name);
+				rv = FALSE;
+			}
 			ni_dbus_variant_destroy(&value);
 			dbus_error_free(&error);
 		}
