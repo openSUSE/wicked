@@ -47,6 +47,8 @@ struct ni_dbus_server {
 static ni_dbus_service_t *	ni_dbus_object_register_object_manager(ni_dbus_object_t *);
 static ni_dbus_service_t *	ni_dbus_object_register_property_interface(ni_dbus_object_t *object);
 static char *			__ni_dbus_server_root_path(const char *);
+static char *			__ni_dbus_server_child_path(const ni_dbus_object_t *, const char *);
+static ni_dbus_object_t *	__ni_dbus_object_new(ni_dbus_server_t *, char *);
 static void			__ni_dbus_object_free(ni_dbus_object_t *);
 static void			__ni_dbus_service_free(ni_dbus_service_t *);
 
@@ -69,12 +71,8 @@ ni_dbus_server_open(const char *bus_name, void *root_object_handle)
 	}
 
 	/* Translate bus name foo.bar.baz into object path /foo/bar/baz */
-	server->root_object = calloc(1, sizeof(ni_dbus_object_t));
-	server->root_object->server = server;
-	server->root_object->object_path = __ni_dbus_server_root_path(bus_name);
+	server->root_object = __ni_dbus_object_new(server, __ni_dbus_server_root_path(bus_name));
 	server->root_object->object_handle = root_object_handle;
-
-	ni_dbus_object_register_object_manager(server->root_object);
 
 	return server;
 }
@@ -106,6 +104,22 @@ ni_dbus_server_get_root_object(const ni_dbus_server_t *server)
 }
 
 /*
+ * Create a new dbus object
+ */
+static ni_dbus_object_t *
+__ni_dbus_object_new(ni_dbus_server_t *server, char *path)
+{
+	ni_dbus_object_t *object;
+
+	object = calloc(1, sizeof(*object));
+	object->object_path = path;
+	object->server = server;
+
+	ni_dbus_object_register_object_manager(object);
+	return object;
+}
+
+/*
  * Look up an object by its relative name
  */
 static ni_dbus_object_t *
@@ -125,17 +139,9 @@ __ni_dbus_server_get_object(ni_dbus_object_t *parent, const char *name, int crea
 	}
 
 	if (create) {
-		unsigned int len;
-		char *child_path;
-
-		len = strlen(parent->object_path) + strlen(name) + 2;
-		child_path = malloc(len);
-		snprintf(child_path, len, "%s/%s", parent->object_path, name);
-
-		object = calloc(1, sizeof(*object));
+		object = __ni_dbus_object_new(parent->server, 
+					__ni_dbus_server_child_path(parent, name));
 		ni_string_dup(&object->object_name, name);
-		object->object_path = child_path;
-		object->server = parent->server;
 
 		ni_debug_dbus("created %s as child of %s",
 			object->object_path,
@@ -796,3 +802,15 @@ __ni_dbus_server_root_path(const char *bus_name)
 	return root_path;
 }
 
+static char *
+__ni_dbus_server_child_path(const ni_dbus_object_t *parent, const char *name)
+{
+	unsigned int len;
+	char *child_path;
+
+	len = strlen(parent->object_path) + strlen(name) + 2;
+	child_path = malloc(len);
+	snprintf(child_path, len, "%s/%s", parent->object_path, name);
+
+	return child_path;
+}
