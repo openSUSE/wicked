@@ -19,8 +19,7 @@
 #include "model.h"
 
 static ni_dbus_service_t	wicked_dbus_interface_interface;
-static ni_dbus_method_t		wicked_dbus_interface_methods[];
-static ni_dbus_property_t	wicked_dbus_interface_properties[];
+static ni_dbus_object_functions_t wicked_dbus_interface_functions;
 
 ni_dbus_object_t *
 ni_objectmodel_create_interface(ni_dbus_server_t *server, ni_interface_t *ifp)
@@ -30,7 +29,7 @@ ni_objectmodel_create_interface(ni_dbus_server_t *server, ni_interface_t *ifp)
 
 	snprintf(object_path, sizeof(object_path), "Interface/%s", ifp->name);
 	object = ni_dbus_server_register_object(server, object_path,
-					NULL,
+					&wicked_dbus_interface_functions,
 					ni_interface_get(ifp));
 	if (object == NULL)
 		ni_fatal("Unable to create dbus object for interface %s", ifp->name);
@@ -48,6 +47,50 @@ ni_objectmodel_create_interface(ni_dbus_server_t *server, ni_interface_t *ifp)
 	}
 }
 
+/*
+ * The DBus object is destroyed; detach the network interface handle
+ */
+static void
+wicked_dbus_interface_destroy(ni_dbus_object_t *object)
+{
+	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
+
+	ni_assert(ifp);
+	ni_interface_put(ifp);
+}
+
+/*
+ * Refresh one/all network interfaces.
+ * This function is called from the dbus object handling code prior
+ * to invoking any method of this object.
+ */
+static dbus_bool_t
+wicked_dbus_interface_refresh(ni_dbus_object_t *object)
+{
+	ni_handle_t *nih;
+
+	if (!(nih = ni_global_state_handle())) {
+		ni_error("Unable to obtain netinfo handle");
+		return FALSE;
+	}
+	if (ni_refresh(nih) < 0) {
+		ni_error("cannot refresh interface list!");
+		return FALSE;
+	}
+
+	/* FIXME: when ni_refresh finds that the interface has
+	 * gone away, our object_handle may no longer be valid.
+	 */
+
+	return TRUE;
+}
+
+static ni_dbus_object_functions_t wicked_dbus_interface_functions = {
+	.destroy	= wicked_dbus_interface_destroy,
+	.refresh	= wicked_dbus_interface_refresh,
+//	.create_shadow	= wicked_dbus_interface_create_shadow,
+//	.modify		= wicked_dbus_interface_modify,
+};
 
 static ni_dbus_method_t		wicked_dbus_interface_methods[] = {
 	{ NULL }
