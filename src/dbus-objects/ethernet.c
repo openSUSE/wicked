@@ -21,16 +21,8 @@
 static ni_dbus_service_t	wicked_dbus_ethernet_interface;
 
 void
-ni_objectmodel_register_interface_ethernet(ni_dbus_server_t *server, ni_interface_t *ifp)
+ni_objectmodel_register_ethernet_interface(ni_dbus_object_t *object)
 {
-	ni_dbus_object_t *object;
-	char object_path[256];
-
-	snprintf(object_path, sizeof(object_path), "Interface/%s", ifp->name);
-	object = ni_dbus_server_register_object(server, object_path, ifp);
-	if (object == NULL)
-		ni_fatal("Unable to create dbus object for interface %s", ifp->name);
-
 	ni_dbus_object_register_service(object, &wicked_dbus_ethernet_interface);
 }
 

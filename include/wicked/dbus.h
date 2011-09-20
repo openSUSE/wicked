@@ -99,6 +99,14 @@ struct ni_dbus_service {
 	const ni_dbus_property_t *	properties;
 };
 
+typedef struct ni_dbus_object_functions	ni_dbus_object_functions_t;
+struct ni_dbus_object_functions {
+	void			(*destroy)(ni_dbus_object_t *);
+	dbus_bool_t		(*refresh)(ni_dbus_object_t *);
+	ni_dbus_object_t *	(*create_shadow)(ni_dbus_object_t *);
+	dbus_bool_t		(*modify)(ni_dbus_object_t *, const ni_dbus_object_t *);
+};
+
 typedef void			ni_dbus_async_callback_t(ni_dbus_proxy_t *proxy,
 					ni_dbus_message_t *reply);
 typedef void			ni_dbus_signal_handler_t(ni_dbus_connection_t *connection,
@@ -106,7 +114,9 @@ typedef void			ni_dbus_signal_handler_t(ni_dbus_connection_t *connection,
 					void *user_data);
 
 extern ni_dbus_object_t *	ni_dbus_server_register_object(ni_dbus_server_t *server,
-					const char *object_path, void *object_handle);
+					const char *object_path,
+					const ni_dbus_object_functions_t *functions,
+					void *object_handle);
 extern dbus_bool_t		ni_dbus_object_register_service(ni_dbus_object_t *object,
 					const ni_dbus_service_t *);
 
@@ -181,8 +191,8 @@ ni_dbus_variant_datum_const_ptr(const ni_dbus_variant_t *variant)
 	return (const void *) (((const caddr_t) variant) + offset);
 }
 
-extern void		ni_objectmodel_register_interface(ni_dbus_server_t *server, ni_interface_t *ifp);
-extern void		ni_objectmodel_register_interface_ethernet(ni_dbus_server_t *server, ni_interface_t *ifp);
+extern ni_dbus_object_t *	ni_objectmodel_create_interface(ni_dbus_server_t *, ni_interface_t *ifp);
+extern void			ni_objectmodel_register_ethernet_interface(ni_dbus_object_t *);
 
 
 #endif /* __WICKED_DBUS_H__ */

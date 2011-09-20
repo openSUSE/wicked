@@ -195,7 +195,7 @@ wicked_discover_state(void)
 
 	if (wicked_dbus_server) {
 		for (ifp = ni_interfaces(nih); ifp; ifp = ifp->next)
-			ni_objectmodel_register_interface(wicked_dbus_server, ifp);
+			ni_objectmodel_create_interface(wicked_dbus_server, ifp);
 	}
 }
 

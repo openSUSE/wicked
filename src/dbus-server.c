@@ -29,6 +29,7 @@ struct ni_dbus_object {
 	void *			object_handle;		/* local object */
 	const ni_dbus_service_t **interfaces;
 	ni_dbus_object_t *	children;
+	const ni_dbus_object_functions_t *functions;
 };
 
 struct ni_dbus_server {
@@ -166,7 +167,9 @@ __ni_dbus_server_find_object(ni_dbus_server_t *server, const char *path, int cre
  * Register an object
  */
 ni_dbus_object_t *
-ni_dbus_server_register_object(ni_dbus_server_t *server, const char *object_path, void *object_handle)
+ni_dbus_server_register_object(ni_dbus_server_t *server, const char *object_path,
+				const ni_dbus_object_functions_t *functions,
+				void *object_handle)
 {
 	ni_dbus_object_t *object;
 
@@ -181,6 +184,14 @@ ni_dbus_server_register_object(ni_dbus_server_t *server, const char *object_path
 		object->object_handle = object_handle;
 	} else 
 	if (object->object_handle != object_handle) {
+		ni_error("%s: cannot re-register object \"%s\"", __FUNCTION__, object_path);
+		return NULL;
+	}
+
+	if (object->functions == NULL) {
+		object->functions = functions;
+	} else 
+	if (object->functions != functions) {
 		ni_error("%s: cannot re-register object \"%s\"", __FUNCTION__, object_path);
 		return NULL;
 	}
@@ -655,11 +666,21 @@ __ni_dbus_object_message(DBusConnection *conn, DBusMessage *call, void *user_dat
 			}
 		}
 
-		/* Allocate a reply message */
-		reply = dbus_message_new_method_return(call);
+		/* If the object has a refresh function, call it now */
+		if (object->functions && object->functions->refresh
+		 && !object->functions->refresh(object)) {
+			dbus_set_error(&error,
+					DBUS_ERROR_FAILED,
+					"Failed to refresh object %s",
+					object->object_path);
+			rv = FALSE;
+		} else {
+			/* Allocate a reply message */
+			reply = dbus_message_new_method_return(call);
 
-		/* Now do the call. */
-		rv = method->handler(object, method, argc, argv, reply, &error);
+			/* Now do the call. */
+			rv = method->handler(object, method, argc, argv, reply, &error);
+		}
 
 		while (argc--)
 			ni_dbus_variant_destroy(&argv[argc]);

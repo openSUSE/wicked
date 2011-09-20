@@ -22,22 +22,26 @@ static ni_dbus_service_t	wicked_dbus_interface_interface;
 static ni_dbus_method_t		wicked_dbus_interface_methods[];
 static ni_dbus_property_t	wicked_dbus_interface_properties[];
 
-void
-ni_objectmodel_register_interface(ni_dbus_server_t *server, ni_interface_t *ifp)
+ni_dbus_object_t *
+ni_objectmodel_create_interface(ni_dbus_server_t *server, ni_interface_t *ifp)
 {
 	ni_dbus_object_t *object;
 	char object_path[256];
 
 	snprintf(object_path, sizeof(object_path), "Interface/%s", ifp->name);
-	object = ni_dbus_server_register_object(server, object_path, ifp);
+	object = ni_dbus_server_register_object(server, object_path,
+					NULL,
+					ni_interface_get(ifp));
 	if (object == NULL)
 		ni_fatal("Unable to create dbus object for interface %s", ifp->name);
 
 	ni_dbus_object_register_service(object, &wicked_dbus_interface_interface);
 
+	return object;
+
 	switch (ifp->type) {
 	case NI_IFTYPE_ETHERNET:
-		ni_objectmodel_register_interface_ethernet(server, ifp);
+		ni_objectmodel_register_ethernet_interface(object);
 		break;
 
 	default: ;
