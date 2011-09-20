@@ -94,8 +94,21 @@ __wicked_dbus_interface_get_hwaddr(const ni_dbus_object_t *object,
 {
 	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
 
-	ni_dbus_variant_set_byte_array(result, ifp->hwaddr.len, ifp->hwaddr.data);
+	ni_dbus_variant_set_byte_array(result, ifp->hwaddr.data, ifp->hwaddr.len);
 	return TRUE;
+}
+
+static inline dbus_bool_t
+__wicked_dbus_add_sockaddr(ni_dbus_variant_t *dict, const char *name, const ni_sockaddr_t *ss)
+{
+	const unsigned char *adata;
+	unsigned int offset, len;
+
+	if (!__ni_address_info(ss->ss_family, &offset, &len))
+		return FALSE;
+
+	adata = ((const unsigned char *) ss) + offset;
+	return ni_dbus_dict_add_byte_array(dict, name, adata, len);
 }
 
 static dbus_bool_t
@@ -105,13 +118,27 @@ __wicked_dbus_interface_get_addresses(const ni_dbus_object_t *object,
 				DBusError *error)
 {
 	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
-	const ni_address_t *addr;
+	const ni_address_t *ap;
 
-	ni_dbus_variant_set_string_array(result, 0, NULL);
-	for (addr = ifp->addrs; addr; addr = addr->next) {
-		const char *string = ni_address_print(&addr->local_addr);
+	ni_dbus_variant_init_variant_array(result);
+	for (ap = ifp->addrs; ap; ap = ap->next) {
+		ni_dbus_variant_t *dict;
 
-		ni_dbus_variant_append_string_array(result, string);
+		if (ap->family != ap->local_addr.ss_family)
+			continue;
+
+		/* Append a new element to the array */
+		dict = ni_dbus_variant_append_variant_element(result);
+		ni_dbus_variant_init_dict(dict);
+
+		ni_dbus_dict_add_uint32(dict, "family", ap->family);
+		ni_dbus_dict_add_uint32(dict, "prefixlen", ap->prefixlen);
+		ni_dbus_dict_add_uint32(dict, "config", ap->config_method);
+		__wicked_dbus_add_sockaddr(dict, "local", &ap->local_addr);
+		if (ap->peer_addr.ss_family == ap->family)
+			__wicked_dbus_add_sockaddr(dict, "peer", &ap->peer_addr);
+		if (ap->anycast_addr.ss_family == ap->family)
+			__wicked_dbus_add_sockaddr(dict, "anycast", &ap->anycast_addr);
 	}
 
 	return TRUE;
