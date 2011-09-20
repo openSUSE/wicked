@@ -144,6 +144,60 @@ __wicked_dbus_interface_get_addresses(const ni_dbus_object_t *object,
 	return TRUE;
 }
 
+static dbus_bool_t
+__wicked_dbus_interface_get_routes(const ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				ni_dbus_variant_t *result,
+				DBusError *error)
+{
+	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
+	const ni_route_t *rp;
+
+	ni_dbus_variant_init_variant_array(result);
+	for (rp = ifp->routes; rp; rp = rp->next) {
+		ni_dbus_variant_t *dict, *hops;
+		const ni_route_nexthop_t *nh;
+
+		if (rp->family != rp->destination.ss_family)
+			continue;
+
+		/* Append a new element to the array */
+		dict = ni_dbus_variant_append_variant_element(result);
+		ni_dbus_variant_init_dict(dict);
+
+		ni_dbus_dict_add_uint32(dict, "family", rp->family);
+		ni_dbus_dict_add_uint32(dict, "prefixlen", rp->prefixlen);
+		ni_dbus_dict_add_uint32(dict, "config", rp->config_method);
+		if (rp->mtu)
+			ni_dbus_dict_add_uint32(dict, "mtu", rp->mtu);
+		if (rp->tos)
+			ni_dbus_dict_add_uint32(dict, "tos", rp->tos);
+		if (rp->priority)
+			ni_dbus_dict_add_uint32(dict, "priority", rp->priority);
+		if (rp->prefixlen)
+			__wicked_dbus_add_sockaddr(dict, "destination", &rp->destination);
+
+		hops = ni_dbus_dict_add(dict, "nexthop");
+		ni_dbus_variant_init_variant_array(hops);
+		for (nh = &rp->nh; nh; nh = nh->next) {
+			ni_dbus_variant_t *nhdict;
+
+			nhdict = ni_dbus_variant_append_variant_element(hops);
+			ni_dbus_variant_init_dict(nhdict);
+
+			__wicked_dbus_add_sockaddr(nhdict, "gateway", &nh->gateway);
+			if (nh->device)
+				ni_dbus_dict_add_string(nhdict, "device", nh->device);
+			if (nh->weight)
+				ni_dbus_dict_add_uint32(nhdict, "weight", nh->weight);
+			if (nh->flags)
+				ni_dbus_dict_add_uint32(nhdict, "flags", nh->flags);
+		}
+	}
+
+	return TRUE;
+}
+
 #define WICKED_INTERFACE_PROPERTY(type, __name, rw) \
 	NI_DBUS_PROPERTY(type, __name, __wicked_dbus_interface, rw)
 #define WICKED_INTERFACE_PROPERTY_SIGNATURE(signature, __name, rw) \
@@ -166,6 +220,15 @@ static ni_dbus_property_t	wicked_dbus_interface_properties[] = {
 				DBUS_TYPE_VARIANT_AS_STRING
 			DBUS_DICT_ENTRY_END_CHAR_AS_STRING,
 			addresses, RO),
+
+	WICKED_INTERFACE_PROPERTY_SIGNATURE(
+			DBUS_TYPE_ARRAY_AS_STRING
+			DBUS_TYPE_ARRAY_AS_STRING
+			DBUS_DICT_ENTRY_BEGIN_CHAR_AS_STRING
+				DBUS_TYPE_STRING_AS_STRING
+				DBUS_TYPE_VARIANT_AS_STRING
+			DBUS_DICT_ENTRY_END_CHAR_AS_STRING,
+			routes, RO),
 	{ NULL }
 };
 

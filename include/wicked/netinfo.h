@@ -45,7 +45,7 @@ typedef struct ni_address {
 
 typedef struct ni_route_nexthop {
 	struct ni_route_nexthop *next;
-	ni_sockaddr_t		 gateway;
+	ni_sockaddr_t		gateway;
 	char *                  device;
 	unsigned int		weight;
 	unsigned int		flags;

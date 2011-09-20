@@ -137,7 +137,7 @@ extern ni_dbus_variant_t *	ni_dbus_variant_append_variant_element(ni_dbus_varian
 /* handle dicts */
 extern void			ni_dbus_variant_init_dict(ni_dbus_variant_t *);
 extern dbus_bool_t		ni_dbus_dict_add_entry(ni_dbus_variant_t *, const ni_dbus_dict_entry_t *);
-extern ni_dbus_dict_entry_t *	ni_dbus_dict_add(ni_dbus_variant_t *, const char *);
+extern ni_dbus_variant_t *	ni_dbus_dict_add(ni_dbus_variant_t *, const char *);
 extern dbus_bool_t		ni_dbus_dict_add_int16(ni_dbus_variant_t *, const char *, int16_t);
 extern dbus_bool_t		ni_dbus_dict_add_uint16(ni_dbus_variant_t *, const char *, uint16_t);
 extern dbus_bool_t		ni_dbus_dict_add_int32(ni_dbus_variant_t *, const char *, int32_t);

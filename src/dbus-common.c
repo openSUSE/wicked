@@ -503,7 +503,7 @@ ni_dbus_variant_init_dict(ni_dbus_variant_t *var)
 	var->array.element_type = DBUS_TYPE_DICT_ENTRY;
 }
 
-ni_dbus_dict_entry_t *
+ni_dbus_variant_t *
 ni_dbus_dict_add(ni_dbus_variant_t *dict, const char *key)
 {
 	ni_dbus_dict_entry_t *dst;
@@ -516,83 +516,94 @@ ni_dbus_dict_add(ni_dbus_variant_t *dict, const char *key)
 	dst = &dict->dict_array_value[dict->array.len++];
 	dst->key = key;
 
-	return dst;
+	return &dst->datum;
 }
 
 dbus_bool_t
 ni_dbus_dict_add_entry(ni_dbus_variant_t *dict, const ni_dbus_dict_entry_t *entry)
 {
-	ni_dbus_dict_entry_t *dst;
+	ni_dbus_variant_t *dst;
 
 	if (!(dst = ni_dbus_dict_add(dict, entry->key)))
 		return FALSE;
-	ni_dbus_variant_copy(&dst->datum, &entry->datum);
+	ni_dbus_variant_copy(dst, &entry->datum);
+	return TRUE;
+}
+
+dbus_bool_t
+ni_dbus_dict_add_string(ni_dbus_variant_t *dict, const char *key, const char *value)
+{
+	ni_dbus_variant_t *dst;
+
+	if (!(dst = ni_dbus_dict_add(dict, key)))
+		return FALSE;
+	ni_dbus_variant_set_string(dst, value);
 	return TRUE;
 }
 
 dbus_bool_t
 ni_dbus_dict_add_uint16(ni_dbus_variant_t *dict, const char *key, uint16_t value)
 {
-	ni_dbus_dict_entry_t *dst;
+	ni_dbus_variant_t *dst;
 
 	if (!(dst = ni_dbus_dict_add(dict, key)))
 		return FALSE;
-	ni_dbus_variant_set_uint16(&dst->datum, value);
+	ni_dbus_variant_set_uint16(dst, value);
 	return TRUE;
 }
 
 dbus_bool_t
 ni_dbus_dict_add_int16(ni_dbus_variant_t *dict, const char *key, int16_t value)
 {
-	ni_dbus_dict_entry_t *dst;
+	ni_dbus_variant_t *dst;
 
 	if (!(dst = ni_dbus_dict_add(dict, key)))
 		return FALSE;
-	ni_dbus_variant_set_int16(&dst->datum, value);
+	ni_dbus_variant_set_int16(dst, value);
 	return TRUE;
 }
 
 dbus_bool_t
 ni_dbus_dict_add_uint32(ni_dbus_variant_t *dict, const char *key, uint32_t value)
 {
-	ni_dbus_dict_entry_t *dst;
+	ni_dbus_variant_t *dst;
 
 	if (!(dst = ni_dbus_dict_add(dict, key)))
 		return FALSE;
-	ni_dbus_variant_set_uint32(&dst->datum, value);
+	ni_dbus_variant_set_uint32(dst, value);
 	return TRUE;
 }
 
 dbus_bool_t
 ni_dbus_dict_add_int32(ni_dbus_variant_t *dict, const char *key, int32_t value)
 {
-	ni_dbus_dict_entry_t *dst;
+	ni_dbus_variant_t *dst;
 
 	if (!(dst = ni_dbus_dict_add(dict, key)))
 		return FALSE;
-	ni_dbus_variant_set_int32(&dst->datum, value);
+	ni_dbus_variant_set_int32(dst, value);
 	return TRUE;
 }
 
 dbus_bool_t
 ni_dbus_dict_add_uint64(ni_dbus_variant_t *dict, const char *key, uint64_t value)
 {
-	ni_dbus_dict_entry_t *dst;
+	ni_dbus_variant_t *dst;
 
 	if (!(dst = ni_dbus_dict_add(dict, key)))
 		return FALSE;
-	ni_dbus_variant_set_uint64(&dst->datum, value);
+	ni_dbus_variant_set_uint64(dst, value);
 	return TRUE;
 }
 
 dbus_bool_t
 ni_dbus_dict_add_int64(ni_dbus_variant_t *dict, const char *key, int64_t value)
 {
-	ni_dbus_dict_entry_t *dst;
+	ni_dbus_variant_t *dst;
 
 	if (!(dst = ni_dbus_dict_add(dict, key)))
 		return FALSE;
-	ni_dbus_variant_set_int64(&dst->datum, value);
+	ni_dbus_variant_set_int64(dst, value);
 	return TRUE;
 }
 
@@ -600,11 +611,11 @@ dbus_bool_t
 ni_dbus_dict_add_byte_array(ni_dbus_variant_t *dict, const char *key,
 			const unsigned char *byte_array, unsigned int len)
 {
-	ni_dbus_dict_entry_t *dst;
+	ni_dbus_variant_t *dst;
 
 	if (!(dst = ni_dbus_dict_add(dict, key)))
 		return FALSE;
-	ni_dbus_variant_set_byte_array(&dst->datum, byte_array, len);
+	ni_dbus_variant_set_byte_array(dst, byte_array, len);
 	return TRUE;
 }
 
