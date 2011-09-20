@@ -88,6 +88,8 @@ struct ni_dbus_property	{
 	unsigned int		id;
 	const char *		signature;
 
+	unsigned int		readonly : 1;
+
 	ni_dbus_property_get_fn_t *get;
 	ni_dbus_property_set_fn_t *set;
 };

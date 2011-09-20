@@ -499,7 +499,7 @@ __ni_dbus_object_properties_set(ni_dbus_object_t *object, const ni_dbus_method_t
 	ni_debug_dbus("Set %s %s=%s", object->object_path, property->name,
 			ni_dbus_variant_sprint(&argv[2]));
 
-	if (property->set == NULL) {
+	if (property->set == NULL || property->readonly) {
 		dbus_set_error(error,
 				DBUS_ERROR_UNKNOWN_METHOD,	/* no error msgs defined */
 				"%s: unable to set read-only property %s.%s",

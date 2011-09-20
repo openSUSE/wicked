@@ -402,7 +402,7 @@ __wicked_dbus_interface_set_routes(ni_dbus_object_t *object,
 static ni_dbus_property_t	wicked_dbus_interface_properties[] = {
 	WICKED_INTERFACE_PROPERTY(UINT32, status, RO),
 	WICKED_INTERFACE_PROPERTY(UINT32, type, RO),
-	WICKED_INTERFACE_PROPERTY(UINT32, mtu, RO),
+	WICKED_INTERFACE_PROPERTY(UINT32, mtu, RW),
 	WICKED_INTERFACE_PROPERTY_SIGNATURE(
 			DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING,
 			hwaddr, RO),
