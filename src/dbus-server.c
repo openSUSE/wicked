@@ -607,6 +607,11 @@ __ni_dbus_object_unregister(DBusConnection *conn, void *user_data)
 	ni_dbus_object_t *object = user_data;
 
 	ni_warn("%s(path=%s) called", __FUNCTION__, object->object_path);
+	if (object->object_handle) {
+		if (object->functions && object->functions->destroy)
+			object->functions->destroy(object);
+		object->object_handle = NULL;
+	}
 }
 
 static DBusHandlerResult
