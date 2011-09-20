@@ -48,7 +48,7 @@ __wicked_dbus_ethernet_handle(const ni_dbus_object_t *object, DBusError *error)
 }
 
 #define __pointer(type, base, offset_ptr) \
-	*((type *) (((caddr_t) base) + (unsigned long) offset_ptr))
+	((type *) (((caddr_t) base) + (unsigned long) offset_ptr))
 
 #if 0
 static int
@@ -62,7 +62,7 @@ __wicked_dbus_ethernet_get_int(const ni_dbus_object_t *object,
 	if (!(eth = __wicked_dbus_ethernet_handle(object, error)))
 		return FALSE;
 
-	ni_dbus_variant_set_int32(result, __pointer(int, eth, member_offset));
+	ni_dbus_variant_set_int32(result, *__pointer(int, eth, member_offset));
 	return TRUE;
 }
 #endif
@@ -78,7 +78,23 @@ __wicked_dbus_ethernet_get_uint(const ni_dbus_object_t *object,
 	if (!(eth = __wicked_dbus_ethernet_handle(object, error)))
 		return FALSE;
 
-	ni_dbus_variant_set_int32(result, __pointer(unsigned int, eth, member_offset));
+	ni_dbus_variant_set_uint32(result, *__pointer(unsigned int, eth, member_offset));
+	return TRUE;
+}
+
+static int
+__wicked_dbus_ethernet_set_uint(ni_dbus_object_t *object,
+				unsigned int *member_offset,
+				const ni_dbus_variant_t *result,
+				DBusError *error)
+{
+	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
+	ni_ethernet_t *eth = ni_interface_get_ethernet(ifp);
+	uint32_t value;
+
+	if (!ni_dbus_variant_get_uint32(result, &value))
+		return FALSE;
+	*(__pointer(unsigned int, eth, member_offset)) = value;
 	return TRUE;
 }
 
@@ -92,12 +108,30 @@ __wicked_dbus_ethernet_get_link_speed(const ni_dbus_object_t *object,
 }
 
 static dbus_bool_t
+__wicked_dbus_ethernet_set_link_speed(ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *result,
+				DBusError *error)
+{
+	return __wicked_dbus_ethernet_set_uint(object, &NULL_ether->link_speed, result, error);
+}
+
+static dbus_bool_t
 __wicked_dbus_ethernet_get_port_type(const ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				ni_dbus_variant_t *result,
 				DBusError *error)
 {
 	return __wicked_dbus_ethernet_get_uint(object, &NULL_ether->port_type, result, error);
+}
+
+static dbus_bool_t
+__wicked_dbus_ethernet_set_port_type(ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *result,
+				DBusError *error)
+{
+	return __wicked_dbus_ethernet_set_uint(object, &NULL_ether->port_type, result, error);
 }
 
 static dbus_bool_t
@@ -110,12 +144,30 @@ __wicked_dbus_ethernet_get_duplex(const ni_dbus_object_t *object,
 }
 
 static dbus_bool_t
+__wicked_dbus_ethernet_set_duplex(ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *result,
+				DBusError *error)
+{
+	return __wicked_dbus_ethernet_set_uint(object, &NULL_ether->duplex, result, error);
+}
+
+static dbus_bool_t
 __wicked_dbus_ethernet_get_autoneg(const ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				ni_dbus_variant_t *result,
 				DBusError *error)
 {
 	return __wicked_dbus_ethernet_get_uint(object, &NULL_ether->autoneg_enable, result, error);
+}
+
+static dbus_bool_t
+__wicked_dbus_ethernet_set_autoneg(ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *result,
+				DBusError *error)
+{
+	return __wicked_dbus_ethernet_set_uint(object, &NULL_ether->autoneg_enable, result, error);
 }
 
 #define WICKED_ETHERNET_PROPERTY(type, __name, rw) \

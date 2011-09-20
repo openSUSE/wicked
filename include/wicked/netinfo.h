@@ -304,6 +304,7 @@ extern ni_route_t *	ni_interface_add_route(ni_handle_t *, ni_interface_t *,
 				const ni_sockaddr_t *gw);
 
 extern ni_address_t *	ni_interface_get_addresses(ni_interface_t *, int af);
+extern ni_ethernet_t *	ni_interface_get_ethernet(ni_interface_t *);
 extern ni_bonding_t *	ni_interface_get_bonding(ni_interface_t *);
 extern ni_vlan_t *	ni_interface_get_vlan(ni_interface_t *);
 extern ni_bridge_t *	ni_interface_get_bridge(ni_interface_t *);

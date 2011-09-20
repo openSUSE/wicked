@@ -484,6 +484,8 @@ __ni_dbus_object_properties_set(ni_dbus_object_t *object, const ni_dbus_method_t
 {
 	const ni_dbus_property_t *property;
 	const ni_dbus_service_t *service;
+	ni_dbus_object_t *shadow_object;
+	dbus_bool_t rv;
 
 	if (!__ni_dbus_object_properties_arg_interface(object, method,
 				argv[0].string_value, error, &service))
@@ -508,10 +510,35 @@ __ni_dbus_object_properties_set(ni_dbus_object_t *object, const ni_dbus_method_t
 
 	/* FIXME: Verify variant against property's signature */
 
-	if (!property->set(object, property, &argv[2], error))
-		return FALSE;
+	if (object->functions && object->functions->create_shadow) {
+		shadow_object = object->functions->create_shadow(object);
+		if (!shadow_object) {
+			dbus_set_error(error,
+					DBUS_ERROR_FAILED,
+					"Cannot create shadow object for %s",
+					object->object_path);
+			return FALSE;
+		}
 
-	return TRUE;
+		rv = property->set(shadow_object, property, &argv[2], error);
+		if (rv) {
+			rv = object->functions->modify(object, shadow_object);
+			if (!rv) {
+				dbus_set_error(error,
+					DBUS_ERROR_FAILED,
+					"%s: unable to update property %s.%s",
+					object->object_path, service->object_interface,
+					property->name);
+			}
+		}
+		if (object->functions->destroy)
+			object->functions->destroy(shadow_object);
+		__ni_dbus_object_free(shadow_object);
+	} else {
+		rv = property->set(object, property, &argv[2], error);
+	}
+
+	return rv;
 }
 
 static ni_dbus_method_t	__ni_dbus_object_properties_methods[] = {
@@ -728,6 +755,16 @@ ni_dbus_object_get_handle(const ni_dbus_object_t *object)
 	return object->object_handle;
 }
 
+ni_dbus_object_t *
+ni_dbus_object_new_shadow(const ni_dbus_object_t *object, void *shadow_handle)
+{
+	ni_dbus_object_t *shadow_object;
+
+	shadow_object = calloc(1, sizeof(*object));
+	shadow_object->object_handle = shadow_handle;
+	return shadow_object;
+}
+
 const DBusObjectPathVTable *
 ni_dbus_object_get_vtable(const ni_dbus_object_t *dummy)
 {
@@ -769,7 +806,8 @@ __ni_dbus_object_free(ni_dbus_object_t *object)
 {
 	ni_dbus_object_t *child;
 
-	ni_dbus_connection_unregister_object(object->server->connection, object);
+	if (object->server)
+		ni_dbus_connection_unregister_object(object->server->connection, object);
 
 	ni_string_free(&object->object_name);
 	ni_string_free(&object->object_path);

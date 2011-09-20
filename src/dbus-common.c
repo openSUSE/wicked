@@ -18,6 +18,15 @@
 #define TRACE_ENTER()		ni_debug_dbus("%s()", __FUNCTION__)
 #define TP()			ni_debug_dbus("TP - %s:%u", __FUNCTION__, __LINE__)
 
+#define NI_DBUS_DICT_ENTRY_SIGNATURE \
+		DBUS_DICT_ENTRY_BEGIN_CHAR_AS_STRING \
+		DBUS_TYPE_STRING_AS_STRING \
+		DBUS_TYPE_VARIANT_AS_STRING \
+		DBUS_DICT_ENTRY_END_CHAR_AS_STRING
+#define NI_DBUS_DICT_SIGNATURE \
+		DBUS_TYPE_ARRAY_AS_STRING \
+		NI_DBUS_DICT_ENTRY_SIGNATURE
+
 static ni_intmap_t      __ni_dbus_error_map[] = {
 	{ "org.freedesktop.DBus.Error.AccessDenied",	EACCES },
 	{ "org.freedesktop.DBus.Error.InvalidArgs",	EINVAL },
@@ -180,6 +189,28 @@ ni_dbus_process_properties(DBusMessageIter *iter, const struct ni_dbus_dict_entr
 }
 
 /*
+ * Test for array-ness
+ */
+static inline dbus_bool_t
+__ni_dbus_is_array(const ni_dbus_variant_t *var, const char *element_signature)
+{
+	if (var->type != DBUS_TYPE_ARRAY)
+		return FALSE;
+	if (var->array.element_type != DBUS_TYPE_INVALID)
+		return element_signature[0] == var->array.element_type
+		    && element_signature[1] == '\0';
+	if (var->array.element_signature != NULL)
+		return !strcmp(var->array.element_signature, element_signature);
+	return FALSE;
+}
+
+dbus_bool_t
+ni_dbus_variant_is_dict_array(const ni_dbus_variant_t *var)
+{
+	return __ni_dbus_is_array(var, NI_DBUS_DICT_SIGNATURE);
+}
+
+/*
  * Get/set functions for variant values
  */
 static inline void
@@ -260,6 +291,77 @@ ni_dbus_variant_set_int64(ni_dbus_variant_t *var, int64_t value)
 }
 
 /*
+ * Get simple types from a variant
+ */
+dbus_bool_t
+ni_dbus_variant_get_uint16(const ni_dbus_variant_t *var, uint16_t *ret)
+{
+	if (var->type != DBUS_TYPE_UINT16)
+		return FALSE;
+	*ret = var->uint16_value;
+	return TRUE;
+}
+
+dbus_bool_t
+ni_dbus_variant_get_int16(const ni_dbus_variant_t *var, int16_t *ret)
+{
+	if (var->type != DBUS_TYPE_UINT16)
+		return FALSE;
+	*ret = var->int16_value;
+	return TRUE;
+}
+
+dbus_bool_t
+ni_dbus_variant_get_uint32(const ni_dbus_variant_t *var, uint32_t *ret)
+{
+	if (var->type != DBUS_TYPE_UINT32)
+		return FALSE;
+	*ret = var->uint32_value;
+	return TRUE;
+}
+
+dbus_bool_t
+ni_dbus_variant_get_int32(const ni_dbus_variant_t *var, int32_t *ret)
+{
+	if (var->type != DBUS_TYPE_UINT32)
+		return FALSE;
+	*ret = var->int32_value;
+	return TRUE;
+}
+
+dbus_bool_t
+ni_dbus_variant_get_uint64(const ni_dbus_variant_t *var, uint64_t *ret)
+{
+	if (var->type != DBUS_TYPE_UINT64)
+		return FALSE;
+	*ret = var->uint64_value;
+	return TRUE;
+}
+
+dbus_bool_t
+ni_dbus_variant_get_int64(const ni_dbus_variant_t *var, int64_t *ret)
+{
+	if (var->type != DBUS_TYPE_UINT64)
+		return FALSE;
+	*ret = var->int64_value;
+	return TRUE;
+}
+
+dbus_bool_t
+ni_dbus_variant_get_byte_array_minmax(const ni_dbus_variant_t *var,
+					unsigned char *array, unsigned int *len,
+					unsigned int minlen, unsigned int maxlen)
+{
+	if (!__ni_dbus_is_array(var, DBUS_TYPE_BYTE_AS_STRING))
+		return FALSE;
+	if (var->array.len < minlen || maxlen < var->array.len)
+		return FALSE;
+	*len = var->array.len;
+	memcpy(array, var->byte_array_value, *len);
+	return TRUE;
+}
+
+/*
  * Helper function for handling arrays
  */
 #define NI_DBUS_ARRAY_CHUNK		32
@@ -290,19 +392,6 @@ __ni_dbus_init_array(ni_dbus_variant_t *var, int element_type)
 {
 	var->type = DBUS_TYPE_ARRAY;
 	var->array.element_type = element_type;
-}
-
-static inline dbus_bool_t
-__ni_dbus_is_array(const ni_dbus_variant_t *var, const char *element_signature)
-{
-	if (var->type != DBUS_TYPE_ARRAY)
-		return FALSE;
-	if (var->array.element_type != DBUS_TYPE_INVALID)
-		return element_signature[0] == var->array.element_type
-		    && element_signature[1] == '\0';
-	if (var->array.element_signature != NULL)
-		return !strcmp(var->array.element_signature, element_signature);
-	return FALSE;
 }
 
 void
@@ -644,17 +733,39 @@ ni_dbus_dict_add_byte_array(ni_dbus_variant_t *dict, const char *key,
 	return TRUE;
 }
 
+const ni_dbus_variant_t *
+ni_dbus_dict_get(const ni_dbus_variant_t *dict, const char *key)
+{
+	ni_dbus_dict_entry_t *entry;
+	unsigned int i;
+
+	if (dict->type != DBUS_TYPE_ARRAY
+	 || dict->array.element_type != DBUS_TYPE_DICT_ENTRY)
+		return NULL;
+
+	for (i = 0; i < dict->array.len; ++i) {
+		entry = &dict->dict_array_value[i];
+		if (entry->key && !strcmp(entry->key, key))
+			return &entry->datum;
+	}
+
+	return NULL;
+}
+
+dbus_bool_t
+ni_dbus_dict_get_uint32(const ni_dbus_variant_t *dict, const char *key, uint32_t *value)
+{
+	const ni_dbus_variant_t *var;
+
+	if (!(var = ni_dbus_dict_get(dict, key)))
+		return FALSE;
+	*value = var->uint32_value;
+	return TRUE;
+}
+
 /*
  * Array of dicts
  */
-#define NI_DBUS_DICT_ENTRY_SIGNATURE \
-		DBUS_DICT_ENTRY_BEGIN_CHAR_AS_STRING \
-		DBUS_TYPE_STRING_AS_STRING \
-		DBUS_TYPE_VARIANT_AS_STRING \
-		DBUS_DICT_ENTRY_END_CHAR_AS_STRING
-#define NI_DBUS_DICT_SIGNATURE \
-		DBUS_TYPE_ARRAY_AS_STRING \
-		NI_DBUS_DICT_ENTRY_SIGNATURE
 void
 ni_dbus_dict_array_init(ni_dbus_variant_t *var)
 {

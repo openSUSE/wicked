@@ -16,6 +16,7 @@
 
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
+#include "netinfo_priv.h"
 #include "model.h"
 
 static ni_dbus_service_t	wicked_dbus_interface_interface;
@@ -85,11 +86,40 @@ wicked_dbus_interface_refresh(ni_dbus_object_t *object)
 	return TRUE;
 }
 
+static ni_dbus_object_t *
+wicked_dbus_interface_create_shadow(const ni_dbus_object_t *object)
+{
+	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
+	ni_interface_t *shadow_ifp;
+	ni_handle_t *nih;
+
+	ni_assert(ifp);
+	if (!(nih = ni_global_state_handle())) {
+		ni_error("Unable to obtain netinfo handle");
+		return NULL;
+	}
+
+	shadow_ifp = __ni_interface_new(ifp->name, ifp->ifindex);
+	if (!shadow_ifp) {
+		ni_error("Unable to create shadow interface");
+		return NULL;
+	}
+
+	return ni_dbus_object_new_shadow(object, shadow_ifp);
+}
+
+static dbus_bool_t
+wicked_dbus_interface_modify(ni_dbus_object_t *object, const ni_dbus_object_t *shadow_object)
+{
+	ni_error("%s() not implemented", __FUNCTION__);
+	return FALSE;
+}
+
 static ni_dbus_object_functions_t wicked_dbus_interface_functions = {
 	.destroy	= wicked_dbus_interface_destroy,
 	.refresh	= wicked_dbus_interface_refresh,
-//	.create_shadow	= wicked_dbus_interface_create_shadow,
-//	.modify		= wicked_dbus_interface_modify,
+	.create_shadow	= wicked_dbus_interface_create_shadow,
+	.modify		= wicked_dbus_interface_modify,
 };
 
 static ni_dbus_method_t		wicked_dbus_interface_methods[] = {
@@ -109,6 +139,21 @@ __wicked_dbus_interface_get_type(const ni_dbus_object_t *object,
 }
 
 static dbus_bool_t
+__wicked_dbus_interface_set_type(ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *argument,
+				DBusError *error)
+{
+	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
+	uint32_t value;
+
+	if (!ni_dbus_variant_get_uint32(argument, &value))
+		return FALSE;
+	ifp->type =value;
+	return TRUE;
+}
+
+static dbus_bool_t
 __wicked_dbus_interface_get_status(const ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				ni_dbus_variant_t *result,
@@ -117,6 +162,21 @@ __wicked_dbus_interface_get_status(const ni_dbus_object_t *object,
 	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
 
 	ni_dbus_variant_set_uint32(result, ifp->ifflags);
+	return TRUE;
+}
+
+static dbus_bool_t
+__wicked_dbus_interface_set_status(ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *argument,
+				DBusError *error)
+{
+	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
+	uint32_t value;
+
+	if (!ni_dbus_variant_get_uint32(argument, &value))
+		return FALSE;
+	ifp->ifflags = value;
 	return TRUE;
 }
 
@@ -133,6 +193,21 @@ __wicked_dbus_interface_get_mtu(const ni_dbus_object_t *object,
 }
 
 static dbus_bool_t
+__wicked_dbus_interface_set_mtu(ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *argument,
+				DBusError *error)
+{
+	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
+	uint32_t value;
+
+	if (!ni_dbus_variant_get_uint32(argument, &value))
+		return FALSE;
+	ifp->mtu = value;
+	return TRUE;
+}
+
+static dbus_bool_t
 __wicked_dbus_interface_get_hwaddr(const ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				ni_dbus_variant_t *result,
@@ -141,6 +216,24 @@ __wicked_dbus_interface_get_hwaddr(const ni_dbus_object_t *object,
 	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
 
 	ni_dbus_variant_set_byte_array(result, ifp->hwaddr.data, ifp->hwaddr.len);
+	return TRUE;
+}
+
+static dbus_bool_t
+__wicked_dbus_interface_set_hwaddr(ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *argument,
+				DBusError *error)
+{
+	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
+	unsigned int addrlen;
+
+	ifp->hwaddr.type = ifp->type;
+	if (!ni_dbus_variant_get_byte_array_minmax(argument,
+				ifp->hwaddr.data, &addrlen,
+				0, sizeof(ifp->hwaddr.data)))
+		return FALSE;
+	ifp->hwaddr.len = addrlen;
 	return TRUE;
 }
 
@@ -155,6 +248,24 @@ __wicked_dbus_add_sockaddr(ni_dbus_variant_t *dict, const char *name, const ni_s
 
 	adata = ((const unsigned char *) ss) + offset;
 	return ni_dbus_dict_add_byte_array(dict, name, adata, len);
+}
+
+static inline dbus_bool_t
+__wicked_dbus_get_sockaddr(const ni_dbus_variant_t *dict, const char *name, ni_sockaddr_t *ss, int af)
+{
+	const ni_dbus_variant_t *var;
+	unsigned int offset, len;
+	unsigned int alen;
+
+	if (!(var = ni_dbus_dict_get(dict, name)))
+		return FALSE;
+
+	if (!__ni_address_info(af, &offset, &len))
+		return FALSE;
+
+	return ni_dbus_variant_get_byte_array_minmax(var,
+			((unsigned char *) ss) + offset, &alen,
+			len, len);
 }
 
 static dbus_bool_t
@@ -187,6 +298,37 @@ __wicked_dbus_interface_get_addresses(const ni_dbus_object_t *object,
 	}
 
 	return TRUE;
+}
+
+static dbus_bool_t
+__wicked_dbus_interface_set_addresses(ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *argument,
+				DBusError *error)
+{
+	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
+	unsigned int i;
+
+	if (!ni_dbus_variant_is_dict_array(argument))
+		return FALSE;
+
+	for (i = 0; i < argument->array.len; ++i) {
+		ni_dbus_variant_t *dict = &argument->variant_array_value[i];
+		uint32_t family, prefixlen;
+		ni_sockaddr_t local_addr;
+		ni_address_t *ap;
+
+		if (!ni_dbus_dict_get_uint32(dict, "family", &family)
+		 || !ni_dbus_dict_get_uint32(dict, "prefixlen", &prefixlen)
+		 || !__wicked_dbus_get_sockaddr(dict, "local", &local_addr, family))
+			continue;
+
+		ap = ni_address_new(ifp, family, prefixlen, &local_addr);
+
+		__wicked_dbus_get_sockaddr(dict, "peer", &ap->peer_addr, family);
+		__wicked_dbus_get_sockaddr(dict, "anycast", &ap->anycast_addr, family);
+	}
+	return FALSE;
 }
 
 static dbus_bool_t
@@ -244,6 +386,14 @@ __wicked_dbus_interface_get_routes(const ni_dbus_object_t *object,
 	return TRUE;
 }
 
+static dbus_bool_t
+__wicked_dbus_interface_set_routes(ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *argument,
+				DBusError *error)
+{
+	return FALSE;
+}
 #define WICKED_INTERFACE_PROPERTY(type, __name, rw) \
 	NI_DBUS_PROPERTY(type, __name, __wicked_dbus_interface, rw)
 #define WICKED_INTERFACE_PROPERTY_SIGNATURE(signature, __name, rw) \
