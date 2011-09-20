@@ -307,15 +307,18 @@ static ni_dbus_method_t		__wicked_root_dbus_methods[] = {
 	{ NULL }
 };
 
+static ni_dbus_service_t	__wicked_root_dbus_interface = {
+	.object_interface = WICKED_DBUS_INTERFACE,
+	.methods = __wicked_root_dbus_methods,
+};
+
 
 void
 wicked_register_dbus_services(ni_dbus_server_t *server)
 {
 	ni_dbus_object_t *root_object = ni_dbus_server_get_root_object(server);
 
-	ni_dbus_object_register_service(root_object, WICKED_DBUS_INTERFACE,
-			__wicked_root_dbus_methods,
-			NULL);
+	ni_dbus_object_register_service(root_object, &__wicked_root_dbus_interface);
 }
 
 /*

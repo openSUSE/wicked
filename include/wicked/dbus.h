@@ -92,6 +92,13 @@ struct ni_dbus_property	{
 	ni_dbus_property_set_fn_t *set;
 };
 
+struct ni_dbus_service {
+	char *				object_interface;
+
+	const ni_dbus_method_t *	methods;
+	const ni_dbus_property_t *	properties;
+};
+
 typedef void			ni_dbus_async_callback_t(ni_dbus_proxy_t *proxy,
 					ni_dbus_message_t *reply);
 typedef void			ni_dbus_signal_handler_t(ni_dbus_connection_t *connection,
@@ -100,10 +107,8 @@ typedef void			ni_dbus_signal_handler_t(ni_dbus_connection_t *connection,
 
 extern ni_dbus_object_t *	ni_dbus_server_register_object(ni_dbus_server_t *server,
 					const char *object_path, void *object_handle);
-extern ni_dbus_service_t *	ni_dbus_object_register_service(ni_dbus_object_t *object,
-					const char *interface,
-					const ni_dbus_method_t *methods,
-					const ni_dbus_property_t *properties);
+extern dbus_bool_t		ni_dbus_object_register_service(ni_dbus_object_t *object,
+					const ni_dbus_service_t *);
 
 extern ni_dbus_object_t *	ni_dbus_server_get_root_object(const ni_dbus_server_t *);
 extern const char *		ni_dbus_object_get_path(const ni_dbus_object_t *);

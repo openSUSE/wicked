@@ -18,8 +18,7 @@
 #include <wicked/logging.h>
 #include "model.h"
 
-static ni_dbus_method_t		wicked_dbus_ethernet_methods[];
-static ni_dbus_property_t	wicked_dbus_ethernet_properties[];
+static ni_dbus_service_t	wicked_dbus_ethernet_interface;
 
 void
 ni_objectmodel_register_interface_ethernet(ni_dbus_server_t *server, ni_interface_t *ifp)
@@ -32,9 +31,7 @@ ni_objectmodel_register_interface_ethernet(ni_dbus_server_t *server, ni_interfac
 	if (object == NULL)
 		ni_fatal("Unable to create dbus object for interface %s", ifp->name);
 
-	ni_dbus_object_register_service(object, WICKED_DBUS_INTERFACE ".Interface.Ethernet",
-			wicked_dbus_ethernet_methods,
-			wicked_dbus_ethernet_properties);
+	ni_dbus_object_register_service(object, &wicked_dbus_ethernet_interface);
 }
 
 static ni_dbus_method_t		wicked_dbus_ethernet_methods[] = {
@@ -142,3 +139,9 @@ static ni_dbus_property_t	wicked_dbus_ethernet_properties[] = {
 	{ NULL }
 };
 
+
+static ni_dbus_service_t	wicked_dbus_ethernet_interface = {
+	.object_interface = WICKED_DBUS_INTERFACE ".Ethernet",
+	.methods = wicked_dbus_ethernet_methods,
+	.properties = wicked_dbus_ethernet_properties,
+};
