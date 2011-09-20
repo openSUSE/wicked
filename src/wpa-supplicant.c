@@ -628,8 +628,10 @@ ni_wpa_interface_state_change_event(ni_wpa_client_t *wpa,
 			ni_wpa_ifstate_to_name(from_state),
 			ni_wpa_ifstate_to_name(to_state));
 
+#if 0
 	if (to_state == NI_WPA_IFSTATE_DISCONNECTED)
 		ni_wpa_interface_unbind(ifp);
+#endif
 	ifp->state = to_state;
 }
 
