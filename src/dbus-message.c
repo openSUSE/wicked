@@ -139,57 +139,101 @@ ni_dbus_message_iter_append_variant_array(DBusMessageIter *iter,
 }
 
 dbus_bool_t
-ni_dbus_message_iter_append_variant(DBusMessageIter *iter, const ni_dbus_variant_t *variant)
+ni_dbus_message_iter_append_some_array(DBusMessageIter *iter,
+				const char *element_signature,
+				const ni_dbus_variant_t *values,
+				unsigned int len)
 {
-	const char *type_as_string = NULL;
+	DBusMessageIter iter_array;
+	unsigned int i;
+	dbus_bool_t rv = TRUE;
+
+	if (!dbus_message_iter_open_container(iter, DBUS_TYPE_ARRAY,
+					      element_signature,
+					      &iter_array))
+		return FALSE;
+
+	for (i = 0; rv && i < len; i++) {
+		rv = ni_dbus_message_iter_append_value(&iter_array,
+						    &values[i],
+						    element_signature);
+	}
+
+	if (!dbus_message_iter_close_container(iter, &iter_array))
+		rv = FALSE;
+
+	return rv;
+}
+
+dbus_bool_t
+ni_dbus_message_iter_append_value(DBusMessageIter *iter, const ni_dbus_variant_t *variant, const char *signature)
+{
 	const void *value;
-	DBusMessageIter iter_val;
+	DBusMessageIter *iter_val, _iter_val;
 	dbus_bool_t rv = FALSE;
 
-	type_as_string = ni_dbus_variant_signature(variant);
-	if (!type_as_string)
+	if (signature == NULL)
 		return FALSE;
 
-	if (!dbus_message_iter_open_container(iter, DBUS_TYPE_VARIANT, type_as_string, &iter_val))
-		return FALSE;
+	iter_val = iter;
+	if (signature[0] == DBUS_TYPE_VARIANT) {
+		if (!(signature = ni_dbus_variant_signature(variant)))
+			return FALSE;
+		if (!dbus_message_iter_open_container(iter, DBUS_TYPE_VARIANT, signature, &_iter_val))
+			return FALSE;
+		iter_val = &_iter_val;
+	}
 
 	value = ni_dbus_variant_datum_const_ptr(variant);
 	if (value != NULL) {
-		rv = dbus_message_iter_append_basic(&iter_val, variant->type, value);
+		rv = dbus_message_iter_append_basic(iter_val, variant->type, value);
 	} else
 	if (variant->type == DBUS_TYPE_ARRAY) {
 		switch (variant->array.element_type) {
 		case DBUS_TYPE_BYTE:
-			rv = ni_dbus_message_iter_append_byte_array(&iter_val,
+			rv = ni_dbus_message_iter_append_byte_array(iter_val,
 					variant->byte_array_value, variant->array.len);
 			break;
 
 		case DBUS_TYPE_STRING:
-			rv = ni_dbus_message_iter_append_string_array(&iter_val,
+			rv = ni_dbus_message_iter_append_string_array(iter_val,
 					variant->string_array_value, variant->array.len);
 			break;
 
 		case DBUS_TYPE_VARIANT:
-			rv = ni_dbus_message_iter_append_variant_array(&iter_val,
+			rv = ni_dbus_message_iter_append_variant_array(iter_val,
 					variant->variant_array_value, variant->array.len);
 			break;
 
 		case DBUS_TYPE_DICT_ENTRY:
-			rv = ni_dbus_message_iter_append_dict(&iter_val,
+			rv = ni_dbus_message_iter_append_dict(iter_val,
 					variant->dict_array_value, variant->array.len);
 			break;
 
+		case DBUS_TYPE_INVALID:
+			rv = ni_dbus_message_iter_append_some_array(iter_val,
+					variant->array.element_signature,
+					variant->variant_array_value,
+					variant->array.len);
+			break;
+
 		default:
-			ni_warn("%s: variant type %s not supported", __FUNCTION__, type_as_string);
+			ni_warn("%s: variant type %s not supported", __FUNCTION__, signature);
 		}
 	} else {
-		ni_warn("%s: variant type %s not supported", __FUNCTION__, type_as_string);
+		ni_warn("%s: variant type %s not supported", __FUNCTION__, signature);
 	}
 
-	if (!dbus_message_iter_close_container(iter, &iter_val))
+	if (iter_val != iter && !dbus_message_iter_close_container(iter, iter_val))
 		rv = FALSE;
 
 	return rv;
+}
+
+dbus_bool_t
+ni_dbus_message_iter_append_variant(DBusMessageIter *iter, const ni_dbus_variant_t *variant)
+{
+	return ni_dbus_message_iter_append_value(iter, variant, DBUS_TYPE_VARIANT_AS_STRING);
 }
 
 dbus_bool_t

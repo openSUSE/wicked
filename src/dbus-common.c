@@ -285,13 +285,32 @@ __ni_dbus_array_grow(ni_dbus_variant_t *var, size_t element_size, unsigned int g
 	}
 }
 
+static inline void
+__ni_dbus_init_array(ni_dbus_variant_t *var, int element_type)
+{
+	var->type = DBUS_TYPE_ARRAY;
+	var->array.element_type = element_type;
+}
+
+static inline dbus_bool_t
+__ni_dbus_is_array(const ni_dbus_variant_t *var, const char *element_signature)
+{
+	if (var->type != DBUS_TYPE_ARRAY)
+		return FALSE;
+	if (var->array.element_type != DBUS_TYPE_INVALID)
+		return element_signature[0] == var->array.element_type
+		    && element_signature[1] == '\0';
+	if (var->array.element_signature != NULL)
+		return !strcmp(var->array.element_signature, element_signature);
+	return FALSE;
+}
+
 void
 ni_dbus_variant_set_byte_array(ni_dbus_variant_t *var,
 				const unsigned char *data, unsigned int len)
 {
 	ni_dbus_variant_destroy(var);
-	var->type = DBUS_TYPE_ARRAY;
-	var->array.element_type = DBUS_TYPE_BYTE;
+	__ni_dbus_init_array(var, DBUS_TYPE_BYTE);
 
 	__ni_dbus_array_grow(var, sizeof(unsigned char), len);
 	if (len) {
@@ -303,8 +322,7 @@ ni_dbus_variant_set_byte_array(ni_dbus_variant_t *var,
 dbus_bool_t
 ni_dbus_variant_append_byte_array(ni_dbus_variant_t *var, unsigned char byte)
 {
-	if (var->type != DBUS_TYPE_ARRAY
-	 || var->array.element_type != DBUS_TYPE_BYTE)
+	if (!__ni_dbus_is_array(var, DBUS_TYPE_BYTE_AS_STRING))
 		return FALSE;
 
 	__ni_dbus_array_grow(var, sizeof(unsigned char), 1);
@@ -317,8 +335,7 @@ ni_dbus_variant_set_string_array(ni_dbus_variant_t *var,
 				const char **data, unsigned int len)
 {
 	ni_dbus_variant_destroy(var);
-	var->type = DBUS_TYPE_ARRAY;
-	var->array.element_type = DBUS_TYPE_STRING;
+	__ni_dbus_init_array(var, DBUS_TYPE_STRING);
 
 	__ni_dbus_array_grow(var, sizeof(char *), len);
 	if (len) {
@@ -335,8 +352,7 @@ ni_dbus_variant_append_string_array(ni_dbus_variant_t *var, const char *string)
 {
 	unsigned int len = var->array.len;
 
-	if (var->type != DBUS_TYPE_ARRAY
-	 || var->array.element_type != DBUS_TYPE_STRING)
+	if (!__ni_dbus_is_array(var, DBUS_TYPE_STRING_AS_STRING))
 		return FALSE;
 
 	__ni_dbus_array_grow(var, sizeof(char *), 1);
@@ -350,8 +366,7 @@ void
 ni_dbus_variant_init_variant_array(ni_dbus_variant_t *var)
 {
 	ni_dbus_variant_destroy(var);
-	var->type = DBUS_TYPE_ARRAY;
-	var->array.element_type = DBUS_TYPE_VARIANT;
+	__ni_dbus_init_array(var, DBUS_TYPE_VARIANT);
 }
 
 ni_dbus_variant_t *
@@ -359,8 +374,7 @@ ni_dbus_variant_append_variant_element(ni_dbus_variant_t *var)
 {
 	ni_dbus_variant_t *dst;
 
-	if (var->type != DBUS_TYPE_ARRAY
-	 || var->array.element_type != DBUS_TYPE_VARIANT)
+	if (!__ni_dbus_is_array(var, DBUS_TYPE_VARIANT_AS_STRING))
 		return NULL;
 
 	__ni_dbus_array_grow(var, sizeof(ni_dbus_variant_t), 1);
@@ -399,6 +413,10 @@ ni_dbus_variant_destroy(ni_dbus_variant_t *var)
 				ni_dbus_variant_destroy(&var->dict_array_value[i].datum);
 			free(var->dict_array_value);
 			break;
+		case DBUS_TYPE_INVALID:
+			if (var->array.element_signature == NULL)
+				break;
+			// fallthrough
 		case DBUS_TYPE_VARIANT:
 			for (i = 0; i < var->array.len; ++i)
 				ni_dbus_variant_destroy(&var->variant_array_value[i]);
@@ -471,6 +489,14 @@ ni_dbus_variant_signature(const ni_dbus_variant_t *var)
 
 	switch (var->type) {
 	case DBUS_TYPE_ARRAY:
+		if (var->array.element_signature) {
+			static char buffer[16];
+
+			snprintf(buffer, sizeof(buffer), "%s%s",
+					DBUS_TYPE_ARRAY_AS_STRING,
+					var->array.element_signature);
+			return buffer;
+		}
 		switch (var->array.element_type) {
 		case DBUS_TYPE_BYTE:
 			return DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING;
@@ -499,8 +525,7 @@ void
 ni_dbus_variant_init_dict(ni_dbus_variant_t *var)
 {
 	ni_dbus_variant_destroy(var);
-	var->type = DBUS_TYPE_ARRAY;
-	var->array.element_type = DBUS_TYPE_DICT_ENTRY;
+	__ni_dbus_init_array(var, DBUS_TYPE_DICT_ENTRY);
 }
 
 ni_dbus_variant_t *
@@ -617,6 +642,40 @@ ni_dbus_dict_add_byte_array(ni_dbus_variant_t *dict, const char *key,
 		return FALSE;
 	ni_dbus_variant_set_byte_array(dst, byte_array, len);
 	return TRUE;
+}
+
+/*
+ * Array of dicts
+ */
+#define NI_DBUS_DICT_ENTRY_SIGNATURE \
+		DBUS_DICT_ENTRY_BEGIN_CHAR_AS_STRING \
+		DBUS_TYPE_STRING_AS_STRING \
+		DBUS_TYPE_VARIANT_AS_STRING \
+		DBUS_DICT_ENTRY_END_CHAR_AS_STRING
+#define NI_DBUS_DICT_SIGNATURE \
+		DBUS_TYPE_ARRAY_AS_STRING \
+		NI_DBUS_DICT_ENTRY_SIGNATURE
+void
+ni_dbus_dict_array_init(ni_dbus_variant_t *var)
+{
+	ni_dbus_variant_destroy(var);
+	var->type = DBUS_TYPE_ARRAY;
+	var->array.element_signature = NI_DBUS_DICT_SIGNATURE;
+}
+
+ni_dbus_variant_t *
+ni_dbus_dict_array_add(ni_dbus_variant_t *var)
+{
+	ni_dbus_variant_t *dst;
+
+	if (!__ni_dbus_is_array(var, NI_DBUS_DICT_SIGNATURE))
+		return NULL;
+
+	__ni_dbus_array_grow(var, sizeof(ni_dbus_variant_t), 1);
+	dst = &var->variant_array_value[var->array.len++];
+
+	ni_dbus_variant_init_dict(dst);
+	return dst;
 }
 
 /*

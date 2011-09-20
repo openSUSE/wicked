@@ -27,6 +27,9 @@ extern int			ni_dbus_message_get_args_variants(ni_dbus_message_t *msg,
 
 extern dbus_bool_t		ni_dbus_message_iter_get_variant_data(DBusMessageIter *iter,
 					ni_dbus_variant_t *variant);
+extern dbus_bool_t		ni_dbus_message_iter_append_value(DBusMessageIter *iter,
+					const ni_dbus_variant_t *variant,
+					const char *signature);
 extern dbus_bool_t		ni_dbus_message_iter_append_variant(DBusMessageIter *iter,
 					const ni_dbus_variant_t *variant);
 extern dbus_bool_t		ni_dbus_message_iter_get_variant(DBusMessageIter *iter,

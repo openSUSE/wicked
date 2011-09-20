@@ -120,7 +120,7 @@ __wicked_dbus_interface_get_addresses(const ni_dbus_object_t *object,
 	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
 	const ni_address_t *ap;
 
-	ni_dbus_variant_init_variant_array(result);
+	ni_dbus_dict_array_init(result);
 	for (ap = ifp->addrs; ap; ap = ap->next) {
 		ni_dbus_variant_t *dict;
 
@@ -128,8 +128,7 @@ __wicked_dbus_interface_get_addresses(const ni_dbus_object_t *object,
 			continue;
 
 		/* Append a new element to the array */
-		dict = ni_dbus_variant_append_variant_element(result);
-		ni_dbus_variant_init_dict(dict);
+		dict = ni_dbus_dict_array_add(result);
 
 		ni_dbus_dict_add_uint32(dict, "family", ap->family);
 		ni_dbus_dict_add_uint32(dict, "prefixlen", ap->prefixlen);
@@ -153,7 +152,7 @@ __wicked_dbus_interface_get_routes(const ni_dbus_object_t *object,
 	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
 	const ni_route_t *rp;
 
-	ni_dbus_variant_init_variant_array(result);
+	ni_dbus_dict_array_init(result);
 	for (rp = ifp->routes; rp; rp = rp->next) {
 		ni_dbus_variant_t *dict, *hops;
 		const ni_route_nexthop_t *nh;
@@ -162,7 +161,8 @@ __wicked_dbus_interface_get_routes(const ni_dbus_object_t *object,
 			continue;
 
 		/* Append a new element to the array */
-		dict = ni_dbus_variant_append_variant_element(result);
+		if (!(dict = ni_dbus_dict_array_add(result)))
+			return FALSE;
 		ni_dbus_variant_init_dict(dict);
 
 		ni_dbus_dict_add_uint32(dict, "family", rp->family);

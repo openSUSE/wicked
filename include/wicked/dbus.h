@@ -32,6 +32,7 @@ struct ni_dbus_variant {
 	/* Only valid if this variant is an array */
 	struct {
 		int		element_type;
+		const char *	element_signature;
 		unsigned int	len;
 	} array;
 
@@ -147,6 +148,9 @@ extern dbus_bool_t		ni_dbus_dict_add_uint64(ni_dbus_variant_t *, const char *, u
 extern dbus_bool_t		ni_dbus_dict_add_string(ni_dbus_variant_t *, const char *, const char *);
 extern dbus_bool_t		ni_dbus_dict_add_byte_array(ni_dbus_variant_t *, const char *,
 					const unsigned char *byte_array, unsigned int len);
+
+extern void			ni_dbus_dict_array_init(ni_dbus_variant_t *);
+extern ni_dbus_variant_t *	ni_dbus_dict_array_add(ni_dbus_variant_t *);
 
 extern unsigned int		__ni_dbus_variant_offsets[256];
 
