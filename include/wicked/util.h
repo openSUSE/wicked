@@ -50,6 +50,20 @@ typedef struct ni_opaque {
 	size_t		len;
 } ni_opaque_t;
 
+typedef struct ni_bitfield {
+	unsigned int	size;
+	uint32_t *	field;
+	uint32_t	__local_field[4];
+} ni_bitfield_t;
+
+#define NI_BITFIELD_INIT { 0, NULL }
+
+extern void		ni_bitfield_init(ni_bitfield_t *);
+extern void		ni_bitfield_destroy(ni_bitfield_t *);
+extern void		ni_bitfield_setbit(ni_bitfield_t *, unsigned int);
+extern void		ni_bitfield_clearbit(ni_bitfield_t *, unsigned int);
+extern int		ni_bitfield_testbit(const ni_bitfield_t *, unsigned int);
+
 extern void		ni_string_free(char **);
 extern void		ni_string_dup(char **, const char *);
 extern void		ni_string_set(char **, const char *, unsigned int len);

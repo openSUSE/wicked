@@ -430,6 +430,71 @@ ni_var_array_set_boolean(ni_var_array_t *nva, const char *name, int value)
 
 
 /*
+ * Bitfield functions
+ */
+void
+ni_bitfield_init(ni_bitfield_t *bf)
+{
+	memset(bf, 0, sizeof(*bf));
+}
+
+void
+ni_bitfield_destroy(ni_bitfield_t *bf)
+{
+	if (bf->field && bf->field != bf->__local_field)
+		free(bf->field);
+	memset(bf, 0, sizeof(*bf));
+}
+
+static inline void
+__ni_bitfield_grow(ni_bitfield_t *bf, unsigned int nbits)
+{
+	unsigned int nwords = (nbits + 31) / 32;
+
+	if (nwords >= bf->size) {
+		const unsigned int local_words = sizeof(bf->__local_field);
+
+		if (nwords <= local_words) {
+			memset(bf->__local_field, 0, local_words);
+			bf->field = bf->__local_field;
+			bf->size = local_words;
+		} else {
+			uint32_t *new_field;
+
+			new_field = xcalloc(nwords, sizeof(uint32_t));
+			if (bf->size)
+				memcpy(new_field, bf->field, bf->size);
+			if (bf->field && bf->field != bf->__local_field)
+				free(bf->field);
+			bf->field = new_field;
+			bf->size = nwords;
+		}
+	}
+}
+
+void
+ni_bitfield_setbit(ni_bitfield_t *bf, unsigned int bit)
+{
+	__ni_bitfield_grow(bf, bit);
+	bf->field[bit / 32] = (1 << (bit % 32));
+}
+
+void
+ni_bitfield_clearbit(ni_bitfield_t *bf, unsigned int bit)
+{
+	__ni_bitfield_grow(bf, bit);
+	bf->field[bit / 32] &= ~(1 << (bit % 32));
+}
+
+int
+ni_bitfield_testbit(const ni_bitfield_t *bf, unsigned int bit)
+{
+	if (bit / 32 >= bf->size)
+		return 0;
+	return !!(bf->field[bit / 32] & (1 << (bit % 32)));
+}
+
+/*
  * Scan directory and return all file names matching the given prefix.
  */
 int
