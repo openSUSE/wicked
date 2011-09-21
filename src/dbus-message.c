@@ -9,6 +9,7 @@
 
 #include "netinfo_priv.h"
 #include "dbus-common.h"
+#include "dbus-dict.h"
 
 #define TP()		ni_debug_dbus("TP - %s:%u", __FUNCTION__, __LINE__)
 
@@ -172,10 +173,11 @@ ni_dbus_message_iter_append_value(DBusMessageIter *iter, const ni_dbus_variant_t
 	DBusMessageIter *iter_val, _iter_val;
 	dbus_bool_t rv = FALSE;
 
-	if (signature == NULL)
-		return FALSE;
-
 	iter_val = iter;
+	if (signature == NULL) {
+		if (!(signature = ni_dbus_variant_signature(variant)))
+			return FALSE;
+	} else
 	if (signature[0] == DBUS_TYPE_VARIANT) {
 		if (!(signature = ni_dbus_variant_signature(variant)))
 			return FALSE;
@@ -267,6 +269,31 @@ ni_dbus_message_iter_get_string_array(DBusMessageIter *iter, ni_dbus_variant_t *
 	return TRUE;
 }
 
+dbus_bool_t
+ni_dbus_message_iter_get_dict(DBusMessageIter *iter, ni_dbus_variant_t *result)
+{
+	DBusMessageIter iter_dict;
+
+	ni_dbus_variant_init_dict(result);
+
+	if (!ni_dbus_dict_open_read(iter, &iter_dict))
+		return FALSE;
+
+	while (1) {
+		ni_dbus_dict_entry_t entry;
+		ni_dbus_variant_t *ev;
+
+		memset(&entry, 0, sizeof(entry));
+		if (!ni_dbus_dict_get_entry(&iter_dict, &entry))
+			break;
+
+		ev = ni_dbus_dict_add(result, entry.key);
+		*ev = entry.datum;
+	}
+
+	return TRUE;
+}
+
 
 static dbus_bool_t
 ni_dbus_message_iter_get_array(DBusMessageIter *iter, ni_dbus_variant_t *variant)
@@ -286,6 +313,9 @@ ni_dbus_message_iter_get_array(DBusMessageIter *iter, ni_dbus_variant_t *variant
 		break;
 	case DBUS_TYPE_STRING:
 		success = ni_dbus_message_iter_get_string_array(&iter_array, variant);
+		break;
+	case DBUS_TYPE_DICT_ENTRY:
+		success = ni_dbus_message_iter_get_dict(iter, variant);
 		break;
 	default:
 		break;

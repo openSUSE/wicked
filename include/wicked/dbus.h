@@ -104,8 +104,6 @@ typedef struct ni_dbus_object_functions	ni_dbus_object_functions_t;
 struct ni_dbus_object_functions {
 	void			(*destroy)(ni_dbus_object_t *);
 	dbus_bool_t		(*refresh)(ni_dbus_object_t *);
-	ni_dbus_object_t *	(*create_shadow)(const ni_dbus_object_t *);
-	dbus_bool_t		(*modify)(ni_dbus_object_t *, const ni_dbus_object_t *, const ni_bitfield_t *);
 };
 
 typedef void			ni_dbus_async_callback_t(ni_dbus_proxy_t *proxy,
@@ -118,13 +116,20 @@ extern ni_dbus_object_t *	ni_dbus_server_register_object(ni_dbus_server_t *serve
 					const char *object_path,
 					const ni_dbus_object_functions_t *functions,
 					void *object_handle);
+extern ni_dbus_object_t *	ni_dbus_server_create_anonymous_object(ni_dbus_server_t *server,
+					const ni_dbus_object_functions_t *functions,
+					void *object_handle);
 extern dbus_bool_t		ni_dbus_object_register_service(ni_dbus_object_t *object,
 					const ni_dbus_service_t *);
 
 extern ni_dbus_object_t *	ni_dbus_server_get_root_object(const ni_dbus_server_t *);
+extern ni_dbus_server_t *	ni_dbus_object_get_server(const ni_dbus_object_t *);
 extern const char *		ni_dbus_object_get_path(const ni_dbus_object_t *);
 extern void *			ni_dbus_object_get_handle(const ni_dbus_object_t *);
-extern ni_dbus_object_t *	ni_dbus_object_new_shadow(const ni_dbus_object_t *, void *);
+extern const ni_dbus_service_t *ni_dbus_object_get_service(const ni_dbus_object_t *, const char *);
+extern void			ni_dbus_object_free(ni_dbus_object_t *);
+
+extern const ni_dbus_property_t *ni_dbus_service_get_property(const ni_dbus_service_t *service, const char *name);
 
 extern void			ni_dbus_variant_init(ni_dbus_variant_t *);
 extern void			ni_dbus_variant_copy(ni_dbus_variant_t *dst,
@@ -141,6 +146,8 @@ extern void			ni_dbus_variant_set_uint32(ni_dbus_variant_t *, uint32_t);
 extern void			ni_dbus_variant_set_int32(ni_dbus_variant_t *, int32_t);
 extern void			ni_dbus_variant_set_uint64(ni_dbus_variant_t *, uint64_t);
 extern void			ni_dbus_variant_set_int64(ni_dbus_variant_t *, int64_t);
+extern dbus_bool_t		ni_dbus_variant_parse(ni_dbus_variant_t *var,
+					const char *string_value, const char *signature);
 extern dbus_bool_t		ni_dbus_variant_get_string(const ni_dbus_variant_t *, const char **);
 extern dbus_bool_t		ni_dbus_variant_get_byte(const ni_dbus_variant_t *, unsigned char *);
 extern dbus_bool_t		ni_dbus_variant_get_uint16(const ni_dbus_variant_t *, uint16_t *);
@@ -167,6 +174,7 @@ extern dbus_bool_t		ni_dbus_variant_is_byte_array(const ni_dbus_variant_t *);
 extern dbus_bool_t		ni_dbus_variant_is_string_array(const ni_dbus_variant_t *);
 extern dbus_bool_t		ni_dbus_variant_is_variant_array(const ni_dbus_variant_t *);
 extern dbus_bool_t		ni_dbus_variant_is_dict_array(const ni_dbus_variant_t *);
+extern dbus_bool_t		ni_dbus_variant_is_dict(const ni_dbus_variant_t *);
 
 /* handle dicts */
 extern void			ni_dbus_variant_init_dict(ni_dbus_variant_t *);
@@ -193,6 +201,41 @@ extern dbus_bool_t		ni_dbus_dict_get_string(ni_dbus_variant_t *, const char *, c
 extern void			ni_dbus_dict_array_init(ni_dbus_variant_t *);
 extern ni_dbus_variant_t *	ni_dbus_dict_array_add(ni_dbus_variant_t *);
 
+/*
+ * Client side functions
+ */
+extern ni_dbus_client_t *	ni_dbus_client_open(const char *bus_name);
+extern void			ni_dbus_client_free(ni_dbus_client_t *);
+extern void			ni_dbus_client_add_signal_handler(ni_dbus_client_t *client,
+					const char *sender,
+					const char *object_path,
+					const char *object_interface,
+					ni_dbus_signal_handler_t *callback,
+					void *user_data);
+extern void			ni_dbus_client_set_call_timeout(ni_dbus_client_t *, unsigned int msec);
+extern void			ni_dbus_client_set_error_map(ni_dbus_client_t *, const ni_intmap_t *);
+extern int			ni_dbus_client_translate_error(ni_dbus_client_t *, const DBusError *);
+extern int			ni_dbus_client_call(ni_dbus_client_t *client, ni_dbus_message_t *call, ni_dbus_message_t **reply_p);
+extern ni_dbus_proxy_t *	ni_dbus_proxy_new(ni_dbus_client_t *, const char *, const char *, const char *, void *);
+extern ni_dbus_proxy_t *	ni_dbus_proxy_new_child(ni_dbus_proxy_t *parent, const char *name,
+					const char *interface, void *local_data);
+extern ni_dbus_proxy_t *	ni_dbus_proxy_find_child(ni_dbus_proxy_t *parent, const char *name);
+extern void			ni_dbus_proxy_free(ni_dbus_proxy_t *);
+extern dbus_bool_t		ni_dbus_proxy_call_variant(const ni_dbus_proxy_t *, const char *method,
+					unsigned int nargs, const ni_dbus_variant_t *args,
+					unsigned int maxres, const ni_dbus_variant_t *res,
+					DBusError *error);
+extern int			ni_dbus_proxy_call_simple(const ni_dbus_proxy_t *, const char *method,
+					int arg_type, void *arg_ptr,
+					int res_type, void *res_ptr);
+extern int			ni_dbus_proxy_call_async(ni_dbus_proxy_t *obj,
+					ni_dbus_async_callback_t *callback, const char *method, ...);
+
+extern ni_dbus_message_t *	ni_dbus_proxy_call_new(const ni_dbus_proxy_t *, const char *method, ...);
+extern ni_dbus_message_t *	ni_dbus_proxy_call_new_va(const ni_dbus_proxy_t *obj,
+					const char *method, va_list *app);
+
+
 extern unsigned int		__ni_dbus_variant_offsets[256];
 
 static inline void *
@@ -217,7 +260,9 @@ ni_dbus_variant_datum_const_ptr(const ni_dbus_variant_t *variant)
 	return (const void *) (((const caddr_t) variant) + offset);
 }
 
-extern ni_dbus_object_t *	ni_objectmodel_create_interface(ni_dbus_server_t *, ni_interface_t *ifp);
+extern dbus_bool_t		ni_objectmodel_register_all(ni_dbus_server_t *);
+extern ni_dbus_object_t *	ni_objectmodel_register_interface(ni_dbus_server_t *, ni_interface_t *ifp);
+extern const ni_dbus_service_t *ni_objectmodel_link_layer_service(int iftype);
 
 
 #endif /* __WICKED_DBUS_H__ */

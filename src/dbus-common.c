@@ -205,6 +205,12 @@ __ni_dbus_is_array(const ni_dbus_variant_t *var, const char *element_signature)
 }
 
 dbus_bool_t
+ni_dbus_variant_is_dict(const ni_dbus_variant_t *var)
+{
+	return __ni_dbus_is_array(var, DBUS_TYPE_DICT_ENTRY_AS_STRING);
+}
+
+dbus_bool_t
 ni_dbus_variant_is_dict_array(const ni_dbus_variant_t *var)
 {
 	return __ni_dbus_is_array(var, NI_DBUS_DICT_SIGNATURE);
@@ -230,7 +236,7 @@ __ni_dbus_variant_change_type(ni_dbus_variant_t *var, int new_type)
 void
 ni_dbus_variant_set_string(ni_dbus_variant_t *var, const char *value)
 {
-	__ni_dbus_variant_change_type(var, DBUS_TYPE_BOOLEAN);
+	__ni_dbus_variant_change_type(var, DBUS_TYPE_STRING);
 	ni_string_dup(&var->string_value, value);
 }
 
@@ -583,6 +589,78 @@ ni_dbus_variant_sprint(const ni_dbus_variant_t *var)
 
 
 	return buffer;
+}
+
+dbus_bool_t
+ni_dbus_variant_parse(ni_dbus_variant_t *var,
+					const char *string_value, const char *signature)
+{
+	if (signature[0] && !signature[1]) {
+		char *ep = NULL;
+
+		__ni_dbus_variant_change_type(var, signature[0]);
+		switch (signature[0]) {
+		case DBUS_TYPE_STRING:
+		case DBUS_TYPE_OBJECT_PATH:
+			ni_dbus_variant_set_string(var, string_value);
+			break;
+
+		case DBUS_TYPE_BYTE:
+			var->byte_value = strtoul(string_value, &ep, 0);
+			break;
+
+		case DBUS_TYPE_BOOLEAN:
+			if (!strcmp(string_value, "true"))
+				var->bool_value = 1;
+			else if (!strcmp(string_value, "false"))
+				var->bool_value = 1;
+			else
+				var->bool_value = strtoul(string_value, &ep, 0);
+			break;
+
+		case DBUS_TYPE_INT16:
+			var->int16_value = strtol(string_value, &ep, 0);
+			break;
+
+		case DBUS_TYPE_UINT16:
+			var->uint16_value = strtoul(string_value, &ep, 0);
+			break;
+
+		case DBUS_TYPE_INT32:
+			var->int32_value = strtol(string_value, &ep, 0);
+			break;
+
+		case DBUS_TYPE_UINT32:
+			var->uint32_value = strtoul(string_value, &ep, 0);
+			break;
+
+		case DBUS_TYPE_INT64:
+			var->int64_value = strtoll(string_value, &ep, 0);
+			break;
+
+		case DBUS_TYPE_UINT64:
+			var->uint64_value = strtoull(string_value, &ep, 0);
+			break;
+
+		case DBUS_TYPE_DOUBLE:
+			var->double_value = strtod(string_value, &ep);
+			break;
+
+		default:
+			return FALSE;
+		}
+
+		if (ep && *ep)
+			return FALSE;
+
+		return TRUE;
+	}
+
+	if (signature[0] == 'a') {
+		/* TBD: Array types */
+	}
+
+	return FALSE;
 }
 
 const char *

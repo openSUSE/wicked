@@ -22,6 +22,7 @@
 
 
 struct ni_dbus_object {
+	ni_dbus_object_t **	pprev;
 	ni_dbus_object_t *	next;
 	ni_dbus_server_t *	server;			/* back pointer at server */
 	char *			object_name;		/* relative path */
@@ -64,6 +65,7 @@ ni_dbus_server_open(const char *bus_name, void *root_object_handle)
 
 	/* Translate bus name foo.bar.baz into object path /foo/bar/baz */
 	server->root_object = __ni_dbus_object_new(server, __ni_dbus_server_root_path(bus_name));
+	server->root_object->pprev = &server->root_object;
 	server->root_object->object_handle = root_object_handle;
 
 	return server;
@@ -107,7 +109,10 @@ __ni_dbus_object_new(ni_dbus_server_t *server, char *path)
 	object->object_path = path;
 	object->server = server;
 
-	ni_dbus_object_register_object_manager(object);
+	if (object->object_path) {
+		ni_dbus_connection_register_object(server->connection, object);
+		ni_dbus_object_register_object_manager(object);
+	}
 	return object;
 }
 
@@ -139,6 +144,7 @@ __ni_dbus_server_get_object(ni_dbus_object_t *parent, const char *name, int crea
 			object->object_path,
 			parent->object_path);
 
+		object->pprev = pos;
 		*pos = object;
 	}
 	return object;
@@ -203,7 +209,7 @@ ni_dbus_server_register_object(ni_dbus_server_t *server, const char *object_path
  * Register an object interface
  */
 const ni_dbus_service_t *
-ni_dbus_object_get_service(ni_dbus_object_t *object, const char *interface)
+ni_dbus_object_get_service(const ni_dbus_object_t *object, const char *interface)
 {
 	const ni_dbus_service_t *svc;
 	unsigned int i;
@@ -237,12 +243,6 @@ ni_dbus_object_register_service(ni_dbus_object_t *object, const ni_dbus_service_
 				return TRUE;
 			++count;
 		}
-	}
-
-	if (object->interfaces == NULL) {
-		ni_dbus_connection_register_object(object->server->connection, object);
-
-		/* FIXME: register ObjectManager interface */
 	}
 
 	object->interfaces = realloc(object->interfaces, (count + 2) * sizeof(svc));
@@ -629,8 +629,10 @@ __ni_dbus_object_message(DBusConnection *conn, DBusMessage *call, void *user_dat
 
 	ni_debug_dbus("%s(path=%s, interface=%s, method=%s) called", __FUNCTION__, object->object_path, interface, method_name);
 	svc = ni_dbus_object_get_service(object, interface);
-	if (svc == NULL)
+	if (svc == NULL) {
+		ni_debug_dbus("Unsupported service %s on object %s", interface, object->object_path);
 		return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+	}
 
 	method = ni_dbus_service_get_method(svc, method_name);
 	if (method == NULL) {
@@ -650,6 +652,8 @@ __ni_dbus_object_message(DBusConnection *conn, DBusMessage *call, void *user_dat
 
 			if (!signature || strcmp(signature, method->call_signature)) {
 				/* Call signature mismatch */
+				ni_debug_dbus("Mismatched call signature; expect=%s; got=%s",
+						method->call_signature, signature);
 				dbus_set_error(&error,
 						DBUS_ERROR_INVALID_SIGNATURE,
 						"Bad call signature in call to object %s, %s.%s",
@@ -715,6 +719,12 @@ error_reply:
 /*
  * Helper functions
  */
+ni_dbus_server_t *
+ni_dbus_object_get_server(const ni_dbus_object_t *object)
+{
+	return object->server;
+}
+
 const char *
 ni_dbus_object_get_path(const ni_dbus_object_t *object)
 {
@@ -728,13 +738,16 @@ ni_dbus_object_get_handle(const ni_dbus_object_t *object)
 }
 
 ni_dbus_object_t *
-ni_dbus_object_new_shadow(const ni_dbus_object_t *object, void *shadow_handle)
+ni_dbus_server_create_anonymous_object(ni_dbus_server_t *server,
+					const ni_dbus_object_functions_t *functions,
+					void *handle)
 {
-	ni_dbus_object_t *shadow_object;
+	ni_dbus_object_t *object;
 
-	shadow_object = calloc(1, sizeof(*object));
-	shadow_object->object_handle = shadow_handle;
-	return shadow_object;
+	object = __ni_dbus_object_new(server, NULL);
+	object->object_handle = handle;
+	object->functions = functions;
+	return object;
 }
 
 const DBusObjectPathVTable *
@@ -761,7 +774,6 @@ __ni_dbus_server_unregister_object(ni_dbus_object_t *parent, void *object_handle
 			__ni_dbus_server_unregister_object(object, object_handle);
 			pos = &object->next;
 		} else {
-			*pos = object->next;
 			__ni_dbus_object_free(object);
 		}
 	}
@@ -778,17 +790,35 @@ __ni_dbus_object_free(ni_dbus_object_t *object)
 {
 	ni_dbus_object_t *child;
 
-	if (object->server)
+	if (object->pprev) {
+		*(object->pprev) = object->next;
+		object->pprev = NULL;
+	}
+
+	if (object->server && object->object_path)
 		ni_dbus_connection_unregister_object(object->server->connection, object);
 
 	ni_string_free(&object->object_name);
 	ni_string_free(&object->object_path);
-	while ((child = object->children) != NULL) {
-		object->children = child->next;
+	while ((child = object->children) != NULL)
 		__ni_dbus_object_free(child);
-	}
 	free(object->interfaces);
 	free(object);
+}
+
+/*
+ * User-visible function: delete an object previously created through
+ * ni_dbus_server_create_anonymous_object.
+ */
+void
+ni_dbus_object_free(ni_dbus_object_t *object)
+{
+	if (object->object_path) {
+		ni_error("%s: refusing to delete server object %s",
+				__FUNCTION__, object->object_path);
+	} else {
+		__ni_dbus_object_free(object);
+	}
 }
 
 /*

@@ -18,14 +18,6 @@
 #include <wicked/logging.h>
 #include "model.h"
 
-static ni_dbus_service_t	wicked_dbus_ethernet_interface;
-
-void
-ni_objectmodel_register_ethernet_interface(ni_dbus_object_t *object)
-{
-	ni_dbus_object_register_service(object, &wicked_dbus_ethernet_interface);
-}
-
 static ni_dbus_method_t		wicked_dbus_ethernet_methods[] = {
 	{ NULL }
 };
@@ -184,7 +176,7 @@ static ni_dbus_property_t	wicked_dbus_ethernet_properties[] = {
 };
 
 
-static ni_dbus_service_t	wicked_dbus_ethernet_interface = {
+ni_dbus_service_t	wicked_dbus_ethernet_service = {
 	.object_interface = WICKED_DBUS_INTERFACE ".Ethernet",
 	.methods = wicked_dbus_ethernet_methods,
 	.properties = wicked_dbus_ethernet_properties,

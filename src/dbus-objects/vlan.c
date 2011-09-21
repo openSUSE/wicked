@@ -18,28 +18,62 @@
 #include <wicked/logging.h>
 #include "model.h"
 
-static ni_dbus_service_t	wicked_dbus_vlan_interface;
-
-void
-ni_objectmodel_register_vlan_interface(ni_dbus_object_t *object)
+/*
+ * Create a new VLAN interface
+ */
+ni_dbus_object_t *
+ni_objectmodel_new_vlan(const ni_dbus_object_t *config)
 {
-	ni_dbus_object_register_service(object, &wicked_dbus_vlan_interface);
+	ni_interface_t *cfg_ifp = ni_dbus_object_get_handle(config);
+	ni_interface_t *new_ifp;
+	const ni_vlan_t *vlan = cfg_ifp->vlan;
+	ni_handle_t *nih = ni_global_state_handle();
+
+	if (!vlan
+	 || !vlan->tag
+	 || !vlan->interface_name) {
+		/* FIXME: report error */
+		return NULL;
+	}
+
+	cfg_ifp->type = NI_IFTYPE_VLAN;
+	if (cfg_ifp->name == NULL) {
+		static char namebuf[64];
+		unsigned int num;
+
+		for (num = 0; num < 65536; ++num) {
+			snprintf(namebuf, sizeof(namebuf), "vlan%u", num);
+			if (!ni_interface_by_name(nih, namebuf)) {
+				ni_string_dup(&cfg_ifp->name, namebuf);
+				break;
+			}
+		}
+
+		if (cfg_ifp->name == NULL) {
+			/* FIXME: report error */
+			return NULL;
+		}
+	}
+
+	if (ni_interface_create_vlan(nih, cfg_ifp->name, vlan, &new_ifp) < 0) {
+		/* FIXME: report error */
+		return NULL;
+	}
+
+	if (new_ifp->type != NI_IFTYPE_VLAN) {
+		/* FIXME: report error */
+		return NULL;
+	}
+
+	return ni_objectmodel_register_interface(ni_dbus_object_get_server(config), new_ifp);
 }
 
 static ni_vlan_t *
 __wicked_dbus_vlan_handle(const ni_dbus_object_t *object, DBusError *error)
 {
 	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
-	ni_vlan_t *vlan;
 
-	if (!(vlan = ifp->vlan)) {
-		dbus_set_error(error,
-				DBUS_ERROR_FAILED,
-				"Interface %s has no vlan property",
-				ifp->name);
-		return NULL;
-	}
-	return vlan;
+	return ni_interface_get_vlan(ifp);
 }
 
 static dbus_bool_t
@@ -69,10 +103,16 @@ __wicked_dbus_vlan_set_tag(ni_dbus_object_t *object,
 	if (!(vlan = __wicked_dbus_vlan_handle(object, error)))
 		return FALSE;
 
-	if (!ni_dbus_variant_get_uint16(result, &value))
+	if (!ni_dbus_variant_get_uint16(result, &value)) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"tag property must be of type uint16");
 		return FALSE;
-	if (value == 0)
+	}
+	if (value == 0) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"tag property must not be 0");
 		return FALSE;
+	}
 	vlan->tag = value;
 	return TRUE;
 }
@@ -116,8 +156,8 @@ __wicked_dbus_vlan_set_interface_name(ni_dbus_object_t *object,
 	__NI_DBUS_PROPERTY(signature, __name, offsetof(ni_vlan_t, __name), __wicked_dbus_ethernet, rw)
 
 static ni_dbus_property_t	wicked_dbus_vlan_properties[] = {
-	WICKED_VLAN_PROPERTY(UINT32, interface_name, RO),
-	WICKED_VLAN_PROPERTY(UINT32, tag, RO),
+	WICKED_VLAN_PROPERTY(STRING, interface_name, RO),
+	WICKED_VLAN_PROPERTY(UINT16, tag, RO),
 	{ NULL }
 };
 
@@ -126,7 +166,7 @@ static ni_dbus_method_t		wicked_dbus_vlan_methods[] = {
 	{ NULL }
 };
 
-static ni_dbus_service_t	wicked_dbus_vlan_interface = {
+ni_dbus_service_t	wicked_dbus_vlan_service = {
 	.object_interface = WICKED_DBUS_INTERFACE ".VLAN",
 	.methods = wicked_dbus_vlan_methods,
 	.properties = wicked_dbus_vlan_properties,

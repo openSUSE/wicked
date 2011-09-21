@@ -207,6 +207,80 @@ out:
 	return rv;
 }
 
+dbus_bool_t
+dbus_message_serialize_variants(ni_dbus_message_t *msg,
+			unsigned int nargs, const ni_dbus_variant_t *argv,
+			DBusError *error)
+{
+	DBusMessageIter iter;
+	unsigned int i;
+
+	dbus_message_iter_init_append(msg, &iter);
+	for (i = 0; i < nargs; ++i) {
+		ni_debug_dbus("  [%u]: type=%s, value=\"%s\"", i,
+				ni_dbus_variant_signature(&argv[i]),
+				ni_dbus_variant_sprint(&argv[i]));
+		if (!ni_dbus_message_iter_append_value(&iter, &argv[i], NULL)) {
+			dbus_set_error(error,
+					DBUS_ERROR_FAILED,
+					"Error marshalling message arguments");
+			return FALSE;
+		}
+	}
+	return TRUE;
+}
+
+dbus_bool_t
+ni_dbus_proxy_call_variant(const ni_dbus_proxy_t *proxy, const char *method,
+					unsigned int nargs, const ni_dbus_variant_t *args,
+					unsigned int maxres, const ni_dbus_variant_t *res,
+					DBusError *error)
+{
+	ni_dbus_message_t *call = NULL, *reply = NULL;
+	ni_dbus_client_t *client;
+	dbus_bool_t rv = FALSE;
+
+	if (!proxy || !(client = proxy->client)) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "%s: bad proxy object", __FUNCTION__);
+		return FALSE;
+	}
+
+	call = dbus_message_new_method_call(proxy->bus_name, proxy->path, proxy->interface, method);
+	if (call == NULL) {
+		dbus_set_error(error, DBUS_ERROR_FAILED, "%s: unable to build %s() message", __FUNCTION__, method);
+		goto out;
+	}
+
+	if (nargs && !dbus_message_serialize_variants(call, nargs, args, error))
+		goto out;
+
+	if ((rv = ni_dbus_client_call(proxy->client, call, &reply)) < 0)
+		goto out;
+
+#if 0
+	if (res_type && !dbus_message_get_args(reply, &error, res_type, res_ptr, 0)) {
+		ni_error("%s: unable to deserialize %s() response", __FUNCTION__, method);
+		rv = -ni_dbus_client_translate_error(proxy->client, &error);
+		goto out;
+	}
+	if (res_type == DBUS_TYPE_STRING
+	 || res_type == DBUS_TYPE_OBJECT_PATH) {
+		char **res_string = (char **) res_ptr;
+
+		if (*res_string)
+			*res_string = xstrdup(*res_string);
+	}
+#endif
+	rv = TRUE;
+
+out:
+	if (call)
+		dbus_message_unref(call);
+	if (reply)
+		dbus_message_unref(reply);
+	return rv;
+}
+
 /*
  * Asynchronous dbus calls
  */
@@ -248,6 +322,25 @@ ni_dbus_proxy_new(ni_dbus_client_t *client, const char *bus_name, const char *pa
 	ni_string_dup(&dbo->bus_name, bus_name);
 	ni_string_dup(&dbo->path, path);
 	ni_string_dup(&dbo->interface, interface);
+	return dbo;
+}
+
+ni_dbus_proxy_t *
+ni_dbus_proxy_new_child(ni_dbus_proxy_t *parent, const char *name, const char *interface, void *local_data)
+{
+	ni_dbus_proxy_t *dbo;
+	unsigned int plen;
+
+	dbo = calloc(1, sizeof(*dbo));
+	dbo->client = parent->client;
+	dbo->local_data = local_data;
+	ni_string_dup(&dbo->bus_name, parent->bus_name);
+	ni_string_dup(&dbo->interface, interface);
+
+	plen = strlen(parent->path) + strlen(name) + 2;
+	dbo->path = malloc(plen);
+	snprintf(dbo->path, plen, "%s/%s", parent->path, name);
+
 	return dbo;
 }
 

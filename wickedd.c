@@ -195,7 +195,7 @@ wicked_discover_state(void)
 
 	if (wicked_dbus_server) {
 		for (ifp = ni_interfaces(nih); ifp; ifp = ifp->next)
-			ni_objectmodel_create_interface(wicked_dbus_server, ifp);
+			ni_objectmodel_register_interface(wicked_dbus_server, ifp);
 	}
 }
 
@@ -319,6 +319,7 @@ wicked_register_dbus_services(ni_dbus_server_t *server)
 	ni_dbus_object_t *root_object = ni_dbus_server_get_root_object(server);
 
 	ni_dbus_object_register_service(root_object, &__wicked_root_dbus_interface);
+	ni_objectmodel_register_all(server);
 }
 
 /*

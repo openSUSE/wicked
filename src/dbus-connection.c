@@ -240,9 +240,7 @@ ni_dbus_connection_call(ni_dbus_connection_t *connection,
 	}
 
 	{
-		DBusError error;
-
-		dbus_error_init(&error);
+		DBusError error = DBUS_ERROR_INIT;
 
 		switch (dbus_message_get_type(reply)) {
 		case DBUS_MESSAGE_TYPE_METHOD_CALL:
@@ -255,6 +253,7 @@ ni_dbus_connection_call(ni_dbus_connection_t *connection,
 
 		case DBUS_MESSAGE_TYPE_ERROR:
 			dbus_set_error_from_message(&error, reply);
+			ni_debug_dbus("dbus error reply = %s (%s)", error.name, error.message);
 			rv = -ni_dbus_translate_error(&error, error_map);
 			dbus_error_free(&error);
 			goto failed;
@@ -449,8 +448,11 @@ ni_dbus_connection_register_object(ni_dbus_connection_t *connection, ni_dbus_obj
 void
 ni_dbus_connection_unregister_object(ni_dbus_connection_t *connection, ni_dbus_object_t *object)
 {
-	dbus_connection_unregister_object_path(connection->conn,
-			ni_dbus_object_get_path(object));
+	const char *path = ni_dbus_object_get_path(object);
+
+	if (!path)
+		return;
+	dbus_connection_unregister_object_path(connection->conn, path);
 }
 
 /*

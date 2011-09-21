@@ -17,18 +17,23 @@
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
 #include "netinfo_priv.h"
+#include "dbus-common.h"
 #include "model.h"
 
 #define WICKED_NETIF_MODIFIED(bf, member) \
 	ni_bitfield_testbit(bf, offsetof(ni_interface_t, member))
 
-static ni_dbus_service_t	wicked_dbus_interface_interface;
 static ni_dbus_object_functions_t wicked_dbus_interface_functions;
 
+/*
+ * Register a network interface with our dbus server, and add the
+ * appropriate dbus services
+ */
 ni_dbus_object_t *
-ni_objectmodel_create_interface(ni_dbus_server_t *server, ni_interface_t *ifp)
+ni_objectmodel_register_interface(ni_dbus_server_t *server, ni_interface_t *ifp)
 {
 	ni_dbus_object_t *object;
+	const ni_dbus_service_t *link_layer_service;
 	char object_path[256];
 
 	snprintf(object_path, sizeof(object_path), "Interface/%s", ifp->name);
@@ -38,21 +43,125 @@ ni_objectmodel_create_interface(ni_dbus_server_t *server, ni_interface_t *ifp)
 	if (object == NULL)
 		ni_fatal("Unable to create dbus object for interface %s", ifp->name);
 
-	ni_dbus_object_register_service(object, &wicked_dbus_interface_interface);
+	ni_dbus_object_register_service(object, &wicked_dbus_interface_service);
+
+	link_layer_service = ni_objectmodel_link_layer_service(ifp->type);
+	if (link_layer_service != NULL)
+		ni_dbus_object_register_service(object, link_layer_service);
 
 	return object;
+}
 
-	switch (ifp->type) {
+/*
+ * Based on the network link layer type, return the DBus service implementing this
+ */
+const ni_dbus_service_t *
+ni_objectmodel_link_layer_service(int iftype)
+{
+	switch (iftype) {
 	case NI_IFTYPE_ETHERNET:
-		ni_objectmodel_register_ethernet_interface(object);
+		return &wicked_dbus_ethernet_service;
 		break;
 
 	case NI_IFTYPE_VLAN:
-		ni_objectmodel_register_vlan_interface(object);
+		return &wicked_dbus_vlan_service;
 		break;
 
 	default: ;
 	}
+
+	return NULL;
+}
+
+ni_dbus_object_t *
+ni_objectmodel_new_interface(ni_dbus_server_t *server, const ni_dbus_service_t *service,
+			const ni_dbus_variant_t *dict, DBusError *error)
+{
+	ni_dbus_object_t *object = NULL, *result = NULL;
+	ni_interface_t *ifp = NULL;
+	unsigned int i;
+
+	if (!ni_dbus_variant_is_dict(dict))
+		goto bad_args;
+
+	ifp = __ni_interface_new(NULL, 0);
+	if (!ifp) {
+		dbus_set_error(error, DBUS_ERROR_FAILED,
+			"Internal error - cannot create network interface");
+		return NULL;
+	}
+
+	object = ni_dbus_server_create_anonymous_object(server, &wicked_dbus_interface_functions, ifp);
+
+	for (i = 0; i < dict->array.len; ++i) {
+		const ni_dbus_dict_entry_t *entry = &dict->dict_array_value[i];
+		const ni_dbus_property_t *prop;
+
+		if (!strcmp(entry->key, "name")) {
+			const char *ifname;
+
+			/* fail if interface exists already */
+			{
+				ni_handle_t *nih = ni_global_state_handle();
+
+				if (ni_interface_by_name(nih, ifname)) {
+					dbus_set_error(error, DBUS_ERROR_FAILED,
+						"Cannot create interface %s - already exists",
+						ifname);
+					goto error;
+				}
+			}
+
+			if (ni_dbus_variant_get_string(&entry->datum, &ifname))
+				ni_string_dup(&ifp->name, ifname);
+			continue;
+		}
+
+		if (!(prop = ni_dbus_service_get_property(service, entry->key))) {
+			ni_debug_dbus("Unknown property %s when creating a %s object",
+					entry->key, service->object_interface);
+			continue;
+		}
+
+		if (!prop->set) {
+			ni_debug_dbus("Property %s has no set function (when creating a %s object)",
+					entry->key, service->object_interface);
+			continue;
+		}
+
+		if (!prop->set(object, prop, &entry->datum, error)) {
+			if (!dbus_error_is_set(error))
+				dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+						"Error setting property \"%s\"", prop->name);
+			goto error;
+		}
+	}
+
+	if (service == &wicked_dbus_vlan_service) {
+		/* xxx */
+		result = ni_objectmodel_new_vlan(object);
+	} else {
+		dbus_set_error(error, DBUS_ERROR_FAILED,
+				"Cannot create network interface for %s - not implemented yet",
+				service->object_interface);
+		goto error;
+	}
+
+	ni_dbus_object_free(object);
+	object = NULL;
+
+	ni_interface_put(ifp);
+	return result;
+
+bad_args:
+	dbus_set_error(error, DBUS_ERROR_FAILED,
+			"Bad argument in call to Interface.create()");
+
+error:
+	if (object)
+		ni_dbus_object_free(object);
+	ni_interface_put(ifp);
+	return NULL;
 }
 
 /*
@@ -93,6 +202,7 @@ wicked_dbus_interface_refresh(ni_dbus_object_t *object)
 	return TRUE;
 }
 
+#if 0
 static ni_dbus_object_t *
 wicked_dbus_interface_create_shadow(const ni_dbus_object_t *object)
 {
@@ -128,12 +238,11 @@ wicked_dbus_interface_modify(ni_dbus_object_t *object,
 	ni_error("%s() not implemented", __FUNCTION__);
 	return FALSE;
 }
+#endif
 
 static ni_dbus_object_functions_t wicked_dbus_interface_functions = {
 	.destroy	= wicked_dbus_interface_destroy,
 	.refresh	= wicked_dbus_interface_refresh,
-	.create_shadow	= wicked_dbus_interface_create_shadow,
-	.modify		= wicked_dbus_interface_modify,
 };
 
 static ni_dbus_method_t		wicked_dbus_interface_methods[] = {
@@ -463,7 +572,7 @@ static ni_dbus_property_t	wicked_dbus_interface_properties[] = {
 	{ NULL }
 };
 
-static ni_dbus_service_t	wicked_dbus_interface_interface = {
+ni_dbus_service_t	wicked_dbus_interface_service = {
 	.object_interface = WICKED_DBUS_INTERFACE ".Interface",
 	.methods = wicked_dbus_interface_methods,
 	.properties = wicked_dbus_interface_properties,
