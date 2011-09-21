@@ -509,42 +509,7 @@ __ni_dbus_object_properties_set(ni_dbus_object_t *object, const ni_dbus_method_t
 
 	/* FIXME: Verify variant against property's signature */
 
-#if 1
 	rv = property->update(object, property, &argv[2], error);
-#else
-	if (object->functions && object->functions->create_shadow) {
-		shadow_object = object->functions->create_shadow(object);
-		if (!shadow_object) {
-			dbus_set_error(error,
-					DBUS_ERROR_FAILED,
-					"Cannot create shadow object for %s",
-					object->object_path);
-			return FALSE;
-		}
-
-		rv = property->set(shadow_object, property, &argv[2], error);
-		if (rv) {
-			ni_bitfield_t modified_bits = NI_BITFIELD_INIT;
-
-			ni_bitfield_setbit(&modified_bits, property->id);
-			rv = object->functions->modify(object, shadow_object, &modified_bits);
-			if (!rv) {
-				dbus_set_error(error,
-					DBUS_ERROR_FAILED,
-					"%s: unable to update property %s.%s",
-					object->object_path, service->object_interface,
-					property->name);
-			}
-			ni_bitfield_destroy(&modified_bits);
-		}
-		if (object->functions->destroy)
-			object->functions->destroy(shadow_object);
-		__ni_dbus_object_free(shadow_object);
-	} else {
-		rv = property->set(object, property, &argv[2], error);
-	}
-#endif
-
 	return rv;
 }
 
