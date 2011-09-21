@@ -1192,6 +1192,24 @@ ni_interface_by_hwaddr(ni_handle_t *nih, const ni_hwaddr_t *lla)
 }
 
 /*
+ * Find VLAN interface by its tag
+ */
+ni_interface_t *
+ni_interface_by_vlan_tag(ni_handle_t *nih, uint16_t tag)
+{
+	ni_interface_t *ifp;
+
+	for (ifp = nih->iflist; ifp; ifp = ifp->next) {
+		if (ifp->type == NI_IFTYPE_VLAN
+		 && ifp->vlan
+		 && ifp->vlan->tag == tag)
+			return ifp;
+	}
+
+	return NULL;
+}
+
+/*
  * Helper functions to iterate over all interfaces
  */
 ni_interface_t *

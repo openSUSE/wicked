@@ -278,6 +278,7 @@ extern ni_interface_t *	ni_interfaces(ni_handle_t *nic);
 extern ni_interface_t *	ni_interface_by_name(ni_handle_t *nic, const char *name);
 extern ni_interface_t *	ni_interface_by_index(ni_handle_t *nic, unsigned int index);
 extern ni_interface_t *	ni_interface_by_hwaddr(ni_handle_t *nic, const ni_hwaddr_t *lla);
+extern ni_interface_t *	ni_interface_by_vlan_tag(ni_handle_t *nih, uint16_t tag);
 extern ni_interface_t *	ni_interface_first(ni_handle_t *nic, ni_interface_t **pos);
 extern ni_interface_t *	ni_interface_next(ni_handle_t *nic, ni_interface_t **pos);
 
