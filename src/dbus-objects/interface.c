@@ -47,6 +47,10 @@ ni_objectmodel_create_interface(ni_dbus_server_t *server, ni_interface_t *ifp)
 		ni_objectmodel_register_ethernet_interface(object);
 		break;
 
+	case NI_IFTYPE_VLAN:
+		ni_objectmodel_register_vlan_interface(object);
+		break;
+
 	default: ;
 	}
 }

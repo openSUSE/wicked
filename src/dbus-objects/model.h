@@ -15,4 +15,9 @@
 #define NI_DBUS_PROPERTY(type, __name, __id, fstem, rw) \
 	__NI_DBUS_PROPERTY(DBUS_TYPE_##type##_AS_STRING, __name, __id, fstem, rw)
 
+extern void	ni_objectmodel_register_ethernet_interface(ni_dbus_object_t *);
+extern void	ni_objectmodel_register_bridge_interface(ni_dbus_object_t *);
+extern void	ni_objectmodel_register_bonding_interface(ni_dbus_object_t *);
+extern void	ni_objectmodel_register_vlan_interface(ni_dbus_object_t *);
+
 #endif /* __WICKED_OBJECTMODEL_H__ */

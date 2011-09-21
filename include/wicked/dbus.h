@@ -218,7 +218,6 @@ ni_dbus_variant_datum_const_ptr(const ni_dbus_variant_t *variant)
 }
 
 extern ni_dbus_object_t *	ni_objectmodel_create_interface(ni_dbus_server_t *, ni_interface_t *ifp);
-extern void			ni_objectmodel_register_ethernet_interface(ni_dbus_object_t *);
 
 
 #endif /* __WICKED_DBUS_H__ */
