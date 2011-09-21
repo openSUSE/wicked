@@ -153,7 +153,7 @@ __wicked_dbus_ethernet_set_duplex(ni_dbus_object_t *object,
 }
 
 static dbus_bool_t
-__wicked_dbus_ethernet_get_autoneg(const ni_dbus_object_t *object,
+__wicked_dbus_ethernet_get_autoneg_enable(const ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				ni_dbus_variant_t *result,
 				DBusError *error)
@@ -162,7 +162,7 @@ __wicked_dbus_ethernet_get_autoneg(const ni_dbus_object_t *object,
 }
 
 static dbus_bool_t
-__wicked_dbus_ethernet_set_autoneg(ni_dbus_object_t *object,
+__wicked_dbus_ethernet_set_autoneg_enable(ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				const ni_dbus_variant_t *result,
 				DBusError *error)
@@ -171,15 +171,15 @@ __wicked_dbus_ethernet_set_autoneg(ni_dbus_object_t *object,
 }
 
 #define WICKED_ETHERNET_PROPERTY(type, __name, rw) \
-	NI_DBUS_PROPERTY(type, __name, __wicked_dbus_ethernet, rw)
+	NI_DBUS_PROPERTY(type, __name, offsetof(ni_ethernet_t, __name), __wicked_dbus_ethernet, rw)
 #define WICKED_ETHERNET_PROPERTY_SIGNATURE(signature, __name, rw) \
-	__NI_DBUS_PROPERTY(signature, __name, __wicked_dbus_ethernet, rw)
+	__NI_DBUS_PROPERTY(signature, __name, offsetof(ni_ethernet_t, __name), __wicked_dbus_ethernet, rw)
 
 static ni_dbus_property_t	wicked_dbus_ethernet_properties[] = {
 	WICKED_ETHERNET_PROPERTY(UINT32, link_speed, RO),
 	WICKED_ETHERNET_PROPERTY(UINT32, port_type, RO),
 	WICKED_ETHERNET_PROPERTY(UINT32, duplex, RO),
-	WICKED_ETHERNET_PROPERTY(UINT32, autoneg, RO),
+	WICKED_ETHERNET_PROPERTY(UINT32, autoneg_enable, RO),
 	{ NULL }
 };
 

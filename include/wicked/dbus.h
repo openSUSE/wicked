@@ -106,7 +106,7 @@ struct ni_dbus_object_functions {
 	void			(*destroy)(ni_dbus_object_t *);
 	dbus_bool_t		(*refresh)(ni_dbus_object_t *);
 	ni_dbus_object_t *	(*create_shadow)(const ni_dbus_object_t *);
-	dbus_bool_t		(*modify)(ni_dbus_object_t *, const ni_dbus_object_t *);
+	dbus_bool_t		(*modify)(ni_dbus_object_t *, const ni_dbus_object_t *, const ni_bitfield_t *);
 };
 
 typedef void			ni_dbus_async_callback_t(ni_dbus_proxy_t *proxy,

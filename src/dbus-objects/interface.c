@@ -19,6 +19,9 @@
 #include "netinfo_priv.h"
 #include "model.h"
 
+#define WICKED_NETIF_MODIFIED(bf, member) \
+	ni_bitfield_testbit(bf, offsetof(ni_interface_t, member))
+
 static ni_dbus_service_t	wicked_dbus_interface_interface;
 static ni_dbus_object_functions_t wicked_dbus_interface_functions;
 
@@ -109,8 +112,15 @@ wicked_dbus_interface_create_shadow(const ni_dbus_object_t *object)
 }
 
 static dbus_bool_t
-wicked_dbus_interface_modify(ni_dbus_object_t *object, const ni_dbus_object_t *shadow_object)
+wicked_dbus_interface_modify(ni_dbus_object_t *object,
+				const ni_dbus_object_t *shadow_object,
+				const ni_bitfield_t *bf)
 {
+	if (WICKED_NETIF_MODIFIED(bf, mtu)) {
+		ni_debug_dbus("change of mtu requested");
+		return TRUE;
+	}
+
 	ni_error("%s() not implemented", __FUNCTION__);
 	return FALSE;
 }
@@ -154,7 +164,7 @@ __wicked_dbus_interface_set_type(ni_dbus_object_t *object,
 }
 
 static dbus_bool_t
-__wicked_dbus_interface_get_status(const ni_dbus_object_t *object,
+__wicked_dbus_interface_get_ifflags(const ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				ni_dbus_variant_t *result,
 				DBusError *error)
@@ -166,7 +176,7 @@ __wicked_dbus_interface_get_status(const ni_dbus_object_t *object,
 }
 
 static dbus_bool_t
-__wicked_dbus_interface_set_status(ni_dbus_object_t *object,
+__wicked_dbus_interface_set_ifflags(ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				const ni_dbus_variant_t *argument,
 				DBusError *error)
@@ -269,7 +279,7 @@ __wicked_dbus_get_sockaddr(const ni_dbus_variant_t *dict, const char *name, ni_s
 }
 
 static dbus_bool_t
-__wicked_dbus_interface_get_addresses(const ni_dbus_object_t *object,
+__wicked_dbus_interface_get_addrs(const ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				ni_dbus_variant_t *result,
 				DBusError *error)
@@ -301,7 +311,7 @@ __wicked_dbus_interface_get_addresses(const ni_dbus_object_t *object,
 }
 
 static dbus_bool_t
-__wicked_dbus_interface_set_addresses(ni_dbus_object_t *object,
+__wicked_dbus_interface_set_addrs(ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				const ni_dbus_variant_t *argument,
 				DBusError *error)
@@ -395,12 +405,12 @@ __wicked_dbus_interface_set_routes(ni_dbus_object_t *object,
 	return FALSE;
 }
 #define WICKED_INTERFACE_PROPERTY(type, __name, rw) \
-	NI_DBUS_PROPERTY(type, __name, __wicked_dbus_interface, rw)
+	NI_DBUS_PROPERTY(type, __name, offsetof(ni_interface_t, __name),__wicked_dbus_interface, rw)
 #define WICKED_INTERFACE_PROPERTY_SIGNATURE(signature, __name, rw) \
-	__NI_DBUS_PROPERTY(signature, __name, __wicked_dbus_interface, rw)
+	__NI_DBUS_PROPERTY(signature, __name, offsetof(ni_interface_t, __name), __wicked_dbus_interface, rw)
 
 static ni_dbus_property_t	wicked_dbus_interface_properties[] = {
-	WICKED_INTERFACE_PROPERTY(UINT32, status, RO),
+	WICKED_INTERFACE_PROPERTY(UINT32, ifflags, RO),
 	WICKED_INTERFACE_PROPERTY(UINT32, type, RO),
 	WICKED_INTERFACE_PROPERTY(UINT32, mtu, RW),
 	WICKED_INTERFACE_PROPERTY_SIGNATURE(
@@ -415,7 +425,7 @@ static ni_dbus_property_t	wicked_dbus_interface_properties[] = {
 				DBUS_TYPE_STRING_AS_STRING
 				DBUS_TYPE_VARIANT_AS_STRING
 			DBUS_DICT_ENTRY_END_CHAR_AS_STRING,
-			addresses, RO),
+			addrs, RO),
 
 	WICKED_INTERFACE_PROPERTY_SIGNATURE(
 			DBUS_TYPE_ARRAY_AS_STRING

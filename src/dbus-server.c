@@ -522,7 +522,10 @@ __ni_dbus_object_properties_set(ni_dbus_object_t *object, const ni_dbus_method_t
 
 		rv = property->set(shadow_object, property, &argv[2], error);
 		if (rv) {
-			rv = object->functions->modify(object, shadow_object);
+			ni_bitfield_t modified_bits = NI_BITFIELD_INIT;
+
+			ni_bitfield_setbit(&modified_bits, property->id);
+			rv = object->functions->modify(object, shadow_object, &modified_bits);
 			if (!rv) {
 				dbus_set_error(error,
 					DBUS_ERROR_FAILED,
@@ -530,6 +533,7 @@ __ni_dbus_object_properties_set(ni_dbus_object_t *object, const ni_dbus_method_t
 					object->object_path, service->object_interface,
 					property->name);
 			}
+			ni_bitfield_destroy(&modified_bits);
 		}
 		if (object->functions->destroy)
 			object->functions->destroy(shadow_object);
