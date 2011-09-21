@@ -141,6 +141,8 @@ extern void			ni_dbus_variant_set_uint32(ni_dbus_variant_t *, uint32_t);
 extern void			ni_dbus_variant_set_int32(ni_dbus_variant_t *, int32_t);
 extern void			ni_dbus_variant_set_uint64(ni_dbus_variant_t *, uint64_t);
 extern void			ni_dbus_variant_set_int64(ni_dbus_variant_t *, int64_t);
+extern dbus_bool_t		ni_dbus_variant_get_string(const ni_dbus_variant_t *, const char **);
+extern dbus_bool_t		ni_dbus_variant_get_byte(const ni_dbus_variant_t *, unsigned char *);
 extern dbus_bool_t		ni_dbus_variant_get_uint16(const ni_dbus_variant_t *, uint16_t *);
 extern dbus_bool_t		ni_dbus_variant_get_int16(const ni_dbus_variant_t *, int16_t *);
 extern dbus_bool_t		ni_dbus_variant_get_uint32(const ni_dbus_variant_t *, uint32_t *);

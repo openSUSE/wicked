@@ -294,6 +294,24 @@ ni_dbus_variant_set_int64(ni_dbus_variant_t *var, int64_t value)
  * Get simple types from a variant
  */
 dbus_bool_t
+ni_dbus_variant_get_string(const ni_dbus_variant_t *var, const char **ret)
+{
+	if (var->type != DBUS_TYPE_STRING)
+		return FALSE;
+	*ret = var->string_value;
+	return TRUE;
+}
+
+dbus_bool_t
+ni_dbus_variant_get_byte(const ni_dbus_variant_t *var, unsigned char *ret)
+{
+	if (var->type != DBUS_TYPE_BYTE)
+		return FALSE;
+	*ret = var->byte_value;
+	return TRUE;
+}
+
+dbus_bool_t
 ni_dbus_variant_get_uint16(const ni_dbus_variant_t *var, uint16_t *ret)
 {
 	if (var->type != DBUS_TYPE_UINT16)
