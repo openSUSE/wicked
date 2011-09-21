@@ -84,14 +84,13 @@ typedef dbus_bool_t		ni_dbus_property_set_fn_t(ni_dbus_object_t *,
 					DBusError *error);
 
 struct ni_dbus_property	{
-	const char *		name;
-	unsigned int		id;
-	const char *		signature;
+	const char *			name;
+	unsigned int			id;
+	const char *			signature;
 
-	unsigned int		readonly : 1;
-
-	ni_dbus_property_get_fn_t *get;
-	ni_dbus_property_set_fn_t *set;
+	ni_dbus_property_get_fn_t *	get;
+	ni_dbus_property_set_fn_t *	set;
+	ni_dbus_property_set_fn_t *	update;
 };
 
 struct ni_dbus_service {

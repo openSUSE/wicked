@@ -484,7 +484,6 @@ __ni_dbus_object_properties_set(ni_dbus_object_t *object, const ni_dbus_method_t
 {
 	const ni_dbus_property_t *property;
 	const ni_dbus_service_t *service;
-	ni_dbus_object_t *shadow_object;
 	dbus_bool_t rv;
 
 	if (!__ni_dbus_object_properties_arg_interface(object, method,
@@ -499,7 +498,7 @@ __ni_dbus_object_properties_set(ni_dbus_object_t *object, const ni_dbus_method_t
 	ni_debug_dbus("Set %s %s=%s", object->object_path, property->name,
 			ni_dbus_variant_sprint(&argv[2]));
 
-	if (property->set == NULL || property->readonly) {
+	if (property->update == NULL) {
 		dbus_set_error(error,
 				DBUS_ERROR_UNKNOWN_METHOD,	/* no error msgs defined */
 				"%s: unable to set read-only property %s.%s",
@@ -510,6 +509,9 @@ __ni_dbus_object_properties_set(ni_dbus_object_t *object, const ni_dbus_method_t
 
 	/* FIXME: Verify variant against property's signature */
 
+#if 1
+	rv = property->update(object, property, &argv[2], error);
+#else
 	if (object->functions && object->functions->create_shadow) {
 		shadow_object = object->functions->create_shadow(object);
 		if (!shadow_object) {
@@ -541,6 +543,7 @@ __ni_dbus_object_properties_set(ni_dbus_object_t *object, const ni_dbus_method_t
 	} else {
 		rv = property->set(object, property, &argv[2], error);
 	}
+#endif
 
 	return rv;
 }

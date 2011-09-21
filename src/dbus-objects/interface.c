@@ -218,6 +218,27 @@ __wicked_dbus_interface_set_mtu(ni_dbus_object_t *object,
 }
 
 static dbus_bool_t
+__wicked_dbus_interface_update_mtu(ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *argument,
+				DBusError *error)
+{
+	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
+	uint32_t value;
+
+	if (!ni_dbus_variant_get_uint32(argument, &value))
+		return FALSE;
+#if 0
+	if (!ni_interface_update_mtu(ifp, mtu))
+		return FALSE;
+#else
+	ni_warn("%s not yet implemented", __FUNCTION__);
+#endif
+	ifp->mtu = value;
+	return TRUE;
+}
+
+static dbus_bool_t
 __wicked_dbus_interface_get_hwaddr(const ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				ni_dbus_variant_t *result,
