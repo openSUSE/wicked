@@ -297,6 +297,8 @@ extern int		ni_interface_set_lease(ni_handle_t *, ni_interface_t *, ni_addrconf_
 extern int		ni_interface_stats_refresh(ni_handle_t *, ni_interface_t *);
 extern int		ni_interface_request_scan(ni_handle_t *, ni_interface_t *);
 extern int		ni_interface_get_scan_results(ni_handle_t *, ni_interface_t *);
+extern int		ni_interface_create_vlan(ni_handle_t *nih, const char *ifname,
+				const ni_vlan_t *cfg_vlan, ni_interface_t **ifpp);
 extern int		ni_interface_delete(ni_handle_t *, const char *);
 
 extern ni_route_t *	ni_interface_add_route(ni_handle_t *, ni_interface_t *,

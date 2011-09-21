@@ -50,6 +50,7 @@ static int	__ni_interface_bond_configure(ni_handle_t *, const ni_interface_t *, 
 static int	__ni_interface_extension_configure(ni_handle_t *, const ni_interface_t *, ni_interface_t **);
 static int	__ni_interface_extension_delete(ni_handle_t *, ni_interface_t *);
 static int	__ni_interface_update_ipv6_settings(ni_handle_t *, ni_interface_t *, const ni_interface_t *);
+static int	__ni_rtnl_link_create_vlan(ni_handle_t *, const char *, const ni_vlan_t *);
 static int	__ni_rtnl_link_create(ni_handle_t *, const ni_interface_t *);
 static int	__ni_rtnl_link_up(ni_handle_t *, const ni_interface_t *, const ni_interface_t *);
 static int	__ni_rtnl_link_down(ni_handle_t *, const ni_interface_t *, int);
@@ -642,6 +643,65 @@ __ni_interface_vlan_configure(ni_handle_t *nih, const ni_interface_t *cfg, ni_in
 }
 
 /*
+ * Create a VLAN interface
+ */
+int
+ni_interface_create_vlan(ni_handle_t *nih, const char *ifname, const ni_vlan_t *cfg_vlan, ni_interface_t **ifpp)
+{
+	ni_interface_t *ifp;
+	ni_vlan_t *cur_vlan = NULL;
+
+	ifp = ni_interface_by_vlan_tag(nih, cfg_vlan->tag);
+	if (ifp != NULL) {
+		ni_error("%s: VLAN interface with tag 0x%x already exists", ifname, cfg_vlan->tag);
+		return -1;
+	}
+
+	debug_ifconfig("%s: creating VLAN device", ifname);
+	if (__ni_rtnl_link_create_vlan(nih, ifname, cfg_vlan)) {
+		error("unable to create vlan interface %s", ifname);
+		return -1;
+	}
+
+	/* Refresh interface status */
+	ni_refresh(nih);
+
+	ifp = ni_interface_by_vlan_tag(nih, cfg_vlan->tag);
+	if (ifp == NULL) {
+		error("tried to create interface %s; still not found", ifname);
+		return -1;
+	}
+
+	if (!(cur_vlan = ifp->vlan))
+		return -1;
+
+	{
+		ni_interface_t *real_dev;
+
+		if (!cfg_vlan->interface_name)
+			return -1;
+		real_dev = ni_interface_by_name(nih, cfg_vlan->interface_name);
+		if (!real_dev || !real_dev->ifindex) {
+			error("Cannot bring up VLAN interface %s: %s does not exist",
+					ifname, cfg_vlan->interface_name);
+			return -1;
+		}
+
+		/* Now bring up the underlying ethernet device if it's not up yet.
+		 * Note, we don't change anything except its link status */
+		if (!ni_interface_network_is_up(real_dev)
+		 && __ni_system_interface_bringup(nih, real_dev) < 0) {
+			error("Cannot bring up VLAN interface %s: %s not ready yet",
+					ifname, cfg_vlan->interface_name);
+			return -1;
+		}
+	}
+
+	*ifpp = ifp;
+	return 0;
+}
+
+/*
  * Handle link transformation for bonding device
  */
 static int
@@ -859,6 +919,77 @@ out:
 		__ni_rtnl_link_down(nih, cfg, RTM_NEWLINK);
 
 	return rv;
+}
+
+/*
+ * Create a VLAN interface via netlink
+ */
+static int
+__ni_rtnl_link_create_vlan(ni_handle_t *nih, const char *ifname, const ni_vlan_t *vlan)
+{
+	ni_interface_t *real_dev;
+	struct nlattr *linkinfo;
+	struct nlattr *data;
+	struct ifinfomsg ifi;
+	struct nl_msg *msg;
+	int len;
+
+	memset(&ifi, 0, sizeof(ifi));
+	ifi.ifi_family = AF_UNSPEC;
+
+	msg = nlmsg_alloc_simple(RTM_NEWLINK, NLM_F_CREATE | NLM_F_EXCL);
+
+	if (nlmsg_append(msg, &ifi, sizeof(ifi), NLMSG_ALIGNTO) < 0)
+		goto nla_put_failure;
+
+	/* VLAN:
+	 *  INFO_KIND must be "vlan"
+	 *  INFO_DATA must contain VLAN_ID
+	 *  LINK must contain the link ID of the real ethernet device
+	 */
+	debug_ifconfig("__ni_rtnl_link_create(%s, vlan, %u, %s)",
+			ifname, vlan->tag, vlan->interface_name);
+
+	if (!(linkinfo = nla_nest_start(msg, IFLA_LINKINFO)))
+		return -1;
+	NLA_PUT_STRING(msg, IFLA_INFO_KIND, "vlan");
+
+	if (!(data = nla_nest_start(msg, IFLA_INFO_DATA)))
+		return -1;
+
+	NLA_PUT_U16(msg, IFLA_VLAN_ID, vlan->tag);
+	nla_nest_end(msg, data);
+	nla_nest_end(msg, linkinfo);
+
+	/* Note, IFLA_LINK must be outside of IFLA_LINKINFO */
+
+	real_dev = ni_interface_by_name(nih, vlan->interface_name);
+	if (!real_dev || !real_dev->ifindex) {
+		error("Cannot create VLAN interface %s: interface %s does not exist",
+				ifname, vlan->interface_name);
+		return -1;
+	}
+	NLA_PUT_U32(msg, IFLA_LINK, real_dev->ifindex);
+
+	len = strlen(ifname) + 1;
+	if (len == 1 || len > IFNAMSIZ) {
+		error("\"%s\" is not a valid device identifier", ifname);
+		return -1;
+	}
+	NLA_PUT_STRING(msg, IFLA_IFNAME, ifname);
+
+	if (ni_nl_talk(nih, msg) < 0)
+		goto failed;
+
+	ni_debug_ifconfig("successfully created interface %s", ifname);
+	nlmsg_free(msg);
+	return 0;
+
+nla_put_failure:
+	ni_error("failed to encode netlink attr");
+failed:
+	nlmsg_free(msg);
+	return -1;
 }
 
 /*
