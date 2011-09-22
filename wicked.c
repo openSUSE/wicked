@@ -26,6 +26,7 @@
 #include <wicked/bridge.h>
 #include <wicked/xml.h>
 #include <wicked/xpath.h>
+#include <wicked/dbus.h>
 
 enum {
 	OPT_CONFIGFILE,
@@ -54,6 +55,7 @@ static unsigned int	opt_link_timeout = 10;
 static int		opt_progressmeter = 1;
 static int		opt_shutdown_parents = 1;
 
+static int		do_create(int, char **);
 static int		do_rest(const char *, int, char **);
 static int		do_xpath(int, char **);
 static int		do_ifup(int, char **);
@@ -81,6 +83,7 @@ main(int argc, char **argv)
 				"        Enable debugging for debug <facility>.\n"
 				"\n"
 				"Supported commands:\n"
+				"  create <iftype> [<property>=<value> <property>=<value> ...]\n"
 				"  ifup [--boot] [--file xmlspec] ifname\n"
 				"  ifdown [--delete] ifname\n"
 				"  get /config/interface\n"
@@ -144,6 +147,9 @@ main(int argc, char **argv)
 
 	cmd = argv[optind++];
 
+	if (!strcmp(cmd, "create"))
+		return do_create(argc - optind + 1, argv + optind - 1);
+
 	if (!strcmp(cmd, "xpath"))
 		return do_xpath(argc - optind + 1, argv + optind - 1);
 
@@ -161,6 +167,130 @@ main(int argc, char **argv)
 
 	fprintf(stderr, "Unsupported command %s\n", cmd);
 	goto usage;
+}
+
+static ni_dbus_proxy_t *
+wicked_dbus_client_create(void)
+{
+	ni_dbus_client_t *client;
+
+	client = ni_dbus_client_open(WICKED_DBUS_BUS_NAME);
+	if (!client)
+		ni_fatal("Unable to connect to wicked dbus service");
+
+	// ni_dbus_client_set_error_map(dbc, __wicked_error_names);
+
+	return ni_dbus_proxy_new(client,
+				WICKED_DBUS_BUS_NAME,
+				WICKED_DBUS_OBJECT_PATH,
+				WICKED_DBUS_INTERFACE,
+				NULL);
+}
+
+/*
+ * Create a virtual network interface
+ */
+static char *
+wicked_create_interface_argv(ni_dbus_proxy_t *object, int iftype, int argc, char **argv)
+{
+	ni_dbus_variant_t call_argv[2], call_resp[1], *dict;
+	const ni_dbus_service_t *service;
+	DBusError error = DBUS_ERROR_INIT;
+	char *result = NULL;
+	int i;
+
+	memset(call_argv, 0, sizeof(call_argv));
+	memset(call_resp, 0, sizeof(call_resp));
+
+	service = ni_objectmodel_link_layer_service(iftype);
+	if (!service) {
+		ni_error("Cannot create network interface for this link layer type");
+		return NULL;
+	}
+
+	ni_dbus_variant_set_string(&call_argv[0], service->object_interface);
+
+	dict = &call_argv[1];
+	ni_dbus_variant_init_dict(dict);
+	for (i = 0; i < argc; ++i) {
+		const ni_dbus_property_t *property;
+		ni_dbus_variant_t *var;
+		char *property_name = argv[i];
+		char *value;
+
+		if ((value = strchr(property_name, '=')) == NULL) {
+			ni_error("Cannot parse property \"%s\"", property_name);
+			goto failed;
+		}
+		*value++ = '\0';
+
+		/* FIXME: unquote string if needed */
+
+		if (!strcmp(property_name, "name")) {
+			ni_dbus_dict_add_string(dict, property_name, value);
+			continue;
+		}
+
+		if (!(property = ni_dbus_service_get_property(service, property_name))) {
+			ni_error("Unsupported property \"%s\"", property_name);
+			goto failed;
+		}
+
+		var = ni_dbus_dict_add(dict, property_name);
+		if (!ni_dbus_variant_parse(var, value, property->signature)) {
+			ni_error("Unable to parse property %s=%s", property_name, value);
+			goto failed;
+		}
+	}
+
+	if (!ni_dbus_proxy_call_variant(object, "create",
+				2, call_argv,
+				1, call_resp,
+				&error)) {
+		ni_error("Server refused to create interface. Server responds:");
+		fprintf(stderr, /* ni_error_extra */
+			"%s: %s\n", error.name, error.message);
+		goto failed;
+	}
+
+failed:
+	ni_dbus_variant_destroy(&call_argv[0]);
+	ni_dbus_variant_destroy(&call_argv[1]);
+	dbus_error_free(&error);
+	return result;
+}
+
+/*
+ * Handle "create" command
+ */
+int
+do_create(int argc, char **argv)
+{
+	ni_dbus_proxy_t *object;
+	char *ifname;
+	int iftype;
+
+	if (argc < 2) {
+		ni_error("wicked create: missing interface type");
+		return 1;
+	}
+
+	iftype = ni_linktype_name_to_type(argv[1]);
+	if (iftype < 0) {
+		ni_error("wicked create: unknown link type %s", argv[1]);
+		return 1;
+	}
+
+	if (!(object = wicked_dbus_client_create()))
+		return 1;
+	object = ni_dbus_proxy_new_child(object, "Interface", WICKED_DBUS_INTERFACE ".Interface", NULL);
+
+	ifname = wicked_create_interface_argv(object, iftype, argc - 2, argv + 2);
+	if (!ifname)
+		return 1;
+
+	printf("%s\n", ifname);
+	return 0;
 }
 
 static int
