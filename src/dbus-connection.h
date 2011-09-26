@@ -13,9 +13,8 @@
 
 extern ni_dbus_connection_t *	ni_dbus_connection_open(const char *bus_name);
 extern void			ni_dbus_connection_free(ni_dbus_connection_t *);
-extern int			ni_dbus_connection_call(ni_dbus_connection_t *connection,
-					ni_dbus_message_t *call, ni_dbus_message_t **reply_p,
-					unsigned int call_timeout, const ni_intmap_t *error_map);
+extern ni_dbus_message_t *	ni_dbus_connection_call(ni_dbus_connection_t *connection,
+					ni_dbus_message_t *call, unsigned int call_timeout, DBusError *error);
 extern int			ni_dbus_connection_call_async(ni_dbus_connection_t *connection,
 					ni_dbus_message_t *call, unsigned int timeout,
 					ni_dbus_async_callback_t *callback, ni_dbus_proxy_t *proxy);

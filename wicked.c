@@ -56,6 +56,7 @@ static int		opt_progressmeter = 1;
 static int		opt_shutdown_parents = 1;
 
 static int		do_create(int, char **);
+static int		do_show(int, char **);
 static int		do_rest(const char *, int, char **);
 static int		do_xpath(int, char **);
 static int		do_ifup(int, char **);
@@ -150,6 +151,9 @@ main(int argc, char **argv)
 	if (!strcmp(cmd, "create"))
 		return do_create(argc - optind + 1, argv + optind - 1);
 
+	if (!strcmp(cmd, "show"))
+		return do_show(argc - optind + 1, argv + optind - 1);
+
 	if (!strcmp(cmd, "xpath"))
 		return do_xpath(argc - optind + 1, argv + optind - 1);
 
@@ -170,6 +174,22 @@ main(int argc, char **argv)
 }
 
 static ni_dbus_proxy_t *
+wicked_proxy_interface_new_child(ni_dbus_proxy_t *parent, const char *name)
+{
+	static ni_handle_t *nih = NULL;
+	ni_interface_t *ifp;
+
+	if (nih == NULL)
+		nih = ni_dummy_open();
+	ifp = ni_interface_new(nih, name, 0);
+	return ni_dbus_proxy_new_child(parent, name, NULL, NULL, ifp);
+}
+
+static ni_dbus_proxy_functions_t wicked_proxy_interface_functions = {
+	.create_child = wicked_proxy_interface_new_child
+};
+
+static ni_dbus_proxy_t *
 wicked_dbus_client_create(void)
 {
 	ni_dbus_client_t *client;
@@ -181,10 +201,9 @@ wicked_dbus_client_create(void)
 	// ni_dbus_client_set_error_map(dbc, __wicked_error_names);
 
 	return ni_dbus_proxy_new(client,
-				WICKED_DBUS_BUS_NAME,
 				WICKED_DBUS_OBJECT_PATH,
 				WICKED_DBUS_INTERFACE,
-				NULL);
+				NULL, NULL);
 }
 
 /*
@@ -224,8 +243,6 @@ wicked_create_interface_argv(ni_dbus_proxy_t *object, int iftype, int argc, char
 		}
 		*value++ = '\0';
 
-		/* FIXME: unquote string if needed */
-
 		if (!strcmp(property_name, "name")) {
 			ni_dbus_dict_add_string(dict, property_name, value);
 			continue;
@@ -236,6 +253,7 @@ wicked_create_interface_argv(ni_dbus_proxy_t *object, int iftype, int argc, char
 			goto failed;
 		}
 
+		/* FIXME: variant_parse should unquote string if needed */
 		var = ni_dbus_dict_add(dict, property_name);
 		if (!ni_dbus_variant_parse(var, value, property->signature)) {
 			ni_error("Unable to parse property %s=%s", property_name, value);
@@ -283,13 +301,55 @@ do_create(int argc, char **argv)
 
 	if (!(object = wicked_dbus_client_create()))
 		return 1;
-	object = ni_dbus_proxy_new_child(object, "Interface", WICKED_DBUS_INTERFACE ".Interface", NULL);
+	object = ni_dbus_proxy_new_child(object, "Interface", WICKED_DBUS_INTERFACE ".Interface",
+				&wicked_proxy_interface_functions, NULL);
 
 	ifname = wicked_create_interface_argv(object, iftype, argc - 2, argv + 2);
 	if (!ifname)
 		return 1;
 
 	printf("%s\n", ifname);
+	return 0;
+}
+
+static ni_dbus_proxy_t *
+wicked_get_interface(ni_dbus_proxy_t *root_object, const char *ifname)
+{
+	ni_dbus_proxy_t *interfaces;
+
+	interfaces = ni_dbus_proxy_new_child(root_object, "Interface", WICKED_DBUS_INTERFACE ".Interface",
+				&wicked_proxy_interface_functions, NULL);
+
+	/* Call ObjectManager.GetAllObjects to get list of objects and their properties */
+	if (!ni_dbus_proxy_refresh_children(interfaces)) {
+		ni_error("Couldn't get list of active network interfaces");
+		return NULL;
+	}
+
+	/* Loop over all interfaces and find the one with matching name */
+
+
+	return NULL;
+}
+
+int
+do_show(int argc, char **argv)
+{
+	ni_dbus_proxy_t *object;
+	const char *ifname;
+
+	if (argc != 1) {
+		ni_error("wicked show: missing interface name");
+		return 1;
+	}
+
+	ifname = argv[1];
+
+	if (!(object = wicked_dbus_client_create()))
+		return 1;
+
+	object = wicked_get_interface(object, ifname);
+
 	return 0;
 }
 

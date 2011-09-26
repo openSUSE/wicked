@@ -42,6 +42,31 @@ ni_objectmodel_register_all(ni_dbus_server_t *server)
 	return TRUE;
 }
 
+const ni_dbus_service_t *
+ni_objectmodel_service_by_name(const char *name)
+{
+	static const ni_dbus_service_t *all_services[] = {
+		&wicked_dbus_netif_interface,
+		&wicked_dbus_interface_service,
+		&wicked_dbus_ethernet_service,
+		&wicked_dbus_vlan_service,
+#if 0
+		&wicked_dbus_bridge_service,
+		&wicked_dbus_bonding_service,
+#endif
+		NULL,
+	};
+	const ni_dbus_service_t *service;
+	unsigned int i;
+
+	for (i = 0; (service = all_services[i]) != NULL; ++i) {
+		if (!strcmp(service->object_interface, name))
+			return service;
+	}
+
+	return NULL;
+}
+
 /*
  * This method allows clients to create new (virtual) network interfaces.
  * The first argument is the DBus service name of the interface type to

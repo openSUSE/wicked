@@ -98,7 +98,7 @@ ni_wpa_client_open(void)
 	ni_dbus_client_set_error_map(dbc, __ni_wpa_error_names);
 
 	wpa = xcalloc(1, sizeof(*wpa));
-	wpa->proxy = ni_dbus_proxy_new(dbc, NI_WPA_BUS_NAME, NI_WPA_OBJECT_PATH, NI_WPA_INTERFACE, wpa);
+	wpa->proxy = ni_dbus_proxy_new(dbc, NI_WPA_OBJECT_PATH, NI_WPA_INTERFACE, NULL, wpa);
 	wpa->dbus = dbc;
 
 	ni_dbus_client_add_signal_handler(dbc,
@@ -195,7 +195,7 @@ ni_wpa_interface_bss_by_path(ni_wpa_interface_t *ifp, const char *object_path)
 	}
 
 	bss = xcalloc(1, sizeof(*bss));
-	bss->proxy = ni_dbus_proxy_new(ifp->proxy->client, NI_WPA_BUS_NAME, object_path, NI_WPA_BSS_INTERFACE, bss);
+	bss->proxy = ni_dbus_proxy_new(ifp->proxy->client, object_path, NI_WPA_BSS_INTERFACE, NULL, bss);
 	bss->next = ifp->bss_list;
 	ifp->bss_list = bss;
 
@@ -337,6 +337,7 @@ ni_wpa_add_interface(ni_wpa_client_t *wpa, const char *ifname, ni_wpa_interface_
 		ifp = ni_wpa_interface_new(wpa, ifname);
 
 	if (ifp->proxy == NULL) {
+		DBusError error = DBUS_ERROR_INIT;
 		DBusMessageIter iter, dict_iter;
 
 		/* Build the addInterface call, using the given interface name
@@ -359,8 +360,8 @@ ni_wpa_add_interface(ni_wpa_client_t *wpa, const char *ifname, ni_wpa_interface_
 		}
 
 		/* Do the message call */
-		if ((rv = ni_dbus_client_call(wpa->dbus, call, &reply)) < 0) {
-			ni_error("dbus call failed: %s", strerror(-rv));
+		if ((reply = ni_dbus_client_call(wpa->dbus, call, &error)) == NULL) {
+			ni_error("dbus call failed: %s (%s)", error.name, error.message);
 			goto failed;
 		}
 
@@ -394,7 +395,7 @@ ni_wpa_prepare_interface(ni_wpa_client_t *wpa, ni_wpa_interface_t *ifp, const ch
 {
 	int rv;
 
-	ifp->proxy = ni_dbus_proxy_new(wpa->dbus, NI_WPA_BUS_NAME, object_path, NI_WPA_IF_INTERFACE, ifp);
+	ifp->proxy = ni_dbus_proxy_new(wpa->dbus, object_path, NI_WPA_IF_INTERFACE, NULL, ifp);
 
 	/* Get current interface state. */
 	rv = ni_wpa_interface_get_state(wpa, ifp);
@@ -1094,6 +1095,7 @@ int
 ni_wpa_interface_get_capabilities(ni_wpa_client_t *wpa, ni_wpa_interface_t *ifp)
 {
 	ni_dbus_message_t *call = NULL, *reply = NULL;
+	DBusError error = DBUS_ERROR_INIT;
 	int rv = -1;
 
 	call = ni_dbus_proxy_call_new(ifp->proxy, "capabilities", 0);
@@ -1103,8 +1105,8 @@ ni_wpa_interface_get_capabilities(ni_wpa_client_t *wpa, ni_wpa_interface_t *ifp)
 		goto failed;
 	}
 
-	if ((rv = ni_dbus_client_call(wpa->dbus, call, &reply)) < 0) {
-		ni_error("dbus call failed: %s", strerror(-rv));
+	if ((reply = ni_dbus_client_call(wpa->dbus, call, &error)) == NULL) {
+		ni_error("dbus call failed: %s (%s)", error.name, error.message);
 		goto failed;
 	}
 
@@ -1115,6 +1117,7 @@ failed:
 		dbus_message_unref(call);
 	if (reply)
 		dbus_message_unref(reply);
+	dbus_error_free(&error);
 	return rv;
 }
 

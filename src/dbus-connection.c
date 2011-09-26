@@ -215,19 +215,19 @@ __ni_dbus_process_pending(ni_dbus_connection_t *dbc, DBusPendingCall *call)
 /*
  * Do a synchronous call across a connection
  */
-int
+ni_dbus_message_t *
 ni_dbus_connection_call(ni_dbus_connection_t *connection,
-		ni_dbus_message_t *call, ni_dbus_message_t **reply_p,
-		unsigned int call_timeout, const ni_intmap_t *error_map)
+		ni_dbus_message_t *call, unsigned int call_timeout, DBusError *error)
 {
 	DBusPendingCall *pending;
-	DBusMessage *reply;
-	int rv;
+	DBusMessage *reply = NULL;
+	int msgtype;
 
 	TRACE_ENTER();
 	if (!dbus_connection_send_with_reply(connection->conn, call, &pending, call_timeout)) {
-		ni_error("dbus_connection_send_with_reply: %m");
-		return -EIO;
+		dbus_set_error(error, DBUS_ERROR_FAILED,
+				"unable to send DBus message (errno=%d)", errno);
+		return NULL;
 	}
 
 	dbus_pending_call_block(pending);
@@ -235,43 +235,27 @@ ni_dbus_connection_call(ni_dbus_connection_t *connection,
 	reply = dbus_pending_call_steal_reply(pending);
 
 	if (call == NULL) {
-		ni_error("dbus: no reply");
-		return -EIO;
+		dbus_set_error(error, DBUS_ERROR_FAILED, "dbus: no reply");
+		return NULL;
 	}
 
-	{
-		DBusError error = DBUS_ERROR_INIT;
-
-		switch (dbus_message_get_type(reply)) {
-		case DBUS_MESSAGE_TYPE_METHOD_CALL:
-			ni_warn("dbus reply = %p, type = methodCall", reply);
-			goto eio;
-
-		case DBUS_MESSAGE_TYPE_METHOD_RETURN:
-			ni_debug_dbus("dbus reply = %p, type = methodReturn", reply);
-			break;
-
-		case DBUS_MESSAGE_TYPE_ERROR:
-			dbus_set_error_from_message(&error, reply);
-			ni_debug_dbus("dbus error reply = %s (%s)", error.name, error.message);
-			rv = -ni_dbus_translate_error(&error, error_map);
-			dbus_error_free(&error);
-			goto failed;
-
-		case DBUS_MESSAGE_TYPE_SIGNAL:
-			ni_warn("dbus reply = %p, type = signal", reply);
-			goto eio;
-		}
+	msgtype = dbus_message_get_type(reply);
+	if (msgtype == DBUS_MESSAGE_TYPE_METHOD_RETURN) {
+		/* All is well */
+		return reply;
 	}
 
-	*reply_p = reply;
-	return 0;
+	if (msgtype == DBUS_MESSAGE_TYPE_ERROR) {
+		dbus_set_error_from_message(error, reply);
+		ni_debug_dbus("dbus error reply = %s (%s)", error->name, error->message);
+	} else {
+		dbus_set_error(error, DBUS_ERROR_FAILED, "dbus: unexpected message type in reply");
+	}
 
-eio:	rv = -EIO;
-failed:	if (reply)
+
+	if (reply)
 		dbus_message_unref(reply);
-	ni_debug_dbus("%s returns %d", __FUNCTION__, rv);
-	return rv;
+	return NULL;
 }
 
 /*
@@ -366,9 +350,9 @@ ni_dbus_add_signal_handler(ni_dbus_connection_t *connection,
 					void *user_data)
 {
 	DBusMessage *call = NULL, *reply = NULL;
+	DBusError error = DBUS_ERROR_INIT;
 	ni_dbus_sigaction_t *sigact;
 	char specbuf[1024], *arg;
-	int rv;
 
 	if (sender && object_path && object_interface) {
 		snprintf(specbuf, sizeof(specbuf), "type='signal',sender='%s',path='%s',interface='%s'",
@@ -387,7 +371,7 @@ ni_dbus_add_signal_handler(ni_dbus_connection_t *connection,
 	if (!dbus_message_append_args(call, DBUS_TYPE_STRING, &arg, 0))
 		goto failed;
 
-	if ((rv = ni_dbus_connection_call(connection, call, &reply, 1000, NULL)) < 0)
+	if ((reply = ni_dbus_connection_call(connection, call, 1000, &error)) == NULL)
 		goto out;
 
 	sigact = __ni_sigaction_new(object_interface, callback, user_data);
@@ -399,6 +383,7 @@ out:
 		dbus_message_unref(call);
 	if (reply)
 		dbus_message_unref(reply);
+	dbus_error_free(&error);
 	return;
 
 failed:

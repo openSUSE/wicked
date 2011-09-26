@@ -114,7 +114,7 @@ dbus_bool_t ni_dbus_dict_end_string_dict(DBusMessageIter *iter_parent_dict,
 extern dbus_bool_t	ni_dbus_dict_open_read(DBusMessageIter *iter,
 				    DBusMessageIter *iter_dict);
 extern dbus_bool_t	ni_dbus_dict_get_entry(DBusMessageIter *iter_dict,
-				    struct ni_dbus_dict_entry *entry);
+				    ni_dbus_dict_entry_t *entry);
 extern dbus_bool_t	ni_dbus_dict_has_dict_entry(DBusMessageIter *iter_dict);
 extern void		ni_dbus_dict_entry_clear(ni_dbus_dict_entry_t *);
 

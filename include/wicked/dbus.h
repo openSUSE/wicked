@@ -106,6 +106,12 @@ struct ni_dbus_object_functions {
 	dbus_bool_t		(*refresh)(ni_dbus_object_t *);
 };
 
+typedef struct ni_dbus_proxy_functions	ni_dbus_proxy_functions_t;
+struct ni_dbus_proxy_functions {
+	ni_dbus_proxy_t *	(*create_child)(ni_dbus_proxy_t *proxy, const char *name);
+	void			(*destroy)(ni_dbus_proxy_t *);
+};
+
 typedef void			ni_dbus_async_callback_t(ni_dbus_proxy_t *proxy,
 					ni_dbus_message_t *reply);
 typedef void			ni_dbus_signal_handler_t(ni_dbus_connection_t *connection,
@@ -215,10 +221,17 @@ extern void			ni_dbus_client_add_signal_handler(ni_dbus_client_t *client,
 extern void			ni_dbus_client_set_call_timeout(ni_dbus_client_t *, unsigned int msec);
 extern void			ni_dbus_client_set_error_map(ni_dbus_client_t *, const ni_intmap_t *);
 extern int			ni_dbus_client_translate_error(ni_dbus_client_t *, const DBusError *);
-extern int			ni_dbus_client_call(ni_dbus_client_t *client, ni_dbus_message_t *call, ni_dbus_message_t **reply_p);
-extern ni_dbus_proxy_t *	ni_dbus_proxy_new(ni_dbus_client_t *, const char *, const char *, const char *, void *);
+extern ni_dbus_message_t *	ni_dbus_client_call(ni_dbus_client_t *client, ni_dbus_message_t *call,
+					DBusError *error);
+extern ni_dbus_proxy_t *	ni_dbus_proxy_new(ni_dbus_client_t *client, const char *object_path,
+					const char *default_interface,
+					const ni_dbus_proxy_functions_t *functions,
+					void *local_data);
 extern ni_dbus_proxy_t *	ni_dbus_proxy_new_child(ni_dbus_proxy_t *parent, const char *name,
-					const char *interface, void *local_data);
+					const char *interface,
+					const ni_dbus_proxy_functions_t *functions,
+					void *local_data);
+extern dbus_bool_t		ni_dbus_proxy_refresh_children(ni_dbus_proxy_t *);
 extern ni_dbus_proxy_t *	ni_dbus_proxy_find_child(ni_dbus_proxy_t *parent, const char *name);
 extern void			ni_dbus_proxy_free(ni_dbus_proxy_t *);
 extern dbus_bool_t		ni_dbus_proxy_call_variant(const ni_dbus_proxy_t *, const char *method,
@@ -263,6 +276,7 @@ ni_dbus_variant_datum_const_ptr(const ni_dbus_variant_t *variant)
 extern dbus_bool_t		ni_objectmodel_register_all(ni_dbus_server_t *);
 extern ni_dbus_object_t *	ni_objectmodel_register_interface(ni_dbus_server_t *, ni_interface_t *ifp);
 extern const ni_dbus_service_t *ni_objectmodel_link_layer_service(int iftype);
+extern const ni_dbus_service_t *ni_objectmodel_service_by_name(const char *interface_name);
 
 
 #endif /* __WICKED_DBUS_H__ */
