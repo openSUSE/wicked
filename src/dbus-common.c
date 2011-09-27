@@ -112,6 +112,9 @@ ni_dbus_message_get_args_variants(ni_dbus_message_t *msg, ni_dbus_variant_t *arg
 	for (argc = 0; argc < max_args; ++argc) {
 		DBusMessageIter *iter_p = &iter, iter_val;
 
+		if (dbus_message_iter_get_arg_type(&iter) == DBUS_TYPE_INVALID)
+			break;
+
 		/* As a matter of convenience to the coder,
 		 * automatically drill into arguments that are wrapped in a variant */
 		if (dbus_message_iter_get_arg_type(&iter) == DBUS_TYPE_VARIANT) {

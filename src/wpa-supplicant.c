@@ -304,7 +304,8 @@ ni_wpa_get_interface(ni_wpa_client_t *wpa, const char *ifname, ni_wpa_interface_
 		ifp = ni_wpa_interface_new(wpa, ifname);
 
 	if (ifp->proxy == NULL) {
-		rv = ni_dbus_object_call_simple(wpa->proxy, "getInterface",
+		rv = ni_dbus_object_call_simple(wpa->proxy,
+				NULL, "getInterface",
 				DBUS_TYPE_STRING, &ifname,
 				DBUS_TYPE_OBJECT_PATH, &object_path);
 		if (rv < 0)
@@ -452,7 +453,8 @@ ni_wpa_interface_get_state(ni_wpa_client_t *wpa, ni_wpa_interface_t *ifp)
 	char *state = NULL;
 	int rv = -1;
 
-	rv = ni_dbus_object_call_simple(ifp->proxy, "state",
+	rv = ni_dbus_object_call_simple(ifp->proxy,
+			NULL, "state",
 			DBUS_TYPE_INVALID, NULL,
 			DBUS_TYPE_STRING, &state);
 	if (rv >= 0)
@@ -498,7 +500,8 @@ ni_wpa_interface_request_scan(ni_wpa_client_t *wpa, ni_wpa_interface_t *ifp, ni_
 	uint32_t value;
 	int rv = -1;
 
-	rv = ni_dbus_object_call_simple(ifp->proxy, "scan",
+	rv = ni_dbus_object_call_simple(ifp->proxy,
+			NULL, "scan",
 			DBUS_TYPE_INVALID, NULL,
 			DBUS_TYPE_UINT32, &value);
 

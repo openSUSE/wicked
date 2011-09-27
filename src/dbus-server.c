@@ -148,24 +148,6 @@ ni_dbus_server_register_object(ni_dbus_server_t *server, const char *object_path
 }
 
 /*
- * Find the named method
- */
-const ni_dbus_method_t *
-ni_dbus_service_get_method(const ni_dbus_service_t *service, const char *name)
-{
-	const ni_dbus_method_t *method;
-
-	if (service->methods == NULL)
-		return NULL;
-	for (method = service->methods; method->name; ++method) {
-		if (!strcmp(method->name, name))
-			return method;
-	}
-	return NULL;
-}
-
-
-/*
  * Support the built-in ObjectManager interface
  */
 static const ni_dbus_service_t __ni_dbus_object_manager_interface;
@@ -520,6 +502,8 @@ __ni_dbus_object_message(DBusConnection *conn, DBusMessage *call, void *user_dat
 		return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
 	}
 
+	server = ni_dbus_object_get_server(object);
+
 	method = ni_dbus_service_get_method(svc, method_name);
 	if (method == NULL) {
 		dbus_set_error(&error,
@@ -574,6 +558,9 @@ __ni_dbus_object_message(DBusConnection *conn, DBusMessage *call, void *user_dat
 
 			/* Now do the call. */
 			rv = method->handler(object, method, argc, argv, reply, &error);
+
+			/* Beware, object may be gone after this! */
+			object = NULL;
 		}
 
 		while (argc--)
@@ -590,7 +577,6 @@ error_reply:
 	}
 
 	/* send reply */
-	server = ni_dbus_object_get_server(object);
 	if (ni_dbus_connection_send_message(server->connection, reply) < 0)
 		ni_error("unable to send reply (out of memory)");
 

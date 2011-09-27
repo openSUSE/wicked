@@ -18,6 +18,10 @@
 #include <wicked/logging.h>
 #include "model.h"
 
+#define TRACE_ENTERN(fmt, args...) \
+				ni_debug_dbus("%s(" fmt ")", __FUNCTION__, ##args)
+
+
 /*
  * Create a new VLAN interface
  */
@@ -68,6 +72,34 @@ ni_objectmodel_new_vlan(ni_dbus_server_t *server, const ni_dbus_object_t *config
 	return ni_objectmodel_register_interface(server, new_ifp);
 }
 
+/*
+ * VLAN.delete method
+ */
+static dbus_bool_t
+__ni_dbus_vlan_delete(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_handle_t *nih = ni_global_state_handle();
+	ni_interface_t *ifp = object->handle;
+
+	TRACE_ENTERN("ifp=%s", ifp->name);
+	if (ni_interface_delete_vlan(nih, ifp) < 0) {
+		dbus_set_error(error, DBUS_ERROR_FAILED,
+				"Error deleting VLAN interface", ifp->name);
+		return FALSE;
+	}
+
+	/* FIXME: destroy the object */
+	ni_dbus_object_free(object);
+
+	return TRUE;
+}
+
+
+/*
+ * Helper function to obtain VLAN config from dbus object
+ */
 static ni_vlan_t *
 __wicked_dbus_vlan_handle(const ni_dbus_object_t *object, DBusError *error)
 {
@@ -76,6 +108,9 @@ __wicked_dbus_vlan_handle(const ni_dbus_object_t *object, DBusError *error)
 	return ni_interface_get_vlan(ifp);
 }
 
+/*
+ * Get/set VLAN tag
+ */
 static dbus_bool_t
 __wicked_dbus_vlan_get_tag(const ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
@@ -117,6 +152,9 @@ __wicked_dbus_vlan_set_tag(ni_dbus_object_t *object,
 	return TRUE;
 }
 
+/*
+ * Get/set underlying interface
+ */
 static dbus_bool_t
 __wicked_dbus_vlan_get_interface_name(const ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
@@ -163,6 +201,7 @@ static ni_dbus_property_t	wicked_dbus_vlan_properties[] = {
 
 
 static ni_dbus_method_t		wicked_dbus_vlan_methods[] = {
+	{ "delete",		"",		__ni_dbus_vlan_delete },
 	{ NULL }
 };
 

@@ -143,12 +143,15 @@ extern ni_dbus_object_t *	ni_dbus_object_create(ni_dbus_object_t *root_object,
 					void *handle);
 extern dbus_bool_t		ni_dbus_object_register_service(ni_dbus_object_t *object,
 					const ni_dbus_service_t *);
+extern const ni_dbus_method_t *	ni_dbus_service_get_method(const ni_dbus_service_t *service,
+					const char *name);
 
 extern ni_dbus_server_t *	ni_dbus_object_get_server(const ni_dbus_object_t *);
 extern ni_dbus_client_t *	ni_dbus_object_get_client(const ni_dbus_object_t *);
 extern const char *		ni_dbus_object_get_path(const ni_dbus_object_t *);
 extern void *			ni_dbus_object_get_handle(const ni_dbus_object_t *);
 extern const ni_dbus_service_t *ni_dbus_object_get_service(const ni_dbus_object_t *, const char *);
+extern const ni_dbus_service_t *ni_dbus_object_get_service_for_method(const ni_dbus_object_t *, const char *);
 extern const char *		ni_dbus_object_get_default_interface(const ni_dbus_object_t *);
 extern void			ni_dbus_object_set_default_interface(ni_dbus_object_t *, const char *);
 extern void			ni_dbus_object_free(ni_dbus_object_t *);
@@ -259,12 +262,12 @@ extern ni_dbus_object_t *	ni_dbus_client_object_new_child(ni_dbus_object_t *pare
 					void *local_data);
 extern dbus_bool_t		ni_dbus_object_refresh_children(ni_dbus_object_t *);
 extern ni_dbus_object_t *	ni_dbus_object_find_child(ni_dbus_object_t *parent, const char *name);
-extern void			ni_dbus_object_free(ni_dbus_object_t *);
 extern dbus_bool_t		ni_dbus_object_call_variant(const ni_dbus_object_t *, const char *method,
 					unsigned int nargs, const ni_dbus_variant_t *args,
 					unsigned int maxres, const ni_dbus_variant_t *res,
 					DBusError *error);
-extern int			ni_dbus_object_call_simple(const ni_dbus_object_t *, const char *method,
+extern int			ni_dbus_object_call_simple(const ni_dbus_object_t *,
+					const char *interface, const char *method,
 					int arg_type, void *arg_ptr,
 					int res_type, void *res_ptr);
 extern int			ni_dbus_object_call_async(ni_dbus_object_t *obj,

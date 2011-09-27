@@ -56,6 +56,7 @@ static int		opt_progressmeter = 1;
 static int		opt_shutdown_parents = 1;
 
 static int		do_create(int, char **);
+static int		do_delete(int, char **);
 static int		do_show(int, char **);
 static int		do_rest(const char *, int, char **);
 static int		do_xpath(int, char **);
@@ -153,6 +154,9 @@ main(int argc, char **argv)
 
 	if (!strcmp(cmd, "show"))
 		return do_show(argc - optind + 1, argv + optind - 1);
+
+	if (!strcmp(cmd, "delete"))
+		return do_delete(argc - optind + 1, argv + optind - 1);
 
 	if (!strcmp(cmd, "xpath"))
 		return do_xpath(argc - optind + 1, argv + optind - 1);
@@ -335,6 +339,7 @@ static ni_dbus_object_t *
 wicked_get_interface(ni_dbus_object_t *root_object, const char *ifname)
 {
 	ni_dbus_object_t *interfaces;
+	ni_dbus_object_t *object;
 
 	if (!(interfaces = wicked_get_interface_object(NULL)))
 		return NULL;
@@ -348,7 +353,14 @@ wicked_get_interface(ni_dbus_object_t *root_object, const char *ifname)
 	if (ifname == NULL)
 		return interfaces;
 
-	/* FIXME: Loop over all interfaces and find the one with matching name */
+	/* Loop over all interfaces and find the one with matching name */
+	/* FIXME: this isn't type-safe at all, and should be done better */
+	for (object = interfaces->children; object; object = object->next) {
+		ni_interface_t *ifp = object->handle;
+
+		if (!strcmp(ifp->name, ifname))
+			return object;
+	}
 
 	return NULL;
 }
@@ -421,6 +433,42 @@ do_show(int argc, char **argv)
 			return 1;
 	}
 
+	return 0;
+}
+
+int
+do_delete(int argc, char **argv)
+{
+	const ni_dbus_service_t *interface;
+	ni_dbus_object_t *object;
+	const char *ifname;
+
+	if (argc != 2) {
+		ni_error("wicked delete: missing interface name");
+		return 1;
+	}
+	ifname = argv[1];
+
+	if (!(object = wicked_dbus_client_create()))
+		return 1;
+
+	object = wicked_get_interface(object, ifname);
+	if (!object)
+		return 1;
+
+	if (!(interface = ni_dbus_object_get_service_for_method(object, "delete"))) {
+		ni_error("%s: interface does not support deletion", ifname);
+		return 1;
+	}
+
+	if (ni_dbus_object_call_simple(object,
+				interface->object_interface, "delete",
+				DBUS_TYPE_INVALID, NULL, DBUS_TYPE_INVALID, NULL) < 0) {
+		ni_error("DBus delete call failed");
+		return 1;
+	}
+
+	ni_debug_dbus("successfully deleted %s", ifname);
 	return 0;
 }
 

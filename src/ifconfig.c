@@ -702,6 +702,19 @@ ni_interface_create_vlan(ni_handle_t *nih, const char *ifname, const ni_vlan_t *
 }
 
 /*
+ * Delete a VLAN interface
+ */
+int
+ni_interface_delete_vlan(ni_handle_t *nih, ni_interface_t *ifp)
+{
+	if (__ni_rtnl_link_down(nih, ifp, RTM_DELLINK)) {
+		ni_error("could not destroy VLAN interface %s", ifp->name);
+		return -1;
+	}
+	return 0;
+}
+
+/*
  * Handle link transformation for bonding device
  */
 static int

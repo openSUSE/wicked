@@ -299,6 +299,13 @@ extern int		ni_interface_request_scan(ni_handle_t *, ni_interface_t *);
 extern int		ni_interface_get_scan_results(ni_handle_t *, ni_interface_t *);
 extern int		ni_interface_create_vlan(ni_handle_t *nih, const char *ifname,
 				const ni_vlan_t *cfg_vlan, ni_interface_t **ifpp);
+extern int		ni_interface_delete_vlan(ni_handle_t *nih, ni_interface_t *ifp);
+extern int		ni_interface_create_bridge(ni_handle_t *nih, const char *ifname,
+				const ni_bridge_t *cfg_bridge, ni_interface_t **ifpp);
+extern int		ni_interface_delete_bridge(ni_handle_t *nih, ni_interface_t *ifp);
+extern int		ni_interface_create_bond(ni_handle_t *nih, const char *ifname,
+				const ni_bonding_t *cfg_bond, ni_interface_t **ifpp);
+extern int		ni_interface_delete_bond(ni_handle_t *nih, ni_interface_t *ifp);
 extern int		ni_interface_delete(ni_handle_t *, const char *);
 
 extern ni_route_t *	ni_interface_add_route(ni_handle_t *, ni_interface_t *,

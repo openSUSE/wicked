@@ -254,12 +254,12 @@ ni_dbus_object_call_new_va(const ni_dbus_object_t *dbo, const char *method, va_l
 }
 
 int
-ni_dbus_object_call_simple(const ni_dbus_object_t *proxy, const char *method,
+ni_dbus_object_call_simple(const ni_dbus_object_t *proxy,
+				const char *interface_name, const char *method,
 				int arg_type, void *arg_ptr,
 				int res_type, void *res_ptr)
 {
 	ni_dbus_client_t *client = ni_dbus_object_get_client(proxy);
-	const char *interface_name;
 	ni_dbus_message_t *msg = NULL, *reply = NULL;
 	DBusError error;
 	int rv = 0;
@@ -271,7 +271,9 @@ ni_dbus_object_call_simple(const ni_dbus_object_t *proxy, const char *method,
 	if (!client)
 		return -EIO;
 
-	if (!(interface_name = ni_dbus_object_get_default_interface(proxy))) {
+	if (!interface_name)
+		interface_name = ni_dbus_object_get_default_interface(proxy);
+	if (interface_name == NULL) {
 		ni_error("ni_dbus_object_call_new: no default interface for object %s", proxy->path);
 		return -EIO;
 	}
@@ -517,6 +519,8 @@ __ni_dbus_object_get_managed_object_interfaces(ni_dbus_object_t *proxy, DBusMess
 		service = ni_objectmodel_service_by_name(interface_name);
 		if (!service)
 			continue;
+
+		ni_dbus_object_register_service(proxy, service);
 
 		/* The value of this dict entry is the property dict */
 		if (!__ni_dbus_object_get_managed_object_properties(proxy, service, &iter_dict_entry))
