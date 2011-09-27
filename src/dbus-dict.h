@@ -25,70 +25,8 @@ dbus_bool_t ni_dbus_dict_open_write(DBusMessageIter *iter,
 dbus_bool_t ni_dbus_dict_close_write(DBusMessageIter *iter,
 				      DBusMessageIter *iter_dict);
 
-dbus_bool_t ni_dbus_dict_append_string(DBusMessageIter *iter_dict,
-					const char *key, const char *value);
-
-dbus_bool_t ni_dbus_dict_append_byte(DBusMessageIter *iter_dict,
-				      const char *key, const char value);
-
-dbus_bool_t ni_dbus_dict_append_bool(DBusMessageIter *iter_dict,
-				      const char *key,
-				      const dbus_bool_t value);
-
-dbus_bool_t ni_dbus_dict_append_int16(DBusMessageIter *iter_dict,
-				       const char *key,
-				       const dbus_int16_t value);
-
-dbus_bool_t ni_dbus_dict_append_uint16(DBusMessageIter *iter_dict,
-					const char *key,
-					const dbus_uint16_t value);
-
-dbus_bool_t ni_dbus_dict_append_int32(DBusMessageIter *iter_dict,
-				       const char *key,
-				       const dbus_int32_t value);
-
-dbus_bool_t ni_dbus_dict_append_uint32(DBusMessageIter *iter_dict,
-					const char *key,
-					const dbus_uint32_t value);
-
-dbus_bool_t ni_dbus_dict_append_int64(DBusMessageIter *iter_dict,
-				       const char *key,
-				       const dbus_int64_t value);
-
-dbus_bool_t ni_dbus_dict_append_uint64(DBusMessageIter *iter_dict,
-					const char *key,
-					const dbus_uint64_t value);
-
-dbus_bool_t ni_dbus_dict_append_double(DBusMessageIter *iter_dict,
-					const char *key,
-					const double value);
-
-dbus_bool_t ni_dbus_dict_append_object_path(DBusMessageIter *iter_dict,
-					     const char *key,
-					     const char *value);
-
 dbus_bool_t ni_dbus_dict_append_variant(DBusMessageIter *iter_dict,
 				      const char *key, const ni_dbus_variant_t *);
-
-dbus_bool_t ni_dbus_dict_append_byte_array(DBusMessageIter *iter_dict,
-					    const char *key,
-					    const char *value,
-					    const dbus_uint32_t value_len);
-
-/* Manual construction and addition of string array elements */
-dbus_bool_t ni_dbus_dict_begin_string_array(DBusMessageIter *iter_dict,
-                                             const char *key,
-                                             DBusMessageIter *iter_dict_entry,
-                                             DBusMessageIter *iter_dict_val,
-                                             DBusMessageIter *iter_array);
-
-dbus_bool_t ni_dbus_dict_string_array_add_element(DBusMessageIter *iter_array,
-                                             const char *elem);
-
-dbus_bool_t ni_dbus_dict_end_string_array(DBusMessageIter *iter_dict,
-                                           DBusMessageIter *iter_dict_entry,
-                                           DBusMessageIter *iter_dict_val,
-                                           DBusMessageIter *iter_array);
 
 /* Convenience function to add a whole string list */
 dbus_bool_t ni_dbus_dict_append_string_array(DBusMessageIter *iter_dict,
@@ -115,7 +53,6 @@ extern dbus_bool_t	ni_dbus_dict_open_read(DBusMessageIter *iter,
 				    DBusMessageIter *iter_dict);
 extern dbus_bool_t	ni_dbus_dict_get_entry(DBusMessageIter *iter_dict,
 				    ni_dbus_dict_entry_t *entry);
-extern dbus_bool_t	ni_dbus_dict_has_dict_entry(DBusMessageIter *iter_dict);
 extern void		ni_dbus_dict_entry_clear(ni_dbus_dict_entry_t *);
 
 #endif  /* DBUS_DICT_HELPERS_H */
