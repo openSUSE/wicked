@@ -717,115 +717,6 @@ ni_wpa_interface_scan_results_available_event(ni_wpa_client_t *wpa, const char *
 }
 
 /*
- * Helper functions to set BSS properties from the DBUS dict object
- * provided by wpa_supplicant.
- */
-static int
-__ni_wpa_bss_set_bssid(struct ni_dbus_dict_entry *entry, void *ptr)
-{
-	struct ni_wpa_bss_properties *props = ptr;
-
-	return ni_link_address_set(&props->bssid, NI_IFTYPE_WIRELESS,
-			entry->datum.byte_array_value, entry->datum.array.len);
-}
-
-static int
-__ni_wpa_bss_set_essid(struct ni_dbus_dict_entry *entry, void *ptr)
-{
-	struct ni_wpa_bss_properties *props = ptr;
-	ni_dbus_variant_t *variant = &entry->datum;
-
-	if (variant->array.len > sizeof(props->essid.data))
-		return -1;
-
-	memcpy(props->essid.data, variant->byte_array_value, variant->array.len);
-	props->essid.len = variant->array.len;
-	return 0;
-}
-
-#define __set_basic(field_name, type) \
-	({ ((struct ni_wpa_bss_properties *) ptr)->field_name = entry->datum.type ##_value; 0;})
-
-static int
-__ni_wpa_bss_set_frequency(struct ni_dbus_dict_entry *entry, void *ptr)
-{
-	return __set_basic(frequency, int32);
-}
-
-static int
-__ni_wpa_bss_set_noise(struct ni_dbus_dict_entry *entry, void *ptr)
-{
-	return __set_basic(noise, int32);
-}
-
-static int
-__ni_wpa_bss_set_level(struct ni_dbus_dict_entry *entry, void *ptr)
-{
-	return __set_basic(level, int32);
-}
-
-static int
-__ni_wpa_bss_set_maxrate(struct ni_dbus_dict_entry *entry, void *ptr)
-{
-	return __set_basic(maxrate, int32);
-}
-
-static int
-__ni_wpa_bss_set_quality(struct ni_dbus_dict_entry *entry, void *ptr)
-{
-	return __set_basic(quality, int32);
-}
-
-static int
-__ni_wpa_set_blob(struct ni_dbus_dict_entry *entry, ni_opaque_t **op)
-{
-	ni_dbus_variant_t *variant = &entry->datum;
-
-	if (*op)
-		ni_opaque_free(*op);
-	*op = ni_opaque_new(variant->byte_array_value, variant->array.len);
-	return 0;
-}
-
-static int
-__ni_wpa_bss_set_wpaie(struct ni_dbus_dict_entry *entry, void *ptr)
-{
-	return __ni_wpa_set_blob(entry, &((struct ni_wpa_bss_properties *) ptr)->wpaie);
-}
-
-static int
-__ni_wpa_bss_set_wpsie(struct ni_dbus_dict_entry *entry, void *ptr)
-{
-	return __ni_wpa_set_blob(entry, &((struct ni_wpa_bss_properties *) ptr)->wpsie);
-}
-
-static int
-__ni_wpa_bss_set_rsnie(struct ni_dbus_dict_entry *entry, void *ptr)
-{
-	return __ni_wpa_set_blob(entry, &((struct ni_wpa_bss_properties *) ptr)->rsnie);
-}
-
-struct ni_dbus_dict_entry_handler __bss_property_handlers[] = {
-	NI_DBUS_ARRAY_PROPERTY("bssid", DBUS_TYPE_BYTE, __ni_wpa_bss_set_bssid),
-	NI_DBUS_ARRAY_PROPERTY("ssid", DBUS_TYPE_BYTE, __ni_wpa_bss_set_essid),
-	NI_DBUS_BASIC_PROPERTY("frequency", DBUS_TYPE_INT32, __ni_wpa_bss_set_frequency),
-	NI_DBUS_BASIC_PROPERTY("level", DBUS_TYPE_INT32, __ni_wpa_bss_set_level),
-	NI_DBUS_BASIC_PROPERTY("noise", DBUS_TYPE_INT32, __ni_wpa_bss_set_noise),
-	NI_DBUS_BASIC_PROPERTY("maxrate", DBUS_TYPE_INT32, __ni_wpa_bss_set_maxrate),
-	NI_DBUS_BASIC_PROPERTY("quality", DBUS_TYPE_INT32, __ni_wpa_bss_set_quality),
-	NI_DBUS_BASIC_PROPERTY("capabilities", DBUS_TYPE_UINT16, NULL),
-
-	{ .name = "wpaie", .type = DBUS_TYPE_ARRAY, .array_type = DBUS_TYPE_BYTE, .array_len_max = 8192 ,
-	  .set = __ni_wpa_bss_set_wpaie },
-	{ .name = "wpsie", .type = DBUS_TYPE_ARRAY, .array_type = DBUS_TYPE_BYTE, .array_len_max = 8192 ,
-	  .set = __ni_wpa_bss_set_wpsie },
-	{ .name = "rsnie", .type = DBUS_TYPE_ARRAY, .array_type = DBUS_TYPE_BYTE, .array_len_max = 8192 ,
-	  .set = __ni_wpa_bss_set_rsnie },
-
-	{ NULL }
-};
-
-/*
  * Specify the DBus properties for BSS objects
  */
 static inline struct ni_wpa_bss_properties *
@@ -1246,65 +1137,6 @@ static ni_intmap_t __ni_wpa_protocol_names[] = {
 	{ NULL }
 };
 
-static int
-__ni_wpa_ifcapabilities_set_eap(struct ni_dbus_dict_entry *entry, void *ptr)
-{
-	struct ni_wireless_interface_capabilities *caps = ptr;
-
-	return __ni_wpa_translate_caps(entry, &caps->eap_methods, "eap method", __ni_wpa_eap_method_names);
-}
-
-static int
-__ni_wpa_ifcapabilities_set_pairwise(struct ni_dbus_dict_entry *entry, void *ptr)
-{
-	struct ni_wireless_interface_capabilities *caps = ptr;
-
-	return __ni_wpa_translate_caps(entry, &caps->pairwise_ciphers, "pairwise cipher", __ni_wpa_cipher_names);
-}
-
-static int
-__ni_wpa_ifcapabilities_set_group_ciphers(struct ni_dbus_dict_entry *entry, void *ptr)
-{
-	struct ni_wireless_interface_capabilities *caps = ptr;
-
-	return __ni_wpa_translate_caps(entry, &caps->group_ciphers, "group cipher", __ni_wpa_cipher_names);
-}
-
-static int
-__ni_wpa_ifcapabilities_set_keymgmt_algos(struct ni_dbus_dict_entry *entry, void *ptr)
-{
-	struct ni_wireless_interface_capabilities *caps = ptr;
-
-	return __ni_wpa_translate_caps(entry, &caps->keymgmt_algos, "key management algorithm", __ni_wpa_keymgmt_names);
-}
-
-static int
-__ni_wpa_ifcapabilities_set_auth_algos(struct ni_dbus_dict_entry *entry, void *ptr)
-{
-	struct ni_wireless_interface_capabilities *caps = ptr;
-
-	return __ni_wpa_translate_caps(entry, &caps->auth_algos, "authentiction algorithm", __ni_wpa_auth_names);
-}
-
-static int
-__ni_wpa_ifcapabilities_set_wpa_protocols(struct ni_dbus_dict_entry *entry, void *ptr)
-{
-	struct ni_wireless_interface_capabilities *caps = ptr;
-
-	return __ni_wpa_translate_caps(entry, &caps->wpa_protocols, "wpa protocol", __ni_wpa_protocol_names);
-}
-
-struct ni_dbus_dict_entry_handler __interface_capability_handlers[] = {
-	NI_DBUS_ARRAY_PROPERTY("eap", DBUS_TYPE_STRING, __ni_wpa_ifcapabilities_set_eap),
-	NI_DBUS_ARRAY_PROPERTY("pairwise", DBUS_TYPE_STRING, __ni_wpa_ifcapabilities_set_pairwise),
-	NI_DBUS_ARRAY_PROPERTY("group", DBUS_TYPE_STRING, __ni_wpa_ifcapabilities_set_group_ciphers),
-	NI_DBUS_ARRAY_PROPERTY("key_mgmt", DBUS_TYPE_STRING, __ni_wpa_ifcapabilities_set_keymgmt_algos),
-	NI_DBUS_ARRAY_PROPERTY("auth_alg", DBUS_TYPE_STRING, __ni_wpa_ifcapabilities_set_auth_algos),
-	NI_DBUS_ARRAY_PROPERTY("proto", DBUS_TYPE_STRING, __ni_wpa_ifcapabilities_set_wpa_protocols),
-
-	{ NULL }
-};
-
 static inline struct ni_wireless_interface_capabilities *
 __wpa_ifcap_properties(const ni_dbus_object_t *object)
 {
@@ -1504,40 +1336,6 @@ __ni_print_string_array(const ni_string_array_t *array)
 	return buffer;
 }
 
-#if 0
-static int
-ni_wpa_interface_capabilities_result(ni_dbus_message_t *msg, ni_wpa_interface_t *ifp)
-{
-	ni_wireless_interface_capabilities_t *caps;
-	DBusMessageIter iter, dict_iter;
-
-	dbus_message_iter_init(msg, &iter);
-	if (!ni_dbus_dict_open_read(&iter, &dict_iter))
-		goto failed;
-
-	caps = &ifp->capabilities;
-	if (ni_dbus_process_properties(&dict_iter, __interface_capability_handlers, caps) < 0)
-		goto failed;
-
-#if 0
-	ni_debug_wireless("%s interface capabilities", ifp->ifname);
-	ni_debug_wireless("  eap methods: %s", __ni_print_string_array(&caps->eap_methods));
-	ni_debug_wireless("  pairwise ciphers: %s", __ni_print_string_array(&caps->pairwise_ciphers));
-	ni_debug_wireless("  group ciphers: %s", __ni_print_string_array(&caps->group_ciphers));
-	ni_debug_wireless("  keymgmt: %s", __ni_print_string_array(&caps->keymgmt_algos));
-	ni_debug_wireless("  auth: %s", __ni_print_string_array(&caps->auth_algos));
-	ni_debug_wireless("  wpa protos: %s", __ni_print_string_array(&caps->wpa_protocols));
-#endif
-
-	return 0;
-
-failed:
-	ni_error("trouble parsing interface capabilities response");
-	return -1;
-	return 0;
-}
-#endif
-
 int
 ni_wpa_interface_get_capabilities(ni_wpa_client_t *wpa, ni_wpa_interface_t *ifp)
 {
@@ -1564,7 +1362,6 @@ ni_wpa_interface_get_capabilities(ni_wpa_client_t *wpa, ni_wpa_interface_t *ifp)
 	ni_dbus_variant_init_dict(&dict);
 	if (!ni_dbus_message_iter_get_variant_data(&iter, &dict))
 		goto failed;
-	//rv = ni_wpa_interface_capabilities_result(reply, ifp);
 	rv = ni_dbus_object_set_properties_from_dict(ifp->proxy, &wpa_ifcap_interface, &dict);
 
 #if 0
