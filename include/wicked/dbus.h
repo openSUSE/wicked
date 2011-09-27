@@ -152,6 +152,9 @@ extern const ni_dbus_service_t *ni_dbus_object_get_service(const ni_dbus_object_
 extern const char *		ni_dbus_object_get_default_interface(const ni_dbus_object_t *);
 extern void			ni_dbus_object_set_default_interface(ni_dbus_object_t *, const char *);
 extern void			ni_dbus_object_free(ni_dbus_object_t *);
+extern dbus_bool_t		ni_dbus_object_set_properties_from_dict(ni_dbus_object_t *,
+					const ni_dbus_service_t *interface,
+					const ni_dbus_variant_t *dict);
 
 extern const ni_dbus_property_t *ni_dbus_service_get_property(const ni_dbus_service_t *service, const char *name);
 

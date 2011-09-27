@@ -128,6 +128,51 @@ ni_dbus_message_get_args_variants(ni_dbus_message_t *msg, ni_dbus_variant_t *arg
 }
 
 /*
+ * Helper function for processing all properties in a dict
+ */
+dbus_bool_t
+ni_dbus_object_set_properties_from_dict(ni_dbus_object_t *object,
+				const ni_dbus_service_t *interface,
+				const ni_dbus_variant_t *dict)
+{
+	DBusError error = DBUS_ERROR_INIT;
+	unsigned int i;
+
+	for (i = 0; i < dict->array.len; ++i) {
+		ni_dbus_dict_entry_t *entry = &dict->dict_array_value[i];
+		const ni_dbus_property_t *property;
+
+		/* now set the object property */
+		if (!(property = ni_dbus_service_get_property(interface, entry->key))) {
+			ni_debug_dbus("Ignoring unknown %s property %s=%s",
+					interface->object_interface,
+					entry->key, ni_dbus_variant_sprint(&entry->datum));
+			continue;
+		}
+
+		if (!property->set) {
+			ni_debug_dbus("Ignoring read-only property %s=%s",
+					entry->key, ni_dbus_variant_sprint(&entry->datum));
+			continue;
+		}
+
+		if (!property->set(object, property, &entry->datum, &error)) {
+			ni_debug_dbus("Error setting property %s=%s (%s: %s)",
+					entry->key, ni_dbus_variant_sprint(&entry->datum),
+					error.name, error.message);
+			continue;
+		}
+
+#if 0
+		ni_debug_dbus("Setting property %s=%s", entry->key, ni_dbus_variant_sprint(&entry->datum));
+#endif
+	}
+
+	dbus_error_free(&error);
+	return TRUE;
+}
+
+/*
  * Helper function for processing a DBusDict
  */
 static inline const struct ni_dbus_dict_entry_handler *
@@ -329,7 +374,7 @@ ni_dbus_variant_get_uint16(const ni_dbus_variant_t *var, uint16_t *ret)
 dbus_bool_t
 ni_dbus_variant_get_int16(const ni_dbus_variant_t *var, int16_t *ret)
 {
-	if (var->type != DBUS_TYPE_UINT16)
+	if (var->type != DBUS_TYPE_INT16)
 		return FALSE;
 	*ret = var->int16_value;
 	return TRUE;
@@ -347,7 +392,7 @@ ni_dbus_variant_get_uint32(const ni_dbus_variant_t *var, uint32_t *ret)
 dbus_bool_t
 ni_dbus_variant_get_int32(const ni_dbus_variant_t *var, int32_t *ret)
 {
-	if (var->type != DBUS_TYPE_UINT32)
+	if (var->type != DBUS_TYPE_INT32)
 		return FALSE;
 	*ret = var->int32_value;
 	return TRUE;
@@ -365,7 +410,7 @@ ni_dbus_variant_get_uint64(const ni_dbus_variant_t *var, uint64_t *ret)
 dbus_bool_t
 ni_dbus_variant_get_int64(const ni_dbus_variant_t *var, int64_t *ret)
 {
-	if (var->type != DBUS_TYPE_UINT64)
+	if (var->type != DBUS_TYPE_INT64)
 		return FALSE;
 	*ret = var->int64_value;
 	return TRUE;
