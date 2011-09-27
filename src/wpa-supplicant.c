@@ -329,8 +329,12 @@ ni_wpa_add_interface(ni_wpa_client_t *wpa, const char *ifname, ni_wpa_interface_
 {
 	ni_dbus_message_t *call = NULL, *reply = NULL;
 	ni_wpa_interface_t *ifp;
-	char *object_path = NULL;
+	ni_dbus_variant_t argv[2], resp[1];
+	const char *object_path = NULL;
 	int rv = -1;
+
+	memset(argv, 0, sizeof(argv));
+	memset(resp, 0, sizeof(resp));
 
 	ifp = ni_wpa_client_interface_by_local_name(wpa, ifname);
 	if (ifp == NULL)
@@ -338,36 +342,25 @@ ni_wpa_add_interface(ni_wpa_client_t *wpa, const char *ifname, ni_wpa_interface_
 
 	if (ifp->proxy == NULL) {
 		DBusError error = DBUS_ERROR_INIT;
-		DBusMessageIter iter, dict_iter;
 
-		/* Build the addInterface call, using the given interface name
-		 * and specify "wext" as the driver parameter. */
-		call = ni_dbus_object_call_new_va(wpa->proxy, "addInterface", NULL);
-		if (call == NULL) {
-			ni_error("%s: could not build message", __func__);
+		ni_dbus_variant_set_string(&argv[0], ifname);
+		ni_dbus_variant_init_dict(&argv[1]);
+		ni_dbus_dict_add_string(&argv[1], "driver", "wext");
+
+		if (!ni_dbus_object_call_variant(wpa->proxy, "addInterface",
+					2, argv, 1, resp, &error)) {
+			ni_error("%s: dbus call failed (%s: %s)", __func__,
+					error.name, error.message);
 			rv = -EINVAL;
 			goto failed;
 		}
 
-		dbus_message_iter_init_append(call, &iter);
-		dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &ifname);
-		if (!ni_dbus_dict_open_write(&iter, &dict_iter)
-		 || !ni_dbus_dict_append_string(&dict_iter, "driver", "wext")
-		 || !ni_dbus_dict_close_write(&iter, &dict_iter)) {
-			ni_error("dbus marshalling error");
+		if (resp[0].type != DBUS_TYPE_OBJECT_PATH
+		 || !ni_dbus_variant_get_string(&resp[0], &object_path)) {
+			ni_error("%s: unexpected type in reply", __func__);
 			rv = -EINVAL;
 			goto failed;
 		}
-
-		/* Do the message call */
-		if ((reply = ni_dbus_client_call(wpa->dbus, call, &error)) == NULL) {
-			ni_error("dbus call failed: %s (%s)", error.name, error.message);
-			goto failed;
-		}
-
-		rv = ni_dbus_message_get_args(reply, DBUS_TYPE_OBJECT_PATH, &object_path, 0);
-		if (rv < 0)
-			goto failed;
 
 		rv = ni_wpa_prepare_interface(wpa, ifp, object_path);
 		if (rv < 0)
@@ -378,11 +371,13 @@ ni_wpa_add_interface(ni_wpa_client_t *wpa, const char *ifname, ni_wpa_interface_
 	rv = 0;
 
 cleanup:
-	ni_string_free(&object_path);
 	if (call)
 		dbus_message_unref(call);
 	if (reply)
 		dbus_message_unref(reply);
+	ni_dbus_variant_destroy(&argv[0]);
+	ni_dbus_variant_destroy(&argv[1]);
+	ni_dbus_variant_destroy(&resp[0]);
 	return rv;
 
 failed:
