@@ -241,6 +241,7 @@ extern int		ni_refresh(ni_handle_t *);
 extern int		ni_interface_refresh_one(ni_handle_t *, const char *);
 extern int		ni_create_topology(ni_handle_t *);
 extern void		ni_close(ni_handle_t *);
+extern unsigned int	ni_handle_seq(ni_handle_t *);
 
 /* Error reporting */
 extern void		ni_bad_reference(ni_handle_t *, const ni_interface_t *, const char *);

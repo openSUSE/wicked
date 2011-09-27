@@ -196,6 +196,12 @@ ni_close(ni_handle_t *nih)
 	free(nih);
 }
 
+unsigned int
+ni_handle_seq(ni_handle_t *nih)
+{
+	return nih->seqno;
+}
+
 /*
  * Dummy ni_handle - this can be used to convert XML to an
  * interface description, which is then manipulated further.
