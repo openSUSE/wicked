@@ -48,22 +48,4 @@ struct ni_dbus_dict_entry {
 	ni_dbus_variant_t	datum;
 };
 
-struct ni_dbus_dict_entry_handler {
-	const char *		name;
-	int			type;
-	int			array_type;
-	unsigned int		array_len_min;
-	unsigned int		array_len_max;
-
-	int			(*set)(struct ni_dbus_dict_entry *, void *);
-};
-
-#define NI_DBUS_BASIC_PROPERTY(__name, __type, __setfn) \
-{ .name = __name, .type = __type, .set = __setfn }
-#define NI_DBUS_ARRAY_PROPERTY(__name, __array_type, __setfn) \
-{ .name = __name, .type = DBUS_TYPE_ARRAY, .array_type = __array_type, .set = __setfn }
-
-extern int			ni_dbus_process_properties(DBusMessageIter *, const struct ni_dbus_dict_entry_handler *, void *);
-
-
 #endif /* __WICKED_DBUS_COMMON_H__ */

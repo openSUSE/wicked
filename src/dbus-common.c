@@ -173,67 +173,6 @@ ni_dbus_object_set_properties_from_dict(ni_dbus_object_t *object,
 }
 
 /*
- * Helper function for processing a DBusDict
- */
-static inline const struct ni_dbus_dict_entry_handler *
-__ni_dbus_get_property_handler(const struct ni_dbus_dict_entry_handler *handlers, const char *name)
-{
-	const struct ni_dbus_dict_entry_handler *h;
-
-	for (h = handlers; h->type; ++h) {
-		if (!strcmp(h->name, name))
-			return h;
-	}
-	return NULL;
-}
-
-int
-ni_dbus_process_properties(DBusMessageIter *iter, const struct ni_dbus_dict_entry_handler *handlers, void *user_object)
-{
-	struct ni_dbus_dict_entry entry;
-	int rv = 0;
-
-	TRACE_ENTER();
-	while (ni_dbus_dict_get_entry(iter, &entry)) {
-		const struct ni_dbus_dict_entry_handler *h;
-		const ni_dbus_variant_t *v = &entry.datum;
-
-#if 0
-		if (v->type == DBUS_TYPE_ARRAY) {
-			ni_debug_dbus("++%s -- array of type %c", entry.key, v->array.type);
-		} else {
-			ni_debug_dbus("++%s -- type %c", entry.key, v->type);
-		}
-#endif
-
-		if (!(h = __ni_dbus_get_property_handler(handlers, entry.key))) {
-			ni_debug_dbus("%s: ignore unknown dict element \"%s\"", __FUNCTION__, entry.key);
-			continue;
-		}
-
-		if (h->type != v->type
-		 || (h->type == DBUS_TYPE_ARRAY && h->array_type != v->array.element_type)) {
-			ni_error("%s: unexpected type for dict element \"%s\"", __FUNCTION__, entry.key);
-			rv = -EINVAL;
-			break;
-		}
-
-		if (h->type == DBUS_TYPE_ARRAY && h->array_len_max != 0
-		 && (v->array.len < h->array_len_min || h->array_len_max < v->array.len)) {
-			ni_error("%s: unexpected array length %u for dict element \"%s\"",
-					__FUNCTION__, (int) v->array.len, entry.key);
-			rv = -EINVAL;
-			break;
-		}
-
-		if (h->set)
-			h->set(&entry, user_object);
-	}
-
-	return rv;
-}
-
-/*
  * Test for array-ness
  */
 static inline dbus_bool_t
