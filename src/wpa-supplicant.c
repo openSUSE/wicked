@@ -1116,8 +1116,8 @@ ni_wpa_bss_properties_result(ni_dbus_object_t *proxy, ni_dbus_message_t *msg)
 	DBusMessageIter iter;
 
 	dbus_message_iter_init(msg, &iter);
-	ni_dbus_variant_init_dict(&dict);
 
+	ni_dbus_variant_init_dict(&dict);
 	if (!ni_dbus_message_iter_get_variant_data(&iter, &dict))
 		goto failed;
 
@@ -1294,7 +1294,7 @@ __ni_wpa_ifcapabilities_set_wpa_protocols(struct ni_dbus_dict_entry *entry, void
 	return __ni_wpa_translate_caps(entry, &caps->wpa_protocols, "wpa protocol", __ni_wpa_protocol_names);
 }
 
-static struct ni_dbus_dict_entry_handler __interface_capability_handlers[] = {
+struct ni_dbus_dict_entry_handler __interface_capability_handlers[] = {
 	NI_DBUS_ARRAY_PROPERTY("eap", DBUS_TYPE_STRING, __ni_wpa_ifcapabilities_set_eap),
 	NI_DBUS_ARRAY_PROPERTY("pairwise", DBUS_TYPE_STRING, __ni_wpa_ifcapabilities_set_pairwise),
 	NI_DBUS_ARRAY_PROPERTY("group", DBUS_TYPE_STRING, __ni_wpa_ifcapabilities_set_group_ciphers),
@@ -1303,6 +1303,171 @@ static struct ni_dbus_dict_entry_handler __interface_capability_handlers[] = {
 	NI_DBUS_ARRAY_PROPERTY("proto", DBUS_TYPE_STRING, __ni_wpa_ifcapabilities_set_wpa_protocols),
 
 	{ NULL }
+};
+
+static inline struct ni_wireless_interface_capabilities *
+__wpa_ifcap_properties(const ni_dbus_object_t *object)
+{
+	ni_wpa_interface_t *wif = object->handle;
+
+	return &wif->capabilities;
+}
+
+static dbus_bool_t
+__wpa_get_capabilities(unsigned int bits, ni_dbus_variant_t *variant,
+			const char *what, const ni_intmap_t *names)
+{
+	return FALSE;
+}
+
+static dbus_bool_t
+__wpa_set_capabilities(const ni_dbus_variant_t *variant, unsigned int *bits,
+			const char *what, const ni_intmap_t *names)
+{
+	unsigned int i;
+
+	*bits = 0;
+	for (i = 0; i < variant->array.len; ++i) {
+		const char *name = variant->string_array_value[i];
+		unsigned int value;
+
+		if (ni_parse_int_mapped(name, names, &value) < 0)
+			ni_warn("unable to translate %s %s", what, name);
+		else if (value < 8 * sizeof(*bits))
+			*bits |= (1 << value);
+	}
+
+	return TRUE;
+}
+
+static dbus_bool_t
+__wpa_dbus_ifcapabilities_get_eap(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		ni_dbus_variant_t *argument, DBusError *error)
+{
+	struct ni_wireless_interface_capabilities *caps = __wpa_ifcap_properties(object);
+
+	return __wpa_get_capabilities(caps->wpa_protocols, argument, "wpa protocol", __ni_wpa_protocol_names);
+}
+
+static dbus_bool_t
+__wpa_dbus_ifcapabilities_set_eap(ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		const ni_dbus_variant_t *argument, DBusError *error)
+{
+	struct ni_wireless_interface_capabilities *caps = __wpa_ifcap_properties(object);
+
+	return __wpa_set_capabilities(argument, &caps->eap_methods, "eap protocol", __ni_wpa_eap_method_names);
+}
+
+static dbus_bool_t
+__wpa_dbus_ifcapabilities_get_pairwise(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		ni_dbus_variant_t *argument, DBusError *error)
+{
+	struct ni_wireless_interface_capabilities *caps = __wpa_ifcap_properties(object);
+
+	return __wpa_get_capabilities(caps->pairwise_ciphers, argument, "pairwise cipher", __ni_wpa_cipher_names);
+}
+
+static dbus_bool_t
+__wpa_dbus_ifcapabilities_set_pairwise(ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		const ni_dbus_variant_t *argument, DBusError *error)
+{
+	struct ni_wireless_interface_capabilities *caps = __wpa_ifcap_properties(object);
+
+	return __wpa_set_capabilities(argument, &caps->pairwise_ciphers, "pairwise cipher", __ni_wpa_cipher_names);
+}
+
+static dbus_bool_t
+__wpa_dbus_ifcapabilities_get_group(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		ni_dbus_variant_t *argument, DBusError *error)
+{
+	struct ni_wireless_interface_capabilities *caps = __wpa_ifcap_properties(object);
+
+	return __wpa_get_capabilities(caps->group_ciphers, argument, "group cipher", __ni_wpa_cipher_names);
+}
+
+static dbus_bool_t
+__wpa_dbus_ifcapabilities_set_group(ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		const ni_dbus_variant_t *argument, DBusError *error)
+{
+	struct ni_wireless_interface_capabilities *caps = __wpa_ifcap_properties(object);
+
+	return __wpa_set_capabilities(argument, &caps->group_ciphers, "group cipher", __ni_wpa_cipher_names);
+}
+
+static dbus_bool_t
+__wpa_dbus_ifcapabilities_get_key_mgmt(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		ni_dbus_variant_t *argument, DBusError *error)
+{
+	struct ni_wireless_interface_capabilities *caps = __wpa_ifcap_properties(object);
+
+	return __wpa_get_capabilities(caps->keymgmt_algos, argument, "key management algorithm", __ni_wpa_keymgmt_names);
+}
+
+static dbus_bool_t
+__wpa_dbus_ifcapabilities_set_key_mgmt(ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		const ni_dbus_variant_t *argument, DBusError *error)
+{
+	struct ni_wireless_interface_capabilities *caps = __wpa_ifcap_properties(object);
+
+	return __wpa_set_capabilities(argument, &caps->keymgmt_algos, "key management algorithm", __ni_wpa_keymgmt_names);
+}
+
+static dbus_bool_t
+__wpa_dbus_ifcapabilities_get_auth_alg(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		ni_dbus_variant_t *argument, DBusError *error)
+{
+	struct ni_wireless_interface_capabilities *caps = __wpa_ifcap_properties(object);
+
+	return __wpa_get_capabilities(caps->auth_algos, argument, "authentication algorithm", __ni_wpa_auth_names);
+}
+
+static dbus_bool_t
+__wpa_dbus_ifcapabilities_set_auth_alg(ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		const ni_dbus_variant_t *argument, DBusError *error)
+{
+	struct ni_wireless_interface_capabilities *caps = __wpa_ifcap_properties(object);
+
+	return __wpa_set_capabilities(argument, &caps->auth_algos, "authentication algorithm", __ni_wpa_auth_names);
+}
+
+static dbus_bool_t
+__wpa_dbus_ifcapabilities_get_protos(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		ni_dbus_variant_t *argument, DBusError *error)
+{
+	struct ni_wireless_interface_capabilities *caps = __wpa_ifcap_properties(object);
+
+	return __wpa_get_capabilities(caps->wpa_protocols, argument, "wpa algorithm", __ni_wpa_protocol_names);
+}
+
+static dbus_bool_t
+__wpa_dbus_ifcapabilities_set_protos(ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		const ni_dbus_variant_t *argument, DBusError *error)
+{
+	struct ni_wireless_interface_capabilities *caps = __wpa_ifcap_properties(object);
+
+	return __wpa_set_capabilities(argument, &caps->wpa_protocols, "wpa algorithm", __ni_wpa_protocol_names);
+}
+
+#define WPA_IFCAP_PROPERTY(type, __name, rw) \
+	NI_DBUS_PROPERTY(type, __name, 0, __wpa_dbus_ifcapabilities, rw)
+#define WPA_IFCAP_PROPERTY_SIGNATURE(signature, __name, rw) \
+	__NI_DBUS_PROPERTY(signature, __name, 0, __wpa_dbus_ifcapabilities, rw)
+
+static ni_dbus_property_t	wpa_ifcap_properties[] = {
+	WPA_IFCAP_PROPERTY_SIGNATURE(DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_STRING_AS_STRING, eap, RO),
+	WPA_IFCAP_PROPERTY_SIGNATURE(DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_STRING_AS_STRING, pairwise, RO),
+	WPA_IFCAP_PROPERTY_SIGNATURE(DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_STRING_AS_STRING, group, RO),
+	WPA_IFCAP_PROPERTY_SIGNATURE(DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_STRING_AS_STRING, key_mgmt, RO),
+	WPA_IFCAP_PROPERTY_SIGNATURE(DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_STRING_AS_STRING, auth_alg, RO),
+	WPA_IFCAP_PROPERTY_SIGNATURE(DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_STRING_AS_STRING, protos, RO),
+	WPA_IFCAP_PROPERTY_SIGNATURE(DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_STRING_AS_STRING, eap, RO),
+
+	{ NULL }
+};
+
+ni_dbus_service_t	wpa_ifcap_interface = {
+	.object_interface = "fi.epitest.hostap.WPASupplicant.Interface",
+	.properties = wpa_ifcap_properties,
 };
 
 const char *
@@ -1339,6 +1504,7 @@ __ni_print_string_array(const ni_string_array_t *array)
 	return buffer;
 }
 
+#if 0
 static int
 ni_wpa_interface_capabilities_result(ni_dbus_message_t *msg, ni_wpa_interface_t *ifp)
 {
@@ -1370,12 +1536,15 @@ failed:
 	return -1;
 	return 0;
 }
+#endif
 
 int
 ni_wpa_interface_get_capabilities(ni_wpa_client_t *wpa, ni_wpa_interface_t *ifp)
 {
 	ni_dbus_message_t *call = NULL, *reply = NULL;
 	DBusError error = DBUS_ERROR_INIT;
+	ni_dbus_variant_t dict;
+	DBusMessageIter iter;
 	int rv = -1;
 
 	call = ni_dbus_object_call_new(ifp->proxy, "capabilities", 0);
@@ -1390,13 +1559,34 @@ ni_wpa_interface_get_capabilities(ni_wpa_client_t *wpa, ni_wpa_interface_t *ifp)
 		goto failed;
 	}
 
-	rv = ni_wpa_interface_capabilities_result(reply, ifp);
+	dbus_message_iter_init(reply, &iter);
+
+	ni_dbus_variant_init_dict(&dict);
+	if (!ni_dbus_message_iter_get_variant_data(&iter, &dict))
+		goto failed;
+	//rv = ni_wpa_interface_capabilities_result(reply, ifp);
+	rv = ni_dbus_object_set_properties_from_dict(ifp->proxy, &wpa_ifcap_interface, &dict);
+
+#if 0
+	if (rv) {
+		ni_wireless_interface_capabilities_t *caps = &ifp->capabilities;
+
+		ni_debug_wireless("%s interface capabilities", ifp->ifname);
+		ni_debug_wireless("  eap methods: %s", __ni_print_string_array(&caps->eap_methods));
+		ni_debug_wireless("  pairwise ciphers: %s", __ni_print_string_array(&caps->pairwise_ciphers));
+		ni_debug_wireless("  group ciphers: %s", __ni_print_string_array(&caps->group_ciphers));
+		ni_debug_wireless("  keymgmt: %s", __ni_print_string_array(&caps->keymgmt_algos));
+		ni_debug_wireless("  auth: %s", __ni_print_string_array(&caps->auth_algos));
+		ni_debug_wireless("  wpa protos: %s", __ni_print_string_array(&caps->wpa_protocols));
+	}
+#endif
 
 failed:
 	if (call)
 		dbus_message_unref(call);
 	if (reply)
 		dbus_message_unref(reply);
+	ni_dbus_variant_destroy(&dict);
 	dbus_error_free(&error);
 	return rv;
 }
