@@ -29,7 +29,7 @@ struct ni_dbus_server {
 
 static dbus_bool_t		ni_dbus_object_register_object_manager(ni_dbus_object_t *);
 static const char *		__ni_dbus_server_root_path(const char *);
-static ni_dbus_object_t *	__ni_dbus_server_object_new(ni_dbus_server_t *server, const char *path);
+static void			__ni_dbus_server_object_init(ni_dbus_object_t *object, ni_dbus_server_t *server);
 
 /*
  * Constructor for DBus server handle
@@ -51,8 +51,8 @@ ni_dbus_server_open(const char *bus_name, void *root_object_handle)
 	}
 
 	/* Translate bus name foo.bar.baz into object path /foo/bar/baz */
-	root = __ni_dbus_server_object_new(server, __ni_dbus_server_root_path(bus_name));
-	root->handle = root_object_handle;
+	root = ni_dbus_object_new(__ni_dbus_server_root_path(bus_name), NULL, root_object_handle);
+	__ni_dbus_server_object_init(root, server);
 	__ni_dbus_object_insert(&server->root_object, root);
 
 	return server;
@@ -109,20 +109,9 @@ __ni_dbus_server_object_init(ni_dbus_object_t *object, ni_dbus_server_t *server)
 }
 
 /*
- * Create a new server side object
+ * When creating an object as a child of a server side object, inherit
+ * its server handle.
  */
-ni_dbus_object_t *
-__ni_dbus_server_object_new(ni_dbus_server_t *server, const char *path)
-{
-	ni_dbus_object_t *object;
-
-	object = __ni_dbus_object_new(path);
-	if (server)
-		__ni_dbus_server_object_init(object, server);
-
-	return object;
-}
-
 void
 __ni_dbus_server_object_inherit(ni_dbus_object_t *child, const ni_dbus_object_t *parent)
 {
@@ -130,6 +119,9 @@ __ni_dbus_server_object_inherit(ni_dbus_object_t *child, const ni_dbus_object_t 
 		__ni_dbus_server_object_init(child, parent->server_object->server);
 }
 
+/*
+ * When deleting an object, destroy its server handle.
+ */
 void
 __ni_dbus_server_object_destroy(ni_dbus_object_t *object)
 {
