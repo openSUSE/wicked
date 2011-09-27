@@ -19,18 +19,18 @@
 #define TP()			ni_debug_dbus("TP - %s:%u", __FUNCTION__, __LINE__)
 
 
-static char *			__ni_dbus_object_child_path(const ni_dbus_object_t *, const char *);
+static const char *		__ni_dbus_object_child_path(const ni_dbus_object_t *, const char *);
 
 /*
  * Create a new dbus object
  */
 ni_dbus_object_t *
-__ni_dbus_object_new(char *path)
+__ni_dbus_object_new(const char *path)
 {
 	ni_dbus_object_t *object;
 
 	object = calloc(1, sizeof(*object));
-	object->path = path;
+	ni_string_dup(&object->path, path);
 	return object;
 }
 
@@ -265,15 +265,17 @@ ni_dbus_service_get_property(const ni_dbus_service_t *service, const char *name)
 /*
  * Build an object path from parent path + name
  */
-static char *
+static const char *
 __ni_dbus_object_child_path(const ni_dbus_object_t *parent, const char *name)
 {
+	static char child_path[256];
 	unsigned int len;
-	char *child_path;
 
 	len = strlen(parent->path) + strlen(name) + 2;
-	child_path = malloc(len);
-	snprintf(child_path, len, "%s/%s", parent->path, name);
+	if (len >= sizeof(child_path))
+		ni_fatal("%s: child path too long (%s.%s)", __FUNCTION__,
+				parent->path, name);
 
+	snprintf(child_path, sizeof(child_path), "%s/%s", parent->path, name);
 	return child_path;
 }

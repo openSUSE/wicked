@@ -28,8 +28,8 @@ struct ni_dbus_server {
 };
 
 static dbus_bool_t		ni_dbus_object_register_object_manager(ni_dbus_object_t *);
-static char *			__ni_dbus_server_root_path(const char *);
-static ni_dbus_object_t *	__ni_dbus_server_object_new(ni_dbus_server_t *server, char *path);
+static const char *		__ni_dbus_server_root_path(const char *);
+static ni_dbus_object_t *	__ni_dbus_server_object_new(ni_dbus_server_t *server, const char *path);
 
 /*
  * Constructor for DBus server handle
@@ -112,7 +112,7 @@ __ni_dbus_server_object_init(ni_dbus_object_t *object, ni_dbus_server_t *server)
  * Create a new server side object
  */
 ni_dbus_object_t *
-__ni_dbus_server_object_new(ni_dbus_server_t *server, char *path)
+__ni_dbus_server_object_new(ni_dbus_server_t *server, const char *path)
 {
 	ni_dbus_object_t *object;
 
@@ -652,24 +652,23 @@ ni_dbus_server_unregister_object(ni_dbus_server_t *server, void *object_handle)
 /*
  * Translate bus name foo.bar.baz into object path /foo/bar/baz
  */
-static char *
+static const char *
 __ni_dbus_server_root_path(const char *bus_name)
 {
-	char *root_path;
+	static char root_path[256];
 	unsigned int i, len;
 
 	len = strlen(bus_name) + 2;
-	root_path = malloc(len);
-	root_path[0] = '/';
+	if (len >= sizeof(root_path))
+		ni_fatal("%s: bus name too long (%s)", __FUNCTION__, bus_name);
 
+	root_path[0] = '/';
 	for (i = 1; *bus_name != '\0'; ) {
-		if (*bus_name == '.') {
-			root_path[i++] = '/';
-			while (*bus_name == '.')
-				++bus_name;
-		} else {
-			root_path[i++] = *bus_name++;
-		}
+		char cc = *bus_name++;
+
+		if (cc == '.')
+			cc = '/';
+		root_path[i++] = cc;
 	}
 	root_path[i] = '\0';
 	ni_assert(i < len);
