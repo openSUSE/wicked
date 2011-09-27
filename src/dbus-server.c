@@ -468,8 +468,16 @@ __ni_dbus_object_manager_enumerate_object(ni_dbus_object_t *object, DBusMessageI
 		ni_dbus_dict_end_string_dict(dict_iter, &entry_iter, &val_iter, &interface_iter);
 	}
 
-	for (child = object->children; child && rv; child = child->next)
+	for (child = object->children; child && rv; child = child->next) {
+		/* If the object has a refresh function, call it now */
+		if (object->functions && object->functions->refresh
+		 && !object->functions->refresh(object)) {
+			rv = FALSE;
+			continue;
+		}
+
 		rv = __ni_dbus_object_manager_enumerate_object(child, dict_iter);
+	}
 
 	return rv;
 }
