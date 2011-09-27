@@ -11,6 +11,7 @@
 #include "dbus-server.h"
 #include "dbus-object.h"
 #include "dbus-dict.h"
+#include "util_priv.h"
 
 #define TRACE_ENTER()		ni_debug_dbus("%s()", __FUNCTION__)
 #define TRACE_ENTERN(fmt, args...) \
@@ -30,6 +31,17 @@ __ni_dbus_object_new(char *path)
 
 	object = calloc(1, sizeof(*object));
 	object->path = path;
+	return object;
+}
+
+ni_dbus_object_t *
+ni_dbus_object_new(const char *path, const ni_dbus_object_functions_t *functions, void *handle)
+{
+	ni_dbus_object_t *object;
+
+	object = __ni_dbus_object_new(path? xstrdup(path) : NULL);
+	object->functions = functions;
+	object->handle = handle;
 	return object;
 }
 

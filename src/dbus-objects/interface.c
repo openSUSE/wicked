@@ -91,7 +91,7 @@ ni_objectmodel_new_interface(ni_dbus_server_t *server, const ni_dbus_service_t *
 		return NULL;
 	}
 
-	object = ni_dbus_server_create_anonymous_object(server, &wicked_dbus_interface_functions, ifp);
+	object = ni_dbus_object_new(NULL, &wicked_dbus_interface_functions, ifp);
 
 	for (i = 0; i < dict->array.len; ++i) {
 		const ni_dbus_dict_entry_t *entry = &dict->dict_array_value[i];
@@ -139,7 +139,7 @@ ni_objectmodel_new_interface(ni_dbus_server_t *server, const ni_dbus_service_t *
 
 	if (service == &wicked_dbus_vlan_service) {
 		/* xxx */
-		result = ni_objectmodel_new_vlan(object);
+		result = ni_objectmodel_new_vlan(server, object);
 	} else {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
 				"Cannot create network interface for %s - not implemented yet",

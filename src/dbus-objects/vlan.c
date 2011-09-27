@@ -22,7 +22,7 @@
  * Create a new VLAN interface
  */
 ni_dbus_object_t *
-ni_objectmodel_new_vlan(const ni_dbus_object_t *config)
+ni_objectmodel_new_vlan(ni_dbus_server_t *server, const ni_dbus_object_t *config)
 {
 	ni_interface_t *cfg_ifp = ni_dbus_object_get_handle(config);
 	ni_interface_t *new_ifp;
@@ -65,7 +65,7 @@ ni_objectmodel_new_vlan(const ni_dbus_object_t *config)
 		return NULL;
 	}
 
-	return ni_objectmodel_register_interface(ni_dbus_object_get_server(config), new_ifp);
+	return ni_objectmodel_register_interface(server, new_ifp);
 }
 
 static ni_vlan_t *

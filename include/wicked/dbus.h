@@ -132,17 +132,18 @@ typedef void			ni_dbus_signal_handler_t(ni_dbus_connection_t *connection,
 					ni_dbus_message_t *signal_msg,
 					void *user_data);
 
+extern ni_dbus_object_t *	ni_dbus_server_get_root_object(const ni_dbus_server_t *);
 extern ni_dbus_object_t *	ni_dbus_server_register_object(ni_dbus_server_t *server,
 					const char *object_path,
 					const ni_dbus_object_functions_t *functions,
 					void *object_handle);
-extern ni_dbus_object_t *	ni_dbus_server_create_anonymous_object(ni_dbus_server_t *server,
+
+extern ni_dbus_object_t *	ni_dbus_object_new(const char *path,
 					const ni_dbus_object_functions_t *functions,
-					void *object_handle);
+					void *handle);
 extern dbus_bool_t		ni_dbus_object_register_service(ni_dbus_object_t *object,
 					const ni_dbus_service_t *);
 
-extern ni_dbus_object_t *	ni_dbus_server_get_root_object(const ni_dbus_server_t *);
 extern ni_dbus_server_t *	ni_dbus_object_get_server(const ni_dbus_object_t *);
 extern const char *		ni_dbus_object_get_path(const ni_dbus_object_t *);
 extern void *			ni_dbus_object_get_handle(const ni_dbus_object_t *);

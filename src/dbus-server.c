@@ -139,22 +139,6 @@ __ni_dbus_server_object_destroy(ni_dbus_object_t *object)
 }
 
 /*
- * Create an anonymous server object
- */
-ni_dbus_object_t *
-ni_dbus_server_create_anonymous_object(ni_dbus_server_t *server,
-					const ni_dbus_object_functions_t *functions,
-					void *handle)
-{
-	ni_dbus_object_t *object;
-
-	object = __ni_dbus_server_object_new(server, NULL);
-	object->handle = handle;
-	object->functions = functions;
-	return object;
-}
-
-/*
  * Register an object
  */
 ni_dbus_object_t *
