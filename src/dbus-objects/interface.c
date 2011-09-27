@@ -35,8 +35,17 @@ ni_objectmodel_register_interface(ni_dbus_server_t *server, ni_interface_t *ifp)
 	ni_dbus_object_t *object;
 	const ni_dbus_service_t *link_layer_service;
 	char object_path[256];
+	char sane_name[IFNAMSIZ+5], *sp;
 
-	snprintf(object_path, sizeof(object_path), "Interface/%s", ifp->name);
+	if (strlen(ifp->name) >= sizeof(sane_name))
+		return NULL;
+	strcpy(sane_name, ifp->name);
+	for (sp = sane_name; *sp; ++sp) {
+		if (*sp == '.')
+			*sp = '_';
+	}
+
+	snprintf(object_path, sizeof(object_path), "Interface/%s", sane_name);
 	object = ni_dbus_server_register_object(server, object_path,
 					&wicked_dbus_interface_functions,
 					ni_interface_get(ifp));
@@ -138,7 +147,6 @@ ni_objectmodel_new_interface(ni_dbus_server_t *server, const ni_dbus_service_t *
 	}
 
 	if (service == &wicked_dbus_vlan_service) {
-		/* xxx */
 		result = ni_objectmodel_new_vlan(server, object);
 	} else {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
@@ -248,6 +256,33 @@ static ni_dbus_object_functions_t wicked_dbus_interface_functions = {
 static ni_dbus_method_t		wicked_dbus_interface_methods[] = {
 	{ NULL }
 };
+
+static dbus_bool_t
+__wicked_dbus_interface_get_name(const ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				ni_dbus_variant_t *result,
+				DBusError *error)
+{
+	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
+
+	ni_dbus_variant_set_string(result, ifp->name);
+	return TRUE;
+}
+
+static dbus_bool_t
+__wicked_dbus_interface_set_name(ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *argument,
+				DBusError *error)
+{
+	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
+	const char *value;
+
+	if (!ni_dbus_variant_get_string(argument, &value))
+		return FALSE;
+	ni_string_dup(&ifp->name, value);
+	return TRUE;
+}
 
 static dbus_bool_t
 __wicked_dbus_interface_get_type(const ni_dbus_object_t *object,
@@ -627,6 +662,7 @@ __wicked_dbus_interface_set_routes(ni_dbus_object_t *object,
 	__NI_DBUS_PROPERTY(signature, __name, offsetof(ni_interface_t, __name), __wicked_dbus_interface, rw)
 
 static ni_dbus_property_t	wicked_dbus_interface_properties[] = {
+	WICKED_INTERFACE_PROPERTY(STRING, name, RO),
 	WICKED_INTERFACE_PROPERTY(UINT32, ifflags, RO),
 	WICKED_INTERFACE_PROPERTY(UINT32, type, RO),
 	WICKED_INTERFACE_PROPERTY(UINT32, mtu, RW),
