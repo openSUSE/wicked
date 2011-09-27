@@ -15,6 +15,7 @@ extern void			__ni_dbus_server_object_inherit(ni_dbus_object_t *child, const ni_
 extern void			__ni_dbus_client_object_inherit(ni_dbus_object_t *child, const ni_dbus_object_t *parent);
 extern void			__ni_dbus_server_object_destroy(ni_dbus_object_t *object);
 extern void			__ni_dbus_client_object_destroy(ni_dbus_object_t *object);
+extern void			__ni_dbus_objects_garbage_collect();
 extern dbus_bool_t		ni_dbus_object_register_property_interface(ni_dbus_object_t *object);
 
 static inline void
@@ -25,6 +26,18 @@ __ni_dbus_object_insert(ni_dbus_object_t **pos, ni_dbus_object_t *object)
 	if (object->next)
 		object->next->pprev = &object->next;
 	*pos = object;
+}
+
+static inline void
+__ni_dbus_object_unlink(ni_dbus_object_t *object)
+{
+	if (object->pprev) {
+		*(object->pprev) = object->next;
+		if (object->next)
+			object->next->pprev = object->pprev;
+		object->pprev = NULL;
+		object->next = NULL;
+	}
 }
 
 #endif /* __WICKED_DBUS_OBJECTS_H__ */
