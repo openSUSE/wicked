@@ -452,8 +452,8 @@ __ni_dbus_object_manager_enumerate_object(ni_dbus_object_t *object, DBusMessageI
 
 	for (child = object->children; child && rv; child = child->next) {
 		/* If the object has a refresh function, call it now */
-		if (object->functions && object->functions->refresh
-		 && !object->functions->refresh(object)) {
+		if (child->functions && child->functions->refresh
+		 && !child->functions->refresh(object)) {
 			rv = FALSE;
 			continue;
 		}
@@ -492,6 +492,9 @@ __ni_dbus_object_message(DBusConnection *conn, DBusMessage *call, void *user_dat
 	const ni_dbus_service_t *svc;
 	ni_dbus_server_t *server;
 	dbus_bool_t rv = FALSE;
+
+	/* Clean out deceased objects */
+	__ni_dbus_objects_garbage_collect();
 
 	/* FIXME: check for type CALL */
 

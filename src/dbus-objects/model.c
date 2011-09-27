@@ -27,6 +27,7 @@ extern ni_dbus_object_t *	ni_objectmodel_new_interface(ni_dbus_server_t *server,
 					const ni_dbus_service_t *service,
 					const ni_dbus_variant_t *dict, DBusError *error);
 
+static ni_dbus_object_functions_t wicked_dbus_netif_functions;
 static ni_dbus_service_t	wicked_dbus_netif_interface;
 
 dbus_bool_t
@@ -34,7 +35,9 @@ ni_objectmodel_register_all(ni_dbus_server_t *server)
 {
 	ni_dbus_object_t *object;
 
-	object = ni_dbus_server_register_object(server, "Interface", NULL, NULL);
+	object = ni_dbus_server_register_object(server, "Interface",
+					&wicked_dbus_netif_functions,
+					NULL);
 	if (object == NULL)
 		ni_fatal("Unable to create dbus object for interfaces");
 
@@ -66,6 +69,52 @@ ni_objectmodel_service_by_name(const char *name)
 
 	return NULL;
 }
+
+/*
+ * Refresh one/all network interfaces.
+ * This function is called from the dbus object handling code prior
+ * to invoking any method of this object.
+ */
+static dbus_bool_t
+wicked_dbus_netif_refresh(ni_dbus_object_t *object)
+{
+	ni_dbus_object_t *child, *next;
+	ni_handle_t *nih;
+	unsigned int seq;
+
+	TRACE_ENTER();
+	if (!(nih = ni_global_state_handle())) {
+		ni_error("Unable to obtain netinfo handle");
+		return FALSE;
+	}
+
+	seq = ni_handle_seq(nih);
+	if (ni_refresh(nih) < 0) {
+		ni_error("cannot refresh interface list!");
+		return FALSE;
+	}
+
+	/* FIXME: when ni_refresh finds that the interface has
+	 * gone away, our object_handle may no longer be valid.
+	 */
+	for (child = object->children; child; child = next) {
+		ni_interface_t *ifp = child->handle;
+
+		next = child->next;
+		if (ifp && ifp->seq <= seq)
+			ni_dbus_object_free(child);
+	}
+
+	return TRUE;
+}
+
+
+/*
+ * functions associated with Wicked.Interface
+ */
+static ni_dbus_object_functions_t wicked_dbus_netif_functions = {
+	.refresh	= wicked_dbus_netif_refresh,
+};
 
 /*
  * This method allows clients to create new (virtual) network interfaces.

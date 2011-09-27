@@ -184,73 +184,8 @@ wicked_dbus_interface_destroy(ni_dbus_object_t *object)
 	ni_interface_put(ifp);
 }
 
-/*
- * Refresh one/all network interfaces.
- * This function is called from the dbus object handling code prior
- * to invoking any method of this object.
- */
-static dbus_bool_t
-wicked_dbus_interface_refresh(ni_dbus_object_t *object)
-{
-	ni_handle_t *nih;
-
-	if (!(nih = ni_global_state_handle())) {
-		ni_error("Unable to obtain netinfo handle");
-		return FALSE;
-	}
-	if (ni_refresh(nih) < 0) {
-		ni_error("cannot refresh interface list!");
-		return FALSE;
-	}
-
-	/* FIXME: when ni_refresh finds that the interface has
-	 * gone away, our object_handle may no longer be valid.
-	 */
-
-	return TRUE;
-}
-
-#if 0
-static ni_dbus_object_t *
-wicked_dbus_interface_create_shadow(const ni_dbus_object_t *object)
-{
-	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
-	ni_interface_t *shadow_ifp;
-	ni_handle_t *nih;
-
-	ni_assert(ifp);
-	if (!(nih = ni_global_state_handle())) {
-		ni_error("Unable to obtain netinfo handle");
-		return NULL;
-	}
-
-	shadow_ifp = __ni_interface_new(ifp->name, ifp->ifindex);
-	if (!shadow_ifp) {
-		ni_error("Unable to create shadow interface");
-		return NULL;
-	}
-
-	return ni_dbus_object_new_shadow(object, shadow_ifp);
-}
-
-static dbus_bool_t
-wicked_dbus_interface_modify(ni_dbus_object_t *object,
-				const ni_dbus_object_t *shadow_object,
-				const ni_bitfield_t *bf)
-{
-	if (WICKED_NETIF_MODIFIED(bf, mtu)) {
-		ni_debug_dbus("change of mtu requested");
-		return TRUE;
-	}
-
-	ni_error("%s() not implemented", __FUNCTION__);
-	return FALSE;
-}
-#endif
-
 static ni_dbus_object_functions_t wicked_dbus_interface_functions = {
 	.destroy	= wicked_dbus_interface_destroy,
-	.refresh	= wicked_dbus_interface_refresh,
 };
 
 static ni_dbus_method_t		wicked_dbus_interface_methods[] = {
