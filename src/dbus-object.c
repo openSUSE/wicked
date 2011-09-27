@@ -18,6 +18,7 @@
 				ni_debug_dbus("%s(" fmt ")", __FUNCTION__, ##args)
 #define TP()			ni_debug_dbus("TP - %s:%u", __FUNCTION__, __LINE__)
 
+static ni_dbus_object_t *	__ni_dbus_objects_trashcan;
 
 static const char *		__ni_dbus_object_child_path(const ni_dbus_object_t *, const char *);
 
@@ -92,10 +93,7 @@ __ni_dbus_object_free(ni_dbus_object_t *object)
 {
 	ni_dbus_object_t *child;
 
-	if (object->pprev) {
-		*(object->pprev) = object->next;
-		object->pprev = NULL;
-	}
+	__ni_dbus_object_unlink(object);
 
 	if (object->server_object)
 		__ni_dbus_server_object_destroy(object);
@@ -120,11 +118,22 @@ void
 ni_dbus_object_free(ni_dbus_object_t *object)
 {
 	if (object->pprev) {
-		ni_error("%s: refusing to delete active object %s",
+		ni_debug_dbus("%s: deferring deletion of active object %s",
 				__FUNCTION__, object->path);
+		__ni_dbus_object_unlink(object);
+		__ni_dbus_object_insert(&__ni_dbus_objects_trashcan, object);
 	} else {
 		__ni_dbus_object_free(object);
 	}
+}
+
+void
+__ni_dbus_objects_garbage_collect(void)
+{
+	ni_dbus_object_t *object;
+
+	while ((object = __ni_dbus_objects_trashcan) != NULL)
+		__ni_dbus_object_free(object);
 }
 
 /*
