@@ -541,6 +541,83 @@ __wicked_dbus_interface_set_routes(ni_dbus_object_t *object,
 				const ni_dbus_variant_t *argument,
 				DBusError *error)
 {
+	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
+	unsigned int i;
+
+	if (!ni_dbus_variant_is_dict_array(argument)) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"%s: argument type mismatch",
+				__FUNCTION__);
+		return FALSE;
+	}
+
+	ni_debug_dbus("set_routes for %s: %u elements", ifp->name, argument->array.len);
+	for (i = 0; i < argument->array.len; ++i) {
+		ni_dbus_variant_t *dict = &argument->variant_array_value[i];
+		const ni_dbus_variant_t *hops;
+		uint32_t family, prefixlen, config, value;
+		ni_sockaddr_t destination;
+		ni_route_t *rp;
+
+		if (!ni_dbus_dict_get_uint32(dict, "family", &family)
+		 || !ni_dbus_dict_get_uint32(dict, "prefixlen", &prefixlen)
+		 || !ni_dbus_dict_get_uint32(dict, "config", &config))
+			continue;
+
+		if (prefixlen == 0) {
+			memset(&destination, 0, sizeof(destination));
+		} else if (!__wicked_dbus_get_sockaddr(dict, "destination", &destination, family)) {
+			ni_debug_dbus("Cannot set route: prefixlen=%u, but no destination", prefixlen);
+			continue;
+		}
+
+		rp = calloc(1, sizeof(*rp));
+		rp->family = family;
+		rp->prefixlen = prefixlen;
+		rp->destination = destination;
+		__ni_route_list_append(&ifp->routes, rp);
+
+		if (ni_dbus_dict_get_uint32(dict, "mtu", &value))
+			rp->mtu = value;
+		if (ni_dbus_dict_get_uint32(dict, "tos", &value))
+			rp->tos = value;
+		if (ni_dbus_dict_get_uint32(dict, "priority", &value))
+			rp->priority = value;
+
+		hops = ni_dbus_dict_get(dict, "nexthop");
+		if (hops && ni_dbus_variant_is_dict_array(hops)) {
+			ni_route_nexthop_t *nh = &rp->nh, **nhpos = &nh;
+			unsigned int j;
+
+			ni_debug_dbus("Interface %s has nexthop", ifp->name);
+
+			for (j = 0; j < hops->array.len; ++j) {
+				ni_dbus_variant_t *nhdict = &hops->variant_array_value[j];
+				const char *string;
+				uint32_t value;
+				ni_sockaddr_t gateway;
+
+				if (!__wicked_dbus_get_sockaddr(nhdict, "gateway", &gateway, family)) {
+					ni_debug_dbus("%s: bad nexthop gateway", __FUNCTION__);
+					return FALSE;
+				}
+
+				if (nh == NULL)
+					*nhpos = nh = calloc(1, sizeof(*nh));
+
+				nh->gateway = gateway;
+				if (ni_dbus_dict_get_string(nhdict, "device", &string))
+					ni_string_dup(&nh->device, string);
+				if (ni_dbus_dict_get_uint32(nhdict, "weight", &value))
+					nh->weight = value;
+				if (ni_dbus_dict_get_uint32(nhdict, "flags", &value))
+					nh->flags = value;
+
+				nhpos = &nh->next;
+				nh = NULL;
+			}
+		}
+	}
 	return TRUE;
 }
 

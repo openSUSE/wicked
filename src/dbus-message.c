@@ -298,7 +298,6 @@ ni_dbus_message_iter_get_dict(DBusMessageIter *iter, ni_dbus_variant_t *result)
 {
 	DBusMessageIter iter_dict;
 
-	TRACE_ENTER();
 	ni_dbus_variant_init_dict(result);
 
 	if (!ni_dbus_dict_open_read(iter, &iter_dict))
