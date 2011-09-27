@@ -125,9 +125,7 @@ __ni_dbus_object_get_child(ni_dbus_object_t *parent, const char *name, int creat
 
 	if (create) {
 		object = __ni_dbus_object_new_child(parent, name);
-
-		object->pprev = pos;
-		*pos = object;
+		__ni_dbus_object_insert(pos, object);
 	}
 	return object;
 }

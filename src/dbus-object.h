@@ -18,4 +18,14 @@ extern void			__ni_dbus_server_object_inherit(ni_dbus_object_t *child, const ni_
 extern void			__ni_dbus_server_object_destroy(ni_dbus_object_t *object);
 extern dbus_bool_t		ni_dbus_object_register_property_interface(ni_dbus_object_t *object);
 
+static inline void
+__ni_dbus_object_insert(ni_dbus_object_t **pos, ni_dbus_object_t *object)
+{
+	object->pprev = pos;
+	object->next = *pos;
+	if (object->next)
+		object->next->pprev = &object->next;
+	*pos = object;
+}
+
 #endif /* __WICKED_DBUS_OBJECTS_H__ */

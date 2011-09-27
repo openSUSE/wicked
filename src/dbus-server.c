@@ -38,6 +38,7 @@ ni_dbus_server_t *
 ni_dbus_server_open(const char *bus_name, void *root_object_handle)
 {
 	ni_dbus_server_t *server;
+	ni_dbus_object_t *root;
 
 	ni_debug_dbus("%s(%s)", __FUNCTION__, bus_name);
 
@@ -50,9 +51,9 @@ ni_dbus_server_open(const char *bus_name, void *root_object_handle)
 	}
 
 	/* Translate bus name foo.bar.baz into object path /foo/bar/baz */
-	server->root_object = __ni_dbus_server_object_new(server, __ni_dbus_server_root_path(bus_name));
-	server->root_object->pprev = &server->root_object;
-	server->root_object->handle = root_object_handle;
+	root = __ni_dbus_server_object_new(server, __ni_dbus_server_root_path(bus_name));
+	root->handle = root_object_handle;
+	__ni_dbus_object_insert(&server->root_object, root);
 
 	return server;
 }
