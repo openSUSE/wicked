@@ -21,16 +21,8 @@
 #define TP()			ni_debug_dbus("TP - %s:%u", __FUNCTION__, __LINE__)
 
 
-struct ni_dbus_object {
-	ni_dbus_object_t **	pprev;
-	ni_dbus_object_t *	next;
+struct ni_dbus_server_object {
 	ni_dbus_server_t *	server;			/* back pointer at server */
-	char *			object_name;		/* relative path */
-	char *			object_path;		/* absolute path */
-	void *			object_handle;		/* local object */
-	const ni_dbus_service_t **interfaces;
-	ni_dbus_object_t *	children;
-	const ni_dbus_object_functions_t *functions;
 };
 
 struct ni_dbus_server {
@@ -66,7 +58,7 @@ ni_dbus_server_open(const char *bus_name, void *root_object_handle)
 	/* Translate bus name foo.bar.baz into object path /foo/bar/baz */
 	server->root_object = __ni_dbus_object_new(server, __ni_dbus_server_root_path(bus_name));
 	server->root_object->pprev = &server->root_object;
-	server->root_object->object_handle = root_object_handle;
+	server->root_object->handle = root_object_handle;
 
 	return server;
 }
@@ -105,15 +97,24 @@ __ni_dbus_object_new(ni_dbus_server_t *server, char *path)
 {
 	ni_dbus_object_t *object;
 
-	object = calloc(1, sizeof(*object));
-	object->object_path = path;
-	object->server = server;
+	object = calloc(1, sizeof(*object) + sizeof(ni_dbus_server_object_t));
+	object->path = path;
+	object->server_object = (ni_dbus_server_object_t *) (object + 1);
+	object->server_object->server = server;
 
-	if (object->object_path) {
+	if (object->path) {
 		ni_dbus_connection_register_object(server->connection, object);
 		ni_dbus_object_register_object_manager(object);
 	}
 	return object;
+}
+
+ni_dbus_server_t *
+__ni_dbus_object_get_server(const ni_dbus_object_t *object)
+{
+	ni_dbus_server_object_t *sob = object->server_object;
+
+	return sob? sob->server : NULL;
 }
 
 /*
@@ -130,19 +131,19 @@ __ni_dbus_server_get_object(ni_dbus_object_t *parent, const char *name, int crea
 
 	pos = &parent->children;
 	while ((object = *pos) != NULL) {
-		if (!strcmp(object->object_name, name))
+		if (!strcmp(object->name, name))
 			return object;
 		pos = &object->next;
 	}
 
 	if (create) {
-		object = __ni_dbus_object_new(parent->server, 
+		object = __ni_dbus_object_new(__ni_dbus_object_get_server(parent),
 					__ni_dbus_server_child_path(parent, name));
-		ni_string_dup(&object->object_name, name);
+		ni_string_dup(&object->name, name);
 
 		ni_debug_dbus("created %s as child of %s",
-			object->object_path,
-			parent->object_path);
+			object->path,
+			parent->path);
 
 		object->pprev = pos;
 		*pos = object;
@@ -186,10 +187,10 @@ ni_dbus_server_register_object(ni_dbus_server_t *server, const char *object_path
 		ni_error("%s: could not create object \"%s\"", __FUNCTION__, object_path);
 		return NULL;
 	}
-	if (object->object_handle == NULL) {
-		object->object_handle = object_handle;
+	if (object->handle == NULL) {
+		object->handle = object_handle;
 	} else 
-	if (object->object_handle != object_handle) {
+	if (object->handle != object_handle) {
 		ni_error("%s: cannot re-register object \"%s\"", __FUNCTION__, object_path);
 		return NULL;
 	}
@@ -234,7 +235,7 @@ ni_dbus_object_register_service(ni_dbus_object_t *object, const ni_dbus_service_
 {
 	unsigned int count;
 
-	TRACE_ENTERN("path=%s, interface=%s", object->object_path, svc->object_interface);
+	TRACE_ENTERN("path=%s, interface=%s", object->path, svc->object_interface);
 
 	count = 0;
 	if (object->interfaces != NULL) {
@@ -321,7 +322,7 @@ __ni_dbus_object_manager_get_managed_objects(ni_dbus_object_t *object,
 	DBusMessageIter iter, dict_iter;
 	int rv = TRUE;
 
-	TRACE_ENTERN("path=%s, method=%s", object->object_path, method->name);
+	TRACE_ENTERN("path=%s, method=%s", object->path, method->name);
 
 	dbus_message_iter_init_append(reply, &iter);
 	rv = ni_dbus_dict_open_write(&iter, &dict_iter);
@@ -360,7 +361,7 @@ __ni_dbus_object_properties_arg_interface(ni_dbus_object_t *object, const ni_dbu
 	if (service == NULL) {
 		dbus_set_error(error, DBUS_ERROR_SERVICE_UNKNOWN,
 				"%s: Properties.%s() failed: interface %s not known",
-				object->object_path, method->name,
+				object->path, method->name,
 				interface_name);
 		return FALSE;
 	}
@@ -395,7 +396,7 @@ __ni_dbus_object_properties_arg_property(ni_dbus_object_t *object, const ni_dbus
 	if (property == NULL) {
 		dbus_set_error(error, DBUS_ERROR_UNKNOWN_METHOD,
 				"Unknown property \"%s\" on object %s interface %s",
-				property_name, object->object_path,
+				property_name, object->path,
 				service? service->object_interface : "*");
 		return FALSE;
 	}
@@ -495,14 +496,14 @@ __ni_dbus_object_properties_set(ni_dbus_object_t *object, const ni_dbus_method_t
 				&service, &property))
 		return FALSE;
 
-	ni_debug_dbus("Set %s %s=%s", object->object_path, property->name,
+	ni_debug_dbus("Set %s %s=%s", object->path, property->name,
 			ni_dbus_variant_sprint(&argv[2]));
 
 	if (property->update == NULL) {
 		dbus_set_error(error,
 				DBUS_ERROR_UNKNOWN_METHOD,	/* no error msgs defined */
 				"%s: unable to set read-only property %s.%s",
-				object->object_path, service->object_interface,
+				object->path, service->object_interface,
 				property->name);
 		return FALSE;
 	}
@@ -532,7 +533,7 @@ __ni_dbus_object_manager_enumerate_interface(ni_dbus_object_t *object,
 	const ni_dbus_property_t *property;
 	int rv = TRUE;
 
-	TRACE_ENTERN("object=%s, interface=%s", object->object_path, service->object_interface);
+	TRACE_ENTERN("object=%s, interface=%s", object->path, service->object_interface);
 
 	/* Loop over properties and add them here */
 	if (service->properties) {
@@ -544,12 +545,12 @@ __ni_dbus_object_manager_enumerate_interface(ni_dbus_object_t *object,
 				continue;
 			if (!property->get(object, property, &value, &error)) {
 				ni_debug_dbus("%s: unable to get property %s.%s",
-						object->object_path,
+						object->path,
 						service->object_interface,
 						property->name);
 			} else if (!ni_dbus_dict_append_variant(dict_iter, property->name, &value)) {
 				ni_debug_dbus("%s: unable to encode property %s.%s",
-						object->object_path,
+						object->path,
 						service->object_interface,
 						property->name);
 				rv = FALSE;
@@ -573,7 +574,7 @@ __ni_dbus_object_manager_enumerate_object(ni_dbus_object_t *object, DBusMessageI
 		const ni_dbus_service_t *svc;
 		unsigned int i;
 
-		if (!ni_dbus_dict_begin_string_dict(dict_iter, object->object_path,
+		if (!ni_dbus_dict_begin_string_dict(dict_iter, object->path,
 						&entry_iter, &val_iter, &interface_iter))
 			return FALSE;
 
@@ -605,11 +606,11 @@ __ni_dbus_object_unregister(DBusConnection *conn, void *user_data)
 {
 	ni_dbus_object_t *object = user_data;
 
-	ni_warn("%s(path=%s) called", __FUNCTION__, object->object_path);
-	if (object->object_handle) {
+	ni_warn("%s(path=%s) called", __FUNCTION__, object->path);
+	if (object->handle) {
 		if (object->functions && object->functions->destroy)
 			object->functions->destroy(object);
-		object->object_handle = NULL;
+		object->handle = NULL;
 	}
 }
 
@@ -623,14 +624,15 @@ __ni_dbus_object_message(DBusConnection *conn, DBusMessage *call, void *user_dat
 	DBusError error = DBUS_ERROR_INIT;
 	DBusMessage *reply = NULL;
 	const ni_dbus_service_t *svc;
+	ni_dbus_server_t *server;
 	dbus_bool_t rv = FALSE;
 
 	/* FIXME: check for type CALL */
 
-	ni_debug_dbus("%s(path=%s, interface=%s, method=%s) called", __FUNCTION__, object->object_path, interface, method_name);
+	ni_debug_dbus("%s(path=%s, interface=%s, method=%s) called", __FUNCTION__, object->path, interface, method_name);
 	svc = ni_dbus_object_get_service(object, interface);
 	if (svc == NULL) {
-		ni_debug_dbus("Unsupported service %s on object %s", interface, object->object_path);
+		ni_debug_dbus("Unsupported service %s on object %s", interface, object->path);
 		return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
 	}
 
@@ -639,7 +641,7 @@ __ni_dbus_object_message(DBusConnection *conn, DBusMessage *call, void *user_dat
 		dbus_set_error(&error,
 				DBUS_ERROR_UNKNOWN_METHOD,
 				"Unknown method in call to object %s, %s.%s",
-				object->object_path,
+				object->path,
 				svc->object_interface,
 				method_name);
 	} else {
@@ -657,7 +659,7 @@ __ni_dbus_object_message(DBusConnection *conn, DBusMessage *call, void *user_dat
 				dbus_set_error(&error,
 						DBUS_ERROR_INVALID_SIGNATURE,
 						"Bad call signature in call to object %s, %s.%s",
-						object->object_path,
+						object->path,
 						svc->object_interface,
 						method_name);
 				goto error_reply;
@@ -667,7 +669,7 @@ __ni_dbus_object_message(DBusConnection *conn, DBusMessage *call, void *user_dat
 				dbus_set_error(&error,
 						DBUS_ERROR_INVALID_ARGS,
 						"Bad arguments in call to object %s, %s.%s",
-						object->object_path,
+						object->path,
 						svc->object_interface,
 						method_name);
 				goto error_reply;
@@ -680,7 +682,7 @@ __ni_dbus_object_message(DBusConnection *conn, DBusMessage *call, void *user_dat
 			dbus_set_error(&error,
 					DBUS_ERROR_FAILED,
 					"Failed to refresh object %s",
-					object->object_path);
+					object->path);
 			rv = FALSE;
 		} else {
 			/* Allocate a reply message */
@@ -704,7 +706,8 @@ error_reply:
 	}
 
 	/* send reply */
-	if (ni_dbus_connection_send_message(object->server->connection, reply) < 0)
+	server = __ni_dbus_object_get_server(object);
+	if (ni_dbus_connection_send_message(server->connection, reply) < 0)
 		ni_error("unable to send reply (out of memory)");
 
 	dbus_error_free(&error);
@@ -722,19 +725,19 @@ error_reply:
 ni_dbus_server_t *
 ni_dbus_object_get_server(const ni_dbus_object_t *object)
 {
-	return object->server;
+	return __ni_dbus_object_get_server(object);
 }
 
 const char *
 ni_dbus_object_get_path(const ni_dbus_object_t *object)
 {
-	return object->object_path;
+	return object->path;
 }
 
 void *
 ni_dbus_object_get_handle(const ni_dbus_object_t *object)
 {
-	return object->object_handle;
+	return object->handle;
 }
 
 ni_dbus_object_t *
@@ -745,7 +748,7 @@ ni_dbus_server_create_anonymous_object(ni_dbus_server_t *server,
 	ni_dbus_object_t *object;
 
 	object = __ni_dbus_object_new(server, NULL);
-	object->object_handle = handle;
+	object->handle = handle;
 	object->functions = functions;
 	return object;
 }
@@ -770,7 +773,7 @@ __ni_dbus_server_unregister_object(ni_dbus_object_t *parent, void *object_handle
 	ni_dbus_object_t **pos, *object;
 
 	for (pos = &parent->children; (object = *pos) != NULL; ) {
-		if (object->object_handle != object_handle) {
+		if (object->handle != object_handle) {
 			__ni_dbus_server_unregister_object(object, object_handle);
 			pos = &object->next;
 		} else {
@@ -788,6 +791,7 @@ ni_dbus_server_unregister_object(ni_dbus_server_t *server, void *object_handle)
 static void
 __ni_dbus_object_free(ni_dbus_object_t *object)
 {
+	ni_dbus_server_t *server = __ni_dbus_object_get_server(object);
 	ni_dbus_object_t *child;
 
 	if (object->pprev) {
@@ -795,11 +799,11 @@ __ni_dbus_object_free(ni_dbus_object_t *object)
 		object->pprev = NULL;
 	}
 
-	if (object->server && object->object_path)
-		ni_dbus_connection_unregister_object(object->server->connection, object);
+	if (server && object->path)
+		ni_dbus_connection_unregister_object(server->connection, object);
 
-	ni_string_free(&object->object_name);
-	ni_string_free(&object->object_path);
+	ni_string_free(&object->name);
+	ni_string_free(&object->path);
 	while ((child = object->children) != NULL)
 		__ni_dbus_object_free(child);
 	free(object->interfaces);
@@ -813,9 +817,9 @@ __ni_dbus_object_free(ni_dbus_object_t *object)
 void
 ni_dbus_object_free(ni_dbus_object_t *object)
 {
-	if (object->object_path) {
+	if (object->path) {
 		ni_error("%s: refusing to delete server object %s",
-				__FUNCTION__, object->object_path);
+				__FUNCTION__, object->path);
 	} else {
 		__ni_dbus_object_free(object);
 	}
@@ -855,9 +859,9 @@ __ni_dbus_server_child_path(const ni_dbus_object_t *parent, const char *name)
 	unsigned int len;
 	char *child_path;
 
-	len = strlen(parent->object_path) + strlen(name) + 2;
+	len = strlen(parent->path) + strlen(name) + 2;
 	child_path = malloc(len);
-	snprintf(child_path, len, "%s/%s", parent->object_path, name);
+	snprintf(child_path, len, "%s/%s", parent->path, name);
 
 	return child_path;
 }

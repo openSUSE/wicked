@@ -22,6 +22,7 @@ typedef struct ni_dbus_server	ni_dbus_server_t;
 typedef struct ni_dbus_proxy	ni_dbus_proxy_t;
 typedef struct ni_dbus_object	ni_dbus_object_t;
 typedef struct ni_dbus_service	ni_dbus_service_t;
+typedef struct ni_dbus_server_object ni_dbus_server_object_t;
 typedef struct ni_dbus_dict_entry ni_dbus_dict_entry_t;
 
 typedef struct ni_dbus_variant	ni_dbus_variant_t;
@@ -104,6 +105,19 @@ typedef struct ni_dbus_object_functions	ni_dbus_object_functions_t;
 struct ni_dbus_object_functions {
 	void			(*destroy)(ni_dbus_object_t *);
 	dbus_bool_t		(*refresh)(ni_dbus_object_t *);
+};
+
+struct ni_dbus_object {
+	ni_dbus_object_t **	pprev;
+	ni_dbus_object_t *	next;
+	char *			name;		/* relative path */
+	char *			path;		/* absolute path */
+	void *			handle;		/* local object */
+	ni_dbus_object_t *	children;
+	const ni_dbus_service_t **interfaces;
+	const ni_dbus_object_functions_t *functions;
+
+	ni_dbus_server_object_t *server_object;
 };
 
 typedef struct ni_dbus_proxy_functions	ni_dbus_proxy_functions_t;
