@@ -5,14 +5,11 @@
  */
 
 #include <dbus/dbus.h>
-#include <sys/poll.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <errno.h>
 #include <wicked/util.h>
 #include <wicked/logging.h>
-#include "socket_priv.h"
 #include "dbus-server.h"
+#include "dbus-object.h"
 #include "dbus-dict.h"
 
 #define TRACE_ENTER()		ni_debug_dbus("%s()", __FUNCTION__)
@@ -31,11 +28,8 @@ struct ni_dbus_server {
 };
 
 static dbus_bool_t		ni_dbus_object_register_object_manager(ni_dbus_object_t *);
-static dbus_bool_t		ni_dbus_object_register_property_interface(ni_dbus_object_t *object);
 static char *			__ni_dbus_server_root_path(const char *);
-static char *			__ni_dbus_server_child_path(const ni_dbus_object_t *, const char *);
-static ni_dbus_object_t *	__ni_dbus_object_new(ni_dbus_server_t *, char *);
-static void			__ni_dbus_object_free(ni_dbus_object_t *);
+static ni_dbus_object_t *	__ni_dbus_server_object_new(ni_dbus_server_t *server, char *path);
 
 /*
  * Constructor for DBus server handle
@@ -56,7 +50,7 @@ ni_dbus_server_open(const char *bus_name, void *root_object_handle)
 	}
 
 	/* Translate bus name foo.bar.baz into object path /foo/bar/baz */
-	server->root_object = __ni_dbus_object_new(server, __ni_dbus_server_root_path(bus_name));
+	server->root_object = __ni_dbus_server_object_new(server, __ni_dbus_server_root_path(bus_name));
 	server->root_object->pprev = &server->root_object;
 	server->root_object->handle = root_object_handle;
 
@@ -73,6 +67,7 @@ ni_dbus_server_free(ni_dbus_server_t *server)
 
 	if (server->root_object)
 		__ni_dbus_object_free(server->root_object);
+	server->root_object = NULL;
 
 	ni_dbus_connection_free(server->connection);
 	server->connection = NULL;
@@ -90,84 +85,73 @@ ni_dbus_server_get_root_object(const ni_dbus_server_t *server)
 }
 
 /*
- * Create a new dbus object
+ * Turn a dbus object into a server side object
  */
-static ni_dbus_object_t *
-__ni_dbus_object_new(ni_dbus_server_t *server, char *path)
+static void
+__ni_dbus_server_object_init(ni_dbus_object_t *object, ni_dbus_server_t *server)
 {
-	ni_dbus_object_t *object;
+	if (server) {
+		if (object->server_object) {
+			if (object->server_object->server != server)
+				ni_fatal("%s: server object already set", __FUNCTION__);
+			return;
+		}
 
-	object = calloc(1, sizeof(*object) + sizeof(ni_dbus_server_object_t));
-	object->path = path;
-	object->server_object = (ni_dbus_server_object_t *) (object + 1);
-	object->server_object->server = server;
+		object->server_object = calloc(1, sizeof(ni_dbus_server_object_t));
+		object->server_object->server = server;
 
-	if (object->path) {
-		ni_dbus_connection_register_object(server->connection, object);
-		ni_dbus_object_register_object_manager(object);
+		if (object->path) {
+			ni_dbus_connection_register_object(server->connection, object);
+			ni_dbus_object_register_object_manager(object);
+		}
 	}
-	return object;
-}
-
-ni_dbus_server_t *
-__ni_dbus_object_get_server(const ni_dbus_object_t *object)
-{
-	ni_dbus_server_object_t *sob = object->server_object;
-
-	return sob? sob->server : NULL;
 }
 
 /*
- * Look up an object by its relative name
+ * Create a new server side object
  */
-static ni_dbus_object_t *
-__ni_dbus_server_get_object(ni_dbus_object_t *parent, const char *name, int create)
+ni_dbus_object_t *
+__ni_dbus_server_object_new(ni_dbus_server_t *server, char *path)
 {
-	ni_dbus_object_t **pos, *object;
+	ni_dbus_object_t *object;
 
-	if (*name == '\0') {
-		return parent;
-	}
+	object = __ni_dbus_object_new(path);
+	if (server)
+		__ni_dbus_server_object_init(object, server);
 
-	pos = &parent->children;
-	while ((object = *pos) != NULL) {
-		if (!strcmp(object->name, name))
-			return object;
-		pos = &object->next;
-	}
-
-	if (create) {
-		object = __ni_dbus_object_new(__ni_dbus_object_get_server(parent),
-					__ni_dbus_server_child_path(parent, name));
-		ni_string_dup(&object->name, name);
-
-		ni_debug_dbus("created %s as child of %s",
-			object->path,
-			parent->path);
-
-		object->pprev = pos;
-		*pos = object;
-	}
 	return object;
 }
 
-static ni_dbus_object_t *
-__ni_dbus_server_find_object(ni_dbus_server_t *server, const char *path, int create)
+void
+__ni_dbus_server_object_inherit(ni_dbus_object_t *child, const ni_dbus_object_t *parent)
 {
-	char *path_copy = NULL, *name;
-	ni_dbus_object_t *found;
+	if (parent->server_object)
+		__ni_dbus_server_object_init(child, parent->server_object->server);
+}
 
-	if (path == NULL)
-		return server->root_object;
+void
+__ni_dbus_server_object_destroy(ni_dbus_object_t *object)
+{
+	ni_dbus_server_t *server = ni_dbus_object_get_server(object);
 
-	ni_string_dup(&path_copy, path);
+	if (server && object->path)
+		ni_dbus_connection_unregister_object(server->connection, object);
+}
 
-	found = server->root_object;
-	for (name = strtok(path_copy, "/"); name && found; name = strtok(NULL, "/"))
-		found = __ni_dbus_server_get_object(found, name, create);
+/*
+ * Create an anonymous server object
+ */
+ni_dbus_object_t *
+ni_dbus_server_create_anonymous_object(ni_dbus_server_t *server,
+					const ni_dbus_object_functions_t *functions,
+					void *handle)
+{
+	ni_dbus_object_t *object;
 
-	ni_string_free(&path_copy);
-	return found;
+	object = __ni_dbus_server_object_new(server, NULL);
+	object->handle = handle;
+	object->functions = functions;
+	return object;
 }
 
 /*
@@ -181,95 +165,9 @@ ni_dbus_server_register_object(ni_dbus_server_t *server, const char *object_path
 	ni_dbus_object_t *object;
 
 	TRACE_ENTERN("path=%s, handle=%p", object_path, object_handle);
-
-	object = __ni_dbus_server_find_object(server, object_path, 1);
-	if (object == NULL) {
-		ni_error("%s: could not create object \"%s\"", __FUNCTION__, object_path);
-		return NULL;
-	}
-	if (object->handle == NULL) {
-		object->handle = object_handle;
-	} else 
-	if (object->handle != object_handle) {
-		ni_error("%s: cannot re-register object \"%s\"", __FUNCTION__, object_path);
-		return NULL;
-	}
-
-	if (object->functions == NULL) {
-		object->functions = functions;
-	} else 
-	if (object->functions != functions) {
-		ni_error("%s: cannot re-register object \"%s\"", __FUNCTION__, object_path);
-		return NULL;
-	}
+	object = __ni_dbus_object_create(server->root_object, object_path, functions, object_handle);
 
 	return object;
-}
-
-/*
- * Register an object interface
- */
-const ni_dbus_service_t *
-ni_dbus_object_get_service(const ni_dbus_object_t *object, const char *interface)
-{
-	const ni_dbus_service_t *svc;
-	unsigned int i;
-
-	if (object->interfaces == NULL)
-		return NULL;
-
-	for (i = 0; (svc = object->interfaces[i]) != NULL; ++i) {
-		if (!strcasecmp(svc->object_interface, interface))
-			return svc;
-	}
-
-	return NULL;
-}
-
-/*
- * Register a service for the given object.
- * Note, we cannot register fallback services yet.
- */
-dbus_bool_t
-ni_dbus_object_register_service(ni_dbus_object_t *object, const ni_dbus_service_t *svc)
-{
-	unsigned int count;
-
-	TRACE_ENTERN("path=%s, interface=%s", object->path, svc->object_interface);
-
-	count = 0;
-	if (object->interfaces != NULL) {
-		while (object->interfaces[count] != NULL) {
-			if (object->interfaces[count] == svc)
-				return TRUE;
-			++count;
-		}
-	}
-
-	object->interfaces = realloc(object->interfaces, (count + 2) * sizeof(svc));
-	object->interfaces[count++] = svc;
-	object->interfaces[count] = NULL;
-
-	if (svc->properties)
-		ni_dbus_object_register_property_interface(object);
-	return TRUE;
-}
-
-/*
- * Find the named property
- */
-const ni_dbus_property_t *
-ni_dbus_service_get_property(const ni_dbus_service_t *service, const char *name)
-{
-	const ni_dbus_property_t *property;
-
-	if (service->properties == NULL)
-		return NULL;
-	for (property = service->properties; property->name; ++property) {
-		if (!strcmp(property->name, name))
-			return property;
-	}
-	return NULL;
 }
 
 /*
@@ -288,6 +186,7 @@ ni_dbus_service_get_method(const ni_dbus_service_t *service, const char *name)
 	}
 	return NULL;
 }
+
 
 /*
  * Support the built-in ObjectManager interface
@@ -706,7 +605,7 @@ error_reply:
 	}
 
 	/* send reply */
-	server = __ni_dbus_object_get_server(object);
+	server = ni_dbus_object_get_server(object);
 	if (ni_dbus_connection_send_message(server->connection, reply) < 0)
 		ni_error("unable to send reply (out of memory)");
 
@@ -725,32 +624,9 @@ error_reply:
 ni_dbus_server_t *
 ni_dbus_object_get_server(const ni_dbus_object_t *object)
 {
-	return __ni_dbus_object_get_server(object);
-}
+	ni_dbus_server_object_t *sob = object->server_object;
 
-const char *
-ni_dbus_object_get_path(const ni_dbus_object_t *object)
-{
-	return object->path;
-}
-
-void *
-ni_dbus_object_get_handle(const ni_dbus_object_t *object)
-{
-	return object->handle;
-}
-
-ni_dbus_object_t *
-ni_dbus_server_create_anonymous_object(ni_dbus_server_t *server,
-					const ni_dbus_object_functions_t *functions,
-					void *handle)
-{
-	ni_dbus_object_t *object;
-
-	object = __ni_dbus_object_new(server, NULL);
-	object->handle = handle;
-	object->functions = functions;
-	return object;
+	return sob? sob->server : NULL;
 }
 
 const DBusObjectPathVTable *
@@ -788,43 +664,6 @@ ni_dbus_server_unregister_object(ni_dbus_server_t *server, void *object_handle)
 	__ni_dbus_server_unregister_object(server->root_object, object_handle);
 }
 
-static void
-__ni_dbus_object_free(ni_dbus_object_t *object)
-{
-	ni_dbus_server_t *server = __ni_dbus_object_get_server(object);
-	ni_dbus_object_t *child;
-
-	if (object->pprev) {
-		*(object->pprev) = object->next;
-		object->pprev = NULL;
-	}
-
-	if (server && object->path)
-		ni_dbus_connection_unregister_object(server->connection, object);
-
-	ni_string_free(&object->name);
-	ni_string_free(&object->path);
-	while ((child = object->children) != NULL)
-		__ni_dbus_object_free(child);
-	free(object->interfaces);
-	free(object);
-}
-
-/*
- * User-visible function: delete an object previously created through
- * ni_dbus_server_create_anonymous_object.
- */
-void
-ni_dbus_object_free(ni_dbus_object_t *object)
-{
-	if (object->path) {
-		ni_error("%s: refusing to delete server object %s",
-				__FUNCTION__, object->path);
-	} else {
-		__ni_dbus_object_free(object);
-	}
-}
-
 /*
  * Translate bus name foo.bar.baz into object path /foo/bar/baz
  */
@@ -851,17 +690,4 @@ __ni_dbus_server_root_path(const char *bus_name)
 	ni_assert(i < len);
 
 	return root_path;
-}
-
-static char *
-__ni_dbus_server_child_path(const ni_dbus_object_t *parent, const char *name)
-{
-	unsigned int len;
-	char *child_path;
-
-	len = strlen(parent->path) + strlen(name) + 2;
-	child_path = malloc(len);
-	snprintf(child_path, len, "%s/%s", parent->path, name);
-
-	return child_path;
 }
