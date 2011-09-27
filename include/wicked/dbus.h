@@ -220,7 +220,7 @@ extern dbus_bool_t		ni_dbus_dict_get_int32(const ni_dbus_variant_t *, const char
 extern dbus_bool_t		ni_dbus_dict_get_uint32(const ni_dbus_variant_t *, const char *, uint32_t *);
 extern dbus_bool_t		ni_dbus_dict_get_int64(const ni_dbus_variant_t *, const char *, int64_t *);
 extern dbus_bool_t		ni_dbus_dict_get_uint64(const ni_dbus_variant_t *, const char *, uint64_t *);
-extern dbus_bool_t		ni_dbus_dict_get_string(ni_dbus_variant_t *, const char *, const char **);
+extern dbus_bool_t		ni_dbus_dict_get_string(const ni_dbus_variant_t *, const char *, const char **);
 
 extern void			ni_dbus_dict_array_init(ni_dbus_variant_t *);
 extern ni_dbus_variant_t *	ni_dbus_dict_array_add(ni_dbus_variant_t *);
