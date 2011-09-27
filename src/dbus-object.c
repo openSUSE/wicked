@@ -46,20 +46,38 @@ ni_dbus_object_new(const char *path, const ni_dbus_object_functions_t *functions
 }
 
 static ni_dbus_object_t *
-__ni_dbus_object_new_child(const ni_dbus_object_t *parent, const char *name)
+__ni_dbus_object_new_child(ni_dbus_object_t *parent, const char *name,
+				const ni_dbus_object_functions_t *functions,
+				void *object_handle)
 {
-	ni_dbus_object_t *child;
+	ni_dbus_object_t **pos, *child;
+
+	/* Find the tail of the children list */
+	for (pos = &parent->children; (child = *pos) != NULL; pos = &child->next)
+		;
 
 	child = __ni_dbus_object_new(__ni_dbus_object_child_path(parent, name));
 	if (!child)
 		return NULL;
 
+	__ni_dbus_object_insert(pos, child);
 	ni_string_dup(&child->name, name);
 	if (parent->server_object)
 		__ni_dbus_server_object_inherit(child, parent);
+	if (parent->client_object)
+		__ni_dbus_client_object_inherit(child, parent);
 
-	if (parent->functions && parent->functions->init_child)
+	if (parent->functions && parent->functions->init_child) {
+		if (functions || object_handle) {
+			ni_fatal("error when creating dbus object %s: "
+				"handle/functions arguments conflict with parent object's init_child method",
+				child->path);
+		}
 		parent->functions->init_child(child);
+	} else {
+		child->handle = object_handle;
+		child->functions = functions;
+	}
 
 	ni_debug_dbus("created %s as child of %s", child->path, parent->path);
 
@@ -81,6 +99,8 @@ __ni_dbus_object_free(ni_dbus_object_t *object)
 
 	if (object->server_object)
 		__ni_dbus_server_object_destroy(object);
+	if (object->client_object)
+		__ni_dbus_client_object_destroy(object);
 
 	ni_string_free(&object->name);
 	ni_string_free(&object->path);
@@ -99,8 +119,8 @@ __ni_dbus_object_free(ni_dbus_object_t *object)
 void
 ni_dbus_object_free(ni_dbus_object_t *object)
 {
-	if (object->path) {
-		ni_error("%s: refusing to delete server object %s",
+	if (object->pprev) {
+		ni_error("%s: refusing to delete active object %s",
 				__FUNCTION__, object->path);
 	} else {
 		__ni_dbus_object_free(object);
@@ -111,32 +131,27 @@ ni_dbus_object_free(ni_dbus_object_t *object)
  * Look up an object by its relative name
  */
 static ni_dbus_object_t *
-__ni_dbus_object_get_child(ni_dbus_object_t *parent, const char *name, int create)
+__ni_dbus_object_get_child(ni_dbus_object_t *parent, const char *name)
 {
-	ni_dbus_object_t **pos, *object;
+	ni_dbus_object_t *child;
 
-	if (*name == '\0') {
+	if (*name == '\0')
 		return parent;
+
+	for (child = parent->children; child; child = child->next) {
+		if (!strcmp(child->name, name))
+			return child;
 	}
 
-	pos = &parent->children;
-	while ((object = *pos) != NULL) {
-		if (!strcmp(object->name, name))
-			return object;
-		pos = &object->next;
-	}
-
-	if (create) {
-		object = __ni_dbus_object_new_child(parent, name);
-		__ni_dbus_object_insert(pos, object);
-	}
-	return object;
+	return NULL;
 }
 
 static ni_dbus_object_t *
-__ni_dbus_object_lookup(ni_dbus_object_t *root_object, const char *path, int create)
+__ni_dbus_object_lookup(ni_dbus_object_t *root_object, const char *path, int create,
+				const ni_dbus_object_functions_t *functions,
+				void *object_handle)
 {
-	char *path_copy = NULL, *name;
+	char *path_copy = NULL, *name, *next_name;
 	ni_dbus_object_t *found;
 
 	if (path == NULL)
@@ -145,21 +160,35 @@ __ni_dbus_object_lookup(ni_dbus_object_t *root_object, const char *path, int cre
 	ni_string_dup(&path_copy, path);
 
 	found = root_object;
-	for (name = strtok(path_copy, "/"); name && found; name = strtok(NULL, "/"))
-		found = __ni_dbus_object_get_child(found, name, create);
+	for (name = strtok(path_copy, "/"); name && found; name = next_name) {
+		ni_dbus_object_t *child;
+
+		next_name = strtok(NULL, "/");
+		child = __ni_dbus_object_get_child(found, name);
+		if (child == NULL && create) {
+			if (next_name != NULL) {
+				/* Intermediate path component */
+				child = __ni_dbus_object_new_child(found, name, NULL, NULL);
+			} else {
+				/* Final path component consumes object handle and functions */
+				child = __ni_dbus_object_new_child(found, name, functions, object_handle);
+			}
+		}
+		found = child;
+	}
 
 	ni_string_free(&path_copy);
 	return found;
 }
 
 ni_dbus_object_t *
-__ni_dbus_object_create(ni_dbus_object_t *root_object, const char *object_path,
+ni_dbus_object_create(ni_dbus_object_t *root_object, const char *object_path,
 				const ni_dbus_object_functions_t *functions,
 				void *object_handle)
 {
 	ni_dbus_object_t *object;
 
-	object = __ni_dbus_object_lookup(root_object, object_path, 0);
+	object = __ni_dbus_object_lookup(root_object, object_path, 0, NULL, NULL);
 	if (object != NULL) {
 		/* Object already exists. Check for idempotent registration */
 		if (object->handle != object_handle) {
@@ -173,17 +202,10 @@ __ni_dbus_object_create(ni_dbus_object_t *root_object, const char *object_path,
 		return object;
 	}
 
-	object = __ni_dbus_object_lookup(root_object, object_path, 1);
+	object = __ni_dbus_object_lookup(root_object, object_path, 1, functions, object_handle);
 	if (object == NULL) {
 		ni_error("%s: could not create object \"%s\"", __FUNCTION__, object_path);
 		return NULL;
-	}
-
-	/* Do not override if handle and functions have already been
-	 * set by init_child() */
-	if (!object->handle && !object->functions) {
-		object->handle = object_handle;
-		object->functions = functions;
 	}
 
 	return object;

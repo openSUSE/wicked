@@ -51,7 +51,7 @@
 struct ni_wpa_client {
 	ni_dbus_client_t *	dbus;
 
-	ni_dbus_proxy_t *	proxy;
+	ni_dbus_object_t *	proxy;
 	ni_wpa_interface_t *	iflist;
 };
 
@@ -98,7 +98,7 @@ ni_wpa_client_open(void)
 	ni_dbus_client_set_error_map(dbc, __ni_wpa_error_names);
 
 	wpa = xcalloc(1, sizeof(*wpa));
-	wpa->proxy = ni_dbus_proxy_new(dbc, NI_WPA_OBJECT_PATH, NI_WPA_INTERFACE, NULL, wpa);
+	wpa->proxy = ni_dbus_client_object_new(dbc, NI_WPA_OBJECT_PATH, NI_WPA_INTERFACE, NULL, wpa);
 	wpa->dbus = dbc;
 
 	ni_dbus_client_add_signal_handler(dbc,
@@ -127,7 +127,7 @@ ni_wpa_client_free(ni_wpa_client_t *wpa)
 	}
 
 	if (wpa->proxy) {
-		ni_dbus_proxy_free(wpa->proxy);
+		ni_dbus_object_free(wpa->proxy);
 		wpa->proxy = NULL;
 	}
 
@@ -158,7 +158,7 @@ ni_wpa_client_interface_by_path(ni_wpa_client_t *wpa, const char *object_path)
 	ni_wpa_interface_t *ifp;
 
 	for (ifp = wpa->iflist; ifp; ifp = ifp->next) {
-		ni_dbus_proxy_t *obj = ifp->proxy;
+		ni_dbus_object_t *obj = ifp->proxy;
 
 		if (obj && !strcmp(obj->path, object_path))
 			return ifp;
@@ -188,14 +188,14 @@ ni_wpa_interface_bss_by_path(ni_wpa_interface_t *ifp, const char *object_path)
 
 	ni_assert(ifp->proxy != NULL);
 	for (bss = ifp->bss_list; bss; bss = bss->next) {
-		ni_dbus_proxy_t *obj = bss->proxy;
+		ni_dbus_object_t *obj = bss->proxy;
 
 		if (obj && !strcmp(obj->path, object_path))
 			return bss;
 	}
 
 	bss = xcalloc(1, sizeof(*bss));
-	bss->proxy = ni_dbus_proxy_new(ifp->proxy->client, object_path, NI_WPA_BSS_INTERFACE, NULL, bss);
+	bss->proxy = ni_dbus_client_object_new(ni_dbus_object_get_client(ifp->proxy), object_path, NI_WPA_BSS_INTERFACE, NULL, bss);
 	bss->next = ifp->bss_list;
 	ifp->bss_list = bss;
 
@@ -218,7 +218,7 @@ static void
 ni_wpa_bss_free(ni_wpa_bss_t *bss)
 {
 	if (bss->proxy) {
-		ni_dbus_proxy_free(bss->proxy);
+		ni_dbus_object_free(bss->proxy);
 		bss->proxy = NULL;
 	}
 	if (bss->scan) {
@@ -269,7 +269,7 @@ ni_wpa_interface_unbind(ni_wpa_interface_t *ifp)
 	ni_wpa_bss_t *bss;
 
 	if (ifp->proxy) {
-		ni_dbus_proxy_free(ifp->proxy);
+		ni_dbus_object_free(ifp->proxy);
 		ifp->proxy = NULL;
 	}
 
@@ -302,7 +302,7 @@ ni_wpa_get_interface(ni_wpa_client_t *wpa, const char *ifname, ni_wpa_interface_
 		ifp = ni_wpa_interface_new(wpa, ifname);
 
 	if (ifp->proxy == NULL) {
-		rv = ni_dbus_proxy_call_simple(wpa->proxy, "getInterface",
+		rv = ni_dbus_object_call_simple(wpa->proxy, "getInterface",
 				DBUS_TYPE_STRING, &ifname,
 				DBUS_TYPE_OBJECT_PATH, &object_path);
 		if (rv < 0)
@@ -342,7 +342,7 @@ ni_wpa_add_interface(ni_wpa_client_t *wpa, const char *ifname, ni_wpa_interface_
 
 		/* Build the addInterface call, using the given interface name
 		 * and specify "wext" as the driver parameter. */
-		call = ni_dbus_proxy_call_new_va(wpa->proxy, "addInterface", NULL);
+		call = ni_dbus_object_call_new_va(wpa->proxy, "addInterface", NULL);
 		if (call == NULL) {
 			ni_error("%s: could not build message", __func__);
 			rv = -EINVAL;
@@ -395,7 +395,7 @@ ni_wpa_prepare_interface(ni_wpa_client_t *wpa, ni_wpa_interface_t *ifp, const ch
 {
 	int rv;
 
-	ifp->proxy = ni_dbus_proxy_new(wpa->dbus, object_path, NI_WPA_IF_INTERFACE, NULL, ifp);
+	ifp->proxy = ni_dbus_client_object_new(wpa->dbus, object_path, NI_WPA_IF_INTERFACE, NULL, ifp);
 
 	/* Get current interface state. */
 	rv = ni_wpa_interface_get_state(wpa, ifp);
@@ -455,7 +455,7 @@ ni_wpa_interface_get_state(ni_wpa_client_t *wpa, ni_wpa_interface_t *ifp)
 	char *state = NULL;
 	int rv = -1;
 
-	rv = ni_dbus_proxy_call_simple(ifp->proxy, "state",
+	rv = ni_dbus_object_call_simple(ifp->proxy, "state",
 			DBUS_TYPE_INVALID, NULL,
 			DBUS_TYPE_STRING, &state);
 	if (rv >= 0)
@@ -501,7 +501,7 @@ ni_wpa_interface_request_scan(ni_wpa_client_t *wpa, ni_wpa_interface_t *ifp, ni_
 	uint32_t value;
 	int rv = -1;
 
-	rv = ni_dbus_proxy_call_simple(ifp->proxy, "scan",
+	rv = ni_dbus_object_call_simple(ifp->proxy, "scan",
 			DBUS_TYPE_INVALID, NULL,
 			DBUS_TYPE_UINT32, &value);
 
@@ -642,9 +642,9 @@ ni_wpa_interface_state_change_event(ni_wpa_client_t *wpa,
  * each of which identifies a BSS object.
  */
 static void
-ni_wpa_interface_scan_results(ni_dbus_proxy_t *proxy, ni_dbus_message_t *msg)
+ni_wpa_interface_scan_results(ni_dbus_object_t *proxy, ni_dbus_message_t *msg)
 {
-	ni_wpa_interface_t *ifp = proxy->local_data;
+	ni_wpa_interface_t *ifp = proxy->handle;
 	ni_wpa_client_t *wpa = ifp->wpa_client;
 	char **object_path_array = NULL;
 	unsigned int object_path_count = 0;
@@ -713,7 +713,7 @@ ni_wpa_interface_scan_results_available_event(ni_wpa_client_t *wpa, const char *
 		scan->state = NI_WPA_SCAN_BSSLIST;
 
 	ni_debug_wireless("%s: scan results available - retrieving them", ifp->ifname);
-	ni_dbus_proxy_call_async(ifp->proxy,
+	ni_dbus_object_call_async(ifp->proxy,
 			ni_wpa_interface_scan_results,
 			"scanResults",
 			0);
@@ -832,9 +832,9 @@ static struct ni_dbus_dict_entry_handler __bss_property_handlers[] = {
  * Callback invoked when the properties() call on a BSS object returns.
  */
 static void
-ni_wpa_bss_properties_result(ni_dbus_proxy_t *proxy, ni_dbus_message_t *msg)
+ni_wpa_bss_properties_result(ni_dbus_object_t *proxy, ni_dbus_message_t *msg)
 {
-	ni_wpa_bss_t *bss = proxy->local_data;
+	ni_wpa_bss_t *bss = proxy->handle;
 	ni_wpa_scan_t *scan;
 	struct ni_wpa_bss_properties *props;
 	DBusMessageIter iter, dict_iter;
@@ -876,7 +876,7 @@ failed:
 static void
 ni_wpa_bss_request_properties(ni_wpa_client_t *wpa, ni_wpa_bss_t *bss)
 {
-	ni_dbus_proxy_call_async(bss->proxy,
+	ni_dbus_object_call_async(bss->proxy,
 			ni_wpa_bss_properties_result,
 			"properties",
 			0);
@@ -1098,7 +1098,7 @@ ni_wpa_interface_get_capabilities(ni_wpa_client_t *wpa, ni_wpa_interface_t *ifp)
 	DBusError error = DBUS_ERROR_INIT;
 	int rv = -1;
 
-	call = ni_dbus_proxy_call_new(ifp->proxy, "capabilities", 0);
+	call = ni_dbus_object_call_new(ifp->proxy, "capabilities", 0);
 	if (call == NULL) {
 		ni_error("%s: could not build message", __func__);
 		rv = -EINVAL;

@@ -15,6 +15,7 @@
 #include "dbus-common.h"
 #include "dbus-client.h"
 #include "dbus-dict.h"
+#include "dbus-object.h"
 
 #define TRACE_ENTER()		ni_debug_dbus("%s()", __FUNCTION__)
 #define TP()			ni_debug_dbus("TP - %s:%u", __FUNCTION__, __LINE__)
@@ -26,8 +27,14 @@ struct ni_dbus_client {
 	const ni_intmap_t *	error_map;
 };
 
-static dbus_bool_t	__ni_dbus_proxy_get_managed_object_interfaces(ni_dbus_proxy_t *, DBusMessageIter *);
-static dbus_bool_t	__ni_dbus_proxy_get_managed_object_properties(ni_dbus_proxy_t *proxy,
+struct ni_dbus_client_object {
+	ni_dbus_client_t *	client;
+	char *			default_interface;
+};
+
+
+static dbus_bool_t	__ni_dbus_object_get_managed_object_interfaces(ni_dbus_object_t *, DBusMessageIter *);
+static dbus_bool_t	__ni_dbus_object_get_managed_object_properties(ni_dbus_object_t *proxy,
 					const ni_dbus_service_t *service,
 					DBusMessageIter *iter);
 
@@ -63,6 +70,79 @@ ni_dbus_client_free(ni_dbus_client_t *dbc)
 	ni_dbus_connection_free(dbc->connection);
 	dbc->connection = NULL;
 	free(dbc);
+}
+
+/*
+ * Constructor/Destructor for client-side objects
+ */
+void
+__ni_dbus_client_object_init(ni_dbus_object_t *object, ni_dbus_client_t *client, const char *interface)
+{
+	ni_dbus_client_object_t *cob;
+
+	cob = calloc(1, sizeof(*cob));
+	cob->client = client;
+	ni_string_dup(&cob->default_interface, interface);
+	object->client_object = cob;
+}
+
+void
+__ni_dbus_client_object_inherit(ni_dbus_object_t *child, const ni_dbus_object_t *parent)
+{
+	ni_dbus_client_object_t *cob;
+
+	if ((cob = parent->client_object) != NULL)
+		__ni_dbus_client_object_init(child, cob->client, cob->default_interface);
+}
+
+void
+__ni_dbus_client_object_destroy(ni_dbus_object_t *object)
+{
+	ni_dbus_client_object_t *cob;
+
+	if ((cob = object->client_object) != NULL) {
+		ni_string_free(&cob->default_interface);
+		cob->client = NULL;
+	}
+}
+
+ni_dbus_object_t *
+ni_dbus_client_object_new(ni_dbus_client_t *client, const char *path, const char *interface,
+		const ni_dbus_object_functions_t *functions, void *local_data)
+{
+	ni_dbus_object_t *object;
+
+	object = ni_dbus_object_new(path, functions, local_data);
+	__ni_dbus_client_object_init(object, client, interface);
+	return object;
+}
+
+/*
+ * Accessor functions for client-side objects
+ */
+ni_dbus_client_t *
+ni_dbus_object_get_client(const ni_dbus_object_t *object)
+{
+	ni_dbus_client_object_t *cob = object->client_object;
+
+	return cob? cob->client : NULL;
+}
+
+void
+ni_dbus_object_set_default_interface(ni_dbus_object_t *object, const char *interface_name)
+{
+	ni_dbus_client_object_t *cob = object->client_object;
+
+	if (cob)
+		ni_string_dup(&cob->default_interface, interface_name);
+}
+
+const char *
+ni_dbus_object_get_default_interface(const ni_dbus_object_t *object)
+{
+	ni_dbus_client_object_t *cob = object->client_object;
+
+	return cob? cob->default_interface : NULL;
 }
 
 /*
@@ -121,13 +201,13 @@ ni_dbus_client_add_signal_handler(ni_dbus_client_t *client,
  * Proxy objects, and calling through proxies
  */
 ni_dbus_message_t *
-ni_dbus_proxy_call_new(const ni_dbus_proxy_t *dbo, const char *method, ...)
+ni_dbus_object_call_new(const ni_dbus_object_t *dbo, const char *method, ...)
 {
 	ni_dbus_message_t *msg;
 	va_list ap;
 
 	va_start(ap, method);
-	msg = ni_dbus_proxy_call_new_va(dbo, method, &ap);
+	msg = ni_dbus_object_call_new_va(dbo, method, &ap);
 	va_end(ap);
 
 	return msg;
@@ -145,17 +225,27 @@ ni_dbus_message_serialize_va(DBusMessage *msg, va_list ap)
 }
 
 ni_dbus_message_t *
-ni_dbus_proxy_call_new_va(const ni_dbus_proxy_t *dbo, const char *method, va_list *app)
+ni_dbus_object_call_new_va(const ni_dbus_object_t *dbo, const char *method, va_list *app)
 {
+	ni_dbus_client_t *client = ni_dbus_object_get_client(dbo);
+	const char *interface_name;
 	ni_dbus_message_t *msg;
 
-	ni_debug_dbus("%s(obj=%s, intf=%s, method=%s)", __FUNCTION__, dbo->path, dbo->interface, method);
-	msg = dbus_message_new_method_call(dbo->client->bus_name, dbo->path, dbo->interface, method);
+	if (!client)
+		return NULL;
+
+	if (!(interface_name = ni_dbus_object_get_default_interface(dbo))) {
+		ni_error("ni_dbus_object_call_new: no default interface for object %s", dbo->path);
+		return NULL;
+	}
+
+	ni_debug_dbus("%s(obj=%s, intf=%s, method=%s)", __FUNCTION__, dbo->path, interface_name, method);
+	msg = dbus_message_new_method_call(client->bus_name, dbo->path, interface_name, method);
 
 	/* Serialize arguments */
 	if (msg && app) {
 		if (ni_dbus_message_serialize_va(msg, *app) < 0) {
-			ni_error("ni_dbus_proxy_call_new: failed to serialize args");
+			ni_error("ni_dbus_object_call_new: failed to serialize args");
 			dbus_message_unref(msg);
 			return NULL;
 		}
@@ -164,10 +254,12 @@ ni_dbus_proxy_call_new_va(const ni_dbus_proxy_t *dbo, const char *method, va_lis
 }
 
 int
-ni_dbus_proxy_call_simple(const ni_dbus_proxy_t *proxy, const char *method,
+ni_dbus_object_call_simple(const ni_dbus_object_t *proxy, const char *method,
 				int arg_type, void *arg_ptr,
 				int res_type, void *res_ptr)
 {
+	ni_dbus_client_t *client = ni_dbus_object_get_client(proxy);
+	const char *interface_name;
 	ni_dbus_message_t *msg = NULL, *reply = NULL;
 	DBusError error;
 	int rv = 0;
@@ -176,7 +268,15 @@ ni_dbus_proxy_call_simple(const ni_dbus_proxy_t *proxy, const char *method,
 			arg_type, arg_ptr, res_type, res_ptr);
 	dbus_error_init(&error);
 
-	msg = dbus_message_new_method_call(proxy->client->bus_name, proxy->path, proxy->interface, method);
+	if (!client)
+		return -EIO;
+
+	if (!(interface_name = ni_dbus_object_get_default_interface(proxy))) {
+		ni_error("ni_dbus_object_call_new: no default interface for object %s", proxy->path);
+		return -EIO;
+	}
+
+	msg = dbus_message_new_method_call(client->bus_name, proxy->path, interface_name, method);
 	if (msg == NULL) {
 		ni_error("%s: unable to build %s() message", __FUNCTION__, method);
 		return -EIO;
@@ -189,14 +289,14 @@ ni_dbus_proxy_call_simple(const ni_dbus_proxy_t *proxy, const char *method,
 		goto out;
 	}
 
-	if ((reply = ni_dbus_client_call(proxy->client, msg, &error)) == NULL) {
+	if ((reply = ni_dbus_client_call(client, msg, &error)) == NULL) {
 		rv = -EIO;
 		goto out;
 	}
 
 	if (res_type && !dbus_message_get_args(reply, &error, res_type, res_ptr, 0)) {
 		ni_error("%s: unable to deserialize %s() response", __FUNCTION__, method);
-		rv = -ni_dbus_client_translate_error(proxy->client, &error);
+		rv = -ni_dbus_client_translate_error(client, &error);
 		goto out;
 	}
 	if (res_type == DBUS_TYPE_STRING
@@ -240,21 +340,23 @@ dbus_message_serialize_variants(ni_dbus_message_t *msg,
 }
 
 dbus_bool_t
-ni_dbus_proxy_call_variant(const ni_dbus_proxy_t *proxy, const char *method,
+ni_dbus_object_call_variant(const ni_dbus_object_t *proxy, const char *method,
 					unsigned int nargs, const ni_dbus_variant_t *args,
 					unsigned int maxres, const ni_dbus_variant_t *res,
 					DBusError *error)
 {
 	ni_dbus_message_t *call = NULL, *reply = NULL;
+	const char *interface_name;
 	ni_dbus_client_t *client;
 	dbus_bool_t rv = FALSE;
 
-	if (!proxy || !(client = proxy->client)) {
+	if (!proxy || !(client = ni_dbus_object_get_client(proxy))
+	 || !(interface_name = ni_dbus_object_get_default_interface(proxy))) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "%s: bad proxy object", __FUNCTION__);
 		return FALSE;
 	}
 
-	call = dbus_message_new_method_call(client->bus_name, proxy->path, proxy->interface, method);
+	call = dbus_message_new_method_call(client->bus_name, proxy->path, interface_name, method);
 	if (call == NULL) {
 		dbus_set_error(error, DBUS_ERROR_FAILED, "%s: unable to build %s() message", __FUNCTION__, method);
 		goto out;
@@ -263,23 +365,9 @@ ni_dbus_proxy_call_variant(const ni_dbus_proxy_t *proxy, const char *method,
 	if (nargs && !dbus_message_serialize_variants(call, nargs, args, error))
 		goto out;
 
-	if ((reply = ni_dbus_client_call(proxy->client, call, error)) == NULL)
+	if ((reply = ni_dbus_client_call(client, call, error)) == NULL)
 		goto out;
 
-#if 0
-	if (res_type && !dbus_message_get_args(reply, &error, res_type, res_ptr, 0)) {
-		ni_error("%s: unable to deserialize %s() response", __FUNCTION__, method);
-		rv = -ni_dbus_client_translate_error(proxy->client, &error);
-		goto out;
-	}
-	if (res_type == DBUS_TYPE_STRING
-	 || res_type == DBUS_TYPE_OBJECT_PATH) {
-		char **res_string = (char **) res_ptr;
-
-		if (*res_string)
-			*res_string = xstrdup(*res_string);
-	}
-#endif
 	rv = TRUE;
 
 out:
@@ -294,17 +382,17 @@ out:
  * Asynchronous dbus calls
  */
 int
-ni_dbus_proxy_call_async(ni_dbus_proxy_t *proxy,
+ni_dbus_object_call_async(ni_dbus_object_t *proxy,
 			ni_dbus_async_callback_t *callback, const char *method, ...)
 {
-	ni_dbus_client_t *client = proxy->client;
+	ni_dbus_client_t *client = ni_dbus_object_get_client(proxy);
 	ni_dbus_message_t *call = NULL;
 	va_list ap;
 	int rv = 0;
 
 	ni_debug_dbus("%s(method=%s)", __FUNCTION__, method);
 	va_start(ap, method);
-	call = ni_dbus_proxy_call_new_va(proxy, method, &ap);
+	call = ni_dbus_object_call_new_va(proxy, method, &ap);
 	va_end(ap);
 
 	if (call == NULL) {
@@ -320,123 +408,30 @@ ni_dbus_proxy_call_async(ni_dbus_proxy_t *proxy,
 	return rv;
 }
 
-ni_dbus_proxy_t *
-ni_dbus_proxy_new(ni_dbus_client_t *client, const char *path, const char *interface,
-		const ni_dbus_proxy_functions_t *functions, void *local_data)
-{
-	ni_dbus_proxy_t *dbo;
-
-	dbo = calloc(1, sizeof(*dbo));
-	dbo->client = client;
-	dbo->local_data = local_data;
-	dbo->functions = functions;
-	ni_string_dup(&dbo->path, path);
-	ni_string_dup(&dbo->interface, interface);
-	return dbo;
-}
-
-ni_dbus_proxy_t *
-ni_dbus_proxy_new_child(ni_dbus_proxy_t *parent, const char *name, const char *interface,
-		const ni_dbus_proxy_functions_t *functions, void *local_data)
-{
-	ni_dbus_proxy_t *dbo;
-	unsigned int plen;
-
-	dbo = calloc(1, sizeof(*dbo));
-	dbo->client = parent->client;
-	dbo->local_data = local_data;
-	dbo->functions = functions;
-	ni_string_dup(&dbo->interface, interface);
-
-	plen = strlen(parent->path) + strlen(name) + 2;
-	dbo->path = malloc(plen);
-	snprintf(dbo->path, plen, "%s/%s", parent->path, name);
-
-	return dbo;
-}
-
-/*
- * proxy object lookup functions
- */
-ni_dbus_proxy_t *
-ni_dbus_proxy_lookup(ni_dbus_proxy_t *proxy, const char *path)
-{
-	char *path_copy, *pos;
-
-	if (!path)
-		return proxy;
-
-	path_copy = xstrdup(path);
-	for (pos = path_copy; pos; ) {
-		ni_dbus_proxy_t *child;
-		char *sp;
-
-		if ((sp = strchr(pos, '/')) != NULL)
-			*sp = '\0';
-
-		for (child = proxy->children; child; child = child->next) {
-			if (!strcmp(child->path, path_copy))
-				break;
-		}
-		if (child == NULL) {
-			if (!proxy->functions || !proxy->functions->create_child)
-				return NULL;
-			child = proxy->functions->create_child(proxy, pos);
-		}
-		proxy = child;
-
-		if (sp) {
-			*sp++ = '/';
-			while (*sp == '/')
-				++sp;
-		}
-		pos = sp;
-	}
-
-	free(path_copy);
-	return proxy;
-}
-
-void
-ni_dbus_proxy_free(ni_dbus_proxy_t *dbo)
-{
-	ni_dbus_proxy_t *child;
-
-	ni_string_free(&dbo->path);
-	ni_string_free(&dbo->interface);
-	/* Free list of interfaces */
-
-	/* Free list of children */
-	while ((child = dbo->children) != NULL) {
-		dbo->children = child->next;
-		ni_dbus_proxy_free(child);
-	}
-	free(dbo);
-}
-
 /*
  * Use ObjectManager.GetManagedObjects to retrieve (part of)
  * the server's object hierarchy
  */
 dbus_bool_t
-ni_dbus_proxy_get_managed_objects(ni_dbus_proxy_t *proxy, DBusError *error)
+ni_dbus_object_get_managed_objects(ni_dbus_object_t *proxy, DBusError *error)
 {
-	ni_dbus_proxy_t *objmgr;
+	ni_dbus_client_t *client;
+	ni_dbus_object_t *objmgr;
 	ni_dbus_message_t *call = NULL, *reply = NULL;
 	DBusMessageIter iter, iter_dict;
 	dbus_bool_t rv = FALSE;
 
-	ni_debug_dbus("proxy functions = %p, create_child=%p", 
-		proxy->functions,
-		proxy->functions? proxy->functions->create_child : 0);
+	if (!(client = ni_dbus_object_get_client(proxy))) {
+		dbus_set_error(error, DBUS_ERROR_FAILED, "%s: not a client object", __FUNCTION__);
+		return FALSE;
+	}
 
-	objmgr = ni_dbus_proxy_new(proxy->client,
-			proxy->path,
+	objmgr = ni_dbus_client_object_new(client, proxy->path,
 			NI_DBUS_INTERFACE ".ObjectManager",
 			NULL, NULL);
 
-	call = ni_dbus_proxy_call_new(objmgr, "GetManagedObjects", 0);
-	if ((reply = ni_dbus_client_call(proxy->client, call, error)) == NULL)
+	call = ni_dbus_object_call_new(objmgr, "GetManagedObjects", 0);
+	if ((reply = ni_dbus_client_call(client, call, error)) == NULL)
 		goto out;
 
 	dbus_message_iter_init(reply, &iter);
@@ -444,7 +439,7 @@ ni_dbus_proxy_get_managed_objects(ni_dbus_proxy_t *proxy, DBusError *error)
 		goto bad_reply;
 	while (dbus_message_iter_get_arg_type(&iter_dict) == DBUS_TYPE_DICT_ENTRY) {
 		DBusMessageIter iter_dict_entry;
-		ni_dbus_proxy_t *descendant;
+		ni_dbus_object_t *descendant;
 		const char *object_path;
 		unsigned int len;
 
@@ -468,11 +463,11 @@ ni_dbus_proxy_get_managed_objects(ni_dbus_proxy_t *proxy, DBusError *error)
 			continue;
 		}
 		if (object_path[len])
-			descendant = ni_dbus_proxy_lookup(proxy, object_path + len + 1);
+			descendant = ni_dbus_object_create(proxy, object_path + len + 1, NULL, NULL);
 		else
 			descendant = proxy;
 
-		if (!__ni_dbus_proxy_get_managed_object_interfaces(descendant, &iter_dict_entry))
+		if (!__ni_dbus_object_get_managed_object_interfaces(descendant, &iter_dict_entry))
 			goto bad_reply;
 	}
 
@@ -483,7 +478,7 @@ out:
 		dbus_message_unref(call);
 	if (reply)
 		dbus_message_unref(reply);
-	ni_dbus_proxy_free(objmgr);
+	ni_dbus_object_free(objmgr);
 	return rv;
 
 bad_reply:
@@ -492,7 +487,7 @@ bad_reply:
 }
 
 static dbus_bool_t
-__ni_dbus_proxy_get_managed_object_interfaces(ni_dbus_proxy_t *proxy, DBusMessageIter *iter)
+__ni_dbus_object_get_managed_object_interfaces(ni_dbus_object_t *proxy, DBusMessageIter *iter)
 {
 	DBusMessageIter iter_variant, iter_dict;
 
@@ -524,7 +519,7 @@ __ni_dbus_proxy_get_managed_object_interfaces(ni_dbus_proxy_t *proxy, DBusMessag
 			continue;
 
 		/* The value of this dict entry is the property dict */
-		if (!__ni_dbus_proxy_get_managed_object_properties(proxy, service, &iter_dict_entry))
+		if (!__ni_dbus_object_get_managed_object_properties(proxy, service, &iter_dict_entry))
 			return FALSE;
 	}
 
@@ -532,7 +527,7 @@ __ni_dbus_proxy_get_managed_object_interfaces(ni_dbus_proxy_t *proxy, DBusMessag
 }
 
 static dbus_bool_t
-__ni_dbus_proxy_get_managed_object_properties(ni_dbus_proxy_t *proxy,
+__ni_dbus_object_get_managed_object_properties(ni_dbus_object_t *proxy,
 				const ni_dbus_service_t *service,
 				DBusMessageIter *iter)
 {
@@ -571,12 +566,12 @@ __ni_dbus_proxy_get_managed_object_properties(ni_dbus_proxy_t *proxy,
 }
 
 dbus_bool_t
-ni_dbus_proxy_refresh_children(ni_dbus_proxy_t *proxy)
+ni_dbus_object_refresh_children(ni_dbus_object_t *proxy)
 {
 	DBusError error = DBUS_ERROR_INIT;
 	dbus_bool_t rv;
 
-	rv = ni_dbus_proxy_get_managed_objects(proxy, &error);
+	rv = ni_dbus_object_get_managed_objects(proxy, &error);
 	dbus_error_free(&error);
 	return rv;
 }

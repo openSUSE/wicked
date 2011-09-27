@@ -142,7 +142,7 @@ ni_dbus_server_register_object(ni_dbus_server_t *server, const char *object_path
 	ni_dbus_object_t *object;
 
 	TRACE_ENTERN("path=%s, handle=%p", object_path, object_handle);
-	object = __ni_dbus_object_create(server->root_object, object_path, functions, object_handle);
+	object = ni_dbus_object_create(server->root_object, object_path, functions, object_handle);
 
 	return object;
 }

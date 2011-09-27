@@ -173,23 +173,25 @@ main(int argc, char **argv)
 	goto usage;
 }
 
-static ni_dbus_proxy_t *
-wicked_proxy_interface_new_child(ni_dbus_proxy_t *parent, const char *name)
+static dbus_bool_t
+wicked_proxy_interface_init_child(ni_dbus_object_t *object)
 {
 	static ni_handle_t *nih = NULL;
 	ni_interface_t *ifp;
 
 	if (nih == NULL)
 		nih = ni_dummy_open();
-	ifp = ni_interface_new(nih, name, 0);
-	return ni_dbus_proxy_new_child(parent, name, NULL, NULL, ifp);
+	ifp = ni_interface_new(nih, object->name, 0);
+	object->handle = ifp;
+
+	return TRUE;
 }
 
-static ni_dbus_proxy_functions_t wicked_proxy_interface_functions = {
-	.create_child = wicked_proxy_interface_new_child
+static ni_dbus_object_functions_t wicked_proxy_interface_functions = {
+	.init_child = wicked_proxy_interface_init_child
 };
 
-static ni_dbus_proxy_t *
+static ni_dbus_object_t *
 wicked_dbus_client_create(void)
 {
 	ni_dbus_client_t *client;
@@ -200,7 +202,7 @@ wicked_dbus_client_create(void)
 
 	// ni_dbus_client_set_error_map(dbc, __wicked_error_names);
 
-	return ni_dbus_proxy_new(client,
+	return ni_dbus_client_object_new(client,
 				WICKED_DBUS_OBJECT_PATH,
 				WICKED_DBUS_INTERFACE,
 				NULL, NULL);
@@ -210,7 +212,7 @@ wicked_dbus_client_create(void)
  * Create a virtual network interface
  */
 static char *
-wicked_create_interface_argv(ni_dbus_proxy_t *object, int iftype, int argc, char **argv)
+wicked_create_interface_argv(ni_dbus_object_t *object, int iftype, int argc, char **argv)
 {
 	ni_dbus_variant_t call_argv[2], call_resp[1], *dict;
 	const ni_dbus_service_t *service;
@@ -261,7 +263,7 @@ wicked_create_interface_argv(ni_dbus_proxy_t *object, int iftype, int argc, char
 		}
 	}
 
-	if (!ni_dbus_proxy_call_variant(object, "create",
+	if (!ni_dbus_object_call_variant(object, "create",
 				2, call_argv,
 				1, call_resp,
 				&error)) {
@@ -279,12 +281,28 @@ failed:
 }
 
 /*
+ * Obtain an object handle for Wicked.Interface
+ */
+static ni_dbus_object_t *
+wicked_get_interface_object(void)
+{
+	ni_dbus_object_t *root_object, *child;
+
+	if (!(root_object = wicked_dbus_client_create()))
+		return NULL;
+	child = ni_dbus_object_create(root_object, "Interface", &wicked_proxy_interface_functions, NULL);
+	ni_dbus_object_set_default_interface(child, WICKED_DBUS_INTERFACE ".Interface");
+
+	return child;
+}
+
+/*
  * Handle "create" command
  */
 int
 do_create(int argc, char **argv)
 {
-	ni_dbus_proxy_t *object;
+	ni_dbus_object_t *object;
 	char *ifname;
 	int iftype;
 
@@ -299,10 +317,8 @@ do_create(int argc, char **argv)
 		return 1;
 	}
 
-	if (!(object = wicked_dbus_client_create()))
+	if (!(object = wicked_get_interface_object()))
 		return 1;
-	object = ni_dbus_proxy_new_child(object, "Interface", WICKED_DBUS_INTERFACE ".Interface",
-				&wicked_proxy_interface_functions, NULL);
 
 	ifname = wicked_create_interface_argv(object, iftype, argc - 2, argv + 2);
 	if (!ifname)
@@ -312,16 +328,16 @@ do_create(int argc, char **argv)
 	return 0;
 }
 
-static ni_dbus_proxy_t *
-wicked_get_interface(ni_dbus_proxy_t *root_object, const char *ifname)
+static ni_dbus_object_t *
+wicked_get_interface(ni_dbus_object_t *root_object, const char *ifname)
 {
-	ni_dbus_proxy_t *interfaces;
+	ni_dbus_object_t *interfaces;
 
-	interfaces = ni_dbus_proxy_new_child(root_object, "Interface", WICKED_DBUS_INTERFACE ".Interface",
-				&wicked_proxy_interface_functions, NULL);
+	if (!(interfaces = wicked_get_interface_object()))
+		return NULL;
 
 	/* Call ObjectManager.GetAllObjects to get list of objects and their properties */
-	if (!ni_dbus_proxy_refresh_children(interfaces)) {
+	if (!ni_dbus_object_refresh_children(interfaces)) {
 		ni_error("Couldn't get list of active network interfaces");
 		return NULL;
 	}
@@ -335,7 +351,7 @@ wicked_get_interface(ni_dbus_proxy_t *root_object, const char *ifname)
 int
 do_show(int argc, char **argv)
 {
-	ni_dbus_proxy_t *object;
+	ni_dbus_object_t *object;
 	const char *ifname;
 
 	if (argc != 1) {

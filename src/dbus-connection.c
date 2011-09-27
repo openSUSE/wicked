@@ -27,7 +27,7 @@ struct ni_dbus_pending {
 
 	DBusPendingCall *	call;
 	ni_dbus_async_callback_t *callback;
-	ni_dbus_proxy_t *	proxy;
+	ni_dbus_object_t *	proxy;
 };
 
 typedef struct ni_dbus_sigaction ni_dbus_sigaction_t;
@@ -171,7 +171,7 @@ static void
 ni_dbus_connection_add_pending(ni_dbus_connection_t *connection,
 			DBusPendingCall *call,
 			ni_dbus_async_callback_t *callback,
-			ni_dbus_proxy_t *proxy)
+			ni_dbus_object_t *proxy)
 {
 	ni_dbus_pending_t *pd;
 
@@ -264,7 +264,7 @@ ni_dbus_connection_call(ni_dbus_connection_t *connection,
 int
 ni_dbus_connection_call_async(ni_dbus_connection_t *connection,
 			ni_dbus_message_t *call, unsigned int timeout,
-			ni_dbus_async_callback_t *callback, ni_dbus_proxy_t *proxy)
+			ni_dbus_async_callback_t *callback, ni_dbus_object_t *proxy)
 {
 	DBusPendingCall *pending;
 
