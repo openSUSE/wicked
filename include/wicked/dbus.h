@@ -103,6 +103,7 @@ struct ni_dbus_service {
 
 typedef struct ni_dbus_object_functions	ni_dbus_object_functions_t;
 struct ni_dbus_object_functions {
+	dbus_bool_t		(*init_child)(ni_dbus_object_t *);
 	void			(*destroy)(ni_dbus_object_t *);
 	dbus_bool_t		(*refresh)(ni_dbus_object_t *);
 };

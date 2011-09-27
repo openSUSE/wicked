@@ -58,6 +58,9 @@ __ni_dbus_object_new_child(const ni_dbus_object_t *parent, const char *name)
 	if (parent->server_object)
 		__ni_dbus_server_object_inherit(child, parent);
 
+	if (parent->functions && parent->functions->init_child)
+		parent->functions->init_child(child);
+
 	ni_debug_dbus("created %s as child of %s", child->path, parent->path);
 
 	return child;
@@ -175,8 +178,13 @@ __ni_dbus_object_create(ni_dbus_object_t *root_object, const char *object_path,
 		ni_error("%s: could not create object \"%s\"", __FUNCTION__, object_path);
 		return NULL;
 	}
-	object->handle = object_handle;
-	object->functions = functions;
+
+	/* Do not override if handle and functions have already been
+	 * set by init_child() */
+	if (!object->handle && !object->functions) {
+		object->handle = object_handle;
+		object->functions = functions;
+	}
 
 	return object;
 }
