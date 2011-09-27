@@ -532,6 +532,7 @@ __ni_dbus_object_get_managed_object_properties(ni_dbus_object_t *proxy,
 				DBusMessageIter *iter)
 {
 	DBusMessageIter iter_variant, iter_dict;
+	DBusError error = DBUS_ERROR_INIT;
 
 	if (dbus_message_iter_get_arg_type(iter) != DBUS_TYPE_VARIANT)
 		return FALSE;
@@ -544,6 +545,7 @@ __ni_dbus_object_get_managed_object_properties(ni_dbus_object_t *proxy,
 		DBusMessageIter iter_dict_entry;
 		ni_dbus_variant_t value = NI_DBUS_VARIANT_INIT;
 		const char *property_name;
+		const ni_dbus_property_t *property;
 
 		dbus_message_iter_recurse(&iter_dict, &iter_dict_entry);
 		dbus_message_iter_next(&iter_dict);
@@ -557,11 +559,33 @@ __ni_dbus_object_get_managed_object_properties(ni_dbus_object_t *proxy,
 
 		if (!ni_dbus_message_iter_get_variant(&iter_dict_entry, &value))
 			continue;
-		ni_debug_dbus("property %s=%s", property_name, ni_dbus_variant_sprint(&value));
 
-		/* FIXME now set the object property */
+		/* now set the object property */
+		if (!(property = ni_dbus_service_get_property(service, property_name))) {
+			ni_debug_dbus("Ignoring unknown %s property %s=%s",
+					service->object_interface,
+					property_name, ni_dbus_variant_sprint(&value));
+			continue;
+		}
+
+		if (!property->set) {
+			ni_debug_dbus("Ignoring read-only property %s=%s",
+					property_name, ni_dbus_variant_sprint(&value));
+			continue;
+		}
+
+		if (!property->set(proxy, property, &value, &error)) {
+			ni_debug_dbus("Error setting property %s=%s (%s: %s)",
+					property_name, ni_dbus_variant_sprint(&value),
+					error.name, error.message);
+			continue;
+		}
+
+		ni_debug_dbus("Setting property %s=%s", property_name, ni_dbus_variant_sprint(&value));
+		ni_dbus_variant_destroy(&value);
 	}
 
+	dbus_error_free(&error);
 	return TRUE;
 }
 

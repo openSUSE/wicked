@@ -284,14 +284,17 @@ failed:
  * Obtain an object handle for Wicked.Interface
  */
 static ni_dbus_object_t *
-wicked_get_interface_object(void)
+wicked_get_interface_object(const char *default_interface)
 {
 	ni_dbus_object_t *root_object, *child;
 
 	if (!(root_object = wicked_dbus_client_create()))
 		return NULL;
 	child = ni_dbus_object_create(root_object, "Interface", &wicked_proxy_interface_functions, NULL);
-	ni_dbus_object_set_default_interface(child, WICKED_DBUS_INTERFACE ".Interface");
+
+	if (!default_interface)
+		default_interface = WICKED_DBUS_INTERFACE ".Interface";
+	ni_dbus_object_set_default_interface(child, default_interface);
 
 	return child;
 }
@@ -317,7 +320,7 @@ do_create(int argc, char **argv)
 		return 1;
 	}
 
-	if (!(object = wicked_get_interface_object()))
+	if (!(object = wicked_get_interface_object(WICKED_DBUS_INTERFACE ".Factory")))
 		return 1;
 
 	ifname = wicked_create_interface_argv(object, iftype, argc - 2, argv + 2);
@@ -333,7 +336,7 @@ wicked_get_interface(ni_dbus_object_t *root_object, const char *ifname)
 {
 	ni_dbus_object_t *interfaces;
 
-	if (!(interfaces = wicked_get_interface_object()))
+	if (!(interfaces = wicked_get_interface_object(NULL)))
 		return NULL;
 
 	/* Call ObjectManager.GetAllObjects to get list of objects and their properties */
@@ -342,8 +345,10 @@ wicked_get_interface(ni_dbus_object_t *root_object, const char *ifname)
 		return NULL;
 	}
 
-	/* Loop over all interfaces and find the one with matching name */
+	if (ifname == NULL)
+		return interfaces;
 
+	/* FIXME: Loop over all interfaces and find the one with matching name */
 
 	return NULL;
 }
@@ -352,19 +357,38 @@ int
 do_show(int argc, char **argv)
 {
 	ni_dbus_object_t *object;
-	const char *ifname;
 
-	if (argc != 1) {
+	if (argc != 1 && argc != 2) {
 		ni_error("wicked show: missing interface name");
 		return 1;
 	}
 
-	ifname = argv[1];
-
 	if (!(object = wicked_dbus_client_create()))
 		return 1;
 
-	object = wicked_get_interface(object, ifname);
+	if (argc == 1) {
+		object = wicked_get_interface(object, NULL);
+		if (!object)
+			return 1;
+
+		for (object = object->children; object; object = object->next) {
+			ni_interface_t *ifp = object->handle;
+
+			printf("%-12s %-10s %-10s",
+					ifp->name,
+					(ifp->ifflags & NI_IFF_NETWORK_UP)? "up" :
+					 (ifp->ifflags & NI_IFF_LINK_UP)? "link-up" :
+					  (ifp->ifflags & NI_IFF_DEVICE_UP)? "device-up" : "down",
+					ni_linktype_type_to_name(ifp->type));
+			printf("\n");
+		}
+	} else {
+		const char *ifname = argv[1];
+
+		object = wicked_get_interface(object, ifname);
+		if (!object)
+			return 1;
+	}
 
 	return 0;
 }
