@@ -11,8 +11,13 @@
 #include "dbus-common.h"
 #include "dbus-dict.h"
 
+#define TRACE_ENTER()	ni_debug_dbus("%s()", __FUNCTION__)
+#define TRACE_ENTERN(fmt, args...) \
+			ni_debug_dbus("%s(" fmt ")", __FUNCTION__, ##args)
 #define TP()		ni_debug_dbus("TP - %s:%u", __FUNCTION__, __LINE__)
 
+
+static dbus_bool_t	ni_dbus_message_iter_get_array(DBusMessageIter *, ni_dbus_variant_t *);
 
 dbus_bool_t
 ni_dbus_message_iter_append_byte_array(DBusMessageIter *iter,
@@ -270,10 +275,30 @@ ni_dbus_message_iter_get_string_array(DBusMessageIter *iter, ni_dbus_variant_t *
 }
 
 dbus_bool_t
+ni_dbus_message_iter_get_array_array(DBusMessageIter *iter, ni_dbus_variant_t *variant)
+{
+	dbus_bool_t rv = TRUE;
+
+	ni_dbus_array_array_init(variant, 
+			dbus_message_iter_get_signature(iter));
+
+	while (rv && dbus_message_iter_get_arg_type(iter) == DBUS_TYPE_ARRAY) {
+		ni_dbus_variant_t *elem;
+
+		elem = ni_dbus_array_array_add(variant);
+		rv = ni_dbus_message_iter_get_array(iter, elem);
+		dbus_message_iter_next(iter);
+	}
+
+	return rv;
+}
+
+dbus_bool_t
 ni_dbus_message_iter_get_dict(DBusMessageIter *iter, ni_dbus_variant_t *result)
 {
 	DBusMessageIter iter_dict;
 
+	TRACE_ENTER();
 	ni_dbus_variant_init_dict(result);
 
 	if (!ni_dbus_dict_open_read(iter, &iter_dict))
@@ -317,7 +342,11 @@ ni_dbus_message_iter_get_array(DBusMessageIter *iter, ni_dbus_variant_t *variant
 	case DBUS_TYPE_DICT_ENTRY:
 		success = ni_dbus_message_iter_get_dict(iter, variant);
 		break;
+	case DBUS_TYPE_ARRAY:
+		success = ni_dbus_message_iter_get_array_array(&iter_array, variant);
+		break;
 	default:
+		ni_debug_dbus("%s: cannot decode array of type %c", __FUNCTION__, array_type);
 		break;
 	}
 

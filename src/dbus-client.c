@@ -557,8 +557,11 @@ __ni_dbus_object_get_managed_object_properties(ni_dbus_object_t *proxy,
 		if (!dbus_message_iter_next(&iter_dict_entry))
 			return FALSE;
 
-		if (!ni_dbus_message_iter_get_variant(&iter_dict_entry, &value))
+		if (!ni_dbus_message_iter_get_variant(&iter_dict_entry, &value)) {
+			ni_debug_dbus("Couldn't deserialize property %s.%s",
+					service->object_interface, property_name);
 			continue;
+		}
 
 		/* now set the object property */
 		if (!(property = ni_dbus_service_get_property(service, property_name))) {

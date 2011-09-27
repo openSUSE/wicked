@@ -407,6 +407,8 @@ __wicked_dbus_get_sockaddr(const ni_dbus_variant_t *dict, const char *name, ni_s
 	if (!__ni_address_info(af, &offset, &len))
 		return FALSE;
 
+	memset(ss, 0, sizeof(*ss));
+	ss->ss_family = af;
 	return ni_dbus_variant_get_byte_array_minmax(var,
 			((unsigned char *) ss) + offset, &alen,
 			len, len);
@@ -453,8 +455,12 @@ __wicked_dbus_interface_set_addrs(ni_dbus_object_t *object,
 	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
 	unsigned int i;
 
-	if (!ni_dbus_variant_is_dict_array(argument))
+	if (!ni_dbus_variant_is_dict_array(argument)) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"%s: argument type mismatch",
+				__FUNCTION__);
 		return FALSE;
+	}
 
 	for (i = 0; i < argument->array.len; ++i) {
 		ni_dbus_variant_t *dict = &argument->variant_array_value[i];
@@ -472,7 +478,7 @@ __wicked_dbus_interface_set_addrs(ni_dbus_object_t *object,
 		__wicked_dbus_get_sockaddr(dict, "peer", &ap->peer_addr, family);
 		__wicked_dbus_get_sockaddr(dict, "anycast", &ap->anycast_addr, family);
 	}
-	return FALSE;
+	return TRUE;
 }
 
 static dbus_bool_t
@@ -510,12 +516,11 @@ __wicked_dbus_interface_get_routes(const ni_dbus_object_t *object,
 			__wicked_dbus_add_sockaddr(dict, "destination", &rp->destination);
 
 		hops = ni_dbus_dict_add(dict, "nexthop");
-		ni_dbus_variant_init_variant_array(hops);
+		ni_dbus_dict_array_init(hops);
 		for (nh = &rp->nh; nh; nh = nh->next) {
 			ni_dbus_variant_t *nhdict;
 
-			nhdict = ni_dbus_variant_append_variant_element(hops);
-			ni_dbus_variant_init_dict(nhdict);
+			nhdict = ni_dbus_dict_array_add(hops);
 
 			__wicked_dbus_add_sockaddr(nhdict, "gateway", &nh->gateway);
 			if (nh->device)
@@ -536,8 +541,9 @@ __wicked_dbus_interface_set_routes(ni_dbus_object_t *object,
 				const ni_dbus_variant_t *argument,
 				DBusError *error)
 {
-	return FALSE;
+	return TRUE;
 }
+
 #define WICKED_INTERFACE_PROPERTY(type, __name, rw) \
 	NI_DBUS_PROPERTY(type, __name, offsetof(ni_interface_t, __name),__wicked_dbus_interface, rw)
 #define WICKED_INTERFACE_PROPERTY_SIGNATURE(signature, __name, rw) \

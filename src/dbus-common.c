@@ -535,7 +535,11 @@ ni_dbus_variant_destroy(ni_dbus_variant_t *var)
 				ni_dbus_variant_destroy(&var->variant_array_value[i]);
 			free(var->variant_array_value);
 			break;
+		default:
+			ni_warn("Don't know how to destroy this type of array");
+			break;
 		}
+		ni_string_free(&var->array.element_signature);
 	}
 	memset(var, 0, sizeof(*var));
 	var->type = DBUS_TYPE_INVALID;
@@ -867,7 +871,7 @@ ni_dbus_dict_array_init(ni_dbus_variant_t *var)
 {
 	ni_dbus_variant_destroy(var);
 	var->type = DBUS_TYPE_ARRAY;
-	var->array.element_signature = NI_DBUS_DICT_SIGNATURE;
+	ni_string_dup(&var->array.element_signature, NI_DBUS_DICT_SIGNATURE);
 }
 
 ni_dbus_variant_t *
@@ -882,6 +886,34 @@ ni_dbus_dict_array_add(ni_dbus_variant_t *var)
 	dst = &var->variant_array_value[var->array.len++];
 
 	ni_dbus_variant_init_dict(dst);
+	return dst;
+}
+
+/*
+ * Array of arrays
+ */
+void
+ni_dbus_array_array_init(ni_dbus_variant_t *var, const char *elem_signature)
+{
+	ni_dbus_variant_destroy(var);
+	var->type = DBUS_TYPE_ARRAY;
+	ni_string_dup(&var->array.element_signature, elem_signature);
+}
+
+ni_dbus_variant_t *
+ni_dbus_array_array_add(ni_dbus_variant_t *var)
+{
+	ni_dbus_variant_t *dst;
+
+	if (var->type != DBUS_TYPE_ARRAY
+	 || var->array.element_type != DBUS_TYPE_INVALID
+	 || var->array.element_signature == NULL
+	 || var->array.element_signature[0] != DBUS_TYPE_ARRAY)
+		return NULL;
+
+	__ni_dbus_array_grow(var, sizeof(ni_dbus_variant_t), 1);
+	dst = &var->variant_array_value[var->array.len++];
+
 	return dst;
 }
 
