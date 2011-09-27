@@ -92,6 +92,7 @@ __ni_dbus_netif_create(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 	const char *interface_name;
 	const ni_dbus_service_t *service;
 	ni_dbus_object_t *result;
+	DBusMessageIter iter;
 	unsigned int i;
 
 	TRACE_ENTER();
@@ -113,9 +114,10 @@ __ni_dbus_netif_create(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 	if (!result)
 		return FALSE;
 
-#if 0
-	ni_dbus_message_iter_append_object_path(&iter, ni_dbus_object_get_path(result));
-#endif
+	dbus_message_iter_init_append(reply, &iter);
+	dbus_message_iter_append_basic(&iter,
+			DBUS_TYPE_OBJECT_PATH,
+			ni_dbus_object_get_path(result));
 
 	return TRUE;
 
