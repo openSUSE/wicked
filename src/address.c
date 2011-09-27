@@ -647,6 +647,12 @@ ni_route_new(ni_handle_t *nih, unsigned int prefixlen, const ni_sockaddr_t *dest
 void
 ni_route_free(ni_route_t *rp)
 {
+	ni_route_nexthop_t *nh;
+
+	while ((nh = rp->nh.next) != NULL) {
+		rp->nh.next = nh;
+		free(nh);
+	}
 	free(rp);
 }
 
