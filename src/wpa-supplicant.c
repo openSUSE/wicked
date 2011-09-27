@@ -37,6 +37,8 @@
 
 #include "dbus-client.h"
 #include "dbus-dict.h"
+#include "dbus-common.h"
+#include "dbus-objects/model.h"
 #include "wpa-supplicant.h"
 #include "wireless_priv.h"
 
@@ -803,7 +805,7 @@ __ni_wpa_bss_set_rsnie(struct ni_dbus_dict_entry *entry, void *ptr)
 	return __ni_wpa_set_blob(entry, &((struct ni_wpa_bss_properties *) ptr)->rsnie);
 }
 
-static struct ni_dbus_dict_entry_handler __bss_property_handlers[] = {
+struct ni_dbus_dict_entry_handler __bss_property_handlers[] = {
 	NI_DBUS_ARRAY_PROPERTY("bssid", DBUS_TYPE_BYTE, __ni_wpa_bss_set_bssid),
 	NI_DBUS_ARRAY_PROPERTY("ssid", DBUS_TYPE_BYTE, __ni_wpa_bss_set_essid),
 	NI_DBUS_BASIC_PROPERTY("frequency", DBUS_TYPE_INT32, __ni_wpa_bss_set_frequency),
@@ -824,6 +826,284 @@ static struct ni_dbus_dict_entry_handler __bss_property_handlers[] = {
 };
 
 /*
+ * Specify the DBus properties for BSS objects
+ */
+static inline struct ni_wpa_bss_properties *
+__wpa_bss_properties(const ni_dbus_object_t *object)
+{
+	struct ni_wpa_bss *bss = object->handle;
+
+	return &bss->properties;
+}
+
+static dbus_bool_t
+__wpa_dbus_bss_get_bssid(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		ni_dbus_variant_t *argument, DBusError *error)
+{
+	struct ni_wpa_bss_properties *bss = __wpa_bss_properties(object);
+
+	ni_dbus_variant_set_byte_array(argument, bss->bssid.data, bss->bssid.len);
+	return TRUE;
+}
+
+static dbus_bool_t
+__wpa_dbus_bss_set_bssid(ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		const ni_dbus_variant_t *argument, DBusError *error)
+{
+	struct ni_wpa_bss_properties *bss = __wpa_bss_properties(object);
+	unsigned int len;
+
+	if (!ni_dbus_variant_get_byte_array_minmax(argument,
+				bss->bssid.data, &len,
+				0, sizeof(bss->bssid.data)))
+		return FALSE;
+	bss->bssid.type = NI_IFTYPE_WIRELESS;
+	bss->bssid.len = len;
+	return TRUE;
+}
+
+static dbus_bool_t
+__wpa_dbus_bss_get_ssid(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		ni_dbus_variant_t *argument, DBusError *error)
+{
+	struct ni_wpa_bss_properties *bss = __wpa_bss_properties(object);
+
+	ni_dbus_variant_set_byte_array(argument, bss->essid.data, bss->essid.len);
+	return TRUE;
+}
+
+static dbus_bool_t
+__wpa_dbus_bss_set_ssid(ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		const ni_dbus_variant_t *argument, DBusError *error)
+{
+	struct ni_wpa_bss_properties *bss = __wpa_bss_properties(object);
+	unsigned int len;
+
+	if (!ni_dbus_variant_get_byte_array_minmax(argument,
+				bss->essid.data, &len,
+				0, sizeof(bss->essid.data)))
+		return FALSE;
+	bss->essid.len = len;
+	return TRUE;
+}
+
+static dbus_bool_t
+__wpa_dbus_bss_get_noise(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		ni_dbus_variant_t *argument, DBusError *error)
+{
+	struct ni_wpa_bss_properties *bss = __wpa_bss_properties(object);
+
+	ni_dbus_variant_set_int32(argument, bss->noise);
+	return TRUE;
+}
+
+static dbus_bool_t
+__wpa_dbus_bss_set_noise(ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		const ni_dbus_variant_t *argument, DBusError *error)
+{
+	struct ni_wpa_bss_properties *bss = __wpa_bss_properties(object);
+
+	return ni_dbus_variant_get_int32(argument, &bss->noise);
+}
+
+static dbus_bool_t
+__wpa_dbus_bss_get_frequency(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		ni_dbus_variant_t *argument, DBusError *error)
+{
+	struct ni_wpa_bss_properties *bss = __wpa_bss_properties(object);
+
+	ni_dbus_variant_set_int32(argument, bss->frequency);
+	return TRUE;
+}
+
+static dbus_bool_t
+__wpa_dbus_bss_set_frequency(ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		const ni_dbus_variant_t *argument, DBusError *error)
+{
+	struct ni_wpa_bss_properties *bss = __wpa_bss_properties(object);
+
+	return ni_dbus_variant_get_int32(argument, &bss->frequency);
+}
+
+static dbus_bool_t
+__wpa_dbus_bss_get_level(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		ni_dbus_variant_t *argument, DBusError *error)
+{
+	struct ni_wpa_bss_properties *bss = __wpa_bss_properties(object);
+
+	ni_dbus_variant_set_int32(argument, bss->level);
+	return TRUE;
+}
+
+static dbus_bool_t
+__wpa_dbus_bss_set_level(ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		const ni_dbus_variant_t *argument, DBusError *error)
+{
+	struct ni_wpa_bss_properties *bss = __wpa_bss_properties(object);
+
+	return ni_dbus_variant_get_int32(argument, &bss->level);
+}
+
+static dbus_bool_t
+__wpa_dbus_bss_get_quality(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		ni_dbus_variant_t *argument, DBusError *error)
+{
+	struct ni_wpa_bss_properties *bss = __wpa_bss_properties(object);
+
+	ni_dbus_variant_set_int32(argument, bss->quality);
+	return TRUE;
+}
+
+static dbus_bool_t
+__wpa_dbus_bss_set_quality(ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		const ni_dbus_variant_t *argument, DBusError *error)
+{
+	struct ni_wpa_bss_properties *bss = __wpa_bss_properties(object);
+
+	return ni_dbus_variant_get_int32(argument, &bss->quality);
+}
+
+static dbus_bool_t
+__wpa_dbus_bss_get_maxrate(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		ni_dbus_variant_t *argument, DBusError *error)
+{
+	struct ni_wpa_bss_properties *bss = __wpa_bss_properties(object);
+
+	ni_dbus_variant_set_int32(argument, bss->maxrate);
+	return TRUE;
+}
+
+static dbus_bool_t
+__wpa_dbus_bss_set_maxrate(ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		const ni_dbus_variant_t *argument, DBusError *error)
+{
+	struct ni_wpa_bss_properties *bss = __wpa_bss_properties(object);
+
+	return ni_dbus_variant_get_int32(argument, &bss->maxrate);
+}
+
+static dbus_bool_t
+__wpa_dbus_bss_get_capabilities(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		ni_dbus_variant_t *argument, DBusError *error)
+{
+	struct ni_wpa_bss_properties *bss = __wpa_bss_properties(object);
+
+	ni_dbus_variant_set_uint16(argument, bss->capabilities);
+	return TRUE;
+}
+
+static dbus_bool_t
+__wpa_dbus_bss_set_capabilities(ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		const ni_dbus_variant_t *argument, DBusError *error)
+{
+	struct ni_wpa_bss_properties *bss = __wpa_bss_properties(object);
+
+	return ni_dbus_variant_get_uint16(argument, &bss->capabilities);
+}
+
+static dbus_bool_t
+__wpa_get_blob(const ni_opaque_t *op, ni_dbus_variant_t *variant)
+{
+	ni_dbus_variant_set_byte_array(variant, op->data, op->len);
+	return TRUE;
+}
+
+static dbus_bool_t
+__wpa_set_blob(const ni_dbus_variant_t *variant, ni_opaque_t **op)
+{
+	if (variant->type != DBUS_TYPE_ARRAY
+	 || variant->array.element_type != DBUS_TYPE_BYTE
+	 || variant->array.len > 8192)
+		return FALSE;
+
+	if (*op)
+		ni_opaque_free(*op);
+	*op = ni_opaque_new(variant->byte_array_value, variant->array.len);
+	return TRUE;
+}
+
+static dbus_bool_t
+__wpa_dbus_bss_get_wpaie(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		ni_dbus_variant_t *argument, DBusError *error)
+{
+	struct ni_wpa_bss_properties *bss = __wpa_bss_properties(object);
+
+	return __wpa_get_blob(bss->wpaie, argument);
+}
+
+static dbus_bool_t
+__wpa_dbus_bss_set_wpaie(ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		const ni_dbus_variant_t *argument, DBusError *error)
+{
+	struct ni_wpa_bss_properties *bss = __wpa_bss_properties(object);
+
+	return __wpa_set_blob(argument, &bss->wpaie);
+}
+
+static dbus_bool_t
+__wpa_dbus_bss_get_wpsie(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		ni_dbus_variant_t *argument, DBusError *error)
+{
+	struct ni_wpa_bss_properties *bss = __wpa_bss_properties(object);
+
+	return __wpa_get_blob(bss->wpsie, argument);
+}
+
+static dbus_bool_t
+__wpa_dbus_bss_set_wpsie(ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		const ni_dbus_variant_t *argument, DBusError *error)
+{
+	struct ni_wpa_bss_properties *bss = __wpa_bss_properties(object);
+
+	return __wpa_set_blob(argument, &bss->wpsie);
+}
+
+static dbus_bool_t
+__wpa_dbus_bss_get_rsnie(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		ni_dbus_variant_t *argument, DBusError *error)
+{
+	struct ni_wpa_bss_properties *bss = __wpa_bss_properties(object);
+
+	return __wpa_get_blob(bss->rsnie, argument);
+}
+
+static dbus_bool_t
+__wpa_dbus_bss_set_rsnie(ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		const ni_dbus_variant_t *argument, DBusError *error)
+{
+	struct ni_wpa_bss_properties *bss = __wpa_bss_properties(object);
+
+	return __wpa_set_blob(argument, &bss->rsnie);
+}
+
+
+#define WPA_BSS_PROPERTY(type, __name, rw) \
+	NI_DBUS_PROPERTY(type, __name, 0, __wpa_dbus_bss, rw)
+#define WPA_BSS_PROPERTY_SIGNATURE(signature, __name, rw) \
+	__NI_DBUS_PROPERTY(signature, __name, 0, __wpa_dbus_bss, rw)
+
+static ni_dbus_property_t	wpa_bss_properties[] = {
+	WPA_BSS_PROPERTY_SIGNATURE(DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING, bssid, RO),
+	WPA_BSS_PROPERTY_SIGNATURE(DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING, ssid, RO),
+	WPA_BSS_PROPERTY(INT32, noise, RO),
+	WPA_BSS_PROPERTY(INT32, frequency, RO),
+	WPA_BSS_PROPERTY(INT32, level, RO),
+	WPA_BSS_PROPERTY(INT32, quality, RO),
+	WPA_BSS_PROPERTY(INT32, maxrate, RO),
+	WPA_BSS_PROPERTY(UINT16, capabilities, RO),
+	WPA_BSS_PROPERTY_SIGNATURE(DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING, wpaie, RO),
+	WPA_BSS_PROPERTY_SIGNATURE(DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING, wpsie, RO),
+	WPA_BSS_PROPERTY_SIGNATURE(DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING, rsnie, RO),
+
+	{ NULL }
+};
+
+ni_dbus_service_t	wpa_bssid_interface = {
+	.object_interface = "fi.epitest.hostap.WPASupplicant.BSSID",
+	.properties = wpa_bss_properties,
+};
+
+/*
  * Callback invoked when the properties() call on a BSS object returns.
  */
 static void
@@ -832,16 +1112,19 @@ ni_wpa_bss_properties_result(ni_dbus_object_t *proxy, ni_dbus_message_t *msg)
 	ni_wpa_bss_t *bss = proxy->handle;
 	ni_wpa_scan_t *scan;
 	struct ni_wpa_bss_properties *props;
-	DBusMessageIter iter, dict_iter;
+	ni_dbus_variant_t dict;
+	DBusMessageIter iter;
 
 	dbus_message_iter_init(msg, &iter);
-	if (!ni_dbus_dict_open_read(&iter, &dict_iter))
+	ni_dbus_variant_init_dict(&dict);
+
+	if (!ni_dbus_message_iter_get_variant_data(&iter, &dict))
 		goto failed;
 
 	props = &bss->properties;
 	ni_wpa_bss_properties_destroy(props);
 
-	if (ni_dbus_process_properties(&dict_iter, __bss_property_handlers, props) < 0)
+	if (!ni_dbus_object_set_properties_from_dict(proxy, &wpa_bssid_interface, &dict))
 		goto failed;
 
 	ni_debug_wireless("Updated BSS %s, essid=%.*s, freq=%.3f GHz, quality=%u/70, noise=%u, level=%d dBm, maxrate=%u MB/s",
@@ -858,10 +1141,12 @@ ni_wpa_bss_properties_result(ni_dbus_object_t *proxy, ni_dbus_message_t *msg)
 		bss->scan = NULL;
 	}
 
+	ni_dbus_variant_destroy(&dict);
 	return;
 
 failed:
 	ni_error("trouble parsing BSS properties response");
+	ni_dbus_variant_destroy(&dict);
 }
 
 /*

@@ -34,11 +34,12 @@ struct ni_wpa_bss_properties {
 		unsigned char	data[32];
 	} essid;
 
-	unsigned int		noise;
-	unsigned int		frequency;	/* in MHz */
-	unsigned int		level;		/* 256 == 0dBm */
-	unsigned int		quality;	/* n/70 */
-	unsigned int		maxrate;	/* in Bit/s, 1e6 based */
+	int32_t			noise;
+	int32_t			frequency;	/* in MHz */
+	int32_t			level;		/* 256 == 0dBm */
+	int32_t			quality;	/* n/70 */
+	int32_t			maxrate;	/* in Bit/s, 1e6 based */
+	uint16_t		capabilities;
 
 	ni_opaque_t *		wpaie;
 	ni_opaque_t *		wpsie;
