@@ -373,6 +373,9 @@ do_show(int argc, char **argv)
 
 		for (object = object->children; object; object = object->next) {
 			ni_interface_t *ifp = object->handle;
+			char buffer[64];
+			ni_address_t *ap;
+			ni_route_t *rp;
 
 			printf("%-12s %-10s %-10s",
 					ifp->name,
@@ -381,6 +384,34 @@ do_show(int argc, char **argv)
 					  (ifp->ifflags & NI_IFF_DEVICE_UP)? "device-up" : "down",
 					ni_linktype_type_to_name(ifp->type));
 			printf("\n");
+
+			for (ap = ifp->addrs; ap; ap = ap->next) {
+				snprintf(buffer, sizeof(buffer), "%s addr:",
+						ni_addrconf_type_to_name(ap->config_method));
+				printf("  %-14s", buffer);
+				printf(" %s/%u", ni_address_print(&ap->local_addr), ap->prefixlen);
+				printf("\n");
+			}
+			for (rp = ifp->routes; rp; rp = rp->next) {
+				const ni_route_nexthop_t *nh;
+
+				snprintf(buffer, sizeof(buffer), "%s route:",
+						ni_addrconf_type_to_name(rp->config_method));
+				printf("  %-14s", buffer);
+
+				if (rp->prefixlen)
+					printf(" %s/%u", ni_address_print(&rp->destination), rp->prefixlen);
+				else
+					printf(" default");
+
+				if (rp->nh.gateway.ss_family != AF_UNSPEC) {
+					for (nh = &rp->nh; nh; nh = nh->next)
+						printf("; via %s", ni_address_print(&nh->gateway));
+				}
+
+				printf(" [config=%s]", ni_addrconf_type_to_name(rp->config_method));
+				printf("\n");
+			}
 		}
 	} else {
 		const char *ifname = argv[1];
