@@ -406,6 +406,13 @@ __ni_dbus_init_array(ni_dbus_variant_t *var, int element_type)
 }
 
 void
+ni_dbus_variant_init_byte_array(ni_dbus_variant_t *var)
+{
+	ni_dbus_variant_destroy(var);
+	__ni_dbus_init_array(var, DBUS_TYPE_BYTE);
+}
+
+void
 ni_dbus_variant_set_byte_array(ni_dbus_variant_t *var,
 				const unsigned char *data, unsigned int len)
 {
@@ -428,6 +435,13 @@ ni_dbus_variant_append_byte_array(ni_dbus_variant_t *var, unsigned char byte)
 	__ni_dbus_array_grow(var, sizeof(unsigned char), 1);
 	var->byte_array_value[var->array.len++] = byte;
 	return TRUE;
+}
+
+void
+ni_dbus_variant_init_string_array(ni_dbus_variant_t *var)
+{
+	ni_dbus_variant_destroy(var);
+	__ni_dbus_init_array(var, DBUS_TYPE_STRING);
 }
 
 void
