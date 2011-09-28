@@ -68,6 +68,7 @@ __LIBSRCS= \
 	  dbus-objects/interface.c \
 	  dbus-objects/ethernet.c \
 	  dbus-objects/vlan.c \
+	  dbus-objects/bridge.c \
 	  wpa-supplicant.c \
 	  ipv6/addrconf.c \
 	  dhcp/addrconf.c \

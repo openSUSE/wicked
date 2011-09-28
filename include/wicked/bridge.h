@@ -67,6 +67,8 @@ typedef struct ni_bridge_port_array {
 typedef struct ni_bridge_config {
 	unsigned int		priority;
 	int			stp_enabled;
+
+	/* The following should probably be changed to type double */
 	unsigned long		forward_delay;	/* time in 1/100 sec */
 	unsigned long		ageing_time;	/* time in 1/100 sec */
 	unsigned long		hello_time;	/* time in 1/100 sec */
@@ -74,12 +76,15 @@ typedef struct ni_bridge_config {
 } ni_bridge_config_t;
 
 typedef struct ni_bridge_status {
+	/* Not sure why this is duplicated from bridge_config. Marius? */
+#if 1
 	unsigned int		priority;
-	int			stp_state;
 	unsigned long		forward_delay;
 	unsigned long		ageing_time;
 	unsigned long		hello_time;
 	unsigned long		max_age;
+#endif
+	int			stp_state;
 
 	char *			root_id;
 	char *			bridge_id;

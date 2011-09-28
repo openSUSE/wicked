@@ -136,8 +136,7 @@ __ni_bridge_port_clone(const ni_bridge_port_t *port)
 static void
 __ni_bridge_port_free(ni_bridge_port_t *port)
 {
-	if (port->name)
-		free(port->name);
+	ni_string_free(&port->name);
 	if (port->device)
 		ni_interface_put(port->device);
 	if (port->status)
@@ -158,8 +157,7 @@ ni_bridge_port_array_copy(ni_bridge_port_array_t *dst, const ni_bridge_port_arra
 
 	ni_bridge_port_array_destroy(dst);
 	for (i = 0; i < src->count; ++i) {
-		if (__ni_bridge_port_array_append(dst,
-			__ni_bridge_port_clone(src->data[i])) < 0)
+		if (__ni_bridge_port_array_append(dst, __ni_bridge_port_clone(src->data[i])) < 0)
 			return -1;
 	}
 	return 0;
@@ -581,21 +579,16 @@ ni_bridge_free(ni_bridge_t *bridge)
 void
 ni_bridge_status_free(ni_bridge_status_t *bs)
 {
-	if (bs->root_id)
-		free(bs->root_id);
-	if (bs->bridge_id)
-		free(bs->bridge_id);
-	if (bs->group_addr);
-		free(bs->group_addr);
+	ni_string_free(&bs->root_id);
+	ni_string_free(&bs->bridge_id);
+	ni_string_free(&bs->group_addr);
 	free(bs);
 }
 
 void
 ni_bridge_port_status_free(ni_bridge_port_status_t *ps)
 {
-	if (ps->designated_root)
-		free(ps->designated_root);
-	if (ps->designated_bridge)
-		free(ps->designated_bridge);
+	ni_string_free(&ps->designated_root);
+	ni_string_free(&ps->designated_bridge);
 	free(ps);
 }

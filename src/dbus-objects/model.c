@@ -53,8 +53,8 @@ ni_objectmodel_service_by_name(const char *name)
 		&wicked_dbus_interface_service,
 		&wicked_dbus_ethernet_service,
 		&wicked_dbus_vlan_service,
-#if 0
 		&wicked_dbus_bridge_service,
+#if 0
 		&wicked_dbus_bonding_service,
 #endif
 		NULL,

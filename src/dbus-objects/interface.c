@@ -76,6 +76,10 @@ ni_objectmodel_link_layer_service(int iftype)
 		return &wicked_dbus_vlan_service;
 		break;
 
+	case NI_IFTYPE_BRIDGE:
+		return &wicked_dbus_bridge_service;
+		break;
+
 	default: ;
 	}
 
