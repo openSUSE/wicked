@@ -82,6 +82,9 @@ ni_objectmodel_link_layer_service(int iftype)
 	return NULL;
 }
 
+/*
+ * Create a new virtual interface (vlan, bridge, bond, ...)
+ */
 ni_dbus_object_t *
 ni_objectmodel_new_interface(ni_dbus_server_t *server, const ni_dbus_service_t *service,
 			const ni_dbus_variant_t *dict, DBusError *error)
@@ -192,6 +195,14 @@ static ni_dbus_method_t		wicked_dbus_interface_methods[] = {
 	{ NULL }
 };
 
+/*
+ * Interface property handlers
+ */
+#define NULL_interface		((ni_interface_t *) NULL)
+
+/*
+ * Property name
+ */
 static dbus_bool_t
 __wicked_dbus_interface_get_name(const ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
@@ -219,16 +230,18 @@ __wicked_dbus_interface_set_name(ni_dbus_object_t *object,
 	return TRUE;
 }
 
+/*
+ * property name
+ */
 static dbus_bool_t
 __wicked_dbus_interface_get_type(const ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				ni_dbus_variant_t *result,
 				DBusError *error)
 {
-	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
-
-	ni_dbus_variant_set_uint32(result, ifp->type);
-	return TRUE;
+	return __ni_objectmodel_get_property_uint(
+			ni_dbus_object_get_handle(object),
+			&NULL_interface->type, result);
 }
 
 static dbus_bool_t
@@ -237,25 +250,23 @@ __wicked_dbus_interface_set_type(ni_dbus_object_t *object,
 				const ni_dbus_variant_t *argument,
 				DBusError *error)
 {
-	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
-	uint32_t value;
-
-	if (!ni_dbus_variant_get_uint32(argument, &value))
-		return FALSE;
-	ifp->type =value;
-	return TRUE;
+	return __ni_objectmodel_set_property_uint(
+			ni_dbus_object_get_handle(object),
+			&NULL_interface->type, argument);
 }
 
+/*
+ * property ifflags
+ */
 static dbus_bool_t
 __wicked_dbus_interface_get_ifflags(const ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				ni_dbus_variant_t *result,
 				DBusError *error)
 {
-	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
-
-	ni_dbus_variant_set_uint32(result, ifp->ifflags);
-	return TRUE;
+	return __ni_objectmodel_get_property_uint(
+			ni_dbus_object_get_handle(object),
+			&NULL_interface->ifflags, result);
 }
 
 static dbus_bool_t
@@ -264,25 +275,23 @@ __wicked_dbus_interface_set_ifflags(ni_dbus_object_t *object,
 				const ni_dbus_variant_t *argument,
 				DBusError *error)
 {
-	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
-	uint32_t value;
-
-	if (!ni_dbus_variant_get_uint32(argument, &value))
-		return FALSE;
-	ifp->ifflags = value;
-	return TRUE;
+	return __ni_objectmodel_set_property_uint(
+			ni_dbus_object_get_handle(object),
+			&NULL_interface->ifflags, argument);
 }
 
+/*
+ * property mtu
+ */
 static dbus_bool_t
 __wicked_dbus_interface_get_mtu(const ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				ni_dbus_variant_t *result,
 				DBusError *error)
 {
-	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
-
-	ni_dbus_variant_set_uint32(result, ifp->mtu);
-	return TRUE;
+	return __ni_objectmodel_get_property_uint(
+			ni_dbus_object_get_handle(object),
+			&NULL_interface->mtu, result);
 }
 
 static dbus_bool_t
@@ -291,13 +300,9 @@ __wicked_dbus_interface_set_mtu(ni_dbus_object_t *object,
 				const ni_dbus_variant_t *argument,
 				DBusError *error)
 {
-	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
-	uint32_t value;
-
-	if (!ni_dbus_variant_get_uint32(argument, &value))
-		return FALSE;
-	ifp->mtu = value;
-	return TRUE;
+	return __ni_objectmodel_set_property_uint(
+			ni_dbus_object_get_handle(object),
+			&NULL_interface->mtu, argument);
 }
 
 static dbus_bool_t
@@ -321,6 +326,9 @@ __wicked_dbus_interface_update_mtu(ni_dbus_object_t *object,
 	return TRUE;
 }
 
+/*
+ * Property hwaddr
+ */
 static dbus_bool_t
 __wicked_dbus_interface_get_hwaddr(const ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
@@ -351,6 +359,9 @@ __wicked_dbus_interface_set_hwaddr(ni_dbus_object_t *object,
 	return TRUE;
 }
 
+/*
+ * Helper functions for getting and setting socket addresses
+ */
 static inline dbus_bool_t
 __wicked_dbus_add_sockaddr(ni_dbus_variant_t *dict, const char *name, const ni_sockaddr_t *ss)
 {
@@ -384,6 +395,10 @@ __wicked_dbus_get_sockaddr(const ni_dbus_variant_t *dict, const char *name, ni_s
 			len, len);
 }
 
+/*
+ * Property addrs
+ * This one is rather complex
+ */
 static dbus_bool_t
 __wicked_dbus_interface_get_addrs(const ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
@@ -451,6 +466,10 @@ __wicked_dbus_interface_set_addrs(ni_dbus_object_t *object,
 	return TRUE;
 }
 
+/*
+ * Property addrs
+ * This one is rather complex, too.
+ */
 static dbus_bool_t
 __wicked_dbus_interface_get_routes(const ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,

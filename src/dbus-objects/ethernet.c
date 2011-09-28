@@ -32,7 +32,7 @@ __wicked_dbus_ethernet_handle(const ni_dbus_object_t *object, DBusError *error)
 	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
 	ni_ethernet_t *eth;
 
-	if (!(eth = ifp->ethernet)) {
+	if (!(eth = ni_interface_get_ethernet(ifp))) {
 		dbus_set_error(error, DBUS_ERROR_FAILED, "Error getting ethernet property");
 		return NULL;
 	}
