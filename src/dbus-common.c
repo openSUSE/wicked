@@ -358,6 +358,65 @@ ni_dbus_variant_get_int64(const ni_dbus_variant_t *var, int64_t *ret)
 	return TRUE;
 }
 
+/*
+ * The following functions "cast" the value of a variant integer to a
+ * C type.
+ */
+#define CAST_SWITCH(var, ret) \
+	switch (var->type) { \
+	case DBUS_TYPE_BOOLEAN: \
+		*ret = var->bool_value; break; \
+	case DBUS_TYPE_BYTE: \
+		*ret = var->byte_value; break; \
+	case DBUS_TYPE_INT16: \
+		*ret = var->int16_value; break; \
+	case DBUS_TYPE_UINT16: \
+		*ret = var->uint16_value; break; \
+	case DBUS_TYPE_INT32: \
+		*ret = var->int32_value; break; \
+	case DBUS_TYPE_UINT32: \
+		*ret = var->uint32_value; break; \
+	case DBUS_TYPE_INT64: \
+		*ret = var->int64_value; break; \
+	case DBUS_TYPE_UINT64: \
+		*ret = var->uint64_value; break; \
+	default: \
+		return FALSE; \
+	}
+
+dbus_bool_t
+ni_dbus_variant_get_int(const ni_dbus_variant_t *var, int *ret)
+{
+	CAST_SWITCH(var, ret);
+	return TRUE;
+}
+
+dbus_bool_t
+ni_dbus_variant_get_uint(const ni_dbus_variant_t *var, unsigned int *ret)
+{
+	CAST_SWITCH(var, ret);
+	return TRUE;
+}
+
+dbus_bool_t
+ni_dbus_variant_get_long(const ni_dbus_variant_t *var, long *ret)
+{
+	CAST_SWITCH(var, ret);
+	return TRUE;
+}
+
+dbus_bool_t
+ni_dbus_variant_get_ulong(const ni_dbus_variant_t *var, unsigned long *ret)
+{
+	CAST_SWITCH(var, ret);
+	return TRUE;
+}
+
+#undef CAST_SWITCH
+
+/*
+ * Extract a byte array from a variant.
+ */
 dbus_bool_t
 ni_dbus_variant_get_byte_array_minmax(const ni_dbus_variant_t *var,
 					unsigned char *array, unsigned int *len,

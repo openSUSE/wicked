@@ -186,6 +186,10 @@ extern dbus_bool_t		ni_dbus_variant_get_uint32(const ni_dbus_variant_t *, uint32
 extern dbus_bool_t		ni_dbus_variant_get_int32(const ni_dbus_variant_t *, int32_t *);
 extern dbus_bool_t		ni_dbus_variant_get_uint64(const ni_dbus_variant_t *, uint64_t *);
 extern dbus_bool_t		ni_dbus_variant_get_int64(const ni_dbus_variant_t *, int64_t *);
+extern dbus_bool_t		ni_dbus_variant_get_int(const ni_dbus_variant_t *, int *);
+extern dbus_bool_t		ni_dbus_variant_get_uint(const ni_dbus_variant_t *, unsigned int *);
+extern dbus_bool_t		ni_dbus_variant_get_long(const ni_dbus_variant_t *, long *);
+extern dbus_bool_t		ni_dbus_variant_get_ulong(const ni_dbus_variant_t *, unsigned long *);
 extern dbus_bool_t		ni_dbus_variant_get_byte_array_minmax(const ni_dbus_variant_t *,
 					unsigned char *array, unsigned int *len,
 					unsigned int minlen, unsigned int maxlen);
