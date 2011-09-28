@@ -89,7 +89,7 @@ wicked_dbus_netif_refresh(ni_dbus_object_t *object)
 	}
 
 	seq = ni_handle_seq(nih);
-	if (ni_refresh(nih) < 0) {
+	if (ni_refresh(nih, NULL) < 0) {
 		ni_error("cannot refresh interface list!");
 		return FALSE;
 	}

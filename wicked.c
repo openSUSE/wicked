@@ -1344,7 +1344,7 @@ ni_interfaces_wait(ni_handle_t *system, ni_interface_state_array_t *state_array)
 	while (1) {
 		unsigned int i, all_done = 1;
 
-		if ((rv = ni_refresh(system)) < 0) {
+		if ((rv = ni_refresh(system, NULL)) < 0) {
 			ni_error("failed to get system state");
 			return -1;
 		}
@@ -1435,14 +1435,14 @@ usage:
 		ni_syntax_t *syntax = ni_syntax_new("netcf", opt_file);
 
 		config = ni_netconfig_open(syntax);
-		if ((rv = ni_refresh(config)) < 0) {
+		if ((rv = ni_refresh(config, NULL)) < 0) {
 			ni_error("unable to load interface definition from %s", opt_file);
 			goto failed;
 		}
 	} else {
 		config = ni_indirect_open("/config");
 		if (!strcmp(ifname, "all")) {
-			rv = ni_refresh(config);
+			rv = ni_refresh(config, NULL);
 		} else {
 			rv = ni_interface_refresh_one(config, ifname);
 		}
@@ -1454,7 +1454,7 @@ usage:
 	}
 
 	system = ni_indirect_open("/system");
-	if ((rv = ni_refresh(system)) < 0) {
+	if ((rv = ni_refresh(system, NULL)) < 0) {
 		ni_error("cannot refresh interface state");
 		goto failed;
 	}
@@ -1559,7 +1559,7 @@ usage:
 	{
 		system = ni_indirect_open("/system");
 		if (!strcmp(ifname, "all") || !strcmp(ifname, "shutdown")) {
-			rv = ni_refresh(system);
+			rv = ni_refresh(system, NULL);
 		} else {
 			rv = ni_interface_refresh_one(system, ifname);
 		}

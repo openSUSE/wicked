@@ -510,7 +510,7 @@ system_handle(ni_wicked_request_t *req)
 		werror(req, "unable to obtain netinfo handle");
 		return NULL;
 	}
-	if (ni_refresh(nih) < 0) {
+	if (ni_refresh(nih, NULL) < 0) {
 		werror(req, "cannot refresh interface list!");
 		return NULL;
 	}
@@ -530,7 +530,7 @@ config_handle(ni_wicked_request_t *req)
 		werror(req, "unable to obtain netinfo handle");
 		return NULL;
 	}
-	if (ni_refresh(nih) < 0) {
+	if (ni_refresh(nih, NULL) < 0) {
 		werror(req, "cannot refresh interface list!");
 		ni_close(nih);
 		return NULL;
@@ -915,7 +915,7 @@ system_policy_post(ni_wicked_request_t *req)
 		goto failed;
 	}
 
-	if (ni_refresh(nih) < 0) {
+	if (ni_refresh(nih, NULL) < 0) {
 		werror(req, "could not refresh interface list");
 		goto failed;
 	}

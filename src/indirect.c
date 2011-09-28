@@ -17,7 +17,7 @@
 #define XML_ERR_PTR	((xml_node_t *) -1)
 #define XML_IS_ERR(p)	((p) == XML_ERR_PTR)
 
-static int	__ni_indirect_refresh_all(ni_handle_t *);
+static int	__ni_indirect_refresh_all(ni_handle_t *, ni_interface_t **);
 static int	__ni_indirect_interface_refresh_one(ni_handle_t *, const char *);
 static int	__ni_indirect_interface_configure(ni_handle_t *, ni_interface_t *, const ni_interface_t *);
 static int	__ni_indirect_interface_delete(ni_handle_t *, const char *);
@@ -133,7 +133,7 @@ __ni_indirect_vcall(ni_handle_t *nih, ni_rest_op_t rop, const xml_node_t *args, 
  * Refresh all interfaces
  */
 int
-__ni_indirect_refresh_all(ni_handle_t *nih)
+__ni_indirect_refresh_all(ni_handle_t *nih, ni_interface_t **del_list)
 {
 	ni_syntax_t *syntax = NULL;
 	xml_node_t *result;

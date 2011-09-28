@@ -175,7 +175,7 @@ wicked_discover_state(void)
 	nih = ni_global_state_handle();
 	if (nih == NULL)
 		ni_fatal("Unable to get global state handle");
-	if (ni_refresh(nih) < 0)
+	if (ni_refresh(nih, NULL) < 0)
 		ni_fatal("failed to discover interface state");
 
 	if (opt_recover_leases) {

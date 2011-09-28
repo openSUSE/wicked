@@ -532,7 +532,7 @@ __ni_interface_bridge_configure(ni_handle_t *nih, const ni_interface_t *cfg, ni_
 		}
 
 		/* Refresh interface status */
-		ni_refresh(nih);
+		ni_refresh(nih, NULL);
 
 		if (__ni_interface_for_config(nih, cfg, &ifp) < 0 || ifp == NULL) {
 			error("tried to create interface %s; still not found", cfg->name);
@@ -605,7 +605,7 @@ __ni_interface_vlan_configure(ni_handle_t *nih, const ni_interface_t *cfg, ni_in
 		}
 
 		/* Refresh interface status */
-		ni_refresh(nih);
+		ni_refresh(nih, NULL);
 
 		if (__ni_interface_for_config(nih, cfg, &ifp) < 0 || ifp == NULL) {
 			error("tried to create interface %s; still not found", cfg->name);
@@ -664,7 +664,7 @@ ni_interface_create_vlan(ni_handle_t *nih, const char *ifname, const ni_vlan_t *
 	}
 
 	/* Refresh interface status */
-	ni_refresh(nih);
+	ni_refresh(nih, NULL);
 
 	ifp = ni_interface_by_vlan_tag(nih, cfg_vlan->tag);
 	if (ifp == NULL) {
@@ -788,7 +788,7 @@ __ni_interface_bond_configure(ni_handle_t *nih, const ni_interface_t *cfg, ni_in
 		}
 
 		/* Refresh interface status */
-		ni_refresh(nih);
+		ni_refresh(nih, NULL);
 
 		if (__ni_interface_for_config(nih, cfg, &ifp) < 0 || ifp == NULL) {
 			error("tried to create interface %s; still not found", cfg->name);

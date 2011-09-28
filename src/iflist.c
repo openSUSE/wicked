@@ -201,7 +201,7 @@ ni_rtnl_query_next_route_info(struct ni_rtnl_query *q, struct nlmsghdr **hp, int
  * Refresh all interfaces
  */
 int
-__ni_system_refresh_all(ni_handle_t *nih)
+__ni_system_refresh_all(ni_handle_t *nih, ni_interface_t **del_list)
 {
 	struct ni_rtnl_query query;
 	struct nlmsghdr *h;
@@ -313,7 +313,13 @@ __ni_system_refresh_all(ni_handle_t *nih)
 	while ((ifp = *tail) != NULL) {
 		if (ifp->seq != seqno) {
 			*tail = ifp->next;
-			ni_interface_put(ifp);
+			if (del_list == NULL) {
+				ni_interface_put(ifp);
+			} else {
+				ifp->next = NULL;
+				*del_list = ifp;
+				del_list = &ifp->next;
+			}
 		} else {
 			tail = &ifp->next;
 		}

@@ -153,7 +153,7 @@ __ncf_maybe_refresh(netcf_ifinfo_t *nif)
 		timerclear(&nif->valid);
 	}
 
-	if (ni_refresh(nif->handle) < 0)
+	if (ni_refresh(nif->handle, NULL) < 0)
 		return -1;
 
 	if (nif->cache_lft) {

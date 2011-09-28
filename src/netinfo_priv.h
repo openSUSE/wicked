@@ -41,7 +41,7 @@ struct ni_handle {
 };
 
 struct ni_ops {
-	int			(*refresh)(ni_handle_t *);
+	int			(*refresh)(ni_handle_t *, ni_interface_t **del_list);
 	int			(*interface_refresh_one)(ni_handle_t *, const char *);
 	int			(*configure_interface)(ni_handle_t *, ni_interface_t *, const ni_interface_t *);
 	int			(*delete_interface)(ni_handle_t *, const char *);
@@ -166,14 +166,14 @@ extern ni_address_t *	__ni_address_new(ni_address_t **, int, unsigned int,
 extern int		__ni_address_list_dedup(ni_address_t **);
 extern ni_address_t *	__ni_address_list_find(ni_address_t *, const ni_sockaddr_t *);
 
-extern int		__ni_system_refresh_all(ni_handle_t *);
+extern int		__ni_system_refresh_all(ni_handle_t *nih, ni_interface_t **del_list);
 extern int		__ni_system_refresh_interface(ni_handle_t *, ni_interface_t *);
 extern int		__ni_system_interface_configure(ni_handle_t *, ni_interface_t *, const ni_interface_t *);
 extern int		__ni_system_interface_delete(ni_handle_t *, const char *);
 extern int		__ni_system_interface_update_lease(ni_handle_t *, ni_interface_t *, ni_addrconf_lease_t *);
 extern int		__ni_system_interface_stats_refresh(ni_handle_t *, ni_interface_t *);
 extern int		__ni_system_ethernet_refresh(ni_handle_t *, ni_interface_t *);
-extern int		__ni_rtevent_refresh_all(ni_handle_t *);
+extern int		__ni_rtevent_refresh_all(ni_handle_t *, ni_interface_t **del_list);
 
 extern int		__ni_syntax_xml_to_all(ni_syntax_t *, ni_handle_t *, const xml_node_t *);
 extern int		__ni_syntax_xml_to_policy_info(ni_syntax_t *, ni_policy_info_t *,

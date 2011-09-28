@@ -15,7 +15,7 @@
 #define _PATH_HOSTNAME	"/etc/HOSTNAME"
 
 static const char *	ni_netconfig_default_schema(const char *);
-static int		__ni_netonfig_refresh(ni_handle_t *nih);
+static int		__ni_netonfig_refresh(ni_handle_t *nih, ni_interface_t **);
 static int		__ni_netconfig_interface_configure(ni_handle_t *, ni_interface_t *, const ni_interface_t *);
 static int		__ni_netconfig_interface_delete(ni_handle_t *, const char *);
 static int		__ni_netconfig_hostname_put(ni_handle_t *, const char *);
@@ -127,7 +127,7 @@ __ni_netonfig_close(ni_handle_t *nih)
 }
 
 static int
-__ni_netonfig_refresh(ni_handle_t *nih)
+__ni_netonfig_refresh(ni_handle_t *nih, ni_interface_t **del_list)
 {
 	ni_netconfig_t *nit = __to_netconfig(nih);
 

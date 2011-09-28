@@ -167,10 +167,25 @@ __ni_handle_new(size_t size, struct ni_ops *ops)
 }
 
 int
-ni_refresh(ni_handle_t *nih)
+ni_refresh(ni_handle_t *nih, ni_interface_array_t *del_array)
 {
+	ni_interface_t *del_list = NULL, *ifp;
+	int rv;
+
 	__ni_assert_initialized();
-	return nih->op->refresh(nih);
+
+	rv = nih->op->refresh(nih, del_array? &del_list : NULL);
+
+	while ((ifp = del_list) != NULL) {
+		del_list = ifp->next;
+		ifp->next = NULL;
+
+		if (rv >= 0)
+			ni_interface_array_append(del_array, ifp);
+		ni_interface_put(ifp);
+	}
+
+	return rv;
 }
 
 int
@@ -178,7 +193,7 @@ ni_interface_refresh_one(ni_handle_t *nih, const char *name)
 {
 	if (nih->op->interface_refresh_one)
 		return nih->op->interface_refresh_one(nih, name);
-	return ni_refresh(nih);
+	return ni_refresh(nih, NULL);
 }
 
 void
