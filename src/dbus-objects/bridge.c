@@ -22,6 +22,10 @@
 #define TRACE_ENTERN(fmt, args...) \
 				ni_debug_dbus("%s(" fmt ")", __FUNCTION__, ##args)
 
+static dbus_bool_t	__wicked_dbus_bridge_port_to_dict(const ni_bridge_port_t *port,
+				ni_dbus_variant_t *dict,
+				const ni_dbus_object_t *object,
+				int config_only);
 
 #define NULL_bridge		((ni_bridge_t *) 0)
 
@@ -119,7 +123,7 @@ __wicked_dbus_bridge_get_priority(const ni_dbus_object_t *object, const ni_dbus_
 				ni_dbus_variant_t *result, DBusError *error)
 {
 	return __ni_objectmodel_get_property_uint(__wicked_dbus_bridge_handle(object, error),
-			&NULL_bridge->config.priority, result);
+			&NULL_bridge->priority, result);
 }
 
 static dbus_bool_t
@@ -129,7 +133,7 @@ __wicked_dbus_bridge_set_priority(ni_dbus_object_t *object,
 				DBusError *error)
 {
 	return __ni_objectmodel_set_property_uint(__wicked_dbus_bridge_handle(object, error),
-			&NULL_bridge->config.priority, argument);
+			&NULL_bridge->priority, argument);
 }
 
 /*
@@ -139,8 +143,8 @@ static dbus_bool_t
 __wicked_dbus_bridge_get_stp(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
 				ni_dbus_variant_t *result, DBusError *error)
 {
-	return __ni_objectmodel_get_property_int(__wicked_dbus_bridge_handle(object, error),
-			&NULL_bridge->config.stp_enabled, result);
+	return __ni_objectmodel_get_property_uint(__wicked_dbus_bridge_handle(object, error),
+			&NULL_bridge->stp, result);
 }
 
 static dbus_bool_t
@@ -149,8 +153,8 @@ __wicked_dbus_bridge_set_stp(ni_dbus_object_t *object,
 				const ni_dbus_variant_t *argument,
 				DBusError *error)
 {
-	return __ni_objectmodel_set_property_int(__wicked_dbus_bridge_handle(object, error),
-			&NULL_bridge->config.stp_enabled, argument);
+	return __ni_objectmodel_set_property_uint(__wicked_dbus_bridge_handle(object, error),
+			&NULL_bridge->stp, argument);
 }
 
 /*
@@ -161,7 +165,7 @@ __wicked_dbus_bridge_get_forward_delay(const ni_dbus_object_t *object, const ni_
 				ni_dbus_variant_t *result, DBusError *error)
 {
 	return __ni_objectmodel_get_property_ulong(__wicked_dbus_bridge_handle(object, error),
-			&NULL_bridge->config.forward_delay, result);
+			&NULL_bridge->forward_delay, result);
 }
 
 static dbus_bool_t
@@ -171,7 +175,7 @@ __wicked_dbus_bridge_set_forward_delay(ni_dbus_object_t *object,
 				DBusError *error)
 {
 	return __ni_objectmodel_set_property_ulong(__wicked_dbus_bridge_handle(object, error),
-			&NULL_bridge->config.forward_delay, argument);
+			&NULL_bridge->forward_delay, argument);
 }
 
 /*
@@ -182,7 +186,7 @@ __wicked_dbus_bridge_get_aging_time(const ni_dbus_object_t *object, const ni_dbu
 				ni_dbus_variant_t *result, DBusError *error)
 {
 	return __ni_objectmodel_get_property_ulong(__wicked_dbus_bridge_handle(object, error),
-			&NULL_bridge->config.ageing_time, result);
+			&NULL_bridge->ageing_time, result);
 }
 
 static dbus_bool_t
@@ -192,7 +196,7 @@ __wicked_dbus_bridge_set_aging_time(ni_dbus_object_t *object,
 				DBusError *error)
 {
 	return __ni_objectmodel_set_property_ulong(__wicked_dbus_bridge_handle(object, error),
-			&NULL_bridge->config.ageing_time, argument);
+			&NULL_bridge->ageing_time, argument);
 }
 
 /*
@@ -203,7 +207,7 @@ __wicked_dbus_bridge_get_hello_time(const ni_dbus_object_t *object, const ni_dbu
 				ni_dbus_variant_t *result, DBusError *error)
 {
 	return __ni_objectmodel_get_property_ulong(__wicked_dbus_bridge_handle(object, error),
-			&NULL_bridge->config.hello_time, result);
+			&NULL_bridge->hello_time, result);
 }
 
 static dbus_bool_t
@@ -213,7 +217,7 @@ __wicked_dbus_bridge_set_hello_time(ni_dbus_object_t *object,
 				DBusError *error)
 {
 	return __ni_objectmodel_set_property_ulong(__wicked_dbus_bridge_handle(object, error),
-			&NULL_bridge->config.hello_time, argument);
+			&NULL_bridge->hello_time, argument);
 }
 
 /*
@@ -224,7 +228,7 @@ __wicked_dbus_bridge_get_max_age(const ni_dbus_object_t *object, const ni_dbus_p
 				ni_dbus_variant_t *result, DBusError *error)
 {
 	return __ni_objectmodel_get_property_ulong(__wicked_dbus_bridge_handle(object, error),
-			&NULL_bridge->config.max_age, result);
+			&NULL_bridge->max_age, result);
 }
 
 static dbus_bool_t
@@ -234,46 +238,68 @@ __wicked_dbus_bridge_set_max_age(ni_dbus_object_t *object,
 				DBusError *error)
 {
 	return __ni_objectmodel_set_property_ulong(__wicked_dbus_bridge_handle(object, error),
-			&NULL_bridge->config.max_age, argument);
+			&NULL_bridge->max_age, argument);
 }
 
-#if 0
 /*
- * Get/set underlying interface
+ * Property ports
  */
 static dbus_bool_t
-__wicked_dbus_bridge_get_interface_name(const ni_dbus_object_t *object,
-				const ni_dbus_property_t *property,
-				ni_dbus_variant_t *result,
-				DBusError *error)
+__wicked_dbus_bridge_get_ports(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
+				ni_dbus_variant_t *result, DBusError *error)
 {
 	ni_bridge_t *bridge;
+	unsigned int i;
 
 	if (!(bridge = __wicked_dbus_bridge_handle(object, error)))
 		return FALSE;
 
-	ni_dbus_variant_set_string(result, bridge->interface_name);
+	ni_dbus_dict_array_init(result);
+	for (i = 0; i < bridge->ports.count; ++i) {
+		const ni_bridge_port_t *port = bridge->ports.data[i];
+		ni_dbus_variant_t *dict;
+
+		/* Append a new element to the array */
+		if (!(dict = ni_dbus_dict_array_add(result)))
+			return FALSE;
+		ni_dbus_variant_init_dict(dict);
+
+		if (!__wicked_dbus_bridge_port_to_dict(port, dict, object, 0))
+			return FALSE;
+	}
 	return TRUE;
 }
 
 static dbus_bool_t
-__wicked_dbus_bridge_set_interface_name(ni_dbus_object_t *object,
-				const ni_dbus_property_t *property,
-				const ni_dbus_variant_t *result,
-				DBusError *error)
+__wicked_dbus_bridge_set_ports(ni_dbus_object_t *object, const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *argument, DBusError *error)
 {
-	ni_bridge_t *bridge;
-	const char *interface_name;
-
-	if (!(bridge = __wicked_dbus_bridge_handle(object, error)))
-		return FALSE;
-
-	if (!ni_dbus_variant_get_string(result, &interface_name))
-		return FALSE;
-	ni_string_dup(&bridge->interface_name, interface_name);
+	/* TBD */
 	return TRUE;
 }
-#endif
+
+/*
+ * Helper functions to represent ports as a dbus dict
+ */
+static dbus_bool_t
+__wicked_dbus_bridge_port_to_dict(const ni_bridge_port_t *port, ni_dbus_variant_t *dict,
+				const ni_dbus_object_t *object,
+				int config_only)
+{
+	/* FIXME: we should look up the slave device here and
+	 * return its object path */
+	ni_dbus_dict_add_string(dict, "name", port->name);
+	ni_dbus_dict_add_uint32(dict, "priority", port->priority);
+	ni_dbus_dict_add_uint32(dict, "path_cost", port->path_cost);
+
+	if (config_only)
+		return TRUE;
+
+	ni_dbus_dict_add_uint32(dict, "state", port->status.state);
+	ni_dbus_dict_add_uint32(dict, "port_id", port->status.port_id);
+	ni_dbus_dict_add_uint32(dict, "port_no", port->status.port_no);
+	return TRUE;
+}
 
 #define WICKED_BRIDGE_PROPERTY(type, __name, rw) \
 	NI_DBUS_PROPERTY(type, __name, 0, __wicked_dbus_bridge, rw)
@@ -288,6 +314,17 @@ static ni_dbus_property_t	wicked_dbus_bridge_properties[] = {
 	WICKED_BRIDGE_PROPERTY(UINT32, hello_time, RO),
 	WICKED_BRIDGE_PROPERTY(UINT32, max_age, RO),
 
+	/* ports is an array of dicts */
+	WICKED_BRIDGE_PROPERTY_SIGNATURE(
+			DBUS_TYPE_ARRAY_AS_STRING
+			DBUS_TYPE_ARRAY_AS_STRING
+			DBUS_DICT_ENTRY_BEGIN_CHAR_AS_STRING
+				DBUS_TYPE_STRING_AS_STRING
+				DBUS_TYPE_VARIANT_AS_STRING
+			DBUS_DICT_ENTRY_END_CHAR_AS_STRING,
+			ports, RO),
+
+
 	/* The following are really just status used for reporting */
 	{ NULL }
 };
@@ -295,6 +332,10 @@ static ni_dbus_property_t	wicked_dbus_bridge_properties[] = {
 
 static ni_dbus_method_t		wicked_dbus_bridge_methods[] = {
 	{ "delete",		"",		__ni_dbus_bridge_delete },
+#if 0
+	{ "addPort",		"sa{sv}",	__ni_dbus_bridge_add_port },
+	{ "removePort",		"sa{sv}",	__ni_dbus_bridge_remove_port },
+#endif
 	{ NULL }
 };
 
@@ -303,5 +344,3 @@ ni_dbus_service_t	wicked_dbus_bridge_service = {
 	.methods = wicked_dbus_bridge_methods,
 	.properties = wicked_dbus_bridge_properties,
 };
-
-
