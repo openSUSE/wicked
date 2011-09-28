@@ -220,6 +220,63 @@ __ni_dbus_variant_change_type(ni_dbus_variant_t *var, int new_type)
 	var->type = new_type;
 }
 
+static inline void
+__ni_dbus_init_array(ni_dbus_variant_t *var, int element_type)
+{
+	var->type = DBUS_TYPE_ARRAY;
+	var->array.element_type = element_type;
+}
+
+static inline void
+__ni_dbus_init_array_signature(ni_dbus_variant_t *var, const char *element_sig)
+{
+	int element_type;
+
+	var->type = DBUS_TYPE_ARRAY;
+
+	element_type = element_sig[0];
+	if (element_sig[1] == DBUS_TYPE_INVALID && ni_dbus_type_as_string(element_type)) {
+		/* It's an array of basic types */
+		var->array.element_type = element_type;
+	} else {
+		ni_string_dup(&var->array.element_signature, element_sig);
+	}
+}
+
+/*
+ * Initialize a variant using the specified type signature
+ */
+dbus_bool_t
+ni_dbus_variant_init_signature(ni_dbus_variant_t *var, const char *sig)
+{
+	const char *sig_orig = sig;
+	int type;
+
+	ni_dbus_variant_destroy(var);
+
+	/* Check if it's a basic type */
+	type = *sig++;
+
+	if (type == DBUS_TYPE_INVALID)
+		goto sick_nature;
+
+	if (*sig == DBUS_TYPE_INVALID && ni_dbus_type_as_string(type)) {
+		var->type = type;
+		return TRUE;
+	}
+
+	if (type == DBUS_TYPE_ARRAY) {
+		if (*sig == DBUS_TYPE_INVALID)
+			goto sick_nature;
+		__ni_dbus_init_array_signature(var, sig);
+		return TRUE;
+	}
+
+sick_nature:
+	ni_debug_dbus("%s: cannot parse signature %s", __func__, sig_orig);
+	return FALSE;
+}
+
 void
 ni_dbus_variant_set_string(ni_dbus_variant_t *var, const char *value)
 {
@@ -455,13 +512,6 @@ __ni_dbus_array_grow(ni_dbus_variant_t *var, size_t element_size, unsigned int g
 		free(var->byte_array_value);
 		var->byte_array_value = new_data;
 	}
-}
-
-static inline void
-__ni_dbus_init_array(ni_dbus_variant_t *var, int element_type)
-{
-	var->type = DBUS_TYPE_ARRAY;
-	var->array.element_type = element_type;
 }
 
 void
@@ -1043,10 +1093,12 @@ __ni_dbus_variant_offsets[256] = {
 [DBUS_TYPE_BYTE]		= offsetof(ni_dbus_variant_t, byte_value),
 [DBUS_TYPE_BOOLEAN]		= offsetof(ni_dbus_variant_t, bool_value),
 [DBUS_TYPE_STRING]		= offsetof(ni_dbus_variant_t, string_value),
+[DBUS_TYPE_OBJECT_PATH]		= offsetof(ni_dbus_variant_t, string_value),
 [DBUS_TYPE_INT16]		= offsetof(ni_dbus_variant_t, int16_value),
 [DBUS_TYPE_UINT16]		= offsetof(ni_dbus_variant_t, uint16_value),
 [DBUS_TYPE_INT32]		= offsetof(ni_dbus_variant_t, int32_value),
 [DBUS_TYPE_UINT32]		= offsetof(ni_dbus_variant_t, uint32_value),
 [DBUS_TYPE_INT64]		= offsetof(ni_dbus_variant_t, int64_value),
 [DBUS_TYPE_UINT64]		= offsetof(ni_dbus_variant_t, uint64_value),
+[DBUS_TYPE_DOUBLE]		= offsetof(ni_dbus_variant_t, double_value),
 };

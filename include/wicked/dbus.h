@@ -162,6 +162,7 @@ extern dbus_bool_t		ni_dbus_object_set_properties_from_dict(ni_dbus_object_t *,
 extern const ni_dbus_property_t *ni_dbus_service_get_property(const ni_dbus_service_t *service, const char *name);
 
 extern void			ni_dbus_variant_init(ni_dbus_variant_t *);
+extern dbus_bool_t		ni_dbus_variant_init_signature(ni_dbus_variant_t *, const char *);
 extern void			ni_dbus_variant_copy(ni_dbus_variant_t *dst,
 					const ni_dbus_variant_t *src);
 extern void			ni_dbus_variant_destroy(ni_dbus_variant_t *);
