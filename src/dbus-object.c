@@ -233,7 +233,7 @@ ni_dbus_object_get_service(const ni_dbus_object_t *object, const char *interface
 		return NULL;
 
 	for (i = 0; (svc = object->interfaces[i]) != NULL; ++i) {
-		if (!strcasecmp(svc->object_interface, interface))
+		if (!strcasecmp(svc->name, interface))
 			return svc;
 	}
 
@@ -281,7 +281,7 @@ ni_dbus_object_register_service(ni_dbus_object_t *object, const ni_dbus_service_
 {
 	unsigned int count;
 
-	TRACE_ENTERN("path=%s, interface=%s", object->path, svc->object_interface);
+	TRACE_ENTERN("path=%s, interface=%s", object->path, svc->name);
 
 	count = 0;
 	if (object->interfaces != NULL) {

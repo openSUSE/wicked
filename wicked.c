@@ -233,7 +233,7 @@ wicked_create_interface_argv(ni_dbus_object_t *object, int iftype, int argc, cha
 		return NULL;
 	}
 
-	ni_dbus_variant_set_string(&call_argv[0], service->object_interface);
+	ni_dbus_variant_set_string(&call_argv[0], service->name);
 
 	dict = &call_argv[1];
 	ni_dbus_variant_init_dict(dict);
@@ -462,7 +462,7 @@ do_delete(int argc, char **argv)
 	}
 
 	if (ni_dbus_object_call_simple(object,
-				interface->object_interface, "delete",
+				interface->name, "delete",
 				DBUS_TYPE_INVALID, NULL, DBUS_TYPE_INVALID, NULL) < 0) {
 		ni_error("DBus delete call failed");
 		return 1;

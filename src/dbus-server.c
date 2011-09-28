@@ -196,7 +196,7 @@ static ni_dbus_method_t	__ni_dbus_object_manager_methods[] = {
 };
 
 static const ni_dbus_service_t __ni_dbus_object_manager_interface = {
-	.object_interface = NI_DBUS_INTERFACE ".ObjectManager",
+	.name = NI_DBUS_INTERFACE ".ObjectManager",
 	.methods = __ni_dbus_object_manager_methods,
 };
 
@@ -255,7 +255,7 @@ __ni_dbus_object_properties_arg_property(ni_dbus_object_t *object, const ni_dbus
 		dbus_set_error(error, DBUS_ERROR_UNKNOWN_METHOD,
 				"Unknown property \"%s\" on object %s interface %s",
 				property_name, object->path,
-				service? service->object_interface : "*");
+				service? service->name : "*");
 		return FALSE;
 	}
 	*property_p = property;
@@ -361,7 +361,7 @@ __ni_dbus_object_properties_set(ni_dbus_object_t *object, const ni_dbus_method_t
 		dbus_set_error(error,
 				DBUS_ERROR_UNKNOWN_METHOD,	/* no error msgs defined */
 				"%s: unable to set read-only property %s.%s",
-				object->path, service->object_interface,
+				object->path, service->name,
 				property->name);
 		return FALSE;
 	}
@@ -380,7 +380,7 @@ static ni_dbus_method_t	__ni_dbus_object_properties_methods[] = {
 };
 
 static const ni_dbus_service_t __ni_dbus_object_properties_interface = {
-	.object_interface = NI_DBUS_INTERFACE ".Properties",
+	.name = NI_DBUS_INTERFACE ".Properties",
 	.methods = __ni_dbus_object_properties_methods,
 };
 
@@ -391,7 +391,7 @@ __ni_dbus_object_manager_enumerate_interface(ni_dbus_object_t *object,
 	const ni_dbus_property_t *property;
 	int rv = TRUE;
 
-	TRACE_ENTERN("object=%s, interface=%s", object->path, service->object_interface);
+	TRACE_ENTERN("object=%s, interface=%s", object->path, service->name);
 
 	/* Loop over properties and add them here */
 	if (service->properties) {
@@ -404,12 +404,12 @@ __ni_dbus_object_manager_enumerate_interface(ni_dbus_object_t *object,
 			if (!property->get(object, property, &value, &error)) {
 				ni_debug_dbus("%s: unable to get property %s.%s",
 						object->path,
-						service->object_interface,
+						service->name,
 						property->name);
 			} else if (!ni_dbus_dict_append_variant(dict_iter, property->name, &value)) {
 				ni_debug_dbus("%s: unable to encode property %s.%s",
 						object->path,
-						service->object_interface,
+						service->name,
 						property->name);
 				rv = FALSE;
 			}
@@ -439,7 +439,7 @@ __ni_dbus_object_manager_enumerate_object(ni_dbus_object_t *object, DBusMessageI
 		for (i = 0; rv && (svc = object->interfaces[i]) != NULL; ++i) {
 			DBusMessageIter entry_iter, val_iter, prop_iter;
 
-			if (!ni_dbus_dict_begin_string_dict(&interface_iter, svc->object_interface,
+			if (!ni_dbus_dict_begin_string_dict(&interface_iter, svc->name,
 							&entry_iter, &val_iter, &prop_iter))
 				return FALSE;
 
@@ -513,7 +513,7 @@ __ni_dbus_object_message(DBusConnection *conn, DBusMessage *call, void *user_dat
 				DBUS_ERROR_UNKNOWN_METHOD,
 				"Unknown method in call to object %s, %s.%s",
 				object->path,
-				svc->object_interface,
+				svc->name,
 				method_name);
 	} else {
 		ni_dbus_variant_t argv[16];
@@ -531,7 +531,7 @@ __ni_dbus_object_message(DBusConnection *conn, DBusMessage *call, void *user_dat
 						DBUS_ERROR_INVALID_SIGNATURE,
 						"Bad call signature in call to object %s, %s.%s",
 						object->path,
-						svc->object_interface,
+						svc->name,
 						method_name);
 				goto error_reply;
 			}
@@ -541,7 +541,7 @@ __ni_dbus_object_message(DBusConnection *conn, DBusMessage *call, void *user_dat
 						DBUS_ERROR_INVALID_ARGS,
 						"Bad arguments in call to object %s, %s.%s",
 						object->path,
-						svc->object_interface,
+						svc->name,
 						method_name);
 				goto error_reply;
 			}

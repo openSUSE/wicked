@@ -303,13 +303,13 @@ wicked_process_network_restcall(ni_socket_t *sock)
 /*
  * Functions to support the DBus binding
  */
-static ni_dbus_method_t		__wicked_root_dbus_methods[] = {
+static ni_dbus_method_t		__wicked_dbus_root_methods[] = {
 	{ NULL }
 };
 
-static ni_dbus_service_t	__wicked_root_dbus_interface = {
-	.object_interface = WICKED_DBUS_INTERFACE,
-	.methods = __wicked_root_dbus_methods,
+static ni_dbus_service_t	__wicked_dbus_root_interface = {
+	.name = WICKED_DBUS_INTERFACE,
+	.methods = __wicked_dbus_root_methods,
 };
 
 
@@ -318,7 +318,7 @@ wicked_register_dbus_services(ni_dbus_server_t *server)
 {
 	ni_dbus_object_t *root_object = ni_dbus_server_get_root_object(server);
 
-	ni_dbus_object_register_service(root_object, &__wicked_root_dbus_interface);
+	ni_dbus_object_register_service(root_object, &__wicked_dbus_root_interface);
 	ni_objectmodel_register_all(server);
 }
 

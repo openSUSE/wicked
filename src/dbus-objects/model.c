@@ -63,7 +63,7 @@ ni_objectmodel_service_by_name(const char *name)
 	unsigned int i;
 
 	for (i = 0; (service = all_services[i]) != NULL; ++i) {
-		if (!strcmp(service->object_interface, name))
+		if (!strcmp(service->name, name))
 			return service;
 	}
 
@@ -149,7 +149,7 @@ __ni_dbus_netif_create(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 		goto bad_args;
 
 	for (i = 0; (service = all_services[i]) != NULL; ++i) {
-		if (!strcmp(interface_name, service->object_interface))
+		if (!strcmp(interface_name, service->name))
 			break;
 	}
 
@@ -183,7 +183,7 @@ static ni_dbus_method_t		wicked_dbus_netif_methods[] = {
 
 
 static ni_dbus_service_t	wicked_dbus_netif_interface = {
-	.object_interface = WICKED_DBUS_INTERFACE ".Factory",
+	.name = WICKED_DBUS_INTERFACE ".Factory",
 	.methods = wicked_dbus_netif_methods,
 	/* .properties = wicked_dbus_netif_properties, */
 };

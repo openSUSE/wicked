@@ -148,7 +148,7 @@ ni_dbus_object_set_properties_from_dict(ni_dbus_object_t *object,
 		/* now set the object property */
 		if (!(property = ni_dbus_service_get_property(interface, entry->key))) {
 			ni_debug_dbus("Ignoring unknown %s property %s=%s",
-					interface->object_interface,
+					interface->name,
 					entry->key, ni_dbus_variant_sprint(&entry->datum));
 			continue;
 		}

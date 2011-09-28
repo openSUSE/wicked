@@ -993,7 +993,7 @@ static ni_dbus_property_t	wpa_bss_properties[] = {
 };
 
 ni_dbus_service_t	wpa_bssid_interface = {
-	.object_interface = "fi.epitest.hostap.WPASupplicant.BSSID",
+	.name = NI_WPA_BSS_INTERFACE,
 	.properties = wpa_bss_properties,
 };
 
@@ -1301,7 +1301,7 @@ static ni_dbus_property_t	wpa_ifcap_properties[] = {
 };
 
 ni_dbus_service_t	wpa_ifcap_interface = {
-	.object_interface = "fi.epitest.hostap.WPASupplicant.Interface",
+	.name = NI_WPA_IF_INTERFACE,
 	.properties = wpa_ifcap_properties,
 };
 

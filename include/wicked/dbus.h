@@ -95,7 +95,7 @@ struct ni_dbus_property	{
 };
 
 struct ni_dbus_service {
-	char *				object_interface;
+	char *				name;
 
 	const ni_dbus_method_t *	methods;
 	const ni_dbus_property_t *	properties;

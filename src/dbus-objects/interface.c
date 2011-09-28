@@ -128,13 +128,13 @@ ni_objectmodel_new_interface(ni_dbus_server_t *server, const ni_dbus_service_t *
 
 		if (!(prop = ni_dbus_service_get_property(service, entry->key))) {
 			ni_debug_dbus("Unknown property %s when creating a %s object",
-					entry->key, service->object_interface);
+					entry->key, service->name);
 			continue;
 		}
 
 		if (!prop->set) {
 			ni_debug_dbus("Property %s has no set function (when creating a %s object)",
-					entry->key, service->object_interface);
+					entry->key, service->name);
 			continue;
 		}
 
@@ -151,7 +151,7 @@ ni_objectmodel_new_interface(ni_dbus_server_t *server, const ni_dbus_service_t *
 	} else {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
 				"Cannot create network interface for %s - not implemented yet",
-				service->object_interface);
+				service->name);
 		goto error;
 	}
 
@@ -627,7 +627,7 @@ static ni_dbus_property_t	wicked_dbus_interface_properties[] = {
 };
 
 ni_dbus_service_t	wicked_dbus_interface_service = {
-	.object_interface = WICKED_DBUS_INTERFACE ".Interface",
+	.name = WICKED_DBUS_INTERFACE ".Interface",
 	.methods = wicked_dbus_interface_methods,
 	.properties = wicked_dbus_interface_properties,
 };
