@@ -315,24 +315,31 @@ __ni_dbus_object_properties_get(ni_dbus_object_t *object, const ni_dbus_method_t
 				&service, &property))
 		return FALSE;
 
-	dbus_message_iter_init_append(reply, &iter);
-
 	if (property->get == NULL)
 		goto failed;
+	if (property->signature) {
+		/* Initialize the variant to the specified type. This allows
+		 * the property handler to use generic variant_set_int functions
+		 * and the like, without having to know exactly which type
+		 * is being used. */
+		if (!ni_dbus_variant_init_signature(&result, property->signature))
+			goto failed;
+	}
 	if (!property->get(object, property, &result, error))
 		return FALSE;
 
 	/* Add variant to reply */
+	dbus_message_iter_init_append(reply, &iter);
 	if (!ni_dbus_message_iter_append_variant(&iter, &result))
 		goto failed;
 
 	ni_dbus_variant_destroy(&result);
-
 	return TRUE;
 
 failed:
 	/* the Properties interface should really define some errors... */
 	dbus_set_error(error, DBUS_ERROR_FAILED, "Error getting/setting property");
+	ni_dbus_variant_destroy(&result);
 	return FALSE;
 }
 
@@ -401,6 +408,21 @@ __ni_dbus_object_manager_enumerate_interface(ni_dbus_object_t *object,
 
 			if (property->get == NULL)
 				continue;
+			if (property->signature) {
+				/* Initialize the variant to the specified type. This allows
+				 * the property handler to use generic variant_set_int functions
+				 * and the like, without having to know exactly which type
+				 * is being used. */
+				if (!ni_dbus_variant_init_signature(&value, property->signature)) {
+					ni_debug_dbus("%s: unable to initialize property %s.%s of type %s",
+						object->path,
+						service->name,
+						property->name,
+						property->signature);
+					rv = FALSE;
+					goto next;
+				}
+			}
 			if (!property->get(object, property, &value, &error)) {
 				ni_debug_dbus("%s: unable to get property %s.%s",
 						object->path,
@@ -413,6 +435,7 @@ __ni_dbus_object_manager_enumerate_interface(ni_dbus_object_t *object,
 						property->name);
 				rv = FALSE;
 			}
+next:
 			ni_dbus_variant_destroy(&value);
 			dbus_error_free(&error);
 		}
