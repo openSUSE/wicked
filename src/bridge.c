@@ -118,8 +118,8 @@ __ni_bridge_port_new(const char *name)
 		ni_fatal("%s: out of memory", __FUNCTION__);
 
 	ni_string_dup(&newport->name, name);
-	newport->config.priority = NI_BRIDGE_VALUE_NOT_SET;
-	newport->config.path_cost = NI_BRIDGE_VALUE_NOT_SET;
+	newport->priority = NI_BRIDGE_VALUE_NOT_SET;
+	newport->path_cost = NI_BRIDGE_VALUE_NOT_SET;
 	return newport;
 }
 
@@ -129,7 +129,8 @@ __ni_bridge_port_clone(const ni_bridge_port_t *port)
 	ni_bridge_port_t *newport;
 
 	newport = __ni_bridge_port_new(port->name);
-	memcpy(&newport->config, &port->config, sizeof(newport->config));
+	newport->priority = port->priority;
+	newport->path_cost = port->path_cost;
 	return newport;
 }
 
@@ -139,8 +140,7 @@ __ni_bridge_port_free(ni_bridge_port_t *port)
 	ni_string_free(&port->name);
 	if (port->device)
 		ni_interface_put(port->device);
-	if (port->status)
-		ni_bridge_port_status_free(port->status);
+	ni_bridge_port_status_destroy(&port->status);
 	free(port);
 }
 
@@ -273,7 +273,7 @@ ni_bridge_get_port_names(const ni_bridge_t *bridge, ni_string_array_t *ports)
 int
 ni_bridge_get_stp(ni_bridge_t *bridge, char **value)
 {
-	if (bridge->config.stp_enabled == NI_BRIDGE_NO_STP)
+	if (bridge->stp == NI_BRIDGE_NO_STP)
 		ni_string_dup(value, "off");
 	else
 		ni_string_dup(value, "on");
@@ -283,31 +283,31 @@ ni_bridge_get_stp(ni_bridge_t *bridge, char **value)
 int
 ni_bridge_get_forward_delay(ni_bridge_t *bridge, char **value)
 {
-	return __ni_bridge_time_to_str(bridge->config.forward_delay, value);
+	return __ni_bridge_time_to_str(bridge->forward_delay, value);
 }
 
 int
 ni_bridge_get_ageing_time(ni_bridge_t *bridge, char **value)
 {
-	return __ni_bridge_time_to_str(bridge->config.ageing_time, value);
+	return __ni_bridge_time_to_str(bridge->ageing_time, value);
 }
 
 int
 ni_bridge_get_hello_time(ni_bridge_t *bridge, char **value)
 {
-	return __ni_bridge_time_to_str(bridge->config.hello_time, value);
+	return __ni_bridge_time_to_str(bridge->hello_time, value);
 }
 
 int
 ni_bridge_get_max_age(ni_bridge_t *bridge, char **value)
 {
-	return __ni_bridge_time_to_str(bridge->config.max_age, value);
+	return __ni_bridge_time_to_str(bridge->max_age, value);
 }
 
 int
 ni_bridge_get_priority(ni_bridge_t *bridge, char **value)
 {
-	return __ni_bridge_uint_to_str(bridge->config.priority, value);
+	return __ni_bridge_uint_to_str(bridge->priority, value);
 }
 
 int
@@ -341,15 +341,15 @@ ni_bridge_set_stp(ni_bridge_t *bridge, const char *value)
 	 * shows details {0=off,1=stp,2=rstp} in stp_state.
 	 */
 	if (!value || !*value) {
-		bridge->config.stp_enabled = NI_BRIDGE_NO_STP;
+		bridge->stp = NI_BRIDGE_NO_STP;
 		return 0;
 	} else
 	if (!strcmp(value, "off") || !strcmp(value, "no")) {
-		bridge->config.stp_enabled = NI_BRIDGE_NO_STP;
+		bridge->stp = NI_BRIDGE_NO_STP;
 		return 0;
 	} else
 	if (!strcmp(value, "on") || !strcmp(value, "yes")) {
-		bridge->config.stp_enabled = NI_BRIDGE_STP;
+		bridge->stp = NI_BRIDGE_STP;
 		return 0;
 	}
 	return -1;
@@ -358,31 +358,31 @@ ni_bridge_set_stp(ni_bridge_t *bridge, const char *value)
 int
 ni_bridge_set_forward_delay(ni_bridge_t *bridge, const char *value)
 {
-	return __ni_bridge_str_to_time(value, &bridge->config.forward_delay);
+	return __ni_bridge_str_to_time(value, &bridge->forward_delay);
 }
 
 int
 ni_bridge_set_ageing_time(ni_bridge_t *bridge, const char *value)
 {
-	return __ni_bridge_str_to_time(value, &bridge->config.ageing_time);
+	return __ni_bridge_str_to_time(value, &bridge->ageing_time);
 }
 
 int
 ni_bridge_set_hello_time(ni_bridge_t *bridge, const char *value)
 {
-	return __ni_bridge_str_to_time(value, &bridge->config.hello_time);
+	return __ni_bridge_str_to_time(value, &bridge->hello_time);
 }
 
 int
 ni_bridge_set_max_age(ni_bridge_t *bridge, const char *value)
 {
-	return __ni_bridge_str_to_time(value, &bridge->config.max_age);
+	return __ni_bridge_str_to_time(value, &bridge->max_age);
 }
 
 int
 ni_bridge_set_priority(ni_bridge_t *bridge, const char *value)
 {
-	return __ni_bridge_str_to_uint(value, &bridge->config.priority);
+	return __ni_bridge_str_to_uint(value, &bridge->priority);
 }
 
 int
@@ -415,7 +415,7 @@ ni_bridge_port_get_priority(ni_bridge_t *bridge, const char *port, char **value)
 
 	if (i < 0)
 		return -1;
-	return __ni_bridge_uint_to_str(bridge->ports.data[i]->config.priority, value);
+	return __ni_bridge_uint_to_str(bridge->ports.data[i]->priority, value);
 }
 
 int
@@ -425,7 +425,7 @@ ni_bridge_port_get_path_cost(ni_bridge_t *bridge, const char *port, char **value
 
 	if (i < 0)
 		return -1;
-	return __ni_bridge_uint_to_str(bridge->ports.data[i]->config.path_cost, value);
+	return __ni_bridge_uint_to_str(bridge->ports.data[i]->path_cost, value);
 }
 
 int
@@ -450,7 +450,7 @@ ni_bridge_port_set_priority(ni_bridge_t *bridge, const char *port, const char *v
 
 	if (i < 0)
 		return -1;
-	return __ni_bridge_str_to_uint(value, &bridge->ports.data[i]->config.priority);
+	return __ni_bridge_str_to_uint(value, &bridge->ports.data[i]->priority);
 }
 
 int
@@ -460,7 +460,7 @@ ni_bridge_port_set_path_cost(ni_bridge_t *bridge, const char *port, const char *
 
 	if (i < 0)
 		return -1;
-	return __ni_bridge_str_to_uint(value, &bridge->ports.data[i]->config.path_cost);
+	return __ni_bridge_str_to_uint(value, &bridge->ports.data[i]->path_cost);
 }
 
 int
@@ -519,14 +519,22 @@ ni_bridge_clone(const ni_bridge_t *src)
 	if (!dst)
 		return NULL;
 
-	memcpy(&dst->config, &src->config, sizeof(dst->config));
+#define C(x)	dst->x = src->x
+	C(priority);
+	C(stp);
+	C(forward_delay);
+	C(ageing_time);
+	C(hello_time);
+	C(max_age);
+#undef C
+
 	if (ni_bridge_port_array_copy(&dst->ports, &src->ports) < 0)
 		goto failed;
 
 	return dst;
 
 failed:
-	error("Error clonding bridge configuration");
+	ni_error("Error cloning bridge configuration");
 	ni_bridge_free(dst);
 	return NULL;
 }
@@ -538,11 +546,11 @@ static void
 __ni_bridge_init(ni_bridge_t *bridge)
 {
 	/* apply "not set" defaults */
-	bridge->config.forward_delay = NI_BRIDGE_VALUE_NOT_SET;
-	bridge->config.ageing_time = NI_BRIDGE_VALUE_NOT_SET;
-	bridge->config.hello_time = NI_BRIDGE_VALUE_NOT_SET;
-	bridge->config.max_age = NI_BRIDGE_VALUE_NOT_SET;
-	bridge->config.priority = NI_BRIDGE_VALUE_NOT_SET;
+	bridge->forward_delay = NI_BRIDGE_VALUE_NOT_SET;
+	bridge->ageing_time = NI_BRIDGE_VALUE_NOT_SET;
+	bridge->hello_time = NI_BRIDGE_VALUE_NOT_SET;
+	bridge->max_age = NI_BRIDGE_VALUE_NOT_SET;
+	bridge->priority = NI_BRIDGE_VALUE_NOT_SET;
 }
 
 ni_bridge_t *
@@ -562,11 +570,7 @@ static void
 __ni_bridge_destroy(ni_bridge_t *bridge)
 {
 	ni_bridge_port_array_destroy(&bridge->ports);
-
-	if (bridge->status) {
-		ni_bridge_status_free(bridge->status);
-		bridge->status = NULL;
-	}
+	ni_bridge_status_destroy(&bridge->status);
 }
 
 void
@@ -577,18 +581,17 @@ ni_bridge_free(ni_bridge_t *bridge)
 }
 
 void
-ni_bridge_status_free(ni_bridge_status_t *bs)
+ni_bridge_status_destroy(ni_bridge_status_t *bs)
 {
 	ni_string_free(&bs->root_id);
 	ni_string_free(&bs->bridge_id);
 	ni_string_free(&bs->group_addr);
-	free(bs);
+	memset(bs, 0, sizeof(*bs));
 }
 
 void
-ni_bridge_port_status_free(ni_bridge_port_status_t *ps)
+ni_bridge_port_status_destroy(ni_bridge_port_status_t *ps)
 {
 	ni_string_free(&ps->designated_root);
 	ni_string_free(&ps->designated_bridge);
-	free(ps);
 }

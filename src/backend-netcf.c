@@ -891,12 +891,12 @@ __ni_netcf_xml_from_bridge_status(ni_bridge_t *bridge, xml_node_t *brnode)
 	xml_node_t *snode;
 
 	snode = xml_node_new("status", brnode);
-	if (bridge->status->root_id)
-		xml_node_set_cdata(xml_node_new("root-id", snode), bridge->status->root_id);
-	if (bridge->status->bridge_id)
-		xml_node_set_cdata(xml_node_new("bridge-id", snode), bridge->status->bridge_id);
-	if (bridge->status->group_addr)
-		xml_node_set_cdata(xml_node_new("group-address", snode), bridge->status->group_addr);
+	if (bridge->status.root_id)
+		xml_node_set_cdata(xml_node_new("root-id", snode), bridge->status.root_id);
+	if (bridge->status.bridge_id)
+		xml_node_set_cdata(xml_node_new("bridge-id", snode), bridge->status.bridge_id);
+	if (bridge->status.group_addr)
+		xml_node_set_cdata(xml_node_new("group-address", snode), bridge->status.group_addr);
 }
 
 static void
@@ -915,8 +915,7 @@ __ni_netcf_xml_from_bridge(ni_syntax_t *syntax, ni_handle_t *nih,
 		__ni_netcf_xml_from_bridge_config(bridge, "hello-time", brnode);
 		__ni_netcf_xml_from_bridge_config(bridge, "priority", brnode);
 		__ni_netcf_xml_from_bridge_config(bridge, "max-age", brnode);
-		if (bridge->status)
-			__ni_netcf_xml_from_bridge_status(bridge, brnode);
+		__ni_netcf_xml_from_bridge_status(bridge, brnode);
 	}
 
 	/* FIXME: strict netcf now wants to represent a VLAN port as

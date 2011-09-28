@@ -289,34 +289,19 @@ done:
  * Bridge support
  */
 void
-ni_sysfs_bridge_get_config(const char *ifname, ni_bridge_config_t *config)
+ni_sysfs_bridge_get_config(const char *ifname, ni_bridge_t *bridge)
 {
-	ni_sysfs_netif_get_int(ifname, SYSFS_BRIDGE_ATTR "/stp_state", &config->stp_enabled);
-	ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_ATTR "/priority", &config->priority);
-	ni_sysfs_netif_get_ulong(ifname, SYSFS_BRIDGE_ATTR "/forward_delay", &config->forward_delay);
-	ni_sysfs_netif_get_ulong(ifname, SYSFS_BRIDGE_ATTR "/ageing_time", &config->ageing_time);
-	ni_sysfs_netif_get_ulong(ifname, SYSFS_BRIDGE_ATTR "/hello_time", &config->hello_time);
-	ni_sysfs_netif_get_ulong(ifname, SYSFS_BRIDGE_ATTR "/max_age", &config->max_age);
+	ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_ATTR "/stp_state", &bridge->stp);
+	ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_ATTR "/priority", &bridge->priority);
+	ni_sysfs_netif_get_ulong(ifname, SYSFS_BRIDGE_ATTR "/forward_delay", &bridge->forward_delay);
+	ni_sysfs_netif_get_ulong(ifname, SYSFS_BRIDGE_ATTR "/ageing_time", &bridge->ageing_time);
+	ni_sysfs_netif_get_ulong(ifname, SYSFS_BRIDGE_ATTR "/hello_time", &bridge->hello_time);
+	ni_sysfs_netif_get_ulong(ifname, SYSFS_BRIDGE_ATTR "/max_age", &bridge->max_age);
 }
 
 void
-ni_sysfs_bridge_get_status(const char *ifname, ni_bridge_status_t **pbs)
+ni_sysfs_bridge_get_status(const char *ifname, ni_bridge_status_t *bs)
 {
-	ni_bridge_status_t *bs;
-
-	if (*pbs)
-		ni_bridge_status_free(*pbs);
-
-	*pbs = bs = calloc(1, sizeof(ni_bridge_status_t));
-	if (!bs)
-		return;
-
-	ni_sysfs_netif_get_int(ifname, SYSFS_BRIDGE_ATTR "/stp_state", &bs->stp_state);
-	ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_ATTR "/priority", &bs->priority);
-	ni_sysfs_netif_get_ulong(ifname, SYSFS_BRIDGE_ATTR "/forward_delay", &bs->forward_delay);
-	ni_sysfs_netif_get_ulong(ifname, SYSFS_BRIDGE_ATTR "/ageing_time", &bs->ageing_time);
-	ni_sysfs_netif_get_ulong(ifname, SYSFS_BRIDGE_ATTR "/hello_time", &bs->hello_time);
-	ni_sysfs_netif_get_ulong(ifname, SYSFS_BRIDGE_ATTR "/max_age", &bs->max_age);
 	ni_sysfs_netif_get_string(ifname, SYSFS_BRIDGE_ATTR "/root_id", &bs->root_id);
 	ni_sysfs_netif_get_string(ifname, SYSFS_BRIDGE_ATTR "/bridge_id", &bs->bridge_id);
 	ni_sysfs_netif_get_string(ifname, SYSFS_BRIDGE_ATTR "/group_addr", &bs->group_addr);
@@ -337,24 +322,15 @@ ni_sysfs_bridge_get_port_names(const char *ifname, ni_string_array_t *names)
 }
 
 void
-ni_sysfs_bridge_port_get_config(const char *ifname, ni_bridge_port_config_t *config)
+ni_sysfs_bridge_port_get_config(const char *ifname, ni_bridge_port_t *port)
 {
-	ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_PORT_ATTR "/priority", &config->priority);
-	ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_PORT_ATTR "/path_cost", &config->path_cost);
+	ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_PORT_ATTR "/priority", &port->priority);
+	ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_PORT_ATTR "/path_cost", &port->path_cost);
 }
 
 void
-ni_sysfs_bridge_port_get_status(const char *ifname, ni_bridge_port_status_t **pps)
+ni_sysfs_bridge_port_get_status(const char *ifname, ni_bridge_port_status_t *ps)
 {
-	ni_bridge_port_status_t *ps;
-
-	if (*pps)
-		ni_bridge_port_status_free(*pps);
-
-	*pps = ps = calloc(1, sizeof(ni_bridge_port_status_t));
-	if (!ps)
-		return;
-
 	ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_PORT_ATTR "/priority", &ps->priority);
 	ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_PORT_ATTR "/path_cost", &ps->path_cost);
 

@@ -7,11 +7,11 @@
 #ifndef __WICKED_BRIDGE_H__
 #define __WICKED_BRIDGE_H__
 
-enum {
+typedef enum ni_bridge_stp {
 	NI_BRIDGE_NO_STP = 0,			/* no spanning tree */
 	NI_BRIDGE_STP,				/* old STP in kernel */
 	NI_BRIDGE_RSTP,				/* new RSTP in userspace */
-};
+} ni_bridge_stp_t;
 
 enum {
 	NI_BRIDGE_STP_ENABLED	= 1,		/* bridge config options */
@@ -23,11 +23,6 @@ enum {
 	NI_BRIDGE_PORT_PRIORITY	= 7,		/* bridge port config options */
 	NI_BRIDGE_PORT_PATH_COST= 8,
 };
-
-typedef struct ni_bridge_port_config {
-	unsigned int		priority;
-	unsigned int		path_cost;
-} ni_bridge_port_config_t;
 
 typedef struct ni_bridge_port_status {
 	unsigned int		priority;
@@ -55,8 +50,11 @@ typedef struct ni_bridge_port_status {
 typedef struct ni_bridge_port {
 	char *			name;
 	ni_interface_t *	device;
-	ni_bridge_port_config_t config;
-	ni_bridge_port_status_t	*status;
+
+	unsigned int		priority;
+	unsigned int		path_cost;
+
+	ni_bridge_port_status_t	status;
 } ni_bridge_port_t;
 
 typedef struct ni_bridge_port_array {
@@ -64,28 +62,7 @@ typedef struct ni_bridge_port_array {
 	ni_bridge_port_t **	data;
 } ni_bridge_port_array_t;
 
-typedef struct ni_bridge_config {
-	unsigned int		priority;
-	int			stp_enabled;
-
-	/* The following should probably be changed to type double */
-	unsigned long		forward_delay;	/* time in 1/100 sec */
-	unsigned long		ageing_time;	/* time in 1/100 sec */
-	unsigned long		hello_time;	/* time in 1/100 sec */
-	unsigned long		max_age;	/* time in 1/100 sec */
-} ni_bridge_config_t;
-
 typedef struct ni_bridge_status {
-	/* Not sure why this is duplicated from bridge_config. Marius? */
-#if 1
-	unsigned int		priority;
-	unsigned long		forward_delay;
-	unsigned long		ageing_time;
-	unsigned long		hello_time;
-	unsigned long		max_age;
-#endif
-	int			stp_state;
-
 	char *			root_id;
 	char *			bridge_id;
 	char *			group_addr;
@@ -102,16 +79,24 @@ typedef struct ni_bridge_status {
 } ni_bridge_status_t;
 
 struct ni_bridge {
-	ni_bridge_config_t	config;
-	ni_bridge_status_t *	status;
+	unsigned int		priority;
+	ni_bridge_stp_t		stp;
+
+	/* The following should probably be changed to type double */
+	unsigned long		forward_delay;	/* time in 1/100 sec */
+	unsigned long		ageing_time;	/* time in 1/100 sec */
+	unsigned long		hello_time;	/* time in 1/100 sec */
+	unsigned long		max_age;	/* time in 1/100 sec */
+
+	ni_bridge_status_t	status;
 	ni_bridge_port_array_t	ports;
 };
 
 extern int		ni_bridge_bind(ni_interface_t *, ni_handle_t *);
 extern ni_bridge_t *	ni_bridge_new(void);
 extern void		ni_bridge_free(ni_bridge_t *);
-extern void		ni_bridge_status_free(ni_bridge_status_t *);
-extern void		ni_bridge_port_status_free(ni_bridge_port_status_t *);
+extern void		ni_bridge_status_destroy(ni_bridge_status_t *);
+extern void		ni_bridge_port_status_destroy(ni_bridge_port_status_t *);
 extern ni_bridge_t *	ni_bridge_clone(const ni_bridge_t *);
 extern int		ni_bridge_add_port(ni_bridge_t *, const char *);
 extern int		ni_bridge_del_port(ni_bridge_t *, const char *);
