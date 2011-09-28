@@ -78,9 +78,9 @@ ni_objectmodel_service_by_name(const char *name)
 static dbus_bool_t
 wicked_dbus_netif_refresh(ni_dbus_object_t *object)
 {
-	ni_dbus_object_t *child, *next;
+	ni_interface_array_t deleted = NI_INTERFACE_ARRAY_INIT;
+	unsigned int i;
 	ni_handle_t *nih;
-	unsigned int seq;
 
 	TRACE_ENTER();
 	if (!(nih = ni_global_state_handle())) {
@@ -88,23 +88,27 @@ wicked_dbus_netif_refresh(ni_dbus_object_t *object)
 		return FALSE;
 	}
 
-	seq = ni_handle_seq(nih);
-	if (ni_refresh(nih, NULL) < 0) {
+	if (ni_refresh(nih, &deleted) < 0) {
 		ni_error("cannot refresh interface list!");
 		return FALSE;
 	}
 
-	/* FIXME: when ni_refresh finds that the interface has
-	 * gone away, our object_handle may no longer be valid.
+	/* When ni_refresh finds that the interface has gone away,
+	 * our object_handle may no longer be valid.
 	 */
-	for (child = object->children; child; child = next) {
-		ni_interface_t *ifp = child->handle;
+	for (i = 0; i < deleted.count; ++i) {
+		ni_interface_t *ifp = deleted.data[i];
+		ni_dbus_object_t *child;
 
-		next = child->next;
-		if (ifp && ifp->seq <= seq)
-			ni_dbus_object_free(child);
+		for (child = object->children; child; child = child->next) {
+			if (child->handle == ifp) {
+				ni_dbus_object_free(child);
+				break;
+			}
+		}
 	}
 
+	ni_interface_array_destroy(&deleted);
 	return TRUE;
 }
 
