@@ -417,7 +417,7 @@ ni_dbus_variant_get_int64(const ni_dbus_variant_t *var, int64_t *ret)
 
 /*
  * The following functions "cast" the value of a variant integer to a
- * C type.
+ * C type, and vice versa.
  */
 #define CAST_SWITCH(var, ret) \
 	switch (var->type) { \
@@ -466,6 +466,58 @@ dbus_bool_t
 ni_dbus_variant_get_ulong(const ni_dbus_variant_t *var, unsigned long *ret)
 {
 	CAST_SWITCH(var, ret);
+	return TRUE;
+}
+
+#undef CAST_SWITCH
+
+#define CAST_SWITCH(var, value) \
+	switch (var->type) { \
+	case DBUS_TYPE_BOOLEAN: \
+		var->bool_value = value; break; \
+	case DBUS_TYPE_BYTE: \
+		var->byte_value = value; break; \
+	case DBUS_TYPE_INT16: \
+		var->int16_value = value; break; \
+	case DBUS_TYPE_UINT16: \
+		var->uint16_value = value; break; \
+	case DBUS_TYPE_INT32: \
+		var->int32_value = value; break; \
+	case DBUS_TYPE_UINT32: \
+		var->uint32_value = value; break; \
+	case DBUS_TYPE_INT64: \
+		var->int64_value = value; break; \
+	case DBUS_TYPE_UINT64: \
+		var->uint64_value = value; break; \
+	default: \
+		return FALSE; \
+	}
+
+dbus_bool_t
+ni_dbus_variant_set_int(ni_dbus_variant_t *var, int value)
+{
+	CAST_SWITCH(var, value);
+	return TRUE;
+}
+
+dbus_bool_t
+ni_dbus_variant_set_uint(ni_dbus_variant_t *var, unsigned int value)
+{
+	CAST_SWITCH(var, value);
+	return TRUE;
+}
+
+dbus_bool_t
+ni_dbus_variant_set_long(ni_dbus_variant_t *var, long value)
+{
+	CAST_SWITCH(var, value);
+	return TRUE;
+}
+
+dbus_bool_t
+ni_dbus_variant_set_ulong(ni_dbus_variant_t *var, unsigned long value)
+{
+	CAST_SWITCH(var, value);
 	return TRUE;
 }
 

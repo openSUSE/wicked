@@ -177,6 +177,10 @@ extern void			ni_dbus_variant_set_uint32(ni_dbus_variant_t *, uint32_t);
 extern void			ni_dbus_variant_set_int32(ni_dbus_variant_t *, int32_t);
 extern void			ni_dbus_variant_set_uint64(ni_dbus_variant_t *, uint64_t);
 extern void			ni_dbus_variant_set_int64(ni_dbus_variant_t *, int64_t);
+extern dbus_bool_t		ni_dbus_variant_set_int(ni_dbus_variant_t *, int);
+extern dbus_bool_t		ni_dbus_variant_set_uint(ni_dbus_variant_t *, unsigned int);
+extern dbus_bool_t		ni_dbus_variant_set_long(ni_dbus_variant_t *, long);
+extern dbus_bool_t		ni_dbus_variant_set_ulong(ni_dbus_variant_t *, unsigned long);
 extern dbus_bool_t		ni_dbus_variant_parse(ni_dbus_variant_t *var,
 					const char *string_value, const char *signature);
 extern dbus_bool_t		ni_dbus_variant_get_string(const ni_dbus_variant_t *, const char **);
