@@ -1,3 +1,7 @@
+
+dbus:
+	- interface object path should use ifindex, not name
+
 wickedd:
 	- Get rid of interface_activity stuff
 
