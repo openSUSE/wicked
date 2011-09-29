@@ -39,6 +39,7 @@ extern int	ni_sysfs_bridge_update_config(const char *, const ni_bridge_t *);
 extern void	ni_sysfs_bridge_get_status(const char *, ni_bridge_status_t *);
 extern int	ni_sysfs_bridge_get_port_names(const char *, ni_string_array_t *);
 extern void	ni_sysfs_bridge_port_get_config(const char *, ni_bridge_port_t *);
+extern int	ni_sysfs_bridge_port_update_config(const char *, const ni_bridge_port_t *);
 extern void	ni_sysfs_bridge_port_get_status(const char *, ni_bridge_port_status_t *);
 
 extern int	ni_sysctl_ipv6_ifconfig_is_present(const char *ifname);

@@ -230,17 +230,35 @@ ni_bridge_port_array_remove_index(ni_bridge_port_array_t *array, unsigned int po
  * Add a port to the bridge configuration
  */
 int
-ni_bridge_add_port(ni_bridge_t *bridge, const char *ifname)
+ni_bridge_add_port_name(ni_bridge_t *bridge, const char *ifname)
 {
 	if (!ifname || !*ifname)
 		return -1;
 
-	if (__ni_bridge_port_array_index(&bridge->ports, ifname) < 0) {
-		return __ni_bridge_port_array_append(&bridge->ports,
-			ni_bridge_port_new(ifname));
-	}
-	return -1;
+	if (__ni_bridge_port_array_index(&bridge->ports, ifname) >= 0)
+		return -1;
+
+	__ni_bridge_port_array_append(&bridge->ports, ni_bridge_port_new(ifname));
+	return 0;
 }
+
+int
+ni_bridge_add_port(ni_bridge_t *bridge, const ni_bridge_port_t *port)
+{
+	unsigned int i;
+
+	if (!port)
+		return -1;
+
+	for (i = 0; i < bridge->ports.count; ++i) {
+		if (bridge->ports.data[i]->device == port->device)
+			return -1;
+	}
+
+	__ni_bridge_port_array_append(&bridge->ports, __ni_bridge_port_clone(port));
+	return 0;
+}
+
 
 int
 ni_bridge_del_port(ni_bridge_t *bridge, const char *ifname)

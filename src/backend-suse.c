@@ -540,7 +540,7 @@ try_bridge(ni_interface_t *ifp, ni_sysconfig_t *sc)
 
 	if (ni_sysconfig_get_string(sc, "BRIDGE_PORTS", &value) >= 0) {
 		for (token = strtok(value, " \t"); token; token = strtok(NULL, " \t"))
-			ni_bridge_add_port(bridge, token);
+			ni_bridge_add_port_name(bridge, token);
 		ni_string_free(&value);
 	}
 

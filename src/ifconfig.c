@@ -793,7 +793,9 @@ int
 ni_interface_add_bridge_port(ni_handle_t *nih, ni_interface_t *ifp,
 				ni_bridge_port_t *port)
 {
+	ni_bridge_t *bridge = ni_interface_get_bridge(ifp);
 	ni_interface_t *pif;
+	unsigned int i;
 	int rv;
 
 	if ((pif = port->device) == NULL && pif->name)
@@ -808,6 +810,12 @@ ni_interface_add_bridge_port(ni_handle_t *nih, ni_interface_t *ifp,
 		ni_error("%s: cannot add interface as its own bridge port", ifp->name);
 		return -NI_ERROR_INTERFACE_BAD_HIERARCHY;
 	}
+	for (i = 0; i < bridge->ports.count; ++i) {
+		if (bridge->ports.data[i]->device == pif) {
+			ni_error("%s: interface %s is already port", ifp->name, pif->name);
+			return -NI_ERROR_INTERFACE_BAD_HIERARCHY;
+		}
+	}
 
 	if ((rv = __ni_brioctl_add_port(nih, ifp->name, pif->ifindex)) < 0) {
 		ni_error("%s: cannot add port %s: %s", ifp->name, pif->name,
@@ -816,6 +824,13 @@ ni_interface_add_bridge_port(ni_handle_t *nih, ni_interface_t *ifp,
 	}
 
 	/* Now configure the newly added port */
+	if ((rv = ni_sysfs_bridge_port_update_config(pif->name, port)) < 0) {
+		ni_error("%s: failed to configure port %s: %s", ifp->name, pif->name,
+				ni_strerror(rv));
+		return rv;
+	}
+
+	ni_bridge_add_port(bridge, port);
 	return 0;
 }
 

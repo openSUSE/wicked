@@ -21,6 +21,7 @@
 
 #define TRACE_ENTERN(fmt, args...) \
 				ni_debug_dbus("%s(" fmt ")", __FUNCTION__, ##args)
+#define TP()			ni_debug_dbus("TP - %s:%u", __FUNCTION__, __LINE__)
 
 static dbus_bool_t	__wicked_dbus_bridge_port_to_dict(const ni_bridge_port_t *port,
 				ni_dbus_variant_t *dict,
@@ -114,7 +115,7 @@ __ni_dbus_bridge_add_port(ni_dbus_object_t *object, const ni_dbus_method_t *meth
 	const char *port_name;
 
 	TRACE_ENTERN("ifp=%s", ifp->name);
-	if (argc != 2 || ni_dbus_variant_get_string(&argv[0], &port_name))
+	if (argc != 2 || !ni_dbus_variant_get_string(&argv[0], &port_name))
 		goto bad_args;
 
 	{
@@ -138,6 +139,8 @@ __ni_dbus_bridge_add_port(ni_dbus_object_t *object, const ni_dbus_method_t *meth
 	port_cfg = ni_bridge_port_new(portif->name);
 	port_cfg->device = ni_interface_get(portif);
 	if (!__wicked_dbus_bridge_port_from_dict(port_cfg, &argv[1], error, 1)) {
+		dbus_set_error(error, DBUS_ERROR_FAILED,
+				"Error parsing bridge port properties");
 		ni_bridge_port_free(port_cfg);
 		return FALSE;
 	}
@@ -385,7 +388,16 @@ __wicked_dbus_bridge_port_from_dict(ni_bridge_port_t *port, const ni_dbus_varian
 				DBusError *error,
 				int config_only)
 {
-	return FALSE;
+	uint32_t value;
+
+	if (dict->array.len == 0)
+		return TRUE;
+	if (ni_dbus_dict_get_uint32(dict, "priority", &value))
+		port->priority = value;
+	if (ni_dbus_dict_get_uint32(dict, "path_cost", &value))
+		port->path_cost = value;
+
+	return TRUE;
 }
 
 #define WICKED_BRIDGE_PROPERTY(type, __name, rw) \

@@ -276,7 +276,8 @@ extern ni_dbus_object_t *	ni_dbus_client_object_new_child(ni_dbus_object_t *pare
 					void *local_data);
 extern dbus_bool_t		ni_dbus_object_refresh_children(ni_dbus_object_t *);
 extern ni_dbus_object_t *	ni_dbus_object_find_child(ni_dbus_object_t *parent, const char *name);
-extern dbus_bool_t		ni_dbus_object_call_variant(const ni_dbus_object_t *, const char *method,
+extern dbus_bool_t		ni_dbus_object_call_variant(const ni_dbus_object_t *,
+					const char *interface, const char *method,
 					unsigned int nargs, const ni_dbus_variant_t *args,
 					unsigned int maxres, const ni_dbus_variant_t *res,
 					DBusError *error);

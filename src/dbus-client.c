@@ -342,18 +342,20 @@ dbus_message_serialize_variants(ni_dbus_message_t *msg,
 }
 
 dbus_bool_t
-ni_dbus_object_call_variant(const ni_dbus_object_t *proxy, const char *method,
+ni_dbus_object_call_variant(const ni_dbus_object_t *proxy,
+					const char *interface_name, const char *method,
 					unsigned int nargs, const ni_dbus_variant_t *args,
 					unsigned int maxres, const ni_dbus_variant_t *res,
 					DBusError *error)
 {
 	ni_dbus_message_t *call = NULL, *reply = NULL;
-	const char *interface_name;
 	ni_dbus_client_t *client;
 	dbus_bool_t rv = FALSE;
 
-	if (!proxy || !(client = ni_dbus_object_get_client(proxy))
-	 || !(interface_name = ni_dbus_object_get_default_interface(proxy))) {
+	if (!interface_name)
+		interface_name = ni_dbus_object_get_default_interface(proxy);
+
+	if (!proxy || !(client = ni_dbus_object_get_client(proxy)) || !interface_name) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "%s: bad proxy object", __FUNCTION__);
 		return FALSE;
 	}

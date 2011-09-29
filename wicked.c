@@ -58,6 +58,7 @@ static int		opt_shutdown_parents = 1;
 static int		do_create(int, char **);
 static int		do_delete(int, char **);
 static int		do_show(int, char **);
+static int		do_addport(int, char **);
 static int		do_rest(const char *, int, char **);
 static int		do_xpath(int, char **);
 static int		do_ifup(int, char **);
@@ -158,6 +159,9 @@ main(int argc, char **argv)
 	if (!strcmp(cmd, "delete"))
 		return do_delete(argc - optind + 1, argv + optind - 1);
 
+	if (!strcmp(cmd, "addport"))
+		return do_addport(argc - optind + 1, argv + optind - 1);
+
 	if (!strcmp(cmd, "xpath"))
 		return do_xpath(argc - optind + 1, argv + optind - 1);
 
@@ -213,6 +217,61 @@ wicked_dbus_client_create(void)
 }
 
 /*
+ * Populate a property dict with parameters
+ */
+static dbus_bool_t
+wicked_properties_from_argv(const ni_dbus_service_t *interface, ni_dbus_variant_t *dict, int argc, char **argv)
+{
+	int i;
+
+	ni_dbus_variant_init_dict(dict);
+	for (i = 0; i < argc; ++i) {
+		const ni_dbus_property_t *property;
+		ni_dbus_variant_t *var;
+		char *property_name = argv[i];
+		char *value;
+
+		if ((value = strchr(property_name, '=')) == NULL) {
+			ni_error("Cannot parse property \"%s\"", property_name);
+			return FALSE;
+		}
+		*value++ = '\0';
+
+		if (!strcmp(property_name, "name")) {
+			ni_dbus_dict_add_string(dict, property_name, value);
+			continue;
+		}
+
+		if (!(property = ni_dbus_service_get_property(interface, property_name))) {
+			ni_error("Unsupported property \"%s\"", property_name);
+			return FALSE;
+		}
+
+		var = ni_dbus_dict_add(dict, property_name);
+		if (!ni_dbus_variant_init_signature(var, property->signature)) {
+			ni_error("Unable to parse property %s=%s (bad type signature)",
+					property_name, value);
+			return FALSE;
+		}
+
+		if (property->parse) {
+			if (!property->parse(property, var, value)) {
+				ni_error("Unable to parse property %s=%s", property_name, value);
+				return FALSE;
+			}
+		} else {
+			/* FIXME: variant_parse should unquote string if needed */
+			if (!ni_dbus_variant_parse(var, value, property->signature)) {
+				ni_error("Unable to parse property %s=%s", property_name, value);
+				return FALSE;
+			}
+		}
+	}
+
+	return TRUE;
+}
+
+/*
  * Create a virtual network interface
  */
 static char *
@@ -222,7 +281,6 @@ wicked_create_interface_argv(ni_dbus_object_t *object, int iftype, int argc, cha
 	const ni_dbus_service_t *service;
 	DBusError error = DBUS_ERROR_INIT;
 	char *result = NULL;
-	int i;
 
 	memset(call_argv, 0, sizeof(call_argv));
 	memset(call_resp, 0, sizeof(call_resp));
@@ -237,50 +295,12 @@ wicked_create_interface_argv(ni_dbus_object_t *object, int iftype, int argc, cha
 
 	dict = &call_argv[1];
 	ni_dbus_variant_init_dict(dict);
-	for (i = 0; i < argc; ++i) {
-		const ni_dbus_property_t *property;
-		ni_dbus_variant_t *var;
-		char *property_name = argv[i];
-		char *value;
-
-		if ((value = strchr(property_name, '=')) == NULL) {
-			ni_error("Cannot parse property \"%s\"", property_name);
-			goto failed;
-		}
-		*value++ = '\0';
-
-		if (!strcmp(property_name, "name")) {
-			ni_dbus_dict_add_string(dict, property_name, value);
-			continue;
-		}
-
-		if (!(property = ni_dbus_service_get_property(service, property_name))) {
-			ni_error("Unsupported property \"%s\"", property_name);
-			goto failed;
-		}
-
-		var = ni_dbus_dict_add(dict, property_name);
-		if (!ni_dbus_variant_init_signature(var, property->signature)) {
-			ni_error("Unable to parse property %s=%s (bad type signature)",
-					property_name, value);
-			goto failed;
-		}
-
-		if (property->parse) {
-			if (!property->parse(property, var, value)) {
-				ni_error("Unable to parse property %s=%s", property_name, value);
-				goto failed;
-			}
-		} else {
-			/* FIXME: variant_parse should unquote string if needed */
-			if (!ni_dbus_variant_parse(var, value, property->signature)) {
-				ni_error("Unable to parse property %s=%s", property_name, value);
-				goto failed;
-			}
-		}
+	if (!wicked_properties_from_argv(service, dict, argc, argv)) {
+		ni_error("Error parsing properties");
+		goto failed;
 	}
 
-	if (!ni_dbus_object_call_variant(object, "create",
+	if (!ni_dbus_object_call_variant(object, NULL, "create",
 				2, call_argv,
 				1, call_resp,
 				&error)) {
@@ -351,16 +371,18 @@ do_create(int argc, char **argv)
 static ni_dbus_object_t *
 wicked_get_interface(ni_dbus_object_t *root_object, const char *ifname)
 {
-	ni_dbus_object_t *interfaces;
+	static ni_dbus_object_t *interfaces = NULL;
 	ni_dbus_object_t *object;
 
-	if (!(interfaces = wicked_get_interface_object(NULL)))
-		return NULL;
+	if (interfaces == NULL) {
+		if (!(interfaces = wicked_get_interface_object(NULL)))
+			return NULL;
 
-	/* Call ObjectManager.GetAllObjects to get list of objects and their properties */
-	if (!ni_dbus_object_refresh_children(interfaces)) {
-		ni_error("Couldn't get list of active network interfaces");
-		return NULL;
+		/* Call ObjectManager.GetAllObjects to get list of objects and their properties */
+		if (!ni_dbus_object_refresh_children(interfaces)) {
+			ni_error("Couldn't get list of active network interfaces");
+			return NULL;
+		}
 	}
 
 	if (ifname == NULL)
@@ -375,6 +397,7 @@ wicked_get_interface(ni_dbus_object_t *root_object, const char *ifname)
 			return object;
 	}
 
+	ni_error("%s: unknown network interface", ifname);
 	return NULL;
 }
 
@@ -483,6 +506,66 @@ do_delete(int argc, char **argv)
 
 	ni_debug_dbus("successfully deleted %s", ifname);
 	return 0;
+}
+
+int
+do_addport(int argc, char **argv)
+{
+	const ni_dbus_service_t *interface;
+	ni_dbus_variant_t argument[2], result;
+	ni_dbus_object_t *root_object, *bridge, *port;
+	const char *bridge_name, *port_name;
+	DBusError error = DBUS_ERROR_INIT;
+	int rv = 1;
+
+	memset(argument, 0, sizeof(argument));
+	memset(&result, 0, sizeof(result));
+
+	if (argc < 3) {
+		ni_error("wicked addport: usage: bridge-if port-if [options]");
+		return 1;
+	}
+
+	bridge_name = argv[1];
+	port_name = argv[2];
+
+	if (!(root_object = wicked_dbus_client_create()))
+		return 1;
+
+	if (!(bridge = wicked_get_interface(root_object, bridge_name))
+	 || !(port = wicked_get_interface(root_object, port_name)))
+		return 1;
+
+	if (!(interface = ni_dbus_object_get_service_for_method(bridge, "addPort"))) {
+		ni_error("%s: interface does not support adding ports", bridge_name);
+		return 1;
+	}
+
+	ni_dbus_variant_set_string(&argument[0], port->path);
+
+	ni_dbus_variant_init_dict(&argument[1]);
+	if (!wicked_properties_from_argv(interface, &argument[1], argc - 3, argv + 3)) {
+		ni_error("Error parsing properties");
+		goto out;
+	}
+
+	if (!ni_dbus_object_call_variant(bridge, interface->name, "addPort",
+				2, argument, 1, &result, &error)) {
+		ni_error("Server refused to add port. Server responds:");
+		fprintf(stderr, /* ni_error_extra */
+			"%s: %s\n", error.name, error.message);
+		goto out;
+	}
+
+	ni_debug_wicked("successfully added port %s to %s", port_name, bridge_name);
+	rv = 0;
+
+out:
+	ni_dbus_variant_destroy(&argument[0]);
+	ni_dbus_variant_destroy(&argument[1]);
+	ni_dbus_variant_destroy(&result);
+	dbus_error_free(&error);
+	return rv;
 }
 
 static int

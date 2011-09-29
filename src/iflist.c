@@ -915,7 +915,7 @@ __ni_discover_bridge(ni_interface_t *ifp)
 	ni_string_array_init(&ports);
 	ni_sysfs_bridge_get_port_names(ifp->name, &ports);
 	for (i = 0; i < ports.count; ++i)
-		ni_bridge_add_port(bridge, ports.data[i]);
+		ni_bridge_add_port_name(bridge, ports.data[i]);
 	ni_string_array_destroy(&ports);
 
 	for (i = 0; i < bridge->ports.count; ++i) {

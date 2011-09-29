@@ -426,6 +426,22 @@ ni_sysfs_bridge_port_get_config(const char *ifname, ni_bridge_port_t *port)
 	ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_PORT_ATTR "/path_cost", &port->path_cost);
 }
 
+int
+ni_sysfs_bridge_port_update_config(const char *ifname, const ni_bridge_port_t *port)
+{
+	int rv = 0;
+
+	if (port->priority != NI_BRIDGE_VALUE_NOT_SET
+	 && ni_sysfs_netif_put_uint(ifname, SYSFS_BRIDGE_PORT_ATTR "/priority", port->priority) < 0)
+		rv = -1;
+
+	if (port->path_cost != NI_BRIDGE_VALUE_NOT_SET
+	 && ni_sysfs_netif_put_uint(ifname, SYSFS_BRIDGE_PORT_ATTR "/path_cost", port->path_cost) < 0)
+		rv = -1;
+
+	return rv;
+}
+
 void
 ni_sysfs_bridge_port_get_status(const char *ifname, ni_bridge_port_status_t *ps)
 {

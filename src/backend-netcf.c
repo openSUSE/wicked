@@ -405,7 +405,7 @@ __ni_netcf_xml_to_bridge(ni_syntax_t *syntax, ni_handle_t *nih,
 			return -1;
 		}
 
-		ni_bridge_add_port(bridge, ifname);
+		ni_bridge_add_port_name(bridge, ifname);
 		if (!syntax->strict) {
 			ni_bridge_port_set_priority(bridge, ifname,
 				xml_node_get_attr(child, "priority"));

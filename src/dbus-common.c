@@ -123,8 +123,8 @@ ni_dbus_message_get_args_variants(ni_dbus_message_t *msg, ni_dbus_variant_t *arg
 		}
 		if (!ni_dbus_message_iter_get_variant_data(iter_p, &argv[argc]))
 			return -1;
-		if (!dbus_message_iter_next(&iter))
-			break;
+
+		dbus_message_iter_next(&iter);
 	}
 
 	return argc;

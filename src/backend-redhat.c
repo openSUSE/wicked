@@ -365,7 +365,7 @@ try_bridge_port(ni_handle_t *nih, ni_interface_t *ifp, ni_sysconfig_t *sc)
 	}
 
 	bridge = ni_interface_get_bridge(master);
-	ni_bridge_add_port(bridge, ifp->name);
+	ni_bridge_add_port_name(bridge, ifp->name);
 }
 
 /*

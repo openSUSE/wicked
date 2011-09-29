@@ -350,7 +350,8 @@ ni_wpa_add_interface(ni_wpa_client_t *wpa, const char *ifname, ni_wpa_interface_
 		ni_dbus_variant_init_dict(&argv[1]);
 		ni_dbus_dict_add_string(&argv[1], "driver", "wext");
 
-		if (!ni_dbus_object_call_variant(wpa->proxy, "addInterface",
+		if (!ni_dbus_object_call_variant(wpa->proxy,
+					NULL, "addInterface",
 					2, argv, 1, resp, &error)) {
 			ni_error("%s: dbus call failed (%s: %s)", __func__,
 					error.name, error.message);
