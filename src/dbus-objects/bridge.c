@@ -26,6 +26,10 @@ static dbus_bool_t	__wicked_dbus_bridge_port_to_dict(const ni_bridge_port_t *por
 				ni_dbus_variant_t *dict,
 				const ni_dbus_object_t *object,
 				int config_only);
+static dbus_bool_t	__wicked_dbus_bridge_port_from_dict(ni_bridge_port_t *port,
+				const ni_dbus_variant_t *dict,
+				DBusError *error,
+				int config_only);
 
 #define NULL_bridge		((ni_bridge_t *) 0)
 
@@ -73,7 +77,7 @@ ni_objectmodel_new_bridge(ni_dbus_server_t *server, const ni_dbus_object_t *conf
 }
 
 /*
- * BRIDGE.delete method
+ * Bridge.delete method
  */
 static dbus_bool_t
 __ni_dbus_bridge_delete(ni_dbus_object_t *object, const ni_dbus_method_t *method,
@@ -96,6 +100,74 @@ __ni_dbus_bridge_delete(ni_dbus_object_t *object, const ni_dbus_method_t *method
 	return TRUE;
 }
 
+/*
+ * Bridge.addPort method
+ */
+static dbus_bool_t
+__ni_dbus_bridge_add_port(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_handle_t *nih = ni_global_state_handle();
+	ni_interface_t *ifp = object->handle, *portif;
+	ni_bridge_port_t *port_cfg;
+	const char *port_name;
+
+	TRACE_ENTERN("ifp=%s", ifp->name);
+	if (argc != 2 || ni_dbus_variant_get_string(&argv[0], &port_name))
+		goto bad_args;
+
+	{
+		ni_dbus_object_t *parent = object->parent, *port_object;
+
+		if (!parent)
+			return FALSE;
+		for (port_object = parent->children; port_object; port_object = port_object->next) {
+			if (!strcmp(port_object->path, port_name))
+				break;
+		}
+		if (!port_object) {
+			dbus_set_error(error, DBUS_ERROR_FAILED,
+				"Unable to add port; interface not known");
+			return FALSE;
+		}
+
+		portif = port_object->handle;
+	}
+
+	port_cfg = ni_bridge_port_new(portif->name);
+	port_cfg->device = ni_interface_get(portif);
+	if (!__wicked_dbus_bridge_port_from_dict(port_cfg, &argv[1], error, 1)) {
+		ni_bridge_port_free(port_cfg);
+		return FALSE;
+	}
+
+	if (ni_interface_add_bridge_port(nih, ifp, port_cfg) < 0) {
+		dbus_set_error(error, DBUS_ERROR_FAILED,
+				"Error adding bridge port %s", portif->name);
+		ni_bridge_port_free(port_cfg);
+		return FALSE;
+	}
+
+	ni_bridge_port_free(port_cfg);
+	return TRUE;
+
+bad_args:
+	dbus_set_error(error, DBUS_ERROR_FAILED,
+			"Bad arguments to Bridge.addPort");
+	return FALSE;
+}
+
+/*
+ * Bridge.removePort method
+ */
+static dbus_bool_t
+__ni_dbus_bridge_remove_port(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	return FALSE;
+}
 
 /*
  * Helper function to obtain bridge config from dbus object
@@ -308,12 +380,21 @@ __wicked_dbus_bridge_port_to_dict(const ni_bridge_port_t *port, ni_dbus_variant_
 	return TRUE;
 }
 
+static dbus_bool_t
+__wicked_dbus_bridge_port_from_dict(ni_bridge_port_t *port, const ni_dbus_variant_t *dict,
+				DBusError *error,
+				int config_only)
+{
+	return FALSE;
+}
+
 #define WICKED_BRIDGE_PROPERTY(type, __name, rw) \
 	NI_DBUS_PROPERTY(type, __name, 0, __wicked_dbus_bridge, rw)
 #define WICKED_BRIDGE_PROPERTY_SIGNATURE(signature, __name, rw) \
 	__NI_DBUS_PROPERTY(signature, __name, 0, __wicked_dbus_bridge, rw)
 
 static ni_dbus_property_t	wicked_dbus_bridge_properties[] = {
+	/* FIXME: these should be RW properties */
 	WICKED_BRIDGE_PROPERTY(UINT32, priority, RO),
 	WICKED_BRIDGE_PROPERTY(INT32, stp, ROP),
 	WICKED_BRIDGE_PROPERTY(UINT32, forward_delay, RO),
@@ -339,10 +420,8 @@ static ni_dbus_property_t	wicked_dbus_bridge_properties[] = {
 
 static ni_dbus_method_t		wicked_dbus_bridge_methods[] = {
 	{ "delete",		"",		__ni_dbus_bridge_delete },
-#if 0
 	{ "addPort",		"sa{sv}",	__ni_dbus_bridge_add_port },
 	{ "removePort",		"sa{sv}",	__ni_dbus_bridge_remove_port },
-#endif
 	{ NULL }
 };
 

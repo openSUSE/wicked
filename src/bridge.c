@@ -22,9 +22,7 @@ static int			__ni_bridge_uint_to_str(unsigned int, char **);
 static int			__ni_bridge_str_to_time(const char *, unsigned long *);
 static int			__ni_bridge_time_to_str(unsigned long, char **);
 
-static ni_bridge_port_t *	__ni_bridge_port_new(const char *);
 static ni_bridge_port_t *	__ni_bridge_port_clone(const ni_bridge_port_t *);
-static void			__ni_bridge_port_free(ni_bridge_port_t *);
 
 static void			ni_bridge_port_array_init(ni_bridge_port_array_t *);
 static int			ni_bridge_port_array_copy(ni_bridge_port_array_t *,
@@ -108,8 +106,8 @@ __ni_bridge_time_to_str(unsigned long val, char **str)
 	}
 }
 
-static ni_bridge_port_t *
-__ni_bridge_port_new(const char *name)
+ni_bridge_port_t *
+ni_bridge_port_new(const char *name)
 {
 	ni_bridge_port_t *newport;
 
@@ -128,14 +126,14 @@ __ni_bridge_port_clone(const ni_bridge_port_t *port)
 {
 	ni_bridge_port_t *newport;
 
-	newport = __ni_bridge_port_new(port->name);
+	newport = ni_bridge_port_new(port->name);
 	newport->priority = port->priority;
 	newport->path_cost = port->path_cost;
 	return newport;
 }
 
-static void
-__ni_bridge_port_free(ni_bridge_port_t *port)
+void
+ni_bridge_port_free(ni_bridge_port_t *port)
 {
 	ni_string_free(&port->name);
 	if (port->device)
@@ -167,7 +165,7 @@ static void
 ni_bridge_port_array_destroy(ni_bridge_port_array_t *array)
 {
 	while (array->count > 0)
-		__ni_bridge_port_free(array->data[--array->count]);
+		ni_bridge_port_free(array->data[--array->count]);
 	free(array->data);
 	ni_bridge_port_array_init(array);
 }
@@ -217,7 +215,7 @@ ni_bridge_port_array_remove_index(ni_bridge_port_array_t *array, unsigned int po
 	if (pos >= array->count)
 		return -1;
 
-	__ni_bridge_port_free(array->data[pos]);
+	ni_bridge_port_free(array->data[pos]);
 	/* make it less cumbersome... */
 	array->data[pos] = NULL;
 	for (i = pos + 1; i < array->count; ++i) {
@@ -239,7 +237,7 @@ ni_bridge_add_port(ni_bridge_t *bridge, const char *ifname)
 
 	if (__ni_bridge_port_array_index(&bridge->ports, ifname) < 0) {
 		return __ni_bridge_port_array_append(&bridge->ports,
-			__ni_bridge_port_new(ifname));
+			ni_bridge_port_new(ifname));
 	}
 	return -1;
 }

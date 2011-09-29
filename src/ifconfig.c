@@ -787,6 +787,39 @@ ni_interface_delete_bridge(ni_handle_t *nih, ni_interface_t *ifp)
 }
 
 /*
+ * Add a port to a bridge interface
+ */
+int
+ni_interface_add_bridge_port(ni_handle_t *nih, ni_interface_t *ifp,
+				ni_bridge_port_t *port)
+{
+	ni_interface_t *pif;
+	int rv;
+
+	if ((pif = port->device) == NULL && pif->name)
+		pif = ni_interface_by_name(nih, pif->name);
+
+	if (pif == NULL || pif->ifindex == 0) {
+		ni_error("%s: cannot add port - %s not known", ifp->name, pif->name);
+		return -NI_ERROR_INTERFACE_NOT_KNOWN;
+	}
+
+	if (pif == ifp) {
+		ni_error("%s: cannot add interface as its own bridge port", ifp->name);
+		return -NI_ERROR_INTERFACE_BAD_HIERARCHY;
+	}
+
+	if ((rv = __ni_brioctl_add_port(nih, ifp->name, pif->ifindex)) < 0) {
+		ni_error("%s: cannot add port %s: %s", ifp->name, pif->name,
+				ni_strerror(rv));
+		return rv;
+	}
+
+	/* Now configure the newly added port */
+	return 0;
+}
+
+/*
  * Handle link transformation for bonding device
  */
 static int

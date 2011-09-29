@@ -303,6 +303,8 @@ extern int		ni_interface_create_vlan(ni_handle_t *nih, const char *ifname,
 extern int		ni_interface_delete_vlan(ni_handle_t *nih, ni_interface_t *ifp);
 extern int		ni_interface_create_bridge(ni_handle_t *nih, const char *ifname,
 				const ni_bridge_t *cfg_bridge, ni_interface_t **ifpp);
+extern int		ni_interface_add_bridge_port(ni_handle_t *nih, ni_interface_t *ifp,
+				ni_bridge_port_t *);
 extern int		ni_interface_delete_bridge(ni_handle_t *nih, ni_interface_t *ifp);
 extern int		ni_interface_create_bond(ni_handle_t *nih, const char *ifname,
 				const ni_bonding_t *cfg_bond, ni_interface_t **ifpp);
@@ -408,6 +410,9 @@ extern const char *	ni_event_type_to_name(ni_event_t);
 extern int		ni_ifaction_name_to_type(const char *);
 extern const char *	ni_ifaction_type_to_name(unsigned int);
 extern int		ni_iftype_to_arphrd_type(unsigned int iftype);
+
+extern const char *	ni_strerror(int errcode);
+
 
 static inline int
 ni_interface_device_is_up(const ni_interface_t *ifp)

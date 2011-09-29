@@ -47,7 +47,7 @@ typedef struct ni_bridge_port_status {
 	unsigned long		forward_delay_timer;
 } ni_bridge_port_status_t;
 
-typedef struct ni_bridge_port {
+struct ni_bridge_port {
 	char *			name;
 	ni_interface_t *	device;
 
@@ -55,7 +55,7 @@ typedef struct ni_bridge_port {
 	unsigned int		path_cost;
 
 	ni_bridge_port_status_t	status;
-} ni_bridge_port_t;
+};
 
 typedef struct ni_bridge_port_array {
 	unsigned int		count;
@@ -114,6 +114,8 @@ extern int		ni_bridge_set_ageing_time(ni_bridge_t *, const char *);
 extern int		ni_bridge_set_hello_time(ni_bridge_t *, const char *);
 extern int		ni_bridge_set_max_age(ni_bridge_t *, const char *);
 extern int		ni_bridge_set_priority(ni_bridge_t *, const char *);
+extern ni_bridge_port_t *ni_bridge_port_new(const char *ifname);
+extern void		ni_bridge_port_free(ni_bridge_port_t *port);
 extern int		ni_bridge_port_get(ni_bridge_t *, const char *, unsigned int, char **);
 extern int		ni_bridge_port_get_priority(ni_bridge_t *,const char *, char **);
 extern int		ni_bridge_port_get_path_cost(ni_bridge_t *,const char *, char **);
