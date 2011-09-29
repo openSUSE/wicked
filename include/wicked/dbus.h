@@ -115,6 +115,7 @@ struct ni_dbus_object_functions {
 struct ni_dbus_object {
 	ni_dbus_object_t **	pprev;
 	ni_dbus_object_t *	next;
+	ni_dbus_object_t *	parent;
 	char *			name;		/* relative path */
 	char *			path;		/* absolute path */
 	void *			handle;		/* local object */

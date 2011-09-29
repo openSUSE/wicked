@@ -61,6 +61,7 @@ __ni_dbus_object_new_child(ni_dbus_object_t *parent, const char *name,
 	if (!child)
 		return NULL;
 
+	child->parent = parent;
 	__ni_dbus_object_insert(pos, child);
 	ni_string_dup(&child->name, name);
 	if (parent->server_object)
@@ -94,6 +95,7 @@ __ni_dbus_object_free(ni_dbus_object_t *object)
 	ni_dbus_object_t *child;
 
 	__ni_dbus_object_unlink(object);
+	object->parent = NULL;
 
 	if (object->server_object)
 		__ni_dbus_server_object_destroy(object);
@@ -121,6 +123,7 @@ ni_dbus_object_free(ni_dbus_object_t *object)
 		ni_debug_dbus("%s: deferring deletion of active object %s",
 				__FUNCTION__, object->path);
 		__ni_dbus_object_unlink(object);
+		object->parent = NULL;
 		__ni_dbus_object_insert(&__ni_dbus_objects_trashcan, object);
 	} else {
 		__ni_dbus_object_free(object);
