@@ -740,7 +740,7 @@ ni_interface_create_bridge(ni_handle_t *nih, const char *ifname,
 		return -1;
 	}
 
-	if (ni_interface_update_bridge_config(ifp, cfg_bridge) < 0) {
+	if (ni_interface_update_bridge_config(nih, ifp, cfg_bridge) < 0) {
 		ni_error("ni_interface_create_bridge: failed to apply config");
 		return -1;
 	}
@@ -753,9 +753,10 @@ ni_interface_create_bridge(ni_handle_t *nih, const char *ifname,
  * Given data provided by the user, update the bridge config
  */
 int
-ni_interface_update_bridge_config(ni_interface_t *ifp, const ni_bridge_t *bcfg)
+ni_interface_update_bridge_config(ni_handle_t *nih, ni_interface_t *ifp, const ni_bridge_t *bcfg)
 {
 	ni_bridge_t *bridge;
+	unsigned int i;
 
 	if (ifp->type != NI_IFTYPE_BRIDGE) {
 		ni_error("%s: %s is not a bridge interface", __func__, ifp->name);
@@ -770,6 +771,11 @@ ni_interface_update_bridge_config(ni_interface_t *ifp, const ni_bridge_t *bcfg)
 	bridge = ni_interface_get_bridge(ifp);
 	ni_sysfs_bridge_get_config(ifp->name, bridge);
 	ni_sysfs_bridge_get_status(ifp->name, &bridge->status);
+
+	for (i = 0; i < bcfg->ports.count; ++i) {
+		if (ni_interface_add_bridge_port(nih, ifp, bcfg->ports.data[i]) < 0)
+			return -1;
+	}
 	return 0;
 }
 
@@ -801,8 +807,12 @@ ni_interface_add_bridge_port(ni_handle_t *nih, ni_interface_t *ifp,
 	if ((pif = port->device) == NULL && pif->name)
 		pif = ni_interface_by_name(nih, pif->name);
 
-	if (pif == NULL || pif->ifindex == 0) {
+	if (pif == NULL) {
 		ni_error("%s: cannot add port - %s not known", ifp->name, pif->name);
+		return -NI_ERROR_INTERFACE_NOT_KNOWN;
+	}
+	if (pif->ifindex == 0) {
+		ni_error("%s: cannot add port - %s has no ifindex?!", ifp->name, pif->name);
 		return -NI_ERROR_INTERFACE_NOT_KNOWN;
 	}
 
@@ -831,6 +841,29 @@ ni_interface_add_bridge_port(ni_handle_t *nih, ni_interface_t *ifp,
 	}
 
 	ni_bridge_add_port(bridge, port);
+	return 0;
+}
+
+/*
+ * Remove a port from a bridge interface
+ */
+int
+ni_interface_remove_bridge_port(ni_handle_t *nih, ni_interface_t *ifp, int port_ifindex)
+{
+	ni_bridge_t *bridge = ni_interface_get_bridge(ifp);
+	int rv;
+
+	if (port_ifindex == 0) {
+		ni_error("%s: cannot remove port: bad ifindex", ifp->name);
+		return -NI_ERROR_INTERFACE_NOT_KNOWN;
+	}
+
+	if ((rv = __ni_brioctl_del_port(nih, ifp->name, port_ifindex)) < 0) {
+		ni_error("%s: cannot remove port: %s", ifp->name, ni_strerror(rv));
+		return rv;
+	}
+
+	ni_bridge_del_port_ifindex(bridge, port_ifindex);
 	return 0;
 }
 

@@ -305,6 +305,7 @@ extern int		ni_interface_create_bridge(ni_handle_t *nih, const char *ifname,
 				const ni_bridge_t *cfg_bridge, ni_interface_t **ifpp);
 extern int		ni_interface_add_bridge_port(ni_handle_t *nih, ni_interface_t *ifp,
 				ni_bridge_port_t *);
+extern int		ni_interface_remove_bridge_port(ni_handle_t *, ni_interface_t *, int);
 extern int		ni_interface_delete_bridge(ni_handle_t *nih, ni_interface_t *ifp);
 extern int		ni_interface_create_bond(ni_handle_t *nih, const char *ifname,
 				const ni_bonding_t *cfg_bond, ni_interface_t **ifpp);

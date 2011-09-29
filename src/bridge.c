@@ -274,6 +274,22 @@ ni_bridge_del_port(ni_bridge_t *bridge, const char *ifname)
 	return -1;
 }
 
+int
+ni_bridge_del_port_ifindex(ni_bridge_t *bridge, int ifindex)
+{
+	unsigned int i;
+
+	for (i = 0; i < bridge->ports.count; ++i) {
+		ni_interface_t *port_dev = bridge->ports.data[i]->device;
+
+		if (port_dev && port_dev->ifindex == ifindex) {
+			ni_bridge_port_array_remove_index(&bridge->ports, i);
+			return 0;
+		}
+	}
+	return -1;
+}
+
 void
 ni_bridge_get_port_names(const ni_bridge_t *bridge, ni_string_array_t *ports)
 {

@@ -101,6 +101,7 @@ extern ni_bridge_t *	ni_bridge_clone(const ni_bridge_t *);
 extern int		ni_bridge_add_port_name(ni_bridge_t *, const char *);
 extern int		ni_bridge_add_port(ni_bridge_t *, const ni_bridge_port_t *);
 extern int		ni_bridge_del_port(ni_bridge_t *, const char *);
+extern int		ni_bridge_del_port_ifindex(ni_bridge_t *, int);
 extern void		ni_bridge_get_port_names(const ni_bridge_t *, ni_string_array_t *);
 extern int		ni_bridge_get(ni_bridge_t *, unsigned int, char **);
 extern int		ni_bridge_get_stp(ni_bridge_t *, char **);
@@ -123,6 +124,7 @@ extern int		ni_bridge_port_get_path_cost(ni_bridge_t *,const char *, char **);
 extern int		ni_bridge_port_set_priority(ni_bridge_t *,const char *, const char *);
 extern int		ni_bridge_port_set_path_cost(ni_bridge_t *,const char *, const char *);
 
-extern int		ni_interface_update_bridge_config(ni_interface_t *, const ni_bridge_t *config);
+extern int		ni_interface_update_bridge_config(ni_handle_t *,
+				ni_interface_t *, const ni_bridge_t *config);
 
 #endif /* __WICKED_BRIDGE_H__ */

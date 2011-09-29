@@ -59,6 +59,7 @@ static int		do_create(int, char **);
 static int		do_delete(int, char **);
 static int		do_show(int, char **);
 static int		do_addport(int, char **);
+static int		do_delport(int, char **);
 static int		do_rest(const char *, int, char **);
 static int		do_xpath(int, char **);
 static int		do_ifup(int, char **);
@@ -161,6 +162,9 @@ main(int argc, char **argv)
 
 	if (!strcmp(cmd, "addport"))
 		return do_addport(argc - optind + 1, argv + optind - 1);
+
+	if (!strcmp(cmd, "delport"))
+		return do_delport(argc - optind + 1, argv + optind - 1);
 
 	if (!strcmp(cmd, "xpath"))
 		return do_xpath(argc - optind + 1, argv + optind - 1);
@@ -508,6 +512,9 @@ do_delete(int argc, char **argv)
 	return 0;
 }
 
+/*
+ * Add a port to a bridge or bond
+ */
 int
 do_addport(int argc, char **argv)
 {
@@ -579,6 +586,61 @@ do_addport(int argc, char **argv)
 out:
 	ni_dbus_variant_destroy(&argument[0]);
 	ni_dbus_variant_destroy(&argument[1]);
+	ni_dbus_variant_destroy(&result);
+	dbus_error_free(&error);
+	return rv;
+}
+
+/*
+ * Add a port to a bridge or bond
+ */
+int
+do_delport(int argc, char **argv)
+{
+	const ni_dbus_service_t *interface;
+	ni_dbus_variant_t argument, result;
+	ni_dbus_object_t *root_object, *bridge, *port;
+	const char *bridge_name, *port_name;
+	DBusError error = DBUS_ERROR_INIT;
+	int rv = 1;
+
+	memset(&argument, 0, sizeof(argument));
+	memset(&result, 0, sizeof(result));
+
+	if (argc != 3) {
+		ni_error("wicked delport: usage: bridge-if port-if");
+		return 1;
+	}
+
+	bridge_name = argv[1];
+	port_name = argv[2];
+
+	if (!(root_object = wicked_dbus_client_create()))
+		return 1;
+
+	if (!(bridge = wicked_get_interface(root_object, bridge_name))
+	 || !(port = wicked_get_interface(root_object, port_name)))
+		return 1;
+
+	if (!(interface = ni_dbus_object_get_service_for_method(bridge, "removePort"))) {
+		ni_error("%s: interface does not support removing ports", bridge_name);
+		return 1;
+	}
+ 
+	ni_dbus_variant_set_string(&argument, port->path);
+	if (!ni_dbus_object_call_variant(bridge, interface->name, "removePort",
+				1, &argument, 1, &result, &error)) {
+		ni_error("Server refused to add port. Server responds:");
+		fprintf(stderr, /* ni_error_extra */
+			"%s: %s\n", error.name, error.message);
+		goto out;
+	}
+
+	ni_debug_wicked("successfully removed port %s to %s", port_name, bridge_name);
+	rv = 0;
+
+out:
+	ni_dbus_variant_destroy(&argument);
 	ni_dbus_variant_destroy(&result);
 	dbus_error_free(&error);
 	return rv;

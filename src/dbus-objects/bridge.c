@@ -169,6 +169,41 @@ __ni_dbus_bridge_remove_port(ni_dbus_object_t *object, const ni_dbus_method_t *m
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
+	ni_handle_t *nih = ni_global_state_handle();
+	ni_interface_t *ifp = object->handle, *portif;
+	const char *port_name;
+
+	TRACE_ENTERN("ifp=%s", ifp->name);
+	if (argc != 1 || !ni_dbus_variant_get_string(&argv[0], &port_name))
+		goto bad_args;
+
+	{
+		ni_dbus_object_t *parent = object->parent, *port_object;
+
+		if (!parent)
+			return FALSE;
+		for (port_object = parent->children; port_object; port_object = port_object->next) {
+			if (!strcmp(port_object->path, port_name))
+				break;
+		}
+		if (!port_object) {
+			dbus_set_error(error, DBUS_ERROR_FAILED,
+				"Unable to remove port; interface not known");
+			return FALSE;
+		}
+
+		portif = port_object->handle;
+	}
+
+	if (ni_interface_remove_bridge_port(nih, ifp, portif->ifindex) < 0) {
+		dbus_set_error(error, DBUS_ERROR_FAILED, "Unable to remove port");
+		return FALSE;
+	}
+
+	return TRUE;
+
+bad_args:
+	dbus_set_error(error, DBUS_ERROR_FAILED, "Bad arguments to Bridge.removePort");
 	return FALSE;
 }
 
@@ -447,7 +482,7 @@ static ni_dbus_property_t	wicked_dbus_bridge_properties[] = {
 static ni_dbus_method_t		wicked_dbus_bridge_methods[] = {
 	{ "delete",		"",		__ni_dbus_bridge_delete },
 	{ "addPort",		"sa{sv}",	__ni_dbus_bridge_add_port },
-	{ "removePort",		"sa{sv}",	__ni_dbus_bridge_remove_port },
+	{ "removePort",		"s",		__ni_dbus_bridge_remove_port },
 	{ NULL }
 };
 
