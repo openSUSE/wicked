@@ -59,12 +59,6 @@ ni_objectmodel_new_bridge(ni_dbus_server_t *server, const ni_dbus_object_t *conf
 		}
 	}
 
-#if 1
-	(void) bridge;
-	(void) new_ifp;
-	ni_error("%s: not yet supported", __func__);
-	return NULL;
-#else
 	if (ni_interface_create_bridge(nih, cfg_ifp->name, bridge, &new_ifp) < 0) {
 		/* FIXME: report error */
 		return NULL;
@@ -76,7 +70,6 @@ ni_objectmodel_new_bridge(ni_dbus_server_t *server, const ni_dbus_object_t *conf
 	}
 
 	return ni_objectmodel_register_interface(server, new_ifp);
-#endif
 }
 
 /*
@@ -91,7 +84,7 @@ __ni_dbus_bridge_delete(ni_dbus_object_t *object, const ni_dbus_method_t *method
 	ni_interface_t *ifp = object->handle;
 
 	TRACE_ENTERN("ifp=%s", ifp->name);
-	if (nih /* ni_interface_delete_bridge(nih, ifp) < 0 */) {
+	if (ni_interface_delete_bridge(nih, ifp) < 0) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
 				"Error deleting bridge interface", ifp->name);
 		return FALSE;

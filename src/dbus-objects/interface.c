@@ -155,6 +155,9 @@ ni_objectmodel_new_interface(ni_dbus_server_t *server, const ni_dbus_service_t *
 
 	if (service == &wicked_dbus_vlan_service) {
 		result = ni_objectmodel_new_vlan(server, object);
+	} else
+	if (service == &wicked_dbus_bridge_service) {
+		result = ni_objectmodel_new_bridge(server, object);
 	} else {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
 				"Cannot create network interface for %s - not implemented yet",

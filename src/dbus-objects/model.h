@@ -99,5 +99,11 @@ extern ni_dbus_service_t	wicked_dbus_bonding_service;
 
 extern ni_dbus_object_t *	ni_objectmodel_new_vlan(ni_dbus_server_t *server,
 					const ni_dbus_object_t *config);
+extern ni_dbus_object_t *	ni_objectmodel_new_bridge(ni_dbus_server_t *server,
+					const ni_dbus_object_t *config);
+extern ni_dbus_object_t *	ni_objectmodel_new_bond(ni_dbus_server_t *server,
+					const ni_dbus_object_t *config);
+extern ni_dbus_object_t *	ni_objectmodel_new_ppp(ni_dbus_server_t *server,
+					const ni_dbus_object_t *config);
 
 #endif /* __WICKED_OBJECTMODEL_H__ */

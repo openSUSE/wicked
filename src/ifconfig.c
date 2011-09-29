@@ -774,6 +774,19 @@ ni_interface_update_bridge_config(ni_interface_t *ifp, const ni_bridge_t *bcfg)
 }
 
 /*
+ * Delete a bridge interface
+ */
+int
+ni_interface_delete_bridge(ni_handle_t *nih, ni_interface_t *ifp)
+{
+	if (__ni_brioctl_del_bridge(nih, ifp->name) < 0) {
+		ni_error("could not destroy bridge interface %s", ifp->name);
+		return -1;
+	}
+	return 0;
+}
+
+/*
  * Handle link transformation for bonding device
  */
 static int

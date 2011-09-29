@@ -140,6 +140,7 @@ __ni_dbus_netif_create(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 	static const ni_dbus_service_t *all_services[] = {
 		&wicked_dbus_ethernet_service,
 		&wicked_dbus_vlan_service,
+		&wicked_dbus_bridge_service,
 		NULL
 	};
 	const char *interface_name, *object_path;
