@@ -12,6 +12,12 @@
 #define __NI_DBUS_PROPERTY_PARSE_FN(fstem, __name) \
 	.parse = fstem ## _parse_ ## __name
 
+#define __NI_DBUS_DUMMY_PROPERTY(__signature, __name) { \
+	.name = #__name, \
+	.signature = __signature, \
+}
+#define NI_DBUS_DUMMY_PROPERTY(type, __name) \
+	__NI_DBUS_DUMMY_PROPERTY(DBUS_TYPE_##type##_AS_STRING, __name)
 #define __NI_DBUS_PROPERTY(__signature, __name, __id, fstem, rw) { \
 	.name = #__name, \
 	.id = __id, \
@@ -103,7 +109,9 @@ extern ni_dbus_service_t	wicked_dbus_interface_service;
 extern ni_dbus_service_t	wicked_dbus_ethernet_service;
 extern ni_dbus_service_t	wicked_dbus_vlan_service;
 extern ni_dbus_service_t	wicked_dbus_bridge_service;
-extern ni_dbus_service_t	wicked_dbus_bonding_service;
+extern ni_dbus_service_t	wicked_dbus_bond_service;
+extern ni_dbus_service_t	wicked_dbus_bridge_port_dummy_service;
+extern ni_dbus_service_t	wicked_dbus_bond_port_dummy_service;
 
 extern ni_dbus_object_t *	ni_objectmodel_new_vlan(ni_dbus_server_t *server,
 					const ni_dbus_object_t *config);

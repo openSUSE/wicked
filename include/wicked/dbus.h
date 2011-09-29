@@ -320,6 +320,8 @@ ni_dbus_variant_datum_const_ptr(const ni_dbus_variant_t *variant)
 extern dbus_bool_t		ni_objectmodel_register_all(ni_dbus_server_t *);
 extern ni_dbus_object_t *	ni_objectmodel_register_interface(ni_dbus_server_t *, ni_interface_t *ifp);
 extern const ni_dbus_service_t *ni_objectmodel_link_layer_service(int iftype);
+extern const ni_dbus_service_t *ni_objectmodel_interface_port_service(int iftype);
+
 extern const ni_dbus_service_t *ni_objectmodel_service_by_name(const char *interface_name);
 
 

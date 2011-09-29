@@ -540,13 +540,29 @@ do_addport(int argc, char **argv)
 		ni_error("%s: interface does not support adding ports", bridge_name);
 		return 1;
 	}
-
+ 
 	ni_dbus_variant_set_string(&argument[0], port->path);
 
 	ni_dbus_variant_init_dict(&argument[1]);
-	if (!wicked_properties_from_argv(interface, &argument[1], argc - 3, argv + 3)) {
-		ni_error("Error parsing properties");
-		goto out;
+	if (argc == 3) {
+		/* No properties, nothing to be done */
+	} else {
+		ni_interface_t *bridge_if = bridge->handle;
+		const ni_dbus_service_t *port_interface;
+
+		/* The "interface" for the ports is usually just a dummy type of
+		 * interface; needed only to get the dbus types of all properties
+		 */
+		port_interface = ni_objectmodel_interface_port_service(bridge_if->type);
+		if (port_interface == NULL) {
+			ni_error("%s: no port properties for this interface type", bridge_name);
+			goto out;
+		}
+
+		if (!wicked_properties_from_argv(port_interface, &argument[1], argc - 3, argv + 3)) {
+			ni_error("Error parsing properties");
+			goto out;
+		}
 	}
 
 	if (!ni_dbus_object_call_variant(bridge, interface->name, "addPort",

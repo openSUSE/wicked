@@ -87,6 +87,24 @@ ni_objectmodel_link_layer_service(int iftype)
 }
 
 /*
+ * Based on the network link layer type, return the DBus dummy service
+ * describing the port properties
+ */
+const ni_dbus_service_t *
+ni_objectmodel_interface_port_service(int iftype)
+{
+	switch (iftype) {
+	case NI_IFTYPE_BRIDGE:
+		return &wicked_dbus_bridge_port_dummy_service;
+		break;
+
+	default: ;
+	}
+
+	return NULL;
+}
+
+/*
  * Create a new virtual interface (vlan, bridge, bond, ...)
  */
 ni_dbus_object_t *

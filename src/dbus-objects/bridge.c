@@ -400,6 +400,20 @@ __wicked_dbus_bridge_port_from_dict(ni_bridge_port_t *port, const ni_dbus_varian
 	return TRUE;
 }
 
+/*
+ * Dummy properties for bridge port.
+ * This is needed for encoding bridge port properties in addPort calls
+ */
+#define WICKED_BRIDGE_PORT_PROPERTY(type, __name) \
+	NI_DBUS_DUMMY_PROPERTY(type, __name)
+
+static ni_dbus_property_t	wicked_dbus_bridge_port_properties[] = {
+	WICKED_BRIDGE_PORT_PROPERTY(UINT32, priority),
+	WICKED_BRIDGE_PORT_PROPERTY(UINT32, path_cost),
+
+	{ NULL }
+};
+
 #define WICKED_BRIDGE_PROPERTY(type, __name, rw) \
 	NI_DBUS_PROPERTY(type, __name, 0, __wicked_dbus_bridge, rw)
 #define WICKED_BRIDGE_PROPERTY_SIGNATURE(signature, __name, rw) \
@@ -441,4 +455,9 @@ ni_dbus_service_t	wicked_dbus_bridge_service = {
 	.name = WICKED_DBUS_INTERFACE ".Bridge",
 	.methods = wicked_dbus_bridge_methods,
 	.properties = wicked_dbus_bridge_properties,
+};
+
+ni_dbus_service_t	wicked_dbus_bridge_port_dummy_service = {
+	.name = WICKED_DBUS_INTERFACE ".BridgePort",
+	.properties = wicked_dbus_bridge_port_properties,
 };
