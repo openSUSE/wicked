@@ -150,6 +150,20 @@ __wicked_dbus_bridge_set_stp(ni_dbus_object_t *object,
 			&NULL_bridge->stp, argument);
 }
 
+static dbus_bool_t
+__wicked_dbus_bridge_parse_stp(const ni_dbus_property_t *property,
+				ni_dbus_variant_t *result,
+				const char *value)
+{
+	if (!value)
+		return FALSE;
+	if (!strcmp(value, "yes") || !strcmp(value, "on"))
+		return ni_dbus_variant_set_int(result, 1);
+	if (!strcmp(value, "no") || !strcmp(value, "off"))
+		return ni_dbus_variant_set_int(result, 0);
+	return ni_dbus_variant_parse(result, value, property->signature);
+}
+
 /*
  * Property forward_delay
  */
@@ -301,7 +315,7 @@ __wicked_dbus_bridge_port_to_dict(const ni_bridge_port_t *port, ni_dbus_variant_
 
 static ni_dbus_property_t	wicked_dbus_bridge_properties[] = {
 	WICKED_BRIDGE_PROPERTY(UINT32, priority, RO),
-	WICKED_BRIDGE_PROPERTY(INT32, stp, RO),
+	WICKED_BRIDGE_PROPERTY(INT32, stp, ROP),
 	WICKED_BRIDGE_PROPERTY(UINT32, forward_delay, RO),
 	WICKED_BRIDGE_PROPERTY(UINT32, aging_time, RO),
 	WICKED_BRIDGE_PROPERTY(UINT32, hello_time, RO),

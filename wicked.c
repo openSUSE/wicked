@@ -259,11 +259,24 @@ wicked_create_interface_argv(ni_dbus_object_t *object, int iftype, int argc, cha
 			goto failed;
 		}
 
-		/* FIXME: variant_parse should unquote string if needed */
 		var = ni_dbus_dict_add(dict, property_name);
-		if (!ni_dbus_variant_parse(var, value, property->signature)) {
-			ni_error("Unable to parse property %s=%s", property_name, value);
+		if (!ni_dbus_variant_init_signature(var, property->signature)) {
+			ni_error("Unable to parse property %s=%s (bad type signature)",
+					property_name, value);
 			goto failed;
+		}
+
+		if (property->parse) {
+			if (!property->parse(property, var, value)) {
+				ni_error("Unable to parse property %s=%s", property_name, value);
+				goto failed;
+			}
+		} else {
+			/* FIXME: variant_parse should unquote string if needed */
+			if (!ni_dbus_variant_parse(var, value, property->signature)) {
+				ni_error("Unable to parse property %s=%s", property_name, value);
+				goto failed;
+			}
 		}
 	}
 

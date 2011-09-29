@@ -83,6 +83,9 @@ typedef dbus_bool_t		ni_dbus_property_set_fn_t(ni_dbus_object_t *,
 					const ni_dbus_property_t *property,
 					const ni_dbus_variant_t *value,
 					DBusError *error);
+typedef dbus_bool_t		ni_dbus_property_parse_fn_t(const ni_dbus_property_t *property,
+					ni_dbus_variant_t *var,
+					const char *value);
 
 struct ni_dbus_property	{
 	const char *			name;
@@ -92,6 +95,7 @@ struct ni_dbus_property	{
 	ni_dbus_property_get_fn_t *	get;
 	ni_dbus_property_set_fn_t *	set;
 	ni_dbus_property_set_fn_t *	update;
+	ni_dbus_property_parse_fn_t *	parse;
 };
 
 struct ni_dbus_service {
