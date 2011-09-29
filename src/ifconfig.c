@@ -687,6 +687,7 @@ ni_interface_create_vlan(ni_handle_t *nih, const char *ifname, const ni_vlan_t *
 			return -1;
 		}
 
+#if 0
 		/* Now bring up the underlying ethernet device if it's not up yet.
 		 * Note, we don't change anything except its link status */
 		if (!ni_interface_network_is_up(real_dev)
@@ -695,6 +696,7 @@ ni_interface_create_vlan(ni_handle_t *nih, const char *ifname, const ni_vlan_t *
 					ifname, cfg_vlan->interface_name);
 			return -1;
 		}
+#endif
 	}
 
 	*ifpp = ifp;
@@ -711,6 +713,63 @@ ni_interface_delete_vlan(ni_handle_t *nih, ni_interface_t *ifp)
 		ni_error("could not destroy VLAN interface %s", ifp->name);
 		return -1;
 	}
+	return 0;
+}
+
+/*
+ * Create a bridge interface
+ */
+int
+ni_interface_create_bridge(ni_handle_t *nih, const char *ifname,
+			const ni_bridge_t *cfg_bridge, ni_interface_t **ifpp)
+{
+	ni_interface_t *ifp;
+
+	ni_debug_ifconfig("%s: creating bridge interface", ifname);
+	if (__ni_brioctl_add_bridge(nih, ifname) < 0) {
+		ni_error("__ni_brioctl_add_bridge(%s) failed", ifname);
+		return -1;
+	}
+
+	/* Refresh interface status */
+	ni_refresh(nih, NULL);
+
+	ifp = ni_interface_by_name(nih, ifname);
+	if (ifp == NULL) {
+		ni_error("tried to create interface %s; still not found", ifname);
+		return -1;
+	}
+
+	if (ni_interface_update_bridge_config(ifp, cfg_bridge) < 0) {
+		ni_error("ni_interface_create_bridge: failed to apply config");
+		return -1;
+	}
+
+	*ifpp = ifp;
+	return 0;
+}
+
+/*
+ * Given data provided by the user, update the bridge config
+ */
+int
+ni_interface_update_bridge_config(ni_interface_t *ifp, const ni_bridge_t *bcfg)
+{
+	ni_bridge_t *bridge;
+
+	if (ifp->type != NI_IFTYPE_BRIDGE) {
+		ni_error("%s: %s is not a bridge interface", __func__, ifp->name);
+		return -1;
+	}
+
+	if (ni_sysfs_bridge_update_config(ifp->name, bcfg) < 0) {
+		ni_error("%s: failed to update sysfs attributes for %s", __func__, ifp->name);
+		return -1;
+	}
+
+	bridge = ni_interface_get_bridge(ifp);
+	ni_sysfs_bridge_get_config(ifp->name, bridge);
+	ni_sysfs_bridge_get_status(ifp->name, &bridge->status);
 	return 0;
 }
 

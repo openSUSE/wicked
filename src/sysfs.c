@@ -32,10 +32,15 @@
 
 static const char *	__ni_sysfs_netif_attrpath(const char *ifname, const char *attr);
 static const char *	__ni_sysfs_netif_get_attr(const char *ifname, const char *attr);
+static int		__ni_sysfs_netif_put_attr(const char *, const char *, const char *);
+static int		__ni_sysfs_netif_printf_attr(const char *, const char *, const char *, ...);
 static int		__ni_sysfs_printf(const char *, const char *, ...);
 static int		__ni_sysfs_read_list(const char *, ni_string_array_t *);
 static int		__ni_sysfs_read_string(const char *, char **);
 
+/*
+ * Functions for reading and writing sysfs attributes
+ */
 int
 ni_sysfs_netif_get_int(const char *ifname, const char *attr_name, int *result)
 {
@@ -101,6 +106,31 @@ ni_sysfs_netif_get_string(const char *ifname, const char *attr_name, char **resu
 	return 0;
 }
 
+int
+ni_sysfs_netif_put_int(const char *ifname, const char *attr_name, int result)
+{
+	return __ni_sysfs_netif_printf_attr(ifname, attr_name, "%d", result);
+}
+
+int
+ni_sysfs_netif_put_long(const char *ifname, const char *attr_name, long result)
+{
+	return __ni_sysfs_netif_printf_attr(ifname, attr_name, "%ld", result);
+}
+
+int
+ni_sysfs_netif_put_uint(const char *ifname, const char *attr_name, unsigned int result)
+{
+	return __ni_sysfs_netif_printf_attr(ifname, attr_name, "%u", result);
+}
+
+int
+ni_sysfs_netif_put_ulong(const char *ifname, const char *attr_name, unsigned long result)
+{
+	return __ni_sysfs_netif_printf_attr(ifname, attr_name, "%lu", result);
+}
+
+
 static const char *
 __ni_sysfs_netif_get_attr(const char *ifname, const char *attr_name)
 {
@@ -119,6 +149,44 @@ __ni_sysfs_netif_get_attr(const char *ifname, const char *attr_name)
 	}
 	fclose(fp);
 	return result;
+}
+
+static int
+__ni_sysfs_netif_put_attr(const char *ifname, const char *attr_name, const char *attr_value)
+{
+	const char *filename;
+	FILE *fp;
+	int rv = 0;
+
+	filename = __ni_sysfs_netif_attrpath(ifname, attr_name);
+	if (!(fp = fopen(filename, "w"))) {
+		ni_error("Unable to set %s attribute %s: %m",
+				ifname, attr_name);
+		return -1;
+	}
+
+	fprintf(fp, "%s\n", attr_value);
+	if (fflush(fp) == EOF || ferror(fp)) {
+		ni_error("Unable to set %s attribute %s=%s: %s",
+				ifname, attr_name, attr_value,
+				strerror(ferror(fp)));
+		rv = -1;
+	}
+	fclose(fp);
+	return rv;
+}
+
+static int
+__ni_sysfs_netif_printf_attr(const char *ifname, const char *attr_name, const char *fmt, ...)
+{
+	char attr_value[256];
+	va_list ap;
+
+	va_start(ap, fmt);
+	vsnprintf(attr_value, sizeof(attr_value), fmt, ap);
+	va_end(ap);
+
+	return __ni_sysfs_netif_put_attr(ifname, attr_name, attr_value);
 }
 
 static const char *
@@ -287,7 +355,10 @@ done:
 
 /*
  * Bridge support
+ * This should really be in bridge.c
  */
+#define NI_BRIDGE_VALUE_NOT_SET		~0U
+
 void
 ni_sysfs_bridge_get_config(const char *ifname, ni_bridge_t *bridge)
 {
@@ -297,6 +368,33 @@ ni_sysfs_bridge_get_config(const char *ifname, ni_bridge_t *bridge)
 	ni_sysfs_netif_get_ulong(ifname, SYSFS_BRIDGE_ATTR "/ageing_time", &bridge->ageing_time);
 	ni_sysfs_netif_get_ulong(ifname, SYSFS_BRIDGE_ATTR "/hello_time", &bridge->hello_time);
 	ni_sysfs_netif_get_ulong(ifname, SYSFS_BRIDGE_ATTR "/max_age", &bridge->max_age);
+}
+
+int
+ni_sysfs_bridge_update_config(const char *ifname, const ni_bridge_t *bridge)
+{
+	int rv = 0;
+
+	if (bridge->stp != NI_BRIDGE_VALUE_NOT_SET
+	 && ni_sysfs_netif_put_uint(ifname, SYSFS_BRIDGE_ATTR "/stp_state", bridge->stp) < 0)
+		rv = -1;
+	if (bridge->priority != NI_BRIDGE_VALUE_NOT_SET
+	 && ni_sysfs_netif_put_uint(ifname, SYSFS_BRIDGE_ATTR "/priority", bridge->priority) < 0)
+		rv = -1;
+	if (bridge->forward_delay != NI_BRIDGE_VALUE_NOT_SET
+	 && ni_sysfs_netif_put_ulong(ifname, SYSFS_BRIDGE_ATTR "/forward_delay", bridge->forward_delay) < 0)
+		rv = -1;
+	if (bridge->ageing_time != NI_BRIDGE_VALUE_NOT_SET
+	 && ni_sysfs_netif_put_ulong(ifname, SYSFS_BRIDGE_ATTR "/ageing_time", bridge->ageing_time) < 0)
+		rv = -1;
+	if (bridge->hello_time != NI_BRIDGE_VALUE_NOT_SET
+	 && ni_sysfs_netif_put_ulong(ifname, SYSFS_BRIDGE_ATTR "/hello_time", bridge->hello_time) < 0)
+		rv = -1;
+	if (bridge->max_age != NI_BRIDGE_VALUE_NOT_SET
+	 && ni_sysfs_netif_put_ulong(ifname, SYSFS_BRIDGE_ATTR "/max_age", bridge->max_age) < 0)
+		rv = -1;
+
+	return rv;
 }
 
 void
