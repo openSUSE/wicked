@@ -173,6 +173,11 @@ __ni_rtevent_newlink(ni_handle_t *nih, const struct sockaddr_nl *nladdr, struct 
 	if (!(ifi = ni_rtnl_ifinfomsg(h, RTM_NEWLINK)))
 		return -1;
 
+	if (ifi->ifi_family == AF_BRIDGE) {
+		ni_debug_events("Ignoring bridge NEWLINK event");
+		return 0;
+	}
+
 	if ((nla = nlmsg_find_attr(h, sizeof(*ifi), IFLA_IFNAME)) != NULL) {
 		ifname = (char *) nla_data(nla);
 	}
@@ -249,6 +254,11 @@ __ni_rtevent_dellink(ni_handle_t *nih, const struct sockaddr_nl *nladdr, struct 
 
 	if (!(ifi = ni_rtnl_ifinfomsg(h, RTM_DELLINK)))
 		return -1;
+
+	if (ifi->ifi_family == AF_BRIDGE) {
+		ni_debug_events("Ignoring bridge DELLINK event");
+		return 0;
+	}
 
 	/* Open code interface removal. */
 	for (pos = &nih->iflist; (ifp = *pos) != NULL; pos = &ifp->next) {
