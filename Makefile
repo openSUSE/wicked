@@ -57,6 +57,7 @@ __LIBSRCS= \
 	  capture.c \
 	  arp.c \
 	  logging.c \
+	  errors.c \
 	  dbus-client.c \
 	  dbus-message.c \
 	  dbus-common.c \
