@@ -26,29 +26,36 @@
 static ni_dbus_object_functions_t wicked_dbus_interface_functions;
 
 /*
- * Register a network interface with our dbus server, and add the
- * appropriate dbus services
+ * Build a dbus-object encapsulating a network device.
+ * If @server is non-NULL, register the object with a canonical object path
  */
-ni_dbus_object_t *
-ni_objectmodel_register_interface(ni_dbus_server_t *server, ni_interface_t *ifp)
+static ni_dbus_object_t *
+__ni_objectmodel_build_interface_object(ni_dbus_server_t *server, ni_interface_t *ifp)
 {
 	ni_dbus_object_t *object;
 	const ni_dbus_service_t *link_layer_service;
 	char object_path[256];
 	char sane_name[IFNAMSIZ+5], *sp;
 
-	if (strlen(ifp->name) >= sizeof(sane_name))
-		return NULL;
-	strcpy(sane_name, ifp->name);
-	for (sp = sane_name; *sp; ++sp) {
-		if (*sp == '.')
-			*sp = '_';
+	if (server != NULL) {
+		if (strlen(ifp->name) >= sizeof(sane_name))
+			return NULL;
+		strcpy(sane_name, ifp->name);
+		for (sp = sane_name; *sp; ++sp) {
+			if (*sp == '.')
+				*sp = '_';
+		}
+
+		snprintf(object_path, sizeof(object_path), "Interface/%s", sane_name);
+		object = ni_dbus_server_register_object(server, object_path,
+						&wicked_dbus_interface_functions,
+						ni_interface_get(ifp));
+	} else {
+		object = ni_dbus_object_create(NULL, NULL,
+						&wicked_dbus_interface_functions,
+						ni_interface_get(ifp));
 	}
 
-	snprintf(object_path, sizeof(object_path), "Interface/%s", sane_name);
-	object = ni_dbus_server_register_object(server, object_path,
-					&wicked_dbus_interface_functions,
-					ni_interface_get(ifp));
 	if (object == NULL)
 		ni_fatal("Unable to create dbus object for interface %s", ifp->name);
 
@@ -59,6 +66,27 @@ ni_objectmodel_register_interface(ni_dbus_server_t *server, ni_interface_t *ifp)
 		ni_dbus_object_register_service(object, link_layer_service);
 
 	return object;
+}
+
+
+/*
+ * Register a network interface with our dbus server,
+ * and add the appropriate dbus services
+ */
+ni_dbus_object_t *
+ni_objectmodel_register_interface(ni_dbus_server_t *server, ni_interface_t *ifp)
+{
+	return __ni_objectmodel_build_interface_object(server, ifp);
+}
+
+/*
+ * Build a dummy dbus object encapsulating a network interface,
+ * and add the appropriate dbus services
+ */
+ni_dbus_object_t *
+ni_objectmodel_wrap_interface(ni_interface_t *ifp)
+{
+	return __ni_objectmodel_build_interface_object(NULL, ifp);
 }
 
 /*
