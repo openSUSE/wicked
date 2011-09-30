@@ -326,6 +326,8 @@ extern ni_dbus_object_t *	ni_objectmodel_wrap_interface(ni_interface_t *ifp);
 extern const ni_dbus_service_t *ni_objectmodel_link_layer_service(int iftype);
 extern const ni_dbus_service_t *ni_objectmodel_interface_port_service(int iftype);
 
+extern const ni_dbus_service_t	wicked_dbus_interface_service;
+
 extern const ni_dbus_service_t *ni_objectmodel_service_by_name(const char *interface_name);
 
 

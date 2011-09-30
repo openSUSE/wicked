@@ -722,7 +722,7 @@ static ni_dbus_property_t	wicked_dbus_interface_properties[] = {
 	{ NULL }
 };
 
-ni_dbus_service_t	wicked_dbus_interface_service = {
+const ni_dbus_service_t	wicked_dbus_interface_service = {
 	.name = WICKED_DBUS_INTERFACE ".Interface",
 	.methods = wicked_dbus_interface_methods,
 	.properties = wicked_dbus_interface_properties,

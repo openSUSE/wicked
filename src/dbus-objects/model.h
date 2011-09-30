@@ -105,7 +105,6 @@ __ni_objectmodel_get_property_ulong(const void *handle, unsigned long *member_of
 }
 
 
-extern ni_dbus_service_t	wicked_dbus_interface_service;
 extern ni_dbus_service_t	wicked_dbus_ethernet_service;
 extern ni_dbus_service_t	wicked_dbus_vlan_service;
 extern ni_dbus_service_t	wicked_dbus_bridge_service;

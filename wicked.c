@@ -725,6 +725,7 @@ usage:
 
 	ni_dbus_variant_init_dict(&argument);
 	if (opt_file) {
+		ni_dbus_object_t *config_obj;
 		ni_syntax_t *syntax = ni_syntax_new(opt_syntax, opt_file);
 		ni_handle_t *config;
 
@@ -741,7 +742,14 @@ usage:
 			goto failed;
 		}
 
-		ni_interface_get(config_dev);
+		config_obj = ni_objectmodel_wrap_interface(config_dev);
+		if (!ni_dbus_object_get_properties_as_dict(config_obj, &wicked_dbus_interface_service, &argument)) {
+			ni_dbus_object_free(config_obj);
+			ni_close(config);
+			goto failed;
+		}
+
+		ni_dbus_object_free(config_obj);
 		ni_close(config);
 
 		if (config_dev->startmode.ifaction[ifevent].action == NI_INTERFACE_IGNORE) {
