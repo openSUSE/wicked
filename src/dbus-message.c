@@ -396,4 +396,32 @@ ni_dbus_message_iter_get_variant(DBusMessageIter *iter, ni_dbus_variant_t *varia
 	return ni_dbus_message_iter_get_variant_data(&iter_val, variant);
 }
 
+/*
+ * Append one or more variants to a dbus message
+ */
+dbus_bool_t
+ni_dbus_message_serialize_variants(ni_dbus_message_t *msg,
+			unsigned int nargs, const ni_dbus_variant_t *argv,
+			DBusError *error)
+{
+	DBusMessageIter iter;
+	unsigned int i;
+
+	dbus_message_iter_init_append(msg, &iter);
+	for (i = 0; i < nargs; ++i) {
+#if 0
+		ni_debug_dbus("  [%u]: type=%s, value=\"%s\"", i,
+				ni_dbus_variant_signature(&argv[i]),
+				ni_dbus_variant_sprint(&argv[i]));
+#endif
+		if (!ni_dbus_message_iter_append_value(&iter, &argv[i], NULL)) {
+			dbus_set_error(error,
+					DBUS_ERROR_FAILED,
+					"Error marshalling message arguments");
+			return FALSE;
+		}
+	}
+	return TRUE;
+}
+
 

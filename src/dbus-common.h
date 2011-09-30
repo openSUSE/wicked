@@ -24,6 +24,9 @@ extern const char *		ni_dbus_type_as_string(int type);
 extern int			ni_dbus_message_get_args(ni_dbus_message_t *, ...);
 extern int			ni_dbus_message_get_args_variants(ni_dbus_message_t *msg,
 					ni_dbus_variant_t *argv, unsigned int max_args);
+extern dbus_bool_t		ni_dbus_message_serialize_variants(ni_dbus_message_t *msg,
+					unsigned int nargs, const ni_dbus_variant_t *argv,
+					DBusError *error);
 
 extern dbus_bool_t		ni_dbus_message_iter_get_variant_data(DBusMessageIter *iter,
 					ni_dbus_variant_t *variant);
