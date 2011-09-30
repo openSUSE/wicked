@@ -15,6 +15,7 @@
 #include "netinfo_priv.h"
 #include "config.h"
 
+static const char *	__ni_syntax_guess_sysconfig(void);
 static const char *	__ni_syntax_prepend_root(ni_syntax_t *, const char *);
 static const char *	__ni_syntax_prepend_base(ni_syntax_t *, const char *);
 
@@ -27,15 +28,9 @@ ni_syntax_new(const char *schema, const char *base_path)
 			base_path = ni_global.config->default_syntax_path;
 	}
 
-	if (!schema) {
-		if (ni_file_exists("/etc/SuSE-release"))
-			schema = "suse";
-		else if (ni_file_exists("/etc/redhat-release"))
-			schema = "redhat";
-		else {
-			ni_error("Unable to determine default schema");
+	if (!schema || !strcmp(schema, "sysconfig")) {
+		if (!(schema = __ni_syntax_guess_sysconfig()))
 			return NULL;
-		}
 	}
 
 	if (!strcasecmp(schema, "suse"))
@@ -48,6 +43,21 @@ ni_syntax_new(const char *schema, const char *base_path)
 		return __ni_syntax_netcf_strict(base_path);
 
 	ni_error("schema \"%s\" not supported", schema);
+	return NULL;
+}
+
+/*
+ * Guess which sysconfig scheme this system is using
+ */
+const char *
+__ni_syntax_guess_sysconfig(void)
+{
+	if (ni_file_exists("/etc/SuSE-release"))
+		return "suse";
+	if (ni_file_exists("/etc/redhat-release"))
+		return "redhat";
+
+	ni_error("Unable to determine default sysconfig schema");
 	return NULL;
 }
 
