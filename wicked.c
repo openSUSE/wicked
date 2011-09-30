@@ -60,9 +60,10 @@ static int		do_delete(int, char **);
 static int		do_show(int, char **);
 static int		do_addport(int, char **);
 static int		do_delport(int, char **);
+static int		do_ifup(int, char **);
 static int		do_rest(const char *, int, char **);
 static int		do_xpath(int, char **);
-static int		do_ifup(int, char **);
+static int		do_ifup_old(int, char **);
 static int		do_ifdown(int, char **);
 
 int
@@ -166,11 +167,15 @@ main(int argc, char **argv)
 	if (!strcmp(cmd, "delport"))
 		return do_delport(argc - optind + 1, argv + optind - 1);
 
+	if (!strcmp(cmd, "ifup"))
+		return do_ifup(argc - optind + 1, argv + optind - 1);
+
+	/* Old wicked style functions follow */
 	if (!strcmp(cmd, "xpath"))
 		return do_xpath(argc - optind + 1, argv + optind - 1);
 
 	if (!strcmp(cmd, "ifup"))
-		return do_ifup(argc - optind + 1, argv + optind - 1);
+		return do_ifup_old(argc - optind + 1, argv + optind - 1);
 
 	if (!strcmp(cmd, "ifdown"))
 		return do_ifdown(argc - optind + 1, argv + optind - 1);
@@ -592,7 +597,7 @@ out:
 }
 
 /*
- * Add a port to a bridge or bond
+ * Remove a port from a bridge or bond
  */
 int
 do_delport(int argc, char **argv)
@@ -643,6 +648,124 @@ out:
 	ni_dbus_variant_destroy(&argument);
 	ni_dbus_variant_destroy(&result);
 	dbus_error_free(&error);
+	return rv;
+}
+
+static int
+do_ifup(int argc, char **argv)
+{
+	enum  { OPT_SYSCONFIG, OPT_NETCF, OPT_SYNTAX, OPT_BOOT };
+	static struct option ifup_options[] = {
+		{ "sysconfig", required_argument, NULL, OPT_SYSCONFIG },
+		{ "netcf", required_argument, NULL, OPT_NETCF },
+		{ "syntax", required_argument, NULL, OPT_SYNTAX },
+		{ "boot", no_argument, NULL, OPT_BOOT },
+		{ NULL }
+	};
+	ni_dbus_variant_t argument = NI_DBUS_VARIANT_INIT;
+	const char *ifname = NULL;
+	const char *opt_syntax = NULL;
+	const char *opt_file = NULL;
+	ni_dbus_object_t *root_object, *dev_object;
+	unsigned int ifevent = NI_IFACTION_MANUAL_UP;
+	ni_interface_t *real_dev, *config_dev;
+	int c, rv = 1;
+
+	optind = 1;
+	while ((c = getopt_long(argc, argv, "", ifup_options, NULL)) != EOF) {
+		switch (c) {
+		case OPT_NETCF:
+			opt_syntax = "netcf";
+			opt_file = optarg;
+			break;
+
+		case OPT_SYSCONFIG:
+			/* The generic "sysconfig" syntax will select either
+			 * RedHat or SUSE style sysconfig syntax */
+			if (opt_syntax == NULL)
+				opt_syntax = "sysconfig";
+			opt_file = optarg;
+			break;
+
+		case OPT_SYNTAX:
+			opt_syntax = optarg;
+			break;
+
+		case OPT_BOOT:
+			ifevent = NI_IFACTION_BOOT;
+			break;
+
+		default:
+usage:
+			fprintf(stderr,
+				"wicked [options] ifup [ifup-options] all\n"
+				"wicked [options] ifup [ifup-options] <ifname> [options ...]\n"
+				"\nSupported ifup-options:\n"
+				"  --netcf <filename>\n"
+				"      Read interface configuration(s) from file rather than using system config\n"
+				"  --sysconfig <filename>\n"
+				"      Read interface configuration(s) from file rather than using system config\n"
+				"  --boot\n"
+				"      Ignore interfaces with startmode != boot\n"
+				);
+			return 1;
+		}
+	}
+
+	if (optind + 1 != argc) {
+		fprintf(stderr, "Missing interface argument\n");
+		goto usage;
+	}
+	ifname = argv[optind++];
+
+	if (!strcmp(ifname, "boot")) {
+		ifevent = NI_IFACTION_BOOT;
+		ifname = "all";
+	}
+
+	ni_dbus_variant_init_dict(&argument);
+	if (opt_file) {
+		ni_syntax_t *syntax = ni_syntax_new(opt_syntax, opt_file);
+		ni_handle_t *config;
+
+		config = ni_netconfig_open(syntax);
+		if (ni_refresh(config, NULL) < 0) {
+			ni_error("unable to load interface definition from %s", opt_file);
+			ni_close(config);
+			goto failed;
+		}
+
+		if (!(config_dev = ni_interface_by_name(config, ifname))) {
+			ni_error("cannot find interface %s in interface description", ifname);
+			ni_close(config);
+			goto failed;
+		}
+
+		ni_interface_get(config_dev);
+		ni_close(config);
+
+		if (config_dev->startmode.ifaction[ifevent].action == NI_INTERFACE_IGNORE) {
+			ni_error("not permitted to bring up interface");
+			goto failed;
+		}
+	} else {
+		/* No options, just bring up with default options
+		 * (which may include dhcp) */
+	}
+
+	if (!(root_object = wicked_dbus_client_create()))
+		goto failed;
+
+	if (!(dev_object = wicked_get_interface(root_object, ifname)))
+		goto failed;
+	real_dev = dev_object->handle;
+
+	rv = 0; /* success */
+
+failed:
+	if (config_dev)
+		ni_interface_put(config_dev);
+	ni_dbus_variant_destroy(&argument);
 	return rv;
 }
 
@@ -1554,7 +1677,7 @@ ni_interfaces_wait(ni_handle_t *system, ni_interface_state_array_t *state_array)
  * Handle "ifup" command
  */
 int
-do_ifup(int argc, char **argv)
+do_ifup_old(int argc, char **argv)
 {
 	static struct option ifup_options[] = {
 		{ "file", required_argument, NULL, 'f' },
