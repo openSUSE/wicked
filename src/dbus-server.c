@@ -152,10 +152,8 @@ ni_dbus_server_register_object(ni_dbus_server_t *server, const char *object_path
  */
 static const ni_dbus_service_t __ni_dbus_object_manager_interface;
 static const ni_dbus_service_t __ni_dbus_object_properties_interface;
-static dbus_bool_t	__ni_dbus_object_manager_enumerate_object(ni_dbus_object_t *, DBusMessageIter *);
-static dbus_bool_t	__ni_dbus_object_manager_enumerate_interface(ni_dbus_object_t *,
-				const ni_dbus_service_t *,
-				DBusMessageIter *);
+static dbus_bool_t		__ni_dbus_object_manager_enumerate_object(ni_dbus_object_t *,
+					ni_dbus_variant_t *dict);
 
 dbus_bool_t
 ni_dbus_object_register_object_manager(ni_dbus_object_t *object)
@@ -177,16 +175,17 @@ __ni_dbus_object_manager_get_managed_objects(ni_dbus_object_t *object,
 		ni_dbus_message_t *reply,
 		DBusError *error)
 {
-	DBusMessageIter iter, dict_iter;
+	ni_dbus_variant_t obj_dict = NI_DBUS_VARIANT_INIT;
 	int rv = TRUE;
 
 	TRACE_ENTERN("path=%s, method=%s", object->path, method->name);
 
-	dbus_message_iter_init_append(reply, &iter);
-	rv = ni_dbus_dict_open_write(&iter, &dict_iter);
+	ni_dbus_variant_init_dict(&obj_dict);
+	rv = __ni_dbus_object_manager_enumerate_object(object, &obj_dict);
 	if (rv)
-		rv = __ni_dbus_object_manager_enumerate_object(object, &dict_iter);
-	ni_dbus_dict_close_write(&iter, &dict_iter);
+		rv = ni_dbus_message_serialize_variants(reply, 1, &obj_dict, error);
+	ni_dbus_variant_destroy(&obj_dict);
+
 	return rv;
 }
 
@@ -270,29 +269,28 @@ __ni_dbus_object_properties_getall(ni_dbus_object_t *object, const ni_dbus_metho
 		unsigned int argc, const ni_dbus_variant_t *argv,
 		ni_dbus_message_t *reply, DBusError *error)
 {
-	DBusMessageIter iter, dict_iter;
 	const ni_dbus_service_t *service;
+	ni_dbus_variant_t dict;
 	int rv = TRUE;
 
 	if (!__ni_dbus_object_properties_arg_interface(object, method,
 				argv[0].string_value, error, &service))
 		return FALSE;
 
-	dbus_message_iter_init_append(reply, &iter);
-	if (!ni_dbus_dict_open_write(&iter, &dict_iter))
-		rv = FALSE;
+	ni_dbus_variant_init_dict(&dict);
 	if (service != NULL) {
-		if (!__ni_dbus_object_manager_enumerate_interface(object, service, &dict_iter))
-			rv = FALSE;
+		rv = ni_dbus_object_get_properties_as_dict(object, service, &dict);
 	} else {
 		unsigned int i;
 
-		for (i = 0; (service = object->interfaces[i]) != NULL; ++i) {
-			if (!__ni_dbus_object_manager_enumerate_interface(object, service, &dict_iter))
-				rv = FALSE;
-		}
+		for (i = 0; rv && (service = object->interfaces[i]) != NULL; ++i)
+			rv = ni_dbus_object_get_properties_as_dict(object, service, &dict);
 	}
-	ni_dbus_dict_close_write(&iter, &dict_iter);
+
+	if (rv)
+		rv = ni_dbus_message_serialize_variants(reply, 1, &dict, error);
+
+	ni_dbus_variant_destroy(&dict);
 	return rv;
 }
 
@@ -391,86 +389,24 @@ static const ni_dbus_service_t __ni_dbus_object_properties_interface = {
 	.methods = __ni_dbus_object_properties_methods,
 };
 
-static dbus_bool_t
-__ni_dbus_object_manager_enumerate_interface(ni_dbus_object_t *object,
-		const ni_dbus_service_t *service, DBusMessageIter *dict_iter)
-{
-	const ni_dbus_property_t *property;
-	int rv = TRUE;
-
-	TRACE_ENTERN("object=%s, interface=%s", object->path, service->name);
-
-	/* Loop over properties and add them here */
-	if (service->properties) {
-		for (property = service->properties; property->name; ++property) {
-			ni_dbus_variant_t value = NI_DBUS_VARIANT_INIT;
-			DBusError error = DBUS_ERROR_INIT;
-
-			if (property->get == NULL)
-				continue;
-			if (property->signature) {
-				/* Initialize the variant to the specified type. This allows
-				 * the property handler to use generic variant_set_int functions
-				 * and the like, without having to know exactly which type
-				 * is being used. */
-				if (!ni_dbus_variant_init_signature(&value, property->signature)) {
-					ni_debug_dbus("%s: unable to initialize property %s.%s of type %s",
-						object->path,
-						service->name,
-						property->name,
-						property->signature);
-					rv = FALSE;
-					goto next;
-				}
-			}
-			if (!property->get(object, property, &value, &error)) {
-				ni_debug_dbus("%s: unable to get property %s.%s",
-						object->path,
-						service->name,
-						property->name);
-			} else if (!ni_dbus_dict_append_variant(dict_iter, property->name, &value)) {
-				ni_debug_dbus("%s: unable to encode property %s.%s",
-						object->path,
-						service->name,
-						property->name);
-				rv = FALSE;
-			}
-next:
-			ni_dbus_variant_destroy(&value);
-			dbus_error_free(&error);
-		}
-	}
-
-	return rv;
-}
-
 dbus_bool_t
-__ni_dbus_object_manager_enumerate_object(ni_dbus_object_t *object, DBusMessageIter *dict_iter)
+__ni_dbus_object_manager_enumerate_object(ni_dbus_object_t *object, ni_dbus_variant_t *obj_dict)
 {
-	DBusMessageIter entry_iter, val_iter, interface_iter;
 	ni_dbus_object_t *child;
 	int rv = TRUE;
 
 	if (object->interfaces) {
-		const ni_dbus_service_t *svc;
+		ni_dbus_variant_t *ifdict = ni_dbus_dict_add(obj_dict, object->path);
+		const ni_dbus_service_t *service;
 		unsigned int i;
 
-		if (!ni_dbus_dict_begin_string_dict(dict_iter, object->path,
-						&entry_iter, &val_iter, &interface_iter))
-			return FALSE;
+		ni_dbus_variant_init_dict(ifdict);
+		for (i = 0; rv && (service = object->interfaces[i]) != NULL; ++i) {
+			ni_dbus_variant_t *propdict = ni_dbus_dict_add(ifdict, service->name);
 
-		for (i = 0; rv && (svc = object->interfaces[i]) != NULL; ++i) {
-			DBusMessageIter entry_iter, val_iter, prop_iter;
-
-			if (!ni_dbus_dict_begin_string_dict(&interface_iter, svc->name,
-							&entry_iter, &val_iter, &prop_iter))
-				return FALSE;
-
-			rv = __ni_dbus_object_manager_enumerate_interface(object, svc, &prop_iter);
-			ni_dbus_dict_end_string_dict(&interface_iter, &entry_iter, &val_iter, &prop_iter);
+			ni_dbus_variant_init_dict(propdict);
+			rv = ni_dbus_object_get_properties_as_dict(object, service, propdict);
 		}
-
-		ni_dbus_dict_end_string_dict(dict_iter, &entry_iter, &val_iter, &interface_iter);
 	}
 
 	for (child = object->children; child && rv; child = child->next) {
@@ -481,7 +417,7 @@ __ni_dbus_object_manager_enumerate_object(ni_dbus_object_t *object, DBusMessageI
 			continue;
 		}
 
-		rv = __ni_dbus_object_manager_enumerate_object(child, dict_iter);
+		rv = __ni_dbus_object_manager_enumerate_object(child, obj_dict);
 	}
 
 	return rv;

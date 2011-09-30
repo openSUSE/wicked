@@ -340,6 +340,60 @@ ni_dbus_service_get_property(const ni_dbus_service_t *service, const char *name)
 }
 
 /*
+ * Get all properties of an object, for a given dbus interface
+ */
+dbus_bool_t
+ni_dbus_object_get_properties_as_dict(const ni_dbus_object_t *object,
+					const ni_dbus_service_t *interface,
+					ni_dbus_variant_t *dict)
+{
+	const ni_dbus_property_t *property;
+	int rv = TRUE;
+
+	TRACE_ENTERN("object=%s, interface=%s", object->path, interface->name);
+
+	/* Loop over properties and add them here */
+	if (interface->properties) {
+		for (property = interface->properties; property->name; ++property) {
+			DBusError error = DBUS_ERROR_INIT;
+			ni_dbus_variant_t *var;
+
+			if (property->get == NULL)
+				continue;
+
+			var = ni_dbus_dict_add(dict, property->name);
+			if (property->signature) {
+				/* Initialize the variant to the specified type. This allows
+				 * the property handler to use generic variant_set_int functions
+				 * and the like, without having to know exactly which type
+				 * is being used. */
+				if (!ni_dbus_variant_init_signature(var, property->signature)) {
+					ni_debug_dbus("%s: unable to initialize property %s.%s of type %s",
+						object->path,
+						interface->name,
+						property->name,
+						property->signature);
+					rv = FALSE;
+					goto next;
+				}
+			}
+
+			if (!property->get(object, property, var, &error)) {
+				ni_debug_dbus("%s: unable to get property %s.%s",
+						object->path,
+						interface->name,
+						property->name);
+				ni_dbus_variant_destroy(var);
+			}
+next:
+			dbus_error_free(&error);
+		}
+	}
+
+	return rv;
+}
+
+/*
  * Build an object path from parent path + name
  */
 static const char *
