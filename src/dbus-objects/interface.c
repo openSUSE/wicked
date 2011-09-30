@@ -201,6 +201,22 @@ error:
 }
 
 /*
+ * Interface.up(dict options)
+ * Bring up the network interface, and assign the requested addresses.
+ * In the case of virtual interfaces like VLANs or bridges, the interface
+ * must have been created and configured prior to this call.
+ *
+ * The options dictionaty contains interface properties.
+ */
+static dbus_bool_t
+__wicked_dbus_interface_up(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	return FALSE;
+}
+
+/*
  * The DBus object is destroyed; detach the network interface handle
  */
 static void
@@ -217,6 +233,14 @@ static ni_dbus_object_functions_t wicked_dbus_interface_functions = {
 };
 
 static ni_dbus_method_t		wicked_dbus_interface_methods[] = {
+	{ "up",			"a{sv}",		__wicked_dbus_interface_up },
+#if 0
+	{ "down",		"",			__wicked_dbus_interface_down },
+	{ "addAddress",		"a{sv}",		__wicked_dbus_interface_add_address },
+	{ "removeAddress",	"a{sv}",		__wicked_dbus_interface_remove_address },
+	{ "addRoute",		"a{sv}",		__wicked_dbus_interface_add_route },
+	{ "removeRoute",	"a{sv}",		__wicked_dbus_interface_remove_route },
+#endif
 	{ NULL }
 };
 
