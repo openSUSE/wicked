@@ -24,17 +24,19 @@
  * Create a new VLAN interface
  */
 ni_dbus_object_t *
-ni_objectmodel_new_vlan(ni_dbus_server_t *server, const ni_dbus_object_t *config)
+ni_objectmodel_new_vlan(ni_dbus_server_t *server, const ni_dbus_object_t *config, DBusError *error)
 {
 	ni_interface_t *cfg_ifp = ni_dbus_object_get_handle(config);
 	ni_interface_t *new_ifp;
 	const ni_vlan_t *vlan = cfg_ifp->vlan;
 	ni_handle_t *nih = ni_global_state_handle();
+	int rv;
 
 	if (!vlan
 	 || !vlan->tag
 	 || !vlan->interface_name) {
-		/* FIXME: report error */
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"Incomplete arguments (need VLAN tag and interface name)");
 		return NULL;
 	}
 
@@ -52,18 +54,25 @@ ni_objectmodel_new_vlan(ni_dbus_server_t *server, const ni_dbus_object_t *config
 		}
 
 		if (cfg_ifp->name == NULL) {
-			/* FIXME: report error */
+			dbus_set_error(error, DBUS_ERROR_FAILED,
+					"Unable to create vlan - too many interfaces");
 			return NULL;
 		}
 	}
 
-	if (ni_interface_create_vlan(nih, cfg_ifp->name, vlan, &new_ifp) < 0) {
-		/* FIXME: report error */
+	if ((rv = ni_interface_create_vlan(nih, cfg_ifp->name, vlan, &new_ifp)) < 0) {
+		dbus_set_error(error,
+				DBUS_ERROR_FAILED,
+				"Unable to create VLAN interface: %s",
+				ni_strerror(rv));
 		return NULL;
 	}
 
 	if (new_ifp->type != NI_IFTYPE_VLAN) {
-		/* FIXME: report error */
+		dbus_set_error(error,
+				DBUS_ERROR_FAILED,
+				"Unable to create VLAN interface: new interface is of type %s",
+				ni_linktype_type_to_name(new_ifp->type));
 		return NULL;
 	}
 

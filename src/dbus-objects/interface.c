@@ -201,15 +201,21 @@ ni_objectmodel_new_interface(ni_dbus_server_t *server, const ni_dbus_service_t *
 	}
 
 	if (service == &wicked_dbus_vlan_service) {
-		result = ni_objectmodel_new_vlan(server, object);
+		result = ni_objectmodel_new_vlan(server, object, error);
 	} else
 	if (service == &wicked_dbus_bridge_service) {
-		result = ni_objectmodel_new_bridge(server, object);
+		result = ni_objectmodel_new_bridge(server, object, error);
 	} else {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
 				"Cannot create network interface for %s - not implemented yet",
 				service->name);
 		goto error;
+	}
+
+	if (result == NULL && !dbus_error_is_set(error)) {
+		dbus_set_error(error,
+				DBUS_ERROR_FAILED,
+				"Unable to create interface");
 	}
 
 	ni_dbus_object_free(object);

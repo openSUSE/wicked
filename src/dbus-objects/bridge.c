@@ -35,12 +35,13 @@ static dbus_bool_t	__wicked_dbus_bridge_port_from_dict(ni_bridge_port_t *port,
  * Create a new Bridge interface
  */
 ni_dbus_object_t *
-ni_objectmodel_new_bridge(ni_dbus_server_t *server, const ni_dbus_object_t *config)
+ni_objectmodel_new_bridge(ni_dbus_server_t *server, const ni_dbus_object_t *config, DBusError *error)
 {
 	ni_interface_t *cfg_ifp = ni_dbus_object_get_handle(config);
 	ni_interface_t *new_ifp;
 	const ni_bridge_t *bridge = ni_interface_get_bridge(cfg_ifp);
 	ni_handle_t *nih = ni_global_state_handle();
+	int rv;
 
 	cfg_ifp->type = NI_IFTYPE_BRIDGE;
 	if (cfg_ifp->name == NULL) {
@@ -56,18 +57,23 @@ ni_objectmodel_new_bridge(ni_dbus_server_t *server, const ni_dbus_object_t *conf
 		}
 
 		if (cfg_ifp->name == NULL) {
-			/* FIXME: report error */
+			dbus_set_error(error, DBUS_ERROR_FAILED,
+					"Unable to create bridge - too many interfaces");
 			return NULL;
 		}
 	}
 
-	if (ni_interface_create_bridge(nih, cfg_ifp->name, bridge, &new_ifp) < 0) {
-		/* FIXME: report error */
+	if ((rv = ni_interface_create_bridge(nih, cfg_ifp->name, bridge, &new_ifp)) < 0) {
+		dbus_set_error(error, DBUS_ERROR_FAILED,
+				"Unable to create bridge interface: %s",
+				ni_strerror(rv));
 		return NULL;
 	}
 
 	if (new_ifp->type != NI_IFTYPE_BRIDGE) {
-		/* FIXME: report error */
+		dbus_set_error(error, DBUS_ERROR_FAILED,
+				"Unable to create bridge interface: new interface is of type %s",
+				ni_linktype_type_to_name(new_ifp->type));
 		return NULL;
 	}
 
