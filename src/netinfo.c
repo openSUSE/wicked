@@ -1406,6 +1406,25 @@ ni_addrconf_request_free(ni_addrconf_request_t *dhcp)
 	free(dhcp);
 }
 
+int
+ni_addrconf_request_equal(const ni_addrconf_request_t *req1, const ni_addrconf_request_t *req2)
+{
+	if (req1->type != req2->type
+	 || req1->family != req2->family
+	 || req1->update != req2->update)
+		return 0;
+
+	if (req1->type == NI_ADDRCONF_DHCP && req1->family == AF_INET) {
+		if (ni_string_eq(req1->dhcp.hostname, req2->dhcp.hostname)
+		 || ni_string_eq(req1->dhcp.clientid, req2->dhcp.clientid)
+		 || ni_string_eq(req1->dhcp.vendor_class, req2->dhcp.vendor_class)
+		 || req1->dhcp.lease_time != req2->dhcp.lease_time)
+			return 0;
+	}
+
+	return 1;
+}
+
 /*
  * Address configuration state (aka leases)
  */

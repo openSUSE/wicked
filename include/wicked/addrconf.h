@@ -188,6 +188,7 @@ __ni_addrconf_should_update(unsigned int mask, unsigned int target)
 extern ni_addrconf_request_t *ni_addrconf_request_new(unsigned int mode, unsigned int af);
 extern ni_addrconf_request_t *ni_addrconf_request_clone(const ni_addrconf_request_t *);
 extern void		ni_addrconf_request_free(ni_addrconf_request_t *);
+extern int		ni_addrconf_request_equal(const ni_addrconf_request_t *, const ni_addrconf_request_t *);
 
 extern ni_addrconf_lease_t *ni_addrconf_lease_new(int type, int family);
 extern void		ni_addrconf_lease_destroy(ni_addrconf_lease_t *);
