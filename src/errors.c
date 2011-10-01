@@ -7,6 +7,7 @@
 static const char *	ni_errors[__NI_ERROR_MAX] = {
 [NI_SUCCESS]				= "Success",
 [NI_ERROR_GENERAL_FAILURE]		= "General failure",
+[NI_ERROR_INVALID_ARGS]			= "Invalid arguments",
 [NI_ERROR_INTERFACE_NOT_KNOWN]		= "Interface not known",
 [NI_ERROR_INTERFACE_BAD_HIERARCHY]	= "Interface bad hierarchy",
 [NI_ERROR_INTERFACE_IN_USE]		= "Interface in use",
