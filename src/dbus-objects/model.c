@@ -188,7 +188,7 @@ static ni_dbus_method_t		wicked_dbus_netif_methods[] = {
 
 
 static ni_dbus_service_t	wicked_dbus_netif_interface = {
-	.name = WICKED_DBUS_INTERFACE ".Factory",
+	.name = WICKED_DBUS_FACTORY_INTERFACE,
 	.methods = wicked_dbus_netif_methods,
 	/* .properties = wicked_dbus_netif_properties, */
 };

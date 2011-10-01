@@ -154,7 +154,7 @@ static ni_dbus_property_t	wicked_dbus_ethernet_properties[] = {
 
 
 ni_dbus_service_t	wicked_dbus_ethernet_service = {
-	.name = WICKED_DBUS_INTERFACE ".Ethernet",
+	.name = WICKED_DBUS_ETHERNET_INTERFACE,
 	.methods = wicked_dbus_ethernet_methods,
 	.properties = wicked_dbus_ethernet_properties,
 };

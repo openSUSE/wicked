@@ -487,7 +487,7 @@ static ni_dbus_method_t		wicked_dbus_bridge_methods[] = {
 };
 
 ni_dbus_service_t	wicked_dbus_bridge_service = {
-	.name = WICKED_DBUS_INTERFACE ".Bridge",
+	.name = WICKED_DBUS_BRIDGE_INTERFACE,
 	.methods = wicked_dbus_bridge_methods,
 	.properties = wicked_dbus_bridge_properties,
 };

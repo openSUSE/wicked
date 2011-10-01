@@ -11,9 +11,16 @@
 #include <dbus/dbus.h>
 
 
-#define WICKED_DBUS_BUS_NAME	"com.suse.Wicked"
-#define WICKED_DBUS_OBJECT_PATH	"/com/suse/Wicked"
-#define WICKED_DBUS_INTERFACE	"com.suse.Wicked"
+#define WICKED_DBUS_BUS_NAME		"com.suse.Wicked"
+#define WICKED_DBUS_OBJECT_PATH		"/com/suse/Wicked"
+#define WICKED_DBUS_INTERFACE		"com.suse.Wicked"
+#define WICKED_DBUS_FACTORY_INTERFACE	WICKED_DBUS_INTERFACE ".Factory"
+#define WICKED_DBUS_NETIF_INTERFACE	WICKED_DBUS_INTERFACE ".Interface"
+#define WICKED_DBUS_ETHERNET_INTERFACE	WICKED_DBUS_INTERFACE ".Ethernet"
+#define WICKED_DBUS_BRIDGE_INTERFACE	WICKED_DBUS_INTERFACE ".Bridge"
+#define WICKED_DBUS_VLAN_INTERFACE	WICKED_DBUS_INTERFACE ".VLAN"
+#define WICKED_DBUS_BOND_INTERFACE	WICKED_DBUS_INTERFACE ".Bond"
+#define WICKED_DBUS_PPP_INTERFACE	WICKED_DBUS_INTERFACE ".PPP"
 
 typedef struct DBusMessage	ni_dbus_message_t;
 typedef struct ni_dbus_connection ni_dbus_connection_t;

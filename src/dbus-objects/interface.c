@@ -723,7 +723,7 @@ static ni_dbus_property_t	wicked_dbus_interface_properties[] = {
 };
 
 const ni_dbus_service_t	wicked_dbus_interface_service = {
-	.name = WICKED_DBUS_INTERFACE ".Interface",
+	.name = WICKED_DBUS_NETIF_INTERFACE,
 	.methods = wicked_dbus_interface_methods,
 	.properties = wicked_dbus_interface_properties,
 };

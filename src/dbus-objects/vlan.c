@@ -206,7 +206,7 @@ static ni_dbus_method_t		wicked_dbus_vlan_methods[] = {
 };
 
 ni_dbus_service_t	wicked_dbus_vlan_service = {
-	.name = WICKED_DBUS_INTERFACE ".VLAN",
+	.name = WICKED_DBUS_VLAN_INTERFACE,
 	.methods = wicked_dbus_vlan_methods,
 	.properties = wicked_dbus_vlan_properties,
 };
