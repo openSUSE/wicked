@@ -34,6 +34,8 @@
 			NI_ADDRCONF_MASK(NI_ADDRCONF_STATIC) |\
 			NI_ADDRCONF_MASK(NI_ADDRCONF_AUTOCONF))
 
+static void		__ni_afinfo_destroy(ni_afinfo_t *);
+
 /*
  * Global data for netinfo library
  */
@@ -986,19 +988,6 @@ ni_interface_clear_routes(ni_interface_t *ifp)
 	ni_route_list_destroy(&ifp->routes);
 }
 
-static void
-__ni_afinfo_destroy(ni_afinfo_t *afi)
-{
-	unsigned int i;
-
-	for (i = 0; i < __NI_ADDRCONF_MAX; ++i) {
-		if (afi->request[i])
-			ni_addrconf_request_free(afi->request[i]);
-		if (afi->lease[i])
-			ni_addrconf_lease_free(afi->lease[i]);
-	}
-}
-
 void
 __ni_afinfo_set_addrconf_request(ni_afinfo_t *afi, unsigned int mode, ni_addrconf_request_t *req)
 {
@@ -1358,7 +1347,81 @@ ni_interface_set_link_stats(ni_interface_t *ifp, ni_link_stats_t *stats)
 }
 
 /*
- * dhcp client info
+ * Handle interface_request objects
+ */
+ni_interface_request_t *
+ni_interface_request_new(void)
+{
+	ni_interface_request_t *req;
+
+	req = xcalloc(1, sizeof(*req));
+	return req;
+}
+
+void
+ni_interface_request_free(ni_interface_request_t *req)
+{
+	if (req->ipv4)
+		ni_afinfo_free(req->ipv4);
+	if (req->ipv6)
+		ni_afinfo_free(req->ipv6);
+	free(req);
+}
+
+/*
+ni_interface_request_
+ni_interface_request_
+ni_interface_request_
+ni_interface_request_
+ni_interface_request_
+ni_interface_request_
+ni_interface_request_
+ni_interface_request_
+   */
+
+/*
+ * Address configuration info
+ */
+ni_afinfo_t *
+ni_afinfo_new(int family)
+{
+	ni_afinfo_t *afi = xcalloc(1, sizeof(*afi));
+
+	afi->family = family;
+	if (family == AF_INET)
+		afi->addrconf = DEFAULT_ADDRCONF_IPV4;
+	else if (family == AF_INET6)
+		afi->addrconf = DEFAULT_ADDRCONF_IPV6;
+	afi->enabled = 1;
+	return afi;
+}
+
+static void
+__ni_afinfo_destroy(ni_afinfo_t *afi)
+{
+	unsigned int i;
+
+	for (i = 0; i < __NI_ADDRCONF_MAX; ++i) {
+		if (afi->request[i]) {
+			ni_addrconf_request_free(afi->request[i]);
+			afi->request[i] = NULL;
+		}
+		if (afi->lease[i]) {
+			ni_addrconf_lease_free(afi->lease[i]);
+			afi->lease[i] = NULL;
+		}
+	}
+}
+
+void
+ni_afinfo_free(ni_afinfo_t *afi)
+{
+	__ni_afinfo_destroy(afi);
+	free(afi);
+}
+
+/*
+ * addrconf requests
  */
 ni_addrconf_request_t *
 ni_addrconf_request_new(unsigned int type, unsigned int af)
@@ -1398,12 +1461,15 @@ ni_addrconf_request_clone(const ni_addrconf_request_t *src)
 }
 
 void
-ni_addrconf_request_free(ni_addrconf_request_t *dhcp)
+ni_addrconf_request_free(ni_addrconf_request_t *req)
 {
-	ni_string_free(&dhcp->dhcp.hostname);
-	ni_string_free(&dhcp->dhcp.clientid);
-	ni_string_free(&dhcp->dhcp.vendor_class);
-	free(dhcp);
+	ni_string_free(&req->dhcp.hostname);
+	ni_string_free(&req->dhcp.clientid);
+	ni_string_free(&req->dhcp.vendor_class);
+
+	ni_address_list_destroy(&req->statik.addrs);
+	ni_route_list_destroy(&req->statik.routes);
+	free(req);
 }
 
 int

@@ -189,6 +189,18 @@ struct ni_interface {
 	ni_ifbehavior_t		startmode;
 };
 
+typedef struct ni_interface_request {
+	unsigned int		ifflags;
+
+	unsigned int		mtu;
+	unsigned int		metric;
+	unsigned int		txqlen;
+
+	/* Network layer */
+	ni_afinfo_t *		ipv4;
+	ni_afinfo_t *		ipv6;
+} ni_interface_request_t;
+
 typedef struct ni_interface_array {
 	unsigned int		count;
 	ni_interface_t **	data;
@@ -290,6 +302,7 @@ extern ni_interface_t *	ni_interface_get(ni_interface_t *ifp);
 extern int		ni_interface_put(ni_interface_t *ifp);
 extern int		ni_interface_update(ni_interface_t *ifp);
 extern int		ni_interface_guess_type(ni_interface_t *ifp);
+extern int		ni_interface_up(ni_handle_t *, ni_interface_t *, const ni_interface_request_t *);
 extern int		ni_interface_configure(ni_handle_t *, const ni_interface_t *);
 extern int		ni_interface_configure2(ni_handle_t *, ni_interface_t *, const ni_interface_t *);
 extern int		ni_interface_update_lease(ni_handle_t *, ni_interface_t *ifp,

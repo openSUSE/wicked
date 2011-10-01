@@ -62,6 +62,10 @@ struct ni_addrconf_request {
 
 	/* Options controlling what to put into the lease request */
 	struct {
+		ni_address_t *	addrs;
+		ni_route_t *	routes;
+	} statik;
+	struct {
 		char *		hostname;
 		char *		clientid;
 		char *		vendor_class;
@@ -184,6 +188,9 @@ __ni_addrconf_should_update(unsigned int mask, unsigned int target)
 {
 	return mask & (1 << target);
 }
+
+extern ni_afinfo_t *	ni_afinfo_new(int family);
+extern void		ni_afinfo_free(ni_afinfo_t *);
 
 extern ni_addrconf_request_t *ni_addrconf_request_new(unsigned int mode, unsigned int af);
 extern ni_addrconf_request_t *ni_addrconf_request_clone(const ni_addrconf_request_t *);

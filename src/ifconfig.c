@@ -43,21 +43,80 @@
 
 static int	__ni_system_interface_bringup(ni_handle_t *, ni_interface_t *);
 static int	__ni_interface_for_config(ni_handle_t *, const ni_interface_t *, ni_interface_t **);
-static int	__ni_interface_addrconf(ni_handle_t *, int,  ni_interface_t *, const ni_interface_t *);
+static int	__ni_interface_addrconf(ni_handle_t *, int,  ni_interface_t *, const ni_afinfo_t *);
 static int	__ni_interface_bridge_configure(ni_handle_t *, const ni_interface_t *, ni_interface_t **);
 static int	__ni_interface_vlan_configure(ni_handle_t *, const ni_interface_t *, ni_interface_t **);
 static int	__ni_interface_bond_configure(ni_handle_t *, const ni_interface_t *, ni_interface_t **);
 static int	__ni_interface_extension_configure(ni_handle_t *, const ni_interface_t *, ni_interface_t **);
 static int	__ni_interface_extension_delete(ni_handle_t *, ni_interface_t *);
-static int	__ni_interface_update_ipv6_settings(ni_handle_t *, ni_interface_t *, const ni_interface_t *);
+static int	__ni_interface_update_ipv6_settings(ni_handle_t *, ni_interface_t *, const ni_afinfo_t *);
 static int	__ni_rtnl_link_create_vlan(ni_handle_t *, const char *, const ni_vlan_t *);
 static int	__ni_rtnl_link_create(ni_handle_t *, const ni_interface_t *);
-static int	__ni_rtnl_link_up(ni_handle_t *, const ni_interface_t *, const ni_interface_t *);
+static int	__ni_rtnl_link_up(ni_handle_t *, const ni_interface_t *, const ni_interface_request_t *);
 static int	__ni_rtnl_link_down(ni_handle_t *, const ni_interface_t *, int);
 static int	__ni_rtnl_send_deladdr(ni_handle_t *, ni_interface_t *, const ni_address_t *);
 static int	__ni_rtnl_send_newaddr(ni_handle_t *, ni_interface_t *, const ni_address_t *, int);
 static int	__ni_rtnl_send_delroute(ni_handle_t *, ni_interface_t *, ni_route_t *);
 static int	__ni_rtnl_send_newroute(ni_handle_t *, ni_interface_t *, ni_route_t *, int);
+
+/*
+ * Bring up an interface
+ */
+int
+ni_interface_up(ni_handle_t *nih, ni_interface_t *ifp, const ni_interface_request_t *ifp_req)
+{
+	int res;
+
+	if (ifp == NULL || ifp_req == NULL)
+		return -NI_ERROR_INVALID_ARGS;
+
+	ni_debug_ifconfig("%s(%s)", __func__, ifp->name);
+
+	/* FIXME: perform sanity check on configuration data */
+
+
+	/* If we want to disable ipv6 or ipv6 autoconf, we need to do so prior to bringing
+	 * the interface up. */
+	if (__ni_interface_update_ipv6_settings(nih, ifp, ifp_req->ipv6) < 0)
+		return -1;
+
+	if (ifp_req->ifflags & (NI_IFF_DEVICE_UP|NI_IFF_LINK_UP|NI_IFF_NETWORK_UP)) {
+		ni_debug_ifconfig("bringing up %s", ifp->name);
+		if (__ni_rtnl_link_up(nih, ifp, ifp_req)) {
+			ni_error("%s: failed to bring up interface (rtnl error)", ifp->name);
+			return -1;
+		}
+		ifp->ifflags |= ifp_req->ifflags;
+	} else {
+		ni_debug_ifconfig("shutting down interface %s", ifp->name);
+		if (__ni_rtnl_link_down(nih, ifp, RTM_NEWLINK)) {
+			ni_error("unable to shut down interface %s", ifp->name);
+			return -1;
+		}
+		/* down is down is down */
+		ifp->up_requesters = 0;
+	}
+
+	nih->seqno++;
+
+	res = -1;
+
+	if (!ni_interface_network_is_up(ifp)) {
+		if (ifp_req->ipv4)
+			ifp_req->ipv4->addrconf = 0;
+		if (ifp_req->ipv6)
+			ifp_req->ipv6->addrconf = 0;
+	}
+
+	if (__ni_interface_addrconf(nih, AF_INET, ifp, ifp_req->ipv4) < 0
+	 || __ni_interface_addrconf(nih, AF_INET6, ifp, ifp_req->ipv6) < 0)
+		goto failed;
+
+	res = __ni_system_refresh_interface(nih, ifp);
+
+failed:
+	return res;
+}
 
 /*
  * Configure a given interface
@@ -134,12 +193,12 @@ __ni_system_interface_configure(ni_handle_t *nih, ni_interface_t *ifp, const ni_
 
 	/* If we want to disable ipv6 or ipv6 autoconf, we need to do so prior to bringing
 	 * the interface up. */
-	if (__ni_interface_update_ipv6_settings(nih, ifp, cfg) < 0)
+	if (__ni_interface_update_ipv6_settings(nih, ifp, &cfg->ipv6) < 0)
 		return -1;
 
 	if (cfg->ifflags & (NI_IFF_DEVICE_UP|NI_IFF_LINK_UP|NI_IFF_NETWORK_UP)) {
 		ni_debug_ifconfig("bringing up %s", ifp->name);
-		if (__ni_rtnl_link_up(nih, ifp, cfg)) {
+		if (__ni_rtnl_link_up(nih, ifp, NULL)) {
 			ni_error("%s: failed to bring up interface (rtnl error)", ifp->name);
 			return -1;
 		}
@@ -158,8 +217,8 @@ __ni_system_interface_configure(ni_handle_t *nih, ni_interface_t *ifp, const ni_
 
 	res = -1;
 
-	if (__ni_interface_addrconf(nih, AF_INET, ifp, cfg) < 0
-	 || __ni_interface_addrconf(nih, AF_INET6, ifp, cfg) < 0)
+	if (__ni_interface_addrconf(nih, AF_INET, ifp, &cfg->ipv4) < 0
+	 || __ni_interface_addrconf(nih, AF_INET6, ifp, &cfg->ipv6) < 0)
 		goto failed;
 
 	res = __ni_system_refresh_interface(nih, ifp);
@@ -1042,8 +1101,9 @@ __ni_interface_extension_delete(ni_handle_t *nih, ni_interface_t *ifp)
  * Update the IPv6 sysctl settings for the given interface
  */
 int
-__ni_interface_update_ipv6_settings(ni_handle_t *nih, ni_interface_t *ifp, const ni_interface_t *cfg)
+__ni_interface_update_ipv6_settings(ni_handle_t *nih, ni_interface_t *ifp, const ni_afinfo_t *afi)
 {
+	int enable = afi? afi->enabled : 0;
 	int brought_up = 0;
 	int rv = -1;
 
@@ -1052,29 +1112,29 @@ __ni_interface_update_ipv6_settings(ni_handle_t *nih, ni_interface_t *ifp, const
 	 * seems rather good at that. 
 	 * The only way to recover from that is by upping the interface briefly.
 	 */
-	if (!ni_sysctl_ipv6_ifconfig_is_present(cfg->name)) {
-		if (__ni_rtnl_link_up(nih, ifp, cfg) >= 0) {
+	if (!ni_sysctl_ipv6_ifconfig_is_present(ifp->name)) {
+		if (__ni_rtnl_link_up(nih, ifp, NULL) >= 0) {
 			unsigned int count = 100;
 
-			while (count-- && !ni_sysctl_ipv6_ifconfig_is_present(cfg->name))
+			while (count-- && !ni_sysctl_ipv6_ifconfig_is_present(ifp->name))
 				usleep(100000);
 			brought_up = 1;
 		}
 	}
 
-	if (ni_sysctl_ipv6_ifconfig_set_uint(cfg->name, "disable_ipv6", !cfg->ipv6.enabled) < 0) {
-		ni_error("%s: cannot %s ipv6", cfg->name, cfg->ipv6.enabled? "enable" : "disable");
+	if (ni_sysctl_ipv6_ifconfig_set_uint(ifp->name, "disable_ipv6", !enable) < 0) {
+		ni_error("%s: cannot %s ipv6", ifp->name, enable? "enable" : "disable");
 		goto out;
 	}
-	if (cfg->ipv6.enabled) {
-		int autoconf = ni_afinfo_addrconf_test(&cfg->ipv6, NI_ADDRCONF_STATIC);
+	if (enable) {
+		int autoconf = ni_afinfo_addrconf_test(afi, NI_ADDRCONF_STATIC);
 
-		if (ni_sysctl_ipv6_ifconfig_set_uint(cfg->name, "autoconf", autoconf) < 0) {
-			ni_error("%s: cannot %s ipv6 autoconf", cfg->name, autoconf? "enable" : "disable");
+		if (ni_sysctl_ipv6_ifconfig_set_uint(ifp->name, "autoconf", autoconf) < 0) {
+			ni_error("%s: cannot %s ipv6 autoconf", ifp->name, autoconf? "enable" : "disable");
 			goto out;
 		}
-		if (ni_sysctl_ipv6_ifconfig_set_uint(cfg->name, "forwarding", cfg->ipv6.forwarding) < 0) {
-			ni_error("%s: cannot %s ipv6 forwarding", cfg->name, cfg->ipv6.forwarding? "enable" : "disable");
+		if (ni_sysctl_ipv6_ifconfig_set_uint(ifp->name, "forwarding", afi->forwarding) < 0) {
+			ni_error("%s: cannot %s ipv6 forwarding", ifp->name, afi->forwarding? "enable" : "disable");
 			goto out;
 		}
 	}
@@ -1082,7 +1142,7 @@ __ni_interface_update_ipv6_settings(ni_handle_t *nih, ni_interface_t *ifp, const
 
 out:
 	if (brought_up)
-		__ni_rtnl_link_down(nih, cfg, RTM_NEWLINK);
+		__ni_rtnl_link_down(nih, ifp, RTM_NEWLINK);
 
 	return rv;
 }
@@ -1285,7 +1345,7 @@ __ni_rtnl_link_down(ni_handle_t *nih, const ni_interface_t *ifp, int cmd)
  * (Re-)configure an interface
  */
 static int
-__ni_rtnl_link_up(ni_handle_t *nih, const ni_interface_t *ifp, const ni_interface_t *cfg)
+__ni_rtnl_link_up(ni_handle_t *nih, const ni_interface_t *ifp, const ni_interface_request_t *cfg)
 {
 	struct ifinfomsg ifi;
 	struct nl_msg *msg;
@@ -1308,9 +1368,12 @@ __ni_rtnl_link_up(ni_handle_t *nih, const ni_interface_t *ifp, const ni_interfac
 		if (cfg->txqlen && cfg->txqlen != ifp->txqlen)
 			NLA_PUT_U32(msg, IFLA_TXQLEN, cfg->txqlen);
 
+#if 0
+		/* Need different way to set hwaddr */
 		if (cfg->hwaddr.type != NI_IFTYPE_UNKNOWN && cfg->hwaddr.len != 0
 		 && !ni_link_address_equal(&cfg->hwaddr, &ifp->hwaddr))
 			NLA_PUT(msg, IFLA_ADDRESS, cfg->hwaddr.len, cfg->hwaddr.data);
+#endif
 
 		/* FIXME: handle COST, QDISC, MASTER */
 	}
@@ -1342,7 +1405,7 @@ addattr_sockaddr(struct nl_msg *msg, int type, const ni_sockaddr_t *addr)
 }
 
 static ni_address_t *
-__ni_interface_address_exists(const ni_interface_t *ifp, const ni_address_t *ap)
+__ni_interface_address_list_contains(ni_address_t **list, const ni_address_t *ap)
 {
 	ni_address_t *ap2;
 
@@ -1350,7 +1413,7 @@ __ni_interface_address_exists(const ni_interface_t *ifp, const ni_address_t *ap)
 		const struct sockaddr_in *sin1, *sin2;
 
 		sin1 = &ap->local_addr.sin;
-		for (ap2 = ifp->addrs; ap2; ap2 = ap2->next) {
+		for (ap2 = *list; ap2; ap2 = ap2->next) {
 			if (ap2->local_addr.ss_family != AF_INET)
 				continue;
 			sin2 = &ap2->local_addr.sin;
@@ -1368,7 +1431,7 @@ __ni_interface_address_exists(const ni_interface_t *ifp, const ni_address_t *ap)
 		const struct sockaddr_in6 *sin1, *sin2;
 
 		sin1 = &ap->local_addr.six;
-		for (ap2 = ifp->addrs; ap2; ap2 = ap2->next) {
+		for (ap2 = *list; ap2; ap2 = ap2->next) {
 			if (ap2->local_addr.ss_family != AF_INET6)
 				continue;
 			sin2 = &ap2->local_addr.six;
@@ -1646,11 +1709,11 @@ failed:
  * Check if a route already exists.
  */
 static ni_route_t *
-__ni_interface_route_exists(const ni_interface_t *ifp, const ni_route_t *rp)
+__ni_interface_route_list_contains(ni_route_t **list, const ni_route_t *rp)
 {
 	ni_route_t *rp2;
 
-	for (rp2 = ifp->routes; rp2; rp2 = rp2->next) {
+	for (rp2 = *list; rp2; rp2 = rp2->next) {
 		if (rp->family != rp2->family
 		 || rp->prefixlen != rp2->prefixlen)
 			continue;
@@ -1682,31 +1745,109 @@ __ni_addrconf_extension(int type, int family)
 }
 
 /*
+ * Change the addrconf request for a given address family and address configuration
+ * protocol
+ */
+/* static */ int
+__ni_addrconf_update_request(ni_afinfo_t *afinfo, ni_addrconf_mode_t mode,
+				ni_addrconf_request_t **req_p,
+				ni_interface_t *ifp)
+{
+	ni_addrconf_request_t *req = *req_p;
+	ni_addrconf_lease_t *lease;
+	ni_addrconf_t *acm;
+	int rv;
+
+	if (mode == NI_ADDRCONF_STATIC)
+		return NI_SUCCESS;
+
+	/* IPv6 autoconf takes care of itself */
+	if (afinfo->family == AF_INET6 && mode == NI_ADDRCONF_AUTOCONF) {
+		if (req && !afinfo->lease[mode]) {
+			afinfo->lease[mode] = ni_addrconf_lease_new(mode, afinfo->family);
+			afinfo->lease[mode]->state = NI_ADDRCONF_STATE_GRANTED;
+		} else
+		if (!req && afinfo->lease[mode]) {
+			ni_addrconf_lease_free(afinfo->lease[mode]);
+			afinfo->lease[mode] = NULL;
+		}
+
+		return NI_SUCCESS;
+	}
+
+	acm = ni_addrconf_get(mode, afinfo->family);
+	if (acm == NULL) {
+		ni_error("address configuration mode %s not supported for %s",
+			ni_addrconf_type_to_name(mode),
+			ni_addrfamily_type_to_name(afinfo->family));
+		return NI_SUCCESS;
+	}
+
+	/* Check whether the new addrconf request is identical with the existing request. */
+	if (afinfo->request[mode] && ni_addrconf_request_equal(req, afinfo->request[mode])) {
+		/* FIXME: we may want to support a way to force a restart of the
+		 * addrconf service for this interface */
+		return NI_SUCCESS;
+	}
+
+	__ni_afinfo_set_addrconf_request(afinfo, mode, req);
+	*req_p = NULL; /* all your addrconf request now belong to us */
+
+	/* If the extension is already active, no need to start it once
+	 * more. If needed, we could do a restart in this case. */
+	if (ni_afinfo_addrconf_test(afinfo, mode)) {
+		lease = afinfo->lease[mode];
+		if (lease && lease->state == NI_ADDRCONF_STATE_GRANTED)
+			return NI_SUCCESS;
+	}
+
+	ni_afinfo_addrconf_enable(afinfo, mode);
+	if ((rv = ni_addrconf_acquire_lease(acm, ifp, NULL)) < 0)
+		return rv;
+
+	/* If the extension supports more than just this address
+	 * family, make sure we update the interface status accordingly.
+	 * Otherwise we will start the service multiple times.
+	 */
+	if (acm->supported_af & NI_AF_MASK_IPV4)
+		ni_afinfo_addrconf_enable(&ifp->ipv4, acm->type);
+	if (acm->supported_af & NI_AF_MASK_IPV6)
+		ni_afinfo_addrconf_enable(&ifp->ipv6, acm->type);
+
+	/* Write out the addrconf request data; this is used when
+	 * we restart the wicked service. */
+	if (afinfo->request[mode] != NULL)
+		ni_addrconf_request_file_write(ifp->name, afinfo->request[mode]);
+
+	return NI_SUCCESS;
+}
+
+
+/*
  * Configure addresses for a given address family.
  */
 static int
-__ni_interface_addrconf(ni_handle_t *nih, int family, ni_interface_t *ifp, const ni_interface_t *cfg)
+__ni_interface_addrconf(ni_handle_t *nih, int family, ni_interface_t *ifp, const ni_afinfo_t *cfg_afi)
 {
-	const ni_afinfo_t *cfg_afi;
 	ni_afinfo_t *cur_afi;
-	xml_node_t *xml = NULL;
 	unsigned int cfg_addrconf;
 	unsigned int mode;
 
 	debug_ifconfig("__ni_interface_addrconf(%s, af=%s)", ifp->name,
 			ni_addrfamily_type_to_name(family));
 
-	cfg_afi = __ni_interface_address_info(cfg, family);
 	cur_afi = __ni_interface_address_info(ifp, family);
 	if (!cfg_afi || !cur_afi)
-		return -1;
+		return -NI_ERROR_INVALID_ARGS;
 
 	if (!cfg_afi->enabled)
 		return 0;
 
 	cfg_addrconf = cfg_afi->addrconf;
-	if (!ni_interface_network_is_up(cfg))
-		cfg_addrconf = 0;
+	if (NI_ADDRCONF_TEST(cfg_addrconf, NI_ADDRCONF_DHCP)) {
+		ni_debug_ifconfig("** %s: disabling DHCP for now **", ifp->name);
+		cfg_addrconf &= ~NI_ADDRCONF_MASK(NI_ADDRCONF_DHCP);
+	}
 
 	/* If we're disabling an addrconf mode, stop the respective service */
 	for (mode = 0; mode < __NI_ADDRCONF_MAX; ++mode) {
@@ -1725,9 +1866,15 @@ __ni_interface_addrconf(ni_handle_t *nih, int family, ni_interface_t *ifp, const
 		}
 	}
 
+	/* FIXME: this should go into the acquire_lease function for static addrconf */
 	if (NI_ADDRCONF_TEST(cfg_addrconf, NI_ADDRCONF_STATIC)) {
+		ni_addrconf_request_t *req = cfg_afi->request[NI_ADDRCONF_STATIC];
 		ni_address_t *ap, *next;
 		ni_route_t *rp;
+
+		ni_debug_ifconfig("%s: bringing up %s/%s",
+				ifp->name, ni_addrconf_type_to_name(NI_ADDRCONF_STATIC),
+				ni_addrfamily_type_to_name(family));
 
 		/* Loop over all addresses currently assigned to the interface.
 		 * If the configuration no longer specifies it, delete it.
@@ -1753,7 +1900,7 @@ __ni_interface_addrconf(ni_handle_t *nih, int family, ni_interface_t *ifp, const
 			if (ap->config_method != NI_ADDRCONF_STATIC)
 				continue;
 
-			ap2 = __ni_interface_address_exists(cfg, ap);
+			ap2 = __ni_interface_address_list_contains(&req->statik.addrs, ap);
 			if (ap2 != NULL) {
 				/* Check whether we need to update */
 				if ((ap2->scope == -1 || ap->scope == ap2->scope)
@@ -1779,7 +1926,7 @@ __ni_interface_addrconf(ni_handle_t *nih, int family, ni_interface_t *ifp, const
 		/* Loop over all addresses in the configuration and create
 		 * those that don't exist yet.
 		 */
-		for (ap = cfg->addrs; ap; ap = ap->next) {
+		for (ap = req->statik.addrs; ap; ap = ap->next) {
 			if (ap->family != family
 			 || ap->seq == nih->seqno)
 				continue;
@@ -1813,7 +1960,7 @@ __ni_interface_addrconf(ni_handle_t *nih, int family, ni_interface_t *ifp, const
 			if (rp->config_method != NI_ADDRCONF_STATIC)
 				continue;
 
-			rp2 = __ni_interface_route_exists(cfg, rp);
+			rp2 = __ni_interface_route_list_contains(&req->statik.routes, rp);
 			if (rp2 != NULL) {
 				if (__ni_rtnl_send_newroute(nih, ifp, rp2, NLM_F_REPLACE) >= 0) {
 					debug_ifconfig("%s: successfully updated existing route %s/%u",
@@ -1838,7 +1985,7 @@ __ni_interface_addrconf(ni_handle_t *nih, int family, ni_interface_t *ifp, const
 		/* Loop over all addresses in the configuration and create
 		 * those that don't exist yet.
 		 */
-		for (rp = cfg->routes; rp; rp = rp->next) {
+		for (rp = req->statik.routes; rp; rp = rp->next) {
 			if (rp->family != family
 			 || rp->seq == nih->seqno)
 				continue;
@@ -1862,6 +2009,9 @@ __ni_interface_addrconf(ni_handle_t *nih, int family, ni_interface_t *ifp, const
 		if (!NI_ADDRCONF_TEST(cfg_addrconf, mode))
 			continue;
 
+		ni_debug_ifconfig("%s: bringing up %s/%s",
+				ifp->name, ni_addrconf_type_to_name(mode),
+				ni_addrfamily_type_to_name(family));
 		/* IPv6 autoconf takes care of itself */
 		if (family == AF_INET6 && mode == NI_ADDRCONF_AUTOCONF) {
 			if (!cur_afi->lease[NI_ADDRCONF_AUTOCONF]) {
@@ -1909,13 +2059,8 @@ __ni_interface_addrconf(ni_handle_t *nih, int family, ni_interface_t *ifp, const
 			ni_addrconf_request_file_write(ifp->name, cur_afi->request[mode]);
 	}
 
-	if (xml)
-		xml_node_free(xml);
-
 	return 0;
 
 error:
-	if (xml)
-		xml_node_free(xml);
 	return -1;
 }
