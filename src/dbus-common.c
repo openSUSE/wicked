@@ -14,9 +14,7 @@
 #include "socket_priv.h"
 #include "dbus-common.h"
 #include "dbus-dict.h"
-
-#define TRACE_ENTER()		ni_debug_dbus("%s()", __FUNCTION__)
-#define TP()			ni_debug_dbus("TP - %s:%u", __FUNCTION__, __LINE__)
+#include "debug.h"
 
 #define NI_DBUS_DICT_ENTRY_SIGNATURE \
 		DBUS_DICT_ENTRY_BEGIN_CHAR_AS_STRING \
@@ -68,7 +66,7 @@ ni_dbus_message_get_args(ni_dbus_message_t *msg, ...)
 	va_list ap;
 	int rv = 0, type;
 
-	TRACE_ENTER();
+	NI_TRACE_ENTER();
 	dbus_error_init(&error);
 	va_start(ap, msg);
 

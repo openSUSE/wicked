@@ -18,10 +18,7 @@
 #include <wicked/logging.h>
 #include <wicked/bridge.h>
 #include "model.h"
-
-#define TRACE_ENTERN(fmt, args...) \
-				ni_debug_dbus("%s(" fmt ")", __FUNCTION__, ##args)
-#define TP()			ni_debug_dbus("TP - %s:%u", __FUNCTION__, __LINE__)
+#include "debug.h"
 
 static dbus_bool_t	__wicked_dbus_bridge_port_to_dict(const ni_bridge_port_t *port,
 				ni_dbus_variant_t *dict,
@@ -88,7 +85,7 @@ __ni_dbus_bridge_delete(ni_dbus_object_t *object, const ni_dbus_method_t *method
 	ni_handle_t *nih = ni_global_state_handle();
 	ni_interface_t *ifp = object->handle;
 
-	TRACE_ENTERN("ifp=%s", ifp->name);
+	NI_TRACE_ENTER_ARGS("ifp=%s", ifp->name);
 	if (ni_interface_delete_bridge(nih, ifp) < 0) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
 				"Error deleting bridge interface", ifp->name);
@@ -114,7 +111,7 @@ __ni_dbus_bridge_add_port(ni_dbus_object_t *object, const ni_dbus_method_t *meth
 	ni_bridge_port_t *port_cfg;
 	const char *port_name;
 
-	TRACE_ENTERN("ifp=%s", ifp->name);
+	NI_TRACE_ENTER_ARGS("ifp=%s", ifp->name);
 	if (argc != 2 || !ni_dbus_variant_get_string(&argv[0], &port_name))
 		goto bad_args;
 
@@ -173,7 +170,7 @@ __ni_dbus_bridge_remove_port(ni_dbus_object_t *object, const ni_dbus_method_t *m
 	ni_interface_t *ifp = object->handle, *portif;
 	const char *port_name;
 
-	TRACE_ENTERN("ifp=%s", ifp->name);
+	NI_TRACE_ENTER_ARGS("ifp=%s", ifp->name);
 	if (argc != 1 || !ni_dbus_variant_get_string(&argv[0], &port_name))
 		goto bad_args;
 

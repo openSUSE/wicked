@@ -19,6 +19,7 @@
 #include "netinfo_priv.h"
 #include "dbus-common.h"
 #include "model.h"
+#include "debug.h"
 
 #define WICKED_NETIF_MODIFIED(bf, member) \
 	ni_bitfield_testbit(bf, offsetof(ni_interface_t, member))
@@ -241,6 +242,9 @@ __wicked_dbus_interface_up(ni_dbus_object_t *object, const ni_dbus_method_t *met
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
+	ni_interface_t *dev = object->handle;
+
+	NI_TRACE_ENTER_ARGS("ifp=%s", dev->name);
 	return FALSE;
 }
 

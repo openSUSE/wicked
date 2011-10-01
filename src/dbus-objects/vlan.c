@@ -17,9 +17,7 @@
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
 #include "model.h"
-
-#define TRACE_ENTERN(fmt, args...) \
-				ni_debug_dbus("%s(" fmt ")", __FUNCTION__, ##args)
+#include "debug.h"
 
 
 /*
@@ -83,7 +81,7 @@ __ni_dbus_vlan_delete(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 	ni_handle_t *nih = ni_global_state_handle();
 	ni_interface_t *ifp = object->handle;
 
-	TRACE_ENTERN("ifp=%s", ifp->name);
+	NI_TRACE_ENTER_ARGS("ifp=%s", ifp->name);
 	if (ni_interface_delete_vlan(nih, ifp) < 0) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
 				"Error deleting VLAN interface", ifp->name);

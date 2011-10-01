@@ -14,11 +14,7 @@
 #include "socket_priv.h"
 #include "dbus-connection.h"
 #include "dbus-dict.h"
-
-#define TRACE_ENTER()		ni_debug_dbus("%s()", __FUNCTION__)
-#define TRACE_ENTERN(fmt, args...) \
-				ni_debug_dbus("%s(" fmt ")", __FUNCTION__, ##args)
-#define TP()			ni_debug_dbus("TP - %s:%u", __FUNCTION__, __LINE__)
+#include "debug.h"
 
 
 typedef struct ni_dbus_pending ni_dbus_pending_t;
@@ -73,7 +69,7 @@ ni_dbus_connection_open(const char *bus_name)
 	ni_dbus_connection_t *connection;
 	DBusError error;
 
-	TRACE_ENTERN("%s", bus_name?: "");
+	NI_TRACE_ENTER_ARGS("%s", bus_name?: "");
 
 	dbus_error_init(&error);
 
@@ -142,7 +138,7 @@ ni_dbus_connection_free(ni_dbus_connection_t *dbc)
 	ni_dbus_pending_t *pd;
 	ni_dbus_sigaction_t *sig;
 
-	TRACE_ENTER();
+	NI_TRACE_ENTER();
 
 	while ((pd = dbc->pending) != NULL) {
 		dbc->pending = pd->next;
@@ -223,7 +219,7 @@ ni_dbus_connection_call(ni_dbus_connection_t *connection,
 	DBusMessage *reply = NULL;
 	int msgtype;
 
-	TRACE_ENTER();
+	NI_TRACE_ENTER();
 	if (!dbus_connection_send_with_reply(connection->conn, call, &pending, call_timeout)) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
 				"unable to send DBus message (errno=%d)", errno);
@@ -305,7 +301,7 @@ ni_dbus_connection_send_message(ni_dbus_connection_t *connection, ni_dbus_messag
 void
 ni_dbus_mainloop(ni_dbus_connection_t *connection)
 {
-	TRACE_ENTER();
+	NI_TRACE_ENTER();
 	while (dbus_connection_dispatch(connection->conn) == DBUS_DISPATCH_DATA_REMAINS)
 		;
 	while (ni_socket_wait(1000) >= 0) {
@@ -500,7 +496,7 @@ __ni_dbus_watch_close(ni_socket_t *sock)
 {
 	ni_dbus_watch_data_t *wd = sock->user_data;
 
-	TRACE_ENTER();
+	NI_TRACE_ENTER();
 	if (wd != NULL) {
 		/* Note, we're not explicitly closing the socket.
 		 * We may want to shut down the connection owning

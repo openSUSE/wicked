@@ -10,12 +10,7 @@
 #include "netinfo_priv.h"
 #include "dbus-common.h"
 #include "dbus-dict.h"
-
-#define TRACE_ENTER()	ni_debug_dbus("%s()", __FUNCTION__)
-#define TRACE_ENTERN(fmt, args...) \
-			ni_debug_dbus("%s(" fmt ")", __FUNCTION__, ##args)
-#define TP()		ni_debug_dbus("TP - %s:%u", __FUNCTION__, __LINE__)
-
+#include "debug.h"
 
 static dbus_bool_t	ni_dbus_message_iter_get_array(DBusMessageIter *, ni_dbus_variant_t *);
 

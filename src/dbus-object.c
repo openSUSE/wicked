@@ -12,11 +12,7 @@
 #include "dbus-object.h"
 #include "dbus-dict.h"
 #include "util_priv.h"
-
-#define TRACE_ENTER()		ni_debug_dbus("%s()", __FUNCTION__)
-#define TRACE_ENTERN(fmt, args...) \
-				ni_debug_dbus("%s(" fmt ")", __FUNCTION__, ##args)
-#define TP()			ni_debug_dbus("TP - %s:%u", __FUNCTION__, __LINE__)
+#include "debug.h"
 
 static ni_dbus_object_t *	__ni_dbus_objects_trashcan;
 
@@ -284,7 +280,7 @@ ni_dbus_object_register_service(ni_dbus_object_t *object, const ni_dbus_service_
 {
 	unsigned int count;
 
-	TRACE_ENTERN("path=%s, interface=%s", object->path, svc->name);
+	NI_TRACE_ENTER_ARGS("path=%s, interface=%s", object->path, svc->name);
 
 	count = 0;
 	if (object->interfaces != NULL) {
@@ -350,7 +346,7 @@ ni_dbus_object_get_properties_as_dict(const ni_dbus_object_t *object,
 	const ni_dbus_property_t *property;
 	int rv = TRUE;
 
-	TRACE_ENTERN("object=%s, interface=%s", object->path, interface->name);
+	NI_TRACE_ENTER_ARGS("object=%s, interface=%s", object->path, interface->name);
 
 	/* Loop over properties and add them here */
 	if (interface->properties) {

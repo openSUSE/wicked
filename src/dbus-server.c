@@ -11,11 +11,7 @@
 #include "dbus-server.h"
 #include "dbus-object.h"
 #include "dbus-dict.h"
-
-#define TRACE_ENTER()		ni_debug_dbus("%s()", __FUNCTION__)
-#define TRACE_ENTERN(fmt, args...) \
-				ni_debug_dbus("%s(" fmt ")", __FUNCTION__, ##args)
-#define TP()			ni_debug_dbus("TP - %s:%u", __FUNCTION__, __LINE__)
+#include "debug.h"
 
 
 struct ni_dbus_server_object {
@@ -64,7 +60,7 @@ ni_dbus_server_open(const char *bus_name, void *root_object_handle)
 void
 ni_dbus_server_free(ni_dbus_server_t *server)
 {
-	TRACE_ENTER();
+	NI_TRACE_ENTER();
 
 	if (server->root_object)
 		__ni_dbus_object_free(server->root_object);
@@ -141,7 +137,7 @@ ni_dbus_server_register_object(ni_dbus_server_t *server, const char *object_path
 {
 	ni_dbus_object_t *object;
 
-	TRACE_ENTERN("path=%s, handle=%p", object_path, object_handle);
+	NI_TRACE_ENTER_ARGS("path=%s, handle=%p", object_path, object_handle);
 	object = ni_dbus_object_create(server->root_object, object_path, functions, object_handle);
 
 	return object;
@@ -178,7 +174,7 @@ __ni_dbus_object_manager_get_managed_objects(ni_dbus_object_t *object,
 	ni_dbus_variant_t obj_dict = NI_DBUS_VARIANT_INIT;
 	int rv = TRUE;
 
-	TRACE_ENTERN("path=%s, method=%s", object->path, method->name);
+	NI_TRACE_ENTER_ARGS("path=%s, method=%s", object->path, method->name);
 
 	ni_dbus_variant_init_dict(&obj_dict);
 	rv = __ni_dbus_object_manager_enumerate_object(object, &obj_dict);

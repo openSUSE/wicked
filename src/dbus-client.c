@@ -16,9 +16,7 @@
 #include "dbus-client.h"
 #include "dbus-dict.h"
 #include "dbus-object.h"
-
-#define TRACE_ENTER()		ni_debug_dbus("%s()", __FUNCTION__)
-#define TP()			ni_debug_dbus("TP - %s:%u", __FUNCTION__, __LINE__)
+#include "debug.h"
 
 struct ni_dbus_client {
 	ni_dbus_connection_t *	connection;
@@ -65,7 +63,7 @@ ni_dbus_client_open(const char *bus_name)
 void
 ni_dbus_client_free(ni_dbus_client_t *dbc)
 {
-	TRACE_ENTER();
+	NI_TRACE_ENTER();
 
 	ni_dbus_connection_free(dbc->connection);
 	dbc->connection = NULL;

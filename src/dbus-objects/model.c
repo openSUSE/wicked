@@ -19,9 +19,7 @@
 #include "netinfo_priv.h"
 #include "dbus-common.h"
 #include "model.h"
-
-#define TRACE_ENTER()		ni_debug_dbus("%s()", __FUNCTION__)
-#define TP()			ni_debug_dbus("TP - %s:%u", __FUNCTION__, __LINE__)
+#include "debug.h"
 
 extern ni_dbus_object_t *	ni_objectmodel_new_interface(ni_dbus_server_t *server,
 					const ni_dbus_service_t *service,
@@ -82,7 +80,7 @@ wicked_dbus_netif_refresh(ni_dbus_object_t *object)
 	unsigned int i;
 	ni_handle_t *nih;
 
-	TRACE_ENTER();
+	NI_TRACE_ENTER();
 	if (!(nih = ni_global_state_handle())) {
 		ni_error("Unable to obtain netinfo handle");
 		return FALSE;
@@ -149,7 +147,7 @@ __ni_dbus_netif_create(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 	DBusMessageIter iter;
 	unsigned int i;
 
-	TRACE_ENTER();
+	NI_TRACE_ENTER();
 	if (!ni_dbus_variant_get_string(&argv[0], &interface_name))
 		goto bad_args;
 
