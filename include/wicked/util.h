@@ -134,6 +134,7 @@ extern int		ni_parse_hex(const char *, unsigned char *, unsigned int);
 extern const char *	ni_uuid_print(const ni_uuid_t *);
 extern int		ni_uuid_parse(ni_uuid_t *, const char *);
 extern int		ni_uuid_is_null(const ni_uuid_t *);
+extern int		ni_uuid_equal(const ni_uuid_t *, const ni_uuid_t *);
 
 extern void		ni_srandom(void);
 
