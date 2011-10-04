@@ -58,15 +58,12 @@ static ni_dbus_server_t *wicked_dbus_server;
 
 static void		wicked_discover_state(void);
 static void		wicked_try_restart_addrconf(ni_interface_t *, ni_afinfo_t *, unsigned int, xml_node_t **);
-static int		wicked_accept_connection(ni_socket_t *, uid_t, gid_t);
 static void		wicked_interface_event(ni_handle_t *, ni_interface_t *, ni_event_t);
-static int		wicked_process_network_restcall(ni_socket_t *);
 static void		wicked_register_dbus_services(ni_dbus_server_t *);
 
 int
 main(int argc, char **argv)
 {
-	ni_socket_t *sock;
 	int c;
 
 	while ((c = getopt_long(argc, argv, "+", options, NULL)) != EOF) {
@@ -126,17 +123,11 @@ main(int argc, char **argv)
 	if (optind != argc)
 		goto usage;
 
-	if (opt_dbus == 0) {
-		if ((sock = ni_server_listen()) == NULL)
-			ni_fatal("unable to initialize server socket");
-		ni_socket_set_accept_callback(sock, wicked_accept_connection);
-	} else {
-		wicked_dbus_server = ni_server_listen_dbus(WICKED_DBUS_BUS_NAME);
-		if (wicked_dbus_server == NULL)
-			ni_fatal("unable to initialize dbus service");
+	wicked_dbus_server = ni_server_listen_dbus(WICKED_DBUS_BUS_NAME);
+	if (wicked_dbus_server == NULL)
+		ni_fatal("unable to initialize dbus service");
 
-		wicked_register_dbus_services(wicked_dbus_server);
-	}
+	wicked_register_dbus_services(wicked_dbus_server);
 
 	/* open global RTNL socket to listen for kernel events */
 	if (ni_server_listen_events(wicked_interface_event) < 0)
@@ -257,47 +248,6 @@ wicked_try_restart_addrconf(ni_interface_t *ifp, ni_afinfo_t *afi, unsigned int 
 	ni_debug_wicked("%s: initiated recovery of %s/%s lease", ifp->name,
 				ni_addrconf_type_to_name(lease->type),
 				ni_addrfamily_type_to_name(lease->family));
-}
-
-/*
- * Accept an incoming connection.
- * Return value of -1 means close the socket.
- */
-static int
-wicked_accept_connection(ni_socket_t *sock, uid_t uid, gid_t gid)
-{
-	if (uid != 0) {
-		ni_error("refusing attempted connection by user %u", uid);
-		return -1;
-	}
-
-	ni_debug_wicked("accepted connection from uid=%u", uid);
-	ni_socket_set_request_callback(sock, wicked_process_network_restcall);
-	return 0;
-}
-
-int
-wicked_process_network_restcall(ni_socket_t *sock)
-{
-	ni_wicked_request_t req;
-	int rv;
-
-	/* FIXME: we may want to fork to handle this call. */
-
-	/* Read the request coming in from the socket. */
-	ni_wicked_request_init(&req);
-	rv = ni_wicked_request_parse(sock, &req);
-
-	/* Process the call */
-	if (rv >= 0)
-		rv = ni_wicked_call_direct(&req);
-
-	/* ... and send the response back. */
-	ni_wicked_response_print(sock, &req, rv);
-
-	ni_wicked_request_destroy(&req);
-
-	return 0;
 }
 
 /*
