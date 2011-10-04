@@ -307,17 +307,12 @@ __wicked_dbus_interface_down(ni_dbus_object_t *object, const ni_dbus_method_t *m
 {
 	ni_handle_t *nih = ni_global_state_handle();
 	ni_interface_t *dev = object->handle;
-	ni_interface_request_t *req;
 	dbus_bool_t ret = FALSE;
 	int rv;
 
 	NI_TRACE_ENTER_ARGS("ifp=%s", dev->name);
 
-	/* Build a dummy object for the configuration data */
-	req = ni_interface_request_new();
-	req->ifflags = 0;
-
-	if ((rv = ni_interface_up(nih, dev, req)) < 0) {
+	if ((rv = ni_interface_down(nih, dev)) < 0) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
 				"Cannot shutdown interface %s: %s", dev->name,
 				ni_strerror(rv));
@@ -327,7 +322,6 @@ __wicked_dbus_interface_down(ni_dbus_object_t *object, const ni_dbus_method_t *m
 	ret = TRUE;
 
 failed:
-	ni_interface_request_free(req);
 	return ret;
 }
 

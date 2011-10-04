@@ -1852,6 +1852,310 @@ __ni_addrconf_update_request(ni_afinfo_t *afinfo, ni_addrconf_mode_t mode,
 	return NI_SUCCESS;
 }
 
+/*
+ * Update the addresses and routes assigned to an interface
+ * for a given addrconf method
+ */
+static int
+__ni_interface_update_addrs(ni_handle_t *nih, ni_interface_t *ifp,
+				int family, ni_addrconf_mode_t mode,
+				ni_address_t **cfg_addr_list)
+{
+	ni_address_t *ap, *next;
+	int rv;
+
+	for (ap = ifp->addrs; ap; ap = next) {
+		ni_address_t *ap2;
+
+		next = ap->next;
+		if (ap->family != family)
+			continue;
+
+		/* Even interfaces with static network config may have
+		 * dynamically configured addresses. Don't touch these.
+		 *
+		 * Unfortunately, we cannot determine this for sure;
+		 * the fact whether an IPv6 address was assigned by
+		 * the admin or via autoconf is not part of the NEWADDR
+		 * message. We have to guess, thus.
+		 */
+		if (ap->config_method != mode)
+			continue;
+
+		/* See if the config list contains the address we've found in the
+		 * system. */
+		ap2 = __ni_interface_address_list_contains(cfg_addr_list, ap);
+		if (ap2 != NULL) {
+			/* Check whether we need to update */
+			if ((ap2->scope == -1 || ap->scope == ap2->scope)
+			 && (ap2->label[0] == '\0' || !strcmp(ap->label, ap2->label))
+			 && ni_address_equal(&ap->bcast_addr, &ap2->bcast_addr)
+			 && ni_address_equal(&ap->anycast_addr, &ap2->anycast_addr)) {
+				/* Current address as configured, no need to change. */
+				ni_debug_ifconfig("address %s/%u exists; no need to reconfigure",
+					ni_address_print(&ap->local_addr), ap->prefixlen);
+				ap2->seq = nih->seqno;
+				continue;
+			}
+
+			ni_debug_ifconfig("existing address %s/%u needs to be reconfigured",
+					ni_address_print(&ap->local_addr),
+					ap->prefixlen);
+		}
+
+		if ((rv = __ni_rtnl_send_deladdr(nih, ifp, ap)) < 0)
+			return rv;
+	}
+
+	/* Loop over all addresses in the configuration and create
+	 * those that don't exist yet.
+	 */
+	for (ap = *cfg_addr_list; ap; ap = ap->next) {
+		if (ap->family != family
+		 || ap->seq == nih->seqno)
+			continue;
+
+		ni_debug_ifconfig("Adding new interface address %s/%u",
+				ni_address_print(&ap->local_addr),
+				ap->prefixlen);
+		if ((rv = __ni_rtnl_send_newaddr(nih, ifp, ap, NLM_F_CREATE)) < 0)
+			return rv;
+	}
+
+	return 0;
+}
+
+static int
+__ni_interface_update_routes(ni_handle_t *nih, ni_interface_t *ifp,
+				int family, ni_addrconf_mode_t mode,
+				ni_route_t **cfg_route_list)
+{
+	ni_route_t *rp, *next;
+	int rv = 0;
+
+	/* Loop over all routes currently assigned to the interface.
+	 * If the configuration no longer specifies it, delete it.
+	 * We need to mimic the kernel's matching behavior when modifying
+	 * the configuration of existing routes.
+	 */
+	for (rp = ifp->routes; rp; rp = next) {
+		ni_route_t *rp2;
+
+		next = rp->next;
+		if (rp->family != family)
+			continue;
+
+		/* Even interfaces with static network config may have
+		 * dynamically configured routes. Don't touch these.
+		 */
+		if (rp->config_method != mode)
+			continue;
+
+		rp2 = __ni_interface_route_list_contains(cfg_route_list, rp);
+		if (rp2 != NULL) {
+			if (__ni_rtnl_send_newroute(nih, ifp, rp2, NLM_F_REPLACE) >= 0) {
+				ni_debug_ifconfig("%s: successfully updated existing route %s/%u",
+						ifp->name, ni_address_print(&rp->destination),
+						rp->prefixlen);
+				rp2->seq = nih->seqno;
+				continue;
+			}
+
+			ni_error("%s: failed to update route %s/%u",
+					ifp->name, ni_address_print(&rp->destination),
+					rp->prefixlen);
+		}
+
+		ni_debug_ifconfig("%s: trying to delete existing route %s/%u",
+				ifp->name, ni_address_print(&rp->destination),
+				rp->prefixlen);
+		if ((rv = __ni_rtnl_send_delroute(nih, ifp, rp)) < 0)
+			return rv;
+	}
+
+	/* Loop over all addresses in the configuration and create
+	 * those that don't exist yet.
+	 */
+	for (rp = *cfg_route_list; rp; rp = rp->next) {
+		if (rp->family != family
+		 || rp->seq == nih->seqno)
+			continue;
+
+		if (rp->nh.gateway.ss_family) {
+			char destbuf[128], gwbuf[128];
+
+			ni_debug_ifconfig("%s: adding new route %s/%u via %s",
+				ifp->name,
+				ni_address_format(&rp->destination, destbuf, sizeof(destbuf)),
+				rp->prefixlen,
+				ni_address_format(&rp->nh.gateway, gwbuf, sizeof(gwbuf)));
+		} else {
+			ni_debug_ifconfig("%s: adding new route %s/%u",
+				ifp->name, ni_address_print(&rp->destination),
+				rp->prefixlen);
+		}
+		if ((rv = __ni_rtnl_send_newroute(nih, ifp, rp, NLM_F_CREATE)) < 0)
+			return rv;
+	}
+
+	return rv;
+}
+
+/*
+ * IPv6 autoconf takes care of itself. All we need to do is record that we
+ * have a "lease".
+ */
+static int
+__ni_interface_addrconf_dummy(ni_handle_t *nih, ni_interface_t *ifp, int family,
+			ni_addrconf_mode_t mode, ni_addrconf_request_t *req)
+{
+	ni_afinfo_t *cur_afi = __ni_interface_address_info(ifp, family);
+	ni_addrconf_lease_t *lease;
+
+	lease = cur_afi->lease[mode];
+	if (req == NULL) {
+		ni_afinfo_addrconf_disable(cur_afi, mode);
+
+		if (lease != NULL) {
+			ni_debug_ifconfig("%s: disabling %s/%s", ifp->name,
+					ni_addrfamily_type_to_name(family),
+					ni_addrconf_type_to_name(mode));
+			ni_interface_set_lease(nih, ifp, NULL);
+		}
+		return 0;
+	}
+
+	if (req != NULL && lease == NULL) {
+		ni_debug_ifconfig("%s: bringing up %s/%s",
+				ifp->name, ni_addrconf_type_to_name(mode),
+				ni_addrfamily_type_to_name(family));
+		lease = ni_addrconf_lease_new(mode, family);
+		lease->state = NI_ADDRCONF_STATE_GRANTED;
+		ni_interface_set_lease(nih, ifp, lease);
+		ni_afinfo_addrconf_enable(cur_afi, mode);
+	}
+	return 0;
+}
+
+/*
+ * Perform address configuration for random address configuration modes
+ */
+static int
+__ni_interface_addrconf_static(ni_handle_t *nih, ni_interface_t *ifp, int family,
+			ni_addrconf_mode_t mode, ni_addrconf_request_t *req)
+{
+	ni_afinfo_t *cur_afi = __ni_interface_address_info(ifp, family);
+	int rv;
+
+	if (req == NULL) {
+		ni_address_t *null_addrs = NULL;
+
+		ni_debug_ifconfig("%s: shutting down %s/%s",
+				ifp->name, ni_addrconf_type_to_name(mode),
+				ni_addrfamily_type_to_name(family));
+		ni_afinfo_addrconf_disable(cur_afi, mode);
+
+		/* Loop over all addresses currently assigned to the interface.
+		 * If the configuration no longer specifies it, delete it.
+		 * We need to mimic the kernel's matching behavior when modifying
+		 * the configuration of existing addresses.
+		 */
+		return __ni_interface_update_addrs(nih, ifp, family, mode, &null_addrs);
+	}
+
+	ni_debug_ifconfig("%s: bringing up %s/%s",
+			ifp->name, ni_addrconf_type_to_name(mode),
+			ni_addrfamily_type_to_name(family));
+	ni_afinfo_addrconf_enable(cur_afi, mode);
+
+	/* Loop over all addresses currently assigned to the interface.
+	 * If the configuration no longer specifies it, delete it.
+	 * We need to mimic the kernel's matching behavior when modifying
+	 * the configuration of existing addresses.
+	 */
+	rv = __ni_interface_update_addrs(nih, ifp, family, mode, &req->statik.addrs);
+	if (rv < 0)
+		return rv;
+
+	/* Changing addresses may mess up routing.
+	 * Refresh interface */
+	if ((rv = __ni_system_refresh_interface(nih, ifp)) < 0)
+		return rv;
+
+	rv = __ni_interface_update_routes(nih, ifp, family, mode, &req->statik.routes);
+
+	return rv;
+}
+
+/*
+ * Perform address configuration for random address configuration modes
+ */
+static int
+__ni_interface_addrconf_other(ni_handle_t *nih, ni_interface_t *ifp, int family,
+			ni_addrconf_mode_t mode, ni_addrconf_request_t *req)
+{
+	ni_afinfo_t *cur_afi = __ni_interface_address_info(ifp, family);
+	ni_addrconf_lease_t *lease;
+	ni_addrconf_t *acm;
+	int rv;
+
+	acm = ni_addrconf_get(mode, family);
+	if (acm == NULL) {
+		if (req == NULL)
+			return 0;
+
+		ni_error("address configuration mode %s not supported for %s",
+			ni_addrconf_type_to_name(mode),
+			ni_addrfamily_type_to_name(family));
+		return -1; // PROTOCOL_NOT_SUPPORTED
+	}
+
+	lease = cur_afi->lease[mode];
+	if (req == NULL) {
+		__ni_afinfo_set_addrconf_request(cur_afi, mode, NULL);
+		ni_afinfo_addrconf_disable(cur_afi, mode);
+
+		if (lease != NULL) {
+			ni_debug_ifconfig("%s: disabling %s/%s", ifp->name,
+					ni_addrfamily_type_to_name(family),
+					ni_addrconf_type_to_name(mode));
+			return ni_addrconf_drop_lease(acm, ifp);
+		}
+		return 0;
+	}
+
+	__ni_afinfo_set_addrconf_request(cur_afi, mode,
+				req? ni_addrconf_request_clone(req) : NULL);
+
+	/* If the extension is already active, no need to start it once
+	 * more. If needed, we could do a restart in this case. */
+	if (lease != NULL) {
+		/* FIXME: we should only short-circuit here if the
+		 * lease's uuid matches that of the request */
+		if (lease->state == NI_ADDRCONF_STATE_GRANTED)
+			return 0;
+	}
+
+	ni_afinfo_addrconf_enable(cur_afi, mode);
+	if ((rv = ni_addrconf_acquire_lease(acm, ifp, NULL)) < 0)
+		return rv;
+
+	/* If the extension supports more than just this address
+	 * family, make sure we update the interface status accordingly.
+	 * Otherwise we will start the service multiple times.
+	 */
+	if (acm->supported_af & NI_AF_MASK_IPV4)
+		ni_afinfo_addrconf_enable(&ifp->ipv4, acm->type);
+	if (acm->supported_af & NI_AF_MASK_IPV6)
+		ni_afinfo_addrconf_enable(&ifp->ipv6, acm->type);
+
+	/* Write out the addrconf request data; this is used when
+	 * we restart the wicked service. */
+	if (req != NULL)
+		ni_addrconf_request_file_write(ifp->name, req);
+	
+	return 0;
+}
 
 /*
  * Configure addresses for a given address family.
@@ -1859,258 +2163,35 @@ __ni_addrconf_update_request(ni_afinfo_t *afinfo, ni_addrconf_mode_t mode,
 static int
 __ni_interface_addrconf(ni_handle_t *nih, int family, ni_interface_t *ifp, const ni_afinfo_t *cfg_afi)
 {
-	ni_afinfo_t *cur_afi;
-	unsigned int cfg_addrconf;
+	const ni_afinfo_t null_afi = { .family = family };
 	unsigned int mode;
 	int rv = -1;
 
+	ni_debug_ifconfig("__ni_interface_addrconf(%s, af=%s, afi=%p)", ifp->name,
+			ni_addrfamily_type_to_name(family), cfg_afi);
+
+	/* Passing in a NULL address family info means delete all addresses for this interface
+	 * and cancel all leases. */
 	if (cfg_afi == NULL)
-		return 0;
-
-	ni_debug_ifconfig("__ni_interface_addrconf(%s, af=%s)", ifp->name,
-			ni_addrfamily_type_to_name(family));
-
-	cur_afi = __ni_interface_address_info(ifp, family);
-	if (cur_afi == NULL)
-		return -NI_ERROR_INVALID_ARGS;
-
-	if (!cfg_afi->enabled)
-		return 0;
-
-	cfg_addrconf = cfg_afi->addrconf;
-	if (NI_ADDRCONF_TEST(cfg_addrconf, NI_ADDRCONF_DHCP)) {
-		ni_debug_ifconfig("** %s: disabling DHCP for now **", ifp->name);
-		cfg_addrconf &= ~NI_ADDRCONF_MASK(NI_ADDRCONF_DHCP);
-	}
-
-	/* If we're disabling an addrconf mode, stop the respective service */
-	for (mode = 0; mode < __NI_ADDRCONF_MAX; ++mode) {
-		ni_addrconf_t *acm;
-
-		if (ni_afinfo_addrconf_test(cur_afi, mode)
-		 && !NI_ADDRCONF_TEST(cfg_addrconf, mode)) {
-			ni_debug_ifconfig("%s: disabling %s/%s", ifp->name,
-					ni_addrfamily_type_to_name(family),
-					ni_addrconf_type_to_name(mode));
-			ni_afinfo_addrconf_disable(cur_afi, mode);
-			acm = ni_addrconf_get(mode, family);
-			if (acm && ni_addrconf_drop_lease(acm, ifp) < 0)
-				return -1;
-			// ni_interface_clear_lease(ifp, mode, family);
-		}
-	}
-
-	/* FIXME: this should go into the acquire_lease function for static addrconf */
-	if (NI_ADDRCONF_TEST(cfg_addrconf, NI_ADDRCONF_STATIC)) {
-		ni_addrconf_request_t *req = cfg_afi->request[NI_ADDRCONF_STATIC];
-		ni_address_t *ap, *next;
-		ni_route_t *rp;
-
-		ni_debug_ifconfig("%s: bringing up %s/%s",
-				ifp->name, ni_addrconf_type_to_name(NI_ADDRCONF_STATIC),
-				ni_addrfamily_type_to_name(family));
-
-		/* Loop over all addresses currently assigned to the interface.
-		 * If the configuration no longer specifies it, delete it.
-		 * We need to mimic the kernel's matching behavior when modifying
-		 * the configuration of existing addresses.
-		 */
-		ni_afinfo_addrconf_enable(cur_afi, NI_ADDRCONF_STATIC);
-		for (ap = ifp->addrs; ap; ap = next) {
-			ni_address_t *ap2;
-
-			next = ap->next;
-			if (ap->family != family)
-				continue;
-
-			/* Even interfaces with static network config may have
-			 * dynamically configured addresses. Don't touch these.
-			 *
-			 * Unfortunately, we cannot determine this for sure;
-			 * the fact whether an IPv6 address was assigned by
-			 * the admin or via autoconf is not part of the NEWADDR
-			 * message. We have to guess, thus.
-			 */
-			if (ap->config_method != NI_ADDRCONF_STATIC)
-				continue;
-
-			ap2 = __ni_interface_address_list_contains(&req->statik.addrs, ap);
-			if (ap2 != NULL) {
-				/* Check whether we need to update */
-				if ((ap2->scope == -1 || ap->scope == ap2->scope)
-				 && (ap2->label[0] == '\0' || !strcmp(ap->label, ap2->label))
-				 && ni_address_equal(&ap->bcast_addr, &ap2->bcast_addr)
-				 && ni_address_equal(&ap->anycast_addr, &ap2->anycast_addr)) {
-					/* Current address as configured, no need to change. */
-					debug_ifconfig("address %s/%u exists; no need to reconfigure",
-						ni_address_print(&ap->local_addr), ap->prefixlen);
-					ap2->seq = nih->seqno;
-					continue;
-				}
-
-				debug_ifconfig("existing address %s/%u needs to be reconfigured",
-						ni_address_print(&ap->local_addr),
-						ap->prefixlen);
-			}
-
-			if (__ni_rtnl_send_deladdr(nih, ifp, ap))
-				goto error;
-		}
-
-		/* Loop over all addresses in the configuration and create
-		 * those that don't exist yet.
-		 */
-		for (ap = req->statik.addrs; ap; ap = ap->next) {
-			if (ap->family != family
-			 || ap->seq == nih->seqno)
-				continue;
-
-			debug_ifconfig("Adding new interface address %s/%u",
-					ni_address_print(&ap->local_addr),
-					ap->prefixlen);
-			if (__ni_rtnl_send_newaddr(nih, ifp, ap, NLM_F_CREATE))
-				goto error;
-		}
-
-		/* Changing addresses may mess up routing.
-		 * Refresh interface */
-		if (__ni_system_refresh_interface(nih, ifp) < 0)
-			goto error;
-
-		/* Loop over all routes currently assigned to the interface.
-		 * If the configuration no longer specifies it, delete it.
-		 * We need to mimic the kernel's matching behavior when modifying
-		 * the configuration of existing routes.
-		 */
-		for (rp = ifp->routes; rp; rp = rp->next) {
-			ni_route_t *rp2;
-
-			if (rp->family != family)
-				continue;
-
-			/* Even interfaces with static network config may have
-			 * dynamically configured routes. Don't touch these.
-			 */
-			if (rp->config_method != NI_ADDRCONF_STATIC)
-				continue;
-
-			rp2 = __ni_interface_route_list_contains(&req->statik.routes, rp);
-			if (rp2 != NULL) {
-				if (__ni_rtnl_send_newroute(nih, ifp, rp2, NLM_F_REPLACE) >= 0) {
-					debug_ifconfig("%s: successfully updated existing route %s/%u",
-							ifp->name, ni_address_print(&rp->destination),
-							rp->prefixlen);
-					rp2->seq = nih->seqno;
-					continue;
-				}
-
-				error("%s: failed to update route %s/%u",
-						ifp->name, ni_address_print(&rp->destination),
-						rp->prefixlen);
-			}
-
-			ni_debug_ifconfig("%s: trying to delete existing route %s/%u",
-					ifp->name, ni_address_print(&rp->destination),
-					rp->prefixlen);
-			if (__ni_rtnl_send_delroute(nih, ifp, rp))
-				goto error;
-		}
-
-		/* Loop over all addresses in the configuration and create
-		 * those that don't exist yet.
-		 */
-		for (rp = req->statik.routes; rp; rp = rp->next) {
-			if (rp->family != family
-			 || rp->seq == nih->seqno)
-				continue;
-
-			if (rp->nh.gateway.ss_family) {
-				char destbuf[128], gwbuf[128];
-
-				ni_debug_ifconfig("%s: adding new route %s/%u via %s",
-					ifp->name,
-					ni_address_format(&rp->destination, destbuf, sizeof(destbuf)),
-					rp->prefixlen,
-					ni_address_format(&rp->nh.gateway, gwbuf, sizeof(gwbuf)));
-			} else {
-				ni_debug_ifconfig("%s: adding new route %s/%u",
-					ifp->name, ni_address_print(&rp->destination),
-					rp->prefixlen);
-			}
-			if ((rv = __ni_rtnl_send_newroute(nih, ifp, rp, NLM_F_CREATE)) < 0)
-				goto out;
-		}
-	}
+		cfg_afi = &null_afi;
 
 	/* Now bring up addrconf services */
 	for (mode = 0; mode < __NI_ADDRCONF_MAX; ++mode) {
-		ni_addrconf_lease_t *lease;
-		ni_addrconf_t *acm;
+		ni_addrconf_request_t *req = cfg_afi->request[mode];
 
-		if (mode == NI_ADDRCONF_STATIC)
-			continue;
-
-		if (!NI_ADDRCONF_TEST(cfg_addrconf, mode))
-			continue;
-
-		ni_debug_ifconfig("%s: bringing up %s/%s",
-				ifp->name, ni_addrconf_type_to_name(mode),
-				ni_addrfamily_type_to_name(family));
 		/* IPv6 autoconf takes care of itself */
 		if (family == AF_INET6 && mode == NI_ADDRCONF_AUTOCONF) {
-			if (!cur_afi->lease[NI_ADDRCONF_AUTOCONF]) {
-				cur_afi->lease[NI_ADDRCONF_AUTOCONF] = ni_addrconf_lease_new(NI_ADDRCONF_AUTOCONF, family);
-				cur_afi->lease[NI_ADDRCONF_AUTOCONF]->state = NI_ADDRCONF_STATE_GRANTED;
-			}
-			continue;
+			rv = __ni_interface_addrconf_dummy(nih, ifp, family, mode, req);
+		} else
+		if (mode == NI_ADDRCONF_STATIC) {
+			rv = __ni_interface_addrconf_static(nih, ifp, family, mode, req);
+		} else {
+			rv = __ni_interface_addrconf_other(nih, ifp, family, mode, req);
 		}
 
-		acm = ni_addrconf_get(mode, family);
-		if (acm == NULL) {
-			ni_error("address configuration mode %s not supported for %s",
-				ni_addrconf_type_to_name(mode),
-				ni_addrfamily_type_to_name(cfg_afi->family));
-			continue;
-		}
-
-		__ni_afinfo_set_addrconf_request(cur_afi, mode,
-				ni_addrconf_request_clone(cfg_afi->request[mode]));
-
-		/* If the extension is already active, no need to start it once
-		 * more. If needed, we could do a restart in this case. */
-		if (ni_afinfo_addrconf_test(cur_afi, mode)) {
-			lease = cur_afi->lease[mode];
-			if (lease && lease->state == NI_ADDRCONF_STATE_GRANTED)
-				continue;
-		}
-
-		ni_afinfo_addrconf_enable(cur_afi, mode);
-		if (ni_addrconf_acquire_lease(acm, ifp, NULL) < 0)
-			goto error;
-
-		/* If the extension supports more than just this address
-		 * family, make sure we update the interface status accordingly.
-		 * Otherwise we will start the service multiple times.
-		 */
-		if (acm->supported_af & NI_AF_MASK_IPV4)
-			ni_afinfo_addrconf_enable(&ifp->ipv4, acm->type);
-		if (acm->supported_af & NI_AF_MASK_IPV6)
-			ni_afinfo_addrconf_enable(&ifp->ipv6, acm->type);
-
-		/* Write out the addrconf request data; this is used when
-		 * we restart the wicked service. */
-		if (cur_afi->request[mode] != NULL)
-			ni_addrconf_request_file_write(ifp->name, cur_afi->request[mode]);
+		if (rv < 0)
+			return rv;
 	}
 
-	rv = 0;
-
-out:
-	if (rv < 0)
-		ni_debug_ifconfig("%s returns %d", __func__, rv);
-	return rv;
-
-error:
-	rv = -NI_ERROR_GENERAL_FAILURE;
-	goto out;
+	return 0;
 }
