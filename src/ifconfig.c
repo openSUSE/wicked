@@ -108,8 +108,8 @@ ni_interface_up(ni_handle_t *nih, ni_interface_t *ifp, const ni_interface_reques
 			ifp_req->ipv6->addrconf = 0;
 	}
 
-	if (__ni_interface_addrconf(nih, AF_INET, ifp, ifp_req->ipv4) < 0
-	 || __ni_interface_addrconf(nih, AF_INET6, ifp, ifp_req->ipv6) < 0)
+	if ((res = __ni_interface_addrconf(nih, AF_INET, ifp, ifp_req->ipv4)) < 0
+	 || (res = __ni_interface_addrconf(nih, AF_INET6, ifp, ifp_req->ipv6)) < 0)
 		goto failed;
 
 	res = __ni_system_refresh_interface(nih, ifp);
@@ -1652,7 +1652,7 @@ nla_put_failure:
 	ni_error("failed to encode netlink attr");
 failed:
 	nlmsg_free(msg);
-	return -1;
+	return -NI_ERROR_CANNOT_CONFIGURE_ROUTE;
 }
 
 static int
@@ -1832,12 +1832,16 @@ __ni_interface_addrconf(ni_handle_t *nih, int family, ni_interface_t *ifp, const
 	ni_afinfo_t *cur_afi;
 	unsigned int cfg_addrconf;
 	unsigned int mode;
+	int rv = -1;
 
-	debug_ifconfig("__ni_interface_addrconf(%s, af=%s)", ifp->name,
+	if (cfg_afi == NULL)
+		return 0;
+
+	ni_debug_ifconfig("__ni_interface_addrconf(%s, af=%s)", ifp->name,
 			ni_addrfamily_type_to_name(family));
 
 	cur_afi = __ni_interface_address_info(ifp, family);
-	if (!cfg_afi || !cur_afi)
+	if (cur_afi == NULL)
 		return -NI_ERROR_INVALID_ARGS;
 
 	if (!cfg_afi->enabled)
@@ -1990,11 +1994,21 @@ __ni_interface_addrconf(ni_handle_t *nih, int family, ni_interface_t *ifp, const
 			 || rp->seq == nih->seqno)
 				continue;
 
-			debug_ifconfig("%s: adding new route %s/%u",
+			if (rp->nh.gateway.ss_family) {
+				char destbuf[128], gwbuf[128];
+
+				ni_debug_ifconfig("%s: adding new route %s/%u via %s",
+					ifp->name,
+					ni_address_format(&rp->destination, destbuf, sizeof(destbuf)),
+					rp->prefixlen,
+					ni_address_format(&rp->nh.gateway, gwbuf, sizeof(gwbuf)));
+			} else {
+				ni_debug_ifconfig("%s: adding new route %s/%u",
 					ifp->name, ni_address_print(&rp->destination),
 					rp->prefixlen);
-			if (__ni_rtnl_send_newroute(nih, ifp, rp, NLM_F_CREATE))
-				goto error;
+			}
+			if ((rv = __ni_rtnl_send_newroute(nih, ifp, rp, NLM_F_CREATE)) < 0)
+				goto out;
 		}
 	}
 
@@ -2059,8 +2073,14 @@ __ni_interface_addrconf(ni_handle_t *nih, int family, ni_interface_t *ifp, const
 			ni_addrconf_request_file_write(ifp->name, cur_afi->request[mode]);
 	}
 
-	return 0;
+	rv = 0;
+
+out:
+	if (rv < 0)
+		ni_debug_ifconfig("%s returns %d", __func__, rv);
+	return rv;
 
 error:
-	return -1;
+	rv = -NI_ERROR_GENERAL_FAILURE;
+	goto out;
 }

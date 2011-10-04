@@ -199,6 +199,7 @@ extern dbus_bool_t		ni_dbus_variant_set_ulong(ni_dbus_variant_t *, unsigned long
 extern dbus_bool_t		ni_dbus_variant_parse(ni_dbus_variant_t *var,
 					const char *string_value, const char *signature);
 extern dbus_bool_t		ni_dbus_variant_get_string(const ni_dbus_variant_t *, const char **);
+extern dbus_bool_t		ni_dbus_variant_get_bool(const ni_dbus_variant_t *, dbus_bool_t *);
 extern dbus_bool_t		ni_dbus_variant_get_byte(const ni_dbus_variant_t *, unsigned char *);
 extern dbus_bool_t		ni_dbus_variant_get_uint16(const ni_dbus_variant_t *, uint16_t *);
 extern dbus_bool_t		ni_dbus_variant_get_int16(const ni_dbus_variant_t *, int16_t *);
@@ -234,6 +235,7 @@ extern dbus_bool_t		ni_dbus_variant_is_dict(const ni_dbus_variant_t *);
 extern void			ni_dbus_variant_init_dict(ni_dbus_variant_t *);
 extern dbus_bool_t		ni_dbus_dict_add_entry(ni_dbus_variant_t *, const ni_dbus_dict_entry_t *);
 extern ni_dbus_variant_t *	ni_dbus_dict_add(ni_dbus_variant_t *, const char *);
+extern dbus_bool_t		ni_dbus_dict_add_bool(ni_dbus_variant_t *, const char *, dbus_bool_t);
 extern dbus_bool_t		ni_dbus_dict_add_int16(ni_dbus_variant_t *, const char *, int16_t);
 extern dbus_bool_t		ni_dbus_dict_add_uint16(ni_dbus_variant_t *, const char *, uint16_t);
 extern dbus_bool_t		ni_dbus_dict_add_int32(ni_dbus_variant_t *, const char *, int32_t);
@@ -244,6 +246,7 @@ extern dbus_bool_t		ni_dbus_dict_add_string(ni_dbus_variant_t *, const char *, c
 extern dbus_bool_t		ni_dbus_dict_add_byte_array(ni_dbus_variant_t *, const char *,
 					const unsigned char *byte_array, unsigned int len);
 extern const ni_dbus_variant_t *ni_dbus_dict_get(const ni_dbus_variant_t *, const char *);
+extern dbus_bool_t		ni_dbus_dict_get_bool(const ni_dbus_variant_t *, const char *, dbus_bool_t *);
 extern dbus_bool_t		ni_dbus_dict_get_int16(const ni_dbus_variant_t *, const char *, int16_t *);
 extern dbus_bool_t		ni_dbus_dict_get_uint16(const ni_dbus_variant_t *, const char *, uint16_t *);
 extern dbus_bool_t		ni_dbus_dict_get_int32(const ni_dbus_variant_t *, const char *, int32_t *);
@@ -330,10 +333,12 @@ ni_dbus_variant_datum_const_ptr(const ni_dbus_variant_t *variant)
 extern dbus_bool_t		ni_objectmodel_register_all(ni_dbus_server_t *);
 extern ni_dbus_object_t *	ni_objectmodel_register_interface(ni_dbus_server_t *, ni_interface_t *ifp);
 extern ni_dbus_object_t *	ni_objectmodel_wrap_interface(ni_interface_t *ifp);
+extern ni_dbus_object_t *	ni_objectmodel_wrap_interface_request(ni_interface_request_t *req);
 extern const ni_dbus_service_t *ni_objectmodel_link_layer_service(int iftype);
 extern const ni_dbus_service_t *ni_objectmodel_interface_port_service(int iftype);
 
 extern const ni_dbus_service_t	wicked_dbus_interface_service;
+extern const ni_dbus_service_t	wicked_dbus_interface_request_service;
 
 extern const ni_dbus_service_t *ni_objectmodel_service_by_name(const char *interface_name);
 

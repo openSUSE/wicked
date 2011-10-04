@@ -16,15 +16,15 @@
 
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
+#include <wicked/addrconf.h>
 #include "netinfo_priv.h"
 #include "dbus-common.h"
 #include "model.h"
 #include "debug.h"
 
-#define WICKED_NETIF_MODIFIED(bf, member) \
-	ni_bitfield_testbit(bf, offsetof(ni_interface_t, member))
-
 static ni_dbus_object_functions_t wicked_dbus_interface_functions;
+
+extern const ni_dbus_service_t	wicked_dbus_interface_request_service; /* XXX */
 
 /*
  * Build a dbus-object encapsulating a network device.
@@ -52,7 +52,7 @@ __ni_objectmodel_build_interface_object(ni_dbus_server_t *server, ni_interface_t
 						&wicked_dbus_interface_functions,
 						ni_interface_get(ifp));
 	} else {
-		object = ni_dbus_object_create(NULL, NULL,
+		object = ni_dbus_object_new(NULL,
 						&wicked_dbus_interface_functions,
 						ni_interface_get(ifp));
 	}
@@ -88,6 +88,12 @@ ni_dbus_object_t *
 ni_objectmodel_wrap_interface(ni_interface_t *ifp)
 {
 	return __ni_objectmodel_build_interface_object(NULL, ifp);
+}
+
+ni_dbus_object_t *
+ni_objectmodel_wrap_interface_request(ni_interface_request_t *req)
+{
+	return ni_dbus_object_new(NULL, NULL, req);
 }
 
 /*
@@ -155,7 +161,9 @@ ni_objectmodel_new_interface(ni_dbus_server_t *server, const ni_dbus_service_t *
 	}
 
 	object = ni_dbus_object_new(NULL, &wicked_dbus_interface_functions, ifp);
+	ni_dbus_object_register_service(object, service);
 
+	/* FIXME: use ni_dbus_object_set_properties_from_dict for this */
 	for (i = 0; i < dict->array.len; ++i) {
 		const ni_dbus_dict_entry_t *entry = &dict->dict_array_value[i];
 		const ni_dbus_property_t *prop;
@@ -241,17 +249,49 @@ error:
  * In the case of virtual interfaces like VLANs or bridges, the interface
  * must have been created and configured prior to this call.
  *
- * The options dictionaty contains interface properties.
+ * The options dictionary contains interface properties.
  */
 static dbus_bool_t
 __wicked_dbus_interface_up(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
+	ni_handle_t *nih = ni_global_state_handle();
 	ni_interface_t *dev = object->handle;
+	ni_dbus_object_t *cfg_object;
+	ni_interface_request_t *req;
+	dbus_bool_t ret = FALSE;
+	int rv;
 
 	NI_TRACE_ENTER_ARGS("ifp=%s", dev->name);
-	return FALSE;
+
+	/* Build a dummy object for the configuration data */
+	req = ni_interface_request_new();
+	req->ifflags = NI_IFF_NETWORK_UP | NI_IFF_LINK_UP | NI_IFF_DEVICE_UP;
+
+	cfg_object = ni_dbus_object_new(NULL, NULL, req);
+
+	/* Extract configuration from dict */
+	if (!ni_dbus_object_set_properties_from_dict(cfg_object, &wicked_dbus_interface_request_service, &argv[0])) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"Cannot extract interface configuration from property dict");
+		goto failed;
+	}
+
+	if ((rv = ni_interface_up(nih, dev, req)) < 0) {
+		dbus_set_error(error, DBUS_ERROR_FAILED,
+				"Cannot configure interface %s: %s", dev->name,
+				ni_strerror(rv));
+		goto failed;
+	}
+
+	ret = TRUE;
+
+failed:
+	ni_interface_request_free(req);
+	if (cfg_object)
+		ni_dbus_object_free(cfg_object);
+	return ret;
 }
 
 /*
@@ -343,7 +383,7 @@ __wicked_dbus_interface_set_type(ni_dbus_object_t *object,
 }
 
 /*
- * property ifflags
+ * property Interface.ifflags
  */
 static dbus_bool_t
 __wicked_dbus_interface_get_ifflags(const ni_dbus_object_t *object,
@@ -368,7 +408,7 @@ __wicked_dbus_interface_set_ifflags(ni_dbus_object_t *object,
 }
 
 /*
- * property mtu
+ * property Interface.mtu
  */
 static dbus_bool_t
 __wicked_dbus_interface_get_mtu(const ni_dbus_object_t *object,
@@ -414,7 +454,7 @@ __wicked_dbus_interface_update_mtu(ni_dbus_object_t *object,
 }
 
 /*
- * Property hwaddr
+ * Property Interface.hwaddr
  */
 static dbus_bool_t
 __wicked_dbus_interface_get_hwaddr(const ni_dbus_object_t *object,
@@ -445,6 +485,8 @@ __wicked_dbus_interface_set_hwaddr(ni_dbus_object_t *object,
 	ifp->hwaddr.len = addrlen;
 	return TRUE;
 }
+
+/* FIXME: need function to update hwaddr */
 
 /*
  * Helper functions for getting and setting socket addresses
@@ -483,7 +525,7 @@ __wicked_dbus_get_sockaddr(const ni_dbus_variant_t *dict, const char *name, ni_s
 }
 
 /*
- * Property addrs
+ * Property Interface.addrs
  * This one is rather complex
  */
 static dbus_bool_t
@@ -493,29 +535,9 @@ __wicked_dbus_interface_get_addrs(const ni_dbus_object_t *object,
 				DBusError *error)
 {
 	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
-	const ni_address_t *ap;
 
 	ni_dbus_dict_array_init(result);
-	for (ap = ifp->addrs; ap; ap = ap->next) {
-		ni_dbus_variant_t *dict;
-
-		if (ap->family != ap->local_addr.ss_family)
-			continue;
-
-		/* Append a new element to the array */
-		dict = ni_dbus_dict_array_add(result);
-
-		ni_dbus_dict_add_uint32(dict, "family", ap->family);
-		ni_dbus_dict_add_uint32(dict, "prefixlen", ap->prefixlen);
-		ni_dbus_dict_add_uint32(dict, "config", ap->config_method);
-		__wicked_dbus_add_sockaddr(dict, "local", &ap->local_addr);
-		if (ap->peer_addr.ss_family == ap->family)
-			__wicked_dbus_add_sockaddr(dict, "peer", &ap->peer_addr);
-		if (ap->anycast_addr.ss_family == ap->family)
-			__wicked_dbus_add_sockaddr(dict, "anycast", &ap->anycast_addr);
-	}
-
-	return TRUE;
+	return __wicked_dbus_get_address_list(ifp->addrs, result, error);
 }
 
 static dbus_bool_t
@@ -525,36 +547,12 @@ __wicked_dbus_interface_set_addrs(ni_dbus_object_t *object,
 				DBusError *error)
 {
 	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
-	unsigned int i;
 
-	if (!ni_dbus_variant_is_dict_array(argument)) {
-		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-				"%s: argument type mismatch",
-				__FUNCTION__);
-		return FALSE;
-	}
-
-	for (i = 0; i < argument->array.len; ++i) {
-		ni_dbus_variant_t *dict = &argument->variant_array_value[i];
-		uint32_t family, prefixlen;
-		ni_sockaddr_t local_addr;
-		ni_address_t *ap;
-
-		if (!ni_dbus_dict_get_uint32(dict, "family", &family)
-		 || !ni_dbus_dict_get_uint32(dict, "prefixlen", &prefixlen)
-		 || !__wicked_dbus_get_sockaddr(dict, "local", &local_addr, family))
-			continue;
-
-		ap = ni_address_new(ifp, family, prefixlen, &local_addr);
-
-		__wicked_dbus_get_sockaddr(dict, "peer", &ap->peer_addr, family);
-		__wicked_dbus_get_sockaddr(dict, "anycast", &ap->anycast_addr, family);
-	}
-	return TRUE;
+	return __wicked_dbus_set_address_list(&ifp->addrs, argument, error);
 }
 
 /*
- * Property addrs
+ * Property Interface.routes
  * This one is rather complex, too.
  */
 static dbus_bool_t
@@ -564,51 +562,9 @@ __wicked_dbus_interface_get_routes(const ni_dbus_object_t *object,
 				DBusError *error)
 {
 	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
-	const ni_route_t *rp;
 
 	ni_dbus_dict_array_init(result);
-	for (rp = ifp->routes; rp; rp = rp->next) {
-		ni_dbus_variant_t *dict, *hops;
-		const ni_route_nexthop_t *nh;
-
-		if (rp->family != rp->destination.ss_family)
-			continue;
-
-		/* Append a new element to the array */
-		if (!(dict = ni_dbus_dict_array_add(result)))
-			return FALSE;
-		ni_dbus_variant_init_dict(dict);
-
-		ni_dbus_dict_add_uint32(dict, "family", rp->family);
-		ni_dbus_dict_add_uint32(dict, "prefixlen", rp->prefixlen);
-		ni_dbus_dict_add_uint32(dict, "config", rp->config_method);
-		if (rp->mtu)
-			ni_dbus_dict_add_uint32(dict, "mtu", rp->mtu);
-		if (rp->tos)
-			ni_dbus_dict_add_uint32(dict, "tos", rp->tos);
-		if (rp->priority)
-			ni_dbus_dict_add_uint32(dict, "priority", rp->priority);
-		if (rp->prefixlen)
-			__wicked_dbus_add_sockaddr(dict, "destination", &rp->destination);
-
-		hops = ni_dbus_dict_add(dict, "nexthop");
-		ni_dbus_dict_array_init(hops);
-		for (nh = &rp->nh; nh; nh = nh->next) {
-			ni_dbus_variant_t *nhdict;
-
-			nhdict = ni_dbus_dict_array_add(hops);
-
-			__wicked_dbus_add_sockaddr(nhdict, "gateway", &nh->gateway);
-			if (nh->device)
-				ni_dbus_dict_add_string(nhdict, "device", nh->device);
-			if (nh->weight)
-				ni_dbus_dict_add_uint32(nhdict, "weight", nh->weight);
-			if (nh->flags)
-				ni_dbus_dict_add_uint32(nhdict, "flags", nh->flags);
-		}
-	}
-
-	return TRUE;
+	return __wicked_dbus_get_route_list(ifp->routes, result, error);
 }
 
 static dbus_bool_t
@@ -618,83 +574,8 @@ __wicked_dbus_interface_set_routes(ni_dbus_object_t *object,
 				DBusError *error)
 {
 	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
-	unsigned int i;
 
-	if (!ni_dbus_variant_is_dict_array(argument)) {
-		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-				"%s: argument type mismatch",
-				__FUNCTION__);
-		return FALSE;
-	}
-
-	ni_debug_dbus("set_routes for %s: %u elements", ifp->name, argument->array.len);
-	for (i = 0; i < argument->array.len; ++i) {
-		ni_dbus_variant_t *dict = &argument->variant_array_value[i];
-		const ni_dbus_variant_t *hops;
-		uint32_t family, prefixlen, config, value;
-		ni_sockaddr_t destination;
-		ni_route_t *rp;
-
-		if (!ni_dbus_dict_get_uint32(dict, "family", &family)
-		 || !ni_dbus_dict_get_uint32(dict, "prefixlen", &prefixlen)
-		 || !ni_dbus_dict_get_uint32(dict, "config", &config))
-			continue;
-
-		if (prefixlen == 0) {
-			memset(&destination, 0, sizeof(destination));
-		} else if (!__wicked_dbus_get_sockaddr(dict, "destination", &destination, family)) {
-			ni_debug_dbus("Cannot set route: prefixlen=%u, but no destination", prefixlen);
-			continue;
-		}
-
-		rp = calloc(1, sizeof(*rp));
-		rp->family = family;
-		rp->prefixlen = prefixlen;
-		rp->destination = destination;
-		__ni_route_list_append(&ifp->routes, rp);
-
-		if (ni_dbus_dict_get_uint32(dict, "mtu", &value))
-			rp->mtu = value;
-		if (ni_dbus_dict_get_uint32(dict, "tos", &value))
-			rp->tos = value;
-		if (ni_dbus_dict_get_uint32(dict, "priority", &value))
-			rp->priority = value;
-
-		hops = ni_dbus_dict_get(dict, "nexthop");
-		if (hops && ni_dbus_variant_is_dict_array(hops)) {
-			ni_route_nexthop_t *nh = &rp->nh, **nhpos = &nh;
-			unsigned int j;
-
-			ni_debug_dbus("Interface %s has nexthop", ifp->name);
-
-			for (j = 0; j < hops->array.len; ++j) {
-				ni_dbus_variant_t *nhdict = &hops->variant_array_value[j];
-				const char *string;
-				uint32_t value;
-				ni_sockaddr_t gateway;
-
-				if (!__wicked_dbus_get_sockaddr(nhdict, "gateway", &gateway, family)) {
-					ni_debug_dbus("%s: bad nexthop gateway", __FUNCTION__);
-					return FALSE;
-				}
-
-				if (nh == NULL)
-					*nhpos = nh = calloc(1, sizeof(*nh));
-
-				nh->gateway = gateway;
-				if (ni_dbus_dict_get_string(nhdict, "device", &string))
-					ni_string_dup(&nh->device, string);
-				if (ni_dbus_dict_get_uint32(nhdict, "weight", &value))
-					nh->weight = value;
-				if (ni_dbus_dict_get_uint32(nhdict, "flags", &value))
-					nh->flags = value;
-
-				nhpos = &nh->next;
-				nh = NULL;
-			}
-		}
-	}
-	return TRUE;
+	return __wicked_dbus_set_route_list(&ifp->routes, argument, error);
 }
 
 #define WICKED_INTERFACE_PROPERTY(type, __name, rw) \
@@ -736,4 +617,181 @@ const ni_dbus_service_t	wicked_dbus_interface_service = {
 	.name = WICKED_DBUS_NETIF_INTERFACE,
 	.methods = wicked_dbus_interface_methods,
 	.properties = wicked_dbus_interface_properties,
+};
+
+/*
+ * These helper functions assist in marshalling InterfaceRequests
+ */
+static dbus_bool_t
+__wicked_dbus_get_afinfo(const ni_afinfo_t *afi, dbus_bool_t request_only,
+				ni_dbus_variant_t *result,
+				DBusError *error)
+{
+	unsigned int i;
+
+	if (!afi->enabled)
+		return TRUE;
+	ni_dbus_dict_add_bool(result, "forwarding", !!afi->forwarding);
+
+	for (i = 0; i < __NI_ADDRCONF_MAX; ++i) {
+		ni_addrconf_request_t *req = afi->request[i];
+		const char *acname;
+
+		acname = ni_addrconf_type_to_name(i);
+		if (!acname)
+			continue;
+
+		if (req != NULL) {
+			ni_dbus_variant_t *rqdict = ni_dbus_dict_add(result, acname);
+
+			ni_dbus_variant_init_dict(rqdict);
+			if (!__wicked_dbus_get_addrconf_request(req, rqdict, error))
+				return FALSE;
+		}
+		if (request_only)
+			continue;
+#if 0
+		ni_addrconf_lease_t *lease = afi->lease[i];
+		if (lease && !__wicked_dbus_get_addrconf_lease(lease, result, error))
+			return FALSE;
+#endif
+
+	}
+	return TRUE;
+}
+
+static dbus_bool_t
+__wicked_dbus_set_afinfo(ni_afinfo_t *afi,
+				const ni_dbus_variant_t *argument,
+				DBusError *error)
+{
+	dbus_bool_t bool_value;
+	unsigned int i;
+
+	afi->enabled = 1;
+	afi->addrconf = 0;
+	if (ni_dbus_dict_get_bool(argument, "forwarding", &bool_value))
+		afi->forwarding = bool_value;
+
+	for (i = 0; i < __NI_ADDRCONF_MAX; ++i) {
+		ni_addrconf_request_t *req = afi->request[i];
+		const ni_dbus_variant_t *rqdict;
+		const char *acname;
+
+		acname = ni_addrconf_type_to_name(i);
+		if (!acname)
+			continue;
+
+		rqdict = ni_dbus_dict_get(argument, acname);
+		if (rqdict != NULL) {
+			req = ni_addrconf_request_new(i, afi->family);
+			__ni_afinfo_set_addrconf_request(afi, i, req);
+
+			if (!__wicked_dbus_set_addrconf_request(req, rqdict, error))
+				return FALSE;
+
+			ni_afinfo_addrconf_enable(afi, i);
+		}
+#if 0
+		ni_addrconf_lease_t *lease = afi->lease[i];
+		if (lease && !__wicked_dbus_get_addrconf_lease(lease, argument, error))
+			return FALSE;
+#endif
+
+
+	}
+	return TRUE;
+}
+
+/*
+ * Property InterfaceRequest.ipv4
+ */
+static dbus_bool_t
+__wicked_dbus_interface_request_get_ipv4(const ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				ni_dbus_variant_t *result,
+				DBusError *error)
+{
+	ni_interface_request_t *req = ni_dbus_object_get_handle(object);
+
+	ni_dbus_variant_init_dict(result);
+	if (req->ipv4 && !__wicked_dbus_get_afinfo(req->ipv4, TRUE, result, error))
+		return FALSE;
+	return TRUE;
+}
+
+static dbus_bool_t
+__wicked_dbus_interface_request_set_ipv4(ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *argument,
+				DBusError *error)
+{
+	ni_interface_request_t *req = ni_dbus_object_get_handle(object);
+
+	if (!req->ipv4)
+		req->ipv4 = ni_afinfo_new(AF_INET);
+	if (!__wicked_dbus_set_afinfo(req->ipv4, argument, error))
+		return FALSE;
+	return TRUE;
+}
+
+/*
+ * Property InterfaceRequest.ipv6
+ */
+static dbus_bool_t
+__wicked_dbus_interface_request_get_ipv6(const ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				ni_dbus_variant_t *result,
+				DBusError *error)
+{
+	ni_interface_request_t *req = ni_dbus_object_get_handle(object);
+
+	if (req->ipv6 && !__wicked_dbus_get_afinfo(req->ipv6, TRUE, result, error))
+		return FALSE;
+	return TRUE;
+}
+
+static dbus_bool_t
+__wicked_dbus_interface_request_set_ipv6(ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *argument,
+				DBusError *error)
+{
+	ni_interface_request_t *req = ni_dbus_object_get_handle(object);
+
+	if (!req->ipv6)
+		req->ipv6 = ni_afinfo_new(AF_INET6);
+	if (!__wicked_dbus_set_afinfo(req->ipv6, argument, error))
+		return FALSE;
+	return TRUE;
+}
+
+#define WICKED_INTERFACE_REQUEST_PROPERTY(type, __name, rw) \
+	NI_DBUS_PROPERTY(type, __name, offsetof(ni_interface_t, __name),__wicked_dbus_interface_request, rw)
+#define WICKED_INTERFACE_REQUEST_PROPERTY_SIGNATURE(signature, __name, rw) \
+	__NI_DBUS_PROPERTY(signature, __name, offsetof(ni_interface_t, __name), __wicked_dbus_interface_request, rw)
+
+#define  NI_DBUS_DICT_SIGNATURE \
+			DBUS_TYPE_ARRAY_AS_STRING \
+			DBUS_DICT_ENTRY_BEGIN_CHAR_AS_STRING \
+				DBUS_TYPE_STRING_AS_STRING \
+				DBUS_TYPE_VARIANT_AS_STRING \
+			DBUS_DICT_ENTRY_END_CHAR_AS_STRING
+
+static ni_dbus_property_t	wicked_dbus_interface_request_properties[] = {
+#if 0
+	WICKED_INTERFACE_REQUEST_PROPERTY(UINT32, ifflags, RO),
+	WICKED_INTERFACE_REQUEST_PROPERTY(UINT32, mtu, RO),
+#endif
+
+	WICKED_INTERFACE_REQUEST_PROPERTY_SIGNATURE(NI_DBUS_DICT_SIGNATURE, ipv4, RO),
+	WICKED_INTERFACE_REQUEST_PROPERTY_SIGNATURE(NI_DBUS_DICT_SIGNATURE, ipv6, RO),
+	{ NULL }
+};
+
+#define WICKED_DBUS_NETIF_REQUEST_INTERFACE "Request"
+
+const ni_dbus_service_t	wicked_dbus_interface_request_service = {
+	.name = WICKED_DBUS_NETIF_REQUEST_INTERFACE,
+	.properties = wicked_dbus_interface_request_properties,
 };

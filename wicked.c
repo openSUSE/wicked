@@ -651,6 +651,82 @@ out:
 	return rv;
 }
 
+/*
+ * Helper function that will go away when done with the redesign of wicked
+ */
+static ni_afinfo_t *
+__build_afinfo(ni_afinfo_t *dev_afi, int family, ni_interface_t *ifp)
+{
+	ni_afinfo_t *afi;
+	unsigned int i;
+
+	if (!dev_afi->enabled)
+		return NULL;
+
+	afi = ni_afinfo_new(family);
+	afi->forwarding = dev_afi->forwarding;
+	afi->addrconf = dev_afi->addrconf;
+
+	for (i = 0; i < __NI_ADDRCONF_MAX; ++i) {
+		afi->request[i] = dev_afi->request[i];
+		dev_afi->request[i] = NULL;
+	}
+
+	if (ni_afinfo_addrconf_test(dev_afi, NI_ADDRCONF_STATIC)) {
+		ni_addrconf_request_t *req;
+		ni_address_t **apos, **atail, *ap;
+		ni_route_t **rpos, **rtail, *rp;
+
+		req = ni_addrconf_request_new(NI_ADDRCONF_STATIC, family);
+		afi->request[NI_ADDRCONF_STATIC] = req;
+
+		atail = &req->statik.addrs;
+		for (apos = &ifp->addrs; (ap = *apos) != NULL; ) {
+			if (ap->family == family) {
+				*apos = ap->next;
+				*atail = ap;
+				atail = &ap->next;
+			} else {
+				apos = &ap->next;
+			}
+		}
+		*atail = NULL;
+
+		rtail = &req->statik.routes;
+		for (rpos = &ifp->routes; (rp = *rpos) != NULL; ) {
+			if (rp->family == family) {
+				*rpos = rp->next;
+				*rtail = rp;
+				rtail = &rp->next;
+			} else {
+				rpos = &rp->next;
+			}
+		}
+		*rtail = NULL;
+	}
+
+	return afi;
+}
+
+static ni_interface_request_t *
+__interface_request_build(ni_interface_t *ifp)
+{
+	ni_interface_request_t *req;
+
+	req = ni_interface_request_new();
+	req->ifflags = ifp->ifflags;
+	req->mtu = ifp->mtu;
+	req->metric = ifp->metric;
+	req->txqlen = ifp->txqlen;
+
+	if (ifp->ipv4.enabled)
+		req->ipv4 = __build_afinfo(&ifp->ipv4, AF_INET, ifp);
+	if (ifp->ipv6.enabled)
+		req->ipv6 = __build_afinfo(&ifp->ipv6, AF_INET6, ifp);
+
+	return req;
+}
+
 static int
 do_ifup(int argc, char **argv)
 {
@@ -663,6 +739,7 @@ do_ifup(int argc, char **argv)
 		{ NULL }
 	};
 	ni_dbus_variant_t argument = NI_DBUS_VARIANT_INIT;
+	DBusError error = DBUS_ERROR_INIT;
 	const char *ifname = NULL;
 	const char *opt_syntax = NULL;
 	const char *opt_file = NULL;
@@ -725,32 +802,34 @@ usage:
 
 	ni_dbus_variant_init_dict(&argument);
 	if (opt_file) {
-		ni_dbus_object_t *config_obj;
+		ni_dbus_object_t *request_object;
+		ni_interface_request_t *req;
 		ni_syntax_t *syntax = ni_syntax_new(opt_syntax, opt_file);
-		ni_handle_t *config;
+		ni_handle_t *netconfig;
 
-		config = ni_netconfig_open(syntax);
-		if (ni_refresh(config, NULL) < 0) {
+		netconfig = ni_netconfig_open(syntax);
+		if (ni_refresh(netconfig, NULL) < 0) {
 			ni_error("unable to load interface definition from %s", opt_file);
-			ni_close(config);
+			ni_close(netconfig);
 			goto failed;
 		}
 
-		if (!(config_dev = ni_interface_by_name(config, ifname))) {
+		if (!(config_dev = ni_interface_by_name(netconfig, ifname))) {
 			ni_error("cannot find interface %s in interface description", ifname);
-			ni_close(config);
+			ni_close(netconfig);
+			goto failed;
+		}
+		req = __interface_request_build(config_dev);
+
+		request_object = ni_objectmodel_wrap_interface_request(req);
+		if (!ni_dbus_object_get_properties_as_dict(request_object, &wicked_dbus_interface_request_service, &argument)) {
+			ni_dbus_object_free(request_object);
+			ni_close(netconfig);
 			goto failed;
 		}
 
-		config_obj = ni_objectmodel_wrap_interface(config_dev);
-		if (!ni_dbus_object_get_properties_as_dict(config_obj, &wicked_dbus_interface_service, &argument)) {
-			ni_dbus_object_free(config_obj);
-			ni_close(config);
-			goto failed;
-		}
-
-		ni_dbus_object_free(config_obj);
-		ni_close(config);
+		ni_dbus_object_free(request_object);
+		ni_close(netconfig);
 
 		if (config_dev->startmode.ifaction[ifevent].action == NI_INTERFACE_IGNORE) {
 			ni_error("not permitted to bring up interface");
@@ -768,6 +847,22 @@ usage:
 		goto failed;
 	real_dev = dev_object->handle;
 
+	/* now do the real dbus call to bring it up */
+	if (!ni_dbus_object_call_variant(dev_object,
+				WICKED_DBUS_NETIF_INTERFACE, "up",
+				1, &argument, 0, NULL, &error)) {
+		ni_error("Unable to configure interface. Server responds:");
+		fprintf(stderr, /* ni_error_extra */
+			"%s: %s\n", error.name, error.message);
+		dbus_error_free(&error);
+		goto failed;
+	}
+
+	rv = 0;
+
+	// then wait for a signal from the server to tell us it's actually up
+
+	ni_debug_wicked("successfully configured %s", ifname);
 	rv = 0; /* success */
 
 failed:

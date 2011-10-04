@@ -323,7 +323,7 @@ ni_address_probably_dynamic(const ni_address_t *ap)
 	return 0;
 }
 
-int
+const char *
 ni_address_format(const ni_sockaddr_t *ss, char *abuf, size_t buflen)
 {
 	switch (ss->ss_family) {
@@ -337,10 +337,10 @@ ni_address_format(const ni_sockaddr_t *ss, char *abuf, size_t buflen)
 
 	default:
 		snprintf(abuf, buflen, "Unknown AF %d", ss->ss_family);
-		return 0;
+		break;
 	}
 
-	return 0;
+	return abuf;
 
 }
 

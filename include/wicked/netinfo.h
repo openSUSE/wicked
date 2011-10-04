@@ -189,7 +189,7 @@ struct ni_interface {
 	ni_ifbehavior_t		startmode;
 };
 
-typedef struct ni_interface_request {
+struct ni_interface_request {
 	unsigned int		ifflags;
 
 	unsigned int		mtu;
@@ -199,7 +199,7 @@ typedef struct ni_interface_request {
 	/* Network layer */
 	ni_afinfo_t *		ipv4;
 	ni_afinfo_t *		ipv6;
-} ni_interface_request_t;
+};
 
 typedef struct ni_interface_array {
 	unsigned int		count;
@@ -351,6 +351,9 @@ extern int		ni_interface_array_index(const ni_interface_array_t *, const ni_inte
 extern void             ni_interface_clear_addresses(ni_interface_t *);
 extern void             ni_interface_clear_routes(ni_interface_t *);
 
+extern ni_interface_request_t *ni_interface_request_new(void);
+extern void		ni_interface_request_free(ni_interface_request_t *req);
+
 extern ni_address_t *	ni_address_new(ni_interface_t *ifp, int af,
 				unsigned int prefix_len,
 				const ni_sockaddr_t *local_addr);
@@ -359,8 +362,7 @@ extern void		ni_address_list_append(ni_address_t **, ni_address_t *);
 extern void		ni_address_list_destroy(ni_address_t **);
 extern void		ni_address_free(ni_address_t *);
 
-extern int		ni_address_format(const ni_sockaddr_t *ss,
-				char *abuf, size_t buflen);
+extern const char *	ni_address_format(const ni_sockaddr_t *ss, char *abuf, size_t buflen);
 extern const char *	ni_address_print(const ni_sockaddr_t *ss);
 extern int		ni_address_parse(ni_sockaddr_t *ss, const char *string, int af);
 extern unsigned int	ni_address_length(int af);

@@ -266,7 +266,13 @@ ni_dbus_variant_init_signature(ni_dbus_variant_t *var, const char *sig)
 	if (type == DBUS_TYPE_ARRAY) {
 		if (*sig == DBUS_TYPE_INVALID)
 			goto sick_nature;
-		__ni_dbus_init_array_signature(var, sig);
+		if (!strcmp(sig, DBUS_DICT_ENTRY_BEGIN_CHAR_AS_STRING
+				 DBUS_TYPE_STRING_AS_STRING
+				 DBUS_TYPE_VARIANT_AS_STRING
+				 DBUS_DICT_ENTRY_END_CHAR_AS_STRING))
+			__ni_dbus_init_array(var, DBUS_TYPE_DICT_ENTRY);
+		else
+			__ni_dbus_init_array_signature(var, sig);
 		return TRUE;
 	}
 
@@ -349,6 +355,16 @@ ni_dbus_variant_get_string(const ni_dbus_variant_t *var, const char **ret)
 	*ret = var->string_value;
 	return TRUE;
 }
+
+dbus_bool_t
+ni_dbus_variant_get_bool(const ni_dbus_variant_t *var, dbus_bool_t *ret)
+{
+	if (var->type != DBUS_TYPE_BOOLEAN)
+		return FALSE;
+	*ret = var->bool_value;
+	return TRUE;
+}
+
 
 dbus_bool_t
 ni_dbus_variant_get_byte(const ni_dbus_variant_t *var, unsigned char *ret)
@@ -916,6 +932,17 @@ ni_dbus_dict_add_string(ni_dbus_variant_t *dict, const char *key, const char *va
 }
 
 dbus_bool_t
+ni_dbus_dict_add_bool(ni_dbus_variant_t *dict, const char *key, dbus_bool_t value)
+{
+	ni_dbus_variant_t *dst;
+
+	if (!(dst = ni_dbus_dict_add(dict, key)))
+		return FALSE;
+	ni_dbus_variant_set_bool(dst, value);
+	return TRUE;
+}
+
+dbus_bool_t
 ni_dbus_dict_add_uint16(ni_dbus_variant_t *dict, const char *key, uint16_t value)
 {
 	ni_dbus_variant_t *dst;
@@ -1010,6 +1037,16 @@ ni_dbus_dict_get(const ni_dbus_variant_t *dict, const char *key)
 	}
 
 	return NULL;
+}
+
+dbus_bool_t
+ni_dbus_dict_get_bool(const ni_dbus_variant_t *dict, const char *key, dbus_bool_t *value)
+{
+	const ni_dbus_variant_t *var;
+
+	if (!(var = ni_dbus_dict_get(dict, key)))
+		return FALSE;
+	return ni_dbus_variant_get_bool(var, value);
 }
 
 dbus_bool_t
