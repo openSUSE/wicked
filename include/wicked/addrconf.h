@@ -54,6 +54,7 @@ enum {
 struct ni_addrconf_request {
 	ni_addrconf_mode_t	type;		/* addrconf type */
 	unsigned int		family;		/* address family */
+	ni_uuid_t		uuid;
 
 	/* Controlling general behavior */
 	int			reuse_unexpired;
@@ -93,6 +94,7 @@ enum {
 struct ni_addrconf_lease {
 	ni_addrconf_mode_t	type;
 	int			family;
+	ni_uuid_t		uuid;
 	int			state;
 
 	unsigned int		time_acquired;

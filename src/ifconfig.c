@@ -27,6 +27,7 @@
 #include <linux/ethtool.h>
 #include <netlink/msg.h>
 #include <arpa/inet.h> /* debug */
+#include <time.h>
 
 #include <wicked/netinfo.h>
 #include <wicked/addrconf.h>
@@ -43,7 +44,7 @@
 
 static int	__ni_system_interface_bringup(ni_handle_t *, ni_interface_t *);
 static int	__ni_interface_for_config(ni_handle_t *, const ni_interface_t *, ni_interface_t **);
-static int	__ni_interface_addrconf(ni_handle_t *, int,  ni_interface_t *, const ni_afinfo_t *);
+static int	__ni_interface_addrconf(ni_handle_t *, int,  ni_interface_t *, ni_afinfo_t *);
 static int	__ni_interface_bridge_configure(ni_handle_t *, const ni_interface_t *, ni_interface_t **);
 static int	__ni_interface_vlan_configure(ni_handle_t *, const ni_interface_t *, ni_interface_t **);
 static int	__ni_interface_bond_configure(ni_handle_t *, const ni_interface_t *, ni_interface_t **);
@@ -247,6 +248,9 @@ __ni_system_interface_configure(ni_handle_t *nih, ni_interface_t *ifp, const ni_
 
 	res = -1;
 
+#if 1
+	ni_fatal("code disabled");
+#else
 	if (__ni_interface_addrconf(nih, AF_INET, ifp, &cfg->ipv4) < 0
 	 || __ni_interface_addrconf(nih, AF_INET6, ifp, &cfg->ipv6) < 0)
 		goto failed;
@@ -254,6 +258,7 @@ __ni_system_interface_configure(ni_handle_t *nih, ni_interface_t *ifp, const ni_
 	res = __ni_system_refresh_interface(nih, ifp);
 
 failed:
+#endif
 	return res;
 }
 
@@ -2088,6 +2093,49 @@ __ni_interface_addrconf_static(ni_handle_t *nih, ni_interface_t *ifp, int family
 }
 
 /*
+ * An ifup request may be just a re-send of an existing setting. In this case,
+ * we may decide that there is no need to re-do the address configuration.
+ */
+static int
+__ni_addrconf_request_changed(ni_handle_t *nih, ni_interface_t *ifp, int family,
+			ni_addrconf_mode_t mode, ni_addrconf_request_t *req)
+{
+	static ni_uuid_t req_uuid;
+	ni_afinfo_t *cur_afi = __ni_interface_address_info(ifp, family);
+
+	if (cur_afi->request[mode] == NULL) {
+		if (req == NULL)
+			return 0;
+	} else
+	/* Check whether the new addrconf request is identical with the existing request. */
+	if (req && ni_addrconf_request_equal(req, cur_afi->request[mode])) {
+		ni_addrconf_lease_t *lease = cur_afi->lease[mode];
+		time_t now = time(NULL);
+
+		/* Do not re-acquire lease if it was acquired within the last 10 seconds */
+		if (lease && lease->time_acquired < now && now <= lease->time_acquired + 10)
+			return 0;
+	}
+
+	if (ni_uuid_is_null(&req_uuid)) {
+		struct timeval tv;
+
+		gettimeofday(&tv, NULL);
+		req_uuid.words[0] = tv.tv_sec;
+		req_uuid.words[1] = tv.tv_usec;
+		req_uuid.words[2] = getpid();
+	}
+
+	if (req) {
+		req_uuid.words[3]++;
+		req->uuid = req_uuid;
+	}
+
+	__ni_afinfo_set_addrconf_request(cur_afi, mode, req);
+	return 1;
+}
+
+/*
  * Perform address configuration for random address configuration modes
  */
 static int
@@ -2124,15 +2172,12 @@ __ni_interface_addrconf_other(ni_handle_t *nih, ni_interface_t *ifp, int family,
 		return 0;
 	}
 
-	__ni_afinfo_set_addrconf_request(cur_afi, mode,
-				req? ni_addrconf_request_clone(req) : NULL);
-
 	/* If the extension is already active, no need to start it once
 	 * more. If needed, we could do a restart in this case. */
 	if (lease != NULL) {
-		/* FIXME: we should only short-circuit here if the
-		 * lease's uuid matches that of the request */
-		if (lease->state == NI_ADDRCONF_STATE_GRANTED)
+		if (!ni_uuid_is_null(&lease->uuid)
+		 && ni_uuid_equal(&lease->uuid, &req->uuid)
+		 && lease->state == NI_ADDRCONF_STATE_GRANTED)
 			return 0;
 	}
 
@@ -2161,9 +2206,9 @@ __ni_interface_addrconf_other(ni_handle_t *nih, ni_interface_t *ifp, int family,
  * Configure addresses for a given address family.
  */
 static int
-__ni_interface_addrconf(ni_handle_t *nih, int family, ni_interface_t *ifp, const ni_afinfo_t *cfg_afi)
+__ni_interface_addrconf(ni_handle_t *nih, int family, ni_interface_t *ifp, ni_afinfo_t *cfg_afi)
 {
-	const ni_afinfo_t null_afi = { .family = family };
+	ni_afinfo_t null_afi = { .family = family };
 	unsigned int mode;
 	int rv = -1;
 
@@ -2186,6 +2231,14 @@ __ni_interface_addrconf(ni_handle_t *nih, int family, ni_interface_t *ifp, const
 		if (mode == NI_ADDRCONF_STATIC) {
 			rv = __ni_interface_addrconf_static(nih, ifp, family, mode, req);
 		} else {
+			if (!__ni_addrconf_request_changed(nih, ifp, family, mode, req))
+				continue;
+
+			/* __ni_addrconf_request_changed assigned the request to ifp,
+			 * so make sure it's not deleted when the called frees
+			 * the ni_interface_request */
+			cfg_afi->request[mode] = NULL;
+
 			rv = __ni_interface_addrconf_other(nih, ifp, family, mode, req);
 		}
 
