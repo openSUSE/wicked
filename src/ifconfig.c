@@ -119,6 +119,36 @@ failed:
 }
 
 /*
+ * Shut down an interface
+ */
+int
+ni_interface_down(ni_handle_t *nih, ni_interface_t *ifp)
+{
+	int res = -1;
+
+	if (ifp == NULL)
+		return -NI_ERROR_INVALID_ARGS;
+
+	ni_debug_ifconfig("%s(%s)", __func__, ifp->name);
+
+	ni_debug_ifconfig("shutting down interface %s", ifp->name);
+	if (__ni_rtnl_link_down(nih, ifp, RTM_NEWLINK)) {
+		ni_error("unable to shut down interface %s", ifp->name);
+		return -1;
+	}
+	/* down is down is down */
+	ifp->up_requesters = 0;
+
+	nih->seqno++;
+
+	if ((res = __ni_interface_addrconf(nih, AF_INET, ifp, NULL)) >= 0
+	 && (res = __ni_interface_addrconf(nih, AF_INET6, ifp, NULL)) >= 0)
+		res = __ni_system_refresh_interface(nih, ifp);
+
+	return res;
+}
+
+/*
  * Configure a given interface
  */
 int

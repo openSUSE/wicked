@@ -303,6 +303,7 @@ extern int		ni_interface_put(ni_interface_t *ifp);
 extern int		ni_interface_update(ni_interface_t *ifp);
 extern int		ni_interface_guess_type(ni_interface_t *ifp);
 extern int		ni_interface_up(ni_handle_t *, ni_interface_t *, const ni_interface_request_t *);
+extern int		ni_interface_down(ni_handle_t *, ni_interface_t *);
 extern int		ni_interface_configure(ni_handle_t *, const ni_interface_t *);
 extern int		ni_interface_configure2(ni_handle_t *, ni_interface_t *, const ni_interface_t *);
 extern int		ni_interface_update_lease(ni_handle_t *, ni_interface_t *ifp,

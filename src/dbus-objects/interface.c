@@ -295,6 +295,43 @@ failed:
 }
 
 /*
+ * Interface.down(void)
+ * Bring down the network interface.
+ *
+ * The options dictionary contains interface properties.
+ */
+static dbus_bool_t
+__wicked_dbus_interface_down(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_handle_t *nih = ni_global_state_handle();
+	ni_interface_t *dev = object->handle;
+	ni_interface_request_t *req;
+	dbus_bool_t ret = FALSE;
+	int rv;
+
+	NI_TRACE_ENTER_ARGS("ifp=%s", dev->name);
+
+	/* Build a dummy object for the configuration data */
+	req = ni_interface_request_new();
+	req->ifflags = 0;
+
+	if ((rv = ni_interface_up(nih, dev, req)) < 0) {
+		dbus_set_error(error, DBUS_ERROR_FAILED,
+				"Cannot shutdown interface %s: %s", dev->name,
+				ni_strerror(rv));
+		goto failed;
+	}
+
+	ret = TRUE;
+
+failed:
+	ni_interface_request_free(req);
+	return ret;
+}
+
+/*
  * The DBus object is destroyed; detach the network interface handle
  */
 static void
@@ -312,8 +349,8 @@ static ni_dbus_object_functions_t wicked_dbus_interface_functions = {
 
 static ni_dbus_method_t		wicked_dbus_interface_methods[] = {
 	{ "up",			"a{sv}",		__wicked_dbus_interface_up },
-#if 0
 	{ "down",		"",			__wicked_dbus_interface_down },
+#if 0
 	{ "addAddress",		"a{sv}",		__wicked_dbus_interface_add_address },
 	{ "removeAddress",	"a{sv}",		__wicked_dbus_interface_remove_address },
 	{ "addRoute",		"a{sv}",		__wicked_dbus_interface_add_route },

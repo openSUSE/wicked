@@ -61,10 +61,11 @@ static int		do_show(int, char **);
 static int		do_addport(int, char **);
 static int		do_delport(int, char **);
 static int		do_ifup(int, char **);
+static int		do_ifdown(int, char **);
 static int		do_rest(const char *, int, char **);
 static int		do_xpath(int, char **);
 static int		do_ifup_old(int, char **);
-static int		do_ifdown(int, char **);
+static int		do_ifdown_old(int, char **);
 
 int
 main(int argc, char **argv)
@@ -170,6 +171,9 @@ main(int argc, char **argv)
 	if (!strcmp(cmd, "ifup"))
 		return do_ifup(argc - optind + 1, argv + optind - 1);
 
+	if (!strcmp(cmd, "ifdown"))
+		return do_ifdown(argc - optind + 1, argv + optind - 1);
+
 	/* Old wicked style functions follow */
 	if (!strcmp(cmd, "xpath"))
 		return do_xpath(argc - optind + 1, argv + optind - 1);
@@ -178,7 +182,7 @@ main(int argc, char **argv)
 		return do_ifup_old(argc - optind + 1, argv + optind - 1);
 
 	if (!strcmp(cmd, "ifdown"))
-		return do_ifdown(argc - optind + 1, argv + optind - 1);
+		return do_ifdown_old(argc - optind + 1, argv + optind - 1);
 
 	if (!strcmp(cmd, "get")
 	 || !strcmp(cmd, "put")
@@ -745,7 +749,7 @@ do_ifup(int argc, char **argv)
 	const char *opt_file = NULL;
 	ni_dbus_object_t *root_object, *dev_object;
 	unsigned int ifevent = NI_IFACTION_MANUAL_UP;
-	ni_interface_t *real_dev, *config_dev;
+	ni_interface_t *config_dev;
 	int c, rv = 1;
 
 	optind = 1;
@@ -823,11 +827,13 @@ usage:
 
 		request_object = ni_objectmodel_wrap_interface_request(req);
 		if (!ni_dbus_object_get_properties_as_dict(request_object, &wicked_dbus_interface_request_service, &argument)) {
+			ni_interface_request_free(req);
 			ni_dbus_object_free(request_object);
 			ni_close(netconfig);
 			goto failed;
 		}
 
+		ni_interface_request_free(req);
 		ni_dbus_object_free(request_object);
 		ni_close(netconfig);
 
@@ -845,7 +851,6 @@ usage:
 
 	if (!(dev_object = wicked_get_interface(root_object, ifname)))
 		goto failed;
-	real_dev = dev_object->handle;
 
 	/* now do the real dbus call to bring it up */
 	if (!ni_dbus_object_call_variant(dev_object,
@@ -868,6 +873,77 @@ usage:
 failed:
 	if (config_dev)
 		ni_interface_put(config_dev);
+	ni_dbus_variant_destroy(&argument);
+	return rv;
+}
+
+static int
+do_ifdown(int argc, char **argv)
+{
+	ni_dbus_variant_t argument = NI_DBUS_VARIANT_INIT;
+	DBusError error = DBUS_ERROR_INIT;
+	ni_dbus_object_t *root_object, *dev_object;
+	int rv = 1;
+
+	if (argc == 1) {
+		fprintf(stderr, "wicked ifdown ifname ...\n");
+		return 1;
+	}
+
+	if (!(root_object = wicked_dbus_client_create()))
+		return 1;
+
+	/* All interfaces get the same interface request, which is
+	 * ifflags = 0, and empty addrconfig. */
+	if (0) {
+		ni_dbus_object_t *request_object;
+		ni_interface_request_t *req;
+		dbus_bool_t okay;
+
+		req = ni_interface_request_new();
+		req->ifflags = 0;
+
+		request_object = ni_objectmodel_wrap_interface_request(req);
+
+		ni_dbus_variant_init_dict(&argument);
+		okay = ni_dbus_object_get_properties_as_dict(request_object,
+				&wicked_dbus_interface_request_service, &argument);
+
+		ni_dbus_object_free(request_object);
+		ni_interface_request_free(req);
+
+		if (!okay)
+			goto failed;
+	}
+
+	for (optind = 1; optind < argc; ++optind) {
+		const char *ifname = argv[optind];
+
+		dev_object = wicked_get_interface(root_object, ifname);
+		if (!dev_object)
+			goto failed;
+
+		/* now do the real dbus call to bring it down */
+		if (!ni_dbus_object_call_variant(dev_object,
+					WICKED_DBUS_NETIF_INTERFACE, "down",
+					0, NULL, 0, NULL, &error)) {
+			ni_error("Unable to configure interface. Server responds:");
+			fprintf(stderr, /* ni_error_extra */
+				"%s: %s\n", error.name, error.message);
+			dbus_error_free(&error);
+			goto failed;
+		}
+
+		ni_debug_wicked("successfully shut down %s", ifname);
+	}
+
+	rv = 0;
+
+	// then wait for a signal from the server to tell us it's actually down
+
+	rv = 0; /* success */
+
+failed:
 	ni_dbus_variant_destroy(&argument);
 	return rv;
 }
@@ -1913,7 +1989,7 @@ failed:
  * Handle "ifdown" command
  */
 int
-do_ifdown(int argc, char **argv)
+do_ifdown_old(int argc, char **argv)
 {
 	static struct option ifdown_options[] = {
 		{ "delete", no_argument, NULL, 'd' },
