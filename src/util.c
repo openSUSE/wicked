@@ -1066,6 +1066,19 @@ __ni_build_backup_path(const char *syspath, const char *backupdir)
 }
 
 /*
+ * Return the basename of a file path
+ */
+const char *
+ni_basename(const char *path)
+{
+	const char *sp;
+
+	if ((sp = strrchr(path, '/')) == NULL)
+		return path;
+	return sp + 1;
+}
+
+/*
  * Utility functions for handling uuids
  */
 const char *
