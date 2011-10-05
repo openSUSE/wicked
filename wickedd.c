@@ -37,6 +37,7 @@ enum {
 	OPT_NOFORK,
 	OPT_NORECOVER,
 	OPT_DBUS,
+	OPT_DHCP4_CLIENT,
 };
 
 static struct option	options[] = {
@@ -46,6 +47,7 @@ static struct option	options[] = {
 	{ "no-fork",		no_argument,		NULL,	OPT_NOFORK },
 	{ "no-recovery",	no_argument,		NULL,	OPT_NORECOVER },
 	{ "dbus",		no_argument,		NULL,	OPT_DBUS },
+	{ "dhcp4-client",	no_argument,		NULL,	OPT_DHCP4_CLIENT },
 
 	{ NULL }
 };
@@ -55,28 +57,38 @@ static int		opt_nofork = 0;
 static int		opt_dbus = 0;
 static int		opt_recover_leases = 1;
 static ni_dbus_server_t *wicked_dbus_server;
+static void		(*opt_personality)(void);
 
+static void		wicked_interface_server(void);
+static void		wicked_dhcp4_supplicant(void);
 static void		wicked_discover_state(void);
 static void		wicked_try_restart_addrconf(ni_interface_t *, ni_afinfo_t *, unsigned int, xml_node_t **);
 static void		wicked_interface_event(ni_handle_t *, ni_interface_t *, ni_event_t);
-static void		wicked_register_dbus_services(ni_dbus_server_t *);
+static void		wicked_interface_event_dhcp4(ni_handle_t *, ni_interface_t *, ni_event_t);
+static void		wicked_register_interface_services(ni_dbus_server_t *);
 
 int
 main(int argc, char **argv)
 {
+	const char *progname;
 	int c;
+
+	opt_personality = wicked_interface_server;
+
+	progname = ni_basename(argv[0]);
 
 	while ((c = getopt_long(argc, argv, "+", options, NULL)) != EOF) {
 		switch (c) {
 		default:
 		usage:
 			fprintf(stderr,
-				"./wickedd [options]\n"
+				"%s [options]\n"
 				"This command understands the following options\n"
 				"  --config filename\n"
 				"        Read configuration file <filename> instead of system default.\n"
 				"  --debug facility\n"
-				"        Enable debugging for debug <facility>.\n"
+				"        Enable debugging for debug <facility>.\n",
+				progname
 			       );
 			return 1;
 
@@ -111,23 +123,37 @@ main(int argc, char **argv)
 		case OPT_DBUS:
 			opt_dbus = 1;
 			break;
+
+		case OPT_DHCP4_CLIENT:
+			opt_personality = wicked_dhcp4_supplicant;
+			break;
 		}
 	}
 
 	if (ni_init() < 0)
 		return 1;
 
-	ni_addrconf_register(&ni_dhcp_addrconf);
-	ni_addrconf_register(&ni_autoip_addrconf);
-
 	if (optind != argc)
 		goto usage;
+
+	opt_personality();
+	return 0;
+}
+
+/*
+ * Implement service for configuring the system's network interfaces
+ */
+void
+wicked_interface_server(void)
+{
+	ni_addrconf_register(&ni_dhcp_addrconf);
+	ni_addrconf_register(&ni_autoip_addrconf);
 
 	wicked_dbus_server = ni_server_listen_dbus(WICKED_DBUS_BUS_NAME);
 	if (wicked_dbus_server == NULL)
 		ni_fatal("unable to initialize dbus service");
 
-	wicked_register_dbus_services(wicked_dbus_server);
+	wicked_register_interface_services(wicked_dbus_server);
 
 	/* open global RTNL socket to listen for kernel events */
 	if (ni_server_listen_events(wicked_interface_event) < 0)
@@ -135,7 +161,7 @@ main(int argc, char **argv)
 
 	if (!opt_foreground) {
 		if (ni_server_background() < 0)
-			return 1;
+			ni_fatal("unable to background server");
 		ni_log_destination_syslog("wickedd");
 	}
 
@@ -264,7 +290,7 @@ static ni_dbus_service_t	__wicked_dbus_root_interface = {
 
 
 void
-wicked_register_dbus_services(ni_dbus_server_t *server)
+wicked_register_interface_services(ni_dbus_server_t *server)
 {
 	ni_dbus_object_t *root_object = ni_dbus_server_get_root_object(server);
 
@@ -273,7 +299,7 @@ wicked_register_dbus_services(ni_dbus_server_t *server)
 }
 
 /*
- * Handle network layer events.
+ * Handle network layer events for interface server.
  * FIXME: There should be some locking here, which prevents us from
  * calling event handlers on an interface that the admin is currently
  * mucking with manually.
@@ -313,5 +339,75 @@ wicked_interface_event(ni_handle_t *nih, ni_interface_t *ifp, ni_event_t event)
 	if (policy != NULL) {
 		ni_debug_events("matched interface policy; configuring device");
 		ni_interface_configure2(nih, ifp, policy->interface);
+	}
+}
+/*
+ * Functions to support the DHCP4 DBus binding
+ */
+static ni_dbus_method_t		__wicked_dbus_dhcp4_methods[] = {
+	{ NULL }
+};
+
+static ni_dbus_service_t	__wicked_dbus_dhcp4_interface = {
+	.name = WICKED_DBUS_DHCP4_INTERFACE,
+	.methods = __wicked_dbus_dhcp4_methods,
+};
+
+
+void
+wicked_register_dhcp4_services(ni_dbus_server_t *server)
+{
+	ni_dbus_object_t *root_object = ni_dbus_server_get_root_object(server);
+
+	ni_dbus_object_register_service(root_object, &__wicked_dbus_dhcp4_interface);
+	//ni_objectmodel_register_dhcp4(server);
+}
+
+/*
+ * Implement DHCP4 supplicant dbus service
+ */
+void
+wicked_dhcp4_supplicant(void)
+{
+	wicked_dbus_server = ni_server_listen_dbus(WICKED_DBUS_BUS_NAME_DHCP4);
+	if (wicked_dbus_server == NULL)
+		ni_fatal("unable to initialize dbus service");
+
+	wicked_register_dhcp4_services(wicked_dbus_server);
+
+	/* open global RTNL socket to listen for kernel events */
+	if (ni_server_listen_events(wicked_interface_event_dhcp4) < 0)
+		ni_fatal("unable to initialize netlink listener");
+
+	if (!opt_foreground) {
+		if (ni_server_background() < 0)
+			ni_fatal("unable to background server");
+		ni_log_destination_syslog("wickedd");
+	}
+
+	/* wicked_discover_state(); */
+
+	while (1) {
+		long timeout;
+
+		timeout = ni_timer_next_timeout();
+		if (ni_socket_wait(timeout) < 0)
+			ni_fatal("ni_socket_wait failed");
+	}
+
+	exit(0);
+}
+
+/*
+ * Handle network layer events.
+ * FIXME: There should be some locking here, which prevents us from
+ * calling event handlers on an interface that the admin is currently
+ * mucking with manually.
+ */
+void
+wicked_interface_event_dhcp4(ni_handle_t *nih, ni_interface_t *ifp, ni_event_t event)
+{
+	if (event == NI_EVENT_LINK_DELETE) {
+		/* Mark interface as dead and drop the lease */
 	}
 }
