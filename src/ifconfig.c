@@ -87,7 +87,7 @@ ni_interface_up(ni_handle_t *nih, ni_interface_t *ifp, const ni_interface_reques
 			ni_error("%s: failed to bring up interface (rtnl error)", ifp->name);
 			return -1;
 		}
-		ifp->ifflags |= ifp_req->ifflags;
+		ifp->link.ifflags |= ifp_req->ifflags;
 	} else {
 		ni_debug_ifconfig("shutting down interface %s", ifp->name);
 		if (__ni_rtnl_link_down(nih, ifp, RTM_NEWLINK)) {
@@ -177,7 +177,7 @@ __ni_system_interface_configure(ni_handle_t *nih, ni_interface_t *ifp, const ni_
 		}
 	}
 
-	if (ifp && ifp->type != cfg->type) {
+	if (ifp && ifp->link.type != cfg->link.type) {
 		error("cannot configure interface %s: interface type changes!", cfg->name);
 		return -1;
 	}
@@ -192,7 +192,7 @@ __ni_system_interface_configure(ni_handle_t *nih, ni_interface_t *ifp, const ni_
 			return 0;
 	}
 
-	switch (cfg->type) {
+	switch (cfg->link.type) {
 	case NI_IFTYPE_LOOPBACK:
 	case NI_IFTYPE_ETHERNET:
 	case NI_IFTYPE_DUMMY:
@@ -227,13 +227,13 @@ __ni_system_interface_configure(ni_handle_t *nih, ni_interface_t *ifp, const ni_
 	if (__ni_interface_update_ipv6_settings(nih, ifp, &cfg->ipv6) < 0)
 		return -1;
 
-	if (cfg->ifflags & (NI_IFF_DEVICE_UP|NI_IFF_LINK_UP|NI_IFF_NETWORK_UP)) {
+	if (cfg->link.ifflags & (NI_IFF_DEVICE_UP|NI_IFF_LINK_UP|NI_IFF_NETWORK_UP)) {
 		ni_debug_ifconfig("bringing up %s", ifp->name);
 		if (__ni_rtnl_link_up(nih, ifp, NULL)) {
 			ni_error("%s: failed to bring up interface (rtnl error)", ifp->name);
 			return -1;
 		}
-		ifp->ifflags |= cfg->ifflags;
+		ifp->link.ifflags |= cfg->link.ifflags;
 	} else {
 		ni_debug_ifconfig("shutting down interface %s", ifp->name);
 		if (__ni_rtnl_link_down(nih, ifp, RTM_NEWLINK)) {
@@ -438,7 +438,7 @@ __ni_system_interface_bringup(ni_handle_t *nih, ni_interface_t *ifp)
 int
 __ni_interface_begin_activity(ni_handle_t *nih, ni_interface_t *ifp, ni_interface_activity_t activity)
 {
-	if (ifp->ifflags & NI_IFF_DEVICE_UP) {
+	if (ifp->link.ifflags & NI_IFF_DEVICE_UP) {
 		/* Remember that the interface was up by admin's choice */
 		if (ifp->up_requesters == 0)
 			ifp->up_requesters |= 1 << NI_INTERFACE_ADMIN;
@@ -493,12 +493,12 @@ __ni_system_interface_delete(ni_handle_t *nih, const char *ifname)
 		return -1;
 	}
 
-	switch (ifp->type) {
+	switch (ifp->link.type) {
 	case NI_IFTYPE_LOOPBACK:
 	case NI_IFTYPE_ETHERNET:
 	case NI_IFTYPE_WIRELESS:
 	case NI_IFTYPE_DUMMY:
-		ni_error("cannot destroy %s interfaces", ni_linktype_type_to_name(ifp->type));
+		ni_error("cannot destroy %s interfaces", ni_linktype_type_to_name(ifp->link.type));
 		return -1;
 
 	case NI_IFTYPE_VLAN:
@@ -546,16 +546,16 @@ __ni_interface_for_config(ni_handle_t *nih, const ni_interface_t *cfg, ni_interf
 	if (cfg->name) {
 		ifp = ni_interface_by_name(nih, cfg->name);
 		if (ifp) {
-			if (cfg->hwaddr.len
-			 && !ni_link_address_equal(&ifp->hwaddr, &cfg->hwaddr))
+			if (cfg->link.hwaddr.len
+			 && !ni_link_address_equal(&ifp->link.hwaddr, &cfg->link.hwaddr))
 				return -1;
 			*res = ifp;
 			return 0;
 		}
 	}
 
-	if (cfg->hwaddr.len) {
-		ifp = ni_interface_by_hwaddr(nih, &cfg->hwaddr);
+	if (cfg->link.hwaddr.len) {
+		ifp = ni_interface_by_hwaddr(nih, &cfg->link.hwaddr);
 		if (ifp) {
 			if (*res && *res != ifp)
 				return -1;
@@ -581,12 +581,12 @@ __ni_interface_bridge_allports(ni_handle_t *nih, const char *ifname,
 		const char *portname = port_names->data[i];
 		ni_interface_t *pif;
 
-		if (!(pif = ni_interface_by_name(nih, portname)) || pif->ifindex == 0) {
+		if (!(pif = ni_interface_by_name(nih, portname)) || pif->link.ifindex == 0) {
 			error("%s: cannot %s - %s not known", ifname, activity, portname);
 			return -1;
 		}
 
-		if (func(nih, ifname, pif->ifindex) < 0) {
+		if (func(nih, ifname, pif->link.ifindex) < 0) {
 			error("%s: cannot %s %s: %m", ifname, activity, portname);
 			return -1;
 		}
@@ -716,7 +716,7 @@ __ni_interface_vlan_configure(ni_handle_t *nih, const ni_interface_t *cfg, ni_in
 		if (!cfg_vlan->interface_name)
 			return -1;
 		real_dev = ni_interface_by_name(nih, cfg_vlan->interface_name);
-		if (!real_dev || !real_dev->ifindex) {
+		if (!real_dev || !real_dev->link.ifindex) {
 			error("Cannot bring up VLAN interface %s: %s does not exist",
 					cfg->name, cfg_vlan->interface_name);
 			return -1;
@@ -775,7 +775,7 @@ ni_interface_create_vlan(ni_handle_t *nih, const char *ifname, const ni_vlan_t *
 		if (!cfg_vlan->interface_name)
 			return -1;
 		real_dev = ni_interface_by_name(nih, cfg_vlan->interface_name);
-		if (!real_dev || !real_dev->ifindex) {
+		if (!real_dev || !real_dev->link.ifindex) {
 			error("Cannot bring up VLAN interface %s: %s does not exist",
 					ifname, cfg_vlan->interface_name);
 			return -1;
@@ -852,7 +852,7 @@ ni_interface_update_bridge_config(ni_handle_t *nih, ni_interface_t *ifp, const n
 	ni_bridge_t *bridge;
 	unsigned int i;
 
-	if (ifp->type != NI_IFTYPE_BRIDGE) {
+	if (ifp->link.type != NI_IFTYPE_BRIDGE) {
 		ni_error("%s: %s is not a bridge interface", __func__, ifp->name);
 		return -1;
 	}
@@ -905,7 +905,7 @@ ni_interface_add_bridge_port(ni_handle_t *nih, ni_interface_t *ifp,
 		ni_error("%s: cannot add port - %s not known", ifp->name, pif->name);
 		return -NI_ERROR_INTERFACE_NOT_KNOWN;
 	}
-	if (pif->ifindex == 0) {
+	if (pif->link.ifindex == 0) {
 		ni_error("%s: cannot add port - %s has no ifindex?!", ifp->name, pif->name);
 		return -NI_ERROR_INTERFACE_NOT_KNOWN;
 	}
@@ -921,7 +921,7 @@ ni_interface_add_bridge_port(ni_handle_t *nih, ni_interface_t *ifp,
 		}
 	}
 
-	if ((rv = __ni_brioctl_add_port(nih, ifp->name, pif->ifindex)) < 0) {
+	if ((rv = __ni_brioctl_add_port(nih, ifp->name, pif->link.ifindex)) < 0) {
 		ni_error("%s: cannot add port %s: %s", ifp->name, pif->name,
 				ni_strerror(rv));
 		return rv;
@@ -1095,10 +1095,10 @@ __ni_interface_extension_configure(ni_handle_t *nih, const ni_interface_t *cfg, 
 {
 	ni_extension_t *ex;
 
-	ex = ni_config_find_linktype_extension(ni_global.config, cfg->type);
+	ex = ni_config_find_linktype_extension(ni_global.config, cfg->link.type);
 	if (ex == NULL) {
 		ni_debug_ifconfig("cannot configure %s interface - not implemented yet",
-				ni_linktype_type_to_name(cfg->type));
+				ni_linktype_type_to_name(cfg->link.type));
 		return 0;
 	}
 
@@ -1115,10 +1115,10 @@ __ni_interface_extension_delete(ni_handle_t *nih, ni_interface_t *ifp)
 	xml_node_t *xml;
 	int res;
 
-	ex = ni_config_find_linktype_extension(ni_global.config, ifp->type);
+	ex = ni_config_find_linktype_extension(ni_global.config, ifp->link.type);
 	if (ex == NULL) {
 		error("cannot configure %s interface - not implemented yet",
-				ni_linktype_type_to_name(ifp->type));
+				ni_linktype_type_to_name(ifp->link.type));
 		return -1;
 	}
 
@@ -1225,12 +1225,12 @@ __ni_rtnl_link_create_vlan(ni_handle_t *nih, const char *ifname, const ni_vlan_t
 	/* Note, IFLA_LINK must be outside of IFLA_LINKINFO */
 
 	real_dev = ni_interface_by_name(nih, vlan->interface_name);
-	if (!real_dev || !real_dev->ifindex) {
+	if (!real_dev || !real_dev->link.ifindex) {
 		error("Cannot create VLAN interface %s: interface %s does not exist",
 				ifname, vlan->interface_name);
 		return -1;
 	}
-	NLA_PUT_U32(msg, IFLA_LINK, real_dev->ifindex);
+	NLA_PUT_U32(msg, IFLA_LINK, real_dev->link.ifindex);
 
 	len = strlen(ifname) + 1;
 	if (len == 1 || len > IFNAMSIZ) {
@@ -1272,7 +1272,7 @@ __ni_rtnl_link_create(ni_handle_t *nih, const ni_interface_t *cfg)
 	if (nlmsg_append(msg, &ifi, sizeof(ifi), NLMSG_ALIGNTO) < 0)
 		goto nla_put_failure;
 
-	if (cfg->type == NI_IFTYPE_VLAN) {
+	if (cfg->link.type == NI_IFTYPE_VLAN) {
 		struct nlattr *linkinfo;
 		struct nlattr *data;
 		ni_vlan_t *vlan;
@@ -1304,14 +1304,14 @@ __ni_rtnl_link_create(ni_handle_t *nih, const ni_interface_t *cfg)
 		/* Note, IFLA_LINK must be outside of IFLA_LINKINFO */
 
 		real_dev = ni_interface_by_name(nih, cfg->vlan->interface_name);
-		if (!real_dev || !real_dev->ifindex) {
+		if (!real_dev || !real_dev->link.ifindex) {
 			error("Cannot create VLAN interface %s: interface %s does not exist",
 					cfg->name, cfg->vlan->interface_name);
 			return -1;
 		}
-		NLA_PUT_U32(msg, IFLA_LINK, real_dev->ifindex);
+		NLA_PUT_U32(msg, IFLA_LINK, real_dev->link.ifindex);
 	} else {
-		error("Cannot create an interface of type %d through netlink", cfg->type);
+		error("Cannot create an interface of type %d through netlink", cfg->link.type);
 		return -1;
 	}
 
@@ -1370,7 +1370,7 @@ __ni_rtnl_link_down(ni_handle_t *nih, const ni_interface_t *ifp, int cmd)
 
 	memset(&ifi, 0, sizeof(ifi));
 	ifi.ifi_family = AF_UNSPEC;
-	ifi.ifi_index = ifp->ifindex;
+	ifi.ifi_index = ifp->link.ifindex;
 	ifi.ifi_change = IFF_UP;
 
 	return __ni_rtnl_simple(nih, cmd, 0, &ifi, sizeof(ifi));
@@ -1387,7 +1387,7 @@ __ni_rtnl_link_up(ni_handle_t *nih, const ni_interface_t *ifp, const ni_interfac
 
 	memset(&ifi, 0, sizeof(ifi));
 	ifi.ifi_family = AF_UNSPEC;
-	ifi.ifi_index = ifp->ifindex;
+	ifi.ifi_index = ifp->link.ifindex;
 	ifi.ifi_change = IFF_UP;
 	ifi.ifi_flags = IFF_UP;
 
@@ -1397,17 +1397,17 @@ __ni_rtnl_link_up(ni_handle_t *nih, const ni_interface_t *ifp, const ni_interfac
 		goto nla_put_failure;
 
 	if (cfg) {
-		if (cfg->mtu && cfg->mtu != ifp->mtu)
+		if (cfg->mtu && cfg->mtu != ifp->link.mtu)
 			NLA_PUT_U32(msg, IFLA_MTU, cfg->mtu);
 
-		if (cfg->txqlen && cfg->txqlen != ifp->txqlen)
+		if (cfg->txqlen && cfg->txqlen != ifp->link.txqlen)
 			NLA_PUT_U32(msg, IFLA_TXQLEN, cfg->txqlen);
 
 #if 0
 		/* Need different way to set hwaddr */
-		if (cfg->hwaddr.type != NI_IFTYPE_UNKNOWN && cfg->hwaddr.len != 0
-		 && !ni_link_address_equal(&cfg->hwaddr, &ifp->hwaddr))
-			NLA_PUT(msg, IFLA_ADDRESS, cfg->hwaddr.len, cfg->hwaddr.data);
+		if (cfg->link.hwaddr.type != NI_IFTYPE_UNKNOWN && cfg->link.hwaddr.len != 0
+		 && !ni_link_address_equal(&cfg->link.hwaddr, &ifp->link.hwaddr))
+			NLA_PUT(msg, IFLA_ADDRESS, cfg->link.hwaddr.len, cfg->link.hwaddr.data);
 #endif
 
 		/* FIXME: handle COST, QDISC, MASTER */
@@ -1488,7 +1488,7 @@ __ni_rtnl_send_newaddr(ni_handle_t *nih, ni_interface_t *ifp, const ni_address_t
 	ni_debug_ifconfig("%s(%s/%u)", __FUNCTION__, ni_address_print(&ap->local_addr), ap->prefixlen);
 
 	memset(&ifa, 0, sizeof(ifa));
-	ifa.ifa_index = ifp->ifindex;
+	ifa.ifa_index = ifp->link.ifindex;
 	ifa.ifa_family = ap->family;
 	ifa.ifa_prefixlen = ap->prefixlen;
 
@@ -1559,7 +1559,7 @@ __ni_rtnl_send_deladdr(ni_handle_t *nih, ni_interface_t *ifp, const ni_address_t
 	ni_debug_ifconfig("%s(%s/%u)", __FUNCTION__, ni_address_print(&ap->local_addr), ap->prefixlen);
 
 	memset(&ifa, 0, sizeof(ifa));
-	ifa.ifa_index = ifp->ifindex;
+	ifa.ifa_index = ifp->link.ifindex;
 	ifa.ifa_family = ap->family;
 	ifa.ifa_prefixlen = ap->prefixlen;
 
@@ -1657,7 +1657,7 @@ __ni_rtnl_send_newroute(ni_handle_t *nih, ni_interface_t *ifp, ni_route_t *rp, i
 	 && addattr_sockaddr(msg, RTA_GATEWAY, &rp->nh.gateway))
 		goto nla_put_failure;
 
-	NLA_PUT_U32(msg, RTA_OIF, ifp->ifindex);
+	NLA_PUT_U32(msg, RTA_OIF, ifp->link.ifindex);
 
 	/* Add metrics if needed */
 	if (rp->mtu) {
@@ -1721,7 +1721,7 @@ __ni_rtnl_send_delroute(ni_handle_t *nih, ni_interface_t *ifp, ni_route_t *rp)
 	 && addattr_sockaddr(msg, RTA_GATEWAY, &rp->nh.gateway))
 		goto nla_put_failure;
 
-	NLA_PUT_U32(msg, RTA_OIF, ifp->ifindex);
+	NLA_PUT_U32(msg, RTA_OIF, ifp->link.ifindex);
 
 	if (ni_nl_talk(nih, msg) < 0) {
 		ni_error("%s(%s/%u): rtnl_talk failed", __FUNCTION__,

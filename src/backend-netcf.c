@@ -166,31 +166,34 @@ __ni_netcf_xml_to_interface(ni_syntax_t *syntax, ni_handle_t *nih, xml_node_t *i
 
 	/* Variant netcf */
 	if (!syntax->strict && (node = xml_node_get_child(ifnode, "status")) != NULL) {
+		unsigned int flags = ifp->link.ifflags;
 		const char *opmode = NULL;
 
 		if ((attrval = xml_node_get_attr(node, "device")) && !strcmp(attrval, "up"))
-			ifp->ifflags |= NI_IFF_DEVICE_UP;
+			flags |= NI_IFF_DEVICE_UP;
 		if ((attrval = xml_node_get_attr(node, "link")) && !strcmp(attrval, "up"))
-			ifp->ifflags |= NI_IFF_LINK_UP;
+			flags |= NI_IFF_LINK_UP;
 		if ((attrval = xml_node_get_attr(node, "network")) && !strcmp(attrval, "up"))
-			ifp->ifflags |= NI_IFF_NETWORK_UP;
+			flags |= NI_IFF_NETWORK_UP;
 		if ((opmode = xml_node_get_attr(node, "mode")) != NULL) {
 			if (!strcmp(opmode, "point-to-point")) {
-				ifp->ifflags |= NI_IFF_POINT_TO_POINT;
+				flags |= NI_IFF_POINT_TO_POINT;
 			} else {
 				ni_warn("%s: unsupported attribute <status mode=\"%s\">", ifp->name, opmode);
 				opmode = NULL;
 			}
 		}
 		if (opmode == NULL) {
-			ifp->ifflags |= NI_IFF_ARP_ENABLED | NI_IFF_BROADCAST_ENABLED | NI_IFF_MULTICAST_ENABLED;
+			flags |= NI_IFF_ARP_ENABLED | NI_IFF_BROADCAST_ENABLED | NI_IFF_MULTICAST_ENABLED;
 			if ((attrval = xml_node_get_attr(node, "arp")) && !strcmp(attrval, "disabled"))
-				ifp->ifflags &= ~NI_IFF_ARP_ENABLED;
+				flags &= ~NI_IFF_ARP_ENABLED;
 			if ((attrval = xml_node_get_attr(node, "broadcast")) && !strcmp(attrval, "disabled"))
-				ifp->ifflags &= ~NI_IFF_BROADCAST_ENABLED;
+				flags &= ~NI_IFF_BROADCAST_ENABLED;
 			if ((attrval = xml_node_get_attr(node, "broadcast")) && !strcmp(attrval, "disabled"))
-				ifp->ifflags &= ~NI_IFF_MULTICAST_ENABLED;
+				flags &= ~NI_IFF_MULTICAST_ENABLED;
 		}
+
+		ifp->link.ifflags = flags;
 	}
 
 	if (syntax->strict) {
@@ -210,12 +213,12 @@ __ni_netcf_xml_to_interface(ni_syntax_t *syntax, ni_handle_t *nih, xml_node_t *i
 	}
 
 	node = xml_node_get_child(ifnode, "mtu");
-	if (node && xml_node_get_attr_uint(node, "size", &ifp->mtu) < 0)
+	if (node && xml_node_get_attr_uint(node, "size", &ifp->link.mtu) < 0)
 		return NULL;
 
 	node = xml_node_get_child(ifnode, "mac");
 	if (node && (attrval = xml_node_get_attr(node, "address")) != NULL) {
-		if (ni_link_address_parse(&ifp->hwaddr, ifp->type, attrval) < 0) {
+		if (ni_link_address_parse(&ifp->link.hwaddr, ifp->link.type, attrval) < 0) {
 			error("cannot parse link level address %s", attrval);
 			return NULL;
 		}
@@ -305,7 +308,7 @@ __ni_netcf_xml_to_interface(ni_syntax_t *syntax, ni_handle_t *nih, xml_node_t *i
 		ni_afinfo_addrconf_enable(afi, NI_ADDRCONF_STATIC);
 	}
 
-	switch (ifp->type) {
+	switch (ifp->link.type) {
 	case NI_IFTYPE_BRIDGE:
 		if (__ni_netcf_xml_to_bridge(syntax, nih, ifp, ifnode))
 			return NULL;
@@ -635,23 +638,25 @@ __ni_netcf_xml_from_interface(ni_syntax_t *syntax, ni_handle_t *nih,
 	}
 
 	/* Variant netcf */
-	if (!syntax->strict && ifp->ifflags) {
+	if (!syntax->strict && ifp->link.ifflags) {
+		unsigned int flags = ifp->link.ifflags;
+
 		node = xml_node_new("status", ifnode);
 
 		xml_node_add_attr(node, "device",
-				(ifp->ifflags & NI_IFF_DEVICE_UP)? "up" : "down");
+				(flags & NI_IFF_DEVICE_UP)? "up" : "down");
 		xml_node_add_attr(node, "link",
-				(ifp->ifflags & NI_IFF_LINK_UP)? "up" : "down");
+				(flags & NI_IFF_LINK_UP)? "up" : "down");
 		xml_node_add_attr(node, "network",
-				(ifp->ifflags & NI_IFF_NETWORK_UP)? "up" : "down");
-		if (ifp->ifflags & NI_IFF_POINT_TO_POINT) {
+				(flags & NI_IFF_NETWORK_UP)? "up" : "down");
+		if (flags & NI_IFF_POINT_TO_POINT) {
 			xml_node_add_attr(node, "mode", "point-to-point");
 		} else {
-			if (!(ifp->ifflags & NI_IFF_ARP_ENABLED))
+			if (!(flags & NI_IFF_ARP_ENABLED))
 				xml_node_add_attr(node, "arp", "disabled");
-			if (!(ifp->ifflags & NI_IFF_BROADCAST_ENABLED))
+			if (!(flags & NI_IFF_BROADCAST_ENABLED))
 				xml_node_add_attr(node, "broadcast", "disabled");
-			if (!(ifp->ifflags & NI_IFF_MULTICAST_ENABLED))
+			if (!(flags & NI_IFF_MULTICAST_ENABLED))
 				xml_node_add_attr(node, "multicast", "disabled");
 		}
 	}
@@ -659,17 +664,17 @@ __ni_netcf_xml_from_interface(ni_syntax_t *syntax, ni_handle_t *nih,
 	if (syntax->strict) {
 		node = xml_node_new("start", ifnode);
 		xml_node_add_attr(node, "mode", __ni_netcf_get_startmode(ifp));
-		if (ifp->mtu) {
+		if (ifp->link.mtu) {
 			node = xml_node_new("mtu", ifnode);
-			xml_node_add_attr_uint(node, "size", ifp->mtu);
+			xml_node_add_attr_uint(node, "size", ifp->link.mtu);
 		}
 	} else {
 		__ni_netcf_xml_from_behavior(&ifp->startmode, ifnode);
 	}
 
-	if (ifp->hwaddr.len) {
+	if (ifp->link.hwaddr.len) {
 		node = xml_node_new("mac", ifnode);
-		xml_node_add_attr(node, "address", ni_link_address_print(&ifp->hwaddr));
+		xml_node_add_attr(node, "address", ni_link_address_print(&ifp->link.hwaddr));
 	}
 
 	__ni_netcf_xml_from_address_config(syntax, nih, &ifp->ipv4, ifp, ifnode);
@@ -1816,8 +1821,8 @@ __ni_netcf_xml_from_interface_stats(ni_syntax_t *syntax, ni_handle_t *nih,
 	xml_node_t *node = xml_node_new("stats", parent);
 	xml_node_t *stats;
 
-	if (ifp->link_stats) {
-		const ni_link_stats_t *ls = ifp->link_stats;
+	if (ifp->link.stats) {
+		const ni_link_stats_t *ls = ifp->link.stats;
 		xml_node_t *child;
 
 		stats = xml_node_new("link", node);
@@ -2229,7 +2234,7 @@ __ni_netcf_get_iftype(const ni_interface_t *ifp)
 	struct __ni_netcf_iftype_map *mp = __ni_netcf_iftype_map;
 
 	for (; mp->name; ++mp) {
-		if (mp->type == ifp->type)
+		if (mp->type == ifp->link.type)
 			return mp->name;
 	}
 
@@ -2243,8 +2248,8 @@ __ni_netcf_set_iftype(ni_interface_t *ifp, const char *name)
 
 	for (; mp->name; ++mp) {
 		if (!strcmp(mp->name, name)) {
-			ifp->type = mp->type;
-			ifp->arp_type = mp->arp_type;
+			ifp->link.type = mp->type;
+			ifp->link.arp_type = mp->arp_type;
 			return 0;
 		}
 	}

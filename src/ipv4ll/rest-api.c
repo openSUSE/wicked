@@ -254,7 +254,7 @@ autoip_interface_put(ni_wicked_request_t *req)
 		ni_debug_autoip("%s: received request to acquire IPv4LL lease", ifp->name);
 
 		if (dev == NULL)
-			dev = ni_autoip_device_new(ifp->name, ifp->type);
+			dev = ni_autoip_device_new(ifp->name, ifp->link.type);
 		ni_autoip_device_reconfigure(dev, ifp);
 
 		/* We're asked to (re-)start */

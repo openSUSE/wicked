@@ -130,22 +130,22 @@ ni_autoip_device_free(ni_autoip_device_t *dev)
 int
 ni_autoip_device_reconfigure(ni_autoip_device_t *dev, const ni_interface_t *ifp)
 {
-	if (!(ifp->ifflags & NI_IFF_ARP_ENABLED)) {
+	if (!(ifp->link.ifflags & NI_IFF_ARP_ENABLED)) {
 		ni_error("%s: device does not support ARP, cannot configure for IPv4LL", ifp->name);
 		return -1;
 	}
-	if (dev->devinfo.iftype != ifp->type) {
+	if (dev->devinfo.iftype != ifp->link.type) {
 		ni_error("%s: reconfig changes device type!", dev->ifname);
 		return -1;
 	}
-	if (ifp->hwaddr.len == 0) {
+	if (ifp->link.hwaddr.len == 0) {
 		ni_error("%s: empty MAC address, cannot do IPv4LL", dev->ifname);
 		return -1;
 	}
-	dev->devinfo.arp_type = ifp->arp_type;
+	dev->devinfo.arp_type = ifp->link.arp_type;
 	dev->devinfo.ifindex = if_nametoindex(ifp->name);
-	dev->devinfo.mtu = ifp->mtu;
-	dev->devinfo.hwaddr = ifp->hwaddr;
+	dev->devinfo.mtu = ifp->link.mtu;
+	dev->devinfo.hwaddr = ifp->link.hwaddr;
 
 	if (dev->devinfo.arp_type == ARPHRD_NONE) {
 		ni_warn("%s: no arp_type, using ether", __FUNCTION__);

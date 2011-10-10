@@ -296,7 +296,7 @@ dhcp_interface_put(ni_wicked_request_t *req)
 		ni_debug_dhcp("%s: received request to acquire lease", ifp->name);
 
 		if (dev == NULL)
-			dev = ni_dhcp_device_new(ifp->name, ifp->type);
+			dev = ni_dhcp_device_new(ifp->name, ifp->link.type);
 		ni_dhcp_device_reconfigure(dev, ifp);
 	} else {
 		ni_debug_dhcp("%s: received request to release lease", ifp->name);

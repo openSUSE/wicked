@@ -172,18 +172,18 @@ ni_dhcp_device_reconfigure(ni_dhcp_device_t *dev, const ni_interface_t *ifp)
 		return -1;
 	}
 
-	if (dev->system.iftype != ifp->type) {
+	if (dev->system.iftype != ifp->link.type) {
 		ni_error("%s: reconfig changes device type!", dev->ifname);
 		return -1;
 	}
-	if (ifp->hwaddr.len == 0) {
+	if (ifp->link.hwaddr.len == 0) {
 		ni_error("%s: empty MAC address, cannot do DHCP", dev->ifname);
 		return -1;
 	}
-	dev->system.arp_type = ifp->arp_type;
+	dev->system.arp_type = ifp->link.arp_type;
 	dev->system.ifindex = if_nametoindex(ifp->name);
-	dev->system.mtu = ifp->mtu;
-	dev->system.hwaddr = ifp->hwaddr;
+	dev->system.mtu = ifp->link.mtu;
+	dev->system.hwaddr = ifp->link.hwaddr;
 
 	if (dev->system.arp_type == ARPHRD_NONE) {
 		ni_warn("%s: no arp_type, using ether", __FUNCTION__);
@@ -206,7 +206,7 @@ ni_dhcp_device_reconfigure(ni_dhcp_device_t *dev, const ni_interface_t *ifp)
 
 	if (info->dhcp.clientid) {
 		strncpy(config->client_id, info->dhcp.clientid, sizeof(config->client_id)-1);
-		ni_dhcp_parse_client_id(&config->raw_client_id, ifp->type, info->dhcp.clientid);
+		ni_dhcp_parse_client_id(&config->raw_client_id, ifp->link.type, info->dhcp.clientid);
 	} else {
 		/* Set client ID from interface hwaddr */
 		strncpy(config->client_id, ni_link_address_print(&dev->system.hwaddr), sizeof(config->client_id)-1);

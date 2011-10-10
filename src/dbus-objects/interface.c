@@ -62,7 +62,7 @@ __ni_objectmodel_build_interface_object(ni_dbus_server_t *server, ni_interface_t
 
 	ni_dbus_object_register_service(object, &wicked_dbus_interface_service);
 
-	link_layer_service = ni_objectmodel_link_layer_service(ifp->type);
+	link_layer_service = ni_objectmodel_link_layer_service(ifp->link.type);
 	if (link_layer_service != NULL)
 		ni_dbus_object_register_service(object, link_layer_service);
 
@@ -399,7 +399,7 @@ __wicked_dbus_interface_get_type(const ni_dbus_object_t *object,
 {
 	return __ni_objectmodel_get_property_uint(
 			ni_dbus_object_get_handle(object),
-			&NULL_interface->type, result);
+			&NULL_interface->link.type, result);
 }
 
 static dbus_bool_t
@@ -410,7 +410,7 @@ __wicked_dbus_interface_set_type(ni_dbus_object_t *object,
 {
 	return __ni_objectmodel_set_property_uint(
 			ni_dbus_object_get_handle(object),
-			&NULL_interface->type, argument);
+			&NULL_interface->link.type, argument);
 }
 
 /*
@@ -424,7 +424,7 @@ __wicked_dbus_interface_get_ifflags(const ni_dbus_object_t *object,
 {
 	return __ni_objectmodel_get_property_uint(
 			ni_dbus_object_get_handle(object),
-			&NULL_interface->ifflags, result);
+			&NULL_interface->link.ifflags, result);
 }
 
 static dbus_bool_t
@@ -435,7 +435,7 @@ __wicked_dbus_interface_set_ifflags(ni_dbus_object_t *object,
 {
 	return __ni_objectmodel_set_property_uint(
 			ni_dbus_object_get_handle(object),
-			&NULL_interface->ifflags, argument);
+			&NULL_interface->link.ifflags, argument);
 }
 
 /*
@@ -449,7 +449,7 @@ __wicked_dbus_interface_get_mtu(const ni_dbus_object_t *object,
 {
 	return __ni_objectmodel_get_property_uint(
 			ni_dbus_object_get_handle(object),
-			&NULL_interface->mtu, result);
+			&NULL_interface->link.mtu, result);
 }
 
 static dbus_bool_t
@@ -460,7 +460,7 @@ __wicked_dbus_interface_set_mtu(ni_dbus_object_t *object,
 {
 	return __ni_objectmodel_set_property_uint(
 			ni_dbus_object_get_handle(object),
-			&NULL_interface->mtu, argument);
+			&NULL_interface->link.mtu, argument);
 }
 
 static dbus_bool_t
@@ -480,7 +480,7 @@ __wicked_dbus_interface_update_mtu(ni_dbus_object_t *object,
 #else
 	ni_warn("%s not yet implemented", __FUNCTION__);
 #endif
-	ifp->mtu = value;
+	ifp->link.mtu = value;
 	return TRUE;
 }
 
@@ -495,7 +495,7 @@ __wicked_dbus_interface_get_hwaddr(const ni_dbus_object_t *object,
 {
 	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
 
-	ni_dbus_variant_set_byte_array(result, ifp->hwaddr.data, ifp->hwaddr.len);
+	ni_dbus_variant_set_byte_array(result, ifp->link.hwaddr.data, ifp->link.hwaddr.len);
 	return TRUE;
 }
 
@@ -508,12 +508,12 @@ __wicked_dbus_interface_set_hwaddr(ni_dbus_object_t *object,
 	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
 	unsigned int addrlen;
 
-	ifp->hwaddr.type = ifp->type;
+	ifp->link.hwaddr.type = ifp->link.type;
 	if (!ni_dbus_variant_get_byte_array_minmax(argument,
-				ifp->hwaddr.data, &addrlen,
-				0, sizeof(ifp->hwaddr.data)))
+				ifp->link.hwaddr.data, &addrlen,
+				0, sizeof(ifp->link.hwaddr.data)))
 		return FALSE;
-	ifp->hwaddr.len = addrlen;
+	ifp->link.hwaddr.len = addrlen;
 	return TRUE;
 }
 
@@ -610,9 +610,9 @@ __wicked_dbus_interface_set_routes(ni_dbus_object_t *object,
 }
 
 #define WICKED_INTERFACE_PROPERTY(type, __name, rw) \
-	NI_DBUS_PROPERTY(type, __name, offsetof(ni_interface_t, __name),__wicked_dbus_interface, rw)
+	NI_DBUS_PROPERTY(type, __name, 0,__wicked_dbus_interface, rw)
 #define WICKED_INTERFACE_PROPERTY_SIGNATURE(signature, __name, rw) \
-	__NI_DBUS_PROPERTY(signature, __name, offsetof(ni_interface_t, __name), __wicked_dbus_interface, rw)
+	__NI_DBUS_PROPERTY(signature, __name, 0, __wicked_dbus_interface, rw)
 
 static ni_dbus_property_t	wicked_dbus_interface_properties[] = {
 	WICKED_INTERFACE_PROPERTY(STRING, name, RO),

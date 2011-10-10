@@ -190,10 +190,10 @@ __ni_rtevent_newlink(ni_handle_t *nih, const struct sockaddr_nl *nladdr, struct 
 
 	if (ifname) {
 		old = ni_interface_by_name(nih, ifname);
-		if (old && old->ifindex != ifi->ifi_index) {
+		if (old && old->link.ifindex != ifi->ifi_index) {
 			/* We probably missed a deletion event. Just clobber the old interface. */
 			ni_warn("linkchange event: found interface %s with different ifindex", ifname);
-			old->ifindex = ifi->ifi_index;
+			old->link.ifindex = ifi->ifi_index;
 		}
 	}
 
@@ -206,8 +206,8 @@ __ni_rtevent_newlink(ni_handle_t *nih, const struct sockaddr_nl *nladdr, struct 
 			strncpy(old->name, ifname, sizeof(old->name) - 1);
 
 		new_flags = __ni_interface_translate_ifflags(ifi->ifi_flags);
-		flags_changed = old->ifflags ^ new_flags;
-		old->ifflags = new_flags;
+		flags_changed = old->link.ifflags ^ new_flags;
+		old->link.ifflags = new_flags;
 
 		/* Discard interface created by parsing new newlink event. */
 		ni_interface_put(ifp);
@@ -233,7 +233,7 @@ __ni_rtevent_newlink(ni_handle_t *nih, const struct sockaddr_nl *nladdr, struct 
 			;
 		*pos = ifp;
 
-		ifp->ifflags = __ni_interface_translate_ifflags(ifi->ifi_flags);
+		ifp->link.ifflags = __ni_interface_translate_ifflags(ifi->ifi_flags);
 		__ni_interface_event(nih, ifp, NI_EVENT_LINK_CREATE);
 	}
 
@@ -262,9 +262,9 @@ __ni_rtevent_dellink(ni_handle_t *nih, const struct sockaddr_nl *nladdr, struct 
 
 	/* Open code interface removal. */
 	for (pos = &nih->iflist; (ifp = *pos) != NULL; pos = &ifp->next) {
-		if (ifp->ifindex == ifi->ifi_index) {
+		if (ifp->link.ifindex == ifi->ifi_index) {
 			*pos = ifp->next;
-			ifp->ifindex = 0;
+			ifp->link.ifindex = 0;
 			ni_interface_put(ifp);
 			break;
 		}

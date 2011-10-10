@@ -197,11 +197,11 @@ ni_policy_match_interface(const ni_policy_t *policy, const ni_interface_t *dev)
 
 	/* We do the same matching as __ni_interface_for_config here.
 	 * We should unify these. */
-	if (cfg->type != dev->type)
+	if (cfg->link.type != dev->link.type)
 		return -1;
 
-	if (cfg->hwaddr.len) {
-		if (!ni_link_address_equal(&dev->hwaddr, &cfg->hwaddr))
+	if (cfg->link.hwaddr.len) {
+		if (!ni_link_address_equal(&dev->link.hwaddr, &cfg->link.hwaddr))
 			return -1;
 		weight |= 2;
 	}

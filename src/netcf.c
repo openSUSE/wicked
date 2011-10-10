@@ -333,11 +333,11 @@ ncf_lookup_by_mac_string(struct netcf *ncf, const char *mac, int maxifaces, stru
 
 	memset(ifaces, 0, maxifaces * sizeof(ifaces[0]));
 	for (ifp = ni_interface_first(nih, &pos); ifp; ifp = ni_interface_next(nih, &pos)) {
-		if (ifp->type != NI_IFTYPE_ETHERNET)
+		if (ifp->link.type != NI_IFTYPE_ETHERNET)
 			continue;
 
 		/* FIXME: ignore slave interfaces */
-		if (!ni_link_address_equal(&ifp->hwaddr, &hwa))
+		if (!ni_link_address_equal(&ifp->link.hwaddr, &hwa))
 			continue;
 
 		if (count < maxifaces)
@@ -444,13 +444,13 @@ ncf_if_mac_string(struct netcf_if *nif)
 	/* The interface definition may not specify a HWADDR, so get
 	 * it from the kernel. 
 	 */
-	if (ifp->hwaddr.type == NI_IFTYPE_UNKNOWN) {
+	if (ifp->link.hwaddr.type == NI_IFTYPE_UNKNOWN) {
 		ifp = __ncf_if_state(nif);
 		if (!ifp)
 			return NULL;
 	}
 
-	return ni_link_address_print(&ifp->hwaddr);
+	return ni_link_address_print(&ifp->link.hwaddr);
 }
 
 /*

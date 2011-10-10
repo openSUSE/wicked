@@ -845,11 +845,11 @@ ni_addrconf_drop_lease(const ni_addrconf_t *acm, ni_interface_t *ifp)
 	 * sending any packets).
 	 */
 	{
-		unsigned int oflags = ifp->ifflags;
+		unsigned int oflags = ifp->link.ifflags;
 
 		ni_interface_network_mark_down(ifp);
 		rv = acm->release(acm, ifp, lease);
-		ifp->ifflags = oflags;
+		ifp->link.ifflags = oflags;
 	}
 
 	if (acm->supported_af & NI_AF_MASK_IPV4) {

@@ -260,7 +260,7 @@ __ni_suse_read_interface(ni_handle_t *nih, const char *filename, const char *ifn
 	}
 
 	/* We rely on the kernel to set up the ::1 device (if ipv6 is enabled) */
-	if (ifp->type == NI_IFTYPE_LOOPBACK) {
+	if (ifp->link.type == NI_IFTYPE_LOOPBACK) {
 		ni_sockaddr_t local_addr;
 
 		ni_address_parse(&local_addr, "127.0.0.1", AF_INET);
@@ -278,7 +278,7 @@ __ni_suse_read_interface(ni_handle_t *nih, const char *filename, const char *ifn
 		ni_afinfo_addrconf_enable(&ifp->ipv6, NI_ADDRCONF_STATIC);
 	}
 
-	if (ifp->type == NI_IFTYPE_LOOPBACK)
+	if (ifp->link.type == NI_IFTYPE_LOOPBACK)
 		ni_afinfo_addrconf_disable(&ifp->ipv6, NI_ADDRCONF_AUTOCONF);
 
 	ni_sysconfig_destroy(sc);
@@ -302,12 +302,12 @@ __ni_suse_sysconfig2ifconfig(ni_interface_t *ifp, ni_sysconfig_t *sc)
 	ni_string_free(&value);
 
 	if (ni_sysconfig_get_string(sc, "LLADDR", &hwaddr) >= 0 && hwaddr) {
-		if (ni_link_address_parse(&ifp->hwaddr, NI_IFTYPE_ETHERNET, hwaddr) < 0)
+		if (ni_link_address_parse(&ifp->link.hwaddr, NI_IFTYPE_ETHERNET, hwaddr) < 0)
 			return -1;
 		ni_string_free(&hwaddr);
 	}
 
-	if (ni_sysconfig_get_integer(sc, "MTU", &ifp->mtu) < 0)
+	if (ni_sysconfig_get_integer(sc, "MTU", &ifp->link.mtu) < 0)
 		return -1;
 
 	__process_indexed_variables(ifp, sc, "IPADDR", try_add_address);
@@ -484,7 +484,7 @@ try_bonding(ni_interface_t *ifp, ni_sysconfig_t *sc)
 	__process_indexed_variables(ifp, sc, "BONDING_SLAVE", try_add_bonding_slave);
 
 	if (ifp->bonding) {
-		ifp->type = NI_IFTYPE_BOND;
+		ifp->link.type = NI_IFTYPE_BOND;
 		ni_sysconfig_get_string(sc, "BONDING_MODULE_OPTS", &ifp->bonding->module_opts);
 		ni_bonding_parse_module_options(ifp->bonding);
 	}
@@ -523,7 +523,7 @@ try_bridge(ni_interface_t *ifp, ni_sysconfig_t *sc)
 
 	/* Create the interface's bridge data */
 	bridge = ni_interface_get_bridge(ifp);
-	ifp->type = NI_IFTYPE_BRIDGE;
+	ifp->link.type = NI_IFTYPE_BRIDGE;
 
 	if ((var = ni_sysconfig_get(sc, "BRIDGE_STP")) != NULL)
 		ni_bridge_set_stp(bridge, var->value);
@@ -660,7 +660,7 @@ try_vlan(ni_interface_t *ifp, ni_sysconfig_t *sc)
 	if (strncmp(ifp->name, "vlan", 4))
 		return;
 
-	ifp->type = NI_IFTYPE_VLAN;
+	ifp->link.type = NI_IFTYPE_VLAN;
 
 	vlan = ni_interface_get_vlan(ifp);
 	vlan->tag = strtoul(ifp->name + 4, NULL, 0);
@@ -885,12 +885,12 @@ __ni_suse_ifconfig2sysconfig(ni_interface_t *ifp, ni_sysconfig_t *sc)
 	ni_sysconfig_set(sc, "STARTMODE", __ni_suse_startmode_get(&ifp->startmode));
 	ni_sysconfig_set(sc, "BOOTPROTO", __ni_suse_bootproto_get(ifp));
 
-	if (!ifp->hwaddr.type != NI_IFTYPE_UNKNOWN)
-		ni_sysconfig_set(sc, "LLADDR", ni_link_address_print(&ifp->hwaddr));
+	if (!ifp->link.hwaddr.type != NI_IFTYPE_UNKNOWN)
+		ni_sysconfig_set(sc, "LLADDR", ni_link_address_print(&ifp->link.hwaddr));
 
 	/* Only do this if the MTU value differs from the device default? */
-	if (ifp->mtu)
-		ni_sysconfig_set_integer(sc, "MTU", ifp->mtu);
+	if (ifp->link.mtu)
+		ni_sysconfig_set_integer(sc, "MTU", ifp->link.mtu);
 
 	for (ap = ifp->addrs, aindex = 0; ap; ap = ap->next, aindex++) {
 		char addrbuf[256], varname[64];

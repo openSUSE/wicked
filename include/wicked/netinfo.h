@@ -141,27 +141,13 @@ typedef struct ni_ifbehavior {
 	ni_ifaction_t		ifaction[__NI_IFACTION_MAX];
 } ni_ifbehavior_t;
 
-struct ni_interface {
-	ni_interface_t *	next;
-	unsigned int		seq;
-	unsigned int		modified : 1,
-				deleted : 1;
-
-	ni_uuid_t		uuid;
-
-	unsigned int		users;
-
-	char *			name;
+typedef struct ni_linkinfo ni_linkinfo_t;
+struct ni_linkinfo {
+	ni_iftype_t		type;
 	unsigned int		ifindex;
 	unsigned int		ifflags;
-	ni_iftype_t		type;
-	unsigned int		up_requesters;
-
 	unsigned int		arp_type;
-
 	ni_hwaddr_t		hwaddr;
-	ni_address_t *		addrs;
-	ni_route_t *		routes;
 
 	unsigned int		mtu;
 	unsigned int		metric;
@@ -170,7 +156,26 @@ struct ni_interface {
 	char *			qdisc;
 	char *			kind;
 
-	ni_link_stats_t *	link_stats;
+	ni_link_stats_t *	stats;
+};
+
+struct ni_interface {
+	ni_interface_t *	next;
+	unsigned int		seq;
+	unsigned int		modified : 1,
+				deleted : 1;
+
+	char *			name;
+	ni_linkinfo_t		link;
+
+	ni_uuid_t		uuid;
+
+	unsigned int		users;
+
+	unsigned int		up_requesters;
+
+	ni_address_t *		addrs;
+	ni_route_t *		routes;
 
 	/* Network layer */
 	ni_afinfo_t		ipv4;
@@ -434,55 +439,55 @@ extern const char *	ni_strerror(int errcode);
 static inline int
 ni_interface_device_is_up(const ni_interface_t *ifp)
 {
-	return ifp->ifflags & NI_IFF_DEVICE_UP;
+	return ifp->link.ifflags & NI_IFF_DEVICE_UP;
 }
 
 static inline void
 ni_interface_device_mark_up(ni_interface_t *ifp)
 {
-	ifp->ifflags |= NI_IFF_DEVICE_UP;
+	ifp->link.ifflags |= NI_IFF_DEVICE_UP;
 }
 
 static inline void
 ni_interface_device_mark_down(ni_interface_t *ifp)
 {
-	ifp->ifflags &= ~NI_IFF_DEVICE_UP;
+	ifp->link.ifflags &= ~NI_IFF_DEVICE_UP;
 }
 
 static inline int
 ni_interface_link_is_up(const ni_interface_t *ifp)
 {
-	return ifp->ifflags & NI_IFF_LINK_UP;
+	return ifp->link.ifflags & NI_IFF_LINK_UP;
 }
 
 static inline void
 ni_interface_link_mark_up(ni_interface_t *ifp)
 {
-	ifp->ifflags |= NI_IFF_LINK_UP;
+	ifp->link.ifflags |= NI_IFF_LINK_UP;
 }
 
 static inline void
 ni_interface_link_mark_down(ni_interface_t *ifp)
 {
-	ifp->ifflags &= ~NI_IFF_LINK_UP;
+	ifp->link.ifflags &= ~NI_IFF_LINK_UP;
 }
 
 static inline int
 ni_interface_network_is_up(const ni_interface_t *ifp)
 {
-	return ifp->ifflags & NI_IFF_NETWORK_UP;
+	return ifp->link.ifflags & NI_IFF_NETWORK_UP;
 }
 
 static inline void
 ni_interface_network_mark_up(ni_interface_t *ifp)
 {
-	ifp->ifflags |= NI_IFF_NETWORK_UP;
+	ifp->link.ifflags |= NI_IFF_NETWORK_UP;
 }
 
 static inline void
 ni_interface_network_mark_down(ni_interface_t *ifp)
 {
-	ifp->ifflags &= ~NI_IFF_NETWORK_UP;
+	ifp->link.ifflags &= ~NI_IFF_NETWORK_UP;
 }
 
 #endif /* __WICKED_NETINFO_H__ */

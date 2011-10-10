@@ -856,10 +856,10 @@ __ni_interface_new(const char *name, unsigned int index)
 	ifp->startmode.ifaction[NI_IFACTION_MANUAL_UP].mandatory = 1;
 	ifp->startmode.ifaction[NI_IFACTION_MANUAL_UP].wait = 30;
 	ifp->startmode.ifaction[NI_IFACTION_MANUAL_DOWN].action = NI_INTERFACE_STOP;
-	ifp->type = NI_IFTYPE_UNKNOWN;
-	ifp->arp_type = ARPHRD_NONE;
-	ifp->hwaddr.type = ARPHRD_NONE;
-	ifp->ifindex = index;
+	ifp->link.type = NI_IFTYPE_UNKNOWN;
+	ifp->link.arp_type = ARPHRD_NONE;
+	ifp->link.hwaddr.type = ARPHRD_NONE;
+	ifp->link.ifindex = index;
 
 	if (name)
 		ifp->name = xstrdup(name);
@@ -895,7 +895,7 @@ ni_interface_clone(const ni_interface_t *ofp)
 {
 	ni_interface_t *ifp;
 
-	ifp = __ni_interface_new(ofp->name, ofp->ifindex);
+	ifp = __ni_interface_new(ofp->name, ofp->link.ifindex);
 	if (!ifp)
 		goto failed;
 
@@ -908,17 +908,17 @@ ni_interface_clone(const ni_interface_t *ofp)
 					goto failed; \
 			} \
 		} while (0)
-	C(ifflags);
-	C(type);
-	C(arp_type);
-	C(hwaddr);
+	C(link.ifflags);
+	C(link.type);
+	C(link.arp_type);
+	C(link.hwaddr);
 	/* FIXME: clone routes, addrs */
-	C(mtu);
-	C(metric);
-	C(txqlen);
-	C(master);
-	D(qdisc, xstrdup);
-	D(kind, xstrdup);
+	C(link.mtu);
+	C(link.metric);
+	C(link.txqlen);
+	C(link.master);
+	D(link.qdisc, xstrdup);
+	D(link.kind, xstrdup);
 	C(ipv4.enabled);
 	C(ipv4.forwarding);
 	C(ipv4.addrconf);
@@ -1003,8 +1003,9 @@ __ni_afinfo_set_addrconf_request(ni_afinfo_t *afi, unsigned int mode, ni_addrcon
 static void
 ni_interface_free(ni_interface_t *ifp)
 {
-	free(ifp->name);
-	free(ifp->qdisc);
+	ni_string_free(&ifp->name);
+	ni_string_free(&ifp->link.qdisc);
+	ni_string_free(&ifp->link.kind);
 
 	/* Clear out addresses, stats */
 	ni_interface_clear_addresses(ifp);
@@ -1041,15 +1042,15 @@ static ni_intmap_t __ifname_types[] = {
 int
 ni_interface_guess_type(ni_interface_t *ifp)
 {
-	if (ifp->type != NI_IFTYPE_UNKNOWN)
-		return ifp->type;
+	if (ifp->link.type != NI_IFTYPE_UNKNOWN)
+		return ifp->link.type;
 
 	if (ifp->name == NULL)
-		return ifp->type;
+		return ifp->link.type;
 
-	ifp->type = NI_IFTYPE_ETHERNET;
+	ifp->link.type = NI_IFTYPE_ETHERNET;
 	if (!strcmp(ifp->name, "lo")) {
-		ifp->type = NI_IFTYPE_LOOPBACK;
+		ifp->link.type = NI_IFTYPE_LOOPBACK;
 	} else {
 		ni_intmap_t *map;
 
@@ -1058,13 +1059,13 @@ ni_interface_guess_type(ni_interface_t *ifp)
 
 			if (!strncmp(ifp->name, map->name, len)
 			 && isdigit(ifp->name[len])) {
-				ifp->type = map->value;
+				ifp->link.type = map->value;
 				break;
 			}
 		}
 	}
 
-	return ifp->type;
+	return ifp->link.type;
 }
 
 /*
@@ -1175,7 +1176,7 @@ ni_interface_by_index(ni_handle_t *nih, unsigned int ifindex)
 	ni_interface_t *ifp;
 
 	for (ifp = nih->iflist; ifp; ifp = ifp->next) {
-		if (ifp->ifindex == ifindex)
+		if (ifp->link.ifindex == ifindex)
 			return ifp;
 	}
 
@@ -1194,7 +1195,7 @@ ni_interface_by_hwaddr(ni_handle_t *nih, const ni_hwaddr_t *lla)
 		return NULL;
 
 	for (ifp = nih->iflist; ifp; ifp = ifp->next) {
-		if (ni_link_address_equal(&ifp->hwaddr, lla))
+		if (ni_link_address_equal(&ifp->link.hwaddr, lla))
 			return ifp;
 	}
 
@@ -1210,7 +1211,7 @@ ni_interface_by_vlan_tag(ni_handle_t *nih, uint16_t tag)
 	ni_interface_t *ifp;
 
 	for (ifp = nih->iflist; ifp; ifp = ifp->next) {
-		if (ifp->type == NI_IFTYPE_VLAN
+		if (ifp->link.type == NI_IFTYPE_VLAN
 		 && ifp->vlan
 		 && ifp->vlan->tag == tag)
 			return ifp;
@@ -1341,9 +1342,9 @@ ni_interface_set_wireless_scan(ni_interface_t *ifp, ni_wireless_scan_t *scan)
 void
 ni_interface_set_link_stats(ni_interface_t *ifp, ni_link_stats_t *stats)
 {
-	if (ifp->link_stats)
-		free(ifp->link_stats);
-	ifp->link_stats = stats;
+	if (ifp->link.stats)
+		free(ifp->link.stats);
+	ifp->link.stats = stats;
 }
 
 /*

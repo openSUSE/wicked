@@ -107,7 +107,7 @@ ni_system_update_service(ni_handle_t *nih, ni_interface_t *ifp, const ni_addrcon
 		return -1;
 	}
 
-	info->origin.ifindex = ifp->ifindex;
+	info->origin.ifindex = ifp->link.ifindex;
 	info->origin.lease_type = lease->type;
 	info->origin.lease_family = lease->family;
 	return 0;
@@ -159,7 +159,7 @@ ni_system_update_from_lease(ni_handle_t *nih, ni_interface_t *ifp, const ni_addr
 		 * weights to config information. Things would get complex though :-)
 		 */
 		if (info->origin.ifindex) {
-			if (info->origin.ifindex != ifp->ifindex
+			if (info->origin.ifindex != ifp->link.ifindex
 			 || info->origin.lease_type != lease->type
 			 || info->origin.lease_family != lease->family)
 				continue;

@@ -57,7 +57,7 @@ ni_ipv6_addrconf_request(const ni_addrconf_t *acm, ni_interface_t *ifp, const xm
 		ni_error("ipv6: unexpected links flags - link is not up");
 		return -1;
 	}
-	if (ifp->ifindex == 0) {
+	if (ifp->link.ifindex == 0) {
 		ni_error("ipv6: interface index is 0!");
 		return -1;
 	}
@@ -77,7 +77,7 @@ ni_ipv6_addrconf_request(const ni_addrconf_t *acm, ni_interface_t *ifp, const xm
 
 	memset(&mreq, 0, sizeof(mreq));
 	inet_pton(AF_INET6, "ff02::1", &mreq.ipv6mr_multiaddr);
-	mreq.ipv6mr_interface = ifp->ifindex;
+	mreq.ipv6mr_interface = ifp->link.ifindex;
 	if (setsockopt(fd, SOL_IPV6, IPV6_JOIN_GROUP, &mreq, sizeof(mreq)) < 0) {
 		ni_error("ipv6: unable to join all-nodes multicast group: %m");
 		goto failed;
@@ -248,7 +248,7 @@ ni_ipv6_add_prefix(ni_interface_t *ifp, const struct nd_opt_prefix_info *pi, uns
 	if (pi->nd_opt_pi_prefix_len) {
 		prefix.six.sin6_family = AF_INET6;
 		prefix.six.sin6_addr = pi->nd_opt_pi_prefix;
-		prefix.six.sin6_scope_id = ifp->ifindex;
+		prefix.six.sin6_scope_id = ifp->link.ifindex;
 	}
 
 	for (ap = lease->addrs; ap; ap = ap->next) {

@@ -183,12 +183,12 @@ __ni_redhat_sysconfig2ifconfig(ni_handle_t *nih, ni_interface_t *ifp, ni_sysconf
 	ni_string_free(&value);
 
 	if (ni_sysconfig_get_string(sc, "HWADDR", &hwaddr) >= 0 && hwaddr) {
-		if (ni_link_address_parse(&ifp->hwaddr, NI_IFTYPE_ETHERNET, hwaddr) < 0)
+		if (ni_link_address_parse(&ifp->link.hwaddr, NI_IFTYPE_ETHERNET, hwaddr) < 0)
 			return -1;
 		ni_string_free(&hwaddr);
 	}
 
-	if (ni_sysconfig_get_integer(sc, "MTU", &ifp->mtu) < 0)
+	if (ni_sysconfig_get_integer(sc, "MTU", &ifp->link.mtu) < 0)
 		return -1;
 
 	if (ni_afinfo_addrconf_test(&ifp->ipv4, NI_ADDRCONF_STATIC))
@@ -200,17 +200,17 @@ __ni_redhat_sysconfig2ifconfig(ni_handle_t *nih, ni_interface_t *ifp, ni_sysconf
 			__ni_redhat_sysconfig2bridge(ifp, sc);
 	}
 
-	if (ifp->type == NI_IFTYPE_UNKNOWN)
+	if (ifp->link.type == NI_IFTYPE_UNKNOWN)
 		try_bonding_master(nih, ifp, sc);
 
-	if (ifp->type == NI_IFTYPE_UNKNOWN)
+	if (ifp->link.type == NI_IFTYPE_UNKNOWN)
 		try_vlan(nih, ifp, sc);
 
-	if (ifp->type == NI_IFTYPE_UNKNOWN)
+	if (ifp->link.type == NI_IFTYPE_UNKNOWN)
 		try_wireless(nih, ifp, sc);
 
 	/* Guess the interface type */
-	if (ifp->type == NI_IFTYPE_UNKNOWN)
+	if (ifp->link.type == NI_IFTYPE_UNKNOWN)
 		ni_interface_guess_type(ifp);
 
 	try_bonding_slave(nih, ifp, sc);
@@ -281,7 +281,7 @@ try_bonding_master(ni_handle_t *nih, ni_interface_t *ifp, ni_sysconfig_t *sc)
 	ni_bonding_t *bonding;
 
 	if (!strncmp(ifp->name, "bond", 4)) {
-		ifp->type = NI_IFTYPE_BOND;
+		ifp->link.type = NI_IFTYPE_BOND;
 
 		bonding = ni_interface_get_bonding(ifp);
 		ni_sysconfig_get_string(sc, "BONDING_OPTS", &bonding->module_opts);
@@ -310,8 +310,8 @@ try_bonding_slave(ni_handle_t *nih, ni_interface_t *ifp, ni_sysconfig_t *sc)
 	master = ni_interface_by_name(nih, var->value);
 	if (master == NULL) {
 		master = ni_interface_new(nih, var->value, 0);
-		master->type = NI_IFTYPE_BOND;
-	} else if (master->type != NI_IFTYPE_BOND) {
+		master->link.type = NI_IFTYPE_BOND;
+	} else if (master->link.type != NI_IFTYPE_BOND) {
 		ni_error("%s: specifies MASTER=%s which is not a bonding device",
 				ifp->name, master->name);
 		return;
@@ -328,7 +328,7 @@ static void
 __ni_redhat_sysconfig2bridge(ni_interface_t *ifp, ni_sysconfig_t *sc)
 {
 	ni_bridge_t *bridge;
-	ifp->type = NI_IFTYPE_BRIDGE;
+	ifp->link.type = NI_IFTYPE_BRIDGE;
 	ni_var_t *var;
 
 	/* Create the interface's bridge data */
@@ -357,8 +357,8 @@ try_bridge_port(ni_handle_t *nih, ni_interface_t *ifp, ni_sysconfig_t *sc)
 	master = ni_interface_by_name(nih, var->value);
 	if (master == NULL) {
 		master = ni_interface_new(nih, var->value, 0);
-		master->type = NI_IFTYPE_BRIDGE;
-	} else if (master->type != NI_IFTYPE_BRIDGE) {
+		master->link.type = NI_IFTYPE_BRIDGE;
+	} else if (master->link.type != NI_IFTYPE_BRIDGE) {
 		ni_error("%s: specifies BRIDGE=%s which is not a bonding device",
 				ifp->name, master->name);
 		return;
@@ -396,7 +396,7 @@ try_vlan(ni_handle_t *nih, ni_interface_t *ifp, ni_sysconfig_t *sc)
 		return;
 	}
 
-	ifp->type = NI_IFTYPE_VLAN;
+	ifp->link.type = NI_IFTYPE_VLAN;
 
 	vlan = ni_interface_get_vlan(ifp);
 	vlan->tag = vlan_tag;
@@ -491,12 +491,12 @@ __ni_redhat_ifconfig2sysconfig(ni_interface_t *ifp, ni_sysconfig_t *sc)
 
 	ni_sysconfig_set(sc, "BOOTPROTO", __ni_redhat_bootproto(ifp->ipv4.addrconf));
 
-	if (!ifp->hwaddr.type != NI_IFTYPE_UNKNOWN)
-		ni_sysconfig_set(sc, "HWADDR", ni_link_address_print(&ifp->hwaddr));
+	if (!ifp->link.hwaddr.type != NI_IFTYPE_UNKNOWN)
+		ni_sysconfig_set(sc, "HWADDR", ni_link_address_print(&ifp->link.hwaddr));
 
 	/* Only do this if the MTU value differs from the device default? */
-	if (ifp->mtu)
-		ni_sysconfig_set_integer(sc, "MTU", ifp->mtu);
+	if (ifp->link.mtu)
+		ni_sysconfig_set_integer(sc, "MTU", ifp->link.mtu);
 
 	for (ap = ifp->addrs, aindex = 0; ap; ap = ap->next, aindex++) {
 		ni_sockaddr_t netmask;

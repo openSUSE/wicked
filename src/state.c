@@ -84,7 +84,7 @@ ni_state_open(void)
 static int
 __ni_system_interface_request_scan(ni_handle_t *nih, ni_interface_t *ifp)
 {
-	switch (ifp->type) {
+	switch (ifp->link.type) {
 	case NI_IFTYPE_WIRELESS:
 		return __ni_wireless_request_scan(nih, ifp);
 
@@ -97,7 +97,7 @@ __ni_system_interface_request_scan(ni_handle_t *nih, ni_interface_t *ifp)
 static int
 __ni_system_interface_get_scan_results(ni_handle_t *nih, ni_interface_t *ifp)
 {
-	switch (ifp->type) {
+	switch (ifp->link.type) {
 	case NI_IFTYPE_WIRELESS:
 		return __ni_wireless_get_scan_results(nih, ifp);
 
@@ -144,7 +144,7 @@ __ni_system_policy_update(ni_handle_t *nih, const ni_policy_t *new_policy)
 	for (i = 0; i < iflist.count; ++i) {
 		ifp = iflist.data[i];
 
-		ni_debug_ifconfig("%s: requested flags 0x%x", ifp->name, policy->interface->ifflags);
+		ni_debug_ifconfig("%s: requested flags 0x%x", ifp->name, policy->interface->link.ifflags);
 		if (ni_interface_configure2(nih, ifp, policy->interface) < 0) {
 			ni_error("%s: error applying new policy", ifp->name);
 		}

@@ -647,7 +647,7 @@ generic_interface_put(ni_handle_t *nih, ni_wicked_request_t *req)
 
 	/* Deduplicate address list */
 	if (__ni_address_list_dedup(&ifp->addrs) < 0) {
-		ni_error("%s: configuration contains duplicate/conflicting addresses", ifp->name);
+		ni_error("%s: configuration contains duplicate/conflicting addresses", ifname);
 		goto failed;
 	}
 

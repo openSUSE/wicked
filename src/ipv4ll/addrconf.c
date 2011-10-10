@@ -82,7 +82,7 @@ ni_autoip_addrconf_request(const ni_addrconf_t *acm, ni_interface_t *ifp, const 
 		ni_error("autoip: unexpected links flags - link is not up");
 		return -1;
 	}
-	if (!(ifp->ifflags & NI_IFF_ARP_ENABLED)) {
+	if (!(ifp->link.ifflags & NI_IFF_ARP_ENABLED)) {
 		ni_error("%s: device does not support ARP, cannot configure for IPv4LL", ifp->name);
 		return -1;
 	}

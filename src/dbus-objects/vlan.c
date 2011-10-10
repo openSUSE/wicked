@@ -40,7 +40,7 @@ ni_objectmodel_new_vlan(ni_dbus_server_t *server, const ni_dbus_object_t *config
 		return NULL;
 	}
 
-	cfg_ifp->type = NI_IFTYPE_VLAN;
+	cfg_ifp->link.type = NI_IFTYPE_VLAN;
 	if (cfg_ifp->name == NULL) {
 		static char namebuf[64];
 		unsigned int num;
@@ -68,11 +68,11 @@ ni_objectmodel_new_vlan(ni_dbus_server_t *server, const ni_dbus_object_t *config
 		return NULL;
 	}
 
-	if (new_ifp->type != NI_IFTYPE_VLAN) {
+	if (new_ifp->link.type != NI_IFTYPE_VLAN) {
 		dbus_set_error(error,
 				DBUS_ERROR_FAILED,
 				"Unable to create VLAN interface: new interface is of type %s",
-				ni_linktype_type_to_name(new_ifp->type));
+				ni_linktype_type_to_name(new_ifp->link.type));
 		return NULL;
 	}
 

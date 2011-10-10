@@ -440,10 +440,10 @@ do_show(int argc, char **argv)
 
 			printf("%-12s %-10s %-10s",
 					ifp->name,
-					(ifp->ifflags & NI_IFF_NETWORK_UP)? "up" :
-					 (ifp->ifflags & NI_IFF_LINK_UP)? "link-up" :
-					  (ifp->ifflags & NI_IFF_DEVICE_UP)? "device-up" : "down",
-					ni_linktype_type_to_name(ifp->type));
+					(ifp->link.ifflags & NI_IFF_NETWORK_UP)? "up" :
+					 (ifp->link.ifflags & NI_IFF_LINK_UP)? "link-up" :
+					  (ifp->link.ifflags & NI_IFF_DEVICE_UP)? "device-up" : "down",
+					ni_linktype_type_to_name(ifp->link.type));
 			printf("\n");
 
 			for (ap = ifp->addrs; ap; ap = ap->next) {
@@ -569,7 +569,7 @@ do_addport(int argc, char **argv)
 		/* The "interface" for the ports is usually just a dummy type of
 		 * interface; needed only to get the dbus types of all properties
 		 */
-		port_interface = ni_objectmodel_interface_port_service(bridge_if->type);
+		port_interface = ni_objectmodel_interface_port_service(bridge_if->link.type);
 		if (port_interface == NULL) {
 			ni_error("%s: no port properties for this interface type", bridge_name);
 			goto out;
@@ -718,10 +718,10 @@ __interface_request_build(ni_interface_t *ifp)
 	ni_interface_request_t *req;
 
 	req = ni_interface_request_new();
-	req->ifflags = ifp->ifflags;
-	req->mtu = ifp->mtu;
-	req->metric = ifp->metric;
-	req->txqlen = ifp->txqlen;
+	req->ifflags = ifp->link.ifflags;
+	req->mtu = ifp->link.mtu;
+	req->metric = ifp->link.metric;
+	req->txqlen = ifp->link.txqlen;
 
 	if (ifp->ipv4.enabled)
 		req->ipv4 = __build_afinfo(&ifp->ipv4, AF_INET, ifp);
@@ -1167,7 +1167,7 @@ interface_topology_build(ni_handle_t *config, ni_interface_state_array_t *state_
 		if ((master = master_state->config) == NULL)
 			continue;
 
-		switch (master->type) {
+		switch (master->link.type) {
 		case NI_IFTYPE_VLAN:
 			if ((vlan = master->vlan) == NULL)
 				continue;
@@ -1178,7 +1178,7 @@ interface_topology_build(ni_handle_t *config, ni_interface_state_array_t *state_
 			if (slave != NULL) {
 				/* VLANs are special, real device must be an ether device,
 				 * and can be referenced by more than one vlan */
-				if (slave->type != NI_IFTYPE_ETHERNET) {
+				if (slave->link.type != NI_IFTYPE_ETHERNET) {
 					ni_error("vlan interface %s references non-ethernet device", master->name);
 					goto failed;
 				}
@@ -1279,7 +1279,7 @@ interface_update(ni_interface_state_t *state, ni_handle_t *system)
 		goto out;
 
 	new_state = STATE_DEVICE_DOWN;
-	if (!(have->ifflags & NI_IFF_DEVICE_UP))
+	if (!(have->link.ifflags & NI_IFF_DEVICE_UP))
 		goto out;
 
 	if (want != NULL) {
@@ -1288,11 +1288,11 @@ interface_update(ni_interface_state_t *state, ni_handle_t *system)
 	}
 
 	new_state = STATE_DEVICE_UP;
-	if (!(have->ifflags & NI_IFF_LINK_UP))
+	if (!(have->link.ifflags & NI_IFF_LINK_UP))
 		goto out;
 
 	new_state = STATE_LINK_UP;
-	if (!(have->ifflags & NI_IFF_NETWORK_UP))
+	if (!(have->link.ifflags & NI_IFF_NETWORK_UP))
 		goto out;
 
 	if (want != NULL) {
@@ -1358,8 +1358,8 @@ interface_request_state(ni_interface_state_t *state, ni_handle_t *system, ni_int
 		return -1;
 	}
 
-	ifp->ifflags &= ~(NI_IFF_DEVICE_UP | NI_IFF_LINK_UP | NI_IFF_NETWORK_UP);
-	ifp->ifflags |= ifflags;
+	ifp->link.ifflags &= ~(NI_IFF_DEVICE_UP | NI_IFF_LINK_UP | NI_IFF_NETWORK_UP);
+	ifp->link.ifflags |= ifflags;
 
 	if (ni_interface_configure(system, ifp) < 0) {
 		ni_error("%s: unable to configure", ifp->name);
@@ -1570,7 +1570,7 @@ __fsm_device_delete_call(ni_interface_state_t *state, ni_handle_t *system)
 	if (ifp == NULL)
 		return 0; /* already deleted */
 
-	switch (ifp->type) {
+	switch (ifp->link.type) {
 	case NI_IFTYPE_VLAN:
 	case NI_IFTYPE_BRIDGE:
 	case NI_IFTYPE_BOND:
@@ -1591,7 +1591,7 @@ __fsm_link_up_call(ni_interface_state_t *state, ni_handle_t *system)
 
 	ifp = ni_interface_by_name(system, state->ifname);
 	if (ifp != NULL) {
-		if (ifp->ifflags & NI_IFF_LINK_UP)
+		if (ifp->link.ifflags & NI_IFF_LINK_UP)
 			return 0;
 	} else {
 		/* FIXME: we should create the device here. */
@@ -1612,9 +1612,9 @@ __fsm_link_up_call(ni_interface_state_t *state, ni_handle_t *system)
 		if (cfg->bonding)
 			ni_interface_set_bonding(ifp, ni_bonding_clone(cfg->bonding));
 
-		if (cfg->hwaddr.len)
-			ifp->hwaddr = cfg->hwaddr;
-		ifp->mtu = cfg->mtu;
+		if (cfg->link.hwaddr.len)
+			ifp->link.hwaddr = cfg->link.hwaddr;
+		ifp->link.mtu = cfg->link.mtu;
 	}
 	return interface_request_state(state, system, ifp, STATE_LINK_UP, opt_link_timeout);
 }
@@ -1750,7 +1750,7 @@ interface_mark_up(ni_interface_state_t *state)
 			ni_debug_wicked("%s: will bring up interface via policy", ifp->name);
 			state->is_policy = 1;
 			state->fsm = __fsm_network_up_policy;
-			ifp->ifflags |= (NI_IFF_DEVICE_UP | NI_IFF_LINK_UP | NI_IFF_NETWORK_UP);
+			ifp->link.ifflags |= (NI_IFF_DEVICE_UP | NI_IFF_LINK_UP | NI_IFF_NETWORK_UP);
 		}
 	}
 
@@ -1777,7 +1777,7 @@ interface_mark_up(ni_interface_state_t *state)
 		 * Bonding slave devices should never have their network configured.
 		 * Note, we should tear down any network config on such devices.
 		 */
-		if (state->config && state->config->type == NI_IFTYPE_BOND)
+		if (state->config && state->config->link.type == NI_IFTYPE_BOND)
 			slave_state->fsm = __fsm_link_up_generic;
 
 		interface_mark_up(slave_state);

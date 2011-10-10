@@ -282,7 +282,7 @@ ni_bridge_del_port_ifindex(ni_bridge_t *bridge, int ifindex)
 	for (i = 0; i < bridge->ports.count; ++i) {
 		ni_interface_t *port_dev = bridge->ports.data[i]->device;
 
-		if (port_dev && port_dev->ifindex == ifindex) {
+		if (port_dev && port_dev->link.ifindex == ifindex) {
 			ni_bridge_port_array_remove_index(&bridge->ports, i);
 			return 0;
 		}

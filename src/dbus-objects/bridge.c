@@ -43,7 +43,7 @@ ni_objectmodel_new_bridge(ni_dbus_server_t *server, const ni_dbus_object_t *conf
 	ni_handle_t *nih = ni_global_state_handle();
 	int rv;
 
-	cfg_ifp->type = NI_IFTYPE_BRIDGE;
+	cfg_ifp->link.type = NI_IFTYPE_BRIDGE;
 	if (cfg_ifp->name == NULL) {
 		static char namebuf[64];
 		unsigned int num;
@@ -70,10 +70,10 @@ ni_objectmodel_new_bridge(ni_dbus_server_t *server, const ni_dbus_object_t *conf
 		return NULL;
 	}
 
-	if (new_ifp->type != NI_IFTYPE_BRIDGE) {
+	if (new_ifp->link.type != NI_IFTYPE_BRIDGE) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
 				"Unable to create bridge interface: new interface is of type %s",
-				ni_linktype_type_to_name(new_ifp->type));
+				ni_linktype_type_to_name(new_ifp->link.type));
 		return NULL;
 	}
 
@@ -198,7 +198,7 @@ __ni_dbus_bridge_remove_port(ni_dbus_object_t *object, const ni_dbus_method_t *m
 		portif = port_object->handle;
 	}
 
-	if (ni_interface_remove_bridge_port(nih, ifp, portif->ifindex) < 0) {
+	if (ni_interface_remove_bridge_port(nih, ifp, portif->link.ifindex) < 0) {
 		dbus_set_error(error, DBUS_ERROR_FAILED, "Unable to remove port");
 		return FALSE;
 	}

@@ -80,7 +80,7 @@ __ni_wireless_get_scan_results(ni_handle_t *nih, ni_interface_t *ifp)
 	ni_wireless_scan_t *scan;
 	ni_wpa_interface_t *wif;
 
-	if (ifp->type != NI_IFTYPE_WIRELESS) {
+	if (ifp->link.type != NI_IFTYPE_WIRELESS) {
 		ni_error("%s: cannot do wireless scan on this interface", ifp->name);
 		return -1;
 	}
@@ -110,7 +110,7 @@ __ni_wireless_request_scan(ni_handle_t *nih, ni_interface_t *ifp)
 	ni_wireless_scan_t *scan;
 	ni_wpa_interface_t *wif;
 
-	if (ifp->type != NI_IFTYPE_WIRELESS) {
+	if (ifp->link.type != NI_IFTYPE_WIRELESS) {
 		ni_error("%s: cannot do wireless scan on this interface", ifp->name);
 		return -1;
 	}
