@@ -1248,7 +1248,7 @@ ni_vlan_t *
 ni_interface_get_vlan(ni_interface_t *ifp)
 {
 	if (!ifp->link.vlan)
-		ifp->link.vlan = calloc(1, sizeof(ni_vlan_t));
+		ifp->link.vlan = __ni_vlan_new();
 	return ifp->link.vlan;
 }
 

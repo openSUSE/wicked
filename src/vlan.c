@@ -12,6 +12,18 @@
 #include "netinfo_priv.h"
 
 /*
+ * Create a new VLAN device
+ */
+ni_vlan_t *
+__ni_vlan_new(void)
+{
+	ni_vlan_t *vlan;
+
+	vlan = calloc(1, sizeof(ni_vlan_t));
+	return vlan;
+}
+
+/*
  * Clone a device's VLAN configuration
  */
 ni_vlan_t *
@@ -19,7 +31,7 @@ ni_vlan_clone(const ni_vlan_t *src)
 {
 	ni_vlan_t *dst;
 
-	dst = calloc(1, sizeof(ni_vlan_t));
+	dst = __ni_vlan_new();
 	if (!dst)
 		return NULL;
 
