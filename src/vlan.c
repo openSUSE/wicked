@@ -101,10 +101,18 @@ ni_vlan_bind(ni_interface_t *ifp, ni_handle_t *nih)
 }
 
 void
-ni_vlan_free(ni_vlan_t *vlan)
+__ni_vlan_destroy(ni_vlan_t *vlan)
 {
 	__ni_vlan_unbind(vlan);
-	free(vlan->physdev_name);
+	ni_string_free(&vlan->physdev_name);
+	vlan->physdev_index = 0;
+}
+
+void
+ni_vlan_free(ni_vlan_t *vlan)
+{
+	__ni_vlan_destroy(vlan);
 	free(vlan);
 }
+
 

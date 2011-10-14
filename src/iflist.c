@@ -36,6 +36,8 @@
 #include "kernel.h"
 #include "config.h"
 
+static int	__ni_process_ifinfomsg(ni_linkinfo_t *link, struct nlmsghdr *h,
+				struct ifinfomsg *ifi, ni_handle_t *nih);
 static int	__ni_interface_process_newaddr(ni_interface_t *, struct nlmsghdr *,
 				struct ifaddrmsg *, ni_handle_t *);
 static int	__ni_interface_process_newroute(ni_interface_t *, struct nlmsghdr *,
@@ -84,6 +86,15 @@ __ni_rtnl_info_next(struct ni_rtnl_info *qr)
 	return NULL;
 }
 
+static void
+ni_rtnl_query_destroy(struct ni_rtnl_query *q)
+{
+	ni_nlmsg_list_destroy(&q->link_info.nlmsg_list);
+	ni_nlmsg_list_destroy(&q->addr_info.nlmsg_list);
+	ni_nlmsg_list_destroy(&q->ipv6_info.nlmsg_list);
+	ni_nlmsg_list_destroy(&q->route_info.nlmsg_list);
+}
+
 static int
 ni_rtnl_query(ni_handle_t *nih, struct ni_rtnl_query *q, int ifindex)
 {
@@ -94,23 +105,25 @@ ni_rtnl_query(ni_handle_t *nih, struct ni_rtnl_query *q, int ifindex)
 	 || __ni_rtnl_query(nih, &q->ipv6_info, AF_INET6, RTM_GETLINK) < 0
 	 || __ni_rtnl_query(nih, &q->addr_info, AF_UNSPEC, RTM_GETADDR) < 0
 	 || __ni_rtnl_query(nih, &q->route_info, AF_UNSPEC, RTM_GETROUTE) < 0) {
-		ni_nlmsg_list_destroy(&q->link_info.nlmsg_list);
-		ni_nlmsg_list_destroy(&q->addr_info.nlmsg_list);
-		ni_nlmsg_list_destroy(&q->ipv6_info.nlmsg_list);
-		ni_nlmsg_list_destroy(&q->route_info.nlmsg_list);
+		ni_rtnl_query_destroy(q);
 		return -1;
 	}
 
 	return 0;
 }
 
-static void
-ni_rtnl_query_destroy(struct ni_rtnl_query *q)
+static int
+ni_rtnl_query_link(ni_handle_t *nih, struct ni_rtnl_query *q, int ifindex)
 {
-	ni_nlmsg_list_destroy(&q->link_info.nlmsg_list);
-	ni_nlmsg_list_destroy(&q->addr_info.nlmsg_list);
-	ni_nlmsg_list_destroy(&q->ipv6_info.nlmsg_list);
-	ni_nlmsg_list_destroy(&q->route_info.nlmsg_list);
+	memset(q, 0, sizeof(*q));
+	q->ifindex = ifindex;
+
+	if (__ni_rtnl_query(nih, &q->link_info, AF_UNSPEC, RTM_GETLINK) < 0) {
+		ni_rtnl_query_destroy(q);
+		return -1;
+	}
+
+	return 0;
 }
 
 static inline struct ifinfomsg *
@@ -358,14 +371,7 @@ __ni_system_refresh_interface(ni_handle_t *nih, ni_interface_t *ifp)
 		ni_interface_clear_routes(ifp);
 
 		if (__ni_interface_process_newlink(ifp, h, ifi, nih) < 0)
-			error("Problem parsing RTM_NEWLINK message for %s", ifp->name);
-	}
-
-	if (ifp->link.vlan && ni_vlan_bind_ifindex(ifp->link.vlan, nih) < 0) {
-		ni_error("VLAN interface %s references unknown base interface (ifindex %u)",
-			ifp->name, ifp->link.vlan->physdev_index);
-		/* Ignore error and proceed */
-		ni_string_dup(&ifp->link.vlan->physdev_name, "unknown");
+			ni_error("Problem parsing RTM_NEWLINK message for %s", ifp->name);
 	}
 
 	while (1) {
@@ -393,6 +399,38 @@ __ni_system_refresh_interface(ni_handle_t *nih, ni_interface_t *ifp)
 failed:
 	ni_rtnl_query_destroy(&query);
 	return res;
+}
+
+/*
+ * Refresh the link info of one interface
+ */
+int
+__ni_device_refresh_link_info(ni_handle_t *nih, ni_linkinfo_t *link)
+{
+	struct ni_rtnl_query query;
+	struct nlmsghdr *h;
+	int rv = 0;
+
+	nih->seqno++;
+
+	if ((rv = ni_rtnl_query_link(nih, &query, link->ifindex)) < 0)
+		goto done;
+
+	while (1) {
+		struct ifinfomsg *ifi;
+
+		if (!(ifi = ni_rtnl_query_next_link_info(&query, &h)))
+			break;
+
+		if ((rv = __ni_process_ifinfomsg(link, h, ifi, nih)) < 0) {
+			ni_error("Problem parsing RTM_NEWLINK message");
+			goto done;
+		}
+	}
+
+done:
+	ni_rtnl_query_destroy(&query);
+	return rv;
 }
 
 /*
@@ -563,10 +601,18 @@ __ni_process_ifinfomsg(ni_linkinfo_t *link, struct nlmsghdr *h,
 				link->vlan = vlan = __ni_vlan_new();
 
 			/* IFLA_LINK contains the ifindex of the real ether dev */
-			if (tb[IFLA_LINK])
+			if (tb[IFLA_LINK]) {
 				vlan->physdev_index = nla_get_u32(tb[IFLA_LINK]);
-			else
-				vlan->physdev_index = 0;
+
+				if (ni_vlan_bind_ifindex(vlan, nih) < 0) {
+					ni_error("VLAN interface %s references unknown base interface (ifindex %u)",
+							ifname, vlan->physdev_index);
+					/* Ignore error and proceed */
+					ni_string_dup(&vlan->physdev_name, "unknown");
+				}
+			} else {
+				__ni_vlan_destroy(vlan);
+			}
 
 			if (nla_parse_nested(vlan_info, IFLA_VLAN_MAX, nl_linkinfo[IFLA_INFO_DATA], NULL) >= 0)
 				vlan->tag = nla_get_u16(vlan_info[IFLA_VLAN_ID]);
