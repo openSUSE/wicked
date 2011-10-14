@@ -35,17 +35,13 @@ ni_vlan_clone(const ni_vlan_t *src)
 	if (!dst)
 		return NULL;
 
+	ni_string_dup(&dst->physdev_name, src->physdev_name);
+	dst->physdev_index = src->physdev_index;
 	dst->tag = src->tag;
-	if (src->interface_name
-	 && !(dst->interface_name = xstrdup(src->interface_name)))
-		goto failed;
+	if (src->interface_dev)
+		dst->interface_dev = ni_interface_get(src->interface_dev);
 
 	return dst;
-
-failed:
-	error("Error clonding vlan configuration");
-	ni_vlan_free(dst);
-	return NULL;
 }
 
 static inline void
@@ -71,7 +67,7 @@ ni_vlan_bind_ifindex(ni_vlan_t *vlan, ni_handle_t *nih)
 	if (real_dev == NULL)
 		return -1;
 
-	ni_string_dup(&vlan->interface_name, real_dev->name);
+	ni_string_dup(&vlan->physdev_name, real_dev->name);
 	vlan->interface_dev = ni_interface_get(real_dev);
 	return 0;
 }
@@ -87,9 +83,9 @@ ni_vlan_bind(ni_interface_t *ifp, ni_handle_t *nih)
 
 	__ni_vlan_unbind(vlan);
 
-	child = ni_interface_by_name(nih, vlan->interface_name);
+	child = ni_interface_by_name(nih, vlan->physdev_name);
 	if (!child) {
-		ni_bad_reference(nih, ifp, vlan->interface_name);
+		ni_bad_reference(nih, ifp, vlan->physdev_name);
 		return -1;
 	}
 	vlan->interface_dev = ni_interface_get(child);
@@ -108,7 +104,7 @@ void
 ni_vlan_free(ni_vlan_t *vlan)
 {
 	__ni_vlan_unbind(vlan);
-	free(vlan->interface_name);
+	free(vlan->physdev_name);
 	free(vlan);
 }
 

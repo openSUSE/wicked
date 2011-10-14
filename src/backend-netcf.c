@@ -361,7 +361,7 @@ __ni_netcf_xml_to_vlan(ni_syntax_t *syntax, ni_handle_t *nih,
 		error("VLAN interface %s: vlan interface element has no name attribute", ifp->name);
 		return -1;
 	}
-	vlan->interface_name = xstrdup(attrval);
+	vlan->physdev_name = xstrdup(attrval);
 
 	return 0;
 }
@@ -1008,11 +1008,11 @@ __ni_netcf_xml_from_vlan(ni_syntax_t *syntax, ni_handle_t *nih, ni_vlan_t *vlan,
 
 	vlnode = xml_node_new("vlan", ifnode);
 	xml_node_add_attr_uint(vlnode, "tag", vlan->tag);
-	if (vlan->interface_name) {
+	if (vlan->physdev_name) {
 		xml_node_t *ifchild;
 
 		ifchild = xml_node_new("interface", vlnode);
-		xml_node_add_attr(ifchild, "name", vlan->interface_name);
+		xml_node_add_attr(ifchild, "name", vlan->physdev_name);
 	}
 }
 

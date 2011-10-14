@@ -713,12 +713,12 @@ __ni_interface_vlan_configure(ni_handle_t *nih, const ni_interface_t *cfg, ni_in
 	{
 		ni_interface_t *real_dev;
 
-		if (!cfg_vlan->interface_name)
+		if (!cfg_vlan->physdev_name)
 			return -1;
-		real_dev = ni_interface_by_name(nih, cfg_vlan->interface_name);
+		real_dev = ni_interface_by_name(nih, cfg_vlan->physdev_name);
 		if (!real_dev || !real_dev->link.ifindex) {
 			error("Cannot bring up VLAN interface %s: %s does not exist",
-					cfg->name, cfg_vlan->interface_name);
+					cfg->name, cfg_vlan->physdev_name);
 			return -1;
 		}
 
@@ -727,7 +727,7 @@ __ni_interface_vlan_configure(ni_handle_t *nih, const ni_interface_t *cfg, ni_in
 		if (!ni_interface_network_is_up(real_dev)
 		 && __ni_system_interface_bringup(nih, real_dev) < 0) {
 			error("Cannot bring up VLAN interface %s: %s not ready yet",
-					cfg->name, cfg_vlan->interface_name);
+					cfg->name, cfg_vlan->physdev_name);
 			return -1;
 		}
 	}
@@ -772,12 +772,12 @@ ni_interface_create_vlan(ni_handle_t *nih, const char *ifname, const ni_vlan_t *
 	{
 		ni_interface_t *real_dev;
 
-		if (!cfg_vlan->interface_name)
+		if (!cfg_vlan->physdev_name)
 			return -1;
-		real_dev = ni_interface_by_name(nih, cfg_vlan->interface_name);
+		real_dev = ni_interface_by_name(nih, cfg_vlan->physdev_name);
 		if (!real_dev || !real_dev->link.ifindex) {
 			error("Cannot bring up VLAN interface %s: %s does not exist",
-					ifname, cfg_vlan->interface_name);
+					ifname, cfg_vlan->physdev_name);
 			return -1;
 		}
 
@@ -787,7 +787,7 @@ ni_interface_create_vlan(ni_handle_t *nih, const char *ifname, const ni_vlan_t *
 		if (!ni_interface_network_is_up(real_dev)
 		 && __ni_system_interface_bringup(nih, real_dev) < 0) {
 			error("Cannot bring up VLAN interface %s: %s not ready yet",
-					ifname, cfg_vlan->interface_name);
+					ifname, cfg_vlan->physdev_name);
 			return -1;
 		}
 #endif
@@ -1209,7 +1209,7 @@ __ni_rtnl_link_create_vlan(ni_handle_t *nih, const char *ifname, const ni_vlan_t
 	 *  LINK must contain the link ID of the real ethernet device
 	 */
 	debug_ifconfig("__ni_rtnl_link_create(%s, vlan, %u, %s)",
-			ifname, vlan->tag, vlan->interface_name);
+			ifname, vlan->tag, vlan->physdev_name);
 
 	if (!(linkinfo = nla_nest_start(msg, IFLA_LINKINFO)))
 		return -1;
@@ -1224,10 +1224,10 @@ __ni_rtnl_link_create_vlan(ni_handle_t *nih, const char *ifname, const ni_vlan_t
 
 	/* Note, IFLA_LINK must be outside of IFLA_LINKINFO */
 
-	real_dev = ni_interface_by_name(nih, vlan->interface_name);
+	real_dev = ni_interface_by_name(nih, vlan->physdev_name);
 	if (!real_dev || !real_dev->link.ifindex) {
 		error("Cannot create VLAN interface %s: interface %s does not exist",
-				ifname, vlan->interface_name);
+				ifname, vlan->physdev_name);
 		return -1;
 	}
 	NLA_PUT_U32(msg, IFLA_LINK, real_dev->link.ifindex);
@@ -1288,7 +1288,7 @@ __ni_rtnl_link_create(ni_handle_t *nih, const ni_interface_t *cfg)
 		}
 
 		debug_ifconfig("__ni_rtnl_link_create(%s, vlan, %u, %s)",
-				cfg->name, vlan->tag, vlan->interface_name);
+				cfg->name, vlan->tag, vlan->physdev_name);
 
 		if (!(linkinfo = nla_nest_start(msg, IFLA_LINKINFO)))
 			return -1;
@@ -1303,10 +1303,10 @@ __ni_rtnl_link_create(ni_handle_t *nih, const ni_interface_t *cfg)
 
 		/* Note, IFLA_LINK must be outside of IFLA_LINKINFO */
 
-		real_dev = ni_interface_by_name(nih, cfg->link.vlan->interface_name);
+		real_dev = ni_interface_by_name(nih, cfg->link.vlan->physdev_name);
 		if (!real_dev || !real_dev->link.ifindex) {
 			error("Cannot create VLAN interface %s: interface %s does not exist",
-					cfg->name, cfg->link.vlan->interface_name);
+					cfg->name, cfg->link.vlan->physdev_name);
 			return -1;
 		}
 		NLA_PUT_U32(msg, IFLA_LINK, real_dev->link.ifindex);

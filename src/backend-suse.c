@@ -664,7 +664,7 @@ try_vlan(ni_interface_t *ifp, ni_sysconfig_t *sc)
 
 	vlan = ni_interface_get_vlan(ifp);
 	vlan->tag = strtoul(ifp->name + 4, NULL, 0);
-	ni_sysconfig_get_string(sc, "ETHERDEVICE", &vlan->interface_name);
+	ni_sysconfig_get_string(sc, "ETHERDEVICE", &vlan->physdev_name);
 }
 
 /*

@@ -1172,7 +1172,7 @@ interface_topology_build(ni_handle_t *config, ni_interface_state_array_t *state_
 			if ((vlan = master->link.vlan) == NULL)
 				continue;
 
-			slave_name = vlan->interface_name;
+			slave_name = vlan->physdev_name;
 
 			slave = ni_interface_by_name(config, slave_name);
 			if (slave != NULL) {

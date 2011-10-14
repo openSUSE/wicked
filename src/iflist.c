@@ -257,7 +257,7 @@ __ni_system_refresh_all(ni_handle_t *nih, ni_interface_t **del_list)
 			ni_error("VLAN interface %s references unknown base interface (ifindex %u)",
 				ifp->name, ifp->link.vlan->physdev_index);
 			/* Ignore error and proceed */
-			ni_string_dup(&ifp->link.vlan->interface_name, "unknown");
+			ni_string_dup(&ifp->link.vlan->physdev_name, "unknown");
 		}
 	}
 
@@ -365,7 +365,7 @@ __ni_system_refresh_interface(ni_handle_t *nih, ni_interface_t *ifp)
 		ni_error("VLAN interface %s references unknown base interface (ifindex %u)",
 			ifp->name, ifp->link.vlan->physdev_index);
 		/* Ignore error and proceed */
-		ni_string_dup(&ifp->link.vlan->interface_name, "unknown");
+		ni_string_dup(&ifp->link.vlan->physdev_name, "unknown");
 	}
 
 	while (1) {

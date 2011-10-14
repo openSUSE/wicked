@@ -402,7 +402,7 @@ try_vlan(ni_handle_t *nih, ni_interface_t *ifp, ni_sysconfig_t *sc)
 	vlan->tag = vlan_tag;
 
 	snprintf(namebuf, sizeof(namebuf), "eth%u", eth_num);
-	ni_string_dup(&vlan->interface_name, namebuf);
+	ni_string_dup(&vlan->physdev_name, namebuf);
 }
 
 /*

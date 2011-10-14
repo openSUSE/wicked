@@ -34,7 +34,7 @@ ni_objectmodel_new_vlan(ni_dbus_server_t *server, const ni_dbus_object_t *config
 
 	if (!vlan
 	 || !vlan->tag
-	 || !vlan->interface_name) {
+	 || !vlan->physdev_name) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
 				"Incomplete arguments (need VLAN tag and interface name)");
 		return NULL;
@@ -173,7 +173,7 @@ __wicked_dbus_vlan_get_interface_name(const ni_dbus_object_t *object,
 	if (!(vlan = __wicked_dbus_vlan_handle(object, error)))
 		return FALSE;
 
-	ni_dbus_variant_set_string(result, vlan->interface_name);
+	ni_dbus_variant_set_string(result, vlan->physdev_name);
 	return TRUE;
 }
 
@@ -184,21 +184,21 @@ __wicked_dbus_vlan_set_interface_name(ni_dbus_object_t *object,
 				DBusError *error)
 {
 	ni_vlan_t *vlan;
-	const char *interface_name;
+	const char *physdev_name;
 
 	if (!(vlan = __wicked_dbus_vlan_handle(object, error)))
 		return FALSE;
 
-	if (!ni_dbus_variant_get_string(result, &interface_name))
+	if (!ni_dbus_variant_get_string(result, &physdev_name))
 		return FALSE;
-	ni_string_dup(&vlan->interface_name, interface_name);
+	ni_string_dup(&vlan->physdev_name, physdev_name);
 	return TRUE;
 }
 
 #define WICKED_VLAN_PROPERTY(type, __name, rw) \
-	NI_DBUS_PROPERTY(type, __name, offsetof(ni_vlan_t, __name), __wicked_dbus_vlan, rw)
+	NI_DBUS_PROPERTY(type, __name, 0, __wicked_dbus_vlan, rw)
 #define WICKED_VLAN_PROPERTY_SIGNATURE(signature, __name, rw) \
-	__NI_DBUS_PROPERTY(signature, __name, offsetof(ni_vlan_t, __name), __wicked_dbus_vlan, rw)
+	__NI_DBUS_PROPERTY(signature, __name, 0, __wicked_dbus_vlan, rw)
 
 static ni_dbus_property_t	wicked_dbus_vlan_properties[] = {
 	WICKED_VLAN_PROPERTY(STRING, interface_name, RO),
