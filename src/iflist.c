@@ -249,13 +249,13 @@ __ni_system_refresh_all(ni_handle_t *nih, ni_interface_t **del_list)
 		ifp->seq = seqno;
 
 		if (__ni_interface_process_newlink(ifp, h, ifi, nih) < 0)
-			error("Problem parsing RTM_NEWLINK message for %s", ifname);
+			ni_error("Problem parsing RTM_NEWLINK message for %s", ifname);
 	}
 
 	for (ifp = nih->iflist; ifp; ifp = ifp->next) {
 		if (ifp->link.vlan && ni_vlan_bind_ifindex(ifp->link.vlan, nih) < 0) {
-			error("VLAN interface %s references unknown base interface (ifindex %u)",
-				ifp->name, ifp->link.vlan->link);
+			ni_error("VLAN interface %s references unknown base interface (ifindex %u)",
+				ifp->name, ifp->link.vlan->physdev_index);
 			/* Ignore error and proceed */
 			ni_string_dup(&ifp->link.vlan->interface_name, "unknown");
 		}
@@ -362,8 +362,8 @@ __ni_system_refresh_interface(ni_handle_t *nih, ni_interface_t *ifp)
 	}
 
 	if (ifp->link.vlan && ni_vlan_bind_ifindex(ifp->link.vlan, nih) < 0) {
-		error("VLAN interface %s references unknown base interface (ifindex %u)",
-			ifp->name, ifp->link.vlan->link);
+		ni_error("VLAN interface %s references unknown base interface (ifindex %u)",
+			ifp->name, ifp->link.vlan->physdev_index);
 		/* Ignore error and proceed */
 		ni_string_dup(&ifp->link.vlan->interface_name, "unknown");
 	}
@@ -564,9 +564,9 @@ __ni_process_ifinfomsg(ni_linkinfo_t *link, struct nlmsghdr *h,
 
 			/* IFLA_LINK contains the ifindex of the real ether dev */
 			if (tb[IFLA_LINK])
-				vlan->link = nla_get_u32(tb[IFLA_LINK]);
+				vlan->physdev_index = nla_get_u32(tb[IFLA_LINK]);
 			else
-				vlan->link = 0;
+				vlan->physdev_index = 0;
 
 			if (nla_parse_nested(vlan_info, IFLA_VLAN_MAX, nl_linkinfo[IFLA_INFO_DATA], NULL) >= 0)
 				vlan->tag = nla_get_u16(vlan_info[IFLA_VLAN_ID]);

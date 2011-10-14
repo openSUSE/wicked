@@ -216,7 +216,7 @@ typedef struct ni_interface_array {
 
 struct ni_vlan {
 	char *			interface_name;
-	unsigned int		link;		/* when parsing system state, this is the
+	unsigned int		physdev_index;	/* when parsing system state, this is the
 						 * ifindex of the master */
 	uint16_t		tag;
 	ni_interface_t *	interface_dev;

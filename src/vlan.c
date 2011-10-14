@@ -67,7 +67,7 @@ ni_vlan_bind_ifindex(ni_vlan_t *vlan, ni_handle_t *nih)
 	if (!vlan)
 		return -1;
 
-	real_dev = ni_interface_by_index(nih, vlan->link);
+	real_dev = ni_interface_by_index(nih, vlan->physdev_index);
 	if (real_dev == NULL)
 		return -1;
 
