@@ -182,6 +182,7 @@ struct ni_interface {
 	ni_afinfo_t		ipv6;
 	ni_socket_t *		ipv6ra_listener;
 
+	/* link layer info specific to different device types. */
 	ni_interface_t *	parent;
 	ni_bonding_t *		bonding;
 	ni_vlan_t *		vlan;

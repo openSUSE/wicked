@@ -52,11 +52,11 @@ __ni_ioctl(ni_handle_t *nih, int ioc, void *arg)
  * Query an ethernet type interface for ethtool information
  */
 int
-__ni_ethtool(ni_handle_t *nih, const ni_interface_t *ifp, int cmd, void *data)
+__ni_ethtool(ni_handle_t *nih, const char *ifname, int cmd, void *data)
 {
 	struct ifreq ifr;
 
-	strncpy(ifr.ifr_name, ifp->name, IFNAMSIZ);
+	strncpy(ifr.ifr_name, ifname, IFNAMSIZ);
 	((struct ethtool_cmd *) data)->cmd = cmd;
 	ifr.ifr_data = data;
 
@@ -124,12 +124,12 @@ __ni_brioctl_del_port(ni_handle_t *nih, const char *ifname, unsigned int port_in
  * Wireless extension ioctls
  */
 int
-__ni_wireless_get_name(ni_handle_t *nih, const ni_interface_t *ifp, char *result, size_t size)
+__ni_wireless_get_name(ni_handle_t *nih, const char *name, char *result, size_t size)
 {
 	struct iwreq iwreq;
 
 	memset(&iwreq, 0, sizeof(iwreq));
-	strncpy(iwreq.ifr_name, ifp->name, IFNAMSIZ);
+	strncpy(iwreq.ifr_name, name, IFNAMSIZ);
 	if (__ni_ioctl(nih, SIOCGIWNAME, &iwreq) < 0)
 		return -1;
 
@@ -141,13 +141,13 @@ __ni_wireless_get_name(ni_handle_t *nih, const ni_interface_t *ifp, char *result
 }
 
 int
-__ni_wireless_get_essid(ni_handle_t *nih, const ni_interface_t *ifp, char *result, size_t size)
+__ni_wireless_get_essid(ni_handle_t *nih, const char *name, char *result, size_t size)
 {
 	char buffer[IW_ESSID_MAX_SIZE];
 	struct iwreq iwreq;
 
 	memset(&iwreq, 0, sizeof(iwreq));
-	strncpy(iwreq.ifr_name, ifp->name, IFNAMSIZ);
+	strncpy(iwreq.ifr_name, name, IFNAMSIZ);
 	iwreq.u.essid.pointer = buffer;
 	iwreq.u.essid.length = sizeof(buffer);
 	if (__ni_ioctl(nih, SIOCGIWESSID, &iwreq) < 0)
