@@ -552,9 +552,24 @@ __ni_process_ifinfomsg(ni_linkinfo_t *link, struct nlmsghdr *h,
 		ni_string_dup(&link->kind, nla_get_string(nl_linkinfo[IFLA_INFO_KIND]));
 
 		if (link->kind && !strcmp(link->kind, "vlan")) {
+			struct nlattr *vlan_info[IFLA_VLAN_MAX+1];
+			ni_vlan_t *vlan;
+
 			/* There's more info in this LINKINFO; extract it in the caller
 			 * as we don't have access to the containing ni_interface_t here */
 			link->type = NI_IFTYPE_VLAN;
+
+			if (!(vlan = link->vlan))
+				link->vlan = vlan = __ni_vlan_new();
+
+			/* IFLA_LINK contains the ifindex of the real ether dev */
+			if (tb[IFLA_LINK])
+				vlan->link = nla_get_u32(tb[IFLA_LINK]);
+			else
+				vlan->link = 0;
+
+			if (nla_parse_nested(vlan_info, IFLA_VLAN_MAX, nl_linkinfo[IFLA_INFO_DATA], NULL) >= 0)
+				vlan->tag = nla_get_u16(vlan_info[IFLA_VLAN_ID]);
 		}
 	}
 
@@ -630,41 +645,6 @@ __ni_interface_process_newlink(ni_interface_t *ifp, struct nlmsghdr *h,
 
 	ifp->ipv4.addrconf = NI_ADDRCONF_MASK(NI_ADDRCONF_STATIC);
 	ifp->ipv6.addrconf = NI_ADDRCONF_MASK(NI_ADDRCONF_AUTOCONF) | NI_ADDRCONF_MASK(NI_ADDRCONF_STATIC);
-
-	if ((nla = nlmsg_find_attr(h, sizeof(*ifi), IFLA_LINKINFO)) != NULL) {
-		struct nlattr *nl_linkinfo[IFLA_INFO_MAX+1];
-		int info_data_used = 0;
-
-		if (nla_parse_nested(nl_linkinfo, IFLA_INFO_MAX, nla, NULL) < 0) {
-			ni_error("unable to parse IFLA_LINKINFO");
-			return -1;
-		}
-
-		if (ifp->link.type == NI_IFTYPE_VLAN) {
-			struct nlattr *vlan_info[IFLA_VLAN_MAX+1];
-			ni_vlan_t *vlancfg;
-
-			vlancfg = ni_interface_get_vlan(ifp);
-			vlancfg->link = 0;
-
-#ifdef this_is_broken
-			/* IFLA_LINK contains the ifindex of the real ether dev */
-			if (tb[IFLA_LINK])
-				vlancfg->link = nla_get_u32(tb[IFLA_LINK]);
-#endif
-
-			if (nla_parse_nested(vlan_info, IFLA_VLAN_MAX, nl_linkinfo[IFLA_INFO_DATA], NULL) >= 0) {
-				vlancfg->tag = nla_get_u16(vlan_info[IFLA_VLAN_ID]);
-				info_data_used = 1;
-			}
-		}
-
-		if (nl_linkinfo[IFLA_INFO_DATA] && !info_data_used)
-			ni_warn("%s: link info data of type %s - don't know what to do with it",
-					ifp->name, ifp->link.kind);
-
-		/* We may also want to inspect nl_linkinfo[IFLA_INFO_XSTATS] */
-	}
 
 	/* dhcpcd does something very odd when shutting down an interface;
 	 * in addition to removing all IPv4 addresses, it also removes any
