@@ -684,8 +684,8 @@ __ni_netcf_xml_from_interface(ni_syntax_t *syntax, ni_handle_t *nih,
 		__ni_netcf_xml_from_bridge(syntax, nih, ifp->bridge, ifnode);
 	if (ifp->bonding)
 		__ni_netcf_xml_from_bonding(syntax, nih, ifp->bonding, ifnode);
-	if (ifp->vlan)
-		__ni_netcf_xml_from_vlan(syntax, nih, ifp->vlan, ifnode);
+	if (ifp->link.vlan)
+		__ni_netcf_xml_from_vlan(syntax, nih, ifp->link.vlan, ifnode);
 	if (ifp->ethernet)
 		__ni_netcf_xml_from_ethernet(syntax, ifp->ethernet, ifnode);
 	if (ifp->wireless)

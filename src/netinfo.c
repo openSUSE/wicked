@@ -814,7 +814,7 @@ ni_create_topology(ni_handle_t *nih)
 			return -1;
 		if (ifp->bonding && ni_bonding_bind(ifp, nih) < 0)
 			return -1;
-		if (ifp->vlan && ni_vlan_bind(ifp, nih) < 0)
+		if (ifp->link.vlan && ni_vlan_bind(ifp, nih) < 0)
 			return -1;
 	}
 
@@ -919,6 +919,7 @@ ni_interface_clone(const ni_interface_t *ofp)
 	C(link.master);
 	D(link.qdisc, xstrdup);
 	D(link.kind, xstrdup);
+	D(link.vlan, ni_vlan_clone);
 	C(ipv4.enabled);
 	C(ipv4.forwarding);
 	C(ipv4.addrconf);
@@ -928,7 +929,6 @@ ni_interface_clone(const ni_interface_t *ofp)
 	D(addrs, __ni_address_list_clone);
 	D(routes, __ni_route_list_clone);
 	D(bonding, ni_bonding_clone);
-	D(vlan, ni_vlan_clone);
 	D(bridge, ni_bridge_clone);
 	D(ethernet, ni_ethernet_clone);
 	C(startmode);
@@ -1212,8 +1212,8 @@ ni_interface_by_vlan_tag(ni_handle_t *nih, uint16_t tag)
 
 	for (ifp = nih->iflist; ifp; ifp = ifp->next) {
 		if (ifp->link.type == NI_IFTYPE_VLAN
-		 && ifp->vlan
-		 && ifp->vlan->tag == tag)
+		 && ifp->link.vlan
+		 && ifp->link.vlan->tag == tag)
 			return ifp;
 	}
 
@@ -1247,17 +1247,17 @@ ni_interface_next(ni_handle_t *nih, ni_interface_t **pos)
 ni_vlan_t *
 ni_interface_get_vlan(ni_interface_t *ifp)
 {
-	if (!ifp->vlan)
-		ifp->vlan = calloc(1, sizeof(ni_vlan_t));
-	return ifp->vlan;
+	if (!ifp->link.vlan)
+		ifp->link.vlan = calloc(1, sizeof(ni_vlan_t));
+	return ifp->link.vlan;
 }
 
 void
 ni_interface_set_vlan(ni_interface_t *ifp, ni_vlan_t *vlan)
 {
-	if (ifp->vlan)
-		ni_vlan_free(ifp->vlan);
-	ifp->vlan = vlan;
+	if (ifp->link.vlan)
+		ni_vlan_free(ifp->link.vlan);
+	ifp->link.vlan = vlan;
 }
 
 /*

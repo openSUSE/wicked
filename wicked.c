@@ -1169,7 +1169,7 @@ interface_topology_build(ni_handle_t *config, ni_interface_state_array_t *state_
 
 		switch (master->link.type) {
 		case NI_IFTYPE_VLAN:
-			if ((vlan = master->vlan) == NULL)
+			if ((vlan = master->link.vlan) == NULL)
 				continue;
 
 			slave_name = vlan->interface_name;
@@ -1605,8 +1605,8 @@ __fsm_link_up_call(ni_interface_state_t *state, ni_handle_t *system)
 	if ((cfg = state->config) != NULL) {
 		if (cfg->ethernet)
 			ni_interface_set_ethernet(ifp, ni_ethernet_clone(cfg->ethernet));
-		if (cfg->vlan)
-			ni_interface_set_vlan(ifp, ni_vlan_clone(cfg->vlan));
+		if (cfg->link.vlan)
+			ni_interface_set_vlan(ifp, ni_vlan_clone(cfg->link.vlan));
 		if (cfg->bridge)
 			ni_interface_set_bridge(ifp, ni_bridge_clone(cfg->bridge));
 		if (cfg->bonding)

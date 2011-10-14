@@ -253,11 +253,11 @@ __ni_system_refresh_all(ni_handle_t *nih, ni_interface_t **del_list)
 	}
 
 	for (ifp = nih->iflist; ifp; ifp = ifp->next) {
-		if (ifp->vlan && ni_vlan_bind_ifindex(ifp->vlan, nih) < 0) {
+		if (ifp->link.vlan && ni_vlan_bind_ifindex(ifp->link.vlan, nih) < 0) {
 			error("VLAN interface %s references unknown base interface (ifindex %u)",
-				ifp->name, ifp->vlan->link);
+				ifp->name, ifp->link.vlan->link);
 			/* Ignore error and proceed */
-			ni_string_dup(&ifp->vlan->interface_name, "unknown");
+			ni_string_dup(&ifp->link.vlan->interface_name, "unknown");
 		}
 	}
 
@@ -361,11 +361,11 @@ __ni_system_refresh_interface(ni_handle_t *nih, ni_interface_t *ifp)
 			error("Problem parsing RTM_NEWLINK message for %s", ifp->name);
 	}
 
-	if (ifp->vlan && ni_vlan_bind_ifindex(ifp->vlan, nih) < 0) {
+	if (ifp->link.vlan && ni_vlan_bind_ifindex(ifp->link.vlan, nih) < 0) {
 		error("VLAN interface %s references unknown base interface (ifindex %u)",
-			ifp->name, ifp->vlan->link);
+			ifp->name, ifp->link.vlan->link);
 		/* Ignore error and proceed */
-		ni_string_dup(&ifp->vlan->interface_name, "unknown");
+		ni_string_dup(&ifp->link.vlan->interface_name, "unknown");
 	}
 
 	while (1) {
@@ -453,7 +453,7 @@ __ni_interface_translate_ifflags(unsigned int ifflags)
  * Refresh interface link layer given a RTM_NEWLINK message
  */
 int
-__ni_interface_process_newlink(ni_interface_t *ifp, struct nlmsghdr *h,
+__ni_process_ifinfomsg(ni_linkinfo_t *link, struct nlmsghdr *h,
 				struct ifinfomsg *ifi, ni_handle_t *nih)
 {
 	struct nlattr *tb[IFLA_MAX+1];
@@ -465,15 +465,14 @@ __ni_interface_process_newlink(ni_interface_t *ifp, struct nlmsghdr *h,
 		return -1;
 	}
 
-	/* Update interface name in case it changed */
-	if ((ifname = (char *) nla_data(tb[IFLA_IFNAME])) != NULL)
-		strncpy(ifp->name, ifname, sizeof(ifp->name) - 1);
+	if ((ifname = (char *) nla_data(tb[IFLA_IFNAME])) == NULL) {
+		ni_warn("RTM_NEWLINK message without IFNAME");
+		return -1;
+	}
 
-	ifp->link.arp_type = ifi->ifi_type;
-	ifp->link.ifflags = __ni_interface_translate_ifflags(ifi->ifi_flags);
-	ifp->ipv4.addrconf = NI_ADDRCONF_MASK(NI_ADDRCONF_STATIC);
-	ifp->ipv6.addrconf = NI_ADDRCONF_MASK(NI_ADDRCONF_AUTOCONF) | NI_ADDRCONF_MASK(NI_ADDRCONF_STATIC);
-	ifp->link.type = NI_IFTYPE_UNKNOWN;
+	link->arp_type = ifi->ifi_type;
+	link->ifflags = __ni_interface_translate_ifflags(ifi->ifi_flags);
+	link->type = NI_IFTYPE_UNKNOWN;
 
 #if 0
 	ni_debug_ifconfig("%s: ifi flags:%s%s%s, my flags:%s%s%s", ifp->name,
@@ -486,15 +485,15 @@ __ni_interface_process_newlink(ni_interface_t *ifp, struct nlmsghdr *h,
 #endif
 
 	if (tb[IFLA_MTU])
-		ifp->link.mtu = nla_get_u32(tb[IFLA_MTU]);
+		link->mtu = nla_get_u32(tb[IFLA_MTU]);
 	if (tb[IFLA_TXQLEN])
-		ifp->link.txqlen = nla_get_u32(tb[IFLA_TXQLEN]);
+		link->txqlen = nla_get_u32(tb[IFLA_TXQLEN]);
 	if (tb[IFLA_COST])
-		ifp->link.metric = nla_get_u32(tb[IFLA_COST]);
+		link->metric = nla_get_u32(tb[IFLA_COST]);
 	if (tb[IFLA_QDISC])
-		ni_string_dup(&ifp->link.qdisc, nla_get_string(tb[IFLA_QDISC]));
+		ni_string_dup(&link->qdisc, nla_get_string(tb[IFLA_QDISC]));
 	if (tb[IFLA_MASTER])
-		ifp->link.master = nla_get_u32(tb[IFLA_MASTER]);
+		link->master = nla_get_u32(tb[IFLA_MASTER]);
 	if (tb[IFLA_OPERSTATE]) {
 		/* get the RFC 2863 operational status - IF_OPER_* */
 	}
@@ -503,9 +502,9 @@ __ni_interface_process_newlink(ni_interface_t *ifp, struct nlmsghdr *h,
 		struct rtnl_link_stats *s = nla_data(tb[IFLA_STATS]);
 		ni_link_stats_t *n;
 
-		if (!ifp->link.stats)
-			ifp->link.stats = calloc(1, sizeof(*n));
-		n = ifp->link.stats;
+		if (!link->stats)
+			link->stats = calloc(1, sizeof(*n));
+		n = link->stats;
 
 		n->rx_packets = s->rx_packets;
 		n->tx_packets = s->tx_packets;
@@ -544,62 +543,41 @@ __ni_interface_process_newlink(ni_interface_t *ifp, struct nlmsghdr *h,
 	 * The generic tuntap driver has a LINKINFO containing only KIND ("tun").
 	 */
 	if (tb[IFLA_LINKINFO]) {
-		struct nlattr *linkinfo[IFLA_INFO_MAX+1];
-		int info_data_used = 0;
+		struct nlattr *nl_linkinfo[IFLA_INFO_MAX+1];
 
-		if (nla_parse_nested(linkinfo, IFLA_INFO_MAX, tb[IFLA_LINKINFO], NULL) < 0) {
+		if (nla_parse_nested(nl_linkinfo, IFLA_INFO_MAX, tb[IFLA_LINKINFO], NULL) < 0) {
 			ni_error("unable to parse IFLA_LINKINFO");
 			return -1;
 		}
-		ni_string_dup(&ifp->link.kind, nla_get_string(linkinfo[IFLA_INFO_KIND]));
+		ni_string_dup(&link->kind, nla_get_string(nl_linkinfo[IFLA_INFO_KIND]));
 
-		if (ifp->link.kind) {
-			/* Do something with these */
-			if (!strcmp(ifp->link.kind, "vlan")) {
-				struct nlattr *vlan_info[IFLA_VLAN_MAX+1];
-				ni_vlan_t *vlancfg;
-
-				ifp->link.type = NI_IFTYPE_VLAN;
-				vlancfg = ni_interface_get_vlan(ifp);
-				vlancfg->link = 0;
-
-				/* IFLA_LINK contains the ifindex of the real ether dev */
-				if (tb[IFLA_LINK])
-					vlancfg->link = nla_get_u32(tb[IFLA_LINK]);
-
-				if (nla_parse_nested(vlan_info, IFLA_VLAN_MAX, linkinfo[IFLA_INFO_DATA], NULL) >= 0) {
-					vlancfg->tag = nla_get_u16(vlan_info[IFLA_VLAN_ID]);
-					info_data_used = 1;
-				}
-			}
+		if (link->kind && !strcmp(link->kind, "vlan")) {
+			/* There's more info in this LINKINFO; extract it in the caller
+			 * as we don't have access to the containing ni_interface_t here */
+			link->type = NI_IFTYPE_VLAN;
 		}
-
-		if (linkinfo[IFLA_INFO_DATA] && !info_data_used)
-			ni_warn("%s: link info data of type %s - don't know what to do with it", ifp->name, ifp->link.kind);
-
-		/* We may also want to inspect linkinfo[IFLA_INFO_XSTATS] */
 	}
 
-	if (ifp->link.type == NI_IFTYPE_UNKNOWN) {
+	if (link->type == NI_IFTYPE_UNKNOWN) {
 		struct ethtool_drvinfo drv_info;
 
-		switch (ifp->link.arp_type) {
+		switch (link->arp_type) {
 		case ARPHRD_ETHER:
 		case ARPHRD_NONE:	/* tun driver uses this */
-			ifp->link.type = NI_IFTYPE_ETHERNET;
-			if (__ni_ethtool(nih, ifp, ETHTOOL_GDRVINFO, &drv_info) >= 0) {
+			link->type = NI_IFTYPE_ETHERNET;
+			if (__ni_ethtool(nih, ifname, ETHTOOL_GDRVINFO, &drv_info) >= 0) {
 				const char *driver = drv_info.driver;
 
 				if (!strcmp(driver, "tun")) {
 					/* tun/tap driver */
 					if (!strcmp(drv_info.bus_info, "tap"))
-						ifp->link.type = NI_IFTYPE_TAP;
+						link->type = NI_IFTYPE_TAP;
 					else
-						ifp->link.type = NI_IFTYPE_TUN;
+						link->type = NI_IFTYPE_TUN;
 				} else if (!strcmp(driver, "bridge")) {
-					ifp->link.type = NI_IFTYPE_BRIDGE;
+					link->type = NI_IFTYPE_BRIDGE;
 				} else if (!strcmp(driver, "bonding")) {
-					ifp->link.type = NI_IFTYPE_BOND;
+					link->type = NI_IFTYPE_BOND;
 				}
 			}
 
@@ -607,12 +585,12 @@ __ni_interface_process_newlink(ni_interface_t *ifp, struct nlmsghdr *h,
 			 * The official way of doing this is to check whether
 			 * ioctl(SIOCGIWNAME) succeeds.
 			 */
-			if (__ni_wireless_get_name(nih, ifp, NULL, 0) == 0)
-				ifp->link.type = NI_IFTYPE_WIRELESS;
+			if (__ni_wireless_get_name(nih, ifname, NULL, 0) == 0)
+				link->type = NI_IFTYPE_WIRELESS;
 			break;
 
 		default:
-			ifp->link.type = ni_arphrd_type_to_iftype(ifp->link.arp_type);
+			link->type = ni_arphrd_type_to_iftype(link->arp_type);
 			break;
 		}
 	}
@@ -621,13 +599,71 @@ __ni_interface_process_newlink(ni_interface_t *ifp, struct nlmsghdr *h,
 		unsigned int alen = nla_len(tb[IFLA_ADDRESS]);
 		void *data = nla_data(tb[IFLA_ADDRESS]);
 
-		if (alen > sizeof(ifp->link.hwaddr.data))
-			alen = sizeof(ifp->link.hwaddr.data);
-		memcpy(ifp->link.hwaddr.data, data, alen);
-		ifp->link.hwaddr.len = alen;
-		ifp->link.hwaddr.type = ifp->link.type;
+		if (alen > sizeof(link->hwaddr.data))
+			alen = sizeof(link->hwaddr.data);
+		memcpy(link->hwaddr.data, data, alen);
+		link->hwaddr.len = alen;
+		link->hwaddr.type = link->type;
 	} else {
-		memset(&ifp->link.hwaddr, 0, sizeof(ifp->link.hwaddr));
+		memset(&link->hwaddr, 0, sizeof(link->hwaddr));
+	}
+
+	return 0;
+}
+
+int
+__ni_interface_process_newlink(ni_interface_t *ifp, struct nlmsghdr *h,
+				struct ifinfomsg *ifi, ni_handle_t *nih)
+{
+	struct nlattr *nla;
+	int rv;
+
+	if ((nla = nlmsg_find_attr(h, sizeof(*ifi), IFLA_IFNAME)) == NULL) {
+		ni_warn("RTM_NEWLINK message without IFNAME");
+		return 0;
+	}
+	strncpy(ifp->name, (char *) nla_data(nla), sizeof(ifp->name) - 1);
+
+	rv = __ni_process_ifinfomsg(&ifp->link, h, ifi, nih);
+	if (rv < 0)
+		return rv;
+
+	ifp->ipv4.addrconf = NI_ADDRCONF_MASK(NI_ADDRCONF_STATIC);
+	ifp->ipv6.addrconf = NI_ADDRCONF_MASK(NI_ADDRCONF_AUTOCONF) | NI_ADDRCONF_MASK(NI_ADDRCONF_STATIC);
+
+	if ((nla = nlmsg_find_attr(h, sizeof(*ifi), IFLA_LINKINFO)) != NULL) {
+		struct nlattr *nl_linkinfo[IFLA_INFO_MAX+1];
+		int info_data_used = 0;
+
+		if (nla_parse_nested(nl_linkinfo, IFLA_INFO_MAX, nla, NULL) < 0) {
+			ni_error("unable to parse IFLA_LINKINFO");
+			return -1;
+		}
+
+		if (ifp->link.type == NI_IFTYPE_VLAN) {
+			struct nlattr *vlan_info[IFLA_VLAN_MAX+1];
+			ni_vlan_t *vlancfg;
+
+			vlancfg = ni_interface_get_vlan(ifp);
+			vlancfg->link = 0;
+
+#ifdef this_is_broken
+			/* IFLA_LINK contains the ifindex of the real ether dev */
+			if (tb[IFLA_LINK])
+				vlancfg->link = nla_get_u32(tb[IFLA_LINK]);
+#endif
+
+			if (nla_parse_nested(vlan_info, IFLA_VLAN_MAX, nl_linkinfo[IFLA_INFO_DATA], NULL) >= 0) {
+				vlancfg->tag = nla_get_u16(vlan_info[IFLA_VLAN_ID]);
+				info_data_used = 1;
+			}
+		}
+
+		if (nl_linkinfo[IFLA_INFO_DATA] && !info_data_used)
+			ni_warn("%s: link info data of type %s - don't know what to do with it",
+					ifp->name, ifp->link.kind);
+
+		/* We may also want to inspect nl_linkinfo[IFLA_INFO_XSTATS] */
 	}
 
 	/* dhcpcd does something very odd when shutting down an interface;

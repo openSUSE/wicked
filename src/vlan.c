@@ -70,7 +70,7 @@ ni_vlan_bind(ni_interface_t *ifp, ni_handle_t *nih)
 	ni_vlan_t *vlan;
 	ni_interface_t *child;
 
-	if (!(vlan = ifp->vlan))
+	if (!(vlan = ifp->link.vlan))
 		return 0;
 
 	__ni_vlan_unbind(vlan);

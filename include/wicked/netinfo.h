@@ -156,6 +156,8 @@ struct ni_linkinfo {
 	char *			qdisc;
 	char *			kind;
 
+	ni_vlan_t *		vlan;
+
 	ni_link_stats_t *	stats;
 };
 
@@ -185,7 +187,6 @@ struct ni_interface {
 	/* link layer info specific to different device types. */
 	ni_interface_t *	parent;
 	ni_bonding_t *		bonding;
-	ni_vlan_t *		vlan;
 	ni_bridge_t *		bridge;
 	ni_ethernet_t *		ethernet;
 	ni_wireless_t *		wireless;

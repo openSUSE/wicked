@@ -688,7 +688,7 @@ __ni_interface_vlan_configure(ni_handle_t *nih, const ni_interface_t *cfg, ni_in
 	ni_interface_t *ifp = *ifpp;
 	ni_vlan_t *cur_vlan = NULL, *cfg_vlan;
 
-	if (!(cfg_vlan = cfg->vlan))
+	if (!(cfg_vlan = cfg->link.vlan))
 		return -1;
 
 	if (ifp == NULL) {
@@ -707,7 +707,7 @@ __ni_interface_vlan_configure(ni_handle_t *nih, const ni_interface_t *cfg, ni_in
 		}
 	}
 
-	if (!(cur_vlan = ifp->vlan))
+	if (!(cur_vlan = ifp->link.vlan))
 		return -1;
 
 	{
@@ -766,7 +766,7 @@ ni_interface_create_vlan(ni_handle_t *nih, const char *ifname, const ni_vlan_t *
 		return -1;
 	}
 
-	if (!(cur_vlan = ifp->vlan))
+	if (!(cur_vlan = ifp->link.vlan))
 		return -1;
 
 	{
@@ -1282,7 +1282,7 @@ __ni_rtnl_link_create(ni_handle_t *nih, const ni_interface_t *cfg)
 		 *  INFO_DATA must contain VLAN_ID
 		 *  LINK must contain the link ID of the real ethernet device
 		 */
-		if ((vlan = cfg->vlan) == NULL) {
+		if ((vlan = cfg->link.vlan) == NULL) {
 			error("Cannot create VLAN interface - no configuration!");
 			return -1;
 		}
@@ -1303,10 +1303,10 @@ __ni_rtnl_link_create(ni_handle_t *nih, const ni_interface_t *cfg)
 
 		/* Note, IFLA_LINK must be outside of IFLA_LINKINFO */
 
-		real_dev = ni_interface_by_name(nih, cfg->vlan->interface_name);
+		real_dev = ni_interface_by_name(nih, cfg->link.vlan->interface_name);
 		if (!real_dev || !real_dev->link.ifindex) {
 			error("Cannot create VLAN interface %s: interface %s does not exist",
-					cfg->name, cfg->vlan->interface_name);
+					cfg->name, cfg->link.vlan->interface_name);
 			return -1;
 		}
 		NLA_PUT_U32(msg, IFLA_LINK, real_dev->link.ifindex);
