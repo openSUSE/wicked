@@ -198,6 +198,7 @@ extern dbus_bool_t		ni_dbus_variant_set_int(ni_dbus_variant_t *, int);
 extern dbus_bool_t		ni_dbus_variant_set_uint(ni_dbus_variant_t *, unsigned int);
 extern dbus_bool_t		ni_dbus_variant_set_long(ni_dbus_variant_t *, long);
 extern dbus_bool_t		ni_dbus_variant_set_ulong(ni_dbus_variant_t *, unsigned long);
+extern void			ni_dbus_variant_set_uuid(ni_dbus_variant_t *, const ni_uuid_t *);
 extern dbus_bool_t		ni_dbus_variant_parse(ni_dbus_variant_t *var,
 					const char *string_value, const char *signature);
 extern dbus_bool_t		ni_dbus_variant_get_string(const ni_dbus_variant_t *, const char **);
@@ -213,6 +214,7 @@ extern dbus_bool_t		ni_dbus_variant_get_int(const ni_dbus_variant_t *, int *);
 extern dbus_bool_t		ni_dbus_variant_get_uint(const ni_dbus_variant_t *, unsigned int *);
 extern dbus_bool_t		ni_dbus_variant_get_long(const ni_dbus_variant_t *, long *);
 extern dbus_bool_t		ni_dbus_variant_get_ulong(const ni_dbus_variant_t *, unsigned long *);
+extern dbus_bool_t		ni_dbus_variant_get_uuid(const ni_dbus_variant_t *, ni_uuid_t *);
 extern dbus_bool_t		ni_dbus_variant_get_byte_array_minmax(const ni_dbus_variant_t *,
 					unsigned char *array, unsigned int *len,
 					unsigned int minlen, unsigned int maxlen);

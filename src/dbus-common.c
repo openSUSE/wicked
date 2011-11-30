@@ -612,6 +612,25 @@ ni_dbus_variant_append_byte_array(ni_dbus_variant_t *var, unsigned char byte)
 	return TRUE;
 }
 
+/*
+ * A UUID is encoded as a fixed length array of bytes
+ */
+void
+ni_dbus_variant_set_uuid(ni_dbus_variant_t *var, const ni_uuid_t *uuid)
+{
+	ni_dbus_variant_set_byte_array(var, uuid->octets, sizeof(uuid->octets));
+}
+
+dbus_bool_t
+ni_dbus_variant_get_uuid(const ni_dbus_variant_t *var, ni_uuid_t *uuid)
+{
+	unsigned int len;
+
+	return ni_dbus_variant_get_byte_array_minmax(var, uuid->octets, &len,
+					sizeof(uuid->octets),
+					sizeof(uuid->octets));
+}
+
 void
 ni_dbus_variant_init_string_array(ni_dbus_variant_t *var)
 {
