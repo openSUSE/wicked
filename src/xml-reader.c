@@ -553,7 +553,7 @@ restart:
 xml_token_type_t
 xml_get_token_tag(xml_reader_t *xr, ni_stringbuf_t *res)
 {
-	char cc;
+	char cc, oc;
 
 	xml_skip_space(xr, NULL);
 
@@ -603,15 +603,17 @@ xml_get_token_tag(xml_reader_t *xr, ni_stringbuf_t *res)
 		}
 		return Identifier;
 
+	case '\'':
 	case '"':
 		ni_stringbuf_clear(res);
+		oc = cc;
 		while (1) {
 			cc = xml_getc(xr);
 			if (cc == EOF) {
 				xml_parse_error(xr, "Unexpected EOF while parsing quoted string");
 				return None;
 			}
-			if (cc == '"')
+			if (cc == oc)
 				break;
 			ni_stringbuf_putc(res, cc);
 		}
