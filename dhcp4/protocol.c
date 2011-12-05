@@ -721,7 +721,6 @@ ni_dhcp_parse_response(const ni_dhcp_message_t *message, ni_buffer_t *options, n
 	char *dnsdomain = NULL;
 	int opt_overload = 0;
 	int msg_type = -1;
-	int retval = -1;
 
 	lease = ni_addrconf_lease_new(NI_ADDRCONF_DHCP, AF_INET);
 
@@ -757,7 +756,6 @@ parse_more:
 
 		if (ni_buffer_count(&buf) == 0) {
 			ni_error("option %d has zero length", option);
-			retval = -1;
 			goto error;
 		}
 
