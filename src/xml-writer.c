@@ -89,7 +89,7 @@ xml_node_print(const xml_node_t *node, FILE *fp)
 		rv = xml_writer_destroy(&writer);
 	}
 
-	return 0;
+	return rv;
 }
 
 int
