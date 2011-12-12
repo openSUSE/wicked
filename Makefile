@@ -76,7 +76,6 @@ __LIBSRCS= \
 	  ipv6/addrconf.c \
 	  dhcp/addrconf.c \
 	  dhcp/dbus-api.c \
-	  dhcp/rest-api.c \
 	  dhcp/fsm.c \
 	  dhcp/device.c \
 	  dhcp/protocol.c \
