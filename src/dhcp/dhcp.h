@@ -35,8 +35,11 @@ typedef struct ni_dhcp_config ni_dhcp_config_t;
 
 typedef struct ni_dhcp_device {
 	struct ni_dhcp_device *	next;
+	unsigned int		users;
 
 	char *			ifname;
+	ni_linkinfo_t		link;
+
 	struct {
 	    int			state;
 	    struct timeval	expires;
@@ -116,7 +119,10 @@ extern ni_dhcp_device_t *ni_dhcp_active;
 
 extern ni_proxy_t *	ni_dhcp_proxy_start(void);
 extern int		ni_dhcp_proxy_notify(ni_proxy_t *, const char *, xml_node_t *);
-extern void		ni_dhcp_run(ni_socket_t *);
+extern void		ni_dhcp_mainloop(void);
+
+extern int		ni_dhcp_acquire(ni_dhcp_device_t *, const ni_addrconf_request_t *);
+extern int		ni_dhcp_release(ni_dhcp_device_t *, const ni_uuid_t *);
 
 extern int		ni_dhcp_fsm_discover(ni_dhcp_device_t *);
 extern int		ni_dhcp_fsm_request(ni_dhcp_device_t *, const ni_addrconf_lease_t *);
@@ -144,6 +150,8 @@ extern unsigned int	ni_dhcp_device_uptime(const ni_dhcp_device_t *, unsigned int
 extern ni_dhcp_device_t *ni_dhcp_device_new(const char *, unsigned int);
 extern ni_dhcp_device_t *ni_dhcp_device_find(const char *);
 extern ni_dhcp_device_t *ni_dhcp_device_get_changed(void);
+extern ni_dhcp_device_t *ni_dhcp_device_get(ni_dhcp_device_t *);
+extern void		ni_dhcp_device_put(ni_dhcp_device_t *);
 extern int		ni_dhcp_device_reconfigure(ni_dhcp_device_t *, const ni_interface_t *);
 extern void		ni_dhcp_device_set_lease(ni_dhcp_device_t *, ni_addrconf_lease_t *);
 extern void		ni_dhcp_device_drop_lease(ni_dhcp_device_t *);

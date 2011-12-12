@@ -168,6 +168,7 @@ extern ni_address_t *	__ni_address_list_find(ni_address_t *, const ni_sockaddr_t
 
 extern int		__ni_system_refresh_all(ni_handle_t *nih, ni_interface_t **del_list);
 extern int		__ni_system_refresh_interface(ni_handle_t *, ni_interface_t *);
+extern int		__ni_device_refresh_link_info(ni_handle_t *, ni_linkinfo_t *);
 extern int		__ni_system_interface_configure(ni_handle_t *, ni_interface_t *, const ni_interface_t *);
 extern int		__ni_system_interface_delete(ni_handle_t *, const char *);
 extern int		__ni_system_interface_update_lease(ni_handle_t *, ni_interface_t *, ni_addrconf_lease_t *);

@@ -35,6 +35,7 @@ ni_dhcp_device_new(const char *ifname, unsigned int iftype)
 
 	dev = calloc(1, sizeof(*dev));
 	ni_string_dup(&dev->ifname, ifname);
+	dev->users = 1;
 	dev->system.ifname = dev->ifname;
 	dev->system.iftype = iftype;
 	dev->system.mtu = MTU_MAX;
@@ -94,6 +95,7 @@ ni_dhcp_device_free(ni_dhcp_device_t *dev)
 {
 	ni_dhcp_device_t **pos;
 
+	ni_assert(dev->users == 0);
 	ni_dhcp_device_drop_buffer(dev);
 	ni_dhcp_device_drop_lease(dev);
 	ni_dhcp_device_drop_best_offer(dev);
@@ -108,6 +110,26 @@ ni_dhcp_device_free(ni_dhcp_device_t *dev)
 	}
 	free(dev);
 }
+
+/*
+ * Refcount handling
+ */
+ni_dhcp_device_t *
+ni_dhcp_device_get(ni_dhcp_device_t *dev)
+{
+	ni_assert(dev->users);
+	dev->users++;
+	return dev;
+}
+
+void
+ni_dhcp_device_put(ni_dhcp_device_t *dev)
+{
+	ni_assert(dev->users);
+	if (--(dev->users) == 0)
+		ni_dhcp_device_free(dev);
+}
+
 
 unsigned int
 ni_dhcp_device_uptime(const ni_dhcp_device_t *dev, unsigned int clamp)
@@ -157,38 +179,55 @@ ni_dhcp_device_drop_best_offer(ni_dhcp_device_t *dev)
 }
 
 /*
- * Process a request to reconfigure the device (ie rebind a lease, or discover
- * a new lease).
+ * Refresh the device info prior to taking any actions
  */
 int
-ni_dhcp_device_reconfigure(ni_dhcp_device_t *dev, const ni_interface_t *ifp)
+ni_dhcp_device_refresh(ni_dhcp_device_t *dev)
 {
-	ni_addrconf_request_t *info;
-	ni_dhcp_config_t *config;
-	const char *classid;
+	ni_handle_t *nih = ni_global_state_handle();
+	int rv;
 
-	if (!(info = ifp->ipv4.request[NI_ADDRCONF_DHCP])) {
-		ni_error("%s: no DHCP config data given", ifp->name);
-		return -1;
+	if ((rv = __ni_device_refresh_link_info(nih, &dev->link)) < 0) {
+		ni_error("%s: cannot refresh interface: %s",
+				__func__, ni_strerror(rv));
+		return rv;
 	}
 
-	if (dev->system.iftype != ifp->link.type) {
+	if (dev->system.iftype != dev->link.type) {
 		ni_error("%s: reconfig changes device type!", dev->ifname);
 		return -1;
 	}
-	if (ifp->link.hwaddr.len == 0) {
+
+	if (dev->link.hwaddr.len == 0) {
 		ni_error("%s: empty MAC address, cannot do DHCP", dev->ifname);
 		return -1;
 	}
-	dev->system.arp_type = ifp->link.arp_type;
-	dev->system.ifindex = if_nametoindex(ifp->name);
-	dev->system.mtu = ifp->link.mtu;
-	dev->system.hwaddr = ifp->link.hwaddr;
+	dev->system.arp_type = dev->link.arp_type;
+	dev->system.iftype = dev->link.type;
+	dev->system.mtu = dev->link.mtu;
+	dev->system.hwaddr = dev->link.hwaddr;
 
 	if (dev->system.arp_type == ARPHRD_NONE) {
 		ni_warn("%s: no arp_type, using ether", __FUNCTION__);
 		dev->system.arp_type = ARPHRD_ETHER;
 	}
+
+	return 0;
+}
+
+/*
+ * Process a request to reconfigure the device (ie rebind a lease, or discover
+ * a new lease).
+ */
+int
+ni_dhcp_acquire(ni_dhcp_device_t *dev, const ni_addrconf_request_t *info)
+{
+	ni_dhcp_config_t *config;
+	const char *classid;
+	int rv;
+
+	if ((rv = ni_dhcp_device_refresh(dev)) < 0)
+		return rv;
 
 	config = calloc(1, sizeof(*config));
 	config->resend_timeout = NI_DHCP_RESEND_TIMEOUT_INIT;
@@ -206,7 +245,7 @@ ni_dhcp_device_reconfigure(ni_dhcp_device_t *dev, const ni_interface_t *ifp)
 
 	if (info->dhcp.clientid) {
 		strncpy(config->client_id, info->dhcp.clientid, sizeof(config->client_id)-1);
-		ni_dhcp_parse_client_id(&config->raw_client_id, ifp->link.type, info->dhcp.clientid);
+		ni_dhcp_parse_client_id(&config->raw_client_id, dev->link.type, info->dhcp.clientid);
 	} else {
 		/* Set client ID from interface hwaddr */
 		strncpy(config->client_id, ni_link_address_print(&dev->system.hwaddr), sizeof(config->client_id)-1);
@@ -249,6 +288,16 @@ ni_dhcp_device_reconfigure(ni_dhcp_device_t *dev, const ni_interface_t *ifp)
 	/* Go back to INIT state to force a rediscovery */
 	dev->fsm.state = NI_DHCP_STATE_INIT;
 	return 1;
+}
+
+/*
+ * Process a request to unconfigure the device (ie drop the lease).
+ */
+int
+ni_dhcp_release(ni_dhcp_device_t *dev, const ni_uuid_t *lease_uuid)
+{
+	ni_error("%s: %s not yet implemented", dev->ifname, __func__);
+	return -1;
 }
 
 int

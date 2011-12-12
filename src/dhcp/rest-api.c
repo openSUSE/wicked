@@ -25,12 +25,6 @@
 #include "dhcp.h"
 #include "protocol.h"
 
-static ni_rest_node_t	ni_dhcp_root_node;
-
-static int		ni_dhcp_process_request(ni_socket_t *);
-static void		ni_dhcp_send_device_event(ni_socket_t *, const ni_dhcp_device_t *);
-static xml_node_t *	dhcp_device_xml(const ni_dhcp_device_t *);
-
 /*
  * Handle terminal signals
  */
@@ -46,7 +40,7 @@ catch_fatal_signals(int sig)
  * Mainloop for dhcp supplicant side
  */
 void
-ni_dhcp_run(ni_socket_t *sock)
+ni_dhcp_mainloop(void)
 {
 	struct sigaction sa;
 	ni_dhcp_device_t *dev;
@@ -58,9 +52,6 @@ ni_dhcp_run(ni_socket_t *sock)
 	sa.sa_handler = catch_fatal_signals;
 	sigaction(SIGTERM, &sa, NULL);
 	sigaction(SIGINT, &sa, NULL);
-
-	ni_socket_set_request_callback(sock, ni_dhcp_process_request);
-	ni_socket_activate(sock);
 
 	/* event loop */
 	while (1) {
@@ -84,8 +75,9 @@ ni_dhcp_run(ni_socket_t *sock)
 		/* See if anything timed out */
 		ni_dhcp_fsm_check_timeout();
 
-		while ((dev = ni_dhcp_device_get_changed()) != NULL)
-			ni_dhcp_send_device_event(sock, dev);
+		while ((dev = ni_dhcp_device_get_changed()) != NULL) {
+			//ni_dhcp_send_device_event(sock, dev);
+		}
 	}
 
 	for (dev = ni_dhcp_active; dev; dev = dev->next) {
@@ -104,6 +96,7 @@ ni_dhcp_run(ni_socket_t *sock)
 	exit(0);
 }
 
+#if 0
 /*
  * Process an incoming WICKED request
  */
@@ -380,3 +373,4 @@ static ni_rest_node_t  ni_dhcp_root_node = {
 		&ni_dhcp_device_node,
 	},
 };
+#endif
