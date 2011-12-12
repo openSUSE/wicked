@@ -58,6 +58,37 @@ __wicked_dbus_get_sockaddr(const ni_dbus_variant_t *dict, const char *name, ni_s
 			len, len);
 }
 
+/*
+ * Add or retrieve an array of strings to a dict.
+ * Empty string arrays are omitted, rather than being encoded as a
+ * zero length array.
+ */
+static inline void
+__wicked_dbus_set_string_array(ni_dbus_variant_t *dict, const char *name, const ni_string_array_t *ap)
+{
+	ni_dbus_variant_t *child;
+
+	if (ap->count != 0) {
+		child = ni_dbus_dict_add(dict, name);
+		ni_dbus_variant_set_string_array(child, (const char **) ap->data, ap->count);
+	}
+}
+
+static inline dbus_bool_t
+__wicked_dbus_get_string_array(ni_string_array_t *ap, const ni_dbus_variant_t *var, DBusError *error)
+{
+	unsigned int i, len;
+
+	if (!ni_dbus_variant_is_string_array(var))
+		return FALSE;
+
+	if ((len = var->array.len) > 64)
+		len = 64;
+
+	for (i = 0; i < len; ++i)
+		ni_string_array_append(ap, var->string_array_value[i]);
+	return TRUE;
+}
 
 /*
  * Retrieve an address list as an array of dbus dicts
@@ -343,6 +374,109 @@ __wicked_dbus_set_addrconf_request(ni_addrconf_request_t *req,
 
 	if (ni_dbus_dict_get_uint32(argument, "update", &value32))
 		req->update = value32;
+
+	return TRUE;
+}
+
+/*
+ * Build a DBus dict from an addrconf lease
+ */
+dbus_bool_t
+__wicked_dbus_get_addrconf_lease(const ni_addrconf_lease_t *lease,
+						ni_dbus_variant_t *result,
+						DBusError *error)
+{
+	ni_dbus_variant_t *child;
+
+	ni_dbus_dict_add_uint32(result, "acquired", lease->time_acquired);
+	if (lease->hostname)
+		ni_dbus_dict_add_string(result, "hostname", lease->hostname);
+
+	if (lease->addrs) {
+		child = ni_dbus_dict_add(result, "addresses");
+		ni_dbus_dict_array_init(child);
+		if (!__wicked_dbus_get_address_list(lease->addrs, child, error))
+			return FALSE;
+	}
+	if (lease->routes) {
+		child = ni_dbus_dict_add(result, "routes");
+		ni_dbus_dict_array_init(child);
+		if (!__wicked_dbus_get_route_list(lease->routes, child, error))
+			return FALSE;
+	}
+
+	/* TBD: NIS and resolver information */
+
+	__wicked_dbus_set_string_array(result, "log-servers", &lease->log_servers);
+	__wicked_dbus_set_string_array(result, "ntp-servers", &lease->ntp_servers);
+	__wicked_dbus_set_string_array(result, "slp-servers", &lease->slp_servers);
+	__wicked_dbus_set_string_array(result, "slp-scopes", &lease->slp_scopes);
+	__wicked_dbus_set_string_array(result, "sip-servers", &lease->sip_servers);
+	__wicked_dbus_set_string_array(result, "lpr-servers", &lease->lpr_servers);
+
+	__wicked_dbus_set_string_array(result, "netbios-name-servers", &lease->netbios_name_servers);
+	__wicked_dbus_set_string_array(result, "netbios-dd-servers", &lease->netbios_dd_servers);
+	if (lease->netbios_domain)
+		ni_dbus_dict_add_string(result, "netbios-domain", lease->netbios_domain);
+	if (lease->netbios_scope)
+		ni_dbus_dict_add_string(result, "netbios-scope", lease->netbios_scope);
+
+	return TRUE;
+}
+
+dbus_bool_t
+__wicked_dbus_set_addrconf_lease(ni_addrconf_lease_t *lease,
+						const ni_dbus_variant_t *argument,
+						DBusError *error)
+{
+	const ni_dbus_variant_t *child;
+	const char *string_value;
+	uint32_t value32;
+
+	if (ni_dbus_dict_get_uint32(argument, "acquired", &value32))
+		lease->time_acquired = value32;
+	if (ni_dbus_dict_get_string(argument, "hostname", &string_value))
+		ni_string_dup(&lease->hostname, string_value);
+
+	if ((child = ni_dbus_dict_get(argument, "addresses")) != NULL
+	 && !__wicked_dbus_set_address_list(&lease->addrs, child, error))
+		return FALSE;
+
+	if ((child = ni_dbus_dict_get(argument, "routes")) != NULL
+	 && !__wicked_dbus_set_route_list(&lease->routes, child, error))
+		return FALSE;
+
+	/* TBD: NIS and resolver information */
+
+	if ((child = ni_dbus_dict_get(argument, "log-servers")) != NULL
+	 && !__wicked_dbus_get_string_array(&lease->log_servers, child, error))
+		return FALSE;
+	if ((child = ni_dbus_dict_get(argument, "ntp-servers")) != NULL
+	 && !__wicked_dbus_get_string_array(&lease->ntp_servers, child, error))
+		return FALSE;
+	if ((child = ni_dbus_dict_get(argument, "slp-servers")) != NULL
+	 && !__wicked_dbus_get_string_array(&lease->slp_servers, child, error))
+		return FALSE;
+	if ((child = ni_dbus_dict_get(argument, "slp-scopes")) != NULL
+	 && !__wicked_dbus_get_string_array(&lease->slp_scopes, child, error))
+		return FALSE;
+	if ((child = ni_dbus_dict_get(argument, "sip-servers")) != NULL
+	 && !__wicked_dbus_get_string_array(&lease->sip_servers, child, error))
+		return FALSE;
+	if ((child = ni_dbus_dict_get(argument, "lpr-servers")) != NULL
+	 && !__wicked_dbus_get_string_array(&lease->lpr_servers, child, error))
+		return FALSE;
+
+	if ((child = ni_dbus_dict_get(argument, "netbios-name-servers")) != NULL
+	 && !__wicked_dbus_get_string_array(&lease->netbios_name_servers, child, error))
+		return FALSE;
+	if ((child = ni_dbus_dict_get(argument, "netbios-dd-servers")) != NULL
+	 && !__wicked_dbus_get_string_array(&lease->netbios_dd_servers, child, error))
+		return FALSE;
+	if (ni_dbus_dict_get_string(argument, "netbios-domain", &string_value))
+		ni_string_dup(&lease->netbios_domain, string_value);
+	if (ni_dbus_dict_get_string(argument, "netbios-scope", &string_value))
+		ni_string_dup(&lease->netbios_scope, string_value);
 
 	return TRUE;
 }

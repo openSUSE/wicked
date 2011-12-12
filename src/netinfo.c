@@ -1000,6 +1000,23 @@ __ni_afinfo_set_addrconf_request(ni_afinfo_t *afi, unsigned int mode, ni_addrcon
 	afi->request[mode] = req;
 }
 
+void
+__ni_afinfo_set_addrconf_lease(ni_afinfo_t *afi, unsigned int mode, ni_addrconf_lease_t *lease)
+{
+	ni_assert(lease->type == mode);
+	if (mode >= __NI_ADDRCONF_MAX) {
+		ni_error("%s: bad addrconf mode %u", __FUNCTION__, mode);
+		return;
+	}
+	if (afi->lease[mode])
+		ni_addrconf_lease_free(afi->lease[mode]);
+	if (lease->state == NI_ADDRCONF_STATE_GRANTED) {
+		afi->lease[mode] = lease;
+	} else {
+		afi->lease[mode] = NULL;
+	}
+}
+
 static void
 ni_interface_free(ni_interface_t *ifp)
 {

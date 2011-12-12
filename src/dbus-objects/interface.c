@@ -679,27 +679,35 @@ __wicked_dbus_get_afinfo(const ni_afinfo_t *afi, dbus_bool_t request_only,
 	ni_dbus_dict_add_bool(result, "forwarding", !!afi->forwarding);
 
 	for (i = 0; i < __NI_ADDRCONF_MAX; ++i) {
-		ni_addrconf_request_t *req = afi->request[i];
+		ni_addrconf_request_t *req;
+		ni_addrconf_lease_t *lease;
+		ni_dbus_variant_t *dict;
 		const char *acname;
+		char namebuf[128];
 
 		acname = ni_addrconf_type_to_name(i);
 		if (!acname)
 			continue;
 
-		if (req != NULL) {
-			ni_dbus_variant_t *rqdict = ni_dbus_dict_add(result, acname);
+		if ((req = afi->request[i]) != NULL) {
+			snprintf(namebuf, sizeof(namebuf), "%s-request", acname);
+			dict = ni_dbus_dict_add(result, namebuf);
 
-			ni_dbus_variant_init_dict(rqdict);
-			if (!__wicked_dbus_get_addrconf_request(req, rqdict, error))
+			ni_dbus_variant_init_dict(dict);
+			if (!__wicked_dbus_get_addrconf_request(req, dict, error))
 				return FALSE;
 		}
 		if (request_only)
 			continue;
-#if 0
-		ni_addrconf_lease_t *lease = afi->lease[i];
-		if (lease && !__wicked_dbus_get_addrconf_lease(lease, result, error))
-			return FALSE;
-#endif
+
+		if ((lease = afi->lease[i]) != NULL) {
+			snprintf(namebuf, sizeof(namebuf), "%s-lease", acname);
+			dict = ni_dbus_dict_add(result, namebuf);
+
+			ni_dbus_variant_init_dict(dict);
+			if (!__wicked_dbus_get_addrconf_lease(lease, dict, error))
+				return FALSE;
+		}
 
 	}
 	return TRUE;
@@ -719,31 +727,36 @@ __wicked_dbus_set_afinfo(ni_afinfo_t *afi,
 		afi->forwarding = bool_value;
 
 	for (i = 0; i < __NI_ADDRCONF_MAX; ++i) {
-		ni_addrconf_request_t *req = afi->request[i];
-		const ni_dbus_variant_t *rqdict;
+		const ni_dbus_variant_t *dict;
 		const char *acname;
+		char namebuf[128];
 
 		acname = ni_addrconf_type_to_name(i);
 		if (!acname)
 			continue;
 
-		rqdict = ni_dbus_dict_get(argument, acname);
-		if (rqdict != NULL) {
-			req = ni_addrconf_request_new(i, afi->family);
+		snprintf(namebuf, sizeof(namebuf), "%s-request", acname);
+		dict = ni_dbus_dict_get(argument, namebuf);
+		if (dict != NULL) {
+			ni_addrconf_request_t *req = ni_addrconf_request_new(i, afi->family);
+
 			__ni_afinfo_set_addrconf_request(afi, i, req);
 
-			if (!__wicked_dbus_set_addrconf_request(req, rqdict, error))
+			if (!__wicked_dbus_set_addrconf_request(req, dict, error))
 				return FALSE;
 
 			ni_afinfo_addrconf_enable(afi, i);
 		}
-#if 0
-		ni_addrconf_lease_t *lease = afi->lease[i];
-		if (lease && !__wicked_dbus_get_addrconf_lease(lease, argument, error))
-			return FALSE;
-#endif
 
+		snprintf(namebuf, sizeof(namebuf), "%s-lease", acname);
+		dict = ni_dbus_dict_get(argument, namebuf);
+		if (dict != NULL) {
+			ni_addrconf_lease_t *lease = ni_addrconf_lease_new(i, afi->family);
 
+			__ni_afinfo_set_addrconf_lease(afi, i, lease);
+			if (!__wicked_dbus_set_addrconf_lease(lease, dict, error))
+				return FALSE;
+		}
 	}
 	return TRUE;
 }

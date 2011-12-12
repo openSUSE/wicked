@@ -150,6 +150,7 @@ extern int		__ni_interface_check_activity(ni_handle_t *, ni_interface_t *, ni_in
 	  NULL))
 
 extern void		__ni_afinfo_set_addrconf_request(ni_afinfo_t *, unsigned int, ni_addrconf_request_t *);
+extern void		__ni_afinfo_set_addrconf_lease(ni_afinfo_t *, unsigned int, ni_addrconf_lease_t *);
 
 extern ni_route_t *	__ni_route_new(ni_route_t **, unsigned int prefix_len,
 				const ni_sockaddr_t *, const ni_sockaddr_t *);

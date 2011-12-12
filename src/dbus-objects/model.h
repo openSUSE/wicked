@@ -143,6 +143,12 @@ extern dbus_bool_t		__wicked_dbus_get_addrconf_request(const ni_addrconf_request
 extern dbus_bool_t		__wicked_dbus_set_addrconf_request(ni_addrconf_request_t *req,
 						const ni_dbus_variant_t *result,
 						DBusError *error);
+extern dbus_bool_t		__wicked_dbus_get_addrconf_lease(const ni_addrconf_lease_t *lease,
+						ni_dbus_variant_t *result,
+						DBusError *error);
+extern dbus_bool_t		__wicked_dbus_set_addrconf_lease(ni_addrconf_lease_t *lease,
+						const ni_dbus_variant_t *result,
+						DBusError *error);
 
 
 #endif /* __WICKED_OBJECTMODEL_H__ */
