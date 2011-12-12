@@ -3,7 +3,8 @@ CFLAGS	= -Wall -Werror -g -O2 -D_GNU_SOURCE -I. -Iinclude -Isrc \
 	  $(CFLAGS_DBUS)
 CFLAGS_DBUS := $(shell pkg-config --cflags dbus-1)
 
-APPS	= wicked wickedd testing/xml-test testing/xpath-test
+APPS	= wicked wickedd dhcp4-supplicant \
+	  testing/xml-test testing/xpath-test
 
 TGTLIBS	= libnetinfo.a \
 	  libnetcf.a
@@ -75,10 +76,6 @@ __LIBSRCS= \
 	  wpa-supplicant.c \
 	  ipv6/addrconf.c \
 	  dhcp/addrconf.c \
-	  dhcp/dbus-api.c \
-	  dhcp/fsm.c \
-	  dhcp/device.c \
-	  dhcp/protocol.c \
 	  dhcp/lease.c \
 	  ipv4ll/addrconf.c \
 	  ipv4ll/rest-api.c \
@@ -86,6 +83,12 @@ __LIBSRCS= \
 	  ipv4ll/fsm.c
 __NCFSRCS= \
 	  netcf.c
+__DHCP4SRCS = \
+	  dhcp4-supplicant.c \
+	  dhcp4/dbus-api.c \
+	  dhcp4/fsm.c \
+	  dhcp4/device.c \
+	  dhcp4/protocol.c
 
 OBJ	= obj
 LIBSRCS	= $(addprefix src/,$(__LIBSRCS))
@@ -94,6 +97,7 @@ SHLIBOBJS= $(addprefix $(OBJ)/shlib/,$(__LIBSRCS:.c=.o))
 NCFSRCS	= $(addprefix src/,$(__NCFSRCS))
 NCFOBJS	= $(addprefix $(OBJ)/netcf/,$(__NCFSRCS:.c=.o))
 APPSRCS	= $(addsuffix .c,$(APPS))
+DHCP4OBJS= $(addprefix $(OBJ)/,$(__DHCP4SRCS:.c=.o))
 
 all: $(TGTLIBS) $(APPS)
 
@@ -123,6 +127,9 @@ wicked: $(OBJ)/wicked.o $(TGTLIBS)
 wickedd: $(OBJ)/wickedd.o $(TGTLIBS)
 	$(CC) -o $@ $(CFLAGS) $(OBJ)/wickedd.o -L. -lnetinfo -lm -lnl -ldbus-1
 
+dhcp4-supplicant: $(DHCP4OBJS) $(TGTLIBS)
+	$(CC) -o $@ $(CFLAGS) $(DHCP4OBJS) -L. -lnetinfo -lm -lnl -ldbus-1
+
 test: $(OBJ)/test.o $(TGTLIBS)
 	$(CC) -o $@ $(CFLAGS) $(OBJ)/test.o -L. -lnetinfo -ldbus-1
 
@@ -151,18 +158,22 @@ depend:
 	gcc $(CFLAGS) -M $(APPSRCS) | sed 's:^[a-z]:$(OBJ)/&:' >> .depend
 
 $(OBJ)/%.o: %.c
+	@rm -f $@
 	@test -d $(dir $@) || mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 $(OBJ)/lib/%.o: src/%.c
+	@rm -f $@
 	@test -d $(dir $@) || mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 $(OBJ)/shlib/%.o: src/%.c
+	@rm -f $@
 	@test -d $(dir $@) || mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -fPIC -c -o $@ $<
 
 $(OBJ)/netcf/%.o: src/%.c
+	@rm -f $@
 	@test -d $(dir $@) || mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
