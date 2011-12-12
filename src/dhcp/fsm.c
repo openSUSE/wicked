@@ -447,52 +447,6 @@ __ni_dhcp_fsm_timeout(void *user_data, const ni_timer_t *timer)
 	ni_dhcp_fsm_timeout(dev);
 }
 
-#if 0
-/*
- * Check whether we have any timeouts set for any of our monitored
- * devices, and if we do, return the timeout value as number of
- * milliseconds.
- */
-long
-ni_dhcp_fsm_get_timeout(void)
-{
-	struct timeval now, expires, delta;
-	ni_dhcp_device_t *dev;
-
-	gettimeofday(&now, NULL);
-	timerclear(&expires);
-	for (dev = ni_dhcp_active; dev; dev = dev->next) {
-		if (timerisset(&dev->fsm.expires)
-		&& (!timerisset(&expires) || timercmp(&dev->fsm.expires, &expires, <)))
-			expires = dev->fsm.expires;
-	}
-
-	if (!timerisset(&expires))
-		return -1;
-	if (timercmp(&expires, &now, <))
-		return 0;
-
-	timersub(&expires, &now, &delta);
-	return 1000 * delta.tv_sec + delta.tv_usec / 1000;
-}
-
-/*
- * Check whether we need to process any FSM timeouts
- */
-void
-ni_dhcp_fsm_check_timeout(void)
-{
-	struct timeval now;
-	ni_dhcp_device_t *dev;
-
-	gettimeofday(&now, NULL);
-	for (dev = ni_dhcp_active; dev; dev = dev->next) {
-		if (timerisset(&dev->fsm.expires) && timercmp(&dev->fsm.expires, &now, <=))
-			ni_dhcp_fsm_timeout(dev);
-	}
-}
-#endif
-
 static int
 ni_dhcp_process_offer(ni_dhcp_device_t *dev, ni_addrconf_lease_t *lease)
 {
