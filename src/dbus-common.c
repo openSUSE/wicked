@@ -201,6 +201,12 @@ ni_dbus_variant_is_dict_array(const ni_dbus_variant_t *var)
 	return __ni_dbus_is_array(var, NI_DBUS_DICT_SIGNATURE);
 }
 
+dbus_bool_t
+ni_dbus_variant_is_string_array(const ni_dbus_variant_t *var)
+{
+	return __ni_dbus_is_array(var, DBUS_TYPE_STRING_AS_STRING);
+}
+
 /*
  * Get/set functions for variant values
  */
