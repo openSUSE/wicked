@@ -107,7 +107,8 @@ __ni_interface_event(ni_handle_t *nih, ni_interface_t *ifp, ni_event_t ev)
 	if (ni_global.interface_event)
 		ni_global.interface_event(nih, ifp, ev);
 
-	ni_debug_dhcp("%s(%s, %s)", __FUNCTION__, ifp->name, ni_event_type_to_name(ev));
+	ni_debug_dhcp("%s(%s, idx=%d, %s)", __FUNCTION__,
+			ifp->name, ifp->link.ifindex, ni_event_type_to_name(ev));
 	for (mode = 0; mode < __NI_ADDRCONF_MAX; ++mode) {
 		ni_addrconf_t *acm4 = NULL, *acm6;
 
@@ -264,7 +265,11 @@ __ni_rtevent_dellink(ni_handle_t *nih, const struct sockaddr_nl *nladdr, struct 
 	for (pos = &nih->iflist; (ifp = *pos) != NULL; pos = &ifp->next) {
 		if (ifp->link.ifindex == ifi->ifi_index) {
 			*pos = ifp->next;
+			ifp->next = NULL;
 			ifp->link.ifindex = 0;
+			ifp->link.ifflags = __ni_interface_translate_ifflags(ifi->ifi_flags);
+
+			__ni_interface_event(nih, ifp, NI_EVENT_LINK_DELETE);
 			ni_interface_put(ifp);
 			break;
 		}

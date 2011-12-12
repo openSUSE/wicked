@@ -219,6 +219,12 @@ ni_dbus_object_create(ni_dbus_object_t *root_object, const char *object_path,
 	return object;
 }
 
+ni_dbus_object_t *
+ni_dbus_object_lookup(ni_dbus_object_t *root_object, const char *path)
+{
+	return __ni_dbus_object_lookup(root_object, path, 0, NULL, NULL);
+}
+
 /*
  * Look up an object interface by name
  */

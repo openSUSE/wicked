@@ -572,25 +572,29 @@ ni_dbus_object_get_vtable(const ni_dbus_object_t *dummy)
 /*
  * Unregister all dbus objects for a given C object
  */
-void
+dbus_bool_t
 __ni_dbus_server_unregister_object(ni_dbus_object_t *parent, void *object_handle)
 {
 	ni_dbus_object_t **pos, *object;
+	dbus_bool_t rv = 0;
 
 	for (pos = &parent->children; (object = *pos) != NULL; ) {
 		if (object->handle != object_handle) {
-			__ni_dbus_server_unregister_object(object, object_handle);
+			if (__ni_dbus_server_unregister_object(object, object_handle))
+				rv = 1;
 			pos = &object->next;
 		} else {
 			__ni_dbus_object_free(object);
+			rv = 1;
 		}
 	}
+	return rv;
 }
 
-void
+dbus_bool_t
 ni_dbus_server_unregister_object(ni_dbus_server_t *server, void *object_handle)
 {
-	__ni_dbus_server_unregister_object(server->root_object, object_handle);
+	return __ni_dbus_server_unregister_object(server->root_object, object_handle);
 }
 
 /*

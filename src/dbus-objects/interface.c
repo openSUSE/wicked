@@ -81,6 +81,20 @@ ni_objectmodel_register_interface(ni_dbus_server_t *server, ni_interface_t *ifp)
 }
 
 /*
+ * Unregister a network interface from our dbus server.
+ */
+dbus_bool_t
+ni_objectmodel_unregister_interface(ni_dbus_server_t *server, ni_interface_t *ifp)
+{
+	if (ni_dbus_server_unregister_object(server, ifp)) {
+		ni_debug_dbus("unregistered interface %s", ifp->name);
+		return 1;
+	}
+
+	return 0;
+}
+
+/*
  * Build a dummy dbus object encapsulating a network interface,
  * and add the appropriate dbus services
  */

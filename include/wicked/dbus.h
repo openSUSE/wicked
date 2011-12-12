@@ -147,6 +147,7 @@ extern ni_dbus_object_t *	ni_dbus_server_register_object(ni_dbus_server_t *serve
 					const char *object_path,
 					const ni_dbus_object_functions_t *functions,
 					void *object_handle);
+extern dbus_bool_t		ni_dbus_server_unregister_object(ni_dbus_server_t *, void *);
 
 extern ni_dbus_object_t *	ni_dbus_object_new(const char *path,
 					const ni_dbus_object_functions_t *functions,
@@ -336,6 +337,7 @@ ni_dbus_variant_datum_const_ptr(const ni_dbus_variant_t *variant)
 
 extern dbus_bool_t		ni_objectmodel_register_all(ni_dbus_server_t *);
 extern ni_dbus_object_t *	ni_objectmodel_register_interface(ni_dbus_server_t *, ni_interface_t *ifp);
+extern dbus_bool_t		ni_objectmodel_unregister_interface(ni_dbus_server_t *, ni_interface_t *ifp);
 extern ni_dbus_object_t *	ni_objectmodel_wrap_interface(ni_interface_t *ifp);
 extern ni_dbus_object_t *	ni_objectmodel_wrap_interface_request(ni_interface_request_t *req);
 extern const ni_dbus_service_t *ni_objectmodel_link_layer_service(int iftype);

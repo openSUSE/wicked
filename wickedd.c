@@ -314,10 +314,12 @@ wicked_interface_event(ni_handle_t *nih, ni_interface_t *ifp, ni_event_t event)
 		switch (event) {
 		case NI_EVENT_LINK_CREATE:
 			/* Create dbus object and emit event */
+			ni_objectmodel_register_interface(wicked_dbus_server, ifp);
 			break;
 
 		case NI_EVENT_LINK_DELETE:
 			/* Delete dbus object and emit event */
+			ni_objectmodel_unregister_interface(wicked_dbus_server, ifp);
 			break;
 
 		default: ;

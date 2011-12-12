@@ -39,6 +39,7 @@
 #include "sysfs.h"
 #include "kernel.h"
 #include "config.h"
+#include "debug.h"
 
 #define BOND_DEVICE_MUST_BE_UP_WHEN_MESSING_WITH_SLAVES 1
 
@@ -1385,6 +1386,12 @@ __ni_rtnl_link_up(ni_handle_t *nih, const ni_interface_t *ifp, const ni_interfac
 	struct ifinfomsg ifi;
 	struct nl_msg *msg;
 
+	if (ifp->link.ifindex == 0) {
+		ni_error("%s: bad interface index for %s", __func__, ifp->name);
+		return -NI_ERROR_INTERFACE_NOT_KNOWN;
+	}
+
+	NI_TRACE_ENTER_ARGS("%s, idx=%d", ifp->name, ifp->link.ifindex);
 	memset(&ifi, 0, sizeof(ifi));
 	ifi.ifi_family = AF_UNSPEC;
 	ifi.ifi_index = ifp->link.ifindex;
