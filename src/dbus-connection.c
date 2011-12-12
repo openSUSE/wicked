@@ -219,7 +219,6 @@ ni_dbus_connection_call(ni_dbus_connection_t *connection,
 	DBusMessage *reply = NULL;
 	int msgtype;
 
-	NI_TRACE_ENTER();
 	if (!dbus_connection_send_with_reply(connection->conn, call, &pending, call_timeout)) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
 				"unable to send DBus message (errno=%d)", errno);

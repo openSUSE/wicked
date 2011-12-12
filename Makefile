@@ -75,6 +75,7 @@ __LIBSRCS= \
 	  wpa-supplicant.c \
 	  ipv6/addrconf.c \
 	  dhcp/addrconf.c \
+	  dhcp/dbus-api.c \
 	  dhcp/rest-api.c \
 	  dhcp/fsm.c \
 	  dhcp/device.c \

@@ -29,6 +29,7 @@ static int	ni_dhcp_process_nak(ni_dhcp_device_t *);
 static void	ni_dhcp_fsm_process_arp_packet(ni_arp_socket_t *, const ni_arp_packet_t *, void *);
 static void	ni_dhcp_fsm_fail_lease(ni_dhcp_device_t *);
 static int	ni_dhcp_fsm_validate_lease(ni_dhcp_device_t *, ni_addrconf_lease_t *);
+static void	__ni_dhcp_fsm_timeout(void *, const ni_timer_t *);
 
 int
 ni_dhcp_fsm_process_dhcp_packet(ni_dhcp_device_t *dev, ni_buffer_t *msgbuf)
@@ -183,20 +184,31 @@ ni_dhcp_fsm_restart(ni_dhcp_device_t *dev)
 	dev->fsm.state = NI_DHCP_STATE_INIT;
 
 	ni_dhcp_device_disarm_retransmit(dev);
-	timerclear(&dev->fsm.expires);
+	if (dev->fsm.timer) {
+		ni_timer_cancel(dev->fsm.timer);
+		dev->fsm.timer = NULL;
+	}
 	dev->dhcp.xid = 0;
 
 	ni_dhcp_device_drop_lease(dev);
 }
 
 void
+ni_dhcp_fsm_set_timeout_msec(ni_dhcp_device_t *dev, unsigned int msec)
+{
+	if (msec != 0) {
+		ni_debug_dhcp("%s: setting timeout to %u msec", dev->ifname, msec);
+		if (dev->fsm.timer)
+			ni_timer_rearm(dev->fsm.timer, msec);
+		else
+			dev->fsm.timer = ni_timer_register(msec, __ni_dhcp_fsm_timeout, dev);
+	}
+}
+
+void
 ni_dhcp_fsm_set_timeout(ni_dhcp_device_t *dev, unsigned int seconds)
 {
-	if (seconds != 0) {
-		ni_debug_dhcp("%s: setting timeout to %u seconds", dev->ifname, seconds);
-		gettimeofday(&dev->fsm.expires, NULL);
-		dev->fsm.expires.tv_sec += seconds;
-	}
+	ni_dhcp_fsm_set_timeout_msec(dev, 1000 * seconds);
 }
 
 void
@@ -216,7 +228,7 @@ __ni_dhcp_fsm_discover(ni_dhcp_device_t *dev, int scan_offers)
 	ni_addrconf_lease_t *lease;
 	int rv;
 
-	ni_debug_dhcp("initiating discovery for %s", dev->ifname);
+	ni_debug_dhcp("initiating discovery for %s (ifindex %d)", dev->ifname, dev->link.ifindex);
 
 	/* If we already have a lease, try asking for the same.
 	 * If not, create a dummy lease with NULL fields.
@@ -352,7 +364,7 @@ static void
 ni_dhcp_fsm_timeout(ni_dhcp_device_t *dev)
 {
 	ni_debug_dhcp("%s: timeout in state %s", dev->ifname, ni_dhcp_fsm_state_name(dev->fsm.state));
-	timerclear(&dev->fsm.expires);
+	dev->fsm.timer = NULL;
 
 	switch (dev->fsm.state) {
 	case NI_DHCP_STATE_INIT:
@@ -422,6 +434,20 @@ ni_dhcp_fsm_timeout(ni_dhcp_device_t *dev)
 	}
 }
 
+static void
+__ni_dhcp_fsm_timeout(void *user_data, const ni_timer_t *timer)
+{
+	ni_dhcp_device_t *dev = user_data;
+
+	if (dev->fsm.timer != timer) {
+		ni_warn("%s: bad timer handle", __func__);
+		return;
+	}
+
+	ni_dhcp_fsm_timeout(dev);
+}
+
+#if 0
 /*
  * Check whether we have any timeouts set for any of our monitored
  * devices, and if we do, return the timeout value as number of
@@ -465,6 +491,7 @@ ni_dhcp_fsm_check_timeout(void)
 			ni_dhcp_fsm_timeout(dev);
 	}
 }
+#endif
 
 static int
 ni_dhcp_process_offer(ni_dhcp_device_t *dev, ni_addrconf_lease_t *lease)
@@ -712,8 +739,8 @@ ni_dhcp_fsm_arp_validate(ni_dhcp_device_t *dev)
 		ni_dhcp_device_arp_close(dev);
 		return 0;
 	}
-	gettimeofday(&dev->fsm.expires, NULL);
-	dev->fsm.expires.tv_usec += NI_DHCP_ARP_TIMEOUT * 1000;
+
+	ni_dhcp_fsm_set_timeout_msec(dev, NI_DHCP_ARP_TIMEOUT);
 	return 0;
 }
 

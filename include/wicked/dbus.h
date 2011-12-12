@@ -341,6 +341,7 @@ extern ni_dbus_object_t *	ni_objectmodel_wrap_interface_request(ni_interface_req
 extern const ni_dbus_service_t *ni_objectmodel_link_layer_service(int iftype);
 extern const ni_dbus_service_t *ni_objectmodel_interface_port_service(int iftype);
 
+extern dbus_bool_t		ni_objectmodel_register_dhcp4(ni_dbus_server_t *);
 extern dbus_bool_t		ni_objectmodel_dhcp4_acquire(ni_interface_t *, const ni_addrconf_request_t *, DBusError *);
 extern dbus_bool_t		ni_objectmodel_dhcp4_release(ni_interface_t *, const ni_addrconf_lease_t *, DBusError *);
 //extern dbus_bool_t		ni_objectmodel_dhcp4_send_event(ni_dhcp_device_t *);

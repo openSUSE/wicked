@@ -202,6 +202,7 @@ ni_dhcp_device_refresh(ni_dhcp_device_t *dev)
 		ni_error("%s: empty MAC address, cannot do DHCP", dev->ifname);
 		return -1;
 	}
+	dev->system.ifindex = dev->link.ifindex;
 	dev->system.arp_type = dev->link.arp_type;
 	dev->system.iftype = dev->link.type;
 	dev->system.mtu = dev->link.mtu;
@@ -287,6 +288,7 @@ ni_dhcp_acquire(ni_dhcp_device_t *dev, const ni_addrconf_request_t *info)
 
 	/* Go back to INIT state to force a rediscovery */
 	dev->fsm.state = NI_DHCP_STATE_INIT;
+	ni_dhcp_device_start(dev);
 	return 1;
 }
 

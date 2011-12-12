@@ -116,7 +116,7 @@ ni_objectmodel_dhcp4_acquire(ni_interface_t *dev, const ni_addrconf_request_t *r
 		return FALSE;
 	}
 
-	snprintf(object_path, sizeof(object_path), WICKED_DBUS_OBJECT_PATH "/Interface/%d", dev->link.ifindex);
+	snprintf(object_path, sizeof(object_path), WICKED_DBUS_OBJECT_PATH "/DHCP4/Interface/%d", dev->link.ifindex);
 	object = ni_dbus_client_object_new(client, object_path,
 			WICKED_DBUS_DHCP4_INTERFACE, NULL, dev);
 
@@ -312,7 +312,7 @@ static ni_dbus_property_t	wicked_dbus_dhcp4_properties[] = {
 };
 
 static const ni_dbus_service_t	wicked_dbus_dhcp4_service = {
-	.name = WICKED_DBUS_NETIF_INTERFACE,
+	.name = WICKED_DBUS_DHCP4_INTERFACE,
 	.methods = wicked_dbus_dhcp4_methods,
 	.properties = wicked_dbus_dhcp4_properties,
 };

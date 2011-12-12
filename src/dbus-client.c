@@ -335,6 +335,7 @@ ni_dbus_object_call_variant(const ni_dbus_object_t *proxy,
 		return FALSE;
 	}
 
+	NI_TRACE_ENTER_ARGS("%s, if=%s, method=%s", proxy->path, interface_name, method);
 	call = dbus_message_new_method_call(client->bus_name, proxy->path, interface_name, method);
 	if (call == NULL) {
 		dbus_set_error(error, DBUS_ERROR_FAILED, "%s: unable to build %s() message", __FUNCTION__, method);

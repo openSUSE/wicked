@@ -360,7 +360,7 @@ wicked_register_dhcp4_services(ni_dbus_server_t *server)
 	ni_dbus_object_t *root_object = ni_dbus_server_get_root_object(server);
 
 	ni_dbus_object_register_service(root_object, &__wicked_dbus_dhcp4_interface);
-	//ni_objectmodel_register_dhcp4(server);
+	ni_objectmodel_register_dhcp4(server);
 }
 
 /*

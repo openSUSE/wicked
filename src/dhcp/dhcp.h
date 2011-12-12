@@ -12,6 +12,7 @@
 #include <wicked/netinfo.h>
 #include <wicked/addrconf.h>
 #include <wicked/wicked.h>
+#include <wicked/socket.h>
 #include "netinfo_priv.h"
 #include "buffer.h"
 
@@ -42,7 +43,7 @@ typedef struct ni_dhcp_device {
 
 	struct {
 	    int			state;
-	    struct timeval	expires;
+	    const ni_timer_t *	timer;
 	} fsm;
 
 	ni_capture_devinfo_t	system;
