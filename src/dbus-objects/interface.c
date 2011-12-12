@@ -665,6 +665,28 @@ const ni_dbus_service_t	wicked_dbus_interface_service = {
 };
 
 /*
+ * a dbus dict object expects the "key" strings to be static, and does
+ * not dup them. So we cannot use a string buffer on the heap to build
+ * "foobar-request" and "foobar-lease" strings.
+ */
+static const char *
+__wicked_addrconf_type_string(unsigned int mode, int req)
+{
+	static char string[2][__NI_ADDRCONF_MAX][128];
+	unsigned int rq = req? 1 : 0;
+
+	if (string[rq][mode][0] == '\0') {
+		const char *acname = ni_addrconf_type_to_name(mode);
+
+		if (acname == NULL)
+			return NULL;
+		snprintf(string[rq][mode], sizeof(string[rq][mode]),
+					"%s-%s", acname, req? "request" : "lease");
+	}
+	return string[rq][mode];
+}
+
+/*
  * These helper functions assist in marshalling InterfaceRequests
  */
 static dbus_bool_t
@@ -682,17 +704,15 @@ __wicked_dbus_get_afinfo(const ni_afinfo_t *afi, dbus_bool_t request_only,
 		ni_addrconf_request_t *req;
 		ni_addrconf_lease_t *lease;
 		ni_dbus_variant_t *dict;
-		const char *acname;
-		char namebuf[128];
+		const char *rqname, *lsname;
 
-		acname = ni_addrconf_type_to_name(i);
-		if (!acname)
+		rqname = __wicked_addrconf_type_string(i, 1);
+		lsname = __wicked_addrconf_type_string(i, 0);
+		if (!rqname || !lsname)
 			continue;
 
 		if ((req = afi->request[i]) != NULL) {
-			snprintf(namebuf, sizeof(namebuf), "%s-request", acname);
-			dict = ni_dbus_dict_add(result, namebuf);
-
+			dict = ni_dbus_dict_add(result, rqname);
 			ni_dbus_variant_init_dict(dict);
 			if (!__wicked_dbus_get_addrconf_request(req, dict, error))
 				return FALSE;
@@ -701,14 +721,12 @@ __wicked_dbus_get_afinfo(const ni_afinfo_t *afi, dbus_bool_t request_only,
 			continue;
 
 		if ((lease = afi->lease[i]) != NULL) {
-			snprintf(namebuf, sizeof(namebuf), "%s-lease", acname);
-			dict = ni_dbus_dict_add(result, namebuf);
+			dict = ni_dbus_dict_add(result, lsname);
 
 			ni_dbus_variant_init_dict(dict);
 			if (!__wicked_dbus_get_addrconf_lease(lease, dict, error))
 				return FALSE;
 		}
-
 	}
 	return TRUE;
 }
@@ -728,15 +746,14 @@ __wicked_dbus_set_afinfo(ni_afinfo_t *afi,
 
 	for (i = 0; i < __NI_ADDRCONF_MAX; ++i) {
 		const ni_dbus_variant_t *dict;
-		const char *acname;
-		char namebuf[128];
+		const char *rqname, *lsname;
 
-		acname = ni_addrconf_type_to_name(i);
-		if (!acname)
+		rqname = __wicked_addrconf_type_string(i, 1);
+		lsname = __wicked_addrconf_type_string(i, 0);
+		if (!rqname || !lsname)
 			continue;
 
-		snprintf(namebuf, sizeof(namebuf), "%s-request", acname);
-		dict = ni_dbus_dict_get(argument, namebuf);
+		dict = ni_dbus_dict_get(argument, rqname);
 		if (dict != NULL) {
 			ni_addrconf_request_t *req = ni_addrconf_request_new(i, afi->family);
 
@@ -748,8 +765,7 @@ __wicked_dbus_set_afinfo(ni_afinfo_t *afi,
 			ni_afinfo_addrconf_enable(afi, i);
 		}
 
-		snprintf(namebuf, sizeof(namebuf), "%s-lease", acname);
-		dict = ni_dbus_dict_get(argument, namebuf);
+		dict = ni_dbus_dict_get(argument, lsname);
 		if (dict != NULL) {
 			ni_addrconf_lease_t *lease = ni_addrconf_lease_new(i, afi->family);
 
