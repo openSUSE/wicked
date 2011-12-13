@@ -65,6 +65,18 @@ wicked_dbus_dhcp_client(void)
 }
 
 /*
+ * Get the dhcp4 object path for the device
+ */
+static const char *
+ni_objectmodel_dhcp4_object_path(const ni_interface_t *dev)
+{
+	static char object_path[256];
+
+	snprintf(object_path, sizeof(object_path), WICKED_DBUS_OBJECT_PATH "/DHCP4/Interface/%d", dev->link.ifindex);
+	return object_path;
+}
+
+/*
  * Interface.acquire(dict options)
  * Acquire a lease for the given interface.
  *
@@ -74,7 +86,6 @@ dbus_bool_t
 ni_objectmodel_dhcp4_acquire(ni_interface_t *dev, const ni_addrconf_request_t *req, DBusError *error)
 {
 	ni_dbus_client_t *client = wicked_dbus_dhcp_client();
-	char object_path[256];
 	ni_dbus_object_t *object;
 	ni_dbus_variant_t argument;
 	dbus_bool_t rv = FALSE;
@@ -84,8 +95,7 @@ ni_objectmodel_dhcp4_acquire(ni_interface_t *dev, const ni_addrconf_request_t *r
 		return FALSE;
 	}
 
-	snprintf(object_path, sizeof(object_path), WICKED_DBUS_OBJECT_PATH "/DHCP4/Interface/%d", dev->link.ifindex);
-	object = ni_dbus_client_object_new(client, object_path,
+	object = ni_dbus_client_object_new(client, ni_objectmodel_dhcp4_object_path(dev),
 			WICKED_DBUS_DHCP4_INTERFACE, NULL, dev);
 
 	ni_dbus_variant_init_dict(&argument);
@@ -115,7 +125,6 @@ dbus_bool_t
 ni_objectmodel_dhcp4_release(ni_interface_t *dev, const ni_addrconf_lease_t *lease, DBusError *error)
 {
 	ni_dbus_client_t *client = wicked_dbus_dhcp_client();
-	char object_path[256];
 	ni_dbus_object_t *object;
 	ni_dbus_variant_t argument;
 	dbus_bool_t rv = FALSE;
@@ -125,8 +134,7 @@ ni_objectmodel_dhcp4_release(ni_interface_t *dev, const ni_addrconf_lease_t *lea
 		return FALSE;
 	}
 
-	snprintf(object_path, sizeof(object_path), WICKED_DBUS_OBJECT_PATH "/Interface/%d", dev->link.ifindex);
-	object = ni_dbus_client_object_new(client, object_path,
+	object = ni_dbus_client_object_new(client, ni_objectmodel_dhcp4_object_path(dev),
 			WICKED_DBUS_DHCP4_INTERFACE, NULL, dev);
 
 	ni_dbus_variant_set_uuid(&argument, &lease->uuid);
@@ -202,6 +210,8 @@ ni_objectmodel_dhcp4_signal_handler(ni_dbus_connection_t *conn,
 		ni_debug_dhcp("Setting lease to %p", lease);
 		__ni_system_interface_update_lease(nih, ifp, lease);
 		/* FIXME: trigger interface reconf */
+	} else
+	if (!strcmp(signal_name, "LeaseReleased") || !strcmp(signal_name, "LeaseLost")) {
 	}
 
 done:
