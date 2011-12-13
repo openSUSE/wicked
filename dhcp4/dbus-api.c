@@ -141,17 +141,25 @@ __wicked_dbus_dhcp4_drop_svc(ni_dbus_object_t *object, const ni_dbus_method_t *m
 {
 	ni_dhcp_device_t *dev = object->handle;
 	dbus_bool_t ret = FALSE;
+	ni_uuid_t uuid;
 	int rv;
 
 	NI_TRACE_ENTER_ARGS("dev=%s", dev->ifname);
+
+	memset(&uuid, 0, sizeof(uuid));
 	if (argc == 1) {
-		/* FIXME: Extract the lease uuid and pass that along to
-		 * ni_dhcp_release. This makes sure we don't cancel the wrong
-		 * lease.
+		/* Extract the lease uuid and pass that along to ni_dhcp_release.
+		 * This makes sure we don't cancel the wrong lease.
 		 */
+		unsigned int len;
+
+		if (!ni_dbus_variant_get_byte_array_minmax(&argv[0], uuid.octets, &len, 16, 16)) {
+			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "bad uuid argument");
+			goto failed;
+		}
 	}
 
-	if ((rv = ni_dhcp_release(dev, NULL)) < 0) {
+	if ((rv = ni_dhcp_release(dev, &uuid)) < 0) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
 				"Unable to drop DHCP lease for interface %s: %s", dev->ifname,
 				ni_strerror(rv));
@@ -166,7 +174,7 @@ failed:
 
 static ni_dbus_method_t		wicked_dbus_dhcp4_methods[] = {
 	{ "acquire",		"a{sv}",		__wicked_dbus_dhcp4_acquire_svc },
-	{ "drop",		"",			__wicked_dbus_dhcp4_drop_svc },
+	{ "drop",		"ay",			__wicked_dbus_dhcp4_drop_svc },
 	{ NULL }
 };
 
