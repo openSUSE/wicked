@@ -55,6 +55,9 @@ static int	__ni_interface_update_ipv6_settings(ni_handle_t *, ni_interface_t *, 
 static int	__ni_interface_update_addrs(ni_handle_t *nih, ni_interface_t *ifp,
 				int family, ni_addrconf_mode_t mode,
 				ni_address_t **cfg_addr_list);
+static int	__ni_interface_update_routes(ni_handle_t *nih, ni_interface_t *ifp,
+				int family, ni_addrconf_mode_t mode,
+				ni_route_t **cfg_route_list);
 static int	__ni_rtnl_link_create_vlan(ni_handle_t *, const char *, const ni_vlan_t *);
 static int	__ni_rtnl_link_create(ni_handle_t *, const ni_interface_t *);
 static int	__ni_rtnl_link_up(ni_handle_t *, const ni_interface_t *, const ni_interface_request_t *);
@@ -273,10 +276,8 @@ int
 __ni_system_interface_update_lease(ni_handle_t *nih, ni_interface_t *ifp, ni_addrconf_lease_t *lease)
 {
 	unsigned int update_mask;
-	int res, changed = 0;
 	ni_afinfo_t *afi;
-	ni_address_t *ap;
-	ni_route_t *rp;
+	int res;
 
 	ni_debug_ifconfig("%s: received %s/%s lease update; state %s", ifp->name,
 			ni_addrconf_type_to_name(lease->type),
@@ -296,123 +297,31 @@ __ni_system_interface_update_lease(ni_handle_t *nih, ni_interface_t *ifp, ni_add
 	update_mask &= afi->request[lease->type]->update;
 #endif
 
-#if 1
-	(void) ap;
-	__ni_interface_update_addrs(nih, ifp, lease->family, lease->type, &lease->addrs);
-	changed = 1;
-#else
-	/* Loop over all addresses and remove those no longer covered by the lease.
-	 * Ignore all addresses covered by other address config mechanisms.
-	 */
-	nih->seqno++;
-	for (ap = ifp->addrs; ap; ap = ap->next) {
-		ni_address_t *lap;
-
-		if (ap->family != lease->family)
-			continue;
-
-		/* We do NOT check whether we classified the address correctly.
-		 * It may still be around for some reason after we exited
-		 * previously, or we lost track of it for some other reason. */
-		lap = __ni_lease_owns_address(lease, ap);
-		if (lap) {
-			ni_debug_ifconfig("%s: %s/%u exists already",
-				ni_addrconf_type_to_name(lease->type),
-				ni_address_print(&ap->local_addr),
-				ap->prefixlen);
-
-			if (ap->config_method != lease->type
-			 && ap->config_method != NI_ADDRCONF_STATIC) {
-				ni_warn("address covered by a %s lease",
-					ni_addrconf_type_to_name(ap->config_method));
-			}
-			ap->config_method = lease->type;
-			lap->seq = nih->seqno;
-		} else if (ap->config_method == lease->type) {
-			ni_debug_ifconfig("%s: removing address %s/%u",
-				ni_addrconf_type_to_name(lease->type),
-				ni_address_print(&ap->local_addr),
-				ap->prefixlen);
-			if (__ni_rtnl_send_deladdr(nih, ifp, ap))
-				return -1;
-			changed = 1;
-		}
+	res = __ni_interface_update_addrs(nih, ifp, lease->family, lease->type, &lease->addrs);
+	if (res < 0) {
+		ni_error("%s: error updating interface config from %s lease",
+				ifp->name, 
+				ni_addrconf_type_to_name(lease->type));
+		return res;
 	}
-
-	/* Loop over all lease addresses and add those not yet configured */
-	for (ap = lease->addrs; ap; ap = ap->next) {
-		if (ap->seq == nih->seqno)
-			continue;
-
-		if (__ni_rtnl_send_newaddr(nih, ifp, ap, NLM_F_CREATE))
-			return -1;
-		changed = 1;
-	}
-#endif
 
 	/* Refresh state here - routes may have disappeared, for instance,
 	 * when we took away the address. */
-	if (changed && __ni_system_refresh_interface(nih, ifp) < 0)
-		return -1;
-	changed = 0;
+	if ((res = __ni_system_refresh_interface(nih, ifp)) < 0)
+		return res;
 
 	/* Loop over all routes and remove those no longer covered by the lease.
 	 * Ignore all routes covered by other address config mechanisms.
 	 */
-	for (rp = ifp->routes; rp; rp = rp->next) {
-		ni_route_t *lrp;
-
-		if (rp->family != lease->family)
-			continue;
-
-#if 0
-		if (ni_route_is_default(rp)
-		 && !__ni_addrconf_should_update(update_mask, NI_ADDRCONF_UPDATE_DEFAULT_ROUTE)) {
-			ni_debug_ifconfig("%s: ignoring default route update", ifp->name);
-			continue;
-		}
-#endif
-
-		/* We do NOT check whether we classified the address correctly.
-		 * It may still be around for some reason after we exited
-		 * previously, or we lost track of it for some other reason. */
-		lrp = __ni_lease_owns_route(lease, rp);
-		if (lrp) {
-			ni_debug_ifconfig("%s: route %s exists already",
-				ni_addrconf_type_to_name(lease->type),
-				ni_route_print(rp));
-
-			if (rp->config_method != lease->type
-			 && rp->config_method != NI_ADDRCONF_STATIC) {
-				ni_warn("route covered by a %s lease",
-					ni_addrconf_type_to_name(rp->config_method));
-			}
-			rp->config_method = lease->type;
-			lrp->seq = nih->seqno;
-		} else if (rp->config_method == lease->type) {
-			ni_debug_ifconfig("%s: removing route %s",
-				ni_addrconf_type_to_name(lease->type),
-				ni_route_print(rp));
-			if (__ni_rtnl_send_delroute(nih, ifp, rp))
-				return -1;
-			changed = 1;
-		}
-	}
-
-	/* Loop over all lease routes and add those not yet configured */
-	for (rp = lease->routes; rp; rp = rp->next) {
-		if (rp->seq == nih->seqno)
-			continue;
-
-		ni_debug_ifconfig("%s: adding new route %s from lease",
-				ifp->name, ni_route_print(rp));
-		if (__ni_rtnl_send_newroute(nih, ifp, rp, NLM_F_CREATE) < 0)
-			return -1;
-		changed = 1;
+	res = __ni_interface_update_routes(nih, ifp, lease->family, lease->type, &lease->routes);
+	if (res < 0) {
+		ni_error("%s: error updating interface config from %s lease",
+				ifp->name, 
+				ni_addrconf_type_to_name(lease->type));
+		return res;
 	}
 
 	ni_interface_set_lease(nih, ifp, lease);
-
 	ni_system_update_from_lease(nih, ifp, lease);
 
 	return 0;
@@ -1762,7 +1671,7 @@ __ni_interface_route_list_contains(ni_route_t **list, const ni_route_t *rp)
 		 || rp->prefixlen != rp2->prefixlen)
 			continue;
 
-		if (!ni_address_equal(&rp->destination, &rp2->destination))
+		if (rp->prefixlen && !ni_address_equal(&rp->destination, &rp2->destination))
 			continue;
 
 		if (rp->family == AF_INET) {
@@ -1977,13 +1886,33 @@ __ni_interface_update_routes(ni_handle_t *nih, ni_interface_t *ifp,
 		if (rp->family != family)
 			continue;
 
+		/* See if the config list contains the route we've found in the
+		 * system. */
+		rp2 = __ni_interface_route_list_contains(cfg_route_list, rp);
+		if (rp2 != NULL) {
+			/* Okay, we think this address should be managed via the
+			 * specified addrconf method. Make sure this is actually
+			 * the case.
+			 * Note that the code analyzing the current system state
+			 * may mis-classify an address as STATIC, so allow for some
+			 * leeway here.
+			 */
+			if (rp->config_method != mode
+			 && rp->config_method != NI_ADDRCONF_STATIC) {
+				ni_warn("route %s covered by a %s lease",
+					ni_route_print(rp),
+					ni_addrconf_type_to_name(rp->config_method));
+			} else {
+				rp->config_method = mode;
+			}
+		}
+
 		/* Even interfaces with static network config may have
 		 * dynamically configured routes. Don't touch these.
 		 */
 		if (rp->config_method != mode)
 			continue;
 
-		rp2 = __ni_interface_route_list_contains(cfg_route_list, rp);
 		if (rp2 != NULL) {
 			if (__ni_rtnl_send_newroute(nih, ifp, rp2, NLM_F_REPLACE) >= 0) {
 				ni_debug_ifconfig("%s: successfully updated existing route %s",
