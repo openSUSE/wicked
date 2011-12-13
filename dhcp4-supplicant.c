@@ -52,6 +52,7 @@ static void		dhcp4_supplicant(void);
 static void		dhcp4_discover_devices(ni_dbus_server_t *);
 static void		dhcp4_recover_lease(ni_interface_t *, xml_node_t **);
 static void		dhcp4_interface_event(ni_handle_t *, ni_interface_t *, ni_event_t);
+static void		dhcp4_protocol_event(enum ni_dhcp_event, const ni_dhcp_device_t *);
 
 // Hack
 extern ni_dbus_object_t *ni_objectmodel_register_dhcp4_device(ni_dbus_server_t *, ni_dhcp_device_t *);
@@ -199,7 +200,7 @@ static ni_dbus_service_t	__wicked_dbus_dhcp4_interface = {
 
 
 void
-wicked_register_dhcp4_services(ni_dbus_server_t *server)
+dhcp4_register_services(ni_dbus_server_t *server)
 {
 	ni_dbus_object_t *root_object = ni_dbus_server_get_root_object(server);
 	ni_dbus_object_t *object;
@@ -208,14 +209,14 @@ wicked_register_dhcp4_services(ni_dbus_server_t *server)
 	ni_dbus_object_register_service(root_object, &__wicked_dbus_dhcp4_interface);
 
 	/* Register /com/suse/Wicked/DHCP4/Interface */
-	object = ni_dbus_server_register_object(server, "Interface",
-					NULL,
-					NULL);
+	object = ni_dbus_server_register_object(server, "Interface", NULL, NULL);
 	if (object == NULL)
 		ni_fatal("Unable to create dbus object for interfaces");
 
 	// ni_dbus_object_register_service(object, &wicked_dbus_dhcpdev_interface);
 	dhcp4_discover_devices(server);
+
+	ni_dhcp_set_event_handler(dhcp4_protocol_event);
 }
 
 /*
@@ -279,7 +280,7 @@ dhcp4_supplicant(void)
 	if (dhcp4_dbus_server == NULL)
 		ni_fatal("unable to initialize dbus service");
 
-	wicked_register_dhcp4_services(dhcp4_dbus_server);
+	dhcp4_register_services(dhcp4_dbus_server);
 
 	/* open global RTNL socket to listen for kernel events */
 	if (ni_server_listen_events(dhcp4_interface_event) < 0)
@@ -325,4 +326,38 @@ dhcp4_interface_event(ni_handle_t *nih, ni_interface_t *ifp, ni_event_t event)
 
 	default: ;
 	}
+}
+
+void
+dhcp4_protocol_event(enum ni_dhcp_event ev, const ni_dhcp_device_t *dev)
+{
+	ni_dbus_variant_t argument;
+	ni_dbus_object_t *dev_object;
+
+	ni_debug_dhcp("%s(ev=%u, dev=%d)", __func__, ev, dev->link.ifindex);
+
+	dev_object = ni_dbus_server_find_object_by_handle(dhcp4_dbus_server, dev);
+	if (dev_object == NULL) {
+		ni_warn("%s: no dbus object for device %s!", __func__, dev->ifname);
+		return;
+	}
+
+	ni_dbus_variant_init_dict(&argument);
+	switch (ev) {
+	case NI_DHCP_EVENT_ACQUIRED:
+		if (ni_objectmodel_get_addrconf_lease(dev->lease, &argument))
+			ni_server_send_signal(dhcp4_dbus_server, dev_object,
+					WICKED_DBUS_DHCP4_INTERFACE, "LeaseAcquired",
+					1, &argument);
+		break;
+
+	default:
+		;
+		/*
+	NI_DHCP_EVENT_RELEASED,
+	NI_DHCP_EVENT_LOST
+		   */
+	}
+
+	ni_dbus_variant_destroy(&argument);
 }

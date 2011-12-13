@@ -262,6 +262,23 @@ ni_dbus_object_get_service_for_method(const ni_dbus_object_t *object, const char
 	return NULL;
 }
 
+const ni_dbus_service_t *
+ni_dbus_object_get_service_for_signal(const ni_dbus_object_t *object, const char *signal_name)
+{
+	const ni_dbus_service_t *svc;
+	unsigned int i;
+
+	if (object->interfaces == NULL)
+		return NULL;
+
+	for (i = 0; (svc = object->interfaces[i]) != NULL; ++i) {
+		if (ni_dbus_service_get_signal(svc, signal_name))
+			return svc;
+	}
+
+	return NULL;
+}
+
 /*
  * Helper functions
  */
@@ -311,6 +328,23 @@ ni_dbus_object_register_service(ni_dbus_object_t *object, const ni_dbus_service_
  */
 const ni_dbus_method_t *
 ni_dbus_service_get_method(const ni_dbus_service_t *service, const char *name)
+{
+	const ni_dbus_method_t *method;
+
+	if (service->methods == NULL)
+		return NULL;
+	for (method = service->methods; method->name; ++method) {
+		if (!strcmp(method->name, name))
+			return method;
+	}
+	return NULL;
+}
+
+/*
+ * Find the named signal
+ */
+const ni_dbus_method_t *
+ni_dbus_service_get_signal(const ni_dbus_service_t *service, const char *name)
 {
 	const ni_dbus_method_t *method;
 

@@ -52,6 +52,9 @@ static int	__ni_interface_bond_configure(ni_handle_t *, const ni_interface_t *, 
 static int	__ni_interface_extension_configure(ni_handle_t *, const ni_interface_t *, ni_interface_t **);
 static int	__ni_interface_extension_delete(ni_handle_t *, ni_interface_t *);
 static int	__ni_interface_update_ipv6_settings(ni_handle_t *, ni_interface_t *, const ni_afinfo_t *);
+static int	__ni_interface_update_addrs(ni_handle_t *nih, ni_interface_t *ifp,
+				int family, ni_addrconf_mode_t mode,
+				ni_address_t **cfg_addr_list);
 static int	__ni_rtnl_link_create_vlan(ni_handle_t *, const char *, const ni_vlan_t *);
 static int	__ni_rtnl_link_create(ni_handle_t *, const ni_interface_t *);
 static int	__ni_rtnl_link_up(ni_handle_t *, const ni_interface_t *, const ni_interface_request_t *);
@@ -293,6 +296,11 @@ __ni_system_interface_update_lease(ni_handle_t *nih, ni_interface_t *ifp, ni_add
 	update_mask &= afi->request[lease->type]->update;
 #endif
 
+#if 1
+	(void) ap;
+	__ni_interface_update_addrs(nih, ifp, lease->family, lease->type, &lease->addrs);
+	changed = 1;
+#else
 	/* Loop over all addresses and remove those no longer covered by the lease.
 	 * Ignore all addresses covered by other address config mechanisms.
 	 */
@@ -340,6 +348,7 @@ __ni_system_interface_update_lease(ni_handle_t *nih, ni_interface_t *ifp, ni_add
 			return -1;
 		changed = 1;
 	}
+#endif
 
 	/* Refresh state here - routes may have disappeared, for instance,
 	 * when we took away the address. */
@@ -1883,6 +1892,27 @@ __ni_interface_update_addrs(ni_handle_t *nih, ni_interface_t *ifp,
 		if (ap->family != family)
 			continue;
 
+		/* See if the config list contains the address we've found in the
+		 * system. */
+		ap2 = __ni_interface_address_list_contains(cfg_addr_list, ap);
+		if (ap2 != NULL) {
+			/* Okay, we think this address should be managed via the
+			 * specified addrconf method. Make sure this is actually
+			 * the case.
+			 * Note that the code analyzing the current system state
+			 * may mis-classify an address as STATIC, so allow for some
+			 * leeway here.
+			 */
+			if (ap->config_method != mode
+			 && ap->config_method != NI_ADDRCONF_STATIC) {
+				ni_warn("address %s covered by a %s lease",
+					ni_address_print(&ap->local_addr),
+					ni_addrconf_type_to_name(ap->config_method));
+			} else {
+				ap->config_method = mode;
+			}
+		}
+
 		/* Even interfaces with static network config may have
 		 * dynamically configured addresses. Don't touch these.
 		 *
@@ -1894,9 +1924,6 @@ __ni_interface_update_addrs(ni_handle_t *nih, ni_interface_t *ifp,
 		if (ap->config_method != mode)
 			continue;
 
-		/* See if the config list contains the address we've found in the
-		 * system. */
-		ap2 = __ni_interface_address_list_contains(cfg_addr_list, ap);
 		if (ap2 != NULL) {
 			/* Check whether we need to update */
 			if ((ap2->scope == -1 || ap->scope == ap2->scope)
@@ -2242,7 +2269,7 @@ __ni_interface_addrconf(ni_handle_t *nih, int family, ni_interface_t *ifp, ni_af
 				continue;
 
 			/* __ni_addrconf_request_changed assigned the request to ifp,
-			 * so make sure it's not deleted when the called frees
+			 * so make sure it's not deleted when the caller frees
 			 * the ni_interface_request */
 			cfg_afi->request[mode] = NULL;
 

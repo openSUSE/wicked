@@ -22,6 +22,24 @@
 #include "model.h"
 #include "debug.h"
 
+static void			ni_objectmodel_dhcp4_signal_handler(ni_dbus_connection_t *,
+					 ni_dbus_message_t *, void *);
+static ni_dbus_client_t *	wicked_dbus_dhcp_client(void);
+
+/*
+ * Initialize the dhcp4 client
+ */
+void
+ni_objectmodel_dhcp4_init(ni_dbus_server_t *server)
+{
+	ni_dbus_client_t *client;
+
+	client = wicked_dbus_dhcp_client();
+	ni_dbus_client_add_signal_handler(client, NULL, NULL, WICKED_DBUS_DHCP4_INTERFACE,
+			ni_objectmodel_dhcp4_signal_handler,
+			server);
+}
+
 ni_dbus_object_t *
 ni_objectmodel_wrap_addrconf_request(ni_addrconf_request_t *req)
 {
@@ -121,4 +139,72 @@ failed:
 	ni_dbus_variant_destroy(&argument);
 	ni_dbus_object_free(object);
 	return rv;
+}
+
+/*
+ * Callback from DHCP4 supplicant whenever it acquired a lease.
+ */
+void
+ni_objectmodel_dhcp4_signal_handler(ni_dbus_connection_t *conn,
+					 ni_dbus_message_t *msg, void *user_data)
+{
+	static const char *path_base = WICKED_DBUS_OBJECT_PATH "/DHCP4/Interface/";
+	const unsigned int path_base_len = strlen(path_base);
+	const char *signal_name = dbus_message_get_member(msg);
+	const char *path = dbus_message_get_path(msg);
+	ni_dbus_variant_t argv[16];
+	ni_interface_t *ifp;
+	ni_handle_t *nih;
+	unsigned int ifindex;
+	int argc;
+
+	if (strncmp(path, path_base, strlen(path_base)))
+		return;
+
+	if (ni_parse_int(path + path_base_len, &ifindex) < 0)
+		return;
+
+	nih = ni_global_state_handle();
+	if (ni_refresh(nih, NULL) < 0) {
+		ni_error("%s: unable to refresh interfaces", __func__);
+		return;
+	}
+
+	ifp = ni_interface_by_index(nih, ifindex);
+	if (ifp == NULL) {
+		ni_error("%s: received signal %s for unknown ifindex %d", __func__, signal_name, ifindex);
+		return;
+	}
+
+	memset(argv, 0, sizeof(argv));
+	argc = ni_dbus_message_get_args_variants(msg, argv, 16);
+	if (argc < 0) {
+		ni_error("%s: cannot parse arguments for signal %s", __func__, signal_name);
+		return;
+	}
+
+	ni_debug_dhcp("received signal %s for interface %s (ifindex %d)", signal_name, ifp->name, ifindex);
+	if (!strcmp(signal_name, "LeaseAcquired")) {
+		ni_addrconf_lease_t *lease;
+
+		if (argc < 1) {
+			ni_error("%s: not enough arguments in signal %s", __func__, signal_name);
+			goto done;
+		}
+
+		/* obtain lease from first argument */
+		lease = ni_addrconf_lease_new(NI_ADDRCONF_DHCP, AF_INET);
+		if (!ni_objectmodel_set_addrconf_lease(lease, &argv[0])) {
+			ni_addrconf_lease_free(lease);
+			goto done;
+		}
+
+		ni_debug_dhcp("Setting lease to %p", lease);
+		__ni_system_interface_update_lease(nih, ifp, lease);
+		/* FIXME: trigger interface reconf */
+	}
+
+done:
+	while (argc--)
+		ni_dbus_variant_destroy(&argv[argc]);
 }

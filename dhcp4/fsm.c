@@ -31,6 +31,8 @@ static void	ni_dhcp_fsm_fail_lease(ni_dhcp_device_t *);
 static int	ni_dhcp_fsm_validate_lease(ni_dhcp_device_t *, ni_addrconf_lease_t *);
 static void	__ni_dhcp_fsm_timeout(void *, const ni_timer_t *);
 
+static ni_dhcp_event_handler_t *ni_dhcp_fsm_event_handler;
+
 int
 ni_dhcp_fsm_process_dhcp_packet(ni_dhcp_device_t *dev, ni_buffer_t *msgbuf)
 {
@@ -554,7 +556,14 @@ ni_dhcp_fsm_commit_lease(ni_dhcp_device_t *dev, ni_addrconf_lease_t *lease)
 	}
 	dev->notify = 1;
 
-	/* TBD: Inform the master about the newly acquired lease */
+	/* Inform the master about the newly acquired lease */
+	if (ni_dhcp_fsm_event_handler) {
+		if (dev->lease)
+			ni_dhcp_fsm_event_handler(NI_DHCP_EVENT_ACQUIRED, dev);
+		else
+			ni_dhcp_fsm_event_handler(NI_DHCP_EVENT_RELEASED, dev);
+		dev->notify = 0;
+	}
 
 	return 0;
 }
@@ -753,6 +762,15 @@ ni_dhcp_process_nak(ni_dhcp_device_t *dev)
 	if (dev->dhcp.nak_backoff > NAK_BACKOFF_MAX)
 		dev->dhcp.nak_backoff = NAK_BACKOFF_MAX;
 	return 0;
+}
+
+/*
+ * Set the protocol event callback
+ */
+void
+ni_dhcp_set_event_handler(ni_dhcp_event_handler_t func)
+{
+	ni_dhcp_fsm_event_handler = func;
 }
 
 /*

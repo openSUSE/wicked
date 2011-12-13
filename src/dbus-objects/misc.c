@@ -425,6 +425,20 @@ __wicked_dbus_get_addrconf_lease(const ni_addrconf_lease_t *lease,
 }
 
 dbus_bool_t
+ni_objectmodel_get_addrconf_lease(const ni_addrconf_lease_t *lease, ni_dbus_variant_t *result)
+{
+	DBusError error = DBUS_ERROR_INIT;
+
+	if (!__wicked_dbus_get_addrconf_lease(lease, result, &error)) {
+		ni_error("Unable to encode lease: %s (%s)", error.name, error.message);
+		dbus_error_free(&error);
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+dbus_bool_t
 __wicked_dbus_set_addrconf_lease(ni_addrconf_lease_t *lease,
 						const ni_dbus_variant_t *argument,
 						DBusError *error)
@@ -480,3 +494,18 @@ __wicked_dbus_set_addrconf_lease(ni_addrconf_lease_t *lease,
 
 	return TRUE;
 }
+
+dbus_bool_t
+ni_objectmodel_set_addrconf_lease(ni_addrconf_lease_t *lease, const ni_dbus_variant_t *argument)
+{
+	DBusError error = DBUS_ERROR_INIT;
+
+	if (!__wicked_dbus_set_addrconf_lease(lease, argument, &error)) {
+		ni_error("Unable to decode lease: %s (%s)", error.name, error.message);
+		dbus_error_free(&error);
+		return FALSE;
+	}
+
+	return TRUE;
+}
+

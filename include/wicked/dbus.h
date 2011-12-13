@@ -111,6 +111,7 @@ struct ni_dbus_service {
 	char *				name;
 
 	const ni_dbus_method_t *	methods;
+	const ni_dbus_method_t *	signals;
 	const ni_dbus_property_t *	properties;
 };
 
@@ -148,6 +149,10 @@ extern ni_dbus_object_t *	ni_dbus_server_register_object(ni_dbus_server_t *serve
 					const ni_dbus_object_functions_t *functions,
 					void *object_handle);
 extern dbus_bool_t		ni_dbus_server_unregister_object(ni_dbus_server_t *, void *);
+extern ni_dbus_object_t *	ni_dbus_server_find_object_by_handle(ni_dbus_server_t *, const void *);
+extern dbus_bool_t		ni_server_send_signal(ni_dbus_server_t *server, ni_dbus_object_t *object,
+					const char *interface, const char *signal_name,
+					unsigned int nargs, const ni_dbus_variant_t *args);
 
 extern ni_dbus_object_t *	ni_dbus_object_new(const char *path,
 					const ni_dbus_object_functions_t *functions,
@@ -160,6 +165,8 @@ extern dbus_bool_t		ni_dbus_object_register_service(ni_dbus_object_t *object,
 					const ni_dbus_service_t *);
 extern const ni_dbus_method_t *	ni_dbus_service_get_method(const ni_dbus_service_t *service,
 					const char *name);
+extern const ni_dbus_method_t *	ni_dbus_service_get_signal(const ni_dbus_service_t *service,
+					const char *name);
 
 extern ni_dbus_server_t *	ni_dbus_object_get_server(const ni_dbus_object_t *);
 extern ni_dbus_client_t *	ni_dbus_object_get_client(const ni_dbus_object_t *);
@@ -167,6 +174,7 @@ extern const char *		ni_dbus_object_get_path(const ni_dbus_object_t *);
 extern void *			ni_dbus_object_get_handle(const ni_dbus_object_t *);
 extern const ni_dbus_service_t *ni_dbus_object_get_service(const ni_dbus_object_t *, const char *);
 extern const ni_dbus_service_t *ni_dbus_object_get_service_for_method(const ni_dbus_object_t *, const char *);
+extern const ni_dbus_service_t *ni_dbus_object_get_service_for_signal(const ni_dbus_object_t *, const char *);
 extern const char *		ni_dbus_object_get_default_interface(const ni_dbus_object_t *);
 extern void			ni_dbus_object_set_default_interface(ni_dbus_object_t *, const char *);
 extern void			ni_dbus_object_free(ni_dbus_object_t *);
@@ -353,6 +361,8 @@ extern const ni_dbus_service_t	wicked_dbus_interface_request_service;
 
 extern const ni_dbus_service_t *ni_objectmodel_service_by_name(const char *interface_name);
 
+extern dbus_bool_t		ni_objectmodel_get_addrconf_lease(const ni_addrconf_lease_t *, ni_dbus_variant_t *);
+extern dbus_bool_t		ni_objectmodel_set_addrconf_lease(ni_addrconf_lease_t *, const ni_dbus_variant_t *);
 
 #endif /* __WICKED_DBUS_H__ */
 

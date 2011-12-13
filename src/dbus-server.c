@@ -105,6 +105,57 @@ __ni_dbus_server_object_init(ni_dbus_object_t *object, ni_dbus_server_t *server)
 }
 
 /*
+ * Send a signal
+ */
+dbus_bool_t
+ni_server_send_signal(ni_dbus_server_t *server, ni_dbus_object_t *object,
+				const char *interface, const char *signal_name,
+				unsigned int nargs, const ni_dbus_variant_t *args)
+{
+	const ni_dbus_service_t *svc = NULL;
+	const ni_dbus_method_t *method;
+	DBusError error = DBUS_ERROR_INIT;
+	DBusMessage *msg = NULL;
+	dbus_bool_t rv = FALSE;
+
+	if (interface) {
+		if (!(svc = ni_dbus_object_get_service(object, interface)))
+			ni_warn("%s: unknown interface %s", __func__, interface);
+	} else {
+		svc = ni_dbus_object_get_service_for_signal(object, signal_name);
+		if (svc == NULL) {
+			ni_error("%s: cannot determine interface name for signal %s",
+					__func__, signal_name);
+			return FALSE;
+		}
+		interface = svc->name;
+	}
+
+	if (svc && !(method = ni_dbus_service_get_method(svc, signal_name)))
+		ni_warn("%s: unknown signal %s", __func__, signal_name);
+
+	msg = dbus_message_new_signal(object->path, interface, signal_name);
+	if (msg == NULL) {
+		ni_error("%s: unable to build %s() signal message", __func__, signal_name);
+		return FALSE;
+	}
+
+	if (nargs && !ni_dbus_message_serialize_variants(msg, nargs, args, &error))
+		goto out;
+
+	if (ni_dbus_connection_send_message(server->connection, msg) < 0)
+		goto out;
+
+	rv = TRUE;
+
+out:
+	if (msg)
+		dbus_message_unref(msg);
+
+	return rv;
+}
+
+/*
  * When creating an object as a child of a server side object, inherit
  * its server handle.
  */
@@ -567,6 +618,30 @@ ni_dbus_object_get_vtable(const ni_dbus_object_t *dummy)
 	};
 
 	return &vtable;
+}
+
+/*
+ * Find an object given its internal handle
+ */
+static ni_dbus_object_t *
+__ni_dbus_server_find_object_by_handle(ni_dbus_object_t *parent, const void *object_handle)
+{
+	ni_dbus_object_t *object, *found = NULL;
+
+	for (object = parent->children; object && !found; object = object->next) {
+		if (object->handle == object_handle)
+			found = object;
+		else
+			found = __ni_dbus_server_find_object_by_handle(object, object_handle);
+	}
+
+	return found;
+}
+
+ni_dbus_object_t *
+ni_dbus_server_find_object_by_handle(ni_dbus_server_t *server, const void *object_handle)
+{
+	return __ni_dbus_server_find_object_by_handle(server->root_object, object_handle);
 }
 
 /*

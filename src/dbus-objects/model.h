@@ -150,5 +150,6 @@ extern dbus_bool_t		__wicked_dbus_set_addrconf_lease(ni_addrconf_lease_t *lease,
 						const ni_dbus_variant_t *result,
 						DBusError *error);
 
+extern void			ni_objectmodel_dhcp4_init(ni_dbus_server_t *);
 
 #endif /* __WICKED_OBJECTMODEL_H__ */

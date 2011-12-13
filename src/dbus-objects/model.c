@@ -40,6 +40,9 @@ ni_objectmodel_register_all(ni_dbus_server_t *server)
 		ni_fatal("Unable to create dbus object for interfaces");
 
 	ni_dbus_object_register_service(object, &wicked_dbus_netif_interface);
+
+	ni_objectmodel_dhcp4_init(server);
+
 	return TRUE;
 }
 

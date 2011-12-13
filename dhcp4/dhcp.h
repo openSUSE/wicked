@@ -116,11 +116,16 @@ struct ni_dhcp_config {
 	unsigned int		max_lease_time;
 };
 
+enum ni_dhcp_event {
+	NI_DHCP_EVENT_ACQUIRED,
+	NI_DHCP_EVENT_RELEASED,
+	NI_DHCP_EVENT_LOST
+};
+typedef void		ni_dhcp_event_handler_t(enum ni_dhcp_event, const ni_dhcp_device_t *);
+
 extern ni_dhcp_device_t *ni_dhcp_active;
 
-extern ni_proxy_t *	ni_dhcp_proxy_start(void);
-extern int		ni_dhcp_proxy_notify(ni_proxy_t *, const char *, xml_node_t *);
-extern void		ni_dhcp_mainloop(void);
+extern void		ni_dhcp_set_event_handler(ni_dhcp_event_handler_t);
 
 extern int		ni_dhcp_acquire(ni_dhcp_device_t *, const ni_addrconf_request_t *);
 extern int		ni_dhcp_release(ni_dhcp_device_t *, const ni_uuid_t *);
