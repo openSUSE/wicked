@@ -83,7 +83,7 @@ __LIBSRCS= \
 	  ipv4ll/fsm.c
 __NCFSRCS= \
 	  netcf.c
-__DHCP4SRCS = \
+DHCP4SRCS = \
 	  dhcp4-supplicant.c \
 	  dhcp4/dbus-api.c \
 	  dhcp4/fsm.c \
@@ -97,7 +97,7 @@ SHLIBOBJS= $(addprefix $(OBJ)/shlib/,$(__LIBSRCS:.c=.o))
 NCFSRCS	= $(addprefix src/,$(__NCFSRCS))
 NCFOBJS	= $(addprefix $(OBJ)/netcf/,$(__NCFSRCS:.c=.o))
 APPSRCS	= $(addsuffix .c,$(APPS))
-DHCP4OBJS= $(addprefix $(OBJ)/,$(__DHCP4SRCS:.c=.o))
+DHCP4OBJS= $(addprefix $(OBJ)/,$(DHCP4SRCS:.c=.o))
 
 all: $(TGTLIBS) $(APPS)
 
@@ -156,6 +156,7 @@ depend:
 	gcc $(CFLAGS) -M $(NCFSRCS) | \
 		sed 's@^\([^.]*\)\.o: src/\([-a-z0-9/]*\)\1.c@obj/netcf/\2&@' >> .depend
 	gcc $(CFLAGS) -M $(APPSRCS) | sed 's:^[a-z]:$(OBJ)/&:' >> .depend
+	gcc $(CFLAGS) -M $(DHCP4SRCS) | sed 's:^[a-z]:$(OBJ)/dhcp4/&:' >> .depend
 
 $(OBJ)/%.o: %.c
 	@rm -f $@
