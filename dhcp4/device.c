@@ -301,8 +301,23 @@ ni_dhcp_acquire(ni_dhcp_device_t *dev, const ni_addrconf_request_t *info)
 int
 ni_dhcp_release(ni_dhcp_device_t *dev, const ni_uuid_t *lease_uuid)
 {
-	ni_error("%s: %s not yet implemented", dev->ifname, __func__);
-	return -1;
+	int rv;
+
+	if (lease_uuid) {
+		/* FIXME: We should check the provided uuid against the
+		 * lease's uuid, and refuse the call if it doesn't match
+		 */
+	}
+
+	/* We just send out a singe RELEASE without waiting for the
+	 * server's reply. We just keep our fingers crossed that it's
+	 * getting out. If it doesn't, it's rather likely the network
+	 * is hosed anyway, so there's little point in delaying. */
+	if ((rv = ni_dhcp_fsm_release(dev)) < 0)
+		return rv;
+
+	ni_dhcp_device_stop(dev);
+	return 0;
 }
 
 /*
