@@ -227,6 +227,11 @@ ni_dbus_connection_call(ni_dbus_connection_t *connection,
 
 	dbus_pending_call_block(pending);
 
+	/* This makes sure that any signals we received while waiting for the reply
+	 * do get dispatchd. */
+	while (dbus_connection_dispatch(connection->conn) == DBUS_DISPATCH_DATA_REMAINS)
+		;
+
 	reply = dbus_pending_call_steal_reply(pending);
 
 	if (call == NULL) {
