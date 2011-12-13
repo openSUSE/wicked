@@ -49,20 +49,6 @@ ni_dhcp_device_new(const char *ifname, unsigned int iftype)
 	return dev;
 }
 
-/* FIXME rename to ni_dhcp_device_by_name */
-ni_dhcp_device_t *
-ni_dhcp_device_find(const char *ifname)
-{
-	ni_dhcp_device_t *dev;
-
-	for (dev = ni_dhcp_active; dev; dev = dev->next) {
-		if (!strcmp(dev->ifname, ifname))
-			return dev;
-	}
-
-	return NULL;
-}
-
 ni_dhcp_device_t *
 ni_dhcp_device_by_index(unsigned int ifindex)
 {
@@ -376,21 +362,6 @@ ni_dhcp_device_drop_buffer(ni_dhcp_device_t *dev)
 	if (dev->message.base)
 		free(dev->message.base);
 	memset(&dev->message, 0, sizeof(dev->message));
-}
-
-ni_dhcp_device_t *
-ni_dhcp_device_get_changed(void)
-{
-	ni_dhcp_device_t *dev;
-
-	for (dev = ni_dhcp_active; dev; dev = dev->next) {
-		if (dev->notify) {
-			dev->notify = 0;
-			return dev;
-		}
-	}
-
-	return NULL;
 }
 
 int
