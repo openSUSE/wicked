@@ -242,6 +242,10 @@ dhcp4_device_create(ni_dbus_server_t *server, const ni_interface_t *ifp)
 static void
 dhcp4_device_destroy(ni_dbus_server_t *server, const ni_interface_t *ifp)
 {
+	ni_dhcp_device_t *dev;
+
+	if ((dev = ni_dhcp_device_by_index(ifp->link.ifindex)) != NULL)
+		ni_dbus_server_unregister_object(server, dev);
 }
 
 void
