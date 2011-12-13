@@ -432,6 +432,16 @@ transient_failure:
 	return 0;
 }
 
+int
+ni_dhcp_device_send_message_unicast(ni_dhcp_device_t *dev, unsigned int msg_code, const ni_addrconf_lease_t *lease)
+{
+	/* FIXME: not implemented yet. We'd need to record the
+	 * server's hwaddr for this and reuse it here.
+	 * So fall back to broadcast.
+	 */
+	return ni_dhcp_device_send_message(dev, msg_code, lease);
+}
+
 void
 ni_dhcp_device_disarm_retransmit(ni_dhcp_device_t *dev)
 {

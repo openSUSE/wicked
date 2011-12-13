@@ -161,6 +161,8 @@ extern void		ni_dhcp_device_drop_lease(ni_dhcp_device_t *);
 extern void		ni_dhcp_device_alloc_buffer(ni_dhcp_device_t *);
 extern void		ni_dhcp_device_drop_buffer(ni_dhcp_device_t *);
 extern int		ni_dhcp_device_send_message(ni_dhcp_device_t *, unsigned int, const ni_addrconf_lease_t *);
+extern int		ni_dhcp_device_send_message_unicast(ni_dhcp_device_t *,
+				unsigned int, const ni_addrconf_lease_t *);
 extern void		ni_dhcp_device_arm_retransmit(ni_dhcp_device_t *dev);
 extern void		ni_dhcp_device_disarm_retransmit(ni_dhcp_device_t *dev);
 extern void		ni_dhcp_device_retransmit(ni_dhcp_device_t *);

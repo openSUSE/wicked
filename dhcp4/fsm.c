@@ -303,8 +303,7 @@ ni_dhcp_fsm_renewal(ni_dhcp_device_t *dev)
 
 	ni_debug_dhcp("trying to renew lease for %s", dev->ifname);
 
-	/* FIXME: we should really unicast the request here. */
-	rv = ni_dhcp_device_send_message(dev, DHCP_REQUEST, dev->lease);
+	rv = ni_dhcp_device_send_message_unicast(dev, DHCP_REQUEST, dev->lease);
 
 	ni_dhcp_fsm_set_deadline(dev,
 			dev->lease->time_acquired + dev->lease->dhcp.rebind_time);
@@ -320,8 +319,7 @@ ni_dhcp_fsm_quick_renewal(ni_dhcp_device_t *dev)
 
 	ni_debug_dhcp("trying to perform quick lease renewal for %s", dev->ifname);
 
-	/* FIXME: we should really unicast the request here. */
-	rv = ni_dhcp_device_send_message(dev, DHCP_REQUEST, dev->lease);
+	rv = ni_dhcp_device_send_message_unicast(dev, DHCP_REQUEST, dev->lease);
 
 	deadline = time(NULL) + 10;
 	if (deadline > dev->lease->time_acquired + dev->lease->dhcp.rebind_time)
@@ -379,9 +377,6 @@ ni_dhcp_fsm_release(ni_dhcp_device_t *dev)
 
 	ni_debug_dhcp("%s: releasing lease", dev->ifname);
 	ni_dhcp_device_send_message(dev, DHCP_RELEASE, dev->lease);
-
-	/* FIXME: we should record the bad lease, and ignore it
-	 * when the server offers it again. */
 
 	/* RFC 2131 mandates we should wait for 10 seconds before
 	 * retrying discovery. */
@@ -821,7 +816,7 @@ ni_dhcp_fsm_process_arp_packet(ni_arp_socket_t *arph, const ni_arp_packet_t *pkt
 }
 
 /*
- * FIXME: NAKs in different states need to be treated differently.
+ * NAKs in different states need to be treated differently.
  */
 static int
 ni_dhcp_process_nak(ni_dhcp_device_t *dev)
