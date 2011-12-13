@@ -712,6 +712,29 @@ ni_route_equal(const ni_route_t *r1, const ni_route_t *r2)
 	return nh1 == nh2;
 }
 
+const char *
+ni_route_print(const ni_route_t *rp)
+{
+	char *dest, destbuf[128], gwbuf[128];
+	static char abuf[256];
+
+	dest = destbuf;
+	if (rp->prefixlen == 0) {
+		dest = "default";
+	} else {
+		ni_address_format(&rp->destination, destbuf, sizeof(destbuf));
+	}
+
+	if (rp->nh.gateway.ss_family) {
+		snprintf(abuf, sizeof(abuf), "%s via %s", dest,
+				ni_address_format(&rp->nh.gateway, gwbuf, sizeof(gwbuf)));
+	} else {
+		snprintf(abuf, sizeof(abuf), "%s", dest);
+	}
+	return abuf;
+}
+
+
 /*
  * Address configuration mechanisms
  */

@@ -378,10 +378,9 @@ __ni_system_interface_update_lease(ni_handle_t *nih, ni_interface_t *ifp, ni_add
 		 * previously, or we lost track of it for some other reason. */
 		lrp = __ni_lease_owns_route(lease, rp);
 		if (lrp) {
-			ni_debug_ifconfig("%s: route %s/%u exists already",
+			ni_debug_ifconfig("%s: route %s exists already",
 				ni_addrconf_type_to_name(lease->type),
-				ni_address_print(&rp->destination),
-				rp->prefixlen);
+				ni_route_print(rp));
 
 			if (rp->config_method != lease->type
 			 && rp->config_method != NI_ADDRCONF_STATIC) {
@@ -391,10 +390,9 @@ __ni_system_interface_update_lease(ni_handle_t *nih, ni_interface_t *ifp, ni_add
 			rp->config_method = lease->type;
 			lrp->seq = nih->seqno;
 		} else if (rp->config_method == lease->type) {
-			ni_debug_ifconfig("%s: removing route %s/%u",
+			ni_debug_ifconfig("%s: removing route %s",
 				ni_addrconf_type_to_name(lease->type),
-				ni_address_print(&rp->destination),
-				rp->prefixlen);
+				ni_route_print(rp));
 			if (__ni_rtnl_send_delroute(nih, ifp, rp))
 				return -1;
 			changed = 1;
@@ -406,9 +404,8 @@ __ni_system_interface_update_lease(ni_handle_t *nih, ni_interface_t *ifp, ni_add
 		if (rp->seq == nih->seqno)
 			continue;
 
-		ni_debug_ifconfig("%s: adding new route %s/%u from lease",
-				ifp->name, ni_address_print(&rp->destination),
-				rp->prefixlen);
+		ni_debug_ifconfig("%s: adding new route %s from lease",
+				ifp->name, ni_route_print(rp));
 		if (__ni_rtnl_send_newroute(nih, ifp, rp, NLM_F_CREATE) < 0)
 			return -1;
 		changed = 1;
@@ -1620,7 +1617,7 @@ __ni_rtnl_send_newroute(ni_handle_t *nih, ni_interface_t *ifp, ni_route_t *rp, i
 	struct rtmsg rt;
 	struct nl_msg *msg;
 
-	ni_debug_ifconfig("%s(%s/%u)", __FUNCTION__, ni_address_print(&rp->destination), rp->prefixlen);
+	ni_debug_ifconfig("%s(%s)", __FUNCTION__, ni_route_print(rp));
 
 	memset(&rt, 0, sizeof(rt));
 
@@ -1690,9 +1687,7 @@ __ni_rtnl_send_newroute(ni_handle_t *nih, ni_interface_t *ifp, ni_route_t *rp, i
 	}
 
 	if (ni_nl_talk(nih, msg) < 0) {
-		error("%s(%s/%u): rtnl_talk failed", __FUNCTION__,
-				ni_address_print(&rp->destination),
-				rp->prefixlen);
+		error("%s(%s): rtnl_talk failed", __FUNCTION__, ni_route_print(rp));
 		goto failed;
 	}
 
@@ -1712,7 +1707,7 @@ __ni_rtnl_send_delroute(ni_handle_t *nih, ni_interface_t *ifp, ni_route_t *rp)
 	struct rtmsg rt;
 	struct nl_msg *msg;
 
-	ni_debug_ifconfig("%s(%s/%u)", __FUNCTION__, ni_address_print(&rp->destination), rp->prefixlen);
+	ni_debug_ifconfig("%s(%s)", __FUNCTION__, ni_route_print(rp));
 
 	memset(&rt, 0, sizeof(rt));
 	rt.rtm_family = rp->family;
@@ -1740,9 +1735,7 @@ __ni_rtnl_send_delroute(ni_handle_t *nih, ni_interface_t *ifp, ni_route_t *rp)
 	NLA_PUT_U32(msg, RTA_OIF, ifp->link.ifindex);
 
 	if (ni_nl_talk(nih, msg) < 0) {
-		ni_error("%s(%s/%u): rtnl_talk failed", __FUNCTION__,
-				ni_address_print(&rp->destination),
-				rp->prefixlen);
+		ni_error("%s(%s): rtnl_talk failed", __FUNCTION__, ni_route_print(rp));
 		goto failed;
 	}
 
@@ -1993,21 +1986,17 @@ __ni_interface_update_routes(ni_handle_t *nih, ni_interface_t *ifp,
 		rp2 = __ni_interface_route_list_contains(cfg_route_list, rp);
 		if (rp2 != NULL) {
 			if (__ni_rtnl_send_newroute(nih, ifp, rp2, NLM_F_REPLACE) >= 0) {
-				ni_debug_ifconfig("%s: successfully updated existing route %s/%u",
-						ifp->name, ni_address_print(&rp->destination),
-						rp->prefixlen);
+				ni_debug_ifconfig("%s: successfully updated existing route %s",
+						ifp->name, ni_route_print(rp));
 				rp2->seq = nih->seqno;
 				continue;
 			}
 
-			ni_error("%s: failed to update route %s/%u",
-					ifp->name, ni_address_print(&rp->destination),
-					rp->prefixlen);
+			ni_error("%s: failed to update route %s", ifp->name, ni_route_print(rp));
 		}
 
-		ni_debug_ifconfig("%s: trying to delete existing route %s/%u",
-				ifp->name, ni_address_print(&rp->destination),
-				rp->prefixlen);
+		ni_debug_ifconfig("%s: trying to delete existing route %s",
+				ifp->name, ni_route_print(rp));
 		if ((rv = __ni_rtnl_send_delroute(nih, ifp, rp)) < 0)
 			return rv;
 	}
@@ -2020,19 +2009,7 @@ __ni_interface_update_routes(ni_handle_t *nih, ni_interface_t *ifp,
 		 || rp->seq == nih->seqno)
 			continue;
 
-		if (rp->nh.gateway.ss_family) {
-			char destbuf[128], gwbuf[128];
-
-			ni_debug_ifconfig("%s: adding new route %s/%u via %s",
-				ifp->name,
-				ni_address_format(&rp->destination, destbuf, sizeof(destbuf)),
-				rp->prefixlen,
-				ni_address_format(&rp->nh.gateway, gwbuf, sizeof(gwbuf)));
-		} else {
-			ni_debug_ifconfig("%s: adding new route %s/%u",
-				ifp->name, ni_address_print(&rp->destination),
-				rp->prefixlen);
-		}
+		ni_debug_ifconfig("%s: adding new route %s", ifp->name, ni_route_print(rp));
 		if ((rv = __ni_rtnl_send_newroute(nih, ifp, rp, NLM_F_CREATE)) < 0)
 			return rv;
 	}
