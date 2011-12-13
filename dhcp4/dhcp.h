@@ -118,10 +118,11 @@ struct ni_dhcp_config {
 };
 
 enum ni_dhcp_event {
-	NI_DHCP_EVENT_ACQUIRED,
-	NI_DHCP_EVENT_RELEASED,
-	NI_DHCP_EVENT_LOST
+	NI_DHCP_EVENT_ACQUIRED =NI_EVENT_LEASE_ACQUIRED,
+	NI_DHCP_EVENT_RELEASED =NI_EVENT_LEASE_RELEASED,
+	NI_DHCP_EVENT_LOST =	NI_EVENT_LEASE_LOST
 };
+
 typedef void		ni_dhcp_event_handler_t(enum ni_dhcp_event event,
 					const ni_dhcp_device_t *dev,
 					ni_addrconf_lease_t *lease);

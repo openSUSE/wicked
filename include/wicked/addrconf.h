@@ -140,6 +140,12 @@ struct ni_addrconf_lease {
 	};
 };
 
+enum ni_lease_event {
+	NI_EVENT_LEASE_ACQUIRED,
+	NI_EVENT_LEASE_RELEASED,
+	NI_EVENT_LEASE_LOST
+};
+
 #define NI_ADDRCONF_MASK(mode)		(1 << (mode))
 #define NI_ADDRCONF_TEST(mask, mode)	!!((mask) & NI_ADDRCONF_MASK(mode))
 
