@@ -432,6 +432,7 @@ ni_dbus_connection_unregister_object(ni_dbus_connection_t *connection, ni_dbus_o
 
 	if (!path)
 		return;
+	ni_debug_dbus("dbus_connection_unregister_object_path(%s)", path);
 	dbus_connection_unregister_object_path(connection->conn, path);
 }
 
