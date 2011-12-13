@@ -139,6 +139,14 @@ ni_interface_down(ni_handle_t *nih, ni_interface_t *ifp)
 
 	ni_debug_ifconfig("%s(%s)", __func__, ifp->name);
 
+	nih->seqno++;
+
+	/* First do the addrconf fandango, then take down the interface
+	 * itself. We need to do DHCP release and related stuff... */
+	if ((res = __ni_interface_addrconf(nih, AF_INET, ifp, NULL)) >= 0
+	 && (res = __ni_interface_addrconf(nih, AF_INET6, ifp, NULL)) >= 0)
+		res = __ni_system_refresh_interface(nih, ifp);
+
 	ni_debug_ifconfig("shutting down interface %s", ifp->name);
 	if (__ni_rtnl_link_down(nih, ifp, RTM_NEWLINK)) {
 		ni_error("unable to shut down interface %s", ifp->name);
@@ -146,12 +154,6 @@ ni_interface_down(ni_handle_t *nih, ni_interface_t *ifp)
 	}
 	/* down is down is down */
 	ifp->up_requesters = 0;
-
-	nih->seqno++;
-
-	if ((res = __ni_interface_addrconf(nih, AF_INET, ifp, NULL)) >= 0
-	 && (res = __ni_interface_addrconf(nih, AF_INET6, ifp, NULL)) >= 0)
-		res = __ni_system_refresh_interface(nih, ifp);
 
 	return res;
 }
