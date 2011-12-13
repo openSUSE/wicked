@@ -348,9 +348,9 @@ ni_dbus_service_get_signal(const ni_dbus_service_t *service, const char *name)
 {
 	const ni_dbus_method_t *method;
 
-	if (service->methods == NULL)
+	if (service->signals == NULL)
 		return NULL;
-	for (method = service->methods; method->name; ++method) {
+	for (method = service->signals; method->name; ++method) {
 		if (!strcmp(method->name, name))
 			return method;
 	}
