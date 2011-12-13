@@ -207,11 +207,16 @@ ni_objectmodel_dhcp4_signal_handler(ni_dbus_connection_t *conn,
 			goto done;
 		}
 
-		ni_debug_dhcp("Setting lease to %p", lease);
 		__ni_system_interface_update_lease(nih, ifp, lease);
-		/* FIXME: trigger interface reconf */
 	} else
 	if (!strcmp(signal_name, "LeaseReleased") || !strcmp(signal_name, "LeaseLost")) {
+		ni_addrconf_lease_t *lease;
+
+		ni_debug_dhcp("%s: dropping dhcp/ipv4 lease", ifp->name);
+
+		/* obtain lease from first argument */
+		lease = ni_addrconf_lease_new(NI_ADDRCONF_DHCP, AF_INET);
+		__ni_system_interface_update_lease(nih, ifp, lease);
 	}
 
 done:
