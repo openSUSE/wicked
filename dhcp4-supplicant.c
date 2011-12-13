@@ -312,9 +312,18 @@ dhcp4_supplicant(void)
 void
 dhcp4_interface_event(ni_handle_t *nih, ni_interface_t *ifp, ni_event_t event)
 {
+	ni_dhcp_device_t *dev;
+	ni_interface_t *ofp;
+
 	switch (event) {
 	case NI_EVENT_LINK_CREATE:
-		/* FIXME: check for duplicate ifindex */
+		/* check for duplicate ifindex */
+		ofp = ni_interface_by_index(nih, ifp->link.ifindex);
+		if (ofp && ofp != ifp) {
+			ni_warn("duplicate ifindex in link-create event");
+			return;
+		}
+
 		/* Create dbus object */
 		dhcp4_device_create(dhcp4_dbus_server, ifp);
 		break;
@@ -322,6 +331,13 @@ dhcp4_interface_event(ni_handle_t *nih, ni_interface_t *ifp, ni_event_t event)
 	case NI_EVENT_LINK_DELETE:
 		/* Delete dbus object */
 		dhcp4_device_destroy(dhcp4_dbus_server, ifp);
+		break;
+
+	case NI_EVENT_LINK_DOWN:
+	case NI_EVENT_LINK_UP:
+		dev = ni_dhcp_device_by_index(ifp->link.ifindex);
+		if (dev != NULL)
+			ni_dhcp_device_event(dev, event);
 		break;
 
 	default: ;

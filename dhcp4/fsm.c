@@ -450,6 +450,57 @@ __ni_dhcp_fsm_timeout(void *user_data, const ni_timer_t *timer)
 	ni_dhcp_fsm_timeout(dev);
 }
 
+/*
+ * These functions get called when the link goes down/up.
+ * We use these to be smart about renewing a lease.
+ */
+void
+ni_dhcp_fsm_link_up(ni_dhcp_device_t *dev)
+{
+	if (dev->config == NULL)
+		return;
+
+	ni_debug_dhcp("%s: link came back up", dev->ifname);
+	switch (dev->fsm.state) {
+	case NI_DHCP_STATE_INIT:
+		/* We get here if we aborted a discovery operation. */
+		ni_dhcp_fsm_discover(dev);
+		break;
+
+	case NI_DHCP_STATE_BOUND:
+		/* The link went down and came back up. We may now be on a
+		 * completely different network, and our lease may no longer
+		 * be valid.
+		 * Do a quick renewal.
+		 */
+		ni_dhcp_fsm_renewal(dev);
+		break;
+
+	default:
+		break;
+	}
+}
+
+void
+ni_dhcp_fsm_link_down(ni_dhcp_device_t *dev)
+{
+	if (dev->config == NULL)
+		return;
+
+	ni_debug_dhcp("%s: link went down", dev->ifname);
+	switch (dev->fsm.state) {
+	case NI_DHCP_STATE_INIT:
+	case NI_DHCP_STATE_SELECTING:
+	case NI_DHCP_STATE_REQUESTING:
+	case NI_DHCP_STATE_VALIDATING:
+		ni_dhcp_device_drop_lease(dev);
+		ni_dhcp_fsm_restart(dev);
+		break;
+
+	default: ;
+	}
+}
+
 static int
 ni_dhcp_process_offer(ni_dhcp_device_t *dev, ni_addrconf_lease_t *lease)
 {
@@ -731,8 +782,6 @@ ni_dhcp_fsm_process_arp_packet(ni_arp_socket_t *arph, const ni_arp_packet_t *pkt
 static int
 ni_dhcp_process_nak(ni_dhcp_device_t *dev)
 {
-	ni_dhcp_fsm_restart(dev);
-
 	switch (dev->fsm.state) {
 	case NI_DHCP_STATE_BOUND:
 		/* RFC says discard NAKs received in state BOUND */

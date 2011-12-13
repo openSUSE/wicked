@@ -49,6 +49,7 @@ ni_dhcp_device_new(const char *ifname, unsigned int iftype)
 	return dev;
 }
 
+/* FIXME rename to ni_dhcp_device_by_name */
 ni_dhcp_device_t *
 ni_dhcp_device_find(const char *ifname)
 {
@@ -56,6 +57,19 @@ ni_dhcp_device_find(const char *ifname)
 
 	for (dev = ni_dhcp_active; dev; dev = dev->next) {
 		if (!strcmp(dev->ifname, ifname))
+			return dev;
+	}
+
+	return NULL;
+}
+
+ni_dhcp_device_t *
+ni_dhcp_device_by_index(unsigned int ifindex)
+{
+	ni_dhcp_device_t *dev;
+
+	for (dev = ni_dhcp_active; dev; dev = dev->next) {
+		if (dev->system.ifindex == ifindex)
 			return dev;
 	}
 
@@ -300,6 +314,25 @@ ni_dhcp_release(ni_dhcp_device_t *dev, const ni_uuid_t *lease_uuid)
 {
 	ni_error("%s: %s not yet implemented", dev->ifname, __func__);
 	return -1;
+}
+
+/*
+ * Handle link up/down events
+ */
+void
+ni_dhcp_device_event(ni_dhcp_device_t *dev, ni_event_t event)
+{
+	switch (event) {
+	case NI_EVENT_LINK_DOWN:
+		ni_dhcp_fsm_link_down(dev);
+		break;
+
+	case NI_EVENT_LINK_UP:
+		ni_dhcp_fsm_link_up(dev);
+		break;
+
+	default: ;
+	}
 }
 
 int

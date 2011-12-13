@@ -139,14 +139,14 @@ extern int		ni_dhcp_fsm_renewal(ni_dhcp_device_t *);
 extern int		ni_dhcp_fsm_rebind(ni_dhcp_device_t *);
 extern int		ni_dhcp_fsm_decline(ni_dhcp_device_t *);
 extern int		ni_dhcp_fsm_release(ni_dhcp_device_t *);
-extern long		ni_dhcp_fsm_get_timeout(void);
-extern void		ni_dhcp_fsm_check_timeout(void);
 extern const char *	ni_dhcp_fsm_state_name(int);
 extern int		ni_dhcp_fsm_process_dhcp_packet(ni_dhcp_device_t *, ni_buffer_t *);
 extern int		ni_dhcp_fsm_commit_lease(ni_dhcp_device_t *, ni_addrconf_lease_t *);
 extern int		ni_dhcp_fsm_recover_lease(ni_dhcp_device_t *, const ni_addrconf_request_t *);
 extern int		ni_dhcp_build_message(const ni_dhcp_device_t *,
 				unsigned int, const ni_addrconf_lease_t *, ni_buffer_t *);
+extern void		ni_dhcp_fsm_link_up(ni_dhcp_device_t *);
+extern void		ni_dhcp_fsm_link_down(ni_dhcp_device_t *);
 
 extern int		ni_dhcp_parse_response(const ni_dhcp_message_t *, ni_buffer_t *, ni_addrconf_lease_t **);
 
@@ -157,9 +157,11 @@ extern void		ni_dhcp_device_stop(ni_dhcp_device_t *);
 extern unsigned int	ni_dhcp_device_uptime(const ni_dhcp_device_t *, unsigned int);
 extern ni_dhcp_device_t *ni_dhcp_device_new(const char *, unsigned int);
 extern ni_dhcp_device_t *ni_dhcp_device_find(const char *);
+extern ni_dhcp_device_t *ni_dhcp_device_by_index(unsigned int);
 extern ni_dhcp_device_t *ni_dhcp_device_get_changed(void);
 extern ni_dhcp_device_t *ni_dhcp_device_get(ni_dhcp_device_t *);
 extern void		ni_dhcp_device_put(ni_dhcp_device_t *);
+extern void		ni_dhcp_device_event(ni_dhcp_device_t *, ni_event_t);
 extern int		ni_dhcp_device_reconfigure(ni_dhcp_device_t *, const ni_interface_t *);
 extern void		ni_dhcp_device_set_lease(ni_dhcp_device_t *, ni_addrconf_lease_t *);
 extern void		ni_dhcp_device_drop_lease(ni_dhcp_device_t *);
