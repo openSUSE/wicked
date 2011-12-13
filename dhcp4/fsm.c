@@ -29,6 +29,7 @@ static int	ni_dhcp_process_nak(ni_dhcp_device_t *);
 static void	ni_dhcp_fsm_process_arp_packet(ni_arp_socket_t *, const ni_arp_packet_t *, void *);
 static void	ni_dhcp_fsm_fail_lease(ni_dhcp_device_t *);
 static int	ni_dhcp_fsm_validate_lease(ni_dhcp_device_t *, ni_addrconf_lease_t *);
+static void	ni_dhcp_send_event(enum ni_dhcp_event, ni_dhcp_device_t *, ni_addrconf_lease_t *);
 static void	__ni_dhcp_fsm_timeout(void *, const ni_timer_t *);
 
 static ni_dhcp_event_handler_t *ni_dhcp_fsm_event_handler;
@@ -542,11 +543,15 @@ ni_dhcp_fsm_commit_lease(ni_dhcp_device_t *dev, ni_addrconf_lease_t *lease)
 
 		/* Write the lease to lease cache */
 		ni_addrconf_lease_file_write(dev->ifname, lease);
+
+		/* Notify anyone who cares that we've (re-)acquired the lease */
+		ni_dhcp_send_event(NI_DHCP_EVENT_ACQUIRED, dev, lease);
 	} else {
 		ni_debug_dhcp("%s: dropped lease", dev->ifname);
 
 		/* Delete old lease file */
 		if ((lease = dev->lease) != NULL) {
+			ni_dhcp_send_event(NI_DHCP_EVENT_RELEASED, dev, lease);
 			ni_addrconf_lease_file_remove(dev->ifname, lease->type, lease->family);
 			ni_dhcp_device_drop_lease(dev);
 			lease = NULL;
@@ -555,15 +560,6 @@ ni_dhcp_fsm_commit_lease(ni_dhcp_device_t *dev, ni_addrconf_lease_t *lease)
 		ni_dhcp_fsm_restart(dev);
 	}
 	dev->notify = 1;
-
-	/* Inform the master about the newly acquired lease */
-	if (ni_dhcp_fsm_event_handler) {
-		if (dev->lease)
-			ni_dhcp_fsm_event_handler(NI_DHCP_EVENT_ACQUIRED, dev);
-		else
-			ni_dhcp_fsm_event_handler(NI_DHCP_EVENT_RELEASED, dev);
-		dev->notify = 0;
-	}
 
 	return 0;
 }
@@ -773,6 +769,12 @@ ni_dhcp_set_event_handler(ni_dhcp_event_handler_t func)
 	ni_dhcp_fsm_event_handler = func;
 }
 
+void
+ni_dhcp_send_event(enum ni_dhcp_event ev, ni_dhcp_device_t *dev, ni_addrconf_lease_t *lease)
+{
+	if (ni_dhcp_fsm_event_handler)
+		ni_dhcp_fsm_event_handler(ev, dev, lease);
+}
 /*
  * Helper function to print name of DHCP FSM state
  */

@@ -121,7 +121,9 @@ enum ni_dhcp_event {
 	NI_DHCP_EVENT_RELEASED,
 	NI_DHCP_EVENT_LOST
 };
-typedef void		ni_dhcp_event_handler_t(enum ni_dhcp_event, const ni_dhcp_device_t *);
+typedef void		ni_dhcp_event_handler_t(enum ni_dhcp_event event,
+					const ni_dhcp_device_t *dev,
+					ni_addrconf_lease_t *lease);
 
 extern ni_dhcp_device_t *ni_dhcp_active;
 

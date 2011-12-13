@@ -52,7 +52,7 @@ static void		dhcp4_supplicant(void);
 static void		dhcp4_discover_devices(ni_dbus_server_t *);
 static void		dhcp4_recover_lease(ni_interface_t *, xml_node_t **);
 static void		dhcp4_interface_event(ni_handle_t *, ni_interface_t *, ni_event_t);
-static void		dhcp4_protocol_event(enum ni_dhcp_event, const ni_dhcp_device_t *);
+static void		dhcp4_protocol_event(enum ni_dhcp_event, const ni_dhcp_device_t *, ni_addrconf_lease_t *);
 
 // Hack
 extern ni_dbus_object_t *ni_objectmodel_register_dhcp4_device(ni_dbus_server_t *, ni_dhcp_device_t *);
@@ -329,10 +329,11 @@ dhcp4_interface_event(ni_handle_t *nih, ni_interface_t *ifp, ni_event_t event)
 }
 
 void
-dhcp4_protocol_event(enum ni_dhcp_event ev, const ni_dhcp_device_t *dev)
+dhcp4_protocol_event(enum ni_dhcp_event ev, const ni_dhcp_device_t *dev, ni_addrconf_lease_t *lease)
 {
-	ni_dbus_variant_t argument;
+	ni_dbus_variant_t argv[1];
 	ni_dbus_object_t *dev_object;
+	int argc = 0;
 
 	ni_debug_dhcp("%s(ev=%u, dev=%d)", __func__, ev, dev->link.ifindex);
 
@@ -342,22 +343,41 @@ dhcp4_protocol_event(enum ni_dhcp_event ev, const ni_dhcp_device_t *dev)
 		return;
 	}
 
-	ni_dbus_variant_init_dict(&argument);
+	memset(argv, 0, sizeof(argv));
+	if (lease) {
+		ni_dbus_variant_t *var = &argv[argc++];
+
+		ni_dbus_variant_init_dict(var);
+		if (!ni_objectmodel_get_addrconf_lease(lease, var)) {
+			ni_warn("%s: could not extract lease data", __func__);
+			goto done;
+		}
+	}
+
 	switch (ev) {
 	case NI_DHCP_EVENT_ACQUIRED:
-		if (ni_objectmodel_get_addrconf_lease(dev->lease, &argument))
-			ni_server_send_signal(dhcp4_dbus_server, dev_object,
-					WICKED_DBUS_DHCP4_INTERFACE, "LeaseAcquired",
-					1, &argument);
+		ni_server_send_signal(dhcp4_dbus_server, dev_object,
+				WICKED_DBUS_DHCP4_INTERFACE, "LeaseAcquired",
+				argc, argv);
+		break;
+
+	case NI_DHCP_EVENT_RELEASED:
+		ni_server_send_signal(dhcp4_dbus_server, dev_object,
+				WICKED_DBUS_DHCP4_INTERFACE, "LeaseReleased",
+				argc, argv);
+		break;
+
+	case NI_DHCP_EVENT_LOST:
+		ni_server_send_signal(dhcp4_dbus_server, dev_object,
+				WICKED_DBUS_DHCP4_INTERFACE, "LeaseLost",
+				argc, argv);
 		break;
 
 	default:
 		;
-		/*
-	NI_DHCP_EVENT_RELEASED,
-	NI_DHCP_EVENT_LOST
-		   */
 	}
 
-	ni_dbus_variant_destroy(&argument);
+done:
+	while (argc--)
+		ni_dbus_variant_destroy(&argv[argc]);
 }
