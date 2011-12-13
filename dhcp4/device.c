@@ -273,9 +273,12 @@ ni_dhcp_acquire(ni_dhcp_device_t *dev, const ni_addrconf_request_t *info)
 		free(dev->config);
 	dev->config = config;
 
+#if 0
+	/* FIXME: This cores for now */
 	/* If we're asked to reclaim an existing lease, try to load it. */
 	if (info->reuse_unexpired && ni_dhcp_fsm_recover_lease(dev, info) >= 0)
 		return 0;
+#endif
 
 	if (dev->lease) {
 		if (!ni_addrconf_lease_is_valid(dev->lease)

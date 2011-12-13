@@ -43,6 +43,7 @@ typedef struct ni_dhcp_device {
 
 	struct {
 	    int			state;
+	    unsigned int	fail_on_timeout : 1;
 	    const ni_timer_t *	timer;
 	} fsm;
 

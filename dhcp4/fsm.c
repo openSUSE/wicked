@@ -26,6 +26,7 @@
 static int		ni_dhcp_fsm_request(ni_dhcp_device_t *, const ni_addrconf_lease_t *);
 static int		ni_dhcp_fsm_arp_validate(ni_dhcp_device_t *);
 static int		ni_dhcp_fsm_renewal(ni_dhcp_device_t *);
+static int		ni_dhcp_fsm_quick_renewal(ni_dhcp_device_t *);
 static int		ni_dhcp_fsm_rebind(ni_dhcp_device_t *);
 static int		ni_dhcp_fsm_decline(ni_dhcp_device_t *);
 static const char *	ni_dhcp_fsm_state_name(int);
@@ -206,6 +207,7 @@ ni_dhcp_fsm_restart(ni_dhcp_device_t *dev)
 void
 ni_dhcp_fsm_set_timeout_msec(ni_dhcp_device_t *dev, unsigned int msec)
 {
+	dev->fsm.fail_on_timeout = 0;
 	if (msec != 0) {
 		ni_debug_dhcp("%s: setting timeout to %u msec", dev->ifname, msec);
 		if (dev->fsm.timer)
@@ -311,6 +313,27 @@ ni_dhcp_fsm_renewal(ni_dhcp_device_t *dev)
 }
 
 int
+ni_dhcp_fsm_quick_renewal(ni_dhcp_device_t *dev)
+{
+	time_t deadline;
+	int rv;
+
+	ni_debug_dhcp("trying to perform quick lease renewal for %s", dev->ifname);
+
+	/* FIXME: we should really unicast the request here. */
+	rv = ni_dhcp_device_send_message(dev, DHCP_REQUEST, dev->lease);
+
+	deadline = time(NULL) + 10;
+	if (deadline > dev->lease->time_acquired + dev->lease->dhcp.rebind_time)
+		deadline = dev->lease->time_acquired + dev->lease->dhcp.rebind_time;
+
+	ni_dhcp_fsm_set_deadline(dev, deadline);
+	dev->fsm.fail_on_timeout = 1;
+	dev->fsm.state = NI_DHCP_STATE_RENEWING;
+	return rv;
+}
+
+int
 ni_dhcp_fsm_rebind(ni_dhcp_device_t *dev)
 {
 	int rv;
@@ -373,8 +396,21 @@ ni_dhcp_fsm_release(ni_dhcp_device_t *dev)
 static void
 ni_dhcp_fsm_timeout(ni_dhcp_device_t *dev)
 {
-	ni_debug_dhcp("%s: timeout in state %s", dev->ifname, ni_dhcp_fsm_state_name(dev->fsm.state));
+	ni_debug_dhcp("%s: timeout in state %s%s",
+			dev->ifname, ni_dhcp_fsm_state_name(dev->fsm.state),
+			dev->fsm.fail_on_timeout? " (fatal failure)" : "");
 	dev->fsm.timer = NULL;
+
+	if (dev->fsm.fail_on_timeout) {
+		/* We were unable to do a quick renew after the link came back up.
+		 * Go back to square one. */
+		ni_error("unable to renew lease");
+
+		/* This calls fsm_restart and changes the FSM state to INIT.
+		 * So we will enter the switch statement below in state INIT
+		 * and will promptly trigger a re-discovery. */
+		ni_dhcp_fsm_commit_lease(dev, NULL);
+	}
 
 	switch (dev->fsm.state) {
 	case NI_DHCP_STATE_INIT:
@@ -478,9 +514,11 @@ ni_dhcp_fsm_link_up(ni_dhcp_device_t *dev)
 		/* The link went down and came back up. We may now be on a
 		 * completely different network, and our lease may no longer
 		 * be valid.
-		 * Do a quick renewal.
+		 * Do a quick renewal, which means we'll try to renew the lease
+		 * for 10 seconds. If that fails, we drop the lease and revert
+		 * to state INIT.
 		 */
-		ni_dhcp_fsm_renewal(dev);
+		ni_dhcp_fsm_quick_renewal(dev);
 		break;
 
 	default:
@@ -617,7 +655,6 @@ ni_dhcp_fsm_commit_lease(ni_dhcp_device_t *dev, ni_addrconf_lease_t *lease)
 
 		ni_dhcp_fsm_restart(dev);
 	}
-	dev->notify = 1;
 
 	return 0;
 }
