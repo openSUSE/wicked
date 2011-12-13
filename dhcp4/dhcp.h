@@ -133,13 +133,7 @@ extern int		ni_dhcp_acquire(ni_dhcp_device_t *, const ni_addrconf_request_t *);
 extern int		ni_dhcp_release(ni_dhcp_device_t *, const ni_uuid_t *);
 
 extern int		ni_dhcp_fsm_discover(ni_dhcp_device_t *);
-extern int		ni_dhcp_fsm_request(ni_dhcp_device_t *, const ni_addrconf_lease_t *);
-extern int		ni_dhcp_fsm_arp_validate(ni_dhcp_device_t *);
-extern int		ni_dhcp_fsm_renewal(ni_dhcp_device_t *);
-extern int		ni_dhcp_fsm_rebind(ni_dhcp_device_t *);
-extern int		ni_dhcp_fsm_decline(ni_dhcp_device_t *);
 extern int		ni_dhcp_fsm_release(ni_dhcp_device_t *);
-extern const char *	ni_dhcp_fsm_state_name(int);
 extern int		ni_dhcp_fsm_process_dhcp_packet(ni_dhcp_device_t *, ni_buffer_t *);
 extern int		ni_dhcp_fsm_commit_lease(ni_dhcp_device_t *, ni_addrconf_lease_t *);
 extern int		ni_dhcp_fsm_recover_lease(ni_dhcp_device_t *, const ni_addrconf_request_t *);

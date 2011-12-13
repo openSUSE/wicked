@@ -23,14 +23,21 @@
 
 #define NAK_BACKOFF_MAX		60	/* seconds */
 
-static int	ni_dhcp_process_offer(ni_dhcp_device_t *, ni_addrconf_lease_t *);
-static int	ni_dhcp_process_ack(ni_dhcp_device_t *, ni_addrconf_lease_t *);
-static int	ni_dhcp_process_nak(ni_dhcp_device_t *);
-static void	ni_dhcp_fsm_process_arp_packet(ni_arp_socket_t *, const ni_arp_packet_t *, void *);
-static void	ni_dhcp_fsm_fail_lease(ni_dhcp_device_t *);
-static int	ni_dhcp_fsm_validate_lease(ni_dhcp_device_t *, ni_addrconf_lease_t *);
-static void	ni_dhcp_send_event(enum ni_dhcp_event, ni_dhcp_device_t *, ni_addrconf_lease_t *);
-static void	__ni_dhcp_fsm_timeout(void *, const ni_timer_t *);
+static int		ni_dhcp_fsm_request(ni_dhcp_device_t *, const ni_addrconf_lease_t *);
+static int		ni_dhcp_fsm_arp_validate(ni_dhcp_device_t *);
+static int		ni_dhcp_fsm_renewal(ni_dhcp_device_t *);
+static int		ni_dhcp_fsm_rebind(ni_dhcp_device_t *);
+static int		ni_dhcp_fsm_decline(ni_dhcp_device_t *);
+static const char *	ni_dhcp_fsm_state_name(int);
+
+static int		ni_dhcp_process_offer(ni_dhcp_device_t *, ni_addrconf_lease_t *);
+static int		ni_dhcp_process_ack(ni_dhcp_device_t *, ni_addrconf_lease_t *);
+static int		ni_dhcp_process_nak(ni_dhcp_device_t *);
+static void		ni_dhcp_fsm_process_arp_packet(ni_arp_socket_t *, const ni_arp_packet_t *, void *);
+static void		ni_dhcp_fsm_fail_lease(ni_dhcp_device_t *);
+static int		ni_dhcp_fsm_validate_lease(ni_dhcp_device_t *, ni_addrconf_lease_t *);
+static void		ni_dhcp_send_event(enum ni_dhcp_event, ni_dhcp_device_t *, ni_addrconf_lease_t *);
+static void		__ni_dhcp_fsm_timeout(void *, const ni_timer_t *);
 
 static ni_dhcp_event_handler_t *ni_dhcp_fsm_event_handler;
 
