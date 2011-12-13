@@ -304,6 +304,7 @@ __wicked_dbus_get_addrconf_request(const ni_addrconf_request_t *req,
 						ni_dbus_variant_t *result,
 						DBusError *error)
 {
+	ni_dbus_dict_add_byte_array(result, "uuid", req->uuid.octets, 16);
 	ni_dbus_dict_add_uint32(result, "settle-timeout", req->settle_timeout);
 	ni_dbus_dict_add_uint32(result, "acquire-timeout", req->acquire_timeout);
 
@@ -343,13 +344,19 @@ __wicked_dbus_set_addrconf_request(ni_addrconf_request_t *req,
 						const ni_dbus_variant_t *argument,
 						DBusError *error)
 {
+	const ni_dbus_variant_t *child;
 	const char *string_value;
+	unsigned int dummy;
 	uint32_t value32;
 
 	if (ni_dbus_dict_get_uint32(argument, "settle-timeout", &value32))
 		req->settle_timeout = value32;
 	if (ni_dbus_dict_get_uint32(argument, "acquire-timeout", &value32))
 		req->acquire_timeout = value32;
+
+	if ((child = ni_dbus_dict_get(argument, "uuid")) != NULL
+	 && !ni_dbus_variant_get_byte_array_minmax(child, req->uuid.octets, &dummy, 16, 16))
+		return FALSE;
 
 	if (req->family == AF_INET && req->type == NI_ADDRCONF_DHCP) {
 		if (ni_dbus_dict_get_string(argument, "dhcp-hostname", &string_value))
@@ -362,8 +369,6 @@ __wicked_dbus_set_addrconf_request(ni_addrconf_request_t *req,
 			req->dhcp.lease_time = value32;
 	}
 	if (req->type == NI_ADDRCONF_STATIC) {
-		const ni_dbus_variant_t *child;
-
 		if ((child = ni_dbus_dict_get(argument, "static-addresses")) != NULL
 		 && !__wicked_dbus_set_address_list(&req->statik.addrs, child, error))
 			return FALSE;
