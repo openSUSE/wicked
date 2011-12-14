@@ -827,20 +827,28 @@ done:
  * the acquisition of a lease. We will receive an event later on informing
  * us of the lease.
  */
+static inline void
+__ni_addrconf_acquire_fixup(const ni_addrconf_t *acm, ni_afinfo_t *afi)
+{
+	if (!ni_afinfo_addrconf_test(afi, acm->type)) {
+		ni_warn("%s: %s/%s not enabled", __FUNCTION__,
+				ni_addrconf_type_to_name(acm->type),
+				ni_addrfamily_type_to_name(afi->family));
+		ni_afinfo_addrconf_enable(afi, acm->type);
+	}
+	if (!afi->lease[acm->type])
+		afi->lease[acm->type] = ni_addrconf_lease_new(acm->type, afi->family);
+	afi->lease[acm->type]->state = NI_ADDRCONF_STATE_REQUESTING;
+}
+
 int
 ni_addrconf_acquire_lease(const ni_addrconf_t *acm, ni_interface_t *ifp, const xml_node_t *cfg_xml)
 {
 	/* This needs to get better */
-	if (acm->supported_af & NI_AF_MASK_IPV4) {
-		if (!ifp->ipv4.lease[acm->type])
-			ifp->ipv4.lease[acm->type] = ni_addrconf_lease_new(acm->type, AF_INET);
-		ifp->ipv4.lease[acm->type]->state = NI_ADDRCONF_STATE_REQUESTING;
-	}
-	if (acm->supported_af & NI_AF_MASK_IPV6) {
-		if (!ifp->ipv6.lease[acm->type])
-			ifp->ipv6.lease[acm->type] = ni_addrconf_lease_new(acm->type, AF_INET);
-		ifp->ipv6.lease[acm->type]->state = NI_ADDRCONF_STATE_REQUESTING;
-	}
+	if (acm->supported_af & NI_AF_MASK_IPV4)
+		__ni_addrconf_acquire_fixup(acm, &ifp->ipv4);
+	if (acm->supported_af & NI_AF_MASK_IPV6)
+		__ni_addrconf_acquire_fixup(acm, &ifp->ipv6);
 
 	return acm->request(acm, ifp, cfg_xml);
 }

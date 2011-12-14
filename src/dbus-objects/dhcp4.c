@@ -4,14 +4,13 @@
  * Copyright (C) 2011 Olaf Kirch <okir@suse.de>
  */
 
-#include <sys/poll.h>
+#include <time.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <signal.h>
-#include <getopt.h>
 #include <errno.h>
 
 #include <wicked/netinfo.h>
@@ -24,6 +23,23 @@
 
 static ni_dbus_client_t *	dbus_dhcp_client = NULL;
 
+static int		ni_objectmodel_dhcp4_acquire(const ni_addrconf_t *acm, ni_interface_t *, const xml_node_t *);
+static int		ni_objectmodel_dhcp4_release(const ni_addrconf_t *, ni_interface_t *, ni_addrconf_lease_t *);
+static int		ni_objectmodel_dhcp4_is_valid(const ni_addrconf_t *, const ni_addrconf_lease_t *);
+extern int		ni_dhcp_xml_from_lease(const ni_addrconf_t *, const ni_addrconf_lease_t *, xml_node_t *);
+extern int		ni_dhcp_xml_to_lease(const ni_addrconf_t *, ni_addrconf_lease_t *, const xml_node_t *);
+
+static ni_addrconf_t ni_dhcp_addrconf = {
+	.type = NI_ADDRCONF_DHCP,
+	.supported_af = NI_AF_MASK_IPV4,
+
+	.request = ni_objectmodel_dhcp4_acquire,
+	.release = ni_objectmodel_dhcp4_release,
+	.is_valid = ni_objectmodel_dhcp4_is_valid,
+	.xml_from_lease = ni_dhcp_xml_from_lease,
+	.xml_to_lease = ni_dhcp_xml_to_lease,
+};
+
 /*
  * Initialize the dhcp4 client
  */
@@ -35,6 +51,9 @@ ni_objectmodel_dhcp4_init(ni_dbus_server_t *server)
 			WICKED_DBUS_DHCP4_INTERFACE,
 			ni_objectmodel_addrconf_signal_handler,
 			server);
+
+	/* Register our addrconf hooks for DHCP */
+	ni_addrconf_register(&ni_dhcp_addrconf);
 }
 
 /*
@@ -67,12 +86,12 @@ ni_objectmodel_dhcp4_wrap_interface(ni_interface_t *dev)
  * The options dictionary contains addrconf request properties.
  */
 int
-ni_objectmodel_dhcp4_acquire(ni_interface_t *dev, const ni_addrconf_request_t *req)
+ni_objectmodel_dhcp4_acquire(const ni_addrconf_t *acm, ni_interface_t *dev, const xml_node_t *cfg_xml)
 {
 	ni_dbus_object_t *object = ni_objectmodel_dhcp4_wrap_interface(dev);
 	int rv = 0;
 
-	rv = ni_objectmodel_addrconf_acquire(object, req);
+	rv = ni_objectmodel_addrconf_acquire(object, dev->ipv4.request[NI_ADDRCONF_DHCP]);
 	ni_dbus_object_free(object);
 	return rv;
 }
@@ -82,7 +101,7 @@ ni_objectmodel_dhcp4_acquire(ni_interface_t *dev, const ni_addrconf_request_t *r
  * Release a lease for the given interface.
  */
 int
-ni_objectmodel_dhcp4_release(ni_interface_t *dev, const ni_addrconf_lease_t *lease)
+ni_objectmodel_dhcp4_release(const ni_addrconf_t *acm, ni_interface_t *dev, ni_addrconf_lease_t *lease)
 {
 	ni_dbus_object_t *object = ni_objectmodel_dhcp4_wrap_interface(dev);
 	int rv;
@@ -91,3 +110,19 @@ ni_objectmodel_dhcp4_release(ni_interface_t *dev, const ni_addrconf_lease_t *lea
 	ni_dbus_object_free(object);
 	return rv;
 }
+
+/*
+ * Verify whether the given lease is valid or not
+ */
+static int
+ni_objectmodel_dhcp4_is_valid(const ni_addrconf_t *acm, const ni_addrconf_lease_t *lease)
+{
+	time_t now = time(NULL);
+
+	if (lease->state != NI_ADDRCONF_STATE_GRANTED)
+		return 0;
+	if (lease->time_acquired + lease->dhcp.lease_time <= now)
+		return 0;
+	return 1;
+}
+

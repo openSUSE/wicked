@@ -77,7 +77,6 @@ __LIBSRCS= \
 	  dbus-objects/misc.c \
 	  wpa-supplicant.c \
 	  ipv6/addrconf.c \
-	  dhcp/addrconf.c \
 	  dhcp/lease.c \
 	  ipv4ll/addrconf.c
 __NCFSRCS= \
