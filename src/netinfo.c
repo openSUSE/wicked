@@ -164,8 +164,6 @@ __ni_handle_new(size_t size)
 		return NULL;
 	}
 
-	nih->iocfd = -1;
-
 	return nih;
 }
 

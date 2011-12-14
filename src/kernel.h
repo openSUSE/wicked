@@ -36,13 +36,13 @@ __ni_rta_get_uint16(uint16_t *val, struct rtattr *rta)
 	return 0;
 }
 
-extern int		__ni_ethtool(ni_handle_t *, const char *, int, void *);
-extern int		__ni_wireless_ext(ni_handle_t *nih, const ni_interface_t *ifp, int cmd,
+extern int		__ni_ethtool(const char *, int, void *);
+extern int		__ni_wireless_ext(const ni_interface_t *ifp, int cmd,
 				void *data, size_t data_len, unsigned int flags);
-extern int		__ni_brioctl_add_bridge(ni_handle_t *, const char *);
-extern int		__ni_brioctl_del_bridge(ni_handle_t *, const char *);
-extern int		__ni_brioctl_add_port(ni_handle_t *, const char *, unsigned int);
-extern int		__ni_brioctl_del_port(ni_handle_t *, const char *, unsigned int);
+extern int		__ni_brioctl_add_bridge(const char *);
+extern int		__ni_brioctl_del_bridge(const char *);
+extern int		__ni_brioctl_add_port(const char *, unsigned int);
+extern int		__ni_brioctl_del_port(const char *, unsigned int);
 
 extern int		__ni_wireless_get_name(ni_handle_t *, const char *, char *, size_t);
 extern int		__ni_wireless_get_essid(ni_handle_t *, const char *, char *, size_t);

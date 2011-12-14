@@ -31,28 +31,31 @@
 # define SIOCETHTOOL	0x8946
 #endif
 
+ni_netlink_t *		__ni_global_netlink;
+int			__ni_global_iocfd = -1;
+
 /*
  * Helpers for SIOC* ioctls
  */
 static int
-__ni_ioctl(ni_handle_t *nih, int ioc, void *arg)
+__ni_ioctl(int ioc, void *arg)
 {
-	if (nih->iocfd < 0) {
-		nih->iocfd = socket(PF_INET, SOCK_DGRAM, 0);
-		if (nih->iocfd < 0) {
-			error("cannot create UDP socket: %m");
+	if (__ni_global_iocfd < 0) {
+		__ni_global_iocfd = socket(PF_INET, SOCK_DGRAM, 0);
+		if (__ni_global_iocfd < 0) {
+			ni_error("cannot create UDP socket: %m");
 			return -1;
 		}
 	}
 
-	return ioctl(nih->iocfd, ioc, arg);
+	return ioctl(__ni_global_iocfd, ioc, arg);
 }
 
 /*
  * Query an ethernet type interface for ethtool information
  */
 int
-__ni_ethtool(ni_handle_t *nih, const char *ifname, int cmd, void *data)
+__ni_ethtool(const char *ifname, int cmd, void *data)
 {
 	struct ifreq ifr;
 
@@ -60,7 +63,7 @@ __ni_ethtool(ni_handle_t *nih, const char *ifname, int cmd, void *data)
 	((struct ethtool_cmd *) data)->cmd = cmd;
 	ifr.ifr_data = data;
 
-	if (__ni_ioctl(nih, SIOCETHTOOL, &ifr) < 0)
+	if (__ni_ioctl(SIOCETHTOOL, &ifr) < 0)
 		return -1;
 	return 0;
 }
@@ -69,7 +72,7 @@ __ni_ethtool(ni_handle_t *nih, const char *ifname, int cmd, void *data)
  * Call a wireless extension
  */
 int
-__ni_wireless_ext(ni_handle_t *nih, const ni_interface_t *ifp, int cmd,
+__ni_wireless_ext(const ni_interface_t *ifp, int cmd,
 			void *data, size_t data_len, unsigned int flags)
 {
 	struct iwreq iwr;
@@ -79,7 +82,7 @@ __ni_wireless_ext(ni_handle_t *nih, const ni_interface_t *ifp, int cmd,
 	iwr.u.data.length = data_len;
 	iwr.u.data.flags = flags;
 
-	if (__ni_ioctl(nih, cmd, &iwr) < 0)
+	if (__ni_ioctl(cmd, &iwr) < 0)
 		return -1;
 	/* Not optimal yet */
 	return iwr.u.data.length;
@@ -89,35 +92,35 @@ __ni_wireless_ext(ni_handle_t *nih, const ni_interface_t *ifp, int cmd,
  * Bridge helper functions
  */
 int
-__ni_brioctl_add_bridge(ni_handle_t *nih, const char *ifname)
+__ni_brioctl_add_bridge(const char *ifname)
 {
-	return __ni_ioctl(nih, SIOCBRADDBR, (char *) ifname);
+	return __ni_ioctl(SIOCBRADDBR, (char *) ifname);
 }
 
 int
-__ni_brioctl_del_bridge(ni_handle_t *nih, const char *ifname)
+__ni_brioctl_del_bridge(const char *ifname)
 {
-	return __ni_ioctl(nih, SIOCBRDELBR, (char *) ifname);
+	return __ni_ioctl(SIOCBRDELBR, (char *) ifname);
 }
 
 int
-__ni_brioctl_add_port(ni_handle_t *nih, const char *ifname, unsigned int port_index)
+__ni_brioctl_add_port(const char *ifname, unsigned int port_index)
 {
 	struct ifreq ifr;
 
 	strncpy(ifr.ifr_name, ifname, IFNAMSIZ);
 	ifr.ifr_ifindex = port_index;
-	return __ni_ioctl(nih, SIOCBRADDIF, &ifr);
+	return __ni_ioctl(SIOCBRADDIF, &ifr);
 }
 
 int
-__ni_brioctl_del_port(ni_handle_t *nih, const char *ifname, unsigned int port_index)
+__ni_brioctl_del_port(const char *ifname, unsigned int port_index)
 {
 	struct ifreq ifr;
 
 	strncpy(ifr.ifr_name, ifname, IFNAMSIZ);
 	ifr.ifr_ifindex = port_index;
-	return __ni_ioctl(nih, SIOCBRDELIF, &ifr);
+	return __ni_ioctl(SIOCBRDELIF, &ifr);
 }
 
 /*
@@ -130,7 +133,7 @@ __ni_wireless_get_name(ni_handle_t *nih, const char *name, char *result, size_t 
 
 	memset(&iwreq, 0, sizeof(iwreq));
 	strncpy(iwreq.ifr_name, name, IFNAMSIZ);
-	if (__ni_ioctl(nih, SIOCGIWNAME, &iwreq) < 0)
+	if (__ni_ioctl(SIOCGIWNAME, &iwreq) < 0)
 		return -1;
 
 	if (size) {
@@ -150,7 +153,7 @@ __ni_wireless_get_essid(ni_handle_t *nih, const char *name, char *result, size_t
 	strncpy(iwreq.ifr_name, name, IFNAMSIZ);
 	iwreq.u.essid.pointer = buffer;
 	iwreq.u.essid.length = sizeof(buffer);
-	if (__ni_ioctl(nih, SIOCGIWESSID, &iwreq) < 0)
+	if (__ni_ioctl(SIOCGIWESSID, &iwreq) < 0)
 		return -1;
 
 	if (size) {

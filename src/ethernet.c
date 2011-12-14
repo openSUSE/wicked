@@ -142,7 +142,7 @@ __ni_ethtool_get_value(ni_handle_t *nih, const char *ifname, __ni_ioctl_info_t *
 		return -1;
 	}
 
-	if (__ni_ethtool(nih, ifname, ioc->number, &eval) < 0) {
+	if (__ni_ethtool(ifname, ioc->number, &eval) < 0) {
 		ni_error("%s: ETHTOOL_%s failed: %m", ifname, ioc->name);
 		if (errno == EOPNOTSUPP)
 			ioc->not_supported = 1;
@@ -202,7 +202,7 @@ __ni_system_ethernet_get(ni_handle_t *nih, const char *ifname, ni_ethernet_t *et
 	struct ethtool_cmd ecmd;
 	int mapped, value;
 
-	if (__ni_ethtool(nih, ifname, ETHTOOL_GSET, &ecmd) < 0) {
+	if (__ni_ethtool(ifname, ETHTOOL_GSET, &ecmd) < 0) {
 		ni_error("%s: ETHTOOL_GSET failed: %m", ifname);
 		return -1;
 	}

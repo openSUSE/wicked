@@ -429,7 +429,7 @@ __ni_system_interface_delete(ni_handle_t *nih, const char *ifname)
 		break;
 
 	case NI_IFTYPE_BRIDGE:
-		if (__ni_brioctl_del_bridge(nih, ifp->name) < 0) {
+		if (__ni_brioctl_del_bridge(ifp->name) < 0) {
 			error("could not destroy bridge interface %s", ifp->name);
 			return -1;
 		}
@@ -490,9 +490,9 @@ __ni_interface_for_config(ni_handle_t *nih, const ni_interface_t *cfg, ni_interf
  * Helper function - do something to all ports of a bridge
  */
 static int
-__ni_interface_bridge_allports(ni_handle_t *nih, const char *ifname,
+__ni_interface_bridge_allports(ni_netconfig_t *nc, const char *ifname,
 				const ni_string_array_t *port_names,
-				int (*func)(ni_handle_t *, const char *, unsigned int),
+				int (*func)(const char *, unsigned int),
 				const char *activity)
 {
 	unsigned int i;
@@ -501,12 +501,12 @@ __ni_interface_bridge_allports(ni_handle_t *nih, const char *ifname,
 		const char *portname = port_names->data[i];
 		ni_interface_t *pif;
 
-		if (!(pif = ni_interface_by_name(&nih->netconfig, portname)) || pif->link.ifindex == 0) {
+		if (!(pif = ni_interface_by_name(nc, portname)) || pif->link.ifindex == 0) {
 			error("%s: cannot %s - %s not known", ifname, activity, portname);
 			return -1;
 		}
 
-		if (func(nih, ifname, pif->link.ifindex) < 0) {
+		if (func(ifname, pif->link.ifindex) < 0) {
 			error("%s: cannot %s %s: %m", ifname, activity, portname);
 			return -1;
 		}
@@ -540,7 +540,7 @@ __ni_interface_bridge_configure(ni_handle_t *nih, const ni_interface_t *cfg, ni_
 
 	if (ifp == NULL) {
 		debug_ifconfig("%s: creating bridge interface", cfg->name);
-		if (__ni_brioctl_add_bridge(nih, cfg->name) < 0) {
+		if (__ni_brioctl_add_bridge(cfg->name) < 0) {
 			error("__ni_brioctl_add_bridge(%s) failed", cfg->name);
 			return -1;
 		}
@@ -575,13 +575,13 @@ __ni_interface_bridge_configure(ni_handle_t *nih, const ni_interface_t *cfg, ni_
 				&comm_ports);	/* names in both definitions */
 
 		/* First, add new ports */
-		rv = __ni_interface_bridge_allports(nih, ifp->name,
+		rv = __ni_interface_bridge_allports(&nih->netconfig, ifp->name,
 				&add_ports, __ni_brioctl_add_port,
 				"add bridge port");
 
 		/* Then, delete ports that should go away */
 		if (rv >= 0)
-			rv = __ni_interface_bridge_allports(nih, ifp->name,
+			rv = __ni_interface_bridge_allports(&nih->netconfig, ifp->name,
 				&del_ports, __ni_brioctl_del_port,
 				"delete bridge port");
 
@@ -740,7 +740,7 @@ ni_interface_create_bridge(ni_handle_t *nih, const char *ifname,
 	ni_interface_t *ifp;
 
 	ni_debug_ifconfig("%s: creating bridge interface", ifname);
-	if (__ni_brioctl_add_bridge(nih, ifname) < 0) {
+	if (__ni_brioctl_add_bridge(ifname) < 0) {
 		ni_error("__ni_brioctl_add_bridge(%s) failed", ifname);
 		return -1;
 	}
@@ -799,7 +799,7 @@ ni_interface_update_bridge_config(ni_handle_t *nih, ni_interface_t *ifp, const n
 int
 ni_interface_delete_bridge(ni_handle_t *nih, ni_interface_t *ifp)
 {
-	if (__ni_brioctl_del_bridge(nih, ifp->name) < 0) {
+	if (__ni_brioctl_del_bridge(ifp->name) < 0) {
 		ni_error("could not destroy bridge interface %s", ifp->name);
 		return -1;
 	}
@@ -841,7 +841,7 @@ ni_interface_add_bridge_port(ni_handle_t *nih, ni_interface_t *ifp,
 		}
 	}
 
-	if ((rv = __ni_brioctl_add_port(nih, ifp->name, pif->link.ifindex)) < 0) {
+	if ((rv = __ni_brioctl_add_port(ifp->name, pif->link.ifindex)) < 0) {
 		ni_error("%s: cannot add port %s: %s", ifp->name, pif->name,
 				ni_strerror(rv));
 		return rv;
@@ -872,7 +872,7 @@ ni_interface_remove_bridge_port(ni_handle_t *nih, ni_interface_t *ifp, int port_
 		return -NI_ERROR_INTERFACE_NOT_KNOWN;
 	}
 
-	if ((rv = __ni_brioctl_del_port(nih, ifp->name, port_ifindex)) < 0) {
+	if ((rv = __ni_brioctl_del_port(ifp->name, port_ifindex)) < 0) {
 		ni_error("%s: cannot remove port: %s", ifp->name, ni_strerror(rv));
 		return rv;
 	}

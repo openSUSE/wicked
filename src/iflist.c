@@ -634,7 +634,7 @@ __ni_process_ifinfomsg(ni_linkinfo_t *link, struct nlmsghdr *h,
 		case ARPHRD_ETHER:
 		case ARPHRD_NONE:	/* tun driver uses this */
 			link->type = NI_IFTYPE_ETHERNET;
-			if (__ni_ethtool(nih, ifname, ETHTOOL_GDRVINFO, &drv_info) >= 0) {
+			if (__ni_ethtool(ifname, ETHTOOL_GDRVINFO, &drv_info) >= 0) {
 				const char *driver = drv_info.driver;
 
 				if (!strcmp(driver, "tun")) {
