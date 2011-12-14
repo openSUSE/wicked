@@ -127,7 +127,7 @@ __ni_brioctl_del_port(const char *ifname, unsigned int port_index)
  * Wireless extension ioctls
  */
 int
-__ni_wireless_get_name(ni_handle_t *nih, const char *name, char *result, size_t size)
+__ni_wireless_get_name(const char *name, char *result, size_t size)
 {
 	struct iwreq iwreq;
 
@@ -144,7 +144,7 @@ __ni_wireless_get_name(ni_handle_t *nih, const char *name, char *result, size_t 
 }
 
 int
-__ni_wireless_get_essid(ni_handle_t *nih, const char *name, char *result, size_t size)
+__ni_wireless_get_essid(const char *name, char *result, size_t size)
 {
 	char buffer[IW_ESSID_MAX_SIZE];
 	struct iwreq iwreq;

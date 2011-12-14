@@ -654,7 +654,7 @@ __ni_process_ifinfomsg(ni_linkinfo_t *link, struct nlmsghdr *h,
 			 * The official way of doing this is to check whether
 			 * ioctl(SIOCGIWNAME) succeeds.
 			 */
-			if (__ni_wireless_get_name(nih, ifname, NULL, 0) == 0)
+			if (__ni_wireless_get_name(ifname, NULL, 0) == 0)
 				link->type = NI_IFTYPE_WIRELESS;
 			break;
 
