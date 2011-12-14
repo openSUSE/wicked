@@ -4,14 +4,12 @@
  * Copyright (C) 2011 Olaf Kirch <okir@suse.de>
  */
 
-#include <sys/poll.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <signal.h>
-#include <getopt.h>
 #include <errno.h>
 
 #include <wicked/netinfo.h>
@@ -24,7 +22,7 @@
 
 static ni_dbus_client_t *	dbus_autoip_client = NULL;
 
-static int		ni_objectmodel_autoip_acquire(const ni_addrconf_t *, ni_interface_t *, const xml_node_t *);
+static int		ni_objectmodel_autoip_acquire(const ni_addrconf_t *, ni_interface_t *);
 static int		ni_objectmodel_autoip_release(const ni_addrconf_t *, ni_interface_t *, ni_addrconf_lease_t *);
 
 static ni_addrconf_t ni_autoip_addrconf = {
@@ -81,7 +79,7 @@ ni_objectmodel_autoip_wrap_interface(ni_interface_t *dev)
  * The options dictionary contains addrconf request properties.
  */
 int
-ni_objectmodel_autoip_acquire(const ni_addrconf_t *acm, ni_interface_t *dev, const xml_node_t *cfg_xml)
+ni_objectmodel_autoip_acquire(const ni_addrconf_t *acm, ni_interface_t *dev)
 {
 	ni_dbus_object_t *object = ni_objectmodel_autoip_wrap_interface(dev);
 	int rv;

@@ -25,7 +25,6 @@
 #include <wicked/addrconf.h>
 #include <wicked/logging.h>
 #include <wicked/wicked.h>
-#include <wicked/xml.h>
 #include <wicked/socket.h>
 #include <wicked/dhcp.h>
 #include <wicked/ipv4ll.h>
@@ -59,7 +58,7 @@ static void		(*opt_personality)(void);
 
 static void		wicked_interface_server(void);
 static void		wicked_discover_state(void);
-static void		wicked_try_restart_addrconf(ni_interface_t *, ni_afinfo_t *, unsigned int, xml_node_t **);
+static void		wicked_try_restart_addrconf(ni_interface_t *, ni_afinfo_t *, unsigned int);
 static void		wicked_interface_event(ni_handle_t *, ni_interface_t *, ni_event_t);
 static void		wicked_register_interface_services(ni_dbus_server_t *);
 
@@ -187,16 +186,12 @@ wicked_discover_state(void)
 
 	if (opt_recover_leases) {
 		for (ifp = ni_interfaces(nih); ifp; ifp = ifp->next) {
-			xml_node_t *cfg_xml = NULL;
 			unsigned int mode;
 
 			for (mode = 0; mode < __NI_ADDRCONF_MAX; ++mode) {
-				wicked_try_restart_addrconf(ifp, &ifp->ipv4, mode, &cfg_xml);
-				wicked_try_restart_addrconf(ifp, &ifp->ipv6, mode, &cfg_xml);
+				wicked_try_restart_addrconf(ifp, &ifp->ipv4, mode);
+				wicked_try_restart_addrconf(ifp, &ifp->ipv6, mode);
 			}
-
-			if (cfg_xml)
-				xml_node_free(cfg_xml);
 		}
 	}
 
@@ -207,7 +202,7 @@ wicked_discover_state(void)
 }
 
 void
-wicked_try_restart_addrconf(ni_interface_t *ifp, ni_afinfo_t *afi, unsigned int mode, xml_node_t **cfg_xml)
+wicked_try_restart_addrconf(ni_interface_t *ifp, ni_afinfo_t *afi, unsigned int mode)
 {
 	ni_addrconf_lease_t *lease;
 	ni_addrconf_t *acm;
@@ -250,11 +245,7 @@ wicked_try_restart_addrconf(ni_interface_t *ifp, ni_afinfo_t *afi, unsigned int 
 	}
 	afi->request[mode]->reuse_unexpired = 1;
 
-	if (*cfg_xml == NULL)
-		*cfg_xml = ni_syntax_xml_from_interface(ni_default_xml_syntax(),
-				ni_global_state_handle(), ifp);
-
-	if (ni_addrconf_acquire_lease(acm, ifp, *cfg_xml) < 0) {
+	if (ni_addrconf_acquire_lease(acm, ifp) < 0) {
 		ni_error("%s: unable to reacquire lease %s/%s", ifp->name,
 				ni_addrconf_type_to_name(lease->type),
 				ni_addrfamily_type_to_name(lease->family));

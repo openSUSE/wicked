@@ -842,7 +842,7 @@ __ni_addrconf_acquire_fixup(const ni_addrconf_t *acm, ni_afinfo_t *afi)
 }
 
 int
-ni_addrconf_acquire_lease(const ni_addrconf_t *acm, ni_interface_t *ifp, const xml_node_t *cfg_xml)
+ni_addrconf_acquire_lease(const ni_addrconf_t *acm, ni_interface_t *ifp)
 {
 	/* This needs to get better */
 	if (acm->supported_af & NI_AF_MASK_IPV4)
@@ -850,7 +850,7 @@ ni_addrconf_acquire_lease(const ni_addrconf_t *acm, ni_interface_t *ifp, const x
 	if (acm->supported_af & NI_AF_MASK_IPV6)
 		__ni_addrconf_acquire_fixup(acm, &ifp->ipv6);
 
-	return acm->request(acm, ifp, cfg_xml);
+	return acm->request(acm, ifp);
 }
 
 int

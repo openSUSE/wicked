@@ -20,7 +20,7 @@ struct ni_addrconf {
 
 	void *			private;
 
-	int			(*request)(const ni_addrconf_t *, ni_interface_t *, const xml_node_t *);
+	int			(*request)(const ni_addrconf_t *, ni_interface_t *);
 	int			(*release)(const ni_addrconf_t *, ni_interface_t *, ni_addrconf_lease_t *);
 	int			(*test)(const ni_addrconf_t *, const ni_interface_t *, const xml_node_t *);
 	void			(*interface_event)(const ni_addrconf_t *, ni_interface_t *, ni_event_t);
@@ -210,8 +210,7 @@ extern void		ni_addrconf_lease_destroy(ni_addrconf_lease_t *);
 extern void		ni_addrconf_lease_free(ni_addrconf_lease_t *);
 extern void		ni_addrconf_register(ni_addrconf_t *);
 extern ni_addrconf_t *	ni_addrconf_get(int type, int family);
-extern int		ni_addrconf_acquire_lease(const ni_addrconf_t *,
-				ni_interface_t *, const xml_node_t *);
+extern int		ni_addrconf_acquire_lease(const ni_addrconf_t *, ni_interface_t *);
 extern int		ni_addrconf_drop_lease(const ni_addrconf_t *, ni_interface_t *);
 extern int		ni_addrconf_lease_is_valid(const ni_addrconf_lease_t *);
 extern int		ni_addrconf_check(const ni_addrconf_t *, const ni_interface_t *, const xml_node_t *);

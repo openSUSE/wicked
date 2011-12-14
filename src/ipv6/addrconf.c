@@ -46,7 +46,7 @@ static void		ni_ipv6_add_prefix(ni_interface_t *, const struct nd_opt_prefix_inf
  * initial router solicitation.
  */
 static int
-ni_ipv6_addrconf_request(const ni_addrconf_t *acm, ni_interface_t *ifp, const xml_node_t *cfg_xml)
+ni_ipv6_addrconf_request(const ni_addrconf_t *acm, ni_interface_t *ifp)
 {
 	static int complained = 0;
 	ni_socket_t *sock;

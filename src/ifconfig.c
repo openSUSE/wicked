@@ -1757,7 +1757,7 @@ __ni_addrconf_update_request(ni_afinfo_t *afinfo, ni_addrconf_mode_t mode,
 	}
 
 	ni_afinfo_addrconf_enable(afinfo, mode);
-	if ((rv = ni_addrconf_acquire_lease(acm, ifp, NULL)) < 0)
+	if ((rv = ni_addrconf_acquire_lease(acm, ifp)) < 0)
 		return rv;
 
 	/* If the extension supports more than just this address
@@ -2124,7 +2124,7 @@ __ni_interface_addrconf_other(ni_handle_t *nih, ni_interface_t *ifp, int family,
 	}
 
 	ni_afinfo_addrconf_enable(cur_afi, mode);
-	if ((rv = ni_addrconf_acquire_lease(acm, ifp, NULL)) < 0)
+	if ((rv = ni_addrconf_acquire_lease(acm, ifp)) < 0)
 		return rv;
 
 	/* If the extension supports more than just this address

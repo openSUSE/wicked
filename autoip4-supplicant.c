@@ -18,7 +18,6 @@
 #include <wicked/addrconf.h>
 #include <wicked/logging.h>
 #include <wicked/wicked.h>
-#include <wicked/xml.h>
 #include <wicked/socket.h>
 #include <wicked/dhcp.h>
 #include <wicked/ipv4ll.h>
@@ -48,7 +47,7 @@ static ni_dbus_server_t *autoip4_dbus_server;
 
 static void		autoip4_supplicant(void);
 static void		autoip4_discover_devices(ni_dbus_server_t *);
-static void		autoip4_recover_lease(ni_interface_t *, xml_node_t **);
+static void		autoip4_recover_lease(ni_interface_t *);
 static void		autoip4_interface_event(ni_handle_t *, ni_interface_t *, ni_event_t);
 static void		autoip4_protocol_event(enum ni_lease_event, const ni_autoip_device_t *, ni_addrconf_lease_t *);
 
@@ -124,7 +123,7 @@ main(int argc, char **argv)
  * This allows a daemon restart without losing lease state.
  */
 void
-autoip4_recover_lease(ni_interface_t *ifp, xml_node_t **cfg_xml)
+autoip4_recover_lease(ni_interface_t *ifp)
 {
 	ni_afinfo_t *afi = &ifp->ipv4;
 	ni_addrconf_lease_t *lease;
@@ -168,11 +167,7 @@ autoip4_recover_lease(ni_interface_t *ifp, xml_node_t **cfg_xml)
 	}
 	afi->request[NI_ADDRCONF_AUTOCONF]->reuse_unexpired = 1;
 
-	if (*cfg_xml == NULL)
-		*cfg_xml = ni_syntax_xml_from_interface(ni_default_xml_syntax(),
-				ni_global_state_handle(), ifp);
-
-	if (ni_addrconf_acquire_lease(acm, ifp, *cfg_xml) < 0) {
+	if (ni_addrconf_acquire_lease(acm, ifp) < 0) {
 		ni_error("%s: unable to reacquire lease %s/%s", ifp->name,
 				ni_addrconf_type_to_name(lease->type),
 				ni_addrfamily_type_to_name(lease->family));
@@ -263,14 +258,8 @@ autoip4_discover_devices(ni_dbus_server_t *server)
 	for (ifp = ni_interfaces(nih); ifp; ifp = ifp->next) {
 		autoip4_device_create(server, ifp);
 
-		if (opt_recover_leases) {
-			xml_node_t *cfg_xml = NULL;
-
-			autoip4_recover_lease(ifp, &cfg_xml);
-
-			if (cfg_xml)
-				xml_node_free(cfg_xml);
-		}
+		if (opt_recover_leases)
+			autoip4_recover_lease(ifp);
 	}
 }
 

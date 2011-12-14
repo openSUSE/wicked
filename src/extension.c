@@ -332,14 +332,16 @@ ni_script_action_find(ni_script_action_t *list, const char *name)
  * Register addrconf extensions
  */
 static int
-ni_addrconf_extension_request(const ni_addrconf_t *ace, ni_interface_t *ifp, const xml_node_t *cfg_xml)
+ni_addrconf_extension_request(const ni_addrconf_t *ace, ni_interface_t *ifp)
 {
+#if 0
 	const ni_extension_t *ex = ace->private;
 
-	if (ni_extension_start(ex, ifp->name, (xml_node_t *) cfg_xml) < 0)
-		return -1;
-
-	return 0;
+	return ni_extension_start(ex, ifp->name);
+#else
+	ni_error("%s: currently not supported", __func__);
+	return -1;
+#endif
 }
 
 static int
