@@ -468,6 +468,50 @@ ni_capture_is_valid(const ni_capture_t *capture, int protocol)
 }
 
 /*
+ * Initialize capture device info
+ */
+int
+ni_capture_devinfo_init(ni_capture_devinfo_t *devinfo, const char *ifname, const ni_linkinfo_t *link)
+{
+	memset(devinfo, 0, sizeof(devinfo));
+	devinfo->ifname = ifname;
+	devinfo->iftype = link->type;
+	devinfo->ifindex = link->ifindex;
+	devinfo->mtu = link->mtu? link->mtu : MTU_MAX;
+	devinfo->arp_type = link->arp_type;
+
+	if (devinfo->arp_type == ARPHRD_NONE) {
+		ni_warn("%s: no arp_type, using ether for capturing", ifname);
+		devinfo->arp_type = ARPHRD_ETHER;
+	}
+
+	if (link->hwaddr.len == 0) {
+		ni_error("%s: empty MAC address, cannot do packet level networking", ifname);
+		return -1;
+	}
+
+	return 0;
+}
+
+int
+ni_capture_devinfo_refresh(ni_capture_devinfo_t *devinfo, const ni_linkinfo_t *link)
+{
+	if (devinfo->iftype != link->type) {
+		ni_error("%s: reconfig changes device type!", devinfo->ifname);
+		return -1;
+	}
+	if (devinfo->ifindex != link->ifindex) {
+		ni_error("%s: reconfig changes device index!", devinfo->ifname);
+		return -1;
+	}
+
+	devinfo->mtu = link->mtu;
+	devinfo->hwaddr = link->hwaddr;
+
+	return 0;
+}
+
+/*
  * Open capture socket
  *
  * Dirty little secret: when opening an ETHERTYPE_IP socket, we will always

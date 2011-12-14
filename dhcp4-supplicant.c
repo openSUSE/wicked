@@ -227,7 +227,7 @@ dhcp4_device_create(ni_dbus_server_t *server, const ni_interface_t *ifp)
 {
 	ni_dhcp_device_t *dev;
 
-	dev = ni_dhcp_device_new(ifp->name, ifp->link.type);
+	dev = ni_dhcp_device_new(ifp->name, &ifp->link);
 	if (!dev)
 		ni_fatal("Cannot create dhcp device for %s", ifp->name);
 	dev->link.ifindex = ifp->link.ifindex;

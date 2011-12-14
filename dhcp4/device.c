@@ -26,7 +26,7 @@ ni_dhcp_device_t *	ni_dhcp_active;
  * Create and destroy dhcp device handles
  */
 ni_dhcp_device_t *
-ni_dhcp_device_new(const char *ifname, unsigned int iftype)
+ni_dhcp_device_new(const char *ifname, const ni_linkinfo_t *link)
 {
 	ni_dhcp_device_t *dev, **pos;
 
@@ -36,10 +36,14 @@ ni_dhcp_device_new(const char *ifname, unsigned int iftype)
 	dev = calloc(1, sizeof(*dev));
 	ni_string_dup(&dev->ifname, ifname);
 	dev->users = 1;
-	dev->system.ifname = dev->ifname;
-	dev->system.iftype = iftype;
-	dev->system.mtu = MTU_MAX;
 	dev->listen_fd = -1;
+
+	if (ni_capture_devinfo_init(&dev->system, ifname, link) < 0) {
+		ni_error("%s: cannot set up %s for DHCP", __func__, ifname);
+		ni_dhcp_device_put(dev);
+		return NULL;
+	}
+
 	dev->start_time = time(NULL);
 	dev->fsm.state = NI_DHCP_STATE_INIT;
 
@@ -179,7 +183,7 @@ ni_dhcp_device_drop_best_offer(ni_dhcp_device_t *dev)
 }
 
 /*
- * Refresh the device info prior to taking any actions
+ * Refresh the device mtu and MAC address info prior to taking any actions
  */
 int
 ni_dhcp_device_refresh(ni_dhcp_device_t *dev)
@@ -193,27 +197,7 @@ ni_dhcp_device_refresh(ni_dhcp_device_t *dev)
 		return rv;
 	}
 
-	if (dev->system.iftype != dev->link.type) {
-		ni_error("%s: reconfig changes device type!", dev->ifname);
-		return -1;
-	}
-
-	if (dev->link.hwaddr.len == 0) {
-		ni_error("%s: empty MAC address, cannot do DHCP", dev->ifname);
-		return -1;
-	}
-	dev->system.ifindex = dev->link.ifindex;
-	dev->system.arp_type = dev->link.arp_type;
-	dev->system.iftype = dev->link.type;
-	dev->system.mtu = dev->link.mtu;
-	dev->system.hwaddr = dev->link.hwaddr;
-
-	if (dev->system.arp_type == ARPHRD_NONE) {
-		ni_warn("%s: no arp_type, using ether", __FUNCTION__);
-		dev->system.arp_type = ARPHRD_ETHER;
-	}
-
-	return 0;
+	return ni_capture_devinfo_refresh(&dev->system, &dev->link);
 }
 
 /*

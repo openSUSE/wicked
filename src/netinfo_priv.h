@@ -229,6 +229,8 @@ typedef struct ni_capture_devinfo {
 	ni_hwaddr_t		hwaddr;
 } ni_capture_devinfo_t;
 
+extern int		ni_capture_devinfo_init(ni_capture_devinfo_t *, const char *, const ni_linkinfo_t *);
+extern int		ni_capture_devinfo_refresh(ni_capture_devinfo_t *, const ni_linkinfo_t *);
 extern ni_capture_t *	ni_capture_open(const ni_capture_devinfo_t *, int, void (*)(ni_socket_t *));
 extern int		ni_capture_recv(ni_capture_t *, ni_buffer_t *);
 extern ssize_t		ni_capture_broadcast(ni_capture_t *, const ni_buffer_t *, const ni_timeout_param_t *);

@@ -151,7 +151,7 @@ extern int		ni_dhcp_socket_open(ni_dhcp_device_t *);
 extern int		ni_dhcp_device_start(ni_dhcp_device_t *);
 extern void		ni_dhcp_device_stop(ni_dhcp_device_t *);
 extern unsigned int	ni_dhcp_device_uptime(const ni_dhcp_device_t *, unsigned int);
-extern ni_dhcp_device_t *ni_dhcp_device_new(const char *, unsigned int);
+extern ni_dhcp_device_t *ni_dhcp_device_new(const char *, const ni_linkinfo_t *);
 extern ni_dhcp_device_t *ni_dhcp_device_by_index(unsigned int);
 extern ni_dhcp_device_t *ni_dhcp_device_get(ni_dhcp_device_t *);
 extern void		ni_dhcp_device_put(ni_dhcp_device_t *);
