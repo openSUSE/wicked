@@ -136,6 +136,23 @@ __ni_dbus_objects_garbage_collect(void)
 }
 
 /*
+ * Translate a DBus error, optionally using the error map provided by
+ * the client handle (if this is a client side object)
+ */
+int
+ni_dbus_object_translate_error(ni_dbus_object_t *obj, const DBusError *error)
+{
+	const ni_intmap_t *error_map = NULL;
+
+	error_map = __ni_dbus_client_object_get_error_map(obj);
+#if 0
+	if (error_map == NULL)
+		error_map = __ni_dbus_server_object_get_error_map(obj);
+#endif
+	return ni_dbus_translate_error(error, error_map);
+}
+
+/*
  * Look up an object by its relative name
  */
 static ni_dbus_object_t *

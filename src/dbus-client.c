@@ -104,6 +104,16 @@ __ni_dbus_client_object_destroy(ni_dbus_object_t *object)
 	}
 }
 
+const ni_intmap_t *
+__ni_dbus_client_object_get_error_map(const ni_dbus_object_t *object)
+{
+	ni_dbus_client_object_t *cob;
+
+	if ((cob = object->client_object) != NULL && cob->client)
+		return cob->client->error_map;
+	return NULL;
+}
+
 ni_dbus_object_t *
 ni_dbus_client_object_new(ni_dbus_client_t *client, const char *path, const char *interface,
 		const ni_dbus_object_functions_t *functions, void *local_data)
