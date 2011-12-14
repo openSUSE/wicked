@@ -123,8 +123,7 @@ ni_backend_interface_reload_all(ni_backend_t *be)
 		ni_error("netonfig: cannot refresh, no syntax associated");
 		return -1;
 	}
-	//return ni_syntax_get_interfaces(be->syntax, nih);
-	return 0;
+	return ni_syntax_get_interfaces(be->syntax, &be->nc);
 }
 
 /*

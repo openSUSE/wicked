@@ -347,6 +347,8 @@ ni_addrconf_extension_request(const ni_addrconf_t *ace, ni_interface_t *ifp)
 static int
 ni_addrconf_extension_release(const ni_addrconf_t *ace, ni_interface_t *ifp, ni_addrconf_lease_t *lease)
 {
+return -1;
+#if 0
 	const ni_extension_t *ex = ace->private;
 	ni_handle_t *nih = ni_dummy_open();
 	xml_node_t *cfg_xml;
@@ -361,6 +363,7 @@ ni_addrconf_extension_release(const ni_addrconf_t *ace, ni_interface_t *ifp, ni_
 		lease->state = NI_ADDRCONF_STATE_RELEASED;
 
 	return rv;
+#endif
 }
 
 static int

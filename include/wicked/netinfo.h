@@ -249,6 +249,9 @@ extern const char *	ni_debug_facility_to_description(int);
 
 extern void		ni_log_destination_syslog(const char *program);
 
+extern void		ni_netconfig_init(ni_netconfig_t *);
+extern void		ni_netconfig_destroy(ni_netconfig_t *);
+
 extern ni_handle_t *	ni_global_state_handle(void);
 extern ni_handle_t *	ni_state_open(void);
 extern ni_handle_t *	ni_netconfig_open(ni_syntax_t *);
@@ -266,31 +269,7 @@ extern void		ni_bad_reference(ni_handle_t *, const ni_interface_t *, const char 
 
 extern ni_syntax_t *	ni_syntax_new(const char *schema, const char *pathname);
 extern void		ni_syntax_free(ni_syntax_t *);
-extern int		ni_syntax_get_interfaces(ni_syntax_t *, ni_handle_t *);
-extern int		ni_syntax_parse_file(ni_syntax_t *, ni_handle_t *, const char *);
-extern int		ni_syntax_parse_data(ni_syntax_t *, ni_handle_t *, const char *);
-extern int		ni_syntax_parse_stream(ni_syntax_t *, ni_handle_t *, FILE *);
-extern int		ni_syntax_put_interfaces(ni_syntax_t *, ni_handle_t *, FILE *);
-extern int		ni_syntax_put_one_interface(ni_syntax_t *, ni_handle_t *, ni_interface_t *, FILE *);
-extern xml_node_t *	ni_syntax_xml_from_interface(ni_syntax_t *, ni_handle_t *, const ni_interface_t *);
-extern ni_interface_t *	ni_syntax_xml_to_interface(ni_syntax_t *, ni_handle_t *, xml_node_t *);
-extern xml_node_t *	ni_syntax_xml_from_interface_stats(ni_syntax_t *, ni_handle_t *, const ni_interface_t *);
-extern int		ni_syntax_xml_to_interface_stats(ni_syntax_t *, ni_handle_t *, ni_interface_t *, xml_node_t *);
-extern xml_node_t *	ni_syntax_xml_from_wireless_scan(ni_syntax_t *, ni_handle_t *, const ni_wireless_scan_t *);
-extern ni_wireless_scan_t *ni_syntax_xml_to_wireless_scan(ni_syntax_t *, ni_handle_t *, xml_node_t *);
-extern xml_document_t *	ni_syntax_xml_from_all(ni_syntax_t *, ni_handle_t *);
-extern int		ni_syntax_xml_to_all(ni_syntax_t *, ni_handle_t *, const xml_document_t *);
-extern xml_node_t *	ni_syntax_xml_from_lease(ni_syntax_t *, ni_addrconf_lease_t *, xml_node_t *);
-extern ni_addrconf_lease_t *ni_syntax_xml_to_lease(ni_syntax_t *, const xml_node_t *);
-extern xml_node_t *	ni_syntax_xml_from_addrconf_request(ni_syntax_t *, ni_addrconf_request_t *, xml_node_t *);
-extern ni_addrconf_request_t *ni_syntax_xml_to_addrconf_request(ni_syntax_t *, const xml_node_t *, int);
-extern xml_node_t *	ni_syntax_xml_from_nis(ni_syntax_t *, const ni_nis_info_t *, xml_node_t *);
-extern ni_nis_info_t *	ni_syntax_xml_to_nis(ni_syntax_t *, const xml_node_t *);
-extern xml_node_t *	ni_syntax_xml_from_resolver(ni_syntax_t *, const ni_resolver_info_t *, xml_node_t *);
-extern ni_resolver_info_t *ni_syntax_xml_to_resolver(ni_syntax_t *, const xml_node_t *);
-extern void		ni_syntax_set_root_directory(ni_syntax_t *, const char *);
-extern const char *	ni_syntax_base_path(ni_syntax_t *);
-extern const char *	ni_syntax_build_path(ni_syntax_t *, const char *, ...);
+
 extern ni_syntax_t *	ni_netconfig_default_syntax(const char *root_dir);
 
 extern ni_interface_t *	ni_interfaces(ni_handle_t *nic);
@@ -300,6 +279,10 @@ extern ni_interface_t *	ni_interface_by_hwaddr(ni_handle_t *nic, const ni_hwaddr
 extern ni_interface_t *	ni_interface_by_vlan_tag(ni_handle_t *nih, uint16_t tag);
 extern ni_interface_t *	ni_interface_first(ni_handle_t *nic, ni_interface_t **pos);
 extern ni_interface_t *	ni_interface_next(ni_handle_t *nic, ni_interface_t **pos);
+
+/* Replace this */
+extern ni_interface_t *	nc_interface_by_name(ni_netconfig_t *nic, const char *name);
+extern ni_interface_t *	nc_interface_new(ni_netconfig_t *, const char *name, unsigned int ifindex);
 
 extern ni_interface_t *	ni_interface_new(ni_handle_t *,
 				const char *name, unsigned int ifindex);

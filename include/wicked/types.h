@@ -9,9 +9,9 @@
 #include <wicked/constants.h>
 #include <stdint.h>
 
-typedef struct ni_handle	ni_handle_t;
-typedef struct ni_syntax	ni_syntax_t;
-typedef struct ni_interface	ni_interface_t;
+typedef struct ni_handle	ni_handle_t;		/* nuke */
+typedef struct ni_syntax	ni_syntax_t;		/* make private */
+typedef struct ni_interface	ni_interface_t;		/* rename to ni_netif_t? */
 typedef struct ni_vlan		ni_vlan_t;
 typedef struct ni_bridge	ni_bridge_t;
 typedef struct ni_bridge_port	ni_bridge_port_t;
@@ -43,6 +43,17 @@ typedef struct xpath_format_array {
 	unsigned int		count;
 	xpath_format_t **	data;
 } xpath_format_array_t;
+
+/*
+ * This is the all-encompassing thingy that holds a
+ * complete network config state
+ */
+typedef struct ni_netconfig	ni_netconfig_t;
+struct ni_netconfig {
+	ni_interface_t *	interfaces;
+	struct ni_route *	routes;		/* should kill this */
+	unsigned int		seqno;		/* should kill this */
+};
 
 /*
  * Policies

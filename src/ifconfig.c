@@ -1030,7 +1030,7 @@ static int
 __ni_interface_extension_delete(ni_handle_t *nih, ni_interface_t *ifp)
 {
 	ni_extension_t *ex;
-	xml_node_t *xml;
+	xml_node_t *xml = NULL;
 	int res;
 
 	ex = ni_config_find_linktype_extension(ni_global.config, ifp->link.type);
@@ -1040,9 +1040,11 @@ __ni_interface_extension_delete(ni_handle_t *nih, ni_interface_t *ifp)
 		return -1;
 	}
 
+#if 0
 	xml = ni_syntax_xml_from_interface(ni_global.xml_syntax, nih, ifp);
 	if (!xml)
 		return -1;
+#endif
 
 	res = ni_extension_stop(ex, ifp->name, xml);
 

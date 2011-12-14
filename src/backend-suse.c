@@ -15,17 +15,18 @@
 #include <wicked/addrconf.h>
 #include <wicked/bridge.h>
 #include <wicked/bonding.h>
+#include "backend-priv.h"
 #include "netinfo_priv.h"
 #include "sysconfig.h"
 
 
 #define _PATH_NETCONFIG_DIR		"/etc/sysconfig/network"
 
-static int		__ni_suse_get_interfaces(ni_syntax_t *, ni_handle_t *);
-static int		__ni_suse_put_interfaces(ni_syntax_t *, ni_handle_t *, FILE *);
+static int		__ni_suse_get_interfaces(ni_syntax_t *, ni_netconfig_t *);
+static int		__ni_suse_put_interfaces(ni_syntax_t *, ni_netconfig_t *, FILE *);
 static int		__ni_suse_read_routes(ni_route_t **, const char *);
-static ni_addrconf_request_t *__ni_suse_read_dhcp(ni_handle_t *);
-static ni_interface_t *	__ni_suse_read_interface(ni_handle_t *, const char *, const char *);
+static ni_addrconf_request_t *__ni_suse_read_dhcp(ni_netconfig_t *);
+static ni_interface_t *	__ni_suse_read_interface(ni_netconfig_t *, const char *, const char *);
 static int		__ni_suse_sysconfig2ifconfig(ni_interface_t *, ni_sysconfig_t *);
 static int		__ni_suse_sysconfig2dhcp(ni_addrconf_request_t *, ni_sysconfig_t *);
 static int		__ni_suse_ifconfig2sysconfig(ni_interface_t *, ni_sysconfig_t *);
@@ -84,7 +85,7 @@ __ni_syntax_sysconfig_suse(const char *pathname)
  * Refresh network configuration by reading all ifcfg files.
  */
 static int
-__ni_suse_get_interfaces(ni_syntax_t *syntax, ni_handle_t *nih)
+__ni_suse_get_interfaces(ni_syntax_t *syntax, ni_netconfig_t *nc)
 {
 	ni_string_array_t files = NI_STRING_ARRAY_INIT;
 	const char *base_dir;
@@ -92,7 +93,7 @@ __ni_suse_get_interfaces(ni_syntax_t *syntax, ni_handle_t *nih)
 	int i;
 
 	/* Wipe out all interface information */
-	__ni_interfaces_clear(nih);
+	__ni_interface_list_destroy(&nc->interfaces);
 
 	base_dir = ni_syntax_base_path(syntax);
 	if (!ni_sysconfig_scandir(base_dir, "ifcfg-", &files)) {
@@ -106,7 +107,7 @@ __ni_suse_get_interfaces(ni_syntax_t *syntax, ni_handle_t *nih)
 		ni_interface_t *ifp;
 
 		snprintf(pathbuf, sizeof(pathbuf), "%s/%s", base_dir, filename);
-		ifp = __ni_suse_read_interface(nih, pathbuf, filename + 6);
+		ifp = __ni_suse_read_interface(nc, pathbuf, filename + 6);
 		if (ifp == NULL)
 			goto failed;
 
@@ -115,7 +116,7 @@ __ni_suse_get_interfaces(ni_syntax_t *syntax, ni_handle_t *nih)
 			goto failed;
 	}
 	snprintf(pathbuf, sizeof(pathbuf), "%s/routes", base_dir);
-	if (__ni_suse_read_routes(&nih->routes, pathbuf) < 0)
+	if (__ni_suse_read_routes(&nc->routes, pathbuf) < 0)
 		goto failed;
 
 	ni_string_array_destroy(&files);
@@ -229,7 +230,7 @@ error:
  * Read the configuration of a single interface from a sysconfig file
  */
 static ni_interface_t *
-__ni_suse_read_interface(ni_handle_t *nih, const char *filename, const char *ifname)
+__ni_suse_read_interface(ni_netconfig_t *nc, const char *filename, const char *ifname)
 {
 	ni_interface_t *ifp;
 	ni_sysconfig_t *sc;
@@ -240,18 +241,19 @@ __ni_suse_read_interface(ni_handle_t *nih, const char *filename, const char *ifn
 		goto error;
 	}
 
-	ifp = ni_interface_new(nih, ifname, 0);
+	ifp = __ni_interface_new(ifname, 0);
 	if (!ifp) {
 		error("Failed to alloc interface %s", ifname);
 		goto error;
 	}
+	__ni_interface_list_append(&nc->interfaces, ifp);
 
 	if (__ni_suse_sysconfig2ifconfig(ifp, sc) < 0)
 		goto error;
 
 	if (ni_afinfo_addrconf_test(&ifp->ipv4, NI_ADDRCONF_DHCP)) {
 		/* Read default DHCP config */
-		if (!(ifp->ipv4.request[NI_ADDRCONF_DHCP] = __ni_suse_read_dhcp(nih)))
+		if (!(ifp->ipv4.request[NI_ADDRCONF_DHCP] = __ni_suse_read_dhcp(nc)))
 			goto error;
 
 		/* Now check whether the ifcfg file overwrites any of these */
@@ -671,7 +673,7 @@ try_vlan(ni_interface_t *ifp, ni_sysconfig_t *sc)
  * Read the global DHCP configuration
  */
 static ni_addrconf_request_t *
-__ni_suse_read_dhcp(ni_handle_t *nih)
+__ni_suse_read_dhcp(ni_netconfig_t *nc)
 {
 	ni_addrconf_request_t *dhcp = ni_addrconf_request_new(NI_ADDRCONF_DHCP, -1);
 	ni_sysconfig_t *sc;
@@ -765,7 +767,7 @@ __ni_suse_dhcp2sysconfig(const ni_addrconf_request_t *ifdhcp, const ni_addrconf_
  * Produce sysconfig files
  */
 int
-__ni_suse_put_interfaces(ni_syntax_t *syntax, ni_handle_t *nih, FILE *outfile)
+__ni_suse_put_interfaces(ni_syntax_t *syntax, ni_netconfig_t *nc, FILE *outfile)
 {
 	ni_string_array_t files = NI_STRING_ARRAY_INIT;
 	ni_addrconf_request_t *dhcp = NULL;
@@ -774,10 +776,8 @@ __ni_suse_put_interfaces(ni_syntax_t *syntax, ni_handle_t *nih, FILE *outfile)
 	unsigned int i;
 	ni_interface_t *ifp;
 
-	nih->seqno++;
-
 	base_dir = ni_syntax_base_path(syntax);
-	for (ifp = nih->iflist; ifp; ifp = ifp->next) {
+	for (ifp = nc->interfaces; ifp; ifp = ifp->next) {
 		ni_sysconfig_t *sc;
 
 		snprintf(pathbuf, sizeof(pathbuf), "%s/ifcfg-%s", base_dir, ifp->name);
@@ -813,7 +813,7 @@ __ni_suse_put_interfaces(ni_syntax_t *syntax, ni_handle_t *nih, FILE *outfile)
 		 */
 		if (ni_afinfo_addrconf_test(&ifp->ipv4, NI_ADDRCONF_DHCP)) {
 			if (!dhcp)
-				dhcp = __ni_suse_read_dhcp(nih);
+				dhcp = __ni_suse_read_dhcp(nc);
 			if (__ni_suse_dhcp2sysconfig(ifp->ipv4.request[NI_ADDRCONF_DHCP], dhcp, sc) < 0) {
 				ni_sysconfig_destroy(sc);
 				goto error;
@@ -847,7 +847,7 @@ __ni_suse_put_interfaces(ni_syntax_t *syntax, ni_handle_t *nih, FILE *outfile)
 	 */
 	snprintf(pathbuf, sizeof(pathbuf), "%s/routes", base_dir);
 #if 0
-	if (__ni_suse_write_routes(&nih->routes, pathbuf) < 0)
+	if (__ni_suse_write_routes(&nc->routes, pathbuf) < 0)
 		return -1;
 #else
 	trace("should really rewrite %s here", pathbuf);
@@ -858,7 +858,7 @@ __ni_suse_put_interfaces(ni_syntax_t *syntax, ni_handle_t *nih, FILE *outfile)
 		const char *filename = files.data[i];
 		const char *ifname = filename + 6;
 
-		if (ni_interface_by_name(nih, ifname) == NULL) {
+		if (nc_interface_by_name(nc, ifname) == NULL) {
 			/* This interface went away */
 			snprintf(pathbuf, sizeof(pathbuf), "%s/%s", base_dir, filename);
 			trace("should really unlink(%s) here\n", pathbuf);

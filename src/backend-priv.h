@@ -19,7 +19,7 @@
 struct ni_backend {
 	ni_syntax_t *		syntax;
 
-	ni_interface_t *	interfaces;
+	ni_netconfig_t		nc;
 };
 
 

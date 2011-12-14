@@ -891,17 +891,50 @@ __ni_interface_new(const char *name, unsigned int index)
 	return ifp;
 }
 
+void
+__ni_interface_list_destroy(ni_interface_t **list)
+{
+	ni_interface_t *ifp;
+
+	while ((ifp = *list) != NULL) {
+		*list = ifp->next;
+		ni_interface_put(ifp);
+	}
+}
+
+
+void
+__ni_interface_list_append(ni_interface_t **list, ni_interface_t *new_ifp)
+{
+	ni_interface_t *ifp;
+
+	while ((ifp = *list) != NULL)
+		list = &ifp->next;
+
+	new_ifp->next = NULL;
+	*list = new_ifp;
+}
+
 ni_interface_t *
 ni_interface_new(ni_handle_t *nih, const char *name, unsigned int index)
 {
-	ni_interface_t *ifp, **pos;
-
-	for (pos = &nih->iflist; (ifp = *pos) != NULL; pos = &ifp->next)
-		;
+	ni_interface_t *ifp;
 
 	ifp = __ni_interface_new(name, index);
 	if (ifp)
-		*pos = ifp;
+		__ni_interface_list_append(&nih->iflist, ifp);
+	
+	return ifp;
+}
+
+ni_interface_t *
+nc_interface_new(ni_netconfig_t *nc, const char *name, unsigned int index)
+{
+	ni_interface_t *ifp;
+
+	ifp = __ni_interface_new(name, index);
+	if (ifp)
+		__ni_interface_list_append(&nc->interfaces, ifp);
 	
 	return ifp;
 }
@@ -1163,12 +1196,7 @@ ni_interface_array_destroy(ni_interface_array_t *array)
 void
 __ni_interfaces_clear(ni_handle_t *nih)
 {
-	ni_interface_t *ifp;
-
-	while ((ifp = nih->iflist) != NULL) {
-		nih->iflist = ifp->next;
-		ni_interface_put(ifp);
-	}
+	__ni_interface_list_destroy(&nih->iflist);
 }
 
 /*
@@ -1190,6 +1218,19 @@ ni_interface_by_name(ni_handle_t *nih, const char *name)
 	ni_interface_t *ifp;
 
 	for (ifp = nih->iflist; ifp; ifp = ifp->next) {
+		if (ifp->name && !strcmp(ifp->name, name))
+			return ifp;
+	}
+
+	return NULL;
+}
+
+ni_interface_t *
+nc_interface_by_name(ni_netconfig_t *nc, const char *name)
+{
+	ni_interface_t *ifp;
+
+	for (ifp = nc->interfaces; ifp; ifp = ifp->next) {
 		if (ifp->name && !strcmp(ifp->name, name))
 			return ifp;
 	}

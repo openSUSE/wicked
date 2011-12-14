@@ -80,27 +80,28 @@ struct ni_ops {
  * variant variable naming schemes, etc), or an XML file
  * like the ones used by netcf.
  */
+#include <wicked/backend.h>
 struct ni_syntax {
 	const char *		schema;
 	char *			base_path;
 	char *			root_dir;
 	unsigned char		strict;
 
-	int			(*get_interfaces)(ni_syntax_t *, ni_handle_t *);
-	int			(*put_interfaces)(ni_syntax_t *, ni_handle_t *, FILE *);
-	int			(*put_one_interface)(ni_syntax_t *, ni_handle_t *, ni_interface_t *, FILE *);
+	int			(*get_interfaces)(ni_syntax_t *, ni_netconfig_t *);
+	int			(*put_interfaces)(ni_syntax_t *, ni_netconfig_t *, FILE *);
+	int			(*put_one_interface)(ni_syntax_t *, ni_netconfig_t *, ni_interface_t *, FILE *);
 
 	int			(*get_hostname)(ni_syntax_t *, char *, size_t);
 	int			(*put_hostname)(ni_syntax_t *, const char *);
 	int			(*get_nis)(ni_syntax_t *, ni_nis_info_t *);
 	int			(*put_nis)(ni_syntax_t *, const ni_nis_info_t *);
 
-	xml_node_t *		(*xml_from_interface)(ni_syntax_t *, ni_handle_t *, const ni_interface_t *,
+	xml_node_t *		(*xml_from_interface)(ni_syntax_t *, ni_netconfig_t *, const ni_interface_t *,
 						xml_node_t *parent);
-	ni_interface_t *	(*xml_to_interface)(ni_syntax_t *, ni_handle_t *, xml_node_t *);
+	ni_interface_t *	(*xml_to_interface)(ni_syntax_t *, ni_netconfig_t *, xml_node_t *);
 
-	xml_node_t *		(*xml_from_interface_stats)(ni_syntax_t *, ni_handle_t *, const ni_interface_t *, xml_node_t *);
-	int			(*xml_to_interface_stats)(ni_syntax_t *, ni_handle_t *, ni_interface_t *, const xml_node_t *);
+	xml_node_t *		(*xml_from_interface_stats)(ni_syntax_t *, ni_netconfig_t *, const ni_interface_t *, xml_node_t *);
+	int			(*xml_to_interface_stats)(ni_syntax_t *, ni_netconfig_t *, ni_interface_t *, const xml_node_t *);
 
 	xml_node_t *		(*xml_from_policy)(ni_syntax_t *, const ni_policy_t *, xml_node_t *parent);
 	ni_policy_t *		(*xml_to_policy)(ni_syntax_t *, xml_node_t *);
@@ -135,6 +136,7 @@ extern void		__ni_netlink_close(ni_netlink_t *);
 
 extern ni_handle_t *	__ni_handle_new(size_t, struct ni_ops *);
 extern ni_interface_t *	__ni_interface_new(const char *name, unsigned int index);
+extern void		__ni_interface_list_append(ni_interface_t **, ni_interface_t *);
 extern void		__ni_interface_list_destroy(ni_interface_t **);
 extern void		__ni_interfaces_clear(ni_handle_t *);
 extern ni_addrconf_lease_t *__ni_interface_address_to_lease(ni_interface_t *, const ni_address_t *);
@@ -177,7 +179,7 @@ extern int		__ni_system_interface_stats_refresh(ni_handle_t *, ni_interface_t *)
 extern int		__ni_system_ethernet_refresh(ni_handle_t *, ni_interface_t *);
 extern int		__ni_rtevent_refresh_all(ni_handle_t *, ni_interface_t **del_list);
 
-extern int		__ni_syntax_xml_to_all(ni_syntax_t *, ni_handle_t *, const xml_node_t *);
+extern int		__ni_syntax_xml_to_all(ni_syntax_t *, ni_netconfig_t *, const xml_node_t *);
 extern int		__ni_syntax_xml_to_policy_info(ni_syntax_t *, ni_policy_info_t *,
 					const xml_node_t *);
 extern xml_node_t *	__ni_syntax_xml_from_policy_info(ni_syntax_t *, const ni_policy_info_t *);

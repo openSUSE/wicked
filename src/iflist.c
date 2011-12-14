@@ -1105,12 +1105,14 @@ __ni_discover_addrconf(ni_handle_t *nih, ni_interface_t *ifp)
 		if (!acm->test)
 			continue;
 
+#if 0
 		/* Represent interface as XML */
 		if (xml == NULL) {
 			xml = ni_syntax_xml_from_interface(ni_default_xml_syntax(), nih, ifp);
 			if (!xml)
 				return 0;
 		}
+#endif
 
 		/* Check if the extension is active */
 		if (ni_addrconf_check(acm, ifp, xml)) {

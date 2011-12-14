@@ -6,8 +6,7 @@ CFLAGS_DBUS := $(shell pkg-config --cflags dbus-1)
 APPS	= wicked wickedd dhcp4-supplicant autoip4-supplicant \
 	  testing/xml-test testing/xpath-test
 
-TGTLIBS	= libnetinfo.a \
-	  libnetcf.a
+TGTLIBS	= libnetinfo.a
 	  # libnetinfo.so
 # Public header files
 LIBHDRS	= logging.h \

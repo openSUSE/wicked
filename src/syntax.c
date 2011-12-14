@@ -11,7 +11,9 @@
 #include <stdarg.h>
 
 #include <wicked/netinfo.h>
+#include <wicked/backend.h>
 #include <wicked/xml.h>
+#include "backend-priv.h"
 #include "netinfo_priv.h"
 #include "config.h"
 
@@ -136,16 +138,16 @@ __ni_syntax_prepend_base(ni_syntax_t *syntax, const char *filename)
  * system configuration files.
  */
 int
-ni_syntax_get_interfaces(ni_syntax_t *syntax, ni_handle_t *nih)
+ni_syntax_get_interfaces(ni_syntax_t *syntax, ni_netconfig_t *nc)
 {
 	if (syntax->get_interfaces)
-		return syntax->get_interfaces(syntax, nih);
+		return syntax->get_interfaces(syntax, nc);
 
-	return ni_syntax_parse_file(syntax, nih, syntax->base_path);
+	return ni_syntax_parse_file(syntax, nc, syntax->base_path);
 }
 
 int
-ni_syntax_parse_data(ni_syntax_t *syntax, ni_handle_t *nih, const char *data)
+ni_syntax_parse_data(ni_syntax_t *syntax, ni_netconfig_t *nc, const char *data)
 {
 	FILE *memstream;
 	int rv = -1;
@@ -154,7 +156,7 @@ ni_syntax_parse_data(ni_syntax_t *syntax, ni_handle_t *nih, const char *data)
 	if (memstream == NULL) {
 		error("Unable to open memstream for data: %m");
 	} else {
-		rv = ni_syntax_parse_stream(syntax, nih, memstream);
+		rv = ni_syntax_parse_stream(syntax, nc, memstream);
 		fclose(memstream);
 	}
 
@@ -162,7 +164,7 @@ ni_syntax_parse_data(ni_syntax_t *syntax, ni_handle_t *nih, const char *data)
 }
 
 int
-ni_syntax_parse_file(ni_syntax_t *syntax, ni_handle_t *nih, const char *filename)
+ni_syntax_parse_file(ni_syntax_t *syntax, ni_netconfig_t *nc, const char *filename)
 {
 	if (syntax->xml_to_interface) {
 		xml_document_t *doc;
@@ -178,18 +180,18 @@ ni_syntax_parse_file(ni_syntax_t *syntax, ni_handle_t *nih, const char *filename
 			return -1;
 		}
 
-		rv = ni_syntax_xml_to_all(syntax, nih, doc);
+		rv = ni_syntax_xml_to_all(syntax, nc, doc);
 
 		xml_document_free(doc);
 		return rv;
 	}
 
-	error("%s: syntax not capable of parsing config data", __FUNCTION__);
+	ni_error("%s: syntax not capable of parsing config data", __FUNCTION__);
 	return -1;
 }
 
 int
-ni_syntax_parse_stream(ni_syntax_t *syntax, ni_handle_t *nih, FILE *input)
+ni_syntax_parse_stream(ni_syntax_t *syntax, ni_netconfig_t *nc, FILE *input)
 {
 	if (syntax->xml_to_interface) {
 		xml_document_t *doc;
@@ -200,7 +202,7 @@ ni_syntax_parse_stream(ni_syntax_t *syntax, ni_handle_t *nih, FILE *input)
 			return -1;
 		}
 
-		rv = ni_syntax_xml_to_all(syntax, nih, doc);
+		rv = ni_syntax_xml_to_all(syntax, nc, doc);
 
 		xml_document_free(doc);
 		return rv;
@@ -211,16 +213,16 @@ ni_syntax_parse_stream(ni_syntax_t *syntax, ni_handle_t *nih, FILE *input)
 }
 
 int
-ni_syntax_put_interfaces(ni_syntax_t *syntax, ni_handle_t *nih, FILE *outfile)
+ni_syntax_put_interfaces(ni_syntax_t *syntax, ni_netconfig_t *nc, FILE *outfile)
 {
 	if (syntax->put_interfaces)
-		return syntax->put_interfaces(syntax, nih, outfile);
+		return syntax->put_interfaces(syntax, nc, outfile);
 
 	if (syntax->xml_from_interface) {
 		xml_document_t *doc;
 		int rv = -1;
 
-		doc = ni_syntax_xml_from_all(syntax, nih);
+		doc = ni_syntax_xml_from_all(syntax, nc);
 		if (!doc) {
 			error("%s: problem building XML from ni_handle", syntax->schema);
 			return -1;
@@ -251,10 +253,10 @@ ni_syntax_put_interfaces(ni_syntax_t *syntax, ni_handle_t *nih, FILE *outfile)
 }
 
 int
-ni_syntax_put_one_interface(ni_syntax_t *syntax, ni_handle_t *nih, ni_interface_t *ifp, FILE *outfile)
+ni_syntax_put_one_interface(ni_syntax_t *syntax, ni_netconfig_t *nc, ni_interface_t *ifp, FILE *outfile)
 {
 	if (syntax->put_one_interface)
-		return syntax->put_one_interface(syntax, nih, ifp, outfile);
+		return syntax->put_one_interface(syntax, nc, ifp, outfile);
 
 	if (syntax->xml_from_interface) {
 		xml_document_t *doc;
@@ -262,7 +264,7 @@ ni_syntax_put_one_interface(ni_syntax_t *syntax, ni_handle_t *nih, ni_interface_
 
 		doc = xml_document_new();
 
-		if (!syntax->xml_from_interface(syntax, nih, ifp, doc->root))
+		if (!syntax->xml_from_interface(syntax, nc, ifp, doc->root))
 			goto error;
 
 		if (outfile) {
@@ -294,17 +296,17 @@ error:
  * Produce XML for a single interface and vice versa
  */
 xml_node_t *
-ni_syntax_xml_from_interface(ni_syntax_t *syntax, ni_handle_t *nih, const ni_interface_t *ifp)
+ni_syntax_xml_from_interface(ni_syntax_t *syntax, ni_netconfig_t *nc, const ni_interface_t *ifp)
 {
 	if (!syntax->xml_from_interface) {
 		error("%s: syntax not capable of creating xml for interface", __FUNCTION__);
 		return NULL;
 	}
-	return syntax->xml_from_interface(syntax, nih, ifp, NULL);
+	return syntax->xml_from_interface(syntax, nc, ifp, NULL);
 }
 
 ni_interface_t *
-ni_syntax_xml_to_interface(ni_syntax_t *syntax, ni_handle_t *nih, xml_node_t *xmlnode)
+ni_syntax_xml_to_interface(ni_syntax_t *syntax, ni_netconfig_t *nc, xml_node_t *xmlnode)
 {
 	ni_interface_t *ifp;
 
@@ -313,7 +315,7 @@ ni_syntax_xml_to_interface(ni_syntax_t *syntax, ni_handle_t *nih, xml_node_t *xm
 		return NULL;
 	}
 
-	ifp = syntax->xml_to_interface(syntax, nih, xmlnode);
+	ifp = syntax->xml_to_interface(syntax, nc, xmlnode);
 
 	/* The only occasion where we allow interfaces without name is in
 	 * policy descriptors. */
@@ -329,31 +331,31 @@ ni_syntax_xml_to_interface(ni_syntax_t *syntax, ni_handle_t *nih, xml_node_t *xm
  * XML to/from interface stats
  */
 xml_node_t *
-ni_syntax_xml_from_interface_stats(ni_syntax_t *syntax, ni_handle_t *nih, const ni_interface_t *ifp)
+ni_syntax_xml_from_interface_stats(ni_syntax_t *syntax, ni_netconfig_t *nc, const ni_interface_t *ifp)
 {
 	if (!syntax->xml_from_interface_stats) {
 		ni_error("%s: syntax not capable of creating xml for interface stats", __FUNCTION__);
 		return NULL;
 	}
-	return syntax->xml_from_interface_stats(syntax, nih, ifp, NULL);
+	return syntax->xml_from_interface_stats(syntax, nc, ifp, NULL);
 }
 
 int
-ni_syntax_xml_to_interface_stats(ni_syntax_t *syntax, ni_handle_t *nih, ni_interface_t *ifp, xml_node_t *xmlnode)
+ni_syntax_xml_to_interface_stats(ni_syntax_t *syntax, ni_netconfig_t *nc, ni_interface_t *ifp, xml_node_t *xmlnode)
 {
 	if (!syntax->xml_to_interface_stats) {
 		ni_error("%s: syntax not capable of creating interface stats from xml", __FUNCTION__);
 		return -1;
 	}
 
-	return syntax->xml_to_interface_stats(syntax, nih, ifp, xmlnode);
+	return syntax->xml_to_interface_stats(syntax, nc, ifp, xmlnode);
 }
 
 /*
  * XML to/from wireless scan results
  */
 xml_node_t *
-ni_syntax_xml_from_wireless_scan(ni_syntax_t *syntax, ni_handle_t *nih, const ni_wireless_scan_t *scan)
+ni_syntax_xml_from_wireless_scan(ni_syntax_t *syntax, ni_netconfig_t *nc, const ni_wireless_scan_t *scan)
 {
 	if (!syntax->xml_from_wireless_scan) {
 		ni_error("%s: syntax not capable of creating xml for wireless scan", __FUNCTION__);
@@ -363,7 +365,7 @@ ni_syntax_xml_from_wireless_scan(ni_syntax_t *syntax, ni_handle_t *nih, const ni
 }
 
 ni_wireless_scan_t *
-ni_syntax_xml_to_wireless_scan(ni_syntax_t *syntax, ni_handle_t *nih, xml_node_t *parent)
+ni_syntax_xml_to_wireless_scan(ni_syntax_t *syntax, ni_netconfig_t *nc, xml_node_t *parent)
 {
 	return NULL;
 }
@@ -464,7 +466,7 @@ ni_syntax_xml_to_lease(ni_syntax_t *syntax, const xml_node_t *xmlnode)
  * Produce XML for all interfaces
  */
 xml_document_t *
-ni_syntax_xml_from_all(ni_syntax_t *syntax, ni_handle_t *nih)
+ni_syntax_xml_from_all(ni_syntax_t *syntax, ni_netconfig_t *nc)
 {
 	xml_document_t *doc = NULL;
 	xml_node_t *root;
@@ -479,8 +481,8 @@ ni_syntax_xml_from_all(ni_syntax_t *syntax, ni_handle_t *nih)
 	root = xml_document_root(doc);
 
 	/* Produce all interfaces */
-	for (ifp = nih->iflist; ifp; ifp = ifp->next) {
-		if (syntax->xml_from_interface(syntax, nih, ifp, root) == NULL)
+	for (ifp = nc->interfaces; ifp; ifp = ifp->next) {
+		if (syntax->xml_from_interface(syntax, nc, ifp, root) == NULL)
 			goto error;
 	}
 
@@ -496,15 +498,15 @@ error:
  * Produce interfaces from XML
  */
 int
-ni_syntax_xml_to_all(ni_syntax_t *syntax, ni_handle_t *nih, const xml_document_t *doc)
+ni_syntax_xml_to_all(ni_syntax_t *syntax, ni_netconfig_t *nc, const xml_document_t *doc)
 {
 	if (!doc)
 		return -1;
-	return __ni_syntax_xml_to_all(syntax, nih, doc->root);
+	return __ni_syntax_xml_to_all(syntax, nc, doc->root);
 }
 
 int
-__ni_syntax_xml_to_all(ni_syntax_t *syntax, ni_handle_t *nih, const xml_node_t *root)
+__ni_syntax_xml_to_all(ni_syntax_t *syntax, ni_netconfig_t *nc, const xml_node_t *root)
 {
 	xml_node_t *child;
 
@@ -522,7 +524,7 @@ __ni_syntax_xml_to_all(ni_syntax_t *syntax, ni_handle_t *nih, const xml_node_t *
 		if (strcmp(child->name, "interface"))
 			continue;
 
-		ifp = syntax->xml_to_interface(syntax, nih, child);
+		ifp = syntax->xml_to_interface(syntax, nc, child);
 		if (ifp == NULL) {
 			ni_error("%s: failed to parse configuration data", __FUNCTION__);
 			return -1;

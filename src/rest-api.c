@@ -542,26 +542,7 @@ config_handle(ni_wicked_request_t *req)
 static int
 generic_interface_response(ni_handle_t *nih, ni_interface_t *ifp, ni_wicked_request_t *req)
 {
-	ni_syntax_t *xmlsyntax = ni_default_xml_syntax();
-
-	if (ifp == NULL) {
-		xml_document_t *doc;
-
-		doc = ni_syntax_xml_from_all(xmlsyntax, nih);
-		if (doc) {
-			req->xml_out = xml_document_take_root(doc);
-			xml_document_free(doc);
-		}
-	} else {
-		req->xml_out = ni_syntax_xml_from_interface(xmlsyntax, nih, ifp);
-	}
-
-	if (req->xml_out == NULL) {
-		werror(req, "cannot render interface information");
-		return -1;
-	}
-
-	return 0;
+	return -1;
 }
 
 static int
@@ -618,7 +599,7 @@ generic_interface_put(ni_handle_t *nih, ni_wicked_request_t *req)
 		goto failed;
 	}
 
-	if (__ni_syntax_xml_to_all(ni_default_xml_syntax(), cnih, req->xml_in) < 0) {
+	if (__ni_syntax_xml_to_all(ni_default_xml_syntax(), NULL, req->xml_in) < 0) {
 		werror(req, "unable to parse interface configuration");
 		goto failed;
 	}
@@ -717,7 +698,6 @@ config_interface_delete(ni_wicked_request_t *req)
 static int
 system_interface_stats_get(ni_wicked_request_t *req)
 {
-	ni_syntax_t *xmlsyntax = ni_default_xml_syntax();
 	const char *ifname = req->argv[0];
 	ni_interface_t *ifp;
 	ni_handle_t *nih;
@@ -740,7 +720,7 @@ system_interface_stats_get(ni_wicked_request_t *req)
 		return -1;
 	}
 
-	req->xml_out = ni_syntax_xml_from_interface_stats(xmlsyntax, nih, ifp);
+	req->xml_out = NULL; // ni_syntax_xml_from_interface_stats(xmlsyntax, nih, ifp);
 	if (!req->xml_out) {
 		werror(req, "could not generate xml");
 		return -1;
@@ -789,7 +769,6 @@ system_interface_scan_put(ni_wicked_request_t *req)
 static int
 system_interface_scan_get(ni_wicked_request_t *req)
 {
-	ni_syntax_t *xmlsyntax = ni_default_xml_syntax();
 	const char *ifname = req->argv[0];
 	ni_interface_t *ifp;
 	ni_handle_t *nih;
@@ -809,7 +788,7 @@ system_interface_scan_get(ni_wicked_request_t *req)
 
 	ni_interface_get_scan_results(nih, ifp);
 	if (ifp->wireless_scan != NULL) {
-		req->xml_out = ni_syntax_xml_from_wireless_scan(xmlsyntax, nih, ifp->wireless_scan);
+		req->xml_out = NULL; // ni_syntax_xml_from_wireless_scan(xmlsyntax, nih, ifp->wireless_scan);
 		if (!req->xml_out) {
 			werror(req, "could not generate xml");
 			return -1;
