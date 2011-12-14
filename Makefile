@@ -76,7 +76,6 @@ __LIBSRCS= \
 	  dbus-objects/autoip.c \
 	  dbus-objects/misc.c \
 	  wpa-supplicant.c \
-	  ipv6/addrconf.c \
 	  dhcp-lease.c
 __NCFSRCS= \
 	  netcf.c
