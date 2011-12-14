@@ -71,6 +71,7 @@ __LIBSRCS= \
 	  dbus-objects/ethernet.c \
 	  dbus-objects/vlan.c \
 	  dbus-objects/bridge.c \
+	  dbus-objects/addrconf.c \
 	  dbus-objects/dhcp4.c \
 	  dbus-objects/misc.c \
 	  wpa-supplicant.c \
