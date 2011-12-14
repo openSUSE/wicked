@@ -63,7 +63,6 @@ struct ni_bonding {
 	ni_interface_array_t	slave_devs;
 };
 
-extern int		ni_bonding_bind(ni_interface_t *, ni_handle_t *);
 extern void		ni_bonding_free(ni_bonding_t *);
 extern ni_bonding_t *	ni_bonding_clone(const ni_bonding_t *);
 extern void		ni_bonding_add_slave(ni_bonding_t *, const char *);

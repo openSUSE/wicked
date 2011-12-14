@@ -26,53 +26,6 @@ ni_bonding_add_slave(ni_bonding_t *bonding, const char *ifname)
 }
 
 /*
- * Bind the bonding device
- * Look up the interface config of all slaves, and record them
- * in the bonding info.
- */
-int
-ni_bonding_bind(ni_interface_t *parent, ni_handle_t *nih)
-{
-	ni_bonding_t *bonding = parent->bonding;
-	unsigned int i = 0;
-
-	ni_interface_array_destroy(&bonding->slave_devs);
-	for (i = 0; i < bonding->slave_names.count; ++i) {
-		const char *ifname = bonding->slave_names.data[i];
-		ni_interface_t *slave;
-
-		slave = ni_interface_by_name(nih, ifname);
-		if (slave == NULL) {
-			ni_bad_reference(parent, ifname);
-			return -1;
-		}
-
-		ni_interface_array_append(&bonding->slave_devs, slave);
-		slave->parent = parent;
-	}
-
-	bonding->primary_ptr = NULL;
-	if (bonding->primary) {
-		const char *ifname = bonding->primary;
-		ni_interface_t *slave;
-
-		slave = ni_interface_by_name(nih, ifname);
-		if (slave == NULL) {
-			ni_bad_reference(parent, ifname);
-			return -1;
-		}
-		if (slave->parent != parent) {
-			error("bonding primary interface does not reference a valid slave");
-			return -1;
-		}
-
-		bonding->primary_ptr = slave;
-	}
-
-	return 0;
-}
-
-/*
  * Clone the bonding config of a device
  */
 ni_bonding_t *

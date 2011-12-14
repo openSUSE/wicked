@@ -508,38 +508,6 @@ ni_bridge_port_set(ni_bridge_t *bridge, const char *port, unsigned int opt, cons
 }
 
 /*
- * Binding callback for the bridge config.
- * This looks up interface config for all ports, and binds it
- */
-int
-ni_bridge_bind(ni_interface_t *parent, ni_handle_t *nih)
-{
-	ni_bridge_t *bridge = parent->bridge;
-	unsigned int i;
-
-	for (i = 0; i < bridge->ports.count; ++i) {
-		ni_bridge_port_t *port = bridge->ports.data[i];
-		const char *ifname = port->name;
-		ni_interface_t *slave;
-
-		if (port->device) {
-			ni_interface_put(port->device);
-			port->device = NULL;
-		}
-
-		slave = ni_interface_by_name(nih, ifname);
-		if (slave == NULL) {
-			ni_bad_reference(parent, ifname);
-			return -1;
-		}
-
-		port->device = ni_interface_get(slave);
-		slave->parent = parent;
-	}
-	return 0;
-}
-
-/*
  * Create a copy of a bridge's configuration
  */
 ni_bridge_t *

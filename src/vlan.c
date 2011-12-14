@@ -72,34 +72,6 @@ ni_vlan_bind_ifindex(ni_vlan_t *vlan, ni_handle_t *nih)
 	return 0;
 }
 
-int
-ni_vlan_bind(ni_interface_t *ifp, ni_handle_t *nih)
-{
-	ni_vlan_t *vlan;
-	ni_interface_t *child;
-
-	if (!(vlan = ifp->link.vlan))
-		return 0;
-
-	__ni_vlan_unbind(vlan);
-
-	child = ni_interface_by_name(nih, vlan->physdev_name);
-	if (!child) {
-		ni_bad_reference(ifp, vlan->physdev_name);
-		return -1;
-	}
-	vlan->interface_dev = ni_interface_get(child);
-
-	/* We do not mark the child as being owned by the VLAN.
-	 * In fact, there can be many VLANs per eth device, and
-	 * the eth device can be configured in its own right */
-#if 0
-	child->parent = ifp;
-#endif
-
-	return 0;
-}
-
 void
 __ni_vlan_destroy(ni_vlan_t *vlan)
 {

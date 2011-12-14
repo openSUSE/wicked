@@ -92,7 +92,6 @@ struct ni_bridge {
 	ni_bridge_port_array_t	ports;
 };
 
-extern int		ni_bridge_bind(ni_interface_t *, ni_handle_t *);
 extern ni_bridge_t *	ni_bridge_new(void);
 extern void		ni_bridge_free(ni_bridge_t *);
 extern void		ni_bridge_status_destroy(ni_bridge_status_t *);

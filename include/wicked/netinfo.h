@@ -369,7 +369,6 @@ extern void		ni_route_free(ni_route_t *);
 extern int		ni_route_equal(const ni_route_t *, const ni_route_t *);
 extern const char *	ni_route_print(const ni_route_t *);
 
-extern int		ni_vlan_bind(ni_interface_t *, ni_handle_t *);
 extern int		ni_vlan_bind_ifindex(ni_vlan_t *, ni_handle_t *);
 extern void		ni_vlan_free(ni_vlan_t *);
 extern ni_vlan_t *	ni_vlan_clone(const ni_vlan_t *);
