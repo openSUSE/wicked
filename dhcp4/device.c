@@ -77,6 +77,12 @@ ni_dhcp_device_close(ni_dhcp_device_t *dev)
 		close(dev->listen_fd);
 	dev->listen_fd = -1;
 
+	if (dev->fsm.timer) {
+		ni_warn("%s: timer active for %s", __func__, dev->ifname);
+		ni_timer_cancel(dev->fsm.timer);
+		dev->fsm.timer = NULL;
+	}
+
 	ni_dhcp_device_arp_close(dev);
 }
 
