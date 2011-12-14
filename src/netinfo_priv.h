@@ -96,8 +96,7 @@ struct ni_syntax {
 	int			(*get_nis)(ni_syntax_t *, ni_nis_info_t *);
 	int			(*put_nis)(ni_syntax_t *, const ni_nis_info_t *);
 
-	xml_node_t *		(*xml_from_interface)(ni_syntax_t *, ni_netconfig_t *, const ni_interface_t *,
-						xml_node_t *parent);
+	xml_node_t *		(*xml_from_interface)(ni_syntax_t *, const ni_interface_t *, xml_node_t *parent);
 	ni_interface_t *	(*xml_to_interface)(ni_syntax_t *, ni_netconfig_t *, xml_node_t *);
 
 	xml_node_t *		(*xml_from_interface_stats)(ni_syntax_t *, ni_netconfig_t *, const ni_interface_t *, xml_node_t *);

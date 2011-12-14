@@ -30,27 +30,21 @@ static int		__ni_netcf_xml_to_bridge(ni_syntax_t *, ni_netconfig_t *,
 					ni_interface_t *, xml_node_t *);
 static int		__ni_netcf_xml_to_bonding(ni_syntax_t *, ni_netconfig_t *,
 					ni_interface_t *, xml_node_t *);
-static int		__ni_netcf_xml_to_static_ifcfg(ni_syntax_t *syntax, ni_netconfig_t *nc,
-				int af, ni_interface_t *ifp, xml_node_t *protnode);
+static int		__ni_netcf_xml_to_static_ifcfg(ni_syntax_t *syntax, int af,
+					ni_interface_t *ifp, xml_node_t *protnode);
 
-static xml_node_t *	__ni_netcf_xml_from_interface(ni_syntax_t *, ni_netconfig_t *,
-				const ni_interface_t *, xml_node_t *);
-static void		__ni_netcf_xml_from_address_config(ni_syntax_t *syntax, ni_netconfig_t *nc,
+static xml_node_t *	__ni_netcf_xml_from_interface(ni_syntax_t *, const ni_interface_t *, xml_node_t *);
+static void		__ni_netcf_xml_from_address_config(ni_syntax_t *syntax,
 				const ni_afinfo_t *afi,
 				const ni_interface_t *ifp, xml_node_t *ifnode);
-static xml_node_t *	__ni_netcf_xml_from_static_ifcfg(ni_syntax_t *syntax, ni_netconfig_t *nc,
+static xml_node_t *	__ni_netcf_xml_from_static_ifcfg(ni_syntax_t *syntax,
 				int af, const ni_interface_t *ifp, xml_node_t *);
 static void		__ni_netcf_xml_from_route(ni_route_t *, xml_node_t *);
-static void		__ni_netcf_xml_from_bridge(ni_syntax_t *syntax, ni_netconfig_t *nc,
-				ni_bridge_t *bridge, xml_node_t *);
-static void		__ni_netcf_xml_from_bridge_config(ni_bridge_t *, const char *,
-				xml_node_t *);
-static void		__ni_netcf_xml_from_bridge_port_config(ni_bridge_t *, const char *,
-				const char *, xml_node_t *);
-static void		__ni_netcf_xml_from_bonding(ni_syntax_t *syntax, ni_netconfig_t *nc,
-				ni_bonding_t *bonding, xml_node_t *);
-static void		__ni_netcf_xml_from_vlan(ni_syntax_t *syntax, ni_netconfig_t *nc,
-				ni_vlan_t *vlan, xml_node_t *fp);
+static void		__ni_netcf_xml_from_bridge(ni_syntax_t *syntax, ni_bridge_t *bridge, xml_node_t *);
+static void		__ni_netcf_xml_from_bridge_config(ni_bridge_t *, const char *, xml_node_t *);
+static void		__ni_netcf_xml_from_bridge_port_config(ni_bridge_t *, const char *, const char *, xml_node_t *);
+static void		__ni_netcf_xml_from_bonding(ni_syntax_t *syntax, ni_bonding_t *bonding, xml_node_t *);
+static void		__ni_netcf_xml_from_vlan(ni_syntax_t *syntax, ni_vlan_t *vlan, xml_node_t *fp);
 static xml_node_t *	__ni_netcf_xml_from_interface_stats(ni_syntax_t *, ni_netconfig_t *,
 				const ni_interface_t *, xml_node_t *);
 
@@ -303,7 +297,7 @@ __ni_netcf_xml_to_interface(ni_syntax_t *syntax, ni_netconfig_t *nc, xml_node_t 
 		}
 
 		/* Pull in static configuration */
-		if (__ni_netcf_xml_to_static_ifcfg(syntax, nc, afi->family, ifp, node))
+		if (__ni_netcf_xml_to_static_ifcfg(syntax, afi->family, ifp, node))
 			return NULL;
 		ni_afinfo_addrconf_enable(afi, NI_ADDRCONF_STATIC);
 	}
@@ -562,8 +556,7 @@ __ni_netcf_xml_to_address(xml_node_t *node, int af,
 }
 
 int
-__ni_netcf_xml_to_static_ifcfg(ni_syntax_t *syntax, ni_netconfig_t *nc,
-			int af, ni_interface_t *ifp, xml_node_t *protnode)
+__ni_netcf_xml_to_static_ifcfg(ni_syntax_t *syntax, int af, ni_interface_t *ifp, xml_node_t *protnode)
 {
 	xml_node_t *node;
 
@@ -622,8 +615,7 @@ __ni_netcf_xml_to_static_ifcfg(ni_syntax_t *syntax, ni_netconfig_t *nc,
  * Build XML structure for a given interface
  */
 xml_node_t *
-__ni_netcf_xml_from_interface(ni_syntax_t *syntax, ni_netconfig_t *nc,
-			const ni_interface_t *ifp, xml_node_t *parent)
+__ni_netcf_xml_from_interface(ni_syntax_t *syntax, const ni_interface_t *ifp, xml_node_t *parent)
 {
 	xml_node_t *ifnode, *node;
 
@@ -677,15 +669,15 @@ __ni_netcf_xml_from_interface(ni_syntax_t *syntax, ni_netconfig_t *nc,
 		xml_node_add_attr(node, "address", ni_link_address_print(&ifp->link.hwaddr));
 	}
 
-	__ni_netcf_xml_from_address_config(syntax, nc, &ifp->ipv4, ifp, ifnode);
-	__ni_netcf_xml_from_address_config(syntax, nc, &ifp->ipv6, ifp, ifnode);
+	__ni_netcf_xml_from_address_config(syntax, &ifp->ipv4, ifp, ifnode);
+	__ni_netcf_xml_from_address_config(syntax, &ifp->ipv6, ifp, ifnode);
 
 	if (ifp->bridge)
-		__ni_netcf_xml_from_bridge(syntax, nc, ifp->bridge, ifnode);
+		__ni_netcf_xml_from_bridge(syntax, ifp->bridge, ifnode);
 	if (ifp->bonding)
-		__ni_netcf_xml_from_bonding(syntax, nc, ifp->bonding, ifnode);
+		__ni_netcf_xml_from_bonding(syntax, ifp->bonding, ifnode);
 	if (ifp->link.vlan)
-		__ni_netcf_xml_from_vlan(syntax, nc, ifp->link.vlan, ifnode);
+		__ni_netcf_xml_from_vlan(syntax, ifp->link.vlan, ifnode);
 	if (ifp->ethernet)
 		__ni_netcf_xml_from_ethernet(syntax, ifp->ethernet, ifnode);
 	if (ifp->wireless)
@@ -725,8 +717,7 @@ __ni_netcf_make_protocol_node(xml_node_t *ifnode, int af)
  * (static, with all addresses used; or DHCP; or possibly others too)
  */
 static void
-__ni_netcf_xml_from_address_config(ni_syntax_t *syntax, ni_netconfig_t *nc,
-			const ni_afinfo_t *afi,
+__ni_netcf_xml_from_address_config(ni_syntax_t *syntax, const ni_afinfo_t *afi,
 			const ni_interface_t *ifp, xml_node_t *ifnode)
 {
 	xml_node_t *protnode = NULL;
@@ -734,7 +725,7 @@ __ni_netcf_xml_from_address_config(ni_syntax_t *syntax, ni_netconfig_t *nc,
 
 	if (afi->enabled) {
 		if (ni_afinfo_addrconf_test(afi, NI_ADDRCONF_STATIC))
-			protnode = __ni_netcf_xml_from_static_ifcfg(syntax, nc, afi->family, ifp, ifnode);
+			protnode = __ni_netcf_xml_from_static_ifcfg(syntax, afi->family, ifp, ifnode);
 
 		if (!protnode)
 			protnode = __ni_netcf_make_protocol_node(ifnode, afi->family);
@@ -769,7 +760,7 @@ __ni_netcf_xml_from_address_config(ni_syntax_t *syntax, ni_netconfig_t *nc,
 }
 
 static xml_node_t *
-__ni_netcf_xml_from_static_ifcfg(ni_syntax_t *syntax, ni_netconfig_t *nc, int af,
+__ni_netcf_xml_from_static_ifcfg(ni_syntax_t *syntax, int af,
 			const ni_interface_t *ifp, xml_node_t *ifnode)
 {
 	xml_node_t *protnode = NULL;
@@ -792,12 +783,14 @@ __ni_netcf_xml_from_static_ifcfg(ni_syntax_t *syntax, ni_netconfig_t *nc, int af
 			xml_node_add_attr(addrnode, "peer", ni_address_print(&ap->peer_addr));
 		xml_node_add_attr_uint(addrnode, "prefix", ap->prefixlen);
 
+#ifdef notdef
 		for (rp = nc->routes; rp; rp = rp->next) {
 			// FIXME: this check works for IPv4 only;
 			// IPv6 routing is different.
 			if (ni_address_can_reach(ap, &rp->nh.gateway))
 				rp->seq = __ni_global_seqno;
 		}
+#endif
 	}
 
 	if (protnode) {
@@ -809,6 +802,8 @@ __ni_netcf_xml_from_static_ifcfg(ni_syntax_t *syntax, ni_netconfig_t *nc, int af
 			if (rp->family == af)
 				__ni_netcf_xml_from_route(rp, protnode);
 		}
+
+#ifdef notdef
 		for (rp = nc->routes; rp; rp = rp->next) {
 			/* strict netcf: ignore non-default routes; we cannot map these. */
 			if (syntax->strict && rp->prefixlen != 0)
@@ -816,6 +811,7 @@ __ni_netcf_xml_from_static_ifcfg(ni_syntax_t *syntax, ni_netconfig_t *nc, int af
 			if (rp->seq == __ni_global_seqno)
 				__ni_netcf_xml_from_route(rp, protnode);
 		}
+#endif
 	}
 
 	return protnode;
@@ -905,8 +901,7 @@ __ni_netcf_xml_from_bridge_status(ni_bridge_t *bridge, xml_node_t *brnode)
 }
 
 static void
-__ni_netcf_xml_from_bridge(ni_syntax_t *syntax, ni_netconfig_t *nc,
-				ni_bridge_t *bridge, xml_node_t *ifnode)
+__ni_netcf_xml_from_bridge(ni_syntax_t *syntax, ni_bridge_t *bridge, xml_node_t *ifnode)
 {
 	xml_node_t *brnode;
 	unsigned int i;
@@ -945,8 +940,7 @@ __ni_netcf_xml_from_bridge(ni_syntax_t *syntax, ni_netconfig_t *nc,
  * Generate XML representation of a bonding configuration
  */
 void
-__ni_netcf_xml_from_bonding(ni_syntax_t *syntax, ni_netconfig_t *nc,
-			ni_bonding_t *bonding, xml_node_t *ifnode)
+__ni_netcf_xml_from_bonding(ni_syntax_t *syntax, ni_bonding_t *bonding, xml_node_t *ifnode)
 {
 	xml_node_t *bdnode;
 	unsigned int i, j;
@@ -1001,8 +995,7 @@ __ni_netcf_xml_from_bonding(ni_syntax_t *syntax, ni_netconfig_t *nc,
  * Generate XML representation of a VLAN configuration
  */
 static void
-__ni_netcf_xml_from_vlan(ni_syntax_t *syntax, ni_netconfig_t *nc, ni_vlan_t *vlan,
-			xml_node_t *ifnode)
+__ni_netcf_xml_from_vlan(ni_syntax_t *syntax, ni_vlan_t *vlan, xml_node_t *ifnode)
 {
 	xml_node_t *vlnode;
 
@@ -1164,15 +1157,12 @@ __ni_netcf_xml_from_lease(ni_syntax_t *syntax, const ni_addrconf_lease_t *lease,
 		__ni_netcf_xml_from_nis(syntax, lease->nis, node);
 
 	{
-		ni_netconfig_t dummy_handle;
 		ni_interface_t dummy;
 
-		memset(&dummy_handle, 0, sizeof(dummy_handle));
 		memset(&dummy, 0, sizeof(dummy));
 		dummy.addrs = lease->addrs;
 		dummy.routes = lease->routes;
-		__ni_netcf_xml_from_static_ifcfg(syntax, &dummy_handle,
-				lease->family, &dummy, node);
+		__ni_netcf_xml_from_static_ifcfg(syntax, lease->family, &dummy, node);
 	}
 
 	/* Convert protocol specific data to xml */
@@ -1240,7 +1230,6 @@ __ni_netcf_xml_to_lease(ni_syntax_t *syntax, const xml_node_t *node)
 
 	/* Hunt for "protocol" children */
 	for (prot = node->children; prot; prot = prot->next) {
-		ni_netconfig_t dummy_netconfig;
 		ni_interface_t dummy;
 		int af;
 
@@ -1259,9 +1248,8 @@ __ni_netcf_xml_to_lease(ni_syntax_t *syntax, const xml_node_t *node)
 		}
 
 		/* We need this freaking handle only for the seqno thing :-( */
-		memset(&dummy_netconfig, 0, sizeof(dummy_netconfig));
 		memset(&dummy, 0, sizeof(dummy));
-		if (__ni_netcf_xml_to_static_ifcfg(syntax, &dummy_netconfig, af, &dummy, prot))
+		if (__ni_netcf_xml_to_static_ifcfg(syntax, af, &dummy, prot))
 			goto failed;
 
 		lease->addrs = dummy.addrs;
@@ -1555,12 +1543,8 @@ __ni_netcf_xml_from_policy(ni_syntax_t *syntax, const ni_policy_t *policy, xml_n
 	xml_node_add_attr(node, "event", event_name);
 
 	if (policy->interface) {
-		ni_netconfig_t dummy_netconfig;
-
-		memset(&dummy_netconfig, 0, sizeof(dummy_netconfig));
-		if (__ni_netcf_xml_from_interface(syntax, &dummy_netconfig, policy->interface, node) < 0) {
+		if (__ni_netcf_xml_from_interface(syntax, policy->interface, node) < 0)
 			return NULL;
-		}
 	}
 	return node;
 }

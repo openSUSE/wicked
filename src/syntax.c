@@ -264,7 +264,7 @@ ni_syntax_put_one_interface(ni_syntax_t *syntax, ni_netconfig_t *nc, ni_interfac
 
 		doc = xml_document_new();
 
-		if (!syntax->xml_from_interface(syntax, nc, ifp, doc->root))
+		if (!syntax->xml_from_interface(syntax, ifp, doc->root))
 			goto error;
 
 		if (outfile) {
@@ -302,7 +302,7 @@ ni_syntax_xml_from_interface(ni_syntax_t *syntax, ni_netconfig_t *nc, const ni_i
 		error("%s: syntax not capable of creating xml for interface", __FUNCTION__);
 		return NULL;
 	}
-	return syntax->xml_from_interface(syntax, nc, ifp, NULL);
+	return syntax->xml_from_interface(syntax, ifp, NULL);
 }
 
 ni_interface_t *
@@ -482,7 +482,7 @@ ni_syntax_xml_from_all(ni_syntax_t *syntax, ni_netconfig_t *nc)
 
 	/* Produce all interfaces */
 	for (ifp = nc->interfaces; ifp; ifp = ifp->next) {
-		if (syntax->xml_from_interface(syntax, nc, ifp, root) == NULL)
+		if (syntax->xml_from_interface(syntax, ifp, root) == NULL)
 			goto error;
 	}
 
