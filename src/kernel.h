@@ -64,8 +64,7 @@ struct ni_nlmsg_list {
 };
 
 extern int	ni_nl_talk(struct nl_msg *);
-extern int	ni_nl_dump_store(struct ni_handle *nih, int af, int type,
-			struct ni_nlmsg_list *list);
+extern int	ni_nl_dump_store(int af, int type, struct ni_nlmsg_list *list);
 
 extern void	ni_nlmsg_list_init(struct ni_nlmsg_list *);
 extern void	ni_nlmsg_list_destroy(struct ni_nlmsg_list *);

@@ -337,7 +337,6 @@ ni_nl_talk(struct nl_msg *msg)
  * Helper functions for storing all netlink responses in a list
  */
 struct __ni_nl_dump_state {
-	ni_handle_t *		nih;
 	int			msg_type;
 	unsigned int		hdrlen;
 	struct ni_nlmsg_list *	list;
@@ -418,12 +417,10 @@ __ni_nl_dump_valid(struct nl_msg *msg, void *p)
  * Issue a DUMP request and store all replies in list
  */
 int
-ni_nl_dump_store(ni_handle_t *nih, int af, int type,
-			struct ni_nlmsg_list *list)
+ni_nl_dump_store(int af, int type, struct ni_nlmsg_list *list)
 {
 	struct nl_handle *handle;
 	struct __ni_nl_dump_state data = {
-		.nih = nih,
 		.msg_type = -1,
 		.list = list,
 	};

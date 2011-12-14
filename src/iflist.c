@@ -64,10 +64,10 @@ struct ni_rtnl_query {
  * Query netlink for all relevant information
  */
 static inline int
-__ni_rtnl_query(ni_handle_t *nih, struct ni_rtnl_info *qr, int af, int type)
+__ni_rtnl_query(struct ni_rtnl_info *qr, int af, int type)
 {
 	ni_nlmsg_list_init(&qr->nlmsg_list);
-	if (ni_nl_dump_store(nih, af, type, &qr->nlmsg_list) < 0)
+	if (ni_nl_dump_store(af, type, &qr->nlmsg_list) < 0)
 		return -1;
 
 	qr->entry = qr->nlmsg_list.head;
@@ -102,10 +102,10 @@ ni_rtnl_query(ni_handle_t *nih, struct ni_rtnl_query *q, int ifindex)
 	memset(q, 0, sizeof(*q));
 	q->ifindex = ifindex;
 
-	if (__ni_rtnl_query(nih, &q->link_info, AF_UNSPEC, RTM_GETLINK) < 0
-	 || __ni_rtnl_query(nih, &q->ipv6_info, AF_INET6, RTM_GETLINK) < 0
-	 || __ni_rtnl_query(nih, &q->addr_info, AF_UNSPEC, RTM_GETADDR) < 0
-	 || __ni_rtnl_query(nih, &q->route_info, AF_UNSPEC, RTM_GETROUTE) < 0) {
+	if (__ni_rtnl_query(&q->link_info, AF_UNSPEC, RTM_GETLINK) < 0
+	 || __ni_rtnl_query(&q->ipv6_info, AF_INET6, RTM_GETLINK) < 0
+	 || __ni_rtnl_query(&q->addr_info, AF_UNSPEC, RTM_GETADDR) < 0
+	 || __ni_rtnl_query(&q->route_info, AF_UNSPEC, RTM_GETROUTE) < 0) {
 		ni_rtnl_query_destroy(q);
 		return -1;
 	}
@@ -119,7 +119,7 @@ ni_rtnl_query_link(ni_handle_t *nih, struct ni_rtnl_query *q, int ifindex)
 	memset(q, 0, sizeof(*q));
 	q->ifindex = ifindex;
 
-	if (__ni_rtnl_query(nih, &q->link_info, AF_UNSPEC, RTM_GETLINK) < 0) {
+	if (__ni_rtnl_query(&q->link_info, AF_UNSPEC, RTM_GETLINK) < 0) {
 		ni_rtnl_query_destroy(q);
 		return -1;
 	}
