@@ -144,8 +144,10 @@ __ni_generic_policy_update(ni_handle_t *nih, const ni_policy_t *new_policy, ni_p
 int
 ni_policy_update(ni_handle_t *nih, const ni_policy_t *new_policy)
 {
+#if 0
 	if (nih->op->policy_update)
 		return nih->op->policy_update(nih, new_policy);
+#endif
 
 	ni_error("ni_policy_update: not supported by this handle");
 	return -1;

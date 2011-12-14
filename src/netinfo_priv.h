@@ -48,10 +48,6 @@ struct ni_ops {
 	int			(*update_lease)(ni_handle_t *, ni_interface_t *, ni_addrconf_lease_t *);
 
 	int			(*interface_stats_refresh)(ni_handle_t *, ni_interface_t *);
-	int			(*request_scan)(ni_handle_t *, ni_interface_t *);
-	int			(*get_scan_results)(ni_handle_t *, ni_interface_t *);
-
-	int			(*policy_update)(ni_handle_t *, const ni_policy_t *);
 
 	void			(*close)(ni_handle_t *);
 };

@@ -629,23 +629,15 @@ ni_interface_stats_refresh(ni_handle_t *nih, ni_interface_t *ifp)
 int
 ni_interface_request_scan(ni_handle_t *nih, ni_interface_t *ifp)
 {
-	if (nih->op->request_scan == NULL) {
-		ni_error("cannot initiate wireless scan; not supported by this handle");
-		return -1;
-	}
-
-	return nih->op->request_scan(nih, ifp);
+	ni_error("cannot initiate wireless scan; not supported by this handle");
+	return -1;
 }
 
 int
 ni_interface_get_scan_results(ni_handle_t *nih, ni_interface_t *ifp)
 {
-	if (nih->op->get_scan_results == NULL) {
-		ni_error("cannot initiate wireless scan; not supported by this handle");
-		return -1;
-	}
-
-	return nih->op->get_scan_results(nih, ifp);
+	ni_error("cannot initiate wireless scan; not supported by this handle");
+	return -1;
 }
 
 /*

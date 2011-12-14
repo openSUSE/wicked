@@ -14,8 +14,6 @@
 
 #define CONFIG_WICKED_BACKUP_DIR	CONFIG_WICKED_STATEDIR "/backup"
 
-static int		__ni_system_interface_request_scan(ni_handle_t *, ni_interface_t *);
-static int		__ni_system_interface_get_scan_results(ni_handle_t *, ni_interface_t *);
 static void		__ni_system_close(ni_handle_t *nih);
 
 static struct ni_ops ni_state_ops = {
@@ -24,8 +22,6 @@ static struct ni_ops ni_state_ops = {
 	.delete_interface	= __ni_system_interface_delete,
 	.update_lease		= __ni_system_interface_update_lease,
 	.interface_stats_refresh= __ni_system_interface_stats_refresh,
-	.request_scan		= __ni_system_interface_request_scan,
-	.get_scan_results	= __ni_system_interface_get_scan_results,
 	.close			= __ni_system_close,
 };
 
@@ -55,12 +51,12 @@ ni_state_open(void)
 	return nih;
 }
 
-static int
-__ni_system_interface_request_scan(ni_handle_t *nih, ni_interface_t *ifp)
+int
+__ni_system_interface_request_scan(ni_interface_t *ifp)
 {
 	switch (ifp->link.type) {
 	case NI_IFTYPE_WIRELESS:
-		return __ni_wireless_request_scan(nih, ifp);
+		return __ni_wireless_request_scan(NULL, ifp);
 
 	default:
 		ni_error("%s: scanning not supported for this interface", ifp->name);
@@ -68,12 +64,12 @@ __ni_system_interface_request_scan(ni_handle_t *nih, ni_interface_t *ifp)
 	}
 }
 
-static int
-__ni_system_interface_get_scan_results(ni_handle_t *nih, ni_interface_t *ifp)
+int
+__ni_system_interface_get_scan_results(ni_interface_t *ifp)
 {
 	switch (ifp->link.type) {
 	case NI_IFTYPE_WIRELESS:
-		return __ni_wireless_get_scan_results(nih, ifp);
+		return __ni_wireless_get_scan_results(NULL, ifp);
 
 	default:
 		ni_error("%s: scanning not supported for this interface", ifp->name);
