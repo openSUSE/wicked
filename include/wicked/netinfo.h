@@ -254,13 +254,8 @@ extern void		ni_netconfig_destroy(ni_netconfig_t *);
 
 extern ni_handle_t *	ni_global_state_handle(int);
 
-extern int		ni_interface_refresh_one(ni_handle_t *, const char *);
-extern int		ni_create_topology(ni_handle_t *);
-extern void		ni_close(ni_handle_t *);
-extern unsigned int	ni_handle_seq(ni_handle_t *);
-
 /* Error reporting */
-extern void		ni_bad_reference(ni_handle_t *, const ni_interface_t *, const char *);
+extern void		ni_bad_reference(const ni_interface_t *, const char *);
 
 extern ni_syntax_t *	ni_syntax_new(const char *schema, const char *pathname);
 extern void		ni_syntax_free(ni_syntax_t *);
@@ -290,7 +285,7 @@ extern int		ni_interface_up(ni_handle_t *, ni_interface_t *, const ni_interface_
 extern int		ni_interface_down(ni_handle_t *, ni_interface_t *);
 extern int		ni_interface_configure(ni_handle_t *, const ni_interface_t *);
 extern int		ni_interface_configure2(ni_handle_t *, ni_interface_t *, const ni_interface_t *);
-extern int		ni_interface_set_lease(ni_handle_t *, ni_interface_t *, ni_addrconf_lease_t *);
+extern int		ni_interface_set_lease(ni_interface_t *, ni_addrconf_lease_t *);
 extern int		ni_interface_stats_refresh(ni_handle_t *, ni_interface_t *);
 extern int		ni_interface_request_scan(ni_handle_t *, ni_interface_t *);
 extern int		ni_interface_get_scan_results(ni_handle_t *, ni_interface_t *);
@@ -308,7 +303,7 @@ extern int		ni_interface_create_bond(ni_handle_t *nih, const char *ifname,
 extern int		ni_interface_delete_bond(ni_handle_t *nih, ni_interface_t *ifp);
 extern int		ni_interface_delete(ni_handle_t *, const char *);
 
-extern ni_route_t *	ni_interface_add_route(ni_handle_t *, ni_interface_t *,
+extern ni_route_t *	ni_interface_add_route(ni_interface_t *,
 				unsigned int prefix_len,
 				const ni_sockaddr_t *dest,
 				const ni_sockaddr_t *gw);

@@ -23,15 +23,15 @@ static struct ni_ops ni_state_ops = {
 ni_handle_t *
 ni_state_open(void)
 {
+	ni_netlink_t *netlink;
 	ni_handle_t *nih;
 
-	nih = __ni_handle_new(sizeof(*nih), &ni_state_ops);
-
-	nih->netlink = __ni_netlink_open(0);
-	if (nih->netlink == NULL) {
-		ni_close(nih);
+	netlink = __ni_netlink_open(0);
+	if (netlink == NULL)
 		return NULL;
-	}
+
+	nih = __ni_handle_new(sizeof(*nih), &ni_state_ops);
+	nih->netlink = netlink;
 
 	return nih;
 }

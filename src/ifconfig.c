@@ -325,7 +325,7 @@ __ni_system_interface_update_lease(ni_interface_t *ifp, ni_addrconf_lease_t *lea
 		return res;
 	}
 
-	ni_interface_set_lease(nih, ifp, lease);
+	ni_interface_set_lease(ifp, lease);
 	ni_system_update_from_lease(nih, ifp, lease);
 
 	return 0;
@@ -1971,7 +1971,7 @@ __ni_interface_addrconf_dummy(ni_handle_t *nih, ni_interface_t *ifp, int family,
 			ni_debug_ifconfig("%s: disabling %s/%s", ifp->name,
 					ni_addrfamily_type_to_name(family),
 					ni_addrconf_type_to_name(mode));
-			ni_interface_set_lease(nih, ifp, NULL);
+			ni_interface_set_lease(ifp, NULL);
 		}
 		return 0;
 	}
@@ -1982,7 +1982,7 @@ __ni_interface_addrconf_dummy(ni_handle_t *nih, ni_interface_t *ifp, int family,
 				ni_addrfamily_type_to_name(family));
 		lease = ni_addrconf_lease_new(mode, family);
 		lease->state = NI_ADDRCONF_STATE_GRANTED;
-		ni_interface_set_lease(nih, ifp, lease);
+		ni_interface_set_lease(ifp, lease);
 		ni_afinfo_addrconf_enable(cur_afi, mode);
 	}
 	return 0;

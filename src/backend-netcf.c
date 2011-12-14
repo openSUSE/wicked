@@ -604,7 +604,7 @@ __ni_netcf_xml_to_static_ifcfg(ni_syntax_t *syntax, int af, ni_interface_t *ifp,
 		if (__ni_netcf_xml_to_address(node, af, "gateway", &gw_addr, NULL, NULL))
 			return -1;
 
-		ni_interface_add_route(NULL, ifp, prefixlen, &dest_addr, &gw_addr);
+		ni_interface_add_route(ifp, prefixlen, &dest_addr, &gw_addr);
 	}
 
 

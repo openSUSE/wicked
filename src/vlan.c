@@ -85,7 +85,7 @@ ni_vlan_bind(ni_interface_t *ifp, ni_handle_t *nih)
 
 	child = ni_interface_by_name(nih, vlan->physdev_name);
 	if (!child) {
-		ni_bad_reference(nih, ifp, vlan->physdev_name);
+		ni_bad_reference(ifp, vlan->physdev_name);
 		return -1;
 	}
 	vlan->interface_dev = ni_interface_get(child);

@@ -529,7 +529,7 @@ ni_bridge_bind(ni_interface_t *parent, ni_handle_t *nih)
 
 		slave = ni_interface_by_name(nih, ifname);
 		if (slave == NULL) {
-			ni_bad_reference(nih, parent, ifname);
+			ni_bad_reference(parent, ifname);
 			return -1;
 		}
 

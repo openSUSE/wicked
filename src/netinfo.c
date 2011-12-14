@@ -170,42 +170,6 @@ __ni_handle_new(size_t size, struct ni_ops *ops)
 	return nih;
 }
 
-void
-ni_close(ni_handle_t *nih)
-{
-	if (nih->op->close)
-		nih->op->close(nih);
-
-	ni_route_list_destroy(&nih->routes);
-	__ni_interfaces_clear(nih);
-
-	ni_policy_info_destroy(&nih->policy);
-
-	nih->op = NULL;
-	free(nih);
-}
-
-unsigned int
-ni_handle_seq(ni_handle_t *nih)
-{
-	return nih->seqno;
-}
-
-/*
- * Dummy ni_handle - this can be used to convert XML to an
- * interface description, which is then manipulated further.
- */
-static struct ni_ops ni_dummy_ops = {
-	/* No operations defined */
-};
-
-ni_handle_t *
-ni_dummy_open(void)
-{
-	return __ni_handle_new(sizeof(ni_handle_t), &ni_dummy_ops);
-}
-
-
 /*
  * Map interface link layer types to strings and vice versa
  */
@@ -555,54 +519,10 @@ ni_iftype_to_arphrd_type(unsigned int iftype)
 }
 
 /*
- * Configure an interface.
- */
-#if 0
-int
-ni_interface_configure(ni_handle_t *nih, const ni_interface_t *cfg)
-{
-	if (nih->op->configure_interface == NULL) {
-		ni_error("cannot configure interface; not supported by this handle");
-		return -1;
-	}
-
-	return nih->op->configure_interface(nih, NULL, cfg);
-}
-
-int
-ni_interface_configure2(ni_handle_t *nih, ni_interface_t *change_if, const ni_interface_t *cfg)
-{
-	if (nih->op->configure_interface == NULL) {
-		ni_error("cannot configure interface; not supported by this handle");
-		return -1;
-	}
-
-	return nih->op->configure_interface(nih, change_if, cfg);
-}
-#endif
-
-/*
- * Trigger wireless scan
- */
-int
-ni_interface_request_scan(ni_handle_t *nih, ni_interface_t *ifp)
-{
-	ni_error("cannot initiate wireless scan; not supported by this handle");
-	return -1;
-}
-
-int
-ni_interface_get_scan_results(ni_handle_t *nih, ni_interface_t *ifp)
-{
-	ni_error("cannot initiate wireless scan; not supported by this handle");
-	return -1;
-}
-
-/*
  * We received an updated lease from an addrconf agent.
  */
 int
-ni_interface_set_lease(ni_handle_t *nih, ni_interface_t *ifp, ni_addrconf_lease_t *lease)
+ni_interface_set_lease(ni_interface_t *ifp, ni_addrconf_lease_t *lease)
 {
 	ni_afinfo_t *afi;
 
@@ -737,62 +657,14 @@ __ni_lease_owns_route(const ni_addrconf_lease_t *lease, const ni_route_t *rp)
 	return NULL;
 }
 
-#if 0
-/*
- * Delete an interface, by removing its configuration file, or
- * by destroying the kernel network interface (only possible for
- * virtual interfaces like bridges, bonds or VLANs
- */
-int
-ni_interface_delete(ni_handle_t *nih, const char *ifname)
-{
-	if (nih->op->delete_interface == NULL) {
-		error("cannot delete interface; not supported by this handle");
-		return -1;
-	}
-
-	return nih->op->delete_interface(nih, ifname);
-}
-#endif
-
-/*
- * Create the interface topology.
- * For bonds, bridges and VLANs, this looks up the interfaces
- * referred to by the parent interface, and sets the child's
- * parent pointer; and adds the child to the parent's interface
- * pointer list.
- */
-int
-ni_create_topology(ni_handle_t *nih)
-{
-	ni_interface_t *ifp;
-
-	for (ifp = nih->iflist; ifp; ifp = ifp->next)
-		ifp->parent = NULL;
-
-	for (ifp = nih->iflist; ifp; ifp = ifp->next) {
-		if (ifp->bridge && ni_bridge_bind(ifp, nih) < 0)
-			return -1;
-		if (ifp->bonding && ni_bonding_bind(ifp, nih) < 0)
-			return -1;
-		if (ifp->link.vlan && ni_vlan_bind(ifp, nih) < 0)
-			return -1;
-	}
-
-	return 0;
-}
-
 /*
  * Error handling.
- * This needs to be expanded so that we save the error information
- * somewhere inside the ni_handle_t, so that the caller
- * can extract that error info.
+ * This is crap, kill it.
  */
 void
-ni_bad_reference(ni_handle_t *nih, const ni_interface_t *referrer, const char *ifname)
+ni_bad_reference(const ni_interface_t *referrer, const char *ifname)
 {
-	error("Error: %s references unknown interface %s",
-		referrer->name, ifname);
+	ni_error("%s references unknown interface %s", referrer->name, ifname);
 }
 
 /*
@@ -959,7 +831,7 @@ ni_interface_get_addresses(ni_interface_t *ifp, int af)
 }
 
 ni_route_t *
-ni_interface_add_route(ni_handle_t *nih, ni_interface_t *ifp,
+ni_interface_add_route(ni_interface_t *ifp,
 				unsigned int prefix_len,
 				const ni_sockaddr_t *dest,
 				const ni_sockaddr_t *gw)
@@ -1138,12 +1010,6 @@ ni_interface_array_destroy(ni_interface_array_t *array)
 	memset(array, 0, sizeof(*array));
 }
 
-void
-__ni_interfaces_clear(ni_handle_t *nih)
-{
-	__ni_interface_list_destroy(&nih->iflist);
-}
-
 /*
  * Get the list of all discovered interfaces, given a
  * netinfo handle.
@@ -1234,27 +1100,6 @@ ni_interface_by_vlan_tag(ni_handle_t *nih, uint16_t tag)
 	}
 
 	return NULL;
-}
-
-/*
- * Helper functions to iterate over all interfaces
- */
-ni_interface_t *
-ni_interface_first(ni_handle_t *nih, ni_interface_t **pos)
-{
-	ni_interface_t *ifp = nih->iflist;
-
-	*pos = ifp? ifp->next : NULL;
-	return ifp;
-}
-
-ni_interface_t *
-ni_interface_next(ni_handle_t *nih, ni_interface_t **pos)
-{
-	ni_interface_t *ifp = *pos;
-
-	*pos = ifp? ifp->next : NULL;
-	return ifp;
 }
 
 /*

@@ -1006,7 +1006,7 @@ __ni_interface_process_newroute(ni_interface_t *ifp, struct nlmsghdr *h,
 
 	rp = NULL;
 	if (ifp) {
-		rp = ni_interface_add_route(nih, ifp, rtm->rtm_dst_len, &dst_addr, &gw_addr);
+		rp = ni_interface_add_route(ifp, rtm->rtm_dst_len, &dst_addr, &gw_addr);
 	} else if (nih != NULL) {
 		rp = ni_route_new(nih, rtm->rtm_dst_len, &dst_addr, &gw_addr);
 	} else {
