@@ -567,7 +567,7 @@ __ni_netcf_xml_to_static_ifcfg(ni_syntax_t *syntax, ni_netconfig_t *nc,
 {
 	xml_node_t *node;
 
-	nc->seqno++;
+	__ni_global_seqno++;
 
 	for (node = protnode->children; node; node = node->next) {
 		ni_sockaddr_t addr;
@@ -776,7 +776,7 @@ __ni_netcf_xml_from_static_ifcfg(ni_syntax_t *syntax, ni_netconfig_t *nc, int af
 	ni_address_t *ap;
 	ni_route_t *rp;
 
-	nc->seqno++;
+	__ni_global_seqno++;
 	for (ap = ifp->addrs; ap; ap = ap->next) {
 		xml_node_t *addrnode;
 
@@ -796,7 +796,7 @@ __ni_netcf_xml_from_static_ifcfg(ni_syntax_t *syntax, ni_netconfig_t *nc, int af
 			// FIXME: this check works for IPv4 only;
 			// IPv6 routing is different.
 			if (ni_address_can_reach(ap, &rp->nh.gateway))
-				rp->seq = nc->seqno;
+				rp->seq = __ni_global_seqno;
 		}
 	}
 
@@ -813,7 +813,7 @@ __ni_netcf_xml_from_static_ifcfg(ni_syntax_t *syntax, ni_netconfig_t *nc, int af
 			/* strict netcf: ignore non-default routes; we cannot map these. */
 			if (syntax->strict && rp->prefixlen != 0)
 				continue;
-			if (rp->seq == nc->seqno)
+			if (rp->seq == __ni_global_seqno)
 				__ni_netcf_xml_from_route(rp, protnode);
 		}
 	}

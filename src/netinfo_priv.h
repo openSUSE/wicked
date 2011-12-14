@@ -131,6 +131,8 @@ typedef enum {
 	NI_INTERFACE_WIRELESS_SCAN,
 } ni_interface_activity_t;
 
+extern unsigned int	__ni_global_seqno;
+
 extern ni_netlink_t *	__ni_netlink_open(int);
 extern void		__ni_netlink_close(ni_netlink_t *);
 

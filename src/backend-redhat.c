@@ -81,7 +81,7 @@ __ni_redhat_get_interfaces(ni_syntax_t *syntax, ni_netconfig_t *nih)
 
 	/* Wipe out all interface information */
 	__ni_interface_list_destroy(&nih->interfaces);
-	nih->seqno++;
+	__ni_global_seqno++;
 
 	base_dir = ni_syntax_base_path(syntax);
 	if (!ni_sysconfig_scandir(base_dir, "ifcfg-", &files)) {
@@ -140,7 +140,7 @@ __ni_redhat_read_interface(ni_netconfig_t *nih, const char *filename)
 			ni_error("Failed to alloc interface %s", ifname);
 			goto error;
 		}
-	} else if (ifp->seq == nih->seqno) {
+	} else if (ifp->seq == __ni_global_seqno) {
 		ni_error("duplicate definition of interface %s", ifp->name);
 		return NULL;
 	}
@@ -150,7 +150,7 @@ __ni_redhat_read_interface(ni_netconfig_t *nih, const char *filename)
 
 	ni_sysconfig_destroy(sc);
 	ni_string_free(&ifname);
-	ifp->seq = nih->seqno;
+	ifp->seq = __ni_global_seqno;
 	return ifp;
 
 error:
@@ -417,7 +417,7 @@ __ni_redhat_put_interfaces(ni_syntax_t *syntax, ni_netconfig_t *nih, FILE *outfi
 	unsigned int i;
 	ni_interface_t *ifp;
 
-	nih->seqno++;
+	__ni_global_seqno++;
 
 	base_dir = ni_syntax_base_path(syntax);
 	for (ifp = nih->interfaces; ifp; ifp = ifp->next) {

@@ -52,7 +52,6 @@ typedef struct ni_netconfig	ni_netconfig_t;
 struct ni_netconfig {
 	ni_interface_t *	interfaces;
 	struct ni_route *	routes;		/* should kill this */
-	unsigned int		seqno;		/* should kill this */
 };
 
 /*

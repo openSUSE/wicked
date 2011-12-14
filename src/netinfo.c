@@ -41,6 +41,7 @@ static void		__ni_afinfo_destroy(ni_afinfo_t *);
  * Global data for netinfo library
  */
 ni_global_t	ni_global;
+unsigned int	__ni_global_seqno;
 
 /*
  * Global initialization of application
