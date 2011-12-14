@@ -194,7 +194,7 @@ __ni_rtevent_newlink(ni_handle_t *nih, const struct sockaddr_nl *nladdr, struct 
 	}
 
 	if (ifname) {
-		old = ni_interface_by_name(nih, ifname);
+		old = ni_interface_by_name(&nih->netconfig, ifname);
 		if (old && old->link.ifindex != ifi->ifi_index) {
 			/* We probably missed a deletion event. Just clobber the old interface. */
 			ni_warn("linkchange event: found interface %s with different ifindex", ifname);
@@ -202,7 +202,7 @@ __ni_rtevent_newlink(ni_handle_t *nih, const struct sockaddr_nl *nladdr, struct 
 		}
 	}
 
-	old = ni_interface_by_index(nih, ifi->ifi_index);
+	old = ni_interface_by_index(&nih->netconfig, ifi->ifi_index);
 	if (old) {
 		unsigned int new_flags, flags_changed;
 
@@ -295,7 +295,7 @@ __ni_rtevent_newprefix(ni_handle_t *nih, const struct sockaddr_nl *nladdr, struc
 	if (!(pfx = ni_rtnl_prefixmsg(h, RTM_NEWPREFIX)))
 		return -1;
 
-	ifp = ni_interface_by_index(nih, pfx->prefix_ifindex);
+	ifp = ni_interface_by_index(&nih->netconfig, pfx->prefix_ifindex);
 	if (ifp == NULL)
 		return 0;
 

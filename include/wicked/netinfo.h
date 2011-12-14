@@ -263,12 +263,12 @@ extern void		ni_syntax_free(ni_syntax_t *);
 extern ni_syntax_t *	ni_netconfig_default_syntax(const char *root_dir);
 
 extern ni_interface_t *	ni_interfaces(ni_handle_t *nic);
-extern ni_interface_t *	ni_interface_by_name(ni_handle_t *nic, const char *name);
-extern ni_interface_t *	ni_interface_by_index(ni_handle_t *nic, unsigned int index);
-extern ni_interface_t *	ni_interface_by_hwaddr(ni_handle_t *nic, const ni_hwaddr_t *lla);
-extern ni_interface_t *	ni_interface_by_vlan_tag(ni_handle_t *nih, uint16_t tag);
-extern ni_interface_t *	ni_interface_first(ni_handle_t *nic, ni_interface_t **pos);
-extern ni_interface_t *	ni_interface_next(ni_handle_t *nic, ni_interface_t **pos);
+extern ni_netconfig_t *	ni_handle_netconfig(ni_handle_t *nic);
+
+extern ni_interface_t *	ni_interface_by_name(ni_netconfig_t *nic, const char *name);
+extern ni_interface_t *	ni_interface_by_index(ni_netconfig_t *nic, unsigned int index);
+extern ni_interface_t *	ni_interface_by_hwaddr(ni_netconfig_t *nic, const ni_hwaddr_t *lla);
+extern ni_interface_t *	ni_interface_by_vlan_tag(ni_netconfig_t *nih, uint16_t tag);
 
 /* Replace this */
 extern ni_interface_t *	nc_interface_by_name(ni_netconfig_t *nic, const char *name);
@@ -369,7 +369,7 @@ extern void		ni_route_free(ni_route_t *);
 extern int		ni_route_equal(const ni_route_t *, const ni_route_t *);
 extern const char *	ni_route_print(const ni_route_t *);
 
-extern int		ni_vlan_bind_ifindex(ni_vlan_t *, ni_handle_t *);
+extern int		ni_vlan_bind_ifindex(ni_vlan_t *, ni_netconfig_t *);
 extern void		ni_vlan_free(ni_vlan_t *);
 extern ni_vlan_t *	ni_vlan_clone(const ni_vlan_t *);
 

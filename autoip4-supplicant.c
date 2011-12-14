@@ -308,7 +308,7 @@ autoip4_interface_event(ni_handle_t *nih, ni_interface_t *ifp, ni_event_t event)
 	switch (event) {
 	case NI_EVENT_LINK_CREATE:
 		/* check for duplicate ifindex */
-		ofp = ni_interface_by_index(nih, ifp->link.ifindex);
+		ofp = ni_interface_by_index(ni_handle_netconfig(nih), ifp->link.ifindex);
 		if (ofp && ofp != ifp) {
 			ni_warn("duplicate ifindex in link-create event");
 			return;

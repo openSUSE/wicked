@@ -123,7 +123,7 @@ ni_objectmodel_addrconf_path_to_device(const char *path)
 		return NULL;
 	}
 
-	return ni_interface_by_index(nih, ifindex);
+	return ni_interface_by_index(&nih->netconfig, ifindex);
 }
 
 static ni_addrconf_lease_t *

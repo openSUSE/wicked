@@ -56,14 +56,14 @@ __ni_vlan_unbind(ni_vlan_t *vlan)
  * Given an interface index, locate the the base interface
  */
 int
-ni_vlan_bind_ifindex(ni_vlan_t *vlan, ni_handle_t *nih)
+ni_vlan_bind_ifindex(ni_vlan_t *vlan, ni_netconfig_t *nc)
 {
 	ni_interface_t *real_dev;
 
 	if (!vlan)
 		return -1;
 
-	real_dev = ni_interface_by_index(nih, vlan->physdev_index);
+	real_dev = ni_interface_by_index(nc, vlan->physdev_index);
 	if (real_dev == NULL)
 		return -1;
 

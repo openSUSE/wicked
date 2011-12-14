@@ -407,7 +407,7 @@ __ni_system_interface_delete(ni_handle_t *nih, const char *ifname)
 
 	/* FIXME: perform sanity check on configuration data */
 
-	ifp = ni_interface_by_name(nih, ifname);
+	ifp = ni_interface_by_name(&nih->netconfig, ifname);
 	if (ifp == NULL) {
 		error("cannot delete interface %s - not known", ifname);
 		return -1;
@@ -464,7 +464,7 @@ __ni_interface_for_config(ni_handle_t *nih, const ni_interface_t *cfg, ni_interf
 
 	*res = NULL;
 	if (cfg->name) {
-		ifp = ni_interface_by_name(nih, cfg->name);
+		ifp = ni_interface_by_name(&nih->netconfig, cfg->name);
 		if (ifp) {
 			if (cfg->link.hwaddr.len
 			 && !ni_link_address_equal(&ifp->link.hwaddr, &cfg->link.hwaddr))
@@ -475,7 +475,7 @@ __ni_interface_for_config(ni_handle_t *nih, const ni_interface_t *cfg, ni_interf
 	}
 
 	if (cfg->link.hwaddr.len) {
-		ifp = ni_interface_by_hwaddr(nih, &cfg->link.hwaddr);
+		ifp = ni_interface_by_hwaddr(&nih->netconfig, &cfg->link.hwaddr);
 		if (ifp) {
 			if (*res && *res != ifp)
 				return -1;
@@ -501,7 +501,7 @@ __ni_interface_bridge_allports(ni_handle_t *nih, const char *ifname,
 		const char *portname = port_names->data[i];
 		ni_interface_t *pif;
 
-		if (!(pif = ni_interface_by_name(nih, portname)) || pif->link.ifindex == 0) {
+		if (!(pif = ni_interface_by_name(&nih->netconfig, portname)) || pif->link.ifindex == 0) {
 			error("%s: cannot %s - %s not known", ifname, activity, portname);
 			return -1;
 		}
@@ -635,7 +635,7 @@ __ni_interface_vlan_configure(ni_handle_t *nih, const ni_interface_t *cfg, ni_in
 
 		if (!cfg_vlan->physdev_name)
 			return -1;
-		real_dev = ni_interface_by_name(nih, cfg_vlan->physdev_name);
+		real_dev = ni_interface_by_name(&nih->netconfig, cfg_vlan->physdev_name);
 		if (!real_dev || !real_dev->link.ifindex) {
 			error("Cannot bring up VLAN interface %s: %s does not exist",
 					cfg->name, cfg_vlan->physdev_name);
@@ -665,7 +665,7 @@ ni_interface_create_vlan(ni_handle_t *nih, const char *ifname, const ni_vlan_t *
 	ni_interface_t *ifp;
 	ni_vlan_t *cur_vlan = NULL;
 
-	ifp = ni_interface_by_vlan_tag(nih, cfg_vlan->tag);
+	ifp = ni_interface_by_vlan_tag(&nih->netconfig, cfg_vlan->tag);
 	if (ifp != NULL) {
 		ni_error("%s: VLAN interface with tag 0x%x already exists", ifname, cfg_vlan->tag);
 		return -1;
@@ -680,7 +680,7 @@ ni_interface_create_vlan(ni_handle_t *nih, const char *ifname, const ni_vlan_t *
 	/* Refresh interface status */
 	__ni_system_refresh_interfaces(nih);
 
-	ifp = ni_interface_by_vlan_tag(nih, cfg_vlan->tag);
+	ifp = ni_interface_by_vlan_tag(&nih->netconfig, cfg_vlan->tag);
 	if (ifp == NULL) {
 		error("tried to create interface %s; still not found", ifname);
 		return -1;
@@ -694,7 +694,7 @@ ni_interface_create_vlan(ni_handle_t *nih, const char *ifname, const ni_vlan_t *
 
 		if (!cfg_vlan->physdev_name)
 			return -1;
-		real_dev = ni_interface_by_name(nih, cfg_vlan->physdev_name);
+		real_dev = ni_interface_by_name(&nih->netconfig, cfg_vlan->physdev_name);
 		if (!real_dev || !real_dev->link.ifindex) {
 			error("Cannot bring up VLAN interface %s: %s does not exist",
 					ifname, cfg_vlan->physdev_name);
@@ -748,7 +748,7 @@ ni_interface_create_bridge(ni_handle_t *nih, const char *ifname,
 	/* Refresh interface status */
 	__ni_system_refresh_interfaces(nih);
 
-	ifp = ni_interface_by_name(nih, ifname);
+	ifp = ni_interface_by_name(&nih->netconfig, ifname);
 	if (ifp == NULL) {
 		ni_error("tried to create interface %s; still not found", ifname);
 		return -1;
@@ -819,7 +819,7 @@ ni_interface_add_bridge_port(ni_handle_t *nih, ni_interface_t *ifp,
 	int rv;
 
 	if ((pif = port->device) == NULL && pif->name)
-		pif = ni_interface_by_name(nih, pif->name);
+		pif = ni_interface_by_name(&nih->netconfig, pif->name);
 
 	if (pif == NULL) {
 		ni_error("%s: cannot add port - %s not known", ifp->name, pif->name);
@@ -898,7 +898,7 @@ __ni_interface_bond_configure(ni_handle_t *nih, const ni_interface_t *cfg, ni_in
 		const char *slave_name = cfg_bond->slave_names.data[i];
 		ni_interface_t *slave_dev;
 
-		slave_dev = ni_interface_by_name(nih, slave_name);
+		slave_dev = ni_interface_by_name(&nih->netconfig, slave_name);
 		if (!slave_dev) {
 			ni_error("%s: slave %s does not exist", cfg->name, slave_name);
 			return -1;
@@ -1146,7 +1146,7 @@ __ni_rtnl_link_create_vlan(ni_handle_t *nih, const char *ifname, const ni_vlan_t
 
 	/* Note, IFLA_LINK must be outside of IFLA_LINKINFO */
 
-	real_dev = ni_interface_by_name(nih, vlan->physdev_name);
+	real_dev = ni_interface_by_name(&nih->netconfig, vlan->physdev_name);
 	if (!real_dev || !real_dev->link.ifindex) {
 		error("Cannot create VLAN interface %s: interface %s does not exist",
 				ifname, vlan->physdev_name);
@@ -1225,7 +1225,7 @@ __ni_rtnl_link_create(ni_handle_t *nih, const ni_interface_t *cfg)
 
 		/* Note, IFLA_LINK must be outside of IFLA_LINKINFO */
 
-		real_dev = ni_interface_by_name(nih, cfg->link.vlan->physdev_name);
+		real_dev = ni_interface_by_name(&nih->netconfig, cfg->link.vlan->physdev_name);
 		if (!real_dev || !real_dev->link.ifindex) {
 			error("Cannot create VLAN interface %s: interface %s does not exist",
 					cfg->name, cfg->link.vlan->physdev_name);

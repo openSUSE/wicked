@@ -169,6 +169,12 @@ __ni_handle_new(size_t size)
 	return nih;
 }
 
+ni_netconfig_t *
+ni_handle_netconfig(ni_handle_t *nih)
+{
+	return &nih->netconfig;
+}
+
 /*
  * Map interface link layer types to strings and vice versa
  */
@@ -1023,11 +1029,11 @@ ni_interfaces(ni_handle_t *nih)
  * Find interface by name
  */
 ni_interface_t *
-ni_interface_by_name(ni_handle_t *nih, const char *name)
+ni_interface_by_name(ni_netconfig_t *nc, const char *name)
 {
 	ni_interface_t *ifp;
 
-	for (ifp = nih->netconfig.interfaces; ifp; ifp = ifp->next) {
+	for (ifp = nc->interfaces; ifp; ifp = ifp->next) {
 		if (ifp->name && !strcmp(ifp->name, name))
 			return ifp;
 	}
@@ -1052,11 +1058,11 @@ nc_interface_by_name(ni_netconfig_t *nc, const char *name)
  * Find interface by its ifindex
  */
 ni_interface_t *
-ni_interface_by_index(ni_handle_t *nih, unsigned int ifindex)
+ni_interface_by_index(ni_netconfig_t *nc, unsigned int ifindex)
 {
 	ni_interface_t *ifp;
 
-	for (ifp = nih->netconfig.interfaces; ifp; ifp = ifp->next) {
+	for (ifp = nc->interfaces; ifp; ifp = ifp->next) {
 		if (ifp->link.ifindex == ifindex)
 			return ifp;
 	}
@@ -1068,14 +1074,14 @@ ni_interface_by_index(ni_handle_t *nih, unsigned int ifindex)
  * Find interface by its LL address
  */
 ni_interface_t *
-ni_interface_by_hwaddr(ni_handle_t *nih, const ni_hwaddr_t *lla)
+ni_interface_by_hwaddr(ni_netconfig_t *nc, const ni_hwaddr_t *lla)
 {
 	ni_interface_t *ifp;
 
 	if (!lla || !lla->len)
 		return NULL;
 
-	for (ifp = nih->netconfig.interfaces; ifp; ifp = ifp->next) {
+	for (ifp = nc->interfaces; ifp; ifp = ifp->next) {
 		if (ni_link_address_equal(&ifp->link.hwaddr, lla))
 			return ifp;
 	}
@@ -1087,11 +1093,11 @@ ni_interface_by_hwaddr(ni_handle_t *nih, const ni_hwaddr_t *lla)
  * Find VLAN interface by its tag
  */
 ni_interface_t *
-ni_interface_by_vlan_tag(ni_handle_t *nih, uint16_t tag)
+ni_interface_by_vlan_tag(ni_netconfig_t *nc, uint16_t tag)
 {
 	ni_interface_t *ifp;
 
-	for (ifp = nih->netconfig.interfaces; ifp; ifp = ifp->next) {
+	for (ifp = nc->interfaces; ifp; ifp = ifp->next) {
 		if (ifp->link.type == NI_IFTYPE_VLAN
 		 && ifp->link.vlan
 		 && ifp->link.vlan->tag == tag)

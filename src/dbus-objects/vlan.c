@@ -43,11 +43,12 @@ ni_objectmodel_new_vlan(ni_dbus_server_t *server, const ni_dbus_object_t *config
 	cfg_ifp->link.type = NI_IFTYPE_VLAN;
 	if (cfg_ifp->name == NULL) {
 		static char namebuf[64];
+		ni_netconfig_t *nc = ni_handle_netconfig(nih);
 		unsigned int num;
 
 		for (num = 0; num < 65536; ++num) {
 			snprintf(namebuf, sizeof(namebuf), "vlan%u", num);
-			if (!ni_interface_by_name(nih, namebuf)) {
+			if (!ni_interface_by_name(nc, namebuf)) {
 				ni_string_dup(&cfg_ifp->name, namebuf);
 				break;
 			}
