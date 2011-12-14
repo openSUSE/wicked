@@ -91,6 +91,15 @@ ni_objectmodel_dhcp4_acquire(const ni_addrconf_t *acm, ni_interface_t *dev, cons
 	ni_dbus_object_t *object = ni_objectmodel_dhcp4_wrap_interface(dev);
 	int rv = 0;
 
+	if (!ni_interface_network_is_up(dev)) {
+		ni_error("%s: link is not up, cannot configure through DHCP", dev->name);
+		return -NI_ERROR_INTERFACE_NOT_UP;
+	}
+	if (!(dev->link.ifflags & NI_IFF_ARP_ENABLED)) {
+		ni_error("%s: device does not support ARP, cannot configure through DHCP", dev->name);
+		return -NI_ERROR_INTERFACE_NOT_UP;
+	}
+
 	rv = ni_objectmodel_addrconf_acquire(object, dev->ipv4.request[NI_ADDRCONF_DHCP]);
 	ni_dbus_object_free(object);
 	return rv;
