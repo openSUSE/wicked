@@ -16,19 +16,6 @@
 
 static int		__ni_system_interface_request_scan(ni_handle_t *, ni_interface_t *);
 static int		__ni_system_interface_get_scan_results(ni_handle_t *, ni_interface_t *);
-static int		__ni_system_policy_update(ni_handle_t *, const ni_policy_t *);
-static int		__ni_system_hostname_put(ni_handle_t *, const char *);
-static int		__ni_system_hostname_get(ni_handle_t *, char *, size_t);
-static int		__ni_system_nis_domain_put(ni_handle_t *, const char *);
-static int		__ni_system_nis_domain_get(ni_handle_t *, char *, size_t);
-static int		__ni_system_nis_put(ni_handle_t *, const ni_nis_info_t *);
-static ni_nis_info_t *	__ni_system_nis_get(ni_handle_t *);
-static int		__ni_system_nis_backup(ni_handle_t *);
-static int		__ni_system_nis_restore(ni_handle_t *);
-static int		__ni_system_resolver_put(ni_handle_t *, const ni_resolver_info_t *);
-static ni_resolver_info_t *__ni_system_resolver_get(ni_handle_t *);
-static int		__ni_system_resolver_backup(ni_handle_t *);
-static int		__ni_system_resolver_restore(ni_handle_t *);
 static void		__ni_system_close(ni_handle_t *nih);
 
 static struct ni_ops ni_state_ops = {
@@ -39,19 +26,6 @@ static struct ni_ops ni_state_ops = {
 	.interface_stats_refresh= __ni_system_interface_stats_refresh,
 	.request_scan		= __ni_system_interface_request_scan,
 	.get_scan_results	= __ni_system_interface_get_scan_results,
-	.policy_update		= __ni_system_policy_update,
-	.hostname_get		= __ni_system_hostname_get,
-	.hostname_put		= __ni_system_hostname_put,
-	.nis_domain_get		= __ni_system_nis_domain_get,
-	.nis_domain_put		= __ni_system_nis_domain_put,
-	.nis_get		= __ni_system_nis_get,
-	.nis_put		= __ni_system_nis_put,
-	.nis_backup		= __ni_system_nis_backup,
-	.nis_restore		= __ni_system_nis_restore,
-	.resolver_get		= __ni_system_resolver_get,
-	.resolver_put		= __ni_system_resolver_put,
-	.resolver_backup	= __ni_system_resolver_backup,
-	.resolver_restore	= __ni_system_resolver_restore,
 	.close			= __ni_system_close,
 };
 
@@ -107,6 +81,7 @@ __ni_system_interface_get_scan_results(ni_handle_t *nih, ni_interface_t *ifp)
 	}
 }
 
+#if 0
 static int
 __ni_system_policy_update(ni_handle_t *nih, const ni_policy_t *new_policy)
 {
@@ -153,16 +128,17 @@ __ni_system_policy_update(ni_handle_t *nih, const ni_policy_t *new_policy)
 	ni_interface_array_destroy(&iflist);
 	return 0;
 }
+#endif
 
-static int
-__ni_system_hostname_get(ni_handle_t *nih, char *buffer, size_t size)
+int
+__ni_system_hostname_get(char *buffer, size_t size)
 {
 	return gethostname(buffer, size);
 }
 
 
-static int
-__ni_system_hostname_put(ni_handle_t *nih, const char *hostname)
+int
+__ni_system_hostname_put(const char *hostname)
 {
 	if (!hostname || !*hostname) {
 		errno = EINVAL;
@@ -171,23 +147,23 @@ __ni_system_hostname_put(ni_handle_t *nih, const char *hostname)
 	return sethostname(hostname, strlen(hostname));
 }
 
-static int
-__ni_system_nis_domain_get(ni_handle_t *nih, char *buffer, size_t size)
+int
+__ni_system_nis_domain_get(char *buffer, size_t size)
 {
 	return getdomainname(buffer, size);
 }
 
 
-static int
-__ni_system_nis_domain_put(ni_handle_t *nih, const char *domainname)
+int
+__ni_system_nis_domain_put(const char *domainname)
 {
 	if (!domainname || !*domainname)
 		return setdomainname("", 0);
 	return setdomainname(domainname, strlen(domainname));
 }
 
-static ni_nis_info_t *
-__ni_system_nis_get(ni_handle_t *nih)
+ni_nis_info_t *
+__ni_system_nis_get(void)
 {
 	char domainname[256];
 	ni_nis_info_t *nis;
@@ -202,8 +178,8 @@ __ni_system_nis_get(ni_handle_t *nih)
 	return nis;
 }
 
-static int
-__ni_system_nis_put(ni_handle_t *nih, const ni_nis_info_t *nis)
+int
+__ni_system_nis_put(const ni_nis_info_t *nis)
 {
 	const char *tempfile = _PATH_YP_CONF ".new";
 
@@ -217,7 +193,7 @@ __ni_system_nis_put(ni_handle_t *nih, const ni_nis_info_t *nis)
 		return -1;
 	}
 
-	if (__ni_system_nis_domain_put(nih, nis->domainname) < 0) {
+	if (__ni_system_nis_domain_put(nis->domainname) < 0) {
 		ni_error("cannot set domainname: %m");
 		return -1;
 	}
@@ -225,32 +201,27 @@ __ni_system_nis_put(ni_handle_t *nih, const ni_nis_info_t *nis)
 	return 0;
 }
 
-static int
-__ni_system_nis_backup(ni_handle_t *nih)
+int
+__ni_system_nis_backup(void)
 {
 	return ni_backup_file_to(_PATH_YP_CONF, CONFIG_WICKED_BACKUP_DIR);
 }
 
-static int
-__ni_system_nis_restore(ni_handle_t *nih)
+int
+__ni_system_nis_restore(void)
 {
-	__ni_system_nis_domain_put(nih, NULL);
+	__ni_system_nis_domain_put(NULL);
 	return ni_restore_file_from(_PATH_YP_CONF, CONFIG_WICKED_BACKUP_DIR);
 }
 
-static ni_resolver_info_t *
-__ni_system_resolver_get(ni_handle_t *nih)
+ni_resolver_info_t *
+__ni_system_resolver_get(void)
 {
-	ni_resolver_info_t *resolver;
-
-	if ((resolver = ni_resolver_parse_resolv_conf(_PATH_RESOLV_CONF)) == NULL)
-		return NULL;
-
-	return resolver;
+	return ni_resolver_parse_resolv_conf(_PATH_RESOLV_CONF);
 }
 
-static int
-__ni_system_resolver_put(ni_handle_t *nih, const ni_resolver_info_t *resolver)
+int
+__ni_system_resolver_put(const ni_resolver_info_t *resolver)
 {
 	const char *tempfile = _PATH_RESOLV_CONF ".new";
 
@@ -267,14 +238,14 @@ __ni_system_resolver_put(ni_handle_t *nih, const ni_resolver_info_t *resolver)
 	return 0;
 }
 
-static int
-__ni_system_resolver_backup(ni_handle_t *nih)
+int
+__ni_system_resolver_backup(void)
 {
 	return ni_backup_file_to(_PATH_RESOLV_CONF, CONFIG_WICKED_BACKUP_DIR);
 }
 
-static int
-__ni_system_resolver_restore(ni_handle_t *nih)
+int
+__ni_system_resolver_restore(void)
 {
 	return ni_restore_file_from(_PATH_RESOLV_CONF, CONFIG_WICKED_BACKUP_DIR);
 }

@@ -31,7 +31,7 @@
 
 static ni_rest_node_t *	ni_rest_node_lookup(ni_rest_node_t *, const char *, ni_wicked_request_t *);
 static void		ni_rest_generate_meta(ni_rest_node_t *, xml_node_t *);
-static char *		ni_request_get_domain_element(ni_wicked_request_t *, const char *);
+//static char *		ni_request_get_domain_element(ni_wicked_request_t *, const char *);
 
 /*
  * construct and destroy wicked request object
@@ -940,6 +940,7 @@ static ni_rest_node_t	ni_rest_system_policy_node = {
 	},
 };
 
+#if 0
 static int
 generic_hostname_get(ni_handle_t *nih, ni_wicked_request_t *req)
 {
@@ -1283,6 +1284,7 @@ static ni_rest_node_t	ni_rest_system_resolver_node = {
 	    },
 	},
 };
+#endif
 
 /*
  * Event receiver
@@ -1474,9 +1476,11 @@ static ni_rest_node_t	ni_rest_system_node = {
 	.children = {
 		&ni_rest_system_interface_node,
 		&ni_rest_system_policy_node,
+#if 0
 		&ni_rest_system_hostname_node,
 		&ni_rest_system_nis_node,
 		&ni_rest_system_resolver_node,
+#endif
 		&ni_rest_system_event_node,
 	},
 };
@@ -1485,7 +1489,9 @@ static ni_rest_node_t	ni_rest_config_node = {
 	.name		= "config",
 	.children = {
 		&ni_rest_config_interface_node,
+#if 0
 		&ni_rest_config_hostname_node,
+#endif
 	},
 };
 
@@ -1633,6 +1639,7 @@ ni_rest_generate_meta(ni_rest_node_t *node, xml_node_t *xml_parent)
 	}
 }
 
+#if 0
 static char *
 ni_request_get_domain_element(ni_wicked_request_t *req, const char *element_name)
 {
@@ -1668,6 +1675,7 @@ ni_request_get_domain_element(ni_wicked_request_t *req, const char *element_name
 
 	return hostname;
 }
+#endif
 
 void
 werror(ni_wicked_request_t *req, const char *fmt, ...)

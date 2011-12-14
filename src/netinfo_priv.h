@@ -53,24 +53,6 @@ struct ni_ops {
 
 	int			(*policy_update)(ni_handle_t *, const ni_policy_t *);
 
-	int			(*hostname_get)(ni_handle_t *, char *, size_t);
-	int			(*hostname_put)(ni_handle_t *, const char *);
-	int			(*hostname_backup)(ni_handle_t *);
-	int			(*hostname_restore)(ni_handle_t *);
-
-	int			(*nis_domain_get)(ni_handle_t *, char *, size_t);
-	int			(*nis_domain_put)(ni_handle_t *, const char *);
-
-	ni_nis_info_t *		(*nis_get)(ni_handle_t *);
-	int			(*nis_put)(ni_handle_t *, const ni_nis_info_t *);
-	int			(*nis_backup)(ni_handle_t *);
-	int			(*nis_restore)(ni_handle_t *);
-
-	ni_resolver_info_t *	(*resolver_get)(ni_handle_t *);
-	int			(*resolver_put)(ni_handle_t *, const ni_resolver_info_t *);
-	int			(*resolver_backup)(ni_handle_t *);
-	int			(*resolver_restore)(ni_handle_t *);
-
 	void			(*close)(ni_handle_t *);
 };
 
@@ -179,6 +161,20 @@ extern int		__ni_system_interface_update_lease(ni_handle_t *, ni_interface_t *, 
 extern int		__ni_system_interface_stats_refresh(ni_handle_t *, ni_interface_t *);
 extern int		__ni_system_ethernet_refresh(ni_handle_t *, ni_interface_t *);
 extern int		__ni_rtevent_refresh_all(ni_handle_t *, ni_interface_t **del_list);
+
+/* FIXME: These should go elsewhere, maybe runtime.h */
+extern int		__ni_system_hostname_put(const char *);
+extern int		__ni_system_hostname_get(char *, size_t);
+extern int		__ni_system_nis_domain_put(const char *);
+extern int		__ni_system_nis_domain_get(char *, size_t);
+extern int		__ni_system_nis_put(const ni_nis_info_t *);
+extern ni_nis_info_t *	__ni_system_nis_get(void);
+extern int		__ni_system_nis_backup(void);
+extern int		__ni_system_nis_restore(void);
+extern int		__ni_system_resolver_put(const ni_resolver_info_t *);
+extern ni_resolver_info_t *__ni_system_resolver_get(void);
+extern int		__ni_system_resolver_backup(void);
+extern int		__ni_system_resolver_restore(void);
 
 extern int		__ni_syntax_xml_to_all(ni_syntax_t *, ni_netconfig_t *, const xml_node_t *);
 extern int		__ni_syntax_xml_to_policy_info(ni_syntax_t *, ni_policy_info_t *,

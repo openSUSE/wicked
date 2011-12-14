@@ -10,7 +10,7 @@
 #include "netinfo_priv.h"
 #include "config.h"
 
-typedef int		ni_update_handler_t(ni_handle_t *, const ni_addrconf_lease_t *);
+typedef int		ni_update_handler_t(const ni_addrconf_lease_t *);
 
 typedef struct ni_update_info {
 	struct {
@@ -84,7 +84,7 @@ ni_system_lease_capabilities(ni_interface_t *ifp, const ni_addrconf_lease_t *lea
  * need to commit the information.
  */
 static int
-ni_system_update_service(ni_handle_t *nih, ni_interface_t *ifp, const ni_addrconf_lease_t *lease, unsigned int target)
+ni_system_update_service(ni_interface_t *ifp, const ni_addrconf_lease_t *lease, unsigned int target)
 {
 	ni_update_info_t *info = &__ni_update_info[target];
 	ni_update_handler_t *handler;
@@ -98,7 +98,7 @@ ni_system_update_service(ni_handle_t *nih, ni_interface_t *ifp, const ni_addrcon
 				ni_addrfamily_type_to_name(lease->family),
 				ifp->name);
 
-	if (handler(nih, lease) < 0) {
+	if (handler(lease) < 0) {
 		ni_error("%s: failed to update %s information from %s/%s lease",
 				ifp->name,
 				ni_addrconf_update_target_to_name(target),
@@ -117,14 +117,14 @@ ni_system_update_service(ni_handle_t *nih, ni_interface_t *ifp, const ni_addrcon
  * Restore a service's configuration to the original (system) default
  */
 static void
-ni_system_restore_service(ni_handle_t *nih, unsigned int target)
+ni_system_restore_service(unsigned int target)
 {
 	ni_update_handler_t *handler;
 
 	ni_debug_ifconfig("trying to restore original %s configuration",
 				ni_addrconf_update_target_to_name(target));
 	if ((handler = __ni_update_handlers[target]) != NULL)
-		handler(nih, NULL);
+		handler(NULL);
 }
 
 /*
@@ -182,7 +182,7 @@ ni_system_update_from_lease(ni_handle_t *nih, ni_interface_t *ifp, const ni_addr
 		} else if (!__ni_addrconf_should_update(update_mask, target))
 			continue;
 
-		if (ni_system_update_service(nih, ifp, lease, target) < 0) {
+		if (ni_system_update_service(ifp, lease, target) < 0) {
 			__ni_addrconf_set_update(&clear_mask, target);
 			rv = -1;
 		}
@@ -201,10 +201,10 @@ ni_system_update_from_lease(ni_handle_t *nih, ni_interface_t *ifp, const ni_addr
 
 		ni_system_update_find_lease(nih, target, &best);
 		if (best.lease == 0
-		 || ni_system_update_service(nih, best.interface, best.lease, target) < 0) {
+		 || ni_system_update_service(best.interface, best.lease, target) < 0) {
 			/* Unable to configure the service. Deconfigure it completely,
 			 * and restore the previously saved backup copy. */
-			ni_system_restore_service(nih, target);
+			ni_system_restore_service(target);
 		}
 	}
 
@@ -259,76 +259,50 @@ ni_system_update_find_lease(ni_handle_t *nih, unsigned int target, struct ni_upd
  * Functions for updating system configuration
  */
 static int
-__ni_update_hostname(ni_handle_t *nih, const ni_addrconf_lease_t *lease)
+__ni_update_hostname(const ni_addrconf_lease_t *lease)
 {
-	if (nih->op->hostname_put == NULL) {
-		ni_error("%s: operation not supported", __FUNCTION__);
-		return -1;
-	}
-
-	if (lease == NULL)
+	if (lease == NULL || lease->hostname == NULL)
 		return 0;
 
-	if (lease->hostname == NULL) {
-		ni_error("%s: no hostname present", __FUNCTION__);
-		return -1;
-	}
-
-	return nih->op->hostname_put(nih, lease->hostname);
+	return __ni_system_hostname_put(lease->hostname);
 }
 
 static int
-__ni_update_resolver(ni_handle_t *nih, const ni_addrconf_lease_t *lease)
+__ni_update_resolver(const ni_addrconf_lease_t *lease)
 {
-	if (nih->op->resolver_put == NULL) {
-		ni_error("%s: operation not supported", __FUNCTION__);
-		return -1;
-	}
-
-	if (lease == NULL) {
-		if (nih->op->resolver_restore)
-			return nih->op->resolver_restore(nih);
-		return 0;
-	}
+	if (lease == NULL)
+		return __ni_system_resolver_restore();
 
 	if (lease->resolver == NULL) {
 		ni_error("%s: no resolver config present", __FUNCTION__);
 		return -1;
 	}
 
-	if (nih->op->resolver_backup && nih->op->resolver_backup(nih) < 0) {
+	if (__ni_system_resolver_backup() < 0) {
 		ni_error("%s: unable to back up original configuration", __FUNCTION__);
 		return -1;
 	}
 
-	return nih->op->resolver_put(nih, lease->resolver);
+	return __ni_system_resolver_put(lease->resolver);
 }
 
 static int
-__ni_update_nis(ni_handle_t *nih, const ni_addrconf_lease_t *lease)
+__ni_update_nis(const ni_addrconf_lease_t *lease)
 {
-	if (nih->op->nis_put == NULL) {
-		ni_error("%s: operation not supported", __FUNCTION__);
-		return -1;
-	}
-
-	if (lease == NULL) {
-		if (nih->op->nis_restore)
-			return nih->op->nis_restore(nih);
-		return 0;
-	}
+	if (lease == NULL)
+		return __ni_system_nis_restore();
 
 	if (lease->nis == NULL) {
 		ni_error("%s: no nis config present", __FUNCTION__);
 		return -1;
 	}
 
-	if (nih->op->nis_backup && nih->op->nis_backup(nih) < 0) {
+	if (__ni_system_nis_backup() < 0) {
 		ni_error("%s: unable to back up original configuration", __FUNCTION__);
 		return -1;
 	}
 
-	return nih->op->nis_put(nih, lease->nis);
+	return __ni_system_nis_put(lease->nis);
 }
 
 static ni_update_handler_t *	__ni_update_handlers[__NI_ADDRCONF_UPDATE_MAX] = {
