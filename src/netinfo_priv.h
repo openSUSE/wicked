@@ -46,8 +46,6 @@ struct ni_ops {
 	int			(*configure_interface)(ni_handle_t *, ni_interface_t *, const ni_interface_t *);
 	int			(*delete_interface)(ni_handle_t *, const char *);
 
-	int			(*interface_stats_refresh)(ni_handle_t *, ni_interface_t *);
-
 	void			(*close)(ni_handle_t *);
 };
 

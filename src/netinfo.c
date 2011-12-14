@@ -610,20 +610,6 @@ ni_interface_configure2(ni_handle_t *nih, ni_interface_t *change_if, const ni_in
 }
 
 /*
- * Refresh interface statistics
- */
-int
-ni_interface_stats_refresh(ni_handle_t *nih, ni_interface_t *ifp)
-{
-	if (nih->op->interface_stats_refresh == NULL) {
-		ni_error("cannot refresh interface stats; not supported by this handle");
-		return -1;
-	}
-
-	return nih->op->interface_stats_refresh(nih, ifp);
-}
-
-/*
  * Trigger wireless scan
  */
 int
