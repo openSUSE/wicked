@@ -149,7 +149,7 @@ ni_server_connect(void)
 }
 
 ni_handle_t *
-__ni_handle_new(size_t size, struct ni_ops *ops)
+__ni_handle_new(size_t size)
 {
 	ni_handle_t *nih;
 
@@ -164,7 +164,6 @@ __ni_handle_new(size_t size, struct ni_ops *ops)
 		return NULL;
 	}
 
-	nih->op = ops;
 	nih->iocfd = -1;
 
 	return nih;

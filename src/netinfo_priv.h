@@ -31,8 +31,6 @@ struct ni_handle {
 	ni_route_t *		routes;
 	ni_policy_info_t	policy;
 
-	struct ni_ops *		op;
-
 	/* For a state handle */
 	ni_netlink_t *		netlink;
 	int			iocfd;
@@ -103,7 +101,7 @@ extern unsigned int	__ni_global_seqno;
 extern ni_netlink_t *	__ni_netlink_open(int);
 extern void		__ni_netlink_close(ni_netlink_t *);
 
-extern ni_handle_t *	__ni_handle_new(size_t, struct ni_ops *);
+extern ni_handle_t *	__ni_handle_new(size_t);
 extern ni_interface_t *	__ni_interface_new(const char *name, unsigned int index);
 extern void		__ni_interface_list_append(ni_interface_t **, ni_interface_t *);
 extern void		__ni_interface_list_destroy(ni_interface_t **);

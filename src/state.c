@@ -14,12 +14,6 @@
 
 #define CONFIG_WICKED_BACKUP_DIR	CONFIG_WICKED_STATEDIR "/backup"
 
-static void		__ni_system_close(ni_handle_t *nih);
-
-static struct ni_ops ni_state_ops = {
-	.close			= __ni_system_close,
-};
-
 ni_handle_t *
 ni_state_open(void)
 {
@@ -30,7 +24,7 @@ ni_state_open(void)
 	if (netlink == NULL)
 		return NULL;
 
-	nih = __ni_handle_new(sizeof(*nih), &ni_state_ops);
+	nih = __ni_handle_new(sizeof(*nih));
 	nih->netlink = netlink;
 
 	return nih;
@@ -244,18 +238,4 @@ int
 __ni_system_resolver_restore(void)
 {
 	return ni_restore_file_from(_PATH_RESOLV_CONF, CONFIG_WICKED_BACKUP_DIR);
-}
-
-static void
-__ni_system_close(ni_handle_t *nih)
-{
-	if (nih->netlink) {
-		__ni_netlink_close(nih->netlink);
-		nih->netlink = NULL;
-	}
-
-	if (nih->iocfd >= 0) {
-		close(nih->iocfd);
-		nih->iocfd = -1;
-	}
 }
