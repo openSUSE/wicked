@@ -15,6 +15,7 @@ static const char *	ni_errors[__NI_ERROR_MAX] = {
 [NI_ERROR_INTERFACE_NOT_DOWN]		= "Interface not down",
 [NI_ERROR_CANNOT_CONFIGURE_ADDRESS]	= "Cannot configure addresss",
 [NI_ERROR_CANNOT_CONFIGURE_ROUTE]	= "Cannot configure route",
+[NI_ERROR_CANNOT_MARSHAL]		= "Cannot marshal arguments for remote object call",
 };
 
 const char *

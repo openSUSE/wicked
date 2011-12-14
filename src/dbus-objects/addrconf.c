@@ -30,31 +30,33 @@
  *
  * The options dictionary contains addrconf request properties.
  */
-dbus_bool_t
-ni_objectmodel_addrconf_acquire(ni_dbus_object_t *object, const ni_addrconf_request_t *req, DBusError *error)
+int
+ni_objectmodel_addrconf_acquire(ni_dbus_object_t *object, const ni_addrconf_request_t *req)
 {
+	DBusError error = DBUS_ERROR_INIT;
 	ni_dbus_variant_t argument;
-	dbus_bool_t rv = FALSE;
+	int rv = 0;
 
-	if (req == NULL) {
-		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "%s: NULL request", __func__);
-		return FALSE;
-	}
+	if (req == NULL)
+		return -NI_ERROR_INVALID_ARGS;
 
 	ni_dbus_variant_init_dict(&argument);
-	if (!__wicked_dbus_get_addrconf_request(req, &argument, error)) {
-		/* dbus_set_error(error, DBUS_ERROR_FAILED, "Error marshalling addrconf request"); */
-		goto failed;
-	}
+	if (!__wicked_dbus_get_addrconf_request(req, &argument, &error))
+		goto translate_error;
 
-	if (!ni_dbus_object_call_variant(object, NULL, "acquire", 1, &argument, 0, NULL, error))
-		goto failed;
+	if (!ni_dbus_object_call_variant(object, NULL, "acquire", 1, &argument, 0, NULL, &error))
+		goto translate_error;
 
 	rv = TRUE;
 
 failed:
 	ni_dbus_variant_destroy(&argument);
+	dbus_error_free(&error);
 	return rv;
+
+translate_error:
+	rv = ni_dbus_object_translate_error(object, &error);
+	goto failed;
 }
 
 /*
@@ -63,22 +65,25 @@ failed:
  *
  * The options dictionary contains addrconf request properties.
  */
-dbus_bool_t
-ni_objectmodel_addrconf_release(ni_dbus_object_t *object, const ni_addrconf_lease_t *lease, DBusError *error)
+int
+ni_objectmodel_addrconf_release(ni_dbus_object_t *object, const ni_addrconf_lease_t *lease)
 {
-	dbus_bool_t rv = FALSE;
+	DBusError error = DBUS_ERROR_INIT;
 	ni_dbus_variant_t argv[1];
 	int argc = 0;
+	int rv = 0;
 
 	if (lease != NULL) {
 		ni_dbus_variant_set_uuid(&argv[argc], &lease->uuid);
 		argc++;
 	}
 
-	rv = ni_dbus_object_call_variant(object, NULL, "drop", argc, argv, 0, NULL, error);
+	if (!ni_dbus_object_call_variant(object, NULL, "drop", argc, argv, 0, NULL, &error))
+		rv = ni_dbus_object_translate_error(object, &error);
 
 	while (argc--)
 		ni_dbus_variant_destroy(&argv[0]);
+	dbus_error_free(&error);
 	return rv;
 }
 

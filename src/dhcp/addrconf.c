@@ -18,11 +18,7 @@
 #include <wicked/logging.h>
 #include <wicked/wicked.h>
 #include <wicked/xml.h>
-#include <wicked/socket.h>
 #include <wicked/addrconf.h>
-#include "netinfo_priv.h"
-#include "socket_priv.h"
-#include "kernel.h"
 
 extern int	ni_dhcp_xml_from_lease(const ni_addrconf_t *, const ni_addrconf_lease_t *, xml_node_t *);
 extern int	ni_dhcp_xml_to_lease(const ni_addrconf_t *, ni_addrconf_lease_t *, const xml_node_t *);
@@ -30,41 +26,33 @@ extern int	ni_dhcp_xml_to_lease(const ni_addrconf_t *, ni_addrconf_lease_t *, co
 static int
 ni_dhcp_addrconf_request(const ni_addrconf_t *acm, ni_interface_t *ifp, const xml_node_t *cfg_xml)
 {
-	DBusError error = DBUS_ERROR_INIT;
+	int rv;
 
 	if (!ni_afinfo_addrconf_test(&ifp->ipv4, NI_ADDRCONF_DHCP)) {
 		ni_warn("%s: DHCP not enabled", __FUNCTION__);
 		ni_afinfo_addrconf_enable(&ifp->ipv4, NI_ADDRCONF_DHCP);
 	}
 
-	if (!ni_objectmodel_dhcp4_acquire(ifp, ifp->ipv4.request[NI_ADDRCONF_DHCP], &error)) {
-		ni_error("wicked_dbus_dhcp4_acquire_call failed: %s (%s)",
-				error.name, error.message);
-		/* FIXME: translate error name to wicked error code */
-		dbus_error_free(&error);
-		return -1;
-	}
-	return 0;
+	rv = ni_objectmodel_dhcp4_acquire(ifp, ifp->ipv4.request[NI_ADDRCONF_DHCP]);
+	if (rv < 0)
+		ni_error("dhcp4_acquire call failed: %s", ni_strerror(rv));
+	return rv;
 }
 
 static int
 ni_dhcp_addrconf_release(const ni_addrconf_t *acm, ni_interface_t *ifp, ni_addrconf_lease_t *lease)
 {
-	DBusError error = DBUS_ERROR_INIT;
+	int rv;
 
 	if (ni_afinfo_addrconf_test(&ifp->ipv4, NI_ADDRCONF_DHCP)) {
 		ni_warn("%s: DHCP still marked enabled", __FUNCTION__);
 		ni_afinfo_addrconf_disable(&ifp->ipv4, NI_ADDRCONF_DHCP);
 	}
 
-	if (!ni_objectmodel_dhcp4_release(ifp, lease, &error)) {
-		ni_error("wicked_dbus_dhcp4_release_call failed: %s (%s)",
-				error.name, error.message);
-		/* FIXME: translate error name to wicked error code */
-		dbus_error_free(&error);
-		return -1;
-	}
-	return 0;
+	rv = ni_objectmodel_dhcp4_release(ifp, lease);
+	if (rv < 0)
+		ni_error("dhcp4_release call failed: %s", ni_strerror(rv));
+	return rv;
 }
 
 static int

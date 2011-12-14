@@ -66,13 +66,13 @@ ni_objectmodel_dhcp4_wrap_interface(ni_interface_t *dev)
  *
  * The options dictionary contains addrconf request properties.
  */
-dbus_bool_t
-ni_objectmodel_dhcp4_acquire(ni_interface_t *dev, const ni_addrconf_request_t *req, DBusError *error)
+int
+ni_objectmodel_dhcp4_acquire(ni_interface_t *dev, const ni_addrconf_request_t *req)
 {
 	ni_dbus_object_t *object = ni_objectmodel_dhcp4_wrap_interface(dev);
-	dbus_bool_t rv;
+	int rv = 0;
 
-	rv = ni_objectmodel_addrconf_acquire(object, req, error);
+	rv = ni_objectmodel_addrconf_acquire(object, req);
 	ni_dbus_object_free(object);
 	return rv;
 }
@@ -81,13 +81,13 @@ ni_objectmodel_dhcp4_acquire(ni_interface_t *dev, const ni_addrconf_request_t *r
  * Interface.release(uuid)
  * Release a lease for the given interface.
  */
-dbus_bool_t
-ni_objectmodel_dhcp4_release(ni_interface_t *dev, const ni_addrconf_lease_t *lease, DBusError *error)
+int
+ni_objectmodel_dhcp4_release(ni_interface_t *dev, const ni_addrconf_lease_t *lease)
 {
 	ni_dbus_object_t *object = ni_objectmodel_dhcp4_wrap_interface(dev);
-	dbus_bool_t rv;
+	int rv;
 
-	rv = ni_objectmodel_addrconf_release(object, lease, error);
+	rv = ni_objectmodel_addrconf_release(object, lease);
 	ni_dbus_object_free(object);
 	return rv;
 }
