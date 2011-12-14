@@ -90,13 +90,29 @@ ni_rtnl_rtmsg(struct nlmsghdr *h, int expected_type)
 	return __ni_rtnl_msgdata(h, expected_type, sizeof(struct rtmsg));
 }
 
+static inline struct prefixmsg *
+ni_rtnl_prefixmsg(struct nlmsghdr *h, int expected_type)
+{
+	return __ni_rtnl_msgdata(h, expected_type, sizeof(struct prefixmsg));
+}
+
 extern int	__ni_interface_process_newlink(ni_interface_t *, struct nlmsghdr *,
 				struct ifinfomsg *, ni_handle_t *);
 extern int	__ni_interface_process_newlink_ipv6(ni_interface_t *, struct nlmsghdr *,
 				struct ifinfomsg *, ni_handle_t *);
+extern int	__ni_interface_process_newprefix(ni_interface_t *, struct nlmsghdr *,
+				struct prefixmsg *, ni_handle_t *);
 
 #ifndef IFF_LOWER_UP
 # define IFF_LOWER_UP	0x10000
+#endif
+
+/* prefixmsg flags */
+#ifndef IF_PREFIX_ONLINK
+# define IF_PREFIX_ONLINK	0x01
+#endif
+#ifndef IF_PREFIX_AUTOCONF
+# define IF_PREFIX_AUTOCONF	0x02
 #endif
 
 /*

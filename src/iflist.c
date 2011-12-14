@@ -15,6 +15,7 @@
 #include <stdarg.h>
 #include <errno.h>
 #include <limits.h>
+#include <time.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 #include <netinet/in.h>
@@ -765,6 +766,74 @@ __ni_interface_process_newlink_ipv6(ni_interface_t *ifp, struct nlmsghdr *h,
 		} else
 		if (flags & IF_RA_OTHERCONF) {
 			ni_debug_ifconfig("%s: obtain additional config via DHCPv6", ifp->name);
+		}
+	}
+
+	return 0;
+}
+
+/*
+ * Record IPv6 prefixes received via router advertisements
+ */
+int
+__ni_interface_process_newprefix(ni_interface_t *ifp, struct nlmsghdr *h,
+				struct prefixmsg *pfx, ni_handle_t *nih)
+{
+	struct nlattr *tb[PREFIX_MAX+1];
+	ni_addrconf_lease_t *lease;
+	ni_sockaddr_t address;
+	ni_address_t *ap;
+	ni_afinfo_t *afi;
+
+	if (pfx->prefix_family == AF_INET6) {
+		afi = &ifp->ipv6;
+		/* We're only interested in recording address prefixes that
+		 * can be used for autoconf */
+		if (!(pfx->prefix_flags & IF_PREFIX_AUTOCONF))
+			return 0;
+	} else
+		return 0;
+
+	if ((lease = afi->lease[NI_ADDRCONF_AUTOCONF]) == NULL) {
+		lease = ni_addrconf_lease_new(afi->family, NI_ADDRCONF_AUTOCONF);
+		afi->lease[NI_ADDRCONF_AUTOCONF] = lease;
+		lease->state = NI_ADDRCONF_STATE_GRANTED;
+	}
+
+	if (nlmsg_parse(h, sizeof(*pfx), tb, PREFIX_MAX, NULL) < 0) {
+		ni_error("unable to parse rtnl PREFIX message");
+		return -1;
+	}
+
+	if (tb[PREFIX_ADDRESS] == NULL) {
+		ni_error("rtnl NEWPREFIX message without address");
+		return -1;
+	}
+
+	__ni_nla_get_addr(pfx->prefix_family, &address, tb[PREFIX_ADDRESS]);
+	for (ap = lease->addrs; ap; ap = ap->next) {
+		if (ap->prefixlen == pfx->prefix_len
+		 && ni_address_prefix_match(pfx->prefix_len, &ap->local_addr, &address))
+			break;
+	}
+
+	if (ap == NULL) {
+		ap = __ni_address_new(&lease->addrs, afi->family, pfx->prefix_len, &address);
+		ap->config_method = NI_ADDRCONF_AUTOCONF;
+	}
+
+	if (tb[PREFIX_CACHEINFO]) {
+		struct prefix_cacheinfo *ci = (struct prefix_cacheinfo *) tb[PREFIX_CACHEINFO];
+
+		ap->expires = 0;
+		if (ci->valid_time != 0xFFFFFFFF) {
+			time_t now = time(NULL);
+
+			ap->expires = now + ci->valid_time;
+			if (ap->expires < now) {
+				ni_warn("time overflow in valid_lft");
+				ap->expires = now + 365 * 24 * 3600;
+			}
 		}
 	}
 

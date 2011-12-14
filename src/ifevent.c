@@ -24,6 +24,7 @@
 static int	__ni_rtevent_process(ni_handle_t *, const struct sockaddr_nl *, struct nlmsghdr *);
 static int	__ni_rtevent_newlink(ni_handle_t *, const struct sockaddr_nl *, struct nlmsghdr *);
 static int	__ni_rtevent_dellink(ni_handle_t *, const struct sockaddr_nl *, struct nlmsghdr *);
+static int	__ni_rtevent_newprefix(ni_handle_t *, const struct sockaddr_nl *, struct nlmsghdr *);
 
 /*
  * Receive events from netlink socket and generate events.
@@ -145,16 +146,19 @@ __ni_rtevent_process(ni_handle_t *nih, const struct sockaddr_nl *nladdr, struct 
 
 	switch (h->nlmsg_type) {
 	case RTM_NEWLINK:
-		rv = __ni_rtevent_newlink(nih, nladdr, h);;
+		rv = __ni_rtevent_newlink(nih, nladdr, h);
 		break;
 
 	case RTM_DELLINK:
-		rv = __ni_rtevent_dellink(nih, nladdr, h);;
+		rv = __ni_rtevent_dellink(nih, nladdr, h);
 		break;
 
 	/* RTM_NEWPREFIX is really the only way for us to find out whether a
 	 * route prefix was configured statically, or received via a Router
 	 * Advertisement */
+	case RTM_NEWPREFIX:
+		rv = __ni_rtevent_newprefix(nih, nladdr, h);
+		break;
 
 	default:
 		rv = 0;
@@ -277,6 +281,31 @@ __ni_rtevent_dellink(ni_handle_t *nih, const struct sockaddr_nl *nladdr, struct 
 
 	return 0;
 }
+
+/*
+ * Process NEWPREFIX event. This essentially maps 1:1 to IPv6 router advertisements received
+ * by the kernel.
+ */
+int
+__ni_rtevent_newprefix(ni_handle_t *nih, const struct sockaddr_nl *nladdr, struct nlmsghdr *h)
+{
+	struct prefixmsg *pfx;
+	ni_interface_t *ifp;
+
+	if (!(pfx = ni_rtnl_prefixmsg(h, RTM_NEWPREFIX)))
+		return -1;
+
+	ifp = ni_interface_by_index(nih, pfx->prefix_ifindex);
+	if (ifp == NULL)
+		return 0;
+
+	if (__ni_interface_process_newprefix(ifp, h, pfx, nih) < 0) {
+		error("Problem parsing RTM_NEWPREFIX message for %s", ifp->name);
+		return -1;
+	}
+	return 0;
+}
+
 
 #define nl_mgrp(x)	(1 << ((x) - 1))
 

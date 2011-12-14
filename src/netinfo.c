@@ -13,6 +13,7 @@
 #include <ctype.h>
 #include <net/if_arp.h>
 #include <signal.h>
+#include <time.h>
 
 #include <wicked/netinfo.h>
 #include <wicked/addrconf.h>
@@ -712,14 +713,29 @@ __ni_interface_address_to_lease(ni_interface_t *ifp, const ni_address_t *ap)
 ni_address_t *
 __ni_lease_owns_address(const ni_addrconf_lease_t *lease, const ni_address_t *ap)
 {
+	time_t now = time(NULL);
 	ni_address_t *own;
 
 	if (!lease)
 		return 0;
 	for (own = lease->addrs; own; own = own->next) {
-		if (own->prefixlen == ap->prefixlen
-		 && ni_address_equal(&own->local_addr, &ap->local_addr)
-		 && ni_address_equal(&own->peer_addr, &ap->peer_addr)
+		if (own->prefixlen != ap->prefixlen)
+			continue;
+		if (own->expires && own->expires <= now)
+			continue;
+
+		/* Note: for IPv6 autoconf, we will usually have recorded the
+		 * address prefix only; the address that will eventually be picked
+		 * by the autoconf logic will be different */
+		if (lease->family == AF_INET6 && lease->type == NI_ADDRCONF_AUTOCONF) {
+			if (!ni_address_prefix_match(ap->prefixlen, &own->local_addr, &ap->local_addr))
+				continue;
+		} else {
+			if (ni_address_equal(&own->local_addr, &ap->local_addr))
+				continue;
+		}
+
+		if (ni_address_equal(&own->peer_addr, &ap->peer_addr)
 		 && ni_address_equal(&own->anycast_addr, &ap->anycast_addr))
 			return own;
 	}
