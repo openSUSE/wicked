@@ -135,7 +135,7 @@ __ni_redhat_read_interface(ni_netconfig_t *nih, const char *filename)
 	 * on the fly */
 	ifp = nc_interface_by_name(nih, ifname);
 	if (ifp == NULL) {
-		ifp = nc_interface_new(nih, ifname, 0);
+		ifp = ni_interface_new(nih, ifname, 0);
 		if (!ifp) {
 			ni_error("Failed to alloc interface %s", ifname);
 			goto error;
@@ -309,7 +309,7 @@ try_bonding_slave(ni_netconfig_t *nih, ni_interface_t *ifp, ni_sysconfig_t *sc)
 
 	master = nc_interface_by_name(nih, var->value);
 	if (master == NULL) {
-		master = nc_interface_new(nih, var->value, 0);
+		master = ni_interface_new(nih, var->value, 0);
 		master->link.type = NI_IFTYPE_BOND;
 	} else if (master->link.type != NI_IFTYPE_BOND) {
 		ni_error("%s: specifies MASTER=%s which is not a bonding device",
@@ -356,7 +356,7 @@ try_bridge_port(ni_netconfig_t *nih, ni_interface_t *ifp, ni_sysconfig_t *sc)
 
 	master = nc_interface_by_name(nih, var->value);
 	if (master == NULL) {
-		master = nc_interface_new(nih, var->value, 0);
+		master = ni_interface_new(nih, var->value, 0);
 		master->link.type = NI_IFTYPE_BRIDGE;
 	} else if (master->link.type != NI_IFTYPE_BRIDGE) {
 		ni_error("%s: specifies BRIDGE=%s which is not a bonding device",

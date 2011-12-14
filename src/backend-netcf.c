@@ -134,9 +134,9 @@ __ni_netcf_xml_to_interface(ni_syntax_t *syntax, ni_netconfig_t *nc, xml_node_t 
 	xml_node_t *node, *child;
 
 	if ((attrval = xml_node_get_attr(ifnode, "name")) != NULL) {
-		ifp = nc_interface_new(nc, attrval, 0);
+		ifp = ni_interface_new(nc, attrval, 0);
 	} else {
-		ifp = nc_interface_new(nc, NULL, 0);
+		ifp = ni_interface_new(nc, NULL, 0);
 	}
 
 	if ((attrval = xml_node_get_attr(ifnode, "type")) != NULL) {
