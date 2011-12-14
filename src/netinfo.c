@@ -866,7 +866,7 @@ ni_interface_new(ni_handle_t *nih, const char *name, unsigned int index)
 	ni_interface_t *ifp;
 
 	ifp = __ni_interface_new(name, index);
-	if (ifp)
+	if (nih && ifp)
 		__ni_interface_list_append(&nih->iflist, ifp);
 	
 	return ifp;

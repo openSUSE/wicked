@@ -592,7 +592,7 @@ generic_interface_put(ni_handle_t *nih, ni_wicked_request_t *req)
 		return -1;
 	}
 
-	cnih = ni_dummy_open();
+	cnih = NULL; // ni_dummy_open();
 	if (cnih == NULL) {
 		werror(req, "unable to create netinfo dummy handle");
 		goto failed;

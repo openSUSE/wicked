@@ -192,12 +192,9 @@ main(int argc, char **argv)
 static dbus_bool_t
 wicked_proxy_interface_init_child(ni_dbus_object_t *object)
 {
-	static ni_handle_t *nih = NULL;
 	ni_interface_t *ifp;
 
-	if (nih == NULL)
-		nih = ni_dummy_open();
-	ifp = ni_interface_new(nih, object->name, 0);
+	ifp = ni_interface_new(NULL, object->name, 0);
 	object->handle = ifp;
 
 	return TRUE;

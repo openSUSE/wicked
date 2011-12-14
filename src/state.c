@@ -21,21 +21,6 @@ static struct ni_ops ni_state_ops = {
 };
 
 ni_handle_t *
-ni_global_state_handle(int refresh)
-{
-	static ni_handle_t *nih = NULL;
-
-	if (nih == NULL)
-		nih = ni_state_open();
-	if (refresh && __ni_system_refresh_interfaces(nih) < 0) {
-		ni_error("failed to refresh interface list");
-		return NULL;
-	}
-
-	return nih;
-}
-
-ni_handle_t *
 ni_state_open(void)
 {
 	ni_handle_t *nih;
@@ -45,6 +30,21 @@ ni_state_open(void)
 	nih->netlink = __ni_netlink_open(0);
 	if (nih->netlink == NULL) {
 		ni_close(nih);
+		return NULL;
+	}
+
+	return nih;
+}
+
+ni_handle_t *
+ni_global_state_handle(int refresh)
+{
+	static ni_handle_t *nih = NULL;
+
+	if (nih == NULL)
+		nih = ni_state_open();
+	if (refresh && __ni_system_refresh_interfaces(nih) < 0) {
+		ni_error("failed to refresh interface list");
 		return NULL;
 	}
 
