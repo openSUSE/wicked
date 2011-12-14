@@ -14,17 +14,8 @@
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
 
-#include <netlink/netlink.h>
-
 typedef struct ni_capture	ni_capture_t;
-
-typedef struct __ni_netlink {
-	struct nl_handle *	nl_handle;
-	struct nl_cache *	nl_cache;
-	struct nl_cb *		nl_cb;
-	struct genl_family *	nl_family;
-} ni_netlink_t;
-
+typedef struct __ni_netlink	ni_netlink_t;
 
 struct ni_handle {
 	ni_interface_t *	iflist;
@@ -34,10 +25,6 @@ struct ni_handle {
 	/* For a state handle */
 	ni_netlink_t *		netlink;
 	int			iocfd;
-};
-
-struct ni_ops {
-	void			(*close)(ni_handle_t *);
 };
 
 /*

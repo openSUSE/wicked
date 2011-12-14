@@ -8,9 +8,17 @@
 #define __NETINFO_KERNEL_H__
 
 #include <net/if.h>
+#include <netlink/netlink.h>
 
 #define __user /* unclean header file */
 #include <wireless.h>
+
+struct __ni_netlink {
+	struct nl_handle *	nl_handle;
+	struct nl_cache *	nl_cache;
+	struct nl_cb *		nl_cb;
+	struct genl_family *	nl_family;
+};
 
 static inline int
 __ni_rta_get_uint(uint *val, struct rtattr *rta)
