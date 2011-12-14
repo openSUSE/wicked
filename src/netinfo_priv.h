@@ -128,7 +128,7 @@ extern int		__ni_device_refresh_link_info(ni_handle_t *, ni_linkinfo_t *);
 extern int		__ni_system_interface_configure(ni_handle_t *, ni_interface_t *, const ni_interface_t *);
 extern int		__ni_system_interface_delete(ni_handle_t *, const char *);
 extern int		__ni_system_interface_stats_refresh(ni_handle_t *, ni_interface_t *);
-extern int		__ni_system_ethernet_refresh(ni_handle_t *, ni_interface_t *);
+extern int		__ni_system_ethernet_refresh(ni_interface_t *);
 extern int		__ni_rtevent_refresh_all(ni_handle_t *, ni_interface_t **del_list);
 
 /* FIXME: These should go elsewhere, maybe runtime.h */

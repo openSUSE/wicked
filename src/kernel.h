@@ -103,12 +103,9 @@ ni_rtnl_prefixmsg(struct nlmsghdr *h, int expected_type)
 	return __ni_rtnl_msgdata(h, expected_type, sizeof(struct prefixmsg));
 }
 
-extern int	__ni_interface_process_newlink(ni_interface_t *, struct nlmsghdr *,
-				struct ifinfomsg *, ni_handle_t *);
-extern int	__ni_interface_process_newlink_ipv6(ni_interface_t *, struct nlmsghdr *,
-				struct ifinfomsg *, ni_handle_t *);
-extern int	__ni_interface_process_newprefix(ni_interface_t *, struct nlmsghdr *,
-				struct prefixmsg *, ni_handle_t *);
+extern int	__ni_interface_process_newlink(ni_interface_t *, struct nlmsghdr *, struct ifinfomsg *, ni_netconfig_t *);
+extern int	__ni_interface_process_newlink_ipv6(ni_interface_t *, struct nlmsghdr *, struct ifinfomsg *);
+extern int	__ni_interface_process_newprefix(ni_interface_t *, struct nlmsghdr *, struct prefixmsg *);
 
 #ifndef IFF_LOWER_UP
 # define IFF_LOWER_UP	0x10000

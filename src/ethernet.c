@@ -17,7 +17,7 @@
 #include "netinfo_priv.h"
 #include "kernel.h"
 
-static int	__ni_system_ethernet_get(ni_handle_t *, const char *, ni_ethernet_t *);
+static int	__ni_system_ethernet_get(const char *, ni_ethernet_t *);
 
 /*
  * Allocate ethernet struct
@@ -133,7 +133,7 @@ typedef struct __ni_ioctl_info {
 } __ni_ioctl_info_t;
 
 static int
-__ni_ethtool_get_value(ni_handle_t *nih, const char *ifname, __ni_ioctl_info_t *ioc)
+__ni_ethtool_get_value(const char *ifname, __ni_ioctl_info_t *ioc)
 {
 	struct ethtool_value eval;
 
@@ -156,11 +156,11 @@ __ni_ethtool_get_value(ni_handle_t *nih, const char *ifname, __ni_ioctl_info_t *
  * Get a value from ethtool, and convert to tristate.
  */
 static int
-__ni_ethtool_get_tristate(ni_handle_t *nih, const char *ifname, __ni_ioctl_info_t *ioc)
+__ni_ethtool_get_tristate(const char *ifname, __ni_ioctl_info_t *ioc)
 {
 	int value;
 
-	if ((value = __ni_ethtool_get_value(nih, ifname, ioc)) < 0)
+	if ((value = __ni_ethtool_get_value(ifname, ioc)) < 0)
 		return NI_ETHERNET_SETTING_DEFAULT;
 
 	return value? NI_ETHERNET_SETTING_ENABLE : NI_ETHERNET_SETTING_DISABLE;
@@ -170,12 +170,12 @@ __ni_ethtool_get_tristate(ni_handle_t *nih, const char *ifname, __ni_ioctl_info_
  * Get ethtool settings from the kernel
  */
 int
-__ni_system_ethernet_refresh(ni_handle_t *nih, ni_interface_t *ifp)
+__ni_system_ethernet_refresh(ni_interface_t *ifp)
 {
 	ni_ethernet_t *ether;
 
 	ether = ni_ethernet_alloc();
-	if (__ni_system_ethernet_get(nih, ifp->name, ether) < 0) {
+	if (__ni_system_ethernet_get(ifp->name, ether) < 0) {
 		ni_ethernet_free(ether);
 		return -1;
 	}
@@ -185,7 +185,7 @@ __ni_system_ethernet_refresh(ni_handle_t *nih, ni_interface_t *ifp)
 }
 
 int
-__ni_system_ethernet_get(ni_handle_t *nih, const char *ifname, ni_ethernet_t *ether)
+__ni_system_ethernet_get(const char *ifname, ni_ethernet_t *ether)
 {
 	static __ni_ioctl_info_t __ethtool_gflags = { ETHTOOL_GFLAGS, "GFLAGS" };
 	static __ni_ioctl_info_t __ethtool_grxcsum = { ETHTOOL_GRXCSUM, "GRXCSUM" };
@@ -235,15 +235,15 @@ __ni_system_ethernet_get(ni_handle_t *nih, const char *ifname, ni_ethernet_t *et
 	    transceiver
 	 */
 
-	ether->offload.rx_csum = __ni_ethtool_get_tristate(nih, ifname, &__ethtool_grxcsum);
-	ether->offload.tx_csum = __ni_ethtool_get_tristate(nih, ifname, &__ethtool_gtxcsum);
-	ether->offload.scatter_gather = __ni_ethtool_get_tristate(nih, ifname, &__ethtool_gsg);
-	ether->offload.tso = __ni_ethtool_get_tristate(nih, ifname, &__ethtool_gtso);
-	ether->offload.ufo = __ni_ethtool_get_tristate(nih, ifname, &__ethtool_gufo);
-	ether->offload.gso = __ni_ethtool_get_tristate(nih, ifname, &__ethtool_ggso);
-	ether->offload.gro = __ni_ethtool_get_tristate(nih, ifname, &__ethtool_ggro);
+	ether->offload.rx_csum = __ni_ethtool_get_tristate(ifname, &__ethtool_grxcsum);
+	ether->offload.tx_csum = __ni_ethtool_get_tristate(ifname, &__ethtool_gtxcsum);
+	ether->offload.scatter_gather = __ni_ethtool_get_tristate(ifname, &__ethtool_gsg);
+	ether->offload.tso = __ni_ethtool_get_tristate(ifname, &__ethtool_gtso);
+	ether->offload.ufo = __ni_ethtool_get_tristate(ifname, &__ethtool_gufo);
+	ether->offload.gso = __ni_ethtool_get_tristate(ifname, &__ethtool_ggso);
+	ether->offload.gro = __ni_ethtool_get_tristate(ifname, &__ethtool_ggro);
 
-	value = __ni_ethtool_get_value(nih, ifname, &__ethtool_gflags);
+	value = __ni_ethtool_get_value(ifname, &__ethtool_gflags);
 	if (value >= 0)
 		ether->offload.lro = (value & ETH_FLAG_LRO)? NI_ETHERNET_SETTING_ENABLE : NI_ETHERNET_SETTING_DISABLE;
 

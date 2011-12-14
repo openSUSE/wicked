@@ -38,14 +38,13 @@
 #include "config.h"
 
 static int	__ni_process_ifinfomsg(ni_linkinfo_t *link, struct nlmsghdr *h,
-				struct ifinfomsg *ifi, ni_handle_t *nih);
-static int	__ni_interface_process_newaddr(ni_interface_t *, struct nlmsghdr *,
-				struct ifaddrmsg *, ni_handle_t *);
+				struct ifinfomsg *ifi, ni_netconfig_t *);
+static int	__ni_interface_process_newaddr(ni_interface_t *, struct nlmsghdr *, struct ifaddrmsg *);
 static int	__ni_interface_process_newroute(ni_interface_t *, struct nlmsghdr *,
 				struct rtmsg *, ni_handle_t *);
 static int	__ni_discover_bridge(ni_interface_t *);
 static int	__ni_discover_bond(ni_interface_t *);
-static int	__ni_discover_addrconf(ni_handle_t *, ni_interface_t *);
+static int	__ni_discover_addrconf(ni_interface_t *);
 
 struct ni_rtnl_info {
 	struct ni_nlmsg_list	nlmsg_list;
@@ -97,7 +96,7 @@ ni_rtnl_query_destroy(struct ni_rtnl_query *q)
 }
 
 static int
-ni_rtnl_query(ni_handle_t *nih, struct ni_rtnl_query *q, int ifindex)
+ni_rtnl_query(struct ni_rtnl_query *q, int ifindex)
 {
 	memset(q, 0, sizeof(*q));
 	q->ifindex = ifindex;
@@ -114,7 +113,7 @@ ni_rtnl_query(ni_handle_t *nih, struct ni_rtnl_query *q, int ifindex)
 }
 
 static int
-ni_rtnl_query_link(ni_handle_t *nih, struct ni_rtnl_query *q, int ifindex)
+ni_rtnl_query_link(struct ni_rtnl_query *q, int ifindex)
 {
 	memset(q, 0, sizeof(*q));
 	q->ifindex = ifindex;
@@ -232,7 +231,7 @@ __ni_system_refresh_all(ni_handle_t *nih, ni_interface_t **del_list)
 
 	seqno = ++__ni_global_seqno;
 
-	if (ni_rtnl_query(nih, &query, -1) < 0)
+	if (ni_rtnl_query(&query, -1) < 0)
 		goto failed;
 
 	/* Find tail of iflist */
@@ -269,7 +268,7 @@ __ni_system_refresh_all(ni_handle_t *nih, ni_interface_t **del_list)
 
 		ifp->seq = seqno;
 
-		if (__ni_interface_process_newlink(ifp, h, ifi, nih) < 0)
+		if (__ni_interface_process_newlink(ifp, h, ifi, &nih->netconfig) < 0)
 			ni_error("Problem parsing RTM_NEWLINK message for %s", ifname);
 	}
 
@@ -291,7 +290,7 @@ __ni_system_refresh_all(ni_handle_t *nih, ni_interface_t **del_list)
 		if ((ifp = ni_interface_by_index(&nih->netconfig, ifi->ifi_index)) == NULL)
 			continue;
 
-		if (__ni_interface_process_newlink_ipv6(ifp, h, ifi, nih) < 0)
+		if (__ni_interface_process_newlink_ipv6(ifp, h, ifi) < 0)
 			error("Problem parsing IPv6 RTM_NEWLINK message for %s", ifp->name);
 	}
 
@@ -304,7 +303,7 @@ __ni_system_refresh_all(ni_handle_t *nih, ni_interface_t **del_list)
 		if ((ifp = ni_interface_by_index(&nih->netconfig, ifa->ifa_index)) == NULL)
 			continue;
 
-		if (__ni_interface_process_newaddr(ifp, h, ifa, nih) < 0)
+		if (__ni_interface_process_newaddr(ifp, h, ifa) < 0)
 			error("Problem parsing RTM_NEWADDR message for %s", ifp->name);
 	}
 
@@ -365,7 +364,7 @@ __ni_system_refresh_interface(ni_handle_t *nih, ni_interface_t *ifp)
 
 	__ni_global_seqno++;
 
-	if (ni_rtnl_query(nih, &query, ifp->link.ifindex) < 0)
+	if (ni_rtnl_query(&query, ifp->link.ifindex) < 0)
 		goto failed;
 
 	while (1) {
@@ -378,7 +377,7 @@ __ni_system_refresh_interface(ni_handle_t *nih, ni_interface_t *ifp)
 		ni_interface_clear_addresses(ifp);
 		ni_interface_clear_routes(ifp);
 
-		if (__ni_interface_process_newlink(ifp, h, ifi, nih) < 0)
+		if (__ni_interface_process_newlink(ifp, h, ifi, &nih->netconfig) < 0)
 			ni_error("Problem parsing RTM_NEWLINK message for %s", ifp->name);
 	}
 
@@ -388,7 +387,7 @@ __ni_system_refresh_interface(ni_handle_t *nih, ni_interface_t *ifp)
 		if (!(ifa = ni_rtnl_query_next_addr_info(&query, &h)))
 			break;
 
-		if (__ni_interface_process_newaddr(ifp, h, ifa, nih) < 0)
+		if (__ni_interface_process_newaddr(ifp, h, ifa) < 0)
 			error("Problem parsing RTM_NEWADDR message for %s", ifp->name);
 	}
 
@@ -421,7 +420,7 @@ __ni_device_refresh_link_info(ni_handle_t *nih, ni_linkinfo_t *link)
 
 	__ni_global_seqno++;
 
-	if ((rv = ni_rtnl_query_link(nih, &query, link->ifindex)) < 0)
+	if ((rv = ni_rtnl_query_link(&query, link->ifindex)) < 0)
 		goto done;
 
 	while (1) {
@@ -430,7 +429,7 @@ __ni_device_refresh_link_info(ni_handle_t *nih, ni_linkinfo_t *link)
 		if (!(ifi = ni_rtnl_query_next_link_info(&query, &h)))
 			break;
 
-		if ((rv = __ni_process_ifinfomsg(link, h, ifi, nih)) < 0) {
+		if ((rv = __ni_process_ifinfomsg(link, h, ifi, &nih->netconfig)) < 0) {
 			ni_error("Problem parsing RTM_NEWLINK message");
 			goto done;
 		}
@@ -500,7 +499,7 @@ __ni_interface_translate_ifflags(unsigned int ifflags)
  */
 int
 __ni_process_ifinfomsg(ni_linkinfo_t *link, struct nlmsghdr *h,
-				struct ifinfomsg *ifi, ni_handle_t *nih)
+				struct ifinfomsg *ifi, ni_netconfig_t *nc)
 {
 	struct nlattr *tb[IFLA_MAX+1];
 	char *ifname;
@@ -612,7 +611,7 @@ __ni_process_ifinfomsg(ni_linkinfo_t *link, struct nlmsghdr *h,
 			if (tb[IFLA_LINK]) {
 				vlan->physdev_index = nla_get_u32(tb[IFLA_LINK]);
 
-				if (ni_vlan_bind_ifindex(vlan, &nih->netconfig) < 0) {
+				if (ni_vlan_bind_ifindex(vlan, nc) < 0) {
 					ni_error("VLAN interface %s references unknown base interface (ifindex %u)",
 							ifname, vlan->physdev_index);
 					/* Ignore error and proceed */
@@ -682,7 +681,7 @@ __ni_process_ifinfomsg(ni_linkinfo_t *link, struct nlmsghdr *h,
 
 int
 __ni_interface_process_newlink(ni_interface_t *ifp, struct nlmsghdr *h,
-				struct ifinfomsg *ifi, ni_handle_t *nih)
+				struct ifinfomsg *ifi, ni_netconfig_t *nc)
 {
 	struct nlattr *nla;
 	int rv;
@@ -693,7 +692,7 @@ __ni_interface_process_newlink(ni_interface_t *ifp, struct nlmsghdr *h,
 	}
 	strncpy(ifp->name, (char *) nla_data(nla), sizeof(ifp->name) - 1);
 
-	rv = __ni_process_ifinfomsg(&ifp->link, h, ifi, nih);
+	rv = __ni_process_ifinfomsg(&ifp->link, h, ifi, nc);
 	if (rv < 0)
 		return rv;
 
@@ -728,7 +727,7 @@ __ni_interface_process_newlink(ni_interface_t *ifp, struct nlmsghdr *h,
 	}
 
 	if (ifp->link.type == NI_IFTYPE_ETHERNET)
-		__ni_system_ethernet_refresh(nih, ifp);
+		__ni_system_ethernet_refresh(ifp);
 
 	if (ifp->link.type == NI_IFTYPE_BRIDGE)
 		__ni_discover_bridge(ifp);
@@ -741,7 +740,7 @@ __ni_interface_process_newlink(ni_interface_t *ifp, struct nlmsghdr *h,
 
 
 	/* Check if we have DHCP running for this interface */
-	__ni_discover_addrconf(nih, ifp);
+	__ni_discover_addrconf(ifp);
 
 	return 0;
 }
@@ -750,8 +749,7 @@ __ni_interface_process_newlink(ni_interface_t *ifp, struct nlmsghdr *h,
  * Refresh interface link layer IPv6 info given a RTM_NEWLINK message
  */
 int
-__ni_interface_process_newlink_ipv6(ni_interface_t *ifp, struct nlmsghdr *h,
-				struct ifinfomsg *ifi, ni_handle_t *nih)
+__ni_interface_process_newlink_ipv6(ni_interface_t *ifp, struct nlmsghdr *h, struct ifinfomsg *ifi)
 {
 	struct nlattr *tb[IFLA_MAX+1];
 
@@ -783,8 +781,7 @@ __ni_interface_process_newlink_ipv6(ni_interface_t *ifp, struct nlmsghdr *h,
  * Record IPv6 prefixes received via router advertisements
  */
 int
-__ni_interface_process_newprefix(ni_interface_t *ifp, struct nlmsghdr *h,
-				struct prefixmsg *pfx, ni_handle_t *nih)
+__ni_interface_process_newprefix(ni_interface_t *ifp, struct nlmsghdr *h, struct prefixmsg *pfx)
 {
 	struct nlattr *tb[PREFIX_MAX+1];
 	ni_addrconf_lease_t *lease;
@@ -851,8 +848,7 @@ __ni_interface_process_newprefix(ni_interface_t *ifp, struct nlmsghdr *h,
  * Update interface address list given a RTM_NEWADDR message
  */
 static int
-__ni_interface_process_newaddr(ni_interface_t *ifp, struct nlmsghdr *h,
-				struct ifaddrmsg *ifa, ni_handle_t *nih)
+__ni_interface_process_newaddr(ni_interface_t *ifp, struct nlmsghdr *h, struct ifaddrmsg *ifa)
 {
 	struct nlattr *tb[IFA_MAX+1];
 	ni_addrconf_lease_t *lease;
@@ -1090,7 +1086,7 @@ __ni_discover_bond(ni_interface_t *ifp)
  * Discover whether we have any addrconf daemons running on this interface.
  */
 int
-__ni_discover_addrconf(ni_handle_t *nih, ni_interface_t *ifp)
+__ni_discover_addrconf(ni_interface_t *ifp)
 {
 	const ni_addrconf_t *acm;
 	unsigned int pos;
