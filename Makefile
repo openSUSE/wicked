@@ -19,7 +19,6 @@ LIBHDRS	= logging.h \
 	  netcf.h
 __LIBSRCS= \
 	  config.c \
-	  rest-api.c \
 	  extension.c \
 	  policy.c \
 	  netinfo.c \

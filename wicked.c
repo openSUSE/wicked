@@ -63,7 +63,6 @@ static int		do_addport(int, char **);
 static int		do_delport(int, char **);
 static int		do_ifup(int, char **);
 static int		do_ifdown(int, char **);
-static int		do_rest(const char *, int, char **);
 static int		do_xpath(int, char **);
 
 int
@@ -179,11 +178,13 @@ main(int argc, char **argv)
 	if (!strcmp(cmd, "xpath"))
 		return do_xpath(argc - optind + 1, argv + optind - 1);
 
+#if 0
 	if (!strcmp(cmd, "get")
 	 || !strcmp(cmd, "put")
 	 || !strcmp(cmd, "post")
 	 || !strcmp(cmd, "delete"))
 		return do_rest(cmd, argc - optind + 1, argv + optind - 1);
+#endif
 
 	fprintf(stderr, "Unsupported command %s\n", cmd);
 	goto usage;
@@ -941,6 +942,7 @@ failed:
 	return rv;
 }
 
+#if 0
 static int
 __wicked_request(int rest_op, const char *path,
 		/* const */ xml_node_t *send_xml,
@@ -976,6 +978,7 @@ __wicked_request(int rest_op, const char *path,
 	ni_wicked_request_destroy(&req);
 	return rv;
 }
+#endif
 
 #if 0
 enum {
@@ -2088,7 +2091,6 @@ failed:
 	ni_interface_state_array_destroy(&state_array);
 	return (rv == 0);
 }
-#endif
 
 /*
  * We also allow the user to send raw REST commands to the server,
@@ -2141,6 +2143,7 @@ do_rest(const char *cmd, int argc, char **argv)
 
 	return 0;
 }
+#endif
 
 /*
  * xpath

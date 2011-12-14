@@ -132,6 +132,7 @@ ni_config_parse(const char *filename)
 		goto failed;
 
 	/* If we have API extensions, register them with the REST API */
+#if 0
 	if (conf->api_extensions) {
 		ni_stringbuf_t sbuf = NI_STRINGBUF_INIT_DYNAMIC;
 		ni_extension_t *ex;
@@ -166,6 +167,7 @@ ni_config_parse(const char *filename)
 		}
 		ni_stringbuf_clear(&sbuf);
 	}
+#endif
 
 	xml_document_free(doc);
 	return conf;
