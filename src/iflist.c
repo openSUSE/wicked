@@ -230,7 +230,7 @@ __ni_system_refresh_all(ni_handle_t *nih, ni_interface_t **del_list)
 	unsigned int seqno;
 	int res = -1;
 
-	seqno = ++(nih->seqno);
+	seqno = ++__ni_global_seqno;
 
 	if (ni_rtnl_query(nih, &query, -1) < 0)
 		goto failed;
@@ -363,7 +363,7 @@ __ni_system_refresh_interface(ni_handle_t *nih, ni_interface_t *ifp)
 	struct nlmsghdr *h;
 	int res = -1;
 
-	nih->seqno++;
+	__ni_global_seqno++;
 
 	if (ni_rtnl_query(nih, &query, ifp->link.ifindex) < 0)
 		goto failed;
@@ -419,7 +419,7 @@ __ni_device_refresh_link_info(ni_handle_t *nih, ni_linkinfo_t *link)
 	struct nlmsghdr *h;
 	int rv = 0;
 
-	nih->seqno++;
+	__ni_global_seqno++;
 
 	if ((rv = ni_rtnl_query_link(nih, &query, link->ifindex)) < 0)
 		goto done;

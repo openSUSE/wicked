@@ -31,8 +31,6 @@ struct ni_handle {
 	ni_route_t *		routes;
 	ni_policy_info_t	policy;
 
-	unsigned int		seqno;
-
 	struct ni_ops *		op;
 
 	/* For a state handle */

@@ -105,7 +105,7 @@ ni_interface_up(ni_handle_t *nih, ni_interface_t *ifp, const ni_interface_reques
 		ifp->up_requesters = 0;
 	}
 
-	nih->seqno++;
+	__ni_global_seqno++;
 
 	res = -1;
 
@@ -140,7 +140,7 @@ ni_interface_down(ni_handle_t *nih, ni_interface_t *ifp)
 	ni_debug_ifconfig("%s(%s)", __func__, ifp->name);
 	ni_assert(nih == ni_global_state_handle(0));
 
-	nih->seqno++;
+	__ni_global_seqno++;
 
 	/* First do the addrconf fandango, then take down the interface
 	 * itself. We need to do DHCP release and related stuff... */
@@ -254,7 +254,7 @@ __ni_system_interface_configure(ni_handle_t *nih, ni_interface_t *ifp, const ni_
 		ifp->up_requesters = 0;
 	}
 
-	nih->seqno++;
+	__ni_global_seqno++;
 
 	res = -1;
 
@@ -1841,7 +1841,7 @@ __ni_interface_update_addrs(ni_handle_t *nih, ni_interface_t *ifp,
 				/* Current address as configured, no need to change. */
 				ni_debug_ifconfig("address %s/%u exists; no need to reconfigure",
 					ni_address_print(&ap->local_addr), ap->prefixlen);
-				ap2->seq = nih->seqno;
+				ap2->seq = __ni_global_seqno;
 				continue;
 			}
 
@@ -1859,7 +1859,7 @@ __ni_interface_update_addrs(ni_handle_t *nih, ni_interface_t *ifp,
 	 */
 	for (ap = *cfg_addr_list; ap; ap = ap->next) {
 		if (ap->family != family
-		 || ap->seq == nih->seqno)
+		 || ap->seq == __ni_global_seqno)
 			continue;
 
 		ni_debug_ifconfig("Adding new interface address %s/%u",
@@ -1923,7 +1923,7 @@ __ni_interface_update_routes(ni_handle_t *nih, ni_interface_t *ifp,
 			if (__ni_rtnl_send_newroute(nih, ifp, rp2, NLM_F_REPLACE) >= 0) {
 				ni_debug_ifconfig("%s: successfully updated existing route %s",
 						ifp->name, ni_route_print(rp));
-				rp2->seq = nih->seqno;
+				rp2->seq = __ni_global_seqno;
 				continue;
 			}
 
@@ -1941,7 +1941,7 @@ __ni_interface_update_routes(ni_handle_t *nih, ni_interface_t *ifp,
 	 */
 	for (rp = *cfg_route_list; rp; rp = rp->next) {
 		if (rp->family != family
-		 || rp->seq == nih->seqno)
+		 || rp->seq == __ni_global_seqno)
 			continue;
 
 		ni_debug_ifconfig("%s: adding new route %s", ifp->name, ni_route_print(rp));
