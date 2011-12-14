@@ -1161,7 +1161,7 @@ __ni_rtnl_link_create_vlan(ni_handle_t *nih, const char *ifname, const ni_vlan_t
 	}
 	NLA_PUT_STRING(msg, IFLA_IFNAME, ifname);
 
-	if (ni_nl_talk(nih, msg) < 0)
+	if (ni_nl_talk(msg) < 0)
 		goto failed;
 
 	ni_debug_ifconfig("successfully created interface %s", ifname);
@@ -1244,7 +1244,7 @@ __ni_rtnl_link_create(ni_handle_t *nih, const ni_interface_t *cfg)
 	}
 	NLA_PUT_STRING(msg, IFLA_IFNAME, cfg->name);
 
-	if (ni_nl_talk(nih, msg) < 0)
+	if (ni_nl_talk(msg) < 0)
 		goto failed;
 
 	ni_debug_ifconfig("successfully created interface %s", cfg->name);
@@ -1272,7 +1272,7 @@ __ni_rtnl_simple(ni_handle_t *nih, int msgtype, unsigned int flags, void *data, 
 	if (nlmsg_append(msg, data, len, NLMSG_ALIGNTO) < 0) {
 		ni_error("%s: nlmsg_append failed", __func__);
 	} else
-	if (ni_nl_talk(nih, msg) < 0) {
+	if (ni_nl_talk(msg) < 0) {
 		ni_debug_ifconfig("%s: rtnl_talk failed", __func__);
 	} else {
 		rv = 0; /* success */
@@ -1341,7 +1341,7 @@ __ni_rtnl_link_up(ni_handle_t *nih, const ni_interface_t *ifp, const ni_interfac
 		/* FIXME: handle COST, QDISC, MASTER */
 	}
 
-	if (ni_nl_talk(nih, msg) < 0) {
+	if (ni_nl_talk(msg) < 0) {
 		ni_debug_ifconfig("%s: rtnl_talk failed", __func__);
 		goto failed;
 	}
@@ -1461,7 +1461,7 @@ __ni_rtnl_send_newaddr(ni_handle_t *nih, ni_interface_t *ifp, const ni_address_t
 		NLA_PUT_STRING(msg, IFA_LABEL, ap->label);
 	}
 
-	if (ni_nl_talk(nih, msg) < 0) {
+	if (ni_nl_talk(msg) < 0) {
 		ni_error("%s(%s/%u): ni_nl_talk failed", __func__,
 				ni_address_print(&ap->local_addr),
 				ap->prefixlen);
@@ -1506,7 +1506,7 @@ __ni_rtnl_send_deladdr(ni_handle_t *nih, ni_interface_t *ifp, const ni_address_t
 			goto nla_put_failure;
 	}
 
-	if (ni_nl_talk(nih, msg) < 0) {
+	if (ni_nl_talk(msg) < 0) {
 		ni_error("%s(%s/%u): rtnl_talk failed", __func__,
 				ni_address_print(&ap->local_addr),
 				ap->prefixlen);
@@ -1601,7 +1601,7 @@ __ni_rtnl_send_newroute(ni_handle_t *nih, ni_interface_t *ifp, ni_route_t *rp, i
 		nla_nest_end(msg, mxrta);
 	}
 
-	if (ni_nl_talk(nih, msg) < 0) {
+	if (ni_nl_talk(msg) < 0) {
 		error("%s(%s): rtnl_talk failed", __FUNCTION__, ni_route_print(rp));
 		goto failed;
 	}
@@ -1649,7 +1649,7 @@ __ni_rtnl_send_delroute(ni_handle_t *nih, ni_interface_t *ifp, ni_route_t *rp)
 
 	NLA_PUT_U32(msg, RTA_OIF, ifp->link.ifindex);
 
-	if (ni_nl_talk(nih, msg) < 0) {
+	if (ni_nl_talk(msg) < 0) {
 		ni_error("%s(%s): rtnl_talk failed", __FUNCTION__, ni_route_print(rp));
 		goto failed;
 	}

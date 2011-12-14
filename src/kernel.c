@@ -323,14 +323,14 @@ __ni_nl_talk(ni_netlink_t *nl, struct nl_msg *msg,
 }
 
 int
-ni_nl_talk(ni_handle_t *nih, struct nl_msg *msg)
+ni_nl_talk(struct nl_msg *msg)
 {
-	if (!nih->netlink) {
+	if (!__ni_global_netlink) {
 		ni_error("%s: no netlink handle", __func__);
 		return -1;
 	}
 
-	return __ni_nl_talk(nih->netlink, msg, NULL, NULL);
+	return __ni_nl_talk(__ni_global_netlink, msg, NULL, NULL);
 }
 
 /*
@@ -429,7 +429,7 @@ ni_nl_dump_store(ni_handle_t *nih, int af, int type,
 	};
 	struct nl_cb *cb;
 
-	if (!nih->netlink || !(handle = nih->netlink->nl_handle)) {
+	if (!__ni_global_netlink || !(handle = __ni_global_netlink->nl_handle)) {
 		ni_error("%s: no netlink handle", __func__);
 		return -1;
 	}
@@ -439,7 +439,7 @@ ni_nl_dump_store(ni_handle_t *nih, int af, int type,
 		return -1;
 	}
 
-	if (!(cb = __ni_nl_cb_clone(nih->netlink)))
+	if (!(cb = __ni_nl_cb_clone(__ni_global_netlink)))
 		return -1;
 
 	nl_cb_set(cb, NL_CB_VALID, NL_CB_CUSTOM, __ni_nl_dump_valid, &data);

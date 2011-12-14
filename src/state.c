@@ -17,17 +17,15 @@
 ni_handle_t *
 ni_state_open(void)
 {
-	ni_netlink_t *netlink;
 	ni_handle_t *nih;
 
-	netlink = __ni_netlink_open(0);
-	if (netlink == NULL)
-		return NULL;
+	if (__ni_global_netlink == NULL) {
+		__ni_global_netlink = __ni_netlink_open(0);
+		if (__ni_global_netlink == NULL)
+			return NULL;
+	}
 
-	nih = __ni_handle_new(sizeof(*nih));
-	nih->netlink = netlink;
-
-	return nih;
+	return __ni_handle_new(sizeof(*nih));
 }
 
 ni_handle_t *

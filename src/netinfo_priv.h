@@ -23,9 +23,6 @@ extern int			__ni_global_iocfd;
 struct ni_handle {
 	ni_netconfig_t		netconfig;
 	ni_policy_info_t	policy;
-
-	/* For a state handle */
-	ni_netlink_t *		netlink;
 };
 
 /*

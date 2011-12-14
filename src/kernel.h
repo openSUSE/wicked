@@ -63,7 +63,7 @@ struct ni_nlmsg_list {
 	struct ni_nlmsg **	tail;
 };
 
-extern int	ni_nl_talk(ni_handle_t *, struct nl_msg *);
+extern int	ni_nl_talk(struct nl_msg *);
 extern int	ni_nl_dump_store(struct ni_handle *nih, int af, int type,
 			struct ni_nlmsg_list *list);
 
