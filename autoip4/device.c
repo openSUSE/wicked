@@ -81,6 +81,11 @@ ni_autoip_device_close(ni_autoip_device_t *dev)
 	if (dev->arp_socket)
 		ni_arp_socket_close(dev->arp_socket);
 	dev->arp_socket = NULL;
+
+	if (dev->fsm.timer) {
+		ni_timer_cancel(dev->fsm.timer);
+		dev->fsm.timer = NULL;
+	}
 }
 
 void

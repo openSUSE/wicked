@@ -42,7 +42,7 @@ extern int	ni_autoip_device_get_address(ni_autoip_device_t *, struct in_addr *);
 static int	ni_autoip_send_arp(ni_autoip_device_t *);
 static void	ni_autoip_fsm_process_arp_packet(ni_arp_socket_t *, const ni_arp_packet_t *, void *);
 static void	ni_autoip_fsm_set_timeout(ni_autoip_device_t *, unsigned int, unsigned int);
-static void	ni_autoip_fsm_timeout(ni_autoip_device_t *);
+static void	__ni_autoip_fsm_timeout(void *, const ni_timer_t *);
 
 
 int
@@ -259,64 +259,26 @@ ni_autoip_fsm_set_timeout(ni_autoip_device_t *dev, unsigned int wait_min, unsign
 			wait += (unsigned int) random() % (wait_max - wait_min);
 
 		ni_debug_autoip("%s: setting timeout to %u ms", dev->ifname, wait);
-		gettimeofday(&dev->fsm.expires, NULL);
-		dev->fsm.expires.tv_sec += wait / 1000;
-		dev->fsm.expires.tv_usec += wait % 1000;
-		if (dev->fsm.expires.tv_usec > 1000000) {
-			dev->fsm.expires.tv_usec -= 1000000;
-			dev->fsm.expires.tv_sec += 1;
-		}
+		if (dev->fsm.timer)
+			ni_timer_rearm(dev->fsm.timer, wait);
+		else
+			dev->fsm.timer = ni_timer_register(wait, __ni_autoip_fsm_timeout, dev);
 	}
 }
 
 /*
- * Check whether we have any timeouts set for any of our monitored
- * devices, and if we do, return the timeout value as number of
- * milliseconds.
+ * Timeout handling
  */
-long
-ni_autoip_fsm_get_timeout(void)
-{
-	struct timeval now, delta, *expires = NULL;
-	ni_autoip_device_t *dev;
-
-	for (dev = ni_autoip_active; dev; dev = dev->next) {
-		if (timerisset(&dev->fsm.expires)
-		&& (expires == NULL || timercmp(&dev->fsm.expires, expires, <)))
-			expires = &dev->fsm.expires;
-	}
-
-	if (expires == NULL)
-		return -1;
-
-	gettimeofday(&now, NULL);
-	if (timercmp(expires, &now, <))
-		return 0;
-
-	timersub(expires, &now, &delta);
-	return 1000 * delta.tv_sec + delta.tv_usec / 1000;
-}
-
-/*
- * Check whether we need to process any FSM timeouts
- */
-void
-ni_autoip_fsm_check_timeout(void)
-{
-	struct timeval now;
-	ni_autoip_device_t *dev;
-
-	gettimeofday(&now, NULL);
-	for (dev = ni_autoip_active; dev; dev = dev->next) {
-		if (timerisset(&dev->fsm.expires) && timercmp(&dev->fsm.expires, &now, <=))
-			ni_autoip_fsm_timeout(dev);
-	}
-}
-
 static void
-ni_autoip_fsm_timeout(ni_autoip_device_t *dev)
+__ni_autoip_fsm_timeout(void *handle, const ni_timer_t *timer)
 {
-	timerclear(&dev->fsm.expires);
+	ni_autoip_device_t *dev = handle;
+
+	if (dev->fsm.timer != timer) {
+		ni_warn("%s: stale timer for %s", __func__, dev->ifname);
+		return;
+	}
+	dev->fsm.timer = NULL;
 
 	switch (dev->fsm.state) {
 	case NI_AUTOIP_STATE_INIT:

@@ -7,6 +7,7 @@
 #ifndef __WICKED_AUTOIP_PRIVATE_H__
 #define __WICKED_AUTOIP_PRIVATE_H__
 
+#include <wicked/socket.h>
 #include "netinfo_priv.h"
 
 typedef enum ni_autoip_state {
@@ -32,7 +33,7 @@ struct ni_autoip_device {
 
 	struct {
 	    ni_autoip_state_t	state;
-	    struct timeval	expires;
+	    const ni_timer_t *	timer;
 	} fsm;
 
 	struct {
