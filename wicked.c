@@ -1916,7 +1916,7 @@ usage:
 			goto failed;
 		}
 	} else {
-		config = ni_indirect_open("/config");
+		config = NULL; // ni_indirect_open("/config");
 		if (!strcmp(ifname, "all")) {
 			rv = ni_refresh(config, NULL);
 		} else {
@@ -1929,7 +1929,7 @@ usage:
 		}
 	}
 
-	system = ni_indirect_open("/system");
+	system = NULL; // ni_indirect_open("/system");
 	if ((rv = ni_refresh(system, NULL)) < 0) {
 		ni_error("cannot refresh interface state");
 		goto failed;
@@ -2033,7 +2033,7 @@ usage:
 	 * change <status> to down, and send it back.
 	 */
 	{
-		system = ni_indirect_open("/system");
+		system = NULL; // ni_indirect_open("/system");
 		if (!strcmp(ifname, "all") || !strcmp(ifname, "shutdown")) {
 			rv = ni_refresh(system, NULL);
 		} else {

@@ -33,7 +33,6 @@ __LIBSRCS= \
 	  iflist.c \
 	  ifconfig.c \
 	  ifevent.c \
-	  indirect.c \
 	  kernel.c \
 	  address.c \
 	  sysconfig.c \
