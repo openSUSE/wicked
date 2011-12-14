@@ -192,14 +192,6 @@ ni_refresh(ni_handle_t *nih, ni_interface_array_t *del_array)
 	return rv;
 }
 
-int
-ni_interface_refresh_one(ni_handle_t *nih, const char *name)
-{
-	if (nih->op->interface_refresh_one)
-		return nih->op->interface_refresh_one(nih, name);
-	return ni_refresh(nih, NULL);
-}
-
 void
 ni_close(ni_handle_t *nih)
 {

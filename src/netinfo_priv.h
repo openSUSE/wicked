@@ -42,8 +42,6 @@ struct ni_handle {
 
 struct ni_ops {
 	int			(*refresh)(ni_handle_t *, ni_interface_t **del_list);
-	int			(*interface_refresh_one)(ni_handle_t *, const char *);
-
 	void			(*close)(ni_handle_t *);
 };
 
