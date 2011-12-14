@@ -194,7 +194,7 @@ ni_dhcp_device_drop_best_offer(ni_dhcp_device_t *dev)
 int
 ni_dhcp_device_refresh(ni_dhcp_device_t *dev)
 {
-	ni_handle_t *nih = ni_global_state_handle();
+	ni_handle_t *nih = ni_global_state_handle(0);
 	int rv;
 
 	if ((rv = __ni_device_refresh_link_info(nih, &dev->link)) < 0) {

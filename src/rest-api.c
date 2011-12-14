@@ -506,12 +506,8 @@ system_handle(ni_wicked_request_t *req)
 {
 	ni_handle_t *nih;
 
-	if (!(nih = ni_global_state_handle())) {
+	if (!(nih = ni_global_state_handle(1))) {
 		werror(req, "unable to obtain netinfo handle");
-		return NULL;
-	}
-	if (ni_refresh(nih, NULL) < 0) {
-		werror(req, "cannot refresh interface list!");
 		return NULL;
 	}
 
@@ -531,11 +527,13 @@ config_handle(ni_wicked_request_t *req)
 		werror(req, "unable to obtain netinfo handle");
 		return NULL;
 	}
+#if 0
 	if (ni_refresh(nih, NULL) < 0) {
 		werror(req, "cannot refresh interface list!");
 		ni_close(nih);
 		return NULL;
 	}
+#endif
 
 	return nih;
 }
@@ -887,7 +885,7 @@ static ni_rest_node_t	ni_rest_config_interface_node = {
 static int
 system_policy_post(ni_wicked_request_t *req)
 {
-	ni_handle_t *nih = ni_global_state_handle();
+	ni_handle_t *nih;
 	ni_policy_info_t policy_info = { NULL };
 	ni_policy_t *policy;
 	int rv = -1;
@@ -897,7 +895,8 @@ system_policy_post(ni_wicked_request_t *req)
 		goto failed;
 	}
 
-	if (ni_refresh(nih, NULL) < 0) {
+	nih = ni_global_state_handle(1);
+	if (nih == NULL) {
 		werror(req, "could not refresh interface list");
 		goto failed;
 	}
@@ -921,7 +920,7 @@ static int
 system_policy_get(ni_wicked_request_t *req)
 {
 	ni_syntax_t *xmlsyntax = ni_default_xml_syntax();
-	ni_handle_t *nih = ni_global_state_handle();
+	ni_handle_t *nih = ni_global_state_handle(0);
 
 	req->xml_out = __ni_syntax_xml_from_policy_info(xmlsyntax, &nih->policy);
 	if (req->xml_out == NULL) {

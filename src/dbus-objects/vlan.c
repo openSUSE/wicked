@@ -29,7 +29,7 @@ ni_objectmodel_new_vlan(ni_dbus_server_t *server, const ni_dbus_object_t *config
 	ni_interface_t *cfg_ifp = ni_dbus_object_get_handle(config);
 	ni_interface_t *new_ifp;
 	const ni_vlan_t *vlan = cfg_ifp->link.vlan;
-	ni_handle_t *nih = ni_global_state_handle();
+	ni_handle_t *nih = ni_global_state_handle(0);
 	int rv;
 
 	if (!vlan
@@ -87,7 +87,7 @@ __ni_dbus_vlan_delete(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
-	ni_handle_t *nih = ni_global_state_handle();
+	ni_handle_t *nih = ni_global_state_handle(0);
 	ni_interface_t *ifp = object->handle;
 
 	NI_TRACE_ENTER_ARGS("ifp=%s", ifp->name);

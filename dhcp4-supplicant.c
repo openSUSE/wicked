@@ -250,10 +250,7 @@ dhcp4_discover_devices(ni_dbus_server_t *server)
 	ni_handle_t *nih;
 	ni_interface_t *ifp;
 
-	if (!(nih = ni_global_state_handle()))
-		ni_fatal("Unable to obtain netinfo handle");
-
-	if (ni_refresh(nih, NULL) < 0)
+	if (!(nih = ni_global_state_handle(1)))
 		ni_fatal("cannot refresh interface list!");
 
 	for (ifp = ni_interfaces(nih); ifp; ifp = ifp->next) {

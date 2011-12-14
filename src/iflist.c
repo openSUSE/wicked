@@ -215,6 +215,13 @@ ni_rtnl_query_next_route_info(struct ni_rtnl_query *q, struct nlmsghdr **hp, int
  * Refresh all interfaces
  */
 int
+__ni_system_refresh_interfaces(ni_handle_t *nih)
+{
+	ni_assert(nih == ni_global_state_handle(0));
+	return __ni_system_refresh_all(nih, NULL);
+}
+
+int
 __ni_system_refresh_all(ni_handle_t *nih, ni_interface_t **del_list)
 {
 	struct ni_rtnl_query query;

@@ -187,7 +187,7 @@ ni_objectmodel_new_interface(ni_dbus_server_t *server, const ni_dbus_service_t *
 
 			/* fail if interface exists already */
 			{
-				ni_handle_t *nih = ni_global_state_handle();
+				ni_handle_t *nih = ni_global_state_handle(0);
 
 				if (ni_interface_by_name(nih, ifname)) {
 					dbus_set_error(error, DBUS_ERROR_FAILED,
@@ -270,7 +270,7 @@ __wicked_dbus_interface_up(ni_dbus_object_t *object, const ni_dbus_method_t *met
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
-	ni_handle_t *nih = ni_global_state_handle();
+	ni_handle_t *nih = ni_global_state_handle(0);
 	ni_interface_t *dev = object->handle;
 	ni_dbus_object_t *cfg_object;
 	ni_interface_request_t *req;
@@ -319,7 +319,7 @@ __wicked_dbus_interface_down(ni_dbus_object_t *object, const ni_dbus_method_t *m
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
-	ni_handle_t *nih = ni_global_state_handle();
+	ni_handle_t *nih = ni_global_state_handle(0);
 	ni_interface_t *dev = object->handle;
 	dbus_bool_t ret = FALSE;
 	int rv;

@@ -117,8 +117,8 @@ ni_objectmodel_addrconf_path_to_device(const char *path)
 	if (ni_parse_int(path, &ifindex) < 0)
 		return NULL;
 
-	nih = ni_global_state_handle();
-	if (ni_refresh(nih, NULL) < 0) {
+	nih = ni_global_state_handle(1);
+	if (nih == NULL) {
 		ni_error("%s: unable to refresh interfaces", __func__);
 		return NULL;
 	}

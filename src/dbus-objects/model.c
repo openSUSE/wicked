@@ -80,6 +80,9 @@ ni_objectmodel_service_by_name(const char *name)
 static dbus_bool_t
 wicked_dbus_netif_refresh(ni_dbus_object_t *object)
 {
+#if 1
+	return TRUE;
+#else
 	ni_interface_array_t deleted = NI_INTERFACE_ARRAY_INIT;
 	unsigned int i;
 	ni_handle_t *nih;
@@ -112,6 +115,7 @@ wicked_dbus_netif_refresh(ni_dbus_object_t *object)
 
 	ni_interface_array_destroy(&deleted);
 	return TRUE;
+#endif
 }
 
 

@@ -138,6 +138,7 @@ ni_interface_down(ni_handle_t *nih, ni_interface_t *ifp)
 		return -NI_ERROR_INVALID_ARGS;
 
 	ni_debug_ifconfig("%s(%s)", __func__, ifp->name);
+	ni_assert(nih == ni_global_state_handle(0));
 
 	nih->seqno++;
 
@@ -277,7 +278,7 @@ failed:
 int
 __ni_system_interface_update_lease(ni_interface_t *ifp, ni_addrconf_lease_t *lease)
 {
-	ni_handle_t *nih = ni_global_state_handle();
+	ni_handle_t *nih = ni_global_state_handle(0);
 	unsigned int update_mask;
 	ni_afinfo_t *afi;
 	int res;
@@ -545,7 +546,7 @@ __ni_interface_bridge_configure(ni_handle_t *nih, const ni_interface_t *cfg, ni_
 		}
 
 		/* Refresh interface status */
-		ni_refresh(nih, NULL);
+		__ni_system_refresh_interfaces(nih);
 
 		if (__ni_interface_for_config(nih, cfg, &ifp) < 0 || ifp == NULL) {
 			error("tried to create interface %s; still not found", cfg->name);
@@ -618,7 +619,7 @@ __ni_interface_vlan_configure(ni_handle_t *nih, const ni_interface_t *cfg, ni_in
 		}
 
 		/* Refresh interface status */
-		ni_refresh(nih, NULL);
+		__ni_system_refresh_interfaces(nih);
 
 		if (__ni_interface_for_config(nih, cfg, &ifp) < 0 || ifp == NULL) {
 			error("tried to create interface %s; still not found", cfg->name);
@@ -677,7 +678,7 @@ ni_interface_create_vlan(ni_handle_t *nih, const char *ifname, const ni_vlan_t *
 	}
 
 	/* Refresh interface status */
-	ni_refresh(nih, NULL);
+	__ni_system_refresh_interfaces(nih);
 
 	ifp = ni_interface_by_vlan_tag(nih, cfg_vlan->tag);
 	if (ifp == NULL) {
@@ -745,7 +746,7 @@ ni_interface_create_bridge(ni_handle_t *nih, const char *ifname,
 	}
 
 	/* Refresh interface status */
-	ni_refresh(nih, NULL);
+	__ni_system_refresh_interfaces(nih);
 
 	ifp = ni_interface_by_name(nih, ifname);
 	if (ifp == NULL) {
@@ -954,7 +955,7 @@ __ni_interface_bond_configure(ni_handle_t *nih, const ni_interface_t *cfg, ni_in
 		}
 
 		/* Refresh interface status */
-		ni_refresh(nih, NULL);
+		__ni_system_refresh_interfaces(nih);
 
 		if (__ni_interface_for_config(nih, cfg, &ifp) < 0 || ifp == NULL) {
 			error("tried to create interface %s; still not found", cfg->name);

@@ -252,13 +252,13 @@ extern void		ni_log_destination_syslog(const char *program);
 extern void		ni_netconfig_init(ni_netconfig_t *);
 extern void		ni_netconfig_destroy(ni_netconfig_t *);
 
-extern ni_handle_t *	ni_global_state_handle(void);
+extern ni_handle_t *	ni_global_state_handle(int);
 extern ni_handle_t *	ni_state_open(void);
 extern ni_handle_t *	ni_netconfig_open(ni_syntax_t *);
 extern ni_handle_t *	ni_indirect_open(const char *);
 extern void		ni_indirect_set_root(ni_handle_t *, const char *);
 extern ni_handle_t *	ni_dummy_open(void);
-extern int		ni_refresh(ni_handle_t *, ni_interface_array_t *);
+
 extern int		ni_interface_refresh_one(ni_handle_t *, const char *);
 extern int		ni_create_topology(ni_handle_t *);
 extern void		ni_close(ni_handle_t *);

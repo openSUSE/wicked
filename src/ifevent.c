@@ -32,7 +32,7 @@ static int	__ni_rtevent_newprefix(ni_handle_t *, const struct sockaddr_nl *, str
 void
 __ni_rtevent_read(ni_socket_t *sock)
 {
-	ni_handle_t *nih = ni_global_state_handle();
+	ni_handle_t *nih = ni_global_state_handle(0);
 	//struct nl_handle *handle = sock->user_data;
 	struct nlmsghdr *h;
 	struct sockaddr_nl nladdr;
