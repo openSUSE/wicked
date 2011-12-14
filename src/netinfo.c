@@ -767,6 +767,7 @@ __ni_lease_owns_route(const ni_addrconf_lease_t *lease, const ni_route_t *rp)
 	return NULL;
 }
 
+#if 0
 /*
  * Delete an interface, by removing its configuration file, or
  * by destroying the kernel network interface (only possible for
@@ -782,6 +783,7 @@ ni_interface_delete(ni_handle_t *nih, const char *ifname)
 
 	return nih->op->delete_interface(nih, ifname);
 }
+#endif
 
 /*
  * Create the interface topology.

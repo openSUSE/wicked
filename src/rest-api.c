@@ -665,6 +665,7 @@ config_interface_put(ni_wicked_request_t *req)
 	return generic_interface_put(config_handle(req), req);
 }
 
+#if 0
 static int
 generic_interface_delete(ni_handle_t *nih, ni_wicked_request_t *req)
 {
@@ -698,7 +699,6 @@ config_interface_delete(ni_wicked_request_t *req)
 	return generic_interface_delete(config_handle(req), req);
 }
 
-#if 0
 static int
 system_interface_stats_get(ni_wicked_request_t *req)
 {
@@ -846,7 +846,6 @@ static ni_rest_node_t	ni_rest_system_interface_wildcard_node = {
 	    .byname = {
 		.get	= system_interface_get,
 		.put	= system_interface_put,
-		.delete	= system_interface_delete,
 	    },
 	},
 	.children = {
@@ -871,7 +870,6 @@ static ni_rest_node_t	ni_rest_config_interface_wildcard_node = {
 	    .byname = {
 		.get	= config_interface_get,
 		.put	= config_interface_put,
-		.delete	= config_interface_delete,
 	    },
 	},
 };
