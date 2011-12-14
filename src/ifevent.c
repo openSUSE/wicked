@@ -234,7 +234,7 @@ __ni_rtevent_newlink(ni_handle_t *nih, const struct sockaddr_nl *nladdr, struct 
 		ni_interface_t **pos;
 
 		/* Add new interface to our list of devices */
-		for (pos = &nih->iflist; *pos; pos = &(*pos)->next)
+		for (pos = &nih->netconfig.interfaces; *pos; pos = &(*pos)->next)
 			;
 		*pos = ifp;
 
@@ -266,7 +266,7 @@ __ni_rtevent_dellink(ni_handle_t *nih, const struct sockaddr_nl *nladdr, struct 
 	}
 
 	/* Open code interface removal. */
-	for (pos = &nih->iflist; (ifp = *pos) != NULL; pos = &ifp->next) {
+	for (pos = &nih->netconfig.interfaces; (ifp = *pos) != NULL; pos = &ifp->next) {
 		if (ifp->link.ifindex == ifi->ifi_index) {
 			*pos = ifp->next;
 			ifp->next = NULL;

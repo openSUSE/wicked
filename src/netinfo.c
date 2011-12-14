@@ -738,7 +738,7 @@ ni_interface_new(ni_handle_t *nih, const char *name, unsigned int index)
 
 	ifp = __ni_interface_new(name, index);
 	if (nih && ifp)
-		__ni_interface_list_append(&nih->iflist, ifp);
+		__ni_interface_list_append(&nih->netconfig.interfaces, ifp);
 	
 	return ifp;
 }
@@ -1016,7 +1016,7 @@ ni_interface_array_destroy(ni_interface_array_t *array)
 ni_interface_t *
 ni_interfaces(ni_handle_t *nih)
 {
-	return nih->iflist;
+	return nih->netconfig.interfaces;
 }
 
 /*
@@ -1027,7 +1027,7 @@ ni_interface_by_name(ni_handle_t *nih, const char *name)
 {
 	ni_interface_t *ifp;
 
-	for (ifp = nih->iflist; ifp; ifp = ifp->next) {
+	for (ifp = nih->netconfig.interfaces; ifp; ifp = ifp->next) {
 		if (ifp->name && !strcmp(ifp->name, name))
 			return ifp;
 	}
@@ -1056,7 +1056,7 @@ ni_interface_by_index(ni_handle_t *nih, unsigned int ifindex)
 {
 	ni_interface_t *ifp;
 
-	for (ifp = nih->iflist; ifp; ifp = ifp->next) {
+	for (ifp = nih->netconfig.interfaces; ifp; ifp = ifp->next) {
 		if (ifp->link.ifindex == ifindex)
 			return ifp;
 	}
@@ -1075,7 +1075,7 @@ ni_interface_by_hwaddr(ni_handle_t *nih, const ni_hwaddr_t *lla)
 	if (!lla || !lla->len)
 		return NULL;
 
-	for (ifp = nih->iflist; ifp; ifp = ifp->next) {
+	for (ifp = nih->netconfig.interfaces; ifp; ifp = ifp->next) {
 		if (ni_link_address_equal(&ifp->link.hwaddr, lla))
 			return ifp;
 	}
@@ -1091,7 +1091,7 @@ ni_interface_by_vlan_tag(ni_handle_t *nih, uint16_t tag)
 {
 	ni_interface_t *ifp;
 
-	for (ifp = nih->iflist; ifp; ifp = ifp->next) {
+	for (ifp = nih->netconfig.interfaces; ifp; ifp = ifp->next) {
 		if (ifp->link.type == NI_IFTYPE_VLAN
 		 && ifp->link.vlan
 		 && ifp->link.vlan->tag == tag)

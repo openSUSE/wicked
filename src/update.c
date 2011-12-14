@@ -251,7 +251,7 @@ ni_system_update_find_lease(ni_handle_t *nih, unsigned int target, struct ni_upd
 
 	/* Loop over all interfaces and check if we have another
 	 * valid lease that would work here. */
-	for (ifp = nih->iflist; ifp; ifp = ifp->next)
+	for (ifp = nih->netconfig.interfaces; ifp; ifp = ifp->next)
 		ni_system_update_find_lease_interface(ifp, target, best);
 }
 

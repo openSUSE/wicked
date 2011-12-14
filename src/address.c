@@ -641,7 +641,7 @@ __ni_route_new(ni_route_t **list, unsigned int prefixlen, const ni_sockaddr_t *d
 ni_route_t *
 ni_route_new(ni_handle_t *nih, unsigned int prefixlen, const ni_sockaddr_t *dest, const ni_sockaddr_t *gw)
 {
-	return __ni_route_new(&nih->routes, prefixlen, dest, gw);
+	return __ni_route_new(&nih->netconfig.routes, prefixlen, dest, gw);
 }
 
 void

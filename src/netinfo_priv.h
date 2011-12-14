@@ -18,8 +18,7 @@ typedef struct ni_capture	ni_capture_t;
 typedef struct __ni_netlink	ni_netlink_t;
 
 struct ni_handle {
-	ni_interface_t *	iflist;
-	ni_route_t *		routes;
+	ni_netconfig_t		netconfig;
 	ni_policy_info_t	policy;
 
 	/* For a state handle */
