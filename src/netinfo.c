@@ -732,13 +732,13 @@ __ni_interface_list_append(ni_interface_t **list, ni_interface_t *new_ifp)
 }
 
 ni_interface_t *
-ni_interface_new(ni_handle_t *nih, const char *name, unsigned int index)
+ni_interface_new(ni_netconfig_t *nc, const char *name, unsigned int index)
 {
 	ni_interface_t *ifp;
 
 	ifp = __ni_interface_new(name, index);
-	if (nih && ifp)
-		__ni_interface_list_append(&nih->netconfig.interfaces, ifp);
+	if (nc && ifp)
+		__ni_interface_list_append(&nc->interfaces, ifp);
 	
 	return ifp;
 }

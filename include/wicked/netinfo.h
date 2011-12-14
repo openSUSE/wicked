@@ -274,8 +274,7 @@ extern ni_interface_t *	ni_interface_next(ni_handle_t *nic, ni_interface_t **pos
 extern ni_interface_t *	nc_interface_by_name(ni_netconfig_t *nic, const char *name);
 extern ni_interface_t *	nc_interface_new(ni_netconfig_t *, const char *name, unsigned int ifindex);
 
-extern ni_interface_t *	ni_interface_new(ni_handle_t *,
-				const char *name, unsigned int ifindex);
+extern ni_interface_t *	ni_interface_new(ni_netconfig_t *, const char *name, unsigned int ifindex);
 extern ni_interface_t *	ni_interface_clone(const ni_interface_t *);
 extern ni_interface_t *	ni_interface_get(ni_interface_t *ifp);
 extern int		ni_interface_put(ni_interface_t *ifp);
