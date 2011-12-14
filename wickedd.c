@@ -35,7 +35,6 @@ enum {
 	OPT_FOREGROUND,
 	OPT_NOFORK,
 	OPT_NORECOVER,
-	OPT_DBUS,
 };
 
 static struct option	options[] = {
@@ -44,14 +43,12 @@ static struct option	options[] = {
 	{ "foreground",		no_argument,		NULL,	OPT_FOREGROUND },
 	{ "no-fork",		no_argument,		NULL,	OPT_NOFORK },
 	{ "no-recovery",	no_argument,		NULL,	OPT_NORECOVER },
-	{ "dbus",		no_argument,		NULL,	OPT_DBUS },
 
 	{ NULL }
 };
 
 static int		opt_foreground = 0;
 static int		opt_nofork = 0;
-static int		opt_dbus = 0;
 static int		opt_recover_leases = 1;
 static ni_dbus_server_t *wicked_dbus_server;
 static void		(*opt_personality)(void);
@@ -114,11 +111,6 @@ main(int argc, char **argv)
 		case OPT_NORECOVER:
 			opt_recover_leases = 0;
 			break;
-
-		case OPT_DBUS:
-			opt_dbus = 1;
-			break;
-
 		}
 	}
 
