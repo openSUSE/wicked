@@ -139,8 +139,6 @@ main(int argc, char **argv)
 void
 wicked_interface_server(void)
 {
-	ni_addrconf_register(&ni_autoip_addrconf);
-
 	wicked_dbus_server = ni_server_listen_dbus(WICKED_DBUS_BUS_NAME);
 	if (wicked_dbus_server == NULL)
 		ni_fatal("unable to initialize dbus service");

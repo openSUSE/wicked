@@ -24,6 +24,17 @@
 
 static ni_dbus_client_t *	dbus_autoip_client = NULL;
 
+static int		ni_objectmodel_autoip_acquire(const ni_addrconf_t *, ni_interface_t *, const xml_node_t *);
+static int		ni_objectmodel_autoip_release(const ni_addrconf_t *, ni_interface_t *, ni_addrconf_lease_t *);
+
+static ni_addrconf_t ni_autoip_addrconf = {
+	.type = NI_ADDRCONF_AUTOCONF,
+	.supported_af = NI_AF_MASK_IPV4,
+
+	.request = ni_objectmodel_autoip_acquire,
+	.release = ni_objectmodel_autoip_release,
+};
+
 /*
  * Initialize the autoip4 client
  */
@@ -35,6 +46,9 @@ ni_objectmodel_autoip_init(ni_dbus_server_t *server)
 			WICKED_DBUS_AUTO4_INTERFACE,
 			ni_objectmodel_addrconf_signal_handler,
 			server);
+
+	/* Register our addrconf hooks for IPv4ll */
+	ni_addrconf_register(&ni_autoip_addrconf);
 }
 
 /*
@@ -67,12 +81,12 @@ ni_objectmodel_autoip_wrap_interface(ni_interface_t *dev)
  * The options dictionary contains addrconf request properties.
  */
 int
-ni_objectmodel_autoip_acquire(ni_interface_t *dev, const ni_addrconf_request_t *req)
+ni_objectmodel_autoip_acquire(const ni_addrconf_t *acm, ni_interface_t *dev, const xml_node_t *cfg_xml)
 {
 	ni_dbus_object_t *object = ni_objectmodel_autoip_wrap_interface(dev);
 	int rv;
 
-	rv = ni_objectmodel_addrconf_acquire(object, req);
+	rv = ni_objectmodel_addrconf_acquire(object, dev->ipv4.request[NI_ADDRCONF_AUTOCONF]);
 	ni_dbus_object_free(object);
 	return rv;
 }
@@ -82,7 +96,7 @@ ni_objectmodel_autoip_acquire(ni_interface_t *dev, const ni_addrconf_request_t *
  * Release a lease for the given interface.
  */
 int
-ni_objectmodel_autoip_release(ni_interface_t *dev, const ni_addrconf_lease_t *lease)
+ni_objectmodel_autoip_release(const ni_addrconf_t *acm, ni_interface_t *dev, ni_addrconf_lease_t *lease)
 {
 	ni_dbus_object_t *object = ni_objectmodel_autoip_wrap_interface(dev);
 	int rv;
