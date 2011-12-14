@@ -56,7 +56,7 @@ static void		(*opt_personality)(void);
 static void		wicked_interface_server(void);
 static void		wicked_discover_state(void);
 static void		wicked_try_restart_addrconf(ni_interface_t *, ni_afinfo_t *, unsigned int);
-static void		wicked_interface_event(ni_handle_t *, ni_interface_t *, ni_event_t);
+static void		wicked_interface_event(ni_netconfig_t *, ni_interface_t *, ni_event_t);
 static void		wicked_register_interface_services(ni_dbus_server_t *);
 
 int
@@ -276,7 +276,7 @@ wicked_register_interface_services(ni_dbus_server_t *server)
  * mucking with manually.
  */
 void
-wicked_interface_event(ni_handle_t *nih, ni_interface_t *ifp, ni_event_t event)
+wicked_interface_event(ni_netconfig_t *nc, ni_interface_t *ifp, ni_event_t event)
 {
 	static const char *evtype[__NI_EVENT_MAX] =  {
 		[NI_EVENT_LINK_CREATE]	= "link-create",
@@ -286,7 +286,6 @@ wicked_interface_event(ni_handle_t *nih, ni_interface_t *ifp, ni_event_t event)
 		[NI_EVENT_NETWORK_UP]	= "network-up",
 		[NI_EVENT_NETWORK_DOWN]	= "network-down",
 	};
-	ni_policy_t *policy;
 
 	if (wicked_dbus_server) {
 		switch (event) {
@@ -307,10 +306,14 @@ wicked_interface_event(ni_handle_t *nih, ni_interface_t *ifp, ni_event_t event)
 	if (event >= __NI_EVENT_MAX || !evtype[event])
 		return;
 
+#if 0
+	ni_policy_t *policy;
+
 	ni_debug_events("%s: %s event", ifp->name, evtype[event]);
 	policy = ni_policy_match_event(nih, event, ifp);
 	if (policy != NULL) {
 		ni_debug_events("matched interface policy; configuring device");
 		//ni_interface_configure2(nih, ifp, policy->interface);
 	}
+#endif
 }

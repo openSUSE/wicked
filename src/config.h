@@ -133,7 +133,7 @@ typedef struct ni_global {
 
 	ni_policy_info_t	policies;
 
-	void			(*interface_event)(ni_handle_t *, ni_interface_t *, ni_event_t);
+	void			(*interface_event)(ni_netconfig_t *, ni_interface_t *, ni_event_t);
 } ni_global_t;
 
 extern ni_global_t	ni_global;

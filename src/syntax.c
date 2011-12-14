@@ -224,7 +224,7 @@ ni_syntax_put_interfaces(ni_syntax_t *syntax, ni_netconfig_t *nc, FILE *outfile)
 
 		doc = ni_syntax_xml_from_all(syntax, nc);
 		if (!doc) {
-			error("%s: problem building XML from ni_handle", syntax->schema);
+			ni_error("%s: problem building XML from interface set", syntax->schema);
 			return -1;
 		}
 

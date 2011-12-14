@@ -237,7 +237,7 @@ extern void		ni_policy_free(ni_policy_t *);
 extern ni_socket_t *	ni_server_listen(void);
 extern ni_socket_t *	ni_server_connect(void);
 extern int		ni_server_background(void);
-extern int		ni_server_listen_events(void (*handler)(ni_handle_t *, ni_interface_t *, ni_event_t));
+extern int		ni_server_listen_events(void (*handler)(ni_netconfig_t *, ni_interface_t *, ni_event_t));
 extern ni_dbus_server_t *ni_server_listen_dbus(const char *);
 extern ni_syntax_t *	ni_default_xml_syntax(void);
 

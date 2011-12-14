@@ -21,10 +21,10 @@
 #include "kernel.h"
 #include "config.h"
 
-static int	__ni_rtevent_process(ni_handle_t *, const struct sockaddr_nl *, struct nlmsghdr *);
-static int	__ni_rtevent_newlink(ni_handle_t *, const struct sockaddr_nl *, struct nlmsghdr *);
-static int	__ni_rtevent_dellink(ni_handle_t *, const struct sockaddr_nl *, struct nlmsghdr *);
-static int	__ni_rtevent_newprefix(ni_handle_t *, const struct sockaddr_nl *, struct nlmsghdr *);
+static int	__ni_rtevent_process(ni_netconfig_t *, const struct sockaddr_nl *, struct nlmsghdr *);
+static int	__ni_rtevent_newlink(ni_netconfig_t *, const struct sockaddr_nl *, struct nlmsghdr *);
+static int	__ni_rtevent_dellink(ni_netconfig_t *, const struct sockaddr_nl *, struct nlmsghdr *);
+static int	__ni_rtevent_newprefix(ni_netconfig_t *, const struct sockaddr_nl *, struct nlmsghdr *);
 
 /*
  * Receive events from netlink socket and generate events.
@@ -88,7 +88,7 @@ __ni_rtevent_read(ni_socket_t *sock)
 				ni_fatal("malformed netlink message: len=%d", len);
 			}
 
-			if (__ni_rtevent_process(nih, &nladdr, h) < 0)
+			if (__ni_rtevent_process(&nih->netconfig, &nladdr, h) < 0)
 				continue;
 		}
 		if (msg.msg_flags & MSG_TRUNC) {
@@ -101,12 +101,12 @@ __ni_rtevent_read(ni_socket_t *sock)
 }
 
 static void
-__ni_interface_event(ni_handle_t *nih, ni_interface_t *ifp, ni_event_t ev)
+__ni_interface_event(ni_netconfig_t *nc, ni_interface_t *ifp, ni_event_t ev)
 {
 	unsigned int mode;
 
 	if (ni_global.interface_event)
-		ni_global.interface_event(nih, ifp, ev);
+		ni_global.interface_event(nc, ifp, ev);
 
 	ni_debug_dhcp("%s(%s, idx=%d, %s)", __FUNCTION__,
 			ifp->name, ifp->link.ifindex, ni_event_type_to_name(ev));
@@ -126,7 +126,7 @@ __ni_interface_event(ni_handle_t *nih, ni_interface_t *ifp, ni_event_t ev)
 }
 
 int
-__ni_rtevent_process(ni_handle_t *nih, const struct sockaddr_nl *nladdr, struct nlmsghdr *h)
+__ni_rtevent_process(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struct nlmsghdr *h)
 {
 #define _(x)	[x] = #x
 	static const char *rtnl_name[RTM_MAX] = {
@@ -146,18 +146,18 @@ __ni_rtevent_process(ni_handle_t *nih, const struct sockaddr_nl *nladdr, struct 
 
 	switch (h->nlmsg_type) {
 	case RTM_NEWLINK:
-		rv = __ni_rtevent_newlink(nih, nladdr, h);
+		rv = __ni_rtevent_newlink(nc, nladdr, h);
 		break;
 
 	case RTM_DELLINK:
-		rv = __ni_rtevent_dellink(nih, nladdr, h);
+		rv = __ni_rtevent_dellink(nc, nladdr, h);
 		break;
 
 	/* RTM_NEWPREFIX is really the only way for us to find out whether a
 	 * route prefix was configured statically, or received via a Router
 	 * Advertisement */
 	case RTM_NEWPREFIX:
-		rv = __ni_rtevent_newprefix(nih, nladdr, h);
+		rv = __ni_rtevent_newprefix(nc, nladdr, h);
 		break;
 
 	default:
@@ -168,7 +168,7 @@ __ni_rtevent_process(ni_handle_t *nih, const struct sockaddr_nl *nladdr, struct 
 }
 
 int
-__ni_rtevent_newlink(ni_handle_t *nih, const struct sockaddr_nl *nladdr, struct nlmsghdr *h)
+__ni_rtevent_newlink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struct nlmsghdr *h)
 {
 	ni_interface_t *ifp, *old;
 	struct ifinfomsg *ifi;
@@ -188,13 +188,13 @@ __ni_rtevent_newlink(ni_handle_t *nih, const struct sockaddr_nl *nladdr, struct 
 	}
 
 	ifp = __ni_interface_new(ifname, ifi->ifi_index);
-	if (__ni_interface_process_newlink(ifp, h, ifi, &nih->netconfig) < 0) {
+	if (__ni_interface_process_newlink(ifp, h, ifi, nc) < 0) {
 		error("Problem parsing RTM_NEWLINK message for %s", ifname);
 		return -1;
 	}
 
 	if (ifname) {
-		old = ni_interface_by_name(&nih->netconfig, ifname);
+		old = ni_interface_by_name(nc, ifname);
 		if (old && old->link.ifindex != ifi->ifi_index) {
 			/* We probably missed a deletion event. Just clobber the old interface. */
 			ni_warn("linkchange event: found interface %s with different ifindex", ifname);
@@ -202,7 +202,7 @@ __ni_rtevent_newlink(ni_handle_t *nih, const struct sockaddr_nl *nladdr, struct 
 		}
 	}
 
-	old = ni_interface_by_index(&nih->netconfig, ifi->ifi_index);
+	old = ni_interface_by_index(nc, ifi->ifi_index);
 	if (old) {
 		unsigned int new_flags, flags_changed;
 
@@ -220,30 +220,30 @@ __ni_rtevent_newlink(ni_handle_t *nih, const struct sockaddr_nl *nladdr, struct 
 
 		if (flags_changed & NI_IFF_LINK_UP) {
 			if (new_flags & NI_IFF_LINK_UP)
-				__ni_interface_event(nih, old, NI_EVENT_LINK_UP);
+				__ni_interface_event(nc, old, NI_EVENT_LINK_UP);
 			else
-				__ni_interface_event(nih, old, NI_EVENT_LINK_DOWN);
+				__ni_interface_event(nc, old, NI_EVENT_LINK_DOWN);
 		}
 		if (flags_changed & NI_IFF_NETWORK_UP) {
 			if (new_flags & NI_IFF_NETWORK_UP)
-				__ni_interface_event(nih, old, NI_EVENT_NETWORK_UP);
+				__ni_interface_event(nc, old, NI_EVENT_NETWORK_UP);
 			else
-				__ni_interface_event(nih, old, NI_EVENT_NETWORK_DOWN);
+				__ni_interface_event(nc, old, NI_EVENT_NETWORK_DOWN);
 		}
 	} else {
 		ni_interface_t **pos;
 
 		/* Add new interface to our list of devices */
-		for (pos = &nih->netconfig.interfaces; *pos; pos = &(*pos)->next)
+		for (pos = &nc->interfaces; *pos; pos = &(*pos)->next)
 			;
 		*pos = ifp;
 
 		ifp->link.ifflags = __ni_interface_translate_ifflags(ifi->ifi_flags);
-		__ni_interface_event(nih, ifp, NI_EVENT_LINK_CREATE);
+		__ni_interface_event(nc, ifp, NI_EVENT_LINK_CREATE);
 	}
 
 	if ((nla = nlmsg_find_attr(h, sizeof(*ifi), IFLA_WIRELESS)) != NULL)
-		__ni_wireless_link_event(nih, ifp, nla_data(nla), nla_len(nla));
+		__ni_wireless_link_event(nc, ifp, nla_data(nla), nla_len(nla));
 
 	return 0;
 }
@@ -252,7 +252,7 @@ __ni_rtevent_newlink(ni_handle_t *nih, const struct sockaddr_nl *nladdr, struct 
  * Process DELLINK event
  */
 int
-__ni_rtevent_dellink(ni_handle_t *nih, const struct sockaddr_nl *nladdr, struct nlmsghdr *h)
+__ni_rtevent_dellink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struct nlmsghdr *h)
 {
 	ni_interface_t *ifp, **pos;
 	struct ifinfomsg *ifi;
@@ -266,14 +266,14 @@ __ni_rtevent_dellink(ni_handle_t *nih, const struct sockaddr_nl *nladdr, struct 
 	}
 
 	/* Open code interface removal. */
-	for (pos = &nih->netconfig.interfaces; (ifp = *pos) != NULL; pos = &ifp->next) {
+	for (pos = &nc->interfaces; (ifp = *pos) != NULL; pos = &ifp->next) {
 		if (ifp->link.ifindex == ifi->ifi_index) {
 			*pos = ifp->next;
 			ifp->next = NULL;
 			ifp->link.ifindex = 0;
 			ifp->link.ifflags = __ni_interface_translate_ifflags(ifi->ifi_flags);
 
-			__ni_interface_event(nih, ifp, NI_EVENT_LINK_DELETE);
+			__ni_interface_event(nc, ifp, NI_EVENT_LINK_DELETE);
 			ni_interface_put(ifp);
 			break;
 		}
@@ -287,7 +287,7 @@ __ni_rtevent_dellink(ni_handle_t *nih, const struct sockaddr_nl *nladdr, struct 
  * by the kernel.
  */
 int
-__ni_rtevent_newprefix(ni_handle_t *nih, const struct sockaddr_nl *nladdr, struct nlmsghdr *h)
+__ni_rtevent_newprefix(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struct nlmsghdr *h)
 {
 	struct prefixmsg *pfx;
 	ni_interface_t *ifp;
@@ -295,7 +295,7 @@ __ni_rtevent_newprefix(ni_handle_t *nih, const struct sockaddr_nl *nladdr, struc
 	if (!(pfx = ni_rtnl_prefixmsg(h, RTM_NEWPREFIX)))
 		return -1;
 
-	ifp = ni_interface_by_index(&nih->netconfig, pfx->prefix_ifindex);
+	ifp = ni_interface_by_index(nc, pfx->prefix_ifindex);
 	if (ifp == NULL)
 		return 0;
 
@@ -310,7 +310,7 @@ __ni_rtevent_newprefix(ni_handle_t *nih, const struct sockaddr_nl *nladdr, struc
 #define nl_mgrp(x)	(1 << ((x) - 1))
 
 int
-ni_server_listen_events(void (*ifevent_handler)(ni_handle_t *, ni_interface_t *, ni_event_t))
+ni_server_listen_events(void (*ifevent_handler)(ni_netconfig_t *, ni_interface_t *, ni_event_t))
 {
 	struct nl_handle *handle;
 	ni_socket_t *sock;
@@ -344,13 +344,3 @@ ni_server_listen_events(void (*ifevent_handler)(ni_handle_t *, ni_interface_t *,
 	ni_global.interface_event = ifevent_handler;
 	return 0;
 }
-
-#if 0
-int
-ni_rtevent_fd(ni_handle_t *nih)
-{
-	if (!nih->nlh)
-		return -1;
-	return nl_socket_get_fd(nih->nlh);
-}
-#endif

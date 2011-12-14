@@ -48,7 +48,7 @@ static ni_dbus_server_t *autoip4_dbus_server;
 static void		autoip4_supplicant(void);
 static void		autoip4_discover_devices(ni_dbus_server_t *);
 static void		autoip4_recover_lease(ni_interface_t *);
-static void		autoip4_interface_event(ni_handle_t *, ni_interface_t *, ni_event_t);
+static void		autoip4_interface_event(ni_netconfig_t *, ni_interface_t *, ni_event_t);
 static void		autoip4_protocol_event(enum ni_lease_event, const ni_autoip_device_t *, ni_addrconf_lease_t *);
 
 // Hack
@@ -300,7 +300,7 @@ autoip4_supplicant(void)
  * mucking with manually.
  */
 void
-autoip4_interface_event(ni_handle_t *nih, ni_interface_t *ifp, ni_event_t event)
+autoip4_interface_event(ni_netconfig_t *nc, ni_interface_t *ifp, ni_event_t event)
 {
 	ni_autoip_device_t *dev;
 	ni_interface_t *ofp;
@@ -308,7 +308,7 @@ autoip4_interface_event(ni_handle_t *nih, ni_interface_t *ifp, ni_event_t event)
 	switch (event) {
 	case NI_EVENT_LINK_CREATE:
 		/* check for duplicate ifindex */
-		ofp = ni_interface_by_index(ni_handle_netconfig(nih), ifp->link.ifindex);
+		ofp = ni_interface_by_index(nc, ifp->link.ifindex);
 		if (ofp && ofp != ifp) {
 			ni_warn("duplicate ifindex in link-create event");
 			return;

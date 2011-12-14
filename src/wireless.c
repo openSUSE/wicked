@@ -152,7 +152,7 @@ __ni_wireless_request_scan(ni_handle_t *nih, ni_interface_t *ifp)
  * rtnetlink sent us an RTM_NEWLINK event with IFLA_WIRELESS info
  */
 int
-__ni_wireless_link_event(ni_handle_t *nih, ni_interface_t *ifp, void *data, size_t len)
+__ni_wireless_link_event(ni_netconfig_t *nc, ni_interface_t *ifp, void *data, size_t len)
 {
 	ni_debug_wireless("%s: ignoring wireless event", ifp->name);
 	return 0;

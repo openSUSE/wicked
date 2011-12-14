@@ -50,7 +50,7 @@ static ni_dbus_server_t *dhcp4_dbus_server;
 static void		dhcp4_supplicant(void);
 static void		dhcp4_discover_devices(ni_dbus_server_t *);
 static void		dhcp4_recover_lease(ni_interface_t *);
-static void		dhcp4_interface_event(ni_handle_t *, ni_interface_t *, ni_event_t);
+static void		dhcp4_interface_event(ni_netconfig_t *, ni_interface_t *, ni_event_t);
 static void		dhcp4_protocol_event(enum ni_dhcp_event, const ni_dhcp_device_t *, ni_addrconf_lease_t *);
 
 // Hack
@@ -301,7 +301,7 @@ dhcp4_supplicant(void)
  * mucking with manually.
  */
 void
-dhcp4_interface_event(ni_handle_t *nih, ni_interface_t *ifp, ni_event_t event)
+dhcp4_interface_event(ni_netconfig_t *nc, ni_interface_t *ifp, ni_event_t event)
 {
 	ni_dhcp_device_t *dev;
 	ni_interface_t *ofp;
@@ -309,7 +309,7 @@ dhcp4_interface_event(ni_handle_t *nih, ni_interface_t *ifp, ni_event_t event)
 	switch (event) {
 	case NI_EVENT_LINK_CREATE:
 		/* check for duplicate ifindex */
-		ofp = ni_interface_by_index(ni_handle_netconfig(nih), ifp->link.ifindex);
+		ofp = ni_interface_by_index(nc, ifp->link.ifindex);
 		if (ofp && ofp != ifp) {
 			ni_warn("duplicate ifindex in link-create event");
 			return;
