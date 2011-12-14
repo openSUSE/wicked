@@ -7,6 +7,8 @@
 #ifndef __WICKED_AUTOIP_PRIVATE_H__
 #define __WICKED_AUTOIP_PRIVATE_H__
 
+#include "netinfo_priv.h"
+
 typedef enum ni_autoip_state {
 	NI_AUTOIP_STATE_INIT,
 	NI_AUTOIP_STATE_CLAIMING,
@@ -17,7 +19,10 @@ typedef struct ni_autoip_device	ni_autoip_device_t;
 
 struct ni_autoip_device {
 	ni_autoip_device_t *	next;
+	unsigned int		users;
+
 	char *			ifname;
+	ni_linkinfo_t		link;
 
 	ni_arp_socket_t *	arp_socket;
 	ni_capture_devinfo_t	devinfo;
@@ -43,7 +48,8 @@ struct ni_autoip_device {
 
 extern ni_autoip_device_t *ni_autoip_active;
 
-extern void		ni_autoip_run(ni_socket_t *);
+extern int		ni_autoip_acquire(ni_autoip_device_t *, ni_addrconf_request_t *);
+extern int		ni_autoip_release(ni_autoip_device_t *, const ni_uuid_t *);
 
 extern long             ni_autoip_fsm_get_timeout(void);
 extern void             ni_autoip_fsm_check_timeout(void);
@@ -51,12 +57,15 @@ extern int		ni_autoip_fsm_select(ni_autoip_device_t *);
 extern const char *     ni_autoip_fsm_state_name(ni_autoip_state_t);
 extern int              ni_autoip_fsm_commit_lease(ni_autoip_device_t *, ni_addrconf_lease_t *);
 
+extern ni_autoip_device_t *ni_autoip_device_new(const char *, const ni_linkinfo_t *);
+extern ni_autoip_device_t *ni_autoip_device_get(ni_autoip_device_t *);
+extern void		ni_autoip_device_put(ni_autoip_device_t *);
 extern int              ni_autoip_device_start(ni_autoip_device_t *);
 extern void             ni_autoip_device_stop(ni_autoip_device_t *);
 extern void             ni_autoip_device_set_lease(ni_autoip_device_t *, ni_addrconf_lease_t *);
 extern void             ni_autoip_device_drop_lease(ni_autoip_device_t *);
 extern unsigned int     ni_autoip_device_uptime(const ni_autoip_device_t *, unsigned int);
-extern ni_autoip_device_t *ni_autoip_device_new(const char *, unsigned int);
+extern ni_autoip_device_t *ni_autoip_device_by_index(unsigned int);
 extern ni_autoip_device_t *ni_autoip_device_find(const char *);
 extern int              ni_autoip_device_reconfigure(ni_autoip_device_t *, const ni_interface_t *);
 

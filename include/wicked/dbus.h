@@ -13,6 +13,7 @@
 
 #define WICKED_DBUS_BUS_NAME		"com.suse.Wicked"
 #define WICKED_DBUS_BUS_NAME_DHCP4	"com.suse.Wicked.DHCP4"
+#define WICKED_DBUS_BUS_NAME_AUTO4	"com.suse.Wicked.AUTO4"
 #define WICKED_DBUS_OBJECT_PATH		"/com/suse/Wicked"
 #define WICKED_DBUS_INTERFACE		"com.suse.Wicked"
 #define WICKED_DBUS_FACTORY_INTERFACE	WICKED_DBUS_INTERFACE ".Factory"
@@ -23,6 +24,7 @@
 #define WICKED_DBUS_BOND_INTERFACE	WICKED_DBUS_INTERFACE ".Bond"
 #define WICKED_DBUS_PPP_INTERFACE	WICKED_DBUS_INTERFACE ".PPP"
 #define WICKED_DBUS_DHCP4_INTERFACE	WICKED_DBUS_INTERFACE ".DHCP4"
+#define WICKED_DBUS_AUTO4_INTERFACE	WICKED_DBUS_INTERFACE ".DHCP4"
 
 typedef struct DBusMessage	ni_dbus_message_t;
 typedef struct ni_dbus_connection ni_dbus_connection_t;

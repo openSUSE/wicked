@@ -24,13 +24,11 @@
 #include "netinfo_priv.h"
 #include "socket_priv.h"
 #include "kernel.h"
-#include "autoip.h"
-
-static int		ni_autoip_process_event(ni_socket_t *);
 
 /*
  * Netinfo side of IPv4LL addrconf mechanism
  */
+#if 0
 static int
 __ni_autoip_addrconf_do(const ni_addrconf_t *acm, ni_interface_t *ifp, const xml_node_t *cfg_xml)
 {
@@ -74,6 +72,7 @@ out:
 		ni_close(dummy);
 	return rv;
 }
+#endif
 
 static int
 ni_autoip_addrconf_request(const ni_addrconf_t *acm, ni_interface_t *ifp, const xml_node_t *cfg_xml)
@@ -91,30 +90,32 @@ ni_autoip_addrconf_request(const ni_addrconf_t *acm, ni_interface_t *ifp, const 
 		return -1;
 	}
 
-	return __ni_autoip_addrconf_do(acm, ifp, cfg_xml);
+	return -1;
+//	return __ni_autoip_addrconf_do(acm, ifp, cfg_xml);
 }
 
 static int
 ni_autoip_addrconf_release(const ni_addrconf_t *acm, ni_interface_t *ifp, ni_addrconf_lease_t *lease)
 {
-	return __ni_autoip_addrconf_do(acm, ifp, 0);
+	return -1;
+//	return __ni_autoip_addrconf_do(acm, ifp, 0);
 }
 
 static void
 ni_autoip_interface_event(const ni_addrconf_t *acm, ni_interface_t *ifp, ni_event_t ev)
 {
-	xml_node_t *evnode;
-
 	if (ev != NI_EVENT_LINK_DELETE
 	 && ev != NI_EVENT_LINK_UP
 	 && ev != NI_EVENT_LINK_DOWN)
 		return;
 
 	ni_debug_autoip("%s(%s, %s)", __FUNCTION__, ifp->name, ni_event_type_to_name(ev));
+#if 0
 	evnode = xml_node_new("event", NULL);
 	xml_node_add_attr(evnode, "type", ni_event_type_to_name(ev));
 	__ni_autoip_addrconf_do(acm, ifp, evnode);
 	xml_node_free(evnode);
+#endif
 }
 
 ni_addrconf_t ni_autoip_addrconf = {
@@ -126,6 +127,7 @@ ni_addrconf_t ni_autoip_addrconf = {
 	.interface_event = ni_autoip_interface_event,
 };
 
+#if 0
 /*
  * netinfo side - handle event sent by autoip supplicant
  */
@@ -146,3 +148,4 @@ ni_autoip_process_event(ni_socket_t *sock)
 	ni_wicked_request_destroy(&req);
 	return -1;
 }
+#endif

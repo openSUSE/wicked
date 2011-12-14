@@ -26,7 +26,7 @@ ni_autoip_device_t *	ni_autoip_active;
  * Create and destroy autoip device handles
  */
 ni_autoip_device_t *
-ni_autoip_device_new(const char *ifname, unsigned int iftype)
+ni_autoip_device_new(const char *ifname, const ni_linkinfo_t *link)
 {
 	ni_autoip_device_t *dev, **pos;
 
@@ -35,10 +35,13 @@ ni_autoip_device_new(const char *ifname, unsigned int iftype)
 
 	dev = calloc(1, sizeof(*dev));
 	ni_string_dup(&dev->ifname, ifname);
-	dev->devinfo.ifname = dev->ifname;
-	dev->devinfo.iftype = iftype;
-	dev->devinfo.mtu = 1500;
+	dev->users = 1;
 	dev->fsm.state = NI_AUTOIP_STATE_INIT;
+
+	if (ni_capture_devinfo_init(&dev->devinfo, ifname, link) < 0) {
+		ni_autoip_device_put(dev);
+		return NULL;
+	}
 
 	/* append to end of list */
 	*pos = dev;
@@ -53,6 +56,19 @@ ni_autoip_device_find(const char *ifname)
 
 	for (dev = ni_autoip_active; dev; dev = dev->next) {
 		if (!strcmp(dev->ifname, ifname))
+			return dev;
+	}
+
+	return NULL;
+}
+
+ni_autoip_device_t *
+ni_autoip_device_by_index(unsigned int ifindex)
+{
+	ni_autoip_device_t *dev;
+
+	for (dev = ni_autoip_active; dev; dev = dev->next) {
+		if (dev->link.ifindex == ifindex)
 			return dev;
 	}
 
@@ -123,38 +139,41 @@ ni_autoip_device_free(ni_autoip_device_t *dev)
 	free(dev);
 }
 
+ni_autoip_device_t *
+ni_autoip_device_get(ni_autoip_device_t *dev)
+{
+	ni_assert(dev->users);
+	dev->users++;
+	return dev;
+}
+
+void
+ni_autoip_device_put(ni_autoip_device_t *dev)
+{
+	ni_assert(dev->users);
+	if (--(dev->users) == 0)
+		ni_autoip_device_free(dev);
+}
+
 /*
  * Process a request to reconfigure the device (ie rebind a lease, or discover
  * a new lease).
  */
 int
-ni_autoip_device_reconfigure(ni_autoip_device_t *dev, const ni_interface_t *ifp)
+ni_autoip_device_refresh(ni_autoip_device_t *dev)
 {
-	if (!(ifp->link.ifflags & NI_IFF_ARP_ENABLED)) {
-		ni_error("%s: device does not support ARP, cannot configure for IPv4LL", ifp->name);
-		return -1;
-	}
-	if (dev->devinfo.iftype != ifp->link.type) {
-		ni_error("%s: reconfig changes device type!", dev->ifname);
-		return -1;
-	}
-	if (ifp->link.hwaddr.len == 0) {
-		ni_error("%s: empty MAC address, cannot do IPv4LL", dev->ifname);
-		return -1;
-	}
-	dev->devinfo.arp_type = ifp->link.arp_type;
-	dev->devinfo.ifindex = if_nametoindex(ifp->name);
-	dev->devinfo.mtu = ifp->link.mtu;
-	dev->devinfo.hwaddr = ifp->link.hwaddr;
-
-	if (dev->devinfo.arp_type == ARPHRD_NONE) {
-		ni_warn("%s: no arp_type, using ether", __FUNCTION__);
-		dev->devinfo.arp_type = ARPHRD_ETHER;
-	}
+	ni_handle_t *nih = ni_global_state_handle();
+	int rv;
 
 	/* Go back to INIT state to force a reclaim */
 	dev->fsm.state = NI_AUTOIP_STATE_INIT;
-	return 1;
+
+	if ((rv = __ni_device_refresh_link_info(nih, &dev->link)) < 0) {
+		ni_error("%s: cannot refresh interface: %s", __func__, ni_strerror(rv));
+		return rv;
+	}
+
+	return ni_capture_devinfo_refresh(&dev->devinfo, &dev->link);
 }
 
 int
@@ -168,5 +187,21 @@ ni_autoip_device_start(ni_autoip_device_t *dev)
 		return -1;
 	}
 
+	return 0;
+}
+
+/*
+ * Acquire an IPv4ll lease
+ */
+int
+ni_autoip_acquire(ni_autoip_device_t *dev, ni_addrconf_request_t *req)
+{
+	return ni_autoip_device_start(dev);
+}
+
+int
+ni_autoip_release(ni_autoip_device_t *dev, const ni_uuid_t *uuid)
+{
+	ni_autoip_device_stop(dev);
 	return 0;
 }

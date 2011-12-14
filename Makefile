@@ -3,7 +3,7 @@ CFLAGS	= -Wall -Werror -g -O2 -D_GNU_SOURCE -I. -Iinclude -Isrc \
 	  $(CFLAGS_DBUS)
 CFLAGS_DBUS := $(shell pkg-config --cflags dbus-1)
 
-APPS	= wicked wickedd dhcp4-supplicant \
+APPS	= wicked wickedd dhcp4-supplicant autoip4-supplicant \
 	  testing/xml-test testing/xpath-test
 
 TGTLIBS	= libnetinfo.a \
@@ -77,10 +77,7 @@ __LIBSRCS= \
 	  ipv6/addrconf.c \
 	  dhcp/addrconf.c \
 	  dhcp/lease.c \
-	  ipv4ll/addrconf.c \
-	  ipv4ll/rest-api.c \
-	  ipv4ll/device.c \
-	  ipv4ll/fsm.c
+	  ipv4ll/addrconf.c
 __NCFSRCS= \
 	  netcf.c
 DHCP4SRCS = \
@@ -89,6 +86,11 @@ DHCP4SRCS = \
 	  dhcp4/fsm.c \
 	  dhcp4/device.c \
 	  dhcp4/protocol.c
+AUTO4SRCS = \
+	  autoip4-supplicant.c \
+	  autoip4/dbus-api.c \
+	  autoip4/device.c \
+	  autoip4/fsm.c
 
 OBJ	= obj
 LIBSRCS	= $(addprefix src/,$(__LIBSRCS))
@@ -98,6 +100,7 @@ NCFSRCS	= $(addprefix src/,$(__NCFSRCS))
 NCFOBJS	= $(addprefix $(OBJ)/netcf/,$(__NCFSRCS:.c=.o))
 APPSRCS	= $(addsuffix .c,$(APPS))
 DHCP4OBJS= $(addprefix $(OBJ)/,$(DHCP4SRCS:.c=.o))
+AUTO4OBJS= $(addprefix $(OBJ)/,$(AUTO4SRCS:.c=.o))
 
 all: $(TGTLIBS) $(APPS)
 
@@ -130,6 +133,9 @@ wickedd: $(OBJ)/wickedd.o $(TGTLIBS)
 dhcp4-supplicant: $(DHCP4OBJS) $(TGTLIBS)
 	$(CC) -o $@ $(CFLAGS) $(DHCP4OBJS) -L. -lnetinfo -lm -lnl -ldbus-1
 
+autoip4-supplicant: $(AUTO4OBJS) $(TGTLIBS)
+	$(CC) -o $@ $(CFLAGS) $(AUTO4OBJS) -L. -lnetinfo -lm -lnl -ldbus-1
+
 test: $(OBJ)/test.o $(TGTLIBS)
 	$(CC) -o $@ $(CFLAGS) $(OBJ)/test.o -L. -lnetinfo -ldbus-1
 
@@ -157,6 +163,7 @@ depend:
 		sed 's@^\([^.]*\)\.o: src/\([-a-z0-9/]*\)\1.c@obj/netcf/\2&@' >> .depend
 	gcc $(CFLAGS) -M $(APPSRCS) | sed 's:^[a-z]:$(OBJ)/&:' >> .depend
 	gcc $(CFLAGS) -M $(DHCP4SRCS) | sed 's:^[a-z]:$(OBJ)/dhcp4/&:' >> .depend
+	gcc $(CFLAGS) -M $(AUTO4SRCS) | sed 's:^[a-z]:$(OBJ)/auto4/&:' >> .depend
 
 $(OBJ)/%.o: %.c
 	@rm -f $@
