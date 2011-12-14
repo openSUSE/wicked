@@ -23,7 +23,6 @@ __LIBSRCS= \
 	  extension.c \
 	  policy.c \
 	  netinfo.c \
-	  netconfig.c \
 	  ethernet.c \
 	  vlan.c \
 	  bonding.c \

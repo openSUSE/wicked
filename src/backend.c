@@ -112,12 +112,20 @@ __ni_backend_build_path(ni_backend_t *be, const char *path)
 	return ni_syntax_build_path(be->syntax, "%s", path);
 }
 
+/*
+ * Get the netconfig struct associated with this backend
+ */
+ni_netconfig_t *
+ni_backend_get_netconfig(ni_backend_t *be)
+{
+	return &be->nc;
+}
 
 /*
  * Reload interface information
  */
 int
-ni_backend_interface_reload_all(ni_backend_t *be)
+ni_backend_interfaces_reload(ni_backend_t *be)
 {
 	if (be->syntax == NULL) {
 		ni_error("netonfig: cannot refresh, no syntax associated");

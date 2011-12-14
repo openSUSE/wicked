@@ -24,6 +24,7 @@
 #include <wicked/addrconf.h>
 #include <wicked/bonding.h>
 #include <wicked/bridge.h>
+#include <wicked/backend.h>
 #include <wicked/xml.h>
 #include <wicked/xpath.h>
 #include <wicked/dbus.h>
@@ -64,8 +65,6 @@ static int		do_ifup(int, char **);
 static int		do_ifdown(int, char **);
 static int		do_rest(const char *, int, char **);
 static int		do_xpath(int, char **);
-static int		do_ifup_old(int, char **);
-static int		do_ifdown_old(int, char **);
 
 int
 main(int argc, char **argv)
@@ -140,6 +139,8 @@ main(int argc, char **argv)
 		}
 	}
 
+	opt_shutdown_parents = 1; /* kill this */
+
 	if (!isatty(1))
 		opt_progressmeter = 0;
 
@@ -177,12 +178,6 @@ main(int argc, char **argv)
 	/* Old wicked style functions follow */
 	if (!strcmp(cmd, "xpath"))
 		return do_xpath(argc - optind + 1, argv + optind - 1);
-
-	if (!strcmp(cmd, "ifup"))
-		return do_ifup_old(argc - optind + 1, argv + optind - 1);
-
-	if (!strcmp(cmd, "ifdown"))
-		return do_ifdown_old(argc - optind + 1, argv + optind - 1);
 
 	if (!strcmp(cmd, "get")
 	 || !strcmp(cmd, "put")
@@ -808,19 +803,20 @@ usage:
 	if (opt_file) {
 		ni_dbus_object_t *request_object;
 		ni_interface_request_t *req;
-		ni_syntax_t *syntax = ni_syntax_new(opt_syntax, opt_file);
-		ni_handle_t *netconfig;
+		ni_backend_t *backend;
+		ni_netconfig_t *nc;
 
-		netconfig = ni_netconfig_open(syntax);
-		if (ni_refresh(netconfig, NULL) < 0) {
+		backend = ni_backend_new(opt_syntax, opt_file);
+		if (ni_backend_interfaces_reload(backend) < 0) {
 			ni_error("unable to load interface definition from %s", opt_file);
-			ni_close(netconfig);
+			ni_backend_free(backend);
 			goto failed;
 		}
 
-		if (!(config_dev = ni_interface_by_name(netconfig, ifname))) {
+		nc = ni_backend_get_netconfig(backend);
+		if (!(config_dev = nc_interface_by_name(nc, ifname))) {
 			ni_error("cannot find interface %s in interface description", ifname);
-			ni_close(netconfig);
+			ni_backend_free(backend);
 			goto failed;
 		}
 		req = __interface_request_build(config_dev);
@@ -829,13 +825,13 @@ usage:
 		if (!ni_dbus_object_get_properties_as_dict(request_object, &wicked_dbus_interface_request_service, &argument)) {
 			ni_interface_request_free(req);
 			ni_dbus_object_free(request_object);
-			ni_close(netconfig);
+			ni_backend_free(backend);
 			goto failed;
 		}
 
 		ni_interface_request_free(req);
 		ni_dbus_object_free(request_object);
-		ni_close(netconfig);
+		ni_backend_free(backend);
 
 		if (config_dev->startmode.ifaction[ifevent].action == NI_INTERFACE_IGNORE) {
 			ni_error("not permitted to bring up interface");
@@ -984,6 +980,7 @@ __wicked_request(int rest_op, const char *path,
 	return rv;
 }
 
+#if 0
 enum {
 	STATE_UNKNOWN = 0,
 	STATE_DEVICE_DOWN,
@@ -2094,6 +2091,7 @@ failed:
 	ni_interface_state_array_destroy(&state_array);
 	return (rv == 0);
 }
+#endif
 
 /*
  * We also allow the user to send raw REST commands to the server,

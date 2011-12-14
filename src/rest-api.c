@@ -525,7 +525,8 @@ config_handle(ni_wicked_request_t *req)
 	ni_handle_t *nih;
 
 	root_dir = ni_wicked_request_get_option(req, "root");
-	nih = ni_netconfig_open(ni_netconfig_default_syntax(root_dir));
+	//nih = ni_netconfig_open(ni_netconfig_default_syntax(root_dir));
+	nih = NULL;
 	if (nih == NULL) {
 		werror(req, "unable to obtain netinfo handle");
 		return NULL;
