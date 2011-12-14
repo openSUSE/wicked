@@ -642,6 +642,7 @@ ni_dhcp_fsm_commit_lease(ni_dhcp_device_t *dev, ni_addrconf_lease_t *lease)
 
 		/* Delete old lease file */
 		if ((lease = dev->lease) != NULL) {
+			lease->state = NI_ADDRCONF_STATE_RELEASED;
 			ni_dhcp_send_event(NI_DHCP_EVENT_RELEASED, dev, lease);
 			ni_addrconf_lease_file_remove(dev->ifname, lease->type, lease->family);
 			ni_dhcp_device_drop_lease(dev);
