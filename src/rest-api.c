@@ -633,10 +633,12 @@ generic_interface_put(ni_handle_t *nih, ni_wicked_request_t *req)
 		goto failed;
 	}
 
+#if 0
 	if (ni_interface_configure(nih, ifp) < 0) {
 		werror(req, "error configuring interface %s", ifname);
 		goto failed;
 	}
+#endif
 
 	if (!(ifp = ni_interface_by_name(nih, ifname))) {
 		werror(req, "cannot find current status for interface %s", ifname);

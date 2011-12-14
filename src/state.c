@@ -18,7 +18,6 @@ static void		__ni_system_close(ni_handle_t *nih);
 
 static struct ni_ops ni_state_ops = {
 	.refresh		= __ni_system_refresh_all,
-	.configure_interface	= __ni_system_interface_configure,
 	.delete_interface	= __ni_system_interface_delete,
 	.close			= __ni_system_close,
 };

@@ -587,6 +587,7 @@ ni_iftype_to_arphrd_type(unsigned int iftype)
 /*
  * Configure an interface.
  */
+#if 0
 int
 ni_interface_configure(ni_handle_t *nih, const ni_interface_t *cfg)
 {
@@ -608,6 +609,7 @@ ni_interface_configure2(ni_handle_t *nih, ni_interface_t *change_if, const ni_in
 
 	return nih->op->configure_interface(nih, change_if, cfg);
 }
+#endif
 
 /*
  * Trigger wireless scan
