@@ -231,7 +231,7 @@ autoip4_device_create(ni_dbus_server_t *server, const ni_interface_t *ifp)
 		ni_fatal("Cannot create ipv4ll device for %s", ifp->name);
 	dev->link.ifindex = ifp->link.ifindex;
 
-//	ni_objectmodel_register_autoip4_device(server, dev);
+	ni_objectmodel_register_autoip4_device(server, dev);
 	ni_debug_dbus("Created device for %s", ifp->name);
 }
 

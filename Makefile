@@ -73,6 +73,7 @@ __LIBSRCS= \
 	  dbus-objects/bridge.c \
 	  dbus-objects/addrconf.c \
 	  dbus-objects/dhcp4.c \
+	  dbus-objects/autoip.c \
 	  dbus-objects/misc.c \
 	  wpa-supplicant.c \
 	  ipv6/addrconf.c \

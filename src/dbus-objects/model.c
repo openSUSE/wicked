@@ -42,6 +42,7 @@ ni_objectmodel_register_all(ni_dbus_server_t *server)
 	ni_dbus_object_register_service(object, &wicked_dbus_netif_interface);
 
 	ni_objectmodel_dhcp4_init(server);
+	ni_objectmodel_autoip_init(server);
 
 	return TRUE;
 }
