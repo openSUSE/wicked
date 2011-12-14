@@ -295,8 +295,6 @@ extern int		ni_interface_up(ni_handle_t *, ni_interface_t *, const ni_interface_
 extern int		ni_interface_down(ni_handle_t *, ni_interface_t *);
 extern int		ni_interface_configure(ni_handle_t *, const ni_interface_t *);
 extern int		ni_interface_configure2(ni_handle_t *, ni_interface_t *, const ni_interface_t *);
-extern int		ni_interface_update_lease(ni_handle_t *, ni_interface_t *ifp,
-				ni_addrconf_lease_t *);
 extern int		ni_interface_set_lease(ni_handle_t *, ni_interface_t *, ni_addrconf_lease_t *);
 extern int		ni_interface_stats_refresh(ni_handle_t *, ni_interface_t *);
 extern int		ni_interface_request_scan(ni_handle_t *, ni_interface_t *);

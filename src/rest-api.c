@@ -1319,24 +1319,8 @@ system_event_post(ni_wicked_request_t *req)
 	if (arg->name == NULL && arg->children)
 		arg = arg->children;
 
-	if (!strcmp(arg->name, "lease")) {
-		ni_addrconf_lease_t *lease;
-
-		lease = ni_syntax_xml_to_lease(ni_default_xml_syntax(), arg);
-		if (!lease)
-			goto syntax_error;
-
-		if (ni_interface_update_lease(nih, ifp, lease) < 0)
-			ni_addrconf_lease_free(lease);
-	} else {
-		ni_debug_wicked("%s: received %s event", ifname, arg->name);
-	}
-
+	ni_debug_wicked("%s: received %s event", ifname, arg->name);
 	return 0;
-
-syntax_error:
-	werror(req, "unable to parse event argument");
-	return -1;
 }
 
 static ni_rest_node_t	ni_rest_system_event_wildcard_node = {

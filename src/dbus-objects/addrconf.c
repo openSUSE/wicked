@@ -19,6 +19,7 @@
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
 #include <wicked/addrconf.h>
+#include "netinfo_priv.h"	/* for __ni_system_interface_update_lease */
 #include "dbus-common.h"
 #include "model.h"
 #include "debug.h"
@@ -191,7 +192,7 @@ ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_messa
 		goto done;
 	}
 
-	ni_interface_update_lease(ni_global_state_handle(), ifp, lease);
+	__ni_system_interface_update_lease(ifp, lease);
 	lease = NULL;
 
 done:

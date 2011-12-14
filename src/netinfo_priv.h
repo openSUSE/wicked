@@ -45,7 +45,6 @@ struct ni_ops {
 	int			(*interface_refresh_one)(ni_handle_t *, const char *);
 	int			(*configure_interface)(ni_handle_t *, ni_interface_t *, const ni_interface_t *);
 	int			(*delete_interface)(ni_handle_t *, const char *);
-	int			(*update_lease)(ni_handle_t *, ni_interface_t *, ni_addrconf_lease_t *);
 
 	int			(*interface_stats_refresh)(ni_handle_t *, ni_interface_t *);
 
@@ -153,10 +152,12 @@ extern int		__ni_system_refresh_interface(ni_handle_t *, ni_interface_t *);
 extern int		__ni_device_refresh_link_info(ni_handle_t *, ni_linkinfo_t *);
 extern int		__ni_system_interface_configure(ni_handle_t *, ni_interface_t *, const ni_interface_t *);
 extern int		__ni_system_interface_delete(ni_handle_t *, const char *);
-extern int		__ni_system_interface_update_lease(ni_handle_t *, ni_interface_t *, ni_addrconf_lease_t *);
 extern int		__ni_system_interface_stats_refresh(ni_handle_t *, ni_interface_t *);
 extern int		__ni_system_ethernet_refresh(ni_handle_t *, ni_interface_t *);
 extern int		__ni_rtevent_refresh_all(ni_handle_t *, ni_interface_t **del_list);
+
+/* FIXME: These should go elsewhere, maybe runtime.h */
+extern int		__ni_system_interface_update_lease(ni_interface_t *, ni_addrconf_lease_t *);
 
 /* FIXME: These should go elsewhere, maybe runtime.h */
 extern int		__ni_system_hostname_put(const char *);

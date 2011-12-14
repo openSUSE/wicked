@@ -672,14 +672,6 @@ ni_interface_set_lease(ni_handle_t *nih, ni_interface_t *ifp, ni_addrconf_lease_
 	return 0;
 }
 
-int
-ni_interface_update_lease(ni_handle_t *nih, ni_interface_t *ifp, ni_addrconf_lease_t *lease)
-{
-	if (nih->op->update_lease)
-		return nih->op->update_lease(nih, ifp, lease);
-	return ni_interface_set_lease(nih, ifp, lease);
-}
-
 /*
  * Given an address, look up the lease owning it
  */

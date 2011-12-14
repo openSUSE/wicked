@@ -275,8 +275,9 @@ failed:
  * An address configuration agent sends a lease update.
  */
 int
-__ni_system_interface_update_lease(ni_handle_t *nih, ni_interface_t *ifp, ni_addrconf_lease_t *lease)
+__ni_system_interface_update_lease(ni_interface_t *ifp, ni_addrconf_lease_t *lease)
 {
+	ni_handle_t *nih = ni_global_state_handle();
 	unsigned int update_mask;
 	ni_afinfo_t *afi;
 	int res;
