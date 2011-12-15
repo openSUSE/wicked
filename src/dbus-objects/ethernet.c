@@ -140,9 +140,9 @@ __wicked_dbus_ethernet_set_autoneg_enable(ni_dbus_object_t *object,
 }
 
 #define WICKED_ETHERNET_PROPERTY(type, __name, rw) \
-	NI_DBUS_PROPERTY(type, __name, offsetof(ni_ethernet_t, __name), __wicked_dbus_ethernet, rw)
+	NI_DBUS_PROPERTY(type, __name, __wicked_dbus_ethernet, rw)
 #define WICKED_ETHERNET_PROPERTY_SIGNATURE(signature, __name, rw) \
-	__NI_DBUS_PROPERTY(signature, __name, offsetof(ni_ethernet_t, __name), __wicked_dbus_ethernet, rw)
+	__NI_DBUS_PROPERTY(signature, __name, __wicked_dbus_ethernet, rw)
 
 static ni_dbus_property_t	wicked_dbus_ethernet_properties[] = {
 	WICKED_ETHERNET_PROPERTY(UINT32, link_speed, RO),

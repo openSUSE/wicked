@@ -973,9 +973,9 @@ __wpa_dbus_bss_set_rsnie(ni_dbus_object_t *object, const ni_dbus_property_t *pro
 
 
 #define WPA_BSS_PROPERTY(type, __name, rw) \
-	NI_DBUS_PROPERTY(type, __name, 0, __wpa_dbus_bss, rw)
+	NI_DBUS_PROPERTY(type, __name, __wpa_dbus_bss, rw)
 #define WPA_BSS_PROPERTY_SIGNATURE(signature, __name, rw) \
-	__NI_DBUS_PROPERTY(signature, __name, 0, __wpa_dbus_bss, rw)
+	__NI_DBUS_PROPERTY(signature, __name, __wpa_dbus_bss, rw)
 
 static ni_dbus_property_t	wpa_bss_properties[] = {
 	WPA_BSS_PROPERTY_SIGNATURE(DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING, bssid, RO),
@@ -1285,9 +1285,9 @@ __wpa_dbus_ifcapabilities_set_protos(ni_dbus_object_t *object, const ni_dbus_pro
 }
 
 #define WPA_IFCAP_PROPERTY(type, __name, rw) \
-	NI_DBUS_PROPERTY(type, __name, 0, __wpa_dbus_ifcapabilities, rw)
+	NI_DBUS_PROPERTY(type, __name, __wpa_dbus_ifcapabilities, rw)
 #define WPA_IFCAP_PROPERTY_SIGNATURE(signature, __name, rw) \
-	__NI_DBUS_PROPERTY(signature, __name, 0, __wpa_dbus_ifcapabilities, rw)
+	__NI_DBUS_PROPERTY(signature, __name, __wpa_dbus_ifcapabilities, rw)
 
 static ni_dbus_property_t	wpa_ifcap_properties[] = {
 	WPA_IFCAP_PROPERTY_SIGNATURE(DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_STRING_AS_STRING, eap, RO),

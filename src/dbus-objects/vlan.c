@@ -197,9 +197,9 @@ __wicked_dbus_vlan_set_interface_name(ni_dbus_object_t *object,
 }
 
 #define WICKED_VLAN_PROPERTY(type, __name, rw) \
-	NI_DBUS_PROPERTY(type, __name, 0, __wicked_dbus_vlan, rw)
+	NI_DBUS_PROPERTY(type, __name, __wicked_dbus_vlan, rw)
 #define WICKED_VLAN_PROPERTY_SIGNATURE(signature, __name, rw) \
-	__NI_DBUS_PROPERTY(signature, __name, 0, __wicked_dbus_vlan, rw)
+	__NI_DBUS_PROPERTY(signature, __name, __wicked_dbus_vlan, rw)
 
 static ni_dbus_property_t	wicked_dbus_vlan_properties[] = {
 	WICKED_VLAN_PROPERTY(STRING, interface_name, RO),

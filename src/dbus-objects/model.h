@@ -18,16 +18,15 @@
 }
 #define NI_DBUS_DUMMY_PROPERTY(type, __name) \
 	__NI_DBUS_DUMMY_PROPERTY(DBUS_TYPE_##type##_AS_STRING, __name)
-#define __NI_DBUS_PROPERTY(__signature, __name, __id, fstem, rw) { \
+#define __NI_DBUS_PROPERTY(__signature, __name, fstem, rw) { \
 	.name = #__name, \
-	.id = __id, \
 	.signature = __signature, \
 	.get = fstem ## _get_ ## __name, \
 	.set = fstem ## _set_ ## __name, \
 	__NI_DBUS_PROPERTY_##rw(fstem, __name), \
 }
-#define NI_DBUS_PROPERTY(type, __name, __id, fstem, rw) \
-	__NI_DBUS_PROPERTY(DBUS_TYPE_##type##_AS_STRING, __name, __id, fstem, rw)
+#define NI_DBUS_PROPERTY(type, __name, fstem, rw) \
+	__NI_DBUS_PROPERTY(DBUS_TYPE_##type##_AS_STRING, __name, fstem, rw)
 
 #define __pointer(base, offset_ptr) \
 	((typeof(offset_ptr)) (((caddr_t) base) + (unsigned long) offset_ptr))

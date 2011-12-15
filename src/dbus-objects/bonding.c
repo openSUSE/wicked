@@ -242,9 +242,9 @@ __wicked_dbus_bond_set_interface_name(ni_dbus_object_t *object,
 #endif
 
 #define WICKED_BONDING_PROPERTY(type, __name, rw) \
-	NI_DBUS_PROPERTY(type, __name, 0, __wicked_dbus_bond, rw)
+	NI_DBUS_PROPERTY(type, __name, __wicked_dbus_bond, rw)
 #define WICKED_BONDING_PROPERTY_SIGNATURE(signature, __name, rw) \
-	__NI_DBUS_PROPERTY(signature, __name, 0, __wicked_dbus_bond, rw)
+	__NI_DBUS_PROPERTY(signature, __name, __wicked_dbus_bond, rw)
 
 static ni_dbus_property_t	wicked_dbus_bond_properties[] = {
 	WICKED_BONDING_PROPERTY(UINT16, mode, RO),

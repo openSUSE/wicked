@@ -210,9 +210,9 @@ __wicked_dbus_dhcp4_set_name(ni_dbus_object_t *object,
 }
 
 #define WICKED_INTERFACE_PROPERTY(type, __name, rw) \
-	NI_DBUS_PROPERTY(type, __name, 0,__wicked_dbus_dhcp4, rw)
+	NI_DBUS_PROPERTY(type, __name, __wicked_dbus_dhcp4, rw)
 #define WICKED_INTERFACE_PROPERTY_SIGNATURE(signature, __name, rw) \
-	__NI_DBUS_PROPERTY(signature, __name, 0, __wicked_dbus_dhcp4, rw)
+	__NI_DBUS_PROPERTY(signature, __name, __wicked_dbus_dhcp4, rw)
 
 static ni_dbus_property_t	wicked_dbus_dhcp4_properties[] = {
 	WICKED_INTERFACE_PROPERTY(STRING, name, RO),

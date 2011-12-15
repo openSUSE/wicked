@@ -100,7 +100,6 @@ typedef dbus_bool_t		ni_dbus_property_parse_fn_t(const ni_dbus_property_t *prope
 
 struct ni_dbus_property	{
 	const char *			name;
-	unsigned int			id;
 	const char *			signature;
 
 	ni_dbus_property_get_fn_t *	get;

@@ -454,9 +454,9 @@ static ni_dbus_property_t	wicked_dbus_bridge_port_properties[] = {
 };
 
 #define WICKED_BRIDGE_PROPERTY(type, __name, rw) \
-	NI_DBUS_PROPERTY(type, __name, 0, __wicked_dbus_bridge, rw)
+	NI_DBUS_PROPERTY(type, __name, __wicked_dbus_bridge, rw)
 #define WICKED_BRIDGE_PROPERTY_SIGNATURE(signature, __name, rw) \
-	__NI_DBUS_PROPERTY(signature, __name, 0, __wicked_dbus_bridge, rw)
+	__NI_DBUS_PROPERTY(signature, __name, __wicked_dbus_bridge, rw)
 
 static ni_dbus_property_t	wicked_dbus_bridge_properties[] = {
 	/* FIXME: these should be RW properties */

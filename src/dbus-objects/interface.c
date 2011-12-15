@@ -632,9 +632,9 @@ __wicked_dbus_interface_set_routes(ni_dbus_object_t *object,
 }
 
 #define WICKED_INTERFACE_PROPERTY(type, __name, rw) \
-	NI_DBUS_PROPERTY(type, __name, 0,__wicked_dbus_interface, rw)
+	NI_DBUS_PROPERTY(type, __name,__wicked_dbus_interface, rw)
 #define WICKED_INTERFACE_PROPERTY_SIGNATURE(signature, __name, rw) \
-	__NI_DBUS_PROPERTY(signature, __name, 0, __wicked_dbus_interface, rw)
+	__NI_DBUS_PROPERTY(signature, __name, __wicked_dbus_interface, rw)
 
 static ni_dbus_property_t	wicked_dbus_interface_properties[] = {
 	WICKED_INTERFACE_PROPERTY(STRING, name, RO),
@@ -849,9 +849,9 @@ __wicked_dbus_interface_request_set_ipv6(ni_dbus_object_t *object,
 }
 
 #define WICKED_INTERFACE_REQUEST_PROPERTY(type, __name, rw) \
-	NI_DBUS_PROPERTY(type, __name, offsetof(ni_interface_t, __name),__wicked_dbus_interface_request, rw)
+	NI_DBUS_PROPERTY(type, __name, __wicked_dbus_interface_request, rw)
 #define WICKED_INTERFACE_REQUEST_PROPERTY_SIGNATURE(signature, __name, rw) \
-	__NI_DBUS_PROPERTY(signature, __name, offsetof(ni_interface_t, __name), __wicked_dbus_interface_request, rw)
+	__NI_DBUS_PROPERTY(signature, __name, __wicked_dbus_interface_request, rw)
 
 static ni_dbus_property_t	wicked_dbus_interface_request_properties[] = {
 #if 0
