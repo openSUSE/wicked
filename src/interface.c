@@ -250,7 +250,7 @@ ni_bonding_t *
 ni_interface_get_bonding(ni_interface_t *ifp)
 {
 	if (!ifp->bonding)
-		ifp->bonding = calloc(1, sizeof(ni_bonding_t));
+		ifp->bonding = ni_bonding_new();
 	return ifp->bonding;
 }
 

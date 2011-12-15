@@ -17,6 +17,23 @@
 #include "sysfs.h"
 
 /*
+ * Create a bonding config
+ */
+ni_bonding_t *
+ni_bonding_new(void)
+{
+	ni_bonding_t *bonding;
+
+	bonding = calloc(1, sizeof(ni_bonding_t));
+	bonding->mode = NI_BOND_MODE_BALANCE_RR;
+	bonding->monitoring = NI_BOND_MONITOR_ARP;
+	bonding->arpmon.interval = 2000;
+	bonding->arpmon.validate = NI_BOND_VALIDATE_ACTIVE;
+
+	return bonding;
+}
+
+/*
  * Add a slave device to the bond
  */
 void
