@@ -232,6 +232,9 @@ ni_objectmodel_new_interface(ni_dbus_server_t *server, const ni_dbus_service_t *
 	} else
 	if (service == &wicked_dbus_bridge_service) {
 		result = ni_objectmodel_new_bridge(server, object, error);
+	} else
+	if (service == &wicked_dbus_bond_service) {
+		result = ni_objectmodel_new_bond(server, object, error);
 	} else {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
 				"Cannot create network interface for %s - not implemented yet",
