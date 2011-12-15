@@ -812,7 +812,7 @@ usage:
 		}
 
 		nc = ni_backend_get_netconfig(backend);
-		if (!(config_dev = nc_interface_by_name(nc, ifname))) {
+		if (!(config_dev = ni_interface_by_name(nc, ifname))) {
 			ni_error("cannot find interface %s in interface description", ifname);
 			ni_backend_free(backend);
 			goto failed;

@@ -858,7 +858,7 @@ __ni_suse_put_interfaces(ni_syntax_t *syntax, ni_netconfig_t *nc, FILE *outfile)
 		const char *filename = files.data[i];
 		const char *ifname = filename + 6;
 
-		if (nc_interface_by_name(nc, ifname) == NULL) {
+		if (ni_interface_by_name(nc, ifname) == NULL) {
 			/* This interface went away */
 			snprintf(pathbuf, sizeof(pathbuf), "%s/%s", base_dir, filename);
 			trace("should really unlink(%s) here\n", pathbuf);

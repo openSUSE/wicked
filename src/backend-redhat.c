@@ -133,7 +133,7 @@ __ni_redhat_read_interface(ni_netconfig_t *nc, const char *filename)
 
 	/* Beware - bonding slaves may create their master interface
 	 * on the fly */
-	ifp = nc_interface_by_name(nc, ifname);
+	ifp = ni_interface_by_name(nc, ifname);
 	if (ifp == NULL) {
 		ifp = ni_interface_new(nc, ifname, 0);
 		if (!ifp) {
@@ -307,7 +307,7 @@ try_bonding_slave(ni_netconfig_t *nc, ni_interface_t *ifp, ni_sysconfig_t *sc)
 		return;
 	}
 
-	master = nc_interface_by_name(nc, var->value);
+	master = ni_interface_by_name(nc, var->value);
 	if (master == NULL) {
 		master = ni_interface_new(nc, var->value, 0);
 		master->link.type = NI_IFTYPE_BOND;
@@ -354,7 +354,7 @@ try_bridge_port(ni_netconfig_t *nc, ni_interface_t *ifp, ni_sysconfig_t *sc)
 	if (!var || !var->value || !var->value[0])
 		return;
 
-	master = nc_interface_by_name(nc, var->value);
+	master = ni_interface_by_name(nc, var->value);
 	if (master == NULL) {
 		master = ni_interface_new(nc, var->value, 0);
 		master->link.type = NI_IFTYPE_BRIDGE;
@@ -465,7 +465,7 @@ __ni_redhat_put_interfaces(ni_syntax_t *syntax, ni_netconfig_t *nc, FILE *outfil
 		const char *filename = files.data[i];
 		const char *ifname = filename + 6;
 
-		if (nc_interface_by_name(nc, ifname) == NULL) {
+		if (ni_interface_by_name(nc, ifname) == NULL) {
 			/* This interface went away */
 			snprintf(pathbuf, sizeof(pathbuf), "%s/%s", base_dir, filename);
 			ni_trace("should really unlink(%s) here\n", pathbuf);

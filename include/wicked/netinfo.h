@@ -269,15 +269,14 @@ extern ni_interface_t *	ni_interface_by_index(ni_netconfig_t *nic, unsigned int 
 extern ni_interface_t *	ni_interface_by_hwaddr(ni_netconfig_t *nic, const ni_hwaddr_t *lla);
 extern ni_interface_t *	ni_interface_by_vlan_tag(ni_netconfig_t *nc, uint16_t tag);
 
-/* Replace this */
-extern ni_interface_t *	nc_interface_by_name(ni_netconfig_t *nic, const char *name);
-
 extern ni_interface_t *	ni_interface_new(ni_netconfig_t *, const char *name, unsigned int ifindex);
 extern ni_interface_t *	ni_interface_clone(const ni_interface_t *);
 extern ni_interface_t *	ni_interface_get(ni_interface_t *ifp);
 extern int		ni_interface_put(ni_interface_t *ifp);
 extern int		ni_interface_update(ni_interface_t *ifp);
 extern int		ni_interface_guess_type(ni_interface_t *ifp);
+
+/* Rename to ni_system_* */
 extern int		ni_interface_up(ni_netconfig_t *, ni_interface_t *, const ni_interface_request_t *);
 extern int		ni_interface_down(ni_netconfig_t *, ni_interface_t *);
 extern int		ni_interface_configure(ni_netconfig_t *, const ni_interface_t *);

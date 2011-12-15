@@ -1014,19 +1014,6 @@ ni_interface_by_name(ni_netconfig_t *nc, const char *name)
 	return NULL;
 }
 
-ni_interface_t *
-nc_interface_by_name(ni_netconfig_t *nc, const char *name)
-{
-	ni_interface_t *ifp;
-
-	for (ifp = nc->interfaces; ifp; ifp = ifp->next) {
-		if (ifp->name && !strcmp(ifp->name, name))
-			return ifp;
-	}
-
-	return NULL;
-}
-
 /*
  * Find interface by its ifindex
  */
