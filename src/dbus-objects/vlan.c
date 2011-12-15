@@ -88,11 +88,10 @@ __ni_dbus_vlan_delete(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
-	ni_handle_t *nih = ni_global_state_handle(0);
 	ni_interface_t *ifp = object->handle;
 
 	NI_TRACE_ENTER_ARGS("ifp=%s", ifp->name);
-	if (ni_interface_delete_vlan(nih, ifp) < 0) {
+	if (ni_interface_delete_vlan(ifp) < 0) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
 				"Error deleting VLAN interface", ifp->name);
 		return FALSE;

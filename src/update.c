@@ -28,7 +28,7 @@ struct ni_update_lease_choice {
 static ni_update_info_t	__ni_update_info[__NI_ADDRCONF_UPDATE_MAX];
 static ni_update_handler_t *__ni_update_handlers[__NI_ADDRCONF_UPDATE_MAX];
 
-static void		ni_system_update_find_lease(ni_handle_t *, unsigned int, struct ni_update_lease_choice *);
+static void	ni_system_update_find_lease(ni_netconfig_t *, unsigned int, struct ni_update_lease_choice *);
 
 /*
  * Determine our capabilities to update anything at all
@@ -132,7 +132,7 @@ ni_system_restore_service(unsigned int target)
  * such as a DHCP lease.
  */
 int
-ni_system_update_from_lease(ni_handle_t *nih, ni_interface_t *ifp, const ni_addrconf_lease_t *lease)
+ni_system_update_from_lease(ni_netconfig_t *nc, ni_interface_t *ifp, const ni_addrconf_lease_t *lease)
 {
 	unsigned int update_permitted, update_mask = 0, clear_mask = 0;
 	unsigned int target;
@@ -199,7 +199,7 @@ ni_system_update_from_lease(ni_handle_t *nih, ni_interface_t *ifp, const ni_addr
 		if (!__ni_addrconf_should_update(update_mask, target))
 			continue;
 
-		ni_system_update_find_lease(nih, target, &best);
+		ni_system_update_find_lease(nc, target, &best);
 		if (best.lease == 0
 		 || ni_system_update_service(best.interface, best.lease, target) < 0) {
 			/* Unable to configure the service. Deconfigure it completely,
@@ -245,13 +245,13 @@ ni_system_update_find_lease_interface(ni_interface_t *ifp, unsigned int target, 
 }
 
 static void
-ni_system_update_find_lease(ni_handle_t *nih, unsigned int target, struct ni_update_lease_choice *best)
+ni_system_update_find_lease(ni_netconfig_t *nc, unsigned int target, struct ni_update_lease_choice *best)
 {
 	ni_interface_t *ifp;
 
 	/* Loop over all interfaces and check if we have another
 	 * valid lease that would work here. */
-	for (ifp = nih->netconfig.interfaces; ifp; ifp = ifp->next)
+	for (ifp = nc->interfaces; ifp; ifp = ifp->next)
 		ni_system_update_find_lease_interface(ifp, target, best);
 }
 

@@ -88,7 +88,7 @@ __ni_rtevent_read(ni_socket_t *sock)
 				ni_fatal("malformed netlink message: len=%d", len);
 			}
 
-			if (__ni_rtevent_process(&nih->netconfig, &nladdr, h) < 0)
+			if (__ni_rtevent_process(nih, &nladdr, h) < 0)
 				continue;
 		}
 		if (msg.msg_flags & MSG_TRUNC) {

@@ -58,10 +58,10 @@ static int	__ni_interface_update_addrs(ni_handle_t *nih, ni_interface_t *ifp,
 static int	__ni_interface_update_routes(ni_handle_t *nih, ni_interface_t *ifp,
 				int family, ni_addrconf_mode_t mode,
 				ni_route_t **cfg_route_list);
-static int	__ni_rtnl_link_create_vlan(ni_handle_t *, const char *, const ni_vlan_t *);
-static int	__ni_rtnl_link_create(ni_handle_t *, const ni_interface_t *);
-static int	__ni_rtnl_link_up(ni_handle_t *, const ni_interface_t *, const ni_interface_request_t *);
-static int	__ni_rtnl_link_down(ni_handle_t *, const ni_interface_t *, int);
+static int	__ni_rtnl_link_create_vlan(const char *, const ni_vlan_t *, unsigned int);
+static int	__ni_rtnl_link_create(ni_netconfig_t *, const ni_interface_t *);
+static int	__ni_rtnl_link_up(const ni_interface_t *, const ni_interface_request_t *);
+static int	__ni_rtnl_link_down(const ni_interface_t *, int);
 static int	__ni_rtnl_send_deladdr(ni_handle_t *, ni_interface_t *, const ni_address_t *);
 static int	__ni_rtnl_send_newaddr(ni_handle_t *, ni_interface_t *, const ni_address_t *, int);
 static int	__ni_rtnl_send_delroute(ni_handle_t *, ni_interface_t *, ni_route_t *);
@@ -90,14 +90,14 @@ ni_interface_up(ni_handle_t *nih, ni_interface_t *ifp, const ni_interface_reques
 
 	if (ifp_req->ifflags & (NI_IFF_DEVICE_UP|NI_IFF_LINK_UP|NI_IFF_NETWORK_UP)) {
 		ni_debug_ifconfig("bringing up %s", ifp->name);
-		if (__ni_rtnl_link_up(nih, ifp, ifp_req)) {
+		if (__ni_rtnl_link_up(ifp, ifp_req)) {
 			ni_error("%s: failed to bring up interface (rtnl error)", ifp->name);
 			return -1;
 		}
 		ifp->link.ifflags |= ifp_req->ifflags;
 	} else {
 		ni_debug_ifconfig("shutting down interface %s", ifp->name);
-		if (__ni_rtnl_link_down(nih, ifp, RTM_NEWLINK)) {
+		if (__ni_rtnl_link_down(ifp, RTM_NEWLINK)) {
 			ni_error("unable to shut down interface %s", ifp->name);
 			return -1;
 		}
@@ -149,7 +149,7 @@ ni_interface_down(ni_handle_t *nih, ni_interface_t *ifp)
 		res = __ni_system_refresh_interface(nih, ifp);
 
 	ni_debug_ifconfig("shutting down interface %s", ifp->name);
-	if (__ni_rtnl_link_down(nih, ifp, RTM_NEWLINK)) {
+	if (__ni_rtnl_link_down(ifp, RTM_NEWLINK)) {
 		ni_error("unable to shut down interface %s", ifp->name);
 		return -1;
 	}
@@ -239,14 +239,14 @@ __ni_system_interface_configure(ni_handle_t *nih, ni_interface_t *ifp, const ni_
 
 	if (cfg->link.ifflags & (NI_IFF_DEVICE_UP|NI_IFF_LINK_UP|NI_IFF_NETWORK_UP)) {
 		ni_debug_ifconfig("bringing up %s", ifp->name);
-		if (__ni_rtnl_link_up(nih, ifp, NULL)) {
+		if (__ni_rtnl_link_up(ifp, NULL)) {
 			ni_error("%s: failed to bring up interface (rtnl error)", ifp->name);
 			return -1;
 		}
 		ifp->link.ifflags |= cfg->link.ifflags;
 	} else {
 		ni_debug_ifconfig("shutting down interface %s", ifp->name);
-		if (__ni_rtnl_link_down(nih, ifp, RTM_NEWLINK)) {
+		if (__ni_rtnl_link_down(ifp, RTM_NEWLINK)) {
 			ni_error("unable to shut down interface %s", ifp->name);
 			return -1;
 		}
@@ -345,54 +345,11 @@ __ni_system_interface_bringup(ni_handle_t *nih, ni_interface_t *ifp)
 {
 	int res = -1;
 
-	res = __ni_rtnl_link_up(nih, ifp, NULL);
+	res = __ni_rtnl_link_up(ifp, NULL);
 	if (res >= 0)
 		__ni_system_refresh_interface(nih, ifp);
 
 	return res;
-}
-
-/*
- * Bring up a network interface temporarily, e.g. for a wireless scan.
- */
-int
-__ni_interface_begin_activity(ni_handle_t *nih, ni_interface_t *ifp, ni_interface_activity_t activity)
-{
-	if (ifp->link.ifflags & NI_IFF_DEVICE_UP) {
-		/* Remember that the interface was up by admin's choice */
-		if (ifp->up_requesters == 0)
-			ifp->up_requesters |= 1 << NI_INTERFACE_ADMIN;
-	} else {
-		if (__ni_system_interface_bringup(nih, ifp) < 0)
-			return -1;
-	}
-
-	ifp->up_requesters |= 1 << activity;
-	return 0;
-}
-
-int
-__ni_interface_check_activity(ni_handle_t *nih, ni_interface_t *ifp, ni_interface_activity_t activity)
-{
-	return !!(ifp->up_requesters & (1 << activity));
-}
-
-int
-__ni_interface_end_activity(ni_handle_t *nih, ni_interface_t *ifp, ni_interface_activity_t activity)
-{
-	if (ifp->up_requesters & (1 << activity)) {
-		ifp->up_requesters &= ~(1 << activity);
-
-		if (ifp->up_requesters == 0) {
-			/* Bring it down */
-			__ni_rtnl_link_down(nih, ifp, RTM_NEWLINK);
-		} else if (ifp->up_requesters == 1 << NI_INTERFACE_ADMIN) {
-			/* The only ongoing activity is "administration", which
-			 * is the default activity. Just clear the bitfield */
-			ifp->up_requesters = 0;
-		}
-	}
-	return 0;
 }
 
 /*
@@ -403,11 +360,11 @@ __ni_system_interface_delete(ni_handle_t *nih, const char *ifname)
 {
 	ni_interface_t *ifp;
 
-	debug_ifconfig("__ni_system_interface_delete(%s)", ifname);
+	ni_debug_ifconfig("__ni_system_interface_delete(%s)", ifname);
 
 	/* FIXME: perform sanity check on configuration data */
 
-	ifp = ni_interface_by_name(&nih->netconfig, ifname);
+	ifp = ni_interface_by_name(nih, ifname);
 	if (ifp == NULL) {
 		error("cannot delete interface %s - not known", ifname);
 		return -1;
@@ -422,7 +379,7 @@ __ni_system_interface_delete(ni_handle_t *nih, const char *ifname)
 		return -1;
 
 	case NI_IFTYPE_VLAN:
-		if (__ni_rtnl_link_down(nih, ifp, RTM_DELLINK)) {
+		if (__ni_rtnl_link_down(ifp, RTM_DELLINK)) {
 			error("could not destroy VLAN interface %s", ifp->name);
 			return -1;
 		}
@@ -464,7 +421,7 @@ __ni_interface_for_config(ni_handle_t *nih, const ni_interface_t *cfg, ni_interf
 
 	*res = NULL;
 	if (cfg->name) {
-		ifp = ni_interface_by_name(&nih->netconfig, cfg->name);
+		ifp = ni_interface_by_name(nih, cfg->name);
 		if (ifp) {
 			if (cfg->link.hwaddr.len
 			 && !ni_link_address_equal(&ifp->link.hwaddr, &cfg->link.hwaddr))
@@ -475,7 +432,7 @@ __ni_interface_for_config(ni_handle_t *nih, const ni_interface_t *cfg, ni_interf
 	}
 
 	if (cfg->link.hwaddr.len) {
-		ifp = ni_interface_by_hwaddr(&nih->netconfig, &cfg->link.hwaddr);
+		ifp = ni_interface_by_hwaddr(nih, &cfg->link.hwaddr);
 		if (ifp) {
 			if (*res && *res != ifp)
 				return -1;
@@ -575,13 +532,13 @@ __ni_interface_bridge_configure(ni_handle_t *nih, const ni_interface_t *cfg, ni_
 				&comm_ports);	/* names in both definitions */
 
 		/* First, add new ports */
-		rv = __ni_interface_bridge_allports(&nih->netconfig, ifp->name,
+		rv = __ni_interface_bridge_allports(nih, ifp->name,
 				&add_ports, __ni_brioctl_add_port,
 				"add bridge port");
 
 		/* Then, delete ports that should go away */
 		if (rv >= 0)
-			rv = __ni_interface_bridge_allports(&nih->netconfig, ifp->name,
+			rv = __ni_interface_bridge_allports(nih, ifp->name,
 				&del_ports, __ni_brioctl_del_port,
 				"delete bridge port");
 
@@ -635,7 +592,7 @@ __ni_interface_vlan_configure(ni_handle_t *nih, const ni_interface_t *cfg, ni_in
 
 		if (!cfg_vlan->physdev_name)
 			return -1;
-		real_dev = ni_interface_by_name(&nih->netconfig, cfg_vlan->physdev_name);
+		real_dev = ni_interface_by_name(nih, cfg_vlan->physdev_name);
 		if (!real_dev || !real_dev->link.ifindex) {
 			error("Cannot bring up VLAN interface %s: %s does not exist",
 					cfg->name, cfg_vlan->physdev_name);
@@ -658,21 +615,29 @@ __ni_interface_vlan_configure(ni_handle_t *nih, const ni_interface_t *cfg, ni_in
 
 /*
  * Create a VLAN interface
+ * ni_system_create_vlan
  */
 int
 ni_interface_create_vlan(ni_handle_t *nih, const char *ifname, const ni_vlan_t *cfg_vlan, ni_interface_t **ifpp)
 {
-	ni_interface_t *ifp;
+	ni_interface_t *ifp, *phys_dev;
 	ni_vlan_t *cur_vlan = NULL;
 
-	ifp = ni_interface_by_vlan_tag(&nih->netconfig, cfg_vlan->tag);
+	ifp = ni_interface_by_vlan_tag(nih, cfg_vlan->tag);
 	if (ifp != NULL) {
 		ni_error("%s: VLAN interface with tag 0x%x already exists", ifname, cfg_vlan->tag);
 		return -1;
 	}
 
-	debug_ifconfig("%s: creating VLAN device", ifname);
-	if (__ni_rtnl_link_create_vlan(nih, ifname, cfg_vlan)) {
+	phys_dev = ni_interface_by_name(nih, cfg_vlan->physdev_name);
+	if (!phys_dev || !phys_dev->link.ifindex) {
+		ni_error("Cannot create VLAN interface %s: interface %s does not exist",
+				ifname, cfg_vlan->physdev_name);
+		return -1;
+	}
+
+	ni_debug_ifconfig("%s: creating VLAN device", ifname);
+	if (__ni_rtnl_link_create_vlan(ifname, cfg_vlan, phys_dev->link.ifindex)) {
 		error("unable to create vlan interface %s", ifname);
 		return -1;
 	}
@@ -680,7 +645,7 @@ ni_interface_create_vlan(ni_handle_t *nih, const char *ifname, const ni_vlan_t *
 	/* Refresh interface status */
 	__ni_system_refresh_interfaces(nih);
 
-	ifp = ni_interface_by_vlan_tag(&nih->netconfig, cfg_vlan->tag);
+	ifp = ni_interface_by_vlan_tag(nih, cfg_vlan->tag);
 	if (ifp == NULL) {
 		error("tried to create interface %s; still not found", ifname);
 		return -1;
@@ -694,7 +659,7 @@ ni_interface_create_vlan(ni_handle_t *nih, const char *ifname, const ni_vlan_t *
 
 		if (!cfg_vlan->physdev_name)
 			return -1;
-		real_dev = ni_interface_by_name(&nih->netconfig, cfg_vlan->physdev_name);
+		real_dev = ni_interface_by_name(nih, cfg_vlan->physdev_name);
 		if (!real_dev || !real_dev->link.ifindex) {
 			error("Cannot bring up VLAN interface %s: %s does not exist",
 					ifname, cfg_vlan->physdev_name);
@@ -721,9 +686,9 @@ ni_interface_create_vlan(ni_handle_t *nih, const char *ifname, const ni_vlan_t *
  * Delete a VLAN interface
  */
 int
-ni_interface_delete_vlan(ni_handle_t *nih, ni_interface_t *ifp)
+ni_interface_delete_vlan(ni_interface_t *ifp)
 {
-	if (__ni_rtnl_link_down(nih, ifp, RTM_DELLINK)) {
+	if (__ni_rtnl_link_down(ifp, RTM_DELLINK)) {
 		ni_error("could not destroy VLAN interface %s", ifp->name);
 		return -1;
 	}
@@ -748,7 +713,7 @@ ni_interface_create_bridge(ni_handle_t *nih, const char *ifname,
 	/* Refresh interface status */
 	__ni_system_refresh_interfaces(nih);
 
-	ifp = ni_interface_by_name(&nih->netconfig, ifname);
+	ifp = ni_interface_by_name(nih, ifname);
 	if (ifp == NULL) {
 		ni_error("tried to create interface %s; still not found", ifname);
 		return -1;
@@ -819,7 +784,7 @@ ni_interface_add_bridge_port(ni_handle_t *nih, ni_interface_t *ifp,
 	int rv;
 
 	if ((pif = port->device) == NULL && pif->name)
-		pif = ni_interface_by_name(&nih->netconfig, pif->name);
+		pif = ni_interface_by_name(nih, pif->name);
 
 	if (pif == NULL) {
 		ni_error("%s: cannot add port - %s not known", ifp->name, pif->name);
@@ -898,7 +863,7 @@ __ni_interface_bond_configure(ni_handle_t *nih, const ni_interface_t *cfg, ni_in
 		const char *slave_name = cfg_bond->slave_names.data[i];
 		ni_interface_t *slave_dev;
 
-		slave_dev = ni_interface_by_name(&nih->netconfig, slave_name);
+		slave_dev = ni_interface_by_name(nih, slave_name);
 		if (!slave_dev) {
 			ni_error("%s: slave %s does not exist", cfg->name, slave_name);
 			return -1;
@@ -1070,7 +1035,7 @@ __ni_interface_update_ipv6_settings(ni_handle_t *nih, ni_interface_t *ifp, const
 	 * The only way to recover from that is by upping the interface briefly.
 	 */
 	if (!ni_sysctl_ipv6_ifconfig_is_present(ifp->name)) {
-		if (__ni_rtnl_link_up(nih, ifp, NULL) >= 0) {
+		if (__ni_rtnl_link_up(ifp, NULL) >= 0) {
 			unsigned int count = 100;
 
 			while (count-- && !ni_sysctl_ipv6_ifconfig_is_present(ifp->name))
@@ -1099,7 +1064,7 @@ __ni_interface_update_ipv6_settings(ni_handle_t *nih, ni_interface_t *ifp, const
 
 out:
 	if (brought_up)
-		__ni_rtnl_link_down(nih, ifp, RTM_NEWLINK);
+		__ni_rtnl_link_down(ifp, RTM_NEWLINK);
 
 	return rv;
 }
@@ -1108,9 +1073,8 @@ out:
  * Create a VLAN interface via netlink
  */
 static int
-__ni_rtnl_link_create_vlan(ni_handle_t *nih, const char *ifname, const ni_vlan_t *vlan)
+__ni_rtnl_link_create_vlan(const char *ifname, const ni_vlan_t *vlan, unsigned int phys_ifindex)
 {
-	ni_interface_t *real_dev;
 	struct nlattr *linkinfo;
 	struct nlattr *data;
 	struct ifinfomsg ifi;
@@ -1145,14 +1109,7 @@ __ni_rtnl_link_create_vlan(ni_handle_t *nih, const char *ifname, const ni_vlan_t
 	nla_nest_end(msg, linkinfo);
 
 	/* Note, IFLA_LINK must be outside of IFLA_LINKINFO */
-
-	real_dev = ni_interface_by_name(&nih->netconfig, vlan->physdev_name);
-	if (!real_dev || !real_dev->link.ifindex) {
-		error("Cannot create VLAN interface %s: interface %s does not exist",
-				ifname, vlan->physdev_name);
-		return -1;
-	}
-	NLA_PUT_U32(msg, IFLA_LINK, real_dev->link.ifindex);
+	NLA_PUT_U32(msg, IFLA_LINK, phys_ifindex);
 
 	len = strlen(ifname) + 1;
 	if (len == 1 || len > IFNAMSIZ) {
@@ -1179,7 +1136,7 @@ failed:
  * Create an interface via netlink - currently used by VLAN only
  */
 static int
-__ni_rtnl_link_create(ni_handle_t *nih, const ni_interface_t *cfg)
+__ni_rtnl_link_create(ni_netconfig_t *nc, const ni_interface_t *cfg)
 {
 	ni_interface_t *real_dev;
 	struct ifinfomsg ifi;
@@ -1225,7 +1182,7 @@ __ni_rtnl_link_create(ni_handle_t *nih, const ni_interface_t *cfg)
 
 		/* Note, IFLA_LINK must be outside of IFLA_LINKINFO */
 
-		real_dev = ni_interface_by_name(&nih->netconfig, cfg->link.vlan->physdev_name);
+		real_dev = ni_interface_by_name(nc, cfg->link.vlan->physdev_name);
 		if (!real_dev || !real_dev->link.ifindex) {
 			error("Cannot create VLAN interface %s: interface %s does not exist",
 					cfg->name, cfg->link.vlan->physdev_name);
@@ -1262,7 +1219,7 @@ failed:
  * Simple rtnl message without attributes
  */
 static inline int
-__ni_rtnl_simple(ni_handle_t *nih, int msgtype, unsigned int flags, void *data, size_t len)
+__ni_rtnl_simple(int msgtype, unsigned int flags, void *data, size_t len)
 {
 	struct nl_msg *msg;
 	int rv = -1;
@@ -1286,7 +1243,7 @@ __ni_rtnl_simple(ni_handle_t *nih, int msgtype, unsigned int flags, void *data, 
  * Bring down/delete an interface
  */
 static int
-__ni_rtnl_link_down(ni_handle_t *nih, const ni_interface_t *ifp, int cmd)
+__ni_rtnl_link_down(const ni_interface_t *ifp, int cmd)
 {
 	struct ifinfomsg ifi;
 
@@ -1295,14 +1252,14 @@ __ni_rtnl_link_down(ni_handle_t *nih, const ni_interface_t *ifp, int cmd)
 	ifi.ifi_index = ifp->link.ifindex;
 	ifi.ifi_change = IFF_UP;
 
-	return __ni_rtnl_simple(nih, cmd, 0, &ifi, sizeof(ifi));
+	return __ni_rtnl_simple(cmd, 0, &ifi, sizeof(ifi));
 }
 
 /*
  * (Re-)configure an interface
  */
 static int
-__ni_rtnl_link_up(ni_handle_t *nih, const ni_interface_t *ifp, const ni_interface_request_t *cfg)
+__ni_rtnl_link_up(const ni_interface_t *ifp, const ni_interface_request_t *cfg)
 {
 	struct ifinfomsg ifi;
 	struct nl_msg *msg;

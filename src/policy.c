@@ -66,7 +66,7 @@
 #include "config.h"
 
 
-static int		ni_policy_match_interface(const ni_policy_t *, const ni_interface_t *);
+//static int		ni_policy_match_interface(const ni_policy_t *, const ni_interface_t *);
 
 /*
  * Constructor/destructor
@@ -107,6 +107,9 @@ ni_policy_free(ni_policy_t *policy)
 int
 __ni_generic_policy_update(ni_handle_t *nih, const ni_policy_t *new_policy, ni_policy_t **found)
 {
+#if 1
+	return -1;
+#else
 	ni_policy_info_t *info = &nih->policy;
 	ni_policy_t *policy, **pos;
 
@@ -139,6 +142,7 @@ __ni_generic_policy_update(ni_handle_t *nih, const ni_policy_t *new_policy, ni_p
 	if (found)
 		*found = policy;
 	return 0;
+#endif
 }
 
 int
@@ -159,6 +163,9 @@ ni_policy_update(ni_handle_t *nih, const ni_policy_t *new_policy)
 ni_policy_t *
 ni_policy_match_event(const ni_handle_t *nih, ni_event_t event, const ni_interface_t *dev)
 {
+#if 1
+	return NULL;
+#else
 	const ni_policy_info_t *info = &nih->policy;
 	ni_policy_t *policy, *best = NULL;
 	int best_weight = -1;
@@ -190,7 +197,10 @@ ni_policy_match_event(const ni_handle_t *nih, ni_event_t event, const ni_interfa
 	}
 
 	return best;
+#endif
 }
+
+#if 0
 static int
 ni_policy_match_interface(const ni_policy_t *policy, const ni_interface_t *dev)
 {
@@ -215,6 +225,7 @@ ni_policy_match_interface(const ni_policy_t *policy, const ni_interface_t *dev)
 
 	return weight;
 }
+#endif
 
 /*
  * Destructor function

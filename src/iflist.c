@@ -235,7 +235,7 @@ __ni_system_refresh_all(ni_handle_t *nih, ni_interface_t **del_list)
 		goto failed;
 
 	/* Find tail of iflist */
-	tail = &nih->netconfig.interfaces;
+	tail = &nih->interfaces;
 	while ((ifp = *tail) != NULL)
 		tail = &ifp->next;
 
@@ -254,7 +254,7 @@ __ni_system_refresh_all(ni_handle_t *nih, ni_interface_t **del_list)
 		ifname = (char *) nla_data(nla);
 
 		/* Create interface if it doesn't exist. */
-		if ((ifp = ni_interface_by_index(&nih->netconfig, ifi->ifi_index)) == NULL) {
+		if ((ifp = ni_interface_by_index(nih, ifi->ifi_index)) == NULL) {
 			ifp = __ni_interface_new(ifname, ifi->ifi_index);
 			if (!ifp)
 				goto failed;
@@ -268,12 +268,12 @@ __ni_system_refresh_all(ni_handle_t *nih, ni_interface_t **del_list)
 
 		ifp->seq = seqno;
 
-		if (__ni_interface_process_newlink(ifp, h, ifi, &nih->netconfig) < 0)
+		if (__ni_interface_process_newlink(ifp, h, ifi, nih) < 0)
 			ni_error("Problem parsing RTM_NEWLINK message for %s", ifname);
 	}
 
-	for (ifp = nih->netconfig.interfaces; ifp; ifp = ifp->next) {
-		if (ifp->link.vlan && ni_vlan_bind_ifindex(ifp->link.vlan, &nih->netconfig) < 0) {
+	for (ifp = nih->interfaces; ifp; ifp = ifp->next) {
+		if (ifp->link.vlan && ni_vlan_bind_ifindex(ifp->link.vlan, nih) < 0) {
 			ni_error("VLAN interface %s references unknown base interface (ifindex %u)",
 				ifp->name, ifp->link.vlan->physdev_index);
 			/* Ignore error and proceed */
@@ -287,7 +287,7 @@ __ni_system_refresh_all(ni_handle_t *nih, ni_interface_t **del_list)
 		if (!(ifi = ni_rtnl_query_next_ipv6_link_info(&query, &h)))
 			break;
 
-		if ((ifp = ni_interface_by_index(&nih->netconfig, ifi->ifi_index)) == NULL)
+		if ((ifp = ni_interface_by_index(nih, ifi->ifi_index)) == NULL)
 			continue;
 
 		if (__ni_interface_process_newlink_ipv6(ifp, h, ifi) < 0)
@@ -300,7 +300,7 @@ __ni_system_refresh_all(ni_handle_t *nih, ni_interface_t **del_list)
 		if (!(ifa = ni_rtnl_query_next_addr_info(&query, &h)))
 			break;
 
-		if ((ifp = ni_interface_by_index(&nih->netconfig, ifa->ifa_index)) == NULL)
+		if ((ifp = ni_interface_by_index(nih, ifa->ifa_index)) == NULL)
 			continue;
 
 		if (__ni_interface_process_newaddr(ifp, h, ifa) < 0)
@@ -315,7 +315,7 @@ __ni_system_refresh_all(ni_handle_t *nih, ni_interface_t **del_list)
 			break;
 
 		if (oif_index >= 0) {
-			ifp = ni_interface_by_index(&nih->netconfig, oif_index);
+			ifp = ni_interface_by_index(nih, oif_index);
 			if (ifp == NULL) {
 				error("route specifies OIF=%u; not found!", oif_index);
 				continue;
@@ -329,7 +329,7 @@ __ni_system_refresh_all(ni_handle_t *nih, ni_interface_t **del_list)
 	}
 
 	/* Cull any interfaces that went away */
-	tail = &nih->netconfig.interfaces;
+	tail = &nih->interfaces;
 	while ((ifp = *tail) != NULL) {
 		if (ifp->seq != seqno) {
 			*tail = ifp->next;
@@ -377,7 +377,7 @@ __ni_system_refresh_interface(ni_handle_t *nih, ni_interface_t *ifp)
 		ni_interface_clear_addresses(ifp);
 		ni_interface_clear_routes(ifp);
 
-		if (__ni_interface_process_newlink(ifp, h, ifi, &nih->netconfig) < 0)
+		if (__ni_interface_process_newlink(ifp, h, ifi, nih) < 0)
 			ni_error("Problem parsing RTM_NEWLINK message for %s", ifp->name);
 	}
 
@@ -429,7 +429,7 @@ __ni_device_refresh_link_info(ni_handle_t *nih, ni_linkinfo_t *link)
 		if (!(ifi = ni_rtnl_query_next_link_info(&query, &h)))
 			break;
 
-		if ((rv = __ni_process_ifinfomsg(link, h, ifi, &nih->netconfig)) < 0) {
+		if ((rv = __ni_process_ifinfomsg(link, h, ifi, nih)) < 0) {
 			ni_error("Problem parsing RTM_NEWLINK message");
 			goto done;
 		}

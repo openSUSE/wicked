@@ -170,7 +170,7 @@ __ni_handle_new(size_t size)
 ni_netconfig_t *
 ni_handle_netconfig(ni_handle_t *nih)
 {
-	return &nih->netconfig;
+	return nih;
 }
 
 /*
@@ -1020,7 +1020,7 @@ ni_interface_array_destroy(ni_interface_array_t *array)
 ni_interface_t *
 ni_interfaces(ni_handle_t *nih)
 {
-	return nih->netconfig.interfaces;
+	return nih->interfaces;
 }
 
 /*

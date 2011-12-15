@@ -9,7 +9,7 @@
 #include <wicked/constants.h>
 #include <stdint.h>
 
-typedef struct ni_handle	ni_handle_t;		/* nuke */
+typedef struct ni_netconfig	ni_handle_t;		/* nuke */
 typedef struct ni_syntax	ni_syntax_t;		/* make private */
 typedef struct ni_interface	ni_interface_t;		/* rename to ni_netif_t? */
 typedef struct ni_vlan		ni_vlan_t;

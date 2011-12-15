@@ -189,7 +189,7 @@ ni_objectmodel_new_interface(ni_dbus_server_t *server, const ni_dbus_service_t *
 			{
 				ni_handle_t *nih = ni_global_state_handle(0);
 
-				if (ni_interface_by_name(&nih->netconfig, ifname)) {
+				if (ni_interface_by_name(nih, ifname)) {
 					dbus_set_error(error, DBUS_ERROR_FAILED,
 						"Cannot create interface %s - already exists",
 						ifname);
