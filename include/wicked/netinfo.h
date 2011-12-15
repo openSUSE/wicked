@@ -226,8 +226,6 @@ extern void		ni_policy_info_destroy(ni_policy_info_t *);
 extern ni_policy_t *	ni_policy_new(ni_event_t);
 extern void		ni_policy_free(ni_policy_t *);
 
-extern ni_socket_t *	ni_server_listen(void);
-extern ni_socket_t *	ni_server_connect(void);
 extern int		ni_server_background(void);
 extern int		ni_server_listen_events(void (*handler)(ni_netconfig_t *, ni_interface_t *, ni_event_t));
 extern ni_dbus_server_t *ni_server_listen_dbus(const char *);
@@ -245,9 +243,6 @@ extern void		ni_netconfig_init(ni_netconfig_t *);
 extern void		ni_netconfig_destroy(ni_netconfig_t *);
 
 extern ni_netconfig_t *	ni_global_state_handle(int);
-
-/* Error reporting */
-extern void		ni_bad_reference(const ni_interface_t *, const char *);
 
 extern ni_syntax_t *	ni_syntax_new(const char *schema, const char *pathname);
 extern void		ni_syntax_free(ni_syntax_t *);

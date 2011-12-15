@@ -114,20 +114,6 @@ ni_server_background(void)
 	return ni_daemonize(fsloc->path, fsloc->mode);
 }
 
-ni_socket_t *
-ni_server_listen(void)
-{
-	ni_config_fslocation_t *fsloc = &ni_global.config->socket;
-
-	__ni_assert_initialized();
-	if (fsloc->path == NULL) {
-		error("no socket path set for server socket");
-		return NULL;
-	}
-
-	return ni_local_socket_listen(fsloc->path, fsloc->mode);
-}
-
 ni_dbus_server_t *
 ni_server_listen_dbus(const char *dbus_name)
 {
@@ -140,13 +126,6 @@ ni_server_listen_dbus(const char *dbus_name)
 	}
 
 	return ni_dbus_server_open(dbus_name, NULL);
-}
-
-ni_socket_t *
-ni_server_connect(void)
-{
-	__ni_assert_initialized();
-	return ni_local_socket_connect(ni_global.config->socket.path);
 }
 
 /*
@@ -289,16 +268,6 @@ __ni_lease_owns_route(const ni_addrconf_lease_t *lease, const ni_route_t *rp)
 }
 
 /*
- * Error handling.
- * This is crap, kill it.
- */
-void
-ni_bad_reference(const ni_interface_t *referrer, const char *ifname)
-{
-	ni_error("%s references unknown interface %s", referrer->name, ifname);
-}
-
-/*
  * Constructor for network interface.
  * Takes interface name and ifindex.
  */
@@ -349,7 +318,6 @@ __ni_interface_list_destroy(ni_interface_t **list)
 		ni_interface_put(ifp);
 	}
 }
-
 
 void
 __ni_interface_list_append(ni_interface_t **list, ni_interface_t *new_ifp)
@@ -435,30 +403,10 @@ ni_interface_clone(const ni_interface_t *ofp)
 	return ifp;
 
 failed:
-	error("Failed to clone interface data for interface %s", ofp->name);
+	ni_error("Failed to clone interface data for interface %s", ofp->name);
 	if (ifp)
 		ni_interface_put(ifp);
 	return NULL;
-}
-
-/*
- * Look up address information for given address family.
- */
-ni_address_t *
-ni_interface_get_addresses(ni_interface_t *ifp, int af)
-{
-	ni_address_t *ap, **tail;
-
-	for (tail = &ifp->addrs; (ap = *tail) != NULL; tail = &ap->next) {
-		if (ap->family == af)
-			return ap;
-	}
-
-	ap = calloc(1, sizeof(*ap));
-	ap->family = af;
-
-	*tail = ap;
-	return ap;
 }
 
 ni_route_t *
@@ -847,17 +795,6 @@ ni_interface_request_free(ni_interface_request_t *req)
 		ni_afinfo_free(req->ipv6);
 	free(req);
 }
-
-/*
-ni_interface_request_
-ni_interface_request_
-ni_interface_request_
-ni_interface_request_
-ni_interface_request_
-ni_interface_request_
-ni_interface_request_
-ni_interface_request_
-   */
 
 /*
  * Address configuration info
