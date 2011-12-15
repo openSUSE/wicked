@@ -148,31 +148,6 @@ ni_server_connect(void)
 	return ni_local_socket_connect(ni_global.config->socket.path);
 }
 
-ni_netconfig_t *
-__ni_handle_new(size_t size)
-{
-	ni_netconfig_t *nih;
-
-	__ni_assert_initialized();
-
-	if (size < sizeof(*nih))
-		ni_fatal("__ni_handle_new: requested size less than size of ni_handle!");
-
-	nih = calloc(1, size);
-	if (!nih) {
-		ni_error("__ni_handle_new: %m");
-		return NULL;
-	}
-
-	return nih;
-}
-
-ni_netconfig_t *
-ni_handle_netconfig(ni_netconfig_t *nih)
-{
-	return nih;
-}
-
 /*
  * Map interface link layer types to strings and vice versa
  */
@@ -1018,9 +993,9 @@ ni_interface_array_destroy(ni_interface_array_t *array)
  * netinfo handle.
  */
 ni_interface_t *
-ni_interfaces(ni_netconfig_t *nih)
+ni_interfaces(ni_netconfig_t *nc)
 {
-	return nih->interfaces;
+	return nc->interfaces;
 }
 
 /*

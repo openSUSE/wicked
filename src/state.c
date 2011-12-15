@@ -15,32 +15,25 @@
 #define CONFIG_WICKED_BACKUP_DIR	CONFIG_WICKED_STATEDIR "/backup"
 
 ni_netconfig_t *
-ni_state_open(void)
-{
-	ni_netconfig_t *nih;
-
-	if (__ni_global_netlink == NULL) {
-		__ni_global_netlink = __ni_netlink_open(0);
-		if (__ni_global_netlink == NULL)
-			return NULL;
-	}
-
-	return __ni_handle_new(sizeof(*nih));
-}
-
-ni_netconfig_t *
 ni_global_state_handle(int refresh)
 {
-	static ni_netconfig_t *nih = NULL;
+	static ni_netconfig_t *nc = NULL;
 
-	if (nih == NULL)
-		nih = ni_state_open();
-	if (refresh && __ni_system_refresh_interfaces(nih) < 0) {
+	if (nc == NULL) {
+		if (__ni_global_netlink == NULL) {
+			__ni_global_netlink = __ni_netlink_open(0);
+			if (__ni_global_netlink == NULL)
+				return NULL;
+		}
+
+		nc = calloc(1, sizeof(*nc));
+	}
+	if (refresh && __ni_system_refresh_interfaces(nc) < 0) {
 		ni_error("failed to refresh interface list");
 		return NULL;
 	}
 
-	return nih;
+	return nc;
 }
 
 int
@@ -71,7 +64,7 @@ __ni_system_interface_get_scan_results(ni_interface_t *ifp)
 
 #if 0
 static int
-__ni_system_policy_update(ni_netconfig_t *nih, const ni_policy_t *new_policy)
+__ni_system_policy_update(ni_netconfig_t *nc, const ni_policy_t *new_policy)
 {
 	ni_interface_array_t iflist = NI_INTERFACE_ARRAY_INIT;
 	ni_policy_t *policy;
@@ -79,10 +72,10 @@ __ni_system_policy_update(ni_netconfig_t *nih, const ni_policy_t *new_policy)
 	unsigned int i;
 
 	ni_debug_ifconfig("%s()", __FUNCTION__);
-	if (__ni_generic_policy_update(nih, new_policy, &policy) < 0)
+	if (__ni_generic_policy_update(nc, new_policy, &policy) < 0)
 		return -1;
 
-	for (ifp = nih->iflist; ifp; ifp = ifp->next) {
+	for (ifp = nc->iflist; ifp; ifp = ifp->next) {
 		switch (policy->event) {
 		case NI_EVENT_LINK_UP:
 			if (!ni_interface_link_is_up(ifp))
@@ -98,7 +91,7 @@ __ni_system_policy_update(ni_netconfig_t *nih, const ni_policy_t *new_policy)
 			continue;
 		}
 
-		if (ni_policy_match_event(nih, policy->event, ifp) == policy) {
+		if (ni_policy_match_event(nc, policy->event, ifp) == policy) {
 			ni_debug_ifconfig("%s: matches new policy", ifp->name);
 			ni_interface_array_append(&iflist, ifp);
 		}
@@ -108,7 +101,7 @@ __ni_system_policy_update(ni_netconfig_t *nih, const ni_policy_t *new_policy)
 		ifp = iflist.data[i];
 
 		ni_debug_ifconfig("%s: requested flags 0x%x", ifp->name, policy->interface->link.ifflags);
-		if (ni_interface_configure2(nih, ifp, policy->interface) < 0) {
+		if (ni_interface_configure2(nc, ifp, policy->interface) < 0) {
 			ni_error("%s: error applying new policy", ifp->name);
 		}
 	}

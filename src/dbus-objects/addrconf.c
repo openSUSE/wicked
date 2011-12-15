@@ -96,7 +96,7 @@ static ni_interface_t *
 ni_objectmodel_addrconf_path_to_device(const char *path)
 {
 	unsigned int ifindex;
-	ni_netconfig_t *nih;
+	ni_netconfig_t *nc;
 	char cc;
 
 	if (strncmp(path, WICKED_DBUS_OBJECT_PATH, strlen(WICKED_DBUS_OBJECT_PATH)))
@@ -117,13 +117,13 @@ ni_objectmodel_addrconf_path_to_device(const char *path)
 	if (ni_parse_int(path, &ifindex) < 0)
 		return NULL;
 
-	nih = ni_global_state_handle(1);
-	if (nih == NULL) {
+	nc = ni_global_state_handle(1);
+	if (nc == NULL) {
 		ni_error("%s: unable to refresh interfaces", __func__);
 		return NULL;
 	}
 
-	return ni_interface_by_index(nih, ifindex);
+	return ni_interface_by_index(nc, ifindex);
 }
 
 static ni_addrconf_lease_t *

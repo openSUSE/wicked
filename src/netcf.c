@@ -183,12 +183,12 @@ __ncf_list_interfaces(struct netcf *ncf, unsigned int flags,
 	/* If we're asking for either active or inactive, we
 	 * also need to refresh the state */
 	if ((flags & match_any) != match_any) {
-		ni_netconfig_t *nih = ncf->config.handle;
+		ni_netconfig_t *nc = ncf->config.handle;
 
 		if (__ncf_maybe_refresh(&ncf->state) < 0)
 			goto internal_error;
 
-		for (ifp = ni_interface_first(nih, &pos); ifp; ifp = ni_interface_next(nih, &pos)) {
+		for (ifp = ni_interface_first(nc, &pos); ifp; ifp = ni_interface_next(nc, &pos)) {
 			ni_interface_t *cur;
 			int state;
 
@@ -202,9 +202,9 @@ __ncf_list_interfaces(struct netcf *ncf, unsigned int flags,
 				result[count++] = xstrdup(cur->name);
 		}
 	} else {
-		ni_netconfig_t *nih = ncf->config.handle;
+		ni_netconfig_t *nc = ncf->config.handle;
 
-		for (ifp = ni_interface_first(nih, &pos); ifp; ifp = ni_interface_next(nih, &pos)) {
+		for (ifp = ni_interface_first(nc, &pos); ifp; ifp = ni_interface_next(nc, &pos)) {
 			if (count < maxnames)
 				result[count++] = xstrdup(ifp->name);
 		}
@@ -316,7 +316,7 @@ ncf_lookup_by_name(struct netcf *ncf, const char *name)
 int
 ncf_lookup_by_mac_string(struct netcf *ncf, const char *mac, int maxifaces, struct netcf_if **ifaces)
 {
-	ni_netconfig_t *nih = ncf->config.handle;
+	ni_netconfig_t *nc = ncf->config.handle;
 	ni_interface_t *ifp, *pos;
 	unsigned int count = 0;
 	ni_hwaddr_t hwa;
@@ -332,7 +332,7 @@ ncf_lookup_by_mac_string(struct netcf *ncf, const char *mac, int maxifaces, stru
 	}
 
 	memset(ifaces, 0, maxifaces * sizeof(ifaces[0]));
-	for (ifp = ni_interface_first(nih, &pos); ifp; ifp = ni_interface_next(nih, &pos)) {
+	for (ifp = ni_interface_first(nc, &pos); ifp; ifp = ni_interface_next(nc, &pos)) {
 		if (ifp->link.type != NI_IFTYPE_ETHERNET)
 			continue;
 
@@ -487,7 +487,7 @@ ncf_if_undefine(struct netcf_if *nif)
  * Create XML description of a netinfo interface object
  */
 static char *
-__ncf_if_xml(struct netcf *ncf, ni_netconfig_t *nih, ni_interface_t *ifp)
+__ncf_if_xml(struct netcf *ncf, ni_netconfig_t *nc, ni_interface_t *ifp)
 {
 	xml_node_t *xml = NULL;
 	FILE *memstream = NULL;
@@ -495,7 +495,7 @@ __ncf_if_xml(struct netcf *ncf, ni_netconfig_t *nih, ni_interface_t *ifp)
 	size_t out_size;
 
 	/* FIXME: add slave interfaces as well? */
-	xml = ni_syntax_xml_from_interface(ncf->xmlsyntax, nih, ifp);
+	xml = ni_syntax_xml_from_interface(ncf->xmlsyntax, nc, ifp);
 	if (!xml)
 		goto error;
 

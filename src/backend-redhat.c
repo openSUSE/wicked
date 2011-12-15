@@ -72,7 +72,7 @@ __ni_syntax_sysconfig_redhat(const char *pathname)
  * Refresh network configuration by reading all ifcfg files.
  */
 static int
-__ni_redhat_get_interfaces(ni_syntax_t *syntax, ni_netconfig_t *nih)
+__ni_redhat_get_interfaces(ni_syntax_t *syntax, ni_netconfig_t *nc)
 {
 	ni_string_array_t files = NI_STRING_ARRAY_INIT;
 	const char *base_dir;
@@ -80,7 +80,7 @@ __ni_redhat_get_interfaces(ni_syntax_t *syntax, ni_netconfig_t *nih)
 	int i;
 
 	/* Wipe out all interface information */
-	__ni_interface_list_destroy(&nih->interfaces);
+	__ni_interface_list_destroy(&nc->interfaces);
 	__ni_global_seqno++;
 
 	base_dir = ni_syntax_base_path(syntax);
@@ -94,7 +94,7 @@ __ni_redhat_get_interfaces(ni_syntax_t *syntax, ni_netconfig_t *nih)
 		ni_interface_t *ifp;
 
 		snprintf(pathbuf, sizeof(pathbuf), "%s/%s", base_dir, filename);
-		ifp = __ni_redhat_read_interface(nih, pathbuf);
+		ifp = __ni_redhat_read_interface(nc, pathbuf);
 		if (ifp == NULL)
 			goto failed;
 	}
@@ -111,7 +111,7 @@ failed:
  * Read the configuration of a single interface from a sysconfig file
  */
 static ni_interface_t *
-__ni_redhat_read_interface(ni_netconfig_t *nih, const char *filename)
+__ni_redhat_read_interface(ni_netconfig_t *nc, const char *filename)
 {
 	char *ifname = NULL;
 	ni_interface_t *ifp;
@@ -133,9 +133,9 @@ __ni_redhat_read_interface(ni_netconfig_t *nih, const char *filename)
 
 	/* Beware - bonding slaves may create their master interface
 	 * on the fly */
-	ifp = nc_interface_by_name(nih, ifname);
+	ifp = nc_interface_by_name(nc, ifname);
 	if (ifp == NULL) {
-		ifp = ni_interface_new(nih, ifname, 0);
+		ifp = ni_interface_new(nc, ifname, 0);
 		if (!ifp) {
 			ni_error("Failed to alloc interface %s", ifname);
 			goto error;
@@ -145,7 +145,7 @@ __ni_redhat_read_interface(ni_netconfig_t *nih, const char *filename)
 		return NULL;
 	}
 
-	if (__ni_redhat_sysconfig2ifconfig(nih, ifp, sc) < 0)
+	if (__ni_redhat_sysconfig2ifconfig(nc, ifp, sc) < 0)
 		goto error;
 
 	ni_sysconfig_destroy(sc);
@@ -161,7 +161,7 @@ error:
 }
 
 static int
-__ni_redhat_sysconfig2ifconfig(ni_netconfig_t *nih, ni_interface_t *ifp, ni_sysconfig_t *sc)
+__ni_redhat_sysconfig2ifconfig(ni_netconfig_t *nc, ni_interface_t *ifp, ni_sysconfig_t *sc)
 {
 	char *value = NULL, *hwaddr = NULL;
 	char *iftype = NULL;
@@ -201,20 +201,20 @@ __ni_redhat_sysconfig2ifconfig(ni_netconfig_t *nih, ni_interface_t *ifp, ni_sysc
 	}
 
 	if (ifp->link.type == NI_IFTYPE_UNKNOWN)
-		try_bonding_master(nih, ifp, sc);
+		try_bonding_master(nc, ifp, sc);
 
 	if (ifp->link.type == NI_IFTYPE_UNKNOWN)
-		try_vlan(nih, ifp, sc);
+		try_vlan(nc, ifp, sc);
 
 	if (ifp->link.type == NI_IFTYPE_UNKNOWN)
-		try_wireless(nih, ifp, sc);
+		try_wireless(nc, ifp, sc);
 
 	/* Guess the interface type */
 	if (ifp->link.type == NI_IFTYPE_UNKNOWN)
 		ni_interface_guess_type(ifp);
 
-	try_bonding_slave(nih, ifp, sc);
-	try_bridge_port(nih, ifp, sc);
+	try_bonding_slave(nc, ifp, sc);
+	try_bridge_port(nc, ifp, sc);
 
 	/* FIXME: What to do with these:
 		USERCONTROL
@@ -276,7 +276,7 @@ __ni_redhat_get_static_ipv4(ni_interface_t *ifp, ni_sysconfig_t *sc)
  * The slaves have SLAVE=yes MASTER=bondX, whereas the master has just BONDING_OPTS
  */
 static void
-try_bonding_master(ni_netconfig_t *nih, ni_interface_t *ifp, ni_sysconfig_t *sc)
+try_bonding_master(ni_netconfig_t *nc, ni_interface_t *ifp, ni_sysconfig_t *sc)
 {
 	ni_bonding_t *bonding;
 
@@ -291,7 +291,7 @@ try_bonding_master(ni_netconfig_t *nih, ni_interface_t *ifp, ni_sysconfig_t *sc)
 }
 
 static void
-try_bonding_slave(ni_netconfig_t *nih, ni_interface_t *ifp, ni_sysconfig_t *sc)
+try_bonding_slave(ni_netconfig_t *nc, ni_interface_t *ifp, ni_sysconfig_t *sc)
 {
 	ni_interface_t *master;
 	ni_var_t *var;
@@ -307,9 +307,9 @@ try_bonding_slave(ni_netconfig_t *nih, ni_interface_t *ifp, ni_sysconfig_t *sc)
 		return;
 	}
 
-	master = nc_interface_by_name(nih, var->value);
+	master = nc_interface_by_name(nc, var->value);
 	if (master == NULL) {
-		master = ni_interface_new(nih, var->value, 0);
+		master = ni_interface_new(nc, var->value, 0);
 		master->link.type = NI_IFTYPE_BOND;
 	} else if (master->link.type != NI_IFTYPE_BOND) {
 		ni_error("%s: specifies MASTER=%s which is not a bonding device",
@@ -344,7 +344,7 @@ __ni_redhat_sysconfig2bridge(ni_interface_t *ifp, ni_sysconfig_t *sc)
  * the bridge device if it doesn't exist, but do not set its type.
  */
 static void
-try_bridge_port(ni_netconfig_t *nih, ni_interface_t *ifp, ni_sysconfig_t *sc)
+try_bridge_port(ni_netconfig_t *nc, ni_interface_t *ifp, ni_sysconfig_t *sc)
 {
 	ni_interface_t *master;
 	ni_bridge_t *bridge;
@@ -354,9 +354,9 @@ try_bridge_port(ni_netconfig_t *nih, ni_interface_t *ifp, ni_sysconfig_t *sc)
 	if (!var || !var->value || !var->value[0])
 		return;
 
-	master = nc_interface_by_name(nih, var->value);
+	master = nc_interface_by_name(nc, var->value);
 	if (master == NULL) {
-		master = ni_interface_new(nih, var->value, 0);
+		master = ni_interface_new(nc, var->value, 0);
 		master->link.type = NI_IFTYPE_BRIDGE;
 	} else if (master->link.type != NI_IFTYPE_BRIDGE) {
 		ni_error("%s: specifies BRIDGE=%s which is not a bonding device",
@@ -372,7 +372,7 @@ try_bridge_port(ni_netconfig_t *nih, ni_interface_t *ifp, ni_sysconfig_t *sc)
  * Wireless interfaces are recognized by WIRELESS=yes
  */
 static void
-try_wireless(ni_netconfig_t *nih, ni_interface_t *ifp, ni_sysconfig_t *sc)
+try_wireless(ni_netconfig_t *nc, ni_interface_t *ifp, ni_sysconfig_t *sc)
 {
 	/* TBD */
 }
@@ -381,7 +381,7 @@ try_wireless(ni_netconfig_t *nih, ni_interface_t *ifp, ni_sysconfig_t *sc)
  * VLAN interfaces are recognized by their name (ethM.N)
  */
 static void
-try_vlan(ni_netconfig_t *nih, ni_interface_t *ifp, ni_sysconfig_t *sc)
+try_vlan(ni_netconfig_t *nc, ni_interface_t *ifp, ni_sysconfig_t *sc)
 {
 	unsigned int eth_num, vlan_tag;
 	char namebuf[32];
@@ -409,7 +409,7 @@ try_vlan(ni_netconfig_t *nih, ni_interface_t *ifp, ni_sysconfig_t *sc)
  * Produce sysconfig files
  */
 int
-__ni_redhat_put_interfaces(ni_syntax_t *syntax, ni_netconfig_t *nih, FILE *outfile)
+__ni_redhat_put_interfaces(ni_syntax_t *syntax, ni_netconfig_t *nc, FILE *outfile)
 {
 	ni_string_array_t files = NI_STRING_ARRAY_INIT;
 	const char *base_dir;
@@ -420,7 +420,7 @@ __ni_redhat_put_interfaces(ni_syntax_t *syntax, ni_netconfig_t *nih, FILE *outfi
 	__ni_global_seqno++;
 
 	base_dir = ni_syntax_base_path(syntax);
-	for (ifp = nih->interfaces; ifp; ifp = ifp->next) {
+	for (ifp = nc->interfaces; ifp; ifp = ifp->next) {
 		ni_sysconfig_t *sc;
 
 		snprintf(pathbuf, sizeof(pathbuf), "%s/ifcfg-%s", base_dir, ifp->name);
@@ -454,7 +454,7 @@ __ni_redhat_put_interfaces(ni_syntax_t *syntax, ni_netconfig_t *nih, FILE *outfi
 	 */
 #if 0
 	snprintf(pathbuf, sizeof(pathbuf), "%s/routes", base_dir);
-	if (__ni_redhat_write_routes(&nih->routes, pathbuf) < 0)
+	if (__ni_redhat_write_routes(&nc->routes, pathbuf) < 0)
 		return -1;
 #else
 	trace("should really rewrite %s here\n", pathbuf);
@@ -465,7 +465,7 @@ __ni_redhat_put_interfaces(ni_syntax_t *syntax, ni_netconfig_t *nih, FILE *outfi
 		const char *filename = files.data[i];
 		const char *ifname = filename + 6;
 
-		if (nc_interface_by_name(nih, ifname) == NULL) {
+		if (nc_interface_by_name(nc, ifname) == NULL) {
 			/* This interface went away */
 			snprintf(pathbuf, sizeof(pathbuf), "%s/%s", base_dir, filename);
 			ni_trace("should really unlink(%s) here\n", pathbuf);

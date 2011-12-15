@@ -32,7 +32,7 @@ static int	__ni_rtevent_newprefix(ni_netconfig_t *, const struct sockaddr_nl *, 
 void
 __ni_rtevent_read(ni_socket_t *sock)
 {
-	ni_netconfig_t *nih = ni_global_state_handle(0);
+	ni_netconfig_t *nc = ni_global_state_handle(0);
 	//struct nl_handle *handle = sock->user_data;
 	struct nlmsghdr *h;
 	struct sockaddr_nl nladdr;
@@ -88,7 +88,7 @@ __ni_rtevent_read(ni_socket_t *sock)
 				ni_fatal("malformed netlink message: len=%d", len);
 			}
 
-			if (__ni_rtevent_process(nih, &nladdr, h) < 0)
+			if (__ni_rtevent_process(nc, &nladdr, h) < 0)
 				continue;
 		}
 		if (msg.msg_flags & MSG_TRUNC) {

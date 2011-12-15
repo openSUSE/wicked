@@ -105,12 +105,12 @@ ni_policy_free(ni_policy_t *policy)
  * Add or update a policy
  */
 int
-__ni_generic_policy_update(ni_netconfig_t *nih, const ni_policy_t *new_policy, ni_policy_t **found)
+__ni_generic_policy_update(ni_netconfig_t *nc, const ni_policy_t *new_policy, ni_policy_t **found)
 {
 #if 1
 	return -1;
 #else
-	ni_policy_info_t *info = &nih->policy;
+	ni_policy_info_t *info = &nc->policy;
 	ni_policy_t *policy, **pos;
 
 	if (found)
@@ -146,11 +146,11 @@ __ni_generic_policy_update(ni_netconfig_t *nih, const ni_policy_t *new_policy, n
 }
 
 int
-ni_policy_update(ni_netconfig_t *nih, const ni_policy_t *new_policy)
+ni_policy_update(ni_netconfig_t *nc, const ni_policy_t *new_policy)
 {
 #if 0
-	if (nih->op->policy_update)
-		return nih->op->policy_update(nih, new_policy);
+	if (nc->op->policy_update)
+		return nc->op->policy_update(nc, new_policy);
 #endif
 
 	ni_error("ni_policy_update: not supported by this handle");
@@ -161,12 +161,12 @@ ni_policy_update(ni_netconfig_t *nih, const ni_policy_t *new_policy)
  * Find a policy object for a given input (event)
  */
 ni_policy_t *
-ni_policy_match_event(const ni_netconfig_t *nih, ni_event_t event, const ni_interface_t *dev)
+ni_policy_match_event(const ni_netconfig_t *nc, ni_event_t event, const ni_interface_t *dev)
 {
 #if 1
 	return NULL;
 #else
-	const ni_policy_info_t *info = &nih->policy;
+	const ni_policy_info_t *info = &nc->policy;
 	ni_policy_t *policy, *best = NULL;
 	int best_weight = -1;
 	int ifaction;

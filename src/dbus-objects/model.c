@@ -85,15 +85,15 @@ wicked_dbus_netif_refresh(ni_dbus_object_t *object)
 #else
 	ni_interface_array_t deleted = NI_INTERFACE_ARRAY_INIT;
 	unsigned int i;
-	ni_netconfig_t *nih;
+	ni_netconfig_t *nc;
 
 	NI_TRACE_ENTER();
-	if (!(nih = ni_global_state_handle())) {
+	if (!(nc = ni_global_state_handle())) {
 		ni_error("Unable to obtain netinfo handle");
 		return FALSE;
 	}
 
-	if (ni_refresh(nih, &deleted) < 0) {
+	if (ni_refresh(nc, &deleted) < 0) {
 		ni_error("cannot refresh interface list!");
 		return FALSE;
 	}

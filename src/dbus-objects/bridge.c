@@ -40,13 +40,12 @@ ni_objectmodel_new_bridge(ni_dbus_server_t *server, const ni_dbus_object_t *conf
 	ni_interface_t *cfg_ifp = ni_dbus_object_get_handle(config);
 	ni_interface_t *new_ifp;
 	const ni_bridge_t *bridge = ni_interface_get_bridge(cfg_ifp);
-	ni_netconfig_t *nih = ni_global_state_handle(0);
+	ni_netconfig_t *nc = ni_global_state_handle(0);
 	int rv;
 
 	cfg_ifp->link.type = NI_IFTYPE_BRIDGE;
 	if (cfg_ifp->name == NULL) {
 		static char namebuf[64];
-		ni_netconfig_t *nc = ni_handle_netconfig(nih);
 		unsigned int num;
 
 		for (num = 0; num < 65536; ++num) {
@@ -64,7 +63,7 @@ ni_objectmodel_new_bridge(ni_dbus_server_t *server, const ni_dbus_object_t *conf
 		}
 	}
 
-	if ((rv = ni_interface_create_bridge(nih, cfg_ifp->name, bridge, &new_ifp)) < 0) {
+	if ((rv = ni_interface_create_bridge(nc, cfg_ifp->name, bridge, &new_ifp)) < 0) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
 				"Unable to create bridge interface: %s",
 				ni_strerror(rv));
@@ -89,11 +88,11 @@ __ni_dbus_bridge_delete(ni_dbus_object_t *object, const ni_dbus_method_t *method
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
-	ni_netconfig_t *nih = ni_global_state_handle(0);
+	ni_netconfig_t *nc = ni_global_state_handle(0);
 	ni_interface_t *ifp = object->handle;
 
 	NI_TRACE_ENTER_ARGS("ifp=%s", ifp->name);
-	if (ni_interface_delete_bridge(nih, ifp) < 0) {
+	if (ni_interface_delete_bridge(nc, ifp) < 0) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
 				"Error deleting bridge interface", ifp->name);
 		return FALSE;
@@ -113,7 +112,7 @@ __ni_dbus_bridge_add_port(ni_dbus_object_t *object, const ni_dbus_method_t *meth
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
-	ni_netconfig_t *nih = ni_global_state_handle(0);
+	ni_netconfig_t *nc = ni_global_state_handle(0);
 	ni_interface_t *ifp = object->handle, *portif;
 	ni_bridge_port_t *port_cfg;
 	const char *port_name;
@@ -149,7 +148,7 @@ __ni_dbus_bridge_add_port(ni_dbus_object_t *object, const ni_dbus_method_t *meth
 		return FALSE;
 	}
 
-	if (ni_interface_add_bridge_port(nih, ifp, port_cfg) < 0) {
+	if (ni_interface_add_bridge_port(nc, ifp, port_cfg) < 0) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
 				"Error adding bridge port %s", portif->name);
 		ni_bridge_port_free(port_cfg);
@@ -173,7 +172,7 @@ __ni_dbus_bridge_remove_port(ni_dbus_object_t *object, const ni_dbus_method_t *m
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
-	ni_netconfig_t *nih = ni_global_state_handle(0);
+	ni_netconfig_t *nc = ni_global_state_handle(0);
 	ni_interface_t *ifp = object->handle, *portif;
 	const char *port_name;
 
@@ -199,7 +198,7 @@ __ni_dbus_bridge_remove_port(ni_dbus_object_t *object, const ni_dbus_method_t *m
 		portif = port_object->handle;
 	}
 
-	if (ni_interface_remove_bridge_port(nih, ifp, portif->link.ifindex) < 0) {
+	if (ni_interface_remove_bridge_port(nc, ifp, portif->link.ifindex) < 0) {
 		dbus_set_error(error, DBUS_ERROR_FAILED, "Unable to remove port");
 		return FALSE;
 	}

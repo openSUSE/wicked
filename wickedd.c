@@ -167,15 +167,15 @@ wicked_interface_server(void)
 void
 wicked_discover_state(void)
 {
-	ni_netconfig_t *nih;
+	ni_netconfig_t *nc;
 	ni_interface_t *ifp;
 
-	nih = ni_global_state_handle(0);
-	if (nih == NULL)
+	nc = ni_global_state_handle(0);
+	if (nc == NULL)
 		ni_fatal("failed to discover interface state");
 
 	if (opt_recover_leases) {
-		for (ifp = ni_interfaces(nih); ifp; ifp = ifp->next) {
+		for (ifp = ni_interfaces(nc); ifp; ifp = ifp->next) {
 			unsigned int mode;
 
 			for (mode = 0; mode < __NI_ADDRCONF_MAX; ++mode) {
@@ -186,7 +186,7 @@ wicked_discover_state(void)
 	}
 
 	if (wicked_dbus_server) {
-		for (ifp = ni_interfaces(nih); ifp; ifp = ifp->next)
+		for (ifp = ni_interfaces(nc); ifp; ifp = ifp->next)
 			ni_objectmodel_register_interface(wicked_dbus_server, ifp);
 	}
 }
@@ -310,10 +310,10 @@ wicked_interface_event(ni_netconfig_t *nc, ni_interface_t *ifp, ni_event_t event
 	ni_policy_t *policy;
 
 	ni_debug_events("%s: %s event", ifp->name, evtype[event]);
-	policy = ni_policy_match_event(nih, event, ifp);
+	policy = ni_policy_match_event(nc, event, ifp);
 	if (policy != NULL) {
 		ni_debug_events("matched interface policy; configuring device");
-		//ni_interface_configure2(nih, ifp, policy->interface);
+		//ni_interface_configure2(nc, ifp, policy->interface);
 	}
 #endif
 }

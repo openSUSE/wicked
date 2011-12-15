@@ -246,13 +246,13 @@ autoip4_device_destroy(ni_dbus_server_t *server, const ni_interface_t *ifp)
 void
 autoip4_discover_devices(ni_dbus_server_t *server)
 {
-	ni_netconfig_t *nih;
+	ni_netconfig_t *nc;
 	ni_interface_t *ifp;
 
-	if (!(nih = ni_global_state_handle(1)))
+	if (!(nc = ni_global_state_handle(1)))
 		ni_fatal("cannot refresh interface list!");
 
-	for (ifp = ni_interfaces(nih); ifp; ifp = ifp->next) {
+	for (ifp = ni_interfaces(nc); ifp; ifp = ifp->next) {
 		autoip4_device_create(server, ifp);
 
 		if (opt_recover_leases)

@@ -263,12 +263,11 @@ extern void		ni_syntax_free(ni_syntax_t *);
 extern ni_syntax_t *	ni_netconfig_default_syntax(const char *root_dir);
 
 extern ni_interface_t *	ni_interfaces(ni_netconfig_t *nic);
-extern ni_netconfig_t *	ni_handle_netconfig(ni_netconfig_t *nic);
 
 extern ni_interface_t *	ni_interface_by_name(ni_netconfig_t *nic, const char *name);
 extern ni_interface_t *	ni_interface_by_index(ni_netconfig_t *nic, unsigned int index);
 extern ni_interface_t *	ni_interface_by_hwaddr(ni_netconfig_t *nic, const ni_hwaddr_t *lla);
-extern ni_interface_t *	ni_interface_by_vlan_tag(ni_netconfig_t *nih, uint16_t tag);
+extern ni_interface_t *	ni_interface_by_vlan_tag(ni_netconfig_t *nc, uint16_t tag);
 
 /* Replace this */
 extern ni_interface_t *	nc_interface_by_name(ni_netconfig_t *nic, const char *name);
@@ -287,18 +286,18 @@ extern int		ni_interface_set_lease(ni_interface_t *, ni_addrconf_lease_t *);
 extern int		ni_interface_stats_refresh(ni_netconfig_t *, ni_interface_t *);
 extern int		ni_interface_request_scan(ni_netconfig_t *, ni_interface_t *);
 extern int		ni_interface_get_scan_results(ni_netconfig_t *, ni_interface_t *);
-extern int		ni_interface_create_vlan(ni_netconfig_t *nih, const char *ifname,
+extern int		ni_interface_create_vlan(ni_netconfig_t *nc, const char *ifname,
 				const ni_vlan_t *cfg_vlan, ni_interface_t **ifpp);
 extern int		ni_interface_delete_vlan(ni_interface_t *ifp);
-extern int		ni_interface_create_bridge(ni_netconfig_t *nih, const char *ifname,
+extern int		ni_interface_create_bridge(ni_netconfig_t *nc, const char *ifname,
 				const ni_bridge_t *cfg_bridge, ni_interface_t **ifpp);
-extern int		ni_interface_add_bridge_port(ni_netconfig_t *nih, ni_interface_t *ifp,
+extern int		ni_interface_add_bridge_port(ni_netconfig_t *nc, ni_interface_t *ifp,
 				ni_bridge_port_t *);
 extern int		ni_interface_remove_bridge_port(ni_netconfig_t *, ni_interface_t *, int);
-extern int		ni_interface_delete_bridge(ni_netconfig_t *nih, ni_interface_t *ifp);
-extern int		ni_interface_create_bond(ni_netconfig_t *nih, const char *ifname,
+extern int		ni_interface_delete_bridge(ni_netconfig_t *nc, ni_interface_t *ifp);
+extern int		ni_interface_create_bond(ni_netconfig_t *nc, const char *ifname,
 				const ni_bonding_t *cfg_bond, ni_interface_t **ifpp);
-extern int		ni_interface_delete_bond(ni_netconfig_t *nih, ni_interface_t *ifp);
+extern int		ni_interface_delete_bond(ni_netconfig_t *nc, ni_interface_t *ifp);
 extern int		ni_interface_delete(ni_netconfig_t *, const char *);
 
 extern ni_route_t *	ni_interface_add_route(ni_interface_t *,

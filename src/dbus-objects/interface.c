@@ -187,9 +187,9 @@ ni_objectmodel_new_interface(ni_dbus_server_t *server, const ni_dbus_service_t *
 
 			/* fail if interface exists already */
 			{
-				ni_netconfig_t *nih = ni_global_state_handle(0);
+				ni_netconfig_t *nc = ni_global_state_handle(0);
 
-				if (ni_interface_by_name(nih, ifname)) {
+				if (ni_interface_by_name(nc, ifname)) {
 					dbus_set_error(error, DBUS_ERROR_FAILED,
 						"Cannot create interface %s - already exists",
 						ifname);
@@ -270,7 +270,7 @@ __wicked_dbus_interface_up(ni_dbus_object_t *object, const ni_dbus_method_t *met
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
-	ni_netconfig_t *nih = ni_global_state_handle(0);
+	ni_netconfig_t *nc = ni_global_state_handle(0);
 	ni_interface_t *dev = object->handle;
 	ni_dbus_object_t *cfg_object;
 	ni_interface_request_t *req;
@@ -292,7 +292,7 @@ __wicked_dbus_interface_up(ni_dbus_object_t *object, const ni_dbus_method_t *met
 		goto failed;
 	}
 
-	if ((rv = ni_interface_up(nih, dev, req)) < 0) {
+	if ((rv = ni_interface_up(nc, dev, req)) < 0) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
 				"Cannot configure interface %s: %s", dev->name,
 				ni_strerror(rv));
@@ -319,14 +319,14 @@ __wicked_dbus_interface_down(ni_dbus_object_t *object, const ni_dbus_method_t *m
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
-	ni_netconfig_t *nih = ni_global_state_handle(0);
+	ni_netconfig_t *nc = ni_global_state_handle(0);
 	ni_interface_t *dev = object->handle;
 	dbus_bool_t ret = FALSE;
 	int rv;
 
 	NI_TRACE_ENTER_ARGS("ifp=%s", dev->name);
 
-	if ((rv = ni_interface_down(nih, dev)) < 0) {
+	if ((rv = ni_interface_down(nc, dev)) < 0) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
 				"Cannot shutdown interface %s: %s", dev->name,
 				ni_strerror(rv));

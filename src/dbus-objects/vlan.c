@@ -29,7 +29,7 @@ ni_objectmodel_new_vlan(ni_dbus_server_t *server, const ni_dbus_object_t *config
 	ni_interface_t *cfg_ifp = ni_dbus_object_get_handle(config);
 	ni_interface_t *new_ifp;
 	const ni_vlan_t *vlan = cfg_ifp->link.vlan;
-	ni_netconfig_t *nih = ni_global_state_handle(0);
+	ni_netconfig_t *nc = ni_global_state_handle(0);
 	int rv;
 
 	if (!vlan
@@ -43,7 +43,6 @@ ni_objectmodel_new_vlan(ni_dbus_server_t *server, const ni_dbus_object_t *config
 	cfg_ifp->link.type = NI_IFTYPE_VLAN;
 	if (cfg_ifp->name == NULL) {
 		static char namebuf[64];
-		ni_netconfig_t *nc = ni_handle_netconfig(nih);
 		unsigned int num;
 
 		for (num = 0; num < 65536; ++num) {
@@ -61,7 +60,7 @@ ni_objectmodel_new_vlan(ni_dbus_server_t *server, const ni_dbus_object_t *config
 		}
 	}
 
-	if ((rv = ni_interface_create_vlan(nih, cfg_ifp->name, vlan, &new_ifp)) < 0) {
+	if ((rv = ni_interface_create_vlan(nc, cfg_ifp->name, vlan, &new_ifp)) < 0) {
 		dbus_set_error(error,
 				DBUS_ERROR_FAILED,
 				"Unable to create VLAN interface: %s",

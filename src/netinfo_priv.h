@@ -86,7 +86,6 @@ extern unsigned int	__ni_global_seqno;
 extern ni_netlink_t *	__ni_netlink_open(int);
 extern void		__ni_netlink_close(ni_netlink_t *);
 
-extern ni_netconfig_t *	__ni_handle_new(size_t);
 extern ni_interface_t *	__ni_interface_new(const char *name, unsigned int index);
 extern void		__ni_interface_list_append(ni_interface_t **, ni_interface_t *);
 extern void		__ni_interface_list_destroy(ni_interface_t **);
@@ -118,8 +117,8 @@ extern ni_address_t *	__ni_address_new(ni_address_t **, int, unsigned int,
 extern int		__ni_address_list_dedup(ni_address_t **);
 extern ni_address_t *	__ni_address_list_find(ni_address_t *, const ni_sockaddr_t *);
 
-extern int		__ni_system_refresh_all(ni_netconfig_t *nih, ni_interface_t **del_list);
-extern int		__ni_system_refresh_interfaces(ni_netconfig_t *nih);
+extern int		__ni_system_refresh_all(ni_netconfig_t *nc, ni_interface_t **del_list);
+extern int		__ni_system_refresh_interfaces(ni_netconfig_t *nc);
 extern int		__ni_system_refresh_interface(ni_netconfig_t *, ni_interface_t *);
 extern int		__ni_device_refresh_link_info(ni_netconfig_t *, ni_linkinfo_t *);
 extern int		__ni_system_interface_configure(ni_netconfig_t *, ni_interface_t *, const ni_interface_t *);

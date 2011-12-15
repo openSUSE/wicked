@@ -214,14 +214,14 @@ ni_rtnl_query_next_route_info(struct ni_rtnl_query *q, struct nlmsghdr **hp, int
  * Refresh all interfaces
  */
 int
-__ni_system_refresh_interfaces(ni_netconfig_t *nih)
+__ni_system_refresh_interfaces(ni_netconfig_t *nc)
 {
-	ni_assert(nih == ni_global_state_handle(0));
-	return __ni_system_refresh_all(nih, NULL);
+	ni_assert(nc == ni_global_state_handle(0));
+	return __ni_system_refresh_all(nc, NULL);
 }
 
 int
-__ni_system_refresh_all(ni_netconfig_t *nih, ni_interface_t **del_list)
+__ni_system_refresh_all(ni_netconfig_t *nc, ni_interface_t **del_list)
 {
 	struct ni_rtnl_query query;
 	struct nlmsghdr *h;
@@ -235,7 +235,7 @@ __ni_system_refresh_all(ni_netconfig_t *nih, ni_interface_t **del_list)
 		goto failed;
 
 	/* Find tail of iflist */
-	tail = &nih->interfaces;
+	tail = &nc->interfaces;
 	while ((ifp = *tail) != NULL)
 		tail = &ifp->next;
 
@@ -254,7 +254,7 @@ __ni_system_refresh_all(ni_netconfig_t *nih, ni_interface_t **del_list)
 		ifname = (char *) nla_data(nla);
 
 		/* Create interface if it doesn't exist. */
-		if ((ifp = ni_interface_by_index(nih, ifi->ifi_index)) == NULL) {
+		if ((ifp = ni_interface_by_index(nc, ifi->ifi_index)) == NULL) {
 			ifp = __ni_interface_new(ifname, ifi->ifi_index);
 			if (!ifp)
 				goto failed;
@@ -268,12 +268,12 @@ __ni_system_refresh_all(ni_netconfig_t *nih, ni_interface_t **del_list)
 
 		ifp->seq = seqno;
 
-		if (__ni_interface_process_newlink(ifp, h, ifi, nih) < 0)
+		if (__ni_interface_process_newlink(ifp, h, ifi, nc) < 0)
 			ni_error("Problem parsing RTM_NEWLINK message for %s", ifname);
 	}
 
-	for (ifp = nih->interfaces; ifp; ifp = ifp->next) {
-		if (ifp->link.vlan && ni_vlan_bind_ifindex(ifp->link.vlan, nih) < 0) {
+	for (ifp = nc->interfaces; ifp; ifp = ifp->next) {
+		if (ifp->link.vlan && ni_vlan_bind_ifindex(ifp->link.vlan, nc) < 0) {
 			ni_error("VLAN interface %s references unknown base interface (ifindex %u)",
 				ifp->name, ifp->link.vlan->physdev_index);
 			/* Ignore error and proceed */
@@ -287,7 +287,7 @@ __ni_system_refresh_all(ni_netconfig_t *nih, ni_interface_t **del_list)
 		if (!(ifi = ni_rtnl_query_next_ipv6_link_info(&query, &h)))
 			break;
 
-		if ((ifp = ni_interface_by_index(nih, ifi->ifi_index)) == NULL)
+		if ((ifp = ni_interface_by_index(nc, ifi->ifi_index)) == NULL)
 			continue;
 
 		if (__ni_interface_process_newlink_ipv6(ifp, h, ifi) < 0)
@@ -300,7 +300,7 @@ __ni_system_refresh_all(ni_netconfig_t *nih, ni_interface_t **del_list)
 		if (!(ifa = ni_rtnl_query_next_addr_info(&query, &h)))
 			break;
 
-		if ((ifp = ni_interface_by_index(nih, ifa->ifa_index)) == NULL)
+		if ((ifp = ni_interface_by_index(nc, ifa->ifa_index)) == NULL)
 			continue;
 
 		if (__ni_interface_process_newaddr(ifp, h, ifa) < 0)
@@ -315,7 +315,7 @@ __ni_system_refresh_all(ni_netconfig_t *nih, ni_interface_t **del_list)
 			break;
 
 		if (oif_index >= 0) {
-			ifp = ni_interface_by_index(nih, oif_index);
+			ifp = ni_interface_by_index(nc, oif_index);
 			if (ifp == NULL) {
 				error("route specifies OIF=%u; not found!", oif_index);
 				continue;
@@ -324,12 +324,12 @@ __ni_system_refresh_all(ni_netconfig_t *nih, ni_interface_t **del_list)
 			ifp = NULL;
 		}
 
-		if (__ni_interface_process_newroute(ifp, h, rtm, nih) < 0)
+		if (__ni_interface_process_newroute(ifp, h, rtm, nc) < 0)
 			error("Problem parsing RTM_NEWROUTE message");
 	}
 
 	/* Cull any interfaces that went away */
-	tail = &nih->interfaces;
+	tail = &nc->interfaces;
 	while ((ifp = *tail) != NULL) {
 		if (ifp->seq != seqno) {
 			*tail = ifp->next;
@@ -356,7 +356,7 @@ failed:
  * Refresh one interfaces
  */
 int
-__ni_system_refresh_interface(ni_netconfig_t *nih, ni_interface_t *ifp)
+__ni_system_refresh_interface(ni_netconfig_t *nc, ni_interface_t *ifp)
 {
 	struct ni_rtnl_query query;
 	struct nlmsghdr *h;
@@ -377,7 +377,7 @@ __ni_system_refresh_interface(ni_netconfig_t *nih, ni_interface_t *ifp)
 		ni_interface_clear_addresses(ifp);
 		ni_interface_clear_routes(ifp);
 
-		if (__ni_interface_process_newlink(ifp, h, ifi, nih) < 0)
+		if (__ni_interface_process_newlink(ifp, h, ifi, nc) < 0)
 			ni_error("Problem parsing RTM_NEWLINK message for %s", ifp->name);
 	}
 
@@ -412,7 +412,7 @@ failed:
  * Refresh the link info of one interface
  */
 int
-__ni_device_refresh_link_info(ni_netconfig_t *nih, ni_linkinfo_t *link)
+__ni_device_refresh_link_info(ni_netconfig_t *nc, ni_linkinfo_t *link)
 {
 	struct ni_rtnl_query query;
 	struct nlmsghdr *h;
@@ -429,7 +429,7 @@ __ni_device_refresh_link_info(ni_netconfig_t *nih, ni_linkinfo_t *link)
 		if (!(ifi = ni_rtnl_query_next_link_info(&query, &h)))
 			break;
 
-		if ((rv = __ni_process_ifinfomsg(link, h, ifi, nih)) < 0) {
+		if ((rv = __ni_process_ifinfomsg(link, h, ifi, nc)) < 0) {
 			ni_error("Problem parsing RTM_NEWLINK message");
 			goto done;
 		}
@@ -447,7 +447,7 @@ done:
  * ethtool.
  */
 int
-__ni_system_interface_stats_refresh(ni_netconfig_t *nih, ni_interface_t *ifp)
+__ni_system_interface_stats_refresh(ni_netconfig_t *nc, ni_interface_t *ifp)
 {
 	/* This is a NOP for now */
 	return 0;
@@ -930,7 +930,7 @@ __ni_interface_process_newaddr(ni_interface_t *ifp, struct nlmsghdr *h, struct i
 
 int
 __ni_interface_process_newroute(ni_interface_t *ifp, struct nlmsghdr *h,
-				struct rtmsg *rtm, ni_netconfig_t *nih)
+				struct rtmsg *rtm, ni_netconfig_t *nc)
 {
 	ni_sockaddr_t src_addr, dst_addr, gw_addr;
 	ni_addrconf_lease_t *lease;
@@ -1003,8 +1003,8 @@ __ni_interface_process_newroute(ni_interface_t *ifp, struct nlmsghdr *h,
 	rp = NULL;
 	if (ifp) {
 		rp = ni_interface_add_route(ifp, rtm->rtm_dst_len, &dst_addr, &gw_addr);
-	} else if (nih != NULL) {
-		rp = ni_route_new(nih, rtm->rtm_dst_len, &dst_addr, &gw_addr);
+	} else if (nc != NULL) {
+		rp = ni_route_new(nc, rtm->rtm_dst_len, &dst_addr, &gw_addr);
 	} else {
 		return 0;
 	}
@@ -1111,7 +1111,7 @@ __ni_discover_addrconf(ni_interface_t *ifp)
 #if 0
 		/* Represent interface as XML */
 		if (xml == NULL) {
-			xml = ni_syntax_xml_from_interface(ni_default_xml_syntax(), nih, ifp);
+			xml = ni_syntax_xml_from_interface(ni_default_xml_syntax(), nc, ifp);
 			if (!xml)
 				return 0;
 		}
