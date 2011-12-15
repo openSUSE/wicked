@@ -99,6 +99,8 @@ extern unsigned int	__ni_interface_translate_ifflags(unsigned int);
 	 ((af) == AF_INET6? &((ifp)->ipv6) : \
 	  NULL))
 
+extern void		__ni_afinfo_init(ni_afinfo_t *, int af);
+extern void		__ni_afinfo_destroy(ni_afinfo_t *);
 extern void		__ni_afinfo_set_addrconf_request(ni_afinfo_t *, unsigned int, ni_addrconf_request_t *);
 extern void		__ni_afinfo_set_addrconf_lease(ni_afinfo_t *, unsigned int, ni_addrconf_lease_t *);
 
