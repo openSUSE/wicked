@@ -105,7 +105,7 @@ ni_policy_free(ni_policy_t *policy)
  * Add or update a policy
  */
 int
-__ni_generic_policy_update(ni_handle_t *nih, const ni_policy_t *new_policy, ni_policy_t **found)
+__ni_generic_policy_update(ni_netconfig_t *nih, const ni_policy_t *new_policy, ni_policy_t **found)
 {
 #if 1
 	return -1;
@@ -146,7 +146,7 @@ __ni_generic_policy_update(ni_handle_t *nih, const ni_policy_t *new_policy, ni_p
 }
 
 int
-ni_policy_update(ni_handle_t *nih, const ni_policy_t *new_policy)
+ni_policy_update(ni_netconfig_t *nih, const ni_policy_t *new_policy)
 {
 #if 0
 	if (nih->op->policy_update)
@@ -161,7 +161,7 @@ ni_policy_update(ni_handle_t *nih, const ni_policy_t *new_policy)
  * Find a policy object for a given input (event)
  */
 ni_policy_t *
-ni_policy_match_event(const ni_handle_t *nih, ni_event_t event, const ni_interface_t *dev)
+ni_policy_match_event(const ni_netconfig_t *nih, ni_event_t event, const ni_interface_t *dev)
 {
 #if 1
 	return NULL;

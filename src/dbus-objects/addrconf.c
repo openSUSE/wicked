@@ -96,7 +96,7 @@ static ni_interface_t *
 ni_objectmodel_addrconf_path_to_device(const char *path)
 {
 	unsigned int ifindex;
-	ni_handle_t *nih;
+	ni_netconfig_t *nih;
 	char cc;
 
 	if (strncmp(path, WICKED_DBUS_OBJECT_PATH, strlen(WICKED_DBUS_OBJECT_PATH)))

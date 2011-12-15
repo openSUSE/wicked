@@ -148,10 +148,10 @@ ni_server_connect(void)
 	return ni_local_socket_connect(ni_global.config->socket.path);
 }
 
-ni_handle_t *
+ni_netconfig_t *
 __ni_handle_new(size_t size)
 {
-	ni_handle_t *nih;
+	ni_netconfig_t *nih;
 
 	__ni_assert_initialized();
 
@@ -168,7 +168,7 @@ __ni_handle_new(size_t size)
 }
 
 ni_netconfig_t *
-ni_handle_netconfig(ni_handle_t *nih)
+ni_handle_netconfig(ni_netconfig_t *nih)
 {
 	return nih;
 }
@@ -1018,7 +1018,7 @@ ni_interface_array_destroy(ni_interface_array_t *array)
  * netinfo handle.
  */
 ni_interface_t *
-ni_interfaces(ni_handle_t *nih)
+ni_interfaces(ni_netconfig_t *nih)
 {
 	return nih->interfaces;
 }

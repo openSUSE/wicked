@@ -43,35 +43,35 @@
 
 #define BOND_DEVICE_MUST_BE_UP_WHEN_MESSING_WITH_SLAVES 1
 
-static int	__ni_system_interface_bringup(ni_handle_t *, ni_interface_t *);
-static int	__ni_interface_for_config(ni_handle_t *, const ni_interface_t *, ni_interface_t **);
-static int	__ni_interface_addrconf(ni_handle_t *, int,  ni_interface_t *, ni_afinfo_t *);
-static int	__ni_interface_bridge_configure(ni_handle_t *, const ni_interface_t *, ni_interface_t **);
-static int	__ni_interface_vlan_configure(ni_handle_t *, const ni_interface_t *, ni_interface_t **);
-static int	__ni_interface_bond_configure(ni_handle_t *, const ni_interface_t *, ni_interface_t **);
-static int	__ni_interface_extension_configure(ni_handle_t *, const ni_interface_t *, ni_interface_t **);
-static int	__ni_interface_extension_delete(ni_handle_t *, ni_interface_t *);
-static int	__ni_interface_update_ipv6_settings(ni_handle_t *, ni_interface_t *, const ni_afinfo_t *);
-static int	__ni_interface_update_addrs(ni_handle_t *nih, ni_interface_t *ifp,
+static int	__ni_system_interface_bringup(ni_netconfig_t *, ni_interface_t *);
+static int	__ni_interface_for_config(ni_netconfig_t *, const ni_interface_t *, ni_interface_t **);
+static int	__ni_interface_addrconf(ni_netconfig_t *, int,  ni_interface_t *, ni_afinfo_t *);
+static int	__ni_interface_bridge_configure(ni_netconfig_t *, const ni_interface_t *, ni_interface_t **);
+static int	__ni_interface_vlan_configure(ni_netconfig_t *, const ni_interface_t *, ni_interface_t **);
+static int	__ni_interface_bond_configure(ni_netconfig_t *, const ni_interface_t *, ni_interface_t **);
+static int	__ni_interface_extension_configure(ni_netconfig_t *, const ni_interface_t *, ni_interface_t **);
+static int	__ni_interface_extension_delete(ni_netconfig_t *, ni_interface_t *);
+static int	__ni_interface_update_ipv6_settings(ni_netconfig_t *, ni_interface_t *, const ni_afinfo_t *);
+static int	__ni_interface_update_addrs(ni_netconfig_t *nih, ni_interface_t *ifp,
 				int family, ni_addrconf_mode_t mode,
 				ni_address_t **cfg_addr_list);
-static int	__ni_interface_update_routes(ni_handle_t *nih, ni_interface_t *ifp,
+static int	__ni_interface_update_routes(ni_netconfig_t *nih, ni_interface_t *ifp,
 				int family, ni_addrconf_mode_t mode,
 				ni_route_t **cfg_route_list);
 static int	__ni_rtnl_link_create_vlan(const char *, const ni_vlan_t *, unsigned int);
 static int	__ni_rtnl_link_create(ni_netconfig_t *, const ni_interface_t *);
 static int	__ni_rtnl_link_up(const ni_interface_t *, const ni_interface_request_t *);
 static int	__ni_rtnl_link_down(const ni_interface_t *, int);
-static int	__ni_rtnl_send_deladdr(ni_handle_t *, ni_interface_t *, const ni_address_t *);
-static int	__ni_rtnl_send_newaddr(ni_handle_t *, ni_interface_t *, const ni_address_t *, int);
-static int	__ni_rtnl_send_delroute(ni_handle_t *, ni_interface_t *, ni_route_t *);
-static int	__ni_rtnl_send_newroute(ni_handle_t *, ni_interface_t *, ni_route_t *, int);
+static int	__ni_rtnl_send_deladdr(ni_netconfig_t *, ni_interface_t *, const ni_address_t *);
+static int	__ni_rtnl_send_newaddr(ni_netconfig_t *, ni_interface_t *, const ni_address_t *, int);
+static int	__ni_rtnl_send_delroute(ni_netconfig_t *, ni_interface_t *, ni_route_t *);
+static int	__ni_rtnl_send_newroute(ni_netconfig_t *, ni_interface_t *, ni_route_t *, int);
 
 /*
  * Bring up an interface
  */
 int
-ni_interface_up(ni_handle_t *nih, ni_interface_t *ifp, const ni_interface_request_t *ifp_req)
+ni_interface_up(ni_netconfig_t *nih, ni_interface_t *ifp, const ni_interface_request_t *ifp_req)
 {
 	int res;
 
@@ -130,7 +130,7 @@ failed:
  * Shut down an interface
  */
 int
-ni_interface_down(ni_handle_t *nih, ni_interface_t *ifp)
+ni_interface_down(ni_netconfig_t *nih, ni_interface_t *ifp)
 {
 	int res = -1;
 
@@ -163,7 +163,7 @@ ni_interface_down(ni_handle_t *nih, ni_interface_t *ifp)
  * Configure a given interface
  */
 int
-__ni_system_interface_configure(ni_handle_t *nih, ni_interface_t *ifp, const ni_interface_t *cfg)
+__ni_system_interface_configure(ni_netconfig_t *nih, ni_interface_t *ifp, const ni_interface_t *cfg)
 {
 	int res;
 
@@ -278,7 +278,7 @@ failed:
 int
 __ni_system_interface_update_lease(ni_interface_t *ifp, ni_addrconf_lease_t *lease)
 {
-	ni_handle_t *nih = ni_global_state_handle(0);
+	ni_netconfig_t *nih = ni_global_state_handle(0);
 	unsigned int update_mask;
 	ni_afinfo_t *afi;
 	int res;
@@ -341,7 +341,7 @@ __ni_system_interface_update_lease(ni_interface_t *ifp, ni_addrconf_lease_t *lea
  * first clone the device.
  */
 int
-__ni_system_interface_bringup(ni_handle_t *nih, ni_interface_t *ifp)
+__ni_system_interface_bringup(ni_netconfig_t *nih, ni_interface_t *ifp)
 {
 	int res = -1;
 
@@ -356,7 +356,7 @@ __ni_system_interface_bringup(ni_handle_t *nih, ni_interface_t *ifp)
  * Delete the given interface
  */
 int
-__ni_system_interface_delete(ni_handle_t *nih, const char *ifname)
+__ni_system_interface_delete(ni_netconfig_t *nih, const char *ifname)
 {
 	ni_interface_t *ifp;
 
@@ -415,7 +415,7 @@ __ni_system_interface_delete(ni_handle_t *nih, const char *ifname)
  *  -	possibly more
  */
 static int
-__ni_interface_for_config(ni_handle_t *nih, const ni_interface_t *cfg, ni_interface_t **res)
+__ni_interface_for_config(ni_netconfig_t *nih, const ni_interface_t *cfg, ni_interface_t **res)
 {
 	ni_interface_t *ifp = NULL;
 
@@ -477,7 +477,7 @@ __ni_interface_bridge_allports(ni_netconfig_t *nc, const char *ifname,
  * Handle link transformation for bridge
  */
 static int
-__ni_interface_bridge_configure(ni_handle_t *nih, const ni_interface_t *cfg, ni_interface_t **ifpp)
+__ni_interface_bridge_configure(ni_netconfig_t *nih, const ni_interface_t *cfg, ni_interface_t **ifpp)
 {
 	ni_interface_t *ifp = *ifpp;
 	ni_bridge_t *cur_bridge = NULL, *cfg_bridge;
@@ -560,7 +560,7 @@ __ni_interface_bridge_configure(ni_handle_t *nih, const ni_interface_t *cfg, ni_
  * Handle link transformation for vlan
  */
 static int
-__ni_interface_vlan_configure(ni_handle_t *nih, const ni_interface_t *cfg, ni_interface_t **ifpp)
+__ni_interface_vlan_configure(ni_netconfig_t *nih, const ni_interface_t *cfg, ni_interface_t **ifpp)
 {
 	ni_interface_t *ifp = *ifpp;
 	ni_vlan_t *cur_vlan = NULL, *cfg_vlan;
@@ -618,7 +618,7 @@ __ni_interface_vlan_configure(ni_handle_t *nih, const ni_interface_t *cfg, ni_in
  * ni_system_create_vlan
  */
 int
-ni_interface_create_vlan(ni_handle_t *nih, const char *ifname, const ni_vlan_t *cfg_vlan, ni_interface_t **ifpp)
+ni_interface_create_vlan(ni_netconfig_t *nih, const char *ifname, const ni_vlan_t *cfg_vlan, ni_interface_t **ifpp)
 {
 	ni_interface_t *ifp, *phys_dev;
 	ni_vlan_t *cur_vlan = NULL;
@@ -699,7 +699,7 @@ ni_interface_delete_vlan(ni_interface_t *ifp)
  * Create a bridge interface
  */
 int
-ni_interface_create_bridge(ni_handle_t *nih, const char *ifname,
+ni_interface_create_bridge(ni_netconfig_t *nih, const char *ifname,
 			const ni_bridge_t *cfg_bridge, ni_interface_t **ifpp)
 {
 	ni_interface_t *ifp;
@@ -732,7 +732,7 @@ ni_interface_create_bridge(ni_handle_t *nih, const char *ifname,
  * Given data provided by the user, update the bridge config
  */
 int
-ni_interface_update_bridge_config(ni_handle_t *nih, ni_interface_t *ifp, const ni_bridge_t *bcfg)
+ni_interface_update_bridge_config(ni_netconfig_t *nih, ni_interface_t *ifp, const ni_bridge_t *bcfg)
 {
 	ni_bridge_t *bridge;
 	unsigned int i;
@@ -762,7 +762,7 @@ ni_interface_update_bridge_config(ni_handle_t *nih, ni_interface_t *ifp, const n
  * Delete a bridge interface
  */
 int
-ni_interface_delete_bridge(ni_handle_t *nih, ni_interface_t *ifp)
+ni_interface_delete_bridge(ni_netconfig_t *nih, ni_interface_t *ifp)
 {
 	if (__ni_brioctl_del_bridge(ifp->name) < 0) {
 		ni_error("could not destroy bridge interface %s", ifp->name);
@@ -775,7 +775,7 @@ ni_interface_delete_bridge(ni_handle_t *nih, ni_interface_t *ifp)
  * Add a port to a bridge interface
  */
 int
-ni_interface_add_bridge_port(ni_handle_t *nih, ni_interface_t *ifp,
+ni_interface_add_bridge_port(ni_netconfig_t *nih, ni_interface_t *ifp,
 				ni_bridge_port_t *port)
 {
 	ni_bridge_t *bridge = ni_interface_get_bridge(ifp);
@@ -827,7 +827,7 @@ ni_interface_add_bridge_port(ni_handle_t *nih, ni_interface_t *ifp,
  * Remove a port from a bridge interface
  */
 int
-ni_interface_remove_bridge_port(ni_handle_t *nih, ni_interface_t *ifp, int port_ifindex)
+ni_interface_remove_bridge_port(ni_netconfig_t *nih, ni_interface_t *ifp, int port_ifindex)
 {
 	ni_bridge_t *bridge = ni_interface_get_bridge(ifp);
 	int rv;
@@ -850,7 +850,7 @@ ni_interface_remove_bridge_port(ni_handle_t *nih, ni_interface_t *ifp, int port_
  * Handle link transformation for bonding device
  */
 static int
-__ni_interface_bond_configure(ni_handle_t *nih, const ni_interface_t *cfg, ni_interface_t **ifpp)
+__ni_interface_bond_configure(ni_netconfig_t *nih, const ni_interface_t *cfg, ni_interface_t **ifpp)
 {
 	ni_interface_t *ifp = *ifpp;
 	ni_bonding_t *cur_bond = NULL, *cfg_bond;
@@ -976,7 +976,7 @@ __ni_interface_bond_configure(ni_handle_t *nih, const ni_interface_t *cfg, ni_in
  * Configure interface link layer via an extension
  */
 static int
-__ni_interface_extension_configure(ni_handle_t *nih, const ni_interface_t *cfg, ni_interface_t **ifpp)
+__ni_interface_extension_configure(ni_netconfig_t *nih, const ni_interface_t *cfg, ni_interface_t **ifpp)
 {
 	ni_extension_t *ex;
 
@@ -994,7 +994,7 @@ __ni_interface_extension_configure(ni_handle_t *nih, const ni_interface_t *cfg, 
  * Shut down interface link layer via an extension
  */
 static int
-__ni_interface_extension_delete(ni_handle_t *nih, ni_interface_t *ifp)
+__ni_interface_extension_delete(ni_netconfig_t *nih, ni_interface_t *ifp)
 {
 	ni_extension_t *ex;
 	xml_node_t *xml = NULL;
@@ -1023,7 +1023,7 @@ __ni_interface_extension_delete(ni_handle_t *nih, ni_interface_t *ifp)
  * Update the IPv6 sysctl settings for the given interface
  */
 int
-__ni_interface_update_ipv6_settings(ni_handle_t *nih, ni_interface_t *ifp, const ni_afinfo_t *afi)
+__ni_interface_update_ipv6_settings(ni_netconfig_t *nih, ni_interface_t *ifp, const ni_afinfo_t *afi)
 {
 	int enable = afi? afi->enabled : 0;
 	int brought_up = 0;
@@ -1364,7 +1364,7 @@ __ni_interface_address_list_contains(ni_address_t **list, const ni_address_t *ap
 }
 
 static int
-__ni_rtnl_send_newaddr(ni_handle_t *nih, ni_interface_t *ifp, const ni_address_t *ap, int flags)
+__ni_rtnl_send_newaddr(ni_netconfig_t *nih, ni_interface_t *ifp, const ni_address_t *ap, int flags)
 {
 	struct ifaddrmsg ifa;
 	struct nl_msg *msg;
@@ -1436,7 +1436,7 @@ failed:
 }
 
 static int
-__ni_rtnl_send_deladdr(ni_handle_t *nih, ni_interface_t *ifp, const ni_address_t *ap)
+__ni_rtnl_send_deladdr(ni_netconfig_t *nih, ni_interface_t *ifp, const ni_address_t *ap)
 {
 	struct ifaddrmsg ifa;
 	struct nl_msg *msg;
@@ -1484,7 +1484,7 @@ failed:
  * Add a static route
  */
 static int
-__ni_rtnl_send_newroute(ni_handle_t *nih, ni_interface_t *ifp, ni_route_t *rp, int flags)
+__ni_rtnl_send_newroute(ni_netconfig_t *nih, ni_interface_t *ifp, ni_route_t *rp, int flags)
 {
 	struct rtmsg rt;
 	struct nl_msg *msg;
@@ -1574,7 +1574,7 @@ failed:
 }
 
 static int
-__ni_rtnl_send_delroute(ni_handle_t *nih, ni_interface_t *ifp, ni_route_t *rp)
+__ni_rtnl_send_delroute(ni_netconfig_t *nih, ni_interface_t *ifp, ni_route_t *rp)
 {
 	struct rtmsg rt;
 	struct nl_msg *msg;
@@ -1743,7 +1743,7 @@ __ni_addrconf_update_request(ni_afinfo_t *afinfo, ni_addrconf_mode_t mode,
  * for a given addrconf method
  */
 static int
-__ni_interface_update_addrs(ni_handle_t *nih, ni_interface_t *ifp,
+__ni_interface_update_addrs(ni_netconfig_t *nih, ni_interface_t *ifp,
 				int family, ni_addrconf_mode_t mode,
 				ni_address_t **cfg_addr_list)
 {
@@ -1830,7 +1830,7 @@ __ni_interface_update_addrs(ni_handle_t *nih, ni_interface_t *ifp,
 }
 
 static int
-__ni_interface_update_routes(ni_handle_t *nih, ni_interface_t *ifp,
+__ni_interface_update_routes(ni_netconfig_t *nih, ni_interface_t *ifp,
 				int family, ni_addrconf_mode_t mode,
 				ni_route_t **cfg_route_list)
 {
@@ -1914,7 +1914,7 @@ __ni_interface_update_routes(ni_handle_t *nih, ni_interface_t *ifp,
  * have a "lease".
  */
 static int
-__ni_interface_addrconf_dummy(ni_handle_t *nih, ni_interface_t *ifp, int family,
+__ni_interface_addrconf_dummy(ni_netconfig_t *nih, ni_interface_t *ifp, int family,
 			ni_addrconf_mode_t mode, ni_addrconf_request_t *req)
 {
 	ni_afinfo_t *cur_afi = __ni_interface_address_info(ifp, family);
@@ -1949,7 +1949,7 @@ __ni_interface_addrconf_dummy(ni_handle_t *nih, ni_interface_t *ifp, int family,
  * Perform address configuration for random address configuration modes
  */
 static int
-__ni_interface_addrconf_static(ni_handle_t *nih, ni_interface_t *ifp, int family,
+__ni_interface_addrconf_static(ni_netconfig_t *nih, ni_interface_t *ifp, int family,
 			ni_addrconf_mode_t mode, ni_addrconf_request_t *req)
 {
 	ni_afinfo_t *cur_afi = __ni_interface_address_info(ifp, family);
@@ -2000,7 +2000,7 @@ __ni_interface_addrconf_static(ni_handle_t *nih, ni_interface_t *ifp, int family
  * we may decide that there is no need to re-do the address configuration.
  */
 static int
-__ni_addrconf_request_changed(ni_handle_t *nih, ni_interface_t *ifp, int family,
+__ni_addrconf_request_changed(ni_netconfig_t *nih, ni_interface_t *ifp, int family,
 			ni_addrconf_mode_t mode, ni_addrconf_request_t *req)
 {
 	static ni_uuid_t req_uuid;
@@ -2042,7 +2042,7 @@ __ni_addrconf_request_changed(ni_handle_t *nih, ni_interface_t *ifp, int family,
  * Perform address configuration for random address configuration modes
  */
 static int
-__ni_interface_addrconf_other(ni_handle_t *nih, ni_interface_t *ifp, int family,
+__ni_interface_addrconf_other(ni_netconfig_t *nih, ni_interface_t *ifp, int family,
 			ni_addrconf_mode_t mode, ni_addrconf_request_t *req)
 {
 	ni_afinfo_t *cur_afi = __ni_interface_address_info(ifp, family);
@@ -2109,7 +2109,7 @@ __ni_interface_addrconf_other(ni_handle_t *nih, ni_interface_t *ifp, int family,
  * Configure addresses for a given address family.
  */
 static int
-__ni_interface_addrconf(ni_handle_t *nih, int family, ni_interface_t *ifp, ni_afinfo_t *cfg_afi)
+__ni_interface_addrconf(ni_netconfig_t *nih, int family, ni_interface_t *ifp, ni_afinfo_t *cfg_afi)
 {
 	ni_afinfo_t null_afi = { .family = family };
 	unsigned int mode;

@@ -246,7 +246,7 @@ autoip4_device_destroy(ni_dbus_server_t *server, const ni_interface_t *ifp)
 void
 autoip4_discover_devices(ni_dbus_server_t *server)
 {
-	ni_handle_t *nih;
+	ni_netconfig_t *nih;
 	ni_interface_t *ifp;
 
 	if (!(nih = ni_global_state_handle(1)))

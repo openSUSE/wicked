@@ -14,10 +14,10 @@
 
 #define CONFIG_WICKED_BACKUP_DIR	CONFIG_WICKED_STATEDIR "/backup"
 
-ni_handle_t *
+ni_netconfig_t *
 ni_state_open(void)
 {
-	ni_handle_t *nih;
+	ni_netconfig_t *nih;
 
 	if (__ni_global_netlink == NULL) {
 		__ni_global_netlink = __ni_netlink_open(0);
@@ -28,10 +28,10 @@ ni_state_open(void)
 	return __ni_handle_new(sizeof(*nih));
 }
 
-ni_handle_t *
+ni_netconfig_t *
 ni_global_state_handle(int refresh)
 {
-	static ni_handle_t *nih = NULL;
+	static ni_netconfig_t *nih = NULL;
 
 	if (nih == NULL)
 		nih = ni_state_open();
@@ -71,7 +71,7 @@ __ni_system_interface_get_scan_results(ni_interface_t *ifp)
 
 #if 0
 static int
-__ni_system_policy_update(ni_handle_t *nih, const ni_policy_t *new_policy)
+__ni_system_policy_update(ni_netconfig_t *nih, const ni_policy_t *new_policy)
 {
 	ni_interface_array_t iflist = NI_INTERFACE_ARRAY_INIT;
 	ni_policy_t *policy;

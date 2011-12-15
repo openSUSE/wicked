@@ -350,7 +350,7 @@ ni_addrconf_extension_release(const ni_addrconf_t *ace, ni_interface_t *ifp, ni_
 return -1;
 #if 0
 	const ni_extension_t *ex = ace->private;
-	ni_handle_t *nih = ni_dummy_open();
+	ni_netconfig_t *nih = ni_dummy_open();
 	xml_node_t *cfg_xml;
 	int rv;
 

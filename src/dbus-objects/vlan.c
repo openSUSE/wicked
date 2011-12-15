@@ -29,7 +29,7 @@ ni_objectmodel_new_vlan(ni_dbus_server_t *server, const ni_dbus_object_t *config
 	ni_interface_t *cfg_ifp = ni_dbus_object_get_handle(config);
 	ni_interface_t *new_ifp;
 	const ni_vlan_t *vlan = cfg_ifp->link.vlan;
-	ni_handle_t *nih = ni_global_state_handle(0);
+	ni_netconfig_t *nih = ni_global_state_handle(0);
 	int rv;
 
 	if (!vlan

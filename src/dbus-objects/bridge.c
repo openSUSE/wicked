@@ -40,7 +40,7 @@ ni_objectmodel_new_bridge(ni_dbus_server_t *server, const ni_dbus_object_t *conf
 	ni_interface_t *cfg_ifp = ni_dbus_object_get_handle(config);
 	ni_interface_t *new_ifp;
 	const ni_bridge_t *bridge = ni_interface_get_bridge(cfg_ifp);
-	ni_handle_t *nih = ni_global_state_handle(0);
+	ni_netconfig_t *nih = ni_global_state_handle(0);
 	int rv;
 
 	cfg_ifp->link.type = NI_IFTYPE_BRIDGE;
@@ -89,7 +89,7 @@ __ni_dbus_bridge_delete(ni_dbus_object_t *object, const ni_dbus_method_t *method
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
-	ni_handle_t *nih = ni_global_state_handle(0);
+	ni_netconfig_t *nih = ni_global_state_handle(0);
 	ni_interface_t *ifp = object->handle;
 
 	NI_TRACE_ENTER_ARGS("ifp=%s", ifp->name);
@@ -113,7 +113,7 @@ __ni_dbus_bridge_add_port(ni_dbus_object_t *object, const ni_dbus_method_t *meth
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
-	ni_handle_t *nih = ni_global_state_handle(0);
+	ni_netconfig_t *nih = ni_global_state_handle(0);
 	ni_interface_t *ifp = object->handle, *portif;
 	ni_bridge_port_t *port_cfg;
 	const char *port_name;
@@ -173,7 +173,7 @@ __ni_dbus_bridge_remove_port(ni_dbus_object_t *object, const ni_dbus_method_t *m
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
-	ni_handle_t *nih = ni_global_state_handle(0);
+	ni_netconfig_t *nih = ni_global_state_handle(0);
 	ni_interface_t *ifp = object->handle, *portif;
 	const char *port_name;
 

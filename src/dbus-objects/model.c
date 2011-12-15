@@ -85,7 +85,7 @@ wicked_dbus_netif_refresh(ni_dbus_object_t *object)
 #else
 	ni_interface_array_t deleted = NI_INTERFACE_ARRAY_INIT;
 	unsigned int i;
-	ni_handle_t *nih;
+	ni_netconfig_t *nih;
 
 	NI_TRACE_ENTER();
 	if (!(nih = ni_global_state_handle())) {

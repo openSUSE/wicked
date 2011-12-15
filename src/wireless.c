@@ -75,7 +75,7 @@ ni_wireless_interface_refresh(ni_interface_t *ifp)
 }
 
 int
-__ni_wireless_get_scan_results(ni_handle_t *nih, ni_interface_t *ifp)
+__ni_wireless_get_scan_results(ni_netconfig_t *nih, ni_interface_t *ifp)
 {
 	ni_wireless_scan_t *scan;
 	ni_wpa_interface_t *wif;
@@ -105,7 +105,7 @@ __ni_wireless_get_scan_results(ni_handle_t *nih, ni_interface_t *ifp)
 }
 
 int
-__ni_wireless_request_scan(ni_handle_t *nih, ni_interface_t *ifp)
+__ni_wireless_request_scan(ni_netconfig_t *nih, ni_interface_t *ifp)
 {
 	ni_wireless_scan_t *scan;
 	ni_wpa_interface_t *wif;

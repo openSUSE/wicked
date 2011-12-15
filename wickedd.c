@@ -167,7 +167,7 @@ wicked_interface_server(void)
 void
 wicked_discover_state(void)
 {
-	ni_handle_t *nih;
+	ni_netconfig_t *nih;
 	ni_interface_t *ifp;
 
 	nih = ni_global_state_handle(0);

@@ -30,7 +30,7 @@
 #include "util_priv.h"
 
 typedef struct netcf_ifinfo {
-	ni_handle_t *		handle;		/* netinfo handle */
+	ni_netconfig_t *		handle;		/* netinfo handle */
 	struct timeval		valid;		/* until when it's valid */
 	unsigned int		cache_lft;	/* cache lifetime */
 } netcf_ifinfo_t;
@@ -183,7 +183,7 @@ __ncf_list_interfaces(struct netcf *ncf, unsigned int flags,
 	/* If we're asking for either active or inactive, we
 	 * also need to refresh the state */
 	if ((flags & match_any) != match_any) {
-		ni_handle_t *nih = ncf->config.handle;
+		ni_netconfig_t *nih = ncf->config.handle;
 
 		if (__ncf_maybe_refresh(&ncf->state) < 0)
 			goto internal_error;
@@ -202,7 +202,7 @@ __ncf_list_interfaces(struct netcf *ncf, unsigned int flags,
 				result[count++] = xstrdup(cur->name);
 		}
 	} else {
-		ni_handle_t *nih = ncf->config.handle;
+		ni_netconfig_t *nih = ncf->config.handle;
 
 		for (ifp = ni_interface_first(nih, &pos); ifp; ifp = ni_interface_next(nih, &pos)) {
 			if (count < maxnames)
@@ -316,7 +316,7 @@ ncf_lookup_by_name(struct netcf *ncf, const char *name)
 int
 ncf_lookup_by_mac_string(struct netcf *ncf, const char *mac, int maxifaces, struct netcf_if **ifaces)
 {
-	ni_handle_t *nih = ncf->config.handle;
+	ni_netconfig_t *nih = ncf->config.handle;
 	ni_interface_t *ifp, *pos;
 	unsigned int count = 0;
 	ni_hwaddr_t hwa;
@@ -487,7 +487,7 @@ ncf_if_undefine(struct netcf_if *nif)
  * Create XML description of a netinfo interface object
  */
 static char *
-__ncf_if_xml(struct netcf *ncf, ni_handle_t *nih, ni_interface_t *ifp)
+__ncf_if_xml(struct netcf *ncf, ni_netconfig_t *nih, ni_interface_t *ifp)
 {
 	xml_node_t *xml = NULL;
 	FILE *memstream = NULL;

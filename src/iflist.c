@@ -41,7 +41,7 @@ static int	__ni_process_ifinfomsg(ni_linkinfo_t *link, struct nlmsghdr *h,
 				struct ifinfomsg *ifi, ni_netconfig_t *);
 static int	__ni_interface_process_newaddr(ni_interface_t *, struct nlmsghdr *, struct ifaddrmsg *);
 static int	__ni_interface_process_newroute(ni_interface_t *, struct nlmsghdr *,
-				struct rtmsg *, ni_handle_t *);
+				struct rtmsg *, ni_netconfig_t *);
 static int	__ni_discover_bridge(ni_interface_t *);
 static int	__ni_discover_bond(ni_interface_t *);
 static int	__ni_discover_addrconf(ni_interface_t *);
@@ -214,14 +214,14 @@ ni_rtnl_query_next_route_info(struct ni_rtnl_query *q, struct nlmsghdr **hp, int
  * Refresh all interfaces
  */
 int
-__ni_system_refresh_interfaces(ni_handle_t *nih)
+__ni_system_refresh_interfaces(ni_netconfig_t *nih)
 {
 	ni_assert(nih == ni_global_state_handle(0));
 	return __ni_system_refresh_all(nih, NULL);
 }
 
 int
-__ni_system_refresh_all(ni_handle_t *nih, ni_interface_t **del_list)
+__ni_system_refresh_all(ni_netconfig_t *nih, ni_interface_t **del_list)
 {
 	struct ni_rtnl_query query;
 	struct nlmsghdr *h;
@@ -356,7 +356,7 @@ failed:
  * Refresh one interfaces
  */
 int
-__ni_system_refresh_interface(ni_handle_t *nih, ni_interface_t *ifp)
+__ni_system_refresh_interface(ni_netconfig_t *nih, ni_interface_t *ifp)
 {
 	struct ni_rtnl_query query;
 	struct nlmsghdr *h;
@@ -412,7 +412,7 @@ failed:
  * Refresh the link info of one interface
  */
 int
-__ni_device_refresh_link_info(ni_handle_t *nih, ni_linkinfo_t *link)
+__ni_device_refresh_link_info(ni_netconfig_t *nih, ni_linkinfo_t *link)
 {
 	struct ni_rtnl_query query;
 	struct nlmsghdr *h;
@@ -447,7 +447,7 @@ done:
  * ethtool.
  */
 int
-__ni_system_interface_stats_refresh(ni_handle_t *nih, ni_interface_t *ifp)
+__ni_system_interface_stats_refresh(ni_netconfig_t *nih, ni_interface_t *ifp)
 {
 	/* This is a NOP for now */
 	return 0;
@@ -930,7 +930,7 @@ __ni_interface_process_newaddr(ni_interface_t *ifp, struct nlmsghdr *h, struct i
 
 int
 __ni_interface_process_newroute(ni_interface_t *ifp, struct nlmsghdr *h,
-				struct rtmsg *rtm, ni_handle_t *nih)
+				struct rtmsg *rtm, ni_netconfig_t *nih)
 {
 	ni_sockaddr_t src_addr, dst_addr, gw_addr;
 	ni_addrconf_lease_t *lease;

@@ -123,7 +123,7 @@ extern int		ni_bridge_port_get_path_cost(ni_bridge_t *,const char *, char **);
 extern int		ni_bridge_port_set_priority(ni_bridge_t *,const char *, const char *);
 extern int		ni_bridge_port_set_path_cost(ni_bridge_t *,const char *, const char *);
 
-extern int		ni_interface_update_bridge_config(ni_handle_t *,
+extern int		ni_interface_update_bridge_config(ni_netconfig_t *,
 				ni_interface_t *, const ni_bridge_t *config);
 
 #endif /* __WICKED_BRIDGE_H__ */

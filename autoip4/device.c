@@ -167,7 +167,7 @@ ni_autoip_device_put(ni_autoip_device_t *dev)
 int
 ni_autoip_device_refresh(ni_autoip_device_t *dev)
 {
-	ni_handle_t *nih = ni_global_state_handle();
+	ni_netconfig_t *nih = ni_global_state_handle(0);
 	int rv;
 
 	/* Go back to INIT state to force a reclaim */

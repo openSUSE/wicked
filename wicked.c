@@ -1001,8 +1001,8 @@ typedef struct ni_interface_state_array {
 
 typedef struct ni_interface_op {
 	const char *		name;
-	int			(*call)(ni_interface_state_t *, ni_handle_t *);
-	int			(*check)(ni_interface_state_t *, ni_handle_t *, unsigned int);
+	int			(*call)(ni_interface_state_t *, ni_netconfig_t *);
+	int			(*check)(ni_interface_state_t *, ni_netconfig_t *, unsigned int);
 	int			(*timeout)(ni_interface_state_t *);
 } ni_interface_op_t;
 
@@ -1126,7 +1126,7 @@ ni_interface_state_array_destroy(ni_interface_state_array_t *array)
 }
 
 static int
-get_managed_interfaces(ni_handle_t *config, int filter, ni_evaction_t ifaction, ni_interface_state_array_t *result)
+get_managed_interfaces(ni_netconfig_t *config, int filter, ni_evaction_t ifaction, ni_interface_state_array_t *result)
 {
 	ni_interface_t *pos = NULL, *ifp;
 
@@ -1147,7 +1147,7 @@ get_managed_interfaces(ni_handle_t *config, int filter, ni_evaction_t ifaction, 
 }
 
 static int
-interface_topology_build(ni_handle_t *config, ni_interface_state_array_t *state_array)
+interface_topology_build(ni_netconfig_t *config, ni_interface_state_array_t *state_array)
 {
 	unsigned int i;
 
@@ -1266,7 +1266,7 @@ ni_interface_network_is_up_afinfo(const char *ifname, const ni_afinfo_t *cfg_afi
 }
 
 static void
-interface_update(ni_interface_state_t *state, ni_handle_t *system)
+interface_update(ni_interface_state_t *state, ni_netconfig_t *system)
 {
 	const ni_interface_t *have, *want = state->config;
 	int new_state = STATE_UNKNOWN;
@@ -1318,7 +1318,7 @@ out:
 }
 
 static int
-interface_request_state(ni_interface_state_t *state, ni_handle_t *system, ni_interface_t *ifp,
+interface_request_state(ni_interface_state_t *state, ni_netconfig_t *system, ni_interface_t *ifp,
 			int next_state, unsigned int timeout)
 {
 	unsigned int ifflags;
@@ -1373,7 +1373,7 @@ interface_request_state(ni_interface_state_t *state, ni_handle_t *system, ni_int
 
 #ifdef disabled
 static int
-send_policy(ni_interface_state_t *state, ni_handle_t *system, ni_interface_t *ifp)
+send_policy(ni_interface_state_t *state, ni_netconfig_t *system, ni_interface_t *ifp)
 {
 	ni_policy_t policy;
 
@@ -1435,7 +1435,7 @@ __interface_check_timeout(ni_interface_state_t *state, unsigned int waited)
 }
 
 static inline int
-__fsm_interface_check(ni_interface_state_t *state, ni_handle_t *system, unsigned int waited)
+__fsm_interface_check(ni_interface_state_t *state, ni_netconfig_t *system, unsigned int waited)
 {
 	int rv = 1;
 
@@ -1484,7 +1484,7 @@ __fsm_interface_check(ni_interface_state_t *state, ni_handle_t *system, unsigned
 }
 
 static int
-__fsm_children_check(ni_interface_state_t *state, ni_handle_t *system, unsigned int waited)
+__fsm_children_check(ni_interface_state_t *state, ni_netconfig_t *system, unsigned int waited)
 {
 	int child_failed = 0, all_done = 1;
 	unsigned int i;
@@ -1509,7 +1509,7 @@ __fsm_children_check(ni_interface_state_t *state, ni_handle_t *system, unsigned 
 }
 
 static int
-__fsm_network_up_call(ni_interface_state_t *state, ni_handle_t *system)
+__fsm_network_up_call(ni_interface_state_t *state, ni_netconfig_t *system)
 {
 	ni_interface_t *ifp;
 
@@ -1523,7 +1523,7 @@ __fsm_network_up_call(ni_interface_state_t *state, ni_handle_t *system)
 }
 
 static int
-__fsm_network_up_check(ni_interface_state_t *state, ni_handle_t *system, unsigned int waited)
+__fsm_network_up_check(ni_interface_state_t *state, ni_netconfig_t *system, unsigned int waited)
 {
 	interface_update(state, system);
 
@@ -1534,7 +1534,7 @@ __fsm_network_up_check(ni_interface_state_t *state, ni_handle_t *system, unsigne
 }
 
 static int
-__fsm_network_down_call(ni_interface_state_t *state, ni_handle_t *system)
+__fsm_network_down_call(ni_interface_state_t *state, ni_netconfig_t *system)
 {
 	ni_interface_t *ifp;
 
@@ -1548,7 +1548,7 @@ __fsm_network_down_call(ni_interface_state_t *state, ni_handle_t *system)
 }
 
 static int
-__fsm_network_down_check(ni_interface_state_t *state, ni_handle_t *system, unsigned int waited)
+__fsm_network_down_check(ni_interface_state_t *state, ni_netconfig_t *system, unsigned int waited)
 {
 	interface_update(state, system);
 
@@ -1559,7 +1559,7 @@ __fsm_network_down_check(ni_interface_state_t *state, ni_handle_t *system, unsig
 }
 
 static int
-__fsm_device_delete_call(ni_interface_state_t *state, ni_handle_t *system)
+__fsm_device_delete_call(ni_interface_state_t *state, ni_netconfig_t *system)
 {
 	ni_interface_t *ifp;
 
@@ -1581,7 +1581,7 @@ __fsm_device_delete_call(ni_interface_state_t *state, ni_handle_t *system)
 }
 
 static int
-__fsm_link_up_call(ni_interface_state_t *state, ni_handle_t *system)
+__fsm_link_up_call(ni_interface_state_t *state, ni_netconfig_t *system)
 {
 	ni_interface_t *cfg;
 	ni_interface_t *ifp;
@@ -1617,7 +1617,7 @@ __fsm_link_up_call(ni_interface_state_t *state, ni_handle_t *system)
 }
 
 static int
-__fsm_link_up_check(ni_interface_state_t *state, ni_handle_t *system, unsigned int waited)
+__fsm_link_up_check(ni_interface_state_t *state, ni_netconfig_t *system, unsigned int waited)
 {
 	interface_update(state, system);
 
@@ -1647,7 +1647,7 @@ __fsm_link_up_timeout(ni_interface_state_t *state)
 }
 
 static int
-__fsm_policy_call(ni_interface_state_t *state, ni_handle_t *system)
+__fsm_policy_call(ni_interface_state_t *state, ni_netconfig_t *system)
 {
 	ni_interface_t *ifp;
 	ni_policy_t policy;
@@ -1806,7 +1806,7 @@ interface_mark_down(ni_interface_state_t *state, int delete)
 }
 
 static int
-ni_interfaces_wait(ni_handle_t *system, ni_interface_state_array_t *state_array)
+ni_interfaces_wait(ni_netconfig_t *system, ni_interface_state_array_t *state_array)
 {
 	static const unsigned int TEST_FREQ = 4;
 	static const char rotate[4] = "-\\|/";
@@ -1863,8 +1863,8 @@ do_ifup_old(int argc, char **argv)
 	const char *ifname = NULL;
 	const char *opt_file = NULL;
 	unsigned int ifevent = NI_IFACTION_MANUAL_UP;
-	ni_handle_t *config = NULL;
-	ni_handle_t *system = NULL;
+	ni_netconfig_t *config = NULL;
+	ni_netconfig_t *system = NULL;
 	int c, rv = -1;
 
 	optind = 1;
@@ -1995,7 +1995,7 @@ do_ifdown_old(int argc, char **argv)
 	int opt_delete = 0;
 	const char *ifname = NULL;
 	unsigned int ifevent = NI_IFACTION_MANUAL_DOWN;
-	ni_handle_t *system = NULL;
+	ni_netconfig_t *system = NULL;
 	ni_interface_state_array_t state_array = { 0 };
 	int c, rv;
 
