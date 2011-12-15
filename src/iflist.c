@@ -29,6 +29,7 @@
 #include <wicked/addrconf.h>
 #include <wicked/bridge.h>
 #include <wicked/bonding.h>
+#include <wicked/vlan.h>
 #include <wicked/wireless.h>
 #include <wicked/xml.h>
 

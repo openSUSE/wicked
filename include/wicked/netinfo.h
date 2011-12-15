@@ -213,14 +213,6 @@ typedef struct ni_interface_array {
 } ni_interface_array_t;
 #define NI_INTERFACE_ARRAY_INIT	{ .count = 0, .data = NULL }
 
-struct ni_vlan {
-	char *			physdev_name;
-	unsigned int		physdev_index;	/* when parsing system state, this is the
-						 * ifindex of the master */
-	uint16_t		tag;
-	ni_interface_t *	interface_dev;
-};
-
 #define CONFIG_WICKED_STATEDIR	"/var/run/wicked"
 
 extern void		ni_set_global_config_path(const char *);
@@ -364,10 +356,6 @@ extern void		ni_route_list_destroy(ni_route_t **);
 extern void		ni_route_free(ni_route_t *);
 extern int		ni_route_equal(const ni_route_t *, const ni_route_t *);
 extern const char *	ni_route_print(const ni_route_t *);
-
-extern int		ni_vlan_bind_ifindex(ni_vlan_t *, ni_netconfig_t *);
-extern void		ni_vlan_free(ni_vlan_t *);
-extern ni_vlan_t *	ni_vlan_clone(const ni_vlan_t *);
 
 extern ni_ethernet_t *	ni_ethernet_alloc(void);
 extern void		ni_ethernet_free(ni_ethernet_t *);

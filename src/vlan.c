@@ -9,6 +9,8 @@
 #include <ctype.h>
 #include <net/if_arp.h>
 #include <arpa/inet.h>
+
+#include <wicked/vlan.h>
 #include "netinfo_priv.h"
 
 /*

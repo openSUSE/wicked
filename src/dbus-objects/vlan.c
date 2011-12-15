@@ -16,6 +16,7 @@
 
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
+#include <wicked/vlan.h>
 #include "model.h"
 #include "debug.h"
 

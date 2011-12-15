@@ -16,6 +16,7 @@
 #include <wicked/bonding.h>
 #include <wicked/resolver.h>
 #include <wicked/ethernet.h>
+#include <wicked/vlan.h>
 #include <wicked/wireless.h>
 #include <wicked/nis.h>
 #include <wicked/xml.h>
