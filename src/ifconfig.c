@@ -62,7 +62,7 @@ static int	__ni_rtnl_send_newroute(ni_interface_t *, ni_route_t *, int);
  * ni_system_interface_up
  */
 int
-ni_interface_up(ni_netconfig_t *nc, ni_interface_t *ifp, const ni_interface_request_t *ifp_req)
+ni_system_interface_up(ni_netconfig_t *nc, ni_interface_t *ifp, const ni_interface_request_t *ifp_req)
 {
 	int res;
 
@@ -122,7 +122,7 @@ failed:
  * ni_system_interface_down
  */
 int
-ni_interface_down(ni_netconfig_t *nc, ni_interface_t *ifp)
+ni_system_interface_down(ni_netconfig_t *nc, ni_interface_t *ifp)
 {
 	int res = -1;
 
@@ -215,11 +215,11 @@ __ni_system_interface_update_lease(ni_interface_t *ifp, ni_addrconf_lease_t *lea
  * ni_system_interface_delete
  */
 int
-__ni_system_interface_delete(ni_netconfig_t *nc, const char *ifname)
+ni_system_interface_delete(ni_netconfig_t *nc, const char *ifname)
 {
 	ni_interface_t *ifp;
 
-	ni_debug_ifconfig("__ni_system_interface_delete(%s)", ifname);
+	ni_debug_ifconfig("ni_system_interface_delete(%s)", ifname);
 
 	/* FIXME: perform sanity check on configuration data */
 
@@ -270,7 +270,7 @@ __ni_system_interface_delete(ni_netconfig_t *nc, const char *ifname)
  * ni_system_vlan_create
  */
 int
-ni_interface_create_vlan(ni_netconfig_t *nc, const char *ifname, const ni_vlan_t *cfg_vlan, ni_interface_t **ifpp)
+ni_system_vlan_create(ni_netconfig_t *nc, const char *ifname, const ni_vlan_t *cfg_vlan, ni_interface_t **ifpp)
 {
 	ni_interface_t *ifp, *phys_dev;
 	ni_vlan_t *cur_vlan = NULL;
@@ -339,7 +339,7 @@ ni_interface_create_vlan(ni_netconfig_t *nc, const char *ifname, const ni_vlan_t
  * ni_system_vlan_delete
  */
 int
-ni_interface_delete_vlan(ni_interface_t *ifp)
+ni_system_vlan_delete(ni_interface_t *ifp)
 {
 	if (__ni_rtnl_link_down(ifp, RTM_DELLINK)) {
 		ni_error("could not destroy VLAN interface %s", ifp->name);
@@ -353,7 +353,7 @@ ni_interface_delete_vlan(ni_interface_t *ifp)
  * ni_system_bridge_create
  */
 int
-ni_interface_create_bridge(ni_netconfig_t *nc, const char *ifname,
+ni_system_bridge_create(ni_netconfig_t *nc, const char *ifname,
 			const ni_bridge_t *cfg_bridge, ni_interface_t **ifpp)
 {
 	ni_interface_t *ifp;
@@ -374,7 +374,7 @@ ni_interface_create_bridge(ni_netconfig_t *nc, const char *ifname,
 	}
 
 	if (ni_interface_update_bridge_config(nc, ifp, cfg_bridge) < 0) {
-		ni_error("ni_interface_create_bridge: failed to apply config");
+		ni_error("ni_system_bridge_create: failed to apply config");
 		return -1;
 	}
 
@@ -407,7 +407,7 @@ ni_interface_update_bridge_config(ni_netconfig_t *nc, ni_interface_t *ifp, const
 	ni_sysfs_bridge_get_status(ifp->name, &bridge->status);
 
 	for (i = 0; i < bcfg->ports.count; ++i) {
-		if (ni_interface_add_bridge_port(nc, ifp, bcfg->ports.data[i]) < 0)
+		if (ni_system_bridge_add_port(nc, ifp, bcfg->ports.data[i]) < 0)
 			return -1;
 	}
 	return 0;
@@ -418,7 +418,7 @@ ni_interface_update_bridge_config(ni_netconfig_t *nc, ni_interface_t *ifp, const
  * ni_system_bridge_delete
  */
 int
-ni_interface_delete_bridge(ni_netconfig_t *nc, ni_interface_t *ifp)
+ni_system_bridge_delete(ni_netconfig_t *nc, ni_interface_t *ifp)
 {
 	if (__ni_brioctl_del_bridge(ifp->name) < 0) {
 		ni_error("could not destroy bridge interface %s", ifp->name);
@@ -432,7 +432,7 @@ ni_interface_delete_bridge(ni_netconfig_t *nc, ni_interface_t *ifp)
  * ni_system_bridge_add_port
  */
 int
-ni_interface_add_bridge_port(ni_netconfig_t *nc, ni_interface_t *ifp, ni_bridge_port_t *port)
+ni_system_bridge_add_port(ni_netconfig_t *nc, ni_interface_t *ifp, ni_bridge_port_t *port)
 {
 	ni_bridge_t *bridge = ni_interface_get_bridge(ifp);
 	ni_interface_t *pif;
@@ -484,7 +484,7 @@ ni_interface_add_bridge_port(ni_netconfig_t *nc, ni_interface_t *ifp, ni_bridge_
  * ni_system_bridge_remove_port
  */
 int
-ni_interface_remove_bridge_port(ni_netconfig_t *nc, ni_interface_t *ifp, int port_ifindex)
+ni_system_bridge_remove_port(ni_netconfig_t *nc, ni_interface_t *ifp, int port_ifindex)
 {
 	ni_bridge_t *bridge = ni_interface_get_bridge(ifp);
 	int rv;

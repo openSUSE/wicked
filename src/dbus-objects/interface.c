@@ -292,7 +292,7 @@ __wicked_dbus_interface_up(ni_dbus_object_t *object, const ni_dbus_method_t *met
 		goto failed;
 	}
 
-	if ((rv = ni_interface_up(nc, dev, req)) < 0) {
+	if ((rv = ni_system_interface_up(nc, dev, req)) < 0) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
 				"Cannot configure interface %s: %s", dev->name,
 				ni_strerror(rv));
@@ -326,7 +326,7 @@ __wicked_dbus_interface_down(ni_dbus_object_t *object, const ni_dbus_method_t *m
 
 	NI_TRACE_ENTER_ARGS("ifp=%s", dev->name);
 
-	if ((rv = ni_interface_down(nc, dev)) < 0) {
+	if ((rv = ni_system_interface_down(nc, dev)) < 0) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
 				"Cannot shutdown interface %s: %s", dev->name,
 				ni_strerror(rv));
