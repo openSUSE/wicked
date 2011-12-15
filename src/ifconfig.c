@@ -506,6 +506,171 @@ ni_system_bridge_remove_port(ni_netconfig_t *nc, ni_interface_t *ifp, int port_i
 }
 
 /*
+ * Create a bonding device
+ */
+int
+ni_system_bond_create(ni_netconfig_t *nc, const char *ifname, const ni_bonding_t *bond, ni_interface_t **ifpp)
+{
+	const char *complaint;
+	ni_interface_t *ifp;
+
+	complaint = ni_bonding_validate(bond);
+	if (complaint != NULL) {
+		ni_error("%s: cannot create bonding device: %s", ifname, complaint);
+		return -NI_ERROR_INVALID_ARGS;
+	}
+
+	if (!ni_sysfs_bonding_available()) {
+		unsigned int i, success = 0;
+
+#if 0
+		/* Load the bonding module */
+		if (ni_modprobe("bonding") < 0)
+			return -1;
+#endif
+
+		/* Wait for bonding_masters to appear */
+		for (i = 0; i < 400; ++i) {
+			if ((success = ni_sysfs_bonding_available()) != 0)
+				break;
+			usleep(25000);
+		}
+		if (!success) {
+			ni_error("unable to load bonding module - couldn't find bonding_masters");
+			return -1;
+		}
+	}
+
+	if (!ni_sysfs_bonding_is_master(ifname)) {
+		int success = 0;
+
+		ni_debug_ifconfig("%s: creating bond master", ifname);
+		if (ni_sysfs_bonding_add_master(ifname) >= 0) {
+			unsigned int i;
+
+			/* Wait for bonding_masters to appear */
+			for (i = 0; i < 400; ++i) {
+				if ((success = ni_sysfs_bonding_is_master(ifname)) != 0)
+					break;
+				usleep(25000);
+			}
+		}
+
+		if (!success) {
+			ni_error("unable to create bonding device %s", ifname);
+			return -1;
+		}
+	}
+
+	/* Refresh interface status */
+	__ni_system_refresh_interfaces(nc);
+
+	if ((ifp = ni_interface_by_name(nc, ifname)) == NULL) {
+		ni_error("tried to create interface %s; still not found", ifname);
+		return -1;
+	}
+
+	if (ifp->bonding == NULL) {
+		ni_error("%s: no bonding info for interface %s", __func__, ifname);
+		return -1;
+	}
+
+	/* Store attributes stage 0 - most attributes need to be written prior to
+	   bringing up the interface */
+	if (ni_bonding_write_sysfs_attrs(ifname, bond, ifp->bonding, 0) < 0) {
+		ni_error("%s: error configuring bonding device (stage 0)", ifname);
+		return -1;
+	}
+
+	return 0;
+}
+
+/*
+ * Delete a bonding device
+ */
+int
+ni_system_bond_delete(ni_netconfig_t *nc, ni_interface_t *ifp)
+{
+	if (ni_sysfs_bonding_delete_master(ifp->name) < 0) {
+		ni_error("could not destroy bonding interface %s", ifp->name);
+		return -1;
+	}
+	return 0;
+}
+
+/*
+ * Add slave to a bond
+ */
+int
+ni_system_bond_add_slave(ni_netconfig_t *nc, ni_interface_t *ifp, unsigned int slave_idx)
+{
+	ni_bonding_t *bond = ifp->bonding;
+	ni_interface_t *slave_dev;
+
+	if (bond == NULL) {
+		ni_error("%s: %s is not a bonding device", __func__, ifp->name);
+		return -NI_ERROR_INTERFACE_NOT_COMPATIBLE;
+	}
+
+	slave_dev = ni_interface_by_index(nc, slave_idx);
+	if (slave_dev == NULL) {
+		ni_error("%s: trying to add unknown interface to bond %s", __func__, ifp->name);
+		return -NI_ERROR_INTERFACE_NOT_KNOWN;
+	}
+
+	if (ni_interface_network_is_up(slave_dev)) {
+		ni_error("%s: trying to enslave %s, which is in use", ifp->name, slave_dev->name);
+		return -NI_ERROR_INTERFACE_NOT_DOWN;
+	}
+
+	/* Silently ignore duplicate slave attach */
+	if (ni_string_array_index(&bond->slave_names, slave_dev->name) >= 0)
+		return 0;
+
+	ni_bonding_add_slave(bond, slave_dev->name);
+	if (ni_sysfs_bonding_set_list_attr(ifp->name, "slaves", &bond->slave_names) < 0) {
+		ni_error("%s: could not update list of slaves", ifp->name);
+		return -NI_ERROR_PERMISSION_DENIED;
+	}
+
+	return 0;
+}
+
+/*
+ * Remove a slave from a bond
+ */
+int
+ni_system_bond_remove_slave(ni_netconfig_t *nc, ni_interface_t *ifp, unsigned int slave_idx)
+{
+	ni_bonding_t *bond = ifp->bonding;
+	ni_interface_t *slave_dev;
+	int idx;
+
+	if (bond == NULL) {
+		ni_error("%s: %s is not a bonding device", __func__, ifp->name);
+		return -NI_ERROR_INTERFACE_NOT_COMPATIBLE;
+	}
+
+	slave_dev = ni_interface_by_index(nc, slave_idx);
+	if (slave_dev == NULL) {
+		ni_error("%s: trying to add unknown interface to bond %s", __func__, ifp->name);
+		return -NI_ERROR_INTERFACE_NOT_KNOWN;
+	}
+
+	/* Silently ignore duplicate slave removal */
+	if ((idx = ni_string_array_index(&bond->slave_names, slave_dev->name)) < 0)
+		return 0;
+
+	ni_string_array_remove_index(&bond->slave_names, idx);
+	if (ni_sysfs_bonding_set_list_attr(ifp->name, "slaves", &bond->slave_names) < 0) {
+		ni_error("%s: could not update list of slaves", ifp->name);
+		return -NI_ERROR_PERMISSION_DENIED;
+	}
+
+	return 0;
+}
+
+/*
  * Shut down interface link layer via an extension
  */
 static int

@@ -56,9 +56,7 @@ ni_objectmodel_service_by_name(const char *name)
 		&wicked_dbus_ethernet_service,
 		&wicked_dbus_vlan_service,
 		&wicked_dbus_bridge_service,
-#if 0
-		&wicked_dbus_bonding_service,
-#endif
+		&wicked_dbus_bond_service,
 		NULL,
 	};
 	const ni_dbus_service_t *service;
@@ -147,6 +145,7 @@ __ni_dbus_netif_create(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 		&wicked_dbus_ethernet_service,
 		&wicked_dbus_vlan_service,
 		&wicked_dbus_bridge_service,
+		&wicked_dbus_bond_service,
 		NULL
 	};
 	const char *interface_name, *object_path;

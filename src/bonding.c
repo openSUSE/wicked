@@ -89,6 +89,66 @@ ni_bonding_clear(ni_bonding_t *bonding)
 }
 
 /*
+ * Check whether the given bonding settings are valid
+ */
+const char *
+ni_bonding_validate(const ni_bonding_t *bonding)
+{
+	switch (bonding->mode) {
+	case NI_BOND_MODE_BALANCE_RR:
+	case NI_BOND_MODE_ACTIVE_BACKUP:
+	case NI_BOND_MODE_BALANCE_XOR:
+	case NI_BOND_MODE_BROADCAST:
+	case NI_BOND_MODE_802_3AD:
+	case NI_BOND_MODE_BALANCE_TLB:
+	case NI_BOND_MODE_BALANCE_ALB:
+		break;
+
+	default:
+		return "unsupported bonding mode";
+	}
+
+	switch (bonding->monitoring) {
+	case NI_BOND_MONITOR_ARP:
+		if (bonding->arpmon.interval == 0)
+			return "invalid arpmon interval";
+
+		switch (bonding->arpmon.validate) {
+		case NI_BOND_VALIDATE_NONE:
+		case NI_BOND_VALIDATE_ACTIVE:
+		case NI_BOND_VALIDATE_BACKUP:
+		case NI_BOND_VALIDATE_ALL:
+			break;
+
+		default:
+			return "invalid arpmon validate setting";
+		}
+
+		if (bonding->arpmon.targets.count == 0)
+			return "no targets for arp monitoring";
+		break;
+
+	case NI_BOND_MONITOR_MII:
+		/* FIXME: validate frequency, updelay, downdelay */
+		switch (bonding->miimon.carrier_detect) {
+		case NI_BOND_CARRIER_DETECT_IOCTL:
+		case NI_BOND_CARRIER_DETECT_NETIF:
+			break;
+
+		default:
+			return "invalid miimon carrier detect setting";
+
+		}
+		break;
+
+	default:
+		return "unsupported monitoring mode";
+	}
+
+	return NULL;
+}
+
+/*
  * Free bonding configuration
  */
 void

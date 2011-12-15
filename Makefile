@@ -70,6 +70,7 @@ __LIBSRCS= \
 	  dbus-objects/ethernet.c \
 	  dbus-objects/vlan.c \
 	  dbus-objects/bridge.c \
+	  dbus-objects/bonding.c \
 	  dbus-objects/addrconf.c \
 	  dbus-objects/dhcp4.c \
 	  dbus-objects/autoip.c \

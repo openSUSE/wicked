@@ -130,6 +130,10 @@ ni_objectmodel_link_layer_service(int iftype)
 		return &wicked_dbus_bridge_service;
 		break;
 
+	case NI_IFTYPE_BOND:
+		return &wicked_dbus_bond_service;
+		break;
+
 	default: ;
 	}
 
