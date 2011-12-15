@@ -850,13 +850,6 @@ __wicked_dbus_interface_request_set_ipv6(ni_dbus_object_t *object,
 #define WICKED_INTERFACE_REQUEST_PROPERTY_SIGNATURE(signature, __name, rw) \
 	__NI_DBUS_PROPERTY(signature, __name, offsetof(ni_interface_t, __name), __wicked_dbus_interface_request, rw)
 
-#define  NI_DBUS_DICT_SIGNATURE \
-			DBUS_TYPE_ARRAY_AS_STRING \
-			DBUS_DICT_ENTRY_BEGIN_CHAR_AS_STRING \
-				DBUS_TYPE_STRING_AS_STRING \
-				DBUS_TYPE_VARIANT_AS_STRING \
-			DBUS_DICT_ENTRY_END_CHAR_AS_STRING
-
 static ni_dbus_property_t	wicked_dbus_interface_request_properties[] = {
 #if 0
 	WICKED_INTERFACE_REQUEST_PROPERTY(UINT32, ifflags, RO),

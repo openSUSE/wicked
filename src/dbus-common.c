@@ -16,15 +16,6 @@
 #include "dbus-dict.h"
 #include "debug.h"
 
-#define NI_DBUS_DICT_ENTRY_SIGNATURE \
-		DBUS_DICT_ENTRY_BEGIN_CHAR_AS_STRING \
-		DBUS_TYPE_STRING_AS_STRING \
-		DBUS_TYPE_VARIANT_AS_STRING \
-		DBUS_DICT_ENTRY_END_CHAR_AS_STRING
-#define NI_DBUS_DICT_SIGNATURE \
-		DBUS_TYPE_ARRAY_AS_STRING \
-		NI_DBUS_DICT_ENTRY_SIGNATURE
-
 static ni_intmap_t      __ni_dbus_error_map[] = {
 	{ "org.freedesktop.DBus.Error.AccessDenied",	EACCES },
 	{ "org.freedesktop.DBus.Error.InvalidArgs",	EINVAL },

@@ -18,6 +18,7 @@
 #include <wicked/logging.h>
 #include <wicked/system.h>
 #include <wicked/bonding.h>
+#include "dbus-common.h"
 #include "model.h"
 #include "debug.h"
 
@@ -239,13 +240,6 @@ __wicked_dbus_bond_set_interface_name(ni_dbus_object_t *object,
 	return TRUE;
 }
 #endif
-
-#define  NI_DBUS_DICT_SIGNATURE \
-			DBUS_TYPE_ARRAY_AS_STRING \
-			DBUS_DICT_ENTRY_BEGIN_CHAR_AS_STRING \
-				DBUS_TYPE_STRING_AS_STRING \
-				DBUS_TYPE_VARIANT_AS_STRING \
-			DBUS_DICT_ENTRY_END_CHAR_AS_STRING
 
 #define WICKED_BONDING_PROPERTY(type, __name, rw) \
 	NI_DBUS_PROPERTY(type, __name, 0, __wicked_dbus_bond, rw)
