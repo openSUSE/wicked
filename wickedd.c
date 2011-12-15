@@ -170,7 +170,7 @@ wicked_discover_state(void)
 	ni_netconfig_t *nc;
 	ni_interface_t *ifp;
 
-	nc = ni_global_state_handle(0);
+	nc = ni_global_state_handle(1);
 	if (nc == NULL)
 		ni_fatal("failed to discover interface state");
 
