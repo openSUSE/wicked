@@ -17,6 +17,7 @@
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
 #include <wicked/bridge.h>
+#include <wicked/system.h>
 #include "model.h"
 #include "debug.h"
 

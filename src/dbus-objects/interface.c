@@ -15,8 +15,9 @@
 #include <errno.h>
 
 #include <wicked/netinfo.h>
-#include <wicked/logging.h>
 #include <wicked/addrconf.h>
+#include <wicked/logging.h>
+#include <wicked/system.h>
 #include "netinfo_priv.h"
 #include "dbus-common.h"
 #include "model.h"
