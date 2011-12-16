@@ -102,6 +102,15 @@ struct ni_dbus_property	{
 	const char *			name;
 	const char *			signature;
 
+	struct {
+		void *			(*get_handle)(const ni_dbus_object_t *, DBusError *);
+		union {
+			int *		int_offset;
+			unsigned int *	uint_offset;
+			char **		string_offset;
+		} u;
+	} generic;
+
 	ni_dbus_property_get_fn_t *	get;
 	ni_dbus_property_set_fn_t *	set;
 	ni_dbus_property_set_fn_t *	update;
@@ -275,6 +284,25 @@ extern ni_dbus_variant_t *	ni_dbus_dict_array_add(ni_dbus_variant_t *);
 
 extern void			ni_dbus_array_array_init(ni_dbus_variant_t *, const char *);
 extern ni_dbus_variant_t *	ni_dbus_array_array_add(ni_dbus_variant_t *);
+
+extern dbus_bool_t		ni_dbus_generic_property_get_int(const ni_dbus_object_t *, const ni_dbus_property_t *,
+					ni_dbus_variant_t *r, DBusError *);
+extern dbus_bool_t		ni_dbus_generic_property_set_int(ni_dbus_object_t *, const ni_dbus_property_t *,
+					const ni_dbus_variant_t *, DBusError *);
+extern dbus_bool_t		ni_dbus_generic_property_parse_int(const ni_dbus_property_t *,
+					ni_dbus_variant_t *, const char *);
+extern dbus_bool_t		ni_dbus_generic_property_get_uint(const ni_dbus_object_t *, const ni_dbus_property_t *,
+					ni_dbus_variant_t *r, DBusError *);
+extern dbus_bool_t		ni_dbus_generic_property_set_uint(ni_dbus_object_t *, const ni_dbus_property_t *,
+					const ni_dbus_variant_t *, DBusError *);
+extern dbus_bool_t		ni_dbus_generic_property_parse_uint(const ni_dbus_property_t *,
+					ni_dbus_variant_t *, const char *);
+extern dbus_bool_t		ni_dbus_generic_property_get_string(const ni_dbus_object_t *, const ni_dbus_property_t *,
+					ni_dbus_variant_t *r, DBusError *);
+extern dbus_bool_t		ni_dbus_generic_property_set_string(ni_dbus_object_t *, const ni_dbus_property_t *,
+					const ni_dbus_variant_t *, DBusError *);
+extern dbus_bool_t		ni_dbus_generic_property_parse_string(const ni_dbus_property_t *,
+					ni_dbus_variant_t *, const char *);
 
 /*
  * Client side functions

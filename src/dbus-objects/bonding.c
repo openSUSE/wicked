@@ -104,6 +104,14 @@ __ni_objectmodel_delete_bond(ni_dbus_object_t *object, const ni_dbus_method_t *m
 /*
  * Helper function to obtain bonding config from dbus object
  */
+static void *
+ni_objectmodel_get_bonding(const ni_dbus_object_t *object, DBusError *error)
+{
+	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
+
+	return ni_interface_get_bonding(ifp);
+}
+
 static ni_bonding_t *
 __wicked_dbus_bond_handle(const ni_dbus_object_t *object, DBusError *error)
 {
@@ -112,6 +120,7 @@ __wicked_dbus_bond_handle(const ni_dbus_object_t *object, DBusError *error)
 	return ni_interface_get_bonding(ifp);
 }
 
+#if 0
 /*
  * Get/set bonding mode
  */
@@ -147,6 +156,7 @@ __wicked_dbus_bond_set_mode(ni_dbus_object_t *object,
 	bond->mode = value;
 	return TRUE;
 }
+#endif
 
 /*
  * Get/set monitoring mode
@@ -245,9 +255,13 @@ __wicked_dbus_bond_set_interface_name(ni_dbus_object_t *object,
 	NI_DBUS_PROPERTY(type, __name, __wicked_dbus_bond, rw)
 #define WICKED_BONDING_PROPERTY_SIGNATURE(signature, __name, rw) \
 	__NI_DBUS_PROPERTY(signature, __name, __wicked_dbus_bond, rw)
+#define GENERIC_INT_PROPERTY(dbus_type, dbus_name, member_name, rw) \
+	NI_DBUS_GENERIC_INT_PROPERTY(bonding, dbus_type, dbus_name, member_name, rw)
+#define GENERIC_UINT_PROPERTY(dbus_type, dbus_name, member_name, rw) \
+	NI_DBUS_GENERIC_UINT_PROPERTY(bonding, dbus_type, dbus_name, member_name, rw)
 
 static ni_dbus_property_t	wicked_dbus_bond_properties[] = {
-	WICKED_BONDING_PROPERTY(UINT16, mode, RO),
+	GENERIC_UINT_PROPERTY(UINT32, mode, mode, RO),
 	WICKED_BONDING_PROPERTY_SIGNATURE(NI_DBUS_DICT_SIGNATURE, monitor, RO),
 	{ NULL }
 };

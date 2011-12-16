@@ -1,12 +1,24 @@
 #ifndef __WICKED_OBJECTMODEL_H__
 #define __WICKED_OBJECTMODEL_H__
 
-#define __NI_DBUS_PROPERTY_RO(fstem, __name)	NULL
-#define __NI_DBUS_PROPERTY_ROP(fstem, __name)	__NI_DBUS_PROPERTY_PARSE_FN(fstem, __name)
-#define __NI_DBUS_PROPERTY_RW(fstem, __name)	__NI_DBUS_PROPERTY_UPDATE_FN(fstem, __name)
+#define __NI_DBUS_PROPERTY_RO(fstem, __name) \
+	__NI_DBUS_PROPERTY_GET_FN(fstem, __name), \
+	__NI_DBUS_PROPERTY_SET_FN(fstem, __name)
+#define __NI_DBUS_PROPERTY_ROP(fstem, __name) \
+	__NI_DBUS_PROPERTY_RO(fstem, __name), \
+	__NI_DBUS_PROPERTY_PARSE_FN(fstem, __name)
+#define __NI_DBUS_PROPERTY_RW(fstem, __name) \
+	__NI_DBUS_PROPERTY_RO(fstem, __name), \
+	__NI_DBUS_PROPERTY_UPDATE_FN(fstem, __name)
 #define __NI_DBUS_PROPERTY_RWP(fstem, __name) \
+	__NI_DBUS_PROPERTY_RW(fstem, __name), \
 	__NI_DBUS_PROPERTY_PARSE_FN(fstem, __name), \
 	__NI_DBUS_PROPERTY_UPDATE_FN(fstem, __name)
+
+#define __NI_DBUS_PROPERTY_GET_FN(fstem, __name) \
+	.get = fstem ## _get_ ## __name
+#define __NI_DBUS_PROPERTY_SET_FN(fstem, __name) \
+	.set = fstem ## _set_ ## __name
 #define __NI_DBUS_PROPERTY_UPDATE_FN(fstem, __name) \
 	.update = fstem ## _update_ ## __name
 #define __NI_DBUS_PROPERTY_PARSE_FN(fstem, __name) \
@@ -21,12 +33,27 @@
 #define __NI_DBUS_PROPERTY(__signature, __name, fstem, rw) { \
 	.name = #__name, \
 	.signature = __signature, \
-	.get = fstem ## _get_ ## __name, \
-	.set = fstem ## _set_ ## __name, \
 	__NI_DBUS_PROPERTY_##rw(fstem, __name), \
 }
 #define NI_DBUS_PROPERTY(type, __name, fstem, rw) \
 	__NI_DBUS_PROPERTY(DBUS_TYPE_##type##_AS_STRING, __name, fstem, rw)
+
+#define __NI_DBUS_GENERIC_PROPERTY(struct_name, dbus_type, dbus_name, member_type, member_name, rw) { \
+	.name = #dbus_name, \
+	.signature = DBUS_TYPE_##dbus_type##_AS_STRING, \
+	__NI_DBUS_PROPERTY_##rw##P(ni_dbus_generic_property, member_type), \
+	.generic = { \
+		.get_handle = ni_objectmodel_get_##struct_name, \
+		.u = { .member_type##_offset = &((ni_##struct_name##_t *) 0)->member_name }, \
+	} \
+}
+#define NI_DBUS_GENERIC_INT_PROPERTY(struct_name, dbus_type, dbus_name, member_name, rw) \
+	__NI_DBUS_GENERIC_PROPERTY(struct_name, dbus_type, dbus_name, int, member_name, rw)
+#define NI_DBUS_GENERIC_UINT_PROPERTY(struct_name, dbus_type, dbus_name, member_name, rw) \
+	__NI_DBUS_GENERIC_PROPERTY(struct_name, dbus_type, dbus_name, uint, member_name, rw)
+#define NI_DBUS_GENERIC_STRING_PROPERTY(struct_name, dbus_type, dbus_name, member_name, rw) \
+	__NI_DBUS_GENERIC_PROPERTY(struct_name, dbus_type, dbus_name, string, member_name, rw)
+
 
 #define __pointer(base, offset_ptr) \
 	((typeof(offset_ptr)) (((caddr_t) base) + (unsigned long) offset_ptr))
