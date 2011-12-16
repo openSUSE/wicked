@@ -1,6 +1,8 @@
 #ifndef __WICKED_OBJECTMODEL_H__
 #define __WICKED_OBJECTMODEL_H__
 
+#include <wicked/dbus.h>
+
 #define __NI_DBUS_PROPERTY_RO(fstem, __name) \
 	__NI_DBUS_PROPERTY_GET_FN(fstem, __name), \
 	__NI_DBUS_PROPERTY_SET_FN(fstem, __name)

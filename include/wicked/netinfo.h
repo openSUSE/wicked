@@ -15,7 +15,6 @@
 #include <wicked/types.h>
 #include <wicked/constants.h>
 #include <wicked/util.h>
-#include <wicked/dbus.h>
 
 #define NI_MAXADDRLEN		16
 
