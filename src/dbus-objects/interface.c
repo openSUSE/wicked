@@ -864,7 +864,7 @@ static ni_dbus_property_t	wicked_dbus_interface_request_properties[] = {
 	{ NULL }
 };
 
-#define WICKED_DBUS_NETIF_REQUEST_INTERFACE "Request"
+#define WICKED_DBUS_NETIF_REQUEST_INTERFACE WICKED_DBUS_NETIF_INTERFACE "Request"
 
 const ni_dbus_service_t	wicked_dbus_interface_request_service = {
 	.name = WICKED_DBUS_NETIF_REQUEST_INTERFACE,

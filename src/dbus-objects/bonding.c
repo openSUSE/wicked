@@ -283,6 +283,10 @@ static ni_dbus_property_t	ni_objectmodel_bond_properties[] = {
 
 static ni_dbus_method_t		ni_objectmodel_bond_methods[] = {
 	{ "delete",		"",		__ni_objectmodel_delete_bond },
+#if 0
+	{ "addSlave",		DBUS_TYPE_OJECT_AS_STRING,	__ni_objectmodel_bond_add_slave },
+	{ "removeSlave",	DBUS_TYPE_OJECT_AS_STRING,	__ni_objectmodel_bond_remove_slave },
+#endif
 	{ NULL }
 };
 
