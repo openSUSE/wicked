@@ -40,6 +40,8 @@ extern dbus_bool_t		ni_dbus_message_iter_get_variant(DBusMessageIter *iter,
 extern dbus_bool_t		ni_dbus_message_iter_append_byte_array(DBusMessageIter *iter,
 						const unsigned char *value, unsigned int len);
 
+extern const ni_dbus_property_t *__ni_dbus_service_get_property(const ni_dbus_property_t *, const char *);
+
 #define NI_DBUS_DICT_ENTRY_SIGNATURE \
 		DBUS_DICT_ENTRY_BEGIN_CHAR_AS_STRING \
 		DBUS_TYPE_STRING_AS_STRING \

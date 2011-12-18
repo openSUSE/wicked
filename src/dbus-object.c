@@ -379,68 +379,113 @@ ni_dbus_service_get_signal(const ni_dbus_service_t *service, const char *name)
  * Find the named property
  */
 const ni_dbus_property_t *
-ni_dbus_service_get_property(const ni_dbus_service_t *service, const char *name)
+__ni_dbus_service_get_property(const ni_dbus_property_t *property_list, const char *name)
 {
 	const ni_dbus_property_t *property;
 
-	if (service->properties == NULL)
+	if (property_list == NULL)
 		return NULL;
-	for (property = service->properties; property->name; ++property) {
+	for (property = property_list; property->name; ++property) {
 		if (!strcmp(property->name, name))
 			return property;
 	}
 	return NULL;
 }
 
+const ni_dbus_property_t *
+ni_dbus_service_get_property(const ni_dbus_service_t *service, const char *name)
+{
+	return __ni_dbus_service_get_property(service->properties, name);
+}
+
 /*
  * Get all properties of an object, for a given dbus interface
  */
+dbus_bool_t
+__ni_dbus_object_get_properties_as_dict(const ni_dbus_object_t *object,
+					const char *context,
+					const ni_dbus_property_t *properties,
+					ni_dbus_variant_t *dict,
+					DBusError *error)
+{
+	const ni_dbus_property_t *property;
+
+	/* Loop over properties and add them here */
+	for (property = properties; property->name; ++property) {
+		ni_dbus_variant_t *var;
+
+		if (property->signature == NULL)
+			continue;
+
+		/* We could just have a .get function for dicts that does what
+		 * the following if() statement does, except we'd lose the context
+		 * of the surrounding interface/property names in error messages.
+		 * Maybe not such a great loss, though...
+		 */
+		if (!strcmp(property->signature, NI_DBUS_DICT_SIGNATURE)
+		 && property->generic.u.dict_children != NULL) {
+			const ni_dbus_property_t *child_properties = property->generic.u.dict_children;
+			ni_dbus_variant_t *child;
+			char subcontext[512];
+
+			child = ni_dbus_dict_add(dict, property->name);
+			ni_dbus_variant_init_dict(child);
+
+			snprintf(subcontext, sizeof(subcontext), "%s.%s", context, property->name);
+			if (!__ni_dbus_object_get_properties_as_dict(object, subcontext, child_properties, child, error))
+				return FALSE;
+			continue;
+		}
+
+		if (property->get == NULL)
+			continue;
+
+		var = ni_dbus_dict_add(dict, property->name);
+		if (property->signature) {
+			/* Initialize the variant to the specified type. This allows
+			 * the property handler to use generic variant_set_int functions
+			 * and the like, without having to know exactly which type
+			 * is being used. */
+			if (!ni_dbus_variant_init_signature(var, property->signature)) {
+				ni_debug_dbus("%s: unable to initialize property %s.%s of type %s",
+					object->path,
+					context,
+					property->name,
+					property->signature);
+				return FALSE;
+			}
+		}
+
+		if (!property->get(object, property, var, error)) {
+			ni_debug_dbus("%s: unable to get property %s.%s",
+					object->path,
+					context,
+					property->name);
+			ni_dbus_variant_destroy(var);
+		}
+	}
+
+	return TRUE;
+}
+
 dbus_bool_t
 ni_dbus_object_get_properties_as_dict(const ni_dbus_object_t *object,
 					const ni_dbus_service_t *interface,
 					ni_dbus_variant_t *dict)
 {
-	const ni_dbus_property_t *property;
 	int rv = TRUE;
 
 	NI_TRACE_ENTER_ARGS("object=%s, interface=%s", object->path, interface->name);
 
 	/* Loop over properties and add them here */
 	if (interface->properties) {
-		for (property = interface->properties; property->name; ++property) {
-			DBusError error = DBUS_ERROR_INIT;
-			ni_dbus_variant_t *var;
+		DBusError error = DBUS_ERROR_INIT;
 
-			if (property->get == NULL)
-				continue;
-
-			var = ni_dbus_dict_add(dict, property->name);
-			if (property->signature) {
-				/* Initialize the variant to the specified type. This allows
-				 * the property handler to use generic variant_set_int functions
-				 * and the like, without having to know exactly which type
-				 * is being used. */
-				if (!ni_dbus_variant_init_signature(var, property->signature)) {
-					ni_debug_dbus("%s: unable to initialize property %s.%s of type %s",
-						object->path,
+		rv = __ni_dbus_object_get_properties_as_dict(object,
 						interface->name,
-						property->name,
-						property->signature);
-					rv = FALSE;
-					goto next;
-				}
-			}
-
-			if (!property->get(object, property, var, &error)) {
-				ni_debug_dbus("%s: unable to get property %s.%s",
-						object->path,
-						interface->name,
-						property->name);
-				ni_dbus_variant_destroy(var);
-			}
-next:
-			dbus_error_free(&error);
-		}
+						interface->properties,
+						dict, &error);
+		dbus_error_free(&error);
 	}
 
 	return rv;
