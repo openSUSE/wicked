@@ -40,21 +40,34 @@
 #define NI_DBUS_PROPERTY(type, __name, fstem, rw) \
 	__NI_DBUS_PROPERTY(DBUS_TYPE_##type##_AS_STRING, __name, fstem, rw)
 
-#define __NI_DBUS_GENERIC_PROPERTY(struct_name, dbus_type, dbus_name, member_type, member_name, rw) { \
+#define __NI_DBUS_GENERIC_PROPERTY(struct_name, dbus_sig, dbus_name, member_type, member_name, rw) { \
 	.name = #dbus_name, \
-	.signature = DBUS_TYPE_##dbus_type##_AS_STRING, \
+	.signature = dbus_sig, \
 	__NI_DBUS_PROPERTY_##rw##P(ni_dbus_generic_property, member_type), \
 	.generic = { \
 		.get_handle = ni_objectmodel_get_##struct_name, \
 		.u = { .member_type##_offset = &((ni_##struct_name##_t *) 0)->member_name }, \
 	} \
 }
-#define NI_DBUS_GENERIC_INT_PROPERTY(struct_name, dbus_type, dbus_name, member_name, rw) \
-	__NI_DBUS_GENERIC_PROPERTY(struct_name, dbus_type, dbus_name, int, member_name, rw)
-#define NI_DBUS_GENERIC_UINT_PROPERTY(struct_name, dbus_type, dbus_name, member_name, rw) \
-	__NI_DBUS_GENERIC_PROPERTY(struct_name, dbus_type, dbus_name, uint, member_name, rw)
-#define NI_DBUS_GENERIC_STRING_PROPERTY(struct_name, dbus_type, dbus_name, member_name, rw) \
-	__NI_DBUS_GENERIC_PROPERTY(struct_name, dbus_type, dbus_name, string, member_name, rw)
+#define __NI_DBUS_GENERIC_DICT_PROPERTY(dbus_name, child_properties, rw) { \
+	.name = #dbus_name, \
+	.signature = NI_DBUS_DICT_SIGNATURE, \
+	.generic = { \
+		.u = { .dict_children = child_properties }, \
+	} \
+}
+#define NI_DBUS_GENERIC_INT_PROPERTY(struct_name, dbus_name, member_name, rw) \
+	__NI_DBUS_GENERIC_PROPERTY(struct_name, DBUS_TYPE_INT32_AS_STRING, dbus_name, int, member_name, rw)
+#define NI_DBUS_GENERIC_UINT_PROPERTY(struct_name, dbus_name, member_name, rw) \
+	__NI_DBUS_GENERIC_PROPERTY(struct_name, DBUS_TYPE_UINT32_AS_STRING, dbus_name, uint, member_name, rw)
+#define NI_DBUS_GENERIC_STRING_PROPERTY(struct_name, dbus_name, member_name, rw) \
+	__NI_DBUS_GENERIC_PROPERTY(struct_name, DBUS_TYPE_STRING_AS_STRING, dbus_name, string, member_name, rw)
+#define NI_DBUS_GENERIC_STRING_ARRAY_PROPERTY(struct_name, dbus_name, member_name, rw) \
+	__NI_DBUS_GENERIC_PROPERTY(struct_name, \
+			DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_STRING_AS_STRING, \
+			dbus_name, string_array, member_name, rw)
+#define NI_DBUS_GENERIC_DICT_PROPERTY(dbus_name, child_properties, rw) \
+	__NI_DBUS_GENERIC_DICT_PROPERTY(dbus_name, child_properties, rw)
 
 
 #define __pointer(base, offset_ptr) \

@@ -107,6 +107,8 @@ struct ni_dbus_property	{
 			int *		int_offset;
 			unsigned int *	uint_offset;
 			char **		string_offset;
+			ni_string_array_t *string_array_offset;
+			const ni_dbus_property_t *dict_children;
 		} u;
 	} generic;
 
@@ -301,6 +303,12 @@ extern dbus_bool_t		ni_dbus_generic_property_get_string(const ni_dbus_object_t *
 extern dbus_bool_t		ni_dbus_generic_property_set_string(ni_dbus_object_t *, const ni_dbus_property_t *,
 					const ni_dbus_variant_t *, DBusError *);
 extern dbus_bool_t		ni_dbus_generic_property_parse_string(const ni_dbus_property_t *,
+					ni_dbus_variant_t *, const char *);
+extern dbus_bool_t		ni_dbus_generic_property_get_string_array(const ni_dbus_object_t *, const ni_dbus_property_t *,
+					ni_dbus_variant_t *r, DBusError *);
+extern dbus_bool_t		ni_dbus_generic_property_set_string_array(ni_dbus_object_t *, const ni_dbus_property_t *,
+					const ni_dbus_variant_t *, DBusError *);
+extern dbus_bool_t		ni_dbus_generic_property_parse_string_array(const ni_dbus_property_t *,
 					ni_dbus_variant_t *, const char *);
 
 /*

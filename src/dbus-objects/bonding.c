@@ -112,6 +112,7 @@ ni_objectmodel_get_bonding(const ni_dbus_object_t *object, DBusError *error)
 	return ni_interface_get_bonding(ifp);
 }
 
+#if 0
 static ni_bonding_t *
 __wicked_dbus_bond_handle(const ni_dbus_object_t *object, DBusError *error)
 {
@@ -120,7 +121,6 @@ __wicked_dbus_bond_handle(const ni_dbus_object_t *object, DBusError *error)
 	return ni_interface_get_bonding(ifp);
 }
 
-#if 0
 /*
  * Get/set bonding mode
  */
@@ -156,7 +156,6 @@ __wicked_dbus_bond_set_mode(ni_dbus_object_t *object,
 	bond->mode = value;
 	return TRUE;
 }
-#endif
 
 /*
  * Get/set monitoring mode
@@ -212,6 +211,7 @@ __wicked_dbus_bond_set_monitor(ni_dbus_object_t *object,
 	bond->monitoring = value;
 	return TRUE;
 }
+#endif
 
 #if 0
 /*
@@ -251,30 +251,44 @@ __wicked_dbus_bond_set_interface_name(ni_dbus_object_t *object,
 }
 #endif
 
-#define WICKED_BONDING_PROPERTY(type, __name, rw) \
-	NI_DBUS_PROPERTY(type, __name, __wicked_dbus_bond, rw)
-#define WICKED_BONDING_PROPERTY_SIGNATURE(signature, __name, rw) \
-	__NI_DBUS_PROPERTY(signature, __name, __wicked_dbus_bond, rw)
-#define GENERIC_INT_PROPERTY(dbus_type, dbus_name, member_name, rw) \
-	NI_DBUS_GENERIC_INT_PROPERTY(bonding, dbus_type, dbus_name, member_name, rw)
-#define GENERIC_UINT_PROPERTY(dbus_type, dbus_name, member_name, rw) \
-	NI_DBUS_GENERIC_UINT_PROPERTY(bonding, dbus_type, dbus_name, member_name, rw)
+#define BONDING_INT_PROPERTY(dbus_name, member_name, rw) \
+	NI_DBUS_GENERIC_INT_PROPERTY(bonding, dbus_name, member_name, rw)
+#define BONDING_UINT_PROPERTY(dbus_name, member_name, rw) \
+	NI_DBUS_GENERIC_UINT_PROPERTY(bonding, dbus_name, member_name, rw)
+#define BONDING_STRING_ARRAY_PROPERTY(dbus_name, member_name, rw) \
+	NI_DBUS_GENERIC_STRING_ARRAY_PROPERTY(bonding, dbus_name, member_name, rw)
 
-static ni_dbus_property_t	wicked_dbus_bond_properties[] = {
-	GENERIC_UINT_PROPERTY(UINT32, mode, mode, RO),
-	WICKED_BONDING_PROPERTY_SIGNATURE(NI_DBUS_DICT_SIGNATURE, monitor, RO),
+static ni_dbus_property_t	ni_objectmodel_bond_monitor_properties[] = {
+	BONDING_UINT_PROPERTY(mode, mode, RO),
+
+	/* If mode == NI_BOND_MONITOR_ARP */
+	BONDING_UINT_PROPERTY(arp-interval, arpmon.interval, RO),
+	BONDING_UINT_PROPERTY(arp-validate, arpmon.validate, RO),
+	BONDING_STRING_ARRAY_PROPERTY(arp-targets, arpmon.targets, RO),
+
+	/* If mode == NI_BOND_MONITOR_MII */
+	BONDING_UINT_PROPERTY(mii-frequency, miimon.frequency, RO),
+	BONDING_UINT_PROPERTY(mii-updelay, miimon.updelay, RO),
+	BONDING_UINT_PROPERTY(mii-downdelay, miimon.downdelay, RO),
+	BONDING_UINT_PROPERTY(mii-carrier-detect, miimon.carrier_detect, RO),
+
+	{ NULL }
+};
+static ni_dbus_property_t	ni_objectmodel_bond_properties[] = {
+	BONDING_UINT_PROPERTY(mode, mode, RO),
+	NI_DBUS_GENERIC_DICT_PROPERTY(monitor, ni_objectmodel_bond_monitor_properties, RO),
 	{ NULL }
 };
 
 
-static ni_dbus_method_t		wicked_dbus_bond_methods[] = {
+static ni_dbus_method_t		ni_objectmodel_bond_methods[] = {
 	{ "delete",		"",		__ni_objectmodel_delete_bond },
 	{ NULL }
 };
 
 ni_dbus_service_t	wicked_dbus_bond_service = {
 	.name = WICKED_DBUS_BONDING_INTERFACE,
-	.methods = wicked_dbus_bond_methods,
-	.properties = wicked_dbus_bond_properties,
+	.methods = ni_objectmodel_bond_methods,
+	.properties = ni_objectmodel_bond_properties,
 };
 

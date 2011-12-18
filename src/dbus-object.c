@@ -486,6 +486,57 @@ ni_dbus_generic_property_parse_uint(const ni_dbus_property_t *prop, ni_dbus_vari
 	return ni_dbus_variant_parse(var, string, prop->signature);
 }
 
+dbus_bool_t
+ni_dbus_generic_property_get_string_array(const ni_dbus_object_t *obj, const ni_dbus_property_t *prop,
+					ni_dbus_variant_t *var, DBusError *error)
+{
+	const ni_string_array_t *vptr;
+	const void *handle;
+	unsigned int i;
+
+	if (!(handle = prop->generic.get_handle(obj, error)))
+		return FALSE;
+
+	vptr = __property_data(prop, handle, string_array);
+
+	ni_dbus_variant_init_string_array(var);
+	for (i = 0; i < vptr->count; ++i) {
+		ni_dbus_variant_append_string_array(var, vptr->data[i]);
+	}
+	return TRUE;
+}
+
+dbus_bool_t
+ni_dbus_generic_property_set_string_array(ni_dbus_object_t *obj, const ni_dbus_property_t *prop,
+					const ni_dbus_variant_t *var, DBusError *error)
+{
+	ni_string_array_t *vptr;
+	unsigned int i;
+	void *handle;
+
+	if (!(handle = prop->generic.get_handle(obj, error)))
+		return FALSE;
+
+	vptr = __property_data(prop, handle, string_array);
+	for (i = 0; i < var->array.len; ++i)
+		ni_string_array_append(vptr, var->string_array_value[i]);
+	return TRUE;
+}
+
+dbus_bool_t
+ni_dbus_generic_property_parse_string_array(const ni_dbus_property_t *prop, ni_dbus_variant_t *var, const char *string)
+{
+	char *s, *copy;
+
+	copy = strdup(string);
+	ni_dbus_variant_init_string_array(var);
+
+	/* Should take quoting into account */
+	for (s = strtok(copy, ","); s; s = strtok(NULL, ","))
+		ni_dbus_variant_append_string_array(var, s);
+	return FALSE;
+}
+
 /*
  * Build an object path from parent path + name
  */
