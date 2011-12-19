@@ -582,6 +582,7 @@ ni_system_bond_create(ni_netconfig_t *nc, const char *ifname, const ni_bonding_t
 		return -1;
 	}
 
+	*ifpp = ifp;
 	return 0;
 }
 
