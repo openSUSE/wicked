@@ -180,10 +180,6 @@ ni_objectmodel_new_interface(ni_dbus_server_t *server, const ni_dbus_service_t *
 				"Cannot create interface %s - already exists", ifname);
 			goto error;
 		}
-
-		/* FIXME:
-		ni_dbus_dict_delete_entry(dict, "name");
-		 */
 	}
 
 	ifp = __ni_interface_new(ifname, 0);
@@ -192,6 +188,9 @@ ni_objectmodel_new_interface(ni_dbus_server_t *server, const ni_dbus_service_t *
 			"Internal error - cannot create network interface");
 		return NULL;
 	}
+
+	/* Hack: we shouldn't modify a const dict */
+	ni_dbus_dict_delete_entry((ni_dbus_variant_t *) dict, "name");
 
 	object = ni_dbus_object_new(NULL, &wicked_dbus_interface_functions, ifp);
 	ni_dbus_object_register_service(object, &wicked_dbus_interface_service);

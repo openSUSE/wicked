@@ -1070,7 +1070,7 @@ ni_dbus_dict_add_byte_array(ni_dbus_variant_t *dict, const char *key,
 	return TRUE;
 }
 
-const ni_dbus_variant_t *
+ni_dbus_variant_t *
 ni_dbus_dict_get(const ni_dbus_variant_t *dict, const char *key)
 {
 	ni_dbus_dict_entry_t *entry;
@@ -1141,6 +1141,31 @@ ni_dbus_dict_get_string(const ni_dbus_variant_t *dict, const char *key, const ch
 		return FALSE;
 	*value = var->string_value;
 	return TRUE;
+}
+
+dbus_bool_t
+ni_dbus_dict_delete_entry(ni_dbus_variant_t *dict, const char *key)
+{
+	ni_dbus_dict_entry_t *entry;
+	unsigned int i;
+
+	if (dict->type != DBUS_TYPE_ARRAY
+	 || dict->array.element_type != DBUS_TYPE_DICT_ENTRY)
+		return FALSE;
+
+	entry = &dict->dict_array_value[0];
+	for (i = 0; i < dict->array.len; ++i, ++entry) {
+		if (entry->key && !strcmp(entry->key, key)) {
+			ni_dbus_variant_destroy(&entry->datum);
+			dict->array.len--;
+
+			/* Shift down all entries */
+			memmove(entry, entry + 1, (dict->array.len - i) * sizeof(*entry));
+			return TRUE;
+		}
+	}
+
+	return FALSE;
 }
 
 /*

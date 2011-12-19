@@ -430,8 +430,18 @@ ni_dbus_service_create_property(const ni_dbus_service_t *service, const char *na
 		if (property->signature && !strcmp(property->signature, NI_DBUS_DICT_SIGNATURE)) {
 			property_list = property->generic.u.dict_children;
 			if (dict) {
-				dict = ni_dbus_dict_add(dict, property->name);
-				ni_dbus_variant_init_dict(dict);
+				ni_dbus_variant_t *child;
+
+				child = ni_dbus_dict_get(dict, property->name);
+				if (child == NULL) {
+					child = ni_dbus_dict_add(dict, property->name);
+					ni_dbus_variant_init_dict(child);
+				} else if (!ni_dbus_variant_is_dict(child)) {
+					ni_error("Error adding property %s to dict - exists but is not a dict",
+							property->name);
+					return NULL;
+				}
+				dict = child;
 			}
 		}
 	}
