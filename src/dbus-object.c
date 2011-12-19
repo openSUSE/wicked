@@ -398,6 +398,51 @@ ni_dbus_service_get_property(const ni_dbus_service_t *service, const char *name)
 	return __ni_dbus_service_get_property(service->properties, name);
 }
 
+const ni_dbus_property_t *
+ni_dbus_service_lookup_property(const ni_dbus_service_t *service, const char *name)
+{
+	return ni_dbus_service_create_property(service, name, NULL, NULL);
+}
+
+const ni_dbus_property_t *
+ni_dbus_service_create_property(const ni_dbus_service_t *service, const char *name,
+				ni_dbus_variant_t *dict, ni_dbus_variant_t **outdict)
+{
+	const ni_dbus_property_t *property_list, *property = NULL;
+	char *dot, *s, *copy;
+
+	/* Fast path - handle properties without . in the name */
+	if (strchr(name, '.') == NULL) {
+		property = __ni_dbus_service_get_property(service->properties, name);
+		goto done;
+	}
+
+	copy = xstrdup(name);
+	property_list = service->properties;
+	for (s = copy; s; s = dot) {
+		if ((dot = strchr(s, '.')) != NULL)
+			*dot++ = '\0';
+		property = __ni_dbus_service_get_property(property_list, s);
+		if (property == NULL)
+			break;
+
+		property_list = NULL;
+		if (property->signature && !strcmp(property->signature, NI_DBUS_DICT_SIGNATURE)) {
+			property_list = property->generic.u.dict_children;
+			if (dict) {
+				dict = ni_dbus_dict_add(dict, property->name);
+				ni_dbus_variant_init_dict(dict);
+			}
+		}
+	}
+	free(copy);
+
+done:
+	if (outdict)
+		*outdict = dict;
+	return property;
+}
+
 /*
  * Get all properties of an object, for a given dbus interface
  */
@@ -579,7 +624,7 @@ ni_dbus_generic_property_parse_string_array(const ni_dbus_property_t *prop, ni_d
 	/* Should take quoting into account */
 	for (s = strtok(copy, ","); s; s = strtok(NULL, ","))
 		ni_dbus_variant_append_string_array(var, s);
-	return FALSE;
+	return TRUE;
 }
 
 /*

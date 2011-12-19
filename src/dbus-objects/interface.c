@@ -167,12 +167,26 @@ ni_objectmodel_new_interface(ni_dbus_server_t *server, const ni_dbus_service_t *
 {
 	ni_dbus_object_t *object = NULL, *result = NULL;
 	ni_interface_t *ifp = NULL;
-	unsigned int i;
+	const char *ifname = NULL;
 
 	if (!ni_dbus_variant_is_dict(dict))
 		goto bad_args;
 
-	ifp = __ni_interface_new(NULL, 0);
+	if (ni_dbus_dict_get_string(dict, "name", &ifname)) {
+		ni_netconfig_t *nc = ni_global_state_handle(0);
+
+		if (ni_interface_by_name(nc, ifname)) {
+			dbus_set_error(error, DBUS_ERROR_FAILED,
+				"Cannot create interface %s - already exists", ifname);
+			goto error;
+		}
+
+		/* FIXME:
+		ni_dbus_dict_delete_entry(dict, "name");
+		 */
+	}
+
+	ifp = __ni_interface_new(ifname, 0);
 	if (!ifp) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
 			"Internal error - cannot create network interface");
@@ -180,51 +194,14 @@ ni_objectmodel_new_interface(ni_dbus_server_t *server, const ni_dbus_service_t *
 	}
 
 	object = ni_dbus_object_new(NULL, &wicked_dbus_interface_functions, ifp);
+	ni_dbus_object_register_service(object, &wicked_dbus_interface_service);
 	ni_dbus_object_register_service(object, service);
 
-	/* FIXME: use ni_dbus_object_set_properties_from_dict for this */
-	for (i = 0; i < dict->array.len; ++i) {
-		const ni_dbus_dict_entry_t *entry = &dict->dict_array_value[i];
-		const ni_dbus_property_t *prop;
-
-		if (!strcmp(entry->key, "name")) {
-			const char *ifname;
-
-			/* fail if interface exists already */
-			{
-				ni_netconfig_t *nc = ni_global_state_handle(0);
-
-				if (ni_interface_by_name(nc, ifname)) {
-					dbus_set_error(error, DBUS_ERROR_FAILED,
-						"Cannot create interface %s - already exists",
-						ifname);
-					goto error;
-				}
-			}
-
-			if (ni_dbus_variant_get_string(&entry->datum, &ifname))
-				ni_string_dup(&ifp->name, ifname);
-			continue;
-		}
-
-		if (!(prop = ni_dbus_service_get_property(service, entry->key))) {
-			ni_debug_dbus("Unknown property %s when creating a %s object",
-					entry->key, service->name);
-			continue;
-		}
-
-		if (!prop->set) {
-			ni_debug_dbus("Property %s has no set function (when creating a %s object)",
-					entry->key, service->name);
-			continue;
-		}
-
-		if (!prop->set(object, prop, &entry->datum, error)) {
-			if (!dbus_error_is_set(error))
-				dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-						"Error setting property \"%s\"", prop->name);
-			goto error;
-		}
+	/* Set up the interface description */
+	if (!ni_dbus_object_set_properties_from_dict(object, service, dict)) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"Unable to extract interface definition from arguments");
+		goto error;
 	}
 
 	if (service == &wicked_dbus_vlan_service) {
@@ -261,7 +238,8 @@ bad_args:
 error:
 	if (object)
 		ni_dbus_object_free(object);
-	ni_interface_put(ifp);
+	if (ifp)
+		ni_interface_put(ifp);
 	return NULL;
 }
 

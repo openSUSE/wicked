@@ -233,7 +233,7 @@ wicked_properties_from_argv(const ni_dbus_service_t *interface, ni_dbus_variant_
 	ni_dbus_variant_init_dict(dict);
 	for (i = 0; i < argc; ++i) {
 		const ni_dbus_property_t *property;
-		ni_dbus_variant_t *var;
+		ni_dbus_variant_t *var, *var_dict;
 		char *property_name = argv[i];
 		char *value;
 
@@ -248,12 +248,15 @@ wicked_properties_from_argv(const ni_dbus_service_t *interface, ni_dbus_variant_
 			continue;
 		}
 
-		if (!(property = ni_dbus_service_get_property(interface, property_name))) {
+		/* Using lookup_property will also resolve hierarchical names, such
+		 * as foo.bar.baz (which is property baz within a dict named bar,
+		 * which is part of dict foo). */
+		if (!(property = ni_dbus_service_create_property(interface, property_name, dict, &var_dict))) {
 			ni_error("Unsupported property \"%s\"", property_name);
 			return FALSE;
 		}
 
-		var = ni_dbus_dict_add(dict, property_name);
+		var = ni_dbus_dict_add(var_dict, property->name);
 		if (!ni_dbus_variant_init_signature(var, property->signature)) {
 			ni_error("Unable to parse property %s=%s (bad type signature)",
 					property_name, value);
