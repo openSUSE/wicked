@@ -36,20 +36,10 @@ __ni_objectmodel_build_interface_object(ni_dbus_server_t *server, ni_interface_t
 {
 	ni_dbus_object_t *object;
 	const ni_dbus_service_t *link_layer_service;
-	char object_path[256];
-	char sane_name[IFNAMSIZ+5], *sp;
 
 	if (server != NULL) {
-		if (strlen(ifp->name) >= sizeof(sane_name))
-			return NULL;
-		strcpy(sane_name, ifp->name);
-		for (sp = sane_name; *sp; ++sp) {
-			if (*sp == '.')
-				*sp = '_';
-		}
-
-		snprintf(object_path, sizeof(object_path), "Interface/%s", sane_name);
-		object = ni_dbus_server_register_object(server, object_path,
+		object = ni_dbus_server_register_object(server,
+						ni_objectmodel_interface_path(ifp),
 						&wicked_dbus_interface_functions,
 						ni_interface_get(ifp));
 	} else {
@@ -93,6 +83,27 @@ ni_objectmodel_unregister_interface(ni_dbus_server_t *server, ni_interface_t *if
 	}
 
 	return 0;
+}
+
+/*
+ * Return the canonical object path for an interface object
+ */
+const char *
+ni_objectmodel_interface_path(const ni_interface_t *ifp)
+{
+	static char object_path[256];
+	char sane_name[IFNAMSIZ+5], *sp;
+
+	if (strlen(ifp->name) >= sizeof(sane_name))
+		return NULL;
+	strcpy(sane_name, ifp->name);
+	for (sp = sane_name; *sp; ++sp) {
+		if (*sp == '.')
+			*sp = '_';
+	}
+
+	snprintf(object_path, sizeof(object_path), "Interface/%s", sane_name);
+	return object_path;
 }
 
 /*

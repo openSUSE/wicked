@@ -40,7 +40,7 @@
 #define NI_DBUS_PROPERTY(type, __name, fstem, rw) \
 	__NI_DBUS_PROPERTY(DBUS_TYPE_##type##_AS_STRING, __name, fstem, rw)
 
-#define __NI_DBUS_GENERIC_PROPERTY(struct_name, dbus_sig, dbus_name, member_type, member_name, rw) { \
+#define __NI_DBUS_GENERIC_PROPERTY(struct_name, dbus_sig, dbus_name, member_type, member_name, rw, args...) { \
 	.name = #dbus_name, \
 	.signature = dbus_sig, \
 	__NI_DBUS_PROPERTY_##rw##P(ni_dbus_generic_property, member_type), \
@@ -48,6 +48,7 @@
 		.get_handle = ni_objectmodel_get_##struct_name, \
 		.u = { .member_type##_offset = &((ni_##struct_name##_t *) 0)->member_name }, \
 	} \
+	, ##args \
 }
 #define __NI_DBUS_GENERIC_DICT_PROPERTY(dbus_name, child_properties, rw) { \
 	.name = #dbus_name, \
@@ -153,6 +154,7 @@ extern ni_dbus_service_t	wicked_dbus_bond_service;
 extern ni_dbus_service_t	wicked_dbus_bridge_port_dummy_service;
 extern ni_dbus_service_t	wicked_dbus_bond_port_dummy_service;
 
+extern const char *		ni_objectmodel_interface_path(const ni_interface_t *);
 extern ni_dbus_object_t *	ni_objectmodel_new_vlan(ni_dbus_server_t *server,
 					const ni_dbus_object_t *config,
 					DBusError *error);
