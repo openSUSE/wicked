@@ -19,7 +19,7 @@
 
 static int			__ni_bridge_str_to_uint(const char *, unsigned int *);
 static int			__ni_bridge_uint_to_str(unsigned int, char **);
-static int			__ni_bridge_str_to_time(const char *, unsigned long *);
+static int			__ni_bridge_str_to_time(const char *, unsigned int *);
 static int			__ni_bridge_time_to_str(unsigned long, char **);
 
 static ni_bridge_port_t *	__ni_bridge_port_clone(const ni_bridge_port_t *);
@@ -73,7 +73,7 @@ __ni_bridge_uint_to_str(unsigned int val, char **str)
 }
 
 static int
-__ni_bridge_str_to_time(const char *str, unsigned long *val)
+__ni_bridge_str_to_time(const char *str, unsigned int *val)
 {
 	if (!str || !*str) {
 		*val = NI_BRIDGE_VALUE_NOT_SET;
@@ -83,7 +83,7 @@ __ni_bridge_str_to_time(const char *str, unsigned long *val)
 		double d = strtod(str, &end);
 
 		if (*end == '\0') {
-			*val = (unsigned long)(d * 100);
+			*val = (unsigned int)(d * 100);
 			return 1;
 		}
 	}

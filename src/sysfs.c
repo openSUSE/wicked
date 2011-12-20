@@ -364,10 +364,10 @@ ni_sysfs_bridge_get_config(const char *ifname, ni_bridge_t *bridge)
 {
 	ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_ATTR "/stp_state", &bridge->stp);
 	ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_ATTR "/priority", &bridge->priority);
-	ni_sysfs_netif_get_ulong(ifname, SYSFS_BRIDGE_ATTR "/forward_delay", &bridge->forward_delay);
-	ni_sysfs_netif_get_ulong(ifname, SYSFS_BRIDGE_ATTR "/ageing_time", &bridge->ageing_time);
-	ni_sysfs_netif_get_ulong(ifname, SYSFS_BRIDGE_ATTR "/hello_time", &bridge->hello_time);
-	ni_sysfs_netif_get_ulong(ifname, SYSFS_BRIDGE_ATTR "/max_age", &bridge->max_age);
+	ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_ATTR "/forward_delay", &bridge->forward_delay);
+	ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_ATTR "/ageing_time", &bridge->ageing_time);
+	ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_ATTR "/hello_time", &bridge->hello_time);
+	ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_ATTR "/max_age", &bridge->max_age);
 }
 
 int
@@ -382,16 +382,16 @@ ni_sysfs_bridge_update_config(const char *ifname, const ni_bridge_t *bridge)
 	 && ni_sysfs_netif_put_uint(ifname, SYSFS_BRIDGE_ATTR "/priority", bridge->priority) < 0)
 		rv = -1;
 	if (bridge->forward_delay != NI_BRIDGE_VALUE_NOT_SET
-	 && ni_sysfs_netif_put_ulong(ifname, SYSFS_BRIDGE_ATTR "/forward_delay", bridge->forward_delay) < 0)
+	 && ni_sysfs_netif_put_uint(ifname, SYSFS_BRIDGE_ATTR "/forward_delay", bridge->forward_delay) < 0)
 		rv = -1;
 	if (bridge->ageing_time != NI_BRIDGE_VALUE_NOT_SET
-	 && ni_sysfs_netif_put_ulong(ifname, SYSFS_BRIDGE_ATTR "/ageing_time", bridge->ageing_time) < 0)
+	 && ni_sysfs_netif_put_uint(ifname, SYSFS_BRIDGE_ATTR "/ageing_time", bridge->ageing_time) < 0)
 		rv = -1;
 	if (bridge->hello_time != NI_BRIDGE_VALUE_NOT_SET
-	 && ni_sysfs_netif_put_ulong(ifname, SYSFS_BRIDGE_ATTR "/hello_time", bridge->hello_time) < 0)
+	 && ni_sysfs_netif_put_uint(ifname, SYSFS_BRIDGE_ATTR "/hello_time", bridge->hello_time) < 0)
 		rv = -1;
 	if (bridge->max_age != NI_BRIDGE_VALUE_NOT_SET
-	 && ni_sysfs_netif_put_ulong(ifname, SYSFS_BRIDGE_ATTR "/max_age", bridge->max_age) < 0)
+	 && ni_sysfs_netif_put_uint(ifname, SYSFS_BRIDGE_ATTR "/max_age", bridge->max_age) < 0)
 		rv = -1;
 
 	return rv;

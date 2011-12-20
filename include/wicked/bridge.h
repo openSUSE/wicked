@@ -83,10 +83,10 @@ struct ni_bridge {
 	ni_bridge_stp_t		stp;
 
 	/* The following should probably be changed to type double */
-	unsigned long		forward_delay;	/* time in 1/100 sec */
-	unsigned long		ageing_time;	/* time in 1/100 sec */
-	unsigned long		hello_time;	/* time in 1/100 sec */
-	unsigned long		max_age;	/* time in 1/100 sec */
+	unsigned int		forward_delay;	/* time in 1/100 sec */
+	unsigned int		ageing_time;	/* time in 1/100 sec */
+	unsigned int		hello_time;	/* time in 1/100 sec */
+	unsigned int		max_age;	/* time in 1/100 sec */
 
 	ni_bridge_status_t	status;
 	ni_bridge_port_array_t	ports;
