@@ -320,6 +320,13 @@ ni_dbus_variant_set_string(ni_dbus_variant_t *var, const char *value)
 }
 
 void
+ni_dbus_variant_set_object_path(ni_dbus_variant_t *var, const char *value)
+{
+	__ni_dbus_variant_change_type(var, DBUS_TYPE_OBJECT_PATH);
+	ni_string_dup(&var->string_value, value);
+}
+
+void
 ni_dbus_variant_set_bool(ni_dbus_variant_t *var, dbus_bool_t value)
 {
 	__ni_dbus_variant_change_type(var, DBUS_TYPE_BOOLEAN);
@@ -382,6 +389,15 @@ dbus_bool_t
 ni_dbus_variant_get_string(const ni_dbus_variant_t *var, const char **ret)
 {
 	if (var->type != DBUS_TYPE_STRING)
+		return FALSE;
+	*ret = var->string_value;
+	return TRUE;
+}
+
+dbus_bool_t
+ni_dbus_variant_get_object_path(const ni_dbus_variant_t *var, const char **ret)
+{
+	if (var->type != DBUS_TYPE_OBJECT_PATH)
 		return FALSE;
 	*ret = var->string_value;
 	return TRUE;
@@ -982,6 +998,17 @@ ni_dbus_dict_add_string(ni_dbus_variant_t *dict, const char *key, const char *va
 }
 
 dbus_bool_t
+ni_dbus_dict_add_object_path(ni_dbus_variant_t *dict, const char *key, const char *value)
+{
+	ni_dbus_variant_t *dst;
+
+	if (!(dst = ni_dbus_dict_add(dict, key)))
+		return FALSE;
+	ni_dbus_variant_set_object_path(dst, value);
+	return TRUE;
+}
+
+dbus_bool_t
 ni_dbus_dict_add_bool(ni_dbus_variant_t *dict, const char *key, dbus_bool_t value)
 {
 	ni_dbus_variant_t *dst;
@@ -1106,8 +1133,7 @@ ni_dbus_dict_get_uint16(const ni_dbus_variant_t *dict, const char *key, uint16_t
 
 	if (!(var = ni_dbus_dict_get(dict, key)))
 		return FALSE;
-	*value = var->uint16_value;
-	return TRUE;
+	return ni_dbus_variant_get_uint16(var, value);
 }
 
 dbus_bool_t
@@ -1117,8 +1143,7 @@ ni_dbus_dict_get_uint32(const ni_dbus_variant_t *dict, const char *key, uint32_t
 
 	if (!(var = ni_dbus_dict_get(dict, key)))
 		return FALSE;
-	*value = var->uint32_value;
-	return TRUE;
+	return ni_dbus_variant_get_uint32(var, value);
 }
 
 dbus_bool_t
@@ -1128,8 +1153,7 @@ ni_dbus_dict_get_uint64(const ni_dbus_variant_t *dict, const char *key, uint64_t
 
 	if (!(var = ni_dbus_dict_get(dict, key)))
 		return FALSE;
-	*value = var->uint64_value;
-	return TRUE;
+	return ni_dbus_variant_get_uint64(var, value);
 }
 
 dbus_bool_t
@@ -1139,8 +1163,17 @@ ni_dbus_dict_get_string(const ni_dbus_variant_t *dict, const char *key, const ch
 
 	if (!(var = ni_dbus_dict_get(dict, key)))
 		return FALSE;
-	*value = var->string_value;
-	return TRUE;
+	return ni_dbus_variant_get_string(var, value);
+}
+
+dbus_bool_t
+ni_dbus_dict_get_object_path(const ni_dbus_variant_t *dict, const char *key, const char **value)
+{
+	const ni_dbus_variant_t *var;
+
+	if (!(var = ni_dbus_dict_get(dict, key)))
+		return FALSE;
+	return ni_dbus_variant_get_object_path(var, value);
 }
 
 dbus_bool_t
