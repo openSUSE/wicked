@@ -445,6 +445,8 @@ ni_dhcp_fsm_timeout(ni_dhcp_device_t *dev)
 		ni_dhcp_fsm_fail_lease(dev);
 		ni_dhcp_fsm_restart(dev);
 
+		ni_dhcp_send_event(NI_DHCP_EVENT_LOST, dev, NULL);
+
 		/* Now decide whether we should keep trying */
 		if (dev->config->request_timeout == ~0U)
 			ni_dhcp_fsm_discover(dev);
