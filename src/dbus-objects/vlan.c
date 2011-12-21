@@ -108,102 +108,24 @@ __ni_dbus_vlan_delete(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 /*
  * Helper function to obtain VLAN config from dbus object
  */
-static ni_vlan_t *
-__wicked_dbus_vlan_handle(const ni_dbus_object_t *object, DBusError *error)
+static void *
+ni_objectmodel_get_vlan(const ni_dbus_object_t *object, DBusError *error)
 {
 	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
 
 	return ni_interface_get_vlan(ifp);
 }
 
-/*
- * Get/set VLAN tag
- */
-static dbus_bool_t
-__wicked_dbus_vlan_get_tag(const ni_dbus_object_t *object,
-				const ni_dbus_property_t *property,
-				ni_dbus_variant_t *result,
-				DBusError *error)
-{
-	ni_vlan_t *vlan;
-
-	if (!(vlan = __wicked_dbus_vlan_handle(object, error)))
-		return FALSE;
-
-	ni_dbus_variant_set_uint16(result, vlan->tag);
-	return TRUE;
-}
-
-static dbus_bool_t
-__wicked_dbus_vlan_set_tag(ni_dbus_object_t *object,
-				const ni_dbus_property_t *property,
-				const ni_dbus_variant_t *result,
-				DBusError *error)
-{
-	ni_vlan_t *vlan;
-	uint16_t value;
-
-	if (!(vlan = __wicked_dbus_vlan_handle(object, error)))
-		return FALSE;
-
-	if (!ni_dbus_variant_get_uint16(result, &value)) {
-		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-				"tag property must be of type uint16");
-		return FALSE;
-	}
-	if (value == 0) {
-		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-				"tag property must not be 0");
-		return FALSE;
-	}
-	vlan->tag = value;
-	return TRUE;
-}
-
-/*
- * Get/set underlying interface
- */
-static dbus_bool_t
-__wicked_dbus_vlan_get_interface_name(const ni_dbus_object_t *object,
-				const ni_dbus_property_t *property,
-				ni_dbus_variant_t *result,
-				DBusError *error)
-{
-	ni_vlan_t *vlan;
-
-	if (!(vlan = __wicked_dbus_vlan_handle(object, error)))
-		return FALSE;
-
-	ni_dbus_variant_set_string(result, vlan->physdev_name);
-	return TRUE;
-}
-
-static dbus_bool_t
-__wicked_dbus_vlan_set_interface_name(ni_dbus_object_t *object,
-				const ni_dbus_property_t *property,
-				const ni_dbus_variant_t *result,
-				DBusError *error)
-{
-	ni_vlan_t *vlan;
-	const char *physdev_name;
-
-	if (!(vlan = __wicked_dbus_vlan_handle(object, error)))
-		return FALSE;
-
-	if (!ni_dbus_variant_get_string(result, &physdev_name))
-		return FALSE;
-	ni_string_dup(&vlan->physdev_name, physdev_name);
-	return TRUE;
-}
-
-#define WICKED_VLAN_PROPERTY(type, __name, rw) \
-	NI_DBUS_PROPERTY(type, __name, __wicked_dbus_vlan, rw)
-#define WICKED_VLAN_PROPERTY_SIGNATURE(signature, __name, rw) \
-	__NI_DBUS_PROPERTY(signature, __name, __wicked_dbus_vlan, rw)
+#define VLAN_STRING_PROPERTY(dbus_type, type, rw) \
+	NI_DBUS_GENERIC_STRING_PROPERTY(vlan, dbus_type, type, rw)
+#define VLAN_UINT_PROPERTY(dbus_type, type, rw) \
+	NI_DBUS_GENERIC_UINT_PROPERTY(vlan, dbus_type, type, rw)
+#define VLAN_UINT16_PROPERTY(dbus_type, type, rw) \
+	NI_DBUS_GENERIC_UINT16_PROPERTY(vlan, dbus_type, type, rw)
 
 static ni_dbus_property_t	wicked_dbus_vlan_properties[] = {
-	WICKED_VLAN_PROPERTY(STRING, interface_name, RO),
-	WICKED_VLAN_PROPERTY(UINT16, tag, RO),
+	VLAN_STRING_PROPERTY(slave-name, physdev_name, RO),
+	VLAN_UINT16_PROPERTY(tag, tag, RO),
 	{ NULL }
 };
 
