@@ -366,132 +366,10 @@ static ni_dbus_method_t		wicked_dbus_interface_methods[] = {
 /*
  * Interface property handlers
  */
-#define NULL_interface		((ni_interface_t *) NULL)
-
-/*
- * Property name
- */
-static dbus_bool_t
-__wicked_dbus_interface_get_name(const ni_dbus_object_t *object,
-				const ni_dbus_property_t *property,
-				ni_dbus_variant_t *result,
-				DBusError *error)
+void *
+ni_objectmodel_get_interface(const ni_dbus_object_t *object, DBusError *error)
 {
-	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
-
-	ni_dbus_variant_set_string(result, ifp->name);
-	return TRUE;
-}
-
-static dbus_bool_t
-__wicked_dbus_interface_set_name(ni_dbus_object_t *object,
-				const ni_dbus_property_t *property,
-				const ni_dbus_variant_t *argument,
-				DBusError *error)
-{
-	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
-	const char *value;
-
-	if (!ni_dbus_variant_get_string(argument, &value))
-		return FALSE;
-	ni_string_dup(&ifp->name, value);
-	return TRUE;
-}
-
-/*
- * property name
- */
-static dbus_bool_t
-__wicked_dbus_interface_get_type(const ni_dbus_object_t *object,
-				const ni_dbus_property_t *property,
-				ni_dbus_variant_t *result,
-				DBusError *error)
-{
-	return __ni_objectmodel_get_property_uint(
-			ni_dbus_object_get_handle(object),
-			&NULL_interface->link.type, result);
-}
-
-static dbus_bool_t
-__wicked_dbus_interface_set_type(ni_dbus_object_t *object,
-				const ni_dbus_property_t *property,
-				const ni_dbus_variant_t *argument,
-				DBusError *error)
-{
-	return __ni_objectmodel_set_property_uint(
-			ni_dbus_object_get_handle(object),
-			&NULL_interface->link.type, argument);
-}
-
-/*
- * property Interface.ifflags
- */
-static dbus_bool_t
-__wicked_dbus_interface_get_ifflags(const ni_dbus_object_t *object,
-				const ni_dbus_property_t *property,
-				ni_dbus_variant_t *result,
-				DBusError *error)
-{
-	return __ni_objectmodel_get_property_uint(
-			ni_dbus_object_get_handle(object),
-			&NULL_interface->link.ifflags, result);
-}
-
-static dbus_bool_t
-__wicked_dbus_interface_set_ifflags(ni_dbus_object_t *object,
-				const ni_dbus_property_t *property,
-				const ni_dbus_variant_t *argument,
-				DBusError *error)
-{
-	return __ni_objectmodel_set_property_uint(
-			ni_dbus_object_get_handle(object),
-			&NULL_interface->link.ifflags, argument);
-}
-
-/*
- * property Interface.mtu
- */
-static dbus_bool_t
-__wicked_dbus_interface_get_mtu(const ni_dbus_object_t *object,
-				const ni_dbus_property_t *property,
-				ni_dbus_variant_t *result,
-				DBusError *error)
-{
-	return __ni_objectmodel_get_property_uint(
-			ni_dbus_object_get_handle(object),
-			&NULL_interface->link.mtu, result);
-}
-
-static dbus_bool_t
-__wicked_dbus_interface_set_mtu(ni_dbus_object_t *object,
-				const ni_dbus_property_t *property,
-				const ni_dbus_variant_t *argument,
-				DBusError *error)
-{
-	return __ni_objectmodel_set_property_uint(
-			ni_dbus_object_get_handle(object),
-			&NULL_interface->link.mtu, argument);
-}
-
-static dbus_bool_t
-__wicked_dbus_interface_update_mtu(ni_dbus_object_t *object,
-				const ni_dbus_property_t *property,
-				const ni_dbus_variant_t *argument,
-				DBusError *error)
-{
-	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
-	uint32_t value;
-
-	if (!ni_dbus_variant_get_uint32(argument, &value))
-		return FALSE;
-#if 0
-	if (!ni_interface_update_mtu(ifp, mtu))
-		return FALSE;
-#else
-	ni_warn("%s not yet implemented", __FUNCTION__);
-#endif
-	ifp->link.mtu = value;
-	return TRUE;
+	return ni_dbus_object_get_handle(object);
 }
 
 /*
@@ -525,44 +403,6 @@ __wicked_dbus_interface_set_hwaddr(ni_dbus_object_t *object,
 		return FALSE;
 	ifp->link.hwaddr.len = addrlen;
 	return TRUE;
-}
-
-/* FIXME: need function to update hwaddr */
-
-/*
- * Helper functions for getting and setting socket addresses
- */
-static inline dbus_bool_t
-__wicked_dbus_add_sockaddr(ni_dbus_variant_t *dict, const char *name, const ni_sockaddr_t *ss)
-{
-	const unsigned char *adata;
-	unsigned int offset, len;
-
-	if (!__ni_address_info(ss->ss_family, &offset, &len))
-		return FALSE;
-
-	adata = ((const unsigned char *) ss) + offset;
-	return ni_dbus_dict_add_byte_array(dict, name, adata, len);
-}
-
-static inline dbus_bool_t
-__wicked_dbus_get_sockaddr(const ni_dbus_variant_t *dict, const char *name, ni_sockaddr_t *ss, int af)
-{
-	const ni_dbus_variant_t *var;
-	unsigned int offset, len;
-	unsigned int alen;
-
-	if (!(var = ni_dbus_dict_get(dict, name)))
-		return FALSE;
-
-	if (!__ni_address_info(af, &offset, &len))
-		return FALSE;
-
-	memset(ss, 0, sizeof(*ss));
-	ss->ss_family = af;
-	return ni_dbus_variant_get_byte_array_minmax(var,
-			((unsigned char *) ss) + offset, &alen,
-			len, len);
 }
 
 /*
@@ -623,33 +463,25 @@ __wicked_dbus_interface_set_routes(ni_dbus_object_t *object,
 	NI_DBUS_PROPERTY(type, __name,__wicked_dbus_interface, rw)
 #define WICKED_INTERFACE_PROPERTY_SIGNATURE(signature, __name, rw) \
 	__NI_DBUS_PROPERTY(signature, __name, __wicked_dbus_interface, rw)
+#define INTERFACE_STRING_PROPERTY(dbus_name, member_name, rw) \
+	NI_DBUS_GENERIC_STRING_PROPERTY(interface, dbus_name, member_name, rw)
+#define INTERFACE_UINT_PROPERTY(dbus_name, member_name, rw) \
+	NI_DBUS_GENERIC_UINT_PROPERTY(interface, dbus_name, member_name, rw)
 
 static ni_dbus_property_t	wicked_dbus_interface_properties[] = {
-	WICKED_INTERFACE_PROPERTY(STRING, name, RO),
-	WICKED_INTERFACE_PROPERTY(UINT32, ifflags, RO),
-	WICKED_INTERFACE_PROPERTY(UINT32, type, RO),
-	WICKED_INTERFACE_PROPERTY(UINT32, mtu, RW),
-	WICKED_INTERFACE_PROPERTY_SIGNATURE(
-			DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING,
+	INTERFACE_STRING_PROPERTY(name, name, RO),
+	INTERFACE_UINT_PROPERTY(flags, link.ifflags, RO),
+	INTERFACE_UINT_PROPERTY(type, link.type, RO),
+	INTERFACE_UINT_PROPERTY(mtu, link.mtu, RO),
+	INTERFACE_UINT_PROPERTY(txqlen, link.txqlen, RO),
+	WICKED_INTERFACE_PROPERTY_SIGNATURE(DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING,
 			hwaddr, RO),
 
-	/* addresses is an array of dicts */
-	WICKED_INTERFACE_PROPERTY_SIGNATURE(
-			DBUS_TYPE_ARRAY_AS_STRING
-			DBUS_TYPE_ARRAY_AS_STRING
-			DBUS_DICT_ENTRY_BEGIN_CHAR_AS_STRING
-				DBUS_TYPE_STRING_AS_STRING
-				DBUS_TYPE_VARIANT_AS_STRING
-			DBUS_DICT_ENTRY_END_CHAR_AS_STRING,
+	/* addresses and routes is an array of dicts */
+	WICKED_INTERFACE_PROPERTY_SIGNATURE(DBUS_TYPE_ARRAY_AS_STRING NI_DBUS_DICT_SIGNATURE,
 			addrs, RO),
 
-	WICKED_INTERFACE_PROPERTY_SIGNATURE(
-			DBUS_TYPE_ARRAY_AS_STRING
-			DBUS_TYPE_ARRAY_AS_STRING
-			DBUS_DICT_ENTRY_BEGIN_CHAR_AS_STRING
-				DBUS_TYPE_STRING_AS_STRING
-				DBUS_TYPE_VARIANT_AS_STRING
-			DBUS_DICT_ENTRY_END_CHAR_AS_STRING,
+	WICKED_INTERFACE_PROPERTY_SIGNATURE(DBUS_TYPE_ARRAY_AS_STRING NI_DBUS_DICT_SIGNATURE,
 			routes, RO),
 	{ NULL }
 };
@@ -685,6 +517,12 @@ __wicked_addrconf_type_string(unsigned int mode, int req)
 /*
  * These helper functions assist in marshalling InterfaceRequests
  */
+static void *
+ni_objectmodel_get_interface_request(const ni_dbus_object_t *object, DBusError *error)
+{
+	return ni_dbus_object_get_handle(object);
+}
+
 static dbus_bool_t
 __wicked_dbus_get_afinfo(const ni_afinfo_t *afi, dbus_bool_t request_only,
 				ni_dbus_variant_t *result,
@@ -836,19 +674,19 @@ __wicked_dbus_interface_request_set_ipv6(ni_dbus_object_t *object,
 	return TRUE;
 }
 
-#define WICKED_INTERFACE_REQUEST_PROPERTY(type, __name, rw) \
-	NI_DBUS_PROPERTY(type, __name, __wicked_dbus_interface_request, rw)
-#define WICKED_INTERFACE_REQUEST_PROPERTY_SIGNATURE(signature, __name, rw) \
+#define INTERFACE_REQUEST_UINT_PROPERTY(dbus_name, name, rw) \
+	NI_DBUS_GENERIC_UINT_PROPERTY(interface_request, dbus_name, name, rw)
+#define INTERFACE_REQUEST_PROPERTY_SIGNATURE(signature, __name, rw) \
 	__NI_DBUS_PROPERTY(signature, __name, __wicked_dbus_interface_request, rw)
 
 static ni_dbus_property_t	wicked_dbus_interface_request_properties[] = {
-#if 0
-	WICKED_INTERFACE_REQUEST_PROPERTY(UINT32, ifflags, RO),
-	WICKED_INTERFACE_REQUEST_PROPERTY(UINT32, mtu, RO),
-#endif
+	INTERFACE_REQUEST_UINT_PROPERTY(flags, ifflags, RO),
+	INTERFACE_REQUEST_UINT_PROPERTY(mtu, mtu, RO),
+	INTERFACE_REQUEST_UINT_PROPERTY(metric, metric, RO),
+	INTERFACE_REQUEST_UINT_PROPERTY(txqlen, txqlen, RO),
 
-	WICKED_INTERFACE_REQUEST_PROPERTY_SIGNATURE(NI_DBUS_DICT_SIGNATURE, ipv4, RO),
-	WICKED_INTERFACE_REQUEST_PROPERTY_SIGNATURE(NI_DBUS_DICT_SIGNATURE, ipv6, RO),
+	INTERFACE_REQUEST_PROPERTY_SIGNATURE(NI_DBUS_DICT_SIGNATURE, ipv4, RO),
+	INTERFACE_REQUEST_PROPERTY_SIGNATURE(NI_DBUS_DICT_SIGNATURE, ipv6, RO),
 	{ NULL }
 };
 
