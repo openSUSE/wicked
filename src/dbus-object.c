@@ -552,6 +552,7 @@ ni_dbus_object_get_properties_as_dict(const ni_dbus_object_t *object,
 #define __property_offset(prop, type)		prop->generic.u.type##_offset
 #define __property_data(prop, handle, type) \
 	(typeof(__property_offset(prop, type))) (handle + (unsigned long) __property_offset(prop, type))
+
 dbus_bool_t
 ni_dbus_generic_property_get_uint(const ni_dbus_object_t *obj, const ni_dbus_property_t *prop,
 					ni_dbus_variant_t *var, DBusError *error)
@@ -582,6 +583,41 @@ ni_dbus_generic_property_set_uint(ni_dbus_object_t *obj, const ni_dbus_property_
 
 dbus_bool_t
 ni_dbus_generic_property_parse_uint(const ni_dbus_property_t *prop, ni_dbus_variant_t *var, const char *string)
+{
+	return ni_dbus_variant_parse(var, string, prop->signature);
+}
+
+dbus_bool_t
+ni_dbus_generic_property_get_uint16(const ni_dbus_object_t *obj, const ni_dbus_property_t *prop,
+					ni_dbus_variant_t *var, DBusError *error)
+{
+	const uint16_t *vptr;
+	const void *handle;
+
+	if (!(handle = prop->generic.get_handle(obj, error)))
+		return FALSE;
+
+	vptr = __property_data(prop, handle, uint16);
+	ni_dbus_variant_set_uint16(var, *vptr);
+	return TRUE;
+}
+
+dbus_bool_t
+ni_dbus_generic_property_set_uint16(ni_dbus_object_t *obj, const ni_dbus_property_t *prop,
+					const ni_dbus_variant_t *var, DBusError *error)
+{
+	uint16_t *vptr;
+	void *handle;
+
+	if (!(handle = prop->generic.get_handle(obj, error)))
+		return FALSE;
+
+	vptr = __property_data(prop, handle, uint16);
+	return ni_dbus_variant_get_uint16(var, vptr);
+}
+
+dbus_bool_t
+ni_dbus_generic_property_parse_uint16(const ni_dbus_property_t *prop, ni_dbus_variant_t *var, const char *string)
 {
 	return ni_dbus_variant_parse(var, string, prop->signature);
 }
