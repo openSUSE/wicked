@@ -148,7 +148,8 @@ __ni_dbus_object_set_properties_from_dict(ni_dbus_object_t *object,
 		 * of the surrounding interface/property names in error messages.
 		 * Maybe not such a great loss, though...
 		 */
-		if (property->signature && !strcmp(property->signature, NI_DBUS_DICT_SIGNATURE)) {
+		if (property->signature && !strcmp(property->signature, NI_DBUS_DICT_SIGNATURE)
+		 && property->generic.u.dict_children != NULL) {
 			const ni_dbus_property_t *child_properties = property->generic.u.dict_children;
 			char subcontext[512];
 
