@@ -254,6 +254,8 @@ dhcp4_discover_devices(ni_dbus_server_t *server)
 	if (!(nc = ni_global_state_handle(1)))
 		ni_fatal("cannot refresh interface list!");
 
+	/* FIXME: for wireless devices, we should disable all the
+	 * BSS discovery, it's not needed in the dhcp4 supplicant */
 	for (ifp = ni_interfaces(nc); ifp; ifp = ifp->next) {
 		dhcp4_device_create(server, ifp);
 
