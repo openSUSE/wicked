@@ -144,6 +144,26 @@ __ni_afinfo_set_addrconf_lease(ni_afinfo_t *afi, unsigned int mode, ni_addrconf_
 	}
 }
 
+int
+__ni_afinfo_is_up(const ni_afinfo_t *afi, const ni_interface_t *ifp)
+{
+	unsigned int mode;
+
+	for (mode = 0; mode < __NI_ADDRCONF_MAX; ++mode) {
+		if (!ni_afinfo_addrconf_test(afi, mode))
+			continue;
+		if (afi->request[mode] && !afi->lease[mode]) {
+			ni_debug_ifconfig("%s: still waiting for %s/%s lease",
+					ifp->name,
+					ni_addrconf_type_to_name(mode),
+					ni_addrfamily_type_to_name(afi->family));
+			return 0;
+		}
+	}
+
+	return 1;
+}
+
 /*
  * Constructor/destructor for netconfig handles
  */

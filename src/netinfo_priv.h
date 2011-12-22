@@ -45,6 +45,7 @@ extern void		__ni_interfaces_clear(ni_netconfig_t *);
 extern ni_addrconf_lease_t *__ni_interface_address_to_lease(ni_interface_t *, const ni_address_t *);
 extern ni_addrconf_lease_t *__ni_interface_route_to_lease(ni_interface_t *, const ni_route_t *);
 extern unsigned int	__ni_interface_translate_ifflags(unsigned int);
+extern int		__ni_interface_is_up(const ni_interface_t *);
 
 #define __ni_interface_address_info(ifp, af) \
 	((af) == AF_INET? &((ifp)->ipv4) : \
@@ -55,6 +56,7 @@ extern void		__ni_afinfo_init(ni_afinfo_t *, int af);
 extern void		__ni_afinfo_destroy(ni_afinfo_t *);
 extern void		__ni_afinfo_set_addrconf_request(ni_afinfo_t *, unsigned int, ni_addrconf_request_t *);
 extern void		__ni_afinfo_set_addrconf_lease(ni_afinfo_t *, unsigned int, ni_addrconf_lease_t *);
+extern int		__ni_afinfo_is_up(const ni_afinfo_t *, const ni_interface_t *);
 
 extern ni_route_t *	__ni_route_new(ni_route_t **, unsigned int prefix_len,
 				const ni_sockaddr_t *, const ni_sockaddr_t *);

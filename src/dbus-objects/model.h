@@ -203,5 +203,6 @@ extern int			ni_objectmodel_addrconf_release(ni_dbus_object_t *,
 						const ni_addrconf_lease_t *);
 extern void			ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *,
 						ni_dbus_message_t *, void *);
+extern dbus_bool_t		ni_objectmodel_interface_event(ni_dbus_object_t *, const char *);
 
 #endif /* __WICKED_OBJECTMODEL_H__ */

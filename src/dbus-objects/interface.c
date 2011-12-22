@@ -297,6 +297,9 @@ __wicked_dbus_interface_up(ni_dbus_object_t *object, const ni_dbus_method_t *met
 		goto failed;
 	}
 
+	if (__ni_interface_is_up(dev))
+		ni_objectmodel_interface_event(object, "InterfaceUp");
+
 	ret = TRUE;
 
 failed:
@@ -304,6 +307,23 @@ failed:
 	if (cfg_object)
 		ni_dbus_object_free(cfg_object);
 	return ret;
+}
+
+/*
+ * Broadcast an event that the interface is up
+ */
+dbus_bool_t
+ni_objectmodel_interface_event(ni_dbus_object_t *object, const char *name)
+{
+	ni_dbus_server_t *server;
+
+	if (!(server = ni_dbus_object_get_server(object))) {
+		ni_error("%s: cannot send signal; object not attached to server", __func__);
+		return FALSE;
+	}
+
+	ni_dbus_server_send_signal(server, object, WICKED_DBUS_NETIF_INTERFACE, name, 0, NULL);
+	return TRUE;
 }
 
 /*

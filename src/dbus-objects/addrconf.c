@@ -190,6 +190,11 @@ ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_messa
 		/* Note, lease may be NULL after this, as the interface object
 		 * takes ownership of it. */
 		__ni_system_interface_update_lease(ifp, &lease);
+
+		if (__ni_interface_is_up(ifp)) {
+			ni_debug_dbus("should send InterfaceUp event");
+			//ni_objectmodel_interface_event(object, "InterfaceUp");
+		}
 	} else if (!strcmp(signal_name, "LeaseReleased")) {
 		lease->state = NI_ADDRCONF_STATE_RELEASED;
 		__ni_system_interface_update_lease(ifp, &lease);
