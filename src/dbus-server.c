@@ -108,7 +108,7 @@ __ni_dbus_server_object_init(ni_dbus_object_t *object, ni_dbus_server_t *server)
  * Send a signal
  */
 dbus_bool_t
-ni_server_send_signal(ni_dbus_server_t *server, ni_dbus_object_t *object,
+ni_dbus_server_send_signal(ni_dbus_server_t *server, ni_dbus_object_t *object,
 				const char *interface, const char *signal_name,
 				unsigned int nargs, const ni_dbus_variant_t *args)
 {

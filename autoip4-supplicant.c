@@ -365,19 +365,19 @@ autoip4_protocol_event(enum ni_lease_event ev, const ni_autoip_device_t *dev, ni
 
 	switch (ev) {
 	case NI_EVENT_LEASE_ACQUIRED:
-		ni_server_send_signal(autoip4_dbus_server, dev_object,
+		ni_dbus_server_send_signal(autoip4_dbus_server, dev_object,
 				WICKED_DBUS_AUTO4_INTERFACE, "LeaseAcquired",
 				argc, argv);
 		break;
 
 	case NI_EVENT_LEASE_RELEASED:
-		ni_server_send_signal(autoip4_dbus_server, dev_object,
+		ni_dbus_server_send_signal(autoip4_dbus_server, dev_object,
 				WICKED_DBUS_AUTO4_INTERFACE, "LeaseReleased",
 				argc, argv);
 		break;
 
 	case NI_EVENT_LEASE_LOST:
-		ni_server_send_signal(autoip4_dbus_server, dev_object,
+		ni_dbus_server_send_signal(autoip4_dbus_server, dev_object,
 				WICKED_DBUS_AUTO4_INTERFACE, "LeaseLost",
 				argc, argv);
 		break;

@@ -162,7 +162,7 @@ extern ni_dbus_object_t *	ni_dbus_server_register_object(ni_dbus_server_t *serve
 					void *object_handle);
 extern dbus_bool_t		ni_dbus_server_unregister_object(ni_dbus_server_t *, void *);
 extern ni_dbus_object_t *	ni_dbus_server_find_object_by_handle(ni_dbus_server_t *, const void *);
-extern dbus_bool_t		ni_server_send_signal(ni_dbus_server_t *server, ni_dbus_object_t *object,
+extern dbus_bool_t		ni_dbus_server_send_signal(ni_dbus_server_t *server, ni_dbus_object_t *object,
 					const char *interface, const char *signal_name,
 					unsigned int nargs, const ni_dbus_variant_t *args);
 

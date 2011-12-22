@@ -366,19 +366,19 @@ dhcp4_protocol_event(enum ni_dhcp_event ev, const ni_dhcp_device_t *dev, ni_addr
 
 	switch (ev) {
 	case NI_DHCP_EVENT_ACQUIRED:
-		ni_server_send_signal(dhcp4_dbus_server, dev_object,
+		ni_dbus_server_send_signal(dhcp4_dbus_server, dev_object,
 				WICKED_DBUS_DHCP4_INTERFACE, "LeaseAcquired",
 				argc, argv);
 		break;
 
 	case NI_DHCP_EVENT_RELEASED:
-		ni_server_send_signal(dhcp4_dbus_server, dev_object,
+		ni_dbus_server_send_signal(dhcp4_dbus_server, dev_object,
 				WICKED_DBUS_DHCP4_INTERFACE, "LeaseReleased",
 				argc, argv);
 		break;
 
 	case NI_DHCP_EVENT_LOST:
-		ni_server_send_signal(dhcp4_dbus_server, dev_object,
+		ni_dbus_server_send_signal(dhcp4_dbus_server, dev_object,
 				WICKED_DBUS_DHCP4_INTERFACE, "LeaseLost",
 				argc, argv);
 		break;
