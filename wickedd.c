@@ -58,7 +58,6 @@ static void		wicked_interface_server(void);
 static void		wicked_discover_state(void);
 static void		wicked_try_restart_addrconf(ni_interface_t *, ni_afinfo_t *, unsigned int);
 static void		wicked_interface_event(ni_netconfig_t *, ni_interface_t *, ni_event_t);
-static void		wicked_register_interface_services(ni_dbus_server_t *);
 
 int
 main(int argc, char **argv)
@@ -131,11 +130,7 @@ main(int argc, char **argv)
 void
 wicked_interface_server(void)
 {
-	wicked_dbus_server = ni_server_listen_dbus(WICKED_DBUS_BUS_NAME);
-	if (wicked_dbus_server == NULL)
-		ni_fatal("unable to initialize dbus service");
-
-	wicked_register_interface_services(wicked_dbus_server);
+	wicked_dbus_server = ni_objectmodel_create_service();
 
 	/* open global RTNL socket to listen for kernel events */
 	if (ni_server_listen_events(wicked_interface_event) < 0)
@@ -246,28 +241,6 @@ wicked_try_restart_addrconf(ni_interface_t *ifp, ni_afinfo_t *afi, unsigned int 
 	ni_debug_wicked("%s: initiated recovery of %s/%s lease", ifp->name,
 				ni_addrconf_type_to_name(lease->type),
 				ni_addrfamily_type_to_name(lease->family));
-}
-
-/*
- * Functions to support the DBus binding
- */
-static ni_dbus_method_t		__wicked_dbus_root_methods[] = {
-	{ NULL }
-};
-
-static ni_dbus_service_t	__wicked_dbus_root_interface = {
-	.name = WICKED_DBUS_INTERFACE,
-	.methods = __wicked_dbus_root_methods,
-};
-
-
-void
-wicked_register_interface_services(ni_dbus_server_t *server)
-{
-	ni_dbus_object_t *root_object = ni_dbus_server_get_root_object(server);
-
-	ni_dbus_object_register_service(root_object, &__wicked_dbus_root_interface);
-	ni_objectmodel_register_all(server);
 }
 
 /*

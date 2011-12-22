@@ -27,11 +27,20 @@ extern ni_dbus_object_t *	ni_objectmodel_new_interface(ni_dbus_server_t *server,
 
 static ni_dbus_object_functions_t wicked_dbus_netif_functions;
 static ni_dbus_service_t	wicked_dbus_netif_interface;
+static ni_dbus_service_t	wicked_dbus_root_interface;
 
-dbus_bool_t
-ni_objectmodel_register_all(ni_dbus_server_t *server)
+ni_dbus_server_t *
+ni_objectmodel_create_service(void)
 {
+	ni_dbus_server_t *server;
 	ni_dbus_object_t *object;
+
+	server = ni_server_listen_dbus(WICKED_DBUS_BUS_NAME);
+	if (server == NULL)
+		ni_fatal("unable to initialize dbus service");
+
+	object = ni_dbus_server_get_root_object(server);
+	ni_dbus_object_register_service(object, &wicked_dbus_root_interface);
 
 	object = ni_dbus_server_register_object(server, "Interface",
 					&wicked_dbus_netif_functions,
@@ -44,7 +53,7 @@ ni_objectmodel_register_all(ni_dbus_server_t *server)
 	ni_objectmodel_dhcp4_init(server);
 	ni_objectmodel_autoip_init(server);
 
-	return TRUE;
+	return server;
 }
 
 const ni_dbus_service_t *
@@ -197,3 +206,12 @@ static ni_dbus_service_t	wicked_dbus_netif_interface = {
 	.methods = wicked_dbus_netif_methods,
 	/* .properties = wicked_dbus_netif_properties, */
 };
+
+/*
+ * The interface for the dbus root node. Nothing much for now.
+ */
+static ni_dbus_service_t	wicked_dbus_root_interface = {
+	.name = WICKED_DBUS_INTERFACE,
+	/* .methods = wicked_dbus_root_methods, */
+};
+
