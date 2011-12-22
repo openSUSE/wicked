@@ -55,7 +55,7 @@ ni_sysconfig_read_suse(ni_netconfig_t *nc, const char *root_dir)
 		snprintf(pathbuf, sizeof(pathbuf), "%s%s", root_dir, base_dir);
 		base_dir = pathbuf;
 	}
-	if (!ni_sysconfig_scandir(base_dir, "ifcfg-", &files)) {
+	if (!ni_sysconfig_scandir(base_dir, "ifcfg-*", &files)) {
 		ni_error("No ifcfg files found");
 		return -1;
 	}

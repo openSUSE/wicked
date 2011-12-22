@@ -20,11 +20,8 @@ static int	unquote(char *);
 static char *	quote(char *);
 
 int
-ni_sysconfig_scandir(const char *dirname, const char *match_prefix, ni_string_array_t *res)
+ni_sysconfig_scandir(const char *dirname, const char *pattern, ni_string_array_t *res)
 {
-	char pattern[64];
-
-	snprintf(pattern, sizeof(pattern), "%s*", match_prefix);
 	return ni_scandir(dirname, pattern, res);
 }
 

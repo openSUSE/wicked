@@ -97,7 +97,7 @@ __ni_suse_get_interfaces(ni_syntax_t *syntax, ni_netconfig_t *nc)
 	__ni_interface_list_destroy(&nc->interfaces);
 
 	base_dir = ni_syntax_base_path(syntax);
-	if (!ni_sysconfig_scandir(base_dir, "ifcfg-", &files)) {
+	if (!ni_sysconfig_scandir(base_dir, "ifcfg-*", &files)) {
 		error("No ifcfg files found");
 		return -1;
 	}

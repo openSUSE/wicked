@@ -85,7 +85,7 @@ __ni_redhat_get_interfaces(ni_syntax_t *syntax, ni_netconfig_t *nc)
 	__ni_global_seqno++;
 
 	base_dir = ni_syntax_base_path(syntax);
-	if (!ni_sysconfig_scandir(base_dir, "ifcfg-", &files)) {
+	if (!ni_sysconfig_scandir(base_dir, "ifcfg-*", &files)) {
 		ni_error("No ifcfg files found");
 		return -1;
 	}
