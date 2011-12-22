@@ -157,9 +157,10 @@ ni_system_interface_down(ni_netconfig_t *nc, ni_interface_t *ifp)
  * An address configuration agent sends a lease update.
  */
 int
-__ni_system_interface_update_lease(ni_interface_t *ifp, ni_addrconf_lease_t *lease)
+__ni_system_interface_update_lease(ni_interface_t *ifp, ni_addrconf_lease_t **lease_p)
 {
 	ni_netconfig_t *nc = ni_global_state_handle(0);
+	ni_addrconf_lease_t *lease = *lease_p;
 	unsigned int update_mask;
 	ni_afinfo_t *afi;
 	int res;
@@ -206,7 +207,7 @@ __ni_system_interface_update_lease(ni_interface_t *ifp, ni_addrconf_lease_t *lea
 		return res;
 	}
 
-	ni_interface_set_lease(ifp, lease);
+	ni_interface_set_lease(ifp, lease_p);
 	ni_system_update_from_lease(nc, ifp, lease);
 
 	return 0;
@@ -1526,7 +1527,7 @@ __ni_interface_addrconf_dummy(ni_netconfig_t *nc, ni_interface_t *ifp, int famil
 			ni_debug_ifconfig("%s: disabling %s/%s", ifp->name,
 					ni_addrfamily_type_to_name(family),
 					ni_addrconf_type_to_name(mode));
-			ni_interface_set_lease(ifp, NULL);
+			ni_interface_unset_lease(ifp, family, mode);
 		}
 		return 0;
 	}
@@ -1537,7 +1538,7 @@ __ni_interface_addrconf_dummy(ni_netconfig_t *nc, ni_interface_t *ifp, int famil
 				ni_addrfamily_type_to_name(family));
 		lease = ni_addrconf_lease_new(mode, family);
 		lease->state = NI_ADDRCONF_STATE_GRANTED;
-		ni_interface_set_lease(ifp, lease);
+		ni_interface_set_lease(ifp, &lease);
 		ni_afinfo_addrconf_enable(cur_afi, mode);
 	}
 	return 0;

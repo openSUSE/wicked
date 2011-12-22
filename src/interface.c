@@ -315,13 +315,19 @@ ni_interface_set_link_stats(ni_interface_t *ifp, ni_link_stats_t *stats)
  * We received an updated lease from an addrconf agent.
  */
 int
-ni_interface_set_lease(ni_interface_t *ifp, ni_addrconf_lease_t *lease)
+ni_interface_set_lease(ni_interface_t *ifp, ni_addrconf_lease_t **lease_p)
 {
+	ni_addrconf_lease_t *lease = *lease_p;
 	ni_afinfo_t *afi;
 
 	afi = __ni_interface_address_info(ifp, lease->family);
 	if (afi == NULL) {
 		ni_error("unknown address family %d in lease update", lease->family);
+		return -1;
+	}
+
+	if (lease == NULL) {
+		ni_error("%s: NULL lease encountered", __func__);
 		return -1;
 	}
 
@@ -335,9 +341,34 @@ ni_interface_set_lease(ni_interface_t *ifp, ni_addrconf_lease_t *lease)
 	if (lease->state == NI_ADDRCONF_STATE_GRANTED) {
 		ni_afinfo_addrconf_enable(afi, lease->type);
 		afi->lease[lease->type] = lease;
+		*lease_p = NULL; /* w3 0wn all ur leazes. */
 	} else {
 		ni_afinfo_addrconf_disable(afi, lease->type);
 		afi->lease[lease->type] = NULL;
+	}
+
+	return 0;
+}
+
+int
+ni_interface_unset_lease(ni_interface_t *ifp, int family, ni_addrconf_mode_t type)
+{
+	ni_afinfo_t *afi;
+
+	afi = __ni_interface_address_info(ifp, family);
+	if (afi == NULL) {
+		ni_error("unknown address family %d in lease update", family);
+		return -1;
+	}
+
+	if (type >= __NI_ADDRCONF_MAX) {
+		ni_error("unknown addrconf type %d in lease type", type);
+		return -1;
+	}
+
+	if (afi->lease[type] != NULL) {
+		ni_addrconf_lease_free(afi->lease[type]);
+		afi->lease[type] = NULL;
 	}
 
 	return 0;

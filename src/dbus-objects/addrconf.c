@@ -186,14 +186,19 @@ ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_messa
 			ni_error("%s: unexpected lease state in signal %s", __func__, signal_name);
 			goto done;
 		}
-	} else
-	if (strcmp(signal_name, "LeaseReleased") && strcmp(signal_name, "LeaseLost")) {
-		/* Ignore unknown signal */
-		goto done;
-	}
 
-	__ni_system_interface_update_lease(ifp, lease);
-	lease = NULL;
+		/* Note, lease may be NULL after this, as the interface object
+		 * takes ownership of it. */
+		__ni_system_interface_update_lease(ifp, &lease);
+	} else if (!strcmp(signal_name, "LeaseReleased")) {
+		lease->state = NI_ADDRCONF_STATE_RELEASED;
+		__ni_system_interface_update_lease(ifp, &lease);
+	} else if (!strcmp(signal_name, "LeaseLost")) {
+		lease->state = NI_ADDRCONF_STATE_FAILED;
+		__ni_system_interface_update_lease(ifp, &lease);
+	} else {
+		/* Ignore unknown signal */
+	}
 
 done:
 	while (argc--)

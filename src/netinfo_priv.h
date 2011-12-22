@@ -82,7 +82,7 @@ extern int		__ni_system_ethernet_refresh(ni_interface_t *);
 extern int		__ni_rtevent_refresh_all(ni_netconfig_t *, ni_interface_t **del_list);
 
 /* FIXME: These should go elsewhere, maybe runtime.h */
-extern int		__ni_system_interface_update_lease(ni_interface_t *, ni_addrconf_lease_t *);
+extern int		__ni_system_interface_update_lease(ni_interface_t *, ni_addrconf_lease_t **);
 
 /* FIXME: These should go elsewhere, maybe runtime.h */
 extern int		__ni_system_hostname_put(const char *);
