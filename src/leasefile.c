@@ -35,8 +35,7 @@ ni_addrconf_lease_file_write(const char *ifname, ni_addrconf_lease_t *lease)
 	}
 
 	ni_debug_dhcp("writing lease to %s", filename);
-	xml = ni_syntax_xml_from_lease(ni_default_xml_syntax(), lease, NULL);
-	if (!xml) {
+	if (ni_netcf_lease_to_xml(lease, NULL, &xml) < 0) {
 		ni_error("cannot store lease: unable to represent lease as XML");
 		goto failed;
 	}
@@ -97,9 +96,7 @@ ni_addrconf_lease_file_read(const char *ifname, int type, int family)
 		return NULL;
 	}
 
-	lease = ni_syntax_xml_to_lease(ni_default_xml_syntax(), lnode);
-
-	if (lease == NULL) {
+	if (ni_netcf_xml_to_lease(lnode, &lease) < 0) {
 		ni_error("%s: unable to parse lease xml", filename);
 		xml_node_free(xml);
 		return NULL;
@@ -148,8 +145,7 @@ ni_addrconf_request_file_write(const char *ifname, ni_addrconf_request_t *reques
 	filename = __ni_addrconf_request_file_path(request->type, request->family, ifname);
 
 	ni_debug_dhcp("writing request to %s", filename);
-	xml = ni_syntax_xml_from_addrconf_request(ni_default_xml_syntax(), request, NULL);
-	if (!xml) {
+	if (ni_netcf_addrconf_request_to_xml(request, NULL, &xml) < 0) {
 		ni_error("cannot store request: unable to represent request as XML");
 		goto failed;
 	}
@@ -209,8 +205,7 @@ ni_addrconf_request_file_read(const char *ifname, int type, int family)
 		goto out;
 	}
 
-	request = ni_syntax_xml_to_addrconf_request(ni_default_xml_syntax(), lnode, family);
-	if (request == NULL) {
+	if (ni_netcf_xml_to_addrconf_request(lnode, family, &request) < 0) {
 		ni_error("%s: unable to parse request xml", filename);
 		goto out;
 	}

@@ -1892,7 +1892,7 @@ usage:
 	 * change <status> to up, and send it back.
 	 */
 	if (opt_file) {
-		ni_syntax_t *syntax = ni_syntax_new("netcf", opt_file);
+		ni_syntax_t *syntax = NULL;//ni_syntax_new("netcf", opt_file);
 
 		config = ni_netconfig_open(syntax);
 		if ((rv = ni_refresh(config, NULL)) < 0) {

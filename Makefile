@@ -38,7 +38,6 @@ __LIBSRCS= \
 	  address.c \
 	  sysconfig.c \
 	  sysfs.c \
-	  syntax.c \
 	  backend.c \
 	  backend-suse.c \
 	  backend-redhat.c \

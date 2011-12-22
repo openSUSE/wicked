@@ -76,9 +76,11 @@ ni_init()
 		ni_global.config = ni_config_new();
 	}
 
+#if 0
 	if (!ni_global.default_syntax)
 		ni_global.default_syntax = ni_syntax_new("netcf", NULL);
 	ni_global.xml_syntax = ni_syntax_new("netcf", NULL);
+#endif
 
 	/* Our socket code relies on us ignoring this */
 	signal(SIGPIPE, SIG_IGN);

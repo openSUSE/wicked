@@ -138,6 +138,13 @@ __ni_syntax_netcf(const char *pathname)
 	return syntax;
 }
 
+void
+__ni_syntax_netcf_free(ni_syntax_t *syntax)
+{
+	ni_string_free(&syntax->base_path);
+	free(syntax);
+}
+
 ni_syntax_t *
 __ni_syntax_netcf_strict(const char *pathname)
 {
@@ -183,6 +190,37 @@ failed:
 	if (nc)
 		ni_netconfig_free(nc);
 	return NULL;
+}
+
+/*
+ * Store a single interface in a netcf xml file
+ */
+int
+ni_netcf_store_interface(ni_netconfig_t *nc, ni_interface_t *ifp, FILE *ofp)
+{
+	ni_syntax_t *syntax = __ni_syntax_netcf(NULL);
+	xml_document_t *doc = NULL;
+	int rv = -1;
+
+	doc = xml_document_new();
+	if (!__ni_netcf_xml_from_interface(syntax, ifp, doc->root))
+		goto error;
+
+	if (ofp) {
+		rv = xml_document_print(doc, ofp);
+	} else {
+		/* FIXME: create temp file, and use separate commit at
+		 * a later point to rename it to final destination.
+		 * This allows atomic updates and rollback */
+		const char *filename = ni_netcf_format_path(NULL, "%s.xml", ifp->name);
+
+		rv = xml_document_write(doc, filename);
+	}
+
+error:
+	if (doc)
+		xml_document_free(doc);
+	return rv;
 }
 
 /*
@@ -235,7 +273,7 @@ out:
 	if (doc)
 		xml_document_free(doc);
 	if (syntax)
-		ni_syntax_free(syntax);
+		__ni_syntax_netcf_free(syntax);
 	return rv;
 }
 
@@ -1125,6 +1163,28 @@ __ni_netcf_xml_from_vlan(ni_syntax_t *syntax, ni_vlan_t *vlan, xml_node_t *ifnod
 /*
  * XML addrconf request representation
  */
+int
+ni_netcf_xml_to_addrconf_request(const xml_node_t *xmlnode, int family, ni_addrconf_request_t **res)
+{
+	ni_syntax_t *syntax = __ni_syntax_netcf(NULL);
+
+	*res = __ni_netcf_xml_to_addrconf_req(syntax, xmlnode, family);
+	__ni_syntax_netcf_free(syntax);
+
+	return *res? 0 : -1;
+}
+
+int
+ni_netcf_addrconf_request_to_xml(const ni_addrconf_request_t *req, xml_node_t *parent, xml_node_t **res)
+{
+	ni_syntax_t *syntax = __ni_syntax_netcf(NULL);
+
+	*res =  __ni_netcf_xml_from_addrconf_req(syntax, req, parent);
+	__ni_syntax_netcf_free(syntax);
+
+	return *res? 0 : -1;
+}
+
 static xml_node_t *
 __ni_netcf_xml_from_addrconf_req(ni_syntax_t *syntax, const ni_addrconf_request_t *req, xml_node_t *proto_node)
 {
@@ -1241,6 +1301,28 @@ __ni_netcf_xml_to_addrconf_req(ni_syntax_t *syntax, const xml_node_t *dhnode, in
 /*
  * XML addrconf lease representation
  */
+int
+ni_netcf_lease_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *parent, xml_node_t **res)
+{
+	ni_syntax_t *syntax = __ni_syntax_netcf(NULL);
+
+	*res =  __ni_netcf_xml_from_lease(syntax, lease, parent);
+	__ni_syntax_netcf_free(syntax);
+
+	return *res? 0 : -1;
+}
+
+int
+ni_netcf_xml_to_lease(const xml_node_t *xmlnode, ni_addrconf_lease_t **res)
+{
+	ni_syntax_t *syntax = __ni_syntax_netcf(NULL);
+
+	*res = __ni_netcf_xml_to_lease(syntax, xmlnode);
+	__ni_syntax_netcf_free(syntax);
+
+	return *res? 0 : -1;
+}
+
 static xml_node_t *
 __ni_netcf_xml_from_lease(ni_syntax_t *syntax, const ni_addrconf_lease_t *lease, xml_node_t *parent)
 {

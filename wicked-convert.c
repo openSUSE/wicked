@@ -60,7 +60,6 @@ int
 main(int argc, char **argv)
 {
 	ni_netconfig_t netconfig;
-	ni_syntax_t *syntax;
 	int c, rv;
 
 	mtrace();
@@ -186,20 +185,18 @@ main(int argc, char **argv)
 					strcmp(opt_outfile, "-") == 0? "standard output" : opt_outfile);
 		}
 
-		syntax = ni_syntax_new("netcf", NULL);
-
 		for (i = 0; i < interfaces.count; ++i) {
 			ifp = interfaces.data[i];
 
 			if (ofp != NULL) {
-				ni_syntax_put_one_interface(syntax, &netconfig, ifp, ofp);
+				ni_netcf_store_interface(&netconfig, ifp, ofp);
 			} else {
 				const char *path = ni_netcf_format_path(opt_rootdir, "%s.xml", ifp->name);
 				FILE *fp = NULL;
 
 				fp = fopen_or_fail(path, "w");
 				printf("Writing configuration to %s\n", path);
-				ni_syntax_put_one_interface(syntax, &netconfig, ifp, fp);
+				ni_netcf_store_interface(&netconfig, ifp, fp);
 				fclose(fp);
 			}
 		}
