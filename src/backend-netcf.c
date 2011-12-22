@@ -1,7 +1,7 @@
 /*
  * Translation between internal representation and netcf XML
  *
- * Copyright (C) 2010 Olaf Kirch <okir@suse.de>
+ * Copyright (C) 2010-2011 Olaf Kirch <okir@suse.de>
  */
 #include <stdlib.h>
 #include <string.h>
@@ -27,46 +27,40 @@
 
 #define _PATH_NETCONFIG	"/etc/sysconfig/network"
 
-static ni_interface_t *	__ni_netcf_xml_to_interface(ni_syntax_t *, ni_netconfig_t *, xml_node_t *);
-static int		__ni_netcf_xml_to_vlan(ni_syntax_t *, ni_netconfig_t *,
+static ni_interface_t *	__ni_netcf_xml_to_interface(ni_netconfig_t *, xml_node_t *);
+static int		__ni_netcf_xml_to_vlan(ni_netconfig_t *,
 					ni_interface_t *, xml_node_t *);
-static int		__ni_netcf_xml_to_bridge(ni_syntax_t *, ni_netconfig_t *,
+static int		__ni_netcf_xml_to_bridge(ni_netconfig_t *,
 					ni_interface_t *, xml_node_t *);
-static int		__ni_netcf_xml_to_bonding(ni_syntax_t *, ni_netconfig_t *,
+static int		__ni_netcf_xml_to_bonding(ni_netconfig_t *,
 					ni_interface_t *, xml_node_t *);
-static int		__ni_netcf_xml_to_static_ifcfg(ni_syntax_t *syntax, int af,
+static int		__ni_netcf_xml_to_static_ifcfg(int af,
 					ni_interface_t *ifp, xml_node_t *protnode);
 
-static xml_node_t *	__ni_netcf_xml_from_interface(ni_syntax_t *, const ni_interface_t *, xml_node_t *);
-static void		__ni_netcf_xml_from_address_config(ni_syntax_t *syntax,
+static xml_node_t *	__ni_netcf_xml_from_interface(const ni_interface_t *, xml_node_t *);
+static void		__ni_netcf_xml_from_address_config(
 				const ni_afinfo_t *afi,
 				const ni_interface_t *ifp, xml_node_t *ifnode);
-static xml_node_t *	__ni_netcf_xml_from_static_ifcfg(ni_syntax_t *syntax,
+static xml_node_t *	__ni_netcf_xml_from_static_ifcfg(
 				int af, const ni_interface_t *ifp, xml_node_t *);
 static void		__ni_netcf_xml_from_route(ni_route_t *, xml_node_t *);
-static void		__ni_netcf_xml_from_bridge(ni_syntax_t *syntax, ni_bridge_t *bridge, xml_node_t *);
+static void		__ni_netcf_xml_from_bridge(ni_bridge_t *bridge, xml_node_t *);
 static void		__ni_netcf_xml_from_bridge_config(ni_bridge_t *, const char *, xml_node_t *);
 static void		__ni_netcf_xml_from_bridge_port_config(ni_bridge_t *, const char *, const char *, xml_node_t *);
-static void		__ni_netcf_xml_from_bonding(ni_syntax_t *syntax, ni_bonding_t *bonding, xml_node_t *);
-static void		__ni_netcf_xml_from_vlan(ni_syntax_t *syntax, ni_vlan_t *vlan, xml_node_t *fp);
-static xml_node_t *	__ni_netcf_xml_from_interface_stats(ni_syntax_t *, ni_netconfig_t *,
-				const ni_interface_t *, xml_node_t *);
+static void		__ni_netcf_xml_from_bonding(ni_bonding_t *bonding, xml_node_t *);
+static void		__ni_netcf_xml_from_vlan(ni_vlan_t *vlan, xml_node_t *fp);
 
-static xml_node_t *	__ni_netcf_xml_from_policy(ni_syntax_t *, const ni_policy_t *, xml_node_t *);
-static xml_node_t *	__ni_netcf_xml_from_ethernet(ni_syntax_t *, const ni_ethernet_t *, xml_node_t *);
-static xml_node_t *	__ni_netcf_xml_from_wireless(ni_syntax_t *, const ni_wireless_t *, xml_node_t *);
-static xml_node_t *	__ni_netcf_xml_from_wireless_scan(ni_syntax_t *, const ni_wireless_scan_t *, xml_node_t *);
-static xml_node_t *	__ni_netcf_xml_from_addrconf_req(ni_syntax_t *, const ni_addrconf_request_t *, xml_node_t *);
-static xml_node_t *	__ni_netcf_xml_from_lease(ni_syntax_t *, const ni_addrconf_lease_t *, xml_node_t *parent);
-static xml_node_t *	__ni_netcf_xml_from_nis(ni_syntax_t *, const ni_nis_info_t *, xml_node_t *);
-static xml_node_t *	__ni_netcf_xml_from_resolver(ni_syntax_t *, const ni_resolver_info_t *, xml_node_t *);
-static ni_policy_t *	__ni_netcf_xml_to_policy(ni_syntax_t *, xml_node_t *);
-static ni_ethernet_t *	__ni_netcf_xml_to_ethernet(ni_syntax_t *, const xml_node_t *);
-static ni_wireless_scan_t *__ni_netcf_xml_to_wireless_scan(ni_syntax_t *, const xml_node_t *);
-static ni_addrconf_request_t *__ni_netcf_xml_to_addrconf_req(ni_syntax_t *, const xml_node_t *, int);
-static ni_addrconf_lease_t *__ni_netcf_xml_to_lease(ni_syntax_t *, const xml_node_t *);
-static ni_nis_info_t *	__ni_netcf_xml_to_nis(ni_syntax_t *, const xml_node_t *);
-static ni_resolver_info_t *__ni_netcf_xml_to_resolver(ni_syntax_t *, const xml_node_t *);
+static xml_node_t *	__ni_netcf_xml_from_ethernet(const ni_ethernet_t *, xml_node_t *);
+static xml_node_t *	__ni_netcf_xml_from_wireless(const ni_wireless_t *, xml_node_t *);
+static xml_node_t *	__ni_netcf_xml_from_addrconf_req(const ni_addrconf_request_t *, xml_node_t *);
+static xml_node_t *	__ni_netcf_xml_from_lease(const ni_addrconf_lease_t *, xml_node_t *parent);
+static xml_node_t *	__ni_netcf_xml_from_nis(const ni_nis_info_t *, xml_node_t *);
+static xml_node_t *	__ni_netcf_xml_from_resolver(const ni_resolver_info_t *, xml_node_t *);
+static ni_ethernet_t *	__ni_netcf_xml_to_ethernet(const xml_node_t *);
+static ni_addrconf_request_t *__ni_netcf_xml_to_addrconf_req(const xml_node_t *, int);
+static ni_addrconf_lease_t *__ni_netcf_xml_to_lease(const xml_node_t *);
+static ni_nis_info_t *	__ni_netcf_xml_to_nis(const xml_node_t *);
+static ni_resolver_info_t *__ni_netcf_xml_to_resolver(const xml_node_t *);
 static xml_node_t *	__ni_netcf_xml_from_behavior(const ni_ifbehavior_t *, xml_node_t *);
 static int		__ni_netcf_xml_to_behavior(ni_ifbehavior_t *, const xml_node_t *);
 
@@ -91,6 +85,8 @@ static void		__ni_netcf_get_string_child(const xml_node_t *, const char *, char 
 static void		__ni_netcf_get_uint_child(const xml_node_t *, const char *, unsigned int *);
 static void		__ni_netcf_get_string_array_child(const xml_node_t *, const char *, ni_string_array_t *);
 
+static int		__ni_netcf_strict_syntax = 0;
+
 const char *
 ni_netcf_format_path(const char *rootdir, const char *fmt, ...)
 {
@@ -107,52 +103,6 @@ ni_netcf_format_path(const char *rootdir, const char *fmt, ...)
 	va_end(ap);
 
 	return pathbuf;
-}
-
-ni_syntax_t *
-__ni_syntax_netcf(const char *pathname)
-{
-	ni_syntax_t *syntax;
-
-	syntax = calloc(1, sizeof(ni_syntax_t));
-	syntax->schema = "netcf";
-	syntax->base_path = xstrdup(pathname? pathname : _PATH_NETCONFIG);
-	syntax->xml_from_interface = __ni_netcf_xml_from_interface;
-	syntax->xml_to_interface = __ni_netcf_xml_to_interface;
-	syntax->xml_from_interface_stats = __ni_netcf_xml_from_interface_stats;
-	syntax->xml_from_policy = __ni_netcf_xml_from_policy;
-	syntax->xml_to_policy = __ni_netcf_xml_to_policy;
-	syntax->xml_from_ethernet = __ni_netcf_xml_from_ethernet;
-	syntax->xml_to_ethernet = __ni_netcf_xml_to_ethernet;
-	syntax->xml_from_wireless_scan = __ni_netcf_xml_from_wireless_scan;
-	syntax->xml_to_wireless_scan = __ni_netcf_xml_to_wireless_scan;
-	syntax->xml_from_lease = __ni_netcf_xml_from_lease;
-	syntax->xml_to_lease = __ni_netcf_xml_to_lease;
-	syntax->xml_from_request = __ni_netcf_xml_from_addrconf_req;
-	syntax->xml_to_request = __ni_netcf_xml_to_addrconf_req;
-	syntax->xml_from_nis = __ni_netcf_xml_from_nis;
-	syntax->xml_to_nis = __ni_netcf_xml_to_nis;
-	syntax->xml_from_resolver = __ni_netcf_xml_from_resolver;
-	syntax->xml_to_resolver = __ni_netcf_xml_to_resolver;
-
-	return syntax;
-}
-
-void
-__ni_syntax_netcf_free(ni_syntax_t *syntax)
-{
-	ni_string_free(&syntax->base_path);
-	free(syntax);
-}
-
-ni_syntax_t *
-__ni_syntax_netcf_strict(const char *pathname)
-{
-	ni_syntax_t *syntax;
-
-	syntax = __ni_syntax_netcf(pathname);
-	syntax->strict = 1;
-	return syntax;
 }
 
 ni_netconfig_t *
@@ -198,12 +148,11 @@ failed:
 int
 ni_netcf_store_interface(ni_netconfig_t *nc, ni_interface_t *ifp, FILE *ofp)
 {
-	ni_syntax_t *syntax = __ni_syntax_netcf(NULL);
 	xml_document_t *doc = NULL;
 	int rv = -1;
 
 	doc = xml_document_new();
-	if (!__ni_netcf_xml_from_interface(syntax, ifp, doc->root))
+	if (!__ni_netcf_xml_from_interface(ifp, doc->root))
 		goto error;
 
 	if (ofp) {
@@ -230,7 +179,6 @@ error:
 int
 ni_netcf_parse_file(const char *filename, ni_netconfig_t *nc)
 {
-	ni_syntax_t *syntax = NULL;
 	xml_document_t *doc = NULL;
 	int rv = -1;
 
@@ -245,14 +193,13 @@ ni_netcf_parse_file(const char *filename, ni_netconfig_t *nc)
 	} else {
 		xml_node_t *child;
 
-		syntax = __ni_syntax_netcf(NULL);
 		for (child = doc->root->children; child; child = child->next) {
 			ni_interface_t *ifp;
 
 			if (strcmp(child->name, "interface"))
 				continue;
 
-			ifp = __ni_netcf_xml_to_interface(syntax, nc, child);
+			ifp = __ni_netcf_xml_to_interface(nc, child);
 			if (ifp == NULL) {
 				ni_error("%s: xml format error in \"%s\"", __func__, filename);
 				goto out;
@@ -272,13 +219,11 @@ ni_netcf_parse_file(const char *filename, ni_netconfig_t *nc)
 out:
 	if (doc)
 		xml_document_free(doc);
-	if (syntax)
-		__ni_syntax_netcf_free(syntax);
 	return rv;
 }
 
 ni_interface_t *
-__ni_netcf_xml_to_interface(ni_syntax_t *syntax, ni_netconfig_t *nc, xml_node_t *ifnode)
+__ni_netcf_xml_to_interface(ni_netconfig_t *nc, xml_node_t *ifnode)
 {
 	ni_interface_t *ifp;
 	const char *attrval;
@@ -310,7 +255,7 @@ __ni_netcf_xml_to_interface(ni_syntax_t *syntax, ni_netconfig_t *nc, xml_node_t 
 	}
 
 	/* Variant netcf */
-	if (!syntax->strict && (node = xml_node_get_child(ifnode, "status")) != NULL) {
+	if (!__ni_netcf_strict_syntax && (node = xml_node_get_child(ifnode, "status")) != NULL) {
 		unsigned int flags = ifp->link.ifflags;
 		const char *opmode = NULL;
 
@@ -341,7 +286,7 @@ __ni_netcf_xml_to_interface(ni_syntax_t *syntax, ni_netconfig_t *nc, xml_node_t 
 		ifp->link.ifflags = flags;
 	}
 
-	if (syntax->strict) {
+	if (__ni_netcf_strict_syntax) {
 		node = xml_node_get_child(ifnode, "start");
 		if (node && (attrval = xml_node_get_attr(node, "mode")) != NULL) {
 			if (__ni_netcf_set_startmode(ifp, attrval) < 0) {
@@ -413,7 +358,7 @@ __ni_netcf_xml_to_interface(ni_syntax_t *syntax, ni_netconfig_t *nc, xml_node_t 
 			mode = ni_addrconf_name_to_type(child->name);
 			if (mode >= 0) {
 				ni_afinfo_addrconf_enable(afi, mode);
-				afi->request[mode] = __ni_netcf_xml_to_addrconf_req(syntax, child, afi->family);
+				afi->request[mode] = __ni_netcf_xml_to_addrconf_req(child, afi->family);
 				if (afi->request[mode] == NULL) {
 					ni_error("error parsing %s information", child->name);
 					return NULL;
@@ -421,7 +366,7 @@ __ni_netcf_xml_to_interface(ni_syntax_t *syntax, ni_netconfig_t *nc, xml_node_t 
 				continue;
 			}
 
-			if (!syntax->strict) {
+			if (!__ni_netcf_strict_syntax) {
 				if (!strcmp(child->name, "disable")) {
 					afi->enabled = 0;
 					continue;
@@ -429,7 +374,7 @@ __ni_netcf_xml_to_interface(ni_syntax_t *syntax, ni_netconfig_t *nc, xml_node_t 
 				if (!strcmp(child->name, "lease")) {
 					ni_addrconf_lease_t *lease;
 
-					lease = __ni_netcf_xml_to_lease(syntax, child);
+					lease = __ni_netcf_xml_to_lease(child);
 					if (!lease) {
 						ni_error("error parsing lease element");
 						return NULL;
@@ -448,28 +393,28 @@ __ni_netcf_xml_to_interface(ni_syntax_t *syntax, ni_netconfig_t *nc, xml_node_t 
 		}
 
 		/* Pull in static configuration */
-		if (__ni_netcf_xml_to_static_ifcfg(syntax, afi->family, ifp, node))
+		if (__ni_netcf_xml_to_static_ifcfg(afi->family, ifp, node))
 			return NULL;
 		ni_afinfo_addrconf_enable(afi, NI_ADDRCONF_STATIC);
 	}
 
 	switch (ifp->link.type) {
 	case NI_IFTYPE_BRIDGE:
-		if (__ni_netcf_xml_to_bridge(syntax, nc, ifp, ifnode))
+		if (__ni_netcf_xml_to_bridge(nc, ifp, ifnode))
 			return NULL;
 		break;
 	case NI_IFTYPE_BOND:
-		if (__ni_netcf_xml_to_bonding(syntax, nc, ifp, ifnode))
+		if (__ni_netcf_xml_to_bonding(nc, ifp, ifnode))
 			return NULL;
 		break;
 	case NI_IFTYPE_VLAN:
-		if (__ni_netcf_xml_to_vlan(syntax, nc, ifp, ifnode))
+		if (__ni_netcf_xml_to_vlan(nc, ifp, ifnode))
 			return NULL;
 		break;
 	case NI_IFTYPE_ETHERNET:
 		child = xml_node_get_child(ifnode, "ethernet");
 		if (child)
-			ni_interface_set_ethernet(ifp, __ni_netcf_xml_to_ethernet(syntax, child));
+			ni_interface_set_ethernet(ifp, __ni_netcf_xml_to_ethernet(child));
 		break;
 
 	default: ;
@@ -478,7 +423,7 @@ __ni_netcf_xml_to_interface(ni_syntax_t *syntax, ni_netconfig_t *nc, xml_node_t 
 }
 
 int
-__ni_netcf_xml_to_vlan(ni_syntax_t *syntax, ni_netconfig_t *nc,
+__ni_netcf_xml_to_vlan(ni_netconfig_t *nc,
 				ni_interface_t *ifp, xml_node_t *ifnode)
 {
 	xml_node_t *vnode, *rnode;
@@ -515,7 +460,7 @@ __ni_netcf_xml_to_vlan(ni_syntax_t *syntax, ni_netconfig_t *nc,
  * Obtain bridge configuration from XML
  */
 static int
-__ni_netcf_xml_to_bridge(ni_syntax_t *syntax, ni_netconfig_t *nc,
+__ni_netcf_xml_to_bridge(ni_netconfig_t *nc,
 				ni_interface_t *ifp, xml_node_t *ifnode)
 {
 	xml_node_t *brnode, *child;
@@ -535,7 +480,7 @@ __ni_netcf_xml_to_bridge(ni_syntax_t *syntax, ni_netconfig_t *nc,
 	}
 
 	ni_bridge_set_forward_delay(bridge, xml_node_get_attr(brnode, "forward-delay"));
-	if (!syntax->strict) {
+	if (!__ni_netcf_strict_syntax) {
 		ni_bridge_set_ageing_time(bridge, xml_node_get_attr(brnode, "ageing-time"));
 		ni_bridge_set_hello_time(bridge, xml_node_get_attr(brnode, "hello-time"));
 		ni_bridge_set_max_age(bridge, xml_node_get_attr(brnode, "max-age"));
@@ -554,7 +499,7 @@ __ni_netcf_xml_to_bridge(ni_syntax_t *syntax, ni_netconfig_t *nc,
 		}
 
 		ni_bridge_add_port_name(bridge, ifname);
-		if (!syntax->strict) {
+		if (!__ni_netcf_strict_syntax) {
 			ni_bridge_port_set_priority(bridge, ifname,
 				xml_node_get_attr(child, "priority"));
 			ni_bridge_port_set_path_cost(bridge, ifname,
@@ -569,7 +514,7 @@ __ni_netcf_xml_to_bridge(ni_syntax_t *syntax, ni_netconfig_t *nc,
  * Obtain bonding configuration from XML
  */
 int
-__ni_netcf_xml_to_bonding(ni_syntax_t *syntax, ni_netconfig_t *nc,
+__ni_netcf_xml_to_bonding(ni_netconfig_t *nc,
 			ni_interface_t *ifp, xml_node_t *ifnode)
 {
 	xml_node_t *bdnode, *child;
@@ -707,7 +652,7 @@ __ni_netcf_xml_to_address(xml_node_t *node, int af,
 }
 
 int
-__ni_netcf_xml_to_static_ifcfg(ni_syntax_t *syntax, int af, ni_interface_t *ifp, xml_node_t *protnode)
+__ni_netcf_xml_to_static_ifcfg(int af, ni_interface_t *ifp, xml_node_t *protnode)
 {
 	xml_node_t *node;
 
@@ -766,7 +711,7 @@ __ni_netcf_xml_to_static_ifcfg(ni_syntax_t *syntax, int af, ni_interface_t *ifp,
  * Build XML structure for a given interface
  */
 xml_node_t *
-__ni_netcf_xml_from_interface(ni_syntax_t *syntax, const ni_interface_t *ifp, xml_node_t *parent)
+__ni_netcf_xml_from_interface(const ni_interface_t *ifp, xml_node_t *parent)
 {
 	xml_node_t *ifnode, *node;
 
@@ -781,7 +726,7 @@ __ni_netcf_xml_from_interface(ni_syntax_t *syntax, const ni_interface_t *ifp, xm
 	}
 
 	/* Variant netcf */
-	if (!syntax->strict && ifp->link.ifflags) {
+	if (!__ni_netcf_strict_syntax && ifp->link.ifflags) {
 		unsigned int flags = ifp->link.ifflags;
 
 		node = xml_node_new("status", ifnode);
@@ -804,7 +749,7 @@ __ni_netcf_xml_from_interface(ni_syntax_t *syntax, const ni_interface_t *ifp, xm
 		}
 	}
 
-	if (syntax->strict) {
+	if (__ni_netcf_strict_syntax) {
 		node = xml_node_new("start", ifnode);
 		xml_node_add_attr(node, "mode", __ni_netcf_get_startmode(ifp));
 		if (ifp->link.mtu) {
@@ -820,19 +765,19 @@ __ni_netcf_xml_from_interface(ni_syntax_t *syntax, const ni_interface_t *ifp, xm
 		xml_node_add_attr(node, "address", ni_link_address_print(&ifp->link.hwaddr));
 	}
 
-	__ni_netcf_xml_from_address_config(syntax, &ifp->ipv4, ifp, ifnode);
-	__ni_netcf_xml_from_address_config(syntax, &ifp->ipv6, ifp, ifnode);
+	__ni_netcf_xml_from_address_config(&ifp->ipv4, ifp, ifnode);
+	__ni_netcf_xml_from_address_config(&ifp->ipv6, ifp, ifnode);
 
 	if (ifp->bridge)
-		__ni_netcf_xml_from_bridge(syntax, ifp->bridge, ifnode);
+		__ni_netcf_xml_from_bridge(ifp->bridge, ifnode);
 	if (ifp->bonding)
-		__ni_netcf_xml_from_bonding(syntax, ifp->bonding, ifnode);
+		__ni_netcf_xml_from_bonding(ifp->bonding, ifnode);
 	if (ifp->link.vlan)
-		__ni_netcf_xml_from_vlan(syntax, ifp->link.vlan, ifnode);
+		__ni_netcf_xml_from_vlan(ifp->link.vlan, ifnode);
 	if (ifp->ethernet)
-		__ni_netcf_xml_from_ethernet(syntax, ifp->ethernet, ifnode);
+		__ni_netcf_xml_from_ethernet(ifp->ethernet, ifnode);
 	if (ifp->wireless)
-		__ni_netcf_xml_from_wireless(syntax, ifp->wireless, ifnode);
+		__ni_netcf_xml_from_wireless(ifp->wireless, ifnode);
 
 	return ifnode;
 }
@@ -868,7 +813,7 @@ __ni_netcf_make_protocol_node(xml_node_t *ifnode, int af)
  * (static, with all addresses used; or DHCP; or possibly others too)
  */
 static void
-__ni_netcf_xml_from_address_config(ni_syntax_t *syntax, const ni_afinfo_t *afi,
+__ni_netcf_xml_from_address_config(const ni_afinfo_t *afi,
 			const ni_interface_t *ifp, xml_node_t *ifnode)
 {
 	xml_node_t *protnode = NULL;
@@ -876,7 +821,7 @@ __ni_netcf_xml_from_address_config(ni_syntax_t *syntax, const ni_afinfo_t *afi,
 
 	if (afi->enabled) {
 		if (ni_afinfo_addrconf_test(afi, NI_ADDRCONF_STATIC))
-			protnode = __ni_netcf_xml_from_static_ifcfg(syntax, afi->family, ifp, ifnode);
+			protnode = __ni_netcf_xml_from_static_ifcfg(afi->family, ifp, ifnode);
 
 		if (!protnode)
 			protnode = __ni_netcf_make_protocol_node(ifnode, afi->family);
@@ -888,11 +833,11 @@ __ni_netcf_xml_from_address_config(ni_syntax_t *syntax, const ni_afinfo_t *afi,
 			if (mode == NI_ADDRCONF_STATIC || !ni_afinfo_addrconf_test(afi, mode))
 				continue;
 
-			if (syntax->strict && mode != NI_ADDRCONF_DHCP)
+			if (__ni_netcf_strict_syntax && mode != NI_ADDRCONF_DHCP)
 				continue;
 
 			if ((req = afi->request[mode]) != NULL) {
-				__ni_netcf_xml_from_addrconf_req(syntax, req, protnode);
+				__ni_netcf_xml_from_addrconf_req(req, protnode);
 			} else {
 				const char *acname;
 
@@ -902,16 +847,16 @@ __ni_netcf_xml_from_address_config(ni_syntax_t *syntax, const ni_afinfo_t *afi,
 			}
 
 			if ((lease = afi->lease[mode]) != NULL)
-				__ni_netcf_xml_from_lease(syntax, lease, protnode);
+				__ni_netcf_xml_from_lease(lease, protnode);
 		}
-	} else if (!syntax->strict) {
+	} else if (!__ni_netcf_strict_syntax) {
 		protnode = __ni_netcf_make_protocol_node(ifnode, afi->family);
 		xml_node_new("disabled", protnode);
 	}
 }
 
 static xml_node_t *
-__ni_netcf_xml_from_static_ifcfg(ni_syntax_t *syntax, int af,
+__ni_netcf_xml_from_static_ifcfg(int af,
 			const ni_interface_t *ifp, xml_node_t *ifnode)
 {
 	xml_node_t *protnode = NULL;
@@ -948,7 +893,7 @@ __ni_netcf_xml_from_static_ifcfg(ni_syntax_t *syntax, int af,
 		/* variant netcf can express a richer variety of IP routes */
 		for (rp = ifp->routes; rp; rp = rp->next) {
 			/* strict netcf: ignore non-default routes; we cannot map these. */
-			if (syntax->strict && rp->prefixlen != 0)
+			if (__ni_netcf_strict_syntax && rp->prefixlen != 0)
 				continue;
 			if (rp->family == af)
 				__ni_netcf_xml_from_route(rp, protnode);
@@ -957,7 +902,7 @@ __ni_netcf_xml_from_static_ifcfg(ni_syntax_t *syntax, int af,
 #ifdef notdef
 		for (rp = nc->routes; rp; rp = rp->next) {
 			/* strict netcf: ignore non-default routes; we cannot map these. */
-			if (syntax->strict && rp->prefixlen != 0)
+			if (__ni_netcf_strict_syntax && rp->prefixlen != 0)
 				continue;
 			if (rp->seq == __ni_global_seqno)
 				__ni_netcf_xml_from_route(rp, protnode);
@@ -1052,7 +997,7 @@ __ni_netcf_xml_from_bridge_status(ni_bridge_t *bridge, xml_node_t *brnode)
 }
 
 static void
-__ni_netcf_xml_from_bridge(ni_syntax_t *syntax, ni_bridge_t *bridge, xml_node_t *ifnode)
+__ni_netcf_xml_from_bridge(ni_bridge_t *bridge, xml_node_t *ifnode)
 {
 	xml_node_t *brnode;
 	unsigned int i;
@@ -1061,7 +1006,7 @@ __ni_netcf_xml_from_bridge(ni_syntax_t *syntax, ni_bridge_t *bridge, xml_node_t 
 	__ni_netcf_xml_from_bridge_config(bridge, "stp", brnode);
 	__ni_netcf_xml_from_bridge_config(bridge, "forward-delay", brnode);
 
-	if (!syntax->strict) {
+	if (!__ni_netcf_strict_syntax) {
 		__ni_netcf_xml_from_bridge_config(bridge, "ageing-time", brnode);
 		__ni_netcf_xml_from_bridge_config(bridge, "hello-time", brnode);
 		__ni_netcf_xml_from_bridge_config(bridge, "priority", brnode);
@@ -1078,7 +1023,7 @@ __ni_netcf_xml_from_bridge(ni_syntax_t *syntax, ni_bridge_t *bridge, xml_node_t 
 
 		port_name = bridge->ports.data[i]->name;
 		port_node = __ni_netcf_xml_from_slave_interface(port_name, brnode);
-		if (!syntax->strict) {
+		if (!__ni_netcf_strict_syntax) {
 			__ni_netcf_xml_from_bridge_port_config(bridge, port_name,
 				"priority", port_node);
 			__ni_netcf_xml_from_bridge_port_config(bridge, port_name,
@@ -1091,7 +1036,7 @@ __ni_netcf_xml_from_bridge(ni_syntax_t *syntax, ni_bridge_t *bridge, xml_node_t 
  * Generate XML representation of a bonding configuration
  */
 void
-__ni_netcf_xml_from_bonding(ni_syntax_t *syntax, ni_bonding_t *bonding, xml_node_t *ifnode)
+__ni_netcf_xml_from_bonding(ni_bonding_t *bonding, xml_node_t *ifnode)
 {
 	xml_node_t *bdnode;
 	unsigned int i, j;
@@ -1146,7 +1091,7 @@ __ni_netcf_xml_from_bonding(ni_syntax_t *syntax, ni_bonding_t *bonding, xml_node
  * Generate XML representation of a VLAN configuration
  */
 static void
-__ni_netcf_xml_from_vlan(ni_syntax_t *syntax, ni_vlan_t *vlan, xml_node_t *ifnode)
+__ni_netcf_xml_from_vlan(ni_vlan_t *vlan, xml_node_t *ifnode)
 {
 	xml_node_t *vlnode;
 
@@ -1166,27 +1111,19 @@ __ni_netcf_xml_from_vlan(ni_syntax_t *syntax, ni_vlan_t *vlan, xml_node_t *ifnod
 int
 ni_netcf_xml_to_addrconf_request(const xml_node_t *xmlnode, int family, ni_addrconf_request_t **res)
 {
-	ni_syntax_t *syntax = __ni_syntax_netcf(NULL);
-
-	*res = __ni_netcf_xml_to_addrconf_req(syntax, xmlnode, family);
-	__ni_syntax_netcf_free(syntax);
-
+	*res = __ni_netcf_xml_to_addrconf_req(xmlnode, family);
 	return *res? 0 : -1;
 }
 
 int
 ni_netcf_addrconf_request_to_xml(const ni_addrconf_request_t *req, xml_node_t *parent, xml_node_t **res)
 {
-	ni_syntax_t *syntax = __ni_syntax_netcf(NULL);
-
-	*res =  __ni_netcf_xml_from_addrconf_req(syntax, req, parent);
-	__ni_syntax_netcf_free(syntax);
-
+	*res =  __ni_netcf_xml_from_addrconf_req(req, parent);
 	return *res? 0 : -1;
 }
 
 static xml_node_t *
-__ni_netcf_xml_from_addrconf_req(ni_syntax_t *syntax, const ni_addrconf_request_t *req, xml_node_t *proto_node)
+__ni_netcf_xml_from_addrconf_req(const ni_addrconf_request_t *req, xml_node_t *proto_node)
 {
 	xml_node_t *dhnode, *child;
 	const char *acname;
@@ -1202,7 +1139,7 @@ __ni_netcf_xml_from_addrconf_req(ni_syntax_t *syntax, const ni_addrconf_request_
 
 	dhnode = xml_node_new(acname, proto_node);
 
-	if (syntax->strict) {
+	if (__ni_netcf_strict_syntax) {
 		/* strict netcf only allows peerdns="yes" so far */
 		if (ni_addrconf_should_update(req, NI_ADDRCONF_UPDATE_RESOLVER))
 			xml_node_add_attr(dhnode, "peerdns", "yes");
@@ -1248,7 +1185,7 @@ __ni_netcf_xml_from_addrconf_req(ni_syntax_t *syntax, const ni_addrconf_request_
 }
 
 static ni_addrconf_request_t *
-__ni_netcf_xml_to_addrconf_req(ni_syntax_t *syntax, const xml_node_t *dhnode, int req_family)
+__ni_netcf_xml_to_addrconf_req(const xml_node_t *dhnode, int req_family)
 {
 	int req_type = -1;
 	ni_addrconf_request_t *req;
@@ -1261,7 +1198,7 @@ __ni_netcf_xml_to_addrconf_req(ni_syntax_t *syntax, const xml_node_t *dhnode, in
 	}
 
 	req = ni_addrconf_request_new(req_type, req_family);
-	if (syntax->strict) {
+	if (__ni_netcf_strict_syntax) {
 		/* strict netcf only allows peerdns="yes" so far */
 		int dodns = 0;
 
@@ -1304,27 +1241,19 @@ __ni_netcf_xml_to_addrconf_req(ni_syntax_t *syntax, const xml_node_t *dhnode, in
 int
 ni_netcf_lease_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *parent, xml_node_t **res)
 {
-	ni_syntax_t *syntax = __ni_syntax_netcf(NULL);
-
-	*res =  __ni_netcf_xml_from_lease(syntax, lease, parent);
-	__ni_syntax_netcf_free(syntax);
-
+	*res =  __ni_netcf_xml_from_lease(lease, parent);
 	return *res? 0 : -1;
 }
 
 int
 ni_netcf_xml_to_lease(const xml_node_t *xmlnode, ni_addrconf_lease_t **res)
 {
-	ni_syntax_t *syntax = __ni_syntax_netcf(NULL);
-
-	*res = __ni_netcf_xml_to_lease(syntax, xmlnode);
-	__ni_syntax_netcf_free(syntax);
-
+	*res = __ni_netcf_xml_to_lease(xmlnode);
 	return *res? 0 : -1;
 }
 
 static xml_node_t *
-__ni_netcf_xml_from_lease(ni_syntax_t *syntax, const ni_addrconf_lease_t *lease, xml_node_t *parent)
+__ni_netcf_xml_from_lease(const ni_addrconf_lease_t *lease, xml_node_t *parent)
 {
 	const ni_addrconf_t *mech;
 	xml_node_t *node;
@@ -1347,9 +1276,9 @@ __ni_netcf_xml_from_lease(ni_syntax_t *syntax, const ni_addrconf_lease_t *lease,
 	__ni_netcf_add_string_child(node, "netbios-scope", lease->netbios_scope);
 
 	if (lease->resolver)
-		__ni_netcf_xml_from_resolver(syntax, lease->resolver, node);
+		__ni_netcf_xml_from_resolver(lease->resolver, node);
 	if (lease->nis)
-		__ni_netcf_xml_from_nis(syntax, lease->nis, node);
+		__ni_netcf_xml_from_nis(lease->nis, node);
 
 	{
 		ni_interface_t dummy;
@@ -1357,7 +1286,7 @@ __ni_netcf_xml_from_lease(ni_syntax_t *syntax, const ni_addrconf_lease_t *lease,
 		memset(&dummy, 0, sizeof(dummy));
 		dummy.addrs = lease->addrs;
 		dummy.routes = lease->routes;
-		__ni_netcf_xml_from_static_ifcfg(syntax, lease->family, &dummy, node);
+		__ni_netcf_xml_from_static_ifcfg(lease->family, &dummy, node);
 	}
 
 	/* Convert protocol specific data to xml */
@@ -1369,7 +1298,7 @@ __ni_netcf_xml_from_lease(ni_syntax_t *syntax, const ni_addrconf_lease_t *lease,
 }
 
 static ni_addrconf_lease_t *
-__ni_netcf_xml_to_lease(ni_syntax_t *syntax, const xml_node_t *node)
+__ni_netcf_xml_to_lease(const xml_node_t *node)
 {
 	const ni_addrconf_t *mech;
 	ni_addrconf_lease_t *lease = NULL;
@@ -1413,12 +1342,12 @@ __ni_netcf_xml_to_lease(ni_syntax_t *syntax, const xml_node_t *node)
 	for (child = node->children; child; child = child->next) {
 		if (!strcmp(child->name, "resolver")) {
 			if (lease->resolver == NULL)
-				lease->resolver = __ni_netcf_xml_to_resolver(syntax, child);
+				lease->resolver = __ni_netcf_xml_to_resolver(child);
 			continue;
 		}
 		if (!strcmp(child->name, "nis")) {
 			if (lease->nis == NULL)
-				lease->nis = __ni_netcf_xml_to_nis(syntax, child);
+				lease->nis = __ni_netcf_xml_to_nis(child);
 			continue;
 		}
 	}
@@ -1444,7 +1373,7 @@ __ni_netcf_xml_to_lease(ni_syntax_t *syntax, const xml_node_t *node)
 
 		/* We need this freaking handle only for the seqno thing :-( */
 		memset(&dummy, 0, sizeof(dummy));
-		if (__ni_netcf_xml_to_static_ifcfg(syntax, af, &dummy, prot))
+		if (__ni_netcf_xml_to_static_ifcfg(af, &dummy, prot))
 			goto failed;
 
 		lease->addrs = dummy.addrs;
@@ -1468,7 +1397,7 @@ failed:
  * Render NIS config as XML
  */
 static xml_node_t *
-__ni_netcf_xml_from_nis(ni_syntax_t *syntax, const ni_nis_info_t *nis, xml_node_t *parent)
+__ni_netcf_xml_from_nis(const ni_nis_info_t *nis, xml_node_t *parent)
 {
 	xml_node_t *node, *domnode;
 	unsigned int i, j;
@@ -1497,7 +1426,7 @@ __ni_netcf_xml_from_nis(ni_syntax_t *syntax, const ni_nis_info_t *nis, xml_node_
 }
 
 static ni_nis_info_t *
-__ni_netcf_xml_to_nis(ni_syntax_t *syntax, const xml_node_t *node)
+__ni_netcf_xml_to_nis(const xml_node_t *node)
 {
 	ni_nis_info_t *nis;
 	xml_node_t *child;
@@ -1562,7 +1491,7 @@ error:
  * Render resolver config as XML
  */
 static xml_node_t *
-__ni_netcf_xml_from_resolver(ni_syntax_t *syntax, const ni_resolver_info_t *resolver, xml_node_t *parent)
+__ni_netcf_xml_from_resolver(const ni_resolver_info_t *resolver, xml_node_t *parent)
 {
 	xml_node_t *node, *child;
 	unsigned int i;
@@ -1590,7 +1519,7 @@ __ni_netcf_xml_from_resolver(ni_syntax_t *syntax, const ni_resolver_info_t *reso
 }
 
 static ni_resolver_info_t *
-__ni_netcf_xml_to_resolver(ni_syntax_t *syntax, const xml_node_t *node)
+__ni_netcf_xml_to_resolver(const xml_node_t *node)
 {
 	ni_resolver_info_t *resolver;
 	xml_node_t *child;
@@ -1721,70 +1650,6 @@ __ni_netcf_xml_to_behavior(ni_ifbehavior_t *beh, const xml_node_t *node)
 }
 
 /*
- * Represent policy objects
- */
-static xml_node_t *
-__ni_netcf_xml_from_policy(ni_syntax_t *syntax, const ni_policy_t *policy, xml_node_t *parent)
-{
-	const char *event_name;
-	xml_node_t *node;
-
-	if ((event_name = ni_event_type_to_name(policy->event)) == NULL) {
-		ni_error("unknown event type %u", policy->event);
-		return NULL;
-	}
-
-	node = xml_node_new("policy", parent);
-	xml_node_add_attr(node, "event", event_name);
-
-	if (policy->interface) {
-		if (__ni_netcf_xml_from_interface(syntax, policy->interface, node) < 0)
-			return NULL;
-	}
-	return node;
-}
-
-static ni_policy_t *
-__ni_netcf_xml_to_policy(ni_syntax_t *syntax, xml_node_t *node)
-{
-	ni_policy_t *policy = NULL;
-	const char *event_name;
-	xml_node_t *child;
-	int event;
-
-	if (!(event_name = xml_node_get_attr(node, "event"))) {
-		ni_error("%s: missing policy event", __FUNCTION__);
-		return NULL;
-	}
-	if ((event = ni_event_name_to_type(event_name)) < 0) {
-		ni_error("%s: unknown policy event \"%s\"", __FUNCTION__, event_name);
-		return NULL;
-	}
-
-	policy = ni_policy_new(event);
-	if ((child = xml_node_get_child(node, "interface")) != NULL) {
-		ni_netconfig_t dummy_netconfig;
-		ni_interface_t *ifp;
-
-		memset(&dummy_netconfig, 0, sizeof(dummy_netconfig));
-		ifp = __ni_netcf_xml_to_interface(syntax, &dummy_netconfig, child);
-
-		if (ifp == NULL) {
-			ni_error("%s: cannot parse interface descriptor", __FUNCTION__);
-			goto failed;
-		}
-		policy->interface = ni_interface_get(ifp);
-	}
-
-	return policy;
-
-failed:
-	if (policy)
-		ni_policy_free(policy);
-	return NULL;
-}
-
-/*
  * Encode/decode ethtool settings
  */
 static inline void
@@ -1813,7 +1678,7 @@ __ni_netcf_get_tristate(const xml_node_t *node, const char *name, ni_ether_trist
 }
 
 xml_node_t *
-__ni_netcf_xml_from_ethernet(ni_syntax_t *syntax, const ni_ethernet_t *ether, xml_node_t *parent)
+__ni_netcf_xml_from_ethernet(const ni_ethernet_t *ether, xml_node_t *parent)
 {
 	xml_node_t *node, *child;
 	const char *attrval;
@@ -1858,7 +1723,7 @@ __ni_netcf_xml_from_ethernet(ni_syntax_t *syntax, const ni_ethernet_t *ether, xm
 }
 
 ni_ethernet_t *
-__ni_netcf_xml_to_ethernet(ni_syntax_t *syntax, const xml_node_t *node)
+__ni_netcf_xml_to_ethernet(const xml_node_t *node)
 {
 	ni_ethernet_t *ether = ni_ethernet_alloc();
 	const char *attrval;
@@ -1924,7 +1789,7 @@ __ni_netcf_xml_from_bitmap(xml_node_t *node, const char *name,
  * Represent wireless interface info
  */
 xml_node_t *
-__ni_netcf_xml_from_wireless(ni_syntax_t *syntax, const ni_wireless_t *wlan, xml_node_t *parent)
+__ni_netcf_xml_from_wireless(const ni_wireless_t *wlan, xml_node_t *parent)
 {
 	xml_node_t *node, *child;
 
@@ -1953,394 +1818,6 @@ __ni_netcf_xml_from_wireless(ni_syntax_t *syntax, const ni_wireless_t *wlan, xml
 			ni_wireless_auth_mode_to_name);
 
 	return 0;
-}
-
-/*
- * Encode/decode interface statistics
- */
-static inline void
-__ni_netcf_xml_from_rxtx(xml_node_t *parent, const char *name, unsigned long rx_value, unsigned long tx_value)
-{
-	xml_node_t *child = NULL;
-
-	if (rx_value) {
-		child = xml_node_new(name, parent);
-		xml_node_add_attr_ulong(child, "rx", rx_value);
-	}
-
-	if (tx_value) {
-		if (!child)
-			child = xml_node_new(name, parent);
-		xml_node_add_attr_ulong(child, "tx", tx_value);
-	}
-}
-
-static inline void
-__ni_netcf_xml_to_rxtx(xml_node_t *node, unsigned long *rx_value, unsigned long *tx_value)
-{
-	if (rx_value)
-		xml_node_get_attr_ulong(node, "rx", rx_value);
-	if (tx_value)
-		xml_node_get_attr_ulong(node, "tx", tx_value);
-}
-
-xml_node_t *
-__ni_netcf_xml_from_interface_stats(ni_syntax_t *syntax, ni_netconfig_t *nc,
-				const ni_interface_t *ifp, xml_node_t *parent)
-{
-	xml_node_t *node = xml_node_new("stats", parent);
-	xml_node_t *stats;
-
-	if (ifp->link.stats) {
-		const ni_link_stats_t *ls = ifp->link.stats;
-		xml_node_t *child;
-
-		stats = xml_node_new("link", node);
-		__ni_netcf_xml_from_rxtx(stats, "packets", ls->rx_packets, ls->tx_packets);
-		__ni_netcf_xml_from_rxtx(stats, "bytes", ls->rx_bytes, ls->tx_bytes);
-		__ni_netcf_xml_from_rxtx(stats, "errors", ls->rx_errors, ls->tx_errors);
-		__ni_netcf_xml_from_rxtx(stats, "dropped", ls->rx_dropped, ls->tx_dropped);
-		__ni_netcf_xml_from_rxtx(stats, "compressed", ls->rx_compressed, ls->tx_compressed);
-
-		child = xml_node_new("rx-errors", stats);
-		if (ls->rx_length_errors)
-			xml_node_add_attr_ulong(child, "bad-length", ls->rx_length_errors);
-		if (ls->rx_over_errors)
-			xml_node_add_attr_ulong(child, "ring-overrun", ls->rx_over_errors);
-		if (ls->rx_crc_errors)
-			xml_node_add_attr_ulong(child, "bad-crc", ls->rx_crc_errors);
-		if (ls->rx_frame_errors)
-			xml_node_add_attr_ulong(child, "bad-frame", ls->rx_frame_errors);
-		if (ls->rx_fifo_errors)
-			xml_node_add_attr_ulong(child, "fifo-overrun", ls->rx_fifo_errors);
-		if (ls->rx_missed_errors)
-			xml_node_add_attr_ulong(child, "missed", ls->rx_missed_errors);
-
-		child = xml_node_new("tx-errors", stats);
-		if (ls->tx_aborted_errors)
-			xml_node_add_attr_ulong(child, "aborted", ls->tx_aborted_errors);
-		if (ls->tx_carrier_errors)
-			xml_node_add_attr_ulong(child, "carrier", ls->tx_carrier_errors);
-		if (ls->tx_fifo_errors)
-			xml_node_add_attr_ulong(child, "fifo", ls->tx_fifo_errors);
-		if (ls->tx_heartbeat_errors)
-			xml_node_add_attr_ulong(child, "heartbeat", ls->tx_heartbeat_errors);
-		if (ls->tx_window_errors)
-			xml_node_add_attr_ulong(child, "window", ls->tx_window_errors);
-	}
-
-	return node;
-}
-
-xml_node_t *
-__ni_netcf_xml_to_interface_stats(ni_syntax_t *syntax, ni_netconfig_t *nc,
-				ni_interface_t *ifp, xml_node_t *node)
-{
-	xml_node_t *stats;
-
-	for (stats = node->children; stats; stats = stats->next) {
-		if (!strcmp(stats->name, "link")) {
-			ni_link_stats_t *ls = xcalloc(1, sizeof(*ls));
-			xml_node_t *child;
-
-			for (child = stats->children; child; child = child->next) {
-				if (!strcmp(child->name, "packets"))
-					__ni_netcf_xml_to_rxtx(child, &ls->rx_packets, &ls->tx_packets);
-				else if (!strcmp(child->name, "bytes"))
-					__ni_netcf_xml_to_rxtx(child, &ls->rx_bytes, &ls->tx_bytes);
-				else if (!strcmp(child->name, "errors"))
-					__ni_netcf_xml_to_rxtx(child, &ls->rx_errors, &ls->tx_errors);
-				else if (!strcmp(child->name, "dropped"))
-					__ni_netcf_xml_to_rxtx(child, &ls->rx_dropped, &ls->tx_dropped);
-				else if (!strcmp(child->name, "compressed"))
-					__ni_netcf_xml_to_rxtx(child, &ls->rx_compressed, &ls->tx_compressed);
-				else if (!strcmp(child->name, "rx-errors")) {
-					xml_node_get_attr_ulong(child, "bad-length", &ls->rx_length_errors);
-					xml_node_get_attr_ulong(child, "ring-overrun", &ls->rx_over_errors);
-					xml_node_get_attr_ulong(child, "bad-crc", &ls->rx_crc_errors);
-					xml_node_get_attr_ulong(child, "bad-frame", &ls->rx_frame_errors);
-					xml_node_get_attr_ulong(child, "fifo-overrun", &ls->rx_fifo_errors);
-					xml_node_get_attr_ulong(child, "missed", &ls->rx_missed_errors);
-				} else if (!strcmp(child->name, "tx-errors")) {
-					xml_node_get_attr_ulong(child, "aborted", &ls->tx_aborted_errors);
-					xml_node_get_attr_ulong(child, "carrier", &ls->tx_carrier_errors);
-					xml_node_get_attr_ulong(child, "fifo", &ls->tx_fifo_errors);
-					xml_node_get_attr_ulong(child, "heartbeat", &ls->tx_heartbeat_errors);
-					xml_node_get_attr_ulong(child, "window", &ls->tx_window_errors);
-				}
-			}
-
-			ni_interface_set_link_stats(ifp, ls);
-		}
-	}
-
-	return node;
-}
-
-/*
- * Encode/decode wireless auth info
- */
-static xml_node_t *
-__ni_netcf_xml_from_wireless_auth_info(ni_syntax_t *syntax, ni_wireless_auth_info_t *auth, xml_node_t *parent)
-{
-	xml_node_t *node = xml_node_new("auth", parent);
-	xml_node_t *child;
-	unsigned int i;
-
-	xml_node_add_attr(node, "mode", ni_wireless_auth_mode_to_name(auth->mode));
-	xml_node_add_attr_uint(node, "version", auth->version);
-	xml_node_new_element("group-cipher", node, ni_wireless_cipher_to_name(auth->group_cipher));
-
-	child = xml_node_new("pairwise-ciphers", node);
-	for (i = 0; i < auth->pairwise_ciphers.count; ++i) {
-		xml_node_new_element("cipher", child, ni_wireless_cipher_to_name(auth->pairwise_ciphers.value[i]));
-	}
-
-	child = xml_node_new("key-management", node);
-	for (i = 0; i < auth->key_management.count; ++i) {
-		xml_node_new_element("algorithm", child, ni_wireless_key_management_to_name(auth->key_management.value[i]));
-	}
-	return node;
-}
-
-static ni_wireless_auth_info_t *
-__ni_netcf_xml_to_wireless_auth_info(ni_syntax_t *syntax, xml_node_t *node)
-{
-	ni_wireless_auth_info_t *auth;
-	const char *attrval;
-	unsigned int version;
-	int mode;
-
-	if (!(attrval = xml_node_get_attr(node, "mode"))
-	 || (mode = ni_wireless_name_to_auth_mode(attrval)) < 0
-	 || !(attrval = xml_node_get_attr(node, "version"))
-	 || ni_parse_int(attrval, &version) < 0) {
-		ni_error("wireless auth info: bad or missing mode/version attr");
-		return NULL;
-	}
-
-	auth = ni_wireless_auth_info_new(mode, version);
-
-	/* FIXME: add cipher info */
-
-	return auth;
-}
-
-/*
- * Encode/decode wireless network
- */
-static xml_node_t *
-__ni_netcf_xml_from_wireless_network(ni_syntax_t *syntax, const ni_wireless_network_t *net, xml_node_t *parent)
-{
-	xml_node_t *node = xml_node_new("network", parent);
-	xml_node_t *child;
-
-	if (net->access_point.len)
-		xml_node_new_element("access-point", node, ni_link_address_print(&net->access_point));
-	xml_node_new_element("mode", node, ni_wireless_mode_to_name(net->mode));
-
-	/* We need to escape the ESSID; it may be the result of a wireless
-	 * scan; thus we cannot assume it is safe to use as XML CDATA.
-	 * FIXME: we really want to handle this in the xml reader/writer code!
-	 */
-	if (net->essid) {
-		const char *essid = net->essid;
-
-		if (strchr(essid, '<') || strchr(essid, '>'))
-			essid = "INVALID";
-		child = xml_node_new_element("essid", node, essid);
-
-		if (net->essid_encode_index)
-			xml_node_add_attr_uint(child, "key-index", net->essid_encode_index);
-	}
-
-	if (net->channel || net->frequency) {
-		child = xml_node_new("channel", node);
-		if (net->channel)
-			xml_node_add_attr_uint(child, "index", net->channel);
-		if (net->frequency)
-			xml_node_add_attr_double(child, "frequency", net->frequency);
-	}
-
-	if (net->bitrates.count) {
-		char ratebuf[64];
-		unsigned int i;
-
-		child = xml_node_new("bitrates", node);
-		for (i = 0; i < net->bitrates.count; ++i) {
-			snprintf(ratebuf, sizeof(ratebuf), "%u", net->bitrates.value[i]);
-			xml_node_new_element("rate", child, ratebuf);
-		}
-	}
-
-	child = xml_node_new("security", node);
-	xml_node_add_attr(child, "mode", ni_wireless_security_to_name(net->encode.mode));
-
-	child = xml_node_new("key", child);
-	if (net->encode.key_index)
-		xml_node_add_attr_uint(child, "index", net->encode.key_index);
-	if (net->encode.key_required)
-		xml_node_add_attr_uint(child, "required", 1);
-	if (net->encode.key_len)
-		xml_node_set_cdata(child, ni_print_hex(net->encode.key_data, net->encode.key_len));
-
-	/* add authentication data */
-	if (net->auth_info.count) {
-		unsigned int i;
-
-		child = xml_node_new("auth-supported", node);
-		for (i = 0; i < net->auth_info.count; ++i) {
-			ni_wireless_auth_info_t *auth = net->auth_info.data[i];
-
-			if (!__ni_netcf_xml_from_wireless_auth_info(syntax, auth, child))
-				return NULL;
-		}
-	}
-
-	return node;
-}
-
-static ni_wireless_network_t *
-__ni_netcf_xml_to_wireless_network(ni_syntax_t *syntax, xml_node_t *node)
-{
-	ni_wireless_network_t *net = ni_wireless_network_new();
-	xml_node_t *child;
-	const char *attrval;
-
-	if ((attrval = xml_node_get_attr(node, "access-point")) != NULL
-	 && ni_link_address_parse(&net->access_point, NI_IFTYPE_WIRELESS, attrval) < 0) {
-		ni_error("cannot parse %s: bad attribute access-point=%s",
-				node->name, attrval);
-		goto failed;
-	}
-
-	for (child = node->children; child; child = child->next) {
-		if (!strcmp(child->name, "mode")) {
-			net->mode = ni_wireless_name_to_mode(child->cdata);
-			if (net->mode == NI_WIRELESS_MODE_UNKNOWN) {
-				ni_error("cannot parse %s: bad mode %s",
-						node->name, child->cdata);
-				goto failed;
-			}
-		} else
-		if (!strcmp(child->name, "essid")) {
-			ni_string_dup(&net->essid, child->cdata);
-			if ((attrval = xml_node_get_attr(child, "key-index")) != NULL)
-				ni_parse_int(attrval, &net->essid_encode_index);
-		} else
-		if (!strcmp(child->name, "channel")) {
-			if ((attrval = xml_node_get_attr(child, "index")) != NULL)
-				ni_parse_int(attrval, &net->channel);
-			if ((attrval = xml_node_get_attr(child, "frequency")) != NULL)
-				ni_parse_double(attrval, &net->frequency);
-		} else
-		if (!strcmp(child->name, "bitrates")) {
-			xml_node_t *gchild;
-
-			for (gchild = child->children; gchild; gchild = gchild->next) {
-				unsigned int rate;
-
-				if (ni_parse_int(gchild->cdata, &rate) >= 0
-				 && net->bitrates.count < NI_WIRELESS_BITRATES_MAX)
-					net->bitrates.value[net->bitrates.count++] = rate;
-			}
-		} else
-		if (!strcmp(child->name, "security")) {
-			xml_node_t *gchild;
-
-			if ((attrval = xml_node_get_attr(child, "mode")) != NULL) {
-				net->encode.mode = ni_wireless_name_to_security(attrval);
-			}
-
-			if ((gchild = xml_node_get_child(child, "key")) != NULL) {
-				if ((attrval = xml_node_get_attr(gchild, "index")) != NULL
-				 && ni_parse_int(attrval, &net->encode.key_index) < 0) {
-					ni_error("wireless security: bad key index=\"%s\" attr",
-							attrval);
-					goto failed;
-				}
-				if ((attrval = xml_node_get_attr(gchild, "required")) != NULL
-				 && !strcmp(attrval, "1"))
-					net->encode.key_required = 1;
-
-				if (gchild->cdata) {
-					unsigned char key_data[512];
-					int key_len;
-
-					key_len = ni_parse_hex(gchild->cdata, key_data, sizeof(key_data));
-					if (key_len) {
-						ni_error("wireless security: cannot parse key data");
-						goto failed;
-					}
-					ni_wireless_network_set_key(net, key_data, key_len);
-					memset(key_data, 0, sizeof(key_data));
-				}
-			}
-		} else
-		if (!strcmp(child->name, "auth-supported")) {
-			xml_node_t *gchild;
-
-			for (gchild = child->children; gchild; gchild = gchild->next) {
-				ni_wireless_auth_info_t *auth;
-
-				if (!strcmp(gchild->name, "auth")) {
-					auth = __ni_netcf_xml_to_wireless_auth_info(syntax, gchild);
-					if (!auth)
-						goto failed;
-					ni_wireless_auth_info_array_append(&net->auth_info, auth);
-				}
-			}
-		} else
-			continue;
-	}
-	return net;
-
-failed:
-	ni_wireless_network_free(net);
-	return NULL;
-}
-
-/*
- * Encode/decode wireless scan results
- */
-static xml_node_t *
-__ni_netcf_xml_from_wireless_scan(ni_syntax_t *syntax, const ni_wireless_scan_t *scan, xml_node_t *parent)
-{
-	xml_node_t *node = xml_node_new("wireless-scan", parent);
-	unsigned int i;
-
-	for (i = 0; i < scan->networks.count; ++i) {
-		ni_wireless_network_t *net = scan->networks.data[i];
-
-		if (!__ni_netcf_xml_from_wireless_network(syntax, net, node))
-			return NULL;
-	}
-
-	return node;
-}
-
-static ni_wireless_scan_t *
-__ni_netcf_xml_to_wireless_scan(ni_syntax_t *syntax, const xml_node_t *node)
-{
-	ni_wireless_scan_t *scan = ni_wireless_scan_new();
-	xml_node_t *child;
-
-	for (child = node->children; child; child = child->next) {
-		if (!strcmp(child->name, "network")) {
-			ni_wireless_network_t *net;
-
-			net = __ni_netcf_xml_to_wireless_network(syntax, child);
-			if (!net)
-				goto failed;
-			ni_wireless_network_array_append(&scan->networks, net);
-		}
-	}
-
-	return scan;
-
-failed:
-	ni_wireless_scan_free(scan);
-	return NULL;
 }
 
 /*
