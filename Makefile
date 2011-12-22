@@ -75,13 +75,11 @@ __LIBSRCS= \
 	  wpa-supplicant.c \
 	  dhcp-lease.c
 DHCP4SRCS = \
-	  dhcp4-supplicant.c \
 	  dhcp4/dbus-api.c \
 	  dhcp4/fsm.c \
 	  dhcp4/device.c \
 	  dhcp4/protocol.c
 AUTO4SRCS = \
-	  autoip4-supplicant.c \
 	  autoip4/dbus-api.c \
 	  autoip4/device.c \
 	  autoip4/fsm.c
@@ -129,11 +127,11 @@ wickedd: $(OBJ)/wickedd.o $(TGTLIBS)
 wicked-convert: $(OBJ)/wicked-convert.o $(CONVOBJS) $(TGTLIBS)
 	$(CC) -o $@ $(CFLAGS) $(OBJ)/wicked-convert.o $(CONVOBJS) -L. -lnetinfo -lm -lnl -ldbus-1
 
-dhcp4-supplicant: $(DHCP4OBJS) $(TGTLIBS)
-	$(CC) -o $@ $(CFLAGS) $(DHCP4OBJS) -L. -lnetinfo -lm -lnl -ldbus-1
+dhcp4-supplicant: $(OBJ)/dhcp4-supplicant.o $(DHCP4OBJS) $(TGTLIBS)
+	$(CC) -o $@ $(CFLAGS) $(OBJ)/dhcp4-supplicant.o $(DHCP4OBJS) -L. -lnetinfo -lm -lnl -ldbus-1
 
-autoip4-supplicant: $(AUTO4OBJS) $(TGTLIBS)
-	$(CC) -o $@ $(CFLAGS) $(AUTO4OBJS) -L. -lnetinfo -lm -lnl -ldbus-1
+autoip4-supplicant: $(OBJ)/autoip4-supplicant.o $(AUTO4OBJS) $(TGTLIBS)
+	$(CC) -o $@ $(CFLAGS) $(OBJ)/autoip4-supplicant.o $(AUTO4OBJS) -L. -lnetinfo -lm -lnl -ldbus-1
 
 test: $(OBJ)/test.o $(TGTLIBS)
 	$(CC) -o $@ $(CFLAGS) $(OBJ)/test.o -L. -lnetinfo -ldbus-1
@@ -157,6 +155,7 @@ depend:
 	gcc $(CFLAGS) -M $(APPSRCS) | sed 's:^[a-z]:$(OBJ)/&:' >> .depend
 	gcc $(CFLAGS) -M $(DHCP4SRCS) | sed 's:^[a-z]:$(OBJ)/dhcp4/&:' >> .depend
 	gcc $(CFLAGS) -M $(AUTO4SRCS) | sed 's:^[a-z]:$(OBJ)/auto4/&:' >> .depend
+	gcc $(CFLAGS) -M $(CONVSRCS) | sed 's:^[a-z]:$(OBJ)/convert/&:' >> .depend
 
 $(OBJ)/%.o: %.c
 	@rm -f $@
