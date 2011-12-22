@@ -8,7 +8,7 @@
  * The idea is to make it easier to extend this to some smallish daemon
  * with a AF_LOCAL socket interface.
  *
- * Copyright (C) 2010 Olaf Kirch <okir@suse.de>
+ * Copyright (C) 2010-2011 Olaf Kirch <okir@suse.de>
  */
 #include <stdio.h>
 #include <string.h>

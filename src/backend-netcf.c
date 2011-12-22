@@ -9,6 +9,7 @@
 #include <dirent.h>
 #include <arpa/inet.h>
 #include <net/if_arp.h>
+#include <stdarg.h>
 
 #include <wicked/netinfo.h>
 #include <wicked/addrconf.h>
@@ -23,6 +24,8 @@
 
 #include "netinfo_priv.h"
 #include "kernel.h"
+
+#define _PATH_NETCONFIG	"/etc/sysconfig/network"
 
 static ni_interface_t *	__ni_netcf_xml_to_interface(ni_syntax_t *, ni_netconfig_t *, xml_node_t *);
 static int		__ni_netcf_xml_to_vlan(ni_syntax_t *, ni_netconfig_t *,
@@ -88,6 +91,24 @@ static void		__ni_netcf_get_string_child(const xml_node_t *, const char *, char 
 static void		__ni_netcf_get_uint_child(const xml_node_t *, const char *, unsigned int *);
 static void		__ni_netcf_get_string_array_child(const xml_node_t *, const char *, ni_string_array_t *);
 
+const char *
+ni_netcf_format_path(const char *rootdir, const char *fmt, ...)
+{
+	static char pathbuf[PATH_MAX];
+	char tempbuf[PATH_MAX];
+	va_list ap;
+
+	va_start(ap, fmt);
+	vsnprintf(tempbuf, sizeof(tempbuf), fmt, ap);
+	snprintf(pathbuf, sizeof(pathbuf), "%s%s/%s",
+			rootdir? rootdir : "",
+			_PATH_NETCONFIG,
+			tempbuf);
+	va_end(ap);
+
+	return pathbuf;
+}
+
 ni_syntax_t *
 __ni_syntax_netcf(const char *pathname)
 {
@@ -95,7 +116,7 @@ __ni_syntax_netcf(const char *pathname)
 
 	syntax = calloc(1, sizeof(ni_syntax_t));
 	syntax->schema = "netcf";
-	syntax->base_path = xstrdup(pathname);
+	syntax->base_path = xstrdup(pathname? pathname : _PATH_NETCONFIG);
 	syntax->xml_from_interface = __ni_netcf_xml_from_interface;
 	syntax->xml_to_interface = __ni_netcf_xml_to_interface;
 	syntax->xml_from_interface_stats = __ni_netcf_xml_from_interface_stats;

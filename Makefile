@@ -3,7 +3,8 @@ CFLAGS	= -Wall -Werror -g -O2 -D_GNU_SOURCE -I. -Iinclude -Isrc \
 	  $(CFLAGS_DBUS)
 CFLAGS_DBUS := $(shell pkg-config --cflags dbus-1)
 
-APPS	= wicked wickedd dhcp4-supplicant autoip4-supplicant \
+APPS	= wicked wickedd wicked-convert \
+	  dhcp4-supplicant autoip4-supplicant \
 	  testing/xml-test testing/xpath-test
 
 TGTLIBS	= libnetinfo.a
@@ -90,6 +91,9 @@ AUTO4SRCS = \
 	  autoip4/dbus-api.c \
 	  autoip4/device.c \
 	  autoip4/fsm.c
+CONVSRCS = \
+	  convert/suse.c \
+	  convert/redhat.c
 
 OBJ	= obj
 LIBSRCS	= $(addprefix src/,$(__LIBSRCS))
@@ -100,6 +104,7 @@ NCFOBJS	= $(addprefix $(OBJ)/netcf/,$(__NCFSRCS:.c=.o))
 APPSRCS	= $(addsuffix .c,$(APPS))
 DHCP4OBJS= $(addprefix $(OBJ)/,$(DHCP4SRCS:.c=.o))
 AUTO4OBJS= $(addprefix $(OBJ)/,$(AUTO4SRCS:.c=.o))
+CONVOBJS = $(addprefix $(OBJ)/,$(CONVSRCS:.c=.o))
 
 all: $(TGTLIBS) $(APPS)
 
@@ -128,6 +133,9 @@ wicked: $(OBJ)/wicked.o $(TGTLIBS)
 
 wickedd: $(OBJ)/wickedd.o $(TGTLIBS)
 	$(CC) -o $@ $(CFLAGS) $(OBJ)/wickedd.o -L. -lnetinfo -lm -lnl -ldbus-1
+
+wicked-convert: $(OBJ)/wicked-convert.o $(CONVOBJS) $(TGTLIBS)
+	$(CC) -o $@ $(CFLAGS) $(OBJ)/wicked-convert.o $(CONVOBJS) -L. -lnetinfo -lm -lnl -ldbus-1
 
 dhcp4-supplicant: $(DHCP4OBJS) $(TGTLIBS)
 	$(CC) -o $@ $(CFLAGS) $(DHCP4OBJS) -L. -lnetinfo -lm -lnl -ldbus-1
