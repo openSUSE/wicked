@@ -730,18 +730,15 @@ __interface_request_build(ni_interface_t *ifp)
 static int
 do_ifup(int argc, char **argv)
 {
-	enum  { OPT_SYSCONFIG, OPT_NETCF, OPT_SYNTAX, OPT_BOOT };
+	enum  { OPT_SYSCONFIG, OPT_NETCF, OPT_FILE, OPT_BOOT };
 	static struct option ifup_options[] = {
-		{ "sysconfig", required_argument, NULL, OPT_SYSCONFIG },
-		{ "netcf", required_argument, NULL, OPT_NETCF },
-		{ "syntax", required_argument, NULL, OPT_SYNTAX },
+		{ "file", required_argument, NULL, OPT_FILE },
 		{ "boot", no_argument, NULL, OPT_BOOT },
 		{ NULL }
 	};
 	ni_dbus_variant_t argument = NI_DBUS_VARIANT_INIT;
 	DBusError error = DBUS_ERROR_INIT;
 	const char *ifname = NULL;
-	const char *opt_syntax = NULL;
 	const char *opt_file = NULL;
 	ni_dbus_object_t *root_object, *dev_object;
 	unsigned int ifevent = NI_IFACTION_MANUAL_UP;
@@ -751,21 +748,8 @@ do_ifup(int argc, char **argv)
 	optind = 1;
 	while ((c = getopt_long(argc, argv, "", ifup_options, NULL)) != EOF) {
 		switch (c) {
-		case OPT_NETCF:
-			opt_syntax = "netcf";
+		case OPT_FILE:
 			opt_file = optarg;
-			break;
-
-		case OPT_SYSCONFIG:
-			/* The generic "sysconfig" syntax will select either
-			 * RedHat or SUSE style sysconfig syntax */
-			if (opt_syntax == NULL)
-				opt_syntax = "sysconfig";
-			opt_file = optarg;
-			break;
-
-		case OPT_SYNTAX:
-			opt_syntax = optarg;
 			break;
 
 		case OPT_BOOT:
@@ -778,9 +762,7 @@ usage:
 				"wicked [options] ifup [ifup-options] all\n"
 				"wicked [options] ifup [ifup-options] <ifname> [options ...]\n"
 				"\nSupported ifup-options:\n"
-				"  --netcf <filename>\n"
-				"      Read interface configuration(s) from file rather than using system config\n"
-				"  --sysconfig <filename>\n"
+				"  --file <filename>\n"
 				"      Read interface configuration(s) from file rather than using system config\n"
 				"  --boot\n"
 				"      Ignore interfaces with startmode != boot\n"
@@ -807,7 +789,7 @@ usage:
 		ni_backend_t *backend;
 		ni_netconfig_t *nc;
 
-		backend = ni_backend_new(opt_syntax, opt_file);
+		backend = ni_backend_new("netcf", opt_file);
 		if (ni_backend_interfaces_reload(backend) < 0) {
 			ni_error("unable to load interface definition from %s", opt_file);
 			ni_backend_free(backend);
