@@ -22,7 +22,10 @@ static char *	quote(char *);
 int
 ni_sysconfig_scandir(const char *dirname, const char *match_prefix, ni_string_array_t *res)
 {
-	return ni_scandir(dirname, match_prefix, res);
+	char pattern[64];
+
+	snprintf(pattern, sizeof(pattern), "%s*", match_prefix);
+	return ni_scandir(dirname, pattern, res);
 }
 
 ni_sysconfig_t *

@@ -498,10 +498,14 @@ ni_bitfield_testbit(const ni_bitfield_t *bf, unsigned int bit)
  * Scan directory and return all file names matching the given prefix.
  */
 int
-ni_scandir(const char *dirname, const char *match_prefix, ni_string_array_t *res)
+ni_scandir(const char *dirname, const char *pattern, ni_string_array_t *res)
 {
 	struct dirent *dp;
-	unsigned int pfxlen;
+	char *copy = NULL;
+	const char *match_prefix = NULL;
+	const char *match_suffix = NULL;
+	unsigned int pfxlen, sfxlen;
+	unsigned int rv = 0;
 	DIR *dir;
 
 	dir = opendir(dirname);
@@ -510,16 +514,46 @@ ni_scandir(const char *dirname, const char *match_prefix, ni_string_array_t *res
 		return 0;
 	}
 
-	pfxlen = match_prefix? strlen(match_prefix) : 0;
-	while ((dp = readdir(dir)) != NULL) {
-		if (dp->d_name[0] == '.')
-			continue;
-		if (!pfxlen || !strncmp(dp->d_name, match_prefix, pfxlen))
-			ni_string_array_append(res, dp->d_name);
-	}
-	closedir(dir);
+	if (pattern) {
+		char *s;
 
-	return res->count;
+		copy = xstrdup(pattern);
+		if ((s = strchr(copy, '*')) == NULL) {
+			ni_error("%s: bad pattern \"%s\"", __func__, pattern);
+			goto out;
+		}
+		if (s != copy)
+			match_prefix = copy;
+		*s++ = '\0';
+		if (*s != '\0')
+			match_suffix = s;
+	}
+
+	pfxlen = match_prefix? strlen(match_prefix) : 0;
+	sfxlen = match_suffix? strlen(match_suffix) : 0;
+	while ((dp = readdir(dir)) != NULL) {
+		const char *name = dp->d_name;
+
+		if (name[0] == '.')
+			continue;
+		if (pfxlen && strncmp(name, match_prefix, pfxlen))
+			continue;
+		if (sfxlen != 0) {
+			unsigned int namelen = strlen(name);
+
+			if (namelen < pfxlen + sfxlen)
+				continue;
+			if (strcmp(name + namelen - sfxlen, match_suffix))
+				continue;
+		}
+		ni_string_array_append(res, name);
+	}
+	rv = res->count;
+
+out:
+	closedir(dir);
+	free(copy);
+	return rv;
 }
 
 /*
