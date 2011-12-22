@@ -57,7 +57,7 @@ __ni_sysconfig_read(const char *filename, const char **varnames)
 
 	ni_debug_readwrite("ni_sysconfig_read(%s)", filename);
 	if (!(fp = fopen(filename, "r"))) {
-		perror(filename);
+		ni_error("unable to open %s: %m", filename);
 		return NULL;
 	}
 
