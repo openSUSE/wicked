@@ -251,6 +251,7 @@ __wicked_dbus_set_route_list(ni_route_t **list,
 		rp = calloc(1, sizeof(*rp));
 		rp->family = family;
 		rp->prefixlen = prefixlen;
+		rp->config_method = config;
 		rp->destination = destination;
 		__ni_route_list_append(list, rp);
 
