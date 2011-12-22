@@ -997,8 +997,8 @@ __ni_interface_process_newroute(ni_interface_t *ifp, struct nlmsghdr *h,
 		printf("Add route dst=%s/%u", ni_address_print(&dst_addr), rtm->rtm_dst_len);
 	if (gw_addr.ss_family != AF_UNSPEC)
 		printf(" gw=%s", ni_address_print(&gw_addr));
-	if (ifp && ifp->ifindex)
-		printf(" oif=%u", ifp->ifindex);
+	if (ifp && ifp->link.ifindex)
+		printf(" oif=%u", ifp->link.ifindex);
 	printf("\n");
 #endif
 
