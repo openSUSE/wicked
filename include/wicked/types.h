@@ -9,7 +9,6 @@
 #include <wicked/constants.h>
 #include <stdint.h>
 
-typedef struct ni_syntax	ni_syntax_t;		/* make private */
 typedef struct ni_interface	ni_interface_t;		/* rename to ni_netif_t? */
 typedef struct ni_vlan		ni_vlan_t;
 typedef struct ni_bridge	ni_bridge_t;

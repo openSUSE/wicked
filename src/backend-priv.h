@@ -17,8 +17,6 @@
 #include "netinfo_priv.h"	/* for now */
 
 struct ni_backend {
-	ni_syntax_t *		syntax;
-
 	ni_netconfig_t		nc;
 };
 

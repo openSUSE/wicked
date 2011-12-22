@@ -26,54 +26,6 @@ struct ni_handle {
 };
 
 /*
- * This encapsulates how we store network configuration.
- * This can be a sysconfig style collection of files (with
- * variant variable naming schemes, etc), or an XML file
- * like the ones used by netcf.
- */
-#include <wicked/backend.h>
-struct ni_syntax {
-	const char *		schema;
-	char *			base_path;
-	char *			root_dir;
-	unsigned char		strict;
-
-	int			(*get_interfaces)(ni_syntax_t *, ni_netconfig_t *);
-	int			(*put_interfaces)(ni_syntax_t *, ni_netconfig_t *, FILE *);
-	int			(*put_one_interface)(ni_syntax_t *, ni_netconfig_t *, ni_interface_t *, FILE *);
-
-	int			(*get_hostname)(ni_syntax_t *, char *, size_t);
-	int			(*put_hostname)(ni_syntax_t *, const char *);
-	int			(*get_nis)(ni_syntax_t *, ni_nis_info_t *);
-	int			(*put_nis)(ni_syntax_t *, const ni_nis_info_t *);
-
-	xml_node_t *		(*xml_from_interface)(ni_syntax_t *, const ni_interface_t *, xml_node_t *parent);
-	ni_interface_t *	(*xml_to_interface)(ni_syntax_t *, ni_netconfig_t *, xml_node_t *);
-
-	xml_node_t *		(*xml_from_interface_stats)(ni_syntax_t *, ni_netconfig_t *, const ni_interface_t *, xml_node_t *);
-	int			(*xml_to_interface_stats)(ni_syntax_t *, ni_netconfig_t *, ni_interface_t *, const xml_node_t *);
-
-	xml_node_t *		(*xml_from_policy)(ni_syntax_t *, const ni_policy_t *, xml_node_t *parent);
-	ni_policy_t *		(*xml_to_policy)(ni_syntax_t *, xml_node_t *);
-
-	xml_node_t *		(*xml_from_ethernet)(ni_syntax_t *, const ni_ethernet_t *, xml_node_t *parent);
-	ni_ethernet_t *		(*xml_to_ethernet)(ni_syntax_t *, const xml_node_t *);
-
-	xml_node_t *		(*xml_from_wireless_scan)(ni_syntax_t *, const ni_wireless_scan_t *, xml_node_t *parent);
-	ni_wireless_scan_t *	(*xml_to_wireless_scan)(ni_syntax_t *, const xml_node_t *);
-
-	xml_node_t *		(*xml_from_lease)(ni_syntax_t *, const ni_addrconf_lease_t *, xml_node_t *parent);
-	ni_addrconf_lease_t *	(*xml_to_lease)(ni_syntax_t *, const xml_node_t *);
-	xml_node_t *		(*xml_from_request)(ni_syntax_t *, const ni_addrconf_request_t *, xml_node_t *parent);
-	ni_addrconf_request_t *	(*xml_to_request)(ni_syntax_t *, const xml_node_t *, int);
-
-	xml_node_t *		(*xml_from_nis)(ni_syntax_t *, const ni_nis_info_t *, xml_node_t *parent);
-	ni_nis_info_t *		(*xml_to_nis)(ni_syntax_t *, const xml_node_t *);
-	xml_node_t *		(*xml_from_resolver)(ni_syntax_t *, const ni_resolver_info_t *, xml_node_t *parent);
-	ni_resolver_info_t *	(*xml_to_resolver)(ni_syntax_t *, const xml_node_t *);
-};
-
-/*
  * These constants describe why/how the interface has been brought up
  */
 typedef enum {
@@ -145,16 +97,6 @@ extern int		__ni_system_resolver_put(const ni_resolver_info_t *);
 extern ni_resolver_info_t *__ni_system_resolver_get(void);
 extern int		__ni_system_resolver_backup(void);
 extern int		__ni_system_resolver_restore(void);
-
-extern int		__ni_syntax_xml_to_all(ni_syntax_t *, ni_netconfig_t *, const xml_node_t *);
-extern int		__ni_syntax_xml_to_policy_info(ni_syntax_t *, ni_policy_info_t *,
-					const xml_node_t *);
-extern xml_node_t *	__ni_syntax_xml_from_policy_info(ni_syntax_t *, const ni_policy_info_t *);
-
-extern ni_syntax_t *	__ni_syntax_sysconfig_suse(const char *pathname);
-extern ni_syntax_t *	__ni_syntax_sysconfig_redhat(const char *pathname);
-extern ni_syntax_t *	__ni_syntax_netcf(const char *pathname);
-extern ni_syntax_t *	__ni_syntax_netcf_strict(const char *pathname);
 
 extern ni_address_t *	__ni_address_list_clone(const ni_address_t *);
 

@@ -12,6 +12,7 @@
 #include <stdarg.h>
 
 #include <wicked/netinfo.h>
+#include <wicked/backend.h>
 #include <wicked/addrconf.h>
 #include <wicked/bridge.h>
 #include <wicked/bonding.h>

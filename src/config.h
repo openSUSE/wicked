@@ -128,8 +128,6 @@ typedef struct ni_global {
 	int			initialized;
 	char *			config_path;
 	ni_config_t *		config;
-	ni_syntax_t *		default_syntax;
-	ni_syntax_t *		xml_syntax;
 
 	ni_policy_info_t	policies;
 
