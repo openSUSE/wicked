@@ -92,6 +92,7 @@ const char *
 ni_objectmodel_interface_path(const ni_interface_t *ifp)
 {
 	static char object_path[256];
+#if 0
 	char sane_name[IFNAMSIZ+5], *sp;
 
 	if (strlen(ifp->name) >= sizeof(sane_name))
@@ -103,6 +104,9 @@ ni_objectmodel_interface_path(const ni_interface_t *ifp)
 	}
 
 	snprintf(object_path, sizeof(object_path), "Interface/%s", sane_name);
+#else
+	snprintf(object_path, sizeof(object_path), "Interface/%u", ifp->link.ifindex);
+#endif
 	return object_path;
 }
 
