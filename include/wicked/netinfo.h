@@ -173,8 +173,6 @@ struct ni_interface {
 
 	unsigned int		users;
 
-	unsigned int		up_requesters;
-
 	ni_address_t *		addrs;
 	ni_route_t *		routes;
 

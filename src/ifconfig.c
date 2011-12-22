@@ -94,8 +94,6 @@ ni_system_interface_up(ni_netconfig_t *nc, ni_interface_t *ifp, const ni_interfa
 			ni_error("unable to shut down interface %s", ifp->name);
 			return -1;
 		}
-		/* down is down is down */
-		ifp->up_requesters = 0;
 	}
 
 	__ni_global_seqno++;
@@ -147,8 +145,6 @@ ni_system_interface_down(ni_netconfig_t *nc, ni_interface_t *ifp)
 		ni_error("unable to shut down interface %s", ifp->name);
 		return -1;
 	}
-	/* down is down is down */
-	ifp->up_requesters = 0;
 
 	return res;
 }
