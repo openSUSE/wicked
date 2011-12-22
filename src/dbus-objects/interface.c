@@ -367,6 +367,9 @@ __wicked_dbus_interface_down(ni_dbus_object_t *object, const ni_dbus_method_t *m
 		goto failed;
 	}
 
+	if (__ni_interface_is_down(dev))
+		ni_objectmodel_interface_event(object, "InterfaceDown");
+
 	ret = TRUE;
 
 failed:

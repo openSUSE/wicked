@@ -506,6 +506,21 @@ __ni_interface_is_up(const ni_interface_t *ifp)
 }
 
 /*
+ * Check whether an interface is down.
+ * To be down, it needs to have at least the NETWORK_UP flag cleared.
+ */
+int
+__ni_interface_is_down(const ni_interface_t *ifp)
+{
+	if (ifp->link.ifflags & NI_IFF_NETWORK_UP) {
+		ni_debug_ifconfig("%s: network layer is still up", ifp->name);
+		return 0;
+	}
+
+	return 1;
+}
+
+/*
  * Guess the interface type based on its name and characteristics
  * We should really make this configurable!
  */

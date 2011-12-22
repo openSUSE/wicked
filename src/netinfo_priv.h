@@ -46,6 +46,7 @@ extern ni_addrconf_lease_t *__ni_interface_address_to_lease(ni_interface_t *, co
 extern ni_addrconf_lease_t *__ni_interface_route_to_lease(ni_interface_t *, const ni_route_t *);
 extern unsigned int	__ni_interface_translate_ifflags(unsigned int);
 extern int		__ni_interface_is_up(const ni_interface_t *);
+extern int		__ni_interface_is_down(const ni_interface_t *);
 
 #define __ni_interface_address_info(ifp, af) \
 	((af) == AF_INET? &((ifp)->ipv4) : \
