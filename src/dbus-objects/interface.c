@@ -279,10 +279,8 @@ __wicked_dbus_interface_up(ni_dbus_object_t *object, const ni_dbus_method_t *met
 
 	NI_TRACE_ENTER_ARGS("ifp=%s", dev->name);
 
-	/* Build a dummy object for the configuration data */
+	/* Create an interface_request object and wrap it in a dbus object */
 	req = ni_interface_request_new();
-	req->ifflags = NI_IFF_NETWORK_UP | NI_IFF_LINK_UP | NI_IFF_DEVICE_UP;
-
 	cfg_object = ni_dbus_object_new(NULL, NULL, req);
 
 	/* Extract configuration from dict */

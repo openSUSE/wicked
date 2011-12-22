@@ -802,6 +802,10 @@ usage:
 			ni_backend_free(backend);
 			goto failed;
 		}
+
+		/* Request that the server take the interface up */
+		config_dev->link.ifflags = NI_IFF_NETWORK_UP | NI_IFF_LINK_UP | NI_IFF_DEVICE_UP;
+
 		req = __interface_request_build(config_dev);
 
 		request_object = ni_objectmodel_wrap_interface_request(req);
