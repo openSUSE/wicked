@@ -148,6 +148,97 @@ __ni_syntax_netcf_strict(const char *pathname)
 	return syntax;
 }
 
+ni_netconfig_t *
+ni_netcf_load(const char *root_dir)
+{
+	ni_netconfig_t *nc = NULL;
+	ni_string_array_t files = NI_STRING_ARRAY_INIT;
+	char pathbuf[PATH_MAX], *base_dir;
+	int i;
+
+	base_dir = _PATH_NETCONFIG;
+	if (root_dir) {
+		snprintf(pathbuf, sizeof(pathbuf), "%s%s", root_dir, base_dir);
+		base_dir = pathbuf;
+	}
+	if (!ni_scandir(base_dir, "*.xml", &files)) {
+		ni_error("No ifcfg files found");
+		goto failed;
+	}
+
+	nc = ni_netconfig_new();
+	for (i = 0; i < files.count; ++i) {
+		const char *filename;
+
+		filename = ni_netcf_format_path(root_dir, files.data[i]);
+		if (ni_netcf_parse_file(filename, nc) < 0)
+			goto failed;
+	}
+
+	ni_string_array_destroy(&files);
+	return nc;
+
+failed:
+	ni_string_array_destroy(&files);
+	if (nc)
+		ni_netconfig_free(nc);
+	return NULL;
+}
+
+/*
+ * Parse a single netcf file - this may contain one or more
+ * interface declarations.
+ */
+int
+ni_netcf_parse_file(const char *filename, ni_netconfig_t *nc)
+{
+	ni_syntax_t *syntax = NULL;
+	xml_document_t *doc = NULL;
+	int rv = -1;
+
+	ni_debug_readwrite("Parsing netcf file \"%s\"", filename);
+	if (!(doc = xml_document_read(filename))) {
+		ni_error("unable to parse XML document %s", filename);
+		goto out;
+	}
+
+	if (doc->root == NULL) {
+		ni_debug_readwrite("ignoring empty file \"%s\"", filename);
+	} else {
+		xml_node_t *child;
+
+		syntax = __ni_syntax_netcf(NULL);
+		for (child = doc->root->children; child; child = child->next) {
+			ni_interface_t *ifp;
+
+			if (strcmp(child->name, "interface"))
+				continue;
+
+			ifp = __ni_netcf_xml_to_interface(syntax, nc, child);
+			if (ifp == NULL) {
+				ni_error("%s: xml format error in \"%s\"", __func__, filename);
+				goto out;
+			}
+
+			/* The only occasion where we allow interfaces without name is in
+			 * policy descriptors. */
+			if (ifp->name == NULL) {
+				ni_error("%s: interface descriptor without name in \"%s\"", __func__, filename);
+				goto out;
+			}
+		}
+	}
+
+	rv = 0;
+
+out:
+	if (doc)
+		xml_document_free(doc);
+	if (syntax)
+		ni_syntax_free(syntax);
+	return rv;
+}
+
 ni_interface_t *
 __ni_netcf_xml_to_interface(ni_syntax_t *syntax, ni_netconfig_t *nc, xml_node_t *ifnode)
 {

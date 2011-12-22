@@ -786,20 +786,18 @@ usage:
 	if (opt_file) {
 		ni_dbus_object_t *request_object;
 		ni_interface_request_t *req;
-		ni_backend_t *backend;
 		ni_netconfig_t *nc;
 
-		backend = ni_backend_new("netcf", opt_file);
-		if (ni_backend_interfaces_reload(backend) < 0) {
+		nc = ni_netconfig_new();
+		if (ni_netcf_parse_file(opt_file, nc) < 0) {
 			ni_error("unable to load interface definition from %s", opt_file);
-			ni_backend_free(backend);
+			ni_netconfig_free(nc);
 			goto failed;
 		}
 
-		nc = ni_backend_get_netconfig(backend);
 		if (!(config_dev = ni_interface_by_name(nc, ifname))) {
 			ni_error("cannot find interface %s in interface description", ifname);
-			ni_backend_free(backend);
+			ni_netconfig_free(nc);
 			goto failed;
 		}
 
@@ -812,13 +810,13 @@ usage:
 		if (!ni_dbus_object_get_properties_as_dict(request_object, &wicked_dbus_interface_request_service, &argument)) {
 			ni_interface_request_free(req);
 			ni_dbus_object_free(request_object);
-			ni_backend_free(backend);
+			ni_netconfig_free(nc);
 			goto failed;
 		}
 
 		ni_interface_request_free(req);
 		ni_dbus_object_free(request_object);
-		ni_backend_free(backend);
+		ni_netconfig_free(nc);
 
 		if (config_dev->startmode.ifaction[ifevent].action == NI_INTERFACE_IGNORE) {
 			ni_error("not permitted to bring up interface");
