@@ -238,6 +238,8 @@ extern const char *	ni_debug_facility_to_description(int);
 
 extern void		ni_log_destination_syslog(const char *program);
 
+extern ni_netconfig_t * ni_netconfig_new(void);
+extern void		ni_netconfig_free(ni_netconfig_t *);
 extern void		ni_netconfig_init(ni_netconfig_t *);
 extern void		ni_netconfig_destroy(ni_netconfig_t *);
 

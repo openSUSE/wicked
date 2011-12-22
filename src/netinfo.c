@@ -158,6 +158,22 @@ __ni_afinfo_set_addrconf_lease(ni_afinfo_t *afi, unsigned int mode, ni_addrconf_
 /*
  * Constructor/destructor for netconfig handles
  */
+ni_netconfig_t *
+ni_netconfig_new(void)
+{
+	ni_netconfig_t *nc;
+
+	nc = calloc(1, sizeof(*nc));
+	return nc;
+}
+
+void
+ni_netconfig_free(ni_netconfig_t *nc)
+{
+	ni_netconfig_destroy(nc);
+	free(nc);
+}
+
 void
 ni_netconfig_init(ni_netconfig_t *nc)
 {
