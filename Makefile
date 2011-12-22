@@ -16,8 +16,7 @@ LIBHDRS	= logging.h \
 	  util.h \
 	  wicked.h \
 	  xml.h \
-	  xpath.h \
-	  netcf.h
+	  xpath.h
 __LIBSRCS= \
 	  config.c \
 	  extension.c \
@@ -75,8 +74,6 @@ __LIBSRCS= \
 	  dbus-objects/misc.c \
 	  wpa-supplicant.c \
 	  dhcp-lease.c
-__NCFSRCS= \
-	  netcf.c
 DHCP4SRCS = \
 	  dhcp4-supplicant.c \
 	  dhcp4/dbus-api.c \
@@ -96,8 +93,6 @@ OBJ	= obj
 LIBSRCS	= $(addprefix src/,$(__LIBSRCS))
 LIBOBJS	= $(addprefix $(OBJ)/lib/,$(__LIBSRCS:.c=.o))
 SHLIBOBJS= $(addprefix $(OBJ)/shlib/,$(__LIBSRCS:.c=.o))
-NCFSRCS	= $(addprefix src/,$(__NCFSRCS))
-NCFOBJS	= $(addprefix $(OBJ)/netcf/,$(__NCFSRCS:.c=.o))
 APPSRCS	= $(addsuffix .c,$(APPS))
 DHCP4OBJS= $(addprefix $(OBJ)/,$(DHCP4SRCS:.c=.o))
 AUTO4OBJS= $(addprefix $(OBJ)/,$(AUTO4SRCS:.c=.o))
@@ -153,18 +148,12 @@ libnetinfo.a: $(LIBOBJS)
 	@rm -f $@
 	ar cr $@ $(LIBOBJS)
 
-libnetcf.a: $(NCFOBJS)
-	@rm -f $@
-	ar cr $@ $(NCFOBJS)
-
 libnetinfo.so: $(SHLIBOBJS)
 	$(CC) $(CFLAGS) -shared -o $@ $(SHLIBOBJS)
 
 depend:
 	gcc $(CFLAGS) -M $(LIBSRCS) | \
 		sed 's@^\([^.]*\)\.o: src/\([-a-z0-9/]*\)\1.c@obj/lib/\2&@' > .depend
-	gcc $(CFLAGS) -M $(NCFSRCS) | \
-		sed 's@^\([^.]*\)\.o: src/\([-a-z0-9/]*\)\1.c@obj/netcf/\2&@' >> .depend
 	gcc $(CFLAGS) -M $(APPSRCS) | sed 's:^[a-z]:$(OBJ)/&:' >> .depend
 	gcc $(CFLAGS) -M $(DHCP4SRCS) | sed 's:^[a-z]:$(OBJ)/dhcp4/&:' >> .depend
 	gcc $(CFLAGS) -M $(AUTO4SRCS) | sed 's:^[a-z]:$(OBJ)/auto4/&:' >> .depend
