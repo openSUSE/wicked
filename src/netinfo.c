@@ -156,6 +156,23 @@ __ni_afinfo_set_addrconf_lease(ni_afinfo_t *afi, unsigned int mode, ni_addrconf_
 }
 
 /*
+ * Constructor/destructor for netconfig handles
+ */
+void
+ni_netconfig_init(ni_netconfig_t *nc)
+{
+	memset(nc, 0, sizeof(*nc));
+}
+
+void
+ni_netconfig_destroy(ni_netconfig_t *nc)
+{
+	__ni_interface_list_destroy(&nc->interfaces);
+	ni_route_list_destroy(&nc->routes);
+	memset(nc, 0, sizeof(*nc));
+}
+
+/*
  * Get the list of all discovered interfaces, given a
  * netinfo handle.
  */
