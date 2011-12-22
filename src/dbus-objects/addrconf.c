@@ -191,16 +191,20 @@ ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_messa
 		 * takes ownership of it. */
 		__ni_system_interface_update_lease(ifp, &lease);
 
-		if (__ni_interface_is_up(ifp)) {
-			ni_debug_dbus("should send InterfaceUp event");
-			//ni_objectmodel_interface_event(object, "InterfaceUp");
-		}
+		if (__ni_interface_is_up(ifp))
+			__ni_objectmodel_interface_event(ifp, "InterfaceUp");
 	} else if (!strcmp(signal_name, "LeaseReleased")) {
 		lease->state = NI_ADDRCONF_STATE_RELEASED;
 		__ni_system_interface_update_lease(ifp, &lease);
+
+#if 0
+		if (__ni_interface_is_down(ifp))
+			__ni_objectmodel_interface_event(ifp, "InterfaceDown");
+#endif
 	} else if (!strcmp(signal_name, "LeaseLost")) {
 		lease->state = NI_ADDRCONF_STATE_FAILED;
 		__ni_system_interface_update_lease(ifp, &lease);
+		__ni_objectmodel_interface_event(ifp, "InterfaceFailed");
 	} else {
 		/* Ignore unknown signal */
 	}

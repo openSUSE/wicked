@@ -313,19 +313,35 @@ failed:
  * Broadcast an event that the interface is up
  */
 dbus_bool_t
-ni_objectmodel_interface_event(ni_dbus_object_t *object, const char *name)
+ni_objectmodel_interface_event(ni_dbus_object_t *object, const char *signal_name)
 {
 	ni_dbus_server_t *server;
 
-	if (!(server = ni_dbus_object_get_server(object))) {
-		ni_error("%s: cannot send signal; object not attached to server", __func__);
+	if (!(server = ni_dbus_object_get_server(object))
+	 && !(server = __ni_objectmodel_server)) {
+		ni_error("%s: help! No dbus server handle! Cannot send signal.", __func__);
 		return FALSE;
 	}
 
-	ni_dbus_server_send_signal(server, object, WICKED_DBUS_NETIF_INTERFACE, name, 0, NULL);
+	ni_debug_dbus("sending interface event \"%s\" for %s", signal_name, ni_dbus_object_get_path(object));
+	ni_dbus_server_send_signal(server, object, WICKED_DBUS_NETIF_INTERFACE, signal_name, 0, NULL);
 	return TRUE;
 }
 
+dbus_bool_t
+__ni_objectmodel_interface_event(ni_interface_t *dev, const char *signal_name)
+{
+	ni_dbus_object_t *object;
+	
+	object = ni_dbus_server_find_object_by_handle(__ni_objectmodel_server, dev);
+	if (object != NULL) {
+		return ni_objectmodel_interface_event(object, signal_name);
+	}
+
+	ni_warn("unable to find dbus object for interface %s. Cannot send signal \"%s\".",
+			dev->name, signal_name);
+	return FALSE;
+}
 /*
  * Interface.down(void)
  * Bring down the network interface.

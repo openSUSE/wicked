@@ -149,6 +149,7 @@ __ni_objectmodel_get_property_ulong(const void *handle, unsigned long *member_of
 }
 
 
+extern ni_dbus_server_t *	__ni_objectmodel_server;
 extern ni_dbus_service_t	wicked_dbus_ethernet_service;
 extern ni_dbus_service_t	wicked_dbus_vlan_service;
 extern ni_dbus_service_t	wicked_dbus_bridge_service;
@@ -204,5 +205,6 @@ extern int			ni_objectmodel_addrconf_release(ni_dbus_object_t *,
 extern void			ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *,
 						ni_dbus_message_t *, void *);
 extern dbus_bool_t		ni_objectmodel_interface_event(ni_dbus_object_t *, const char *);
+extern dbus_bool_t		__ni_objectmodel_interface_event(ni_interface_t *, const char *);
 
 #endif /* __WICKED_OBJECTMODEL_H__ */

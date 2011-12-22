@@ -29,6 +29,8 @@ static ni_dbus_object_functions_t wicked_dbus_netif_functions;
 static ni_dbus_service_t	wicked_dbus_netif_interface;
 static ni_dbus_service_t	wicked_dbus_root_interface;
 
+ni_dbus_server_t *		__ni_objectmodel_server;
+
 ni_dbus_server_t *
 ni_objectmodel_create_service(void)
 {
@@ -53,6 +55,7 @@ ni_objectmodel_create_service(void)
 	ni_objectmodel_dhcp4_init(server);
 	ni_objectmodel_autoip_init(server);
 
+	__ni_objectmodel_server = server;
 	return server;
 }
 
