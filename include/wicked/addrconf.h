@@ -31,12 +31,9 @@ enum {
 struct ni_addrconf_request {
 	ni_addrconf_mode_t	type;		/* addrconf type */
 	unsigned int		family;		/* address family */
-	ni_uuid_t		uuid;
 
-	/* Controlling general behavior */
-	int			reuse_unexpired;
-	unsigned int		settle_timeout;	/* wait that long before starting DHCP */
-	unsigned int		acquire_timeout;/* acquiry of the lease times out after this */
+	unsigned int		event_id;
+	ni_uuid_t		uuid;
 
 	/* Options what to update based on the info received from 
 	 * the DHCP server. */
@@ -166,7 +163,6 @@ extern ni_afinfo_t *	ni_afinfo_new(int family);
 extern void		ni_afinfo_free(ni_afinfo_t *);
 
 extern ni_addrconf_request_t *ni_addrconf_request_new(unsigned int mode, unsigned int af);
-extern ni_addrconf_request_t *ni_addrconf_request_clone(const ni_addrconf_request_t *);
 extern void		ni_addrconf_request_free(ni_addrconf_request_t *);
 extern int		ni_addrconf_request_equal(const ni_addrconf_request_t *, const ni_addrconf_request_t *);
 

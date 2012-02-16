@@ -80,10 +80,8 @@ static const char *	__ni_netcf_get_boolean(int val);
 */
 static int		__ni_netcf_get_boolean_attr(const xml_node_t *, const char *, int *);
 static void		__ni_netcf_add_string_child(xml_node_t *, const char *, const char *);
-static void		__ni_netcf_add_uint_child(xml_node_t *, const char *, unsigned int);
 static void		__ni_netcf_add_string_array_child(xml_node_t *, const char *, const ni_string_array_t *);
 static void		__ni_netcf_get_string_child(const xml_node_t *, const char *, char **);
-static void		__ni_netcf_get_uint_child(const xml_node_t *, const char *, unsigned int *);
 static void		__ni_netcf_get_string_array_child(const xml_node_t *, const char *, ni_string_array_t *);
 
 static int		__ni_netcf_strict_syntax = 0;
@@ -1147,11 +1145,6 @@ __ni_netcf_xml_from_addrconf_req(const ni_addrconf_request_t *req, xml_node_t *p
 		return dhnode;
 	}
 
-	if (req->acquire_timeout)
-		__ni_netcf_add_uint_child(dhnode, "acquire-timeout", req->acquire_timeout);
-	if (req->reuse_unexpired)
-		xml_node_new("reuse-unexpired", dhnode);
-
 	if (req->update != 0) {
 		unsigned int target;
 
@@ -1197,9 +1190,6 @@ __ni_netcf_xml_to_addrconf_req(const xml_node_t *dhnode, int req_family)
 			ni_addrconf_set_update(req, NI_ADDRCONF_UPDATE_RESOLVER);
 		return req;
 	}
-
-	__ni_netcf_get_uint_child(dhnode, "acquire-timeout", &req->acquire_timeout);
-	req->reuse_unexpired = !!xml_node_get_child(dhnode, "reuse-unexpired");
 
 	if ((child = xml_node_get_child(dhnode, "update")) != NULL) {
 		xml_node_t *node;
@@ -1998,15 +1988,6 @@ __ni_netcf_add_string_child(xml_node_t *node, const char *name, const char *valu
 }
 
 static void
-__ni_netcf_add_uint_child(xml_node_t *node, const char *name, unsigned int value)
-{
-	char buffer[64];
-
-	snprintf(buffer, sizeof(buffer), "%u", value);
-	__ni_netcf_add_string_child(node, name, buffer);
-}
-
-static void
 __ni_netcf_add_string_array_child(xml_node_t *node, const char *name, const ni_string_array_t *list)
 {
 	unsigned int i;
@@ -2025,17 +2006,6 @@ __ni_netcf_get_string_child(const xml_node_t *node, const char *name, char **var
 	ni_string_free(var);
 	if (node && node->cdata)
 		ni_string_dup(var, node->cdata);
-}
-
-static void
-__ni_netcf_get_uint_child(const xml_node_t *node, const char *name, unsigned int *var)
-{
-	node = xml_node_get_child(node, name);
-
-	if (node && node->cdata)
-		*var = strtoul(node->cdata, NULL, 0);
-	else
-		*var = 0;
 }
 
 static void

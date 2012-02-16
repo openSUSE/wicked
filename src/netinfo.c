@@ -397,28 +397,9 @@ ni_addrconf_request_new(unsigned int type, unsigned int af)
 
 	dhcp->type = type;
 	dhcp->family = af;
-	dhcp->acquire_timeout = 0;	/* means infinite */
-	dhcp->reuse_unexpired = 1;
 	dhcp->update = ~0;
 
 	return dhcp;
-}
-
-ni_addrconf_request_t *
-ni_addrconf_request_clone(const ni_addrconf_request_t *src)
-{
-	ni_addrconf_request_t *dst;
-
-	if (src == NULL)
-		return NULL;
-
-	dst = ni_addrconf_request_new(src->type, src->family);
-	dst->reuse_unexpired = src->reuse_unexpired;
-	dst->settle_timeout = src->settle_timeout;
-	dst->acquire_timeout = src->acquire_timeout;
-	dst->update = src->update;
-
-	return dst;
 }
 
 void
