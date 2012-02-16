@@ -782,7 +782,7 @@ ni_wpa_interface_state_change_event(ni_wpa_client_t *wpa,
 		return;
 	}
 
-	ni_wireless_association_changed(ifp->ifname, assoc_state);
+	ni_wireless_association_changed(ifp->ifindex, assoc_state);
 }
 
 /*

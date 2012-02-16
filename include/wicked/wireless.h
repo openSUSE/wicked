@@ -221,7 +221,7 @@ extern void		ni_wireless_auth_info_array_init(ni_wireless_auth_info_array_t *);
 extern void		ni_wireless_auth_info_array_append(ni_wireless_auth_info_array_t *, ni_wireless_auth_info_t *);
 extern void		ni_wireless_auth_info_array_destroy(ni_wireless_auth_info_array_t *);
 
-extern void		ni_wireless_association_changed(const char *ifname, ni_wireless_assoc_state_t new_state);
+extern void		ni_wireless_association_changed(unsigned int ifindex, ni_wireless_assoc_state_t new_state);
 
 extern const char *	ni_wireless_print_ssid(const ni_wireless_ssid_t *);
 

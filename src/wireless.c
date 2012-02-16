@@ -194,17 +194,16 @@ ni_wireless_associate(ni_interface_t *dev, ni_wireless_network_t *net)
 /*
  * Callback from wpa_supplicant client whenever the association state changes
  * in a significant way.
- * FIXME: this should really use the ifindex rather than the name
  */
 void
-ni_wireless_association_changed(const char *ifname, ni_wireless_assoc_state_t new_state)
+ni_wireless_association_changed(unsigned int ifindex, ni_wireless_assoc_state_t new_state)
 {
 	ni_netconfig_t *nc = ni_global_state_handle(0);
 	ni_interface_t *dev;
 	ni_wireless_t *wlan;
 	ni_event_t ev = -1;
 
-	if (!(dev = ni_interface_by_name(nc, ifname)))
+	if (!(dev = ni_interface_by_index(nc, ifindex)))
 		return;
 
 	if (!(wlan = dev->wireless))
