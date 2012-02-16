@@ -490,4 +490,11 @@ ni_dbus_message_append_string(ni_dbus_message_t *msg, const char * value)
 	return dbus_message_append_args(msg, DBUS_TYPE_STRING, &value, 0);
 }
 
+dbus_bool_t
+ni_dbus_message_append_uuid(ni_dbus_message_t *msg, const ni_uuid_t *uuid)
+{
+	DBusMessageIter iter;
 
+	dbus_message_iter_init_append(msg, &iter);
+	return ni_dbus_message_iter_append_byte_array(&iter, uuid->octets, sizeof(uuid->octets));
+}
