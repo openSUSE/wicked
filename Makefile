@@ -91,7 +91,8 @@ CONVSRCS = \
 	  convert/suse.c \
 	  convert/redhat.c
 CLIENTSRCS = \
-	  client/ifup.c
+	  client/ifup.c \
+	  client/calls.c
 GENFILES = \
 	  schema/constants.xml
 
