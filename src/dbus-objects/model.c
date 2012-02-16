@@ -64,15 +64,22 @@ ni_objectmodel_create_service(void)
 	if (server == NULL)
 		ni_fatal("unable to initialize dbus service");
 
+	/* Initialize our addrconf clients */
+	ni_objectmodel_dhcp4_init(server);
+	ni_objectmodel_autoip_init(server);
+
+	__ni_objectmodel_server = server;
+	return server;
+}
+
+void
+ni_objectmodel_register_all(void)
+{
 	/* register the netif-list class (to allow extensions to attach to it) */
 	ni_objectmodel_register_class(&ni_objectmodel_netif_list_class);
 
 	/* register all netif classes and service */
 	ni_objectmodel_register_netif_classes();
-
-	/* Initialize our addrconf clients */
-	ni_objectmodel_dhcp4_init(server);
-	ni_objectmodel_autoip_init(server);
 
 	ni_objectmodel_register_service(&ni_objectmodel_netif_list_service);
 #if 0
@@ -81,9 +88,6 @@ ni_objectmodel_create_service(void)
 	ni_objectmodel_register_link_service(NI_IFTYPE_BRIDGE, &wicked_dbus_bridge_service);
 	//ni_objectmodel_register_link_service(NI_IFTYPE_BOND, &wicked_dbus_bond_service);
 #endif
-
-	__ni_objectmodel_server = server;
-	return server;
 }
 
 /*
