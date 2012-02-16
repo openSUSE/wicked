@@ -673,7 +673,7 @@ ni_dbus_define_scalar_types(ni_xs_scope_t *typedict)
 #include <arpa/inet.h>
 
 static ni_opaque_t *
-ni_parse_ipv4_opaque(const char *string_value, ni_opaque_t *data)
+__ni_notation_ipv4addr_parse(const char *string_value, ni_opaque_t *data)
 {
 	struct in_addr addr;
 
@@ -685,7 +685,7 @@ ni_parse_ipv4_opaque(const char *string_value, ni_opaque_t *data)
 }
 
 static const char *
-ni_print_ipv4_opaque(const ni_opaque_t *data, char *buffer, size_t size)
+__ni_notation_ipv4addr_print(const ni_opaque_t *data, char *buffer, size_t size)
 {
 	if (data->len != sizeof(struct in_addr))
 		return NULL;
@@ -693,7 +693,7 @@ ni_print_ipv4_opaque(const ni_opaque_t *data, char *buffer, size_t size)
 }
 
 static ni_opaque_t *
-ni_parse_ipv6_opaque(const char *string_value, ni_opaque_t *data)
+__ni_notation_ipv6addr_address_parse(const char *string_value, ni_opaque_t *data)
 {
 	struct in6_addr addr;
 
@@ -705,7 +705,7 @@ ni_parse_ipv6_opaque(const char *string_value, ni_opaque_t *data)
 }
 
 static const char *
-ni_print_ipv6_opaque(const ni_opaque_t *data, char *buffer, size_t size)
+__ni_notation_ipv6addr_address_print(const ni_opaque_t *data, char *buffer, size_t size)
 {
 	if (data->len != sizeof(struct in6_addr))
 		return NULL;
@@ -713,7 +713,7 @@ ni_print_ipv6_opaque(const ni_opaque_t *data, char *buffer, size_t size)
 }
 
 static ni_opaque_t *
-ni_parse_hwaddr_opaque(const char *string_value, ni_opaque_t *data)
+__ni_notation_hwaddr_parse(const char *string_value, ni_opaque_t *data)
 {
 	int len;
 
@@ -725,7 +725,7 @@ ni_parse_hwaddr_opaque(const char *string_value, ni_opaque_t *data)
 }
 
 static const char *
-ni_print_hwaddr_opaque(const ni_opaque_t *data, char *buffer, size_t size)
+__ni_notation_hwaddr_print(const ni_opaque_t *data, char *buffer, size_t size)
 {
 	/* We need to check whether the resulting string would fit, as
 	 * ni_format_hex will happily truncate the output string if it
@@ -792,7 +792,7 @@ __ni_print_netaddr(const ni_packed_netaddr_t *netaddr, char *buffer, size_t size
 }
 
 static ni_opaque_t *
-ni_parse_sockaddr_opaque(const char *string_value, ni_opaque_t *data)
+__ni_notation_netaddr_parse(const char *string_value, ni_opaque_t *data)
 {
 	ni_packed_netaddr_t netaddr;
 	int len;
@@ -807,7 +807,7 @@ ni_parse_sockaddr_opaque(const char *string_value, ni_opaque_t *data)
 }
 
 static const char *
-ni_print_sockaddr_opaque(const ni_opaque_t *data, char *buffer, size_t size)
+__ni_notation_netaddr_print(const ni_opaque_t *data, char *buffer, size_t size)
 {
 	ni_packed_netaddr_t netaddr;
 
@@ -819,7 +819,7 @@ ni_print_sockaddr_opaque(const ni_opaque_t *data, char *buffer, size_t size)
 }
 
 static ni_opaque_t *
-ni_parse_prefixed_sockaddr_opaque(const char *string_value, ni_opaque_t *data)
+__ni_notation_netaddr_prefix_parse(const char *string_value, ni_opaque_t *data)
 {
 	ni_packed_prefixed_netaddr_t pfx_netaddr;
 	char *copy = xstrdup(string_value), *s;
@@ -861,7 +861,7 @@ failed:
 }
 
 static const char *
-ni_print_prefixed_sockaddr_opaque(const ni_opaque_t *data, char *buffer, size_t size)
+__ni_notation_netaddr_prefix_print(const ni_opaque_t *data, char *buffer, size_t size)
 {
 	ni_packed_prefixed_netaddr_t pfx_netaddr;
 	unsigned int offset;
@@ -886,28 +886,28 @@ static ni_xs_notation_t	__ni_dbus_notations[] = {
 	{
 		.name = "ipv4addr",
 		.array_element_type = DBUS_TYPE_BYTE,
-		.parse = ni_parse_ipv4_opaque,
-		.print = ni_print_ipv4_opaque,
+		.parse = __ni_notation_ipv4addr_parse,
+		.print = __ni_notation_ipv4addr_print,
 	}, {
 		.name = "ipv6addr",
 		.array_element_type = DBUS_TYPE_BYTE,
-		.parse = ni_parse_ipv6_opaque,
-		.print = ni_print_ipv6_opaque,
+		.parse = __ni_notation_ipv6addr_address_parse,
+		.print = __ni_notation_ipv6addr_address_print,
 	}, {
 		.name = "hwaddr",
 		.array_element_type = DBUS_TYPE_BYTE,
-		.parse = ni_parse_hwaddr_opaque,
-		.print = ni_print_hwaddr_opaque,
+		.parse = __ni_notation_hwaddr_parse,
+		.print = __ni_notation_hwaddr_print,
 	}, {
 		.name = "net-address",
 		.array_element_type = DBUS_TYPE_BYTE,
-		.parse = ni_parse_sockaddr_opaque,
-		.print = ni_print_sockaddr_opaque,
+		.parse = __ni_notation_netaddr_parse,
+		.print = __ni_notation_netaddr_print,
 	}, {
 		.name = "net-address-prefix",
 		.array_element_type = DBUS_TYPE_BYTE,
-		.parse = ni_parse_prefixed_sockaddr_opaque,
-		.print = ni_print_prefixed_sockaddr_opaque,
+		.parse = __ni_notation_netaddr_prefix_parse,
+		.print = __ni_notation_netaddr_prefix_print,
 	},
 
 	{ NULL }
