@@ -271,6 +271,15 @@ ni_ifworker_add_callbacks(ni_ifworker_t *w, ni_objectmodel_callback_info_t *call
 {
 	ni_objectmodel_callback_info_t **pos, *cb;
 
+	if (ni_debug & NI_TRACE_DBUS) {
+		ni_trace("%s waiting for callbacks:", w->name);
+		for (cb = callback_list; cb; cb = cb->next) {
+			ni_trace(" %s event=%s",
+				ni_print_hex(cb->uuid.octets, 16),
+				cb->event);
+		}
+	}
+
 	for (pos = &w->callbacks; (cb = *pos) != NULL; pos = &cb->next)
 		;
 	*pos = callback_list;
@@ -695,31 +704,23 @@ device_is_up:
 static int
 ni_ifworker_do_link_up(ni_ifworker_t *w)
 {
-	unsigned int ifstatus = NI_IFF_DEVICE_UP | NI_IFF_LINK_UP;
-	ni_interface_t *dev;
+	ni_objectmodel_callback_info_t *callback_list = NULL;
 	xml_node_t *devnode;
 
 	ni_debug_dbus("%s(name=%s, object=%p, path=%s)", __func__, w->name, w->object, w->object_path);
 
 	devnode = xml_node_get_child(w->config, "device");
-	if (devnode && xml_node_get_child(devnode, "status")) {
-		ni_ifworker_fail(w,
-			"interface definition has a <device> element defining the interface status");
-		return -1;
-	}
-
-	if (!wicked_link_change_xml(w->object, devnode, &ifstatus)) {
+	if (!wicked_link_up_xml(w->object, devnode, &callback_list)) {
 		ni_ifworker_fail(w, "failed to configure and bring up link");
 		return -1;
 	}
 
-	dev = w->device;
-	dev->link.ifflags = ifstatus;
-
-	if (ni_interface_link_is_up(dev))
+	if (callback_list == NULL) {
 		w->state = STATE_LINK_UP;
-	else
-		w->state = STATE_DEVICE_UP;
+	} else {
+		ni_ifworker_add_callbacks(w, callback_list);
+		w->wait_for_state = STATE_LINK_UP;
+	}
 
 	return 0;
 }
@@ -772,16 +773,6 @@ ni_ifworker_do_network_up(ni_ifworker_t *w)
 		}
 
 		if (callback_list) {
-			if (ni_debug & NI_TRACE_DBUS) {
-				ni_objectmodel_callback_info_t *cb;
-
-				ni_trace("%s waiting for callbacks:", w->name);
-				for (cb = callback_list; cb; cb = cb->next) {
-					ni_trace(" %s event=%s",
-						ni_print_hex(cb->uuid.octets, 16),
-						cb->event);
-				}
-			}
 			ni_ifworker_add_callbacks(w, callback_list);
 			w->wait_for_state = STATE_NETWORK_UP;
 		}

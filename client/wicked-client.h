@@ -16,8 +16,8 @@ extern const ni_dbus_service_t *wicked_link_layer_factory_service(const char *);
 
 extern char *			wicked_create_interface_xml(const ni_dbus_service_t *,
 					const char *, xml_node_t *);
-extern dbus_bool_t		wicked_link_change_xml(ni_dbus_object_t *, xml_node_t *,
-					unsigned int *);
+extern dbus_bool_t		wicked_link_up_xml(ni_dbus_object_t *, xml_node_t *, ni_objectmodel_callback_info_t **);
+extern dbus_bool_t		wicked_link_down_xml(ni_dbus_object_t *, xml_node_t *, ni_objectmodel_callback_info_t **);
 extern dbus_bool_t		wicked_addrconf_xml(ni_dbus_object_t *, const ni_dbus_service_t *,
 					xml_node_t *, ni_objectmodel_callback_info_t **);
 

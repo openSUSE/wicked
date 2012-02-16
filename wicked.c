@@ -441,25 +441,24 @@ wicked_create_interface_xml(const ni_dbus_service_t *service,
  * Bring the link of an interface up
  */
 static dbus_bool_t
-wicked_link_change_common(ni_dbus_object_t *object, ni_dbus_variant_t *arg, unsigned int *new_status)
+wicked_link_change_common(ni_dbus_object_t *object,
+				const ni_dbus_service_t *service, const ni_dbus_method_t *method,
+				ni_dbus_variant_t *arg,
+				ni_objectmodel_callback_info_t **callback_list)
 {
 	ni_dbus_variant_t result = NI_DBUS_VARIANT_INIT;
 	DBusError error = DBUS_ERROR_INIT;
 	dbus_bool_t rv = FALSE;
 
-	if (!ni_dbus_object_call_variant(object, NULL, "linkChange",
+	if (!ni_dbus_object_call_variant(object, service->name, method->name,
 				1, arg,
 				1, &result,
 				&error)) {
 		ni_error("Server refused to create interface. Server responds:");
 		ni_error_extra("%s: %s", error.name, error.message);
 	} else {
-		/* extract device object path from reply */
-		rv = ni_dbus_variant_get_uint(&result, new_status);
-		if (!rv) {
-			ni_error("%s: linkChange call succeeded but didn't return status bits",
-					object->path);
-		}
+		*callback_list = ni_objectmodel_callback_info_from_dict(&result);
+		rv = TRUE;
 	}
 
 	ni_dbus_variant_destroy(&result);
@@ -468,16 +467,16 @@ wicked_link_change_common(ni_dbus_object_t *object, ni_dbus_variant_t *arg, unsi
 }
 
 dbus_bool_t
-wicked_link_change_xml(ni_dbus_object_t *object, xml_node_t *config, unsigned int *new_status)
+wicked_link_change_xml(ni_dbus_object_t *object, const char *method_name, xml_node_t *config, ni_objectmodel_callback_info_t **callback_list)
 {
 	ni_dbus_variant_t argument = NI_DBUS_VARIANT_INIT;
 	const ni_dbus_service_t *service;
 	const ni_dbus_method_t *method;
 	dbus_bool_t rv = FALSE;
 
-	service = ni_objectmodel_service_by_name(WICKED_DBUS_NETIF_INTERFACE);
-
-	method = ni_dbus_service_get_method(service, "linkChange");
+	if (!(service = ni_dbus_object_get_service_for_method(object, method_name)))
+		return FALSE;
+	method = ni_dbus_service_get_method(service, method_name);
 	ni_assert(method);
 
 	ni_dbus_variant_init_dict(&argument);
@@ -486,14 +485,17 @@ wicked_link_change_xml(ni_dbus_object_t *object, xml_node_t *config, unsigned in
 		goto out;
 	}
 
-	/* FIXME: For this to work, the xml node must not have a <status> element */
-	ni_dbus_dict_add_uint32(&argument, "status", *new_status);
-
-	rv = wicked_link_change_common(object, &argument, new_status);
+	rv = wicked_link_change_common(object, service, method, &argument, callback_list);
 
 out:
 	ni_dbus_variant_destroy(&argument);
 	return rv;
+}
+
+dbus_bool_t
+wicked_link_up_xml(ni_dbus_object_t *object, xml_node_t *config, ni_objectmodel_callback_info_t **callback_list)
+{
+	return wicked_link_change_xml(object, "linkUp", config, NULL);
 }
 
 /*
