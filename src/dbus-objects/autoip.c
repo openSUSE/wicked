@@ -42,7 +42,7 @@ static ni_addrconf_t ni_autoip_addrconf = {
 void
 ni_objectmodel_autoip_init(ni_dbus_server_t *server)
 {
-	dbus_autoip_client = ni_dbus_client_open(NULL, WICKED_DBUS_BUS_NAME_AUTO4);
+	dbus_autoip_client = ni_create_dbus_client(WICKED_DBUS_BUS_NAME_AUTO4);
 	ni_dbus_client_add_signal_handler(dbus_autoip_client, NULL, NULL,
 			WICKED_DBUS_AUTO4_INTERFACE,
 			ni_objectmodel_addrconf_signal_handler,

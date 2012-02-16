@@ -25,6 +25,7 @@ typedef struct ni_addrconf_lease  ni_addrconf_lease_t;
 typedef struct ni_interface_request ni_interface_request_t;
 
 typedef struct ni_dbus_server	ni_dbus_server_t;
+typedef struct ni_dbus_client	ni_dbus_client_t;
 
 typedef struct ni_socket	ni_socket_t;
 typedef struct ni_buffer	ni_buffer_t;

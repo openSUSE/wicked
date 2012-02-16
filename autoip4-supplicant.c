@@ -267,7 +267,7 @@ autoip4_discover_devices(ni_dbus_server_t *server)
 void
 autoip4_supplicant(void)
 {
-	autoip4_dbus_server = ni_server_listen_dbus(NULL, WICKED_DBUS_BUS_NAME_AUTO4);
+	autoip4_dbus_server = ni_server_listen_dbus(WICKED_DBUS_BUS_NAME_AUTO4);
 	if (autoip4_dbus_server == NULL)
 		ni_fatal("unable to initialize dbus service");
 

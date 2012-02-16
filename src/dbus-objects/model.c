@@ -58,7 +58,7 @@ ni_objectmodel_create_service(void)
 {
 	ni_dbus_server_t *server;
 
-	server = ni_server_listen_dbus(NULL, WICKED_DBUS_BUS_NAME);
+	server = ni_server_listen_dbus(WICKED_DBUS_BUS_NAME);
 	if (server == NULL)
 		ni_fatal("unable to initialize dbus service");
 

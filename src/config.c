@@ -99,6 +99,7 @@ ni_config_parse(const char *filename)
 			ni_string_dup(&conf->dbus_name, attrval);
 		if ((attrval = xml_node_get_attr(child, "type")) != NULL)
 			ni_string_dup(&conf->dbus_type, attrval);
+		ni_debug_dbus("set dbus name=%s type=%s", conf->dbus_name, conf->dbus_type);
 	}
 
 	child = xml_node_get_child(node, "schema");

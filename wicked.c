@@ -216,7 +216,7 @@ wicked_dbus_client_create(void)
 
 	wicked_init_objectmodel();
 
-	client = ni_dbus_client_open(NULL, WICKED_DBUS_BUS_NAME);
+	client = ni_create_dbus_client(WICKED_DBUS_BUS_NAME);
 	if (!client)
 		ni_fatal("Unable to connect to wicked dbus service");
 

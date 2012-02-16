@@ -29,7 +29,6 @@
 
 typedef struct DBusMessage	ni_dbus_message_t;
 typedef struct ni_dbus_connection ni_dbus_connection_t;
-typedef struct ni_dbus_client	ni_dbus_client_t;
 typedef struct ni_dbus_object	ni_dbus_object_t;
 typedef struct ni_dbus_service	ni_dbus_service_t;
 typedef struct ni_dbus_class	ni_dbus_class_t;

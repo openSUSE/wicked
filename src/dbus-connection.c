@@ -82,7 +82,7 @@ ni_dbus_connection_open(const char *bus_type_string, const char *bus_name)
 	DBusError error;
 	DBusBusType bus_type;
 
-	NI_TRACE_ENTER_ARGS("%s", bus_name?: "");
+	NI_TRACE_ENTER_ARGS("bus=%s, name=%s", bus_type_string?: "system", bus_name?: "");
 
 	dbus_error_init(&error);
 
