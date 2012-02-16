@@ -20,7 +20,6 @@
 #include <wicked/addrconf.h>
 #include <wicked/bonding.h>
 #include <wicked/bridge.h>
-#include <wicked/backend.h>
 #include <wicked/xml.h>
 #include <wicked/xpath.h>
 #include <wicked/objectmodel.h>

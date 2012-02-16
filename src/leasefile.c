@@ -10,7 +10,6 @@
 #include <errno.h>
 
 #include <wicked/netinfo.h>
-#include <wicked/backend.h>
 #include <wicked/addrconf.h>
 #include <wicked/logging.h>
 #include <wicked/xml.h>
@@ -18,6 +17,21 @@
 
 static const char *		__ni_addrconf_lease_file_path(int, int, const char *);
 
+#if 1
+int
+ni_addrconf_lease_file_write(const char *ifname, ni_addrconf_lease_t *lease)
+{
+	ni_error("%s: currently not implemented", __func__);
+	return -1;
+}
+
+ni_addrconf_lease_t *
+ni_addrconf_lease_file_read(const char *ifname, int type, int family)
+{
+	ni_error("%s: currently not implemented", __func__);
+	return NULL;
+}
+#else
 /*
  * Write a lease to a file
  */
@@ -105,6 +119,7 @@ ni_addrconf_lease_file_read(const char *ifname, int type, int family)
 	xml_node_free(xml);
 	return lease;
 }
+#endif
 
 /*
  * Remove a lease file

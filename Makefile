@@ -3,7 +3,7 @@ CFLAGS	= -Wall -Werror -g -O2 -D_GNU_SOURCE -I. -Iinclude -Isrc \
 	  $(CFLAGS_DBUS)
 CFLAGS_DBUS := $(shell pkg-config --cflags dbus-1)
 
-APPS	= wicked wickedd wicked-convert \
+APPS	= wicked wickedd \
 	  dhcp4-supplicant autoip4-supplicant \
 	  testing/xml-test testing/xpath-test \
 	  etc/mkconst
@@ -38,8 +38,6 @@ __LIBSRCS= \
 	  address.c \
 	  sysconfig.c \
 	  sysfs.c \
-	  backend.c \
-	  backend-netcf.c \
 	  nis.c \
 	  resolver.c \
 	  update.c \
@@ -89,9 +87,6 @@ AUTO4SRCS = \
 	  autoip4/dbus-api.c \
 	  autoip4/device.c \
 	  autoip4/fsm.c
-CONVSRCS = \
-	  convert/suse.c \
-	  convert/redhat.c
 CLIENTSRCS = \
 	  client/ifup.c \
 	  client/calls.c
@@ -145,9 +140,6 @@ wicked: $(OBJ)/wicked.o $(CLIENTOBJS) $(TGTLIBS)
 wickedd: $(OBJ)/wickedd.o $(TGTLIBS)
 	$(CC) -o $@ $(CFLAGS) $(OBJ)/wickedd.o -rdynamic -L. -lnetinfo -lm -lnl -ldbus-1 -ldl
 
-wicked-convert: $(OBJ)/wicked-convert.o $(CONVOBJS) $(TGTLIBS)
-	$(CC) -o $@ $(CFLAGS) $(OBJ)/wicked-convert.o $(CONVOBJS) -L. -lnetinfo -lm -lnl -ldbus-1 -ldl
-
 dhcp4-supplicant: $(OBJ)/dhcp4-supplicant.o $(DHCP4OBJS) $(TGTLIBS)
 	$(CC) -o $@ $(CFLAGS) $(OBJ)/dhcp4-supplicant.o $(DHCP4OBJS) -L. -lnetinfo -lm -lnl -ldbus-1 -ldl
 
@@ -179,7 +171,6 @@ depend:
 	gcc $(CFLAGS) -M $(APPSRCS) | sed 's:^[a-z]:$(OBJ)/&:' >> .depend
 	gcc $(CFLAGS) -M $(DHCP4SRCS) | sed 's:^[a-z]:$(OBJ)/dhcp4/&:' >> .depend
 	gcc $(CFLAGS) -M $(AUTO4SRCS) | sed 's:^[a-z]:$(OBJ)/autoip4/&:' >> .depend
-	gcc $(CFLAGS) -M $(CONVSRCS) | sed 's:^[a-z]:$(OBJ)/convert/&:' >> .depend
 	gcc $(CFLAGS) -M $(CLIENTSRCS) | sed 's:^[a-z]:$(OBJ)/client/&:' >> .depend
 
 $(OBJ)/%.o: %.c
