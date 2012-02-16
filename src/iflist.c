@@ -836,7 +836,7 @@ __ni_interface_add_autoconf_prefix(ni_interface_t *ifp, const ni_sockaddr_t *add
 	if (rp == NULL) {
 		rp = __ni_route_new(&lease->routes, pfxlen, addr, NULL);
 		rp->config_method = NI_ADDRCONF_AUTOCONF;
-		//rp->config_lease = lease;
+		rp->config_lease = lease;
 	}
 
 	rp->expires = 0;
@@ -1038,7 +1038,7 @@ __ni_interface_process_newroute(ni_interface_t *ifp, struct nlmsghdr *h,
 		lease = __ni_interface_route_to_lease(ifp, rp);
 		if (lease) {
 			rp->config_method = lease->type;
-			//rp->config_lease = lease;
+			rp->config_lease = lease;
 		}
 	}
 
