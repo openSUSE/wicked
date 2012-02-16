@@ -174,6 +174,8 @@ typedef struct ni_wireless_interface_capabilities {
 struct ni_wireless {
 	ni_wireless_interface_capabilities_t capabilities;
 
+	ni_bool_t		enable_ap_scan;
+
 	/* Association information */
 	struct {
 		ni_wireless_assoc_state_t state;
@@ -202,6 +204,7 @@ struct ni_wireless_scan {
 };
 
 extern ni_wireless_t *	ni_wireless_new(void);
+extern int		ni_wireless_interface_set_scanning(ni_interface_t *, ni_bool_t);
 extern int		ni_wireless_interface_refresh(ni_interface_t *);
 extern ni_wireless_network_t *ni_wireless_network_new(void);
 extern void		ni_wireless_free(ni_wireless_t *);

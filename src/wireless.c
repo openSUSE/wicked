@@ -40,6 +40,7 @@
 #endif
 
 static void		ni_wireless_set_assoc_network(ni_wireless_t *, ni_wireless_network_t *);
+static int		__ni_wireless_do_scan(ni_interface_t *);
 static void		__ni_wireless_network_destroy(ni_wireless_network_t *net);
 
 static ni_wpa_client_t *wpa_client;
@@ -66,7 +67,6 @@ ni_wireless_interface_refresh(ni_interface_t *ifp)
 {
 	ni_wpa_client_t *wpa;
 	ni_wpa_interface_t *wif;
-	ni_wireless_scan_t *scan;
 	ni_wireless_t *wlan;
 
 	if (!(wpa = ni_wpa_client()))
@@ -80,24 +80,12 @@ ni_wireless_interface_refresh(ni_interface_t *ifp)
 
 	if ((wlan = ifp->wireless) == NULL) {
 		ifp->wireless = wlan = ni_wireless_new();
+
+		wlan->capabilities = wif->capabilities;
 	}
 
-	wlan->capabilities = wif->capabilities;
-
-	if ((scan = ifp->wireless_scan) == NULL) {
-		scan = ni_wireless_scan_new();
-		ni_interface_set_wireless_scan(ifp, scan);
-	}
-
-	/* Retrieve whatever is there. */
-	ni_wpa_interface_retrieve_scan(wpa, wif, scan);
-
-	/* If we haven't seen a scan in a long time, request one. */
-	if (scan->timestamp + scan->max_age < time(NULL)) {
-		/* We can do this only if the device is up */
-		if (ifp->link.ifflags & NI_IFF_DEVICE_UP)
-			ni_wpa_interface_request_scan(wpa, wif, scan);
-	}
+	if (wlan->enable_ap_scan)
+		__ni_wireless_do_scan(ifp);
 
 	/* A wireless "link" isn't really up until we have associated
 	 * and authenticated. */
@@ -107,6 +95,61 @@ ni_wireless_interface_refresh(ni_interface_t *ifp)
 	return 0;
 }
 
+/*
+ * Refresh what we think we know about this interface.
+ */
+int
+ni_wireless_interface_set_scanning(ni_interface_t *dev, ni_bool_t enable)
+{
+	ni_wireless_t *wlan;
+
+	if ((wlan = ni_interface_get_wireless(dev)) == NULL) {
+		ni_error("%s: no wireless info for device", dev->name);
+		return -1;
+	}
+
+	wlan->enable_ap_scan = enable;
+
+	if (wlan->enable_ap_scan)
+		__ni_wireless_do_scan(dev);
+	return 0;
+}
+
+int
+__ni_wireless_do_scan(ni_interface_t *dev)
+{
+	ni_wpa_client_t *wpa;
+	ni_wpa_interface_t *wpa_dev;
+	ni_wireless_scan_t *scan;
+
+	if (!(wpa = ni_wpa_client()))
+		return -1;
+
+	wpa_dev = ni_wpa_interface_bind(wpa, dev);
+	if (!wpa_dev)
+		return -1;
+
+	if ((scan = dev->wireless_scan) == NULL) {
+		scan = ni_wireless_scan_new();
+		ni_interface_set_wireless_scan(dev, scan);
+	}
+
+	/* Retrieve whatever is there. */
+	ni_wpa_interface_retrieve_scan(wpa, wpa_dev, scan);
+
+	/* If we haven't seen a scan in a long time, request one. */
+	if (scan->timestamp + scan->max_age < time(NULL)) {
+		/* We can do this only if the device is up */
+		if (dev->link.ifflags & NI_IFF_DEVICE_UP)
+			ni_wpa_interface_request_scan(wpa, wpa_dev, scan);
+	}
+
+	return 0;
+}
+
+/*
+ * Obsolete, deprecated
+ */
 int
 __ni_wireless_get_scan_results(ni_netconfig_t *nc, ni_interface_t *ifp)
 {
@@ -727,7 +770,11 @@ format_error:
 ni_wireless_t *
 ni_wireless_new(void)
 {
-	return xcalloc(1, sizeof(ni_wireless_t));
+	ni_wireless_t *wlan;
+
+	wlan = xcalloc(1, sizeof(ni_wireless_t));
+	wlan->enable_ap_scan = TRUE;
+	return wlan;
 }
 
 void
@@ -755,7 +802,6 @@ ni_wireless_scan_new(void)
 
 	scan = xcalloc(1, sizeof(ni_wireless_scan_t));
 	scan->max_age = NI_WIRELESS_SCAN_MAX_AGE;
-	scan->timestamp = time(NULL);
 	scan->lifetime = 60;
 
 	return scan;

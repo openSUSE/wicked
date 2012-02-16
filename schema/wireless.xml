@@ -33,7 +33,7 @@
     <!-- <wpa-protocols type="builtin-wireless-protocol-mask"/> -->
   </define>
 
-  <define name="link-request" class="dict" extends="interface:link-request">
+  <define name="link-request" class="dict">
     <essid type="string"/>
     <mode type="builtin-wireless-mode"/>
     <access-point type="ethernet-address"/>
@@ -47,6 +47,12 @@
   <method name="linkChange">
     <arguments>
       <link-request />
+    </arguments>
+  </method>
+
+  <method name="setScanning">
+    <arguments>
+      <enable type="boolean"/>
     </arguments>
   </method>
 </service>
