@@ -158,6 +158,10 @@ struct ni_linkinfo {
 	ni_vlan_t *		vlan;
 
 	ni_link_stats_t *	stats;
+
+	/* When someone is waiting for the next link change
+	 * event, this will be non-NULL */
+	ni_uuid_t		event_uuid;
 };
 
 struct ni_interface {

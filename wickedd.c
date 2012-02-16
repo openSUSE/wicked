@@ -280,6 +280,7 @@ wicked_interface_event(ni_netconfig_t *nc, ni_interface_t *ifp, ni_event_t event
 		[NI_EVENT_NETWORK_UP]	= "network-up",
 		[NI_EVENT_NETWORK_DOWN]	= "network-down",
 	};
+	ni_uuid_t *event_uuid = NULL;
 
 	if (wicked_dbus_server) {
 		switch (event) {
@@ -293,8 +294,14 @@ wicked_interface_event(ni_netconfig_t *nc, ni_interface_t *ifp, ni_event_t event
 			ni_objectmodel_unregister_interface(wicked_dbus_server, ifp);
 			break;
 
+		case NI_EVENT_LINK_UP:
+		case NI_EVENT_LINK_DOWN:
+			if (!ni_uuid_is_null(&ifp->link.event_uuid))
+				event_uuid = &ifp->link.event_uuid;
+			/* fallthru */
+
 		default:
-			ni_objectmodel_interface_event(wicked_dbus_server, ifp, event, 0);
+			ni_objectmodel_interface_event(wicked_dbus_server, ifp, event, event_uuid);
 			break;
 		}
 	}

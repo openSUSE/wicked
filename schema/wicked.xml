@@ -158,6 +158,14 @@
 <service name="interface" interface="com.suse.Wicked.Interface" object-class="netif">
   <define name="properties" type="network-interface"/>
 
+  <define name="callback-info" class="dict">
+   <!-- We can return one or more these callback elements in a single dict -->
+   <callback class="dict">
+     <uuid type="uuid-type/>
+     <event type="string"/>
+   </callback>
+  </define>
+
   <define name="link-request" class="dict">
    <status type="network-interface:state-bits"/>
 
@@ -175,12 +183,21 @@
     </arguments>
   </method>
 
-  <method name="linkChange">
+  <method name="linkUp">
     <arguments>
       <request type="link-request" />
     </arguments>
     <return>
-      <network-interface:state-bits/>
+      <callback-info>
+    </return>
+  </method>
+
+  <method name="linkDown">
+    <arguments>
+      <request type="link-request" />
+    </arguments>
+    <return>
+      <callback-info>
     </return>
   </method>
 
