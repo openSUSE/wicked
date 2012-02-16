@@ -46,7 +46,7 @@ static int	__ni_interface_update_addrs(ni_interface_t *ifp,
 				const ni_addrconf_lease_t *old_lease,
 				ni_address_t *cfg_addr_list);
 static int	__ni_interface_update_routes(ni_interface_t *ifp,
-				int family, ni_addrconf_mode_t mode,
+				const ni_addrconf_lease_t *old_lease,
 				ni_route_t * const *cfg_route_list);
 #if 0
 static int	__ni_interface_addrconf(ni_netconfig_t *, int,  ni_interface_t *, ni_afinfo_t *);
@@ -263,7 +263,7 @@ __ni_system_interface_update_lease(ni_interface_t *ifp, ni_addrconf_lease_t **le
 	/* Loop over all routes and remove those no longer covered by the lease.
 	 * Ignore all routes covered by other address config mechanisms.
 	 */
-	res = __ni_interface_update_routes(ifp, lease->family, lease->type, &lease->routes);
+	res = __ni_interface_update_routes(ifp, old_lease, &lease->routes);
 	if (res < 0) {
 		ni_error("%s: error updating interface config from %s lease",
 				ifp->name, 
@@ -1467,7 +1467,7 @@ __ni_interface_update_addrs(ni_interface_t *ifp,
 
 static int
 __ni_interface_update_routes(ni_interface_t *ifp,
-				int family, ni_addrconf_mode_t mode,
+				const ni_addrconf_lease_t *old_lease,
 				ni_route_t * const *cfg_route_list)
 {
 	ni_route_t *rp, *next;
@@ -1482,14 +1482,27 @@ __ni_interface_update_routes(ni_interface_t *ifp,
 		ni_route_t *new_route;
 
 		next = rp->next;
-		if (rp->family != family)
-			continue;
 
 		/* See if the config list contains the route we've found in the
 		 * system. */
 		new_route = __ni_interface_route_list_contains(cfg_route_list, rp);
 
-		if (rp->config_lease && rp->config_lease->type != mode) {
+		/* Do not touch addresses not managed by us. */
+		if (rp->config_lease == NULL)
+			continue;
+
+		/* If the address was managed by us (ie its owned by a lease with
+		 * the same family/addrconf mode), then we want to check whether
+		 * it's owned by any other lease. It's possible that an address
+		 * is configured through different protocols. */
+		if (rp->config_lease == old_lease) {
+			ni_addrconf_lease_t *other;
+
+			if ((other = __ni_interface_route_to_lease(ifp, rp)) != NULL)
+				rp->config_lease = other;
+		}
+
+		if (rp->config_lease != old_lease) {
 			/* The existing route is managed by a different
 			 * addrconf mode.
 			 */
@@ -1522,8 +1535,7 @@ __ni_interface_update_routes(ni_interface_t *ifp,
 	 * those that don't exist yet.
 	 */
 	for (rp = *cfg_route_list; rp; rp = rp->next) {
-		if (rp->family != family
-		 || rp->seq == __ni_global_seqno)
+		if (rp->seq == __ni_global_seqno)
 			continue;
 
 		ni_debug_ifconfig("%s: adding new route %s", ifp->name, ni_route_print(rp));
