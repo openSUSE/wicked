@@ -36,8 +36,8 @@ ni_xs_scalar_new(unsigned int scalar_type)
 {
 	ni_xs_type_t *type = __ni_xs_type_new(NI_XS_TYPE_SCALAR);
 
-	type->scalar_info = xcalloc(1, sizeof(ni_xs_scalar_info_t));
-	type->scalar_info->type = scalar_type;
+	type->u.scalar_info = xcalloc(1, sizeof(ni_xs_scalar_info_t));
+	type->u.scalar_info->type = scalar_type;
 	return type;
 }
 
@@ -46,7 +46,7 @@ ni_xs_struct_new(void)
 {
 	ni_xs_type_t *type = __ni_xs_type_new(NI_XS_TYPE_STRUCT);
 
-	type->struct_info = xcalloc(1, sizeof(ni_xs_struct_info_t));
+	type->u.struct_info = xcalloc(1, sizeof(ni_xs_struct_info_t));
 	return type;
 }
 
@@ -55,7 +55,7 @@ ni_xs_dict_new(void)
 {
 	ni_xs_type_t *type = __ni_xs_type_new(NI_XS_TYPE_DICT);
 
-	type->dict_info = xcalloc(1, sizeof(ni_xs_dict_info_t));
+	type->u.dict_info = xcalloc(1, sizeof(ni_xs_dict_info_t));
 	return type;
 }
 
@@ -64,37 +64,58 @@ ni_xs_array_new(ni_xs_type_t *elementType, unsigned long minlen, unsigned long m
 {
 	ni_xs_type_t *type = __ni_xs_type_new(NI_XS_TYPE_ARRAY);
 
-	type->array_info = calloc(1, sizeof(struct ni_xs_array_info));
-	type->array_info->element_type = ni_xs_type_hold(elementType);
-	type->array_info->minlen = minlen;
-	type->array_info->maxlen = maxlen;
+	type->u.array_info = calloc(1, sizeof(struct ni_xs_array_info));
+	type->u.array_info->element_type = ni_xs_type_hold(elementType);
+	type->u.array_info->minlen = minlen;
+	type->u.array_info->maxlen = maxlen;
 	return type;
 }
 
 void
 ni_xs_type_free(ni_xs_type_t *type)
 {
-	if (type->dict_info) {
-		ni_xs_dict_info_t *dict_info = type->dict_info;
+	switch (type->class) {
+	case NI_XS_TYPE_DICT:
+		{
+			ni_xs_dict_info_t *dict_info = type->u.dict_info;
 
-		ni_xs_name_type_array_destroy(&dict_info->children);
-		free(dict_info);
-		type->dict_info = NULL;
-	}
-	if (type->struct_info) {
-		ni_xs_struct_info_t *struct_info = type->struct_info;
+			ni_xs_name_type_array_destroy(&dict_info->children);
+			free(dict_info);
+			type->u.dict_info = NULL;
+			break;
+		}
 
-		ni_xs_name_type_array_destroy(&struct_info->children);
-		free(struct_info);
-		type->struct_info = NULL;
-	}
-	if (type->array_info) {
-		ni_xs_type_release(type->array_info->element_type);
-		free(type->array_info);
-		type->array_info = NULL;
+	case NI_XS_TYPE_STRUCT:
+		{
+			ni_xs_struct_info_t *struct_info = type->u.struct_info;
+
+			ni_xs_name_type_array_destroy(&struct_info->children);
+			free(struct_info);
+			type->u.struct_info = NULL;
+			break;
+		}
+	case NI_XS_TYPE_ARRAY:
+		{
+			ni_xs_array_info_t *array_info = type->u.array_info;
+
+			ni_xs_type_release(array_info->element_type);
+			free(array_info);
+			type->u.array_info = NULL;
+			break;
+		}
+
+	case NI_XS_TYPE_SCALAR:
+		{
+			ni_xs_scalar_info_t *scalar_info = type->u.scalar_info;
+
+			free(scalar_info);
+			type->u.scalar_info = NULL;
+
+			/* FIXME: free constraint data */
+			break;
+		}
 	}
 
-	/* FIXME: free constraint data */
 	free(type);
 }
 
@@ -552,7 +573,7 @@ ni_xs_build_complex_type(xml_node_t *node, const char *className, ni_xs_type_dic
 
 	if (!strcmp(className, "struct")) {
 		type = ni_xs_struct_new();
-		if (ni_xs_build_typelist(node, &type->struct_info->children, typedict) < 0) {
+		if (ni_xs_build_typelist(node, &type->u.struct_info->children, typedict) < 0) {
 			ni_xs_type_free(type);
 			return NULL;
 		}
@@ -589,7 +610,7 @@ ni_xs_build_complex_type(xml_node_t *node, const char *className, ni_xs_type_dic
 				ni_xs_type_release(elementType);
 				return NULL;
 			}
-			if (notation->array_element_type != elementType->scalar_info->type) {
+			if (notation->array_element_type != elementType->u.scalar_info->type) {
 				ni_error("%s: array definition references incompatible notation \"%s\"", __func__, attrValue);
 				ni_xs_type_release(elementType);
 				return NULL;
@@ -597,12 +618,12 @@ ni_xs_build_complex_type(xml_node_t *node, const char *className, ni_xs_type_dic
 		}
 
 		type = ni_xs_array_new(elementType, minlen, maxlen);
-		type->array_info->notation = notation;
+		type->u.array_info->notation = notation;
 		ni_xs_type_release(elementType);
 	} else
 	if (!strcmp(className, "dict")) {
 		type = ni_xs_dict_new();
-		if (ni_xs_build_typelist(node, &type->dict_info->children, typedict) < 0) {
+		if (ni_xs_build_typelist(node, &type->u.dict_info->children, typedict) < 0) {
 			ni_xs_type_free(type);
 			return NULL;
 		}

@@ -184,10 +184,12 @@ struct ni_xs_type {
 	unsigned int		refcount;
 	unsigned int		class;
 
-	ni_xs_scalar_info_t *	scalar_info;
-	ni_xs_dict_info_t *	dict_info;
-	ni_xs_struct_info_t *	struct_info;
-	ni_xs_array_info_t *	array_info;
+	union {
+		ni_xs_scalar_info_t *	scalar_info;
+		ni_xs_dict_info_t *	dict_info;
+		ni_xs_struct_info_t *	struct_info;
+		ni_xs_array_info_t *	array_info;
+	} u;
 };
 
 struct ni_xs_type_dict {
@@ -229,8 +231,32 @@ static inline ni_xs_scalar_info_t *
 ni_xs_scalar_info(const ni_xs_type_t *type)
 {
 	ni_assert(type->class == NI_XS_TYPE_SCALAR);
-	ni_assert(type->scalar_info);
-	return type->scalar_info;
+	ni_assert(type->u.scalar_info);
+	return type->u.scalar_info;
+}
+
+static inline ni_xs_struct_info_t *
+ni_xs_struct_info(const ni_xs_type_t *type)
+{
+	ni_assert(type->class == NI_XS_TYPE_STRUCT);
+	ni_assert(type->u.struct_info);
+	return type->u.struct_info;
+}
+
+static inline ni_xs_dict_info_t *
+ni_xs_dict_info(const ni_xs_type_t *type)
+{
+	ni_assert(type->class == NI_XS_TYPE_DICT);
+	ni_assert(type->u.dict_info);
+	return type->u.dict_info;
+}
+
+static inline ni_xs_array_info_t *
+ni_xs_array_info(const ni_xs_type_t *type)
+{
+	ni_assert(type->class == NI_XS_TYPE_ARRAY);
+	ni_assert(type->u.array_info);
+	return type->u.array_info;
 }
 
 static inline const ni_xs_type_t *

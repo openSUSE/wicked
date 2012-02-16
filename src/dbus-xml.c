@@ -78,7 +78,7 @@ ni_dbus_serialize_xml_scalar(xml_node_t *node, const ni_xs_type_t *type, ni_dbus
 dbus_bool_t
 ni_dbus_serialize_xml_array(xml_node_t *node, const ni_xs_type_t *type, ni_dbus_variant_t *var)
 {
-	ni_xs_array_info_t *array_info = type->array_info;
+	ni_xs_array_info_t *array_info = ni_xs_array_info(type);
 	ni_xs_type_t *element_type = array_info->element_type;
 	xml_node_t *child;
 
@@ -133,7 +133,7 @@ ni_dbus_serialize_xml_array(xml_node_t *node, const ni_xs_type_t *type, ni_dbus_
 dbus_bool_t
 ni_dbus_serialize_xml_dict(xml_node_t *node, const ni_xs_type_t *type, ni_dbus_variant_t *dict)
 {
-	ni_xs_dict_info_t *dict_info = type->dict_info;
+	ni_xs_dict_info_t *dict_info = ni_xs_dict_info(type);
 	xml_node_t *child;
 
 	ni_assert(dict_info);
@@ -169,6 +169,7 @@ static char *
 __ni_xs_type_to_dbus_signature(const ni_xs_type_t *type, char *sigbuf, size_t buflen)
 {
 	ni_xs_scalar_info_t *scalar_info;
+	ni_xs_array_info_t *array_info;
 	unsigned int i = 0;
 
 	ni_assert(buflen >= 2);
@@ -180,13 +181,14 @@ __ni_xs_type_to_dbus_signature(const ni_xs_type_t *type, char *sigbuf, size_t bu
 		break;
 
 	case NI_XS_TYPE_ARRAY:
+		array_info = ni_xs_array_info(type);
 		sigbuf[i++] = DBUS_TYPE_ARRAY;
 
 		/* Arrays of non-scalar types always wrap each element into a VARIANT */
-		if (type->array_info->element_type->class != NI_XS_TYPE_SCALAR)
+		if (array_info->element_type->class != NI_XS_TYPE_SCALAR)
 			sigbuf[i++] = DBUS_TYPE_VARIANT;
 
-		if (!__ni_xs_type_to_dbus_signature(type->array_info->element_type, sigbuf + i, buflen - i))
+		if (!__ni_xs_type_to_dbus_signature(array_info->element_type, sigbuf + i, buflen - i))
 			return NULL;
 		break;
 
