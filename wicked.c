@@ -509,7 +509,7 @@ wicked_addrconf_common(ni_dbus_object_t *object, const ni_dbus_service_t *servic
 	DBusError error = DBUS_ERROR_INIT;
 	dbus_bool_t rv = FALSE;
 
-	if (!ni_dbus_object_call_variant(object, service->name, "configure",
+	if (!ni_dbus_object_call_variant(object, service->name, "requestLease",
 				1, arg,
 				1, &result,
 				&error)) {
@@ -533,7 +533,7 @@ wicked_addrconf_xml(ni_dbus_object_t *object, const ni_dbus_service_t *service, 
 	const ni_dbus_method_t *method;
 	dbus_bool_t rv = FALSE;
 
-	method = ni_dbus_service_get_method(service, "configure");
+	method = ni_dbus_service_get_method(service, "requestLease");
 	ni_assert(method);
 
 	ni_dbus_variant_init_dict(&argument);

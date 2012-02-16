@@ -193,7 +193,7 @@ done:
  * Configure static IPv4 addresses
  */
 static dbus_bool_t
-ni_objectmodel_addrconf_ipv4_static_configure(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+ni_objectmodel_addrconf_ipv4_static_request(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
@@ -243,7 +243,7 @@ ni_objectmodel_addrconf_ipv4_static_configure(ni_dbus_object_t *object, const ni
  * Configure static IPv6 addresses
  */
 static dbus_bool_t
-ni_objectmodel_addrconf_ipv6_static_configure(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+ni_objectmodel_addrconf_ipv6_static_request(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
@@ -367,7 +367,7 @@ ni_objectmodel_addrconf_forward(ni_dbus_addrconf_forwarder_t *forwarder,
  * Configure IPv4 addresses via DHCP
  */
 static dbus_bool_t
-ni_objectmodel_addrconf_ipv4_dhcp_configure(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+ni_objectmodel_addrconf_ipv4_dhcp_request(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
@@ -411,7 +411,7 @@ ni_objectmodel_addrconf_ipv4_dhcp_configure(ni_dbus_object_t *object, const ni_d
  * Configure IPv4 addresses via IPv4ll
  */
 static dbus_bool_t
-ni_objectmodel_addrconf_ipv4ll_configure(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+ni_objectmodel_addrconf_ipv4ll_request(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
@@ -455,22 +455,22 @@ ni_objectmodel_addrconf_ipv4ll_configure(ni_dbus_object_t *object, const ni_dbus
  * Addrconf methods
  */
 static const ni_dbus_method_t		ni_objectmodel_addrconf_ipv4_static_methods[] = {
-	{ "configure",		"a{sv}",		ni_objectmodel_addrconf_ipv4_static_configure },
+	{ "requestLease",	"a{sv}",		ni_objectmodel_addrconf_ipv4_static_request },
 	{ NULL }
 };
 
 static const ni_dbus_method_t		ni_objectmodel_addrconf_ipv6_static_methods[] = {
-	{ "configure",		"a{sv}",		ni_objectmodel_addrconf_ipv6_static_configure },
+	{ "requestLease",	"a{sv}",		ni_objectmodel_addrconf_ipv6_static_request },
 	{ NULL }
 };
 
 static const ni_dbus_method_t		ni_objectmodel_addrconf_ipv4_dhcp_methods[] = {
-	{ "configure",		"a{sv}",		ni_objectmodel_addrconf_ipv4_dhcp_configure },
+	{ "requestLease",	"a{sv}",		ni_objectmodel_addrconf_ipv4_dhcp_request },
 	{ NULL }
 };
 
 static const ni_dbus_method_t		ni_objectmodel_addrconf_ipv4ll_methods[] = {
-	{ "configure",		"a{sv}",		ni_objectmodel_addrconf_ipv4ll_configure },
+	{ "requestLease",	"a{sv}",		ni_objectmodel_addrconf_ipv4ll_request },
 	{ NULL }
 };
 

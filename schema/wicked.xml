@@ -236,7 +236,7 @@
     <routes type="network-interface:assigned-route-list" />
   </define>
 
-  <method name="configure">
+  <method name="requestLease">
     <arguments>
       <!-- Note: all addresses are expected to be IPv4 -->
       <config type="request"/>
@@ -257,7 +257,7 @@
     <routes type="network-interface:assigned-route-list" />
   </define>
 
-  <method name="configure">
+  <method name="requestLease">
     <arguments>
       <!-- Note: all addresses are expected to be IPv6 -->
       <config type="request"/>
@@ -279,7 +279,7 @@
     <lease-time type="uint32" />
   </define>
 
-  <method name="configure">
+  <method name="requestLease">
     <arguments>
       <config type="request"/>
     </arguments>
