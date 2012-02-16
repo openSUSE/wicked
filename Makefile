@@ -113,6 +113,7 @@ all: $(TGTLIBS) $(APPS) $(GENFILES)
 distclean clean::
 	rm -f *.o *.a *.so $(APPS) core tags
 	rm -rf $(OBJ) $(GENFILES)
+	rm -f etc/mkconst.o
 	rm -f testing/*.o
 
 distclean::
