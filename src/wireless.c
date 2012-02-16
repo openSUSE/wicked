@@ -39,7 +39,6 @@
 # define IW_IE_KEY_MGMT_PSK      2
 #endif
 
-static ni_wireless_t *	ni_wireless_new(void);
 static void		__ni_wireless_network_destroy(ni_wireless_network_t *net);
 
 static ni_wpa_client_t *wpa_client;
@@ -68,9 +67,10 @@ ni_wireless_interface_refresh(ni_interface_t *ifp)
 		ni_wireless_t *wlan;
 
 		wlan = ni_wireless_new();
-		wlan->capabilities = wif->capabilities;
 		ifp->wireless = wlan;
 	}
+
+	ifp->wireless->capabilities = wif->capabilities;
 
 	scan = ni_wireless_scan_new();
 	if (ni_wpa_interface_retrieve_scan(wpa_client, wif, scan) >= 0)

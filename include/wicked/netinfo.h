@@ -286,6 +286,7 @@ extern ni_ethernet_t *	ni_interface_get_ethernet(ni_interface_t *);
 extern ni_bonding_t *	ni_interface_get_bonding(ni_interface_t *);
 extern ni_vlan_t *	ni_interface_get_vlan(ni_interface_t *);
 extern ni_bridge_t *	ni_interface_get_bridge(ni_interface_t *);
+extern ni_wireless_t *	ni_interface_get_wireless(ni_interface_t *);
 extern void		ni_interface_set_bonding(ni_interface_t *, ni_bonding_t *);
 extern void		ni_interface_set_vlan(ni_interface_t *, ni_vlan_t *);
 extern void		ni_interface_set_bridge(ni_interface_t *, ni_bridge_t *);

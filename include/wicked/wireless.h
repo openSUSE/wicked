@@ -8,6 +8,7 @@
 #define __WICKED_WIRELESS_H__
 
 #include <wicked/types.h>
+#include <wicked/util.h>
 #include <wicked/logging.h>
 
 typedef enum ni_wireless_mode {
@@ -148,6 +149,11 @@ struct ni_wireless_network {
 		unsigned char *		key_data;
 	} encode;
 
+	struct ni_wireless_wpa_psk {
+		char *			passphrase;
+		ni_opaque_t		key;
+	} wpa_psk;
+
 };
 
 typedef struct ni_wireless_interface_capabilities {
@@ -186,6 +192,7 @@ struct ni_wireless_scan {
 	void *			pending;
 };
 
+extern ni_wireless_t *	ni_wireless_new(void);
 extern int		ni_wireless_interface_refresh(ni_interface_t *);
 extern ni_wireless_network_t *ni_wireless_network_new(void);
 extern void		ni_wireless_free(ni_wireless_t *);

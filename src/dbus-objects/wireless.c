@@ -10,6 +10,96 @@
 #include "dbus-common.h"
 #include "model.h"
 
+static dbus_bool_t	ni_objectmodel_get_wireless_request(ni_wireless_network_t *,
+				const ni_dbus_variant_t *, DBusError *);
+
+static dbus_bool_t
+ni_objectmodel_wireless_link_up(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_interface_t *ifp;
+	ni_wireless_network_t *net;
+
+	if (!(ifp = ni_objectmodel_unwrap_interface(object, error)))
+		return FALSE;
+
+	net = ni_wireless_network_new();
+	if (!ni_objectmodel_get_wireless_request(net, &argv[0], error))
+		goto error;
+
+	ni_wireless_network_put(net);
+	return TRUE;
+
+error:
+	ni_wireless_network_put(net);
+	return FALSE;
+}
+
+dbus_bool_t
+ni_objectmodel_get_wireless_request(ni_wireless_network_t *net,
+				const ni_dbus_variant_t *var, DBusError *error)
+{
+	const ni_dbus_variant_t *child;
+	const char *string;
+
+	if (!ni_dbus_variant_is_dict(var)) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "expected dict argument");
+		return FALSE;
+	}
+
+	if ((child = ni_dbus_dict_get(var, "essid")) != NULL) {
+		unsigned int len;
+
+		if (ni_dbus_variant_get_byte_array_minmax(child, net->essid.data, &len, 0, sizeof(net->essid.data))) {
+			net->essid.len = len;
+		} else
+		if (ni_dbus_variant_get_string(child, &string)) {
+			len = strlen(string);
+			if (len > sizeof(net->essid.data))
+				return FALSE;
+			memcpy(net->essid.data, string, len);
+			net->essid.len = len;
+		} else {
+			return FALSE;
+		}
+	}
+
+	if ((child = ni_dbus_dict_get(var, "access-point")) != NULL) {
+		ni_hwaddr_t *hwaddr = &net->access_point;
+		unsigned int len;
+
+		if (!ni_dbus_variant_get_byte_array_minmax(child, hwaddr->data, &len, 0, sizeof(hwaddr->data)))
+			return FALSE;
+		hwaddr->type = NI_IFTYPE_WIRELESS;
+		hwaddr->len = len;
+	}
+
+	if (ni_dbus_dict_get_string(var, "mode", &string)) {
+		net->mode = ni_wireless_name_to_mode(string);
+		if (net->mode == NI_WIRELESS_MODE_UNKNOWN)
+			return FALSE;
+	}
+
+	if ((child = ni_dbus_dict_get(var, "wpa-psk")) != NULL) {
+		ni_dbus_variant_t *attr;
+
+		net->auth_proto = NI_WIRELESS_AUTH_WPA2;
+		net->keymgmt_proto = NI_WIRELESS_KEY_MGMT_PSK;
+		if (ni_dbus_dict_get_string(child, "passphrase", &string))
+			ni_string_dup(&net->wpa_psk.passphrase, string);
+
+		if ((attr = ni_dbus_dict_get(child, "key")) != NULL) {
+			ni_opaque_t *key = &net->wpa_psk.key;
+
+			if (!ni_dbus_variant_get_byte_array_minmax(attr, key->data, &key->len, 64, 64))
+				return FALSE;
+		}
+	}
+
+	return TRUE;
+}
+
 static ni_wireless_t *
 __ni_objectmodel_get_wireless(const ni_dbus_object_t *object, DBusError *error)
 {
@@ -19,7 +109,7 @@ __ni_objectmodel_get_wireless(const ni_dbus_object_t *object, DBusError *error)
 	if (!(ifp = ni_objectmodel_unwrap_interface(object, error)))
 		return NULL;
 
-	if (!(wlan = ifp->wireless)) {
+	if (!(wlan = ni_interface_get_wireless(ifp))) {
 		dbus_set_error(error, DBUS_ERROR_FAILED, "Error getting wireless handle for interface");
 		return NULL;
 	}
@@ -145,6 +235,8 @@ const ni_dbus_property_t	ni_objectmodel_wireless_property_table[] = {
 };
 
 static ni_dbus_method_t		ni_objectmodel_wireless_methods[] = {
+	{ "linkUp",		"a{sv}",		ni_objectmodel_wireless_link_up	},
+
 	{ NULL }
 };
 

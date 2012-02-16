@@ -284,6 +284,14 @@ ni_interface_set_ethernet(ni_interface_t *ifp, ni_ethernet_t *ethernet)
 /*
  * Set the interface's wireless info
  */
+ni_wireless_t *
+ni_interface_get_wireless(ni_interface_t *dev)
+{
+	if (!dev->wireless)
+		dev->wireless = ni_wireless_new();
+	return dev->wireless;
+}
+
 void
 ni_interface_set_wireless(ni_interface_t *ifp, ni_wireless_t *wireless)
 {
