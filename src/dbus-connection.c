@@ -14,16 +14,25 @@
 #include "socket_priv.h"
 #include "dbus-connection.h"
 #include "dbus-dict.h"
+#include "process.h"
 #include "debug.h"
 
 
 typedef struct ni_dbus_async_client_call ni_dbus_async_client_call_t;
 struct ni_dbus_async_client_call {
-	ni_dbus_async_client_call_t *	next;
+	ni_dbus_async_client_call_t *next;
 
 	DBusPendingCall *	call;
 	ni_dbus_async_callback_t *callback;
 	ni_dbus_object_t *	proxy;
+};
+
+typedef struct ni_dbus_async_server_call ni_dbus_async_server_call_t;
+struct ni_dbus_async_server_call {
+	ni_dbus_async_server_call_t *next;
+
+	DBusMessage *		call_message;
+	ni_process_instance_t *	sub_process;
 };
 
 typedef struct ni_dbus_sigaction ni_dbus_sigaction_t;
@@ -38,7 +47,8 @@ struct ni_dbus_sigaction {
 
 struct ni_dbus_connection {
 	DBusConnection *	conn;
-	ni_dbus_async_client_call_t *	pending;
+	ni_dbus_async_client_call_t *pending;
+	ni_dbus_async_server_call_t *async_server_calls;
 	ni_dbus_sigaction_t *	sighandlers;
 };
 
@@ -52,6 +62,7 @@ struct ni_dbus_watch_data {
 static ni_dbus_watch_data_t *	ni_dbus_watches;
 
 static void			__ni_dbus_sigaction_free(ni_dbus_sigaction_t *);
+static void			__ni_dbus_async_server_call_free(ni_dbus_async_server_call_t *);
 static void			__ni_dbus_async_client_call_free(ni_dbus_async_client_call_t *);
 static void			__ni_dbus_notify_async(DBusPendingCall *, void *);
 static dbus_bool_t		__ni_dbus_add_watch(DBusWatch *, void *);
@@ -144,6 +155,13 @@ ni_dbus_connection_free(ni_dbus_connection_t *dbc)
 		dbc->pending = pd->next;
 		dbus_pending_call_cancel(pd->call);
 		__ni_dbus_async_client_call_free(pd);
+	}
+
+	while (dbc->async_server_calls) {
+		ni_dbus_async_server_call_t *async = dbc->async_server_calls;
+
+		dbc->async_server_calls = async->next;
+		__ni_dbus_async_server_call_free(async);
 	}
 
 	while ((sig = dbc->sighandlers) != NULL) {
@@ -439,6 +457,47 @@ ni_dbus_connection_unregister_object(ni_dbus_connection_t *connection, ni_dbus_o
 		return;
 	ni_debug_dbus("dbus_connection_unregister_object_path(%s)", path);
 	dbus_connection_unregister_object_path(connection->conn, path);
+}
+
+void
+__ni_dbus_async_server_call_callback(ni_process_instance_t *proc)
+{
+	ni_dbus_connection_t *conn = proc->user_data;
+	ni_dbus_async_server_call_t **pos, *async;
+
+	for (pos = &conn->async_server_calls; (async = *pos) != NULL; pos = &async->next) {
+		if (async->sub_process == proc) {
+			*pos = async->next;
+			break;
+		}
+	}
+	if (async == NULL) {
+		ni_error("%s: unknown subprocess exited", __func__);
+		return;
+	}
+
+	async->sub_process = NULL;
+
+	/* Should build response and send it out now */
+
+
+	__ni_dbus_async_server_call_free(async);
+}
+
+void
+__ni_dbus_async_server_call_free(ni_dbus_async_server_call_t *async)
+{
+	if (async->call_message)
+		dbus_message_unref(async->call_message);
+	if (async->sub_process) {
+		ni_process_instance_t *proc = async->sub_process;
+
+		async->sub_process = NULL;
+
+		/* kill subprocess and free associated struct */
+		ni_process_instance_free(proc);
+	}
+	free(async);
 }
 
 /*
