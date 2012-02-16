@@ -120,6 +120,21 @@ extern int	__ni_interface_process_newprefix(ni_interface_t *, struct nlmsghdr *,
 #endif
 
 /*
+ * RFC 2863 operational status.
+ * Declared in linux/if.h, but that's one of those contaminated
+ * files that you can't really use :(
+ */
+enum {
+	IF_OPER_UNKNOWN,
+	IF_OPER_NOTPRESENT,
+	IF_OPER_DOWN,
+	IF_OPER_LOWERLAYERDOWN,
+	IF_OPER_TESTING,
+	IF_OPER_DORMANT,
+	IF_OPER_UP,
+};
+
+/*
  * Copied from linux/ipv6.h (which doesn't include cleanly in user space code)
  *
  * Index values for the variables in ipv6_devconf:

@@ -152,6 +152,7 @@ struct ni_linkinfo {
 	unsigned int		metric;
 	unsigned int		txqlen;
 	unsigned int		master;		/* ifindex */
+	unsigned int		oper_state;
 	char *			qdisc;
 	char *			kind;
 
@@ -377,6 +378,8 @@ extern ni_event_t	ni_event_name_to_type(const char *);
 extern const char *	ni_event_type_to_name(ni_event_t);
 extern int		ni_ifaction_name_to_type(const char *);
 extern const char *	ni_ifaction_type_to_name(unsigned int);
+extern int		ni_oper_state_name_to_type(const char *);
+extern const char *	ni_oper_state_type_to_name(int);
 extern int		ni_iftype_to_arphrd_type(unsigned int iftype);
 
 extern const char *	ni_strerror(int errcode);

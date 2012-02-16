@@ -9,6 +9,7 @@
 
 #include <wicked/netinfo.h>
 #include <wicked/addrconf.h>
+#include "kernel.h"
 
 /*
  * Map interface link layer types to strings and vice versa
@@ -362,5 +363,36 @@ ni_iftype_to_arphrd_type(unsigned int iftype)
 		if (map->type == iftype)
 			break;
 	return map->arp_type;
+}
+
+/*
+ * Names for the kernel's oper_state values
+ */
+static ni_intmap_t		__ni_operstate_names[] = {
+	{ "unknown",		IF_OPER_UNKNOWN		},
+	{ "not-present",	IF_OPER_NOTPRESENT	},
+	{ "down",		IF_OPER_DOWN		},
+	{ "lower-layer-down",	IF_OPER_LOWERLAYERDOWN	},
+	{ "testing",		IF_OPER_TESTING		},
+	{ "dormant",		IF_OPER_DORMANT		},
+	{ "up",			IF_OPER_UP		},
+
+	{ NULL }
+};
+
+int
+ni_oper_state_name_to_type(const char *name)
+{
+	unsigned int value;
+
+	if (ni_parse_int_mapped(name, __ni_operstate_names, &value) < 0)
+		return -1;
+	return value;
+}
+
+const char *
+ni_oper_state_type_to_name(int type)
+{
+	return ni_format_int_mapped(type, __ni_operstate_names);
 }
 

@@ -536,6 +536,7 @@ __ni_process_ifinfomsg(ni_linkinfo_t *link, struct nlmsghdr *h,
 		ni_string_dup(&link->alias, nla_get_string(tb[IFLA_IFALIAS]));
 	if (tb[IFLA_OPERSTATE]) {
 		/* get the RFC 2863 operational status - IF_OPER_* */
+		link->oper_state = nla_get_u8(tb[IFLA_OPERSTATE]);
 	}
 
 	if (tb[IFLA_STATS]) {
@@ -698,13 +699,15 @@ __ni_interface_process_newlink(ni_interface_t *ifp, struct nlmsghdr *h,
 		return rv;
 
 #if 0
-	ni_debug_ifconfig("%s: ifi flags:%s%s%s, my flags:%s%s%s", ifp->name,
+	ni_debug_ifconfig("%s: ifi flags:%s%s%s, my flags:%s%s%s, oper_state=%d/%s", ifp->name,
 		(ifi->ifi_flags & IFF_RUNNING)? " running" : "",
 		(ifi->ifi_flags & IFF_LOWER_UP)? " lower_up" : "",
 		(ifi->ifi_flags & IFF_UP)? " up" : "",
 		(ifp->link.ifflags & NI_IFF_DEVICE_UP)? " device-up" : "",
 		(ifp->link.ifflags & NI_IFF_LINK_UP)? " link-up" : "",
-		(ifp->link.ifflags & NI_IFF_NETWORK_UP)? " network-up" : "");
+		(ifp->link.ifflags & NI_IFF_NETWORK_UP)? " network-up" : "",
+		ifp->link.oper_state,
+		ni_oper_state_type_to_name(ifp->link.oper_state));
 #endif
 
 	ifp->ipv4.addrconf = NI_ADDRCONF_MASK(NI_ADDRCONF_STATIC);
