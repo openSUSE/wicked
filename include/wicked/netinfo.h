@@ -180,6 +180,9 @@ struct ni_interface {
 	ni_afinfo_t		ipv4;
 	ni_afinfo_t		ipv6;
 
+	/* Pending addrconf requests */
+	ni_addrconf_request_t *	addrconf;
+
 	/* link layer info specific to different device types. */
 	ni_interface_t *	parent;
 	ni_bonding_t *		bonding;
@@ -261,7 +264,7 @@ extern int		ni_interface_update(ni_interface_t *ifp);
 extern int		ni_interface_guess_type(ni_interface_t *ifp);
 
 extern int		ni_interface_set_addrconf_request(ni_interface_t *, ni_addrconf_request_t *);
-ni_addrconf_request_t *	ni_interface_get_addrconf_request(ni_interface_t *dev, int af, ni_addrconf_mode_t);
+ni_addrconf_request_t *	ni_interface_get_addrconf_request(ni_interface_t *dev, const char *owner);
 extern int		ni_interface_set_lease(ni_interface_t *, ni_addrconf_lease_t **);
 extern int		ni_interface_unset_lease(ni_interface_t *, int af, ni_addrconf_mode_t type);
 extern int		ni_interface_request_scan(ni_netconfig_t *, ni_interface_t *);

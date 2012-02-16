@@ -1124,6 +1124,9 @@ ni_netcf_addrconf_request_to_xml(const ni_addrconf_request_t *req, xml_node_t *p
 static xml_node_t *
 __ni_netcf_xml_from_addrconf_req(const ni_addrconf_request_t *req, xml_node_t *proto_node)
 {
+#if 1
+	return NULL;
+#else
 	xml_node_t *dhnode, *child;
 	const char *acname;
 
@@ -1165,11 +1168,15 @@ __ni_netcf_xml_from_addrconf_req(const ni_addrconf_request_t *req, xml_node_t *p
 	}
 
 	return dhnode;
+#endif
 }
 
 static ni_addrconf_request_t *
 __ni_netcf_xml_to_addrconf_req(const xml_node_t *dhnode, int req_family)
 {
+#if 1
+	return NULL;
+#else
 	int req_type = -1;
 	ni_addrconf_request_t *req;
 	xml_node_t *child;
@@ -1206,6 +1213,7 @@ __ni_netcf_xml_to_addrconf_req(const xml_node_t *dhnode, int req_family)
 	}
 
 	return req;
+#endif
 }
 
 /*

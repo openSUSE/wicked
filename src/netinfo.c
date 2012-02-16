@@ -389,30 +389,29 @@ ni_afinfo_free(ni_afinfo_t *afi)
  * addrconf requests
  */
 ni_addrconf_request_t *
-ni_addrconf_request_new(unsigned int type, unsigned int af)
+ni_addrconf_request_new(const char *owner)
 {
-	ni_addrconf_request_t *dhcp;
+	ni_addrconf_request_t *req;
 
-	dhcp = xcalloc(1, sizeof(*dhcp));
+	req = xcalloc(1, sizeof(*req));
+	ni_string_dup(&req->owner, owner);
 
-	dhcp->type = type;
-	dhcp->family = af;
-	dhcp->update = ~0;
+	req->update = ~0;
 
-	return dhcp;
+	return req;
 }
 
 void
 ni_addrconf_request_free(ni_addrconf_request_t *req)
 {
+	ni_string_free(&req->owner);
 	free(req);
 }
 
 int
 ni_addrconf_request_equal(const ni_addrconf_request_t *req1, const ni_addrconf_request_t *req2)
 {
-	if (req1->type != req2->type
-	 || req1->family != req2->family
+	if (!ni_string_eq(req1->owner, req2->owner)
 	 || req1->update != req2->update)
 		return 0;
 

@@ -136,6 +136,7 @@ __ni_addrconf_lease_file_path(int type, int family, const char *ifname)
 /*
  * Write a request to a file
  */
+#if 0
 int
 ni_addrconf_request_file_write(const char *ifname, ni_addrconf_request_t *request)
 {
@@ -168,6 +169,7 @@ failed:
 	unlink(filename);
 	return -1;
 }
+#endif
 
 /*
  * Read a request from a file

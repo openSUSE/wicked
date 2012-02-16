@@ -532,26 +532,6 @@ try_vlan(ni_interface_t *ifp, ni_sysconfig_t *sc)
 static ni_addrconf_request_t *
 __ni_suse_read_dhcp(ni_netconfig_t *nc)
 {
-	ni_addrconf_request_t *dhcp = ni_addrconf_request_new(NI_ADDRCONF_DHCP, -1);
-	ni_sysconfig_t *sc;
-
-	sc = ni_sysconfig_read("/etc/sysconfig/network/dhcp");
-	if (!sc) {
-		ni_error("Error parsing /etc/sysconfig/network/dhcp");
-		goto error;
-	}
-
-	if (__ni_suse_sysconfig2dhcp(dhcp, sc) < 0)
-		goto error;
-
-	ni_sysconfig_destroy(sc);
-	return dhcp;
-
-error:
-	if (sc)
-		ni_sysconfig_destroy(sc);
-	if (dhcp)
-		ni_addrconf_request_free(dhcp);
 	return NULL;
 }
 

@@ -29,8 +29,9 @@ enum {
 
 
 struct ni_addrconf_request {
-	ni_addrconf_mode_t	type;		/* addrconf type */
-	unsigned int		family;		/* address family */
+	ni_addrconf_request_t *	next;
+
+	char *			owner;
 
 	unsigned int		event_id;
 	ni_uuid_t		uuid;
@@ -162,7 +163,7 @@ __ni_addrconf_should_update(unsigned int mask, unsigned int target)
 extern ni_afinfo_t *	ni_afinfo_new(int family);
 extern void		ni_afinfo_free(ni_afinfo_t *);
 
-extern ni_addrconf_request_t *ni_addrconf_request_new(unsigned int mode, unsigned int af);
+extern ni_addrconf_request_t *ni_addrconf_request_new(const char *owner);
 extern void		ni_addrconf_request_free(ni_addrconf_request_t *);
 extern int		ni_addrconf_request_equal(const ni_addrconf_request_t *, const ni_addrconf_request_t *);
 

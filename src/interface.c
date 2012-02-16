@@ -314,31 +314,24 @@ ni_interface_set_link_stats(ni_interface_t *ifp, ni_link_stats_t *stats)
 int
 ni_interface_set_addrconf_request(ni_interface_t *dev, ni_addrconf_request_t *req)
 {
-	ni_afinfo_t *afi;
-
-	afi = __ni_interface_address_info(dev, req->family);
-	if (afi == NULL) {
-		ni_error("unknown address family %d in addrconf request", req->family);
-		return -1;
-	}
-
-	__ni_afinfo_set_addrconf_request(afi, req->type, req);
+	ni_assert(req->owner);
+	req->next = dev->addrconf;
+	dev->addrconf = req;
 	return 0;
 }
 
 ni_addrconf_request_t *
-ni_interface_get_addrconf_request(ni_interface_t *dev, int af, ni_addrconf_mode_t mode)
+ni_interface_get_addrconf_request(ni_interface_t *dev, const char *owner)
 {
-	ni_afinfo_t *afi;
+	ni_addrconf_request_t **pos, *req;
 
-	if (mode >= __NI_ADDRCONF_MAX)
-		return NULL;
-
-	afi = __ni_interface_address_info(dev, af);
-	if (afi == NULL)
-		return NULL;
-
-	return afi->request[mode];
+	for (pos = &dev->addrconf; (req = *pos) != NULL; pos = &req->next) {
+		if (ni_string_eq(req->owner, owner)) {
+			*pos = req->next;
+			return req;
+		}
+	}
+	return NULL;
 }
 
 /*

@@ -28,6 +28,9 @@
 typedef struct ni_dbus_addrconf_forwarder {
 
 	struct {
+	    const char *	interface;
+	} caller;
+	struct {
 	    ni_dbus_client_t *	client;
 	    const char *	bus_name;
 	    const char *	interface;
@@ -147,7 +150,7 @@ ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_messa
 	if (!ni_uuid_is_null(&uuid)) {
 		ni_addrconf_request_t *req;
 
-		if ((req = ni_interface_get_addrconf_request(ifp, lease->family, lease->type)) != NULL
+		if ((req = ni_interface_get_addrconf_request(ifp, forwarder->caller.interface)) != NULL
 		 && ni_uuid_equal(&req->uuid, &uuid)) {
 			event_id = req->event_id;
 			req->event_id = 0;
@@ -342,7 +345,7 @@ ni_objectmodel_addrconf_forward(ni_dbus_addrconf_forwarder_t *forwarder,
 	}
 
 	/* Create a request, generate a uuid and assign an event ID */
-	req = ni_addrconf_request_new(forwarder->addrfamily, forwarder->addrconf);
+	req = ni_addrconf_request_new(forwarder->caller.interface);
 	req->event_id = __ni_objectmodel_event_id++;
 	ni_uuid_generate(&req->uuid);
 
@@ -373,6 +376,9 @@ ni_objectmodel_addrconf_ipv4_dhcp_configure(ni_dbus_object_t *object, const ni_d
 			ni_dbus_message_t *reply, DBusError *error)
 {
 	static ni_dbus_addrconf_forwarder_t forwarder = {
+		.caller = {
+			.interface	= WICKED_DBUS_ADDRCONF_IPV4DHCP_INTERFACE,
+		},
 		.supplicant = {
 			.bus_name	= WICKED_DBUS_BUS_NAME_DHCP4,
 			.interface	= WICKED_DBUS_DHCP4_INTERFACE,
@@ -414,6 +420,9 @@ ni_objectmodel_addrconf_ipv4ll_configure(ni_dbus_object_t *object, const ni_dbus
 			ni_dbus_message_t *reply, DBusError *error)
 {
 	static ni_dbus_addrconf_forwarder_t forwarder = {
+		.caller = {
+			.interface	= WICKED_DBUS_ADDRCONF_IPV4AUTO_INTERFACE,
+		},
 		.supplicant = {
 			.bus_name	= WICKED_DBUS_BUS_NAME_AUTO4,
 			.interface	= WICKED_DBUS_AUTO4_INTERFACE,
