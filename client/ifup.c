@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2011 Olaf Kirch <okir@suse.de>
+ * Copyright (C) 2010-2012 Olaf Kirch <okir@suse.de>
  */
 #include <stdio.h>
 #include <string.h>
@@ -37,20 +37,20 @@ enum {
 	__STATE_MAX
 };
 
-typedef struct ni_interface_state ni_interface_state_t;
-typedef struct ni_interface_state_array {
+typedef struct ni_ifworker	ni_ifworker_t;
+typedef struct ni_ifworker_array {
 	unsigned int		count;
-	ni_interface_state_t **	data;
-} ni_interface_state_array_t;
+	ni_ifworker_t **	data;
+} ni_ifworker_array_t;
 
 typedef struct ni_interface_op {
 	const char *		name;
-	int			(*call)(ni_interface_state_t *, ni_netconfig_t *);
-	int			(*check)(ni_interface_state_t *, ni_netconfig_t *, unsigned int);
-	int			(*timeout)(ni_interface_state_t *);
+	int			(*call)(ni_ifworker_t *, ni_netconfig_t *);
+	int			(*check)(ni_ifworker_t *, ni_netconfig_t *, unsigned int);
+	int			(*timeout)(ni_ifworker_t *);
 } ni_interface_op_t;
 
-struct ni_interface_state {
+struct ni_ifworker {
 	unsigned int		refcount;
 
 	char *			name;
@@ -67,7 +67,7 @@ struct ni_interface_state {
 	ni_interface_t *	device;
 
 	unsigned int		shared_users;
-	ni_interface_state_t *	exclusive_owner;
+	ni_ifworker_t *		exclusive_owner;
 
 #if 0
 	unsigned int		refcount;
@@ -88,23 +88,23 @@ struct ni_interface_state {
 
 	const ni_interface_op_t	*fsm;
 
-	ni_interface_state_t *	parent;
-	ni_interface_state_array_t children;
+	ni_ifworker_t *		parent;
+	ni_ifworker_array_t	children;
 };
 
 
-static ni_interface_state_array_t interface_workers;
+static ni_ifworker_array_t	interface_workers;
 static int			work_to_be_done;
 
 static ni_dbus_object_t *	__root_object;
 
-static void			ni_interface_state_array_append(ni_interface_state_array_t *, ni_interface_state_t *);
-static void			ni_interface_state_array_destroy(ni_interface_state_array_t *);
+static void			ni_ifworker_array_append(ni_ifworker_array_t *, ni_ifworker_t *);
+static void			ni_ifworker_array_destroy(ni_ifworker_array_t *);
 
-static inline ni_interface_state_t *
-ni_interface_state_new(const char *name, xml_node_t *config)
+static inline ni_ifworker_t *
+ni_ifworker_new(const char *name, xml_node_t *config)
 {
-	ni_interface_state_t *w;
+	ni_ifworker_t *w;
 
 	w = calloc(1, sizeof(*w));
 	ni_string_dup(&w->name, name);
@@ -115,21 +115,21 @@ ni_interface_state_new(const char *name, xml_node_t *config)
 }
 
 static void
-ni_interface_state_free(ni_interface_state_t *state)
+ni_ifworker_free(ni_ifworker_t *state)
 {
 	ni_string_free(&state->name);
-	ni_interface_state_array_destroy(&state->children);
+	ni_ifworker_array_destroy(&state->children);
 }
 
 static inline void
-ni_interface_state_release(ni_interface_state_t *state)
+ni_ifworker_release(ni_ifworker_t *state)
 {
 	if (--(state->refcount) == 0)
-		ni_interface_state_free(state);
+		ni_ifworker_free(state);
 }
 
 static void
-ni_interface_state_fail(ni_interface_state_t *w, const char *msg)
+ni_ifworker_fail(ni_ifworker_t *w, const char *msg)
 {
 	ni_error("device %s failed: %s", w->name, msg);
 	w->state = w->target_state = STATE_NONE;
@@ -137,7 +137,7 @@ ni_interface_state_fail(ni_interface_state_t *w, const char *msg)
 }
 
 static const char *
-ni_interface_state_name(int state)
+ni_ifworker_name(int state)
 {
 	static ni_intmap_t __state_names[] = {
 		{ "none",		STATE_NONE		},
@@ -153,7 +153,7 @@ ni_interface_state_name(int state)
 }
 
 static void
-ni_interface_state_array_append(ni_interface_state_array_t *array, ni_interface_state_t *w)
+ni_ifworker_array_append(ni_ifworker_array_t *array, ni_ifworker_t *w)
 {
 	array->data = realloc(array->data, (array->count + 1) * sizeof(array->data[0]));
 	array->data[array->count++] = w;
@@ -161,21 +161,21 @@ ni_interface_state_array_append(ni_interface_state_array_t *array, ni_interface_
 }
 
 static void
-ni_interface_state_array_destroy(ni_interface_state_array_t *array)
+ni_ifworker_array_destroy(ni_ifworker_array_t *array)
 {
 	while (array->count)
-		ni_interface_state_release(array->data[--(array->count)]);
+		ni_ifworker_release(array->data[--(array->count)]);
 	free(array->data);
 	array->data = NULL;
 }
 
-static ni_interface_state_t *
-ni_interface_state_array_find(ni_interface_state_array_t *array, const char *ifname)
+static ni_ifworker_t *
+ni_ifworker_array_find(ni_ifworker_array_t *array, const char *ifname)
 {
 	unsigned int i;
 
 	for (i = 0; i < array->count; ++i) {
-		ni_interface_state_t *worker = array->data[i];
+		ni_ifworker_t *worker = array->data[i];
 
 		if (!strcmp(worker->name, ifname))
 			return worker;
@@ -183,8 +183,8 @@ ni_interface_state_array_find(ni_interface_state_array_t *array, const char *ifn
 	return NULL;
 }
 
-static ni_interface_state_t *
-ni_interface_state_add_child(ni_interface_state_t *parent, ni_interface_state_t *worker)
+static ni_ifworker_t *
+ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *worker)
 {
 	unsigned int i;
 
@@ -193,7 +193,7 @@ ni_interface_state_add_child(ni_interface_state_t *parent, ni_interface_state_t 
 			return worker;
 	}
 
-	ni_interface_state_array_append(&parent->children, worker);
+	ni_ifworker_array_append(&parent->children, worker);
 
 #if 0
 	if (parent->behavior.mandatory)
@@ -204,14 +204,14 @@ ni_interface_state_add_child(ni_interface_state_t *parent, ni_interface_state_t 
 	return worker;
 }
 
-static ni_interface_state_t *
+static ni_ifworker_t *
 add_interface_worker(const char *name, xml_node_t *config)
 {
-	ni_interface_state_t *worker;
+	ni_ifworker_t *worker;
 
-	worker = ni_interface_state_new(name, config);
-	ni_interface_state_array_append(&interface_workers, worker);
-	ni_interface_state_release(worker);
+	worker = ni_ifworker_new(name, config);
+	ni_ifworker_array_append(&interface_workers, worker);
+	ni_ifworker_release(worker);
 
 	return worker;
 }
@@ -238,7 +238,7 @@ add_all_interfaces(xml_document_t *doc)
 }
 
 static void
-ni_interface_state_set_target(ni_interface_state_t *w, unsigned int min_state, unsigned int max_state)
+ni_ifworker_set_target(ni_ifworker_t *w, unsigned int min_state, unsigned int max_state)
 {
 	/* By default, assume we're not chaging the interface state */
 	if (w->target_state == STATE_NONE)
@@ -291,12 +291,12 @@ ni_interface_state_set_target(ni_interface_state_t *w, unsigned int min_state, u
 		}
 
 		ni_debug_dbus("%s: marking all children min=%s max=%s", w->name,
-				ni_interface_state_name(min_state),
-				ni_interface_state_name(max_state));
+				ni_ifworker_name(min_state),
+				ni_ifworker_name(max_state));
 		for (i = 0; i < w->children.count; ++i) {
-			ni_interface_state_t *child = w->children.data[i];
+			ni_ifworker_t *child = w->children.data[i];
 
-			ni_interface_state_set_target(child, min_state, max_state);
+			ni_ifworker_set_target(child, min_state, max_state);
 		}
 	}
 }
@@ -306,13 +306,13 @@ mark_matching_interfaces(const char *match_name, unsigned int target_state)
 {
 	unsigned int i, count = 0;
 
-	ni_debug_dbus("%s(name=%s, target_state=%s)", __func__, match_name, ni_interface_state_name(target_state));
+	ni_debug_dbus("%s(name=%s, target_state=%s)", __func__, match_name, ni_ifworker_name(target_state));
 
 	if (!strcmp(match_name, "all"))
 		match_name = NULL;
 
 	for (i = 0; i < interface_workers.count; ++i) {
-		ni_interface_state_t *w = interface_workers.data[i];
+		ni_ifworker_t *w = interface_workers.data[i];
 
 		if (w->config == NULL)
 			continue;
@@ -326,16 +326,16 @@ mark_matching_interfaces(const char *match_name, unsigned int target_state)
 
 		/* FIXME: check for matching behavior definition */
 
-		ni_interface_state_set_target(w, target_state, target_state);
+		ni_ifworker_set_target(w, target_state, target_state);
 		count++;
 	}
 
 	for (i = 0; i < interface_workers.count; ++i) {
-		ni_interface_state_t *w = interface_workers.data[i];
+		ni_ifworker_t *w = interface_workers.data[i];
 
 		if (w->target_state != STATE_NONE)
 			ni_debug_dbus("%s: target state %s",
-					w->name, ni_interface_state_name(w->target_state));
+					w->name, ni_ifworker_name(w->target_state));
 	}
 
 	return count;
@@ -348,7 +348,7 @@ mark_matching_interfaces(const char *match_name, unsigned int target_state)
  * eth interface needs to come up before any of the VLANs that reference
  * it.
  */
-static void	__ni_interface_state_print_tree(const char *arrow, const ni_interface_state_t *, const char *);
+static void	__ni_ifworker_print_tree(const char *arrow, const ni_ifworker_t *, const char *);
 
 static int
 build_hierarchy(void)
@@ -356,9 +356,9 @@ build_hierarchy(void)
 	unsigned int i;
 
 	for (i = 0; i < interface_workers.count; ++i) {
-		ni_interface_state_t *w = interface_workers.data[i];
+		ni_ifworker_t *w = interface_workers.data[i];
 		xml_node_t *ifnode, *linknode, *devnode;
-		ni_interface_state_t *child;
+		ni_ifworker_t *child;
 
 		/* A worker without an ifnode is one that we discovered in the
 		 * system, but which we've not been asked to configure. */
@@ -384,7 +384,7 @@ build_hierarchy(void)
 				return -1;
 			}
 
-			child = ni_interface_state_array_find(&interface_workers, slave_name);
+			child = ni_ifworker_array_find(&interface_workers, slave_name);
 			if (child == NULL) {
 				/* We may not have the config for this device, but it may exist
 				 * in the system. */
@@ -425,23 +425,23 @@ build_hierarchy(void)
 				break;
 			}
 
-			ni_interface_state_add_child(w, child);
+			ni_ifworker_add_child(w, child);
 		}
 	}
 
 	if (ni_debug & NI_TRACE_DBUS) {
 		for (i = 0; i < interface_workers.count; ++i) {
-			ni_interface_state_t *w = interface_workers.data[i];
+			ni_ifworker_t *w = interface_workers.data[i];
 
 			if (!w->shared_users && !w->exclusive_owner)
-				__ni_interface_state_print_tree("   +-> ", w, "   |   ");
+				__ni_ifworker_print_tree("   +-> ", w, "   |   ");
 		}
 	}
 	return 0;
 }
 
 static void
-__ni_interface_state_print_tree(const char *arrow, const ni_interface_state_t *w, const char *branches)
+__ni_ifworker_print_tree(const char *arrow, const ni_ifworker_t *w, const char *branches)
 {
 	if (w->children.count == 0) {
 		fprintf(stderr, "%s%s\n", arrow, w->name);
@@ -455,14 +455,14 @@ __ni_interface_state_print_tree(const char *arrow, const ni_interface_state_t *w
 
 		arrow = " +--> ";
 		for (i = 0; i < w->children.count; ++i) {
-			ni_interface_state_t *child = w->children.data[i];
+			ni_ifworker_t *child = w->children.data[i];
 
 			if (i != 0) {
 				fprintf(stderr, "%s%10s", branches, "");
 				if (i == w->children.count - 1)
 					arrow = " \\--> ";
 			}
-			__ni_interface_state_print_tree(arrow, child, buffer);
+			__ni_ifworker_print_tree(arrow, child, buffer);
 		}
 	}
 }
@@ -472,7 +472,7 @@ interface_workers_refresh_state(void)
 {
 	static ni_dbus_object_t *iflist = NULL;
 	ni_dbus_object_t *object;
-	ni_interface_state_t *w;
+	ni_ifworker_t *w;
 	unsigned int i;
 
 	if (!iflist && !(iflist = wicked_get_interface_object(NULL)))
@@ -496,7 +496,7 @@ interface_workers_refresh_state(void)
 
 	for (object = iflist->children; object; object = object->next) {
 		ni_interface_t *dev = ni_objectmodel_unwrap_interface(object);
-		ni_interface_state_t *found = NULL;
+		ni_ifworker_t *found = NULL;
 
 		if (dev == NULL || dev->name == NULL)
 			continue;
@@ -534,20 +534,20 @@ interface_workers_refresh_state(void)
 }
 
 static inline int
-ni_interface_state_ready(const ni_interface_state_t *w)
+ni_ifworker_ready(const ni_ifworker_t *w)
 {
 	return w->target_state == STATE_NONE || w->target_state == w->state;
 }
 
 static int
-ni_interface_children_ready(ni_interface_state_t *w)
+ni_interface_children_ready(ni_ifworker_t *w)
 {
 	unsigned int i;
 
 	for (i = 0; i < w->children.count; ++i) {
-		ni_interface_state_t *child = w->children.data[i];
+		ni_ifworker_t *child = w->children.data[i];
 
-		if (!ni_interface_state_ready(child))
+		if (!ni_ifworker_ready(child))
 			return 0;
 	}
 
@@ -555,7 +555,7 @@ ni_interface_children_ready(ni_interface_state_t *w)
 }
 
 static int
-ni_interface_state_create_device(ni_interface_state_t *w)
+ni_ifworker_create_device(ni_ifworker_t *w)
 {
 	const ni_dbus_service_t *service;
 	xml_node_t *linknode;
@@ -588,7 +588,7 @@ ni_interface_state_create_device(ni_interface_state_t *w)
 }
 
 static unsigned int
-ni_interface_state_fsm(void)
+ni_ifworker_fsm(void)
 {
 	unsigned int i, waiting;
 
@@ -597,14 +597,14 @@ ni_interface_state_fsm(void)
 		int made_progress = 0;
 
 		for (i = 0; i < interface_workers.count; ++i) {
-			ni_interface_state_t *w = interface_workers.data[i];
+			ni_ifworker_t *w = interface_workers.data[i];
 
 			if (w->target_state != STATE_NONE)
 				ni_debug_dbus("%-12s: state=%s want=%s", w->name,
-					ni_interface_state_name(w->state),
-					ni_interface_state_name(w->target_state));
+					ni_ifworker_name(w->state),
+					ni_ifworker_name(w->target_state));
 
-			if (ni_interface_state_ready(w))
+			if (ni_ifworker_ready(w))
 				continue;
 
 			/* If we're still waiting for children to become ready,
@@ -614,8 +614,8 @@ ni_interface_state_fsm(void)
 
 			if (w->device == NULL && w->target_state >= STATE_DEVICE_UP) {
 				ni_debug_dbus("%s: about to create %s", __func__, w->name);
-				if (ni_interface_state_create_device(w) < 0)
-					ni_interface_state_fail(w, "unable to create device");
+				if (ni_ifworker_create_device(w) < 0)
+					ni_ifworker_fail(w, "unable to create device");
 				else
 					made_progress = 1;
 				continue;
@@ -629,9 +629,9 @@ ni_interface_state_fsm(void)
 	}
 
 	for (i = waiting = 0; i < interface_workers.count; ++i) {
-		ni_interface_state_t *w = interface_workers.data[i];
+		ni_ifworker_t *w = interface_workers.data[i];
 
-		if (!ni_interface_state_ready(w))
+		if (!ni_ifworker_ready(w))
 			waiting++;
 	}
 
@@ -659,7 +659,7 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 		max_state = STATE_LINK_UP;
 
 	for (i = 0; i < interface_workers.count; ++i) {
-		ni_interface_state_t *w = interface_workers.data[i];
+		ni_ifworker_t *w = interface_workers.data[i];
 
 		if (w->target_state == STATE_NONE)
 			continue;
@@ -675,12 +675,12 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 			if (w->state != prev_state)
 				ni_debug_dbus("device %s changed state %s -> %s",
 						w->name,
-						ni_interface_state_name(prev_state),
-						ni_interface_state_name(w->state));
+						ni_ifworker_name(prev_state),
+						ni_ifworker_name(w->state));
 		}
 	}
 
-	if (ni_interface_state_fsm() == 0) {
+	if (ni_ifworker_fsm() == 0) {
 		ni_debug_dbus("all devices have reached the intended state");
 		work_to_be_done = 0;
 	}
@@ -689,7 +689,7 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 int
 interface_workers_kickstart(void)
 {
-	ni_interface_state_t *w;
+	ni_ifworker_t *w;
 	unsigned int i;
 
 	interface_workers_refresh_state();
@@ -717,7 +717,7 @@ interface_workers_kickstart(void)
 			w->state = STATE_DEVICE_DOWN;
 	}
 
-	if (ni_interface_state_fsm() != 0)
+	if (ni_ifworker_fsm() != 0)
 		work_to_be_done = 1;
 
 	return 0;
