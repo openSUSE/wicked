@@ -3,18 +3,6 @@
      Basic network interface information
      ================================================= -->
 <define name="network-interface" class="dict">
- <!-- interface status bits -->
- <define name="state-bits" type="uint32" constraint="bitmap">
-  <device-up bit="0" />
-  <link-up bit="1" />
-  <powersave bit="2" />
-  <network-up bit="3" />
-  <point-to-point bit="4" />
-  <arp bit="5" />
-  <broadcast bit="6" />
-  <multicast bit="7" />
- </define>
-
  <!-- An address assigned to a network interface -->
  <define name="assigned-address" class="dict">
    <local type="network-address-prefix"/>
@@ -56,7 +44,7 @@
  <name type="string"/>
 
  <!-- These bits must match the definitions in netinfo.h -->
- <status type="state-bits" />
+ <status type="builtin-ifflags" />
 
  <link-type type="builtin-iftype"/>
 
@@ -111,7 +99,7 @@
   </define>
 
   <define name="link-request" class="dict">
-   <status type="network-interface:state-bits"/>
+   <status type="builtin-ifflags"/>
 
    <metric type="uint32"/>
    <mtu type="uint32"/>
@@ -163,7 +151,7 @@
       <!-- to be defined -->
     </arguments>
     <return>
-      <network-interface:state-bits/>
+      <builtin-ifflags/>
     </return>
   </method>
 

@@ -15,6 +15,7 @@
 #include <wicked/addrconf.h>
 #include <wicked/logging.h>
 
+static ni_intmap_t *	build_ifflag_bits_map(void);
 static ni_intmap_t *	buildmap(const char *(*)(unsigned), unsigned int);
 static void		generate(char *, const char *, const ni_intmap_t *);
 
@@ -58,19 +59,12 @@ static ni_intmap_t	arphrd_map[] = {
 
 	{ NULL }
 };
-static ni_intmap_t *	iftype_names;
-static ni_intmap_t *	addrconf_names;
-static ni_intmap_t *	lease_state_names;
 
 int
 main(int argc, char **argv)
 {
 	unsigned int line = 0;
 	char buffer[512];
-
-	iftype_names = buildmap(ni_linktype_type_to_name, __NI_IFTYPE_MAX);
-	addrconf_names = buildmap(ni_addrconf_type_to_name, __NI_ADDRCONF_MAX);
-	lease_state_names = buildmap(ni_addrconf_state_to_name, __NI_ADDRCONF_STATE_MAX);
 
 	while (fgets(buffer, sizeof(buffer), stdin) != NULL) {
 		char *atat;
@@ -87,14 +81,20 @@ main(int argc, char **argv)
 		if (!strncmp(atat + 2, "ARPHRD_", 7)) {
 			generate(buffer, "ARPHRD", arphrd_map);
 		} else
+		if (!strncmp(atat + 2, "IFFLAG_", 7)) {
+			generate(buffer, "IFFLAG", build_ifflag_bits_map());
+		} else
 		if (!strncmp(atat + 2, "IFTYPENAME_", 11)) {
-			generate(buffer, "IFTYPENAME", iftype_names);
+			generate(buffer, "IFTYPENAME",
+					buildmap(ni_linktype_type_to_name, __NI_IFTYPE_MAX));
 		} else
 		if (!strncmp(atat + 2, "ADDRCONFNAME_", 13)) {
-			generate(buffer, "ADDRCONFNAME", addrconf_names);
+			generate(buffer, "ADDRCONFNAME",
+					buildmap(ni_addrconf_state_to_name, __NI_ADDRCONF_STATE_MAX));
 		} else
-		if (!strncmp(atat + 2, "ADDRCONFSTATE_", 13)) {
-			generate(buffer, "ADDRCONFSTATE", lease_state_names);
+		if (!strncmp(atat + 2, "ADDRCONFSTATE_", 14)) {
+			generate(buffer, "ADDRCONFSTATE",
+					buildmap(ni_addrconf_state_to_name, __NI_ADDRCONF_STATE_MAX));
 		} else {
 			int indent = atat - buffer;
 
@@ -108,14 +108,59 @@ main(int argc, char **argv)
 	return 0;
 }
 
+/*
+ * The NI_IFF_* values are bitmask values; but in order to
+ * define the corresponding type in the xml schema, we need the
+ * shift values
+ */
+static ni_intmap_t *
+build_ifflag_bits_map(void)
+{
+	static ni_intmap_t mask_map[] = {
+	{ "device-up",		NI_IFF_DEVICE_UP		},
+	{ "link-up",		NI_IFF_LINK_UP			},
+	{ "powersave",		NI_IFF_POWERSAVE		},
+	{ "network-up",		NI_IFF_NETWORK_UP		},
+	{ "point-to-point",	NI_IFF_POINT_TO_POINT		},
+	{ "arp",		NI_IFF_ARP_ENABLED		},
+	{ "broadcast",		NI_IFF_BROADCAST_ENABLED	},
+	{ "multicast",		NI_IFF_MULTICAST_ENABLED	},
+
+	{ NULL }
+	};
+	static ni_intmap_t bits_map[33];
+	unsigned int i, j = 0;
+
+	for (i = 0; i < 32; ++i) {
+		const char *name;
+
+		name = ni_format_int_mapped(1 << i, mask_map);
+		if (name) {
+			bits_map[j].name = name;
+			bits_map[j].value = i;
+			++j;
+		}
+	}
+
+	return bits_map;
+}
+
 static ni_intmap_t *
 buildmap(const char *(*type2name)(unsigned int), unsigned int max)
 {
-	ni_intmap_t *map = calloc(max + 1, sizeof(map[0]));
+	static ni_intmap_t *map = 0;
 	unsigned int iftype;
 	const char *name;
 	unsigned int k;
 
+	if (map) {
+		free(map);
+		map = NULL;
+	}
+	if (max == 0)
+		return NULL;
+
+	map = calloc(max + 1, sizeof(map[0]));
 	for (iftype = k = 0; iftype < max; ++iftype) {
 		if ((name = type2name(iftype)) != NULL) {
 			map[k].name = name;
