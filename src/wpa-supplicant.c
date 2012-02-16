@@ -81,7 +81,7 @@ static void		ni_wpa_interface_free(ni_wpa_interface_t *);
 static int		ni_wpa_prepare_interface(ni_wpa_client_t *, ni_wpa_interface_t *, const char *);
 static int		ni_wpa_interface_get_state(ni_wpa_client_t *, ni_wpa_interface_t *);
 static int		ni_wpa_interface_get_capabilities(ni_wpa_client_t *, ni_wpa_interface_t *);
-static void		ni_wpa_network_request_properties(ni_wpa_client_t *wpa, ni_wpa_network_t *network);
+static void		ni_wpa_network_request_properties(ni_dbus_object_t *);
 static void		ni_wpa_signal(ni_dbus_connection_t *, ni_dbus_message_t *, void *);
 static void		ni_wpa_scan_put(ni_wpa_scan_t *);
 static const char *	ni_wpa_auth_protocol_as_string(ni_wireless_auth_mode_t, DBusError *);
@@ -202,26 +202,41 @@ ni_wpa_interface_new(ni_wpa_client_t *wpa, const char *ifname)
 	return ifp;
 }
 
-ni_wpa_network_t *
+ni_dbus_object_t *
 ni_wpa_interface_network_by_path(ni_wpa_interface_t *ifp, const char *object_path)
 {
-	ni_wpa_network_t *net, **pos;
+	ni_dbus_object_t *dev_object, *net_object;
+	unsigned int dev_path_len;
 
-	ni_assert(ifp->proxy != NULL);
-	for (pos = &ifp->scanned_networks; (net = *pos) != NULL; pos = &net->next) {
-		ni_dbus_object_t *obj = net->proxy;
+	ni_assert((dev_object = ifp->proxy) != NULL);
+	dev_path_len = strlen(dev_object->path);
 
-		if (obj && !strcmp(obj->path, object_path))
-			return net;
+	if (strncmp(object_path, dev_object->path, dev_path_len)
+	 || object_path[dev_path_len] != '/') {
+		ni_error("%s: rejecting network object %s, path doesn't match prefix %s",
+				__func__, object_path, dev_object->path);
+		return NULL;
 	}
 
-	net = xcalloc(1, sizeof(*net));
-	net->proxy = ni_dbus_client_object_new(ni_dbus_object_get_client(ifp->proxy),
-				&ni_objectmodel_wpanet_class,
-				object_path, NI_WPA_BSS_INTERFACE, net);
-	*pos = net;
+	net_object = ni_dbus_object_create(dev_object, object_path + dev_path_len,
+			&ni_objectmodel_wpanet_class, NULL);
+	if (net_object == NULL) {
+		ni_error("could not create dbus object %s", object_path);
+		return NULL;
+	}
+	if (net_object->handle == NULL) {
+		ni_wpa_network_t *net, **pos;
 
-	return net;
+		ni_debug_wireless("new object %s", net_object->path);
+		ni_dbus_object_set_default_interface(net_object, NI_WPA_BSS_INTERFACE);
+
+		for (pos = &ifp->scanned_networks; (net = *pos) != NULL; pos = &net->next)
+			;
+		*pos = xcalloc(1, sizeof(*net));
+		net_object->handle = *pos;
+	}
+
+	return net_object;
 }
 
 static void
@@ -245,6 +260,7 @@ ni_wpa_network_properties_destroy(ni_wpa_network_t *net)
 static void
 ni_wpa_network_free(ni_wpa_network_t *net)
 {
+	ni_trace("%s(%p, proxy=%p)", __func__, net, net->proxy);
 	if (net->proxy) {
 		ni_dbus_object_free(net->proxy);
 		net->proxy = NULL;
@@ -547,6 +563,7 @@ ni_wpa_interface_retrieve_scan(ni_wpa_client_t *wpa, ni_wpa_interface_t *ifp, ni
 	for (pos = &ifp->scanned_networks; (wpa_net = *pos) != NULL; ) {
 		if (wpa_net->expires < now) {
 			*pos = wpa_net->next;
+			/* FIXME: should delete the corresponding dbus object */
 			ni_wpa_network_free(wpa_net);
 		} else {
 			pos = &wpa_net->next;
@@ -617,7 +634,6 @@ static void
 ni_wpa_interface_scan_results(ni_dbus_object_t *proxy, ni_dbus_message_t *msg)
 {
 	ni_wpa_interface_t *ifp = proxy->handle;
-	ni_wpa_client_t *wpa = ifp->wpa_client;
 	char **object_path_array = NULL;
 	unsigned int object_path_count = 0;
 	int rv;
@@ -643,12 +659,16 @@ ni_wpa_interface_scan_results(ni_dbus_object_t *proxy, ni_dbus_message_t *msg)
 		ifp->last_scan = time(NULL);
 		for (i = 0; i < object_path_count; ++i) {
 			const char *path = object_path_array[i];
+			ni_dbus_object_t *net_object;
 			ni_wpa_network_t *net;
 
-			net = ni_wpa_interface_network_by_path(ifp, path);
+			if (!(net_object = ni_wpa_interface_network_by_path(ifp, path)))
+				continue;
+
+			net = net_object->handle;
 			net->expires = ifp->last_scan + NI_WIRELESS_SCAN_MAX_AGE;
 
-			ni_wpa_network_request_properties(wpa, net);
+			ni_wpa_network_request_properties(net_object);
 		}
 	}
 
@@ -1222,9 +1242,9 @@ failed:
  * This is an async call.
  */
 static void
-ni_wpa_network_request_properties(ni_wpa_client_t *wpa, ni_wpa_network_t *net)
+ni_wpa_network_request_properties(ni_dbus_object_t *net_object)
 {
-	ni_dbus_object_call_async(net->proxy,
+	ni_dbus_object_call_async(net_object,
 			ni_wpa_bss_properties_result,
 			"properties",
 			0);

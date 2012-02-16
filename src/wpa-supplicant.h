@@ -87,7 +87,6 @@ extern void		ni_wpa_client_free(ni_wpa_client_t *wpa);
 extern ni_wpa_interface_t *ni_wpa_interface_bind(ni_wpa_client_t *wpa, const char *ifname);
 extern ni_wpa_interface_t *ni_wpa_client_interface_by_local_name(ni_wpa_client_t *wpa, const char *ifname);
 extern ni_wpa_interface_t *ni_wpa_client_interface_by_path(ni_wpa_client_t *wpa, const char *object_path);
-extern ni_wpa_network_t *ni_wpa_interface_network_by_path(ni_wpa_interface_t *, const char *);
 extern int		ni_wpa_interface_request_scan(ni_wpa_client_t *, ni_wpa_interface_t *,
 				ni_wireless_scan_t *);
 extern int		ni_wpa_interface_retrieve_scan(ni_wpa_client_t *, ni_wpa_interface_t *,
