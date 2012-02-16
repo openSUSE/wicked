@@ -23,7 +23,8 @@
 #include "model.h"
 #include "debug.h"
 
-static void			ni_objectmodel_netif_destroy(ni_dbus_object_t *object);
+static const char *	__ni_objectmodel_link_classname(ni_iftype_t);
+static void		ni_objectmodel_netif_destroy(ni_dbus_object_t *object);
 
 static ni_dbus_class_t		ni_objectmodel_netif_class = {
 	.name		= NI_OBJECTMODEL_NETIF_CLASS,
@@ -33,8 +34,66 @@ static ni_dbus_class_t		ni_objectmodel_ifreq_class = {
 	.name		= NI_OBJECTMODEL_NETIF_REQUEST_CLASS,
 };
 
+static const ni_dbus_service_t	wicked_dbus_interface_service;
 extern const ni_dbus_service_t	wicked_dbus_interface_request_service; /* XXX */
-extern const char *		__ni_objectmodel_link_classname(ni_iftype_t);
+static const char *		__ni_objectmodel_link_classname(ni_iftype_t);
+
+/*
+ * For all link layer types, create a dbus object class named "netif-$linktype".
+ * This allows to define extensions and interface for specific link layers.
+ */
+void
+ni_objectmodel_register_netif_classes(ni_dbus_server_t *server)
+{
+	const ni_dbus_class_t *base_class = &ni_objectmodel_netif_class;
+	ni_dbus_class_t *link_class;
+	unsigned int iftype;
+
+	/* register the netif class (to allow extensions to attach to it) */
+	ni_dbus_server_register_class(server, base_class);
+
+	/* register the netif interface */
+	ni_objectmodel_register_service(&wicked_dbus_interface_service);
+
+	for (iftype = 0; iftype < __NI_IFTYPE_MAX; ++iftype) {
+		const char *classname;
+
+		if (!(classname = __ni_objectmodel_link_classname(iftype)))
+			continue;
+
+		/* Create the new link class */
+		link_class = xcalloc(1, sizeof(*link_class));
+		ni_string_dup(&link_class->name, classname);
+		link_class->superclass = base_class;
+
+		/* inherit all methods from netif */
+		link_class->init_child = base_class->init_child;
+		link_class->destroy = base_class->destroy;
+		link_class->refresh = base_class->refresh;
+
+		/* Register this class with the server */
+		ni_dbus_server_register_class(server, link_class);
+	}
+}
+
+/*
+ * For a given link type, return a canonical class name
+ */
+const char *
+__ni_objectmodel_link_classname(ni_iftype_t link_type)
+{
+	const char *link_type_name;
+	static char namebuf[128];
+
+	if (link_type == NI_IFTYPE_UNKNOWN)
+		return NULL;
+
+	if (!(link_type_name = ni_linktype_type_to_name(link_type)))
+		return NULL;
+
+	snprintf(namebuf, sizeof(namebuf), "netif-%s", link_type_name);
+	return namebuf;
+}
 
 /*
  * Build a dbus-object encapsulating a network device.
@@ -496,7 +555,7 @@ static ni_dbus_property_t	wicked_dbus_interface_properties[] = {
 	{ NULL }
 };
 
-const ni_dbus_service_t	wicked_dbus_interface_service = {
+static const ni_dbus_service_t	wicked_dbus_interface_service = {
 	.name		= WICKED_DBUS_NETIF_INTERFACE,
 	.compatible	= &ni_objectmodel_netif_class,
 	.methods	= wicked_dbus_interface_methods,

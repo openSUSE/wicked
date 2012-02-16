@@ -27,7 +27,6 @@
 extern ni_dbus_object_t *	ni_objectmodel_new_interface(ni_dbus_server_t *server,
 					const ni_dbus_service_t *service,
 					const ni_dbus_variant_t *dict, DBusError *error);
-static void			__ni_objectmodel_register_link_classes(ni_dbus_server_t *);
 
 #define NI_OBJECTMODEL_SERVICES_MAX 128
 typedef struct ni_objectmodel_service_array {
@@ -62,18 +61,14 @@ ni_objectmodel_create_service(void)
 	/* register the netif-list class (to allow extensions to attach to it) */
 	ni_dbus_server_register_class(server, &ni_objectmodel_netif_list_class);
 
-	/* register the netif class (to allow extensions to attach to it) */
-	ni_dbus_server_register_class(server, wicked_dbus_interface_service.compatible);
-
-	/* register all link layer classes */
-	__ni_objectmodel_register_link_classes(server);
+	/* register all netif classes and service */
+	ni_objectmodel_register_netif_classes(server);
 
 	/* Initialize our addrconf clients */
 	ni_objectmodel_dhcp4_init(server);
 	ni_objectmodel_autoip_init(server);
 
 	ni_objectmodel_register_service(&ni_objectmodel_netif_list_service);
-	ni_objectmodel_register_service(&wicked_dbus_interface_service);
 	ni_objectmodel_register_link_service(NI_IFTYPE_ETHERNET, &wicked_dbus_ethernet_service);
 	ni_objectmodel_register_link_service(NI_IFTYPE_VLAN, &wicked_dbus_vlan_service);
 	ni_objectmodel_register_link_service(NI_IFTYPE_BRIDGE, &wicked_dbus_bridge_service);
@@ -81,63 +76,6 @@ ni_objectmodel_create_service(void)
 
 	__ni_objectmodel_server = server;
 	return server;
-}
-
-/*
- * For all link layer types, create a dbus object class named "netif-$linktype"
- * XXX: Move to interface.c?
- */
-void
-__ni_objectmodel_register_link_classes(ni_dbus_server_t *server)
-{
-	const ni_dbus_class_t *base_class = wicked_dbus_interface_service.compatible;
-	ni_dbus_class_t *link_class;
-	unsigned int iftype;
-
-	for (iftype = 0; iftype < __NI_IFTYPE_MAX; ++iftype) {
-		const char *iftype_name;
-		char namebuf[128];
-
-		if (iftype == NI_IFTYPE_UNKNOWN)
-			continue;
-
-		if (!(iftype_name = ni_linktype_type_to_name(iftype)))
-			continue;
-
-		snprintf(namebuf, sizeof(namebuf), "%s-%s", base_class->name, iftype_name);
-
-		/* Create the new link class */
-		link_class = xcalloc(1, sizeof(*link_class));
-		ni_string_dup(&link_class->name, namebuf);
-		link_class->superclass = base_class;
-
-		/* inherit all methods from netif */
-		link_class->init_child = base_class->init_child;
-		link_class->destroy = base_class->destroy;
-		link_class->refresh = base_class->refresh;
-
-		/* Register this class with the server */
-		ni_dbus_server_register_class(server, link_class);
-	}
-}
-
-/*
- * XXX: Move to interface.c?
- */
-const char *
-__ni_objectmodel_link_classname(ni_iftype_t link_type)
-{
-	const char *link_type_name;
-	static char namebuf[128];
-
-	if (link_type == NI_IFTYPE_UNKNOWN)
-		return NULL;
-
-	if (!(link_type_name = ni_linktype_type_to_name(link_type)))
-		return NULL;
-
-	snprintf(namebuf, sizeof(namebuf), "netif-%s", link_type_name);
-	return namebuf;
 }
 
 /*

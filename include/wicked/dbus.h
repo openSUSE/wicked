@@ -439,7 +439,6 @@ extern const ni_dbus_service_t *ni_objectmodel_link_layer_service_by_name(const 
 extern const ni_dbus_service_t *ni_objectmodel_interface_port_service(int iftype);
 extern int			ni_objectmodel_bind_extensions(void);
 
-extern const ni_dbus_service_t	wicked_dbus_interface_service;
 extern const ni_dbus_service_t	wicked_dbus_interface_request_service;
 
 #define NI_OBJECTMODEL_NETIF_CLASS		"netif"
