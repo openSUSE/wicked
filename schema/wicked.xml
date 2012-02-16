@@ -242,13 +242,13 @@
       <config type="request"/>
     </arguments>
     <return>
-      <callback-info/>
+      <interface:callback-info/>
     </return>
   </method>
 
   <method name="dropLease">
     <return>
-      <callback-info/>
+      <interface:callback-info/>
     </return>
   </method>
 </service>
@@ -269,13 +269,13 @@
       <config type="request"/>
     </arguments>
     <return>
-      <callback-info/>
+      <interface:callback-info/>
     </return>
   </method>
 
   <method name="dropLease">
     <return>
-      <callback-info/>
+      <interface:callback-info/>
     </return>
   </method>
 </service>
@@ -296,13 +296,13 @@
       <config type="request"/>
     </arguments>
     <return>
-      <callback-info/>
+      <interface:callback-info/>
     </return>
   </method>
 
   <method name="dropLease">
     <return>
-      <callback-info/>
+      <interface:callback-info/>
     </return>
   </method>
 </service>
