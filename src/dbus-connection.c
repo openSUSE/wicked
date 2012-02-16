@@ -76,20 +76,35 @@ static int			ni_dbus_use_socket_mainloop = 1;
  * Constructor for DBus connection handle
  */
 ni_dbus_connection_t *
-ni_dbus_connection_open(const char *bus_name)
+ni_dbus_connection_open(const char *bus_type_string, const char *bus_name)
 {
 	ni_dbus_connection_t *connection;
 	DBusError error;
+	DBusBusType bus_type;
 
 	NI_TRACE_ENTER_ARGS("%s", bus_name?: "");
 
 	dbus_error_init(&error);
 
+	bus_type = DBUS_BUS_SYSTEM;
+	if (bus_type_string) {
+		if (!strcmp(bus_type_string, "system"))
+			bus_type = DBUS_BUS_SYSTEM;
+		else
+		if (!strcmp(bus_type_string, "session"))
+			bus_type = DBUS_BUS_SESSION;
+		else {
+			ni_error("%s: unknown bus type \"%s\"", __func__, bus_type_string);
+			return NULL;
+		}
+	}
+
 	connection = calloc(1, sizeof(*connection));
 	if (bus_name == NULL) {
-		connection->conn = dbus_bus_get_private(DBUS_BUS_SYSTEM, &error);
+		connection->conn = dbus_bus_get_private(bus_type, &error);
 		if (dbus_error_is_set(&error)) {
-			ni_error("Cannot get dbus system bus handle (%s)",
+			ni_error("Cannot get dbus %s bus handle (%s)",
+					bus_type == DBUS_BUS_SYSTEM? "system" : "session",
 					error.message);
 			goto failed;
 		}
@@ -98,9 +113,10 @@ ni_dbus_connection_open(const char *bus_name)
 	} else {
 		int rv;
 
-		connection->conn = dbus_bus_get(DBUS_BUS_SYSTEM, &error);
+		connection->conn = dbus_bus_get(bus_type, &error);
 		if (dbus_error_is_set(&error)) {
-			ni_error("Cannot get dbus system bus handle (%s)",
+			ni_error("Cannot get dbus %s bus handle (%s)",
+					bus_type == DBUS_BUS_SYSTEM? "system" : "session",
 					error.message);
 			goto failed;
 		}

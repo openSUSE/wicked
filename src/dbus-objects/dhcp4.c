@@ -48,7 +48,7 @@ static ni_addrconf_t ni_dhcp_addrconf = {
 void
 ni_objectmodel_dhcp4_init(ni_dbus_server_t *server)
 {
-	dbus_dhcp_client = ni_dbus_client_open(WICKED_DBUS_BUS_NAME_DHCP4);
+	dbus_dhcp_client = ni_dbus_client_open(NULL, WICKED_DBUS_BUS_NAME_DHCP4);
 	ni_dbus_client_add_signal_handler(dbus_dhcp_client, NULL, NULL,
 			WICKED_DBUS_DHCP4_INTERFACE,
 			ni_objectmodel_addrconf_signal_handler,

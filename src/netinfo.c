@@ -103,7 +103,7 @@ ni_server_background(void)
 }
 
 ni_dbus_server_t *
-ni_server_listen_dbus(const char *dbus_name)
+ni_server_listen_dbus(const char *dbus_type, const char *dbus_name)
 {
 	__ni_assert_initialized();
 	if (dbus_name == NULL)
@@ -112,8 +112,10 @@ ni_server_listen_dbus(const char *dbus_name)
 		ni_error("%s: no bus name specified", __FUNCTION__);
 		return NULL;
 	}
+	if (dbus_type == NULL)
+		dbus_type = ni_global.config->dbus_type;
 
-	return ni_dbus_server_open(dbus_name, NULL);
+	return ni_dbus_server_open(dbus_type, dbus_name, NULL);
 }
 
 ni_xs_scope_t *

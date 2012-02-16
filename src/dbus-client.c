@@ -41,13 +41,13 @@ static dbus_bool_t	__ni_dbus_object_get_managed_object_properties(ni_dbus_object
  * Constructor for DBus client handle
  */
 ni_dbus_client_t *
-ni_dbus_client_open(const char *bus_name)
+ni_dbus_client_open(const char *bus_type, const char *bus_name)
 {
 	ni_dbus_connection_t *busconn;
 	ni_dbus_client_t *dbc;
 
-	ni_debug_dbus("%s(%s)", __FUNCTION__, bus_name);
-	busconn = ni_dbus_connection_open(NULL);
+	NI_TRACE_ENTER_ARGS("bus_type=%s, bus_name=%s", bus_type, bus_name);
+	busconn = ni_dbus_connection_open(bus_type, NULL);
 	if (busconn == NULL)
 		return NULL;
 

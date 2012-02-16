@@ -365,7 +365,7 @@ extern dbus_bool_t		ni_dbus_generic_property_parse_string_array(const ni_dbus_pr
 /*
  * Client side functions
  */
-extern ni_dbus_client_t *	ni_dbus_client_open(const char *bus_name);
+extern ni_dbus_client_t *	ni_dbus_client_open(const char *bus_type, const char *bus_name);
 extern void			ni_dbus_client_free(ni_dbus_client_t *);
 extern void			ni_dbus_client_add_signal_handler(ni_dbus_client_t *client,
 					const char *sender,

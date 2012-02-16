@@ -35,7 +35,7 @@ static void			__ni_dbus_server_object_init(ni_dbus_object_t *object, ni_dbus_ser
  * Constructor for DBus server handle
  */
 ni_dbus_server_t *
-ni_dbus_server_open(const char *bus_name, void *root_object_handle)
+ni_dbus_server_open(const char *bus_type, const char *bus_name, void *root_object_handle)
 {
 	ni_dbus_server_t *server;
 	ni_dbus_object_t *root;
@@ -43,7 +43,7 @@ ni_dbus_server_open(const char *bus_name, void *root_object_handle)
 	ni_debug_dbus("%s(%s)", __FUNCTION__, bus_name);
 
 	server = calloc(1, sizeof(*server));
-	server->connection = ni_dbus_connection_open(bus_name);
+	server->connection = ni_dbus_connection_open(NULL, bus_name);
 	if (server->connection == NULL) {
 		ni_dbus_server_free(server);
 		return NULL;

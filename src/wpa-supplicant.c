@@ -103,7 +103,7 @@ ni_wpa_client_open(void)
 	ni_dbus_client_t *dbc;
 	ni_wpa_client_t *wpa;
 
-	dbc = ni_dbus_client_open(NI_WPA_BUS_NAME);
+	dbc = ni_dbus_client_open("system", NI_WPA_BUS_NAME);
 	if (!dbc)
 		return NULL;
 

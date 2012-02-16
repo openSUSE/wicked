@@ -55,6 +55,7 @@ ni_config_free(ni_config_t *conf)
 {
 	ni_extension_list_destroy(&conf->extensions);
 	ni_string_free(&conf->dbus_name);
+	ni_string_free(&conf->dbus_type);
 	ni_string_free(&conf->dbus_xml_schema_file);
 	free(conf);
 }
@@ -96,6 +97,8 @@ ni_config_parse(const char *filename)
 
 		if ((attrval = xml_node_get_attr(child, "name")) != NULL)
 			ni_string_dup(&conf->dbus_name, attrval);
+		if ((attrval = xml_node_get_attr(child, "type")) != NULL)
+			ni_string_dup(&conf->dbus_type, attrval);
 	}
 
 	child = xml_node_get_child(node, "schema");

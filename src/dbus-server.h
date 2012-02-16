@@ -12,7 +12,7 @@
 #include "dbus-connection.h"
 
 
-extern ni_dbus_server_t *	ni_dbus_server_open(const char *bus_name, void *root_handle);
+extern ni_dbus_server_t *	ni_dbus_server_open(const char *bus_type, const char *bus_name, void *root_handle);
 extern void			ni_dbus_server_free(ni_dbus_server_t *);
 
 #endif /* __WICKED_DBUS_SERVER_H__ */

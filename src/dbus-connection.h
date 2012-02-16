@@ -11,7 +11,7 @@
 #include <dbus/dbus.h>
 #include "dbus-common.h"
 
-extern ni_dbus_connection_t *	ni_dbus_connection_open(const char *bus_name);
+extern ni_dbus_connection_t *	ni_dbus_connection_open(const char *bus_type, const char *bus_name);
 extern void			ni_dbus_connection_free(ni_dbus_connection_t *);
 extern ni_dbus_message_t *	ni_dbus_connection_call(ni_dbus_connection_t *connection,
 					ni_dbus_message_t *call, unsigned int call_timeout, DBusError *error);

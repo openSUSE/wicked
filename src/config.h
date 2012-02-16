@@ -97,6 +97,7 @@ typedef struct ni_config {
 	ni_extension_t *	extensions;
 
 	char *			dbus_name;
+	char *			dbus_type;
 } ni_config_t;
 
 extern ni_config_t *	ni_config_new();
