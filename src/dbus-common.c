@@ -602,6 +602,12 @@ ni_dbus_variant_get_byte_array_minmax(const ni_dbus_variant_t *var,
 	return TRUE;
 }
 
+dbus_bool_t
+ni_dbus_variant_is_byte_array(const ni_dbus_variant_t *var)
+{
+	return __ni_dbus_is_array(var, DBUS_TYPE_BYTE_AS_STRING);
+}
+
 /*
  * Helper function for handling arrays
  */
