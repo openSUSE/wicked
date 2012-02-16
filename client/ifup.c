@@ -832,7 +832,7 @@ ni_ifworker_do_network_up(ni_ifworker_t *w)
 		}
 	}
 	if (w->callbacks == NULL) {
-		ni_debug_dbus("%s: no address configuration; we're done", w->name);
+		ni_debug_dbus("%s: no pending address configuration; we're done", w->name);
 		w->state = STATE_NETWORK_UP;
 	}
 
@@ -1027,6 +1027,7 @@ ni_ifworker_fsm_init(ni_ifworker_t *w)
 {
 	switch (w->target_state) {
 	case STATE_NETWORK_UP:
+	case STATE_LINK_UP:
 		w->actions = ni_ifworker_fsm_up;
 		break;
 
@@ -1082,8 +1083,10 @@ ni_ifworker_fsm(void)
 				continue;
 
 			action = w->actions++;
-			if (action->next_state == STATE_NONE) {
+			if (action->next_state == STATE_NONE)
 				w->state = w->target_state;
+
+			if (w->state == w->target_state) {
 				ni_ifworker_success(w);
 				made_progress = 1;
 				continue;
@@ -1150,9 +1153,9 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 	if (!strcmp(signal_name, "networkUp"))
 		min_state = STATE_NETWORK_UP;
 	if (!strcmp(signal_name, "linkDown"))
-		max_state = STATE_DEVICE_UP;
+		max_state = STATE_LINK_UP - 1;
 	if (!strcmp(signal_name, "networkDown"))
-		max_state = STATE_LINK_UP;
+		max_state = STATE_NETWORK_UP - 1;
 
 	/* See if this event comes with a uuid */
 	{
@@ -1188,6 +1191,12 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 				ni_objectmodel_callback_info_free(cb);
 			}
 
+			/* We do not update the ifworker state if we're waiting for more events
+			 * of the same name. For instance, during address configuration, we might
+			 * start several addrconf mechanisms in parallel; for each of them, we'll
+			 * receive an addressAcquired event. However, address configuration isn't
+			 * complete until we've received *all* outstanding addressAcquired events.
+			 */
 			if (ni_ifworker_waiting_for_event(w, signal_name)) {
 				ni_debug_dbus("%s: waiting for more %s events...", w->name, signal_name);
 				goto done;
@@ -1382,7 +1391,7 @@ do_ifdown(int argc, char **argv)
 	enum  { OPT_FILE, OPT_DELETE };
 	static struct option ifdown_options[] = {
 		{ "file", required_argument, NULL, OPT_FILE },
-		{ "delete", required_argument, NULL, OPT_DELETE },
+		{ "delete", no_argument, NULL, OPT_DELETE },
 		{ NULL }
 	};
 	const char *ifname;
