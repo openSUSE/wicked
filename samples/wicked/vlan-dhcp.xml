@@ -1,0 +1,14 @@
+<interface>
+  <name>eth0.42</name>
+  <description>VLAN 42</description>
+
+  <vlan>
+    <device>eth0</device>
+    <tag>42</tag>
+  </vlan>
+
+  <ipv4:dhcp>
+  </ipv4:dhcp>
+</interface>
+
+
