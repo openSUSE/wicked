@@ -533,14 +533,14 @@ ni_wpa_interface_request_scan(ni_wpa_client_t *wpa, ni_wpa_interface_t *ifp, ni_
 int
 ni_wpa_interface_retrieve_scan(ni_wpa_client_t *wpa, ni_wpa_interface_t *ifp, ni_wireless_scan_t *scan)
 {
-	time_t too_old = time(NULL) - scan->max_age;
 	ni_wpa_network_t *wpa_net, **pos;
+	time_t now = time(NULL);
 
 	ni_debug_wireless("%s: retrieve scan results", ifp->ifname);
 
 	/* Prune old BSSes */
 	for (pos = &ifp->scanned_networks; (wpa_net = *pos) != NULL; ) {
-		if (wpa_net->last_seen < too_old) {
+		if (wpa_net->expires < now) {
 			*pos = wpa_net->next;
 			ni_wpa_network_free(wpa_net);
 		} else {
@@ -641,7 +641,7 @@ ni_wpa_interface_scan_results(ni_dbus_object_t *proxy, ni_dbus_message_t *msg)
 			ni_wpa_network_t *net;
 
 			net = ni_wpa_interface_network_by_path(ifp, path);
-			net->last_seen = ifp->last_scan;
+			net->expires = ifp->last_scan + NI_WIRELESS_SCAN_MAX_AGE;
 
 			ni_wpa_network_request_properties(wpa, net);
 		}

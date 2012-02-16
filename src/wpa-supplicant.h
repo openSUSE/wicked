@@ -30,7 +30,7 @@ struct ni_wpa_network {
 	ni_wpa_network_t *	next;
 	ni_dbus_object_t *	proxy;
 
-	time_t			last_seen;
+	time_t			expires;
 
 	ni_wireless_ssid_t	essid;
 	ni_hwaddr_t		access_point;
