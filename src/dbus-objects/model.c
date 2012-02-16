@@ -16,6 +16,7 @@
 
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
+#include <wicked/xml.h>
 #include "netinfo_priv.h"
 #include "dbus-common.h"
 #include "model.h"
@@ -293,23 +294,35 @@ static ni_dbus_service_t	ni_objectmodel_netif_root_interface = {
  * Write dbus message to a temporary file
  */
 static char *
-__ni_objectmodel_write_message(ni_dbus_message_t *msg)
+__ni_objectmodel_write_message(ni_dbus_message_t *msg, const ni_dbus_method_t *method)
 {
+	ni_dbus_variant_t argv[16];
 	char *tempname = NULL;
-	char *msg_data;
-	int msg_len;
+	xml_node_t *xmlnode;
+	int argc = 0;
 	FILE *fp;
 
-	if (!dbus_message_marshal(msg, &msg_data, &msg_len)) {
-		ni_error("%s: unable to marshal script arguments", __func__);
+	/* Deserialize dbus message */
+	memset(argv, 0, sizeof(argv));
+	argc = ni_dbus_message_get_args_variants(msg, argv, 16);
+	if (argc < 0)
+		return NULL;
+
+	xmlnode = ni_dbus_xml_deserialize_arguments(method, argc, argv, NULL);
+
+	while (argc--)
+		ni_dbus_variant_destroy(&argv[argc]);
+
+	if (xmlnode == NULL) {
+		ni_error("%s: unable to build XML from arguments", method->name);
 		return NULL;
 	}
 
 	if ((fp = ni_mkstemp(&tempname)) == NULL) {
 		ni_error("%s: unable to create tempfile for script arguments", __func__);
 	} else {
-		if (ni_file_write(fp, msg_data, msg_len) < 0) {
-			ni_error("%s: unable to store message (len=%d)", __func__, msg_len);
+		if (xml_node_print(xmlnode, fp) < 0) {
+			ni_error("%s: unable to store message arguments in file", method->name);
 			unlink(tempname);
 			ni_string_free(&tempname);
 			/* tempname is NULL after this */
@@ -318,7 +331,7 @@ __ni_objectmodel_write_message(ni_dbus_message_t *msg)
 		fclose(fp);
 	}
 
-	free(msg_data);
+	xml_node_free(xmlnode);
 	return tempname;
 }
 
@@ -372,12 +385,15 @@ ni_objectmodel_extension_call(ni_dbus_connection_t *connection,
 	process = ni_process_instance_new(command);
 
 	/* Build the argument blob and store it in a file */
-	tempname = __ni_objectmodel_write_message(call);
+	tempname = __ni_objectmodel_write_message(call, method);
 	if (tempname != NULL) {
 		ni_process_instance_setenv(process, "WICKED_ARGFILE", tempname);
 		ni_string_free(&tempname);
 	} else {
-		goto general_failure;
+		dbus_set_error(&error, DBUS_ERROR_INVALID_ARGS,
+				"Bad arguments in call to object %s, %s.%s",
+				object->path, interface, method->name);
+		goto send_error;
 	}
 
 	/* Create empty reply for script return data */
@@ -404,6 +420,8 @@ ni_objectmodel_extension_call(ni_dbus_connection_t *connection,
 general_failure:
 	dbus_set_error(&error, DBUS_ERROR_FAILED, "%s - general failure when executing method",
 			method->name);
+
+send_error:
 	ni_dbus_connection_send_error(connection, call, &error);
 
 	if (process)
