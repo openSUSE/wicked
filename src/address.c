@@ -934,7 +934,7 @@ typedef union ni_packed_netaddr {
 	unsigned char	raw[2 + 62];
 } ni_packed_netaddr_t;
 
-typedef union ni_packed_prefixed_netaddr {
+typedef struct ni_packed_prefixed_netaddr {
 	uint16_t	prefix;
 	ni_packed_netaddr_t netaddr;
 } ni_packed_prefixed_netaddr_t;
