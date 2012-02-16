@@ -194,18 +194,5 @@ extern int		ni_arp_send(ni_arp_socket_t *, const ni_arp_packet_t *);
 extern void *		xcalloc(unsigned int, size_t);
 extern char *		xstrdup(const char *);
 
-/*
- * Retain warn() error() etc as shorthand for now
- */
-#define warn(fmt, args...)	ni_warn(fmt, ##args)
-#define error(fmt, args...)	ni_error(fmt, ##args)
-#define fatal(fmt, args...)	ni_fatal(fmt, ##args)
-#define trace(fmt, args...)	ni_trace(fmt, ##args)
-
-#define debug_ifconfig	ni_debug_ifconfig
-#define debug_readwrite	ni_debug_readwrite
-#define debug_xpath	ni_debug_xpath
-#define debug_extension	ni_debug_extension
-#define debug_wicked	ni_debug_wicked
 
 #endif /* __NETINFO_PRIV_H__ */
