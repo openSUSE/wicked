@@ -25,10 +25,12 @@
 #include "debug.h"
 #include "autoip.h"
 
-static ni_dbus_object_functions_t wicked_dbus_autoip4_functions;
 
 extern const ni_dbus_service_t	wicked_dbus_addrconf_request_service; /* XXX */
 static const ni_dbus_service_t	wicked_dbus_autoip4_service;
+static ni_dbus_class_t		ni_objectmodel_autoip4dev_class = {
+	"autoip4-device",
+};
 
 /*
  * Build a dbus-object encapsulating a network device.
@@ -48,11 +50,10 @@ __ni_objectmodel_build_autoip4_device_object(ni_dbus_server_t *server, ni_autoip
 	if (server != NULL) {
 		snprintf(object_path, sizeof(object_path), "Interface/%d", dev->link.ifindex);
 		object = ni_dbus_server_register_object(server, object_path,
-						&wicked_dbus_autoip4_functions,
+						&ni_objectmodel_autoip4dev_class,
 						ni_autoip_device_get(dev));
 	} else {
-		object = ni_dbus_object_new(NULL,
-						&wicked_dbus_autoip4_functions,
+		object = ni_dbus_object_new(&ni_objectmodel_autoip4dev_class, NULL,
 						ni_autoip_device_get(dev));
 	}
 
@@ -74,9 +75,16 @@ ni_objectmodel_register_autoip4_device(ni_dbus_server_t *server, ni_autoip_devic
 	return __ni_objectmodel_build_autoip4_device_object(server, dev);
 }
 
-static ni_dbus_object_functions_t wicked_dbus_autoip4_functions = {
-	.destroy		= NULL,
-};
+/*
+ * Extract the autoip_device handle from a dbus object
+ */
+static ni_autoip_device_t *
+ni_objectmodel_unwrap_autoip4_device(const ni_dbus_object_t *object)
+{
+	ni_autoip_device_t *dev = object->handle;
+
+	return object->class == &ni_objectmodel_autoip4dev_class? dev : NULL;
+}
 
 /*
  * Interface.acquire(dict options)
@@ -89,7 +97,7 @@ __wicked_dbus_autoip4_acquire_svc(ni_dbus_object_t *object, const ni_dbus_method
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
-	ni_autoip_device_t *dev = object->handle;
+	ni_autoip_device_t *dev = ni_objectmodel_unwrap_autoip4_device(object);
 	ni_dbus_object_t *cfg_object;
 	ni_addrconf_request_t *req;
 	dbus_bool_t ret = FALSE;
@@ -140,7 +148,7 @@ __wicked_dbus_autoip4_drop_svc(ni_dbus_object_t *object, const ni_dbus_method_t 
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
-	ni_autoip_device_t *dev = object->handle;
+	ni_autoip_device_t *dev = ni_objectmodel_unwrap_autoip4_device(object);
 	dbus_bool_t ret = FALSE;
 	ni_uuid_t uuid;
 	int rv;
@@ -222,7 +230,7 @@ static ni_dbus_property_t	wicked_dbus_autoip4_properties[] = {
 };
 
 static const ni_dbus_service_t	wicked_dbus_autoip4_service = {
-	.name = WICKED_DBUS_AUTO4_INTERFACE,
-	.methods = wicked_dbus_autoip4_methods,
-	.properties = wicked_dbus_autoip4_properties,
+	.name		= WICKED_DBUS_AUTO4_INTERFACE,
+	.methods	= wicked_dbus_autoip4_methods,
+	.properties	= wicked_dbus_autoip4_properties,
 };
