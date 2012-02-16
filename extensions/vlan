@@ -26,10 +26,12 @@ create)
 		wicked_error "No ethernet device specified"
 	fi
 
-	# Create the VLAN device as $vlan_device.$vlan_tag (such as eth0.42)
-	$vconfig set_name_type DEV_PLUS_VID_NO_PAD
-	$vconfig add $vlan_device $vlan_tag ||
-		wicked_error "error creating VLAN device"
+	if ! netif_exists "$vlan_device"; then
+		# Create the VLAN device as $vlan_device.$vlan_tag (such as eth0.42)
+		$vconfig set_name_type DEV_PLUS_VID_NO_PAD
+		$vconfig add $vlan_device $vlan_tag ||
+			wicked_error "error creating VLAN device"
+	fi
 
 	# Rename the VLAN device to its final name, if different from
 	# the default name chosen above
@@ -40,8 +42,8 @@ create)
 		new_name=$vlan_name
 	fi
 
-	# Return the name of the newly created device
-	wicked_return_scalar $new_name
+	# Return the object path of the newly created device
+	wicked_return_interface_object $new_name
 	;;
 
 delete)

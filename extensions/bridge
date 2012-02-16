@@ -130,8 +130,10 @@ function bridge_add_port {
 
 	echo "bridge_add_port name=$bridge_name dev=$port_device prio=$port_priority path=$port_path_cost"
 
-	$brctl addif $bridge_name $port_device ||
-		wicked_error "unable to add bridge port $port_device"
+	if ! test -e "$syspath/$bridge_name/brif/$port_device"; then
+		$brctl addif $bridge_name $port_device ||
+			wicked_error "unable to add bridge port $port_device"
+	fi
 
 	if [ -n "$port_priority" ]; then
 		bridge_port_set_priority $bridge_name $port_device $port_priority
@@ -199,14 +201,16 @@ create)
 		wicked_error "No bridge name specified"
 	fi
 
-	$brctl addbr "$bridge_name" ||
-		wicked_error "unable to create bridge interface $bridge_name"
+	if ! netif_exists "$bridge_name"; then
+		$brctl addbr "$bridge_name" ||
+			wicked_error "unable to create bridge interface $bridge_name"
+	fi
 
+	# This will configure the bridge according to the options
+	# given in the request; including the list of ports to be added.
 	bridge_set_link $bridge_name
 
-	# FIXME: configure initial list of ports given
-
-	wicked_return_scalar "$bridge_name"
+	wicked_return_interface_object "$bridge_name"
 	;;
 
 addPort)

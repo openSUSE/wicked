@@ -122,6 +122,13 @@ function wicked_return_scalar {
 	exit 0
 }
 
+function wicked_return_interface_object {
+
+	ifname=$1
+	ifindex=`/sbin/ip link show dev "$ifname" | sed '/^\([0-9]\+\):.*/s//\1/;t;d'`
+	wicked_return_scalar "/com/suse/Wicked/Interface/$ifindex"
+}
+
 function wicked_log_call {
 
 	# Do not close both fds 1 and 2, else wickedd will assume
@@ -146,6 +153,12 @@ function wicked_log_result {
 	echo Return file $WICKED_RETFILE
 	cat $WICKED_RETFILE
 	echo -----------
+}
+
+function netif_exists {
+
+	ifname=$1
+	test -d "/sys/class/net/$ifname"
 }
 
 wicked_log_call "$0 $@"
