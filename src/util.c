@@ -969,9 +969,26 @@ ni_pidfile_check(const char *pidfile)
  * Create a temporary file
  */
 FILE *
-ni_mkstemp(void)
+ni_mkstemp(char **namep)
 {
-	return tmpfile();
+	char namebuf[PATH_MAX];
+	char *tmpdir;
+	int fd;
+
+	if (namep == NULL)
+		return tmpfile();
+
+	if ((tmpdir = getenv("TMPDIR")) == NULL)
+		tmpdir = "/tmp";
+
+	snprintf(namebuf, sizeof(namebuf), "%s/wicked.XXXXXX", tmpdir);
+	if ((fd = mkstemp(namebuf)) < 0) {
+		ni_error("unable to create unique tempfile in %s", tmpdir);
+		return NULL;
+	}
+
+	ni_string_dup(namep, namebuf);
+	return fdopen(fd, "w");
 }
 
 /*

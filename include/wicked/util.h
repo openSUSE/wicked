@@ -120,7 +120,7 @@ extern int		ni_daemonize(const char *, unsigned int);
 extern pid_t		ni_pidfile_check(const char *);
 extern int		ni_pidfile_write(const char *, unsigned int, pid_t);
 
-extern FILE *		ni_mkstemp(void);
+extern FILE *		ni_mkstemp(char **namep);
 extern int		ni_copy_file(FILE *, FILE *);
 extern int		ni_backup_file_to(const char *, const char *);
 extern int		ni_restore_file_from(const char *, const char *);
