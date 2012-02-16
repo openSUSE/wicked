@@ -47,7 +47,7 @@
 
   <method name="removePort">
     <arguments>
-      <port type="object-path"/>
+      <port type="string"/>
     </arguments>
   </method>
 </service>
@@ -59,7 +59,7 @@
      <bridge type="bridge:linkconfig"/>
     </arguments>
     <return>
-     <object-path/>
+     <string/>
     </return>
   </method>
 </service>
