@@ -69,17 +69,24 @@ __ni_dbus_object_new_child(ni_dbus_object_t *parent, const ni_dbus_class_t *clas
 		__ni_dbus_client_object_inherit(child, parent);
 
 	if (parent->class && parent->class->init_child) {
-		if (class || object_handle) {
-			ni_fatal("error when creating dbus object %s: "
-				"handle/class arguments conflict with parent object's init_child method",
-				child->path);
-		}
 		parent->class->init_child(child);
+		if (class && class != child->class) {
+			ni_fatal("error when creating dbus object %s: "
+				"class argument \"%s\" conflicts with parent object's init_child method",
+				child->path, class->name);
+		}
+		if (object_handle && object_handle != child->handle) {
+			ni_fatal("error when creating dbus object %s: "
+				"object handle conflicts with parent object's init_child method", child->path);
+		}
 	} else {
 		child->handle = object_handle;
 	}
 
-	ni_debug_dbus("created %s as child of %s", child->path, parent->path);
+	if (child->class == NULL)
+		child->class = &ni_dbus_anonymous_class;
+
+	ni_debug_dbus("created %s as child of %s, class %s", child->path, parent->path, child->class->name);
 
 	return child;
 }
@@ -195,7 +202,7 @@ __ni_dbus_object_lookup(ni_dbus_object_t *root_object, const char *path, int cre
 		if (child == NULL && create) {
 			if (next_name != NULL) {
 				/* Intermediate path component */
-				child = __ni_dbus_object_new_child(found, &ni_dbus_anonymous_class, name, NULL);
+				child = __ni_dbus_object_new_child(found, NULL, name, NULL);
 			} else {
 				/* Final path component consumes object handle and functions */
 				child = __ni_dbus_object_new_child(found, object_class, name, object_handle);
@@ -215,11 +222,6 @@ ni_dbus_object_create(ni_dbus_object_t *root_object, const char *object_path,
 {
 	ni_dbus_object_t *object;
 
-	if (object_class == NULL) {
-		ni_error("%s: unable to create object with NULL class pointer - using anonymous class", __func__);
-		object_class = &ni_dbus_anonymous_class;
-	}
-
 	object = __ni_dbus_object_lookup(root_object, object_path, 0, NULL, NULL);
 	if (object != NULL) {
 		/* Object already exists. Check for idempotent registration */
@@ -227,7 +229,7 @@ ni_dbus_object_create(ni_dbus_object_t *root_object, const char *object_path,
 			ni_error("%s: cannot re-register object \"%s\"", __FUNCTION__, object_path);
 			return NULL;
 		}
-		if (object->class != object_class) {
+		if (object_class && object->class != object_class) {
 			ni_error("%s: cannot re-register object \"%s\" (changing class from %s to %s)",
 					__FUNCTION__, object_path, object->class->name, object_class->name);
 			return NULL;

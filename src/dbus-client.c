@@ -454,8 +454,7 @@ ni_dbus_object_get_managed_objects(ni_dbus_object_t *proxy, DBusError *error)
 			continue;
 		}
 		if (object_path[len])
-			descendant = ni_dbus_object_create(proxy, object_path + len + 1,
-					&ni_dbus_anonymous_class, NULL);
+			descendant = ni_dbus_object_create(proxy, object_path + len + 1, NULL, NULL);
 		else
 			descendant = proxy;
 
@@ -505,10 +504,35 @@ __ni_dbus_object_get_managed_object_interfaces(ni_dbus_object_t *proxy, DBusMess
 		if (!dbus_message_iter_next(&iter_dict_entry))
 			return FALSE;
 
-		ni_debug_dbus("object interface %s", interface_name);
+		/* FIXME: Handle built-in interfaces like org.freedesktop.DBus.ObjectManager */
+
 		service = ni_objectmodel_service_by_name(interface_name);
-		if (!service)
+		if (!service) {
+			ni_debug_dbus("%s: dbus service %s not known", proxy->path, interface_name);
 			continue;
+		}
+
+		/* We may need to frob the object class here. When we receive a vlan interface,
+		 * the default object class would be netif. However, we would also find properties
+		 * for the VLAN interface, which specifies a class of "netif-vlan". We need to
+		 * the class in this case. */
+		if (service->compatible && proxy->class != service->compatible) {
+			const ni_dbus_class_t *check;
+
+			for (check = service->compatible; check; check = check->superclass) {
+				if (proxy->class == check)
+					break;
+			}
+			if (check == NULL) {
+				ni_error("GetManagedObjects(%s): ignoring interface %s (class %s) "
+						"which is not compatible with object class %s",
+						proxy->path, service->name, service->compatible->name,
+						proxy->class->name);
+				continue;
+			}
+			proxy->class = service->compatible;
+			ni_debug_dbus("%s: specializing object as a %s", proxy->path, proxy->class->name);
+		}
 
 		ni_dbus_object_register_service(proxy, service);
 
