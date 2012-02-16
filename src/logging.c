@@ -37,6 +37,7 @@ static ni_intmap_t __debug_flags_names[] = {
 	{ "autoip", 	NI_TRACE_AUTOIP },
 	{ "dbus", 	NI_TRACE_DBUS },
 	{ "wireless", 	NI_TRACE_WIRELESS },
+	{ "xml", 	NI_TRACE_XML },
 
 	{ "most", 	NI_TRACE_MOST },
 	{ "all", 	NI_TRACE_ALL },
