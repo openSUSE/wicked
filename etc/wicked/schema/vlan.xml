@@ -8,6 +8,9 @@
   <tag type="uint16"/>
  </define>
 
+ <!-- the properties of a VLAN device: -->
+ <define name="properties" type="linkinfo"/>
+
  <method name="deleteLink">
    <!-- no arguments, no return code -->
  </method>

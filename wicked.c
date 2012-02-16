@@ -178,14 +178,6 @@ main(int argc, char **argv)
 	if (!strcmp(cmd, "xpath"))
 		return do_xpath(argc - optind + 1, argv + optind - 1);
 
-#if 0
-	if (!strcmp(cmd, "get")
-	 || !strcmp(cmd, "put")
-	 || !strcmp(cmd, "post")
-	 || !strcmp(cmd, "delete"))
-		return do_rest(cmd, argc - optind + 1, argv + optind - 1);
-#endif
-
 	fprintf(stderr, "Unsupported command %s\n", cmd);
 	goto usage;
 }
@@ -250,8 +242,6 @@ wicked_dbus_client_create(void)
 	client = ni_dbus_client_open(WICKED_DBUS_BUS_NAME);
 	if (!client)
 		ni_fatal("Unable to connect to wicked dbus service");
-
-	// ni_dbus_client_set_error_map(dbc, __wicked_error_names);
 
 	return ni_dbus_client_object_new(client,
 				&ni_dbus_anonymous_class,
@@ -449,6 +439,33 @@ wicked_create_interface_xml(const ni_dbus_service_t *service,
 }
 
 /*
+ * Given an XML interface description, find the link layer information.
+ * By convention, the link layer information must be an XML element with
+ * the name of the link layer, such as <ethernet>, <vlan> or <bond>.
+ */
+static xml_node_t *
+wicked_find_link_properties(const xml_node_t *ifnode)
+{
+	xml_node_t *child, *found = NULL;
+
+	for (child = ifnode->children; child; child = child->next) {
+		if (ni_linktype_name_to_type(child->name) >= 0) {
+			if (found != NULL) {
+				ni_error("%s: ambiguous link layer, found both <%s> and <%s> element",
+						xml_node_location(ifnode),
+						found->name, child->name);
+				return NULL;
+			}
+			found = child;
+		}
+	}
+
+	if (found == NULL)
+		ni_error("%s: no link layer information found", xml_node_location(ifnode));
+	return found;
+}
+
+/*
  * Get the dbus interface for a given link layer type
  * Note, this must use the same class naming convention
  * as in __ni_objectmodel_link_classname()
@@ -539,7 +556,7 @@ do_create(int argc, char **argv)
 
 	if (opt_file) {
 		xml_document_t *doc;
-		xml_node_t *ifnode, *namenode, *linknode, *confnode;
+		xml_node_t *ifnode, *namenode, *linknode;
 		const char *requested_name = NULL;
 
 		if (!(doc = xml_document_read(opt_file))) {
@@ -547,32 +564,26 @@ do_create(int argc, char **argv)
 			return 1;
 		}
 
-		if (!(ifnode = xml_node_get_child(doc->root, "interface"))
-		 || !(linknode = xml_node_get_child(ifnode, "link"))) {
-			ni_error("missing <interface> or <link> element in file %s", opt_file);
+		if (!(ifnode = xml_node_get_child(doc->root, "interface"))) {
+			ni_error("missing <interface> element in file %s", opt_file);
 			goto xml_done;
 		}
 
-		if (!link_type && (namenode = xml_node_get_child(linknode, "class")) != NULL)
-			link_type = namenode->cdata;
-		if (link_type == NULL) {
-			ni_error("cannot create interface: unable to determine link type");
+		if (!(linknode = wicked_find_link_properties(ifnode))) {
+			ni_error("cannot determine link type of interface");
 			goto xml_done;
 		}
+		link_type = linknode->name;
 
 		if (!(service = wicked_link_layer_factory_service(link_type))) {
 			ni_error("wicked create: unknown/unsupported link type %s", link_type);
 			return 1;
 		}
 
-		if (!(confnode = xml_node_get_child(linknode, link_type))) {
-			ni_error("no <%s> link info in file %s", link_type, opt_file);
-			goto xml_done;
-		}
 		if ((namenode = xml_node_get_child(ifnode, "name")) != NULL)
 			requested_name = namenode->cdata;
 
-		ifname = wicked_create_interface_xml(service, requested_name, confnode);
+		ifname = wicked_create_interface_xml(service, requested_name, linknode);
 
 xml_done:
 		xml_document_free(doc);
