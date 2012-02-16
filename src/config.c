@@ -83,12 +83,10 @@ ni_config_parse(const char *filename)
 	conf = ni_config_new();
 
 	conf->pidfile.mode = 0644;
-	conf->socket.mode = 0600;
 
 	if (ni_config_parse_afinfo(&conf->ipv4, "ipv4", node) < 0
 	 || ni_config_parse_afinfo(&conf->ipv6, "ipv6", node) < 0
-	 || ni_config_parse_fslocation(&conf->pidfile, "pidfile", node) < 0
-	 || ni_config_parse_fslocation(&conf->socket, "socket", node) < 0)
+	 || ni_config_parse_fslocation(&conf->pidfile, "pidfile", node) < 0)
 		goto failed;
 
 	child = xml_node_get_child(node, "dbus");

@@ -68,7 +68,6 @@ typedef struct ni_config {
 	ni_afinfo_t		ipv6;
 
 	ni_config_fslocation_t	pidfile;
-	ni_config_fslocation_t	socket;
 	unsigned int		recv_max;
 
 	struct {
