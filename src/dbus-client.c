@@ -36,6 +36,7 @@ static dbus_bool_t	__ni_dbus_object_get_managed_object_interfaces(ni_dbus_object
 static dbus_bool_t	__ni_dbus_object_get_managed_object_properties(ni_dbus_object_t *proxy,
 					const ni_dbus_service_t *service,
 					DBusMessageIter *iter);
+static const char *	__ni_dbus_print_argument(char, const void *);
 
 /*
  * Constructor for DBus client handle
@@ -249,7 +250,9 @@ ni_dbus_object_call_new_va(const ni_dbus_object_t *dbo, const char *method, va_l
 		return NULL;
 	}
 
+#if 0
 	ni_debug_dbus("%s(obj=%s, intf=%s, method=%s)", __FUNCTION__, dbo->path, interface_name, method);
+#endif
 	msg = dbus_message_new_method_call(client->bus_name, dbo->path, interface_name, method);
 
 	/* Serialize arguments */
@@ -274,8 +277,6 @@ ni_dbus_object_call_simple(const ni_dbus_object_t *proxy,
 	DBusError error;
 	int rv = 0;
 
-	ni_debug_dbus("%s(method=%s, arg=%c/%p, res=%c/%p)", __FUNCTION__, method,
-			arg_type, arg_ptr, res_type, res_ptr);
 	dbus_error_init(&error);
 
 	if (!client)
@@ -320,6 +321,10 @@ ni_dbus_object_call_simple(const ni_dbus_object_t *proxy,
 		if (*res_string)
 			*res_string = xstrdup(*res_string);
 	}
+
+	ni_debug_dbus("%s: %s.%s(%s) = %s", __func__, proxy->path, method,
+			__ni_dbus_print_argument(arg_type, arg_ptr),
+			__ni_dbus_print_argument(res_type, res_ptr));
 
 out:
 	if (msg)
@@ -431,7 +436,7 @@ ni_dbus_object_call_async(ni_dbus_object_t *proxy,
 	va_list ap;
 	int rv = 0;
 
-	ni_debug_dbus("%s(method=%s)", __FUNCTION__, method);
+	ni_debug_dbus("%s(%s, %s)", __FUNCTION__, method, proxy->path);
 	va_start(ap, method);
 	call = ni_dbus_object_call_new_va(proxy, method, &ap);
 	va_end(ap);
@@ -675,3 +680,36 @@ ni_dbus_object_refresh_children(ni_dbus_object_t *proxy)
 	return rv;
 }
 
+/*
+ * Helper function for debug purposes
+ */
+static const char *
+__ni_dbus_print_argument(char type, const void *ptr)
+{
+	static char buffer[2][128];
+	static int idx = 0;
+	char *bp;
+
+	bp = buffer[idx];
+	idx = 1 - idx;
+
+	switch (type) {
+	case DBUS_TYPE_INVALID:
+		return "<none>";
+
+	case DBUS_TYPE_STRING:
+	case DBUS_TYPE_OBJECT_PATH:
+		return ptr? *(const char **) ptr : "<null>";
+
+	case DBUS_TYPE_INT32:
+		snprintf(bp, 128, "int32:%d", *(const int32_t *) ptr);
+		return bp;
+
+	case DBUS_TYPE_UINT32:
+		snprintf(bp, 128, "uint32:%u", *(const uint32_t *) ptr);
+		return bp;
+	}
+
+	snprintf(bp, 128, "%c/%p", type, ptr);
+	return bp;
+}
