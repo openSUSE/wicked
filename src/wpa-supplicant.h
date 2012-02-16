@@ -26,7 +26,12 @@ typedef struct ni_wpa_interface	ni_wpa_interface_t;
 typedef struct ni_wpa_network	ni_wpa_network_t;
 typedef struct ni_wpa_scan	ni_wpa_scan_t;
 
-struct ni_wpa_bss_properties {
+struct ni_wpa_network {
+	ni_wpa_network_t *	next;
+	ni_dbus_object_t *	proxy;
+
+	time_t			last_seen;
+
 	ni_hwaddr_t		bssid;
 
 	struct ni_wpa_ssid {
@@ -53,16 +58,6 @@ struct ni_wpa_bss_properties {
 	ni_opaque_t *		wpaie;
 	ni_opaque_t *		wpsie;
 	ni_opaque_t *		rsnie;
-};
-
-struct ni_wpa_network {
-	ni_wpa_network_t *	next;
-
-	ni_dbus_object_t *	proxy;
-
-	time_t			last_seen;
-
-	struct ni_wpa_bss_properties properties;
 };
 
 struct ni_wpa_interface_capabilities {
