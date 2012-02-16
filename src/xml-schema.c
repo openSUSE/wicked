@@ -685,6 +685,7 @@ ni_xs_process_define(xml_node_t *node, ni_xs_scope_t *typedict)
 			ni_error("%s: attempt to redefine type <%s>", xml_node_location(node), nameAttr);
 			return -1;
 		}
+		ni_xs_type_release(refType);
 	} else if (node->children != NULL) {
 		/*
 		 * <define> <type/> </define>
@@ -750,7 +751,9 @@ ni_xs_build_typelist(xml_node_t *node, ni_xs_name_type_array_t *result, ni_xs_sc
 			 *   <somename type="othertype"/>
 			 */
 			memberType = ni_xs_scope_lookup(typedict, child->name);
-			if (memberType == NULL) {
+			if (memberType != NULL) {
+				ni_xs_type_hold(memberType);
+			} else {
 				ni_xs_scope_t *context;
 				const char *typeAttr;
 
@@ -774,7 +777,6 @@ ni_xs_build_typelist(xml_node_t *node, ni_xs_name_type_array_t *result, ni_xs_sc
 				} else
 				if ((typeAttr = xml_node_get_attr(child, "type")) != NULL) {
 					memberType = ni_xs_build_simple_type(child, typeAttr, context);
-					ni_xs_type_hold(memberType);
 				}
 
 				if (memberType == NULL) {
@@ -918,42 +920,42 @@ ni_xs_build_complex_type(xml_node_t *node, const char *className, ni_xs_scope_t 
  * Build a simple type (by referencing another type).
  */
 ni_xs_type_t *
-ni_xs_build_simple_type(xml_node_t *node, const char *typeName, ni_xs_scope_t *typedict)
+ni_xs_build_simple_type(xml_node_t *node, const char *typeName, ni_xs_scope_t *scope)
 {
 	const char *attrValue;
-	ni_xs_type_t *refType;
+	ni_xs_type_t *result;
 
 	if (typeName == NULL) {
 		ni_error("%s: NULL type name?!", xml_node_location(node));
 		return NULL;
 	}
 
-	refType = ni_xs_scope_lookup(typedict, typeName);
-	if (refType == NULL)
+	result = ni_xs_scope_lookup(scope, typeName);
+	if (result == NULL)
 		return NULL;
 
-	ni_xs_type_hold(refType);
-	if (refType->class == NI_XS_TYPE_SCALAR) {
+	ni_xs_type_hold(result);
+	if (result->class == NI_XS_TYPE_SCALAR) {
 		if ((attrValue = xml_node_get_attr(node, "constraint")) != NULL) {
 			ni_xs_scalar_info_t *scalar_info;
-			ni_xs_type_t *newType;
+			ni_xs_type_t *clone;
 
-			newType = ni_xs_scalar_new(refType->u.scalar_info->type);
-			ni_xs_type_release(refType);
-			refType = newType;
+			clone = ni_xs_type_clone(result);
+			ni_xs_type_release(result);
+			result = clone;
 
-			scalar_info = ni_xs_scalar_info(refType);
+			scalar_info = ni_xs_scalar_info(result);
 			if (!strcmp(attrValue, "bitmap")) {
 				scalar_info->constraint.bitmap = ni_xs_build_bitmap_constraint(node);
 				if (scalar_info->constraint.bitmap == NULL) {
-					ni_xs_type_release(refType);
+					ni_xs_type_release(result);
 					return NULL;
 				}
 			}
 		}
 	}
 
-	return refType;
+	return result;
 }
 
 struct ni_xs_type_constraint_bitmap *
