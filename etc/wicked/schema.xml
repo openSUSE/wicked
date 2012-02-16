@@ -76,6 +76,38 @@
  -->
 
 <define name="network-interface" class="dict">
+ <!-- An address assigned to a network interface -->
+ <define name="assigned-address" class="dict">
+   <local type="network-address-prefix"/>
+   <peer type="network-address"/>
+
+   <!-- This is the addrconf method that owns this address -->
+   <owner type="builtin-addrconf" />
+ </define>
+
+ <define name="assigned-address-list" class="array" element-type="assigned-address" />
+
+ <!-- A route assigned to a network interface -->
+ <define name="assigned-route" class="dict">
+   <destination type="network-address-prefix"/>
+   <mtu type="uint32" />
+   <tos type="uint32" />
+   <priority type="uint32" />
+
+   <nexthop class="dict">
+     <gateway type="network-address"/>
+     <device type="string" />
+     <weight type="uint32" />
+     <flags type="uint32" />
+   </nexthop>
+
+   <!-- This is the addrconf method that owns this address -->
+   <owner type="builtin-addrconf" />
+ </define>
+
+ <define name="assigned-route-list" class="array" element-type="assigned-route" />
+
+ <!-- Properties of an interface start here -->
  <name type="string"/>
 
  <!-- These bits must match the definitions in netinfo.h -->
@@ -97,47 +129,53 @@
  <txqlen type="uint32"/>
  <mtu type="uint32"/>
 
- <define name="assigned-address" class="dict">
-   <local type="network-address-prefix"/>
-   <peer type="network-address"/>
+ <!-- General ipv4 specific settings -->
+ <ipv4 class="dict">
+    <enabled type="boolean" />
+    <forwarding type="boolean" />
+ </ipv4>
 
-   <!-- This is the addrconf method that owns this address -->
-   <owner type="builtin-addrconf" />
- </define>
+ <!-- General ipv6 specific settings -->
+ <ipv6 class="dict">
+    <enabled type="boolean" />
+    <forwarding type="boolean" />
+ </ipv6>
 
- <addresses class="array" element-type="assigned-address" />
-
- <define name="assigned-route" class="dict">
-   <destination type="network-address-prefix"/>
-   <mtu type="uint32" />
-   <tos type="uint32" />
-   <priority type="uint32" />
-
-   <nexthop class="dict">
-     <gateway type="network-address"/>
-     <device type="string" />
-     <weight type="uint32" />
-     <flags type="uint32" />
-   </nexthop>
-
-   <!-- This is the addrconf method that owns this address -->
-   <owner type="builtin-addrconf" />
- </define>
-
- <routes class="array" element-type="assigned-route" />
+ <addresses type="assigned-address-list" />
+ <routes type="assigned-route-list" />
 </define>
+
+<service name="interface-list" interface="com.suse.Wicked.InterfaceList">
+</service>
 
 <service name="interface" interface="com.suse.Wicked.Interface" object-class="netif">
   <define name="properties" type="network-interface"/>
 </service>
 
-<service name="ipv4:static" interface="com.suse.Wicked.IPv4Address.Static" object-class="netif">
-  <define name="addrconf-request" type="ipv4-addrconf" />
-  <define name="properties" type="ipv4-addrconf" />
+<service name="ipv4-static" interface="com.suse.Wicked.IPv4Address.Static" object-class="netif">
+  <define name="properties" class="dict">
+    <addresses type="network-interface:assigned-address-list" />
+    <routes type="network-interface:assigned-route-list" />
+  </define>
 
   <method name="configure">
     <arguments>
-      <config type="addrconf-request"/>
+      <!-- Note: all addresses are expected to be IPv4 -->
+      <config type="properties"/>
+    </arguments>
+  </method>
+</service>
+
+<service name="ipv6-static" interface="com.suse.Wicked.IPv6Address.Static" object-class="netif">
+  <define name="properties" class="dict">
+    <addresses type="network-interface:assigned-address-list" />
+    <routes type="network-interface:assigned-route-list" />
+  </define>
+
+  <method name="configure">
+    <arguments>
+      <!-- Note: all addresses are expected to be IPv6 -->
+      <config type="properties"/>
     </arguments>
   </method>
 </service>

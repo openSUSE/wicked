@@ -187,6 +187,21 @@ ni_objectmodel_unwrap_interface(const ni_dbus_object_t *object)
 	return NULL;
 }
 
+static ni_interface_t *
+get_interface(const ni_dbus_object_t *object, DBusError *error)
+{
+	ni_interface_t *dev;
+
+	if (!(dev = ni_objectmodel_unwrap_interface(object))) {
+		dbus_set_error(error,
+				DBUS_ERROR_FAILED,
+				"Method not compatible with object %s (not a network interface)",
+				object->path);
+		return NULL;
+	}
+	return dev;
+}
+
 /*
  * Interface.up(dict options)
  * Bring up the network interface, and assign the requested addresses.
@@ -427,14 +442,101 @@ __wicked_dbus_interface_set_routes(ni_dbus_object_t *object,
 	return __wicked_dbus_set_route_list(&ifp->routes, argument, error);
 }
 
-#define WICKED_INTERFACE_PROPERTY(type, __name, rw) \
+/*
+ * Get/set afinfo
+ */
+static dbus_bool_t
+__wicked_dbus_get_afinfo(ni_afinfo_t *afi, ni_dbus_variant_t *dict, DBusError *error)
+{
+	ni_dbus_dict_add_bool(dict, "enabled", afi->enabled);
+	ni_dbus_dict_add_bool(dict, "forwarding", afi->forwarding);
+	return TRUE;
+}
+
+static dbus_bool_t
+__wicked_dbus_set_afinfo(ni_afinfo_t *afi, const ni_dbus_variant_t *dict, DBusError *error)
+{
+	dbus_bool_t value;
+
+	if (ni_dbus_dict_get_bool(dict, "enabled", &value))
+		afi->enabled = value;
+	if (ni_dbus_dict_get_bool(dict, "forwarding", &value))
+		afi->forwarding = value;
+
+	return TRUE;
+}
+
+static dbus_bool_t
+__wicked_dbus_interface_get_ipv4(const ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				ni_dbus_variant_t *argument,
+				DBusError *error)
+{
+	ni_interface_t *dev;
+
+	if (!(dev = get_interface(object, error)))
+		return FALSE;
+
+	return __wicked_dbus_get_afinfo(&dev->ipv4, argument, error);
+}
+
+static dbus_bool_t
+__wicked_dbus_interface_set_ipv4(ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *argument,
+				DBusError *error)
+{
+	ni_interface_t *dev;
+
+	if (!(dev = get_interface(object, error)))
+		return FALSE;
+
+	return __wicked_dbus_set_afinfo(&dev->ipv4, argument, error);
+}
+
+static dbus_bool_t
+__wicked_dbus_interface_get_ipv6(const ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				ni_dbus_variant_t *argument,
+				DBusError *error)
+{
+	ni_interface_t *dev;
+
+	if (!(dev = get_interface(object, error)))
+		return FALSE;
+
+	return __wicked_dbus_get_afinfo(&dev->ipv6, argument, error);
+}
+
+static dbus_bool_t
+__wicked_dbus_interface_set_ipv6(ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *argument,
+				DBusError *error)
+{
+	ni_interface_t *dev;
+
+	if (!(dev = get_interface(object, error)))
+		return FALSE;
+
+	return __wicked_dbus_set_afinfo(&dev->ipv6, argument, error);
+}
+
+#define INTERFACE_PROPERTY(type, __name, rw) \
 	NI_DBUS_PROPERTY(type, __name,__wicked_dbus_interface, rw)
-#define WICKED_INTERFACE_PROPERTY_SIGNATURE(signature, __name, rw) \
+#define INTERFACE_PROPERTY_SIGNATURE(signature, __name, rw) \
 	__NI_DBUS_PROPERTY(signature, __name, __wicked_dbus_interface, rw)
 #define INTERFACE_STRING_PROPERTY(dbus_name, member_name, rw) \
 	NI_DBUS_GENERIC_STRING_PROPERTY(interface, dbus_name, member_name, rw)
 #define INTERFACE_UINT_PROPERTY(dbus_name, member_name, rw) \
 	NI_DBUS_GENERIC_UINT_PROPERTY(interface, dbus_name, member_name, rw)
+
+#ifndef NI_DBUS_DICT_ARRAY_SIGNATURE
+# define NI_DBUS_DICT_ARRAY_SIGNATURE DBUS_TYPE_ARRAY_AS_STRING NI_DBUS_DICT_SIGNATURE
+#endif
+#ifndef NI_DBUS_BYTE_ARRAY_SIGNATURE
+# define NI_DBUS_BYTE_ARRAY_SIGNATURE DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING
+#endif
 
 static ni_dbus_property_t	wicked_dbus_interface_properties[] = {
 	INTERFACE_STRING_PROPERTY(name, name, RO),
@@ -443,15 +545,17 @@ static ni_dbus_property_t	wicked_dbus_interface_properties[] = {
 	INTERFACE_UINT_PROPERTY(link-type, link.type, RO),
 	INTERFACE_UINT_PROPERTY(mtu, link.mtu, RO),
 	INTERFACE_UINT_PROPERTY(txqlen, link.txqlen, RO),
-	WICKED_INTERFACE_PROPERTY_SIGNATURE(DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING,
-			hwaddr, RO),
+
+	INTERFACE_PROPERTY_SIGNATURE(NI_DBUS_DICT_SIGNATURE, ipv4, RO),
+	INTERFACE_PROPERTY_SIGNATURE(NI_DBUS_DICT_SIGNATURE, ipv6, RO),
+
+	/* This should really go to the link layer classes */
+	INTERFACE_PROPERTY_SIGNATURE(NI_DBUS_BYTE_ARRAY_SIGNATURE, hwaddr, RO),
 
 	/* addresses and routes is an array of dicts */
-	WICKED_INTERFACE_PROPERTY_SIGNATURE(DBUS_TYPE_ARRAY_AS_STRING NI_DBUS_DICT_SIGNATURE,
-			addresses, RO),
+	INTERFACE_PROPERTY_SIGNATURE(NI_DBUS_DICT_ARRAY_SIGNATURE, addresses, RO),
+	INTERFACE_PROPERTY_SIGNATURE(NI_DBUS_DICT_ARRAY_SIGNATURE, routes, RO),
 
-	WICKED_INTERFACE_PROPERTY_SIGNATURE(DBUS_TYPE_ARRAY_AS_STRING NI_DBUS_DICT_SIGNATURE,
-			routes, RO),
 	{ NULL }
 };
 
@@ -467,6 +571,7 @@ static ni_dbus_service_t	wicked_dbus_interface_service = {
  * not dup them. So we cannot use a string buffer on the heap to build
  * "foobar-request" and "foobar-lease" strings.
  */
+#if 0
 static const char *
 __wicked_addrconf_type_string(unsigned int mode, int req)
 {
@@ -483,6 +588,7 @@ __wicked_addrconf_type_string(unsigned int mode, int req)
 	}
 	return string[rq][mode];
 }
+#endif
 
 /*
  * These helper functions assist in marshalling InterfaceRequests
@@ -493,6 +599,7 @@ ni_objectmodel_get_interface_request(const ni_dbus_object_t *object, DBusError *
 	return ni_dbus_object_get_handle(object);
 }
 
+#if 0
 static dbus_bool_t
 __wicked_dbus_get_afinfo(const ni_afinfo_t *afi, dbus_bool_t request_only,
 				ni_dbus_variant_t *result,
@@ -643,6 +750,7 @@ __wicked_dbus_interface_request_set_ipv6(ni_dbus_object_t *object,
 		return FALSE;
 	return TRUE;
 }
+#endif
 
 #define INTERFACE_REQUEST_UINT_PROPERTY(dbus_name, name, rw) \
 	NI_DBUS_GENERIC_UINT_PROPERTY(interface_request, dbus_name, name, rw)
@@ -655,8 +763,11 @@ static ni_dbus_property_t	wicked_dbus_interface_request_properties[] = {
 	INTERFACE_REQUEST_UINT_PROPERTY(metric, metric, RO),
 	INTERFACE_REQUEST_UINT_PROPERTY(txqlen, txqlen, RO),
 
+#if 0
 	INTERFACE_REQUEST_PROPERTY_SIGNATURE(NI_DBUS_DICT_SIGNATURE, ipv4, RO),
 	INTERFACE_REQUEST_PROPERTY_SIGNATURE(NI_DBUS_DICT_SIGNATURE, ipv6, RO),
+#endif
+
 	{ NULL }
 };
 
