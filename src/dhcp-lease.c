@@ -23,18 +23,6 @@ static int		__ni_dhcp_get_uint32(const xml_node_t *, const char *, uint32_t *);
 static int		__ni_dhcp_get_uint16(const xml_node_t *, const char *, uint16_t *);
 
 int
-ni_dhcp_lease_matches_request(const ni_addrconf_lease_t *lease, const ni_addrconf_request_t *req)
-{
-	if (req->dhcp.hostname && !ni_string_eq(req->dhcp.hostname, lease->hostname))
-		return 0;
-
-	if (req->dhcp.clientid && !ni_string_eq(req->dhcp.clientid, lease->dhcp.client_id))
-		return 0;
-
-	return 1;
-}
-
-int
 ni_dhcp_xml_from_lease(const ni_addrconf_t *aconf,
 				const ni_addrconf_lease_t *lease, xml_node_t *node)
 {
