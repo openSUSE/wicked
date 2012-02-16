@@ -28,7 +28,7 @@ typedef union ni_sockaddr {
 typedef struct ni_address {
 	struct ni_address *	next;
 
-	ni_addrconf_lease_t *	config_lease;		/* configured through lease */
+	const ni_addrconf_lease_t *config_lease;	/* configured through lease */
 
 	unsigned int		seq;
 	unsigned int		family;
@@ -54,7 +54,7 @@ typedef struct ni_route_nexthop {
 typedef struct ni_route {
 	struct ni_route *	next;
 
-	ni_addrconf_lease_t *	config_lease;		/* configured through lease */
+	const ni_addrconf_lease_t *config_lease;	/* configured through lease */
 
 	unsigned int		seq;
 	unsigned int		family;

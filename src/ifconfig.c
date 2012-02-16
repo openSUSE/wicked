@@ -1380,13 +1380,22 @@ __ni_interface_update_addrs(ni_interface_t *ifp,
 		new_addr = __ni_interface_address_list_contains(cfg_addr_list, ap);
 
 		/* Do not touch addresses not managed by us. */
-		if (ap->config_lease == NULL)
-			continue;
+		if (ap->config_lease == NULL) {
+			if (new_addr == NULL)
+				continue;
+
+			/* Address was assigned to device, but we did not track it.
+			 * Could be due to a daemon restart - simply assume this
+			 * is ours now. */
+			ap->config_lease = old_lease;
+		}
 
 		/* If the address was managed by us (ie its owned by a lease with
 		 * the same family/addrconf mode), then we want to check whether
-		 * it's owned by any other lease. It's possible that an address
-		 * is configured through different protocols. */
+		 * it's co-owned by any other lease. It's possible that an address
+		 * is configured through several different protocols, and we don't
+		 * want to delete such an address until the last of these protocols
+		 * has shut down. */
 		if (ap->config_lease == old_lease) {
 			ni_addrconf_lease_t *other;
 
@@ -1469,13 +1478,20 @@ __ni_interface_update_routes(ni_interface_t *ifp,
 		 * system. */
 		new_route = __ni_interface_route_list_contains(cfg_route_list, rp);
 
-		/* Do not touch addresses not managed by us. */
-		if (rp->config_lease == NULL)
-			continue;
+		/* Do not touch route not managed by us. */
+		if (rp->config_lease == NULL) {
+			if (new_route == NULL)
+				continue;
 
-		/* If the address was managed by us (ie its owned by a lease with
+			/* Address was assigned to device, but we did not track it.
+			 * Could be due to a daemon restart - simply assume this
+			 * is ours now. */
+			rp->config_lease = old_lease;
+		}
+
+		/* If the route was managed by us (ie its owned by a lease with
 		 * the same family/addrconf mode), then we want to check whether
-		 * it's owned by any other lease. It's possible that an address
+		 * it's owned by any other lease. It's possible that a route
 		 * is configured through different protocols. */
 		if (rp->config_lease == old_lease) {
 			ni_addrconf_lease_t *other;
