@@ -281,6 +281,9 @@ dhcp4_supplicant(void)
 		ni_log_destination_syslog("wickedd");
 	}
 
+	/* We're using randomized timeouts. Seed the RNG */
+	ni_srandom();
+
 	while (1) {
 		long timeout;
 
