@@ -60,7 +60,8 @@ struct ni_interface_state {
 
 	int			target_state;
 	int			state;
-	unsigned int		is_slave  : 1;
+	unsigned int		failed		: 1,
+				is_slave	: 1;
 
 	xml_node_t *		config;
 	ni_interface_t *	device;
@@ -93,10 +94,12 @@ struct ni_interface_state {
 
 
 static ni_interface_state_array_t interface_workers;
-static int		work_to_be_done;
+static int			work_to_be_done;
 
-static void		ni_interface_state_array_append(ni_interface_state_array_t *, ni_interface_state_t *);
-static void		ni_interface_state_array_destroy(ni_interface_state_array_t *);
+static ni_dbus_object_t *	__root_object;
+
+static void			ni_interface_state_array_append(ni_interface_state_array_t *, ni_interface_state_t *);
+static void			ni_interface_state_array_destroy(ni_interface_state_array_t *);
 
 static inline ni_interface_state_t *
 ni_interface_state_new(const char *name, xml_node_t *config)
@@ -123,6 +126,14 @@ ni_interface_state_release(ni_interface_state_t *state)
 {
 	if (--(state->refcount) == 0)
 		ni_interface_state_free(state);
+}
+
+static void
+ni_interface_state_fail(ni_interface_state_t *w, const char *msg)
+{
+	ni_error("device %s failed: %s", w->name, msg);
+	w->state = w->target_state = STATE_NONE;
+	w->failed = 1;
 }
 
 static const char *
@@ -193,7 +204,7 @@ ni_interface_state_add_child(ni_interface_state_t *parent, ni_interface_state_t 
 	return worker;
 }
 
-static void
+static ni_interface_state_t *
 add_interface_worker(const char *name, xml_node_t *config)
 {
 	ni_interface_state_t *worker;
@@ -201,6 +212,8 @@ add_interface_worker(const char *name, xml_node_t *config)
 	worker = ni_interface_state_new(name, config);
 	ni_interface_state_array_append(&interface_workers, worker);
 	ni_interface_state_release(worker);
+
+	return worker;
 }
 
 static unsigned int
@@ -224,6 +237,70 @@ add_all_interfaces(xml_document_t *doc)
 	return count;
 }
 
+static void
+ni_interface_state_set_target(ni_interface_state_t *w, unsigned int min_state, unsigned int max_state)
+{
+	/* By default, assume we're not chaging the interface state */
+	if (w->target_state == STATE_NONE)
+		w->target_state = w->state;
+
+	if (w->target_state < min_state)
+		w->target_state = min_state;
+	else
+	if (w->target_state > max_state)
+		w->target_state = max_state;
+
+	if (min_state >= STATE_LINK_UP) {
+		/* If we're bringing up the device, assume the device does not
+		 * exist */
+		w->state = STATE_DEVICE_DOWN;
+	} else if (max_state <= STATE_LINK_UP) {
+		/* Assume we have to bring it down */
+		w->state = STATE_NETWORK_UP;
+	}
+
+	if (w->children.count != 0 && min_state >= STATE_LINK_UP) {
+		unsigned int i;
+
+		switch (w->iftype) {
+		case NI_IFTYPE_VLAN:
+			/* VLAN devices: the underlying eth device must be up */
+			min_state = STATE_LINK_UP;
+			max_state = __STATE_MAX;
+			break;
+
+		case NI_IFTYPE_BRIDGE:
+			/* bridge device: the bridge ports should at least exist.
+			 * However, in order to do anything useful, they should at
+			 * least have link.
+			 * We may later want to allow the config file to override
+			 * the initial state for specific bridge ports.
+			 */
+			min_state = STATE_LINK_UP;
+			max_state = __STATE_MAX;
+			break;
+
+		case NI_IFTYPE_BOND:
+			/* bond device: all slaves devices must exist and be down */
+			min_state = STATE_LINK_UP - 1;
+			max_state = STATE_LINK_UP - 1;
+			break;
+
+		default:
+			return;
+		}
+
+		ni_debug_dbus("%s: marking all children min=%s max=%s", w->name,
+				ni_interface_state_name(min_state),
+				ni_interface_state_name(max_state));
+		for (i = 0; i < w->children.count; ++i) {
+			ni_interface_state_t *child = w->children.data[i];
+
+			ni_interface_state_set_target(child, min_state, max_state);
+		}
+	}
+}
+
 static unsigned int
 mark_matching_interfaces(const char *match_name, unsigned int target_state)
 {
@@ -237,6 +314,11 @@ mark_matching_interfaces(const char *match_name, unsigned int target_state)
 	for (i = 0; i < interface_workers.count; ++i) {
 		ni_interface_state_t *w = interface_workers.data[i];
 
+		if (w->config == NULL)
+			continue;
+		if (w->exclusive_owner)
+			continue;
+
 		if (match_name) {
 			if (w->name == NULL || strcmp(match_name, w->name))
 				continue;
@@ -244,22 +326,16 @@ mark_matching_interfaces(const char *match_name, unsigned int target_state)
 
 		/* FIXME: check for matching behavior definition */
 
-		ni_debug_dbus("%s: target state %s", w->name, ni_interface_state_name(target_state));
-		w->target_state = target_state;
-
-		if (target_state >= STATE_LINK_UP) {
-			unsigned int j;
-
-			/* VLAN devices cannot be taken up unless the underlying eth
-			 * device is up. */
-			for (j = 0; j < w->children.count; ++j) {
-				ni_interface_state_t *child = w->children.data[j];
-
-				if (child->target_state < STATE_LINK_UP)
-					child->target_state = STATE_LINK_UP;
-			}
-		}
+		ni_interface_state_set_target(w, target_state, target_state);
 		count++;
+	}
+
+	for (i = 0; i < interface_workers.count; ++i) {
+		ni_interface_state_t *w = interface_workers.data[i];
+
+		if (w->target_state != STATE_NONE)
+			ni_debug_dbus("%s: target state %s",
+					w->name, ni_interface_state_name(w->target_state));
 	}
 
 	return count;
@@ -272,6 +348,8 @@ mark_matching_interfaces(const char *match_name, unsigned int target_state)
  * eth interface needs to come up before any of the VLANs that reference
  * it.
  */
+static void	__ni_interface_state_print_tree(const char *arrow, const ni_interface_state_t *, const char *);
+
 static int
 build_hierarchy(void)
 {
@@ -282,7 +360,10 @@ build_hierarchy(void)
 		xml_node_t *ifnode, *linknode, *devnode;
 		ni_interface_state_t *child;
 
-		ifnode = w->config;
+		/* A worker without an ifnode is one that we discovered in the
+		 * system, but which we've not been asked to configure. */
+		if (!(ifnode = w->config))
+			continue;
 
 		if (!(linknode = wicked_find_link_properties(ifnode)))
 			continue;
@@ -300,7 +381,7 @@ build_hierarchy(void)
 				ni_error("%s: empty <device> element in <%s> declaration",
 						xml_node_location(ifnode),
 						linknode->name);
-				continue;
+				return -1;
 			}
 
 			child = ni_interface_state_array_find(&interface_workers, slave_name);
@@ -314,7 +395,7 @@ build_hierarchy(void)
 						xml_node_location(ifnode),
 						linknode->name,
 						slave_name);
-				continue;
+				return -1;
 			}
 
 			if (child->exclusive_owner != NULL) {
@@ -326,6 +407,8 @@ build_hierarchy(void)
 				free(other_owner);
 				return -1;
 			}
+
+			ni_debug_dbus("making %s a child of %s device %s", child->name, linknode->name, w->name);
 
 			switch (w->iftype) {
 			case NI_IFTYPE_VLAN:
@@ -346,7 +429,214 @@ build_hierarchy(void)
 		}
 	}
 
+	if (ni_debug & NI_TRACE_DBUS) {
+		for (i = 0; i < interface_workers.count; ++i) {
+			ni_interface_state_t *w = interface_workers.data[i];
+
+			if (!w->shared_users && !w->exclusive_owner)
+				__ni_interface_state_print_tree("   +-> ", w, "   |   ");
+		}
+	}
 	return 0;
+}
+
+static void
+__ni_interface_state_print_tree(const char *arrow, const ni_interface_state_t *w, const char *branches)
+{
+	if (w->children.count == 0) {
+		fprintf(stderr, "%s%s\n", arrow, w->name);
+	} else {
+		char buffer[128];
+		unsigned int i;
+
+		fprintf(stderr, "%s%-10s", arrow, w->name);
+
+		snprintf(buffer, sizeof(buffer), "%s%10s  |   ", branches, "");
+
+		arrow = " +--> ";
+		for (i = 0; i < w->children.count; ++i) {
+			ni_interface_state_t *child = w->children.data[i];
+
+			if (i != 0) {
+				fprintf(stderr, "%s%10s", branches, "");
+				if (i == w->children.count - 1)
+					arrow = " \\--> ";
+			}
+			__ni_interface_state_print_tree(arrow, child, buffer);
+		}
+	}
+}
+
+void
+interface_workers_refresh_state(void)
+{
+	static ni_dbus_object_t *iflist = NULL;
+	ni_dbus_object_t *object;
+	ni_interface_state_t *w;
+	unsigned int i;
+
+	if (!iflist && !(iflist = wicked_get_interface_object(NULL)))
+		ni_fatal("unable to get server's interface list");
+
+	/* Call ObjectManager.GetManagedObjects to get list of objects and their properties */
+	if (!ni_dbus_object_refresh_children(iflist))
+		ni_fatal("Couldn't refresh list of active network interfaces");
+
+	for (i = 0; i < interface_workers.count; ++i) {
+		ni_interface_t *dev;
+
+		w = interface_workers.data[i];
+		if ((dev = w->device) != NULL) {
+			w->device = NULL;
+			ni_interface_put(dev);
+		}
+
+		w->state = STATE_DEVICE_DOWN;
+	}
+
+	for (object = iflist->children; object; object = object->next) {
+		ni_interface_t *dev = ni_objectmodel_unwrap_interface(object);
+		ni_interface_state_t *found = NULL;
+
+		if (dev == NULL || dev->name == NULL)
+			continue;
+
+		for (i = 0; i < interface_workers.count; ++i) {
+			w = interface_workers.data[i];
+
+			if (w->ifindex) {
+				if (w->ifindex != dev->link.ifindex)
+					continue;
+			} else
+			if (w->name == NULL || strcmp(dev->name, w->name))
+				continue;
+
+			found = w;
+			break;
+		}
+
+		if (!found)
+			found = add_interface_worker(dev->name, NULL);
+
+		if (!found->object_path)
+			ni_string_dup(&found->object_path, object->path);
+		found->device = ni_interface_get(dev);
+		found->ifindex = dev->link.ifindex;
+
+		if (ni_interface_network_is_up(dev))
+			found->state = STATE_NETWORK_UP;
+		else
+		if (ni_interface_link_is_up(dev))
+			found->state = STATE_LINK_UP;
+		else
+			found->state = STATE_DEVICE_UP;
+	}
+}
+
+static inline int
+ni_interface_state_ready(const ni_interface_state_t *w)
+{
+	return w->target_state == STATE_NONE || w->target_state == w->state;
+}
+
+static int
+ni_interface_children_ready(ni_interface_state_t *w)
+{
+	unsigned int i;
+
+	for (i = 0; i < w->children.count; ++i) {
+		ni_interface_state_t *child = w->children.data[i];
+
+		if (!ni_interface_state_ready(child))
+			return 0;
+	}
+
+	return 1;
+}
+
+static int
+ni_interface_state_create_device(ni_interface_state_t *w)
+{
+	const ni_dbus_service_t *service;
+	xml_node_t *linknode;
+	const char *link_type;
+	const char *object_path;
+
+	ni_trace("%s(%s)", __func__, w->name);
+
+	if (!(linknode = wicked_find_link_properties(w->config))) {
+		ni_error("unable to create interface %s: cannot determine link type of interface", w->name);
+		return -1;
+	}
+	link_type = linknode->name;
+
+	if (!(service = wicked_link_layer_factory_service(link_type))) {
+		ni_error("%s: unknown/unsupported link type %s", w->name, link_type);
+		return -1;
+	}
+
+	object_path = wicked_create_interface_xml(service, w->name, linknode);
+	if (object_path == NULL) {
+		ni_error("%s: failed to create interface", w->name);
+		return -1;
+	}
+
+	ni_debug_dbus("created device %s (path=%s)", w->name, object_path);
+	ni_string_dup(&w->object_path, object_path);
+
+	return 0;
+}
+
+static unsigned int
+ni_interface_state_fsm(void)
+{
+	unsigned int i, waiting;
+
+	ni_debug_dbus("%s()", __func__);
+	while (1) {
+		int made_progress = 0;
+
+		for (i = 0; i < interface_workers.count; ++i) {
+			ni_interface_state_t *w = interface_workers.data[i];
+
+			if (w->target_state != STATE_NONE)
+				ni_debug_dbus("%-12s: state=%s want=%s", w->name,
+					ni_interface_state_name(w->state),
+					ni_interface_state_name(w->target_state));
+
+			if (ni_interface_state_ready(w))
+				continue;
+
+			/* If we're still waiting for children to become ready,
+			 * there's nothing we can do but wait. */
+			if (!ni_interface_children_ready(w))
+				continue;
+
+			if (w->device == NULL && w->target_state >= STATE_DEVICE_UP) {
+				ni_debug_dbus("%s: about to create %s", __func__, w->name);
+				if (ni_interface_state_create_device(w) < 0)
+					ni_interface_state_fail(w, "unable to create device");
+				else
+					made_progress = 1;
+				continue;
+			}
+		}
+
+		if (!made_progress)
+			break;
+
+		interface_workers_refresh_state();
+	}
+
+	for (i = waiting = 0; i < interface_workers.count; ++i) {
+		ni_interface_state_t *w = interface_workers.data[i];
+
+		if (!ni_interface_state_ready(w))
+			waiting++;
+	}
+
+	ni_debug_dbus("waiting for %u devices to become ready", waiting);
+	return waiting;
 }
 
 static void
@@ -355,7 +645,7 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 	const char *signal_name = dbus_message_get_member(msg);
 	const char *object_path = dbus_message_get_path(msg);
 	unsigned int min_state = STATE_NONE, max_state = __STATE_MAX;
-	unsigned int i, all_ready = 1;
+	unsigned int i;
 
 	ni_debug_dbus("%s: got signal %s from %s", __func__, signal_name, object_path);
 
@@ -388,74 +678,21 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 						ni_interface_state_name(prev_state),
 						ni_interface_state_name(w->state));
 		}
-
-		if (w->state != w->target_state)
-			all_ready = 0;
 	}
 
-	if (all_ready) {
+	if (ni_interface_state_fsm() == 0) {
 		ni_debug_dbus("all devices have reached the intended state");
 		work_to_be_done = 0;
 	}
 }
 
-void
-interface_workers_refresh_state(ni_dbus_object_t *root_object)
-{
-	static ni_dbus_object_t *iflist = NULL;
-	ni_dbus_object_t *object;
-	ni_interface_state_t *w;
-	unsigned int i;
-
-	if (!iflist && !(iflist = wicked_get_interface_object(NULL)))
-		ni_fatal("unable to get server's interface list");
-
-	/* Call ObjectManager.GetManagedObjects to get list of objects and their properties */
-	if (!ni_dbus_object_refresh_children(iflist))
-		ni_fatal("Couldn't refresh list of active network interfaces");
-
-	for (i = 0; i < interface_workers.count; ++i) {
-		ni_interface_t *dev;
-
-		w = interface_workers.data[i];
-		if ((dev = w->device) != NULL) {
-			w->device = NULL;
-			ni_interface_put(dev);
-		}
-	}
-
-	for (object = iflist->children; object; object = object->next) {
-		ni_interface_t *dev = ni_objectmodel_unwrap_interface(object);
-
-		if (dev == NULL || dev->name == NULL)
-			continue;
-
-		for (i = 0; i < interface_workers.count; ++i) {
-			w = interface_workers.data[i];
-
-			if (w->ifindex) {
-				if (w->ifindex != dev->link.ifindex)
-					continue;
-			} else
-			if (w->name == NULL || strcmp(dev->name, w->name))
-				continue;
-
-			if (!w->object_path)
-				ni_string_dup(&w->object_path, object->path);
-			w->device = ni_interface_get(dev);
-			w->ifindex = dev->link.ifindex;
-			break;
-		}
-	}
-}
-
 int
-interface_workers_kickstart(ni_dbus_object_t *root_object)
+interface_workers_kickstart(void)
 {
 	ni_interface_state_t *w;
 	unsigned int i;
 
-	interface_workers_refresh_state(root_object);
+	interface_workers_refresh_state();
 
 	for (i = 0; i < interface_workers.count; ++i) {
 		w = interface_workers.data[i];
@@ -476,40 +713,12 @@ interface_workers_kickstart(ni_dbus_object_t *root_object)
 			 */
 		}
 
-		if (w->device == NULL) {
-			const ni_dbus_service_t *service;
-			xml_node_t *linknode;
-			const char *link_type;
-			const char *object_path;
-
-			/* Device doesn't exist yet, try to create it */
-			ni_trace("interface_workers_kickstart: should create %s", w->name);
-			if (!(linknode = wicked_find_link_properties(w->config))) {
-				ni_error("unable to create interface %s: cannot determine link type of interface", w->name);
-				return -1;
-			}
-			link_type = linknode->name;
-
-			if (!(service = wicked_link_layer_factory_service(link_type))) {
-				ni_error("%s: unknown/unsupported link type %s", w->name, link_type);
-				return -1;
-			}
-
-			object_path = wicked_create_interface_xml(service, w->name, linknode);
-			if (object_path == NULL) {
-				ni_error("%s: failed to create interface", w->name);
-				return -1;
-			}
-
-			ni_debug_dbus("created device %s (path=%s)", w->name, object_path);
-			ni_string_dup(&w->object_path, object_path);
-		}
-
-		if (w->state < STATE_DEVICE_UP)
-			w->state = STATE_DEVICE_UP;
-
-		/* Have the FSM work on this */
+		if (w->device == NULL)
+			w->state = STATE_DEVICE_DOWN;
 	}
+
+	if (ni_interface_state_fsm() != 0)
+		work_to_be_done = 1;
 
 	return 0;
 }
@@ -541,7 +750,6 @@ do_ifup(int argc, char **argv)
 	ni_dbus_variant_t argument = NI_DBUS_VARIANT_INIT;
 	const char *ifname = NULL;
 	const char *opt_file = NULL;
-	ni_dbus_object_t *root_object;
 	unsigned int ifevent = NI_IFACTION_MANUAL_UP;
 	ni_interface_t *config_dev = NULL;
 	xml_document_t *config_doc;
@@ -596,21 +804,23 @@ usage:
 		ni_fatal("ifup: non-file case not implemented yet");
 	}
 
+	if (!(__root_object = wicked_dbus_client_create()))
+		return 1;
+
+	interface_workers_refresh_state();
+
 	if (build_hierarchy() < 0)
 		ni_fatal("ifup: unable to build device hierarchy");
 
 	if (!mark_matching_interfaces(ifname, STATE_NETWORK_UP))
 		return 0;
 
-	if (!(root_object = wicked_dbus_client_create()))
-		return 1;
-
-	ni_dbus_client_add_signal_handler(ni_dbus_object_get_client(root_object), NULL, NULL,
+	ni_dbus_client_add_signal_handler(ni_dbus_object_get_client(__root_object), NULL, NULL,
 			                        WICKED_DBUS_NETIF_INTERFACE,
 						interface_state_change_signal,
 						NULL);
 
-	interface_workers_kickstart(root_object);
+	interface_workers_kickstart();
 	interface_worker_mainloop();
 
 #if 0
