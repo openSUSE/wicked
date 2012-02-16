@@ -43,21 +43,34 @@ static void		__ni_wireless_network_destroy(ni_wireless_network_t *net);
 
 static ni_wpa_client_t *wpa_client;
 
+/*
+ * Get the dbus client handle for wpa_supplicant
+ */
+static ni_wpa_client_t *
+ni_wpa_client(void)
+{
+	if (wpa_client == NULL) {
+		wpa_client = ni_wpa_client_open();
+		if (wpa_client == NULL)
+			ni_error("Unable to connect to wpa_supplicant");
+	}
+	return wpa_client;
+}
+
+/*
+ * Refresh what we think we know about this interface.
+ */
 int
 ni_wireless_interface_refresh(ni_interface_t *ifp)
 {
+	ni_wpa_client_t *wpa;
 	ni_wpa_interface_t *wif;
 	ni_wireless_scan_t *scan;
 
-	if (wpa_client == NULL) {
-		wpa_client = ni_wpa_client_open();
-		if (wpa_client == NULL) {
-			ni_error("Unable to connect to wpa_supplicant");
-			return -1;
-		}
-	}
+	if (!(wpa = ni_wpa_client()))
+		return -1;
 
-	wif = ni_wpa_interface_bind(wpa_client, ifp->name);
+	wif = ni_wpa_interface_bind(wpa, ifp->name);
 	if (wif == NULL) {
 		ni_error("wpa_supplicant doesn't know interface %s", ifp->name);
 		return -1;
@@ -73,7 +86,7 @@ ni_wireless_interface_refresh(ni_interface_t *ifp)
 	ifp->wireless->capabilities = wif->capabilities;
 
 	scan = ni_wireless_scan_new();
-	if (ni_wpa_interface_retrieve_scan(wpa_client, wif, scan) >= 0)
+	if (ni_wpa_interface_retrieve_scan(wpa, wif, scan) >= 0)
 		ni_interface_set_wireless_scan(ifp, scan);
 	else
 		ni_wireless_scan_free(scan);
@@ -114,6 +127,7 @@ __ni_wireless_get_scan_results(ni_netconfig_t *nc, ni_interface_t *ifp)
 int
 __ni_wireless_request_scan(ni_netconfig_t *nc, ni_interface_t *ifp)
 {
+	ni_wpa_client_t *wpa;
 	ni_wireless_scan_t *scan;
 	ni_wpa_interface_t *wif;
 
@@ -127,15 +141,10 @@ __ni_wireless_request_scan(ni_netconfig_t *nc, ni_interface_t *ifp)
 		ni_interface_set_wireless_scan(ifp, scan);
 	}
 
-	if (wpa_client == NULL) {
-		wpa_client = ni_wpa_client_open();
-		if (wpa_client == NULL) {
-			ni_error("Unable to connect to wpa_supplicant");
-			return -1;
-		}
-	}
+	if (!(wpa = ni_wpa_client()))
+		return -1;
 
-	wif = ni_wpa_interface_bind(wpa_client, ifp->name);
+	wif = ni_wpa_interface_bind(wpa, ifp->name);
 	if (wif == NULL) {
 		ni_error("wpa_supplicant doesn't know interface %s", ifp->name);
 		return -1;
@@ -146,7 +155,7 @@ __ni_wireless_request_scan(ni_netconfig_t *nc, ni_interface_t *ifp)
 		return -1;
 	}
 
-	if (ni_wpa_interface_request_scan(wpa_client, wif, scan) < 0) {
+	if (ni_wpa_interface_request_scan(wpa, wif, scan) < 0) {
 		ni_error("ni_wpa_interface_request_scan failed");
 		return -1;
 	}
