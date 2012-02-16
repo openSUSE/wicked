@@ -61,7 +61,9 @@ struct ni_ifworker {
 	int			target_state;
 	int			state;
 	unsigned int		failed		: 1,
-				is_slave	: 1;
+				wait_for_event	: 1,
+				is_slave	: 1,
+				done		: 1;
 
 	xml_node_t *		config;
 	ni_interface_t *	device;
@@ -98,6 +100,7 @@ static int			work_to_be_done;
 
 static ni_dbus_object_t *	__root_object;
 
+static const char *		ni_ifworker_name(int);
 static void			ni_ifworker_array_append(ni_ifworker_array_t *, ni_ifworker_t *);
 static void			ni_ifworker_array_destroy(ni_ifworker_array_t *);
 
@@ -129,11 +132,25 @@ ni_ifworker_release(ni_ifworker_t *state)
 }
 
 static void
-ni_ifworker_fail(ni_ifworker_t *w, const char *msg)
+ni_ifworker_fail(ni_ifworker_t *w, const char *fmt, ...)
 {
-	ni_error("device %s failed: %s", w->name, msg);
+	char errmsg[256];
+	va_list ap;
+
+	va_start(ap, fmt);
+	vsnprintf(errmsg, sizeof(errmsg), fmt, ap);
+	va_end(ap);
+
+	ni_error("device %s failed: %s", w->name, errmsg);
 	w->state = w->target_state = STATE_NONE;
 	w->failed = 1;
+}
+
+static void
+ni_ifworker_success(ni_ifworker_t *w)
+{
+	printf("%s: %s\n", w->name, ni_ifworker_name(w->state));
+	w->done = 1;
 }
 
 static const char *
@@ -486,6 +503,11 @@ interface_workers_refresh_state(void)
 		ni_interface_t *dev;
 
 		w = interface_workers.data[i];
+
+		/* Don't touch devices we're done with */
+		if (w->done)
+			continue;
+
 		if ((dev = w->device) != NULL) {
 			w->device = NULL;
 			ni_interface_put(dev);
@@ -518,6 +540,10 @@ interface_workers_refresh_state(void)
 		if (!found)
 			found = add_interface_worker(dev->name, NULL);
 
+		/* Don't touch devices we're done with */
+		if (found->done)
+			continue;
+
 		if (!found->object_path)
 			ni_string_dup(&found->object_path, object->path);
 		found->device = ni_interface_get(dev);
@@ -536,7 +562,7 @@ interface_workers_refresh_state(void)
 static inline int
 ni_ifworker_ready(const ni_ifworker_t *w)
 {
-	return w->target_state == STATE_NONE || w->target_state == w->state;
+	return w->done || w->target_state == STATE_NONE || w->target_state == w->state;
 }
 
 static int
@@ -587,6 +613,36 @@ ni_ifworker_create_device(ni_ifworker_t *w)
 	return 0;
 }
 
+/*
+ * Finite state machine - create the device if it does not exist
+ * Note this is called for all virtual devices, because the newLink
+ * call also takes care of setting up things like the ports assigned
+ * to a bridge.
+ */
+static int
+ni_ifworker_do_device_up(ni_ifworker_t *w)
+{
+	ni_debug_dbus("%s: about to create %s", __func__, w->name);
+	if (ni_ifworker_create_device(w) < 0) {
+		ni_ifworker_fail(w, "unable to create device");
+		return -1;
+	}
+
+	return 0;
+}
+
+/*
+ * Finite state machine
+ */
+typedef int			ni_ifworker_fsm_action(ni_ifworker_t *);
+
+static ni_ifworker_fsm_action *	ni_ifworker_fsm_up[__STATE_MAX] = {
+[STATE_DEVICE_DOWN]	= ni_ifworker_do_device_up,
+};
+
+static ni_ifworker_fsm_action *	ni_ifworker_fsm_down[__STATE_MAX] = {
+};
+
 static unsigned int
 ni_ifworker_fsm(void)
 {
@@ -598,11 +654,14 @@ ni_ifworker_fsm(void)
 
 		for (i = 0; i < interface_workers.count; ++i) {
 			ni_ifworker_t *w = interface_workers.data[i];
+			ni_ifworker_fsm_action *action;
+			int next_state = STATE_NONE;
 
 			if (w->target_state != STATE_NONE)
-				ni_debug_dbus("%-12s: state=%s want=%s", w->name,
+				ni_debug_dbus("%-12s: state=%s want=%s%s", w->name,
 					ni_ifworker_name(w->state),
-					ni_ifworker_name(w->target_state));
+					ni_ifworker_name(w->target_state),
+					w->wait_for_event? ", wait-for-event" : "");
 
 			if (ni_ifworker_ready(w))
 				continue;
@@ -612,13 +671,46 @@ ni_ifworker_fsm(void)
 			if (!ni_interface_children_ready(w))
 				continue;
 
-			if (w->device == NULL && w->target_state >= STATE_DEVICE_UP) {
-				ni_debug_dbus("%s: about to create %s", __func__, w->name);
-				if (ni_ifworker_create_device(w) < 0)
-					ni_ifworker_fail(w, "unable to create device");
-				else
-					made_progress = 1;
+			/* We requested a change that takes time (such as acquiring
+			 * a DHCP lease). Wait for a notification from wickedd */
+			if (w->wait_for_event)
 				continue;
+
+			if (w->state < w->target_state) {
+				do {
+					action = ni_ifworker_fsm_up[w->state];
+				} while (action == NULL && ++(w->state) < w->target_state);
+				next_state = w->state + 1;
+			} else {
+				do {
+					action = ni_ifworker_fsm_down[w->state];
+				} while (action == NULL && --(w->state) > w->target_state);
+				next_state = w->state - 1;
+			}
+
+			if (action == NULL) {
+				ni_assert(ni_ifworker_ready(w));
+				ni_ifworker_success(w);
+				made_progress = 1;
+				continue;
+			}
+
+			if (action(w) >= 0) {
+				made_progress = 1;
+				if (w->state == next_state) {
+					ni_debug_dbus("%s: successfully transitioned from %s to %s",
+						w->name,
+						ni_ifworker_name(w->state),
+						ni_ifworker_name(next_state));
+				}
+			} else
+			if (!w->failed) {
+				/* The fsm action should really have marked this
+				 * as a failure. shame on the lazy programmer. */
+				ni_ifworker_fail(w, "%s: failed to transition from %s to %s",
+						w->name,
+						ni_ifworker_name(w->state),
+						ni_ifworker_name(next_state));
 			}
 		}
 
@@ -689,13 +781,12 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 int
 interface_workers_kickstart(void)
 {
-	ni_ifworker_t *w;
 	unsigned int i;
 
 	interface_workers_refresh_state();
 
 	for (i = 0; i < interface_workers.count; ++i) {
-		w = interface_workers.data[i];
+		ni_ifworker_t *w = interface_workers.data[i];
 
 		if (w->target_state == STATE_NONE)
 			continue;
@@ -716,9 +807,6 @@ interface_workers_kickstart(void)
 		if (w->device == NULL)
 			w->state = STATE_DEVICE_DOWN;
 	}
-
-	if (ni_ifworker_fsm() != 0)
-		work_to_be_done = 1;
 
 	return 0;
 }
@@ -821,7 +909,9 @@ usage:
 						NULL);
 
 	interface_workers_kickstart();
-	interface_worker_mainloop();
+
+	if (ni_ifworker_fsm() != 0)
+		interface_worker_mainloop();
 
 #if 0
 		/* Request that the server take the interface up */
