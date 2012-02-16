@@ -31,7 +31,6 @@ ni_dbus_translate_error(const DBusError *err, const ni_intmap_t *error_map)
 	unsigned int errcode;
 
 	ni_debug_dbus("%s(%s, msg=%s)", __FUNCTION__, err->name, err->message);
-
 	if (error_map && ni_parse_int_mapped(err->name, error_map, &errcode) >= 0)
 		return errcode;
 
@@ -57,7 +56,6 @@ ni_dbus_message_get_args(ni_dbus_message_t *msg, ...)
 	va_list ap;
 	int rv = 0, type;
 
-	NI_TRACE_ENTER();
 	dbus_error_init(&error);
 	va_start(ap, msg);
 
