@@ -1,302 +1,308 @@
 /*
- * Dynamically update system configuration from addrconf lease data
+ * Update system settings with information received from an addrconf service.
  *
- * Copyright (C) 2009-2010 Olaf Kirch <okir@suse.de>
+ * Copyright (C) 2012 Olaf Kirch <okir@suse.de>
  */
 
 #include <wicked/netinfo.h>
-#include <wicked/addrconf.h>
 #include <wicked/logging.h>
+#include <wicked/addrconf.h>
+#include <wicked/system.h>
 #include "netinfo_priv.h"
 #include "config.h"
+#include "debug.h"
 
-typedef int		ni_update_handler_t(const ni_addrconf_lease_t *);
-
-typedef struct ni_update_info {
-	struct {
-		unsigned int	ifindex;
-		unsigned int	lease_type;
-		unsigned int	lease_family;
-	} origin;
-} ni_update_info_t;
-
-struct ni_update_lease_choice {
-	ni_interface_t *	interface;
-	ni_addrconf_lease_t *	lease;
+typedef struct ni_updater_source	ni_updater_source_t;
+struct ni_updater_source {
+	ni_updater_source_t *		next;
+	unsigned int			seqno;		/* sequence number of lease */
+	unsigned int			weight;
+	const ni_addrconf_lease_t *	lease;
 };
 
-static ni_update_info_t	__ni_update_info[__NI_ADDRCONF_UPDATE_MAX];
-static ni_update_handler_t *__ni_update_handlers[__NI_ADDRCONF_UPDATE_MAX];
+typedef struct ni_updater {
+	ni_updater_source_t *		sources;
 
-static void	ni_system_update_find_lease(ni_netconfig_t *, unsigned int, struct ni_update_lease_choice *);
+	unsigned int			type;
+	unsigned int			seqno;
+	unsigned int			have_backup;
+
+	ni_bool_t			enabled;
+	ni_process_t *			proc_backup;
+	ni_process_t *			proc_restore;
+	ni_process_t *			proc_install;
+} ni_updater_t;
+
+static ni_updater_t			updaters[__NI_ADDRCONF_UPDATE_MAX];
+
+static const char *			ni_updater_name(unsigned int);
 
 /*
- * Determine our capabilities to update anything at all
+ * Initialize the system updaters based on the data found in the config
+ * file.
  */
-unsigned int
-ni_system_update_capabilities(void)
+void
+ni_system_updaters_init(void)
 {
-	static unsigned int capabilities = 0;
+	static int initialized = 0;
+	unsigned int kind;
 
-	if (capabilities == 0) {
-		unsigned int target;
+	if (initialized)
+		return;
+	initialized = 1;
 
-		__ni_addrconf_set_update(&capabilities, NI_ADDRCONF_UPDATE_DEFAULT_ROUTE);
-		for (target = 0; target < __NI_ADDRCONF_UPDATE_MAX; ++target) {
-			if (__ni_update_handlers[target])
-				__ni_addrconf_set_update(&capabilities, target);
+	for (kind = 0; kind < __NI_ADDRCONF_UPDATE_MAX; ++kind) {
+		ni_updater_t *updater = &updaters[kind];
+		const char *name = ni_updater_name(kind);
+		ni_extension_t *ex;
+		char exname[128];
+
+		updater->type = kind;
+		if (name == NULL)
+			continue;
+		snprintf(exname, sizeof(exname), "%s-updater", name);
+		if (!(ex = ni_config_find_extension(ni_global.config, exname)))
+			continue;
+
+		updater->enabled = 1;
+		updater->proc_backup = ni_extension_script_find(ex, "backup");
+		updater->proc_restore = ni_extension_script_find(ex, "restore");
+		updater->proc_install = ni_extension_script_find(ex, "install");
+
+		if (updater->proc_install == NULL) {
+			ni_warn("extension %s configured, but no install script defined", exname);
+			updater->enabled = 0;
+		} else
+		if (updater->proc_backup == NULL || updater->proc_restore == NULL) {
+			ni_warn("extension %s configured, but no backup/restore script defined", exname);
+			updater->proc_backup = updater->proc_restore = NULL;
+		}
+	}
+}
+
+/*
+ * Get the name of an updater
+ */
+static const char *
+ni_updater_name(unsigned int kind)
+{
+	static ni_intmap_t names[] = {
+	{ "hostname",		NI_ADDRCONF_UPDATE_HOSTNAME	},
+	{ "resolver",		NI_ADDRCONF_UPDATE_RESOLVER	},
+
+	{ NULL }
+	};
+
+	return ni_format_int_mapped(kind, names);
+}
+
+static inline ni_bool_t
+can_update_hostname(const ni_addrconf_lease_t *lease)
+{
+	return __ni_addrconf_should_update(lease->update, NI_ADDRCONF_UPDATE_HOSTNAME) && lease->hostname;
+}
+
+static inline ni_bool_t
+can_update_resolver(const ni_addrconf_lease_t *lease)
+{
+	return __ni_addrconf_should_update(lease->update, NI_ADDRCONF_UPDATE_RESOLVER) && lease->resolver;
+}
+
+/*
+ * Add this lease to the given updater, to record that we can use the
+ * information from this lease.
+ */
+static void
+ni_objectmodel_updater_add_source(unsigned int kind, const ni_addrconf_lease_t *lease)
+{
+	static unsigned int addrconf_weight[__NI_ADDRCONF_MAX] = {
+	[NI_ADDRCONF_DHCP]	= 5,
+	[NI_ADDRCONF_IBFT]	= 10,
+	};
+	ni_updater_source_t **pos, *up;
+
+	for (pos = &updaters[kind].sources; (up = *pos) != NULL; pos = &up->next) {
+		if (up->seqno == lease->seqno) {
+			/* This lease is still there */
+			up->lease = lease;
+			return;
 		}
 	}
 
-	return capabilities;
+	up = calloc(1, sizeof(*up));
+	up->seqno = lease->seqno;
+	up->lease = lease;
+
+	if (lease->type < __NI_ADDRCONF_MAX)
+		up->weight = 10 * addrconf_weight[lease->type];
+	/* Prefer IPv4 over IPv6 for now. IPv6 dhcp servers
+	 * may not be terribly good for a couple of years to
+	 * come... */
+	up->weight += (lease->family == AF_INET)? 1 : 0;
+
+	*pos = up;
 }
 
 /*
- * Determine a lease's capability and permissions to update anything
- * This is the intersection of what the lease was configured to update,
- * and what information was provided by the address configuration service.
+ * Select the best source for updating the system settings
  */
-static unsigned int
-ni_system_lease_capabilities(ni_interface_t *ifp, const ni_addrconf_lease_t *lease)
+static ni_updater_source_t *
+ni_objectmodel_updater_select_source(ni_updater_t *updater)
 {
-	unsigned int mask = 0;
+	ni_updater_source_t *src, *best = NULL;
 
-	if (ni_addrconf_lease_is_valid(lease)) {
-		if (lease->hostname != NULL)
-			__ni_addrconf_set_update(&mask, NI_ADDRCONF_UPDATE_HOSTNAME);
-		if (lease->nis != NULL)
-			__ni_addrconf_set_update(&mask, NI_ADDRCONF_UPDATE_NIS);
-		if (lease->resolver != NULL)
-			__ni_addrconf_set_update(&mask, NI_ADDRCONF_UPDATE_RESOLVER);
-
-		/* FIXME: If there's an addrconf request associated with this,
-		 * check what this request allows us to update. */
+	for (src = updater->sources; src; src = src->next) {
+		if (best == NULL || src->weight > best->weight)
+			best = src;
 	}
 
-	return mask;
+	return best;
 }
 
 /*
- * Update a single service (NIS, resolver, hostname, ...) given the information from
- * the lease. When we get here, all policy decisions have been made, and we just
- * need to commit the information.
+ * Run an extension script to update resolver, hostname etc.
  */
-static int
-ni_system_update_service(ni_interface_t *ifp, const ni_addrconf_lease_t *lease, unsigned int target)
+static ni_bool_t
+ni_system_updater_run(ni_process_t *proc, const char *filename)
 {
-	ni_update_info_t *info = &__ni_update_info[target];
-	ni_update_handler_t *handler;
-
-	if ((handler = __ni_update_handlers[target]) == NULL)
-		return 0;
-
-	ni_debug_ifconfig("trying to configure %s from %s/%s lease (device %s)",
-				ni_addrconf_update_target_to_name(target),
-				ni_addrconf_type_to_name(lease->type),
-				ni_addrfamily_type_to_name(lease->family),
-				ifp->name);
-
-	if (handler(lease) < 0) {
-		ni_error("%s: failed to update %s information from %s/%s lease",
-				ifp->name,
-				ni_addrconf_update_target_to_name(target),
-				ni_addrconf_type_to_name(lease->type),
-				ni_addrfamily_type_to_name(lease->family));
-		return -1;
-	}
-
-	info->origin.ifindex = ifp->link.ifindex;
-	info->origin.lease_type = lease->type;
-	info->origin.lease_family = lease->family;
 	return 0;
 }
 
 /*
- * Restore a service's configuration to the original (system) default
+ * Back up current configuration
  */
-static void
-ni_system_restore_service(unsigned int target)
+static ni_bool_t
+ni_system_updater_backup(ni_updater_t *updater)
 {
-	ni_update_handler_t *handler;
+	if (updater->have_backup)
+		return 1;
 
-	ni_debug_ifconfig("trying to restore original %s configuration",
-				ni_addrconf_update_target_to_name(target));
-	if ((handler = __ni_update_handlers[target]) != NULL)
-		handler(NULL);
+	if (!updater->proc_backup)
+		return 1;
+
+	if (!ni_system_updater_run(updater->proc_backup, NULL)) {
+		ni_error("failed to back up current %s settings",
+				ni_updater_name(updater->type));
+		return 0;
+	}
+
+	updater->have_backup = 1;
+	return 1;
 }
 
 /*
- * Update the system configuration given the information from an addrconf lease,
- * such as a DHCP lease.
+ * Restore existing configuration
+ */
+static ni_bool_t
+ni_system_updater_restore(ni_updater_t *updater)
+{
+	if (!updater->have_backup)
+		return 1;
+
+	if (!updater->proc_restore)
+		return 1;
+
+	if (!ni_system_updater_run(updater->proc_restore, NULL)) {
+		ni_error("failed to restore current %s settings",
+				ni_updater_name(updater->type));
+		return 0;
+	}
+
+	updater->have_backup = 0;
+	return 1;
+}
+
+/*
+ * Install information from a lease, and remember that we did
+ */
+static ni_bool_t
+ni_system_updater_install(ni_updater_t *updater, const ni_addrconf_lease_t *lease)
+{
+	if (!updater->have_backup && !ni_system_updater_backup(updater))
+		return 0;
+
+	/* FIXME: build a file containing the new configuration, and run the
+	 * indicated script with it */
+	switch (updater->type) {
+	case NI_ADDRCONF_UPDATE_HOSTNAME:
+	case NI_ADDRCONF_UPDATE_RESOLVER:
+	default:
+		ni_error("cannot install new %s settings - file format not understood",
+				ni_updater_name(updater->type));
+		updater->enabled = 0;
+		return 0;
+	}
+
+	updater->seqno = lease->seqno;
+	return 1;
+}
+
+ni_bool_t
+ni_system_update_all(void)
+{
+	ni_netconfig_t *nc = ni_global_state_handle(0);
+	ni_updater_source_t *up;
+	ni_interface_t *dev;
+	unsigned int kind;
+
+	ni_system_updaters_init();
+
+	for (kind = 0; kind < __NI_ADDRCONF_UPDATE_MAX; ++kind) {
+		for (up = updaters[kind].sources; up; up = up->next)
+			up->lease = NULL;
+	}
+
+	for (dev = ni_interfaces(nc); dev; dev = dev->next) {
+		ni_addrconf_lease_t *lease;
+
+		for (lease = dev->leases; lease; lease = lease->next) {
+			if (can_update_hostname(lease))
+				ni_objectmodel_updater_add_source(NI_ADDRCONF_UPDATE_HOSTNAME, lease);
+			if (can_update_resolver(lease))
+				ni_objectmodel_updater_add_source(NI_ADDRCONF_UPDATE_RESOLVER, lease);
+		}
+	}
+
+	for (kind = 0; kind < __NI_ADDRCONF_UPDATE_MAX; ++kind) {
+		ni_updater_t *updater = &updaters[kind];
+		ni_updater_source_t **pos;
+
+		if (!updater->enabled)
+			continue;
+
+		/* Purge all updater sources for which the lease went away. */
+		for (pos = &updater->sources; (up = *pos) != NULL; pos = &up->next) {
+			if (up->lease == NULL) {
+				*pos = up->next;
+				free(up);
+			}
+		}
+
+		/* If we no longer have any lease data for this resource, restore
+		 * the system default.
+		 * If we do have, update the system only if the lease was updated.
+		 */
+		if ((up = ni_objectmodel_updater_select_source(updater)) == NULL) {
+			ni_system_updater_restore(updater);
+		} else
+		if (updater->seqno != up->seqno) {
+			ni_system_updater_install(updater, up->lease);
+		}
+	}
+
+	return 1;
+}
+
+/*
+ * A lease has changed, and we are asked to update the system configuration.
+ * When we get here, the old lease has already been removed from the interface,
+ * and the new one has been added.
  */
 int
-ni_system_update_from_lease(ni_netconfig_t *nc, ni_interface_t *ifp, const ni_addrconf_lease_t *lease)
+ni_system_update_from_lease(const ni_addrconf_lease_t *lease)
 {
-	unsigned int update_permitted, update_mask = 0, clear_mask = 0;
-	unsigned int target;
-	int rv = 0;
-
-	update_permitted = ni_config_addrconf_update_mask(ni_global.config, lease->type);
-	update_permitted &= ni_system_update_capabilities();
-
-	if (update_permitted == 0)
-		return 0;
-
-	update_mask = ni_system_lease_capabilities(ifp, lease);
-
-	for (target = 0; target < __NI_ADDRCONF_UPDATE_MAX; ++target) {
-		ni_update_info_t *info = &__ni_update_info[target];
-
-		if (!__ni_addrconf_should_update(update_permitted, target))
-			continue;
-
-		/* If the specific config object is already configured by some
-		 * lease, do not overwrite it unless it's the same service on the
-		 * same interface.
-		 * Note, we could also assign per-interface and per-lease-type
-		 * weights to config information. Things would get complex though :-)
-		 */
-		if (info->origin.ifindex) {
-			if (info->origin.ifindex != ifp->link.ifindex
-			 || info->origin.lease_type != lease->type
-			 || info->origin.lease_family != lease->family)
-				continue;
-
-			if (!__ni_addrconf_should_update(update_mask, target)) {
-				/* We previously configured this with data from a
-				 * lease, but the new lease does not have this
-				 * information any more.
-				 * This usually happens when the lease is dropped, and
-				 * we get a lease in state RELEASED. However, this
-				 * can also happen eg when we suspend a laptop,
-				 * and wake it up on a completely different network. In
-				 * that case, we may get a lease that has some but not
-				 * all of the config items as the previous one.
-				 */
-				__ni_addrconf_set_update(&clear_mask, target);
-				memset(&info->origin, 0, sizeof(info->origin));
-				continue;
-			}
-		} else if (!__ni_addrconf_should_update(update_mask, target))
-			continue;
-
-		if (ni_system_update_service(ifp, lease, target) < 0) {
-			__ni_addrconf_set_update(&clear_mask, target);
-			rv = -1;
-		}
-	}
-
-	/*
-	 * If we cleared some config items, try to fill them with the
-	 * information from a different lease.
-	 */
-	update_mask = clear_mask;
-	for (target = 0; target < __NI_ADDRCONF_UPDATE_MAX; ++target) {
-		struct ni_update_lease_choice best = { NULL, NULL };
-
-		if (!__ni_addrconf_should_update(update_mask, target))
-			continue;
-
-		ni_system_update_find_lease(nc, target, &best);
-		if (best.lease == 0
-		 || ni_system_update_service(best.interface, best.lease, target) < 0) {
-			/* Unable to configure the service. Deconfigure it completely,
-			 * and restore the previously saved backup copy. */
-			ni_system_restore_service(target);
-		}
-	}
-
-	/* FIXME: we need to run updater scripts. If we had gone through the
-	 * REST interface, that code would have taken care of this. However,
-	 * we went to the service functions directly, so we need to trigger the
-	 * updater scripts here, manually. */
-
-	return rv;
-}
-
-static void
-ni_system_update_find_lease_interface(ni_interface_t *ifp, unsigned int target, struct ni_update_lease_choice *best)
-{
-	ni_addrconf_lease_t *lease;
-
-	for (lease = ifp->leases; lease; lease = lease->next) {
-		unsigned int update_mask;
-
-		update_mask = ni_system_lease_capabilities(ifp, lease);
-		if (__ni_addrconf_should_update(update_mask, target)) {
-			/* If we have several leases providing the required information,
-			 * pick the oldest one. */
-			if (best->lease == 0 || lease->time_acquired < best->lease->time_acquired) {
-				best->interface = ifp;
-				best->lease = lease;
-			}
-		}
-	}
-}
-
-static void
-ni_system_update_find_lease(ni_netconfig_t *nc, unsigned int target, struct ni_update_lease_choice *best)
-{
-	ni_interface_t *ifp;
-
-	/* Loop over all interfaces and check if we have another
-	 * valid lease that would work here. */
-	for (ifp = nc->interfaces; ifp; ifp = ifp->next)
-		ni_system_update_find_lease_interface(ifp, target, best);
-}
-
-/*
- * Functions for updating system configuration
- */
-static int
-__ni_update_hostname(const ni_addrconf_lease_t *lease)
-{
-	if (lease == NULL || lease->hostname == NULL)
-		return 0;
-
-	return __ni_system_hostname_put(lease->hostname);
-}
-
-static int
-__ni_update_resolver(const ni_addrconf_lease_t *lease)
-{
-	if (lease == NULL)
-		return __ni_system_resolver_restore();
-
-	if (lease->resolver == NULL) {
-		ni_error("%s: no resolver config present", __FUNCTION__);
+	if (!ni_system_update_all())
 		return -1;
-	}
 
-	if (__ni_system_resolver_backup() < 0) {
-		ni_error("%s: unable to back up original configuration", __FUNCTION__);
-		return -1;
-	}
-
-	return __ni_system_resolver_put(lease->resolver);
+	return 0;
 }
-
-static int
-__ni_update_nis(const ni_addrconf_lease_t *lease)
-{
-	if (lease == NULL)
-		return __ni_system_nis_restore();
-
-	if (lease->nis == NULL) {
-		ni_error("%s: no nis config present", __FUNCTION__);
-		return -1;
-	}
-
-	if (__ni_system_nis_backup() < 0) {
-		ni_error("%s: unable to back up original configuration", __FUNCTION__);
-		return -1;
-	}
-
-	return __ni_system_nis_put(lease->nis);
-}
-
-static ni_update_handler_t *	__ni_update_handlers[__NI_ADDRCONF_UPDATE_MAX] = {
-[NI_ADDRCONF_UPDATE_HOSTNAME]	= __ni_update_hostname,
-[NI_ADDRCONF_UPDATE_RESOLVER]	= __ni_update_resolver,
-[NI_ADDRCONF_UPDATE_NIS]	= __ni_update_nis,
-};

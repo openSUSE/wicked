@@ -173,17 +173,17 @@ ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_messa
 		goto done;
 	}
 
-	/* FIXME:
-	 * This is the wrong way round. We should first bring up the addresses and
-	 * routes, then update the resolver.
-	 * For now we can't, because __ni_system_interface_update_lease clears the
-	 * lease pointer. Need to come up with a better idea here. Maybe lease
-	 * needs refcounting.
+	/*
+	 * The following call updates the system with the information given in
+	 * the lease. This includes setting all addresses, as well as updating
+	 * resolver and hostname, if provided.
+	 * When a lease is dropped, we either fall back to the config information
+	 * from the next best lease, or if there is none, we restore the original
+	 * system settings.
+	 *
+	 * Note, lease may be NULL after this, as the interface object
+	 * takes ownership of it.
 	 */
-	ni_objectmodel_update_from_lease(lease);
-
-	/* Note, lease may be NULL after this, as the interface object
-	 * takes ownership of it. */
 	__ni_system_interface_update_lease(ifp, &lease);
 
 	/* Potentially, there's a client somewhere waiting for that event.

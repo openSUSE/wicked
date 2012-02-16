@@ -120,9 +120,6 @@ ni_config_parse(const char *filename)
 		}
 	}
 
-	/* Intersect addrconf update capabilities with what the system supports. */
-	conf->addrconf.default_allow_update &= ni_system_update_capabilities();
-
 	/* Parse extensions */
 	if (ni_config_parse_extensions(&conf->extensions, node) < 0)
 		goto failed;

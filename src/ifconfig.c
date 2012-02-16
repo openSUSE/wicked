@@ -204,7 +204,6 @@ __ni_system_interface_update_lease(ni_interface_t *ifp, ni_addrconf_lease_t **le
 {
 	ni_netconfig_t *nc = ni_global_state_handle(0);
 	ni_addrconf_lease_t *lease = *lease_p, *old_lease = NULL;
-	unsigned int update_mask;
 	int res;
 
 	ni_debug_ifconfig("%s: received %s/%s lease update; state %s", ifp->name,
@@ -257,9 +256,8 @@ __ni_system_interface_update_lease(ni_interface_t *ifp, ni_addrconf_lease_t **le
 		*lease_p = NULL;
 	}
 
-	update_mask = ni_config_addrconf_update_mask(ni_global.config, lease->type);
-	if (update_mask)
-		ni_system_update_from_lease(nc, ifp, lease);
+	lease->update &= ni_config_addrconf_update_mask(ni_global.config, lease->type);
+	ni_system_update_from_lease(lease);
 
 out:
 	if (old_lease)
