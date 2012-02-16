@@ -24,7 +24,10 @@
 #include "debug.h"
 #include "dhcp.h"
 
-static void		__ni_objectmodel_dhcp_device_release(ni_dbus_object_t *);
+static ni_dhcp4_request_t *	ni_objectmodel_dhcp4_request_from_dict(const ni_dbus_variant_t *);
+static ni_dhcp4_request_t *	ni_dhcp4_request_new(void);
+static void			ni_dhcp4_request_free(ni_dhcp4_request_t *);
+static void			__ni_objectmodel_dhcp_device_release(ni_dbus_object_t *);
 
 static ni_dbus_class_t		ni_objectmodel_dhcp4dev_class = {
 	.name		= "dhcp4-device",
@@ -113,30 +116,37 @@ __wicked_dbus_dhcp4_acquire_svc(ni_dbus_object_t *object, const ni_dbus_method_t
 			ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_dhcp_device_t *dev = ni_objectmodel_unwrap_dhcp4_device(object);
-	ni_dbus_object_t *cfg_object;
-	ni_addrconf_request_t *req;
+	ni_dhcp4_request_t *req = NULL;
 	dbus_bool_t ret = FALSE;
 	int rv;
 
-	NI_TRACE_ENTER_ARGS("dev=%s", dev->ifname);
-
-	/* Build a dummy object for the address configuration request */
-	req = ni_addrconf_request_new(NI_ADDRCONF_DHCP, AF_INET);
-	cfg_object = ni_objectmodel_wrap_addrconf_request(req);
-
-	/* Extract configuration from dict */
-	if (argc == 0) {
-		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "Missing arguments in %s", __func__);
+	if ((dev = ni_objectmodel_unwrap_dhcp4_device(object)) == NULL) {
+		dbus_set_error(error, DBUS_ERROR_FAILED,
+				"method %s called on incompatible object (class %s)",
+				method->name, object->class->name);
 		goto failed;
 	}
-	if (!__wicked_dbus_set_addrconf_request(req, &argv[0], error)) {
-		/* dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "Cannot extract addrconf request from property dict"); */
+
+	if (argc != 1) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"method %s called with %d arguments (expected 1)",
+				argc);
+		goto failed;
+	}
+
+	NI_TRACE_ENTER_ARGS("dev=%s", dev->ifname);
+
+	/* Extract configuration from dict */
+	if (!(req = ni_objectmodel_dhcp4_request_from_dict(&argv[0]))) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"%s: unable to extract request from argument",
+				method->name);
 		goto failed;
 	}
 
 	if ((rv = ni_dhcp_acquire(dev, req)) < 0) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
-				"Cannot configure interface %s: %s", dev->ifname,
+				"cannot configure interface %s: %s", dev->ifname,
 				ni_strerror(rv));
 		goto failed;
 	}
@@ -148,9 +158,8 @@ __wicked_dbus_dhcp4_acquire_svc(ni_dbus_object_t *object, const ni_dbus_method_t
 	ret = TRUE;
 
 failed:
-	ni_addrconf_request_free(req);
-	if (cfg_object)
-		ni_dbus_object_free(cfg_object);
+	if (req)
+		ni_dhcp4_request_free(req);
 	return ret;
 }
 
@@ -202,6 +211,71 @@ static ni_dbus_method_t		wicked_dbus_dhcp4_methods[] = {
 	{ NULL }
 };
 
+/*
+ * This is a helper function extracts a ni_dhcp4_request_t from a dbus dict
+ */
+ni_dhcp4_request_t *
+ni_objectmodel_dhcp4_request_from_dict(const ni_dbus_variant_t *dict)
+{
+	ni_dhcp4_request_t *req;
+	const ni_dbus_variant_t *child;
+	const char *string_value;
+	unsigned int dummy;
+	uint32_t value32;
+
+	if (!ni_dbus_variant_is_dict(dict))
+		return NULL;
+
+	req = ni_dhcp4_request_new();
+	if (ni_dbus_dict_get_uint32(dict, "settle-timeout", &value32))
+		req->settle_timeout = value32;
+	if (ni_dbus_dict_get_uint32(dict, "acquire-timeout", &value32))
+		req->acquire_timeout = value32;
+
+	if ((child = ni_dbus_dict_get(dict, "uuid")) != NULL
+	 && !ni_dbus_variant_get_byte_array_minmax(child, req->uuid.octets, &dummy, 16, 16))
+		goto failed;
+
+	if (ni_dbus_dict_get_string(dict, "hostname", &string_value))
+		ni_string_dup(&req->hostname, string_value);
+	if (ni_dbus_dict_get_string(dict, "clientid", &string_value))
+		ni_string_dup(&req->clientid, string_value);
+	if (ni_dbus_dict_get_string(dict, "vendor-class", &string_value))
+		ni_string_dup(&req->vendor_class, string_value);
+	if (ni_dbus_dict_get_uint32(dict, "lease-time", &value32))
+		req->lease_time = value32;
+
+	if (ni_dbus_dict_get_uint32(dict, "update", &value32))
+		req->update = value32;
+
+	return req;
+
+failed:
+	ni_dhcp4_request_free(req);
+	return NULL;
+}
+
+ni_dhcp4_request_t *
+ni_dhcp4_request_new(void)
+{
+	ni_dhcp4_request_t *req;
+
+	req = calloc(1, sizeof(*req));
+
+	/* By default, we try to obtain all sorts of config from the server */
+	req->update = ~0;
+
+	return req;
+}
+
+void
+ni_dhcp4_request_free(ni_dhcp4_request_t *req)
+{
+	ni_string_free(&req->hostname);
+	ni_string_free(&req->clientid);
+	ni_string_free(&req->vendor_class);
+	free(req);
+}
 
 /*
  * Property name

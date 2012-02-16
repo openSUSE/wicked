@@ -20,6 +20,9 @@
 #include "protocol.h"
 #include "config.h"
 
+
+static unsigned int	ni_dhcp_do_bits(unsigned int);
+
 ni_dhcp_device_t *	ni_dhcp_active;
 
 /*
@@ -211,7 +214,7 @@ ni_dhcp_device_refresh(ni_dhcp_device_t *dev)
  * a new lease).
  */
 int
-ni_dhcp_acquire(ni_dhcp_device_t *dev, const ni_addrconf_request_t *info)
+ni_dhcp_acquire(ni_dhcp_device_t *dev, const ni_dhcp4_request_t *info)
 {
 	ni_dhcp_config_t *config;
 	const char *classid;
@@ -228,36 +231,36 @@ ni_dhcp_acquire(ni_dhcp_device_t *dev, const ni_addrconf_request_t *info)
 	config->max_lease_time = ni_dhcp_config_max_lease_time();
 	if (config->max_lease_time == 0)
 		config->max_lease_time = ~0U;
-	if (info->dhcp.lease_time && info->dhcp.lease_time < config->max_lease_time)
-		config->max_lease_time = info->dhcp.lease_time;
+	if (info->lease_time && info->lease_time < config->max_lease_time)
+		config->max_lease_time = info->lease_time;
 
-	if (info->dhcp.hostname)
-		strncpy(config->hostname, info->dhcp.hostname, sizeof(config->hostname) - 1);
+	if (info->hostname)
+		strncpy(config->hostname, info->hostname, sizeof(config->hostname) - 1);
 
-	if (info->dhcp.clientid) {
-		strncpy(config->client_id, info->dhcp.clientid, sizeof(config->client_id)-1);
-		ni_dhcp_parse_client_id(&config->raw_client_id, dev->link.type, info->dhcp.clientid);
+	if (info->clientid) {
+		strncpy(config->client_id, info->clientid, sizeof(config->client_id)-1);
+		ni_dhcp_parse_client_id(&config->raw_client_id, dev->link.type, info->clientid);
 	} else {
 		/* Set client ID from interface hwaddr */
 		strncpy(config->client_id, ni_link_address_print(&dev->system.hwaddr), sizeof(config->client_id)-1);
 		ni_dhcp_set_client_id(&config->raw_client_id, &dev->system.hwaddr);
 	}
 
-	classid = ni_dhcp_config_vendor_class();
+	if ((classid = info->vendor_class) == NULL)
+		classid = ni_dhcp_config_vendor_class();
 	if (classid)
 		strncpy(config->classid, classid, sizeof(config->classid) - 1);
 
 	config->flags = DHCP_DO_ARP | DHCP_DO_CSR | DHCP_DO_MSCSR;
-	if (ni_addrconf_should_update(info, NI_ADDRCONF_UPDATE_HOSTNAME))
-		config->flags |= DHCP_DO_HOSTNAME;
-	if (ni_addrconf_should_update(info, NI_ADDRCONF_UPDATE_RESOLVER))
-		config->flags |= DHCP_DO_RESOLVER;
-	if (ni_addrconf_should_update(info, NI_ADDRCONF_UPDATE_NIS))
-		config->flags |= DHCP_DO_NIS;
-	if (ni_addrconf_should_update(info, NI_ADDRCONF_UPDATE_NTP))
-		config->flags |= DHCP_DO_NTP;
-	if (ni_addrconf_should_update(info, NI_ADDRCONF_UPDATE_DEFAULT_ROUTE))
-		config->flags |= DHCP_DO_GATEWAY;
+	config->flags |= ni_dhcp_do_bits(info->update);
+
+	if (ni_debug & NI_TRACE_DHCP) {
+		ni_trace("Received request:");
+		ni_trace("  lease-time   %u", config->max_lease_time);
+		ni_trace("  hostname     %s", config->hostname[0]? config->hostname : "<none>");
+		ni_trace("  vendor-class %s", config->classid[0]? config->classid : "<none>");
+		ni_trace("  client-id    %s", ni_print_hex(config->raw_client_id.data, config->raw_client_id.len));
+	}
 
 	if (dev->config)
 		free(dev->config);
@@ -272,7 +275,8 @@ ni_dhcp_acquire(ni_dhcp_device_t *dev, const ni_addrconf_request_t *info)
 
 	if (dev->lease) {
 		if (!ni_addrconf_lease_is_valid(dev->lease)
-		 || !ni_dhcp_lease_matches_request(dev->lease, info)) {
+		 || (info->hostname && !ni_string_eq(info->hostname, dev->lease->hostname))
+		 || (info->clientid && !ni_string_eq(info->clientid, dev->lease->dhcp.client_id))) {
 			ni_debug_dhcp("%s: lease doesn't match request", dev->ifname);
 			ni_dhcp_device_drop_lease(dev);
 			dev->notify = 1;
@@ -283,6 +287,29 @@ ni_dhcp_acquire(ni_dhcp_device_t *dev, const ni_addrconf_request_t *info)
 	dev->fsm.state = NI_DHCP_STATE_INIT;
 	ni_dhcp_device_start(dev);
 	return 1;
+}
+
+/*
+ * Translate a bitmap of NI_ADDRCONF_UPDATE_* flags into a bitmap of
+ * DHCP_DO_* masks
+ */
+static unsigned int
+ni_dhcp_do_bits(unsigned int update_flags)
+{
+	static unsigned int	do_mask[32] = {
+	[NI_ADDRCONF_UPDATE_HOSTNAME]		= DHCP_DO_HOSTNAME,
+	[NI_ADDRCONF_UPDATE_RESOLVER]		= DHCP_DO_RESOLVER,
+	[NI_ADDRCONF_UPDATE_NIS]		= DHCP_DO_NIS,
+	[NI_ADDRCONF_UPDATE_NTP]		= DHCP_DO_NTP,
+	[NI_ADDRCONF_UPDATE_DEFAULT_ROUTE]	= DHCP_DO_GATEWAY,
+	};
+	unsigned int bit, result = 0;
+
+	for (bit = 0; bit < 32; ++bit) {
+		if (update_flags & (1 << bit))
+			result |= do_mask[bit];
+	}
+	return result;
 }
 
 /*

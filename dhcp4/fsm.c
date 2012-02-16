@@ -662,7 +662,7 @@ ni_dhcp_fsm_commit_lease(ni_dhcp_device_t *dev, ni_addrconf_lease_t *lease)
  * This is used during restart of wickedd.
  */
 int
-ni_dhcp_fsm_recover_lease(ni_dhcp_device_t *dev, const ni_addrconf_request_t *req)
+ni_dhcp_fsm_recover_lease(ni_dhcp_device_t *dev, const ni_dhcp4_request_t *req)
 {
 	ni_addrconf_lease_t *lease;
 	time_t now = time(NULL), then;
@@ -690,7 +690,8 @@ ni_dhcp_fsm_recover_lease(ni_dhcp_device_t *dev, const ni_addrconf_request_t *re
 		goto discard;
 	}
 
-	if (!ni_dhcp_lease_matches_request(lease, req)) {
+	if ((req->hostname && !ni_string_eq(req->hostname, dev->lease->hostname))
+	 || (req->clientid && !ni_string_eq(req->clientid, dev->lease->dhcp.client_id))) {
 		ni_debug_dhcp("%s: lease doesn't match request", __FUNCTION__);
 		goto discard;
 	}

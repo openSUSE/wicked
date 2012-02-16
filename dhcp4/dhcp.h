@@ -99,6 +99,34 @@ enum {
 	DHCP_DO_GATEWAY		= 0x0080,
 };
 
+/*
+ * This is the on-the wire request we receive from clients.
+ */
+typedef struct ni_dhcp4_request {
+	ni_addrconf_mode_t	type;		/* addrconf type */
+	unsigned int		family;		/* address family */
+	ni_uuid_t		uuid;
+
+	unsigned int		settle_timeout;	/* wait that long before starting DHCP */
+	unsigned int		acquire_timeout;/* how long we try before we give up */
+
+	/* Options controlling what to put into the lease request */
+	char *			hostname;
+	char *			clientid;
+	char *			vendor_class;
+	unsigned int		lease_time;
+
+	/* Options what to update based on the info received from
+	 * the DHCP server.
+	 * This is a bitmap; individual bits correspond to
+	 * NI_ADDRCONF_UPDATE_* (this is an index enum, not a bitmask) */
+	unsigned int		update;
+} ni_dhcp4_request_t;
+
+/*
+ * This is what we turn the above ni_dhcp4_request_t into for
+ * internal use.
+ */
 struct ni_dhcp_config {
 	/* A combination of DHCP_DO_* flags above */
 	unsigned int		flags;
@@ -131,14 +159,14 @@ extern ni_dhcp_device_t *ni_dhcp_active;
 
 extern void		ni_dhcp_set_event_handler(ni_dhcp_event_handler_t);
 
-extern int		ni_dhcp_acquire(ni_dhcp_device_t *, const ni_addrconf_request_t *);
+extern int		ni_dhcp_acquire(ni_dhcp_device_t *, const ni_dhcp4_request_t *);
 extern int		ni_dhcp_release(ni_dhcp_device_t *, const ni_uuid_t *);
 
 extern int		ni_dhcp_fsm_discover(ni_dhcp_device_t *);
 extern int		ni_dhcp_fsm_release(ni_dhcp_device_t *);
 extern int		ni_dhcp_fsm_process_dhcp_packet(ni_dhcp_device_t *, ni_buffer_t *);
 extern int		ni_dhcp_fsm_commit_lease(ni_dhcp_device_t *, ni_addrconf_lease_t *);
-extern int		ni_dhcp_fsm_recover_lease(ni_dhcp_device_t *, const ni_addrconf_request_t *);
+extern int		ni_dhcp_fsm_recover_lease(ni_dhcp_device_t *, const ni_dhcp4_request_t *);
 extern int		ni_dhcp_build_message(const ni_dhcp_device_t *,
 				unsigned int, const ni_addrconf_lease_t *, ni_buffer_t *);
 extern void		ni_dhcp_fsm_link_up(ni_dhcp_device_t *);
@@ -171,7 +199,6 @@ extern void		ni_dhcp_device_force_retransmit(ni_dhcp_device_t *, unsigned int);
 extern void		ni_dhcp_device_arp_close(ni_dhcp_device_t *);
 extern void		ni_dhcp_parse_client_id(ni_opaque_t *, int, const char *);
 extern void		ni_dhcp_set_client_id(ni_opaque_t *, const ni_hwaddr_t *);
-extern int		ni_dhcp_lease_matches_request(const ni_addrconf_lease_t *, const ni_addrconf_request_t *);
 extern void		ni_dhcp_device_drop_best_offer(ni_dhcp_device_t *);
 
 extern int		ni_dhcp_xml_from_lease(const ni_addrconf_t *,
