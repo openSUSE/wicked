@@ -47,7 +47,7 @@ static int	__ni_interface_update_addrs(ni_interface_t *ifp,
 				ni_address_t *cfg_addr_list);
 static int	__ni_interface_update_routes(ni_interface_t *ifp,
 				const ni_addrconf_lease_t *old_lease,
-				ni_route_t * const *cfg_route_list);
+				ni_route_t *cfg_route_list);
 #if 0
 static int	__ni_interface_addrconf(ni_netconfig_t *, int,  ni_interface_t *, ni_afinfo_t *);
 static int	__ni_interface_handle_addrconf_request(ni_netconfig_t *, ni_interface_t *, const ni_addrconf_request_t *);
@@ -263,7 +263,7 @@ __ni_system_interface_update_lease(ni_interface_t *ifp, ni_addrconf_lease_t **le
 	/* Loop over all routes and remove those no longer covered by the lease.
 	 * Ignore all routes covered by other address config mechanisms.
 	 */
-	res = __ni_interface_update_routes(ifp, old_lease, &lease->routes);
+	res = __ni_interface_update_routes(ifp, old_lease, lease->routes);
 	if (res < 0) {
 		ni_error("%s: error updating interface config from %s lease",
 				ifp->name, 
@@ -1261,11 +1261,11 @@ failed:
  * Check if a route already exists.
  */
 static ni_route_t *
-__ni_interface_route_list_contains(ni_route_t * const *list, const ni_route_t *rp)
+__ni_interface_route_list_contains(ni_route_t *list, const ni_route_t *rp)
 {
 	ni_route_t *rp2;
 
-	for (rp2 = *list; rp2; rp2 = rp2->next) {
+	for (rp2 = list; rp2; rp2 = rp2->next) {
 		if (rp->family != rp2->family
 		 || rp->prefixlen != rp2->prefixlen)
 			continue;
@@ -1468,7 +1468,7 @@ __ni_interface_update_addrs(ni_interface_t *ifp,
 static int
 __ni_interface_update_routes(ni_interface_t *ifp,
 				const ni_addrconf_lease_t *old_lease,
-				ni_route_t * const *cfg_route_list)
+				ni_route_t *cfg_route_list)
 {
 	ni_route_t *rp, *next;
 	int rv = 0;
@@ -1534,7 +1534,7 @@ __ni_interface_update_routes(ni_interface_t *ifp,
 	/* Loop over all addresses in the configuration and create
 	 * those that don't exist yet.
 	 */
-	for (rp = *cfg_route_list; rp; rp = rp->next) {
+	for (rp = cfg_route_list; rp; rp = rp->next) {
 		if (rp->seq == __ni_global_seqno)
 			continue;
 
