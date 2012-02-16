@@ -18,5 +18,7 @@ extern char *			wicked_create_interface_xml(const ni_dbus_service_t *,
 					const char *, xml_node_t *);
 extern dbus_bool_t		wicked_link_change_xml(ni_dbus_object_t *, xml_node_t *,
 					unsigned int *);
+extern dbus_bool_t		wicked_addrconf_xml(ni_dbus_object_t *, const ni_dbus_service_t *,
+					xml_node_t *, unsigned int *);
 
 #endif /* WICKED_CLIENT_H */

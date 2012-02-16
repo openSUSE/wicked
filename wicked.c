@@ -497,6 +497,57 @@ out:
 }
 
 /*
+ * Configure address configuration on a link
+ */
+static dbus_bool_t
+wicked_addrconf_common(ni_dbus_object_t *object, const ni_dbus_service_t *service, ni_dbus_variant_t *arg, unsigned int *event_id)
+{
+	ni_dbus_variant_t result = NI_DBUS_VARIANT_INIT;
+	DBusError error = DBUS_ERROR_INIT;
+	dbus_bool_t rv = FALSE;
+
+	if (!ni_dbus_object_call_variant(object, service->name, "configure",
+				1, arg,
+				1, &result,
+				&error)) {
+		ni_error("server refused to configure addresses. Server responds:");
+		ni_error_extra("%s: %s\n", error.name, error.message);
+	} else {
+		/* extract optional event ID from reply */
+		if (!ni_dbus_variant_get_uint(&result, event_id))
+			*event_id = 0;
+		rv = TRUE;
+	}
+
+	ni_dbus_variant_destroy(&result);
+	dbus_error_free(&error);
+	return rv;
+}
+
+dbus_bool_t
+wicked_addrconf_xml(ni_dbus_object_t *object, const ni_dbus_service_t *service, xml_node_t *config, unsigned int *event_id)
+{
+	ni_dbus_variant_t argument = NI_DBUS_VARIANT_INIT;
+	const ni_dbus_method_t *method;
+	dbus_bool_t rv = FALSE;
+
+	method = ni_dbus_service_get_method(service, "configure");
+	ni_assert(method);
+
+	ni_dbus_variant_init_dict(&argument);
+	if (config && !ni_dbus_xml_serialize_arg(method, 0, &argument, config)) {
+		ni_error("%s.%s: error serializing argument", service->name, method->name);
+		goto out;
+	}
+
+	rv = wicked_addrconf_common(object, service, &argument, event_id);
+
+out:
+	ni_dbus_variant_destroy(&argument);
+	return rv;
+}
+
+/*
  * Given an XML interface description, find the link layer information.
  * By convention, the link layer information must be an XML element with
  * the name of the link layer, such as <ethernet>, <vlan> or <bond>.

@@ -50,6 +50,14 @@ typedef struct ni_netif_action {
 	ni_netif_action_fn_t *	func;
 } ni_netif_action_t;
 
+/* When we're waiting for an addrconf event, we create
+ * an event struct like this: */
+typedef struct ni_netif_wait	ni_netif_wait_t;
+struct ni_netif_wait {
+	ni_netif_wait_t *	next;
+	unsigned int		event_id;
+};
+
 struct ni_ifworker {
 	unsigned int		refcount;
 
@@ -64,6 +72,7 @@ struct ni_ifworker {
 	int			target_state;
 	int			state;
 	int			wait_for_state;
+	ni_netif_wait_t *	wait_for_event;
 	unsigned int		failed		: 1,
 				done		: 1;
 
@@ -106,6 +115,7 @@ static const char *		ni_ifworker_name(int);
 static void			ni_ifworker_array_append(ni_ifworker_array_t *, ni_ifworker_t *);
 static void			ni_ifworker_array_destroy(ni_ifworker_array_t *);
 static void			ni_ifworker_fsm_init(ni_ifworker_t *);
+static const ni_dbus_service_t *__ni_ifworker_check_addrconf(const char *);
 
 static inline ni_ifworker_t *
 __ni_ifworker_new(const char *name, xml_node_t *config)
@@ -144,6 +154,22 @@ ni_ifworker_release(ni_ifworker_t *state)
 {
 	if (--(state->refcount) == 0)
 		ni_ifworker_free(state);
+}
+
+/* Create an event wait object */
+static ni_netif_wait_t *
+ni_netif_wait_new(unsigned int event_id, ni_netif_wait_t **list)
+{
+	ni_netif_wait_t *wait;
+
+	while ((wait = *list) != NULL)
+		list = &wait->next;
+
+	wait = calloc(1, sizeof(*wait));
+	wait->event_id = event_id;
+	*list = wait;
+
+	return wait;
 }
 
 static void
@@ -273,7 +299,7 @@ ni_ifworkers_from_xml(xml_document_t *doc)
 		const char *ifname = NULL;
 		xml_node_t *node;
 
-		if (strcmp(node->name, "interface")) {
+		if (!ifnode->name || strcmp(ifnode->name, "interface")) {
 			ni_warn("%s: ignoring non-interface element <%s>",
 					xml_node_location(node),
 					node->name);
@@ -691,11 +717,114 @@ ni_ifworker_do_link_up(ni_ifworker_t *w)
 }
 
 /*
+ * Finite state machine - do link authentication
+ */
+static int
+ni_ifworker_do_linkauth(ni_ifworker_t *w)
+{
+	/* For now, nothing to be done - this needs to be implemented */
+	ni_debug_dbus("%s(%s)", __func__, w->name);
+	w->state = STATE_LINK_AUTHENTICATED;
+	return 0;
+}
+
+/*
+ * Finite state machine - configure network addresses and routes
+ */
+static int
+ni_ifworker_do_network_up(ni_ifworker_t *w)
+{
+	xml_node_t *child;
+
+	ni_debug_dbus("%s(%s)", __func__, w->name);
+	for (child = w->config->children; child; child = child->next) {
+		const ni_dbus_service_t *service;
+		unsigned int event_id = 0;
+
+		/* Addrconf elements are of the form <family:mode>, e.g.
+		 * ipv6:static or ipv4:dhcp */
+		if (!(service = __ni_ifworker_check_addrconf(child->name)))
+			continue;
+
+		/* Okay, this is an addrconf node */
+		ni_debug_dbus("%s: found element <%s>, using interface %s",
+				w->name, child->name, service->name);
+
+		/* Call the service's configure() method.
+		 * If the addresses could be configured instantly,
+		 * it will just return a success status.
+		 * If the address configuration is in progress (e.g. dhcp),
+		 * we will receive a token indicating that the address
+		 * acquisition is in process. When that completes, the server
+		 * will emit a signal (addressConfigured) with the same token.
+		 */
+		if (!wicked_addrconf_xml(w->object, service, child, &event_id)) {
+			ni_ifworker_fail(w, "address configuration failed (%s)", child->name);
+			return -1;
+		}
+
+		if (event_id) {
+			w->wait_for_state = STATE_NETWORK_UP;
+			ni_netif_wait_new(event_id, &w->wait_for_event);
+		}
+	}
+	if (w->wait_for_event == NULL) {
+		ni_debug_dbus("%s: no address configuration; we're done", w->name);
+		w->state = STATE_NETWORK_UP;
+	}
+
+	return 0;
+}
+
+static const ni_dbus_service_t *
+__ni_ifworker_check_addrconf(const char *name)
+{
+	const ni_dbus_service_t *service = NULL;
+	char *copy, *afname, *modename;
+
+	copy = afname = strdup(name);
+	if ((modename = strchr(copy, ':')) != NULL) {
+
+		*modename++ = '\0';
+		if (ni_addrfamily_name_to_type(afname) >= 0
+		 &&  ni_addrconf_name_to_type(modename) >= 0) {
+			char interface[128];
+
+			snprintf(interface, sizeof(interface), "%s.Addrconf.%s.%s",
+					WICKED_DBUS_INTERFACE,
+					afname, modename);
+			service = ni_objectmodel_service_by_name(interface);
+		}
+	}
+
+	free(copy);
+	return service;
+}
+
+/*
  * Finite state machine
  */
 static ni_netif_action_t	ni_ifworker_fsm_up[] = {
+	/* This creates the device (if it's virtual) and sets any device attributes,
+	 * such as a MAC address */
 	{ .next_state = STATE_DEVICE_UP,	.func = ni_ifworker_do_device_up },
+
+	/* This step adds device-specific filtering, if available. Typical
+	 * example would be bridge filtering with ebtables. */
+//	{ .next_state = STATE_DEVICE_FILTER_UP,	.func = ni_ifworker_do_device_filter_up },
+
+	/* This brings up the link layer, and sets general device attributes such
+	 * as the MTU, the transfer queue length etc. */
 	{ .next_state = STATE_LINK_UP,		.func = ni_ifworker_do_link_up },
+
+	/* If the link requires authentication, this information can be provided
+	 * here; for instance ethernet 802.1x, wireless WPA, or PPP chap/pap.
+	 * NOTE: This may not be the right place; we may have to fold this into
+	 * the link_up step, or even do it prior to that. */
+	{ .next_state = STATE_LINK_AUTHENTICATED,.func = ni_ifworker_do_linkauth },
+
+	/* Configure all assigned addresses and bring up the network */
+	{ .next_state = STATE_NETWORK_UP,	.func = ni_ifworker_do_network_up },
 
 	{ .next_state = STATE_NONE, .func = NULL }
 };
@@ -761,6 +890,9 @@ ni_ifworker_fsm(void)
 			if (action->func(w) >= 0) {
 				made_progress = 1;
 				if (w->state == action->next_state) {
+					/* We should not have transitioned to the next state while
+					 * we were still waiting for some event. */
+					ni_assert(w->wait_for_event == NULL);
 					ni_debug_dbus("%s: successfully transitioned from %s to %s",
 						w->name,
 						ni_ifworker_name(prev_state),
