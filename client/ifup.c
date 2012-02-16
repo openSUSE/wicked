@@ -84,23 +84,6 @@ struct ni_ifworker {
 
 	ni_netif_action_t *	actions;
 
-#if 0
-	unsigned int		refcount;
-
-	char *			ifname;
-	ni_interface_t *	config;
-	unsigned int		done      : 1,
-				is_slave  : 1,
-				is_policy : 1,
-				waiting   : 1,
-				called    : 1;
-	int			result;
-
-	int			have_state;
-	unsigned int		timeout;
-	ni_ifaction_t		behavior;
-#endif
-
 	ni_ifworker_t *		parent;
 	ni_ifworker_array_t	children;
 };
@@ -168,6 +151,14 @@ ni_netif_wait_new(unsigned int event_id, ni_netif_wait_t **list)
 	wait = calloc(1, sizeof(*wait));
 	wait->event_id = event_id;
 	*list = wait;
+
+	{
+		static int warned = 0;
+
+		if (!warned)
+			ni_warn("attention, timeout handling not yet implemented");
+		warned = 1;
+	}
 
 	return wait;
 }
@@ -1112,57 +1103,6 @@ usage:
 
 	if (ni_ifworker_fsm() != 0)
 		ni_ifworker_mainloop();
-
-#if 0
-		/* Request that the server take the interface up */
-		config_dev->link.ifflags = NI_IFF_NETWORK_UP | NI_IFF_LINK_UP | NI_IFF_DEVICE_UP;
-
-		req = __interface_request_build(config_dev);
-
-		request_object = ni_objectmodel_wrap_interface_request(req);
-		if (!ni_dbus_object_get_properties_as_dict(request_object, &wicked_dbus_interface_request_service, &argument)) {
-			ni_interface_request_free(req);
-			ni_dbus_object_free(request_object);
-			ni_netconfig_free(nc);
-			goto failed;
-		}
-
-		ni_interface_request_free(req);
-		ni_dbus_object_free(request_object);
-		ni_netconfig_free(nc);
-
-		if (config_dev->startmode.ifaction[ifevent].action == NI_INTERFACE_IGNORE) {
-			ni_error("not permitted to bring up interface");
-			goto failed;
-		}
-	} else {
-		/* No options, just bring up with default options
-		 * (which may include dhcp) */
-	}
-
-	if (!(root_object = wicked_dbus_client_create()))
-		goto failed;
-
-	if (!(dev_object = wicked_get_interface(root_object, ifname)))
-		goto failed;
-
-	/* now do the real dbus call to bring it up */
-	if (!ni_dbus_object_call_variant(dev_object,
-				WICKED_DBUS_NETIF_INTERFACE, "up",
-				1, &argument, 0, NULL, &error)) {
-		ni_error("Unable to configure interface. Server responds:");
-		ni_error_extra("%s: %s", error.name, error.message);
-		dbus_error_free(&error);
-		goto failed;
-	}
-
-	rv = 0;
-
-	// then wait for a signal from the server to tell us it's actually up
-
-	ni_debug_wicked("successfully configured %s", ifname);
-	rv = 0; /* success */
-#endif
 
 failed:
 	if (config_dev)
