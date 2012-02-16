@@ -355,6 +355,15 @@ ni_objectmodel_addrconf_forward(ni_dbus_addrconf_forwarder_t *forwarder,
 	/* Install it with the interface */
 	ni_interface_set_addrconf_request(dev, req);
 
+	if (ni_interface_get_lease(dev, forwarder->addrfamily, forwarder->addrconf) == NULL) {
+		ni_addrconf_lease_t *lease;
+
+		lease = ni_addrconf_lease_new(forwarder->addrconf, forwarder->addrfamily);
+		lease->state = NI_ADDRCONF_STATE_REQUESTING;
+		lease->uuid = req->uuid;
+		ni_interface_set_lease(dev, lease);
+	}
+
 	/* Build the path of the object to talk to in the supplicant service */
 	snprintf(object_path, sizeof(object_path), "%s/%u",
 			forwarder->supplicant.object_path, dev->link.ifindex);
