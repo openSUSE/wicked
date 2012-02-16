@@ -466,6 +466,102 @@ ni_objectmodel_addrconf_ipv4ll_request(ni_dbus_object_t *object, const ni_dbus_m
 }
 
 /*
+ * Generic lease properties
+ */
+static dbus_bool_t
+__ni_objectmodel_addrconf_generic_get_lease(const ni_dbus_object_t *object,
+				ni_addrconf_mode_t mode, int addrfamily,
+				ni_dbus_variant_t *dict,
+				DBusError *error)
+{
+	ni_interface_t *dev;
+	const ni_addrconf_lease_t *lease;
+
+	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
+		return FALSE;
+
+#if 0
+	NI_TRACE_ENTER_ARGS("dev=%s, af=%s, mode=%s", dev->name,
+			ni_addrfamily_type_to_name(addrfamily),
+			ni_addrconf_type_to_name(mode));
+#endif
+	if (!(lease = ni_interface_get_lease(dev, addrfamily, mode)))
+		return TRUE;
+
+	ni_dbus_dict_add_uint32(dict, "state", lease->state);
+	return TRUE;
+}
+
+static dbus_bool_t
+__ni_objectmodel_addrconf_generic_set_lease(ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *argument,
+				DBusError *error)
+{
+	return TRUE;
+}
+
+static dbus_bool_t
+__ni_objectmodel_addrconf_ipv4_static_get_lease(const ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				ni_dbus_variant_t *result,
+				DBusError *error)
+{
+	return __ni_objectmodel_addrconf_generic_get_lease(object, NI_ADDRCONF_STATIC, AF_INET, result, error);
+}
+
+static dbus_bool_t
+__ni_objectmodel_addrconf_ipv4_dhcp_get_lease(const ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				ni_dbus_variant_t *result,
+				DBusError *error)
+{
+	return __ni_objectmodel_addrconf_generic_get_lease(object, NI_ADDRCONF_DHCP, AF_INET, result, error);
+}
+
+static dbus_bool_t
+__ni_objectmodel_addrconf_ipv4ll_get_lease(const ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				ni_dbus_variant_t *result,
+				DBusError *error)
+{
+	return __ni_objectmodel_addrconf_generic_get_lease(object, NI_ADDRCONF_AUTOCONF, AF_INET, result, error);
+}
+
+static dbus_bool_t
+__ni_objectmodel_addrconf_ipv6_static_get_lease(const ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				ni_dbus_variant_t *result,
+				DBusError *error)
+{
+	return __ni_objectmodel_addrconf_generic_get_lease(object, NI_ADDRCONF_STATIC, AF_INET6, result, error);
+}
+
+#define __ni_objectmodel_addrconf_ipv4_static_set_lease	__ni_objectmodel_addrconf_generic_set_lease
+static ni_dbus_property_t		ni_objectmodel_addrconf_ipv4_static_properties[] = {
+	__NI_DBUS_PROPERTY(NI_DBUS_DICT_SIGNATURE, lease, __ni_objectmodel_addrconf_ipv4_static, RO),
+	{ NULL }
+};
+
+#define __ni_objectmodel_addrconf_ipv6_static_set_lease	__ni_objectmodel_addrconf_generic_set_lease
+static ni_dbus_property_t		ni_objectmodel_addrconf_ipv6_static_properties[] = {
+	__NI_DBUS_PROPERTY(NI_DBUS_DICT_SIGNATURE, lease, __ni_objectmodel_addrconf_ipv6_static, RO),
+	{ NULL }
+};
+
+#define __ni_objectmodel_addrconf_ipv4_dhcp_set_lease	__ni_objectmodel_addrconf_generic_set_lease
+static ni_dbus_property_t		ni_objectmodel_addrconf_ipv4_dhcp_properties[] = {
+	__NI_DBUS_PROPERTY(NI_DBUS_DICT_SIGNATURE, lease, __ni_objectmodel_addrconf_ipv4_dhcp, RO),
+	{ NULL }
+};
+
+#define __ni_objectmodel_addrconf_ipv4ll_set_lease	__ni_objectmodel_addrconf_generic_set_lease
+static ni_dbus_property_t		ni_objectmodel_addrconf_ipv4ll_properties[] = {
+	__NI_DBUS_PROPERTY(NI_DBUS_DICT_SIGNATURE, lease, __ni_objectmodel_addrconf_ipv4ll, RO),
+	{ NULL }
+};
+
+/*
  * Addrconf methods
  */
 static const ni_dbus_method_t		ni_objectmodel_addrconf_ipv4_static_methods[] = {
@@ -496,20 +592,24 @@ static const ni_dbus_method_t		ni_objectmodel_addrconf_ipv4ll_methods[] = {
 ni_dbus_service_t			ni_objectmodel_addrconf_ipv4_static_service = {
 	.name		= WICKED_DBUS_ADDRCONF_IPV4STATIC_INTERFACE,
 	.methods	= ni_objectmodel_addrconf_ipv4_static_methods,
+	.properties	= ni_objectmodel_addrconf_ipv4_static_properties,
 };
 
 ni_dbus_service_t			ni_objectmodel_addrconf_ipv6_static_service = {
 	.name		= WICKED_DBUS_ADDRCONF_IPV6STATIC_INTERFACE,
 	.methods	= ni_objectmodel_addrconf_ipv6_static_methods,
+	.properties	= ni_objectmodel_addrconf_ipv6_static_properties,
 };
 
 ni_dbus_service_t			ni_objectmodel_addrconf_ipv4_dhcp_service = {
 	.name		= WICKED_DBUS_ADDRCONF_IPV4DHCP_INTERFACE,
 	.methods	= ni_objectmodel_addrconf_ipv4_dhcp_methods,
+	.properties	= ni_objectmodel_addrconf_ipv4_dhcp_properties,
 };
 
 ni_dbus_service_t			ni_objectmodel_addrconf_ipv4ll_service = {
 	.name		= WICKED_DBUS_ADDRCONF_IPV4AUTO_INTERFACE,
 	.methods	= ni_objectmodel_addrconf_ipv4ll_methods,
+	.properties	= ni_objectmodel_addrconf_ipv4ll_properties,
 };
 

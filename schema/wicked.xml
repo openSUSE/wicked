@@ -177,6 +177,12 @@
    <ipv6 type="network-interface:af-info"/>
   </define>
 
+  <define name="addrconf-lease" class="dict">
+    <lease class="dict">
+      <state type="builtin-addrconf-state"/>
+    </lease>
+  </define>
+
   <method name="firewallUp">
     <arguments>
       <!-- to be defined -->
@@ -231,10 +237,7 @@
     <address type="network-interface:assigned-address" />
     <route type="network-interface:assigned-route" />
   </define>
-  <define name="properties" class="dict">
-    <addresses type="network-interface:assigned-address-list" />
-    <routes type="network-interface:assigned-route-list" />
-  </define>
+  <define name="properties" type="interface:addrconf-lease"/>
 
   <method name="requestLease">
     <arguments>
@@ -258,10 +261,7 @@
     <address type="network-interface:assigned-address" />
     <route type="network-interface:assigned-route" />
   </define>
-  <define name="properties" class="dict">
-    <addresses type="network-interface:assigned-address-list" />
-    <routes type="network-interface:assigned-route-list" />
-  </define>
+  <define name="properties" type="interface:addrconf-lease"/>
 
   <method name="requestLease">
     <arguments>
@@ -290,6 +290,7 @@
     <vendor-class type="string" />
     <lease-time type="uint32" />
   </define>
+  <define name="properties" type="interface:addrconf-lease"/>
 
   <method name="requestLease">
     <arguments>
