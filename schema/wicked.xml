@@ -67,11 +67,11 @@
   <route type="static-route"/>
 </define>
 
-<include name="schema/constants.xml"/>
-<include name="schema/ethernet.xml"/>
-<include name="schema/vlan.xml"/>
-<include name="schema/bonding.xml"/>
-<include name="schema/bridge.xml"/>
+<include name="constants.xml"/>
+<include name="ethernet.xml"/>
+<include name="vlan.xml"/>
+<include name="bonding.xml"/>
+<include name="bridge.xml"/>
 <!--
  -->
 
@@ -205,7 +205,11 @@
 
 </service>
 
-<service name="ipv4-static" interface="com.suse.Wicked.IPv4Address.Static" object-class="netif">
+<service name="ipv4:static" interface="com.suse.Wicked.Addrconf.ipv4.static" object-class="netif">
+  <define name="request" class="dict">
+    <address type="network-interface:assigned-address" />
+    <route type="network-interface:assigned-route" />
+  </define>
   <define name="properties" class="dict">
     <addresses type="network-interface:assigned-address-list" />
     <routes type="network-interface:assigned-route-list" />
@@ -214,12 +218,12 @@
   <method name="configure">
     <arguments>
       <!-- Note: all addresses are expected to be IPv4 -->
-      <config type="properties"/>
+      <config type="request"/>
     </arguments>
   </method>
 </service>
 
-<service name="ipv6-static" interface="com.suse.Wicked.IPv6Address.Static" object-class="netif">
+<service name="ipv6:static" interface="com.suse.Wicked.Addrconf.ipv6.static" object-class="netif">
   <define name="properties" class="dict">
     <addresses type="network-interface:assigned-address-list" />
     <routes type="network-interface:assigned-route-list" />
