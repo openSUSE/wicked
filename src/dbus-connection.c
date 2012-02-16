@@ -17,6 +17,7 @@
 #include "process.h"
 #include "debug.h"
 
+#undef DEBUG_WATCH_VERBOSE
 
 typedef struct ni_dbus_async_client_call ni_dbus_async_client_call_t;
 struct ni_dbus_async_client_call {
@@ -584,22 +585,27 @@ ni_dbus_async_server_call_run_command(ni_dbus_connection_t *conn,
 /*
  * Handle watching a connection
  */
-static const char *
+static inline const char *
 __ni_dbus_watch_flags(int flags)
 {
-	static char buffer[2][32];
-	static int index = 0;
-	char *cur;
+	switch (flags) {
+	case DBUS_WATCH_READABLE:
+		return "read";
 
-	cur = buffer[index];
-	index = 1 - index;
+	case DBUS_WATCH_WRITABLE:
+		return "write";
 
-	snprintf(cur, sizeof(buffer[0]), "<%s%s%s%s>",
-		(flags & DBUS_WATCH_READABLE)? "r" : "",
-		(flags & DBUS_WATCH_WRITABLE)? "w" : "",
-		(flags & DBUS_WATCH_ERROR)? "e" : "",
-		(flags & DBUS_WATCH_HANGUP)? "h" : "");
-	return cur;
+	case DBUS_WATCH_READABLE|DBUS_WATCH_WRITABLE:
+		return "readwrite";
+
+	case DBUS_WATCH_ERROR:
+		return "error";
+
+	case DBUS_WATCH_HANGUP:
+		return "hangup";
+	}
+
+	return "???";
 }
 
 static inline void
@@ -620,9 +626,11 @@ __ni_dbus_watch_handle(const char *func, ni_socket_t *sock, int flags)
 			continue;
 		found++;
 
+#ifdef DEBUG_WATCH_VERBOSE
 		ni_debug_dbus("%s(watch=%p, fd=%d, flags=%s)",
 				func, wd->watch, dbus_watch_get_socket(wd->watch),
 				__ni_dbus_watch_flags(flags));
+#endif
 
 		old_watch_flags = dbus_watch_get_flags(wd->watch);
 		dbus_watch_handle(wd->watch, flags);
@@ -642,12 +650,14 @@ __ni_dbus_watch_handle(const char *func, ni_socket_t *sock, int flags)
 				poll_flags |= POLLOUT;
 		}
 
+#ifdef DEBUG_WATCH_VERBOSE
 		if (old_watch_flags != new_watch_flags) {
 			ni_debug_dbus("%s: changing watch flags %s to %s",
 					__func__,
 					__ni_dbus_watch_flags(old_watch_flags),
 					__ni_dbus_watch_flags(new_watch_flags));
 		}
+#endif
 	}
 
 	sock->poll_flags = poll_flags;
