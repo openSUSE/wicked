@@ -405,6 +405,13 @@ extern ni_dbus_message_t *	ni_dbus_object_call_new(const ni_dbus_object_t *, con
 extern ni_dbus_message_t *	ni_dbus_object_call_new_va(const ni_dbus_object_t *obj,
 					const char *method, va_list *app);
 
+extern int			ni_dbus_message_get_args(ni_dbus_message_t *, ...);
+extern int			ni_dbus_message_get_args_variants(ni_dbus_message_t *msg,
+					ni_dbus_variant_t *argv, unsigned int max_args);
+extern dbus_bool_t		ni_dbus_message_serialize_variants(ni_dbus_message_t *msg,
+					unsigned int nargs, const ni_dbus_variant_t *argv,
+					DBusError *error);
+
 extern ni_xs_scope_t *		ni_dbus_xml_init(void);
 extern int			ni_dbus_xml_register_services(ni_xs_scope_t *);
 extern dbus_bool_t		ni_dbus_xml_serialize_arg(const ni_dbus_method_t *, unsigned int,
