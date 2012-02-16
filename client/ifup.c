@@ -756,7 +756,7 @@ ni_ifworker_do_link_up(ni_ifworker_t *w)
 	ni_debug_dbus("%s(name=%s, object=%p, path=%s)", __func__, w->name, w->object, w->object_path);
 
 	devnode = xml_node_get_child(w->config, "device");
-	if (!wicked_link_up_xml(w->object, devnode, &callback_list)) {
+	if (!ni_call_link_up_xml(w->object, devnode, &callback_list)) {
 		ni_ifworker_fail(w, "failed to configure and bring up link");
 		return -1;
 	}

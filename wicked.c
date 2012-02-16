@@ -500,7 +500,7 @@ out:
 }
 
 dbus_bool_t
-wicked_link_up_xml(ni_dbus_object_t *object, xml_node_t *config, ni_objectmodel_callback_info_t **callback_list)
+ni_call_link_up_xml(ni_dbus_object_t *object, xml_node_t *config, ni_objectmodel_callback_info_t **callback_list)
 {
 	return wicked_link_change_xml(object, "linkUp", config, callback_list);
 }
