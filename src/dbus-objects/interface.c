@@ -446,20 +446,11 @@ dbus_bool_t
 __ni_objectmodel_interface_event(ni_dbus_server_t *server, ni_dbus_object_t *object,
 			ni_event_t ifevent, const ni_uuid_t *uuid)
 {
-	static const char *ifevent_signals[__NI_EVENT_MAX] = {
-	[NI_EVENT_LINK_UP]		= "linkUp",
-	[NI_EVENT_LINK_DOWN]		= "linkDown",
-	[NI_EVENT_NETWORK_UP]		= "networkUp",
-	[NI_EVENT_NETWORK_DOWN]		= "networkDown",
-	[NI_EVENT_ADDRESS_ACQUIRED]	= "addressAcquired",
-	[NI_EVENT_ADDRESS_RELEASED]	= "addressReleased",
-	[NI_EVENT_ADDRESS_LOST]		= "addressLost",
-	};
 	ni_dbus_variant_t arg = NI_DBUS_VARIANT_INIT;
 	const char *signal_name = NULL;
 	unsigned int argc = 0;
 
-	if (ifevent >= __NI_EVENT_MAX || (signal_name = ifevent_signals[ifevent]) == NULL)
+	if (!(signal_name = __ni_objectmodel_event_to_signal(ifevent)))
 		return FALSE;
 
 	if (!server
@@ -477,6 +468,25 @@ __ni_objectmodel_interface_event(ni_dbus_server_t *server, ni_dbus_object_t *obj
 	ni_debug_dbus("sending interface event \"%s\" for %s", signal_name, ni_dbus_object_get_path(object));
 	ni_dbus_server_send_signal(server, object, WICKED_DBUS_NETIF_INTERFACE, signal_name, argc, &arg);
 	return TRUE;
+}
+
+const char *
+__ni_objectmodel_event_to_signal(ni_event_t event)
+{
+	static const char *ifevent_signals[__NI_EVENT_MAX] = {
+	[NI_EVENT_LINK_UP]		= "linkUp",
+	[NI_EVENT_LINK_DOWN]		= "linkDown",
+	[NI_EVENT_NETWORK_UP]		= "networkUp",
+	[NI_EVENT_NETWORK_DOWN]		= "networkDown",
+	[NI_EVENT_ADDRESS_ACQUIRED]	= "addressAcquired",
+	[NI_EVENT_ADDRESS_RELEASED]	= "addressReleased",
+	[NI_EVENT_ADDRESS_LOST]		= "addressLost",
+	};
+
+	if (event >= __NI_EVENT_MAX)
+		return NULL;
+
+	return ifevent_signals[event];
 }
 
 /*
