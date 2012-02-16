@@ -75,7 +75,7 @@
 <!--
  -->
 
-<define name="interface" class="dict">
+<define name="network-interface" class="dict">
  <name type="string"/>
 
  <!-- These bits must match the definitions in netinfo.h -->
@@ -110,6 +110,10 @@
    <address type="assigned-address" />
  </addrconf>
 </define>
+
+<service name="interface" interface="com.suse.Wicked.Interface" object-class="netif">
+  <define name="properties" type="network-interface"/>
+</service>
 
 <service name="ipv4:static" interface="com.suse.Wicked.IPv4Address.Static" object-class="netif">
   <define name="addrconf-request" type="ipv4-addrconf" />
