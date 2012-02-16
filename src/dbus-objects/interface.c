@@ -415,7 +415,7 @@ ni_objectmodel_netif_link_change(ni_dbus_object_t *object, const ni_dbus_method_
 		ni_dbus_message_append_uint32(reply, dev->link.ifflags);
 
 		if (ni_interface_link_is_up(dev))
-			__ni_objectmodel_interface_event(NULL, object, NI_EVENT_LINK_UP);
+			__ni_objectmodel_interface_event(NULL, object, NI_EVENT_LINK_UP, 0);
 
 		ret = TRUE;
 	}
@@ -430,7 +430,7 @@ failed:
  * Broadcast an event that the interface is up
  */
 dbus_bool_t
-ni_objectmodel_interface_event(ni_dbus_server_t *server, ni_interface_t *dev, ni_event_t ifevent)
+ni_objectmodel_interface_event(ni_dbus_server_t *server, ni_interface_t *dev, ni_event_t ifevent, unsigned int event_id)
 {
 	ni_dbus_object_t *object;
 
@@ -448,11 +448,11 @@ ni_objectmodel_interface_event(ni_dbus_server_t *server, ni_interface_t *dev, ni
 		return FALSE;
 	}
 
-	return __ni_objectmodel_interface_event(server, object, ifevent);
+	return __ni_objectmodel_interface_event(server, object, ifevent, event_id);
 }
 
 dbus_bool_t
-__ni_objectmodel_interface_event(ni_dbus_server_t *server, ni_dbus_object_t *object, ni_event_t ifevent)
+__ni_objectmodel_interface_event(ni_dbus_server_t *server, ni_dbus_object_t *object, ni_event_t ifevent, unsigned int event_id)
 {
 	static const char *ifevent_signals[__NI_EVENT_MAX] = {
 	[NI_EVENT_LINK_UP]	= "linkUp",
