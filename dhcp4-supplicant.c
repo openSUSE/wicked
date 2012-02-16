@@ -360,6 +360,11 @@ dhcp4_protocol_event(enum ni_dhcp_event ev, const ni_dhcp_device_t *dev, ni_addr
 	if (dev->config) {
 		var = &argv[argc++];
 		ni_dbus_variant_set_uuid(var, &dev->config->uuid);
+
+		/* Make sure we copy the "update" flags to the lease; the
+		 * server relies on us to provide this info */
+		if (lease)
+			lease->update = dev->config->update;
 	}
 
 	var = &argv[argc++];

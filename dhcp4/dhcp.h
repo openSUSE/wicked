@@ -143,6 +143,7 @@ struct ni_dhcp_config {
 	unsigned int		request_timeout;
 	unsigned int		resend_timeout;
 	unsigned int		max_lease_time;
+	unsigned int		update;
 };
 
 enum ni_dhcp_event {
