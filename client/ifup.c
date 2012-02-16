@@ -772,6 +772,16 @@ ni_ifworker_do_network_up(ni_ifworker_t *w)
 		}
 
 		if (callback_list) {
+			if (ni_debug & NI_TRACE_DBUS) {
+				ni_objectmodel_callback_info_t *cb;
+
+				ni_trace("%s waiting for callbacks:", w->name);
+				for (cb = callback_list; cb; cb = cb->next) {
+					ni_trace(" %s event=%s",
+						ni_print_hex(cb->uuid.octets, 16),
+						cb->event);
+				}
+			}
 			ni_ifworker_add_callbacks(w, callback_list);
 			w->wait_for_state = STATE_NETWORK_UP;
 		}
