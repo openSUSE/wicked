@@ -674,6 +674,10 @@ ni_system_bond_remove_slave(ni_netconfig_t *nc, ni_interface_t *ifp, unsigned in
 static int
 __ni_interface_extension_delete(ni_netconfig_t *nc, ni_interface_t *ifp)
 {
+#if 1
+	ni_error("%s: not implemented", __func__);
+	return -1;
+#else
 	ni_extension_t *ex;
 	xml_node_t *xml = NULL;
 	int res;
@@ -686,16 +690,15 @@ __ni_interface_extension_delete(ni_netconfig_t *nc, ni_interface_t *ifp)
 		return -1;
 	}
 
-#if 0
 	xml = ni_syntax_xml_from_interface(ni_global.xml_syntax, nc, ifp);
 	if (!xml)
 		return -1;
-#endif
 
 	res = ni_extension_stop(ex, ifp->name, xml);
 
 	xml_node_free(xml);
 	return res;
+#endif
 }
 
 /*

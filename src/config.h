@@ -93,10 +93,6 @@ extern unsigned int	ni_config_addrconf_update_mask(ni_config_t *, ni_addrconf_mo
 extern ni_extension_t *	ni_extension_list_find(ni_extension_t *, const char *);
 extern void		ni_extension_list_destroy(ni_extension_t **);
 extern ni_extension_t *	ni_extension_new(ni_extension_t **, const char *);
-extern int		ni_extension_active(const ni_extension_t *, const char *, xml_node_t *); /* KILL */
-extern int		ni_extension_start(const ni_extension_t *, const char *, xml_node_t *); /* KILL */
-extern int		ni_extension_stop(const ni_extension_t *, const char *, xml_node_t *); /* KILL */
-extern int		ni_extension_run(const ni_extension_t *, ni_script_action_t *); /* KILL */
 extern void		ni_extension_free(ni_extension_t *);
 
 extern ni_process_t *	ni_extension_script_new(ni_extension_t *, const char *name, const char *command);
