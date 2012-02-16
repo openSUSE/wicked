@@ -32,8 +32,12 @@ struct ni_extension {
 	/* Shell commands */
 	ni_script_action_t *	actions;
 
-	/* Environment variables */
-	xpath_format_array_t	environment;
+	/* Environment variables.
+	 * The values are of the form
+	 *   $object-path
+	 *   $property:property-name
+	 */
+	ni_var_array_t		environment;
 };
 
 typedef struct ni_config_fslocation {

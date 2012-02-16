@@ -23,7 +23,6 @@ static int		ni_config_parse_afinfo(ni_afinfo_t *, const char *, xml_node_t *);
 static int		ni_config_parse_update_targets(unsigned int *, const xml_node_t *);
 static int		ni_config_parse_fslocation(ni_config_fslocation_t *, const char *, xml_node_t *);
 static int		ni_config_parse_extensions(ni_extension_t **, xml_node_t *);
-static int		ni_config_parse_xpath(xpath_format_t **, const char *);
 
 
 /*
@@ -251,7 +250,6 @@ int
 ni_config_parse_extensions(ni_extension_t **list, xml_node_t *node)
 {
 	ni_extension_t *ex;
-	const char *attrval;
 	xml_node_t *child;
 
 	for (node = node->children; node; node = node->next) {
@@ -276,8 +274,6 @@ ni_config_parse_extensions(ni_extension_t **list, xml_node_t *node)
 
 		ex = ni_extension_new(list, name);
 		for (child = node->children; child; child = child->next) {
-			xpath_format_t *fmt = NULL;
-
 			if (!strcmp(child->name, "action")) {
 				const char *name, *command;
 				ni_process_t *process;
@@ -293,30 +289,18 @@ ni_config_parse_extensions(ni_extension_t **list, xml_node_t *node)
 
 				process = ni_extension_script_new(ex, name, command);
 			} else
-			if (!strcmp(child->name, "environment")) {
-				if (!(attrval = xml_node_get_attr(child, "putenv"))) {
-					ni_error("environment element without putenv attribute");
+			if (!strcmp(child->name, "putenv")) {
+				const char *name, *value;
+
+				if (!(name = xml_node_get_attr(child, "name"))) {
+					ni_error("%s: <putenv> element without name attribute",
+							xml_node_location(child));
 					return -1;
 				}
-				if (ni_config_parse_xpath(&fmt, attrval) < 0)
-					return -1;
-				xpath_format_array_append(&ex->environment, fmt);
+				value = xml_node_get_attr(child, "value");
+				ni_var_array_set(&ex->environment, name, value);
 			}
 		}
-	}
-
-	return 0;
-}
-
-int
-ni_config_parse_xpath(xpath_format_t **varp, const char *expr)
-{
-	if (*varp)
-		xpath_format_free(*varp);
-	*varp = xpath_format_parse(expr);
-	if (*varp == NULL) {
-		ni_error("cannot parse configuration: bad xpath expression \"%s\"", expr);
-		return -1;
 	}
 
 	return 0;

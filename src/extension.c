@@ -49,7 +49,7 @@ ni_extension_free(ni_extension_t *ex)
 		__ni_script_action_free(act);
 	}
 
-	xpath_format_array_destroy(&ex->environment);
+	ni_var_array_destroy(&ex->environment);
 }
 
 /*
