@@ -939,6 +939,16 @@ ni_ifworker_do_link_down(ni_ifworker_t *w)
 }
 
 /*
+ * Delete the link
+ */
+static int
+ni_ifworker_do_link_delete(ni_ifworker_t *w)
+{
+	ni_ifworker_fail(w, "%s not yet implemented", __func__);
+	return 0;
+}
+
+/*
  * Finite state machine
  */
 static ni_netif_action_t	ni_ifworker_fsm_up[] = {
@@ -976,14 +986,38 @@ static ni_netif_action_t	ni_ifworker_fsm_down[] = {
 	{ .next_state = STATE_NONE, .func = NULL }
 };
 
+static ni_netif_action_t	ni_ifworker_fsm_delete[] = {
+	/* Remove all assigned addresses and bring down the network */
+	{ .next_state = STATE_LINK_UP,		.func = ni_ifworker_do_network_down },
+
+	/* Shut down the link */
+	{ .next_state = STATE_DEVICE_UP,	.func = ni_ifworker_do_link_down },
+
+	/* Shut down the link */
+	{ .next_state = STATE_DEVICE_DOWN,	.func = ni_ifworker_do_link_delete },
+
+	{ .next_state = STATE_NONE, .func = NULL }
+};
+
 static void
 ni_ifworker_fsm_init(ni_ifworker_t *w)
 {
-	if (w->state < w->target_state) {
+	switch (w->target_state) {
+	case STATE_NETWORK_UP:
 		w->actions = ni_ifworker_fsm_up;
-	} else
-	if (w->state > w->target_state) {
+		break;
+
+	case STATE_DEVICE_UP:
 		w->actions = ni_ifworker_fsm_down;
+		break;
+
+	case STATE_DEVICE_DOWN:
+		w->actions = ni_ifworker_fsm_delete;
+		break;
+
+	default:
+		ni_fatal("%s: cannot assign fsm for target state %s",
+				w->name, ni_ifworker_state_name(w->target_state));
 	}
 }
 
