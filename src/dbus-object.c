@@ -52,7 +52,7 @@ ni_dbus_object_new(const ni_dbus_class_t *class, const char *path, void *handle)
 }
 
 static ni_dbus_object_t *
-__ni_dbus_object_new_child(ni_dbus_object_t *parent, const ni_dbus_class_t *class, const char *name,
+__ni_dbus_object_new_child(ni_dbus_object_t *parent, const ni_dbus_class_t *object_class, const char *name,
 				void *object_handle)
 {
 	ni_dbus_object_t **pos, *child;
@@ -61,7 +61,7 @@ __ni_dbus_object_new_child(ni_dbus_object_t *parent, const ni_dbus_class_t *clas
 	for (pos = &parent->children; (child = *pos) != NULL; pos = &child->next)
 		;
 
-	child = __ni_dbus_object_new(class, __ni_dbus_object_child_path(parent, name));
+	child = __ni_dbus_object_new(object_class, __ni_dbus_object_child_path(parent, name));
 	if (!child)
 		return NULL;
 
@@ -73,27 +73,14 @@ __ni_dbus_object_new_child(ni_dbus_object_t *parent, const ni_dbus_class_t *clas
 	if (parent->client_object)
 		__ni_dbus_client_object_inherit(child, parent);
 
-	if (parent->class && parent->class->init_child) {
-		const ni_dbus_class_t *check;
-
-		parent->class->init_child(child);
-		if (class != NULL) {
-			for (check = class; check; check = check->superclass) {
-				if (child->class == check)
-					break;
-			}
-			if (check == NULL) {
-				ni_fatal("error when creating dbus object %s: "
-					"class argument \"%s\" conflicts with parent object's init_child method",
-					child->path, class->name);
-			}
-			child->class = class;
-		}
-		if (object_handle && object_handle != child->handle) {
-			ni_fatal("error when creating dbus object %s: "
-				"object handle conflicts with parent object's init_child method", child->path);
-		}
+	if (object_class == NULL && object_handle == NULL) {
+		/* We get here when called from the client side's get_managed_object code,
+		 * where we do not know which objects we may be receiving from the server,
+		 * but we have to create a local proxy object with a C backing object for it. */
+		if (parent->class && parent->class->init_child)
+			parent->class->init_child(child);
 	} else {
+		child->class = object_class;
 		child->handle = object_handle;
 	}
 
