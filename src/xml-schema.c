@@ -875,6 +875,12 @@ ni_xs_build_typelist(xml_node_t *node, ni_xs_name_type_array_t *result, ni_xs_sc
 			 */
 			memberType = ni_xs_scope_lookup(scope, child->name);
 			if (memberType != NULL) {
+				if (xml_node_get_attr(child, "class")
+				 || xml_node_get_attr(child, "type")) {
+					ni_error("%s: ambiguous type: node <%s> is a type, but has a type or class attribute",
+							xml_node_location(child), child->name);
+					return -1;
+				}
 				ni_xs_type_hold(memberType);
 			} else {
 				ni_xs_scope_t *context;
@@ -1001,11 +1007,12 @@ ni_xs_build_complex_type(xml_node_t *node, const char *className, ni_xs_scope_t 
 		ni_xs_type_release(elementType);
 	} else
 	if (!strcmp(className, "dict")) {
+		ni_xs_dict_info_t *dict_info;
 		const char *base_name;
+		unsigned int i;
 
 		if ((base_name = xml_node_get_attr(node, "extends")) != NULL) {
 			ni_xs_type_t *base_type;
-			ni_xs_dict_info_t *dict_info;
 
 			base_type = ni_xs_scope_lookup(scope, base_name);
 			if (base_type == NULL) {
@@ -1030,7 +1037,14 @@ ni_xs_build_complex_type(xml_node_t *node, const char *className, ni_xs_scope_t 
 			return NULL;
 		}
 
-		/* FIXME: ensure that all child types are named */
+		/* ensure that all child types are named */
+		dict_info = type->u.dict_info;
+		for (i = 0; i < dict_info->children.count; ++i) {
+			if (dict_info->children.data[i].name == NULL) {
+				ni_error("%s: dict definition has child element without name", xml_node_location(node));
+				return NULL;
+			}
+		}
 	} else {
 		ni_error("%s: unknown class=\"%s\"", xml_node_location(node), className);
 		return NULL;
