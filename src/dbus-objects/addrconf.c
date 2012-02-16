@@ -26,10 +26,13 @@
 #include "debug.h"
 
 typedef struct ni_dbus_addrconf_forwarder {
-	ni_dbus_client_t *	client;
-	const char *		bus_name;
-	const char *		interface;
-	const char *		path;
+
+	struct {
+	    ni_dbus_client_t *	client;
+	    const char *	bus_name;
+	    const char *	interface;
+	    const char *	object_path;
+	} supplicant;
 
 	int			addrfamily;
 	ni_addrconf_mode_t	addrconf;
@@ -324,16 +327,16 @@ ni_objectmodel_addrconf_forward(ni_dbus_addrconf_forwarder_t *forwarder,
 	ni_addrconf_request_t *req;
 	char object_path[256];
 
-	if (forwarder->client == NULL) {
-		forwarder->client = ni_create_dbus_client(forwarder->bus_name);
-		if (forwarder->client == NULL) {
+	if (forwarder->supplicant.client == NULL) {
+		forwarder->supplicant.client = ni_create_dbus_client(forwarder->supplicant.bus_name);
+		if (forwarder->supplicant.client == NULL) {
 			dbus_set_error(error, "unable to create call forwarder for %s",
-					forwarder->bus_name);
+					forwarder->supplicant.bus_name);
 			return NULL;
 		}
 
-		ni_dbus_client_add_signal_handler(forwarder->client, NULL, NULL,
-				forwarder->interface,
+		ni_dbus_client_add_signal_handler(forwarder->supplicant.client, NULL, NULL,
+				forwarder->supplicant.interface,
 				ni_objectmodel_addrconf_signal_handler,
 				forwarder);
 	}
@@ -346,11 +349,16 @@ ni_objectmodel_addrconf_forward(ni_dbus_addrconf_forwarder_t *forwarder,
 	/* Install it with the interface */
 	ni_interface_set_addrconf_request(dev, req);
 
-	snprintf(object_path, sizeof(object_path), "%s/%u", forwarder->path, dev->link.ifindex);
-	object = ni_dbus_client_object_new(forwarder->client, &forwarder->class,
-			object_path, forwarder->interface, NULL);
+	/* Build the path of the object to talk to in the supplicant service */
+	snprintf(object_path, sizeof(object_path), "%s/%u",
+			forwarder->supplicant.object_path, dev->link.ifindex);
 
-	if (!ni_dbus_object_call_variant(object, forwarder->interface, method_name, 1, dict, 0, NULL, error))
+	object = ni_dbus_client_object_new(forwarder->supplicant.client,
+				&forwarder->class, object_path,
+				forwarder->supplicant.interface, NULL);
+
+	/* Call the supplicant's method */
+	if (!ni_dbus_object_call_variant(object, forwarder->supplicant.interface, method_name, 1, dict, 0, NULL, error))
 		return NULL;
 
 	return req;
@@ -365,9 +373,11 @@ ni_objectmodel_addrconf_ipv4_dhcp_configure(ni_dbus_object_t *object, const ni_d
 			ni_dbus_message_t *reply, DBusError *error)
 {
 	static ni_dbus_addrconf_forwarder_t forwarder = {
-		.bus_name	= WICKED_DBUS_BUS_NAME_DHCP4,
-		.interface	= WICKED_DBUS_DHCP4_INTERFACE,
-		.path		= WICKED_DBUS_OBJECT_PATH "/DHCP4/Interface",
+		.supplicant = {
+			.bus_name	= WICKED_DBUS_BUS_NAME_DHCP4,
+			.interface	= WICKED_DBUS_DHCP4_INTERFACE,
+			.object_path	= WICKED_DBUS_OBJECT_PATH "/DHCP4/Interface",
+		},
 		.addrfamily	= AF_INET,
 		.addrconf	= NI_ADDRCONF_DHCP,
 		.class = {
@@ -404,9 +414,11 @@ ni_objectmodel_addrconf_ipv4ll_configure(ni_dbus_object_t *object, const ni_dbus
 			ni_dbus_message_t *reply, DBusError *error)
 {
 	static ni_dbus_addrconf_forwarder_t forwarder = {
-		.bus_name	= WICKED_DBUS_BUS_NAME_AUTO4,
-		.interface	= WICKED_DBUS_AUTO4_INTERFACE,
-		.path		= WICKED_DBUS_OBJECT_PATH "/AUTO4/Interface",
+		.supplicant = {
+			.bus_name	= WICKED_DBUS_BUS_NAME_AUTO4,
+			.interface	= WICKED_DBUS_AUTO4_INTERFACE,
+			.object_path	= WICKED_DBUS_OBJECT_PATH "/AUTO4/Interface",
+		},
 		.addrfamily	= AF_INET,
 		.addrconf	= NI_ADDRCONF_AUTOCONF,
 		.class = {
