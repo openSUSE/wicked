@@ -103,7 +103,7 @@ ni_config_parse(const char *filename)
 	child = xml_node_get_child(node, "schema");
 	if (child && child->cdata) {
 		xml_document_t *schema_doc;
-		ni_xs_type_dict_t *schema_dict;
+		ni_xs_scope_t *schema;
 
 		schema_doc = xml_document_read(child->cdata);
 		if (schema_doc == NULL) {
@@ -111,10 +111,10 @@ ni_config_parse(const char *filename)
 			goto failed;
 		}
 
-		schema_dict = ni_dbus_xml_init();
-		if (ni_xs_process_schema(schema_doc->root, schema_dict) < 0) {
+		schema = ni_dbus_xml_init();
+		if (ni_xs_process_schema(schema_doc->root, schema) < 0) {
 			ni_error("invalid schema xml for schema file \"%s\"", child->cdata);
-			ni_xs_typedict_free(schema_dict);
+			ni_xs_scope_free(schema);
 			goto failed;
 		}
 

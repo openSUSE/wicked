@@ -197,22 +197,22 @@ struct ni_xs_type {
 	} u;
 };
 
-struct ni_xs_type_dict {
-	ni_xs_type_dict_t *	parent;
-	ni_xs_type_dict_t *	next;
+struct ni_xs_scope {
+	ni_xs_scope_t *		parent;
+	ni_xs_scope_t *		next;
 
 	char *			name;
 	ni_xs_name_type_array_t	types;
-	ni_xs_type_dict_t *	children;
+	ni_xs_scope_t *		children;
 };
 
-extern ni_xs_type_dict_t *ni_xs_typedict_new(ni_xs_type_dict_t *, const char *);
-extern void		ni_xs_typedict_free(ni_xs_type_dict_t *);
+extern ni_xs_scope_t *	ni_xs_scope_new(ni_xs_scope_t *, const char *);
+extern void		ni_xs_scope_free(ni_xs_scope_t *);
 
-extern int		ni_xs_process_schema(xml_node_t *, ni_xs_type_dict_t *);
+extern int		ni_xs_process_schema(xml_node_t *, ni_xs_scope_t *);
 
 extern ni_xs_type_t *	ni_xs_scalar_new(unsigned int);
-extern int		ni_xs_typedict_typedef(ni_xs_type_dict_t *, const char *, ni_xs_type_t *);
+extern int		ni_xs_scope_typedef(ni_xs_scope_t *, const char *, ni_xs_type_t *);
 extern void		ni_xs_type_free(ni_xs_type_t *type);
 
 const ni_xs_type_t *	ni_xs_name_type_array_find(const ni_xs_name_type_array_t *, const char *);

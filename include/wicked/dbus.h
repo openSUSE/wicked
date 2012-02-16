@@ -373,7 +373,7 @@ extern ni_dbus_message_t *	ni_dbus_object_call_new(const ni_dbus_object_t *, con
 extern ni_dbus_message_t *	ni_dbus_object_call_new_va(const ni_dbus_object_t *obj,
 					const char *method, va_list *app);
 
-extern ni_xs_type_dict_t *	ni_dbus_xml_init(void);
+extern ni_xs_scope_t *		ni_dbus_xml_init(void);
 
 extern unsigned int		__ni_dbus_variant_offsets[256];
 

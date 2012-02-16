@@ -11,7 +11,7 @@
 #include "dbus-common.h"
 #include "xml-schema.h"
 
-static void		ni_dbus_define_scalar_types(ni_xs_type_dict_t *);
+static void		ni_dbus_define_scalar_types(ni_xs_scope_t *);
 static void		ni_dbus_define_xml_notations(void);
 static dbus_bool_t	ni_dbus_serialize_xml_scalar(xml_node_t *, const ni_xs_type_t *, ni_dbus_variant_t *);
 static dbus_bool_t	ni_dbus_serialize_xml_struct(xml_node_t *, const ni_xs_type_t *, ni_dbus_variant_t *);
@@ -19,16 +19,16 @@ static dbus_bool_t	ni_dbus_serialize_xml_array(xml_node_t *, const ni_xs_type_t 
 static dbus_bool_t	ni_dbus_serialize_xml_dict(xml_node_t *, const ni_xs_type_t *, ni_dbus_variant_t *);
 static char *		ni_xs_type_to_dbus_signature(const ni_xs_type_t *);
 
-ni_xs_type_dict_t *
+ni_xs_scope_t *
 ni_dbus_xml_init(void)
 {
-	ni_xs_type_dict_t *schema_dict;
+	ni_xs_scope_t *schema;
 
-	schema_dict = ni_xs_typedict_new(NULL, NULL);
-	ni_dbus_define_scalar_types(schema_dict);
+	schema = ni_xs_scope_new(NULL, NULL);
+	ni_dbus_define_scalar_types(schema);
 	ni_dbus_define_xml_notations();
 
-	return schema_dict;
+	return schema;
 }
 
 dbus_bool_t
@@ -240,7 +240,7 @@ ni_xs_type_to_dbus_signature(const ni_xs_type_t *type)
  * Scalar types for dbus xml
  */
 static void
-ni_dbus_define_scalar_types(ni_xs_type_dict_t *typedict)
+ni_dbus_define_scalar_types(ni_xs_scope_t *typedict)
 {
 	static struct dbus_xml_type {
 		const char *	name;
@@ -261,7 +261,7 @@ ni_dbus_define_scalar_types(ni_xs_type_dict_t *typedict)
 	}, *tp;
 
 	for (tp = dbus_xml_types; tp->name; ++tp)
-		ni_xs_typedict_typedef(typedict, tp->name, ni_xs_scalar_new(tp->dbus_type));
+		ni_xs_scope_typedef(typedict, tp->name, ni_xs_scalar_new(tp->dbus_type));
 }
 
 /*
