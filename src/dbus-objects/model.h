@@ -203,7 +203,6 @@ extern void			ni_objectmodel_register_netif_classes(void);
 extern void			ni_objectmodel_create_netif_list(ni_dbus_server_t *);
 extern dbus_bool_t		ni_objectmodel_bind_compatible_interfaces(ni_dbus_object_t *);
 
-extern void			ni_objectmodel_dhcp4_init(ni_dbus_server_t *);
 extern void			ni_objectmodel_autoip_init(ni_dbus_server_t *);
 extern int			ni_objectmodel_addrconf_acquire(ni_dbus_object_t *,
 						const ni_addrconf_request_t *);

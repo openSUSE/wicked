@@ -61,7 +61,6 @@ ni_objectmodel_create_service(void)
 		ni_fatal("unable to initialize dbus service");
 
 	/* Initialize our addrconf clients */
-	ni_objectmodel_dhcp4_init(server);
 	ni_objectmodel_autoip_init(server);
 
 	__ni_objectmodel_server = server;
