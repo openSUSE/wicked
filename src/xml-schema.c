@@ -792,7 +792,7 @@ ni_xs_build_typelist(xml_node_t *node, ni_xs_name_type_array_t *result, ni_xs_sc
 }
 
 ni_xs_type_t *
-ni_xs_build_complex_type(xml_node_t *node, const char *className, ni_xs_scope_t *typedict)
+ni_xs_build_complex_type(xml_node_t *node, const char *className, ni_xs_scope_t *scope)
 {
 	const char *typeAttr;
 	ni_xs_type_t *type = NULL;
@@ -803,8 +803,31 @@ ni_xs_build_complex_type(xml_node_t *node, const char *className, ni_xs_scope_t 
 	}
 
 	if (!strcmp(className, "struct")) {
-		type = ni_xs_struct_new(NULL);
-		if (ni_xs_build_typelist(node, &type->u.struct_info->children, typedict) < 0) {
+		const char *base_name;
+
+		if ((base_name = xml_node_get_attr(node, "extends")) != NULL) {
+			ni_xs_type_t *base_type;
+			ni_xs_struct_info_t *struct_info;
+
+			base_type = ni_xs_scope_lookup(scope, base_name);
+			if (base_type == NULL) {
+				ni_error("%s: base type \"%s\" not known in this scope",
+						xml_node_location(node), base_name);
+				return NULL;
+			}
+			if (base_type->class != NI_XS_TYPE_STRUCT) {
+				ni_error("%s: base type \"%s\" not compatible",
+						xml_node_location(node), base_name);
+				return NULL;
+			}
+
+			struct_info = ni_xs_struct_info(base_type);
+			type = ni_xs_struct_new(&struct_info->children);
+		} else {
+			type = ni_xs_struct_new(NULL);
+		}
+
+		if (ni_xs_build_typelist(node, &type->u.struct_info->children, scope) < 0) {
 			ni_xs_type_free(type);
 			return NULL;
 		}
@@ -816,14 +839,14 @@ ni_xs_build_complex_type(xml_node_t *node, const char *className, ni_xs_scope_t 
 		const char *attrValue;
 
 		if ((typeAttr = xml_node_get_attr(node, "element-type")) != NULL) {
-			elementType = ni_xs_scope_lookup(typedict, typeAttr);
+			elementType = ni_xs_scope_lookup(scope, typeAttr);
 			if (elementType == NULL) {
 				ni_error("%s: array definition references unknown element type <%s>", __func__, typeAttr);
 				return NULL;
 			}
 			ni_xs_type_hold(elementType);
 		} else {
-			elementType = ni_xs_build_one_type(node, typedict);
+			elementType = ni_xs_build_one_type(node, scope);
 			if (elementType == NULL)
 				return NULL;
 		}
@@ -853,8 +876,31 @@ ni_xs_build_complex_type(xml_node_t *node, const char *className, ni_xs_scope_t 
 		ni_xs_type_release(elementType);
 	} else
 	if (!strcmp(className, "dict")) {
-		type = ni_xs_dict_new(NULL);
-		if (ni_xs_build_typelist(node, &type->u.dict_info->children, typedict) < 0) {
+		const char *base_name;
+
+		if ((base_name = xml_node_get_attr(node, "extends")) != NULL) {
+			ni_xs_type_t *base_type;
+			ni_xs_dict_info_t *dict_info;
+
+			base_type = ni_xs_scope_lookup(scope, base_name);
+			if (base_type == NULL) {
+				ni_error("%s: base type \"%s\" not known in this scope",
+						xml_node_location(node), base_name);
+				return NULL;
+			}
+			if (base_type->class != NI_XS_TYPE_DICT) {
+				ni_error("%s: base type \"%s\" not compatible",
+						xml_node_location(node), base_name);
+				return NULL;
+			}
+
+			dict_info = ni_xs_dict_info(base_type);
+			type = ni_xs_dict_new(&dict_info->children);
+		} else {
+			type = ni_xs_dict_new(NULL);
+		}
+
+		if (ni_xs_build_typelist(node, &type->u.dict_info->children, scope) < 0) {
 			ni_xs_type_free(type);
 			return NULL;
 		}
@@ -925,11 +971,13 @@ ni_xs_build_bitmap_constraint(const xml_node_t *node)
 	result->bits = (ni_intmap_t *) (result + 1);
 
 	for (child = node->children, i = 0; child; child = child->next, ++i) {
+		const char *bitnum;
 		unsigned int value;
 		char *ep = NULL;
 
-		if (child->cdata != NULL) {
-			value = strtoul(child->cdata, &ep, 0);
+		bitnum = xml_node_get_attr(child, "bit");
+		if (bitnum != NULL) {
+			value = strtoul(bitnum, &ep, 0);
 			if (*ep == '\0') {
 				result->bits[i].name = strdup(child->name);
 				result->bits[i].value = value;

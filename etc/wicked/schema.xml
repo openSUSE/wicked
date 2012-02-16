@@ -78,14 +78,14 @@
 
  <!-- These bits must match the definitions in netinfo.h -->
  <status type="uint32" constraint="bitmap">
-  <device-up>0</device-up>
-  <link-up>1</link-up>
-  <powersave>2</powersave>
-  <network-up>3</network-up>
-  <point-to-point>4</point-to-point>
-  <arp>5</arp>
-  <broadcast>6</broadcast>
-  <multicast>7</multicast>
+  <device-up bit="0" />
+  <link-up bit="1" />
+  <powersave bit="2" />
+  <network-up bit="3" />
+  <point-to-point bit="4" />
+  <arp bit="5" />
+  <broadcast bit="6" />
+  <multicast bit="7" />
  </status>
 
  <link class="dict">

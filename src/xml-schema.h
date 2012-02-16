@@ -5,11 +5,22 @@
  *
  *
  * Type definitions look like this:
- *   <define name="..." type="..."/>
- * or
+ *   <define name="..." type="..."/>    <!-- for scalars -->
+ *   <define name="..." class="..."/>   <!-- for complex types -->
+ *
+ * Alternative notations are
  *   <define name="...">
- *    <type...>
+ *    ...
  *   </define>
+ * where the <define> element can contain any number of nested defines,
+ * and *exactly* one anonymous type. This anonymous type can be written
+ * like one of the following:
+ *
+ *   <footype/>                <!-- where footype was defined previously -->
+ *   <array ... />
+ *   <struct> ... </struct>    <!-- child elements define struct members -->
+ *   <dict> ... </dict>        <!-- child elements define dict members -->
+ *
  *
  * Constant definitions look like this:
  *   <define name="...">#cdata</define>
@@ -52,12 +63,34 @@
  *	specify it using constrain="range". The type element is then expected
  *	to have additional min="..." and max="..." attributes.
  *
+ * bitmap
+ *	If a numeric type is a bitmap, the individual bits can be named. In this
+ *	case, the XML representation will be an element containing child elements
+ *	using the given flag names, where a child is present iff the corresponding
+ *	bit in the bitmap is set.
+ *	So, for instance, if a bitmap's three low-order bits are named secret,
+ *	urgent, and archive, you may define it like this:
+ *	 <define name="document-disposition" type="uint32" contstraint="bitmap">
+ *	  <secret bit="0" />
+ *	  <urgent bit="1" />
+ *	  <archive bit="2" />
+ *	 </define>
+ *	 <disposition type="document-disposition" />
+ *
+ *	If the variable disposition takes on the value 5, it would be represented
+ *	as
+ *	  <disposition> <archive/> <secret/> </disposition>
+ *
+ *
  * Arrays are represented like this:
- *   <array type="..." minlen="..." maxlen="..."/>
+ *   <array element-type="..." minlen="..." maxlen="..."/>
  * or
  *   <array minlen="..." maxlen="...">
  *    <type...>
  *   </array>
+ * The latter form can be used for arrays of complex types, such as a dict,
+ * without having to define a named type for the array element type.
+ *
  * Note that the minlen/maxlen attributes are optional.
  *
  * Structs can be represented either as
@@ -73,6 +106,17 @@
  *    ...
  *   </struct>
  *
+ * structs support some limited notion of "inheritance" via the "extends"
+ * attribute. This lets the schema writer create a struct type that extends
+ * (or inherits from) an existing struct:
+ *
+ *   <define name="base-struct" class="struct">
+ *     <foo type="string" />
+ *   </define>
+ *   <define name="derived-struct" class="struct" extends="base-struct">
+ *     <bar type="uint32" />
+ *   </define>
+ *
  * String-keyed dicts are represented as
  *   <dict>
  *    <nameA type="typeA"/>
@@ -83,33 +127,6 @@
  *
  * Discriminated unions are not yet defined.
  *
-   <define name="bond" class="dict">
-     <mode type="string"/>
-
-     <arpmon class="dict">
-       <define name="arp-validate-type">
-        <string value="none" value="active" value="backup" value="all"/>
-       </define>
-       <interval type="uint32"/>
-       <validate type="arp-validate-type"/>
-       <target>
-        <array element="ipv4-address" minlen="1"/>
-       </target>
-     </arpmon>
-
-     <miimon = class="dict">
-       <frequency uint32/>
-       <validate uint32/>
-       <updelay uint32/>
-       <downdelay uint32/>
-       <carrier>
-        <uint32 constraint="oneof">
-         <choice value="ioctl"/>
-         <choice value="netif"/>
-        </uint32>
-       </carrier>
-     </miimon>
-   </define>
  */
 
 #ifndef __WICKED_XML_SCHEMA_H__
