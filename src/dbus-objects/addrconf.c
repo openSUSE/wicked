@@ -421,6 +421,15 @@ ni_objectmodel_addrconf_ipv4_dhcp_request(ni_dbus_object_t *object, const ni_dbu
 	return __ni_objectmodel_return_callback_info(reply, NI_EVENT_ADDRESS_ACQUIRED, &req->uuid, error);
 }
 
+static dbus_bool_t
+ni_objectmodel_addrconf_ipv4_dhcp_drop(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	/* NOP for now */
+	return TRUE;
+}
+
 /*
  * Configure IPv4 addresses via IPv4ll
  */
@@ -465,6 +474,15 @@ ni_objectmodel_addrconf_ipv4ll_request(ni_dbus_object_t *object, const ni_dbus_m
 	return __ni_objectmodel_return_callback_info(reply, NI_EVENT_ADDRESS_ACQUIRED, &req->uuid, error);
 }
 
+static dbus_bool_t
+ni_objectmodel_addrconf_ipv4ll_drop(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	/* NOP for now */
+	return TRUE;
+}
+
 /*
  * Generic lease properties
  */
@@ -504,8 +522,7 @@ __ni_objectmodel_addrconf_generic_set_lease(ni_dbus_object_t *object,
 	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
 		return FALSE;
 
-	if (ni_dbus_dict_get_uint32(dict, "state", &state)
-	 && state == NI_ADDRCONF_STATE_GRANTED) {
+	if (ni_dbus_dict_get_uint32(dict, "state", &state)) {
 		ni_addrconf_lease_t *lease;
 
 		lease = ni_addrconf_lease_new(mode, addrfamily);
@@ -624,11 +641,13 @@ static const ni_dbus_method_t		ni_objectmodel_addrconf_ipv6_static_methods[] = {
 
 static const ni_dbus_method_t		ni_objectmodel_addrconf_ipv4_dhcp_methods[] = {
 	{ "requestLease",	"a{sv}",		ni_objectmodel_addrconf_ipv4_dhcp_request },
+	{ "dropLease",		"",			ni_objectmodel_addrconf_ipv4_dhcp_drop },
 	{ NULL }
 };
 
 static const ni_dbus_method_t		ni_objectmodel_addrconf_ipv4ll_methods[] = {
 	{ "requestLease",	"a{sv}",		ni_objectmodel_addrconf_ipv4ll_request },
+	{ "dropLease",		"",			ni_objectmodel_addrconf_ipv4ll_drop },
 	{ NULL }
 };
 

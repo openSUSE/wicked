@@ -327,6 +327,18 @@ ni_ifworker_get_callback(ni_ifworker_t *w, const ni_uuid_t *uuid)
 	return NULL;
 }
 
+static dbus_bool_t
+ni_ifworker_waiting_for_event(ni_ifworker_t *w, const char *event_name)
+{
+	ni_objectmodel_callback_info_t *cb;
+
+	for (cb = w->callbacks; cb != NULL; cb = cb->next) {
+		if (ni_string_eq(cb->event, event_name))
+			return TRUE;
+	}
+	return FALSE;
+}
+
 static unsigned int
 ni_ifworkers_from_xml(xml_document_t *doc)
 {
@@ -816,22 +828,9 @@ ni_ifworker_do_network_up(ni_ifworker_t *w)
 	return 0;
 }
 
-static int
-ni_ifworker_do_network_down(ni_ifworker_t *w)
-{
-	ni_debug_dbus("%s(%s)", __func__, w->name);
-	ni_ifworker_fail(w, "%s not implemented yet", __func__);
-
-#if 0
-	if (w->callbacks == NULL) {
-		ni_debug_dbus("%s: no address configuration; we're done", w->name);
-		w->state = STATE_NETWORK_DOWN;
-	}
-#endif
-
-	return 0;
-}
-
+/*
+ * Helper function to check if an XML node corresponds to an address config mode
+ */
 static const ni_dbus_service_t *
 __ni_ifworker_check_addrconf(const char *name)
 {
@@ -857,6 +856,59 @@ __ni_ifworker_check_addrconf(const char *name)
 
 	free(copy);
 	return service;
+}
+
+/*
+ * Shut down all network configuration on the given interface
+ */
+static int
+ni_ifworker_do_network_down(ni_ifworker_t *w)
+{
+	const ni_dbus_service_t *service, **pos;
+
+	ni_debug_dbus("%s(%s)", __func__, w->name);
+
+	if (w->object == NULL) {
+		ni_ifworker_fail(w, "%s has no object", w->name);
+		return 0;
+	}
+
+	for (pos = w->object->interfaces; (service = *pos) != NULL; ++pos) {
+		static const char service_prefix[] = WICKED_DBUS_INTERFACE ".Addrconf.";
+
+		/* Check if this is an addrconf interface */
+		if (!strncmp(service->name, service_prefix, sizeof(service_prefix) - 1)) {
+			ni_objectmodel_callback_info_t *callback_list = NULL;
+
+			ni_trace("%s is an addrconf service", service->name);
+			if (!ni_call_drop_lease(w->object, service, &callback_list)) {
+				ni_ifworker_fail(w, "failed to shut down addresses (%s)", service->name);
+				/* return -1; */
+			}
+
+			if (callback_list) {
+				ni_ifworker_add_callbacks(w, callback_list);
+				w->wait_for_state = STATE_LINK_UP;
+			}
+		}
+	}
+
+	if (w->callbacks == NULL) {
+		ni_debug_dbus("%s: all addresses down; we're done", w->name);
+		w->state = STATE_LINK_UP;
+	}
+
+	return 0;
+}
+
+/*
+ * Shut down the link
+ */
+static int
+ni_ifworker_do_link_down(ni_ifworker_t *w)
+{
+	w->state = STATE_DEVICE_UP;
+	return 0;
 }
 
 /*
@@ -889,7 +941,10 @@ static ni_netif_action_t	ni_ifworker_fsm_up[] = {
 
 static ni_netif_action_t	ni_ifworker_fsm_down[] = {
 	/* Remove all assigned addresses and bring down the network */
-	{ .next_state = STATE_NETWORK_UP,	.func = ni_ifworker_do_network_down },
+	{ .next_state = STATE_LINK_UP,		.func = ni_ifworker_do_network_down },
+
+	/* Shut down the link */
+	{ .next_state = STATE_DEVICE_UP,	.func = ni_ifworker_do_link_down },
 
 	{ .next_state = STATE_NONE, .func = NULL }
 };
@@ -1045,6 +1100,11 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 				}
 				ni_objectmodel_callback_info_free(cb);
 			}
+
+			if (ni_ifworker_waiting_for_event(w, signal_name)) {
+				ni_debug_dbus("%s: waiting for more %s events...", w->name, signal_name);
+				goto done;
+			}
 		}
 
 		if (!w->failed) {
@@ -1062,6 +1122,8 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 						ni_ifworker_state_name(w->state));
 		}
 	}
+
+done: ;
 }
 
 static dbus_bool_t
