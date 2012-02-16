@@ -982,7 +982,10 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 					__func__, signal_name);
 			return;
 		}
-		ni_dbus_variant_get_uuid(&result, &event_uuid);
+		if (ni_dbus_variant_get_uuid(&result, &event_uuid))
+			ni_debug_dbus("event uuid=%s", ni_print_hex(event_uuid.octets, 16));
+		else
+			ni_debug_dbus("event does not have a uuid");
 		ni_dbus_variant_destroy(&result);
 	}
 
@@ -992,7 +995,9 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 		if (!ni_uuid_is_null(&event_uuid)) {
 			cb = ni_ifworker_get_callback(w, &event_uuid);
 			if (cb) {
-				if (!ni_string_eq(cb->event, signal_name)) {
+				if (ni_string_eq(cb->event, signal_name)) {
+					ni_debug_dbus("... great, we were expecting this event");
+				} else {
 					ni_debug_dbus("%s: was waiting for %s event, but got %s",
 							w->name, cb->event, signal_name);
 					ni_ifworker_fail(w, "got signal %s", signal_name);
