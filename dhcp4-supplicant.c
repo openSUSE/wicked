@@ -13,6 +13,7 @@
 #include <signal.h>
 #include <getopt.h>
 #include <errno.h>
+#include <net/if_arp.h>
 
 #include <wicked/netinfo.h>
 #include <wicked/addrconf.h>
@@ -257,6 +258,9 @@ dhcp4_discover_devices(ni_dbus_server_t *server)
 	/* FIXME: for wireless devices, we should disable all the
 	 * BSS discovery, it's not needed in the dhcp4 supplicant */
 	for (ifp = ni_interfaces(nc); ifp; ifp = ifp->next) {
+
+		if (ifp->link.arp_type != ARPHRD_ETHER)
+			continue;
 		dhcp4_device_create(server, ifp);
 
 		if (opt_recover_leases)
