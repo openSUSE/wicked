@@ -303,6 +303,8 @@ ni_dbus_object_call_simple(const ni_dbus_object_t *proxy,
 
 	if ((reply = ni_dbus_client_call(client, msg, &error)) == NULL) {
 		rv = -EIO;
+		if (dbus_error_is_set(&error))
+			rv = -ni_dbus_client_translate_error(client, &error);
 		goto out;
 	}
 
