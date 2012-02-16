@@ -1238,7 +1238,6 @@ ni_netcf_xml_to_lease(const xml_node_t *xmlnode, ni_addrconf_lease_t **res)
 static xml_node_t *
 __ni_netcf_xml_from_lease(const ni_addrconf_lease_t *lease, xml_node_t *parent)
 {
-	const ni_addrconf_t *mech;
 	xml_node_t *node;
 
 	node = xml_node_new("lease", parent);
@@ -1272,18 +1271,12 @@ __ni_netcf_xml_from_lease(const ni_addrconf_lease_t *lease, xml_node_t *parent)
 		__ni_netcf_xml_from_static_ifcfg(lease->family, &dummy, node);
 	}
 
-	/* Convert protocol specific data to xml */
-	mech = ni_addrconf_get(lease->type, lease->family);
-	if (mech && mech->xml_from_lease)
-		mech->xml_from_lease(mech, lease, node);
-
 	return node;
 }
 
 static ni_addrconf_lease_t *
 __ni_netcf_xml_to_lease(const xml_node_t *node)
 {
-	const ni_addrconf_t *mech;
 	ni_addrconf_lease_t *lease = NULL;
 	xml_node_t *prot, *child;
 	const char *name;
@@ -1362,11 +1355,6 @@ __ni_netcf_xml_to_lease(const xml_node_t *node)
 		lease->addrs = dummy.addrs;
 		lease->routes = dummy.routes;
 	}
-
-	/* Set protocol specific data from xml */
-	mech = ni_addrconf_get(lease->type, lease->family);
-	if (mech && mech->xml_to_lease)
-		mech->xml_to_lease(mech, lease, node);
 
 	return lease;
 

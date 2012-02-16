@@ -10,29 +10,6 @@
 #include <wicked/types.h>
 #include <wicked/constants.h>
 
-struct ni_addrconf {
-	ni_addrconf_mode_t	type;
-
-	/* Supported address families.
-	 * Bitwise OR of NI_AF_MASK_* values
-	 */
-	unsigned int		supported_af;
-
-	void *			private;
-
-	int			(*request)(const ni_addrconf_t *, ni_interface_t *);
-	int			(*release)(const ni_addrconf_t *, ni_interface_t *, ni_addrconf_lease_t *);
-	int			(*test)(const ni_addrconf_t *, const ni_interface_t *, const xml_node_t *);
-	void			(*interface_event)(const ni_addrconf_t *, ni_interface_t *, ni_event_t);
-	int			(*is_valid)(const ni_addrconf_t *, const ni_addrconf_lease_t *);
-
-	/* Convert protocol specific lease information */
-	int			(*xml_to_request)(const ni_addrconf_t *, ni_addrconf_request_t *, const xml_node_t *);
-	int			(*xml_from_request)(const ni_addrconf_t *, const ni_addrconf_request_t *, xml_node_t *);
-	int			(*xml_to_lease)(const ni_addrconf_t *, ni_addrconf_lease_t *, const xml_node_t *);
-	int			(*xml_from_lease)(const ni_addrconf_t *, const ni_addrconf_lease_t *, xml_node_t *);
-};
-
 /*
  * DHCP configuration info
  */
@@ -196,14 +173,13 @@ extern int		ni_addrconf_request_equal(const ni_addrconf_request_t *, const ni_ad
 extern ni_addrconf_lease_t *ni_addrconf_lease_new(int type, int family);
 extern void		ni_addrconf_lease_destroy(ni_addrconf_lease_t *);
 extern void		ni_addrconf_lease_free(ni_addrconf_lease_t *);
-extern void		ni_addrconf_register(ni_addrconf_t *);
-extern ni_addrconf_t *	ni_addrconf_get(int type, int family);
-extern int		ni_addrconf_acquire_lease(const ni_addrconf_t *, ni_interface_t *);
-extern int		ni_addrconf_drop_lease(const ni_addrconf_t *, ni_interface_t *);
-extern int		ni_addrconf_lease_is_valid(const ni_addrconf_lease_t *);
-extern int		ni_addrconf_check(const ni_addrconf_t *, const ni_interface_t *, const xml_node_t *);
-extern const ni_addrconf_t *ni_addrconf_list_first(unsigned int *);
-extern const ni_addrconf_t *ni_addrconf_list_next(unsigned int *);
+
+static inline int
+ni_addrconf_lease_is_valid(const ni_addrconf_lease_t *lease)
+{
+	return lease && lease->state == NI_ADDRCONF_STATE_GRANTED;
+}
+
 extern int		ni_addrconf_lease_file_write(const char *, ni_addrconf_lease_t *);
 extern ni_addrconf_lease_t *ni_addrconf_lease_file_read(const char *, int, int);
 extern void		ni_addrconf_lease_file_remove(const char *, int, int);

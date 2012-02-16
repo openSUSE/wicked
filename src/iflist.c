@@ -1090,9 +1090,6 @@ __ni_discover_bond(ni_interface_t *ifp)
 int
 __ni_discover_addrconf(ni_interface_t *ifp)
 {
-	const ni_addrconf_t *acm;
-	unsigned int pos;
-	xml_node_t *xml = NULL;
 	unsigned int i;
 
 	__ni_assert_initialized();
@@ -1106,33 +1103,5 @@ __ni_discover_addrconf(ni_interface_t *ifp)
 			ni_afinfo_addrconf_enable(&ifp->ipv6, i);
 	}
 
-	for (acm = ni_addrconf_list_first(&pos); acm; acm = ni_addrconf_list_next(&pos)) {
-		if (!acm->test)
-			continue;
-
-#if 0
-		/* Represent interface as XML */
-		if (xml == NULL) {
-			xml = ni_syntax_xml_from_interface(ni_default_xml_syntax(), nc, ifp);
-			if (!xml)
-				return 0;
-		}
-#endif
-
-		/* Check if the extension is active */
-		if (ni_addrconf_check(acm, ifp, xml)) {
-			ni_debug_ifconfig("%s: %s is active on%s%s", ifp->name,
-					ni_addrconf_type_to_name(acm->type),
-					(acm->supported_af & NI_AF_MASK_IPV4)? " ipv4" : "",
-					(acm->supported_af & NI_AF_MASK_IPV6)? " ipv6" : "");
-			if (acm->supported_af & NI_AF_MASK_IPV4)
-				ni_afinfo_addrconf_enable(&ifp->ipv4, acm->type);
-			if (acm->supported_af & NI_AF_MASK_IPV6)
-				ni_afinfo_addrconf_enable(&ifp->ipv6, acm->type);
-		}
-	}
-
-	if (xml)
-		xml_node_free(xml);
 	return 0;
 }

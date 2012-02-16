@@ -103,26 +103,10 @@ __ni_rtevent_read(ni_socket_t *sock)
 static void
 __ni_interface_event(ni_netconfig_t *nc, ni_interface_t *ifp, ni_event_t ev)
 {
-	unsigned int mode;
-
-	if (ni_global.interface_event)
-		ni_global.interface_event(nc, ifp, ev);
-
 	ni_debug_dhcp("%s(%s, idx=%d, %s)", __FUNCTION__,
 			ifp->name, ifp->link.ifindex, ni_event_type_to_name(ev));
-	for (mode = 0; mode < __NI_ADDRCONF_MAX; ++mode) {
-		ni_addrconf_t *acm4 = NULL, *acm6;
-
-		if (ni_afinfo_addrconf_test(&ifp->ipv4, mode)
-		 && (acm4 = ni_addrconf_get(mode, AF_INET)) != NULL
-		 && acm4->interface_event)
-			acm4->interface_event(acm4, ifp, ev);
-
-		if (ni_afinfo_addrconf_test(&ifp->ipv6, mode)
-		 && (acm6 = ni_addrconf_get(mode, AF_INET6)) != NULL
-		 && acm6 != acm4 && acm6->interface_event)
-			acm6->interface_event(acm6, ifp, ev);
-	}
+	if (ni_global.interface_event)
+		ni_global.interface_event(nc, ifp, ev);
 }
 
 int

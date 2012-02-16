@@ -41,7 +41,6 @@
 
 #define BOND_DEVICE_MUST_BE_UP_WHEN_MESSING_WITH_SLAVES 1
 
-static int	__ni_interface_addrconf(ni_netconfig_t *, int,  ni_interface_t *, ni_afinfo_t *);
 static int	__ni_interface_update_ipv6_settings(ni_netconfig_t *, ni_interface_t *, const ni_afinfo_t *);
 static int	__ni_interface_update_addrs(ni_interface_t *ifp,
 				int family, ni_addrconf_mode_t mode,
@@ -49,7 +48,10 @@ static int	__ni_interface_update_addrs(ni_interface_t *ifp,
 static int	__ni_interface_update_routes(ni_interface_t *ifp,
 				int family, ni_addrconf_mode_t mode,
 				ni_route_t * const *cfg_route_list);
+#if 0
+static int	__ni_interface_addrconf(ni_netconfig_t *, int,  ni_interface_t *, ni_afinfo_t *);
 static int	__ni_interface_handle_addrconf_request(ni_netconfig_t *, ni_interface_t *, const ni_addrconf_request_t *);
+#endif
 
 static int	__ni_rtnl_link_create_vlan(const char *, const ni_vlan_t *, unsigned int);
 static int	__ni_rtnl_link_up(const ni_interface_t *, const ni_interface_request_t *);
@@ -117,6 +119,7 @@ ni_system_interface_link_change(ni_netconfig_t *nc, ni_interface_t *ifp,
 }
 
 
+#if 0
 int
 ni_system_interface_addrconf(ni_netconfig_t *nc, ni_interface_t *dev, const ni_addrconf_request_t *req)
 {
@@ -180,6 +183,7 @@ ni_system_interface_up(ni_netconfig_t *nc, ni_interface_t *ifp, const ni_interfa
 failed:
 	return res;
 }
+#endif
 
 /*
  * Shut down an interface
@@ -198,11 +202,13 @@ ni_system_interface_down(ni_netconfig_t *nc, ni_interface_t *ifp)
 
 	__ni_global_seqno++;
 
+#if 0
 	/* First do the addrconf fandango, then take down the interface
 	 * itself. We need to do DHCP release and related stuff... */
 	if ((res = __ni_interface_addrconf(nc, AF_INET, ifp, NULL)) >= 0
 	 && (res = __ni_interface_addrconf(nc, AF_INET6, ifp, NULL)) >= 0)
 		res = __ni_system_refresh_interface(nc, ifp);
+#endif
 
 	ni_debug_ifconfig("shutting down interface %s", ifp->name);
 	if (__ni_rtnl_link_down(ifp, RTM_NEWLINK)) {
@@ -1291,7 +1297,8 @@ __ni_addrconf_extension(int type, int family)
  * Change the addrconf request for a given address family and address configuration
  * protocol
  */
-/* static */ int
+#if 0
+static int
 __ni_addrconf_update_request(ni_afinfo_t *afinfo, ni_addrconf_mode_t mode,
 				ni_addrconf_request_t **req_p,
 				ni_interface_t *ifp)
@@ -1364,6 +1371,7 @@ __ni_addrconf_update_request(ni_afinfo_t *afinfo, ni_addrconf_mode_t mode,
 
 	return NI_SUCCESS;
 }
+#endif
 
 /*
  * Update the addresses and routes assigned to an interface
@@ -1536,6 +1544,7 @@ __ni_interface_update_routes(ni_interface_t *ifp,
 	return rv;
 }
 
+#if 0
 /*
  * IPv6 autoconf takes care of itself. All we need to do is record that we
  * have a "lease".
@@ -1819,3 +1828,4 @@ __ni_interface_handle_addrconf_request(ni_netconfig_t *nc, ni_interface_t *dev, 
 
 	return rv;
 }
+#endif

@@ -201,10 +201,8 @@ extern void		ni_dhcp_parse_client_id(ni_opaque_t *, int, const char *);
 extern void		ni_dhcp_set_client_id(ni_opaque_t *, const ni_hwaddr_t *);
 extern void		ni_dhcp_device_drop_best_offer(ni_dhcp_device_t *);
 
-extern int		ni_dhcp_xml_from_lease(const ni_addrconf_t *,
-				const ni_addrconf_lease_t *, xml_node_t *);
-extern int		ni_dhcp_xml_to_lease(const ni_addrconf_t *,
-				ni_addrconf_lease_t *, const xml_node_t *);
+extern int		ni_dhcp_xml_from_lease(const ni_addrconf_lease_t *, xml_node_t *);
+extern int		ni_dhcp_xml_to_lease(ni_addrconf_lease_t *, const xml_node_t *);
 
 extern const char *	ni_dhcp_config_vendor_class(void);
 extern int		ni_dhcp_config_ignore_server(struct in_addr);

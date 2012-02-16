@@ -26,8 +26,6 @@
 #include <wicked/logging.h>
 #include <wicked/wicked.h>
 #include <wicked/socket.h>
-#include <wicked/dhcp.h>
-#include <wicked/ipv4ll.h>
 #include <wicked/objectmodel.h>
 
 enum {
@@ -203,9 +201,14 @@ wicked_discover_state(void)
 	}
 }
 
+/*
+ * This does not work right now
+ */
 void
 wicked_try_restart_addrconf(ni_interface_t *ifp, ni_afinfo_t *afi, unsigned int mode)
 {
+#if 0
+	const ni_addrconf_t *mech;
 	ni_addrconf_lease_t *lease;
 	ni_addrconf_t *acm;
 
@@ -257,6 +260,7 @@ wicked_try_restart_addrconf(ni_interface_t *ifp, ni_afinfo_t *afi, unsigned int 
 	ni_debug_wicked("%s: initiated recovery of %s/%s lease", ifp->name,
 				ni_addrconf_type_to_name(lease->type),
 				ni_addrfamily_type_to_name(lease->family));
+#endif
 }
 
 /*

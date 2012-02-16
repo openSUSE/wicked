@@ -19,8 +19,6 @@
 #include <wicked/logging.h>
 #include <wicked/wicked.h>
 #include <wicked/socket.h>
-#include <wicked/dhcp.h>
-#include <wicked/ipv4ll.h>
 #include <wicked/objectmodel.h>
 #include "autoip4/autoip.h"
 
@@ -128,18 +126,12 @@ autoip4_recover_lease(ni_interface_t *ifp)
 {
 	ni_afinfo_t *afi = &ifp->ipv4;
 	ni_addrconf_lease_t *lease;
-	ni_addrconf_t *acm;
 
 	if (!ni_afinfo_addrconf_test(afi, NI_ADDRCONF_AUTOCONF))
 		return;
 
 	/* Don't do anything if we already have a lease for this. */
 	if (afi->lease[NI_ADDRCONF_AUTOCONF] != NULL)
-		return;
-
-	/* Some addrconf modes do not have a backend (like ipv6 autoconf) */
-	acm = ni_addrconf_get(NI_ADDRCONF_AUTOCONF, afi->family);
-	if (acm == NULL)
 		return;
 
 	lease = ni_addrconf_lease_file_read(ifp->name, NI_ADDRCONF_AUTOCONF, afi->family);
@@ -168,7 +160,7 @@ autoip4_recover_lease(ni_interface_t *ifp)
 	}
 	afi->request[NI_ADDRCONF_AUTOCONF]->reuse_unexpired = 1;
 
-	if (ni_addrconf_acquire_lease(acm, ifp) < 0) {
+	if (1) {
 		ni_error("%s: unable to reacquire lease %s/%s", ifp->name,
 				ni_addrconf_type_to_name(lease->type),
 				ni_addrfamily_type_to_name(lease->family));

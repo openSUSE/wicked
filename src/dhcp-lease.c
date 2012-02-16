@@ -23,8 +23,7 @@ static int		__ni_dhcp_get_uint32(const xml_node_t *, const char *, uint32_t *);
 static int		__ni_dhcp_get_uint16(const xml_node_t *, const char *, uint16_t *);
 
 int
-ni_dhcp_xml_from_lease(const ni_addrconf_t *aconf,
-				const ni_addrconf_lease_t *lease, xml_node_t *node)
+ni_dhcp_xml_from_lease(const ni_addrconf_lease_t *lease, xml_node_t *node)
 {
 	node = xml_node_new("dhcp", node);
 	if (lease->dhcp.serveraddress.s_addr)
@@ -50,7 +49,7 @@ ni_dhcp_xml_from_lease(const ni_addrconf_t *aconf,
 }
 
 int
-ni_dhcp_xml_to_lease(const ni_addrconf_t *aconf, ni_addrconf_lease_t *lease, const xml_node_t *node)
+ni_dhcp_xml_to_lease(ni_addrconf_lease_t *lease, const xml_node_t *node)
 {
 	char *server_name = NULL;
 
