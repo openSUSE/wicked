@@ -1,0 +1,56 @@
+<interface>
+  <name>br0</name>
+
+  <device>
+    <mtu>1400</mtu>
+  </device>
+
+  <bridge>
+    <stp>none</stp>
+    <forward-delay>15</forward-delay>
+    <ports>
+     <p>
+      <device>eth0.42</device>
+      <path-cost>16</path-cost>
+     </p>
+     <p>
+      <device>eth0.41</device>
+      <priority>63</priority>
+     </p>
+    </ports>
+  </bridge>
+
+  <ipv4:static>
+    <address>
+      <local>17.99.0.1/24</local>
+    </address>
+    <address>
+      <local>17.99.1.1/24</local>
+    </address>
+
+    <route>
+      <destination>17.99.2.0/24</destination>
+      <nexthop>
+	<gateway>17.99.1.254</gateway>
+      </nexthop>
+    </route>
+  </ipv4:static>
+</interface>
+
+<interface>
+  <name>eth0.41</name>
+
+  <vlan>
+    <tag>41</tag>
+    <device>eth0</device>
+  </vlan>
+</interface>
+
+<interface>
+  <name>eth0.42</name>
+
+  <vlan>
+    <tag>42</tag>
+    <device>eth0</device>
+  </vlan>
+</interface>
