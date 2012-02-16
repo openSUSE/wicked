@@ -93,6 +93,8 @@ typedef struct ni_config {
 	    } ibft;
 	} addrconf;
 
+	char *			dbus_xml_schema_file;
+
 	ni_extension_t *	api_extensions;
 	ni_extension_t *	linktype_extensions;
 	ni_extension_t *	addrconf_extensions;

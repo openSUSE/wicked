@@ -28,6 +28,7 @@
 #include "netinfo_priv.h"
 #include "dbus-server.h"
 #include "config.h"
+#include "xml-schema.h"
 
 #define DEFAULT_ADDRCONF_IPV4 (\
 			NI_ADDRCONF_MASK(NI_ADDRCONF_STATIC) |\
@@ -113,6 +114,27 @@ ni_server_listen_dbus(const char *dbus_name)
 	}
 
 	return ni_dbus_server_open(dbus_name, NULL);
+}
+
+ni_xs_scope_t *
+ni_server_dbus_xml_schema(void)
+{
+	const char *filename = ni_global.config->dbus_xml_schema_file;
+	ni_xs_scope_t *scope;
+
+	if (filename == NULL) {
+		ni_error("Cannot create dbus xml schema: no schema path configured");
+		return NULL;
+	}
+
+	scope = ni_dbus_xml_init();
+	if (ni_xs_process_schema_file(filename, scope) < 0) {
+		ni_error("Cannot create dbus xml schema: error in schema definition");
+		ni_xs_scope_free(scope);
+		return NULL;
+	}
+
+	return scope;
 }
 
 void

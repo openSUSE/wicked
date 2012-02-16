@@ -130,6 +130,12 @@ main(int argc, char **argv)
 void
 wicked_interface_server(void)
 {
+	ni_xs_scope_t *wicked_dbus_xml_schema;
+
+	wicked_dbus_xml_schema = ni_server_dbus_xml_schema();
+	if (wicked_dbus_xml_schema == NULL)
+		ni_fatal("Giving up.");
+
 	wicked_dbus_server = ni_objectmodel_create_service();
 
 	/* open global RTNL socket to listen for kernel events */

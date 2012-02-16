@@ -58,6 +58,7 @@ ni_config_free(ni_config_t *conf)
 	ni_extension_list_destroy(&conf->linktype_extensions);
 	ni_extension_list_destroy(&conf->api_extensions);
 	ni_string_free(&conf->dbus_name);
+	ni_string_free(&conf->dbus_xml_schema_file);
 	free(conf);
 }
 
@@ -101,17 +102,11 @@ ni_config_parse(const char *filename)
 	}
 
 	child = xml_node_get_child(node, "schema");
-	if (child && child->cdata) {
-		const char *filename = child->cdata;
-		ni_xs_scope_t *schema;
+	if (child) {
+		const char *attrval;
 
-		schema = ni_dbus_xml_init();
-		if (ni_xs_process_schema_file(filename, schema) < 0) {
-			ni_xs_scope_free(schema);
-			goto failed;
-		}
-
-		// conf->schema = schema_dict
+		if ((attrval = xml_node_get_attr(child, "name")) != NULL)
+			ni_string_dup(&conf->dbus_xml_schema_file, attrval);
 	}
 
 	child = xml_node_get_child(node, "addrconf");
