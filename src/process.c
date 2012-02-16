@@ -161,6 +161,7 @@ __ni_default_environment(void)
 	static const char *copy_env[] = {
 		"LD_LIBRARY_PATH",
 		"LD_PRELOAD",
+		"PATH",
 
 		NULL,
 	};
