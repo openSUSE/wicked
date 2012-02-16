@@ -1,7 +1,7 @@
 /*
  * Interfacing with wpa_supplicant through dbus interface
  *
- * Copyright (C) 2011 Olaf Kirch <okir@suse.de>
+ * Copyright (C) 2011-2012 Olaf Kirch <okir@suse.de>
  *
  * Activating interface
  *  interface.setAPScan(1) (or 2)

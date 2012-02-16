@@ -32,3 +32,12 @@
 <define name="builtin-wireless-auth" type="uint32" constraint="enum">
   <@@WIRELESS_AUTH_NAME@@ value="@@WIRELESS_AUTH_VALUE@@"/>
 </define>
+<define name="builtin-wireless-cipher" type="uint32" constraint="enum">
+  <@@WIRELESS_CIPHER_NAME@@ value="@@WIRELESS_CIPHER_VALUE@@"/>
+</define>
+<define name="builtin-key-mgmt" type="uint32" constraint="enum">
+  <@@WIRELESS_KEY_MGMT_NAME@@ value="@@WIRELESS_KEY_MGMT_VALUE@@"/>
+</define>
+<define name="builtin-eap-method" type="uint32" constraint="enum">
+  <@@WIRELESS_EAP_METHOD_NAME@@ value="@@WIRELESS_EAP_METHOD_VALUE@@"/>
+</define>

@@ -79,6 +79,9 @@ static struct generic_map	generic_maps[] = {
 	MAP(WIRELESS_MODE, ni_wireless_mode_to_name),
 	MAP(WIRELESS_SECURITY, ni_wireless_security_to_name),
 	MAP(WIRELESS_AUTH, ni_wireless_auth_mode_to_name),
+	MAP(WIRELESS_CIPHER, ni_wireless_cipher_to_name),
+	MAP(WIRELESS_KEY_MGMT, ni_wireless_key_management_to_name),
+	MAP(WIRELESS_EAP_METHOD, ni_wireless_eap_method_to_name),
 
 	{ NULL }
 };
