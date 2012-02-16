@@ -1058,8 +1058,8 @@ __wpa_dbus_bss_get_level(const ni_dbus_object_t *object, const ni_dbus_property_
 {
 	ni_wireless_network_t *net = __wpa_get_network(object);
 
-	/* wpa_supplicant expects the level in mBm == 100 dBm */
-	ni_dbus_variant_set_int32(argument, net->scan_info.level * 100);
+	/* wpa_supplicant expects the level as a 256-biased value */
+	ni_dbus_variant_set_int32(argument, net->scan_info.level + 256);
 	return TRUE;
 }
 
@@ -1070,10 +1070,9 @@ __wpa_dbus_bss_set_level(ni_dbus_object_t *object, const ni_dbus_property_t *pro
 	ni_wireless_network_t *net = __wpa_get_network(object);
 	int32_t level;
 
-	/* wpa_supplicant expects the level in mBm == 100 dBm */
 	if (!ni_dbus_variant_get_int32(argument, &level))
 		return FALSE;
-	net->scan_info.level = 1e-2 * level;
+	net->scan_info.level = level - 256;
 	return TRUE;
 }
 
@@ -1500,14 +1499,14 @@ ni_wpa_bss_properties_result(ni_dbus_object_t *proxy, ni_dbus_message_t *msg)
 	if (!ni_dbus_object_set_properties_from_dict(proxy, &ni_wpa_bssid_service, &dict))
 		goto failed;
 
-	ni_debug_wireless("Updated BSS %s, essid=%.*s, freq=%.3f GHz, quality=%.2f, noise=%u, level=%.2f dBm, maxrate=%u MB/s",
+	ni_debug_wireless("Updated BSS %s, freq=%.3f GHz, quality=%.2f, noise=%u, level=%.2f dBm, maxrate=%u MB/s, essid=%.*s",
 			ni_link_address_print(&net->access_point),
-			net->essid.len, net->essid.data,
 			net->scan_info.frequency,
 			net->scan_info.quality,
 			net->scan_info.noise,
 			net->scan_info.level,
-			net->scan_info.max_bitrate);
+			net->scan_info.max_bitrate / 1000000,
+			net->essid.len, net->essid.data);
 
 	ni_dbus_variant_destroy(&dict);
 	return;
