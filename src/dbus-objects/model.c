@@ -120,6 +120,9 @@ __ni_objectmodel_register_link_classes(ni_dbus_server_t *server)
 	}
 }
 
+/*
+ * Create the initial object hierarchy
+ */
 dbus_bool_t
 ni_objectmodel_create_initial_objects(ni_dbus_server_t *server)
 {
@@ -136,14 +139,36 @@ ni_objectmodel_create_initial_objects(ni_dbus_server_t *server)
 	if (object == NULL)
 		ni_fatal("Unable to create dbus object for interfaces");
 
-	ni_objectmodel_bind_compatible_interfaces(server, object, NI_IFTYPE_UNKNOWN);
-	ni_dbus_object_register_service(object, &ni_objectmodel_netif_list_service);
+	ni_objectmodel_bind_compatible_interfaces(server, object);
 	return TRUE;
 }
 
 dbus_bool_t
-ni_objectmodel_bind_compatible_interfaces(ni_dbus_server_t *server, ni_dbus_object_t *object, ni_iftype_t link_type)
+ni_objectmodel_bind_compatible_interfaces(ni_dbus_server_t *server, ni_dbus_object_t *object)
 {
+	unsigned int i;
+
+	if (object->class == NULL) {
+		ni_error("%s: object \"%s\" without class", __func__, object->path);
+		return FALSE;
+	}
+
+	NI_TRACE_ENTER_ARGS("object=%s, class=%s", object->path, object->class->name);
+	for (i = 0; i < ni_objectmodel_all_services.count; ++i) {
+		const ni_dbus_service_t *service = ni_objectmodel_all_services.services[i];
+		const ni_dbus_class_t *class;
+
+		/* If the service is compatible with the object's dbus class,
+		 * or any of its superclasses, register this interface to this
+		 * object */
+		for (class = object->class; class; class = class->superclass) {
+			if (service->compatible == class) {
+				ni_dbus_object_register_service(object, service);
+				break;
+			}
+		}
+	}
+
 	return TRUE;
 }
 

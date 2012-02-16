@@ -200,7 +200,7 @@ extern ni_dbus_object_t *	ni_objectmodel_wrap_addrconf_request(ni_addrconf_reque
 
 extern void			ni_objectmodel_register_service(const ni_dbus_service_t *);
 extern void			ni_objectmodel_register_link_service(ni_iftype_t, const ni_dbus_service_t *);
-extern dbus_bool_t		ni_objectmodel_bind_compatible_interfaces(ni_dbus_server_t *, ni_dbus_object_t *, ni_iftype_t);
+extern dbus_bool_t		ni_objectmodel_bind_compatible_interfaces(ni_dbus_server_t *, ni_dbus_object_t *);
 
 extern void			ni_objectmodel_dhcp4_init(ni_dbus_server_t *);
 extern void			ni_objectmodel_autoip_init(ni_dbus_server_t *);
