@@ -14,6 +14,7 @@
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
 
+static ni_intmap_t *	buildmap(const char *(*)(unsigned), unsigned int);
 static void		generate(char *, const char *, const ni_intmap_t *);
 
 
@@ -56,12 +57,17 @@ static ni_intmap_t	arphrd_map[] = {
 
 	{ NULL }
 };
+static ni_intmap_t *	iftype_names;
+static ni_intmap_t *	addrconf_names;
 
 int
 main(int argc, char **argv)
 {
 	unsigned int line = 0;
 	char buffer[512];
+
+	iftype_names = buildmap(ni_linktype_type_to_name, __NI_IFTYPE_MAX);
+	addrconf_names = buildmap(ni_addrconf_type_to_name, __NI_ADDRCONF_MAX);
 
 	while (fgets(buffer, sizeof(buffer), stdin) != NULL) {
 		char *atat;
@@ -77,6 +83,12 @@ main(int argc, char **argv)
 		} else
 		if (!strncmp(atat + 2, "ARPHRD_", 7)) {
 			generate(buffer, "ARPHRD", arphrd_map);
+		} else
+		if (!strncmp(atat + 2, "IFTYPENAME_", 11)) {
+			generate(buffer, "IFTYPENAME", iftype_names);
+		} else
+		if (!strncmp(atat + 2, "ADDRCONFNAME_", 13)) {
+			generate(buffer, "ADDRCONFNAME", addrconf_names);
 		} else {
 			int indent = atat - buffer;
 
@@ -88,6 +100,25 @@ main(int argc, char **argv)
 	}
 
 	return 0;
+}
+
+static ni_intmap_t *
+buildmap(const char *(*type2name)(unsigned int), unsigned int max)
+{
+	ni_intmap_t *map = calloc(max + 1, sizeof(map[0]));
+	unsigned int iftype;
+	const char *name;
+	unsigned int k;
+
+	for (iftype = k = 0; iftype < max; ++iftype) {
+		if ((name = type2name(iftype)) != NULL) {
+			map[k].name = name;
+			map[k].value = iftype;
+			++k;
+		}
+	}
+
+	return map;
 }
 
 static void

@@ -90,9 +90,7 @@
   <multicast bit="7" />
  </status>
 
- <link class="dict">
-  <class type="string"/>
- </link>
+ <link-type type="builtin-iftype"/>
 
  <index type="uint32"/>
  <metric type="uint32"/>
@@ -104,7 +102,7 @@
    <peer type="network-address"/>
 
    <!-- This is the addrconf method that owns this address -->
-   <owner type="uint32" />
+   <owner type="builtin-addrconf" />
  </define>
 
  <addresses class="array" element-type="assigned-address" />
@@ -123,7 +121,7 @@
    </nexthop>
 
    <!-- This is the addrconf method that owns this address -->
-   <owner type="uint32" />
+   <owner type="builtin-addrconf" />
  </define>
 
  <routes class="array" element-type="assigned-route" />

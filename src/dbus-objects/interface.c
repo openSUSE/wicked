@@ -440,7 +440,7 @@ static ni_dbus_property_t	wicked_dbus_interface_properties[] = {
 	INTERFACE_STRING_PROPERTY(name, name, RO),
 	INTERFACE_UINT_PROPERTY(index, link.ifindex, RO),
 	INTERFACE_UINT_PROPERTY(status, link.ifflags, RO),
-	INTERFACE_UINT_PROPERTY(type, link.type, RO),
+	INTERFACE_UINT_PROPERTY(link-type, link.type, RO),
 	INTERFACE_UINT_PROPERTY(mtu, link.mtu, RO),
 	INTERFACE_UINT_PROPERTY(txqlen, link.txqlen, RO),
 	WICKED_INTERFACE_PROPERTY_SIGNATURE(DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING,

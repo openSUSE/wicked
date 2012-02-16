@@ -1,2 +1,8 @@
 <define name="@@IFTYPE_NAME@@">@@IFTYPE_VALUE@@</define>
 <define name="@@ARPHRD_NAME@@">@@ARPHRD_VALUE@@</define>
+<define name="builtin-iftype" type="uint32" constraint="enum">
+  <@@IFTYPENAME_NAME@@ value="@@IFTYPENAME_VALUE@@"/>
+</define>
+<define name="builtin-addrconf" type="uint32" constraint="enum">
+  <@@ADDRCONFNAME_NAME@@ value="@@ADDRCONFNAME_VALUE@@"/>
+</define>
