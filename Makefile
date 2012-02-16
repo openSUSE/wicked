@@ -123,6 +123,8 @@ install: install-files
 	install -d -m 755 $(DESTDIR)/usr/share/man/man{7,8}
 	install -c -m 444 man/*.7 $(DESTDIR)/usr/share/man/man7
 	install -c -m 444 man/*.8 $(DESTDIR)/usr/share/man/man8
+	install -d -m 755 $(DESTDIR)/etc/dbus-1/system.d
+	install -c -m 444 etc/wicked*.conf $(DESTDIR)/etc/dbus-1/system.d
 
 install-files:
 	install -d -m 755 $(DESTDIR)/etc/wicked
