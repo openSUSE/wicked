@@ -8,6 +8,10 @@
   </vlan>
 
   <ipv4:dhcp>
+    <!-- unless you actually have VLAN 0x42, dhcp will time out.
+      -- So make it a quick death. -->
+    <acquire-timeout>15</acquire-timeout>
+
     <!-- request short lease timeout of 120 seconds -->
     <lease-time>120</lease-time>
 
