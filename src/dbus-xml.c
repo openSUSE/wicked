@@ -62,15 +62,29 @@ ni_dbus_xml_register_services(ni_dbus_server_t *server, ni_xs_scope_t *scope)
 			if ((iftype = ni_linktype_name_to_type(attr->value)) < 0) {
 				ni_error("xml service definition for %s: unknown link layer type \"%s\"",
 						xs_service->interface, attr->value);
-				continue;
+				goto register_any_service;
 			}
 
 			ni_debug_dbus("register dbus service description %s (link type %d/%s)",
 					service->name, iftype, attr->value);
 			ni_objectmodel_register_link_service(iftype, service);
 		} else {
+register_any_service:
 			ni_debug_dbus("register dbus service description %s", service->name);
 			ni_objectmodel_register_service(service);
+		}
+
+		/* An interface needs to be attached to an object. Specify which object class
+		 * this can attach to. */
+		if ((attr = ni_var_array_get(&xs_service->attributes, "object-class")) != NULL) {
+			const ni_dbus_class_t *class;
+
+			if ((class = ni_dbus_server_get_class(server, attr->value)) == NULL) {
+				ni_error("xml service definition for %s: unknown object-class \"%s\"",
+						xs_service->interface, attr->value);
+			} else {
+				service->compatible = class;
+			}
 		}
 
 		if ((rv = ni_dbus_xml_register_methods(service, xs_service)) < 0)

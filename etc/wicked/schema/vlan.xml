@@ -1,7 +1,7 @@
 <!--
   -- VLAN Service definition
   -->
-<service name="vlan" interface="com.suse.Wicked.VLAN" link-layer="vlan">
+<service name="vlan" interface="com.suse.Wicked.VLAN" link-layer="vlan" object-class="netif">
  <!-- This is the linkinfo returned in interface reports -->
  <define name="linkinfo" class="dict">
   <device type="string"/>
