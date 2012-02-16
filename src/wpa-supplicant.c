@@ -550,9 +550,6 @@ ni_wpa_interface_retrieve_scan(ni_wpa_client_t *wpa, ni_wpa_interface_t *ifp, ni
 
 	ni_wireless_network_array_destroy(&scan->networks);
 	for (wpa_net = ifp->scanned_networks; wpa_net; wpa_net = wpa_net->next) {
-		static double bitrates[NI_WIRELESS_BITRATES_MAX] = {
-			1, 2, 5.5, 11, 6, 9, 12, 18, 24, 36, 48, 54,
-		};
 		ni_wireless_network_t *net;
 
 		net = ni_wireless_network_new();
@@ -567,21 +564,6 @@ ni_wpa_interface_retrieve_scan(ni_wpa_client_t *wpa, ni_wpa_interface_t *ifp, ni
 			__ni_wireless_process_ie(net, wpa_net->wpaie->data, wpa_net->wpaie->len);
 		if (wpa_net->rsnie)
 			__ni_wireless_process_ie(net, wpa_net->rsnie->data, wpa_net->rsnie->len);
-
-		/* wpa_supplicant doesn't give us the full list of supported bitrates,
-		 * so we cheat a little here. */
-		if (wpa_net->maxrate) {
-			unsigned int i;
-
-			for (i = 0; i < NI_WIRELESS_BITRATES_MAX; ++i) {
-				unsigned int rate = bitrates[i] * 1e6;
-
-				if (rate && rate < wpa_net->maxrate)
-					net->bitrates.value[net->bitrates.count++] = rate;
-			}
-			if (net->bitrates.count < NI_WIRELESS_BITRATES_MAX)
-				net->bitrates.value[net->bitrates.count++] = wpa_net->maxrate;
-		}
 
 		ni_wireless_network_array_append(&scan->networks, net);
 	}

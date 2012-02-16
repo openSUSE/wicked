@@ -124,11 +124,6 @@ struct ni_wireless_network {
 	} encode;
 
 	ni_wireless_auth_info_array_t auth_info;
-
-	struct {
-		unsigned int	count;
-		unsigned int	value[NI_WIRELESS_BITRATES_MAX];
-	} bitrates;
 };
 
 typedef struct ni_wireless_interface_capabilities {
