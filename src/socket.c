@@ -211,9 +211,6 @@ ni_socket_wait(long timeout)
 	struct timeval now, expires;
 	unsigned int i, j, socket_count;
 
-	/* We don't care about the exit status of children */
-	signal(SIGCHLD, SIG_IGN);
-
 	/* First step - remove all inactive sockets from the array. */
 	for (i = j = 0; i < __ni_socket_count; ++i) {
 		if (__ni_sockets[i])
@@ -282,6 +279,8 @@ ni_socket_wait(long timeout)
 		if (pfd[i].revents & POLLHUP) {
 			if (sock->handle_hangup)
 				sock->handle_hangup(sock);
+			if (sock->__fd < 0)
+				goto done_with_this_socket;
 		}
 
 		if (pfd[i].revents & POLLIN) {
