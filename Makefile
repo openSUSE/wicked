@@ -74,7 +74,6 @@ __LIBSRCS= \
 	  dbus-objects/bridge.c \
 	  dbus-objects/bonding.c \
 	  dbus-objects/addrconf.c \
-	  dbus-objects/autoip.c \
 	  dbus-objects/misc.c \
 	  dbus-objects/linkage.c \
 	  wpa-supplicant.c \
