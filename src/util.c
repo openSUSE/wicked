@@ -1219,6 +1219,30 @@ ni_uuid_equal(const ni_uuid_t *uuid1, const ni_uuid_t *uuid2)
 }
 
 /*
+ * Generate a uuid.
+ * Not elaborate, but good enough for our purposes.
+ */
+ni_uuid_t *
+ni_uuid_generate(ni_uuid_t *uuid)
+{
+	static ni_uuid_t req_uuid;
+
+	if (ni_uuid_is_null(&req_uuid)) {
+		struct timeval tv;
+
+		gettimeofday(&tv, NULL);
+		req_uuid.words[0] = tv.tv_sec;
+		req_uuid.words[1] = tv.tv_usec;
+		req_uuid.words[2] = getpid();
+	}
+
+	req_uuid.words[3]++;
+	*uuid = req_uuid;
+
+	return uuid;
+}
+
+/*
  * Seed the RNG from /dev/urandom
  */
 void

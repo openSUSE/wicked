@@ -1644,7 +1644,6 @@ static int
 __ni_addrconf_request_changed(ni_interface_t *ifp, int family,
 			ni_addrconf_mode_t mode, ni_addrconf_request_t *req)
 {
-	static ni_uuid_t req_uuid;
 	ni_afinfo_t *cur_afi = __ni_interface_address_info(ifp, family);
 
 	if (cur_afi->request[mode] == NULL) {
@@ -1661,19 +1660,8 @@ __ni_addrconf_request_changed(ni_interface_t *ifp, int family,
 			return 0;
 	}
 
-	if (ni_uuid_is_null(&req_uuid)) {
-		struct timeval tv;
-
-		gettimeofday(&tv, NULL);
-		req_uuid.words[0] = tv.tv_sec;
-		req_uuid.words[1] = tv.tv_usec;
-		req_uuid.words[2] = getpid();
-	}
-
-	if (req) {
-		req_uuid.words[3]++;
-		req->uuid = req_uuid;
-	}
+	if (req)
+		ni_uuid_generate(&req->uuid);
 
 	__ni_afinfo_set_addrconf_request(cur_afi, mode, req);
 	return 1;
