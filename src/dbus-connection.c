@@ -320,6 +320,24 @@ ni_dbus_connection_send_message(ni_dbus_connection_t *connection, ni_dbus_messag
 }
 
 /*
+ * Send an error reply
+ */
+void
+ni_dbus_connection_send_error(ni_dbus_connection_t *connection, ni_dbus_message_t *call, DBusError *error)
+{
+	ni_dbus_message_t *reply;
+
+	if (!dbus_error_is_set(error))
+		dbus_set_error(error, DBUS_ERROR_FAILED, "Unexpected error in method call");
+	reply = dbus_message_new_error(call, error->name, error->message);
+
+	if (ni_dbus_connection_send_message(connection, reply) < 0)
+		ni_error("unable to send reply (out of memory)");
+
+	dbus_message_unref(reply);
+}
+
+/*
  * Mainloop for watching a single connection.
  * Kill this.
  */

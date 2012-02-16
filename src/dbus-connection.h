@@ -19,6 +19,7 @@ extern int			ni_dbus_connection_call_async(ni_dbus_connection_t *connection,
 					ni_dbus_message_t *call, unsigned int timeout,
 					ni_dbus_async_callback_t *callback, ni_dbus_object_t *proxy);
 extern int			ni_dbus_connection_send_message(ni_dbus_connection_t *, ni_dbus_message_t *);
+extern void			ni_dbus_connection_send_error(ni_dbus_connection_t *, ni_dbus_message_t *, DBusError *);
 extern void			ni_dbus_add_signal_handler(ni_dbus_connection_t *conn,
 					const char *sender,
 					const char *object_path,
