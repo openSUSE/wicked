@@ -438,6 +438,10 @@ extern int			ni_objectmodel_bind_extensions(void);
 extern const ni_dbus_service_t	wicked_dbus_interface_service;
 extern const ni_dbus_service_t	wicked_dbus_interface_request_service;
 
+#define NI_OBJECTMODEL_NETIF_CLASS		"netif"
+#define NI_OBJECTMODEL_NETIF_REQUEST_CLASS	"netif-request"
+#define NI_OBJECTMODEL_ADDRCONF_REQUEST_CLASS	"addrconf-request"
+
 extern const ni_dbus_service_t *ni_objectmodel_service_by_name(const char *interface_name);
 
 extern dbus_bool_t		ni_objectmodel_get_addrconf_lease(const ni_addrconf_lease_t *, ni_dbus_variant_t *);

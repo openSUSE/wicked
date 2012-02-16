@@ -26,11 +26,11 @@
 static void			ni_objectmodel_netif_destroy(ni_dbus_object_t *object);
 
 static ni_dbus_class_t		ni_objectmodel_netif_class = {
-	.name		= "netif",
+	.name		= NI_OBJECTMODEL_NETIF_CLASS,
 	.destroy	= ni_objectmodel_netif_destroy,
 };
 static ni_dbus_class_t		ni_objectmodel_ifreq_class = {
-	.name		= "ifreq",
+	.name		= NI_OBJECTMODEL_NETIF_REQUEST_CLASS,
 };
 
 extern const ni_dbus_service_t	wicked_dbus_interface_request_service; /* XXX */

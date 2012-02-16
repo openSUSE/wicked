@@ -23,7 +23,7 @@
 #include "debug.h"
 
 static ni_dbus_class_t		ni_objectmodel_addrconfreq_class = {
-	"addrconf-request",
+	.name		= NI_OBJECTMODEL_ADDRCONF_REQUEST_CLASS,
 };
 
 /*
