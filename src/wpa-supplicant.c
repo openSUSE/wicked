@@ -69,8 +69,8 @@ static ni_dbus_class_t		ni_objectmodel_wpa_class = {
 	"wpa"
 };
 static ni_dbus_class_t		ni_objectmodel_wpanet_class;
-static ni_dbus_class_t		ni_objectmodel_wpaif_class = {
-	"wpa-interface"
+static ni_dbus_class_t		ni_objectmodel_wpadev_class = {
+	"wpa-device"
 };
 
 static int		ni_wpa_get_interface(ni_wpa_client_t *, const char *, ni_wpa_interface_t **);
@@ -476,7 +476,7 @@ ni_wpa_prepare_interface(ni_wpa_client_t *wpa, ni_wpa_interface_t *ifp, const ch
 {
 	int rv;
 
-	ifp->proxy = ni_dbus_client_object_new(wpa->dbus, &ni_objectmodel_wpaif_class,
+	ifp->proxy = ni_dbus_client_object_new(wpa->dbus, &ni_objectmodel_wpadev_class,
 			object_path, NI_WPA_IF_INTERFACE, ifp);
 
 	/* Get current interface state. */
@@ -1200,8 +1200,9 @@ static ni_dbus_property_t	wpa_bss_properties[] = {
 };
 
 ni_dbus_service_t	wpa_bssid_interface = {
-	.name = NI_WPA_BSS_INTERFACE,
-	.properties = wpa_bss_properties,
+	.name		= NI_WPA_BSS_INTERFACE,
+	.properties	= wpa_bss_properties,
+	.compatible	= &ni_objectmodel_wpanet_class,
 };
 
 /*
@@ -1638,8 +1639,9 @@ static ni_dbus_property_t	wpa_ifcap_properties[] = {
 };
 
 ni_dbus_service_t	wpa_ifcap_interface = {
-	.name = NI_WPA_IF_INTERFACE,
-	.properties = wpa_ifcap_properties,
+	.name		= NI_WPA_IF_INTERFACE,
+	.properties	= wpa_ifcap_properties,
+	.compatible	= &ni_objectmodel_wpadev_class,
 };
 
 const char *
