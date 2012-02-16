@@ -100,7 +100,6 @@ ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_messa
 	ni_dbus_addrconf_forwarder_t *forwarder = user_data;
 	const char *signal_name = dbus_message_get_member(msg);
 	ni_interface_t *ifp;
-	ni_addrconf_request_t *req = NULL;
 	ni_addrconf_lease_t *lease = NULL;
 	ni_dbus_variant_t argv[16];
 	ni_uuid_t uuid = NI_UUID_INIT;
@@ -143,14 +142,6 @@ ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_messa
 		goto done;
 	}
 
-	/* Check if there's an addrconf request with corresponding uuid.
-	 * If so, there's a client somewhere waiting for that event.
-	 * We use the UUID that's passed back and forth to make sure we
-	 * really match the event we were expecting to match.
-	 */
-	if (!ni_uuid_is_null(&uuid))
-		req = ni_interface_get_addrconf_request(ifp, &uuid);
-
 	ni_debug_dbus("received signal %s for interface %s (ifindex %d), lease %s/%s, uuid=%s",
 			signal_name, ifp->name, ifp->link.ifindex,
 			ni_addrconf_type_to_name(lease->type),
@@ -178,6 +169,10 @@ ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_messa
 	 * takes ownership of it. */
 	__ni_system_interface_update_lease(ifp, &lease);
 
+	/* Potentially, there's a client somewhere waiting for that event.
+	 * We use the UUID that's passed back and forth to make sure we
+	 * really match the event we were expecting to match.
+	 */
 	ni_objectmodel_interface_event(NULL, ifp, ifevent, ni_uuid_is_null(&uuid)? NULL : &uuid);
 
 done:
@@ -185,8 +180,6 @@ done:
 		ni_dbus_variant_destroy(&argv[argc]);
 	if (lease)
 		ni_addrconf_lease_free(lease);
-	if (req)
-		ni_addrconf_request_free(req);
 }
 
 /*
@@ -322,16 +315,15 @@ ni_objectmodel_addrconf_ipv6_static_drop(ni_dbus_object_t *object, const ni_dbus
  * Note, we do not record the contents of the addrconf request, which may be totally
  * free-form. We just pass it on to the respective addrconf service.
  */
-static ni_addrconf_request_t *
+static dbus_bool_t
 ni_objectmodel_addrconf_forward(ni_dbus_addrconf_forwarder_t *forwarder,
-			ni_interface_t *dev, const char *method_name,
-			const ni_dbus_variant_t *dict,
-			DBusError *error)
+			ni_interface_t *dev, const ni_dbus_variant_t *dict,
+			ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_dbus_object_t *object;
-	ni_addrconf_request_t *req;
 	char object_path[256];
 	ni_dbus_variant_t argv[2];
+	ni_uuid_t req_uuid;
 	dbus_bool_t rv;
 
 	if (forwarder->supplicant.client == NULL) {
@@ -339,7 +331,7 @@ ni_objectmodel_addrconf_forward(ni_dbus_addrconf_forwarder_t *forwarder,
 		if (forwarder->supplicant.client == NULL) {
 			dbus_set_error(error, "unable to create call forwarder for %s",
 					forwarder->supplicant.bus_name);
-			return NULL;
+			return FALSE;
 		}
 
 		ni_dbus_client_add_signal_handler(forwarder->supplicant.client, NULL, NULL,
@@ -348,19 +340,15 @@ ni_objectmodel_addrconf_forward(ni_dbus_addrconf_forwarder_t *forwarder,
 				forwarder);
 	}
 
-	/* Create a request, generate a uuid and assign an event ID */
-	req = ni_addrconf_request_new(forwarder->caller.interface);
-	ni_uuid_generate(&req->uuid);
-
-	/* Install it with the interface */
-	ni_interface_set_addrconf_request(dev, req);
+	/* Generate a uuid and assign an event ID */
+	ni_uuid_generate(&req_uuid);
 
 	if (ni_interface_get_lease(dev, forwarder->addrfamily, forwarder->addrconf) == NULL) {
 		ni_addrconf_lease_t *lease;
 
 		lease = ni_addrconf_lease_new(forwarder->addrconf, forwarder->addrfamily);
 		lease->state = NI_ADDRCONF_STATE_REQUESTING;
-		lease->uuid = req->uuid;
+		lease->uuid = req_uuid;
 		ni_interface_set_lease(dev, lease);
 	}
 
@@ -375,16 +363,20 @@ ni_objectmodel_addrconf_forward(ni_dbus_addrconf_forwarder_t *forwarder,
 	/* Build the arguments. Note that we don't clone the dict, we just assign it
 	 * to argv[1]. Thus, we must make sure we never call ni_dbus_variant_destroy on argv[1] */
 	memset(argv, 0, sizeof(argv));
-	ni_dbus_variant_set_uuid(&argv[0], &req->uuid);
+	ni_dbus_variant_set_uuid(&argv[0], &req_uuid);
 	argv[1] = *dict;
 
 	/* Call the supplicant's method */
-	rv = ni_dbus_object_call_variant(object, forwarder->supplicant.interface, method_name, 2, argv, 0, NULL, error);
+	rv = ni_dbus_object_call_variant(object, forwarder->supplicant.interface, "acquire", 2, argv, 0, NULL, error);
 
 	ni_dbus_object_free(object);
 	ni_dbus_variant_destroy(&argv[0]);
 
-	return rv? req : NULL;
+	if (rv) {
+		/* Tell the client to wait for an addressAcquired event with the given uuid */
+		rv =  __ni_objectmodel_return_callback_info(reply, NI_EVENT_ADDRESS_ACQUIRED, &req_uuid, error);
+	}
+	return rv;
 }
 
 /*
@@ -411,7 +403,6 @@ ni_objectmodel_addrconf_ipv4_dhcp_request(ni_dbus_object_t *object, const ni_dbu
 		}
 	};
 	ni_interface_t *dev;
-	ni_addrconf_request_t *req;
 
 	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
 		return FALSE;
@@ -423,12 +414,7 @@ ni_objectmodel_addrconf_ipv4_dhcp_request(ni_dbus_object_t *object, const ni_dbu
 		return FALSE;
 	}
 
-	req = ni_objectmodel_addrconf_forward(&forwarder, dev, "acquire", &argv[0], error);
-	if (req == NULL)
-		return FALSE;
-
-	/* Tell the client to wait for an addressAcquired event with the given uuid */
-	return __ni_objectmodel_return_callback_info(reply, NI_EVENT_ADDRESS_ACQUIRED, &req->uuid, error);
+	return ni_objectmodel_addrconf_forward(&forwarder, dev, &argv[0], reply, error);
 }
 
 static dbus_bool_t
@@ -463,7 +449,6 @@ ni_objectmodel_addrconf_ipv4ll_request(ni_dbus_object_t *object, const ni_dbus_m
 			.name	= "netif-ipv4ll-forwarder",
 		}
 	};
-	ni_addrconf_request_t *req = NULL;
 	ni_interface_t *dev;
 
 	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
@@ -476,12 +461,7 @@ ni_objectmodel_addrconf_ipv4ll_request(ni_dbus_object_t *object, const ni_dbus_m
 		return FALSE;
 	}
 
-	req = ni_objectmodel_addrconf_forward(&forwarder, dev, "acquire", &argv[0], error);
-	if (req == NULL)
-		return FALSE;
-
-	/* Tell the client to wait for an addressAcquired event with the given uuid */
-	return __ni_objectmodel_return_callback_info(reply, NI_EVENT_ADDRESS_ACQUIRED, &req->uuid, error);
+	return ni_objectmodel_addrconf_forward(&forwarder, dev, &argv[0], reply, error);
 }
 
 static dbus_bool_t

@@ -319,39 +319,6 @@ ni_afinfo_free(ni_afinfo_t *afi)
 }
 
 /*
- * addrconf requests
- */
-ni_addrconf_request_t *
-ni_addrconf_request_new(const char *owner)
-{
-	ni_addrconf_request_t *req;
-
-	req = xcalloc(1, sizeof(*req));
-	ni_string_dup(&req->owner, owner);
-
-	req->update = ~0;
-
-	return req;
-}
-
-void
-ni_addrconf_request_free(ni_addrconf_request_t *req)
-{
-	ni_string_free(&req->owner);
-	free(req);
-}
-
-int
-ni_addrconf_request_equal(const ni_addrconf_request_t *req1, const ni_addrconf_request_t *req2)
-{
-	if (!ni_string_eq(req1->owner, req2->owner)
-	 || req1->update != req2->update)
-		return 0;
-
-	return 1;
-}
-
-/*
  * Address configuration state (aka leases)
  */
 ni_addrconf_lease_t *

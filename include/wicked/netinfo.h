@@ -183,9 +183,6 @@ struct ni_interface {
 	ni_afinfo_t		ipv4;
 	ni_afinfo_t		ipv6;
 
-	/* Pending addrconf requests */
-	ni_addrconf_request_t *	addrconf;
-
 	/* Assigned leases */
 	ni_addrconf_lease_t *	leases;
 
@@ -269,8 +266,6 @@ extern int		ni_interface_put(ni_interface_t *ifp);
 extern int		ni_interface_update(ni_interface_t *ifp);
 extern int		ni_interface_guess_type(ni_interface_t *ifp);
 
-extern int		ni_interface_set_addrconf_request(ni_interface_t *, ni_addrconf_request_t *);
-ni_addrconf_request_t *	ni_interface_get_addrconf_request(ni_interface_t *dev, const ni_uuid_t *uuid);
 extern int		ni_interface_set_lease(ni_interface_t *, ni_addrconf_lease_t *);
 extern int		ni_interface_unset_lease(ni_interface_t *, int af, ni_addrconf_mode_t type);
 ni_addrconf_lease_t *	ni_interface_get_lease(ni_interface_t *, int, ni_addrconf_mode_t);

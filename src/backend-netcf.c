@@ -53,12 +53,10 @@ static void		__ni_netcf_xml_from_vlan(ni_vlan_t *vlan, xml_node_t *fp);
 
 static xml_node_t *	__ni_netcf_xml_from_ethernet(const ni_ethernet_t *, xml_node_t *);
 static xml_node_t *	__ni_netcf_xml_from_wireless(const ni_wireless_t *, xml_node_t *);
-static xml_node_t *	__ni_netcf_xml_from_addrconf_req(const ni_addrconf_request_t *, xml_node_t *);
 static xml_node_t *	__ni_netcf_xml_from_lease(const ni_addrconf_lease_t *, xml_node_t *parent);
 static xml_node_t *	__ni_netcf_xml_from_nis(const ni_nis_info_t *, xml_node_t *);
 static xml_node_t *	__ni_netcf_xml_from_resolver(const ni_resolver_info_t *, xml_node_t *);
 static ni_ethernet_t *	__ni_netcf_xml_to_ethernet(const xml_node_t *);
-static ni_addrconf_request_t *__ni_netcf_xml_to_addrconf_req(const xml_node_t *, int);
 static ni_addrconf_lease_t *__ni_netcf_xml_to_lease(const xml_node_t *);
 static ni_nis_info_t *	__ni_netcf_xml_to_nis(const xml_node_t *);
 static ni_resolver_info_t *__ni_netcf_xml_to_resolver(const xml_node_t *);
@@ -1091,118 +1089,6 @@ __ni_netcf_xml_from_vlan(ni_vlan_t *vlan, xml_node_t *ifnode)
 		ifchild = xml_node_new("interface", vlnode);
 		xml_node_add_attr(ifchild, "name", vlan->physdev_name);
 	}
-}
-
-/*
- * XML addrconf request representation
- */
-int
-ni_netcf_xml_to_addrconf_request(const xml_node_t *xmlnode, int family, ni_addrconf_request_t **res)
-{
-	*res = __ni_netcf_xml_to_addrconf_req(xmlnode, family);
-	return *res? 0 : -1;
-}
-
-int
-ni_netcf_addrconf_request_to_xml(const ni_addrconf_request_t *req, xml_node_t *parent, xml_node_t **res)
-{
-	*res =  __ni_netcf_xml_from_addrconf_req(req, parent);
-	return *res? 0 : -1;
-}
-
-static xml_node_t *
-__ni_netcf_xml_from_addrconf_req(const ni_addrconf_request_t *req, xml_node_t *proto_node)
-{
-#if 1
-	return NULL;
-#else
-	xml_node_t *dhnode, *child;
-	const char *acname;
-
-	if (req == NULL)
-		return NULL;
-
-	acname = ni_addrconf_type_to_name(req->type);
-	if (acname == NULL) {
-		ni_error("Oops, unexpected addrconf request of type %u", req->type);
-		return NULL;
-	}
-
-	dhnode = xml_node_new(acname, proto_node);
-
-	if (__ni_netcf_strict_syntax) {
-		/* strict netcf only allows peerdns="yes" so far */
-		if (ni_addrconf_should_update(req, NI_ADDRCONF_UPDATE_RESOLVER))
-			xml_node_add_attr(dhnode, "peerdns", "yes");
-		return dhnode;
-	}
-
-	if (req->update != 0) {
-		unsigned int target;
-
-		child = xml_node_new("update", dhnode);
-		for (target = 0; target < __NI_ADDRCONF_UPDATE_MAX; ++target) {
-			const char *name;
-
-			if (!ni_addrconf_should_update(req, target))
-				continue;
-
-			if (!(name = ni_addrconf_update_target_to_name(target))) {
-				ni_warn("cannot represent update target %u", target);
-				continue;
-			}
-
-			xml_node_new(name, child);
-		}
-	}
-
-	return dhnode;
-#endif
-}
-
-static ni_addrconf_request_t *
-__ni_netcf_xml_to_addrconf_req(const xml_node_t *dhnode, int req_family)
-{
-#if 1
-	return NULL;
-#else
-	int req_type = -1;
-	ni_addrconf_request_t *req;
-	xml_node_t *child;
-
-	req_type = ni_addrconf_name_to_type(dhnode->name);
-	if (req_type < 0) {
-		ni_error("cannot parse addrconf element <%s>", dhnode->name);
-		return NULL;
-	}
-
-	req = ni_addrconf_request_new(req_type, req_family);
-	if (__ni_netcf_strict_syntax) {
-		/* strict netcf only allows peerdns="yes" so far */
-		int dodns = 0;
-
-		__ni_netcf_get_boolean_attr(dhnode, "peerdns", &dodns);
-		if (dodns)
-			ni_addrconf_set_update(req, NI_ADDRCONF_UPDATE_RESOLVER);
-		return req;
-	}
-
-	if ((child = xml_node_get_child(dhnode, "update")) != NULL) {
-		xml_node_t *node;
-
-		for (node = child->children; node; node = node->next) {
-			int target;
-
-			if ((target = ni_addrconf_name_to_update_target(node->name)) < 0) {
-				ni_warn("ignoring unknown addrconf update target \"%s\"", node->name);
-			} else {
-				ni_addrconf_set_update(req, target);
-			}
-		}
-	}
-
-	return req;
-#endif
 }
 
 /*

@@ -25,6 +25,18 @@ struct ni_update_lease_choice {
 	ni_addrconf_lease_t *	lease;
 };
 
+static inline void
+__ni_addrconf_set_update(unsigned int *mask, unsigned int bit)
+{
+	*mask |= (1 << bit);
+}
+
+static inline int
+__ni_addrconf_should_update(unsigned int mask, unsigned int bit)
+{
+	return !!(mask & (1 << bit));
+}
+
 static ni_update_info_t	__ni_update_info[__NI_ADDRCONF_UPDATE_MAX];
 static ni_update_handler_t *__ni_update_handlers[__NI_ADDRCONF_UPDATE_MAX];
 

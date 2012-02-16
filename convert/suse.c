@@ -24,10 +24,8 @@
 #define _PATH_NETCONFIG_DIR		"/etc/sysconfig/network"
 
 static int		__ni_suse_read_routes(ni_route_t **, const char *);
-static ni_addrconf_request_t *__ni_suse_read_dhcp(ni_netconfig_t *);
 static ni_interface_t *	__ni_suse_read_interface(ni_netconfig_t *, const char *, const char *);
 static int		__ni_suse_sysconfig2ifconfig(ni_interface_t *, ni_sysconfig_t *);
-static int		__ni_suse_sysconfig2dhcp(ni_addrconf_request_t *, ni_sysconfig_t *);
 static int		__ni_suse_startmode_set(ni_ifbehavior_t *, const char *);
 static int		__ni_suse_bootproto_set(ni_interface_t *, char *);
 
@@ -209,20 +207,6 @@ __ni_suse_read_interface(ni_netconfig_t *nc, const char *filename, const char *i
 
 	if (__ni_suse_sysconfig2ifconfig(ifp, sc) < 0)
 		goto error;
-
-	if (ni_afinfo_addrconf_test(&ifp->ipv4, NI_ADDRCONF_DHCP)) {
-		ni_addrconf_request_t *req;
-
-		/* Read default DHCP config */
-		if (!(req = __ni_suse_read_dhcp(nc)))
-			goto error;
-
-		/* Now check whether the ifcfg file overwrites any of these */
-		if (__ni_suse_sysconfig2dhcp(req, sc) < 0)
-			goto error;
-
-		/* Install? */
-	}
 
 	/* We rely on the kernel to set up the ::1 device (if ipv6 is enabled) */
 	if (ifp->link.type == NI_IFTYPE_LOOPBACK) {
@@ -528,49 +512,6 @@ try_vlan(ni_interface_t *ifp, ni_sysconfig_t *sc)
 	vlan = ni_interface_get_vlan(ifp);
 	vlan->tag = strtoul(ifp->name + 4, NULL, 0);
 	ni_sysconfig_get_string(sc, "ETHERDEVICE", &vlan->physdev_name);
-}
-
-/*
- * Read the global DHCP configuration
- */
-static ni_addrconf_request_t *
-__ni_suse_read_dhcp(ni_netconfig_t *nc)
-{
-	return NULL;
-}
-
-static int
-__ni_suse_sysconfig2dhcp(ni_addrconf_request_t *dhcp, ni_sysconfig_t *sc)
-{
-#if 0
-	ni_sysconfig_get_string_optional(sc, "DHCLIENT_HOSTNAME_OPTION", &dhcp->dhcp.hostname);
-
-	/* Convert to lower-case (AUTO -> auto) */
-	if (dhcp->dhcp.hostname != NULL) {
-		char *s = dhcp->dhcp.hostname;
-
-		for (; *s; ++s)
-			*s = tolower(*s);
-	}
-
-	ni_sysconfig_get_integer_optional(sc, "DHCLIENT_WAIT_AT_BOOT", &dhcp->acquire_timeout);
-	ni_sysconfig_get_boolean_optional(sc, "DHCLIENT_USE_LAST_LEASE", &dhcp->reuse_unexpired);
-
-	ni_sysconfig_get_string_optional(sc, "DHCLIENT_CLIENT_ID", &dhcp->dhcp.clientid);
-	ni_sysconfig_get_string_optional(sc, "DHCLIENT_VENDOR_CLASS_ID", &dhcp->dhcp.vendor_class);
-	ni_sysconfig_get_integer_optional(sc, "DHCLIENT_LEASE_TIME", &dhcp->dhcp.lease_time);
-
-	if (ni_sysconfig_test_boolean(sc, "WRITE_HOSTNAME_TO_HOSTS"))
-		ni_addrconf_set_update(dhcp, NI_ADDRCONF_UPDATE_HOSTSFILE);
-	if (ni_sysconfig_test_boolean(sc, "DHCLIENT_MODIFY_SMB_CONF"))
-		ni_addrconf_set_update(dhcp, NI_ADDRCONF_UPDATE_NETBIOS);
-	if (ni_sysconfig_test_boolean(sc, "DHCLIENT_SET_HOSTNAME"))
-		ni_addrconf_set_update(dhcp, NI_ADDRCONF_UPDATE_HOSTNAME);
-	if (ni_sysconfig_test_boolean(sc, "DHCLIENT_SET_DEFAULT_ROUTE"))
-		ni_addrconf_set_update(dhcp, NI_ADDRCONF_UPDATE_DEFAULT_ROUTE);
-#endif
-
-	return 0;
 }
 
 /*

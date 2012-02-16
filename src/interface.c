@@ -310,33 +310,6 @@ ni_interface_set_link_stats(ni_interface_t *ifp, ni_link_stats_t *stats)
 	ifp->link.stats = stats;
 }
 
-int
-ni_interface_set_addrconf_request(ni_interface_t *dev, ni_addrconf_request_t *req)
-{
-	ni_assert(req->owner);
-	req->next = dev->addrconf;
-	dev->addrconf = req;
-	return 0;
-}
-
-ni_addrconf_request_t *
-ni_interface_get_addrconf_request(ni_interface_t *dev, const ni_uuid_t *uuid)
-{
-	ni_addrconf_request_t **pos, *req;
-
-	if (!uuid) {
-		ni_error("%s: NULL uuid?!", __func__);
-		return NULL;
-	}
-	for (pos = &dev->addrconf; (req = *pos) != NULL; pos = &req->next) {
-		if (ni_uuid_equal(&req->uuid, uuid)) {
-			*pos = req->next;
-			return req;
-		}
-	}
-	return NULL;
-}
-
 /*
  * Locate any lease for the same addrconf mechanism
  */

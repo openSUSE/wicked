@@ -28,17 +28,6 @@ enum {
 };
 
 
-struct ni_addrconf_request {
-	ni_addrconf_request_t *	next;
-
-	char *			owner;
-	ni_uuid_t		uuid;
-
-	/* Options what to update based on the info received from 
-	 * the DHCP server. */
-	unsigned int		update;
-};
-
 /*
  * Leases obtained through a dynamic addrconf protocol,
  * such as DHCP, DHCPv6, IPv4LL, or IBFT.
@@ -136,42 +125,8 @@ ni_afinfo_addrconf_test(const struct ni_afinfo *afi, ni_addrconf_mode_t mode)
 	return !!(afi->addrconf & NI_ADDRCONF_MASK(mode));
 }
 
-static inline void
-ni_addrconf_set_update(ni_addrconf_request_t *req, unsigned int target)
-{
-	req->update |= (1 << target);
-}
-
-static inline int
-ni_addrconf_should_update(const ni_addrconf_request_t *req, unsigned int target)
-{
-	return req->update & (1 << target);
-}
-
-static inline void
-__ni_addrconf_set_update(unsigned int *mask_p, unsigned int target)
-{
-	*mask_p |= (1 << target);
-}
-
-static inline void
-__ni_addrconf_clear_update(unsigned int *mask_p, unsigned int target)
-{
-	*mask_p &= ~(1 << target);
-}
-
-static inline int
-__ni_addrconf_should_update(unsigned int mask, unsigned int target)
-{
-	return mask & (1 << target);
-}
-
 extern ni_afinfo_t *	ni_afinfo_new(int family);
 extern void		ni_afinfo_free(ni_afinfo_t *);
-
-extern ni_addrconf_request_t *ni_addrconf_request_new(const char *owner);
-extern void		ni_addrconf_request_free(ni_addrconf_request_t *);
-extern int		ni_addrconf_request_equal(const ni_addrconf_request_t *, const ni_addrconf_request_t *);
 
 extern ni_addrconf_lease_t *ni_addrconf_lease_new(int type, int family);
 extern void		ni_addrconf_lease_destroy(ni_addrconf_lease_t *);
@@ -187,9 +142,6 @@ ni_addrconf_lease_is_valid(const ni_addrconf_lease_t *lease)
 extern int		ni_addrconf_lease_file_write(const char *, ni_addrconf_lease_t *);
 extern ni_addrconf_lease_t *ni_addrconf_lease_file_read(const char *, int, int);
 extern void		ni_addrconf_lease_file_remove(const char *, int, int);
-extern int		ni_addrconf_request_file_write(const char *, ni_addrconf_request_t *);
-extern ni_addrconf_request_t *ni_addrconf_request_file_read(const char *, int, int);
-extern void		ni_addrconf_request_file_remove(const char *, int, int);
 
 extern unsigned int	ni_system_update_capabilities(void);
 extern int		ni_system_update_from_lease(ni_netconfig_t *, ni_interface_t *, const ni_addrconf_lease_t *);
