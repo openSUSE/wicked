@@ -330,40 +330,6 @@ ni_objectmodel_addrconf_ipv6_static_configure(ni_dbus_object_t *object, const ni
 	return TRUE;
 }
 
-#if 0
-/*
- * Get/set properties of a static addrconf request
- */
-static dbus_bool_t
-__ni_objectmodel_addrconf_get_address(const ni_dbus_object_t *object,
-				const ni_dbus_property_t *property,
-				ni_dbus_variant_t *result,
-				DBusError *error)
-{
-	return FALSE;
-}
-
-static dbus_bool_t
-__ni_objectmodel_addrconf_set_address(ni_dbus_object_t *object,
-				const ni_dbus_property_t *property,
-				const ni_dbus_variant_t *argument,
-				DBusError *error)
-{
-	return FALSE;
-}
-#endif
-
-dbus_bool_t
-__ni_objectmodel_addrconfreq_get_address_properties(const ni_addrconf_request_t *req,
-				ni_dbus_variant_t *dict,
-				DBusError *error)
-{
-	if (!__ni_objectmodel_get_address_dict(req->statik.addrs, dict, error))
-		return FALSE;
-
-	return TRUE;
-}
-
 /*
  * Addrconf methods
  */
@@ -378,22 +344,14 @@ static const ni_dbus_method_t		ni_objectmodel_addrconf_ipv6_static_methods[] = {
 };
 
 /*
- * IPv4 and IPv6 addrconf requests share the same properties
+ * IPv4 and IPv6 addrconf request service
  */
-#define ADDRCONF_PROPERTY(type, __name, rw) \
-	NI_DBUS_PROPERTY(type, __name, __ni_objectmodel_addrconf, rw)
-#define ADDRCONF_PROPERTY_SIGNATURE(signature, __name, rw) \
-	__NI_DBUS_PROPERTY(signature, __name,  __ni_objectmodel_addrconf, rw)
-
 ni_dbus_service_t			ni_objectmodel_addrconf_ipv4_static_service = {
 	.name		= WICKED_DBUS_ADDRCONF_IPV4STATIC_INTERFACE,
-//	.compatible	= &ni_objectmodel_netif_class,
 	.methods	= ni_objectmodel_addrconf_ipv4_static_methods,
 };
 
 ni_dbus_service_t			ni_objectmodel_addrconf_ipv6_static_service = {
 	.name		= WICKED_DBUS_ADDRCONF_IPV4STATIC_INTERFACE,
-	/* The .compatible member is filled in through dbus-xml. Not nice. */
-//	.compatible	= &ni_objectmodel_netif_class,
 	.methods	= ni_objectmodel_addrconf_ipv6_static_methods,
 };
