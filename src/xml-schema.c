@@ -11,12 +11,14 @@
 #include "xml-schema.h"
 #include "util_priv.h"
 
+static int		ni_xs_process_include(xml_node_t *, ni_xs_scope_t *);
 static int		ni_xs_process_define(xml_node_t *, ni_xs_scope_t *);
 static int		ni_xs_process_service(xml_node_t *, ni_xs_scope_t *);
 static int		ni_xs_process_method(xml_node_t *, ni_xs_service_t *, ni_xs_scope_t *);
 static int		ni_xs_build_typelist(xml_node_t *, ni_xs_name_type_array_t *, ni_xs_scope_t *);
 static ni_xs_type_t *	ni_xs_build_simple_type(xml_node_t *, const char *, ni_xs_scope_t *);
 static ni_xs_type_t *	ni_xs_build_complex_type(xml_node_t *, const char *, ni_xs_scope_t *);
+static void		ni_xs_name_type_array_copy(ni_xs_name_type_array_t *, const ni_xs_name_type_array_t *);
 static void		ni_xs_name_type_array_destroy(ni_xs_name_type_array_t *);
 static ni_xs_type_t *	ni_xs_build_one_type(xml_node_t *, ni_xs_scope_t *);
 static ni_xs_type_t *	ni_xs_scope_lookup(const ni_xs_scope_t *, const char *);
@@ -47,20 +49,24 @@ ni_xs_scalar_new(unsigned int scalar_type)
 }
 
 ni_xs_type_t *
-ni_xs_struct_new(void)
+ni_xs_struct_new(ni_xs_name_type_array_t *children)
 {
 	ni_xs_type_t *type = __ni_xs_type_new(NI_XS_TYPE_STRUCT);
 
 	type->u.struct_info = xcalloc(1, sizeof(ni_xs_struct_info_t));
+	if (children)
+		ni_xs_name_type_array_copy(&type->u.struct_info->children, children);
 	return type;
 }
 
 ni_xs_type_t *
-ni_xs_dict_new(void)
+ni_xs_dict_new(ni_xs_name_type_array_t *children)
 {
 	ni_xs_type_t *type = __ni_xs_type_new(NI_XS_TYPE_DICT);
 
 	type->u.dict_info = xcalloc(1, sizeof(ni_xs_dict_info_t));
+	if (children)
+		ni_xs_name_type_array_copy(&type->u.dict_info->children, children);
 	return type;
 }
 
@@ -74,6 +80,57 @@ ni_xs_array_new(ni_xs_type_t *elementType, unsigned long minlen, unsigned long m
 	type->u.array_info->minlen = minlen;
 	type->u.array_info->maxlen = maxlen;
 	return type;
+}
+
+/*
+ * Clone a type. This is needed when we define or extend a type
+ */
+ni_xs_type_t *
+ni_xs_type_clone(const ni_xs_type_t *src)
+{
+	ni_xs_type_t *dst = NULL;
+
+	switch (src->class) {
+	case NI_XS_TYPE_SCALAR:
+		{
+			ni_xs_scalar_info_t *scalar_info = src->u.scalar_info;
+
+			dst = ni_xs_scalar_new(scalar_info->type);
+
+			/* FIXME: should we clone the constraints as well? */
+			break;
+		}
+
+	case NI_XS_TYPE_DICT:
+		{
+			ni_xs_dict_info_t *dict_info = src->u.dict_info;
+
+			dst = ni_xs_dict_new(&dict_info->children);
+			break;
+		}
+
+	case NI_XS_TYPE_STRUCT:
+		{
+			ni_xs_struct_info_t *struct_info = src->u.struct_info;
+
+			dst = ni_xs_struct_new(&struct_info->children);
+			break;
+		}
+
+	case NI_XS_TYPE_ARRAY:
+		{
+			ni_xs_array_info_t *src_array_info = src->u.array_info;
+
+			dst = ni_xs_array_new(src_array_info->element_type,
+					src_array_info->minlen,
+					src_array_info->maxlen);
+			dst->u.array_info->notation = src_array_info->notation;
+			break;
+		}
+
+	}
+
+	return dst;
 }
 
 void
@@ -99,6 +156,7 @@ ni_xs_type_free(ni_xs_type_t *type)
 			type->u.struct_info = NULL;
 			break;
 		}
+
 	case NI_XS_TYPE_ARRAY:
 		{
 			ni_xs_array_info_t *array_info = type->u.array_info;
@@ -121,6 +179,7 @@ ni_xs_type_free(ni_xs_type_t *type)
 		}
 	}
 
+	ni_string_free(&type->name);
 	free(type);
 }
 
@@ -185,6 +244,18 @@ ni_xs_name_type_array_append(ni_xs_name_type_array_t *array, const char *name, n
 	def = &array->data[array->count++];
 	def->name = xstrdup(name);
 	def->type = ni_xs_type_hold(type);
+}
+
+void
+ni_xs_name_type_array_copy(ni_xs_name_type_array_t *dst, const ni_xs_name_type_array_t *src)
+{
+	ni_xs_name_type_t *def;
+	unsigned int i;
+
+	if (dst->count)
+		ni_xs_name_type_array_destroy(dst);
+	for (i = 0, def = src->data; i < src->count; ++i, ++def)
+		ni_xs_name_type_array_append(dst, def->name, def->type);
 }
 
 static ni_xs_type_t *
@@ -380,6 +451,35 @@ ni_xs_is_reserved_name(const char *name)
 }
 
 /*
+ * Parse an XML schema file and process it
+ */
+int
+ni_xs_process_schema_file(const char *filename, ni_xs_scope_t *scope)
+{
+	xml_document_t *doc = NULL;
+
+	if (filename == NULL) {
+		ni_error("%s: NULL filename", __func__);
+		return -1;
+	}
+
+	doc = xml_document_read(filename);
+	if (doc == NULL) {
+		ni_error("cannot parse schema file \"%s\"", filename);
+		return -1;
+	}
+
+	if (ni_xs_process_schema(doc->root, scope) < 0) {
+		ni_error("invalid schema xml for schema file \"%s\"", filename);
+		xml_document_free(doc);
+		return -1;
+	}
+
+	xml_document_free(doc);
+	return 0;
+}
+
+/*
  * Process a schema.
  * For now, this is nothing but a sequence of <define> elements
  */
@@ -391,6 +491,10 @@ ni_xs_process_schema(xml_node_t *node, ni_xs_scope_t *scope)
 	for (child = node->children; child; child = child->next) {
 		int rv;
 
+		if (!strcmp(child->name, "include")) {
+			if ((rv = ni_xs_process_include(child, scope)) < 0)
+				return rv;
+		} else
 		if (!strcmp(child->name, "define")) {
 			if ((rv = ni_xs_process_define(child, scope)) < 0)
 				return rv;
@@ -479,6 +583,38 @@ ni_xs_process_method(xml_node_t *node, ni_xs_service_t *service, ni_xs_scope_t *
 	}
 
 	return 0;
+}
+
+/*
+ * Process a <include> element.
+ */
+int
+ni_xs_process_include(xml_node_t *node, ni_xs_scope_t *scope)
+{
+	char pathbuf[PATH_MAX];
+	const char *nameAttr;
+
+	if (!(nameAttr = xml_node_get_attr(node, "name"))) {
+		ni_error("%s: <include> element lacks name attribute", xml_node_location(node));
+		return -1;
+	}
+
+	if (nameAttr[0] != '/') {
+		struct xml_location *loc = node->location;
+
+		if (loc && loc->shared) {
+			char *copy = strdup(loc->shared->filename), *s;
+
+			if ((s = strrchr(copy, '/')) != NULL)
+				*s = '\0';
+			snprintf(pathbuf, sizeof(pathbuf), "%s/%s", copy, nameAttr);
+			nameAttr = pathbuf;
+			free(copy);
+		}
+	}
+
+	ni_trace("trying to include %s", nameAttr);
+	return ni_xs_process_schema_file(nameAttr, scope);
 }
 
 /*
@@ -667,7 +803,7 @@ ni_xs_build_complex_type(xml_node_t *node, const char *className, ni_xs_scope_t 
 	}
 
 	if (!strcmp(className, "struct")) {
-		type = ni_xs_struct_new();
+		type = ni_xs_struct_new(NULL);
 		if (ni_xs_build_typelist(node, &type->u.struct_info->children, typedict) < 0) {
 			ni_xs_type_free(type);
 			return NULL;
@@ -717,7 +853,7 @@ ni_xs_build_complex_type(xml_node_t *node, const char *className, ni_xs_scope_t 
 		ni_xs_type_release(elementType);
 	} else
 	if (!strcmp(className, "dict")) {
-		type = ni_xs_dict_new();
+		type = ni_xs_dict_new(NULL);
 		if (ni_xs_build_typelist(node, &type->u.dict_info->children, typedict) < 0) {
 			ni_xs_type_free(type);
 			return NULL;

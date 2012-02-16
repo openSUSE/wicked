@@ -188,6 +188,7 @@ struct ni_xs_scalar_info {
 struct ni_xs_type {
 	unsigned int		refcount;
 	unsigned int		class;
+	char *			name;
 
 	union {
 		ni_xs_scalar_info_t *	scalar_info;
@@ -226,6 +227,7 @@ struct ni_xs_scope {
 extern ni_xs_scope_t *	ni_xs_scope_new(ni_xs_scope_t *, const char *);
 extern void		ni_xs_scope_free(ni_xs_scope_t *);
 
+extern int		ni_xs_process_schema_file(const char *, ni_xs_scope_t *);
 extern int		ni_xs_process_schema(xml_node_t *, ni_xs_scope_t *);
 
 extern ni_xs_type_t *	ni_xs_scalar_new(unsigned int);
