@@ -181,6 +181,7 @@ struct ni_xs_scalar_info {
 	struct {
 		struct ni_xs_type_constraint_oneof *oneof;
 		struct ni_xs_type_constraint_range *range;
+		struct ni_xs_type_constraint_bitmap *bitmap;
 	} constraint;
 };
 

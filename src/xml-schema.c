@@ -12,11 +12,13 @@
 #include "util_priv.h"
 
 static int		ni_xs_process_define(xml_node_t *, ni_xs_type_dict_t *);
+static ni_xs_type_t *	ni_xs_build_simple_type(xml_node_t *, const char *, ni_xs_type_dict_t *);
 static ni_xs_type_t *	ni_xs_build_complex_type(xml_node_t *, const char *, ni_xs_type_dict_t *);
 static void		ni_xs_name_type_array_destroy(ni_xs_name_type_array_t *);
 static ni_xs_type_t *	ni_xs_build_one_type(xml_node_t *, ni_xs_type_dict_t *);
 static ni_xs_type_t *	ni_xs_typedict_lookup(ni_xs_type_dict_t *, const char *);
 static ni_xs_type_t *	ni_xs_typedict_lookup_local(const ni_xs_type_dict_t *, const char *);
+static struct ni_xs_type_constraint_bitmap *ni_xs_build_bitmap_constraint(const xml_node_t *);
 
 /*
  * Constructor functions for basic and complex types
@@ -354,7 +356,7 @@ ni_xs_process_define(xml_node_t *node, ni_xs_type_dict_t *typedict)
 		/* check for type aliasing - take one type, and define it by another name.
 		 *  <define name="..." type="..."/>
 		 */
-		refType = ni_xs_typedict_lookup(typedict, typeAttr);
+		refType = ni_xs_build_simple_type(node, typeAttr, typedict);
 		if (refType == NULL) {
 			ni_error("%s: definition of type <%s> references unknown base type <%s>",
 					xml_node_location(node), nameAttr, typeAttr);
@@ -444,7 +446,7 @@ ni_xs_build_typelist(xml_node_t *node, ni_xs_name_type_array_t *result, ni_xs_ty
 					memberType = ni_xs_build_complex_type(child, typeAttr, localdict);
 				} else
 				if ((typeAttr = xml_node_get_attr(child, "type")) != NULL) {
-					memberType = ni_xs_typedict_lookup(localdict, typeAttr);
+					memberType = ni_xs_build_simple_type(child, typeAttr, localdict);
 					ni_xs_type_hold(memberType);
 				}
 
@@ -473,7 +475,7 @@ ni_xs_build_complex_type(xml_node_t *node, const char *className, ni_xs_type_dic
 	ni_xs_type_t *type = NULL;
 
 	if (className == NULL) {
-		ni_error("%s: NULL class name?!", __func__);
+		ni_error("%s: NULL class name?!", xml_node_location(node));
 		return NULL;
 	}
 
@@ -541,6 +543,86 @@ ni_xs_build_complex_type(xml_node_t *node, const char *className, ni_xs_type_dic
 	}
 
 	return type;
+}
+
+/*
+ * Build a simple type (by referencing another type).
+ */
+ni_xs_type_t *
+ni_xs_build_simple_type(xml_node_t *node, const char *typeName, ni_xs_type_dict_t *typedict)
+{
+	const char *attrValue;
+	ni_xs_type_t *refType;
+
+	if (typeName == NULL) {
+		ni_error("%s: NULL type name?!", xml_node_location(node));
+		return NULL;
+	}
+
+	refType = ni_xs_typedict_lookup(typedict, typeName);
+	if (refType == NULL)
+		return NULL;
+
+	ni_xs_type_hold(refType);
+	if (refType->class == NI_XS_TYPE_SCALAR) {
+		if ((attrValue = xml_node_get_attr(node, "constraint")) != NULL) {
+			ni_xs_scalar_info_t *scalar_info;
+			ni_xs_type_t *newType;
+
+			newType = ni_xs_scalar_new(refType->u.scalar_info->type);
+			ni_xs_type_release(refType);
+			refType = newType;
+
+			scalar_info = ni_xs_scalar_info(refType);
+			if (!strcmp(attrValue, "bitmap")) {
+				scalar_info->constraint.bitmap = ni_xs_build_bitmap_constraint(node);
+				if (scalar_info->constraint.bitmap == NULL) {
+					ni_xs_type_release(refType);
+					return NULL;
+				}
+			}
+		}
+	}
+
+	return refType;
+}
+
+struct ni_xs_type_constraint_bitmap *
+ni_xs_build_bitmap_constraint(const xml_node_t *node)
+{
+	struct ni_xs_type_constraint_bitmap *result;
+	unsigned int i, count;
+	xml_node_t *child;
+
+	/* Count the defined bits */
+	for (child = node->children, count = 0; child; child = child->next, ++count)
+		;
+
+	result = xcalloc(1, sizeof(*result) + (count + 1) * sizeof(ni_intmap_t));
+	result->bits = (ni_intmap_t *) (result + 1);
+
+	for (child = node->children, i = 0; child; child = child->next, ++i) {
+		unsigned int value;
+		char *ep = NULL;
+
+		if (child->cdata != NULL) {
+			value = strtoul(child->cdata, &ep, 0);
+			if (*ep == '\0') {
+				result->bits[i].name = strdup(child->name);
+				result->bits[i].value = value;
+				continue;
+			}
+		}
+
+		ni_error("%s: bad bit value for <%s> in bitmap constraints",
+				xml_node_location(child), child->name);
+		goto failed;
+	}
+	return result;
+
+failed:
+	// ni_xs_type_constraint_bitmap_free(result);
+	return NULL;
 }
 
 /*

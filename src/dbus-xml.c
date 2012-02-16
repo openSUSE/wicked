@@ -58,6 +58,30 @@ ni_dbus_serialize_xml(xml_node_t *node, const ni_xs_type_t *type, ni_dbus_varian
 dbus_bool_t
 ni_dbus_serialize_xml_scalar(xml_node_t *node, const ni_xs_type_t *type, ni_dbus_variant_t *var)
 {
+	ni_xs_scalar_info_t *scalar_info = ni_xs_scalar_info(type);
+
+	if (scalar_info->constraint.bitmap) {
+		const ni_intmap_t *bits = scalar_info->constraint.bitmap->bits;
+		unsigned long value = 0;
+		xml_node_t *child;
+
+		for (child = node->children; child; child = child->next) {
+			unsigned int bb;
+
+			if (ni_parse_int_mapped(child->name, bits, &bb) < 0 || bb >= 32) {
+				ni_warn("%s: ignoring unknown or bad bit value <%s>",
+						xml_node_location(node), child->name);
+				continue;
+			}
+
+			value |= 1 << bb;
+		}
+
+		if (!ni_dbus_variant_init_signature(var, ni_xs_type_to_dbus_signature(type)))
+			return FALSE;
+		return ni_dbus_variant_set_ulong(var, value);
+	}
+
 	if (node->cdata == NULL) {
 		ni_error("unable to serialize node %s - no data", node->name);
 		return FALSE;
