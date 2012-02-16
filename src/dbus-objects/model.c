@@ -496,7 +496,7 @@ ni_objectmodel_bind_extensions(void)
 		if (extension == NULL)
 			continue;
 
-		for (method = service->methods; method->name != NULL; ++method) {
+		for (method = service->methods; method && method->name != NULL; ++method) {
 			ni_dbus_method_t *mod_method = (ni_dbus_method_t *) method;
 
 			if (method->handler != NULL)
