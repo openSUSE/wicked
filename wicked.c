@@ -59,6 +59,7 @@ static int		opt_shutdown_parents = 1;
 static int		do_create(int, char **);
 static int		do_delete(int, char **);
 static int		do_show(int, char **);
+static int		do_show_xml(int, char **);
 static int		do_addport(int, char **);
 static int		do_delport(int, char **);
 static int		do_ifup(int, char **);
@@ -158,6 +159,9 @@ main(int argc, char **argv)
 
 	if (!strcmp(cmd, "show"))
 		return do_show(argc - optind + 1, argv + optind - 1);
+
+	if (!strcmp(cmd, "show-xml"))
+		return do_show_xml(argc - optind + 1, argv + optind - 1);
 
 	if (!strcmp(cmd, "delete"))
 		return do_delete(argc - optind + 1, argv + optind - 1);
@@ -597,7 +601,7 @@ wicked_get_interface(ni_dbus_object_t *root_object, const char *ifname)
 		if (!(interfaces = wicked_get_interface_object(NULL)))
 			return NULL;
 
-		/* Call ObjectManager.GetAllObjects to get list of objects and their properties */
+		/* Call ObjectManager.GetManagedObjects to get list of objects and their properties */
 		if (!ni_dbus_object_refresh_children(interfaces)) {
 			ni_error("Couldn't get list of active network interfaces");
 			return NULL;
@@ -618,6 +622,105 @@ wicked_get_interface(ni_dbus_object_t *root_object, const char *ifname)
 
 	ni_error("%s: unknown network interface", ifname);
 	return NULL;
+}
+
+/* Hack */
+struct ni_dbus_dict_entry {
+	/* key of the dict entry */
+	const char *            key;
+
+	/* datum associated with key */
+	ni_dbus_variant_t       datum;
+};
+
+static void
+__dump_fake_xml(const ni_dbus_variant_t *variant, unsigned int indent)
+{
+	ni_dbus_dict_entry_t *entry;
+	unsigned int index;
+
+	if (ni_dbus_variant_is_dict(variant)) {
+		for (entry = variant->dict_array_value, index = 0; index < variant->array.len; ++index, ++entry) {
+			const ni_dbus_variant_t *child = &entry->datum;
+
+			if (child->type != DBUS_TYPE_ARRAY) {
+				/* Must be some type of scalar */
+				printf("%*.*s<%s>%s</%s>\n",
+						indent, indent, "",
+						entry->key,
+						ni_dbus_variant_sprint(child),
+						entry->key);
+			} else if(child->array.len == 0) {
+				printf("%*.*s<%s />\n", indent, indent, "", entry->key);
+			} else if (ni_dbus_variant_is_byte_array(child)) {
+				unsigned char value[64];
+				unsigned int num_bytes;
+				char display_buffer[128];
+				const char *display;
+
+				if (!ni_dbus_variant_get_byte_array_minmax(child, value, &num_bytes, 0, sizeof(value))) {
+					display = "<INVALID />";
+				} else {
+					display = ni_format_hex(value, num_bytes, display_buffer, sizeof(display_buffer));
+				}
+				printf("%*.*s<%s>%s</%s>\n",
+						indent, indent, "",
+						entry->key,
+						display,
+						entry->key);
+			} else {
+				printf("%*.*s<%s>\n", indent, indent, "", entry->key);
+				__dump_fake_xml(child, indent + 2);
+				printf("%*.*s</%s>\n", indent, indent, "", entry->key);
+			}
+		}
+	} else if (ni_dbus_variant_is_dict_array(variant)) {
+		const ni_dbus_variant_t *child;
+
+		for (child = variant->variant_array_value, index = 0; index < variant->array.len; ++index, ++child) {
+			printf("%*.*s<e>\n", indent, indent, "");
+			__dump_fake_xml(child, indent + 2);
+			printf("%*.*s</e>\n", indent, indent, "");
+		}
+	} else {
+		ni_trace("%s: %s", __func__, ni_dbus_variant_signature(variant));
+	}
+}
+
+int
+do_show_xml(int argc, char **argv)
+{
+	ni_dbus_object_t *iflist, *object;
+	ni_dbus_variant_t result = NI_DBUS_VARIANT_INIT;
+	DBusError error = DBUS_ERROR_INIT;
+	int rv = 1;
+
+	if (argc != 1 && argc != 2) {
+		ni_error("wicked show: missing interface name");
+		return 1;
+	}
+
+	if (!(object = wicked_dbus_client_create()))
+		return 1;
+
+	if (!(iflist = wicked_get_interface_object(NULL)))
+		goto out;
+
+	if (!ni_dbus_object_call_variant(iflist,
+			"org.freedesktop.DBus.ObjectManager", "GetManagedObjects",
+			0, NULL,
+			1, &result, &error)) {
+		ni_error("GetManagedObject call failed");
+		goto out;
+	}
+
+	__dump_fake_xml(&result, 0);
+
+	rv = 0;
+
+out:
+	ni_dbus_variant_destroy(&result);
+	return rv;
 }
 
 int
@@ -952,7 +1055,7 @@ do_ifup(int argc, char **argv)
 	const char *opt_file = NULL;
 	ni_dbus_object_t *root_object, *dev_object;
 	unsigned int ifevent = NI_IFACTION_MANUAL_UP;
-	ni_interface_t *config_dev;
+	ni_interface_t *config_dev = NULL;
 	int c, rv = 1;
 
 	optind = 1;
