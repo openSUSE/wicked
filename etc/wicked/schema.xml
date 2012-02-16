@@ -43,7 +43,9 @@
       <!-- Other types of routing info could be added here,
         -- eg for blackhole routes etc. -->
     </define>
-    <nexthop class="array" element-type="ipv4-nexthop" minlen="1"/>
+
+    <!-- Can occur one or more times -->
+    <nexthop type="ipv4-nexthop"/>
   </define>
 
   <!-- Can occur one or more times -->
@@ -79,16 +81,6 @@
  <link class="dict">
   <class type="string"/>
   <mtu type="uint32"/>
-
-  <!-- Need to parse link layer service definitions before we do these: -->
-  <vlan type="vlan:linkinfo"/>
-  <bonding type="bonding:linkinfo"/>
-  <ethernet type="ethernet:linkinfo"/>
-
-  <!--
-  <bridge type="bridge:linkinfo"/>
-  <isdn type="isdn:linkinfo"/>
-    -->
  </link>
 
  <metric type="uint32"/>
@@ -105,3 +97,15 @@
   </ipv6>
  </addrconf>
 </define>
+
+<service name="ipv4:static" interface="com.suse.Wicked.IPv4Address.Static" object-class="netif">
+  <define name="addrconf-request" type="ipv4-addrconf" />
+  <define name="properties" type="ipv4-addrconf" />
+
+  <method name="configure">
+    <arguments>
+      <config type="addrconf-request"/>
+    </arguments>
+  </method>
+</service>
+
