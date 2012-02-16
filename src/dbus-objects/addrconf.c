@@ -77,6 +77,8 @@ ni_objectmodel_interface_to_lease(const char *interface)
 {
 	if (!strcmp(interface, WICKED_DBUS_DHCP4_INTERFACE))
 		return ni_addrconf_lease_new(NI_ADDRCONF_DHCP, AF_INET);
+	if (!strcmp(interface, WICKED_DBUS_AUTO4_INTERFACE))
+		return ni_addrconf_lease_new(NI_ADDRCONF_AUTOCONF, AF_INET);
 
 	return NULL;
 }
@@ -111,7 +113,6 @@ ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_messa
 		goto done;
 	}
 
-	/* FIXME: This is wrong, as it always creates a DHCPv4 lease */
 	lease = ni_objectmodel_interface_to_lease(dbus_message_get_interface(msg));
 	if (lease == NULL) {
 		ni_debug_dbus("received signal %s from %s (unknown service)",
