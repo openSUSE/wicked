@@ -440,6 +440,7 @@ ni_objectmodel_extension_completion(ni_dbus_connection_t *connection,
 				ni_dbus_message_t *call, const ni_process_instance_t *process)
 {
 	ni_dbus_message_t *reply;
+	const char *filename;
 
 	if (ni_process_exit_status_okay(process)) {
 		reply = dbus_message_new_method_return(call);
@@ -454,6 +455,15 @@ ni_objectmodel_extension_completion(ni_dbus_connection_t *connection,
 		ni_error("unable to send reply (out of memory)");
 
 	dbus_message_unref(reply);
+
+	if ((filename = ni_process_instance_getenv(process, "WICKED_ARGFILE")) != NULL) {
+		ni_debug_dbus("cleaning up tempfile %s", filename);
+		unlink(filename);
+	}
+	if ((filename = ni_process_instance_getenv(process, "WICKED_RETFILE")) != NULL) {
+		ni_debug_dbus("cleaning up tempfile %s", filename);
+		unlink(filename);
+	}
 	return TRUE;
 }
 
