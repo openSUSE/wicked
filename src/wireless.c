@@ -128,6 +128,7 @@ int
 __ni_wireless_do_scan(ni_interface_t *dev)
 {
 	ni_wpa_interface_t *wpa_dev;
+	ni_wireless_t *wlan;
 	ni_wireless_scan_t *scan;
 	time_t now;
 
@@ -136,10 +137,11 @@ __ni_wireless_do_scan(ni_interface_t *dev)
 	if (!(wpa_dev = ni_wireless_bind_supplicant(dev)))
 		return -1;
 
-	if ((scan = dev->wireless_scan) == NULL) {
+	wlan = dev->wireless;
+	if ((scan = wlan->scan) == NULL) {
 		ni_trace("new scan");
 		scan = ni_wireless_scan_new();
-		ni_interface_set_wireless_scan(dev, scan);
+		wlan->scan = scan;
 	}
 
 	/* Retrieve whatever is there. */
@@ -745,6 +747,8 @@ void
 ni_wireless_free(ni_wireless_t *wireless)
 {
 	ni_wireless_set_assoc_network(wireless, NULL);
+	if (wireless->scan)
+		ni_wireless_scan_free(wireless->scan);
 	free(wireless);
 }
 
@@ -777,6 +781,7 @@ void
 ni_wireless_scan_free(ni_wireless_scan_t *scan)
 {
 	ni_wireless_network_array_destroy(&scan->networks);
+	free(scan);
 }
 
 /*

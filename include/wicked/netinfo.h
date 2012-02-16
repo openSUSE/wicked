@@ -194,7 +194,6 @@ struct ni_interface {
 	ni_bridge_t *		bridge;
 	ni_ethernet_t *		ethernet;
 	ni_wireless_t *		wireless;
-	ni_wireless_scan_t *	wireless_scan;
 
 	/* Configuration data */
 	ni_ifbehavior_t		startmode;
@@ -294,7 +293,6 @@ extern void		ni_interface_set_bridge(ni_interface_t *, ni_bridge_t *);
 extern void		ni_interface_set_ethernet(ni_interface_t *, ni_ethernet_t *);
 extern void		ni_interface_set_link_stats(ni_interface_t *, ni_link_stats_t *);
 extern void		ni_interface_set_wireless(ni_interface_t *, ni_wireless_t *);
-extern void		ni_interface_set_wireless_scan(ni_interface_t *, ni_wireless_scan_t *);
 
 extern void		ni_interface_array_init(ni_interface_array_t *);
 extern void		ni_interface_array_append(ni_interface_array_t *, ni_interface_t *);

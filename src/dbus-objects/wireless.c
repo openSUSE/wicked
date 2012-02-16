@@ -189,12 +189,12 @@ __ni_objectmodel_get_wireless(const ni_dbus_object_t *object, DBusError *error)
 static ni_wireless_scan_t *
 __ni_objectmodel_get_scan(const ni_dbus_object_t *object, DBusError *error)
 {
-	ni_interface_t *ifp;
+	ni_wireless_t *wlan;
 
-	if (!(ifp = ni_objectmodel_unwrap_interface(object, error)))
+	if (!(wlan = __ni_objectmodel_get_wireless(object, error)))
 		return NULL;
 
-	return ifp->wireless_scan;
+	return wlan->scan;
 }
 
 

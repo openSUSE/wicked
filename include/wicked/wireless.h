@@ -176,6 +176,7 @@ struct ni_wireless {
 	ni_wireless_interface_capabilities_t capabilities;
 
 	ni_bool_t		enable_ap_scan;
+	ni_wireless_scan_t *	scan;
 
 	/* Association information */
 	struct {

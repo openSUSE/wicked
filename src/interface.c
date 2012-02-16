@@ -159,7 +159,6 @@ ni_interface_free(ni_interface_t *ifp)
 	ni_interface_set_bridge(ifp, NULL);
 	ni_interface_set_vlan(ifp, NULL);
 	ni_interface_set_wireless(ifp, NULL);
-	ni_interface_set_wireless_scan(ifp, NULL);
 
 	ni_addrconf_lease_list_destroy(&ifp->leases);
 
@@ -306,14 +305,6 @@ ni_interface_set_wireless(ni_interface_t *ifp, ni_wireless_t *wireless)
 	if (ifp->wireless)
 		ni_wireless_free(ifp->wireless);
 	ifp->wireless = wireless;
-}
-
-void
-ni_interface_set_wireless_scan(ni_interface_t *ifp, ni_wireless_scan_t *scan)
-{
-	if (ifp->wireless_scan)
-		ni_wireless_scan_free(ifp->wireless_scan);
-	ifp->wireless_scan = scan;
 }
 
 /*
