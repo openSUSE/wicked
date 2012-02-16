@@ -115,14 +115,19 @@ struct ni_wireless_network {
 	ni_wireless_mode_t		mode;
 	unsigned int			channel;
 
-	int				noise;
-	double				level;			/* in dBm*/
-	double				quality;		/* n/70 */
-	double				frequency;		/* in GHz */
-	unsigned int			max_bitrate;		/* in Mbps */
+	struct ni_wireless_scan_info {
+		int			noise;
+		double			level;			/* in dBm*/
+		double			quality;		/* n/70 */
+		double			frequency;		/* in GHz */
+		unsigned int		max_bitrate;		/* in Mbps */
 
-	/* We need to fix this; this is a 16bit word directly from wpa_supplicant */
-	uint16_t			capabilities;
+		/* We need to fix this; this is a 16bit word directly from wpa_supplicant */
+		uint16_t		capabilities;
+
+		/* Information on the auth modes supported by the AP */
+		ni_wireless_auth_info_array_t supported_auth_modes;
+	} scan_info;
 
 	ni_wireless_auth_mode_t		auth_proto;
 	ni_wireless_auth_algo_t		auth_algo;
@@ -143,8 +148,6 @@ struct ni_wireless_network {
 		unsigned char *		key_data;
 	} encode;
 
-	/* Information on the auth modes supported by the AP */
-	ni_wireless_auth_info_array_t	supported_auth_modes;
 };
 
 typedef struct ni_wireless_interface_capabilities {

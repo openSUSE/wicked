@@ -236,14 +236,9 @@ static void
 ni_wpa_network_properties_destroy(ni_wireless_network_t *net)
 {
 	memset(&net->essid, 0, sizeof(net->essid));
-	net->noise = 0;
-	net->frequency = 0;
-	net->level = 0;
-	net->quality = 0;
-	net->max_bitrate = 0;
-	net->capabilities = 0;
 
-	ni_wireless_auth_info_array_destroy(&net->supported_auth_modes);
+	ni_wireless_auth_info_array_destroy(&net->scan_info.supported_auth_modes);
+	memset(&net->scan_info, 0, sizeof(net->scan_info));
 }
 
 static void
@@ -799,7 +794,7 @@ __wpa_dbus_bss_get_noise(const ni_dbus_object_t *object, const ni_dbus_property_
 {
 	ni_wireless_network_t *net = __wpa_get_network(object);
 
-	ni_dbus_variant_set_int32(argument, net->noise);
+	ni_dbus_variant_set_int32(argument, net->scan_info.noise);
 	return TRUE;
 }
 
@@ -809,7 +804,7 @@ __wpa_dbus_bss_set_noise(ni_dbus_object_t *object, const ni_dbus_property_t *pro
 {
 	ni_wireless_network_t *net = __wpa_get_network(object);
 
-	return ni_dbus_variant_get_int32(argument, &net->noise);
+	return ni_dbus_variant_get_int32(argument, &net->scan_info.noise);
 }
 
 static dbus_bool_t
@@ -819,7 +814,7 @@ __wpa_dbus_bss_get_frequency(const ni_dbus_object_t *object, const ni_dbus_prope
 	ni_wireless_network_t *net = __wpa_get_network(object);
 
 	/* Convert GHz -> MHz */
-	ni_dbus_variant_set_int32(argument, 1000 * net->frequency);
+	ni_dbus_variant_set_int32(argument, 1000 * net->scan_info.frequency);
 	return TRUE;
 }
 
@@ -833,7 +828,7 @@ __wpa_dbus_bss_set_frequency(ni_dbus_object_t *object, const ni_dbus_property_t 
 	if (!ni_dbus_variant_get_uint(argument, &freq))
 		return FALSE;
 	/* Convert MHz -> GHz */
-	net->frequency = freq * 1e-3;
+	net->scan_info.frequency = freq * 1e-3;
 	return TRUE;
 }
 
@@ -844,7 +839,7 @@ __wpa_dbus_bss_get_level(const ni_dbus_object_t *object, const ni_dbus_property_
 	ni_wireless_network_t *net = __wpa_get_network(object);
 
 	/* wpa_supplicant expects the level in mBm == 100 dBm */
-	ni_dbus_variant_set_int32(argument, net->level * 100);
+	ni_dbus_variant_set_int32(argument, net->scan_info.level * 100);
 	return TRUE;
 }
 
@@ -858,7 +853,7 @@ __wpa_dbus_bss_set_level(ni_dbus_object_t *object, const ni_dbus_property_t *pro
 	/* wpa_supplicant expects the level in mBm == 100 dBm */
 	if (!ni_dbus_variant_get_int32(argument, &level))
 		return FALSE;
-	net->level = 1e-2 * level;
+	net->scan_info.level = 1e-2 * level;
 	return TRUE;
 }
 
@@ -868,7 +863,7 @@ __wpa_dbus_bss_get_quality(const ni_dbus_object_t *object, const ni_dbus_propert
 {
 	ni_wireless_network_t *net = __wpa_get_network(object);
 
-	ni_dbus_variant_set_int32(argument, net->quality * 70);
+	ni_dbus_variant_set_int32(argument, net->scan_info.quality * 70);
 	return TRUE;
 }
 
@@ -881,7 +876,7 @@ __wpa_dbus_bss_set_quality(ni_dbus_object_t *object, const ni_dbus_property_t *p
 
 	if (!ni_dbus_variant_get_int32(argument, &quality))
 		return FALSE;
-	net->quality = quality / 70.0;
+	net->scan_info.quality = quality / 70.0;
 	return TRUE;
 }
 
@@ -891,7 +886,7 @@ __wpa_dbus_bss_get_maxrate(const ni_dbus_object_t *object, const ni_dbus_propert
 {
 	ni_wireless_network_t *net = __wpa_get_network(object);
 
-	ni_dbus_variant_set_int32(argument, net->max_bitrate);
+	ni_dbus_variant_set_int32(argument, net->scan_info.max_bitrate);
 	return TRUE;
 }
 
@@ -901,7 +896,7 @@ __wpa_dbus_bss_set_maxrate(ni_dbus_object_t *object, const ni_dbus_property_t *p
 {
 	ni_wireless_network_t *net = __wpa_get_network(object);
 
-	return ni_dbus_variant_get_uint(argument, &net->max_bitrate);
+	return ni_dbus_variant_get_uint(argument, &net->scan_info.max_bitrate);
 }
 
 static dbus_bool_t
@@ -910,7 +905,7 @@ __wpa_dbus_bss_get_capabilities(const ni_dbus_object_t *object, const ni_dbus_pr
 {
 	ni_wireless_network_t *net = __wpa_get_network(object);
 
-	ni_dbus_variant_set_uint16(argument, net->capabilities);
+	ni_dbus_variant_set_uint16(argument, net->scan_info.capabilities);
 	return TRUE;
 }
 
@@ -920,7 +915,7 @@ __wpa_dbus_bss_set_capabilities(ni_dbus_object_t *object, const ni_dbus_property
 {
 	ni_wireless_network_t *net = __wpa_get_network(object);
 
-	return ni_dbus_variant_get_uint16(argument, &net->capabilities);
+	return ni_dbus_variant_get_uint16(argument, &net->scan_info.capabilities);
 }
 
 static dbus_bool_t
@@ -1233,11 +1228,11 @@ ni_wpa_bss_properties_result(ni_dbus_object_t *proxy, ni_dbus_message_t *msg)
 	ni_debug_wireless("Updated BSS %s, essid=%.*s, freq=%.3f GHz, quality=%.2f, noise=%u, level=%.2f dBm, maxrate=%u MB/s",
 			ni_link_address_print(&net->access_point),
 			net->essid.len, net->essid.data,
-			net->frequency,
-			net->quality,
-			net->noise,
-			net->level,
-			net->max_bitrate);
+			net->scan_info.frequency,
+			net->scan_info.quality,
+			net->scan_info.noise,
+			net->scan_info.level,
+			net->scan_info.max_bitrate);
 
 	ni_dbus_variant_destroy(&dict);
 	return;

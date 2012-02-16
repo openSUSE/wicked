@@ -63,13 +63,13 @@ __ni_objectmodel_wireless_get_network(const ni_wireless_network_t *network,
 	ni_dbus_dict_add_uint32(dict, "mode", network->mode);
 	if (network->channel)
 		ni_dbus_dict_add_uint32(dict, "channel", network->channel);
-	if (network->frequency)
-		ni_dbus_dict_add_double(dict, "frequency", network->frequency);
-	if (network->max_bitrate)
-		ni_dbus_dict_add_uint32(dict, "max-bitrate", network->max_bitrate);
+	if (network->scan_info.frequency)
+		ni_dbus_dict_add_double(dict, "frequency", network->scan_info.frequency);
+	if (network->scan_info.max_bitrate)
+		ni_dbus_dict_add_uint32(dict, "max-bitrate", network->scan_info.max_bitrate);
 
-	for (i = 0; i < network->supported_auth_modes.count; ++i) {
-		ni_wireless_auth_info_t *auth_info = network->supported_auth_modes.data[i];
+	for (i = 0; i < network->scan_info.supported_auth_modes.count; ++i) {
+		ni_wireless_auth_info_t *auth_info = network->scan_info.supported_auth_modes.data[i];
 		ni_dbus_variant_t *child;
 
 		child = ni_dbus_dict_add(dict, "auth-info");
