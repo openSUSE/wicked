@@ -1,0 +1,37 @@
+<define name="ipv4-address">
+  <array element-type="byte" minlen="4" maxlen="4" notation="ipv4addr"/>
+</define>
+
+<define name="ipv4-address-prefix" class="dict">
+  <address type="ipv4-address"/>
+  <prefix type="byte"/>
+</define>
+
+<define name="ipv6-address">
+  <array element-type="byte" minlen="16" maxlen="16" notation="ipv6addr"/>
+</define>
+
+<define name="ipv6-address-prefix" class="dict">
+  <address type="ipv6-address"/>
+  <prefix type="byte"/>
+</define>
+
+<define name="ethernet-address">
+  <array element-type="byte" minlen="6" maxlen="6" notation="hwaddr"/>
+</define>
+
+<!-- This represents a generic network address.
+  -- The string notation uses the common numeric representation for
+  -- IPv4 and IPv6 addresses (other formats currently not supported).
+  -- On the wire, the address is represented in a packed format. -->
+<define name="network-address">
+  <array element-type="byte" notation="net-address" />
+</define>
+
+<define name="network-address-prefix">
+  <array element-type="byte" notation="net-address-prefix" />
+</define>
+
+<define name="uuid-type">
+  <array element-type="byte" minlen="16" maxlen="16" />
+</define>

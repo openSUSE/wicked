@@ -1,0 +1,179 @@
+
+<!-- =================================================
+     Basic network interface information
+     ================================================= -->
+<define name="network-interface" class="dict">
+ <!-- interface status bits -->
+ <define name="state-bits" type="uint32" constraint="bitmap">
+  <device-up bit="0" />
+  <link-up bit="1" />
+  <powersave bit="2" />
+  <network-up bit="3" />
+  <point-to-point bit="4" />
+  <arp bit="5" />
+  <broadcast bit="6" />
+  <multicast bit="7" />
+ </define>
+
+ <!-- An address assigned to a network interface -->
+ <define name="assigned-address" class="dict">
+   <local type="network-address-prefix"/>
+   <peer type="network-address"/>
+
+   <!-- This is the addrconf method that owns this address -->
+   <owner type="builtin-addrconf" />
+ </define>
+
+ <define name="assigned-address-list" class="array" element-type="assigned-address" />
+
+ <!-- A route assigned to a network interface -->
+ <define name="assigned-route" class="dict">
+   <destination type="network-address-prefix"/>
+   <mtu type="uint32" />
+   <tos type="uint32" />
+   <priority type="uint32" />
+
+   <nexthop class="dict">
+     <gateway type="network-address"/>
+     <device type="string" />
+     <weight type="uint32" />
+     <flags type="uint32" />
+   </nexthop>
+
+   <!-- This is the addrconf method that owns this address -->
+   <owner type="builtin-addrconf" />
+ </define>
+
+ <define name="assigned-route-list" class="array" element-type="assigned-route" />
+
+ <!-- Generic per-address family settings -->
+ <define name="af-info" class="dict">
+    <enabled type="boolean" />
+    <forwarding type="boolean" />
+ </define>
+
+ <!-- Properties of an interface start here -->
+ <name type="string"/>
+
+ <!-- These bits must match the definitions in netinfo.h -->
+ <status type="state-bits" />
+
+ <link-type type="builtin-iftype"/>
+
+ <index type="uint32"/>
+ <metric type="uint32"/>
+ <txqlen type="uint32"/>
+ <mtu type="uint32"/>
+ <alias type="string"/>
+
+ <!-- General ipv4 and ipv6 specific settings -->
+ <ipv4 type="af-info"/>
+ <ipv6 type="af-info"/>
+
+ <addresses type="assigned-address-list" />
+ <routes type="assigned-route-list" />
+</define>
+
+
+<!-- =================================================
+     List of all network interfaces.
+
+     This service currently doesn't have any methods, but
+     we may add some in the future.
+     For instance, we could have a service that maps one
+     or more interface attributes to an interface object
+     path. This could be used to use other means of interface
+     identification that what we usually have.
+     ================================================= -->
+<service name="interface-list" interface="com.suse.Wicked.InterfaceList">
+</service>
+
+<!-- =================================================
+     Generic dbus interface to a single network interface
+
+     Note that link-layer specific properties and methods
+     are defined by overlay DBus services, such as
+     com.suse.Wicked.Ethernet, etc.
+
+     Address configuration services are provided by yet
+     another set of interfaces that are attached to a network
+     interface.
+     ================================================= -->
+<service name="interface" interface="com.suse.Wicked.Interface" object-class="netif">
+  <define name="properties" type="network-interface"/>
+
+  <define name="callback-info" class="dict">
+   <!-- We can return one or more these callback elements in a single dict -->
+   <callback class="dict">
+     <uuid type="uuid-type"/>
+     <event type="string"/>
+   </callback>
+  </define>
+
+  <define name="link-request" class="dict">
+   <status type="network-interface:state-bits"/>
+
+   <metric type="uint32"/>
+   <mtu type="uint32"/>
+   <txqlen type="uint32"/>
+   <alias type="string"/>
+
+   <ipv4 type="network-interface:af-info"/>
+   <ipv6 type="network-interface:af-info"/>
+  </define>
+
+  <define name="addrconf-lease" class="dict">
+    <lease class="dict">
+      <state type="builtin-addrconf-state"/>
+    </lease>
+  </define>
+
+  <method name="firewallUp">
+    <arguments>
+      <!-- to be defined -->
+    </arguments>
+  </method>
+
+  <method name="linkUp">
+    <arguments>
+      <request type="link-request" />
+    </arguments>
+    <return>
+      <callback-info/>
+    </return>
+  </method>
+
+  <method name="linkDown">
+    <arguments>
+      <request type="link-request" />
+    </arguments>
+    <return>
+      <callback-info/>
+    </return>
+  </method>
+
+  <method name="linkAuth">
+    <arguments>
+      <!-- to be defined -->
+    </arguments>
+  </method>
+
+  <method name="networkChange">
+    <arguments>
+      <!-- to be defined -->
+    </arguments>
+    <return>
+      <network-interface:state-bits/>
+    </return>
+  </method>
+
+
+  <!-- Signals emitted by this interface -->
+  <signal name="linkUp" />
+  <signal name="linkDown" />
+  <signal name="networkUp" />
+  <signal name="networkDown" />
+  <signal name="addressAcquired" />
+  <signal name="addressReleased" />
+  <signal name="addressLost" />
+</service>

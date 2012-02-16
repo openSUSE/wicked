@@ -1,0 +1,93 @@
+<!--
+     Schema definition for wicked addrconf services
+
+     Copyright (C) 2012, Olaf Kirch <okir@suse.de>
+  -->
+
+<!-- =================================================
+     Static IPv4 Address configuration service
+     ================================================= -->
+<service name="ipv4:static" interface="com.suse.Wicked.Addrconf.ipv4.static" object-class="netif">
+  <define name="request" class="dict">
+    <address type="network-interface:assigned-address" />
+    <route type="network-interface:assigned-route" />
+  </define>
+  <define name="properties" type="interface:addrconf-lease"/>
+
+  <method name="requestLease">
+    <arguments>
+      <!-- Note: all addresses are expected to be IPv4 -->
+      <config type="request"/>
+    </arguments>
+    <return>
+      <interface:callback-info/>
+    </return>
+  </method>
+
+  <method name="dropLease">
+    <return>
+      <interface:callback-info/>
+    </return>
+  </method>
+</service>
+
+
+<!-- =================================================
+     Static IPv6 Address configuration service
+     ================================================= -->
+<service name="ipv6:static" interface="com.suse.Wicked.Addrconf.ipv6.static" object-class="netif">
+  <define name="request" class="dict">
+    <address type="network-interface:assigned-address" />
+    <route type="network-interface:assigned-route" />
+  </define>
+  <define name="properties" type="interface:addrconf-lease"/>
+
+  <method name="requestLease">
+    <arguments>
+      <!-- Note: all addresses are expected to be IPv6 -->
+      <config type="request"/>
+    </arguments>
+    <return>
+      <interface:callback-info/>
+    </return>
+  </method>
+
+  <method name="dropLease">
+    <return>
+      <interface:callback-info/>
+    </return>
+  </method>
+</service>
+
+
+<!-- =================================================
+     IPv4 DHCP Address configuration service
+     ================================================= -->
+<service name="ipv4:dhcp" interface="com.suse.Wicked.Addrconf.ipv4.dhcp" object-class="netif">
+  <define name="request" class="dict">
+    <uuid type="uuid-type"/>
+
+    <acquire-timeout type="uint32" />
+    <hostname type="string" />
+    <client-id type="string" />
+    <vendor-class type="string" />
+    <lease-time type="uint32" />
+  </define>
+  <define name="properties" type="interface:addrconf-lease"/>
+
+  <method name="requestLease">
+    <arguments>
+      <config type="request"/>
+    </arguments>
+    <return>
+      <interface:callback-info/>
+    </return>
+  </method>
+
+  <method name="dropLease">
+    <return>
+      <interface:callback-info/>
+    </return>
+  </method>
+</service>
+
