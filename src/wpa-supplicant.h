@@ -1,7 +1,7 @@
 /*
  * Interfacing with wpa_supplicant through dbus interface
  *
- * Copyright (C) 2011 Olaf Kirch <okir@suse.de>
+ * Copyright (C) 2011-2012 Olaf Kirch <okir@suse.de>
  */
 
 #ifndef __WICKED_WPA_CLIENT_H__
@@ -60,7 +60,6 @@ struct ni_wpa_bss {
 
 	ni_dbus_object_t *	proxy;
 
-	ni_wpa_scan_t *		scan;
 	time_t			last_seen;
 
 	struct ni_wpa_bss_properties properties;

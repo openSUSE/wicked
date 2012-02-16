@@ -89,7 +89,6 @@ static int		ni_wpa_interface_get_capabilities(ni_wpa_client_t *, ni_wpa_interfac
 static void		ni_wpa_bss_request_properties(ni_wpa_client_t *wpa, ni_wpa_bss_t *bss);
 static void		ni_wpa_signal(ni_dbus_connection_t *, ni_dbus_message_t *, void *);
 static void		ni_wpa_scan_put(ni_wpa_scan_t *);
-static ni_wpa_scan_t *	ni_wpa_scan_get(ni_wpa_scan_t *);
 static char *		__ni_wpa_escape_essid(const struct ni_wpa_bss_properties *);
 static const char *	ni_wpa_auth_protocol_as_string(ni_wireless_auth_mode_t, DBusError *);
 static dbus_bool_t	ni_wpa_auth_protocol_from_string(const char *, ni_wireless_auth_mode_t *, DBusError *);
@@ -250,10 +249,6 @@ ni_wpa_bss_free(ni_wpa_bss_t *bss)
 	if (bss->proxy) {
 		ni_dbus_object_free(bss->proxy);
 		bss->proxy = NULL;
-	}
-	if (bss->scan) {
-		ni_wpa_scan_put(bss->scan);
-		bss->scan = NULL;
 	}
 	ni_wpa_bss_properties_destroy(&bss->properties);
 
@@ -511,16 +506,6 @@ ni_wpa_scan_put(ni_wpa_scan_t *scan)
 	}
 }
 
-static ni_wpa_scan_t *
-ni_wpa_scan_get(ni_wpa_scan_t *scan)
-{
-	if (scan) {
-		ni_assert(scan->count != 0);
-		scan->count++;
-	}
-	return scan;
-}
-
 /*
  * Request an interface scan
  */
@@ -708,11 +693,6 @@ ni_wpa_interface_scan_results(ni_dbus_object_t *proxy, ni_dbus_message_t *msg)
 			bss->last_seen = ifp->last_scan;
 
 			ni_wpa_bss_request_properties(wpa, bss);
-
-			if (scan) {
-				ni_wpa_scan_put(bss->scan);
-				bss->scan = ni_wpa_scan_get(scan);
-			}
 		}
 	}
 
@@ -1234,7 +1214,6 @@ static void
 ni_wpa_bss_properties_result(ni_dbus_object_t *proxy, ni_dbus_message_t *msg)
 {
 	ni_wpa_bss_t *bss = proxy->handle;
-	ni_wpa_scan_t *scan;
 	struct ni_wpa_bss_properties *props;
 	ni_dbus_variant_t dict;
 	DBusMessageIter iter;
@@ -1259,11 +1238,6 @@ ni_wpa_bss_properties_result(ni_dbus_object_t *proxy, ni_dbus_message_t *msg)
 			props->noise,
 			(int) (props->level - 256),
 			props->maxrate / 1000000);
-
-	if ((scan = bss->scan) != NULL) {
-		ni_wpa_scan_put(scan);
-		bss->scan = NULL;
-	}
 
 	ni_dbus_variant_destroy(&dict);
 	return;
