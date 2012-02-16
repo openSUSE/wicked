@@ -413,6 +413,14 @@ extern int			ni_dbus_message_get_args_variants(ni_dbus_message_t *msg,
 extern dbus_bool_t		ni_dbus_message_serialize_variants(ni_dbus_message_t *msg,
 					unsigned int nargs, const ni_dbus_variant_t *argv,
 					DBusError *error);
+extern dbus_bool_t		ni_dbus_message_append_byte(ni_dbus_message_t *, unsigned char);
+extern dbus_bool_t		ni_dbus_message_append_uint16(ni_dbus_message_t *, uint16_t);
+extern dbus_bool_t		ni_dbus_message_append_uint32(ni_dbus_message_t *, uint32_t);
+extern dbus_bool_t		ni_dbus_message_append_uint64(ni_dbus_message_t *, uint64_t);
+extern dbus_bool_t		ni_dbus_message_append_int16(ni_dbus_message_t *, int16_t);
+extern dbus_bool_t		ni_dbus_message_append_int32(ni_dbus_message_t *, int32_t);
+extern dbus_bool_t		ni_dbus_message_append_int64(ni_dbus_message_t *, int64_t);
+extern dbus_bool_t		ni_dbus_message_append_string(ni_dbus_message_t *, const char *);
 
 extern ni_xs_scope_t *		ni_dbus_xml_init(void);
 extern int			ni_dbus_xml_register_services(ni_xs_scope_t *);

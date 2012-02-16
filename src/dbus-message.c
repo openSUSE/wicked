@@ -439,4 +439,55 @@ ni_dbus_message_serialize_variants(ni_dbus_message_t *msg,
 	return TRUE;
 }
 
+/*
+ * Helper functions
+ */
+dbus_bool_t
+ni_dbus_message_append_byte(ni_dbus_message_t *msg, unsigned char value)
+{
+	return dbus_message_append_args(msg, DBUS_TYPE_BYTE, &value, 0);
+}
+
+dbus_bool_t
+ni_dbus_message_append_uint16(ni_dbus_message_t *msg, uint16_t value)
+{
+	return dbus_message_append_args(msg, DBUS_TYPE_UINT16, &value, 0);
+}
+
+dbus_bool_t
+ni_dbus_message_append_uint32(ni_dbus_message_t *msg, uint32_t value)
+{
+	return dbus_message_append_args(msg, DBUS_TYPE_UINT32, &value, 0);
+}
+
+dbus_bool_t
+ni_dbus_message_append_uint64(ni_dbus_message_t *msg, uint64_t value)
+{
+	return dbus_message_append_args(msg, DBUS_TYPE_UINT64, &value, 0);
+}
+
+dbus_bool_t
+ni_dbus_message_append_int16(ni_dbus_message_t *msg, int16_t value)
+{
+	return dbus_message_append_args(msg, DBUS_TYPE_INT16, &value, 0);
+}
+
+dbus_bool_t
+ni_dbus_message_append_int32(ni_dbus_message_t *msg, int32_t value)
+{
+	return dbus_message_append_args(msg, DBUS_TYPE_INT32, &value, 0);
+}
+
+dbus_bool_t
+ni_dbus_message_append_int64(ni_dbus_message_t *msg, int64_t value)
+{
+	return dbus_message_append_args(msg, DBUS_TYPE_INT64, &value, 0);
+}
+
+dbus_bool_t
+ni_dbus_message_append_string(ni_dbus_message_t *msg, const char * value)
+{
+	return dbus_message_append_args(msg, DBUS_TYPE_STRING, &value, 0);
+}
+
 
