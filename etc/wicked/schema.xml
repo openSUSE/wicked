@@ -68,9 +68,9 @@
  </method>
 </service>
 
+<include name="schema/bonding.xml"/>
 <!--
-<include name="schema/bonding.xml">
-<include name="schema/bridge.xml">
+<include name="schema/bridge.xml"/>
  -->
 
 <define name="interface" class="dict">
