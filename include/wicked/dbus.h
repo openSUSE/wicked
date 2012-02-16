@@ -411,6 +411,8 @@ extern dbus_bool_t		ni_dbus_xml_serialize_arg(const ni_dbus_method_t *, unsigned
 extern xml_node_t *		ni_dbus_xml_deserialize_arguments(const ni_dbus_method_t *method,
 		                                unsigned int num_vars, ni_dbus_variant_t *vars,
 						xml_node_t *parent);
+extern xml_node_t *		ni_dbus_xml_deserialize_properties(ni_xs_scope_t *, const char *,
+						ni_dbus_variant_t *, xml_node_t *);
 
 
 extern unsigned int		__ni_dbus_variant_offsets[256];

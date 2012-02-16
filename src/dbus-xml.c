@@ -32,6 +32,8 @@ static dbus_bool_t	ni_dbus_deserialize_xml_array(ni_dbus_variant_t *, const ni_x
 static dbus_bool_t	ni_dbus_deserialize_xml_dict(ni_dbus_variant_t *, const ni_xs_type_t *, xml_node_t *);
 static char *		__ni_xs_type_to_dbus_signature(const ni_xs_type_t *, char *, size_t);
 static char *		ni_xs_type_to_dbus_signature(const ni_xs_type_t *);
+static ni_xs_service_t *ni_dbus_xml_get_service_schema(const ni_xs_scope_t *, const char *);
+static ni_xs_type_t *	ni_dbus_xml_get_properties_schema(const ni_xs_scope_t *, const ni_xs_service_t *);
 
 ni_xs_scope_t *
 ni_dbus_xml_init(void)
@@ -56,29 +58,42 @@ ni_dbus_xml_register_services(ni_xs_scope_t *scope)
 	NI_TRACE_ENTER_ARGS("scope=%s", scope->name);
 	for (xs_service = scope->services; xs_service; xs_service = xs_service->next) {
 		ni_dbus_service_t *service;
+		const ni_dbus_class_t *class = NULL;
 		const ni_var_t *attr;
 		int rv;
 
-		service = xcalloc(1, sizeof(*service));
-		ni_string_dup(&service->name, xs_service->interface);
-		service->user_data = xs_service;
-
-		ni_debug_dbus("register dbus service description %s", service->name);
-		ni_objectmodel_register_service(service);
-
-		/* An interface needs to be attached to an object. Specify which object class
-		 * this can attach to. */
+		ni_debug_dbus("==%s==", xs_service->interface);
+		/* An interface needs to be attached to an object. The object-class
+		 * attribute specifies which object class this can attach to. */
 		if ((attr = ni_var_array_get(&xs_service->attributes, "object-class")) != NULL) {
-			const ni_dbus_class_t *class;
+			const char *class_name = attr->value;
 
-			if ((class = ni_objectmodel_get_class(attr->value)) == NULL) {
+			if ((class = ni_objectmodel_get_class(class_name)) == NULL) {
 				ni_error("xml service definition for %s: unknown object-class \"%s\"",
-						xs_service->interface, attr->value);
-			} else {
-				service->compatible = class;
+						xs_service->interface, class_name);
 			}
 		}
 
+		service = (ni_dbus_service_t *) ni_objectmodel_service_by_name(xs_service->interface);
+		if (service != NULL) {
+			if (service->compatible == NULL) {
+				service->compatible = class;
+			} else if (class && service->compatible != class) {
+				ni_error("schema definition of interface %s changes class from %s to %s",
+						xs_service->interface,
+						service->compatible->name,
+						class->name);
+			}
+		} else {
+			service = xcalloc(1, sizeof(*service));
+			ni_string_dup(&service->name, xs_service->interface);
+			service->compatible = class;
+
+			ni_debug_dbus("register dbus service description %s", service->name);
+			ni_objectmodel_register_service(service);
+		}
+
+		service->user_data = xs_service;
 		if ((rv = ni_dbus_xml_register_methods(service, xs_service)) < 0)
 			return rv;
 	}
@@ -170,8 +185,34 @@ ni_dbus_xml_deserialize_arguments(const ni_dbus_method_t *method,
 
 		if (!ni_dbus_deserialize_xml(&vars[i], xs_method->arguments.data[i].type, arg)) {
 			xml_node_free(node);
-			return FALSE;
+			return NULL;
 		}
+	}
+
+	return node;
+}
+
+xml_node_t *
+ni_dbus_xml_deserialize_properties(ni_xs_scope_t *schema, const char *interface_name, ni_dbus_variant_t *var, xml_node_t *parent)
+{
+	ni_xs_service_t *service;
+	xml_node_t *node;
+	ni_xs_type_t *type;
+
+	if (!(service = ni_dbus_xml_get_service_schema(schema, interface_name))) {
+		ni_error("cannot represent %s properties - no schema definition", interface_name);
+		return NULL;
+	}
+
+	if (!(type = ni_dbus_xml_get_properties_schema(schema, service))) {
+		ni_error("no type named <properties> for interface %s", interface_name);
+		return NULL;
+	}
+
+	node = xml_node_new(service->name, parent);
+	if (!ni_dbus_deserialize_xml(var, type, node)) {
+		ni_error("failed to build xml for %s properties", interface_name);
+		return NULL;
 	}
 
 	return node;
@@ -489,8 +530,9 @@ ni_dbus_deserialize_xml_array(ni_dbus_variant_t *var, const ni_xs_type_t *type, 
 		}
 	} else if (element_type->class == NI_XS_TYPE_DICT) {
 		/* An array of non-scalars always wraps each element in a variant */
-		if (var->array.element_type != DBUS_TYPE_VARIANT) {
-			ni_error("%s: expected an array of variants", __func__);
+		if (var->array.element_type != DBUS_TYPE_VARIANT
+		 && !ni_dbus_variant_is_dict_array(var)) {
+			ni_error("%s: expected an array of variants (got %s)", __func__, ni_dbus_variant_signature(var));
 			return FALSE;
 		}
 
@@ -839,3 +881,32 @@ ni_dbus_define_xml_notations(void)
 	for (na = __ni_dbus_notations; na->name; ++na)
 		ni_xs_register_array_notation(na);
 }
+
+/*
+ * Helper functions
+ */
+static ni_xs_service_t *
+ni_dbus_xml_get_service_schema(const ni_xs_scope_t *scope, const char *interface_name)
+{
+	ni_xs_service_t *service;
+
+	for (service = scope->services; service; service = service->next) {
+		if (!strcmp(service->interface, interface_name))
+			return service;
+	}
+
+	return NULL;
+}
+
+static ni_xs_type_t *
+ni_dbus_xml_get_properties_schema(const ni_xs_scope_t *scope, const ni_xs_service_t *service)
+{
+	scope = ni_xs_scope_lookup_scope(scope, service->name);
+	if (scope == NULL) {
+		ni_error("weird - no xml scope \"%s\" for interface %s", service->name, service->interface);
+		return NULL;
+	}
+
+	return ni_xs_scope_lookup_local(scope, "properties");
+}
+
