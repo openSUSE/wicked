@@ -10,5 +10,6 @@
 <include name="vlan.xml"/>
 <include name="bonding.xml"/>
 <include name="bridge.xml"/>
+<include name="infiniband.xml"/>
 <include name="interface.xml"/>
 <include name="addrconf.xml"/>

@@ -1,0 +1,50 @@
+<!--
+  -- Infiniband Service definition
+  -->
+<service name="infiniband" interface="com.suse.Wicked.Infiniband" object-class="netif-infiniband">
+  <define name="mode_t" type="uint32" constraint="enum">
+      <default value="0"/>
+      <connected value="1"/>
+      <datagram value="2"/>
+  </define>
+  <define name="multicast_t" type="uint32" constraint="enum">
+    <default value="0" />
+    <enabled value="1" />
+    <disabled value="2" />
+  </define>
+
+  <define name="properties" class="dict">
+    <mode type="mode_t"/>
+    <multicast type="multicast_t"/>
+  </define>
+
+  <method name="changeLink">
+    <arguments>
+      <properties />
+    </arguments>
+  </method>
+</service>
+
+<service name="infiniband-child" interface="com.suse.Wicked.InfinibandChild" object-class="netif-infiniband-child">
+  <define name="linkinfo" class="dict">
+    <device type="string" />
+    <mode type="infiniband:mode_t"/>
+    <multicast type="infiniband:multicast_t"/>
+  </define>
+
+  <method name="deleteLink" />
+</service>
+
+<service name="infiniband-child-factory" interface="com.suse.Wicked.InfinibandChild.Factory" object-class="netif-list">
+
+  <method name="newLink">
+    <arguments>
+      <name type="string"/>
+      <config type="infiniband-child:linkinfo"/>
+    </arguments>
+    <return>
+      <!-- this is really an object handle -->
+      <string/>
+    </return>
+  </method>
+</service>
