@@ -61,7 +61,7 @@ static int		do_show_xml(int, char **);
 static int		do_addport(int, char **);
 static int		do_delport(int, char **);
 extern int		do_ifup(int, char **);
-static int		do_ifdown(int, char **);
+extern int		do_ifdown(int, char **);
 static int		do_xpath(int, char **);
 
 int
@@ -1185,70 +1185,6 @@ out:
 	ni_dbus_variant_destroy(&argument);
 	ni_dbus_variant_destroy(&result);
 	dbus_error_free(&error);
-	return rv;
-}
-
-static int
-do_ifdown(int argc, char **argv)
-{
-	ni_dbus_variant_t argument = NI_DBUS_VARIANT_INIT;
-	DBusError error = DBUS_ERROR_INIT;
-	ni_dbus_object_t *root_object, *dev_object;
-	int rv = 1;
-
-	if (argc == 1) {
-		fprintf(stderr, "wicked ifdown ifname ...\n");
-		return 1;
-	}
-
-	if (!(root_object = wicked_dbus_client_create()))
-		return 1;
-
-	/* All interfaces get the same interface request, which is
-	 * ifflags = 0, and empty addrconfig. */
-	if (0) {
-		ni_interface_request_t *req;
-		dbus_bool_t okay;
-
-		req = ni_interface_request_new();
-		req->ifflags = 0;
-
-		okay = ni_objectmodel_marshal_interface_request(req, &argument, NULL);
-
-		ni_interface_request_free(req);
-
-		if (!okay)
-			goto failed;
-	}
-
-	for (optind = 1; optind < argc; ++optind) {
-		const char *ifname = argv[optind];
-
-		dev_object = wicked_get_interface(root_object, ifname);
-		if (!dev_object)
-			goto failed;
-
-		/* now do the real dbus call to bring it down */
-		if (!ni_dbus_object_call_variant(dev_object,
-					WICKED_DBUS_NETIF_INTERFACE, "down",
-					0, NULL, 0, NULL, &error)) {
-			ni_error("Unable to configure interface. Server responds:");
-			ni_error_extra("%s: %s", error.name, error.message);
-			dbus_error_free(&error);
-			goto failed;
-		}
-
-		ni_debug_wicked("successfully shut down %s", ifname);
-	}
-
-	rv = 0;
-
-	// then wait for a signal from the server to tell us it's actually down
-
-	rv = 0; /* success */
-
-failed:
-	ni_dbus_variant_destroy(&argument);
 	return rv;
 }
 

@@ -340,8 +340,8 @@ ni_ifworkers_from_xml(xml_document_t *doc)
 
 		if (!ifnode->name || strcmp(ifnode->name, "interface")) {
 			ni_warn("%s: ignoring non-interface element <%s>",
-					xml_node_location(node),
-					node->name);
+					xml_node_location(ifnode),
+					ifnode->name);
 			continue;
 		}
 
@@ -377,14 +377,20 @@ ni_ifworker_set_target(ni_ifworker_t *w, unsigned int min_state, unsigned int ma
 		w->state = STATE_NETWORK_UP;
 	}
 
-	if (w->children.count != 0 && min_state >= STATE_LINK_UP) {
+	if (w->children.count != 0) {
 		unsigned int i;
 
 		switch (w->iftype) {
 		case NI_IFTYPE_VLAN:
-			/* VLAN devices: the underlying eth device must be up */
-			min_state = STATE_LINK_UP;
-			max_state = __STATE_MAX;
+			/* To brin a VLAN device up, the underlying eth device must be up.
+			 * When bringing the VLAN down, don't touch the ethernet device,
+			 * as it's shared. */
+			if (min_state >= STATE_LINK_UP) {
+				min_state = STATE_LINK_UP;
+				max_state = __STATE_MAX;
+			} else {
+				return;
+			}
 			break;
 
 		case NI_IFTYPE_BRIDGE:
@@ -394,14 +400,18 @@ ni_ifworker_set_target(ni_ifworker_t *w, unsigned int min_state, unsigned int ma
 			 * We may later want to allow the config file to override
 			 * the initial state for specific bridge ports.
 			 */
-			min_state = STATE_LINK_UP;
-			max_state = __STATE_MAX;
+			if (min_state >= STATE_LINK_UP) {
+				min_state = STATE_LINK_UP;
+				max_state = __STATE_MAX;
+			}
 			break;
 
 		case NI_IFTYPE_BOND:
 			/* bond device: all slaves devices must exist and be down */
-			min_state = STATE_LINK_UP - 1;
-			max_state = STATE_LINK_UP - 1;
+			if (min_state >= STATE_LINK_UP) {
+				min_state = STATE_LINK_UP - 1;
+				max_state = STATE_LINK_UP - 1;
+			}
 			break;
 
 		default:
@@ -563,7 +573,7 @@ __ni_ifworker_print_tree(const char *arrow, const ni_ifworker_t *w, const char *
 }
 
 void
-interface_workers_refresh_state(void)
+ni_ifworkers_refresh_state(void)
 {
 	static ni_dbus_object_t *iflist = NULL;
 	ni_dbus_object_t *object;
@@ -806,6 +816,22 @@ ni_ifworker_do_network_up(ni_ifworker_t *w)
 	return 0;
 }
 
+static int
+ni_ifworker_do_network_down(ni_ifworker_t *w)
+{
+	ni_debug_dbus("%s(%s)", __func__, w->name);
+	ni_ifworker_fail(w, "%s not implemented yet", __func__);
+
+#if 0
+	if (w->callbacks == NULL) {
+		ni_debug_dbus("%s: no address configuration; we're done", w->name);
+		w->state = STATE_NETWORK_DOWN;
+	}
+#endif
+
+	return 0;
+}
+
 static const ni_dbus_service_t *
 __ni_ifworker_check_addrconf(const char *name)
 {
@@ -862,6 +888,9 @@ static ni_netif_action_t	ni_ifworker_fsm_up[] = {
 };
 
 static ni_netif_action_t	ni_ifworker_fsm_down[] = {
+	/* Remove all assigned addresses and bring down the network */
+	{ .next_state = STATE_NETWORK_UP,	.func = ni_ifworker_do_network_down },
+
 	{ .next_state = STATE_NONE, .func = NULL }
 };
 
@@ -949,7 +978,7 @@ ni_ifworker_fsm(void)
 		if (!made_progress)
 			break;
 
-		interface_workers_refresh_state();
+		ni_ifworkers_refresh_state();
 	}
 
 	for (i = waiting = 0; i < interface_workers.count; ++i) {
@@ -1035,12 +1064,26 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 	}
 }
 
+static dbus_bool_t
+ni_ifworkers_create_client(void)
+{
+	if (!(__root_object = wicked_dbus_client_create()))
+		return FALSE;
+
+	ni_dbus_client_add_signal_handler(ni_dbus_object_get_client(__root_object), NULL, NULL,
+			                        WICKED_DBUS_NETIF_INTERFACE,
+						interface_state_change_signal,
+						NULL);
+
+	return TRUE;
+}
+
 static int
 ni_ifworkers_kickstart(void)
 {
 	unsigned int i;
 
-	interface_workers_refresh_state();
+	ni_ifworkers_refresh_state();
 
 	for (i = 0; i < interface_workers.count; ++i) {
 		ni_ifworker_t *w = interface_workers.data[i];
@@ -1105,18 +1148,15 @@ done:
 int
 do_ifup(int argc, char **argv)
 {
-	enum  { OPT_SYSCONFIG, OPT_NETCF, OPT_FILE, OPT_BOOT };
+	enum  { OPT_FILE, OPT_BOOT };
 	static struct option ifup_options[] = {
 		{ "file", required_argument, NULL, OPT_FILE },
 		{ "boot", no_argument, NULL, OPT_BOOT },
 		{ NULL }
 	};
-	ni_dbus_variant_t argument = NI_DBUS_VARIANT_INIT;
 	const char *ifname = NULL;
 	const char *opt_file = NULL;
 	unsigned int ifevent = NI_IFACTION_MANUAL_UP;
-	ni_interface_t *config_dev = NULL;
-	xml_document_t *config_doc;
 	int c, rv = 1;
 
 	optind = 1;
@@ -1156,11 +1196,12 @@ usage:
 		ifname = "all";
 	}
 
-	ni_dbus_variant_init_dict(&argument);
 	if (opt_file) {
+		xml_document_t *config_doc;
+
 		if (!(config_doc = xml_document_read(opt_file))) {
 			ni_error("unable to load interface definition from %s", opt_file);
-			goto failed;
+			return 1;
 		}
 
 		ni_ifworkers_from_xml(config_doc);
@@ -1168,10 +1209,10 @@ usage:
 		ni_fatal("ifup: non-file case not implemented yet");
 	}
 
-	if (!(__root_object = wicked_dbus_client_create()))
+	if (!ni_ifworkers_create_client())
 		return 1;
 
-	interface_workers_refresh_state();
+	ni_ifworkers_refresh_state();
 
 	if (build_hierarchy() < 0)
 		ni_fatal("ifup: unable to build device hierarchy");
@@ -1179,19 +1220,82 @@ usage:
 	if (!mark_matching_interfaces(ifname, STATE_NETWORK_UP))
 		return 0;
 
-	ni_dbus_client_add_signal_handler(ni_dbus_object_get_client(__root_object), NULL, NULL,
-			                        WICKED_DBUS_NETIF_INTERFACE,
-						interface_state_change_signal,
-						NULL);
-
 	ni_ifworkers_kickstart();
-
 	if (ni_ifworker_fsm() != 0)
 		ni_ifworker_mainloop();
 
-failed:
-	if (config_dev)
-		ni_interface_put(config_dev);
-	ni_dbus_variant_destroy(&argument);
 	return rv;
 }
+
+int
+do_ifdown(int argc, char **argv)
+{
+	enum  { OPT_FILE, OPT_DELETE };
+	static struct option ifdown_options[] = {
+		{ "file", required_argument, NULL, OPT_FILE },
+		{ "delete", required_argument, NULL, OPT_DELETE },
+		{ NULL }
+	};
+	const char *ifname;
+	const char *opt_file = NULL;
+	int c, rv = 1;
+
+	optind = 1;
+	while ((c = getopt_long(argc, argv, "", ifdown_options, NULL)) != EOF) {
+		switch (c) {
+		case OPT_FILE:
+			opt_file = optarg;
+			break;
+
+		default:
+usage:
+			fprintf(stderr,
+				"wicked [options] ifdown [ifdown-options] all\n"
+				"wicked [options] ifdown [ifdown-options] <ifname> [options ...]\n"
+				"\nSupported ifup-options:\n"
+				"  --file <filename>\n"
+				"      Read interface configuration(s) from file rather than using system config\n"
+				"  --delete\n"
+				"      Delete virtual interfaces\n"
+				);
+			return 1;
+		}
+	}
+
+	if (optind + 1 != argc) {
+		fprintf(stderr, "Missing interface argument\n");
+		goto usage;
+	}
+	ifname = argv[optind++];
+
+	if (opt_file) {
+		xml_document_t *config_doc;
+
+		if (!(config_doc = xml_document_read(opt_file))) {
+			ni_error("unable to load interface definition from %s", opt_file);
+			return 1;
+		}
+
+		ni_ifworkers_from_xml(config_doc);
+	} else {
+		ni_fatal("ifup: non-file case not implemented yet");
+	}
+
+	if (!ni_ifworkers_create_client())
+		return 1;
+
+	ni_ifworkers_refresh_state();
+
+	if (build_hierarchy() < 0)
+		ni_fatal("ifup: unable to build device hierarchy");
+
+	if (!mark_matching_interfaces(ifname, STATE_DEVICE_UP))
+		return 0;
+
+	ni_ifworkers_kickstart();
+	if (ni_ifworker_fsm() != 0)
+		ni_ifworker_mainloop();
+
+	return rv;
+}
+
