@@ -154,6 +154,15 @@ __ni_default_environment(void)
 }
 
 /*
+ * Catch sigchild
+ */
+static void
+ni_process_sigchild(int sig)
+{
+	/* nop for now */
+}
+
+/*
  * Run a subprocess.
  */
 int
@@ -167,10 +176,13 @@ ni_process_instance_run(ni_process_instance_t *pi)
 		return -1;
 	}
 
-	if (pipe(pfd) < 0) {
+	/* Our code in socket.c is only able to deal with sockets for now; */
+	if (socketpair(AF_UNIX, SOCK_STREAM, 0, pfd) < 0) {
 		ni_error("%s: unable to create pipe: %m", __func__);
 		return -1;
 	}
+
+	signal(SIGCHLD, ni_process_sigchild);
 
 	if ((pid = fork()) < 0) {
 		ni_error("%s: unable to fork child process: %m", __func__);
@@ -212,6 +224,7 @@ ni_process_instance_run(ni_process_instance_t *pi)
 	}
 
 	pi->socket = __ni_process_instance_get_output(pi, pfd[0]);
+	ni_socket_activate(pi->socket);
 	close(pfd[1]);
 
 	return 0;
@@ -303,7 +316,7 @@ __ni_process_instance_get_output(ni_process_instance_t *pi, int fd)
 {
 	ni_socket_t *sock;
 
-	sock = ni_socket_wrap(fd, -1);
+	sock = ni_socket_wrap(fd, SOCK_STREAM);
 	sock->receive = __ni_process_output_recv;
 	sock->handle_hangup = __ni_process_output_hangup;
 
