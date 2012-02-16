@@ -369,14 +369,18 @@ ni_dbus_object_call_variant(const ni_dbus_object_t *proxy,
 			}
 		}
 
-		if (best == NULL) {
-			dbus_set_error(error, DBUS_ERROR_UNKNOWN_METHOD,
-					"%s: no registered dbus interface provides method %s",
-					proxy->path, method);
-			return FALSE;
-		}
+		if (best != NULL)
+			interface_name = best->name;
+	}
 
-		interface_name = best->name;
+	if (interface_name == NULL)
+		interface_name = ni_dbus_object_get_default_interface(proxy);
+
+	if (interface_name == NULL) {
+		dbus_set_error(error, DBUS_ERROR_UNKNOWN_METHOD,
+				"%s: no registered dbus interface provides method %s",
+				proxy->path, method);
+		return FALSE;
 	}
 
 	if (!proxy || !(client = ni_dbus_object_get_client(proxy)) || !interface_name) {
