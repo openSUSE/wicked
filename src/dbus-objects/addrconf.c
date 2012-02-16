@@ -150,10 +150,11 @@ ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_messa
 	if (!ni_uuid_is_null(&uuid))
 		req = ni_interface_get_addrconf_request(ifp, &uuid);
 
-	ni_debug_dbus("received signal %s for interface %s (ifindex %d), lease %s/%s",
+	ni_debug_dbus("received signal %s for interface %s (ifindex %d), lease %s/%s, uuid=%s",
 			signal_name, ifp->name, ifp->link.ifindex,
 			ni_addrconf_type_to_name(lease->type),
-			ni_addrfamily_type_to_name(lease->family));
+			ni_addrfamily_type_to_name(lease->family),
+			ni_print_hex(uuid.octets, 16));
 	if (!strcmp(signal_name, "LeaseAcquired")) {
 		if (lease->state != NI_ADDRCONF_STATE_GRANTED) {
 			ni_error("%s: unexpected lease state in signal %s", __func__, signal_name);
