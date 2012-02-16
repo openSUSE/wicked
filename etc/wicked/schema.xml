@@ -76,6 +76,18 @@
  -->
 
 <define name="network-interface" class="dict">
+ <!-- interface status bits -->
+ <define name="state-bits" type="uint32" constraint="bitmap">
+  <device-up bit="0" />
+  <link-up bit="1" />
+  <powersave bit="2" />
+  <network-up bit="3" />
+  <point-to-point bit="4" />
+  <arp bit="5" />
+  <broadcast bit="6" />
+  <multicast bit="7" />
+ </define>
+
  <!-- An address assigned to a network interface -->
  <define name="assigned-address" class="dict">
    <local type="network-address-prefix"/>
@@ -107,20 +119,17 @@
 
  <define name="assigned-route-list" class="array" element-type="assigned-route" />
 
+ <!-- Generic per-address family settings -->
+ <define name="af-info" class="dict">
+    <enabled type="boolean" />
+    <forwarding type="boolean" />
+ </define>
+
  <!-- Properties of an interface start here -->
  <name type="string"/>
 
  <!-- These bits must match the definitions in netinfo.h -->
- <status type="uint32" constraint="bitmap">
-  <device-up bit="0" />
-  <link-up bit="1" />
-  <powersave bit="2" />
-  <network-up bit="3" />
-  <point-to-point bit="4" />
-  <arp bit="5" />
-  <broadcast bit="6" />
-  <multicast bit="7" />
- </status>
+ <status type="state-bits" />
 
  <link-type type="builtin-iftype"/>
 
@@ -129,27 +138,71 @@
  <txqlen type="uint32"/>
  <mtu type="uint32"/>
 
- <!-- General ipv4 specific settings -->
- <ipv4 class="dict">
-    <enabled type="boolean" />
-    <forwarding type="boolean" />
- </ipv4>
-
- <!-- General ipv6 specific settings -->
- <ipv6 class="dict">
-    <enabled type="boolean" />
-    <forwarding type="boolean" />
- </ipv6>
+ <!-- General ipv4 and ipv6 specific settings -->
+ <ipv4 type="af-info"/>
+ <ipv6 type="af-info"/>
 
  <addresses type="assigned-address-list" />
  <routes type="assigned-route-list" />
 </define>
 
 <service name="interface-list" interface="com.suse.Wicked.InterfaceList">
+ <!-- We may add higher-level methods here that kind of throw a full configuration
+   -- at the server and expect it to bring up the whole interface -->
 </service>
 
 <service name="interface" interface="com.suse.Wicked.Interface" object-class="netif">
   <define name="properties" type="network-interface"/>
+
+  <define name="link-request" class="dict">
+   <status type="network-interface:state-bits"/>
+
+   <txqlen type="uint32"/>
+   <mtu type="uint32"/>
+
+   <ipv4 type="network-interface:af-info"/>
+   <ipv6 type="network-interface:af-info"/>
+  </define>
+
+  <method name="firewallUp">
+    <arguments>
+      <!-- to be defined -->
+    </arguments>
+  </method>
+
+  <method name="linkChange">
+    <arguments>
+      <request type="link-request" />
+    </arguments>
+    <return>
+      <network-interface:state-bits/>
+    </return>
+  </method>
+
+  <method name="linkAuth">
+    <arguments>
+      <!-- to be defined -->
+    </arguments>
+  </method>
+
+  <method name="networkUp">
+    <arguments>
+      <!-- to be defined -->
+    </arguments>
+    <return>
+      <network-interface:state-bits/>
+    </return>
+  </method>
+
+  <method name="networkDown">
+    <arguments>
+      <!-- to be defined -->
+    </arguments>
+    <return>
+      <network-interface:state-bits/>
+    </return>
+  </method>
+
 </service>
 
 <service name="ipv4-static" interface="com.suse.Wicked.IPv4Address.Static" object-class="netif">
