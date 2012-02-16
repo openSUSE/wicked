@@ -116,6 +116,7 @@ __wicked_dbus_dhcp4_acquire_svc(ni_dbus_object_t *object, const ni_dbus_method_t
 			ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_dhcp_device_t *dev = ni_objectmodel_unwrap_dhcp4_device(object);
+	ni_uuid_t req_uuid = NI_UUID_INIT;
 	ni_dhcp4_request_t *req = NULL;
 	dbus_bool_t ret = FALSE;
 	int rv;
@@ -125,6 +126,18 @@ __wicked_dbus_dhcp4_acquire_svc(ni_dbus_object_t *object, const ni_dbus_method_t
 				"method %s called on incompatible object (class %s)",
 				method->name, object->class->name);
 		goto failed;
+	}
+
+	if (argc == 2) {
+		unsigned int dummy;
+
+		if (!ni_dbus_variant_get_byte_array_minmax(&argv[0], req_uuid.octets, &dummy, 16, 16)) {
+			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+					"%s: unable to extract uuid from argument",
+					method->name);
+		}
+		argc--;
+		argv++;
 	}
 
 	if (argc != 1) {
@@ -143,6 +156,7 @@ __wicked_dbus_dhcp4_acquire_svc(ni_dbus_object_t *object, const ni_dbus_method_t
 				method->name);
 		goto failed;
 	}
+	req->uuid = req_uuid;
 
 	if ((rv = ni_dhcp_acquire(dev, req)) < 0) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
