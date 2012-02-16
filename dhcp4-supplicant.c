@@ -336,7 +336,7 @@ dhcp4_interface_event(ni_netconfig_t *nc, ni_interface_t *ifp, ni_event_t event)
 void
 dhcp4_protocol_event(enum ni_dhcp_event ev, const ni_dhcp_device_t *dev, ni_addrconf_lease_t *lease)
 {
-	ni_dbus_variant_t argv[1];
+	ni_dbus_variant_t argv[4];
 	ni_dbus_object_t *dev_object;
 	ni_dbus_variant_t *var;
 	int argc = 0;
