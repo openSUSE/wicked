@@ -515,7 +515,7 @@ __ni_dbus_async_server_call_callback(ni_process_instance_t *proc)
 	async->sub_process = NULL;
 
 	/* Should build response and send it out now */
-	async->method->async_completion(async->object, async->method,
+	async->method->async_completion(conn, async->object, async->method,
 			async->call_message, proc);
 
 	__ni_dbus_async_server_call_free(async);

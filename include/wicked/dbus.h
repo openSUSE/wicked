@@ -80,7 +80,8 @@ typedef dbus_bool_t		ni_dbus_async_method_handler_t(ni_dbus_connection_t *connec
 					ni_dbus_object_t *object,
 					const ni_dbus_method_t *method,
 					ni_dbus_message_t *call);
-typedef dbus_bool_t		ni_dbus_async_method_completion_t(ni_dbus_object_t *object,
+typedef dbus_bool_t		ni_dbus_async_method_completion_t(ni_dbus_connection_t *connection,
+					ni_dbus_object_t *object,
 					const ni_dbus_method_t *method,
 					ni_dbus_message_t *call,
 					const ni_process_instance_t *);
