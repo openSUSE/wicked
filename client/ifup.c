@@ -855,8 +855,9 @@ ni_ifworker_do_device_up(ni_ifworker_t *w)
 		}
 
 		if (callback_list) {
-			ni_ifworker_fail(w, "unexpected callback_list returned by linkChange call");
-			return -1;
+			ni_ifworker_add_callbacks(w, callback_list);
+			w->wait_for_state = STATE_DEVICE_UP;
+			return 0;
 		}
 
 		goto device_is_up;

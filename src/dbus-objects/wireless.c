@@ -20,6 +20,7 @@ ni_objectmodel_wireless_link_change(ni_dbus_object_t *object, const ni_dbus_meth
 {
 	ni_interface_t *ifp;
 	ni_wireless_network_t *net;
+	dbus_bool_t rv = FALSE;
 
 	if (!(ifp = ni_objectmodel_unwrap_interface(object, error)))
 		return FALSE;
@@ -34,8 +35,17 @@ ni_objectmodel_wireless_link_change(ni_dbus_object_t *object, const ni_dbus_meth
 		goto error;
 	}
 
+	if (ifp->wireless->assoc.state == NI_WIRELESS_ESTABLISHED) {
+		rv = TRUE;
+	} else {
+		/* Link is not associated yet. Tell the caller to wait for an event. */
+		if (ni_uuid_is_null(&ifp->link.event_uuid))
+			ni_uuid_generate(&ifp->link.event_uuid);
+		rv =  __ni_objectmodel_return_callback_info(reply, NI_EVENT_LINK_ASSOCIATED, &ifp->link.event_uuid, error);
+	}
+
 	ni_wireless_network_put(net);
-	return TRUE;
+	return rv;
 
 error:
 	ni_wireless_network_put(net);

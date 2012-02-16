@@ -633,8 +633,10 @@ ni_wpa_interface_select_network(ni_wpa_interface_t *dev, ni_dbus_object_t *net_o
 			NI_WPA_IF_INTERFACE, "selectNetwork",
 			DBUS_TYPE_OBJECT_PATH, &object_path,
 			DBUS_TYPE_INVALID, NULL);
-	if (rv < 0)
+	if (rv < 0) {
+		ni_error("%s(%s) failed: %s", __func__, dev->ifname, ni_strerror(rv));
 		return FALSE;
+	}
 	return TRUE;
 }
 

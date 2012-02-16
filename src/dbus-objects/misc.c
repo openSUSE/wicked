@@ -696,8 +696,11 @@ __ni_objectmodel_return_callback_info(ni_dbus_message_t *reply, ni_event_t event
 	dbus_bool_t rv;
 
 	memset(&callback, 0, sizeof(callback));
-	if (!(callback.event = (char *) __ni_objectmodel_event_to_signal(event)))
+	if (!(callback.event = (char *) __ni_objectmodel_event_to_signal(event))) {
+		ni_error("cannot return callback info for unknown event %s",
+				ni_event_type_to_name(event));
 		return FALSE;
+	}
 	callback.uuid = *uuid;
 
 	ni_dbus_variant_init_dict(&dict);

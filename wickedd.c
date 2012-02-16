@@ -286,6 +286,8 @@ wicked_interface_event(ni_netconfig_t *nc, ni_interface_t *ifp, ni_event_t event
 			ni_objectmodel_unregister_interface(wicked_dbus_server, ifp);
 			break;
 
+		case NI_EVENT_LINK_ASSOCIATED:
+		case NI_EVENT_LINK_ASSOCIATION_LOST:
 		case NI_EVENT_LINK_UP:
 		case NI_EVENT_LINK_DOWN:
 			if (!ni_uuid_is_null(&ifp->link.event_uuid))
