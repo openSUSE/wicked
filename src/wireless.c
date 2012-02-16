@@ -3,7 +3,7 @@
  *
  * Holie cowe, the desygne of thefe Wyreless Extensions is indisputablie baroque!
  *
- * Copyright (C) 2010 Olaf Kirch <okir@suse.de>
+ * Copyright (C) 2010-2012 Olaf Kirch <okir@suse.de>
  */
 
 #include <stdlib.h>
@@ -144,79 +144,6 @@ __ni_wireless_do_scan(ni_interface_t *dev)
 			ni_wpa_interface_request_scan(wpa, wpa_dev, scan);
 	}
 
-	return 0;
-}
-
-/*
- * Obsolete, deprecated
- */
-int
-__ni_wireless_get_scan_results(ni_netconfig_t *nc, ni_interface_t *ifp)
-{
-	ni_wireless_scan_t *scan;
-	ni_wpa_interface_t *wif;
-
-	if (ifp->link.type != NI_IFTYPE_WIRELESS) {
-		ni_error("%s: cannot do wireless scan on this interface", ifp->name);
-		return -1;
-	}
-
-	if ((scan = ifp->wireless_scan) == NULL || wpa_client == NULL) {
-		ni_debug_wireless("no scan object for wireless i/f %s - need to request one first", ifp->name);
-		return 0;
-	}
-
-	wif = ni_wpa_interface_bind(wpa_client, ifp);
-	if (wif == NULL) {
-		ni_debug_wireless("wpa_supplicant doesn't know interface %s", ifp->name);
-		return -1;
-	}
-
-	if (ni_wpa_interface_retrieve_scan(wpa_client, wif, scan) < 0) {
-		ni_error("ni_wpa_interface_retrieve_scan failed");
-		return -1;
-	}
-
-	return 0;
-}
-
-int
-__ni_wireless_request_scan(ni_netconfig_t *nc, ni_interface_t *ifp)
-{
-	ni_wpa_client_t *wpa;
-	ni_wireless_scan_t *scan;
-	ni_wpa_interface_t *wif;
-
-	if (ifp->link.type != NI_IFTYPE_WIRELESS) {
-		ni_error("%s: cannot do wireless scan on this interface", ifp->name);
-		return -1;
-	}
-
-	if ((scan = ifp->wireless_scan) == NULL) {
-		scan = ni_wireless_scan_new();
-		ni_interface_set_wireless_scan(ifp, scan);
-	}
-
-	if (!(wpa = ni_wpa_client()))
-		return -1;
-
-	wif = ni_wpa_interface_bind(wpa, ifp);
-	if (wif == NULL) {
-		ni_error("wpa_supplicant doesn't know interface %s", ifp->name);
-		return -1;
-	}
-
-	if (wif->scan.pending) {
-		ni_error("wireless scan pending for interface %s", ifp->name);
-		return -1;
-	}
-
-	if (ni_wpa_interface_request_scan(wpa, wif, scan) < 0) {
-		ni_error("ni_wpa_interface_request_scan failed");
-		return -1;
-	}
-
-	ni_debug_ifconfig("%s: requested wireless scan", ifp->name);
 	return 0;
 }
 
@@ -371,18 +298,6 @@ typedef struct __ni_kernel_map_t {
 	int		wicked_value;
 } __ni_kernel_map_t;
 
-#if 0
-static __ni_kernel_map_t	__ni_wireless_mode_map[] = {
-	{ IW_MODE_AUTO,		NI_WIRELESS_MODE_AUTO},
-	{ IW_MODE_ADHOC,	NI_WIRELESS_MODE_ADHOC},
-	{ IW_MODE_INFRA,	NI_WIRELESS_MODE_MANAGED},
-	{ IW_MODE_MASTER,	NI_WIRELESS_MODE_MASTER},
-	{ IW_MODE_REPEAT,	NI_WIRELESS_MODE_REPEATER},
-	{ IW_MODE_SECOND,	NI_WIRELESS_MODE_SECONDARY},
-	{ IW_MODE_MONITOR,	NI_WIRELESS_MODE_MONITOR},
-	{ -1 }
-};
-#endif
 
 static __ni_kernel_map_t	__ni_wireless_cipher_map[] = {
 	{ IW_IE_CIPHER_NONE,	NI_WIRELESS_CIPHER_NONE },
