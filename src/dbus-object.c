@@ -273,38 +273,70 @@ ni_dbus_object_get_service(const ni_dbus_object_t *object, const char *interface
 	return NULL;
 }
 
+/*
+ * Helper function for ni_dbus_object_get_{service,signal}_for_method.
+ * When searching an object's method tables, a specific method may be offered
+ * by more than one service. This may be a bug, but it may also be intended,
+ * for instance a subclass of netif may provide an overloaded "linkUp" method.
+ * When we encounter this, we want to more specific dbus interface to "win".
+ */
+static inline const ni_dbus_service_t *
+__ni_dbus_object_pick_more_specific(const ni_dbus_service_t *best, const ni_dbus_service_t *cur)
+{
+	if (best == NULL)
+		return cur;
+
+	/* Current service is more specific than the one found previously */
+	if (best->compatible == NULL || ni_dbus_class_is_subclass(cur->compatible, best->compatible))
+		return cur;
+
+	/* Current service is less specific than the one found previously */
+	if (cur->compatible == NULL || ni_dbus_class_is_subclass(cur->compatible, best->compatible))
+		return best;
+
+	return NULL;
+}
+
 const ni_dbus_service_t *
 ni_dbus_object_get_service_for_method(const ni_dbus_object_t *object, const char *method)
 {
-	const ni_dbus_service_t *svc;
+	const ni_dbus_service_t *svc, *best = NULL;
 	unsigned int i;
 
 	if (object->interfaces == NULL || method == NULL)
 		return NULL;
 
 	for (i = 0; (svc = object->interfaces[i]) != NULL; ++i) {
-		if (ni_dbus_service_get_method(svc, method))
-			return svc;
+		if (ni_dbus_service_get_method(svc, method)) {
+			if (!(best = __ni_dbus_object_pick_more_specific(best, svc))) {
+				ni_error("%s: ambiguous overloaded method \"%s\"", object->path, method);
+				return NULL;
+			}
+		}
 	}
 
-	return NULL;
+	return best;
 }
 
 const ni_dbus_service_t *
 ni_dbus_object_get_service_for_signal(const ni_dbus_object_t *object, const char *signal_name)
 {
-	const ni_dbus_service_t *svc;
+	const ni_dbus_service_t *svc, *best = NULL;
 	unsigned int i;
 
 	if (object->interfaces == NULL)
 		return NULL;
 
 	for (i = 0; (svc = object->interfaces[i]) != NULL; ++i) {
-		if (ni_dbus_service_get_signal(svc, signal_name))
-			return svc;
+		if (ni_dbus_service_get_signal(svc, signal_name)) {
+			if (!(best = __ni_dbus_object_pick_more_specific(best, svc))) {
+				ni_error("%s: ambiguous overloaded method \"%s\"", object->path, signal_name);
+				return NULL;
+			}
+		}
 	}
 
-	return NULL;
+	return best;
 }
 
 const ni_dbus_service_t *
