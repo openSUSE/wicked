@@ -41,7 +41,7 @@ typedef struct ni_dbus_class_array {
 } ni_dbus_class_array_t;
 
 static ni_dbus_class_array_t	ni_objectmodel_class_registry;
-static ni_dbus_service_array_t	ni_objectmodel_all_services;
+static ni_dbus_service_array_t	ni_objectmodel_service_registry;
 
 static const ni_dbus_class_t	ni_objectmodel_netif_list_class = {
 	.name		= NI_OBJECTMODEL_NETIF_LIST_CLASS,
@@ -120,8 +120,8 @@ ni_objectmodel_bind_compatible_interfaces(ni_dbus_server_t *server, ni_dbus_obje
 	}
 
 	NI_TRACE_ENTER_ARGS("object=%s, class=%s", object->path, object->class->name);
-	for (i = 0; i < ni_objectmodel_all_services.count; ++i) {
-		const ni_dbus_service_t *service = ni_objectmodel_all_services.services[i];
+	for (i = 0; i < ni_objectmodel_service_registry.count; ++i) {
+		const ni_dbus_service_t *service = ni_objectmodel_service_registry.services[i];
 		const ni_dbus_class_t *class;
 
 		/* If the service is compatible with the object's dbus class,
@@ -139,22 +139,26 @@ ni_objectmodel_bind_compatible_interfaces(ni_dbus_server_t *server, ni_dbus_obje
 }
 
 /*
- * Register a service
+ * objectmodel service registry
  */
-static void
-__ni_objectmodel_register_service(ni_dbus_service_array_t *array, const ni_dbus_service_t *service)
+void
+ni_objectmodel_register_service(const ni_dbus_service_t *service)
 {
-	ni_assert(array->count < NI_DBUS_SERVICES_MAX);
-	array->services[array->count++] = service;
+	unsigned int index = ni_objectmodel_service_registry.count;
+
+	ni_assert(index < NI_DBUS_SERVICES_MAX);
+
+	ni_objectmodel_service_registry.services[index++] = service;
+	ni_objectmodel_service_registry.count = index;
 }
 
-static const ni_dbus_service_t *
-__ni_objectmodel_service_by_interface(ni_dbus_service_array_t *array, const char *name)
+const ni_dbus_service_t *
+ni_objectmodel_service_by_name(const char *name)
 {
 	unsigned int i;
 
-	for (i = 0; i < array->count; ++i) {
-		const ni_dbus_service_t *service = array->services[i];
+	for (i = 0; i < ni_objectmodel_service_registry.count; ++i) {
+		const ni_dbus_service_t *service = ni_objectmodel_service_registry.services[i];
 
 		if (!strcmp(service->name, name))
 			return service;
@@ -165,33 +169,19 @@ __ni_objectmodel_service_by_interface(ni_dbus_service_array_t *array, const char
 
 /*
  * objectmodel service registry
- */
-void
-ni_objectmodel_register_service(const ni_dbus_service_t *service)
-{
-	__ni_objectmodel_register_service(&ni_objectmodel_all_services, service);
-}
-
-const ni_dbus_service_t *
-ni_objectmodel_service_by_name(const char *name)
-{
-	return __ni_objectmodel_service_by_interface(&ni_objectmodel_all_services, name);
-}
-
-/*
- * objectmodel service registry
  * This is mostly needed for doing proper type checking when binding
  * extensions
  */
 void
 ni_objectmodel_register_class(const ni_dbus_class_t *class)
 {
-	ni_dbus_class_array_t *array = &ni_objectmodel_class_registry;
+	unsigned int index = ni_objectmodel_class_registry.count;
 
 	ni_assert(class->name);
-	ni_assert(array->count < NI_DBUS_CLASSES_MAX);
+	ni_assert(index < NI_DBUS_CLASSES_MAX);
 
-	array->class[array->count++] = class;
+	ni_objectmodel_class_registry.class[index++] = class;
+	ni_objectmodel_class_registry.count = index;
 }
 
 const ni_dbus_class_t *
@@ -435,8 +425,8 @@ ni_objectmodel_bind_extensions(void)
 	unsigned int i;
 
 	NI_TRACE_ENTER();
-	for (i = 0; i < ni_objectmodel_all_services.count; ++i) {
-		const ni_dbus_service_t *service = ni_objectmodel_all_services.services[i];
+	for (i = 0; i < ni_objectmodel_service_registry.count; ++i) {
+		const ni_dbus_service_t *service = ni_objectmodel_service_registry.services[i];
 		const ni_dbus_method_t *method;
 		ni_extension_t *extension;
 
