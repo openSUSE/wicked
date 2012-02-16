@@ -750,6 +750,7 @@ static ni_dbus_property_t	ni_objectmodel_netif_properties[] = {
 	INTERFACE_UINT_PROPERTY(link-type, link.type, RO),
 	INTERFACE_UINT_PROPERTY(mtu, link.mtu, RO),
 	INTERFACE_UINT_PROPERTY(txqlen, link.txqlen, RO),
+	INTERFACE_STRING_PROPERTY(alias, link.alias, RO),
 
 	INTERFACE_PROPERTY_SIGNATURE(NI_DBUS_DICT_SIGNATURE, ipv4, RO),
 	INTERFACE_PROPERTY_SIGNATURE(NI_DBUS_DICT_SIGNATURE, ipv6, RO),

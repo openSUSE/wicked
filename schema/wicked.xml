@@ -141,6 +141,7 @@
  <metric type="uint32"/>
  <txqlen type="uint32"/>
  <mtu type="uint32"/>
+ <alias type="string"/>
 
  <!-- General ipv4 and ipv6 specific settings -->
  <ipv4 type="af-info"/>
@@ -172,6 +173,7 @@
    <metric type="uint32"/>
    <mtu type="uint32"/>
    <txqlen type="uint32"/>
+   <alias type="string"/>
 
    <ipv4 type="network-interface:af-info"/>
    <ipv6 type="network-interface:af-info"/>
