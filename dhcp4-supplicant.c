@@ -161,7 +161,6 @@ dhcp4_recover_lease(ni_interface_t *ifp)
 		ni_error("%s: seem to have valid lease, but lost original request", ifp->name);
 		return;
 	}
-	afi->request[NI_ADDRCONF_DHCP]->reuse_unexpired = 1;
 
 	if (1) {
 		ni_error("%s: unable to reacquire lease %s/%s", ifp->name,
@@ -339,6 +338,7 @@ dhcp4_protocol_event(enum ni_dhcp_event ev, const ni_dhcp_device_t *dev, ni_addr
 {
 	ni_dbus_variant_t argv[1];
 	ni_dbus_object_t *dev_object;
+	ni_dbus_variant_t *var;
 	int argc = 0;
 
 	ni_debug_dhcp("%s(ev=%u, dev=%d)", __func__, ev, dev->link.ifindex);
@@ -350,10 +350,15 @@ dhcp4_protocol_event(enum ni_dhcp_event ev, const ni_dhcp_device_t *dev, ni_addr
 	}
 
 	memset(argv, 0, sizeof(argv));
-	if (lease) {
-		ni_dbus_variant_t *var = &argv[argc++];
 
-		ni_dbus_variant_init_dict(var);
+	if (dev->config) {
+		var = &argv[argc++];
+		ni_dbus_variant_set_uuid(var, &dev->config->uuid);
+	}
+
+	var = &argv[argc++];
+	ni_dbus_variant_init_dict(var);
+	if (lease) {
 		if (!ni_objectmodel_get_addrconf_lease(lease, var)) {
 			ni_warn("%s: could not extract lease data", __func__);
 			goto done;

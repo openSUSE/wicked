@@ -103,6 +103,7 @@ enum {
  * This is the on-the wire request we receive from clients.
  */
 typedef struct ni_dhcp4_request {
+	/* FIXME: the first two should die */
 	ni_addrconf_mode_t	type;		/* addrconf type */
 	unsigned int		family;		/* address family */
 	ni_uuid_t		uuid;
@@ -128,6 +129,8 @@ typedef struct ni_dhcp4_request {
  * internal use.
  */
 struct ni_dhcp_config {
+	ni_uuid_t		uuid;
+
 	/* A combination of DHCP_DO_* flags above */
 	unsigned int		flags;
 
