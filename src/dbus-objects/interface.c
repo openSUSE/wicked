@@ -182,7 +182,9 @@ ni_objectmodel_unwrap_interface(const ni_dbus_object_t *object)
 {
 	ni_interface_t *dev = object->handle;
 
-	return object->class == &ni_objectmodel_netif_class? dev : NULL;
+	if (ni_dbus_object_isa(object, &ni_objectmodel_netif_class))
+		return dev;
+	return NULL;
 }
 
 /*
@@ -414,6 +416,7 @@ ni_objectmodel_netif_destroy(ni_dbus_object_t *object)
 {
 	ni_interface_t *ifp = ni_objectmodel_unwrap_interface(object);
 
+	NI_TRACE_ENTER_ARGS("object=%s, dev=%p", object->path, ifp);
 	ni_assert(ifp);
 	ni_interface_put(ifp);
 }
