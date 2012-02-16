@@ -718,7 +718,7 @@ ni_xs_process_define(xml_node_t *node, ni_xs_scope_t *scope)
 }
 
 int
-ni_xs_build_typelist(xml_node_t *node, ni_xs_name_type_array_t *result, ni_xs_scope_t *typedict)
+ni_xs_build_typelist(xml_node_t *node, ni_xs_name_type_array_t *result, ni_xs_scope_t *scope)
 {
 	xml_node_t *child;
 
@@ -732,7 +732,7 @@ ni_xs_build_typelist(xml_node_t *node, ni_xs_name_type_array_t *result, ni_xs_sc
 		}
 
 		if (!strcmp(child->name, "define")) {
-			if (ni_xs_process_define(child, typedict) < 0)
+			if (ni_xs_process_define(child, scope) < 0)
 				return -1;
 			continue;
 		}
@@ -741,8 +741,8 @@ ni_xs_build_typelist(xml_node_t *node, ni_xs_name_type_array_t *result, ni_xs_sc
 			/* <struct ...> <dict ...> or <array ...> */
 			ni_xs_scope_t *localdict;
 
-			/* Create an anonymous typedict and destroy it afterwards */
-			localdict = ni_xs_scope_new(typedict, NULL);
+			/* Create an anonymous scope and destroy it afterwards */
+			localdict = ni_xs_scope_new(scope, NULL);
 
 			memberType = ni_xs_build_complex_type(child, child->name, localdict);
 
@@ -757,7 +757,7 @@ ni_xs_build_typelist(xml_node_t *node, ni_xs_name_type_array_t *result, ni_xs_sc
 			 * or
 			 *   <somename type="othertype"/>
 			 */
-			memberType = ni_xs_scope_lookup(typedict, child->name);
+			memberType = ni_xs_scope_lookup(scope, child->name);
 			if (memberType != NULL) {
 				ni_xs_type_hold(memberType);
 			} else {
@@ -771,13 +771,13 @@ ni_xs_build_typelist(xml_node_t *node, ni_xs_name_type_array_t *result, ni_xs_sc
 					return -1;
 				}
 
-				if (ni_xs_scope_lookup(typedict, memberName)) {
+				if (ni_xs_scope_lookup(scope, memberName)) {
 					ni_error("%s: ambiguous type for node <%s>", xml_node_location(child), memberName);
 					return -1;
 				}
 
-				/* create (permanent) named typedict as context */
-				context = ni_xs_scope_new(typedict, memberName);
+				/* create (permanent) named scope as context */
+				context = ni_xs_scope_new(scope, memberName);
 
 				if ((typeAttr = xml_node_get_attr(child, "class")) != NULL) {
 					memberType = ni_xs_build_complex_type(child, typeAttr, context);
@@ -1013,7 +1013,7 @@ failed:
  * Note that <foobar type="uint32"> forms are not allowed here.
  */
 ni_xs_type_t *
-ni_xs_build_one_type(xml_node_t *node, ni_xs_scope_t *typedict)
+ni_xs_build_one_type(xml_node_t *node, ni_xs_scope_t *scope)
 {
 	ni_xs_type_t *result = NULL;
 	xml_node_t *child;
@@ -1025,7 +1025,7 @@ ni_xs_build_one_type(xml_node_t *node, ni_xs_scope_t *typedict)
 
 	for (child = node->children; child != NULL; child = child->next) {
 		if (!strcmp(child->name, "define")) {
-			if (ni_xs_process_define(child, typedict) < 0)
+			if (ni_xs_process_define(child, scope) < 0)
 				goto error;
 			continue;
 		}
@@ -1037,12 +1037,12 @@ ni_xs_build_one_type(xml_node_t *node, ni_xs_scope_t *typedict)
 		if (ni_xs_is_class_name(child->name)) {
 			ni_xs_scope_t *localdict;
 
-			/* Create an anonymous typedict */
-			localdict = ni_xs_scope_new(typedict, NULL);
+			/* Create an anonymous scope */
+			localdict = ni_xs_scope_new(scope, NULL);
 			result = ni_xs_build_complex_type(child, child->name, localdict);
 			ni_xs_scope_free(localdict);
 		} else {
-			result = ni_xs_scope_lookup(typedict, child->name);
+			result = ni_xs_scope_lookup(scope, child->name);
 		}
 		if (result == NULL) {
 			ni_error("%s: unknown type or class <%s>", xml_node_location(child), child->name);
