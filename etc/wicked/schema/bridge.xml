@@ -39,7 +39,7 @@
     <ports class="array" element-type="port" />
   </define>
 
-  <define name="linkinfo" class="dict" extends="linkconfig">
+  <define name="properties" class="dict" extends="linkconfig">
     <!-- add more status information to this -->
   </define>
 

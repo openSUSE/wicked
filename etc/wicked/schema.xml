@@ -92,23 +92,41 @@
 
  <link class="dict">
   <class type="string"/>
-  <mtu type="uint32"/>
  </link>
 
+ <index type="uint32"/>
  <metric type="uint32"/>
  <txqlen type="uint32"/>
+ <mtu type="uint32"/>
 
- <addrconf class="dict">
-   <define name="assigned-address" class="dict">
-     <local type="network-address-prefix"/>
-     <peer type="network-address"/>
+ <define name="assigned-address" class="dict">
+   <local type="network-address-prefix"/>
+   <peer type="network-address"/>
 
-     <!-- This is the addrconf method that owns this address -->
-     <owner type="uint32" />
-   </define>
+   <!-- This is the addrconf method that owns this address -->
+   <owner type="uint32" />
+ </define>
 
-   <address type="assigned-address" />
- </addrconf>
+ <addresses class="array" element-type="assigned-address" />
+
+ <define name="assigned-route" class="dict">
+   <destination type="network-address-prefix"/>
+   <mtu type="uint32" />
+   <tos type="uint32" />
+   <priority type="uint32" />
+
+   <nexthop class="dict">
+     <gateway type="network-address"/>
+     <device type="string" />
+     <weight type="uint32" />
+     <flags type="uint32" />
+   </nexthop>
+
+   <!-- This is the addrconf method that owns this address -->
+   <owner type="uint32" />
+ </define>
+
+ <routes class="array" element-type="assigned-route" />
 </define>
 
 <service name="interface" interface="com.suse.Wicked.Interface" object-class="netif">

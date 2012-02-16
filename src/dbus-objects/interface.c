@@ -378,7 +378,7 @@ __wicked_dbus_interface_set_hwaddr(ni_dbus_object_t *object,
  * This one is rather complex
  */
 static dbus_bool_t
-__wicked_dbus_interface_get_addrs(const ni_dbus_object_t *object,
+__wicked_dbus_interface_get_addresses(const ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				ni_dbus_variant_t *result,
 				DBusError *error)
@@ -390,7 +390,7 @@ __wicked_dbus_interface_get_addrs(const ni_dbus_object_t *object,
 }
 
 static dbus_bool_t
-__wicked_dbus_interface_set_addrs(ni_dbus_object_t *object,
+__wicked_dbus_interface_set_addresses(ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				const ni_dbus_variant_t *argument,
 				DBusError *error)
@@ -448,7 +448,7 @@ static ni_dbus_property_t	wicked_dbus_interface_properties[] = {
 
 	/* addresses and routes is an array of dicts */
 	WICKED_INTERFACE_PROPERTY_SIGNATURE(DBUS_TYPE_ARRAY_AS_STRING NI_DBUS_DICT_SIGNATURE,
-			addrs, RO),
+			addresses, RO),
 
 	WICKED_INTERFACE_PROPERTY_SIGNATURE(DBUS_TYPE_ARRAY_AS_STRING NI_DBUS_DICT_SIGNATURE,
 			routes, RO),

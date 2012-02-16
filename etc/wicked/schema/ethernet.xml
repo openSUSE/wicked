@@ -23,7 +23,7 @@
     <fibre/>
   </define>
 
-  <define name="linkinfo" class="dict">
+  <define name="properties" class="dict">
     <address type="ethernet-address"/>
 
     <link-speed type="uint32"/>

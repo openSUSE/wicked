@@ -39,36 +39,68 @@ ni_objectmodel_wrap_addrconf_request(ni_addrconf_request_t *req)
  * Helper functions for getting and setting socket addresses
  */
 static inline dbus_bool_t
-__wicked_dbus_add_sockaddr(ni_dbus_variant_t *dict, const char *name, const ni_sockaddr_t *ss)
+__wicked_dbus_get_opaque(const ni_dbus_variant_t *var, ni_opaque_t *packed)
 {
-	const unsigned char *adata;
-	unsigned int offset, len;
+	unsigned int len;
 
-	if (!__ni_address_info(ss->ss_family, &offset, &len))
+	if (!ni_dbus_variant_get_byte_array_minmax(var, packed->data, &len, 0, sizeof(packed->data)))
 		return FALSE;
-
-	adata = ((const unsigned char *) ss) + offset;
-	return ni_dbus_dict_add_byte_array(dict, name, adata, len);
+	packed->len = len;
+	return TRUE;
 }
 
 static inline dbus_bool_t
-__wicked_dbus_get_sockaddr(const ni_dbus_variant_t *dict, const char *name, ni_sockaddr_t *ss, int af)
+__wicked_dbus_add_sockaddr(ni_dbus_variant_t *dict, const char *name, const ni_sockaddr_t *sockaddr)
+{
+	ni_opaque_t packed;
+
+	if (!ni_sockaddr_pack(sockaddr, &packed))
+		return FALSE;
+
+	return ni_dbus_dict_add_byte_array(dict, name, packed.data, packed.len);
+}
+
+static inline dbus_bool_t
+__wicked_dbus_add_sockaddr_prefix(ni_dbus_variant_t *dict, const char *name, const ni_sockaddr_t *sockaddr, unsigned int prefix_len)
+{
+	ni_opaque_t packed;
+
+	if (!ni_sockaddr_prefix_pack(sockaddr, prefix_len, &packed))
+		return FALSE;
+
+	return ni_dbus_dict_add_byte_array(dict, name, packed.data, packed.len);
+}
+
+static inline dbus_bool_t
+__wicked_dbus_get_sockaddr(const ni_dbus_variant_t *dict, const char *name, ni_sockaddr_t *sockaddr)
 {
 	const ni_dbus_variant_t *var;
-	unsigned int offset, len;
-	unsigned int alen;
+	ni_opaque_t packed;
 
 	if (!(var = ni_dbus_dict_get(dict, name)))
 		return FALSE;
-
-	if (!__ni_address_info(af, &offset, &len))
+	if (!__wicked_dbus_get_opaque(var, &packed))
+		return FALSE;
+	if (!ni_sockaddr_unpack(sockaddr, &packed))
 		return FALSE;
 
-	memset(ss, 0, sizeof(*ss));
-	ss->ss_family = af;
-	return ni_dbus_variant_get_byte_array_minmax(var,
-			((unsigned char *) ss) + offset, &alen,
-			len, len);
+	return TRUE;
+}
+
+static inline dbus_bool_t
+__wicked_dbus_get_sockaddr_prefix(const ni_dbus_variant_t *dict, const char *name, ni_sockaddr_t *sockaddr, unsigned int *prefixlen)
+{
+	const ni_dbus_variant_t *var;
+	ni_opaque_t packed;
+
+	if (!(var = ni_dbus_dict_get(dict, name)))
+		return FALSE;
+	if (!__wicked_dbus_get_opaque(var, &packed))
+		return FALSE;
+	if (!ni_sockaddr_prefix_unpack(sockaddr, prefixlen, &packed))
+		return FALSE;
+
+	return TRUE;
 }
 
 /*
@@ -122,14 +154,12 @@ __wicked_dbus_get_address_list(ni_address_t *list,
 		/* Append a new element to the array */
 		dict = ni_dbus_dict_array_add(result);
 
-		ni_dbus_dict_add_uint32(dict, "family", ap->family);
-		ni_dbus_dict_add_uint32(dict, "prefixlen", ap->prefixlen);
-		ni_dbus_dict_add_uint32(dict, "config", ap->config_method);
-		__wicked_dbus_add_sockaddr(dict, "local", &ap->local_addr);
+		__wicked_dbus_add_sockaddr_prefix(dict, "local", &ap->local_addr, ap->prefixlen);
 		if (ap->peer_addr.ss_family == ap->family)
 			__wicked_dbus_add_sockaddr(dict, "peer", &ap->peer_addr);
 		if (ap->anycast_addr.ss_family == ap->family)
 			__wicked_dbus_add_sockaddr(dict, "anycast", &ap->anycast_addr);
+		ni_dbus_dict_add_uint32(dict, "owner", ap->config_method);
 	}
 
 	return TRUE;
@@ -154,19 +184,21 @@ __wicked_dbus_set_address_list(ni_address_t **list,
 
 	for (i = 0; i < argument->array.len; ++i) {
 		ni_dbus_variant_t *dict = &argument->variant_array_value[i];
-		uint32_t family, prefixlen;
 		ni_sockaddr_t local_addr;
+		unsigned int prefixlen;
 		ni_address_t *ap;
+		uint32_t value;
 
-		if (!ni_dbus_dict_get_uint32(dict, "family", &family)
-		 || !ni_dbus_dict_get_uint32(dict, "prefixlen", &prefixlen)
-		 || !__wicked_dbus_get_sockaddr(dict, "local", &local_addr, family))
+		if (!__wicked_dbus_get_sockaddr_prefix(dict, "local", &local_addr, &prefixlen))
 			continue;
 
-		ap = __ni_address_new(list, family, prefixlen, &local_addr);
+		ap = __ni_address_new(list, local_addr.ss_family, prefixlen, &local_addr);
 
-		__wicked_dbus_get_sockaddr(dict, "peer", &ap->peer_addr, family);
-		__wicked_dbus_get_sockaddr(dict, "anycast", &ap->anycast_addr, family);
+		__wicked_dbus_get_sockaddr(dict, "peer", &ap->peer_addr);
+		__wicked_dbus_get_sockaddr(dict, "anycast", &ap->anycast_addr);
+
+		if (ni_dbus_dict_get_uint32(dict, "owner", &value))
+			ap->config_method = value;
 	}
 	return TRUE;
 }
@@ -182,7 +214,7 @@ __wicked_dbus_get_route_list(ni_route_t *list,
 	const ni_route_t *rp;
 
 	for (rp = list; rp; rp = rp->next) {
-		ni_dbus_variant_t *dict, *hops;
+		ni_dbus_variant_t *dict;
 		const ni_route_nexthop_t *nh;
 
 		if (rp->family != rp->destination.ss_family)
@@ -193,32 +225,30 @@ __wicked_dbus_get_route_list(ni_route_t *list,
 			return FALSE;
 		ni_dbus_variant_init_dict(dict);
 
-		ni_dbus_dict_add_uint32(dict, "family", rp->family);
-		ni_dbus_dict_add_uint32(dict, "prefixlen", rp->prefixlen);
-		ni_dbus_dict_add_uint32(dict, "config", rp->config_method);
+		__wicked_dbus_add_sockaddr_prefix(dict, "destination", &rp->destination, rp->prefixlen);
+		ni_dbus_dict_add_uint32(dict, "owner", rp->config_method);
 		if (rp->mtu)
 			ni_dbus_dict_add_uint32(dict, "mtu", rp->mtu);
 		if (rp->tos)
 			ni_dbus_dict_add_uint32(dict, "tos", rp->tos);
 		if (rp->priority)
 			ni_dbus_dict_add_uint32(dict, "priority", rp->priority);
-		if (rp->prefixlen)
-			__wicked_dbus_add_sockaddr(dict, "destination", &rp->destination);
 
-		hops = ni_dbus_dict_add(dict, "nexthop");
-		ni_dbus_dict_array_init(hops);
-		for (nh = &rp->nh; nh; nh = nh->next) {
-			ni_dbus_variant_t *nhdict;
+		if (rp->nh.gateway.ss_family != AF_UNSPEC) {
+			for (nh = &rp->nh; nh; nh = nh->next) {
+				ni_dbus_variant_t *nhdict;
 
-			nhdict = ni_dbus_dict_array_add(hops);
+				nhdict = ni_dbus_dict_add(dict, "nexthop");
+				ni_dbus_variant_init_dict(nhdict);
 
-			__wicked_dbus_add_sockaddr(nhdict, "gateway", &nh->gateway);
-			if (nh->device)
-				ni_dbus_dict_add_string(nhdict, "device", nh->device);
-			if (nh->weight)
-				ni_dbus_dict_add_uint32(nhdict, "weight", nh->weight);
-			if (nh->flags)
-				ni_dbus_dict_add_uint32(nhdict, "flags", nh->flags);
+				__wicked_dbus_add_sockaddr(nhdict, "gateway", &nh->gateway);
+				if (nh->device)
+					ni_dbus_dict_add_string(nhdict, "device", nh->device);
+				if (nh->weight)
+					ni_dbus_dict_add_uint32(nhdict, "weight", nh->weight);
+				if (nh->flags)
+					ni_dbus_dict_add_uint32(nhdict, "flags", nh->flags);
+			}
 		}
 	}
 
@@ -244,25 +274,18 @@ __wicked_dbus_set_route_list(ni_route_t **list,
 
 	for (i = 0; i < argument->array.len; ++i) {
 		ni_dbus_variant_t *dict = &argument->variant_array_value[i];
-		const ni_dbus_variant_t *hops;
-		uint32_t family, prefixlen, config, value;
+		const ni_dbus_variant_t *nhdict;
+		uint32_t prefixlen, config, value;
 		ni_sockaddr_t destination;
 		ni_route_t *rp;
 
-		if (!ni_dbus_dict_get_uint32(dict, "family", &family)
-		 || !ni_dbus_dict_get_uint32(dict, "prefixlen", &prefixlen)
-		 || !ni_dbus_dict_get_uint32(dict, "config", &config))
+		if (!__wicked_dbus_get_sockaddr_prefix(dict, "destination", &destination, &prefixlen))
 			continue;
-
-		if (prefixlen == 0) {
-			memset(&destination, 0, sizeof(destination));
-		} else if (!__wicked_dbus_get_sockaddr(dict, "destination", &destination, family)) {
-			ni_debug_dbus("Cannot set route: prefixlen=%u, but no destination", prefixlen);
+		if (!ni_dbus_dict_get_uint32(dict, "owner", &config))
 			continue;
-		}
 
 		rp = calloc(1, sizeof(*rp));
-		rp->family = family;
+		rp->family = destination.ss_family;
 		rp->prefixlen = prefixlen;
 		rp->config_method = config;
 		rp->destination = destination;
@@ -275,19 +298,16 @@ __wicked_dbus_set_route_list(ni_route_t **list,
 		if (ni_dbus_dict_get_uint32(dict, "priority", &value))
 			rp->priority = value;
 
-		hops = ni_dbus_dict_get(dict, "nexthop");
-		if (hops && ni_dbus_variant_is_dict_array(hops)) {
+		if ((nhdict = ni_dbus_dict_get(dict, "nexthop")) != NULL) {
 			ni_route_nexthop_t *nh = &rp->nh, **nhpos = &nh;
-			unsigned int j;
 
-			for (j = 0; j < hops->array.len; ++j) {
-				ni_dbus_variant_t *nhdict = &hops->variant_array_value[j];
+			while (nhdict) {
 				const char *string;
 				uint32_t value;
 				ni_sockaddr_t gateway;
 
-				if (!__wicked_dbus_get_sockaddr(nhdict, "gateway", &gateway, family)) {
-					ni_debug_dbus("%s: bad nexthop gateway", __FUNCTION__);
+				if (!__wicked_dbus_get_sockaddr(nhdict, "gateway", &gateway)) {
+					ni_debug_dbus("%s: bad nexthop gateway", __func__);
 					return FALSE;
 				}
 
@@ -302,6 +322,7 @@ __wicked_dbus_set_route_list(ni_route_t **list,
 				if (ni_dbus_dict_get_uint32(nhdict, "flags", &value))
 					nh->flags = value;
 
+				nhdict = ni_dbus_dict_get_next(dict, "nexthop", nhdict);
 				nhpos = &nh->next;
 				nh = NULL;
 			}
