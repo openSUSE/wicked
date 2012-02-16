@@ -45,20 +45,21 @@ ni_objectmodel_vlan_newlink(ni_dbus_object_t *factory_object, const ni_dbus_meth
 	if (!(ifp = __ni_objectmodel_vlan_newlink(ifp, ifname, error))) {
 		rv = FALSE;
 	} else {
+		ni_dbus_server_t *server = ni_dbus_object_get_server(factory_object);
 		ni_dbus_variant_t result = NI_DBUS_VARIANT_INIT;
+		ni_dbus_object_t *new_object;
 
 		ni_trace("new if name=%s users=%u", ifp->name, ifp->users);
 
-		/* free the config object */
-		ni_dbus_object_free(object);
-
-		object = ni_objectmodel_register_interface(ni_dbus_object_get_server(factory_object), ifp);
-		if (!object)
+		new_object = ni_dbus_server_find_object_by_handle(server, ifp);
+		if (new_object == NULL)
+			new_object = ni_objectmodel_register_interface(server, ifp);
+		if (!new_object)
 			goto out;
 
 		/* For now, we return a string here. This should really be an object-path,
 		 * though. */
-		ni_dbus_variant_set_string(&result, object->path);
+		ni_dbus_variant_set_string(&result, new_object->path);
 
 		rv = ni_dbus_message_serialize_variants(reply, 1, &result, error);
 		ni_dbus_variant_destroy(&result);
