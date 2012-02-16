@@ -44,8 +44,6 @@ typedef struct ni_dbus_class_array {
 static ni_dbus_class_array_t	ni_objectmodel_class_registry;
 static ni_dbus_service_array_t	ni_objectmodel_service_registry;
 
-static const ni_dbus_class_t	ni_objectmodel_netif_list_class;
-static ni_dbus_service_t	ni_objectmodel_netif_list_service;
 static ni_dbus_service_t	ni_objectmodel_netif_root_interface;
 
 ni_dbus_server_t *		__ni_objectmodel_server;
@@ -73,13 +71,8 @@ ni_objectmodel_create_service(void)
 void
 ni_objectmodel_register_all(void)
 {
-	/* register the netif-list class (to allow extensions to attach to it) */
-	ni_objectmodel_register_class(&ni_objectmodel_netif_list_class);
-
 	/* register all netif classes and service */
 	ni_objectmodel_register_netif_classes();
-
-	ni_objectmodel_register_service(&ni_objectmodel_netif_list_service);
 
 	__ni_objectmodel_force_linkage();
 }
@@ -96,14 +89,7 @@ ni_objectmodel_create_initial_objects(ni_dbus_server_t *server)
 	object = ni_dbus_server_get_root_object(server);
 	ni_dbus_object_register_service(object, &ni_objectmodel_netif_root_interface);
 
-	/* Register com.suse.Wicked.Interface, which is the list of all interfaces */
-	object = ni_dbus_server_register_object(server, "Interface",
-					&ni_objectmodel_netif_list_class,
-					NULL);
-	if (object == NULL)
-		ni_fatal("Unable to create dbus object for interfaces");
-
-	ni_objectmodel_bind_compatible_interfaces(object);
+	ni_objectmodel_create_netif_list(server);
 	return TRUE;
 }
 
@@ -210,52 +196,6 @@ ni_objectmodel_get_class(const char *name)
 	}
 	return NULL;
 }
-
-/*
- * netif list class
- */
-
-/*
- * The init_child method is needed by the client side when GetManagedObjects
- * returns an interface we haven't heard of before.
- * FIXME: We should really clean this up and use this callback exclusively from
- * GetManagedObjects, to avoid any bad side effects.
- */
-static dbus_bool_t
-ni_objectmodel_netif_list_init_child(ni_dbus_object_t *object)
-{
-	static const ni_dbus_class_t *netif_class = NULL;
-	ni_interface_t *ifp;
-
-	/* Ugly - should move netif_list stuff to interface.c */
-	if (netif_class == NULL) {
-		const ni_dbus_service_t *netif_service;
-
-		netif_service = ni_objectmodel_service_by_name(WICKED_DBUS_NETIF_INTERFACE);
-		ni_assert(netif_service);
-
-		netif_class = netif_service->compatible;
-	}
-
-	ifp = ni_interface_new(NULL, NULL, 0);
-	object->class = netif_class;
-	object->handle = ifp;
-
-	return TRUE;
-}
-
-static const ni_dbus_class_t	ni_objectmodel_netif_list_class = {
-	.name		= NI_OBJECTMODEL_NETIF_LIST_CLASS,
-	.init_child	= ni_objectmodel_netif_list_init_child,
-};
-
-
-static ni_dbus_service_t	ni_objectmodel_netif_list_service = {
-	.name		= WICKED_DBUS_NETIFLIST_INTERFACE,
-	.compatible	= &ni_objectmodel_netif_list_class,
-//	.methods	= wicked_dbus_netif_methods,
-//	.properties	= wicked_dbus_netif_properties,
-};
 
 /*
  * The interface for the dbus root node. Nothing much for now.
