@@ -230,6 +230,8 @@ ni_interface_set_vlan(ni_interface_t *ifp, ni_vlan_t *vlan)
 ni_bridge_t *
 ni_interface_get_bridge(ni_interface_t *ifp)
 {
+	if (ifp->link.type != NI_IFTYPE_BRIDGE)
+		return NULL;
 	if (!ifp->bridge)
 		ifp->bridge = ni_bridge_new();
 	return ifp->bridge;
@@ -249,6 +251,8 @@ ni_interface_set_bridge(ni_interface_t *ifp, ni_bridge_t *bridge)
 ni_bonding_t *
 ni_interface_get_bonding(ni_interface_t *ifp)
 {
+	if (ifp->link.type != NI_IFTYPE_BOND)
+		return NULL;
 	if (!ifp->bonding)
 		ifp->bonding = ni_bonding_new();
 	return ifp->bonding;
@@ -268,6 +272,8 @@ ni_interface_set_bonding(ni_interface_t *ifp, ni_bonding_t *bonding)
 ni_ethernet_t *
 ni_interface_get_ethernet(ni_interface_t *ifp)
 {
+	if (ifp->link.type != NI_IFTYPE_ETHERNET)
+		return NULL;
 	if (!ifp->ethernet)
 		ifp->ethernet = calloc(1, sizeof(ni_ethernet_t));
 	return ifp->ethernet;
@@ -287,6 +293,8 @@ ni_interface_set_ethernet(ni_interface_t *ifp, ni_ethernet_t *ethernet)
 ni_wireless_t *
 ni_interface_get_wireless(ni_interface_t *dev)
 {
+	if (dev->link.type != NI_IFTYPE_WIRELESS)
+		return NULL;
 	if (!dev->wireless)
 		dev->wireless = ni_wireless_new();
 	return dev->wireless;
