@@ -92,7 +92,7 @@ ni_dbus_xml_register_methods(ni_dbus_service_t *service, ni_xs_service_t *xs_ser
 	service->methods = method_array = xcalloc(nmethods + 1, sizeof(ni_dbus_method_t));
 
 	method = method_array;
-	for (xs_method = xs_service->methods; xs_method; xs_method = xs_method->next, ++method) {
+	for (xs_method = xs_service->methods; xs_method; xs_method = xs_method->next) {
 		char sigbuf[64];
 		unsigned int i;
 
@@ -119,6 +119,8 @@ ni_dbus_xml_register_methods(ni_dbus_service_t *service, ni_xs_service_t *xs_ser
 		ni_string_dup((char **) &method->call_signature, sigbuf);
 		method->handler = NULL; /* need to define */
 		method->user_data = xs_method;
+
+		method++;
 	}
 
 	return 0;
