@@ -504,10 +504,11 @@ __ni_dbus_object_get_managed_object_interfaces(ni_dbus_object_t *proxy, DBusMess
 		if (!dbus_message_iter_next(&iter_dict_entry))
 			return FALSE;
 
-		/* FIXME: Handle built-in interfaces like org.freedesktop.DBus.ObjectManager */
-
-		service = ni_objectmodel_service_by_name(interface_name);
-		if (!service) {
+		/* Handle built-in interfaces like org.freedesktop.DBus.ObjectManager */
+		service = ni_dbus_get_standard_service(interface_name);
+		if (service == NULL)
+			service = ni_objectmodel_service_by_name(interface_name);
+		if (service == NULL) {
 			ni_debug_dbus("%s: dbus service %s not known", proxy->path, interface_name);
 			continue;
 		}

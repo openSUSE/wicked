@@ -228,6 +228,7 @@ extern dbus_bool_t		ni_dbus_object_get_properties_as_dict(const ni_dbus_object_t
 					ni_dbus_variant_t *dict);
 extern int			ni_dbus_object_translate_error(ni_dbus_object_t *, const DBusError *);
 
+extern const ni_dbus_service_t *ni_dbus_get_standard_service(const char *);
 extern const ni_dbus_property_t *ni_dbus_service_get_property(const ni_dbus_service_t *service, const char *name);
 extern const ni_dbus_property_t *ni_dbus_service_lookup_property(const ni_dbus_service_t *service, const char *name);
 extern const ni_dbus_property_t *ni_dbus_service_create_property(const ni_dbus_service_t *service, const char *name,

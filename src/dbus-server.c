@@ -219,6 +219,24 @@ ni_dbus_object_register_property_interface(ni_dbus_object_t *object)
 	return ni_dbus_object_register_service(object, &__ni_dbus_object_properties_interface);
 }
 
+const ni_dbus_service_t *
+ni_dbus_get_standard_service(const char *name)
+{
+	const ni_dbus_service_t *services[] = {
+		&__ni_dbus_object_manager_interface,
+		&__ni_dbus_object_properties_interface,
+
+		NULL
+	};
+	const ni_dbus_service_t *service, **pos;
+
+	for (pos = services; (service = *pos) != NULL; ++pos) {
+		if (!strcmp(service->name, name))
+			return service;
+	}
+	return NULL;
+}
+
 static dbus_bool_t
 __ni_dbus_object_manager_get_managed_objects(ni_dbus_object_t *object,
 		const ni_dbus_method_t *method,
