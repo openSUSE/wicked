@@ -23,11 +23,11 @@
 #include "model.h"
 #include "debug.h"
 
-static void			wicked_dbus_interface_destroy(ni_dbus_object_t *object);
+static void			ni_objectmodel_netif_destroy(ni_dbus_object_t *object);
 
 static ni_dbus_class_t		ni_objectmodel_netif_class = {
 	.name		= "netif",
-	.destroy	= wicked_dbus_interface_destroy,
+	.destroy	= ni_objectmodel_netif_destroy,
 };
 static ni_dbus_class_t		ni_objectmodel_ifreq_class = {
 	.name		= "ifreq",
@@ -353,7 +353,7 @@ failed:
  * The DBus object is destroyed; detach the network interface handle
  */
 static void
-wicked_dbus_interface_destroy(ni_dbus_object_t *object)
+ni_objectmodel_netif_destroy(ni_dbus_object_t *object)
 {
 	ni_interface_t *ifp = ni_objectmodel_unwrap_interface(object);
 
@@ -376,10 +376,10 @@ static ni_dbus_method_t		wicked_dbus_interface_methods[] = {
 /*
  * Interface property handlers
  */
-void *
+static void *
 ni_objectmodel_get_interface(const ni_dbus_object_t *object, DBusError *error)
 {
-	return ni_dbus_object_get_handle(object);
+	return ni_objectmodel_unwrap_interface(object);
 }
 
 /*
