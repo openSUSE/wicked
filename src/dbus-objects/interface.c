@@ -396,20 +396,17 @@ ni_objectmodel_netif_link_change(ni_dbus_object_t *object, const ni_dbus_method_
 	if (!ni_objectmodel_unmarshal_interface_request(req, &argv[0], error))
 		goto failed;
 
-	ni_debug_dbus("%s(status=0x%x, mtu=%u)", method->name, req->ifflags, req->mtu);
 	if ((rv = ni_system_interface_link_change(nc, dev, req)) < 0) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
 				"Cannot configure interface %s: %s", dev->name,
 				ni_strerror(rv));
 	} else {
-		ni_dbus_variant_t result = NI_DBUS_VARIANT_INIT;
-
-		ni_dbus_variant_set_uint32(&result, dev->link.ifflags);
-		ret = ni_dbus_message_serialize_variants(reply, 1, &result, error);
-		ni_dbus_variant_destroy(&result);
+		ni_dbus_message_append_uint32(reply, dev->link.ifflags);
 
 		if (ni_interface_link_is_up(dev))
 			__ni_objectmodel_interface_event(NULL, object, NI_EVENT_LINK_UP);
+
+		ret = TRUE;
 	}
 
 failed:

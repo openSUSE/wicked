@@ -275,12 +275,9 @@ ni_objectmodel_addrconf_ipv4_static_configure(ni_dbus_object_t *object, const ni
 				ni_strerror(rv));
 		return FALSE;
 	} else {
-		/* XXX: We should really have a helper function to do this */
-		ni_dbus_variant_t result = NI_DBUS_VARIANT_INIT;
-
-		ni_dbus_variant_set_uint32(&result, 0);
-		ni_dbus_message_serialize_variants(reply, 1, &result, error);
-		ni_dbus_variant_destroy(&result);
+		/* A NULL event ID tells the caller that we're done, there's no event
+		 * to wait for. */
+		ni_dbus_message_append_uint32(reply, 0);
 	}
 
 	return TRUE;
@@ -325,12 +322,9 @@ ni_objectmodel_addrconf_ipv6_static_configure(ni_dbus_object_t *object, const ni
 				ni_strerror(rv));
 		return FALSE;
 	} else {
-		/* XXX: We should really have a helper function to do this */
-		ni_dbus_variant_t result = NI_DBUS_VARIANT_INIT;
-
-		ni_dbus_variant_set_uint32(&result, 0);
-		ni_dbus_message_serialize_variants(reply, 1, &result, error);
-		ni_dbus_variant_destroy(&result);
+		/* A NULL event ID tells the caller that we're done, there's no event
+		 * to wait for. */
+		ni_dbus_message_append_uint32(reply, 0);
 	}
 
 	return TRUE;
