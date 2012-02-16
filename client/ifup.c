@@ -341,6 +341,27 @@ ni_ifworker_waiting_for_event(ni_ifworker_t *w, const char *event_name)
 	return FALSE;
 }
 
+static void
+ni_ifworker_update_state(ni_ifworker_t *w, unsigned int min_state, unsigned int max_state)
+{
+	unsigned int prev_state = w->state;
+
+	if (w->state < min_state)
+		w->state = min_state;
+	if (max_state < min_state)
+		w->state = max_state;
+
+	if (w->state != prev_state)
+		ni_debug_dbus("device %s changed state %s -> %s%s",
+				w->name,
+				ni_ifworker_state_name(prev_state),
+				ni_ifworker_state_name(w->state),
+				w->state == w->wait_for_state? ", resuming activity" : ", still waiting for event");
+
+	if (w->wait_for_state == w->state)
+		w->wait_for_state = STATE_NONE;
+}
+
 static unsigned int
 ni_ifworkers_from_xml(xml_document_t *doc)
 {
@@ -390,6 +411,7 @@ ni_ifworker_set_target(ni_ifworker_t *w, unsigned int min_state, unsigned int ma
 		/* Assume we have to bring it down */
 		w->state = STATE_ADDRCONF_UP;
 	}
+	ni_debug_dbus("%s: assuming current state=%s", w->name, ni_ifworker_state_name(w->state));
 
 	if (w->children.count != 0) {
 		unsigned int i;
@@ -627,8 +649,6 @@ ni_ifworkers_refresh_state(void)
 			w->device = NULL;
 			ni_interface_put(dev);
 		}
-
-		w->state = STATE_DEVICE_DOWN;
 	}
 
 	for (object = iflist->children; object; object = object->next) {
@@ -666,9 +686,16 @@ ni_ifworkers_refresh_state(void)
 		found->object = object;
 
 		if (ni_interface_link_is_up(dev))
-			found->state = STATE_LINK_UP;
+			ni_ifworker_update_state(found, STATE_LINK_UP, __STATE_MAX);
 		else
-			found->state = STATE_DEVICE_UP;
+			ni_ifworker_update_state(found, 0, STATE_DEVICE_UP);
+	}
+
+	for (i = 0; i < interface_workers.count; ++i) {
+		w = interface_workers.data[i];
+
+		if (w->object == NULL)
+			ni_ifworker_update_state(w, STATE_NONE, STATE_DEVICE_DOWN);
 	}
 }
 
@@ -1046,27 +1073,6 @@ ni_ifworker_fsm_init(ni_ifworker_t *w)
 		ni_fatal("%s: cannot assign fsm for target state %s",
 				w->name, ni_ifworker_state_name(w->target_state));
 	}
-}
-
-static void
-ni_ifworker_update_state(ni_ifworker_t *w, unsigned int min_state, unsigned int max_state)
-{
-	unsigned int prev_state = w->state;
-
-	if (w->state < min_state)
-		w->state = min_state;
-	if (max_state < min_state)
-		w->state = max_state;
-
-	if (w->state != prev_state)
-		ni_debug_dbus("device %s changed state %s -> %s%s",
-				w->name,
-				ni_ifworker_state_name(prev_state),
-				ni_ifworker_state_name(w->state),
-				w->state == w->wait_for_state? ", resuming activity" : ", still waiting for event");
-
-	if (w->wait_for_state == w->state)
-		w->wait_for_state = STATE_NONE;
 }
 
 static unsigned int
