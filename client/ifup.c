@@ -65,7 +65,6 @@ struct ni_ifworker {
 	int			state;
 	int			wait_for_state;
 	unsigned int		failed		: 1,
-				is_slave	: 1,
 				done		: 1;
 
 	xml_node_t *		config;
@@ -247,7 +246,6 @@ ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *d
 	if (parent->behavior.mandatory)
 		child->behavior.mandatory = 1;
 #endif
-	child->is_slave = 1;
 
 	return child;
 }
