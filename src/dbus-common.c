@@ -1301,16 +1301,23 @@ ni_dbus_variant_t *
 ni_dbus_dict_get_next(const ni_dbus_variant_t *dict, const char *key, const ni_dbus_variant_t *previous)
 {
 	ni_dbus_dict_entry_t *entry;
-	unsigned int pos;
+	unsigned int pos = 0;
 
 	if (!ni_dbus_variant_is_dict(dict))
 		return FALSE;
 
-	for (pos = 0; pos < dict->array.len; ++pos) {
-		entry = &dict->dict_array_value[pos];
+	if (previous != NULL) {
+		while (pos < dict->array.len) {
+			entry = &dict->dict_array_value[pos];
 
-		if (previous == &entry->datum)
-			break;
+			if (previous == &entry->datum)
+				break;
+			++pos;
+		}
+		if (pos >= dict->array.len) {
+			ni_warn("%s: caller passed in bad previous pointer", __func__);
+			return NULL;
+		}
 	}
 
 	while (++pos < dict->array.len) {
