@@ -71,8 +71,8 @@ static ni_dbus_service_t	ni_wpa_bssid_service;
 static ni_dbus_service_t	ni_wpa_network_service;
 static ni_dbus_service_t	ni_wpa_device_service;
 
-static int		ni_wpa_get_interface(ni_wpa_client_t *, const char *, ni_wpa_interface_t **);
-static int		ni_wpa_add_interface(ni_wpa_client_t *, const char *, ni_wpa_interface_t **);
+static int		ni_wpa_get_interface(ni_wpa_client_t *, const char *, unsigned int, ni_wpa_interface_t **);
+static int		ni_wpa_add_interface(ni_wpa_client_t *, const char *, unsigned int, ni_wpa_interface_t **);
 static void		ni_wpa_interface_free(ni_wpa_interface_t *);
 static int		ni_wpa_prepare_interface(ni_wpa_client_t *, ni_wpa_interface_t *, const char *);
 static int		ni_wpa_interface_get_state(ni_wpa_client_t *, ni_wpa_interface_t *);
@@ -157,12 +157,12 @@ ni_wpa_client_dbus(ni_wpa_client_t *wpa)
 }
 
 ni_wpa_interface_t *
-ni_wpa_client_interface_by_local_name(ni_wpa_client_t *wpa, const char *ifname)
+ni_wpa_client_interface_by_index(ni_wpa_client_t *wpa, unsigned int ifindex)
 {
 	ni_wpa_interface_t *ifp;
 
 	for (ifp = wpa->iflist; ifp; ifp = ifp->next) {
-		if (!strcmp(ifp->ifname, ifname))
+		if (ifp->ifindex == ifindex)
 			return ifp;
 	}
 	return NULL;
@@ -183,12 +183,13 @@ ni_wpa_client_interface_by_path(ni_wpa_client_t *wpa, const char *object_path)
 }
 
 static ni_wpa_interface_t *
-ni_wpa_interface_new(ni_wpa_client_t *wpa, const char *ifname)
+ni_wpa_interface_new(ni_wpa_client_t *wpa, const char *ifname, unsigned int ifindex)
 {
 	ni_wpa_interface_t *ifp;
 
 	ifp = xcalloc(1, sizeof(*ifp));
 	ni_string_dup(&ifp->ifname, ifname);
+	ifp->ifindex = ifindex;
 	ifp->wpa_client = wpa;
 
 	ifp->next = wpa->iflist;
@@ -260,18 +261,18 @@ static ni_dbus_class_t		ni_objectmodel_wpanet_class = {
  * Note this is a synchronous call.
  */
 ni_wpa_interface_t *
-ni_wpa_interface_bind(ni_wpa_client_t *wpa, const char *ifname)
+ni_wpa_interface_bind(ni_wpa_client_t *wpa, ni_interface_t *dev)
 {
 	ni_wpa_interface_t *ifp = NULL;
 	int rv;
 
-	rv = ni_wpa_get_interface(wpa, ifname, &ifp);
+	rv = ni_wpa_get_interface(wpa, dev->name, dev->link.ifindex, &ifp);
 	if (rv < 0) {
 		if (rv != -ENOENT)
 			goto failed;
 
-		ni_debug_wireless("%s: interface does not exist", ifname);
-		rv = ni_wpa_add_interface(wpa, ifname, &ifp);
+		ni_debug_wireless("%s: interface does not exist", dev->name);
+		rv = ni_wpa_add_interface(wpa, dev->name, dev->link.ifindex, &ifp);
 		if (rv < 0)
 			goto failed;
 	}
@@ -279,7 +280,7 @@ ni_wpa_interface_bind(ni_wpa_client_t *wpa, const char *ifname)
 	return ifp;
 
 failed:
-	ni_error("%s(%s): %s", __func__, ifname, strerror(-rv));
+	ni_error("%s(%s): %s", __func__, dev->name, strerror(-rv));
 	return NULL;
 }
 
@@ -372,15 +373,15 @@ ni_wpa_interface_expire_networks(ni_wpa_interface_t *dev)
  * Obtain object handle for an interface
  */
 static int
-ni_wpa_get_interface(ni_wpa_client_t *wpa, const char *ifname, ni_wpa_interface_t **result_p)
+ni_wpa_get_interface(ni_wpa_client_t *wpa, const char *ifname, unsigned int ifindex, ni_wpa_interface_t **result_p)
 {
 	ni_wpa_interface_t *ifp;
 	char *object_path = NULL;
 	int rv = -1;
 
-	ifp = ni_wpa_client_interface_by_local_name(wpa, ifname);
+	ifp = ni_wpa_client_interface_by_index(wpa, ifindex);
 	if (ifp == NULL)
-		ifp = ni_wpa_interface_new(wpa, ifname);
+		ifp = ni_wpa_interface_new(wpa, ifname, ifindex);
 
 	if (ifp->proxy == NULL) {
 		rv = ni_dbus_object_call_simple(wpa->proxy,
@@ -407,7 +408,7 @@ failed:
 }
 
 static int
-ni_wpa_add_interface(ni_wpa_client_t *wpa, const char *ifname, ni_wpa_interface_t **result_p)
+ni_wpa_add_interface(ni_wpa_client_t *wpa, const char *ifname, unsigned int ifindex, ni_wpa_interface_t **result_p)
 {
 	ni_dbus_message_t *call = NULL, *reply = NULL;
 	ni_wpa_interface_t *ifp;
@@ -418,9 +419,9 @@ ni_wpa_add_interface(ni_wpa_client_t *wpa, const char *ifname, ni_wpa_interface_
 	memset(argv, 0, sizeof(argv));
 	memset(resp, 0, sizeof(resp));
 
-	ifp = ni_wpa_client_interface_by_local_name(wpa, ifname);
+	ifp = ni_wpa_client_interface_by_index(wpa, ifindex);
 	if (ifp == NULL)
-		ifp = ni_wpa_interface_new(wpa, ifname);
+		ifp = ni_wpa_interface_new(wpa, ifname, ifindex);
 
 	if (ifp->proxy == NULL) {
 		DBusError error = DBUS_ERROR_INIT;
@@ -664,6 +665,10 @@ ni_wpa_network_set(ni_dbus_object_t *net_object, ni_wireless_network_t *net)
 		goto done;
 	}
 
+	/* FIXME: This call may fail if NetworkManager or anybody else removes the
+	 * network object we created.
+	 * We should probably add a new network object and retry in this case...
+	 */
 	if (!ni_dbus_object_call_variant(net_object, NI_WPA_NETWORK_INTERFACE, "set", 1, &dict, 0, NULL, &error)) {
 		ni_error("%s failed: %s (%s)", __func__, error.name, error.message);
 		dbus_error_free(&error);

@@ -71,7 +71,7 @@ ni_wireless_interface_refresh(ni_interface_t *ifp)
 	if (!(wpa = ni_wpa_client()))
 		return -1;
 
-	wif = ni_wpa_interface_bind(wpa, ifp->name);
+	wif = ni_wpa_interface_bind(wpa, ifp);
 	if (wif == NULL) {
 		ni_error("wpa_supplicant doesn't know interface %s", ifp->name);
 		return -1;
@@ -111,7 +111,7 @@ __ni_wireless_get_scan_results(ni_netconfig_t *nc, ni_interface_t *ifp)
 		return 0;
 	}
 
-	wif = ni_wpa_interface_bind(wpa_client, ifp->name);
+	wif = ni_wpa_interface_bind(wpa_client, ifp);
 	if (wif == NULL) {
 		ni_debug_wireless("wpa_supplicant doesn't know interface %s", ifp->name);
 		return -1;
@@ -145,7 +145,7 @@ __ni_wireless_request_scan(ni_netconfig_t *nc, ni_interface_t *ifp)
 	if (!(wpa = ni_wpa_client()))
 		return -1;
 
-	wif = ni_wpa_interface_bind(wpa, ifp->name);
+	wif = ni_wpa_interface_bind(wpa, ifp);
 	if (wif == NULL) {
 		ni_error("wpa_supplicant doesn't know interface %s", ifp->name);
 		return -1;
@@ -183,7 +183,7 @@ ni_wireless_associate(ni_interface_t *dev, ni_wireless_network_t *net)
 	if (!(wpa = ni_wpa_client()))
 		return -1;
 
-	if (!(wpa_dev = ni_wpa_interface_bind(wpa, dev->name)))
+	if (!(wpa_dev = ni_wpa_interface_bind(wpa, dev)))
 		return -1;
 
 	ni_wireless_set_assoc_network(wlan, net);
