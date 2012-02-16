@@ -5,7 +5,7 @@
  <!-- This is the linkinfo returned in interface reports -->
  <define name="linkinfo" class="dict">
   <device type="object-path"/>
-  <id type="uint16"/>
+  <tag type="uint16"/>
  </define>
 
  <method name="deleteLink">
