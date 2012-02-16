@@ -25,15 +25,6 @@ typedef struct ni_wpa_client	ni_wpa_client_t;
 typedef struct ni_wpa_interface	ni_wpa_interface_t;
 typedef struct ni_wpa_scan	ni_wpa_scan_t;
 
-struct ni_wpa_interface_capabilities {
-	ni_string_array_t	eap_methods;
-	ni_string_array_t	pairwise_ciphers;
-	ni_string_array_t	group_ciphers;
-	ni_string_array_t	keymgmt_algos;
-	ni_string_array_t	auth_algos;
-	ni_string_array_t	wpa_protocols;
-};
-
 struct ni_wpa_interface {
 	ni_wpa_interface_t *	next;
 
