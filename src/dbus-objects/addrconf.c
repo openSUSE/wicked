@@ -497,7 +497,7 @@ ni_dbus_service_t			ni_objectmodel_addrconf_ipv4_static_service = {
 };
 
 ni_dbus_service_t			ni_objectmodel_addrconf_ipv6_static_service = {
-	.name		= WICKED_DBUS_ADDRCONF_IPV4STATIC_INTERFACE,
+	.name		= WICKED_DBUS_ADDRCONF_IPV6STATIC_INTERFACE,
 	.methods	= ni_objectmodel_addrconf_ipv6_static_methods,
 };
 
