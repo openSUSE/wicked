@@ -168,7 +168,7 @@ ni_objectmodel_updater_select_source(ni_updater_t *updater)
 static ni_bool_t
 ni_system_updater_run(ni_shellcmd_t *shellcmd, const char *filename)
 {
-	ni_process_instance_t *pi;
+	ni_process_t *pi;
 	int rv;
 
 	pi = ni_process_instance_new(shellcmd);

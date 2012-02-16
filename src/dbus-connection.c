@@ -34,7 +34,7 @@ struct ni_dbus_async_server_call {
 
 	const ni_dbus_method_t *method;
 	DBusMessage *		call_message;
-	ni_process_instance_t *	sub_process;
+	ni_process_t *		sub_process;
 };
 
 typedef struct ni_dbus_sigaction ni_dbus_sigaction_t;
@@ -500,7 +500,7 @@ ni_dbus_connection_unregister_object(ni_dbus_connection_t *connection, ni_dbus_o
  * Server side: process calls asynchronously
  */
 void
-__ni_dbus_async_server_call_callback(ni_process_instance_t *proc)
+__ni_dbus_async_server_call_callback(ni_process_t *proc)
 {
 	ni_dbus_connection_t *conn = proc->user_data;
 	ni_dbus_async_server_call_t **pos, *async;
@@ -547,7 +547,7 @@ __ni_dbus_async_server_call_free(ni_dbus_async_server_call_t *async)
 	if (async->call_message)
 		dbus_message_unref(async->call_message);
 	if (async->sub_process) {
-		ni_process_instance_t *proc = async->sub_process;
+		ni_process_t *proc = async->sub_process;
 
 		async->sub_process = NULL;
 
@@ -562,7 +562,7 @@ ni_dbus_async_server_call_run_command(ni_dbus_connection_t *conn,
 					ni_dbus_object_t *object,
 					const ni_dbus_method_t *method,
 					DBusMessage *call_message,
-					ni_process_instance_t *process)
+					ni_process_t *process)
 {
 	ni_dbus_async_server_call_t *async;
 	int rv;

@@ -86,7 +86,7 @@ typedef dbus_bool_t		ni_dbus_async_method_handler_t(ni_dbus_connection_t *connec
 typedef dbus_bool_t		ni_dbus_async_method_completion_t(ni_dbus_connection_t *connection,
 					const ni_dbus_method_t *method,
 					ni_dbus_message_t *call,
-					const ni_process_instance_t *);
+					const ni_process_t *);
 
 struct ni_dbus_method {
 	const char *		name;

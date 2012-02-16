@@ -39,7 +39,7 @@ typedef struct ni_extension	ni_extension_t;
 typedef struct ni_script_action	ni_script_action_t;
 
 typedef struct ni_shellcmd	ni_shellcmd_t;
-typedef struct ni_process_instance ni_process_instance_t;
+typedef struct ni_process	ni_process_t;
 
 /*
  * These are used by the XML and XPATH code.

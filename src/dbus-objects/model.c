@@ -238,7 +238,7 @@ static ni_dbus_service_t	ni_objectmodel_netif_root_interface = {
  * This should probably go with the objectmodel code.
  */
 static int
-ni_objectmodel_expand_environment(const ni_dbus_object_t *object, const ni_var_array_t *env, ni_process_instance_t *process)
+ni_objectmodel_expand_environment(const ni_dbus_object_t *object, const ni_var_array_t *env, ni_process_t *process)
 {
 	const ni_var_t *var;
 	unsigned int i;
@@ -337,7 +337,7 @@ ni_objectmodel_extension_call(ni_dbus_connection_t *connection,
 	const char *interface = dbus_message_get_interface(call);
 	ni_extension_t *extension;
 	ni_shellcmd_t *command;
-	ni_process_instance_t *process;
+	ni_process_t *process;
 	char *tempname = NULL;
 
 	NI_TRACE_ENTER_ARGS("object=%s, interface=%s, method=%s", object->path, interface, method->name);
@@ -416,7 +416,7 @@ send_error:
 
 static dbus_bool_t
 ni_objectmodel_extension_completion(ni_dbus_connection_t *connection, const ni_dbus_method_t *method,
-				ni_dbus_message_t *call, const ni_process_instance_t *process)
+				ni_dbus_message_t *call, const ni_process_t *process)
 {
 	const char *interface_name = dbus_message_get_interface(call);
 	DBusError error = DBUS_ERROR_INIT;
