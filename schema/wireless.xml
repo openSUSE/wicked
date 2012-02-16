@@ -44,7 +44,7 @@
     </wpa-psk>
   </define>
 
-  <method name="linkUp">
+  <method name="linkChange">
     <arguments>
       <link-request />
     </arguments>

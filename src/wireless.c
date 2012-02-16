@@ -165,6 +165,24 @@ __ni_wireless_request_scan(ni_netconfig_t *nc, ni_interface_t *ifp)
 }
 
 /*
+ * Request association
+ */
+int
+ni_wireless_associate(ni_interface_t *dev, ni_wireless_network_t *net)
+{
+	ni_wpa_client_t *wpa;
+	ni_wpa_interface_t *wpa_dev;
+
+	if (!(wpa = ni_wpa_client()))
+		return -1;
+
+	if (!(wpa_dev = ni_wpa_interface_bind(wpa, dev->name)))
+		return -1;
+
+	return ni_wpa_interface_associate(wpa_dev, net);
+}
+
+/*
  * rtnetlink sent us an RTM_NEWLINK event with IFLA_WIRELESS info
  */
 int

@@ -14,7 +14,7 @@ static dbus_bool_t	ni_objectmodel_get_wireless_request(ni_wireless_network_t *,
 				const ni_dbus_variant_t *, DBusError *);
 
 static dbus_bool_t
-ni_objectmodel_wireless_link_up(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+ni_objectmodel_wireless_link_change(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
@@ -27,6 +27,12 @@ ni_objectmodel_wireless_link_up(ni_dbus_object_t *object, const ni_dbus_method_t
 	net = ni_wireless_network_new();
 	if (!ni_objectmodel_get_wireless_request(net, &argv[0], error))
 		goto error;
+
+	if (ni_wireless_associate(ifp, net) < 0) {
+		dbus_set_error(error, DBUS_ERROR_FAILED,
+				"could not associate");
+		goto error;
+	}
 
 	ni_wireless_network_put(net);
 	return TRUE;
@@ -235,7 +241,7 @@ const ni_dbus_property_t	ni_objectmodel_wireless_property_table[] = {
 };
 
 static ni_dbus_method_t		ni_objectmodel_wireless_methods[] = {
-	{ "linkUp",		"a{sv}",		ni_objectmodel_wireless_link_up	},
+	{ "linkChange",		"a{sv}",		ni_objectmodel_wireless_link_change	},
 
 	{ NULL }
 };
