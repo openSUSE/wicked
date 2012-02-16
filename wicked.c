@@ -634,24 +634,38 @@ struct ni_dbus_dict_entry {
 };
 
 static void
-__dump_fake_xml(const ni_dbus_variant_t *variant, unsigned int indent)
+__dump_fake_xml(const ni_dbus_variant_t *variant, unsigned int indent, const char **dict_elements)
 {
 	ni_dbus_dict_entry_t *entry;
 	unsigned int index;
 
 	if (ni_dbus_variant_is_dict(variant)) {
+		const char *dict_element_tag = NULL;
+
+		if (dict_elements && dict_elements[0])
+			dict_element_tag = *dict_elements++;
 		for (entry = variant->dict_array_value, index = 0; index < variant->array.len; ++index, ++entry) {
 			const ni_dbus_variant_t *child = &entry->datum;
+			const char *open_tag, *close_tag;
+			char namebuf[256];
+
+			if (dict_element_tag) {
+				snprintf(namebuf, sizeof(namebuf), "%s name=\"%s\"", dict_element_tag, entry->key);
+				open_tag = namebuf;
+				close_tag = dict_element_tag;
+			} else {
+				open_tag = close_tag = entry->key;
+			}
 
 			if (child->type != DBUS_TYPE_ARRAY) {
 				/* Must be some type of scalar */
 				printf("%*.*s<%s>%s</%s>\n",
 						indent, indent, "",
-						entry->key,
+						open_tag,
 						ni_dbus_variant_sprint(child),
-						entry->key);
+						close_tag);
 			} else if(child->array.len == 0) {
-				printf("%*.*s<%s />\n", indent, indent, "", entry->key);
+				printf("%*.*s<%s />\n", indent, indent, "", open_tag);
 			} else if (ni_dbus_variant_is_byte_array(child)) {
 				unsigned char value[64];
 				unsigned int num_bytes;
@@ -665,13 +679,13 @@ __dump_fake_xml(const ni_dbus_variant_t *variant, unsigned int indent)
 				}
 				printf("%*.*s<%s>%s</%s>\n",
 						indent, indent, "",
-						entry->key,
+						open_tag,
 						display,
-						entry->key);
+						close_tag);
 			} else {
-				printf("%*.*s<%s>\n", indent, indent, "", entry->key);
-				__dump_fake_xml(child, indent + 2);
-				printf("%*.*s</%s>\n", indent, indent, "", entry->key);
+				printf("%*.*s<%s>\n", indent, indent, "", open_tag);
+				__dump_fake_xml(child, indent + 2, dict_elements);
+				printf("%*.*s</%s>\n", indent, indent, "", close_tag);
 			}
 		}
 	} else if (ni_dbus_variant_is_dict_array(variant)) {
@@ -679,7 +693,7 @@ __dump_fake_xml(const ni_dbus_variant_t *variant, unsigned int indent)
 
 		for (child = variant->variant_array_value, index = 0; index < variant->array.len; ++index, ++child) {
 			printf("%*.*s<e>\n", indent, indent, "");
-			__dump_fake_xml(child, indent + 2);
+			__dump_fake_xml(child, indent + 2, NULL);
 			printf("%*.*s</e>\n", indent, indent, "");
 		}
 	} else {
@@ -690,6 +704,9 @@ __dump_fake_xml(const ni_dbus_variant_t *variant, unsigned int indent)
 int
 do_show_xml(int argc, char **argv)
 {
+	static const char *dict_element_tags[] = {
+		"object", "interface", NULL
+	};
 	ni_dbus_object_t *iflist, *object;
 	ni_dbus_variant_t result = NI_DBUS_VARIANT_INIT;
 	DBusError error = DBUS_ERROR_INIT;
@@ -714,7 +731,7 @@ do_show_xml(int argc, char **argv)
 		goto out;
 	}
 
-	__dump_fake_xml(&result, 0);
+	__dump_fake_xml(&result, 0, dict_element_tags);
 
 	rv = 0;
 
