@@ -1,0 +1,10 @@
+<!--
+  -- Ethernet Service definition
+  -->
+<service name="ethernet" interface="com.suse.Wicked.Ethernet" layer="link">
+  <!-- This is the linkinfo returned in interface reports -->
+  <define name="linkinfo" class="dict">
+    <address type="ethernet-address"/>
+  </define>
+</service>
+

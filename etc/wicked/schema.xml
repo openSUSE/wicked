@@ -1,17 +1,21 @@
 <define name="ipv4-address">
   <array element-type="byte" minlen="4" maxlen="4" notation="ipv4addr"/>
 </define>
+
 <define name="ipv4-address-prefix" class="dict">
   <address type="ipv4-address"/>
   <prefix type="byte"/>
 </define>
+
 <define name="ipv6-address">
   <array element-type="byte" minlen="16" maxlen="16" notation="ipv6addr"/>
 </define>
+
 <define name="ipv6-address-prefix" class="dict">
   <address type="ipv6-address"/>
   <prefix type="byte"/>
 </define>
+
 <define name="ethernet-address">
   <array element-type="byte" minlen="6" maxlen="6" notation="hwaddr"/>
 </define>
@@ -49,26 +53,9 @@
   <route type="static-route"/>
 </define>
 
-<!--
-  -- VLAN Service definition
- -->
-<service name="vlan" interface="com.suse.Wicked.VLAN" layer="link">
- <!-- This is the linkinfo returned in interface reports -->
- <define name="linkinfo" class="dict">
-  <device type="string"/>
-  <id type="uint16"/>
- </define>
-
- <method name="__newlink">
-  <arguments>
-   <name type="string"/>
-   <device type="string"/>
-   <id type="uint16"/>
-  </arguments>
- </method>
-</service>
-
 <include name="schema/constants.xml"/>
+<include name="schema/ethernet.xml"/>
+<include name="schema/vlan.xml"/>
 <include name="schema/bonding.xml"/>
 <!--
 <include name="schema/bridge.xml"/>
@@ -92,15 +79,21 @@
  <link class="dict">
   <class type="string"/>
   <mtu type="uint32"/>
+
   <!-- Need to parse link layer service definitions before we do these: -->
   <vlan type="vlan:linkinfo"/>
-  <!--
-  <bridge type="bridge:linkinfo"/>
   <bonding type="bonding:linkinfo"/>
   <ethernet type="ethernet:linkinfo"/>
+
+  <!--
+  <bridge type="bridge:linkinfo"/>
   <isdn type="isdn:linkinfo"/>
     -->
  </link>
+
+ <metric type="uint32"/>
+ <txqlen type="uint32"/>
+
  <addrconf class="dict">
   <ipv4 class="dict">
    <enabled type="boolean"/>
@@ -111,11 +104,4 @@
    <enabled type="boolean"/>
   </ipv6>
  </addrconf>
-</define>
-
-<!--
-  -- Ethernet link layer
-  -->
-<define name="ethernet" class="dict">
- <address type="ethernet-address"/>
 </define>

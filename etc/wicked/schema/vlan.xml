@@ -1,0 +1,18 @@
+<!--
+  -- VLAN Service definition
+  -->
+<service name="vlan" interface="com.suse.Wicked.VLAN" layer="link">
+ <!-- This is the linkinfo returned in interface reports -->
+ <define name="linkinfo" class="dict">
+  <device type="string"/>
+  <id type="uint16"/>
+ </define>
+
+ <method name="__newlink">
+  <arguments>
+   <name type="string"/>
+   <device type="string"/>
+   <id type="uint16"/>
+  </arguments>
+ </method>
+</service>
