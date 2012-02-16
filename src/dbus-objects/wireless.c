@@ -171,9 +171,11 @@ ni_objectmodel_get_wireless_request(ni_wireless_network_t *net,
 
 		if ((attr = ni_dbus_dict_get(child, "key")) != NULL) {
 			ni_opaque_t *key = &net->wpa_psk.key;
+			unsigned int key_len;
 
-			if (!ni_dbus_variant_get_byte_array_minmax(attr, key->data, &key->len, 64, 64))
+			if (!ni_dbus_variant_get_byte_array_minmax(attr, key->data, &key_len, 64, 64))
 				return FALSE;
+			key->len = key_len;
 		}
 	}
 
