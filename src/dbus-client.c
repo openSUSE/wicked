@@ -516,7 +516,7 @@ __ni_dbus_object_get_managed_object_interfaces(ni_dbus_object_t *proxy, DBusMess
 		 * the default object class would be netif. However, we would also find properties
 		 * for the VLAN interface, which specifies a class of "netif-vlan". We need to
 		 * the class in this case. */
-		if (service->compatible && proxy->class != service->compatible) {
+		if (service->compatible && !ni_dbus_object_isa(proxy, service->compatible)) {
 			const ni_dbus_class_t *check;
 
 			for (check = service->compatible; check; check = check->superclass) {
