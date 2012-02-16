@@ -5,7 +5,8 @@ CFLAGS_DBUS := $(shell pkg-config --cflags dbus-1)
 
 APPS	= wicked wickedd wicked-convert \
 	  dhcp4-supplicant autoip4-supplicant \
-	  testing/xml-test testing/xpath-test
+	  testing/xml-test testing/xpath-test \
+	  etc/mkconst
 
 TGTLIBS	= libnetinfo.a
 	  # libnetinfo.so
@@ -92,6 +93,8 @@ CONVSRCS = \
 	  convert/redhat.c
 CLIENTSRCS = \
 	  client/ifup.c
+GENFILES = \
+	  etc/wicked/schema/constants.xml
 
 OBJ	= obj
 LIBSRCS	= $(addprefix src/,$(__LIBSRCS))
@@ -103,11 +106,12 @@ AUTO4OBJS= $(addprefix $(OBJ)/,$(AUTO4SRCS:.c=.o))
 CONVOBJS = $(addprefix $(OBJ)/,$(CONVSRCS:.c=.o))
 #CLIENTOBJS= $(addprefix $(OBJ)/,$(CLIENTSRCS:.c=.o))
 
-all: $(TGTLIBS) $(APPS)
+
+all: $(TGTLIBS) $(APPS) $(GENFILES)
 
 distclean clean::
 	rm -f *.o *.a *.so $(APPS) core tags
-	rm -rf $(OBJ)
+	rm -rf $(OBJ) $(GENFILES)
 	rm -f testing/*.o
 
 distclean::
@@ -125,6 +129,9 @@ install-files:
 	install -m 644 etc/wicked/*.xml $(DESTDIR)/etc/wicked
 	install -d -m 755 $(DESTDIR)/var/run/wicked
 
+etc/wicked/schema/constants.xml: etc/mkconst etc/wicked/schema/constants.xml.in
+	etc/mkconst < etc/wicked/schema/constants.xml.in > etc/wicked/schema/constants.xml
+
 wicked: $(OBJ)/wicked.o $(CLIENTOBJS) $(TGTLIBS)
 	$(CC) -o $@ $(CFLAGS) $(OBJ)/wicked.o $(CLIENTOBJS) -L. -lnetinfo -lm -lnl -ldbus-1
 
@@ -139,6 +146,9 @@ dhcp4-supplicant: $(OBJ)/dhcp4-supplicant.o $(DHCP4OBJS) $(TGTLIBS)
 
 autoip4-supplicant: $(OBJ)/autoip4-supplicant.o $(AUTO4OBJS) $(TGTLIBS)
 	$(CC) -o $@ $(CFLAGS) $(OBJ)/autoip4-supplicant.o $(AUTO4OBJS) -L. -lnetinfo -lm -lnl -ldbus-1
+
+etc/mkconst: etc/mkconst.o $(TGTLIBS)
+	$(CC) -o $@ $(CFLAGS) etc/mkconst.o -L. -lnetinfo -ldbus-1
 
 test: $(OBJ)/test.o $(TGTLIBS)
 	$(CC) -o $@ $(CFLAGS) $(OBJ)/test.o -L. -lnetinfo -ldbus-1

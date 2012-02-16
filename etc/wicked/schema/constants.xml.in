@@ -1,0 +1,2 @@
+<define name="@@IFTYPE_NAME@@">@@IFTYPE_VALUE@@</define>
+<define name="@@ARPHRD_NAME@@">@@ARPHRD_VALUE@@</define>

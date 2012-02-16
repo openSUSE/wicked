@@ -48,5 +48,18 @@
    <settings type="linkinfo"/>
   </arguments>
  </method>
+
+ <method name="addSlave">
+  <arguments>
+   <name type="string" />
+  </arguments>
+ </method>
+
+ <method name="removeSlave">
+  <arguments>
+   <name type="string" />
+  </arguments>
+ </method>
+
 </service>
 

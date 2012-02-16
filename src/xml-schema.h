@@ -237,6 +237,7 @@ struct ni_xs_scope {
 	char *			name;
 	ni_xs_name_type_array_t	types;
 	ni_xs_service_t *	services;
+	ni_var_array_t		constants;
 
 	ni_xs_scope_t *		children;
 };

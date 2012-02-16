@@ -294,6 +294,7 @@ ni_xs_scope_new(ni_xs_scope_t *parent, const char *name)
 			;
 		*tail = scope;
 	}
+	ni_var_array_init(&scope->constants);
 	return scope;
 }
 
@@ -319,6 +320,8 @@ ni_xs_scope_free(ni_xs_scope_t *scope)
 			ni_xs_scope_free(child);
 		}
 	}
+
+	ni_var_array_destroy(&scope->constants);
 	free(scope);
 }
 
@@ -622,7 +625,7 @@ ni_xs_process_include(xml_node_t *node, ni_xs_scope_t *scope)
  * This can define a type or a constant.
  */
 int
-ni_xs_process_define(xml_node_t *node, ni_xs_scope_t *typedict)
+ni_xs_process_define(xml_node_t *node, ni_xs_scope_t *scope)
 {
 	const char *nameAttr, *typeAttr;
 	ni_xs_type_t *refType = NULL;
@@ -648,8 +651,8 @@ ni_xs_process_define(xml_node_t *node, ni_xs_scope_t *typedict)
 		ni_xs_type_t *newType;
 		ni_xs_scope_t *context;
 
-		/* create (permanent) named typedict as context */
-		context = ni_xs_scope_new(typedict, nameAttr);
+		/* create (permanent) named scope as context */
+		context = ni_xs_scope_new(scope, nameAttr);
 
 		newType = ni_xs_build_complex_type(node, typeAttr, context);
 		if (newType == NULL) {
@@ -658,7 +661,7 @@ ni_xs_process_define(xml_node_t *node, ni_xs_scope_t *typedict)
 			return -1;
 		}
 
-		if (ni_xs_scope_typedef(typedict, nameAttr, newType) < 0) {
+		if (ni_xs_scope_typedef(scope, nameAttr, newType) < 0) {
 			ni_error("%s: attempt to redefine type <%s>", xml_node_location(node), nameAttr);
 			ni_xs_type_release(newType);
 			return -1;
@@ -671,8 +674,8 @@ ni_xs_process_define(xml_node_t *node, ni_xs_scope_t *typedict)
 		 */
 		ni_xs_scope_t *context;
 
-		/* create (permanent) named typedict as context */
-		context = ni_xs_scope_new(typedict, nameAttr);
+		/* create (permanent) named scope as context */
+		context = ni_xs_scope_new(scope, nameAttr);
 
 		refType = ni_xs_build_simple_type(node, typeAttr, context);
 		if (refType == NULL) {
@@ -681,7 +684,7 @@ ni_xs_process_define(xml_node_t *node, ni_xs_scope_t *typedict)
 			return -1;
 		}
 
-		if (ni_xs_scope_typedef(typedict, nameAttr, refType) < 0) {
+		if (ni_xs_scope_typedef(scope, nameAttr, refType) < 0) {
 			ni_error("%s: attempt to redefine type <%s>", xml_node_location(node), nameAttr);
 			return -1;
 		}
@@ -690,21 +693,25 @@ ni_xs_process_define(xml_node_t *node, ni_xs_scope_t *typedict)
 		/*
 		 * <define> <type/> </define>
 		 */
-		refType = ni_xs_build_one_type(node, typedict);
+		refType = ni_xs_build_one_type(node, scope);
 		if (refType == NULL)
 			return -1;
 
 		/* FIXME: build constraints if there are any */
 
-		if (ni_xs_scope_typedef(typedict, nameAttr, refType) < 0) {
+		if (ni_xs_scope_typedef(scope, nameAttr, refType) < 0) {
 			ni_error("%s: attempt to redefine type <%s>", xml_node_location(node), nameAttr);
 			ni_xs_type_release(refType);
 			return -1;
 		}
 		ni_xs_type_release(refType);
 	} else {
-		/* Definition of a constant */
-		ni_fatal("define const not implemented yet");
+		const char *value;
+
+		if ((value = node->cdata) == NULL)
+			value = "";
+
+		ni_var_array_set(&scope->constants, nameAttr, value);
 	}
 
 	return 0;

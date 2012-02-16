@@ -17,3 +17,5 @@ wickedd
 wicked-convert
 dhcp4-supplicant
 autoip4-supplicant
+etc/wicked/schema/constants.xml
+etc/mkconst

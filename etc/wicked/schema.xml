@@ -68,6 +68,7 @@
  </method>
 </service>
 
+<include name="schema/constants.xml"/>
 <include name="schema/bonding.xml"/>
 <!--
 <include name="schema/bridge.xml"/>
