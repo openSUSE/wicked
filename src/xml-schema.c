@@ -16,6 +16,7 @@ static int		ni_xs_process_include(xml_node_t *, ni_xs_scope_t *);
 static int		ni_xs_process_define(xml_node_t *, ni_xs_scope_t *);
 static int		ni_xs_process_service(xml_node_t *, ni_xs_scope_t *);
 static int		ni_xs_process_method(xml_node_t *, ni_xs_service_t *, ni_xs_scope_t *);
+static int		ni_xs_process_signal(xml_node_t *, ni_xs_service_t *, ni_xs_scope_t *);
 static int		ni_xs_build_typelist(xml_node_t *, ni_xs_name_type_array_t *, ni_xs_scope_t *);
 static ni_xs_type_t *	ni_xs_build_simple_type(xml_node_t *, const char *, ni_xs_scope_t *);
 static ni_xs_type_t *	ni_xs_build_complex_type(xml_node_t *, const char *, ni_xs_scope_t *);
@@ -404,16 +405,16 @@ ni_xs_scope_typedef(ni_xs_scope_t *dict, const char *name, ni_xs_type_t *type)
  * Service definitions
  */
 static ni_xs_method_t *
-ni_xs_method_new(const char *name, ni_xs_service_t *service)
+ni_xs_method_new(ni_xs_method_t **list, const char *name)
 {
-	ni_xs_method_t *method, **tail;
+	ni_xs_method_t *method;
 
 	method = xcalloc(1, sizeof(*method));
 	ni_string_dup(&method->name, name);
 
-	for (tail = &service->methods; *tail; tail = &(*tail)->next)
-		;
-	*tail = method;
+	while (*list)
+		list = &(*list)->next;
+	*list = method;
 
 	return method;
 }
@@ -454,6 +455,10 @@ ni_xs_service_free(ni_xs_service_t *service)
 
 	while ((method = service->methods) != NULL) {
 		service->methods = method->next;
+		ni_xs_method_free(method);
+	}
+	while ((method = service->signals) != NULL) {
+		service->signals = method->next;
 		ni_xs_method_free(method);
 	}
 	ni_string_free(&service->name);
@@ -611,6 +616,10 @@ ni_xs_process_service(xml_node_t *node, ni_xs_scope_t *scope)
 		if (!strcmp(child->name, "method")) {
 			if ((rv = ni_xs_process_method(child, service, sub_scope)) < 0)
 				return rv;
+		} else
+		if (!strcmp(child->name, "signal")) {
+			if ((rv = ni_xs_process_signal(child, service, sub_scope)) < 0)
+				return rv;
 		} else {
 			ni_warn("%s: ignoring unknown element <%s>", xml_node_location(child), child->name);
 		}
@@ -634,7 +643,7 @@ ni_xs_process_method(xml_node_t *node, ni_xs_service_t *service, ni_xs_scope_t *
 		return -1;
 	}
 
-	method = ni_xs_method_new(nameAttr, service);
+	method = ni_xs_method_new(&service->methods, nameAttr);
 	if ((child = xml_node_get_child(node, "arguments")) != NULL) {
 		ni_xs_scope_t *temp_scope;
 
@@ -659,6 +668,37 @@ ni_xs_process_method(xml_node_t *node, ni_xs_service_t *service, ni_xs_scope_t *
 			return -1;
 		}
 		method->retval = ni_xs_type_hold(type);
+	}
+
+	return 0;
+}
+
+/*
+ * Process a <signal> declaration inside a service definition
+ */
+int
+ni_xs_process_signal(xml_node_t *node, ni_xs_service_t *service, ni_xs_scope_t *scope)
+{
+	const char *nameAttr;
+	ni_xs_method_t *signal;
+	xml_node_t *child;
+
+	if (!(nameAttr = xml_node_get_attr(node, "name"))) {
+		ni_error("%s: <%s> element lacks name attribute", xml_node_location(node), node->name);
+		return -1;
+	}
+
+	signal = ni_xs_method_new(&service->signals, nameAttr);
+	if ((child = xml_node_get_child(node, "arguments")) != NULL) {
+		ni_xs_scope_t *temp_scope;
+
+		temp_scope = ni_xs_scope_new(scope, NULL);
+		if (ni_xs_build_typelist(child, &signal->arguments, temp_scope) < 0) {
+			ni_xs_scope_free(temp_scope);
+			return -1;
+		}
+
+		ni_xs_scope_free(temp_scope);
 	}
 
 	return 0;

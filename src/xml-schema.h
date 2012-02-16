@@ -229,6 +229,7 @@ struct ni_xs_service {
 	ni_var_array_t		attributes;
 
 	ni_xs_method_t *	methods;
+	ni_xs_method_t *	signals;
 };
 
 struct ni_xs_scope {
