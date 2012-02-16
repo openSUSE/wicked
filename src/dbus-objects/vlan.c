@@ -111,7 +111,13 @@ __ni_dbus_vlan_delete(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 static void *
 ni_objectmodel_get_vlan(const ni_dbus_object_t *object, DBusError *error)
 {
-	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
+	ni_interface_t *ifp;
+
+	if (!(ifp = ni_objectmodel_unwrap_interface(object))) {
+		ni_error("trying to access %s properties for incompatible object (class %s)",
+				WICKED_DBUS_VLAN_INTERFACE, object->class->name);
+		return NULL;
+	}
 
 	return ni_interface_get_vlan(ifp);
 }
