@@ -26,8 +26,6 @@
 	((unsigned long) &(((type *) NULL)->member))
 #endif
 
-static const unsigned char *__ni_address_data(const ni_sockaddr_t *, unsigned int *);
-
 ni_address_t *
 ni_address_new(ni_interface_t *ifp, int af, unsigned int prefix_len, const ni_sockaddr_t *local_addr)
 {
@@ -178,7 +176,7 @@ __ni_address_info(int af, unsigned int *offset, unsigned int *len)
 	return 0;
 }
 
-const unsigned char *
+const void *
 __ni_address_data(const ni_sockaddr_t *ss, unsigned int *len)
 {
 	unsigned int offset;

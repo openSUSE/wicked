@@ -736,6 +736,152 @@ ni_print_hwaddr_opaque(const ni_opaque_t *data, char *buffer, size_t size)
 	return ni_format_hex(data->data, data->len, buffer, size);
 }
 
+/*
+ * Parse and print functions for sockaddrs and prefixed sockaddrs
+ */
+typedef union ni_packed_netaddr {
+	uint16_t	family;
+	unsigned char	sin[2 + 4];
+	unsigned char	six[2 + 16];
+	unsigned char	raw[2 + 62];
+} ni_packed_netaddr_t;
+
+typedef union ni_packed_prefixed_netaddr {
+	uint16_t	prefix;
+	ni_packed_netaddr_t netaddr;
+} ni_packed_prefixed_netaddr_t;
+
+static int
+__ni_parse_netaddr(const char *string_value, ni_packed_netaddr_t *netaddr)
+{
+	ni_sockaddr_t addr;
+	const void *aptr;
+	unsigned int alen;
+
+	if (ni_address_parse(&addr, string_value, AF_UNSPEC) < 0)
+		return -1;
+
+	if (!(aptr = __ni_address_data(&addr, &alen)))
+		return -1;
+
+	if (2 + alen >= sizeof(netaddr->raw))
+		return -1;
+
+	netaddr->family = ntohs(addr.ss_family);
+	memcpy(netaddr->raw + 2, aptr, alen);
+
+	return 2 + alen;
+}
+
+static const char *
+__ni_print_netaddr(const ni_packed_netaddr_t *netaddr, char *buffer, size_t size)
+{
+	ni_sockaddr_t addr;
+	const void *aptr;
+	unsigned int alen;
+
+	addr.ss_family = ntohs(netaddr->family);
+
+	if (!(aptr = __ni_address_data(&addr, &alen)))
+		return NULL;
+	if (alen + 2 > sizeof(netaddr->raw))
+		return NULL;
+
+	memcpy((void *) aptr, netaddr->raw + 2, alen);
+	return ni_address_format(&addr, buffer, size);
+}
+
+static ni_opaque_t *
+ni_parse_sockaddr_opaque(const char *string_value, ni_opaque_t *data)
+{
+	ni_packed_netaddr_t netaddr;
+	int len;
+
+	ni_assert(sizeof(data->data) >= sizeof(netaddr));
+	len = __ni_parse_netaddr(string_value, &netaddr);
+	if (len < 0)
+		return NULL;
+	memcpy(data->data, &netaddr, len);
+	data->len = len;
+	return data;
+}
+
+static const char *
+ni_print_sockaddr_opaque(const ni_opaque_t *data, char *buffer, size_t size)
+{
+	ni_packed_netaddr_t netaddr;
+
+	if (data->len < 2 || data->len > sizeof(netaddr))
+		return NULL;
+	memset(&netaddr, 0, sizeof(netaddr));
+	memcpy(&netaddr, data->data, data->len);
+	return __ni_print_netaddr(&netaddr, buffer, size);
+}
+
+static ni_opaque_t *
+ni_parse_prefixed_sockaddr_opaque(const char *string_value, ni_opaque_t *data)
+{
+	ni_packed_prefixed_netaddr_t pfx_netaddr;
+	char *copy = xstrdup(string_value), *s;
+	int len;
+
+	pfx_netaddr.prefix = 0xFFFF;
+	if ((s = strchr(copy, '/')) != NULL) {
+		unsigned long value;
+
+		*s++ = '\0';
+
+		value = strtoul(s, &s, 0);
+		if (*s != '\0' || value >= 0xFFFF)
+			goto failed;
+
+		/* FIXME: may want to check that the prefix doesn't
+		 * exceed the legal length of the address for this
+		 * address family.
+		 */
+		pfx_netaddr.prefix = ntohs(value);
+	}
+
+	len = __ni_parse_netaddr(copy, &pfx_netaddr.netaddr);
+	if (len < 0)
+		goto failed;
+
+	if (pfx_netaddr.prefix == 0xFFFF)
+		pfx_netaddr.prefix = htons(8 * len);
+
+	memcpy(data->data, &pfx_netaddr, 2 + len);
+	data->len = 2 + len;
+
+	free(copy);
+	return data;
+
+failed:
+	free(copy);
+	return NULL;
+}
+
+static const char *
+ni_print_prefixed_sockaddr_opaque(const ni_opaque_t *data, char *buffer, size_t size)
+{
+	ni_packed_prefixed_netaddr_t pfx_netaddr;
+	unsigned int offset;
+
+	if (data->len < 4)
+		return NULL;
+	if (data->len < 2 || data->len > sizeof(pfx_netaddr))
+		return NULL;
+	memset(&pfx_netaddr, 0, sizeof(pfx_netaddr));
+	memcpy(&pfx_netaddr, data->data, data->len);
+
+	if (!__ni_print_netaddr(&pfx_netaddr.netaddr, buffer, size))
+		return NULL;
+
+	offset = strlen(buffer);
+	snprintf(buffer + offset, size - offset, "/%u", ntohs(pfx_netaddr.prefix));
+
+	return buffer;
+}
+
 static ni_xs_notation_t	__ni_dbus_notations[] = {
 	{
 		.name = "ipv4addr",
@@ -752,6 +898,16 @@ static ni_xs_notation_t	__ni_dbus_notations[] = {
 		.array_element_type = DBUS_TYPE_BYTE,
 		.parse = ni_parse_hwaddr_opaque,
 		.print = ni_print_hwaddr_opaque,
+	}, {
+		.name = "net-address",
+		.array_element_type = DBUS_TYPE_BYTE,
+		.parse = ni_parse_sockaddr_opaque,
+		.print = ni_print_sockaddr_opaque,
+	}, {
+		.name = "net-address-prefix",
+		.array_element_type = DBUS_TYPE_BYTE,
+		.parse = ni_parse_prefixed_sockaddr_opaque,
+		.print = ni_print_prefixed_sockaddr_opaque,
 	},
 
 	{ NULL }

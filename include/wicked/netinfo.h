@@ -313,6 +313,7 @@ extern int		ni_address_prefix_match(unsigned int, const ni_sockaddr_t *,
 				const ni_sockaddr_t *);
 extern int		ni_address_equal(const ni_sockaddr_t *, const ni_sockaddr_t *);
 extern int		__ni_address_info(int, unsigned int *, unsigned int *);
+extern const void *	__ni_address_data(const ni_sockaddr_t *, unsigned int *);
 extern int		ni_address_probably_dynamic(const ni_address_t *);
 
 extern int		ni_link_address_format(const ni_hwaddr_t *ss,
