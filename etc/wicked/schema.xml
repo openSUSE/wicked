@@ -49,6 +49,30 @@
   <route type="static-route"/>
 </define>
 
+<!--
+  -- VLAN Service definition
+ -->
+<service name="vlan" interface="com.suse.Wicked.VLAN" layer="link">
+ <!-- This is the linkinfo returned in interface reports -->
+ <define name="linkinfo" class="dict">
+  <device type="string"/>
+  <id type="uint16"/>
+ </define>
+
+ <method name="__newlink">
+  <arguments>
+   <name type="string"/>
+   <device type="string"/>
+   <id type="uint16"/>
+  </arguments>
+ </method>
+</service>
+
+<!--
+<include name="schema/bonding.xml">
+<include name="schema/bridge.xml">
+ -->
+
 <define name="interface" class="dict">
  <name type="string"/>
 
@@ -67,6 +91,14 @@
  <link class="dict">
   <class type="string"/>
   <mtu type="uint32"/>
+  <!-- Need to parse link layer service definitions before we do these: -->
+  <vlan type="vlan:linkinfo"/>
+  <!--
+  <bridge type="bridge:linkinfo"/>
+  <bonding type="bonding:linkinfo"/>
+  <ethernet type="ethernet:linkinfo"/>
+  <isdn type="isdn:linkinfo"/>
+    -->
  </link>
  <addrconf class="dict">
   <ipv4 class="dict">
@@ -86,22 +118,3 @@
 <define name="ethernet" class="dict">
  <address type="ethernet-address"/>
 </define>
-
-<!--
-  -- VLAN Service definition
- -->
-<service name="vlan" interface="com.suse.Wicked.VLAN" layer="link">
- <!-- This is the linkinfo returned in interface reports -->
- <define name="linkinfo" class="dict">
-  <device type="string"/>
-  <id type="uint16"/>
- </define>
-
- <method name="__newlink">
-  <arguments>
-   <name type="string"/>
-   <device type="string"/>
-   <id type="uint16"/>
-  </arguments>
- </method>
-</service>

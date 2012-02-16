@@ -24,7 +24,7 @@ ni_dbus_xml_init(void)
 {
 	ni_xs_scope_t *schema;
 
-	schema = ni_xs_scope_new(NULL, NULL);
+	schema = ni_xs_scope_new(NULL, "dbus");
 	ni_dbus_define_scalar_types(schema);
 	ni_dbus_define_xml_notations();
 

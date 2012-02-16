@@ -19,7 +19,7 @@ static ni_xs_type_t *	ni_xs_build_simple_type(xml_node_t *, const char *, ni_xs_
 static ni_xs_type_t *	ni_xs_build_complex_type(xml_node_t *, const char *, ni_xs_scope_t *);
 static void		ni_xs_name_type_array_destroy(ni_xs_name_type_array_t *);
 static ni_xs_type_t *	ni_xs_build_one_type(xml_node_t *, ni_xs_scope_t *);
-static ni_xs_type_t *	ni_xs_scope_lookup(ni_xs_scope_t *, const char *);
+static ni_xs_type_t *	ni_xs_scope_lookup(const ni_xs_scope_t *, const char *);
 static ni_xs_type_t *	ni_xs_scope_lookup_local(const ni_xs_scope_t *, const char *);
 static struct ni_xs_type_constraint_bitmap *ni_xs_build_bitmap_constraint(const xml_node_t *);
 
@@ -251,6 +251,16 @@ ni_xs_scope_free(ni_xs_scope_t *scope)
 	free(scope);
 }
 
+static const ni_xs_scope_t *
+ni_xs_scope_lookup_scope(const ni_xs_scope_t *scope, const char *name)
+{
+	for (scope = scope->children; scope; scope = scope->next) {
+		if (!strcmp(scope->name, name))
+			return scope;
+	}
+	return NULL;
+}
+
 static ni_xs_type_t *
 ni_xs_scope_lookup_local(const ni_xs_scope_t *dict, const char *name)
 {
@@ -258,9 +268,30 @@ ni_xs_scope_lookup_local(const ni_xs_scope_t *dict, const char *name)
 }
 
 static ni_xs_type_t *
-ni_xs_scope_lookup(ni_xs_scope_t *dict, const char *name)
+ni_xs_scope_lookup(const ni_xs_scope_t *dict, const char *name)
 {
 	ni_xs_type_t *result = NULL;
+
+	if (strchr(name, ':') != NULL) {
+		char *copy, *cur_name, *rest;
+
+		while (dict->parent)
+			dict = dict->parent;
+
+		copy = strdup(name);
+		cur_name = strtok(copy, ":");
+		while ((rest = strtok(NULL, ":")) != NULL) {
+			dict = ni_xs_scope_lookup_scope(dict, cur_name);
+			if (dict == NULL)
+				break;
+			cur_name = rest;
+		}
+
+		if (dict)
+			result = ni_xs_scope_lookup_local(dict, cur_name);
+		free(copy);
+		return result;
+	}
 
 	while (result == NULL && dict != NULL) {
 		result = ni_xs_scope_lookup_local(dict, name);
@@ -274,6 +305,7 @@ ni_xs_scope_typedef(ni_xs_scope_t *dict, const char *name, ni_xs_type_t *type)
 {
 	if (ni_xs_scope_lookup_local(dict, name) != NULL)
 		return -1;
+	ni_trace("define type %s in scope %s", name, dict->name?: "<anon>");
 	ni_xs_name_type_array_append(&dict->types, name, type);
 	return 0;
 }
@@ -398,11 +430,17 @@ ni_xs_process_service(xml_node_t *node, ni_xs_scope_t *scope)
 		return -1;
 	}
 
+	scope = ni_xs_scope_new(scope, nameAttr);
+
 	service = ni_xs_service_new(nameAttr, intfAttr, scope);
 
 	for (child = node->children; child; child = child->next) {
 		int rv;
 
+		if (!strcmp(child->name, "define")) {
+			if ((rv = ni_xs_process_define(child, scope)) < 0)
+				return rv;
+		} else
 		if (!strcmp(child->name, "method")) {
 			if ((rv = ni_xs_process_method(child, service, scope)) < 0)
 				return rv;
