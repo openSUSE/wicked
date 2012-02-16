@@ -84,7 +84,10 @@ ni_objectmodel_register_netif_classes(void)
 	ni_objectmodel_register_service(&ni_objectmodel_netif_list_service);
 
 	/* register our built-in addrconf services */
+	ni_objectmodel_addrconf_ipv4_static_service.compatible = &ni_objectmodel_netif_class;
 	ni_objectmodel_register_service(&ni_objectmodel_addrconf_ipv4_static_service);
+
+	ni_objectmodel_addrconf_ipv6_static_service.compatible = &ni_objectmodel_netif_class;
 	ni_objectmodel_register_service(&ni_objectmodel_addrconf_ipv6_static_service);
 }
 
