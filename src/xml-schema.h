@@ -52,11 +52,12 @@
  * Atomic types can be constrained in a number of ways, expressed by adding
  * a constraint="..." attribute to the type element.
  *
- * oneof
+ * enum
  *	If an atom can take on value from a limited number of choices only,
- *	specify it using constraint="oneof". The type element is then expected
+ *	specify it using constraint="enum". The type element is then expected
  *	to have one or more child elements specifying the permitted values:
- *		<choice value="..."/>
+ *		<name1 value="..."/>
+ *		<name2 value="..."/>
  *
  * range
  *	If a numeric type can take on values from a limited range of numbers only,
@@ -150,10 +151,6 @@ typedef struct ni_xs_name_type_array {
 	ni_xs_name_type_t *	data;
 } ni_xs_name_type_array_t;
 
-struct ni_xs_type_constraint_oneof {
-	ni_string_array_t	values;
-};
-
 struct ni_xs_type_constraint_bitmap {
 	ni_intmap_t *		bits;
 };
@@ -196,7 +193,7 @@ struct ni_xs_scalar_info {
 	unsigned int		type;
 
 	struct {
-		struct ni_xs_type_constraint_oneof *oneof;
+		ni_intmap_t	*enums;
 		struct ni_xs_type_constraint_range *range;
 		struct ni_xs_type_constraint_bitmap *bitmap;
 	} constraint;

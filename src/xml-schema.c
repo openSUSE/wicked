@@ -26,6 +26,10 @@ static ni_xs_type_t *	ni_xs_scope_lookup(const ni_xs_scope_t *, const char *);
 static ni_xs_type_t *	ni_xs_scope_lookup_local(const ni_xs_scope_t *, const char *);
 static void		ni_xs_service_free(ni_xs_service_t *);
 static struct ni_xs_type_constraint_bitmap *ni_xs_build_bitmap_constraint(const xml_node_t *);
+static ni_intmap_t *	ni_xs_build_enum_constraint(const xml_node_t *);
+static void		ni_xs_free_bitmap_constraint(struct ni_xs_type_constraint_bitmap *);
+static void		ni_xs_free_enum_constraint(ni_intmap_t *);
+static void		__ni_xs_intmap_free(ni_intmap_t *);
 
 /*
  * Constructor functions for basic and complex types
@@ -173,10 +177,13 @@ ni_xs_type_free(ni_xs_type_t *type)
 		{
 			ni_xs_scalar_info_t *scalar_info = type->u.scalar_info;
 
+			if (scalar_info->constraint.enums)
+				ni_xs_free_enum_constraint(scalar_info->constraint.enums);
+			if (scalar_info->constraint.bitmap)
+				ni_xs_free_bitmap_constraint(scalar_info->constraint.bitmap);
+
 			free(scalar_info);
 			type->u.scalar_info = NULL;
-
-			/* FIXME: free constraint data */
 			break;
 		}
 	}
@@ -485,7 +492,7 @@ static int
 ni_xs_is_reserved_name(const char *name)
 {
 	static const char *reserved[] = {
-		"dict", "struct", "array", "define", "choice",
+		"dict", "struct", "array", "define",
 		NULL
 	};
 
@@ -1029,6 +1036,13 @@ ni_xs_build_simple_type(xml_node_t *node, const char *typeName, ni_xs_scope_t *s
 					ni_xs_type_release(result);
 					return NULL;
 				}
+			} else
+			if (!strcmp(attrValue, "enum")) {
+				scalar_info->constraint.enums = ni_xs_build_enum_constraint(node);
+				if (scalar_info->constraint.enums == NULL) {
+					ni_xs_type_release(result);
+					return NULL;
+				}
 			}
 		}
 	}
@@ -1036,44 +1050,97 @@ ni_xs_build_simple_type(xml_node_t *node, const char *typeName, ni_xs_scope_t *s
 	return result;
 }
 
-struct ni_xs_type_constraint_bitmap *
-ni_xs_build_bitmap_constraint(const xml_node_t *node)
+/*
+ * Build an intmap from a list of xml nodes. The mapping from name to value is
+ *  <name attr="..."/>
+ * where name specifies the name of the value. The attribute can be either
+ * "bit" or "value".
+ */
+static ni_intmap_t *
+__ni_xs_intmap_build(const xml_node_t *node, const char *attr_name)
 {
-	struct ni_xs_type_constraint_bitmap *result;
+	ni_intmap_t *result = NULL;
 	unsigned int i, count;
 	xml_node_t *child;
+	unsigned int last_value = 0;
 
 	/* Count the defined bits */
 	for (child = node->children, count = 0; child; child = child->next, ++count)
 		;
 
-	result = xcalloc(1, sizeof(*result) + (count + 1) * sizeof(ni_intmap_t));
-	result->bits = (ni_intmap_t *) (result + 1);
-
+	result = xcalloc(count + 1, sizeof(ni_intmap_t));
 	for (child = node->children, i = 0; child; child = child->next, ++i) {
-		const char *bitnum;
+		const char *attr_value;
 		unsigned int value;
 		char *ep = NULL;
 
-		bitnum = xml_node_get_attr(child, "bit");
-		if (bitnum != NULL) {
-			value = strtoul(bitnum, &ep, 0);
-			if (*ep == '\0') {
-				result->bits[i].name = strdup(child->name);
-				result->bits[i].value = value;
-				continue;
+		attr_value = xml_node_get_attr(child, attr_name);
+		if (attr_value == NULL) {
+			value = last_value + 1;
+		} else {
+			value = strtoul(attr_value, &ep, 0);
+			if (*ep != '\0') {
+				ni_error("%s: bad enum/bitmap element <%s %s=\"%s\"> in constraints",
+						xml_node_location(child), child->name,
+						attr_name, attr_value);
+				goto failed;
 			}
 		}
 
-		ni_error("%s: bad bit value for <%s> in bitmap constraints",
-				xml_node_location(child), child->name);
-		goto failed;
+		result[i].name = strdup(child->name);
+		result[i].value = value;
+		last_value = value;
 	}
 	return result;
 
 failed:
-	// ni_xs_type_constraint_bitmap_free(result);
+	__ni_xs_intmap_free(result);
 	return NULL;
+}
+
+static void
+__ni_xs_intmap_free(ni_intmap_t *map)
+{
+	ni_intmap_t *p;
+
+	if (map != NULL) {
+		for (p = map; p->name; ++p)
+			free((char *) p->name);
+		free(map);
+	}
+}
+
+struct ni_xs_type_constraint_bitmap *
+ni_xs_build_bitmap_constraint(const xml_node_t *node)
+{
+	struct ni_xs_type_constraint_bitmap *result;
+	ni_intmap_t *bitmap;
+
+	if (!(bitmap = __ni_xs_intmap_build(node, "bit")))
+		return NULL;
+
+	result = xcalloc(1, sizeof(*result));
+	result->bits = bitmap;
+	return result;
+}
+
+void
+ni_xs_free_bitmap_constraint(struct ni_xs_type_constraint_bitmap *constraint)
+{
+	__ni_xs_intmap_free(constraint->bits);
+	free(constraint);
+}
+
+ni_intmap_t *
+ni_xs_build_enum_constraint(const xml_node_t *node)
+{
+	return __ni_xs_intmap_build(node, "value");
+}
+
+void
+ni_xs_free_enum_constraint(ni_intmap_t *map)
+{
+	__ni_xs_intmap_free(map);
 }
 
 /*

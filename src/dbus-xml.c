@@ -266,6 +266,20 @@ ni_dbus_serialize_xml_scalar(xml_node_t *node, const ni_xs_type_t *type, ni_dbus
 		return FALSE;
 	}
 
+	if (scalar_info->constraint.enums) {
+		const ni_intmap_t *names = scalar_info->constraint.enums;
+		unsigned int value;
+
+		if (ni_parse_int_mapped(node->cdata, names, &value) < 0) {
+			ni_error("%s: unknown enum value %s", xml_node_location(node), node->cdata);
+			return FALSE;
+		}
+
+		if (!ni_dbus_variant_init_signature(var, ni_xs_type_to_dbus_signature(type)))
+			return FALSE;
+		return ni_dbus_variant_set_uint(var, value);
+	}
+
 	/* TBD: handle constants defined in the schema? */
 	if (!ni_dbus_variant_parse(var, node->cdata, ni_xs_type_to_dbus_signature(type))) {
 		ni_error("unable to serialize node %s - cannot parse value", node->name);
@@ -310,6 +324,27 @@ ni_dbus_deserialize_xml_scalar(ni_dbus_variant_t *var, const ni_xs_type_t *type,
 			}
 		}
 
+		return TRUE;
+	}
+
+	if (scalar_info->constraint.enums) {
+		const char *enum_name;
+		unsigned int value;
+
+		if (!ni_dbus_variant_get_uint(var, &value)) {
+			ni_error("%s: cannot get value for <%s>", __func__, node->name);
+			return FALSE;
+		}
+
+		enum_name = ni_format_int_mapped(value, scalar_info->constraint.enums);
+		if (enum_name != NULL) {
+			xml_node_set_cdata(node, enum_name);
+		} else {
+			char buffer[32];
+
+			snprintf(buffer, sizeof(buffer), "%u", value);
+			xml_node_set_cdata(node, buffer);
+		}
 		return TRUE;
 	}
 
