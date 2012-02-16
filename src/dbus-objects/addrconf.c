@@ -247,7 +247,7 @@ ni_objectmodel_addrconf_ipv4_static_configure(ni_dbus_object_t *object, const ni
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
-	ni_addrconf_request_t *req = NULL;
+	ni_addrconf_lease_t *lease = NULL;
 	const ni_dbus_variant_t *dict;
 	ni_interface_t *dev;
 	int rv;
@@ -263,13 +263,16 @@ ni_objectmodel_addrconf_ipv4_static_configure(ni_dbus_object_t *object, const ni
 	}
 	dict = &argv[0];
 
-	req = ni_addrconf_request_new(NI_ADDRCONF_STATIC, AF_INET);
-	if (!__ni_objectmodel_set_address_dict(&req->statik.addrs, dict, error)
-	 || !__ni_objectmodel_set_route_dict(&req->statik.routes, dict, error))
+	lease = ni_addrconf_lease_new(NI_ADDRCONF_STATIC, AF_INET);
+	if (!__ni_objectmodel_set_address_dict(&lease->addrs, dict, error)
+	 || !__ni_objectmodel_set_route_dict(&lease->routes, dict, error)) {
+		ni_addrconf_lease_free(lease);
 		return FALSE;
+	}
 
-	rv = ni_system_interface_addrconf(ni_global_state_handle(0), dev, req);
-	ni_addrconf_request_free(req);
+	rv = __ni_system_interface_update_lease(dev, &lease);
+	if (lease)
+		ni_addrconf_lease_free(lease);
 
 	if (rv < 0) {
 		dbus_set_error(error,
@@ -294,7 +297,7 @@ ni_objectmodel_addrconf_ipv6_static_configure(ni_dbus_object_t *object, const ni
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
-	ni_addrconf_request_t *req = NULL;
+	ni_addrconf_lease_t *lease = NULL;
 	const ni_dbus_variant_t *dict;
 	ni_interface_t *dev;
 	int rv;
@@ -316,13 +319,14 @@ ni_objectmodel_addrconf_ipv6_static_configure(ni_dbus_object_t *object, const ni
 	 *  - install the lease (ie configure addresses)
 	 */
 
-	req = ni_addrconf_request_new(NI_ADDRCONF_STATIC, AF_INET6);
-	if (!__ni_objectmodel_set_address_dict(&req->statik.addrs, dict, error)
-	 || !__ni_objectmodel_set_route_dict(&req->statik.routes, dict, error))
+	lease = ni_addrconf_lease_new(NI_ADDRCONF_STATIC, AF_INET6);
+	if (!__ni_objectmodel_set_address_dict(&lease->addrs, dict, error)
+	 || !__ni_objectmodel_set_route_dict(&lease->routes, dict, error))
 		return FALSE;
 
-	rv = ni_system_interface_addrconf(ni_global_state_handle(0), dev, req);
-	ni_addrconf_request_free(req);
+	rv = __ni_system_interface_update_lease(dev, &lease);
+	if (lease)
+		ni_addrconf_lease_free(lease);
 
 	if (rv < 0) {
 		dbus_set_error(error,
