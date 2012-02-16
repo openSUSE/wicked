@@ -51,6 +51,7 @@
 #define NI_WPA_IF_PATH_PFX	"/fi/epitest/hostap/WPASupplicant/Interfaces/"
 #define NI_WPA_IF_INTERFACE	"fi.epitest.hostap.WPASupplicant.Interface"
 #define NI_WPA_BSS_INTERFACE	"fi.epitest.hostap.WPASupplicant.BSSID"
+#define NI_WPA_NETWORK_INTERFACE "fi.epitest.hostap.WPASupplicant.Network"
 
 struct ni_wpa_client {
 	ni_dbus_client_t *	dbus;
@@ -67,6 +68,7 @@ static ni_dbus_class_t		ni_objectmodel_wpadev_class = {
 	"wpa-device"
 };
 static ni_dbus_service_t	ni_wpa_bssid_service;
+static ni_dbus_service_t	ni_wpa_network_service;
 static ni_dbus_service_t	ni_wpa_device_service;
 
 static int		ni_wpa_get_interface(ni_wpa_client_t *, const char *, ni_wpa_interface_t **);
@@ -645,7 +647,7 @@ ni_wpa_network_set(ni_dbus_object_t *net_object, ni_wireless_network_t *net)
 	ni_dbus_variant_t dict = NI_DBUS_VARIANT_INIT;
 	DBusError error = DBUS_ERROR_INIT;
 	ni_wireless_network_t *old_net;
-	int rv = -1;
+	dbus_bool_t rv = FALSE;
 
 	if ((old_net = net_object->handle) != NULL) {
 		ni_wireless_network_put(old_net);
@@ -655,18 +657,18 @@ ni_wpa_network_set(ni_dbus_object_t *net_object, ni_wireless_network_t *net)
 	net_object->handle = ni_wireless_network_get(net);
 
 	ni_dbus_variant_init_dict(&dict);
-	if (!ni_dbus_object_get_properties_as_dict(net_object, &ni_wpa_bssid_service, &dict)) {
+	if (!ni_dbus_object_get_properties_as_dict(net_object, &ni_wpa_network_service, &dict)) {
 		ni_error("failed to obtain wireless network properties");
 		goto done;
 	}
 
-	if (!ni_dbus_object_call_variant(net_object, NI_WPA_BSS_INTERFACE, "set", 1, &dict, 0, NULL, &error)) {
+	if (!ni_dbus_object_call_variant(net_object, NI_WPA_NETWORK_INTERFACE, "set", 1, &dict, 0, NULL, &error)) {
 		ni_error("%s failed: %s (%s)", __func__, error.name, error.message);
 		dbus_error_free(&error);
 		goto done;
 	}
 
-	rv = 0;
+	rv = TRUE;
 
 done:
 	ni_dbus_variant_destroy(&dict);
@@ -847,6 +849,8 @@ __wpa_dbus_bss_get_bssid(const ni_dbus_object_t *object, const ni_dbus_property_
 {
 	ni_wireless_network_t *net = __wpa_get_network(object);
 
+	if (net->access_point.len == 0)
+		return __ni_dbus_property_not_present_error(error, property);
 	ni_dbus_variant_set_byte_array(argument, net->access_point.data, net->access_point.len);
 	return TRUE;
 }
@@ -916,6 +920,9 @@ __wpa_dbus_bss_get_frequency(const ni_dbus_object_t *object, const ni_dbus_prope
 		ni_dbus_variant_t *argument, DBusError *error)
 {
 	ni_wireless_network_t *net = __wpa_get_network(object);
+
+	if (net->scan_info.frequency == 0)
+		return __ni_dbus_property_not_present_error(error, property);
 
 	/* Convert GHz -> MHz */
 	ni_dbus_variant_set_int32(argument, 1000 * net->scan_info.frequency);
@@ -1228,11 +1235,43 @@ __wpa_dbus_bss_set_group(ni_dbus_object_t *object, const ni_dbus_property_t *pro
 }
 
 static dbus_bool_t
+__wpa_dbus_bss_get_psk(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		ni_dbus_variant_t *argument, DBusError *error)
+{
+	ni_wireless_network_t *net = __wpa_get_network(object);
+
+	/* wpa_supplicant expects us to encode the passphrase as
+	 * string, and the key as a byte array. */
+	if (net->wpa_psk.passphrase) {
+		ni_dbus_variant_set_string(argument, net->wpa_psk.passphrase);
+	} else
+	if (net->wpa_psk.key.len) {
+		ni_dbus_variant_set_byte_array(argument,
+				net->wpa_psk.key.data,
+				net->wpa_psk.key.len);
+	} else {
+		return __ni_dbus_property_not_present_error(error, property);
+	}
+	return TRUE;
+}
+
+static dbus_bool_t
+__wpa_dbus_bss_set_psk(ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		const ni_dbus_variant_t *argument, DBusError *error)
+{
+	return FALSE;
+}
+
+static dbus_bool_t
 __wpa_dbus_bss_get_eap(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
 		ni_dbus_variant_t *argument, DBusError *error)
 {
 	ni_wireless_network_t *net = __wpa_get_network(object);
 	const char *value;
+
+	if (net->keymgmt_proto != NI_WIRELESS_KEY_MGMT_EAP
+	 && net->keymgmt_proto != NI_WIRELESS_KEY_MGMT_802_1X)
+		return __ni_dbus_property_not_present_error(error, property);
 
 	if (!(value = ni_wpa_eap_method_as_string(net->eap_method, error)))
 		return FALSE;
@@ -1272,7 +1311,40 @@ static ni_dbus_property_t	wpa_bss_properties[] = {
 	WPA_BSS_PROPERTY_SIGNATURE(DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING, wpsie, RO),
 	WPA_BSS_PROPERTY_SIGNATURE(DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING, rsnie, RO),
 
+#if 0
 //	WPA_BSS_PROPERTY(STRING, psk, RO),
+	WPA_BSS_PROPERTY(STRING, proto, RO),
+	WPA_BSS_PROPERTY(STRING, key_mgmt, RO),
+	WPA_BSS_PROPERTY(STRING, cipher, RO),
+	WPA_BSS_PROPERTY(STRING, pairwise, RO),
+	WPA_BSS_PROPERTY(STRING, group, RO),
+	WPA_BSS_PROPERTY(STRING, auth_alg, RO),
+	WPA_BSS_PROPERTY(STRING, eap, RO),
+//	WPA_BSS_PROPERTY(STRING, identity, RO),
+//	WPA_BSS_PROPERTY(STRING, anonymous_identity, RO),
+//	WPA_BSS_PROPERTY(DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING, password, RO),
+//	WPA_BSS_PROPERTY(STRING, wep_key0, RO),
+//	WPA_BSS_PROPERTY(STRING, wep_key1, RO),
+//	WPA_BSS_PROPERTY(STRING, wep_key2, RO),
+//	WPA_BSS_PROPERTY(STRING, wep_key3, RO),
+//	WPA_BSS_PROPERTY(INT32, wep_tx_keyid, RO),
+#endif
+
+	{ NULL }
+};
+
+static ni_dbus_service_t	ni_wpa_bssid_service = {
+	.name		= NI_WPA_BSS_INTERFACE,
+	.properties	= wpa_bss_properties,
+	.compatible	= &ni_objectmodel_wpanet_class,
+};
+
+static ni_dbus_property_t	wpa_network_properties[] = {
+	WPA_BSS_PROPERTY_SIGNATURE(DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING, bssid, RO),
+	WPA_BSS_PROPERTY_SIGNATURE(DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING, ssid, RO),
+	WPA_BSS_PROPERTY(INT32, frequency, RO),
+
+	WPA_BSS_PROPERTY(STRING, psk, RO),
 	WPA_BSS_PROPERTY(STRING, proto, RO),
 	WPA_BSS_PROPERTY(STRING, key_mgmt, RO),
 	WPA_BSS_PROPERTY(STRING, cipher, RO),
@@ -1292,9 +1364,9 @@ static ni_dbus_property_t	wpa_bss_properties[] = {
 	{ NULL }
 };
 
-static ni_dbus_service_t	ni_wpa_bssid_service = {
-	.name		= NI_WPA_BSS_INTERFACE,
-	.properties	= wpa_bss_properties,
+static ni_dbus_service_t	ni_wpa_network_service = {
+	.name		= NI_WPA_NETWORK_INTERFACE,
+	.properties	= wpa_network_properties,
 	.compatible	= &ni_objectmodel_wpanet_class,
 };
 
