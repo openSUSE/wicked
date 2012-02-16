@@ -122,7 +122,7 @@ ni_dbus_message_get_args_variants(ni_dbus_message_t *msg, ni_dbus_variant_t *arg
 /*
  * Helper function for processing all properties in a dict
  */
-dbus_bool_t
+static dbus_bool_t
 __ni_dbus_object_set_properties_from_dict(ni_dbus_object_t *object,
 				const char *context,
 				const ni_dbus_property_t *properties,
