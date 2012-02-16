@@ -226,7 +226,7 @@ ni_dbus_object_create(ni_dbus_object_t *root_object, const char *object_path,
 	object = __ni_dbus_object_lookup(root_object, object_path, 0, NULL, NULL);
 	if (object != NULL) {
 		/* Object already exists. Check for idempotent registration */
-		if (object->handle != object_handle) {
+		if (object_handle && object->handle != object_handle) {
 			ni_error("%s: cannot re-register object \"%s\"", __FUNCTION__, object_path);
 			return NULL;
 		}
