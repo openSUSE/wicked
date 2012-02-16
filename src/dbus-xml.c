@@ -10,13 +10,19 @@
 #include <wicked/xml.h>
 #include "dbus-common.h"
 #include "xml-schema.h"
+#include "util_priv.h"
+
+#include <wicked/netinfo.h>
+#include "dbus-objects/model.h"
 
 static void		ni_dbus_define_scalar_types(ni_xs_scope_t *);
 static void		ni_dbus_define_xml_notations(void);
+static int		ni_dbus_xml_register_methods(ni_dbus_service_t *, ni_xs_service_t *);
 static dbus_bool_t	ni_dbus_serialize_xml_scalar(xml_node_t *, const ni_xs_type_t *, ni_dbus_variant_t *);
 static dbus_bool_t	ni_dbus_serialize_xml_struct(xml_node_t *, const ni_xs_type_t *, ni_dbus_variant_t *);
 static dbus_bool_t	ni_dbus_serialize_xml_array(xml_node_t *, const ni_xs_type_t *, ni_dbus_variant_t *);
 static dbus_bool_t	ni_dbus_serialize_xml_dict(xml_node_t *, const ni_xs_type_t *, ni_dbus_variant_t *);
+static char *		__ni_xs_type_to_dbus_signature(const ni_xs_type_t *, char *, size_t);
 static char *		ni_xs_type_to_dbus_signature(const ni_xs_type_t *);
 
 ni_xs_scope_t *
@@ -31,6 +37,89 @@ ni_dbus_xml_init(void)
 	return schema;
 }
 
+/*
+ * Register all services defined by the schema
+ */
+int
+ni_dbus_xml_register_services(ni_dbus_server_t *server, ni_xs_scope_t *scope)
+{
+	ni_xs_service_t *xs_service;
+
+	for (xs_service = scope->services; xs_service; xs_service = xs_service->next) {
+		ni_dbus_service_t *service;
+		int rv;
+
+		service = xcalloc(1, sizeof(*service));
+		ni_string_dup(&service->name, xs_service->interface);
+		service->user_data = xs_service;
+
+		switch (xs_service->layer) {
+		case NI_LAYER_LINK:
+			ni_objectmodel_register_link_service(xs_service->provides.iftype, service);
+			break;
+
+		default:
+			ni_objectmodel_register_service(service);
+			break;
+		}
+
+		if ((rv = ni_dbus_xml_register_methods(service, xs_service)) < 0)
+			return rv;
+	}
+
+	return 0;
+}
+
+int
+ni_dbus_xml_register_methods(ni_dbus_service_t *service, ni_xs_service_t *xs_service)
+{
+	ni_dbus_method_t *method_array, *method;
+	unsigned int nmethods = 0;
+	ni_xs_method_t *xs_method;
+
+	if (xs_service->methods == NULL)
+		return 0;
+
+	for (xs_method = xs_service->methods; xs_method; xs_method = xs_method->next)
+		nmethods++;
+	service->methods = method_array = xcalloc(nmethods + 1, sizeof(ni_dbus_method_t));
+
+	method = method_array;
+	for (xs_method = xs_service->methods; xs_method; xs_method = xs_method->next, ++method) {
+		char sigbuf[64];
+		unsigned int i;
+
+		/* Skip private methods such as __newlink */
+		if (xs_method->name == 0 || xs_method->name[0] == '_')
+			continue;
+
+		/* First, build the method signature */
+		sigbuf[0] = '\0';
+		for (i = 0; i < xs_method->arguments.count; ++i) {
+			ni_xs_type_t *type = xs_method->arguments.data[i].type;
+			unsigned int k = strlen(sigbuf);
+
+			if (!__ni_xs_type_to_dbus_signature(type, sigbuf + k, sizeof(sigbuf) - k)) {
+				ni_error("bad definition of service %s method %s: "
+					 "cannot build dbus signature of argument[%u] (%s)",
+					 service->name, xs_method->name, i,
+					 xs_method->arguments.data[i].name);
+				return -1;
+			}
+		}
+
+		ni_string_dup((char **) &method->name, xs_method->name);
+		ni_string_dup((char **) &method->call_signature, sigbuf);
+		method->handler = NULL; /* need to define */
+		method->user_data = xs_method;
+	}
+
+	return 0;
+}
+
+/*
+ * Convert an XML tree to a dbus data object for serialization
+ */
 dbus_bool_t
 ni_dbus_serialize_xml(xml_node_t *node, const ni_xs_type_t *type, ni_dbus_variant_t *var)
 {
