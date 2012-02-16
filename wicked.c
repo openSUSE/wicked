@@ -339,10 +339,17 @@ wicked_create_interface_common(const ni_dbus_service_t *service, ni_dbus_variant
 				&error)) {
 		ni_error("Server refused to create interface. Server responds:");
 		ni_error_extra("%s: %s\n", error.name, error.message);
-		goto failed;
-	}
+	} else {
+		const char *response;
 
-	/* FIXME: extract object path from reply */
+		/* extract device name from reply */
+		if (!ni_dbus_variant_get_string(&call_resp[0], &response)) {
+			ni_error("%s: newLink call succeeded but didn't return interface name",
+					service->name);
+		} else {
+			ni_string_dup(&result, response);
+		}
+	}
 
 failed:
 	if (object)
@@ -1132,7 +1139,7 @@ __build_afinfo(ni_afinfo_t *dev_afi, int family, ni_interface_t *ifp)
 	return afi;
 }
 
-static ni_interface_request_t *
+ni_interface_request_t *
 __interface_request_build(ni_interface_t *ifp)
 {
 	ni_interface_request_t *req;
@@ -1151,6 +1158,275 @@ __interface_request_build(ni_interface_t *ifp)
 	return req;
 }
 
+#if 1
+typedef struct interface_worker {
+	char *			name;
+	unsigned int		ifindex;
+	xml_node_t *		config;
+	ni_interface_t *	device;
+} interface_worker_t;
+
+#define MAX_INTERFACE_WORKERS	64
+static interface_worker_t	interface_workers[MAX_INTERFACE_WORKERS];
+static unsigned int		num_interface_workers;
+
+static void
+add_interface_worker(const char *name, xml_node_t *node)
+{
+	interface_worker_t *worker;
+
+	ni_assert(num_interface_workers < MAX_INTERFACE_WORKERS);
+	worker = &interface_workers[num_interface_workers++];
+
+	ni_string_dup(&worker->name, name);
+	worker->config = node;
+}
+
+static unsigned int
+add_matching_interfaces(xml_document_t *doc, const char *match_name, unsigned int event)
+{
+	xml_node_t *root, *ifnode;
+	unsigned int count = 0;
+
+	if (!strcmp(match_name, "all"))
+		match_name = NULL;
+
+	root = xml_document_root(doc);
+	for (ifnode = root->children; ifnode; ifnode = ifnode->next) {
+		xml_node_t *node;
+		const char *ifname = NULL;
+
+		if ((node = xml_node_get_child(ifnode, "name")) != NULL)
+			ifname = node->cdata;
+
+		if (match_name) {
+			if (ifname == NULL || strcmp(ifname, match_name))
+				continue;
+		}
+
+		/* FIXME: check for matching behavior definition */
+
+		add_interface_worker(ifname, ifnode);
+		count++;
+	}
+
+	return count;
+}
+
+void
+interface_workers_refresh_state(ni_dbus_object_t *root_object)
+{
+	ni_dbus_object_t *iflist, *object;
+	interface_worker_t *w;
+	unsigned int i;
+
+	if (!(iflist = wicked_get_interface(root_object, NULL)))
+		ni_fatal("unable to get server's interface list");
+
+	for (i = 0, w = interface_workers; i < num_interface_workers; ++i, ++w) {
+		ni_interface_t *dev;
+
+		if ((dev = interface_workers[i].device) != NULL) {
+			interface_workers[i].device = NULL;
+			ni_interface_put(dev);
+		}
+	}
+
+	for (object = iflist->children; object; object = object->next) {
+		ni_interface_t *dev = ni_objectmodel_unwrap_interface(object);
+
+		if (dev == NULL || dev->name == NULL)
+			continue;
+
+		for (i = 0, w = interface_workers; i < num_interface_workers; ++i, ++w) {
+			if (w->ifindex) {
+				if (w->ifindex != dev->link.ifindex)
+					continue;
+			} else
+			if (w->name == NULL || strcmp(dev->name, w->name))
+				continue;
+
+			w->device = ni_interface_get(dev);
+			break;
+		}
+	}
+}
+
+int
+interface_workers_kickstart(ni_dbus_object_t *root_object)
+{
+	interface_worker_t *w;
+	unsigned int i;
+
+	interface_workers_refresh_state(root_object);
+	for (i = 0, w = interface_workers; i < num_interface_workers; ++i, ++w) {
+		if (w->device == NULL) {
+			const ni_dbus_service_t *service;
+			xml_node_t *linknode;
+			const char *link_type;
+			const char *ifname;
+
+			/* Device doesn't exist yet, try to create it */
+			ni_trace("interface_workers_kickstart: should create %s", w->name);
+			if (!(linknode = wicked_find_link_properties(w->config))) {
+				ni_error("unable to create interface %s: cannot determine link type of interface", w->name);
+				return -1;
+			}
+			link_type = linknode->name;
+
+			if (!(service = wicked_link_layer_factory_service(link_type))) {
+				ni_error("%s: unknown/unsupported link type %s", w->name, link_type);
+				return -1;
+			}
+
+			ifname = wicked_create_interface_xml(service, w->name, linknode);
+			if (ifname == NULL) {
+				ni_error("%s: failed to create interface", w->name);
+				return -1;
+			}
+
+			ni_string_dup(&w->name, ifname);
+		}
+
+		/* Have the FSM work on this */
+	}
+
+	return 0;
+}
+
+static int
+do_ifup(int argc, char **argv)
+{
+	enum  { OPT_SYSCONFIG, OPT_NETCF, OPT_FILE, OPT_BOOT };
+	static struct option ifup_options[] = {
+		{ "file", required_argument, NULL, OPT_FILE },
+		{ "boot", no_argument, NULL, OPT_BOOT },
+		{ NULL }
+	};
+	ni_dbus_variant_t argument = NI_DBUS_VARIANT_INIT;
+	const char *ifname = NULL;
+	const char *opt_file = NULL;
+	ni_dbus_object_t *root_object;
+	unsigned int ifevent = NI_IFACTION_MANUAL_UP;
+	ni_interface_t *config_dev = NULL;
+	xml_document_t *config_doc;
+	int c, rv = 1;
+
+	optind = 1;
+	while ((c = getopt_long(argc, argv, "", ifup_options, NULL)) != EOF) {
+		switch (c) {
+		case OPT_FILE:
+			opt_file = optarg;
+			break;
+
+		case OPT_BOOT:
+			ifevent = NI_IFACTION_BOOT;
+			break;
+
+		default:
+usage:
+			fprintf(stderr,
+				"wicked [options] ifup [ifup-options] all\n"
+				"wicked [options] ifup [ifup-options] <ifname> [options ...]\n"
+				"\nSupported ifup-options:\n"
+				"  --file <filename>\n"
+				"      Read interface configuration(s) from file rather than using system config\n"
+				"  --boot\n"
+				"      Ignore interfaces with startmode != boot\n"
+				);
+			return 1;
+		}
+	}
+
+	if (optind + 1 != argc) {
+		fprintf(stderr, "Missing interface argument\n");
+		goto usage;
+	}
+	ifname = argv[optind++];
+
+	if (!strcmp(ifname, "boot")) {
+		ifevent = NI_IFACTION_BOOT;
+		ifname = "all";
+	}
+
+	ni_dbus_variant_init_dict(&argument);
+	if (opt_file) {
+		if (!(config_doc = xml_document_read(opt_file))) {
+			ni_error("unable to load interface definition from %s", opt_file);
+			goto failed;
+		}
+
+		add_matching_interfaces(config_doc, ifname, ifevent);
+	} else {
+		ni_fatal("ifup: non-file case not implemented yet");
+	}
+
+
+	if (!(root_object = wicked_dbus_client_create()))
+		return 1;
+
+
+	interface_workers_kickstart(root_object);
+
+#if 0
+		/* Request that the server take the interface up */
+		config_dev->link.ifflags = NI_IFF_NETWORK_UP | NI_IFF_LINK_UP | NI_IFF_DEVICE_UP;
+
+		req = __interface_request_build(config_dev);
+
+		request_object = ni_objectmodel_wrap_interface_request(req);
+		if (!ni_dbus_object_get_properties_as_dict(request_object, &wicked_dbus_interface_request_service, &argument)) {
+			ni_interface_request_free(req);
+			ni_dbus_object_free(request_object);
+			ni_netconfig_free(nc);
+			goto failed;
+		}
+
+		ni_interface_request_free(req);
+		ni_dbus_object_free(request_object);
+		ni_netconfig_free(nc);
+
+		if (config_dev->startmode.ifaction[ifevent].action == NI_INTERFACE_IGNORE) {
+			ni_error("not permitted to bring up interface");
+			goto failed;
+		}
+	} else {
+		/* No options, just bring up with default options
+		 * (which may include dhcp) */
+	}
+
+	if (!(root_object = wicked_dbus_client_create()))
+		goto failed;
+
+	if (!(dev_object = wicked_get_interface(root_object, ifname)))
+		goto failed;
+
+	/* now do the real dbus call to bring it up */
+	if (!ni_dbus_object_call_variant(dev_object,
+				WICKED_DBUS_NETIF_INTERFACE, "up",
+				1, &argument, 0, NULL, &error)) {
+		ni_error("Unable to configure interface. Server responds:");
+		fprintf(stderr, /* ni_error_extra */
+			"%s: %s\n", error.name, error.message);
+		dbus_error_free(&error);
+		goto failed;
+	}
+
+	rv = 0;
+
+	// then wait for a signal from the server to tell us it's actually up
+
+	ni_debug_wicked("successfully configured %s", ifname);
+	rv = 0; /* success */
+#endif
+
+failed:
+	if (config_dev)
+		ni_interface_put(config_dev);
+	ni_dbus_variant_destroy(&argument);
+	return rv;
+}
+#else
 static int
 do_ifup(int argc, char **argv)
 {
@@ -1281,6 +1557,7 @@ failed:
 	ni_dbus_variant_destroy(&argument);
 	return rv;
 }
+#endif
 
 static int
 do_ifdown(int argc, char **argv)
