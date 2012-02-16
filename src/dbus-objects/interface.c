@@ -33,7 +33,7 @@ static ni_dbus_class_t		ni_objectmodel_ifreq_class = {
 	.name		= NI_OBJECTMODEL_NETIF_REQUEST_CLASS,
 };
 
-static const ni_dbus_service_t	wicked_dbus_interface_service;
+static ni_dbus_service_t	wicked_dbus_interface_service;
 extern const ni_dbus_service_t	wicked_dbus_interface_request_service; /* XXX */
 
 /*
@@ -455,7 +455,7 @@ static ni_dbus_property_t	wicked_dbus_interface_properties[] = {
 	{ NULL }
 };
 
-static const ni_dbus_service_t	wicked_dbus_interface_service = {
+static ni_dbus_service_t	wicked_dbus_interface_service = {
 	.name		= WICKED_DBUS_NETIF_INTERFACE,
 	.compatible	= &ni_objectmodel_netif_class,
 	.methods	= wicked_dbus_interface_methods,

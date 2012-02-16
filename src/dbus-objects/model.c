@@ -140,7 +140,7 @@ ni_objectmodel_bind_compatible_interfaces(ni_dbus_object_t *object)
  * objectmodel service registry
  */
 void
-ni_objectmodel_register_service(const ni_dbus_service_t *service)
+ni_objectmodel_register_service(ni_dbus_service_t *service)
 {
 	unsigned int index = ni_objectmodel_service_registry.count;
 

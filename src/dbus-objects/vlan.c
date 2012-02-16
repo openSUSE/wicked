@@ -35,7 +35,7 @@ ni_objectmodel_get_vlan(const ni_dbus_object_t *object, DBusError *error)
 	NI_DBUS_GENERIC_UINT16_PROPERTY(vlan, dbus_type, type, rw)
 
 const ni_dbus_property_t	ni_objectmodel_vlan_property_table[] = {
-	VLAN_STRING_PROPERTY(slave-name, physdev_name, RO),
+	VLAN_STRING_PROPERTY(device, physdev_name, RO),
 	VLAN_UINT16_PROPERTY(tag, tag, RO),
 	{ NULL }
 };
