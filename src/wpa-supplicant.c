@@ -61,10 +61,11 @@ static ni_dbus_class_t		ni_objectmodel_wpa_class = {
 	"wpa"
 };
 static ni_dbus_class_t		ni_objectmodel_wpanet_class;
-static ni_dbus_service_t	wpa_bssid_interface;
 static ni_dbus_class_t		ni_objectmodel_wpadev_class = {
 	"wpa-device"
 };
+static ni_dbus_service_t	ni_wpa_bssid_service;
+static ni_dbus_service_t	ni_wpa_device_service;
 
 static int		ni_wpa_get_interface(ni_wpa_client_t *, const char *, ni_wpa_interface_t **);
 static int		ni_wpa_add_interface(ni_wpa_client_t *, const char *, ni_wpa_interface_t **);
@@ -652,7 +653,7 @@ ni_wpa_network_set(ni_dbus_object_t *net_object, ni_wireless_network_t *net)
 	net_object->handle = ni_wireless_network_get(net);
 
 	ni_dbus_variant_init_dict(&dict);
-	if (!ni_dbus_object_get_properties_as_dict(net_object, &wpa_bssid_interface, &dict))
+	if (!ni_dbus_object_get_properties_as_dict(net_object, &ni_wpa_bssid_service, &dict))
 		goto done;
 
 	if (!ni_dbus_object_call_variant(net_object, NI_WPA_BSS_INTERFACE, "set", 1, &dict, 0, NULL, &error)) {
@@ -1281,7 +1282,7 @@ static ni_dbus_property_t	wpa_bss_properties[] = {
 	{ NULL }
 };
 
-static ni_dbus_service_t	wpa_bssid_interface = {
+static ni_dbus_service_t	ni_wpa_bssid_service = {
 	.name		= NI_WPA_BSS_INTERFACE,
 	.properties	= wpa_bss_properties,
 	.compatible	= &ni_objectmodel_wpanet_class,
@@ -1305,7 +1306,7 @@ ni_wpa_bss_properties_result(ni_dbus_object_t *proxy, ni_dbus_message_t *msg)
 
 	ni_wpa_network_properties_destroy(net);
 
-	if (!ni_dbus_object_set_properties_from_dict(proxy, &wpa_bssid_interface, &dict))
+	if (!ni_dbus_object_set_properties_from_dict(proxy, &ni_wpa_bssid_service, &dict))
 		goto failed;
 
 	ni_debug_wireless("Updated BSS %s, essid=%.*s, freq=%.3f GHz, quality=%.2f, noise=%u, level=%.2f dBm, maxrate=%u MB/s",
@@ -1720,7 +1721,7 @@ static ni_dbus_property_t	wpa_ifcap_properties[] = {
 	{ NULL }
 };
 
-ni_dbus_service_t	wpa_ifcap_interface = {
+static ni_dbus_service_t	ni_wpa_device_service = {
 	.name		= NI_WPA_IF_INTERFACE,
 	.properties	= wpa_ifcap_properties,
 	.compatible	= &ni_objectmodel_wpadev_class,
@@ -1786,7 +1787,7 @@ ni_wpa_interface_get_capabilities(ni_wpa_client_t *wpa, ni_wpa_interface_t *ifp)
 	ni_dbus_variant_init_dict(&dict);
 	if (!ni_dbus_message_iter_get_variant_data(&iter, &dict))
 		goto failed;
-	rv = ni_dbus_object_set_properties_from_dict(ifp->proxy, &wpa_ifcap_interface, &dict);
+	rv = ni_dbus_object_set_properties_from_dict(ifp->proxy, &ni_wpa_device_service, &dict);
 
 #if 0
 	if (rv) {
