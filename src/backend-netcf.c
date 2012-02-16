@@ -370,6 +370,7 @@ __ni_netcf_xml_to_interface(ni_netconfig_t *nc, xml_node_t *ifnode)
 					afi->enabled = 0;
 					continue;
 				}
+#if 0
 				if (!strcmp(child->name, "lease")) {
 					ni_addrconf_lease_t *lease;
 
@@ -388,6 +389,7 @@ __ni_netcf_xml_to_interface(ni_netconfig_t *nc, xml_node_t *ifnode)
 						ni_addrconf_lease_free(afi->lease[mode]);
 					afi->lease[mode] = lease;
 				}
+#endif
 			}
 		}
 
@@ -827,7 +829,6 @@ __ni_netcf_xml_from_address_config(const ni_afinfo_t *afi,
 
 		for (mode = 0; mode < __NI_ADDRCONF_MAX; ++mode) {
 			ni_addrconf_request_t *req;
-			ni_addrconf_lease_t *lease;
 
 			if (mode == NI_ADDRCONF_STATIC || !ni_afinfo_addrconf_test(afi, mode))
 				continue;
@@ -845,8 +846,10 @@ __ni_netcf_xml_from_address_config(const ni_afinfo_t *afi,
 					xml_node_new(acname, protnode);
 			}
 
+#if 0
 			if ((lease = afi->lease[mode]) != NULL)
 				__ni_netcf_xml_from_lease(lease, protnode);
+#endif
 		}
 	} else if (!__ni_netcf_strict_syntax) {
 		protnode = __ni_netcf_make_protocol_node(ifnode, afi->family);

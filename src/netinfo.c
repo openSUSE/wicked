@@ -151,55 +151,6 @@ ni_server_dbus_xml_schema(void)
 	return scope;
 }
 
-void
-__ni_afinfo_set_addrconf_request(ni_afinfo_t *afi, unsigned int mode, ni_addrconf_request_t *req)
-{
-	if (mode >= __NI_ADDRCONF_MAX) {
-		ni_error("%s: bad addrconf mode %u", __FUNCTION__, mode);
-		return;
-	}
-	if (afi->request[mode])
-		ni_addrconf_request_free(afi->request[mode]);
-	afi->request[mode] = req;
-}
-
-void
-__ni_afinfo_set_addrconf_lease(ni_afinfo_t *afi, unsigned int mode, ni_addrconf_lease_t *lease)
-{
-	ni_assert(lease->type == mode);
-	if (mode >= __NI_ADDRCONF_MAX) {
-		ni_error("%s: bad addrconf mode %u", __FUNCTION__, mode);
-		return;
-	}
-	if (afi->lease[mode])
-		ni_addrconf_lease_free(afi->lease[mode]);
-	if (lease->state == NI_ADDRCONF_STATE_GRANTED) {
-		afi->lease[mode] = lease;
-	} else {
-		afi->lease[mode] = NULL;
-	}
-}
-
-int
-__ni_afinfo_is_up(const ni_afinfo_t *afi, const ni_interface_t *ifp)
-{
-	unsigned int mode;
-
-	for (mode = 0; mode < __NI_ADDRCONF_MAX; ++mode) {
-		if (!ni_afinfo_addrconf_test(afi, mode))
-			continue;
-		if (afi->request[mode] && !afi->lease[mode]) {
-			ni_debug_ifconfig("%s: still waiting for %s/%s lease",
-					ifp->name,
-					ni_addrconf_type_to_name(mode),
-					ni_addrfamily_type_to_name(afi->family));
-			return 0;
-		}
-	}
-
-	return 1;
-}
-
 /*
  * Constructor/destructor for netconfig handles
  */
@@ -371,10 +322,6 @@ __ni_afinfo_destroy(ni_afinfo_t *afi)
 			ni_addrconf_request_free(afi->request[i]);
 			afi->request[i] = NULL;
 		}
-		if (afi->lease[i]) {
-			ni_addrconf_lease_free(afi->lease[i]);
-			afi->lease[i] = NULL;
-		}
 	}
 }
 
@@ -470,6 +417,17 @@ ni_addrconf_lease_destroy(ni_addrconf_lease_t *lease)
 		break;
 
 	default: ;
+	}
+}
+
+void
+ni_addrconf_lease_list_destroy(ni_addrconf_lease_t **list)
+{
+	ni_addrconf_lease_t *lease;
+
+	while ((lease = *list) != NULL) {
+		*list = lease->next;
+		ni_addrconf_lease_free(lease);
 	}
 }
 

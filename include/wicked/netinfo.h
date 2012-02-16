@@ -110,7 +110,7 @@ typedef struct ni_afinfo {
 
 	unsigned int		addrconf;	/* bitmask of enabled addrconf modes */
 
-	ni_addrconf_lease_t *	lease[__NI_ADDRCONF_MAX];
+	/* FIXME: remove these */
 	ni_addrconf_request_t *	request[__NI_ADDRCONF_MAX];
 } ni_afinfo_t;
 
@@ -186,6 +186,9 @@ struct ni_interface {
 
 	/* Pending addrconf requests */
 	ni_addrconf_request_t *	addrconf;
+
+	/* Assigned leases */
+	ni_addrconf_lease_t *	leases;
 
 	/* link layer info specific to different device types. */
 	ni_interface_t *	parent;
@@ -269,8 +272,9 @@ extern int		ni_interface_guess_type(ni_interface_t *ifp);
 
 extern int		ni_interface_set_addrconf_request(ni_interface_t *, ni_addrconf_request_t *);
 ni_addrconf_request_t *	ni_interface_get_addrconf_request(ni_interface_t *dev, const ni_uuid_t *uuid);
-extern int		ni_interface_set_lease(ni_interface_t *, ni_addrconf_lease_t **);
+extern int		ni_interface_set_lease(ni_interface_t *, ni_addrconf_lease_t *);
 extern int		ni_interface_unset_lease(ni_interface_t *, int af, ni_addrconf_mode_t type);
+ni_addrconf_lease_t *	ni_interface_get_lease(ni_interface_t *, int, ni_addrconf_mode_t);
 extern int		ni_interface_request_scan(ni_netconfig_t *, ni_interface_t *);
 extern int		ni_interface_get_scan_results(ni_netconfig_t *, ni_interface_t *);
 

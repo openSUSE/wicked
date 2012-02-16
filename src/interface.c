@@ -163,6 +163,8 @@ ni_interface_free(ni_interface_t *ifp)
 	__ni_afinfo_destroy(&ifp->ipv4);
 	__ni_afinfo_destroy(&ifp->ipv6);
 
+	ni_addrconf_lease_list_destroy(&ifp->leases);
+
 	free(ifp);
 }
 
@@ -339,66 +341,56 @@ ni_interface_get_addrconf_request(ni_interface_t *dev, const ni_uuid_t *uuid)
 }
 
 /*
+ * Locate any lease for the same addrconf mechanism
+ */
+static ni_addrconf_lease_t *
+__ni_interface_find_lease(ni_interface_t *ifp, int family, ni_addrconf_mode_t type, int remove)
+{
+	ni_addrconf_lease_t *lease, **pos;
+
+	for (pos = &ifp->leases; (lease = *pos) != NULL; pos = &lease->next) {
+		if (lease->type == type && lease->family == family) {
+			if (remove) {
+				*pos = lease->next;
+				lease->next = NULL;
+			}
+			return lease;
+		}
+	}
+
+	return NULL;
+}
+
+/*
  * We received an updated lease from an addrconf agent.
  */
 int
-ni_interface_set_lease(ni_interface_t *ifp, ni_addrconf_lease_t **lease_p)
+ni_interface_set_lease(ni_interface_t *ifp, ni_addrconf_lease_t *lease)
 {
-	ni_addrconf_lease_t *lease = *lease_p;
-	ni_afinfo_t *afi;
+	ni_addrconf_lease_t **pos;
 
-	afi = __ni_interface_address_info(ifp, lease->family);
-	if (afi == NULL) {
-		ni_error("unknown address family %d in lease update", lease->family);
-		return -1;
-	}
+	ni_interface_unset_lease(ifp, lease->family, lease->type);
+	for (pos = &ifp->leases; *pos != NULL; pos = &(*pos)->next)
+		;
 
-	if (lease == NULL) {
-		ni_error("%s: NULL lease encountered", __func__);
-		return -1;
-	}
-
-	if (lease->type >= __NI_ADDRCONF_MAX) {
-		ni_error("unknown addrconf type %d in lease type", lease->type);
-		return -1;
-	}
-
-	if (afi->lease[lease->type] != NULL)
-		ni_addrconf_lease_free(afi->lease[lease->type]);
-	if (lease->state == NI_ADDRCONF_STATE_GRANTED) {
-		ni_afinfo_addrconf_enable(afi, lease->type);
-		afi->lease[lease->type] = lease;
-		*lease_p = NULL; /* w3 0wn all ur leazes. */
-	} else {
-		ni_afinfo_addrconf_disable(afi, lease->type);
-		afi->lease[lease->type] = NULL;
-	}
-
+	*pos = lease;
 	return 0;
 }
 
 int
 ni_interface_unset_lease(ni_interface_t *ifp, int family, ni_addrconf_mode_t type)
 {
-	ni_afinfo_t *afi;
+	ni_addrconf_lease_t *lease;
 
-	afi = __ni_interface_address_info(ifp, family);
-	if (afi == NULL) {
-		ni_error("unknown address family %d in lease update", family);
-		return -1;
-	}
-
-	if (type >= __NI_ADDRCONF_MAX) {
-		ni_error("unknown addrconf type %d in lease type", type);
-		return -1;
-	}
-
-	if (afi->lease[type] != NULL) {
-		ni_addrconf_lease_free(afi->lease[type]);
-		afi->lease[type] = NULL;
-	}
-
+	if ((lease = __ni_interface_find_lease(ifp, family, type, 1)) != NULL)
+		ni_addrconf_lease_free(lease);
 	return 0;
+}
+
+ni_addrconf_lease_t *
+ni_interface_get_lease(ni_interface_t *dev, int family, ni_addrconf_mode_t type)
+{
+	return __ni_interface_find_lease(dev, family, type, 0);
 }
 
 /*
@@ -407,17 +399,10 @@ ni_interface_unset_lease(ni_interface_t *ifp, int family, ni_addrconf_mode_t typ
 ni_addrconf_lease_t *
 __ni_interface_address_to_lease(ni_interface_t *ifp, const ni_address_t *ap)
 {
-	ni_afinfo_t *afi = __ni_interface_address_info(ifp, ap->family);
-	unsigned int type;
+	ni_addrconf_lease_t *lease;
 
-	if (!afi)
-		return NULL;
-
-	for (type = 0; type < __NI_ADDRCONF_MAX; ++type) {
-		ni_addrconf_lease_t *lease;
-
-		if ((lease = afi->lease[type])
-		 && __ni_lease_owns_address(lease, ap))
+	for (lease = ifp->leases; lease; lease = lease->next) {
+		if (__ni_lease_owns_address(lease, ap))
 			return lease;
 	}
 
@@ -462,23 +447,13 @@ __ni_lease_owns_address(const ni_addrconf_lease_t *lease, const ni_address_t *ap
 ni_addrconf_lease_t *
 __ni_interface_route_to_lease(ni_interface_t *ifp, const ni_route_t *rp)
 {
-	ni_afinfo_t *afi;
+	ni_addrconf_lease_t *lease;
 	ni_address_t *ap;
-	unsigned int type;
 
 	if (!ifp || !rp)
 		return NULL;
 
-	afi = __ni_interface_address_info(ifp, rp->family);
-	if (!afi)
-		return NULL;
-
-	for (type = 0; type < __NI_ADDRCONF_MAX; ++type) {
-		ni_addrconf_lease_t *lease;
-
-		if ((lease = afi->lease[type]) == NULL)
-			continue;
-
+	for (lease = ifp->leases; lease; lease = lease->next) {
 		/* First, check if this is an interface route */
 		for (ap = lease->addrs; ap; ap = ap->next) {
 			if (rp->prefixlen == ap->prefixlen
@@ -512,6 +487,7 @@ __ni_lease_owns_route(const ni_addrconf_lease_t *lease, const ni_route_t *rp)
  * Check whether an interface is up.
  * To be up, it needs to have all *UP flag set, and must have acquired
  * all the requested leases.
+ * FIXME: OBSOLETE
  */
 int
 __ni_interface_is_up(const ni_interface_t *ifp)
@@ -522,12 +498,6 @@ __ni_interface_is_up(const ni_interface_t *ifp)
 		ni_debug_ifconfig("%s: not all layers are up", ifp->name);
 		return 0;
 	}
-
-	if (!__ni_afinfo_is_up(&ifp->ipv4, ifp))
-		return 0;
-
-	if (!__ni_afinfo_is_up(&ifp->ipv6, ifp))
-		return 0;
 
 	return 1;
 }

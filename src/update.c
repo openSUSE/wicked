@@ -217,12 +217,11 @@ ni_system_update_from_lease(ni_netconfig_t *nc, ni_interface_t *ifp, const ni_ad
 }
 
 static void
-ni_system_update_find_lease_afinfo(ni_interface_t *ifp, ni_afinfo_t *afi, unsigned int target, struct ni_update_lease_choice *best)
+ni_system_update_find_lease_interface(ni_interface_t *ifp, unsigned int target, struct ni_update_lease_choice *best)
 {
-	unsigned int mode;
+	ni_addrconf_lease_t *lease;
 
-	for (mode = 0; mode < __NI_ADDRCONF_MAX; ++mode) {
-		ni_addrconf_lease_t *lease = afi->lease[mode];
+	for (lease = ifp->leases; lease; lease = lease->next) {
 		unsigned int update_mask;
 
 		update_mask = ni_system_lease_capabilities(ifp, lease);
@@ -235,13 +234,6 @@ ni_system_update_find_lease_afinfo(ni_interface_t *ifp, ni_afinfo_t *afi, unsign
 			}
 		}
 	}
-}
-
-static void
-ni_system_update_find_lease_interface(ni_interface_t *ifp, unsigned int target, struct ni_update_lease_choice *best)
-{
-	ni_system_update_find_lease_afinfo(ifp, &ifp->ipv4, target, best);
-	ni_system_update_find_lease_afinfo(ifp, &ifp->ipv6, target, best);
 }
 
 static void

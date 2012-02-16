@@ -273,7 +273,8 @@ __ni_system_interface_update_lease(ni_interface_t *ifp, ni_addrconf_lease_t **le
 		return res;
 	}
 
-	ni_interface_set_lease(ifp, lease_p);
+	ni_interface_set_lease(ifp, lease);
+	*lease_p = NULL;
 
 	if (update_mask)
 		ni_system_update_from_lease(nc, ifp, lease);

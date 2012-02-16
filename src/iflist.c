@@ -800,10 +800,10 @@ __ni_interface_process_newprefix(ni_interface_t *ifp, struct nlmsghdr *h, struct
 	} else
 		return 0;
 
-	if ((lease = afi->lease[NI_ADDRCONF_AUTOCONF]) == NULL) {
-		lease = ni_addrconf_lease_new(afi->family, NI_ADDRCONF_AUTOCONF);
-		afi->lease[NI_ADDRCONF_AUTOCONF] = lease;
+	if ((lease = ni_interface_get_lease(ifp, AF_INET6, NI_ADDRCONF_AUTOCONF)) == NULL) {
+		lease = ni_addrconf_lease_new(AF_INET6, NI_ADDRCONF_AUTOCONF);
 		lease->state = NI_ADDRCONF_STATE_GRANTED;
+		ni_interface_set_lease(ifp, lease);
 	}
 
 	if (nlmsg_parse(h, sizeof(*pfx), tb, PREFIX_MAX, NULL) < 0) {
@@ -1090,17 +1090,19 @@ __ni_discover_bond(ni_interface_t *ifp)
 int
 __ni_discover_addrconf(ni_interface_t *ifp)
 {
-	unsigned int i;
+	ni_addrconf_lease_t *lease;
 
 	__ni_assert_initialized();
 
-	for (i = 0; i < __NI_ADDRCONF_MAX; ++i) {
-		if (ni_addrconf_lease_is_valid(ifp->ipv4.lease[i]))
-			ni_afinfo_addrconf_enable(&ifp->ipv4, i);
-	}
-	for (i = 0; i < __NI_ADDRCONF_MAX; ++i) {
-		if (ni_addrconf_lease_is_valid(ifp->ipv6.lease[i]))
-			ni_afinfo_addrconf_enable(&ifp->ipv6, i);
+	for (lease = ifp->leases; lease; lease = lease->next) {
+		switch (lease->family) {
+		case AF_INET:
+			ni_afinfo_addrconf_enable(&ifp->ipv4, lease->type);
+			break;
+		case AF_INET6:
+			ni_afinfo_addrconf_enable(&ifp->ipv6, lease->type);
+			break;
+		}
 	}
 
 	return 0;

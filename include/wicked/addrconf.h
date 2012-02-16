@@ -53,6 +53,8 @@ enum {
 };
 
 struct ni_addrconf_lease {
+	ni_addrconf_lease_t *	next;
+
 	ni_addrconf_mode_t	type;
 	int			family;
 	ni_uuid_t		uuid;
@@ -168,6 +170,7 @@ extern int		ni_addrconf_request_equal(const ni_addrconf_request_t *, const ni_ad
 extern ni_addrconf_lease_t *ni_addrconf_lease_new(int type, int family);
 extern void		ni_addrconf_lease_destroy(ni_addrconf_lease_t *);
 extern void		ni_addrconf_lease_free(ni_addrconf_lease_t *);
+extern void		ni_addrconf_lease_list_destroy(ni_addrconf_lease_t **list);
 
 static inline int
 ni_addrconf_lease_is_valid(const ni_addrconf_lease_t *lease)
