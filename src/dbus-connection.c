@@ -17,9 +17,9 @@
 #include "debug.h"
 
 
-typedef struct ni_dbus_pending ni_dbus_pending_t;
-struct ni_dbus_pending {
-	ni_dbus_pending_t *	next;
+typedef struct ni_dbus_async_client_call ni_dbus_async_client_call_t;
+struct ni_dbus_async_client_call {
+	ni_dbus_async_client_call_t *	next;
 
 	DBusPendingCall *	call;
 	ni_dbus_async_callback_t *callback;
@@ -38,7 +38,7 @@ struct ni_dbus_sigaction {
 
 struct ni_dbus_connection {
 	DBusConnection *	conn;
-	ni_dbus_pending_t *	pending;
+	ni_dbus_async_client_call_t *	pending;
 	ni_dbus_sigaction_t *	sighandlers;
 };
 
@@ -52,7 +52,7 @@ struct ni_dbus_watch_data {
 static ni_dbus_watch_data_t *	ni_dbus_watches;
 
 static void			__ni_dbus_sigaction_free(ni_dbus_sigaction_t *);
-static void			__ni_dbus_pending_free(ni_dbus_pending_t *);
+static void			__ni_dbus_async_client_call_free(ni_dbus_async_client_call_t *);
 static void			__ni_dbus_notify_async(DBusPendingCall *, void *);
 static dbus_bool_t		__ni_dbus_add_watch(DBusWatch *, void *);
 static void			__ni_dbus_remove_watch(DBusWatch *, void *);
@@ -135,7 +135,7 @@ failed:
 void
 ni_dbus_connection_free(ni_dbus_connection_t *dbc)
 {
-	ni_dbus_pending_t *pd;
+	ni_dbus_async_client_call_t *pd;
 	ni_dbus_sigaction_t *sig;
 
 	NI_TRACE_ENTER();
@@ -143,7 +143,7 @@ ni_dbus_connection_free(ni_dbus_connection_t *dbc)
 	while ((pd = dbc->pending) != NULL) {
 		dbc->pending = pd->next;
 		dbus_pending_call_cancel(pd->call);
-		__ni_dbus_pending_free(pd);
+		__ni_dbus_async_client_call_free(pd);
 	}
 
 	while ((sig = dbc->sighandlers) != NULL) {
@@ -169,7 +169,7 @@ ni_dbus_connection_add_pending(ni_dbus_connection_t *connection,
 			ni_dbus_async_callback_t *callback,
 			ni_dbus_object_t *proxy)
 {
-	ni_dbus_pending_t *pd;
+	ni_dbus_async_client_call_t *pd;
 
 	pd = calloc(1, sizeof(*pd));
 	pd->proxy = proxy;
@@ -181,7 +181,7 @@ ni_dbus_connection_add_pending(ni_dbus_connection_t *connection,
 }
 
 static void
-__ni_dbus_pending_free(ni_dbus_pending_t *pd)
+__ni_dbus_async_client_call_free(ni_dbus_async_client_call_t *pd)
 {
 	dbus_pending_call_unref(pd->call);
 	free(pd);
@@ -191,14 +191,14 @@ static int
 __ni_dbus_process_pending(ni_dbus_connection_t *dbc, DBusPendingCall *call)
 {
 	DBusMessage *msg = dbus_pending_call_steal_reply(call);
-	ni_dbus_pending_t *pd, **pos;
+	ni_dbus_async_client_call_t *pd, **pos;
 	int rv = 0;
 
 	for (pos = &dbc->pending; (pd = *pos) != NULL; pos = &pd->next) {
 		if (pd->call == call) {
 			*pos = pd->next;
 			pd->callback(pd->proxy, msg);
-			__ni_dbus_pending_free(pd);
+			__ni_dbus_async_client_call_free(pd);
 			rv = 1;
 			break;
 		}
