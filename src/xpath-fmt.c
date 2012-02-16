@@ -61,6 +61,8 @@ typedef struct xpath_fnode {
 	ni_stringbuf_t		expression;
 	xpath_enode_t *		enode;
 	xpath_result_t *	result;
+
+	unsigned int		optional : 1;
 } xpath_fnode_t;
 
 struct xpath_format {
@@ -112,7 +114,13 @@ xpath_format_parse(const char *format)
 				ni_error("xpath: empty %%{} in format string");
 				goto failed;
 			} else {
-				cur->enode = xpath_expression_parse(cur->expression.string);
+				const char *expression = cur->expression.string;
+
+				if (expression[0] == '?') {
+					cur->optional = 1;
+					expression++;
+				}
+				cur->enode = xpath_expression_parse(expression);
 				if (!cur->enode)
 					goto failed;
 
@@ -142,6 +150,7 @@ int
 xpath_format_eval(xpath_format_t *pieces, xml_node_t *xn, ni_string_array_t *result)
 {
 	ni_stringbuf_t formatted;
+	const xpath_fnode_t *max_node = NULL;
 	unsigned int num_expansions = ~0;
 	unsigned int m, n;
 
@@ -168,13 +177,21 @@ xpath_format_eval(xpath_format_t *pieces, xml_node_t *xn, ni_string_array_t *res
 			fnode->result = xpath_result_to_strings(result);
 			xpath_result_free(result);
 
-			if (num_expansions == ~0) {
+			if (max_node == NULL) {
 				num_expansions = fnode->result->count;
+				max_node = fnode;
 			} else
-			if (num_expansions != fnode->result->count) {
-				ni_error("xpathfmt: problem evaluating expression \"%s\" - inconsistent item count",
-						fnode->expression.string);
-				return 0;
+			if (num_expansions < fnode->result->count) {
+				if (max_node->optional)
+					max_node = fnode;
+			} else
+			if (num_expansions > fnode->result->count) {
+				if (!fnode->optional) {
+					ni_error("xpathfmt: problem evaluating expression \"%s\" - "
+						 "inconsistent item count",
+						 fnode->expression.string);
+					return 0;
+				}
 			}
 		}
 	}
@@ -188,7 +205,7 @@ xpath_format_eval(xpath_format_t *pieces, xml_node_t *xn, ni_string_array_t *res
 
 			if (!ni_stringbuf_empty(&fnode->before))
 				ni_stringbuf_puts(&formatted, fnode->before.string);
-			if (fnode->result)
+			if (fnode->result && n < fnode->result->count)
 				ni_stringbuf_puts(&formatted, fnode->result->node[n].value.string);
 		}
 
