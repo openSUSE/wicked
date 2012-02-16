@@ -34,6 +34,7 @@ struct ni_process_instance {
 	void *			user_data;
 };
 
+extern int			ni_process_instance_run(ni_process_instance_t *);
 extern void			ni_process_instance_free(ni_process_instance_t *);
 extern void			ni_process_free(ni_process_t *);
 

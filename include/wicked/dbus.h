@@ -80,6 +80,10 @@ typedef dbus_bool_t		ni_dbus_async_method_handler_t(ni_dbus_server_t *server,
 					ni_dbus_object_t *object,
 					const ni_dbus_method_t *method,
 					ni_dbus_message_t *call);
+typedef dbus_bool_t		ni_dbus_async_method_completion_t(ni_dbus_object_t *object,
+					const ni_dbus_method_t *method,
+					ni_dbus_message_t *call,
+					const ni_process_instance_t *);
 
 struct ni_dbus_method {
 	const char *		name;
@@ -88,6 +92,7 @@ struct ni_dbus_method {
 	/* A method should set only one of these handlers */
 	ni_dbus_method_handler_t *handler;
 	ni_dbus_async_method_handler_t *async_handler;
+	ni_dbus_async_method_completion_t *async_completion;
 
 	void *			user_data;
 };
