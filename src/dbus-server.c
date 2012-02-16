@@ -541,16 +541,6 @@ __ni_dbus_object_message(DBusConnection *conn, DBusMessage *call, void *user_dat
 						method_name);
 				goto error_reply;
 			}
-			argc = ni_dbus_message_get_args_variants(call, argv, 16);
-			if (argc < 0) {
-				dbus_set_error(&error,
-						DBUS_ERROR_INVALID_ARGS,
-						"Bad arguments in call to object %s, %s.%s",
-						object->path,
-						svc->name,
-						method_name);
-				goto error_reply;
-			}
 		}
 
 		/* If the object has a refresh function, call it now */
@@ -560,8 +550,22 @@ __ni_dbus_object_message(DBusConnection *conn, DBusMessage *call, void *user_dat
 					DBUS_ERROR_FAILED,
 					"Failed to refresh object %s",
 					object->path);
-			rv = FALSE;
-		} else {
+			goto error_reply;
+		}
+
+		/* Deserialize dbus message */
+		argc = ni_dbus_message_get_args_variants(call, argv, 16);
+		if (argc < 0) {
+			dbus_set_error(&error,
+					DBUS_ERROR_INVALID_ARGS,
+					"Bad arguments in call to object %s, %s.%s",
+					object->path,
+					svc->name,
+					method_name);
+			goto error_reply;
+		}
+
+		{
 			/* Allocate a reply message */
 			reply = dbus_message_new_method_return(call);
 
