@@ -254,6 +254,7 @@ extern void			ni_dbus_variant_set_uint32(ni_dbus_variant_t *, uint32_t);
 extern void			ni_dbus_variant_set_int32(ni_dbus_variant_t *, int32_t);
 extern void			ni_dbus_variant_set_uint64(ni_dbus_variant_t *, uint64_t);
 extern void			ni_dbus_variant_set_int64(ni_dbus_variant_t *, int64_t);
+extern void			ni_dbus_variant_set_double(ni_dbus_variant_t *, double);
 extern dbus_bool_t		ni_dbus_variant_set_int(ni_dbus_variant_t *, int);
 extern dbus_bool_t		ni_dbus_variant_set_uint(ni_dbus_variant_t *, unsigned int);
 extern dbus_bool_t		ni_dbus_variant_set_long(ni_dbus_variant_t *, long);
@@ -271,6 +272,7 @@ extern dbus_bool_t		ni_dbus_variant_get_uint32(const ni_dbus_variant_t *, uint32
 extern dbus_bool_t		ni_dbus_variant_get_int32(const ni_dbus_variant_t *, int32_t *);
 extern dbus_bool_t		ni_dbus_variant_get_uint64(const ni_dbus_variant_t *, uint64_t *);
 extern dbus_bool_t		ni_dbus_variant_get_int64(const ni_dbus_variant_t *, int64_t *);
+extern dbus_bool_t		ni_dbus_variant_get_double(const ni_dbus_variant_t *, double *);
 extern dbus_bool_t		ni_dbus_variant_get_int(const ni_dbus_variant_t *, int *);
 extern dbus_bool_t		ni_dbus_variant_get_uint(const ni_dbus_variant_t *, unsigned int *);
 extern dbus_bool_t		ni_dbus_variant_get_long(const ni_dbus_variant_t *, long *);
@@ -313,6 +315,7 @@ extern dbus_bool_t		ni_dbus_dict_add_int64(ni_dbus_variant_t *, const char *, in
 extern dbus_bool_t		ni_dbus_dict_add_uint64(ni_dbus_variant_t *, const char *, uint64_t);
 extern dbus_bool_t		ni_dbus_dict_add_string(ni_dbus_variant_t *, const char *, const char *);
 extern dbus_bool_t		ni_dbus_dict_add_object_path(ni_dbus_variant_t *, const char *, const char *);
+extern dbus_bool_t		ni_dbus_dict_add_double(ni_dbus_variant_t *, const char *, double);
 extern dbus_bool_t		ni_dbus_dict_add_byte_array(ni_dbus_variant_t *, const char *,
 					const unsigned char *byte_array, unsigned int len);
 extern ni_dbus_variant_t *	ni_dbus_dict_get(const ni_dbus_variant_t *, const char *);
@@ -326,6 +329,7 @@ extern dbus_bool_t		ni_dbus_dict_get_int64(const ni_dbus_variant_t *, const char
 extern dbus_bool_t		ni_dbus_dict_get_uint64(const ni_dbus_variant_t *, const char *, uint64_t *);
 extern dbus_bool_t		ni_dbus_dict_get_string(const ni_dbus_variant_t *, const char *, const char **);
 extern dbus_bool_t		ni_dbus_dict_get_object_path(const ni_dbus_variant_t *, const char *, const char **);
+extern dbus_bool_t		ni_dbus_dict_get_double(const ni_dbus_variant_t *, const char *, double *);
 
 extern void			ni_dbus_dict_array_init(ni_dbus_variant_t *);
 extern ni_dbus_variant_t *	ni_dbus_dict_array_add(ni_dbus_variant_t *);

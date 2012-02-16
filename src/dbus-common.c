@@ -383,6 +383,13 @@ ni_dbus_variant_set_int64(ni_dbus_variant_t *var, int64_t value)
 	var->int64_value = value;
 }
 
+void
+ni_dbus_variant_set_double(ni_dbus_variant_t *var, double value)
+{
+	__ni_dbus_variant_change_type(var, DBUS_TYPE_DOUBLE);
+	var->double_value = value;
+}
+
 /*
  * Get simple types from a variant
  */
@@ -477,6 +484,15 @@ ni_dbus_variant_get_int64(const ni_dbus_variant_t *var, int64_t *ret)
 	return TRUE;
 }
 
+dbus_bool_t
+ni_dbus_variant_get_double(const ni_dbus_variant_t *var, double *ret)
+{
+	if (var->type != DBUS_TYPE_DOUBLE)
+		return FALSE;
+	*ret = var->double_value;
+	return TRUE;
+}
+
 /*
  * The following functions "cast" the value of a variant integer to a
  * C type, and vice versa.
@@ -499,6 +515,8 @@ ni_dbus_variant_get_int64(const ni_dbus_variant_t *var, int64_t *ret)
 		*ret = var->int64_value; break; \
 	case DBUS_TYPE_UINT64: \
 		*ret = var->uint64_value; break; \
+	case DBUS_TYPE_DOUBLE: \
+		*ret = var->double_value; break; \
 	default: \
 		return FALSE; \
 	}
@@ -551,6 +569,8 @@ ni_dbus_variant_get_ulong(const ni_dbus_variant_t *var, unsigned long *ret)
 		var->int64_value = value; break; \
 	case DBUS_TYPE_UINT64: \
 		var->uint64_value = value; break; \
+	case DBUS_TYPE_DOUBLE: \
+		var->double_value = value; break; \
 	default: \
 		return FALSE; \
 	}
@@ -1267,6 +1287,17 @@ ni_dbus_dict_add_int64(ni_dbus_variant_t *dict, const char *key, int64_t value)
 }
 
 dbus_bool_t
+ni_dbus_dict_add_double(ni_dbus_variant_t *dict, const char *key, double value)
+{
+	ni_dbus_variant_t *dst;
+
+	if (!(dst = ni_dbus_dict_add(dict, key)))
+		return FALSE;
+	ni_dbus_variant_set_double(dst, value);
+	return TRUE;
+}
+
+dbus_bool_t
 ni_dbus_dict_add_byte_array(ni_dbus_variant_t *dict, const char *key,
 			const unsigned char *byte_array, unsigned int len)
 {
@@ -1390,6 +1421,16 @@ ni_dbus_dict_get_object_path(const ni_dbus_variant_t *dict, const char *key, con
 	if (!(var = ni_dbus_dict_get(dict, key)))
 		return FALSE;
 	return ni_dbus_variant_get_object_path(var, value);
+}
+
+dbus_bool_t
+ni_dbus_dict_get_double(const ni_dbus_variant_t *dict, const char *key, double *value)
+{
+	const ni_dbus_variant_t *var;
+
+	if (!(var = ni_dbus_dict_get(dict, key)))
+		return FALSE;
+	return ni_dbus_variant_get_double(var, value);
 }
 
 dbus_bool_t

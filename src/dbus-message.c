@@ -190,10 +190,8 @@ ni_dbus_message_iter_append_value(DBusMessageIter *iter, const ni_dbus_variant_t
 	if (value != NULL) {
 		const char *empty = "";
 
-		if (!strcmp(signature, DBUS_TYPE_STRING_AS_STRING) && !*(const char **) value) {
-			ni_warn("%s: translate NULL -> \"\"", __func__);
+		if (!strcmp(signature, DBUS_TYPE_STRING_AS_STRING) && !*(const char **) value)
 			value = &empty;
-		}
 		rv = dbus_message_iter_append_basic(iter_val, variant->type, value);
 	} else
 	if (variant->type == DBUS_TYPE_ARRAY) {
@@ -494,6 +492,12 @@ dbus_bool_t
 ni_dbus_message_append_string(ni_dbus_message_t *msg, const char * value)
 {
 	return dbus_message_append_args(msg, DBUS_TYPE_STRING, &value, 0);
+}
+
+dbus_bool_t
+ni_dbus_message_append_double(ni_dbus_message_t *msg, double value)
+{
+	return dbus_message_append_args(msg, DBUS_TYPE_DOUBLE, &value, 0);
 }
 
 dbus_bool_t
