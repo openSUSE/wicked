@@ -23,7 +23,6 @@
 #include "model.h"
 #include "debug.h"
 
-static const char *	__ni_objectmodel_link_classname(ni_iftype_t);
 static void		ni_objectmodel_netif_destroy(ni_dbus_object_t *object);
 
 static ni_dbus_class_t		ni_objectmodel_netif_class = {
@@ -36,7 +35,6 @@ static ni_dbus_class_t		ni_objectmodel_ifreq_class = {
 
 static const ni_dbus_service_t	wicked_dbus_interface_service;
 extern const ni_dbus_service_t	wicked_dbus_interface_request_service; /* XXX */
-static const char *		__ni_objectmodel_link_classname(ni_iftype_t);
 
 /*
  * For all link layer types, create a dbus object class named "netif-$linktype".
@@ -58,7 +56,7 @@ ni_objectmodel_register_netif_classes(ni_dbus_server_t *server)
 	for (iftype = 0; iftype < __NI_IFTYPE_MAX; ++iftype) {
 		const char *classname;
 
-		if (!(classname = __ni_objectmodel_link_classname(iftype)))
+		if (!(classname = ni_objectmodel_link_classname(iftype)))
 			continue;
 
 		/* Create the new link class */
@@ -80,7 +78,7 @@ ni_objectmodel_register_netif_classes(ni_dbus_server_t *server)
  * For a given link type, return a canonical class name
  */
 const char *
-__ni_objectmodel_link_classname(ni_iftype_t link_type)
+ni_objectmodel_link_classname(ni_iftype_t link_type)
 {
 	const char *link_type_name;
 	static char namebuf[128];
@@ -106,7 +104,7 @@ __ni_objectmodel_build_interface_object(ni_dbus_server_t *server, ni_interface_t
 	const ni_dbus_class_t *class = NULL;
 	ni_dbus_object_t *object;
 
-	if ((classname = __ni_objectmodel_link_classname(ifp->link.type)) != NULL)
+	if ((classname = ni_objectmodel_link_classname(ifp->link.type)) != NULL)
 		class = ni_objectmodel_get_class(classname);
 	if (class == NULL)
 		class = &ni_objectmodel_netif_class;
