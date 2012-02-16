@@ -24,6 +24,7 @@
 #include <stdlib.h>
 
 #include <wicked/xml.h>
+#include <wicked/logging.h>
 #include "util_priv.h"
 
 xml_document_t *
@@ -350,6 +351,83 @@ xml_node_delete_child_node(xml_node_t *node, xml_node_t *destroy)
 	}
 
 	return 0;
+}
+
+/*
+ * Get xml node path relative to some top node
+ */
+static const char *
+__xml_node_path(const xml_node_t *node, const xml_node_t *top, char *buf, size_t size)
+{
+	unsigned int offset = 0;
+
+	if (node->parent && node->parent != top) {
+		__xml_node_path(node->parent, top, buf, size);
+		offset = strlen(buf);
+		if ((offset == 0 || buf[offset-1] != '/') && offset < size)
+			buf[offset++] = '/';
+	}
+
+	if (node->name == NULL && node->parent == NULL) {
+		/* this is the root node */
+		strcpy(buf, "/");
+	} else {
+		snprintf(buf + offset, size - offset, "%s", node->name);
+	}
+	return buf;
+}
+
+const char *
+xml_node_path(const xml_node_t *node, const xml_node_t *top)
+{
+	static char pathbuf[1024];
+
+	return __xml_node_path(node, top, pathbuf, sizeof(pathbuf));
+}
+
+/*
+ * Traverse an xml tree, depth first.
+ */
+xml_node_t *
+xml_node_get_next(xml_node_t *top, xml_node_t *cur)
+{
+	if (cur == NULL) {
+		/* Start at the top node and descend */
+		cur = top;
+	} else {
+		/* We've already visited this node. Get the
+		 * next one.
+		 * By default, move right, then down. If there's
+		 * no right sibling, move up and repeat.
+		 */
+
+		/* No next sibling: move up, then right */
+		while (cur->next == NULL) {
+			if (cur == top || cur->parent == top)
+				return NULL;
+			cur = cur->parent;
+			ni_assert(cur);
+		}
+
+		cur = cur->next;
+	}
+
+	/* depth first */
+	while (cur->children)
+		cur = cur->children;
+
+	return cur;
+}
+
+xml_node_t *
+xml_node_get_next_named(xml_node_t *top, const char *name, xml_node_t *cur)
+{
+	while ((cur = xml_node_get_next(top, cur)) != NULL) {
+		if (!strcmp(cur->name, name))
+			return cur;
+	}
+
+	return NULL;
 }
 
 /*

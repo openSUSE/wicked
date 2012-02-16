@@ -94,6 +94,7 @@ extern xml_node_t *	xml_node_get_child_with_attrs(const xml_node_t *, const char
 extern int		xml_node_replace_child(xml_node_t *, xml_node_t *);
 extern int		xml_node_delete_child(xml_node_t *, const char *);
 extern int		xml_node_delete_child_node(xml_node_t *, xml_node_t *);
+extern xml_node_t *	xml_node_get_next_named(xml_node_t *, const char *, xml_node_t *);
 
 extern int		xml_node_match_attrs(const xml_node_t *, const ni_var_array_t *);
 
