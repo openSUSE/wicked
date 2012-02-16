@@ -731,6 +731,7 @@ ni_wpa_interface_state_change_event(ni_wpa_client_t *wpa,
 		ni_wpa_ifstate_t to_state)
 {
 	ni_wpa_interface_t *ifp;
+	ni_wireless_assoc_state_t assoc_state;
 
 	ifp = ni_wpa_client_interface_by_path(wpa, object_path);
 	if (ifp == NULL) {
@@ -749,6 +750,32 @@ ni_wpa_interface_state_change_event(ni_wpa_client_t *wpa,
 		ni_wpa_interface_unbind(ifp);
 #endif
 	ifp->state = to_state;
+	switch (to_state) {
+	case NI_WPA_IFSTATE_INACTIVE:
+	case NI_WPA_IFSTATE_SCANNING:
+	case NI_WPA_IFSTATE_DISCONNECTED:
+		assoc_state = NI_WIRELESS_NOT_ASSOCIATED;
+		break;
+
+	case NI_WPA_IFSTATE_ASSOCIATING:
+		assoc_state = NI_WIRELESS_ASSOCIATING;
+		break;
+
+	case NI_WPA_IFSTATE_ASSOCIATED:
+	case NI_WPA_IFSTATE_4WAY_HANDSHAKE:
+	case NI_WPA_IFSTATE_GROUP_HANDSHAKE:
+		assoc_state = NI_WIRELESS_AUTHENTICATING;
+		break;
+
+	case NI_WPA_IFSTATE_COMPLETED:
+		assoc_state = NI_WIRELESS_ESTABLISHED;
+		break;
+
+	default:
+		return;
+	}
+
+	ni_wireless_association_changed(ifp->ifname, assoc_state);
 }
 
 /*

@@ -39,6 +39,7 @@
 # define IW_IE_KEY_MGMT_PSK      2
 #endif
 
+static void		ni_wireless_set_assoc_network(ni_wireless_t *, ni_wireless_network_t *);
 static void		__ni_wireless_network_destroy(ni_wireless_network_t *net);
 
 static ni_wpa_client_t *wpa_client;
@@ -170,8 +171,14 @@ __ni_wireless_request_scan(ni_netconfig_t *nc, ni_interface_t *ifp)
 int
 ni_wireless_associate(ni_interface_t *dev, ni_wireless_network_t *net)
 {
+	ni_wireless_t *wlan;
 	ni_wpa_client_t *wpa;
 	ni_wpa_interface_t *wpa_dev;
+
+	if ((wlan = ni_interface_get_wireless(dev)) == NULL) {
+		ni_error("%s: no wireless info for device", dev->name);
+		return -1;
+	}
 
 	if (!(wpa = ni_wpa_client()))
 		return -1;
@@ -179,7 +186,48 @@ ni_wireless_associate(ni_interface_t *dev, ni_wireless_network_t *net)
 	if (!(wpa_dev = ni_wpa_interface_bind(wpa, dev->name)))
 		return -1;
 
+	ni_wireless_set_assoc_network(wlan, net);
+
 	return ni_wpa_interface_associate(wpa_dev, net);
+}
+
+/*
+ * Callback from wpa_supplicant client whenever the association state changes
+ * in a significant way.
+ * FIXME: this should really use the ifindex rather than the name
+ */
+void
+ni_wireless_association_changed(const char *ifname, ni_wireless_assoc_state_t new_state)
+{
+	ni_netconfig_t *nc = ni_global_state_handle(0);
+	ni_interface_t *dev;
+	ni_wireless_t *wlan;
+	ni_event_t ev = -1;
+
+	if (!(dev = ni_interface_by_name(nc, ifname)))
+		return;
+
+	if (!(wlan = dev->wireless))
+		return;
+
+	if (new_state == wlan->assoc.state)
+		return;
+
+	switch (new_state) {
+	case NI_WIRELESS_ESTABLISHED:
+		ev = NI_EVENT_LINK_ASSOCIATED;
+		break;
+
+	case NI_WIRELESS_NOT_ASSOCIATED:
+		ev = NI_WIRELESS_NOT_ASSOCIATED;
+		break;
+
+	default: ;
+	}
+
+	wlan->assoc.state = new_state;
+	if (ev != -1)
+		__ni_interface_event(nc, dev, ev);
 }
 
 /*
@@ -613,8 +661,16 @@ ni_wireless_new(void)
 void
 ni_wireless_free(ni_wireless_t *wireless)
 {
-	__ni_wireless_network_destroy(&wireless->network);
+	ni_wireless_set_assoc_network(wireless, NULL);
 	free(wireless);
+}
+
+void
+ni_wireless_set_assoc_network(ni_wireless_t *wireless, ni_wireless_network_t *net)
+{
+	if (wireless->assoc.network)
+		ni_wireless_network_put(wireless->assoc.network);
+	wireless->assoc.network = net? ni_wireless_network_get(net) : NULL;
 }
 
 /*

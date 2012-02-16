@@ -81,6 +81,12 @@ typedef enum ni_wireless_auth_algo {
 	NI_WIRELESS_AUTH_LEAP,
 } ni_wireless_auth_algo_t;
 
+typedef enum ni_wireless_assoc_state {
+	NI_WIRELESS_NOT_ASSOCIATED,
+	NI_WIRELESS_ASSOCIATING,
+	NI_WIRELESS_AUTHENTICATING,
+	NI_WIRELESS_ESTABLISHED,
+} ni_wireless_assoc_state_t;
 
 #define NI_WIRELESS_PAIRWISE_CIPHERS_MAX	4
 
@@ -169,8 +175,11 @@ struct ni_wireless {
 	ni_wireless_interface_capabilities_t capabilities;
 
 	/* Association information */
-	ni_wireless_network_t	network;
-	ni_hwaddr_t		access_point;
+	struct {
+		ni_wireless_assoc_state_t state;
+		ni_wireless_network_t *	network;
+		ni_hwaddr_t		access_point;
+	} assoc;
 };
 
 typedef struct ni_wireless_network_array {
@@ -211,6 +220,8 @@ extern void		ni_wireless_auth_info_free(ni_wireless_auth_info_t *);
 extern void		ni_wireless_auth_info_array_init(ni_wireless_auth_info_array_t *);
 extern void		ni_wireless_auth_info_array_append(ni_wireless_auth_info_array_t *, ni_wireless_auth_info_t *);
 extern void		ni_wireless_auth_info_array_destroy(ni_wireless_auth_info_array_t *);
+
+extern void		ni_wireless_association_changed(const char *ifname, ni_wireless_assoc_state_t new_state);
 
 extern const char *	ni_wireless_print_ssid(const ni_wireless_ssid_t *);
 
