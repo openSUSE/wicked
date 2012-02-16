@@ -27,8 +27,6 @@ typedef struct ni_wpa_network	ni_wpa_network_t;
 typedef struct ni_wpa_scan	ni_wpa_scan_t;
 
 struct ni_wpa_network {
-	ni_wpa_network_t *	next;
-
 	time_t			expires;
 
 	ni_wireless_ssid_t	essid;
@@ -74,7 +72,6 @@ struct ni_wpa_interface {
 	ni_dbus_object_t *	proxy;
 
 	time_t			last_scan;
-	ni_wpa_network_t *	scanned_networks;
 
 	ni_wireless_interface_capabilities_t capabilities;
 

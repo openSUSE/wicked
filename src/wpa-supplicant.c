@@ -68,9 +68,7 @@ struct ni_wpa_scan {
 static ni_dbus_class_t		ni_objectmodel_wpa_class = {
 	"wpa"
 };
-static ni_dbus_class_t		ni_objectmodel_wpanet_class = {
-	"wpa-network"
-};
+static ni_dbus_class_t		ni_objectmodel_wpanet_class;
 static ni_dbus_class_t		ni_objectmodel_wpaif_class = {
 	"wpa-interface"
 };
@@ -81,6 +79,7 @@ static void		ni_wpa_interface_free(ni_wpa_interface_t *);
 static int		ni_wpa_prepare_interface(ni_wpa_client_t *, ni_wpa_interface_t *, const char *);
 static int		ni_wpa_interface_get_state(ni_wpa_client_t *, ni_wpa_interface_t *);
 static int		ni_wpa_interface_get_capabilities(ni_wpa_client_t *, ni_wpa_interface_t *);
+static ni_wpa_network_t *ni_wpa_network_new(void);
 static void		ni_wpa_network_request_properties(ni_dbus_object_t *);
 static void		ni_wpa_signal(ni_dbus_connection_t *, ni_dbus_message_t *, void *);
 static void		ni_wpa_scan_put(ni_wpa_scan_t *);
@@ -225,15 +224,10 @@ ni_wpa_interface_network_by_path(ni_wpa_interface_t *ifp, const char *object_pat
 		return NULL;
 	}
 	if (net_object->handle == NULL) {
-		ni_wpa_network_t *net, **pos;
-
 		ni_debug_wireless("new object %s", net_object->path);
 		ni_dbus_object_set_default_interface(net_object, NI_WPA_BSS_INTERFACE);
 
-		for (pos = &ifp->scanned_networks; (net = *pos) != NULL; pos = &net->next)
-			;
-		*pos = xcalloc(1, sizeof(*net));
-		net_object->handle = *pos;
+		net_object->handle = ni_wpa_network_new();
 	}
 
 	return net_object;
@@ -252,8 +246,16 @@ ni_wpa_network_properties_destroy(ni_wpa_network_t *net)
 		ni_opaque_free(net->rsnie);
 
 	memset(net, 0, sizeof(*net));
-	net->next = hack.next;
 	net->expires = hack.expires;
+}
+
+static ni_wpa_network_t *
+ni_wpa_network_new(void)
+{
+	ni_wpa_network_t *net;
+
+	net = xcalloc(1, sizeof(*net));
+	return net;
 }
 
 static void
@@ -262,6 +264,22 @@ ni_wpa_network_free(ni_wpa_network_t *net)
 	ni_wpa_network_properties_destroy(net);
 	free(net);
 }
+
+static void
+ni_wpa_network_object_destroy(ni_dbus_object_t *obj)
+{
+	ni_wpa_network_t *net;
+
+	if ((net = obj->handle) != NULL) {
+		ni_wpa_network_free(net);
+		obj->handle = NULL;
+	}
+}
+
+static ni_dbus_class_t		ni_objectmodel_wpanet_class = {
+	.name		= "wpa-network",
+	.destroy	= ni_wpa_network_object_destroy,
+};
 
 /*
  * Bind an interface, ie. call wpa_supplicant to see whether it
@@ -299,17 +317,13 @@ failed:
 static void
 ni_wpa_interface_unbind(ni_wpa_interface_t *ifp)
 {
-	ni_wpa_network_t *net;
-
 	if (ifp->proxy) {
 		ni_dbus_object_free(ifp->proxy);
 		ifp->proxy = NULL;
 	}
 
-	while ((net = ifp->scanned_networks) != NULL) {
-		ifp->scanned_networks = net->next;
-		ni_wpa_network_free(net);
-	}
+	/* An child objects, such as networks, will be freed implicitly
+	 * by the call to ni_dbus_object_free above. */
 }
 
 static void
@@ -318,6 +332,67 @@ ni_wpa_interface_free(ni_wpa_interface_t *ifp)
 	ni_string_free(&ifp->ifname);
 	ni_wpa_interface_unbind(ifp);
 	free(ifp);
+}
+
+static inline ni_wpa_network_t *
+__ni_wpa_interface_next_network(ni_dbus_object_t **pnext, ni_dbus_object_t **pthis)
+{
+	ni_dbus_object_t *child;
+	ni_wpa_network_t *net = NULL;
+
+	while ((child = *pnext) != NULL) {
+		*pnext = child->next;
+
+		if (child->class == &ni_objectmodel_wpanet_class) {
+			net = child->handle;
+			break;
+		}
+	}
+
+	if (pthis)
+		*pthis = child;
+	return net;
+}
+
+static ni_wpa_network_t *
+ni_wpa_interface_first_network(ni_wpa_interface_t *dev, ni_dbus_object_t **pnext, ni_dbus_object_t **pthis)
+{
+	ni_dbus_object_t *obj;
+
+	if ((obj = dev->proxy) == NULL)
+		return NULL;
+
+	if ((obj = ni_dbus_object_lookup(obj, "BSSIDs")) == NULL)
+		return NULL;
+
+	*pnext = obj->children;
+	return __ni_wpa_interface_next_network(pnext, pthis);
+}
+
+static ni_wpa_network_t *
+ni_wpa_interface_next_network(ni_wpa_interface_t *dev, ni_dbus_object_t **pnext, ni_dbus_object_t **pthis)
+{
+	return __ni_wpa_interface_next_network(pnext, pthis);
+}
+
+static ni_bool_t
+ni_wpa_interface_expire_networks(ni_wpa_interface_t *dev)
+{
+	ni_dbus_object_t *dev_object, *pos, *cur;
+	ni_wpa_network_t *net;
+	time_t now;
+
+	if ((dev_object = dev->proxy) == NULL)
+		return FALSE;
+
+	now = time(NULL);
+	for (net = ni_wpa_interface_first_network(dev, &pos, &cur); net; net = ni_wpa_interface_next_network(dev, &pos, &cur)) {
+		if (net->expires < now) {
+			/* This will also remove child from the list of dev_object->children */
+			ni_dbus_object_free(cur);
+		}
+	}
+	return TRUE;
 }
 
 /*
@@ -546,24 +621,16 @@ ni_wpa_interface_request_scan(ni_wpa_client_t *wpa, ni_wpa_interface_t *ifp, ni_
 int
 ni_wpa_interface_retrieve_scan(ni_wpa_client_t *wpa, ni_wpa_interface_t *ifp, ni_wireless_scan_t *scan)
 {
-	ni_wpa_network_t *wpa_net, **pos;
-	time_t now = time(NULL);
+	ni_wpa_network_t *wpa_net;
+	ni_dbus_object_t *pos;
 
 	ni_debug_wireless("%s: retrieve scan results", ifp->ifname);
 
 	/* Prune old BSSes */
-	for (pos = &ifp->scanned_networks; (wpa_net = *pos) != NULL; ) {
-		if (wpa_net->expires < now) {
-			*pos = wpa_net->next;
-			/* FIXME: should delete the corresponding dbus object */
-			ni_wpa_network_free(wpa_net);
-		} else {
-			pos = &wpa_net->next;
-		}
-	}
+	ni_wpa_interface_expire_networks(ifp);
 
 	ni_wireless_network_array_destroy(&scan->networks);
-	for (wpa_net = ifp->scanned_networks; wpa_net; wpa_net = wpa_net->next) {
+	for (wpa_net = ni_wpa_interface_first_network(ifp, &pos, NULL); wpa_net; wpa_net = ni_wpa_interface_next_network(ifp, &pos, NULL)) {
 		ni_wireless_network_t *net;
 
 		net = ni_wireless_network_new();
