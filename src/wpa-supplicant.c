@@ -227,6 +227,8 @@ ni_wpa_interface_network_by_path(ni_wpa_interface_t *ifp, const char *object_pat
 static void
 ni_wpa_network_properties_destroy(ni_wpa_network_t *net)
 {
+	ni_wpa_network_t hack = *net;
+
 	if (net->wpaie)
 		ni_opaque_free(net->wpaie);
 	if (net->wpsie)
@@ -235,6 +237,9 @@ ni_wpa_network_properties_destroy(ni_wpa_network_t *net)
 		ni_opaque_free(net->rsnie);
 
 	memset(net, 0, sizeof(*net));
+	net->next = hack.next;
+	net->proxy = hack.proxy;
+	net->expires = hack.expires;
 }
 
 static void
