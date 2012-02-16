@@ -780,7 +780,7 @@ __wpa_dbus_bss_set_frequency(ni_dbus_object_t *object, const ni_dbus_property_t 
 	ni_wpa_network_t *net = __wpa_get_network(object);
 	unsigned int freq;
 
-	if (ni_dbus_variant_get_uint(argument, &freq))
+	if (!ni_dbus_variant_get_uint(argument, &freq))
 		return FALSE;
 	/* Convert MHz -> GHz */
 	net->frequency = freq * 1e-3;
@@ -793,7 +793,8 @@ __wpa_dbus_bss_get_level(const ni_dbus_object_t *object, const ni_dbus_property_
 {
 	ni_wpa_network_t *net = __wpa_get_network(object);
 
-	ni_dbus_variant_set_int32(argument, net->level);
+	/* wpa_supplicant expects the level in mBm == 100 dBm */
+	ni_dbus_variant_set_int32(argument, net->level * 100);
 	return TRUE;
 }
 
@@ -802,8 +803,13 @@ __wpa_dbus_bss_set_level(ni_dbus_object_t *object, const ni_dbus_property_t *pro
 		const ni_dbus_variant_t *argument, DBusError *error)
 {
 	ni_wpa_network_t *net = __wpa_get_network(object);
+	int32_t level;
 
-	return ni_dbus_variant_get_int32(argument, &net->level);
+	/* wpa_supplicant expects the level in mBm == 100 dBm */
+	if (!ni_dbus_variant_get_int32(argument, &level))
+		return FALSE;
+	net->level = 1e-2 * level;
+	return TRUE;
 }
 
 static dbus_bool_t
@@ -812,7 +818,7 @@ __wpa_dbus_bss_get_quality(const ni_dbus_object_t *object, const ni_dbus_propert
 {
 	ni_wpa_network_t *net = __wpa_get_network(object);
 
-	ni_dbus_variant_set_int32(argument, net->quality);
+	ni_dbus_variant_set_int32(argument, net->quality * 70);
 	return TRUE;
 }
 
@@ -821,8 +827,12 @@ __wpa_dbus_bss_set_quality(ni_dbus_object_t *object, const ni_dbus_property_t *p
 		const ni_dbus_variant_t *argument, DBusError *error)
 {
 	ni_wpa_network_t *net = __wpa_get_network(object);
+	int32_t quality;
 
-	return ni_dbus_variant_get_int32(argument, &net->quality);
+	if (!ni_dbus_variant_get_int32(argument, &quality))
+		return FALSE;
+	net->quality = quality / 70.0;
+	return TRUE;
 }
 
 static dbus_bool_t
@@ -1185,13 +1195,13 @@ ni_wpa_bss_properties_result(ni_dbus_object_t *proxy, ni_dbus_message_t *msg)
 	if (!ni_dbus_object_set_properties_from_dict(proxy, &wpa_bssid_interface, &dict))
 		goto failed;
 
-	ni_debug_wireless("Updated BSS %s, essid=%.*s, freq=%.3f GHz, quality=%u/70, noise=%u, level=%d dBm, maxrate=%u MB/s",
+	ni_debug_wireless("Updated BSS %s, essid=%.*s, freq=%.3f GHz, quality=%.2f, noise=%u, level=%.2f dBm, maxrate=%u MB/s",
 			ni_link_address_print(&net->access_point),
 			net->essid.len, net->essid.data,
 			net->frequency,
 			net->quality,
 			net->noise,
-			(int) (net->level - 256),
+			net->level,
 			net->max_bitrate);
 
 	ni_dbus_variant_destroy(&dict);
