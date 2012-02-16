@@ -236,6 +236,59 @@ ni_wireless_disconnect(ni_interface_t *dev)
 }
 
 /*
+ * Check whether we've lost our association with the AP
+ */
+static void
+ni_wireless_set_association_timer(ni_wireless_t *wlan, const ni_timer_t *new_timer)
+{
+	if (wlan->assoc.timer != NULL)
+		ni_timer_cancel(wlan->assoc.timer);
+	wlan->assoc.timer = new_timer;
+}
+
+static void
+__ni_wireless_association_timeout(void *ptr, const ni_timer_t *timer)
+{
+	ni_netconfig_t *nc = ni_global_state_handle(0);
+	ni_interface_t *dev = ptr;
+	ni_wireless_t *wlan = dev->wireless;
+
+	if (wlan->assoc.timer != timer)
+		return;
+
+	ni_debug_wireless("%s: association timed out", dev->name);
+	wlan->assoc.timer = NULL;
+
+	__ni_interface_event(nc, dev, NI_EVENT_LINK_DOWN);
+	__ni_interface_event(nc, dev, NI_EVENT_LINK_ASSOCIATION_LOST);
+
+	ni_wireless_disconnect(dev);
+}
+
+static void
+ni_wireless_update_association_timer(ni_interface_t *dev)
+{
+	ni_wireless_t *wlan = dev->wireless;
+
+	if (wlan->assoc.state == NI_WIRELESS_ESTABLISHED) {
+		ni_wireless_set_association_timer(wlan, NULL);
+	} else {
+		const ni_timer_t *new_timer;
+		unsigned int timeout;
+
+		if (wlan->assoc.timer != NULL)
+			return;
+
+		if ((timeout = wlan->assoc.fail_delay) == 0)
+			timeout = NI_WIRELESS_ASSOC_FAIL_DELAY;
+		new_timer = ni_timer_register(1000 * timeout,
+				__ni_wireless_association_timeout,
+				dev);
+		ni_wireless_set_association_timer(wlan, new_timer);
+	}
+}
+
+/*
  * Callback from wpa_supplicant client whenever the association state changes
  * in a significant way.
  */
@@ -245,7 +298,6 @@ ni_wireless_association_changed(unsigned int ifindex, ni_wireless_assoc_state_t 
 	ni_netconfig_t *nc = ni_global_state_handle(0);
 	ni_interface_t *dev;
 	ni_wireless_t *wlan;
-	ni_event_t ev = -1;
 
 	if (!(dev = ni_interface_by_index(nc, ifindex)))
 		return;
@@ -256,23 +308,17 @@ ni_wireless_association_changed(unsigned int ifindex, ni_wireless_assoc_state_t 
 	if (new_state == wlan->assoc.state)
 		return;
 
-	switch (new_state) {
-	case NI_WIRELESS_ESTABLISHED:
-		ev = NI_EVENT_LINK_ASSOCIATED;
-		ev = NI_EVENT_LINK_UP;
-		break;
-
-	case NI_WIRELESS_NOT_ASSOCIATED:
-		ev = NI_EVENT_LINK_ASSOCIATION_LOST;
-		ev = NI_EVENT_LINK_DOWN;
-		break;
-
-	default: ;
-	}
-
 	wlan->assoc.state = new_state;
-	if (ev != -1)
-		__ni_interface_event(nc, dev, ev);
+	if (new_state == NI_WIRELESS_ESTABLISHED)
+		__ni_interface_event(nc, dev, NI_EVENT_LINK_UP);
+
+	/* We keep track of when we were last changing to or
+	 * from fully authenticated state.
+	 * We use this to decide when to give up and announce
+	 * that we've lost the network - see the timer handling
+	 * code above.
+	 */
+	ni_wireless_update_association_timer(dev);
 }
 
 /*
@@ -708,6 +754,8 @@ ni_wireless_set_assoc_network(ni_wireless_t *wireless, ni_wireless_network_t *ne
 	if (wireless->assoc.network)
 		ni_wireless_network_put(wireless->assoc.network);
 	wireless->assoc.network = net? ni_wireless_network_get(net) : NULL;
+
+	ni_wireless_set_association_timer(wireless, NULL);
 }
 
 /*

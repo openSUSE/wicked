@@ -10,6 +10,7 @@
 #include <wicked/types.h>
 #include <wicked/util.h>
 #include <wicked/logging.h>
+#include <wicked/socket.h>	/* for the timer stuff */
 
 typedef enum ni_wireless_mode {
 	NI_WIRELESS_MODE_UNKNOWN,
@@ -178,6 +179,8 @@ struct ni_wireless {
 
 	/* Association information */
 	struct {
+		const ni_timer_t *	timer;
+		unsigned int		fail_delay;
 		ni_wireless_assoc_state_t state;
 		ni_wireless_network_t *	network;
 		ni_hwaddr_t		access_point;
@@ -190,6 +193,7 @@ typedef struct ni_wireless_network_array {
 } ni_wireless_network_array_t;
 
 
+#define NI_WIRELESS_ASSOC_FAIL_DELAY	60
 #define NI_WIRELESS_SCAN_MAX_AGE	600
 
 struct ni_wireless_scan {
