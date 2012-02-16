@@ -17,12 +17,8 @@ ni_objectmodel_get_ethernet(const ni_dbus_object_t *object, DBusError *error)
 	ni_interface_t *ifp;
 	ni_ethernet_t *eth;
 
-	if (!(ifp = ni_objectmodel_unwrap_interface(object))) {
-		/* FIXME: return dbus error, too */
-		ni_error("trying to access %s properties for incompatible object (class %s)",
-				WICKED_DBUS_ETHERNET_INTERFACE, object->class->name);
+	if (!(ifp = ni_objectmodel_unwrap_interface(object, error)))
 		return NULL;
-	}
 
 	if (!(eth = ni_interface_get_ethernet(ifp))) {
 		dbus_set_error(error, DBUS_ERROR_FAILED, "Error getting ethernet handle for interface");

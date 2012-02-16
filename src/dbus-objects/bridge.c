@@ -43,12 +43,8 @@ __wicked_dbus_bridge_handle(const ni_dbus_object_t *object, DBusError *error)
 	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
 	ni_bridge_t *bridge;
 
-	if (!(ifp = ni_objectmodel_unwrap_interface(object))) {
-		/* FIXME: return dbus error, too */
-		ni_error("trying to access %s properties for incompatible object (class %s)",
-				WICKED_DBUS_BRIDGE_INTERFACE, object->class->name);
+	if (!(ifp = ni_objectmodel_unwrap_interface(object, error)))
 		return NULL;
-	}
 
 	if (!(bridge = ni_interface_get_bridge(ifp))) {
 		dbus_set_error(error, DBUS_ERROR_FAILED, "Error getting bridge handle for interface");

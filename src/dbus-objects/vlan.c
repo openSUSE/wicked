@@ -150,13 +150,8 @@ ni_objectmodel_vlan_delete(ni_dbus_object_t *object, const ni_dbus_method_t *met
 	ni_interface_t *ifp;
 	int rv;
 
-	if (!(ifp = ni_objectmodel_unwrap_interface(object))) {
-		dbus_set_error(error,
-				DBUS_ERROR_INVALID_ARGS,
-				"%s.%s method called on incompatible object (class %s)",
-				WICKED_DBUS_VLAN_INTERFACE, method->name, object->class->name);
+	if (!(ifp = ni_objectmodel_unwrap_interface(object, error)))
 		return FALSE;
-	}
 
 	NI_TRACE_ENTER_ARGS("ifp=%s", ifp->name);
 	if ((rv = ni_system_vlan_delete(ifp)) < 0) {
@@ -179,12 +174,8 @@ ni_objectmodel_get_vlan(const ni_dbus_object_t *object, DBusError *error)
 {
 	ni_interface_t *ifp;
 
-	if (!(ifp = ni_objectmodel_unwrap_interface(object))) {
-		/* FIXME: return dbus error, too */
-		ni_error("trying to access %s properties for incompatible object (class %s)",
-				WICKED_DBUS_VLAN_INTERFACE, object->class->name);
+	if (!(ifp = ni_objectmodel_unwrap_interface(object, error)))
 		return NULL;
-	}
 
 	return ni_interface_get_vlan(ifp);
 }

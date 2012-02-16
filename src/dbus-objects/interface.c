@@ -294,28 +294,18 @@ ni_objectmodel_wrap_interface_request(ni_interface_request_t *req)
 }
 
 ni_interface_t *
-ni_objectmodel_unwrap_interface(const ni_dbus_object_t *object)
+ni_objectmodel_unwrap_interface(const ni_dbus_object_t *object, DBusError *error)
 {
 	ni_interface_t *dev = object->handle;
 
 	if (ni_dbus_object_isa(object, &ni_objectmodel_netif_class))
 		return dev;
-	return NULL;
-}
-
-static ni_interface_t *
-get_interface(const ni_dbus_object_t *object, DBusError *error)
-{
-	ni_interface_t *dev;
-
-	if (!(dev = ni_objectmodel_unwrap_interface(object))) {
+	if (error)
 		dbus_set_error(error,
 				DBUS_ERROR_FAILED,
-				"Method not compatible with object %s (not a network interface)",
-				object->path);
-		return NULL;
-	}
-	return dev;
+				"method not compatible with object %s of class %s (not a network interface)",
+				object->path, object->class->name);
+	return NULL;
 }
 
 /*
@@ -397,7 +387,7 @@ ni_objectmodel_netif_link_change(ni_dbus_object_t *object, const ni_dbus_method_
 	dbus_bool_t ret = FALSE;
 	int rv;
 
-	if (!(dev = get_interface(object, error)))
+	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
 		return FALSE;
 
 	NI_TRACE_ENTER_ARGS("ifp=%s", dev->name);
@@ -494,9 +484,12 @@ ni_objectmodel_netif_link_down(ni_dbus_object_t *object, const ni_dbus_method_t 
 			ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_netconfig_t *nc = ni_global_state_handle(0);
-	ni_interface_t *dev = ni_objectmodel_unwrap_interface(object);
+	ni_interface_t *dev;
 	dbus_bool_t ret = FALSE;
 	int rv;
+
+	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
+		return FALSE;
 
 	NI_TRACE_ENTER_ARGS("ifp=%s", dev->name);
 
@@ -524,7 +517,10 @@ failed:
 static void
 ni_objectmodel_netif_destroy(ni_dbus_object_t *object)
 {
-	ni_interface_t *ifp = ni_objectmodel_unwrap_interface(object);
+	ni_interface_t *ifp;
+
+	if (!(ifp = ni_objectmodel_unwrap_interface(object, NULL)))
+		return;
 
 	NI_TRACE_ENTER_ARGS("object=%s, dev=%p", object->path, ifp);
 	ni_assert(ifp);
@@ -549,7 +545,7 @@ static ni_dbus_method_t		ni_objectmodel_netif_methods[] = {
 static void *
 ni_objectmodel_get_interface(const ni_dbus_object_t *object, DBusError *error)
 {
-	return ni_objectmodel_unwrap_interface(object);
+	return ni_objectmodel_unwrap_interface(object, NULL);
 }
 
 /*
@@ -563,7 +559,7 @@ __wicked_dbus_interface_get_hwaddr(const ni_dbus_object_t *object,
 {
 	ni_interface_t *ifp;
 
-	if (!(ifp = ni_objectmodel_get_interface(object, error)))
+	if (!(ifp = ni_objectmodel_unwrap_interface(object, error)))
 		return FALSE;
 
 	ni_dbus_variant_set_byte_array(result, ifp->link.hwaddr.data, ifp->link.hwaddr.len);
@@ -579,7 +575,7 @@ __wicked_dbus_interface_set_hwaddr(ni_dbus_object_t *object,
 	ni_interface_t *ifp;
 	unsigned int addrlen;
 
-	if (!(ifp = ni_objectmodel_get_interface(object, error)))
+	if (!(ifp = ni_objectmodel_unwrap_interface(object, error)))
 		return FALSE;
 
 	ifp->link.hwaddr.type = ifp->link.type;
@@ -677,7 +673,7 @@ __wicked_dbus_interface_get_ipv4(const ni_dbus_object_t *object,
 {
 	ni_interface_t *dev;
 
-	if (!(dev = get_interface(object, error)))
+	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
 		return FALSE;
 
 	return __wicked_dbus_get_afinfo(&dev->ipv4, argument, error);
@@ -691,7 +687,7 @@ __wicked_dbus_interface_set_ipv4(ni_dbus_object_t *object,
 {
 	ni_interface_t *dev;
 
-	if (!(dev = get_interface(object, error)))
+	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
 		return FALSE;
 
 	return __wicked_dbus_set_afinfo(&dev->ipv4, argument, error);
@@ -705,7 +701,7 @@ __wicked_dbus_interface_get_ipv6(const ni_dbus_object_t *object,
 {
 	ni_interface_t *dev;
 
-	if (!(dev = get_interface(object, error)))
+	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
 		return FALSE;
 
 	return __wicked_dbus_get_afinfo(&dev->ipv6, argument, error);
@@ -719,7 +715,7 @@ __wicked_dbus_interface_set_ipv6(ni_dbus_object_t *object,
 {
 	ni_interface_t *dev;
 
-	if (!(dev = get_interface(object, error)))
+	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
 		return FALSE;
 
 	return __wicked_dbus_set_afinfo(&dev->ipv6, argument, error);

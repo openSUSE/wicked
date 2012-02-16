@@ -195,24 +195,6 @@ done:
 }
 
 /*
- * Verbatim copy from interface.c
- */
-static ni_interface_t *
-get_interface(const ni_dbus_object_t *object, DBusError *error)
-{
-	ni_interface_t *dev;
-
-	if (!(dev = ni_objectmodel_unwrap_interface(object))) {
-		dbus_set_error(error,
-				DBUS_ERROR_FAILED,
-				"Method not compatible with object %s (not a network interface)",
-				object->path);
-		return NULL;
-	}
-	return dev;
-}
-
-/*
  * Configure static IPv4 addresses
  */
 static dbus_bool_t
@@ -225,7 +207,7 @@ ni_objectmodel_addrconf_ipv4_static_configure(ni_dbus_object_t *object, const ni
 	ni_interface_t *dev;
 	int rv;
 
-	if (!(dev = get_interface(object, error)))
+	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
 		return FALSE;
 
 	if (argc != 1 || !ni_dbus_variant_is_dict(&argv[0])) {
@@ -275,7 +257,7 @@ ni_objectmodel_addrconf_ipv6_static_configure(ni_dbus_object_t *object, const ni
 	ni_interface_t *dev;
 	int rv;
 
-	if (!(dev = get_interface(object, error)))
+	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
 		return FALSE;
 
 	if (argc != 1 || !ni_dbus_variant_is_dict(&argv[0])) {
@@ -395,7 +377,7 @@ ni_objectmodel_addrconf_ipv4_dhcp_configure(ni_dbus_object_t *object, const ni_d
 	ni_interface_t *dev;
 	ni_addrconf_request_t *req;
 
-	if (!(dev = get_interface(object, error)))
+	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
 		return FALSE;
 
 	if (argc != 1 || !ni_dbus_variant_is_dict(&argv[0])) {
@@ -434,7 +416,7 @@ ni_objectmodel_addrconf_ipv4ll_configure(ni_dbus_object_t *object, const ni_dbus
 	ni_addrconf_request_t *req = NULL;
 	ni_interface_t *dev;
 
-	if (!(dev = get_interface(object, error)))
+	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
 		return FALSE;
 
 	if (argc != 1 || !ni_dbus_variant_is_dict(&argv[0])) {

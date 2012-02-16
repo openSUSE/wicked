@@ -550,7 +550,7 @@ interface_workers_refresh_state(void)
 	}
 
 	for (object = iflist->children; object; object = object->next) {
-		ni_interface_t *dev = ni_objectmodel_unwrap_interface(object);
+		ni_interface_t *dev = ni_objectmodel_unwrap_interface(object, NULL);
 		ni_ifworker_t *found = NULL;
 
 		if (dev == NULL || dev->name == NULL)

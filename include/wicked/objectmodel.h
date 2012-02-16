@@ -34,7 +34,7 @@ extern dbus_bool_t		ni_objectmodel_get_addrconf_lease(const ni_addrconf_lease_t 
 extern dbus_bool_t		ni_objectmodel_set_addrconf_lease(ni_addrconf_lease_t *, const ni_dbus_variant_t *);
 
 extern ni_dbus_object_t *	ni_objectmodel_wrap_interface(ni_interface_t *ifp);
-extern ni_interface_t *		ni_objectmodel_unwrap_interface(const ni_dbus_object_t *);
+extern ni_interface_t *		ni_objectmodel_unwrap_interface(const ni_dbus_object_t *, DBusError *);
 
 extern dbus_bool_t		ni_objectmodel_interface_event(ni_dbus_server_t *, ni_interface_t *, ni_event_t, unsigned int event_id);
 

@@ -733,9 +733,8 @@ wicked_get_interface(ni_dbus_object_t *root_object, const char *ifname)
 		return interfaces;
 
 	/* Loop over all interfaces and find the one with matching name */
-	/* FIXME: this isn't type-safe at all, and should be done better */
 	for (object = interfaces->children; object; object = object->next) {
-		ni_interface_t *ifp = ni_objectmodel_unwrap_interface(object);
+		ni_interface_t *ifp = ni_objectmodel_unwrap_interface(object, NULL);
 
 		if (ifp && ifp->name && !strcmp(ifp->name, ifname))
 			return object;
