@@ -42,7 +42,6 @@
 #define BOND_DEVICE_MUST_BE_UP_WHEN_MESSING_WITH_SLAVES 1
 
 static int	__ni_interface_addrconf(ni_netconfig_t *, int,  ni_interface_t *, ni_afinfo_t *);
-static int	__ni_interface_extension_delete(ni_netconfig_t *, ni_interface_t *);
 static int	__ni_interface_update_ipv6_settings(ni_netconfig_t *, ni_interface_t *, const ni_afinfo_t *);
 static int	__ni_interface_update_addrs(ni_interface_t *ifp,
 				int family, ni_addrconf_mode_t mode,
@@ -316,7 +315,10 @@ ni_system_interface_delete(ni_netconfig_t *nc, const char *ifname)
 		break;
 
 	default:
-		return __ni_interface_extension_delete(nc, ifp);
+		ni_error("%s not implemented for link type %u (%s)",
+				__func__, ifp->link.type,
+				ni_linktype_type_to_name(ifp->link.type));
+		return -1;
 	}
 
 	return 0;
@@ -377,17 +379,6 @@ ni_system_vlan_create(ni_netconfig_t *nc, const char *ifname, const ni_vlan_t *c
 					ifname, cfg_vlan->physdev_name);
 			return -NI_ERROR_INTERFACE_NOT_KNOWN;
 		}
-
-#if 0
-		/* Now bring up the underlying ethernet device if it's not up yet.
-		 * Note, we don't change anything except its link status */
-		if (!ni_interface_network_is_up(real_dev)
-		 && __ni_system_interface_bringup(nc, real_dev) < 0) {
-			ni_error("Cannot bring up VLAN interface %s: %s not ready yet",
-					ifname, cfg_vlan->physdev_name);
-			return -1;
-		}
-#endif
 	}
 
 	*ifpp = ifp;
@@ -727,39 +718,6 @@ ni_system_bond_remove_slave(ni_netconfig_t *nc, ni_interface_t *ifp, unsigned in
 	}
 
 	return 0;
-}
-
-/*
- * Shut down interface link layer via an extension
- */
-static int
-__ni_interface_extension_delete(ni_netconfig_t *nc, ni_interface_t *ifp)
-{
-#if 1
-	ni_error("%s: not implemented", __func__);
-	return -1;
-#else
-	ni_extension_t *ex;
-	xml_node_t *xml = NULL;
-	int res;
-
-	// ex = ni_config_find_linktype_extension(ni_global.config, ifp->link.type);
-	ex = NULL;
-	if (ex == NULL) {
-		ni_error("cannot configure %s interface - not implemented yet",
-				ni_linktype_type_to_name(ifp->link.type));
-		return -1;
-	}
-
-	xml = ni_syntax_xml_from_interface(ni_global.xml_syntax, nc, ifp);
-	if (!xml)
-		return -1;
-
-	res = ni_extension_stop(ex, ifp->name, xml);
-
-	xml_node_free(xml);
-	return res;
-#endif
 }
 
 /*
