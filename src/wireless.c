@@ -39,7 +39,10 @@
 # define IW_IE_KEY_MGMT_PSK      2
 #endif
 
+static ni_wireless_scan_t *ni_wireless_scan_new(ni_interface_t *, unsigned int);
+static void		ni_wireless_scan_free(ni_wireless_scan_t *);
 static void		ni_wireless_set_assoc_network(ni_wireless_t *, ni_wireless_network_t *);
+static void		__ni_wireless_scan_timer_arm(ni_wireless_scan_t *, ni_interface_t *);
 static int		__ni_wireless_do_scan(ni_interface_t *);
 static void		__ni_wireless_network_destroy(ni_wireless_network_t *net);
 
@@ -88,12 +91,12 @@ ni_wireless_interface_refresh(ni_interface_t *ifp)
 		return -1;
 
 	if ((wlan = ifp->wireless) == NULL) {
-		ifp->wireless = wlan = ni_wireless_new();
+		ifp->wireless = wlan = ni_wireless_new(ifp);
 
 		wlan->capabilities = wif->capabilities;
 	}
 
-	if (wlan->enable_ap_scan)
+	if (wlan->scan)
 		__ni_wireless_do_scan(ifp);
 
 	/* A wireless "link" isn't really up until we have associated
@@ -117,10 +120,18 @@ ni_wireless_interface_set_scanning(ni_interface_t *dev, ni_bool_t enable)
 		return -1;
 	}
 
-	wlan->enable_ap_scan = enable;
+	if (enable) {
+		if (!wlan->scan)
+			wlan->scan = ni_wireless_scan_new(dev, NI_WIRELESS_DEFAUT_SCAN_INTERVAL);
 
-	if (wlan->enable_ap_scan)
+		/* FIXME: If it's down, we should bring up the device now for scanning */
 		__ni_wireless_do_scan(dev);
+	} else {
+		if (wlan->scan)
+			ni_wireless_scan_free(wlan->scan);
+		wlan->scan = NULL;
+	}
+
 	return 0;
 }
 
@@ -132,24 +143,28 @@ __ni_wireless_do_scan(ni_interface_t *dev)
 	ni_wireless_scan_t *scan;
 	time_t now;
 
-	/* FIXME: If it's down, we should bring up the device now for scanning */
+	wlan = dev->wireless;
+	if ((scan = wlan->scan) == NULL) {
+		ni_error("%s: no wireless scan handle?!", __func__);
+		return -1;
+	}
+
+	/* (Re-)arm the scan timer */
+	__ni_wireless_scan_timer_arm(scan, dev);
+
+	/* If the device is down, we cannot scan */
+	if (!ni_interface_device_is_up(dev))
+		return 0;
 
 	if (!(wpa_dev = ni_wireless_bind_supplicant(dev)))
 		return -1;
-
-	wlan = dev->wireless;
-	if ((scan = wlan->scan) == NULL) {
-		ni_trace("new scan");
-		scan = ni_wireless_scan_new();
-		wlan->scan = scan;
-	}
 
 	/* Retrieve whatever is there. */
 	ni_wpa_interface_retrieve_scan(wpa_dev, scan);
 
 	/* If we haven't seen a scan in a long time, request one. */
 	now = time(NULL);
-	if (scan->timestamp + scan->max_age < now) {
+	if (scan->timestamp + scan->interval < now) {
 		/* We can do this only if the device is up */
 		if (dev->link.ifflags & NI_IFF_DEVICE_UP) {
 			if (scan->timestamp)
@@ -162,6 +177,40 @@ __ni_wireless_do_scan(ni_interface_t *dev)
 	}
 
 	return 0;
+}
+
+static void
+__ni_wireless_scan_timeout(void *ptr, const ni_timer_t *timer)
+{
+	ni_interface_t *dev = ptr;
+	ni_wireless_scan_t *scan;
+
+	if (!dev || !dev->wireless || !(scan = dev->wireless->scan))
+		return;
+
+	if (scan->timer == timer)
+		scan->timer = NULL;
+	__ni_wireless_do_scan(dev);
+}
+
+static void
+__ni_wireless_scan_timer_arm(ni_wireless_scan_t *scan, ni_interface_t *dev)
+{
+	unsigned int timeout;
+
+	/* Fire twice as often as requested. This is because we rearm the
+	 * timer at the point where we *request* a new scan, but the scan
+	 * timestamp is updated when the last *response* comes in, which is
+	 * usually half a second later or so. */
+	timeout = 1000 * scan->interval / 2;
+
+	if (scan->timer == NULL) {
+		scan->timer = ni_timer_register(timeout,
+				__ni_wireless_scan_timeout,
+				dev);
+	} else {
+		ni_timer_rearm(scan->timer, timeout);
+	}
 }
 
 /*
@@ -734,12 +783,12 @@ format_error:
  * Wireless interface config
  */
 ni_wireless_t *
-ni_wireless_new(void)
+ni_wireless_new(ni_interface_t *dev)
 {
 	ni_wireless_t *wlan;
 
 	wlan = xcalloc(1, sizeof(ni_wireless_t));
-	wlan->enable_ap_scan = TRUE;
+	wlan->scan = ni_wireless_scan_new(dev, NI_WIRELESS_DEFAUT_SCAN_INTERVAL);
 	return wlan;
 }
 
@@ -766,13 +815,16 @@ ni_wireless_set_assoc_network(ni_wireless_t *wireless, ni_wireless_network_t *ne
  * Wireless scan objects
  */
 ni_wireless_scan_t *
-ni_wireless_scan_new(void)
+ni_wireless_scan_new(ni_interface_t *dev, unsigned int interval)
 {
 	ni_wireless_scan_t *scan;
 
 	scan = xcalloc(1, sizeof(ni_wireless_scan_t));
+	scan->interval = interval? interval : NI_WIRELESS_DEFAUT_SCAN_INTERVAL;
 	scan->max_age = NI_WIRELESS_SCAN_MAX_AGE;
 	scan->lifetime = 60;
+
+	__ni_wireless_scan_timer_arm(scan, dev);
 
 	return scan;
 }
@@ -780,6 +832,10 @@ ni_wireless_scan_new(void)
 void
 ni_wireless_scan_free(ni_wireless_scan_t *scan)
 {
+	if (scan->timer)
+		ni_timer_cancel(scan->timer);
+	scan->timer = NULL;
+
 	ni_wireless_network_array_destroy(&scan->networks);
 	free(scan);
 }

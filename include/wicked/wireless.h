@@ -175,7 +175,6 @@ typedef struct ni_wireless_interface_capabilities {
 struct ni_wireless {
 	ni_wireless_interface_capabilities_t capabilities;
 
-	ni_bool_t		enable_ap_scan;
 	ni_wireless_scan_t *	scan;
 
 	/* Association information */
@@ -194,10 +193,14 @@ typedef struct ni_wireless_network_array {
 } ni_wireless_network_array_t;
 
 
-#define NI_WIRELESS_ASSOC_FAIL_DELAY	60
-#define NI_WIRELESS_SCAN_MAX_AGE	600
+#define NI_WIRELESS_DEFAUT_SCAN_INTERVAL	60
+#define NI_WIRELESS_ASSOC_FAIL_DELAY		60
+#define NI_WIRELESS_SCAN_MAX_AGE		600
 
 struct ni_wireless_scan {
+	/* Scanning interval */
+	unsigned int		interval;
+
 	/* Time in seconds after which we forget BSSes */
 	unsigned int		max_age;
 
@@ -205,16 +208,14 @@ struct ni_wireless_scan {
 	time_t			lifetime;
 	ni_wireless_network_array_t networks;
 
-	void *			pending;
+	const ni_timer_t *	timer;
 };
 
-extern ni_wireless_t *	ni_wireless_new(void);
+extern ni_wireless_t *	ni_wireless_new(ni_interface_t *);
 extern int		ni_wireless_interface_set_scanning(ni_interface_t *, ni_bool_t);
 extern int		ni_wireless_interface_refresh(ni_interface_t *);
 extern ni_wireless_network_t *ni_wireless_network_new(void);
 extern void		ni_wireless_free(ni_wireless_t *);
-extern ni_wireless_scan_t *ni_wireless_scan_new(void);
-extern void		ni_wireless_scan_free(ni_wireless_scan_t *);
 extern int		ni_wireless_set_network(ni_interface_t *, ni_wireless_network_t *);
 extern int		ni_wireless_connect(ni_interface_t *);
 extern int		ni_wireless_disconnect(ni_interface_t *);

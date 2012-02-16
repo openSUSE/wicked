@@ -295,7 +295,7 @@ ni_interface_get_wireless(ni_interface_t *dev)
 	if (dev->link.type != NI_IFTYPE_WIRELESS)
 		return NULL;
 	if (!dev->wireless)
-		dev->wireless = ni_wireless_new();
+		dev->wireless = ni_wireless_new(dev);
 	return dev->wireless;
 }
 
