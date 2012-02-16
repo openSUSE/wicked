@@ -61,6 +61,28 @@ static ni_intmap_t	arphrd_map[] = {
 	{ NULL }
 };
 
+struct generic_map {
+	const char *		prefix;
+	unsigned int		prefix_len;
+	const char *		(*mapfunc)(unsigned int);
+	unsigned int		max_value;
+};
+
+#define MAP(name, func) \
+	{ #name, sizeof(#name) - 1, func, 128 }
+#define MAPN(name, func, max) \
+	{ #name, sizeof(#name) - 1, func, max }
+static struct generic_map	generic_maps[] = {
+	MAPN(IFTYPENAME, ni_linktype_type_to_name, __NI_IFTYPE_MAX),
+	MAPN(ADDRCONFNAME, ni_addrconf_type_to_name, __NI_ADDRCONF_MAX),
+	MAPN(ADDRCONFSTATE, ni_addrconf_state_to_name, __NI_ADDRCONF_STATE_MAX),
+	MAP(WIRELESSMODE, ni_wireless_mode_to_name),
+	MAP(WIRELESS_SECURITY, ni_wireless_security_to_name),
+	MAP(WIRELESS_AUTH, ni_wireless_auth_mode_to_name),
+
+	{ NULL }
+};
+
 int
 main(int argc, char **argv)
 {
@@ -84,38 +106,27 @@ main(int argc, char **argv)
 		} else
 		if (!strncmp(atat + 2, "IFFLAG_", 7)) {
 			generate(buffer, "IFFLAG", build_ifflag_bits_map());
-		} else
-		if (!strncmp(atat + 2, "IFTYPENAME_", 11)) {
-			generate(buffer, "IFTYPENAME",
-					buildmap(ni_linktype_type_to_name, __NI_IFTYPE_MAX));
-		} else
-		if (!strncmp(atat + 2, "ADDRCONFNAME_", 13)) {
-			generate(buffer, "ADDRCONFNAME",
-					buildmap(ni_addrconf_state_to_name, __NI_ADDRCONF_STATE_MAX));
-		} else
-		if (!strncmp(atat + 2, "ADDRCONFSTATE_", 14)) {
-			generate(buffer, "ADDRCONFSTATE",
-					buildmap(ni_addrconf_state_to_name, __NI_ADDRCONF_STATE_MAX));
-		} else
-		if (!strncmp(atat + 2, "WIRELESSMODE_", 13)) {
-			generate(buffer, "WIRELESSMODE",
-					buildmap(ni_wireless_mode_to_name, 128));
-		} else
-		if (!strncmp(atat + 2, "WIRELESS_SECURITY_", 18)) {
-			generate(buffer, "WIRELESS_SECURITY",
-					buildmap(ni_wireless_security_to_name, 128));
-		} else
-		if (!strncmp(atat + 2, "WIRELESS_AUTH_", 14)) {
-			generate(buffer, "WIRELESS_AUTH",
-					buildmap(ni_wireless_auth_mode_to_name, 128));
 		} else {
-			int indent = atat - buffer;
+			struct generic_map *map;
+			int indent;
+
+			for (map = generic_maps; map->prefix; ++map) {
+				if (!strncmp(atat + 2, map->prefix, map->prefix_len)
+				 && atat[2 + map->prefix_len] == '_') {
+					generate(buffer, map->prefix,
+							buildmap(map->mapfunc, map->max_value));
+					goto found;
+				}
+			}
+
+			indent = atat - buffer;
 
 			ni_error("line %u: unsupported constant class\n", line);
 			fputs(buffer, stderr);
 			fprintf(stderr, "%*.*s^--- here\n", indent, indent, "");
 			ni_fatal("Giving up.");
 		}
+found: ;
 	}
 
 	return 0;
