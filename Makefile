@@ -86,6 +86,8 @@ AUTO4SRCS = \
 CONVSRCS = \
 	  convert/suse.c \
 	  convert/redhat.c
+CLIENTSRCS = \
+	  client/ifup.c
 
 OBJ	= obj
 LIBSRCS	= $(addprefix src/,$(__LIBSRCS))
@@ -95,6 +97,7 @@ APPSRCS	= $(addsuffix .c,$(APPS))
 DHCP4OBJS= $(addprefix $(OBJ)/,$(DHCP4SRCS:.c=.o))
 AUTO4OBJS= $(addprefix $(OBJ)/,$(AUTO4SRCS:.c=.o))
 CONVOBJS = $(addprefix $(OBJ)/,$(CONVSRCS:.c=.o))
+#CLIENTOBJS= $(addprefix $(OBJ)/,$(CLIENTSRCS:.c=.o))
 
 all: $(TGTLIBS) $(APPS)
 
@@ -118,8 +121,8 @@ install-files:
 	install -m 644 etc/wicked/*.xml $(DESTDIR)/etc/wicked
 	install -d -m 755 $(DESTDIR)/var/run/wicked
 
-wicked: $(OBJ)/wicked.o $(TGTLIBS)
-	$(CC) -o $@ $(CFLAGS) $(OBJ)/wicked.o -L. -lnetinfo -lm -lnl -ldbus-1
+wicked: $(OBJ)/wicked.o $(CLIENTOBJS) $(TGTLIBS)
+	$(CC) -o $@ $(CFLAGS) $(OBJ)/wicked.o $(CLIENTOBJS) -L. -lnetinfo -lm -lnl -ldbus-1
 
 wickedd: $(OBJ)/wickedd.o $(TGTLIBS)
 	$(CC) -o $@ $(CFLAGS) $(OBJ)/wickedd.o -L. -lnetinfo -lm -lnl -ldbus-1
@@ -156,6 +159,7 @@ depend:
 	gcc $(CFLAGS) -M $(DHCP4SRCS) | sed 's:^[a-z]:$(OBJ)/dhcp4/&:' >> .depend
 	gcc $(CFLAGS) -M $(AUTO4SRCS) | sed 's:^[a-z]:$(OBJ)/auto4/&:' >> .depend
 	gcc $(CFLAGS) -M $(CONVSRCS) | sed 's:^[a-z]:$(OBJ)/convert/&:' >> .depend
+	gcc $(CFLAGS) -M $(CLIENTSRCS) | sed 's:^[a-z]:$(OBJ)/client/&:' >> .depend
 
 $(OBJ)/%.o: %.c
 	@rm -f $@
