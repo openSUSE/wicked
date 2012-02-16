@@ -41,12 +41,18 @@ void
 ni_extension_free(ni_extension_t *ex)
 {
 	ni_script_action_t *act;
+	ni_c_binding_t *binding;
 
 	ni_string_free(&ex->name);
 	ni_string_free(&ex->interface);
 	while ((act = ex->actions) != NULL) {
 		ex->actions = act->next;
 		__ni_script_action_free(act);
+	}
+
+	while ((binding = ex->c_bindings) != NULL) {
+		ex->c_bindings = binding->next;
+		ni_c_binding_free(binding);
 	}
 
 	ni_var_array_destroy(&ex->environment);
@@ -153,6 +159,21 @@ ni_extension_script_find(ni_extension_t *extension, const char *name)
 	for (script = extension->actions; script; script = script->next) {
 		if (!strcmp(script->name, name))
 			return script->process;
+	}
+	return NULL;
+}
+
+/*
+ * Find C binding info
+ */
+const ni_c_binding_t *
+ni_extension_find_c_binding(const ni_extension_t *extension, const char *name)
+{
+	ni_c_binding_t *binding;
+
+	for (binding = extension->c_bindings; binding; binding = binding->next) {
+		if (!strcmp(binding->name, name))
+			return binding;
 	}
 	return NULL;
 }

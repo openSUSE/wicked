@@ -74,11 +74,20 @@ __ni_dbus_object_new_child(ni_dbus_object_t *parent, const ni_dbus_class_t *clas
 		__ni_dbus_client_object_inherit(child, parent);
 
 	if (parent->class && parent->class->init_child) {
+		const ni_dbus_class_t *check;
+
 		parent->class->init_child(child);
-		if (class && class != child->class) {
-			ni_fatal("error when creating dbus object %s: "
-				"class argument \"%s\" conflicts with parent object's init_child method",
-				child->path, class->name);
+		if (class != NULL) {
+			for (check = class; check; check = check->superclass) {
+				if (child->class == check)
+					break;
+			}
+			if (check == NULL) {
+				ni_fatal("error when creating dbus object %s: "
+					"class argument \"%s\" conflicts with parent object's init_child method",
+					child->path, class->name);
+			}
+			child->class = class;
 		}
 		if (object_handle && object_handle != child->handle) {
 			ni_fatal("error when creating dbus object %s: "

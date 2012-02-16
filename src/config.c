@@ -23,7 +23,7 @@ static int		ni_config_parse_afinfo(ni_afinfo_t *, const char *, xml_node_t *);
 static int		ni_config_parse_update_targets(unsigned int *, const xml_node_t *);
 static int		ni_config_parse_fslocation(ni_config_fslocation_t *, const char *, xml_node_t *);
 static int		ni_config_parse_extensions(ni_extension_t **, xml_node_t *);
-
+static ni_c_binding_t *	ni_c_binding_new(ni_extension_t *, const char *name, const char *lib, const char *symbol);
 
 /*
  * Create an empty config object
@@ -289,6 +289,21 @@ ni_config_parse_extensions(ni_extension_t **list, xml_node_t *node)
 
 				process = ni_extension_script_new(ex, name, command);
 			} else
+			if (!strcmp(child->name, "builtin")) {
+				const char *name, *library, *symbol;
+
+				if (!(name = xml_node_get_attr(child, "name"))) {
+					ni_error("action element without name attribute");
+					return -1;
+				}
+				if (!(symbol = xml_node_get_attr(child, "symbol"))) {
+					ni_error("action element without command attribute");
+					return -1;
+				}
+				library = xml_node_get_attr(child, "library");
+
+				ni_c_binding_new(ex, name, library, symbol);
+			} else
 			if (!strcmp(child->name, "putenv")) {
 				const char *name, *value;
 
@@ -313,6 +328,35 @@ ni_extension_t *
 ni_config_find_extension(ni_config_t *conf, const char *interface)
 {
 	return ni_extension_list_find(conf->extensions, interface);
+}
+
+/*
+ * Handle methods implemented via C bindings
+ */
+static ni_c_binding_t *
+ni_c_binding_new(ni_extension_t *ex, const char *name, const char *library, const char *symbol)
+{
+	ni_c_binding_t *binding, **pos;
+
+	for (pos = &ex->c_bindings; (binding = *pos) != NULL; pos = &binding->next)
+		;
+
+	binding = xcalloc(1, sizeof(*binding));
+	ni_string_dup(&binding->name, name);
+	ni_string_dup(&binding->library, library);
+	ni_string_dup(&binding->symbol, symbol);
+
+	*pos = binding;
+	return binding;
+}
+
+void
+ni_c_binding_free(ni_c_binding_t *binding)
+{
+	ni_string_free(&binding->name);
+	ni_string_free(&binding->library);
+	ni_string_free(&binding->symbol);
+	free(binding);
 }
 
 /*

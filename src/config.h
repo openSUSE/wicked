@@ -20,6 +20,14 @@ struct ni_script_action {
 	ni_process_t *		process;
 };
 
+typedef struct ni_c_binding ni_c_binding_t;
+struct ni_c_binding {
+	ni_c_binding_t *	next;
+	char *			name;
+	char *			library;
+	char *			symbol;
+};
+
 struct ni_extension {
 	ni_extension_t *	next;
 
@@ -31,6 +39,9 @@ struct ni_extension {
 
 	/* Shell commands */
 	ni_script_action_t *	actions;
+
+	/* C bindings */
+	ni_c_binding_t *	c_bindings;
 
 	/* Environment variables.
 	 * The values are of the form
@@ -99,8 +110,11 @@ extern void		ni_extension_list_destroy(ni_extension_t **);
 extern ni_extension_t *	ni_extension_new(ni_extension_t **, const char *);
 extern void		ni_extension_free(ni_extension_t *);
 
+extern void		ni_c_binding_free(ni_c_binding_t *);
+
 extern ni_process_t *	ni_extension_script_new(ni_extension_t *, const char *name, const char *command);
 extern ni_process_t *	ni_extension_script_find(ni_extension_t *, const char *);
+extern const ni_c_binding_t *ni_extension_find_c_binding(const ni_extension_t *, const char *name);
 
 typedef struct ni_global {
 	int			initialized;

@@ -13,6 +13,7 @@
 #include <signal.h>
 #include <getopt.h>
 #include <errno.h>
+#include <dlfcn.h>
 
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
@@ -494,6 +495,8 @@ ni_objectmodel_bind_extensions(void)
 			continue;
 
 		for (method = service->methods; method->name != NULL; ++method) {
+			const ni_c_binding_t *binding;
+
 			if (method->handler != NULL)
 				continue;
 			if (ni_extension_script_find(extension, method->name) != NULL) {
@@ -503,6 +506,30 @@ ni_objectmodel_bind_extensions(void)
 						service->name, method->name);
 				mod_method->async_handler = ni_objectmodel_extension_call;
 				mod_method->async_completion = ni_objectmodel_extension_completion;
+			} else
+			if ((binding = ni_extension_find_c_binding(extension, method->name)) != NULL) {
+				void *handle;
+				void *addr;
+
+				handle = dlopen(binding->library, RTLD_LAZY);
+				if (handle == NULL) {
+					ni_error("cannot bind method %s.%s - cannot dlopen(%s): %s",
+							service->name, method->name,
+							binding->library?: "<main>",
+							dlerror());
+					continue;
+				}
+
+				addr = dlsym(handle, binding->symbol);
+				dlclose(handle);
+
+				if (addr == NULL) {
+					ni_error("cannot bind method %s.%s - no such symbol in %s: %s",
+							service->name, method->name,
+							binding->library?: "<main>",
+							binding->symbol);
+					continue;
+				}
 			}
 		}
 	}

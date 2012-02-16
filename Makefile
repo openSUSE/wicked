@@ -135,19 +135,19 @@ etc/wicked/schema/constants.xml: etc/mkconst etc/wicked/schema/constants.xml.in
 	etc/mkconst < etc/wicked/schema/constants.xml.in > etc/wicked/schema/constants.xml
 
 wicked: $(OBJ)/wicked.o $(CLIENTOBJS) $(TGTLIBS)
-	$(CC) -o $@ $(CFLAGS) $(OBJ)/wicked.o $(CLIENTOBJS) -L. -lnetinfo -lm -lnl -ldbus-1
+	$(CC) -o $@ $(CFLAGS) $(OBJ)/wicked.o $(CLIENTOBJS) -L. -lnetinfo -lm -lnl -ldbus-1 -ldl
 
 wickedd: $(OBJ)/wickedd.o $(TGTLIBS)
-	$(CC) -o $@ $(CFLAGS) $(OBJ)/wickedd.o -L. -lnetinfo -lm -lnl -ldbus-1
+	$(CC) -o $@ $(CFLAGS) $(OBJ)/wickedd.o -L. -lnetinfo -lm -lnl -ldbus-1 -ldl
 
 wicked-convert: $(OBJ)/wicked-convert.o $(CONVOBJS) $(TGTLIBS)
-	$(CC) -o $@ $(CFLAGS) $(OBJ)/wicked-convert.o $(CONVOBJS) -L. -lnetinfo -lm -lnl -ldbus-1
+	$(CC) -o $@ $(CFLAGS) $(OBJ)/wicked-convert.o $(CONVOBJS) -L. -lnetinfo -lm -lnl -ldbus-1 -ldl
 
 dhcp4-supplicant: $(OBJ)/dhcp4-supplicant.o $(DHCP4OBJS) $(TGTLIBS)
-	$(CC) -o $@ $(CFLAGS) $(OBJ)/dhcp4-supplicant.o $(DHCP4OBJS) -L. -lnetinfo -lm -lnl -ldbus-1
+	$(CC) -o $@ $(CFLAGS) $(OBJ)/dhcp4-supplicant.o $(DHCP4OBJS) -L. -lnetinfo -lm -lnl -ldbus-1 -ldl
 
 autoip4-supplicant: $(OBJ)/autoip4-supplicant.o $(AUTO4OBJS) $(TGTLIBS)
-	$(CC) -o $@ $(CFLAGS) $(OBJ)/autoip4-supplicant.o $(AUTO4OBJS) -L. -lnetinfo -lm -lnl -ldbus-1
+	$(CC) -o $@ $(CFLAGS) $(OBJ)/autoip4-supplicant.o $(AUTO4OBJS) -L. -lnetinfo -lm -lnl -ldbus-1 -ldl
 
 etc/mkconst: etc/mkconst.o $(TGTLIBS)
 	$(CC) -o $@ $(CFLAGS) etc/mkconst.o -L. -lnetinfo -ldbus-1
