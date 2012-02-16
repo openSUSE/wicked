@@ -401,6 +401,8 @@ extern ni_dbus_message_t *	ni_dbus_object_call_new_va(const ni_dbus_object_t *ob
 
 extern ni_xs_scope_t *		ni_dbus_xml_init(void);
 extern int			ni_dbus_xml_register_services(ni_xs_scope_t *);
+extern dbus_bool_t		ni_dbus_xml_serialize_arg(const ni_dbus_method_t *, unsigned int,
+					ni_dbus_variant_t *, xml_node_t *);
 
 extern unsigned int		__ni_dbus_variant_offsets[256];
 

@@ -360,7 +360,7 @@ static char *
 wicked_create_interface_xml(ni_dbus_object_t *object, const ni_dbus_service_t *service,
 				const char *ifname, xml_node_t *linkdef)
 {
-	ni_dbus_variant_t call_argv[2], call_resp[1], *dict;
+	ni_dbus_variant_t call_argv[2], call_resp[1];
 	const ni_dbus_method_t *method;
 	DBusError error = DBUS_ERROR_INIT;
 	char *result = NULL;
@@ -380,14 +380,11 @@ wicked_create_interface_xml(ni_dbus_object_t *object, const ni_dbus_service_t *s
 
 	ni_assert(method->user_data);
 
-	dict = &call_argv[1];
-	ni_dbus_variant_init_dict(dict);
-#if 0
-	if (!wicked_properties_from_argv(service, dict, argc, argv)) {
-		ni_error("Error parsing properties");
+	if (!ni_dbus_xml_serialize_arg(method, 1, &call_argv[1], linkdef)) {
+		ni_error("%s.%s: error serializing arguments",
+				service->name, method->name);
 		goto failed;
 	}
-#endif
 
 	if (!ni_dbus_object_call_variant(object, NULL, "newLink",
 				2, call_argv,

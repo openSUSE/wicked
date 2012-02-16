@@ -19,6 +19,8 @@
 static void		ni_dbus_define_scalar_types(ni_xs_scope_t *);
 static void		ni_dbus_define_xml_notations(void);
 static int		ni_dbus_xml_register_methods(ni_dbus_service_t *, ni_xs_service_t *);
+
+static dbus_bool_t	ni_dbus_serialize_xml(xml_node_t *, const ni_xs_type_t *, ni_dbus_variant_t *);
 static dbus_bool_t	ni_dbus_serialize_xml_scalar(xml_node_t *, const ni_xs_type_t *, ni_dbus_variant_t *);
 static dbus_bool_t	ni_dbus_serialize_xml_struct(xml_node_t *, const ni_xs_type_t *, ni_dbus_variant_t *);
 static dbus_bool_t	ni_dbus_serialize_xml_array(xml_node_t *, const ni_xs_type_t *, ni_dbus_variant_t *);
@@ -126,6 +128,27 @@ ni_dbus_xml_register_methods(ni_dbus_service_t *service, ni_xs_service_t *xs_ser
 	}
 
 	return 0;
+}
+
+/*
+ * Serialize XML rep of an argument to a dbus call
+ */
+dbus_bool_t
+ni_dbus_xml_serialize_arg(const ni_dbus_method_t *method, unsigned int narg,
+					ni_dbus_variant_t *var, xml_node_t *node)
+{
+	ni_xs_method_t *xs_method = method->user_data;
+	ni_xs_type_t *xs_type;
+
+	ni_assert(xs_method);
+	if (narg >= xs_method->arguments.count)
+		return FALSE;
+
+	ni_debug_dbus("%s: serializing argument %u (%s)",
+			method->name, narg, xs_method->arguments.data[narg].name);
+	xs_type = xs_method->arguments.data[narg].type;
+
+	return ni_dbus_serialize_xml(node, xs_type, var);
 }
 
 /*
@@ -261,6 +284,8 @@ ni_dbus_serialize_xml_dict(xml_node_t *node, const ni_xs_type_t *type, ni_dbus_v
 	xml_node_t *child;
 
 	ni_assert(dict_info);
+
+	ni_dbus_variant_init_dict(dict);
 	for (child = node->children; child; child = child->next) {
 		const ni_xs_type_t *child_type = ni_xs_dict_info_find(dict_info, child->name);
 		ni_dbus_variant_t *child_var;
