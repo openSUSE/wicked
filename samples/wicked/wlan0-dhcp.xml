@@ -1,0 +1,28 @@
+<interface>
+  <name>wlan0</name>
+  <description>WLAN Device</description>
+
+  <wireless>
+    <essid>okirnet</essid>
+    <wpa-psk>
+      <!-- Configure the pre-shared-key.
+        -- You can either specify a passphrase via the
+	-- <passphrase> element, which is then used to derive
+	-- the key, OR you can specify the exact key directly.
+	--
+	-- If neither is specified, the wicked client will
+	-- prompt you for a passphrase
+	-->
+      <!--
+      <passphrase>mysecretpassphrase</passphrase>
+       -->
+    </wpa-psk>
+  </wireless>
+
+  <ipv4:dhcp>
+    <acquire-timeout>15</acquire-timeout>
+  </ipv4:dhcp>
+</interface>
+
+
+
