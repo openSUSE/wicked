@@ -36,7 +36,7 @@ static ni_dbus_class_t		ni_objectmodel_ifreq_class = {
 
 static const ni_dbus_class_t	ni_objectmodel_netif_list_class;
 static ni_dbus_service_t	ni_objectmodel_netif_list_service;
-static ni_dbus_service_t	wicked_dbus_interface_service;
+static ni_dbus_service_t	ni_objectmodel_netif_service;
 extern const ni_dbus_service_t	wicked_dbus_interface_request_service; /* XXX */
 
 /*
@@ -57,7 +57,7 @@ ni_objectmodel_register_netif_classes(void)
 	ni_objectmodel_register_class(base_class);
 
 	/* register the netif interface */
-	ni_objectmodel_register_service(&wicked_dbus_interface_service);
+	ni_objectmodel_register_service(&ni_objectmodel_netif_service);
 
 	for (iftype = 0; iftype < __NI_IFTYPE_MAX; ++iftype) {
 		const char *classname;
@@ -697,7 +697,7 @@ static ni_dbus_property_t	wicked_dbus_interface_properties[] = {
 	{ NULL }
 };
 
-static ni_dbus_service_t	wicked_dbus_interface_service = {
+static ni_dbus_service_t	ni_objectmodel_netif_service = {
 	.name		= WICKED_DBUS_NETIF_INTERFACE,
 	.compatible	= &ni_objectmodel_netif_class,
 	.methods	= wicked_dbus_interface_methods,
