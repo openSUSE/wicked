@@ -47,7 +47,7 @@ struct ni_dbus_sigaction {
 
 struct ni_dbus_connection {
 	DBusConnection *	conn;
-	ni_dbus_async_client_call_t *pending;
+	ni_dbus_async_client_call_t *async_client_calls;
 	ni_dbus_async_server_call_t *async_server_calls;
 	ni_dbus_sigaction_t *	sighandlers;
 };
@@ -146,15 +146,16 @@ failed:
 void
 ni_dbus_connection_free(ni_dbus_connection_t *dbc)
 {
-	ni_dbus_async_client_call_t *pd;
 	ni_dbus_sigaction_t *sig;
 
 	NI_TRACE_ENTER();
 
-	while ((pd = dbc->pending) != NULL) {
-		dbc->pending = pd->next;
-		dbus_pending_call_cancel(pd->call);
-		__ni_dbus_async_client_call_free(pd);
+	while (dbc->async_client_calls) {
+		ni_dbus_async_client_call_t *async = dbc->async_client_calls;
+
+		dbc->async_client_calls = async->next;
+		dbus_pending_call_cancel(async->call);
+		__ni_dbus_async_client_call_free(async);
 	}
 
 	while (dbc->async_server_calls) {
@@ -187,36 +188,36 @@ ni_dbus_connection_add_pending(ni_dbus_connection_t *connection,
 			ni_dbus_async_callback_t *callback,
 			ni_dbus_object_t *proxy)
 {
-	ni_dbus_async_client_call_t *pd;
+	ni_dbus_async_client_call_t *async;
 
-	pd = calloc(1, sizeof(*pd));
-	pd->proxy = proxy;
-	pd->call = call;
-	pd->callback = callback;
+	async = calloc(1, sizeof(*async));
+	async->proxy = proxy;
+	async->call = call;
+	async->callback = callback;
 
-	pd->next = connection->pending;
-	connection->pending = pd;
+	async->next = connection->async_client_calls;
+	connection->async_client_calls = async;
 }
 
 static void
-__ni_dbus_async_client_call_free(ni_dbus_async_client_call_t *pd)
+__ni_dbus_async_client_call_free(ni_dbus_async_client_call_t *async)
 {
-	dbus_pending_call_unref(pd->call);
-	free(pd);
+	dbus_pending_call_unref(async->call);
+	free(async);
 }
 
 static int
 __ni_dbus_process_pending(ni_dbus_connection_t *dbc, DBusPendingCall *call)
 {
 	DBusMessage *msg = dbus_pending_call_steal_reply(call);
-	ni_dbus_async_client_call_t *pd, **pos;
+	ni_dbus_async_client_call_t *async, **pos;
 	int rv = 0;
 
-	for (pos = &dbc->pending; (pd = *pos) != NULL; pos = &pd->next) {
-		if (pd->call == call) {
-			*pos = pd->next;
-			pd->callback(pd->proxy, msg);
-			__ni_dbus_async_client_call_free(pd);
+	for (pos = &dbc->async_client_calls; (async = *pos) != NULL; pos = &async->next) {
+		if (async->call == call) {
+			*pos = async->next;
+			async->callback(async->proxy, msg);
+			__ni_dbus_async_client_call_free(async);
 			rv = 1;
 			break;
 		}
