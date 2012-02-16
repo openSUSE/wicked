@@ -479,7 +479,7 @@ ni_dbus_serialize_xml_array(xml_node_t *node, const ni_xs_type_t *type, ni_dbus_
 			return FALSE;
 		}
 		if (!notation->parse(node->cdata, &data)) {
-			ni_error("%s: cannot parse array with notation \"%s\"", __func__, notation->name);
+			ni_error("%s: cannot parse array with notation \"%s\", value=\"%s\"", __func__, notation->name, node->cdata);
 			return FALSE;
 		}
 		ni_dbus_variant_set_byte_array(var, data.data, data.len);
@@ -874,10 +874,10 @@ __ni_notation_netaddr_prefix_parse(const char *string_value, ni_opaque_t *pack)
 		if (*s != '\0' || value >= 0xFFFF)
 			goto failed;
 
-		prefix = ntohs(value);
+		prefix = value;
 	}
 
-	if (ni_address_parse(&sockaddr, string_value, AF_UNSPEC) >= 0)
+	if (ni_address_parse(&sockaddr, copy, AF_UNSPEC) >= 0)
 		result = ni_sockaddr_prefix_pack(&sockaddr, prefix, pack);
 
 failed:
