@@ -74,6 +74,11 @@ static ni_dbus_class_t		ni_objectmodel_bss_class = {
 static ni_dbus_class_t		ni_objectmodel_wpaif_class = {
 	"wpa-interface"
 };
+/*
+static ni_dbus_class_t		ni_objectmodel_wpanet_class = {
+	"wpa-network"
+};
+   */
 
 static int		ni_wpa_get_interface(ni_wpa_client_t *, const char *, ni_wpa_interface_t **);
 static int		ni_wpa_add_interface(ni_wpa_client_t *, const char *, ni_wpa_interface_t **);
@@ -86,6 +91,16 @@ static void		ni_wpa_signal(ni_dbus_connection_t *, ni_dbus_message_t *, void *);
 static void		ni_wpa_scan_put(ni_wpa_scan_t *);
 static ni_wpa_scan_t *	ni_wpa_scan_get(ni_wpa_scan_t *);
 static char *		__ni_wpa_escape_essid(const struct ni_wpa_bss_properties *);
+static const char *	ni_wpa_auth_protocol_as_string(ni_wireless_auth_mode_t, DBusError *);
+static dbus_bool_t	ni_wpa_auth_protocol_from_string(const char *, ni_wireless_auth_mode_t *, DBusError *);
+static const char *	ni_wpa_auth_algorithm_as_string(ni_wireless_auth_algo_t, DBusError *);
+static dbus_bool_t	ni_wpa_auth_algorithm_from_string(const char *, ni_wireless_auth_algo_t *, DBusError *);
+static const char *	ni_wpa_keymgmt_protocol_as_string(ni_wireless_key_mgmt_t, DBusError *);
+static dbus_bool_t	ni_wpa_keymgmt_protocol_from_string(const char *, ni_wireless_key_mgmt_t *, DBusError *);
+static const char *	ni_wpa_cipher_as_string(ni_wireless_cipher_t, DBusError *);
+static dbus_bool_t	ni_wpa_cipher_from_string(const char *, ni_wireless_cipher_t *, DBusError *);
+static const char *	ni_wpa_eap_method_as_string(ni_wireless_eap_method_t, DBusError *);
+static dbus_bool_t	ni_wpa_eap_method_from_string(const char *, ni_wireless_eap_method_t *, DBusError *);
 
 /*
  * Map wpa_supplicant errors
@@ -986,6 +1001,188 @@ __wpa_dbus_bss_set_rsnie(ni_dbus_object_t *object, const ni_dbus_property_t *pro
 	return __wpa_set_blob(argument, &bss->rsnie);
 }
 
+static dbus_bool_t
+__wpa_dbus_bss_get_proto(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		ni_dbus_variant_t *argument, DBusError *error)
+{
+	struct ni_wpa_bss_properties *bss = __wpa_bss_properties(object);
+	const char *value;
+
+	if (!(value = ni_wpa_auth_protocol_as_string(bss->auth_proto, error)))
+		return FALSE;
+	ni_dbus_variant_set_string(argument, value);
+	return TRUE;
+}
+
+static dbus_bool_t
+__wpa_dbus_bss_set_proto(ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		const ni_dbus_variant_t *argument, DBusError *error)
+{
+	struct ni_wpa_bss_properties *bss = __wpa_bss_properties(object);
+	const char *value;
+
+	if (!ni_dbus_variant_get_string(argument, &value))
+		return FALSE;
+
+	return ni_wpa_auth_protocol_from_string(value, &bss->auth_proto, error);
+}
+
+static dbus_bool_t
+__wpa_dbus_bss_get_auth_alg(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		ni_dbus_variant_t *argument, DBusError *error)
+{
+	struct ni_wpa_bss_properties *bss = __wpa_bss_properties(object);
+	const char *value;
+
+	if (!(value = ni_wpa_auth_algorithm_as_string(bss->auth_algo, error)))
+		return FALSE;
+	ni_dbus_variant_set_string(argument, value);
+	return TRUE;
+}
+
+static dbus_bool_t
+__wpa_dbus_bss_set_auth_alg(ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		const ni_dbus_variant_t *argument, DBusError *error)
+{
+	struct ni_wpa_bss_properties *bss = __wpa_bss_properties(object);
+	const char *value;
+
+	if (!ni_dbus_variant_get_string(argument, &value))
+		return FALSE;
+
+	return ni_wpa_auth_algorithm_from_string(value, &bss->auth_algo, error);
+}
+
+static dbus_bool_t
+__wpa_dbus_bss_get_key_mgmt(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		ni_dbus_variant_t *argument, DBusError *error)
+{
+	struct ni_wpa_bss_properties *bss = __wpa_bss_properties(object);
+	const char *value;
+
+	if (!(value = ni_wpa_keymgmt_protocol_as_string(bss->keymgmt_proto, error)))
+		return FALSE;
+	ni_dbus_variant_set_string(argument, value);
+	return TRUE;
+}
+
+static dbus_bool_t
+__wpa_dbus_bss_set_key_mgmt(ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		const ni_dbus_variant_t *argument, DBusError *error)
+{
+	struct ni_wpa_bss_properties *bss = __wpa_bss_properties(object);
+	const char *value;
+
+	if (!ni_dbus_variant_get_string(argument, &value))
+		return FALSE;
+
+	return ni_wpa_keymgmt_protocol_from_string(value, &bss->keymgmt_proto, error);
+}
+
+static dbus_bool_t
+__wpa_dbus_bss_get_cipher(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		ni_dbus_variant_t *argument, DBusError *error)
+{
+	struct ni_wpa_bss_properties *bss = __wpa_bss_properties(object);
+	const char *value;
+
+	if (!(value = ni_wpa_cipher_as_string(bss->cipher, error)))
+		return FALSE;
+	ni_dbus_variant_set_string(argument, value);
+	return TRUE;
+}
+
+static dbus_bool_t
+__wpa_dbus_bss_set_cipher(ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		const ni_dbus_variant_t *argument, DBusError *error)
+{
+	struct ni_wpa_bss_properties *bss = __wpa_bss_properties(object);
+	const char *value;
+
+	if (!ni_dbus_variant_get_string(argument, &value))
+		return FALSE;
+
+	return ni_wpa_cipher_from_string(value, &bss->cipher, error);
+}
+
+static dbus_bool_t
+__wpa_dbus_bss_get_pairwise(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		ni_dbus_variant_t *argument, DBusError *error)
+{
+	struct ni_wpa_bss_properties *bss = __wpa_bss_properties(object);
+	const char *value;
+
+	if (!(value = ni_wpa_cipher_as_string(bss->pairwise_cipher, error)))
+		return FALSE;
+	ni_dbus_variant_set_string(argument, value);
+	return TRUE;
+}
+
+static dbus_bool_t
+__wpa_dbus_bss_set_pairwise(ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		const ni_dbus_variant_t *argument, DBusError *error)
+{
+	struct ni_wpa_bss_properties *bss = __wpa_bss_properties(object);
+	const char *value;
+
+	if (!ni_dbus_variant_get_string(argument, &value))
+		return FALSE;
+
+	return ni_wpa_cipher_from_string(value, &bss->pairwise_cipher, error);
+}
+
+static dbus_bool_t
+__wpa_dbus_bss_get_group(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		ni_dbus_variant_t *argument, DBusError *error)
+{
+	struct ni_wpa_bss_properties *bss = __wpa_bss_properties(object);
+	const char *value;
+
+	if (!(value = ni_wpa_cipher_as_string(bss->group_cipher, error)))
+		return FALSE;
+	ni_dbus_variant_set_string(argument, value);
+	return TRUE;
+}
+
+static dbus_bool_t
+__wpa_dbus_bss_set_group(ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		const ni_dbus_variant_t *argument, DBusError *error)
+{
+	struct ni_wpa_bss_properties *bss = __wpa_bss_properties(object);
+	const char *value;
+
+	if (!ni_dbus_variant_get_string(argument, &value))
+		return FALSE;
+
+	return ni_wpa_cipher_from_string(value, &bss->group_cipher, error);
+}
+
+static dbus_bool_t
+__wpa_dbus_bss_get_eap(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		ni_dbus_variant_t *argument, DBusError *error)
+{
+	struct ni_wpa_bss_properties *bss = __wpa_bss_properties(object);
+	const char *value;
+
+	if (!(value = ni_wpa_eap_method_as_string(bss->eap_method, error)))
+		return FALSE;
+	ni_dbus_variant_set_string(argument, value);
+	return TRUE;
+}
+
+static dbus_bool_t
+__wpa_dbus_bss_set_eap(ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		const ni_dbus_variant_t *argument, DBusError *error)
+{
+	struct ni_wpa_bss_properties *bss = __wpa_bss_properties(object);
+	const char *value;
+
+	if (!ni_dbus_variant_get_string(argument, &value))
+		return FALSE;
+
+	return ni_wpa_eap_method_from_string(value, &bss->eap_method, error);
+}
+
 
 #define WPA_BSS_PROPERTY(type, __name, rw) \
 	NI_DBUS_PROPERTY(type, __name, __wpa_dbus_bss, rw)
@@ -1004,6 +1201,23 @@ static ni_dbus_property_t	wpa_bss_properties[] = {
 	WPA_BSS_PROPERTY_SIGNATURE(DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING, wpaie, RO),
 	WPA_BSS_PROPERTY_SIGNATURE(DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING, wpsie, RO),
 	WPA_BSS_PROPERTY_SIGNATURE(DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING, rsnie, RO),
+
+//	WPA_BSS_PROPERTY(STRING, psk, RO),
+	WPA_BSS_PROPERTY(STRING, proto, RO),
+	WPA_BSS_PROPERTY(STRING, key_mgmt, RO),
+	WPA_BSS_PROPERTY(STRING, cipher, RO),
+	WPA_BSS_PROPERTY(STRING, pairwise, RO),
+	WPA_BSS_PROPERTY(STRING, group, RO),
+	WPA_BSS_PROPERTY(STRING, auth_alg, RO),
+	WPA_BSS_PROPERTY(STRING, eap, RO),
+//	WPA_BSS_PROPERTY(STRING, identity, RO),
+//	WPA_BSS_PROPERTY(STRING, anonymous_identity, RO),
+//	WPA_BSS_PROPERTY(DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING, password, RO),
+//	WPA_BSS_PROPERTY(STRING, wep_key0, RO),
+//	WPA_BSS_PROPERTY(STRING, wep_key1, RO),
+//	WPA_BSS_PROPERTY(STRING, wep_key2, RO),
+//	WPA_BSS_PROPERTY(STRING, wep_key3, RO),
+//	WPA_BSS_PROPERTY(INT32, wep_tx_keyid, RO),
 
 	{ NULL }
 };
@@ -1146,6 +1360,9 @@ static ni_intmap_t __ni_wpa_keymgmt_names[] = {
 };
 
 static ni_intmap_t __ni_wpa_auth_names[] = {
+	{ "OPEN",		NI_WIRELESS_AUTH_OPEN		},
+	{ "SHARED",		NI_WIRELESS_AUTH_SHARED		},
+	{ "LEAP",		NI_WIRELESS_AUTH_LEAP		},
 	{ NULL }
 };
 
@@ -1155,6 +1372,141 @@ static ni_intmap_t __ni_wpa_protocol_names[] = {
 
 	{ NULL }
 };
+
+static const char *
+ni_wpa_auth_protocol_as_string(ni_wireless_auth_mode_t auth_mode, DBusError *error)
+{
+	const char *res;
+
+	if (!(res = ni_format_int_mapped(auth_mode, __ni_wpa_protocol_names))) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"cannot render auth protocol %u(%s)",
+				auth_mode, ni_wireless_auth_mode_to_name(auth_mode));
+	}
+	return res;
+}
+
+static dbus_bool_t
+ni_wpa_auth_protocol_from_string(const char *string, ni_wireless_auth_mode_t *auth_mode, DBusError *error)
+{
+	unsigned int value;
+
+	if (ni_parse_int_mapped(string, __ni_wpa_protocol_names, &value) < 0) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"auth protocol \"%s\" not understood", string);
+		return FALSE;
+	}
+	*auth_mode = value;
+	return TRUE;
+}
+
+static const char *
+ni_wpa_auth_algorithm_as_string(ni_wireless_auth_algo_t auth_algo, DBusError *error)
+{
+	const char *res;
+
+	if (!(res = ni_format_int_mapped(auth_algo, __ni_wpa_auth_names))) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"cannot render auth algorithm %u(%s)",
+				auth_algo, ni_wireless_auth_algo_to_name(auth_algo));
+	}
+	return res;
+}
+
+static dbus_bool_t
+ni_wpa_auth_algorithm_from_string(const char *string, ni_wireless_auth_algo_t *auth_algo, DBusError *error)
+{
+	unsigned int value;
+
+	if (ni_parse_int_mapped(string, __ni_wpa_auth_names, &value) < 0) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"auth algorithm \"%s\" not understood", string);
+		return FALSE;
+	}
+	*auth_algo = value;
+	return TRUE;
+}
+
+static const char *
+ni_wpa_keymgmt_protocol_as_string(ni_wireless_key_mgmt_t proto, DBusError *error)
+{
+	const char *res;
+
+	if (!(res = ni_format_int_mapped(proto, __ni_wpa_keymgmt_names))) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"cannot render keymgmt protocol %u(%s)",
+				proto, ni_wireless_key_management_to_name(proto));
+	}
+	return res;
+}
+
+static dbus_bool_t
+ni_wpa_keymgmt_protocol_from_string(const char *string, ni_wireless_key_mgmt_t *proto, DBusError *error)
+{
+	unsigned int value;
+
+	if (ni_parse_int_mapped(string, __ni_wpa_keymgmt_names, &value) < 0) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"keymgmt protocol \"%s\" not understood", string);
+		return FALSE;
+	}
+	*proto = value;
+	return TRUE;
+}
+
+static const char *
+ni_wpa_cipher_as_string(ni_wireless_cipher_t proto, DBusError *error)
+{
+	const char *res;
+
+	if (!(res = ni_format_int_mapped(proto, __ni_wpa_cipher_names))) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"cannot render cipher %u(%s)",
+				proto, ni_wireless_cipher_to_name(proto));
+	}
+	return res;
+}
+
+static dbus_bool_t
+ni_wpa_cipher_from_string(const char *string, ni_wireless_cipher_t *proto, DBusError *error)
+{
+	unsigned int value;
+
+	if (ni_parse_int_mapped(string, __ni_wpa_cipher_names, &value) < 0) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"cipher \"%s\" not understood", string);
+		return FALSE;
+	}
+	*proto = value;
+	return TRUE;
+}
+
+static const char *
+ni_wpa_eap_method_as_string(ni_wireless_eap_method_t proto, DBusError *error)
+{
+	const char *res;
+
+	if (!(res = ni_format_int_mapped(proto, __ni_wpa_eap_method_names))) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"cannot render eap method %u(%s)",
+				proto, ni_wireless_eap_method_to_name(proto));
+	}
+	return res;
+}
+
+static dbus_bool_t
+ni_wpa_eap_method_from_string(const char *string, ni_wireless_eap_method_t *proto, DBusError *error)
+{
+	unsigned int value;
+
+	if (ni_parse_int_mapped(string, __ni_wpa_eap_method_names, &value) < 0) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"eap method \"%s\" not understood", string);
+		return FALSE;
+	}
+	*proto = value;
+	return TRUE;
+}
 
 static inline struct ni_wireless_interface_capabilities *
 __wpa_ifcap_properties(const ni_dbus_object_t *object)
@@ -1282,7 +1634,7 @@ __wpa_dbus_ifcapabilities_set_auth_alg(ni_dbus_object_t *object, const ni_dbus_p
 }
 
 static dbus_bool_t
-__wpa_dbus_ifcapabilities_get_protos(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
+__wpa_dbus_ifcapabilities_get_proto(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
 		ni_dbus_variant_t *argument, DBusError *error)
 {
 	struct ni_wireless_interface_capabilities *caps = __wpa_ifcap_properties(object);
@@ -1291,7 +1643,7 @@ __wpa_dbus_ifcapabilities_get_protos(const ni_dbus_object_t *object, const ni_db
 }
 
 static dbus_bool_t
-__wpa_dbus_ifcapabilities_set_protos(ni_dbus_object_t *object, const ni_dbus_property_t *property,
+__wpa_dbus_ifcapabilities_set_proto(ni_dbus_object_t *object, const ni_dbus_property_t *property,
 		const ni_dbus_variant_t *argument, DBusError *error)
 {
 	struct ni_wireless_interface_capabilities *caps = __wpa_ifcap_properties(object);
@@ -1310,7 +1662,7 @@ static ni_dbus_property_t	wpa_ifcap_properties[] = {
 	WPA_IFCAP_PROPERTY_SIGNATURE(DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_STRING_AS_STRING, group, RO),
 	WPA_IFCAP_PROPERTY_SIGNATURE(DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_STRING_AS_STRING, key_mgmt, RO),
 	WPA_IFCAP_PROPERTY_SIGNATURE(DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_STRING_AS_STRING, auth_alg, RO),
-	WPA_IFCAP_PROPERTY_SIGNATURE(DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_STRING_AS_STRING, protos, RO),
+	WPA_IFCAP_PROPERTY_SIGNATURE(DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_STRING_AS_STRING, proto, RO),
 	WPA_IFCAP_PROPERTY_SIGNATURE(DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_STRING_AS_STRING, eap, RO),
 
 	{ NULL }

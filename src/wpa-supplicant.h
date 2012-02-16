@@ -41,6 +41,15 @@ struct ni_wpa_bss_properties {
 	int32_t			maxrate;	/* in Bit/s, 1e6 based */
 	uint16_t		capabilities;
 
+	ni_wireless_auth_mode_t	auth_proto;
+	ni_wireless_auth_algo_t	auth_algo;
+	ni_wireless_auth_algo_t	ath_algo;
+	ni_wireless_key_mgmt_t	keymgmt_proto;
+	ni_wireless_cipher_t	cipher;
+	ni_wireless_cipher_t	pairwise_cipher;
+	ni_wireless_cipher_t	group_cipher;
+	ni_wireless_eap_method_t eap_method;
+
 	ni_opaque_t *		wpaie;
 	ni_opaque_t *		wpsie;
 	ni_opaque_t *		rsnie;

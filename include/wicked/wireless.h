@@ -73,6 +73,13 @@ typedef enum ni_wireless_auth_mode {
 	NI_WIRELESS_AUTH_UNKNOWN,
 } ni_wireless_auth_mode_t;
 
+typedef enum ni_wireless_auth_algo {
+	NI_WIRELESS_AUTH_OPEN,
+	NI_WIRELESS_AUTH_SHARED,
+	NI_WIRELESS_AUTH_LEAP,
+} ni_wireless_auth_algo_t;
+
+
 #define NI_WIRELESS_PAIRWISE_CIPHERS_MAX	4
 
 typedef struct ni_wireless_auth_info {
@@ -179,6 +186,8 @@ extern const char *	ni_wireless_security_to_name(ni_wireless_security_t);
 extern ni_wireless_security_t ni_wireless_name_to_security(const char *);
 extern const char *	ni_wireless_auth_mode_to_name(ni_wireless_auth_mode_t);
 extern ni_wireless_auth_mode_t ni_wireless_name_to_auth_mode(const char *);
+extern const char *	ni_wireless_auth_algo_to_name(ni_wireless_auth_algo_t);
+extern ni_wireless_auth_algo_t ni_wireless_name_to_auth_algo(const char *);
 extern const char *	ni_wireless_cipher_to_name(ni_wireless_cipher_t);
 extern ni_wireless_cipher_t ni_wireless_name_to_cipher(const char *);
 extern const char *	ni_wireless_key_management_to_name(ni_wireless_key_mgmt_t);

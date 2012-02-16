@@ -297,6 +297,29 @@ ni_wireless_name_to_auth_mode(const char *string)
 	return value;
 }
 
+static ni_intmap_t __ni_wireless_auth_algo_names[] = {
+	{ "open",		NI_WIRELESS_AUTH_OPEN },
+	{ "shared",		NI_WIRELESS_AUTH_SHARED },
+	{ "leap",		NI_WIRELESS_AUTH_LEAP },
+	{ NULL }
+};
+
+const char *
+ni_wireless_auth_algo_to_name(ni_wireless_auth_algo_t algo)
+{
+	return ni_format_int_mapped(algo, __ni_wireless_auth_algo_names);
+}
+
+ni_wireless_auth_algo_t
+ni_wireless_name_to_auth_algo(const char *string)
+{
+	unsigned int value;
+
+	if (ni_parse_int_mapped(string, __ni_wireless_auth_algo_names, &value) < 0)
+		return -1;
+	return value;
+}
+
 static ni_intmap_t __ni_wireless_cipher_names[] = {
 	{ "none",		NI_WIRELESS_CIPHER_NONE },
 	{ "proprietary",	NI_WIRELESS_CIPHER_PROPRIETARY },
