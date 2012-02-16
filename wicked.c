@@ -190,6 +190,29 @@ main(int argc, char **argv)
 	goto usage;
 }
 
+/*
+ * Initialize the object model
+ */
+static void
+wicked_init_objectmodel(void)
+{
+	ni_xs_scope_t *wicked_dbus_xml_schema;
+	static int initialized;
+
+	if (initialized)
+		return;
+	initialized = 1;
+
+	wicked_dbus_xml_schema = ni_server_dbus_xml_schema();
+	if (wicked_dbus_xml_schema == NULL)
+		ni_fatal("Giving up.");
+
+	/* FIXME: this is too messy, and can be simplified quite a bit */
+	ni_objectmodel_register_all();
+
+	ni_dbus_xml_register_services(wicked_dbus_xml_schema);
+}
+
 static dbus_bool_t
 wicked_proxy_interface_init_child(ni_dbus_object_t *object)
 {
@@ -286,27 +309,29 @@ wicked_properties_from_argv(const ni_dbus_service_t *interface, ni_dbus_variant_
  * Create a virtual network interface
  */
 static char *
-wicked_create_interface_argv(ni_dbus_object_t *object, int iftype, int argc, char **argv)
+wicked_create_interface_argv(ni_dbus_object_t *object, const ni_dbus_service_t *service, int argc, char **argv)
 {
 	ni_dbus_variant_t call_argv[2], call_resp[1], *dict;
-	const ni_dbus_service_t *service;
 	DBusError error = DBUS_ERROR_INIT;
 	char *result = NULL;
+	int i, j;
 
 	memset(call_argv, 0, sizeof(call_argv));
 	memset(call_resp, 0, sizeof(call_resp));
 
-#ifdef broken
-	service = ni_objectmodel_link_layer_service_by_type(iftype);
-#else
-	service = NULL;
-#endif
-	if (!service) {
-		ni_error("Cannot create network interface for this link layer type");
-		return NULL;
-	}
+	/* The first argument of the newLink() call is the requested interface
+	 * name. If there's a name="..." argument on the command line, use that
+	 * (and remove it from the list of arguments) */
+	ni_dbus_variant_set_string(&call_argv[0], "");
+	for (i = j = 0; i < argc; ++i) {
+		char *arg = argv[i];
 
-	ni_dbus_variant_set_string(&call_argv[0], service->name);
+		if (!strncmp(arg, "name=", 5)) {
+			ni_dbus_variant_set_string(&call_argv[0], arg + 5);
+		} else {
+			argv[j++] = arg;
+		}
+	}
 
 	dict = &call_argv[1];
 	ni_dbus_variant_init_dict(dict);
@@ -330,6 +355,47 @@ failed:
 	ni_dbus_variant_destroy(&call_argv[1]);
 	dbus_error_free(&error);
 	return result;
+}
+
+/*
+ * Get the dbus interface for a given link layer type
+ * Note, this must use the same class naming convention
+ * as in __ni_objectmodel_link_classname()
+ */
+const ni_dbus_service_t *
+wicked_link_layer_factory_service(const char *link_type)
+{
+	char namebuf[256];
+	const ni_dbus_class_t *class;
+	const ni_dbus_service_t *service;
+
+	snprintf(namebuf, sizeof(namebuf), "netif-%s", link_type);
+	if (!(class = ni_objectmodel_get_class(namebuf))) {
+		ni_error("no dbus class for link layer \"%s\"", link_type);
+		return NULL;
+	}
+
+	/* See if there's a service for this link layer class. Note that
+	 * ni_objectmodel_service_by_class may return a service for a
+	 * base class (such as for netif), which we're not interested in.
+	 */
+	if (!(service = ni_objectmodel_service_by_class(class))) {
+		ni_error("no dbus service for link layer \"%s\"", link_type);
+		return NULL;
+	}
+
+	snprintf(namebuf, sizeof(namebuf), "%s.Factory", service->name);
+	if (!(service = ni_objectmodel_service_by_name(namebuf))) {
+		ni_error("no dbus factory service for link layer \"%s\"", link_type);
+		return NULL;
+	}
+
+	if (!ni_dbus_service_get_method(service, "newLink")) {
+		ni_error("no dbus factory service for link layer \"%s\" has no newLink method", link_type);
+		return NULL;
+	}
+
+	return service;
 }
 
 /*
@@ -359,25 +425,25 @@ wicked_get_interface_object(const char *default_interface)
 int
 do_create(int argc, char **argv)
 {
+	const ni_dbus_service_t *service;
 	ni_dbus_object_t *object;
 	char *ifname;
-	int iftype;
 
 	if (argc < 2) {
 		ni_error("wicked create: missing interface type");
 		return 1;
 	}
 
-	iftype = ni_linktype_name_to_type(argv[1]);
-	if (iftype < 0) {
-		ni_error("wicked create: unknown link type %s", argv[1]);
+	wicked_init_objectmodel();
+	if (!(service = wicked_link_layer_factory_service(argv[1]))) {
+		ni_error("wicked create: unknown/unsupported link type %s", argv[1]);
 		return 1;
 	}
 
-	if (!(object = wicked_get_interface_object(WICKED_DBUS_INTERFACE ".Factory")))
+	if (!(object = wicked_get_interface_object(service->name)))
 		return 1;
 
-	ifname = wicked_create_interface_argv(object, iftype, argc - 2, argv + 2);
+	ifname = wicked_create_interface_argv(object, service, argc - 2, argv + 2);
 	if (!ifname)
 		return 1;
 
