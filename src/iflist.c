@@ -47,6 +47,7 @@ static int	__ni_interface_process_newroute(ni_interface_t *, struct nlmsghdr *,
 static int	__ni_discover_bridge(ni_interface_t *);
 static int	__ni_discover_bond(ni_interface_t *);
 static int	__ni_discover_addrconf(ni_interface_t *);
+static ni_addrconf_lease_t *__ni_interface_get_autoconf_lease(ni_interface_t *, int);
 
 struct ni_rtnl_info {
 	struct ni_nlmsg_list	nlmsg_list;
@@ -789,34 +790,28 @@ __ni_interface_process_newprefix(ni_interface_t *ifp, struct nlmsghdr *h, struct
 	ni_addrconf_lease_t *lease;
 	ni_sockaddr_t address;
 	ni_address_t *ap;
-	ni_afinfo_t *afi;
 
-	if (pfx->prefix_family == AF_INET6) {
-		afi = &ifp->ipv6;
-		/* We're only interested in recording address prefixes that
-		 * can be used for autoconf */
-		if (!(pfx->prefix_flags & IF_PREFIX_AUTOCONF))
-			return 0;
-	} else
+	if (pfx->prefix_family != AF_INET6)
 		return 0;
 
-	if ((lease = ni_interface_get_lease(ifp, AF_INET6, NI_ADDRCONF_AUTOCONF)) == NULL) {
-		lease = ni_addrconf_lease_new(AF_INET6, NI_ADDRCONF_AUTOCONF);
-		lease->state = NI_ADDRCONF_STATE_GRANTED;
-		ni_interface_set_lease(ifp, lease);
-	}
+	/* We're only interested in recording address prefixes that
+	 * can be used for autoconf */
+	if (!(pfx->prefix_flags & IF_PREFIX_AUTOCONF))
+		return 0;
 
 	if (nlmsg_parse(h, sizeof(*pfx), tb, PREFIX_MAX, NULL) < 0) {
-		ni_error("unable to parse rtnl PREFIX message");
+		ni_error("%s: unable to parse rtnl PREFIX message", ifp->name);
 		return -1;
 	}
 
 	if (tb[PREFIX_ADDRESS] == NULL) {
-		ni_error("rtnl NEWPREFIX message without address");
+		ni_error("%s: rtnl NEWPREFIX message without address", ifp->name);
 		return -1;
 	}
 
 	__ni_nla_get_addr(pfx->prefix_family, &address, tb[PREFIX_ADDRESS]);
+
+	lease = __ni_interface_get_autoconf_lease(ifp, AF_INET6);
 	for (ap = lease->addrs; ap; ap = ap->next) {
 		if (ap->prefixlen == pfx->prefix_len
 		 && ni_address_prefix_match(pfx->prefix_len, &ap->local_addr, &address))
@@ -824,8 +819,9 @@ __ni_interface_process_newprefix(ni_interface_t *ifp, struct nlmsghdr *h, struct
 	}
 
 	if (ap == NULL) {
-		ap = __ni_address_new(&lease->addrs, afi->family, pfx->prefix_len, &address);
+		ap = __ni_address_new(&lease->addrs, pfx->prefix_family, pfx->prefix_len, &address);
 		ap->config_method = NI_ADDRCONF_AUTOCONF;
+		ap->config_lease = lease;
 	}
 
 	if (tb[PREFIX_CACHEINFO]) {
@@ -898,33 +894,36 @@ __ni_interface_process_newaddr(ni_interface_t *ifp, struct nlmsghdr *h, struct i
 				(ifa->ifa_flags & IFA_F_TENTATIVE)? " tentative" : "");
 #endif
 
-	/* We don't have a strict criterion to distinguish autoconf addresses
-	 * from manually assigned addresses. The best approximation is the
-	 * IFA_F_PERMANENT flag, which is set for all statically assigned addresses,
-	 * and for all link-local addresses. Strictly speaking, you can also administratively
-	 * add interface addresses with a limited lifetime, but that would probably be done
-	 * by some out-of-kernel autoconf mechanism, too.
-	 */
-	if (ifa->ifa_family == AF_INET6) {
-		if (!(ifa->ifa_flags & IFA_F_PERMANENT)
-		 || (ifa->ifa_scope == RT_SCOPE_LINK)) {
-			ap->config_method = NI_ADDRCONF_AUTOCONF;
+	lease = __ni_interface_address_to_lease(ifp, ap);
+	if (lease) {
+		ap->config_method = lease->type;
+		ap->config_lease = lease;
+	} else {
+		int probably_autoconf = 0;
+
+		/* We don't have a strict criterion to distinguish autoconf addresses
+		 * from manually assigned addresses. The best approximation is the
+		 * IFA_F_PERMANENT flag, which is set for all statically assigned addresses,
+		 * and for all link-local addresses. Strictly speaking, you can also administratively
+		 * add interface addresses with a limited lifetime, but that would probably be done
+		 * by some out-of-kernel autoconf mechanism, too.
+		 */
+		if (ifa->ifa_family == AF_INET6) {
+			if (!(ifa->ifa_flags & IFA_F_PERMANENT) || (ifa->ifa_scope == RT_SCOPE_LINK))
+				probably_autoconf = 1;
+			else if (ni_address_probably_dynamic(ap))
+				probably_autoconf = 1;
+		} else
+		if (ifa->ifa_family == AF_INET) {
+			probably_autoconf = ni_address_probably_dynamic(ap);
 		}
-	}
 
-	if (ap->config_method == NI_ADDRCONF_STATIC && ni_address_probably_dynamic(ap))
-		ap->config_method = NI_ADDRCONF_AUTOCONF;
+		if (probably_autoconf) {
+			ap->config_lease = __ni_interface_get_autoconf_lease(ifp, ifa->ifa_family);
+			ap->config_method = NI_ADDRCONF_AUTOCONF;
 
-	if (ap->config_method == NI_ADDRCONF_AUTOCONF) {
-		/* FIXME: create a lease for AUTOCONF, and add this
-		 * address to it. */
-	}
-
-	/* See if this address is owned by a lease */
-	if (ap->config_method == NI_ADDRCONF_STATIC) {
-		lease = __ni_interface_address_to_lease(ifp, ap);
-		if (lease)
-			ap->config_method = lease->type;
+			/* FIXME: add this address to the lease */
+		}
 	}
 
 	return 0;
@@ -1023,11 +1022,26 @@ __ni_interface_process_newroute(ni_interface_t *ifp, struct nlmsghdr *h,
 	rp->config_method = NI_ADDRCONF_STATIC;
 	if (ifp) {
 		lease = __ni_interface_route_to_lease(ifp, rp);
-		if (lease)
+		if (lease) {
 			rp->config_method = lease->type;
+			//rp->config_lease = lease;
+		}
 	}
 
 	return 0;
+}
+
+ni_addrconf_lease_t *
+__ni_interface_get_autoconf_lease(ni_interface_t *dev, int af)
+{
+	ni_addrconf_lease_t *lease;
+
+	if ((lease = ni_interface_get_lease(dev, af, NI_ADDRCONF_AUTOCONF)) == NULL) {
+		lease = ni_addrconf_lease_new(af, NI_ADDRCONF_AUTOCONF);
+		lease->state = NI_ADDRCONF_STATE_GRANTED;
+		ni_interface_set_lease(dev, lease);
+	}
+	return lease;
 }
 
 /*

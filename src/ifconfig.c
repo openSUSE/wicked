@@ -226,9 +226,8 @@ int
 __ni_system_interface_update_lease(ni_interface_t *ifp, ni_addrconf_lease_t **lease_p)
 {
 	ni_netconfig_t *nc = ni_global_state_handle(0);
-	ni_addrconf_lease_t *lease = *lease_p;
+	ni_addrconf_lease_t *lease = *lease_p, *old_lease = NULL;
 	unsigned int update_mask;
-	ni_afinfo_t *afi;
 	int res;
 
 	ni_debug_ifconfig("%s: received %s/%s lease update; state %s", ifp->name,
@@ -239,28 +238,27 @@ __ni_system_interface_update_lease(ni_interface_t *ifp, ni_addrconf_lease_t **le
 	if ((res = __ni_system_refresh_interface(nc, ifp)) < 0)
 		return -1;
 
-	if (!(afi = __ni_interface_address_info(ifp, lease->family))) {
-		ni_error("%s: unable to update lease - unknown address family", ifp->name);
-		return -1;
-	}
-
-	update_mask = ni_config_addrconf_update_mask(ni_global.config, lease->type);
-#if 0
-	update_mask &= afi->request[lease->type]->update;
-#endif
+	/* First, find out which addresses to remove (because they were owned by
+	 * an older lease of the same protocol).
+	 * We find the old lease (and remove it from the interface). Then, for
+	 * each address attached to the interface, we check whether it is owned
+	 * by another lease - it's possible that the same address gets assigned
+	 * by two different leases.
+	 */
+	old_lease = __ni_interface_find_lease(ifp, lease->family, lease->type, 0);
 
 	res = __ni_interface_update_addrs(ifp, lease->family, lease->type, &lease->addrs);
 	if (res < 0) {
 		ni_error("%s: error updating interface config from %s lease",
 				ifp->name, 
 				ni_addrconf_type_to_name(lease->type));
-		return res;
+		goto out;
 	}
 
 	/* Refresh state here - routes may have disappeared, for instance,
 	 * when we took away the address. */
 	if ((res = __ni_system_refresh_interface(nc, ifp)) < 0)
-		return res;
+		goto out;
 
 	/* Loop over all routes and remove those no longer covered by the lease.
 	 * Ignore all routes covered by other address config mechanisms.
@@ -270,16 +268,18 @@ __ni_system_interface_update_lease(ni_interface_t *ifp, ni_addrconf_lease_t **le
 		ni_error("%s: error updating interface config from %s lease",
 				ifp->name, 
 				ni_addrconf_type_to_name(lease->type));
-		return res;
+		goto out;
 	}
 
 	ni_interface_set_lease(ifp, lease);
 	*lease_p = NULL;
 
+	update_mask = ni_config_addrconf_update_mask(ni_global.config, lease->type);
 	if (update_mask)
 		ni_system_update_from_lease(nc, ifp, lease);
 
-	return 0;
+out:
+	return res;
 }
 
 /*
