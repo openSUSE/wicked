@@ -313,7 +313,6 @@ extern int		ni_address_prefix_match(unsigned int, const ni_sockaddr_t *,
 				const ni_sockaddr_t *);
 extern int		ni_address_equal(const ni_sockaddr_t *, const ni_sockaddr_t *);
 extern int		__ni_address_info(int, unsigned int *, unsigned int *);
-extern const void *	__ni_address_data(const ni_sockaddr_t *, unsigned int *);
 extern int		ni_address_probably_dynamic(const ni_address_t *);
 
 extern int		ni_link_address_format(const ni_hwaddr_t *ss,
@@ -339,6 +338,10 @@ extern ni_ethernet_t *	ni_ethernet_clone(const ni_ethernet_t *);
 
 extern void		ni_sockaddr_set_ipv4(ni_sockaddr_t *, struct in_addr, uint16_t);
 extern void		ni_sockaddr_set_ipv6(ni_sockaddr_t *, struct in6_addr, uint16_t);
+extern ni_opaque_t *	ni_sockaddr_pack(const ni_sockaddr_t *, ni_opaque_t *);
+extern ni_sockaddr_t *	ni_sockaddr_unpack(ni_sockaddr_t *, const ni_opaque_t *);
+extern ni_opaque_t *	ni_sockaddr_prefix_pack(const ni_sockaddr_t *, unsigned int, ni_opaque_t *);
+extern ni_sockaddr_t *	ni_sockaddr_prefix_unpack(ni_sockaddr_t *, unsigned int *, const ni_opaque_t *);
 
 extern const char *	ni_print_link_flags(int flags);
 extern const char *	ni_print_link_type(int type);

@@ -26,6 +26,8 @@
 	((unsigned long) &(((type *) NULL)->member))
 #endif
 
+static const unsigned char *__ni_address_data(const ni_sockaddr_t *, unsigned int *);
+
 ni_address_t *
 ni_address_new(ni_interface_t *ifp, int af, unsigned int prefix_len, const ni_sockaddr_t *local_addr)
 {
@@ -176,7 +178,7 @@ __ni_address_info(int af, unsigned int *offset, unsigned int *len)
 	return 0;
 }
 
-const void *
+static const unsigned char *
 __ni_address_data(const ni_sockaddr_t *ss, unsigned int *len)
 {
 	unsigned int offset;
@@ -921,3 +923,122 @@ ni_addrconf_check(const ni_addrconf_t *acm, const ni_interface_t *ifp, const xml
 		return 0;
 	return acm->test(acm, ifp, cfg_xml);
 }
+
+/*
+ * Pack sockaddrs
+ */
+typedef union ni_packed_netaddr {
+	uint16_t	family;
+	unsigned char	sin[2 + 4];
+	unsigned char	six[2 + 16];
+	unsigned char	raw[2 + 62];
+} ni_packed_netaddr_t;
+
+typedef union ni_packed_prefixed_netaddr {
+	uint16_t	prefix;
+	ni_packed_netaddr_t netaddr;
+} ni_packed_prefixed_netaddr_t;
+
+static int
+__ni_sockaddr_to_netaddr(const ni_sockaddr_t *sockaddr, ni_packed_netaddr_t *netaddr)
+{
+	const void *aptr;
+	unsigned int alen;
+
+	if (!(aptr = __ni_address_data(sockaddr, &alen)))
+		return -1;
+
+	if (2 + alen >= sizeof(netaddr->raw))
+		return -1;
+
+	netaddr->family = ntohs(sockaddr->ss_family);
+	memcpy(netaddr->raw + 2, aptr, alen);
+
+	return 2 + alen;
+}
+
+static ni_sockaddr_t *
+__ni_netaddr_to_sockaddr(const ni_packed_netaddr_t *netaddr, ni_sockaddr_t *sockaddr)
+{
+	const void *aptr;
+	unsigned int alen;
+
+	sockaddr->ss_family = ntohs(netaddr->family);
+	if (!(aptr = __ni_address_data(sockaddr, &alen)))
+		return NULL;
+	if (alen + 2 > sizeof(netaddr->raw))
+		return NULL;
+
+	memcpy((void *) aptr, netaddr->raw + 2, alen);
+	return sockaddr;
+}
+
+ni_opaque_t *
+ni_sockaddr_pack(const ni_sockaddr_t *sockaddr, ni_opaque_t *pack)
+{
+	ni_packed_netaddr_t netaddr;
+	int len;
+
+	ni_assert(sizeof(pack->data) >= sizeof(netaddr));
+	len = __ni_sockaddr_to_netaddr(sockaddr, &netaddr);
+	if (len < 0)
+		return NULL;
+	memcpy(pack->data, &netaddr, len);
+	pack->len = len;
+	return pack;
+}
+
+ni_sockaddr_t *
+ni_sockaddr_unpack(ni_sockaddr_t *sockaddr, const ni_opaque_t *pack)
+{
+	ni_packed_netaddr_t netaddr;
+
+	if (pack->len < 2 || pack->len > sizeof(netaddr))
+		return NULL;
+	memset(&netaddr, 0, sizeof(netaddr));
+	memcpy(&netaddr, pack->data, pack->len);
+
+	return __ni_netaddr_to_sockaddr(&netaddr, sockaddr);
+}
+
+ni_opaque_t *
+ni_sockaddr_prefix_pack(const ni_sockaddr_t *sockaddr, unsigned int prefix, ni_opaque_t *pack)
+{
+	ni_packed_prefixed_netaddr_t pfx_netaddr;
+	unsigned int max_prefix;
+	int len;
+
+	len = __ni_sockaddr_to_netaddr(sockaddr, &pfx_netaddr.netaddr);
+	if (len < 0)
+		return NULL;
+
+	/* Truncate the prefix len. This is also useful if the caller wants to
+	 * tell us "just use the entire address"
+	 */
+	max_prefix = 8 * (len - 2);
+	if (prefix >= max_prefix)
+		prefix = max_prefix;
+	pfx_netaddr.prefix = htons(prefix);
+
+	memcpy(pack->data, &pfx_netaddr, 2 + len);
+	pack->len = 2 + len;
+
+	return pack;
+}
+
+ni_sockaddr_t *
+ni_sockaddr_prefix_unpack(ni_sockaddr_t *sockaddr, unsigned int *prefix, const ni_opaque_t *pack)
+{
+	ni_packed_prefixed_netaddr_t pfx_netaddr;
+
+	if (pack->len < 4)
+		return NULL;
+	if (pack->len < 2 || pack->len > sizeof(pfx_netaddr))
+		return NULL;
+	memset(&pfx_netaddr, 0, sizeof(pfx_netaddr));
+	memcpy(&pfx_netaddr, pack->data, pack->len);
+
+	*prefix = ntohs(pfx_netaddr.prefix);
+	return __ni_netaddr_to_sockaddr(&pfx_netaddr.netaddr, sockaddr);
+}
+
