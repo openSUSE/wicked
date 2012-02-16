@@ -43,7 +43,7 @@
 
 static int	__ni_interface_update_ipv6_settings(ni_netconfig_t *, ni_interface_t *, const ni_afinfo_t *);
 static int	__ni_interface_update_addrs(ni_interface_t *ifp,
-				int family, ni_addrconf_mode_t mode,
+				const ni_addrconf_lease_t *old_lease,
 				ni_address_t * const *cfg_addr_list);
 static int	__ni_interface_update_routes(ni_interface_t *ifp,
 				int family, ni_addrconf_mode_t mode,
@@ -240,14 +240,14 @@ __ni_system_interface_update_lease(ni_interface_t *ifp, ni_addrconf_lease_t **le
 
 	/* First, find out which addresses to remove (because they were owned by
 	 * an older lease of the same protocol).
-	 * We find the old lease (and remove it from the interface). Then, for
+	 * We find the old lease (and remove it from the interface).
 	 * each address attached to the interface, we check whether it is owned
 	 * by another lease - it's possible that the same address gets assigned
 	 * by two different leases.
 	 */
-	old_lease = __ni_interface_find_lease(ifp, lease->family, lease->type, 0);
+	old_lease = __ni_interface_find_lease(ifp, lease->family, lease->type, 1);
 
-	res = __ni_interface_update_addrs(ifp, lease->family, lease->type, &lease->addrs);
+	res = __ni_interface_update_addrs(ifp, old_lease, &lease->addrs);
 	if (res < 0) {
 		ni_error("%s: error updating interface config from %s lease",
 				ifp->name, 
@@ -279,6 +279,8 @@ __ni_system_interface_update_lease(ni_interface_t *ifp, ni_addrconf_lease_t **le
 		ni_system_update_from_lease(nc, ifp, lease);
 
 out:
+	if (old_lease)
+		ni_addrconf_lease_free(old_lease);
 	return res;
 }
 
@@ -1380,7 +1382,7 @@ __ni_addrconf_update_request(ni_afinfo_t *afinfo, ni_addrconf_mode_t mode,
  */
 static int
 __ni_interface_update_addrs(ni_interface_t *ifp,
-				int family, ni_addrconf_mode_t mode,
+				const ni_addrconf_lease_t *old_lease,
 				ni_address_t * const*cfg_addr_list)
 {
 	ni_address_t *ap, *next;
@@ -1390,21 +1392,33 @@ __ni_interface_update_addrs(ni_interface_t *ifp,
 		ni_address_t *new_addr;
 
 		next = ap->next;
-		if (ap->family != family)
-			continue;
 
 		/* See if the config list contains the address we've found in the
 		 * system. */
 		new_addr = __ni_interface_address_list_contains(cfg_addr_list, ap);
 
-		if (ap->config_lease && ap->config_lease->type != mode) {
+		/* Do not touch addresses not managed by us. */
+		if (ap->config_lease == NULL)
+			continue;
+
+		/* If the address was managed by us (ie its owned by a lease with
+		 * the same family/addrconf mode), then we want to check whether
+		 * it's owned by any other lease. It's possible that an address
+		 * is configured through different protocols. */
+		if (ap->config_lease == old_lease) {
+			ni_addrconf_lease_t *other;
+
+			if ((other = __ni_interface_address_to_lease(ifp, ap)) != NULL)
+				ap->config_lease = other;
+		}
+
+		if (ap->config_lease != old_lease) {
 			/* The existing address is managed by a different
 			 * addrconf mode.
 			 */
 			if (new_addr != NULL) {
-				ni_warn("%s: new address %s %s covered by a %s lease",
+				ni_warn("%s: address %s covered by a %s lease",
 					ifp->name,
-					ni_addrconf_type_to_name(mode),
 					ni_address_print(&ap->local_addr),
 					ni_addrconf_type_to_name(ap->config_lease->type));
 			}
@@ -1438,8 +1452,7 @@ __ni_interface_update_addrs(ni_interface_t *ifp,
 	 * those that don't exist yet.
 	 */
 	for (ap = *cfg_addr_list; ap; ap = ap->next) {
-		if (ap->family != family
-		 || ap->seq == __ni_global_seqno)
+		if (ap->seq == __ni_global_seqno)
 			continue;
 
 		ni_debug_ifconfig("Adding new interface address %s/%u",
