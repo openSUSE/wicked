@@ -1,7 +1,0 @@
-<interface type="ethernet" name="eth0">
-  <protocol family="ipv4">
-    <ip address="17.99.0.1" prefix="24"/>
-    <ip address="17.99.1.1" prefix="24"/>
-    <route address="17.99.2.0" prefix="24" gateway="17.99.0.254"/>
-  </protocol>
-</interface>

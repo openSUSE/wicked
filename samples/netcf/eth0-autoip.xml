@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf8"?>
-<!DOCTYPE netcf>
-<interface type="ethernet" name="eth0">
-  <protocol family="ipv4">
-    <auto/>
-  </protocol>
-</interface>
