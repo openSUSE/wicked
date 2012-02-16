@@ -6,3 +6,6 @@
 <define name="builtin-addrconf" type="uint32" constraint="enum">
   <@@ADDRCONFNAME_NAME@@ value="@@ADDRCONFNAME_VALUE@@"/>
 </define>
+<define name="builtin-addrconf-state" type="uint32" constraint="enum">
+  <@@ADDRCONFSTATE_NAME@@ value="@@ADDRCONFSTATE_VALUE@@"/>
+</define>

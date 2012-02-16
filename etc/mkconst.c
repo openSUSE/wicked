@@ -12,6 +12,7 @@
 #include <net/if_arp.h>
 
 #include <wicked/netinfo.h>
+#include <wicked/addrconf.h>
 #include <wicked/logging.h>
 
 static ni_intmap_t *	buildmap(const char *(*)(unsigned), unsigned int);
@@ -59,6 +60,7 @@ static ni_intmap_t	arphrd_map[] = {
 };
 static ni_intmap_t *	iftype_names;
 static ni_intmap_t *	addrconf_names;
+static ni_intmap_t *	lease_state_names;
 
 int
 main(int argc, char **argv)
@@ -68,6 +70,7 @@ main(int argc, char **argv)
 
 	iftype_names = buildmap(ni_linktype_type_to_name, __NI_IFTYPE_MAX);
 	addrconf_names = buildmap(ni_addrconf_type_to_name, __NI_ADDRCONF_MAX);
+	lease_state_names = buildmap(ni_addrconf_state_to_name, __NI_ADDRCONF_STATE_MAX);
 
 	while (fgets(buffer, sizeof(buffer), stdin) != NULL) {
 		char *atat;
@@ -89,6 +92,9 @@ main(int argc, char **argv)
 		} else
 		if (!strncmp(atat + 2, "ADDRCONFNAME_", 13)) {
 			generate(buffer, "ADDRCONFNAME", addrconf_names);
+		} else
+		if (!strncmp(atat + 2, "ADDRCONFSTATE_", 13)) {
+			generate(buffer, "ADDRCONFSTATE", lease_state_names);
 		} else {
 			int indent = atat - buffer;
 
