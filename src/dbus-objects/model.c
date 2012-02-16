@@ -27,6 +27,7 @@
 extern ni_dbus_object_t *	ni_objectmodel_new_interface(ni_dbus_server_t *server,
 					const ni_dbus_service_t *service,
 					const ni_dbus_variant_t *dict, DBusError *error);
+static void			__ni_objectmodel_register_link_classes(ni_dbus_server_t *);
 
 #define NI_OBJECTMODEL_SERVICES_MAX 128
 typedef struct ni_objectmodel_service_array {
@@ -46,6 +47,9 @@ static ni_dbus_service_t	ni_objectmodel_netif_root_interface;
 
 ni_dbus_server_t *		__ni_objectmodel_server;
 
+/*
+ * Create the dbus service
+ */
 ni_dbus_server_t *
 ni_objectmodel_create_service(void)
 {
@@ -61,6 +65,9 @@ ni_objectmodel_create_service(void)
 	/* register the netif class (to allow extensions to attach to it) */
 	ni_dbus_server_register_class(server, wicked_dbus_interface_service.compatible);
 
+	/* register all link layer classes */
+	__ni_objectmodel_register_link_classes(server);
+
 	/* Initialize our addrconf clients */
 	ni_objectmodel_dhcp4_init(server);
 	ni_objectmodel_autoip_init(server);
@@ -74,6 +81,43 @@ ni_objectmodel_create_service(void)
 
 	__ni_objectmodel_server = server;
 	return server;
+}
+
+/*
+ * For all link layer types, create a dbus object class named "netif-$linktype"
+ */
+void
+__ni_objectmodel_register_link_classes(ni_dbus_server_t *server)
+{
+	const ni_dbus_class_t *base_class = wicked_dbus_interface_service.compatible;
+	ni_dbus_class_t *link_class;
+	unsigned int iftype;
+
+	for (iftype = 0; iftype < __NI_IFTYPE_MAX; ++iftype) {
+		const char *iftype_name;
+		char namebuf[128];
+
+		if (iftype == NI_IFTYPE_UNKNOWN)
+			continue;
+
+		if (!(iftype_name = ni_linktype_type_to_name(iftype)))
+			continue;
+
+		snprintf(namebuf, sizeof(namebuf), "%s-%s", base_class->name, iftype_name);
+
+		/* Create the new link class */
+		link_class = xcalloc(1, sizeof(*link_class));
+		ni_string_dup(&link_class->name, namebuf);
+		link_class->superclass = base_class;
+
+		/* inherit all methods from netif */
+		link_class->init_child = base_class->init_child;
+		link_class->destroy = base_class->destroy;
+		link_class->refresh = base_class->refresh;
+
+		/* Register this class with the server */
+		ni_dbus_server_register_class(server, link_class);
+	}
 }
 
 dbus_bool_t

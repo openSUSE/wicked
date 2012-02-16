@@ -151,6 +151,7 @@ struct ni_dbus_service {
 
 struct ni_dbus_class {
 	char *			name;
+	const ni_dbus_class_t *	superclass;
 
 	dbus_bool_t		(*init_child)(ni_dbus_object_t *);
 	void			(*destroy)(ni_dbus_object_t *);
