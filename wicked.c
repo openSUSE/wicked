@@ -185,55 +185,6 @@ main(int argc, char **argv)
 }
 
 /*
- * Initialize the object model
- */
-static ni_xs_scope_t *
-wicked_init_objectmodel(void)
-{
-	static ni_xs_scope_t *wicked_dbus_xml_schema = NULL;
-
-	if (wicked_dbus_xml_schema)
-		return wicked_dbus_xml_schema;
-
-	wicked_dbus_xml_schema = ni_server_dbus_xml_schema();
-	if (wicked_dbus_xml_schema == NULL)
-		ni_fatal("Giving up.");
-
-	/* FIXME: this is too messy, and can be simplified quite a bit */
-	ni_objectmodel_register_all();
-
-	ni_dbus_xml_register_services(wicked_dbus_xml_schema);
-
-	ni_objectmodel_bind_extensions();
-	return wicked_dbus_xml_schema;
-}
-
-ni_dbus_object_t *
-ni_call_create_client(void)
-{
-	static ni_dbus_object_t *root_object = NULL;
-
-	if (root_object == NULL) {
-		ni_dbus_client_t *client;
-
-		wicked_init_objectmodel();
-
-		/* Use ni_objectmodel_create_client() */
-		client = ni_create_dbus_client(WICKED_DBUS_BUS_NAME);
-		if (!client)
-			ni_fatal("Unable to connect to wicked dbus service");
-
-		root_object = ni_dbus_client_object_new(client,
-					&ni_dbus_anonymous_class,
-					WICKED_DBUS_OBJECT_PATH,
-					WICKED_DBUS_INTERFACE,
-					NULL);
-	}
-
-	return root_object;
-}
-
-/*
  * Populate a property dict with parameters
  */
 dbus_bool_t
@@ -432,7 +383,7 @@ do_create(int argc, char **argv)
 	argv += optind;
 	argc -= optind;
 
-	wicked_init_objectmodel();
+	ni_objectmodel_init(NULL);
 
 	if (opt_file) {
 		xml_document_t *doc;
@@ -703,7 +654,7 @@ do_show_xml(int argc, char **argv)
 
 		__dump_fake_xml(&result, 0, dict_element_tags);
 	} else {
-		ni_xs_scope_t *schema = wicked_init_objectmodel();
+		ni_xs_scope_t *schema = ni_objectmodel_init(NULL);
 		xml_node_t *tree;
 
 		tree = __dump_schema_xml(&result, schema);

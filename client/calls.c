@@ -19,6 +19,34 @@
 
 
 /*
+ * Create the client and return the handle of the root object
+ */
+ni_dbus_object_t *
+ni_call_create_client(void)
+{
+	static ni_dbus_object_t *root_object = NULL;
+
+	if (root_object == NULL) {
+		ni_dbus_client_t *client;
+
+		ni_objectmodel_init(NULL);
+
+		/* Use ni_objectmodel_create_client() */
+		client = ni_create_dbus_client(WICKED_DBUS_BUS_NAME);
+		if (!client)
+			ni_fatal("Unable to connect to wicked dbus service");
+
+		root_object = ni_dbus_client_object_new(client,
+					&ni_dbus_anonymous_class,
+					WICKED_DBUS_OBJECT_PATH,
+					WICKED_DBUS_INTERFACE,
+					NULL);
+	}
+
+	return root_object;
+}
+
+/*
  * Create a virtual network interface
  */
 static char *
