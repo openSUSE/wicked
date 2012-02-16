@@ -26,5 +26,6 @@ extern dbus_bool_t		ni_call_request_lease_xml(ni_dbus_object_t *, const ni_dbus_
 
 extern dbus_bool_t		ni_call_drop_lease(ni_dbus_object_t *object, const ni_dbus_service_t *service,
 					ni_objectmodel_callback_info_t **callback_list);
+extern dbus_bool_t		ni_call_link_down(ni_dbus_object_t *, ni_objectmodel_callback_info_t **);
 
 #endif /* WICKED_CLIENT_H */

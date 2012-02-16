@@ -443,7 +443,7 @@ wicked_create_interface_xml(const ni_dbus_service_t *service,
 static dbus_bool_t
 wicked_link_change_common(ni_dbus_object_t *object,
 				const ni_dbus_service_t *service, const ni_dbus_method_t *method,
-				ni_dbus_variant_t *arg,
+				unsigned int argc, ni_dbus_variant_t *argv,
 				ni_objectmodel_callback_info_t **callback_list)
 {
 	ni_dbus_variant_t result = NI_DBUS_VARIANT_INIT;
@@ -451,7 +451,7 @@ wicked_link_change_common(ni_dbus_object_t *object,
 	dbus_bool_t rv = FALSE;
 
 	if (!ni_dbus_object_call_variant(object, service->name, method->name,
-				1, arg,
+				argc, argv,
 				1, &result,
 				&error)) {
 		ni_error("Server refused to create interface. Server responds:");
@@ -469,26 +469,33 @@ wicked_link_change_common(ni_dbus_object_t *object,
 dbus_bool_t
 wicked_link_change_xml(ni_dbus_object_t *object, const char *method_name, xml_node_t *config, ni_objectmodel_callback_info_t **callback_list)
 {
-	ni_dbus_variant_t argument = NI_DBUS_VARIANT_INIT;
+	ni_dbus_variant_t argv[1];
 	const ni_dbus_service_t *service;
 	const ni_dbus_method_t *method;
 	dbus_bool_t rv = FALSE;
+	int argc = 0;
 
 	if (!(service = ni_dbus_object_get_service_for_method(object, method_name)))
 		return FALSE;
 	method = ni_dbus_service_get_method(service, method_name);
 	ni_assert(method);
 
-	ni_dbus_variant_init_dict(&argument);
-	if (config && !ni_dbus_xml_serialize_arg(method, 0, &argument, config)) {
-		ni_error("%s.%s: error serializing argument", service->name, method->name);
-		goto out;
+	memset(argv, 0, sizeof(argv));
+	if (!strcmp(method_name, "linkUp")) {
+		ni_dbus_variant_t *dict = &argv[argc++];
+
+		ni_dbus_variant_init_dict(dict);
+		if (config && !ni_dbus_xml_serialize_arg(method, 0, dict, config)) {
+			ni_error("%s.%s: error serializing argument", service->name, method->name);
+			goto out;
+		}
 	}
 
-	rv = wicked_link_change_common(object, service, method, &argument, callback_list);
+	rv = wicked_link_change_common(object, service, method, argc, argv, callback_list);
 
 out:
-	ni_dbus_variant_destroy(&argument);
+	while (argc--)
+		ni_dbus_variant_destroy(&argv[argc]);
 	return rv;
 }
 
@@ -496,6 +503,12 @@ dbus_bool_t
 wicked_link_up_xml(ni_dbus_object_t *object, xml_node_t *config, ni_objectmodel_callback_info_t **callback_list)
 {
 	return wicked_link_change_xml(object, "linkUp", config, callback_list);
+}
+
+dbus_bool_t
+ni_call_link_down(ni_dbus_object_t *object, ni_objectmodel_callback_info_t **callback_list)
+{
+	return wicked_link_change_xml(object, "linkDown", NULL, callback_list);
 }
 
 /*

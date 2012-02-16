@@ -140,6 +140,9 @@ ni_ifworker_fail(ni_ifworker_t *w, const char *fmt, ...)
 	char errmsg[256];
 	va_list ap;
 
+	if (w->failed)
+		return;
+
 	va_start(ap, fmt);
 	vsnprintf(errmsg, sizeof(errmsg), fmt, ap);
 	va_end(ap);
@@ -893,8 +896,8 @@ ni_ifworker_do_network_down(ni_ifworker_t *w)
 		}
 	}
 
-	if (w->callbacks == NULL) {
-		ni_debug_dbus("%s: all addresses down; we're done", w->name);
+	if (w->callbacks == NULL && !w->failed) {
+		ni_debug_dbus("%s: all addresses down; we can proceed", w->name);
 		w->state = STATE_LINK_UP;
 	}
 
@@ -907,7 +910,22 @@ ni_ifworker_do_network_down(ni_ifworker_t *w)
 static int
 ni_ifworker_do_link_down(ni_ifworker_t *w)
 {
-	w->state = STATE_DEVICE_UP;
+	ni_objectmodel_callback_info_t *callback_list = NULL;
+
+	if (!ni_call_link_down(w->object, &callback_list)) {
+		ni_ifworker_fail(w, "failed to shut down link");
+		return -1;
+	}
+
+	if (callback_list) {
+		ni_ifworker_add_callbacks(w, callback_list);
+		w->wait_for_state = STATE_DEVICE_UP;
+	}
+
+	if (w->callbacks == NULL && !w->failed) {
+		ni_debug_dbus("%s: link is down; we can proceed", w->name);
+		w->state = STATE_DEVICE_UP;
+	}
 	return 0;
 }
 
