@@ -30,7 +30,7 @@ static ni_dbus_class_t		ni_objectmodel_netif_class = {
 	.destroy	= wicked_dbus_interface_destroy,
 };
 static ni_dbus_class_t		ni_objectmodel_ifreq_class = {
-	"ifreq"
+	.name		= "ifreq",
 };
 
 extern const ni_dbus_service_t	wicked_dbus_interface_request_service; /* XXX */
@@ -99,21 +99,8 @@ const char *
 ni_objectmodel_interface_path(const ni_interface_t *ifp)
 {
 	static char object_path[256];
-#if 0
-	char sane_name[IFNAMSIZ+5], *sp;
 
-	if (strlen(ifp->name) >= sizeof(sane_name))
-		return NULL;
-	strcpy(sane_name, ifp->name);
-	for (sp = sane_name; *sp; ++sp) {
-		if (*sp == '.')
-			*sp = '_';
-	}
-
-	snprintf(object_path, sizeof(object_path), "Interface/%s", sane_name);
-#else
 	snprintf(object_path, sizeof(object_path), "Interface/%u", ifp->link.ifindex);
-#endif
 	return object_path;
 }
 
@@ -131,6 +118,14 @@ ni_dbus_object_t *
 ni_objectmodel_wrap_interface_request(ni_interface_request_t *req)
 {
 	return ni_dbus_object_new(&ni_objectmodel_ifreq_class, NULL, req);
+}
+
+ni_interface_t *
+ni_objectmodel_unwrap_interface(const ni_dbus_object_t *object)
+{
+	ni_interface_t *dev = object->handle;
+
+	return object->class == &ni_objectmodel_netif_class? dev : NULL;
 }
 
 /*
@@ -249,7 +244,7 @@ __wicked_dbus_interface_up(ni_dbus_object_t *object, const ni_dbus_method_t *met
 			ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_netconfig_t *nc = ni_global_state_handle(0);
-	ni_interface_t *dev = object->handle;
+	ni_interface_t *dev = ni_objectmodel_unwrap_interface(object);
 	ni_dbus_object_t *cfg_object;
 	ni_interface_request_t *req;
 	dbus_bool_t ret = FALSE;
@@ -332,7 +327,7 @@ __wicked_dbus_interface_down(ni_dbus_object_t *object, const ni_dbus_method_t *m
 			ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_netconfig_t *nc = ni_global_state_handle(0);
-	ni_interface_t *dev = object->handle;
+	ni_interface_t *dev = ni_objectmodel_unwrap_interface(object);
 	dbus_bool_t ret = FALSE;
 	int rv;
 
@@ -360,7 +355,7 @@ failed:
 static void
 wicked_dbus_interface_destroy(ni_dbus_object_t *object)
 {
-	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
+	ni_interface_t *ifp = ni_objectmodel_unwrap_interface(object);
 
 	ni_assert(ifp);
 	ni_interface_put(ifp);
