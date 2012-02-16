@@ -22,12 +22,13 @@ static void		__ni_script_action_free(ni_script_action_t *);
  * Constructor and destructor for extension config
  */
 ni_extension_t *
-ni_extension_new(ni_extension_t **list, const char *name)
+ni_extension_new(ni_extension_t **list, const char *interface)
 {
 	ni_extension_t *ex;
 
 	ex = calloc(1, sizeof(*ex));
-	ni_string_dup(&ex->name, name);
+	ni_string_dup(&ex->name, interface);
+	ni_string_dup(&ex->interface, interface);
 
 	while (*list)
 		list = &(*list)->next;

@@ -140,6 +140,9 @@ wicked_interface_server(void)
 
 	ni_dbus_xml_register_services(wicked_dbus_server, wicked_dbus_xml_schema);
 
+	if (ni_objectmodel_bind_extensions() < 0)
+		ni_fatal("failed to bind extension services");
+
 	/* open global RTNL socket to listen for kernel events */
 	if (ni_server_listen_events(wicked_interface_event) < 0)
 		ni_fatal("unable to initialize netlink listener");

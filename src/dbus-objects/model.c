@@ -72,7 +72,7 @@ ni_objectmodel_create_service(void)
 	ni_objectmodel_register_link_service(NI_IFTYPE_ETHERNET, &wicked_dbus_ethernet_service);
 	ni_objectmodel_register_link_service(NI_IFTYPE_VLAN, &wicked_dbus_vlan_service);
 	ni_objectmodel_register_link_service(NI_IFTYPE_BRIDGE, &wicked_dbus_bridge_service);
-	ni_objectmodel_register_link_service(NI_IFTYPE_BOND, &wicked_dbus_bond_service);
+	//ni_objectmodel_register_link_service(NI_IFTYPE_BOND, &wicked_dbus_bond_service);
 
 	__ni_objectmodel_server = server;
 	return server;
@@ -430,6 +430,7 @@ ni_objectmodel_bind_extensions(void)
 {
 	unsigned int i;
 
+	NI_TRACE_ENTER();
 	for (i = 0; i < ni_objectmodel_all_services.count; ++i) {
 		const ni_dbus_service_t *service = ni_objectmodel_all_services.services[i];
 		const ni_dbus_method_t *method;
@@ -445,6 +446,8 @@ ni_objectmodel_bind_extensions(void)
 			if (ni_extension_script_find(extension, method->name) != NULL) {
 				ni_dbus_method_t *mod_method = (ni_dbus_method_t *) method;
 
+				ni_debug_dbus("registering extension hook for method %s.%s",
+						service->name, method->name);
 				mod_method->async_handler = ni_objectmodel_extension_call;
 				mod_method->async_completion = ni_objectmodel_extension_completion;
 			}
