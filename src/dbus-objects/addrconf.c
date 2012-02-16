@@ -123,8 +123,8 @@ ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_messa
 	lease = ni_addrconf_lease_new(forwarder->addrconf, forwarder->addrfamily);
 
 	if (argc != 1 && argc != 2) {
-		ni_warn("%s: ignoring %s event from %s: bad number of arguments",
-				__func__, signal_name, dbus_message_get_path(msg));
+		ni_warn("%s: ignoring %s event from %s: bad number of arguments (%u)",
+				__func__, signal_name, dbus_message_get_path(msg), argc);
 		goto done;
 	}
 
