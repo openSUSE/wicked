@@ -25,6 +25,11 @@ static dbus_bool_t	ni_dbus_serialize_xml_scalar(xml_node_t *, const ni_xs_type_t
 static dbus_bool_t	ni_dbus_serialize_xml_struct(xml_node_t *, const ni_xs_type_t *, ni_dbus_variant_t *);
 static dbus_bool_t	ni_dbus_serialize_xml_array(xml_node_t *, const ni_xs_type_t *, ni_dbus_variant_t *);
 static dbus_bool_t	ni_dbus_serialize_xml_dict(xml_node_t *, const ni_xs_type_t *, ni_dbus_variant_t *);
+static dbus_bool_t	ni_dbus_deserialize_xml(ni_dbus_variant_t *, const ni_xs_type_t *, xml_node_t *);
+static dbus_bool_t	ni_dbus_deserialize_xml_scalar(ni_dbus_variant_t *, const ni_xs_type_t *, xml_node_t *);
+static dbus_bool_t	ni_dbus_deserialize_xml_struct(ni_dbus_variant_t *, const ni_xs_type_t *, xml_node_t *);
+static dbus_bool_t	ni_dbus_deserialize_xml_array(ni_dbus_variant_t *, const ni_xs_type_t *, xml_node_t *);
+static dbus_bool_t	ni_dbus_deserialize_xml_dict(ni_dbus_variant_t *, const ni_xs_type_t *, xml_node_t *);
 static char *		__ni_xs_type_to_dbus_signature(const ni_xs_type_t *, char *, size_t);
 static char *		ni_xs_type_to_dbus_signature(const ni_xs_type_t *);
 
@@ -151,6 +156,27 @@ ni_dbus_xml_serialize_arg(const ni_dbus_method_t *method, unsigned int narg,
 	return ni_dbus_serialize_xml(node, xs_type, var);
 }
 
+xml_node_t *
+ni_dbus_xml_deserialize_arguments(const ni_dbus_method_t *method,
+				unsigned int num_vars, ni_dbus_variant_t *vars,
+				xml_node_t *parent)
+{
+	xml_node_t *node = xml_node_new("arguments", parent);
+	ni_xs_method_t *xs_method = method->user_data;
+	unsigned int i;
+
+	for (i = 0; i < num_vars; ++i) {
+		xml_node_t *arg = xml_node_new(xs_method->arguments.data[i].name, node);
+
+		if (!ni_dbus_deserialize_xml(&vars[i], xs_method->arguments.data[i].type, arg)) {
+			xml_node_free(node);
+			return FALSE;
+		}
+	}
+
+	return node;
+}
+
 /*
  * Convert an XML tree to a dbus data object for serialization
  */
@@ -178,6 +204,36 @@ ni_dbus_serialize_xml(xml_node_t *node, const ni_xs_type_t *type, ni_dbus_varian
 	return TRUE;
 }
 
+/*
+ * Create XML from a dbus data object
+ */
+dbus_bool_t
+ni_dbus_deserialize_xml(ni_dbus_variant_t *var, const ni_xs_type_t *type, xml_node_t *node)
+{
+	switch (type->class) {
+	case NI_XS_TYPE_SCALAR:
+		return ni_dbus_deserialize_xml_scalar(var, type, node);
+
+	case NI_XS_TYPE_STRUCT:
+		return ni_dbus_deserialize_xml_struct(var, type, node);
+
+	case NI_XS_TYPE_ARRAY:
+		return ni_dbus_deserialize_xml_array(var, type, node);
+
+	case NI_XS_TYPE_DICT:
+		return ni_dbus_deserialize_xml_dict(var, type, node);
+
+	default:
+		ni_error("unsupported xml type class %u", type->class);
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+/*
+ * XML -> dbus_variant conversion for scalars
+ */
 dbus_bool_t
 ni_dbus_serialize_xml_scalar(xml_node_t *node, const ni_xs_type_t *type, ni_dbus_variant_t *var)
 {
@@ -216,6 +272,54 @@ ni_dbus_serialize_xml_scalar(xml_node_t *node, const ni_xs_type_t *type, ni_dbus
 		return FALSE;
 	}
 
+	return TRUE;
+}
+
+/*
+ * XML from dbus variant for scalars
+ */
+dbus_bool_t
+ni_dbus_deserialize_xml_scalar(ni_dbus_variant_t *var, const ni_xs_type_t *type, xml_node_t *node)
+{
+	ni_xs_scalar_info_t *scalar_info = ni_xs_scalar_info(type);
+	const char *value;
+
+	if (var->type == DBUS_TYPE_ARRAY) {
+		ni_error("%s: expected a scalar, but got an array or dict", __func__);
+		return FALSE;
+	}
+
+	if (scalar_info->constraint.bitmap) {
+		const ni_intmap_t *bits = scalar_info->constraint.bitmap->bits;
+		unsigned long value = 0;
+		unsigned int bb;
+
+		if (!ni_dbus_variant_get_ulong(var, &value))
+			return FALSE;
+
+		for (bb = 0; bb < 32; ++bb) {
+			const char *bitname;
+
+			if ((value & (1 << bb)) == 0)
+				continue;
+
+			if ((bitname = ni_format_int_mapped(bb, bits)) != NULL) {
+				xml_node_new(bitname, node);
+			} else {
+				ni_warn("unable to represent bit%u in <%s>", bb, node->name);
+			}
+		}
+
+		return TRUE;
+	}
+
+	if (!(value = ni_dbus_variant_sprint(var))) {
+		ni_error("%s: unable to represent variable value as string", __func__);
+		return FALSE;
+	}
+
+	/* FIXME: make sure we properly quote any xml meta characters */
+	xml_node_set_cdata(node, value);
 	return TRUE;
 }
 
@@ -275,6 +379,73 @@ ni_dbus_serialize_xml_array(xml_node_t *node, const ni_xs_type_t *type, ni_dbus_
 }
 
 /*
+ * XML from dbus variant for arrays
+ */
+dbus_bool_t
+ni_dbus_deserialize_xml_array(ni_dbus_variant_t *var, const ni_xs_type_t *type, xml_node_t *node)
+{
+	ni_xs_array_info_t *array_info = ni_xs_array_info(type);
+	ni_xs_type_t *element_type = array_info->element_type;
+	unsigned int i, array_len;
+
+	array_len = var->array.len;
+	if (array_info->notation) {
+		const ni_xs_notation_t *notation = array_info->notation;
+		ni_opaque_t data = NI_OPAQUE_INIT;
+		char buffer[256];
+
+		/* For now, we handle only byte arrays */
+		if (notation->array_element_type != DBUS_TYPE_BYTE) {
+			ni_error("%s: cannot handle array notation \"%s\"", __func__, notation->name);
+			return FALSE;
+		}
+
+		if (!ni_dbus_variant_is_byte_array(var)) {
+			ni_error("%s: expected byte array, but got something else", __func__);
+			return FALSE;
+		}
+		if (array_len > sizeof(data.data)) {
+			ni_error("%s: cannot extract data from byte array - too long (len=%u)", __func__, var->array.len);
+			return FALSE;
+		}
+
+		ni_opaque_set(&data, var->byte_array_value, array_len);
+		if (!notation->print(&data, buffer, sizeof(buffer))) {
+			ni_error("%s: cannot represent array with notation \"%s\"", __func__, notation->name);
+			return FALSE;
+		}
+		xml_node_set_cdata(node, buffer);
+		return TRUE;
+	}
+
+	if (element_type->class == NI_XS_TYPE_SCALAR) {
+		/* An array of non-scalars always wraps each element in a variant */
+		if (var->array.element_type == DBUS_TYPE_VARIANT) {
+			ni_error("%s: expected an array of scalars, but got an array of variants",
+					__func__);
+			return FALSE;
+		}
+
+		for (i = 0; i < array_len; ++i) {
+			const char *string;
+			xml_node_t *child;
+
+			if (!(string = ni_dbus_variant_array_print_element(var, i))) {
+				ni_error("%s: cannot represent array element", __func__);
+				return FALSE;
+			}
+			child = xml_node_new("e", node);
+			xml_node_set_cdata(child, string);
+		}
+	} else {
+		ni_error("%s: arrays of type %s not implemented yet", __func__, ni_xs_type_to_dbus_signature(element_type));
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+/*
  * Serialize a dict
  */
 dbus_bool_t
@@ -302,10 +473,51 @@ ni_dbus_serialize_xml_dict(xml_node_t *node, const ni_xs_type_t *type, ni_dbus_v
 }
 
 /*
+ * Deserialize a dict
+ */
+dbus_bool_t
+ni_dbus_deserialize_xml_dict(ni_dbus_variant_t *var, const ni_xs_type_t *type, xml_node_t *node)
+{
+	ni_xs_dict_info_t *dict_info = ni_xs_dict_info(type);
+	ni_dbus_dict_entry_t *entry;
+	unsigned int i;
+
+	if (!ni_dbus_variant_is_dict(var)) {
+		ni_error("unable to deserialize %s: expected a dict", node->name);
+		return FALSE;
+	}
+
+	entry = var->dict_array_value;
+	for (i = 0; i < var->array.len; ++i, ++entry) {
+		const ni_xs_type_t *child_type;
+		xml_node_t *child;
+
+		/* Silently ignore dict entries we have no schema information for */
+		if (!(child_type = ni_xs_dict_info_find(dict_info, entry->key))) {
+			ni_debug_dbus("%s: ignoring unknown dict entry %s in node <%s>",
+					__func__, entry->key, node->name);
+			continue;
+		}
+
+		child = xml_node_new(entry->key, node);
+		if (!ni_dbus_deserialize_xml(&entry->datum, child_type, child))
+			return FALSE;
+	}
+	return TRUE;
+}
+
+/*
  * Serialize a struct
  */
 dbus_bool_t
 ni_dbus_serialize_xml_struct(xml_node_t *node, const ni_xs_type_t *type, ni_dbus_variant_t *var)
+{
+	ni_error("%s: not implemented yet", __func__);
+	return FALSE;
+}
+
+static dbus_bool_t
+ni_dbus_deserialize_xml_struct(ni_dbus_variant_t *var, const ni_xs_type_t *type, xml_node_t *node)
 {
 	ni_error("%s: not implemented yet", __func__);
 	return FALSE;
