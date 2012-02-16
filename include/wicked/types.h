@@ -77,6 +77,7 @@ typedef union ni_uuid {
 	unsigned char		octets[16];
 	uint32_t		words[4];
 } ni_uuid_t;
+#define NI_UUID_INIT		{ .words = { 0, 0, 0, 0 } }
 
 /*
  * Link layer address
