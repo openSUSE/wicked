@@ -111,7 +111,7 @@ struct ni_wireless_network {
 	ni_wireless_mode_t	mode;
 	unsigned int		channel;
 	double			frequency;
-	unsigned int		max_bitrate;
+	unsigned int		max_bitrate;		/* in Mbps */
 
 	struct {
 		ni_wireless_security_t mode;

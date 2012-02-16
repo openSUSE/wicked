@@ -32,15 +32,14 @@ struct ni_wpa_network {
 
 	time_t			last_seen;
 
-	ni_hwaddr_t		bssid;
-
 	ni_wireless_ssid_t	essid;
+	ni_hwaddr_t		access_point;
 
 	int32_t			noise;
 	int32_t			frequency;	/* in MHz */
 	int32_t			level;		/* 256 == 0dBm */
 	int32_t			quality;	/* n/70 */
-	int32_t			maxrate;	/* in Bit/s, 1e6 based */
+	unsigned int		max_bitrate;	/* in Bit/s, 1e6 based */
 	uint16_t		capabilities;
 
 	ni_wireless_auth_mode_t	auth_proto;

@@ -553,10 +553,10 @@ ni_wpa_interface_retrieve_scan(ni_wpa_client_t *wpa, ni_wpa_interface_t *ifp, ni
 		ni_wireless_network_t *net;
 
 		net = ni_wireless_network_new();
-		net->access_point = wpa_net->bssid;
+		net->access_point = wpa_net->access_point;
 		net->frequency = wpa_net->frequency * 1e6;
 		net->essid = wpa_net->essid;
-		net->max_bitrate = wpa_net->maxrate;
+		net->max_bitrate = wpa_net->max_bitrate;
 
 		if (wpa_net->wpsie)
 			__ni_wireless_process_ie(net, wpa_net->wpsie->data, wpa_net->wpsie->len);
@@ -698,7 +698,7 @@ __wpa_dbus_bss_get_bssid(const ni_dbus_object_t *object, const ni_dbus_property_
 {
 	ni_wpa_network_t *net = __wpa_get_network(object);
 
-	ni_dbus_variant_set_byte_array(argument, net->bssid.data, net->bssid.len);
+	ni_dbus_variant_set_byte_array(argument, net->access_point.data, net->access_point.len);
 	return TRUE;
 }
 
@@ -710,11 +710,11 @@ __wpa_dbus_bss_set_bssid(ni_dbus_object_t *object, const ni_dbus_property_t *pro
 	unsigned int len;
 
 	if (!ni_dbus_variant_get_byte_array_minmax(argument,
-				net->bssid.data, &len,
-				0, sizeof(net->bssid.data)))
+				net->access_point.data, &len,
+				0, sizeof(net->access_point.data)))
 		return FALSE;
-	net->bssid.type = NI_IFTYPE_WIRELESS;
-	net->bssid.len = len;
+	net->access_point.type = NI_IFTYPE_WIRELESS;
+	net->access_point.len = len;
 	return TRUE;
 }
 
@@ -825,7 +825,7 @@ __wpa_dbus_bss_get_maxrate(const ni_dbus_object_t *object, const ni_dbus_propert
 {
 	ni_wpa_network_t *net = __wpa_get_network(object);
 
-	ni_dbus_variant_set_int32(argument, net->maxrate);
+	ni_dbus_variant_set_int32(argument, net->max_bitrate);
 	return TRUE;
 }
 
@@ -835,7 +835,7 @@ __wpa_dbus_bss_set_maxrate(ni_dbus_object_t *object, const ni_dbus_property_t *p
 {
 	ni_wpa_network_t *net = __wpa_get_network(object);
 
-	return ni_dbus_variant_get_int32(argument, &net->maxrate);
+	return ni_dbus_variant_get_uint(argument, &net->max_bitrate);
 }
 
 static dbus_bool_t
@@ -1180,13 +1180,13 @@ ni_wpa_bss_properties_result(ni_dbus_object_t *proxy, ni_dbus_message_t *msg)
 		goto failed;
 
 	ni_debug_wireless("Updated BSS %s, essid=%.*s, freq=%.3f GHz, quality=%u/70, noise=%u, level=%d dBm, maxrate=%u MB/s",
-			ni_link_address_print(&net->bssid),
+			ni_link_address_print(&net->access_point),
 			net->essid.len, net->essid.data,
 			net->frequency * 1e-3,
 			net->quality,
 			net->noise,
 			(int) (net->level - 256),
-			net->maxrate / 1000000);
+			net->max_bitrate);
 
 	ni_dbus_variant_destroy(&dict);
 	return;
