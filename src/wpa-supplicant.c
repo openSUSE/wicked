@@ -647,6 +647,7 @@ ni_wpa_interface_retrieve_scan(ni_wpa_client_t *wpa, ni_wpa_interface_t *ifp, ni
 			__ni_wireless_process_ie(net, wpa_net->rsnie->data, wpa_net->rsnie->len);
 
 		ni_wireless_network_array_append(&scan->networks, net);
+		ni_wireless_network_put(net);
 	}
 	return 0;
 }

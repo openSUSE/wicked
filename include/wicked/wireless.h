@@ -8,6 +8,7 @@
 #define __WICKED_WIRELESS_H__
 
 #include <wicked/types.h>
+#include <wicked/logging.h>
 
 typedef enum ni_wireless_mode {
 	NI_WIRELESS_MODE_UNKNOWN,
@@ -105,6 +106,8 @@ typedef struct ni_wireless_ssid {
 #define NI_WIRELESS_BITRATES_MAX	32
 
 struct ni_wireless_network {
+	unsigned int			refcount;
+
 	ni_wireless_ssid_t	essid;
 	unsigned int		essid_encode_index;
 	ni_hwaddr_t		access_point;
@@ -196,5 +199,22 @@ extern const char *	ni_wireless_key_management_to_name(ni_wireless_key_mgmt_t);
 extern ni_wireless_key_mgmt_t ni_wireless_name_to_key_management(const char *);
 extern const char *	ni_wireless_eap_method_to_name(ni_wireless_eap_method_t);
 extern ni_wireless_eap_method_t ni_wireless_name_to_eap_method(const char *);
+
+static inline ni_wireless_network_t *
+ni_wireless_network_get(ni_wireless_network_t *net)
+{
+	ni_assert(net->refcount);
+	net->refcount++;
+
+	return net;
+}
+
+static inline void
+ni_wireless_network_put(ni_wireless_network_t *net)
+{
+	ni_assert(net->refcount);
+	if (--(net->refcount) == 0)
+		ni_wireless_network_free(net);
+}
 
 #endif /* __WICKED_WIRELESS_H__ */

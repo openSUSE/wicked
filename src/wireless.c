@@ -618,7 +618,11 @@ ni_wireless_scan_free(ni_wireless_scan_t *scan)
 ni_wireless_network_t *
 ni_wireless_network_new(void)
 {
-	return xcalloc(1, sizeof(ni_wireless_network_t));
+	ni_wireless_network_t *net;
+
+	net = xcalloc(1, sizeof(ni_wireless_network_t));
+	net->refcount = 1;
+	return net;
 }
 
 void
@@ -641,6 +645,7 @@ ni_wireless_network_set_key(ni_wireless_network_t *net, const unsigned char *key
 void
 __ni_wireless_network_destroy(ni_wireless_network_t *net)
 {
+	ni_assert(net->refcount == 0);
 	ni_wireless_network_set_key(net, NULL, 0);
 	ni_wireless_auth_info_array_destroy(&net->auth_info);
 	memset(net, 0, sizeof(*net));
@@ -666,7 +671,7 @@ void
 ni_wireless_network_array_append(ni_wireless_network_array_t *array, ni_wireless_network_t *net)
 {
 	array->data = realloc(array->data, (array->count + 1) * sizeof(ni_wireless_network_t *));
-	array->data[array->count++] = net;
+	array->data[array->count++] = ni_wireless_network_get(net);
 }
 
 void
@@ -675,7 +680,7 @@ ni_wireless_network_array_destroy(ni_wireless_network_array_t *array)
 	unsigned int i;
 
 	for (i = 0; i < array->count; ++i)
-		ni_wireless_network_free(array->data[i]);
+		ni_wireless_network_put(array->data[i]);
 	free(array->data);
 	memset(array, 0, sizeof(*array));
 }
