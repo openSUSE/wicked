@@ -41,7 +41,7 @@ extern const ni_dbus_service_t	wicked_dbus_interface_request_service; /* XXX */
  * This allows to define extensions and interface for specific link layers.
  */
 void
-ni_objectmodel_register_netif_classes(ni_dbus_server_t *server)
+ni_objectmodel_register_netif_classes(void)
 {
 	const ni_dbus_class_t *base_class = &ni_objectmodel_netif_class;
 	ni_dbus_class_t *link_class;
@@ -69,7 +69,7 @@ ni_objectmodel_register_netif_classes(ni_dbus_server_t *server)
 		link_class->destroy = base_class->destroy;
 		link_class->refresh = base_class->refresh;
 
-		/* Register this class with the server */
+		/* Register this class */
 		ni_objectmodel_register_class(link_class);
 	}
 }

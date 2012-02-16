@@ -68,7 +68,7 @@ ni_objectmodel_create_service(void)
 	ni_objectmodel_register_class(&ni_objectmodel_netif_list_class);
 
 	/* register all netif classes and service */
-	ni_objectmodel_register_netif_classes(server);
+	ni_objectmodel_register_netif_classes();
 
 	/* Initialize our addrconf clients */
 	ni_objectmodel_dhcp4_init(server);

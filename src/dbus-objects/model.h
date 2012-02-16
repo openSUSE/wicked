@@ -199,7 +199,7 @@ extern dbus_bool_t		__wicked_dbus_set_addrconf_lease(ni_addrconf_lease_t *lease,
 extern ni_dbus_object_t *	ni_objectmodel_wrap_addrconf_request(ni_addrconf_request_t *);
 
 extern void			ni_objectmodel_register_service(const ni_dbus_service_t *);
-extern void			ni_objectmodel_register_netif_classes(ni_dbus_server_t *);
+extern void			ni_objectmodel_register_netif_classes(void);
 extern dbus_bool_t		ni_objectmodel_bind_compatible_interfaces(ni_dbus_object_t *);
 
 extern void			ni_objectmodel_dhcp4_init(ni_dbus_server_t *);
