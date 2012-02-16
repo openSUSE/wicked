@@ -445,19 +445,22 @@ ni_ifworker_set_target(ni_ifworker_t *w, unsigned int min_state, unsigned int ma
 }
 
 static unsigned int
-mark_matching_interfaces(const char *match_name, unsigned int target_state)
+mark_matching_interfaces(const char *match_name, unsigned int target_state, int config_only)
 {
 	unsigned int i, count = 0;
 
 	ni_debug_dbus("%s(name=%s, target_state=%s)", __func__, match_name, ni_ifworker_state_name(target_state));
 
-	if (!strcmp(match_name, "all"))
+	if (!strcmp(match_name, "all")) {
+		/* safeguard: "ifdown all" should mean "all interfaces with a config file */
+		config_only = 1;
 		match_name = NULL;
+	}
 
 	for (i = 0; i < interface_workers.count; ++i) {
 		ni_ifworker_t *w = interface_workers.data[i];
 
-		if (w->config == NULL)
+		if (w->config == NULL && config_only)
 			continue;
 		if (w->exclusive_owner)
 			continue;
@@ -468,6 +471,12 @@ mark_matching_interfaces(const char *match_name, unsigned int target_state)
 		}
 
 		/* FIXME: check for matching behavior definition */
+
+		if (w->config == NULL) {
+			fprintf(stderr,
+				"%s: no configuration for interface, but bringing %s anyway\n",
+				w->name, (target_state < STATE_LINK_UP)? "down" : "up");
+		}
 
 		ni_ifworker_set_target(w, target_state, target_state);
 		count++;
@@ -1297,7 +1306,7 @@ usage:
 	if (build_hierarchy() < 0)
 		ni_fatal("ifup: unable to build device hierarchy");
 
-	if (!mark_matching_interfaces(ifname, STATE_NETWORK_UP))
+	if (!mark_matching_interfaces(ifname, STATE_NETWORK_UP, 1))
 		return 0;
 
 	ni_ifworkers_kickstart();
@@ -1318,6 +1327,7 @@ do_ifdown(int argc, char **argv)
 	};
 	const char *ifname;
 	const char *opt_file = NULL;
+	int opt_delete = 0;
 	int c, rv = 1;
 
 	optind = 1;
@@ -1325,6 +1335,10 @@ do_ifdown(int argc, char **argv)
 		switch (c) {
 		case OPT_FILE:
 			opt_file = optarg;
+			break;
+
+		case OPT_DELETE:
+			opt_delete = 1;
 			break;
 
 		default:
@@ -1357,8 +1371,6 @@ usage:
 		}
 
 		ni_ifworkers_from_xml(config_doc);
-	} else {
-		ni_fatal("ifup: non-file case not implemented yet");
 	}
 
 	if (!ni_ifworkers_create_client())
@@ -1366,10 +1378,13 @@ usage:
 
 	ni_ifworkers_refresh_state();
 
+#if 0
+	/* FIXME: need to build hierarchy based on what's in the system */
 	if (build_hierarchy() < 0)
 		ni_fatal("ifup: unable to build device hierarchy");
+#endif
 
-	if (!mark_matching_interfaces(ifname, STATE_DEVICE_UP))
+	if (!mark_matching_interfaces(ifname, opt_delete? STATE_DEVICE_DOWN : STATE_DEVICE_UP, opt_file != NULL))
 		return 0;
 
 	ni_ifworkers_kickstart();
