@@ -21,6 +21,8 @@
 #include "model.h"
 #include "config.h"
 #include "debug.h"
+#include "dbus-connection.h"
+#include "process.h"
 
 extern ni_dbus_object_t *	ni_objectmodel_new_interface(ni_dbus_server_t *server,
 					const ni_dbus_service_t *service,
@@ -274,12 +276,150 @@ static ni_dbus_service_t	wicked_dbus_root_interface = {
 	/* .methods = wicked_dbus_root_methods, */
 };
 
-dbus_bool_t
-ni_objectmodel_call_extension(ni_dbus_object_t *object, const ni_dbus_method_t *method,
-				unsigned int argc, const ni_dbus_variant_t *argv, ni_dbus_message_t *reply,
-				DBusError *error)
+/*
+ * Write dbus message to a temporary file
+ */
+static char *
+__ni_objectmodel_write_message(ni_dbus_message_t *msg)
 {
+	char *tempname = NULL;
+	char *msg_data;
+	int msg_len;
+	FILE *fp;
+
+	if (!dbus_message_marshal(msg, &msg_data, &msg_len)) {
+		ni_error("%s: unable to marshal script arguments", __func__);
+		return NULL;
+	}
+
+	if ((fp = ni_mkstemp(&tempname)) == NULL) {
+		ni_error("%s: unable to create tempfile for script arguments", __func__);
+	} else {
+		if (ni_file_write(fp, msg_data, msg_len) < 0) {
+			ni_error("%s: unable to store message (len=%d)", __func__, msg_len);
+			unlink(tempname);
+			ni_string_free(&tempname);
+			/* tempname is NULL after this */
+		}
+
+		fclose(fp);
+	}
+
+	free(msg_data);
+	return tempname;
+}
+
+static char *
+__ni_objectmodel_empty_tempfile(void)
+{
+	char *tempname = NULL;
+	FILE *fp;
+
+	if ((fp = ni_mkstemp(&tempname)) == NULL) {
+		ni_error("%s: unable to create tempfile for script arguments", __func__);
+		return NULL;
+	}
+
+	fclose(fp);
+	return tempname;
+}
+
+dbus_bool_t
+ni_objectmodel_extension_call(ni_dbus_connection_t *connection,
+				ni_dbus_object_t *object, const ni_dbus_method_t *method,
+				ni_dbus_message_t *call)
+{
+	DBusError error = DBUS_ERROR_INIT;
+	const char *interface = dbus_message_get_interface(call);
+	ni_extension_t *extension;
+	ni_process_t *command;
+	ni_process_instance_t *process;
+	char *tempname = NULL;
+
+	extension = ni_config_find_extension(ni_global.config, interface);
+	if (extension == NULL) {
+		dbus_set_error(&error, DBUS_ERROR_SERVICE_UNKNOWN, "%s: no/unknown interface %s",
+				__func__, interface);
+		ni_dbus_connection_send_error(connection, call, &error);
+		return FALSE;
+	}
+
+	if ((command = ni_extension_script_find(extension, method->name)) == NULL) {
+		dbus_set_error(&error, DBUS_ERROR_FAILED, "%s: no/unknown extension method %s",
+				__func__, method->name);
+		ni_dbus_connection_send_error(connection, call, &error);
+		return FALSE;
+	}
+
+	/* Create an instance of this command */
+	process = ni_process_instance_new(command);
+
+	/* Build the argument blob and store it in a file */
+	tempname = __ni_objectmodel_write_message(call);
+	if (tempname != NULL) {
+		ni_process_instance_setenv(process, "WICKED_ARGFILE", tempname);
+		ni_string_free(&tempname);
+	} else {
+		goto general_failure;
+	}
+
+	/* Create empty reply for script return data */
+	tempname = __ni_objectmodel_empty_tempfile();
+	if (tempname != NULL) {
+		ni_process_instance_setenv(process, "WICKED_RETFILE", tempname);
+		ni_string_free(&tempname);
+	} else {
+		goto general_failure;
+	}
+
+	/* Run the process */
+	if (ni_dbus_async_server_call_run_command(connection, object, method, call, process) < 0) {
+		ni_error("%s: error executing method %s", __func__, method->name);
+		dbus_set_error(&error, DBUS_ERROR_FAILED, "%s: error executing method %s",
+				__func__, method->name);
+		ni_dbus_connection_send_error(connection, call, &error);
+		ni_process_instance_free(process);
+		return FALSE;
+	}
+
+	return TRUE;
+
+general_failure:
+	dbus_set_error(&error, DBUS_ERROR_FAILED, "%s - general failure when executing method",
+			method->name);
+	ni_dbus_connection_send_error(connection, call, &error);
+
+	if (process)
+		ni_process_instance_free(process);
+
+	if (tempname) {
+		unlink(tempname);
+		free(tempname);
+	}
 	return FALSE;
+}
+
+static dbus_bool_t
+ni_objectmodel_extension_completion(ni_dbus_connection_t *connection,
+				ni_dbus_object_t *object, const ni_dbus_method_t *method,
+				ni_dbus_message_t *call, const ni_process_instance_t *process)
+{
+	ni_dbus_message_t *reply;
+
+	if (ni_process_exit_status_okay(process)) {
+		reply = dbus_message_new_method_return(call);
+		/* FIXME: if the method returns anything, we need to read it
+		 * from the response file */
+	} else {
+		reply = dbus_message_new_error(call, DBUS_ERROR_FAILED,
+				"dbus extension script returns error");
+	}
+
+	if (ni_dbus_connection_send_message(connection, reply) < 0)
+		ni_error("unable to send reply (out of memory)");
+
+	dbus_message_unref(reply);
+	return TRUE;
 }
 
 /*
@@ -302,8 +442,12 @@ ni_objectmodel_bind_extensions(void)
 		for (method = service->methods; method->name != NULL; ++method) {
 			if (method->handler != NULL)
 				continue;
-			if (ni_extension_get_action(extension, method->name) != NULL)
-				((ni_dbus_method_t *) method)->handler = ni_objectmodel_call_extension;
+			if (ni_extension_script_find(extension, method->name) != NULL) {
+				ni_dbus_method_t *mod_method = (ni_dbus_method_t *) method;
+
+				mod_method->async_handler = ni_objectmodel_extension_call;
+				mod_method->async_completion = ni_objectmodel_extension_completion;
+			}
 		}
 	}
 
