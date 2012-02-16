@@ -385,16 +385,9 @@ static const ni_dbus_method_t		ni_objectmodel_addrconf_ipv6_static_methods[] = {
 #define ADDRCONF_PROPERTY_SIGNATURE(signature, __name, rw) \
 	__NI_DBUS_PROPERTY(signature, __name,  __ni_objectmodel_addrconf, rw)
 
-static ni_dbus_property_t		ni_objectmodel_addrconf_static_properties[] = {
-//	ADDRCONF_PROPERTY_SIGNATURE(NI_DBUS_DICT_SIGNATURE, address, RO),
-	{ NULL }
-};
-
 ni_dbus_service_t			ni_objectmodel_addrconf_ipv4_static_service = {
 	.name		= WICKED_DBUS_ADDRCONF_IPV4STATIC_INTERFACE,
-	/* The .compatible member is filled in through dbus-xml. Not nice. */
 //	.compatible	= &ni_objectmodel_netif_class,
-	.properties	= ni_objectmodel_addrconf_static_properties,
 	.methods	= ni_objectmodel_addrconf_ipv4_static_methods,
 };
 
@@ -402,6 +395,5 @@ ni_dbus_service_t			ni_objectmodel_addrconf_ipv6_static_service = {
 	.name		= WICKED_DBUS_ADDRCONF_IPV4STATIC_INTERFACE,
 	/* The .compatible member is filled in through dbus-xml. Not nice. */
 //	.compatible	= &ni_objectmodel_netif_class,
-	.properties	= ni_objectmodel_addrconf_static_properties,
 	.methods	= ni_objectmodel_addrconf_ipv6_static_methods,
 };
