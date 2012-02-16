@@ -438,8 +438,8 @@ __wicked_dbus_interface_set_routes(ni_dbus_object_t *object,
 
 static ni_dbus_property_t	wicked_dbus_interface_properties[] = {
 	INTERFACE_STRING_PROPERTY(name, name, RO),
-	INTERFACE_UINT_PROPERTY(ifindex, link.ifindex, RO),
-	INTERFACE_UINT_PROPERTY(flags, link.ifflags, RO),
+	INTERFACE_UINT_PROPERTY(index, link.ifindex, RO),
+	INTERFACE_UINT_PROPERTY(status, link.ifflags, RO),
 	INTERFACE_UINT_PROPERTY(type, link.type, RO),
 	INTERFACE_UINT_PROPERTY(mtu, link.mtu, RO),
 	INTERFACE_UINT_PROPERTY(txqlen, link.txqlen, RO),
@@ -650,7 +650,7 @@ __wicked_dbus_interface_request_set_ipv6(ni_dbus_object_t *object,
 	__NI_DBUS_PROPERTY(signature, __name, __wicked_dbus_interface_request, rw)
 
 static ni_dbus_property_t	wicked_dbus_interface_request_properties[] = {
-	INTERFACE_REQUEST_UINT_PROPERTY(flags, ifflags, RO),
+	INTERFACE_REQUEST_UINT_PROPERTY(status, ifflags, RO),
 	INTERFACE_REQUEST_UINT_PROPERTY(mtu, mtu, RO),
 	INTERFACE_REQUEST_UINT_PROPERTY(metric, metric, RO),
 	INTERFACE_REQUEST_UINT_PROPERTY(txqlen, txqlen, RO),
