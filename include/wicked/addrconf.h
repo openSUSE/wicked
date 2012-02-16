@@ -46,6 +46,7 @@ enum {
 struct ni_addrconf_lease {
 	ni_addrconf_lease_t *	next;
 
+	unsigned int		seqno;		/* globally unique sequence # */
 	ni_addrconf_mode_t	type;
 	int			family;
 	char *			owner;

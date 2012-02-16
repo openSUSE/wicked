@@ -328,6 +328,7 @@ ni_addrconf_lease_new(int type, int family)
 	ni_addrconf_lease_t *lease;
 
 	lease = calloc(1, sizeof(*lease));
+	lease->seqno = __ni_global_seqno++;
 	lease->type = type;
 	lease->family = family;
 	return lease;
