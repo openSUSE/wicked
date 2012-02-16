@@ -621,27 +621,27 @@ __ni_dbus_object_get_managed_object_properties(ni_dbus_object_t *proxy,
 			return FALSE;
 
 		if (!ni_dbus_message_iter_get_variant(&iter_dict_entry, &value)) {
-			ni_debug_dbus("Couldn't deserialize property %s.%s",
+			ni_debug_dbus("couldn't deserialize property %s.%s",
 					service->name, property_name);
 			continue;
 		}
 
 		/* now set the object property */
 		if (!(property = ni_dbus_service_get_property(service, property_name))) {
-			ni_debug_dbus("Ignoring unknown %s property %s=%s",
+			ni_debug_dbus("ignoring unknown %s property %s=%s",
 					service->name,
 					property_name, ni_dbus_variant_sprint(&value));
 			continue;
 		}
 
 		if (!property->set) {
-			ni_debug_dbus("Ignoring read-only property %s=%s",
+			ni_debug_dbus("ignoring read-only property %s=%s",
 					property_name, ni_dbus_variant_sprint(&value));
 			continue;
 		}
 
 		if (!property->set(proxy, property, &value, &error)) {
-			ni_debug_dbus("Error setting property %s=%s (%s: %s)",
+			ni_debug_dbus("error setting property %s=%s (%s: %s)",
 					property_name, ni_dbus_variant_sprint(&value),
 					error.name, error.message);
 			dbus_error_free(&error);
