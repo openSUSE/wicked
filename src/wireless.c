@@ -59,24 +59,33 @@ ni_wpa_client(void)
 	return wpa_client;
 }
 
+static ni_wpa_interface_t *
+ni_wireless_bind_supplicant(ni_interface_t *dev)
+{
+	ni_wpa_client_t *wpa;
+	ni_wpa_interface_t *wpa_dev;
+
+	if (!(wpa = ni_wpa_client()))
+		return NULL;
+
+	wpa_dev = ni_wpa_interface_bind(wpa, dev);
+	if (wpa_dev == NULL)
+		ni_error("wpa_supplicant doesn't know interface %s", dev->name);
+
+	return wpa_dev;
+}
+
 /*
  * Refresh what we think we know about this interface.
  */
 int
 ni_wireless_interface_refresh(ni_interface_t *ifp)
 {
-	ni_wpa_client_t *wpa;
 	ni_wpa_interface_t *wif;
 	ni_wireless_t *wlan;
 
-	if (!(wpa = ni_wpa_client()))
+	if (!(wif = ni_wireless_bind_supplicant(ifp)))
 		return -1;
-
-	wif = ni_wpa_interface_bind(wpa, ifp);
-	if (wif == NULL) {
-		ni_error("wpa_supplicant doesn't know interface %s", ifp->name);
-		return -1;
-	}
 
 	if ((wlan = ifp->wireless) == NULL) {
 		ifp->wireless = wlan = ni_wireless_new();
@@ -118,15 +127,12 @@ ni_wireless_interface_set_scanning(ni_interface_t *dev, ni_bool_t enable)
 int
 __ni_wireless_do_scan(ni_interface_t *dev)
 {
-	ni_wpa_client_t *wpa;
 	ni_wpa_interface_t *wpa_dev;
 	ni_wireless_scan_t *scan;
 
-	if (!(wpa = ni_wpa_client()))
-		return -1;
+	/* FIXME: If it's down, we should bring up the device now for scanning */
 
-	wpa_dev = ni_wpa_interface_bind(wpa, dev);
-	if (!wpa_dev)
+	if (!(wpa_dev = ni_wireless_bind_supplicant(dev)))
 		return -1;
 
 	if ((scan = dev->wireless_scan) == NULL) {
@@ -135,13 +141,13 @@ __ni_wireless_do_scan(ni_interface_t *dev)
 	}
 
 	/* Retrieve whatever is there. */
-	ni_wpa_interface_retrieve_scan(wpa, wpa_dev, scan);
+	ni_wpa_interface_retrieve_scan(wpa_dev, scan);
 
 	/* If we haven't seen a scan in a long time, request one. */
 	if (scan->timestamp + scan->max_age < time(NULL)) {
 		/* We can do this only if the device is up */
 		if (dev->link.ifflags & NI_IFF_DEVICE_UP)
-			ni_wpa_interface_request_scan(wpa, wpa_dev, scan);
+			ni_wpa_interface_request_scan(wpa_dev, scan);
 	}
 
 	return 0;
@@ -155,7 +161,6 @@ ni_wireless_set_network(ni_interface_t *dev, ni_wireless_network_t *net)
 {
 	int link_was_up = !!(dev->link.ifflags & NI_IFF_LINK_UP);
 	ni_wireless_t *wlan;
-	ni_wpa_client_t *wpa;
 	ni_wpa_interface_t *wpa_dev;
 
 	if ((wlan = ni_interface_get_wireless(dev)) == NULL) {
@@ -163,10 +168,7 @@ ni_wireless_set_network(ni_interface_t *dev, ni_wireless_network_t *net)
 		return -1;
 	}
 
-	if (!(wpa = ni_wpa_client()))
-		return -1;
-
-	if (!(wpa_dev = ni_wpa_interface_bind(wpa, dev)))
+	if (!(wpa_dev = ni_wireless_bind_supplicant(dev)))
 		return -1;
 
 	/* Make sure we drop our exsting association */
@@ -187,7 +189,6 @@ int
 ni_wireless_connect(ni_interface_t *dev)
 {
 	ni_wireless_t *wlan;
-	ni_wpa_client_t *wpa;
 	ni_wpa_interface_t *wpa_dev;
 
 	if ((wlan = ni_interface_get_wireless(dev)) == NULL) {
@@ -197,10 +198,7 @@ ni_wireless_connect(ni_interface_t *dev)
 	if (wlan->assoc.network == NULL)
 		return 0;
 
-	if (!(wpa = ni_wpa_client()))
-		return -1;
-
-	if (!(wpa_dev = ni_wpa_interface_bind(wpa, dev)))
+	if (!(wpa_dev = ni_wireless_bind_supplicant(dev)))
 		return -1;
 
 	return ni_wpa_interface_associate(wpa_dev, wlan->assoc.network);
@@ -213,7 +211,6 @@ int
 ni_wireless_disconnect(ni_interface_t *dev)
 {
 	ni_wireless_t *wlan;
-	ni_wpa_client_t *wpa;
 	ni_wpa_interface_t *wpa_dev;
 
 	if ((wlan = ni_interface_get_wireless(dev)) == NULL) {
@@ -221,10 +218,7 @@ ni_wireless_disconnect(ni_interface_t *dev)
 		return -1;
 	}
 
-	if (!(wpa = ni_wpa_client()))
-		return -1;
-
-	if (!(wpa_dev = ni_wpa_interface_bind(wpa, dev)))
+	if (!(wpa_dev = ni_wireless_bind_supplicant(dev)))
 		return -1;
 
 	ni_wireless_set_assoc_network(wlan, NULL);

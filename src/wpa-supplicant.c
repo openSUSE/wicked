@@ -575,7 +575,7 @@ ni_wpa_interface_set_ap_scan(ni_wpa_interface_t *dev, unsigned int level)
  * Request an interface scan
  */
 int
-ni_wpa_interface_request_scan(ni_wpa_client_t *wpa, ni_wpa_interface_t *ifp, ni_wireless_scan_t *scan)
+ni_wpa_interface_request_scan(ni_wpa_interface_t *ifp, ni_wireless_scan_t *scan)
 {
 	uint32_t value;
 	int rv = -1;
@@ -594,7 +594,7 @@ ni_wpa_interface_request_scan(ni_wpa_client_t *wpa, ni_wpa_interface_t *ifp, ni_
  * Copy scan results from wpa objects to geneic ni_wireless_scan_t object
  */
 int
-ni_wpa_interface_retrieve_scan(ni_wpa_client_t *wpa, ni_wpa_interface_t *ifp, ni_wireless_scan_t *scan)
+ni_wpa_interface_retrieve_scan(ni_wpa_interface_t *ifp, ni_wireless_scan_t *scan)
 {
 	ni_wireless_network_t *net;
 	ni_dbus_object_t *pos;
