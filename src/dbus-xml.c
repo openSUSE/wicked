@@ -11,6 +11,7 @@
 #include "dbus-common.h"
 #include "xml-schema.h"
 #include "util_priv.h"
+#include "debug.h"
 
 #include <wicked/netinfo.h>
 #include "dbus-objects/model.h"
@@ -45,6 +46,7 @@ ni_dbus_xml_register_services(ni_dbus_server_t *server, ni_xs_scope_t *scope)
 {
 	ni_xs_service_t *xs_service;
 
+	NI_TRACE_ENTER_ARGS("scope=%s", scope->name);
 	for (xs_service = scope->services; xs_service; xs_service = xs_service->next) {
 		ni_dbus_service_t *service;
 		int rv;
@@ -55,10 +57,15 @@ ni_dbus_xml_register_services(ni_dbus_server_t *server, ni_xs_scope_t *scope)
 
 		switch (xs_service->layer) {
 		case NI_LAYER_LINK:
+			ni_debug_dbus("register dbus service description %s (link type %d/%s)",
+					service->name,
+					xs_service->provides.iftype,
+					ni_linktype_type_to_name(xs_service->provides.iftype));
 			ni_objectmodel_register_link_service(xs_service->provides.iftype, service);
 			break;
 
 		default:
+			ni_debug_dbus("register dbus service description %s", service->name);
 			ni_objectmodel_register_service(service);
 			break;
 		}

@@ -138,6 +138,8 @@ wicked_interface_server(void)
 
 	wicked_dbus_server = ni_objectmodel_create_service();
 
+	ni_dbus_xml_register_services(wicked_dbus_server, wicked_dbus_xml_schema);
+
 	/* open global RTNL socket to listen for kernel events */
 	if (ni_server_listen_events(wicked_interface_event) < 0)
 		ni_fatal("unable to initialize netlink listener");
