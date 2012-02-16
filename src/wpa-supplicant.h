@@ -36,7 +36,7 @@ struct ni_wpa_network {
 	ni_hwaddr_t		access_point;
 
 	int32_t			noise;
-	int32_t			frequency;	/* in MHz */
+	double			frequency;	/* in GHz */
 	int32_t			level;		/* 256 == 0dBm */
 	int32_t			quality;	/* n/70 */
 	unsigned int		max_bitrate;	/* in Bit/s, 1e6 based */

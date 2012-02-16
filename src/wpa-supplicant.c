@@ -554,7 +554,7 @@ ni_wpa_interface_retrieve_scan(ni_wpa_client_t *wpa, ni_wpa_interface_t *ifp, ni
 
 		net = ni_wireless_network_new();
 		net->access_point = wpa_net->access_point;
-		net->frequency = wpa_net->frequency * 1e6;
+		net->frequency = wpa_net->frequency;
 		net->essid = wpa_net->essid;
 		net->max_bitrate = wpa_net->max_bitrate;
 
@@ -768,7 +768,8 @@ __wpa_dbus_bss_get_frequency(const ni_dbus_object_t *object, const ni_dbus_prope
 {
 	ni_wpa_network_t *net = __wpa_get_network(object);
 
-	ni_dbus_variant_set_int32(argument, net->frequency);
+	/* Convert GHz -> MHz */
+	ni_dbus_variant_set_int32(argument, 1000 * net->frequency);
 	return TRUE;
 }
 
@@ -777,8 +778,13 @@ __wpa_dbus_bss_set_frequency(ni_dbus_object_t *object, const ni_dbus_property_t 
 		const ni_dbus_variant_t *argument, DBusError *error)
 {
 	ni_wpa_network_t *net = __wpa_get_network(object);
+	unsigned int freq;
 
-	return ni_dbus_variant_get_int32(argument, &net->frequency);
+	if (ni_dbus_variant_get_uint(argument, &freq))
+		return FALSE;
+	/* Convert MHz -> GHz */
+	net->frequency = freq * 1e-3;
+	return TRUE;
 }
 
 static dbus_bool_t
@@ -1182,7 +1188,7 @@ ni_wpa_bss_properties_result(ni_dbus_object_t *proxy, ni_dbus_message_t *msg)
 	ni_debug_wireless("Updated BSS %s, essid=%.*s, freq=%.3f GHz, quality=%u/70, noise=%u, level=%d dBm, maxrate=%u MB/s",
 			ni_link_address_print(&net->access_point),
 			net->essid.len, net->essid.data,
-			net->frequency * 1e-3,
+			net->frequency,
 			net->quality,
 			net->noise,
 			(int) (net->level - 256),

@@ -110,7 +110,7 @@ struct ni_wireless_network {
 	ni_hwaddr_t		access_point;
 	ni_wireless_mode_t	mode;
 	unsigned int		channel;
-	double			frequency;
+	double			frequency;		/* in GHz */
 	unsigned int		max_bitrate;		/* in Mbps */
 
 	struct {
