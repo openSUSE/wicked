@@ -680,7 +680,9 @@ ni_dbus_object_get_properties_as_dict(const ni_dbus_object_t *object,
 {
 	int rv = TRUE;
 
+#if 0
 	NI_TRACE_ENTER_ARGS("object=%s, interface=%s", object->path, interface->name);
+#endif
 
 	/* Loop over properties and add them here */
 	if (interface->properties) {
