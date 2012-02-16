@@ -48,8 +48,6 @@ ni_call_create_client(void)
 
 /*
  * Get the dbus interface for a given link layer type
- * Note, this must use the same class naming convention
- * as in ni_objectmodel_link_classname()
  */
 const ni_dbus_service_t *
 ni_call_link_layer_service(const char *link_type)
@@ -79,9 +77,7 @@ ni_call_link_layer_service(const char *link_type)
 }
 
 /*
- * Get the dbus interface for a given link layer type
- * Note, this must use the same class naming convention
- * as in __ni_objectmodel_link_classname()
+ * Get the factory interface for a given link layer type
  */
 const ni_dbus_service_t *
 ni_call_link_layer_factory_service(const char *link_type)
@@ -100,6 +96,32 @@ ni_call_link_layer_factory_service(const char *link_type)
 
 	if (!ni_dbus_service_get_method(service, "newLink")) {
 		ni_debug_dbus("dbus factory service for link layer \"%s\" has no newLink method", link_type);
+		return NULL;
+	}
+
+	return service;
+}
+
+/*
+ * Get the authentication service for a given link layer type
+ */
+const ni_dbus_service_t *
+ni_call_link_layer_auth_service(const char *link_type)
+{
+	char namebuf[256];
+	const ni_dbus_service_t *service;
+
+	if (!(service = ni_call_link_layer_service(link_type)))
+		return NULL;
+
+	snprintf(namebuf, sizeof(namebuf), "%s.Auth", service->name);
+	if (!(service = ni_objectmodel_service_by_name(namebuf))) {
+		ni_debug_dbus("no dbus auth service for link layer \"%s\"", link_type);
+		return NULL;
+	}
+
+	if (!ni_dbus_service_get_method(service, "login")) {
+		ni_debug_dbus("dbus auth service for link layer \"%s\" has no login method", link_type);
 		return NULL;
 	}
 
@@ -225,7 +247,7 @@ ni_call_link_new_xml(const ni_dbus_service_t *service,
  * Bring the link of an interface up
  */
 static dbus_bool_t
-ni_call_link_change_common(ni_dbus_object_t *object,
+ni_call_link_method_common(ni_dbus_object_t *object,
 				const ni_dbus_service_t *service, const ni_dbus_method_t *method,
 				unsigned int argc, ni_dbus_variant_t *argv,
 				ni_objectmodel_callback_info_t **callback_list)
@@ -238,7 +260,7 @@ ni_call_link_change_common(ni_dbus_object_t *object,
 				argc, argv,
 				1, &result,
 				&error)) {
-		ni_error("Server refused to create interface. Server responds:");
+		ni_error("%s.%s() failed. Server responds:", service->name, method->name);
 		ni_error_extra("%s: %s", error.name, error.message);
 	} else {
 		*callback_list = ni_objectmodel_callback_info_from_dict(&result);
@@ -265,7 +287,11 @@ ni_call_link_method_xml(ni_dbus_object_t *object, const char *method_name, xml_n
 	ni_assert(method);
 
 	memset(argv, 0, sizeof(argv));
-	if (!strcmp(method_name, "linkUp") || !strcmp(method_name, "linkChange")) {
+	/* FIXME: should query the xml schema to know whether the call expects a
+	 * dict argument or not */
+	if (!strcmp(method_name, "linkUp")
+	 || !strcmp(method_name, "linkChange")
+	 || !strcmp(method_name, "login")) {
 		ni_dbus_variant_t *dict = &argv[argc++];
 
 		ni_dbus_variant_init_dict(dict);
@@ -275,7 +301,7 @@ ni_call_link_method_xml(ni_dbus_object_t *object, const char *method_name, xml_n
 		}
 	}
 
-	rv = ni_call_link_change_common(object, service, method, argc, argv, callback_list);
+	rv = ni_call_link_method_common(object, service, method, argc, argv, callback_list);
 
 out:
 	while (argc--)
@@ -287,6 +313,18 @@ dbus_bool_t
 ni_call_link_up_xml(ni_dbus_object_t *object, xml_node_t *config, ni_objectmodel_callback_info_t **callback_list)
 {
 	return ni_call_link_method_xml(object, "linkUp", config, callback_list);
+}
+
+dbus_bool_t
+ni_call_link_login_xml(ni_dbus_object_t *object, xml_node_t *config, ni_objectmodel_callback_info_t **callback_list)
+{
+	return ni_call_link_method_xml(object, "login", config, callback_list);
+}
+
+dbus_bool_t
+ni_call_link_logout(ni_dbus_object_t *object, xml_node_t *config, ni_objectmodel_callback_info_t **callback_list)
+{
+	return ni_call_link_method_xml(object, "logout", config, callback_list);
 }
 
 dbus_bool_t

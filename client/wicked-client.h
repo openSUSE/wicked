@@ -12,8 +12,10 @@ extern int			do_ifdown(int argc, char **argv);
 
 extern ni_dbus_object_t *	wicked_get_interface_object(const char *);
 extern xml_node_t *		wicked_find_link_properties(const xml_node_t *);
-extern const ni_dbus_service_t *ni_call_link_layer_factory_service(const char *);
+extern xml_node_t *		wicked_find_auth_properties(const xml_node_t *, const char **link_type);
 extern const ni_dbus_service_t *ni_call_link_layer_service(const char *);
+extern const ni_dbus_service_t *ni_call_link_layer_factory_service(const char *);
+extern const ni_dbus_service_t *ni_call_link_layer_auth_service(const char *);
 
 extern ni_dbus_object_t *	ni_call_create_client(void);
 
@@ -23,6 +25,8 @@ extern char *			ni_call_link_new_argv(const ni_dbus_service_t *, int, char **);
 extern dbus_bool_t		ni_call_device_delete(ni_dbus_object_t *, ni_objectmodel_callback_info_t **);
 
 extern dbus_bool_t		ni_call_link_up_xml(ni_dbus_object_t *, xml_node_t *, ni_objectmodel_callback_info_t **);
+extern dbus_bool_t		ni_call_link_login_xml(ni_dbus_object_t *, xml_node_t *, ni_objectmodel_callback_info_t **);
+extern dbus_bool_t		ni_call_link_logout_xml(ni_dbus_object_t *, xml_node_t *, ni_objectmodel_callback_info_t **);
 extern dbus_bool_t		ni_call_link_change_xml(ni_dbus_object_t *, xml_node_t *, ni_objectmodel_callback_info_t **);
 extern dbus_bool_t		ni_call_link_down(ni_dbus_object_t *, ni_objectmodel_callback_info_t **);
 

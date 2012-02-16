@@ -297,6 +297,19 @@ wicked_find_link_properties(const xml_node_t *ifnode)
 	return found;
 }
 
+xml_node_t *
+wicked_find_auth_properties(const xml_node_t *ifnode, const char **link_type)
+{
+	xml_node_t *linknode;
+
+	if (!(linknode = wicked_find_link_properties(ifnode)))
+		return NULL;
+
+	if (link_type)
+		*link_type = linknode->name;
+	return xml_node_get_child(linknode, "auth");
+}
+
 /*
  * Handle "create" command
  */

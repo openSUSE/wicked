@@ -925,8 +925,40 @@ ni_ifworker_do_link_up(ni_ifworker_t *w)
 static int
 ni_ifworker_do_linkauth(ni_ifworker_t *w)
 {
-	/* For now, nothing to be done - this needs to be implemented */
+	const ni_dbus_service_t *service;
+	xml_node_t *authnode;
+	const char *link_type;
+	ni_objectmodel_callback_info_t *callback_list = NULL;
+
 	ni_debug_dbus("%s(%s)", __func__, w->name);
+	if (!(authnode = wicked_find_auth_properties(w->config, &link_type)))
+		goto link_authenticated;
+
+	if (!(service = ni_call_link_layer_auth_service(link_type))) {
+		ni_ifworker_fail(w, "unknown/unsupported authentication for link type %s", link_type);
+		return -1;
+	}
+
+	if ((service = ni_call_link_layer_auth_service(link_type)) == NULL
+	 || !ni_dbus_service_get_method(service, "login")) {
+		/* We're asked to configure the link layer, but the
+		 * service doesn't exist or doesn't support it. */
+		ni_ifworker_fail(w, "unknown/unsupported authentication for link type %s", link_type);
+		return -1;
+	}
+
+	if (!ni_call_link_login_xml(w->object, authnode, &callback_list)) {
+		ni_ifworker_fail(w, "failed to configure %s device", link_type);
+		return -1;
+	}
+
+	if (callback_list) {
+		ni_ifworker_add_callbacks(w, callback_list);
+		w->wait_for_state = STATE_LINK_AUTHENTICATED;
+		return 0;
+	}
+
+link_authenticated:
 	w->state = STATE_LINK_AUTHENTICATED;
 	return 0;
 }
