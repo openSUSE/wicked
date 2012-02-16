@@ -26,6 +26,7 @@ extern ni_socket_t *	ni_local_socket_connect(const char *);
 extern ni_socket_t *	ni_local_socket_accept(ni_socket_t *, uid_t *, gid_t *);
 extern int		ni_local_socket_pair(ni_socket_t **, ni_socket_t **);
 
+extern ni_socket_t *	ni_socket_hold(ni_socket_t *);
 extern void		ni_socket_release(ni_socket_t *);
 extern ni_socket_t *	ni_socket_wrap(int fd, int sotype);
 extern void		ni_socket_activate(ni_socket_t *);

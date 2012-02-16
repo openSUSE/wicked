@@ -103,6 +103,15 @@ ni_socket_deactivate_all(void)
 	}
 }
 
+ni_socket_t *
+ni_socket_hold(ni_socket_t *sock)
+{
+	ni_assert(sock);
+	ni_assert(sock->refcount);
+	sock->refcount++;
+	return sock;
+}
+
 void
 ni_socket_release(ni_socket_t *sock)
 {
