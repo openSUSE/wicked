@@ -231,6 +231,7 @@ static ni_dbus_property_t	wicked_dbus_autoip4_properties[] = {
 
 static const ni_dbus_service_t	wicked_dbus_autoip4_service = {
 	.name		= WICKED_DBUS_AUTO4_INTERFACE,
+	.compatible	= &ni_objectmodel_autoip4dev_class,
 	.methods	= wicked_dbus_autoip4_methods,
 	.properties	= wicked_dbus_autoip4_properties,
 };

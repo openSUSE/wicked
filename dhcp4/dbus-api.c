@@ -218,7 +218,8 @@ static ni_dbus_property_t	wicked_dbus_dhcp4_properties[] = {
 };
 
 static const ni_dbus_service_t	wicked_dbus_dhcp4_service = {
-	.name = WICKED_DBUS_DHCP4_INTERFACE,
-	.methods = wicked_dbus_dhcp4_methods,
-	.properties = wicked_dbus_dhcp4_properties,
+	.name		= WICKED_DBUS_DHCP4_INTERFACE,
+	.compatible	= &ni_objectmodel_dhcp4dev_class,
+	.methods	= wicked_dbus_dhcp4_methods,
+	.properties	= wicked_dbus_dhcp4_properties,
 };

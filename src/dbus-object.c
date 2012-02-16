@@ -330,6 +330,14 @@ ni_dbus_object_register_service(ni_dbus_object_t *object, const ni_dbus_service_
 
 	NI_TRACE_ENTER_ARGS("path=%s, interface=%s", object->path, svc->name);
 
+	if (svc->compatible && object->class != svc->compatible) {
+		ni_error("cannot register dbus interface %s (class %s) with object %s: "
+			 "not compatible with object class %s",
+			 svc->name, svc->compatible->name,
+			 object->path, object->class? object->class->name : "<no class>");
+		return FALSE;
+	}
+
 	count = 0;
 	if (object->interfaces != NULL) {
 		while (object->interfaces[count] != NULL) {

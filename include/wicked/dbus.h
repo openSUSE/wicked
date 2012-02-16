@@ -31,6 +31,7 @@ typedef struct ni_dbus_connection ni_dbus_connection_t;
 typedef struct ni_dbus_client	ni_dbus_client_t;
 typedef struct ni_dbus_object	ni_dbus_object_t;
 typedef struct ni_dbus_service	ni_dbus_service_t;
+typedef struct ni_dbus_class	ni_dbus_class_t;
 typedef struct ni_dbus_server_object ni_dbus_server_object_t;
 typedef struct ni_dbus_client_object ni_dbus_client_object_t;
 typedef struct ni_dbus_dict_entry ni_dbus_dict_entry_t;
@@ -137,6 +138,10 @@ struct ni_dbus_property	{
 struct ni_dbus_service {
 	char *				name;
 
+	/* Declare which class we're compatible with. NULL if
+	 * we're compatible with any kind of class */
+	const ni_dbus_class_t *		compatible;
+
 	const ni_dbus_method_t *	methods;
 	const ni_dbus_method_t *	signals;
 	const ni_dbus_property_t *	properties;
@@ -144,12 +149,6 @@ struct ni_dbus_service {
 	void *				user_data;
 };
 
-/* XXX: is this really needed? */
-typedef struct ni_dbus_class_functions	ni_dbus_class_functions_t;
-struct ni_dbus_class_functions {
-};
-
-typedef struct ni_dbus_class ni_dbus_class_t;
 struct ni_dbus_class {
 	char *			name;
 
