@@ -68,8 +68,8 @@ __ni_objectmodel_wireless_get_network(const ni_wireless_network_t *network,
 	if (network->max_bitrate)
 		ni_dbus_dict_add_uint32(dict, "max-bitrate", network->max_bitrate);
 
-	for (i = 0; i < network->auth_info.count; ++i) {
-		ni_wireless_auth_info_t *auth_info = network->auth_info.data[i];
+	for (i = 0; i < network->supported_auth_modes.count; ++i) {
+		ni_wireless_auth_info_t *auth_info = network->supported_auth_modes.data[i];
 		ni_dbus_variant_t *child;
 
 		child = ni_dbus_dict_add(dict, "auth-info");

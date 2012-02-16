@@ -458,7 +458,7 @@ __ni_wireless_process_wpa_common(ni_wireless_network_t *net, ni_buffer_t *bp,
 		return -1;
 
 	auth = ni_wireless_auth_info_new(auth_mode, version);
-	ni_wireless_auth_info_array_append(&net->auth_info, auth);
+	ni_wireless_auth_info_array_append(&net->supported_auth_modes, auth);
 
 	/* Everything else is optional, so failure to get sufficient
 	 * data from the buffer is non-terminal. */
@@ -647,7 +647,7 @@ __ni_wireless_network_destroy(ni_wireless_network_t *net)
 {
 	ni_assert(net->refcount == 0);
 	ni_wireless_network_set_key(net, NULL, 0);
-	ni_wireless_auth_info_array_destroy(&net->auth_info);
+	ni_wireless_auth_info_array_destroy(&net->supported_auth_modes);
 	memset(net, 0, sizeof(*net));
 }
 

@@ -144,8 +144,7 @@ struct ni_wireless_network {
 	} encode;
 
 	/* Information on the auth modes supported by the AP */
-	/* FIXME: rename to supported_auth_modes */
-	ni_wireless_auth_info_array_t	auth_info;
+	ni_wireless_auth_info_array_t	supported_auth_modes;
 };
 
 typedef struct ni_wireless_interface_capabilities {

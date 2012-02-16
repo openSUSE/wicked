@@ -243,7 +243,7 @@ ni_wpa_network_properties_destroy(ni_wireless_network_t *net)
 	net->max_bitrate = 0;
 	net->capabilities = 0;
 
-	ni_wireless_auth_info_array_destroy(&net->auth_info);
+	ni_wireless_auth_info_array_destroy(&net->supported_auth_modes);
 }
 
 static void
