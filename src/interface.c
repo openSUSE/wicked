@@ -483,40 +483,6 @@ __ni_lease_owns_route(const ni_addrconf_lease_t *lease, const ni_route_t *rp)
 }
 
 /*
- * Check whether an interface is up.
- * To be up, it needs to have all *UP flag set, and must have acquired
- * all the requested leases.
- * FIXME: OBSOLETE
- */
-int
-__ni_interface_is_up(const ni_interface_t *ifp)
-{
-	unsigned int upflags = NI_IFF_NETWORK_UP | NI_IFF_LINK_UP | NI_IFF_DEVICE_UP;
-
-	if ((ifp->link.ifflags ^ upflags) & upflags) {
-		ni_debug_ifconfig("%s: not all layers are up", ifp->name);
-		return 0;
-	}
-
-	return 1;
-}
-
-/*
- * Check whether an interface is down.
- * To be down, it needs to have at least the NETWORK_UP flag cleared.
- */
-int
-__ni_interface_is_down(const ni_interface_t *ifp)
-{
-	if (ifp->link.ifflags & NI_IFF_NETWORK_UP) {
-		ni_debug_ifconfig("%s: network layer is still up", ifp->name);
-		return 0;
-	}
-
-	return 1;
-}
-
-/*
  * Guess the interface type based on its name and characteristics
  * We should really make this configurable!
  */
