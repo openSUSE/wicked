@@ -268,7 +268,7 @@ ni_dbus_object_get_service_for_method(const ni_dbus_object_t *object, const char
 	const ni_dbus_service_t *svc;
 	unsigned int i;
 
-	if (object->interfaces == NULL)
+	if (object->interfaces == NULL || method == NULL)
 		return NULL;
 
 	for (i = 0; (svc = object->interfaces[i]) != NULL; ++i) {
