@@ -135,7 +135,7 @@ ni_dbus_server_send_signal(ni_dbus_server_t *server, ni_dbus_object_t *object,
 		interface = svc->name;
 	}
 
-	if (svc && !(method = ni_dbus_service_get_method(svc, signal_name)))
+	if (svc && !(method = ni_dbus_service_get_signal(svc, signal_name)))
 		ni_warn("%s: unknown signal %s", __func__, signal_name);
 
 	msg = dbus_message_new_signal(object->path, interface, signal_name);
