@@ -4,11 +4,7 @@
  * This command line utility provides an interface to the network
  * configuration/information facilities.
  *
- * It uses a RESTful interface (even though it's a command line utility).
- * The idea is to make it easier to extend this to some smallish daemon
- * with a AF_LOCAL socket interface.
- *
- * Copyright (C) 2010-2011 Olaf Kirch <okir@suse.de>
+ * Copyright (C) 2010-2012 Olaf Kirch <okir@suse.de>
  */
 #include <stdio.h>
 #include <string.h>
@@ -28,6 +24,8 @@
 #include <wicked/xml.h>
 #include <wicked/xpath.h>
 #include <wicked/objectmodel.h>
+
+#include "client/wicked-client.h"
 
 enum {
 	OPT_CONFIGFILE,
@@ -62,7 +60,7 @@ static int		do_show(int, char **);
 static int		do_show_xml(int, char **);
 static int		do_addport(int, char **);
 static int		do_delport(int, char **);
-static int		do_ifup(int, char **);
+extern int		do_ifup(int, char **);
 static int		do_ifdown(int, char **);
 static int		do_xpath(int, char **);
 
@@ -208,13 +206,14 @@ wicked_init_objectmodel(void)
 	return wicked_dbus_xml_schema;
 }
 
-static ni_dbus_object_t *
+ni_dbus_object_t *
 wicked_dbus_client_create(void)
 {
 	ni_dbus_client_t *client;
 
 	wicked_init_objectmodel();
 
+	/* Use ni_objectmodel_create_client() */
 	client = ni_create_dbus_client(WICKED_DBUS_BUS_NAME);
 	if (!client)
 		ni_fatal("Unable to connect to wicked dbus service");
@@ -287,7 +286,7 @@ wicked_properties_from_argv(const ni_dbus_service_t *interface, ni_dbus_variant_
 /*
  * Obtain an object handle for Wicked.Interface
  */
-static ni_dbus_object_t *
+ni_dbus_object_t *
 wicked_get_interface_object(const char *default_interface)
 {
 	static const ni_dbus_class_t *netif_list_class = NULL;
@@ -398,7 +397,7 @@ failed:
 	return result;
 }
 
-static char *
+char *
 wicked_create_interface_xml(const ni_dbus_service_t *service,
 				const char *ifname, xml_node_t *linkdef)
 {
@@ -437,7 +436,7 @@ wicked_create_interface_xml(const ni_dbus_service_t *service,
  * By convention, the link layer information must be an XML element with
  * the name of the link layer, such as <ethernet>, <vlan> or <bond>.
  */
-static xml_node_t *
+xml_node_t *
 wicked_find_link_properties(const xml_node_t *ifnode)
 {
 	xml_node_t *child, *found = NULL;
@@ -1159,314 +1158,6 @@ __interface_request_build(ni_interface_t *ifp)
 }
 
 #if 1
-typedef struct interface_worker {
-	char *			name;
-	unsigned int		ifindex;
-	xml_node_t *		config;
-	ni_interface_t *	device;
-} interface_worker_t;
-
-#define MAX_INTERFACE_WORKERS	64
-static interface_worker_t	interface_workers[MAX_INTERFACE_WORKERS];
-static unsigned int		num_interface_workers;
-
-static void
-add_interface_worker(const char *name, xml_node_t *node)
-{
-	interface_worker_t *worker;
-
-	ni_assert(num_interface_workers < MAX_INTERFACE_WORKERS);
-	worker = &interface_workers[num_interface_workers++];
-
-	ni_string_dup(&worker->name, name);
-	worker->config = node;
-}
-
-static unsigned int
-add_matching_interfaces(xml_document_t *doc, const char *match_name, unsigned int event)
-{
-	xml_node_t *root, *ifnode;
-	unsigned int count = 0;
-
-	if (!strcmp(match_name, "all"))
-		match_name = NULL;
-
-	root = xml_document_root(doc);
-	for (ifnode = root->children; ifnode; ifnode = ifnode->next) {
-		xml_node_t *node;
-		const char *ifname = NULL;
-
-		if ((node = xml_node_get_child(ifnode, "name")) != NULL)
-			ifname = node->cdata;
-
-		if (match_name) {
-			if (ifname == NULL || strcmp(ifname, match_name))
-				continue;
-		}
-
-		/* FIXME: check for matching behavior definition */
-
-		add_interface_worker(ifname, ifnode);
-		count++;
-	}
-
-	return count;
-}
-
-static void
-interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg, void *user_data)
-{
-	const char *signal_name = dbus_message_get_member(msg);
-	const char *object_path = dbus_message_get_path(msg);
-
-	ni_debug_dbus("%s: got signal %s from %s", __func__, signal_name, object_path);
-}
-
-void
-interface_workers_refresh_state(ni_dbus_object_t *root_object)
-{
-	ni_dbus_object_t *iflist, *object;
-	interface_worker_t *w;
-	unsigned int i;
-
-	if (!(iflist = wicked_get_interface(root_object, NULL)))
-		ni_fatal("unable to get server's interface list");
-
-	for (i = 0, w = interface_workers; i < num_interface_workers; ++i, ++w) {
-		ni_interface_t *dev;
-
-		if ((dev = interface_workers[i].device) != NULL) {
-			interface_workers[i].device = NULL;
-			ni_interface_put(dev);
-		}
-	}
-
-	for (object = iflist->children; object; object = object->next) {
-		ni_interface_t *dev = ni_objectmodel_unwrap_interface(object);
-
-		if (dev == NULL || dev->name == NULL)
-			continue;
-
-		for (i = 0, w = interface_workers; i < num_interface_workers; ++i, ++w) {
-			if (w->ifindex) {
-				if (w->ifindex != dev->link.ifindex)
-					continue;
-			} else
-			if (w->name == NULL || strcmp(dev->name, w->name))
-				continue;
-
-			w->device = ni_interface_get(dev);
-			break;
-		}
-	}
-}
-
-int
-interface_workers_kickstart(ni_dbus_object_t *root_object)
-{
-	interface_worker_t *w;
-	unsigned int i;
-
-	interface_workers_refresh_state(root_object);
-	for (i = 0, w = interface_workers; i < num_interface_workers; ++i, ++w) {
-		/* Instead of a plain device name, an interface configuration can
-		 * contain a different sort of interface identification - such as
-		 * its MAC address, or a platform specific name (such as the Dell
-		 * biosdevname, or a System z specific interface name).
-		 * Here, we should try to resolve these names.
-		 */
-		if (w->device == NULL) {
-			/* check if the device has an <identify> element instead
-			 * of (or in addition to) its name, and if so, call
-			 * InterfaceList.identify() with this information.
-			 */
-		}
-
-		if (w->device == NULL) {
-			const ni_dbus_service_t *service;
-			xml_node_t *linknode;
-			const char *link_type;
-			const char *ifname;
-
-			/* Device doesn't exist yet, try to create it */
-			ni_trace("interface_workers_kickstart: should create %s", w->name);
-			if (!(linknode = wicked_find_link_properties(w->config))) {
-				ni_error("unable to create interface %s: cannot determine link type of interface", w->name);
-				return -1;
-			}
-			link_type = linknode->name;
-
-			if (!(service = wicked_link_layer_factory_service(link_type))) {
-				ni_error("%s: unknown/unsupported link type %s", w->name, link_type);
-				return -1;
-			}
-
-			ifname = wicked_create_interface_xml(service, w->name, linknode);
-			if (ifname == NULL) {
-				ni_error("%s: failed to create interface", w->name);
-				return -1;
-			}
-
-			ni_string_dup(&w->name, ifname);
-		}
-
-		/* Have the FSM work on this */
-	}
-
-	return 0;
-}
-
-#include <wicked/socket.h>
-
-/* static */ void
-interface_worker_mainloop(void)
-{
-	while (1) {
-		long timeout;
-
-		timeout = ni_timer_next_timeout();
-		if (ni_socket_wait(timeout) < 0)
-			ni_fatal("ni_socket_wait failed");
-	}
-}
-
-static int
-do_ifup(int argc, char **argv)
-{
-	enum  { OPT_SYSCONFIG, OPT_NETCF, OPT_FILE, OPT_BOOT };
-	static struct option ifup_options[] = {
-		{ "file", required_argument, NULL, OPT_FILE },
-		{ "boot", no_argument, NULL, OPT_BOOT },
-		{ NULL }
-	};
-	ni_dbus_variant_t argument = NI_DBUS_VARIANT_INIT;
-	const char *ifname = NULL;
-	const char *opt_file = NULL;
-	ni_dbus_object_t *root_object;
-	unsigned int ifevent = NI_IFACTION_MANUAL_UP;
-	ni_interface_t *config_dev = NULL;
-	xml_document_t *config_doc;
-	int c, rv = 1;
-
-	optind = 1;
-	while ((c = getopt_long(argc, argv, "", ifup_options, NULL)) != EOF) {
-		switch (c) {
-		case OPT_FILE:
-			opt_file = optarg;
-			break;
-
-		case OPT_BOOT:
-			ifevent = NI_IFACTION_BOOT;
-			break;
-
-		default:
-usage:
-			fprintf(stderr,
-				"wicked [options] ifup [ifup-options] all\n"
-				"wicked [options] ifup [ifup-options] <ifname> [options ...]\n"
-				"\nSupported ifup-options:\n"
-				"  --file <filename>\n"
-				"      Read interface configuration(s) from file rather than using system config\n"
-				"  --boot\n"
-				"      Ignore interfaces with startmode != boot\n"
-				);
-			return 1;
-		}
-	}
-
-	if (optind + 1 != argc) {
-		fprintf(stderr, "Missing interface argument\n");
-		goto usage;
-	}
-	ifname = argv[optind++];
-
-	if (!strcmp(ifname, "boot")) {
-		ifevent = NI_IFACTION_BOOT;
-		ifname = "all";
-	}
-
-	ni_dbus_variant_init_dict(&argument);
-	if (opt_file) {
-		if (!(config_doc = xml_document_read(opt_file))) {
-			ni_error("unable to load interface definition from %s", opt_file);
-			goto failed;
-		}
-
-		add_matching_interfaces(config_doc, ifname, ifevent);
-	} else {
-		ni_fatal("ifup: non-file case not implemented yet");
-	}
-
-
-	if (!(root_object = wicked_dbus_client_create()))
-		return 1;
-
-	ni_dbus_client_add_signal_handler(ni_dbus_object_get_client(root_object), NULL, NULL,
-			                        WICKED_DBUS_NETIF_INTERFACE,
-						interface_state_change_signal,
-						NULL);
-
-	interface_workers_kickstart(root_object);
-	interface_worker_mainloop();
-
-#if 0
-		/* Request that the server take the interface up */
-		config_dev->link.ifflags = NI_IFF_NETWORK_UP | NI_IFF_LINK_UP | NI_IFF_DEVICE_UP;
-
-		req = __interface_request_build(config_dev);
-
-		request_object = ni_objectmodel_wrap_interface_request(req);
-		if (!ni_dbus_object_get_properties_as_dict(request_object, &wicked_dbus_interface_request_service, &argument)) {
-			ni_interface_request_free(req);
-			ni_dbus_object_free(request_object);
-			ni_netconfig_free(nc);
-			goto failed;
-		}
-
-		ni_interface_request_free(req);
-		ni_dbus_object_free(request_object);
-		ni_netconfig_free(nc);
-
-		if (config_dev->startmode.ifaction[ifevent].action == NI_INTERFACE_IGNORE) {
-			ni_error("not permitted to bring up interface");
-			goto failed;
-		}
-	} else {
-		/* No options, just bring up with default options
-		 * (which may include dhcp) */
-	}
-
-	if (!(root_object = wicked_dbus_client_create()))
-		goto failed;
-
-	if (!(dev_object = wicked_get_interface(root_object, ifname)))
-		goto failed;
-
-	/* now do the real dbus call to bring it up */
-	if (!ni_dbus_object_call_variant(dev_object,
-				WICKED_DBUS_NETIF_INTERFACE, "up",
-				1, &argument, 0, NULL, &error)) {
-		ni_error("Unable to configure interface. Server responds:");
-		fprintf(stderr, /* ni_error_extra */
-			"%s: %s\n", error.name, error.message);
-		dbus_error_free(&error);
-		goto failed;
-	}
-
-	rv = 0;
-
-	// then wait for a signal from the server to tell us it's actually up
-
-	ni_debug_wicked("successfully configured %s", ifname);
-	rv = 0; /* success */
-#endif
-
-failed:
-	if (config_dev)
-		ni_interface_put(config_dev);
-	ni_dbus_variant_destroy(&argument);
-	return rv;
-}
 #else
 static int
 do_ifup(int argc, char **argv)
@@ -1710,56 +1401,7 @@ __wicked_request(int rest_op, const char *path,
 #endif
 
 #if 0
-enum {
-	STATE_UNKNOWN = 0,
-	STATE_DEVICE_DOWN,
-	STATE_DEVICE_UP,
-	STATE_LINK_UP,
-	STATE_NETWORK_UP,
-};
-
-/*
- * Interface state information
- */
-typedef struct ni_interface_state ni_interface_state_t;
-
-typedef struct ni_interface_state_array {
-	unsigned int		count;
-	ni_interface_state_t **	data;
-} ni_interface_state_array_t;
-
-typedef struct ni_interface_op {
-	const char *		name;
-	int			(*call)(ni_interface_state_t *, ni_netconfig_t *);
-	int			(*check)(ni_interface_state_t *, ni_netconfig_t *, unsigned int);
-	int			(*timeout)(ni_interface_state_t *);
-} ni_interface_op_t;
-
-struct ni_interface_state {
-	unsigned int		refcount;
-
-	int			state;
-	char *			ifname;
-	ni_interface_t *	config;
-	unsigned int		done      : 1,
-				is_slave  : 1,
-				is_policy : 1,
-				waiting   : 1,
-				called    : 1;
-	int			result;
-
-	int			have_state;
-	unsigned int		timeout;
-	ni_ifaction_t		behavior;
-
-	const ni_interface_op_t	*fsm;
-
-	ni_interface_state_t *	parent;
-	ni_interface_state_array_t children;
-};
-
 static ni_interface_state_t *ni_interface_state_array_find(ni_interface_state_array_t *, const char *);
-static void	ni_interface_state_array_append(ni_interface_state_array_t *, ni_interface_state_t *);
 static void	ni_interface_state_array_destroy(ni_interface_state_array_t *);
 
 static ni_intmap_t __state_names[] = {
@@ -1776,18 +1418,6 @@ static const char *
 ni_interface_state_name(int state)
 {
 	return ni_format_int_mapped(state, __state_names);
-}
-
-static ni_interface_state_t *
-ni_interface_state_new(const char *name, ni_interface_t *dev)
-{
-	ni_interface_state_t *state;
-
-	state = calloc(1, sizeof(*state));
-	ni_string_dup(&state->ifname, name);
-	if (dev)
-		state->config = ni_interface_get(dev);
-	return state;
 }
 
 static ni_interface_state_t *
