@@ -391,7 +391,7 @@ extern ni_dbus_object_t *	ni_dbus_object_find_child(ni_dbus_object_t *parent, co
 extern dbus_bool_t		ni_dbus_object_call_variant(const ni_dbus_object_t *,
 					const char *interface, const char *method,
 					unsigned int nargs, const ni_dbus_variant_t *args,
-					unsigned int maxres, const ni_dbus_variant_t *res,
+					unsigned int maxres, ni_dbus_variant_t *res,
 					DBusError *error);
 extern int			ni_dbus_object_call_simple(const ni_dbus_object_t *,
 					const char *interface, const char *method,

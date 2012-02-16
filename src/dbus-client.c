@@ -331,12 +331,13 @@ dbus_bool_t
 ni_dbus_object_call_variant(const ni_dbus_object_t *proxy,
 					const char *interface_name, const char *method,
 					unsigned int nargs, const ni_dbus_variant_t *args,
-					unsigned int maxres, const ni_dbus_variant_t *res,
+					unsigned int maxres, ni_dbus_variant_t *res,
 					DBusError *error)
 {
 	ni_dbus_message_t *call = NULL, *reply = NULL;
 	ni_dbus_client_t *client;
 	dbus_bool_t rv = FALSE;
+	int nres;
 
 	if (!interface_name)
 		interface_name = ni_dbus_object_get_default_interface(proxy);
@@ -358,6 +359,14 @@ ni_dbus_object_call_variant(const ni_dbus_object_t *proxy,
 
 	if ((reply = ni_dbus_client_call(client, call, error)) == NULL)
 		goto out;
+
+	nres = ni_dbus_message_get_args_variants(reply, res, maxres);
+	if (nres < 0) {
+		dbus_set_error(error, DBUS_ERROR_FAILED, "%s: unable to parse %s() response", __func__, method);
+		goto out;
+	}
+
+	/* FIXME: should we return nres? */
 
 	rv = TRUE;
 
