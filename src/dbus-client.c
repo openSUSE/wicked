@@ -340,8 +340,42 @@ ni_dbus_object_call_variant(const ni_dbus_object_t *proxy,
 	dbus_bool_t rv = FALSE;
 	int nres;
 
-	if (!interface_name)
-		interface_name = ni_dbus_object_get_default_interface(proxy);
+	if (!interface_name) {
+		const ni_dbus_service_t **pos, *service, *best = NULL;
+
+		pos = proxy->interfaces;
+		while ((service = *pos++) != NULL) {
+			if (ni_dbus_service_get_method(service, method) == NULL)
+				continue;
+
+			if (best == NULL) {
+				best = service;
+			} else
+			if (best->compatible && service->compatible) {
+				if (ni_dbus_class_is_subclass(best->compatible, service->compatible)) {
+					/* best is more specific than service */
+				} else
+				if (ni_dbus_class_is_subclass(service->compatible, best->compatible)) {
+					/* service is more specific than best */
+					best = service;
+				} else {
+					dbus_set_error(error, DBUS_ERROR_UNKNOWN_METHOD,
+							"%s: several dbus interfaces provide method %s",
+							proxy->path, method);
+					return FALSE;
+				}
+			}
+		}
+
+		if (best == NULL) {
+			dbus_set_error(error, DBUS_ERROR_UNKNOWN_METHOD,
+					"%s: no registered dbus interface provides method %s",
+					proxy->path, method);
+			return FALSE;
+		}
+
+		interface_name = best->name;
+	}
 
 	if (!proxy || !(client = ni_dbus_object_get_client(proxy)) || !interface_name) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "%s: bad proxy object", __FUNCTION__);
@@ -610,6 +644,7 @@ __ni_dbus_object_get_managed_object_properties(ni_dbus_object_t *proxy,
 			ni_debug_dbus("Error setting property %s=%s (%s: %s)",
 					property_name, ni_dbus_variant_sprint(&value),
 					error.name, error.message);
+			dbus_error_free(&error);
 			continue;
 		}
 
