@@ -189,15 +189,13 @@ main(int argc, char **argv)
 /*
  * Initialize the object model
  */
-static void
+static ni_xs_scope_t *
 wicked_init_objectmodel(void)
 {
-	ni_xs_scope_t *wicked_dbus_xml_schema;
-	static int initialized;
+	static ni_xs_scope_t *wicked_dbus_xml_schema = NULL;
 
-	if (initialized)
-		return;
-	initialized = 1;
+	if (wicked_dbus_xml_schema)
+		return wicked_dbus_xml_schema;
 
 	wicked_dbus_xml_schema = ni_server_dbus_xml_schema();
 	if (wicked_dbus_xml_schema == NULL)
@@ -207,6 +205,7 @@ wicked_init_objectmodel(void)
 	ni_objectmodel_register_all();
 
 	ni_dbus_xml_register_services(wicked_dbus_xml_schema);
+	return wicked_dbus_xml_schema;
 }
 
 static ni_dbus_object_t *
@@ -701,21 +700,95 @@ __dump_fake_xml(const ni_dbus_variant_t *variant, unsigned int indent, const cha
 	}
 }
 
+static xml_node_t *
+__dump_object_xml(const char *object_path, const ni_dbus_variant_t *variant, ni_xs_scope_t *schema, xml_node_t *parent)
+{
+	xml_node_t *object_node;
+	ni_dbus_dict_entry_t *entry;
+	unsigned int index;
+
+	if (!ni_dbus_variant_is_dict(variant)) {
+		ni_error("%s: dbus data is not a dict", __func__);
+		return NULL;
+	}
+
+	object_node = xml_node_new("object", parent);
+	xml_node_add_attr(object_node, "path", object_path);
+
+	for (entry = variant->dict_array_value, index = 0; index < variant->array.len; ++index, ++entry) {
+		const char *interface_name = entry->key;
+
+		/* Ignore well-known interfaces that never have properties */
+		if (!strcmp(interface_name, "org.freedesktop.DBus.ObjectManager")
+		 || !strcmp(interface_name, "org.freedesktop.DBus.Properties"))
+			continue;
+
+		ni_dbus_xml_deserialize_properties(schema, interface_name, &entry->datum, object_node);
+	}
+
+	return object_node;
+}
+
+static xml_node_t *
+__dump_schema_xml(const ni_dbus_variant_t *variant, ni_xs_scope_t *schema)
+{
+	xml_node_t *root = xml_node_new(NULL, NULL);
+	ni_dbus_dict_entry_t *entry;
+	unsigned int index;
+
+	if (!ni_dbus_variant_is_dict(variant)) {
+		ni_error("%s: dbus data is not a dict", __func__);
+		return NULL;
+	}
+
+	for (entry = variant->dict_array_value, index = 0; index < variant->array.len; ++index, ++entry) {
+		if (!__dump_object_xml(entry->key, &entry->datum, schema, root))
+			return NULL;
+	}
+
+	return root;
+}
+
+
 int
 do_show_xml(int argc, char **argv)
 {
-	static const char *dict_element_tags[] = {
-		"object", "interface", NULL
+	enum  { OPT_RAW, };
+	static struct option local_options[] = {
+		{ "raw", no_argument, NULL, OPT_RAW },
+		{ NULL }
 	};
 	ni_dbus_object_t *iflist, *object;
 	ni_dbus_variant_t result = NI_DBUS_VARIANT_INIT;
 	DBusError error = DBUS_ERROR_INIT;
-	int rv = 1;
+	const char *ifname = NULL;
+	int opt_raw = 0;
+	int c, rv = 1;
 
-	if (argc != 1 && argc != 2) {
-		ni_error("wicked show: missing interface name");
-		return 1;
+	optind = 1;
+	while ((c = getopt_long(argc, argv, "", local_options, NULL)) != EOF) {
+		switch (c) {
+		case OPT_RAW:
+			opt_raw = 1;
+			break;
+
+		default:
+		usage:
+			fprintf(stderr,
+				"wicked [options] show-xml [ifname]\n"
+				"\nSupported options:\n"
+				"  --raw\n"
+				"      Show raw dbus reply in pseudo-xml, rather than using the schema\n"
+				);
+			return 1;
+		}
 	}
+
+	if (optind < argc)
+		ifname = argv[optind++];
+
+	if (optind != argc)
+		goto usage;
 
 	if (!(object = wicked_dbus_client_create()))
 		return 1;
@@ -731,7 +804,25 @@ do_show_xml(int argc, char **argv)
 		goto out;
 	}
 
-	__dump_fake_xml(&result, 0, dict_element_tags);
+	if (opt_raw) {
+		static const char *dict_element_tags[] = {
+			"object", "interface", NULL
+		};
+
+		__dump_fake_xml(&result, 0, dict_element_tags);
+	} else {
+		ni_xs_scope_t *schema = wicked_init_objectmodel();
+		xml_node_t *tree;
+
+		tree = __dump_schema_xml(&result, schema);
+		if (tree == NULL) {
+			ni_error("unable to represent properties as xml");
+			goto out;
+		}
+
+		xml_node_print(tree, NULL);
+		xml_node_free(tree);
+	}
 
 	rv = 0;
 
