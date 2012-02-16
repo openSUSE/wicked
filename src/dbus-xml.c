@@ -62,7 +62,6 @@ ni_dbus_xml_register_services(ni_xs_scope_t *scope)
 		const ni_var_t *attr;
 		int rv;
 
-		ni_debug_dbus("==%s==", xs_service->interface);
 		/* An interface needs to be attached to an object. The object-class
 		 * attribute specifies which object class this can attach to. */
 		if ((attr = ni_var_array_get(&xs_service->attributes, "object-class")) != NULL) {
