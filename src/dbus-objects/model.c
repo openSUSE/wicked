@@ -414,8 +414,7 @@ send_error:
 }
 
 static dbus_bool_t
-ni_objectmodel_extension_completion(ni_dbus_connection_t *connection,
-				ni_dbus_object_t *object, const ni_dbus_method_t *method,
+ni_objectmodel_extension_completion(ni_dbus_connection_t *connection, const ni_dbus_method_t *method,
 				ni_dbus_message_t *call, const ni_process_instance_t *process)
 {
 	ni_dbus_message_t *reply;

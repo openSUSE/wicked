@@ -31,7 +31,6 @@ typedef struct ni_dbus_async_server_call ni_dbus_async_server_call_t;
 struct ni_dbus_async_server_call {
 	ni_dbus_async_server_call_t *next;
 
-	ni_dbus_object_t *	object;
 	const ni_dbus_method_t *method;
 	DBusMessage *		call_message;
 	ni_process_instance_t *	sub_process;
@@ -473,22 +472,10 @@ void
 ni_dbus_connection_unregister_object(ni_dbus_connection_t *connection, ni_dbus_object_t *object)
 {
 	const char *path = ni_dbus_object_get_path(object);
-	ni_dbus_async_server_call_t **pos, *async;
 
 	if (path) {
 		ni_debug_dbus("dbus_connection_unregister_object_path(%s)", path);
 		dbus_connection_unregister_object_path(connection->conn, path);
-	}
-
-	/* See if we have any asynchronous server calls pending for this object */
-	for (pos = &connection->async_server_calls; (async = *pos) != NULL; ) {
-		if (async->object == object) {
-			*pos = async->next;
-			ni_debug_dbus("unregistering object %s: cancel async server call", path);
-			__ni_dbus_async_server_call_free(async);
-		} else {
-			pos = &async->next;
-		}
 	}
 }
 
@@ -515,22 +502,19 @@ __ni_dbus_async_server_call_callback(ni_process_instance_t *proc)
 	async->sub_process = NULL;
 
 	/* Should build response and send it out now */
-	async->method->async_completion(conn, async->object, async->method,
-			async->call_message, proc);
+	async->method->async_completion(conn, async->method, async->call_message, proc);
 
 	__ni_dbus_async_server_call_free(async);
 }
 
-ni_dbus_async_server_call_t *
+static ni_dbus_async_server_call_t *
 __ni_dbus_async_server_call_new(ni_dbus_connection_t *conn,
-					ni_dbus_object_t *object,
 					const ni_dbus_method_t *method,
 					DBusMessage *call_message)
 {
 	ni_dbus_async_server_call_t *async;
 
 	async = xcalloc(1, sizeof(*async));
-	async->object = object;
 	async->method = method;
 	async->call_message = dbus_message_ref(call_message);
 
@@ -573,7 +557,7 @@ ni_dbus_async_server_call_run_command(ni_dbus_connection_t *conn,
 		return rv;
 	}
 
-	async = __ni_dbus_async_server_call_new(conn, object, method, call_message);
+	async = __ni_dbus_async_server_call_new(conn, method, call_message);
 	async->sub_process = process;
 	process->notify_callback = __ni_dbus_async_server_call_callback;
 	process->user_data = conn;
