@@ -522,16 +522,6 @@ __ni_process_ifinfomsg(ni_linkinfo_t *link, struct nlmsghdr *h,
 	link->ifflags = __ni_interface_translate_ifflags(ifi->ifi_flags);
 	link->type = NI_IFTYPE_UNKNOWN;
 
-#if 0
-	ni_debug_ifconfig("%s: ifi flags:%s%s%s, my flags:%s%s%s", ifp->name,
-		(ifi->ifi_flags & IFF_RUNNING)? " running" : "",
-		(ifi->ifi_flags & IFF_LOWER_UP)? " lower_up" : "",
-		(ifi->ifi_flags & IFF_UP)? " up" : "",
-		(ifp->ifflags & NI_IFF_DEVICE_UP)? " device-up" : "",
-		(ifp->ifflags & NI_IFF_LINK_UP)? " link-up" : "",
-		(ifp->ifflags & NI_IFF_NETWORK_UP)? " network-up" : "");
-#endif
-
 	if (tb[IFLA_MTU])
 		link->mtu = nla_get_u32(tb[IFLA_MTU]);
 	if (tb[IFLA_TXQLEN])
@@ -706,6 +696,16 @@ __ni_interface_process_newlink(ni_interface_t *ifp, struct nlmsghdr *h,
 	rv = __ni_process_ifinfomsg(&ifp->link, h, ifi, nc);
 	if (rv < 0)
 		return rv;
+
+#if 0
+	ni_debug_ifconfig("%s: ifi flags:%s%s%s, my flags:%s%s%s", ifp->name,
+		(ifi->ifi_flags & IFF_RUNNING)? " running" : "",
+		(ifi->ifi_flags & IFF_LOWER_UP)? " lower_up" : "",
+		(ifi->ifi_flags & IFF_UP)? " up" : "",
+		(ifp->link.ifflags & NI_IFF_DEVICE_UP)? " device-up" : "",
+		(ifp->link.ifflags & NI_IFF_LINK_UP)? " link-up" : "",
+		(ifp->link.ifflags & NI_IFF_NETWORK_UP)? " network-up" : "");
+#endif
 
 	ifp->ipv4.addrconf = NI_ADDRCONF_MASK(NI_ADDRCONF_STATIC);
 	ifp->ipv6.addrconf = NI_ADDRCONF_MASK(NI_ADDRCONF_AUTOCONF) | NI_ADDRCONF_MASK(NI_ADDRCONF_STATIC);
