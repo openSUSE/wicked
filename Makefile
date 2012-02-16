@@ -136,7 +136,7 @@ etc/wicked/schema/constants.xml: etc/mkconst etc/wicked/schema/constants.xml.in
 	etc/mkconst < etc/wicked/schema/constants.xml.in > etc/wicked/schema/constants.xml
 
 wicked: $(OBJ)/wicked.o $(CLIENTOBJS) $(TGTLIBS)
-	$(CC) -o $@ $(CFLAGS) $(OBJ)/wicked.o $(CLIENTOBJS) -L. -lnetinfo -lm -lnl -ldbus-1 -ldl
+	$(CC) -o $@ $(CFLAGS) $(OBJ)/wicked.o $(CLIENTOBJS) -rdynamic -L. -lnetinfo -lm -lnl -ldbus-1 -ldl
 
 wickedd: $(OBJ)/wickedd.o $(TGTLIBS)
 	$(CC) -o $@ $(CFLAGS) $(OBJ)/wickedd.o -rdynamic -L. -lnetinfo -lm -lnl -ldbus-1 -ldl

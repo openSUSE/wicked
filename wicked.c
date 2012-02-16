@@ -203,6 +203,8 @@ wicked_init_objectmodel(void)
 	ni_objectmodel_register_all();
 
 	ni_dbus_xml_register_services(wicked_dbus_xml_schema);
+
+	ni_objectmodel_bind_extensions();
 	return wicked_dbus_xml_schema;
 }
 
