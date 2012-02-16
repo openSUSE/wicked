@@ -11,9 +11,6 @@
 #include <wicked/logging.h>
 #include <wicked/util.h>
 
-typedef struct ni_process	ni_process_t;
-typedef struct ni_process_instance ni_process_instance_t;
-
 struct ni_process {
 	unsigned int		refcount;
 

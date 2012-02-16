@@ -31,6 +31,9 @@ typedef struct ni_buffer	ni_buffer_t;
 typedef struct ni_extension	ni_extension_t;
 typedef struct ni_script_action	ni_script_action_t;
 
+typedef struct ni_process	ni_process_t;
+typedef struct ni_process_instance ni_process_instance_t;
+
 /*
  * These are used by the XML and XPATH code.
  */
