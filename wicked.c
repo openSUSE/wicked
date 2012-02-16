@@ -216,9 +216,20 @@ wicked_init_objectmodel(void)
 static dbus_bool_t
 wicked_proxy_interface_init_child(ni_dbus_object_t *object)
 {
+	static const ni_dbus_class_t *netif_class = NULL;
 	ni_interface_t *ifp;
 
-	ifp = ni_interface_new(NULL, object->name, 0);
+	if (netif_class == NULL) {
+		const ni_dbus_service_t *netif_service;
+
+		netif_service = ni_objectmodel_service_by_name(WICKED_DBUS_NETIF_INTERFACE);
+		ni_assert(netif_service);
+
+		netif_class = netif_service->compatible;
+	}
+
+	ifp = ni_interface_new(NULL, NULL, 0);
+	object->class = netif_class;
 	object->handle = ifp;
 
 	return TRUE;
@@ -233,6 +244,8 @@ static ni_dbus_object_t *
 wicked_dbus_client_create(void)
 {
 	ni_dbus_client_t *client;
+
+	wicked_init_objectmodel();
 
 	client = ni_dbus_client_open(WICKED_DBUS_BUS_NAME);
 	if (!client)
@@ -604,7 +617,7 @@ wicked_get_interface(ni_dbus_object_t *root_object, const char *ifname)
 	for (object = interfaces->children; object; object = object->next) {
 		ni_interface_t *ifp = object->handle;
 
-		if (!strcmp(ifp->name, ifname))
+		if (ifp->name && !strcmp(ifp->name, ifname))
 			return object;
 	}
 
@@ -703,13 +716,13 @@ do_delete(int argc, char **argv)
 	if (!object)
 		return 1;
 
-	if (!(interface = ni_dbus_object_get_service_for_method(object, "delete"))) {
+	if (!(interface = ni_dbus_object_get_service_for_method(object, "deleteLink"))) {
 		ni_error("%s: interface does not support deletion", ifname);
 		return 1;
 	}
 
 	if (ni_dbus_object_call_simple(object,
-				interface->name, "delete",
+				interface->name, "deleteLink",
 				DBUS_TYPE_INVALID, NULL, DBUS_TYPE_INVALID, NULL) < 0) {
 		ni_error("DBus delete call failed");
 		return 1;
