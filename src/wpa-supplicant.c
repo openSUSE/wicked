@@ -363,7 +363,7 @@ ni_wpa_interface_expire_networks(ni_wpa_interface_t *dev)
 
 	now = time(NULL);
 	for (net = ni_wpa_interface_first_network(dev, &pos, &cur); net; net = ni_wpa_interface_next_network(dev, &pos, &cur)) {
-		if (net->expires < now) {
+		if (net->expires && net->expires < now) {
 			/* This will also remove child from the list of dev_object->children */
 			ni_dbus_object_free(cur);
 		}
@@ -597,7 +597,7 @@ ni_wpa_interface_request_scan(ni_wpa_client_t *wpa, ni_wpa_interface_t *ifp, ni_
 int
 ni_wpa_interface_retrieve_scan(ni_wpa_client_t *wpa, ni_wpa_interface_t *ifp, ni_wireless_scan_t *scan)
 {
-	ni_wireless_network_t *wpa_net;
+	ni_wireless_network_t *net;
 	ni_dbus_object_t *pos;
 
 	ni_debug_wireless("%s: retrieve scan results", ifp->ifname);
@@ -606,8 +606,12 @@ ni_wpa_interface_retrieve_scan(ni_wpa_client_t *wpa, ni_wpa_interface_t *ifp, ni
 	ni_wpa_interface_expire_networks(ifp);
 
 	ni_wireless_network_array_destroy(&scan->networks);
-	for (wpa_net = ni_wpa_interface_first_network(ifp, &pos, NULL); wpa_net; wpa_net = ni_wpa_interface_next_network(ifp, &pos, NULL)) {
-		ni_wireless_network_array_append(&scan->networks, wpa_net);
+	for (net = ni_wpa_interface_first_network(ifp, &pos, NULL); net; net = ni_wpa_interface_next_network(ifp, &pos, NULL)) {
+		/* We mix networks learned through scanning with those we configured manually.
+		 * We can tell them apart by their expires field. Manually configured networks
+		 * never expire. */
+		if (net->expires)
+			ni_wireless_network_array_append(&scan->networks, net);
 	}
 	return 0;
 }
