@@ -941,10 +941,34 @@ ni_ifworker_do_link_down(ni_ifworker_t *w)
  * Delete the link
  */
 static int
-ni_ifworker_do_link_delete(ni_ifworker_t *w)
+ni_ifworker_do_device_delete(ni_ifworker_t *w)
 {
-	ni_ifworker_fail(w, "%s not yet implemented", __func__);
+	ni_objectmodel_callback_info_t *callback_list = NULL;
+
+	/* We should not get here without having verified that we can
+	 * indeed delete this interface, by using ni_ifworker_can_delete
+	 * below. */
+	if (!ni_call_device_delete(w->object, &callback_list)) {
+		ni_ifworker_fail(w, "failed to delete interface");
+		return -1;
+	}
+
+	if (callback_list) {
+		ni_ifworker_add_callbacks(w, callback_list);
+		w->wait_for_state = STATE_DEVICE_DOWN;
+	}
+
+	if (w->callbacks == NULL && !w->failed) {
+		ni_debug_dbus("%s: deleted interface; we can proceed", w->name);
+		w->state = STATE_DEVICE_DOWN;
+	}
 	return 0;
+}
+
+static int
+ni_ifworker_can_delete(const ni_ifworker_t *w)
+{
+	return !!ni_dbus_object_get_service_for_method(w->object, "deleteLink");
 }
 
 /*
@@ -993,7 +1017,7 @@ static ni_netif_action_t	ni_ifworker_fsm_delete[] = {
 	{ .next_state = STATE_DEVICE_UP,	.func = ni_ifworker_do_link_down },
 
 	/* Shut down the link */
-	{ .next_state = STATE_DEVICE_DOWN,	.func = ni_ifworker_do_link_delete },
+	{ .next_state = STATE_DEVICE_DOWN,	.func = ni_ifworker_do_device_delete },
 
 	{ .next_state = STATE_NONE, .func = NULL }
 };
@@ -1011,7 +1035,10 @@ ni_ifworker_fsm_init(ni_ifworker_t *w)
 		break;
 
 	case STATE_DEVICE_DOWN:
-		w->actions = ni_ifworker_fsm_delete;
+		if (ni_ifworker_can_delete(w))
+			w->actions = ni_ifworker_fsm_delete;
+		else
+			w->actions = ni_ifworker_fsm_down;
 		break;
 
 	default:

@@ -235,6 +235,12 @@ ni_call_link_down(ni_dbus_object_t *object, ni_objectmodel_callback_info_t **cal
 	return wicked_link_change_xml(object, "linkDown", NULL, callback_list);
 }
 
+dbus_bool_t
+ni_call_device_delete(ni_dbus_object_t *object, ni_objectmodel_callback_info_t **callback_list)
+{
+	return wicked_link_change_xml(object, "deleteLink", NULL, callback_list);
+}
+
 /*
  * Configure address configuration on a link
  */
