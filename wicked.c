@@ -306,18 +306,70 @@ wicked_properties_from_argv(const ni_dbus_service_t *interface, ni_dbus_variant_
 }
 
 /*
+ * Obtain an object handle for Wicked.Interface
+ */
+static ni_dbus_object_t *
+wicked_get_interface_object(const char *default_interface)
+{
+	ni_dbus_object_t *root_object, *child;
+
+	if (!(root_object = wicked_dbus_client_create()))
+		return NULL;
+	child = ni_dbus_object_create(root_object, "Interface",
+			&ni_objectmodel_proxy_iflist_class,
+			NULL);
+
+	if (!default_interface)
+		default_interface = WICKED_DBUS_INTERFACE ".Interface";
+	ni_dbus_object_set_default_interface(child, default_interface);
+
+	return child;
+}
+
+/*
  * Create a virtual network interface
  */
 static char *
-wicked_create_interface_argv(ni_dbus_object_t *object, const ni_dbus_service_t *service, int argc, char **argv)
+wicked_create_interface_common(const ni_dbus_service_t *service, ni_dbus_variant_t call_argv[2])
 {
-	ni_dbus_variant_t call_argv[2], call_resp[1], *dict;
+	ni_dbus_variant_t call_resp[1];
 	DBusError error = DBUS_ERROR_INIT;
+	ni_dbus_object_t *object = NULL;
+	char *result = NULL;
+
+	memset(call_resp, 0, sizeof(call_resp));
+	if (!(object = wicked_get_interface_object(service->name))) {
+		ni_error("unable to create proxy object for %s", service->name);
+		goto failed;
+	}
+
+	if (!ni_dbus_object_call_variant(object, NULL, "newLink",
+				2, call_argv,
+				1, call_resp,
+				&error)) {
+		ni_error("Server refused to create interface. Server responds:");
+		ni_error_extra("%s: %s\n", error.name, error.message);
+		goto failed;
+	}
+
+	/* FIXME: extract object path from reply */
+
+failed:
+	if (object)
+		ni_dbus_object_free(object);
+	ni_dbus_variant_destroy(&call_resp[0]);
+	dbus_error_free(&error);
+	return result;
+}
+
+static char *
+wicked_create_interface_argv(const ni_dbus_service_t *service, int argc, char **argv)
+{
+	ni_dbus_variant_t call_argv[2], *dict;
 	char *result = NULL;
 	int i, j;
 
 	memset(call_argv, 0, sizeof(call_argv));
-	memset(call_resp, 0, sizeof(call_resp));
 
 	/* The first argument of the newLink() call is the requested interface
 	 * name. If there's a name="..." argument on the command line, use that
@@ -333,6 +385,7 @@ wicked_create_interface_argv(ni_dbus_object_t *object, const ni_dbus_service_t *
 		}
 	}
 
+	/* NOTE: This doesn't work right now */
 	dict = &call_argv[1];
 	ni_dbus_variant_init_dict(dict);
 	if (!wicked_properties_from_argv(service, dict, argc, argv)) {
@@ -340,33 +393,23 @@ wicked_create_interface_argv(ni_dbus_object_t *object, const ni_dbus_service_t *
 		goto failed;
 	}
 
-	if (!ni_dbus_object_call_variant(object, NULL, "newLink",
-				2, call_argv,
-				1, call_resp,
-				&error)) {
-		ni_error("Server refused to create interface. Server responds:");
-		ni_error_extra("%s: %s\n", error.name, error.message);
-		goto failed;
-	}
+	result = wicked_create_interface_common(service, call_argv);
 
 failed:
 	ni_dbus_variant_destroy(&call_argv[0]);
 	ni_dbus_variant_destroy(&call_argv[1]);
-	dbus_error_free(&error);
 	return result;
 }
 
 static char *
-wicked_create_interface_xml(ni_dbus_object_t *object, const ni_dbus_service_t *service,
+wicked_create_interface_xml(const ni_dbus_service_t *service,
 				const char *ifname, xml_node_t *linkdef)
 {
-	ni_dbus_variant_t call_argv[2], call_resp[1];
+	ni_dbus_variant_t call_argv[2];
 	const ni_dbus_method_t *method;
-	DBusError error = DBUS_ERROR_INIT;
 	char *result = NULL;
 
 	memset(call_argv, 0, sizeof(call_argv));
-	memset(call_resp, 0, sizeof(call_resp));
 
 	/* The first argument of the newLink() call is the requested interface
 	 * name. If there's a name="..." argument on the command line, use that
@@ -380,25 +423,15 @@ wicked_create_interface_xml(ni_dbus_object_t *object, const ni_dbus_service_t *s
 
 	ni_assert(method->user_data);
 
-	if (!ni_dbus_xml_serialize_arg(method, 1, &call_argv[1], linkdef)) {
+	if (ni_dbus_xml_serialize_arg(method, 1, &call_argv[1], linkdef)) {
+		result = wicked_create_interface_common(service, call_argv);
+	} else {
 		ni_error("%s.%s: error serializing arguments",
 				service->name, method->name);
-		goto failed;
 	}
 
-	if (!ni_dbus_object_call_variant(object, NULL, "newLink",
-				2, call_argv,
-				1, call_resp,
-				&error)) {
-		ni_error("Server refused to create interface. Server responds:");
-		ni_error_extra("%s: %s\n", error.name, error.message);
-		goto failed;
-	}
-
-failed:
 	ni_dbus_variant_destroy(&call_argv[0]);
 	ni_dbus_variant_destroy(&call_argv[1]);
-	dbus_error_free(&error);
 	return result;
 }
 
@@ -444,27 +477,6 @@ wicked_link_layer_factory_service(const char *link_type)
 }
 
 /*
- * Obtain an object handle for Wicked.Interface
- */
-static ni_dbus_object_t *
-wicked_get_interface_object(const char *default_interface)
-{
-	ni_dbus_object_t *root_object, *child;
-
-	if (!(root_object = wicked_dbus_client_create()))
-		return NULL;
-	child = ni_dbus_object_create(root_object, "Interface",
-			&ni_objectmodel_proxy_iflist_class,
-			NULL);
-
-	if (!default_interface)
-		default_interface = WICKED_DBUS_INTERFACE ".Interface";
-	ni_dbus_object_set_default_interface(child, default_interface);
-
-	return child;
-}
-
-/*
  * Handle "create" command
  */
 int
@@ -475,9 +487,8 @@ do_create(int argc, char **argv)
 		{ "file", required_argument, NULL, OPT_FILE },
 		{ NULL }
 	};
-	const char *link_type;
+	const char *link_type = NULL;
 	const ni_dbus_service_t *service;
-	ni_dbus_object_t *object;
 	const char *opt_file = NULL;
 	char *ifname;
 	int c;
@@ -490,7 +501,6 @@ do_create(int argc, char **argv)
 			break;
 
 		default:
-usage:
 			fprintf(stderr,
 				"wicked [options] create [create-options] link-type [name=ifname]\n"
 				"\nSupported create-options:\n"
@@ -501,28 +511,23 @@ usage:
 		}
 	}
 
-	if (optind + 1 > argc) {
-		ni_error("wicked create: missing interface type");
-		goto usage;
+	if (optind < argc) {
+		link_type = argv[optind++];
+		if (ni_linktype_name_to_type(link_type) < 0) {
+			ni_error("invalid link type \"%s\"", link_type);
+			return 1;
+		}
 	}
-	link_type = argv[optind++];
 
 	argv += optind;
 	argc -= optind;
 
 	wicked_init_objectmodel();
-	if (!(service = wicked_link_layer_factory_service(link_type))) {
-		ni_error("wicked create: unknown/unsupported link type %s", argv[1]);
-		return 1;
-	}
-
-	if (!(object = wicked_get_interface_object(service->name)))
-		return 1;
 
 	if (opt_file) {
 		xml_document_t *doc;
 		xml_node_t *ifnode, *namenode, *linknode, *confnode;
-		const char *ifname = NULL;
+		const char *requested_name = NULL;
 
 		if (!(doc = xml_document_read(opt_file))) {
 			ni_error("unable to parse XML document %s", opt_file);
@@ -530,17 +535,41 @@ usage:
 		}
 
 		if (!(ifnode = xml_node_get_child(doc->root, "interface"))
-		 || !(linknode = xml_node_get_child(ifnode, "link"))
-		 || !(confnode = xml_node_get_child(linknode, link_type))) {
-			ni_error("no <%s> link info in file %s", link_type, opt_file);
+		 || !(linknode = xml_node_get_child(ifnode, "link"))) {
+			ni_error("missing <interface> or <link> element in file %s", opt_file);
+			goto xml_done;
+		}
+
+		if (!link_type && (namenode = xml_node_get_child(linknode, "class")) != NULL)
+			link_type = namenode->cdata;
+		if (link_type == NULL) {
+			ni_error("cannot create interface: unable to determine link type");
+			goto xml_done;
+		}
+
+		if (!(service = wicked_link_layer_factory_service(link_type))) {
+			ni_error("wicked create: unknown/unsupported link type %s", link_type);
 			return 1;
 		}
-		if ((namenode = xml_node_get_child(ifnode, "name")) != NULL)
-			ifname = namenode->cdata;
 
-		ifname = wicked_create_interface_xml(object, service, ifname, confnode);
+		if (!(confnode = xml_node_get_child(linknode, link_type))) {
+			ni_error("no <%s> link info in file %s", link_type, opt_file);
+			goto xml_done;
+		}
+		if ((namenode = xml_node_get_child(ifnode, "name")) != NULL)
+			requested_name = namenode->cdata;
+
+		ifname = wicked_create_interface_xml(service, requested_name, confnode);
+
+xml_done:
+		xml_document_free(doc);
 	} else {
-		ifname = wicked_create_interface_argv(object, service, argc, argv);
+		if (!(service = wicked_link_layer_factory_service(link_type))) {
+			ni_error("wicked create: unknown/unsupported link type %s", link_type);
+			return 1;
+		}
+
+		ifname = wicked_create_interface_argv(service, argc, argv);
 	}
 
 	if (!ifname)
