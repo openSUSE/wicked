@@ -18,6 +18,18 @@
 
 #include "client/wicked-client.h"
 
+/*
+ * Error context - this is an opaque type.
+ */
+struct ni_call_error_context {
+	ni_call_error_handler_t *handler;
+	xml_node_t *		config;
+	xml_node_t *		__allocated;
+};
+#define NI_CALL_ERROR_CONTEXT_INIT(func, node) \
+		{ .handler = func, .config = node, .__allocated = NULL }
+
+static void	ni_call_error_context_destroy(ni_call_error_context_t *);
 
 /*
  * Create the client and return the handle of the root object
@@ -252,7 +264,7 @@ ni_call_link_method_common(ni_dbus_object_t *object,
 				const ni_dbus_service_t *service, const ni_dbus_method_t *method,
 				unsigned int argc, ni_dbus_variant_t *argv,
 				ni_objectmodel_callback_info_t **callback_list,
-				char **error_detail)
+				ni_call_error_context_t *error_ctx)
 {
 	ni_dbus_variant_t result = NI_DBUS_VARIANT_INIT;
 	DBusError error = DBUS_ERROR_INIT;
@@ -263,9 +275,13 @@ ni_call_link_method_common(ni_dbus_object_t *object,
 				1, &result,
 				&error)) {
 
-		ni_error("%s.%s() failed. Server responds:", service->name, method->name);
-		ni_error_extra("%s: %s", error.name, error.message);
-		rv = ni_dbus_get_error(&error, NULL);
+		if (error_ctx) {
+			rv = error_ctx->handler(error_ctx, &error);
+		} else {
+			ni_error("%s.%s() failed. Server responds:", service->name, method->name);
+			ni_error_extra("%s: %s", error.name, error.message);
+			rv = ni_dbus_get_error(&error, NULL);
+		}
 	} else {
 		*callback_list = ni_objectmodel_callback_info_from_dict(&result);
 		rv = 0;
@@ -277,13 +293,14 @@ ni_call_link_method_common(ni_dbus_object_t *object,
 }
 
 static dbus_bool_t
-ni_call_link_method_xml(ni_dbus_object_t *object, const char *method_name, xml_node_t *config, ni_objectmodel_callback_info_t **callback_list)
+ni_call_link_method_xml(ni_dbus_object_t *object, const char *method_name, xml_node_t *config,
+			ni_objectmodel_callback_info_t **callback_list,
+			ni_call_error_context_t *error_context)
 {
 	ni_dbus_variant_t argv[1];
 	const ni_dbus_service_t *service;
 	const ni_dbus_method_t *method;
-	char *error_detail = NULL;
-	int rv, argc = 0;
+	int rv, argc;
 
 	if (!(service = ni_dbus_object_get_service_for_method(object, method_name))) {
 		ni_error("%s: no registered dbus service for method %s()",
@@ -293,7 +310,10 @@ ni_call_link_method_xml(ni_dbus_object_t *object, const char *method_name, xml_n
 	method = ni_dbus_service_get_method(service, method_name);
 	ni_assert(method);
 
+retry_operation:
 	memset(argv, 0, sizeof(argv));
+	argc = 0;
+
 	/* FIXME: should query the xml schema to know whether the call expects a
 	 * dict argument or not */
 	if (!strcmp(method_name, "linkUp")
@@ -309,52 +329,107 @@ ni_call_link_method_xml(ni_dbus_object_t *object, const char *method_name, xml_n
 		}
 	}
 
-	rv = ni_call_link_method_common(object, service, method, argc, argv, callback_list, &error_detail);
-	if (rv == -NI_ERROR_AUTH_INFO_MISSING) {
-		printf("FIXME: request missing passphrase from user\n");
-	}
+	rv = ni_call_link_method_common(object, service, method, argc, argv, callback_list, error_context);
 
 out:
 	while (argc--)
 		ni_dbus_variant_destroy(&argv[argc]);
-	ni_string_free(&error_detail);
+
+	/* On the first time around, we may have run into a problem and tried to fix
+	 * it up in the error handler. For instance, a wireless passphrase or a
+	 * UMTS PIN might have missed, and we prompted the user for it.
+	 * In this case, the error handler will retur RETRY_OPERATION.
+	 */
+	if (rv == NI_ERROR_RETRY_OPERATION && error_context != NULL && error_context->config) {
+		config = error_context->config;
+		error_context = NULL;
+		goto retry_operation;
+	}
+
 	return rv >= 0;
 }
 
 dbus_bool_t
 ni_call_link_up_xml(ni_dbus_object_t *object, xml_node_t *config, ni_objectmodel_callback_info_t **callback_list)
 {
-	return ni_call_link_method_xml(object, "linkUp", config, callback_list);
+	return ni_call_link_method_xml(object, "linkUp", config, callback_list, NULL);
 }
 
 dbus_bool_t
-ni_call_link_login_xml(ni_dbus_object_t *object, xml_node_t *config, ni_objectmodel_callback_info_t **callback_list)
+ni_call_link_login_xml(ni_dbus_object_t *object, xml_node_t *config, ni_objectmodel_callback_info_t **callback_list,
+				ni_call_error_handler_t *error_handler)
 {
-	return ni_call_link_method_xml(object, "login", config, callback_list);
+	ni_call_error_context_t error_context = NI_CALL_ERROR_CONTEXT_INIT(error_handler, config);
+	dbus_bool_t success;
+
+	success = ni_call_link_method_xml(object, "login", config, callback_list, &error_context);
+	ni_call_error_context_destroy(&error_context);
+	return success;
 }
 
 dbus_bool_t
 ni_call_link_logout(ni_dbus_object_t *object, xml_node_t *config, ni_objectmodel_callback_info_t **callback_list)
 {
-	return ni_call_link_method_xml(object, "logout", config, callback_list);
+	return ni_call_link_method_xml(object, "logout", config, callback_list, NULL);
 }
 
 dbus_bool_t
-ni_call_link_change_xml(ni_dbus_object_t *object, xml_node_t *config, ni_objectmodel_callback_info_t **callback_list)
+ni_call_link_change_xml(ni_dbus_object_t *object, xml_node_t *config, ni_objectmodel_callback_info_t **callback_list,
+				ni_call_error_handler_t *error_handler)
 {
-	return ni_call_link_method_xml(object, "linkChange", config, callback_list);
+	ni_call_error_context_t error_context = NI_CALL_ERROR_CONTEXT_INIT(error_handler, config);
+	dbus_bool_t success;
+
+	success = ni_call_link_method_xml(object, "linkChange", config, callback_list, &error_context);
+	ni_call_error_context_destroy(&error_context);
+	return success;
 }
 
 dbus_bool_t
 ni_call_link_down(ni_dbus_object_t *object, ni_objectmodel_callback_info_t **callback_list)
 {
-	return ni_call_link_method_xml(object, "linkDown", NULL, callback_list);
+	return ni_call_link_method_xml(object, "linkDown", NULL, callback_list, NULL);
 }
 
 dbus_bool_t
 ni_call_device_delete(ni_dbus_object_t *object, ni_objectmodel_callback_info_t **callback_list)
 {
-	return ni_call_link_method_xml(object, "deleteLink", NULL, callback_list);
+	return ni_call_link_method_xml(object, "deleteLink", NULL, callback_list, NULL);
+}
+
+/*
+ * Helper functions for dealing with error contexts.
+ */
+xml_node_t *
+ni_call_error_context_get_node(ni_call_error_context_t *error_context, const char *path)
+{
+	xml_node_t *node, *child;
+	char *s, *copy;
+
+	/* If we weren't given a config node, allocate one on the fly */
+	if ((node = error_context->config) == NULL) {
+		node = xml_node_new(NULL, NULL);
+		error_context->config = node;
+		error_context->__allocated = node;
+	}
+
+	copy = strdup(path);
+	for (s = strtok(copy, "."); s; s = strtok(NULL, ".")) {
+		if (!(child = xml_node_get_child(node, s)))
+			child = xml_node_new(s, node);
+		node = child;
+	}
+
+	free(copy);
+	return node;
+}
+
+void
+ni_call_error_context_destroy(ni_call_error_context_t *error_context)
+{
+	if (error_context->__allocated)
+		xml_node_free(error_context->__allocated);
+	error_context->__allocated = NULL;
 }
 
 /*

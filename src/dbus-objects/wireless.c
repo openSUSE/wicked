@@ -68,7 +68,8 @@ ni_objectmodel_wireless_link_change(ni_dbus_object_t *object, const ni_dbus_meth
 		 && net->wpa_psk.key.len == 0
 		 && net->wpa_psk.passphrase == NULL) {
 			dbus_set_error(error, NI_DBUS_ERROR_AUTH_INFO_MISSING,
-					"wpa-psk.passphrase");
+					"wpa-psk.passphrase|PASSWORD|%.*s",
+					net->essid.len, net->essid.data);
 			goto error;
 		}
 

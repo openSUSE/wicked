@@ -16,6 +16,7 @@
 #include <wicked/socket.h>
 #include <wicked/dbus.h>
 #include <wicked/objectmodel.h>
+#include <wicked/dbus-errors.h>
 
 #include "wicked-client.h"
 
@@ -809,6 +810,72 @@ ni_interface_children_ready(ni_ifworker_t *w)
 }
 
 /*
+ * This error handler can be used by link management functions to request
+ * input from the user, such as wireless passphrases, or user/password for
+ * a VPN tunnel.
+ */
+static int
+ni_ifworker_error_handler(ni_call_error_context_t *ctx, const DBusError *error)
+{
+	char *detail = NULL;
+	int errcode;
+
+	ni_debug_dbus("%s(%s, %s)", __func__, error->name, error->message);
+	errcode = ni_dbus_get_error(error, &detail);
+	if (errcode == -NI_ERROR_AUTH_INFO_MISSING) {
+		xml_node_t *authnode;
+		char *node_spec, *prompt_type = NULL, *ident = NULL;
+		const char *value = NULL;
+		char buffer[256];
+
+		/* The error detail is supposed to be formatted as
+		 * "xml-node-spec|prompt-type|ident"
+		 * where xml-node-spec specifies an xml node below the
+		 * config node, prompt-type should be either PASSWORD
+		 * or USER, and ident is an optional identifier of what
+		 * is being asked for.
+		 */
+		if (!(node_spec = strtok(detail, "|")))
+			goto out;
+		if ((prompt_type = strtok(NULL, "|")) != NULL)
+			ident = strtok(NULL, "|");
+
+		if (prompt_type && !strcmp(prompt_type, "PASSWORD")) {
+			char *prompt;
+
+			prompt = "Please enter password: ";
+			if (ident) {
+				snprintf(buffer, sizeof(buffer), "Please enter password for %s: ", ident);
+				prompt = buffer;
+			}
+
+			value = getpass(prompt);
+		} else {
+			if (ident)
+				printf("Please enter user name for %s: ", ident);
+			else
+				printf("Please enter user name: ");
+			fflush(stdout);
+
+			value = fgets(buffer, sizeof(buffer), stdin);
+			/* EOF? User pressed Ctrl-D */
+			if (value == NULL)
+				printf("\n");
+		}
+
+		if (value) {
+			authnode = ni_call_error_context_get_node(ctx, node_spec);
+			xml_node_set_cdata(authnode, value);
+			errcode = NI_ERROR_RETRY_OPERATION;
+		}
+	}
+
+out:
+	ni_string_free(&detail);
+	return errcode;
+}
+
+/*
  * Finite state machine - create the device if it does not exist
  * Note this is called for all virtual devices, because the newLink
  * call also takes care of setting up things like the ports assigned
@@ -849,7 +916,7 @@ ni_ifworker_do_device_up(ni_ifworker_t *w)
 			return -1;
 		}
 
-		if (!ni_call_link_change_xml(w->object, linknode, &callback_list)) {
+		if (!ni_call_link_change_xml(w->object, linknode, &callback_list, ni_ifworker_error_handler)) {
 			ni_ifworker_fail(w, "failed to configure %s device", link_type);
 			return -1;
 		}
@@ -947,7 +1014,7 @@ ni_ifworker_do_linkauth(ni_ifworker_t *w)
 		return -1;
 	}
 
-	if (!ni_call_link_login_xml(w->object, authnode, &callback_list)) {
+	if (!ni_call_link_login_xml(w->object, authnode, &callback_list, NULL)) {
 		ni_ifworker_fail(w, "failed to configure %s device", link_type);
 		return -1;
 	}
