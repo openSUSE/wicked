@@ -349,6 +349,8 @@ ni_objectmodel_extension_call(ni_dbus_connection_t *connection,
 	ni_process_instance_t *process;
 	char *tempname = NULL;
 
+	NI_TRACE_ENTER_ARGS("object=%s, interface=%s, method=%s", object->path, interface, method->name);
+
 	extension = ni_config_find_extension(ni_global.config, interface);
 	if (extension == NULL) {
 		dbus_set_error(&error, DBUS_ERROR_SERVICE_UNKNOWN, "%s: no/unknown interface %s",
@@ -363,6 +365,8 @@ ni_objectmodel_extension_call(ni_dbus_connection_t *connection,
 		ni_dbus_connection_send_error(connection, call, &error);
 		return FALSE;
 	}
+
+	ni_debug_extension("preparing to run extension script \"%s\"", command->command);
 
 	/* Create an instance of this command */
 	process = ni_process_instance_new(command);
