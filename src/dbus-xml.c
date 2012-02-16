@@ -404,6 +404,21 @@ ni_dbus_serialize_xml_array(xml_node_t *node, const ni_xs_type_t *type, ni_dbus_
 				ni_error("%s: syntax error in array element",__func__);
 				return FALSE;
 			}
+		} else if (element_type->class == NI_XS_TYPE_DICT) {
+			ni_dbus_variant_t *element;
+
+			ni_debug_dbus("var signature is %s", ni_dbus_variant_signature(var));
+			element = ni_dbus_variant_append_variant_element(var);
+			if (!element) {
+				/* should not happen */
+				ni_error("%s: could not append element to array", __func__);
+				return FALSE;
+			}
+
+			if (!ni_dbus_serialize_xml(child, element_type, element)) {
+				ni_error("%s: failed to serialize array element", xml_node_location(child));
+				return FALSE;
+			}
 		} else {
 			ni_error("%s: arrays of type %s not implemented yet", __func__, ni_xs_type_to_dbus_signature(element_type));
 			return FALSE;
@@ -471,6 +486,21 @@ ni_dbus_deserialize_xml_array(ni_dbus_variant_t *var, const ni_xs_type_t *type, 
 			}
 			child = xml_node_new("e", node);
 			xml_node_set_cdata(child, string);
+		}
+	} else if (element_type->class == NI_XS_TYPE_DICT) {
+		/* An array of non-scalars always wraps each element in a variant */
+		if (var->array.element_type != DBUS_TYPE_VARIANT) {
+			ni_error("%s: expected an array of variants", __func__);
+			return FALSE;
+		}
+
+		for (i = 0; i < array_len; ++i) {
+			ni_dbus_variant_t *element = &var->variant_array_value[i];
+			xml_node_t *child;
+
+			child = xml_node_new("e", node);
+			if (!ni_dbus_deserialize_xml(element, element_type, child))
+				return FALSE;
 		}
 	} else {
 		ni_error("%s: arrays of type %s not implemented yet", __func__, ni_xs_type_to_dbus_signature(element_type));
@@ -583,8 +613,7 @@ __ni_xs_type_to_dbus_signature(const ni_xs_type_t *type, char *sigbuf, size_t bu
 		/* Arrays of non-scalar types always wrap each element into a VARIANT */
 		if (array_info->element_type->class != NI_XS_TYPE_SCALAR)
 			sigbuf[i++] = DBUS_TYPE_VARIANT;
-
-		if (!__ni_xs_type_to_dbus_signature(array_info->element_type, sigbuf + i, buflen - i))
+		else if (!__ni_xs_type_to_dbus_signature(array_info->element_type, sigbuf + i, buflen - i))
 			return NULL;
 		break;
 
