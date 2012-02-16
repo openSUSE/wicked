@@ -95,7 +95,7 @@ CONVSRCS = \
 CLIENTSRCS = \
 	  client/ifup.c
 GENFILES = \
-	  etc/wicked/schema/constants.xml
+	  schema/constants.xml
 
 OBJ	= obj
 LIBSRCS	= $(addprefix src/,$(__LIBSRCS))
@@ -124,16 +124,18 @@ install: install-files
 	install -d -m 755 $(DESTDIR)/usr/share/man/man{7,8}
 	install -c -m 444 man/*.7 $(DESTDIR)/usr/share/man/man7
 	install -c -m 444 man/*.8 $(DESTDIR)/usr/share/man/man8
-	install -d -m 755 $(DESTDIR)/etc/dbus-1/system.d
-	install -c -m 444 etc/wicked*.conf $(DESTDIR)/etc/dbus-1/system.d
 
 install-files:
 	install -d -m 755 $(DESTDIR)/etc/wicked
 	install -m 644 etc/wicked/*.xml $(DESTDIR)/etc/wicked
+	install -d -m 755 $(DESTDIR)/etc/dbus-1/system.d
+	install -c -m 444 etc/wicked*.conf $(DESTDIR)/etc/dbus-1/system.d
+	install -d -m 755 $(DESTDIR)/etc/wicked/schema
+	install -c -m 444 schema/*.xml $(DESTDIR)/etc/wicked/schema
 	install -d -m 755 $(DESTDIR)/var/run/wicked
 
-etc/wicked/schema/constants.xml: etc/mkconst etc/wicked/schema/constants.xml.in
-	etc/mkconst < etc/wicked/schema/constants.xml.in > etc/wicked/schema/constants.xml
+schema/constants.xml: etc/mkconst schema/constants.xml.in
+	etc/mkconst < $@.in > $@
 
 wicked: $(OBJ)/wicked.o $(CLIENTOBJS) $(TGTLIBS)
 	$(CC) -o $@ $(CFLAGS) $(OBJ)/wicked.o $(CLIENTOBJS) -rdynamic -L. -lnetinfo -lm -lnl -ldbus-1 -ldl
