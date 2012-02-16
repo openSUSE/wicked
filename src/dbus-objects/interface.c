@@ -23,9 +23,11 @@
 #include "model.h"
 #include "debug.h"
 
-static ni_dbus_object_functions_t wicked_dbus_interface_functions;
+static void			wicked_dbus_interface_destroy(ni_dbus_object_t *object);
+
 static ni_dbus_class_t		ni_objectmodel_netif_class = {
-	"netif"
+	.name		= "netif",
+	.destroy	= wicked_dbus_interface_destroy,
 };
 static ni_dbus_class_t		ni_objectmodel_ifreq_class = {
 	"ifreq"
@@ -47,11 +49,9 @@ __ni_objectmodel_build_interface_object(ni_dbus_server_t *server, ni_interface_t
 		object = ni_dbus_server_register_object(server,
 						ni_objectmodel_interface_path(ifp),
 						&ni_objectmodel_netif_class,
-						&wicked_dbus_interface_functions,
 						ni_interface_get(ifp));
 	} else {
 		object = ni_dbus_object_new(&ni_objectmodel_netif_class, NULL,
-						&wicked_dbus_interface_functions,
 						ni_interface_get(ifp));
 	}
 
@@ -130,7 +130,7 @@ ni_objectmodel_wrap_interface(ni_interface_t *ifp)
 ni_dbus_object_t *
 ni_objectmodel_wrap_interface_request(ni_interface_request_t *req)
 {
-	return ni_dbus_object_new(&ni_objectmodel_ifreq_class, NULL, NULL, req);
+	return ni_dbus_object_new(&ni_objectmodel_ifreq_class, NULL, req);
 }
 
 /*
@@ -185,7 +185,7 @@ ni_objectmodel_new_interface(ni_dbus_server_t *server, const ni_dbus_service_t *
 	/* Hack: we shouldn't modify a const dict */
 	ni_dbus_dict_delete_entry((ni_dbus_variant_t *) dict, "name");
 
-	object = ni_dbus_object_new(&ni_objectmodel_netif_class, NULL, &wicked_dbus_interface_functions, ifp);
+	object = ni_dbus_object_new(&ni_objectmodel_netif_class, NULL, ifp);
 	ni_dbus_object_register_service(object, &wicked_dbus_interface_service);
 	ni_dbus_object_register_service(object, service);
 
@@ -365,10 +365,6 @@ wicked_dbus_interface_destroy(ni_dbus_object_t *object)
 	ni_assert(ifp);
 	ni_interface_put(ifp);
 }
-
-static ni_dbus_object_functions_t wicked_dbus_interface_functions = {
-	.destroy	= wicked_dbus_interface_destroy,
-};
 
 static ni_dbus_method_t		wicked_dbus_interface_methods[] = {
 	{ "up",			"a{sv}",		__wicked_dbus_interface_up },

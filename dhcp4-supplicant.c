@@ -205,7 +205,7 @@ dhcp4_register_services(ni_dbus_server_t *server)
 	ni_dbus_object_register_service(root_object, &__wicked_dbus_dhcp4_interface);
 
 	/* Register /com/suse/Wicked/DHCP4/Interface */
-	object = ni_dbus_server_register_object(server, "Interface", &ni_dbus_anonymous_class, NULL, NULL);
+	object = ni_dbus_server_register_object(server, "Interface", &ni_dbus_anonymous_class, NULL);
 	if (object == NULL)
 		ni_fatal("Unable to create dbus object for interfaces");
 

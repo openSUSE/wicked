@@ -51,7 +51,7 @@ ni_dbus_server_open(const char *bus_name, void *root_object_handle)
 	}
 
 	/* Translate bus name foo.bar.baz into object path /foo/bar/baz */
-	root = ni_dbus_object_new(&dbus_root_object_class, __ni_dbus_server_root_path(bus_name), NULL, root_object_handle);
+	root = ni_dbus_object_new(&dbus_root_object_class, __ni_dbus_server_root_path(bus_name), root_object_handle);
 	__ni_dbus_server_object_init(root, server);
 	__ni_dbus_object_insert(&server->root_object, root);
 
@@ -188,13 +188,12 @@ __ni_dbus_server_object_destroy(ni_dbus_object_t *object)
 ni_dbus_object_t *
 ni_dbus_server_register_object(ni_dbus_server_t *server, const char *object_path,
 				const ni_dbus_class_t *object_class,
-				const ni_dbus_object_functions_t *functions,
 				void *object_handle)
 {
 	ni_dbus_object_t *object;
 
 	NI_TRACE_ENTER_ARGS("path=%s, handle=%p", object_path, object_handle);
-	object = ni_dbus_object_create(server->root_object, object_path, object_class, functions, object_handle);
+	object = ni_dbus_object_create(server->root_object, object_path, object_class, object_handle);
 
 	return object;
 }
@@ -463,8 +462,8 @@ __ni_dbus_object_manager_enumerate_object(ni_dbus_object_t *object, ni_dbus_vari
 
 	for (child = object->children; child && rv; child = child->next) {
 		/* If the object has a refresh function, call it now */
-		if (child->functions && child->functions->refresh
-		 && !child->functions->refresh(object)) {
+		if (child->class && child->class->refresh
+		 && !child->class->refresh(object)) {
 			rv = FALSE;
 			continue;
 		}
@@ -485,8 +484,8 @@ __ni_dbus_object_unregister(DBusConnection *conn, void *user_data)
 
 	ni_warn("%s(path=%s) called", __FUNCTION__, object->path);
 	if (object->handle) {
-		if (object->functions && object->functions->destroy)
-			object->functions->destroy(object);
+		if (object->class && object->class->destroy)
+			object->class->destroy(object);
 		object->handle = NULL;
 	}
 }
@@ -554,8 +553,8 @@ __ni_dbus_object_message(DBusConnection *conn, DBusMessage *call, void *user_dat
 		}
 
 		/* If the object has a refresh function, call it now */
-		if (object->functions && object->functions->refresh
-		 && !object->functions->refresh(object)) {
+		if (object->class && object->class->refresh
+		 && !object->class->refresh(object)) {
 			dbus_set_error(&error,
 					DBUS_ERROR_FAILED,
 					"Failed to refresh object %s",

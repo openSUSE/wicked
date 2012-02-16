@@ -145,16 +145,17 @@ struct ni_dbus_service {
 };
 
 /* XXX: is this really needed? */
-typedef struct ni_dbus_object_functions	ni_dbus_object_functions_t;
-struct ni_dbus_object_functions {
-	dbus_bool_t		(*init_child)(ni_dbus_object_t *);
-	void			(*destroy)(ni_dbus_object_t *);
-	dbus_bool_t		(*refresh)(ni_dbus_object_t *);
+typedef struct ni_dbus_class_functions	ni_dbus_class_functions_t;
+struct ni_dbus_class_functions {
 };
 
 typedef struct ni_dbus_class ni_dbus_class_t;
 struct ni_dbus_class {
 	char *			name;
+
+	dbus_bool_t		(*init_child)(ni_dbus_object_t *);
+	void			(*destroy)(ni_dbus_object_t *);
+	dbus_bool_t		(*refresh)(ni_dbus_object_t *);
 };
 
 extern const ni_dbus_class_t	ni_dbus_anonymous_class;
@@ -170,7 +171,6 @@ struct ni_dbus_object {
 	void *			handle;		/* local object */
 	ni_dbus_object_t *	children;
 	const ni_dbus_service_t **interfaces;
-	const ni_dbus_object_functions_t *functions;
 
 	ni_dbus_server_object_t *server_object;
 	ni_dbus_client_object_t *client_object;
@@ -186,7 +186,6 @@ extern ni_dbus_object_t *	ni_dbus_server_get_root_object(const ni_dbus_server_t 
 extern ni_dbus_object_t *	ni_dbus_server_register_object(ni_dbus_server_t *server,
 					const char *object_path,
 					const ni_dbus_class_t *object_class,
-					const ni_dbus_object_functions_t *functions,
 					void *object_handle);
 extern dbus_bool_t		ni_dbus_server_unregister_object(ni_dbus_server_t *, void *);
 extern ni_dbus_object_t *	ni_dbus_server_find_object_by_handle(ni_dbus_server_t *, const void *);
@@ -196,12 +195,10 @@ extern dbus_bool_t		ni_dbus_server_send_signal(ni_dbus_server_t *server, ni_dbus
 
 extern ni_dbus_object_t *	ni_dbus_object_new(const ni_dbus_class_t *,
 					const char *path,
-					const ni_dbus_object_functions_t *functions,
 					void *handle);
 extern ni_dbus_object_t *	ni_dbus_object_create(ni_dbus_object_t *root_object,
 					const char *path,
 					const ni_dbus_class_t *class,
-					const ni_dbus_object_functions_t *functions,
 					void *handle);
 extern dbus_bool_t		ni_dbus_object_register_service(ni_dbus_object_t *object,
 					const ni_dbus_service_t *);
@@ -379,12 +376,10 @@ extern ni_dbus_object_t *	ni_dbus_client_object_new(ni_dbus_client_t *client,
 					const ni_dbus_class_t *,
 					const char *object_path,
 					const char *default_interface,
-					const ni_dbus_object_functions_t *functions,
 					void *local_data);
 extern ni_dbus_object_t *	ni_dbus_client_object_new_child(ni_dbus_object_t *parent,
 					const char *name,
 					const char *interface,
-					const ni_dbus_object_functions_t *functions,
 					void *local_data);
 extern dbus_bool_t		ni_dbus_object_refresh_children(ni_dbus_object_t *);
 extern ni_dbus_object_t *	ni_dbus_object_find_child(ni_dbus_object_t *parent, const char *name);

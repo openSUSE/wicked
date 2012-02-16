@@ -79,7 +79,7 @@ ni_objectmodel_dhcp4_wrap_interface(ni_interface_t *dev)
 	return ni_dbus_client_object_new(dbus_dhcp_client,
 			&ni_objectmodel_dhcp4if_class,
 			ni_objectmodel_dhcp4_object_path(dev),
-			WICKED_DBUS_DHCP4_INTERFACE, NULL, dev);
+			WICKED_DBUS_DHCP4_INTERFACE, dev);
 }
 
 /*

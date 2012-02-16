@@ -37,7 +37,6 @@ typedef struct ni_objectmodel_service_array {
 static ni_objectmodel_service_array_t ni_objectmodel_all_services;
 static const ni_dbus_service_t *ni_objectmodel_link_services[__NI_IFTYPE_MAX];
 
-static ni_dbus_object_functions_t wicked_dbus_netif_functions;
 static ni_dbus_service_t	wicked_dbus_netif_interface;
 static ni_dbus_service_t	wicked_dbus_root_interface;
 
@@ -58,7 +57,6 @@ ni_objectmodel_create_service(void)
 
 	object = ni_dbus_server_register_object(server, "Interface",
 					&ni_dbus_anonymous_class,
-					&wicked_dbus_netif_functions,
 					NULL);
 	if (object == NULL)
 		ni_fatal("Unable to create dbus object for interfaces");
@@ -152,60 +150,6 @@ ni_objectmodel_link_layer_service_by_name(const char *name)
 	}
 	return NULL;
 }
-
-/*
- * Refresh one/all network interfaces.
- * This function is called from the dbus object handling code prior
- * to invoking any method of this object.
- */
-static dbus_bool_t
-wicked_dbus_netif_refresh(ni_dbus_object_t *object)
-{
-#if 1
-	return TRUE;
-#else
-	ni_interface_array_t deleted = NI_INTERFACE_ARRAY_INIT;
-	unsigned int i;
-	ni_netconfig_t *nc;
-
-	NI_TRACE_ENTER();
-	if (!(nc = ni_global_state_handle())) {
-		ni_error("Unable to obtain netinfo handle");
-		return FALSE;
-	}
-
-	if (ni_refresh(nc, &deleted) < 0) {
-		ni_error("cannot refresh interface list!");
-		return FALSE;
-	}
-
-	/* When ni_refresh finds that the interface has gone away,
-	 * our object_handle may no longer be valid.
-	 */
-	for (i = 0; i < deleted.count; ++i) {
-		ni_interface_t *ifp = deleted.data[i];
-		ni_dbus_object_t *child;
-
-		for (child = object->children; child; child = child->next) {
-			if (child->handle == ifp) {
-				ni_dbus_object_free(child);
-				break;
-			}
-		}
-	}
-
-	ni_interface_array_destroy(&deleted);
-	return TRUE;
-#endif
-}
-
-
-/*
- * functions associated with Wicked.Interface
- */
-static ni_dbus_object_functions_t wicked_dbus_netif_functions = {
-	.refresh	= wicked_dbus_netif_refresh,
-};
 
 /*
  * This method allows clients to create new (virtual) network interfaces.

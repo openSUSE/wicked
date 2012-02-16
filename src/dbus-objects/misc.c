@@ -32,7 +32,7 @@ static ni_dbus_class_t		ni_objectmodel_addrconfreq_class = {
 ni_dbus_object_t *
 ni_objectmodel_wrap_addrconf_request(ni_addrconf_request_t *req)
 {
-	return ni_dbus_object_new(&ni_objectmodel_addrconfreq_class, NULL, NULL, req);
+	return ni_dbus_object_new(&ni_objectmodel_addrconfreq_class, NULL, req);
 }
 
 /*

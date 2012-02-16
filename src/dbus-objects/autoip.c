@@ -73,7 +73,7 @@ ni_objectmodel_autoip_wrap_interface(ni_interface_t *dev)
 	return ni_dbus_client_object_new(dbus_autoip_client,
 			&ni_objectmodel_auto4if_class,
 			ni_objectmodel_autoip_object_path(dev),
-			WICKED_DBUS_AUTO4_INTERFACE, NULL, dev);
+			WICKED_DBUS_AUTO4_INTERFACE, dev);
 }
 
 /*

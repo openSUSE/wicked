@@ -24,7 +24,6 @@
 #include "debug.h"
 #include "dhcp.h"
 
-static ni_dbus_object_functions_t wicked_dbus_dhcp4_functions;
 static ni_dbus_class_t		ni_objectmodel_dhcp4dev_class = {
 	"dhcp4-device",
 };
@@ -51,11 +50,9 @@ __ni_objectmodel_build_dhcp4_device_object(ni_dbus_server_t *server, ni_dhcp_dev
 		snprintf(object_path, sizeof(object_path), "Interface/%d", dev->link.ifindex);
 		object = ni_dbus_server_register_object(server, object_path,
 						&ni_objectmodel_dhcp4dev_class,
-						&wicked_dbus_dhcp4_functions,
 						ni_dhcp_device_get(dev));
 	} else {
 		object = ni_dbus_object_new(&ni_objectmodel_dhcp4dev_class, NULL,
-						&wicked_dbus_dhcp4_functions,
 						ni_dhcp_device_get(dev));
 	}
 
@@ -76,10 +73,6 @@ ni_objectmodel_register_dhcp4_device(ni_dbus_server_t *server, ni_dhcp_device_t 
 {
 	return __ni_objectmodel_build_dhcp4_device_object(server, dev);
 }
-
-static ni_dbus_object_functions_t wicked_dbus_dhcp4_functions = {
-	.destroy		= NULL,
-};
 
 /*
  * Interface.acquire(dict options)
