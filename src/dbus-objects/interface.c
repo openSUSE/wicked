@@ -23,6 +23,7 @@
 #include "model.h"
 #include "debug.h"
 
+extern dbus_bool_t	ni_objectmodel_netif_list_refresh(ni_dbus_object_t *);
 static void		ni_objectmodel_netif_destroy(ni_dbus_object_t *object);
 
 static ni_dbus_class_t		ni_objectmodel_netif_class = {
@@ -131,8 +132,38 @@ ni_objectmodel_netif_list_init_child(ni_dbus_object_t *object)
 
 static const ni_dbus_class_t	ni_objectmodel_netif_list_class = {
 	.name		= NI_OBJECTMODEL_NETIF_LIST_CLASS,
+	.refresh	= ni_objectmodel_netif_list_refresh,
 	.init_child	= ni_objectmodel_netif_list_init_child,
 };
+
+/*
+ * Refresh the netif list
+ * This function is called from the dbus object handling code prior
+ * to invoking any method of this object.
+ *
+ * GetManagedObject relies on this - without this, we'd never
+ * refresh the interface properties.
+ * Note that this still doesn't fix things when calling GetManagedObjects
+ * or GetAllProperties on a netif object directly; we haven't assigned
+ * refresh handlers to these.
+ */
+dbus_bool_t
+ni_objectmodel_netif_list_refresh(ni_dbus_object_t *object)
+{
+	ni_netconfig_t *nc;
+
+	NI_TRACE_ENTER();
+	if (!(nc = ni_global_state_handle(1))) {
+		ni_error("failed to refresh network interfaces");
+		return FALSE;
+	}
+
+	/* Note, we do not have to deal with removal of interfaces
+	 * that have been destroyed. We should be notified of these
+	 * automatically via RTM_DELLINK */
+
+	return TRUE;
+}
 
 
 static ni_dbus_service_t	ni_objectmodel_netif_list_service = {
