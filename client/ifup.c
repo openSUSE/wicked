@@ -108,7 +108,7 @@ static void			ni_ifworker_array_destroy(ni_ifworker_array_t *);
 static void			ni_ifworker_fsm_init(ni_ifworker_t *);
 
 static inline ni_ifworker_t *
-ni_ifworker_new(const char *name, xml_node_t *config)
+__ni_ifworker_new(const char *name, xml_node_t *config)
 {
 	ni_ifworker_t *w;
 
@@ -118,6 +118,18 @@ ni_ifworker_new(const char *name, xml_node_t *config)
 	w->refcount = 1;
 
 	return w;
+}
+
+static ni_ifworker_t *
+ni_ifworker_new(const char *name, xml_node_t *config)
+{
+	ni_ifworker_t *worker;
+
+	worker = __ni_ifworker_new(name, config);
+	ni_ifworker_array_append(&interface_workers, worker);
+	worker->refcount--;
+
+	return worker;
 }
 
 static void
@@ -250,20 +262,8 @@ ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *d
 	return child;
 }
 
-static ni_ifworker_t *
-add_interface_worker(const char *name, xml_node_t *config)
-{
-	ni_ifworker_t *worker;
-
-	worker = ni_ifworker_new(name, config);
-	ni_ifworker_array_append(&interface_workers, worker);
-	ni_ifworker_release(worker);
-
-	return worker;
-}
-
 static unsigned int
-add_all_interfaces(xml_document_t *doc)
+ni_ifworkers_from_xml(xml_document_t *doc)
 {
 	xml_node_t *root, *ifnode;
 	unsigned int count = 0;
@@ -273,10 +273,17 @@ add_all_interfaces(xml_document_t *doc)
 		const char *ifname = NULL;
 		xml_node_t *node;
 
+		if (strcmp(node->name, "interface")) {
+			ni_warn("%s: ignoring non-interface element <%s>",
+					xml_node_location(node),
+					node->name);
+			continue;
+		}
+
 		if ((node = xml_node_get_child(ifnode, "name")) != NULL)
 			ifname = node->cdata;
 
-		add_interface_worker(ifname, ifnode);
+		ni_ifworker_new(ifname, ifnode);
 		count++;
 	}
 
@@ -547,7 +554,7 @@ interface_workers_refresh_state(void)
 		}
 
 		if (!found)
-			found = add_interface_worker(dev->name, NULL);
+			found = ni_ifworker_new(dev->name, NULL);
 
 		/* Don't touch devices we're done with */
 		if (found->done)
@@ -834,8 +841,8 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 	}
 }
 
-int
-interface_workers_kickstart(void)
+static int
+ni_ifworkers_kickstart(void)
 {
 	unsigned int i;
 
@@ -869,8 +876,8 @@ interface_workers_kickstart(void)
 
 #include <wicked/socket.h>
 
-/* static */ void
-interface_worker_mainloop(void)
+static void
+ni_ifworker_mainloop(void)
 {
 	work_to_be_done = 1;
 	while (work_to_be_done) {
@@ -948,7 +955,7 @@ usage:
 			goto failed;
 		}
 
-		add_all_interfaces(config_doc);
+		ni_ifworkers_from_xml(config_doc);
 	} else {
 		ni_fatal("ifup: non-file case not implemented yet");
 	}
@@ -969,10 +976,10 @@ usage:
 						interface_state_change_signal,
 						NULL);
 
-	interface_workers_kickstart();
+	ni_ifworkers_kickstart();
 
 	if (ni_ifworker_fsm() != 0)
-		interface_worker_mainloop();
+		ni_ifworker_mainloop();
 
 #if 0
 		/* Request that the server take the interface up */
