@@ -662,6 +662,12 @@ __ni_process_ifinfomsg(ni_linkinfo_t *link, struct nlmsghdr *h,
 				link->type = NI_IFTYPE_WIRELESS;
 			break;
 
+		case ARPHRD_INFINIBAND:
+			link->type = NI_IFTYPE_INFINIBAND;
+			if (strchr(ifname, '.') != NULL)
+				link->type = NI_IFTYPE_INFINIBAND_CHILD;
+			break;
+
 		default:
 			link->type = ni_arphrd_type_to_iftype(link->arp_type);
 			break;

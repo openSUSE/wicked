@@ -22,6 +22,7 @@ static ni_intmap_t __linktype_names[] = {
 	{ "vlan",		NI_IFTYPE_VLAN },
 	{ "wireless",		NI_IFTYPE_WIRELESS },
 	{ "infiniband",		NI_IFTYPE_INFINIBAND },
+	{ "infiniband-child",	NI_IFTYPE_INFINIBAND_CHILD },
 	{ "ppp",		NI_IFTYPE_PPP },
 	{ "slip",		NI_IFTYPE_SLIP },
 	{ "sit",		NI_IFTYPE_SIT },
