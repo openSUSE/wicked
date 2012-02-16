@@ -672,7 +672,7 @@ done:
  * The user asks us to configure the interface
  */
 int
-ni_wpa_interface_configure(ni_wpa_interface_t *dev, ni_wireless_network_t *net)
+ni_wpa_interface_associate(ni_wpa_interface_t *dev, ni_wireless_network_t *net)
 {
 	ni_dbus_object_t *net_object;
 
