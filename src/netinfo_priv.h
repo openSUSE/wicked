@@ -54,10 +54,6 @@ extern int		__ni_interface_is_down(const ni_interface_t *);
 	  NULL))
 
 extern void		__ni_afinfo_init(ni_afinfo_t *, int af);
-extern void		__ni_afinfo_destroy(ni_afinfo_t *);
-extern void		__ni_afinfo_set_addrconf_request(ni_afinfo_t *, unsigned int, ni_addrconf_request_t *);
-extern void		__ni_afinfo_set_addrconf_lease(ni_afinfo_t *, unsigned int, ni_addrconf_lease_t *);
-extern int		__ni_afinfo_is_up(const ni_afinfo_t *, const ni_interface_t *);
 
 extern ni_route_t *	__ni_route_new(ni_route_t **, unsigned int prefix_len,
 				const ni_sockaddr_t *, const ni_sockaddr_t *);

@@ -109,9 +109,6 @@ typedef struct ni_afinfo {
 	int			forwarding;
 
 	unsigned int		addrconf;	/* bitmask of enabled addrconf modes */
-
-	/* FIXME: remove these */
-	ni_addrconf_request_t *	request[__NI_ADDRCONF_MAX];
 } ni_afinfo_t;
 
 typedef struct ni_ifaction {

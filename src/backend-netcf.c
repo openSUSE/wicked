@@ -357,11 +357,6 @@ __ni_netcf_xml_to_interface(ni_netconfig_t *nc, xml_node_t *ifnode)
 			mode = ni_addrconf_name_to_type(child->name);
 			if (mode >= 0) {
 				ni_afinfo_addrconf_enable(afi, mode);
-				afi->request[mode] = __ni_netcf_xml_to_addrconf_req(child, afi->family);
-				if (afi->request[mode] == NULL) {
-					ni_error("error parsing %s information", child->name);
-					return NULL;
-				}
 				continue;
 			}
 
@@ -828,28 +823,19 @@ __ni_netcf_xml_from_address_config(const ni_afinfo_t *afi,
 			protnode = __ni_netcf_make_protocol_node(ifnode, afi->family);
 
 		for (mode = 0; mode < __NI_ADDRCONF_MAX; ++mode) {
-			ni_addrconf_request_t *req;
-
 			if (mode == NI_ADDRCONF_STATIC || !ni_afinfo_addrconf_test(afi, mode))
 				continue;
 
 			if (__ni_netcf_strict_syntax && mode != NI_ADDRCONF_DHCP)
 				continue;
 
-			if ((req = afi->request[mode]) != NULL) {
-				__ni_netcf_xml_from_addrconf_req(req, protnode);
-			} else {
+			{
 				const char *acname;
 
 				acname = ni_addrconf_type_to_name(mode);
 				if (acname != NULL)
 					xml_node_new(acname, protnode);
 			}
-
-#if 0
-			if ((lease = afi->lease[mode]) != NULL)
-				__ni_netcf_xml_from_lease(lease, protnode);
-#endif
 		}
 	} else if (!__ni_netcf_strict_syntax) {
 		protnode = __ni_netcf_make_protocol_node(ifnode, afi->family);

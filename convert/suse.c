@@ -211,13 +211,17 @@ __ni_suse_read_interface(ni_netconfig_t *nc, const char *filename, const char *i
 		goto error;
 
 	if (ni_afinfo_addrconf_test(&ifp->ipv4, NI_ADDRCONF_DHCP)) {
+		ni_addrconf_request_t *req;
+
 		/* Read default DHCP config */
-		if (!(ifp->ipv4.request[NI_ADDRCONF_DHCP] = __ni_suse_read_dhcp(nc)))
+		if (!(req = __ni_suse_read_dhcp(nc)))
 			goto error;
 
 		/* Now check whether the ifcfg file overwrites any of these */
-		if (__ni_suse_sysconfig2dhcp(ifp->ipv4.request[NI_ADDRCONF_DHCP], sc) < 0)
+		if (__ni_suse_sysconfig2dhcp(req, sc) < 0)
 			goto error;
+
+		/* Install? */
 	}
 
 	/* We rely on the kernel to set up the ::1 device (if ipv6 is enabled) */

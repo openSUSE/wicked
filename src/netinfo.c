@@ -313,22 +313,8 @@ __ni_afinfo_init(ni_afinfo_t *afi, int family)
 }
 
 void
-__ni_afinfo_destroy(ni_afinfo_t *afi)
-{
-	unsigned int i;
-
-	for (i = 0; i < __NI_ADDRCONF_MAX; ++i) {
-		if (afi->request[i]) {
-			ni_addrconf_request_free(afi->request[i]);
-			afi->request[i] = NULL;
-		}
-	}
-}
-
-void
 ni_afinfo_free(ni_afinfo_t *afi)
 {
-	__ni_afinfo_destroy(afi);
 	free(afi);
 }
 

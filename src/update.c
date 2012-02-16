@@ -59,7 +59,6 @@ ni_system_update_capabilities(void)
 static unsigned int
 ni_system_lease_capabilities(ni_interface_t *ifp, const ni_addrconf_lease_t *lease)
 {
-	ni_afinfo_t *afi;
 	unsigned int mask = 0;
 
 	if (ni_addrconf_lease_is_valid(lease)) {
@@ -70,9 +69,8 @@ ni_system_lease_capabilities(ni_interface_t *ifp, const ni_addrconf_lease_t *lea
 		if (lease->resolver != NULL)
 			__ni_addrconf_set_update(&mask, NI_ADDRCONF_UPDATE_RESOLVER);
 
-		afi = __ni_interface_address_info(ifp, lease->family);
-		if (afi->request[lease->type])
-			mask &= afi->request[lease->type]->update;
+		/* FIXME: If there's an addrconf request associated with this,
+		 * check what this request allows us to update. */
 	}
 
 	return mask;

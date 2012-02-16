@@ -160,9 +160,6 @@ ni_interface_free(ni_interface_t *ifp)
 	ni_interface_set_wireless(ifp, NULL);
 	ni_interface_set_wireless_scan(ifp, NULL);
 
-	__ni_afinfo_destroy(&ifp->ipv4);
-	__ni_afinfo_destroy(&ifp->ipv6);
-
 	ni_addrconf_lease_list_destroy(&ifp->leases);
 
 	free(ifp);
