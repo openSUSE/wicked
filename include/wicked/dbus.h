@@ -434,8 +434,6 @@ extern ni_dbus_object_t *	ni_objectmodel_register_interface(ni_dbus_server_t *, 
 extern dbus_bool_t		ni_objectmodel_unregister_interface(ni_dbus_server_t *, ni_interface_t *ifp);
 extern ni_dbus_object_t *	ni_objectmodel_wrap_interface(ni_interface_t *ifp);
 extern ni_dbus_object_t *	ni_objectmodel_wrap_interface_request(ni_interface_request_t *req);
-extern const ni_dbus_service_t *ni_objectmodel_link_layer_service_by_type(ni_iftype_t);
-extern const ni_dbus_service_t *ni_objectmodel_link_layer_service_by_name(const char *);
 extern const ni_dbus_service_t *ni_objectmodel_interface_port_service(int iftype);
 extern int			ni_objectmodel_bind_extensions(void);
 

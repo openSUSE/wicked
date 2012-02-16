@@ -35,7 +35,6 @@ typedef struct ni_objectmodel_service_array {
 } ni_objectmodel_service_array_t;
 
 static ni_objectmodel_service_array_t ni_objectmodel_all_services;
-static const ni_dbus_service_t *ni_objectmodel_link_services[__NI_IFTYPE_MAX];
 
 static const ni_dbus_class_t	ni_objectmodel_netif_list_class = {
 	.name		= NI_OBJECTMODEL_NETIF_LIST_CLASS,
@@ -69,10 +68,12 @@ ni_objectmodel_create_service(void)
 	ni_objectmodel_autoip_init(server);
 
 	ni_objectmodel_register_service(&ni_objectmodel_netif_list_service);
+#if 0
 	ni_objectmodel_register_link_service(NI_IFTYPE_ETHERNET, &wicked_dbus_ethernet_service);
 	ni_objectmodel_register_link_service(NI_IFTYPE_VLAN, &wicked_dbus_vlan_service);
 	ni_objectmodel_register_link_service(NI_IFTYPE_BRIDGE, &wicked_dbus_bridge_service);
 	//ni_objectmodel_register_link_service(NI_IFTYPE_BOND, &wicked_dbus_bond_service);
+#endif
 
 	__ni_objectmodel_server = server;
 	return server;
@@ -170,40 +171,6 @@ ni_objectmodel_service_by_name(const char *name)
 	return __ni_objectmodel_service_by_interface(&ni_objectmodel_all_services, name);
 }
 
-void
-ni_objectmodel_register_link_service(ni_iftype_t link_type, const ni_dbus_service_t *service)
-{
-	ni_assert(link_type < __NI_IFTYPE_MAX);
-
-	ni_objectmodel_register_service(service);
-	ni_objectmodel_link_services[link_type] = service;
-}
-
-/*
- * Based on the network link layer type, return the DBus service implementing this
- */
-const ni_dbus_service_t *
-ni_objectmodel_link_layer_service_by_type(ni_iftype_t link_type)
-{
-	if (link_type < 0 || link_type >= __NI_IFTYPE_MAX)
-		return NULL;
-	return ni_objectmodel_link_services[link_type];
-}
-
-const ni_dbus_service_t *
-ni_objectmodel_link_layer_service_by_name(const char *name)
-{
-	unsigned int i;
-
-	for (i = 0; i < __NI_IFTYPE_MAX; ++i) {
-		const ni_dbus_service_t *service = ni_objectmodel_link_services[i];
-
-		if (service && !strcmp(service->name, name))
-			return service;
-	}
-	return NULL;
-}
-
 /*
  * This method allows clients to create new (virtual) network interfaces.
  * The first argument is the DBus service name of the interface type to
@@ -230,12 +197,14 @@ __ni_dbus_netif_create(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 	if (!ni_dbus_variant_get_string(&argv[0], &interface_name))
 		goto bad_args;
 
-	service = ni_objectmodel_link_layer_service_by_name(interface_name);
+	service = ni_objectmodel_service_by_name(interface_name);
 	if (service == NULL) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
 			"Unknown dbus interface %s", interface_name);
 		return FALSE;
 	}
+
+	/* FIXME: we should make sure this is compatible with class netif */
 
 	result = ni_objectmodel_new_interface(ni_dbus_object_get_server(object), service, &argv[1], error);
 	if (!result)
