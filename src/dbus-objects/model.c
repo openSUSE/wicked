@@ -167,6 +167,21 @@ ni_objectmodel_service_by_name(const char *name)
 	return NULL;
 }
 
+const ni_dbus_service_t *
+ni_objectmodel_service_by_class(const ni_dbus_class_t *class)
+{
+	unsigned int i;
+
+	for (i = 0; i < ni_objectmodel_service_registry.count; ++i) {
+		const ni_dbus_service_t *service = ni_objectmodel_service_registry.services[i];
+
+		if (service->compatible == class)
+			return service;
+	}
+
+	return NULL;
+}
+
 /*
  * objectmodel service registry
  * This is mostly needed for doing proper type checking when binding
