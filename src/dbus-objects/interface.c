@@ -420,7 +420,8 @@ failed:
  * Broadcast an event that the interface is up
  */
 dbus_bool_t
-ni_objectmodel_interface_event(ni_dbus_server_t *server, ni_interface_t *dev, ni_event_t ifevent, unsigned int event_id)
+ni_objectmodel_interface_event(ni_dbus_server_t *server, ni_interface_t *dev,
+			ni_event_t ifevent, const ni_uuid_t *uuid)
 {
 	ni_dbus_object_t *object;
 
@@ -438,11 +439,12 @@ ni_objectmodel_interface_event(ni_dbus_server_t *server, ni_interface_t *dev, ni
 		return FALSE;
 	}
 
-	return __ni_objectmodel_interface_event(server, object, ifevent, event_id);
+	return __ni_objectmodel_interface_event(server, object, ifevent, uuid);
 }
 
 dbus_bool_t
-__ni_objectmodel_interface_event(ni_dbus_server_t *server, ni_dbus_object_t *object, ni_event_t ifevent, unsigned int event_id)
+__ni_objectmodel_interface_event(ni_dbus_server_t *server, ni_dbus_object_t *object,
+			ni_event_t ifevent, const ni_uuid_t *uuid)
 {
 	static const char *ifevent_signals[__NI_EVENT_MAX] = {
 	[NI_EVENT_LINK_UP]		= "linkUp",
@@ -450,10 +452,12 @@ __ni_objectmodel_interface_event(ni_dbus_server_t *server, ni_dbus_object_t *obj
 	[NI_EVENT_NETWORK_UP]		= "networkUp",
 	[NI_EVENT_NETWORK_DOWN]		= "networkDown",
 	[NI_EVENT_ADDRESS_ACQUIRED]	= "addressAcquired",
+	[NI_EVENT_ADDRESS_RELEASED]	= "addressReleased",
 	[NI_EVENT_ADDRESS_LOST]		= "addressLost",
 	};
 	ni_dbus_variant_t arg = NI_DBUS_VARIANT_INIT;
 	const char *signal_name = NULL;
+	unsigned int argc = 0;
 
 	if (ifevent >= __NI_EVENT_MAX || (signal_name = ifevent_signals[ifevent]) == NULL)
 		return FALSE;
@@ -465,10 +469,13 @@ __ni_objectmodel_interface_event(ni_dbus_server_t *server, ni_dbus_object_t *obj
 		return FALSE;
 	}
 
-	ni_dbus_variant_set_uint32(&arg, event_id);
+	if (uuid) {
+		ni_dbus_variant_set_uuid(&arg, uuid);
+		argc++;
+	}
 
 	ni_debug_dbus("sending interface event \"%s\" for %s", signal_name, ni_dbus_object_get_path(object));
-	ni_dbus_server_send_signal(server, object, WICKED_DBUS_NETIF_INTERFACE, signal_name, 1, &arg);
+	ni_dbus_server_send_signal(server, object, WICKED_DBUS_NETIF_INTERFACE, signal_name, argc, &arg);
 	return TRUE;
 }
 

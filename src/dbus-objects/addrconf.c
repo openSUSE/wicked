@@ -165,28 +165,28 @@ ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_messa
 			goto done;
 		}
 
-		if (event_id)
-			ni_objectmodel_interface_event(NULL, ifp, NI_EVENT_ADDRESS_ACQUIRED, event_id);
+		if (!ni_uuid_is_null(&uuid))
+			ni_objectmodel_interface_event(NULL, ifp, NI_EVENT_ADDRESS_ACQUIRED, &uuid);
 
 		/* Note, lease may be NULL after this, as the interface object
 		 * takes ownership of it. */
 		__ni_system_interface_update_lease(ifp, &lease);
 
 		if (__ni_interface_is_up(ifp))
-			ni_objectmodel_interface_event(NULL, ifp, NI_EVENT_NETWORK_UP, 0);
+			ni_objectmodel_interface_event(NULL, ifp, NI_EVENT_NETWORK_UP, NULL);
 	} else if (!strcmp(signal_name, "LeaseReleased")) {
 		lease->state = NI_ADDRCONF_STATE_RELEASED;
 		__ni_system_interface_update_lease(ifp, &lease);
 
-		if (event_id)
-			ni_objectmodel_interface_event(NULL, ifp, NI_EVENT_ADDRESS_RELEASED, event_id);
+		if (!ni_uuid_is_null(&uuid))
+			ni_objectmodel_interface_event(NULL, ifp, NI_EVENT_ADDRESS_RELEASED, &uuid);
 
 		if (__ni_interface_is_down(ifp))
-			ni_objectmodel_interface_event(NULL, ifp, NI_EVENT_NETWORK_DOWN, 0);
+			ni_objectmodel_interface_event(NULL, ifp, NI_EVENT_NETWORK_DOWN, NULL);
 	} else if (!strcmp(signal_name, "LeaseLost")) {
 		lease->state = NI_ADDRCONF_STATE_FAILED;
 		__ni_system_interface_update_lease(ifp, &lease);
-		ni_objectmodel_interface_event(NULL, ifp, NI_EVENT_ADDRESS_LOST, 0);
+		ni_objectmodel_interface_event(NULL, ifp, NI_EVENT_ADDRESS_LOST, NULL);
 	} else {
 		/* Ignore unknown signal */
 	}
