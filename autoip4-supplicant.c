@@ -124,6 +124,7 @@ main(int argc, char **argv)
 void
 autoip4_recover_lease(ni_interface_t *ifp)
 {
+#if 0
 	ni_afinfo_t *afi = &ifp->ipv4;
 	ni_addrconf_lease_t *lease;
 
@@ -170,6 +171,7 @@ autoip4_recover_lease(ni_interface_t *ifp)
 	ni_debug_wicked("%s: initiated recovery of %s/%s lease", ifp->name,
 				ni_addrconf_type_to_name(lease->type),
 				ni_addrfamily_type_to_name(lease->family));
+#endif
 }
 
 /*
