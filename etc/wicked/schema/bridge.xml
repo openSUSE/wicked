@@ -1,0 +1,57 @@
+
+<service name="bridge" interface="com.suse.Wicked.Bridge" object-class="netif-bridge">
+
+  <define name="port" class="dict">
+    <!-- There should be really some more flexible way of specifying the device,
+      -- so that we have to rely less on udev to get the interface names right
+      -->
+    <device type="string" />
+    <priority type="uint32" />
+    <path-cost type="uint32" />
+  </define>
+
+  <!-- This is the linkconfig returned in interface reports -->
+  <define name="linkconfig" class="dict">
+    <priority type="uint32" />
+    <stp type="uint32" constraint="enum">
+      <none value="0" />
+      <stp value="1" />
+      <rstp value="2" />
+    </stp>
+
+    <forward-delay type="double" />
+    <aging-time type="double" />
+    <hello-time type="double" />
+    <max-age type="double" />
+
+    <ports class="array" element-type="port" />
+  </define>
+
+  <define name="linkinfo" class="dict" extends="linkconfig">
+    <!-- add more status information to this -->
+  </define>
+
+  <method name="addPort">
+    <arguments>
+      <port type="port"/>
+    </arguments>
+  </method>
+
+  <method name="removePort">
+    <arguments>
+      <port type="object-path"/>
+    </arguments>
+  </method>
+</service>
+
+<service name="bridge-factory" interface="com.suse.Wicked.Bridge.Factory" object-class="netif-list">
+  <method name="newLink">
+    <arguments>
+     <name type="string"/>
+     <bridge type="bridge:linkconfig"/>
+    </arguments>
+    <return>
+     <object-path/>
+    </return>
+  </method>
+</service>
