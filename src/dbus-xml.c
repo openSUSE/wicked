@@ -64,7 +64,7 @@ ni_dbus_xml_register_services(ni_dbus_server_t *server, ni_xs_scope_t *scope)
 		if ((attr = ni_var_array_get(&xs_service->attributes, "object-class")) != NULL) {
 			const ni_dbus_class_t *class;
 
-			if ((class = ni_dbus_server_get_class(server, attr->value)) == NULL) {
+			if ((class = ni_objectmodel_get_class(attr->value)) == NULL) {
 				ni_error("xml service definition for %s: unknown object-class \"%s\"",
 						xs_service->interface, attr->value);
 			} else {

@@ -192,8 +192,6 @@ extern ni_dbus_object_t *	ni_dbus_server_find_object_by_handle(ni_dbus_server_t 
 extern dbus_bool_t		ni_dbus_server_send_signal(ni_dbus_server_t *server, ni_dbus_object_t *object,
 					const char *interface, const char *signal_name,
 					unsigned int nargs, const ni_dbus_variant_t *args);
-extern void			ni_dbus_server_register_class(ni_dbus_server_t *, const ni_dbus_class_t *);
-extern const ni_dbus_class_t *	ni_dbus_server_get_class(const ni_dbus_server_t *, const char *);
 
 extern ni_dbus_object_t *	ni_dbus_object_new(const ni_dbus_class_t *,
 					const char *path,
@@ -436,6 +434,8 @@ extern ni_dbus_object_t *	ni_objectmodel_wrap_interface(ni_interface_t *ifp);
 extern ni_dbus_object_t *	ni_objectmodel_wrap_interface_request(ni_interface_request_t *req);
 extern const ni_dbus_service_t *ni_objectmodel_interface_port_service(int iftype);
 extern int			ni_objectmodel_bind_extensions(void);
+extern void			ni_objectmodel_register_class(const ni_dbus_class_t *);
+extern const ni_dbus_class_t *	ni_objectmodel_get_class(const char *);
 
 extern const ni_dbus_service_t	wicked_dbus_interface_request_service;
 

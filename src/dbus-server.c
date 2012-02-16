@@ -25,9 +25,6 @@ static const ni_dbus_class_t	dbus_root_object_class = {
 struct ni_dbus_server {
 	ni_dbus_connection_t *	connection;
 	ni_dbus_object_t *	root_object;
-
-	unsigned int		num_classes;
-	const ni_dbus_class_t **classes;
 };
 
 static dbus_bool_t		ni_dbus_object_register_object_manager(ni_dbus_object_t *);
@@ -160,36 +157,6 @@ out:
 		dbus_message_unref(msg);
 
 	return rv;
-}
-
-/*
- * Server-side class catalog.
- * This is mostly needed for doing proper type checking when binding
- * extensions
- */
-void
-ni_dbus_server_register_class(ni_dbus_server_t *server, const ni_dbus_class_t *class)
-{
-	ni_assert(class->name);
-
-	server->classes = realloc(server->classes, (server->num_classes + 1) * sizeof(class));
-	ni_assert(server->classes);
-
-	server->classes[server->num_classes++] = class;
-}
-
-const ni_dbus_class_t *
-ni_dbus_server_get_class(const ni_dbus_server_t *server, const char *name)
-{
-	unsigned int i;
-
-	for (i = 0; i < server->num_classes; ++i) {
-		const ni_dbus_class_t *class = server->classes[i];
-
-		if (!strcmp(class->name, name))
-			return class;
-	}
-	return NULL;
 }
 
 /*

@@ -50,7 +50,7 @@ ni_objectmodel_register_netif_classes(ni_dbus_server_t *server)
 	unsigned int iftype;
 
 	/* register the netif class (to allow extensions to attach to it) */
-	ni_dbus_server_register_class(server, base_class);
+	ni_objectmodel_register_class(base_class);
 
 	/* register the netif interface */
 	ni_objectmodel_register_service(&wicked_dbus_interface_service);
@@ -72,7 +72,7 @@ ni_objectmodel_register_netif_classes(ni_dbus_server_t *server)
 		link_class->refresh = base_class->refresh;
 
 		/* Register this class with the server */
-		ni_dbus_server_register_class(server, link_class);
+		ni_objectmodel_register_class(link_class);
 	}
 }
 
@@ -107,7 +107,7 @@ __ni_objectmodel_build_interface_object(ni_dbus_server_t *server, ni_interface_t
 	ni_dbus_object_t *object;
 
 	if ((classname = __ni_objectmodel_link_classname(ifp->link.type)) != NULL)
-		class = ni_dbus_server_get_class(server, classname);
+		class = ni_objectmodel_get_class(classname);
 	if (class == NULL)
 		class = &ni_objectmodel_netif_class;
 
