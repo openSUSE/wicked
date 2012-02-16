@@ -71,6 +71,8 @@ typedef enum ni_iftype {
 	NI_IFTYPE_TUN,
 	NI_IFTYPE_TAP,
 	NI_IFTYPE_DUMMY,
+
+	__NI_IFTYPE_MAX
 } ni_iftype_t;
 
 /*

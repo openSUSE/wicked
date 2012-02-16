@@ -53,7 +53,7 @@ __ni_objectmodel_build_interface_object(ni_dbus_server_t *server, ni_interface_t
 
 	ni_dbus_object_register_service(object, &wicked_dbus_interface_service);
 
-	link_layer_service = ni_objectmodel_link_layer_service(ifp->link.type);
+	link_layer_service = ni_objectmodel_link_layer_service_by_type(ifp->link.type);
 	if (link_layer_service != NULL)
 		ni_dbus_object_register_service(object, link_layer_service);
 
@@ -124,35 +124,6 @@ ni_dbus_object_t *
 ni_objectmodel_wrap_interface_request(ni_interface_request_t *req)
 {
 	return ni_dbus_object_new(NULL, NULL, req);
-}
-
-/*
- * Based on the network link layer type, return the DBus service implementing this
- */
-const ni_dbus_service_t *
-ni_objectmodel_link_layer_service(int iftype)
-{
-	switch (iftype) {
-	case NI_IFTYPE_ETHERNET:
-		return &wicked_dbus_ethernet_service;
-		break;
-
-	case NI_IFTYPE_VLAN:
-		return &wicked_dbus_vlan_service;
-		break;
-
-	case NI_IFTYPE_BRIDGE:
-		return &wicked_dbus_bridge_service;
-		break;
-
-	case NI_IFTYPE_BOND:
-		return &wicked_dbus_bond_service;
-		break;
-
-	default: ;
-	}
-
-	return NULL;
 }
 
 /*

@@ -81,6 +81,8 @@ struct ni_dbus_method {
 	const char *		name;
 	const char *		call_signature;
 	ni_dbus_method_handler_t *handler;
+
+	void *			user_data;
 };
 
 typedef struct ni_dbus_property	ni_dbus_property_t;
@@ -125,6 +127,8 @@ struct ni_dbus_service {
 	const ni_dbus_method_t *	methods;
 	const ni_dbus_method_t *	signals;
 	const ni_dbus_property_t *	properties;
+
+	void *				user_data;
 };
 
 typedef struct ni_dbus_object_functions	ni_dbus_object_functions_t;
@@ -404,7 +408,8 @@ extern ni_dbus_object_t *	ni_objectmodel_register_interface(ni_dbus_server_t *, 
 extern dbus_bool_t		ni_objectmodel_unregister_interface(ni_dbus_server_t *, ni_interface_t *ifp);
 extern ni_dbus_object_t *	ni_objectmodel_wrap_interface(ni_interface_t *ifp);
 extern ni_dbus_object_t *	ni_objectmodel_wrap_interface_request(ni_interface_request_t *req);
-extern const ni_dbus_service_t *ni_objectmodel_link_layer_service(int iftype);
+extern const ni_dbus_service_t *ni_objectmodel_link_layer_service_by_type(ni_iftype_t);
+extern const ni_dbus_service_t *ni_objectmodel_link_layer_service_by_name(const char *);
 extern const ni_dbus_service_t *ni_objectmodel_interface_port_service(int iftype);
 
 extern const ni_dbus_service_t	wicked_dbus_interface_service;

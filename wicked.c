@@ -294,7 +294,7 @@ wicked_create_interface_argv(ni_dbus_object_t *object, int iftype, int argc, cha
 	memset(call_argv, 0, sizeof(call_argv));
 	memset(call_resp, 0, sizeof(call_resp));
 
-	service = ni_objectmodel_link_layer_service(iftype);
+	service = ni_objectmodel_link_layer_service_by_type(iftype);
 	if (!service) {
 		ni_error("Cannot create network interface for this link layer type");
 		return NULL;

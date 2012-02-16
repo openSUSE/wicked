@@ -21,9 +21,21 @@
 #include "model.h"
 #include "debug.h"
 
+extern void			ni_objectmodel_register_service(const ni_dbus_service_t *);
+extern void			ni_objectmodel_register_link_service(ni_iftype_t, const ni_dbus_service_t *);
+
 extern ni_dbus_object_t *	ni_objectmodel_new_interface(ni_dbus_server_t *server,
 					const ni_dbus_service_t *service,
 					const ni_dbus_variant_t *dict, DBusError *error);
+
+#define NI_OBJECTMODEL_SERVICES_MAX 128
+typedef struct ni_objectmodel_service_array {
+	unsigned int		count;
+	const ni_dbus_service_t *services[NI_OBJECTMODEL_SERVICES_MAX];
+} ni_objectmodel_service_array_t;
+
+static ni_objectmodel_service_array_t ni_objectmodel_all_services;
+static const ni_dbus_service_t *ni_objectmodel_link_services[__NI_IFTYPE_MAX];
 
 static ni_dbus_object_functions_t wicked_dbus_netif_functions;
 static ni_dbus_service_t	wicked_dbus_netif_interface;
@@ -55,30 +67,88 @@ ni_objectmodel_create_service(void)
 	ni_objectmodel_dhcp4_init(server);
 	ni_objectmodel_autoip_init(server);
 
+	ni_objectmodel_register_service(&wicked_dbus_netif_interface);
+	ni_objectmodel_register_service(&wicked_dbus_interface_service);
+	ni_objectmodel_register_link_service(NI_IFTYPE_ETHERNET, &wicked_dbus_ethernet_service);
+	ni_objectmodel_register_link_service(NI_IFTYPE_VLAN, &wicked_dbus_vlan_service);
+	ni_objectmodel_register_link_service(NI_IFTYPE_BRIDGE, &wicked_dbus_bridge_service);
+	ni_objectmodel_register_link_service(NI_IFTYPE_BOND, &wicked_dbus_bond_service);
+
 	__ni_objectmodel_server = server;
 	return server;
+}
+
+/*
+ * Register a service
+ */
+static void
+__ni_objectmodel_register_service(ni_objectmodel_service_array_t *array, const ni_dbus_service_t *service)
+{
+	ni_assert(array->count < NI_OBJECTMODEL_SERVICES_MAX);
+	array->services[array->count++] = service;
+}
+
+static const ni_dbus_service_t *
+__ni_objectmodel_service_by_interface(ni_objectmodel_service_array_t *array, const char *name)
+{
+	unsigned int i;
+
+	for (i = 0; i < array->count; ++i) {
+		const ni_dbus_service_t *service = array->services[i];
+
+		if (!strcmp(service->name, name))
+			return service;
+	}
+
+	return NULL;
+}
+
+/*
+ * objectmodel service registry
+ */
+void
+ni_objectmodel_register_service(const ni_dbus_service_t *service)
+{
+	__ni_objectmodel_register_service(&ni_objectmodel_all_services, service);
 }
 
 const ni_dbus_service_t *
 ni_objectmodel_service_by_name(const char *name)
 {
-	static const ni_dbus_service_t *all_services[] = {
-		&wicked_dbus_netif_interface,
-		&wicked_dbus_interface_service,
-		&wicked_dbus_ethernet_service,
-		&wicked_dbus_vlan_service,
-		&wicked_dbus_bridge_service,
-		&wicked_dbus_bond_service,
-		NULL,
-	};
-	const ni_dbus_service_t *service;
+	return __ni_objectmodel_service_by_interface(&ni_objectmodel_all_services, name);
+}
+
+void
+ni_objectmodel_register_link_service(ni_iftype_t link_type, const ni_dbus_service_t *service)
+{
+	ni_assert(link_type < __NI_IFTYPE_MAX);
+
+	ni_objectmodel_register_service(service);
+	ni_objectmodel_link_services[link_type] = service;
+}
+
+/*
+ * Based on the network link layer type, return the DBus service implementing this
+ */
+const ni_dbus_service_t *
+ni_objectmodel_link_layer_service_by_type(ni_iftype_t link_type)
+{
+	if (link_type < 0 || link_type >= __NI_IFTYPE_MAX)
+		return NULL;
+	return ni_objectmodel_link_services[link_type];
+}
+
+const ni_dbus_service_t *
+ni_objectmodel_link_layer_service_by_name(const char *name)
+{
 	unsigned int i;
 
-	for (i = 0; (service = all_services[i]) != NULL; ++i) {
-		if (!strcmp(service->name, name))
+	for (i = 0; i < __NI_IFTYPE_MAX; ++i) {
+		const ni_dbus_service_t *service = ni_objectmodel_link_services[i];
+
+		if (service && !strcmp(service->name, name))
 			return service;
 	}
-
 	return NULL;
 }
 
@@ -153,28 +223,16 @@ __ni_dbus_netif_create(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
-	static const ni_dbus_service_t *all_services[] = {
-		&wicked_dbus_ethernet_service,
-		&wicked_dbus_vlan_service,
-		&wicked_dbus_bridge_service,
-		&wicked_dbus_bond_service,
-		NULL
-	};
 	const char *interface_name, *object_path;
 	const ni_dbus_service_t *service;
 	ni_dbus_object_t *result;
 	DBusMessageIter iter;
-	unsigned int i;
 
 	NI_TRACE_ENTER();
 	if (!ni_dbus_variant_get_string(&argv[0], &interface_name))
 		goto bad_args;
 
-	for (i = 0; (service = all_services[i]) != NULL; ++i) {
-		if (!strcmp(interface_name, service->name))
-			break;
-	}
-
+	service = ni_objectmodel_link_layer_service_by_name(interface_name);
 	if (service == NULL) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
 			"Unknown dbus interface %s", interface_name);
