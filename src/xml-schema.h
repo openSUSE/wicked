@@ -197,12 +197,29 @@ struct ni_xs_type {
 	} u;
 };
 
+typedef struct ni_xs_method	ni_xs_method_t;
+struct ni_xs_method {
+	ni_xs_method_t *	next;
+	char *			name;
+	ni_xs_name_type_array_t	arguments;
+};
+
+typedef struct ni_xs_service	ni_xs_service_t;
+struct ni_xs_service {
+	ni_xs_service_t *	next;
+	char *			name;
+	char *			interface;
+	ni_xs_method_t *	methods;
+};
+
 struct ni_xs_scope {
 	ni_xs_scope_t *		parent;
 	ni_xs_scope_t *		next;
 
 	char *			name;
 	ni_xs_name_type_array_t	types;
+	ni_xs_service_t *	services;
+
 	ni_xs_scope_t *		children;
 };
 
