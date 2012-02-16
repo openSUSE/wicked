@@ -374,7 +374,7 @@ ni_objectmodel_netif_destroy(ni_dbus_object_t *object)
 }
 
 static ni_dbus_method_t		wicked_dbus_interface_methods[] = {
-	{ "linkUp",		"",			__wicked_dbus_interface_link_change },
+	{ "linkChange",		"",			__wicked_dbus_interface_link_change },
 	{ "down",		"",			__wicked_dbus_interface_down },
 #if 0
 	{ "addAddress",		"a{sv}",		__wicked_dbus_interface_add_address },

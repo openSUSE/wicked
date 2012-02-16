@@ -186,7 +186,7 @@
     </arguments>
   </method>
 
-  <method name="networkUp">
+  <method name="networkChange">
     <arguments>
       <!-- to be defined -->
     </arguments>
@@ -195,14 +195,13 @@
     </return>
   </method>
 
-  <method name="networkDown">
-    <arguments>
-      <!-- to be defined -->
-    </arguments>
-    <return>
-      <network-interface:state-bits/>
-    </return>
-  </method>
+
+  <!-- Signals emitted by this interface -->
+  <signal name="linkUp" />
+  <signal name="linkDown" />
+  <signal name="networkUp" />
+  <signal name="networkDown" />
+  <signal name="addressLost" />
 
 </service>
 
