@@ -50,6 +50,8 @@ typedef struct ni_opaque {
 	size_t		len;
 } ni_opaque_t;
 
+#define NI_OPAQUE_INIT	{ .len = 0 }
+
 typedef struct ni_bitfield {
 	unsigned int	size;
 	uint32_t *	field;

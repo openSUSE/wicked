@@ -69,6 +69,8 @@ typedef struct xml_reader {
 
 	xml_parser_state_t	state;
 	unsigned int		lineCount;
+
+	struct xml_location_shared *shared_location;
 } xml_reader_t;
 
 static xml_document_t *	xml_process_document(xml_reader_t *);
@@ -84,6 +86,8 @@ static void		xml_skip_space(xml_reader_t *, ni_stringbuf_t *);
 static void		xml_parse_error(xml_reader_t *, const char *, ...);
 static const char *	xml_parser_state_name(xml_parser_state_t);
 static const char *	xml_token_name(xml_token_type_t token);
+
+static struct xml_location *xml_location_new(struct xml_location_shared *, unsigned int);
 
 #ifdef XMLDEBUG_PARSER
 static void		xml_debug(const char *, ...);
@@ -142,12 +146,17 @@ xml_document_t *
 xml_process_document(xml_reader_t *xr)
 {
 	xml_document_t *doc;
+	xml_node_t *root;
 
 	doc = xml_document_new();
 
+	root = xml_document_root(doc);
+	if (xr->shared_location)
+		root->location = xml_location_new(xr->shared_location, xr->lineCount);
+
 	/* Note! We do not deal with properly formatted XML documents here.
 	 * Specifically, we do not expect them to have a document header. */
-	if (!xml_process_element_nested(xr, xml_document_root(doc), 0)) {
+	if (!xml_process_element_nested(xr, root, 0)) {
 		xml_document_free(doc);
 		return NULL;
 	}
@@ -162,6 +171,9 @@ xml_node_scan(FILE *fp)
 
 	if (!xml_reader_init_file(&reader, fp))
 		return NULL;
+
+	if (reader.shared_location)
+		root->location = xml_location_new(reader.shared_location, reader.lineCount);
 
 	/* Note! We do not deal with properly formatted XML documents here.
 	 * Specifically, we do not expect them to have a document header. */
@@ -248,6 +260,8 @@ xml_process_element_nested(xml_reader_t *xr, xml_node_t *cur, unsigned int nesti
 			}
 
 			child = xml_node_new(identifier.string, cur);
+			if (xr->shared_location)
+				child->location = xml_location_new(xr->shared_location, xr->lineCount);
 
 			token = xml_get_tag_attributes(xr, child);
 			if (token == None) {
@@ -303,6 +317,8 @@ xml_process_element_nested(xml_reader_t *xr, xml_node_t *cur, unsigned int nesti
 			}
 
 			child = xml_node_new(identifier.string, NULL);
+			if (xr->shared_location)
+				child->location = xml_location_new(xr->shared_location, xr->lineCount);
 
 			token = xml_get_tag_attributes(xr, child);
 			if (token == None) {
@@ -793,6 +809,66 @@ xml_debug(const char *fmt, ...)
 #endif
 
 /*
+ * Location handling
+ */
+const char *
+xml_node_location(const xml_node_t *node)
+{
+	static char buffer[256];
+
+	if (node->location) {
+		snprintf(buffer, sizeof(buffer), "%s:%u",
+				node->location->shared->filename,
+				node->location->line);
+		return buffer;
+	}
+
+	return "<orphan xml node>";
+}
+
+struct xml_location_shared *
+xml_location_shared_new(const char *filename)
+{
+	struct xml_location_shared *shared_location;
+
+	shared_location = xcalloc(1, sizeof(*shared_location));
+	shared_location->filename = strdup(filename);
+	shared_location->refcount = 1;
+
+	return shared_location;
+}
+
+static inline void
+xml_location_shared_release(struct xml_location_shared *sl)
+{
+	ni_assert(sl->refcount);
+	if (--(sl->refcount) == 0) {
+		free(sl->filename);
+		free(sl);
+	}
+}
+
+struct xml_location *
+xml_location_new(struct xml_location_shared *shared_location, unsigned int line)
+{
+	struct xml_location *location;
+
+	shared_location->refcount++;
+	location = xcalloc(1, sizeof(*location));
+	location->shared = shared_location;
+	location->line = line;
+
+	return location;
+}
+
+void
+xml_location_free(struct xml_location *loc)
+{
+	xml_location_shared_release(loc->shared);
+	free(loc);
+}
+
+/*
  * XML Reader object
  */
 static int
@@ -810,6 +886,7 @@ xml_reader_open(xml_reader_t *xr, const char *filename)
 	xr->buffer = malloc(XML_READER_BUFSZ);
 	xr->state = Initial;
 	xr->lineCount = 1;
+	xr->shared_location = xml_location_shared_new(filename);
 	return 1;
 }
 
@@ -824,6 +901,7 @@ xml_reader_init_file(xml_reader_t *xr, FILE *fp)
 	xr->buffer = malloc(XML_READER_BUFSZ);
 	xr->state = Initial;
 	xr->lineCount = 1;
+	xr->shared_location = xml_location_shared_new("<stdin>");
 	return 1;
 }
 
@@ -840,6 +918,11 @@ xml_reader_destroy(xml_reader_t *xr)
 	}
 	free(xr->buffer);
 	xr->buffer = NULL;
+
+	if (xr->shared_location) {
+		xml_location_shared_release(xr->shared_location);
+		xr->shared_location = NULL;
+	}
 	return rv;
 }
 

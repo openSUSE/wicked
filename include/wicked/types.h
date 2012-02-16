@@ -38,6 +38,8 @@ typedef struct xpath_format xpath_format_t;
 typedef struct xpath_enode xpath_enode_t;
 typedef struct xml_document xml_document_t;
 typedef struct xml_node xml_node_t;
+typedef struct ni_xs_type	ni_xs_type_t;
+typedef struct ni_xs_type_dict	ni_xs_type_dict_t;
 
 typedef struct xpath_format_array {
 	unsigned int		count;

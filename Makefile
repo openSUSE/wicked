@@ -46,6 +46,7 @@ __LIBSRCS= \
 	  xml.c \
 	  xml-reader.c \
 	  xml-writer.c \
+	  xml-schema.c \
 	  xpath.c \
 	  xpath-fmt.c \
 	  buffer.c \
@@ -62,6 +63,7 @@ __LIBSRCS= \
 	  dbus-common.c \
 	  dbus-connection.c \
 	  dbus-dict.c \
+	  dbus-xml.c \
 	  dbus-server.c \
 	  dbus-object.c \
 	  dbus-objects/model.c \

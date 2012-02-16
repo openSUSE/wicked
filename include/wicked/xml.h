@@ -33,6 +33,16 @@ struct xml_document {
 	struct xml_node *	root;
 };
 
+struct xml_location_shared {
+	unsigned int		refcount;
+	char *			filename;
+};
+
+struct xml_location {
+	struct xml_location_shared *shared;
+	unsigned int		line;
+};
+
 struct xml_node {
 	struct xml_node *	next;
 
@@ -44,6 +54,8 @@ struct xml_node {
 
 	ni_var_array_t		attrs;
 	struct xml_node *	children;
+
+	struct xml_location *	location;
 };
 
 extern xml_document_t *	xml_document_read(const char *);
@@ -84,5 +96,9 @@ extern int		xml_node_delete_child(xml_node_t *, const char *);
 extern int		xml_node_delete_child_node(xml_node_t *, xml_node_t *);
 
 extern int		xml_node_match_attrs(const xml_node_t *, const ni_var_array_t *);
+
+extern const char *	xml_node_location(const xml_node_t *);
+extern void		xml_location_free(struct xml_location *);
+
 
 #endif /* __WICKED_XML_H__ */

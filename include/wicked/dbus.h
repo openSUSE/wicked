@@ -263,6 +263,8 @@ extern dbus_bool_t		ni_dbus_variant_is_variant_array(const ni_dbus_variant_t *);
 extern dbus_bool_t		ni_dbus_variant_is_dict_array(const ni_dbus_variant_t *);
 extern dbus_bool_t		ni_dbus_variant_is_dict(const ni_dbus_variant_t *);
 
+extern dbus_bool_t		ni_dbus_variant_array_parse_and_append_string(ni_dbus_variant_t *, const char *);
+
 /* handle dicts */
 extern void			ni_dbus_variant_init_dict(ni_dbus_variant_t *);
 extern dbus_bool_t		ni_dbus_dict_add_entry(ni_dbus_variant_t *, const ni_dbus_dict_entry_t *);
@@ -371,6 +373,7 @@ extern ni_dbus_message_t *	ni_dbus_object_call_new(const ni_dbus_object_t *, con
 extern ni_dbus_message_t *	ni_dbus_object_call_new_va(const ni_dbus_object_t *obj,
 					const char *method, va_list *app);
 
+extern ni_xs_type_dict_t *	ni_dbus_xml_init(void);
 
 extern unsigned int		__ni_dbus_variant_offsets[256];
 

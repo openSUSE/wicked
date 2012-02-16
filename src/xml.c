@@ -144,6 +144,9 @@ xml_node_free(xml_node_t *node)
 		xml_node_free(child);
 	}
 
+	if (node->location)
+		xml_location_free(node->location);
+
 	ni_var_array_destroy(&node->attrs);
 	free(node->cdata);
 	free(node->name);

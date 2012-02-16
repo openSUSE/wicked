@@ -13,8 +13,10 @@
 #include <wicked/netinfo.h>
 #include <wicked/addrconf.h>
 #include <wicked/xpath.h>
+#include <wicked/dbus.h>
 #include "netinfo_priv.h"
 #include "config.h"
+#include "xml-schema.h"
 
 static int		ni_config_parse_addrconf_dhcp(struct ni_config_dhcp *, xml_node_t *);
 static int		ni_config_parse_afinfo(ni_afinfo_t *, const char *, xml_node_t *);
@@ -96,6 +98,29 @@ ni_config_parse(const char *filename)
 
 		if ((attrval = xml_node_get_attr(child, "name")) != NULL)
 			ni_string_dup(&conf->dbus_name, attrval);
+	}
+
+	child = xml_node_get_child(node, "schema");
+	if (child && child->cdata) {
+		xml_document_t *schema_doc;
+		ni_xs_type_dict_t *schema_dict;
+
+		schema_doc = xml_document_read(child->cdata);
+		if (schema_doc == NULL) {
+			ni_error("cannot parse schema file \"%s\"", child->cdata);
+			goto failed;
+		}
+
+		schema_dict = ni_dbus_xml_init();
+		if (ni_xs_process_schema(schema_doc->root, schema_dict) < 0) {
+			ni_error("invalid schema xml for schema file \"%s\"", child->cdata);
+			ni_xs_typedict_free(schema_dict);
+			goto failed;
+		}
+
+		xml_document_free(schema_doc);
+
+		// conf->schema = schema_dict
 	}
 
 	child = xml_node_get_child(node, "addrconf");

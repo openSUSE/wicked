@@ -910,6 +910,111 @@ ni_dbus_variant_parse(ni_dbus_variant_t *var,
 	return FALSE;
 }
 
+/*
+ * Append any type of data to an array of scalars.
+ */
+static inline size_t
+ni_dbus_type_size(unsigned int dbus_type)
+{
+	static size_t	type_size[256] = {
+	[DBUS_TYPE_STRING]	= sizeof(char *),
+	[DBUS_TYPE_OBJECT_PATH]	= sizeof(char *),
+	[DBUS_TYPE_BYTE]	= sizeof(unsigned char),
+	[DBUS_TYPE_BOOLEAN]	= sizeof(unsigned char),
+	[DBUS_TYPE_INT16]	= sizeof(int16_t),
+	[DBUS_TYPE_UINT16]	= sizeof(int16_t),
+	[DBUS_TYPE_INT32]	= sizeof(int32_t),
+	[DBUS_TYPE_UINT32]	= sizeof(int32_t),
+	[DBUS_TYPE_INT64]	= sizeof(int64_t),
+	[DBUS_TYPE_UINT64]	= sizeof(int64_t),
+	[DBUS_TYPE_DOUBLE]	= sizeof(double),
+	};
+
+	if (dbus_type >= 256)
+		return 0;
+	return type_size[dbus_type];
+}
+
+dbus_bool_t
+ni_dbus_variant_array_parse_and_append_string(ni_dbus_variant_t *var, const char *string_value)
+{
+	unsigned int scalar_type;
+	unsigned int element_size;
+	unsigned int index;
+	char *ep = NULL;
+
+	if (var->type != DBUS_TYPE_ARRAY)
+		return FALSE;
+	if (var->array.element_type == 0)
+		return FALSE;
+	scalar_type = var->array.element_type;
+
+	element_size = ni_dbus_type_size(scalar_type);
+	if (!element_size)
+		return FALSE;
+
+	__ni_dbus_array_grow(var, element_size, 1);
+	index = var->array.len;
+
+	switch (scalar_type) {
+	case DBUS_TYPE_STRING:
+	case DBUS_TYPE_OBJECT_PATH:
+		ni_string_dup(&var->string_array_value[index], string_value);
+		break;
+
+	case DBUS_TYPE_BYTE:
+		var->byte_array_value[index] = strtoul(string_value, &ep, 0);
+		break;
+
+#ifdef notyet
+	case DBUS_TYPE_BOOLEAN:
+		if (!strcmp(string_value, "true"))
+			var->bool_array_value[index] = 1;
+		else if (!strcmp(string_value, "false"))
+			var->bool_array_value[index] = 1;
+		else
+			var->bool_array_value[index] = strtoul(string_value, &ep, 0);
+		break;
+
+	case DBUS_TYPE_INT16:
+		var->int16_array_value[index] = strtol(string_value, &ep, 0);
+		break;
+
+	case DBUS_TYPE_UINT16:
+		var->uint16_array_value[index] = strtoul(string_value, &ep, 0);
+		break;
+
+	case DBUS_TYPE_INT32:
+		var->int32_array_value[index] = strtol(string_value, &ep, 0);
+		break;
+
+	case DBUS_TYPE_UINT32:
+		var->uint32_array_value[index] = strtoul(string_value, &ep, 0);
+		break;
+
+	case DBUS_TYPE_INT64:
+		var->int64_array_value[index] = strtoll(string_value, &ep, 0);
+		break;
+
+	case DBUS_TYPE_UINT64:
+		var->uint64_array_value[index] = strtoull(string_value, &ep, 0);
+		break;
+
+	case DBUS_TYPE_DOUBLE:
+		var->double_array_value[index] = strtod(string_value, &ep);
+		break;
+#endif
+
+	default:
+		return FALSE;
+	}
+
+	if (ep && *ep)
+		return FALSE;
+
+	return TRUE;
+}
+
 const char *
 ni_dbus_variant_signature(const ni_dbus_variant_t *var)
 {
