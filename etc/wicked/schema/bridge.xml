@@ -31,6 +31,10 @@
     <!-- add more status information to this -->
   </define>
 
+  <method name="deleteLink">
+    <!-- no arguments, no return code -->
+  </method>
+
   <method name="addPort">
     <arguments>
       <port type="port"/>
