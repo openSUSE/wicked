@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <wicked/util.h>
 #include <wicked/logging.h>
+#include <wicked/dbus-errors.h>
 #include "dbus-server.h"
 #include "dbus-object.h"
 #include "dbus-dict.h"
@@ -636,7 +637,7 @@ __ni_dbus_object_get_properties_as_dict(const ni_dbus_object_t *object,
 
 	/* Loop over properties and add them here */
 	for (property = properties; property->name; ++property) {
-		ni_dbus_variant_t *var;
+		ni_dbus_variant_t value = NI_DBUS_VARIANT_INIT, *var;
 
 		if (property->signature == NULL)
 			continue;
@@ -664,9 +665,17 @@ __ni_dbus_object_get_properties_as_dict(const ni_dbus_object_t *object,
 		if (property->get == NULL)
 			continue;
 
-		var = ni_dbus_dict_add(dict, property->name);
-		if (!__ni_dbus_object_get_one_property(object, context, property, var, error)) {
-			/* just ignore this error */
+		if (__ni_dbus_object_get_one_property(object, context, property, &value, error)) {
+			var = ni_dbus_dict_add(dict, property->name);
+			*var = value;
+		} else {
+			ni_dbus_variant_destroy(&value);
+			if (error->name && !strcmp(error->name, NI_DBUS_ERROR_PROPERTY_NOT_PRESENT)) {
+				/* just ignore this error */
+				dbus_error_free(error);
+			} else {
+				return FALSE;
+			}
 		}
 	}
 
