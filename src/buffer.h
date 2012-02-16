@@ -11,6 +11,8 @@
 
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
+#include <wicked/types.h>
 #include "util_priv.h"
 
 struct ni_buffer {
@@ -185,5 +187,7 @@ ni_buffer_pull_head(ni_buffer_t *bp, size_t count)
 	bp->head += count;
 	return result;
 }
+
+extern void		ni_buffer_ensure_tailroom(ni_buffer_t *, unsigned int);
 
 #endif /* __WICKED_DHCP_BUFFER_H__ */

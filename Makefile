@@ -48,6 +48,7 @@ __LIBSRCS= \
 	  xml-writer.c \
 	  xpath.c \
 	  xpath-fmt.c \
+	  buffer.c \
 	  util.c \
 	  socket.c \
 	  timer.c \
