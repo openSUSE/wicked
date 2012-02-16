@@ -1,7 +1,7 @@
 /*
- * dbus encapsulation for network interfaces
+ * DBus encapsulation for network interfaces
  *
- * Copyright (C) 2011 Olaf Kirch <okir@suse.de>
+ * Copyright (C) 2011-2012 Olaf Kirch <okir@suse.de>
  */
 
 #include <sys/poll.h>
@@ -37,7 +37,7 @@ static ni_dbus_class_t		ni_objectmodel_ifreq_class = {
 static const ni_dbus_class_t	ni_objectmodel_netif_list_class;
 static ni_dbus_service_t	ni_objectmodel_netif_list_service;
 static ni_dbus_service_t	ni_objectmodel_netif_service;
-extern const ni_dbus_service_t	wicked_dbus_interface_request_service; /* XXX */
+static ni_dbus_property_t	ni_objectmodel_netif_request_properties[];
 
 /*
  * For all link layer types, create a dbus object class named "netif-$linktype".
@@ -313,14 +313,51 @@ get_properties_from_dict(const ni_dbus_service_t *service, void *handle, const n
 	dummy.class = service->compatible;
 	dummy.handle = handle;
 
-	/* Extract configuration from dict */
 	if (!ni_dbus_object_set_properties_from_dict(&dummy, service, dict)) {
-		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-				"Cannot extract argument from property dict");
+		if (error)
+			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "Cannot extract argument from property dict");
 		return FALSE;
 	}
 
 	return TRUE;
+}
+
+static dbus_bool_t
+put_properties_to_dict(const ni_dbus_service_t *service, const void *handle, ni_dbus_variant_t *dict, DBusError *error)
+{
+	ni_dbus_object_t dummy;
+
+	memset(&dummy, 0, sizeof(dummy));
+	dummy.class = service->compatible;
+	dummy.handle = (void *) handle;
+
+	ni_dbus_variant_init_dict(dict);
+	if (!ni_dbus_object_get_properties_as_dict(&dummy, service, dict)) {
+		if (error)
+			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "Cannot encode argument as property dict");
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+static ni_dbus_service_t	ni_objectmodel_netifreq_service = {
+	.name		= WICKED_DBUS_NETIF_INTERFACE "Request",
+	.compatible	= &ni_objectmodel_ifreq_class,
+	.properties	= ni_objectmodel_netif_request_properties,
+};
+
+
+dbus_bool_t
+ni_objectmodel_marshal_interface_request(const ni_interface_request_t *req, ni_dbus_variant_t *dict, DBusError *error)
+{
+	return put_properties_to_dict(&ni_objectmodel_netifreq_service, req, dict, error);
+}
+
+dbus_bool_t
+ni_objectmodel_unmarshal_interface_request(ni_interface_request_t *req, const ni_dbus_variant_t *dict, DBusError *error)
+{
+	return get_properties_from_dict(&ni_objectmodel_netifreq_service, req, dict, error);
 }
 
 /*
@@ -333,7 +370,7 @@ get_properties_from_dict(const ni_dbus_service_t *service, void *handle, const n
  * The options dictionary contains interface properties.
  */
 static dbus_bool_t
-__wicked_dbus_interface_link_change(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+ni_objectmodel_netif_link_change(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
@@ -350,20 +387,24 @@ __wicked_dbus_interface_link_change(ni_dbus_object_t *object, const ni_dbus_meth
 
 	/* Create an interface_request object and extract configuration from dict */
 	req = ni_interface_request_new();
-	if (!get_properties_from_dict(&wicked_dbus_interface_request_service, req, &argv[0], error))
+	if (!ni_objectmodel_unmarshal_interface_request(req, &argv[0], error))
 		goto failed;
 
+	ni_debug_dbus("%s(status=0x%x, mtu=%u)", method->name, req->ifflags, req->mtu);
 	if ((rv = ni_system_interface_link_change(nc, dev, req)) < 0) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
 				"Cannot configure interface %s: %s", dev->name,
 				ni_strerror(rv));
-		goto failed;
+	} else {
+		ni_dbus_variant_t result = NI_DBUS_VARIANT_INIT;
+
+		ni_dbus_variant_set_uint32(&result, dev->link.ifflags);
+		ret = ni_dbus_message_serialize_variants(reply, 1, &result, error);
+		ni_dbus_variant_destroy(&result);
+
+		if (ni_interface_link_is_up(dev))
+			__ni_objectmodel_interface_event(NULL, object, NI_EVENT_LINK_UP);
 	}
-
-	if (ni_interface_link_is_up(dev))
-		__ni_objectmodel_interface_event(NULL, object, NI_EVENT_LINK_UP);
-
-	ret = TRUE;
 
 failed:
 	if (req)
@@ -430,7 +471,7 @@ __ni_objectmodel_interface_event(ni_dbus_server_t *server, ni_dbus_object_t *obj
  * The options dictionary contains interface properties.
  */
 static dbus_bool_t
-__wicked_dbus_interface_down(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+ni_objectmodel_netif_link_down(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
@@ -472,9 +513,9 @@ ni_objectmodel_netif_destroy(ni_dbus_object_t *object)
 	ni_interface_put(ifp);
 }
 
-static ni_dbus_method_t		wicked_dbus_interface_methods[] = {
-	{ "linkChange",		"",			__wicked_dbus_interface_link_change },
-	{ "down",		"",			__wicked_dbus_interface_down },
+static ni_dbus_method_t		ni_objectmodel_netif_methods[] = {
+	{ "linkChange",		"a{sv}",		ni_objectmodel_netif_link_change },
+	{ "down",		"",			ni_objectmodel_netif_link_down },
 #if 0
 	{ "addAddress",		"a{sv}",		__wicked_dbus_interface_add_address },
 	{ "removeAddress",	"a{sv}",		__wicked_dbus_interface_remove_address },
@@ -502,7 +543,10 @@ __wicked_dbus_interface_get_hwaddr(const ni_dbus_object_t *object,
 				ni_dbus_variant_t *result,
 				DBusError *error)
 {
-	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
+	ni_interface_t *ifp;
+
+	if (!(ifp = ni_objectmodel_get_interface(object, error)))
+		return FALSE;
 
 	ni_dbus_variant_set_byte_array(result, ifp->link.hwaddr.data, ifp->link.hwaddr.len);
 	return TRUE;
@@ -514,8 +558,11 @@ __wicked_dbus_interface_set_hwaddr(ni_dbus_object_t *object,
 				const ni_dbus_variant_t *argument,
 				DBusError *error)
 {
-	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
+	ni_interface_t *ifp;
 	unsigned int addrlen;
+
+	if (!(ifp = ni_objectmodel_get_interface(object, error)))
+		return FALSE;
 
 	ifp->link.hwaddr.type = ifp->link.type;
 	if (!ni_dbus_variant_get_byte_array_minmax(argument,
@@ -676,7 +723,7 @@ __wicked_dbus_interface_set_ipv6(ni_dbus_object_t *object,
 # define NI_DBUS_BYTE_ARRAY_SIGNATURE DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING
 #endif
 
-static ni_dbus_property_t	wicked_dbus_interface_properties[] = {
+static ni_dbus_property_t	ni_objectmodel_netif_properties[] = {
 	INTERFACE_STRING_PROPERTY(name, name, RO),
 	INTERFACE_UINT_PROPERTY(index, link.ifindex, RO),
 	INTERFACE_UINT_PROPERTY(status, link.ifflags, RO),
@@ -700,8 +747,8 @@ static ni_dbus_property_t	wicked_dbus_interface_properties[] = {
 static ni_dbus_service_t	ni_objectmodel_netif_service = {
 	.name		= WICKED_DBUS_NETIF_INTERFACE,
 	.compatible	= &ni_objectmodel_netif_class,
-	.methods	= wicked_dbus_interface_methods,
-	.properties	= wicked_dbus_interface_properties,
+	.methods	= ni_objectmodel_netif_methods,
+	.properties	= ni_objectmodel_netif_properties,
 };
 
 /*
@@ -895,7 +942,7 @@ __wicked_dbus_interface_request_set_ipv6(ni_dbus_object_t *object,
 #define INTERFACE_REQUEST_PROPERTY_SIGNATURE(signature, __name, rw) \
 	__NI_DBUS_PROPERTY(signature, __name, __wicked_dbus_interface_request, rw)
 
-static ni_dbus_property_t	wicked_dbus_interface_request_properties[] = {
+static ni_dbus_property_t	ni_objectmodel_netif_request_properties[] = {
 	INTERFACE_REQUEST_UINT_PROPERTY(status, ifflags, RO),
 	INTERFACE_REQUEST_UINT_PROPERTY(mtu, mtu, RO),
 	INTERFACE_REQUEST_UINT_PROPERTY(metric, metric, RO),
@@ -907,10 +954,3 @@ static ni_dbus_property_t	wicked_dbus_interface_request_properties[] = {
 	{ NULL }
 };
 
-#define WICKED_DBUS_NETIF_REQUEST_INTERFACE WICKED_DBUS_NETIF_INTERFACE "Request"
-
-const ni_dbus_service_t	wicked_dbus_interface_request_service = {
-	.name		= WICKED_DBUS_NETIF_REQUEST_INTERFACE,
-	.compatible	= &ni_objectmodel_ifreq_class,
-	.properties	= wicked_dbus_interface_request_properties,
-};
