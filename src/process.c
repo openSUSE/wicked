@@ -23,10 +23,10 @@ static const ni_string_array_t *	__ni_default_environment(void);
 /*
  * Create a process description
  */
-ni_process_t *
-ni_process_new(const char *command)
+ni_shellcmd_t *
+ni_shellcmd_new(const char *command)
 {
-	ni_process_t *proc;
+	ni_shellcmd_t *proc;
 
 	proc = calloc(1, sizeof(*proc));
 	ni_string_dup(&proc->command, command);
@@ -37,7 +37,7 @@ ni_process_new(const char *command)
 }
 
 void
-ni_process_free(ni_process_t *proc)
+ni_shellcmd_free(ni_shellcmd_t *proc)
 {
 	ni_assert(proc->refcount == 0);
 	ni_string_array_destroy(&proc->environ);
@@ -46,13 +46,13 @@ ni_process_free(ni_process_t *proc)
 }
 
 ni_process_instance_t *
-ni_process_instance_new(ni_process_t *proc)
+ni_process_instance_new(ni_shellcmd_t *proc)
 {
 	ni_process_instance_t *pi;
 	char *cmd, *s;
 
 	pi = calloc(1, sizeof(*pi));
-	pi->process = ni_process_hold(proc);
+	pi->process = ni_shellcmd_hold(proc);
 
 	cmd = strdup(proc->command);
 	for (s = strtok(cmd, " \t"); s; s = strtok(NULL, " \t"))
@@ -80,7 +80,7 @@ ni_process_instance_free(ni_process_instance_t *pi)
 
 	ni_string_array_destroy(&pi->argv);
 	ni_string_array_destroy(&pi->environ);
-	ni_process_release(pi->process);
+	ni_shellcmd_release(pi->process);
 	free(pi);
 }
 
@@ -113,7 +113,7 @@ __ni_process_setenv(ni_string_array_t *env, const char *name, const char *value)
 }
 
 void
-ni_process_setenv(ni_process_t *proc, const char *name, const char *value)
+ni_shellcmd_setenv(ni_shellcmd_t *proc, const char *name, const char *value)
 {
 	__ni_process_setenv(&proc->environ, name, value);
 }

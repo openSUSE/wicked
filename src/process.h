@@ -12,7 +12,7 @@
 #include <wicked/util.h>
 
 /* FIXME: rename to ni_shellcmd */
-struct ni_process {
+struct ni_shellcmd {
 	unsigned int		refcount;
 
 	char *			command;
@@ -23,7 +23,7 @@ struct ni_process {
 
 /* FIXME: rename to ni_process */
 struct ni_process_instance {
-	ni_process_t *		process;
+	ni_shellcmd_t *		process;
 
 	pid_t			pid;
 	int			status;
@@ -36,18 +36,18 @@ struct ni_process_instance {
 	void *			user_data;
 };
 
-extern ni_process_t *		ni_process_new(const char *);
-extern ni_process_instance_t *	ni_process_instance_new(ni_process_t *);
+extern ni_shellcmd_t *		ni_shellcmd_new(const char *);
+extern ni_process_instance_t *	ni_process_instance_new(ni_shellcmd_t *);
 extern int			ni_process_instance_run(ni_process_instance_t *);
 extern int			ni_process_instance_run_and_wait(ni_process_instance_t *);
 extern void			ni_process_instance_setenv(ni_process_instance_t *, const char *, const char *);
 extern const char *		ni_process_instance_getenv(const ni_process_instance_t *, const char *);
 extern void			ni_process_instance_free(ni_process_instance_t *);
 extern int			ni_process_exit_status_okay(const ni_process_instance_t *);
-extern void			ni_process_free(ni_process_t *);
+extern void			ni_shellcmd_free(ni_shellcmd_t *);
 
-static inline ni_process_t *
-ni_process_hold(ni_process_t *proc)
+static inline ni_shellcmd_t *
+ni_shellcmd_hold(ni_shellcmd_t *proc)
 {
 	ni_assert(proc->refcount);
 	proc->refcount++;
@@ -55,11 +55,11 @@ ni_process_hold(ni_process_t *proc)
 }
 
 static inline void
-ni_process_release(ni_process_t *proc)
+ni_shellcmd_release(ni_shellcmd_t *proc)
 {
 	ni_assert(proc->refcount);
 	if (--(proc->refcount) == 0)
-		ni_process_free(proc);
+		ni_shellcmd_free(proc);
 }
 
 #endif /* __WICKED_PROCESS_H__ */

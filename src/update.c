@@ -31,9 +31,9 @@ typedef struct ni_updater {
 	unsigned int			have_backup;
 
 	ni_bool_t			enabled;
-	ni_process_t *			proc_backup;
-	ni_process_t *			proc_restore;
-	ni_process_t *			proc_install;
+	ni_shellcmd_t *			proc_backup;
+	ni_shellcmd_t *			proc_restore;
+	ni_shellcmd_t *			proc_install;
 } ni_updater_t;
 
 static ni_updater_t			updaters[__NI_ADDRCONF_UPDATE_MAX];
@@ -166,12 +166,12 @@ ni_objectmodel_updater_select_source(ni_updater_t *updater)
  * Run an extension script to update resolver, hostname etc.
  */
 static ni_bool_t
-ni_system_updater_run(ni_process_t *proc, const char *filename)
+ni_system_updater_run(ni_shellcmd_t *shellcmd, const char *filename)
 {
 	ni_process_instance_t *pi;
 	int rv;
 
-	pi = ni_process_instance_new(proc);
+	pi = ni_process_instance_new(shellcmd);
 
 	rv = ni_process_instance_run_and_wait(pi);
 	ni_process_instance_free(pi);

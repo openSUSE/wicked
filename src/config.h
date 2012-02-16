@@ -17,7 +17,7 @@
 struct ni_script_action {
 	ni_script_action_t *	next;
 	char *			name;
-	ni_process_t *		process;
+	ni_shellcmd_t *		process;
 };
 
 typedef struct ni_c_binding ni_c_binding_t;
@@ -113,8 +113,8 @@ extern void		ni_extension_free(ni_extension_t *);
 extern void		ni_c_binding_free(ni_c_binding_t *);
 extern void *		ni_c_binding_get_address(const ni_c_binding_t *);
 
-extern ni_process_t *	ni_extension_script_new(ni_extension_t *, const char *name, const char *command);
-extern ni_process_t *	ni_extension_script_find(ni_extension_t *, const char *);
+extern ni_shellcmd_t *	ni_extension_script_new(ni_extension_t *, const char *name, const char *command);
+extern ni_shellcmd_t *	ni_extension_script_find(ni_extension_t *, const char *);
 extern const ni_c_binding_t *ni_extension_find_c_binding(const ni_extension_t *, const char *name);
 
 typedef struct ni_global {

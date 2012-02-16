@@ -136,22 +136,22 @@ __ni_script_action_free(ni_script_action_t *script)
 {
 	ni_string_free(&script->name);
 	if (script->process)
-		ni_process_release(script->process);
+		ni_shellcmd_release(script->process);
 	free(script);
 }
 
-ni_process_t *
+ni_shellcmd_t *
 ni_extension_script_new(ni_extension_t *extension, const char *name, const char *command)
 {
 	ni_script_action_t *script;
 
 	script = __ni_script_action_new(name, &extension->actions);
-	script->process = ni_process_new(command);
+	script->process = ni_shellcmd_new(command);
 
 	return script->process;
 }
 
-ni_process_t *
+ni_shellcmd_t *
 ni_extension_script_find(ni_extension_t *extension, const char *name)
 {
 	ni_script_action_t *script;

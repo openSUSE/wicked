@@ -275,7 +275,7 @@ ni_config_parse_extensions(ni_extension_t **list, xml_node_t *node)
 		for (child = node->children; child; child = child->next) {
 			if (!strcmp(child->name, "action")) {
 				const char *name, *command;
-				ni_process_t *process;
+				ni_shellcmd_t *process;
 
 				if (!(name = xml_node_get_attr(child, "name"))) {
 					ni_error("action element without name attribute");

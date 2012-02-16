@@ -336,7 +336,7 @@ ni_objectmodel_extension_call(ni_dbus_connection_t *connection,
 	DBusError error = DBUS_ERROR_INIT;
 	const char *interface = dbus_message_get_interface(call);
 	ni_extension_t *extension;
-	ni_process_t *command;
+	ni_shellcmd_t *command;
 	ni_process_instance_t *process;
 	char *tempname = NULL;
 
