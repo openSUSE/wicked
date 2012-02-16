@@ -188,6 +188,12 @@ ni_dbus_message_iter_append_value(DBusMessageIter *iter, const ni_dbus_variant_t
 
 	value = ni_dbus_variant_datum_const_ptr(variant);
 	if (value != NULL) {
+		const char *empty = "";
+
+		if (!strcmp(signature, DBUS_TYPE_STRING_AS_STRING) && !*(const char **) value) {
+			ni_warn("%s: translate NULL -> \"\"", __func__);
+			value = &empty;
+		}
 		rv = dbus_message_iter_append_basic(iter_val, variant->type, value);
 	} else
 	if (variant->type == DBUS_TYPE_ARRAY) {
