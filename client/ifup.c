@@ -50,14 +50,6 @@ typedef struct ni_netif_action {
 	ni_netif_action_fn_t *	func;
 } ni_netif_action_t;
 
-/* When we're waiting for an addrconf event, we create
- * an event struct like this: */
-typedef struct ni_netif_wait	ni_netif_wait_t;
-struct ni_netif_wait {
-	ni_netif_wait_t *	next;
-	unsigned int		event_id;
-};
-
 struct ni_ifworker {
 	unsigned int		refcount;
 
@@ -72,7 +64,7 @@ struct ni_ifworker {
 	int			target_state;
 	int			state;
 	int			wait_for_state;
-	ni_netif_wait_t *	wait_for_event;
+	ni_objectmodel_callback_info_t *callbacks;
 	unsigned int		failed		: 1,
 				done		: 1;
 
@@ -137,30 +129,6 @@ ni_ifworker_release(ni_ifworker_t *state)
 {
 	if (--(state->refcount) == 0)
 		ni_ifworker_free(state);
-}
-
-/* Create an event wait object */
-static ni_netif_wait_t *
-ni_netif_wait_new(unsigned int event_id, ni_netif_wait_t **list)
-{
-	ni_netif_wait_t *wait;
-
-	while ((wait = *list) != NULL)
-		list = &wait->next;
-
-	wait = calloc(1, sizeof(*wait));
-	wait->event_id = event_id;
-	*list = wait;
-
-	{
-		static int warned = 0;
-
-		if (!warned)
-			ni_warn("attention, timeout handling not yet implemented");
-		warned = 1;
-	}
-
-	return wait;
 }
 
 static void
@@ -233,6 +201,24 @@ ni_ifworker_array_find(ni_ifworker_array_t *array, const char *ifname)
 }
 
 static ni_ifworker_t *
+ni_ifworker_by_object_path(const char *object_path)
+{
+	unsigned int i;
+
+	if (!object_path)
+		return NULL;
+
+	for (i = 0; i < interface_workers.count; ++i) {
+		ni_ifworker_t *w = interface_workers.data[i];
+
+		if (w->object_path && !strcmp(w->object_path, object_path))
+			return w;
+	}
+
+	return NULL;
+}
+
+static ni_ifworker_t *
 ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *devnode)
 {
 	unsigned int i;
@@ -277,6 +263,39 @@ ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *d
 #endif
 
 	return child;
+}
+
+/* Create an event wait object */
+static void
+ni_ifworker_add_callbacks(ni_ifworker_t *w, ni_objectmodel_callback_info_t *callback_list)
+{
+	ni_objectmodel_callback_info_t **pos, *cb;
+
+	for (pos = &w->callbacks; (cb = *pos) != NULL; pos = &cb->next)
+		;
+	*pos = callback_list;
+
+	{
+		static int warned = 0;
+
+		if (!warned)
+			ni_warn("attention, timeout handling not yet implemented");
+		warned = 1;
+	}
+}
+
+static ni_objectmodel_callback_info_t *
+ni_ifworker_get_callback(ni_ifworker_t *w, const ni_uuid_t *uuid)
+{
+	ni_objectmodel_callback_info_t **pos, *cb;
+
+	for (pos = &w->callbacks; (cb = *pos) != NULL; pos = &cb->next) {
+		if (ni_uuid_equal(&cb->uuid, uuid)) {
+			*pos = cb->next;
+			return cb;
+		}
+	}
+	return NULL;
 }
 
 static unsigned int
@@ -727,8 +746,8 @@ ni_ifworker_do_network_up(ni_ifworker_t *w)
 
 	ni_debug_dbus("%s(%s)", __func__, w->name);
 	for (child = w->config->children; child; child = child->next) {
+		ni_objectmodel_callback_info_t *callback_list = NULL;
 		const ni_dbus_service_t *service;
-		unsigned int event_id = 0;
 
 		/* Addrconf elements are of the form <family:mode>, e.g.
 		 * ipv6:static or ipv4:dhcp */
@@ -747,17 +766,17 @@ ni_ifworker_do_network_up(ni_ifworker_t *w)
 		 * acquisition is in process. When that completes, the server
 		 * will emit a signal (addressConfigured) with the same token.
 		 */
-		if (!wicked_addrconf_xml(w->object, service, child, &event_id)) {
+		if (!wicked_addrconf_xml(w->object, service, child, &callback_list)) {
 			ni_ifworker_fail(w, "address configuration failed (%s)", child->name);
 			return -1;
 		}
 
-		if (event_id) {
+		if (callback_list) {
+			ni_ifworker_add_callbacks(w, callback_list);
 			w->wait_for_state = STATE_NETWORK_UP;
-			ni_netif_wait_new(event_id, &w->wait_for_event);
 		}
 	}
-	if (w->wait_for_event == NULL) {
+	if (w->callbacks == NULL) {
 		ni_debug_dbus("%s: no address configuration; we're done", w->name);
 		w->state = STATE_NETWORK_UP;
 	}
@@ -883,7 +902,7 @@ ni_ifworker_fsm(void)
 				if (w->state == action->next_state) {
 					/* We should not have transitioned to the next state while
 					 * we were still waiting for some event. */
-					ni_assert(w->wait_for_event == NULL);
+					ni_assert(w->callbacks == NULL);
 					ni_debug_dbus("%s: successfully transitioned from %s to %s",
 						w->name,
 						ni_ifworker_name(prev_state),
@@ -928,7 +947,8 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 	const char *signal_name = dbus_message_get_member(msg);
 	const char *object_path = dbus_message_get_path(msg);
 	unsigned int min_state = STATE_NONE, max_state = __STATE_MAX;
-	unsigned int i;
+	ni_uuid_t event_uuid = NI_UUID_INIT;
+	ni_ifworker_t *w;
 
 	ni_debug_dbus("%s: got signal %s from %s", __func__, signal_name, object_path);
 
@@ -941,13 +961,37 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 	if (!strcmp(signal_name, "networkDown"))
 		max_state = STATE_LINK_UP;
 
-	for (i = 0; i < interface_workers.count; ++i) {
-		ni_ifworker_t *w = interface_workers.data[i];
+	/* See if this event comes with a uuid */
+	{
+		ni_dbus_variant_t result = NI_DBUS_VARIANT_INIT;
+		int argc;
 
-		if (w->target_state == STATE_NONE)
-			continue;
+		argc = ni_dbus_message_get_args_variants(msg, &result, 1);
+		if (argc < 0) {
+			ni_error("%s: cannot extract parameters of signal %s",
+					__func__, signal_name);
+			return;
+		}
+		ni_dbus_variant_get_uuid(&result, &event_uuid);
+		ni_dbus_variant_destroy(&result);
+	}
 
-		if (w->object_path && !strcmp(w->object_path, object_path)) {
+	if ((w = ni_ifworker_by_object_path(object_path)) != NULL && w->target_state != STATE_NONE) {
+		ni_objectmodel_callback_info_t *cb = NULL;
+
+		if (!ni_uuid_is_null(&event_uuid)) {
+			cb = ni_ifworker_get_callback(w, &event_uuid);
+			if (cb) {
+				if (!ni_string_eq(cb->event, signal_name)) {
+					ni_debug_dbus("%s: was waiting for %s event, but got %s",
+							w->name, cb->event, signal_name);
+					ni_ifworker_fail(w, "got signal %s", signal_name);
+				}
+				ni_objectmodel_callback_info_free(cb);
+			}
+		}
+
+		if (!w->failed) {
 			unsigned int prev_state = w->state;
 
 			if (w->state < min_state)

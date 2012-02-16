@@ -467,6 +467,8 @@ __ni_objectmodel_interface_event(ni_dbus_server_t *server, ni_dbus_object_t *obj
 
 	ni_debug_dbus("sending interface event \"%s\" for %s", signal_name, ni_dbus_object_get_path(object));
 	ni_dbus_server_send_signal(server, object, WICKED_DBUS_NETIF_INTERFACE, signal_name, argc, &arg);
+
+	ni_dbus_variant_destroy(&arg);
 	return TRUE;
 }
 

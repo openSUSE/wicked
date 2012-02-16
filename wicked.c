@@ -500,7 +500,8 @@ out:
  * Configure address configuration on a link
  */
 static dbus_bool_t
-wicked_addrconf_common(ni_dbus_object_t *object, const ni_dbus_service_t *service, ni_dbus_variant_t *arg, unsigned int *event_id)
+wicked_addrconf_common(ni_dbus_object_t *object, const ni_dbus_service_t *service, ni_dbus_variant_t *arg,
+				ni_objectmodel_callback_info_t **callback_list)
 {
 	ni_dbus_variant_t result = NI_DBUS_VARIANT_INIT;
 	DBusError error = DBUS_ERROR_INIT;
@@ -513,9 +514,7 @@ wicked_addrconf_common(ni_dbus_object_t *object, const ni_dbus_service_t *servic
 		ni_error("server refused to configure addresses. Server responds:");
 		ni_error_extra("%s: %s", error.name, error.message);
 	} else {
-		/* extract optional event ID from reply */
-		if (!ni_dbus_variant_get_uint(&result, event_id))
-			*event_id = 0;
+		*callback_list = ni_objectmodel_callback_info_from_dict(&result);
 		rv = TRUE;
 	}
 
@@ -525,7 +524,8 @@ wicked_addrconf_common(ni_dbus_object_t *object, const ni_dbus_service_t *servic
 }
 
 dbus_bool_t
-wicked_addrconf_xml(ni_dbus_object_t *object, const ni_dbus_service_t *service, xml_node_t *config, unsigned int *event_id)
+wicked_addrconf_xml(ni_dbus_object_t *object, const ni_dbus_service_t *service, xml_node_t *config,
+				ni_objectmodel_callback_info_t **callback_list)
 {
 	ni_dbus_variant_t argument = NI_DBUS_VARIANT_INIT;
 	const ni_dbus_method_t *method;
@@ -540,7 +540,7 @@ wicked_addrconf_xml(ni_dbus_object_t *object, const ni_dbus_service_t *service, 
 		goto out;
 	}
 
-	rv = wicked_addrconf_common(object, service, &argument, event_id);
+	rv = wicked_addrconf_common(object, service, &argument, callback_list);
 
 out:
 	ni_dbus_variant_destroy(&argument);

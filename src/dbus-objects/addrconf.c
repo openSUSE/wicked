@@ -371,16 +371,16 @@ static dbus_bool_t
 ni_objectmodel_return_callback_info(ni_dbus_message_t *reply, ni_event_t event, const ni_uuid_t *uuid, DBusError *error)
 {
 	ni_dbus_variant_t dict = NI_DBUS_VARIANT_INIT;
-	ni_objectmodel_callback_info_t info;
+	ni_objectmodel_callback_info_t callback;
 	dbus_bool_t rv;
 
-	memset(&info, 0, sizeof(info));
-	if (!(info.event = (char *) __ni_objectmodel_event_to_signal(event)))
+	memset(&callback, 0, sizeof(callback));
+	if (!(callback.event = (char *) __ni_objectmodel_event_to_signal(event)))
 		return FALSE;
-	info.uuid = *uuid;
+	callback.uuid = *uuid;
 
 	ni_dbus_variant_init_dict(&dict);
-	rv = __ni_objectmodel_callback_info_to_dict(&info, &dict);
+	rv = __ni_objectmodel_callback_info_to_dict(&callback, &dict);
 	if (rv)
 		rv = ni_dbus_message_serialize_variants(reply, 1, &dict, error);
 	ni_dbus_variant_destroy(&dict);
@@ -389,18 +389,18 @@ ni_objectmodel_return_callback_info(ni_dbus_message_t *reply, ni_event_t event, 
 }
 
 static dbus_bool_t
-__ni_objectmodel_callback_info_to_dict(const ni_objectmodel_callback_info_t *info, ni_dbus_variant_t *dict)
+__ni_objectmodel_callback_info_to_dict(const ni_objectmodel_callback_info_t *cb, ni_dbus_variant_t *dict)
 {
-	while (info) {
+	while (cb) {
 		ni_dbus_variant_t *info_dict;
 
 		info_dict = ni_dbus_dict_add(dict, "callback");
 		ni_dbus_variant_init_dict(info_dict);
 
-		ni_dbus_dict_add_string(info_dict, "event", info->event);
-		ni_dbus_variant_set_uuid(ni_dbus_dict_add(info_dict, "uuid"), &info->uuid);
+		ni_dbus_dict_add_string(info_dict, "event", cb->event);
+		ni_dbus_variant_set_uuid(ni_dbus_dict_add(info_dict, "uuid"), &cb->uuid);
 
-		info = info->next;
+		cb = cb->next;
 	}
 
 	return TRUE;
@@ -413,20 +413,27 @@ ni_objectmodel_callback_info_from_dict(const ni_dbus_variant_t *dict)
 	ni_dbus_variant_t *child = NULL, *var;
 
 	while ((child = ni_dbus_dict_get_next(dict, "callback", child)) != NULL) {
-		ni_objectmodel_callback_info_t *info;
+		ni_objectmodel_callback_info_t *cb;
 		const char *event;
 
-		info = calloc(1, sizeof(*info));
+		cb = calloc(1, sizeof(*cb));
 		if (ni_dbus_dict_get_string(child, "event", &event))
-			ni_string_dup(&info->event, event);
+			ni_string_dup(&cb->event, event);
 		if ((var = ni_dbus_dict_get(child, "uuid")) != NULL)
-			ni_dbus_variant_get_uuid(var, &info->uuid);
+			ni_dbus_variant_get_uuid(var, &cb->uuid);
 
-		info->next = result;
-		result = info;
+		cb->next = result;
+		result = cb;
 	}
 
 	return result;
+}
+
+void
+ni_objectmodel_callback_info_free(ni_objectmodel_callback_info_t *cb)
+{
+	ni_string_free(&cb->event);
+	free(cb);
 }
 
 /*
