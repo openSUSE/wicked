@@ -17,6 +17,7 @@
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
 #include <wicked/addrconf.h>
+#include <wicked/resolver.h>
 #include "netinfo_priv.h"
 #include "dbus-common.h"
 #include "model.h"
@@ -535,7 +536,19 @@ __wicked_dbus_get_addrconf_lease(const ni_addrconf_lease_t *lease,
 			return FALSE;
 	}
 
-	/* TBD: NIS and resolver information */
+	if (lease->resolver) {
+		ni_resolver_info_t *resolv = lease->resolver;
+
+		child = ni_dbus_dict_add(result, "resolver");
+		ni_dbus_variant_init_dict(child);
+
+		if (resolv->default_domain)
+			ni_dbus_dict_add_string(child, "default-domain", resolv->default_domain);
+		__wicked_dbus_set_string_array(child, "servers", &resolv->dns_servers);
+		__wicked_dbus_set_string_array(child, "search", &resolv->dns_search);
+	}
+
+	/* TBD: NIS information */
 
 	__wicked_dbus_set_string_array(result, "log-servers", &lease->log_servers);
 	__wicked_dbus_set_string_array(result, "ntp-servers", &lease->ntp_servers);
@@ -605,7 +618,23 @@ __wicked_dbus_set_addrconf_lease(ni_addrconf_lease_t *lease,
 	 && !__wicked_dbus_set_route_list(&lease->routes, child, error))
 		return FALSE;
 
-	/* TBD: NIS and resolver information */
+	if ((child = ni_dbus_dict_get(argument, "resolver")) != NULL) {
+		ni_resolver_info_t *resolv = ni_resolver_info_new();
+		ni_dbus_variant_t *list;
+
+		lease->resolver = resolv;
+		if (ni_dbus_dict_get_string(child, "default-domain", &string_value))
+			ni_string_dup(&resolv->default_domain, string_value);
+
+		if ((list = ni_dbus_dict_get(child, "servers")) != NULL
+		 && !__wicked_dbus_get_string_array(&resolv->dns_servers, list, error))
+			return FALSE;
+		if ((list = ni_dbus_dict_get(child, "search")) != NULL
+		 && !__wicked_dbus_get_string_array(&resolv->dns_search, list, error))
+			return FALSE;
+	}
+
+	/* TBD: NIS information */
 
 	if ((child = ni_dbus_dict_get(argument, "log-servers")) != NULL
 	 && !__wicked_dbus_get_string_array(&lease->log_servers, child, error))
