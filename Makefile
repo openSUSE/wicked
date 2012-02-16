@@ -49,6 +49,7 @@ __LIBSRCS= \
 	  xpath.c \
 	  xpath-fmt.c \
 	  buffer.c \
+	  process.c \
 	  util.c \
 	  socket.c \
 	  timer.c \
