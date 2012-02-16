@@ -139,6 +139,38 @@ out:
 }
 
 /*
+ * Delete a VLAN interface
+ */
+dbus_bool_t
+ni_objectmodel_vlan_delete(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_interface_t *ifp;
+	int rv;
+
+	if (!(ifp = ni_objectmodel_unwrap_interface(object))) {
+		dbus_set_error(error,
+				DBUS_ERROR_INVALID_ARGS,
+				"%s.%s method called on incompatible object (class %s)",
+				WICKED_DBUS_VLAN_INTERFACE, method->name, object->class->name);
+		return FALSE;
+	}
+
+	NI_TRACE_ENTER_ARGS("ifp=%s", ifp->name);
+	if ((rv = ni_system_vlan_delete(ifp)) < 0) {
+		dbus_set_error(error,
+				DBUS_ERROR_FAILED,
+				"Error deleting VLAN interface %s: %s",
+				ifp->name, ni_strerror(rv));
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+
+/*
  * Helper function to obtain VLAN config from dbus object
  */
 static void *

@@ -38,17 +38,12 @@ enum {
 };
 
 typedef struct ni_ifworker	ni_ifworker_t;
+typedef int			ni_ifworker_action(ni_ifworker_t *);
+
 typedef struct ni_ifworker_array {
 	unsigned int		count;
 	ni_ifworker_t **	data;
 } ni_ifworker_array_t;
-
-typedef struct ni_interface_op {
-	const char *		name;
-	int			(*call)(ni_ifworker_t *, ni_netconfig_t *);
-	int			(*check)(ni_ifworker_t *, ni_netconfig_t *, unsigned int);
-	int			(*timeout)(ni_ifworker_t *);
-} ni_interface_op_t;
 
 struct ni_ifworker {
 	unsigned int		refcount;
@@ -71,6 +66,8 @@ struct ni_ifworker {
 	unsigned int		shared_users;
 	ni_ifworker_t *		exclusive_owner;
 
+	ni_ifworker_action **	actions;
+
 #if 0
 	unsigned int		refcount;
 
@@ -88,8 +85,6 @@ struct ni_ifworker {
 	ni_ifaction_t		behavior;
 #endif
 
-	const ni_interface_op_t	*fsm;
-
 	ni_ifworker_t *		parent;
 	ni_ifworker_array_t	children;
 };
@@ -103,6 +98,7 @@ static ni_dbus_object_t *	__root_object;
 static const char *		ni_ifworker_name(int);
 static void			ni_ifworker_array_append(ni_ifworker_array_t *, ni_ifworker_t *);
 static void			ni_ifworker_array_destroy(ni_ifworker_array_t *);
+static void			ni_ifworker_fsm_init(ni_ifworker_t *);
 
 static inline ni_ifworker_t *
 ni_ifworker_new(const char *name, xml_node_t *config)
@@ -350,9 +346,11 @@ mark_matching_interfaces(const char *match_name, unsigned int target_state)
 	for (i = 0; i < interface_workers.count; ++i) {
 		ni_ifworker_t *w = interface_workers.data[i];
 
-		if (w->target_state != STATE_NONE)
+		if (w->target_state != STATE_NONE) {
 			ni_debug_dbus("%s: target state %s",
 					w->name, ni_ifworker_name(w->target_state));
+			ni_ifworker_fsm_init(w);
+		}
 	}
 
 	return count;
@@ -628,14 +626,25 @@ device_is_up:
 /*
  * Finite state machine
  */
-typedef int			ni_ifworker_fsm_action(ni_ifworker_t *);
-
-static ni_ifworker_fsm_action *	ni_ifworker_fsm_up[__STATE_MAX] = {
-[STATE_DEVICE_DOWN]	= ni_ifworker_do_device_up,
+static ni_ifworker_action *	ni_ifworker_fsm_up[] = {
+	ni_ifworker_do_device_up,
+	NULL,
 };
 
-static ni_ifworker_fsm_action *	ni_ifworker_fsm_down[__STATE_MAX] = {
+static ni_ifworker_action *	ni_ifworker_fsm_down[] = {
+	NULL,
 };
+
+static void
+ni_ifworker_fsm_init(ni_ifworker_t *w)
+{
+	if (w->state < w->target_state) {
+		w->actions = ni_ifworker_fsm_up;
+	} else
+	if (w->state > w->target_state) {
+		w->actions = ni_ifworker_fsm_down;
+	}
+}
 
 static unsigned int
 ni_ifworker_fsm(void)
@@ -648,8 +657,8 @@ ni_ifworker_fsm(void)
 
 		for (i = 0; i < interface_workers.count; ++i) {
 			ni_ifworker_t *w = interface_workers.data[i];
-			ni_ifworker_fsm_action *action;
-			int next_state = STATE_NONE;
+			ni_ifworker_action *action;
+			int prev_state;
 
 			if (w->target_state != STATE_NONE)
 				ni_debug_dbus("%-12s: state=%s want=%s%s", w->name,
@@ -670,32 +679,27 @@ ni_ifworker_fsm(void)
 			if (w->wait_for_event)
 				continue;
 
-			if (w->state < w->target_state) {
-				do {
-					action = ni_ifworker_fsm_up[w->state];
-				} while (action == NULL && ++(w->state) < w->target_state);
-				next_state = w->state + 1;
-			} else {
-				do {
-					action = ni_ifworker_fsm_down[w->state];
-				} while (action == NULL && --(w->state) > w->target_state);
-				next_state = w->state - 1;
-			}
-
+			action = *w->actions++;
 			if (action == NULL) {
-				ni_assert(ni_ifworker_ready(w));
+				w->state = w->target_state;
 				ni_ifworker_success(w);
 				made_progress = 1;
 				continue;
 			}
 
+			prev_state = w->state;
 			if (action(w) >= 0) {
 				made_progress = 1;
-				if (w->state == next_state) {
+				if (w->state != prev_state) {
 					ni_debug_dbus("%s: successfully transitioned from %s to %s",
 						w->name,
-						ni_ifworker_name(w->state),
-						ni_ifworker_name(next_state));
+						ni_ifworker_name(prev_state),
+						ni_ifworker_name(w->state));
+				} else {
+					ni_debug_dbus("%s: waiting for event in state %s",
+						w->name,
+						ni_ifworker_name(w->state));
+					w->wait_for_event = 1;
 				}
 			} else
 			if (!w->failed) {
@@ -703,8 +707,8 @@ ni_ifworker_fsm(void)
 				 * as a failure. shame on the lazy programmer. */
 				ni_ifworker_fail(w, "%s: failed to transition from %s to %s",
 						w->name,
-						ni_ifworker_name(w->state),
-						ni_ifworker_name(next_state));
+						ni_ifworker_name(prev_state),
+						ni_ifworker_name(w->state));
 			}
 		}
 
