@@ -579,7 +579,7 @@ __ni_dbus_object_message(DBusConnection *conn, DBusMessage *call, void *user_dat
 				ni_dbus_variant_destroy(&argv[argc]);
 		} else
 		if (method->async_handler) {
-			rv = method->async_handler(server, object, method, call);
+			rv = method->async_handler(server->connection, object, method, call);
 		} else {
 			dbus_set_error(&error, DBUS_ERROR_FAILED, "No server side handler for method");
 			rv = FALSE;

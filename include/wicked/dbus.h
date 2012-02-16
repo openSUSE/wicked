@@ -76,7 +76,7 @@ typedef dbus_bool_t		ni_dbus_method_handler_t(ni_dbus_object_t *object,
 					const ni_dbus_variant_t *argv,
 					ni_dbus_message_t *reply,
 					DBusError *error);
-typedef dbus_bool_t		ni_dbus_async_method_handler_t(ni_dbus_server_t *server,
+typedef dbus_bool_t		ni_dbus_async_method_handler_t(ni_dbus_connection_t *connection,
 					ni_dbus_object_t *object,
 					const ni_dbus_method_t *method,
 					ni_dbus_message_t *call);
