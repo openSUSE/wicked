@@ -100,7 +100,7 @@ __ni_rtevent_read(ni_socket_t *sock)
 	}
 }
 
-static void
+void
 __ni_interface_event(ni_netconfig_t *nc, ni_interface_t *ifp, ni_event_t ev)
 {
 	ni_debug_dhcp("%s(%s, idx=%d, %s)", __FUNCTION__,

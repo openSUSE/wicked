@@ -48,6 +48,7 @@ extern ni_addrconf_lease_t *__ni_interface_route_to_lease(ni_interface_t *, cons
 extern void		__ni_interface_track_ipv6_autoconf(ni_interface_t *, int);
 extern ni_route_t *	__ni_interface_add_autoconf_prefix(ni_interface_t *, const ni_sockaddr_t *, unsigned int, unsigned int);
 extern unsigned int	__ni_interface_translate_ifflags(unsigned int);
+extern void		__ni_interface_event(ni_netconfig_t *, ni_interface_t *, ni_event_t);
 
 #define __ni_interface_address_info(ifp, af) \
 	((af) == AF_INET? &((ifp)->ipv4) : \
