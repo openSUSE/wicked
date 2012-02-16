@@ -45,10 +45,11 @@ static int	__ni_interface_addrconf(ni_netconfig_t *, int,  ni_interface_t *, ni_
 static int	__ni_interface_update_ipv6_settings(ni_netconfig_t *, ni_interface_t *, const ni_afinfo_t *);
 static int	__ni_interface_update_addrs(ni_interface_t *ifp,
 				int family, ni_addrconf_mode_t mode,
-				ni_address_t **cfg_addr_list);
+				ni_address_t * const *cfg_addr_list);
 static int	__ni_interface_update_routes(ni_interface_t *ifp,
 				int family, ni_addrconf_mode_t mode,
-				ni_route_t **cfg_route_list);
+				ni_route_t * const *cfg_route_list);
+static int	__ni_interface_handle_addrconf_request(ni_netconfig_t *, ni_interface_t *, const ni_addrconf_request_t *);
 
 static int	__ni_rtnl_link_create_vlan(const char *, const ni_vlan_t *, unsigned int);
 static int	__ni_rtnl_link_up(const ni_interface_t *, const ni_interface_request_t *);
@@ -115,6 +116,12 @@ ni_system_interface_link_change(ni_netconfig_t *nc, ni_interface_t *ifp,
 	return res;
 }
 
+
+int
+ni_system_interface_addrconf(ni_netconfig_t *nc, ni_interface_t *dev, const ni_addrconf_request_t *req)
+{
+	return __ni_interface_handle_addrconf_request(nc, dev, req);
+}
 
 /*
  * Bring up an interface
@@ -943,7 +950,7 @@ addattr_sockaddr(struct nl_msg *msg, int type, const ni_sockaddr_t *addr)
 }
 
 static ni_address_t *
-__ni_interface_address_list_contains(ni_address_t **list, const ni_address_t *ap)
+__ni_interface_address_list_contains(ni_address_t * const *list, const ni_address_t *ap)
 {
 	ni_address_t *ap2;
 
@@ -1243,7 +1250,7 @@ failed:
  * Check if a route already exists.
  */
 static ni_route_t *
-__ni_interface_route_list_contains(ni_route_t **list, const ni_route_t *rp)
+__ni_interface_route_list_contains(ni_route_t * const *list, const ni_route_t *rp)
 {
 	ni_route_t *rp2;
 
@@ -1363,7 +1370,7 @@ __ni_addrconf_update_request(ni_afinfo_t *afinfo, ni_addrconf_mode_t mode,
 static int
 __ni_interface_update_addrs(ni_interface_t *ifp,
 				int family, ni_addrconf_mode_t mode,
-				ni_address_t **cfg_addr_list)
+				ni_address_t * const*cfg_addr_list)
 {
 	ni_address_t *ap, *next;
 	int rv;
@@ -1450,7 +1457,7 @@ __ni_interface_update_addrs(ni_interface_t *ifp,
 static int
 __ni_interface_update_routes(ni_interface_t *ifp,
 				int family, ni_addrconf_mode_t mode,
-				ni_route_t **cfg_route_list)
+				ni_route_t * const *cfg_route_list)
 {
 	ni_route_t *rp, *next;
 	int rv = 0;
@@ -1533,7 +1540,7 @@ __ni_interface_update_routes(ni_interface_t *ifp,
  */
 static int
 __ni_interface_addrconf_dummy(ni_netconfig_t *nc, ni_interface_t *ifp, int family,
-			ni_addrconf_mode_t mode, ni_addrconf_request_t *req)
+			ni_addrconf_mode_t mode, const ni_addrconf_request_t *req)
 {
 	ni_afinfo_t *cur_afi = __ni_interface_address_info(ifp, family);
 	ni_addrconf_lease_t *lease;
@@ -1568,7 +1575,7 @@ __ni_interface_addrconf_dummy(ni_netconfig_t *nc, ni_interface_t *ifp, int famil
  */
 static int
 __ni_interface_addrconf_static(ni_netconfig_t *nc, ni_interface_t *ifp, int family,
-			ni_addrconf_mode_t mode, ni_addrconf_request_t *req)
+			ni_addrconf_mode_t mode, const ni_addrconf_request_t *req)
 {
 	ni_afinfo_t *cur_afi = __ni_interface_address_info(ifp, family);
 	int rv;
@@ -1768,4 +1775,40 @@ __ni_interface_addrconf(ni_netconfig_t *nc, int family, ni_interface_t *ifp, ni_
 	}
 
 	return 0;
+}
+
+static int
+__ni_interface_handle_addrconf_request(ni_netconfig_t *nc, ni_interface_t *dev, const ni_addrconf_request_t *req)
+{
+	int rv;
+
+	ni_debug_ifconfig("%s(dev=%s, family=%s, mode=%s)",
+			__func__, dev->name,
+			ni_addrfamily_type_to_name(req->family),
+			ni_addrconf_type_to_name(req->type));
+
+	if (req->family == AF_INET6 && req->type == NI_ADDRCONF_AUTOCONF) {
+		rv = __ni_interface_addrconf_dummy(nc, dev, req->family, req->type, req);
+	} else
+	if (req->type == NI_ADDRCONF_STATIC) {
+		rv = __ni_interface_addrconf_static(nc, dev, req->family, req->type, req);
+	} else {
+#if 0
+		/* __ni_addrconf_request_changed returns 0 if the request is
+		 * just a re-send of an earlier request */
+		if (!__ni_addrconf_request_changed(dev, req->family, mode, req))
+			return 0;
+
+		/* __ni_addrconf_request_changed assigned the request to dev,
+		 * so make sure it's not deleted when the caller frees
+		 * the ni_interface_request */
+		cfg_afi->request[mode] = NULL;
+
+		rv = __ni_interface_addrconf_other(nc, dev, req->family, mode, req);
+#else
+		rv = -1;
+#endif
+	}
+
+	return rv;
 }
