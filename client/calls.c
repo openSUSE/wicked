@@ -71,7 +71,7 @@ ni_call_link_layer_service(const char *link_type)
 	 * base class (such as for netif), which we're not interested in.
 	 */
 	if (!(service = ni_objectmodel_service_by_class(class))) {
-		ni_error("no dbus service for link layer \"%s\"", link_type);
+		ni_debug_dbus("no dbus service for link layer \"%s\"", link_type);
 		return NULL;
 	}
 
@@ -94,12 +94,12 @@ ni_call_link_layer_factory_service(const char *link_type)
 
 	snprintf(namebuf, sizeof(namebuf), "%s.Factory", service->name);
 	if (!(service = ni_objectmodel_service_by_name(namebuf))) {
-		ni_error("no dbus factory service for link layer \"%s\"", link_type);
+		ni_debug_dbus("no dbus factory service for link layer \"%s\"", link_type);
 		return NULL;
 	}
 
 	if (!ni_dbus_service_get_method(service, "newLink")) {
-		ni_error("dbus factory service for link layer \"%s\" has no newLink method", link_type);
+		ni_debug_dbus("dbus factory service for link layer \"%s\" has no newLink method", link_type);
 		return NULL;
 	}
 
