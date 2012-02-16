@@ -235,11 +235,15 @@ ni_wpa_interface_network_by_path(ni_wpa_interface_t *ifp, const char *object_pat
 static void
 ni_wpa_network_properties_destroy(ni_wpa_network_t *net)
 {
-	ni_wpa_network_t hack = *net;
+	memset(&net->essid, 0, sizeof(net->essid));
+	net->noise = 0;
+	net->frequency = 0;
+	net->level = 0;
+	net->quality = 0;
+	net->max_bitrate = 0;
+	net->capabilities = 0;
 
-	memset(net, 0, sizeof(*net));
-	net->refcount = hack.refcount;
-	net->expires = hack.expires;
+	ni_wireless_auth_info_array_destroy(&net->auth_info);
 }
 
 static void
