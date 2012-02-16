@@ -105,12 +105,12 @@ ni_objectmodel_create_initial_objects(ni_dbus_server_t *server)
 	if (object == NULL)
 		ni_fatal("Unable to create dbus object for interfaces");
 
-	ni_objectmodel_bind_compatible_interfaces(server, object);
+	ni_objectmodel_bind_compatible_interfaces(object);
 	return TRUE;
 }
 
 dbus_bool_t
-ni_objectmodel_bind_compatible_interfaces(ni_dbus_server_t *server, ni_dbus_object_t *object)
+ni_objectmodel_bind_compatible_interfaces(ni_dbus_object_t *object)
 {
 	unsigned int i;
 
@@ -257,7 +257,7 @@ static ni_dbus_method_t		wicked_dbus_netif_methods[] = {
 
 
 static ni_dbus_service_t	ni_objectmodel_netif_list_service = {
-	.name		= WICKED_DBUS_FACTORY_INTERFACE,
+	.name		= WICKED_DBUS_INTERFACE ".Obsolete",
 	.compatible	= &ni_objectmodel_netif_list_class,
 	.methods	= wicked_dbus_netif_methods,
 //	.properties	= wicked_dbus_netif_properties,

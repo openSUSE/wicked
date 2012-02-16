@@ -120,7 +120,7 @@ __ni_objectmodel_build_interface_object(ni_dbus_server_t *server, ni_interface_t
 	if (object == NULL)
 		ni_fatal("Unable to create dbus object for interface %s", ifp->name);
 
-	ni_objectmodel_bind_compatible_interfaces(server, object);
+	ni_objectmodel_bind_compatible_interfaces(object);
 	return object;
 }
 
