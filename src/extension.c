@@ -200,6 +200,18 @@ ni_extension_run(const ni_extension_t *ex, ni_script_action_t *script)
 	return rv;
 }
 
+ni_script_action_t *
+ni_extension_get_action(const ni_extension_t *ex, const char *name)
+{
+	ni_script_action_t *script;
+
+	for (script = ex->actions; script; script = script->next) {
+		if (!strcmp(script->name, name))
+			return script;
+	}
+	return NULL;
+}
+
 /*
  * Create/destroy script actions
  */

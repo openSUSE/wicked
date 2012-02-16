@@ -19,6 +19,7 @@
 #include "netinfo_priv.h"
 #include "dbus-common.h"
 #include "model.h"
+#include "config.h"
 #include "debug.h"
 
 extern ni_dbus_object_t *	ni_objectmodel_new_interface(ni_dbus_server_t *server,
@@ -272,4 +273,40 @@ static ni_dbus_service_t	wicked_dbus_root_interface = {
 	.name = WICKED_DBUS_INTERFACE,
 	/* .methods = wicked_dbus_root_methods, */
 };
+
+dbus_bool_t
+ni_objectmodel_call_extension(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+				unsigned int argc, const ni_dbus_variant_t *argv, ni_dbus_message_t *reply,
+				DBusError *error)
+{
+	return FALSE;
+}
+
+/*
+ * Bind extension scripts to the interface functions they are specified for.
+ */
+int
+ni_objectmodel_bind_extensions(void)
+{
+	unsigned int i;
+
+	for (i = 0; i < ni_objectmodel_all_services.count; ++i) {
+		const ni_dbus_service_t *service = ni_objectmodel_all_services.services[i];
+		const ni_dbus_method_t *method;
+		ni_extension_t *extension;
+
+		extension = ni_config_find_extension(ni_global.config, service->name);
+		if (extension == NULL)
+			continue;
+
+		for (method = service->methods; method->name != NULL; ++method) {
+			if (method->handler != NULL)
+				continue;
+			if (ni_extension_get_action(extension, method->name) != NULL)
+				((ni_dbus_method_t *) method)->handler = ni_objectmodel_call_extension;
+		}
+	}
+
+	return 0;
+}
 

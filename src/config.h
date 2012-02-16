@@ -86,18 +86,18 @@ typedef struct ni_config {
 
 extern ni_config_t *	ni_config_new();
 extern ni_config_t *	ni_config_parse(const char *);
-extern ni_extension_t *	ni_config_find_linktype_extension(ni_config_t *, int);
-extern ni_extension_t *	ni_config_find_addrconf_extension(ni_config_t *, int, int);
-extern ni_extension_t *	ni_config_find_file_extension(ni_config_t *, const char *);
-extern unsigned int	ni_config_addrconf_update_mask(ni_config_t *, ni_addrconf_mode_t);
+extern ni_extension_t *	ni_config_find_addrconf_extension(ni_config_t *, int, int); /* KILL */
+extern ni_extension_t *	ni_config_find_extension(ni_config_t *, const char *);
+extern unsigned int	ni_config_addrconf_update_mask(ni_config_t *, ni_addrconf_mode_t); /* KILL */
 
 extern ni_extension_t *	ni_extension_list_find(ni_extension_t *, const char *);
 extern void		ni_extension_list_destroy(ni_extension_t **);
 extern ni_extension_t *	ni_extension_new(ni_extension_t **, const char *);
-extern int		ni_extension_active(const ni_extension_t *, const char *, xml_node_t *);
-extern int		ni_extension_start(const ni_extension_t *, const char *, xml_node_t *);
-extern int		ni_extension_stop(const ni_extension_t *, const char *, xml_node_t *);
-extern int		ni_extension_run(const ni_extension_t *, ni_script_action_t *);
+extern ni_script_action_t *ni_extension_get_action(const ni_extension_t *, const char *);
+extern int		ni_extension_active(const ni_extension_t *, const char *, xml_node_t *); /* KILL */
+extern int		ni_extension_start(const ni_extension_t *, const char *, xml_node_t *); /* KILL */
+extern int		ni_extension_stop(const ni_extension_t *, const char *, xml_node_t *); /* KILL */
+extern int		ni_extension_run(const ni_extension_t *, ni_script_action_t *); /* KILL */
 extern void		ni_extension_free(ni_extension_t *);
 
 extern ni_script_action_t *ni_script_action_new(const char *name, ni_script_action_t **list);
