@@ -479,7 +479,11 @@ __ni_dbus_object_manager_enumerate_object(ni_dbus_object_t *object, ni_dbus_vari
 	}
 
 	for (child = object->children; child && rv; child = child->next) {
-		/* If the object has a refresh function, call it now */
+		/* If the object has a refresh function, call it now.
+		 * Note that the server method call handling code will
+		 * already have refreshed the top-level object, so we will
+		 * only refresh the children here.
+		 */
 		if (child->class && child->class->refresh
 		 && !child->class->refresh(object)) {
 			rv = FALSE;
