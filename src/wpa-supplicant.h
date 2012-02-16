@@ -23,37 +23,7 @@ typedef enum {
 
 typedef struct ni_wpa_client	ni_wpa_client_t;
 typedef struct ni_wpa_interface	ni_wpa_interface_t;
-typedef ni_wireless_network_t	ni_wpa_network_t;
 typedef struct ni_wpa_scan	ni_wpa_scan_t;
-
-#if 0
-struct ni_wpa_network {
-	time_t			expires;
-
-	ni_wireless_ssid_t	essid;
-	ni_hwaddr_t		access_point;
-
-	int32_t			noise;
-	double			frequency;	/* in GHz */
-	double			level;		/* in dBm*/
-	double			quality;	/* n/70 */
-	unsigned int		max_bitrate;	/* in Bit/s, 1e6 based */
-	uint16_t		capabilities;
-
-	ni_wireless_auth_mode_t	auth_proto;
-	ni_wireless_auth_algo_t	auth_algo;
-	ni_wireless_auth_algo_t	ath_algo;
-	ni_wireless_key_mgmt_t	keymgmt_proto;
-	ni_wireless_cipher_t	cipher;
-	ni_wireless_cipher_t	pairwise_cipher;
-	ni_wireless_cipher_t	group_cipher;
-	ni_wireless_eap_method_t eap_method;
-
-	ni_opaque_t *		wpaie;
-	ni_opaque_t *		wpsie;
-	ni_opaque_t *		rsnie;
-};
-#endif
 
 struct ni_wpa_interface_capabilities {
 	ni_string_array_t	eap_methods;
