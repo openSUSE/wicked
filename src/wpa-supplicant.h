@@ -23,7 +23,6 @@ typedef enum {
 
 typedef struct ni_wpa_client	ni_wpa_client_t;
 typedef struct ni_wpa_interface	ni_wpa_interface_t;
-typedef struct ni_wpa_scan	ni_wpa_scan_t;
 
 struct ni_wpa_interface {
 	ni_wpa_interface_t *	next;
@@ -34,11 +33,12 @@ struct ni_wpa_interface {
 	ni_wpa_ifstate_t	state;
 	ni_dbus_object_t *	proxy;
 
-	time_t			last_scan;
+	struct {
+		time_t		timestamp;
+		unsigned char	pending;
+	} scan;
 
 	ni_wireless_interface_capabilities_t capabilities;
-
-	ni_wpa_scan_t *		pending;
 };
 
 extern ni_wpa_client_t *ni_wpa_client_open(void);

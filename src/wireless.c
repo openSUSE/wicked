@@ -141,7 +141,7 @@ __ni_wireless_request_scan(ni_netconfig_t *nc, ni_interface_t *ifp)
 		return -1;
 	}
 
-	if (wif->pending) {
+	if (wif->scan.pending) {
 		ni_error("wireless scan pending for interface %s", ifp->name);
 		return -1;
 	}

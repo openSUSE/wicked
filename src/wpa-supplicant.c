@@ -57,14 +57,6 @@ struct ni_wpa_client {
 	ni_wpa_interface_t *	iflist;
 };
 
-#define NI_WPA_SCAN_RUNNING	0
-#define NI_WPA_SCAN_BSSLIST	1
-#define NI_WPA_SCAN_PROPERTIES	2
-struct ni_wpa_scan {
-	unsigned int		count;
-	unsigned int		state;
-};
-
 static ni_dbus_class_t		ni_objectmodel_wpa_class = {
 	"wpa"
 };
@@ -81,7 +73,6 @@ static int		ni_wpa_interface_get_state(ni_wpa_client_t *, ni_wpa_interface_t *);
 static int		ni_wpa_interface_get_capabilities(ni_wpa_client_t *, ni_wpa_interface_t *);
 static void		ni_wpa_network_request_properties(ni_dbus_object_t *);
 static void		ni_wpa_signal(ni_dbus_connection_t *, ni_dbus_message_t *, void *);
-static void		ni_wpa_scan_put(ni_wpa_scan_t *);
 static const char *	ni_wpa_auth_protocol_as_string(ni_wireless_auth_mode_t, DBusError *);
 static dbus_bool_t	ni_wpa_auth_protocol_from_string(const char *, ni_wireless_auth_mode_t *, DBusError *);
 static const char *	ni_wpa_auth_algorithm_as_string(ni_wireless_auth_algo_t, DBusError *);
@@ -549,23 +540,6 @@ ni_wpa_interface_get_state(ni_wpa_client_t *wpa, ni_wpa_interface_t *ifp)
 }
 
 /*
- * Handle scan objects
- */
-static void
-ni_wpa_scan_put(ni_wpa_scan_t *scan)
-{
-	if (scan == NULL)
-		return;
-
-	ni_assert(scan->count != 0);
-	if (scan->count-- == 1) {
-		/* FIXME: call back */
-		ni_debug_wireless("%s(%p): released", __func__, scan);
-		free(scan);
-	}
-}
-
-/*
  * Request an interface scan
  */
 int
@@ -580,13 +554,7 @@ ni_wpa_interface_request_scan(ni_wpa_client_t *wpa, ni_wpa_interface_t *ifp, ni_
 			DBUS_TYPE_UINT32, &value);
 
 	ni_debug_wireless("%s: requested scan, value=%u", ifp->ifname, value);
-	if (rv >= 0 && ifp->pending == NULL) {
-		struct ni_wpa_scan *st = xcalloc(1, sizeof(*st));
-
-		st->state = NI_WPA_SCAN_RUNNING;
-		st->count = 1;
-		ifp->pending = st;
-	}
+	ifp->scan.pending = 1;
 
 	return rv;
 }
@@ -668,19 +636,12 @@ ni_wpa_interface_scan_results(ni_dbus_object_t *proxy, ni_dbus_message_t *msg)
 			&object_path_array,
 			&object_path_count,
 			0);
+	ifp->scan.pending = 0;
+
 	if (rv >= 0) {
-		ni_wpa_scan_t *scan = NULL;
 		unsigned int i;
 
-		if ((scan = ifp->pending) != NULL) {
-			if (scan->state == NI_WPA_SCAN_BSSLIST) {
-				scan->state = NI_WPA_SCAN_PROPERTIES;
-			} else {
-				scan = NULL;
-			}
-		}
-
-		ifp->last_scan = time(NULL);
+		ifp->scan.timestamp = time(NULL);
 		for (i = 0; i < object_path_count; ++i) {
 			const char *path = object_path_array[i];
 			ni_dbus_object_t *net_object;
@@ -690,14 +651,11 @@ ni_wpa_interface_scan_results(ni_dbus_object_t *proxy, ni_dbus_message_t *msg)
 				continue;
 
 			net = net_object->handle;
-			net->expires = ifp->last_scan + NI_WIRELESS_SCAN_MAX_AGE;
+			net->expires = ifp->scan.timestamp + NI_WIRELESS_SCAN_MAX_AGE;
 
 			ni_wpa_network_request_properties(net_object);
 		}
 	}
-
-	ni_wpa_scan_put(ifp->pending);
-	ifp->pending = NULL;
 
 	if (object_path_array)
 		dbus_free_string_array(object_path_array);
@@ -712,16 +670,12 @@ static void
 ni_wpa_interface_scan_results_available_event(ni_wpa_client_t *wpa, const char *object_path)
 {
 	ni_wpa_interface_t *ifp;
-	ni_wpa_scan_t *scan;
 
 	ifp = ni_wpa_client_interface_by_path(wpa, object_path);
 	if (ifp == NULL || ifp->proxy == NULL) {
 		ni_debug_wireless("Ignore scan results on untracked interface %s", object_path);
 		return;
 	}
-
-	if ((scan = ifp->pending) != NULL && scan->state == NI_WPA_SCAN_RUNNING)
-		scan->state = NI_WPA_SCAN_BSSLIST;
 
 	ni_debug_wireless("%s: scan results available - retrieving them", ifp->ifname);
 	ni_dbus_object_call_async(ifp->proxy,
