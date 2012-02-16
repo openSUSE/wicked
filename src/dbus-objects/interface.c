@@ -378,7 +378,6 @@ ni_objectmodel_netif_link_up(ni_dbus_object_t *object, const ni_dbus_method_t *m
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
-	ni_netconfig_t *nc = ni_global_state_handle(0);
 	ni_interface_t *dev;
 	ni_interface_request_t *req = NULL;
 	dbus_bool_t ret = FALSE;
@@ -400,7 +399,7 @@ ni_objectmodel_netif_link_up(ni_dbus_object_t *object, const ni_dbus_method_t *m
 		goto failed;
 	req->ifflags = NI_IFF_LINK_UP | NI_IFF_NETWORK_UP;
 
-	if ((rv = ni_system_interface_link_change(nc, dev, req)) < 0) {
+	if ((rv = ni_system_interface_link_change(dev, req)) < 0) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
 				"Cannot configure interface %s: %s", dev->name,
 				ni_strerror(rv));
@@ -429,7 +428,6 @@ ni_objectmodel_netif_link_down(ni_dbus_object_t *object, const ni_dbus_method_t 
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
-	ni_netconfig_t *nc = ni_global_state_handle(0);
 	ni_interface_t *dev;
 	int rv;
 
@@ -438,7 +436,7 @@ ni_objectmodel_netif_link_down(ni_dbus_object_t *object, const ni_dbus_method_t 
 
 	NI_TRACE_ENTER_ARGS("dev=%s", dev->name);
 
-	if ((rv = ni_system_interface_link_change(nc, dev, NULL)) < 0) {
+	if ((rv = ni_system_interface_link_change(dev, NULL)) < 0) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
 				"Cannot take interface down %s: %s", dev->name,
 				ni_strerror(rv));

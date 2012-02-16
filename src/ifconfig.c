@@ -41,7 +41,7 @@
 
 #define BOND_DEVICE_MUST_BE_UP_WHEN_MESSING_WITH_SLAVES 1
 
-static int	__ni_interface_update_ipv6_settings(ni_netconfig_t *, ni_interface_t *, const ni_afinfo_t *);
+static int	__ni_interface_update_ipv6_settings(ni_interface_t *, const ni_afinfo_t *);
 static int	__ni_interface_update_addrs(ni_interface_t *ifp,
 				const ni_addrconf_lease_t *old_lease,
 				ni_address_t *cfg_addr_list);
@@ -57,8 +57,7 @@ static int	__ni_rtnl_send_delroute(ni_interface_t *, ni_route_t *);
 static int	__ni_rtnl_send_newroute(ni_interface_t *, ni_route_t *, int);
 
 int
-ni_system_interface_link_change(ni_netconfig_t *nc, ni_interface_t *ifp,
-				const ni_interface_request_t *ifp_req)
+ni_system_interface_link_change(ni_interface_t *ifp, const ni_interface_request_t *ifp_req)
 {
 	unsigned int ifflags;
 	int res;
@@ -76,7 +75,7 @@ ni_system_interface_link_change(ni_netconfig_t *nc, ni_interface_t *ifp,
 
 		/* If we want to disable ipv6 or ipv6 autoconf, we need to do so prior to bringing
 		 * the interface up. */
-		if (__ni_interface_update_ipv6_settings(nc, ifp, ifp_req->ipv6) < 0)
+		if (__ni_interface_update_ipv6_settings(ifp, ifp_req->ipv6) < 0)
 			return -1;
 
 		if (__ni_rtnl_link_up(ifp, ifp_req)) {
@@ -98,7 +97,7 @@ ni_system_interface_link_change(ni_netconfig_t *nc, ni_interface_t *ifp,
 
 	__ni_global_seqno++;
 
-	res = __ni_system_refresh_interface(nc, ifp);
+	res = __ni_system_refresh_interface(ni_global_state_handle(0), ifp);
 	return res;
 }
 
@@ -726,7 +725,7 @@ ni_system_bond_remove_slave(ni_netconfig_t *nc, ni_interface_t *ifp, unsigned in
  * Update the IPv6 sysctl settings for the given interface
  */
 int
-__ni_interface_update_ipv6_settings(ni_netconfig_t *nc, ni_interface_t *ifp, const ni_afinfo_t *afi)
+__ni_interface_update_ipv6_settings(ni_interface_t *ifp, const ni_afinfo_t *afi)
 {
 	int enable = afi? afi->enabled : 0;
 	int brought_up = 0;
