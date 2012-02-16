@@ -374,28 +374,48 @@ ni_objectmodel_unmarshal_interface_request(ni_interface_request_t *req, const ni
  * The options dictionary contains interface properties.
  */
 static dbus_bool_t
-ni_objectmodel_netif_link_change(ni_interface_t *dev, unsigned int ifflags,
+ni_objectmodel_netif_link_up(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_netconfig_t *nc = ni_global_state_handle(0);
+	ni_interface_t *dev;
 	ni_interface_request_t *req = NULL;
 	dbus_bool_t ret = FALSE;
 	int rv;
 
+	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
+		return FALSE;
+
+	NI_TRACE_ENTER_ARGS("dev=%s", dev->name);
+
 	/* Create an interface_request object and extract configuration from dict */
 	req = ni_interface_request_new();
+	if (argc != 1) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"linkUp: missing argument");
+		goto failed;
+	}
 	if (!ni_objectmodel_unmarshal_interface_request(req, &argv[0], error))
 		goto failed;
-	req->ifflags = ifflags;
+	req->ifflags = NI_IFF_LINK_UP | NI_IFF_NETWORK_UP;
 
 	if ((rv = ni_system_interface_link_change(nc, dev, req)) < 0) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
 				"Cannot configure interface %s: %s", dev->name,
 				ni_strerror(rv));
 		ret = FALSE;
-	} else {
-		ret = TRUE;
+		goto failed;
+	}
+
+	ret = TRUE;
+
+	/* If the link is up, there's nothing to return */
+	if (!(dev->link.ifflags & NI_IFF_LINK_UP)) {
+		/* Link is not up yet. Tell the caller to wait for an event. */
+		if (ni_uuid_is_null(&dev->link.event_uuid))
+			ni_uuid_generate(&dev->link.event_uuid);
+		ret = __ni_objectmodel_return_callback_info(reply, NI_EVENT_LINK_UP, &dev->link.event_uuid, error);
 	}
 
 failed:
@@ -405,43 +425,27 @@ failed:
 }
 
 static dbus_bool_t
-ni_objectmodel_netif_link_up(ni_dbus_object_t *object, const ni_dbus_method_t *method,
-			unsigned int argc, const ni_dbus_variant_t *argv,
-			ni_dbus_message_t *reply, DBusError *error)
-{
-	static const unsigned int LINK_UP_MASK = NI_IFF_LINK_UP | NI_IFF_NETWORK_UP;
-	ni_interface_t *dev;
-
-	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
-		return FALSE;
-
-	NI_TRACE_ENTER_ARGS("dev=%s", dev->name);
-
-	if (!ni_objectmodel_netif_link_change(dev, LINK_UP_MASK, argc, argv, reply, error))
-		return FALSE;
-
-	/* If the link is up, there's nothing to return */
-	if (dev->link.ifflags & NI_IFF_LINK_UP)
-		return TRUE;
-
-	/* Link is not up yet. Tell the caller to wait for an event. */
-	if (ni_uuid_is_null(&dev->link.event_uuid))
-		ni_uuid_generate(&dev->link.event_uuid);
-	return __ni_objectmodel_return_callback_info(reply, NI_EVENT_LINK_UP, &dev->link.event_uuid, error);
-}
-
-static dbus_bool_t
 ni_objectmodel_netif_link_down(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
+	ni_netconfig_t *nc = ni_global_state_handle(0);
 	ni_interface_t *dev;
+	int rv;
 
 	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
 		return FALSE;
 
 	NI_TRACE_ENTER_ARGS("dev=%s", dev->name);
-	return ni_objectmodel_netif_link_change(dev, 0, argc, argv, reply, error);
+
+	if ((rv = ni_system_interface_link_change(nc, dev, NULL)) < 0) {
+		dbus_set_error(error, DBUS_ERROR_FAILED,
+				"Cannot take interface down %s: %s", dev->name,
+				ni_strerror(rv));
+		return FALSE;
+	}
+
+	return TRUE;
 }
 
 /*
@@ -539,7 +543,7 @@ ni_objectmodel_netif_destroy(ni_dbus_object_t *object)
 
 static ni_dbus_method_t		ni_objectmodel_netif_methods[] = {
 	{ "linkUp",		"a{sv}",		ni_objectmodel_netif_link_up },
-	{ "linkDown",		"a{sv}",		ni_objectmodel_netif_link_down },
+	{ "linkDown",		"",			ni_objectmodel_netif_link_down },
 	{ NULL }
 };
 
