@@ -39,6 +39,7 @@ static ni_dbus_service_t	ni_objectmodel_netif_list_service;
 static ni_dbus_service_t	ni_objectmodel_netif_service;
 extern ni_dbus_service_t	ni_objectmodel_addrconf_ipv4_static_service;
 extern ni_dbus_service_t	ni_objectmodel_addrconf_ipv6_static_service;
+extern ni_dbus_service_t	ni_objectmodel_addrconf_ipv4_dhcp_service;
 static ni_dbus_property_t	ni_objectmodel_netif_request_properties[];
 
 /*
@@ -89,6 +90,9 @@ ni_objectmodel_register_netif_classes(void)
 
 	ni_objectmodel_addrconf_ipv6_static_service.compatible = &ni_objectmodel_netif_class;
 	ni_objectmodel_register_service(&ni_objectmodel_addrconf_ipv6_static_service);
+
+	ni_objectmodel_addrconf_ipv4_dhcp_service.compatible = &ni_objectmodel_netif_class;
+	ni_objectmodel_register_service(&ni_objectmodel_addrconf_ipv4_dhcp_service);
 }
 
 /*
