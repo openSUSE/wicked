@@ -100,6 +100,7 @@ ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_messa
 	ni_dbus_addrconf_forwarder_t *forwarder = user_data;
 	const char *signal_name = dbus_message_get_member(msg);
 	ni_interface_t *ifp;
+	ni_addrconf_request_t *req = NULL;
 	ni_addrconf_lease_t *lease = NULL;
 	unsigned int event_id = 0;
 	ni_dbus_variant_t argv[16];
@@ -148,10 +149,7 @@ ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_messa
 	 * really match the event we were expecting to match.
 	 */
 	if (!ni_uuid_is_null(&uuid)) {
-		ni_addrconf_request_t *req;
-
-		if ((req = ni_interface_get_addrconf_request(ifp, forwarder->caller.interface)) != NULL
-		 && ni_uuid_equal(&req->uuid, &uuid)) {
+		if ((req = ni_interface_get_addrconf_request(ifp, &uuid)) != NULL) {
 			event_id = req->event_id;
 			req->event_id = 0;
 		}
@@ -198,6 +196,8 @@ done:
 		ni_dbus_variant_destroy(&argv[argc]);
 	if (lease)
 		ni_addrconf_lease_free(lease);
+	if (req)
+		ni_addrconf_request_free(req);
 }
 
 /*
