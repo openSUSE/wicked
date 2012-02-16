@@ -25,6 +25,18 @@
 #include "model.h"
 #include "debug.h"
 
+typedef struct ni_dbus_addrconf_forwarder {
+	ni_dbus_client_t *	client;
+	const char *		bus_name;
+	const char *		interface;
+	const char *		path;
+
+	int			addrfamily;
+	ni_addrconf_mode_t	addrconf;
+
+	ni_dbus_class_t		class;
+} ni_dbus_addrconf_forwarder_t;
+
 
 #define WICKED_DBUS_ADDRCONF_IPV4STATIC_INTERFACE	WICKED_DBUS_INTERFACE ".Addrconf.ipv4.static"
 #define WICKED_DBUS_ADDRCONF_IPV4DHCP_INTERFACE		WICKED_DBUS_INTERFACE ".Addrconf.ipv4.dhcp"
@@ -69,17 +81,6 @@ ni_objectmodel_addrconf_path_to_device(const char *path)
 	return ni_interface_by_index(nc, ifindex);
 }
 
-static ni_addrconf_lease_t *
-ni_objectmodel_interface_to_lease(const char *interface)
-{
-	if (!strcmp(interface, WICKED_DBUS_DHCP4_INTERFACE))
-		return ni_addrconf_lease_new(NI_ADDRCONF_DHCP, AF_INET);
-	if (!strcmp(interface, WICKED_DBUS_AUTO4_INTERFACE))
-		return ni_addrconf_lease_new(NI_ADDRCONF_AUTOCONF, AF_INET);
-
-	return NULL;
-}
-
 /*
  * Callback from addrconf supplicant whenever it acquired, released or lost a lease.
  *
@@ -90,6 +91,7 @@ ni_objectmodel_interface_to_lease(const char *interface)
 void
 ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_message_t *msg, void *user_data)
 {
+	ni_dbus_addrconf_forwarder_t *forwarder = user_data;
 	const char *signal_name = dbus_message_get_member(msg);
 	ni_interface_t *ifp;
 	ni_addrconf_lease_t *lease = NULL;
@@ -110,13 +112,7 @@ ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_messa
 		goto done;
 	}
 
-	lease = ni_objectmodel_interface_to_lease(dbus_message_get_interface(msg));
-	if (lease == NULL) {
-		ni_debug_dbus("received signal %s from %s (unknown service)",
-				signal_name, dbus_message_get_interface(msg));
-		goto done;
-	}
-
+	lease = ni_addrconf_lease_new(forwarder->addrconf, forwarder->addrfamily);
 	if (argc >= 1 && !ni_objectmodel_set_addrconf_lease(lease, &argv[0])) {
 		ni_debug_dbus("%s: unable to parse lease argument", __func__);
 		goto done;
@@ -296,18 +292,6 @@ ni_objectmodel_addrconf_ipv6_static_configure(ni_dbus_object_t *object, const ni
  * Note, we do not record the contents of the addrconf request, which may be totally
  * free-form. We just pass it on to the respective addrconf service.
  */
-typedef struct ni_dbus_addrconf_forwarder {
-	ni_dbus_client_t *	client;
-	const char *		bus_name;
-	const char *		interface;
-	const char *		path;
-
-	int			addrfamily;
-	ni_addrconf_mode_t	addrconf;
-
-	ni_dbus_class_t		class;
-} ni_dbus_addrconf_forwarder_t;
-
 static ni_addrconf_request_t *
 ni_objectmodel_addrconf_forward(ni_dbus_addrconf_forwarder_t *forwarder,
 			ni_interface_t *dev, const char *method_name,
@@ -330,7 +314,7 @@ ni_objectmodel_addrconf_forward(ni_dbus_addrconf_forwarder_t *forwarder,
 		ni_dbus_client_add_signal_handler(forwarder->client, NULL, NULL,
 				forwarder->interface,
 				ni_objectmodel_addrconf_signal_handler,
-				NULL);
+				forwarder);
 	}
 
 	/* Create a request, generate a uuid and assign an event ID */
