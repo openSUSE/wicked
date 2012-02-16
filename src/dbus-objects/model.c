@@ -449,16 +449,56 @@ static dbus_bool_t
 ni_objectmodel_extension_completion(ni_dbus_connection_t *connection, const ni_dbus_method_t *method,
 				ni_dbus_message_t *call, const ni_process_instance_t *process)
 {
+	const char *interface_name = dbus_message_get_interface(call);
+	DBusError error = DBUS_ERROR_INIT;
 	ni_dbus_message_t *reply;
 	const char *filename;
+	xml_document_t *doc = NULL;
+
+	if ((filename = ni_process_instance_getenv(process, "WICKED_RETFILE")) != NULL) {
+		if (!(doc = xml_document_read(filename)))
+			ni_error("%s.%s: failed to parse return data",
+					interface_name, method->name);
+	}
 
 	if (ni_process_exit_status_okay(process)) {
+		ni_dbus_variant_t result = NI_DBUS_VARIANT_INIT;
+		xml_node_t *retnode = NULL;
+
+		/* if the method returns anything, read it from the response file */
+		if (doc != NULL)
+			retnode = xml_node_get_child(xml_document_root(doc), "return");
+
+		/* Build the proper dbus return object from it */
+		if (retnode && !ni_dbus_serialize_return(method, &result, retnode)) {
+			dbus_set_error(&error, DBUS_ERROR_FAILED,
+					"%s.%s: unable to serialize returned data",
+					interface_name, method->name);
+			ni_dbus_variant_destroy(&result);
+			goto send_error;
+		}
+
+		/* Build the response message */
 		reply = dbus_message_new_method_return(call);
-		/* FIXME: if the method returns anything, we need to read it
-		 * from the response file */
+		if (!ni_dbus_message_serialize_variants(reply, 1, &result, &error)) {
+			ni_dbus_variant_destroy(&result);
+			dbus_message_unref(reply);
+			goto send_error;
+		}
+		ni_dbus_variant_destroy(&result);
 	} else {
-		reply = dbus_message_new_error(call, DBUS_ERROR_FAILED,
-				"dbus extension script returns error");
+		xml_node_t *errnode = NULL;
+
+		if (doc != NULL)
+			errnode = xml_node_get_child(xml_document_root(doc), "error");
+
+		if (errnode)
+			ni_dbus_serialize_error(&error, errnode);
+		else
+			dbus_set_error(&error, DBUS_ERROR_FAILED, "dbus extension script returns error");
+
+send_error:
+		reply = dbus_message_new_error(call, error.name, error.message);
 	}
 
 	if (ni_dbus_connection_send_message(connection, reply) < 0)
