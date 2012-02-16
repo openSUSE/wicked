@@ -35,69 +35,6 @@ static const char *	ni_objectmodel_dhcp4_object_path(const ni_interface_t *);
 static const char *	ni_objectmodel_ipv4ll_object_path(const ni_interface_t *);
 
 /*
- * Interface.acquire(dict options)
- * Acquire a lease for the given interface.
- *
- * The options dictionary contains addrconf request properties.
- */
-int
-ni_objectmodel_addrconf_acquire(ni_dbus_object_t *object, const ni_addrconf_request_t *req)
-{
-	DBusError error = DBUS_ERROR_INIT;
-	ni_dbus_variant_t argument;
-	int rv = 0;
-
-	if (req == NULL)
-		return -NI_ERROR_INVALID_ARGS;
-
-	ni_dbus_variant_init_dict(&argument);
-	if (!__wicked_dbus_get_addrconf_request(req, &argument, &error))
-		goto translate_error;
-
-	if (!ni_dbus_object_call_variant(object, NULL, "acquire", 1, &argument, 0, NULL, &error))
-		goto translate_error;
-
-	rv = TRUE;
-
-failed:
-	ni_dbus_variant_destroy(&argument);
-	dbus_error_free(&error);
-	return rv;
-
-translate_error:
-	rv = ni_dbus_object_translate_error(object, &error);
-	goto failed;
-}
-
-/*
- * Interface.release()
- * Release a lease for the given interface.
- *
- * The options dictionary contains addrconf request properties.
- */
-int
-ni_objectmodel_addrconf_release(ni_dbus_object_t *object, const ni_addrconf_lease_t *lease)
-{
-	DBusError error = DBUS_ERROR_INIT;
-	ni_dbus_variant_t argv[1];
-	int argc = 0;
-	int rv = 0;
-
-	if (lease != NULL) {
-		ni_dbus_variant_set_uuid(&argv[argc], &lease->uuid);
-		argc++;
-	}
-
-	if (!ni_dbus_object_call_variant(object, NULL, "drop", argc, argv, 0, NULL, &error))
-		rv = ni_dbus_object_translate_error(object, &error);
-
-	while (argc--)
-		ni_dbus_variant_destroy(&argv[0]);
-	dbus_error_free(&error);
-	return rv;
-}
-
-/*
  * Extract interface index from object path.
  * Path names must be WICKED_DBUS_OBJECT_PATH "/" <something> "/Interface/" <index>
  */
@@ -174,6 +111,7 @@ ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_messa
 		goto done;
 	}
 
+	/* FIXME: This is wrong, as it always creates a DHCPv4 lease */
 	lease = ni_objectmodel_interface_to_lease(dbus_message_get_interface(msg));
 	if (lease == NULL) {
 		ni_debug_dbus("received signal %s from %s (unknown service)",

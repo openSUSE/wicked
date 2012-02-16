@@ -203,10 +203,6 @@ extern void			ni_objectmodel_register_netif_classes(void);
 extern void			ni_objectmodel_create_netif_list(ni_dbus_server_t *);
 extern dbus_bool_t		ni_objectmodel_bind_compatible_interfaces(ni_dbus_object_t *);
 
-extern int			ni_objectmodel_addrconf_acquire(ni_dbus_object_t *,
-						const ni_addrconf_request_t *);
-extern int			ni_objectmodel_addrconf_release(ni_dbus_object_t *,
-						const ni_addrconf_lease_t *);
 extern void			ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *,
 						ni_dbus_message_t *, void *);
 extern dbus_bool_t		__ni_objectmodel_interface_event(ni_dbus_server_t *, ni_dbus_object_t *, ni_event_t);
