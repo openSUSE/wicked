@@ -311,6 +311,21 @@ ni_interface_set_link_stats(ni_interface_t *ifp, ni_link_stats_t *stats)
 	ifp->link.stats = stats;
 }
 
+int
+ni_interface_set_addrconf_request(ni_interface_t *dev, ni_addrconf_request_t *req)
+{
+	ni_afinfo_t *afi;
+
+	afi = __ni_interface_address_info(dev, req->family);
+	if (afi == NULL) {
+		ni_error("unknown address family %d in addrconf request", req->family);
+		return -1;
+	}
+
+	__ni_afinfo_set_addrconf_request(afi, req->type, req);
+	return 0;
+}
+
 /*
  * We received an updated lease from an addrconf agent.
  */
