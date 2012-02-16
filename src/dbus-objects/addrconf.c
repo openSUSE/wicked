@@ -265,16 +265,63 @@ ni_objectmodel_addrconf_ipv4_static_configure(ni_dbus_object_t *object, const ni
 	 || !__ni_objectmodel_set_route_dict(&req->statik.routes, dict, error))
 		return FALSE;
 
-	ni_trace("static addrs=%p routes=%p", req->statik.addrs, req->statik.routes);
-
 	rv = ni_system_interface_addrconf(ni_global_state_handle(0), dev, req);
-	ni_trace("ni_system_interface_addrconf() = %d", rv);
 	ni_addrconf_request_free(req);
 
 	if (rv < 0) {
 		dbus_set_error(error,
 				DBUS_ERROR_FAILED,
 				"Error configuring static IPv4 addresses: %s",
+				ni_strerror(rv));
+		return FALSE;
+	} else {
+		/* XXX: We should really have a helper function to do this */
+		ni_dbus_variant_t result = NI_DBUS_VARIANT_INIT;
+
+		ni_dbus_variant_set_uint32(&result, 0);
+		ni_dbus_message_serialize_variants(reply, 1, &result, error);
+		ni_dbus_variant_destroy(&result);
+	}
+
+	return TRUE;
+}
+
+/*
+ * Configure static IPv6 addresses
+ */
+static dbus_bool_t
+ni_objectmodel_addrconf_ipv6_static_configure(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_addrconf_request_t *req = NULL;
+	const ni_dbus_variant_t *dict;
+	ni_interface_t *dev;
+	int rv;
+
+	if (!(dev = get_interface(object, error)))
+		return FALSE;
+
+	if (argc != 1 || !ni_dbus_variant_is_dict(&argv[0])) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"%s.%s: exected one dict argument",
+				WICKED_DBUS_ADDRCONF_IPV4STATIC_INTERFACE, method->name);
+		return FALSE;
+	}
+	dict = &argv[0];
+
+	req = ni_addrconf_request_new(NI_ADDRCONF_STATIC, AF_INET6);
+	if (!__ni_objectmodel_set_address_dict(&req->statik.addrs, dict, error)
+	 || !__ni_objectmodel_set_route_dict(&req->statik.routes, dict, error))
+		return FALSE;
+
+	rv = ni_system_interface_addrconf(ni_global_state_handle(0), dev, req);
+	ni_addrconf_request_free(req);
+
+	if (rv < 0) {
+		dbus_set_error(error,
+				DBUS_ERROR_FAILED,
+				"Error configuring static IPv6 addresses: %s",
 				ni_strerror(rv));
 		return FALSE;
 	} else {
@@ -331,6 +378,11 @@ static const ni_dbus_method_t		ni_objectmodel_addrconf_ipv4_static_methods[] = {
 	{ NULL }
 };
 
+static const ni_dbus_method_t		ni_objectmodel_addrconf_ipv6_static_methods[] = {
+	{ "configure",		"a{sv}",		ni_objectmodel_addrconf_ipv6_static_configure },
+	{ NULL }
+};
+
 /*
  * IPv4 and IPv6 addrconf requests share the same properties
  */
@@ -344,10 +396,18 @@ static ni_dbus_property_t		ni_objectmodel_addrconf_static_properties[] = {
 	{ NULL }
 };
 
-ni_dbus_service_t			ni_objectmodel_addrconf_ipv_static_service = {
+ni_dbus_service_t			ni_objectmodel_addrconf_ipv4_static_service = {
 	.name		= WICKED_DBUS_ADDRCONF_IPV4STATIC_INTERFACE,
 	/* The .compatible member is filled in through dbus-xml. Not nice. */
 //	.compatible	= &ni_objectmodel_netif_class,
 	.properties	= ni_objectmodel_addrconf_static_properties,
 	.methods	= ni_objectmodel_addrconf_ipv4_static_methods,
+};
+
+ni_dbus_service_t			ni_objectmodel_addrconf_ipv6_static_service = {
+	.name		= WICKED_DBUS_ADDRCONF_IPV4STATIC_INTERFACE,
+	/* The .compatible member is filled in through dbus-xml. Not nice. */
+//	.compatible	= &ni_objectmodel_netif_class,
+	.properties	= ni_objectmodel_addrconf_static_properties,
+	.methods	= ni_objectmodel_addrconf_ipv6_static_methods,
 };
