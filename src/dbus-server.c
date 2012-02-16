@@ -605,7 +605,7 @@ error_reply:
 	}
 
 	/* send reply */
-	if (ni_dbus_connection_send_message(server->connection, reply) < 0)
+	if (reply && ni_dbus_connection_send_message(server->connection, reply) < 0)
 		ni_error("unable to send reply (out of memory)");
 
 	dbus_error_free(&error);
