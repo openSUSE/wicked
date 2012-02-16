@@ -419,36 +419,52 @@ __ni_interface_address_to_lease(ni_interface_t *ifp, const ni_address_t *ap)
 	return NULL;
 }
 
-ni_address_t *
-__ni_lease_owns_address(const ni_addrconf_lease_t *lease, const ni_address_t *ap)
+int
+__ni_lease_owns_address(const ni_addrconf_lease_t *lease, const ni_address_t *match)
 {
 	time_t now = time(NULL);
-	ni_address_t *own;
+	ni_address_t *ap;
 
-	if (!lease)
+	if (!lease || lease->family != match->family)
 		return 0;
-	for (own = lease->addrs; own; own = own->next) {
-		if (own->prefixlen != ap->prefixlen)
+
+	/* IPv6 autoconf is special; we record the IPv6 address prefixes in the
+	 * lease. */
+	if (lease->family == AF_INET6 && lease->type == NI_ADDRCONF_AUTOCONF) {
+		ni_route_t *rp;
+
+		for (rp = lease->routes; rp; rp = rp->next) {
+			if (rp->prefixlen != match->prefixlen)
+				continue;
+			if (rp->expires && rp->expires <= now)
+				continue;
+			if (ni_address_prefix_match(rp->prefixlen, &rp->destination, &match->local_addr))
+				return 1;
+		}
+	}
+
+	for (ap = lease->addrs; ap; ap = ap->next) {
+		if (ap->prefixlen != match->prefixlen)
 			continue;
-		if (own->expires && own->expires <= now)
+		if (ap->expires && ap->expires <= now)
 			continue;
 
 		/* Note: for IPv6 autoconf, we will usually have recorded the
 		 * address prefix only; the address that will eventually be picked
 		 * by the autoconf logic will be different */
 		if (lease->family == AF_INET6 && lease->type == NI_ADDRCONF_AUTOCONF) {
-			if (!ni_address_prefix_match(ap->prefixlen, &own->local_addr, &ap->local_addr))
+			if (!ni_address_prefix_match(match->prefixlen, &ap->local_addr, &match->local_addr))
 				continue;
 		} else {
-			if (ni_address_equal(&own->local_addr, &ap->local_addr))
+			if (ni_address_equal(&ap->local_addr, &match->local_addr))
 				continue;
 		}
 
-		if (ni_address_equal(&own->peer_addr, &ap->peer_addr)
-		 && ni_address_equal(&own->anycast_addr, &ap->anycast_addr))
-			return own;
+		if (ni_address_equal(&ap->peer_addr, &match->peer_addr)
+		 && ni_address_equal(&ap->anycast_addr, &match->anycast_addr))
+			return 1;
 	}
-	return NULL;
+	return 0;
 }
 
 /*

@@ -45,6 +45,8 @@ extern void		__ni_interfaces_clear(ni_netconfig_t *);
 extern ni_addrconf_lease_t *__ni_interface_find_lease(ni_interface_t *, int, ni_addrconf_mode_t, int);
 extern ni_addrconf_lease_t *__ni_interface_address_to_lease(ni_interface_t *, const ni_address_t *);
 extern ni_addrconf_lease_t *__ni_interface_route_to_lease(ni_interface_t *, const ni_route_t *);
+extern void		__ni_interface_track_ipv6_autoconf(ni_interface_t *, int);
+extern ni_route_t *	__ni_interface_add_autoconf_prefix(ni_interface_t *, const ni_sockaddr_t *, unsigned int, unsigned int);
 extern unsigned int	__ni_interface_translate_ifflags(unsigned int);
 extern int		__ni_interface_is_up(const ni_interface_t *);
 extern int		__ni_interface_is_down(const ni_interface_t *);
@@ -100,7 +102,7 @@ extern int		__ni_system_resolver_restore(void);
 
 extern ni_address_t *	__ni_address_list_clone(const ni_address_t *);
 
-extern ni_address_t *	__ni_lease_owns_address(const ni_addrconf_lease_t *, const ni_address_t *);
+extern int		__ni_lease_owns_address(const ni_addrconf_lease_t *, const ni_address_t *);
 extern ni_route_t *	__ni_lease_owns_route(const ni_addrconf_lease_t *, const ni_route_t *);
 
 extern ni_vlan_t *	__ni_vlan_new(void);

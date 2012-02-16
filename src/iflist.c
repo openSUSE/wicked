@@ -720,13 +720,10 @@ __ni_interface_process_newlink(ni_interface_t *ifp, struct nlmsghdr *h,
 		ifp->ipv6.forwarding = val;
 
 		ni_sysctl_ipv6_ifconfig_get_uint(ifp->name, "autoconf", &val);
-		if (val)
-			ni_afinfo_addrconf_enable(&ifp->ipv6, NI_ADDRCONF_AUTOCONF);
-		else
-			ni_afinfo_addrconf_disable(&ifp->ipv6, NI_ADDRCONF_AUTOCONF);
+		__ni_interface_track_ipv6_autoconf(ifp, !!val);
 	} else {
-		ni_afinfo_addrconf_disable(&ifp->ipv6, NI_ADDRCONF_AUTOCONF);
 		ifp->ipv6.enabled = ifp->ipv6.forwarding = 0;
+		__ni_interface_track_ipv6_autoconf(ifp, 0);
 	}
 
 	if (ifp->link.type == NI_IFTYPE_ETHERNET)
@@ -740,7 +737,6 @@ __ni_interface_process_newlink(ni_interface_t *ifp, struct nlmsghdr *h,
 		if (ni_wireless_interface_refresh(ifp) < 0)
 			ni_error("%s: failed to refresh wireless info", ifp->name);
 	}
-
 
 	/* Check if we have DHCP running for this interface */
 	__ni_discover_addrconf(ifp);
@@ -787,9 +783,9 @@ int
 __ni_interface_process_newprefix(ni_interface_t *ifp, struct nlmsghdr *h, struct prefixmsg *pfx)
 {
 	struct nlattr *tb[PREFIX_MAX+1];
-	ni_addrconf_lease_t *lease;
+	unsigned int expires = 0;
 	ni_sockaddr_t address;
-	ni_address_t *ap;
+	ni_route_t *rp;
 
 	if (pfx->prefix_family != AF_INET6)
 		return 0;
@@ -809,37 +805,52 @@ __ni_interface_process_newprefix(ni_interface_t *ifp, struct nlmsghdr *h, struct
 		return -1;
 	}
 
-	__ni_nla_get_addr(pfx->prefix_family, &address, tb[PREFIX_ADDRESS]);
-
-	lease = __ni_interface_get_autoconf_lease(ifp, AF_INET6);
-	for (ap = lease->addrs; ap; ap = ap->next) {
-		if (ap->prefixlen == pfx->prefix_len
-		 && ni_address_prefix_match(pfx->prefix_len, &ap->local_addr, &address))
-			break;
-	}
-
-	if (ap == NULL) {
-		ap = __ni_address_new(&lease->addrs, pfx->prefix_family, pfx->prefix_len, &address);
-		ap->config_method = NI_ADDRCONF_AUTOCONF;
-		ap->config_lease = lease;
-	}
-
 	if (tb[PREFIX_CACHEINFO]) {
 		struct prefix_cacheinfo *ci = (struct prefix_cacheinfo *) tb[PREFIX_CACHEINFO];
 
-		ap->expires = 0;
-		if (ci->valid_time != 0xFFFFFFFF) {
-			time_t now = time(NULL);
+		if (ci->valid_time != 0xFFFFFFFF)
+			expires = ci->valid_time;
+	}
 
-			ap->expires = now + ci->valid_time;
-			if (ap->expires < now) {
-				ni_warn("time overflow in valid_lft");
-				ap->expires = now + 365 * 24 * 3600;
-			}
+
+	__ni_nla_get_addr(pfx->prefix_family, &address, tb[PREFIX_ADDRESS]);
+
+	rp = __ni_interface_add_autoconf_prefix(ifp, &address, pfx->prefix_len, expires);
+	return 0;
+}
+
+ni_route_t *
+__ni_interface_add_autoconf_prefix(ni_interface_t *ifp, const ni_sockaddr_t *addr, unsigned int pfxlen, unsigned int expires)
+{
+	ni_addrconf_lease_t *lease;
+	ni_route_t *rp;
+
+	ni_debug_ifconfig("%s(dev=%s, prefix=%s/%u", __func__, ifp->name, ni_address_print(addr), pfxlen);
+
+	lease = __ni_interface_get_autoconf_lease(ifp, addr->ss_family);
+	for (rp = lease->routes; rp; rp = rp->next) {
+		if (rp->prefixlen == pfxlen && ni_address_prefix_match(pfxlen, &rp->destination, addr))
+			break;
+	}
+
+	if (rp == NULL) {
+		rp = __ni_route_new(&lease->routes, pfxlen, addr, NULL);
+		rp->config_method = NI_ADDRCONF_AUTOCONF;
+		//rp->config_lease = lease;
+	}
+
+	rp->expires = 0;
+	if (expires != 0) {
+		time_t now = time(NULL);
+
+		rp->expires = now + expires;
+		if (expires < now) {
+			ni_warn("%s: time overflow", __func__);
+			rp->expires = now + 365 * 24 * 3600;
 		}
 	}
 
-	return 0;
+	return rp;
 }
 
 /*
@@ -882,23 +893,8 @@ __ni_interface_process_newaddr(ni_interface_t *ifp, struct nlmsghdr *h, struct i
 	ap->bcast_addr = tmp.bcast_addr;
 	ap->anycast_addr = tmp.anycast_addr;
 
-#if 0
-	ni_debug_ifconfig("%-5s %-20s scope %s, flags%s%s%s",
-				ifp->name, ni_address_print(&tmp.local_addr),
-				(ifa->ifa_scope == RT_SCOPE_HOST)? "host" :
-				 (ifa->ifa_scope == RT_SCOPE_LINK)? "link" :
-				  (ifa->ifa_scope == RT_SCOPE_SITE)? "site" :
-				   "universe",
-				(ifa->ifa_flags & IFA_F_PERMANENT)? " permanent" : "",
-				(ifa->ifa_flags & IFA_F_TEMPORARY)? " temporary" : "",
-				(ifa->ifa_flags & IFA_F_TENTATIVE)? " tentative" : "");
-#endif
-
 	lease = __ni_interface_address_to_lease(ifp, ap);
-	if (lease) {
-		ap->config_method = lease->type;
-		ap->config_lease = lease;
-	} else {
+	if (lease == NULL) {
 		int probably_autoconf = 0;
 
 		/* We don't have a strict criterion to distinguish autoconf addresses
@@ -919,12 +915,30 @@ __ni_interface_process_newaddr(ni_interface_t *ifp, struct nlmsghdr *h, struct i
 		}
 
 		if (probably_autoconf) {
-			ap->config_lease = __ni_interface_get_autoconf_lease(ifp, ifa->ifa_family);
+			lease = __ni_interface_get_autoconf_lease(ifp, ifa->ifa_family);
+
+			ap->config_lease = lease;
 			ap->config_method = NI_ADDRCONF_AUTOCONF;
 
 			/* FIXME: add this address to the lease */
 		}
 	}
+
+	ap->config_method = lease->type;
+	ap->config_lease = lease;
+
+#if 1
+	ni_debug_ifconfig("%-5s %-20s scope %s, flags%s%s%s, owned by %s",
+				ifp->name, ni_address_print(&tmp.local_addr),
+				(ifa->ifa_scope == RT_SCOPE_HOST)? "host" :
+				 (ifa->ifa_scope == RT_SCOPE_LINK)? "link" :
+				  (ifa->ifa_scope == RT_SCOPE_SITE)? "site" :
+				   "universe",
+				(ifa->ifa_flags & IFA_F_PERMANENT)? " permanent" : "",
+				(ifa->ifa_flags & IFA_F_TEMPORARY)? " temporary" : "",
+				(ifa->ifa_flags & IFA_F_TENTATIVE)? " tentative" : "",
+				ni_addrconf_type_to_name(ap->config_method));
+#endif
 
 	return 0;
 }
@@ -1040,8 +1054,27 @@ __ni_interface_get_autoconf_lease(ni_interface_t *dev, int af)
 		lease = ni_addrconf_lease_new(af, NI_ADDRCONF_AUTOCONF);
 		lease->state = NI_ADDRCONF_STATE_GRANTED;
 		ni_interface_set_lease(dev, lease);
+
+		/* In the IPv6 case, add the default prefix for link-local autoconf.
+		 * This is always on. */
+		if (af == AF_INET6) {
+			ni_sockaddr_t prefix;
+
+			ni_address_parse(&prefix, "fe80::", AF_INET6);
+			__ni_route_new(&lease->routes, 64, &prefix, NULL);
+		}
 	}
 	return lease;
+}
+
+void
+__ni_interface_track_ipv6_autoconf(ni_interface_t *dev, int enable)
+{
+	if (!enable) {
+		ni_interface_unset_lease(dev, AF_INET6, NI_ADDRCONF_AUTOCONF);
+	} else {
+		(void) __ni_interface_get_autoconf_lease(dev, AF_INET6);
+	}
 }
 
 /*
