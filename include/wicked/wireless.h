@@ -109,43 +109,43 @@ struct ni_wireless_network {
 	unsigned int			refcount;
 	time_t				expires;
 
-	ni_wireless_ssid_t	essid;
-	unsigned int		essid_encode_index;
-	ni_hwaddr_t		access_point;
-	ni_wireless_mode_t	mode;
-	unsigned int		channel;
+	ni_wireless_ssid_t		essid;
+	unsigned int			essid_encode_index;
+	ni_hwaddr_t			access_point;
+	ni_wireless_mode_t		mode;
+	unsigned int			channel;
 
-	int			noise;
-	double			level;			/* in dBm*/
-	double			quality;		/* n/70 */
-	double			frequency;		/* in GHz */
-	unsigned int		max_bitrate;		/* in Mbps */
+	int				noise;
+	double				level;			/* in dBm*/
+	double				quality;		/* n/70 */
+	double				frequency;		/* in GHz */
+	unsigned int			max_bitrate;		/* in Mbps */
 
 	/* We need to fix this; this is a 16bit word directly from wpa_supplicant */
-	uint16_t		capabilities;
+	uint16_t			capabilities;
 
-	ni_wireless_auth_mode_t	auth_proto;
-	ni_wireless_auth_algo_t	auth_algo;
-	ni_wireless_auth_algo_t	ath_algo;
-	ni_wireless_key_mgmt_t	keymgmt_proto;
-	ni_wireless_cipher_t	cipher;
-	ni_wireless_cipher_t	pairwise_cipher;
-	ni_wireless_cipher_t	group_cipher;
-	ni_wireless_eap_method_t eap_method;
+	ni_wireless_auth_mode_t		auth_proto;
+	ni_wireless_auth_algo_t		auth_algo;
+	ni_wireless_auth_algo_t		ath_algo;
+	ni_wireless_key_mgmt_t		keymgmt_proto;
+	ni_wireless_cipher_t		cipher;
+	ni_wireless_cipher_t		pairwise_cipher;
+	ni_wireless_cipher_t		group_cipher;
+	ni_wireless_eap_method_t	eap_method;
 
 	struct {
-		ni_wireless_security_t mode;
-		unsigned int	key_required : 1,
-				key_present : 1;
-		unsigned int	key_index;
+		ni_wireless_security_t	mode;
+		unsigned int		key_required : 1,
+					key_present : 1;
+		unsigned int		key_index;
 
-		unsigned int	key_len;
-		unsigned char *	key_data;
+		unsigned int		key_len;
+		unsigned char *		key_data;
 	} encode;
 
 	/* Information on the auth modes supported by the AP */
 	/* FIXME: rename to supported_auth_modes */
-	ni_wireless_auth_info_array_t auth_info;
+	ni_wireless_auth_info_array_t	auth_info;
 };
 
 typedef struct ni_wireless_interface_capabilities {
