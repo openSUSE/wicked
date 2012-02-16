@@ -345,7 +345,7 @@ wicked_create_interface_common(const ni_dbus_service_t *service, ni_dbus_variant
 				1, call_resp,
 				&error)) {
 		ni_error("Server refused to create interface. Server responds:");
-		ni_error_extra("%s: %s\n", error.name, error.message);
+		ni_error_extra("%s: %s", error.name, error.message);
 	} else {
 		const char *response;
 
@@ -452,7 +452,7 @@ wicked_link_change_common(ni_dbus_object_t *object, ni_dbus_variant_t *arg, unsi
 				1, &result,
 				&error)) {
 		ni_error("Server refused to create interface. Server responds:");
-		ni_error_extra("%s: %s\n", error.name, error.message);
+		ni_error_extra("%s: %s", error.name, error.message);
 	} else {
 		/* extract device object path from reply */
 		rv = ni_dbus_variant_get_uint(&result, new_status);
@@ -511,7 +511,7 @@ wicked_addrconf_common(ni_dbus_object_t *object, const ni_dbus_service_t *servic
 				1, &result,
 				&error)) {
 		ni_error("server refused to configure addresses. Server responds:");
-		ni_error_extra("%s: %s\n", error.name, error.message);
+		ni_error_extra("%s: %s", error.name, error.message);
 	} else {
 		/* extract optional event ID from reply */
 		if (!ni_dbus_variant_get_uint(&result, event_id))
@@ -1126,8 +1126,7 @@ do_addport(int argc, char **argv)
 	if (!ni_dbus_object_call_variant(bridge, interface->name, "addPort",
 				2, argument, 1, &result, &error)) {
 		ni_error("Server refused to add port. Server responds:");
-		fprintf(stderr, /* ni_error_extra */
-			"%s: %s\n", error.name, error.message);
+		ni_error_extra("%s: %s", error.name, error.message);
 		goto out;
 	}
 
@@ -1182,8 +1181,7 @@ do_delport(int argc, char **argv)
 	if (!ni_dbus_object_call_variant(bridge, interface->name, "removePort",
 				1, &argument, 1, &result, &error)) {
 		ni_error("Server refused to add port. Server responds:");
-		fprintf(stderr, /* ni_error_extra */
-			"%s: %s\n", error.name, error.message);
+		ni_error_extra("%s: %s", error.name, error.message);
 		goto out;
 	}
 
@@ -1386,8 +1384,7 @@ usage:
 				WICKED_DBUS_NETIF_INTERFACE, "up",
 				1, &argument, 0, NULL, &error)) {
 		ni_error("Unable to configure interface. Server responds:");
-		fprintf(stderr, /* ni_error_extra */
-			"%s: %s\n", error.name, error.message);
+		ni_error_extra("%s: %s", error.name, error.message);
 		dbus_error_free(&error);
 		goto failed;
 	}
@@ -1452,8 +1449,7 @@ do_ifdown(int argc, char **argv)
 					WICKED_DBUS_NETIF_INTERFACE, "down",
 					0, NULL, 0, NULL, &error)) {
 			ni_error("Unable to configure interface. Server responds:");
-			fprintf(stderr, /* ni_error_extra */
-				"%s: %s\n", error.name, error.message);
+			ni_error_extra("%s: %s", error.name, error.message);
 			dbus_error_free(&error);
 			goto failed;
 		}

@@ -634,8 +634,7 @@ ni_ifworker_do_device_up(ni_ifworker_t *w)
 	const char *link_type;
 	const char *object_path;
 
-	ni_trace("%s(%s)", __func__, w->name);
-
+	ni_debug_dbus("%s(%s)", __func__, w->name);
 	if (!(linknode = wicked_find_link_properties(w->config))) {
 		/* If the device exists, this is not an error */
 		if (w->device != NULL)
@@ -690,7 +689,7 @@ ni_ifworker_do_link_up(ni_ifworker_t *w)
 	ni_interface_t *dev;
 	xml_node_t *devnode;
 
-	ni_trace("%s(name=%s, object=%p, path=%s)", __func__, w->name, w->object, w->object_path);
+	ni_debug_dbus("%s(name=%s, object=%p, path=%s)", __func__, w->name, w->object, w->object_path);
 
 	devnode = xml_node_get_child(w->config, "device");
 	if (devnode && xml_node_get_child(devnode, "status")) {
@@ -704,7 +703,6 @@ ni_ifworker_do_link_up(ni_ifworker_t *w)
 		return -1;
 	}
 
-	/* FIXME: do something with new_status */
 	dev = w->device;
 	dev->link.ifflags = ifstatus;
 
@@ -794,6 +792,8 @@ __ni_ifworker_check_addrconf(const char *name)
 					WICKED_DBUS_INTERFACE,
 					afname, modename);
 			service = ni_objectmodel_service_by_name(interface);
+			if (!service)
+				ni_warn("No addrconf service for %s:%s; ignored", afname, modename);
 		}
 	}
 
@@ -1151,8 +1151,7 @@ usage:
 				WICKED_DBUS_NETIF_INTERFACE, "up",
 				1, &argument, 0, NULL, &error)) {
 		ni_error("Unable to configure interface. Server responds:");
-		fprintf(stderr, /* ni_error_extra */
-			"%s: %s\n", error.name, error.message);
+		ni_error_extra("%s: %s", error.name, error.message);
 		dbus_error_free(&error);
 		goto failed;
 	}
