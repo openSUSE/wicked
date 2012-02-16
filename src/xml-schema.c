@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <wicked/logging.h>
 #include <wicked/xml.h>
+#include <wicked/netinfo.h> /* layering violation */
 #include "xml-schema.h"
 #include "util_priv.h"
 
@@ -23,6 +24,7 @@ static void		ni_xs_name_type_array_destroy(ni_xs_name_type_array_t *);
 static ni_xs_type_t *	ni_xs_build_one_type(xml_node_t *, ni_xs_scope_t *);
 static ni_xs_type_t *	ni_xs_scope_lookup(const ni_xs_scope_t *, const char *);
 static ni_xs_type_t *	ni_xs_scope_lookup_local(const ni_xs_scope_t *, const char *);
+static void		ni_xs_service_free(ni_xs_service_t *);
 static struct ni_xs_type_constraint_bitmap *ni_xs_build_bitmap_constraint(const xml_node_t *);
 
 /*
@@ -321,6 +323,15 @@ ni_xs_scope_free(ni_xs_scope_t *scope)
 		}
 	}
 
+	if (scope->services) {
+		ni_xs_service_t *service;
+
+		while ((service = scope->services) != NULL) {
+			scope->services = service->next;
+			ni_xs_service_free(service);
+		}
+	}
+
 	ni_var_array_destroy(&scope->constants);
 	free(scope);
 }
@@ -402,6 +413,19 @@ ni_xs_method_new(const char *name, ni_xs_service_t *service)
 	return method;
 }
 
+static void
+ni_xs_method_free(ni_xs_method_t *method)
+{
+	ni_string_free(&method->name);
+	ni_xs_name_type_array_destroy(&method->arguments);
+
+	if (method->retval)
+		ni_xs_type_release(method->retval);
+	method->retval = NULL;
+
+	free(method);
+}
+
 static ni_xs_service_t *
 ni_xs_service_new(const char *name, const char *interface, ni_xs_scope_t *scope)
 {
@@ -416,6 +440,21 @@ ni_xs_service_new(const char *name, const char *interface, ni_xs_scope_t *scope)
 	*tail = service;
 
 	return service;
+}
+
+static void
+ni_xs_service_free(ni_xs_service_t *service)
+{
+	ni_xs_method_t *method;
+
+	while ((method = service->methods) != NULL) {
+		service->methods = method->next;
+		ni_xs_method_free(method);
+	}
+	ni_string_free(&service->name);
+	ni_string_free(&service->interface);
+
+	free(service);
 }
 
 /*
@@ -520,7 +559,7 @@ ni_xs_process_schema(xml_node_t *node, ni_xs_scope_t *scope)
 int
 ni_xs_process_service(xml_node_t *node, ni_xs_scope_t *scope)
 {
-	const char *nameAttr, *intfAttr;
+	const char *nameAttr, *intfAttr, *provAttr;
 	ni_xs_service_t *service;
 	xml_node_t *child;
 
@@ -541,6 +580,27 @@ ni_xs_process_service(xml_node_t *node, ni_xs_scope_t *scope)
 
 	service = ni_xs_service_new(nameAttr, intfAttr, scope);
 
+	if ((provAttr = xml_node_get_attr(node, "provides")) != NULL) {
+		if (!strncmp(provAttr, "link:", 5)) {
+			int iftype;
+
+			/* using ni_linktype_name_to_type here is a layering violation.
+			 * This schema definition knows too much about our internals
+			 * already... */
+			if ((iftype = ni_linktype_name_to_type(provAttr + 5)) < 0) {
+				ni_error("%s: unknown link layer type in provides=\"%s\"",
+						xml_node_location(node), provAttr);
+				return -1;
+			}
+			service->layer = NI_LAYER_LINK;
+			service->provides.iftype = iftype;
+		} else {
+			ni_error("%s: invalid provides=\"%s\" attribute",
+					xml_node_location(node), provAttr);
+			return -1;
+		}
+	}
+
 	for (child = node->children; child; child = child->next) {
 		int rv;
 
@@ -551,6 +611,8 @@ ni_xs_process_service(xml_node_t *node, ni_xs_scope_t *scope)
 		if (!strcmp(child->name, "method")) {
 			if ((rv = ni_xs_process_method(child, service, scope)) < 0)
 				return rv;
+		} else {
+			ni_warn("%s: ignoring unknown element <%s>", xml_node_location(child), child->name);
 		}
 	}
 
@@ -583,6 +645,20 @@ ni_xs_process_method(xml_node_t *node, ni_xs_service_t *service, ni_xs_scope_t *
 		}
 
 		ni_xs_scope_free(temp_scope);
+	}
+
+	if ((child = xml_node_get_child(node, "return")) != NULL) {
+		ni_xs_scope_t *temp_scope = ni_xs_scope_new(scope, NULL);
+		ni_xs_type_t *type;
+
+		type = ni_xs_build_one_type(child, temp_scope);
+		ni_xs_scope_free(temp_scope);
+
+		if (type == NULL) {
+			ni_error("%s: cannot parse <return> element", xml_node_location(node));
+			return -1;
+		}
+		method->retval = ni_xs_type_hold(type);
 	}
 
 	return 0;

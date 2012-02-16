@@ -220,6 +220,7 @@ struct ni_xs_method {
 	ni_xs_method_t *	next;
 	char *			name;
 	ni_xs_name_type_array_t	arguments;
+	ni_xs_type_t *		retval;
 };
 
 typedef struct ni_xs_service	ni_xs_service_t;
@@ -227,6 +228,11 @@ struct ni_xs_service {
 	ni_xs_service_t *	next;
 	char *			name;
 	char *			interface;
+
+	ni_layer_t		layer;
+	union {
+		ni_iftype_t	iftype;
+	} provides;
 	ni_xs_method_t *	methods;
 };
 
