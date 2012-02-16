@@ -28,7 +28,6 @@ typedef struct ni_wpa_scan	ni_wpa_scan_t;
 
 struct ni_wpa_network {
 	ni_wpa_network_t *	next;
-	ni_dbus_object_t *	proxy;
 
 	time_t			expires;
 

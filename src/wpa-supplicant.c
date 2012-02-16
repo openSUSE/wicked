@@ -253,21 +253,13 @@ ni_wpa_network_properties_destroy(ni_wpa_network_t *net)
 
 	memset(net, 0, sizeof(*net));
 	net->next = hack.next;
-	net->proxy = hack.proxy;
 	net->expires = hack.expires;
 }
 
 static void
 ni_wpa_network_free(ni_wpa_network_t *net)
 {
-	ni_trace("%s(%p, proxy=%p)", __func__, net, net->proxy);
-	if (net->proxy) {
-		ni_dbus_object_free(net->proxy);
-		net->proxy = NULL;
-	}
-
 	ni_wpa_network_properties_destroy(net);
-
 	free(net);
 }
 
