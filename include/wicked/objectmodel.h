@@ -41,5 +41,15 @@ extern dbus_bool_t		ni_objectmodel_interface_event(ni_dbus_server_t *, ni_interf
 extern dbus_bool_t		ni_objectmodel_marshal_interface_request(const ni_interface_request_t *, ni_dbus_variant_t *, DBusError *);
 extern dbus_bool_t		ni_objectmodel_unmarshal_interface_request(ni_interface_request_t *, const ni_dbus_variant_t *, DBusError *);
 
+typedef struct ni_objectmodel_callback_info ni_objectmodel_callback_info_t;
+struct ni_objectmodel_callback_info {
+	ni_objectmodel_callback_info_t *next;
+	char *			event;
+	ni_uuid_t		uuid;
+};
+
+ni_objectmodel_callback_info_t *ni_objectmodel_callback_info_from_dict(const ni_dbus_variant_t *);
+extern void			ni_objectmodel_callback_info_free(ni_objectmodel_callback_info_t *);
+
 #endif /* __WICKED_OBJECTMODEL_H__ */
 
