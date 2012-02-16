@@ -11,6 +11,14 @@
       <max value="63"/>
     </priority>
     <path-cost type="uint32" />
+
+    <!-- The following fields contain status information only, and should
+      -- not appear in configuration files.
+      -- These values are ignored when creating a bridge port. -->
+    <!-- FIXME: state is really asking for an enum -->
+    <state type="uint32" />
+    <port-no type="uint32" />
+    <port-id type="uint32" />
   </define>
 
   <!-- This is the linkconfig returned in interface reports -->

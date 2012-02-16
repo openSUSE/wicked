@@ -152,25 +152,17 @@ __wicked_dbus_bridge_port_to_dict(const ni_bridge_port_t *port, ni_dbus_variant_
 				const ni_dbus_object_t *object,
 				int config_only)
 {
-	ni_netconfig_t *nc = ni_global_state_handle(0);
-	ni_interface_t *ifp;
-
-	if (port->name) {
-		ni_dbus_dict_add_string(dict, "name", port->name);
-		if ((ifp = ni_interface_by_name(nc, port->name)) != NULL) {
-			ni_dbus_dict_add_object_path(dict, "object",
-					ni_objectmodel_interface_path(ifp));
-		}
-	}
+	if (port->name)
+		ni_dbus_dict_add_string(dict, "device", port->name);
 	ni_dbus_dict_add_uint32(dict, "priority", port->priority);
-	ni_dbus_dict_add_uint32(dict, "path_cost", port->path_cost);
+	ni_dbus_dict_add_uint32(dict, "path-cost", port->path_cost);
 
 	if (config_only)
 		return TRUE;
 
 	ni_dbus_dict_add_uint32(dict, "state", port->status.state);
-	ni_dbus_dict_add_uint32(dict, "port_id", port->status.port_id);
-	ni_dbus_dict_add_uint32(dict, "port_no", port->status.port_no);
+	ni_dbus_dict_add_uint32(dict, "port-id", port->status.port_id);
+	ni_dbus_dict_add_uint32(dict, "port-no", port->status.port_no);
 	return TRUE;
 }
 
@@ -184,18 +176,18 @@ __wicked_dbus_bridge_port_from_dict(ni_bridge_port_t *port, const ni_dbus_varian
 
 	if (dict->array.len == 0)
 		return TRUE;
-	if (ni_dbus_dict_get_string(dict, "name", &string))
+	if (ni_dbus_dict_get_string(dict, "device", &string))
 		ni_string_dup(&port->name, string);
 	if (ni_dbus_dict_get_uint32(dict, "priority", &value))
 		port->priority = value;
-	if (ni_dbus_dict_get_uint32(dict, "path_cost", &value))
+	if (ni_dbus_dict_get_uint32(dict, "path-cost", &value))
 		port->path_cost = value;
 
 	if (ni_dbus_dict_get_uint32(dict, "state", &value))
 		port->status.state = value;
-	if (ni_dbus_dict_get_uint32(dict, "port_id", &value))
+	if (ni_dbus_dict_get_uint32(dict, "port-id", &value))
 		port->status.port_id = value;
-	if (ni_dbus_dict_get_uint32(dict, "port_no", &value))
+	if (ni_dbus_dict_get_uint32(dict, "port-no", &value))
 		port->status.port_no = value;
 
 	return TRUE;
