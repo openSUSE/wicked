@@ -340,7 +340,56 @@ wicked_create_interface_argv(ni_dbus_object_t *object, const ni_dbus_service_t *
 		goto failed;
 	}
 
-	if (!ni_dbus_object_call_variant(object, NULL, "create",
+	if (!ni_dbus_object_call_variant(object, NULL, "newLink",
+				2, call_argv,
+				1, call_resp,
+				&error)) {
+		ni_error("Server refused to create interface. Server responds:");
+		ni_error_extra("%s: %s\n", error.name, error.message);
+		goto failed;
+	}
+
+failed:
+	ni_dbus_variant_destroy(&call_argv[0]);
+	ni_dbus_variant_destroy(&call_argv[1]);
+	dbus_error_free(&error);
+	return result;
+}
+
+static char *
+wicked_create_interface_xml(ni_dbus_object_t *object, const ni_dbus_service_t *service,
+				const char *ifname, xml_node_t *linkdef)
+{
+	ni_dbus_variant_t call_argv[2], call_resp[1], *dict;
+	const ni_dbus_method_t *method;
+	DBusError error = DBUS_ERROR_INIT;
+	char *result = NULL;
+
+	memset(call_argv, 0, sizeof(call_argv));
+	memset(call_resp, 0, sizeof(call_resp));
+
+	/* The first argument of the newLink() call is the requested interface
+	 * name. If there's a name="..." argument on the command line, use that
+	 * (and remove it from the list of arguments) */
+	ni_dbus_variant_set_string(&call_argv[0], "");
+	if (ifname)
+		ni_dbus_variant_set_string(&call_argv[0], ifname);
+
+	method = ni_dbus_service_get_method(service, "newLink");
+	ni_assert(method);
+
+	ni_assert(method->user_data);
+
+	dict = &call_argv[1];
+	ni_dbus_variant_init_dict(dict);
+#if 0
+	if (!wicked_properties_from_argv(service, dict, argc, argv)) {
+		ni_error("Error parsing properties");
+		goto failed;
+	}
+#endif
+
+	if (!ni_dbus_object_call_variant(object, NULL, "newLink",
 				2, call_argv,
 				1, call_resp,
 				&error)) {
@@ -424,17 +473,48 @@ wicked_get_interface_object(const char *default_interface)
 int
 do_create(int argc, char **argv)
 {
+	enum  { OPT_FILE, };
+	static struct option ifup_options[] = {
+		{ "file", required_argument, NULL, OPT_FILE },
+		{ NULL }
+	};
+	const char *link_type;
 	const ni_dbus_service_t *service;
 	ni_dbus_object_t *object;
+	const char *opt_file = NULL;
 	char *ifname;
+	int c;
 
-	if (argc < 2) {
-		ni_error("wicked create: missing interface type");
-		return 1;
+	optind = 1;
+	while ((c = getopt_long(argc, argv, "", ifup_options, NULL)) != EOF) {
+		switch (c) {
+		case OPT_FILE:
+			opt_file = optarg;
+			break;
+
+		default:
+usage:
+			fprintf(stderr,
+				"wicked [options] create [create-options] link-type [name=ifname]\n"
+				"\nSupported create-options:\n"
+				"  --file <filename>\n"
+				"      Read interface configuration(s) from file\n"
+				);
+			return 1;
+		}
 	}
 
+	if (optind + 1 > argc) {
+		ni_error("wicked create: missing interface type");
+		goto usage;
+	}
+	link_type = argv[optind++];
+
+	argv += optind;
+	argc -= optind;
+
 	wicked_init_objectmodel();
-	if (!(service = wicked_link_layer_factory_service(argv[1]))) {
+	if (!(service = wicked_link_layer_factory_service(link_type))) {
 		ni_error("wicked create: unknown/unsupported link type %s", argv[1]);
 		return 1;
 	}
@@ -442,7 +522,30 @@ do_create(int argc, char **argv)
 	if (!(object = wicked_get_interface_object(service->name)))
 		return 1;
 
-	ifname = wicked_create_interface_argv(object, service, argc - 2, argv + 2);
+	if (opt_file) {
+		xml_document_t *doc;
+		xml_node_t *ifnode, *namenode, *linknode, *confnode;
+		const char *ifname = NULL;
+
+		if (!(doc = xml_document_read(opt_file))) {
+			ni_error("unable to parse XML document %s", opt_file);
+			return 1;
+		}
+
+		if (!(ifnode = xml_node_get_child(doc->root, "interface"))
+		 || !(linknode = xml_node_get_child(ifnode, "link"))
+		 || !(confnode = xml_node_get_child(linknode, link_type))) {
+			ni_error("no <%s> link info in file %s", link_type, opt_file);
+			return 1;
+		}
+		if ((namenode = xml_node_get_child(ifnode, "name")) != NULL)
+			ifname = namenode->cdata;
+
+		ifname = wicked_create_interface_xml(object, service, ifname, confnode);
+	} else {
+		ifname = wicked_create_interface_argv(object, service, argc, argv);
+	}
+
 	if (!ifname)
 		return 1;
 
