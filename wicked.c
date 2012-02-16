@@ -832,6 +832,7 @@ do_delete(int argc, char **argv)
 
 /*
  * Add a port to a bridge or bond
+ * FIXME: currently broken
  */
 int
 do_addport(int argc, char **argv)
@@ -878,7 +879,9 @@ do_addport(int argc, char **argv)
 		/* The "interface" for the ports is usually just a dummy type of
 		 * interface; needed only to get the dbus types of all properties
 		 */
-		port_interface = ni_objectmodel_interface_port_service(bridge_if->link.type);
+		//port_interface = ni_objectmodel_interface_port_service(bridge_if->link.type);
+		(void) bridge_if;
+		port_interface = NULL;
 		if (port_interface == NULL) {
 			ni_error("%s: no port properties for this interface type", bridge_name);
 			goto out;

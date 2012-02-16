@@ -15,7 +15,6 @@ extern ni_dbus_server_t *	ni_objectmodel_create_service(void);
 extern dbus_bool_t		ni_objectmodel_create_initial_objects(ni_dbus_server_t *);
 extern ni_dbus_object_t *	ni_objectmodel_register_interface(ni_dbus_server_t *, ni_interface_t *ifp);
 extern dbus_bool_t		ni_objectmodel_unregister_interface(ni_dbus_server_t *, ni_interface_t *ifp);
-extern const ni_dbus_service_t *ni_objectmodel_interface_port_service(int iftype);
 extern int			ni_objectmodel_bind_extensions(void);
 extern void			ni_objectmodel_register_class(const ni_dbus_class_t *);
 extern const ni_dbus_class_t *	ni_objectmodel_get_class(const char *);

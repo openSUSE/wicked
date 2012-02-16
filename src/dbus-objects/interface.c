@@ -188,24 +188,6 @@ ni_objectmodel_unwrap_interface(const ni_dbus_object_t *object)
 }
 
 /*
- * Based on the network link layer type, return the DBus dummy service
- * describing the port properties
- */
-const ni_dbus_service_t *
-ni_objectmodel_interface_port_service(int iftype)
-{
-	switch (iftype) {
-	case NI_IFTYPE_BRIDGE:
-		return &wicked_dbus_bridge_port_dummy_service;
-		break;
-
-	default: ;
-	}
-
-	return NULL;
-}
-
-/*
  * Interface.up(dict options)
  * Bring up the network interface, and assign the requested addresses.
  * In the case of virtual interfaces like VLANs or bridges, the interface
