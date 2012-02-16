@@ -165,7 +165,7 @@ ni_call_link_new_xml(const ni_dbus_service_t *service,
  * Bring the link of an interface up
  */
 static dbus_bool_t
-wicked_link_change_common(ni_dbus_object_t *object,
+ni_call_link_change_common(ni_dbus_object_t *object,
 				const ni_dbus_service_t *service, const ni_dbus_method_t *method,
 				unsigned int argc, ni_dbus_variant_t *argv,
 				ni_objectmodel_callback_info_t **callback_list)
@@ -190,8 +190,8 @@ wicked_link_change_common(ni_dbus_object_t *object,
 	return rv;
 }
 
-dbus_bool_t
-wicked_link_change_xml(ni_dbus_object_t *object, const char *method_name, xml_node_t *config, ni_objectmodel_callback_info_t **callback_list)
+static dbus_bool_t
+ni_call_link_change_xml(ni_dbus_object_t *object, const char *method_name, xml_node_t *config, ni_objectmodel_callback_info_t **callback_list)
 {
 	ni_dbus_variant_t argv[1];
 	const ni_dbus_service_t *service;
@@ -215,7 +215,7 @@ wicked_link_change_xml(ni_dbus_object_t *object, const char *method_name, xml_no
 		}
 	}
 
-	rv = wicked_link_change_common(object, service, method, argc, argv, callback_list);
+	rv = ni_call_link_change_common(object, service, method, argc, argv, callback_list);
 
 out:
 	while (argc--)
@@ -226,19 +226,19 @@ out:
 dbus_bool_t
 ni_call_link_up_xml(ni_dbus_object_t *object, xml_node_t *config, ni_objectmodel_callback_info_t **callback_list)
 {
-	return wicked_link_change_xml(object, "linkUp", config, callback_list);
+	return ni_call_link_change_xml(object, "linkUp", config, callback_list);
 }
 
 dbus_bool_t
 ni_call_link_down(ni_dbus_object_t *object, ni_objectmodel_callback_info_t **callback_list)
 {
-	return wicked_link_change_xml(object, "linkDown", NULL, callback_list);
+	return ni_call_link_change_xml(object, "linkDown", NULL, callback_list);
 }
 
 dbus_bool_t
 ni_call_device_delete(ni_dbus_object_t *object, ni_objectmodel_callback_info_t **callback_list)
 {
-	return wicked_link_change_xml(object, "deleteLink", NULL, callback_list);
+	return ni_call_link_change_xml(object, "deleteLink", NULL, callback_list);
 }
 
 /*
