@@ -517,6 +517,8 @@ __wicked_dbus_get_addrconf_lease(const ni_addrconf_lease_t *lease,
 	ni_dbus_dict_add_uint32(result, "state", lease->state);
 	ni_dbus_dict_add_uint32(result, "acquired", lease->time_acquired);
 	ni_dbus_dict_add_byte_array(result, "uuid", lease->uuid.octets, 16);
+	ni_dbus_dict_add_uint32(result, "update", lease->update);
+
 	if (lease->hostname)
 		ni_dbus_dict_add_string(result, "hostname", lease->hostname);
 
@@ -580,6 +582,14 @@ __wicked_dbus_set_addrconf_lease(ni_addrconf_lease_t *lease,
 		lease->state = value32;
 	if (ni_dbus_dict_get_uint32(argument, "acquired", &value32))
 		lease->time_acquired = value32;
+
+	/* If the caller didn't tell us what to update, we assume we should
+	 * update all facilities */
+	if (ni_dbus_dict_get_uint32(argument, "update", &value32))
+		lease->update = value32;
+	else
+		lease->update = ~0;
+
 	if (ni_dbus_dict_get_string(argument, "hostname", &string_value))
 		ni_string_dup(&lease->hostname, string_value);
 

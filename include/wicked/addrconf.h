@@ -66,6 +66,8 @@ struct ni_addrconf_lease {
 
 	unsigned int		time_acquired;
 
+	unsigned int		update;
+
 	char *			hostname;
 	ni_address_t *		addrs;
 	ni_route_t *		routes;
