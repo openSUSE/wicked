@@ -350,24 +350,26 @@ ni_wpa_interface_next_network(ni_wpa_interface_t *dev, ni_dbus_object_t **pnext,
 	return __ni_wpa_interface_next_network(pnext, pthis);
 }
 
-static ni_bool_t
+static unsigned int
 ni_wpa_interface_expire_networks(ni_wpa_interface_t *dev)
 {
 	ni_dbus_object_t *dev_object, *pos, *cur;
 	ni_wireless_network_t *net;
+	unsigned int num_expired = 0;
 	time_t now;
 
 	if ((dev_object = dev->proxy) == NULL)
-		return FALSE;
+		return 0;
 
 	now = time(NULL);
 	for (net = ni_wpa_interface_first_network(dev, &pos, &cur); net; net = ni_wpa_interface_next_network(dev, &pos, &cur)) {
 		if (net->expires && net->expires < now) {
 			/* This will also remove child from the list of dev_object->children */
 			ni_dbus_object_free(cur);
+			num_expired++;
 		}
 	}
-	return TRUE;
+	return num_expired;
 }
 
 /*
@@ -578,14 +580,13 @@ ni_wpa_interface_request_scan(ni_wpa_client_t *wpa, ni_wpa_interface_t *ifp, ni_
 	uint32_t value;
 	int rv = -1;
 
+	ni_debug_wireless("%s: requesting wireless scan", ifp->ifname);
 	rv = ni_dbus_object_call_simple(ifp->proxy,
 			NULL, "scan",
 			DBUS_TYPE_INVALID, NULL,
 			DBUS_TYPE_UINT32, &value);
 
-	ni_debug_wireless("%s: requested scan, value=%u", ifp->ifname, value);
 	ifp->scan.pending = 1;
-
 	return rv;
 }
 
@@ -598,10 +599,13 @@ ni_wpa_interface_retrieve_scan(ni_wpa_client_t *wpa, ni_wpa_interface_t *ifp, ni
 	ni_wireless_network_t *net;
 	ni_dbus_object_t *pos;
 
-	ni_debug_wireless("%s: retrieve scan results", ifp->ifname);
-
 	/* Prune old BSSes */
-	ni_wpa_interface_expire_networks(ifp);
+	if (ni_wpa_interface_expire_networks(ifp) == 0) {
+		/* Nothing pruned. If we didn't receive new scan results in the
+		 * mean time, there's nothing we need to do. */
+		if (scan->timestamp == ifp->scan.timestamp)
+			return 0;
+	}
 
 	ni_wireless_network_array_destroy(&scan->networks);
 	for (net = ni_wpa_interface_first_network(ifp, &pos, NULL); net; net = ni_wpa_interface_next_network(ifp, &pos, NULL)) {
@@ -611,6 +615,7 @@ ni_wpa_interface_retrieve_scan(ni_wpa_client_t *wpa, ni_wpa_interface_t *ifp, ni
 		if (net->expires)
 			ni_wireless_network_array_append(&scan->networks, net);
 	}
+	scan->timestamp = ifp->scan.timestamp;
 	return 0;
 }
 
@@ -869,7 +874,6 @@ ni_wpa_interface_scan_results(ni_dbus_object_t *proxy, ni_dbus_message_t *msg)
 	unsigned int object_path_count = 0;
 	int rv;
 
-	ni_debug_wireless("%s(%s)", __func__, ifp->ifname);
 	rv = ni_dbus_message_get_args(msg,
 			DBUS_TYPE_ARRAY, DBUS_TYPE_OBJECT_PATH,
 			&object_path_array,

@@ -84,11 +84,20 @@ ni_wireless_interface_refresh(ni_interface_t *ifp)
 
 	wlan->capabilities = wif->capabilities;
 
-	scan = ni_wireless_scan_new();
-	if (ni_wpa_interface_retrieve_scan(wpa, wif, scan) >= 0)
+	if ((scan = ifp->wireless_scan) == NULL) {
+		scan = ni_wireless_scan_new();
 		ni_interface_set_wireless_scan(ifp, scan);
-	else
-		ni_wireless_scan_free(scan);
+	}
+
+	/* Retrieve whatever is there. */
+	ni_wpa_interface_retrieve_scan(wpa, wif, scan);
+
+	/* If we haven't seen a scan in a long time, request one. */
+	if (scan->timestamp + scan->max_age < time(NULL)) {
+		/* We can do this only if the device is up */
+		if (ifp->link.ifflags & NI_IFF_DEVICE_UP)
+			ni_wpa_interface_request_scan(wpa, wif, scan);
+	}
 
 	/* A wireless "link" isn't really up until we have associated
 	 * and authenticated. */
