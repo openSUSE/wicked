@@ -23,6 +23,7 @@ static const char *	ni_errors[__NI_ERROR_MAX] = {
 [NI_ERROR_CANNOT_CONFIGURE_ADDRESS]	= "Cannot configure addresss",
 [NI_ERROR_CANNOT_CONFIGURE_ROUTE]	= "Cannot configure route",
 [NI_ERROR_CANNOT_MARSHAL]		= "Cannot marshal arguments for remote object call",
+[NI_ERROR_PROPERTY_NOT_PRESENT]		= "Object property not present",
 };
 
 const char *
