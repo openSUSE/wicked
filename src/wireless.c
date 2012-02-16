@@ -175,6 +175,10 @@ ni_wireless_associate(ni_interface_t *dev, ni_wireless_network_t *net)
 	ni_wpa_client_t *wpa;
 	ni_wpa_interface_t *wpa_dev;
 
+	if (dev->link.type != NI_IFTYPE_WIRELESS) {
+		ni_error("%s: not a wireless interface", dev->name);
+		return -1;
+	}
 	if ((wlan = ni_interface_get_wireless(dev)) == NULL) {
 		ni_error("%s: no wireless info for device", dev->name);
 		return -1;
@@ -189,6 +193,36 @@ ni_wireless_associate(ni_interface_t *dev, ni_wireless_network_t *net)
 	ni_wireless_set_assoc_network(wlan, net);
 
 	return ni_wpa_interface_associate(wpa_dev, net);
+}
+
+/*
+ * Disconnect
+ */
+int
+ni_wireless_disconnect(ni_interface_t *dev)
+{
+	ni_wireless_t *wlan;
+	ni_wpa_client_t *wpa;
+	ni_wpa_interface_t *wpa_dev;
+
+	if (dev->link.type != NI_IFTYPE_WIRELESS) {
+		ni_error("%s: not a wireless interface", dev->name);
+		return -1;
+	}
+	if ((wlan = ni_interface_get_wireless(dev)) == NULL) {
+		ni_error("%s: no wireless info for device", dev->name);
+		return -1;
+	}
+
+	if (!(wpa = ni_wpa_client()))
+		return -1;
+
+	if (!(wpa_dev = ni_wpa_interface_bind(wpa, dev)))
+		return -1;
+
+	ni_wireless_set_assoc_network(wlan, NULL);
+
+	return ni_wpa_interface_disassociate(wpa_dev);
 }
 
 /*

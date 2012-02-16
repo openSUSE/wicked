@@ -609,19 +609,16 @@ ni_wpa_interface_add_network(ni_wpa_interface_t *dev)
 	return object_path;
 }
 
-char *
-ni_wpa_interface_remove_network(ni_wpa_interface_t *dev)
+dbus_bool_t
+ni_wpa_interface_remove_network(ni_wpa_interface_t *dev, const char *object_path)
 {
-	char *object_path = NULL;
 	int rv;
 
 	rv = ni_dbus_object_call_simple(dev->proxy,
 			NI_WPA_IF_INTERFACE, "removeNetwork",
 			DBUS_TYPE_OBJECT_PATH, &object_path,
 			DBUS_TYPE_INVALID, NULL);
-	if (rv < 0)
-		return NULL;
-	return object_path;
+	return rv >= 0;
 }
 
 ni_bool_t
@@ -636,6 +633,22 @@ ni_wpa_interface_select_network(ni_wpa_interface_t *dev, ni_dbus_object_t *net_o
 			DBUS_TYPE_INVALID, NULL);
 	if (rv < 0) {
 		ni_error("%s(%s) failed: %s", __func__, dev->ifname, ni_strerror(rv));
+		return FALSE;
+	}
+	return TRUE;
+}
+
+ni_bool_t
+ni_wpa_interface_disconnect(ni_wpa_interface_t *dev)
+{
+	int rv;
+
+	rv = ni_dbus_object_call_simple(dev->proxy,
+			NI_WPA_IF_INTERFACE, "disconnect",
+			DBUS_TYPE_INVALID, NULL,
+			DBUS_TYPE_INVALID, NULL);
+	if (rv < 0) {
+		ni_error("%s() failed: %s", __func__, ni_strerror(rv));
 		return FALSE;
 	}
 	return TRUE;
@@ -722,6 +735,34 @@ ni_wpa_interface_associate(ni_wpa_interface_t *dev, ni_wireless_network_t *net)
 	 * the given AP. When the interface changes to COMPLETED, we
 	 * will inform the upper layers through an event.
 	 */
+	return 0;
+}
+
+int
+ni_wpa_interface_disassociate(ni_wpa_interface_t *wpa_dev)
+{
+	ni_dbus_object_t *net_object;
+
+	if ((net_object = wpa_dev->requested_association.proxy) != NULL) {
+		if (!ni_wpa_interface_remove_network(wpa_dev, net_object->path)) {
+			ni_error("%s: failed to remove network", wpa_dev->ifname);
+			return -1;
+		}
+
+		ni_dbus_object_free(net_object);
+		wpa_dev->requested_association.proxy = NULL;
+	}
+
+	if (!ni_wpa_interface_disconnect(wpa_dev)) {
+		ni_error("%s: failed to disconnect", wpa_dev->ifname);
+		return -1;
+	}
+
+	if (wpa_dev->requested_association.config) {
+		ni_wireless_network_put(wpa_dev->requested_association.config);
+		wpa_dev->requested_association.config = NULL;
+	}
+
 	return 0;
 }
 

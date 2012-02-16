@@ -29,19 +29,40 @@ ni_objectmodel_wireless_link_change(ni_dbus_object_t *object, const ni_dbus_meth
 	if (!ni_objectmodel_get_wireless_request(net, &argv[0], error))
 		goto error;
 
-	if (ni_wireless_associate(ifp, net) < 0) {
-		dbus_set_error(error, DBUS_ERROR_FAILED,
-				"could not associate");
-		goto error;
-	}
+	if (net->essid.len != 0) {
+		/* We're asked to associate with the given network */
+		if (ni_wireless_associate(ifp, net) < 0) {
+			dbus_set_error(error, DBUS_ERROR_FAILED,
+					"could not associate");
+			goto error;
+		}
 
-	if (ifp->wireless->assoc.state == NI_WIRELESS_ESTABLISHED) {
-		rv = TRUE;
+		if (ifp->wireless->assoc.state == NI_WIRELESS_ESTABLISHED) {
+			rv = TRUE;
+		} else {
+			/* Link is not associated yet. Tell the caller to wait for an event. */
+			if (ni_uuid_is_null(&ifp->link.event_uuid))
+				ni_uuid_generate(&ifp->link.event_uuid);
+			rv =  __ni_objectmodel_return_callback_info(reply, NI_EVENT_LINK_ASSOCIATED,
+					&ifp->link.event_uuid, error);
+		}
 	} else {
-		/* Link is not associated yet. Tell the caller to wait for an event. */
-		if (ni_uuid_is_null(&ifp->link.event_uuid))
-			ni_uuid_generate(&ifp->link.event_uuid);
-		rv =  __ni_objectmodel_return_callback_info(reply, NI_EVENT_LINK_ASSOCIATED, &ifp->link.event_uuid, error);
+		/* We're asked to disconnect */
+		if (ni_wireless_disconnect(ifp) < 0) {
+			dbus_set_error(error, DBUS_ERROR_FAILED,
+					"could not disconnect from wireless network");
+			goto error;
+		}
+
+		if (ifp->wireless->assoc.state == NI_WIRELESS_NOT_ASSOCIATED) {
+			rv = TRUE;
+		} else {
+			/* Link is not associated yet. Tell the caller to wait for an event. */
+			if (ni_uuid_is_null(&ifp->link.event_uuid))
+				ni_uuid_generate(&ifp->link.event_uuid);
+			rv =  __ni_objectmodel_return_callback_info(reply, NI_EVENT_LINK_ASSOCIATION_LOST,
+					&ifp->link.event_uuid, error);
+		}
 	}
 
 	ni_wireless_network_put(net);

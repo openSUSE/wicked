@@ -58,6 +58,7 @@ extern int		ni_wpa_interface_request_scan(ni_wpa_client_t *, ni_wpa_interface_t 
 extern int		ni_wpa_interface_retrieve_scan(ni_wpa_client_t *, ni_wpa_interface_t *,
 				ni_wireless_scan_t *);
 extern int		ni_wpa_interface_associate(ni_wpa_interface_t *, ni_wireless_network_t *);
+extern int		ni_wpa_interface_disassociate(ni_wpa_interface_t *);
 extern ni_wpa_ifstate_t	ni_wpa_name_to_ifstate(const char *name);
 extern const char *	ni_wpa_ifstate_to_name(ni_wpa_ifstate_t);
 
