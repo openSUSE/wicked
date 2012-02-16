@@ -190,10 +190,10 @@ done:
 }
 
 /*
- * Configure static IPv4 addresses
+ * Generic functions for static address configuration
  */
 static dbus_bool_t
-ni_objectmodel_addrconf_ipv4_static_request(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+ni_objectmodel_addrconf_static_request(ni_dbus_object_t *object, int addrfamily,
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
@@ -207,13 +207,12 @@ ni_objectmodel_addrconf_ipv4_static_request(ni_dbus_object_t *object, const ni_d
 
 	if (argc != 1 || !ni_dbus_variant_is_dict(&argv[0])) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-				"%s.%s: exected one dict argument",
-				WICKED_DBUS_ADDRCONF_IPV4STATIC_INTERFACE, method->name);
+				"requestLease: expected one dict argument");
 		return FALSE;
 	}
 	dict = &argv[0];
 
-	lease = ni_addrconf_lease_new(NI_ADDRCONF_STATIC, AF_INET);
+	lease = ni_addrconf_lease_new(NI_ADDRCONF_STATIC, addrfamily);
 	if (!__ni_objectmodel_set_address_dict(&lease->addrs, dict, error)
 	 || !__ni_objectmodel_set_route_dict(&lease->routes, dict, error)) {
 		ni_addrconf_lease_free(lease);
@@ -227,16 +226,64 @@ ni_objectmodel_addrconf_ipv4_static_request(ni_dbus_object_t *object, const ni_d
 	if (rv < 0) {
 		dbus_set_error(error,
 				DBUS_ERROR_FAILED,
-				"Error configuring static IPv4 addresses: %s",
+				"Error configuring static %s addresses: %s",
+				ni_addrfamily_type_to_name(addrfamily),
 				ni_strerror(rv));
 		return FALSE;
-	} else {
-		/* A NULL event ID tells the caller that we're done, there's no event
-		 * to wait for. */
-		ni_dbus_message_append_uint32(reply, 0);
 	}
 
+	/* Don't return anything. */
 	return TRUE;
+}
+
+static dbus_bool_t
+ni_objectmodel_addrconf_static_drop(ni_dbus_object_t *object, int addrfamily,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_addrconf_lease_t *lease = NULL;
+	ni_interface_t *dev;
+	int rv;
+
+	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
+		return FALSE;
+
+	lease = ni_addrconf_lease_new(NI_ADDRCONF_STATIC, addrfamily);
+	lease->state = NI_ADDRCONF_STATE_RELEASED;
+
+	rv = __ni_system_interface_update_lease(dev, &lease);
+	if (lease)
+		ni_addrconf_lease_free(lease);
+
+	if (rv < 0) {
+		dbus_set_error(error,
+				DBUS_ERROR_FAILED,
+				"Error dropping static %s addresses: %s",
+				ni_addrfamily_type_to_name(addrfamily),
+				ni_strerror(rv));
+		return FALSE;
+	}
+
+	/* Don't return anything */
+	return TRUE;
+}
+
+/*
+ * Configure static IPv4 addresses
+ */
+static dbus_bool_t
+ni_objectmodel_addrconf_ipv4_static_request(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	return ni_objectmodel_addrconf_static_request(object, AF_INET, argc, argv, reply, error);
+}
+
+static dbus_bool_t
+ni_objectmodel_addrconf_ipv4_static_drop(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	return ni_objectmodel_addrconf_static_drop(object, AF_INET, reply, error);
 }
 
 /*
@@ -247,50 +294,15 @@ ni_objectmodel_addrconf_ipv6_static_request(ni_dbus_object_t *object, const ni_d
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
-	ni_addrconf_lease_t *lease = NULL;
-	const ni_dbus_variant_t *dict;
-	ni_interface_t *dev;
-	int rv;
+	return ni_objectmodel_addrconf_static_request(object, AF_INET6, argc, argv, reply, error);
+}
 
-	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
-		return FALSE;
-
-	if (argc != 1 || !ni_dbus_variant_is_dict(&argv[0])) {
-		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-				"%s.%s: exected one dict argument",
-				WICKED_DBUS_ADDRCONF_IPV4STATIC_INTERFACE, method->name);
-		return FALSE;
-	}
-	dict = &argv[0];
-
-	/* FIXME: what we should do here is
-	 *  - create an empty addrconf request, with no uuid or event ID
-	 *  - create a lease object with the provided addresses and routes
-	 *  - install the lease (ie configure addresses)
-	 */
-
-	lease = ni_addrconf_lease_new(NI_ADDRCONF_STATIC, AF_INET6);
-	if (!__ni_objectmodel_set_address_dict(&lease->addrs, dict, error)
-	 || !__ni_objectmodel_set_route_dict(&lease->routes, dict, error))
-		return FALSE;
-
-	rv = __ni_system_interface_update_lease(dev, &lease);
-	if (lease)
-		ni_addrconf_lease_free(lease);
-
-	if (rv < 0) {
-		dbus_set_error(error,
-				DBUS_ERROR_FAILED,
-				"Error configuring static IPv6 addresses: %s",
-				ni_strerror(rv));
-		return FALSE;
-	} else {
-		/* A NULL event ID tells the caller that we're done, there's no event
-		 * to wait for. */
-		ni_dbus_message_append_uint32(reply, 0);
-	}
-
-	return TRUE;
+static dbus_bool_t
+ni_objectmodel_addrconf_ipv6_static_drop(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	return ni_objectmodel_addrconf_static_drop(object, AF_INET6, reply, error);
 }
 
 /*
@@ -394,7 +406,7 @@ ni_objectmodel_addrconf_ipv4_dhcp_request(ni_dbus_object_t *object, const ni_dbu
 
 	if (argc != 1 || !ni_dbus_variant_is_dict(&argv[0])) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-				"%s.%s: exected one dict argument",
+				"%s.%s: expected one dict argument",
 				WICKED_DBUS_ADDRCONF_IPV4DHCP_INTERFACE, method->name);
 		return FALSE;
 	}
@@ -438,7 +450,7 @@ ni_objectmodel_addrconf_ipv4ll_request(ni_dbus_object_t *object, const ni_dbus_m
 
 	if (argc != 1 || !ni_dbus_variant_is_dict(&argv[0])) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-				"%s.%s: exected one dict argument",
+				"%s.%s: expected one dict argument",
 				WICKED_DBUS_ADDRCONF_IPV4AUTO_INTERFACE, method->name);
 		return FALSE;
 	}
@@ -456,11 +468,13 @@ ni_objectmodel_addrconf_ipv4ll_request(ni_dbus_object_t *object, const ni_dbus_m
  */
 static const ni_dbus_method_t		ni_objectmodel_addrconf_ipv4_static_methods[] = {
 	{ "requestLease",	"a{sv}",		ni_objectmodel_addrconf_ipv4_static_request },
+	{ "dropLease",		"",			ni_objectmodel_addrconf_ipv4_static_drop },
 	{ NULL }
 };
 
 static const ni_dbus_method_t		ni_objectmodel_addrconf_ipv6_static_methods[] = {
 	{ "requestLease",	"a{sv}",		ni_objectmodel_addrconf_ipv6_static_request },
+	{ "dropLease",		"",			ni_objectmodel_addrconf_ipv6_static_drop },
 	{ NULL }
 };
 

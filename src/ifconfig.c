@@ -214,16 +214,17 @@ __ni_system_interface_update_lease(ni_interface_t *ifp, ni_addrconf_lease_t **le
 	if ((res = __ni_system_refresh_interface(nc, ifp)) < 0)
 		return -1;
 
-	/* First, find out which addresses to remove (because they were owned by
-	 * an older lease of the same protocol).
-	 * We find the old lease (and remove it from the interface).
-	 * each address attached to the interface, we check whether it is owned
-	 * by another lease - it's possible that the same address gets assigned
-	 * by two different leases.
+	/* Use the existing lease handle to identify those addresses already
+	 * owned by this addrconf protocol.
+	 * While we're getting the old lease, detach it from the interface
+	 * (but don't delete it yet).
 	 */
 	old_lease = __ni_interface_find_lease(ifp, lease->family, lease->type, 1);
 
-	res = __ni_interface_update_addrs(ifp, old_lease, lease->addrs);
+	if (lease->state == NI_ADDRCONF_STATE_GRANTED)
+		res = __ni_interface_update_addrs(ifp, old_lease, lease->addrs);
+	else
+		res = __ni_interface_update_addrs(ifp, old_lease, NULL);
 	if (res < 0) {
 		ni_error("%s: error updating interface config from %s lease",
 				ifp->name, 
@@ -239,7 +240,10 @@ __ni_system_interface_update_lease(ni_interface_t *ifp, ni_addrconf_lease_t **le
 	/* Loop over all routes and remove those no longer covered by the lease.
 	 * Ignore all routes covered by other address config mechanisms.
 	 */
-	res = __ni_interface_update_routes(ifp, old_lease, lease->routes);
+	if (lease->state == NI_ADDRCONF_STATE_GRANTED)
+		res = __ni_interface_update_routes(ifp, old_lease, lease->routes);
+	else
+		res = __ni_interface_update_routes(ifp, old_lease, NULL);
 	if (res < 0) {
 		ni_error("%s: error updating interface config from %s lease",
 				ifp->name, 
@@ -247,8 +251,10 @@ __ni_system_interface_update_lease(ni_interface_t *ifp, ni_addrconf_lease_t **le
 		goto out;
 	}
 
-	ni_interface_set_lease(ifp, lease);
-	*lease_p = NULL;
+	if (lease->state == NI_ADDRCONF_STATE_GRANTED) {
+		ni_interface_set_lease(ifp, lease);
+		*lease_p = NULL;
+	}
 
 	update_mask = ni_config_addrconf_update_mask(ni_global.config, lease->type);
 	if (update_mask)
