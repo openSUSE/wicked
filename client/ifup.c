@@ -19,7 +19,6 @@
 
 #include "wicked-client.h"
 
-extern ni_dbus_object_t *	wicked_dbus_client_create(void);
 extern ni_dbus_object_t *	wicked_get_interface(ni_dbus_object_t *, const char *);
 
 /*
@@ -724,7 +723,7 @@ ni_ifworker_do_device_up(ni_ifworker_t *w)
 		return -1;
 	}
 
-	object_path = wicked_create_interface_xml(service, w->name, linknode);
+	object_path = ni_call_link_new_xml(service, w->name, linknode);
 	if (object_path == NULL) {
 		ni_error("%s: failed to create interface", w->name);
 		return -1;
@@ -1190,7 +1189,7 @@ done: ;
 static dbus_bool_t
 ni_ifworkers_create_client(void)
 {
-	if (!(__root_object = wicked_dbus_client_create()))
+	if (!(__root_object = ni_call_create_client()))
 		return FALSE;
 
 	ni_dbus_client_add_signal_handler(ni_dbus_object_get_client(__root_object), NULL, NULL,

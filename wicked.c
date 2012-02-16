@@ -209,7 +209,7 @@ wicked_init_objectmodel(void)
 }
 
 ni_dbus_object_t *
-wicked_dbus_client_create(void)
+ni_call_create_client(void)
 {
 	static ni_dbus_object_t *root_object = NULL;
 
@@ -236,8 +236,8 @@ wicked_dbus_client_create(void)
 /*
  * Populate a property dict with parameters
  */
-static dbus_bool_t
-wicked_properties_from_argv(const ni_dbus_service_t *interface, ni_dbus_variant_t *dict, int argc, char **argv)
+dbus_bool_t
+ni_call_properties_from_argv(const ni_dbus_service_t *interface, ni_dbus_variant_t *dict, int argc, char **argv)
 {
 	int i;
 
@@ -253,11 +253,6 @@ wicked_properties_from_argv(const ni_dbus_service_t *interface, ni_dbus_variant_
 			return FALSE;
 		}
 		*value++ = '\0';
-
-		if (!strcmp(property_name, "name")) {
-			ni_dbus_dict_add_string(dict, property_name, value);
-			continue;
-		}
 
 		/* Using lookup_property will also resolve hierarchical names, such
 		 * as foo.bar.baz (which is property baz within a dict named bar,
@@ -300,7 +295,7 @@ wicked_get_interface_object(const char *default_interface)
 	static const ni_dbus_class_t *netif_list_class = NULL;
 	ni_dbus_object_t *root_object, *child;
 
-	if (!(root_object = wicked_dbus_client_create()))
+	if (!(root_object = ni_call_create_client()))
 		return NULL;
 
 	if (netif_list_class == NULL) {
@@ -321,120 +316,6 @@ wicked_get_interface_object(const char *default_interface)
 	ni_dbus_object_set_default_interface(child, default_interface);
 
 	return child;
-}
-
-/*
- * Create a virtual network interface
- */
-static char *
-wicked_create_interface_common(const ni_dbus_service_t *service, ni_dbus_variant_t call_argv[2])
-{
-	ni_dbus_variant_t call_resp[1];
-	DBusError error = DBUS_ERROR_INIT;
-	ni_dbus_object_t *object = NULL;
-	char *result = NULL;
-
-	memset(call_resp, 0, sizeof(call_resp));
-	if (!(object = wicked_get_interface_object(service->name))) {
-		ni_error("unable to create proxy object for %s", service->name);
-		goto failed;
-	}
-
-	if (!ni_dbus_object_call_variant(object, service->name, "newLink",
-				2, call_argv,
-				1, call_resp,
-				&error)) {
-		ni_error("Server refused to create interface. Server responds:");
-		ni_error_extra("%s: %s", error.name, error.message);
-	} else {
-		const char *response;
-
-		/* extract device object path from reply */
-		if (!ni_dbus_variant_get_string(&call_resp[0], &response)) {
-			ni_error("%s: newLink call succeeded but didn't return interface name",
-					service->name);
-		} else {
-			ni_string_dup(&result, response);
-		}
-	}
-
-failed:
-	ni_dbus_variant_destroy(&call_resp[0]);
-	dbus_error_free(&error);
-	return result;
-}
-
-static char *
-wicked_create_interface_argv(const ni_dbus_service_t *service, int argc, char **argv)
-{
-	ni_dbus_variant_t call_argv[2], *dict;
-	char *result = NULL;
-	int i, j;
-
-	memset(call_argv, 0, sizeof(call_argv));
-
-	/* The first argument of the newLink() call is the requested interface
-	 * name. If there's a name="..." argument on the command line, use that
-	 * (and remove it from the list of arguments) */
-	ni_dbus_variant_set_string(&call_argv[0], "");
-	for (i = j = 0; i < argc; ++i) {
-		char *arg = argv[i];
-
-		if (!strncmp(arg, "name=", 5)) {
-			ni_dbus_variant_set_string(&call_argv[0], arg + 5);
-		} else {
-			argv[j++] = arg;
-		}
-	}
-
-	/* NOTE: This doesn't work right now */
-	dict = &call_argv[1];
-	ni_dbus_variant_init_dict(dict);
-	if (!wicked_properties_from_argv(service, dict, argc, argv)) {
-		ni_error("Error parsing properties");
-		goto failed;
-	}
-
-	result = wicked_create_interface_common(service, call_argv);
-
-failed:
-	ni_dbus_variant_destroy(&call_argv[0]);
-	ni_dbus_variant_destroy(&call_argv[1]);
-	return result;
-}
-
-char *
-wicked_create_interface_xml(const ni_dbus_service_t *service,
-				const char *ifname, xml_node_t *linkdef)
-{
-	ni_dbus_variant_t call_argv[2];
-	const ni_dbus_method_t *method;
-	char *result = NULL;
-
-	memset(call_argv, 0, sizeof(call_argv));
-
-	/* The first argument of the newLink() call is the requested interface
-	 * name. If there's a name="..." argument on the command line, use that
-	 * (and remove it from the list of arguments) */
-	ni_dbus_variant_set_string(&call_argv[0], "");
-	if (ifname)
-		ni_dbus_variant_set_string(&call_argv[0], ifname);
-
-	method = ni_dbus_service_get_method(service, "newLink");
-	ni_assert(method);
-
-	ni_assert(method->user_data);
-
-	if (ni_dbus_xml_serialize_arg(method, 1, &call_argv[1], linkdef)) {
-		result = wicked_create_interface_common(service, call_argv);
-	} else {
-		ni_error("%s.%s: error serializing arguments",
-				service->name, method->name);
-	}
-
-	ni_dbus_variant_destroy(&call_argv[0]);
-	ni_dbus_variant_destroy(&call_argv[1]);
-	return result;
 }
 
 /*
@@ -582,7 +463,7 @@ do_create(int argc, char **argv)
 		if ((namenode = xml_node_get_child(ifnode, "name")) != NULL)
 			requested_name = namenode->cdata;
 
-		ifname = wicked_create_interface_xml(service, requested_name, linknode);
+		ifname = ni_call_link_new_xml(service, requested_name, linknode);
 
 xml_done:
 		xml_document_free(doc);
@@ -592,7 +473,7 @@ xml_done:
 			return 1;
 		}
 
-		ifname = wicked_create_interface_argv(service, argc, argv);
+		ifname = ni_call_link_new_argv(service, argc, argv);
 	}
 
 	if (!ifname)
@@ -801,7 +682,7 @@ do_show_xml(int argc, char **argv)
 	if (optind != argc)
 		goto usage;
 
-	if (!(object = wicked_dbus_client_create()))
+	if (!(object = ni_call_create_client()))
 		return 1;
 
 	if (!(iflist = wicked_get_interface_object(NULL)))
@@ -852,7 +733,7 @@ do_show(int argc, char **argv)
 		return 1;
 	}
 
-	if (!(object = wicked_dbus_client_create()))
+	if (!(object = ni_call_create_client()))
 		return 1;
 
 	if (argc == 1) {
@@ -918,7 +799,7 @@ do_delete(int argc, char **argv)
 	}
 	ifname = argv[1];
 
-	if (!(object = wicked_dbus_client_create()))
+	if (!(object = ni_call_create_client()))
 		return 1;
 
 	object = wicked_get_interface(object, ifname);
@@ -966,7 +847,7 @@ do_addport(int argc, char **argv)
 	bridge_name = argv[1];
 	port_name = argv[2];
 
-	if (!(root_object = wicked_dbus_client_create()))
+	if (!(root_object = ni_call_create_client()))
 		return 1;
 
 	if (!(bridge = wicked_get_interface(root_object, bridge_name))
@@ -998,7 +879,7 @@ do_addport(int argc, char **argv)
 			goto out;
 		}
 
-		if (!wicked_properties_from_argv(port_interface, &argument[1], argc - 3, argv + 3)) {
+		if (!ni_call_properties_from_argv(port_interface, &argument[1], argc - 3, argv + 3)) {
 			ni_error("Error parsing properties");
 			goto out;
 		}
@@ -1046,7 +927,7 @@ do_delport(int argc, char **argv)
 	bridge_name = argv[1];
 	port_name = argv[2];
 
-	if (!(root_object = wicked_dbus_client_create()))
+	if (!(root_object = ni_call_create_client()))
 		return 1;
 
 	if (!(bridge = wicked_get_interface(root_object, bridge_name))

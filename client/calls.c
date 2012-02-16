@@ -19,6 +19,121 @@
 
 
 /*
+ * Create a virtual network interface
+ */
+static char *
+ni_call_link_new(const ni_dbus_service_t *service, ni_dbus_variant_t call_argv[2])
+{
+	ni_dbus_variant_t call_resp[1];
+	DBusError error = DBUS_ERROR_INIT;
+	ni_dbus_object_t *object = NULL;
+	char *result = NULL;
+
+	memset(call_resp, 0, sizeof(call_resp));
+	if (!(object = wicked_get_interface_object(service->name))) {
+		ni_error("unable to create proxy object for %s", service->name);
+		goto failed;
+	}
+
+	if (!ni_dbus_object_call_variant(object, service->name, "newLink",
+				2, call_argv,
+				1, call_resp,
+				&error)) {
+		ni_error("Server refused to create interface. Server responds:");
+		ni_error_extra("%s: %s", error.name, error.message);
+	} else {
+		const char *response;
+
+		/* extract device object path from reply */
+		if (!ni_dbus_variant_get_string(&call_resp[0], &response)) {
+			ni_error("%s: newLink call succeeded but didn't return interface name",
+					service->name);
+		} else {
+			ni_string_dup(&result, response);
+		}
+	}
+
+failed:
+	ni_dbus_variant_destroy(&call_resp[0]);
+	dbus_error_free(&error);
+	return result;
+}
+
+char *
+ni_call_link_new_argv(const ni_dbus_service_t *service, int argc, char **argv)
+{
+	ni_dbus_variant_t call_argv[2], *dict;
+	char *result = NULL;
+	int i, j;
+
+	memset(call_argv, 0, sizeof(call_argv));
+
+	/* The first argument of the newLink() call is the requested interface
+	 * name. If there's a name="..." argument on the command line, use that
+	 * (and remove it from the list of arguments) */
+	ni_dbus_variant_set_string(&call_argv[0], "");
+	for (i = j = 0; i < argc; ++i) {
+		char *arg = argv[i];
+
+		if (!strncmp(arg, "name=", 5)) {
+			ni_dbus_variant_set_string(&call_argv[0], arg + 5);
+			--argc;
+		} else {
+			argv[j++] = arg;
+		}
+	}
+
+	/* NOTE: This doesn't work right now */
+	dict = &call_argv[1];
+	ni_dbus_variant_init_dict(dict);
+	if (!ni_call_properties_from_argv(service, dict, argc, argv)) {
+		ni_error("Error parsing properties");
+		goto failed;
+	}
+
+	result = ni_call_link_new(service, call_argv);
+
+failed:
+	ni_dbus_variant_destroy(&call_argv[0]);
+	ni_dbus_variant_destroy(&call_argv[1]);
+	return result;
+}
+
+char *
+ni_call_link_new_xml(const ni_dbus_service_t *service,
+				const char *ifname, xml_node_t *linkdef)
+{
+	ni_dbus_variant_t call_argv[2];
+	const ni_dbus_method_t *method;
+	char *result = NULL;
+
+	memset(call_argv, 0, sizeof(call_argv));
+
+	/* The first argument of the newLink() call is the requested interface
+	 * name. If there's a name="..." argument on the command line, use that
+	 * (and remove it from the list of arguments) */
+	ni_dbus_variant_set_string(&call_argv[0], "");
+	if (ifname)
+		ni_dbus_variant_set_string(&call_argv[0], ifname);
+
+	method = ni_dbus_service_get_method(service, "newLink");
+	ni_assert(method);
+
+	ni_assert(method->user_data);
+
+	if (ni_dbus_xml_serialize_arg(method, 1, &call_argv[1], linkdef)) {
+		result = ni_call_link_new(service, call_argv);
+	} else {
+		ni_error("%s.%s: error serializing arguments",
+				service->name, method->name);
+	}
+
+	ni_dbus_variant_destroy(&call_argv[0]);
+	ni_dbus_variant_destroy(&call_argv[1]);
+	return result;
+}
+
+/*
  * Bring the link of an interface up
  */
 static dbus_bool_t
