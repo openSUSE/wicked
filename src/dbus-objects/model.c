@@ -44,10 +44,7 @@ typedef struct ni_dbus_class_array {
 static ni_dbus_class_array_t	ni_objectmodel_class_registry;
 static ni_dbus_service_array_t	ni_objectmodel_service_registry;
 
-static const ni_dbus_class_t	ni_objectmodel_netif_list_class = {
-	.name		= NI_OBJECTMODEL_NETIF_LIST_CLASS,
-};
-
+static const ni_dbus_class_t	ni_objectmodel_netif_list_class;
 static ni_dbus_service_t	ni_objectmodel_netif_list_service;
 static ni_dbus_service_t	ni_objectmodel_netif_root_interface;
 
@@ -83,12 +80,6 @@ ni_objectmodel_register_all(void)
 	ni_objectmodel_register_netif_classes();
 
 	ni_objectmodel_register_service(&ni_objectmodel_netif_list_service);
-#if 0
-	ni_objectmodel_register_link_service(NI_IFTYPE_ETHERNET, &wicked_dbus_ethernet_service);
-	ni_objectmodel_register_link_service(NI_IFTYPE_VLAN, &wicked_dbus_vlan_service);
-	ni_objectmodel_register_link_service(NI_IFTYPE_BRIDGE, &wicked_dbus_bridge_service);
-	//ni_objectmodel_register_link_service(NI_IFTYPE_BOND, &wicked_dbus_bond_service);
-#endif
 }
 
 /*
@@ -217,6 +208,45 @@ ni_objectmodel_get_class(const char *name)
 	}
 	return NULL;
 }
+
+/*
+ * netif list class
+ */
+
+/*
+ * The init_child method is needed by the client side when GetManagedObjects
+ * returns an interface we haven't heard of before.
+ * FIXME: We should really clean this up and use this callback exclusively from
+ * GetManagedObjects, to avoid any bad side effects.
+ */
+static dbus_bool_t
+ni_objectmodel_netif_list_init_child(ni_dbus_object_t *object)
+{
+	static const ni_dbus_class_t *netif_class = NULL;
+	ni_interface_t *ifp;
+
+	/* Ugly - should move netif_list stuff to interface.c */
+	if (netif_class == NULL) {
+		const ni_dbus_service_t *netif_service;
+
+		netif_service = ni_objectmodel_service_by_name(WICKED_DBUS_NETIF_INTERFACE);
+		ni_assert(netif_service);
+
+		netif_class = netif_service->compatible;
+	}
+
+	ifp = ni_interface_new(NULL, NULL, 0);
+	object->class = netif_class;
+	object->handle = ifp;
+
+	return TRUE;
+}
+
+static const ni_dbus_class_t	ni_objectmodel_netif_list_class = {
+	.name		= NI_OBJECTMODEL_NETIF_LIST_CLASS,
+	.init_child	= ni_objectmodel_netif_list_init_child,
+};
+
 
 static ni_dbus_service_t	ni_objectmodel_netif_list_service = {
 	.name		= WICKED_DBUS_NETIFLIST_INTERFACE,

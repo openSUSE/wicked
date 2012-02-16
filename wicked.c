@@ -205,33 +205,6 @@ wicked_init_objectmodel(void)
 	ni_dbus_xml_register_services(wicked_dbus_xml_schema);
 }
 
-static dbus_bool_t
-wicked_proxy_interface_init_child(ni_dbus_object_t *object)
-{
-	static const ni_dbus_class_t *netif_class = NULL;
-	ni_interface_t *ifp;
-
-	if (netif_class == NULL) {
-		const ni_dbus_service_t *netif_service;
-
-		netif_service = ni_objectmodel_service_by_name(WICKED_DBUS_NETIF_INTERFACE);
-		ni_assert(netif_service);
-
-		netif_class = netif_service->compatible;
-	}
-
-	ifp = ni_interface_new(NULL, NULL, 0);
-	object->class = netif_class;
-	object->handle = ifp;
-
-	return TRUE;
-}
-
-static ni_dbus_class_t		ni_objectmodel_proxy_iflist_class = {
-	.name		= "proxy-interface-list",
-	.init_child	= wicked_proxy_interface_init_child,
-};
-
 static ni_dbus_object_t *
 wicked_dbus_client_create(void)
 {
@@ -314,12 +287,23 @@ wicked_properties_from_argv(const ni_dbus_service_t *interface, ni_dbus_variant_
 static ni_dbus_object_t *
 wicked_get_interface_object(const char *default_interface)
 {
+	static const ni_dbus_class_t *netif_list_class = NULL;
 	ni_dbus_object_t *root_object, *child;
 
 	if (!(root_object = wicked_dbus_client_create()))
 		return NULL;
+
+	if (netif_list_class == NULL) {
+		const ni_dbus_service_t *netif_list_service;
+
+		netif_list_service = ni_objectmodel_service_by_name(WICKED_DBUS_NETIFLIST_INTERFACE);
+		ni_assert(netif_list_service);
+
+		netif_list_class = netif_list_service->compatible;
+	}
+
 	child = ni_dbus_object_create(root_object, "Interface",
-			&ni_objectmodel_proxy_iflist_class,
+			netif_list_class,
 			NULL);
 
 	if (!default_interface)
