@@ -50,22 +50,10 @@ ni_dbus_server_t *
 ni_objectmodel_create_service(void)
 {
 	ni_dbus_server_t *server;
-	ni_dbus_object_t *object;
 
 	server = ni_server_listen_dbus(WICKED_DBUS_BUS_NAME);
 	if (server == NULL)
 		ni_fatal("unable to initialize dbus service");
-
-	object = ni_dbus_server_get_root_object(server);
-	ni_dbus_object_register_service(object, &ni_objectmodel_netif_root_interface);
-
-	object = ni_dbus_server_register_object(server, "Interface",
-					&ni_objectmodel_netif_list_class,
-					NULL);
-	if (object == NULL)
-		ni_fatal("Unable to create dbus object for interfaces");
-
-	ni_dbus_object_register_service(object, &ni_objectmodel_netif_list_service);
 
 	/* register the netif-list class (to allow extensions to attach to it) */
 	ni_dbus_server_register_class(server, &ni_objectmodel_netif_list_class);
@@ -86,6 +74,33 @@ ni_objectmodel_create_service(void)
 
 	__ni_objectmodel_server = server;
 	return server;
+}
+
+dbus_bool_t
+ni_objectmodel_create_initial_objects(ni_dbus_server_t *server)
+{
+	ni_dbus_object_t *object;
+
+	/* Register root interface with the root of the object hierarchy */
+	object = ni_dbus_server_get_root_object(server);
+	ni_dbus_object_register_service(object, &ni_objectmodel_netif_root_interface);
+
+	/* Register com.suse.Wicked.Interface, which is the list of all interfaces */
+	object = ni_dbus_server_register_object(server, "Interface",
+					&ni_objectmodel_netif_list_class,
+					NULL);
+	if (object == NULL)
+		ni_fatal("Unable to create dbus object for interfaces");
+
+	ni_objectmodel_bind_compatible_interfaces(server, object, NI_IFTYPE_UNKNOWN);
+	ni_dbus_object_register_service(object, &ni_objectmodel_netif_list_service);
+	return TRUE;
+}
+
+dbus_bool_t
+ni_objectmodel_bind_compatible_interfaces(ni_dbus_server_t *server, ni_dbus_object_t *object, ni_iftype_t link_type)
+{
+	return TRUE;
 }
 
 /*

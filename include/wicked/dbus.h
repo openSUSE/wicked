@@ -428,6 +428,7 @@ ni_dbus_variant_datum_const_ptr(const ni_dbus_variant_t *variant)
 }
 
 extern ni_dbus_server_t *	ni_objectmodel_create_service(void);
+extern dbus_bool_t		ni_objectmodel_create_initial_objects(ni_dbus_server_t *);
 extern ni_dbus_object_t *	ni_objectmodel_register_interface(ni_dbus_server_t *, ni_interface_t *ifp);
 extern dbus_bool_t		ni_objectmodel_unregister_interface(ni_dbus_server_t *, ni_interface_t *ifp);
 extern ni_dbus_object_t *	ni_objectmodel_wrap_interface(ni_interface_t *ifp);

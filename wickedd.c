@@ -140,6 +140,8 @@ wicked_interface_server(void)
 
 	ni_dbus_xml_register_services(wicked_dbus_server, wicked_dbus_xml_schema);
 
+	ni_objectmodel_create_initial_objects(wicked_dbus_server);
+
 	if (ni_objectmodel_bind_extensions() < 0)
 		ni_fatal("failed to bind extension services");
 
