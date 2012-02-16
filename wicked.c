@@ -303,7 +303,7 @@ wicked_find_link_properties(const xml_node_t *ifnode)
  * as in ni_objectmodel_link_classname()
  */
 const ni_dbus_service_t *
-wicked_link_layer_service(const char *link_type)
+ni_call_link_layer_service(const char *link_type)
 {
 	ni_iftype_t iftype;
 	const char *classname;
@@ -335,12 +335,12 @@ wicked_link_layer_service(const char *link_type)
  * as in __ni_objectmodel_link_classname()
  */
 const ni_dbus_service_t *
-wicked_link_layer_factory_service(const char *link_type)
+ni_call_link_layer_factory_service(const char *link_type)
 {
 	char namebuf[256];
 	const ni_dbus_service_t *service;
 
-	if (!(service = wicked_link_layer_service(link_type)))
+	if (!(service = ni_call_link_layer_service(link_type)))
 		return NULL;
 
 	snprintf(namebuf, sizeof(namebuf), "%s.Factory", service->name);
@@ -426,7 +426,7 @@ do_create(int argc, char **argv)
 		}
 		link_type = linknode->name;
 
-		if (!(service = wicked_link_layer_factory_service(link_type))) {
+		if (!(service = ni_call_link_layer_factory_service(link_type))) {
 			ni_error("wicked create: unknown/unsupported link type %s", link_type);
 			return 1;
 		}
@@ -439,7 +439,7 @@ do_create(int argc, char **argv)
 xml_done:
 		xml_document_free(doc);
 	} else {
-		if (!(service = wicked_link_layer_factory_service(link_type))) {
+		if (!(service = ni_call_link_layer_factory_service(link_type))) {
 			ni_error("wicked create: unknown/unsupported link type %s", link_type);
 			return 1;
 		}
