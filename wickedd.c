@@ -130,21 +130,13 @@ wicked_interface_server(void)
 {
 	ni_xs_scope_t *wicked_dbus_xml_schema;
 
-	wicked_dbus_xml_schema = ni_server_dbus_xml_schema();
-	if (wicked_dbus_xml_schema == NULL)
-		ni_fatal("Giving up.");
-
-	/* FIXME: this is too messy, and can be simplified quite a bit */
-	ni_objectmodel_register_all();
-
 	wicked_dbus_server = ni_objectmodel_create_service();
+	if (!wicked_dbus_server)
+		ni_fatal("Cannot create server, giving up.");
 
-	ni_dbus_xml_register_services(wicked_dbus_xml_schema);
-
-	ni_objectmodel_create_initial_objects(wicked_dbus_server);
-
-	if (ni_objectmodel_bind_extensions() < 0)
-		ni_fatal("failed to bind extension services");
+	wicked_dbus_xml_schema = ni_objectmodel_init(wicked_dbus_server);
+	if (wicked_dbus_xml_schema == NULL)
+		ni_fatal("Cannot initialize objectmodel, giving up.");
 
 	/* open global RTNL socket to listen for kernel events */
 	if (ni_server_listen_events(wicked_interface_event) < 0)
