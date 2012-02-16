@@ -37,6 +37,7 @@ static ni_dbus_class_t		ni_objectmodel_ifreq_class = {
 static const ni_dbus_class_t	ni_objectmodel_netif_list_class;
 static ni_dbus_service_t	ni_objectmodel_netif_list_service;
 static ni_dbus_service_t	ni_objectmodel_netif_service;
+extern ni_dbus_service_t	ni_objectmodel_addrconf_ipv_static_service;
 static ni_dbus_property_t	ni_objectmodel_netif_request_properties[];
 
 /*
@@ -80,6 +81,9 @@ ni_objectmodel_register_netif_classes(void)
 	}
 
 	ni_objectmodel_register_service(&ni_objectmodel_netif_list_service);
+
+	/* register out built-in addrconf services */
+	ni_objectmodel_register_service(&ni_objectmodel_addrconf_ipv_static_service);
 }
 
 /*

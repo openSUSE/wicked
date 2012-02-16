@@ -19,11 +19,15 @@
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
 #include <wicked/addrconf.h>
+#include <wicked/system.h>
 #include "netinfo_priv.h"	/* for __ni_system_interface_update_lease */
 #include "dbus-common.h"
 #include "model.h"
 #include "debug.h"
 
+
+#define WICKED_DBUS_ADDRCONF_IPV4STATIC_INTERFACE	WICKED_DBUS_INTERFACE ".Addrconf.ipv4.static"
+#define WICKED_DBUS_ADDRCONF_IPV6STATIC_INTERFACE	WICKED_DBUS_INTERFACE ".Addrconf.ipv6.static"
 
 /*
  * Interface.acquire(dict options)
@@ -213,3 +217,137 @@ done:
 	if (lease)
 		ni_addrconf_lease_free(lease);
 }
+
+/*
+ * Verbatim copy from interface.c
+ */
+static ni_interface_t *
+get_interface(const ni_dbus_object_t *object, DBusError *error)
+{
+	ni_interface_t *dev;
+
+	if (!(dev = ni_objectmodel_unwrap_interface(object))) {
+		dbus_set_error(error,
+				DBUS_ERROR_FAILED,
+				"Method not compatible with object %s (not a network interface)",
+				object->path);
+		return NULL;
+	}
+	return dev;
+}
+
+/*
+ * Configure static IPv4 addresses
+ */
+static dbus_bool_t
+ni_objectmodel_addrconf_ipv4_static_configure(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_addrconf_request_t *req = NULL;
+	const ni_dbus_variant_t *dict;
+	ni_interface_t *dev;
+	int rv;
+
+	if (!(dev = get_interface(object, error)))
+		return FALSE;
+
+	if (argc != 1 || !ni_dbus_variant_is_dict(&argv[0])) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"%s.%s: exected one dict argument",
+				WICKED_DBUS_ADDRCONF_IPV4STATIC_INTERFACE, method->name);
+		return FALSE;
+	}
+	dict = &argv[0];
+
+	req = ni_addrconf_request_new(NI_ADDRCONF_STATIC, AF_INET);
+	if (!__ni_objectmodel_set_address_dict(&req->statik.addrs, dict, error)
+	 || !__ni_objectmodel_set_route_dict(&req->statik.routes, dict, error))
+		return FALSE;
+
+	ni_trace("static addrs=%p routes=%p", req->statik.addrs, req->statik.routes);
+
+	rv = ni_system_interface_addrconf(ni_global_state_handle(0), dev, req);
+	ni_trace("ni_system_interface_addrconf() = %d", rv);
+	ni_addrconf_request_free(req);
+
+	if (rv < 0) {
+		dbus_set_error(error,
+				DBUS_ERROR_FAILED,
+				"Error configuring static IPv4 addresses: %s",
+				ni_strerror(rv));
+		return FALSE;
+	} else {
+		/* XXX: We should really have a helper function to do this */
+		ni_dbus_variant_t result = NI_DBUS_VARIANT_INIT;
+
+		ni_dbus_variant_set_uint32(&result, 0);
+		ni_dbus_message_serialize_variants(reply, 1, &result, error);
+		ni_dbus_variant_destroy(&result);
+	}
+
+	return TRUE;
+}
+
+#if 0
+/*
+ * Get/set properties of a static addrconf request
+ */
+static dbus_bool_t
+__ni_objectmodel_addrconf_get_address(const ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				ni_dbus_variant_t *result,
+				DBusError *error)
+{
+	return FALSE;
+}
+
+static dbus_bool_t
+__ni_objectmodel_addrconf_set_address(ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *argument,
+				DBusError *error)
+{
+	return FALSE;
+}
+#endif
+
+dbus_bool_t
+__ni_objectmodel_addrconfreq_get_address_properties(const ni_addrconf_request_t *req,
+				ni_dbus_variant_t *dict,
+				DBusError *error)
+{
+	if (!__ni_objectmodel_get_address_dict(req->statik.addrs, dict, error))
+		return FALSE;
+
+	return TRUE;
+}
+
+/*
+ * Addrconf methods
+ */
+static const ni_dbus_method_t		ni_objectmodel_addrconf_ipv4_static_methods[] = {
+	{ "configure",		"a{sv}",		ni_objectmodel_addrconf_ipv4_static_configure },
+	{ NULL }
+};
+
+/*
+ * IPv4 and IPv6 addrconf requests share the same properties
+ */
+#define ADDRCONF_PROPERTY(type, __name, rw) \
+	NI_DBUS_PROPERTY(type, __name, __ni_objectmodel_addrconf, rw)
+#define ADDRCONF_PROPERTY_SIGNATURE(signature, __name, rw) \
+	__NI_DBUS_PROPERTY(signature, __name,  __ni_objectmodel_addrconf, rw)
+
+static ni_dbus_property_t		ni_objectmodel_addrconf_static_properties[] = {
+//	ADDRCONF_PROPERTY_SIGNATURE(NI_DBUS_DICT_SIGNATURE, address, RO),
+	{ NULL }
+};
+
+ni_dbus_service_t			ni_objectmodel_addrconf_ipv_static_service = {
+	.name		= WICKED_DBUS_ADDRCONF_IPV4STATIC_INTERFACE,
+	/* The .compatible member is filled in through dbus-xml. Not nice. */
+//	.compatible	= &ni_objectmodel_netif_class,
+	.properties	= ni_objectmodel_addrconf_static_properties,
+	.methods	= ni_objectmodel_addrconf_ipv4_static_methods,
+};

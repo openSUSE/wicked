@@ -213,6 +213,17 @@ extern void			ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *,
 						ni_dbus_message_t *, void *);
 extern dbus_bool_t		__ni_objectmodel_interface_event(ni_dbus_server_t *, ni_dbus_object_t *, ni_event_t);
 
+extern dbus_bool_t		__ni_objectmodel_get_address_dict(ni_address_t *list, ni_dbus_variant_t *result,
+						DBusError *error);
+extern dbus_bool_t		__ni_objectmodel_set_address_dict(ni_address_t **list, const ni_dbus_variant_t *dict,
+						DBusError *error);
+extern dbus_bool_t		__ni_objectmodel_get_route_dict(ni_route_t *list,
+						ni_dbus_variant_t *result,
+						DBusError *error);
+extern dbus_bool_t		__ni_objectmodel_set_route_dict(ni_route_t **list,
+						const ni_dbus_variant_t *dict,
+						DBusError *error);
+
 extern void			__ni_objectmodel_force_linkage(void);
 
 #endif /* __WICKED_OBJECTMODEL_P_H__ */

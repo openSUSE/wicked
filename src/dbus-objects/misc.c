@@ -22,9 +22,15 @@
 #include "model.h"
 #include "debug.h"
 
+/* XXX obsolete */
 static ni_dbus_class_t		ni_objectmodel_addrconfreq_class = {
 	.name		= NI_OBJECTMODEL_ADDRCONF_REQUEST_CLASS,
 };
+
+static dbus_bool_t		__ni_objectmodel_address_to_dict(const ni_address_t *, ni_dbus_variant_t *);
+static ni_address_t *		__ni_objectmodel_address_from_dict(ni_address_t **, const ni_dbus_variant_t *);
+static dbus_bool_t		__ni_objectmodel_route_to_dict(const ni_route_t *, ni_dbus_variant_t *);
+static ni_route_t *		__ni_objectmodel_route_from_dict(ni_route_t **, const ni_dbus_variant_t *);
 
 /*
  * Wrap an addrconf request in a dbus object
@@ -136,7 +142,17 @@ __wicked_dbus_get_string_array(ni_string_array_t *ap, const ni_dbus_variant_t *v
 }
 
 /*
- * Retrieve an address list as an array of dbus dicts
+ * Represent an address list as an array of dbus dicts
+ *
+ * The dbus representation will be something like
+ *  <array>
+ *    <element>
+ *      ... dict entries ...
+ *    </element>
+ *    <element>
+ *      ... dict entries ...
+ *    </element>
+ *  </array>
  */
 dbus_bool_t
 __wicked_dbus_get_address_list(ni_address_t *list,
@@ -144,8 +160,9 @@ __wicked_dbus_get_address_list(ni_address_t *list,
 				DBusError *error)
 {
 	const ni_address_t *ap;
+	dbus_bool_t rv = TRUE;
 
-	for (ap = list; ap; ap = ap->next) {
+	for (ap = list; ap && rv; ap = ap->next) {
 		ni_dbus_variant_t *dict;
 
 		if (ap->family != ap->local_addr.ss_family)
@@ -154,20 +171,12 @@ __wicked_dbus_get_address_list(ni_address_t *list,
 		/* Append a new element to the array */
 		dict = ni_dbus_dict_array_add(result);
 
-		__wicked_dbus_add_sockaddr_prefix(dict, "local", &ap->local_addr, ap->prefixlen);
-		if (ap->peer_addr.ss_family == ap->family)
-			__wicked_dbus_add_sockaddr(dict, "peer", &ap->peer_addr);
-		if (ap->anycast_addr.ss_family == ap->family)
-			__wicked_dbus_add_sockaddr(dict, "anycast", &ap->anycast_addr);
-		ni_dbus_dict_add_uint32(dict, "owner", ap->config_method);
+		rv = __ni_objectmodel_address_to_dict(ap, dict);
 	}
 
-	return TRUE;
+	return rv;
 }
 
-/*
- * Build an address list from a dbus dict
- */
 dbus_bool_t
 __wicked_dbus_set_address_list(ni_address_t **list,
 				const ni_dbus_variant_t *argument,
@@ -184,13 +193,97 @@ __wicked_dbus_set_address_list(ni_address_t **list,
 
 	for (i = 0; i < argument->array.len; ++i) {
 		ni_dbus_variant_t *dict = &argument->variant_array_value[i];
-		ni_sockaddr_t local_addr;
-		unsigned int prefixlen;
-		ni_address_t *ap;
-		uint32_t value;
 
-		if (!__wicked_dbus_get_sockaddr_prefix(dict, "local", &local_addr, &prefixlen))
+		(void) __ni_objectmodel_address_from_dict(list, dict);
+	}
+	return TRUE;
+}
+
+/*
+ * Retrieve an address list as multiple "address" elements in a dict
+ *
+ * The dbus representation will be something like
+ *   <dict>
+ *     <address>
+ *      ... dict entries ...
+ *     </address>
+ *     <address>
+ *      ... dict entries ...
+ *     </address>
+ *   </dict>
+ */
+dbus_bool_t
+__ni_objectmodel_get_address_dict(ni_address_t *list,
+				ni_dbus_variant_t *result,
+				DBusError *error)
+{
+	const ni_address_t *ap;
+	dbus_bool_t rv = TRUE;
+
+	for (ap = list; ap && rv; ap = ap->next) {
+		ni_dbus_variant_t *dict;
+
+		if (ap->family != ap->local_addr.ss_family)
 			continue;
+
+		/* Append a new element to the array */
+		dict = ni_dbus_dict_add(result, "address");
+		ni_dbus_variant_init_dict(dict);
+
+		rv = __ni_objectmodel_address_to_dict(ap, dict);
+	}
+
+	return rv;
+}
+
+dbus_bool_t
+__ni_objectmodel_set_address_dict(ni_address_t **list,
+				const ni_dbus_variant_t *dict,
+				DBusError *error)
+{
+	ni_dbus_variant_t *var;
+
+	if (!ni_dbus_variant_is_dict(dict)) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"%s: argument type mismatch",
+				__FUNCTION__);
+		return FALSE;
+	}
+
+	var = NULL;
+	while ((var = ni_dbus_dict_get_next(dict, "address", var)) != NULL) {
+		if (!ni_dbus_variant_is_dict(var))
+			return FALSE;
+		(void) __ni_objectmodel_address_from_dict(list, var);
+	}
+	return TRUE;
+}
+
+/*
+ * Common functions to represent an assigned address as a dict
+ */
+dbus_bool_t
+__ni_objectmodel_address_to_dict(const ni_address_t *ap, ni_dbus_variant_t *dict)
+{
+	__wicked_dbus_add_sockaddr_prefix(dict, "local", &ap->local_addr, ap->prefixlen);
+	if (ap->peer_addr.ss_family == ap->family)
+		__wicked_dbus_add_sockaddr(dict, "peer", &ap->peer_addr);
+	if (ap->anycast_addr.ss_family == ap->family)
+		__wicked_dbus_add_sockaddr(dict, "anycast", &ap->anycast_addr);
+	ni_dbus_dict_add_uint32(dict, "owner", ap->config_method);
+
+	return TRUE;
+}
+
+ni_address_t *
+__ni_objectmodel_address_from_dict(ni_address_t **list, const ni_dbus_variant_t *dict)
+{
+	ni_address_t *ap = NULL;
+	ni_sockaddr_t local_addr;
+	unsigned int prefixlen;
+
+	if (__wicked_dbus_get_sockaddr_prefix(dict, "local", &local_addr, &prefixlen)) {
+		uint32_t value;
 
 		ap = __ni_address_new(list, local_addr.ss_family, prefixlen, &local_addr);
 
@@ -200,11 +293,22 @@ __wicked_dbus_set_address_list(ni_address_t **list,
 		if (ni_dbus_dict_get_uint32(dict, "owner", &value))
 			ap->config_method = value;
 	}
-	return TRUE;
+
+	return ap;
 }
 
 /*
  * Retrieve a route list as an array of dbus dicts
+ *
+ * The dbus representation will be something like
+ *  <array>
+ *    <element>
+ *      ... dict entries ...
+ *    </element>
+ *    <element>
+ *      ... dict entries ...
+ *    </element>
+ *  </array>
  */
 dbus_bool_t
 __wicked_dbus_get_route_list(ni_route_t *list,
@@ -212,10 +316,10 @@ __wicked_dbus_get_route_list(ni_route_t *list,
 				DBusError *error)
 {
 	const ni_route_t *rp;
+	dbus_bool_t rv = TRUE;
 
-	for (rp = list; rp; rp = rp->next) {
+	for (rp = list; rp && rv; rp = rp->next) {
 		ni_dbus_variant_t *dict;
-		const ni_route_nexthop_t *nh;
 
 		if (rp->family != rp->destination.ss_family)
 			continue;
@@ -225,34 +329,10 @@ __wicked_dbus_get_route_list(ni_route_t *list,
 			return FALSE;
 		ni_dbus_variant_init_dict(dict);
 
-		__wicked_dbus_add_sockaddr_prefix(dict, "destination", &rp->destination, rp->prefixlen);
-		ni_dbus_dict_add_uint32(dict, "owner", rp->config_method);
-		if (rp->mtu)
-			ni_dbus_dict_add_uint32(dict, "mtu", rp->mtu);
-		if (rp->tos)
-			ni_dbus_dict_add_uint32(dict, "tos", rp->tos);
-		if (rp->priority)
-			ni_dbus_dict_add_uint32(dict, "priority", rp->priority);
-
-		if (rp->nh.gateway.ss_family != AF_UNSPEC) {
-			for (nh = &rp->nh; nh; nh = nh->next) {
-				ni_dbus_variant_t *nhdict;
-
-				nhdict = ni_dbus_dict_add(dict, "nexthop");
-				ni_dbus_variant_init_dict(nhdict);
-
-				__wicked_dbus_add_sockaddr(nhdict, "gateway", &nh->gateway);
-				if (nh->device)
-					ni_dbus_dict_add_string(nhdict, "device", nh->device);
-				if (nh->weight)
-					ni_dbus_dict_add_uint32(nhdict, "weight", nh->weight);
-				if (nh->flags)
-					ni_dbus_dict_add_uint32(nhdict, "flags", nh->flags);
-			}
-		}
+		rv = __ni_objectmodel_route_to_dict(rp, dict);
 	}
 
-	return TRUE;
+	return rv;
 }
 
 /*
@@ -274,61 +354,162 @@ __wicked_dbus_set_route_list(ni_route_t **list,
 
 	for (i = 0; i < argument->array.len; ++i) {
 		ni_dbus_variant_t *dict = &argument->variant_array_value[i];
-		const ni_dbus_variant_t *nhdict;
-		uint32_t prefixlen, config, value;
-		ni_sockaddr_t destination;
-		ni_route_t *rp;
 
-		if (!__wicked_dbus_get_sockaddr_prefix(dict, "destination", &destination, &prefixlen))
-			continue;
-		if (!ni_dbus_dict_get_uint32(dict, "owner", &config))
-			continue;
-
-		rp = calloc(1, sizeof(*rp));
-		rp->family = destination.ss_family;
-		rp->prefixlen = prefixlen;
-		rp->config_method = config;
-		rp->destination = destination;
-		__ni_route_list_append(list, rp);
-
-		if (ni_dbus_dict_get_uint32(dict, "mtu", &value))
-			rp->mtu = value;
-		if (ni_dbus_dict_get_uint32(dict, "tos", &value))
-			rp->tos = value;
-		if (ni_dbus_dict_get_uint32(dict, "priority", &value))
-			rp->priority = value;
-
-		if ((nhdict = ni_dbus_dict_get(dict, "nexthop")) != NULL) {
-			ni_route_nexthop_t *nh = &rp->nh, **nhpos = &nh;
-
-			while (nhdict) {
-				const char *string;
-				uint32_t value;
-				ni_sockaddr_t gateway;
-
-				if (!__wicked_dbus_get_sockaddr(nhdict, "gateway", &gateway)) {
-					ni_debug_dbus("%s: bad nexthop gateway", __func__);
-					return FALSE;
-				}
-
-				if (nh == NULL)
-					*nhpos = nh = calloc(1, sizeof(*nh));
-
-				nh->gateway = gateway;
-				if (ni_dbus_dict_get_string(nhdict, "device", &string))
-					ni_string_dup(&nh->device, string);
-				if (ni_dbus_dict_get_uint32(nhdict, "weight", &value))
-					nh->weight = value;
-				if (ni_dbus_dict_get_uint32(nhdict, "flags", &value))
-					nh->flags = value;
-
-				nhdict = ni_dbus_dict_get_next(dict, "nexthop", nhdict);
-				nhpos = &nh->next;
-				nh = NULL;
-			}
-		}
+		(void) __ni_objectmodel_route_from_dict(list, dict);
 	}
 	return TRUE;
+}
+
+/*
+ * Retrieve a route list as multiple "route" elements in a dict
+ *
+ * The dbus representation will be something like
+ *   <dict>
+ *     <route>
+ *      ... dict entries ...
+ *     </route>
+ *     <route>
+ *      ... dict entries ...
+ *     </route>
+ *   </dict>
+ */
+dbus_bool_t
+__ni_objectmodel_get_route_dict(ni_route_t *list,
+				ni_dbus_variant_t *result,
+				DBusError *error)
+{
+	const ni_route_t *rp;
+	dbus_bool_t rv = TRUE;
+
+	for (rp = list; rp && rv; rp = rp->next) {
+		ni_dbus_variant_t *dict;
+
+		if (rp->family != rp->destination.ss_family)
+			continue;
+
+		/* Append a new element to the array */
+		dict = ni_dbus_dict_add(result, "route");
+		ni_dbus_variant_init_dict(dict);
+
+		rv = __ni_objectmodel_route_to_dict(rp, dict);
+	}
+
+	return rv;
+}
+
+dbus_bool_t
+__ni_objectmodel_set_route_dict(ni_route_t **list,
+				const ni_dbus_variant_t *dict,
+				DBusError *error)
+{
+	ni_dbus_variant_t *var;
+
+	if (!ni_dbus_variant_is_dict(dict)) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"%s: argument type mismatch",
+				__FUNCTION__);
+		return FALSE;
+	}
+
+	var = NULL;
+	while ((var = ni_dbus_dict_get_next(dict, "route", var)) != NULL) {
+		if (!ni_dbus_variant_is_dict(var))
+			return FALSE;
+		(void) __ni_objectmodel_route_from_dict(list, var);
+	}
+	return TRUE;
+}
+
+/*
+ * Common functions to represent an assigned route as a dict
+ */
+dbus_bool_t
+__ni_objectmodel_route_to_dict(const ni_route_t *rp, ni_dbus_variant_t *dict)
+{
+	const ni_route_nexthop_t *nh;
+
+	__wicked_dbus_add_sockaddr_prefix(dict, "destination", &rp->destination, rp->prefixlen);
+	ni_dbus_dict_add_uint32(dict, "owner", rp->config_method);
+	if (rp->mtu)
+		ni_dbus_dict_add_uint32(dict, "mtu", rp->mtu);
+	if (rp->tos)
+		ni_dbus_dict_add_uint32(dict, "tos", rp->tos);
+	if (rp->priority)
+		ni_dbus_dict_add_uint32(dict, "priority", rp->priority);
+
+	if (rp->nh.gateway.ss_family != AF_UNSPEC) {
+		for (nh = &rp->nh; nh; nh = nh->next) {
+			ni_dbus_variant_t *nhdict;
+
+			nhdict = ni_dbus_dict_add(dict, "nexthop");
+			ni_dbus_variant_init_dict(nhdict);
+
+			__wicked_dbus_add_sockaddr(nhdict, "gateway", &nh->gateway);
+			if (nh->device)
+				ni_dbus_dict_add_string(nhdict, "device", nh->device);
+			if (nh->weight)
+				ni_dbus_dict_add_uint32(nhdict, "weight", nh->weight);
+			if (nh->flags)
+				ni_dbus_dict_add_uint32(nhdict, "flags", nh->flags);
+		}
+	}
+
+	return TRUE;
+}
+
+ni_route_t *
+__ni_objectmodel_route_from_dict(ni_route_t **list, const ni_dbus_variant_t *dict)
+{
+	const ni_dbus_variant_t *nhdict;
+	uint32_t prefixlen, value;
+	ni_sockaddr_t destination;
+	ni_route_t *rp;
+
+	if (!__wicked_dbus_get_sockaddr_prefix(dict, "destination", &destination, &prefixlen))
+		return NULL;
+
+	rp = __ni_route_new(list, prefixlen, &destination, NULL);
+
+	if (ni_dbus_dict_get_uint32(dict, "mtu", &value))
+		rp->mtu = value;
+	if (ni_dbus_dict_get_uint32(dict, "tos", &value))
+		rp->tos = value;
+	if (ni_dbus_dict_get_uint32(dict, "priority", &value))
+		rp->priority = value;
+	if (!ni_dbus_dict_get_uint32(dict, "owner", &value))
+		rp->config_method = value;
+
+	if ((nhdict = ni_dbus_dict_get(dict, "nexthop")) != NULL) {
+		ni_route_nexthop_t *nh = &rp->nh, **nhpos = &nh;
+
+		while (nhdict) {
+			const char *string;
+			uint32_t value;
+			ni_sockaddr_t gateway;
+
+			if (!__wicked_dbus_get_sockaddr(nhdict, "gateway", &gateway)) {
+				ni_debug_dbus("%s: bad nexthop gateway", __func__);
+				return FALSE;
+			}
+
+			if (nh == NULL)
+				*nhpos = nh = calloc(1, sizeof(*nh));
+
+			nh->gateway = gateway;
+			if (ni_dbus_dict_get_string(nhdict, "device", &string))
+				ni_string_dup(&nh->device, string);
+			if (ni_dbus_dict_get_uint32(nhdict, "weight", &value))
+				nh->weight = value;
+			if (ni_dbus_dict_get_uint32(nhdict, "flags", &value))
+				nh->flags = value;
+
+			nhdict = ni_dbus_dict_get_next(dict, "nexthop", nhdict);
+			nhpos = &nh->next;
+			nh = NULL;
+		}
+	}
+
+	return rp;
 }
 
 /*
