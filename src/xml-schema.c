@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <wicked/logging.h>
 #include <wicked/xml.h>
+#include <wicked/logging.h>
 #include <wicked/netinfo.h> /* layering violation */
 #include "xml-schema.h"
 #include "util_priv.h"
@@ -390,7 +391,7 @@ ni_xs_scope_typedef(ni_xs_scope_t *dict, const char *name, ni_xs_type_t *type)
 {
 	if (ni_xs_scope_lookup_local(dict, name) != NULL)
 		return -1;
-	ni_trace("define type %s in scope %s", name, dict->name?: "<anon>");
+	ni_debug_xml("define type %s in scope %s", name, dict->name?: "<anon>");
 	ni_xs_name_type_array_append(&dict->types, name, type);
 	return 0;
 }
@@ -500,6 +501,7 @@ ni_xs_process_schema_file(const char *filename, ni_xs_scope_t *scope)
 {
 	xml_document_t *doc = NULL;
 
+	ni_debug_xml("ni_xs_process_schema_file(filename=%s)", filename);
 	if (filename == NULL) {
 		ni_error("%s: NULL filename", __func__);
 		return -1;
@@ -561,6 +563,7 @@ ni_xs_process_service(xml_node_t *node, ni_xs_scope_t *scope)
 {
 	const char *nameAttr, *intfAttr, *provAttr;
 	ni_xs_service_t *service;
+	ni_xs_scope_t *sub_scope;
 	xml_node_t *child;
 
 	if (!(nameAttr = xml_node_get_attr(node, "name"))) {
@@ -576,8 +579,9 @@ ni_xs_process_service(xml_node_t *node, ni_xs_scope_t *scope)
 		return -1;
 	}
 
-	scope = ni_xs_scope_new(scope, nameAttr);
+	sub_scope = ni_xs_scope_new(scope, nameAttr);
 
+	ni_debug_dbus("define schema for service %s (interface=%s) in scope %s", nameAttr, intfAttr, scope->name);
 	service = ni_xs_service_new(nameAttr, intfAttr, scope);
 
 	if ((provAttr = xml_node_get_attr(node, "provides")) != NULL) {
@@ -605,11 +609,11 @@ ni_xs_process_service(xml_node_t *node, ni_xs_scope_t *scope)
 		int rv;
 
 		if (!strcmp(child->name, "define")) {
-			if ((rv = ni_xs_process_define(child, scope)) < 0)
+			if ((rv = ni_xs_process_define(child, sub_scope)) < 0)
 				return rv;
 		} else
 		if (!strcmp(child->name, "method")) {
-			if ((rv = ni_xs_process_method(child, service, scope)) < 0)
+			if ((rv = ni_xs_process_method(child, service, sub_scope)) < 0)
 				return rv;
 		} else {
 			ni_warn("%s: ignoring unknown element <%s>", xml_node_location(child), child->name);
@@ -692,7 +696,7 @@ ni_xs_process_include(xml_node_t *node, ni_xs_scope_t *scope)
 		}
 	}
 
-	ni_trace("trying to include %s", nameAttr);
+	ni_debug_xml("trying to include %s", nameAttr);
 	return ni_xs_process_schema_file(nameAttr, scope);
 }
 
