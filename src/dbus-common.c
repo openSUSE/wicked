@@ -1307,21 +1307,24 @@ ni_dbus_dict_get_next(const ni_dbus_variant_t *dict, const char *key, const ni_d
 		return FALSE;
 
 	if (previous != NULL) {
-		while (pos < dict->array.len) {
-			entry = &dict->dict_array_value[pos];
+		dbus_bool_t found = FALSE;
 
-			if (previous == &entry->datum)
+		while (pos < dict->array.len) {
+			entry = &dict->dict_array_value[pos++];
+
+			if (previous == &entry->datum) {
+				found = TRUE;
 				break;
-			++pos;
+			}
 		}
-		if (pos >= dict->array.len) {
-			ni_warn("%s: caller passed in bad previous pointer", __func__);
+		if (!found) {
+			ni_warn("%s(%s): caller passed in bad previous pointer", __func__, key);
 			return NULL;
 		}
 	}
 
-	while (++pos < dict->array.len) {
-		entry = &dict->dict_array_value[pos];
+	while (pos < dict->array.len) {
+		entry = &dict->dict_array_value[pos++];
 		if (entry->key && !strcmp(entry->key, key))
 			return &entry->datum;
 	}
