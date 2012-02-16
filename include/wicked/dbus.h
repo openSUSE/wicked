@@ -283,6 +283,7 @@ extern void			ni_dbus_variant_set_string_array(ni_dbus_variant_t *,
 extern dbus_bool_t		ni_dbus_variant_append_string_array(ni_dbus_variant_t *, const char *);
 extern void			ni_dbus_variant_init_variant_array(ni_dbus_variant_t *);
 extern ni_dbus_variant_t *	ni_dbus_variant_append_variant_element(ni_dbus_variant_t *);
+extern const char *		ni_dbus_variant_array_print_element(const ni_dbus_variant_t *, unsigned int);
 
 extern dbus_bool_t		ni_dbus_variant_is_byte_array(const ni_dbus_variant_t *);
 extern dbus_bool_t		ni_dbus_variant_is_string_array(const ni_dbus_variant_t *);
@@ -403,6 +404,7 @@ extern ni_xs_scope_t *		ni_dbus_xml_init(void);
 extern int			ni_dbus_xml_register_services(ni_xs_scope_t *);
 extern dbus_bool_t		ni_dbus_xml_serialize_arg(const ni_dbus_method_t *, unsigned int,
 					ni_dbus_variant_t *, xml_node_t *);
+
 
 extern unsigned int		__ni_dbus_variant_offsets[256];
 

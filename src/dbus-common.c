@@ -1017,6 +1017,70 @@ ni_dbus_variant_array_parse_and_append_string(ni_dbus_variant_t *var, const char
 }
 
 const char *
+ni_dbus_variant_array_print_element(const ni_dbus_variant_t *var, unsigned int index)
+{
+	unsigned int scalar_type;
+	static char buffer[32];
+
+	if (var->type != DBUS_TYPE_ARRAY)
+		return FALSE;
+	if (var->array.element_type == 0)
+		return FALSE;
+	scalar_type = var->array.element_type;
+
+	if (index >= var->array.len)
+		return FALSE;
+
+	switch (scalar_type) {
+	case DBUS_TYPE_STRING:
+	case DBUS_TYPE_OBJECT_PATH:
+		return var->string_array_value[index];
+
+	case DBUS_TYPE_BYTE:
+		snprintf(buffer, sizeof(buffer), "0x%02x", var->byte_array_value[index]);
+		break;
+
+#ifdef notyet
+	case DBUS_TYPE_BOOLEAN:
+		return var->bool_array_value[index]? "true" : "false";
+
+	case DBUS_TYPE_INT16:
+		snprintf(buffer, sizeof(buffer), "%d", var->int16_array_value[index]);
+		break;
+
+	case DBUS_TYPE_UINT16:
+		snprintf(buffer, sizeof(buffer), "%u", var->uint16_array_value[index]);
+		break;
+
+	case DBUS_TYPE_INT32:
+		snprintf(buffer, sizeof(buffer), "%d", var->int32_array_value[index]);
+		break;
+
+	case DBUS_TYPE_UINT32:
+		snprintf(buffer, sizeof(buffer), "%u", var->uint32_array_value[index]);
+		break;
+
+	case DBUS_TYPE_INT64:
+		snprintf(buffer, sizeof(buffer), "%lld", (long long) var->int64_array_value[index]);
+		break;
+
+	case DBUS_TYPE_UINT64:
+		snprintf(buffer, sizeof(buffer), "%llu", (long long) var->uint64_array_value[index]);
+		break;
+
+	case DBUS_TYPE_DOUBLE:
+		snprintf(buffer, sizeof(buffer), "%f", var->double_array_value[index]);
+		break;
+#endif
+
+	default:
+		return FALSE;
+	}
+
+	return buffer;
+}
+
+const char *
 ni_dbus_variant_signature(const ni_dbus_variant_t *var)
 {
 	const char *sig;
