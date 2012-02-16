@@ -160,12 +160,23 @@ struct ni_xs_array_info {
 	const ni_xs_notation_t *notation;
 };
 
+typedef struct ni_xs_dict_info	ni_xs_dict_info_t;
+struct ni_xs_dict_info {
+	ni_xs_name_type_array_t children;
+};
+
+typedef struct ni_xs_struct_info ni_xs_struct_info_t;
+struct ni_xs_struct_info {
+	ni_xs_name_type_array_t children;
+};
+
 struct ni_xs_type {
 	unsigned int		refcount;
 	unsigned int		class;
 
 	unsigned int		scalar_type;
-	ni_xs_name_type_array_t *children;		/* dict or struct */
+	ni_xs_dict_info_t *	dict_info;
+	ni_xs_struct_info_t *	struct_info;
 	ni_xs_array_info_t *	array_info;
 
 	struct {
@@ -207,6 +218,18 @@ ni_xs_type_release(ni_xs_type_t *type)
 	ni_assert(type->refcount);
 	if (--(type->refcount) == 0)
 		ni_xs_type_free(type);
+}
+
+static inline const ni_xs_type_t *
+ni_xs_dict_info_find(const ni_xs_dict_info_t *dict_info, const char *name)
+{
+	return ni_xs_name_type_array_find(&dict_info->children, name);
+}
+
+static inline const ni_xs_type_t *
+ni_xs_struct_info_find(const ni_xs_struct_info_t *struct_info, const char *name)
+{
+	return ni_xs_name_type_array_find(&struct_info->children, name);
 }
 
 #endif /* __WICKED_XML_SCHEMA_H__ */

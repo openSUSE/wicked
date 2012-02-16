@@ -180,11 +180,12 @@ ni_dbus_serialize_xml_array(xml_node_t *node, const ni_xs_type_t *type, ni_dbus_
 dbus_bool_t
 ni_dbus_serialize_xml_dict(xml_node_t *node, const ni_xs_type_t *type, ni_dbus_variant_t *dict)
 {
+	ni_xs_dict_info_t *dict_info = type->dict_info;
 	xml_node_t *child;
 
-	ni_assert(type->children);
+	ni_assert(dict_info);
 	for (child = node->children; child; child = child->next) {
-		const ni_xs_type_t *child_type = ni_xs_name_type_array_find(type->children, child->name);
+		const ni_xs_type_t *child_type = ni_xs_dict_info_find(dict_info, child->name);
 		ni_dbus_variant_t *child_var;
 
 		if (child_type == NULL) {

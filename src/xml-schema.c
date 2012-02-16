@@ -13,7 +13,7 @@
 
 static int		ni_xs_process_define(xml_node_t *, ni_xs_type_dict_t *);
 static ni_xs_type_t *	ni_xs_build_complex_type(xml_node_t *, const char *, ni_xs_type_dict_t *);
-static void		ni_xs_name_type_array_free(ni_xs_name_type_array_t *);
+static void		ni_xs_name_type_array_destroy(ni_xs_name_type_array_t *);
 static ni_xs_type_t *	ni_xs_build_one_type(xml_node_t *, ni_xs_type_dict_t *);
 static ni_xs_type_t *	ni_xs_typedict_lookup(ni_xs_type_dict_t *, const char *);
 static ni_xs_type_t *	ni_xs_typedict_lookup_local(const ni_xs_type_dict_t *, const char *);
@@ -38,20 +38,20 @@ ni_xs_scalar_new(void)
 }
 
 ni_xs_type_t *
-ni_xs_struct_new(ni_xs_name_type_array_t *children)
+ni_xs_struct_new(void)
 {
 	ni_xs_type_t *type = __ni_xs_type_new(NI_XS_TYPE_STRUCT);
 
-	type->children = children;
+	type->struct_info = xcalloc(1, sizeof(ni_xs_struct_info_t));
 	return type;
 }
 
 ni_xs_type_t *
-ni_xs_dict_new(ni_xs_name_type_array_t *children)
+ni_xs_dict_new(void)
 {
 	ni_xs_type_t *type = __ni_xs_type_new(NI_XS_TYPE_DICT);
 
-	type->children = children;
+	type->dict_info = xcalloc(1, sizeof(ni_xs_struct_info_t));
 	return type;
 }
 
@@ -70,9 +70,19 @@ ni_xs_array_new(ni_xs_type_t *elementType, unsigned long minlen, unsigned long m
 void
 ni_xs_type_free(ni_xs_type_t *type)
 {
-	if (type->children) {
-		ni_xs_name_type_array_free(type->children);
-		type->children = NULL;
+	if (type->dict_info) {
+		ni_xs_dict_info_t *dict_info = type->dict_info;
+
+		ni_xs_name_type_array_destroy(&dict_info->children);
+		free(dict_info);
+		type->dict_info = NULL;
+	}
+	if (type->struct_info) {
+		ni_xs_struct_info_t *struct_info = type->struct_info;
+
+		ni_xs_name_type_array_destroy(&struct_info->children);
+		free(struct_info);
+		type->struct_info = NULL;
 	}
 	if (type->array_info) {
 		ni_xs_type_release(type->array_info->element_type);
@@ -537,13 +547,11 @@ ni_xs_build_complex_type(xml_node_t *node, const char *className, ni_xs_type_dic
 	}
 
 	if (!strcmp(className, "struct")) {
-		ni_xs_name_type_array_t *children = ni_xs_name_type_array_new();
-
-		if (ni_xs_build_typelist(node, children, typedict) < 0) {
-			ni_xs_name_type_array_free(children);
+		type = ni_xs_struct_new();
+		if (ni_xs_build_typelist(node, &type->struct_info->children, typedict) < 0) {
+			ni_xs_type_free(type);
 			return NULL;
 		}
-		type = ni_xs_struct_new(children);
 	} else
 	if (!strcmp(className, "array")) {
 		ni_xs_type_t *elementType = NULL;
@@ -589,15 +597,13 @@ ni_xs_build_complex_type(xml_node_t *node, const char *className, ni_xs_type_dic
 		ni_xs_type_release(elementType);
 	} else
 	if (!strcmp(className, "dict")) {
-		ni_xs_name_type_array_t *children = ni_xs_name_type_array_new();
-
-		if (ni_xs_build_typelist(node, children, typedict) < 0) {
-			ni_xs_name_type_array_free(children);
+		type = ni_xs_dict_new();
+		if (ni_xs_build_typelist(node, &type->dict_info->children, typedict) < 0) {
+			ni_xs_type_free(type);
 			return NULL;
 		}
 
 		/* FIXME: ensure that all child types are named */
-		type = ni_xs_dict_new(children);
 	} else {
 		ni_error("%s: unknown class=\"%s\"", xml_node_location(node), className);
 		return NULL;
