@@ -270,11 +270,18 @@ ni_socket_wait(long timeout)
 
 		if (sock == NULL)
 			continue;
+		sock->refcount++;
+
 		if (pfd[i].revents & POLLERR) {
 			/* Deactivate socket */
 			__ni_socket_deactivate(&__ni_sockets[i]);
 			sock->handle_error(sock);
-			continue;
+			goto done_with_this_socket;
+		}
+
+		if (pfd[i].revents & POLLHUP) {
+			if (sock->handle_hangup)
+				sock->handle_hangup(sock);
 		}
 
 		if (pfd[i].revents & POLLIN) {
@@ -294,6 +301,9 @@ ni_socket_wait(long timeout)
 				sock->transmit(sock);
 			}
 		}
+
+done_with_this_socket:
+		ni_socket_release(sock);
 	}
 
 	gettimeofday(&now, NULL);
