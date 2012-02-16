@@ -61,18 +61,6 @@ struct ni_addrconf_request {
 	unsigned int		settle_timeout;	/* wait that long before starting DHCP */
 	unsigned int		acquire_timeout;/* acquiry of the lease times out after this */
 
-	/* Options controlling what to put into the lease request */
-	struct {
-		ni_address_t *	addrs;
-		ni_route_t *	routes;
-	} statik;
-	struct {
-		char *		hostname;
-		char *		clientid;
-		char *		vendor_class;
-		unsigned int	lease_time;
-	} dhcp;
-
 	/* Options what to update based on the info received from 
 	 * the DHCP server. */
 	unsigned int		update;

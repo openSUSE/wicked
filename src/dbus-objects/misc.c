@@ -523,33 +523,6 @@ __wicked_dbus_get_addrconf_request(const ni_addrconf_request_t *req,
 	ni_dbus_dict_add_byte_array(result, "uuid", req->uuid.octets, 16);
 	ni_dbus_dict_add_uint32(result, "settle-timeout", req->settle_timeout);
 	ni_dbus_dict_add_uint32(result, "acquire-timeout", req->acquire_timeout);
-
-	if (req->family == AF_INET && req->type == NI_ADDRCONF_DHCP) {
-		if (req->dhcp.hostname)
-			ni_dbus_dict_add_string(result, "dhcp-hostname", req->dhcp.hostname);
-		if (req->dhcp.clientid)
-			ni_dbus_dict_add_string(result, "dhcp-clientid", req->dhcp.clientid);
-		if (req->dhcp.vendor_class)
-			ni_dbus_dict_add_string(result, "dhcp-vendor-class", req->dhcp.vendor_class);
-		if (req->dhcp.lease_time)
-			ni_dbus_dict_add_uint32(result, "dhcp-lease-time", req->dhcp.lease_time);
-	}
-	if (req->type == NI_ADDRCONF_STATIC) {
-		ni_dbus_variant_t *child;
-
-		if (req->statik.addrs) {
-			child = ni_dbus_dict_add(result, "static-addresses");
-			ni_dbus_dict_array_init(child);
-			if (!__wicked_dbus_get_address_list(req->statik.addrs, child, error))
-				return FALSE;
-		}
-		if (req->statik.routes) {
-			child = ni_dbus_dict_add(result, "static-routes");
-			ni_dbus_dict_array_init(child);
-			if (!__wicked_dbus_get_route_list(req->statik.routes, child, error))
-				return FALSE;
-		}
-	}
 	ni_dbus_dict_add_uint32(result, "update", req->update);
 
 	return TRUE;
@@ -561,7 +534,6 @@ __wicked_dbus_set_addrconf_request(ni_addrconf_request_t *req,
 						DBusError *error)
 {
 	const ni_dbus_variant_t *child;
-	const char *string_value;
 	unsigned int dummy;
 	uint32_t value32;
 
@@ -573,25 +545,6 @@ __wicked_dbus_set_addrconf_request(ni_addrconf_request_t *req,
 	if ((child = ni_dbus_dict_get(argument, "uuid")) != NULL
 	 && !ni_dbus_variant_get_byte_array_minmax(child, req->uuid.octets, &dummy, 16, 16))
 		return FALSE;
-
-	if (req->family == AF_INET && req->type == NI_ADDRCONF_DHCP) {
-		if (ni_dbus_dict_get_string(argument, "dhcp-hostname", &string_value))
-			ni_string_dup(&req->dhcp.hostname, string_value);
-		if (ni_dbus_dict_get_string(argument, "dhcp-clientid", &string_value))
-			ni_string_dup(&req->dhcp.clientid, string_value);
-		if (ni_dbus_dict_get_string(argument, "dhcp-vendor-class", &string_value))
-			ni_string_dup(&req->dhcp.vendor_class, string_value);
-		if (ni_dbus_dict_get_uint32(argument, "lease-time", &value32))
-			req->dhcp.lease_time = value32;
-	}
-	if (req->type == NI_ADDRCONF_STATIC) {
-		if ((child = ni_dbus_dict_get(argument, "static-addresses")) != NULL
-		 && !__wicked_dbus_set_address_list(&req->statik.addrs, child, error))
-			return FALSE;
-		if ((child = ni_dbus_dict_get(argument, "static-routes")) != NULL
-		 && !__wicked_dbus_set_route_list(&req->statik.routes, child, error))
-			return FALSE;
-	}
 
 	if (ni_dbus_dict_get_uint32(argument, "update", &value32))
 		req->update = value32;

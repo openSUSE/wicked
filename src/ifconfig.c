@@ -1579,6 +1579,10 @@ static int
 __ni_interface_addrconf_static(ni_netconfig_t *nc, ni_interface_t *ifp, int family,
 			ni_addrconf_mode_t mode, const ni_addrconf_request_t *req)
 {
+#if 1
+	ni_error("__ni_interface_addrconf_static has gone for lunch");
+	return -1;
+#else
 	ni_afinfo_t *cur_afi = __ni_interface_address_info(ifp, family);
 	int rv;
 
@@ -1620,6 +1624,7 @@ __ni_interface_addrconf_static(ni_netconfig_t *nc, ni_interface_t *ifp, int fami
 	rv = __ni_interface_update_routes(ifp, family, mode, &req->statik.routes);
 
 	return rv;
+#endif
 }
 
 /*

@@ -1152,17 +1152,6 @@ __ni_netcf_xml_from_addrconf_req(const ni_addrconf_request_t *req, xml_node_t *p
 	if (req->reuse_unexpired)
 		xml_node_new("reuse-unexpired", dhnode);
 
-	if (req->type == NI_ADDRCONF_DHCP) {
-		if (req->dhcp.hostname)
-			__ni_netcf_add_string_child(dhnode, "hostname", req->dhcp.hostname);
-		if (req->dhcp.clientid)
-			__ni_netcf_add_string_child(dhnode, "client-id", req->dhcp.clientid);
-		if (req->dhcp.vendor_class)
-			__ni_netcf_add_string_child(dhnode, "vendor-class", req->dhcp.vendor_class);
-		if (req->dhcp.lease_time)
-			__ni_netcf_add_uint_child(dhnode, "lease-time", req->dhcp.lease_time);
-	}
-
 	if (req->update != 0) {
 		unsigned int target;
 
@@ -1211,13 +1200,6 @@ __ni_netcf_xml_to_addrconf_req(const xml_node_t *dhnode, int req_family)
 
 	__ni_netcf_get_uint_child(dhnode, "acquire-timeout", &req->acquire_timeout);
 	req->reuse_unexpired = !!xml_node_get_child(dhnode, "reuse-unexpired");
-
-	if (req_type == NI_ADDRCONF_DHCP) {
-		__ni_netcf_get_string_child(dhnode, "hostname", &req->dhcp.hostname);
-		__ni_netcf_get_string_child(dhnode, "client-id", &req->dhcp.clientid);
-		__ni_netcf_get_string_child(dhnode, "vendor-class", &req->dhcp.vendor_class);
-		__ni_netcf_get_uint_child(dhnode, "lease-time", &req->dhcp.lease_time);
-	}
 
 	if ((child = xml_node_get_child(dhnode, "update")) != NULL) {
 		xml_node_t *node;

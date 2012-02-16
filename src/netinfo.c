@@ -416,10 +416,6 @@ ni_addrconf_request_clone(const ni_addrconf_request_t *src)
 	dst->reuse_unexpired = src->reuse_unexpired;
 	dst->settle_timeout = src->settle_timeout;
 	dst->acquire_timeout = src->acquire_timeout;
-	ni_string_dup(&dst->dhcp.hostname, src->dhcp.hostname);
-	ni_string_dup(&dst->dhcp.clientid, src->dhcp.clientid);
-	ni_string_dup(&dst->dhcp.vendor_class, src->dhcp.vendor_class);
-	dst->dhcp.lease_time = src->dhcp.lease_time;
 	dst->update = src->update;
 
 	return dst;
@@ -428,12 +424,6 @@ ni_addrconf_request_clone(const ni_addrconf_request_t *src)
 void
 ni_addrconf_request_free(ni_addrconf_request_t *req)
 {
-	ni_string_free(&req->dhcp.hostname);
-	ni_string_free(&req->dhcp.clientid);
-	ni_string_free(&req->dhcp.vendor_class);
-
-	ni_address_list_destroy(&req->statik.addrs);
-	ni_route_list_destroy(&req->statik.routes);
 	free(req);
 }
 
@@ -444,14 +434,6 @@ ni_addrconf_request_equal(const ni_addrconf_request_t *req1, const ni_addrconf_r
 	 || req1->family != req2->family
 	 || req1->update != req2->update)
 		return 0;
-
-	if (req1->type == NI_ADDRCONF_DHCP && req1->family == AF_INET) {
-		if (ni_string_eq(req1->dhcp.hostname, req2->dhcp.hostname)
-		 || ni_string_eq(req1->dhcp.clientid, req2->dhcp.clientid)
-		 || ni_string_eq(req1->dhcp.vendor_class, req2->dhcp.vendor_class)
-		 || req1->dhcp.lease_time != req2->dhcp.lease_time)
-			return 0;
-	}
 
 	return 1;
 }

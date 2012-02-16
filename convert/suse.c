@@ -558,6 +558,7 @@ error:
 static int
 __ni_suse_sysconfig2dhcp(ni_addrconf_request_t *dhcp, ni_sysconfig_t *sc)
 {
+#if 0
 	ni_sysconfig_get_string_optional(sc, "DHCLIENT_HOSTNAME_OPTION", &dhcp->dhcp.hostname);
 
 	/* Convert to lower-case (AUTO -> auto) */
@@ -583,6 +584,7 @@ __ni_suse_sysconfig2dhcp(ni_addrconf_request_t *dhcp, ni_sysconfig_t *sc)
 		ni_addrconf_set_update(dhcp, NI_ADDRCONF_UPDATE_HOSTNAME);
 	if (ni_sysconfig_test_boolean(sc, "DHCLIENT_SET_DEFAULT_ROUTE"))
 		ni_addrconf_set_update(dhcp, NI_ADDRCONF_UPDATE_DEFAULT_ROUTE);
+#endif
 
 	return 0;
 }
