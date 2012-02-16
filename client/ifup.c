@@ -36,7 +36,7 @@ enum {
 	__STATE_MAX
 };
 
-#define NI_IFWORKER_DEFAULT_TIMEOUT	5000
+#define NI_IFWORKER_DEFAULT_TIMEOUT	20000
 
 typedef struct ni_ifworker	ni_ifworker_t;
 
