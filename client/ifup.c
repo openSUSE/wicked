@@ -560,9 +560,6 @@ interface_workers_refresh_state(void)
 		found->ifindex = dev->link.ifindex;
 		found->object = object;
 
-		if (ni_interface_network_is_up(dev))
-			found->state = STATE_NETWORK_UP;
-		else
 		if (ni_interface_link_is_up(dev))
 			found->state = STATE_LINK_UP;
 		else
@@ -658,14 +655,31 @@ static int
 ni_ifworker_do_link_up(ni_ifworker_t *w)
 {
 	unsigned int ifstatus = NI_IFF_DEVICE_UP | NI_IFF_LINK_UP;
+	ni_interface_t *dev;
+	xml_node_t *devnode;
 
 	ni_trace("%s(name=%s, object=%p, path=%s)", __func__, w->name, w->object, w->object_path);
-	if (!wicked_link_change_xml(w->object, w->config, &ifstatus)) {
+
+	devnode = xml_node_get_child(w->config, "device");
+	if (devnode && xml_node_get_child(devnode, "status")) {
+		ni_ifworker_fail(w,
+			"interface definition has a <device> element defining the interface status");
+		return -1;
+	}
+
+	if (!wicked_link_change_xml(w->object, devnode, &ifstatus)) {
 		ni_ifworker_fail(w, "failed to configure and bring up link");
 		return -1;
 	}
 
 	/* FIXME: do something with new_status */
+	dev = w->device;
+	dev->link.ifflags = ifstatus;
+
+	if (ni_interface_link_is_up(dev))
+		w->state = STATE_LINK_UP;
+	else
+		w->state = STATE_DEVICE_UP;
 
 	return 0;
 }
