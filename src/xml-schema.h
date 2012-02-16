@@ -137,6 +137,10 @@ struct ni_xs_type_constraint_oneof {
 	ni_string_array_t	values;
 };
 
+struct ni_xs_type_constraint_bitmap {
+	ni_intmap_t *		bits;
+};
+
 enum {
 	NI_XS_TYPE_SCALAR,
 	NI_XS_TYPE_STRUCT,
