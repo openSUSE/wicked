@@ -327,7 +327,7 @@ ni_wireless_association_changed(unsigned int ifindex, ni_wireless_assoc_state_t 
 int
 __ni_wireless_link_event(ni_netconfig_t *nc, ni_interface_t *ifp, void *data, size_t len)
 {
-	ni_debug_wireless("%s: ignoring wireless event", ifp->name);
+	/* ni_debug_wireless("%s: ignoring wireless event", ifp->name); */
 	return 0;
 }
 
