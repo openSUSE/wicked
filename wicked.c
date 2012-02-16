@@ -291,8 +291,9 @@ wicked_find_link_properties(const xml_node_t *ifnode)
 		}
 	}
 
-	if (found == NULL)
-		ni_error("%s: no link layer information found", xml_node_location(ifnode));
+	/* It's perfectly fine not to find any link layer config;
+	 * probably most people won't bother with adding any <ethernet>
+	 * configuration for their eth devices. */
 	return found;
 }
 

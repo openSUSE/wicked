@@ -30,7 +30,7 @@ enum {
 	STATE_DEVICE_UP,
 	STATE_LINK_UP,
 	STATE_LINK_AUTHENTICATED,
-	STATE_NETWORK_UP,
+	STATE_ADDRCONF_UP,
 
 	__STATE_MAX
 };
@@ -191,7 +191,7 @@ ni_ifworker_state_name(int state)
 		{ "device-up",		STATE_DEVICE_UP		},
 		{ "link-up",		STATE_LINK_UP		},
 		{ "link-authenticated",	STATE_LINK_AUTHENTICATED},
-		{ "network-up",		STATE_NETWORK_UP	},
+		{ "network-up",		STATE_ADDRCONF_UP	},
 
 		{ NULL }
 	};
@@ -388,7 +388,7 @@ ni_ifworker_set_target(ni_ifworker_t *w, unsigned int min_state, unsigned int ma
 		w->state = STATE_DEVICE_DOWN;
 	} else if (max_state <= STATE_LINK_UP) {
 		/* Assume we have to bring it down */
-		w->state = STATE_NETWORK_UP;
+		w->state = STATE_ADDRCONF_UP;
 	}
 
 	if (w->children.count != 0) {
@@ -828,12 +828,12 @@ ni_ifworker_do_network_up(ni_ifworker_t *w)
 
 		if (callback_list) {
 			ni_ifworker_add_callbacks(w, callback_list);
-			w->wait_for_state = STATE_NETWORK_UP;
+			w->wait_for_state = STATE_ADDRCONF_UP;
 		}
 	}
 	if (w->callbacks == NULL) {
 		ni_debug_dbus("%s: no pending address configuration; we're done", w->name);
-		w->state = STATE_NETWORK_UP;
+		w->state = STATE_ADDRCONF_UP;
 	}
 
 	return 0;
@@ -994,7 +994,7 @@ static ni_netif_action_t	ni_ifworker_fsm_up[] = {
 	{ .next_state = STATE_LINK_AUTHENTICATED,.func = ni_ifworker_do_linkauth },
 
 	/* Configure all assigned addresses and bring up the network */
-	{ .next_state = STATE_NETWORK_UP,	.func = ni_ifworker_do_network_up },
+	{ .next_state = STATE_ADDRCONF_UP,	.func = ni_ifworker_do_network_up },
 
 	{ .next_state = STATE_NONE, .func = NULL }
 };
@@ -1026,7 +1026,7 @@ static void
 ni_ifworker_fsm_init(ni_ifworker_t *w)
 {
 	switch (w->target_state) {
-	case STATE_NETWORK_UP:
+	case STATE_ADDRCONF_UP:
 	case STATE_LINK_UP:
 		w->actions = ni_ifworker_fsm_up;
 		break;
@@ -1046,6 +1046,27 @@ ni_ifworker_fsm_init(ni_ifworker_t *w)
 		ni_fatal("%s: cannot assign fsm for target state %s",
 				w->name, ni_ifworker_state_name(w->target_state));
 	}
+}
+
+static void
+ni_ifworker_update_state(ni_ifworker_t *w, unsigned int min_state, unsigned int max_state)
+{
+	unsigned int prev_state = w->state;
+
+	if (w->state < min_state)
+		w->state = min_state;
+	if (max_state < min_state)
+		w->state = max_state;
+
+	if (w->state != prev_state)
+		ni_debug_dbus("device %s changed state %s -> %s%s",
+				w->name,
+				ni_ifworker_state_name(prev_state),
+				ni_ifworker_state_name(w->state),
+				w->state == w->wait_for_state? ", resuming activity" : ", still waiting for event");
+
+	if (w->wait_for_state == w->state)
+		w->wait_for_state = STATE_NONE;
 }
 
 static unsigned int
@@ -1142,20 +1163,10 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 {
 	const char *signal_name = dbus_message_get_member(msg);
 	const char *object_path = dbus_message_get_path(msg);
-	unsigned int min_state = STATE_NONE, max_state = __STATE_MAX;
 	ni_uuid_t event_uuid = NI_UUID_INIT;
 	ni_ifworker_t *w;
 
 	ni_debug_dbus("%s: got signal %s from %s", __func__, signal_name, object_path);
-
-	if (!strcmp(signal_name, "linkUp"))
-		min_state = STATE_LINK_UP;
-	if (!strcmp(signal_name, "networkUp"))
-		min_state = STATE_NETWORK_UP;
-	if (!strcmp(signal_name, "linkDown"))
-		max_state = STATE_LINK_UP - 1;
-	if (!strcmp(signal_name, "networkDown"))
-		max_state = STATE_NETWORK_UP - 1;
 
 	/* See if this event comes with a uuid */
 	{
@@ -1204,18 +1215,18 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 		}
 
 		if (!w->failed) {
-			unsigned int prev_state = w->state;
+			unsigned int min_state = STATE_NONE, max_state = __STATE_MAX;
 
-			if (w->state < min_state)
-				w->state = min_state;
-			if (max_state < min_state)
-				w->state = max_state;
+			if (!strcmp(signal_name, "linkUp"))
+				min_state = STATE_LINK_UP;
+			if (!strcmp(signal_name, "linkDown"))
+				max_state = STATE_LINK_UP - 1;
+			if (!strcmp(signal_name, "addressAcquired"))
+				min_state = STATE_ADDRCONF_UP;
+			if (!strcmp(signal_name, "addressReleased"))
+				max_state = STATE_ADDRCONF_UP - 1;
 
-			if (w->state != prev_state)
-				ni_debug_dbus("device %s changed state %s -> %s",
-						w->name,
-						ni_ifworker_state_name(prev_state),
-						ni_ifworker_state_name(w->state));
+			ni_ifworker_update_state(w, min_state, max_state);
 		}
 	}
 
@@ -1375,7 +1386,7 @@ usage:
 	if (build_hierarchy() < 0)
 		ni_fatal("ifup: unable to build device hierarchy");
 
-	if (!mark_matching_interfaces(ifname, STATE_NETWORK_UP, 1))
+	if (!mark_matching_interfaces(ifname, STATE_ADDRCONF_UP, 1))
 		return 0;
 
 	ni_ifworkers_kickstart();
