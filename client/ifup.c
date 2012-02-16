@@ -89,7 +89,7 @@ static unsigned int		ni_ifworker_timeout_count;
 
 static ni_dbus_object_t *	__root_object;
 
-static const char *		ni_ifworker_name(int);
+static const char *		ni_ifworker_state_name(int);
 static void			ni_ifworker_array_append(ni_ifworker_array_t *, ni_ifworker_t *);
 static void			ni_ifworker_array_destroy(ni_ifworker_array_t *);
 static void			ni_ifworker_fsm_init(ni_ifworker_t *);
@@ -152,7 +152,7 @@ ni_ifworker_fail(ni_ifworker_t *w, const char *fmt, ...)
 static void
 ni_ifworker_success(ni_ifworker_t *w)
 {
-	printf("%s: %s\n", w->name, ni_ifworker_name(w->state));
+	printf("%s: %s\n", w->name, ni_ifworker_state_name(w->state));
 	w->done = 1;
 }
 
@@ -181,7 +181,7 @@ ni_ifworker_set_timeout(ni_ifworker_t *w, unsigned long timeout_ms)
 }
 
 static const char *
-ni_ifworker_name(int state)
+ni_ifworker_state_name(int state)
 {
 	static ni_intmap_t __state_names[] = {
 		{ "none",		STATE_NONE		},
@@ -409,8 +409,8 @@ ni_ifworker_set_target(ni_ifworker_t *w, unsigned int min_state, unsigned int ma
 		}
 
 		ni_debug_dbus("%s: marking all children min=%s max=%s", w->name,
-				ni_ifworker_name(min_state),
-				ni_ifworker_name(max_state));
+				ni_ifworker_state_name(min_state),
+				ni_ifworker_state_name(max_state));
 		for (i = 0; i < w->children.count; ++i) {
 			ni_ifworker_t *child = w->children.data[i];
 
@@ -424,7 +424,7 @@ mark_matching_interfaces(const char *match_name, unsigned int target_state)
 {
 	unsigned int i, count = 0;
 
-	ni_debug_dbus("%s(name=%s, target_state=%s)", __func__, match_name, ni_ifworker_name(target_state));
+	ni_debug_dbus("%s(name=%s, target_state=%s)", __func__, match_name, ni_ifworker_state_name(target_state));
 
 	if (!strcmp(match_name, "all"))
 		match_name = NULL;
@@ -453,7 +453,7 @@ mark_matching_interfaces(const char *match_name, unsigned int target_state)
 
 		if (w->target_state != STATE_NONE) {
 			ni_debug_dbus("%s: target state %s",
-					w->name, ni_ifworker_name(w->target_state));
+					w->name, ni_ifworker_state_name(w->target_state));
 			ni_ifworker_set_timeout(w, NI_IFWORKER_DEFAULT_TIMEOUT);
 			ni_ifworker_fsm_init(w);
 		}
@@ -892,10 +892,10 @@ ni_ifworker_fsm(void)
 
 			if (w->target_state != STATE_NONE)
 				ni_debug_dbus("%-12s: state=%s want=%s%s%s", w->name,
-					ni_ifworker_name(w->state),
-					ni_ifworker_name(w->target_state),
+					ni_ifworker_state_name(w->state),
+					ni_ifworker_state_name(w->target_state),
 					w->wait_for_state? ", wait-for=" : "",
-					w->wait_for_state?  ni_ifworker_name(w->wait_for_state) : "");
+					w->wait_for_state?  ni_ifworker_state_name(w->wait_for_state) : "");
 
 			if (w->failed || ni_ifworker_ready(w))
 				continue;
@@ -927,12 +927,12 @@ ni_ifworker_fsm(void)
 					ni_assert(w->callbacks == NULL);
 					ni_debug_dbus("%s: successfully transitioned from %s to %s",
 						w->name,
-						ni_ifworker_name(prev_state),
-						ni_ifworker_name(w->state));
+						ni_ifworker_state_name(prev_state),
+						ni_ifworker_state_name(w->state));
 				} else {
 					ni_debug_dbus("%s: waiting for event in state %s",
 						w->name,
-						ni_ifworker_name(w->state));
+						ni_ifworker_state_name(w->state));
 					w->wait_for_state = action->next_state;
 				}
 			} else
@@ -941,8 +941,8 @@ ni_ifworker_fsm(void)
 				 * as a failure. shame on the lazy programmer. */
 				ni_ifworker_fail(w, "%s: failed to transition from %s to %s",
 						w->name,
-						ni_ifworker_name(prev_state),
-						ni_ifworker_name(w->state));
+						ni_ifworker_state_name(prev_state),
+						ni_ifworker_state_name(w->state));
 			}
 		}
 
@@ -1029,8 +1029,8 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 			if (w->state != prev_state)
 				ni_debug_dbus("device %s changed state %s -> %s",
 						w->name,
-						ni_ifworker_name(prev_state),
-						ni_ifworker_name(w->state));
+						ni_ifworker_state_name(prev_state),
+						ni_ifworker_state_name(w->state));
 		}
 	}
 }
