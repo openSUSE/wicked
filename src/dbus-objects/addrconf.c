@@ -102,7 +102,6 @@ ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_messa
 	ni_interface_t *ifp;
 	ni_addrconf_request_t *req = NULL;
 	ni_addrconf_lease_t *lease = NULL;
-	unsigned int event_id = 0;
 	ni_dbus_variant_t argv[16];
 	ni_uuid_t uuid = NI_UUID_INIT;
 	int argc, optind = 0;
@@ -143,17 +142,13 @@ ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_messa
 		goto done;
 	}
 
-	/* Check if there's a corresponding addrconf request with a non-zero
-	 * event_id. If so, there's a client somewhere waiting for that event.
+	/* Check if there's an addrconf request with corresponding uuid.
+	 * If so, there's a client somewhere waiting for that event.
 	 * We use the UUID that's passed back and forth to make sure we
 	 * really match the event we were expecting to match.
 	 */
-	if (!ni_uuid_is_null(&uuid)) {
-		if ((req = ni_interface_get_addrconf_request(ifp, &uuid)) != NULL) {
-			event_id = req->event_id;
-			req->event_id = 0;
-		}
-	}
+	if (!ni_uuid_is_null(&uuid))
+		req = ni_interface_get_addrconf_request(ifp, &uuid);
 
 	ni_debug_dbus("received signal %s for interface %s (ifindex %d), lease %s/%s",
 			signal_name, ifp->name, ifp->link.ifindex,
@@ -325,7 +320,6 @@ ni_objectmodel_addrconf_forward(ni_dbus_addrconf_forwarder_t *forwarder,
 			const ni_dbus_variant_t *dict,
 			DBusError *error)
 {
-	static unsigned int __ni_objectmodel_event_id = 0;
 	ni_dbus_object_t *object;
 	ni_addrconf_request_t *req;
 	char object_path[256];
@@ -346,7 +340,6 @@ ni_objectmodel_addrconf_forward(ni_dbus_addrconf_forwarder_t *forwarder,
 
 	/* Create a request, generate a uuid and assign an event ID */
 	req = ni_addrconf_request_new(forwarder->caller.interface);
-	req->event_id = __ni_objectmodel_event_id++;
 	ni_uuid_generate(&req->uuid);
 
 	/* Install it with the interface */
@@ -407,7 +400,7 @@ ni_objectmodel_addrconf_ipv4_dhcp_configure(ni_dbus_object_t *object, const ni_d
 	if (req == NULL)
 		return FALSE;
 
-	ni_dbus_message_append_uint32(reply, req->event_id);
+	ni_dbus_message_append_uuid(reply, &req->uuid);
 	return TRUE;
 }
 
@@ -451,7 +444,7 @@ ni_objectmodel_addrconf_ipv4ll_configure(ni_dbus_object_t *object, const ni_dbus
 	if (req == NULL)
 		return FALSE;
 
-	ni_dbus_message_append_uint32(reply, req->event_id);
+	ni_dbus_message_append_uuid(reply, &req->uuid);
 	return TRUE;
 }
 

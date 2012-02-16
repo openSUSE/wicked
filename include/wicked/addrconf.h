@@ -32,8 +32,6 @@ struct ni_addrconf_request {
 	ni_addrconf_request_t *	next;
 
 	char *			owner;
-
-	unsigned int		event_id;
 	ni_uuid_t		uuid;
 
 	/* Options what to update based on the info received from 
