@@ -345,12 +345,16 @@ ni_dbus_object_get_handle(const ni_dbus_object_t *object)
 dbus_bool_t
 ni_dbus_object_isa(const ni_dbus_object_t *object, const ni_dbus_class_t *class)
 {
-	const ni_dbus_class_t *object_class = object->class;
+	return ni_dbus_class_is_subclass(object->class, class);
+}
 
-	while (object_class) {
-		if (object_class == class)
+dbus_bool_t
+ni_dbus_class_is_subclass(const ni_dbus_class_t *subclass, const ni_dbus_class_t *superclass)
+{
+	while (subclass) {
+		if (subclass == superclass)
 			return TRUE;
-		object_class = object_class->superclass;
+		subclass = subclass->superclass;
 	}
 	return FALSE;
 }

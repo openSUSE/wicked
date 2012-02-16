@@ -194,6 +194,8 @@ extern dbus_bool_t		ni_dbus_server_send_signal(ni_dbus_server_t *server, ni_dbus
 					const char *interface, const char *signal_name,
 					unsigned int nargs, const ni_dbus_variant_t *args);
 
+extern dbus_bool_t		ni_dbus_class_is_subclass(const ni_dbus_class_t *sub, const ni_dbus_class_t *super);
+
 extern ni_dbus_object_t *	ni_dbus_object_new(const ni_dbus_class_t *,
 					const char *path,
 					void *handle);
