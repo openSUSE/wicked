@@ -146,6 +146,7 @@ struct ni_linkinfo {
 	unsigned int		ifflags;
 	unsigned int		arp_type;
 	ni_hwaddr_t		hwaddr;
+	char *			alias;
 
 	unsigned int		mtu;
 	unsigned int		metric;
@@ -204,6 +205,8 @@ struct ni_interface_request {
 	unsigned int		mtu;
 	unsigned int		metric;
 	unsigned int		txqlen;
+
+	char *			alias;
 
 	/* Network layer */
 	ni_afinfo_t *		ipv4;

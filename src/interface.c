@@ -148,6 +148,7 @@ ni_interface_free(ni_interface_t *ifp)
 	ni_string_free(&ifp->name);
 	ni_string_free(&ifp->link.qdisc);
 	ni_string_free(&ifp->link.kind);
+	ni_string_free(&ifp->link.alias);
 
 	/* Clear out addresses, stats */
 	ni_interface_clear_addresses(ifp);

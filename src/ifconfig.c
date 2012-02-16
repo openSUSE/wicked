@@ -914,6 +914,9 @@ __ni_rtnl_link_up(const ni_interface_t *ifp, const ni_interface_request_t *cfg)
 			NLA_PUT(msg, IFLA_ADDRESS, cfg->link.hwaddr.len, cfg->link.hwaddr.data);
 #endif
 
+		if (cfg->alias && !ni_string_eq(ifp->link.alias, cfg->alias))
+			NLA_PUT_STRING(msg, IFLA_IFALIAS, cfg->alias);
+
 		/* FIXME: handle COST, QDISC, MASTER */
 	}
 

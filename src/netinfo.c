@@ -286,6 +286,7 @@ ni_interface_request_free(ni_interface_request_t *req)
 		ni_afinfo_free(req->ipv4);
 	if (req->ipv6)
 		ni_afinfo_free(req->ipv6);
+	ni_string_free(&req->alias);
 	free(req);
 }
 

@@ -542,6 +542,8 @@ __ni_process_ifinfomsg(ni_linkinfo_t *link, struct nlmsghdr *h,
 		ni_string_dup(&link->qdisc, nla_get_string(tb[IFLA_QDISC]));
 	if (tb[IFLA_MASTER])
 		link->master = nla_get_u32(tb[IFLA_MASTER]);
+	if (tb[IFLA_IFALIAS])
+		ni_string_dup(&link->alias, nla_get_string(tb[IFLA_IFALIAS]));
 	if (tb[IFLA_OPERSTATE]) {
 		/* get the RFC 2863 operational status - IF_OPER_* */
 	}
