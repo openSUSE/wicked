@@ -8,7 +8,10 @@
 #include <wicked/logging.h>
 #include <wicked/addrconf.h>
 #include <wicked/system.h>
+#include <wicked/resolver.h>
+#include <unistd.h>
 #include "netinfo_priv.h"
+#include "process.h"
 #include "config.h"
 #include "debug.h"
 
@@ -165,7 +168,15 @@ ni_objectmodel_updater_select_source(ni_updater_t *updater)
 static ni_bool_t
 ni_system_updater_run(ni_process_t *proc, const char *filename)
 {
-	return 0;
+	ni_process_instance_t *pi;
+	int rv;
+
+	pi = ni_process_instance_new(proc);
+
+	rv = ni_process_instance_run_and_wait(pi);
+	ni_process_instance_free(pi);
+
+	return rv >= 0;
 }
 
 /*
@@ -175,19 +186,19 @@ static ni_bool_t
 ni_system_updater_backup(ni_updater_t *updater)
 {
 	if (updater->have_backup)
-		return 1;
+		return TRUE;
 
 	if (!updater->proc_backup)
-		return 1;
+		return TRUE;
 
 	if (!ni_system_updater_run(updater->proc_backup, NULL)) {
 		ni_error("failed to back up current %s settings",
 				ni_updater_name(updater->type));
-		return 0;
+		return FALSE;
 	}
 
 	updater->have_backup = 1;
-	return 1;
+	return TRUE;
 }
 
 /*
@@ -197,19 +208,19 @@ static ni_bool_t
 ni_system_updater_restore(ni_updater_t *updater)
 {
 	if (!updater->have_backup)
-		return 1;
+		return TRUE;
 
 	if (!updater->proc_restore)
-		return 1;
+		return TRUE;
 
 	if (!ni_system_updater_run(updater->proc_restore, NULL)) {
 		ni_error("failed to restore current %s settings",
 				ni_updater_name(updater->type));
-		return 0;
+		return FALSE;
 	}
 
 	updater->have_backup = 0;
-	return 1;
+	return TRUE;
 }
 
 /*
@@ -218,23 +229,47 @@ ni_system_updater_restore(ni_updater_t *updater)
 static ni_bool_t
 ni_system_updater_install(ni_updater_t *updater, const ni_addrconf_lease_t *lease)
 {
+	const char *tempname = NULL;
+	ni_bool_t result = FALSE;
+	int rv = 0;
+
 	if (!updater->have_backup && !ni_system_updater_backup(updater))
-		return 0;
+		return FALSE;
 
 	/* FIXME: build a file containing the new configuration, and run the
 	 * indicated script with it */
 	switch (updater->type) {
-	case NI_ADDRCONF_UPDATE_HOSTNAME:
 	case NI_ADDRCONF_UPDATE_RESOLVER:
+		tempname = _PATH_RESOLV_CONF ".new";
+
+		if ((rv = ni_resolver_write_resolv_conf(tempname, lease->resolver, NULL)) < 0) {
+			ni_error("failed to write resolver info to temp file: %s",
+					ni_strerror(rv));
+			goto done;
+		}
+		break;
+
+	case NI_ADDRCONF_UPDATE_HOSTNAME:
 	default:
 		ni_error("cannot install new %s settings - file format not understood",
 				ni_updater_name(updater->type));
 		updater->enabled = 0;
-		return 0;
+		return FALSE;
+	}
+
+	if (!ni_system_updater_run(updater->proc_install, tempname)) {
+		ni_error("failed to install %s settings", ni_updater_name(updater->type));
+		goto done;
 	}
 
 	updater->seqno = lease->seqno;
-	return 1;
+	result = TRUE;
+
+done:
+	if (tempname)
+		unlink(tempname);
+
+	return result;
 }
 
 ni_bool_t
@@ -290,7 +325,7 @@ ni_system_update_all(void)
 		}
 	}
 
-	return 1;
+	return TRUE;
 }
 
 /*
