@@ -326,6 +326,21 @@ ni_interface_set_addrconf_request(ni_interface_t *dev, ni_addrconf_request_t *re
 	return 0;
 }
 
+ni_addrconf_request_t *
+ni_interface_get_addrconf_request(ni_interface_t *dev, int af, ni_addrconf_mode_t mode)
+{
+	ni_afinfo_t *afi;
+
+	if (mode >= __NI_ADDRCONF_MAX)
+		return NULL;
+
+	afi = __ni_interface_address_info(dev, af);
+	if (afi == NULL)
+		return NULL;
+
+	return afi->request[mode];
+}
+
 /*
  * We received an updated lease from an addrconf agent.
  */
