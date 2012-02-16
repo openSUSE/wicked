@@ -22,8 +22,6 @@ static ni_xs_type_t *	ni_xs_build_complex_type(xml_node_t *, const char *, ni_xs
 static void		ni_xs_name_type_array_copy(ni_xs_name_type_array_t *, const ni_xs_name_type_array_t *);
 static void		ni_xs_name_type_array_destroy(ni_xs_name_type_array_t *);
 static ni_xs_type_t *	ni_xs_build_one_type(xml_node_t *, ni_xs_scope_t *);
-static ni_xs_type_t *	ni_xs_scope_lookup(const ni_xs_scope_t *, const char *);
-static ni_xs_type_t *	ni_xs_scope_lookup_local(const ni_xs_scope_t *, const char *);
 static void		ni_xs_service_free(ni_xs_service_t *);
 static struct ni_xs_type_constraint_bitmap *ni_xs_build_bitmap_constraint(const xml_node_t *);
 static ni_intmap_t *	ni_xs_build_enum_constraint(const xml_node_t *);
@@ -343,7 +341,7 @@ ni_xs_scope_free(ni_xs_scope_t *scope)
 	free(scope);
 }
 
-static const ni_xs_scope_t *
+const ni_xs_scope_t *
 ni_xs_scope_lookup_scope(const ni_xs_scope_t *scope, const char *name)
 {
 	for (scope = scope->children; scope; scope = scope->next) {
@@ -353,13 +351,13 @@ ni_xs_scope_lookup_scope(const ni_xs_scope_t *scope, const char *name)
 	return NULL;
 }
 
-static ni_xs_type_t *
+ni_xs_type_t *
 ni_xs_scope_lookup_local(const ni_xs_scope_t *dict, const char *name)
 {
 	return __ni_xs_name_type_array_find(&dict->types, name);
 }
 
-static ni_xs_type_t *
+ni_xs_type_t *
 ni_xs_scope_lookup(const ni_xs_scope_t *dict, const char *name)
 {
 	ni_xs_type_t *result = NULL;

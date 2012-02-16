@@ -245,6 +245,9 @@ struct ni_xs_scope {
 
 extern ni_xs_scope_t *	ni_xs_scope_new(ni_xs_scope_t *, const char *);
 extern void		ni_xs_scope_free(ni_xs_scope_t *);
+extern const ni_xs_scope_t *ni_xs_scope_lookup_scope(const ni_xs_scope_t *, const char *);
+extern ni_xs_type_t *	ni_xs_scope_lookup(const ni_xs_scope_t *, const char *);
+extern ni_xs_type_t *	ni_xs_scope_lookup_local(const ni_xs_scope_t *, const char *);
 
 extern int		ni_xs_process_schema_file(const char *, ni_xs_scope_t *);
 extern int		ni_xs_process_schema(xml_node_t *, ni_xs_scope_t *);
