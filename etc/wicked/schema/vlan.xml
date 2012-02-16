@@ -8,11 +8,20 @@
   <id type="uint16"/>
  </define>
 
- <method name="__newlink">
+ <method name="deleteLink">
+   <!-- no arguments, no return code -->
+ </method>
+</service>
+
+<service name="vlan-factory" interface="com.suse.Wicked.VLAN.Factory" object-class="netif-list">
+ <method name="newLink">
   <arguments>
    <name type="string"/>
-   <device type="string"/>
-   <id type="uint16"/>
+   <vlan type="vlan:linkinfo"/>
   </arguments>
+  <return>
+   <!-- this is really an object handle -->
+   <string/>
+  </return>
  </method>
 </service>
