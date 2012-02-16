@@ -580,8 +580,14 @@ ni_interface_children_ready(ni_ifworker_t *w)
 	return 1;
 }
 
+/*
+ * Finite state machine - create the device if it does not exist
+ * Note this is called for all virtual devices, because the newLink
+ * call also takes care of setting up things like the ports assigned
+ * to a bridge.
+ */
 static int
-ni_ifworker_create_device(ni_ifworker_t *w)
+ni_ifworker_do_device_up(ni_ifworker_t *w)
 {
 	const ni_dbus_service_t *service;
 	xml_node_t *linknode;
@@ -591,13 +597,17 @@ ni_ifworker_create_device(ni_ifworker_t *w)
 	ni_trace("%s(%s)", __func__, w->name);
 
 	if (!(linknode = wicked_find_link_properties(w->config))) {
-		ni_error("unable to create interface %s: cannot determine link type of interface", w->name);
+		/* If the device exists, this is not an error */
+		if (w->device != NULL)
+			goto device_is_up;
+
+		ni_ifworker_fail(w, "cannot create interface: no link layer config");
 		return -1;
 	}
 	link_type = linknode->name;
 
 	if (!(service = wicked_link_layer_factory_service(link_type))) {
-		ni_error("%s: unknown/unsupported link type %s", w->name, link_type);
+		ni_ifworker_fail(w, "unknown/unsupported link type %s", link_type);
 		return -1;
 	}
 
@@ -610,24 +620,8 @@ ni_ifworker_create_device(ni_ifworker_t *w)
 	ni_debug_dbus("created device %s (path=%s)", w->name, object_path);
 	ni_string_dup(&w->object_path, object_path);
 
-	return 0;
-}
-
-/*
- * Finite state machine - create the device if it does not exist
- * Note this is called for all virtual devices, because the newLink
- * call also takes care of setting up things like the ports assigned
- * to a bridge.
- */
-static int
-ni_ifworker_do_device_up(ni_ifworker_t *w)
-{
-	ni_debug_dbus("%s: about to create %s", __func__, w->name);
-	if (ni_ifworker_create_device(w) < 0) {
-		ni_ifworker_fail(w, "unable to create device");
-		return -1;
-	}
-
+device_is_up:
+	w->state = STATE_DEVICE_UP;
 	return 0;
 }
 
