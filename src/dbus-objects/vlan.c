@@ -123,12 +123,11 @@ ni_objectmodel_get_vlan(const ni_dbus_object_t *object, DBusError *error)
 #define VLAN_UINT16_PROPERTY(dbus_type, type, rw) \
 	NI_DBUS_GENERIC_UINT16_PROPERTY(vlan, dbus_type, type, rw)
 
-static ni_dbus_property_t	wicked_dbus_vlan_properties[] = {
+const ni_dbus_property_t	ni_objectmodel_vlan_property_table[] = {
 	VLAN_STRING_PROPERTY(slave-name, physdev_name, RO),
 	VLAN_UINT16_PROPERTY(tag, tag, RO),
 	{ NULL }
 };
-
 
 static ni_dbus_method_t		wicked_dbus_vlan_methods[] = {
 	{ "delete",		"",		__ni_dbus_vlan_delete },
@@ -138,6 +137,5 @@ static ni_dbus_method_t		wicked_dbus_vlan_methods[] = {
 ni_dbus_service_t	wicked_dbus_vlan_service = {
 	.name = WICKED_DBUS_VLAN_INTERFACE,
 	.methods = wicked_dbus_vlan_methods,
-	.properties = wicked_dbus_vlan_properties,
 };
 

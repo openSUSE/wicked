@@ -138,7 +138,7 @@ wicked: $(OBJ)/wicked.o $(CLIENTOBJS) $(TGTLIBS)
 	$(CC) -o $@ $(CFLAGS) $(OBJ)/wicked.o $(CLIENTOBJS) -L. -lnetinfo -lm -lnl -ldbus-1 -ldl
 
 wickedd: $(OBJ)/wickedd.o $(TGTLIBS)
-	$(CC) -o $@ $(CFLAGS) $(OBJ)/wickedd.o -L. -lnetinfo -lm -lnl -ldbus-1 -ldl
+	$(CC) -o $@ $(CFLAGS) $(OBJ)/wickedd.o -rdynamic -L. -lnetinfo -lm -lnl -ldbus-1 -ldl
 
 wicked-convert: $(OBJ)/wicked-convert.o $(CONVOBJS) $(TGTLIBS)
 	$(CC) -o $@ $(CFLAGS) $(OBJ)/wicked-convert.o $(CONVOBJS) -L. -lnetinfo -lm -lnl -ldbus-1 -ldl

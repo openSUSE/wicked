@@ -13,7 +13,6 @@
 #include <signal.h>
 #include <getopt.h>
 #include <errno.h>
-#include <dlfcn.h>
 
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
@@ -489,49 +488,51 @@ ni_objectmodel_bind_extensions(void)
 		const ni_dbus_service_t *service = ni_objectmodel_service_registry.services[i];
 		const ni_dbus_method_t *method;
 		ni_extension_t *extension;
+		const ni_c_binding_t *binding;
 
 		extension = ni_config_find_extension(ni_global.config, service->name);
 		if (extension == NULL)
 			continue;
 
 		for (method = service->methods; method->name != NULL; ++method) {
-			const ni_c_binding_t *binding;
+			ni_dbus_method_t *mod_method = (ni_dbus_method_t *) method;
 
 			if (method->handler != NULL)
 				continue;
 			if (ni_extension_script_find(extension, method->name) != NULL) {
-				ni_dbus_method_t *mod_method = (ni_dbus_method_t *) method;
-
-				ni_debug_dbus("registering extension hook for method %s.%s",
+				ni_debug_dbus("binding method %s.%s to external command",
 						service->name, method->name);
 				mod_method->async_handler = ni_objectmodel_extension_call;
 				mod_method->async_completion = ni_objectmodel_extension_completion;
 			} else
 			if ((binding = ni_extension_find_c_binding(extension, method->name)) != NULL) {
-				void *handle;
 				void *addr;
 
-				handle = dlopen(binding->library, RTLD_LAZY);
-				if (handle == NULL) {
-					ni_error("cannot bind method %s.%s - cannot dlopen(%s): %s",
-							service->name, method->name,
-							binding->library?: "<main>",
-							dlerror());
+				if ((addr = ni_c_binding_get_address(binding)) == NULL) {
+					ni_error("cannot bind method %s.%s - invalid C binding",
+							service->name, method->name);
 					continue;
 				}
 
-				addr = dlsym(handle, binding->symbol);
-				dlclose(handle);
-
-				if (addr == NULL) {
-					ni_error("cannot bind method %s.%s - no such symbol in %s: %s",
-							service->name, method->name,
-							binding->library?: "<main>",
-							binding->symbol);
-					continue;
-				}
+				ni_debug_dbus("binding method %s.%s to builtin %s",
+						service->name, method->name, binding->symbol);
+				mod_method->handler = addr;
 			}
 		}
+
+		/* Bind the properties table if we have one */
+		if ((binding = ni_extension_find_c_binding(extension, "__properties")) != NULL) {
+			ni_dbus_service_t *mod_service = ((ni_dbus_service_t *) service);
+			void *addr;
+
+			if ((addr = ni_c_binding_get_address(binding)) == NULL) {
+				ni_error("cannot bind %s properties - invalid C binding",
+						service->name);
+			} else {
+				mod_service->properties = addr;
+			}
+		}
+
 	}
 
 	return 0;

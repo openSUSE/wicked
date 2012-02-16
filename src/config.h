@@ -111,6 +111,7 @@ extern ni_extension_t *	ni_extension_new(ni_extension_t **, const char *);
 extern void		ni_extension_free(ni_extension_t *);
 
 extern void		ni_c_binding_free(ni_c_binding_t *);
+extern void *		ni_c_binding_get_address(const ni_c_binding_t *);
 
 extern ni_process_t *	ni_extension_script_new(ni_extension_t *, const char *name, const char *command);
 extern ni_process_t *	ni_extension_script_find(ni_extension_t *, const char *);

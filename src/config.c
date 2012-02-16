@@ -7,6 +7,7 @@
 #include <string.h>
 #include <assert.h>
 #include <ctype.h>
+#include <dlfcn.h>
 
 #include <wicked/util.h>
 #include <wicked/wicked.h>
@@ -357,6 +358,31 @@ ni_c_binding_free(ni_c_binding_t *binding)
 	ni_string_free(&binding->library);
 	ni_string_free(&binding->symbol);
 	free(binding);
+}
+
+void *
+ni_c_binding_get_address(const ni_c_binding_t *binding)
+{
+	void *handle;
+	void *addr;
+
+	handle = dlopen(binding->library, RTLD_LAZY);
+	if (handle == NULL) {
+		ni_error("invalid binding for %s - cannot dlopen(%s): %s",
+				binding->name, binding->library?: "<main>", dlerror());
+		return NULL;
+	}
+
+	addr = dlsym(handle, binding->symbol);
+	dlclose(handle);
+
+	if (addr == NULL) {
+		ni_error("invalid binding for %s - no such symbol in %s: %s",
+				binding->name, binding->library?: "<main>", binding->symbol);
+		return NULL;
+	}
+
+	return addr;
 }
 
 /*
