@@ -31,5 +31,11 @@
     <duplex type="duplex_t" />
     <autoneg-enable type="tristate"/>
   </define>
+
+  <method name="changeLink">
+    <arguments>
+      <properties />
+    </arguments>
+  </method>
 </service>
 
