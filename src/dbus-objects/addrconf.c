@@ -97,7 +97,8 @@ ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_messa
 	ni_addrconf_lease_t *lease = NULL;
 	unsigned int event_id = 0;
 	ni_dbus_variant_t argv[16];
-	int argc;
+	ni_uuid_t uuid = NI_UUID_INIT;
+	int argc, optind = 0;
 
 	memset(argv, 0, sizeof(argv));
 	argc = ni_dbus_message_get_args_variants(msg, argv, 16);
@@ -114,18 +115,37 @@ ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_messa
 	}
 
 	lease = ni_addrconf_lease_new(forwarder->addrconf, forwarder->addrfamily);
-	if (argc >= 1 && !ni_objectmodel_set_addrconf_lease(lease, &argv[0])) {
+
+	if (argc != 1 && argc != 2) {
+		ni_warn("%s: ignoring %s event from %s: bad number of arguments",
+				__func__, signal_name, dbus_message_get_path(msg));
+		goto done;
+	}
+
+	if (argc == 2) {
+		unsigned int dummy;
+
+		if (!ni_dbus_variant_get_byte_array_minmax(&argv[optind++], uuid.octets, &dummy, 16, 16)) {
+			ni_debug_dbus("%s: unable to parse uuid argument", __func__);
+			goto done;
+		}
+	}
+
+	if (!ni_objectmodel_set_addrconf_lease(lease, &argv[optind++])) {
 		ni_debug_dbus("%s: unable to parse lease argument", __func__);
 		goto done;
 	}
 
 	/* Check if there's a corresponding addrconf request with a non-zero
 	 * event_id. If so, there's a client somewhere waiting for that event.
+	 * We use the UUID that's passed back and forth to make sure we
+	 * really match the event we were expecting to match.
 	 */
-	{
+	if (!ni_uuid_is_null(&uuid)) {
 		ni_addrconf_request_t *req;
 
-		if ((req = ni_interface_get_addrconf_request(ifp, lease->family, lease->type)) != NULL) {
+		if ((req = ni_interface_get_addrconf_request(ifp, lease->family, lease->type)) != NULL
+		 && ni_uuid_equal(&req->uuid, &uuid)) {
 			event_id = req->event_id;
 			req->event_id = 0;
 		}
