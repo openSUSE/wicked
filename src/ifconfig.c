@@ -335,14 +335,14 @@ ni_system_vlan_create(ni_netconfig_t *nc, const char *ifname, const ni_vlan_t *c
 	ifp = ni_interface_by_vlan_tag(nc, cfg_vlan->tag);
 	if (ifp != NULL) {
 		ni_error("%s: VLAN interface with tag 0x%x already exists", ifname, cfg_vlan->tag);
-		return -1;
+		return -NI_ERROR_INTERFACE_EXISTS;
 	}
 
 	phys_dev = ni_interface_by_name(nc, cfg_vlan->physdev_name);
 	if (!phys_dev || !phys_dev->link.ifindex) {
 		ni_error("Cannot create VLAN interface %s: interface %s does not exist",
 				ifname, cfg_vlan->physdev_name);
-		return -1;
+		return -NI_ERROR_INTERFACE_NOT_KNOWN;
 	}
 
 	ni_debug_ifconfig("%s: creating VLAN device", ifname);
@@ -372,7 +372,7 @@ ni_system_vlan_create(ni_netconfig_t *nc, const char *ifname, const ni_vlan_t *c
 		if (!real_dev || !real_dev->link.ifindex) {
 			ni_error("Cannot bring up VLAN interface %s: %s does not exist",
 					ifname, cfg_vlan->physdev_name);
-			return -1;
+			return -NI_ERROR_INTERFACE_NOT_KNOWN;
 		}
 
 #if 0
