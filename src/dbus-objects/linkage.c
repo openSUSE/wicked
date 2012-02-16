@@ -9,9 +9,11 @@
 #include <wicked/objectmodel.h>
 
 extern const ni_dbus_property_t		ni_objectmodel_vlan_property_table[];
+extern const ni_dbus_property_t		ni_objectmodel_ethernet_property_table[];
 
 const ni_dbus_property_t *		__force_linkage[] = {
 	ni_objectmodel_vlan_property_table,
+	ni_objectmodel_ethernet_property_table,
 };
 
 void

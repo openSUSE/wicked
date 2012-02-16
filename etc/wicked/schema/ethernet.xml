@@ -3,8 +3,33 @@
   -->
 <service name="ethernet" interface="com.suse.Wicked.Ethernet" object-class="netif-ethernet">
   <!-- This is the linkinfo returned in interface reports -->
+  <define name="tristate" type="uint32" constraint="enum">
+      <default value="0"/>
+      <enable value="1"/>
+      <disable value="2"/>
+  </define>
+  <define name="duplex_t" type="uint32" constraint="enum">
+    <default value="0" />
+    <half value="1" />
+    <full value="2" />
+    <none value="3" />		<!-- autoneg not complete -->
+  </define>
+  <define name="port_t" type="uint32" constraint="enum">
+    <default value="0" />
+    <tp/>
+    <aui/>
+    <bnc/>
+    <mii/>
+    <fibre/>
+  </define>
+
   <define name="linkinfo" class="dict">
     <address type="ethernet-address"/>
+
+    <link-speed type="uint32"/>
+    <port-type type="port_t"/>
+    <duplex type="duplex_t" />
+    <autoneg-enable type="tristate"/>
   </define>
 </service>
 

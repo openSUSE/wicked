@@ -1,36 +1,28 @@
 /*
  * dbus encapsulation for ethernet interfaces
  *
- * Copyright (C) 2011 Olaf Kirch <okir@suse.de>
+ * Copyright (C) 2011, 2012 Olaf Kirch <okir@suse.de>
  */
-
-#include <sys/poll.h>
-#include <stdio.h>
-#include <stdarg.h>
-#include <string.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <signal.h>
-#include <getopt.h>
-#include <errno.h>
 
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
+#include <wicked/ethernet.h>
 #include "model.h"
 
-static ni_dbus_method_t		wicked_dbus_ethernet_methods[] = {
-	{ NULL }
-};
-
 #include <wicked/ethernet.h>
-
-#define NULL_ether	((ni_ethernet_t *) 0)
 
 void *
 ni_objectmodel_get_ethernet(const ni_dbus_object_t *object, DBusError *error)
 {
-	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
+	ni_interface_t *ifp;
 	ni_ethernet_t *eth;
+
+	if (!(ifp = ni_objectmodel_unwrap_interface(object))) {
+		/* FIXME: return dbus error, too */
+		ni_error("trying to access %s properties for incompatible object (class %s)",
+				WICKED_DBUS_ETHERNET_INTERFACE, object->class->name);
+		return NULL;
+	}
 
 	if (!(eth = ni_interface_get_ethernet(ifp))) {
 		dbus_set_error(error, DBUS_ERROR_FAILED, "Error getting ethernet handle for interface");
@@ -42,17 +34,10 @@ ni_objectmodel_get_ethernet(const ni_dbus_object_t *object, DBusError *error)
 #define ETHERNET_UINT_PROPERTY(dbus_name, member_name, rw) \
 	NI_DBUS_GENERIC_UINT_PROPERTY(ethernet, dbus_name, member_name, rw)
 
-static ni_dbus_property_t	wicked_dbus_ethernet_properties[] = {
-	ETHERNET_UINT_PROPERTY(links-speed, link_speed, RO),
+const ni_dbus_property_t	ni_objectmodel_ethernet_property_table[] = {
+	ETHERNET_UINT_PROPERTY(link-speed, link_speed, RO),
 	ETHERNET_UINT_PROPERTY(port-type, port_type, RO),
 	ETHERNET_UINT_PROPERTY(duplex, duplex, RO),
 	ETHERNET_UINT_PROPERTY(autoneg-enable, autoneg_enable, RO),
 	{ NULL }
-};
-
-
-ni_dbus_service_t	wicked_dbus_ethernet_service = {
-	.name = WICKED_DBUS_ETHERNET_INTERFACE,
-	.methods = wicked_dbus_ethernet_methods,
-	.properties = wicked_dbus_ethernet_properties,
 };

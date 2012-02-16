@@ -18,6 +18,7 @@ ni_objectmodel_get_vlan(const ni_dbus_object_t *object, DBusError *error)
 	ni_interface_t *ifp;
 
 	if (!(ifp = ni_objectmodel_unwrap_interface(object))) {
+		/* FIXME: return dbus error, too */
 		ni_error("trying to access %s properties for incompatible object (class %s)",
 				WICKED_DBUS_VLAN_INTERFACE, object->class->name);
 		return NULL;
