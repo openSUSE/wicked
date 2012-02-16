@@ -161,7 +161,7 @@
   <define name="callback-info" class="dict">
    <!-- We can return one or more these callback elements in a single dict -->
    <callback class="dict">
-     <uuid type="uuid-type/>
+     <uuid type="uuid-type"/>
      <event type="string"/>
    </callback>
   </define>
@@ -188,7 +188,7 @@
       <request type="link-request" />
     </arguments>
     <return>
-      <callback-info>
+      <callback-info/>
     </return>
   </method>
 
@@ -197,7 +197,7 @@
       <request type="link-request" />
     </arguments>
     <return>
-      <callback-info>
+      <callback-info/>
     </return>
   </method>
 
