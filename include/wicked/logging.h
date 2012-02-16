@@ -68,6 +68,10 @@ extern unsigned int	ni_debug;
 	} while (0)
 
 #define __ni_string(x) #x
+
+
+#include <stdlib.h>
+
 #define ni_assert(stmt) \
 	do { \
 		if (!(stmt)) { \
