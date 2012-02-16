@@ -31,6 +31,8 @@
 #include <stdlib.h>
 #include <time.h>
 #include <wicked/util.h>
+#include <wicked/dbus.h>
+#include <wicked/dbus-errors.h>
 #include <netinfo_priv.h>
 #include <errno.h>
 #include <ctype.h>
@@ -653,8 +655,10 @@ ni_wpa_network_set(ni_dbus_object_t *net_object, ni_wireless_network_t *net)
 	net_object->handle = ni_wireless_network_get(net);
 
 	ni_dbus_variant_init_dict(&dict);
-	if (!ni_dbus_object_get_properties_as_dict(net_object, &ni_wpa_bssid_service, &dict))
+	if (!ni_dbus_object_get_properties_as_dict(net_object, &ni_wpa_bssid_service, &dict)) {
+		ni_error("failed to obtain wireless network properties");
 		goto done;
+	}
 
 	if (!ni_dbus_object_call_variant(net_object, NI_WPA_BSS_INTERFACE, "set", 1, &dict, 0, NULL, &error)) {
 		ni_error("%s failed: %s (%s)", __func__, error.name, error.message);
@@ -676,6 +680,9 @@ int
 ni_wpa_interface_associate(ni_wpa_interface_t *dev, ni_wireless_network_t *net)
 {
 	ni_dbus_object_t *net_object;
+
+	ni_debug_wireless("%s(dev=%s, essid=%.*s)", __func__, dev->ifname,
+			net->essid.len, net->essid.data);
 
 	/* FIXME: make sure we have all the keys/pass phrases etc to
 	 * associate. */
@@ -818,6 +825,20 @@ __wpa_get_network(const ni_dbus_object_t *object)
 	ni_wireless_network_t *net = object->handle;
 
 	return net;
+}
+
+static inline dbus_bool_t
+__ni_dbus_property_not_present_error(DBusError *error, const ni_dbus_property_t *property)
+{
+	dbus_set_error(error, NI_DBUS_ERROR_PROPERTY_NOT_PRESENT, "property %s not present", property->name);
+	return FALSE;
+}
+
+static dbus_bool_t
+__wpa_dbus_bss_get_no_property(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		ni_dbus_variant_t *argument, DBusError *error)
+{
+	return __ni_dbus_property_not_present_error(error, property);
 }
 
 static dbus_bool_t
@@ -1014,26 +1035,12 @@ __wpa_bss_process_ie(ni_wireless_network_t *net, const ni_dbus_variant_t *var)
 }
 
 static dbus_bool_t
-__wpa_dbus_bss_get_wpaie(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
-		ni_dbus_variant_t *argument, DBusError *error)
-{
-	return FALSE;
-}
-
-static dbus_bool_t
 __wpa_dbus_bss_set_wpaie(ni_dbus_object_t *object, const ni_dbus_property_t *property,
 		const ni_dbus_variant_t *argument, DBusError *error)
 {
 	ni_wireless_network_t *net = __wpa_get_network(object);
 
 	return __wpa_bss_process_ie(net, argument);
-}
-
-static dbus_bool_t
-__wpa_dbus_bss_get_wpsie(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
-		ni_dbus_variant_t *argument, DBusError *error)
-{
-	return FALSE;
 }
 
 static dbus_bool_t
@@ -1045,12 +1052,9 @@ __wpa_dbus_bss_set_wpsie(ni_dbus_object_t *object, const ni_dbus_property_t *pro
 	return __wpa_bss_process_ie(net, argument);
 }
 
-static dbus_bool_t
-__wpa_dbus_bss_get_rsnie(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
-		ni_dbus_variant_t *argument, DBusError *error)
-{
-	return FALSE;
-}
+#define __wpa_dbus_bss_get_wpaie	__wpa_dbus_bss_get_no_property
+#define __wpa_dbus_bss_get_wpsie	__wpa_dbus_bss_get_no_property
+#define __wpa_dbus_bss_get_rsnie	__wpa_dbus_bss_get_no_property
 
 static dbus_bool_t
 __wpa_dbus_bss_set_rsnie(ni_dbus_object_t *object, const ni_dbus_property_t *property,
@@ -1146,6 +1150,8 @@ __wpa_dbus_bss_get_cipher(const ni_dbus_object_t *object, const ni_dbus_property
 	ni_wireless_network_t *net = __wpa_get_network(object);
 	const char *value;
 
+	if (net->cipher == NI_WIRELESS_CIPHER_NONE)
+		return __ni_dbus_property_not_present_error(error, property);
 	if (!(value = ni_wpa_cipher_as_string(net->cipher, error)))
 		return FALSE;
 	ni_dbus_variant_set_string(argument, value);
@@ -1172,6 +1178,8 @@ __wpa_dbus_bss_get_pairwise(const ni_dbus_object_t *object, const ni_dbus_proper
 	ni_wireless_network_t *net = __wpa_get_network(object);
 	const char *value;
 
+	if (net->pairwise_cipher == NI_WIRELESS_CIPHER_NONE)
+		return __ni_dbus_property_not_present_error(error, property);
 	if (!(value = ni_wpa_cipher_as_string(net->pairwise_cipher, error)))
 		return FALSE;
 	ni_dbus_variant_set_string(argument, value);
@@ -1198,6 +1206,8 @@ __wpa_dbus_bss_get_group(const ni_dbus_object_t *object, const ni_dbus_property_
 	ni_wireless_network_t *net = __wpa_get_network(object);
 	const char *value;
 
+	if (net->group_cipher == NI_WIRELESS_CIPHER_NONE)
+		return __ni_dbus_property_not_present_error(error, property);
 	if (!(value = ni_wpa_cipher_as_string(net->group_cipher, error)))
 		return FALSE;
 	ni_dbus_variant_set_string(argument, value);
