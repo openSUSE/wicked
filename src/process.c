@@ -124,6 +124,33 @@ ni_process_instance_setenv(ni_process_instance_t *pi, const char *name, const ch
 }
 
 /*
+ * Getting environment variables
+ */
+static const char *
+__ni_process_getenv(const ni_string_array_t *env, const char *name)
+{
+	unsigned int namelen = strlen(name);
+	unsigned int i;
+
+	for (i = 0; i < env->count; ++i) {
+		char *oldvar = env->data[i];
+
+		if (!strncmp(oldvar, name, namelen) && oldvar[namelen] == '=') {
+			oldvar += namelen + 1;
+			return oldvar[0]? oldvar : NULL;
+		}
+	}
+
+	return NULL;
+}
+
+const char *
+ni_process_instance_getenv(const ni_process_instance_t *pi, const char *name)
+{
+	return __ni_process_getenv(&pi->environ, name);
+}
+
+/*
  * Populate default environment
  */
 static const ni_string_array_t *
