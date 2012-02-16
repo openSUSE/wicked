@@ -1,0 +1,54 @@
+<!--
+  -- Wireless Service definition
+  -->
+<service name="wireless" interface="com.suse.Wicked.Wireless" object-class="netif-wireless">
+  <define name="network_t" class="dict">
+    <essid type="string"/>
+    <access-point type="ethernet-address"/>
+
+    <mode type="builtin-wireless-mode"/>
+    <channel type="uint32"/>
+    <frequency type="double"/>
+
+    <auth-info class="dict">
+      <mode type="builtin-wireless-auth"/>
+      <version type="uint32"/>
+      <group-cipher type="builtin-wireless-cipher"/>
+      <pairwise-ciphers type="builtin-wireless-cipher-mask"/>
+      <key-management type="builtin-key-mgmt-mask"/>
+    </auth-info>
+  </define>
+
+  <define name="properties" class="dict">
+    <scan class="dict">
+      <!-- zero or more networks found during last scan -->
+      <network type="network_t"/>
+    </scan>
+
+    <eap-methods type="builtin-eap-method-mask"/>
+    <pairwise-ciphers type="builtin-wireless-cipher-mask"/>
+    <group-ciphers type="builtin-wireless-cipher-mask"/>
+    <key-management type="builtin-key-mgmt-mask"/>
+    <auth-methods type="builtin-wireless-auth-mask"/>
+    <!-- <wpa-protocols type="builtin-wireless-protocol-mask"/> -->
+  </define>
+
+  <define name="link-request" class="dict" extends="interface:link-request">
+    <essid type="string"/>
+    <mode type="builtin-wireless-mode"/>
+    <access-point type="ethernet-address"/>
+
+    <wpa-psk class="dict">
+      <passphrase type="string"/>
+      <key class="array" element-type="byte" minlen="64" maxlen="64" notation="hwaddr"/>
+    </wpa-psk>
+  </define>
+
+  <method name="linkUp">
+    <arguments>
+      <link-request />
+    </arguments>
+  </method>
+</service>
+
+
