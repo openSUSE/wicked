@@ -836,6 +836,10 @@ ni_dbus_variant_sprint(const ni_dbus_variant_t *var)
 		snprintf(buffer, sizeof(buffer), "%llu", (unsigned long long) var->uint64_value);
 		break;
 
+	case DBUS_TYPE_DOUBLE:
+		snprintf(buffer, sizeof(buffer), "%f", var->double_value);
+		break;
+
 	default:
 		return "<unknown type>";
 	}
