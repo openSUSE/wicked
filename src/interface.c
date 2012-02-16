@@ -340,7 +340,7 @@ ni_interface_get_addrconf_request(ni_interface_t *dev, const ni_uuid_t *uuid)
 /*
  * Locate any lease for the same addrconf mechanism
  */
-static ni_addrconf_lease_t *
+ni_addrconf_lease_t *
 __ni_interface_find_lease(ni_interface_t *ifp, int family, ni_addrconf_mode_t type, int remove)
 {
 	ni_addrconf_lease_t *lease, **pos;
@@ -388,6 +388,19 @@ ni_addrconf_lease_t *
 ni_interface_get_lease(ni_interface_t *dev, int family, ni_addrconf_mode_t type)
 {
 	return __ni_interface_find_lease(dev, family, type, 0);
+}
+
+ni_addrconf_lease_t *
+ni_interface_get_lease_by_owner(ni_interface_t *dev, const char *owner)
+{
+	ni_addrconf_lease_t *lease;
+
+	for (lease = dev->leases; lease; lease = lease->next) {
+		if (ni_string_eq(lease->owner, owner))
+			return lease;
+	}
+
+	return NULL;
 }
 
 /*

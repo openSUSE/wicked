@@ -57,6 +57,8 @@ struct ni_addrconf_lease {
 
 	ni_addrconf_mode_t	type;
 	int			family;
+	char *			owner;
+
 	ni_uuid_t		uuid;
 	int			state;
 

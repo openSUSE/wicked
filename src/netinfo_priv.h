@@ -42,6 +42,7 @@ extern ni_interface_t *	__ni_interface_new(const char *name, unsigned int index)
 extern void		__ni_interface_list_append(ni_interface_t **, ni_interface_t *);
 extern void		__ni_interface_list_destroy(ni_interface_t **);
 extern void		__ni_interfaces_clear(ni_netconfig_t *);
+extern ni_addrconf_lease_t *__ni_interface_find_lease(ni_interface_t *, int, ni_addrconf_mode_t, int);
 extern ni_addrconf_lease_t *__ni_interface_address_to_lease(ni_interface_t *, const ni_address_t *);
 extern ni_addrconf_lease_t *__ni_interface_route_to_lease(ni_interface_t *, const ni_route_t *);
 extern unsigned int	__ni_interface_translate_ifflags(unsigned int);

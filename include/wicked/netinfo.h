@@ -272,6 +272,7 @@ ni_addrconf_request_t *	ni_interface_get_addrconf_request(ni_interface_t *dev, c
 extern int		ni_interface_set_lease(ni_interface_t *, ni_addrconf_lease_t *);
 extern int		ni_interface_unset_lease(ni_interface_t *, int af, ni_addrconf_mode_t type);
 ni_addrconf_lease_t *	ni_interface_get_lease(ni_interface_t *, int, ni_addrconf_mode_t);
+ni_addrconf_lease_t *	ni_interface_get_lease_by_owner(ni_interface_t *, const char *);
 extern int		ni_interface_request_scan(ni_netconfig_t *, ni_interface_t *);
 extern int		ni_interface_get_scan_results(ni_netconfig_t *, ni_interface_t *);
 

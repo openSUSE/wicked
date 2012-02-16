@@ -375,6 +375,7 @@ ni_addrconf_lease_free(ni_addrconf_lease_t *lease)
 void
 ni_addrconf_lease_destroy(ni_addrconf_lease_t *lease)
 {
+	ni_string_free(&lease->owner);
 	ni_string_free(&lease->hostname);
 	ni_string_free(&lease->netbios_domain);
 	ni_string_free(&lease->netbios_scope);
