@@ -213,6 +213,8 @@ ni_objectmodel_addrconf_static_request(ni_dbus_object_t *object, int addrfamily,
 	dict = &argv[0];
 
 	lease = ni_addrconf_lease_new(NI_ADDRCONF_STATIC, addrfamily);
+	lease->state = NI_ADDRCONF_STATE_GRANTED;
+
 	if (!__ni_objectmodel_set_address_dict(&lease->addrs, dict, error)
 	 || !__ni_objectmodel_set_route_dict(&lease->routes, dict, error)) {
 		ni_addrconf_lease_free(lease);
