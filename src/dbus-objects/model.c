@@ -21,9 +21,6 @@
 #include "model.h"
 #include "debug.h"
 
-extern void			ni_objectmodel_register_service(const ni_dbus_service_t *);
-extern void			ni_objectmodel_register_link_service(ni_iftype_t, const ni_dbus_service_t *);
-
 extern ni_dbus_object_t *	ni_objectmodel_new_interface(ni_dbus_server_t *server,
 					const ni_dbus_service_t *service,
 					const ni_dbus_variant_t *dict, DBusError *error);

@@ -196,6 +196,9 @@ extern dbus_bool_t		__wicked_dbus_set_addrconf_lease(ni_addrconf_lease_t *lease,
 						const ni_dbus_variant_t *result,
 						DBusError *error);
 
+extern void			ni_objectmodel_register_service(const ni_dbus_service_t *);
+extern void			ni_objectmodel_register_link_service(ni_iftype_t, const ni_dbus_service_t *);
+
 extern void			ni_objectmodel_dhcp4_init(ni_dbus_server_t *);
 extern void			ni_objectmodel_autoip_init(ni_dbus_server_t *);
 extern int			ni_objectmodel_addrconf_acquire(ni_dbus_object_t *,
