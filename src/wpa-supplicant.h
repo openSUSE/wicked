@@ -23,9 +23,10 @@ typedef enum {
 
 typedef struct ni_wpa_client	ni_wpa_client_t;
 typedef struct ni_wpa_interface	ni_wpa_interface_t;
-typedef struct ni_wpa_network	ni_wpa_network_t;
+typedef ni_wireless_network_t	ni_wpa_network_t;
 typedef struct ni_wpa_scan	ni_wpa_scan_t;
 
+#if 0
 struct ni_wpa_network {
 	time_t			expires;
 
@@ -52,6 +53,7 @@ struct ni_wpa_network {
 	ni_opaque_t *		wpsie;
 	ni_opaque_t *		rsnie;
 };
+#endif
 
 struct ni_wpa_interface_capabilities {
 	ni_string_array_t	eap_methods;

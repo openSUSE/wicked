@@ -79,7 +79,6 @@ static void		ni_wpa_interface_free(ni_wpa_interface_t *);
 static int		ni_wpa_prepare_interface(ni_wpa_client_t *, ni_wpa_interface_t *, const char *);
 static int		ni_wpa_interface_get_state(ni_wpa_client_t *, ni_wpa_interface_t *);
 static int		ni_wpa_interface_get_capabilities(ni_wpa_client_t *, ni_wpa_interface_t *);
-static ni_wpa_network_t *ni_wpa_network_new(void);
 static void		ni_wpa_network_request_properties(ni_dbus_object_t *);
 static void		ni_wpa_signal(ni_dbus_connection_t *, ni_dbus_message_t *, void *);
 static void		ni_wpa_scan_put(ni_wpa_scan_t *);
@@ -227,7 +226,7 @@ ni_wpa_interface_network_by_path(ni_wpa_interface_t *ifp, const char *object_pat
 		ni_debug_wireless("new object %s", net_object->path);
 		ni_dbus_object_set_default_interface(net_object, NI_WPA_BSS_INTERFACE);
 
-		net_object->handle = ni_wpa_network_new();
+		net_object->handle = ni_wireless_network_new();
 	}
 
 	return net_object;
@@ -238,31 +237,9 @@ ni_wpa_network_properties_destroy(ni_wpa_network_t *net)
 {
 	ni_wpa_network_t hack = *net;
 
-	if (net->wpaie)
-		ni_opaque_free(net->wpaie);
-	if (net->wpsie)
-		ni_opaque_free(net->wpsie);
-	if (net->rsnie)
-		ni_opaque_free(net->rsnie);
-
 	memset(net, 0, sizeof(*net));
+	net->refcount = hack.refcount;
 	net->expires = hack.expires;
-}
-
-static ni_wpa_network_t *
-ni_wpa_network_new(void)
-{
-	ni_wpa_network_t *net;
-
-	net = xcalloc(1, sizeof(*net));
-	return net;
-}
-
-static void
-ni_wpa_network_free(ni_wpa_network_t *net)
-{
-	ni_wpa_network_properties_destroy(net);
-	free(net);
 }
 
 static void
@@ -271,7 +248,7 @@ ni_wpa_network_object_destroy(ni_dbus_object_t *obj)
 	ni_wpa_network_t *net;
 
 	if ((net = obj->handle) != NULL) {
-		ni_wpa_network_free(net);
+		ni_wireless_network_put(net);
 		obj->handle = NULL;
 	}
 }
@@ -631,23 +608,7 @@ ni_wpa_interface_retrieve_scan(ni_wpa_client_t *wpa, ni_wpa_interface_t *ifp, ni
 
 	ni_wireless_network_array_destroy(&scan->networks);
 	for (wpa_net = ni_wpa_interface_first_network(ifp, &pos, NULL); wpa_net; wpa_net = ni_wpa_interface_next_network(ifp, &pos, NULL)) {
-		ni_wireless_network_t *net;
-
-		net = ni_wireless_network_new();
-		net->access_point = wpa_net->access_point;
-		net->frequency = wpa_net->frequency;
-		net->essid = wpa_net->essid;
-		net->max_bitrate = wpa_net->max_bitrate;
-
-		if (wpa_net->wpsie)
-			__ni_wireless_process_ie(net, wpa_net->wpsie->data, wpa_net->wpsie->len);
-		if (wpa_net->wpaie)
-			__ni_wireless_process_ie(net, wpa_net->wpaie->data, wpa_net->wpaie->len);
-		if (wpa_net->rsnie)
-			__ni_wireless_process_ie(net, wpa_net->rsnie->data, wpa_net->rsnie->len);
-
-		ni_wireless_network_array_append(&scan->networks, net);
-		ni_wireless_network_put(net);
+		ni_wireless_network_array_append(&scan->networks, wpa_net);
 	}
 	return 0;
 }
@@ -959,23 +920,14 @@ __wpa_dbus_bss_set_capabilities(ni_dbus_object_t *object, const ni_dbus_property
 }
 
 static dbus_bool_t
-__wpa_get_blob(const ni_opaque_t *op, ni_dbus_variant_t *variant)
+__wpa_bss_process_ie(ni_wireless_network_t *net, const ni_dbus_variant_t *var)
 {
-	ni_dbus_variant_set_byte_array(variant, op->data, op->len);
-	return TRUE;
-}
-
-static dbus_bool_t
-__wpa_set_blob(const ni_dbus_variant_t *variant, ni_opaque_t **op)
-{
-	if (variant->type != DBUS_TYPE_ARRAY
-	 || variant->array.element_type != DBUS_TYPE_BYTE
-	 || variant->array.len > 8192)
+	if (var->type != DBUS_TYPE_ARRAY
+	 || var->array.element_type != DBUS_TYPE_BYTE
+	 || var->array.len > 8192)
 		return FALSE;
 
-	if (*op)
-		ni_opaque_free(*op);
-	*op = ni_opaque_new(variant->byte_array_value, variant->array.len);
+	__ni_wireless_process_ie(net, var->byte_array_value, var->array.len);
 	return TRUE;
 }
 
@@ -983,9 +935,7 @@ static dbus_bool_t
 __wpa_dbus_bss_get_wpaie(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
 		ni_dbus_variant_t *argument, DBusError *error)
 {
-	ni_wpa_network_t *net = __wpa_get_network(object);
-
-	return __wpa_get_blob(net->wpaie, argument);
+	return FALSE;
 }
 
 static dbus_bool_t
@@ -994,16 +944,14 @@ __wpa_dbus_bss_set_wpaie(ni_dbus_object_t *object, const ni_dbus_property_t *pro
 {
 	ni_wpa_network_t *net = __wpa_get_network(object);
 
-	return __wpa_set_blob(argument, &net->wpaie);
+	return __wpa_bss_process_ie(net, argument);
 }
 
 static dbus_bool_t
 __wpa_dbus_bss_get_wpsie(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
 		ni_dbus_variant_t *argument, DBusError *error)
 {
-	ni_wpa_network_t *net = __wpa_get_network(object);
-
-	return __wpa_get_blob(net->wpsie, argument);
+	return FALSE;
 }
 
 static dbus_bool_t
@@ -1012,16 +960,14 @@ __wpa_dbus_bss_set_wpsie(ni_dbus_object_t *object, const ni_dbus_property_t *pro
 {
 	ni_wpa_network_t *net = __wpa_get_network(object);
 
-	return __wpa_set_blob(argument, &net->wpsie);
+	return __wpa_bss_process_ie(net, argument);
 }
 
 static dbus_bool_t
 __wpa_dbus_bss_get_rsnie(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
 		ni_dbus_variant_t *argument, DBusError *error)
 {
-	ni_wpa_network_t *net = __wpa_get_network(object);
-
-	return __wpa_get_blob(net->rsnie, argument);
+	return FALSE;
 }
 
 static dbus_bool_t
@@ -1030,7 +976,7 @@ __wpa_dbus_bss_set_rsnie(ni_dbus_object_t *object, const ni_dbus_property_t *pro
 {
 	ni_wpa_network_t *net = __wpa_get_network(object);
 
-	return __wpa_set_blob(argument, &net->rsnie);
+	return __wpa_bss_process_ie(net, argument);
 }
 
 static dbus_bool_t
