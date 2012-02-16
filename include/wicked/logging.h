@@ -17,6 +17,7 @@
 
 extern void	ni_warn(const char *, ...) __fmtattr;
 extern void	ni_error(const char *, ...) __fmtattr;
+extern void	ni_error_extra(const char *, ...) __fmtattr;
 extern void	ni_trace(const char *, ...) __fmtattr;
 extern void	ni_fatal(const char *, ...) __fmtattr __noreturn;
 

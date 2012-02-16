@@ -167,6 +167,26 @@ ni_error(const char *fmt, ...)
 	va_end(ap);
 }
 
+/*
+ * ni_error_extra is supposed to be used when you want to print extra error information
+ * without outputting another "Error: " prefix
+ */
+void
+ni_error_extra(const char *fmt, ...)
+{
+	va_list ap;
+
+	va_start(ap, fmt);
+	if (!ni_log_syslog) {
+		fprintf(stderr, "       ");
+		vfprintf(stderr, fmt, ap);
+		fprintf(stderr, "\n");
+	} else {
+		vsyslog(LOG_WARNING, fmt, ap);
+	}
+	va_end(ap);
+}
+
 void
 ni_trace(const char *fmt, ...)
 {

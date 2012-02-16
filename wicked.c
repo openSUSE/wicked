@@ -345,8 +345,7 @@ wicked_create_interface_argv(ni_dbus_object_t *object, const ni_dbus_service_t *
 				1, call_resp,
 				&error)) {
 		ni_error("Server refused to create interface. Server responds:");
-		fprintf(stderr, /* ni_error_extra */
-			"%s: %s\n", error.name, error.message);
+		ni_error_extra("%s: %s\n", error.name, error.message);
 		goto failed;
 	}
 
