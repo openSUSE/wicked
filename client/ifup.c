@@ -205,24 +205,51 @@ ni_ifworker_array_find(ni_ifworker_array_t *array, const char *ifname)
 }
 
 static ni_ifworker_t *
-ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *worker)
+ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *devnode)
 {
 	unsigned int i;
 
+	/* Check if this child is already owned by the given parent. */
 	for (i = 0; i < parent->children.count; ++i) {
-		if (parent->children.data[i] == worker)
-			return worker;
+		if (parent->children.data[i] == child)
+			return child;
 	}
 
-	ni_ifworker_array_append(&parent->children, worker);
+	if (child->exclusive_owner != NULL) {
+		char *other_owner;
+
+		other_owner = strdup(xml_node_location(child->exclusive_owner->config));
+		ni_error("%s: slave interface already owned by %s",
+				xml_node_location(devnode), other_owner);
+		free(other_owner);
+		return NULL;
+	}
+
+	switch (parent->iftype) {
+	case NI_IFTYPE_VLAN:
+		child->shared_users++;
+		break;
+
+	default:
+		if (child->shared_users) {
+			ni_error("%s: interface already in shared use by other interfaces",
+					xml_node_location(devnode));
+			return NULL;
+		}
+		child->exclusive_owner = parent;
+		break;
+	}
+
+
+	ni_ifworker_array_append(&parent->children, child);
 
 #if 0
 	if (parent->behavior.mandatory)
-		worker->behavior.mandatory = 1;
+		child->behavior.mandatory = 1;
 #endif
-	worker->is_slave = 1;
+	child->is_slave = 1;
 
-	return worker;
+	return child;
 }
 
 static ni_ifworker_t *
@@ -421,34 +448,8 @@ build_hierarchy(void)
 				return -1;
 			}
 
-			if (child->exclusive_owner != NULL) {
-				char *other_owner;
-
-				other_owner = strdup(xml_node_location(child->exclusive_owner->config));
-				ni_error("%s: slave interface already owned by %s",
-						xml_node_location(devnode), other_owner);
-				free(other_owner);
+			if (!ni_ifworker_add_child(w, child, devnode))
 				return -1;
-			}
-
-			ni_debug_dbus("making %s a child of %s device %s", child->name, linknode->name, w->name);
-
-			switch (w->iftype) {
-			case NI_IFTYPE_VLAN:
-				child->shared_users++;
-				break;
-
-			default:
-				if (child->shared_users) {
-					ni_error("%s: slave interface already used by other interfaces",
-							xml_node_location(devnode));
-					return -1;
-				}
-				child->exclusive_owner = w;
-				break;
-			}
-
-			ni_ifworker_add_child(w, child);
 		}
 	}
 
