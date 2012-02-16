@@ -257,7 +257,9 @@ __ni_objectmodel_address_to_dict(const ni_address_t *ap, ni_dbus_variant_t *dict
 		__wicked_dbus_add_sockaddr(dict, "peer", &ap->peer_addr);
 	if (ap->anycast_addr.ss_family == ap->family)
 		__wicked_dbus_add_sockaddr(dict, "anycast", &ap->anycast_addr);
-	ni_dbus_dict_add_uint32(dict, "owner", ap->config_method);
+
+	if (ap->config_lease)
+		ni_dbus_dict_add_uint32(dict, "owner", ap->config_lease->type);
 
 	return TRUE;
 }
@@ -270,15 +272,15 @@ __ni_objectmodel_address_from_dict(ni_address_t **list, const ni_dbus_variant_t 
 	unsigned int prefixlen;
 
 	if (__wicked_dbus_get_sockaddr_prefix(dict, "local", &local_addr, &prefixlen)) {
-		uint32_t value;
-
 		ap = __ni_address_new(list, local_addr.ss_family, prefixlen, &local_addr);
 
 		__wicked_dbus_get_sockaddr(dict, "peer", &ap->peer_addr);
 		__wicked_dbus_get_sockaddr(dict, "anycast", &ap->anycast_addr);
 
+#if 0
 		if (ni_dbus_dict_get_uint32(dict, "owner", &value))
 			ap->config_method = value;
+#endif
 	}
 
 	return ap;

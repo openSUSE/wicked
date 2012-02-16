@@ -1396,34 +1396,21 @@ __ni_interface_update_addrs(ni_interface_t *ifp,
 		/* See if the config list contains the address we've found in the
 		 * system. */
 		ap2 = __ni_interface_address_list_contains(cfg_addr_list, ap);
-		if (ap2 != NULL) {
-			/* Okay, we think this address should be managed via the
-			 * specified addrconf method. Make sure this is actually
-			 * the case.
-			 * Note that the code analyzing the current system state
-			 * may mis-classify an address as STATIC, so allow for some
-			 * leeway here.
-			 */
-			if (ap->config_method != mode
-			 && ap->config_method != NI_ADDRCONF_STATIC) {
-				ni_warn("address %s covered by a %s lease",
-					ni_address_print(&ap->local_addr),
-					ni_addrconf_type_to_name(ap->config_method));
-			} else {
-				ap->config_method = mode;
-			}
-		}
 
-		/* Even interfaces with static network config may have
-		 * dynamically configured addresses. Don't touch these.
-		 *
-		 * Unfortunately, we cannot determine this for sure;
-		 * the fact whether an IPv6 address was assigned by
-		 * the admin or via autoconf is not part of the NEWADDR
-		 * message. We have to guess, thus.
-		 */
-		if (ap->config_method != mode)
+		if (ap->config_lease && ap->config_lease->type != mode) {
+			/* The existing address is managed by a different
+			 * addrconf mode.
+			 */
+			if (ap2 != NULL) {
+				ni_warn("%s: new address %s %s covered by a %s lease",
+					ifp->name,
+					ni_addrconf_type_to_name(mode),
+					ni_address_print(&ap->local_addr),
+					ni_addrconf_type_to_name(ap->config_lease->type));
+			}
+
 			continue;
+		}
 
 		if (ap2 != NULL) {
 			/* Check whether we need to update */

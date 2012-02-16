@@ -833,11 +833,8 @@ __ni_interface_add_autoconf_prefix(ni_interface_t *ifp, const ni_sockaddr_t *add
 			break;
 	}
 
-	if (rp == NULL) {
+	if (rp == NULL)
 		rp = __ni_route_new(&lease->routes, pfxlen, addr, NULL);
-		rp->config_method = NI_ADDRCONF_AUTOCONF;
-		rp->config_lease = lease;
-	}
 
 	rp->expires = 0;
 	if (expires != 0) {
@@ -914,17 +911,10 @@ __ni_interface_process_newaddr(ni_interface_t *ifp, struct nlmsghdr *h, struct i
 			probably_autoconf = ni_address_probably_dynamic(ap);
 		}
 
-		if (probably_autoconf) {
+		if (probably_autoconf)
 			lease = __ni_interface_get_autoconf_lease(ifp, ifa->ifa_family);
-
-			ap->config_lease = lease;
-			ap->config_method = NI_ADDRCONF_AUTOCONF;
-
-			/* FIXME: add this address to the lease */
-		}
 	}
 
-	ap->config_method = lease->type;
 	ap->config_lease = lease;
 
 #if 1
@@ -937,7 +927,7 @@ __ni_interface_process_newaddr(ni_interface_t *ifp, struct nlmsghdr *h, struct i
 				(ifa->ifa_flags & IFA_F_PERMANENT)? " permanent" : "",
 				(ifa->ifa_flags & IFA_F_TEMPORARY)? " temporary" : "",
 				(ifa->ifa_flags & IFA_F_TENTATIVE)? " tentative" : "",
-				ni_addrconf_type_to_name(ap->config_method));
+				ap->config_lease? ni_addrconf_type_to_name(ap->config_lease->type) : "nobody");
 #endif
 
 	return 0;
@@ -1033,13 +1023,10 @@ __ni_interface_process_newroute(ni_interface_t *ifp, struct nlmsghdr *h,
 	rp->tos = rtm->rtm_tos;
 
 	/* See if this route is owned by a lease */
-	rp->config_method = NI_ADDRCONF_STATIC;
 	if (ifp) {
 		lease = __ni_interface_route_to_lease(ifp, rp);
-		if (lease) {
-			rp->config_method = lease->type;
+		if (lease)
 			rp->config_lease = lease;
-		}
 	}
 
 	return 0;
@@ -1051,7 +1038,7 @@ __ni_interface_get_autoconf_lease(ni_interface_t *dev, int af)
 	ni_addrconf_lease_t *lease;
 
 	if ((lease = ni_interface_get_lease(dev, af, NI_ADDRCONF_AUTOCONF)) == NULL) {
-		lease = ni_addrconf_lease_new(af, NI_ADDRCONF_AUTOCONF);
+		lease = ni_addrconf_lease_new(NI_ADDRCONF_AUTOCONF, af);
 		lease->state = NI_ADDRCONF_STATE_GRANTED;
 		ni_interface_set_lease(dev, lease);
 

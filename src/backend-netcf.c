@@ -855,7 +855,7 @@ __ni_netcf_xml_from_static_ifcfg(int af,
 	for (ap = ifp->addrs; ap; ap = ap->next) {
 		xml_node_t *addrnode;
 
-		if (ap->family != af || ap->config_method != NI_ADDRCONF_STATIC)
+		if (ap->family != af)
 			continue;
 
 		if (!protnode)

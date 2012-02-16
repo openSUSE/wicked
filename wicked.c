@@ -986,13 +986,9 @@ do_show(int argc, char **argv)
 					ni_linktype_type_to_name(ifp->link.type));
 			printf("\n");
 
-			for (ap = ifp->addrs; ap; ap = ap->next) {
-				snprintf(buffer, sizeof(buffer), "%s addr:",
-						ni_addrconf_type_to_name(ap->config_method));
-				printf("  %-14s", buffer);
-				printf(" %s/%u", ni_address_print(&ap->local_addr), ap->prefixlen);
-				printf("\n");
-			}
+			for (ap = ifp->addrs; ap; ap = ap->next)
+				printf("  addr:  %s/%u\n", ni_address_print(&ap->local_addr), ap->prefixlen);
+
 			for (rp = ifp->routes; rp; rp = rp->next) {
 				const ni_route_nexthop_t *nh;
 

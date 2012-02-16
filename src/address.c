@@ -46,7 +46,6 @@ __ni_address_new(ni_address_t **list_head, int af, unsigned int prefix_len, cons
 		tail = &ap->next;
 
 	ap = calloc(1, sizeof(*ap));
-	ap->config_method = NI_ADDRCONF_STATIC;
 	ap->family = af;
 	ap->prefixlen = prefix_len;
 	ap->scope = -1;
@@ -57,19 +56,6 @@ __ni_address_new(ni_address_t **list_head, int af, unsigned int prefix_len, cons
 	if (af == AF_INET && local_addr) {
 		ap->bcast_addr = *local_addr;
 		ap->bcast_addr.sin.sin_addr.s_addr |= htonl(0xFFFFFFFFUL >> prefix_len);
-	}
-
-	/* FIXME: we need to do this as long as we don't track the IPv6
-	 * prefixes received via RAs. */
-	if (af == AF_INET6) {
-		const unsigned char *data;
-		unsigned int len;
-
-		data = __ni_address_data(&ap->local_addr, &len);
-		if (data && data[0] == 0xFE && data[1] == 0x80) {
-			/* Link-local; always autoconf */
-			ap->config_method = NI_ADDRCONF_AUTOCONF;
-		}
 	}
 
 	*tail = ap;
