@@ -12,9 +12,8 @@
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
 #include <wicked/wicked.h>
-#include <wicked/backend.h>
 #include <wicked/xml.h>
-#include <wicked/xpath.h>
+#include <wicked/socket.h>
 #include <wicked/dbus.h>
 #include <wicked/objectmodel.h>
 
@@ -36,6 +35,8 @@ enum {
 
 	__STATE_MAX
 };
+
+#define NI_IFWORKER_DEFAULT_TIMEOUT	5000
 
 typedef struct ni_ifworker	ni_ifworker_t;
 
@@ -64,6 +65,8 @@ struct ni_ifworker {
 	int			target_state;
 	int			state;
 	int			wait_for_state;
+	const ni_timer_t *	timer;
+
 	ni_objectmodel_callback_info_t *callbacks;
 	unsigned int		failed		: 1,
 				done		: 1;
@@ -82,7 +85,7 @@ struct ni_ifworker {
 
 
 static ni_ifworker_array_t	interface_workers;
-static int			work_to_be_done;
+static unsigned int		ni_ifworker_timeout_count;
 
 static ni_dbus_object_t *	__root_object;
 
@@ -153,6 +156,30 @@ ni_ifworker_success(ni_ifworker_t *w)
 	w->done = 1;
 }
 
+/*
+ * Handle timeouts of device config.
+ */
+static void
+__ni_ifworker_timeout(void *user_data, const ni_timer_t *timer)
+{
+	ni_ifworker_t *w = user_data;
+
+	if (w->timer != timer) {
+		ni_error("%s(%s) called with unexpected timer", __func__, w->name);
+	} else {
+		ni_ifworker_fail(w, "operation timed out");
+	}
+	ni_ifworker_timeout_count++;
+}
+
+static void
+ni_ifworker_set_timeout(ni_ifworker_t *w, unsigned long timeout_ms)
+{
+	if (w->timer)
+		ni_timer_cancel(w->timer);
+	w->timer = ni_timer_register(timeout_ms, __ni_ifworker_timeout, w);
+}
+
 static const char *
 ni_ifworker_name(int state)
 {
@@ -161,6 +188,7 @@ ni_ifworker_name(int state)
 		{ "device-down",	STATE_DEVICE_DOWN	},
 		{ "device-up",		STATE_DEVICE_UP		},
 		{ "link-up",		STATE_LINK_UP		},
+		{ "link-authenticated",	STATE_LINK_AUTHENTICATED},
 		{ "network-up",		STATE_NETWORK_UP	},
 
 		{ NULL }
@@ -283,14 +311,6 @@ ni_ifworker_add_callbacks(ni_ifworker_t *w, ni_objectmodel_callback_info_t *call
 	for (pos = &w->callbacks; (cb = *pos) != NULL; pos = &cb->next)
 		;
 	*pos = callback_list;
-
-	{
-		static int warned = 0;
-
-		if (!warned)
-			ni_warn("attention, timeout handling not yet implemented");
-		warned = 1;
-	}
 }
 
 static ni_objectmodel_callback_info_t *
@@ -434,6 +454,7 @@ mark_matching_interfaces(const char *match_name, unsigned int target_state)
 		if (w->target_state != STATE_NONE) {
 			ni_debug_dbus("%s: target state %s",
 					w->name, ni_ifworker_name(w->target_state));
+			ni_ifworker_set_timeout(w, NI_IFWORKER_DEFAULT_TIMEOUT);
 			ni_ifworker_fsm_init(w);
 		}
 	}
@@ -876,7 +897,7 @@ ni_ifworker_fsm(void)
 					w->wait_for_state? ", wait-for=" : "",
 					w->wait_for_state?  ni_ifworker_name(w->wait_for_state) : "");
 
-			if (ni_ifworker_ready(w))
+			if (w->failed || ni_ifworker_ready(w))
 				continue;
 
 			/* If we're still waiting for children to become ready,
@@ -934,7 +955,7 @@ ni_ifworker_fsm(void)
 	for (i = waiting = 0; i < interface_workers.count; ++i) {
 		ni_ifworker_t *w = interface_workers.data[i];
 
-		if (!ni_ifworker_ready(w))
+		if (!w->failed && !ni_ifworker_ready(w))
 			waiting++;
 	}
 
@@ -1052,19 +1073,33 @@ ni_ifworkers_kickstart(void)
 static void
 ni_ifworker_mainloop(void)
 {
-	work_to_be_done = 1;
-	while (work_to_be_done) {
+	while (1) {
 		long timeout;
 
-		timeout = ni_timer_next_timeout();
+		while (1) {
+			timeout = ni_timer_next_timeout();
+			if (!ni_ifworker_timeout_count)
+				break;
+
+			/* A timeout has fired. Check whether we've failed the
+			 * last device that we were waiting for. If that's
+			 * the case, we're done.
+			 */
+			if (ni_ifworker_fsm() == 0)
+				goto done;
+
+			ni_ifworker_timeout_count = 0;
+		}
+
 		if (ni_socket_wait(timeout) < 0)
 			ni_fatal("ni_socket_wait failed");
 
-		if (ni_ifworker_fsm() == 0) {
-			ni_debug_dbus("all devices have reached the intended state");
-			work_to_be_done = 0;
-		}
+		if (ni_ifworker_fsm() == 0)
+			break;
 	}
+
+done:
+	ni_debug_dbus("finished with all devices.");
 }
 
 int
