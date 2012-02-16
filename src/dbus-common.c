@@ -1297,6 +1297,31 @@ ni_dbus_dict_get(const ni_dbus_variant_t *dict, const char *key)
 	return NULL;
 }
 
+ni_dbus_variant_t *
+ni_dbus_dict_get_next(const ni_dbus_variant_t *dict, const char *key, const ni_dbus_variant_t *previous)
+{
+	ni_dbus_dict_entry_t *entry;
+	unsigned int pos;
+
+	if (!ni_dbus_variant_is_dict(dict))
+		return FALSE;
+
+	for (pos = 0; pos < dict->array.len; ++pos) {
+		entry = &dict->dict_array_value[pos];
+
+		if (previous == &entry->datum)
+			break;
+	}
+
+	while (++pos < dict->array.len) {
+		entry = &dict->dict_array_value[pos];
+		if (entry->key && !strcmp(entry->key, key))
+			return &entry->datum;
+	}
+
+	return NULL;
+}
+
 dbus_bool_t
 ni_dbus_dict_get_bool(const ni_dbus_variant_t *dict, const char *key, dbus_bool_t *value)
 {
