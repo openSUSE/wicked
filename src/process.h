@@ -39,6 +39,7 @@ struct ni_process_instance {
 extern ni_process_t *		ni_process_new(const char *);
 extern ni_process_instance_t *	ni_process_instance_new(ni_process_t *);
 extern int			ni_process_instance_run(ni_process_instance_t *);
+extern int			ni_process_instance_run_and_wait(ni_process_instance_t *);
 extern void			ni_process_instance_setenv(ni_process_instance_t *, const char *, const char *);
 extern const char *		ni_process_instance_getenv(const ni_process_instance_t *, const char *);
 extern void			ni_process_instance_free(ni_process_instance_t *);

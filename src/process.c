@@ -16,6 +16,7 @@
 #include "socket_priv.h"
 #include "process.h"
 
+static int				__ni_process_instance_run(ni_process_instance_t *, int *);
 static ni_socket_t *			__ni_process_instance_get_output(ni_process_instance_t *, int);
 static const ni_string_array_t *	__ni_default_environment(void);
 
@@ -196,13 +197,7 @@ ni_process_sigchild(int sig)
 int
 ni_process_instance_run(ni_process_instance_t *pi)
 {
-	pid_t pid;
-	int pfd[2];
-
-	if (pi->pid != 0) {
-		ni_error("Cannot execute process instance twice (%s)", pi->process->command);
-		return -1;
-	}
+	int pfd[2],  rv;
 
 	/* Our code in socket.c is only able to deal with sockets for now; */
 	if (socketpair(AF_UNIX, SOCK_STREAM, 0, pfd) < 0) {
@@ -210,12 +205,59 @@ ni_process_instance_run(ni_process_instance_t *pi)
 		return -1;
 	}
 
+	rv = __ni_process_instance_run(pi, pfd);
+	if (rv < 0) {
+		if (pfd[0] >= 0)
+			close(pfd[0]);
+		if (pfd[1] >= 0)
+			close(pfd[1]);
+	}
+
+	return rv;
+}
+
+int
+ni_process_instance_run_and_wait(ni_process_instance_t *pi)
+{
+	int  rv;
+
+	rv = __ni_process_instance_run(pi, NULL);
+	if (rv < 0)
+		return rv;
+
+	while (waitpid(pi->pid, &pi->status, WNOHANG) < 0) {
+		if (errno == EINTR)
+			continue;
+		ni_error("%s: waitpid returns error (%m)", __func__);
+		return -1;
+	}
+
+	pi->pid = 0;
+	if (pi->notify_callback)
+		pi->notify_callback(pi);
+
+	if (!ni_process_exit_status_okay(pi)) {
+		ni_error("subprocesses exited with error");
+		return -1;
+	}
+
+	return rv;
+}
+
+int
+__ni_process_instance_run(ni_process_instance_t *pi, int *pfd)
+{
+	pid_t pid;
+
+	if (pi->pid != 0) {
+		ni_error("Cannot execute process instance twice (%s)", pi->process->command);
+		return -1;
+	}
+
 	signal(SIGCHLD, ni_process_sigchild);
 
 	if ((pid = fork()) < 0) {
 		ni_error("%s: unable to fork child process: %m", __func__);
-		close(pfd[0]);
-		close(pfd[1]);
 		return -1;
 	}
 	pi->pid = pid;
@@ -234,8 +276,10 @@ ni_process_instance_run(ni_process_instance_t *pi)
 		else if (dup2(fd, 0) < 0)
 			ni_warn("%s: cannot dup null descriptor: %m", __func__);
 
-		if (dup2(pfd[1], 1) < 0 || dup2(pfd[1], 2) < 0)
-			ni_warn("%s: cannot dup pipe out descriptor: %m", __func__);
+		if (pfd) {
+			if (dup2(pfd[1], 1) < 0 || dup2(pfd[1], 2) < 0)
+				ni_warn("%s: cannot dup pipe out descriptor: %m", __func__);
+		}
 
 		maxfd = getdtablesize();
 		for (fd = 3; fd < maxfd; ++fd)
@@ -251,9 +295,13 @@ ni_process_instance_run(ni_process_instance_t *pi)
 		ni_fatal("%s: cannot execute %s: %m", __func__, arg0);
 	}
 
-	pi->socket = __ni_process_instance_get_output(pi, pfd[0]);
-	ni_socket_activate(pi->socket);
-	close(pfd[1]);
+	if (pfd) {
+		/* Set up a socket to receive the redirected output of the
+		 * subprocess. */
+		pi->socket = __ni_process_instance_get_output(pi, pfd[0]);
+		ni_socket_activate(pi->socket);
+		close(pfd[1]);
+	}
 
 	return 0;
 }
