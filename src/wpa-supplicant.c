@@ -435,7 +435,7 @@ ni_wpa_add_interface(ni_wpa_client_t *wpa, const char *ifname, ni_wpa_interface_
 		}
 
 		if (resp[0].type != DBUS_TYPE_OBJECT_PATH
-		 || !ni_dbus_variant_get_string(&resp[0], &object_path)) {
+		 || !ni_dbus_variant_get_object_path(&resp[0], &object_path)) {
 			ni_error("%s: unexpected type in reply", __func__);
 			rv = -EINVAL;
 			goto failed;
