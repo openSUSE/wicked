@@ -1012,6 +1012,7 @@ ni_dbus_variant_array_parse_and_append_string(ni_dbus_variant_t *var, const char
 	if (ep && *ep)
 		return FALSE;
 
+	var->array.len++;
 	return TRUE;
 }
 
