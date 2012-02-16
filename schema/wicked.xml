@@ -220,10 +220,17 @@
       <!-- Note: all addresses are expected to be IPv4 -->
       <config type="request"/>
     </arguments>
+    <return>
+      <uint32/>
+    </return>
   </method>
 </service>
 
 <service name="ipv6:static" interface="com.suse.Wicked.Addrconf.ipv6.static" object-class="netif">
+  <define name="request" class="dict">
+    <address type="network-interface:assigned-address" />
+    <route type="network-interface:assigned-route" />
+  </define>
   <define name="properties" class="dict">
     <addresses type="network-interface:assigned-address-list" />
     <routes type="network-interface:assigned-route-list" />
@@ -232,8 +239,25 @@
   <method name="configure">
     <arguments>
       <!-- Note: all addresses are expected to be IPv6 -->
-      <config type="properties"/>
+      <config type="request"/>
     </arguments>
+    <return>
+      <uint32/>
+    </return>
+  </method>
+</service>
+
+<service name="ipv4:dhcp" interface="com.suse.Wicked.Addrconf.ipv4.dhcp" object-class="netif">
+  <define name="request" class="dict">
+  </define>
+
+  <method name="configure">
+    <arguments>
+      <config type="request"/>
+    </arguments>
+    <return>
+      <uint32/>
+    </return>
   </method>
 </service>
 
