@@ -261,8 +261,8 @@ __wicked_dbus_interface_link_change(ni_dbus_object_t *object, const ni_dbus_meth
 		goto failed;
 	}
 
-	if (__ni_interface_is_up(dev))
-		ni_objectmodel_interface_event(object, "InterfaceUp");
+	if (ni_interface_link_is_up(dev))
+		__ni_objectmodel_interface_event(NULL, object, NI_EVENT_LINK_UP);
 
 	ret = TRUE;
 
@@ -276,11 +276,44 @@ failed:
  * Broadcast an event that the interface is up
  */
 dbus_bool_t
-ni_objectmodel_interface_event(ni_dbus_object_t *object, const char *signal_name)
+ni_objectmodel_interface_event(ni_dbus_server_t *server, ni_interface_t *dev, ni_event_t ifevent)
 {
-	ni_dbus_server_t *server;
+	ni_dbus_object_t *object;
 
-	if (!(server = ni_dbus_object_get_server(object))
+	if (ifevent >= __NI_EVENT_MAX)
+		return FALSE;
+
+	if (!server && !(server = __ni_objectmodel_server)) {
+		ni_error("%s: help! No dbus server handle! Cannot send signal.", __func__);
+		return FALSE;
+	}
+
+	object = ni_dbus_server_find_object_by_handle(server, dev);
+	if (object == NULL) {
+		ni_warn("no dbus object for interface %s. Cannot send signal", dev->name);
+		return FALSE;
+	}
+
+	return __ni_objectmodel_interface_event(server, object, ifevent);
+}
+
+dbus_bool_t
+__ni_objectmodel_interface_event(ni_dbus_server_t *server, ni_dbus_object_t *object, ni_event_t ifevent)
+{
+	static const char *ifevent_signals[__NI_EVENT_MAX] = {
+	[NI_EVENT_LINK_UP]	= "linkUp",
+	[NI_EVENT_LINK_DOWN]	= "linkDown",
+	[NI_EVENT_NETWORK_UP]	= "networkUp",
+	[NI_EVENT_NETWORK_DOWN]	= "networkDown",
+	[NI_EVENT_ADDRESS_LOST]	= "addressLost",
+	};
+	const char *signal_name = NULL;
+
+	if (ifevent >= __NI_EVENT_MAX || (signal_name = ifevent_signals[ifevent]) == NULL)
+		return FALSE;
+
+	if (!server
+	 && !(server = ni_dbus_object_get_server(object))
 	 && !(server = __ni_objectmodel_server)) {
 		ni_error("%s: help! No dbus server handle! Cannot send signal.", __func__);
 		return FALSE;
@@ -291,20 +324,6 @@ ni_objectmodel_interface_event(ni_dbus_object_t *object, const char *signal_name
 	return TRUE;
 }
 
-dbus_bool_t
-__ni_objectmodel_interface_event(ni_interface_t *dev, const char *signal_name)
-{
-	ni_dbus_object_t *object;
-	
-	object = ni_dbus_server_find_object_by_handle(__ni_objectmodel_server, dev);
-	if (object != NULL) {
-		return ni_objectmodel_interface_event(object, signal_name);
-	}
-
-	ni_warn("unable to find dbus object for interface %s. Cannot send signal \"%s\".",
-			dev->name, signal_name);
-	return FALSE;
-}
 /*
  * Interface.down(void)
  * Bring down the network interface.
@@ -330,8 +349,10 @@ __wicked_dbus_interface_down(ni_dbus_object_t *object, const ni_dbus_method_t *m
 		goto failed;
 	}
 
+#if 0
 	if (__ni_interface_is_down(dev))
 		ni_objectmodel_interface_event(object, "InterfaceDown");
+#endif
 
 	ret = TRUE;
 

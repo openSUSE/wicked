@@ -37,6 +37,8 @@ extern dbus_bool_t		ni_objectmodel_set_addrconf_lease(ni_addrconf_lease_t *, con
 extern ni_dbus_object_t *	ni_objectmodel_wrap_interface(ni_interface_t *ifp);
 extern ni_interface_t *		ni_objectmodel_unwrap_interface(const ni_dbus_object_t *);
 
+extern dbus_bool_t		ni_objectmodel_interface_event(ni_dbus_server_t *, ni_interface_t *, ni_event_t);
+
 extern ni_dbus_object_t *	ni_objectmodel_wrap_interface_request(ni_interface_request_t *req);
 
 #endif /* __WICKED_OBJECTMODEL_H__ */

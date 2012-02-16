@@ -86,6 +86,7 @@ typedef enum ni_event {
 	NI_EVENT_LINK_DOWN,
 	NI_EVENT_NETWORK_UP,
 	NI_EVENT_NETWORK_DOWN,
+	NI_EVENT_ADDRESS_LOST,
 
 	__NI_EVENT_MAX
 } ni_event_t;

@@ -289,7 +289,9 @@ wicked_interface_event(ni_netconfig_t *nc, ni_interface_t *ifp, ni_event_t event
 			ni_objectmodel_unregister_interface(wicked_dbus_server, ifp);
 			break;
 
-		default: ;
+		default:
+			ni_objectmodel_interface_event(wicked_dbus_server, ifp, event);
+			break;
 		}
 	}
 
