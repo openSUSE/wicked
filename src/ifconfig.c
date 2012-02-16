@@ -44,7 +44,7 @@
 static int	__ni_interface_update_ipv6_settings(ni_netconfig_t *, ni_interface_t *, const ni_afinfo_t *);
 static int	__ni_interface_update_addrs(ni_interface_t *ifp,
 				const ni_addrconf_lease_t *old_lease,
-				ni_address_t * const *cfg_addr_list);
+				ni_address_t *cfg_addr_list);
 static int	__ni_interface_update_routes(ni_interface_t *ifp,
 				int family, ni_addrconf_mode_t mode,
 				ni_route_t * const *cfg_route_list);
@@ -247,7 +247,7 @@ __ni_system_interface_update_lease(ni_interface_t *ifp, ni_addrconf_lease_t **le
 	 */
 	old_lease = __ni_interface_find_lease(ifp, lease->family, lease->type, 1);
 
-	res = __ni_interface_update_addrs(ifp, old_lease, &lease->addrs);
+	res = __ni_interface_update_addrs(ifp, old_lease, lease->addrs);
 	if (res < 0) {
 		ni_error("%s: error updating interface config from %s lease",
 				ifp->name, 
@@ -961,7 +961,7 @@ addattr_sockaddr(struct nl_msg *msg, int type, const ni_sockaddr_t *addr)
 }
 
 static ni_address_t *
-__ni_interface_address_list_contains(ni_address_t * const *list, const ni_address_t *ap)
+__ni_interface_address_list_contains(ni_address_t *list, const ni_address_t *ap)
 {
 	ni_address_t *ap2;
 
@@ -969,7 +969,7 @@ __ni_interface_address_list_contains(ni_address_t * const *list, const ni_addres
 		const struct sockaddr_in *sin1, *sin2;
 
 		sin1 = &ap->local_addr.sin;
-		for (ap2 = *list; ap2; ap2 = ap2->next) {
+		for (ap2 = list; ap2; ap2 = ap2->next) {
 			if (ap2->local_addr.ss_family != AF_INET)
 				continue;
 			sin2 = &ap2->local_addr.sin;
@@ -987,7 +987,7 @@ __ni_interface_address_list_contains(ni_address_t * const *list, const ni_addres
 		const struct sockaddr_in6 *sin1, *sin2;
 
 		sin1 = &ap->local_addr.six;
-		for (ap2 = *list; ap2; ap2 = ap2->next) {
+		for (ap2 = list; ap2; ap2 = ap2->next) {
 			if (ap2->local_addr.ss_family != AF_INET6)
 				continue;
 			sin2 = &ap2->local_addr.six;
@@ -1383,7 +1383,7 @@ __ni_addrconf_update_request(ni_afinfo_t *afinfo, ni_addrconf_mode_t mode,
 static int
 __ni_interface_update_addrs(ni_interface_t *ifp,
 				const ni_addrconf_lease_t *old_lease,
-				ni_address_t * const*cfg_addr_list)
+				ni_address_t *cfg_addr_list)
 {
 	ni_address_t *ap, *next;
 	int rv;
@@ -1451,7 +1451,7 @@ __ni_interface_update_addrs(ni_interface_t *ifp,
 	/* Loop over all addresses in the configuration and create
 	 * those that don't exist yet.
 	 */
-	for (ap = *cfg_addr_list; ap; ap = ap->next) {
+	for (ap = cfg_addr_list; ap; ap = ap->next) {
 		if (ap->seq == __ni_global_seqno)
 			continue;
 
@@ -1598,7 +1598,7 @@ __ni_interface_addrconf_static(ni_netconfig_t *nc, ni_interface_t *ifp, int fami
 		 * We need to mimic the kernel's matching behavior when modifying
 		 * the configuration of existing addresses.
 		 */
-		return __ni_interface_update_addrs(ifp, family, mode, &null_addrs);
+		return __ni_interface_update_addrs(ifp, family, mode, NULL);
 	}
 
 	ni_debug_ifconfig("%s: bringing up %s/%s",
