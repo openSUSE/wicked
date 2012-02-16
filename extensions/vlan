@@ -1,0 +1,60 @@
+#!/bin/bash
+#
+# This script takes care of creating and deleting a VLAN interface.
+# The interface schema is defined in /etc/wicked/schema/vlan.xml
+#
+# Copyright (C) 2012 Olaf Kirch <okir@suse.de>
+#
+
+vconfig=/sbin/vconfig
+
+scriptdir=`dirname $0`
+if [ -f "$scriptdir/functions" ]; then
+	. "$scriptdir/functions"
+fi
+
+command=$1
+shift
+
+case $command in
+create)
+	wicked_getargs 'vlan_name=%{name} vlan_tag=%{vlan/tag} vlan_device=%{vlan/device}'
+	if [ -z "$vlan_tag" ]; then
+		wicked_error "No VLAN tag specified"
+	fi
+	if [ -z "$vlan_device" ]; then
+		wicked_error "No ethernet device specified"
+	fi
+
+	# Create the VLAN device as $vlan_device.$vlan_tag (such as eth0.42)
+	$vconfig set_name_type DEV_PLUS_VID_NO_PAD
+	$vconfig add $vlan_device $vlan_tag ||
+		wicked_error "error creating VLAN device"
+
+	# Rename the VLAN device to its final name, if different from
+	# the default name chosen above
+	new_name="$vlan_device.$vlan_tag"
+	if [ -n "$vlan_name" -a "$new_name" != "$vlan_name" ]; then
+		ip link set $new_name name $vlan_name ||
+			wicked_error "error renaming VLAN device $new_name -> $vlan_name"
+		new_name=$vlan_name
+	fi
+
+	# Return the name of the newly created device
+	wicked_return_scalar $new_name
+	;;
+
+delete)
+	if [ -z "$WICKED_INTERFACE_NAME" ]; then
+		wicked_error "No interface name"
+	fi
+	$vconfig rem $WICKED_INTERFACE_NAME ||
+		wicked_error "error removing VLAN device"
+	;;
+esac
+
+echo Return file $WICKED_RETFILE
+cat $WICKED_RETFILE
+echo -----------
+
+exit 0

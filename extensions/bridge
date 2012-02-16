@@ -1,0 +1,240 @@
+#!/bin/bash
+#
+# Copyright (C) 2012, Olaf Kirch <okir@suse.de>
+#
+# This extension scripts implements all supported operations on a bridge
+# interface.
+#
+# If you want to extend the functionality of this script, you first need
+# the extend the schema file (bridge.xml) by adding new members to e.g. the
+# bridge linkinfo or port types.
+#
+# If you want to implement additional methods, you can also add new
+# <method> elements to the same schema file. However, in addition to that, you
+# also need to add the necessary script actions to wicked's configuration
+# file in /etc/wicked/config.xml, so that the daemon knows that it should call
+# this extension script to handle these.
+#
+
+brctl=/sbin/brctl
+syspath=/sys/class/net/
+
+scriptdir=`dirname $0`
+if [ -f "$scriptdir/functions" ]; then
+	. "$scriptdir/functions"
+fi
+
+command=$1
+shift
+
+function __bridge_set_sysctl {
+
+	device=$1
+	sysctl=$2
+	value=$3
+
+	echo "$value" > $syspath/$device/bridge/$sysctl ||
+		wicked_error "unable to set bridge $device attribute $sysctl=$value"
+}
+
+function __bridge_port_set_sysctl {
+
+	device=$1
+	port=$2
+	sysctl=$3
+	value=$4
+
+	echo "$value" > $syspath/$device/brif/$port/$sysctl ||
+		wicked_error "unable to set bridge $device port $port attribute $sysctl=$value"
+}
+
+function bridge_set_priority {
+
+	__bridge_set_sysctl $1 priority "$2"
+}
+
+function bridge_set_stp {
+
+	case $2 in
+	none)	value=0;;
+	stp)	value=1;;
+	rstp)	value=2;;
+	*)	wicked_error "unsupported STP mode $2";;
+	esac
+
+	__bridge_set_sysctl $1 stp_state "$value"
+}
+
+# Convert a floating point time value in seconds to an integer representing
+# the same time as USER_HZ (which is usually 1/100th of a second)
+function _tenth_of_a_msec {
+
+	value=$1
+
+	case $value in
+	*.*)	integer=${value/.*}
+		mantissa="${value#*.}"
+
+		case $mantissa in
+		"")	mantissa=00;;
+		?)	mantissa="${mantissa}0";;
+		??)	: ;;
+		*)	mantissa=`expr $mantissa : '\(..\).*'`;;
+		esac
+
+		echo "$integer$mantissa";;
+
+	*)	echo "${value}00"
+		return 0;;
+	esac
+
+}
+
+
+function bridge_set_forward_delay {
+
+	__bridge_set_sysctl $1 forward_delay `_tenth_of_a_msec $2`
+}
+
+function bridge_set_aging {
+
+	__bridge_set_sysctl $1 ageing_time `_tenth_of_a_msec $2`
+}
+
+function bridge_set_hello_time {
+
+	__bridge_set_sysctl $1 hello_time `_tenth_of_a_msec $2`
+}
+
+function bridge_set_max_age {
+
+	__bridge_set_sysctl $1 max_age `_tenth_of_a_msec $2`
+}
+
+function bridge_port_set_priority {
+
+	__bridge_port_set_sysctl $1 $2 priority $3
+}
+
+function bridge_port_set_path_cost {
+
+	__bridge_port_set_sysctl $1 $2 path_cost $3
+}
+
+function bridge_add_port {
+
+	bridge_name=$1
+	port_device=$2
+	port_priority=$3
+	port_path_cost=$4
+
+	echo "bridge_add_port name=$bridge_name dev=$port_device prio=$port_priority path=$port_path_cost"
+
+	$brctl addif $bridge_name $port_device ||
+		wicked_error "unable to add bridge port $port_device"
+
+	if [ -n "$port_priority" ]; then
+		bridge_port_set_priority $bridge_name $port_device $port_priority
+	fi
+	if [ -n "$port_path_cost" ]; then
+		bridge_port_set_path_cost $bridge_name $port_device $port_path_cost
+	fi
+}
+
+function bridge_remove_port {
+
+	bridge_name=$1
+	port_name=$2
+
+	$brctl delif $bridge_name $port_name ||
+		wicked_error "unable to remove bridge port $port_name"
+}
+
+function bridge_set_link {
+
+	bridge_name=$1; shift
+
+	wicked_getargs 'bridge_priority=%{bridge/priority}' \
+				'bridge_stp=%{bridge/stp}' \
+				'bridge_forward_delay=%{bridge/forward-delay}' \
+				'bridge_aging=%{bridge/aging-time}' \
+				'bridge_hello=%{bridge/hello-time}' \
+				'bridge_max_age=%{bridge/max-age}'
+
+	if [ -n "$bridge_priority" ]; then
+		bridge_set_priority $bridge_name $bridge_priority
+	fi
+	if [ -n "$bridge_stp" ]; then
+		bridge_set_stp $bridge_name $bridge_stp
+	fi
+	if [ -n "$bridge_forward_delay" ]; then
+		bridge_set_forward_delay $bridge_name $bridge_forward_delay
+	fi
+	if [ -n "$bridge_aging" ]; then
+		bridge_set_aging_time $bridge_name $bridge_aging
+	fi
+	if [ -n "$bridge_hello" ]; then
+		bridge_set_hello_time $bridge_name $bridge_hello
+	fi
+	if [ -n "$bridge_max_age" ]; then
+		bridge_set_max_age $bridge_name $bridge_max_age
+	fi
+
+	wicked_call_foreach bridge_add_port bridge/ports \
+			$bridge_name \
+			%{device} \
+			%{?priority} \
+			%{?path-cost}
+}
+
+case $command in
+create)
+	# The create action is a factory method, bound to
+	# com.suse.Wicked.Bridge.Factory. The name of the interface
+	# to be created is passed as the first argument to the
+	# dbus call.
+	wicked_getargs 'bridge_name=%{name}'
+	if [ -z "$bridge_name" ]; then
+		# FIXME: pick the next free bridge device name
+		wicked_error "No bridge name specified"
+	fi
+
+	$brctl addbr "$bridge_name" ||
+		wicked_error "unable to create bridge interface $bridge_name"
+
+	bridge_set_link $bridge_name
+
+	# FIXME: configure initial list of ports given
+
+	wicked_return_scalar "$bridge_name"
+	;;
+
+addPort)
+	bridge_name=`wicked_get_interface_name`
+
+	wicked_getargs 'port_name=%{port/name}' \
+			'priority=%{?port/priority}' \
+			'path_cost=%{?port/path-cost}'
+
+	bridge_add_port $bridge_name $port_name "$priority" "$path_cost"
+	;;
+
+removePort)
+	bridge_name=`wicked_get_interface_name`
+	wicked_getargs 'port_name=%{port}'
+
+	bridge_remove_port $bridge_name $port_name
+	;;
+
+delete)
+	bridge_name=`wicked_get_interface_name`
+	$brctl delbr $bridge_name ||
+		wicked_error "error removing bridge device"
+	;;
+
+*)
+	wicked_error "Unsupported script action $command"
+	;;
+esac
+
+exit 0

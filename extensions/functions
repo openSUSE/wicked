@@ -1,0 +1,151 @@
+#!/bin/bash
+#
+# Assorted bash functions for wicked extension scripts.
+#
+# Copyright (C) 2012 Olaf Kirch <okir@suse.de>
+#
+
+#
+# By convention, we pass a number of environment variables to each
+# extension script. These must be (re-)defined for each extension, but
+# every well-written extension should have these.
+#
+function wicked_get_interface_name {
+
+	if [ -z "$WICKED_INTERFACE_NAME" ]; then
+		wicked_error "No interface name"
+	fi
+	echo "$WICKED_INTERFACE_NAME"
+}
+
+#
+# Extract arguments or portions of an argument and assign to shell
+# variables. This uses xpath format strings. For instance, if the
+# first argument is a string element <name>, and the second is called
+# <vlan> with two child elements <device> and <tag>, then you could
+# extract these values like this:
+#
+# wicked_getargs 'vlan_name=%{name} vlan_tag=%{vlan/tag} vlan_device=%{vlan/device}'
+#
+# This would assign the <name> element to the shell variable vlan_name,
+# and the other two values to the variables vlan_tag and vlan_device,
+# respectively.
+#
+function wicked_getargs {
+
+	eval `wicked xpath --file $WICKED_ARGFILE --reference /arguments "$@"`
+}
+
+#
+# Get members of an array of dicts, such as the array of bridge ports, or
+# bonding slaves.
+#
+# This function is called with an xpath expression identifying the array,
+# followed by pairs of arguments. The first of each pair is the name of an array
+#  variable, the other is the xpath expression of a member of an array element.
+#
+# For instance,
+#
+# wicked_getarg_array bridge/ports port_device device port_priority priority
+#
+# will iterate over all elements of /arguments/bridge/ports, and for each of
+# these elements, assign the value of the <device> and <priority> element to the
+# bash array port_device[] and port_priority[], respectively.
+#
+# Note that you can prefix xpath expressions with a '?' character if the element
+# is not mandatory; for instance, in the example above, an array element has to
+# specify a device to be valid, but it is not required to specify a priority.
+#
+function wicked_getarg_array {
+
+	array_xpath=$1; shift
+
+	format=""
+	while [ $# -gt 1 ]; do
+		array_name=$1
+		xpath_expr=$2
+		shift 2;
+
+		eval unset $array_name
+
+		format="$format $array_name[\$i]=%{$xpath_expr};"
+	done
+
+	let i=0
+	format="$format let i=\$i+1;"
+
+	# Note that all array elements are named '<e>', hence using
+	# /arguments/$array_xpath/e iterates over all array elements.
+	eval `wicked xpath --file $WICKED_ARGFILE --reference /arguments/$array_xpath/e "$format"`
+}
+
+#
+# This function is similar to wicked_getarg_array above, except it does not
+# assign the values of all array element members to bash shell arrays; instead,
+# it invokes a callback function for each of them in turn.
+#
+# wicked_call_foreach bridge/ports bridge_add_port $bridge_name '%{device}' '%{?priority}'
+#
+# will call bridge_add_port for each element of the ports array. The first argument
+# of the call will always be the value of $bridge_name, the second will be the contents
+# of the <device> element, and the third will be the contents of <priority>.
+# If the latter doesn't exist, the function will be called with an empty string, as
+# '%{?priority}' indicates that the element is optional.
+#
+function wicked_call_foreach {
+
+	callback=$1
+	array_xpath=$2
+	shift 2
+
+	format="$callback"
+	for cbarg; do
+		format="$format \"$cbarg\""
+	done
+
+	# Note that all array elements are named '<e>', hence using
+	# /arguments/$array_xpath/e iterates over all array elements.
+	eval `wicked xpath --file $WICKED_ARGFILE --reference /arguments/$array_xpath/e "$format;"`
+
+}
+
+function wicked_error {
+
+	echo "<error>$@</error>" >$WICKED_RETFILE
+	exit 1
+}
+
+function wicked_return_scalar {
+
+	echo "<return>$@</return>" >$WICKED_RETFILE
+	wicked_log_result
+	exit 0
+}
+
+function wicked_log_call {
+
+	# Do not close both fds 1 and 2, else wickedd will assume
+	# the script has gone away.
+	exec 3>&2
+
+	exec >/var/log/wickedd.log 2>&1
+	echo -----------
+	echo "Arguments: $*"
+	echo Environment:
+	env
+	echo -----------
+	echo Arguments file $WICKED_ARGFILE
+	cat $WICKED_ARGFILE
+	echo -----------
+	set -x
+
+}
+
+function wicked_log_result {
+
+	echo Return file $WICKED_RETFILE
+	cat $WICKED_RETFILE
+	echo -----------
+}
+
+wicked_log_call "$0 $@"
