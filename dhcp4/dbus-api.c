@@ -24,8 +24,11 @@
 #include "debug.h"
 #include "dhcp.h"
 
+static void		__ni_objectmodel_dhcp_device_release(ni_dbus_object_t *);
+
 static ni_dbus_class_t		ni_objectmodel_dhcp4dev_class = {
-	"dhcp4-device",
+	.name		= "dhcp4-device",
+	.destroy	= __ni_objectmodel_dhcp_device_release,
 };
 
 extern const ni_dbus_service_t	wicked_dbus_addrconf_request_service; /* XXX */
@@ -75,6 +78,30 @@ ni_objectmodel_register_dhcp4_device(ni_dbus_server_t *server, ni_dhcp_device_t 
 }
 
 /*
+ * Extract the dhcp4_device handle from a dbus object
+ */
+static ni_dhcp_device_t *
+ni_objectmodel_unwrap_dhcp4_device(const ni_dbus_object_t *object)
+{
+	ni_dhcp_device_t *dev = object->handle;
+
+	return object->class == &ni_objectmodel_dhcp4dev_class? dev : NULL;
+}
+
+/*
+ * Destroy a dbus object wrapping a dhcp_device.
+ */
+void
+__ni_objectmodel_dhcp_device_release(ni_dbus_object_t *object)
+{
+	ni_dhcp_device_t *dev = ni_objectmodel_unwrap_dhcp4_device(object);
+
+	ni_assert(dev != NULL);
+	ni_dhcp_device_put(dev);
+	object->handle = NULL;
+}
+
+/*
  * Interface.acquire(dict options)
  * Acquire a lease for the given interface.
  *
@@ -85,7 +112,7 @@ __wicked_dbus_dhcp4_acquire_svc(ni_dbus_object_t *object, const ni_dbus_method_t
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
-	ni_dhcp_device_t *dev = object->handle;
+	ni_dhcp_device_t *dev = ni_objectmodel_unwrap_dhcp4_device(object);
 	ni_dbus_object_t *cfg_object;
 	ni_addrconf_request_t *req;
 	dbus_bool_t ret = FALSE;
@@ -136,7 +163,7 @@ __wicked_dbus_dhcp4_drop_svc(ni_dbus_object_t *object, const ni_dbus_method_t *m
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
-	ni_dhcp_device_t *dev = object->handle;
+	ni_dhcp_device_t *dev = ni_objectmodel_unwrap_dhcp4_device(object);
 	dbus_bool_t ret = FALSE;
 	ni_uuid_t uuid;
 	int rv;
