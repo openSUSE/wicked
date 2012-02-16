@@ -38,25 +38,33 @@ enum {
 };
 
 typedef struct ni_ifworker	ni_ifworker_t;
-typedef int			ni_ifworker_action(ni_ifworker_t *);
 
 typedef struct ni_ifworker_array {
 	unsigned int		count;
 	ni_ifworker_t **	data;
 } ni_ifworker_array_t;
 
+typedef int			ni_netif_action_fn_t(ni_ifworker_t *);
+typedef struct ni_netif_action {
+	int			next_state;
+	ni_netif_action_fn_t *	func;
+} ni_netif_action_t;
+
 struct ni_ifworker {
 	unsigned int		refcount;
 
 	char *			name;
+
+	ni_dbus_object_t *	object;
 	char *			object_path;
+
 	unsigned int		ifindex;
 	ni_iftype_t		iftype;
 
 	int			target_state;
 	int			state;
+	int			wait_for_state;
 	unsigned int		failed		: 1,
-				wait_for_event	: 1,
 				is_slave	: 1,
 				done		: 1;
 
@@ -66,7 +74,7 @@ struct ni_ifworker {
 	unsigned int		shared_users;
 	ni_ifworker_t *		exclusive_owner;
 
-	ni_ifworker_action **	actions;
+	ni_netif_action_t *	actions;
 
 #if 0
 	unsigned int		refcount;
@@ -502,6 +510,10 @@ interface_workers_refresh_state(void)
 
 		w = interface_workers.data[i];
 
+		/* Always clear the object - we don't know if it's still there
+		 * after we've called ni_dbus_object_refresh_children() */
+		w->object = NULL;
+
 		/* Don't touch devices we're done with */
 		if (w->done)
 			continue;
@@ -546,6 +558,7 @@ interface_workers_refresh_state(void)
 			ni_string_dup(&found->object_path, object->path);
 		found->device = ni_interface_get(dev);
 		found->ifindex = dev->link.ifindex;
+		found->object = object;
 
 		if (ni_interface_network_is_up(dev))
 			found->state = STATE_NETWORK_UP;
@@ -618,21 +631,57 @@ ni_ifworker_do_device_up(ni_ifworker_t *w)
 	ni_debug_dbus("created device %s (path=%s)", w->name, object_path);
 	ni_string_dup(&w->object_path, object_path);
 
+	{
+		unsigned int len = strlen("/com/suse/Wicked/");
+
+		ni_assert(!strncmp(object_path, "/com/suse/Wicked/", len));
+		object_path += len;
+	}
+
+	/* Lookup the object corresponding to this path. If it doesn't
+	 * exist, create it on the fly (with a generic class of "netif" -
+	 * the next refresh call with take care of this and correct the
+	 * class */
+	w->object = ni_dbus_object_create(__root_object, object_path,
+				NULL,
+				NULL);
+
 device_is_up:
 	w->state = STATE_DEVICE_UP;
 	return 0;
 }
 
 /*
+ * Finite state machine - bring up the device link layer.
+ */
+static int
+ni_ifworker_do_link_up(ni_ifworker_t *w)
+{
+	unsigned int ifstatus = NI_IFF_DEVICE_UP | NI_IFF_LINK_UP;
+
+	ni_trace("%s(name=%s, object=%p, path=%s)", __func__, w->name, w->object, w->object_path);
+	if (!wicked_link_change_xml(w->object, w->config, &ifstatus)) {
+		ni_ifworker_fail(w, "failed to configure and bring up link");
+		return -1;
+	}
+
+	/* FIXME: do something with new_status */
+
+	return 0;
+}
+
+/*
  * Finite state machine
  */
-static ni_ifworker_action *	ni_ifworker_fsm_up[] = {
-	ni_ifworker_do_device_up,
-	NULL,
+static ni_netif_action_t	ni_ifworker_fsm_up[] = {
+	{ .next_state = STATE_DEVICE_UP,	.func = ni_ifworker_do_device_up },
+	{ .next_state = STATE_LINK_UP,		.func = ni_ifworker_do_link_up },
+
+	{ .next_state = STATE_NONE, .func = NULL }
 };
 
-static ni_ifworker_action *	ni_ifworker_fsm_down[] = {
-	NULL,
+static ni_netif_action_t	ni_ifworker_fsm_down[] = {
+	{ .next_state = STATE_NONE, .func = NULL }
 };
 
 static void
@@ -657,14 +706,15 @@ ni_ifworker_fsm(void)
 
 		for (i = 0; i < interface_workers.count; ++i) {
 			ni_ifworker_t *w = interface_workers.data[i];
-			ni_ifworker_action *action;
+			ni_netif_action_t *action;
 			int prev_state;
 
 			if (w->target_state != STATE_NONE)
-				ni_debug_dbus("%-12s: state=%s want=%s%s", w->name,
+				ni_debug_dbus("%-12s: state=%s want=%s%s%s", w->name,
 					ni_ifworker_name(w->state),
 					ni_ifworker_name(w->target_state),
-					w->wait_for_event? ", wait-for-event" : "");
+					w->wait_for_state? ", wait-for=" : "",
+					w->wait_for_state?  ni_ifworker_name(w->wait_for_state) : "");
 
 			if (ni_ifworker_ready(w))
 				continue;
@@ -676,11 +726,11 @@ ni_ifworker_fsm(void)
 
 			/* We requested a change that takes time (such as acquiring
 			 * a DHCP lease). Wait for a notification from wickedd */
-			if (w->wait_for_event)
+			if (w->wait_for_state)
 				continue;
 
-			action = *w->actions++;
-			if (action == NULL) {
+			action = w->actions++;
+			if (action->next_state == STATE_NONE) {
 				w->state = w->target_state;
 				ni_ifworker_success(w);
 				made_progress = 1;
@@ -688,9 +738,9 @@ ni_ifworker_fsm(void)
 			}
 
 			prev_state = w->state;
-			if (action(w) >= 0) {
+			if (action->func(w) >= 0) {
 				made_progress = 1;
-				if (w->state != prev_state) {
+				if (w->state == action->next_state) {
 					ni_debug_dbus("%s: successfully transitioned from %s to %s",
 						w->name,
 						ni_ifworker_name(prev_state),
@@ -699,7 +749,7 @@ ni_ifworker_fsm(void)
 					ni_debug_dbus("%s: waiting for event in state %s",
 						w->name,
 						ni_ifworker_name(w->state));
-					w->wait_for_event = 1;
+					w->wait_for_state = action->next_state;
 				}
 			} else
 			if (!w->failed) {
@@ -769,11 +819,6 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 						ni_ifworker_name(w->state));
 		}
 	}
-
-	if (ni_ifworker_fsm() == 0) {
-		ni_debug_dbus("all devices have reached the intended state");
-		work_to_be_done = 0;
-	}
 }
 
 int
@@ -821,6 +866,11 @@ interface_worker_mainloop(void)
 		timeout = ni_timer_next_timeout();
 		if (ni_socket_wait(timeout) < 0)
 			ni_fatal("ni_socket_wait failed");
+
+		if (ni_ifworker_fsm() == 0) {
+			ni_debug_dbus("all devices have reached the intended state");
+			work_to_be_done = 0;
+		}
 	}
 }
 

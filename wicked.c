@@ -209,20 +209,26 @@ wicked_init_objectmodel(void)
 ni_dbus_object_t *
 wicked_dbus_client_create(void)
 {
-	ni_dbus_client_t *client;
+	static ni_dbus_object_t *root_object = NULL;
 
-	wicked_init_objectmodel();
+	if (root_object == NULL) {
+		ni_dbus_client_t *client;
 
-	/* Use ni_objectmodel_create_client() */
-	client = ni_create_dbus_client(WICKED_DBUS_BUS_NAME);
-	if (!client)
-		ni_fatal("Unable to connect to wicked dbus service");
+		wicked_init_objectmodel();
 
-	return ni_dbus_client_object_new(client,
-				&ni_dbus_anonymous_class,
-				WICKED_DBUS_OBJECT_PATH,
-				WICKED_DBUS_INTERFACE,
-				NULL);
+		/* Use ni_objectmodel_create_client() */
+		client = ni_create_dbus_client(WICKED_DBUS_BUS_NAME);
+		if (!client)
+			ni_fatal("Unable to connect to wicked dbus service");
+
+		root_object = ni_dbus_client_object_new(client,
+					&ni_dbus_anonymous_class,
+					WICKED_DBUS_OBJECT_PATH,
+					WICKED_DBUS_INTERFACE,
+					NULL);
+	}
+
+	return root_object;
 }
 
 /*
@@ -332,7 +338,7 @@ wicked_create_interface_common(const ni_dbus_service_t *service, ni_dbus_variant
 		goto failed;
 	}
 
-	if (!ni_dbus_object_call_variant(object, NULL, "newLink",
+	if (!ni_dbus_object_call_variant(object, service->name, "newLink",
 				2, call_argv,
 				1, call_resp,
 				&error)) {
@@ -341,7 +347,7 @@ wicked_create_interface_common(const ni_dbus_service_t *service, ni_dbus_variant
 	} else {
 		const char *response;
 
-		/* extract device name from reply */
+		/* extract device object path from reply */
 		if (!ni_dbus_variant_get_string(&call_resp[0], &response)) {
 			ni_error("%s: newLink call succeeded but didn't return interface name",
 					service->name);
@@ -351,8 +357,6 @@ wicked_create_interface_common(const ni_dbus_service_t *service, ni_dbus_variant
 	}
 
 failed:
-	if (object)
-		ni_dbus_object_free(object);
 	ni_dbus_variant_destroy(&call_resp[0]);
 	dbus_error_free(&error);
 	return result;
@@ -429,6 +433,65 @@ wicked_create_interface_xml(const ni_dbus_service_t *service,
 	ni_dbus_variant_destroy(&call_argv[0]);
 	ni_dbus_variant_destroy(&call_argv[1]);
 	return result;
+}
+
+/*
+ * Bring the link of an interface up
+ */
+static dbus_bool_t
+wicked_link_change_common(ni_dbus_object_t *object, ni_dbus_variant_t *arg, unsigned int *new_status)
+{
+	ni_dbus_variant_t result = NI_DBUS_VARIANT_INIT;
+	DBusError error = DBUS_ERROR_INIT;
+	dbus_bool_t rv = FALSE;
+
+	if (!ni_dbus_object_call_variant(object, NULL, "linkChange",
+				1, arg,
+				1, &result,
+				&error)) {
+		ni_error("Server refused to create interface. Server responds:");
+		ni_error_extra("%s: %s\n", error.name, error.message);
+	} else {
+		/* extract device object path from reply */
+		rv = ni_dbus_variant_get_uint(&result, new_status);
+		if (!rv) {
+			ni_error("%s: linkChange call succeeded but didn't return status bits",
+					object->path);
+		}
+	}
+
+	ni_dbus_variant_destroy(&result);
+	dbus_error_free(&error);
+	return rv;
+}
+
+dbus_bool_t
+wicked_link_change_xml(ni_dbus_object_t *object, xml_node_t *config, unsigned int *new_status)
+{
+	ni_dbus_variant_t argument = NI_DBUS_VARIANT_INIT;
+	const ni_dbus_service_t *service;
+	const ni_dbus_method_t *method;
+	dbus_bool_t rv = FALSE;
+
+	service = ni_objectmodel_service_by_name(WICKED_DBUS_NETIF_INTERFACE);
+
+	method = ni_dbus_service_get_method(service, "linkChange");
+	ni_assert(method);
+
+	ni_dbus_variant_init_dict(&argument);
+	if (config && !ni_dbus_xml_serialize_arg(method, 0, &argument, config)) {
+		ni_error("%s.%s: error serializing argument", service->name, method->name);
+		goto out;
+	}
+
+	/* FIXME: For this to work, the xml node must not have a <status> element */
+	ni_dbus_dict_add_uint32(&argument, "status", *new_status);
+
+	rv = wicked_link_change_common(object, &argument, new_status);
+
+out:
+	ni_dbus_variant_destroy(&argument);
+	return rv;
 }
 
 /*
@@ -619,9 +682,9 @@ wicked_get_interface(ni_dbus_object_t *root_object, const char *ifname)
 	/* Loop over all interfaces and find the one with matching name */
 	/* FIXME: this isn't type-safe at all, and should be done better */
 	for (object = interfaces->children; object; object = object->next) {
-		ni_interface_t *ifp = object->handle;
+		ni_interface_t *ifp = ni_objectmodel_unwrap_interface(object);
 
-		if (ifp->name && !strcmp(ifp->name, ifname))
+		if (ifp && ifp->name && !strcmp(ifp->name, ifname))
 			return object;
 	}
 
@@ -1310,20 +1373,14 @@ do_ifdown(int argc, char **argv)
 	/* All interfaces get the same interface request, which is
 	 * ifflags = 0, and empty addrconfig. */
 	if (0) {
-		ni_dbus_object_t *request_object;
 		ni_interface_request_t *req;
 		dbus_bool_t okay;
 
 		req = ni_interface_request_new();
 		req->ifflags = 0;
 
-		request_object = ni_objectmodel_wrap_interface_request(req);
+		okay = ni_objectmodel_marshal_interface_request(req, &argument, NULL);
 
-		ni_dbus_variant_init_dict(&argument);
-		okay = ni_dbus_object_get_properties_as_dict(request_object,
-				&wicked_dbus_interface_request_service, &argument);
-
-		ni_dbus_object_free(request_object);
 		ni_interface_request_free(req);
 
 		if (!okay)
