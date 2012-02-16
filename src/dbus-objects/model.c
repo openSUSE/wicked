@@ -37,8 +37,12 @@ typedef struct ni_objectmodel_service_array {
 static ni_objectmodel_service_array_t ni_objectmodel_all_services;
 static const ni_dbus_service_t *ni_objectmodel_link_services[__NI_IFTYPE_MAX];
 
-static ni_dbus_service_t	wicked_dbus_netif_interface;
-static ni_dbus_service_t	wicked_dbus_root_interface;
+static const ni_dbus_class_t	ni_objectmodel_netif_list_class = {
+	.name		= NI_OBJECTMODEL_NETIF_LIST_CLASS,
+};
+
+static ni_dbus_service_t	ni_objectmodel_netif_list_service;
+static ni_dbus_service_t	ni_objectmodel_netif_root_interface;
 
 ni_dbus_server_t *		__ni_objectmodel_server;
 
@@ -53,20 +57,27 @@ ni_objectmodel_create_service(void)
 		ni_fatal("unable to initialize dbus service");
 
 	object = ni_dbus_server_get_root_object(server);
-	ni_dbus_object_register_service(object, &wicked_dbus_root_interface);
+	ni_dbus_object_register_service(object, &ni_objectmodel_netif_root_interface);
 
 	object = ni_dbus_server_register_object(server, "Interface",
-					&ni_dbus_anonymous_class,
+					&ni_objectmodel_netif_list_class,
 					NULL);
 	if (object == NULL)
 		ni_fatal("Unable to create dbus object for interfaces");
 
-	ni_dbus_object_register_service(object, &wicked_dbus_netif_interface);
+	ni_dbus_object_register_service(object, &ni_objectmodel_netif_list_service);
 
+	/* register the netif-list class (to allow extensions to attach to it) */
+	ni_dbus_server_register_class(server, &ni_objectmodel_netif_list_class);
+
+	/* register the netif class (to allow extensions to attach to it) */
+	ni_dbus_server_register_class(server, wicked_dbus_interface_service.compatible);
+
+	/* Initialize our addrconf clients */
 	ni_objectmodel_dhcp4_init(server);
 	ni_objectmodel_autoip_init(server);
 
-	ni_objectmodel_register_service(&wicked_dbus_netif_interface);
+	ni_objectmodel_register_service(&ni_objectmodel_netif_list_service);
 	ni_objectmodel_register_service(&wicked_dbus_interface_service);
 	ni_objectmodel_register_link_service(NI_IFTYPE_ETHERNET, &wicked_dbus_ethernet_service);
 	ni_objectmodel_register_link_service(NI_IFTYPE_VLAN, &wicked_dbus_vlan_service);
@@ -207,18 +218,18 @@ static ni_dbus_method_t		wicked_dbus_netif_methods[] = {
 };
 
 
-static ni_dbus_service_t	wicked_dbus_netif_interface = {
-	.name = WICKED_DBUS_FACTORY_INTERFACE,
-	.methods = wicked_dbus_netif_methods,
-	/* .properties = wicked_dbus_netif_properties, */
+static ni_dbus_service_t	ni_objectmodel_netif_list_service = {
+	.name		= WICKED_DBUS_FACTORY_INTERFACE,
+	.compatible	= &ni_objectmodel_netif_list_class,
+	.methods	= wicked_dbus_netif_methods,
+//	.properties	= wicked_dbus_netif_properties,
 };
 
 /*
  * The interface for the dbus root node. Nothing much for now.
  */
-static ni_dbus_service_t	wicked_dbus_root_interface = {
-	.name = WICKED_DBUS_INTERFACE,
-	/* .methods = wicked_dbus_root_methods, */
+static ni_dbus_service_t	ni_objectmodel_netif_root_interface = {
+	.name		= WICKED_DBUS_INTERFACE,
 };
 
 /*
