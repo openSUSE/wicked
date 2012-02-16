@@ -494,10 +494,24 @@ __ni_objectmodel_addrconf_generic_get_lease(const ni_dbus_object_t *object,
 
 static dbus_bool_t
 __ni_objectmodel_addrconf_generic_set_lease(ni_dbus_object_t *object,
-				const ni_dbus_property_t *property,
-				const ni_dbus_variant_t *argument,
+				ni_addrconf_mode_t mode, int addrfamily,
+				const ni_dbus_variant_t *dict,
 				DBusError *error)
 {
+	ni_interface_t *dev;
+	uint32_t state;
+
+	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
+		return FALSE;
+
+	if (ni_dbus_dict_get_uint32(dict, "state", &state)
+	 && state == NI_ADDRCONF_STATE_GRANTED) {
+		ni_addrconf_lease_t *lease;
+
+		lease = ni_addrconf_lease_new(mode, addrfamily);
+		lease->state = state;
+		ni_interface_set_lease(dev, lease);
+	}
 	return TRUE;
 }
 
@@ -511,12 +525,30 @@ __ni_objectmodel_addrconf_ipv4_static_get_lease(const ni_dbus_object_t *object,
 }
 
 static dbus_bool_t
+__ni_objectmodel_addrconf_ipv4_static_set_lease(ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *argument,
+				DBusError *error)
+{
+	return __ni_objectmodel_addrconf_generic_set_lease(object, NI_ADDRCONF_STATIC, AF_INET, argument, error);
+}
+
+static dbus_bool_t
 __ni_objectmodel_addrconf_ipv4_dhcp_get_lease(const ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				ni_dbus_variant_t *result,
 				DBusError *error)
 {
 	return __ni_objectmodel_addrconf_generic_get_lease(object, NI_ADDRCONF_DHCP, AF_INET, result, error);
+}
+
+static dbus_bool_t
+__ni_objectmodel_addrconf_ipv4_dhcp_set_lease(ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *argument,
+				DBusError *error)
+{
+	return __ni_objectmodel_addrconf_generic_set_lease(object, NI_ADDRCONF_DHCP, AF_INET, argument, error);
 }
 
 static dbus_bool_t
@@ -529,6 +561,15 @@ __ni_objectmodel_addrconf_ipv4ll_get_lease(const ni_dbus_object_t *object,
 }
 
 static dbus_bool_t
+__ni_objectmodel_addrconf_ipv4ll_set_lease(ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *argument,
+				DBusError *error)
+{
+	return __ni_objectmodel_addrconf_generic_set_lease(object, NI_ADDRCONF_AUTOCONF, AF_INET, argument, error);
+}
+
+static dbus_bool_t
 __ni_objectmodel_addrconf_ipv6_static_get_lease(const ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				ni_dbus_variant_t *result,
@@ -537,25 +578,30 @@ __ni_objectmodel_addrconf_ipv6_static_get_lease(const ni_dbus_object_t *object,
 	return __ni_objectmodel_addrconf_generic_get_lease(object, NI_ADDRCONF_STATIC, AF_INET6, result, error);
 }
 
-#define __ni_objectmodel_addrconf_ipv4_static_set_lease	__ni_objectmodel_addrconf_generic_set_lease
+static dbus_bool_t
+__ni_objectmodel_addrconf_ipv6_static_set_lease(ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *argument,
+				DBusError *error)
+{
+	return __ni_objectmodel_addrconf_generic_set_lease(object, NI_ADDRCONF_STATIC, AF_INET6, argument, error);
+}
+
 static ni_dbus_property_t		ni_objectmodel_addrconf_ipv4_static_properties[] = {
 	__NI_DBUS_PROPERTY(NI_DBUS_DICT_SIGNATURE, lease, __ni_objectmodel_addrconf_ipv4_static, RO),
 	{ NULL }
 };
 
-#define __ni_objectmodel_addrconf_ipv6_static_set_lease	__ni_objectmodel_addrconf_generic_set_lease
 static ni_dbus_property_t		ni_objectmodel_addrconf_ipv6_static_properties[] = {
 	__NI_DBUS_PROPERTY(NI_DBUS_DICT_SIGNATURE, lease, __ni_objectmodel_addrconf_ipv6_static, RO),
 	{ NULL }
 };
 
-#define __ni_objectmodel_addrconf_ipv4_dhcp_set_lease	__ni_objectmodel_addrconf_generic_set_lease
 static ni_dbus_property_t		ni_objectmodel_addrconf_ipv4_dhcp_properties[] = {
 	__NI_DBUS_PROPERTY(NI_DBUS_DICT_SIGNATURE, lease, __ni_objectmodel_addrconf_ipv4_dhcp, RO),
 	{ NULL }
 };
 
-#define __ni_objectmodel_addrconf_ipv4ll_set_lease	__ni_objectmodel_addrconf_generic_set_lease
 static ni_dbus_property_t		ni_objectmodel_addrconf_ipv4ll_properties[] = {
 	__NI_DBUS_PROPERTY(NI_DBUS_DICT_SIGNATURE, lease, __ni_objectmodel_addrconf_ipv4ll, RO),
 	{ NULL }
