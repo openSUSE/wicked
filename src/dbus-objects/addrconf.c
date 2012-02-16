@@ -372,6 +372,7 @@ ni_objectmodel_addrconf_forward(ni_dbus_addrconf_forwarder_t *forwarder,
 	/* Call the supplicant's method */
 	rv = ni_dbus_object_call_variant(object, forwarder->supplicant.interface, method_name, 2, argv, 0, NULL, error);
 
+	ni_dbus_object_free(object);
 	ni_dbus_variant_destroy(&argv[0]);
 
 	return rv? req : NULL;
