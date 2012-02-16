@@ -8,6 +8,11 @@
   </vlan>
 
   <ipv4:dhcp>
+    <!-- request short lease timeout of 120 seconds -->
+    <lease-time>120</lease-time>
+
+    <!-- use a specific vendor-class -->
+    <vendor-class>MyVendorClass</vendor-class>
   </ipv4:dhcp>
 </interface>
 
