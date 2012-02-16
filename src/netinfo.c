@@ -298,14 +298,18 @@ ni_interface_by_hwaddr(ni_netconfig_t *nc, const ni_hwaddr_t *lla)
  * Find VLAN interface by its tag
  */
 ni_interface_t *
-ni_interface_by_vlan_tag(ni_netconfig_t *nc, uint16_t tag)
+ni_interface_by_vlan_name_and_tag(ni_netconfig_t *nc, const char *physdev_name, uint16_t tag)
 {
 	ni_interface_t *ifp;
 
+	if (!physdev_name || !tag)
+		return NULL;
 	for (ifp = nc->interfaces; ifp; ifp = ifp->next) {
 		if (ifp->link.type == NI_IFTYPE_VLAN
 		 && ifp->link.vlan
-		 && ifp->link.vlan->tag == tag)
+		 && ifp->link.vlan->tag == tag
+		 && ifp->link.vlan->physdev_name
+		 && !strcmp(ifp->link.vlan->physdev_name, physdev_name))
 			return ifp;
 	}
 
