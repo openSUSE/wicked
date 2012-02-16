@@ -1387,7 +1387,7 @@ __ni_interface_update_addrs(ni_interface_t *ifp,
 	int rv;
 
 	for (ap = ifp->addrs; ap; ap = next) {
-		ni_address_t *ap2;
+		ni_address_t *new_addr;
 
 		next = ap->next;
 		if (ap->family != family)
@@ -1395,13 +1395,13 @@ __ni_interface_update_addrs(ni_interface_t *ifp,
 
 		/* See if the config list contains the address we've found in the
 		 * system. */
-		ap2 = __ni_interface_address_list_contains(cfg_addr_list, ap);
+		new_addr = __ni_interface_address_list_contains(cfg_addr_list, ap);
 
 		if (ap->config_lease && ap->config_lease->type != mode) {
 			/* The existing address is managed by a different
 			 * addrconf mode.
 			 */
-			if (ap2 != NULL) {
+			if (new_addr != NULL) {
 				ni_warn("%s: new address %s %s covered by a %s lease",
 					ifp->name,
 					ni_addrconf_type_to_name(mode),
@@ -1412,16 +1412,16 @@ __ni_interface_update_addrs(ni_interface_t *ifp,
 			continue;
 		}
 
-		if (ap2 != NULL) {
+		if (new_addr != NULL) {
 			/* Check whether we need to update */
-			if ((ap2->scope == -1 || ap->scope == ap2->scope)
-			 && (ap2->label[0] == '\0' || !strcmp(ap->label, ap2->label))
-			 && ni_address_equal(&ap->bcast_addr, &ap2->bcast_addr)
-			 && ni_address_equal(&ap->anycast_addr, &ap2->anycast_addr)) {
+			if ((new_addr->scope == -1 || ap->scope == new_addr->scope)
+			 && (new_addr->label[0] == '\0' || !strcmp(ap->label, new_addr->label))
+			 && ni_address_equal(&ap->bcast_addr, &new_addr->bcast_addr)
+			 && ni_address_equal(&ap->anycast_addr, &new_addr->anycast_addr)) {
 				/* Current address as configured, no need to change. */
 				ni_debug_ifconfig("address %s/%u exists; no need to reconfigure",
 					ni_address_print(&ap->local_addr), ap->prefixlen);
-				ap2->seq = __ni_global_seqno;
+				new_addr->seq = __ni_global_seqno;
 				continue;
 			}
 
@@ -1466,7 +1466,7 @@ __ni_interface_update_routes(ni_interface_t *ifp,
 	 * the configuration of existing routes.
 	 */
 	for (rp = ifp->routes; rp; rp = next) {
-		ni_route_t *rp2;
+		ni_route_t *new_route;
 
 		next = rp->next;
 		if (rp->family != family)
@@ -1474,13 +1474,13 @@ __ni_interface_update_routes(ni_interface_t *ifp,
 
 		/* See if the config list contains the route we've found in the
 		 * system. */
-		rp2 = __ni_interface_route_list_contains(cfg_route_list, rp);
+		new_route = __ni_interface_route_list_contains(cfg_route_list, rp);
 
 		if (rp->config_lease && rp->config_lease->type != mode) {
 			/* The existing route is managed by a different
 			 * addrconf mode.
 			 */
-			if (rp2 != NULL) {
+			if (new_route != NULL) {
 				ni_warn("route %s covered by a %s lease",
 					ni_route_print(rp),
 					ni_addrconf_type_to_name(rp->config_lease->type));
@@ -1488,11 +1488,11 @@ __ni_interface_update_routes(ni_interface_t *ifp,
 			continue;
 		}
 
-		if (rp2 != NULL) {
-			if (__ni_rtnl_send_newroute(ifp, rp2, NLM_F_REPLACE) >= 0) {
+		if (new_route != NULL) {
+			if (__ni_rtnl_send_newroute(ifp, new_route, NLM_F_REPLACE) >= 0) {
 				ni_debug_ifconfig("%s: successfully updated existing route %s",
 						ifp->name, ni_route_print(rp));
-				rp2->seq = __ni_global_seqno;
+				new_route->seq = __ni_global_seqno;
 				continue;
 			}
 
