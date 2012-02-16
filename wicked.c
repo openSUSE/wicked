@@ -1213,6 +1213,15 @@ add_matching_interfaces(xml_document_t *doc, const char *match_name, unsigned in
 	return count;
 }
 
+static void
+interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg, void *user_data)
+{
+	const char *signal_name = dbus_message_get_member(msg);
+	const char *object_path = dbus_message_get_path(msg);
+
+	ni_debug_dbus("%s: got signal %s from %s", __func__, signal_name, object_path);
+}
+
 void
 interface_workers_refresh_state(ni_dbus_object_t *root_object)
 {
@@ -1260,6 +1269,19 @@ interface_workers_kickstart(ni_dbus_object_t *root_object)
 
 	interface_workers_refresh_state(root_object);
 	for (i = 0, w = interface_workers; i < num_interface_workers; ++i, ++w) {
+		/* Instead of a plain device name, an interface configuration can
+		 * contain a different sort of interface identification - such as
+		 * its MAC address, or a platform specific name (such as the Dell
+		 * biosdevname, or a System z specific interface name).
+		 * Here, we should try to resolve these names.
+		 */
+		if (w->device == NULL) {
+			/* check if the device has an <identify> element instead
+			 * of (or in addition to) its name, and if so, call
+			 * InterfaceList.identify() with this information.
+			 */
+		}
+
 		if (w->device == NULL) {
 			const ni_dbus_service_t *service;
 			xml_node_t *linknode;
@@ -1292,6 +1314,20 @@ interface_workers_kickstart(ni_dbus_object_t *root_object)
 	}
 
 	return 0;
+}
+
+#include <wicked/socket.h>
+
+/* static */ void
+interface_worker_mainloop(void)
+{
+	while (1) {
+		long timeout;
+
+		timeout = ni_timer_next_timeout();
+		if (ni_socket_wait(timeout) < 0)
+			ni_fatal("ni_socket_wait failed");
+	}
 }
 
 static int
@@ -1365,8 +1401,13 @@ usage:
 	if (!(root_object = wicked_dbus_client_create()))
 		return 1;
 
+	ni_dbus_client_add_signal_handler(ni_dbus_object_get_client(root_object), NULL, NULL,
+			                        WICKED_DBUS_NETIF_INTERFACE,
+						interface_state_change_signal,
+						NULL);
 
 	interface_workers_kickstart(root_object);
+	interface_worker_mainloop();
 
 #if 0
 		/* Request that the server take the interface up */
