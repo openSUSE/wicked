@@ -27,7 +27,7 @@
 #include <wicked/backend.h>
 #include <wicked/xml.h>
 #include <wicked/xpath.h>
-#include <wicked/dbus.h>
+#include <wicked/objectmodel.h>
 
 enum {
 	OPT_CONFIGFILE,

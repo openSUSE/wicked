@@ -1,7 +1,8 @@
-#ifndef __WICKED_OBJECTMODEL_H__
-#define __WICKED_OBJECTMODEL_H__
 
-#include <wicked/dbus.h>
+#ifndef __WICKED_OBJECTMODEL_P_H__
+#define __WICKED_OBJECTMODEL_P_H__
+
+#include <wicked/objectmodel.h>
 
 #define __NI_DBUS_PROPERTY_RO(fstem, __name) \
 	__NI_DBUS_PROPERTY_GET_FN(fstem, __name), \
@@ -213,4 +214,4 @@ extern void			ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *,
 extern dbus_bool_t		ni_objectmodel_interface_event(ni_dbus_object_t *, const char *);
 extern dbus_bool_t		__ni_objectmodel_interface_event(ni_interface_t *, const char *);
 
-#endif /* __WICKED_OBJECTMODEL_H__ */
+#endif /* __WICKED_OBJECTMODEL_P_H__ */

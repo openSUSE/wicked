@@ -28,7 +28,7 @@
 #include <wicked/socket.h>
 #include <wicked/dhcp.h>
 #include <wicked/ipv4ll.h>
-#include <wicked/dbus.h>
+#include <wicked/objectmodel.h>
 
 enum {
 	OPT_CONFIGFILE,

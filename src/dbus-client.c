@@ -11,6 +11,7 @@
 #include <errno.h>
 #include <wicked/util.h>
 #include <wicked/logging.h>
+#include <wicked/objectmodel.h>
 #include "socket_priv.h"
 #include "dbus-common.h"
 #include "dbus-client.h"
