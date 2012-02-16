@@ -502,7 +502,12 @@ __ni_dbus_object_message(DBusConnection *conn, DBusMessage *call, void *user_dat
 	/* Clean out deceased objects */
 	__ni_dbus_objects_garbage_collect();
 
-	/* FIXME: check for type CALL */
+	if (dbus_message_get_type(call) != DBUS_MESSAGE_TYPE_METHOD_CALL
+	 || interface == NULL
+	 || method_name == NULL) {
+		ni_error("%s: internal error, bad message", __func__);
+		return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+	}
 
 	ni_debug_dbus("%s(path=%s, interface=%s, method=%s) called", __FUNCTION__, object->path, interface, method_name);
 	svc = ni_dbus_object_get_service(object, interface);
@@ -514,7 +519,7 @@ __ni_dbus_object_message(DBusConnection *conn, DBusMessage *call, void *user_dat
 	server = ni_dbus_object_get_server(object);
 
 	method = ni_dbus_service_get_method(svc, method_name);
-	if (method == NULL) {
+	if (method == NULL || (method->handler == NULL && method->async_handler == NULL)) {
 		dbus_set_error(&error,
 				DBUS_ERROR_UNKNOWN_METHOD,
 				"Unknown method in call to object %s, %s.%s",
