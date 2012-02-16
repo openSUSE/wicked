@@ -59,6 +59,64 @@ static int	__ni_rtnl_send_newaddr(ni_interface_t *, const ni_address_t *, int);
 static int	__ni_rtnl_send_delroute(ni_interface_t *, ni_route_t *);
 static int	__ni_rtnl_send_newroute(ni_interface_t *, ni_route_t *, int);
 
+int
+ni_system_interface_link_change(ni_netconfig_t *nc, ni_interface_t *ifp,
+				const ni_interface_request_t *ifp_req)
+{
+	int res;
+
+	if (ifp == NULL || ifp_req == NULL)
+		return -NI_ERROR_INVALID_ARGS;
+
+	ni_debug_ifconfig("%s(%s)", __func__, ifp->name);
+
+	/* FIXME: perform sanity check on configuration data */
+
+	/* If we want to disable ipv6 or ipv6 autoconf, we need to do so prior to bringing
+	 * the interface up. */
+	if (__ni_interface_update_ipv6_settings(nc, ifp, ifp_req->ipv6) < 0)
+		return -1;
+
+	if (ifp_req->ifflags & (NI_IFF_DEVICE_UP|NI_IFF_LINK_UP|NI_IFF_NETWORK_UP)) {
+		ni_debug_ifconfig("bringing up %s", ifp->name);
+		if (__ni_rtnl_link_up(ifp, ifp_req)) {
+			ni_error("%s: failed to bring up interface (rtnl error)", ifp->name);
+			return -1;
+		}
+		ifp->link.ifflags |= ifp_req->ifflags;
+	} else {
+		/* FIXME: Shut down any addrconf services on this interface?
+		 * We should expect these services to detect the link down event...
+		 */
+
+		/* Now take down the link for real */
+		ni_debug_ifconfig("shutting down interface %s", ifp->name);
+		if (__ni_rtnl_link_down(ifp, RTM_NEWLINK)) {
+			ni_error("unable to shut down interface %s", ifp->name);
+			return -1;
+		}
+	}
+
+	__ni_global_seqno++;
+
+#if 0
+	if (!ni_interface_network_is_up(ifp)) {
+		if (ifp_req->ipv4)
+			ifp_req->ipv4->addrconf = 0;
+		if (ifp_req->ipv6)
+			ifp_req->ipv6->addrconf = 0;
+	}
+
+	if ((res = __ni_interface_addrconf(nc, AF_INET, ifp, ifp_req->ipv4)) < 0
+	 || (res = __ni_interface_addrconf(nc, AF_INET6, ifp, ifp_req->ipv6)) < 0)
+		goto failed;
+#endif
+
+	res = __ni_system_refresh_interface(nc, ifp);
+	return res;
+}
+
+
 /*
  * Bring up an interface
  * ni_system_interface_up

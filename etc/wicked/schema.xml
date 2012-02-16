@@ -157,8 +157,9 @@
   <define name="link-request" class="dict">
    <status type="network-interface:state-bits"/>
 
-   <txqlen type="uint32"/>
+   <metric type="uint32"/>
    <mtu type="uint32"/>
+   <txqlen type="uint32"/>
 
    <ipv4 type="network-interface:af-info"/>
    <ipv6 type="network-interface:af-info"/>

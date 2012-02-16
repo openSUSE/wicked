@@ -203,7 +203,30 @@ get_interface(const ni_dbus_object_t *object, DBusError *error)
 }
 
 /*
- * Interface.up(dict options)
+ * Helper functions to extract all properties from a dict argument
+ */
+static dbus_bool_t
+get_properties_from_dict(const ni_dbus_service_t *service, void *handle, const ni_dbus_variant_t *dict, DBusError *error)
+{
+	ni_dbus_object_t dummy;
+
+	memset(&dummy, 0, sizeof(dummy));
+	dummy.class = service->compatible;
+	dummy.handle = handle;
+
+	/* Extract configuration from dict */
+	if (!ni_dbus_object_set_properties_from_dict(&dummy, service, dict)) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"Cannot extract argument from property dict");
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+/*
+ * Interface.linkChange(dict options)
+ *
  * Bring up the network interface, and assign the requested addresses.
  * In the case of virtual interfaces like VLANs or bridges, the interface
  * must have been created and configured prior to this call.
@@ -211,31 +234,27 @@ get_interface(const ni_dbus_object_t *object, DBusError *error)
  * The options dictionary contains interface properties.
  */
 static dbus_bool_t
-__wicked_dbus_interface_up(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+__wicked_dbus_interface_link_change(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_netconfig_t *nc = ni_global_state_handle(0);
-	ni_interface_t *dev = ni_objectmodel_unwrap_interface(object);
-	ni_dbus_object_t *cfg_object;
-	ni_interface_request_t *req;
+	ni_interface_t *dev;
+	ni_interface_request_t *req = NULL;
 	dbus_bool_t ret = FALSE;
 	int rv;
 
+	if (!(dev = get_interface(object, error)))
+		return FALSE;
+
 	NI_TRACE_ENTER_ARGS("ifp=%s", dev->name);
 
-	/* Create an interface_request object and wrap it in a dbus object */
+	/* Create an interface_request object and extract configuration from dict */
 	req = ni_interface_request_new();
-	cfg_object = ni_objectmodel_wrap_interface_request(req);
-
-	/* Extract configuration from dict */
-	if (!ni_dbus_object_set_properties_from_dict(cfg_object, &wicked_dbus_interface_request_service, &argv[0])) {
-		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-				"Cannot extract interface configuration from property dict");
+	if (!get_properties_from_dict(&wicked_dbus_interface_request_service, req, &argv[0], error))
 		goto failed;
-	}
 
-	if ((rv = ni_system_interface_up(nc, dev, req)) < 0) {
+	if ((rv = ni_system_interface_link_change(nc, dev, req)) < 0) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
 				"Cannot configure interface %s: %s", dev->name,
 				ni_strerror(rv));
@@ -248,9 +267,8 @@ __wicked_dbus_interface_up(ni_dbus_object_t *object, const ni_dbus_method_t *met
 	ret = TRUE;
 
 failed:
-	ni_interface_request_free(req);
-	if (cfg_object)
-		ni_dbus_object_free(cfg_object);
+	if (req)
+		ni_interface_request_free(req);
 	return ret;
 }
 
@@ -335,7 +353,7 @@ ni_objectmodel_netif_destroy(ni_dbus_object_t *object)
 }
 
 static ni_dbus_method_t		wicked_dbus_interface_methods[] = {
-	{ "up",			"a{sv}",		__wicked_dbus_interface_up },
+	{ "linkUp",		"",			__wicked_dbus_interface_link_change },
 	{ "down",		"",			__wicked_dbus_interface_down },
 #if 0
 	{ "addAddress",		"a{sv}",		__wicked_dbus_interface_add_address },
@@ -687,6 +705,7 @@ __wicked_dbus_set_afinfo(ni_afinfo_t *afi,
 	}
 	return TRUE;
 }
+#endif
 
 /*
  * Property InterfaceRequest.ipv4
@@ -700,7 +719,7 @@ __wicked_dbus_interface_request_get_ipv4(const ni_dbus_object_t *object,
 	ni_interface_request_t *req = ni_dbus_object_get_handle(object);
 
 	ni_dbus_variant_init_dict(result);
-	if (req->ipv4 && !__wicked_dbus_get_afinfo(req->ipv4, TRUE, result, error))
+	if (req->ipv4 && !__wicked_dbus_get_afinfo(req->ipv4, result, error))
 		return FALSE;
 	return TRUE;
 }
@@ -731,7 +750,7 @@ __wicked_dbus_interface_request_get_ipv6(const ni_dbus_object_t *object,
 {
 	ni_interface_request_t *req = ni_dbus_object_get_handle(object);
 
-	if (req->ipv6 && !__wicked_dbus_get_afinfo(req->ipv6, TRUE, result, error))
+	if (req->ipv6 && !__wicked_dbus_get_afinfo(req->ipv6, result, error))
 		return FALSE;
 	return TRUE;
 }
@@ -750,7 +769,6 @@ __wicked_dbus_interface_request_set_ipv6(ni_dbus_object_t *object,
 		return FALSE;
 	return TRUE;
 }
-#endif
 
 #define INTERFACE_REQUEST_UINT_PROPERTY(dbus_name, name, rw) \
 	NI_DBUS_GENERIC_UINT_PROPERTY(interface_request, dbus_name, name, rw)
@@ -763,10 +781,8 @@ static ni_dbus_property_t	wicked_dbus_interface_request_properties[] = {
 	INTERFACE_REQUEST_UINT_PROPERTY(metric, metric, RO),
 	INTERFACE_REQUEST_UINT_PROPERTY(txqlen, txqlen, RO),
 
-#if 0
 	INTERFACE_REQUEST_PROPERTY_SIGNATURE(NI_DBUS_DICT_SIGNATURE, ipv4, RO),
 	INTERFACE_REQUEST_PROPERTY_SIGNATURE(NI_DBUS_DICT_SIGNATURE, ipv6, RO),
-#endif
 
 	{ NULL }
 };

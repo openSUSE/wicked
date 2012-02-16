@@ -10,7 +10,13 @@
 #include <wicked/types.h>
 
 extern int		ni_system_interface_up(ni_netconfig_t *, ni_interface_t *, const ni_interface_request_t *);
+extern int		ni_system_interface_link_change(ni_netconfig_t *, ni_interface_t *,
+				const ni_interface_request_t *);
 extern int		ni_system_interface_down(ni_netconfig_t *, ni_interface_t *);
+
+/*
+ * Most of this stuff will go as we move things into extension scripts:
+ */
 extern int		ni_system_interface_stats_refresh(ni_netconfig_t *, ni_interface_t *);
 extern int		ni_system_vlan_create(ni_netconfig_t *nc, const char *ifname,
 				const ni_vlan_t *cfg_vlan, ni_interface_t **ifpp);
