@@ -11,6 +11,7 @@
 #include <wicked/logging.h>
 #include <wicked/util.h>
 
+/* FIXME: rename to ni_shellcmd */
 struct ni_process {
 	unsigned int		refcount;
 
@@ -20,6 +21,7 @@ struct ni_process {
 	unsigned int		timeout;
 };
 
+/* FIXME: rename to ni_process */
 struct ni_process_instance {
 	ni_process_t *		process;
 
@@ -35,8 +37,11 @@ struct ni_process_instance {
 };
 
 extern ni_process_t *		ni_process_new(const char *);
+extern ni_process_instance_t *	ni_process_instance_new(ni_process_t *);
 extern int			ni_process_instance_run(ni_process_instance_t *);
+extern void			ni_process_instance_setenv(ni_process_instance_t *, const char *, const char *);
 extern void			ni_process_instance_free(ni_process_instance_t *);
+extern int			ni_process_exit_status_okay(const ni_process_instance_t *);
 extern void			ni_process_free(ni_process_t *);
 
 static inline ni_process_t *

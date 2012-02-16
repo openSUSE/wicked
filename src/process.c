@@ -117,6 +117,12 @@ ni_process_setenv(ni_process_t *proc, const char *name, const char *value)
 	__ni_process_setenv(&proc->environ, name, value);
 }
 
+void
+ni_process_instance_setenv(ni_process_instance_t *pi, const char *name, const char *value)
+{
+	__ni_process_setenv(&pi->environ, name, value);
+}
+
 /*
  * Populate default environment
  */
@@ -243,6 +249,15 @@ ni_process_instance_reap(ni_process_instance_t *pi)
 
 	if (pi->notify_callback)
 		pi->notify_callback(pi);
+
+	return 0;
+}
+
+int
+ni_process_exit_status_okay(const ni_process_instance_t *pi)
+{
+	if (WIFEXITED(pi->status))
+		return WEXITSTATUS(pi->status) == 0;
 
 	return 0;
 }
