@@ -346,7 +346,7 @@ ni_dbus_object_call_variant(const ni_dbus_object_t *proxy,
 		const ni_dbus_service_t **pos, *service, *best = NULL;
 
 		pos = proxy->interfaces;
-		while ((service = *pos++) != NULL) {
+		while (pos && (service = *pos++) != NULL) {
 			if (ni_dbus_service_get_method(service, method) == NULL)
 				continue;
 
