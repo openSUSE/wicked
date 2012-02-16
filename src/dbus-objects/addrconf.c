@@ -158,6 +158,10 @@ ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_messa
 		}
 
 		ifevent = NI_EVENT_ADDRESS_ACQUIRED;
+
+		if (!__ni_addrconf_should_update(lease->update, NI_ADDRCONF_UPDATE_DEFAULT_ROUTE)) {
+			/* FIXME: remove any default routes from the lease */
+		}
 	} else if (!strcmp(signal_name, "LeaseReleased")) {
 		lease->state = NI_ADDRCONF_STATE_RELEASED;
 		ifevent = NI_EVENT_ADDRESS_RELEASED;
@@ -172,6 +176,8 @@ ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_messa
 	/* Note, lease may be NULL after this, as the interface object
 	 * takes ownership of it. */
 	__ni_system_interface_update_lease(ifp, &lease);
+
+	ni_objectmodel_update_from_lease(lease);
 
 	/* Potentially, there's a client somewhere waiting for that event.
 	 * We use the UUID that's passed back and forth to make sure we

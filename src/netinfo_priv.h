@@ -110,6 +110,18 @@ extern int		__ni_wireless_request_scan(ni_netconfig_t *, ni_interface_t *);
 extern int		__ni_wireless_get_scan_results(ni_netconfig_t *, ni_interface_t *);
 extern int		__ni_wireless_link_event(ni_netconfig_t *, ni_interface_t *, void *, size_t);
 
+static inline void
+__ni_addrconf_set_update(unsigned int *mask, unsigned int bit)
+{
+	*mask |= (1 << bit);
+}
+
+static inline int
+__ni_addrconf_should_update(unsigned int mask, unsigned int bit)
+{
+	return !!(mask & (1 << bit));
+}
+
 /*
  * Helper function to match interface "behaviors" to names
  */
