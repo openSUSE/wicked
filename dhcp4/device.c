@@ -22,6 +22,7 @@
 
 
 static unsigned int	ni_dhcp_do_bits(unsigned int);
+static const char *	__ni_dhcp_print_flags(unsigned int);
 
 ni_dhcp_device_t *	ni_dhcp_active;
 
@@ -264,6 +265,7 @@ ni_dhcp_acquire(ni_dhcp_device_t *dev, const ni_dhcp4_request_t *info)
 		ni_trace("  vendor-class    %s", config->classid[0]? config->classid : "<none>");
 		ni_trace("  client-id       %s", ni_print_hex(config->raw_client_id.data, config->raw_client_id.len));
 		ni_trace("  uuid            %s", ni_print_hex(config->uuid.octets, 16));
+		ni_trace("  flags           %s", __ni_dhcp_print_flags(config->flags));
 	}
 
 	if (dev->config)
@@ -314,6 +316,43 @@ ni_dhcp_do_bits(unsigned int update_flags)
 			result |= do_mask[bit];
 	}
 	return result;
+}
+
+static const char *
+__ni_dhcp_print_flags(unsigned int flags)
+{
+	static ni_intmap_t flag_names[] = {
+	{ "arp",		DHCP_DO_ARP		},
+	{ "csr",		DHCP_DO_CSR		},
+	{ "mscsr",		DHCP_DO_MSCSR		},
+	{ "hostname",		DHCP_DO_HOSTNAME	},
+	{ "resolver",		DHCP_DO_RESOLVER	},
+	{ "nis",		DHCP_DO_NIS		},
+	{ "ntp",		DHCP_DO_NTP		},
+	{ "gateway",		DHCP_DO_GATEWAY		},
+	{ NULL }
+	};
+	static char buffer[1024];
+	char *pos = buffer;
+	unsigned int mask;
+
+	*pos = '\0';
+	for (mask = 1; mask != 0; mask <<= 1) {
+		const char *name;
+
+		if ((flags & mask) == 0)
+			continue;
+		if (!(name = ni_format_int_mapped(mask, flag_names)))
+			continue;
+		snprintf(pos, buffer + sizeof(buffer) - pos, "%s%s",
+				(pos == buffer)? "" : ", ",
+				name);
+		pos += strlen(pos);
+	}
+	if (buffer[0] == '\0')
+		return "<none>";
+
+	return buffer;
 }
 
 /*
