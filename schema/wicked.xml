@@ -32,7 +32,7 @@
   <array element-type="byte" notation="net-address-prefix" />
 </define>
 
-<define name="uuid">
+<define name="uuid-type">
   <array element-type="byte" minlen="16" maxlen="16" />
 </define>
 
@@ -253,7 +253,7 @@
 
 <service name="ipv4:dhcp" interface="com.suse.Wicked.Addrconf.ipv4.dhcp" object-class="netif">
   <define name="request" class="dict">
-    <uuid type="uuid"/>
+    <uuid type="uuid-type"/>
 
     <acquire-timeout type="uint32" />
     <hostname type="string" />

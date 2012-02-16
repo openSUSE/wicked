@@ -1,7 +1,7 @@
 
 <service name="bridge" interface="com.suse.Wicked.Bridge" object-class="netif-bridge">
 
-  <define name="port" class="dict">
+  <define name="port-type" class="dict">
     <!-- There should be really some more flexible way of specifying the device,
       -- so that we have to rely less on udev to get the interface names right
       -->
@@ -36,7 +36,7 @@
     <hello-time type="double" />
     <max-age type="double" />
 
-    <ports class="array" element-type="port" />
+    <ports class="array" element-type="port-type" />
   </define>
 
   <define name="properties" class="dict" extends="linkconfig">
@@ -49,7 +49,7 @@
 
   <method name="addPort">
     <arguments>
-      <port type="port"/>
+      <port type="port-type"/>
     </arguments>
   </method>
 
