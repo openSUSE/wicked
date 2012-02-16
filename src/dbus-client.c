@@ -454,7 +454,7 @@ ni_dbus_object_get_managed_objects(ni_dbus_object_t *proxy, DBusError *error)
 		if (!dbus_message_iter_next(&iter_dict_entry))
 			goto bad_reply;
 
-		ni_debug_dbus("remote object %s", object_path);
+		ni_debug_dbus("received remote object %s", object_path);
 
 		len = strlen(proxy->path);
 		if (strncmp(object_path, proxy->path, len)
@@ -613,7 +613,9 @@ __ni_dbus_object_get_managed_object_properties(ni_dbus_object_t *proxy,
 			continue;
 		}
 
+#if 0
 		ni_debug_dbus("Setting property %s=%s", property_name, ni_dbus_variant_sprint(&value));
+#endif
 		ni_dbus_variant_destroy(&value);
 	}
 

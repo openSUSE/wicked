@@ -364,7 +364,9 @@ ni_dbus_object_register_service(ni_dbus_object_t *object, const ni_dbus_service_
 {
 	unsigned int count;
 
+#if 0
 	NI_TRACE_ENTER_ARGS("path=%s, interface=%s", object->path, svc->name);
+#endif
 
 	if (svc->compatible && !ni_dbus_object_isa(object, svc->compatible)) {
 		ni_error("cannot register dbus interface %s (class %s) with object %s: "
