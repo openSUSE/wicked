@@ -48,11 +48,6 @@ static int	__ni_interface_update_addrs(ni_interface_t *ifp,
 static int	__ni_interface_update_routes(ni_interface_t *ifp,
 				const ni_addrconf_lease_t *old_lease,
 				ni_route_t *cfg_route_list);
-#if 0
-static int	__ni_interface_addrconf(ni_netconfig_t *, int,  ni_interface_t *, ni_afinfo_t *);
-static int	__ni_interface_handle_addrconf_request(ni_netconfig_t *, ni_interface_t *, const ni_addrconf_request_t *);
-#endif
-
 static int	__ni_rtnl_link_create_vlan(const char *, const ni_vlan_t *, unsigned int);
 static int	__ni_rtnl_link_up(const ni_interface_t *, const ni_interface_request_t *);
 static int	__ni_rtnl_link_down(const ni_interface_t *, int);
@@ -101,31 +96,12 @@ ni_system_interface_link_change(ni_netconfig_t *nc, ni_interface_t *ifp,
 
 	__ni_global_seqno++;
 
-#if 0
-	if (!ni_interface_network_is_up(ifp)) {
-		if (ifp_req->ipv4)
-			ifp_req->ipv4->addrconf = 0;
-		if (ifp_req->ipv6)
-			ifp_req->ipv6->addrconf = 0;
-	}
-
-	if ((res = __ni_interface_addrconf(nc, AF_INET, ifp, ifp_req->ipv4)) < 0
-	 || (res = __ni_interface_addrconf(nc, AF_INET6, ifp, ifp_req->ipv6)) < 0)
-		goto failed;
-#endif
-
 	res = __ni_system_refresh_interface(nc, ifp);
 	return res;
 }
 
 
 #if 0
-int
-ni_system_interface_addrconf(ni_netconfig_t *nc, ni_interface_t *dev, const ni_addrconf_request_t *req)
-{
-	return __ni_interface_handle_addrconf_request(nc, dev, req);
-}
-
 /*
  * Bring up an interface
  * ni_system_interface_up
