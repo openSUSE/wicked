@@ -313,6 +313,23 @@ ni_dbus_message_iter_get_dict(DBusMessageIter *iter, ni_dbus_variant_t *result)
 	return TRUE;
 }
 
+dbus_bool_t
+ni_dbus_message_iter_get_variant_array(DBusMessageIter *iter, ni_dbus_variant_t *variant)
+{
+	dbus_bool_t rv = TRUE;
+
+	ni_dbus_variant_init_variant_array(variant);
+	while (rv && dbus_message_iter_get_arg_type(iter) == DBUS_TYPE_VARIANT) {
+		ni_dbus_variant_t *elem;
+
+		elem = ni_dbus_variant_append_variant_element(variant);
+		rv = ni_dbus_message_iter_get_variant(iter, elem);
+		dbus_message_iter_next(iter);
+	}
+
+	return rv;
+}
+
 
 static dbus_bool_t
 ni_dbus_message_iter_get_array(DBusMessageIter *iter, ni_dbus_variant_t *variant)
@@ -338,6 +355,9 @@ ni_dbus_message_iter_get_array(DBusMessageIter *iter, ni_dbus_variant_t *variant
 		break;
 	case DBUS_TYPE_ARRAY:
 		success = ni_dbus_message_iter_get_array_array(&iter_array, variant);
+		break;
+	case DBUS_TYPE_VARIANT:
+		success = ni_dbus_message_iter_get_variant_array(&iter_array, variant);
 		break;
 	default:
 		ni_debug_dbus("%s: cannot decode array of type %c", __FUNCTION__, array_type);
