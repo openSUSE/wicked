@@ -124,6 +124,7 @@ extern FILE *		ni_mkstemp(char **namep);
 extern int		ni_copy_file(FILE *, FILE *);
 extern int		ni_backup_file_to(const char *, const char *);
 extern int		ni_restore_file_from(const char *, const char *);
+extern int		ni_file_write(FILE *, const void *, size_t);
 
 extern int		ni_parse_int_mapped(const char *, const struct ni_intmap *, unsigned int *);
 extern int		ni_parse_int(const char *, unsigned int *);

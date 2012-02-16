@@ -1045,6 +1045,22 @@ out:
 }
 
 /*
+ * Write data to a file
+ */
+int
+ni_file_write(FILE *fp, const void *data, size_t len)
+{
+	size_t written;
+
+	written = fwrite(data, 1, len, fp);
+	if (written < len) {
+		ni_error("%s: %m", __func__);
+		return -1;
+	}
+	return written;
+}
+
+/*
  * Copy file for backup
  */
 int
