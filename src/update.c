@@ -171,10 +171,10 @@ ni_system_updater_run(ni_shellcmd_t *shellcmd, const char *filename)
 	ni_process_t *pi;
 	int rv;
 
-	pi = ni_process_instance_new(shellcmd);
+	pi = ni_process_new(shellcmd);
 
-	rv = ni_process_instance_run_and_wait(pi);
-	ni_process_instance_free(pi);
+	rv = ni_process_run_and_wait(pi);
+	ni_process_free(pi);
 
 	return rv >= 0;
 }

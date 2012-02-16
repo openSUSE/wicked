@@ -260,7 +260,7 @@ ni_objectmodel_expand_environment(const ni_dbus_object_t *object, const ni_var_a
 		}
 
 		ni_debug_dbus("%s: expanded %s=%s -> \"%s\"", object->path, var->name, var->value, value);
-		ni_process_instance_setenv(process, var->name, value);
+		ni_process_setenv(process, var->name, value);
 
 		ni_dbus_variant_destroy(&variant);
 	}
@@ -360,14 +360,14 @@ ni_objectmodel_extension_call(ni_dbus_connection_t *connection,
 	ni_debug_extension("preparing to run extension script \"%s\"", command->command);
 
 	/* Create an instance of this command */
-	process = ni_process_instance_new(command);
+	process = ni_process_new(command);
 
 	ni_objectmodel_expand_environment(object, &extension->environment, process);
 
 	/* Build the argument blob and store it in a file */
 	tempname = __ni_objectmodel_write_message(call, method);
 	if (tempname != NULL) {
-		ni_process_instance_setenv(process, "WICKED_ARGFILE", tempname);
+		ni_process_setenv(process, "WICKED_ARGFILE", tempname);
 		ni_string_free(&tempname);
 	} else {
 		dbus_set_error(&error, DBUS_ERROR_INVALID_ARGS,
@@ -379,7 +379,7 @@ ni_objectmodel_extension_call(ni_dbus_connection_t *connection,
 	/* Create empty reply for script return data */
 	tempname = __ni_objectmodel_empty_tempfile();
 	if (tempname != NULL) {
-		ni_process_instance_setenv(process, "WICKED_RETFILE", tempname);
+		ni_process_setenv(process, "WICKED_RETFILE", tempname);
 		ni_string_free(&tempname);
 	} else {
 		goto general_failure;
@@ -391,7 +391,7 @@ ni_objectmodel_extension_call(ni_dbus_connection_t *connection,
 		dbus_set_error(&error, DBUS_ERROR_FAILED, "%s: error executing method %s",
 				__func__, method->name);
 		ni_dbus_connection_send_error(connection, call, &error);
-		ni_process_instance_free(process);
+		ni_process_free(process);
 		return FALSE;
 	}
 
@@ -405,7 +405,7 @@ send_error:
 	ni_dbus_connection_send_error(connection, call, &error);
 
 	if (process)
-		ni_process_instance_free(process);
+		ni_process_free(process);
 
 	if (tempname) {
 		unlink(tempname);
@@ -424,7 +424,7 @@ ni_objectmodel_extension_completion(ni_dbus_connection_t *connection, const ni_d
 	const char *filename;
 	xml_document_t *doc = NULL;
 
-	if ((filename = ni_process_instance_getenv(process, "WICKED_RETFILE")) != NULL) {
+	if ((filename = ni_process_getenv(process, "WICKED_RETFILE")) != NULL) {
 		if (!(doc = xml_document_read(filename)))
 			ni_error("%s.%s: failed to parse return data",
 					interface_name, method->name);
@@ -475,11 +475,11 @@ send_error:
 
 	dbus_message_unref(reply);
 
-	if ((filename = ni_process_instance_getenv(process, "WICKED_ARGFILE")) != NULL) {
+	if ((filename = ni_process_getenv(process, "WICKED_ARGFILE")) != NULL) {
 		ni_debug_dbus("cleaning up tempfile %s", filename);
 		unlink(filename);
 	}
-	if ((filename = ni_process_instance_getenv(process, "WICKED_RETFILE")) != NULL) {
+	if ((filename = ni_process_getenv(process, "WICKED_RETFILE")) != NULL) {
 		ni_debug_dbus("cleaning up tempfile %s", filename);
 		unlink(filename);
 	}

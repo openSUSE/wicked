@@ -552,7 +552,7 @@ __ni_dbus_async_server_call_free(ni_dbus_async_server_call_t *async)
 		async->sub_process = NULL;
 
 		/* kill subprocess and free associated struct */
-		ni_process_instance_free(proc);
+		ni_process_free(proc);
 	}
 	free(async);
 }
@@ -567,7 +567,7 @@ ni_dbus_async_server_call_run_command(ni_dbus_connection_t *conn,
 	ni_dbus_async_server_call_t *async;
 	int rv;
 
-	if ((rv = ni_process_instance_run(process)) < 0) {
+	if ((rv = ni_process_run(process)) < 0) {
 		const char *path = ni_dbus_object_get_path(object);
 
 		ni_debug_dbus("%s: unable to run command \"%s\"", path, process->process->command);

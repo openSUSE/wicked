@@ -16,8 +16,8 @@
 #include "socket_priv.h"
 #include "process.h"
 
-static int				__ni_process_instance_run(ni_process_t *, int *);
-static ni_socket_t *			__ni_process_instance_get_output(ni_process_t *, int);
+static int				__ni_process_run(ni_process_t *, int *);
+static ni_socket_t *			__ni_process_get_output(ni_process_t *, int);
 static const ni_string_array_t *	__ni_default_environment(void);
 
 /*
@@ -46,7 +46,7 @@ ni_shellcmd_free(ni_shellcmd_t *proc)
 }
 
 ni_process_t *
-ni_process_instance_new(ni_shellcmd_t *proc)
+ni_process_new(ni_shellcmd_t *proc)
 {
 	ni_process_t *pi;
 	char *cmd, *s;
@@ -66,7 +66,7 @@ ni_process_instance_new(ni_shellcmd_t *proc)
 }
 
 void
-ni_process_instance_free(ni_process_t *pi)
+ni_process_free(ni_process_t *pi)
 {
 	if (pi->pid) {
 		if (kill(pi->pid, SIGKILL) < 0)
@@ -119,7 +119,7 @@ ni_shellcmd_setenv(ni_shellcmd_t *proc, const char *name, const char *value)
 }
 
 void
-ni_process_instance_setenv(ni_process_t *pi, const char *name, const char *value)
+ni_process_setenv(ni_process_t *pi, const char *name, const char *value)
 {
 	__ni_process_setenv(&pi->environ, name, value);
 }
@@ -146,7 +146,7 @@ __ni_process_getenv(const ni_string_array_t *env, const char *name)
 }
 
 const char *
-ni_process_instance_getenv(const ni_process_t *pi, const char *name)
+ni_process_getenv(const ni_process_t *pi, const char *name)
 {
 	return __ni_process_getenv(&pi->environ, name);
 }
@@ -195,7 +195,7 @@ ni_process_sigchild(int sig)
  * Run a subprocess.
  */
 int
-ni_process_instance_run(ni_process_t *pi)
+ni_process_run(ni_process_t *pi)
 {
 	int pfd[2],  rv;
 
@@ -205,7 +205,7 @@ ni_process_instance_run(ni_process_t *pi)
 		return -1;
 	}
 
-	rv = __ni_process_instance_run(pi, pfd);
+	rv = __ni_process_run(pi, pfd);
 	if (rv < 0) {
 		if (pfd[0] >= 0)
 			close(pfd[0]);
@@ -217,11 +217,11 @@ ni_process_instance_run(ni_process_t *pi)
 }
 
 int
-ni_process_instance_run_and_wait(ni_process_t *pi)
+ni_process_run_and_wait(ni_process_t *pi)
 {
 	int  rv;
 
-	rv = __ni_process_instance_run(pi, NULL);
+	rv = __ni_process_run(pi, NULL);
 	if (rv < 0)
 		return rv;
 
@@ -245,7 +245,7 @@ ni_process_instance_run_and_wait(ni_process_t *pi)
 }
 
 int
-__ni_process_instance_run(ni_process_t *pi, int *pfd)
+__ni_process_run(ni_process_t *pi, int *pfd)
 {
 	pid_t pid;
 
@@ -298,7 +298,7 @@ __ni_process_instance_run(ni_process_t *pi, int *pfd)
 	if (pfd) {
 		/* Set up a socket to receive the redirected output of the
 		 * subprocess. */
-		pi->socket = __ni_process_instance_get_output(pi, pfd[0]);
+		pi->socket = __ni_process_get_output(pi, pfd[0]);
 		ni_socket_activate(pi->socket);
 		close(pfd[1]);
 	}
@@ -310,7 +310,7 @@ __ni_process_instance_run(ni_process_t *pi, int *pfd)
  * Collect the exit status of the child process
  */
 static int
-ni_process_instance_reap(ni_process_t *pi)
+ni_process_reap(ni_process_t *pi)
 {
 	if (pi->pid == 0) {
 		ni_error("%s: child already reaped", __func__);
@@ -380,7 +380,7 @@ __ni_process_output_hangup(ni_socket_t *sock)
 	ni_process_t *pi = sock->user_data;
 
 	if (pi && pi->socket == sock) {
-		if (ni_process_instance_reap(pi) < 0)
+		if (ni_process_reap(pi) < 0)
 			ni_error("pipe closed by child process, but child did not exit");
 		ni_socket_close(pi->socket);
 		pi->socket = NULL;
@@ -388,7 +388,7 @@ __ni_process_output_hangup(ni_socket_t *sock)
 }
 
 static ni_socket_t *
-__ni_process_instance_get_output(ni_process_t *pi, int fd)
+__ni_process_get_output(ni_process_t *pi, int fd)
 {
 	ni_socket_t *sock;
 
