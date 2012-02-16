@@ -31,7 +31,7 @@
 #include <wicked/bonding.h>
 #include <wicked/vlan.h>
 #include <wicked/system.h>
-#include <wicked/xml.h>
+#include <wicked/wireless.h>
 
 #include "netinfo_priv.h"
 #include "sysfs.h"
@@ -82,10 +82,16 @@ ni_system_interface_link_change(ni_interface_t *ifp, const ni_interface_request_
 			ni_error("%s: failed to bring up interface (rtnl error)", ifp->name);
 			return -1;
 		}
+
+		if (ifp->link.type == NI_IFTYPE_WIRELESS)
+			ni_wireless_connect(ifp);
 	} else {
 		/* FIXME: Shut down any addrconf services on this interface?
 		 * We should expect these services to detect the link down event...
 		 */
+
+		if (ifp->link.type == NI_IFTYPE_WIRELESS)
+			ni_wireless_disconnect(ifp);
 
 		/* Now take down the link for real */
 		ni_debug_ifconfig("shutting down interface %s", ifp->name);

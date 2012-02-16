@@ -158,6 +158,7 @@ __ni_rtevent_newlink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 	struct ifinfomsg *ifi;
 	struct nlattr *nla;
 	char *ifname = NULL;
+	int old_flags = -1;
 
 	if (!(ifi = ni_rtnl_ifinfomsg(h, RTM_NEWLINK)))
 		return -1;
@@ -171,58 +172,54 @@ __ni_rtevent_newlink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 		ifname = (char *) nla_data(nla);
 	}
 
-	ifp = __ni_interface_new(ifname, ifi->ifi_index);
+	old = ni_interface_by_index(nc, ifi->ifi_index);
+	if (old != NULL) {
+		old_flags = old->link.ifflags;
+		ifp = old;
+	} else {
+		ifp = ni_interface_new(nc, ifname, ifi->ifi_index);
+	}
 	if (__ni_interface_process_newlink(ifp, h, ifi, nc) < 0) {
 		ni_error("Problem parsing RTM_NEWLINK message for %s", ifname);
 		return -1;
 	}
 
 	if (ifname) {
-		old = ni_interface_by_name(nc, ifname);
-		if (old && old->link.ifindex != ifi->ifi_index) {
+		ni_interface_t *conflict;
+
+		conflict = ni_interface_by_name(nc, ifname);
+		if (conflict && conflict->link.ifindex != ifi->ifi_index) {
 			/* We probably missed a deletion event. Just clobber the old interface. */
 			ni_warn("linkchange event: found interface %s with different ifindex", ifname);
-			old->link.ifindex = ifi->ifi_index;
+
+			/* We should purge this either now or on the next refresh */
+			ni_string_dup(&conflict->name, "dead");
 		}
 	}
 
-	old = ni_interface_by_index(nc, ifi->ifi_index);
 	if (old) {
 		unsigned int new_flags, flags_changed;
 
 		/* If the interface name changed, update it */
-		if (ifname && strcmp(ifname, old->name))
-			strncpy(old->name, ifname, sizeof(old->name) - 1);
+		if (ifname && strcmp(ifname, ifp->name))
+			ni_string_dup(&ifp->name, ifname);
 
-		new_flags = __ni_interface_translate_ifflags(ifi->ifi_flags);
-		flags_changed = old->link.ifflags ^ new_flags;
-		old->link.ifflags = new_flags;
-
-		/* Discard interface created by parsing new newlink event. */
-		ni_interface_put(ifp);
-		ifp = old;
+		new_flags = ifp->link.ifflags;
+		flags_changed = old_flags ^ new_flags;
 
 		if (flags_changed & NI_IFF_LINK_UP) {
 			if (new_flags & NI_IFF_LINK_UP)
-				__ni_interface_event(nc, old, NI_EVENT_LINK_UP);
+				__ni_interface_event(nc, ifp, NI_EVENT_LINK_UP);
 			else
-				__ni_interface_event(nc, old, NI_EVENT_LINK_DOWN);
+				__ni_interface_event(nc, ifp, NI_EVENT_LINK_DOWN);
 		}
 		if (flags_changed & NI_IFF_NETWORK_UP) {
 			if (new_flags & NI_IFF_NETWORK_UP)
-				__ni_interface_event(nc, old, NI_EVENT_NETWORK_UP);
+				__ni_interface_event(nc, ifp, NI_EVENT_NETWORK_UP);
 			else
-				__ni_interface_event(nc, old, NI_EVENT_NETWORK_DOWN);
+				__ni_interface_event(nc, ifp, NI_EVENT_NETWORK_DOWN);
 		}
 	} else {
-		ni_interface_t **pos;
-
-		/* Add new interface to our list of devices */
-		for (pos = &nc->interfaces; *pos; pos = &(*pos)->next)
-			;
-		*pos = ifp;
-
-		ifp->link.ifflags = __ni_interface_translate_ifflags(ifi->ifi_flags);
 		__ni_interface_event(nc, ifp, NI_EVENT_LINK_CREATE);
 	}
 

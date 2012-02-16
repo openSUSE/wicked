@@ -67,6 +67,7 @@ ni_wireless_interface_refresh(ni_interface_t *ifp)
 	ni_wpa_client_t *wpa;
 	ni_wpa_interface_t *wif;
 	ni_wireless_scan_t *scan;
+	ni_wireless_t *wlan;
 
 	if (!(wpa = ni_wpa_client()))
 		return -1;
@@ -77,20 +78,22 @@ ni_wireless_interface_refresh(ni_interface_t *ifp)
 		return -1;
 	}
 
-	if (ifp->wireless == NULL) {
-		ni_wireless_t *wlan;
-
-		wlan = ni_wireless_new();
-		ifp->wireless = wlan;
+	if ((wlan = ifp->wireless) == NULL) {
+		ifp->wireless = wlan = ni_wireless_new();
 	}
 
-	ifp->wireless->capabilities = wif->capabilities;
+	wlan->capabilities = wif->capabilities;
 
 	scan = ni_wireless_scan_new();
 	if (ni_wpa_interface_retrieve_scan(wpa, wif, scan) >= 0)
 		ni_interface_set_wireless_scan(ifp, scan);
 	else
 		ni_wireless_scan_free(scan);
+
+	/* A wireless "link" isn't really up until we have associated
+	 * and authenticated. */
+	if (wlan->assoc.state != NI_WIRELESS_ESTABLISHED)
+		ifp->link.ifflags &= ~(NI_IFF_LINK_UP | NI_IFF_NETWORK_UP);
 
 	return 0;
 }
@@ -169,16 +172,13 @@ __ni_wireless_request_scan(ni_netconfig_t *nc, ni_interface_t *ifp)
  * Request association
  */
 int
-ni_wireless_associate(ni_interface_t *dev, ni_wireless_network_t *net)
+ni_wireless_set_network(ni_interface_t *dev, ni_wireless_network_t *net)
 {
+	int link_was_up = !!(dev->link.ifflags & NI_IFF_LINK_UP);
 	ni_wireless_t *wlan;
 	ni_wpa_client_t *wpa;
 	ni_wpa_interface_t *wpa_dev;
 
-	if (dev->link.type != NI_IFTYPE_WIRELESS) {
-		ni_error("%s: not a wireless interface", dev->name);
-		return -1;
-	}
 	if ((wlan = ni_interface_get_wireless(dev)) == NULL) {
 		ni_error("%s: no wireless info for device", dev->name);
 		return -1;
@@ -190,9 +190,41 @@ ni_wireless_associate(ni_interface_t *dev, ni_wireless_network_t *net)
 	if (!(wpa_dev = ni_wpa_interface_bind(wpa, dev)))
 		return -1;
 
+	/* Make sure we drop our exsting association */
+	/* FIXME: we should only do this if the new association
+	 * request is different. */
+	if (wlan->assoc.state != NI_WIRELESS_NOT_ASSOCIATED)
+		ni_wpa_interface_disassociate(wpa_dev);
+
 	ni_wireless_set_assoc_network(wlan, net);
 
+	if (!link_was_up)
+		return 0;
+
 	return ni_wpa_interface_associate(wpa_dev, net);
+}
+
+int
+ni_wireless_connect(ni_interface_t *dev)
+{
+	ni_wireless_t *wlan;
+	ni_wpa_client_t *wpa;
+	ni_wpa_interface_t *wpa_dev;
+
+	if ((wlan = ni_interface_get_wireless(dev)) == NULL) {
+		ni_error("%s: no wireless info for device", dev->name);
+		return -1;
+	}
+	if (wlan->assoc.network == NULL)
+		return 0;
+
+	if (!(wpa = ni_wpa_client()))
+		return -1;
+
+	if (!(wpa_dev = ni_wpa_interface_bind(wpa, dev)))
+		return -1;
+
+	return ni_wpa_interface_associate(wpa_dev, wlan->assoc.network);
 }
 
 /*
@@ -205,10 +237,6 @@ ni_wireless_disconnect(ni_interface_t *dev)
 	ni_wpa_client_t *wpa;
 	ni_wpa_interface_t *wpa_dev;
 
-	if (dev->link.type != NI_IFTYPE_WIRELESS) {
-		ni_error("%s: not a wireless interface", dev->name);
-		return -1;
-	}
 	if ((wlan = ni_interface_get_wireless(dev)) == NULL) {
 		ni_error("%s: no wireless info for device", dev->name);
 		return -1;
@@ -249,10 +277,12 @@ ni_wireless_association_changed(unsigned int ifindex, ni_wireless_assoc_state_t 
 	switch (new_state) {
 	case NI_WIRELESS_ESTABLISHED:
 		ev = NI_EVENT_LINK_ASSOCIATED;
+		ev = NI_EVENT_LINK_UP;
 		break;
 
 	case NI_WIRELESS_NOT_ASSOCIATED:
-		ev = NI_WIRELESS_NOT_ASSOCIATED;
+		ev = NI_EVENT_LINK_ASSOCIATION_LOST;
+		ev = NI_EVENT_LINK_DOWN;
 		break;
 
 	default: ;

@@ -30,14 +30,18 @@ ni_objectmodel_wireless_link_change(ni_dbus_object_t *object, const ni_dbus_meth
 		goto error;
 
 	if (net->essid.len != 0) {
+		dbus_bool_t was_up = FALSE;
+
+		was_up = (ifp->wireless->assoc.state == NI_WIRELESS_ESTABLISHED);
+
 		/* We're asked to associate with the given network */
-		if (ni_wireless_associate(ifp, net) < 0) {
+		if (ni_wireless_set_network(ifp, net) < 0) {
 			dbus_set_error(error, DBUS_ERROR_FAILED,
 					"could not associate");
 			goto error;
 		}
 
-		if (ifp->wireless->assoc.state == NI_WIRELESS_ESTABLISHED) {
+		if (!was_up || ifp->wireless->assoc.state == NI_WIRELESS_ESTABLISHED) {
 			rv = TRUE;
 		} else {
 			/* Link is not associated yet. Tell the caller to wait for an event. */

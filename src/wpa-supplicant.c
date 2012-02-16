@@ -547,6 +547,28 @@ ni_wpa_interface_get_state(ni_wpa_client_t *wpa, ni_wpa_interface_t *ifp)
 }
 
 /*
+ * Set AP scanning
+ */
+static dbus_bool_t
+ni_wpa_interface_set_ap_scan(ni_wpa_interface_t *dev, unsigned int level)
+{
+	uint32_t value = level;
+	int rv;
+
+	rv = ni_dbus_object_call_simple(dev->proxy,
+			NULL, "setAPScan",
+			DBUS_TYPE_UINT32, &value,
+			DBUS_TYPE_INVALID, NULL);
+
+	if (rv < 0) {
+		ni_error("%s.setAPScan(%u) failed", dev->ifname, level);
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+/*
  * Request an interface scan
  */
 int
@@ -709,6 +731,8 @@ ni_wpa_interface_associate(ni_wpa_interface_t *dev, ni_wireless_network_t *net)
 	/* FIXME: make sure we have all the keys/pass phrases etc to
 	 * associate. */
 
+	ni_wpa_interface_set_ap_scan(dev, 1);
+
 	if ((net_object = dev->requested_association.proxy) == NULL) {
 		char *object_path;
 
@@ -749,6 +773,7 @@ ni_wpa_interface_disassociate(ni_wpa_interface_t *wpa_dev)
 			return -1;
 		}
 
+		/* __ni_dbus_object_unlink(net_object); */
 		ni_dbus_object_free(net_object);
 		wpa_dev->requested_association.proxy = NULL;
 	}
@@ -763,12 +788,13 @@ ni_wpa_interface_disassociate(ni_wpa_interface_t *wpa_dev)
 		wpa_dev->requested_association.config = NULL;
 	}
 
+	ni_wpa_interface_set_ap_scan(wpa_dev, 1);
 	return 0;
 }
 
 /*
  * wpa_supplicant signals a StateChange event for a given interface.
- * Loop up the interface by object path and update its state.
+ * Look up the interface by object path and update its state.
  *
  * FIXME: notify upper layers
  */
