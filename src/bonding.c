@@ -79,7 +79,7 @@ ni_bonding_clone(const ni_bonding_t *src)
 	return dst;
 
 failed:
-	error("Error clonding bonding configuration");
+	ni_error("Error clonding bonding configuration");
 	ni_bonding_free(dst);
 	return NULL;
 }
@@ -501,16 +501,16 @@ ni_bonding_write_one_sysfs_attr(const char *ifname, const ni_bonding_t *bonding,
 	}
 
 	if (config_value[0] == '\0') {
-		debug_ifconfig("%s: attr %s ignored", ifname, attrname);
+		ni_debug_ifconfig("%s: attr %s ignored", ifname, attrname);
 		return 0;
 	}
 
 	if (!strcmp(current_value, config_value)) {
-		debug_ifconfig("%s: attr %s unchanged", ifname, attrname);
+		ni_debug_ifconfig("%s: attr %s unchanged", ifname, attrname);
 		return 0;
 	}
 
-	debug_ifconfig("%s: setting attr %s=%s", ifname, attrname, config_value);
+	ni_debug_ifconfig("%s: setting attr %s=%s", ifname, attrname, config_value);
 	if (ni_sysfs_bonding_set_attr(ifname, attrname, config_value) < 0) {
 		ni_error("%s: cannot set bonding attribute %s=%s", ifname, attrname, config_value);
 		return -1;

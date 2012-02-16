@@ -182,7 +182,7 @@ int
 ni_interface_put(ni_interface_t *ifp)
 {
 	if (!ifp->users) {
-		error("ni_interface_put: bad mojo");
+		ni_error("ni_interface_put: bad mojo");
 		return 0;
 	}
 	ifp->users--;

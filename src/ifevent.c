@@ -189,7 +189,7 @@ __ni_rtevent_newlink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 
 	ifp = __ni_interface_new(ifname, ifi->ifi_index);
 	if (__ni_interface_process_newlink(ifp, h, ifi, nc) < 0) {
-		error("Problem parsing RTM_NEWLINK message for %s", ifname);
+		ni_error("Problem parsing RTM_NEWLINK message for %s", ifname);
 		return -1;
 	}
 
@@ -300,7 +300,7 @@ __ni_rtevent_newprefix(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, str
 		return 0;
 
 	if (__ni_interface_process_newprefix(ifp, h, pfx) < 0) {
-		error("Problem parsing RTM_NEWPREFIX message for %s", ifp->name);
+		ni_error("Problem parsing RTM_NEWPREFIX message for %s", ifp->name);
 		return -1;
 	}
 	return 0;

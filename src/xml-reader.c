@@ -739,7 +739,7 @@ xml_parse_error(struct xml_reader *reader, const char *fmt, ...)
 	vsnprintf(errmsg, sizeof(errmsg), fmt, ap);
 	va_end(ap);
 
-	error("%s: line %u: %s", reader->filename, reader->lineCount, errmsg);
+	ni_error("%s: line %u: %s", reader->filename, reader->lineCount, errmsg);
 	reader->state = Error;
 }
 
@@ -879,7 +879,7 @@ xml_reader_open(xml_reader_t *xr, const char *filename)
 
 	xr->file = fopen(filename, "r");
 	if (xr->file == NULL) {
-		error("Unable to open %s: %m", filename);
+		ni_error("Unable to open %s: %m", filename);
 		return 0;
 	}
 
@@ -961,8 +961,8 @@ xml_ungetc(xml_reader_t *xr, char cc)
 	if (xr->pos == NULL
 	 || xr->pos == (unsigned char *) xr->buffer
 	 || xr->pos[-1] != cc) {
-		error("xml_ungetc: cannot put back");
-		error("  buffer=%p pos=%p *pos=0x%x cc=0x%x",
+		ni_error("xml_ungetc: cannot put back");
+		ni_error("  buffer=%p pos=%p *pos=0x%x cc=0x%x",
 				xr->buffer, xr->pos,
 				xr->pos? xr->pos[-1] : 0,
 				cc);

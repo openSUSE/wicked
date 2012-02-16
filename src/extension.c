@@ -173,10 +173,10 @@ __ni_extension_run(const ni_extension_t *ex, ni_script_action_t *script, xml_nod
 		}
 
 		if (!WIFEXITED(status)) {
-			error("extension %s: %s command terminated abnormally",
+			ni_error("extension %s: %s command terminated abnormally",
 					ex->name, script->name);
 		} else if (WEXITSTATUS(status) != 0) {
-			error("extension %s: %s command exited with error status %d",
+			ni_error("extension %s: %s command exited with error status %d",
 					ex->name, script->name, WEXITSTATUS(status));
 		} else {
 			rv = 0;

@@ -512,7 +512,7 @@ ni_link_address_parse(ni_hwaddr_t *hwa, unsigned int type, const char *string)
 	case NI_IFTYPE_SIT:
 	case NI_IFTYPE_GRE:
 	case NI_IFTYPE_TUNNEL6:
-		error("%s: setting tunnel addrs not yet implemented",
+		ni_error("%s: setting tunnel addrs not yet implemented",
 				__FUNCTION__);
 		return -1;
 	}
@@ -608,7 +608,7 @@ __ni_route_new(ni_route_t **list, unsigned int prefixlen, const ni_sockaddr_t *d
 		 * Just make sure the destination is not the default
 		 * route. */
 		if (af == AF_UNSPEC) {
-			error("Cannot add route - destination and gw are both 0/0");
+			ni_error("Cannot add route - destination and gw are both 0/0");
 			return NULL;
 		}
 	} else {
@@ -616,7 +616,7 @@ __ni_route_new(ni_route_t **list, unsigned int prefixlen, const ni_sockaddr_t *d
 			af = gw->ss_family;
 		} else
 		if (dest->ss_family != gw->ss_family) {
-			error("Cannot create route - destination and gateway address "
+			ni_error("Cannot create route - destination and gateway address "
 					"family mismatch");
 			return NULL;
 		}

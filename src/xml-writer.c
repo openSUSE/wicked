@@ -200,7 +200,7 @@ xml_writer_open(xml_writer_t *writer, const char *filename)
 	memset(writer, 0, sizeof(*writer));
 	writer->file = fopen(filename, "w");
 	if (!writer->file) {
-		error("xml_writer: cannot open %s for writing: %m", filename);
+		ni_error("xml_writer: cannot open %s for writing: %m", filename);
 		return -1;
 	}
 

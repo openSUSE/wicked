@@ -226,7 +226,7 @@ handle_atsign:
 
 			/* path/Name */
 			if (!(ident = __xpath_next_identifier(&pos))) {
-				error("XPATH: expected identifier at \"%s\"", pos);
+				ni_error("XPATH: expected identifier at \"%s\"", pos);
 				goto failed;
 			}
 
@@ -240,7 +240,7 @@ handle_name_or_axis:
 				*colons = '\0';
 				ops = xpath_get_axis_ops(ident);
 				if (!ops) {
-					error("XPATH: unknown operator %s::", ident);
+					ni_error("XPATH: unknown operator %s::", ident);
 					goto failed;
 				}
 
@@ -252,7 +252,7 @@ handle_name_or_axis:
 					/* This one has form "axis::*" */
 					++pos;
 				} else {
-					error("operator %s:: must be followed by Name or *", ident);
+					ni_error("operator %s:: must be followed by Name or *", ident);
 					goto failed;
 				}
 			} else if (*pos == '(') {
@@ -285,7 +285,7 @@ handle_name_or_axis:
 			if (!current->right)
 				goto failed;
 			if (*pos != ']') {
-				error("XPATH: Missing closing ]");
+				ni_error("XPATH: Missing closing ]");
 				goto failed;
 			}
 			++pos;
@@ -314,13 +314,13 @@ handle_name_or_axis:
 find_infix_operator:
 			ops = xpath_get_infix_ops(ident);
 			if (!ops) {
-				error("operator %s not implemented", ident);
+				ni_error("operator %s not implemented", ident);
 				goto failed;
 			}
 
 handle_infix_operator:
 			if (current == NULL) {
-				error("Operator %s without LHS expression", ident);
+				ni_error("Operator %s without LHS expression", ident);
 				goto failed;
 			}
 
@@ -364,7 +364,7 @@ handle_function:
 				/* find named function */;
 				ops = xpath_get_function(ident);
 				if (!ops) {
-					error("XPATH: unknown function \"%s\"", ident);
+					ni_error("XPATH: unknown function \"%s\"", ident);
 					goto failed;
 				}
 
@@ -432,7 +432,7 @@ handle_function:
 	return current;
 
 failed:
-	/* error("xpath: syntax error in expression \"%s\" at position %s", expr, pos); */
+	/* ni_error("xpath: syntax error in expression \"%s\" at position %s", expr, pos); */
 	if (current)
 		xpath_enode_free(current);
 	return NULL;
@@ -464,7 +464,7 @@ __xpath_next_identifier(const char **pp)
 	while (isalnum(pos[n]) || pos[n] == '-' || pos[n] == ':')
 		++n;
 	if (n >= sizeof(identbuf)) {
-		error("xpath: identifier too long");
+		ni_error("xpath: identifier too long");
 		return NULL;
 	}
 
@@ -572,7 +572,7 @@ __xpath_expression_cast(const xpath_enode_t *enode, xpath_result_t **nap)
 	}
 
 cannot_convert:
-	error("XPATH expression \"%s\" expects %s value, got %s",
+	ni_error("XPATH expression \"%s\" expects %s value, got %s",
 			enode->ops->name,
 			xpath_node_type_name(expected),
 			xpath_node_type_name(type));
@@ -736,7 +736,7 @@ __xpath_expression_eval(const xpath_enode_t *enode, xpath_result_t *in)
 	}
 
 	if (result && enode->ops->outtype != result->type) {
-		error("XPATH expression \"%s\" should produce %s value, but returns %s",
+		ni_error("XPATH expression \"%s\" should produce %s value, but returns %s",
 				enode->ops->name,
 				xpath_node_type_name(enode->ops->outtype),
 				xpath_node_type_name(result->type));

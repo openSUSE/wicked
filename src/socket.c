@@ -503,7 +503,7 @@ ni_local_socket_listen(const char *path, unsigned int permissions)
 	permissions &= 0777;
 	fd = socket(AF_LOCAL, SOCK_STREAM, 0);
 	if (fd < 0) {
-		error("cannot open AF_LOCAL socket: %m");
+		ni_error("cannot open AF_LOCAL socket: %m");
 		return NULL;
 	}
 
@@ -512,7 +512,7 @@ ni_local_socket_listen(const char *path, unsigned int permissions)
 		unsigned int len = strlen(path);
 
 		if (len + 1 > sizeof(sun.sun_path)) {
-			error("can't set AF_LOCAL address: path too long!");
+			ni_error("can't set AF_LOCAL address: path too long!");
 			return NULL;
 		}
 
@@ -522,20 +522,20 @@ ni_local_socket_listen(const char *path, unsigned int permissions)
 
 		unlink(path);
 		if (bind(fd, (struct sockaddr *) &sun, sizeof(sun)) < 0) {
-			error("bind(%s) failed: %m", path);
+			ni_error("bind(%s) failed: %m", path);
 			goto failed;
 		}
 		bound = 1;
 
 		if (chmod(path, permissions) < 0) {
-			error("chmod(%s, 0%3o) failed: %m", path, permissions);
+			ni_error("chmod(%s, 0%3o) failed: %m", path, permissions);
 			goto failed;
 		}
 
 	}
 
 	if (listen(fd, 128) < 0) {
-		error("cannot listen on local socket: %m");
+		ni_error("cannot listen on local socket: %m");
 		goto failed;
 	}
 
@@ -558,13 +558,13 @@ ni_local_socket_connect(const char *path)
 	int fd;
 
 	if (!path) {
-		error("cannot connect to server - no server socket path specified");
+		ni_error("cannot connect to server - no server socket path specified");
 		return NULL;
 	}
 
 	fd = socket(AF_LOCAL, SOCK_STREAM, 0);
 	if (fd < 0) {
-		error("cannot open AF_LOCAL socket: %m");
+		ni_error("cannot open AF_LOCAL socket: %m");
 		return NULL;
 	}
 
@@ -573,7 +573,7 @@ ni_local_socket_connect(const char *path)
 		unsigned int len = strlen(path);
 
 		if (len + 1 > sizeof(sun.sun_path)) {
-			error("can't set AF_LOCAL address: path too long!");
+			ni_error("can't set AF_LOCAL address: path too long!");
 			goto failed;
 		}
 
@@ -608,7 +608,7 @@ __ni_socket_accept(ni_socket_t *master)
 
 	clen = sizeof(cred);
 	if (getsockopt(fd, SOL_SOCKET, SO_PEERCRED, &cred, &clen) < 0) {
-		error("failed to get client credentials: %m");
+		ni_error("failed to get client credentials: %m");
 		close(fd);
 		return;
 	}

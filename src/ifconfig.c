@@ -224,7 +224,7 @@ ni_system_interface_delete(ni_netconfig_t *nc, const char *ifname)
 
 	ifp = ni_interface_by_name(nc, ifname);
 	if (ifp == NULL) {
-		error("cannot delete interface %s - not known", ifname);
+		ni_error("cannot delete interface %s - not known", ifname);
 		return -1;
 	}
 
@@ -238,21 +238,21 @@ ni_system_interface_delete(ni_netconfig_t *nc, const char *ifname)
 
 	case NI_IFTYPE_VLAN:
 		if (__ni_rtnl_link_down(ifp, RTM_DELLINK)) {
-			error("could not destroy VLAN interface %s", ifp->name);
+			ni_error("could not destroy VLAN interface %s", ifp->name);
 			return -1;
 		}
 		break;
 
 	case NI_IFTYPE_BRIDGE:
 		if (__ni_brioctl_del_bridge(ifp->name) < 0) {
-			error("could not destroy bridge interface %s", ifp->name);
+			ni_error("could not destroy bridge interface %s", ifp->name);
 			return -1;
 		}
 		break;
 
 	case NI_IFTYPE_BOND:
 		if (ni_sysfs_bonding_delete_master(ifp->name) < 0) {
-			error("could not destroy bonding interface %s", ifp->name);
+			ni_error("could not destroy bonding interface %s", ifp->name);
 			return -1;
 		}
 		break;
@@ -289,7 +289,7 @@ ni_system_vlan_create(ni_netconfig_t *nc, const char *ifname, const ni_vlan_t *c
 
 	ni_debug_ifconfig("%s: creating VLAN device", ifname);
 	if (__ni_rtnl_link_create_vlan(ifname, cfg_vlan, phys_dev->link.ifindex)) {
-		error("unable to create vlan interface %s", ifname);
+		ni_error("unable to create vlan interface %s", ifname);
 		return -1;
 	}
 
@@ -298,7 +298,7 @@ ni_system_vlan_create(ni_netconfig_t *nc, const char *ifname, const ni_vlan_t *c
 
 	ifp = ni_interface_by_vlan_tag(nc, cfg_vlan->tag);
 	if (ifp == NULL) {
-		error("tried to create interface %s; still not found", ifname);
+		ni_error("tried to create interface %s; still not found", ifname);
 		return -1;
 	}
 
@@ -312,7 +312,7 @@ ni_system_vlan_create(ni_netconfig_t *nc, const char *ifname, const ni_vlan_t *c
 			return -1;
 		real_dev = ni_interface_by_name(nc, cfg_vlan->physdev_name);
 		if (!real_dev || !real_dev->link.ifindex) {
-			error("Cannot bring up VLAN interface %s: %s does not exist",
+			ni_error("Cannot bring up VLAN interface %s: %s does not exist",
 					ifname, cfg_vlan->physdev_name);
 			return -1;
 		}
@@ -322,7 +322,7 @@ ni_system_vlan_create(ni_netconfig_t *nc, const char *ifname, const ni_vlan_t *c
 		 * Note, we don't change anything except its link status */
 		if (!ni_interface_network_is_up(real_dev)
 		 && __ni_system_interface_bringup(nc, real_dev) < 0) {
-			error("Cannot bring up VLAN interface %s: %s not ready yet",
+			ni_error("Cannot bring up VLAN interface %s: %s not ready yet",
 					ifname, cfg_vlan->physdev_name);
 			return -1;
 		}
@@ -681,7 +681,7 @@ __ni_interface_extension_delete(ni_netconfig_t *nc, ni_interface_t *ifp)
 	// ex = ni_config_find_linktype_extension(ni_global.config, ifp->link.type);
 	ex = NULL;
 	if (ex == NULL) {
-		error("cannot configure %s interface - not implemented yet",
+		ni_error("cannot configure %s interface - not implemented yet",
 				ni_linktype_type_to_name(ifp->link.type));
 		return -1;
 	}
@@ -773,7 +773,7 @@ __ni_rtnl_link_create_vlan(const char *ifname, const ni_vlan_t *vlan, unsigned i
 	 *  INFO_DATA must contain VLAN_ID
 	 *  LINK must contain the link ID of the real ethernet device
 	 */
-	debug_ifconfig("__ni_rtnl_link_create(%s, vlan, %u, %s)",
+	ni_debug_ifconfig("__ni_rtnl_link_create(%s, vlan, %u, %s)",
 			ifname, vlan->tag, vlan->physdev_name);
 
 	if (!(linkinfo = nla_nest_start(msg, IFLA_LINKINFO)))
@@ -792,7 +792,7 @@ __ni_rtnl_link_create_vlan(const char *ifname, const ni_vlan_t *vlan, unsigned i
 
 	len = strlen(ifname) + 1;
 	if (len == 1 || len > IFNAMSIZ) {
-		error("\"%s\" is not a valid device identifier", ifname);
+		ni_error("\"%s\" is not a valid device identifier", ifname);
 		return -1;
 	}
 	NLA_PUT_STRING(msg, IFLA_IFNAME, ifname);
@@ -1155,7 +1155,7 @@ __ni_rtnl_send_newroute(ni_interface_t *ifp, ni_route_t *rp, int flags)
 	}
 
 	if (ni_nl_talk(msg) < 0) {
-		error("%s(%s): rtnl_talk failed", __FUNCTION__, ni_route_print(rp));
+		ni_error("%s(%s): rtnl_talk failed", __FUNCTION__, ni_route_print(rp));
 		goto failed;
 	}
 

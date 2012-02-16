@@ -52,7 +52,7 @@ ni_init()
 	int explicit_config = 1;
 
 	if (ni_global.initialized) {
-		error("ni_init called twice");
+		ni_error("ni_init called twice");
 		return -1;
 	}
 
@@ -64,12 +64,12 @@ ni_init()
 	if (ni_file_exists(ni_global.config_path)) {
 		ni_global.config = ni_config_parse(ni_global.config_path);
 		if (!ni_global.config) {
-			error("Unable to parse netinfo configuration file");
+			ni_error("Unable to parse netinfo configuration file");
 			return -1;
 		}
 	} else {
 		if (explicit_config) {
-			error("Configuration file %s does not exist",
+			ni_error("Configuration file %s does not exist",
 					ni_global.config_path);
 			return -1;
 		}

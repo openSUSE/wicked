@@ -293,7 +293,7 @@ __ni_system_refresh_all(ni_netconfig_t *nc, ni_interface_t **del_list)
 			continue;
 
 		if (__ni_interface_process_newlink_ipv6(ifp, h, ifi) < 0)
-			error("Problem parsing IPv6 RTM_NEWLINK message for %s", ifp->name);
+			ni_error("Problem parsing IPv6 RTM_NEWLINK message for %s", ifp->name);
 	}
 
 	while (1) {
@@ -306,7 +306,7 @@ __ni_system_refresh_all(ni_netconfig_t *nc, ni_interface_t **del_list)
 			continue;
 
 		if (__ni_interface_process_newaddr(ifp, h, ifa) < 0)
-			error("Problem parsing RTM_NEWADDR message for %s", ifp->name);
+			ni_error("Problem parsing RTM_NEWADDR message for %s", ifp->name);
 	}
 
 	while (1) {
@@ -319,7 +319,7 @@ __ni_system_refresh_all(ni_netconfig_t *nc, ni_interface_t **del_list)
 		if (oif_index >= 0) {
 			ifp = ni_interface_by_index(nc, oif_index);
 			if (ifp == NULL) {
-				error("route specifies OIF=%u; not found!", oif_index);
+				ni_error("route specifies OIF=%u; not found!", oif_index);
 				continue;
 			}
 		} else {
@@ -327,7 +327,7 @@ __ni_system_refresh_all(ni_netconfig_t *nc, ni_interface_t **del_list)
 		}
 
 		if (__ni_interface_process_newroute(ifp, h, rtm, nc) < 0)
-			error("Problem parsing RTM_NEWROUTE message");
+			ni_error("Problem parsing RTM_NEWROUTE message");
 	}
 
 	/* Cull any interfaces that went away */
@@ -390,7 +390,7 @@ __ni_system_refresh_interface(ni_netconfig_t *nc, ni_interface_t *ifp)
 			break;
 
 		if (__ni_interface_process_newaddr(ifp, h, ifa) < 0)
-			error("Problem parsing RTM_NEWADDR message for %s", ifp->name);
+			ni_error("Problem parsing RTM_NEWADDR message for %s", ifp->name);
 	}
 
 	while (1) {
@@ -400,7 +400,7 @@ __ni_system_refresh_interface(ni_netconfig_t *nc, ni_interface_t *ifp)
 			break;
 
 		if (__ni_interface_process_newroute(ifp, h, rtm, NULL) < 0)
-			error("Problem parsing RTM_NEWROUTE message");
+			ni_error("Problem parsing RTM_NEWROUTE message");
 	}
 
 	res = 0;
@@ -986,7 +986,7 @@ __ni_interface_process_newroute(ni_interface_t *ifp, struct nlmsghdr *h,
 		static int warned = 0;
 
 		if (!warned++)
-			warn("Warning: encountered source route; cannot handle");
+			ni_warn("Warning: encountered source route; cannot handle");
 		return 0;
 	}
 
@@ -1011,7 +1011,7 @@ __ni_interface_process_newroute(ni_interface_t *ifp, struct nlmsghdr *h,
 		return 0;
 	}
 	if (rp == NULL) {
-		warn("error recording route");
+		ni_warn("error recording route");
 		return 0;
 	}
 
@@ -1077,7 +1077,7 @@ __ni_discover_bond(ni_interface_t *ifp)
 	bonding = ni_interface_get_bonding(ifp);
 
 	if (ni_bonding_parse_sysfs_attrs(ifp->name, bonding) < 0) {
-		error("error retrieving bonding attribute from sysfs");
+		ni_error("error retrieving bonding attribute from sysfs");
 		return -1;
 	}
 
@@ -1121,7 +1121,7 @@ __ni_discover_addrconf(ni_interface_t *ifp)
 
 		/* Check if the extension is active */
 		if (ni_addrconf_check(acm, ifp, xml)) {
-			debug_ifconfig("%s: %s is active on%s%s", ifp->name,
+			ni_debug_ifconfig("%s: %s is active on%s%s", ifp->name,
 					ni_addrconf_type_to_name(acm->type),
 					(acm->supported_af & NI_AF_MASK_IPV4)? " ipv4" : "",
 					(acm->supported_af & NI_AF_MASK_IPV6)? " ipv6" : "");

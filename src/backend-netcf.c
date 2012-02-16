@@ -238,7 +238,7 @@ __ni_netcf_xml_to_interface(ni_netconfig_t *nc, xml_node_t *ifnode)
 
 	if ((attrval = xml_node_get_attr(ifnode, "type")) != NULL) {
 		if (__ni_netcf_set_iftype(ifp, attrval) < 0) {
-			error("unknown/unsupported interface type %s", attrval);
+			ni_error("unknown/unsupported interface type %s", attrval);
 			return NULL;
 		}
 	} else {
@@ -250,7 +250,7 @@ __ni_netcf_xml_to_interface(ni_netconfig_t *nc, xml_node_t *ifnode)
 	 * I can't see how it's handled. */
 	if ((node = xml_node_get_child(ifnode, "uuid")) != NULL) {
 		if (ni_uuid_parse(&ifp->uuid, node->cdata) < 0) {
-			error("%s: cannot parse uuid", ifp->name);
+			ni_error("%s: cannot parse uuid", ifp->name);
 			return NULL;
 		}
 	}
@@ -310,7 +310,7 @@ __ni_netcf_xml_to_interface(ni_netconfig_t *nc, xml_node_t *ifnode)
 	node = xml_node_get_child(ifnode, "mac");
 	if (node && (attrval = xml_node_get_attr(node, "address")) != NULL) {
 		if (ni_link_address_parse(&ifp->link.hwaddr, ifp->link.type, attrval) < 0) {
-			error("cannot parse link level address %s", attrval);
+			ni_error("cannot parse link level address %s", attrval);
 			return NULL;
 		}
 	}
@@ -337,7 +337,7 @@ __ni_netcf_xml_to_interface(ni_netconfig_t *nc, xml_node_t *ifnode)
 
 		attrval = xml_node_get_attr(node, "family");
 		if (!attrval) {
-			error("interface protocol node without family attribute");
+			ni_error("interface protocol node without family attribute");
 			return NULL;
 		}
 
@@ -346,7 +346,7 @@ __ni_netcf_xml_to_interface(ni_netconfig_t *nc, xml_node_t *ifnode)
 		} else if (!strcmp(attrval, "ipv6")) {
 			afi = &ifp->ipv6;
 		} else {
-			error("ignoring unknown address family %s", attrval);
+			ni_error("ignoring unknown address family %s", attrval);
 			continue;
 		}
 
@@ -432,24 +432,24 @@ __ni_netcf_xml_to_vlan(ni_netconfig_t *nc,
 	ni_vlan_t *vlan;
 
 	if (!(vnode = xml_node_get_child(ifnode, "vlan"))) {
-		error("VLAN interface %s: xml config has no vlan element", ifp->name);
+		ni_error("VLAN interface %s: xml config has no vlan element", ifp->name);
 		return -1;
 	}
 
 	vlan = ni_interface_get_vlan(ifp);
 
 	if (!(attrval = xml_node_get_attr(vnode, "tag"))) {
-		error("VLAN interface %s: vlan element has no tag attribute", ifp->name);
+		ni_error("VLAN interface %s: vlan element has no tag attribute", ifp->name);
 		return -1;
 	}
 	vlan->tag = strtoul(attrval, NULL, 0);
 
 	if (!(rnode = xml_node_get_child(vnode, "interface"))) {
-		error("VLAN interface %s: vlan element has no interface element", ifp->name);
+		ni_error("VLAN interface %s: vlan element has no interface element", ifp->name);
 		return -1;
 	}
 	if (!(attrval = xml_node_get_attr(rnode, "name"))) {
-		error("VLAN interface %s: vlan interface element has no name attribute", ifp->name);
+		ni_error("VLAN interface %s: vlan interface element has no name attribute", ifp->name);
 		return -1;
 	}
 	vlan->physdev_name = xstrdup(attrval);
@@ -468,7 +468,7 @@ __ni_netcf_xml_to_bridge(ni_netconfig_t *nc,
 	ni_bridge_t *bridge;
 
 	if (!(brnode = xml_node_get_child(ifnode, "bridge"))) {
-		error("bridge interface %s: xml config has no bridge element", ifp->name);
+		ni_error("bridge interface %s: xml config has no bridge element", ifp->name);
 		return -1;
 	}
 
@@ -476,7 +476,7 @@ __ni_netcf_xml_to_bridge(ni_netconfig_t *nc,
 
 	/* stp disabled is default -- is it mandatory for netcf? */
 	if (ni_bridge_set_stp(bridge, xml_node_get_attr(brnode, "stp")) < 0) {
-		error("bridge interface %s: bridge element lacks stp attribute", ifp->name);
+		ni_error("bridge interface %s: bridge element lacks stp attribute", ifp->name);
 		return -1;
 	}
 
@@ -495,7 +495,7 @@ __ni_netcf_xml_to_bridge(ni_netconfig_t *nc,
 			continue;
 
 		if (!(ifname = xml_node_get_attr(child, "name"))) {
-			error("bridge interface %s: interface element lacks name attribute", ifp->name);
+			ni_error("bridge interface %s: interface element lacks name attribute", ifp->name);
 			return -1;
 		}
 
@@ -523,18 +523,18 @@ __ni_netcf_xml_to_bonding(ni_netconfig_t *nc,
 	const char *attrval;
 
 	if (!(bdnode = xml_node_get_child(ifnode, "bond"))) {
-		error("bond interface %s: xml config has no bond element", ifp->name);
+		ni_error("bond interface %s: xml config has no bond element", ifp->name);
 		return -1;
 	}
 
 	bonding = ni_interface_get_bonding(ifp);
 
 	if (!(attrval = xml_node_get_attr(bdnode, "mode"))) {
-		error("bond interface %s: bond element lacks mode attribute", ifp->name);
+		ni_error("bond interface %s: bond element lacks mode attribute", ifp->name);
 		return -1;
 	}
 	if (__ni_netcf_set_bonding_mode(attrval, &bonding->mode) < 0) {
-		error("bond interface %s: unsupported bonding mode \"%s\"", ifp->name, attrval);
+		ni_error("bond interface %s: unsupported bonding mode \"%s\"", ifp->name, attrval);
 		return -1;
 	}
 
@@ -545,14 +545,14 @@ __ni_netcf_xml_to_bonding(ni_netconfig_t *nc,
 
 		/* FIXME: set default values? */
 		if (xml_node_get_attr_uint(child, "interval", &bonding->arpmon.interval) < 0) {
-			error("bond interface %s: incomplete arpmon definition", ifp->name);
+			ni_error("bond interface %s: incomplete arpmon definition", ifp->name);
 			return -1;
 		}
 
 		bonding->arpmon.validate = NI_BOND_VALIDATE_NONE;
 		if ((attrval = xml_node_get_attr(child, "validate")) != NULL
 		 && __ni_netcf_set_arpmon_validation(attrval, &bonding->arpmon.validate) < 0) {
-			error("bond interface %s: arpmon validate=\"%s\" not supported", ifp->name, attrval);
+			ni_error("bond interface %s: arpmon validate=\"%s\" not supported", ifp->name, attrval);
 			return -1;
 		}
 
@@ -564,7 +564,7 @@ __ni_netcf_xml_to_bonding(ni_netconfig_t *nc,
 				struct in_addr dummy;
 
 				if (inet_aton(attrval, &dummy) == 0) {
-					error("bond interface %s: bad arpmon target \"%s\"", ifp->name, attrval);
+					ni_error("bond interface %s: bad arpmon target \"%s\"", ifp->name, attrval);
 					return -1;
 				}
 				ni_string_array_append(&bonding->arpmon.targets, attrval);
@@ -577,7 +577,7 @@ __ni_netcf_xml_to_bonding(ni_netconfig_t *nc,
 		/* FIXME: set default values? */
 		if (xml_node_get_attr_uint(child, "freq", &bonding->miimon.frequency) < 0
 		 || xml_node_get_attr_uint(child, "validate", &bonding->arpmon.validate) < 0) {
-			error("bond interface %s: incomplete miimon definition", ifp->name);
+			ni_error("bond interface %s: incomplete miimon definition", ifp->name);
 			return -1;
 		}
 
@@ -591,7 +591,7 @@ __ni_netcf_xml_to_bonding(ni_netconfig_t *nc,
 				bonding->miimon.carrier_detect = NI_BOND_CARRIER_DETECT_NETIF;
 		}
 	} else {
-		error("bond interface %s: unsupported monitoring mode", ifp->name);
+		ni_error("bond interface %s: unsupported monitoring mode", ifp->name);
 		return -1;
 	}
 
@@ -604,7 +604,7 @@ __ni_netcf_xml_to_bonding(ni_netconfig_t *nc,
 			continue;
 
 		if (!(ifname = xml_node_get_attr(child, "name"))) {
-			error("bonding interface %s: interface element lacks name attribute", ifp->name);
+			ni_error("bonding interface %s: interface element lacks name attribute", ifp->name);
 			return -1;
 		}
 
@@ -635,7 +635,7 @@ __ni_netcf_xml_to_address(xml_node_t *node, int af,
 	}
 
 	if (ni_address_parse(addr, attrval, af)) {
-		error("unable to parse ip addr %s", attrval);
+		ni_error("unable to parse ip addr %s", attrval);
 		return -1;
 	}
 
@@ -672,7 +672,7 @@ __ni_netcf_xml_to_static_ifcfg(int af, ni_interface_t *ifp, xml_node_t *protnode
 			return -1;
 
 		if (addr.ss_family != af) {
-			error("missing address attribute in <ip> node");
+			ni_error("missing address attribute in <ip> node");
 			return -1;
 		}
 
@@ -1363,7 +1363,7 @@ __ni_netcf_xml_to_lease(const xml_node_t *node)
 
 		name = xml_node_get_attr(prot, "family");
 		if (!name) {
-			error("interface protocol node without family attribute");
+			ni_error("interface protocol node without family attribute");
 			goto failed;
 		}
 

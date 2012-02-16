@@ -69,13 +69,13 @@ ni_config_parse(const char *filename)
 	ni_debug_wicked("Reading config file %s", filename);
 	doc = xml_document_read(filename);
 	if (!doc) {
-		error("%s: error parsing configuration file", filename);
+		ni_error("%s: error parsing configuration file", filename);
 		goto failed;
 	}
 
 	node = xml_node_get_child(doc->root, "config");
 	if (!node) {
-		error("%s: no <config> element", filename);
+		ni_error("%s: no <config> element", filename);
 		goto failed;
 	}
 
@@ -312,7 +312,7 @@ ni_config_parse_xpath(xpath_format_t **varp, const char *expr)
 		xpath_format_free(*varp);
 	*varp = xpath_format_parse(expr);
 	if (*varp == NULL) {
-		error("cannot parse configuration: bad xpath expression \"%s\"", expr);
+		ni_error("cannot parse configuration: bad xpath expression \"%s\"", expr);
 		return -1;
 	}
 
