@@ -256,12 +256,17 @@ ni_arphrd_type_to_name(unsigned int type)
  * Map event names to type constants and vice versa
  */
 static ni_intmap_t __event_names[] = {
-	{ "link-create",	NI_EVENT_LINK_CREATE },
-	{ "link-delete",	NI_EVENT_LINK_DELETE },
-	{ "link-up",		NI_EVENT_LINK_UP },
-	{ "link-down",		NI_EVENT_LINK_DOWN },
-	{ "network-up",		NI_EVENT_NETWORK_UP },
-	{ "network-down",	NI_EVENT_NETWORK_DOWN },
+	{ "link-create",		NI_EVENT_LINK_CREATE },
+	{ "link-delete",		NI_EVENT_LINK_DELETE },
+	{ "link-associated",		NI_EVENT_LINK_ASSOCIATED },
+	{ "link-association-lost",	NI_EVENT_LINK_ASSOCIATION_LOST },
+	{ "link-up",			NI_EVENT_LINK_UP },
+	{ "link-down",			NI_EVENT_LINK_DOWN },
+	{ "network-up",			NI_EVENT_NETWORK_UP },
+	{ "network-down",		NI_EVENT_NETWORK_DOWN },
+	{ "address-acquired",		NI_EVENT_ADDRESS_ACQUIRED },
+	{ "address-released",		NI_EVENT_ADDRESS_RELEASED },
+	{ "address-lost",		NI_EVENT_ADDRESS_LOST },
 
 	{ NULL }
 };
