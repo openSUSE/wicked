@@ -86,7 +86,7 @@ static void		ni_wpa_interface_free(ni_wpa_interface_t *);
 static int		ni_wpa_prepare_interface(ni_wpa_client_t *, ni_wpa_interface_t *, const char *);
 static int		ni_wpa_interface_get_state(ni_wpa_client_t *, ni_wpa_interface_t *);
 static int		ni_wpa_interface_get_capabilities(ni_wpa_client_t *, ni_wpa_interface_t *);
-static void		ni_wpa_bss_request_properties(ni_wpa_client_t *wpa, ni_wpa_bss_t *bss);
+static void		ni_wpa_bss_request_properties(ni_wpa_client_t *wpa, ni_wpa_network_t *bss);
 static void		ni_wpa_signal(ni_dbus_connection_t *, ni_dbus_message_t *, void *);
 static void		ni_wpa_scan_put(ni_wpa_scan_t *);
 static char *		__ni_wpa_escape_essid(const struct ni_wpa_bss_properties *);
@@ -208,10 +208,10 @@ ni_wpa_interface_new(ni_wpa_client_t *wpa, const char *ifname)
 	return ifp;
 }
 
-ni_wpa_bss_t *
+ni_wpa_network_t *
 ni_wpa_interface_bss_by_path(ni_wpa_interface_t *ifp, const char *object_path)
 {
-	ni_wpa_bss_t *bss;
+	ni_wpa_network_t *bss;
 
 	ni_assert(ifp->proxy != NULL);
 	for (bss = ifp->bss_list; bss; bss = bss->next) {
@@ -244,7 +244,7 @@ ni_wpa_bss_properties_destroy(struct ni_wpa_bss_properties *props)
 }
 
 static void
-ni_wpa_bss_free(ni_wpa_bss_t *bss)
+ni_wpa_bss_free(ni_wpa_network_t *bss)
 {
 	if (bss->proxy) {
 		ni_dbus_object_free(bss->proxy);
@@ -291,7 +291,7 @@ failed:
 static void
 ni_wpa_interface_unbind(ni_wpa_interface_t *ifp)
 {
-	ni_wpa_bss_t *bss;
+	ni_wpa_network_t *bss;
 
 	if (ifp->proxy) {
 		ni_dbus_object_free(ifp->proxy);
@@ -539,7 +539,7 @@ int
 ni_wpa_interface_retrieve_scan(ni_wpa_client_t *wpa, ni_wpa_interface_t *ifp, ni_wireless_scan_t *scan)
 {
 	time_t too_old = time(NULL) - scan->max_age;
-	ni_wpa_bss_t *bss, **pos;
+	ni_wpa_network_t *bss, **pos;
 
 	ni_debug_wireless("%s: retrieve scan results", ifp->ifname);
 
@@ -687,7 +687,7 @@ ni_wpa_interface_scan_results(ni_dbus_object_t *proxy, ni_dbus_message_t *msg)
 		ifp->last_scan = time(NULL);
 		for (i = 0; i < object_path_count; ++i) {
 			const char *path = object_path_array[i];
-			ni_wpa_bss_t *bss;
+			ni_wpa_network_t *bss;
 
 			bss = ni_wpa_interface_bss_by_path(ifp, path);
 			bss->last_seen = ifp->last_scan;
@@ -736,7 +736,7 @@ ni_wpa_interface_scan_results_available_event(ni_wpa_client_t *wpa, const char *
 static inline struct ni_wpa_bss_properties *
 __wpa_bss_properties(const ni_dbus_object_t *object)
 {
-	struct ni_wpa_bss *bss = object->handle;
+	ni_wpa_network_t *bss = object->handle;
 
 	return &bss->properties;
 }
@@ -1213,7 +1213,7 @@ ni_dbus_service_t	wpa_bssid_interface = {
 static void
 ni_wpa_bss_properties_result(ni_dbus_object_t *proxy, ni_dbus_message_t *msg)
 {
-	ni_wpa_bss_t *bss = proxy->handle;
+	ni_wpa_network_t *bss = proxy->handle;
 	struct ni_wpa_bss_properties *props;
 	ni_dbus_variant_t dict;
 	DBusMessageIter iter;
@@ -1252,7 +1252,7 @@ failed:
  * This is an async call.
  */
 static void
-ni_wpa_bss_request_properties(ni_wpa_client_t *wpa, ni_wpa_bss_t *bss)
+ni_wpa_bss_request_properties(ni_wpa_client_t *wpa, ni_wpa_network_t *bss)
 {
 	ni_dbus_object_call_async(bss->proxy,
 			ni_wpa_bss_properties_result,
