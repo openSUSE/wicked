@@ -684,6 +684,14 @@ ni_parse_ipv4_opaque(const char *string_value, ni_opaque_t *data)
 	return data;
 }
 
+static const char *
+ni_print_ipv4_opaque(const ni_opaque_t *data, char *buffer, size_t size)
+{
+	if (data->len != sizeof(struct in_addr))
+		return NULL;
+	return inet_ntop(AF_INET, data->data, buffer, size);
+}
+
 static ni_opaque_t *
 ni_parse_ipv6_opaque(const char *string_value, ni_opaque_t *data)
 {
@@ -694,6 +702,14 @@ ni_parse_ipv6_opaque(const char *string_value, ni_opaque_t *data)
 	memcpy(data->data, &addr, sizeof(addr));
 	data->len = sizeof(addr);
 	return data;
+}
+
+static const char *
+ni_print_ipv6_opaque(const ni_opaque_t *data, char *buffer, size_t size)
+{
+	if (data->len != sizeof(struct in6_addr))
+		return NULL;
+	return inet_ntop(AF_INET6, data->data, buffer, size);
 }
 
 static ni_opaque_t *
@@ -708,19 +724,34 @@ ni_parse_hwaddr_opaque(const char *string_value, ni_opaque_t *data)
 	return data;
 }
 
+static const char *
+ni_print_hwaddr_opaque(const ni_opaque_t *data, char *buffer, size_t size)
+{
+	/* We need to check whether the resulting string would fit, as
+	 * ni_format_hex will happily truncate the output string if it
+	 * does not fit. */
+	if (3 * data->len + 1 > size)
+		return NULL;
+
+	return ni_format_hex(data->data, data->len, buffer, size);
+}
+
 static ni_xs_notation_t	__ni_dbus_notations[] = {
 	{
 		.name = "ipv4addr",
 		.array_element_type = DBUS_TYPE_BYTE,
-		.parse = ni_parse_ipv4_opaque
+		.parse = ni_parse_ipv4_opaque,
+		.print = ni_print_ipv4_opaque,
 	}, {
 		.name = "ipv6addr",
 		.array_element_type = DBUS_TYPE_BYTE,
-		.parse = ni_parse_ipv6_opaque
+		.parse = ni_parse_ipv6_opaque,
+		.print = ni_print_ipv6_opaque,
 	}, {
 		.name = "hwaddr",
 		.array_element_type = DBUS_TYPE_BYTE,
-		.parse = ni_parse_hwaddr_opaque
+		.parse = ni_parse_hwaddr_opaque,
+		.print = ni_print_hwaddr_opaque,
 	},
 
 	{ NULL }
