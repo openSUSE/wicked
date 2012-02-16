@@ -9,6 +9,7 @@
 
 #include <wicked/dbus.h>
 
+extern ni_xs_scope_t *		ni_objectmodel_init(ni_dbus_server_t *);
 extern void			ni_objectmodel_register_all(void);
 extern ni_dbus_server_t *	ni_objectmodel_create_service(void);
 

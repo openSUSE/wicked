@@ -64,6 +64,39 @@ ni_objectmodel_create_service(void)
 	return server;
 }
 
+/*
+ * Initialize the objectmodel.
+ * If server is non-NULL, we perform some server-side initialization,
+ * such as creating the object hierarchy.
+ */
+ni_xs_scope_t *
+ni_objectmodel_init(ni_dbus_server_t *server)
+{
+	static ni_xs_scope_t *objectmodel_schema = NULL;
+
+	if (objectmodel_schema == NULL) {
+		objectmodel_schema = ni_server_dbus_xml_schema();
+		if (objectmodel_schema == NULL)
+			ni_fatal("Giving up.");
+
+		/* Register all built-in classes and services */
+		ni_objectmodel_register_all();
+
+		/* Register/amend all services defined in the schema */
+		ni_dbus_xml_register_services(objectmodel_schema);
+
+		/* If we're the server, create the initial objects of the
+		 * server-side object hierarchy. */
+		if (server)
+			ni_objectmodel_create_initial_objects(server);
+
+		/* Bind all extensions */
+		ni_objectmodel_bind_extensions();
+	}
+
+	return objectmodel_schema;
+}
+
 void
 ni_objectmodel_register_all(void)
 {
