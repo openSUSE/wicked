@@ -16,6 +16,11 @@
 
 static ni_dbus_object_t *	__ni_dbus_objects_trashcan;
 
+static dbus_bool_t		__ni_dbus_object_get_one_property(const ni_dbus_object_t *object,
+					const char *context,
+					const ni_dbus_property_t *property,
+					ni_dbus_variant_t *var,
+					DBusError *error);
 static const char *		__ni_dbus_object_child_path(const ni_dbus_object_t *, const char *);
 
 const ni_dbus_class_t		ni_dbus_anonymous_class = {
@@ -306,6 +311,23 @@ ni_dbus_object_get_service_for_signal(const ni_dbus_object_t *object, const char
 	return NULL;
 }
 
+const ni_dbus_service_t *
+ni_dbus_object_get_service_for_property(const ni_dbus_object_t *object, const char *property_name)
+{
+	const ni_dbus_service_t *svc;
+	unsigned int i;
+
+	if (object->interfaces == NULL)
+		return NULL;
+
+	for (i = 0; (svc = object->interfaces[i]) != NULL; ++i) {
+		if (ni_dbus_service_get_property(svc, property_name))
+			return svc;
+	}
+
+	return NULL;
+}
+
 /*
  * Helper functions
  */
@@ -488,6 +510,85 @@ done:
 }
 
 /*
+ * Given an object and a property name, get its value
+ */
+dbus_bool_t
+ni_dbus_object_get_property(const ni_dbus_object_t *object, const char *property_path, const ni_dbus_service_t *service, ni_dbus_variant_t *var)
+{
+	const ni_dbus_property_t *property = NULL;
+	DBusError error = DBUS_ERROR_INIT;
+
+	if (service == NULL) {
+		char *copy, *s;
+
+		/* Truncate the property path at the first dot, and look up the
+		 * dbus interface that provides this property. */
+		copy = xstrdup(property_path);
+		if ((s = strchr(copy, '.')) != NULL)
+			*s = '\0';
+
+		service = ni_dbus_object_get_service_for_property(object, copy);
+		free(copy);
+
+		if (service == NULL) {
+			ni_error("object %s has no property named \"%s\"", object->path, property_path);
+			return FALSE;
+		}
+	}
+
+	if (!(property = ni_dbus_service_lookup_property(service, property_path))) {
+		ni_error("object %s has no property named \"%s\"", object->path, property_path);
+		return FALSE;
+	}
+
+	if (!__ni_dbus_object_get_one_property(object, property_path, property, var, &error)) {
+		ni_error("%s: unable to get property named \"%s\"", object->path, property_path);
+		dbus_error_free(&error);
+		return FALSE;
+	}
+
+	dbus_error_free(&error);
+	return TRUE;
+}
+
+/*
+ * Get one property of an object
+ */
+dbus_bool_t
+__ni_dbus_object_get_one_property(const ni_dbus_object_t *object,
+					const char *context,
+					const ni_dbus_property_t *property,
+					ni_dbus_variant_t *var,
+					DBusError *error)
+{
+	if (property->signature) {
+		/* Initialize the variant to the specified type. This allows
+		 * the property handler to use generic variant_set_int functions
+		 * and the like, without having to know exactly which type
+		 * is being used. */
+		if (!ni_dbus_variant_init_signature(var, property->signature)) {
+			ni_debug_dbus("%s: unable to initialize property %s.%s of type %s",
+				object->path,
+				context,
+				property->name,
+				property->signature);
+			return FALSE;
+		}
+	}
+
+	if (!property->get(object, property, var, error)) {
+		ni_debug_dbus("%s: unable to get property %s.%s",
+				object->path,
+				context,
+				property->name);
+		ni_dbus_variant_destroy(var);
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+/*
  * Get all properties of an object, for a given dbus interface
  */
 dbus_bool_t
@@ -530,27 +631,8 @@ __ni_dbus_object_get_properties_as_dict(const ni_dbus_object_t *object,
 			continue;
 
 		var = ni_dbus_dict_add(dict, property->name);
-		if (property->signature) {
-			/* Initialize the variant to the specified type. This allows
-			 * the property handler to use generic variant_set_int functions
-			 * and the like, without having to know exactly which type
-			 * is being used. */
-			if (!ni_dbus_variant_init_signature(var, property->signature)) {
-				ni_debug_dbus("%s: unable to initialize property %s.%s of type %s",
-					object->path,
-					context,
-					property->name,
-					property->signature);
-				return FALSE;
-			}
-		}
-
-		if (!property->get(object, property, var, error)) {
-			ni_debug_dbus("%s: unable to get property %s.%s",
-					object->path,
-					context,
-					property->name);
-			ni_dbus_variant_destroy(var);
+		if (!__ni_dbus_object_get_one_property(object, context, property, var, error)) {
+			/* just ignore this error */
 		}
 	}
 

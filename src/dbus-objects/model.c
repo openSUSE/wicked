@@ -291,6 +291,41 @@ static ni_dbus_service_t	ni_objectmodel_netif_root_interface = {
 };
 
 /*
+ * Expand the environment of an extension
+ * This should probably go with the objectmodel code.
+ */
+static int
+ni_objectmodel_expand_environment(const ni_dbus_object_t *object, const ni_var_array_t *env, ni_process_instance_t *process)
+{
+	const ni_var_t *var;
+	unsigned int i;
+
+	for (i = 0, var = env->data; i < env->count; ++i, ++var) {
+		ni_dbus_variant_t variant = NI_DBUS_VARIANT_INIT;
+		const char *value = var->value;
+
+		if (!strcmp(value, "$object-path")) {
+			value = object->path;
+		} else if (!strncmp(value, "$property:", 10)) {
+			if (ni_dbus_object_get_property(object, value + 10, NULL, &variant)) {
+				value = ni_dbus_variant_sprint(&variant);
+			}
+		} else if (value[0] == '$') {
+			ni_error("%s: unable to expand environment variable %s=\"%s\"",
+					object->path, var->name, var->value);
+			return -1;
+		}
+
+		ni_debug_dbus("%s: expanded %s=%s -> \"%s\"", object->path, var->name, var->value, value);
+		ni_process_instance_setenv(process, var->name, value);
+
+		ni_dbus_variant_destroy(&variant);
+	}
+
+	return 0;
+}
+
+/*
  * Write dbus message to a temporary file
  */
 static char *
@@ -383,6 +418,8 @@ ni_objectmodel_extension_call(ni_dbus_connection_t *connection,
 
 	/* Create an instance of this command */
 	process = ni_process_instance_new(command);
+
+	ni_objectmodel_expand_environment(object, &extension->environment, process);
 
 	/* Build the argument blob and store it in a file */
 	tempname = __ni_objectmodel_write_message(call, method);
