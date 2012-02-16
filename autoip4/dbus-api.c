@@ -98,28 +98,13 @@ __wicked_dbus_autoip4_acquire_svc(ni_dbus_object_t *object, const ni_dbus_method
 			ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_autoip_device_t *dev = ni_objectmodel_unwrap_autoip4_device(object);
-	ni_dbus_object_t *cfg_object;
-	ni_addrconf_request_t *req;
 	dbus_bool_t ret = FALSE;
 	int rv;
 
 	NI_TRACE_ENTER_ARGS("dev=%s", dev->ifname);
 
-	/* Build a dummy object for the address configuration request */
-	req = ni_addrconf_request_new(NI_ADDRCONF_AUTOCONF, AF_INET);
-	cfg_object = ni_dbus_object_new(NULL, NULL, req);
-
-	/* Extract configuration from dict */
-	if (argc == 0) {
-		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "Missing arguments in %s", __func__);
-		goto failed;
-	}
-	if (!__wicked_dbus_set_addrconf_request(req, &argv[0], error)) {
-		/* dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "Cannot extract addrconf request from property dict"); */
-		goto failed;
-	}
-
-	if ((rv = ni_autoip_acquire(dev, req)) < 0) {
+	/* Ignore all arguments for now */
+	if ((rv = ni_autoip_acquire(dev)) < 0) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
 				"Cannot configure interface %s: %s", dev->ifname,
 				ni_strerror(rv));
@@ -133,9 +118,6 @@ __wicked_dbus_autoip4_acquire_svc(ni_dbus_object_t *object, const ni_dbus_method
 	ret = TRUE;
 
 failed:
-	ni_addrconf_request_free(req);
-	if (cfg_object)
-		ni_dbus_object_free(cfg_object);
 	return ret;
 }
 

@@ -49,7 +49,7 @@ struct ni_autoip_device {
 
 extern ni_autoip_device_t *ni_autoip_active;
 
-extern int		ni_autoip_acquire(ni_autoip_device_t *, ni_addrconf_request_t *);
+extern int		ni_autoip_acquire(ni_autoip_device_t *);
 extern int		ni_autoip_release(ni_autoip_device_t *, const ni_uuid_t *);
 
 extern long             ni_autoip_fsm_get_timeout(void);

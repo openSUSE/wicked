@@ -199,7 +199,7 @@ ni_autoip_device_start(ni_autoip_device_t *dev)
  * Acquire an IPv4ll lease
  */
 int
-ni_autoip_acquire(ni_autoip_device_t *dev, ni_addrconf_request_t *req)
+ni_autoip_acquire(ni_autoip_device_t *dev)
 {
 	return ni_autoip_device_start(dev);
 }
