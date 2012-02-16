@@ -60,27 +60,29 @@ int
 ni_system_interface_link_change(ni_netconfig_t *nc, ni_interface_t *ifp,
 				const ni_interface_request_t *ifp_req)
 {
+	unsigned int ifflags;
 	int res;
 
-	if (ifp == NULL || ifp_req == NULL)
+	if (ifp == NULL)
 		return -NI_ERROR_INVALID_ARGS;
 
 	ni_debug_ifconfig("%s(%s)", __func__, ifp->name);
 
 	/* FIXME: perform sanity check on configuration data */
 
-	/* If we want to disable ipv6 or ipv6 autoconf, we need to do so prior to bringing
-	 * the interface up. */
-	if (__ni_interface_update_ipv6_settings(nc, ifp, ifp_req->ipv6) < 0)
-		return -1;
-
-	if (ifp_req->ifflags & (NI_IFF_DEVICE_UP|NI_IFF_LINK_UP|NI_IFF_NETWORK_UP)) {
+	ifflags = ifp_req? ifp_req->ifflags : 0;
+	if (ifflags & (NI_IFF_DEVICE_UP|NI_IFF_LINK_UP|NI_IFF_NETWORK_UP)) {
 		ni_debug_ifconfig("bringing up %s", ifp->name);
+
+		/* If we want to disable ipv6 or ipv6 autoconf, we need to do so prior to bringing
+		 * the interface up. */
+		if (__ni_interface_update_ipv6_settings(nc, ifp, ifp_req->ipv6) < 0)
+			return -1;
+
 		if (__ni_rtnl_link_up(ifp, ifp_req)) {
 			ni_error("%s: failed to bring up interface (rtnl error)", ifp->name);
 			return -1;
 		}
-		ifp->link.ifflags |= ifp_req->ifflags;
 	} else {
 		/* FIXME: Shut down any addrconf services on this interface?
 		 * We should expect these services to detect the link down event...
