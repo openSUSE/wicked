@@ -6,86 +6,58 @@
     <enabled/>
   </ipv6>
 
-  <!-- Define where network configuration is stored, and in what format.
-       Currently supported are
-
-         suse		sysconfig-based, usually /etc/sysconfig/network
-         redhat		sysconfig-based, usually /etc/sysconfig/network
-	 netcf-strict	strict netcf syntax, /etc/sysconfig/network/all.xml
-	 netcf		enriched netcf syntax, /etc/sysconfig/network/all.xml
-
-       By default, we try to autodetect what schema to use.
-   -->
-  <!--
-   <backend schema="redhat" path="/etc/sysconfig/network"/>
-   <backend schema="suse" path="/etc/sysconfig/network"/>
-   -->
-
   <pidfile path="/var/run/wicked.pid" mode="0644"/>
-  <socket path="/var/run/wicked.sock" mode="0600"/>
-  <policy path="/etc/wicked/policy.xml"/>
 
-  <extension interface="com.suse.Wicked.Infiniband">
-    <action name="__linkup" command="/etc/wicked/wicked-infiniband up"/>
-    <action name="__linkdown" command="/etc/wicked/wicked-infiniband down"/>
+  <dbus name="com.suse.Wicked" />
+  <schema name="/etc/wicked/schema/wicked.xml"/>
+
+  <extension interface="com.suse.Wicked.Ethernet">
+   <builtin name="__properties" symbol="ni_objectmodel_ethernet_property_table" />
+
+   <!-- default environment for all calls to this extension script -->
+   <putenv name="WICKED_OBJECT_PATH" value="$object-path"/>
+   <putenv name="WICKED_INTERFACE_NAME" value="$property:name"/>
+   <putenv name="WICKED_INTERFACE_INDEX" value="$property:ifindex"/>
   </extension>
 
-  <addrconf>
-  <!-- sample extension for dhcp6
-    <extension name="dhcp6" type="dhcp" family="ipv6">
-      <pidfile path="/var/run/dhcpcd-%{@name}.pid"/>
-      <action name="start" command="/etc/wicked/wicked-dhcp6 start %{@name}"/>
-      <action name="stop" command="/etc/wicked/wicked-dhcp6 stop %{@name}"/>
-      <environment putenv="DHCP_TIMEOUT=%{/protocol[@family = 'ipv6']/dhcp/lease/@timeout}"/>
-      <environment putenv="DHCP_REQ_HOSTNAME=%{/protocol[@family = 'ipv6']/dhcp/request/@hostname}"/>
-    </extension>
-   -->
+  <extension interface="com.suse.Wicked.VLAN">
+   <builtin name="__properties" symbol="ni_objectmodel_vlan_property_table" />
+   <builtin name="deleteLink" symbol="ni_objectmodel_vlan_delete" />
+  </extension>
 
-     <default-allow-update>
-      <all/>
-     </default-allow-update>
+  <extension interface="com.suse.Wicked.VLAN.Factory">
+   <builtin name="newLink" symbol="ni_objectmodel_vlan_newlink" />
+  </extension>
 
-    <dhcp>
-     <allow-update>
-      <all/>
-     </allow-update>
-     <!--
-      <vendor-class>somestring</vendor-class>
-      <lease-time>7200</lease-time>
-      <ignore-server ip="192.168.255.255" />
-      <prefer-server ip="10.1.1.1" weight="10" />
-     -->
-    </dhcp>
+  <extension interface="com.suse.Wicked.Bond">
+   <action name="deleteLink" command="/usr/lib64/wicked/extensions/bonding delete" />
+   <action name="addSlave" command="/usr/lib64/wicked/extensions/bonding addSlave" />
+   <action name="removeSlave" command="/usr/lib64/wicked/extensions/bonding removeSlave" />
 
-    <autoip>
-     <allow-update>
-      <all/>
-     </allow-update>
-    </autoip>
+   <!-- default environment for all calls to this extension script -->
+   <putenv name="WICKED_OBJECT_PATH" value="$object-path"/>
+   <putenv name="WICKED_INTERFACE_NAME" value="$property:name"/>
+   <putenv name="WICKED_INTERFACE_INDEX" value="$property:ifindex"/>
+  </extension>
 
-    <ibft>
-     <allow-update>
-      <all/>
-     </allow-update>
-    </ibft>
+  <extension interface="com.suse.Wicked.Bond.Factory">
+   <action name="newLink" command="/usr/lib64/wicked/extensions/bonding create" />
+  </extension>
 
-  </addrconf>
+  <extension interface="com.suse.Wicked.Bridge">
+   <builtin name="__properties" symbol="ni_objectmodel_bridge_property_table" />
+   <action name="deleteLink" command="/usr/lib64/wicked/extensions/bridge delete" />
+   <action name="addPort" command="/usr/lib64/wicked/extensions/bridge addPort" />
+   <action name="removePort" command="/usr/lib64/wicked/extensions/bridge removePort" />
 
-  <!--
-    -- These extensions can be used to invoke helper scripts after updating
-    -- specific configuration files.
-    -- The extension's name attribute specifies the REST node (eg "system.nis"
-    -- refers to "/system/nis") to which to attach the API extension to.
-    -- The action name specifies how to use the helper script.
-    -- Currently supported:
-    --  update:		run this command after any operation that modifies the node
-    -->
-  <api>
-   <!--
-   <extension name="system.nis">
-    <action name="update" command="/sbin/wicked-helper nis-updated"/>
-   </extension>
-    -->
-  </api>
+   <!-- default environment for all calls to this extension script -->
+   <putenv name="WICKED_OBJECT_PATH" value="$object-path"/>
+   <putenv name="WICKED_INTERFACE_NAME" value="$property:name"/>
+   <putenv name="WICKED_INTERFACE_INDEX" value="$property:ifindex"/>
+  </extension>
+
+  <extension interface="com.suse.Wicked.Bridge.Factory">
+   <action name="newLink" command="/usr/lib64/wicked/extensions/bridge create" />
+  </extension>
 
 </config>
