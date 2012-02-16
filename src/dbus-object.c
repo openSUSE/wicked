@@ -320,6 +320,22 @@ ni_dbus_object_get_handle(const ni_dbus_object_t *object)
 }
 
 /*
+ * Check if a given object's is of a (subclass of a) given type
+ */
+dbus_bool_t
+ni_dbus_object_isa(const ni_dbus_object_t *object, const ni_dbus_class_t *class)
+{
+	const ni_dbus_class_t *object_class = object->class;
+
+	while (object_class) {
+		if (object_class == class)
+			return TRUE;
+		object_class = object_class->superclass;
+	}
+	return FALSE;
+}
+
+/*
  * Register an interface for the given object.
  * Note, we cannot register fallback services yet.
  */
@@ -330,7 +346,7 @@ ni_dbus_object_register_service(ni_dbus_object_t *object, const ni_dbus_service_
 
 	NI_TRACE_ENTER_ARGS("path=%s, interface=%s", object->path, svc->name);
 
-	if (svc->compatible && object->class != svc->compatible) {
+	if (svc->compatible && !ni_dbus_object_isa(object, svc->compatible)) {
 		ni_error("cannot register dbus interface %s (class %s) with object %s: "
 			 "not compatible with object class %s",
 			 svc->name, svc->compatible->name,
