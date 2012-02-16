@@ -34,6 +34,7 @@ static ni_dbus_class_t		ni_objectmodel_ifreq_class = {
 };
 
 extern const ni_dbus_service_t	wicked_dbus_interface_request_service; /* XXX */
+extern const char *		__ni_objectmodel_link_classname(ni_iftype_t);
 
 /*
  * Build a dbus-object encapsulating a network device.
@@ -42,28 +43,27 @@ extern const ni_dbus_service_t	wicked_dbus_interface_request_service; /* XXX */
 static ni_dbus_object_t *
 __ni_objectmodel_build_interface_object(ni_dbus_server_t *server, ni_interface_t *ifp)
 {
+	const char *classname;
+	const ni_dbus_class_t *class = NULL;
 	ni_dbus_object_t *object;
-	const ni_dbus_service_t *link_layer_service;
+
+	if ((classname = __ni_objectmodel_link_classname(ifp->link.type)) != NULL)
+		class = ni_dbus_server_get_class(server, classname);
+	if (class == NULL)
+		class = &ni_objectmodel_netif_class;
 
 	if (server != NULL) {
 		object = ni_dbus_server_register_object(server,
 						ni_objectmodel_interface_path(ifp),
-						&ni_objectmodel_netif_class,
-						ni_interface_get(ifp));
+						class, ni_interface_get(ifp));
 	} else {
-		object = ni_dbus_object_new(&ni_objectmodel_netif_class, NULL,
-						ni_interface_get(ifp));
+		object = ni_dbus_object_new(class, NULL, ni_interface_get(ifp));
 	}
 
 	if (object == NULL)
 		ni_fatal("Unable to create dbus object for interface %s", ifp->name);
 
-	ni_dbus_object_register_service(object, &wicked_dbus_interface_service);
-
-	link_layer_service = ni_objectmodel_link_layer_service_by_type(ifp->link.type);
-	if (link_layer_service != NULL)
-		ni_dbus_object_register_service(object, link_layer_service);
-
+	ni_objectmodel_bind_compatible_interfaces(server, object);
 	return object;
 }
 

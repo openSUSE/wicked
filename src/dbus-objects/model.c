@@ -85,6 +85,7 @@ ni_objectmodel_create_service(void)
 
 /*
  * For all link layer types, create a dbus object class named "netif-$linktype"
+ * XXX: Move to interface.c?
  */
 void
 __ni_objectmodel_register_link_classes(ni_dbus_server_t *server)
@@ -118,6 +119,25 @@ __ni_objectmodel_register_link_classes(ni_dbus_server_t *server)
 		/* Register this class with the server */
 		ni_dbus_server_register_class(server, link_class);
 	}
+}
+
+/*
+ * XXX: Move to interface.c?
+ */
+const char *
+__ni_objectmodel_link_classname(ni_iftype_t link_type)
+{
+	const char *link_type_name;
+	static char namebuf[128];
+
+	if (link_type == NI_IFTYPE_UNKNOWN)
+		return NULL;
+
+	if (!(link_type_name = ni_linktype_type_to_name(link_type)))
+		return NULL;
+
+	snprintf(namebuf, sizeof(namebuf), "netif-%s", link_type_name);
+	return namebuf;
 }
 
 /*
