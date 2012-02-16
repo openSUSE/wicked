@@ -866,7 +866,7 @@ ni_ifworker_error_handler(ni_call_error_context_t *ctx, const DBusError *error)
 		if (value) {
 			authnode = ni_call_error_context_get_node(ctx, node_spec);
 			xml_node_set_cdata(authnode, value);
-			errcode = NI_ERROR_RETRY_OPERATION;
+			errcode = -NI_ERROR_RETRY_OPERATION;
 		}
 	}
 

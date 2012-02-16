@@ -277,6 +277,11 @@ ni_call_link_method_common(ni_dbus_object_t *object,
 
 		if (error_ctx) {
 			rv = error_ctx->handler(error_ctx, &error);
+			if (rv > 0) {
+				ni_warn("Whaaah. Error context handler returns positive code. "
+					"Assuming programmer mistake");
+				rv = -rv;
+			}
 		} else {
 			ni_error("%s.%s() failed. Server responds:", service->name, method->name);
 			ni_error_extra("%s: %s", error.name, error.message);
@@ -340,7 +345,7 @@ out:
 	 * UMTS PIN might have missed, and we prompted the user for it.
 	 * In this case, the error handler will retur RETRY_OPERATION.
 	 */
-	if (rv == NI_ERROR_RETRY_OPERATION && error_context != NULL && error_context->config) {
+	if (rv == -NI_ERROR_RETRY_OPERATION && error_context != NULL && error_context->config) {
 		config = error_context->config;
 		error_context = NULL;
 		goto retry_operation;
