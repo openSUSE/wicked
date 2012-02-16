@@ -77,6 +77,7 @@ static void		ni_wpa_interface_free(ni_wpa_interface_t *);
 static int		ni_wpa_prepare_interface(ni_wpa_client_t *, ni_wpa_interface_t *, const char *);
 static int		ni_wpa_interface_get_state(ni_wpa_client_t *, ni_wpa_interface_t *);
 static int		ni_wpa_interface_get_capabilities(ni_wpa_client_t *, ni_wpa_interface_t *);
+static void		ni_wpa_interface_update_state(ni_wpa_interface_t *, ni_wpa_ifstate_t);
 static void		ni_wpa_network_request_properties(ni_dbus_object_t *);
 static void		ni_wpa_signal(ni_dbus_connection_t *, ni_dbus_message_t *, void *);
 static const char *	ni_wpa_auth_protocol_as_string(ni_wireless_auth_mode_t, DBusError *);
@@ -540,7 +541,7 @@ ni_wpa_interface_get_state(ni_wpa_client_t *wpa, ni_wpa_interface_t *ifp)
 			DBUS_TYPE_INVALID, NULL,
 			DBUS_TYPE_STRING, &state);
 	if (rv >= 0)
-		ifp->state = ni_wpa_name_to_ifstate(state);
+		ni_wpa_interface_update_state(ifp, ni_wpa_name_to_ifstate(state));
 
 	ni_string_free(&state);
 	return rv;
@@ -805,7 +806,6 @@ ni_wpa_interface_state_change_event(ni_wpa_client_t *wpa,
 		ni_wpa_ifstate_t to_state)
 {
 	ni_wpa_interface_t *ifp;
-	ni_wireless_assoc_state_t assoc_state;
 
 	ifp = ni_wpa_client_interface_by_path(wpa, object_path);
 	if (ifp == NULL) {
@@ -819,12 +819,16 @@ ni_wpa_interface_state_change_event(ni_wpa_client_t *wpa,
 			ni_wpa_ifstate_to_name(from_state),
 			ni_wpa_ifstate_to_name(to_state));
 
-#if 0
-	if (to_state == NI_WPA_IFSTATE_DISCONNECTED)
-		ni_wpa_interface_unbind(ifp);
-#endif
-	ifp->state = to_state;
-	switch (to_state) {
+	ni_wpa_interface_update_state(ifp, to_state);
+}
+
+static void
+ni_wpa_interface_update_state(ni_wpa_interface_t *dev, ni_wpa_ifstate_t new_state)
+{
+	ni_wireless_assoc_state_t assoc_state;
+
+	dev->state = new_state;
+	switch (new_state) {
 	case NI_WPA_IFSTATE_INACTIVE:
 	case NI_WPA_IFSTATE_SCANNING:
 	case NI_WPA_IFSTATE_DISCONNECTED:
@@ -849,7 +853,7 @@ ni_wpa_interface_state_change_event(ni_wpa_client_t *wpa,
 		return;
 	}
 
-	ni_wireless_association_changed(ifp->ifindex, assoc_state);
+	ni_wireless_association_changed(dev->ifindex, assoc_state);
 }
 
 /*
