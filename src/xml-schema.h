@@ -229,10 +229,8 @@ struct ni_xs_service {
 	char *			name;
 	char *			interface;
 
-	ni_layer_t		layer;
-	union {
-		ni_iftype_t	iftype;
-	} provides;
+	ni_var_array_t		attributes;
+
 	ni_xs_method_t *	methods;
 };
 

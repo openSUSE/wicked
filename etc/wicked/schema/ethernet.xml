@@ -1,7 +1,7 @@
 <!--
   -- Ethernet Service definition
   -->
-<service name="ethernet" interface="com.suse.Wicked.Ethernet" provides="link:ethernet">
+<service name="ethernet" interface="com.suse.Wicked.Ethernet" link-layer="ethernet">
   <!-- This is the linkinfo returned in interface reports -->
   <define name="linkinfo" class="dict">
     <address type="ethernet-address"/>

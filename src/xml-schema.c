@@ -9,7 +9,6 @@
 #include <wicked/logging.h>
 #include <wicked/xml.h>
 #include <wicked/logging.h>
-#include <wicked/netinfo.h> /* layering violation */
 #include "xml-schema.h"
 #include "util_priv.h"
 
@@ -561,7 +560,7 @@ ni_xs_process_schema(xml_node_t *node, ni_xs_scope_t *scope)
 int
 ni_xs_process_service(xml_node_t *node, ni_xs_scope_t *scope)
 {
-	const char *nameAttr, *intfAttr, *provAttr;
+	const char *nameAttr, *intfAttr;
 	ni_xs_service_t *service;
 	ni_xs_scope_t *sub_scope;
 	xml_node_t *child;
@@ -584,24 +583,16 @@ ni_xs_process_service(xml_node_t *node, ni_xs_scope_t *scope)
 	ni_debug_dbus("define schema for service %s (interface=%s) in scope %s", nameAttr, intfAttr, scope->name);
 	service = ni_xs_service_new(nameAttr, intfAttr, scope);
 
-	if ((provAttr = xml_node_get_attr(node, "provides")) != NULL) {
-		if (!strncmp(provAttr, "link:", 5)) {
-			int iftype;
+	/* Copy all service attributes we don't deal with here */
+	{
+		unsigned int i;
+		ni_var_t *var;
 
-			/* using ni_linktype_name_to_type here is a layering violation.
-			 * This schema definition knows too much about our internals
-			 * already... */
-			if ((iftype = ni_linktype_name_to_type(provAttr + 5)) < 0) {
-				ni_error("%s: unknown link layer type in provides=\"%s\"",
-						xml_node_location(node), provAttr);
-				return -1;
-			}
-			service->layer = NI_LAYER_LINK;
-			service->provides.iftype = iftype;
-		} else {
-			ni_error("%s: invalid provides=\"%s\" attribute",
-					xml_node_location(node), provAttr);
-			return -1;
+		var = node->attrs.data;
+		for (i = 0; i < node->attrs.count; ++i, ++var) {
+			if (strcmp(var->name, "name")
+			 && strcmp(var->name, "interface"))
+				ni_var_array_set(&service->attributes, var->name, var->value);
 		}
 	}
 

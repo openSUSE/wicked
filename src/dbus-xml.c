@@ -49,25 +49,28 @@ ni_dbus_xml_register_services(ni_dbus_server_t *server, ni_xs_scope_t *scope)
 	NI_TRACE_ENTER_ARGS("scope=%s", scope->name);
 	for (xs_service = scope->services; xs_service; xs_service = xs_service->next) {
 		ni_dbus_service_t *service;
+		const ni_var_t *attr;
 		int rv;
 
 		service = xcalloc(1, sizeof(*service));
 		ni_string_dup(&service->name, xs_service->interface);
 		service->user_data = xs_service;
 
-		switch (xs_service->layer) {
-		case NI_LAYER_LINK:
-			ni_debug_dbus("register dbus service description %s (link type %d/%s)",
-					service->name,
-					xs_service->provides.iftype,
-					ni_linktype_type_to_name(xs_service->provides.iftype));
-			ni_objectmodel_register_link_service(xs_service->provides.iftype, service);
-			break;
+		if ((attr = ni_var_array_get(&xs_service->attributes, "link-layer")) != NULL) {
+			int iftype;
 
-		default:
+			if ((iftype = ni_linktype_name_to_type(attr->value)) < 0) {
+				ni_error("xml service definition for %s: unknown link layer type \"%s\"",
+						xs_service->interface, attr->value);
+				continue;
+			}
+
+			ni_debug_dbus("register dbus service description %s (link type %d/%s)",
+					service->name, iftype, attr->value);
+			ni_objectmodel_register_link_service(iftype, service);
+		} else {
 			ni_debug_dbus("register dbus service description %s", service->name);
 			ni_objectmodel_register_service(service);
-			break;
 		}
 
 		if ((rv = ni_dbus_xml_register_methods(service, xs_service)) < 0)

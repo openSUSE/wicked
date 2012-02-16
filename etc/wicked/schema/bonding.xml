@@ -1,4 +1,4 @@
-<service name="bonding" interface="com.suse.Wicked.Bond" provides="link:bond">
+<service name="bonding" interface="com.suse.Wicked.Bond" link-layer="bond">
  <!-- This is the linkinfo returned in interface reports -->
  <define name="linkinfo" class="dict">
    <mode type="string"/>
