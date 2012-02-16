@@ -38,6 +38,11 @@ struct ni_wpa_interface {
 		unsigned char	pending;
 	} scan;
 
+	struct {
+		ni_dbus_object_t *proxy;
+		ni_wireless_network_t *config;
+	} requested_association;
+
 	ni_wireless_interface_capabilities_t capabilities;
 };
 

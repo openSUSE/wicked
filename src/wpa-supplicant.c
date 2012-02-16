@@ -61,6 +61,7 @@ static ni_dbus_class_t		ni_objectmodel_wpa_class = {
 	"wpa"
 };
 static ni_dbus_class_t		ni_objectmodel_wpanet_class;
+static ni_dbus_service_t	wpa_bssid_interface;
 static ni_dbus_class_t		ni_objectmodel_wpadev_class = {
 	"wpa-device"
 };
@@ -581,6 +582,129 @@ ni_wpa_interface_retrieve_scan(ni_wpa_client_t *wpa, ni_wpa_interface_t *ifp, ni
 		if (net->expires)
 			ni_wireless_network_array_append(&scan->networks, net);
 	}
+	return 0;
+}
+
+/*
+ * Call the addNetwork() method
+ */
+char *
+ni_wpa_interface_add_network(ni_wpa_interface_t *dev)
+{
+	char *object_path = NULL;
+	int rv;
+
+	rv = ni_dbus_object_call_simple(dev->proxy,
+			NI_WPA_IF_INTERFACE, "addNetwork",
+			DBUS_TYPE_INVALID, NULL,
+			DBUS_TYPE_OBJECT_PATH, &object_path);
+	if (rv < 0)
+		return NULL;
+	return object_path;
+}
+
+char *
+ni_wpa_interface_remove_network(ni_wpa_interface_t *dev)
+{
+	char *object_path = NULL;
+	int rv;
+
+	rv = ni_dbus_object_call_simple(dev->proxy,
+			NI_WPA_IF_INTERFACE, "removeNetwork",
+			DBUS_TYPE_OBJECT_PATH, &object_path,
+			DBUS_TYPE_INVALID, NULL);
+	if (rv < 0)
+		return NULL;
+	return object_path;
+}
+
+ni_bool_t
+ni_wpa_interface_select_network(ni_wpa_interface_t *dev, ni_dbus_object_t *net_object)
+{
+	const char *object_path = net_object->path;
+	int rv;
+
+	rv = ni_dbus_object_call_simple(dev->proxy,
+			NI_WPA_IF_INTERFACE, "selectNetwork",
+			DBUS_TYPE_OBJECT_PATH, &object_path,
+			DBUS_TYPE_INVALID, NULL);
+	if (rv < 0)
+		return FALSE;
+	return TRUE;
+}
+
+/*
+ * Call a network's set() method
+ */
+int
+ni_wpa_network_set(ni_dbus_object_t *net_object, ni_wireless_network_t *net)
+{
+	ni_dbus_variant_t dict = NI_DBUS_VARIANT_INIT;
+	DBusError error = DBUS_ERROR_INIT;
+	ni_wireless_network_t *old_net;
+	int rv = -1;
+
+	if ((old_net = net_object->handle) != NULL) {
+		ni_wireless_network_put(old_net);
+		net_object->handle = NULL;
+	}
+
+	net_object->handle = ni_wireless_network_get(net);
+
+	ni_dbus_variant_init_dict(&dict);
+	if (!ni_dbus_object_get_properties_as_dict(net_object, &wpa_bssid_interface, &dict))
+		goto done;
+
+	if (!ni_dbus_object_call_variant(net_object, NI_WPA_BSS_INTERFACE, "set", 1, &dict, 0, NULL, &error)) {
+		ni_error("%s failed: %s (%s)", __func__, error.name, error.message);
+		dbus_error_free(&error);
+		goto done;
+	}
+
+	rv = 0;
+
+done:
+	ni_dbus_variant_destroy(&dict);
+	return rv;
+}
+
+/*
+ * The user asks us to configure the interface
+ */
+int
+ni_wpa_interface_configure(ni_wpa_interface_t *dev, ni_wireless_network_t *net)
+{
+	ni_dbus_object_t *net_object;
+
+	/* FIXME: make sure we have all the keys/pass phrases etc to
+	 * associate. */
+
+	if ((net_object = dev->requested_association.proxy) == NULL) {
+		char *object_path;
+
+		/* Call addNetwork to add the network object */
+		object_path = ni_wpa_interface_add_network(dev);
+		if (object_path == NULL)
+			return -1;
+
+		net_object = ni_wpa_interface_network_by_path(dev, object_path);
+		free(object_path);
+
+		if (net_object == NULL)
+			return -1;
+		dev->requested_association.proxy = net_object;
+	}
+
+	if (!ni_wpa_network_set(net_object, net))
+		return -1;
+
+	if (!ni_wpa_interface_select_network(dev, net_object))
+		return -1;
+
+	/* When we return, this means we initiated the association with
+	 * the given AP. When the interface changes to COMPLETED, we
+	 * will inform the upper layers through an event.
+	 */
 	return 0;
 }
 
@@ -1157,7 +1281,7 @@ static ni_dbus_property_t	wpa_bss_properties[] = {
 	{ NULL }
 };
 
-ni_dbus_service_t	wpa_bssid_interface = {
+static ni_dbus_service_t	wpa_bssid_interface = {
 	.name		= NI_WPA_BSS_INTERFACE,
 	.properties	= wpa_bss_properties,
 	.compatible	= &ni_objectmodel_wpanet_class,
