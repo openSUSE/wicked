@@ -55,7 +55,6 @@ typedef struct ni_route {
 	struct ni_route *	next;
 
 	ni_addrconf_lease_t *	config_lease;		/* configured through lease */
-	ni_addrconf_mode_t	config_method;		/* usually static, but can be dhcp or autoip */
 
 	unsigned int		seq;
 	unsigned int		family;

@@ -1475,29 +1475,18 @@ __ni_interface_update_routes(ni_interface_t *ifp,
 		/* See if the config list contains the route we've found in the
 		 * system. */
 		rp2 = __ni_interface_route_list_contains(cfg_route_list, rp);
-		if (rp2 != NULL) {
-			/* Okay, we think this address should be managed via the
-			 * specified addrconf method. Make sure this is actually
-			 * the case.
-			 * Note that the code analyzing the current system state
-			 * may mis-classify an address as STATIC, so allow for some
-			 * leeway here.
+
+		if (rp->config_lease && rp->config_lease->type != mode) {
+			/* The existing route is managed by a different
+			 * addrconf mode.
 			 */
-			if (rp->config_method != mode
-			 && rp->config_method != NI_ADDRCONF_STATIC) {
+			if (rp2 != NULL) {
 				ni_warn("route %s covered by a %s lease",
 					ni_route_print(rp),
-					ni_addrconf_type_to_name(rp->config_method));
-			} else {
-				rp->config_method = mode;
+					ni_addrconf_type_to_name(rp->config_lease->type));
 			}
-		}
-
-		/* Even interfaces with static network config may have
-		 * dynamically configured routes. Don't touch these.
-		 */
-		if (rp->config_method != mode)
 			continue;
+		}
 
 		if (rp2 != NULL) {
 			if (__ni_rtnl_send_newroute(ifp, rp2, NLM_F_REPLACE) >= 0) {

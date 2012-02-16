@@ -418,7 +418,8 @@ __ni_objectmodel_route_to_dict(const ni_route_t *rp, ni_dbus_variant_t *dict)
 	const ni_route_nexthop_t *nh;
 
 	__wicked_dbus_add_sockaddr_prefix(dict, "destination", &rp->destination, rp->prefixlen);
-	ni_dbus_dict_add_uint32(dict, "owner", rp->config_method);
+	if (rp->config_lease)
+		ni_dbus_dict_add_uint32(dict, "owner", rp->config_lease->type);
 	if (rp->mtu)
 		ni_dbus_dict_add_uint32(dict, "mtu", rp->mtu);
 	if (rp->tos)
@@ -465,8 +466,10 @@ __ni_objectmodel_route_from_dict(ni_route_t **list, const ni_dbus_variant_t *dic
 		rp->tos = value;
 	if (ni_dbus_dict_get_uint32(dict, "priority", &value))
 		rp->priority = value;
+#if 0
 	if (!ni_dbus_dict_get_uint32(dict, "owner", &value))
 		rp->config_method = value;
+#endif
 
 	if ((nhdict = ni_dbus_dict_get(dict, "nexthop")) != NULL) {
 		ni_route_nexthop_t *nh = &rp->nh, **nhpos = &nh;

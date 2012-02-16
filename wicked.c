@@ -974,7 +974,6 @@ do_show(int argc, char **argv)
 
 		for (object = object->children; object; object = object->next) {
 			ni_interface_t *ifp = object->handle;
-			char buffer[64];
 			ni_address_t *ap;
 			ni_route_t *rp;
 
@@ -987,14 +986,12 @@ do_show(int argc, char **argv)
 			printf("\n");
 
 			for (ap = ifp->addrs; ap; ap = ap->next)
-				printf("  addr:  %s/%u\n", ni_address_print(&ap->local_addr), ap->prefixlen);
+				printf("  addr:   %s/%u\n", ni_address_print(&ap->local_addr), ap->prefixlen);
 
 			for (rp = ifp->routes; rp; rp = rp->next) {
 				const ni_route_nexthop_t *nh;
 
-				snprintf(buffer, sizeof(buffer), "%s route:",
-						ni_addrconf_type_to_name(rp->config_method));
-				printf("  %-14s", buffer);
+				printf("  route: ");
 
 				if (rp->prefixlen)
 					printf(" %s/%u", ni_address_print(&rp->destination), rp->prefixlen);
@@ -1006,7 +1003,6 @@ do_show(int argc, char **argv)
 						printf("; via %s", ni_address_print(&nh->gateway));
 				}
 
-				printf(" [config=%s]", ni_addrconf_type_to_name(rp->config_method));
 				printf("\n");
 			}
 		}
