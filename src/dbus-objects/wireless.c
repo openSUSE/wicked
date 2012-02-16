@@ -52,7 +52,8 @@ __ni_objectmodel_wireless_get_network(const ni_wireless_network_t *network,
 {
 	unsigned int i;
 
-	ni_dbus_dict_add_string(dict, "essid", network->essid);
+	ni_dbus_dict_add_string(dict, "essid",
+				ni_wireless_print_ssid(&network->essid));
 
 	if (network->access_point.len)
 		ni_dbus_dict_add_byte_array(dict, "access-point",
@@ -66,9 +67,6 @@ __ni_objectmodel_wireless_get_network(const ni_wireless_network_t *network,
 		ni_dbus_dict_add_double(dict, "frequency", network->frequency);
 	if (network->max_bitrate)
 		ni_dbus_dict_add_uint32(dict, "max-bitrate", network->max_bitrate);
-
-	if (network->auth_info.count == 0)
-		ni_trace("%s: no auth info", network->essid);
 
 	for (i = 0; i < network->auth_info.count; ++i) {
 		ni_wireless_auth_info_t *auth_info = network->auth_info.data[i];

@@ -182,6 +182,7 @@ xml_node_output(const xml_node_t *node, xml_writer_t *writer, unsigned int inden
 const char *
 xml_escape_entities(const char *cdata)
 {
+	/* FIXME FIXME FIXME - escape <>&; */
 	return cdata;
 }
 

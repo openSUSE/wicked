@@ -97,10 +97,15 @@ typedef struct ni_wireless_auth_info_array {
 
 typedef struct ni_wireless_network ni_wireless_network_t;
 
+typedef struct ni_wireless_ssid {
+	unsigned int			len;
+	unsigned char			data[32];
+} ni_wireless_ssid_t;
+
 #define NI_WIRELESS_BITRATES_MAX	32
 
 struct ni_wireless_network {
-	char *			essid;
+	ni_wireless_ssid_t	essid;
 	unsigned int		essid_encode_index;
 	ni_hwaddr_t		access_point;
 	ni_wireless_mode_t	mode;
@@ -179,6 +184,8 @@ extern void		ni_wireless_auth_info_free(ni_wireless_auth_info_t *);
 extern void		ni_wireless_auth_info_array_init(ni_wireless_auth_info_array_t *);
 extern void		ni_wireless_auth_info_array_append(ni_wireless_auth_info_array_t *, ni_wireless_auth_info_t *);
 extern void		ni_wireless_auth_info_array_destroy(ni_wireless_auth_info_array_t *);
+
+extern const char *	ni_wireless_print_ssid(const ni_wireless_ssid_t *);
 
 extern const char *	ni_wireless_mode_to_name(ni_wireless_mode_t);
 extern ni_wireless_mode_t ni_wireless_name_to_mode(const char *);

@@ -641,7 +641,6 @@ ni_wireless_network_set_key(ni_wireless_network_t *net, const unsigned char *key
 void
 __ni_wireless_network_destroy(ni_wireless_network_t *net)
 {
-	ni_string_free(&net->essid);
 	ni_wireless_network_set_key(net, NULL, 0);
 	ni_wireless_auth_info_array_destroy(&net->auth_info);
 	memset(net, 0, sizeof(*net));
@@ -738,3 +737,32 @@ ni_wireless_auth_info_array_destroy(ni_wireless_auth_info_array_t *array)
 		ni_wireless_auth_info_free(array->data[i]);
 	memset(array, 0, sizeof(*array));
 }
+
+/*
+ * Helper function to print and parse an SSID
+ * Non-printable characters and anything fishy is represented
+ * as \\ooo octal escape characters
+ */
+const char *
+ni_wireless_print_ssid(const ni_wireless_ssid_t *ssid)
+{
+	static char result[4 * sizeof(ssid->data) + 1];
+	unsigned int i, j;
+
+	ni_assert(ssid->len <= sizeof(ssid->data));
+
+	for (i = j = 0; i < ssid->len; ++i) {
+		unsigned char cc = ssid->data[i];
+
+		if (isalnum(cc) || cc == '-' || cc == '_' || cc == ' ') {
+			result[j++] = cc;
+		} else {
+			sprintf(result + j, "\\%03o", cc);
+			j += 4;
+		}
+	}
+	result[j] = '\0';
+
+	return result;
+}
+

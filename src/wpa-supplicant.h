@@ -34,10 +34,7 @@ struct ni_wpa_network {
 
 	ni_hwaddr_t		bssid;
 
-	struct ni_wpa_ssid {
-		unsigned int	len;
-		unsigned char	data[32];
-	} essid;
+	ni_wireless_ssid_t	essid;
 
 	int32_t			noise;
 	int32_t			frequency;	/* in MHz */

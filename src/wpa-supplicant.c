@@ -84,7 +84,6 @@ static int		ni_wpa_interface_get_capabilities(ni_wpa_client_t *, ni_wpa_interfac
 static void		ni_wpa_network_request_properties(ni_wpa_client_t *wpa, ni_wpa_network_t *network);
 static void		ni_wpa_signal(ni_dbus_connection_t *, ni_dbus_message_t *, void *);
 static void		ni_wpa_scan_put(ni_wpa_scan_t *);
-static char *		__ni_wpa_escape_essid(const ni_wpa_network_t *);
 static const char *	ni_wpa_auth_protocol_as_string(ni_wireless_auth_mode_t, DBusError *);
 static dbus_bool_t	ni_wpa_auth_protocol_from_string(const char *, ni_wireless_auth_mode_t *, DBusError *);
 static const char *	ni_wpa_auth_algorithm_as_string(ni_wireless_auth_algo_t, DBusError *);
@@ -559,7 +558,7 @@ ni_wpa_interface_retrieve_scan(ni_wpa_client_t *wpa, ni_wpa_interface_t *ifp, ni
 		net = ni_wireless_network_new();
 		net->access_point = wpa_net->bssid;
 		net->frequency = wpa_net->frequency * 1e6;
-		net->essid = __ni_wpa_escape_essid(wpa_net);
+		net->essid = wpa_net->essid;
 		net->max_bitrate = wpa_net->maxrate;
 
 		if (wpa_net->wpsie)
@@ -587,31 +586,6 @@ ni_wpa_interface_retrieve_scan(ni_wpa_client_t *wpa, ni_wpa_interface_t *ifp, ni
 		ni_wireless_network_array_append(&scan->networks, net);
 	}
 	return 0;
-}
-
-static char *
-__ni_wpa_escape_essid(const ni_wpa_network_t *wpa_net)
-{
-	unsigned int i, j;
-	char *result;
-
-	result = malloc(4 * wpa_net->essid.len + 1);
-	if (result == NULL)
-		return NULL;
-
-	for (i = j = 0; i < wpa_net->essid.len; ++i) {
-		unsigned char cc = wpa_net->essid.data[i];
-
-		if (isalnum(cc) || cc == '-' || cc == '_' || cc == ' ') {
-			result[j++] = cc;
-		} else {
-			sprintf(result + j, "\\%03o", cc);
-			j += 4;
-		}
-	}
-	result[j] = '\0';
-
-	return result;
 }
 
 /*
