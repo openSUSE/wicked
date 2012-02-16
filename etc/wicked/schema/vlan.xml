@@ -4,7 +4,7 @@
 <service name="vlan" interface="com.suse.Wicked.VLAN" object-class="netif-vlan">
  <!-- This is the linkinfo returned in interface reports -->
  <define name="linkinfo" class="dict">
-  <device type="string"/>
+  <device type="object-path"/>
   <id type="uint16"/>
  </define>
 
@@ -21,7 +21,7 @@
   </arguments>
   <return>
    <!-- this is really an object handle -->
-   <string/>
+   <object-path/>
   </return>
  </method>
 </service>

@@ -356,6 +356,7 @@ ni_dbus_define_scalar_types(ni_xs_scope_t *typedict)
 		{ "int16",	DBUS_TYPE_INT16 },
 		{ "int32",	DBUS_TYPE_INT32 },
 		{ "int64",	DBUS_TYPE_INT64 },
+		{ "object-path",DBUS_TYPE_OBJECT_PATH },
 
 		{ NULL }
 	}, *tp;
