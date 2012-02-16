@@ -136,11 +136,12 @@ wicked_interface_server(void)
 	if (wicked_dbus_xml_schema == NULL)
 		ni_fatal("Giving up.");
 
+	/* FIXME: this is too messy, and can be simplified quite a bit */
 	ni_objectmodel_register_all();
 
 	wicked_dbus_server = ni_objectmodel_create_service();
 
-	ni_dbus_xml_register_services(wicked_dbus_server, wicked_dbus_xml_schema);
+	ni_dbus_xml_register_services(wicked_dbus_xml_schema);
 
 	ni_objectmodel_create_initial_objects(wicked_dbus_server);
 

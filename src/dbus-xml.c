@@ -42,7 +42,7 @@ ni_dbus_xml_init(void)
  * Register all services defined by the schema
  */
 int
-ni_dbus_xml_register_services(ni_dbus_server_t *server, ni_xs_scope_t *scope)
+ni_dbus_xml_register_services(ni_xs_scope_t *scope)
 {
 	ni_xs_service_t *xs_service;
 
