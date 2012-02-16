@@ -565,6 +565,7 @@ ni_wpa_interface_retrieve_scan(ni_wpa_client_t *wpa, ni_wpa_interface_t *ifp, ni
 		net->access_point = bpp->bssid;
 		net->frequency = bpp->frequency * 1e6;
 		net->essid = __ni_wpa_escape_essid(bpp);
+		net->max_bitrate = bpp->maxrate;
 
 		if (bpp->wpsie)
 			__ni_wireless_process_ie(net, bpp->wpsie->data, bpp->wpsie->len);

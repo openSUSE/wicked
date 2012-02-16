@@ -684,8 +684,7 @@ ni_wireless_auth_info_add_pairwise_cipher(ni_wireless_auth_info_t *auth, ni_wire
 void
 ni_wireless_auth_info_add_key_management(ni_wireless_auth_info_t *auth, ni_wireless_key_mgmt_t algo)
 {
-	if (auth->key_management.count < NI_WIRELESS_PAIRWISE_CIPHERS_MAX)
-		auth->key_management.value[auth->key_management.count++] = algo;
+	auth->keymgmt_algos |= 1 << algo;
 }
 
 void

@@ -63,8 +63,9 @@ __ni_objectmodel_wireless_get_network(const ni_wireless_network_t *network,
 	if (network->channel)
 		ni_dbus_dict_add_uint32(dict, "channel", network->channel);
 	if (network->frequency)
-		if (!ni_dbus_dict_add_double(dict, "frequency", network->frequency))
-			ni_warn("failed to add feq");
+		ni_dbus_dict_add_double(dict, "frequency", network->frequency);
+	if (network->max_bitrate)
+		ni_dbus_dict_add_uint32(dict, "max-bitrate", network->max_bitrate);
 
 	if (network->auth_info.count == 0)
 		ni_trace("%s: no auth info", network->essid);
@@ -75,7 +76,12 @@ __ni_objectmodel_wireless_get_network(const ni_wireless_network_t *network,
 
 		child = ni_dbus_dict_add(dict, "auth-info");
 		ni_dbus_variant_init_dict(child);
+
+		ni_dbus_dict_add_uint32(child, "mode", auth_info->mode);
+		ni_dbus_dict_add_uint32(child, "version", auth_info->version);
+		ni_dbus_dict_add_uint32(child, "group-cipher", auth_info->group_cipher);
 		ni_dbus_dict_add_uint32(child, "pairwise-ciphers", auth_info->pairwise_ciphers);
+		ni_dbus_dict_add_uint32(child, "key-management", auth_info->pairwise_ciphers);
 	}
 
 	return TRUE;
