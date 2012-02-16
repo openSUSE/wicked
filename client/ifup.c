@@ -56,6 +56,7 @@ struct ni_interface_state {
 	char *			name;
 	char *			object_path;
 	unsigned int		ifindex;
+	ni_iftype_t		iftype;
 
 	int			target_state;
 	int			state;
@@ -63,6 +64,9 @@ struct ni_interface_state {
 
 	xml_node_t *		config;
 	ni_interface_t *	device;
+
+	unsigned int		shared_users;
+	ni_interface_state_t *	exclusive_owner;
 
 #if 0
 	unsigned int		refcount;
@@ -261,32 +265,41 @@ mark_matching_interfaces(const char *match_name, unsigned int target_state)
 	return count;
 }
 
-void
+/*
+ * Build the hierarchy of devices.
+ *
+ * We need to ensure that we bring up devices in the proper order; e.g. an
+ * eth interface needs to come up before any of the VLANs that reference
+ * it.
+ */
+static int
 build_hierarchy(void)
 {
-	ni_interface_state_t *w;
 	unsigned int i;
 
 	for (i = 0; i < interface_workers.count; ++i) {
-		xml_node_t *ifnode, *node;
+		ni_interface_state_t *w = interface_workers.data[i];
+		xml_node_t *ifnode, *linknode, *devnode;
 		ni_interface_state_t *child;
 
-		w = interface_workers.data[i];
-
 		ifnode = w->config;
-		if ((node = xml_node_get_child(ifnode, "vlan")) != NULL) {
+
+		if (!(linknode = wicked_find_link_properties(ifnode)))
+			continue;
+
+		/* This cannot fail, as this is how wicked_find_link_properties tells
+		 * link nodes from others. */
+		w->iftype = ni_linktype_name_to_type(linknode->name);
+
+		devnode = NULL;
+		while ((devnode = xml_node_get_next_named(linknode, "device", devnode)) != NULL) {
 			const char *slave_name;
 
-			if ((node = xml_node_get_child(node, "device")) == NULL) {
-				ni_error("%s: vlan declaration lacks <device> element",
-						xml_node_location(ifnode));
-				continue;
-			}
-
-			slave_name = node->cdata;
+			slave_name = devnode->cdata;
 			if (slave_name == NULL) {
-				ni_error("%s: empty <device> element in vlan declaration",
-						xml_node_location(ifnode));
+				ni_error("%s: empty <device> element in <%s> declaration",
+						xml_node_location(ifnode),
+						linknode->name);
 				continue;
 			}
 
@@ -295,15 +308,45 @@ build_hierarchy(void)
 				/* We may not have the config for this device, but it may exist
 				 * in the system. */
 			}
+
 			if (child == NULL) {
-				ni_error("%s: vlan declaration references unknown slave device %s",
-						xml_node_location(ifnode), slave_name);
+				ni_error("%s: <%s> element references unknown slave device %s",
+						xml_node_location(ifnode),
+						linknode->name,
+						slave_name);
 				continue;
+			}
+
+			if (child->exclusive_owner != NULL) {
+				char *other_owner;
+
+				other_owner = strdup(xml_node_location(child->exclusive_owner->config));
+				ni_error("%s: slave interface already owned by %s",
+						xml_node_location(devnode), other_owner);
+				free(other_owner);
+				return -1;
+			}
+
+			switch (w->iftype) {
+			case NI_IFTYPE_VLAN:
+				child->shared_users++;
+				break;
+
+			default:
+				if (child->shared_users) {
+					ni_error("%s: slave interface already used by other interfaces",
+							xml_node_location(devnode));
+					return -1;
+				}
+				child->exclusive_owner = w;
+				break;
 			}
 
 			ni_interface_state_add_child(w, child);
 		}
 	}
+
+	return 0;
 }
 
 static void
@@ -552,6 +595,9 @@ usage:
 	} else {
 		ni_fatal("ifup: non-file case not implemented yet");
 	}
+
+	if (build_hierarchy() < 0)
+		ni_fatal("ifup: unable to build device hierarchy");
 
 	if (!mark_matching_interfaces(ifname, STATE_NETWORK_UP))
 		return 0;
