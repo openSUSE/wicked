@@ -43,6 +43,10 @@ typedef struct ni_dbus_addrconf_forwarder {
 	ni_dbus_class_t		class;
 } ni_dbus_addrconf_forwarder_t;
 
+static dbus_bool_t	ni_objectmodel_addrconf_forwarder_call(ni_dbus_addrconf_forwarder_t *forwarder,
+					ni_interface_t *dev, const char *method_name,
+					const ni_uuid_t *uuid, const ni_dbus_variant_t *dict,
+					DBusError *error);
 
 #define WICKED_DBUS_ADDRCONF_IPV4STATIC_INTERFACE	WICKED_DBUS_INTERFACE ".Addrconf.ipv4.static"
 #define WICKED_DBUS_ADDRCONF_IPV4DHCP_INTERFACE		WICKED_DBUS_INTERFACE ".Addrconf.ipv4.dhcp"
@@ -316,14 +320,70 @@ ni_objectmodel_addrconf_ipv6_static_drop(ni_dbus_object_t *object, const ni_dbus
  * free-form. We just pass it on to the respective addrconf service.
  */
 static dbus_bool_t
-ni_objectmodel_addrconf_forward(ni_dbus_addrconf_forwarder_t *forwarder,
+ni_objectmodel_addrconf_forward_request(ni_dbus_addrconf_forwarder_t *forwarder,
 			ni_interface_t *dev, const ni_dbus_variant_t *dict,
 			ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_uuid_t req_uuid;
+	dbus_bool_t rv;
+
+	/* Generate a uuid and assign an event ID */
+	ni_uuid_generate(&req_uuid);
+
+	if (ni_interface_get_lease(dev, forwarder->addrfamily, forwarder->addrconf) == NULL) {
+		ni_addrconf_lease_t *lease;
+
+		lease = ni_addrconf_lease_new(forwarder->addrconf, forwarder->addrfamily);
+		lease->state = NI_ADDRCONF_STATE_REQUESTING;
+		lease->uuid = req_uuid;
+		ni_interface_set_lease(dev, lease);
+	}
+
+	rv = ni_objectmodel_addrconf_forwarder_call(forwarder, dev, "acquire", &req_uuid, dict, error);
+	if (rv) {
+		/* Tell the client to wait for an addressAcquired event with the given uuid */
+		rv =  __ni_objectmodel_return_callback_info(reply, NI_EVENT_ADDRESS_ACQUIRED, &req_uuid, error);
+	}
+	return rv;
+}
+
+/*
+ * Forward an addrconf drop call to a supplicant service, such as DHCP or zeroconf
+ */
+static dbus_bool_t
+ni_objectmodel_addrconf_forward_release(ni_dbus_addrconf_forwarder_t *forwarder,
+			ni_interface_t *dev, const ni_dbus_variant_t *dict,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_addrconf_lease_t *lease;
+	dbus_bool_t rv;
+
+	/* If we have no lease, neither pending nor granted, there's nothing we need to do.
+	 */
+	if ((lease = ni_interface_get_lease(dev, forwarder->addrfamily, forwarder->addrconf)) == NULL)
+		return TRUE;
+
+	rv = ni_objectmodel_addrconf_forwarder_call(forwarder, dev, "drop", &lease->uuid, NULL, error);
+	if (rv) {
+		/* Tell the client to wait for an addressAcquired event with the given uuid */
+		rv =  __ni_objectmodel_return_callback_info(reply, NI_EVENT_ADDRESS_RELEASED, &lease->uuid, error);
+	}
+	return rv;
+}
+
+/*
+ * Create client handle for addrconf forwarder
+ */
+static dbus_bool_t
+ni_objectmodel_addrconf_forwarder_call(ni_dbus_addrconf_forwarder_t *forwarder,
+				ni_interface_t *dev, const char *method_name,
+				const ni_uuid_t *uuid, const ni_dbus_variant_t *dict,
+				DBusError *error)
 {
 	ni_dbus_object_t *object;
 	char object_path[256];
 	ni_dbus_variant_t argv[2];
-	ni_uuid_t req_uuid;
+	int argc = 0;
 	dbus_bool_t rv;
 
 	if (forwarder->supplicant.client == NULL) {
@@ -340,18 +400,6 @@ ni_objectmodel_addrconf_forward(ni_dbus_addrconf_forwarder_t *forwarder,
 				forwarder);
 	}
 
-	/* Generate a uuid and assign an event ID */
-	ni_uuid_generate(&req_uuid);
-
-	if (ni_interface_get_lease(dev, forwarder->addrfamily, forwarder->addrconf) == NULL) {
-		ni_addrconf_lease_t *lease;
-
-		lease = ni_addrconf_lease_new(forwarder->addrconf, forwarder->addrfamily);
-		lease->state = NI_ADDRCONF_STATE_REQUESTING;
-		lease->uuid = req_uuid;
-		ni_interface_set_lease(dev, lease);
-	}
-
 	/* Build the path of the object to talk to in the supplicant service */
 	snprintf(object_path, sizeof(object_path), "%s/%u",
 			forwarder->supplicant.object_path, dev->link.ifindex);
@@ -363,45 +411,43 @@ ni_objectmodel_addrconf_forward(ni_dbus_addrconf_forwarder_t *forwarder,
 	/* Build the arguments. Note that we don't clone the dict, we just assign it
 	 * to argv[1]. Thus, we must make sure we never call ni_dbus_variant_destroy on argv[1] */
 	memset(argv, 0, sizeof(argv));
-	ni_dbus_variant_set_uuid(&argv[0], &req_uuid);
-	argv[1] = *dict;
+	ni_dbus_variant_set_uuid(&argv[argc++], uuid);
+	if (dict)
+		argv[argc++] = *dict;
 
 	/* Call the supplicant's method */
-	rv = ni_dbus_object_call_variant(object, forwarder->supplicant.interface, "acquire", 2, argv, 0, NULL, error);
+	rv = ni_dbus_object_call_variant(object, forwarder->supplicant.interface, method_name, argc, argv, 0, NULL, error);
 
 	ni_dbus_object_free(object);
 	ni_dbus_variant_destroy(&argv[0]);
 
-	if (rv) {
-		/* Tell the client to wait for an addressAcquired event with the given uuid */
-		rv =  __ni_objectmodel_return_callback_info(reply, NI_EVENT_ADDRESS_ACQUIRED, &req_uuid, error);
-	}
 	return rv;
 }
 
 /*
  * Configure IPv4 addresses via DHCP
  */
+static ni_dbus_addrconf_forwarder_t dhcp4_forwarder = {
+	.caller = {
+		.interface	= WICKED_DBUS_ADDRCONF_IPV4DHCP_INTERFACE,
+	},
+	.supplicant = {
+		.bus_name	= WICKED_DBUS_BUS_NAME_DHCP4,
+		.interface	= WICKED_DBUS_DHCP4_INTERFACE,
+		.object_path	= WICKED_DBUS_OBJECT_PATH "/DHCP4/Interface",
+	},
+	.addrfamily	= AF_INET,
+	.addrconf	= NI_ADDRCONF_DHCP,
+	.class = {
+		.name	= "netif-dhcp-forwarder",
+	}
+};
+
 static dbus_bool_t
 ni_objectmodel_addrconf_ipv4_dhcp_request(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
-	static ni_dbus_addrconf_forwarder_t forwarder = {
-		.caller = {
-			.interface	= WICKED_DBUS_ADDRCONF_IPV4DHCP_INTERFACE,
-		},
-		.supplicant = {
-			.bus_name	= WICKED_DBUS_BUS_NAME_DHCP4,
-			.interface	= WICKED_DBUS_DHCP4_INTERFACE,
-			.object_path	= WICKED_DBUS_OBJECT_PATH "/DHCP4/Interface",
-		},
-		.addrfamily	= AF_INET,
-		.addrconf	= NI_ADDRCONF_DHCP,
-		.class = {
-			.name	= "netif-dhcp-forwarder",
-		}
-	};
 	ni_interface_t *dev;
 
 	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
@@ -414,7 +460,7 @@ ni_objectmodel_addrconf_ipv4_dhcp_request(ni_dbus_object_t *object, const ni_dbu
 		return FALSE;
 	}
 
-	return ni_objectmodel_addrconf_forward(&forwarder, dev, &argv[0], reply, error);
+	return ni_objectmodel_addrconf_forward_request(&dhcp4_forwarder, dev, &argv[0], reply, error);
 }
 
 static dbus_bool_t
@@ -422,33 +468,38 @@ ni_objectmodel_addrconf_ipv4_dhcp_drop(ni_dbus_object_t *object, const ni_dbus_m
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
-	/* NOP for now */
-	return TRUE;
+	ni_interface_t *dev;
+
+	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
+		return FALSE;
+
+	return ni_objectmodel_addrconf_forward_release(&dhcp4_forwarder, dev, NULL, reply, error);
 }
 
 /*
  * Configure IPv4 addresses via IPv4ll
  */
+static ni_dbus_addrconf_forwarder_t ipv4ll_forwarder = {
+	.caller = {
+		.interface	= WICKED_DBUS_ADDRCONF_IPV4AUTO_INTERFACE,
+	},
+	.supplicant = {
+		.bus_name	= WICKED_DBUS_BUS_NAME_AUTO4,
+		.interface	= WICKED_DBUS_AUTO4_INTERFACE,
+		.object_path	= WICKED_DBUS_OBJECT_PATH "/AUTO4/Interface",
+	},
+	.addrfamily	= AF_INET,
+	.addrconf	= NI_ADDRCONF_AUTOCONF,
+	.class = {
+		.name	= "netif-ipv4ll-forwarder",
+	}
+};
+
 static dbus_bool_t
 ni_objectmodel_addrconf_ipv4ll_request(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
-	static ni_dbus_addrconf_forwarder_t forwarder = {
-		.caller = {
-			.interface	= WICKED_DBUS_ADDRCONF_IPV4AUTO_INTERFACE,
-		},
-		.supplicant = {
-			.bus_name	= WICKED_DBUS_BUS_NAME_AUTO4,
-			.interface	= WICKED_DBUS_AUTO4_INTERFACE,
-			.object_path	= WICKED_DBUS_OBJECT_PATH "/AUTO4/Interface",
-		},
-		.addrfamily	= AF_INET,
-		.addrconf	= NI_ADDRCONF_AUTOCONF,
-		.class = {
-			.name	= "netif-ipv4ll-forwarder",
-		}
-	};
 	ni_interface_t *dev;
 
 	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
@@ -461,7 +512,7 @@ ni_objectmodel_addrconf_ipv4ll_request(ni_dbus_object_t *object, const ni_dbus_m
 		return FALSE;
 	}
 
-	return ni_objectmodel_addrconf_forward(&forwarder, dev, &argv[0], reply, error);
+	return ni_objectmodel_addrconf_forward_request(&ipv4ll_forwarder, dev, &argv[0], reply, error);
 }
 
 static dbus_bool_t
@@ -469,8 +520,12 @@ ni_objectmodel_addrconf_ipv4ll_drop(ni_dbus_object_t *object, const ni_dbus_meth
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
-	/* NOP for now */
-	return TRUE;
+	ni_interface_t *dev;
+
+	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
+		return FALSE;
+
+	return ni_objectmodel_addrconf_forward_release(&ipv4ll_forwarder, dev, NULL, reply, error);
 }
 
 /*
