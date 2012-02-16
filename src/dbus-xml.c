@@ -471,15 +471,18 @@ ni_dbus_serialize_xml_array(xml_node_t *node, const ni_xs_type_t *type, ni_dbus_
 
 		/* For now, we handle only byte arrays */
 		if (notation->array_element_type != DBUS_TYPE_BYTE) {
-			ni_error("%s: cannot handle array notation \"%s\"", __func__, notation->name);
+			ni_error("%s: cannot handle array notation \"%s\"",
+					xml_node_location(node), notation->name);
 			return FALSE;
 		}
 		if (node->cdata == NULL) {
-			ni_error("%s: array not compatible with notation \"%s\"", __func__, notation->name);
+			ni_error("%s: array not compatible with notation \"%s\"",
+					xml_node_location(node), notation->name);
 			return FALSE;
 		}
 		if (!notation->parse(node->cdata, &data)) {
-			ni_error("%s: cannot parse array with notation \"%s\", value=\"%s\"", __func__, notation->name, node->cdata);
+			ni_error("%s: cannot parse array with notation \"%s\", value=\"%s\"",
+					xml_node_location(node), notation->name, node->cdata);
 			return FALSE;
 		}
 		ni_dbus_variant_set_byte_array(var, data.data, data.len);
@@ -492,7 +495,8 @@ ni_dbus_serialize_xml_array(xml_node_t *node, const ni_xs_type_t *type, ni_dbus_
 	for (child = node->children; child; child = child->next) {
 		if (element_type->class == NI_XS_TYPE_SCALAR) {
 			if (child->cdata == NULL) {
-				ni_error("%s: NULL array element",__func__);
+				ni_error("%s: NULL array element",
+						xml_node_location(child));
 				return FALSE;
 			}
 
@@ -508,7 +512,8 @@ ni_dbus_serialize_xml_array(xml_node_t *node, const ni_xs_type_t *type, ni_dbus_
 			element = ni_dbus_variant_append_variant_element(var);
 			if (!element) {
 				/* should not happen */
-				ni_error("%s: could not append element to array", __func__);
+				ni_error("%s: could not append element to array",
+						xml_node_location(child));
 				return FALSE;
 			}
 
@@ -517,7 +522,8 @@ ni_dbus_serialize_xml_array(xml_node_t *node, const ni_xs_type_t *type, ni_dbus_
 				return FALSE;
 			}
 		} else {
-			ni_error("%s: arrays of type %s not implemented yet", __func__, ni_xs_type_to_dbus_signature(element_type));
+			ni_error("%s: arrays of type %s not implemented yet",
+					xml_node_location(child), ni_xs_type_to_dbus_signature(element_type));
 			return FALSE;
 		}
 	}
