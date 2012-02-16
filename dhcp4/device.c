@@ -227,6 +227,7 @@ ni_dhcp_acquire(ni_dhcp_device_t *dev, const ni_dhcp4_request_t *info)
 	config->resend_timeout = NI_DHCP_RESEND_TIMEOUT_INIT;
 	config->request_timeout = info->acquire_timeout?: NI_DHCP_REQUEST_TIMEOUT;
 	config->initial_discovery_timeout = NI_DHCP_DISCOVERY_TIMEOUT;
+	config->uuid = info->uuid;
 
 	config->max_lease_time = ni_dhcp_config_max_lease_time();
 	if (config->max_lease_time == 0)
@@ -256,10 +257,12 @@ ni_dhcp_acquire(ni_dhcp_device_t *dev, const ni_dhcp4_request_t *info)
 
 	if (ni_debug & NI_TRACE_DHCP) {
 		ni_trace("Received request:");
-		ni_trace("  lease-time   %u", config->max_lease_time);
-		ni_trace("  hostname     %s", config->hostname[0]? config->hostname : "<none>");
-		ni_trace("  vendor-class %s", config->classid[0]? config->classid : "<none>");
-		ni_trace("  client-id    %s", ni_print_hex(config->raw_client_id.data, config->raw_client_id.len));
+		ni_trace("  acquire-timeout %u", config->request_timeout);
+		ni_trace("  lease-time      %u", config->max_lease_time);
+		ni_trace("  hostname        %s", config->hostname[0]? config->hostname : "<none>");
+		ni_trace("  vendor-class    %s", config->classid[0]? config->classid : "<none>");
+		ni_trace("  client-id       %s", ni_print_hex(config->raw_client_id.data, config->raw_client_id.len));
+		ni_trace("  uuid            %s", ni_print_hex(config->uuid.octets, 16));
 	}
 
 	if (dev->config)

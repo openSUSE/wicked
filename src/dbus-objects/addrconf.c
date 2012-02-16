@@ -181,7 +181,7 @@ ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_messa
 	} else if (!strcmp(signal_name, "LeaseLost")) {
 		lease->state = NI_ADDRCONF_STATE_FAILED;
 		__ni_system_interface_update_lease(ifp, &lease);
-		ni_objectmodel_interface_event(NULL, ifp, NI_EVENT_ADDRESS_LOST, NULL);
+		ni_objectmodel_interface_event(NULL, ifp, NI_EVENT_ADDRESS_LOST, &uuid);
 	} else {
 		/* Ignore unknown signal */
 	}
@@ -323,6 +323,8 @@ ni_objectmodel_addrconf_forward(ni_dbus_addrconf_forwarder_t *forwarder,
 	ni_dbus_object_t *object;
 	ni_addrconf_request_t *req;
 	char object_path[256];
+	ni_dbus_variant_t argv[2];
+	dbus_bool_t rv;
 
 	if (forwarder->supplicant.client == NULL) {
 		forwarder->supplicant.client = ni_create_dbus_client(forwarder->supplicant.bus_name);
@@ -353,11 +355,18 @@ ni_objectmodel_addrconf_forward(ni_dbus_addrconf_forwarder_t *forwarder,
 				&forwarder->class, object_path,
 				forwarder->supplicant.interface, NULL);
 
-	/* Call the supplicant's method */
-	if (!ni_dbus_object_call_variant(object, forwarder->supplicant.interface, method_name, 1, dict, 0, NULL, error))
-		return NULL;
+	/* Build the arguments. Note that we don't clone the dict, we just assign it
+	 * to argv[1]. Thus, we must make sure we never call ni_dbus_variant_destroy on argv[1] */
+	memset(argv, 0, sizeof(argv));
+	ni_dbus_variant_set_uuid(&argv[0], &req->uuid);
+	argv[1] = *dict;
 
-	return req;
+	/* Call the supplicant's method */
+	rv = ni_dbus_object_call_variant(object, forwarder->supplicant.interface, method_name, 2, argv, 0, NULL, error);
+
+	ni_dbus_variant_destroy(&argv[0]);
+
+	return rv? req : NULL;
 }
 
 /*

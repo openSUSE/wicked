@@ -220,7 +220,7 @@ failed:
 }
 
 static ni_dbus_method_t		wicked_dbus_dhcp4_methods[] = {
-	{ "acquire",		"a{sv}",		__wicked_dbus_dhcp4_acquire_svc },
+	{ "acquire",		"aya{sv}",		__wicked_dbus_dhcp4_acquire_svc },
 	{ "drop",		"ay",			__wicked_dbus_dhcp4_drop_svc },
 	{ NULL }
 };
