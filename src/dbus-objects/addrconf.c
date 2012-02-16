@@ -49,8 +49,6 @@ typedef struct ni_dbus_addrconf_forwarder {
 #define WICKED_DBUS_ADDRCONF_IPV4AUTO_INTERFACE		WICKED_DBUS_INTERFACE ".Addrconf.ipv4.auto"
 #define WICKED_DBUS_ADDRCONF_IPV6STATIC_INTERFACE	WICKED_DBUS_INTERFACE ".Addrconf.ipv6.static"
 
-static dbus_bool_t	__ni_objectmodel_callback_info_to_dict(const ni_objectmodel_callback_info_t *, ni_dbus_variant_t *);
-
 /*
  * Extract interface index from object path.
  * Path names must be WICKED_DBUS_OBJECT_PATH "/" <something> "/Interface/" <index>
@@ -363,80 +361,6 @@ ni_objectmodel_addrconf_forward(ni_dbus_addrconf_forwarder_t *forwarder,
 }
 
 /*
- * When we've forwarded an addrconf call to a supplicant, such as dhcp4
- * or ipv4ll, we need to return to the caller the uuid and event he's supposed
- * to wait for.
- */
-static dbus_bool_t
-ni_objectmodel_return_callback_info(ni_dbus_message_t *reply, ni_event_t event, const ni_uuid_t *uuid, DBusError *error)
-{
-	ni_dbus_variant_t dict = NI_DBUS_VARIANT_INIT;
-	ni_objectmodel_callback_info_t callback;
-	dbus_bool_t rv;
-
-	memset(&callback, 0, sizeof(callback));
-	if (!(callback.event = (char *) __ni_objectmodel_event_to_signal(event)))
-		return FALSE;
-	callback.uuid = *uuid;
-
-	ni_dbus_variant_init_dict(&dict);
-	rv = __ni_objectmodel_callback_info_to_dict(&callback, &dict);
-	if (rv)
-		rv = ni_dbus_message_serialize_variants(reply, 1, &dict, error);
-	ni_dbus_variant_destroy(&dict);
-
-	return rv;
-}
-
-static dbus_bool_t
-__ni_objectmodel_callback_info_to_dict(const ni_objectmodel_callback_info_t *cb, ni_dbus_variant_t *dict)
-{
-	while (cb) {
-		ni_dbus_variant_t *info_dict;
-
-		info_dict = ni_dbus_dict_add(dict, "callback");
-		ni_dbus_variant_init_dict(info_dict);
-
-		ni_dbus_dict_add_string(info_dict, "event", cb->event);
-		ni_dbus_variant_set_uuid(ni_dbus_dict_add(info_dict, "uuid"), &cb->uuid);
-
-		cb = cb->next;
-	}
-
-	return TRUE;
-}
-
-ni_objectmodel_callback_info_t *
-ni_objectmodel_callback_info_from_dict(const ni_dbus_variant_t *dict)
-{
-	ni_objectmodel_callback_info_t *result = NULL;
-	ni_dbus_variant_t *child = NULL, *var;
-
-	while ((child = ni_dbus_dict_get_next(dict, "callback", child)) != NULL) {
-		ni_objectmodel_callback_info_t *cb;
-		const char *event;
-
-		cb = calloc(1, sizeof(*cb));
-		if (ni_dbus_dict_get_string(child, "event", &event))
-			ni_string_dup(&cb->event, event);
-		if ((var = ni_dbus_dict_get(child, "uuid")) != NULL)
-			ni_dbus_variant_get_uuid(var, &cb->uuid);
-
-		cb->next = result;
-		result = cb;
-	}
-
-	return result;
-}
-
-void
-ni_objectmodel_callback_info_free(ni_objectmodel_callback_info_t *cb)
-{
-	ni_string_free(&cb->event);
-	free(cb);
-}
-
-/*
  * Configure IPv4 addresses via DHCP
  */
 static dbus_bool_t
@@ -477,7 +401,7 @@ ni_objectmodel_addrconf_ipv4_dhcp_configure(ni_dbus_object_t *object, const ni_d
 		return FALSE;
 
 	/* Tell the client to wait for an addressAcquired event with the given uuid */
-	return ni_objectmodel_return_callback_info(reply, NI_EVENT_ADDRESS_ACQUIRED, &req->uuid, error);
+	return __ni_objectmodel_return_callback_info(reply, NI_EVENT_ADDRESS_ACQUIRED, &req->uuid, error);
 }
 
 /*
@@ -521,7 +445,7 @@ ni_objectmodel_addrconf_ipv4ll_configure(ni_dbus_object_t *object, const ni_dbus
 		return FALSE;
 
 	/* Tell the client to wait for an addressAcquired event with the given uuid */
-	return ni_objectmodel_return_callback_info(reply, NI_EVENT_ADDRESS_ACQUIRED, &req->uuid, error);
+	return __ni_objectmodel_return_callback_info(reply, NI_EVENT_ADDRESS_ACQUIRED, &req->uuid, error);
 }
 
 /*
