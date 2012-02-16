@@ -396,7 +396,10 @@ ni_xs_scope_typedef(ni_xs_scope_t *dict, const char *name, ni_xs_type_t *type)
 {
 	if (ni_xs_scope_lookup_local(dict, name) != NULL)
 		return -1;
+
+#ifdef DEBUG_VERBOSE
 	ni_debug_xml("define type %s in scope %s", name, dict->name?: "<anon>");
+#endif
 	ni_xs_name_type_array_append(&dict->types, name, type);
 	return 0;
 }
@@ -590,7 +593,9 @@ ni_xs_process_service(xml_node_t *node, ni_xs_scope_t *scope)
 
 	sub_scope = ni_xs_scope_new(scope, nameAttr);
 
+#ifdef DEBUG_VERBOSE
 	ni_debug_dbus("define schema for service %s (interface=%s) in scope %s", nameAttr, intfAttr, scope->name);
+#endif
 	service = ni_xs_service_new(nameAttr, intfAttr, scope);
 
 	/* Copy all service attributes we don't deal with here */

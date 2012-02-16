@@ -402,13 +402,13 @@ xml_node_get_next(xml_node_t *top, xml_node_t *cur)
 		 */
 
 		/* No next sibling: move up, then right */
-		while (cur->next == NULL) {
+		if (cur->next == NULL) {
 			if (cur == top || cur->parent == top)
 				return NULL;
 			cur = cur->parent;
 			ni_assert(cur);
+			return cur;
 		}
-
 		cur = cur->next;
 	}
 

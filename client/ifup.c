@@ -249,6 +249,30 @@ ni_ifworker_by_object_path(const char *object_path)
 }
 
 static ni_ifworker_t *
+ni_ifworker_by_alias(const char *alias)
+{
+	unsigned int i;
+
+	if (!alias)
+		return NULL;
+
+	for (i = 0; i < interface_workers.count; ++i) {
+		ni_ifworker_t *w = interface_workers.data[i];
+		xml_node_t *node;
+
+		if (w->device && ni_string_eq(w->device->link.alias, alias))
+			return w;
+
+		if (w->config && (node = xml_node_get_child(w->config, "alias")) != NULL) {
+			if (ni_string_eq(node->cdata, alias))
+				return w;
+		}
+	}
+
+	return NULL;
+}
+
+static ni_ifworker_t *
 ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *devnode)
 {
 	unsigned int i;
@@ -465,6 +489,47 @@ ni_ifworker_set_target(ni_ifworker_t *w, unsigned int min_state, unsigned int ma
 	}
 }
 
+/*
+ * Identify a device based on a set of attributes.
+ * The idea here is to get rid of all the constraints we currently have with
+ * naming devices - udev kludges, Dell's biosdevname, device enumeration on
+ * System z etc.
+ */
+static ni_ifworker_t *
+ni_ifworker_identify_device(const xml_node_t *devnode)
+{
+	ni_ifworker_t *best = NULL;
+	xml_node_t *attr;
+
+	for (attr = devnode->children; attr; attr = attr->next) {
+		ni_ifworker_t *found = NULL;
+
+		ni_trace("%s - attr %s=%s", __func__, attr->name, attr->cdata);
+		if (!strcmp(attr->name, "alias")) {
+			found = ni_ifworker_by_alias(attr->cdata);
+		}
+#if 0
+		else {
+			object_path = ni_call_identify_device(attr->name, attr->cdata);
+			if (object_path)
+				ni_ifworker_by_object_path(object_path);
+			ni_string_free(object_path);
+		}
+#endif
+
+		if (found != NULL) {
+			if (best && best != found) {
+				ni_error("%s: ambiguous device reference",
+						xml_node_location(devnode));
+				return NULL;
+			}
+			best = found;
+		}
+	}
+
+	return best;
+}
+
 static unsigned int
 mark_matching_interfaces(const char *match_name, unsigned int target_state, int config_only)
 {
@@ -553,25 +618,48 @@ build_hierarchy(void)
 			const char *slave_name;
 
 			slave_name = devnode->cdata;
-			if (slave_name == NULL) {
+			if (slave_name != NULL) {
+				child = ni_ifworker_array_find(&interface_workers, slave_name);
+
+				if (child == NULL) {
+					ni_error("%s: <%s> element references unknown slave device %s",
+							xml_node_location(ifnode),
+							linknode->name,
+							slave_name);
+					return -1;
+				}
+			} else
+			if (devnode->children) {
+				/* Try to identify device based on attributes given in the
+				 * <device> node. */
+				child = ni_ifworker_identify_device(devnode);
+				if (child == NULL) {
+					ni_error("%s: <%s> element references unknown slave device",
+							xml_node_location(ifnode),
+							linknode->name);
+					return -1;
+				}
+
+				if (child->name == NULL) {
+					ni_warn("%s: <%s> element references slave device with no name",
+							xml_node_location(ifnode),
+							linknode->name);
+				}
+
+				ni_debug_dbus("%s: identified device as \"%s\"",
+						xml_node_location(devnode),
+						child->name);
+				xml_node_set_cdata(devnode, child->name);
+			} else {
 				ni_error("%s: empty <device> element in <%s> declaration",
 						xml_node_location(ifnode),
 						linknode->name);
 				return -1;
 			}
 
-			child = ni_ifworker_array_find(&interface_workers, slave_name);
 			if (child == NULL) {
 				/* We may not have the config for this device, but it may exist
 				 * in the system. */
-			}
-
-			if (child == NULL) {
-				ni_error("%s: <%s> element references unknown slave device %s",
-						xml_node_location(ifnode),
-						linknode->name,
-						slave_name);
-				return -1;
 			}
 
 			if (!ni_ifworker_add_child(w, child, devnode))
