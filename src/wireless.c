@@ -48,10 +48,7 @@ int
 ni_wireless_interface_refresh(ni_interface_t *ifp)
 {
 	ni_wpa_interface_t *wif;
-	ni_wireless_t *wlan;
-
-	if (ifp->wireless != NULL)
-		return 0;
+	ni_wireless_scan_t *scan;
 
 	if (wpa_client == NULL) {
 		wpa_client = ni_wpa_client_open();
@@ -67,9 +64,19 @@ ni_wireless_interface_refresh(ni_interface_t *ifp)
 		return -1;
 	}
 
-	wlan = ni_wireless_new();
-	wlan->capabilities = wif->capabilities;
-	ifp->wireless = wlan;
+	if (ifp->wireless == NULL) {
+		ni_wireless_t *wlan;
+
+		wlan = ni_wireless_new();
+		wlan->capabilities = wif->capabilities;
+		ifp->wireless = wlan;
+	}
+
+	scan = ni_wireless_scan_new();
+	if (ni_wpa_interface_retrieve_scan(wpa_client, wif, scan) >= 0)
+		ni_interface_set_wireless_scan(ifp, scan);
+	else
+		ni_wireless_scan_free(scan);
 
 	return 0;
 }

@@ -70,6 +70,7 @@ __LIBSRCS= \
 	  dbus-objects/model.c \
 	  dbus-objects/interface.c \
 	  dbus-objects/ethernet.c \
+	  dbus-objects/wireless.c \
 	  dbus-objects/vlan.c \
 	  dbus-objects/bridge.c \
 	  dbus-objects/bonding.c \
