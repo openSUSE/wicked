@@ -9,6 +9,7 @@
 static const char *	ni_errors[__NI_ERROR_MAX] = {
 [NI_SUCCESS]				= "Success",
 [NI_ERROR_GENERAL_FAILURE]		= "General failure",
+[NI_ERROR_RETRY_OPERATION]		= "Retry operation",
 [NI_ERROR_INVALID_ARGS]			= "Invalid arguments",
 [NI_ERROR_PERMISSION_DENIED]		= "Permission denied",
 [NI_ERROR_INTERFACE_NOT_KNOWN]		= "Interface not known",
