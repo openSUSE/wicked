@@ -9,6 +9,14 @@
 #include <wicked/constants.h>
 #include <stdint.h>
 
+typedef unsigned char		ni_bool_t;
+#ifndef TRUE
+# define TRUE 1
+#endif
+#ifndef FALSE
+# define FALSE 0
+#endif
+
 typedef struct ni_interface	ni_interface_t;		/* rename to ni_netif_t? */
 typedef struct ni_vlan		ni_vlan_t;
 typedef struct ni_bridge	ni_bridge_t;
