@@ -14,6 +14,7 @@
 #include <wicked/netinfo.h>
 #include <wicked/addrconf.h>
 #include <wicked/logging.h>
+#include <wicked/wireless.h>
 
 static ni_intmap_t *	build_ifflag_bits_map(void);
 static ni_intmap_t *	buildmap(const char *(*)(unsigned), unsigned int);
@@ -95,6 +96,18 @@ main(int argc, char **argv)
 		if (!strncmp(atat + 2, "ADDRCONFSTATE_", 14)) {
 			generate(buffer, "ADDRCONFSTATE",
 					buildmap(ni_addrconf_state_to_name, __NI_ADDRCONF_STATE_MAX));
+		} else
+		if (!strncmp(atat + 2, "WIRELESSMODE_", 13)) {
+			generate(buffer, "WIRELESSMODE",
+					buildmap(ni_wireless_mode_to_name, 128));
+		} else
+		if (!strncmp(atat + 2, "WIRELESS_SECURITY_", 18)) {
+			generate(buffer, "WIRELESS_SECURITY",
+					buildmap(ni_wireless_security_to_name, 128));
+		} else
+		if (!strncmp(atat + 2, "WIRELESS_AUTH_", 14)) {
+			generate(buffer, "WIRELESS_AUTH",
+					buildmap(ni_wireless_auth_mode_to_name, 128));
 		} else {
 			int indent = atat - buffer;
 

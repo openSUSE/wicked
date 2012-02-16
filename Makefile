@@ -154,7 +154,7 @@ autoip4-supplicant: $(OBJ)/autoip4-supplicant.o $(AUTO4OBJS) $(TGTLIBS)
 	$(CC) -o $@ $(CFLAGS) $(OBJ)/autoip4-supplicant.o $(AUTO4OBJS) -L. -lnetinfo -lm -lnl -ldbus-1 -ldl
 
 etc/mkconst: etc/mkconst.o $(TGTLIBS)
-	$(CC) -o $@ $(CFLAGS) etc/mkconst.o -L. -lnetinfo -ldbus-1
+	$(CC) -o $@ $(CFLAGS) etc/mkconst.o -L. -lnetinfo -lnl -ldbus-1 -ldl
 
 test: $(OBJ)/test.o $(TGTLIBS)
 	$(CC) -o $@ $(CFLAGS) $(OBJ)/test.o -L. -lnetinfo -ldbus-1

@@ -21,3 +21,14 @@
 <define name="builtin-ifflags" type="uint32" constraint="bitmap">
   <@@IFFLAG_NAME@@ bit="@@IFFLAG_VALUE@@"/>
 </define>
+
+<!-- Built-in wireless types -->
+<define name="builtin-wireless-mode" type="uint32" constraint="enum">
+  <@@WIRELESSMODE_NAME@@ value="@@WIRELESSMODE_VALUE@@"/>
+</define>
+<define name="builtin-wireless-security" type="uint32" constraint="enum">
+  <@@WIRELESS_SECURITY_NAME@@ value="@@WIRELESS_SECURITY_VALUE@@"/>
+</define>
+<define name="builtin-wireless-auth" type="uint32" constraint="enum">
+  <@@WIRELESS_AUTH_NAME@@ value="@@WIRELESS_AUTH_VALUE@@"/>
+</define>
