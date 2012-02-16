@@ -129,6 +129,7 @@ __ni_wireless_do_scan(ni_interface_t *dev)
 {
 	ni_wpa_interface_t *wpa_dev;
 	ni_wireless_scan_t *scan;
+	time_t now;
 
 	/* FIXME: If it's down, we should bring up the device now for scanning */
 
@@ -136,6 +137,7 @@ __ni_wireless_do_scan(ni_interface_t *dev)
 		return -1;
 
 	if ((scan = dev->wireless_scan) == NULL) {
+		ni_trace("new scan");
 		scan = ni_wireless_scan_new();
 		ni_interface_set_wireless_scan(dev, scan);
 	}
@@ -144,10 +146,17 @@ __ni_wireless_do_scan(ni_interface_t *dev)
 	ni_wpa_interface_retrieve_scan(wpa_dev, scan);
 
 	/* If we haven't seen a scan in a long time, request one. */
-	if (scan->timestamp + scan->max_age < time(NULL)) {
+	now = time(NULL);
+	if (scan->timestamp + scan->max_age < now) {
 		/* We can do this only if the device is up */
-		if (dev->link.ifflags & NI_IFF_DEVICE_UP)
+		if (dev->link.ifflags & NI_IFF_DEVICE_UP) {
+			if (scan->timestamp)
+				ni_debug_wireless("%s: requesting wireless scan (last scan was %u seconds ago)",
+						dev->name, (unsigned int) (now - scan->timestamp));
+			else
+				ni_debug_wireless("%s: requesting wireless scan", dev->name);
 			ni_wpa_interface_request_scan(wpa_dev, scan);
+		}
 	}
 
 	return 0;

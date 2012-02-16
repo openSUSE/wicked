@@ -580,12 +580,12 @@ ni_wpa_interface_request_scan(ni_wpa_interface_t *ifp, ni_wireless_scan_t *scan)
 	uint32_t value;
 	int rv = -1;
 
-	ni_debug_wireless("%s: requesting wireless scan", ifp->ifname);
 	rv = ni_dbus_object_call_simple(ifp->proxy,
 			NULL, "scan",
 			DBUS_TYPE_INVALID, NULL,
 			DBUS_TYPE_UINT32, &value);
 
+	ifp->scan.timestamp = scan->timestamp = time(NULL);
 	ifp->scan.pending = 1;
 	return rv;
 }
