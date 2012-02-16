@@ -207,18 +207,46 @@ ni_xs_name_type_array_find(const ni_xs_name_type_array_t *array, const char *nam
  * Typedicts represent a type contexts in the schema hierarchy.
  */
 ni_xs_type_dict_t *
-ni_xs_typedict_new(ni_xs_type_dict_t *parent)
+ni_xs_typedict_new(ni_xs_type_dict_t *parent, const char *name)
 {
 	ni_xs_type_dict_t *newdict = calloc(1, sizeof(ni_xs_type_dict_t));
 
 	newdict->parent = parent;
+	if (name) {
+		ni_string_dup(&newdict->name, name);
+		if (parent) {
+			ni_xs_type_dict_t **tail;
+
+			for (tail = &parent->children; *tail; tail = &(*tail)->next)
+				;
+			*tail = newdict;
+		}
+	}
 	return newdict;
 }
 
 void
 ni_xs_typedict_free(ni_xs_type_dict_t *dict)
 {
+	/* Debug code: make sure we're no longer on the parent's list of children */
+	if (dict->parent) {
+		ni_xs_type_dict_t *child;
+
+		for (child = dict->parent->children; child; child = child->next)
+			ni_assert(child != dict);
+	}
+
 	ni_xs_name_type_array_destroy(&dict->types);
+	ni_string_free(&dict->name);
+	if (dict->children) {
+		ni_xs_type_dict_t *child;
+
+		for (child = dict->children; child; child = child->next) {
+			dict->children = child->next;
+			child->parent = NULL; /* Skip the debug step when freeing the child dict */
+			ni_xs_typedict_free(child);
+		}
+	}
 	free(dict);
 }
 
@@ -337,8 +365,12 @@ ni_xs_process_define(xml_node_t *node, ni_xs_type_dict_t *typedict)
 		 *   <define name="..." class="(dict|array|struct)">...</define>
 		 */
 		ni_xs_type_t *newType;
+		ni_xs_type_dict_t *context;
 
-		newType = ni_xs_build_complex_type(node, typeAttr, typedict);
+		/* create (permanent) named typedict as context */
+		context = ni_xs_typedict_new(typedict, nameAttr);
+
+		newType = ni_xs_build_complex_type(node, typeAttr, context);
 		if (newType == NULL) {
 			ni_error("%s: cannot build schema for node <%s> (class \"%s\") in %s",
 					xml_node_location(node), nameAttr, typeAttr, __func__);
@@ -356,7 +388,12 @@ ni_xs_process_define(xml_node_t *node, ni_xs_type_dict_t *typedict)
 		/* check for type aliasing - take one type, and define it by another name.
 		 *  <define name="..." type="..."/>
 		 */
-		refType = ni_xs_build_simple_type(node, typeAttr, typedict);
+		ni_xs_type_dict_t *context;
+
+		/* create (permanent) named typedict as context */
+		context = ni_xs_typedict_new(typedict, nameAttr);
+
+		refType = ni_xs_build_simple_type(node, typeAttr, context);
 		if (refType == NULL) {
 			ni_error("%s: definition of type <%s> references unknown base type <%s>",
 					xml_node_location(node), nameAttr, typeAttr);
@@ -394,9 +431,7 @@ ni_xs_process_define(xml_node_t *node, ni_xs_type_dict_t *typedict)
 int
 ni_xs_build_typelist(xml_node_t *node, ni_xs_name_type_array_t *result, ni_xs_type_dict_t *typedict)
 {
-	ni_xs_type_dict_t *localdict = ni_xs_typedict_new(typedict);
 	xml_node_t *child;
-	int rv = -1;
 
 	for (child = node->children; child; child = child->next) {
 		const char *memberName = NULL;
@@ -408,16 +443,23 @@ ni_xs_build_typelist(xml_node_t *node, ni_xs_name_type_array_t *result, ni_xs_ty
 		}
 
 		if (!strcmp(child->name, "define")) {
-			if (ni_xs_process_define(child, localdict) < 0)
-				goto out;
+			if (ni_xs_process_define(child, typedict) < 0)
+				return -1;
 			continue;
 		}
 
 		if (ni_xs_is_class_name(child->name)) {
 			/* <struct ...> <dict ...> or <array ...> */
+			ni_xs_type_dict_t *localdict;
+
+			/* Create an anonymous typedict and destroy it afterwards */
+			localdict = ni_xs_typedict_new(typedict, NULL);
+
 			memberType = ni_xs_build_complex_type(child, child->name, localdict);
+
+			ni_xs_typedict_free(localdict);
 			if (memberType == NULL)
-				goto out;
+				return -1;
 		} else {
 			/* This can be either
 			 *   <u32/>
@@ -426,33 +468,37 @@ ni_xs_build_typelist(xml_node_t *node, ni_xs_name_type_array_t *result, ni_xs_ty
 			 * or
 			 *   <somename type="othertype"/>
 			 */
-			memberType = ni_xs_typedict_lookup(localdict, child->name);
+			memberType = ni_xs_typedict_lookup(typedict, child->name);
 			if (memberType == NULL) {
+				ni_xs_type_dict_t *context;
 				const char *typeAttr;
 
 				memberName = child->name;
 
 				if (ni_xs_is_reserved_name(memberName)) {
 					ni_error("%s: named type node uses reserved name", xml_node_location(child));
-					goto out;
+					return -1;
 				}
 
 				if (ni_xs_typedict_lookup(typedict, memberName)) {
 					ni_error("%s: ambiguous type for node <%s>", xml_node_location(child), memberName);
-					goto out;
+					return -1;
 				}
 
+				/* create (permanent) named typedict as context */
+				context = ni_xs_typedict_new(typedict, memberName);
+
 				if ((typeAttr = xml_node_get_attr(child, "class")) != NULL) {
-					memberType = ni_xs_build_complex_type(child, typeAttr, localdict);
+					memberType = ni_xs_build_complex_type(child, typeAttr, context);
 				} else
 				if ((typeAttr = xml_node_get_attr(child, "type")) != NULL) {
-					memberType = ni_xs_build_simple_type(child, typeAttr, localdict);
+					memberType = ni_xs_build_simple_type(child, typeAttr, context);
 					ni_xs_type_hold(memberType);
 				}
 
 				if (memberType == NULL) {
 					ni_error("%s: unknown type <%s>", xml_node_location(child), child->name);
-					goto out;
+					return -1;
 				}
 			}
 		}
@@ -461,11 +507,7 @@ ni_xs_build_typelist(xml_node_t *node, ni_xs_name_type_array_t *result, ni_xs_ty
 		ni_xs_type_release(memberType);
 	}
 
-	rv = result->count;
-
-out:
-	ni_xs_typedict_free(localdict);
-	return rv;
+	return result->count;
 }
 
 ni_xs_type_t *
@@ -635,7 +677,6 @@ failed:
 ni_xs_type_t *
 ni_xs_build_one_type(xml_node_t *node, ni_xs_type_dict_t *typedict)
 {
-	ni_xs_type_dict_t *localdict = ni_xs_typedict_new(typedict);
 	ni_xs_type_t *result = NULL;
 	xml_node_t *child;
 
@@ -646,7 +687,7 @@ ni_xs_build_one_type(xml_node_t *node, ni_xs_type_dict_t *typedict)
 
 	for (child = node->children; child != NULL; child = child->next) {
 		if (!strcmp(child->name, "define")) {
-			if (ni_xs_process_define(child, localdict) < 0)
+			if (ni_xs_process_define(child, typedict) < 0)
 				goto error;
 			continue;
 		}
@@ -656,9 +697,14 @@ ni_xs_build_one_type(xml_node_t *node, ni_xs_type_dict_t *typedict)
 		}
 
 		if (ni_xs_is_class_name(child->name)) {
+			ni_xs_type_dict_t *localdict;
+
+			/* Create an anonymous typedict */
+			localdict = ni_xs_typedict_new(typedict, NULL);
 			result = ni_xs_build_complex_type(child, child->name, localdict);
+			ni_xs_typedict_free(localdict);
 		} else {
-			result = ni_xs_typedict_lookup(localdict, child->name);
+			result = ni_xs_typedict_lookup(typedict, child->name);
 		}
 		if (result == NULL) {
 			ni_error("%s: unknown type or class <%s>", xml_node_location(child), child->name);
@@ -671,12 +717,10 @@ ni_xs_build_one_type(xml_node_t *node, ni_xs_type_dict_t *typedict)
 		goto error;
 	}
 
-	ni_xs_typedict_free(localdict);
 	ni_xs_type_hold(result);
 	return result;
 
 error:
-	ni_xs_typedict_free(localdict);
 	return NULL;
 }
 

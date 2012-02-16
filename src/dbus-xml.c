@@ -24,7 +24,7 @@ ni_dbus_xml_init(void)
 {
 	ni_xs_type_dict_t *schema_dict;
 
-	schema_dict = ni_xs_typedict_new(NULL);
+	schema_dict = ni_xs_typedict_new(NULL, NULL);
 	ni_dbus_define_scalar_types(schema_dict);
 	ni_dbus_define_xml_notations();
 
