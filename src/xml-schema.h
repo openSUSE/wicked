@@ -170,19 +170,24 @@ struct ni_xs_struct_info {
 	ni_xs_name_type_array_t children;
 };
 
-struct ni_xs_type {
-	unsigned int		refcount;
-	unsigned int		class;
-
-	unsigned int		scalar_type;
-	ni_xs_dict_info_t *	dict_info;
-	ni_xs_struct_info_t *	struct_info;
-	ni_xs_array_info_t *	array_info;
+typedef struct ni_xs_scalar_info ni_xs_scalar_info_t;
+struct ni_xs_scalar_info {
+	unsigned int		type;
 
 	struct {
 		struct ni_xs_type_constraint_oneof *oneof;
 		struct ni_xs_type_constraint_range *range;
 	} constraint;
+};
+
+struct ni_xs_type {
+	unsigned int		refcount;
+	unsigned int		class;
+
+	ni_xs_scalar_info_t *	scalar_info;
+	ni_xs_dict_info_t *	dict_info;
+	ni_xs_struct_info_t *	struct_info;
+	ni_xs_array_info_t *	array_info;
 };
 
 struct ni_xs_type_dict {
@@ -195,7 +200,7 @@ extern void		ni_xs_typedict_free(ni_xs_type_dict_t *);
 
 extern int		ni_xs_process_schema(xml_node_t *, ni_xs_type_dict_t *);
 
-extern ni_xs_type_t *	ni_xs_scalar_new(void);
+extern ni_xs_type_t *	ni_xs_scalar_new(unsigned int);
 extern int		ni_xs_typedict_typedef(ni_xs_type_dict_t *, const char *, ni_xs_type_t *);
 extern void		ni_xs_type_free(ni_xs_type_t *type);
 
@@ -218,6 +223,14 @@ ni_xs_type_release(ni_xs_type_t *type)
 	ni_assert(type->refcount);
 	if (--(type->refcount) == 0)
 		ni_xs_type_free(type);
+}
+
+static inline ni_xs_scalar_info_t *
+ni_xs_scalar_info(const ni_xs_type_t *type)
+{
+	ni_assert(type->class == NI_XS_TYPE_SCALAR);
+	ni_assert(type->scalar_info);
+	return type->scalar_info;
 }
 
 static inline const ni_xs_type_t *

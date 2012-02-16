@@ -17,6 +17,7 @@ static dbus_bool_t	ni_dbus_serialize_xml_scalar(xml_node_t *, const ni_xs_type_t
 static dbus_bool_t	ni_dbus_serialize_xml_struct(xml_node_t *, const ni_xs_type_t *, ni_dbus_variant_t *);
 static dbus_bool_t	ni_dbus_serialize_xml_array(xml_node_t *, const ni_xs_type_t *, ni_dbus_variant_t *);
 static dbus_bool_t	ni_dbus_serialize_xml_dict(xml_node_t *, const ni_xs_type_t *, ni_dbus_variant_t *);
+static char *		ni_xs_type_to_dbus_signature(const ni_xs_type_t *);
 
 ni_xs_type_dict_t *
 ni_dbus_xml_init(void)
@@ -57,66 +58,18 @@ ni_dbus_serialize_xml(xml_node_t *node, const ni_xs_type_t *type, ni_dbus_varian
 dbus_bool_t
 ni_dbus_serialize_xml_scalar(xml_node_t *node, const ni_xs_type_t *type, ni_dbus_variant_t *var)
 {
-	char signature[2];
-
 	if (node->cdata == NULL) {
 		ni_error("unable to serialize node %s - no data", node->name);
 		return FALSE;
 	}
 
 	/* TBD: handle constants defined in the schema? */
-
-	signature[0] = type->scalar_type;
-	signature[1] = '\0';
-	if (!ni_dbus_variant_parse(var, node->cdata, signature)) {
+	if (!ni_dbus_variant_parse(var, node->cdata, ni_xs_type_to_dbus_signature(type))) {
 		ni_error("unable to serialize node %s - cannot parse value", node->name);
 		return FALSE;
 	}
 
 	return TRUE;
-}
-
-static char *
-__ni_xs_type_to_dbus_signature(const ni_xs_type_t *type, char *sigbuf, size_t buflen)
-{
-	unsigned int i = 0;
-
-	ni_assert(buflen >= 2);
-	switch (type->class) {
-	case NI_XS_TYPE_SCALAR:
-		sigbuf[i++] = type->scalar_type;
-		sigbuf[i++] = '\0';
-		break;
-
-	case NI_XS_TYPE_ARRAY:
-		sigbuf[i++] = DBUS_TYPE_ARRAY;
-
-		/* Arrays of non-scalar types always wrap each element into a VARIANT */
-		if (type->array_info->element_type->class != NI_XS_TYPE_SCALAR)
-			sigbuf[i++] = DBUS_TYPE_VARIANT;
-
-		if (!__ni_xs_type_to_dbus_signature(type->array_info->element_type, sigbuf + i, buflen - i))
-			return NULL;
-		break;
-
-	case NI_XS_TYPE_DICT:
-		ni_assert(buflen >= sizeof(NI_DBUS_DICT_SIGNATURE));
-		strcpy(sigbuf, NI_DBUS_DICT_SIGNATURE);
-		break;
-
-	default:
-		return NULL;
-
-	}
-	return sigbuf;
-}
-
-static char *
-ni_xs_type_to_dbus_signature(const ni_xs_type_t *type)
-{
-	static char sigbuf[32];
-
-	return __ni_xs_type_to_dbus_signature(type, sigbuf, sizeof(sigbuf));
 }
 
 /*
@@ -210,6 +163,54 @@ ni_dbus_serialize_xml_struct(xml_node_t *node, const ni_xs_type_t *type, ni_dbus
 }
 
 /*
+ * Get the dbus signature of a dbus-xml type
+ */
+static char *
+__ni_xs_type_to_dbus_signature(const ni_xs_type_t *type, char *sigbuf, size_t buflen)
+{
+	ni_xs_scalar_info_t *scalar_info;
+	unsigned int i = 0;
+
+	ni_assert(buflen >= 2);
+	switch (type->class) {
+	case NI_XS_TYPE_SCALAR:
+		scalar_info = ni_xs_scalar_info(type);
+		sigbuf[i++] = scalar_info->type;
+		sigbuf[i++] = '\0';
+		break;
+
+	case NI_XS_TYPE_ARRAY:
+		sigbuf[i++] = DBUS_TYPE_ARRAY;
+
+		/* Arrays of non-scalar types always wrap each element into a VARIANT */
+		if (type->array_info->element_type->class != NI_XS_TYPE_SCALAR)
+			sigbuf[i++] = DBUS_TYPE_VARIANT;
+
+		if (!__ni_xs_type_to_dbus_signature(type->array_info->element_type, sigbuf + i, buflen - i))
+			return NULL;
+		break;
+
+	case NI_XS_TYPE_DICT:
+		ni_assert(buflen >= sizeof(NI_DBUS_DICT_SIGNATURE));
+		strcpy(sigbuf, NI_DBUS_DICT_SIGNATURE);
+		break;
+
+	default:
+		return NULL;
+
+	}
+	return sigbuf;
+}
+
+static char *
+ni_xs_type_to_dbus_signature(const ni_xs_type_t *type)
+{
+	static char sigbuf[32];
+
+	return __ni_xs_type_to_dbus_signature(type, sigbuf, sizeof(sigbuf));
+}
+
+/*
  * Scalar types for dbus xml
  */
 static void
@@ -233,12 +234,8 @@ ni_dbus_define_scalar_types(ni_xs_type_dict_t *typedict)
 		{ NULL }
 	}, *tp;
 
-	for (tp = dbus_xml_types; tp->name; ++tp) {
-		ni_xs_type_t *xtype = ni_xs_scalar_new();
-
-		xtype->scalar_type = tp->dbus_type;
-		ni_xs_typedict_typedef(typedict, tp->name, xtype);
-	}
+	for (tp = dbus_xml_types; tp->name; ++tp)
+		ni_xs_typedict_typedef(typedict, tp->name, ni_xs_scalar_new(tp->dbus_type));
 }
 
 /*

@@ -32,9 +32,13 @@ __ni_xs_type_new(unsigned int class)
 }
 
 ni_xs_type_t *
-ni_xs_scalar_new(void)
+ni_xs_scalar_new(unsigned int scalar_type)
 {
-	return __ni_xs_type_new(NI_XS_TYPE_SCALAR);
+	ni_xs_type_t *type = __ni_xs_type_new(NI_XS_TYPE_SCALAR);
+
+	type->scalar_info = xcalloc(1, sizeof(ni_xs_scalar_info_t));
+	type->scalar_info->type = scalar_type;
+	return type;
 }
 
 ni_xs_type_t *
@@ -51,7 +55,7 @@ ni_xs_dict_new(void)
 {
 	ni_xs_type_t *type = __ni_xs_type_new(NI_XS_TYPE_DICT);
 
-	type->dict_info = xcalloc(1, sizeof(ni_xs_struct_info_t));
+	type->dict_info = xcalloc(1, sizeof(ni_xs_dict_info_t));
 	return type;
 }
 
@@ -585,7 +589,7 @@ ni_xs_build_complex_type(xml_node_t *node, const char *className, ni_xs_type_dic
 				ni_xs_type_release(elementType);
 				return NULL;
 			}
-			if (notation->array_element_type != elementType->scalar_type) {
+			if (notation->array_element_type != elementType->scalar_info->type) {
 				ni_error("%s: array definition references incompatible notation \"%s\"", __func__, attrValue);
 				ni_xs_type_release(elementType);
 				return NULL;
