@@ -22,25 +22,11 @@
 #include "model.h"
 #include "debug.h"
 
-/* XXX obsolete */
-static ni_dbus_class_t		ni_objectmodel_addrconfreq_class = {
-	.name		= NI_OBJECTMODEL_ADDRCONF_REQUEST_CLASS,
-};
-
 static dbus_bool_t		__ni_objectmodel_callback_info_to_dict(const ni_objectmodel_callback_info_t *, ni_dbus_variant_t *);
 static dbus_bool_t		__ni_objectmodel_address_to_dict(const ni_address_t *, ni_dbus_variant_t *);
 static ni_address_t *		__ni_objectmodel_address_from_dict(ni_address_t **, const ni_dbus_variant_t *);
 static dbus_bool_t		__ni_objectmodel_route_to_dict(const ni_route_t *, ni_dbus_variant_t *);
 static ni_route_t *		__ni_objectmodel_route_from_dict(ni_route_t **, const ni_dbus_variant_t *);
-
-/*
- * Wrap an addrconf request in a dbus object
- */
-ni_dbus_object_t *
-ni_objectmodel_wrap_addrconf_request(ni_addrconf_request_t *req)
-{
-	return ni_dbus_object_new(&ni_objectmodel_addrconfreq_class, NULL, req);
-}
 
 /*
  * Helper functions for getting and setting socket addresses

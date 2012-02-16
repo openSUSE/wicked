@@ -130,7 +130,6 @@ ni_objectmodel_netif_list_init_child(ni_dbus_object_t *object)
 	static const ni_dbus_class_t *netif_class = NULL;
 	ni_interface_t *ifp;
 
-	/* Ugly - should move netif_list stuff to interface.c */
 	if (netif_class == NULL) {
 		const ni_dbus_service_t *netif_service;
 
@@ -186,8 +185,6 @@ ni_objectmodel_netif_list_refresh(ni_dbus_object_t *object)
 static ni_dbus_service_t	ni_objectmodel_netif_list_service = {
 	.name		= WICKED_DBUS_NETIFLIST_INTERFACE,
 	.compatible	= &ni_objectmodel_netif_list_class,
-//	.methods	= wicked_dbus_netif_methods,
-//	.properties	= wicked_dbus_netif_properties,
 };
 
 /*
@@ -417,7 +414,9 @@ failed:
 }
 
 /*
- * Broadcast an event that the interface is up
+ * Broadcast an interface event
+ * The optional uuid argument helps the client match e.g. notifications
+ * from an addrconf service against its current state.
  */
 dbus_bool_t
 ni_objectmodel_interface_event(ni_dbus_server_t *server, ni_interface_t *dev,
@@ -549,12 +548,6 @@ ni_objectmodel_netif_destroy(ni_dbus_object_t *object)
 static ni_dbus_method_t		ni_objectmodel_netif_methods[] = {
 	{ "linkChange",		"a{sv}",		ni_objectmodel_netif_link_change },
 	{ "down",		"",			ni_objectmodel_netif_link_down },
-#if 0
-	{ "addAddress",		"a{sv}",		__wicked_dbus_interface_add_address },
-	{ "removeAddress",	"a{sv}",		__wicked_dbus_interface_remove_address },
-	{ "addRoute",		"a{sv}",		__wicked_dbus_interface_add_route },
-	{ "removeRoute",	"a{sv}",		__wicked_dbus_interface_remove_route },
-#endif
 	{ NULL }
 };
 
@@ -785,30 +778,6 @@ static ni_dbus_service_t	ni_objectmodel_netif_service = {
 };
 
 /*
- * a dbus dict object expects the "key" strings to be static, and does
- * not dup them. So we cannot use a string buffer on the heap to build
- * "foobar-request" and "foobar-lease" strings.
- */
-#if 0
-static const char *
-__wicked_addrconf_type_string(unsigned int mode, int req)
-{
-	static char string[2][__NI_ADDRCONF_MAX][128];
-	unsigned int rq = req? 1 : 0;
-
-	if (string[rq][mode][0] == '\0') {
-		const char *acname = ni_addrconf_type_to_name(mode);
-
-		if (acname == NULL)
-			return NULL;
-		snprintf(string[rq][mode], sizeof(string[rq][mode]),
-					"%s-%s", acname, req? "request" : "lease");
-	}
-	return string[rq][mode];
-}
-#endif
-
-/*
  * These helper functions assist in marshalling InterfaceRequests
  */
 static void *
@@ -816,96 +785,6 @@ ni_objectmodel_get_interface_request(const ni_dbus_object_t *object, DBusError *
 {
 	return ni_dbus_object_get_handle(object);
 }
-
-#if 0
-static dbus_bool_t
-__wicked_dbus_get_afinfo(const ni_afinfo_t *afi, dbus_bool_t request_only,
-				ni_dbus_variant_t *result,
-				DBusError *error)
-{
-	unsigned int i;
-
-	if (!afi->enabled)
-		return TRUE;
-	ni_dbus_dict_add_bool(result, "forwarding", !!afi->forwarding);
-
-	for (i = 0; i < __NI_ADDRCONF_MAX; ++i) {
-		ni_addrconf_request_t *req;
-		ni_addrconf_lease_t *lease;
-		ni_dbus_variant_t *dict;
-		const char *rqname, *lsname;
-
-		rqname = __wicked_addrconf_type_string(i, 1);
-		lsname = __wicked_addrconf_type_string(i, 0);
-		if (!rqname || !lsname)
-			continue;
-
-		if ((req = afi->request[i]) != NULL) {
-			dict = ni_dbus_dict_add(result, rqname);
-			ni_dbus_variant_init_dict(dict);
-			if (!__wicked_dbus_get_addrconf_request(req, dict, error))
-				return FALSE;
-		}
-		if (request_only)
-			continue;
-
-		if ((lease = afi->lease[i]) != NULL) {
-			dict = ni_dbus_dict_add(result, lsname);
-
-			ni_dbus_variant_init_dict(dict);
-			if (!__wicked_dbus_get_addrconf_lease(lease, dict, error))
-				return FALSE;
-		}
-	}
-	return TRUE;
-}
-
-static dbus_bool_t
-__wicked_dbus_set_afinfo(ni_afinfo_t *afi,
-				const ni_dbus_variant_t *argument,
-				DBusError *error)
-{
-	dbus_bool_t bool_value;
-	unsigned int i;
-
-	afi->enabled = 1;
-	afi->addrconf = 0;
-	if (ni_dbus_dict_get_bool(argument, "forwarding", &bool_value))
-		afi->forwarding = bool_value;
-
-	for (i = 0; i < __NI_ADDRCONF_MAX; ++i) {
-		const ni_dbus_variant_t *dict;
-		const char *rqname, *lsname;
-
-		rqname = __wicked_addrconf_type_string(i, 1);
-		lsname = __wicked_addrconf_type_string(i, 0);
-		if (!rqname || !lsname)
-			continue;
-
-		dict = ni_dbus_dict_get(argument, rqname);
-		if (dict != NULL) {
-			ni_addrconf_request_t *req = ni_addrconf_request_new(i, afi->family);
-
-			__ni_afinfo_set_addrconf_request(afi, i, req);
-
-			if (!__wicked_dbus_set_addrconf_request(req, dict, error))
-				return FALSE;
-
-			ni_afinfo_addrconf_enable(afi, i);
-		}
-
-		dict = ni_dbus_dict_get(argument, lsname);
-		if (dict != NULL) {
-			ni_addrconf_lease_t *lease = ni_addrconf_lease_new(i, afi->family);
-
-			__ni_afinfo_set_addrconf_lease(afi, i, lease);
-			if (!__wicked_dbus_set_addrconf_lease(lease, dict, error))
-				return FALSE;
-		}
-	}
-	return TRUE;
-}
-#endif
 
 /*
  * Property InterfaceRequest.ipv4
