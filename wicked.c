@@ -300,17 +300,19 @@ wicked_find_link_properties(const xml_node_t *ifnode)
 /*
  * Get the dbus interface for a given link layer type
  * Note, this must use the same class naming convention
- * as in __ni_objectmodel_link_classname()
+ * as in ni_objectmodel_link_classname()
  */
 const ni_dbus_service_t *
-wicked_link_layer_factory_service(const char *link_type)
+wicked_link_layer_service(const char *link_type)
 {
-	char namebuf[256];
+	ni_iftype_t iftype;
+	const char *classname;
 	const ni_dbus_class_t *class;
 	const ni_dbus_service_t *service;
 
-	snprintf(namebuf, sizeof(namebuf), "netif-%s", link_type);
-	if (!(class = ni_objectmodel_get_class(namebuf))) {
+	iftype = ni_linktype_name_to_type(link_type);
+	if ((classname = ni_objectmodel_link_classname(iftype)) == NULL
+	 || !(class = ni_objectmodel_get_class(classname))) {
 		ni_error("no dbus class for link layer \"%s\"", link_type);
 		return NULL;
 	}
@@ -324,6 +326,23 @@ wicked_link_layer_factory_service(const char *link_type)
 		return NULL;
 	}
 
+	return service;
+}
+
+/*
+ * Get the dbus interface for a given link layer type
+ * Note, this must use the same class naming convention
+ * as in __ni_objectmodel_link_classname()
+ */
+const ni_dbus_service_t *
+wicked_link_layer_factory_service(const char *link_type)
+{
+	char namebuf[256];
+	const ni_dbus_service_t *service;
+
+	if (!(service = wicked_link_layer_service(link_type)))
+		return NULL;
+
 	snprintf(namebuf, sizeof(namebuf), "%s.Factory", service->name);
 	if (!(service = ni_objectmodel_service_by_name(namebuf))) {
 		ni_error("no dbus factory service for link layer \"%s\"", link_type);
@@ -331,7 +350,7 @@ wicked_link_layer_factory_service(const char *link_type)
 	}
 
 	if (!ni_dbus_service_get_method(service, "newLink")) {
-		ni_error("no dbus factory service for link layer \"%s\" has no newLink method", link_type);
+		ni_error("dbus factory service for link layer \"%s\" has no newLink method", link_type);
 		return NULL;
 	}
 

@@ -191,7 +191,7 @@ ni_call_link_change_common(ni_dbus_object_t *object,
 }
 
 static dbus_bool_t
-ni_call_link_change_xml(ni_dbus_object_t *object, const char *method_name, xml_node_t *config, ni_objectmodel_callback_info_t **callback_list)
+ni_call_link_method_xml(ni_dbus_object_t *object, const char *method_name, xml_node_t *config, ni_objectmodel_callback_info_t **callback_list)
 {
 	ni_dbus_variant_t argv[1];
 	const ni_dbus_service_t *service;
@@ -205,7 +205,7 @@ ni_call_link_change_xml(ni_dbus_object_t *object, const char *method_name, xml_n
 	ni_assert(method);
 
 	memset(argv, 0, sizeof(argv));
-	if (!strcmp(method_name, "linkUp")) {
+	if (!strcmp(method_name, "linkUp") || !strcmp(method_name, "linkChange")) {
 		ni_dbus_variant_t *dict = &argv[argc++];
 
 		ni_dbus_variant_init_dict(dict);
@@ -226,19 +226,25 @@ out:
 dbus_bool_t
 ni_call_link_up_xml(ni_dbus_object_t *object, xml_node_t *config, ni_objectmodel_callback_info_t **callback_list)
 {
-	return ni_call_link_change_xml(object, "linkUp", config, callback_list);
+	return ni_call_link_method_xml(object, "linkUp", config, callback_list);
+}
+
+dbus_bool_t
+ni_call_link_change_xml(ni_dbus_object_t *object, xml_node_t *config, ni_objectmodel_callback_info_t **callback_list)
+{
+	return ni_call_link_method_xml(object, "linkChange", config, callback_list);
 }
 
 dbus_bool_t
 ni_call_link_down(ni_dbus_object_t *object, ni_objectmodel_callback_info_t **callback_list)
 {
-	return ni_call_link_change_xml(object, "linkDown", NULL, callback_list);
+	return ni_call_link_method_xml(object, "linkDown", NULL, callback_list);
 }
 
 dbus_bool_t
 ni_call_device_delete(ni_dbus_object_t *object, ni_objectmodel_callback_info_t **callback_list)
 {
-	return ni_call_link_change_xml(object, "deleteLink", NULL, callback_list);
+	return ni_call_link_method_xml(object, "deleteLink", NULL, callback_list);
 }
 
 /*

@@ -834,8 +834,32 @@ ni_ifworker_do_device_up(ni_ifworker_t *w)
 	link_type = linknode->name;
 
 	if (!(service = wicked_link_layer_factory_service(link_type))) {
-		ni_ifworker_fail(w, "unknown/unsupported link type %s", link_type);
-		return -1;
+		ni_objectmodel_callback_info_t *callback_list = NULL;
+
+		if (w->device == NULL) {
+			ni_ifworker_fail(w, "unknown/unsupported link type %s", link_type);
+			return -1;
+		}
+
+		if ((service = wicked_link_layer_service(link_type)) != NULL
+		 || !ni_dbus_service_get_method(service, "linkChange")) {
+			/* We're asked to configure the link layer, but the
+			 * service doesn't exist or doesn't support it. */
+			ni_ifworker_fail(w, "unknown/unsupported link type %s", link_type);
+			return -1;
+		}
+
+		if (!ni_call_link_change_xml(w->object, linknode, &callback_list)) {
+			ni_ifworker_fail(w, "failed to configure %s device", link_type);
+			return -1;
+		}
+
+		if (callback_list) {
+			ni_ifworker_fail(w, "unexpected callback_list returned by linkChange call");
+			return -1;
+		}
+
+		goto device_is_up;
 	}
 
 	object_path = ni_call_link_new_xml(service, w->name, linknode);
