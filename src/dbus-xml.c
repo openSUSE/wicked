@@ -18,7 +18,7 @@
 
 static void		ni_dbus_define_scalar_types(ni_xs_scope_t *);
 static void		ni_dbus_define_xml_notations(void);
-static int		ni_dbus_xml_register_methods(ni_dbus_service_t *, ni_xs_service_t *);
+static ni_dbus_method_t *ni_dbus_xml_register_methods(ni_xs_service_t *, ni_xs_method_t *, const ni_dbus_method_t *);
 
 static dbus_bool_t	ni_dbus_serialize_xml(xml_node_t *, const ni_xs_type_t *, ni_dbus_variant_t *);
 static dbus_bool_t	ni_dbus_serialize_xml_scalar(xml_node_t *, const ni_xs_type_t *, ni_dbus_variant_t *);
@@ -60,7 +60,6 @@ ni_dbus_xml_register_services(ni_xs_scope_t *scope)
 		ni_dbus_service_t *service;
 		const ni_dbus_class_t *class = NULL;
 		const ni_var_t *attr;
-		int rv;
 
 		/* An interface needs to be attached to an object. The object-class
 		 * attribute specifies which object class this can attach to. */
@@ -93,35 +92,59 @@ ni_dbus_xml_register_services(ni_xs_scope_t *scope)
 		}
 
 		service->user_data = xs_service;
-		if ((rv = ni_dbus_xml_register_methods(service, xs_service)) < 0)
-			return rv;
+
+		if (xs_service->methods)
+			service->methods = ni_dbus_xml_register_methods(xs_service, xs_service->methods, service->methods);
+		if (xs_service->signals)
+			service->signals = ni_dbus_xml_register_methods(xs_service, xs_service->signals, service->signals);
 	}
 
 	return 0;
 }
 
-int
-ni_dbus_xml_register_methods(ni_dbus_service_t *service, ni_xs_service_t *xs_service)
+ni_dbus_method_t *
+ni_dbus_xml_register_methods(ni_xs_service_t *xs_service, ni_xs_method_t *xs_method_list, const ni_dbus_method_t *old_array)
 {
 	ni_dbus_method_t *method_array, *method;
-	unsigned int nmethods = 0;
+	unsigned int num_new_methods = 0, num_old_methods = 0, num_methods = 0;
 	ni_xs_method_t *xs_method;
 
-	if (xs_service->methods == NULL)
-		return 0;
+	if (xs_method_list == NULL)
+		return NULL;
 
-	for (xs_method = xs_service->methods; xs_method; xs_method = xs_method->next)
-		nmethods++;
-	service->methods = method_array = xcalloc(nmethods + 1, sizeof(ni_dbus_method_t));
+	if (old_array) {
+		for (num_old_methods = 0; old_array[num_old_methods].name; ++num_old_methods)
+			;
+	}
+	for (xs_method = xs_method_list; xs_method; xs_method = xs_method->next)
+		num_new_methods++;
+	method_array = xcalloc(num_old_methods + num_new_methods + 1, sizeof(ni_dbus_method_t));
 
-	method = method_array;
-	for (xs_method = xs_service->methods; xs_method; xs_method = xs_method->next) {
+	if (old_array) {
+		memcpy(method_array, old_array, num_old_methods * sizeof(ni_dbus_method_t));
+		num_methods = num_old_methods;
+	}
+
+	for (xs_method = xs_method_list; xs_method; xs_method = xs_method->next) {
 		char sigbuf[64];
 		unsigned int i;
 
-		/* Skip private methods such as __newlink */
+		/* Skip private methods */
 		if (xs_method->name == 0 || xs_method->name[0] == '_')
 			continue;
+
+		for (i = 0, method = NULL; i < num_methods; ++i) {
+			if (!strcmp(method_array[i].name, xs_method->name)) {
+				method = &method_array[i];
+				break;
+			}
+		}
+		if (method != NULL) {
+			ni_debug_dbus("%s method %s is built-in, do not redefine",
+					xs_service->interface, xs_method->name);
+			method->user_data = xs_method;
+			continue;
+		}
 
 		/* First, build the method signature */
 		sigbuf[0] = '\0';
@@ -132,21 +155,22 @@ ni_dbus_xml_register_methods(ni_dbus_service_t *service, ni_xs_service_t *xs_ser
 			if (!__ni_xs_type_to_dbus_signature(type, sigbuf + k, sizeof(sigbuf) - k)) {
 				ni_error("bad definition of service %s method %s: "
 					 "cannot build dbus signature of argument[%u] (%s)",
-					 service->name, xs_method->name, i,
+					 xs_service->interface, xs_method->name, i,
 					 xs_method->arguments.data[i].name);
-				return -1;
+				goto next_method;
 			}
 		}
 
+		method = &method_array[num_methods++];
 		ni_string_dup((char **) &method->name, xs_method->name);
 		ni_string_dup((char **) &method->call_signature, sigbuf);
-		method->handler = NULL; /* need to define */
+		method->handler = NULL; /* will be bound later in ni_objectmodel_bind_extensions() */
 		method->user_data = xs_method;
 
-		method++;
+next_method: ;
 	}
 
-	return 0;
+	return method_array;
 }
 
 /*
