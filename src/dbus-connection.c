@@ -568,15 +568,47 @@ ni_dbus_async_server_call_run_command(ni_dbus_connection_t *conn,
 /*
  * Handle watching a connection
  */
+static const char *
+__ni_dbus_watch_flags(int flags)
+{
+	static char buffer[2][32];
+	static int index = 0;
+	char *cur;
+
+	cur = buffer[index];
+	index = 1 - index;
+
+	snprintf(cur, sizeof(buffer[0]), "<%s%s%s%s>",
+		(flags & DBUS_WATCH_READABLE)? "r" : "",
+		(flags & DBUS_WATCH_WRITABLE)? "w" : "",
+		(flags & DBUS_WATCH_ERROR)? "e" : "",
+		(flags & DBUS_WATCH_HANGUP)? "h" : "");
+	return cur;
+}
+
 static inline void
 __ni_dbus_watch_handle(const char *func, ni_socket_t *sock, int flags)
 {
-	ni_dbus_watch_data_t *wd = sock->user_data;
+	ni_dbus_watch_data_t *wd;
+	int found = 0, poll_flags = 0;
 
-	if (wd == NULL) {
-		ni_warn("%s: dead socket", func);
-	} else {
-		ni_debug_dbus("%s(fd=%d)", func, dbus_watch_get_socket(wd->watch));
+	/* All of this is somewhat more complicated than it may need to be.
+	 * For some odd reason, libdbus insists on maintaining two watches
+	 * per connection, so that for every socket state change, we need to
+	 * loop over all watches.
+	 */
+	for (wd = ni_dbus_watches; wd; wd = wd->next) {
+		int old_watch_flags, new_watch_flags;
+
+		if (wd->socket != sock)
+			continue;
+		found++;
+
+		ni_debug_dbus("%s(watch=%p, fd=%d, flags=%s)",
+				func, wd->watch, dbus_watch_get_socket(wd->watch),
+				__ni_dbus_watch_flags(flags));
+
+		old_watch_flags = dbus_watch_get_flags(wd->watch);
 		dbus_watch_handle(wd->watch, flags);
 
 		if (flags & (DBUS_WATCH_READABLE | DBUS_WATCH_WRITABLE)) {
@@ -585,15 +617,26 @@ __ni_dbus_watch_handle(const char *func, ni_socket_t *sock, int flags)
 			while (dbus_connection_dispatch(conn) == DBUS_DISPATCH_DATA_REMAINS)
 				;
 		}
-		sock->poll_flags = 0;
+
+		new_watch_flags = dbus_watch_get_flags(wd->watch);
 		if (dbus_watch_get_enabled(wd->watch)) {
-			flags = dbus_watch_get_flags(wd->watch);
-			if (flags & DBUS_WATCH_READABLE)
-				sock->poll_flags |= POLLIN;
-			if (flags & DBUS_WATCH_WRITABLE)
-				sock->poll_flags |= POLLOUT;
+			if (new_watch_flags & DBUS_WATCH_READABLE)
+				poll_flags |= POLLIN;
+			if (new_watch_flags & DBUS_WATCH_WRITABLE)
+				poll_flags |= POLLOUT;
+		}
+
+		if (old_watch_flags != new_watch_flags) {
+			ni_debug_dbus("%s: changing watch flags %s to %s",
+					__func__,
+					__ni_dbus_watch_flags(old_watch_flags),
+					__ni_dbus_watch_flags(new_watch_flags));
 		}
 	}
+
+	sock->poll_flags = poll_flags;
+	if (!found)
+		ni_warn("%s: dead socket", func);
 }
 
 static void
@@ -623,15 +666,16 @@ __ni_dbus_watch_hangup(ni_socket_t *sock)
 static void
 __ni_dbus_watch_close(ni_socket_t *sock)
 {
-	ni_dbus_watch_data_t *wd = sock->user_data;
+	ni_dbus_watch_data_t *wd;
 
 	NI_TRACE_ENTER();
-	if (wd != NULL) {
-		/* Note, we're not explicitly closing the socket.
-		 * We may want to shut down the connection owning
-		 * us, however. */
-		sock->user_data = NULL;
-		wd->socket = NULL;
+	for (wd = ni_dbus_watches; wd; wd = wd->next) {
+		if (wd->socket == sock) {
+			/* Note, we're not explicitly closing the socket.
+			 * We may want to shut down the connection owning
+			 * us, however. */
+			wd->socket = NULL;
+		}
 	}
 }
 
@@ -641,9 +685,17 @@ __ni_dbus_add_watch(DBusWatch *watch, void *data)
 {
 	DBusConnection *conn = data;
 	ni_dbus_watch_data_t *wd;
-	ni_socket_t *sock;
+	ni_socket_t *sock = NULL;
 
-	ni_debug_dbus("%s(%p, conn=%p)", __FUNCTION__, watch, conn);
+	for (wd = ni_dbus_watches; wd; wd = wd->next) {
+		if (wd->conn == conn) {
+			sock = wd->socket;
+			break;
+		}
+	}
+
+	ni_debug_dbus("%s(%p, conn=%p, fd=%d, reuse sock=%p)",
+			__FUNCTION__, watch, conn, dbus_watch_get_socket(watch), sock);
 
 	if (!(wd = calloc(1, sizeof(*wd))))
 		return 0;
@@ -652,16 +704,19 @@ __ni_dbus_add_watch(DBusWatch *watch, void *data)
 	wd->next = ni_dbus_watches;
 	ni_dbus_watches = wd;
 
-	sock = ni_socket_wrap(dbus_watch_get_socket(watch), -1);
-	sock->close = __ni_dbus_watch_close;
-	sock->receive = __ni_dbus_watch_recv;
-	sock->transmit = __ni_dbus_watch_send;
-	sock->handle_error = __ni_dbus_watch_error;
-	sock->handle_hangup = __ni_dbus_watch_hangup;
-	sock->user_data = wd;
-	wd->socket = sock;
+	if (sock == NULL) {
+		sock = ni_socket_wrap(dbus_watch_get_socket(watch), -1);
+		sock->close = __ni_dbus_watch_close;
+		sock->receive = __ni_dbus_watch_recv;
+		sock->transmit = __ni_dbus_watch_send;
+		sock->handle_error = __ni_dbus_watch_error;
+		sock->handle_hangup = __ni_dbus_watch_hangup;
+		ni_socket_activate(sock);
+	} else {
+		ni_socket_hold(sock);
+	}
 
-	ni_socket_activate(sock);
+	wd->socket = sock;
 
 	return 1;
 }
