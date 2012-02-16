@@ -364,7 +364,8 @@ ni_objectmodel_addrconf_forward_release(ni_dbus_addrconf_forwarder_t *forwarder,
 		return TRUE;
 
 	rv = ni_objectmodel_addrconf_forwarder_call(forwarder, dev, "drop", &lease->uuid, NULL, error);
-	if (rv) {
+	if (rv
+	 && (lease = ni_interface_get_lease(dev, forwarder->addrfamily, forwarder->addrconf)) != NULL) {
 		/* Tell the client to wait for an addressAcquired event with the given uuid */
 		rv =  __ni_objectmodel_return_callback_info(reply, NI_EVENT_ADDRESS_RELEASED, &lease->uuid, error);
 	}
