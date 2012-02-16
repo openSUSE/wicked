@@ -279,16 +279,19 @@ ni_config_parse_extensions(ni_extension_t **list, xml_node_t *node)
 			xpath_format_t *fmt = NULL;
 
 			if (!strcmp(child->name, "action")) {
-				ni_script_action_t *act;
+				const char *name, *command;
+				ni_process_t *process;
 
-				if (!(attrval = xml_node_get_attr(child, "name"))) {
+				if (!(name = xml_node_get_attr(child, "name"))) {
 					ni_error("action element without name attribute");
 					return -1;
 				}
+				if (!(command = xml_node_get_attr(child, "command"))) {
+					ni_error("action element without command attribute");
+					return -1;
+				}
 
-				act = ni_script_action_new(attrval, &ex->actions);
-				if ((attrval = xml_node_get_attr(child, "command")) != NULL)
-					ni_string_dup(&act->command, attrval);
+				process = ni_extension_script_new(ex, name, command);
 			} else
 			if (!strcmp(child->name, "environment")) {
 				if (!(attrval = xml_node_get_attr(child, "putenv"))) {

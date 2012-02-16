@@ -17,7 +17,7 @@
 struct ni_script_action {
 	ni_script_action_t *	next;
 	char *			name;
-	char *			command;
+	ni_process_t *		process;
 };
 
 struct ni_extension {
@@ -93,16 +93,14 @@ extern unsigned int	ni_config_addrconf_update_mask(ni_config_t *, ni_addrconf_mo
 extern ni_extension_t *	ni_extension_list_find(ni_extension_t *, const char *);
 extern void		ni_extension_list_destroy(ni_extension_t **);
 extern ni_extension_t *	ni_extension_new(ni_extension_t **, const char *);
-extern ni_script_action_t *ni_extension_get_action(const ni_extension_t *, const char *);
 extern int		ni_extension_active(const ni_extension_t *, const char *, xml_node_t *); /* KILL */
 extern int		ni_extension_start(const ni_extension_t *, const char *, xml_node_t *); /* KILL */
 extern int		ni_extension_stop(const ni_extension_t *, const char *, xml_node_t *); /* KILL */
 extern int		ni_extension_run(const ni_extension_t *, ni_script_action_t *); /* KILL */
 extern void		ni_extension_free(ni_extension_t *);
 
-extern ni_script_action_t *ni_script_action_new(const char *name, ni_script_action_t **list);
-extern void		ni_script_action_free(ni_script_action_t *);
-extern ni_script_action_t *ni_script_action_find(ni_script_action_t *, const char *);
+extern ni_process_t *	ni_extension_script_new(ni_extension_t *, const char *name, const char *command);
+extern ni_process_t *	ni_extension_script_find(ni_extension_t *, const char *);
 
 typedef struct ni_global {
 	int			initialized;

@@ -14,6 +14,9 @@
 #include <wicked/xpath.h>
 #include "netinfo_priv.h"
 #include "config.h"
+#include "process.h"
+
+static void		__ni_script_action_free(ni_script_action_t *);
 
 /*
  * Constructor and destructor for extension config
@@ -42,7 +45,7 @@ ni_extension_free(ni_extension_t *ex)
 	ni_string_free(&ex->interface);
 	while ((act = ex->actions) != NULL) {
 		ex->actions = act->next;
-		ni_script_action_free(act);
+		__ni_script_action_free(act);
 	}
 
 	xpath_format_array_destroy(&ex->environment);
@@ -100,6 +103,7 @@ xni_extension_active(const ni_extension_t *ex, const char *ifname, xml_node_t *x
 	return 0;
 }
 
+#if 0
 /*
  * Run an extension command
  */
@@ -188,16 +192,12 @@ done:
 	ni_string_array_destroy(&env);
 	return rv;
 }
+#endif
 
 int
 ni_extension_run(const ni_extension_t *ex, ni_script_action_t *script)
 {
-	xml_node_t *node = xml_node_new(NULL, NULL);
-	int rv;
-
-	rv = __ni_extension_run(ex, script, node);
-	xml_node_free(node);
-	return rv;
+	return -1;
 }
 
 ni_script_action_t *
@@ -215,8 +215,8 @@ ni_extension_get_action(const ni_extension_t *ex, const char *name)
 /*
  * Create/destroy script actions
  */
-ni_script_action_t *
-ni_script_action_new(const char *name, ni_script_action_t **list)
+static ni_script_action_t *
+__ni_script_action_new(const char *name, ni_script_action_t **list)
 {
 	ni_script_action_t *script;
 
@@ -231,21 +231,33 @@ ni_script_action_new(const char *name, ni_script_action_t **list)
 }
 
 void
-ni_script_action_free(ni_script_action_t *script)
+__ni_script_action_free(ni_script_action_t *script)
 {
 	ni_string_free(&script->name);
-	ni_string_free(&script->command);
+	if (script->process)
+		ni_process_release(script->process);
 	free(script);
 }
 
-ni_script_action_t *
-ni_script_action_find(ni_script_action_t *list, const char *name)
+ni_process_t *
+ni_extension_script_new(ni_extension_t *extension, const char *name, const char *command)
 {
 	ni_script_action_t *script;
 
-	for (script = list; script; script = script->next) {
+	script = __ni_script_action_new(name, &extension->actions);
+	script->process = ni_process_new(command);
+
+	return script->process;
+}
+
+ni_process_t *
+ni_extension_script_find(ni_extension_t *extension, const char *name)
+{
+	ni_script_action_t *script;
+
+	for (script = extension->actions; script; script = script->next) {
 		if (!strcmp(script->name, name))
-			return script;
+			return script->process;
 	}
 	return NULL;
 }
