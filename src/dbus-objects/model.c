@@ -80,6 +80,8 @@ ni_objectmodel_register_all(void)
 	ni_objectmodel_register_netif_classes();
 
 	ni_objectmodel_register_service(&ni_objectmodel_netif_list_service);
+
+	__ni_objectmodel_force_linkage();
 }
 
 /*

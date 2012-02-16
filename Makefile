@@ -77,6 +77,7 @@ __LIBSRCS= \
 	  dbus-objects/dhcp4.c \
 	  dbus-objects/autoip.c \
 	  dbus-objects/misc.c \
+	  dbus-objects/linkage.c \
 	  wpa-supplicant.c \
 	  dhcp-lease.c
 DHCP4SRCS = \
