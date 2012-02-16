@@ -67,6 +67,7 @@ __LIBSRCS= \
 	  dbus-xml.c \
 	  dbus-server.c \
 	  dbus-object.c \
+	  dbus-errors.c \
 	  dbus-objects/model.c \
 	  dbus-objects/interface.c \
 	  dbus-objects/ethernet.c \

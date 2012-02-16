@@ -7,6 +7,7 @@
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
 #include <wicked/wireless.h>
+#include <wicked/dbus-errors.h>
 #include "dbus-common.h"
 #include "model.h"
 
@@ -62,6 +63,14 @@ ni_objectmodel_wireless_link_change(ni_dbus_object_t *object, const ni_dbus_meth
 		dbus_bool_t was_up = FALSE;
 
 		was_up = (ifp->wireless->assoc.state == NI_WIRELESS_ESTABLISHED);
+
+		if (net->keymgmt_proto == NI_WIRELESS_KEY_MGMT_PSK
+		 && net->wpa_psk.key.len == 0
+		 && net->wpa_psk.passphrase == NULL) {
+			dbus_set_error(error, NI_DBUS_ERROR_AUTH_INFO_MISSING,
+					"wpa-psk.passphrase");
+			goto error;
+		}
 
 		/* We're asked to associate with the given network */
 		if (ni_wireless_set_network(ifp, net) < 0) {

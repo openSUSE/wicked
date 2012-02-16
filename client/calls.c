@@ -14,6 +14,7 @@
 #include <wicked/addrconf.h>
 #include <wicked/xml.h>
 #include <wicked/objectmodel.h>
+#include <wicked/dbus-errors.h>
 
 #include "client/wicked-client.h"
 
@@ -246,25 +247,28 @@ ni_call_link_new_xml(const ni_dbus_service_t *service,
 /*
  * Bring the link of an interface up
  */
-static dbus_bool_t
+static int
 ni_call_link_method_common(ni_dbus_object_t *object,
 				const ni_dbus_service_t *service, const ni_dbus_method_t *method,
 				unsigned int argc, ni_dbus_variant_t *argv,
-				ni_objectmodel_callback_info_t **callback_list)
+				ni_objectmodel_callback_info_t **callback_list,
+				char **error_detail)
 {
 	ni_dbus_variant_t result = NI_DBUS_VARIANT_INIT;
 	DBusError error = DBUS_ERROR_INIT;
-	dbus_bool_t rv = FALSE;
+	int rv = 0;
 
 	if (!ni_dbus_object_call_variant(object, service->name, method->name,
 				argc, argv,
 				1, &result,
 				&error)) {
+
 		ni_error("%s.%s() failed. Server responds:", service->name, method->name);
 		ni_error_extra("%s: %s", error.name, error.message);
+		rv = ni_dbus_get_error(&error, NULL);
 	} else {
 		*callback_list = ni_objectmodel_callback_info_from_dict(&result);
-		rv = TRUE;
+		rv = 0;
 	}
 
 	ni_dbus_variant_destroy(&result);
@@ -278,8 +282,8 @@ ni_call_link_method_xml(ni_dbus_object_t *object, const char *method_name, xml_n
 	ni_dbus_variant_t argv[1];
 	const ni_dbus_service_t *service;
 	const ni_dbus_method_t *method;
-	dbus_bool_t rv = FALSE;
-	int argc = 0;
+	char *error_detail = NULL;
+	int rv, argc = 0;
 
 	if (!(service = ni_dbus_object_get_service_for_method(object, method_name))) {
 		ni_error("%s: no registered dbus service for method %s()",
@@ -300,16 +304,21 @@ ni_call_link_method_xml(ni_dbus_object_t *object, const char *method_name, xml_n
 		ni_dbus_variant_init_dict(dict);
 		if (config && !ni_dbus_xml_serialize_arg(method, 0, dict, config)) {
 			ni_error("%s.%s: error serializing argument", service->name, method->name);
+			rv = -NI_ERROR_CANNOT_MARSHAL;
 			goto out;
 		}
 	}
 
-	rv = ni_call_link_method_common(object, service, method, argc, argv, callback_list);
+	rv = ni_call_link_method_common(object, service, method, argc, argv, callback_list, &error_detail);
+	if (rv == -NI_ERROR_AUTH_INFO_MISSING) {
+		printf("FIXME: request missing passphrase from user\n");
+	}
 
 out:
 	while (argc--)
 		ni_dbus_variant_destroy(&argv[argc]);
-	return rv;
+	ni_string_free(&error_detail);
+	return rv >= 0;
 }
 
 dbus_bool_t
