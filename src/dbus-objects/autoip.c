@@ -21,6 +21,9 @@
 #include "debug.h"
 
 static ni_dbus_client_t *	dbus_autoip_client = NULL;
+static ni_dbus_class_t		ni_objectmodel_auto4if_class = {
+	"auto4-interface",
+};
 
 static int		ni_objectmodel_autoip_acquire(const ni_addrconf_t *, ni_interface_t *);
 static int		ni_objectmodel_autoip_release(const ni_addrconf_t *, ni_interface_t *, ni_addrconf_lease_t *);
@@ -68,6 +71,7 @@ static ni_dbus_object_t *
 ni_objectmodel_autoip_wrap_interface(ni_interface_t *dev)
 {
 	return ni_dbus_client_object_new(dbus_autoip_client,
+			&ni_objectmodel_auto4if_class,
 			ni_objectmodel_autoip_object_path(dev),
 			WICKED_DBUS_AUTO4_INTERFACE, NULL, dev);
 }

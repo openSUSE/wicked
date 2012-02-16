@@ -18,6 +18,10 @@ struct ni_dbus_server_object {
 	ni_dbus_server_t *	server;			/* back pointer at server */
 };
 
+static const ni_dbus_class_t	dbus_root_object_class = {
+	.name = "<root>",
+};
+
 struct ni_dbus_server {
 	ni_dbus_connection_t *	connection;
 	ni_dbus_object_t *	root_object;
@@ -47,7 +51,7 @@ ni_dbus_server_open(const char *bus_name, void *root_object_handle)
 	}
 
 	/* Translate bus name foo.bar.baz into object path /foo/bar/baz */
-	root = ni_dbus_object_new(__ni_dbus_server_root_path(bus_name), NULL, root_object_handle);
+	root = ni_dbus_object_new(&dbus_root_object_class, __ni_dbus_server_root_path(bus_name), NULL, root_object_handle);
 	__ni_dbus_server_object_init(root, server);
 	__ni_dbus_object_insert(&server->root_object, root);
 
@@ -183,13 +187,14 @@ __ni_dbus_server_object_destroy(ni_dbus_object_t *object)
  */
 ni_dbus_object_t *
 ni_dbus_server_register_object(ni_dbus_server_t *server, const char *object_path,
+				const ni_dbus_class_t *object_class,
 				const ni_dbus_object_functions_t *functions,
 				void *object_handle)
 {
 	ni_dbus_object_t *object;
 
 	NI_TRACE_ENTER_ARGS("path=%s, handle=%p", object_path, object_handle);
-	object = ni_dbus_object_create(server->root_object, object_path, functions, object_handle);
+	object = ni_dbus_object_create(server->root_object, object_path, object_class, functions, object_handle);
 
 	return object;
 }

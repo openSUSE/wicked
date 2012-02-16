@@ -18,32 +18,37 @@ static ni_dbus_object_t *	__ni_dbus_objects_trashcan;
 
 static const char *		__ni_dbus_object_child_path(const ni_dbus_object_t *, const char *);
 
+const ni_dbus_class_t		ni_dbus_anonymous_class = {
+	"<anonymous>"
+};
+
 /*
  * Create a new dbus object
  */
 ni_dbus_object_t *
-__ni_dbus_object_new(const char *path)
+__ni_dbus_object_new(const ni_dbus_class_t *class, const char *path)
 {
 	ni_dbus_object_t *object;
 
 	object = calloc(1, sizeof(*object));
 	ni_string_dup(&object->path, path);
+	object->class = class;
 	return object;
 }
 
 ni_dbus_object_t *
-ni_dbus_object_new(const char *path, const ni_dbus_object_functions_t *functions, void *handle)
+ni_dbus_object_new(const ni_dbus_class_t *class, const char *path, const ni_dbus_object_functions_t *functions, void *handle)
 {
 	ni_dbus_object_t *object;
 
-	object = __ni_dbus_object_new(path? xstrdup(path) : NULL);
+	object = __ni_dbus_object_new(class, path? xstrdup(path) : NULL);
 	object->functions = functions;
 	object->handle = handle;
 	return object;
 }
 
 static ni_dbus_object_t *
-__ni_dbus_object_new_child(ni_dbus_object_t *parent, const char *name,
+__ni_dbus_object_new_child(ni_dbus_object_t *parent, const ni_dbus_class_t *class, const char *name,
 				const ni_dbus_object_functions_t *functions,
 				void *object_handle)
 {
@@ -53,7 +58,7 @@ __ni_dbus_object_new_child(ni_dbus_object_t *parent, const char *name,
 	for (pos = &parent->children; (child = *pos) != NULL; pos = &child->next)
 		;
 
-	child = __ni_dbus_object_new(__ni_dbus_object_child_path(parent, name));
+	child = __ni_dbus_object_new(class, __ni_dbus_object_child_path(parent, name));
 	if (!child)
 		return NULL;
 
@@ -173,6 +178,7 @@ __ni_dbus_object_get_child(ni_dbus_object_t *parent, const char *name)
 
 static ni_dbus_object_t *
 __ni_dbus_object_lookup(ni_dbus_object_t *root_object, const char *path, int create,
+				const ni_dbus_class_t *object_class,
 				const ni_dbus_object_functions_t *functions,
 				void *object_handle)
 {
@@ -193,10 +199,10 @@ __ni_dbus_object_lookup(ni_dbus_object_t *root_object, const char *path, int cre
 		if (child == NULL && create) {
 			if (next_name != NULL) {
 				/* Intermediate path component */
-				child = __ni_dbus_object_new_child(found, name, NULL, NULL);
+				child = __ni_dbus_object_new_child(found, &ni_dbus_anonymous_class, name, NULL, NULL);
 			} else {
 				/* Final path component consumes object handle and functions */
-				child = __ni_dbus_object_new_child(found, name, functions, object_handle);
+				child = __ni_dbus_object_new_child(found, object_class, name, functions, object_handle);
 			}
 		}
 		found = child;
@@ -208,12 +214,13 @@ __ni_dbus_object_lookup(ni_dbus_object_t *root_object, const char *path, int cre
 
 ni_dbus_object_t *
 ni_dbus_object_create(ni_dbus_object_t *root_object, const char *object_path,
+				const ni_dbus_class_t *object_class,
 				const ni_dbus_object_functions_t *functions,
 				void *object_handle)
 {
 	ni_dbus_object_t *object;
 
-	object = __ni_dbus_object_lookup(root_object, object_path, 0, NULL, NULL);
+	object = __ni_dbus_object_lookup(root_object, object_path, 0, NULL, NULL, NULL);
 	if (object != NULL) {
 		/* Object already exists. Check for idempotent registration */
 		if (object->handle != object_handle) {
@@ -227,7 +234,12 @@ ni_dbus_object_create(ni_dbus_object_t *root_object, const char *object_path,
 		return object;
 	}
 
-	object = __ni_dbus_object_lookup(root_object, object_path, 1, functions, object_handle);
+	if (object_class == NULL) {
+		ni_error("%s: unable to create object with NULL class pointer - using anonymous class", __func__);
+		object_class = &ni_dbus_anonymous_class;
+	}
+
+	object = __ni_dbus_object_lookup(root_object, object_path, 1, object_class, functions, object_handle);
 	if (object == NULL) {
 		ni_error("%s: could not create object \"%s\"", __FUNCTION__, object_path);
 		return NULL;
@@ -239,7 +251,7 @@ ni_dbus_object_create(ni_dbus_object_t *root_object, const char *object_path,
 ni_dbus_object_t *
 ni_dbus_object_lookup(ni_dbus_object_t *root_object, const char *path)
 {
-	return __ni_dbus_object_lookup(root_object, path, 0, NULL, NULL);
+	return __ni_dbus_object_lookup(root_object, path, 0, NULL, NULL, NULL);
 }
 
 /*

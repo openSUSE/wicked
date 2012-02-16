@@ -25,6 +25,9 @@
 #include "dhcp.h"
 
 static ni_dbus_object_functions_t wicked_dbus_dhcp4_functions;
+static ni_dbus_class_t		ni_objectmodel_dhcp4dev_class = {
+	"dhcp4-device",
+};
 
 extern const ni_dbus_service_t	wicked_dbus_addrconf_request_service; /* XXX */
 static const ni_dbus_service_t	wicked_dbus_dhcp4_service;
@@ -47,10 +50,11 @@ __ni_objectmodel_build_dhcp4_device_object(ni_dbus_server_t *server, ni_dhcp_dev
 	if (server != NULL) {
 		snprintf(object_path, sizeof(object_path), "Interface/%d", dev->link.ifindex);
 		object = ni_dbus_server_register_object(server, object_path,
+						&ni_objectmodel_dhcp4dev_class,
 						&wicked_dbus_dhcp4_functions,
 						ni_dhcp_device_get(dev));
 	} else {
-		object = ni_dbus_object_new(NULL,
+		object = ni_dbus_object_new(&ni_objectmodel_dhcp4dev_class, NULL,
 						&wicked_dbus_dhcp4_functions,
 						ni_dhcp_device_get(dev));
 	}
@@ -98,7 +102,7 @@ __wicked_dbus_dhcp4_acquire_svc(ni_dbus_object_t *object, const ni_dbus_method_t
 
 	/* Build a dummy object for the address configuration request */
 	req = ni_addrconf_request_new(NI_ADDRCONF_DHCP, AF_INET);
-	cfg_object = ni_dbus_object_new(NULL, NULL, req);
+	cfg_object = ni_objectmodel_wrap_addrconf_request(req);
 
 	/* Extract configuration from dict */
 	if (argc == 0) {

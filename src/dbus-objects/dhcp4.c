@@ -21,6 +21,9 @@
 #include "debug.h"
 
 static ni_dbus_client_t *	dbus_dhcp_client = NULL;
+static ni_dbus_class_t		ni_objectmodel_dhcp4if_class = {
+	"dhcp4-interface",
+};
 
 static int		ni_objectmodel_dhcp4_acquire(const ni_addrconf_t *acm, ni_interface_t *);
 static int		ni_objectmodel_dhcp4_release(const ni_addrconf_t *, ni_interface_t *, ni_addrconf_lease_t *);
@@ -74,6 +77,7 @@ static ni_dbus_object_t *
 ni_objectmodel_dhcp4_wrap_interface(ni_interface_t *dev)
 {
 	return ni_dbus_client_object_new(dbus_dhcp_client,
+			&ni_objectmodel_dhcp4if_class,
 			ni_objectmodel_dhcp4_object_path(dev),
 			WICKED_DBUS_DHCP4_INTERFACE, NULL, dev);
 }

@@ -115,13 +115,15 @@ __ni_dbus_client_object_get_error_map(const ni_dbus_object_t *object)
 }
 
 ni_dbus_object_t *
-ni_dbus_client_object_new(ni_dbus_client_t *client, const char *path, const char *interface,
+ni_dbus_client_object_new(ni_dbus_client_t *client, const ni_dbus_class_t *class,
+		const char *path, const char *interface,
 		const ni_dbus_object_functions_t *functions, void *local_data)
 {
 	ni_dbus_object_t *object;
 
-	object = ni_dbus_object_new(path, functions, local_data);
-	__ni_dbus_client_object_init(object, client, interface);
+	object = ni_dbus_object_new(class, path, functions, local_data);
+	if (object)
+		__ni_dbus_client_object_init(object, client, interface);
 	return object;
 }
 
@@ -416,7 +418,7 @@ ni_dbus_object_get_managed_objects(ni_dbus_object_t *proxy, DBusError *error)
 		return FALSE;
 	}
 
-	objmgr = ni_dbus_client_object_new(client, proxy->path,
+	objmgr = ni_dbus_client_object_new(client, proxy->class, proxy->path,
 			NI_DBUS_INTERFACE ".ObjectManager",
 			NULL, NULL);
 
@@ -453,7 +455,8 @@ ni_dbus_object_get_managed_objects(ni_dbus_object_t *proxy, DBusError *error)
 			continue;
 		}
 		if (object_path[len])
-			descendant = ni_dbus_object_create(proxy, object_path + len + 1, NULL, NULL);
+			descendant = ni_dbus_object_create(proxy, object_path + len + 1,
+					&ni_dbus_anonymous_class, NULL, NULL);
 		else
 			descendant = proxy;
 

@@ -24,6 +24,12 @@
 #include "debug.h"
 
 static ni_dbus_object_functions_t wicked_dbus_interface_functions;
+static ni_dbus_class_t		ni_objectmodel_netif_class = {
+	"netif"
+};
+static ni_dbus_class_t		ni_objectmodel_ifreq_class = {
+	"ifreq"
+};
 
 extern const ni_dbus_service_t	wicked_dbus_interface_request_service; /* XXX */
 
@@ -40,10 +46,11 @@ __ni_objectmodel_build_interface_object(ni_dbus_server_t *server, ni_interface_t
 	if (server != NULL) {
 		object = ni_dbus_server_register_object(server,
 						ni_objectmodel_interface_path(ifp),
+						&ni_objectmodel_netif_class,
 						&wicked_dbus_interface_functions,
 						ni_interface_get(ifp));
 	} else {
-		object = ni_dbus_object_new(NULL,
+		object = ni_dbus_object_new(&ni_objectmodel_netif_class, NULL,
 						&wicked_dbus_interface_functions,
 						ni_interface_get(ifp));
 	}
@@ -123,7 +130,7 @@ ni_objectmodel_wrap_interface(ni_interface_t *ifp)
 ni_dbus_object_t *
 ni_objectmodel_wrap_interface_request(ni_interface_request_t *req)
 {
-	return ni_dbus_object_new(NULL, NULL, req);
+	return ni_dbus_object_new(&ni_objectmodel_ifreq_class, NULL, NULL, req);
 }
 
 /*
@@ -178,7 +185,7 @@ ni_objectmodel_new_interface(ni_dbus_server_t *server, const ni_dbus_service_t *
 	/* Hack: we shouldn't modify a const dict */
 	ni_dbus_dict_delete_entry((ni_dbus_variant_t *) dict, "name");
 
-	object = ni_dbus_object_new(NULL, &wicked_dbus_interface_functions, ifp);
+	object = ni_dbus_object_new(&ni_objectmodel_netif_class, NULL, &wicked_dbus_interface_functions, ifp);
 	ni_dbus_object_register_service(object, &wicked_dbus_interface_service);
 	ni_dbus_object_register_service(object, service);
 
@@ -252,7 +259,7 @@ __wicked_dbus_interface_up(ni_dbus_object_t *object, const ni_dbus_method_t *met
 
 	/* Create an interface_request object and wrap it in a dbus object */
 	req = ni_interface_request_new();
-	cfg_object = ni_dbus_object_new(NULL, NULL, req);
+	cfg_object = ni_objectmodel_wrap_interface_request(req);
 
 	/* Extract configuration from dict */
 	if (!ni_dbus_object_set_properties_from_dict(cfg_object, &wicked_dbus_interface_request_service, &argv[0])) {

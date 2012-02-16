@@ -57,6 +57,7 @@ ni_objectmodel_create_service(void)
 	ni_dbus_object_register_service(object, &wicked_dbus_root_interface);
 
 	object = ni_dbus_server_register_object(server, "Interface",
+					&ni_dbus_anonymous_class,
 					&wicked_dbus_netif_functions,
 					NULL);
 	if (object == NULL)

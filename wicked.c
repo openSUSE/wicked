@@ -217,6 +217,7 @@ wicked_dbus_client_create(void)
 	// ni_dbus_client_set_error_map(dbc, __wicked_error_names);
 
 	return ni_dbus_client_object_new(client,
+				&ni_dbus_anonymous_class,
 				WICKED_DBUS_OBJECT_PATH,
 				WICKED_DBUS_INTERFACE,
 				NULL, NULL);
@@ -336,7 +337,9 @@ wicked_get_interface_object(const char *default_interface)
 
 	if (!(root_object = wicked_dbus_client_create()))
 		return NULL;
-	child = ni_dbus_object_create(root_object, "Interface", &wicked_proxy_interface_functions, NULL);
+	child = ni_dbus_object_create(root_object, "Interface",
+			&ni_dbus_anonymous_class,
+			&wicked_proxy_interface_functions, NULL);
 
 	if (!default_interface)
 		default_interface = WICKED_DBUS_INTERFACE ".Interface";

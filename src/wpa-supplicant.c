@@ -65,6 +65,16 @@ struct ni_wpa_scan {
 	unsigned int		state;
 };
 
+static ni_dbus_class_t		ni_objectmodel_wpa_class = {
+	"wpa"
+};
+static ni_dbus_class_t		ni_objectmodel_bss_class = {
+	"bss"
+};
+static ni_dbus_class_t		ni_objectmodel_wpaif_class = {
+	"wpa-interface"
+};
+
 static int		ni_wpa_get_interface(ni_wpa_client_t *, const char *, ni_wpa_interface_t **);
 static int		ni_wpa_add_interface(ni_wpa_client_t *, const char *, ni_wpa_interface_t **);
 static void		ni_wpa_interface_free(ni_wpa_interface_t *);
@@ -100,7 +110,8 @@ ni_wpa_client_open(void)
 	ni_dbus_client_set_error_map(dbc, __ni_wpa_error_names);
 
 	wpa = xcalloc(1, sizeof(*wpa));
-	wpa->proxy = ni_dbus_client_object_new(dbc, NI_WPA_OBJECT_PATH, NI_WPA_INTERFACE, NULL, wpa);
+	wpa->proxy = ni_dbus_client_object_new(dbc, &ni_objectmodel_wpa_class,
+			NI_WPA_OBJECT_PATH, NI_WPA_INTERFACE, NULL, wpa);
 	wpa->dbus = dbc;
 
 	ni_dbus_client_add_signal_handler(dbc,
@@ -197,7 +208,9 @@ ni_wpa_interface_bss_by_path(ni_wpa_interface_t *ifp, const char *object_path)
 	}
 
 	bss = xcalloc(1, sizeof(*bss));
-	bss->proxy = ni_dbus_client_object_new(ni_dbus_object_get_client(ifp->proxy), object_path, NI_WPA_BSS_INTERFACE, NULL, bss);
+	bss->proxy = ni_dbus_client_object_new(ni_dbus_object_get_client(ifp->proxy),
+				&ni_objectmodel_bss_class,
+				object_path, NI_WPA_BSS_INTERFACE, NULL, bss);
 	bss->next = ifp->bss_list;
 	ifp->bss_list = bss;
 
@@ -394,7 +407,8 @@ ni_wpa_prepare_interface(ni_wpa_client_t *wpa, ni_wpa_interface_t *ifp, const ch
 {
 	int rv;
 
-	ifp->proxy = ni_dbus_client_object_new(wpa->dbus, object_path, NI_WPA_IF_INTERFACE, NULL, ifp);
+	ifp->proxy = ni_dbus_client_object_new(wpa->dbus, &ni_objectmodel_wpaif_class,
+			object_path, NI_WPA_IF_INTERFACE, NULL, ifp);
 
 	/* Get current interface state. */
 	rv = ni_wpa_interface_get_state(wpa, ifp);

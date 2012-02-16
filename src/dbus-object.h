@@ -9,7 +9,7 @@
 
 #include <wicked/dbus.h>
 
-extern ni_dbus_object_t *	__ni_dbus_object_new(const char *);
+extern ni_dbus_object_t *	__ni_dbus_object_new(const ni_dbus_class_t *, const char *);
 extern void			__ni_dbus_object_free(ni_dbus_object_t *);
 extern void			__ni_dbus_server_object_inherit(ni_dbus_object_t *child, const ni_dbus_object_t *parent);
 extern void			__ni_dbus_client_object_inherit(ni_dbus_object_t *child, const ni_dbus_object_t *parent);

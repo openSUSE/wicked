@@ -144,6 +144,7 @@ struct ni_dbus_service {
 	void *				user_data;
 };
 
+/* XXX: is this really needed? */
 typedef struct ni_dbus_object_functions	ni_dbus_object_functions_t;
 struct ni_dbus_object_functions {
 	dbus_bool_t		(*init_child)(ni_dbus_object_t *);
@@ -151,10 +152,19 @@ struct ni_dbus_object_functions {
 	dbus_bool_t		(*refresh)(ni_dbus_object_t *);
 };
 
+typedef struct ni_dbus_class ni_dbus_class_t;
+struct ni_dbus_class {
+	char *			name;
+};
+
+extern const ni_dbus_class_t	ni_dbus_anonymous_class;
+
 struct ni_dbus_object {
 	ni_dbus_object_t **	pprev;
 	ni_dbus_object_t *	next;
 	ni_dbus_object_t *	parent;
+
+	const ni_dbus_class_t *	class;
 	char *			name;		/* relative path */
 	char *			path;		/* absolute path */
 	void *			handle;		/* local object */
@@ -175,6 +185,7 @@ typedef void			ni_dbus_signal_handler_t(ni_dbus_connection_t *connection,
 extern ni_dbus_object_t *	ni_dbus_server_get_root_object(const ni_dbus_server_t *);
 extern ni_dbus_object_t *	ni_dbus_server_register_object(ni_dbus_server_t *server,
 					const char *object_path,
+					const ni_dbus_class_t *object_class,
 					const ni_dbus_object_functions_t *functions,
 					void *object_handle);
 extern dbus_bool_t		ni_dbus_server_unregister_object(ni_dbus_server_t *, void *);
@@ -183,11 +194,13 @@ extern dbus_bool_t		ni_dbus_server_send_signal(ni_dbus_server_t *server, ni_dbus
 					const char *interface, const char *signal_name,
 					unsigned int nargs, const ni_dbus_variant_t *args);
 
-extern ni_dbus_object_t *	ni_dbus_object_new(const char *path,
+extern ni_dbus_object_t *	ni_dbus_object_new(const ni_dbus_class_t *,
+					const char *path,
 					const ni_dbus_object_functions_t *functions,
 					void *handle);
 extern ni_dbus_object_t *	ni_dbus_object_create(ni_dbus_object_t *root_object,
 					const char *path,
+					const ni_dbus_class_t *class,
 					const ni_dbus_object_functions_t *functions,
 					void *handle);
 extern dbus_bool_t		ni_dbus_object_register_service(ni_dbus_object_t *object,
@@ -363,6 +376,7 @@ extern int			ni_dbus_client_translate_error(ni_dbus_client_t *, const DBusError 
 extern ni_dbus_message_t *	ni_dbus_client_call(ni_dbus_client_t *client, ni_dbus_message_t *call,
 					DBusError *error);
 extern ni_dbus_object_t *	ni_dbus_client_object_new(ni_dbus_client_t *client,
+					const ni_dbus_class_t *,
 					const char *object_path,
 					const char *default_interface,
 					const ni_dbus_object_functions_t *functions,
