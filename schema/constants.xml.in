@@ -9,12 +9,12 @@
 
 <!-- Built-in address configuration classes -->
 <define name="builtin-addrconf" type="uint32" constraint="enum">
-  <@@ADDRCONFNAME_NAME@@ value="@@ADDRCONFNAME_VALUE@@"/>
+  <@@ADDRCONF_MODE_NAME@@ value="@@ADDRCONF_MODE_VALUE@@"/>
 </define>
 
 <!-- Built-in addrconf states (used in addrconf leases) -->
 <define name="builtin-addrconf-state" type="uint32" constraint="enum">
-  <@@ADDRCONFSTATE_NAME@@ value="@@ADDRCONFSTATE_VALUE@@"/>
+  <@@ADDRCONF_STATE_NAME@@ value="@@ADDRCONF_STATE_VALUE@@"/>
 </define>
 
 <!-- Built-in interface status flags -->
@@ -24,7 +24,7 @@
 
 <!-- Built-in wireless types -->
 <define name="builtin-wireless-mode" type="uint32" constraint="enum">
-  <@@WIRELESSMODE_NAME@@ value="@@WIRELESSMODE_VALUE@@"/>
+  <@@WIRELESS_MODE_NAME@@ value="@@WIRELESS_MODE_VALUE@@"/>
 </define>
 <define name="builtin-wireless-security" type="uint32" constraint="enum">
   <@@WIRELESS_SECURITY_NAME@@ value="@@WIRELESS_SECURITY_VALUE@@"/>
