@@ -334,6 +334,16 @@ dhcp4_interface_event(ni_netconfig_t *nc, ni_interface_t *ifp, ni_event_t event)
 			ni_dhcp_device_event(dev, event);
 		break;
 
+	case NI_EVENT_NETWORK_DOWN:
+		/* Someone has taken the interface down completely. Which means
+		 * we shouldn't pretend we're still owning this device. So forget
+		 * all leases and shut up. */
+		ni_debug_dhcp("networkDown on %s: discard any leases", ifp->name);
+		dev = ni_dhcp_device_by_index(ifp->link.ifindex);
+		if (dev != NULL)
+			ni_dhcp_device_stop(dev);
+		break;
+
 	default: ;
 	}
 }
