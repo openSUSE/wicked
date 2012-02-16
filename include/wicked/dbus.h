@@ -76,11 +76,18 @@ typedef dbus_bool_t		ni_dbus_method_handler_t(ni_dbus_object_t *object,
 					const ni_dbus_variant_t *argv,
 					ni_dbus_message_t *reply,
 					DBusError *error);
+typedef dbus_bool_t		ni_dbus_async_method_handler_t(ni_dbus_server_t *server,
+					ni_dbus_object_t *object,
+					const ni_dbus_method_t *method,
+					ni_dbus_message_t *call);
 
 struct ni_dbus_method {
 	const char *		name;
 	const char *		call_signature;
+
+	/* A method should set only one of these handlers */
 	ni_dbus_method_handler_t *handler;
+	ni_dbus_async_method_handler_t *async_handler;
 
 	void *			user_data;
 };

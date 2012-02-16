@@ -553,19 +553,19 @@ __ni_dbus_object_message(DBusConnection *conn, DBusMessage *call, void *user_dat
 			goto error_reply;
 		}
 
-		/* Deserialize dbus message */
-		argc = ni_dbus_message_get_args_variants(call, argv, 16);
-		if (argc < 0) {
-			dbus_set_error(&error,
-					DBUS_ERROR_INVALID_ARGS,
-					"Bad arguments in call to object %s, %s.%s",
-					object->path,
-					svc->name,
-					method_name);
-			goto error_reply;
-		}
+		if (method->handler) {
+			/* Deserialize dbus message */
+			argc = ni_dbus_message_get_args_variants(call, argv, 16);
+			if (argc < 0) {
+				dbus_set_error(&error,
+						DBUS_ERROR_INVALID_ARGS,
+						"Bad arguments in call to object %s, %s.%s",
+						object->path,
+						svc->name,
+						method_name);
+				goto error_reply;
+			}
 
-		{
 			/* Allocate a reply message */
 			reply = dbus_message_new_method_return(call);
 
@@ -574,10 +574,16 @@ __ni_dbus_object_message(DBusConnection *conn, DBusMessage *call, void *user_dat
 
 			/* Beware, object may be gone after this! */
 			object = NULL;
-		}
 
-		while (argc--)
-			ni_dbus_variant_destroy(&argv[argc]);
+			while (argc--)
+				ni_dbus_variant_destroy(&argv[argc]);
+		} else
+		if (method->async_handler) {
+			rv = method->async_handler(server, object, method, call);
+		} else {
+			dbus_set_error(&error, DBUS_ERROR_FAILED, "No server side handler for method");
+			rv = FALSE;
+		}
 	}
 
 	if (!rv) {
