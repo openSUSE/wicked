@@ -281,8 +281,11 @@ ni_call_link_method_xml(ni_dbus_object_t *object, const char *method_name, xml_n
 	dbus_bool_t rv = FALSE;
 	int argc = 0;
 
-	if (!(service = ni_dbus_object_get_service_for_method(object, method_name)))
+	if (!(service = ni_dbus_object_get_service_for_method(object, method_name))) {
+		ni_error("%s: no registered dbus service for method %s()",
+				object->path, method_name);
 		return FALSE;
+	}
 	method = ni_dbus_service_get_method(service, method_name);
 	ni_assert(method);
 
