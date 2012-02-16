@@ -95,6 +95,7 @@ ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_messa
 	const char *signal_name = dbus_message_get_member(msg);
 	ni_interface_t *ifp;
 	ni_addrconf_lease_t *lease = NULL;
+	unsigned int event_id = 0;
 	ni_dbus_variant_t argv[16];
 	int argc;
 
@@ -118,6 +119,18 @@ ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_messa
 		goto done;
 	}
 
+	/* Check if there's a corresponding addrconf request with a non-zero
+	 * event_id. If so, there's a client somewhere waiting for that event.
+	 */
+	{
+		ni_addrconf_request_t *req;
+
+		if ((req = ni_interface_get_addrconf_request(ifp, lease->family, lease->type)) != NULL) {
+			event_id = req->event_id;
+			req->event_id = 0;
+		}
+	}
+
 	ni_debug_dbus("received signal %s for interface %s (ifindex %d), lease %s/%s",
 			signal_name, ifp->name, ifp->link.ifindex,
 			ni_addrconf_type_to_name(lease->type),
@@ -128,6 +141,9 @@ ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_messa
 			goto done;
 		}
 
+		if (event_id)
+			ni_objectmodel_interface_event(NULL, ifp, NI_EVENT_ADDRESS_ACQUIRED, event_id);
+
 		/* Note, lease may be NULL after this, as the interface object
 		 * takes ownership of it. */
 		__ni_system_interface_update_lease(ifp, &lease);
@@ -137,6 +153,9 @@ ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_messa
 	} else if (!strcmp(signal_name, "LeaseReleased")) {
 		lease->state = NI_ADDRCONF_STATE_RELEASED;
 		__ni_system_interface_update_lease(ifp, &lease);
+
+		if (event_id)
+			ni_objectmodel_interface_event(NULL, ifp, NI_EVENT_ADDRESS_RELEASED, event_id);
 
 		if (__ni_interface_is_down(ifp))
 			ni_objectmodel_interface_event(NULL, ifp, NI_EVENT_NETWORK_DOWN, 0);
