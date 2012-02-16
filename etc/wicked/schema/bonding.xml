@@ -1,0 +1,52 @@
+<service name="bonding" interface="com.suse.Wicked.Bond" layer="link">
+ <!-- This is the linkinfo returned in interface reports -->
+ <define name="linkinfo" class="dict">
+   <mode type="string"/>
+
+   <!-- List of slave devices.
+     -->
+   <slaves class="array" element-type="string"/>
+
+   <primary type="string" />
+
+   <!-- Link monitoring options.
+     -- There must be exactly one of either arpmon or miimon present,
+     -- which selects either mii or arp monitoring. Lack of both is an
+     -- error. If both are present, the behavior is undefined.
+     -->
+   <arpmon class="dict">
+     <define name="arp-validate-type" type="string" constraint="oneof">
+       <choice value="none"/>
+       <choice value="active"/>
+       <choice value="backup"/>
+       <choice value="all"/>
+     </define>
+
+     <interval type="uint32"/>
+     <validate type="arp-validate-type"/>
+     <target class="array" element-type="ipv4-address" minlen="1"/>
+   </arpmon>
+
+   <miimon class="dict">
+     <frequency type="uint32"/>
+     <validate type="uint32"/>
+     <updelay type="uint32"/>
+     <downdelay type="uint32"/>
+
+     <define name="carrier-detect" type="string" constraint="oneof">
+       <choice value="ioctl"/>
+       <choice value="netif"/>
+     </define>
+
+     <carrier type="carrier-detect"/>
+   </miimon>
+ </define>
+
+ <method name="__newlink">
+  <arguments>
+   <name type="string"/>
+   <settings type="linkinfo"/>
+  </arguments>
+ </method>
+</service>
+
