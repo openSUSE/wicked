@@ -6,7 +6,10 @@
       -- so that we have to rely less on udev to get the interface names right
       -->
     <device type="string" />
-    <priority type="uint32" />
+    <priority type="uint32" constraint="range">
+      <min value="0"/>
+      <max value="63"/>
+    </priority>
     <path-cost type="uint32" />
   </define>
 
@@ -19,6 +22,7 @@
       <rstp value="2" />
     </stp>
 
+    <!-- These are floating point values representing seconds -->
     <forward-delay type="double" />
     <aging-time type="double" />
     <hello-time type="double" />
