@@ -15,34 +15,19 @@
 #define NI_DEFAULT_CONFIG_PATH	"/etc/wicked/config.xml"
 
 struct ni_script_action {
-	struct ni_script_action *next;
+	ni_script_action_t *	next;
 	char *			name;
-	xpath_format_t *	command;
+	char *			command;
 };
 
 struct ni_extension {
-	struct ni_extension *	next;
+	ni_extension_t *	next;
 
 	/* Name of the extension; could be "dhcp4" or "ibft". */
 	char *			name;
 
-	/* type: what this helper supports.
-	 *	For instance, for addrconf helpers this would
-	 *	be "dhcp", "ibft", etc.
-	 */
-	int			type;
-
-	/* Supported address families.
-	 * Bitwise OR of NI_AF_MASK_* values
-	 */
-	unsigned int		supported_af;
-
-	/* PID file.
-	 * For facilities like dhcp client daemons, the name of
-	 * the PID file allows us to detect whether there's a DHCP
-	 * client running on this interface.
-	 */
-	xpath_format_t *	pid_file_path;
+	/* Supported dbus interface */
+	char *			interface;
 
 	/* Shell commands */
 	ni_script_action_t *	actions;
@@ -94,10 +79,7 @@ typedef struct ni_config {
 	} addrconf;
 
 	char *			dbus_xml_schema_file;
-
-	ni_extension_t *	api_extensions;
-	ni_extension_t *	linktype_extensions;
-	ni_extension_t *	addrconf_extensions;
+	ni_extension_t *	extensions;
 
 	char *			dbus_name;
 } ni_config_t;
@@ -109,10 +91,9 @@ extern ni_extension_t *	ni_config_find_addrconf_extension(ni_config_t *, int, in
 extern ni_extension_t *	ni_config_find_file_extension(ni_config_t *, const char *);
 extern unsigned int	ni_config_addrconf_update_mask(ni_config_t *, ni_addrconf_mode_t);
 
-extern ni_extension_t *	ni_extension_list_find(ni_extension_t *, int type, int af);
-extern ni_extension_t *	ni_extension_by_name(ni_extension_t *, const char *);
+extern ni_extension_t *	ni_extension_list_find(ni_extension_t *, const char *);
 extern void		ni_extension_list_destroy(ni_extension_t **);
-extern ni_extension_t *	ni_extension_new(ni_extension_t **, const char *, unsigned int);
+extern ni_extension_t *	ni_extension_new(ni_extension_t **, const char *);
 extern int		ni_extension_active(const ni_extension_t *, const char *, xml_node_t *);
 extern int		ni_extension_start(const ni_extension_t *, const char *, xml_node_t *);
 extern int		ni_extension_stop(const ni_extension_t *, const char *, xml_node_t *);

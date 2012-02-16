@@ -19,12 +19,11 @@
  * Constructor and destructor for extension config
  */
 ni_extension_t *
-ni_extension_new(ni_extension_t **list, const char *name, unsigned int type)
+ni_extension_new(ni_extension_t **list, const char *name)
 {
 	ni_extension_t *ex;
 
 	ex = calloc(1, sizeof(*ex));
-	ex->type = type;
 	ni_string_dup(&ex->name, name);
 
 	while (*list)
@@ -40,9 +39,7 @@ ni_extension_free(ni_extension_t *ex)
 	ni_script_action_t *act;
 
 	ni_string_free(&ex->name);
-	if (ex->pid_file_path)
-		xpath_format_free(ex->pid_file_path);
-
+	ni_string_free(&ex->interface);
 	while ((act = ex->actions) != NULL) {
 		ex->actions = act->next;
 		ni_script_action_free(act);
@@ -69,27 +66,12 @@ ni_extension_list_destroy(ni_extension_t **list)
  * Find extension given a type (dhcp, ibft, ..) and address family.
  */
 ni_extension_t *
-ni_extension_list_find(ni_extension_t *head, int type, int af)
+ni_extension_list_find(ni_extension_t *head, const char *name)
 {
-	unsigned int mask = 0;
 	ni_extension_t *ex;
 
-	switch (af) {
-	case AF_UNSPEC:
-		mask = ~0;
-		break;
-	case AF_INET:
-		mask = NI_AF_MASK_IPV4;
-		break;
-	case AF_INET6:
-		mask = NI_AF_MASK_IPV6;
-		break;
-	default:
-		return NULL;
-	}
-
 	for (ex = head; ex; ex = ex->next) {
-		if ((ex->supported_af & mask) && ex->type == type)
+		if (!strcmp(ex->interface, name))
 			return ex;
 	}
 
@@ -113,26 +95,9 @@ ni_extension_by_name(ni_extension_t *head, const char *name)
  * Check if a given extension is running for a given interface.
  */
 int
-ni_extension_active(const ni_extension_t *ex, const char *ifname, xml_node_t *xml)
+xni_extension_active(const ni_extension_t *ex, const char *ifname, xml_node_t *xml)
 {
-	ni_string_array_t result;
-	int rv = 0;
-
-	ni_string_array_init(&result);
-	if (ex->pid_file_path == NULL)
-		return 0;
-
-	if (!xpath_format_eval(ex->pid_file_path, xml, &result) || result.count != 1) {
-		error("unable to check extension %s for %s: error evaluating xpath expression",
-				ex->name, ifname);
-	} else {
-		/* FIXME: actually read the pid file and check whether process still exists. */
-		if (access(result.data[0], F_OK) == 0)
-			rv = 1;
-	}
-
-	ni_string_array_destroy(&result);
-	return rv;
+	return 0;
 }
 
 /*
@@ -141,7 +106,6 @@ ni_extension_active(const ni_extension_t *ex, const char *ifname, xml_node_t *xm
 static int
 __ni_extension_run(const ni_extension_t *ex, ni_script_action_t *script, xml_node_t *xml)
 {
-	const char *command_string;
 	ni_string_array_t result;
 	ni_string_array_t env;
 	unsigned int i;
@@ -151,31 +115,24 @@ __ni_extension_run(const ni_extension_t *ex, ni_script_action_t *script, xml_nod
 	ni_string_array_init(&result);
 	ni_string_array_init(&env);
 
-	debug_extension("running extension %s %s", ex->name, script->name);
+	ni_debug_extension("running extension %s %s", ex->name, script->name);
 
 	/* First, expand any environment variables. */
+#if 0
 	for (i = 0; i < ex->environment.count; ++i) {
 		if (!xpath_format_eval(ex->environment.data[i], xml, &result) || result.count > 1) {
-			error("unable to %s extension %s: error evaluating xpath expression",
+			ni_error("unable to %s extension %s: error evaluating xpath expression",
 					script->name, ex->name);
 			goto done;
 		}
 
 		if (result.count != 0) {
-			debug_extension("  putenv %s", result.data[0]);
+			ni_debug_extension("  putenv %s", result.data[0]);
 			ni_string_array_append(&env, result.data[0]);
 		}
 		ni_string_array_destroy(&result);
 	}
-
-	if (!xpath_format_eval(script->command, xml, &result) || result.count != 1) {
-		error("unable to %s extension %s: error evaluating xpath expression",
-				script->name, ex->name);
-		goto done;
-	}
-	command_string = result.data[0];
-
-	debug_extension("  run %s", command_string);
+#endif
 
 	/* Make sure we see the child's exit status, even if we
 	 * set SIGCHLD to SIG_IGN somewhere. */
@@ -193,7 +150,7 @@ __ni_extension_run(const ni_extension_t *ex, ni_script_action_t *script, xml_nod
 		for (i = 0; i < env.count; ++i)
 			putenv(env.data[i]);
 
-		execl("/bin/sh", "sh", "-c", command_string, NULL);
+		execl("/bin/sh", "sh", "-c", script->command, NULL);
 		ni_fatal("Unable to execute /bin/sh");
 	} else {
 		int status;
@@ -244,52 +201,6 @@ ni_extension_run(const ni_extension_t *ex, ni_script_action_t *script)
 }
 
 /*
- * Start extension for a given interface.
- */
-int
-ni_extension_start(const ni_extension_t *ex, const char *ifname, xml_node_t *xml)
-{
-	ni_script_action_t *script;
-
-	if (!(script = ni_script_action_find(ex->actions, "start"))) {
-		ni_error("extension %s: no start script defined", ex->name);
-		return -1;
-	}
-
-	if (__ni_extension_run(ex, script, xml) < 0)
-		return -1;
-
-	if (ex->pid_file_path && !ni_extension_active(ex, ifname, xml)) {
-		error("extension %s: start command succeeded, but service not running", ex->name);
-		return -1;
-	}
-	return 0;
-}
-
-/*
- * Stop extension for a given interface.
- */
-int
-ni_extension_stop(const ni_extension_t *ex, const char *ifname, xml_node_t *xml)
-{
-	ni_script_action_t *script;
-
-	if (!(script = ni_script_action_find(ex->actions, "stop"))) {
-		ni_error("extension %s: no stop script defined", ex->name);
-		return -1;
-	}
-
-	if (__ni_extension_run(ex, script, xml) < 0)
-		return -1;
-
-	if (ex->pid_file_path && ni_extension_active(ex, ifname, xml)) {
-		error("extension %s: stop command succeeded, but service still running", ex->name);
-		return -1;
-	}
-	return 0;
-}
-
-/*
  * Create/destroy script actions
  */
 ni_script_action_t *
@@ -310,9 +221,8 @@ ni_script_action_new(const char *name, ni_script_action_t **list)
 void
 ni_script_action_free(ni_script_action_t *script)
 {
-	if (script->command)
-		xpath_format_free(script->command);
 	ni_string_free(&script->name);
+	ni_string_free(&script->command);
 	free(script);
 }
 
@@ -327,66 +237,3 @@ ni_script_action_find(ni_script_action_t *list, const char *name)
 	}
 	return NULL;
 }
-
-/*
- * Register addrconf extensions
- */
-static int
-ni_addrconf_extension_request(const ni_addrconf_t *ace, ni_interface_t *ifp)
-{
-#if 0
-	const ni_extension_t *ex = ace->private;
-
-	return ni_extension_start(ex, ifp->name);
-#else
-	ni_error("%s: currently not supported", __func__);
-	return -1;
-#endif
-}
-
-static int
-ni_addrconf_extension_release(const ni_addrconf_t *ace, ni_interface_t *ifp, ni_addrconf_lease_t *lease)
-{
-return -1;
-#if 0
-	const ni_extension_t *ex = ace->private;
-	ni_netconfig_t *nih = ni_dummy_open();
-	xml_node_t *cfg_xml;
-	int rv;
-
-	cfg_xml = ni_syntax_xml_from_interface(ni_default_xml_syntax(), nih, ifp);
-	rv = ni_extension_stop(ex, ifp->name, cfg_xml);
-	xml_node_free(cfg_xml);
-	ni_close(nih);
-
-	if (lease)
-		lease->state = NI_ADDRCONF_STATE_RELEASED;
-
-	return rv;
-#endif
-}
-
-static int
-ni_addrconf_extension_test(const ni_addrconf_t *ace, const ni_interface_t *ifp, const xml_node_t *cfg_xml)
-{
-	const ni_extension_t *ex = ace->private;
-
-	return ni_extension_active(ex, ifp->name, (xml_node_t *) cfg_xml);
-}
-
-void
-ni_addrconf_extension_register(ni_extension_t *ex)
-{
-	ni_addrconf_t *ace = calloc(1, sizeof(*ace));
-
-	ace->type = ex->type;
-	ace->supported_af = ex->supported_af;
-	ace->private = ex;
-
-	ace->request = ni_addrconf_extension_request;
-	ace->release = ni_addrconf_extension_release;
-	if (ex->pid_file_path)
-		ace->test = ni_addrconf_extension_test;
-	ni_addrconf_register(ace);
-}
-

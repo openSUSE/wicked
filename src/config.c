@@ -22,8 +22,7 @@ static int		ni_config_parse_addrconf_dhcp(struct ni_config_dhcp *, xml_node_t *)
 static int		ni_config_parse_afinfo(ni_afinfo_t *, const char *, xml_node_t *);
 static int		ni_config_parse_update_targets(unsigned int *, const xml_node_t *);
 static int		ni_config_parse_fslocation(ni_config_fslocation_t *, const char *, xml_node_t *);
-static int		ni_config_parse_extensions(ni_extension_t **, xml_node_t *, const char *,
-						int (*map_type)(const char *));
+static int		ni_config_parse_extensions(ni_extension_t **, xml_node_t *);
 static int		ni_config_parse_xpath(xpath_format_t **, const char *);
 
 
@@ -54,9 +53,7 @@ ni_config_new()
 void
 ni_config_free(ni_config_t *conf)
 {
-	ni_extension_list_destroy(&conf->addrconf_extensions);
-	ni_extension_list_destroy(&conf->linktype_extensions);
-	ni_extension_list_destroy(&conf->api_extensions);
+	ni_extension_list_destroy(&conf->extensions);
 	ni_string_free(&conf->dbus_name);
 	ni_string_free(&conf->dbus_xml_schema_file);
 	free(conf);
@@ -125,48 +122,9 @@ ni_config_parse(const char *filename)
 	/* Intersect addrconf update capabilities with what the system supports. */
 	conf->addrconf.default_allow_update &= ni_system_update_capabilities();
 
-	if (ni_config_parse_extensions(&conf->addrconf_extensions, node, "addrconf", ni_addrconf_name_to_type) < 0
-	 || ni_config_parse_extensions(&conf->linktype_extensions, node, "linktype", ni_linktype_name_to_type) < 0
-	 || ni_config_parse_extensions(&conf->api_extensions, node, "api", NULL) < 0)
+	/* Parse extensions */
+	if (ni_config_parse_extensions(&conf->extensions, node) < 0)
 		goto failed;
-
-	/* If we have API extensions, register them with the REST API */
-#if 0
-	if (conf->api_extensions) {
-		ni_stringbuf_t sbuf = NI_STRINGBUF_INIT_DYNAMIC;
-		ni_extension_t *ex;
-
-		for (ex = conf->api_extensions; ex; ex = ex->next) {
-			ni_script_action_t *act;
-			ni_rest_node_t *rnode;
-			char *copy, *sp;
-
-			ni_stringbuf_clear(&sbuf);
-			copy = xstrdup(ex->name);
-			for (sp = strtok(copy, "."); sp; sp = strtok(NULL, ".")) {
-				ni_stringbuf_putc(&sbuf, '/');
-				ni_stringbuf_puts(&sbuf, sp);
-			}
-			free(copy);
-
-			if (ni_stringbuf_empty(&sbuf))
-				continue;
-			rnode = ni_wicked_rest_lookup(sbuf.string);
-			if (rnode == NULL) {
-				ni_warn("ignoring API extension %s", ex->name);
-				continue;
-			}
-
-			for (act = ex->actions; act; act = act->next) {
-				if (!strcmp(act->name, "update")) {
-					ni_debug_wicked("Registering update extension for %s", sbuf.string);
-					ni_rest_node_add_update_callback(rnode, ex, act);
-				}
-			}
-		}
-		ni_stringbuf_clear(&sbuf);
-	}
-#endif
 
 	xml_document_free(doc);
 	return conf;
@@ -290,22 +248,17 @@ ni_config_parse_fslocation(ni_config_fslocation_t *fsloc, const char *name, xml_
 }
 
 int
-ni_config_parse_extensions(ni_extension_t **list, xml_node_t *node, const char *exclass,
-				int (*map_type)(const char *))
+ni_config_parse_extensions(ni_extension_t **list, xml_node_t *node)
 {
 	ni_extension_t *ex;
 	const char *attrval;
 	xml_node_t *child;
 
-	if (!(node = xml_node_get_child(node, exclass)))
-		return 0;
-
 	for (node = node->children; node; node = node->next) {
 		const char *name;
-		int type = 0;
 
 		/*
-		 * <extension name="dhcp4" type="dhcp" family="ipv4">
+		 * <extension interface="com.suse.Wicked.foobar">
 		 *  <pidfile path="/var/run/dhcpcd-%{@name}.pid"/>
 		 *  <start command="bla bla..."/>
 		 *  <stop command="bla bla..."/>
@@ -315,47 +268,13 @@ ni_config_parse_extensions(ni_extension_t **list, xml_node_t *node, const char *
 		if (strcmp(node->name, "extension") != 0)
 			continue;
 
-		if (!(name = xml_node_get_attr(node, "name"))) {
-			ni_error("cannot parse configuration: %s extension has no name attribute", exclass);
+		if (!(name = xml_node_get_attr(node, "interface"))) {
+			ni_error("%s: <extension> element lacks interface attribute",
+					xml_node_location(node));
 			return -1;
 		}
 
-		if (map_type) {
-			if (!(attrval = xml_node_get_attr(node, "type"))) {
-				ni_error("cannot parse configuration: %s extension %s has no type attribute", exclass, name);
-				return -1;
-			}
-			type = map_type(attrval);
-			if (type < 0) {
-				ni_error("%s extension type %s not recognized (ignored)", exclass, attrval);
-				continue;
-			}
-		}
-
-		ex = ni_extension_new(list, name, type);
-
-		if ((attrval = xml_node_get_attr(node, "family")) != NULL) {
-			char *copy, *s;
-
-			copy = xstrdup(attrval);
-			for (s = strtok(copy, ","); s; s = strtok(NULL, ",")) {
-				if (!strcmp(s, "ipv4"))
-					ex->supported_af |= NI_AF_MASK_IPV4;
-				if (!strcmp(s, "ipv6"))
-					ex->supported_af |= NI_AF_MASK_IPV6;
-			}
-			free(copy);
-		} else {
-			/* Support everything */
-			ex->supported_af = ~0;
-		}
-
-		if ((child = xml_node_get_child(node, "pidfile")) != NULL
-		 && (attrval = xml_node_get_attr(child, "path")) != NULL) {
-			if (ni_config_parse_xpath(&ex->pid_file_path, attrval) < 0)
-				return -1;
-		}
-
+		ex = ni_extension_new(list, name);
 		for (child = node->children; child; child = child->next) {
 			xpath_format_t *fmt = NULL;
 
@@ -368,9 +287,8 @@ ni_config_parse_extensions(ni_extension_t **list, xml_node_t *node, const char *
 				}
 
 				act = ni_script_action_new(attrval, &ex->actions);
-				if ((attrval = xml_node_get_attr(child, "command")) != NULL
-				 && ni_config_parse_xpath(&act->command, attrval) < 0)
-					return -1;
+				if ((attrval = xml_node_get_attr(child, "command")) != NULL)
+					ni_string_dup(&act->command, attrval);
 			} else
 			if (!strcmp(child->name, "environment")) {
 				if (!(attrval = xml_node_get_attr(child, "putenv"))) {
@@ -405,21 +323,9 @@ ni_config_parse_xpath(xpath_format_t **varp, const char *expr)
  * Extension handling
  */
 ni_extension_t *
-ni_config_find_linktype_extension(ni_config_t *conf, int type)
+ni_config_find_extension(ni_config_t *conf, const char *interface)
 {
-	return ni_extension_list_find(conf->linktype_extensions, type, AF_UNSPEC);
-}
-
-ni_extension_t *
-ni_config_find_addrconf_extension(ni_config_t *conf, int type, int af)
-{
-	return ni_extension_list_find(conf->addrconf_extensions, type, af);
-}
-
-ni_extension_t *
-ni_config_find_file_extension(ni_config_t *conf, const char *name)
-{
-	return ni_extension_by_name(conf->api_extensions, name);
+	return ni_extension_list_find(conf->extensions, interface);
 }
 
 /*

@@ -25,14 +25,10 @@
   <socket path="/var/run/wicked.sock" mode="0600"/>
   <policy path="/etc/wicked/policy.xml"/>
 
-  <linktype>
-    <extension name="infiniband" type="infiniband">
-      <action name="start" command="/etc/wicked/wicked-infiniband start %{@name}"/>
-      <action name="stop" command="/etc/wicked/wicked-infiniband stop %{@name}"/>
-      <environment putenv="IPOIB_MODE=%{/protocol/infiniband/@mode}"/>
-      <environment putenv="IPOIB_UMCAST=%{/protocol/infiniband/@umcast}"/>
-    </extension>
-  </linktype>
+  <extension interface="com.suse.Wicked.Infiniband">
+    <action name="__linkup" command="/etc/wicked/wicked-infiniband up"/>
+    <action name="__linkdown" command="/etc/wicked/wicked-infiniband down"/>
+  </extension>
 
   <addrconf>
   <!-- sample extension for dhcp6

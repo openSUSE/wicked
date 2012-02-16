@@ -678,7 +678,8 @@ __ni_interface_extension_delete(ni_netconfig_t *nc, ni_interface_t *ifp)
 	xml_node_t *xml = NULL;
 	int res;
 
-	ex = ni_config_find_linktype_extension(ni_global.config, ifp->link.type);
+	// ex = ni_config_find_linktype_extension(ni_global.config, ifp->link.type);
+	ex = NULL;
 	if (ex == NULL) {
 		error("cannot configure %s interface - not implemented yet",
 				ni_linktype_type_to_name(ifp->link.type));
