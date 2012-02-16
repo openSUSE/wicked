@@ -482,7 +482,7 @@ __ni_dbus_object_unregister(DBusConnection *conn, void *user_data)
 {
 	ni_dbus_object_t *object = user_data;
 
-	ni_warn("%s(path=%s) called", __FUNCTION__, object->path);
+	NI_TRACE_ENTER_ARGS("path=%s, handle=%p", object->path, object->handle);
 	if (object->handle) {
 		if (object->class && object->class->destroy)
 			object->class->destroy(object);
