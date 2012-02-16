@@ -18,7 +18,13 @@ extern char *			wicked_create_interface_xml(const ni_dbus_service_t *,
 					const char *, xml_node_t *);
 extern dbus_bool_t		wicked_link_up_xml(ni_dbus_object_t *, xml_node_t *, ni_objectmodel_callback_info_t **);
 extern dbus_bool_t		wicked_link_down_xml(ni_dbus_object_t *, xml_node_t *, ni_objectmodel_callback_info_t **);
-extern dbus_bool_t		wicked_addrconf_xml(ni_dbus_object_t *, const ni_dbus_service_t *,
+
+extern dbus_bool_t		ni_call_request_lease(ni_dbus_object_t *object, const ni_dbus_service_t *service,
+					ni_dbus_variant_t *arg, ni_objectmodel_callback_info_t **callback_list);
+extern dbus_bool_t		ni_call_request_lease_xml(ni_dbus_object_t *, const ni_dbus_service_t *,
 					xml_node_t *, ni_objectmodel_callback_info_t **);
+
+extern dbus_bool_t		ni_call_drop_lease(ni_dbus_object_t *object, const ni_dbus_service_t *service,
+					ni_objectmodel_callback_info_t **callback_list);
 
 #endif /* WICKED_CLIENT_H */

@@ -501,8 +501,8 @@ wicked_link_up_xml(ni_dbus_object_t *object, xml_node_t *config, ni_objectmodel_
 /*
  * Configure address configuration on a link
  */
-static dbus_bool_t
-wicked_addrconf_common(ni_dbus_object_t *object, const ni_dbus_service_t *service, ni_dbus_variant_t *arg,
+dbus_bool_t
+ni_call_request_lease(ni_dbus_object_t *object, const ni_dbus_service_t *service, ni_dbus_variant_t *arg,
 				ni_objectmodel_callback_info_t **callback_list)
 {
 	ni_dbus_variant_t result = NI_DBUS_VARIANT_INIT;
@@ -526,7 +526,7 @@ wicked_addrconf_common(ni_dbus_object_t *object, const ni_dbus_service_t *servic
 }
 
 dbus_bool_t
-wicked_addrconf_xml(ni_dbus_object_t *object, const ni_dbus_service_t *service, xml_node_t *config,
+ni_call_request_lease_xml(ni_dbus_object_t *object, const ni_dbus_service_t *service, xml_node_t *config,
 				ni_objectmodel_callback_info_t **callback_list)
 {
 	ni_dbus_variant_t argument = NI_DBUS_VARIANT_INIT;
@@ -542,10 +542,37 @@ wicked_addrconf_xml(ni_dbus_object_t *object, const ni_dbus_service_t *service, 
 		goto out;
 	}
 
-	rv = wicked_addrconf_common(object, service, &argument, callback_list);
+	rv = ni_call_request_lease(object, service, &argument, callback_list);
 
 out:
 	ni_dbus_variant_destroy(&argument);
+	return rv;
+}
+
+/*
+ * Request that a given lease will be dropped.
+ */
+dbus_bool_t
+ni_call_drop_lease(ni_dbus_object_t *object, const ni_dbus_service_t *service,
+				ni_objectmodel_callback_info_t **callback_list)
+{
+	ni_dbus_variant_t result = NI_DBUS_VARIANT_INIT;
+	DBusError error = DBUS_ERROR_INIT;
+	dbus_bool_t rv = FALSE;
+
+	if (!ni_dbus_object_call_variant(object, service->name, "dropLease",
+				0, NULL,
+				1, &result,
+				&error)) {
+		ni_error("server refused to drop lease. Server responds:");
+		ni_error_extra("%s: %s", error.name, error.message);
+	} else {
+		*callback_list = ni_objectmodel_callback_info_from_dict(&result);
+		rv = TRUE;
+	}
+
+	ni_dbus_variant_destroy(&result);
+	dbus_error_free(&error);
 	return rv;
 }
 

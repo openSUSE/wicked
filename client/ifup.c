@@ -798,7 +798,7 @@ ni_ifworker_do_network_up(ni_ifworker_t *w)
 		 * acquisition is in process. When that completes, the server
 		 * will emit a signal (addressConfigured) with the same token.
 		 */
-		if (!wicked_addrconf_xml(w->object, service, child, &callback_list)) {
+		if (!ni_call_request_lease_xml(w->object, service, child, &callback_list)) {
 			ni_ifworker_fail(w, "address configuration failed (%s)", child->name);
 			return -1;
 		}
