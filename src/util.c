@@ -132,10 +132,8 @@ ni_string_array_append(ni_string_array_t *nsa, const char *str)
 {
 	char *newstr;
 
-	newstr = strdup(str);
-	if (!newstr)
-		return -1;
-
+	/* Note, this allows a NULL string pointer to be inserted into the array. */
+	newstr = xstrdup(str);
 	if (__ni_string_array_append(nsa, newstr) < 0) {
 		free(newstr);
 		return -1;
