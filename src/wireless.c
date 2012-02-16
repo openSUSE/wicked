@@ -317,7 +317,8 @@ ni_wireless_cipher_to_name(ni_wireless_cipher_t mode)
 static ni_intmap_t __ni_wireless_key_mgmt_names[] = {
 	{ "none",		NI_WIRELESS_KEY_MGMT_NONE },
 	{ "proprietary",	NI_WIRELESS_KEY_MGMT_PROPRIETARY },
-	{ "psk",		NI_WIRELESS_KEY_MGMT_PSK },
+	{ "wpa-eap",		NI_WIRELESS_KEY_MGMT_EAP },
+	{ "wpa-psk",		NI_WIRELESS_KEY_MGMT_PSK },
 	{ "ieee802-1x",		NI_WIRELESS_KEY_MGMT_802_1X },
 	{ NULL }
 };
@@ -446,7 +447,7 @@ __ni_wireless_process_wpa_common(ni_wireless_network_t *net, ni_buffer_t *bp,
 		return 0;
 
 	/* Clear default list of pairwise ciphers */
-	auth->pairwise_ciphers.count = 0;
+	auth->pairwise_ciphers = 0;
 	while (count--) {
 		ni_wireless_cipher_t cipher;
 
@@ -669,8 +670,7 @@ ni_wireless_auth_info_new(ni_wireless_auth_mode_t mode, unsigned int version)
 	auth->mode = mode;
 	auth->version = version;
 	auth->group_cipher = NI_WIRELESS_CIPHER_TKIP;
-	auth->pairwise_ciphers.count = 1;
-	auth->pairwise_ciphers.value[0] = NI_WIRELESS_CIPHER_TKIP;
+	auth->pairwise_ciphers = (1 << NI_WIRELESS_CIPHER_TKIP);
 
 	return auth;
 }
@@ -678,8 +678,7 @@ ni_wireless_auth_info_new(ni_wireless_auth_mode_t mode, unsigned int version)
 void
 ni_wireless_auth_info_add_pairwise_cipher(ni_wireless_auth_info_t *auth, ni_wireless_cipher_t cipher)
 {
-	if (auth->pairwise_ciphers.count < NI_WIRELESS_PAIRWISE_CIPHERS_MAX)
-		auth->pairwise_ciphers.value[auth->pairwise_ciphers.count++] = cipher;
+	auth->pairwise_ciphers |= (1 << cipher);
 }
 
 void

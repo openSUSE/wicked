@@ -79,10 +79,7 @@ typedef struct ni_wireless_auth_info {
 	ni_wireless_auth_mode_t		mode;
 	unsigned int			version;
 	ni_wireless_cipher_t		group_cipher;
-	struct {
-		unsigned int		count;
-		ni_wireless_cipher_t	value[NI_WIRELESS_PAIRWISE_CIPHERS_MAX];
-	} pairwise_ciphers;
+	unsigned int			pairwise_ciphers;
 	struct {
 		unsigned int		count;
 		ni_wireless_key_mgmt_t	value[NI_WIRELESS_PAIRWISE_CIPHERS_MAX];

@@ -41,3 +41,20 @@
 <define name="builtin-eap-method" type="uint32" constraint="enum">
   <@@WIRELESS_EAP_METHOD_NAME@@ value="@@WIRELESS_EAP_METHOD_VALUE@@"/>
 </define>
+
+<!-- The same as above, except as a bitmask (to express the list of supported modes) -->
+<define name="builtin-wireless-security-mask" type="uint32" constraint="bitmap">
+  <@@WIRELESS_SECURITY_NAME@@ bit="@@WIRELESS_SECURITY_VALUE@@"/>
+</define>
+<define name="builtin-wireless-auth-mask" type="uint32" constraint="bitmap">
+  <@@WIRELESS_AUTH_NAME@@ bit="@@WIRELESS_AUTH_VALUE@@"/>
+</define>
+<define name="builtin-wireless-cipher-mask" type="uint32" constraint="bitmap">
+  <@@WIRELESS_CIPHER_NAME@@ bit="@@WIRELESS_CIPHER_VALUE@@"/>
+</define>
+<define name="builtin-key-mgmt-mask" type="uint32" constraint="bitmap">
+  <@@WIRELESS_KEY_MGMT_NAME@@ bit="@@WIRELESS_KEY_MGMT_VALUE@@"/>
+</define>
+<define name="builtin-eap-method-mask" type="uint32" constraint="bitmap">
+  <@@WIRELESS_EAP_METHOD_NAME@@ bit="@@WIRELESS_EAP_METHOD_VALUE@@"/>
+</define>

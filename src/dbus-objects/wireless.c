@@ -50,6 +50,8 @@ __ni_objectmodel_wireless_get_network(const ni_wireless_network_t *network,
 				ni_dbus_variant_t *dict,
 				DBusError *error)
 {
+	unsigned int i;
+
 	ni_dbus_dict_add_string(dict, "essid", network->essid);
 
 	if (network->access_point.len)
@@ -64,6 +66,18 @@ __ni_objectmodel_wireless_get_network(const ni_wireless_network_t *network,
 		if (!ni_dbus_dict_add_double(dict, "frequency", network->frequency))
 			ni_warn("failed to add feq");
 
+	if (network->auth_info.count == 0)
+		ni_trace("%s: no auth info", network->essid);
+
+	for (i = 0; i < network->auth_info.count; ++i) {
+		ni_wireless_auth_info_t *auth_info = network->auth_info.data[i];
+		ni_dbus_variant_t *child;
+
+		child = ni_dbus_dict_add(dict, "auth-info");
+		ni_dbus_variant_init_dict(child);
+		ni_dbus_dict_add_uint32(child, "pairwise-ciphers", auth_info->pairwise_ciphers);
+	}
+
 	return TRUE;
 }
 
@@ -74,6 +88,7 @@ __ni_objectmodel_wireless_get_scan(const ni_dbus_object_t *object,
 				DBusError *error)
 {
 	ni_wireless_scan_t *scan;
+	ni_dbus_variant_t *child;
 	unsigned int i;
 
 	if (!(scan = __ni_objectmodel_get_scan(object, error)))
@@ -81,13 +96,12 @@ __ni_objectmodel_wireless_get_scan(const ni_dbus_object_t *object,
 
 	ni_dbus_dict_add_uint32(result, "timestamp", scan->timestamp);
 	for (i = 0; i < scan->networks.count; ++i) {
-		ni_dbus_variant_t *child;
-
 		child = ni_dbus_dict_add(result, "network");
 		ni_dbus_variant_init_dict(child);
 		if (!__ni_objectmodel_wireless_get_network(scan->networks.data[i], child, error))
-			return FALSE;;
+			return FALSE;
 	}
+
 	return TRUE;
 }
 
@@ -113,6 +127,12 @@ __ni_objectmodel_wireless_set_scan(ni_dbus_object_t *object,
 	NI_DBUS_GENERIC_STRING_PROPERTY(wireless, dbus_name, member_name, rw)
 
 const ni_dbus_property_t	ni_objectmodel_wireless_property_table[] = {
+	WIRELESS_UINT_PROPERTY(eap-methods, capabilities.eap_methods, RO),
+	WIRELESS_UINT_PROPERTY(pairwise-ciphers, capabilities.pairwise_ciphers, RO),
+	WIRELESS_UINT_PROPERTY(group-ciphers, capabilities.group_ciphers, RO),
+	WIRELESS_UINT_PROPERTY(key-management, capabilities.keymgmt_algos, RO),
+	WIRELESS_UINT_PROPERTY(auth-methods, capabilities.auth_algos, RO),
+	WIRELESS_UINT_PROPERTY(wpa-protocols, capabilities.wpa_protocols, RO),
 	__NI_DBUS_PROPERTY(
 			NI_DBUS_DICT_SIGNATURE,
 			scan, __ni_objectmodel_wireless, RO),
