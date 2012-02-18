@@ -57,8 +57,6 @@
   </extension>
 
   <extension interface="com.suse.Wicked.Wireless">
-   <builtin name="__properties" symbol="ni_objectmodel_wireless_property_table" />
-
    <!-- default environment for all calls to this extension script -->
    <putenv name="WICKED_OBJECT_PATH" value="$object-path"/>
    <putenv name="WICKED_INTERFACE_NAME" value="$property:name"/>
