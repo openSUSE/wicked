@@ -53,12 +53,8 @@ static unsigned int	opt_link_timeout = 10;
 static int		opt_progressmeter = 1;
 static int		opt_shutdown_parents = 1;
 
-static int		do_create(int, char **);
-static int		do_delete(int, char **);
 static int		do_show(int, char **);
 static int		do_show_xml(int, char **);
-static int		do_addport(int, char **);
-static int		do_delport(int, char **);
 extern int		do_ifup(int, char **);
 extern int		do_ifdown(int, char **);
 static int		do_xpath(int, char **);
@@ -151,23 +147,11 @@ main(int argc, char **argv)
 
 	cmd = argv[optind++];
 
-	if (!strcmp(cmd, "create"))
-		return do_create(argc - optind + 1, argv + optind - 1);
-
 	if (!strcmp(cmd, "show"))
 		return do_show(argc - optind + 1, argv + optind - 1);
 
 	if (!strcmp(cmd, "show-xml"))
 		return do_show_xml(argc - optind + 1, argv + optind - 1);
-
-	if (!strcmp(cmd, "delete"))
-		return do_delete(argc - optind + 1, argv + optind - 1);
-
-	if (!strcmp(cmd, "addport"))
-		return do_addport(argc - optind + 1, argv + optind - 1);
-
-	if (!strcmp(cmd, "delport"))
-		return do_delport(argc - optind + 1, argv + optind - 1);
 
 	if (!strcmp(cmd, "ifup"))
 		return do_ifup(argc - optind + 1, argv + optind - 1);
@@ -307,103 +291,6 @@ wicked_find_auth_properties(const xml_node_t *ifnode, const char **link_type)
 	if (link_type)
 		*link_type = linknode->name;
 	return xml_node_get_child(linknode, "auth");
-}
-
-/*
- * Handle "create" command
- */
-int
-do_create(int argc, char **argv)
-{
-	enum  { OPT_FILE, };
-	static struct option ifup_options[] = {
-		{ "file", required_argument, NULL, OPT_FILE },
-		{ NULL }
-	};
-	const char *link_type = NULL;
-	const ni_dbus_service_t *service;
-	const char *opt_file = NULL;
-	char *ifname;
-	int c;
-
-	optind = 1;
-	while ((c = getopt_long(argc, argv, "", ifup_options, NULL)) != EOF) {
-		switch (c) {
-		case OPT_FILE:
-			opt_file = optarg;
-			break;
-
-		default:
-			fprintf(stderr,
-				"wicked [options] create [create-options] link-type [name=ifname]\n"
-				"\nSupported create-options:\n"
-				"  --file <filename>\n"
-				"      Read interface configuration(s) from file\n"
-				);
-			return 1;
-		}
-	}
-
-	if (optind < argc) {
-		link_type = argv[optind++];
-		if (ni_linktype_name_to_type(link_type) < 0) {
-			ni_error("invalid link type \"%s\"", link_type);
-			return 1;
-		}
-	}
-
-	argv += optind;
-	argc -= optind;
-
-	ni_objectmodel_init(NULL);
-
-	if (opt_file) {
-		xml_document_t *doc;
-		xml_node_t *ifnode, *namenode, *linknode;
-		const char *requested_name = NULL;
-
-		if (!(doc = xml_document_read(opt_file))) {
-			ni_error("unable to parse XML document %s", opt_file);
-			return 1;
-		}
-
-		if (!(ifnode = xml_node_get_child(doc->root, "interface"))) {
-			ni_error("missing <interface> element in file %s", opt_file);
-			goto xml_done;
-		}
-
-		if (!(linknode = wicked_find_link_properties(ifnode))) {
-			ni_error("cannot determine link type of interface");
-			goto xml_done;
-		}
-		link_type = linknode->name;
-
-		if (!(service = ni_call_link_layer_factory_service(link_type))) {
-			ni_error("wicked create: unknown/unsupported link type %s", link_type);
-			return 1;
-		}
-
-		if ((namenode = xml_node_get_child(ifnode, "name")) != NULL)
-			requested_name = namenode->cdata;
-
-		ifname = ni_call_link_new_xml(service, requested_name, linknode);
-
-xml_done:
-		xml_document_free(doc);
-	} else {
-		if (!(service = ni_call_link_layer_factory_service(link_type))) {
-			ni_error("wicked create: unknown/unsupported link type %s", link_type);
-			return 1;
-		}
-
-		ifname = ni_call_link_new_argv(service, argc, argv);
-	}
-
-	if (!ifname)
-		return 1;
-
-	printf("%s\n", ifname);
-	return 0;
 }
 
 static ni_dbus_object_t *
@@ -707,177 +594,6 @@ do_show(int argc, char **argv)
 	}
 
 	return 0;
-}
-
-int
-do_delete(int argc, char **argv)
-{
-	const ni_dbus_service_t *interface;
-	ni_dbus_object_t *object;
-	const char *ifname;
-
-	if (argc != 2) {
-		ni_error("wicked delete: missing interface name");
-		return 1;
-	}
-	ifname = argv[1];
-
-	if (!(object = ni_call_create_client()))
-		return 1;
-
-	object = wicked_get_interface(object, ifname);
-	if (!object)
-		return 1;
-
-	if (!(interface = ni_dbus_object_get_service_for_method(object, "deleteLink"))) {
-		ni_error("%s: interface does not support deletion", ifname);
-		return 1;
-	}
-
-	if (ni_dbus_object_call_simple(object,
-				interface->name, "deleteLink",
-				DBUS_TYPE_INVALID, NULL, DBUS_TYPE_INVALID, NULL) < 0) {
-		ni_error("DBus delete call failed");
-		return 1;
-	}
-
-	ni_debug_dbus("successfully deleted %s", ifname);
-	return 0;
-}
-
-/*
- * Add a port to a bridge or bond
- * FIXME: currently broken
- */
-int
-do_addport(int argc, char **argv)
-{
-	const ni_dbus_service_t *interface;
-	ni_dbus_variant_t argument[2], result;
-	ni_dbus_object_t *root_object, *bridge, *port;
-	const char *bridge_name, *port_name;
-	DBusError error = DBUS_ERROR_INIT;
-	int rv = 1;
-
-	memset(argument, 0, sizeof(argument));
-	memset(&result, 0, sizeof(result));
-
-	if (argc < 3) {
-		ni_error("wicked addport: usage: bridge-if port-if [options]");
-		return 1;
-	}
-
-	bridge_name = argv[1];
-	port_name = argv[2];
-
-	if (!(root_object = ni_call_create_client()))
-		return 1;
-
-	if (!(bridge = wicked_get_interface(root_object, bridge_name))
-	 || !(port = wicked_get_interface(root_object, port_name)))
-		return 1;
-
-	if (!(interface = ni_dbus_object_get_service_for_method(bridge, "addPort"))) {
-		ni_error("%s: interface does not support adding ports", bridge_name);
-		return 1;
-	}
- 
-	ni_dbus_variant_set_string(&argument[0], port->path);
-
-	ni_dbus_variant_init_dict(&argument[1]);
-	if (argc == 3) {
-		/* No properties, nothing to be done */
-	} else {
-		ni_interface_t *bridge_if = bridge->handle;
-		const ni_dbus_service_t *port_interface;
-
-		/* The "interface" for the ports is usually just a dummy type of
-		 * interface; needed only to get the dbus types of all properties
-		 */
-		//port_interface = ni_objectmodel_interface_port_service(bridge_if->link.type);
-		(void) bridge_if;
-		port_interface = NULL;
-		if (port_interface == NULL) {
-			ni_error("%s: no port properties for this interface type", bridge_name);
-			goto out;
-		}
-
-		if (!ni_call_properties_from_argv(port_interface, &argument[1], argc - 3, argv + 3)) {
-			ni_error("Error parsing properties");
-			goto out;
-		}
-	}
-
-	if (!ni_dbus_object_call_variant(bridge, interface->name, "addPort",
-				2, argument, 1, &result, &error)) {
-		ni_error("Server refused to add port. Server responds:");
-		ni_error_extra("%s: %s", error.name, error.message);
-		goto out;
-	}
-
-	ni_debug_wicked("successfully added port %s to %s", port_name, bridge_name);
-	rv = 0;
-
-out:
-	ni_dbus_variant_destroy(&argument[0]);
-	ni_dbus_variant_destroy(&argument[1]);
-	ni_dbus_variant_destroy(&result);
-	dbus_error_free(&error);
-	return rv;
-}
-
-/*
- * Remove a port from a bridge or bond
- */
-int
-do_delport(int argc, char **argv)
-{
-	const ni_dbus_service_t *interface;
-	ni_dbus_variant_t argument, result;
-	ni_dbus_object_t *root_object, *bridge, *port;
-	const char *bridge_name, *port_name;
-	DBusError error = DBUS_ERROR_INIT;
-	int rv = 1;
-
-	memset(&argument, 0, sizeof(argument));
-	memset(&result, 0, sizeof(result));
-
-	if (argc != 3) {
-		ni_error("wicked delport: usage: bridge-if port-if");
-		return 1;
-	}
-
-	bridge_name = argv[1];
-	port_name = argv[2];
-
-	if (!(root_object = ni_call_create_client()))
-		return 1;
-
-	if (!(bridge = wicked_get_interface(root_object, bridge_name))
-	 || !(port = wicked_get_interface(root_object, port_name)))
-		return 1;
-
-	if (!(interface = ni_dbus_object_get_service_for_method(bridge, "removePort"))) {
-		ni_error("%s: interface does not support removing ports", bridge_name);
-		return 1;
-	}
- 
-	ni_dbus_variant_set_string(&argument, port->path);
-	if (!ni_dbus_object_call_variant(bridge, interface->name, "removePort",
-				1, &argument, 1, &result, &error)) {
-		ni_error("Server refused to add port. Server responds:");
-		ni_error_extra("%s: %s", error.name, error.message);
-		goto out;
-	}
-
-	ni_debug_wicked("successfully removed port %s to %s", port_name, bridge_name);
-	rv = 0;
-
-out:
-	ni_dbus_variant_destroy(&argument);
-	ni_dbus_variant_destroy(&result);
-	dbus_error_free(&error);
-	return rv;
 }
 
 /*
