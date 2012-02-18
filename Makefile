@@ -99,7 +99,6 @@ SHLIBOBJS= $(addprefix $(OBJ)/shlib/,$(__LIBSRCS:.c=.o))
 APPSRCS	= $(addsuffix .c,$(APPS))
 DHCP4OBJS= $(addprefix $(OBJ)/,$(DHCP4SRCS:.c=.o))
 AUTO4OBJS= $(addprefix $(OBJ)/,$(AUTO4SRCS:.c=.o))
-CONVOBJS = $(addprefix $(OBJ)/,$(CONVSRCS:.c=.o))
 CLIENTOBJS= $(addprefix $(OBJ)/,$(CLIENTSRCS:.c=.o))
 
 
