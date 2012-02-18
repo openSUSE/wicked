@@ -322,6 +322,7 @@ retry_operation:
 	/* FIXME: should query the xml schema to know whether the call expects a
 	 * dict argument or not */
 	if (!strcmp(method_name, "linkUp")
+	 || !strcmp(method_name, "firewallUp")
 	 || !strcmp(method_name, "linkChange")
 	 || !strcmp(method_name, "login")) {
 		ni_dbus_variant_t *dict = &argv[argc++];
@@ -352,6 +353,18 @@ out:
 	}
 
 	return rv >= 0;
+}
+
+dbus_bool_t
+ni_call_firewall_up_xml(ni_dbus_object_t *object, xml_node_t *config, ni_objectmodel_callback_info_t **callback_list)
+{
+	return ni_call_link_method_xml(object, "firewallUp", config, callback_list, NULL);
+}
+
+dbus_bool_t
+ni_call_firewall_down_xml(ni_dbus_object_t *object, ni_objectmodel_callback_info_t **callback_list)
+{
+	return ni_call_link_method_xml(object, "firewallDown", NULL, callback_list, NULL);
 }
 
 dbus_bool_t

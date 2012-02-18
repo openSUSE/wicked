@@ -1,0 +1,37 @@
+#!/bin/bash
+#
+# Copyright (C) 2012, Olaf Kirch <okir@suse.de>
+#
+# This extension scripts implements all supported interface operations
+# related to firewalling.
+#
+# If you want to extend the functionality of this script, you first need
+# the extend the schema file (firewall.xml) by adding new members to e.g. the
+# fw-request types.
+#
+# If you want to implement additional methods, you can also add new
+# <method> elements to the same schema file. However, in addition to that, you
+# also need to add the necessary script actions to wicked's configuration
+# file in /etc/wicked/config.xml, so that the daemon knows that it should call
+# this extension script to handle these.
+#
+
+scriptdir=`dirname $0`
+if [ -f "$scriptdir/functions" ]; then
+	. "$scriptdir/functions"
+fi
+
+command=$1
+shift
+
+case $command in
+up|down)
+	# For now, do nothing - just pretend we were successful
+	;;
+
+*)
+	wicked_error "Unsupported script action $command"
+	;;
+esac
+
+exit 0

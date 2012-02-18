@@ -29,6 +29,7 @@ enum {
 	STATE_NONE = 0,
 	STATE_DEVICE_DOWN,
 	STATE_DEVICE_UP,
+	STATE_FIREWALL_UP,
 	STATE_LINK_UP,
 	STATE_LINK_AUTHENTICATED,
 	STATE_ADDRCONF_UP,
@@ -190,6 +191,7 @@ ni_ifworker_state_name(int state)
 		{ "none",		STATE_NONE		},
 		{ "device-down",	STATE_DEVICE_DOWN	},
 		{ "device-up",		STATE_DEVICE_UP		},
+		{ "firewall-up",	STATE_FIREWALL_UP	},
 		{ "link-up",		STATE_LINK_UP		},
 		{ "link-authenticated",	STATE_LINK_AUTHENTICATED},
 		{ "network-up",		STATE_ADDRCONF_UP	},
@@ -960,6 +962,33 @@ device_is_up:
 }
 
 /*
+ * Finite state machine - bring up the firewall on this device
+ */
+static int
+ni_ifworker_do_firewall_up(ni_ifworker_t *w)
+{
+	ni_objectmodel_callback_info_t *callback_list = NULL;
+	xml_node_t *fwnode;
+
+	ni_debug_dbus("%s(name=%s, object=%p, path=%s)", __func__, w->name, w->object, w->object_path);
+
+	fwnode = xml_node_get_child(w->config, "firewall");
+	if (!ni_call_firewall_up_xml(w->object, fwnode, &callback_list)) {
+		ni_ifworker_fail(w, "failed to protect device");
+		return -1;
+	}
+
+	if (callback_list == NULL) {
+		w->state = STATE_FIREWALL_UP;
+	} else {
+		ni_ifworker_add_callbacks(w, callback_list);
+		w->wait_for_state = STATE_FIREWALL_UP;
+	}
+
+	return 0;
+}
+
+/*
  * Finite state machine - bring up the device link layer.
  */
 static int
@@ -1166,13 +1195,38 @@ ni_ifworker_do_link_down(ni_ifworker_t *w)
 
 	if (callback_list) {
 		ni_ifworker_add_callbacks(w, callback_list);
-		w->wait_for_state = STATE_DEVICE_UP;
+		w->wait_for_state = STATE_FIREWALL_UP;
 	}
 
 	if (w->callbacks == NULL && !w->failed) {
 		ni_debug_dbus("%s: link is down; we can proceed", w->name);
-		w->state = STATE_DEVICE_UP;
+		w->state = STATE_FIREWALL_UP;
 	}
+	return 0;
+}
+
+/*
+ * Shut down the firewall on this device
+ */
+static int
+ni_ifworker_do_firewall_down(ni_ifworker_t *w)
+{
+	ni_objectmodel_callback_info_t *callback_list = NULL;
+
+	ni_debug_dbus("%s(name=%s, object=%p, path=%s)", __func__, w->name, w->object, w->object_path);
+	if (!ni_call_firewall_down_xml(w->object, &callback_list)) {
+		ni_ifworker_fail(w, "failed to shut down firewall");
+		return -1;
+	}
+
+	if (callback_list == NULL) {
+		ni_debug_dbus("%s: firewall is down; we can proceed", w->name);
+		w->state = STATE_DEVICE_UP;
+	} else {
+		ni_ifworker_add_callbacks(w, callback_list);
+		w->wait_for_state = STATE_DEVICE_UP;
+	}
+
 	return 0;
 }
 
@@ -1220,7 +1274,7 @@ static ni_netif_action_t	ni_ifworker_fsm_up[] = {
 
 	/* This step adds device-specific filtering, if available. Typical
 	 * example would be bridge filtering with ebtables. */
-//	{ .next_state = STATE_DEVICE_FILTER_UP,	.func = ni_ifworker_do_device_filter_up },
+	{ .next_state = STATE_FIREWALL_UP,	.func = ni_ifworker_do_firewall_up },
 
 	/* This brings up the link layer, and sets general device attributes such
 	 * as the MTU, the transfer queue length etc. */
@@ -1243,7 +1297,10 @@ static ni_netif_action_t	ni_ifworker_fsm_down[] = {
 	{ .next_state = STATE_LINK_UP,		.func = ni_ifworker_do_network_down },
 
 	/* Shut down the link */
-	{ .next_state = STATE_DEVICE_UP,	.func = ni_ifworker_do_link_down },
+	{ .next_state = STATE_FIREWALL_UP,	.func = ni_ifworker_do_link_down },
+
+	/* Shut down the firewall */
+	{ .next_state = STATE_DEVICE_UP,	.func = ni_ifworker_do_firewall_down },
 
 	{ .next_state = STATE_NONE, .func = NULL }
 };
@@ -1253,9 +1310,12 @@ static ni_netif_action_t	ni_ifworker_fsm_delete[] = {
 	{ .next_state = STATE_LINK_UP,		.func = ni_ifworker_do_network_down },
 
 	/* Shut down the link */
-	{ .next_state = STATE_DEVICE_UP,	.func = ni_ifworker_do_link_down },
+	{ .next_state = STATE_FIREWALL_UP,	.func = ni_ifworker_do_link_down },
 
-	/* Shut down the link */
+	/* Shut down the firewall */
+	{ .next_state = STATE_DEVICE_UP,	.func = ni_ifworker_do_firewall_down },
+
+	/* Delete the device */
 	{ .next_state = STATE_DEVICE_DOWN,	.func = ni_ifworker_do_device_delete },
 
 	{ .next_state = STATE_NONE, .func = NULL }
