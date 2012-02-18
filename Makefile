@@ -129,6 +129,8 @@ install-files:
 	install -c -m 444 etc/wicked*.conf $(DESTDIR)/etc/dbus-1/system.d
 	install -d -m 755 $(DESTDIR)/etc/wicked/schema
 	install -c -m 444 schema/*.xml $(DESTDIR)/etc/wicked/schema
+	install -d -m 755 $(DESTDIR)/etc/wicked/extensions
+	install -c -m 555 extensions/* $(DESTDIR)/etc/wicked/extensions
 	install -d -m 755 $(DESTDIR)/var/run/wicked
 
 schema/constants.xml: etc/mkconst schema/constants.xml.in

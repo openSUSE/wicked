@@ -30,9 +30,9 @@
   </extension>
 
   <extension interface="com.suse.Wicked.Bond">
-   <action name="deleteLink" command="/usr/lib64/wicked/extensions/bonding delete" />
-   <action name="addSlave" command="/usr/lib64/wicked/extensions/bonding addSlave" />
-   <action name="removeSlave" command="/usr/lib64/wicked/extensions/bonding removeSlave" />
+   <action name="deleteLink" command="/etc/wicked/extensions/bonding delete" />
+   <action name="addSlave" command="/etc/wicked/extensions/bonding addSlave" />
+   <action name="removeSlave" command="/etc/wicked/extensions/bonding removeSlave" />
 
    <!-- default environment for all calls to this extension script -->
    <putenv name="WICKED_OBJECT_PATH" value="$object-path"/>
@@ -41,14 +41,14 @@
   </extension>
 
   <extension interface="com.suse.Wicked.Bond.Factory">
-   <action name="newLink" command="/usr/lib64/wicked/extensions/bonding create" />
+   <action name="newLink" command="/etc/wicked/extensions/bonding create" />
   </extension>
 
   <extension interface="com.suse.Wicked.Bridge">
    <builtin name="__properties" symbol="ni_objectmodel_bridge_property_table" />
-   <action name="deleteLink" command="/usr/lib64/wicked/extensions/bridge delete" />
-   <action name="addPort" command="/usr/lib64/wicked/extensions/bridge addPort" />
-   <action name="removePort" command="/usr/lib64/wicked/extensions/bridge removePort" />
+   <action name="deleteLink" command="/etc/wicked/extensions/bridge delete" />
+   <action name="addPort" command="/etc/wicked/extensions/bridge addPort" />
+   <action name="removePort" command="/etc/wicked/extensions/bridge removePort" />
 
    <!-- default environment for all calls to this extension script -->
    <putenv name="WICKED_OBJECT_PATH" value="$object-path"/>
@@ -64,12 +64,12 @@
   </extension>
 
   <extension interface="com.suse.Wicked.Bridge.Factory">
-   <action name="newLink" command="/usr/lib64/wicked/extensions/bridge create" />
+   <action name="newLink" command="/etc/wicked/extensions/bridge create" />
   </extension>
 
   <extension interface="com.suse.Wicked.Firewall">
-   <action name="firewallUp" command="/usr/lib64/wicked/extensions/firewall up"/>
-   <action name="firewallDown" command="/usr/lib64/wicked/extensions/firewall down"/>
+   <action name="firewallUp" command="/etc/wicked/extensions/firewall up"/>
+   <action name="firewallDown" command="/etc/wicked/extensions/firewall down"/>
 
    <!-- default environment for all calls to this extension script -->
    <putenv name="WICKED_OBJECT_PATH" value="$object-path"/>
