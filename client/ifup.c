@@ -586,6 +586,48 @@ mark_matching_interfaces(const char *match_name, unsigned int target_state, int 
 }
 
 /*
+ * Given an XML interface description, find the link layer information.
+ * By convention, the link layer information must be an XML element with
+ * the name of the link layer, such as <ethernet>, <vlan> or <bond>.
+ */
+static xml_node_t *
+ni_ifworker_find_link_properties(const ni_ifworker_t *w)
+{
+	xml_node_t *ifnode = w->config;
+	xml_node_t *child, *found = NULL;
+
+	for (child = ifnode->children; child; child = child->next) {
+		if (ni_linktype_name_to_type(child->name) >= 0) {
+			if (found != NULL) {
+				ni_error("%s: ambiguous link layer, found both <%s> and <%s> element",
+						xml_node_location(ifnode),
+						found->name, child->name);
+				return NULL;
+			}
+			found = child;
+		}
+	}
+
+	/* It's perfectly fine not to find any link layer config;
+	 * probably most people won't bother with adding any <ethernet>
+	 * configuration for their eth devices. */
+	return found;
+}
+
+static xml_node_t *
+ni_ifworker_find_auth_properties(const ni_ifworker_t *w, const char **link_type)
+{
+	xml_node_t *linknode;
+
+	if (!(linknode = ni_ifworker_find_link_properties(w)))
+		return NULL;
+
+	if (link_type)
+		*link_type = linknode->name;
+	return xml_node_get_child(linknode, "auth");
+}
+
+/*
  * Build the hierarchy of devices.
  *
  * We need to ensure that we bring up devices in the proper order; e.g. an
@@ -609,10 +651,10 @@ build_hierarchy(void)
 		if (!(ifnode = w->config))
 			continue;
 
-		if (!(linknode = wicked_find_link_properties(ifnode)))
+		if (!(linknode = ni_ifworker_find_link_properties(w)))
 			continue;
 
-		/* This cannot fail, as this is how wicked_find_link_properties tells
+		/* This cannot fail, as this is how ni_ifworker_find_link_properties tells
 		 * link nodes from others. */
 		w->iftype = ni_linktype_name_to_type(linknode->name);
 
@@ -892,7 +934,7 @@ ni_ifworker_do_device_up(ni_ifworker_t *w)
 	const char *object_path;
 
 	ni_debug_dbus("%s(%s)", __func__, w->name);
-	if (!(linknode = wicked_find_link_properties(w->config))) {
+	if (!(linknode = ni_ifworker_find_link_properties(w))) {
 		/* If the device exists, this is not an error */
 		if (w->device != NULL)
 			goto device_is_up;
@@ -1027,7 +1069,7 @@ ni_ifworker_do_linkauth(ni_ifworker_t *w)
 	ni_objectmodel_callback_info_t *callback_list = NULL;
 
 	ni_debug_dbus("%s(%s)", __func__, w->name);
-	if (!(authnode = wicked_find_auth_properties(w->config, &link_type)))
+	if (!(authnode = ni_ifworker_find_auth_properties(w, &link_type)))
 		goto link_authenticated;
 
 	if (!(service = ni_call_link_layer_auth_service(link_type))) {

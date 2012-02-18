@@ -526,3 +526,56 @@ ni_call_drop_lease(ni_dbus_object_t *object, const ni_dbus_service_t *service,
 	return rv;
 }
 
+/*
+ * Populate a property dict with parameters
+ */
+dbus_bool_t
+ni_call_properties_from_argv(const ni_dbus_service_t *interface, ni_dbus_variant_t *dict, int argc, char **argv)
+{
+	int i;
+
+	ni_dbus_variant_init_dict(dict);
+	for (i = 0; i < argc; ++i) {
+		const ni_dbus_property_t *property;
+		ni_dbus_variant_t *var, *var_dict;
+		char *property_name = argv[i];
+		char *value;
+
+		if ((value = strchr(property_name, '=')) == NULL) {
+			ni_error("Cannot parse property \"%s\"", property_name);
+			return FALSE;
+		}
+		*value++ = '\0';
+
+		/* Using lookup_property will also resolve hierarchical names, such
+		 * as foo.bar.baz (which is property baz within a dict named bar,
+		 * which is part of dict foo). */
+		if (!(property = ni_dbus_service_create_property(interface, property_name, dict, &var_dict))) {
+			ni_error("Unsupported property \"%s\"", property_name);
+			return FALSE;
+		}
+
+		var = ni_dbus_dict_add(var_dict, property->name);
+		if (!ni_dbus_variant_init_signature(var, property->signature)) {
+			ni_error("Unable to parse property %s=%s (bad type signature)",
+					property_name, value);
+			return FALSE;
+		}
+
+		if (property->parse) {
+			if (!property->parse(property, var, value)) {
+				ni_error("Unable to parse property %s=%s", property_name, value);
+				return FALSE;
+			}
+		} else {
+			/* FIXME: variant_parse should unquote string if needed */
+			if (!ni_dbus_variant_parse(var, value, property->signature)) {
+				ni_error("Unable to parse property %s=%s", property_name, value);
+				return FALSE;
+			}
+		}
+	}
+
+	return TRUE;
+}
+

@@ -168,59 +168,6 @@ main(int argc, char **argv)
 }
 
 /*
- * Populate a property dict with parameters
- */
-dbus_bool_t
-ni_call_properties_from_argv(const ni_dbus_service_t *interface, ni_dbus_variant_t *dict, int argc, char **argv)
-{
-	int i;
-
-	ni_dbus_variant_init_dict(dict);
-	for (i = 0; i < argc; ++i) {
-		const ni_dbus_property_t *property;
-		ni_dbus_variant_t *var, *var_dict;
-		char *property_name = argv[i];
-		char *value;
-
-		if ((value = strchr(property_name, '=')) == NULL) {
-			ni_error("Cannot parse property \"%s\"", property_name);
-			return FALSE;
-		}
-		*value++ = '\0';
-
-		/* Using lookup_property will also resolve hierarchical names, such
-		 * as foo.bar.baz (which is property baz within a dict named bar,
-		 * which is part of dict foo). */
-		if (!(property = ni_dbus_service_create_property(interface, property_name, dict, &var_dict))) {
-			ni_error("Unsupported property \"%s\"", property_name);
-			return FALSE;
-		}
-
-		var = ni_dbus_dict_add(var_dict, property->name);
-		if (!ni_dbus_variant_init_signature(var, property->signature)) {
-			ni_error("Unable to parse property %s=%s (bad type signature)",
-					property_name, value);
-			return FALSE;
-		}
-
-		if (property->parse) {
-			if (!property->parse(property, var, value)) {
-				ni_error("Unable to parse property %s=%s", property_name, value);
-				return FALSE;
-			}
-		} else {
-			/* FIXME: variant_parse should unquote string if needed */
-			if (!ni_dbus_variant_parse(var, value, property->signature)) {
-				ni_error("Unable to parse property %s=%s", property_name, value);
-				return FALSE;
-			}
-		}
-	}
-
-	return TRUE;
-}
-
-/*
  * Obtain an object handle for Wicked.Interface
  */
 ni_dbus_object_t *
@@ -250,47 +197,6 @@ wicked_get_interface_object(const char *default_interface)
 	ni_dbus_object_set_default_interface(child, default_interface);
 
 	return child;
-}
-
-/*
- * Given an XML interface description, find the link layer information.
- * By convention, the link layer information must be an XML element with
- * the name of the link layer, such as <ethernet>, <vlan> or <bond>.
- */
-xml_node_t *
-wicked_find_link_properties(const xml_node_t *ifnode)
-{
-	xml_node_t *child, *found = NULL;
-
-	for (child = ifnode->children; child; child = child->next) {
-		if (ni_linktype_name_to_type(child->name) >= 0) {
-			if (found != NULL) {
-				ni_error("%s: ambiguous link layer, found both <%s> and <%s> element",
-						xml_node_location(ifnode),
-						found->name, child->name);
-				return NULL;
-			}
-			found = child;
-		}
-	}
-
-	/* It's perfectly fine not to find any link layer config;
-	 * probably most people won't bother with adding any <ethernet>
-	 * configuration for their eth devices. */
-	return found;
-}
-
-xml_node_t *
-wicked_find_auth_properties(const xml_node_t *ifnode, const char **link_type)
-{
-	xml_node_t *linknode;
-
-	if (!(linknode = wicked_find_link_properties(ifnode)))
-		return NULL;
-
-	if (link_type)
-		*link_type = linknode->name;
-	return xml_node_get_child(linknode, "auth");
 }
 
 static ni_dbus_object_t *
