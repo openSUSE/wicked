@@ -174,6 +174,29 @@ next_method: ;
 }
 
 /*
+ * Check whether a given method takes any arguments/returns anything
+ */
+unsigned int
+ni_dbus_xml_method_num_args(const ni_dbus_method_t *method)
+{
+	ni_xs_method_t *xs_method = method->user_data;
+
+	if (xs_method == NULL)
+		return 0;
+	return xs_method->arguments.count;
+}
+
+dbus_bool_t
+ni_dbus_xml_method_has_return(const ni_dbus_method_t *method)
+{
+	ni_xs_method_t *xs_method = method->user_data;
+
+	if (xs_method == NULL)
+		return 0;
+	return xs_method->retval != NULL;
+}
+
+/*
  * Serialize XML rep of an argument to a dbus call
  */
 dbus_bool_t
