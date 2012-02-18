@@ -1,0 +1,10 @@
+<interface>
+  <name>eth0</name>
+  <description>Primary Ethernet Device</description>
+
+  <ipv4:dhcp>
+    <acquire-timeout>15</acquire-timeout>
+  </ipv4:dhcp>
+</interface>
+
+
