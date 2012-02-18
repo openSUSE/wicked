@@ -245,7 +245,7 @@ ni_dbus_xml_deserialize_properties(ni_xs_scope_t *schema, const char *interface_
  * Given an XML tree representing the data returned by an extension script,
  * build the dbus response from it
  */
-dbus_bool_t
+int
 ni_dbus_serialize_return(const ni_dbus_method_t *method, ni_dbus_variant_t *result, xml_node_t *node)
 {
 	ni_xs_method_t *xs_method = method->user_data;
@@ -253,10 +253,13 @@ ni_dbus_serialize_return(const ni_dbus_method_t *method, ni_dbus_variant_t *resu
 
 	ni_assert(xs_method);
 	if ((xs_type = xs_method->retval) == NULL)
-		return TRUE;
+		return 0;
 
 	ni_debug_dbus("%s: serializing response (%s)", method->name, xs_type->name);
-	return ni_dbus_serialize_xml(node, xs_type, result);
+	if (!ni_dbus_serialize_xml(node, xs_type, result))
+		return -NI_ERROR_CANNOT_MARSHAL;
+
+	return 1;
 }
 
 /*

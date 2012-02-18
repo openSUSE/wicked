@@ -17,6 +17,7 @@
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
 #include <wicked/xml.h>
+#include <wicked/dbus-errors.h>
 #include "netinfo_priv.h"
 #include "dbus-common.h"
 #include "model.h"
@@ -433,14 +434,15 @@ ni_objectmodel_extension_completion(ni_dbus_connection_t *connection, const ni_d
 	if (ni_process_exit_status_okay(process)) {
 		ni_dbus_variant_t result = NI_DBUS_VARIANT_INIT;
 		xml_node_t *retnode = NULL;
+		int nres;
 
 		/* if the method returns anything, read it from the response file */
 		if (doc != NULL)
 			retnode = xml_node_get_child(xml_document_root(doc), "return");
 
 		/* Build the proper dbus return object from it */
-		if (retnode && !ni_dbus_serialize_return(method, &result, retnode)) {
-			dbus_set_error(&error, DBUS_ERROR_FAILED,
+		if ((nres = ni_dbus_serialize_return(method, &result, retnode)) < 0) {
+			dbus_set_error(&error, NI_DBUS_ERROR_CANNOT_MARSHAL,
 					"%s.%s: unable to serialize returned data",
 					interface_name, method->name);
 			ni_dbus_variant_destroy(&result);
@@ -449,7 +451,7 @@ ni_objectmodel_extension_completion(ni_dbus_connection_t *connection, const ni_d
 
 		/* Build the response message */
 		reply = dbus_message_new_method_return(call);
-		if (!ni_dbus_message_serialize_variants(reply, 1, &result, &error)) {
+		if (!ni_dbus_message_serialize_variants(reply, nres, &result, &error)) {
 			ni_dbus_variant_destroy(&result);
 			dbus_message_unref(reply);
 			goto send_error;
