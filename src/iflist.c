@@ -928,7 +928,7 @@ __ni_interface_process_newaddr(ni_interface_t *ifp, struct nlmsghdr *h, struct i
 
 	ap->config_lease = lease;
 
-#if 1
+#if 0
 	ni_debug_ifconfig("%-5s %-20s scope %s, flags%s%s%s, owned by %s",
 				ifp->name, ni_address_print(&tmp.local_addr),
 				(ifa->ifa_scope == RT_SCOPE_HOST)? "host" :

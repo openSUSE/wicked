@@ -66,20 +66,6 @@ struct ni_netconfig {
 	struct ni_route *	routes;		/* should kill this */
 };
 
-/*
- * Policies
- */
-typedef struct ni_policy	ni_policy_t;
-struct ni_policy {
-	ni_policy_t *		next;
-	ni_event_t		event;
-	ni_interface_t *	interface;
-};
-
-typedef struct ni_policy_info {
-	ni_policy_t *		event_policies;
-} ni_policy_info_t;
-
 typedef union ni_uuid {
 	unsigned char		octets[16];
 	uint32_t		words[4];

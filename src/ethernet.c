@@ -28,20 +28,6 @@ ni_ethernet_alloc(void)
 	return xcalloc(1, sizeof(ni_ethernet_t));
 }
 
-/*
- * Clone a device's Ethernet settings
- */
-ni_ethernet_t *
-ni_ethernet_clone(const ni_ethernet_t *src)
-{
-	ni_ethernet_t *dst;
-
-	dst = xcalloc(1, sizeof(ni_ethernet_t));
-
-	*dst = *src;
-	return dst;
-}
-
 void
 ni_ethernet_free(ni_ethernet_t *ethernet)
 {

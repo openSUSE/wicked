@@ -62,19 +62,6 @@ __ni_address_new(ni_address_t **list_head, int af, unsigned int prefix_len, cons
 	return ap;
 }
 
-ni_address_t *
-ni_address_clone(const ni_address_t *src)
-{
-	ni_address_t *dst;
-
-	if (!src)
-		return NULL;
-
-	dst = malloc(sizeof(*dst));
-	memcpy(dst, src, sizeof(*src));
-	return dst;
-}
-
 void
 ni_address_free(ni_address_t *ap)
 {
@@ -132,19 +119,6 @@ ni_address_list_destroy(ni_address_t **list)
 		*list = ap->next;
 		ni_address_free(ap);
 	}
-}
-
-ni_address_t *
-__ni_address_list_clone(const ni_address_t *src)
-{
-	ni_address_t *dst = NULL, **tail = &dst;
-
-	while (src) {
-		*tail = ni_address_clone(src);
-		tail = &(*tail)->next;
-		src = src->next;
-	}
-	return dst;
 }
 
 int
@@ -663,21 +637,6 @@ __ni_route_list_append(ni_route_t **list, ni_route_t *new_route)
 	*list = new_route;
 }
 
-
-ni_route_t *
-__ni_route_list_clone(const ni_route_t *src)
-{
-	ni_route_t *dst;
-
-	if (!src)
-		return NULL;
-
-	dst = malloc(sizeof(*dst));
-	memcpy(dst, src, sizeof(*src));
-
-	dst->next = __ni_route_list_clone(src->next);
-	return dst;
-}
 
 int
 ni_route_equal(const ni_route_t *r1, const ni_route_t *r2)

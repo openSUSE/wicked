@@ -43,48 +43,6 @@ ni_bonding_add_slave(ni_bonding_t *bonding, const char *ifname)
 }
 
 /*
- * Clone the bonding config of a device
- */
-ni_bonding_t *
-ni_bonding_clone(const ni_bonding_t *src)
-{
-	ni_bonding_t *dst;
-
-	dst = calloc(1, sizeof(ni_bonding_t));
-	if (!dst)
-		return NULL;
-
-#define C(member)	dst->member = src->member
-#define D(member, clone_fn)	\
-		do { \
-			if (src->member) { \
-				dst->member = clone_fn(src->member); \
-				if (!dst->member) \
-					goto failed; \
-			} \
-		} while (0)
-	D(module_opts, xstrdup);
-	C(mode);
-	C(monitoring);
-	C(arpmon);
-	C(miimon);
-	D(primary, xstrdup);
-	D(extra_options, xstrdup);
-
-	if (ni_string_array_copy(&dst->slave_names, &src->slave_names) < 0)
-		goto failed;
-#undef C
-#undef D
-
-	return dst;
-
-failed:
-	ni_error("Error clonding bonding configuration");
-	ni_bonding_free(dst);
-	return NULL;
-}
-
-/*
  * Reinitialize the bonding configuration
  *
  * - The default bonding mode is balance-rr

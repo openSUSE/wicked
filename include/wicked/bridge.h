@@ -96,7 +96,6 @@ extern ni_bridge_t *	ni_bridge_new(void);
 extern void		ni_bridge_free(ni_bridge_t *);
 extern void		ni_bridge_status_destroy(ni_bridge_status_t *);
 extern void		ni_bridge_port_status_destroy(ni_bridge_port_status_t *);
-extern ni_bridge_t *	ni_bridge_clone(const ni_bridge_t *);
 extern int		ni_bridge_add_port_name(ni_bridge_t *, const char *);
 extern int		ni_bridge_add_port(ni_bridge_t *, const ni_bridge_port_t *);
 extern int		ni_bridge_del_port(ni_bridge_t *, const char *);

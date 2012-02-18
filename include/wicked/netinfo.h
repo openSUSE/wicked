@@ -224,14 +224,6 @@ typedef struct ni_interface_array {
 extern void		ni_set_global_config_path(const char *);
 extern int		ni_init(void);
 
-extern int		ni_policy_update(ni_netconfig_t *, const ni_policy_t *);
-extern ni_policy_t *	ni_policy_match_event(const ni_netconfig_t *, ni_event_t, const ni_interface_t *);
-
-extern void		ni_policy_info_append(ni_policy_info_t *, ni_policy_t *);
-extern void		ni_policy_info_destroy(ni_policy_info_t *);
-extern ni_policy_t *	ni_policy_new(ni_event_t);
-extern void		ni_policy_free(ni_policy_t *);
-
 extern int		ni_server_background(void);
 extern int		ni_server_listen_events(void (*handler)(ni_netconfig_t *, ni_interface_t *, ni_event_t));
 extern ni_dbus_server_t *ni_server_listen_dbus(const char *bus_name);
@@ -263,7 +255,6 @@ extern ni_interface_t *	ni_interface_by_vlan_name_and_tag(ni_netconfig_t *nc,
 				const char *physdev, uint16_t tag);
 
 extern ni_interface_t *	ni_interface_new(ni_netconfig_t *, const char *name, unsigned int ifindex);
-extern ni_interface_t *	ni_interface_clone(const ni_interface_t *);
 extern ni_interface_t *	ni_interface_get(ni_interface_t *ifp);
 extern int		ni_interface_put(ni_interface_t *ifp);
 extern int		ni_interface_update(ni_interface_t *ifp);
@@ -273,8 +264,6 @@ extern int		ni_interface_set_lease(ni_interface_t *, ni_addrconf_lease_t *);
 extern int		ni_interface_unset_lease(ni_interface_t *, int af, ni_addrconf_mode_t type);
 ni_addrconf_lease_t *	ni_interface_get_lease(ni_interface_t *, int, ni_addrconf_mode_t);
 ni_addrconf_lease_t *	ni_interface_get_lease_by_owner(ni_interface_t *, const char *);
-extern int		ni_interface_request_scan(ni_netconfig_t *, ni_interface_t *);
-extern int		ni_interface_get_scan_results(ni_netconfig_t *, ni_interface_t *);
 
 extern ni_route_t *	ni_interface_add_route(ni_interface_t *,
 				unsigned int prefix_len,
@@ -308,7 +297,6 @@ extern void		ni_interface_request_free(ni_interface_request_t *req);
 extern ni_address_t *	ni_address_new(ni_interface_t *ifp, int af,
 				unsigned int prefix_len,
 				const ni_sockaddr_t *local_addr);
-extern ni_address_t *	ni_address_clone(const ni_address_t *);
 extern void		ni_address_list_append(ni_address_t **, ni_address_t *);
 extern void		ni_address_list_destroy(ni_address_t **);
 extern void		ni_address_free(ni_address_t *);
@@ -343,10 +331,6 @@ extern void		ni_route_list_destroy(ni_route_t **);
 extern void		ni_route_free(ni_route_t *);
 extern int		ni_route_equal(const ni_route_t *, const ni_route_t *);
 extern const char *	ni_route_print(const ni_route_t *);
-
-extern ni_ethernet_t *	ni_ethernet_alloc(void);
-extern void		ni_ethernet_free(ni_ethernet_t *);
-extern ni_ethernet_t *	ni_ethernet_clone(const ni_ethernet_t *);
 
 extern void		ni_sockaddr_set_ipv4(ni_sockaddr_t *, struct in_addr, uint16_t);
 extern void		ni_sockaddr_set_ipv6(ni_sockaddr_t *, struct in6_addr, uint16_t);

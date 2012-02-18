@@ -25,27 +25,6 @@ __ni_vlan_new(void)
 	return vlan;
 }
 
-/*
- * Clone a device's VLAN configuration
- */
-ni_vlan_t *
-ni_vlan_clone(const ni_vlan_t *src)
-{
-	ni_vlan_t *dst;
-
-	dst = __ni_vlan_new();
-	if (!dst)
-		return NULL;
-
-	ni_string_dup(&dst->physdev_name, src->physdev_name);
-	dst->physdev_index = src->physdev_index;
-	dst->tag = src->tag;
-	if (src->interface_dev)
-		dst->interface_dev = ni_interface_get(src->interface_dev);
-
-	return dst;
-}
-
 static inline void
 __ni_vlan_unbind(ni_vlan_t *vlan)
 {

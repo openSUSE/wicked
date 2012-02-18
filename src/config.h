@@ -101,7 +101,6 @@ typedef struct ni_config {
 
 extern ni_config_t *	ni_config_new();
 extern ni_config_t *	ni_config_parse(const char *);
-extern ni_extension_t *	ni_config_find_addrconf_extension(ni_config_t *, int, int); /* KILL */
 extern ni_extension_t *	ni_config_find_extension(ni_config_t *, const char *);
 extern unsigned int	ni_config_addrconf_update_mask(ni_config_t *, ni_addrconf_mode_t); /* KILL */
 
@@ -121,8 +120,6 @@ typedef struct ni_global {
 	int			initialized;
 	char *			config_path;
 	ni_config_t *		config;
-
-	ni_policy_info_t	policies;
 
 	void			(*interface_event)(ni_netconfig_t *, ni_interface_t *, ni_event_t);
 } ni_global_t;

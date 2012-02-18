@@ -25,8 +25,6 @@ static int			__ni_bridge_time_to_str(unsigned long, char **);
 static ni_bridge_port_t *	__ni_bridge_port_clone(const ni_bridge_port_t *);
 
 static void			ni_bridge_port_array_init(ni_bridge_port_array_t *);
-static int			ni_bridge_port_array_copy(ni_bridge_port_array_t *,
-					const ni_bridge_port_array_t *);
 static void			ni_bridge_port_array_destroy(ni_bridge_port_array_t *);
 static void			__ni_bridge_port_array_realloc(ni_bridge_port_array_t *,
 					unsigned int);
@@ -146,19 +144,6 @@ static void
 ni_bridge_port_array_init(ni_bridge_port_array_t *array)
 {
 	memset(array, 0, sizeof(*array));
-}
-
-static int
-ni_bridge_port_array_copy(ni_bridge_port_array_t *dst, const ni_bridge_port_array_t *src)
-{
-	unsigned int i;
-
-	ni_bridge_port_array_destroy(dst);
-	for (i = 0; i < src->count; ++i) {
-		if (__ni_bridge_port_array_append(dst, __ni_bridge_port_clone(src->data[i])) < 0)
-			return -1;
-	}
-	return 0;
 }
 
 static void
@@ -505,38 +490,6 @@ ni_bridge_port_set(ni_bridge_t *bridge, const char *port, unsigned int opt, cons
 		return ni_bridge_port_set_path_cost(bridge, port, value);
 	}
 	return -1;
-}
-
-/*
- * Create a copy of a bridge's configuration
- */
-ni_bridge_t *
-ni_bridge_clone(const ni_bridge_t *src)
-{
-	ni_bridge_t *dst;
-
-	dst = calloc(1, sizeof(ni_bridge_t));
-	if (!dst)
-		return NULL;
-
-#define C(x)	dst->x = src->x
-	C(priority);
-	C(stp);
-	C(forward_delay);
-	C(ageing_time);
-	C(hello_time);
-	C(max_age);
-#undef C
-
-	if (ni_bridge_port_array_copy(&dst->ports, &src->ports) < 0)
-		goto failed;
-
-	return dst;
-
-failed:
-	ni_error("Error cloning bridge configuration");
-	ni_bridge_free(dst);
-	return NULL;
 }
 
 /*

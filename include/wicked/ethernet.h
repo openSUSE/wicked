@@ -51,6 +51,9 @@ struct ni_ethernet {
 	unsigned int		identify_time;
 };
 
+extern ni_ethernet_t *	ni_ethernet_alloc(void);
+extern void		ni_ethernet_free(ni_ethernet_t *);
+
 extern ni_ether_port_t	ni_ethernet_name_to_port_type(const char *);
 extern const char *	ni_ethernet_port_type_to_name(ni_ether_port_t);
 

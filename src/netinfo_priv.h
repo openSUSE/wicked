@@ -22,17 +22,11 @@ extern int			__ni_global_iocfd;
 
 struct ni_handle {
 	ni_netconfig_t		netconfig;
-	ni_policy_info_t	policy;
 };
 
 /*
  * These constants describe why/how the interface has been brought up
  */
-typedef enum {
-	NI_INTERFACE_ADMIN = 0,
-	NI_INTERFACE_WIRELESS_SCAN,
-} ni_interface_activity_t;
-
 extern unsigned int	__ni_global_seqno;
 
 extern ni_netlink_t *	__ni_netlink_open(int);
@@ -59,13 +53,9 @@ extern void		__ni_afinfo_init(ni_afinfo_t *, int af);
 
 extern ni_route_t *	__ni_route_new(ni_route_t **, unsigned int prefix_len,
 				const ni_sockaddr_t *, const ni_sockaddr_t *);
-extern ni_route_t *	__ni_route_list_clone(const ni_route_t *);
 extern void		__ni_route_list_append(ni_route_t **, ni_route_t *);
 extern void		__ni_route_list_destroy(ni_route_t **);
 extern void		__ni_routes_clear(ni_netconfig_t *);
-
-extern int		__ni_generic_policy_update(ni_netconfig_t *, const ni_policy_t *, ni_policy_t **);
-extern ni_policy_t *	__ni_policy_clone(const ni_policy_t *);
 
 extern ni_address_t *	__ni_address_new(ni_address_t **, int, unsigned int,
 				const ni_sockaddr_t *);
@@ -99,16 +89,12 @@ extern ni_resolver_info_t *__ni_system_resolver_get(void);
 extern int		__ni_system_resolver_backup(void);
 extern int		__ni_system_resolver_restore(void);
 
-extern ni_address_t *	__ni_address_list_clone(const ni_address_t *);
-
 extern int		__ni_lease_owns_address(const ni_addrconf_lease_t *, const ni_address_t *);
 extern ni_route_t *	__ni_lease_owns_route(const ni_addrconf_lease_t *, const ni_route_t *);
 
 extern ni_vlan_t *	__ni_vlan_new(void);
 extern void		__ni_vlan_destroy(ni_vlan_t *);
 
-extern int		__ni_wireless_request_scan(ni_netconfig_t *, ni_interface_t *);
-extern int		__ni_wireless_get_scan_results(ni_netconfig_t *, ni_interface_t *);
 extern int		__ni_wireless_link_event(ni_netconfig_t *, ni_interface_t *, void *, size_t);
 
 static inline void

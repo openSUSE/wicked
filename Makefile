@@ -21,7 +21,6 @@ LIBHDRS	= logging.h \
 __LIBSRCS= \
 	  config.c \
 	  extension.c \
-	  policy.c \
 	  netinfo.c \
 	  interface.c \
 	  names.c \

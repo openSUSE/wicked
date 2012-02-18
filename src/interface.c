@@ -73,60 +73,6 @@ ni_interface_new(ni_netconfig_t *nc, const char *name, unsigned int index)
 	return ifp;
 }
 
-ni_interface_t *
-ni_interface_clone(const ni_interface_t *ofp)
-{
-	ni_interface_t *ifp;
-
-	ifp = __ni_interface_new(ofp->name, ofp->link.ifindex);
-	if (!ifp)
-		goto failed;
-
-#define C(member)	ifp->member = ofp->member
-#define D(member, clone_fn)	\
-		do { \
-			if (ofp->member) { \
-				ifp->member = clone_fn(ofp->member); \
-				if (!ifp->member) \
-					goto failed; \
-			} \
-		} while (0)
-	C(link.ifflags);
-	C(link.type);
-	C(link.arp_type);
-	C(link.hwaddr);
-	/* FIXME: clone routes, addrs */
-	C(link.mtu);
-	C(link.metric);
-	C(link.txqlen);
-	C(link.master);
-	D(link.qdisc, xstrdup);
-	D(link.kind, xstrdup);
-	D(link.vlan, ni_vlan_clone);
-	C(ipv4.enabled);
-	C(ipv4.forwarding);
-	C(ipv4.addrconf);
-	C(ipv6.enabled);
-	C(ipv6.forwarding);
-	C(ipv6.addrconf);
-	D(addrs, __ni_address_list_clone);
-	D(routes, __ni_route_list_clone);
-	D(bonding, ni_bonding_clone);
-	D(bridge, ni_bridge_clone);
-	D(ethernet, ni_ethernet_clone);
-	C(startmode);
-#undef C
-#undef D
-
-	return ifp;
-
-failed:
-	ni_error("Failed to clone interface data for interface %s", ofp->name);
-	if (ifp)
-		ni_interface_put(ifp);
-	return NULL;
-}
-
 /*
  * Destructor function (and assorted helpers)
  */
