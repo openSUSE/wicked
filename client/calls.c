@@ -319,12 +319,10 @@ retry_operation:
 	memset(argv, 0, sizeof(argv));
 	argc = 0;
 
-	/* FIXME: should query the xml schema to know whether the call expects a
-	 * dict argument or not */
-	if (!strcmp(method_name, "linkUp")
-	 || !strcmp(method_name, "firewallUp")
-	 || !strcmp(method_name, "linkChange")
-	 || !strcmp(method_name, "login")) {
+	/* Query the xml schema whether the call expects an argument or not.
+	 * All calls that end up here always take at most one argument, which
+	 * would be a dict built from the xml node passed in by the caller. */
+	if (ni_dbus_xml_method_num_args(method)) {
 		ni_dbus_variant_t *dict = &argv[argc++];
 
 		ni_dbus_variant_init_dict(dict);
