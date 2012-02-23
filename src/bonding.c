@@ -53,13 +53,11 @@ ni_bonding_clear(ni_bonding_t *bonding)
 {
 	bonding->mode = NI_BOND_MODE_BALANCE_RR;
 	bonding->monitoring = NI_BOND_MONITOR_ARP;
-	bonding->primary_ptr = NULL;
 
 	ni_string_free(&bonding->primary);
 	ni_string_free(&bonding->extra_options);
 
 	ni_string_array_destroy(&bonding->slave_names);
-	ni_interface_array_destroy(&bonding->slave_devs);
 	ni_string_array_destroy(&bonding->arpmon.targets);
 }
 

@@ -56,11 +56,9 @@ struct ni_bonding {
 		unsigned int	carrier_detect;
 	}			miimon;
 	char *			primary;	/* FIXME: rename to primary_name/primary_dev */
-	ni_interface_t *	primary_ptr;
 	char *			extra_options;
 
 	ni_string_array_t	slave_names;
-	ni_interface_array_t	slave_devs;
 };
 
 extern ni_bonding_t *	ni_bonding_new(void);
