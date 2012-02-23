@@ -58,3 +58,12 @@
 <define name="builtin-eap-method-mask" type="uint32" constraint="bitmap">
   <@@WIRELESS_EAP_METHOD_NAME@@ bit="@@WIRELESS_EAP_METHOD_VALUE@@"/>
 </define>
+
+<!-- Built-in bonding modes -->
+<define name="builtin-bonding-mode" type="uint32" constraint="enum">
+  <@@BONDING_MODE_NAME@@ value="@@BONDING_MODE_VALUE@@"/>
+</define>
+<define name="builtin-bonding-validate" type="uint32" constraint="enum">
+  <@@BONDING_VALIDATE_NAME@@ value="@@BONDING_VALIDATE_VALUE@@"/>
+</define>
+

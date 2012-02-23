@@ -75,5 +75,10 @@ extern int		ni_bonding_write_sysfs_attrs(const char *ifname,
 						int state);
 extern const char *	ni_bonding_validate(const ni_bonding_t *bonding);
 
+extern const char *	ni_bonding_mode_type_to_name(unsigned int);
+extern int		ni_bonding_mode_name_to_type(const char *);
+extern const char *	ni_bonding_validate_type_to_name(unsigned int);
+extern int		ni_bonding_validate_name_to_type(const char *);
+
 
 #endif /* __WICKED_BONDING_H__ */

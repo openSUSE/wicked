@@ -15,6 +15,7 @@
 #include <wicked/addrconf.h>
 #include <wicked/logging.h>
 #include <wicked/wireless.h>
+#include <wicked/bonding.h>
 
 static ni_intmap_t *	build_ifflag_bits_map(void);
 static ni_intmap_t *	buildmap(const char *(*)(unsigned), unsigned int);
@@ -82,6 +83,8 @@ static struct generic_map	generic_maps[] = {
 	MAP(WIRELESS_CIPHER, ni_wireless_cipher_to_name),
 	MAP(WIRELESS_KEY_MGMT, ni_wireless_key_management_to_name),
 	MAP(WIRELESS_EAP_METHOD, ni_wireless_eap_method_to_name),
+	MAP(BONDING_MODE, ni_bonding_mode_type_to_name),
+	MAP(BONDING_VALIDATE, ni_bonding_validate_type_to_name),
 
 	{ NULL }
 };

@@ -165,6 +165,26 @@ __ni_bonding_get_module_option_mode(const ni_bonding_t *bonding)
 }
 
 /*
+ * For now, the enum names in the xml schema use the same mode names as
+ * the kernel.
+ */
+const char *
+ni_bonding_mode_type_to_name(unsigned int mode)
+{
+	return ni_format_int_mapped(mode, __bonding_mode);
+}
+
+int
+ni_bonding_mode_name_to_type(const char *name)
+{
+	unsigned int value;
+
+	if (ni_parse_int_mapped(name, __bonding_mode, &value) < 0)
+		return -1;
+	return value;
+}
+
+/*
  * Set the validation mode of ARP probes.
  */
 static ni_intmap_t	__arp_validate[] = {
@@ -188,6 +208,26 @@ const char *
 __ni_bonding_get_module_option_arp_validate(const ni_bonding_t *bonding)
 {
 	return ni_format_int_mapped(bonding->arpmon.validate, __arp_validate);
+}
+
+/*
+ * For now, the enum names in the xml schema use the same arp-valiate names as
+ * the kernel.
+ */
+const char *
+ni_bonding_validate_type_to_name(unsigned int value)
+{
+	return ni_format_int_mapped(value, __arp_validate);
+}
+
+int
+ni_bonding_validate_name_to_type(const char *name)
+{
+	unsigned int value;
+
+	if (ni_parse_int_mapped(name, __arp_validate, &value) < 0)
+		return -1;
+	return value;
 }
 
 /*
