@@ -18,14 +18,101 @@ Presenting wicked network configuration
 This tool and library provides a new, experimental framework
 for network configuration.
 
+One of the bigger problems with network interface management today,
+and with the ifup scripts in general, is that different layers of
+network management get jumbled together into one single script,
+or at most two different scripts, that interact with each other in a
+not-really-well-defined way, with side effects that are difficult to be
+aware of, obscure constraints and conventions, etc. Address configuration
+protocols are being used that are implemented via daemons like dhcpcd,
+which interact rather poorly with the rest of the infrastructure.
+
+The idea of wicked is to decompose the problem in several ways.
+
+One is to use a client/server model. This allows wicked to define
+standardized facilities for things like address configuration that
+are well integrated with the overall framework. For instance, with
+address configuration, the admin may request that an interface should be
+configured via dhcp, ipv4 zeroconf or ibft, and all the respective
+addrconf service does is obtain the lease from its server, and pass it
+on to the wicked server process, which installs the requested addresses
+and routes.
+
+The other approach to decomposing the problem is to enforce the layering
+aspect. For any type of network interface, it is possible to define
+a dbus service that configures the network interface's device layer -
+be it a vlan, a bridge, a bond, or an SRIOV virtual function. Common
+functionality, such as address configuration, is implemented by joint
+services that are layered on top of these device specific services,
+without having to implement them specifically.
+
+The wicked framework implements these two aspects by using a variety
+of dbus services, which get attached to a network interface depending
+on its type.
+
+To illustrate this point, here's a rough overview of the current
+object hierarchy in wicked.
+
+Each network interface is represented via a child object of
+/com/suse/Wicked/Interfaces. The name of the child object is given by
+its ifindex, so e.g. the loopback interface, which usually gets
+ifindex 1, is /com/suse/Wicked/Interfaces/1, the first ethernet interface
+registered is /com.suse/Wicked/Interfaces/2, etc.
+
+Each network interface has a "class" associated with it, which is
+used to select the dbus interfaces it supports. By default, each
+network interface is of class "netif", and wickedd will automatically
+attach all interfaces compatible with this class. In the current
+implementation, this includes the following interfaces
+
+com.suse.Wicked.Interface
+	Generic network interface functions, such as taking the link
+	up or down, assigning an MTU, etc.
+
+com.suse.Wicked.Addrconf.ipv4.dhcp
+com.suse.Wicked.Addrconf.ipv6.dhcp
+com.suse.Wicked.Addrconf.ipv4.auto
+com.suse.Wicked.Addrconf.ipv6.auto
+	Address configuration services for DHCP, ipv6 autoconf, ipv4
+	zeroconf, etc.
+
+Beyond this, network interfaces may require/offer special configuration
+mechanisms. For instance, for an Ethernet device, you may want to be
+able to control the link speed, offloading of checksumming, etc. To
+achieve this, ethernet devices have a class of their own, called
+netif-ethernet, which is a subclass of netif. As a consequence, the
+dbus interfaces assigned to an ethernet interface include all the
+services listed above, plus com.suse.Wicked.Ethernet, whichis a service
+which is available only to object belonging to the netif-ethernet
+class.
+
+Similarly, there exist classes for interface types like bridges, vlans,
+bonds, or infiniband.
+
+Obviously, this begs the question, how do you interact with an interface
+that needs to be created first - such as a VLAN, which is really a
+virtual network interface that sits on top of an ethernet device.
+
+For these, wicked defines factory interfaces, such as
+com.suse.Wicked.VLAN.Factory. Such a factory interface offers a single
+function that lets you create an interface of the requested type. These
+factory interfaces are attched to the /com/suse/Wicked/Interfaces list
+node.
+
+
+, with standardized facilities for
+configure addresses, routes, name resolution etc.
+
+The idea is to decompose the different aspects of network configuration
+management
+
 The idea is to replace much of the shell scripting that happens in
 /sbin/ifup and friends with a combination of C code that handles most
 of the basic interface configuration tasks, with a powerful,
 extensible XML representation of the network configuration.
 
 Right now, this implementation uses a daemon service and a command
-line utility. These two communicate securely via a local UNIX socket,
-allowing the server to validate the client's user id.
+line utility. These two communicate securely via dbus.
 
 The server offers a REST interface to various aspects of network
 configuration. The client application uses REST calls to retrieve
