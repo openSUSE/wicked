@@ -56,7 +56,6 @@ struct ni_bonding {
 		unsigned int	carrier_detect;
 	}			miimon;
 	char *			primary;	/* FIXME: rename to primary_name/primary_dev */
-	char *			extra_options;
 
 	ni_string_array_t	slave_names;
 };

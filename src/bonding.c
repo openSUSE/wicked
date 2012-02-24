@@ -55,7 +55,6 @@ ni_bonding_clear(ni_bonding_t *bonding)
 	bonding->monitoring = NI_BOND_MONITOR_ARP;
 
 	ni_string_free(&bonding->primary);
-	ni_string_free(&bonding->extra_options);
 
 	ni_string_array_destroy(&bonding->slave_names);
 	ni_string_array_destroy(&bonding->arpmon.targets);
