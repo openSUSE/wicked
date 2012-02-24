@@ -1,7 +1,7 @@
 /*
  * DBus encapsulation for bonding interfaces
  *
- * Copyright (C) 2011 Olaf Kirch <okir@suse.de>
+ * Copyright (C) 2011-2012 Olaf Kirch <okir@suse.de>
  */
 
 #include <sys/poll.h>
@@ -141,36 +141,14 @@ __ni_objectmodel_bonding_get_miimon(const ni_dbus_object_t *object,
 	if (!(bond = __ni_objectmodel_get_bonding(object, error)))
 		return FALSE;
 
-	if (bond->monitoring != NI_BOND_MONITOR_MII) {
-		dbus_set_error(error, NI_DBUS_ERROR_PROPERTY_NOT_PRESENT,
-				"%s property %s not set",
-				object->path, property->name);
-		return FALSE;
-	}
+	if (bond->monitoring != NI_BOND_MONITOR_MII)
+		return ni_dbus_error_property_not_present(error, object->path, property->name);
 
 	ni_dbus_dict_add_uint32(result, "frequency", bond->miimon.frequency);
 	ni_dbus_dict_add_uint32(result, "updelay", bond->miimon.updelay);
 	ni_dbus_dict_add_uint32(result, "downdelay", bond->miimon.downdelay);
 	ni_dbus_dict_add_uint32(result, "carrier-detect", bond->miimon.carrier_detect);
 	return TRUE;
-#if 0
-	ni_dbus_variant_init_dict(result);
-	ni_dbus_dict_add_uint32(result, "mode", bond->monitoring);
-	switch (bond->monitoring) {
-	case NI_BOND_MONITOR_ARP:
-		ni_dbus_dict_add_uint32(result, "arp-interval", bond->arpmon.interval);
-		ni_dbus_dict_add_uint32(result, "arp-validate", bond->arpmon.validate);
-		var = ni_dbus_dict_add(result, "arp-targets");
-		ni_dbus_variant_set_string_array(var,
-				(const char **) bond->arpmon.targets.data,
-				bond->arpmon.targets.count);
-		break;
-
-	case NI_BOND_MONITOR_MII:
-		break;
-	}
-	return TRUE;
-#endif
 }
 
 static dbus_bool_t
@@ -208,12 +186,8 @@ __ni_objectmodel_bonding_get_arpmon(const ni_dbus_object_t *object,
 	if (!(bond = __ni_objectmodel_get_bonding(object, error)))
 		return FALSE;
 
-	if (bond->monitoring != NI_BOND_MONITOR_ARP) {
-		dbus_set_error(error, NI_DBUS_ERROR_PROPERTY_NOT_PRESENT,
-				"%s property %s not set",
-				object->path, property->name);
-		return FALSE;
-	}
+	if (bond->monitoring != NI_BOND_MONITOR_ARP)
+		return ni_dbus_error_property_not_present(error, object->path, property->name);
 
 	ni_dbus_dict_add_uint32(result, "interval", bond->arpmon.interval);
 	ni_dbus_dict_add_uint32(result, "validate", bond->arpmon.validate);
@@ -342,22 +316,6 @@ __ni_objectmodel_bonding_set_slaves(ni_dbus_object_t *object,
 #define BONDING_STRING_ARRAY_PROPERTY(dbus_name, member_name, rw) \
 	NI_DBUS_GENERIC_STRING_ARRAY_PROPERTY(bonding, dbus_name, member_name, rw)
 
-static ni_dbus_property_t	ni_objectmodel_bond_monitor_properties[] = {
-	BONDING_UINT_PROPERTY(mode, mode, RO),
-
-	/* If mode == NI_BOND_MONITOR_ARP */
-	BONDING_UINT_PROPERTY(arp-interval, arpmon.interval, RO),
-	BONDING_UINT_PROPERTY(arp-validate, arpmon.validate, RO),
-	BONDING_STRING_ARRAY_PROPERTY(arp-targets, arpmon.targets, RO),
-
-	/* If mode == NI_BOND_MONITOR_MII */
-	BONDING_UINT_PROPERTY(mii-frequency, miimon.frequency, RO),
-	BONDING_UINT_PROPERTY(mii-updelay, miimon.updelay, RO),
-	BONDING_UINT_PROPERTY(mii-downdelay, miimon.downdelay, RO),
-	BONDING_UINT_PROPERTY(mii-carrier-detect, miimon.carrier_detect, RO),
-
-	{ NULL }
-};
 static ni_dbus_property_t	ni_objectmodel_bond_properties[] = {
 	BONDING_UINT_PROPERTY(mode, mode, RO),
 
@@ -371,7 +329,6 @@ static ni_dbus_property_t	ni_objectmodel_bond_properties[] = {
 			NI_DBUS_DICT_SIGNATURE,
 			arpmon, __ni_objectmodel_bonding, RO),
 
-	NI_DBUS_GENERIC_DICT_PROPERTY(monitor, ni_objectmodel_bond_monitor_properties, RO),
 	{ NULL }
 };
 
@@ -385,7 +342,7 @@ static ni_dbus_method_t		ni_objectmodel_bond_methods[] = {
 	{ NULL }
 };
 
-ni_dbus_service_t	wicked_dbus_bond_service = {
+ni_dbus_service_t	ni_objectmodel_bond_service = {
 	.name = WICKED_DBUS_BONDING_INTERFACE,
 	.methods = ni_objectmodel_bond_methods,
 	.properties = ni_objectmodel_bond_properties,

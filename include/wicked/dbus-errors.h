@@ -28,4 +28,12 @@
 /* Map dbus error strings to our internal error codes */
 extern int		ni_dbus_get_error(const DBusError *error, char **detail);
 
+static inline dbus_bool_t
+ni_dbus_error_property_not_present(DBusError *error, const char *path, const char *property)
+{
+	dbus_set_error(error, NI_DBUS_ERROR_PROPERTY_NOT_PRESENT,
+			"%s property %s not set", path, property);
+	return FALSE;
+}
+
 #endif /* __WICKED_DBUS_ERRORS_H__ */
