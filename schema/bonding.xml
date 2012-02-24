@@ -1,13 +1,16 @@
 <service name="bonding" interface="com.suse.Wicked.Bond" object-class="netif-bond">
  <!-- This is the linkinfo returned in interface reports -->
  <define name="linkinfo" class="dict">
-   <mode type="string"/>
+   <mode type="builtin-bonding-mode"/>
 
-   <!-- List of slave devices.
+   <!-- One or more slave elements can occur.
+     -- At most one of them may be marked as primary.
      -->
-   <slaves class="array" element-type="string"/>
-
-   <primary type="string" />
+   <define name="slave" class="dict">
+     <device type="string"/>
+     <primary type="boolean"/>
+   </define>
+   <slaves class="array" element-type="slave"/>
 
    <!-- Link monitoring options.
      -- There must be exactly one of either arpmon or miimon present,
@@ -15,15 +18,8 @@
      -- error. If both are present, the behavior is undefined.
      -->
    <arpmon class="dict">
-     <define name="arp-validate-type" type="string" constraint="oneof">
-       <choice value="none"/>
-       <choice value="active"/>
-       <choice value="backup"/>
-       <choice value="all"/>
-     </define>
-
      <interval type="uint32"/>
-     <validate type="arp-validate-type"/>
+     <validate type="builtin-bonding-validate"/>
      <target class="array" element-type="ipv4-address" minlen="1"/>
    </arpmon>
 
@@ -42,12 +38,7 @@
    </miimon>
  </define>
 
- <method name="__newlink">
-  <arguments>
-   <name type="string"/>
-   <settings type="linkinfo"/>
-  </arguments>
- </method>
+ <properties type="linkinfo"/>
 
  <method name="addSlave">
   <arguments>
@@ -60,6 +51,16 @@
    <name type="string" />
   </arguments>
  </method>
-
 </service>
 
+<service name="bonding-factory" interface="com.suse.Wicked.Bond.Factory" object-class="netif-list">
+  <method name="newLink">
+    <arguments>
+     <name type="string"/>
+     <bond type="bonding:linkconfig"/>
+    </arguments>
+    <return>
+     <string/>
+    </return>
+  </method>
+</service>

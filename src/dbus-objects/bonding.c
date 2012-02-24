@@ -18,6 +18,7 @@
 #include <wicked/logging.h>
 #include <wicked/system.h>
 #include <wicked/bonding.h>
+#include <wicked/dbus-errors.h>
 #include "dbus-common.h"
 #include "model.h"
 #include "debug.h"
@@ -104,74 +105,55 @@ __ni_objectmodel_delete_bond(ni_dbus_object_t *object, const ni_dbus_method_t *m
 /*
  * Helper function to obtain bonding config from dbus object
  */
+static ni_bonding_t *
+__ni_objectmodel_get_bonding(const ni_dbus_object_t *object, DBusError *error)
+{
+	ni_interface_t *ifp;
+	ni_bonding_t *bond;
+
+	if (!(ifp = ni_objectmodel_unwrap_interface(object, error)))
+		return NULL;
+
+	if (!(bond = ni_interface_get_bonding(ifp))) {
+		dbus_set_error(error, DBUS_ERROR_FAILED, "Error getting bonding handle for interface");
+		return NULL;
+	}
+	return bond;
+}
+
 static void *
 ni_objectmodel_get_bonding(const ni_dbus_object_t *object, DBusError *error)
 {
-	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
-
-	return ni_interface_get_bonding(ifp);
+	return __ni_objectmodel_get_bonding(object, error);
 }
 
+/*
+ * Get/set MII monitoring info
+ */
+static dbus_bool_t
+__ni_objectmodel_bonding_get_miimon(const ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				ni_dbus_variant_t *result,
+				DBusError *error)
+{
+	ni_bonding_t *bond;
+
+	if (!(bond = __ni_objectmodel_get_bonding(object, error)))
+		return FALSE;
+
+	if (bond->monitoring != NI_BOND_MONITOR_MII) {
+		dbus_set_error(error, NI_DBUS_ERROR_PROPERTY_NOT_PRESENT,
+				"%s property %s not set",
+				object->path, property->name);
+		return FALSE;
+	}
+
+	ni_dbus_dict_add_uint32(result, "frequency", bond->miimon.frequency);
+	ni_dbus_dict_add_uint32(result, "updelay", bond->miimon.updelay);
+	ni_dbus_dict_add_uint32(result, "downdelay", bond->miimon.downdelay);
+	ni_dbus_dict_add_uint32(result, "carrier-detect", bond->miimon.carrier_detect);
+	return TRUE;
 #if 0
-static ni_bonding_t *
-__wicked_dbus_bond_handle(const ni_dbus_object_t *object, DBusError *error)
-{
-	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
-
-	return ni_interface_get_bonding(ifp);
-}
-
-/*
- * Get/set bonding mode
- */
-static dbus_bool_t
-__wicked_dbus_bond_get_mode(const ni_dbus_object_t *object,
-				const ni_dbus_property_t *property,
-				ni_dbus_variant_t *result,
-				DBusError *error)
-{
-	ni_bonding_t *bond;
-
-	if (!(bond = __wicked_dbus_bond_handle(object, error)))
-		return FALSE;
-
-	ni_dbus_variant_set_uint32(result, bond->mode);
-	return TRUE;
-}
-
-static dbus_bool_t
-__wicked_dbus_bond_set_mode(ni_dbus_object_t *object,
-				const ni_dbus_property_t *property,
-				const ni_dbus_variant_t *result,
-				DBusError *error)
-{
-	ni_bonding_t *bond;
-	unsigned int value;
-
-	if (!(bond = __wicked_dbus_bond_handle(object, error)))
-		return FALSE;
-
-	if (!ni_dbus_variant_get_uint(result, &value))
-		return FALSE;
-	bond->mode = value;
-	return TRUE;
-}
-
-/*
- * Get/set monitoring mode
- */
-static dbus_bool_t
-__wicked_dbus_bond_get_monitor(const ni_dbus_object_t *object,
-				const ni_dbus_property_t *property,
-				ni_dbus_variant_t *result,
-				DBusError *error)
-{
-	ni_dbus_variant_t *var;
-	ni_bonding_t *bond;
-
-	if (!(bond = __wicked_dbus_bond_handle(object, error)))
-		return FALSE;
-
 	ni_dbus_variant_init_dict(result);
 	ni_dbus_dict_add_uint32(result, "mode", bond->monitoring);
 	switch (bond->monitoring) {
@@ -185,71 +167,173 @@ __wicked_dbus_bond_get_monitor(const ni_dbus_object_t *object,
 		break;
 
 	case NI_BOND_MONITOR_MII:
-		ni_dbus_dict_add_uint32(result, "mii-frequency", bond->miimon.frequency);
-		ni_dbus_dict_add_uint32(result, "mii-updelay", bond->miimon.updelay);
-		ni_dbus_dict_add_uint32(result, "mii-downdelay", bond->miimon.downdelay);
-		ni_dbus_dict_add_uint32(result, "mii-carrier-detect", bond->miimon.carrier_detect);
 		break;
 	}
 	return TRUE;
+#endif
 }
 
 static dbus_bool_t
-__wicked_dbus_bond_set_monitor(ni_dbus_object_t *object,
+__ni_objectmodel_bonding_set_miimon(ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				const ni_dbus_variant_t *result,
 				DBusError *error)
 {
 	ni_bonding_t *bond;
-	unsigned int value;
 
-	if (!(bond = __wicked_dbus_bond_handle(object, error)))
+	if (!(bond = __ni_objectmodel_get_bonding(object, error)))
 		return FALSE;
 
-	if (!ni_dbus_variant_get_uint(result, &value))
-		return FALSE;
-	bond->monitoring = value;
+	bond->monitoring = NI_BOND_MONITOR_MII;
+
+	ni_dbus_dict_get_uint32(result, "frequency", &bond->miimon.frequency);
+	ni_dbus_dict_get_uint32(result, "updelay", &bond->miimon.updelay);
+	ni_dbus_dict_get_uint32(result, "downdelay", &bond->miimon.downdelay);
+	ni_dbus_dict_get_uint32(result, "carrier-detect", &bond->miimon.carrier_detect);
 	return TRUE;
 }
-#endif
 
-#if 0
 /*
- * Get/set underlying interface
+ * Get/set ARP monitoring info
  */
 static dbus_bool_t
-__wicked_dbus_bond_get_interface_name(const ni_dbus_object_t *object,
+__ni_objectmodel_bonding_get_arpmon(const ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				ni_dbus_variant_t *result,
 				DBusError *error)
 {
 	ni_bonding_t *bond;
+	ni_dbus_variant_t *var;
 
-	if (!(bond = __wicked_dbus_bond_handle(object, error)))
+	if (!(bond = __ni_objectmodel_get_bonding(object, error)))
 		return FALSE;
 
-	ni_dbus_variant_set_string(result, bond->physdev_name);
+	if (bond->monitoring != NI_BOND_MONITOR_ARP) {
+		dbus_set_error(error, NI_DBUS_ERROR_PROPERTY_NOT_PRESENT,
+				"%s property %s not set",
+				object->path, property->name);
+		return FALSE;
+	}
+
+	ni_dbus_dict_add_uint32(result, "interval", bond->arpmon.interval);
+	ni_dbus_dict_add_uint32(result, "validate", bond->arpmon.validate);
+	var = ni_dbus_dict_add(result, "targets");
+	ni_dbus_variant_set_string_array(var,
+			(const char **) bond->arpmon.targets.data,
+			bond->arpmon.targets.count);
 	return TRUE;
 }
 
 static dbus_bool_t
-__wicked_dbus_bond_set_interface_name(ni_dbus_object_t *object,
+__ni_objectmodel_bonding_set_arpmon(ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				const ni_dbus_variant_t *result,
 				DBusError *error)
 {
 	ni_bonding_t *bond;
-	const char *physdev_name;
+	ni_dbus_variant_t *var;
 
-	if (!(bond = __wicked_dbus_bond_handle(object, error)))
+	if (!(bond = __ni_objectmodel_get_bonding(object, error)))
 		return FALSE;
 
-	if (!ni_dbus_variant_get_string(result, &physdev_name))
-		return FALSE;
-	ni_string_dup(&bond->physdev_name, physdev_name);
+	bond->monitoring = NI_BOND_MONITOR_ARP;
+	ni_dbus_dict_get_uint32(result, "interval", &bond->arpmon.interval);
+	ni_dbus_dict_get_uint32(result, "validate", &bond->arpmon.validate);
+	if ((var = ni_dbus_dict_get(result, "targets")) != NULL) {
+		unsigned int i;
+
+		if (!ni_dbus_variant_is_string_array(var)) {
+			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"%s.%s property - expected string array for attribute targets",
+				object->path, property->name);
+			return FALSE;
+		}
+
+		for (i = 0; i < var->array.len; ++i) {
+			const char *s = var->string_array_value[i];
+
+			ni_string_array_append(&bond->arpmon.targets, s);
+		}
+	}
+
 	return TRUE;
 }
-#endif
+
+/*
+ * Get/set the list of slaves
+ */
+static dbus_bool_t
+__ni_objectmodel_bonding_get_slaves(const ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				ni_dbus_variant_t *result,
+				DBusError *error)
+{
+	ni_bonding_t *bond;
+	unsigned int i;
+
+	if (!(bond = __ni_objectmodel_get_bonding(object, error)))
+		return FALSE;
+
+	ni_dbus_dict_array_init(result);
+	for (i = 0; i < bond->slave_names.count; ++i) {
+		const char *slave_name = bond->slave_names.data[i];
+		ni_dbus_variant_t *slave;
+
+		slave = ni_dbus_dict_array_add(result);
+
+		ni_dbus_dict_add_string(slave, "device", slave_name);
+		if (bond->primary && ni_string_eq(bond->primary, slave_name))
+			ni_dbus_dict_add_bool(slave, "primary", TRUE);
+	}
+
+	return TRUE;
+}
+
+static dbus_bool_t
+__ni_objectmodel_bonding_set_slaves(ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *result,
+				DBusError *error)
+{
+	ni_bonding_t *bond;
+	ni_dbus_variant_t *var;
+	unsigned int i;
+
+	if (!(bond = __ni_objectmodel_get_bonding(object, error)))
+		return FALSE;
+
+	if (!ni_dbus_variant_is_dict_array(result)) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"%s.%s property - expected dict array",
+				object->path, property->name);
+		return FALSE;
+	}
+
+	ni_string_free(&bond->primary);
+	for (i = 0, var = result->variant_array_value; i < result->array.len; ++i, ++var) {
+		dbus_bool_t is_primary = FALSE;
+		const char *slave_name;
+
+		if (!ni_dbus_dict_get_string(var, "device", &slave_name)) {
+			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+					"%s.%s property - missing device attribute",
+					object->path, property->name);
+			return FALSE;
+		}
+		ni_string_array_append(&bond->slave_names, slave_name);
+
+		if (ni_dbus_dict_get_bool(var, "primary", &is_primary) && is_primary) {
+			if (bond->primary) {
+				dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+					"%s.%s property - duplicate primary device",
+					object->path, property->name);
+				return FALSE;
+			}
+			ni_string_dup(&bond->primary, slave_name);
+		}
+	}
+	return TRUE;
+}
 
 #define BONDING_INT_PROPERTY(dbus_name, member_name, rw) \
 	NI_DBUS_GENERIC_INT_PROPERTY(bonding, dbus_name, member_name, rw)
@@ -276,6 +360,17 @@ static ni_dbus_property_t	ni_objectmodel_bond_monitor_properties[] = {
 };
 static ni_dbus_property_t	ni_objectmodel_bond_properties[] = {
 	BONDING_UINT_PROPERTY(mode, mode, RO),
+
+	__NI_DBUS_PROPERTY(
+			DBUS_TYPE_ARRAY_AS_STRING NI_DBUS_DICT_SIGNATURE,
+			slaves, __ni_objectmodel_bonding, RO),
+	__NI_DBUS_PROPERTY(
+			NI_DBUS_DICT_SIGNATURE,
+			miimon, __ni_objectmodel_bonding, RO),
+	__NI_DBUS_PROPERTY(
+			NI_DBUS_DICT_SIGNATURE,
+			arpmon, __ni_objectmodel_bonding, RO),
+
 	NI_DBUS_GENERIC_DICT_PROPERTY(monitor, ni_objectmodel_bond_monitor_properties, RO),
 	{ NULL }
 };
