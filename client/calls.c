@@ -260,7 +260,7 @@ ni_call_device_new_xml(const ni_dbus_service_t *service,
  * Bring the link of an interface up
  */
 static int
-ni_call_link_method_common(ni_dbus_object_t *object,
+ni_call_device_method_common(ni_dbus_object_t *object,
 				const ni_dbus_service_t *service, const ni_dbus_method_t *method,
 				unsigned int argc, ni_dbus_variant_t *argv,
 				ni_objectmodel_callback_info_t **callback_list,
@@ -298,7 +298,7 @@ ni_call_link_method_common(ni_dbus_object_t *object,
 }
 
 static dbus_bool_t
-ni_call_link_method_xml(ni_dbus_object_t *object, const char *method_name, xml_node_t *config,
+ni_call_device_method_xml(ni_dbus_object_t *object, const char *method_name, xml_node_t *config,
 			ni_objectmodel_callback_info_t **callback_list,
 			ni_call_error_context_t *error_context)
 {
@@ -333,7 +333,7 @@ retry_operation:
 		}
 	}
 
-	rv = ni_call_link_method_common(object, service, method, argc, argv, callback_list, error_context);
+	rv = ni_call_device_method_common(object, service, method, argc, argv, callback_list, error_context);
 
 out:
 	while (argc--)
@@ -356,19 +356,19 @@ out:
 dbus_bool_t
 ni_call_firewall_up_xml(ni_dbus_object_t *object, xml_node_t *config, ni_objectmodel_callback_info_t **callback_list)
 {
-	return ni_call_link_method_xml(object, "firewallUp", config, callback_list, NULL);
+	return ni_call_device_method_xml(object, "firewallUp", config, callback_list, NULL);
 }
 
 dbus_bool_t
 ni_call_firewall_down_xml(ni_dbus_object_t *object, ni_objectmodel_callback_info_t **callback_list)
 {
-	return ni_call_link_method_xml(object, "firewallDown", NULL, callback_list, NULL);
+	return ni_call_device_method_xml(object, "firewallDown", NULL, callback_list, NULL);
 }
 
 dbus_bool_t
 ni_call_link_up_xml(ni_dbus_object_t *object, xml_node_t *config, ni_objectmodel_callback_info_t **callback_list)
 {
-	return ni_call_link_method_xml(object, "linkUp", config, callback_list, NULL);
+	return ni_call_device_method_xml(object, "linkUp", config, callback_list, NULL);
 }
 
 dbus_bool_t
@@ -378,7 +378,7 @@ ni_call_link_login_xml(ni_dbus_object_t *object, xml_node_t *config, ni_objectmo
 	ni_call_error_context_t error_context = NI_CALL_ERROR_CONTEXT_INIT(error_handler, config);
 	dbus_bool_t success;
 
-	success = ni_call_link_method_xml(object, "login", config, callback_list, &error_context);
+	success = ni_call_device_method_xml(object, "login", config, callback_list, &error_context);
 	ni_call_error_context_destroy(&error_context);
 	return success;
 }
@@ -386,7 +386,7 @@ ni_call_link_login_xml(ni_dbus_object_t *object, xml_node_t *config, ni_objectmo
 dbus_bool_t
 ni_call_link_logout(ni_dbus_object_t *object, xml_node_t *config, ni_objectmodel_callback_info_t **callback_list)
 {
-	return ni_call_link_method_xml(object, "logout", config, callback_list, NULL);
+	return ni_call_device_method_xml(object, "logout", config, callback_list, NULL);
 }
 
 dbus_bool_t
@@ -396,7 +396,7 @@ ni_call_link_change_xml(ni_dbus_object_t *object, xml_node_t *config, ni_objectm
 	ni_call_error_context_t error_context = NI_CALL_ERROR_CONTEXT_INIT(error_handler, config);
 	dbus_bool_t success;
 
-	success = ni_call_link_method_xml(object, "linkChange", config, callback_list, &error_context);
+	success = ni_call_device_method_xml(object, "linkChange", config, callback_list, &error_context);
 	ni_call_error_context_destroy(&error_context);
 	return success;
 }
@@ -404,13 +404,25 @@ ni_call_link_change_xml(ni_dbus_object_t *object, xml_node_t *config, ni_objectm
 dbus_bool_t
 ni_call_link_down(ni_dbus_object_t *object, ni_objectmodel_callback_info_t **callback_list)
 {
-	return ni_call_link_method_xml(object, "linkDown", NULL, callback_list, NULL);
+	return ni_call_device_method_xml(object, "linkDown", NULL, callback_list, NULL);
+}
+
+dbus_bool_t
+ni_call_device_change_xml(ni_dbus_object_t *object, xml_node_t *config, ni_objectmodel_callback_info_t **callback_list,
+				ni_call_error_handler_t *error_handler)
+{
+	ni_call_error_context_t error_context = NI_CALL_ERROR_CONTEXT_INIT(error_handler, config);
+	dbus_bool_t success;
+
+	success = ni_call_device_method_xml(object, "deviceChange", config, callback_list, &error_context);
+	ni_call_error_context_destroy(&error_context);
+	return success;
 }
 
 dbus_bool_t
 ni_call_device_delete(ni_dbus_object_t *object, ni_objectmodel_callback_info_t **callback_list)
 {
-	return ni_call_link_method_xml(object, "deleteLink", NULL, callback_list, NULL);
+	return ni_call_device_method_xml(object, "deleteDevice", NULL, callback_list, NULL);
 }
 
 /*

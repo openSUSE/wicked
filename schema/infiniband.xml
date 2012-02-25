@@ -32,7 +32,7 @@
     <multicast type="infiniband:multicast_t"/>
   </define>
 
-  <method name="deleteLink" />
+  <method name="deleteDevice" />
 </service>
 
 <service name="infiniband-child-factory" interface="com.suse.Wicked.InfinibandChild.Factory" object-class="netif-list">

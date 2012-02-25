@@ -43,7 +43,7 @@
     <!-- add more status information to this -->
   </define>
 
-  <method name="deleteLink">
+  <method name="deleteDevice">
     <!-- no arguments, no return code -->
   </method>
 
