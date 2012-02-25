@@ -36,4 +36,12 @@ ni_dbus_error_property_not_present(DBusError *error, const char *path, const cha
 	return FALSE;
 }
 
+static inline dbus_bool_t
+ni_dbus_error_invalid_args(DBusError *error, const char *path, const char *method)
+{
+	dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+			"bad arguments in call to %s.%s()", path, method);
+	return FALSE;
+}
+
 #endif /* __WICKED_DBUS_ERRORS_H__ */
