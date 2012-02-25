@@ -1,6 +1,6 @@
 <service name="bonding" interface="com.suse.Wicked.Bond" object-class="netif-bond">
- <!-- This is the linkinfo returned in interface reports -->
- <define name="linkinfo" class="dict">
+ <!-- This is the device-info returned in interface reports -->
+ <define name="device-info" class="dict">
    <mode type="builtin-bonding-mode"/>
 
    <!-- One or more slave elements can occur.
@@ -38,11 +38,11 @@
    </miimon>
  </define>
 
- <properties type="linkinfo"/>
+ <properties type="device-info"/>
 
  <method name="newDevice">
    <arguments>
-    <bond type="bonding:linkconfig"/>
+    <bond type="bonding:device-info"/>
    </arguments>
  </method>
 
@@ -63,7 +63,7 @@
   <method name="newDevice">
     <arguments>
      <name type="string"/>
-     <bond type="bonding:linkconfig"/>
+     <bond type="bonding:device-info"/>
     </arguments>
     <return>
      <string/>
