@@ -265,6 +265,8 @@ xml_node_get_child(const xml_node_t *node, const char *name)
 {
 	xml_node_t *child;
 
+	if (node == NULL)
+		return NULL;
 	for (child = node->children; child; child = child->next) {
 		if (!strcmp(child->name, name))
 			return child;
