@@ -135,7 +135,7 @@ ni_bonding_free(ni_bonding_t *bonding)
  * Set the bonding mode, using the strings supported by the
  * module options
  */
-static ni_intmap_t	__bonding_mode[] = {
+static ni_intmap_t	__kernel_bonding_mode_names[] = {
 	{ "balance-rr",		NI_BOND_MODE_BALANCE_RR },
 	{ "active-backup",	NI_BOND_MODE_ACTIVE_BACKUP },
 	{ "balance-xor",	NI_BOND_MODE_BALANCE_XOR },
@@ -152,23 +152,35 @@ __ni_bonding_set_module_option_mode(ni_bonding_t *bonding, char *value)
 	/* When we parse /sys/net/class/<ifname>/bonding/mode, we end up
 	 * with "balance-rr 0" or similar; strip off the int value */
 	value[strcspn(value, " \t\n")] = '\0';
-	return ni_parse_int_mapped(value, __bonding_mode, &bonding->mode);
+	return ni_parse_int_mapped(value, __kernel_bonding_mode_names, &bonding->mode);
 }
 
 const char *
 __ni_bonding_get_module_option_mode(const ni_bonding_t *bonding)
 {
-	return ni_format_int_mapped(bonding->mode, __bonding_mode);
+	return ni_format_int_mapped(bonding->mode, __kernel_bonding_mode_names);
 }
 
 /*
- * For now, the enum names in the xml schema use the same mode names as
- * the kernel.
+ * For now, the enum names in the xml schema use almost the same mode names as
+ * the kernel. 802.3ad being the notable exception, as starts with a digit, which
+ * is illegal in xml element names.
  */
+static ni_intmap_t	__user_bonding_mode_names[] = {
+	{ "balance-rr",		NI_BOND_MODE_BALANCE_RR },
+	{ "active-backup",	NI_BOND_MODE_ACTIVE_BACKUP },
+	{ "balance-xor",	NI_BOND_MODE_BALANCE_XOR },
+	{ "broadcast",		NI_BOND_MODE_BROADCAST },
+	{ "ieee802-3ad",	NI_BOND_MODE_802_3AD },
+	{ "balance-tlb",	NI_BOND_MODE_BALANCE_TLB },
+	{ "balance-alb",	NI_BOND_MODE_BALANCE_ALB },
+	{ NULL }
+};
+
 const char *
 ni_bonding_mode_type_to_name(unsigned int mode)
 {
-	return ni_format_int_mapped(mode, __bonding_mode);
+	return ni_format_int_mapped(mode, __user_bonding_mode_names);
 }
 
 int
@@ -176,7 +188,7 @@ ni_bonding_mode_name_to_type(const char *name)
 {
 	unsigned int value;
 
-	if (ni_parse_int_mapped(name, __bonding_mode, &value) < 0)
+	if (ni_parse_int_mapped(name, __user_bonding_mode_names, &value) < 0)
 		return -1;
 	return value;
 }
