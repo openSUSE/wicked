@@ -82,4 +82,25 @@ typedef struct ni_hwaddr {
 	unsigned char		data[NI_MAXHWADDRLEN];
 } ni_hwaddr_t;
 
+/*
+ * Range of unsigned values
+ */
+typedef struct ni_uint_range {
+	unsigned int		min, max;
+} ni_uint_range_t;
+
+static inline void
+ni_uint_range_update_min(ni_uint_range_t *r, unsigned int min)
+{
+	if (min > r->min)
+		r->min = min;
+}
+
+static inline void
+ni_uint_range_update_max(ni_uint_range_t *r, unsigned int max)
+{
+	if (max < r->max)
+		r->max = max;
+}
+
 #endif /* __WICKED_TYPES_H__ */
