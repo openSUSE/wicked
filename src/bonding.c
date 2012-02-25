@@ -505,6 +505,9 @@ ni_bonding_write_one_sysfs_attr(const char *ifname, const ni_bonding_t *bonding,
 		return 0;
 	}
 
+	/* FIXME: for stage 0 attributes, we should verify that the device is down.
+	 * For stage 1 attribures, we should verify that it is up */
+
 	ni_debug_ifconfig("%s: setting attr %s=%s", ifname, attrname, config_value);
 	if (ni_sysfs_bonding_set_attr(ifname, attrname, config_value) < 0) {
 		ni_error("%s: cannot set bonding attribute %s=%s", ifname, attrname, config_value);

@@ -468,14 +468,7 @@ ni_system_bridge_remove_port(ni_netconfig_t *nc, ni_interface_t *ifp, int port_i
 int
 ni_system_bond_create(ni_netconfig_t *nc, const char *ifname, const ni_bonding_t *bond, ni_interface_t **ifpp)
 {
-	const char *complaint;
 	ni_interface_t *ifp;
-
-	complaint = ni_bonding_validate(bond);
-	if (complaint != NULL) {
-		ni_error("%s: cannot create bonding device: %s", ifname, complaint);
-		return -NI_ERROR_INVALID_ARGS;
-	}
 
 	if (!ni_sysfs_bonding_available()) {
 		unsigned int i, success = 0;
@@ -527,19 +520,53 @@ ni_system_bond_create(ni_netconfig_t *nc, const char *ifname, const ni_bonding_t
 		return -1;
 	}
 
-	if (ifp->bonding == NULL) {
-		ni_error("%s: no bonding info for interface %s", __func__, ifname);
+	*ifpp = ifp;
+	return 0;
+}
+
+/*
+ * Set up a bonding device
+ */
+int
+ni_system_bond_setup(ni_netconfig_t *nc, ni_interface_t *ifp, const ni_bonding_t *bond_cfg)
+{
+	const char *complaint;
+	ni_bonding_t *bond;
+
+	complaint = ni_bonding_validate(bond_cfg);
+	if (complaint != NULL) {
+		ni_error("%s: cannot set up bonding device: %s", ifp->name, complaint);
+		return -NI_ERROR_INVALID_ARGS;
+	}
+
+	if ((bond = ni_interface_get_bonding(ifp)) == NULL) {
+		ni_error("%s: not a bonding interface ", ifp->name);
 		return -1;
 	}
 
 	/* Store attributes stage 0 - most attributes need to be written prior to
 	   bringing up the interface */
-	if (ni_bonding_write_sysfs_attrs(ifname, bond, ifp->bonding, 0) < 0) {
-		ni_error("%s: error configuring bonding device (stage 0)", ifname);
+	if (ni_bonding_write_sysfs_attrs(ifp->name, bond_cfg, bond, 0) < 0) {
+		ni_error("%s: error configuring bonding device (stage 0)", ifp->name);
 		return -1;
 	}
 
-	*ifpp = ifp;
+	/* Update the list of slave devices */
+	if (ni_sysfs_bonding_set_list_attr(ifp->name, "slaves", &bond_cfg->slave_names) < 0) {
+		ni_error("%s: could not update list of slaves", ifp->name);
+		return -NI_ERROR_PERMISSION_DENIED;
+	}
+
+	/* If the interface is up, we can assign the primary interface right away.
+	 * Otherwise, we have to remember it and assign it later */
+	ni_string_dup(&bond->requested_primary, bond_cfg->primary);
+
+	if (ni_interface_device_is_up(ifp)) {
+		if (ni_bonding_write_sysfs_attrs(ifp->name, bond_cfg, bond, 1) < 0) {
+			ni_error("%s: error configuring bonding device (stage 1)", ifp->name);
+			return -1;
+		}
+	}
 	return 0;
 }
 

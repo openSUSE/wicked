@@ -26,6 +26,8 @@ extern int		ni_system_bridge_remove_port(ni_netconfig_t *, ni_interface_t *, int
 extern int		ni_system_bridge_delete(ni_netconfig_t *nc, ni_interface_t *ifp);
 extern int		ni_system_bond_create(ni_netconfig_t *nc, const char *ifname,
 				const ni_bonding_t *cfg_bond, ni_interface_t **ifpp);
+extern int		ni_system_bond_setup(ni_netconfig_t *nc, ni_interface_t *ifp, 
+				const ni_bonding_t *cfg_bond);
 extern int		ni_system_bond_delete(ni_netconfig_t *nc, ni_interface_t *ifp);
 
 #endif /* __WICKED_SYSTEM_H__ */

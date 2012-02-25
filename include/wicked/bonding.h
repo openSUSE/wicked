@@ -57,6 +57,8 @@ struct ni_bonding {
 	}			miimon;
 	char *			primary;	/* FIXME: rename to primary_name/primary_dev */
 
+	char *			requested_primary;
+
 	ni_string_array_t	slave_names;
 };
 
