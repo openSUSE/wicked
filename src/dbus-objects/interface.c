@@ -99,8 +99,14 @@ ni_objectmodel_register_netif_classes(void)
 	ni_objectmodel_addrconf_ipv4ll_service.compatible = &ni_objectmodel_netif_class;
 	ni_objectmodel_register_service(&ni_objectmodel_addrconf_ipv4ll_service);
 
+	ni_objectmodel_bond_service.compatible = ni_objectmodel_get_class(ni_objectmodel_link_classname(NI_IFTYPE_BOND));
+	ni_objectmodel_register_service(&ni_objectmodel_bond_service);
+
 	ni_objectmodel_wireless_service.compatible = ni_objectmodel_get_class(ni_objectmodel_link_classname(NI_IFTYPE_WIRELESS));
 	ni_objectmodel_register_service(&ni_objectmodel_wireless_service);
+
+	ni_objectmodel_bond_factory_service.compatible = &ni_objectmodel_netif_list_class;
+	ni_objectmodel_register_service(&ni_objectmodel_bond_factory_service);
 }
 
 /*

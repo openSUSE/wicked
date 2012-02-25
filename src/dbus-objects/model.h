@@ -153,8 +153,8 @@ __ni_objectmodel_get_property_ulong(const void *handle, unsigned long *member_of
 extern ni_dbus_server_t *	__ni_objectmodel_server;
 extern ni_dbus_service_t	wicked_dbus_ethernet_service;
 extern ni_dbus_service_t	wicked_dbus_bridge_service;
-extern ni_dbus_service_t	wicked_dbus_bond_service;
-extern ni_dbus_service_t	wicked_dbus_bond_factory_service;
+extern ni_dbus_service_t	ni_objectmodel_bond_service;
+extern ni_dbus_service_t	ni_objectmodel_bond_factory_service;
 extern ni_dbus_service_t	wicked_dbus_bridge_port_dummy_service;
 extern ni_dbus_service_t	wicked_dbus_bond_port_dummy_service;
 
