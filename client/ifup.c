@@ -1760,6 +1760,8 @@ usage:
 		ifname = "all";
 	}
 
+	(void) ifevent; /* FIXME: not used yet */
+
 	if (!ni_ifworkers_create_client())
 		return 1;
 

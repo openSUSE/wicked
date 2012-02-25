@@ -394,6 +394,7 @@ do_show_xml(int argc, char **argv)
 
 	if (optind < argc)
 		ifname = argv[optind++];
+	(void)ifname; /* FIXME; not used yet */
 
 	if (optind != argc)
 		goto usage;

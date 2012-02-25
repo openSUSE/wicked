@@ -321,8 +321,10 @@ autoip4_interface_event(ni_netconfig_t *nc, ni_interface_t *ifp, ni_event_t even
 	case NI_EVENT_LINK_DOWN:
 	case NI_EVENT_LINK_UP:
 		dev = ni_autoip_device_by_index(ifp->link.ifindex);
-#ifdef notyet
 		if (dev != NULL)
+			;
+#ifdef notyet
+			/* FIXME: */
 			ni_autoip_device_event(dev, event);
 #endif
 		break;
