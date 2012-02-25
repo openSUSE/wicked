@@ -54,7 +54,7 @@
 </service>
 
 <service name="bonding-factory" interface="com.suse.Wicked.Bond.Factory" object-class="netif-list">
-  <method name="newLink">
+  <method name="newDevice">
     <arguments>
      <name type="string"/>
      <bond type="bonding:linkconfig"/>

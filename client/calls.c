@@ -107,8 +107,8 @@ ni_call_link_layer_factory_service(const char *link_type)
 		return NULL;
 	}
 
-	if (!ni_dbus_service_get_method(service, "newLink")) {
-		ni_debug_dbus("dbus factory service for link layer \"%s\" has no newLink method", link_type);
+	if (!ni_dbus_service_get_method(service, "newDevice")) {
+		ni_debug_dbus("dbus factory service for link layer \"%s\" has no newDevice method", link_type);
 		return NULL;
 	}
 
@@ -145,7 +145,7 @@ ni_call_link_layer_auth_service(const char *link_type)
  * Create a virtual network interface
  */
 static char *
-ni_call_link_new(const ni_dbus_service_t *service, ni_dbus_variant_t call_argv[2])
+ni_call_device_new(const ni_dbus_service_t *service, ni_dbus_variant_t call_argv[2])
 {
 	ni_dbus_variant_t call_resp[1];
 	DBusError error = DBUS_ERROR_INIT;
@@ -158,7 +158,7 @@ ni_call_link_new(const ni_dbus_service_t *service, ni_dbus_variant_t call_argv[2
 		goto failed;
 	}
 
-	if (!ni_dbus_object_call_variant(object, service->name, "newLink",
+	if (!ni_dbus_object_call_variant(object, service->name, "newDevice",
 				2, call_argv,
 				1, call_resp,
 				&error)) {
@@ -169,7 +169,7 @@ ni_call_link_new(const ni_dbus_service_t *service, ni_dbus_variant_t call_argv[2
 
 		/* extract device object path from reply */
 		if (!ni_dbus_variant_get_string(&call_resp[0], &response)) {
-			ni_error("%s: newLink call succeeded but didn't return interface name",
+			ni_error("%s: newDevice call succeeded but didn't return interface name",
 					service->name);
 		} else {
 			ni_string_dup(&result, response);
@@ -183,7 +183,7 @@ failed:
 }
 
 char *
-ni_call_link_new_argv(const ni_dbus_service_t *service, int argc, char **argv)
+ni_call_device_new_argv(const ni_dbus_service_t *service, int argc, char **argv)
 {
 	ni_dbus_variant_t call_argv[2], *dict;
 	char *result = NULL;
@@ -191,7 +191,7 @@ ni_call_link_new_argv(const ni_dbus_service_t *service, int argc, char **argv)
 
 	memset(call_argv, 0, sizeof(call_argv));
 
-	/* The first argument of the newLink() call is the requested interface
+	/* The first argument of the newDevice() call is the requested interface
 	 * name. If there's a name="..." argument on the command line, use that
 	 * (and remove it from the list of arguments) */
 	ni_dbus_variant_set_string(&call_argv[0], "");
@@ -214,7 +214,7 @@ ni_call_link_new_argv(const ni_dbus_service_t *service, int argc, char **argv)
 		goto failed;
 	}
 
-	result = ni_call_link_new(service, call_argv);
+	result = ni_call_device_new(service, call_argv);
 
 failed:
 	ni_dbus_variant_destroy(&call_argv[0]);
@@ -223,7 +223,7 @@ failed:
 }
 
 char *
-ni_call_link_new_xml(const ni_dbus_service_t *service,
+ni_call_device_new_xml(const ni_dbus_service_t *service,
 				const char *ifname, xml_node_t *linkdef)
 {
 	ni_dbus_variant_t call_argv[2];
@@ -232,20 +232,20 @@ ni_call_link_new_xml(const ni_dbus_service_t *service,
 
 	memset(call_argv, 0, sizeof(call_argv));
 
-	/* The first argument of the newLink() call is the requested interface
+	/* The first argument of the newDevice() call is the requested interface
 	 * name. If there's a name="..." argument on the command line, use that
 	 * (and remove it from the list of arguments) */
 	ni_dbus_variant_set_string(&call_argv[0], "");
 	if (ifname)
 		ni_dbus_variant_set_string(&call_argv[0], ifname);
 
-	method = ni_dbus_service_get_method(service, "newLink");
+	method = ni_dbus_service_get_method(service, "newDevice");
 	ni_assert(method);
 
 	ni_assert(method->user_data);
 
 	if (ni_dbus_xml_serialize_arg(method, 1, &call_argv[1], linkdef)) {
-		result = ni_call_link_new(service, call_argv);
+		result = ni_call_device_new(service, call_argv);
 	} else {
 		ni_error("%s.%s: error serializing arguments",
 				service->name, method->name);

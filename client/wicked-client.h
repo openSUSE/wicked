@@ -22,9 +22,9 @@ extern const ni_dbus_service_t *ni_call_link_layer_auth_service(const char *);
 
 extern ni_dbus_object_t *	ni_call_create_client(void);
 
-extern char *			ni_call_link_new_xml(const ni_dbus_service_t *,
+extern char *			ni_call_device_new_xml(const ni_dbus_service_t *,
 					const char *, xml_node_t *);
-extern char *			ni_call_link_new_argv(const ni_dbus_service_t *, int, char **);
+extern char *			ni_call_device_new_argv(const ni_dbus_service_t *, int, char **);
 extern dbus_bool_t		ni_call_device_delete(ni_dbus_object_t *, ni_objectmodel_callback_info_t **);
 
 extern dbus_bool_t		ni_call_firewall_up_xml(ni_dbus_object_t *, xml_node_t *, ni_objectmodel_callback_info_t **);

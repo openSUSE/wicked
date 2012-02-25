@@ -61,7 +61,7 @@
 </service>
 
 <service name="bridge-factory" interface="com.suse.Wicked.Bridge.Factory" object-class="netif-list">
-  <method name="newLink">
+  <method name="newDevice">
     <arguments>
      <name type="string"/>
      <bridge type="bridge:linkconfig"/>

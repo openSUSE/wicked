@@ -17,7 +17,7 @@
 </service>
 
 <service name="vlan-factory" interface="com.suse.Wicked.VLAN.Factory" object-class="netif-list">
- <method name="newLink">
+ <method name="newDevice">
   <arguments>
    <name type="string"/>
    <vlan type="vlan:linkinfo"/>

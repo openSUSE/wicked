@@ -37,7 +37,7 @@
 
 <service name="infiniband-child-factory" interface="com.suse.Wicked.InfinibandChild.Factory" object-class="netif-list">
 
-  <method name="newLink">
+  <method name="newDevice">
     <arguments>
       <name type="string"/>
       <config type="infiniband-child:linkinfo"/>

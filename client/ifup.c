@@ -921,7 +921,7 @@ out:
 
 /*
  * Finite state machine - create the device if it does not exist
- * Note this is called for all virtual devices, because the newLink
+ * Note this is called for all virtual devices, because the newDevice
  * call also takes care of setting up things like the ports assigned
  * to a bridge.
  */
@@ -974,7 +974,7 @@ ni_ifworker_do_device_up(ni_ifworker_t *w)
 		goto device_is_up;
 	}
 
-	object_path = ni_call_link_new_xml(service, w->name, linknode);
+	object_path = ni_call_device_new_xml(service, w->name, linknode);
 	if (object_path == NULL) {
 		ni_error("%s: failed to create interface", w->name);
 		return -1;

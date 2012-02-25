@@ -92,7 +92,7 @@ __ni_objectmodel_vlan_newlink(ni_interface_t *cfg_ifp, const char *ifname, DBusE
 		goto out;
 	}
 
-	ni_debug_dbus("VLAN.newLink(name=%s, dev=%s, tag=%u)", ifname, vlan->physdev_name, vlan->tag);
+	ni_debug_dbus("VLAN.newDevice(name=%s, dev=%s, tag=%u)", ifname, vlan->physdev_name, vlan->tag);
 
 	if (ifname == NULL) {
 		static char namebuf[64];
