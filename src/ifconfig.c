@@ -525,6 +525,20 @@ ni_system_bond_create(ni_netconfig_t *nc, const char *ifname, const ni_bonding_t
 }
 
 /*
+ * Set up an ethernet device
+ */
+int
+ni_system_ethernet_setup(ni_netconfig_t *nc, ni_interface_t *ifp, const ni_ethernet_t *dev_cfg)
+{
+	if (__ni_system_ethernet_update(ifp, dev_cfg) < 0) {
+		ni_error("%s: failed to update ethernet device settings", ifp->name);
+		return -1;
+	}
+
+	return 0;
+}
+
+/*
  * Set up a bonding device
  */
 int

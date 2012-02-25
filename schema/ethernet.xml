@@ -43,7 +43,7 @@
     </offload>
   </define>
 
-  <method name="changeLink">
+  <method name="changeDevice">
     <arguments>
       <properties />
     </arguments>

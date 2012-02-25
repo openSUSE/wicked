@@ -15,6 +15,8 @@ extern int		ni_system_interface_link_change(ni_interface_t *, const ni_interface
  * Most of this stuff will go as we move things into extension scripts:
  */
 extern int		ni_system_interface_stats_refresh(ni_netconfig_t *, ni_interface_t *);
+extern int		ni_system_ethernet_setup(ni_netconfig_t *nc, ni_interface_t *ifp, 
+				const ni_ethernet_t *dev_cfg);
 extern int		ni_system_vlan_create(ni_netconfig_t *nc, const char *ifname,
 				const ni_vlan_t *cfg_vlan, ni_interface_t **ifpp);
 extern int		ni_system_vlan_delete(ni_interface_t *ifp);

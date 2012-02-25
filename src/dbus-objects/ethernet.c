@@ -7,11 +7,78 @@
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
 #include <wicked/ethernet.h>
+#include <wicked/system.h>
+#include <wicked/dbus-errors.h>
 #include "dbus-common.h"
 #include "model.h"
 
 #include <wicked/ethernet.h>
 
+static ni_interface_t *	__ni_objectmodel_ethernet_device_arg(const ni_dbus_variant_t *);
+
+/*
+ * Ethernet.changeDevice method
+ */
+static dbus_bool_t
+ni_objectmodel_ethernet_setup(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_netconfig_t *nc = ni_global_state_handle(0);
+	ni_interface_t *ifp, *cfg;
+	dbus_bool_t rv = FALSE;
+
+	/* we've already checked that argv matches our signature */
+	ni_assert(argc == 1);
+
+	if (!(ifp = ni_objectmodel_unwrap_interface(object, error)))
+		return FALSE;
+
+	if (!(cfg = __ni_objectmodel_ethernet_device_arg(&argv[0]))) {
+		ni_dbus_error_invalid_args(error, object->path, method->name);
+		goto out;
+	}
+
+	if (ni_system_ethernet_setup(nc, ifp, cfg->ethernet) < 0) {
+		dbus_set_error(error, DBUS_ERROR_FAILED, "failed to set up ethernet device");
+		goto out;
+	}
+
+	rv = TRUE;
+
+out:
+	if (cfg)
+		ni_interface_put(cfg);
+	return rv;
+}
+
+/*
+ * Common helper function to extract bonding device info from a dbus dict
+ */
+static ni_interface_t *
+__ni_objectmodel_ethernet_device_arg(const ni_dbus_variant_t *dict)
+{
+	ni_dbus_object_t *dev_object;
+	ni_interface_t *dev;
+	dbus_bool_t rv;
+
+	dev = ni_interface_new(NULL, NULL, 0);
+	dev->link.type = NI_IFTYPE_ETHERNET;
+
+	dev_object = ni_objectmodel_wrap_interface(dev);
+	rv = ni_dbus_object_set_properties_from_dict(dev_object, &ni_objectmodel_ethernet_service, dict);
+	ni_dbus_object_free(dev_object);
+
+	if (!rv) {
+		ni_interface_put(dev);
+		dev = NULL;
+	}
+	return dev;
+}
+
+/*
+ * Functions for dealing wit Ethernet properties
+ */
 void *
 ni_objectmodel_get_ethernet(const ni_dbus_object_t *object, DBusError *error)
 {
@@ -149,7 +216,7 @@ const ni_dbus_property_t	ni_objectmodel_ethernet_property_table[] = {
 };
 
 static ni_dbus_method_t		ni_objectmodel_ethernet_methods[] = {
-//	{ "changeDevice",	"",			ni_objectmodel_ethernet_change },
+	{ "changeDevice",	"",			ni_objectmodel_ethernet_setup },
 	{ NULL }
 };
 
