@@ -796,7 +796,6 @@ __ni_interface_process_newprefix(ni_interface_t *ifp, struct nlmsghdr *h, struct
 	struct nlattr *tb[PREFIX_MAX+1];
 	unsigned int expires = 0;
 	ni_sockaddr_t address;
-	ni_route_t *rp;
 
 	if (pfx->prefix_family != AF_INET6)
 		return 0;
@@ -826,7 +825,8 @@ __ni_interface_process_newprefix(ni_interface_t *ifp, struct nlmsghdr *h, struct
 
 	__ni_nla_get_addr(pfx->prefix_family, &address, tb[PREFIX_ADDRESS]);
 
-	rp = __ni_interface_add_autoconf_prefix(ifp, &address, pfx->prefix_len, expires);
+	if(__ni_interface_add_autoconf_prefix(ifp, &address, pfx->prefix_len, expires) == NULL)
+		return -1;
 	return 0;
 }
 

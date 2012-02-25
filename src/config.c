@@ -287,7 +287,6 @@ ni_config_parse_objectmodel_extension(ni_extension_t **list, xml_node_t *node)
 	for (child = node->children; child; child = child->next) {
 		if (!strcmp(child->name, "action")) {
 			const char *name, *command;
-			ni_shellcmd_t *process;
 
 			if (!(name = xml_node_get_attr(child, "name"))) {
 				ni_error("action element without name attribute");
@@ -298,7 +297,8 @@ ni_config_parse_objectmodel_extension(ni_extension_t **list, xml_node_t *node)
 				return -1;
 			}
 
-			process = ni_extension_script_new(ex, name, command);
+			if (!ni_extension_script_new(ex, name, command))
+				return -1;
 		} else
 		if (!strcmp(child->name, "builtin")) {
 			const char *name, *library, *symbol;
