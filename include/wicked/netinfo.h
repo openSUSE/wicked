@@ -253,6 +253,7 @@ extern ni_interface_t *	ni_interface_by_index(ni_netconfig_t *nic, unsigned int 
 extern ni_interface_t *	ni_interface_by_hwaddr(ni_netconfig_t *nic, const ni_hwaddr_t *lla);
 extern ni_interface_t *	ni_interface_by_vlan_name_and_tag(ni_netconfig_t *nc,
 				const char *physdev, uint16_t tag);
+extern const char *	ni_interface_make_name(ni_netconfig_t *, const char *);
 
 extern ni_interface_t *	ni_interface_new(ni_netconfig_t *, const char *name, unsigned int ifindex);
 extern ni_interface_t *	ni_interface_get(ni_interface_t *ifp);

@@ -96,23 +96,9 @@ __ni_objectmodel_bond_newlink(ni_interface_t *cfg_ifp, const char *ifname, DBusE
 
 	bond = ni_interface_get_bonding(cfg_ifp);
 
-	cfg_ifp->link.type = NI_IFTYPE_BOND;
-	if (ifname == NULL) {
-		static char namebuf[64];
-		unsigned int num;
-
-		for (num = 0; num < 65536; ++num) {
-			snprintf(namebuf, sizeof(namebuf), "bond%u", num);
-			if (!ni_interface_by_name(nc, namebuf)) {
-				ifname = namebuf;
-				break;
-			}
-		}
-
-		if (ifname == NULL) {
-			dbus_set_error(error, DBUS_ERROR_FAILED, "Unable to create bonding interface - too many interfaces");
-			return NULL;
-		}
+	if (ifname == NULL && !(ifname = ni_interface_make_name(nc, "bond"))) {
+		dbus_set_error(error, DBUS_ERROR_FAILED, "Unable to create bonding interface - too many interfaces");
+		goto out;
 	}
 
 	if ((rv = ni_system_bond_create(nc, cfg_ifp->name, bond, &new_ifp)) < 0) {
@@ -122,7 +108,7 @@ __ni_objectmodel_bond_newlink(ni_interface_t *cfg_ifp, const char *ifname, DBusE
 					DBUS_ERROR_FAILED,
 					"Unable to create bonding interface: %s",
 					ni_strerror(rv));
-			return NULL;
+			goto out;
 		}
 		ni_debug_dbus("Bonding interface exists (and name matches)");
 	}
@@ -136,6 +122,7 @@ __ni_objectmodel_bond_newlink(ni_interface_t *cfg_ifp, const char *ifname, DBusE
 		new_ifp = NULL;
 	}
 
+out:
 	if (cfg_ifp)
 		ni_interface_put(cfg_ifp);
 	return new_ifp;

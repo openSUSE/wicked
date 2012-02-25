@@ -268,6 +268,24 @@ ni_interface_by_vlan_name_and_tag(ni_netconfig_t *nc, const char *physdev_name, 
 }
 
 /*
+ * Create a unique interface name
+ */
+const char *
+ni_interface_make_name(ni_netconfig_t *nc, const char *stem)
+{
+	static char namebuf[64];
+	unsigned int num;
+
+	for (num = 0; num < 65536; ++num) {
+		snprintf(namebuf, sizeof(namebuf), "%s%u", stem, num);
+		if (!ni_interface_by_name(nc, namebuf))
+			return namebuf;
+	}
+
+	return NULL;
+}
+
+/*
  * Handle interface_request objects
  */
 ni_interface_request_t *
