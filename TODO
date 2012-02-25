@@ -4,14 +4,6 @@ wickedd:
 	- Get rid of interface_activity stuff
 
 wicked:
-	- Be less rigid with dependencies.
-
-	  For instance, if  we want to configure a vlan device, we
-	  can *create* the device as soon as the eth device is available.
-	  And we should do this, even is the link is not there. Lack of
-	  link on the eth device should only prevent us from bringing up
-	  the vlan link
-
 	- may want to move finite state machinery into the library
 	- when installing a policy for an auto device, also include a
 	  link-down policy that shuts it down again.

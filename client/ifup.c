@@ -79,6 +79,7 @@ struct ni_ifworker {
 	ni_ifworker_t *		exclusive_owner;
 
 	ni_netif_action_t *	actions;
+	ni_uint_range_t		child_states[__STATE_MAX];
 
 	ni_ifworker_t *		parent;
 	ni_ifworker_array_t	children;
@@ -324,6 +325,37 @@ ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *d
 	return child;
 }
 
+static void
+ni_ifworker_set_min_child_state_for(ni_ifworker_t *w, unsigned int dev_state, unsigned int child_state)
+{
+	ni_assert(dev_state < __STATE_MAX);
+	ni_uint_range_update_min(&w->child_states[dev_state], child_state);
+}
+
+static void
+ni_ifworker_set_max_child_state_for(ni_ifworker_t *w, unsigned int dev_state, unsigned int child_state)
+{
+	ni_assert(dev_state < __STATE_MAX);
+	ni_uint_range_update_max(&w->child_states[dev_state], child_state);
+}
+
+static void
+ni_ifworker_get_minmax_child_states(ni_ifworker_t *w, unsigned int *min_state, unsigned int *max_state)
+{
+	unsigned int st;
+
+	*min_state = STATE_NONE;
+	*max_state = __STATE_MAX;
+	for (st = 0; st < __STATE_MAX; ++st) {
+		const ni_uint_range_t *r = &w->child_states[st];
+
+		if (*min_state < r->min)
+			*min_state = r->min;
+		if (*max_state > r->max)
+			*max_state = r->max;
+	}
+}
+
 /* Create an event wait object */
 static void
 ni_ifworker_add_callbacks(ni_ifworker_t *w, ni_objectmodel_callback_info_t *callback_list)
@@ -447,41 +479,42 @@ ni_ifworker_set_target(ni_ifworker_t *w, unsigned int min_state, unsigned int ma
 
 		switch (w->iftype) {
 		case NI_IFTYPE_VLAN:
-			/* To brin a VLAN device up, the underlying eth device must be up.
+			/* To bring a VLAN device up, the underlying eth device must be up.
 			 * When bringing the VLAN down, don't touch the ethernet device,
 			 * as it's shared. */
 			if (min_state >= STATE_LINK_UP) {
-				min_state = STATE_LINK_UP;
-				max_state = __STATE_MAX;
+				ni_ifworker_set_min_child_state_for(w, STATE_DEVICE_UP, STATE_DEVICE_UP);
+				ni_ifworker_set_min_child_state_for(w, STATE_LINK_UP, STATE_LINK_UP);
 			} else {
 				return;
 			}
 			break;
 
 		case NI_IFTYPE_BRIDGE:
-			/* bridge device: the bridge ports should at least exist.
+			/* Bridge device: the bridge ports should at least exist.
 			 * However, in order to do anything useful, they should at
 			 * least have link.
 			 * We may later want to allow the config file to override
 			 * the initial state for specific bridge ports.
 			 */
 			if (min_state >= STATE_LINK_UP) {
-				min_state = STATE_LINK_UP;
-				max_state = __STATE_MAX;
+				ni_ifworker_set_min_child_state_for(w, STATE_DEVICE_UP, STATE_DEVICE_UP);
+				ni_ifworker_set_min_child_state_for(w, STATE_LINK_UP, STATE_LINK_UP);
 			}
 			break;
 
 		case NI_IFTYPE_BOND:
 			/* bond device: all slaves devices must exist and be down */
 			if (min_state >= STATE_LINK_UP) {
-				min_state = STATE_LINK_UP - 1;
-				max_state = STATE_LINK_UP - 1;
+				ni_ifworker_set_max_child_state_for(w, STATE_DEVICE_UP, STATE_LINK_UP - 1);
 			}
 			break;
 
 		default:
 			return;
 		}
+
+		ni_ifworker_get_minmax_child_states(w, &min_state, &max_state);
 
 		ni_debug_dbus("%s: marking all children min=%s max=%s", w->name,
 				ni_ifworker_state_name(min_state),
@@ -842,16 +875,34 @@ ni_ifworker_ready(const ni_ifworker_t *w)
 	return w->done || w->target_state == STATE_NONE || w->target_state == w->state;
 }
 
+/*
+ * The parent would like to move to the next state. See if all children are
+ * ready.
+ */
 static int
-ni_interface_children_ready(ni_ifworker_t *w)
+ni_interface_children_ready_for(ni_ifworker_t *w, unsigned int next_parent_state)
 {
+	const ni_uint_range_t *r;
 	unsigned int i;
+
+	ni_assert(next_parent_state < __STATE_MAX);
+	r = &w->child_states[next_parent_state];
 
 	for (i = 0; i < w->children.count; ++i) {
 		ni_ifworker_t *child = w->children.data[i];
 
-		if (!ni_ifworker_ready(child))
+		if (r->min != __STATE_MAX && child->state < r->min) {
+			ni_debug_dbus("%s: waiting for %s to reach state %s",
+					w->name, child->name,
+					ni_ifworker_state_name(r->min));
 			return 0;
+		}
+		if (r->max != STATE_NONE && child->state > r->max) {
+			ni_debug_dbus("%s: waiting for %s to reach state %s",
+					w->name, child->name,
+					ni_ifworker_state_name(r->max));
+			return 0;
+		}
 	}
 
 	return 1;
@@ -1391,7 +1442,10 @@ ni_ifworker_fsm_init(ni_ifworker_t *w)
 				w->name, ni_ifworker_state_name(w->target_state));
 	}
 
-	for (num_actions = 0, a = actions; a->func; ++num_actions, ++a) {
+	for (num_actions = 0, a = actions; a->func; ++a) {
+		/* Increment num_actions *before* we check whether we've reached
+		 * the target state. Otherwise we fail to include the last rule  */
+		++num_actions;
 		if (a->next_state == w->target_state)
 			break;
 	}
@@ -1426,7 +1480,7 @@ ni_ifworker_fsm(void)
 
 			/* If we're still waiting for children to become ready,
 			 * there's nothing we can do but wait. */
-			if (!ni_interface_children_ready(w))
+			if (!ni_interface_children_ready_for(w, w->actions->next_state))
 				continue;
 
 			/* We requested a change that takes time (such as acquiring
