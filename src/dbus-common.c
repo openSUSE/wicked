@@ -195,7 +195,7 @@ ni_dbus_object_set_properties_from_dict(ni_dbus_object_t *object,
 				dict,
 				&error);
 	dbus_error_free(&error);
-	return TRUE;
+	return rv;
 }
 
 /*
