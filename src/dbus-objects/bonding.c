@@ -446,7 +446,7 @@ static ni_dbus_method_t		ni_objectmodel_bond_methods[] = {
 };
 
 static ni_dbus_method_t		ni_objectmodel_bond_factory_methods[] = {
-	{ "newDevice",		"a{sv}",			ni_objectmodel_new_bond },
+	{ "newDevice",		"sa{sv}",			ni_objectmodel_new_bond },
 
 	{ NULL }
 };

@@ -186,7 +186,7 @@ static ni_dbus_method_t		ni_objectmodel_vlan_methods[] = {
 };
 
 static ni_dbus_method_t		ni_objectmodel_vlan_factory_methods[] = {
-	{ "newDevice",		"a{sv}",		ni_objectmodel_vlan_newlink },
+	{ "newDevice",		"sa{sv}",		ni_objectmodel_vlan_newlink },
 
 	{ NULL }
 };
