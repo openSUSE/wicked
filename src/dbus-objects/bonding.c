@@ -23,47 +23,108 @@
 #include "model.h"
 #include "debug.h"
 
+static ni_interface_t *	__ni_objectmodel_bond_newlink(ni_interface_t *, const char *, DBusError *);
 
 /*
  * Create a new bonding interface
  */
-ni_dbus_object_t *
-ni_objectmodel_new_bond(ni_dbus_server_t *server, const ni_dbus_object_t *config, DBusError *error)
+static dbus_bool_t
+ni_objectmodel_new_bond(ni_dbus_object_t *factory_object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
 {
-	ni_interface_t *cfg_ifp = ni_dbus_object_get_handle(config);
+	const ni_dbus_service_t *service;
+	ni_dbus_object_t *object = NULL;
+	ni_interface_t *ifp;
+	const char *ifname = NULL;
+	dbus_bool_t rv = FALSE;
+
+	service = ni_objectmodel_service_by_name(WICKED_DBUS_BONDING_INTERFACE);
+	ni_assert(service);
+
+	ifp = ni_interface_new(NULL, NULL, 0);
+	ifp->link.type = NI_IFTYPE_BOND;
+	object = ni_objectmodel_wrap_interface(ifp);
+
+	if (argc != 2
+	 || !ni_dbus_variant_get_string(&argv[0], &ifname)
+	 || !ni_dbus_object_set_properties_from_dict(object, service, &argv[1]))
+		goto bad_args;
+
+	if (!(ifp = __ni_objectmodel_bond_newlink(ifp, ifname, error))) {
+		rv = FALSE;
+	} else {
+		ni_dbus_server_t *server = ni_dbus_object_get_server(factory_object);
+		ni_dbus_variant_t result = NI_DBUS_VARIANT_INIT;
+		ni_dbus_object_t *new_object;
+
+		ni_trace("new if name=%s users=%u", ifp->name, ifp->users);
+
+		new_object = ni_dbus_server_find_object_by_handle(server, ifp);
+		if (new_object == NULL)
+			new_object = ni_objectmodel_register_interface(server, ifp);
+		if (!new_object)
+			goto out;
+
+		/* For now, we return a string here. This should really be an object-path,
+		 * though. */
+		ni_dbus_variant_set_string(&result, new_object->path);
+
+		rv = ni_dbus_message_serialize_variants(reply, 1, &result, error);
+		ni_dbus_variant_destroy(&result);
+	}
+
+out:
+	if (object)
+		ni_dbus_object_free(object);
+	return rv;
+
+bad_args:
+	dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "unable to extract arguments");
+	if (object)
+		ni_dbus_object_free(object);
+	return FALSE;
+}
+
+static ni_interface_t *
+__ni_objectmodel_bond_newlink(ni_interface_t *cfg_ifp, const char *ifname, DBusError *error)
+{
 	ni_netconfig_t *nc = ni_global_state_handle(0);
-	ni_interface_t *new_ifp;
+	ni_interface_t *new_ifp = NULL;
 	const ni_bonding_t *bond;
 	int rv;
 
 	bond = ni_interface_get_bonding(cfg_ifp);
 
 	cfg_ifp->link.type = NI_IFTYPE_BOND;
-	if (cfg_ifp->name == NULL) {
+	if (ifname == NULL) {
 		static char namebuf[64];
 		unsigned int num;
 
 		for (num = 0; num < 65536; ++num) {
 			snprintf(namebuf, sizeof(namebuf), "bond%u", num);
 			if (!ni_interface_by_name(nc, namebuf)) {
-				ni_string_dup(&cfg_ifp->name, namebuf);
+				ifname = namebuf;
 				break;
 			}
 		}
 
-		if (cfg_ifp->name == NULL) {
-			dbus_set_error(error, DBUS_ERROR_FAILED,
-					"Unable to create bonding interface - too many interfaces");
+		if (ifname == NULL) {
+			dbus_set_error(error, DBUS_ERROR_FAILED, "Unable to create bonding interface - too many interfaces");
 			return NULL;
 		}
 	}
 
 	if ((rv = ni_system_bond_create(nc, cfg_ifp->name, bond, &new_ifp)) < 0) {
-		dbus_set_error(error,
-				DBUS_ERROR_FAILED,
-				"Unable to create bonding interface: %s",
-				ni_strerror(rv));
-		return NULL;
+		if (rv != -NI_ERROR_INTERFACE_EXISTS
+		 && (ifname != NULL && strcmp(ifname, new_ifp->name))) {
+			dbus_set_error(error,
+					DBUS_ERROR_FAILED,
+					"Unable to create bonding interface: %s",
+					ni_strerror(rv));
+			return NULL;
+		}
+		ni_debug_dbus("Bonding interface exists (and name matches)");
 	}
 
 	if (new_ifp->link.type != NI_IFTYPE_BOND) {
@@ -71,10 +132,13 @@ ni_objectmodel_new_bond(ni_dbus_server_t *server, const ni_dbus_object_t *config
 				DBUS_ERROR_FAILED,
 				"Unable to create bonding interface: new interface is of type %s",
 				ni_linktype_type_to_name(new_ifp->link.type));
-		return NULL;
+		ni_interface_put(new_ifp);
+		new_ifp = NULL;
 	}
 
-	return ni_objectmodel_register_interface(server, new_ifp);
+	if (cfg_ifp)
+		ni_interface_put(cfg_ifp);
+	return new_ifp;
 }
 
 /*
@@ -334,7 +398,7 @@ static ni_dbus_property_t	ni_objectmodel_bond_properties[] = {
 
 
 static ni_dbus_method_t		ni_objectmodel_bond_methods[] = {
-	{ "delete",		"",		__ni_objectmodel_delete_bond },
+	{ "deleteDevice",	"",				__ni_objectmodel_delete_bond },
 #if 0
 	{ "addSlave",		DBUS_TYPE_OJECT_AS_STRING,	__ni_objectmodel_bond_add_slave },
 	{ "removeSlave",	DBUS_TYPE_OJECT_AS_STRING,	__ni_objectmodel_bond_remove_slave },
@@ -342,9 +406,19 @@ static ni_dbus_method_t		ni_objectmodel_bond_methods[] = {
 	{ NULL }
 };
 
-ni_dbus_service_t	ni_objectmodel_bond_service = {
-	.name = WICKED_DBUS_BONDING_INTERFACE,
-	.methods = ni_objectmodel_bond_methods,
-	.properties = ni_objectmodel_bond_properties,
+static ni_dbus_method_t		ni_objectmodel_bond_factory_methods[] = {
+	{ "newDevice",		"a{sv}",			ni_objectmodel_new_bond },
+
+	{ NULL }
 };
 
+ni_dbus_service_t	ni_objectmodel_bond_service = {
+	.name		= WICKED_DBUS_BONDING_INTERFACE,
+	.methods	= ni_objectmodel_bond_methods,
+	.properties	= ni_objectmodel_bond_properties,
+};
+
+ni_dbus_service_t	ni_objectmodel_bond_factory_service = {
+	.name		= WICKED_DBUS_BONDING_INTERFACE ".Factory",
+	.methods	= ni_objectmodel_bond_factory_methods,
+};

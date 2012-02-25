@@ -154,6 +154,7 @@ extern ni_dbus_server_t *	__ni_objectmodel_server;
 extern ni_dbus_service_t	wicked_dbus_ethernet_service;
 extern ni_dbus_service_t	wicked_dbus_bridge_service;
 extern ni_dbus_service_t	wicked_dbus_bond_service;
+extern ni_dbus_service_t	wicked_dbus_bond_factory_service;
 extern ni_dbus_service_t	wicked_dbus_bridge_port_dummy_service;
 extern ni_dbus_service_t	wicked_dbus_bond_port_dummy_service;
 
@@ -162,9 +163,6 @@ extern ni_dbus_object_t *	ni_objectmodel_new_vlan(ni_dbus_server_t *server,
 					const ni_dbus_object_t *config,
 					DBusError *error);
 extern ni_dbus_object_t *	ni_objectmodel_new_bridge(ni_dbus_server_t *server,
-					const ni_dbus_object_t *config,
-					DBusError *error);
-extern ni_dbus_object_t *	ni_objectmodel_new_bond(ni_dbus_server_t *server,
 					const ni_dbus_object_t *config,
 					DBusError *error);
 extern ni_dbus_object_t *	ni_objectmodel_new_ppp(ni_dbus_server_t *server,
