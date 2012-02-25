@@ -921,82 +921,87 @@ out:
 
 /*
  * Finite state machine - create the device if it does not exist
- * Note this is called for all virtual devices, because the newDevice
+ * Note this is called for all virtual devices, because the deviceNew
  * call also takes care of setting up things like the ports assigned
  * to a bridge.
  */
 static int
 ni_ifworker_do_device_up(ni_ifworker_t *w)
 {
+	ni_objectmodel_callback_info_t *callback_list = NULL;
 	const ni_dbus_service_t *service;
 	xml_node_t *linknode;
 	const char *link_type;
-	const char *object_path;
 
 	ni_debug_dbus("%s(%s)", __func__, w->name);
-	if (!(linknode = ni_ifworker_find_link_properties(w))) {
-		/* If the device exists, this is not an error */
-		if (w->device != NULL)
-			goto device_is_up;
+	linknode = ni_ifworker_find_link_properties(w);
 
-		ni_ifworker_fail(w, "cannot create interface: no link layer config");
-		return -1;
+	if (w->device == NULL) {
+		const char *relative_path;
+		char *object_path;
+
+		if (linknode == NULL) {
+			ni_ifworker_fail(w, "cannot create interface: no link layer config");
+			return -1;
+		}
+
+		link_type = linknode->name;
+		if (!(service = ni_call_link_layer_factory_service(link_type))) {
+			ni_ifworker_fail(w, "unknown/unsupported link type %s", link_type);
+			return -1;
+		}
+
+		object_path = ni_call_device_new_xml(service, w->name, linknode);
+		if (object_path == NULL) {
+			ni_ifworker_fail(w, "failed to create interface");
+			return -1;
+		}
+
+		ni_debug_dbus("created device %s (path=%s)", w->name, object_path);
+		ni_string_dup(&w->object_path, object_path);
+
+		relative_path = ni_string_strip_prefix(WICKED_DBUS_OBJECT_PATH "/", object_path);
+		if (relative_path == NULL) {
+			ni_ifworker_fail(w, "invalid device path %s", object_path);
+			ni_string_free(&object_path);
+			return -1;
+		}
+
+		/* Lookup the object corresponding to this path. If it doesn't
+		 * exist, create it on the fly (with a generic class of "netif" -
+		 * the next refresh call with take care of this and correct the
+		 * class */
+		w->object = ni_dbus_object_create(__root_object, relative_path,
+					NULL,
+					NULL);
+
+		ni_string_free(&object_path);
 	}
+
+	if (linknode == NULL)
+		goto device_is_up;
+
 	link_type = linknode->name;
 
-	if (!(service = ni_call_link_layer_factory_service(link_type))) {
-		ni_objectmodel_callback_info_t *callback_list = NULL;
-
-		if (w->device == NULL) {
-			ni_ifworker_fail(w, "unknown/unsupported link type %s", link_type);
-			return -1;
-		}
-
-		if ((service = ni_call_link_layer_service(link_type)) == NULL
-		 || !ni_dbus_service_get_method(service, "linkChange")) {
-			/* We're asked to configure the link layer, but the
-			 * service doesn't exist or doesn't support it. */
-			ni_ifworker_fail(w, "unknown/unsupported link type %s", link_type);
-			return -1;
-		}
-
-		if (!ni_call_link_change_xml(w->object, linknode, &callback_list, ni_ifworker_error_handler)) {
-			ni_ifworker_fail(w, "failed to configure %s device", link_type);
-			return -1;
-		}
-
-		if (callback_list) {
-			ni_ifworker_add_callbacks(w, callback_list);
-			w->wait_for_state = STATE_DEVICE_UP;
-			return 0;
-		}
-
+	/* See if there's a link layer service for this link type, and if it
+	 * has a linkChange method. If not, this is not fatal; we just ignore
+	 * bogus/unsupported link info for now because it's used for both
+	 * deviceNew and linkChange.
+	 */
+	if ((service = ni_call_link_layer_service(link_type)) == NULL
+	 || !ni_dbus_service_get_method(service, "linkChange"))
 		goto device_is_up;
-	}
 
-	object_path = ni_call_device_new_xml(service, w->name, linknode);
-	if (object_path == NULL) {
-		ni_error("%s: failed to create interface", w->name);
+	if (!ni_call_link_change_xml(w->object, linknode, &callback_list, ni_ifworker_error_handler)) {
+		ni_ifworker_fail(w, "failed to configure %s device", link_type);
 		return -1;
 	}
 
-	ni_debug_dbus("created device %s (path=%s)", w->name, object_path);
-	ni_string_dup(&w->object_path, object_path);
-
-	{
-		unsigned int len = strlen("/com/suse/Wicked/");
-
-		ni_assert(!strncmp(object_path, "/com/suse/Wicked/", len));
-		object_path += len;
+	if (callback_list) {
+		ni_ifworker_add_callbacks(w, callback_list);
+		w->wait_for_state = STATE_DEVICE_UP;
+		return 0;
 	}
-
-	/* Lookup the object corresponding to this path. If it doesn't
-	 * exist, create it on the fly (with a generic class of "netif" -
-	 * the next refresh call with take care of this and correct the
-	 * class */
-	w->object = ni_dbus_object_create(__root_object, object_path,
-				NULL,
-				NULL);
 
 device_is_up:
 	w->state = STATE_DEVICE_UP;
