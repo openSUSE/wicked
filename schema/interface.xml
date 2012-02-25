@@ -132,9 +132,6 @@
   </method>
 
   <method name="linkDown">
-    <arguments>
-      <request type="link-request" />
-    </arguments>
     <return>
       <callback-info/>
     </return>
