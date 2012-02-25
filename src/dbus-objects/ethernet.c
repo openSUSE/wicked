@@ -78,3 +78,15 @@ const ni_dbus_property_t	ni_objectmodel_ethernet_property_table[] = {
 
 	{ NULL }
 };
+
+static ni_dbus_method_t		ni_objectmodel_ethernet_methods[] = {
+//	{ "changeDevice",	"",			ni_objectmodel_ethernet_change },
+	{ NULL }
+};
+
+ni_dbus_service_t	ni_objectmodel_ethernet_service = {
+	.name		= WICKED_DBUS_ETHERNET_INTERFACE,
+	.methods	= ni_objectmodel_ethernet_methods,
+	.properties	= ni_objectmodel_ethernet_property_table,
+};
+

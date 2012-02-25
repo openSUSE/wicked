@@ -179,3 +179,26 @@ const ni_dbus_property_t	ni_objectmodel_vlan_property_table[] = {
 	VLAN_UINT16_PROPERTY(tag, tag, RO),
 	{ NULL }
 };
+
+static ni_dbus_method_t		ni_objectmodel_vlan_methods[] = {
+	{ "deleteDevice",	"",			ni_objectmodel_vlan_delete },
+	{ NULL }
+};
+
+static ni_dbus_method_t		ni_objectmodel_vlan_factory_methods[] = {
+	{ "newDevice",		"a{sv}",		ni_objectmodel_vlan_newlink },
+
+	{ NULL }
+};
+
+ni_dbus_service_t	ni_objectmodel_vlan_factory_service = {
+	.name		= WICKED_DBUS_VLAN_INTERFACE ".Factory",
+	.methods	= ni_objectmodel_vlan_factory_methods,
+};
+
+ni_dbus_service_t	ni_objectmodel_vlan_service = {
+	.name		= WICKED_DBUS_VLAN_INTERFACE,
+	.methods	= ni_objectmodel_vlan_methods,
+	.properties	= ni_objectmodel_vlan_property_table,
+};
+

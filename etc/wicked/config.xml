@@ -12,8 +12,6 @@
   <schema name="/etc/wicked/schema/wicked.xml"/>
 
   <extension interface="com.suse.Wicked.Ethernet">
-   <builtin name="__properties" symbol="ni_objectmodel_ethernet_property_table" />
-
    <!-- default environment for all calls to this extension script -->
    <putenv name="WICKED_OBJECT_PATH" value="$object-path"/>
    <putenv name="WICKED_INTERFACE_NAME" value="$property:name"/>
@@ -21,16 +19,9 @@
   </extension>
 
   <extension interface="com.suse.Wicked.VLAN">
-   <builtin name="__properties" symbol="ni_objectmodel_vlan_property_table" />
-   <builtin name="deleteDevice" symbol="ni_objectmodel_vlan_delete" />
-  </extension>
-
-  <extension interface="com.suse.Wicked.VLAN.Factory">
-   <builtin name="newDevice" symbol="ni_objectmodel_vlan_newlink" />
   </extension>
 
   <extension interface="com.suse.Wicked.Bond">
-   <action name="deleteDevice" command="/etc/wicked/extensions/bonding delete" />
    <action name="addSlave" command="/etc/wicked/extensions/bonding addSlave" />
    <action name="removeSlave" command="/etc/wicked/extensions/bonding removeSlave" />
 
@@ -38,10 +29,6 @@
    <putenv name="WICKED_OBJECT_PATH" value="$object-path"/>
    <putenv name="WICKED_INTERFACE_NAME" value="$property:name"/>
    <putenv name="WICKED_INTERFACE_INDEX" value="$property:index"/>
-  </extension>
-
-  <extension interface="com.suse.Wicked.Bond.Factory">
-   <action name="newDevice" command="/etc/wicked/extensions/bonding create" />
   </extension>
 
   <extension interface="com.suse.Wicked.Bridge">
