@@ -23,6 +23,7 @@
 #include "model.h"
 #include "debug.h"
 
+static ni_interface_t *	__ni_objectmodel_bond_device_arg(const ni_dbus_variant_t *);
 static ni_interface_t *	__ni_objectmodel_bond_newlink(ni_interface_t *, const char *, DBusError *);
 
 /*
@@ -33,22 +34,13 @@ ni_objectmodel_new_bond(ni_dbus_object_t *factory_object, const ni_dbus_method_t
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
-	const ni_dbus_service_t *service;
-	ni_dbus_object_t *object = NULL;
 	ni_interface_t *ifp;
 	const char *ifname = NULL;
 	dbus_bool_t rv = FALSE;
 
-	service = ni_objectmodel_service_by_name(WICKED_DBUS_BONDING_INTERFACE);
-	ni_assert(service);
-
-	ifp = ni_interface_new(NULL, NULL, 0);
-	ifp->link.type = NI_IFTYPE_BOND;
-	object = ni_objectmodel_wrap_interface(ifp);
-
-	if (argc != 2
-	 || !ni_dbus_variant_get_string(&argv[0], &ifname)
-	 || !ni_dbus_object_set_properties_from_dict(object, service, &argv[1]))
+	ni_assert(argc == 2);
+	if (!ni_dbus_variant_get_string(&argv[0], &ifname)
+	 || !(ifp = __ni_objectmodel_bond_device_arg(&argv[1])))
 		goto bad_args;
 
 	if (!(ifp = __ni_objectmodel_bond_newlink(ifp, ifname, error))) {
@@ -75,14 +67,10 @@ ni_objectmodel_new_bond(ni_dbus_object_t *factory_object, const ni_dbus_method_t
 	}
 
 out:
-	if (object)
-		ni_dbus_object_free(object);
 	return rv;
 
 bad_args:
 	dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "unable to extract arguments");
-	if (object)
-		ni_dbus_object_free(object);
 	return FALSE;
 }
 
@@ -129,6 +117,66 @@ out:
 }
 
 /*
+ * Bonding.changeDevice method
+ */
+static dbus_bool_t
+ni_objectmodel_bond_setup(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_netconfig_t *nc = ni_global_state_handle(0);
+	ni_interface_t *ifp, *cfg;
+	dbus_bool_t rv = FALSE;
+
+	/* we've already checked that argv matches our signature */
+	ni_assert(argc == 1);
+
+	if (!(ifp = ni_objectmodel_unwrap_interface(object, error)))
+		return FALSE;
+
+	if (!(cfg = __ni_objectmodel_bond_device_arg(&argv[0]))) {
+		ni_dbus_error_invalid_args(error, object->path, method->name);
+		goto out;
+	}
+
+	if (ni_system_bond_setup(nc, ifp, cfg->bonding) < 0) {
+		dbus_set_error(error, DBUS_ERROR_FAILED, "failed to set up bonding device");
+		goto out;
+	}
+
+	rv = TRUE;
+
+out:
+	if (cfg)
+		ni_interface_put(cfg);
+	return rv;
+}
+
+/*
+ * Common helper function to extract bonding device info from a dbus dict
+ */
+static ni_interface_t *
+__ni_objectmodel_bond_device_arg(const ni_dbus_variant_t *dict)
+{
+	ni_dbus_object_t *dev_object;
+	ni_interface_t *dev;
+	dbus_bool_t rv;
+
+	dev = ni_interface_new(NULL, NULL, 0);
+	dev->link.type = NI_IFTYPE_BOND;
+
+	dev_object = ni_objectmodel_wrap_interface(dev);
+	rv = ni_dbus_object_set_properties_from_dict(dev_object, &ni_objectmodel_bond_service, dict);
+	ni_dbus_object_free(dev_object);
+
+	if (!rv) {
+		ni_interface_put(dev);
+		dev = NULL;
+	}
+	return dev;
+}
+
+/*
  * Bonding.delete method
  */
 static dbus_bool_t
@@ -137,7 +185,10 @@ __ni_objectmodel_delete_bond(ni_dbus_object_t *object, const ni_dbus_method_t *m
 			ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_netconfig_t *nc = ni_global_state_handle(0);
-	ni_interface_t *ifp = object->handle;
+	ni_interface_t *ifp;
+
+	if (!(ifp = ni_objectmodel_unwrap_interface(object, error)))
+		return FALSE;
 
 	NI_TRACE_ENTER_ARGS("ifp=%s", ifp->name);
 	if (ni_system_bond_delete(nc, ifp) < 0) {
@@ -385,6 +436,7 @@ static ni_dbus_property_t	ni_objectmodel_bond_properties[] = {
 
 
 static ni_dbus_method_t		ni_objectmodel_bond_methods[] = {
+	{ "changeDevice",	"",				ni_objectmodel_bond_setup },
 	{ "deleteDevice",	"",				__ni_objectmodel_delete_bond },
 #if 0
 	{ "addSlave",		DBUS_TYPE_OJECT_AS_STRING,	__ni_objectmodel_bond_add_slave },

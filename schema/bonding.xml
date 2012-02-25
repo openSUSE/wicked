@@ -40,6 +40,12 @@
 
  <properties type="linkinfo"/>
 
+ <method name="newDevice">
+   <arguments>
+    <bond type="bonding:linkconfig"/>
+   </arguments>
+ </method>
+
  <method name="addSlave">
   <arguments>
    <name type="string" />
