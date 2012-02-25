@@ -166,5 +166,7 @@ ni_string_eq(const char *a, const char *b)
 	return strcmp(a, b) == 0;
 }
 
+extern const char *	ni_string_strip_prefix(const char *, const char *);
+
 #endif /* __WICKED_UTIL_H__ */
 

@@ -595,6 +595,20 @@ ni_string_set(char **pp, const char *value, unsigned int len)
 	}
 }
 
+const char *
+ni_string_strip_prefix(const char *prefix, const char *string)
+{
+	unsigned int len;
+
+	if (!prefix || !string)
+		return string;
+
+	len = strlen(prefix);
+	if (!strncmp(string, prefix, len))
+		return string + len;
+	return NULL;
+}
+
 int
 ni_parse_int(const char *input, unsigned int *result)
 {
