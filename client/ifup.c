@@ -593,8 +593,10 @@ mark_matching_interfaces(const char *match_name, unsigned int target_state, int 
 static xml_node_t *
 ni_ifworker_find_link_properties(const ni_ifworker_t *w)
 {
-	xml_node_t *ifnode = w->config;
-	xml_node_t *child, *found = NULL;
+	xml_node_t *ifnode, *child, *found = NULL;
+
+	if ((ifnode = w->config) == NULL)
+		return NULL;
 
 	for (child = ifnode->children; child; child = child->next) {
 		if (ni_linktype_name_to_type(child->name) >= 0) {
