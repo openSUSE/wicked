@@ -620,7 +620,10 @@ __ni_dbus_watch_handle(const char *func, ni_socket_t *sock, int flags)
 	 * loop over all watches.
 	 */
 	for (wd = ni_dbus_watches; wd; wd = wd->next) {
-		int old_watch_flags, new_watch_flags;
+		int new_watch_flags;
+#ifdef DEBUG_WATCH_VERBOSE
+		int old_watch_flags;
+#endif
 
 		if (wd->socket != sock)
 			continue;
@@ -630,9 +633,9 @@ __ni_dbus_watch_handle(const char *func, ni_socket_t *sock, int flags)
 		ni_debug_dbus("%s(watch=%p, fd=%d, flags=%s)",
 				func, wd->watch, dbus_watch_get_socket(wd->watch),
 				__ni_dbus_watch_flags(flags));
-#endif
 
 		old_watch_flags = dbus_watch_get_flags(wd->watch);
+#endif
 		dbus_watch_handle(wd->watch, flags);
 
 		if (flags & (DBUS_WATCH_READABLE | DBUS_WATCH_WRITABLE)) {
