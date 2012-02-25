@@ -122,10 +122,12 @@ ni_ifworker_new(const char *name, xml_node_t *config)
 }
 
 static void
-ni_ifworker_free(ni_ifworker_t *state)
+ni_ifworker_free(ni_ifworker_t *w)
 {
-	ni_string_free(&state->name);
-	ni_ifworker_array_destroy(&state->children);
+	ni_string_free(&w->name);
+	ni_ifworker_array_destroy(&w->children);
+	if (w->actions)
+		free(w->actions);
 }
 
 static inline void
@@ -1351,19 +1353,6 @@ static ni_netif_action_t	ni_ifworker_fsm_down[] = {
 	/* Shut down the firewall */
 	{ .next_state = STATE_DEVICE_UP,	.func = ni_ifworker_do_firewall_down },
 
-	{ .next_state = STATE_NONE, .func = NULL }
-};
-
-static ni_netif_action_t	ni_ifworker_fsm_delete[] = {
-	/* Remove all assigned addresses and bring down the network */
-	{ .next_state = STATE_LINK_UP,		.func = ni_ifworker_do_network_down },
-
-	/* Shut down the link */
-	{ .next_state = STATE_FIREWALL_UP,	.func = ni_ifworker_do_link_down },
-
-	/* Shut down the firewall */
-	{ .next_state = STATE_DEVICE_UP,	.func = ni_ifworker_do_firewall_down },
-
 	/* Delete the device */
 	{ .next_state = STATE_DEVICE_DOWN,	.func = ni_ifworker_do_device_delete },
 
@@ -1373,27 +1362,42 @@ static ni_netif_action_t	ni_ifworker_fsm_delete[] = {
 static void
 ni_ifworker_fsm_init(ni_ifworker_t *w)
 {
-	switch (w->target_state) {
+	const ni_netif_action_t *actions, *a;
+	unsigned int num_actions;
+	unsigned int target_state;
+
+	if (w->actions != NULL)
+		return;
+
+	/* If the --delete option was given, but the specific device cannot
+	 * be deleted, then we don't try. */
+	target_state = w->target_state;
+	if (target_state == STATE_DEVICE_DOWN && !ni_ifworker_can_delete(w))
+		target_state = STATE_DEVICE_UP;
+
+	switch (target_state) {
 	case STATE_ADDRCONF_UP:
 	case STATE_LINK_UP:
-		w->actions = ni_ifworker_fsm_up;
+		actions = ni_ifworker_fsm_up;
 		break;
 
 	case STATE_DEVICE_UP:
-		w->actions = ni_ifworker_fsm_down;
-		break;
-
 	case STATE_DEVICE_DOWN:
-		if (ni_ifworker_can_delete(w))
-			w->actions = ni_ifworker_fsm_delete;
-		else
-			w->actions = ni_ifworker_fsm_down;
+		actions = ni_ifworker_fsm_down;
 		break;
 
 	default:
 		ni_fatal("%s: cannot assign fsm for target state %s",
 				w->name, ni_ifworker_state_name(w->target_state));
 	}
+
+	for (num_actions = 0, a = actions; a->func; ++num_actions, ++a) {
+		if (a->next_state == w->target_state)
+			break;
+	}
+
+	w->actions = calloc(num_actions + 1, sizeof(ni_netif_action_t));
+	memcpy(w->actions, actions, num_actions * sizeof(ni_netif_action_t));
 }
 
 static unsigned int
