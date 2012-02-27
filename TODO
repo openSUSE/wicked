@@ -64,29 +64,6 @@ events
 policy
 	- Add ACLs to individual REST nodes
 
-wicked
-	- implement incremental configuration changes
-	  such as adding/removing a single address, or
-	  adding/removing a single bridge port.
-
-	  PUT replaces node content, POST adds child element to
-	  node, DELETE deletes node
-
-	  Use xpath expressions to address which part
-	  of the configuration to change:
-
-	  * Add bridge port:
-		  POST /system/interface/ifname/bridge/ports
-		  (body contains <interface name="eth1">)
-
-	  * Remove bridge port:
-		  DELETE /system/interface/ifname/bridge/ports/interface[name = 'eth1']
-		  (body is empty)
-
-	  * Add address/route to interface
-		  POST /system/interface/ifname/protocol[family = 'ipv4']
-		  (body contains <address> and <route> elements)
-
 other link layers, totally unsupported as of yet
 	- infiniband
 	- token ring
