@@ -169,6 +169,7 @@ __ni_dbus_object_set_properties_from_dict(ni_dbus_object_t *object,
 					object->path, context, entry->key,
 					ni_dbus_variant_sprint(&entry->datum),
 					error->name, error->message);
+			dbus_error_free(error);
 			continue;
 		}
 
