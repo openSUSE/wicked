@@ -167,7 +167,7 @@ __ni_objectmodel_bridge_device_arg(const ni_dbus_variant_t *dict)
 	dbus_bool_t rv;
 
 	dev = ni_interface_new(NULL, NULL, 0);
-	dev->link.type = NI_IFTYPE_BOND;
+	dev->link.type = NI_IFTYPE_BRIDGE;
 
 	dev_object = ni_objectmodel_wrap_interface(dev);
 	rv = ni_dbus_object_set_properties_from_dict(dev_object, &ni_objectmodel_bridge_service, dict);
