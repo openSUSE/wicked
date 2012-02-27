@@ -33,7 +33,7 @@ static ni_route_t *		__ni_objectmodel_route_from_dict(ni_route_t **, const ni_db
  * Helper functions for getting and setting socket addresses
  */
 static inline dbus_bool_t
-__wicked_dbus_get_opaque(const ni_dbus_variant_t *var, ni_opaque_t *packed)
+__ni_objectmodel_get_opaque(const ni_dbus_variant_t *var, ni_opaque_t *packed)
 {
 	unsigned int len;
 
@@ -44,7 +44,7 @@ __wicked_dbus_get_opaque(const ni_dbus_variant_t *var, ni_opaque_t *packed)
 }
 
 static inline dbus_bool_t
-__wicked_dbus_add_sockaddr(ni_dbus_variant_t *dict, const char *name, const ni_sockaddr_t *sockaddr)
+__ni_objectmodel_add_sockaddr(ni_dbus_variant_t *dict, const char *name, const ni_sockaddr_t *sockaddr)
 {
 	ni_opaque_t packed;
 
@@ -55,7 +55,7 @@ __wicked_dbus_add_sockaddr(ni_dbus_variant_t *dict, const char *name, const ni_s
 }
 
 static inline dbus_bool_t
-__wicked_dbus_add_sockaddr_prefix(ni_dbus_variant_t *dict, const char *name, const ni_sockaddr_t *sockaddr, unsigned int prefix_len)
+__ni_objectmodel_add_sockaddr_prefix(ni_dbus_variant_t *dict, const char *name, const ni_sockaddr_t *sockaddr, unsigned int prefix_len)
 {
 	ni_opaque_t packed;
 
@@ -66,14 +66,14 @@ __wicked_dbus_add_sockaddr_prefix(ni_dbus_variant_t *dict, const char *name, con
 }
 
 static inline dbus_bool_t
-__wicked_dbus_get_sockaddr(const ni_dbus_variant_t *dict, const char *name, ni_sockaddr_t *sockaddr)
+__ni_objectmodel_get_sockaddr(const ni_dbus_variant_t *dict, const char *name, ni_sockaddr_t *sockaddr)
 {
 	const ni_dbus_variant_t *var;
 	ni_opaque_t packed;
 
 	if (!(var = ni_dbus_dict_get(dict, name)))
 		return FALSE;
-	if (!__wicked_dbus_get_opaque(var, &packed))
+	if (!__ni_objectmodel_get_opaque(var, &packed))
 		return FALSE;
 	if (!ni_sockaddr_unpack(sockaddr, &packed))
 		return FALSE;
@@ -82,14 +82,14 @@ __wicked_dbus_get_sockaddr(const ni_dbus_variant_t *dict, const char *name, ni_s
 }
 
 static inline dbus_bool_t
-__wicked_dbus_get_sockaddr_prefix(const ni_dbus_variant_t *dict, const char *name, ni_sockaddr_t *sockaddr, unsigned int *prefixlen)
+__ni_objectmodel_get_sockaddr_prefix(const ni_dbus_variant_t *dict, const char *name, ni_sockaddr_t *sockaddr, unsigned int *prefixlen)
 {
 	const ni_dbus_variant_t *var;
 	ni_opaque_t packed;
 
 	if (!(var = ni_dbus_dict_get(dict, name)))
 		return FALSE;
-	if (!__wicked_dbus_get_opaque(var, &packed))
+	if (!__ni_objectmodel_get_opaque(var, &packed))
 		return FALSE;
 	if (!ni_sockaddr_prefix_unpack(sockaddr, prefixlen, &packed))
 		return FALSE;
@@ -103,7 +103,7 @@ __wicked_dbus_get_sockaddr_prefix(const ni_dbus_variant_t *dict, const char *nam
  * zero length array.
  */
 static inline void
-__wicked_dbus_set_string_array(ni_dbus_variant_t *dict, const char *name, const ni_string_array_t *ap)
+__ni_objectmodel_set_string_array(ni_dbus_variant_t *dict, const char *name, const ni_string_array_t *ap)
 {
 	ni_dbus_variant_t *child;
 
@@ -114,7 +114,7 @@ __wicked_dbus_set_string_array(ni_dbus_variant_t *dict, const char *name, const 
 }
 
 static inline dbus_bool_t
-__wicked_dbus_get_string_array(ni_string_array_t *ap, const ni_dbus_variant_t *var, DBusError *error)
+__ni_objectmodel_get_string_array(ni_string_array_t *ap, const ni_dbus_variant_t *var, DBusError *error)
 {
 	unsigned int i, len;
 
@@ -143,7 +143,7 @@ __wicked_dbus_get_string_array(ni_string_array_t *ap, const ni_dbus_variant_t *v
  *  </array>
  */
 dbus_bool_t
-__wicked_dbus_get_address_list(ni_address_t *list,
+__ni_objectmodel_get_address_list(ni_address_t *list,
 				ni_dbus_variant_t *result,
 				DBusError *error)
 {
@@ -166,7 +166,7 @@ __wicked_dbus_get_address_list(ni_address_t *list,
 }
 
 dbus_bool_t
-__wicked_dbus_set_address_list(ni_address_t **list,
+__ni_objectmodel_set_address_list(ni_address_t **list,
 				const ni_dbus_variant_t *argument,
 				DBusError *error)
 {
@@ -253,11 +253,11 @@ __ni_objectmodel_set_address_dict(ni_address_t **list,
 dbus_bool_t
 __ni_objectmodel_address_to_dict(const ni_address_t *ap, ni_dbus_variant_t *dict)
 {
-	__wicked_dbus_add_sockaddr_prefix(dict, "local", &ap->local_addr, ap->prefixlen);
+	__ni_objectmodel_add_sockaddr_prefix(dict, "local", &ap->local_addr, ap->prefixlen);
 	if (ap->peer_addr.ss_family == ap->family)
-		__wicked_dbus_add_sockaddr(dict, "peer", &ap->peer_addr);
+		__ni_objectmodel_add_sockaddr(dict, "peer", &ap->peer_addr);
 	if (ap->anycast_addr.ss_family == ap->family)
-		__wicked_dbus_add_sockaddr(dict, "anycast", &ap->anycast_addr);
+		__ni_objectmodel_add_sockaddr(dict, "anycast", &ap->anycast_addr);
 
 	if (ap->config_lease)
 		ni_dbus_dict_add_uint32(dict, "owner", ap->config_lease->type);
@@ -272,11 +272,11 @@ __ni_objectmodel_address_from_dict(ni_address_t **list, const ni_dbus_variant_t 
 	ni_sockaddr_t local_addr;
 	unsigned int prefixlen;
 
-	if (__wicked_dbus_get_sockaddr_prefix(dict, "local", &local_addr, &prefixlen)) {
+	if (__ni_objectmodel_get_sockaddr_prefix(dict, "local", &local_addr, &prefixlen)) {
 		ap = __ni_address_new(list, local_addr.ss_family, prefixlen, &local_addr);
 
-		__wicked_dbus_get_sockaddr(dict, "peer", &ap->peer_addr);
-		__wicked_dbus_get_sockaddr(dict, "anycast", &ap->anycast_addr);
+		__ni_objectmodel_get_sockaddr(dict, "peer", &ap->peer_addr);
+		__ni_objectmodel_get_sockaddr(dict, "anycast", &ap->anycast_addr);
 
 #if 0
 		if (ni_dbus_dict_get_uint32(dict, "owner", &value))
@@ -301,7 +301,7 @@ __ni_objectmodel_address_from_dict(ni_address_t **list, const ni_dbus_variant_t 
  *  </array>
  */
 dbus_bool_t
-__wicked_dbus_get_route_list(ni_route_t *list,
+__ni_objectmodel_get_route_list(ni_route_t *list,
 				ni_dbus_variant_t *result,
 				DBusError *error)
 {
@@ -329,7 +329,7 @@ __wicked_dbus_get_route_list(ni_route_t *list,
  * Build a route list from a dbus dict
  */
 dbus_bool_t
-__wicked_dbus_set_route_list(ni_route_t **list,
+__ni_objectmodel_set_route_list(ni_route_t **list,
 				const ni_dbus_variant_t *argument,
 				DBusError *error)
 {
@@ -418,7 +418,7 @@ __ni_objectmodel_route_to_dict(const ni_route_t *rp, ni_dbus_variant_t *dict)
 {
 	const ni_route_nexthop_t *nh;
 
-	__wicked_dbus_add_sockaddr_prefix(dict, "destination", &rp->destination, rp->prefixlen);
+	__ni_objectmodel_add_sockaddr_prefix(dict, "destination", &rp->destination, rp->prefixlen);
 	if (rp->config_lease)
 		ni_dbus_dict_add_uint32(dict, "owner", rp->config_lease->type);
 	if (rp->mtu)
@@ -435,7 +435,7 @@ __ni_objectmodel_route_to_dict(const ni_route_t *rp, ni_dbus_variant_t *dict)
 			nhdict = ni_dbus_dict_add(dict, "nexthop");
 			ni_dbus_variant_init_dict(nhdict);
 
-			__wicked_dbus_add_sockaddr(nhdict, "gateway", &nh->gateway);
+			__ni_objectmodel_add_sockaddr(nhdict, "gateway", &nh->gateway);
 			if (nh->device)
 				ni_dbus_dict_add_string(nhdict, "device", nh->device);
 			if (nh->weight)
@@ -456,7 +456,7 @@ __ni_objectmodel_route_from_dict(ni_route_t **list, const ni_dbus_variant_t *dic
 	ni_sockaddr_t destination;
 	ni_route_t *rp;
 
-	if (!__wicked_dbus_get_sockaddr_prefix(dict, "destination", &destination, &prefixlen))
+	if (!__ni_objectmodel_get_sockaddr_prefix(dict, "destination", &destination, &prefixlen))
 		return NULL;
 
 	rp = __ni_route_new(list, prefixlen, &destination, NULL);
@@ -480,7 +480,7 @@ __ni_objectmodel_route_from_dict(ni_route_t **list, const ni_dbus_variant_t *dic
 			uint32_t value;
 			ni_sockaddr_t gateway;
 
-			if (!__wicked_dbus_get_sockaddr(nhdict, "gateway", &gateway)) {
+			if (!__ni_objectmodel_get_sockaddr(nhdict, "gateway", &gateway)) {
 				ni_debug_dbus("%s: bad nexthop gateway", __func__);
 				return FALSE;
 			}
@@ -509,7 +509,7 @@ __ni_objectmodel_route_from_dict(ni_route_t **list, const ni_dbus_variant_t *dic
  * Build a DBus dict from an addrconf lease
  */
 dbus_bool_t
-__wicked_dbus_get_addrconf_lease(const ni_addrconf_lease_t *lease,
+__ni_objectmodel_get_addrconf_lease(const ni_addrconf_lease_t *lease,
 						ni_dbus_variant_t *result,
 						DBusError *error)
 {
@@ -526,13 +526,13 @@ __wicked_dbus_get_addrconf_lease(const ni_addrconf_lease_t *lease,
 	if (lease->addrs) {
 		child = ni_dbus_dict_add(result, "addresses");
 		ni_dbus_dict_array_init(child);
-		if (!__wicked_dbus_get_address_list(lease->addrs, child, error))
+		if (!__ni_objectmodel_get_address_list(lease->addrs, child, error))
 			return FALSE;
 	}
 	if (lease->routes) {
 		child = ni_dbus_dict_add(result, "routes");
 		ni_dbus_dict_array_init(child);
-		if (!__wicked_dbus_get_route_list(lease->routes, child, error))
+		if (!__ni_objectmodel_get_route_list(lease->routes, child, error))
 			return FALSE;
 	}
 
@@ -544,21 +544,21 @@ __wicked_dbus_get_addrconf_lease(const ni_addrconf_lease_t *lease,
 
 		if (resolv->default_domain)
 			ni_dbus_dict_add_string(child, "default-domain", resolv->default_domain);
-		__wicked_dbus_set_string_array(child, "servers", &resolv->dns_servers);
-		__wicked_dbus_set_string_array(child, "search", &resolv->dns_search);
+		__ni_objectmodel_set_string_array(child, "servers", &resolv->dns_servers);
+		__ni_objectmodel_set_string_array(child, "search", &resolv->dns_search);
 	}
 
 	/* TBD: NIS information */
 
-	__wicked_dbus_set_string_array(result, "log-servers", &lease->log_servers);
-	__wicked_dbus_set_string_array(result, "ntp-servers", &lease->ntp_servers);
-	__wicked_dbus_set_string_array(result, "slp-servers", &lease->slp_servers);
-	__wicked_dbus_set_string_array(result, "slp-scopes", &lease->slp_scopes);
-	__wicked_dbus_set_string_array(result, "sip-servers", &lease->sip_servers);
-	__wicked_dbus_set_string_array(result, "lpr-servers", &lease->lpr_servers);
+	__ni_objectmodel_set_string_array(result, "log-servers", &lease->log_servers);
+	__ni_objectmodel_set_string_array(result, "ntp-servers", &lease->ntp_servers);
+	__ni_objectmodel_set_string_array(result, "slp-servers", &lease->slp_servers);
+	__ni_objectmodel_set_string_array(result, "slp-scopes", &lease->slp_scopes);
+	__ni_objectmodel_set_string_array(result, "sip-servers", &lease->sip_servers);
+	__ni_objectmodel_set_string_array(result, "lpr-servers", &lease->lpr_servers);
 
-	__wicked_dbus_set_string_array(result, "netbios-name-servers", &lease->netbios_name_servers);
-	__wicked_dbus_set_string_array(result, "netbios-dd-servers", &lease->netbios_dd_servers);
+	__ni_objectmodel_set_string_array(result, "netbios-name-servers", &lease->netbios_name_servers);
+	__ni_objectmodel_set_string_array(result, "netbios-dd-servers", &lease->netbios_dd_servers);
 	if (lease->netbios_domain)
 		ni_dbus_dict_add_string(result, "netbios-domain", lease->netbios_domain);
 	if (lease->netbios_scope)
@@ -572,7 +572,7 @@ ni_objectmodel_get_addrconf_lease(const ni_addrconf_lease_t *lease, ni_dbus_vari
 {
 	DBusError error = DBUS_ERROR_INIT;
 
-	if (!__wicked_dbus_get_addrconf_lease(lease, result, &error)) {
+	if (!__ni_objectmodel_get_addrconf_lease(lease, result, &error)) {
 		ni_error("Unable to encode lease: %s (%s)", error.name, error.message);
 		dbus_error_free(&error);
 		return FALSE;
@@ -582,7 +582,7 @@ ni_objectmodel_get_addrconf_lease(const ni_addrconf_lease_t *lease, ni_dbus_vari
 }
 
 dbus_bool_t
-__wicked_dbus_set_addrconf_lease(ni_addrconf_lease_t *lease,
+__ni_objectmodel_set_addrconf_lease(ni_addrconf_lease_t *lease,
 						const ni_dbus_variant_t *argument,
 						DBusError *error)
 {
@@ -611,11 +611,11 @@ __wicked_dbus_set_addrconf_lease(ni_addrconf_lease_t *lease,
 		return FALSE;
 
 	if ((child = ni_dbus_dict_get(argument, "addresses")) != NULL
-	 && !__wicked_dbus_set_address_list(&lease->addrs, child, error))
+	 && !__ni_objectmodel_set_address_list(&lease->addrs, child, error))
 		return FALSE;
 
 	if ((child = ni_dbus_dict_get(argument, "routes")) != NULL
-	 && !__wicked_dbus_set_route_list(&lease->routes, child, error))
+	 && !__ni_objectmodel_set_route_list(&lease->routes, child, error))
 		return FALSE;
 
 	if ((child = ni_dbus_dict_get(argument, "resolver")) != NULL) {
@@ -627,39 +627,39 @@ __wicked_dbus_set_addrconf_lease(ni_addrconf_lease_t *lease,
 			ni_string_dup(&resolv->default_domain, string_value);
 
 		if ((list = ni_dbus_dict_get(child, "servers")) != NULL
-		 && !__wicked_dbus_get_string_array(&resolv->dns_servers, list, error))
+		 && !__ni_objectmodel_get_string_array(&resolv->dns_servers, list, error))
 			return FALSE;
 		if ((list = ni_dbus_dict_get(child, "search")) != NULL
-		 && !__wicked_dbus_get_string_array(&resolv->dns_search, list, error))
+		 && !__ni_objectmodel_get_string_array(&resolv->dns_search, list, error))
 			return FALSE;
 	}
 
 	/* TBD: NIS information */
 
 	if ((child = ni_dbus_dict_get(argument, "log-servers")) != NULL
-	 && !__wicked_dbus_get_string_array(&lease->log_servers, child, error))
+	 && !__ni_objectmodel_get_string_array(&lease->log_servers, child, error))
 		return FALSE;
 	if ((child = ni_dbus_dict_get(argument, "ntp-servers")) != NULL
-	 && !__wicked_dbus_get_string_array(&lease->ntp_servers, child, error))
+	 && !__ni_objectmodel_get_string_array(&lease->ntp_servers, child, error))
 		return FALSE;
 	if ((child = ni_dbus_dict_get(argument, "slp-servers")) != NULL
-	 && !__wicked_dbus_get_string_array(&lease->slp_servers, child, error))
+	 && !__ni_objectmodel_get_string_array(&lease->slp_servers, child, error))
 		return FALSE;
 	if ((child = ni_dbus_dict_get(argument, "slp-scopes")) != NULL
-	 && !__wicked_dbus_get_string_array(&lease->slp_scopes, child, error))
+	 && !__ni_objectmodel_get_string_array(&lease->slp_scopes, child, error))
 		return FALSE;
 	if ((child = ni_dbus_dict_get(argument, "sip-servers")) != NULL
-	 && !__wicked_dbus_get_string_array(&lease->sip_servers, child, error))
+	 && !__ni_objectmodel_get_string_array(&lease->sip_servers, child, error))
 		return FALSE;
 	if ((child = ni_dbus_dict_get(argument, "lpr-servers")) != NULL
-	 && !__wicked_dbus_get_string_array(&lease->lpr_servers, child, error))
+	 && !__ni_objectmodel_get_string_array(&lease->lpr_servers, child, error))
 		return FALSE;
 
 	if ((child = ni_dbus_dict_get(argument, "netbios-name-servers")) != NULL
-	 && !__wicked_dbus_get_string_array(&lease->netbios_name_servers, child, error))
+	 && !__ni_objectmodel_get_string_array(&lease->netbios_name_servers, child, error))
 		return FALSE;
 	if ((child = ni_dbus_dict_get(argument, "netbios-dd-servers")) != NULL
-	 && !__wicked_dbus_get_string_array(&lease->netbios_dd_servers, child, error))
+	 && !__ni_objectmodel_get_string_array(&lease->netbios_dd_servers, child, error))
 		return FALSE;
 	if (ni_dbus_dict_get_string(argument, "netbios-domain", &string_value))
 		ni_string_dup(&lease->netbios_domain, string_value);
@@ -674,7 +674,7 @@ ni_objectmodel_set_addrconf_lease(ni_addrconf_lease_t *lease, const ni_dbus_vari
 {
 	DBusError error = DBUS_ERROR_INIT;
 
-	if (!__wicked_dbus_set_addrconf_lease(lease, argument, &error)) {
+	if (!__ni_objectmodel_set_addrconf_lease(lease, argument, &error)) {
 		ni_error("Unable to decode lease: %s (%s)", error.name, error.message);
 		dbus_error_free(&error);
 		return FALSE;

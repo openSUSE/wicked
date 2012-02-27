@@ -165,22 +165,22 @@ extern dbus_bool_t		ni_objectmodel_device_factory_result(ni_dbus_server_t *, ni_
 						ni_interface_t *, DBusError *);
 extern const char *		ni_objectmodel_interface_path(const ni_interface_t *);
 
-extern dbus_bool_t		__wicked_dbus_get_address_list(ni_address_t *list,
+extern dbus_bool_t		__ni_objectmodel_get_address_list(ni_address_t *list,
 						ni_dbus_variant_t *result,
 						DBusError *error);
-extern dbus_bool_t		__wicked_dbus_set_address_list(ni_address_t **list,
+extern dbus_bool_t		__ni_objectmodel_set_address_list(ni_address_t **list,
 						const ni_dbus_variant_t *argument,
 						DBusError *error);
-extern dbus_bool_t		__wicked_dbus_get_route_list(ni_route_t *list,
+extern dbus_bool_t		__ni_objectmodel_get_route_list(ni_route_t *list,
 						ni_dbus_variant_t *result,
 						DBusError *error);
-extern dbus_bool_t		__wicked_dbus_set_route_list(ni_route_t **list,
+extern dbus_bool_t		__ni_objectmodel_set_route_list(ni_route_t **list,
 						const ni_dbus_variant_t *result,
 						DBusError *error);
-extern dbus_bool_t		__wicked_dbus_get_addrconf_lease(const ni_addrconf_lease_t *lease,
+extern dbus_bool_t		__ni_objectmodel_get_addrconf_lease(const ni_addrconf_lease_t *lease,
 						ni_dbus_variant_t *result,
 						DBusError *error);
-extern dbus_bool_t		__wicked_dbus_set_addrconf_lease(ni_addrconf_lease_t *lease,
+extern dbus_bool_t		__ni_objectmodel_set_addrconf_lease(ni_addrconf_lease_t *lease,
 						const ni_dbus_variant_t *result,
 						DBusError *error);
 

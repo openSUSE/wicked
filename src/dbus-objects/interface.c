@@ -646,7 +646,7 @@ ni_objectmodel_get_interface(const ni_dbus_object_t *object, DBusError *error)
  * Property Interface.hwaddr
  */
 static dbus_bool_t
-__wicked_dbus_interface_get_hwaddr(const ni_dbus_object_t *object,
+__ni_objectmodel_interface_get_hwaddr(const ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				ni_dbus_variant_t *result,
 				DBusError *error)
@@ -661,7 +661,7 @@ __wicked_dbus_interface_get_hwaddr(const ni_dbus_object_t *object,
 }
 
 static dbus_bool_t
-__wicked_dbus_interface_set_hwaddr(ni_dbus_object_t *object,
+__ni_objectmodel_interface_set_hwaddr(ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				const ni_dbus_variant_t *argument,
 				DBusError *error)
@@ -686,7 +686,7 @@ __wicked_dbus_interface_set_hwaddr(ni_dbus_object_t *object,
  * This one is rather complex
  */
 static dbus_bool_t
-__wicked_dbus_interface_get_addresses(const ni_dbus_object_t *object,
+__ni_objectmodel_interface_get_addresses(const ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				ni_dbus_variant_t *result,
 				DBusError *error)
@@ -694,18 +694,18 @@ __wicked_dbus_interface_get_addresses(const ni_dbus_object_t *object,
 	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
 
 	ni_dbus_dict_array_init(result);
-	return __wicked_dbus_get_address_list(ifp->addrs, result, error);
+	return __ni_objectmodel_get_address_list(ifp->addrs, result, error);
 }
 
 static dbus_bool_t
-__wicked_dbus_interface_set_addresses(ni_dbus_object_t *object,
+__ni_objectmodel_interface_set_addresses(ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				const ni_dbus_variant_t *argument,
 				DBusError *error)
 {
 	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
 
-	return __wicked_dbus_set_address_list(&ifp->addrs, argument, error);
+	return __ni_objectmodel_set_address_list(&ifp->addrs, argument, error);
 }
 
 /*
@@ -713,7 +713,7 @@ __wicked_dbus_interface_set_addresses(ni_dbus_object_t *object,
  * This one is rather complex, too.
  */
 static dbus_bool_t
-__wicked_dbus_interface_get_routes(const ni_dbus_object_t *object,
+__ni_objectmodel_interface_get_routes(const ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				ni_dbus_variant_t *result,
 				DBusError *error)
@@ -721,25 +721,25 @@ __wicked_dbus_interface_get_routes(const ni_dbus_object_t *object,
 	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
 
 	ni_dbus_dict_array_init(result);
-	return __wicked_dbus_get_route_list(ifp->routes, result, error);
+	return __ni_objectmodel_get_route_list(ifp->routes, result, error);
 }
 
 static dbus_bool_t
-__wicked_dbus_interface_set_routes(ni_dbus_object_t *object,
+__ni_objectmodel_interface_set_routes(ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				const ni_dbus_variant_t *argument,
 				DBusError *error)
 {
 	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
 
-	return __wicked_dbus_set_route_list(&ifp->routes, argument, error);
+	return __ni_objectmodel_set_route_list(&ifp->routes, argument, error);
 }
 
 /*
  * Get/set afinfo
  */
 static dbus_bool_t
-__wicked_dbus_get_afinfo(ni_afinfo_t *afi, ni_dbus_variant_t *dict, DBusError *error)
+__ni_objectmodel_get_afinfo(ni_afinfo_t *afi, ni_dbus_variant_t *dict, DBusError *error)
 {
 	ni_dbus_dict_add_bool(dict, "enabled", afi->enabled);
 	ni_dbus_dict_add_bool(dict, "forwarding", afi->forwarding);
@@ -747,7 +747,7 @@ __wicked_dbus_get_afinfo(ni_afinfo_t *afi, ni_dbus_variant_t *dict, DBusError *e
 }
 
 static dbus_bool_t
-__wicked_dbus_set_afinfo(ni_afinfo_t *afi, const ni_dbus_variant_t *dict, DBusError *error)
+__ni_objectmodel_set_afinfo(ni_afinfo_t *afi, const ni_dbus_variant_t *dict, DBusError *error)
 {
 	dbus_bool_t value;
 
@@ -760,7 +760,7 @@ __wicked_dbus_set_afinfo(ni_afinfo_t *afi, const ni_dbus_variant_t *dict, DBusEr
 }
 
 static dbus_bool_t
-__wicked_dbus_interface_get_ipv4(const ni_dbus_object_t *object,
+__ni_objectmodel_interface_get_ipv4(const ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				ni_dbus_variant_t *argument,
 				DBusError *error)
@@ -770,11 +770,11 @@ __wicked_dbus_interface_get_ipv4(const ni_dbus_object_t *object,
 	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
 		return FALSE;
 
-	return __wicked_dbus_get_afinfo(&dev->ipv4, argument, error);
+	return __ni_objectmodel_get_afinfo(&dev->ipv4, argument, error);
 }
 
 static dbus_bool_t
-__wicked_dbus_interface_set_ipv4(ni_dbus_object_t *object,
+__ni_objectmodel_interface_set_ipv4(ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				const ni_dbus_variant_t *argument,
 				DBusError *error)
@@ -784,11 +784,11 @@ __wicked_dbus_interface_set_ipv4(ni_dbus_object_t *object,
 	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
 		return FALSE;
 
-	return __wicked_dbus_set_afinfo(&dev->ipv4, argument, error);
+	return __ni_objectmodel_set_afinfo(&dev->ipv4, argument, error);
 }
 
 static dbus_bool_t
-__wicked_dbus_interface_get_ipv6(const ni_dbus_object_t *object,
+__ni_objectmodel_interface_get_ipv6(const ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				ni_dbus_variant_t *argument,
 				DBusError *error)
@@ -798,11 +798,11 @@ __wicked_dbus_interface_get_ipv6(const ni_dbus_object_t *object,
 	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
 		return FALSE;
 
-	return __wicked_dbus_get_afinfo(&dev->ipv6, argument, error);
+	return __ni_objectmodel_get_afinfo(&dev->ipv6, argument, error);
 }
 
 static dbus_bool_t
-__wicked_dbus_interface_set_ipv6(ni_dbus_object_t *object,
+__ni_objectmodel_interface_set_ipv6(ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				const ni_dbus_variant_t *argument,
 				DBusError *error)
@@ -812,13 +812,13 @@ __wicked_dbus_interface_set_ipv6(ni_dbus_object_t *object,
 	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
 		return FALSE;
 
-	return __wicked_dbus_set_afinfo(&dev->ipv6, argument, error);
+	return __ni_objectmodel_set_afinfo(&dev->ipv6, argument, error);
 }
 
 #define INTERFACE_PROPERTY(type, __name, rw) \
-	NI_DBUS_PROPERTY(type, __name,__wicked_dbus_interface, rw)
+	NI_DBUS_PROPERTY(type, __name,__ni_objectmodel_interface, rw)
 #define INTERFACE_PROPERTY_SIGNATURE(signature, __name, rw) \
-	__NI_DBUS_PROPERTY(signature, __name, __wicked_dbus_interface, rw)
+	__NI_DBUS_PROPERTY(signature, __name, __ni_objectmodel_interface, rw)
 #define INTERFACE_STRING_PROPERTY(dbus_name, member_name, rw) \
 	NI_DBUS_GENERIC_STRING_PROPERTY(interface, dbus_name, member_name, rw)
 #define INTERFACE_UINT_PROPERTY(dbus_name, member_name, rw) \
@@ -873,7 +873,7 @@ ni_objectmodel_get_interface_request(const ni_dbus_object_t *object, DBusError *
  * Property InterfaceRequest.ipv4
  */
 static dbus_bool_t
-__wicked_dbus_interface_request_get_ipv4(const ni_dbus_object_t *object,
+__ni_objectmodel_interface_request_get_ipv4(const ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				ni_dbus_variant_t *result,
 				DBusError *error)
@@ -881,13 +881,13 @@ __wicked_dbus_interface_request_get_ipv4(const ni_dbus_object_t *object,
 	ni_interface_request_t *req = ni_dbus_object_get_handle(object);
 
 	ni_dbus_variant_init_dict(result);
-	if (req->ipv4 && !__wicked_dbus_get_afinfo(req->ipv4, result, error))
+	if (req->ipv4 && !__ni_objectmodel_get_afinfo(req->ipv4, result, error))
 		return FALSE;
 	return TRUE;
 }
 
 static dbus_bool_t
-__wicked_dbus_interface_request_set_ipv4(ni_dbus_object_t *object,
+__ni_objectmodel_interface_request_set_ipv4(ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				const ni_dbus_variant_t *argument,
 				DBusError *error)
@@ -896,7 +896,7 @@ __wicked_dbus_interface_request_set_ipv4(ni_dbus_object_t *object,
 
 	if (!req->ipv4)
 		req->ipv4 = ni_afinfo_new(AF_INET);
-	if (!__wicked_dbus_set_afinfo(req->ipv4, argument, error))
+	if (!__ni_objectmodel_set_afinfo(req->ipv4, argument, error))
 		return FALSE;
 	return TRUE;
 }
@@ -905,20 +905,20 @@ __wicked_dbus_interface_request_set_ipv4(ni_dbus_object_t *object,
  * Property InterfaceRequest.ipv6
  */
 static dbus_bool_t
-__wicked_dbus_interface_request_get_ipv6(const ni_dbus_object_t *object,
+__ni_objectmodel_interface_request_get_ipv6(const ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				ni_dbus_variant_t *result,
 				DBusError *error)
 {
 	ni_interface_request_t *req = ni_dbus_object_get_handle(object);
 
-	if (req->ipv6 && !__wicked_dbus_get_afinfo(req->ipv6, result, error))
+	if (req->ipv6 && !__ni_objectmodel_get_afinfo(req->ipv6, result, error))
 		return FALSE;
 	return TRUE;
 }
 
 static dbus_bool_t
-__wicked_dbus_interface_request_set_ipv6(ni_dbus_object_t *object,
+__ni_objectmodel_interface_request_set_ipv6(ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				const ni_dbus_variant_t *argument,
 				DBusError *error)
@@ -927,7 +927,7 @@ __wicked_dbus_interface_request_set_ipv6(ni_dbus_object_t *object,
 
 	if (!req->ipv6)
 		req->ipv6 = ni_afinfo_new(AF_INET6);
-	if (!__wicked_dbus_set_afinfo(req->ipv6, argument, error))
+	if (!__ni_objectmodel_set_afinfo(req->ipv6, argument, error))
 		return FALSE;
 	return TRUE;
 }
@@ -935,7 +935,7 @@ __wicked_dbus_interface_request_set_ipv6(ni_dbus_object_t *object,
 #define INTERFACE_REQUEST_UINT_PROPERTY(dbus_name, name, rw) \
 	NI_DBUS_GENERIC_UINT_PROPERTY(interface_request, dbus_name, name, rw)
 #define INTERFACE_REQUEST_PROPERTY_SIGNATURE(signature, __name, rw) \
-	__NI_DBUS_PROPERTY(signature, __name, __wicked_dbus_interface_request, rw)
+	__NI_DBUS_PROPERTY(signature, __name, __ni_objectmodel_interface_request, rw)
 
 static ni_dbus_property_t	ni_objectmodel_netif_request_properties[] = {
 	INTERFACE_REQUEST_UINT_PROPERTY(status, ifflags, RO),
