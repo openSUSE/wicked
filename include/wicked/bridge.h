@@ -13,17 +13,6 @@ typedef enum ni_bridge_stp {
 	NI_BRIDGE_RSTP,				/* new RSTP in userspace */
 } ni_bridge_stp_t;
 
-enum {
-	NI_BRIDGE_STP_ENABLED	= 1,		/* bridge config options */
-	NI_BRIDGE_FORWARD_DELAY	= 2,
-	NI_BRIDGE_AGEING_TIME	= 3,
-	NI_BRIDGE_HELLO_TIME	= 4,
-	NI_BRIDGE_MAX_AGE	= 5,
-	NI_BRIDGE_PRIORITY	= 6,
-	NI_BRIDGE_PORT_PRIORITY	= 7,		/* bridge port config options */
-	NI_BRIDGE_PORT_PATH_COST= 8,
-};
-
 typedef struct ni_bridge_port_status {
 	unsigned int		priority;
 	unsigned int		path_cost;
@@ -95,35 +84,15 @@ struct ni_bridge {
 
 extern ni_bridge_t *	ni_bridge_new(void);
 extern void		ni_bridge_free(ni_bridge_t *);
+extern void		ni_bridge_ports_destroy(ni_bridge_t *);
 extern void		ni_bridge_status_destroy(ni_bridge_status_t *);
 extern void		ni_bridge_port_status_destroy(ni_bridge_port_status_t *);
 extern int		ni_bridge_add_port(ni_bridge_t *, const ni_bridge_port_t *);
 extern int		ni_bridge_del_port(ni_bridge_t *, unsigned int ifindex);
 extern int		ni_bridge_del_port_ifindex(ni_bridge_t *, int);
 extern void		ni_bridge_get_port_names(const ni_bridge_t *, ni_string_array_t *);
-extern int		ni_bridge_get(ni_bridge_t *, unsigned int, char **);
-extern int		ni_bridge_get_stp(ni_bridge_t *, char **);
-extern int		ni_bridge_get_forward_delay(ni_bridge_t *, char **);
-extern int		ni_bridge_get_ageing_time(ni_bridge_t *, char **);
-extern int		ni_bridge_get_hello_time(ni_bridge_t *, char **);
-extern int		ni_bridge_get_max_age(ni_bridge_t *, char **);
-extern int		ni_bridge_get_priority(ni_bridge_t *, char **);
-extern int		ni_bridge_set_stp(ni_bridge_t *, const char *);
-extern int		ni_bridge_set_forward_delay(ni_bridge_t *, const char *);
-extern int		ni_bridge_set_ageing_time(ni_bridge_t *, const char *);
-extern int		ni_bridge_set_hello_time(ni_bridge_t *, const char *);
-extern int		ni_bridge_set_max_age(ni_bridge_t *, const char *);
-extern int		ni_bridge_set_priority(ni_bridge_t *, const char *);
-extern void		ni_bridge_ports_destroy(ni_bridge_t *);
+
 extern ni_bridge_port_t *ni_bridge_port_new(ni_bridge_t *br, const char *ifname, unsigned int ifindex);
 extern void		ni_bridge_port_free(ni_bridge_port_t *port);
-extern int		ni_bridge_port_get(ni_bridge_t *, const char *, unsigned int, char **);
-extern int		ni_bridge_port_get_priority(ni_bridge_t *,const char *, char **);
-extern int		ni_bridge_port_get_path_cost(ni_bridge_t *,const char *, char **);
-extern int		ni_bridge_port_set_priority(ni_bridge_t *,const char *, const char *);
-extern int		ni_bridge_port_set_path_cost(ni_bridge_t *,const char *, const char *);
-
-extern int		ni_interface_update_bridge_config(ni_netconfig_t *,
-				ni_interface_t *, const ni_bridge_t *config);
 
 #endif /* __WICKED_BRIDGE_H__ */
