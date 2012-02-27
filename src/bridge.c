@@ -62,8 +62,6 @@ void
 ni_bridge_port_free(ni_bridge_port_t *port)
 {
 	ni_string_free(&port->ifname);
-	if (port->device)
-		ni_interface_put(port->device);
 	ni_bridge_port_status_destroy(&port->status);
 	free(port);
 }
@@ -129,6 +127,40 @@ ni_bridge_port_array_remove_index(ni_bridge_port_array_t *array, unsigned int po
 }
 
 /*
+ * Locate a port given its name or index
+ */
+ni_bridge_port_t *
+ni_bridge_port_by_index(const ni_bridge_t *bridge, unsigned int ifindex)
+{
+	ni_bridge_port_t **pp, *port;
+	unsigned int i;
+
+	for (i = 0, pp = bridge->ports.data; i < bridge->ports.count; ++i) {
+		port = *pp++;
+		if (port->ifindex == ifindex)
+			return port;
+	}
+	return NULL;
+}
+
+ni_bridge_port_t *
+ni_bridge_port_by_name(const ni_bridge_t *bridge, const char *ifname)
+{
+	ni_bridge_port_t **pp, *port;
+	unsigned int i;
+
+	if (ifname == NULL)
+		return NULL;
+
+	for (i = 0, pp = bridge->ports.data; i < bridge->ports.count; ++i) {
+		port = *pp++;
+		if (ni_string_eq(port->ifname, ifname))
+			return port;
+	}
+	return NULL;
+}
+
+/*
  * Add a port to the bridge configuration
  */
 int
@@ -140,7 +172,7 @@ ni_bridge_add_port(ni_bridge_t *bridge, const ni_bridge_port_t *port)
 		return -1;
 
 	for (i = 0; i < bridge->ports.count; ++i) {
-		if (bridge->ports.data[i]->device == port->device)
+		if (bridge->ports.data[i]->ifindex == port->ifindex)
 			return -1;
 	}
 
@@ -168,12 +200,12 @@ ni_bridge_del_port(ni_bridge_t *bridge, unsigned int ifindex)
 int
 ni_bridge_del_port_ifindex(ni_bridge_t *bridge, int ifindex)
 {
+	ni_bridge_port_t **pp, *port;
 	unsigned int i;
 
-	for (i = 0; i < bridge->ports.count; ++i) {
-		ni_interface_t *port_dev = bridge->ports.data[i]->device;
-
-		if (port_dev && port_dev->link.ifindex == ifindex) {
+	for (i = 0, pp = bridge->ports.data; i < bridge->ports.count; ++i) {
+		port = *pp++;
+		if (port->ifindex == ifindex) {
 			ni_bridge_port_array_remove_index(&bridge->ports, i);
 			return 0;
 		}

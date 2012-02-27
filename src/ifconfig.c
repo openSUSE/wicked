@@ -371,45 +371,48 @@ ni_system_bridge_delete(ni_netconfig_t *nc, ni_interface_t *ifp)
  * Add a port to a bridge interface
  */
 int
-ni_system_bridge_add_port(ni_netconfig_t *nc, ni_interface_t *ifp, ni_bridge_port_t *port)
+ni_system_bridge_add_port(ni_netconfig_t *nc, ni_interface_t *brdev, ni_bridge_port_t *port)
 {
-	ni_bridge_t *bridge = ni_interface_get_bridge(ifp);
-	ni_interface_t *pif;
-	unsigned int i;
+	ni_bridge_t *bridge = ni_interface_get_bridge(brdev);
+	ni_interface_t *pif = NULL;
 	int rv;
 
-	if ((pif = port->device) == NULL && pif->name)
-		pif = ni_interface_by_name(nc, pif->name);
+	if (port->ifindex)
+		pif = ni_interface_by_index(nc, port->ifindex);
+	else if (port->ifname)
+		pif = ni_interface_by_name(nc, port->ifname);
 
 	if (pif == NULL) {
-		ni_error("%s: cannot add port - %s not known", ifp->name, pif->name);
+		ni_error("%s: cannot add port - interface not known", brdev->name);
 		return -NI_ERROR_INTERFACE_NOT_KNOWN;
 	}
 	if (pif->link.ifindex == 0) {
-		ni_error("%s: cannot add port - %s has no ifindex?!", ifp->name, pif->name);
+		ni_error("%s: cannot add port - %s has no ifindex?!", brdev->name, pif->name);
 		return -NI_ERROR_INTERFACE_NOT_KNOWN;
 	}
 
-	if (pif == ifp) {
-		ni_error("%s: cannot add interface as its own bridge port", ifp->name);
+	/* This should be a more elaborate check - neither device can be an ancestor of
+	 * the other, or we create a loop.
+	 */
+	if (pif == brdev) {
+		ni_error("%s: cannot add interface as its own bridge port", brdev->name);
 		return -NI_ERROR_INTERFACE_BAD_HIERARCHY;
 	}
-	for (i = 0; i < bridge->ports.count; ++i) {
-		if (bridge->ports.data[i]->device == pif) {
-			ni_error("%s: interface %s is already port", ifp->name, pif->name);
-			return -NI_ERROR_INTERFACE_BAD_HIERARCHY;
-		}
+
+	if (ni_bridge_port_by_index(bridge, pif->link.ifindex) != NULL) {
+		ni_error("%s: interface %s is already port", brdev->name, pif->name);
+		return -NI_ERROR_INTERFACE_BAD_HIERARCHY;
 	}
 
-	if ((rv = __ni_brioctl_add_port(ifp->name, pif->link.ifindex)) < 0) {
-		ni_error("%s: cannot add port %s: %s", ifp->name, pif->name,
+	if ((rv = __ni_brioctl_add_port(brdev->name, pif->link.ifindex)) < 0) {
+		ni_error("%s: cannot add port %s: %s", brdev->name, pif->name,
 				ni_strerror(rv));
 		return rv;
 	}
 
 	/* Now configure the newly added port */
-	if ((rv = ni_sysfs_bridge_port_update_config(pif->name, port)) < 0) {
-		ni_error("%s: failed to configure port %s: %s", ifp->name, pif->name,
+	if ((rv = ni_sysfs_bridge_port_update_config(brdev->name, port)) < 0) {
+		ni_error("%s: failed to configure port %s: %s", brdev->name, pif->name,
 				ni_strerror(rv));
 		return rv;
 	}
