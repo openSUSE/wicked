@@ -23,7 +23,6 @@
 #include "model.h"
 #include "debug.h"
 
-static ni_interface_t *	__ni_objectmodel_bridge_device_arg(const ni_dbus_variant_t *);
 static ni_interface_t *	__ni_objectmodel_bridge_newlink(ni_interface_t *, const char *, DBusError *);
 static dbus_bool_t	__ni_objectmodel_bridge_port_to_dict(const ni_bridge_port_t *port,
 				ni_dbus_variant_t *dict,
@@ -33,6 +32,16 @@ static dbus_bool_t	__ni_objectmodel_bridge_port_from_dict(ni_bridge_port_t *port
 				const ni_dbus_variant_t *dict,
 				DBusError *error,
 				int config_only);
+
+/*
+ * Return an interface handle containing all bridge-specific information provided
+ * by the dict argument
+ */
+static inline ni_interface_t *
+__ni_objectmodel_bridge_device_arg(const ni_dbus_variant_t *dict)
+{
+	return ni_objectmodel_get_netif_argument(dict, NI_IFTYPE_BRIDGE, &ni_objectmodel_bridge_service);
+}
 
 /*
  * Bridge.Factory.newDevice:
@@ -131,30 +140,6 @@ out:
 	if (cfg)
 		ni_interface_put(cfg);
 	return rv;
-}
-
-/*
- * Common helper function to extract bridging device info from a dbus dict
- */
-static ni_interface_t *
-__ni_objectmodel_bridge_device_arg(const ni_dbus_variant_t *dict)
-{
-	ni_dbus_object_t *dev_object;
-	ni_interface_t *dev;
-	dbus_bool_t rv;
-
-	dev = ni_interface_new(NULL, NULL, 0);
-	dev->link.type = NI_IFTYPE_BRIDGE;
-
-	dev_object = ni_objectmodel_wrap_interface(dev);
-	rv = ni_dbus_object_set_properties_from_dict(dev_object, &ni_objectmodel_bridge_service, dict);
-	ni_dbus_object_free(dev_object);
-
-	if (!rv) {
-		ni_interface_put(dev);
-		dev = NULL;
-	}
-	return dev;
 }
 
 /*

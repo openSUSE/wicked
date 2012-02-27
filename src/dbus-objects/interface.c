@@ -305,6 +305,31 @@ ni_objectmodel_interface_path(const ni_interface_t *ifp)
 }
 
 /*
+ * Common helper function to extract a network device argument from a properties dict.
+ * The attributes are specific to a given DBus interface.
+ */
+ni_interface_t *
+ni_objectmodel_get_netif_argument(const ni_dbus_variant_t *dict, ni_iftype_t iftype, const ni_dbus_service_t *service)
+{
+	ni_dbus_object_t *dev_object;
+	ni_interface_t *dev;
+	dbus_bool_t rv;
+
+	dev = ni_interface_new(NULL, NULL, 0);
+	dev->link.type = iftype;
+
+	dev_object = ni_objectmodel_wrap_interface(dev);
+	rv = ni_dbus_object_set_properties_from_dict(dev_object, service, dict);
+	ni_dbus_object_free(dev_object);
+
+	if (!rv) {
+		ni_interface_put(dev);
+		dev = NULL;
+	}
+	return dev;
+}
+
+/*
  * Device factory functions need to register the newly created interface with the
  * dbus service, and return the device's object path
  */

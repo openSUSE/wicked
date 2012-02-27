@@ -159,6 +159,8 @@ extern ni_dbus_service_t	ni_objectmodel_bond_factory_service;
 extern ni_dbus_service_t	ni_objectmodel_vlan_service;
 extern ni_dbus_service_t	ni_objectmodel_vlan_factory_service;
 
+extern ni_interface_t *		ni_objectmodel_get_netif_argument(const ni_dbus_variant_t *, ni_iftype_t,
+						const ni_dbus_service_t *);
 extern dbus_bool_t		ni_objectmodel_device_factory_result(ni_dbus_server_t *, ni_dbus_message_t *,
 						ni_interface_t *, DBusError *);
 extern const char *		ni_objectmodel_interface_path(const ni_interface_t *);
