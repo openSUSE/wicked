@@ -262,8 +262,7 @@ __ni_objectmodel_bridge_set_ports(ni_dbus_object_t *object, const ni_dbus_proper
 	for (i = 0; i < argument->array.len; ++i, ++port_dict) {
 		ni_bridge_port_t *port;
 
-		/* FIXME: ni_bridge_port_new() */
-		port = calloc(1, sizeof(*port));
+		port = ni_bridge_port_new(NULL, NULL, 0);
 		if (!__ni_objectmodel_bridge_port_from_dict(port, port_dict, error, TRUE)) {
 			ni_bridge_port_free(port);
 			return FALSE;
