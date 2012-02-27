@@ -369,6 +369,7 @@ ni_system_bridge_delete(ni_netconfig_t *nc, ni_interface_t *ifp)
 
 /*
  * Add a port to a bridge interface
+ * Note, in case of success, the bridge will have taken ownership of the port object.
  */
 int
 ni_system_bridge_add_port(ni_netconfig_t *nc, ni_interface_t *brdev, ni_bridge_port_t *port)

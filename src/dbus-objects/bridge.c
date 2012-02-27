@@ -311,7 +311,6 @@ __ni_objectmodel_bridge_set_ports(ni_dbus_object_t *object, const ni_dbus_proper
 		}
 
 		ni_bridge_add_port(bridge, port);
-		ni_bridge_port_free(port);
 	}
 
 	return TRUE;

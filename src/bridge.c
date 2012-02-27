@@ -17,8 +17,6 @@
 #define NI_BRIDGE_VALUE_NOT_SET		~0U
 #define NI_BRIDGE_PORT_ARRAY_CHUNK	16
 
-static ni_bridge_port_t *	__ni_bridge_port_clone(const ni_bridge_port_t *);
-
 static void			ni_bridge_port_array_init(ni_bridge_port_array_t *);
 static void			ni_bridge_port_array_destroy(ni_bridge_port_array_t *);
 static void			__ni_bridge_port_array_realloc(ni_bridge_port_array_t *,
@@ -45,17 +43,6 @@ ni_bridge_port_new(ni_bridge_t *bridge, const char *ifname, unsigned int ifindex
 	if (bridge)
 		__ni_bridge_port_array_append(&bridge->ports, port);
 	return port;
-}
-
-static ni_bridge_port_t *
-__ni_bridge_port_clone(const ni_bridge_port_t *port)
-{
-	ni_bridge_port_t *newport;
-
-	newport = ni_bridge_port_new(NULL, port->ifname, port->ifindex);
-	newport->priority = port->priority;
-	newport->path_cost = port->path_cost;
-	return newport;
 }
 
 void
@@ -162,21 +149,20 @@ ni_bridge_port_by_name(const ni_bridge_t *bridge, const char *ifname)
 
 /*
  * Add a port to the bridge configuration
+ * Note, in case of success, the bridge will have taken ownership of the port object.
  */
 int
-ni_bridge_add_port(ni_bridge_t *bridge, const ni_bridge_port_t *port)
+ni_bridge_add_port(ni_bridge_t *bridge, ni_bridge_port_t *port)
 {
-	unsigned int i;
-
 	if (!port)
 		return -1;
 
-	for (i = 0; i < bridge->ports.count; ++i) {
-		if (bridge->ports.data[i]->ifindex == port->ifindex)
-			return -1;
-	}
+	if (port->ifindex && ni_bridge_port_by_index(bridge, port->ifindex))
+		return -1;
+	if (port->ifname && ni_bridge_port_by_name(bridge, port->ifname))
+		return -1;
 
-	__ni_bridge_port_array_append(&bridge->ports, __ni_bridge_port_clone(port));
+	__ni_bridge_port_array_append(&bridge->ports, port);
 	return 0;
 }
 
