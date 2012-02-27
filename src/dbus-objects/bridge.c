@@ -96,6 +96,7 @@ __ni_objectmodel_bridge_newlink(ni_interface_t *cfg_ifp, const char *ifname, DBu
 		dbus_set_error(error, DBUS_ERROR_FAILED, "Unable to create bridging interface - too many interfaces");
 		goto out;
 	}
+	ni_string_dup(&cfg_ifp->name, ifname);
 
 	if ((rv = ni_system_bridge_create(nc, cfg_ifp->name, bridge, &new_ifp)) < 0) {
 		dbus_set_error(error,
@@ -300,6 +301,7 @@ __ni_objectmodel_bridge_set_ports(ni_dbus_object_t *object, const ni_dbus_proper
 	for (i = 0; i < argument->array.len; ++i, ++port_dict) {
 		ni_bridge_port_t *port;
 
+		/* FIXME: ni_bridge_port_new() */
 		port = calloc(1, sizeof(*port));
 		if (!__ni_objectmodel_bridge_port_from_dict(port, port_dict, error, TRUE)) {
 			ni_bridge_port_free(port);
