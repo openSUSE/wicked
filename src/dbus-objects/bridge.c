@@ -325,8 +325,9 @@ __ni_objectmodel_bridge_port_to_dict(const ni_bridge_port_t *port, ni_dbus_varia
 				const ni_dbus_object_t *object,
 				int config_only)
 {
-	if (port->name)
-		ni_dbus_dict_add_string(dict, "device", port->name);
+	ni_warn("FIXME: we should return the object path here");
+	if (port->ifname)
+		ni_dbus_dict_add_string(dict, "device", port->ifname);
 	ni_dbus_dict_add_uint32(dict, "priority", port->priority);
 	ni_dbus_dict_add_uint32(dict, "path-cost", port->path_cost);
 
@@ -349,8 +350,9 @@ __ni_objectmodel_bridge_port_from_dict(ni_bridge_port_t *port, const ni_dbus_var
 
 	if (dict->array.len == 0)
 		return TRUE;
+	/* FIXME: should expect object path here and map that to an ifindex */
 	if (ni_dbus_dict_get_string(dict, "device", &string))
-		ni_string_dup(&port->name, string);
+		ni_string_dup(&port->ifname, string);
 	if (ni_dbus_dict_get_uint32(dict, "priority", &value))
 		port->priority = value;
 	if (ni_dbus_dict_get_uint32(dict, "path-cost", &value))

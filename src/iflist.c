@@ -1095,15 +1095,25 @@ __ni_discover_bridge(ni_interface_t *ifp)
 
 	ni_string_array_init(&ports);
 	ni_sysfs_bridge_get_port_names(ifp->name, &ports);
-	for (i = 0; i < ports.count; ++i)
-		ni_bridge_add_port_name(bridge, ports.data[i]);
-	ni_string_array_destroy(&ports);
+	ni_bridge_ports_destroy(bridge);
 
-	for (i = 0; i < bridge->ports.count; ++i) {
-		ni_bridge_port_t *port = bridge->ports.data[i];
-		ni_sysfs_bridge_port_get_config(port->name, port);
-		ni_sysfs_bridge_port_get_status(port->name, &port->status);
+	for (i = 0; i < ports.count; ++i) {
+		const char *ifname = ports.data[i];
+		unsigned int index;
+		ni_bridge_port_t *port;
+
+		if ((index = if_nametoindex(ifname)) == 0) {
+			/* Looks like someone is renaming interfaces while we're
+			 * trying to discover them :-( */
+			ni_error("%s: port interface %s has index 0?!", __func__, ifname);
+			continue;
+		}
+		port = ni_bridge_port_new(bridge, ifname, index);
+
+		ni_sysfs_bridge_port_get_config(port->ifname, port);
+		ni_sysfs_bridge_port_get_status(port->ifname, &port->status);
 	}
+	ni_string_array_destroy(&ports);
 
 	return 0;
 }

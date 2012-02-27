@@ -48,7 +48,8 @@ typedef struct ni_bridge_port_status {
 } ni_bridge_port_status_t;
 
 struct ni_bridge_port {
-	char *			name;
+	char *			ifname;
+	unsigned int		ifindex;
 	ni_interface_t *	device;
 
 	unsigned int		priority;
@@ -96,9 +97,8 @@ extern ni_bridge_t *	ni_bridge_new(void);
 extern void		ni_bridge_free(ni_bridge_t *);
 extern void		ni_bridge_status_destroy(ni_bridge_status_t *);
 extern void		ni_bridge_port_status_destroy(ni_bridge_port_status_t *);
-extern int		ni_bridge_add_port_name(ni_bridge_t *, const char *);
 extern int		ni_bridge_add_port(ni_bridge_t *, const ni_bridge_port_t *);
-extern int		ni_bridge_del_port(ni_bridge_t *, const char *);
+extern int		ni_bridge_del_port(ni_bridge_t *, unsigned int ifindex);
 extern int		ni_bridge_del_port_ifindex(ni_bridge_t *, int);
 extern void		ni_bridge_get_port_names(const ni_bridge_t *, ni_string_array_t *);
 extern int		ni_bridge_get(ni_bridge_t *, unsigned int, char **);
@@ -114,7 +114,8 @@ extern int		ni_bridge_set_ageing_time(ni_bridge_t *, const char *);
 extern int		ni_bridge_set_hello_time(ni_bridge_t *, const char *);
 extern int		ni_bridge_set_max_age(ni_bridge_t *, const char *);
 extern int		ni_bridge_set_priority(ni_bridge_t *, const char *);
-extern ni_bridge_port_t *ni_bridge_port_new(const char *ifname);
+extern void		ni_bridge_ports_destroy(ni_bridge_t *);
+extern ni_bridge_port_t *ni_bridge_port_new(ni_bridge_t *br, const char *ifname, unsigned int ifindex);
 extern void		ni_bridge_port_free(ni_bridge_port_t *port);
 extern int		ni_bridge_port_get(ni_bridge_t *, const char *, unsigned int, char **);
 extern int		ni_bridge_port_get_priority(ni_bridge_t *,const char *, char **);

@@ -105,18 +105,22 @@ __ni_bridge_time_to_str(unsigned long val, char **str)
 }
 
 ni_bridge_port_t *
-ni_bridge_port_new(const char *name)
+ni_bridge_port_new(ni_bridge_t *bridge, const char *ifname, unsigned int ifindex)
 {
-	ni_bridge_port_t *newport;
+	ni_bridge_port_t *port;
 
-	newport = calloc(1, sizeof(ni_bridge_port_t));
-	if (!newport)
+	port = calloc(1, sizeof(ni_bridge_port_t));
+	if (!port)
 		ni_fatal("%s: out of memory", __FUNCTION__);
 
-	ni_string_dup(&newport->name, name);
-	newport->priority = NI_BRIDGE_VALUE_NOT_SET;
-	newport->path_cost = NI_BRIDGE_VALUE_NOT_SET;
-	return newport;
+	ni_string_dup(&port->ifname, ifname);
+	port->ifindex = ifindex;
+	port->priority = NI_BRIDGE_VALUE_NOT_SET;
+	port->path_cost = NI_BRIDGE_VALUE_NOT_SET;
+
+	if (bridge)
+		__ni_bridge_port_array_append(&bridge->ports, port);
+	return port;
 }
 
 static ni_bridge_port_t *
@@ -124,7 +128,7 @@ __ni_bridge_port_clone(const ni_bridge_port_t *port)
 {
 	ni_bridge_port_t *newport;
 
-	newport = ni_bridge_port_new(port->name);
+	newport = ni_bridge_port_new(NULL, port->ifname, port->ifindex);
 	newport->priority = port->priority;
 	newport->path_cost = port->path_cost;
 	return newport;
@@ -133,7 +137,7 @@ __ni_bridge_port_clone(const ni_bridge_port_t *port)
 void
 ni_bridge_port_free(ni_bridge_port_t *port)
 {
-	ni_string_free(&port->name);
+	ni_string_free(&port->ifname);
 	if (port->device)
 		ni_interface_put(port->device);
 	ni_bridge_port_status_destroy(&port->status);
@@ -184,11 +188,6 @@ __ni_bridge_port_array_append(ni_bridge_port_array_t *array, ni_bridge_port_t *p
 static int
 __ni_bridge_port_array_index(ni_bridge_port_array_t *array, const char *port)
 {
-	unsigned int i;
-	for (i = 0; i < array->count; ++i) {
-		if (!strcmp(port, array->data[i]->name))
-			return i;
-	}
 	return -1;
 }
 
@@ -215,19 +214,6 @@ ni_bridge_port_array_remove_index(ni_bridge_port_array_t *array, unsigned int po
  * Add a port to the bridge configuration
  */
 int
-ni_bridge_add_port_name(ni_bridge_t *bridge, const char *ifname)
-{
-	if (!ifname || !*ifname)
-		return -1;
-
-	if (__ni_bridge_port_array_index(&bridge->ports, ifname) >= 0)
-		return -1;
-
-	__ni_bridge_port_array_append(&bridge->ports, ni_bridge_port_new(ifname));
-	return 0;
-}
-
-int
 ni_bridge_add_port(ni_bridge_t *bridge, const ni_bridge_port_t *port)
 {
 	unsigned int i;
@@ -246,12 +232,14 @@ ni_bridge_add_port(ni_bridge_t *bridge, const ni_bridge_port_t *port)
 
 
 int
-ni_bridge_del_port(ni_bridge_t *bridge, const char *ifname)
+ni_bridge_del_port(ni_bridge_t *bridge, unsigned int ifindex)
 {
+	ni_bridge_port_t **pp, *port;
 	unsigned int i;
 
-	for (i = 0; i < bridge->ports.count; ++i) {
-		if (!strcmp(bridge->ports.data[i]->name, ifname)) {
+	for (i = 0, pp = bridge->ports.data; i < bridge->ports.count; ++i) {
+		port = *pp++;
+		if (port->ifindex == ifindex) {
 			ni_bridge_port_array_remove_index(&bridge->ports, i);
 			return 0;
 		}
@@ -273,15 +261,6 @@ ni_bridge_del_port_ifindex(ni_bridge_t *bridge, int ifindex)
 		}
 	}
 	return -1;
-}
-
-void
-ni_bridge_get_port_names(const ni_bridge_t *bridge, ni_string_array_t *ports)
-{
-	unsigned int i;
-
-	for (i = 0; i < bridge->ports.count; ++i)
-		ni_string_array_append(ports, bridge->ports.data[i]->name);
 }
 
 /*
@@ -325,26 +304,6 @@ int
 ni_bridge_get_priority(ni_bridge_t *bridge, char **value)
 {
 	return __ni_bridge_uint_to_str(bridge->priority, value);
-}
-
-int
-ni_bridge_get(ni_bridge_t *bridge, unsigned int opt, char **value)
-{
-	switch (opt) {
-	case NI_BRIDGE_STP_ENABLED:
-		return ni_bridge_get_stp(bridge, value);
-	case NI_BRIDGE_FORWARD_DELAY:
-		return ni_bridge_get_forward_delay(bridge, value);
-	case NI_BRIDGE_AGEING_TIME:
-		return ni_bridge_get_ageing_time(bridge, value);
-	case NI_BRIDGE_HELLO_TIME:
-		return ni_bridge_get_hello_time(bridge, value);
-	case NI_BRIDGE_MAX_AGE:
-		return ni_bridge_get_max_age(bridge, value);
-	case NI_BRIDGE_PRIORITY:
-		return ni_bridge_get_priority(bridge, value);
-	}
-	return -1;
 }
 
 /*
@@ -424,6 +383,7 @@ ni_bridge_set(ni_bridge_t *bridge, unsigned int opt, const char *value)
 
 /*
  * Get bridge port options
+ * Get rid of this stuff.
  */
 int
 ni_bridge_port_get_priority(ni_bridge_t *bridge, const char *port, char **value)
@@ -445,20 +405,9 @@ ni_bridge_port_get_path_cost(ni_bridge_t *bridge, const char *port, char **value
 	return __ni_bridge_uint_to_str(bridge->ports.data[i]->path_cost, value);
 }
 
-int
-ni_bridge_port_get(ni_bridge_t *bridge, const char *port, unsigned int opt, char **value)
-{
-	switch (opt) {
-	case NI_BRIDGE_PORT_PRIORITY:
-		return ni_bridge_port_get_priority(bridge, port, value);
-	case NI_BRIDGE_PORT_PATH_COST:
-		return ni_bridge_port_get_path_cost(bridge, port, value);
-	}
-	return -1;
-}
-
 /*
  * Set bridge port options
+ * Get rid of this stuff.
  */
 int
 ni_bridge_port_set_priority(ni_bridge_t *bridge, const char *port, const char *value)
@@ -547,4 +496,10 @@ ni_bridge_port_status_destroy(ni_bridge_port_status_t *ps)
 {
 	ni_string_free(&ps->designated_root);
 	ni_string_free(&ps->designated_bridge);
+}
+
+void
+ni_bridge_ports_destroy(ni_bridge_t *bridge)
+{
+	ni_bridge_port_array_destroy(&bridge->ports);
 }
