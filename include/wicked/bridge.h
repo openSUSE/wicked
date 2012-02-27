@@ -7,6 +7,8 @@
 #ifndef __WICKED_BRIDGE_H__
 #define __WICKED_BRIDGE_H__
 
+#define NI_BRIDGE_VALUE_NOT_SET		~0U
+
 typedef enum ni_bridge_stp {
 	NI_BRIDGE_NO_STP = 0,			/* no spanning tree */
 	NI_BRIDGE_STP,				/* old STP in kernel */

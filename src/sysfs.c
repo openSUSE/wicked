@@ -357,8 +357,6 @@ done:
  * Bridge support
  * This should really be in bridge.c
  */
-#define NI_BRIDGE_VALUE_NOT_SET		~0U
-
 void
 ni_sysfs_bridge_get_config(const char *ifname, ni_bridge_t *bridge)
 {

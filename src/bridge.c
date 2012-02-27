@@ -14,7 +14,6 @@
 #include <wicked/bridge.h>
 #include "netinfo_priv.h"
 
-#define NI_BRIDGE_VALUE_NOT_SET		~0U
 #define NI_BRIDGE_PORT_ARRAY_CHUNK	16
 
 static void			ni_bridge_port_array_init(ni_bridge_port_array_t *);
