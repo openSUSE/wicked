@@ -534,8 +534,7 @@ ni_dbus_serialize_xml_array(xml_node_t *node, const ni_xs_type_t *type, ni_dbus_
 		} else if (element_type->class == NI_XS_TYPE_DICT) {
 			ni_dbus_variant_t *element;
 
-			ni_debug_dbus("var signature is %s", ni_dbus_variant_signature(var));
-			element = ni_dbus_variant_append_variant_element(var);
+			element = ni_dbus_dict_array_add(var);
 			if (!element) {
 				/* should not happen */
 				ni_error("%s: could not append element to array",
@@ -740,11 +739,16 @@ __ni_xs_type_to_dbus_signature(const ni_xs_type_t *type, char *sigbuf, size_t bu
 		array_info = ni_xs_array_info(type);
 		sigbuf[i++] = DBUS_TYPE_ARRAY;
 
+#if 1
+		if (!__ni_xs_type_to_dbus_signature(array_info->element_type, sigbuf + i, buflen - i))
+			return NULL;
+#else
 		/* Arrays of non-scalar types always wrap each element into a VARIANT */
 		if (array_info->element_type->class != NI_XS_TYPE_SCALAR)
 			sigbuf[i++] = DBUS_TYPE_VARIANT;
 		else if (!__ni_xs_type_to_dbus_signature(array_info->element_type, sigbuf + i, buflen - i))
 			return NULL;
+#endif
 		break;
 
 	case NI_XS_TYPE_DICT:
