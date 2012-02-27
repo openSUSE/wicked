@@ -24,6 +24,7 @@
 #include "debug.h"
 
 extern dbus_bool_t	ni_objectmodel_netif_list_refresh(ni_dbus_object_t *);
+static void		ni_objectmodel_register_device_factory_service(ni_dbus_service_t *);
 static void		ni_objectmodel_register_device_service(ni_iftype_t, ni_dbus_service_t *);
 static void		ni_objectmodel_netif_destroy(ni_dbus_object_t *object);
 
@@ -103,13 +104,19 @@ ni_objectmodel_register_netif_classes(void)
 	ni_objectmodel_register_device_service(NI_IFTYPE_ETHERNET, &ni_objectmodel_ethernet_service);
 	ni_objectmodel_register_device_service(NI_IFTYPE_VLAN, &ni_objectmodel_vlan_service);
 	ni_objectmodel_register_device_service(NI_IFTYPE_BOND, &ni_objectmodel_bond_service);
+	ni_objectmodel_register_device_service(NI_IFTYPE_BRIDGE, &ni_objectmodel_bridge_service);
 	ni_objectmodel_register_device_service(NI_IFTYPE_WIRELESS, &ni_objectmodel_wireless_service);
 
-	ni_objectmodel_bond_factory_service.compatible = &ni_objectmodel_netif_list_class;
-	ni_objectmodel_register_service(&ni_objectmodel_bond_factory_service);
+	ni_objectmodel_register_device_factory_service(&ni_objectmodel_bond_factory_service);
+	ni_objectmodel_register_device_factory_service(&ni_objectmodel_bridge_factory_service);
+	ni_objectmodel_register_device_factory_service(&ni_objectmodel_vlan_factory_service);
+}
 
-	ni_objectmodel_vlan_factory_service.compatible = &ni_objectmodel_netif_list_class;
-	ni_objectmodel_register_service(&ni_objectmodel_vlan_factory_service);
+static void
+ni_objectmodel_register_device_factory_service(ni_dbus_service_t *svc)
+{
+	svc->compatible = &ni_objectmodel_netif_list_class;
+	ni_objectmodel_register_service(svc);
 }
 
 static void

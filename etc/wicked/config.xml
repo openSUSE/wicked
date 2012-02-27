@@ -32,8 +32,6 @@
   </extension>
 
   <extension interface="com.suse.Wicked.Bridge">
-   <builtin name="__properties" symbol="ni_objectmodel_bridge_property_table" />
-   <action name="deleteDevice" command="/etc/wicked/extensions/bridge delete" />
    <action name="addPort" command="/etc/wicked/extensions/bridge addPort" />
    <action name="removePort" command="/etc/wicked/extensions/bridge removePort" />
 
@@ -48,10 +46,6 @@
    <putenv name="WICKED_OBJECT_PATH" value="$object-path"/>
    <putenv name="WICKED_INTERFACE_NAME" value="$property:name"/>
    <putenv name="WICKED_INTERFACE_INDEX" value="$property:index"/>
-  </extension>
-
-  <extension interface="com.suse.Wicked.Bridge.Factory">
-   <action name="newDevice" command="/etc/wicked/extensions/bridge create" />
   </extension>
 
   <extension interface="com.suse.Wicked.Firewall">

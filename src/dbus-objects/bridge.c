@@ -1,9 +1,6 @@
 /*
  * DBus encapsulation for bridge interfaces.
  *
- * Note, most of this is now handled via extension scripts. We only do properties
- * here, for the sake of speed.
- *
  * Copyright (C) 2011, 2012 Olaf Kirch <okir@suse.de>
  */
 
@@ -20,25 +17,205 @@
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
 #include <wicked/bridge.h>
+#include <wicked/dbus-errors.h>
 #include <wicked/system.h>
 #include "dbus-common.h"
 #include "model.h"
 #include "debug.h"
 
-static dbus_bool_t	__wicked_dbus_bridge_port_to_dict(const ni_bridge_port_t *port,
+static ni_interface_t *	__ni_objectmodel_bridge_device_arg(const ni_dbus_variant_t *);
+static ni_interface_t *	__ni_objectmodel_bridge_newlink(ni_interface_t *, const char *, DBusError *);
+static dbus_bool_t	__ni_objectmodel_bridge_port_to_dict(const ni_bridge_port_t *port,
 				ni_dbus_variant_t *dict,
 				const ni_dbus_object_t *object,
 				int config_only);
-static dbus_bool_t	__wicked_dbus_bridge_port_from_dict(ni_bridge_port_t *port,
+static dbus_bool_t	__ni_objectmodel_bridge_port_from_dict(ni_bridge_port_t *port,
 				const ni_dbus_variant_t *dict,
 				DBusError *error,
 				int config_only);
 
 /*
+ * Create a new bridging interface
+ */
+static dbus_bool_t
+ni_objectmodel_new_bridge(ni_dbus_object_t *factory_object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_interface_t *ifp;
+	const char *ifname = NULL;
+	dbus_bool_t rv = FALSE;
+
+	ni_assert(argc == 2);
+	if (!ni_dbus_variant_get_string(&argv[0], &ifname)
+	 || !(ifp = __ni_objectmodel_bridge_device_arg(&argv[1])))
+		goto bad_args;
+
+	if (!(ifp = __ni_objectmodel_bridge_newlink(ifp, ifname, error))) {
+		rv = FALSE;
+	} else {
+		ni_dbus_server_t *server = ni_dbus_object_get_server(factory_object);
+		ni_dbus_variant_t result = NI_DBUS_VARIANT_INIT;
+		ni_dbus_object_t *new_object;
+
+		ni_trace("new if name=%s users=%u", ifp->name, ifp->users);
+
+		new_object = ni_dbus_server_find_object_by_handle(server, ifp);
+		if (new_object == NULL)
+			new_object = ni_objectmodel_register_interface(server, ifp);
+		if (!new_object)
+			goto out;
+
+		/* For now, we return a string here. This should really be an object-path,
+		 * though. */
+		ni_dbus_variant_set_string(&result, new_object->path);
+
+		rv = ni_dbus_message_serialize_variants(reply, 1, &result, error);
+		ni_dbus_variant_destroy(&result);
+	}
+
+out:
+	return rv;
+
+bad_args:
+	dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "unable to extract arguments");
+	return FALSE;
+}
+
+static ni_interface_t *
+__ni_objectmodel_bridge_newlink(ni_interface_t *cfg_ifp, const char *ifname, DBusError *error)
+{
+	ni_netconfig_t *nc = ni_global_state_handle(0);
+	ni_interface_t *new_ifp = NULL;
+	const ni_bridge_t *bridge;
+	int rv;
+
+	bridge = ni_interface_get_bridge(cfg_ifp);
+
+	if (ifname == NULL && !(ifname = ni_interface_make_name(nc, "br"))) {
+		dbus_set_error(error, DBUS_ERROR_FAILED, "Unable to create bridging interface - too many interfaces");
+		goto out;
+	}
+
+	if ((rv = ni_system_bridge_create(nc, cfg_ifp->name, bridge, &new_ifp)) < 0) {
+		if (rv != -NI_ERROR_INTERFACE_EXISTS
+		 && (ifname != NULL && strcmp(ifname, new_ifp->name))) {
+			dbus_set_error(error,
+					DBUS_ERROR_FAILED,
+					"Unable to create bridging interface: %s",
+					ni_strerror(rv));
+			goto out;
+		}
+		ni_debug_dbus("Bridge interface exists (and name matches)");
+	}
+
+	if (new_ifp->link.type != NI_IFTYPE_BRIDGE) {
+		dbus_set_error(error,
+				DBUS_ERROR_FAILED,
+				"Unable to create bridging interface: new interface is of type %s",
+				ni_linktype_type_to_name(new_ifp->link.type));
+		ni_interface_put(new_ifp);
+		new_ifp = NULL;
+	}
+
+out:
+	if (cfg_ifp)
+		ni_interface_put(cfg_ifp);
+	return new_ifp;
+}
+
+/*
+ * Bridge.changeDevice method
+ */
+static dbus_bool_t
+ni_objectmodel_bridge_setup(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_netconfig_t *nc = ni_global_state_handle(0);
+	ni_interface_t *ifp, *cfg;
+	dbus_bool_t rv = FALSE;
+
+	/* we've already checked that argv matches our signature */
+	ni_assert(argc == 1);
+
+	if (!(ifp = ni_objectmodel_unwrap_interface(object, error)))
+		return FALSE;
+
+	if (!(cfg = __ni_objectmodel_bridge_device_arg(&argv[0]))) {
+		ni_dbus_error_invalid_args(error, object->path, method->name);
+		goto out;
+	}
+
+	if (ni_system_bridge_setup(nc, ifp, cfg->bridge) < 0) {
+		dbus_set_error(error, DBUS_ERROR_FAILED, "failed to set up bridging device");
+		goto out;
+	}
+
+	rv = TRUE;
+
+out:
+	if (cfg)
+		ni_interface_put(cfg);
+	return rv;
+}
+
+/*
+ * Common helper function to extract bridging device info from a dbus dict
+ */
+static ni_interface_t *
+__ni_objectmodel_bridge_device_arg(const ni_dbus_variant_t *dict)
+{
+	ni_dbus_object_t *dev_object;
+	ni_interface_t *dev;
+	dbus_bool_t rv;
+
+	dev = ni_interface_new(NULL, NULL, 0);
+	dev->link.type = NI_IFTYPE_BOND;
+
+	dev_object = ni_objectmodel_wrap_interface(dev);
+	rv = ni_dbus_object_set_properties_from_dict(dev_object, &ni_objectmodel_bridge_service, dict);
+	ni_dbus_object_free(dev_object);
+
+	if (!rv) {
+		ni_interface_put(dev);
+		dev = NULL;
+	}
+	return dev;
+}
+
+/*
+ * Bridge.delete method
+ */
+static dbus_bool_t
+ni_objectmodel_delete_bridge(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_netconfig_t *nc = ni_global_state_handle(0);
+	ni_interface_t *ifp;
+
+	if (!(ifp = ni_objectmodel_unwrap_interface(object, error)))
+		return FALSE;
+
+	NI_TRACE_ENTER_ARGS("ifp=%s", ifp->name);
+	if (ni_system_bridge_delete(nc, ifp) < 0) {
+		dbus_set_error(error, DBUS_ERROR_FAILED,
+				"Error deleting bridge interface", ifp->name);
+		return FALSE;
+	}
+
+	/* FIXME: destroy the object */
+	ni_dbus_object_free(object);
+
+	return TRUE;
+}
+
+/*
  * Helper function to obtain bridge config from dbus object
  */
 static ni_bridge_t *
-__wicked_dbus_bridge_handle(const ni_dbus_object_t *object, DBusError *error)
+__ni_objectmodel_bridge_handle(const ni_dbus_object_t *object, DBusError *error)
 {
 	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
 	ni_bridge_t *bridge;
@@ -67,7 +244,7 @@ ni_objectmodel_get_bridge(const ni_dbus_object_t *object, DBusError *error)
 }
 
 static dbus_bool_t
-__wicked_dbus_bridge_parse_stp(const ni_dbus_property_t *property,
+__ni_objectmodel_bridge_parse_stp(const ni_dbus_property_t *property,
 				ni_dbus_variant_t *result,
 				const char *value)
 {
@@ -84,13 +261,13 @@ __wicked_dbus_bridge_parse_stp(const ni_dbus_property_t *property,
  * Property ports
  */
 static dbus_bool_t
-__wicked_dbus_bridge_get_ports(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
+__ni_objectmodel_bridge_get_ports(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
 				ni_dbus_variant_t *result, DBusError *error)
 {
 	ni_bridge_t *bridge;
 	unsigned int i;
 
-	if (!(bridge = __wicked_dbus_bridge_handle(object, error)))
+	if (!(bridge = __ni_objectmodel_bridge_handle(object, error)))
 		return FALSE;
 
 	ni_dbus_dict_array_init(result);
@@ -103,21 +280,21 @@ __wicked_dbus_bridge_get_ports(const ni_dbus_object_t *object, const ni_dbus_pro
 			return FALSE;
 		ni_dbus_variant_init_dict(dict);
 
-		if (!__wicked_dbus_bridge_port_to_dict(port, dict, object, 0))
+		if (!__ni_objectmodel_bridge_port_to_dict(port, dict, object, 0))
 			return FALSE;
 	}
 	return TRUE;
 }
 
 static dbus_bool_t
-__wicked_dbus_bridge_set_ports(ni_dbus_object_t *object, const ni_dbus_property_t *property,
+__ni_objectmodel_bridge_set_ports(ni_dbus_object_t *object, const ni_dbus_property_t *property,
 				const ni_dbus_variant_t *argument, DBusError *error)
 {
 	ni_dbus_variant_t *port_dict;
 	ni_bridge_t *bridge;
 	unsigned int i;
 
-	if (!(bridge = __wicked_dbus_bridge_handle(object, error)))
+	if (!(bridge = __ni_objectmodel_bridge_handle(object, error)))
 		return FALSE;
 
 	if (!ni_dbus_variant_is_dict_array(argument))
@@ -128,7 +305,7 @@ __wicked_dbus_bridge_set_ports(ni_dbus_object_t *object, const ni_dbus_property_
 		ni_bridge_port_t *port;
 
 		port = calloc(1, sizeof(*port));
-		if (!__wicked_dbus_bridge_port_from_dict(port, port_dict, error, TRUE)) {
+		if (!__ni_objectmodel_bridge_port_from_dict(port, port_dict, error, TRUE)) {
 			ni_bridge_port_free(port);
 			return FALSE;
 		}
@@ -144,7 +321,7 @@ __wicked_dbus_bridge_set_ports(ni_dbus_object_t *object, const ni_dbus_property_
  * Helper functions to represent ports as a dbus dict
  */
 static dbus_bool_t
-__wicked_dbus_bridge_port_to_dict(const ni_bridge_port_t *port, ni_dbus_variant_t *dict,
+__ni_objectmodel_bridge_port_to_dict(const ni_bridge_port_t *port, ni_dbus_variant_t *dict,
 				const ni_dbus_object_t *object,
 				int config_only)
 {
@@ -163,7 +340,7 @@ __wicked_dbus_bridge_port_to_dict(const ni_bridge_port_t *port, ni_dbus_variant_
 }
 
 static dbus_bool_t
-__wicked_dbus_bridge_port_from_dict(ni_bridge_port_t *port, const ni_dbus_variant_t *dict,
+__ni_objectmodel_bridge_port_from_dict(ni_bridge_port_t *port, const ni_dbus_variant_t *dict,
 				DBusError *error,
 				int config_only)
 {
@@ -208,13 +385,13 @@ const ni_dbus_property_t	ni_objectmodel_bridge_port_property_table[] = {
 #define BRIDGE_UINT_PROPERTY(dbus_name, member_name, rw) \
 	NI_DBUS_GENERIC_UINT_PROPERTY(bridge, dbus_name, member_name, rw)
 #define WICKED_BRIDGE_PROPERTY_SIGNATURE(signature, __name, rw) \
-	__NI_DBUS_PROPERTY(signature, __name, __wicked_dbus_bridge, rw)
+	__NI_DBUS_PROPERTY(signature, __name, __ni_objectmodel_bridge, rw)
 
-const ni_dbus_property_t	ni_objectmodel_bridge_property_table[] = {
+static const ni_dbus_property_t	ni_objectmodel_bridge_property_table[] = {
 	BRIDGE_UINT_PROPERTY(priority, priority, RO),
 	/* This one needs a special parse function: */
 	__NI_DBUS_GENERIC_PROPERTY(bridge, DBUS_TYPE_UINT32_AS_STRING, stp, uint, stp, RO,
-			.parse = __wicked_dbus_bridge_parse_stp),
+			.parse = __ni_objectmodel_bridge_parse_stp),
 	BRIDGE_UINT_PROPERTY(forward-delay, forward_delay, RO),
 	BRIDGE_UINT_PROPERTY(aging-time, ageing_time, RO),
 	BRIDGE_UINT_PROPERTY(hello-time, hello_time, RO),
@@ -225,4 +402,32 @@ const ni_dbus_property_t	ni_objectmodel_bridge_property_table[] = {
 			ports, RO),
 
 	{ NULL }
+};
+
+static ni_dbus_method_t		ni_objectmodel_bridge_methods[] = {
+	{ "changeDevice",	"",				ni_objectmodel_bridge_setup },
+	{ "deleteDevice",	"",				ni_objectmodel_delete_bridge },
+#if 0
+	{ "addPort",		DBUS_TYPE_OJECT_AS_STRING,	ni_objectmodel_bridge_add_port },
+	{ "removePort",		DBUS_TYPE_OJECT_AS_STRING,	ni_objectmodel_bridge_remove_port },
+#endif
+	{ NULL }
+};
+
+static ni_dbus_method_t		ni_objectmodel_bridge_factory_methods[] = {
+	{ "newDevice",		"sa{sv}",			ni_objectmodel_new_bridge },
+
+	{ NULL }
+};
+
+ni_dbus_service_t	ni_objectmodel_bridge_service = {
+	.name		= WICKED_DBUS_BRIDGE_INTERFACE,
+	.methods	= ni_objectmodel_bridge_methods,
+	.properties	= ni_objectmodel_bridge_property_table,
+};
+
+
+ni_dbus_service_t	ni_objectmodel_bridge_factory_service = {
+	.name		= WICKED_DBUS_BRIDGE_INTERFACE ".Factory",
+	.methods	= ni_objectmodel_bridge_factory_methods,
 };

@@ -295,7 +295,6 @@ ni_system_vlan_create(ni_netconfig_t *nc, const char *ifname, const ni_vlan_t *c
 
 /*
  * Delete a VLAN interface
- * ni_system_vlan_delete
  */
 int
 ni_system_vlan_delete(ni_interface_t *ifp)
@@ -309,7 +308,6 @@ ni_system_vlan_delete(ni_interface_t *ifp)
 
 /*
  * Create a bridge interface
- * ni_system_bridge_create
  */
 int
 ni_system_bridge_create(ni_netconfig_t *nc, const char *ifname,
@@ -332,25 +330,16 @@ ni_system_bridge_create(ni_netconfig_t *nc, const char *ifname,
 		return -1;
 	}
 
-	if (ni_interface_update_bridge_config(nc, ifp, cfg_bridge) < 0) {
-		ni_error("ni_system_bridge_create: failed to apply config");
-		return -1;
-	}
-
 	*ifpp = ifp;
 	return 0;
 }
 
 /*
  * Given data provided by the user, update the bridge config
- * __ni_system_bridge_update - Make internal
  */
 int
-ni_interface_update_bridge_config(ni_netconfig_t *nc, ni_interface_t *ifp, const ni_bridge_t *bcfg)
+ni_system_bridge_setup(ni_netconfig_t *nc, ni_interface_t *ifp, const ni_bridge_t *bcfg)
 {
-	ni_bridge_t *bridge;
-	unsigned int i;
-
 	if (ifp->link.type != NI_IFTYPE_BRIDGE) {
 		ni_error("%s: %s is not a bridge interface", __func__, ifp->name);
 		return -1;
@@ -361,15 +350,7 @@ ni_interface_update_bridge_config(ni_netconfig_t *nc, ni_interface_t *ifp, const
 		return -1;
 	}
 
-	bridge = ni_interface_get_bridge(ifp);
-	ni_sysfs_bridge_get_config(ifp->name, bridge);
-	ni_sysfs_bridge_get_status(ifp->name, &bridge->status);
-
-	for (i = 0; i < bcfg->ports.count; ++i) {
-		if (ni_system_bridge_add_port(nc, ifp, bcfg->ports.data[i]) < 0)
-			return -1;
-	}
-	return 0;
+	return __ni_system_refresh_interface(nc, ifp);
 }
 
 /*
@@ -388,7 +369,6 @@ ni_system_bridge_delete(ni_netconfig_t *nc, ni_interface_t *ifp)
 
 /*
  * Add a port to a bridge interface
- * ni_system_bridge_add_port
  */
 int
 ni_system_bridge_add_port(ni_netconfig_t *nc, ni_interface_t *ifp, ni_bridge_port_t *port)

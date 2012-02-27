@@ -22,6 +22,8 @@ extern int		ni_system_vlan_create(ni_netconfig_t *nc, const char *ifname,
 extern int		ni_system_vlan_delete(ni_interface_t *ifp);
 extern int		ni_system_bridge_create(ni_netconfig_t *nc, const char *ifname,
 				const ni_bridge_t *cfg_bridge, ni_interface_t **ifpp);
+extern int		ni_system_bridge_setup(ni_netconfig_t *nc, ni_interface_t *ifp, 
+				const ni_bridge_t *cfg_bridge);
 extern int		ni_system_bridge_add_port(ni_netconfig_t *nc, ni_interface_t *ifp,
 				ni_bridge_port_t *);
 extern int		ni_system_bridge_remove_port(ni_netconfig_t *, ni_interface_t *, int);
