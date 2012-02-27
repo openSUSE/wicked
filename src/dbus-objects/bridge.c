@@ -35,6 +35,7 @@ static dbus_bool_t	__ni_objectmodel_bridge_port_from_dict(ni_bridge_port_t *port
 				int config_only);
 
 /*
+ * Bridge.Factory.newDevice:
  * Create a new bridging interface
  */
 static dbus_bool_t
@@ -364,20 +365,6 @@ __ni_objectmodel_bridge_port_from_dict(ni_bridge_port_t *port, const ni_dbus_var
 
 	return TRUE;
 }
-
-/*
- * Dummy properties for bridge port.
- * This is needed for encoding bridge port properties in addPort calls
- */
-#define WICKED_BRIDGE_PORT_PROPERTY(type, __name) \
-	NI_DBUS_DUMMY_PROPERTY(type, __name)
-
-const ni_dbus_property_t	ni_objectmodel_bridge_port_property_table[] = {
-	WICKED_BRIDGE_PORT_PROPERTY(UINT32, priority),
-	WICKED_BRIDGE_PORT_PROPERTY(UINT32, path_cost),
-
-	{ NULL }
-};
 
 #define BRIDGE_INT_PROPERTY(dbus_name, member_name, rw) \
 	NI_DBUS_GENERIC_INT_PROPERTY(bridge, dbus_name, member_name, rw)
