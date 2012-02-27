@@ -314,7 +314,9 @@ ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *d
 		break;
 	}
 
-
+	/* FIXME: we should record the devnode along with the child, and update
+	 * devnode->cdata with the object path before we call any device change
+	 * functions. */
 	ni_ifworker_array_append(&parent->children, child);
 
 #if 0
@@ -737,11 +739,6 @@ build_hierarchy(void)
 						xml_node_location(ifnode),
 						linknode->name);
 				return -1;
-			}
-
-			if (child == NULL) {
-				/* We may not have the config for this device, but it may exist
-				 * in the system. */
 			}
 
 			if (!ni_ifworker_add_child(w, child, devnode))
