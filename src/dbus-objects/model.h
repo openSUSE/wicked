@@ -159,13 +159,9 @@ extern ni_dbus_service_t	ni_objectmodel_bond_factory_service;
 extern ni_dbus_service_t	ni_objectmodel_vlan_service;
 extern ni_dbus_service_t	ni_objectmodel_vlan_factory_service;
 
+extern dbus_bool_t		ni_objectmodel_device_factory_result(ni_dbus_server_t *, ni_dbus_message_t *,
+						ni_interface_t *, DBusError *);
 extern const char *		ni_objectmodel_interface_path(const ni_interface_t *);
-extern ni_dbus_object_t *	ni_objectmodel_new_vlan(ni_dbus_server_t *server,
-					const ni_dbus_object_t *config,
-					DBusError *error);
-extern ni_dbus_object_t *	ni_objectmodel_new_ppp(ni_dbus_server_t *server,
-					const ni_dbus_object_t *config,
-					DBusError *error);
 
 extern dbus_bool_t		__wicked_dbus_get_address_list(ni_address_t *list,
 						ni_dbus_variant_t *result,

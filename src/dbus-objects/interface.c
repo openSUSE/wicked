@@ -305,6 +305,37 @@ ni_objectmodel_interface_path(const ni_interface_t *ifp)
 }
 
 /*
+ * Device factory functions need to register the newly created interface with the
+ * dbus service, and return the device's object path
+ */
+dbus_bool_t
+ni_objectmodel_device_factory_result(ni_dbus_server_t *server, ni_dbus_message_t *reply, ni_interface_t *dev, DBusError *error)
+{
+	ni_dbus_variant_t result = NI_DBUS_VARIANT_INIT;
+	ni_dbus_object_t *new_object;
+	dbus_bool_t rv;
+
+	new_object = ni_dbus_server_find_object_by_handle(server, dev);
+	if (new_object == NULL)
+		new_object = ni_objectmodel_register_interface(server, dev);
+	if (!new_object) {
+		dbus_set_error(error, DBUS_ERROR_FAILED,
+				"failed to register new device %s",
+				dev->name);
+		return FALSE;
+	}
+
+	/* For now, we return a string here. This should really be an object-path,
+	 * though. */
+	ni_dbus_variant_set_string(&result, new_object->path);
+
+	rv = ni_dbus_message_serialize_variants(reply, 1, &result, error);
+	ni_dbus_variant_destroy(&result);
+
+	return rv;
+}
+
+/*
  * Build a dummy dbus object encapsulating a network interface,
  * and add the appropriate dbus services
  */

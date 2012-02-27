@@ -43,40 +43,19 @@ ni_objectmodel_new_bridge(ni_dbus_object_t *factory_object, const ni_dbus_method
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
+	ni_dbus_server_t *server = ni_dbus_object_get_server(factory_object);
 	ni_interface_t *ifp;
 	const char *ifname = NULL;
-	dbus_bool_t rv = FALSE;
 
 	ni_assert(argc == 2);
 	if (!ni_dbus_variant_get_string(&argv[0], &ifname)
 	 || !(ifp = __ni_objectmodel_bridge_device_arg(&argv[1])))
 		goto bad_args;
 
-	if (!(ifp = __ni_objectmodel_bridge_newlink(ifp, ifname, error))) {
-		rv = FALSE;
-	} else {
-		ni_dbus_server_t *server = ni_dbus_object_get_server(factory_object);
-		ni_dbus_variant_t result = NI_DBUS_VARIANT_INIT;
-		ni_dbus_object_t *new_object;
+	if (!(ifp = __ni_objectmodel_bridge_newlink(ifp, ifname, error)))
+		return FALSE;
 
-		ni_trace("new if name=%s users=%u", ifp->name, ifp->users);
-
-		new_object = ni_dbus_server_find_object_by_handle(server, ifp);
-		if (new_object == NULL)
-			new_object = ni_objectmodel_register_interface(server, ifp);
-		if (!new_object)
-			goto out;
-
-		/* For now, we return a string here. This should really be an object-path,
-		 * though. */
-		ni_dbus_variant_set_string(&result, new_object->path);
-
-		rv = ni_dbus_message_serialize_variants(reply, 1, &result, error);
-		ni_dbus_variant_destroy(&result);
-	}
-
-out:
-	return rv;
+	return ni_objectmodel_device_factory_result(server, reply, ifp, error);
 
 bad_args:
 	dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "unable to extract arguments");
