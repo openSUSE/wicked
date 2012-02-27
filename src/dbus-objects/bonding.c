@@ -41,16 +41,12 @@ ni_objectmodel_new_bond(ni_dbus_object_t *factory_object, const ni_dbus_method_t
 	ni_assert(argc == 2);
 	if (!ni_dbus_variant_get_string(&argv[0], &ifname)
 	 || !(ifp = __ni_objectmodel_bond_device_arg(&argv[1])))
-		goto bad_args;
+		return ni_dbus_error_invalid_args(error, factory_object->path, method->name);
 
 	if (!(ifp = __ni_objectmodel_bond_newlink(ifp, ifname, error)))
 		return FALSE;
 
 	return ni_objectmodel_device_factory_result(server, reply, ifp, error);
-
-bad_args:
-	dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "unable to extract arguments");
-	return FALSE;
 }
 
 static ni_interface_t *

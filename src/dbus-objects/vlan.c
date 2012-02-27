@@ -1,13 +1,14 @@
 /*
  * DBus encapsulation for VLAN interfaces
  *
- * Copyright (C) 2011 Olaf Kirch <okir@suse.de>
+ * Copyright (C) 2011-2012 Olaf Kirch <okir@suse.de>
  */
 
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
 #include <wicked/system.h>
 #include <wicked/vlan.h>
+#include <wicked/dbus-errors.h>
 #include "model.h"
 #include "debug.h"
 
@@ -37,10 +38,10 @@ ni_objectmodel_vlan_newlink(ni_dbus_object_t *factory_object, const ni_dbus_meth
 	ifp->link.type = NI_IFTYPE_VLAN;
 	object = ni_objectmodel_wrap_interface(ifp);
 
-	if (argc != 2
-	 || !ni_dbus_variant_get_string(&argv[0], &ifname)
+	ni_assert(argc == 2);
+	if (!ni_dbus_variant_get_string(&argv[0], &ifname)
 	 || !ni_dbus_object_set_properties_from_dict(object, service, &argv[1]))
-		goto bad_args;
+		return ni_dbus_error_invalid_args(error, factory_object->path, method->name);
 
 	if (!(ifp = __ni_objectmodel_vlan_newlink(ifp, ifname, error))) {
 		rv = FALSE;
@@ -53,12 +54,6 @@ ni_objectmodel_vlan_newlink(ni_dbus_object_t *factory_object, const ni_dbus_meth
 	if (object)
 		ni_dbus_object_free(object);
 	return rv;
-
-bad_args:
-	dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "unable to extract arguments");
-	if (object)
-		ni_dbus_object_free(object);
-	return FALSE;
 }
 
 static ni_interface_t *
