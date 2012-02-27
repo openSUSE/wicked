@@ -16,6 +16,17 @@
 static ni_interface_t *	__ni_objectmodel_vlan_newlink(ni_interface_t *, const char *, DBusError *);
 
 /*
+ * Return an interface handle containing all vlan-specific information provided
+ * by the dict argument
+ */
+static inline ni_interface_t *
+__ni_objectmodel_vlan_device_arg(const ni_dbus_variant_t *dict)
+{
+	return ni_objectmodel_get_netif_argument(dict, NI_IFTYPE_VLAN, &ni_objectmodel_vlan_service);
+}
+
+
+/*
  * Create a new VLAN interface
  */
 dbus_bool_t
@@ -23,37 +34,21 @@ ni_objectmodel_vlan_newlink(ni_dbus_object_t *factory_object, const ni_dbus_meth
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
-	const ni_dbus_service_t *service;
-	ni_dbus_object_t *object = NULL;
+	ni_dbus_server_t *server = ni_dbus_object_get_server(factory_object);
 	ni_interface_t *ifp;
 	const char *ifname = NULL;
-	dbus_bool_t rv = FALSE;
 
 	NI_TRACE_ENTER();
 
-	service = ni_objectmodel_service_by_name(WICKED_DBUS_VLAN_INTERFACE);
-	ni_assert(service);
-
-	ifp = ni_interface_new(NULL, NULL, 0);
-	ifp->link.type = NI_IFTYPE_VLAN;
-	object = ni_objectmodel_wrap_interface(ifp);
-
 	ni_assert(argc == 2);
 	if (!ni_dbus_variant_get_string(&argv[0], &ifname)
-	 || !ni_dbus_object_set_properties_from_dict(object, service, &argv[1]))
+	 || !(ifp = __ni_objectmodel_vlan_device_arg(&argv[1])))
 		return ni_dbus_error_invalid_args(error, factory_object->path, method->name);
 
-	if (!(ifp = __ni_objectmodel_vlan_newlink(ifp, ifname, error))) {
-		rv = FALSE;
-	} else {
-		ni_dbus_server_t *server = ni_dbus_object_get_server(factory_object);
+	if (!(ifp = __ni_objectmodel_vlan_newlink(ifp, ifname, error)))
+		return FALSE;
 
-		rv = ni_objectmodel_device_factory_result(server, reply, ifp, error);
-	}
-
-	if (object)
-		ni_dbus_object_free(object);
-	return rv;
+	return ni_objectmodel_device_factory_result(server, reply, ifp, error);
 }
 
 static ni_interface_t *
