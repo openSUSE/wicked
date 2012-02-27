@@ -98,15 +98,11 @@ __ni_objectmodel_bridge_newlink(ni_interface_t *cfg_ifp, const char *ifname, DBu
 	}
 
 	if ((rv = ni_system_bridge_create(nc, cfg_ifp->name, bridge, &new_ifp)) < 0) {
-		if (rv != -NI_ERROR_INTERFACE_EXISTS
-		 && (ifname != NULL && strcmp(ifname, new_ifp->name))) {
-			dbus_set_error(error,
-					DBUS_ERROR_FAILED,
-					"Unable to create bridging interface: %s",
-					ni_strerror(rv));
-			goto out;
-		}
-		ni_debug_dbus("Bridge interface exists (and name matches)");
+		dbus_set_error(error,
+				DBUS_ERROR_FAILED,
+				"Unable to create bridging interface: %s",
+				ni_strerror(rv));
+		goto out;
 	}
 
 	if (new_ifp->link.type != NI_IFTYPE_BRIDGE) {
