@@ -5,7 +5,6 @@ wickedd:
 	  event callback.
 
 wicked:
-	- may want to move finite state machinery into the library
 	- when installing a policy for an auto device, also include a
 	  link-down policy that shuts it down again.
 
@@ -14,9 +13,6 @@ netinfo:
 	  a wireless network (ESSID, security information); an Internet
 	  dialup network (eg providing a phone number, security information),
 	  a mobile IP provider (UMTS), etc.
-	- wireless: need configurable scanning interval; we shouldn't
-	  enable scanning unless there's either a policy, or the device
-	  is up anyway.
 
 ifconfig
 	- finish wireless support
@@ -27,28 +23,12 @@ ifconfig
 iflist
 	- Retrieve ethtool interface statistics
 
-netcf
-	- introduce <ethernet> element that encapsulates ethtool options
-	- The interface XML should interpret an empty <dhcp> element as
-	  "yes, I want DHCP, and I will just use whatever the admin configured
-	  as default for this system".
-
-backends:
-	- support writing of rh sysconfig files
-	- complete support for writing of suse sysconfig files
-	- support debian configuration
-
 overall
-	- add refresh_interface? to ni_ops
-	- in ni_ops, rename functions
-		refresh -> interfaces_get_all
-		configure_interface -> interface_put
-		delete_interface -> interface_delete
 	- Add INSTALL file describing how to build wicked
 
 extensions
+	- support openvpn
 	- escape/reject shell metacharacters when expanding start/stop command
-	- add dhcp6 client script
 
 events
 	- how to send events to a number of listeners without
@@ -61,9 +41,6 @@ events
 	  Any notifications are sent to all recorded listener addresses.
 	  If a send fails, the address is removed from the list
 	  of listeners.
-
-policy
-	- Add ACLs to individual REST nodes
 
 other link layers, totally unsupported as of yet
 	- infiniband
