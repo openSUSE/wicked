@@ -46,10 +46,9 @@ static struct option	options[] = {
 	{ NULL }
 };
 
-static int		opt_dryrun = 0;
-static char *		opt_rootdir = NULL;
-static int		opt_progressmeter = 1;
-static int		opt_shutdown_parents = 1;
+int		opt_global_dryrun = 0;
+char *		opt_global_rootdir = NULL;
+int		opt_global_progressmeter = 1;
 
 static int		do_show(int, char **);
 static int		do_show_xml(int, char **);
@@ -92,15 +91,15 @@ main(int argc, char **argv)
 			break;
 
 		case OPT_DRYRUN:
-			opt_dryrun = 1;
+			opt_global_dryrun = 1;
 			break;
 
 		case OPT_ROOTDIR:
-			opt_rootdir = optarg;
+			opt_global_rootdir = optarg;
 			break;
 
 		case OPT_NOPROGMETER:
-			opt_progressmeter = 0;
+			opt_global_progressmeter = 0;
 			break;
 
 		case OPT_DEBUG:
@@ -118,10 +117,8 @@ main(int argc, char **argv)
 		}
 	}
 
-	opt_shutdown_parents = 1; /* kill this */
-
 	if (!isatty(1))
-		opt_progressmeter = 0;
+		opt_global_progressmeter = 0;
 
 	if (ni_init() < 0)
 		return 1;

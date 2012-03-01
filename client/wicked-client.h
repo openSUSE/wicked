@@ -7,6 +7,10 @@
 #ifndef WICKED_CLIENT_H
 #define WICKED_CLIENT_H
 
+extern int			opt_global_dryrun;
+extern char *			opt_global_rootdir;
+extern int			opt_global_progressmeter;
+
 extern int			do_ifup(int argc, char **argv);
 extern int			do_ifdown(int argc, char **argv);
 
