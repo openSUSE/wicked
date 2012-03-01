@@ -157,9 +157,6 @@ $(BIN)/mkconst: $(OBJ)/util/mkconst.o $(TGTLIBS)
 	@mkdir -p bin
 	$(CC) -o $@ $(CFLAGS) $(OBJ)/util/mkconst.o -L. -lwicked -lnl -ldbus-1 -ldl
 
-test: $(OBJ)/test.o $(TGTLIBS)
-	$(CC) -o $@ $(CFLAGS) $(OBJ)/test.o -L. -lwicked -ldbus-1
-
 testing/xml-test: testing/xml-test.o $(TGTLIBS)
 	$(CC) -o $@ $(CFLAGS) testing/xml-test.o -L. -lwicked -ldbus-1
 
