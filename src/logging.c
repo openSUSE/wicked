@@ -38,6 +38,7 @@ static ni_intmap_t __debug_flags_names[] = {
 	{ "dbus", 	NI_TRACE_DBUS },
 	{ "wireless", 	NI_TRACE_WIRELESS },
 	{ "xml", 	NI_TRACE_XML },
+	{ "objectmodel",NI_TRACE_OBJECTMODEL },
 
 	{ "most", 	NI_TRACE_MOST },
 	{ "all", 	NI_TRACE_ALL },
@@ -61,6 +62,8 @@ static ni_intmap_t __debug_flags_descriptions[] = {
 	{ "Network socket send/receive", 		NI_TRACE_SOCKET },
 	{ "DBus protocol",		 		NI_TRACE_DBUS },
 	{ "Wireless handling",		 		NI_TRACE_WIRELESS },
+	{ "XML processing",		 		NI_TRACE_XML },
+	{ "Wicked object model",	 		NI_TRACE_OBJECTMODEL },
 
 	{ "All useful debug facilities :-)", 		NI_TRACE_MOST },
 	{ "All debug facilities", 			NI_TRACE_ALL },

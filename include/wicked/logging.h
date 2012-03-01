@@ -36,6 +36,7 @@ enum {
 	NI_TRACE_DBUS		= 0x000800,
 	NI_TRACE_WIRELESS	= 0x001000,
 	NI_TRACE_XML		= 0x002000,
+	NI_TRACE_OBJECTMODEL	= 0x004000,
 };
 
 extern unsigned int	ni_debug;
@@ -58,6 +59,7 @@ extern unsigned int	ni_debug;
 #define ni_debug_dbus(fmt, args...)		__ni_debug(NI_TRACE_DBUS, fmt, ##args)
 #define ni_debug_wireless(fmt, args...)		__ni_debug(NI_TRACE_WIRELESS, fmt, ##args)
 #define ni_debug_xml(fmt, args...)		__ni_debug(NI_TRACE_XML, fmt, ##args)
+#define ni_debug_objectmodel(fmt, args...)	__ni_debug(NI_TRACE_OBJECTMODEL, fmt, ##args)
 
 #define ni_debug_wicked_xml(xml_node, fmt, args...) \
 	do { \
