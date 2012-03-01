@@ -87,6 +87,7 @@ struct ni_ifworker {
 
 
 static ni_ifworker_array_t	interface_workers;
+static unsigned int		ni_ifworker_timeout = NI_IFWORKER_DEFAULT_TIMEOUT;
 static unsigned int		ni_ifworker_timeout_count;
 
 static ni_dbus_object_t *	__root_object;
@@ -639,7 +640,7 @@ ni_ifworker_mark_matching(ni_ifmatcher_t *match, unsigned int target_state)
 		if (w->target_state != STATE_NONE) {
 			ni_debug_dbus("%s: target state %s",
 					w->name, ni_ifworker_state_name(w->target_state));
-			ni_ifworker_set_timeout(w, NI_IFWORKER_DEFAULT_TIMEOUT);
+			ni_ifworker_set_timeout(w, ni_ifworker_timeout);
 			ni_ifworker_fsm_init(w);
 		}
 	}
@@ -1723,10 +1724,11 @@ done:
 int
 do_ifup(int argc, char **argv)
 {
-	enum  { OPT_FILE, OPT_BOOT };
+	enum  { OPT_FILE, OPT_BOOT, OPT_TIMEOUT };
 	static struct option ifup_options[] = {
-		{ "file", required_argument, NULL, OPT_FILE },
-		{ "boot-label", required_argument, NULL, OPT_BOOT },
+		{ "file",	required_argument, NULL,	OPT_FILE },
+		{ "boot-label",	required_argument, NULL,	OPT_BOOT },
+		{ "timeout",	required_argument, NULL,	OPT_TIMEOUT },
 		{ NULL }
 	};
 	static ni_ifmatcher_t ifmatch;
@@ -1747,6 +1749,17 @@ do_ifup(int argc, char **argv)
 			ifmatch.boot_label = optarg;
 			break;
 
+		case OPT_TIMEOUT:
+			if (!strcmp(optarg, "infinite")) {
+				ni_ifworker_timeout = 0;
+			} else if (ni_parse_int(optarg, &ni_ifworker_timeout) >= 0) {
+				ni_ifworker_timeout *= 1000; /* sec -> msec */
+			} else {
+				ni_error("ifup: cannot parse timeout option \"%s\"", optarg);
+				goto usage;
+			}
+			break;
+
 		default:
 usage:
 			fprintf(stderr,
@@ -1757,6 +1770,8 @@ usage:
 				"      Read interface configuration(s) from file rather than using system config\n"
 				"  --boot-label <label>\n"
 				"      Only touch interfaces with matching <boot-label>\n"
+				"  --timeout <nsec>\n"
+				"      Timeout after <nsec> seconds\n"
 				);
 			return 1;
 		}
@@ -1807,10 +1822,11 @@ usage:
 int
 do_ifdown(int argc, char **argv)
 {
-	enum  { OPT_FILE, OPT_DELETE };
+	enum  { OPT_FILE, OPT_DELETE, OPT_TIMEOUT };
 	static struct option ifdown_options[] = {
-		{ "file", required_argument, NULL, OPT_FILE },
-		{ "delete", no_argument, NULL, OPT_DELETE },
+		{ "file",	required_argument, NULL,	OPT_FILE },
+		{ "delete",	no_argument, NULL,		OPT_DELETE },
+		{ "timeout",	required_argument, NULL,	OPT_TIMEOUT },
 		{ NULL }
 	};
 	static ni_ifmatcher_t ifmatch;
@@ -1831,6 +1847,17 @@ do_ifdown(int argc, char **argv)
 			opt_delete = 1;
 			break;
 
+		case OPT_TIMEOUT:
+			if (!strcmp(optarg, "infinite")) {
+				ni_ifworker_timeout = 0;
+			} else if (ni_parse_int(optarg, &ni_ifworker_timeout) >= 0) {
+				ni_ifworker_timeout *= 1000; /* sec -> msec */
+			} else {
+				ni_error("ifdown: cannot parse timeout option \"%s\"", optarg);
+				goto usage;
+			}
+			break;
+
 		default:
 usage:
 			fprintf(stderr,
@@ -1841,6 +1868,8 @@ usage:
 				"      Read interface configuration(s) from file rather than using system config\n"
 				"  --delete\n"
 				"      Delete virtual interfaces\n"
+				"  --timeout <nsec>\n"
+				"      Timeout after <nsec> seconds\n"
 				);
 			return 1;
 		}
