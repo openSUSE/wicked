@@ -182,7 +182,7 @@ wicked_get_interface_object(const char *default_interface)
 	if (netif_list_class == NULL) {
 		const ni_dbus_service_t *netif_list_service;
 
-		netif_list_service = ni_objectmodel_service_by_name(WICKED_DBUS_NETIFLIST_INTERFACE);
+		netif_list_service = ni_objectmodel_service_by_name(NI_OBJECTMODEL_NETIFLIST_INTERFACE);
 		ni_assert(netif_list_service);
 
 		netif_list_class = netif_list_service->compatible;
@@ -193,7 +193,7 @@ wicked_get_interface_object(const char *default_interface)
 			NULL);
 
 	if (!default_interface)
-		default_interface = WICKED_DBUS_INTERFACE ".Interface";
+		default_interface = NI_OBJECTMODEL_INTERFACE ".Interface";
 	ni_dbus_object_set_default_interface(child, default_interface);
 
 	return child;

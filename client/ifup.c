@@ -1037,7 +1037,7 @@ ni_ifworker_do_device_up(ni_ifworker_t *w)
 		ni_debug_dbus("created device %s (path=%s)", w->name, object_path);
 		ni_string_dup(&w->object_path, object_path);
 
-		relative_path = ni_string_strip_prefix(WICKED_DBUS_OBJECT_PATH "/", object_path);
+		relative_path = ni_string_strip_prefix(NI_OBJECTMODEL_OBJECT_PATH "/", object_path);
 		if (relative_path == NULL) {
 			ni_ifworker_fail(w, "invalid device path %s", object_path);
 			ni_string_free(&object_path);
@@ -1249,7 +1249,7 @@ __ni_ifworker_check_addrconf(const char *name)
 			char interface[128];
 
 			snprintf(interface, sizeof(interface), "%s.Addrconf.%s.%s",
-					WICKED_DBUS_INTERFACE,
+					NI_OBJECTMODEL_INTERFACE,
 					afname, modename);
 			service = ni_objectmodel_service_by_name(interface);
 			if (!service)
@@ -1277,7 +1277,7 @@ ni_ifworker_do_network_down(ni_ifworker_t *w)
 	}
 
 	for (pos = w->object->interfaces; (service = *pos) != NULL; ++pos) {
-		static const char service_prefix[] = WICKED_DBUS_INTERFACE ".Addrconf.";
+		static const char service_prefix[] = NI_OBJECTMODEL_INTERFACE ".Addrconf.";
 
 		/* Check if this is an addrconf interface */
 		if (!strncmp(service->name, service_prefix, sizeof(service_prefix) - 1)) {
@@ -1646,7 +1646,7 @@ ni_ifworkers_create_client(void)
 		return FALSE;
 
 	ni_dbus_client_add_signal_handler(ni_dbus_object_get_client(__root_object), NULL, NULL,
-			                        WICKED_DBUS_NETIF_INTERFACE,
+			                        NI_OBJECTMODEL_NETIF_INTERFACE,
 						interface_state_change_signal,
 						NULL);
 

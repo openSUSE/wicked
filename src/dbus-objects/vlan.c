@@ -166,12 +166,12 @@ static ni_dbus_method_t		ni_objectmodel_vlan_factory_methods[] = {
 };
 
 ni_dbus_service_t	ni_objectmodel_vlan_factory_service = {
-	.name		= WICKED_DBUS_VLAN_INTERFACE ".Factory",
+	.name		= NI_OBJECTMODEL_VLAN_INTERFACE ".Factory",
 	.methods	= ni_objectmodel_vlan_factory_methods,
 };
 
 ni_dbus_service_t	ni_objectmodel_vlan_service = {
-	.name		= WICKED_DBUS_VLAN_INTERFACE,
+	.name		= NI_OBJECTMODEL_VLAN_INTERFACE,
 	.methods	= ni_objectmodel_vlan_methods,
 	.properties	= ni_objectmodel_vlan_property_table,
 };

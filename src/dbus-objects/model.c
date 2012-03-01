@@ -57,7 +57,7 @@ ni_objectmodel_create_service(void)
 {
 	ni_dbus_server_t *server;
 
-	server = ni_server_listen_dbus(WICKED_DBUS_BUS_NAME);
+	server = ni_server_listen_dbus(NI_OBJECTMODEL_DBUS_BUS_NAME);
 	if (server == NULL)
 		ni_fatal("unable to initialize dbus service");
 
@@ -237,7 +237,7 @@ ni_objectmodel_get_class(const char *name)
  * The interface for the dbus root node. Nothing much for now.
  */
 static ni_dbus_service_t	ni_objectmodel_netif_root_interface = {
-	.name		= WICKED_DBUS_INTERFACE,
+	.name		= NI_OBJECTMODEL_INTERFACE,
 };
 
 /*

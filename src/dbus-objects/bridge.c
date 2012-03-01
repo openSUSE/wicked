@@ -366,13 +366,13 @@ static ni_dbus_method_t		ni_objectmodel_bridge_factory_methods[] = {
 };
 
 ni_dbus_service_t	ni_objectmodel_bridge_service = {
-	.name		= WICKED_DBUS_BRIDGE_INTERFACE,
+	.name		= NI_OBJECTMODEL_BRIDGE_INTERFACE,
 	.methods	= ni_objectmodel_bridge_methods,
 	.properties	= ni_objectmodel_bridge_property_table,
 };
 
 
 ni_dbus_service_t	ni_objectmodel_bridge_factory_service = {
-	.name		= WICKED_DBUS_BRIDGE_INTERFACE ".Factory",
+	.name		= NI_OBJECTMODEL_BRIDGE_INTERFACE ".Factory",
 	.methods	= ni_objectmodel_bridge_factory_methods,
 };

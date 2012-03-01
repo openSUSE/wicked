@@ -182,8 +182,8 @@ static ni_dbus_method_t		__wicked_dbus_autoip4_methods[] = {
 };
 
 static ni_dbus_service_t	__wicked_dbus_autoip4_interface = {
-	.name = WICKED_DBUS_AUTO4_INTERFACE,
-	.methods = __wicked_dbus_autoip4_methods,
+	.name		= NI_OBJECTMODEL_AUTO4_INTERFACE,
+	.methods	= __wicked_dbus_autoip4_methods,
 };
 
 
@@ -261,7 +261,7 @@ autoip4_discover_devices(ni_dbus_server_t *server)
 void
 autoip4_supplicant(void)
 {
-	autoip4_dbus_server = ni_server_listen_dbus(WICKED_DBUS_BUS_NAME_AUTO4);
+	autoip4_dbus_server = ni_server_listen_dbus(NI_OBJECTMODEL_DBUS_BUS_NAME_AUTO4);
 	if (autoip4_dbus_server == NULL)
 		ni_fatal("unable to initialize dbus service");
 
@@ -362,19 +362,19 @@ autoip4_protocol_event(enum ni_lease_event ev, const ni_autoip_device_t *dev, ni
 	switch (ev) {
 	case NI_EVENT_LEASE_ACQUIRED:
 		ni_dbus_server_send_signal(autoip4_dbus_server, dev_object,
-				WICKED_DBUS_AUTO4_INTERFACE, "LeaseAcquired",
+				NI_OBJECTMODEL_AUTO4_INTERFACE, "LeaseAcquired",
 				argc, argv);
 		break;
 
 	case NI_EVENT_LEASE_RELEASED:
 		ni_dbus_server_send_signal(autoip4_dbus_server, dev_object,
-				WICKED_DBUS_AUTO4_INTERFACE, "LeaseReleased",
+				NI_OBJECTMODEL_AUTO4_INTERFACE, "LeaseReleased",
 				argc, argv);
 		break;
 
 	case NI_EVENT_LEASE_LOST:
 		ni_dbus_server_send_signal(autoip4_dbus_server, dev_object,
-				WICKED_DBUS_AUTO4_INTERFACE, "LeaseLost",
+				NI_OBJECTMODEL_AUTO4_INTERFACE, "LeaseLost",
 				argc, argv);
 		break;
 

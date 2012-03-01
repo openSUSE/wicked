@@ -166,7 +166,7 @@ ni_objectmodel_netif_list_init_child(ni_dbus_object_t *object)
 	if (netif_class == NULL) {
 		const ni_dbus_service_t *netif_service;
 
-		netif_service = ni_objectmodel_service_by_name(WICKED_DBUS_NETIF_INTERFACE);
+		netif_service = ni_objectmodel_service_by_name(NI_OBJECTMODEL_NETIF_INTERFACE);
 		ni_assert(netif_service);
 
 		netif_class = netif_service->compatible;
@@ -311,7 +311,7 @@ static ni_dbus_method_t		ni_objectmodel_netif_list_methods[] = {
 };
 
 static ni_dbus_service_t	ni_objectmodel_netif_list_service = {
-	.name		= WICKED_DBUS_NETIFLIST_INTERFACE,
+	.name		= NI_OBJECTMODEL_NETIFLIST_INTERFACE,
 	.compatible	= &ni_objectmodel_netif_list_class,
 	.methods	= ni_objectmodel_netif_list_methods,
 };
@@ -408,7 +408,7 @@ ni_objectmodel_interface_full_path(const ni_interface_t *ifp)
 {
 	static char object_path[256];
 
-	snprintf(object_path, sizeof(object_path), WICKED_DBUS_OBJECT_PATH "/Interface/%u", ifp->link.ifindex);
+	snprintf(object_path, sizeof(object_path), NI_OBJECTMODEL_OBJECT_PATH "/Interface/%u", ifp->link.ifindex);
 	return object_path;
 }
 
@@ -540,7 +540,7 @@ put_properties_to_dict(const ni_dbus_service_t *service, const void *handle, ni_
 }
 
 static ni_dbus_service_t	ni_objectmodel_netifreq_service = {
-	.name		= WICKED_DBUS_NETIF_INTERFACE "Request",
+	.name		= NI_OBJECTMODEL_NETIF_INTERFACE "Request",
 	.compatible	= &ni_objectmodel_ifreq_class,
 	.properties	= ni_objectmodel_netif_request_properties,
 };
@@ -692,7 +692,7 @@ __ni_objectmodel_interface_event(ni_dbus_server_t *server, ni_dbus_object_t *obj
 	}
 
 	ni_debug_dbus("sending interface event \"%s\" for %s", signal_name, ni_dbus_object_get_path(object));
-	ni_dbus_server_send_signal(server, object, WICKED_DBUS_NETIF_INTERFACE, signal_name, argc, &arg);
+	ni_dbus_server_send_signal(server, object, NI_OBJECTMODEL_NETIF_INTERFACE, signal_name, argc, &arg);
 
 	ni_dbus_variant_destroy(&arg);
 	return TRUE;
@@ -962,7 +962,7 @@ static ni_dbus_property_t	ni_objectmodel_netif_properties[] = {
 };
 
 static ni_dbus_service_t	ni_objectmodel_netif_service = {
-	.name		= WICKED_DBUS_NETIF_INTERFACE,
+	.name		= NI_OBJECTMODEL_NETIF_INTERFACE,
 	.compatible	= &ni_objectmodel_netif_class,
 	.methods	= ni_objectmodel_netif_methods,
 	.properties	= ni_objectmodel_netif_properties,

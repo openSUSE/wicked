@@ -324,7 +324,7 @@ static ni_dbus_method_t		ni_objectmodel_wireless_methods[] = {
 };
 
 ni_dbus_service_t	ni_objectmodel_wireless_service = {
-	.name		= WICKED_DBUS_WIRELESS_INTERFACE,
+	.name		= NI_OBJECTMODEL_WIRELESS_INTERFACE,
 	.methods	= ni_objectmodel_wireless_methods,
 	.properties	= ni_objectmodel_wireless_property_table,
 };

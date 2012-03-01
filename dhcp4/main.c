@@ -184,8 +184,8 @@ static ni_dbus_method_t		__wicked_dbus_dhcp4_methods[] = {
 };
 
 static ni_dbus_service_t	__wicked_dbus_dhcp4_interface = {
-	.name = WICKED_DBUS_DHCP4_INTERFACE,
-	.methods = __wicked_dbus_dhcp4_methods,
+	.name		= NI_OBJECTMODEL_DHCP4_INTERFACE,
+	.methods	= __wicked_dbus_dhcp4_methods,
 };
 
 
@@ -267,7 +267,7 @@ dhcp4_discover_devices(ni_dbus_server_t *server)
 void
 dhcp4_supplicant(void)
 {
-	dhcp4_dbus_server = ni_server_listen_dbus(WICKED_DBUS_BUS_NAME_DHCP4);
+	dhcp4_dbus_server = ni_server_listen_dbus(NI_OBJECTMODEL_DBUS_BUS_NAME_DHCP4);
 	if (dhcp4_dbus_server == NULL)
 		ni_fatal("unable to initialize dbus service");
 
@@ -389,19 +389,19 @@ dhcp4_protocol_event(enum ni_dhcp_event ev, const ni_dhcp_device_t *dev, ni_addr
 	switch (ev) {
 	case NI_DHCP_EVENT_ACQUIRED:
 		ni_dbus_server_send_signal(dhcp4_dbus_server, dev_object,
-				WICKED_DBUS_DHCP4_INTERFACE, "LeaseAcquired",
+				NI_OBJECTMODEL_DHCP4_INTERFACE, "LeaseAcquired",
 				argc, argv);
 		break;
 
 	case NI_DHCP_EVENT_RELEASED:
 		ni_dbus_server_send_signal(dhcp4_dbus_server, dev_object,
-				WICKED_DBUS_DHCP4_INTERFACE, "LeaseReleased",
+				NI_OBJECTMODEL_DHCP4_INTERFACE, "LeaseReleased",
 				argc, argv);
 		break;
 
 	case NI_DHCP_EVENT_LOST:
 		ni_dbus_server_send_signal(dhcp4_dbus_server, dev_object,
-				WICKED_DBUS_DHCP4_INTERFACE, "LeaseLost",
+				NI_OBJECTMODEL_DHCP4_INTERFACE, "LeaseLost",
 				argc, argv);
 		break;
 

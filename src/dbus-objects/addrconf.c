@@ -48,14 +48,14 @@ static dbus_bool_t	ni_objectmodel_addrconf_forwarder_call(ni_dbus_addrconf_forwa
 					const ni_uuid_t *uuid, const ni_dbus_variant_t *dict,
 					DBusError *error);
 
-#define WICKED_DBUS_ADDRCONF_IPV4STATIC_INTERFACE	WICKED_DBUS_INTERFACE ".Addrconf.ipv4.static"
-#define WICKED_DBUS_ADDRCONF_IPV4DHCP_INTERFACE		WICKED_DBUS_INTERFACE ".Addrconf.ipv4.dhcp"
-#define WICKED_DBUS_ADDRCONF_IPV4AUTO_INTERFACE		WICKED_DBUS_INTERFACE ".Addrconf.ipv4.auto"
-#define WICKED_DBUS_ADDRCONF_IPV6STATIC_INTERFACE	WICKED_DBUS_INTERFACE ".Addrconf.ipv6.static"
+#define NI_OBJECTMODEL_ADDRCONF_IPV4STATIC_INTERFACE	NI_OBJECTMODEL_INTERFACE ".Addrconf.ipv4.static"
+#define NI_OBJECTMODEL_ADDRCONF_IPV4DHCP_INTERFACE	NI_OBJECTMODEL_INTERFACE ".Addrconf.ipv4.dhcp"
+#define NI_OBJECTMODEL_ADDRCONF_IPV4AUTO_INTERFACE	NI_OBJECTMODEL_INTERFACE ".Addrconf.ipv4.auto"
+#define NI_OBJECTMODEL_ADDRCONF_IPV6STATIC_INTERFACE	NI_OBJECTMODEL_INTERFACE ".Addrconf.ipv6.static"
 
 /*
  * Extract interface index from object path.
- * Path names must be WICKED_DBUS_OBJECT_PATH "/" <something> "/Interface/" <index>
+ * Path names must be NI_OBJECTMODEL_OBJECT_PATH "/" <something> "/Interface/" <index>
  */
 static ni_interface_t *
 ni_objectmodel_addrconf_path_to_device(const char *path)
@@ -64,9 +64,9 @@ ni_objectmodel_addrconf_path_to_device(const char *path)
 	ni_netconfig_t *nc;
 	char cc;
 
-	if (strncmp(path, WICKED_DBUS_OBJECT_PATH, strlen(WICKED_DBUS_OBJECT_PATH)))
+	if (strncmp(path, NI_OBJECTMODEL_OBJECT_PATH, strlen(NI_OBJECTMODEL_OBJECT_PATH)))
 		return NULL;
-	path += strlen(WICKED_DBUS_OBJECT_PATH);
+	path += strlen(NI_OBJECTMODEL_OBJECT_PATH);
 
 	if (*path++ != '/')
 		return NULL;
@@ -443,12 +443,12 @@ ni_objectmodel_addrconf_forwarder_call(ni_dbus_addrconf_forwarder_t *forwarder,
  */
 static ni_dbus_addrconf_forwarder_t dhcp4_forwarder = {
 	.caller = {
-		.interface	= WICKED_DBUS_ADDRCONF_IPV4DHCP_INTERFACE,
+		.interface	= NI_OBJECTMODEL_ADDRCONF_IPV4DHCP_INTERFACE,
 	},
 	.supplicant = {
-		.bus_name	= WICKED_DBUS_BUS_NAME_DHCP4,
-		.interface	= WICKED_DBUS_DHCP4_INTERFACE,
-		.object_path	= WICKED_DBUS_OBJECT_PATH "/DHCP4/Interface",
+		.bus_name	= NI_OBJECTMODEL_DBUS_BUS_NAME_DHCP4,
+		.interface	= NI_OBJECTMODEL_DHCP4_INTERFACE,
+		.object_path	= NI_OBJECTMODEL_OBJECT_PATH "/DHCP4/Interface",
 	},
 	.addrfamily	= AF_INET,
 	.addrconf	= NI_ADDRCONF_DHCP,
@@ -470,7 +470,7 @@ ni_objectmodel_addrconf_ipv4_dhcp_request(ni_dbus_object_t *object, const ni_dbu
 	if (argc != 1 || !ni_dbus_variant_is_dict(&argv[0])) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
 				"%s.%s: expected one dict argument",
-				WICKED_DBUS_ADDRCONF_IPV4DHCP_INTERFACE, method->name);
+				NI_OBJECTMODEL_ADDRCONF_IPV4DHCP_INTERFACE, method->name);
 		return FALSE;
 	}
 
@@ -495,12 +495,12 @@ ni_objectmodel_addrconf_ipv4_dhcp_drop(ni_dbus_object_t *object, const ni_dbus_m
  */
 static ni_dbus_addrconf_forwarder_t ipv4ll_forwarder = {
 	.caller = {
-		.interface	= WICKED_DBUS_ADDRCONF_IPV4AUTO_INTERFACE,
+		.interface	= NI_OBJECTMODEL_ADDRCONF_IPV4AUTO_INTERFACE,
 	},
 	.supplicant = {
-		.bus_name	= WICKED_DBUS_BUS_NAME_AUTO4,
-		.interface	= WICKED_DBUS_AUTO4_INTERFACE,
-		.object_path	= WICKED_DBUS_OBJECT_PATH "/AUTO4/Interface",
+		.bus_name	= NI_OBJECTMODEL_DBUS_BUS_NAME_AUTO4,
+		.interface	= NI_OBJECTMODEL_AUTO4_INTERFACE,
+		.object_path	= NI_OBJECTMODEL_OBJECT_PATH "/AUTO4/Interface",
 	},
 	.addrfamily	= AF_INET,
 	.addrconf	= NI_ADDRCONF_AUTOCONF,
@@ -522,7 +522,7 @@ ni_objectmodel_addrconf_ipv4ll_request(ni_dbus_object_t *object, const ni_dbus_m
 	if (argc != 1 || !ni_dbus_variant_is_dict(&argv[0])) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
 				"%s.%s: expected one dict argument",
-				WICKED_DBUS_ADDRCONF_IPV4AUTO_INTERFACE, method->name);
+				NI_OBJECTMODEL_ADDRCONF_IPV4AUTO_INTERFACE, method->name);
 		return FALSE;
 	}
 
@@ -714,25 +714,25 @@ static const ni_dbus_method_t		ni_objectmodel_addrconf_ipv4ll_methods[] = {
  * IPv4 and IPv6 addrconf request service
  */
 ni_dbus_service_t			ni_objectmodel_addrconf_ipv4_static_service = {
-	.name		= WICKED_DBUS_ADDRCONF_IPV4STATIC_INTERFACE,
+	.name		= NI_OBJECTMODEL_ADDRCONF_IPV4STATIC_INTERFACE,
 	.methods	= ni_objectmodel_addrconf_ipv4_static_methods,
 	.properties	= ni_objectmodel_addrconf_ipv4_static_properties,
 };
 
 ni_dbus_service_t			ni_objectmodel_addrconf_ipv6_static_service = {
-	.name		= WICKED_DBUS_ADDRCONF_IPV6STATIC_INTERFACE,
+	.name		= NI_OBJECTMODEL_ADDRCONF_IPV6STATIC_INTERFACE,
 	.methods	= ni_objectmodel_addrconf_ipv6_static_methods,
 	.properties	= ni_objectmodel_addrconf_ipv6_static_properties,
 };
 
 ni_dbus_service_t			ni_objectmodel_addrconf_ipv4_dhcp_service = {
-	.name		= WICKED_DBUS_ADDRCONF_IPV4DHCP_INTERFACE,
+	.name		= NI_OBJECTMODEL_ADDRCONF_IPV4DHCP_INTERFACE,
 	.methods	= ni_objectmodel_addrconf_ipv4_dhcp_methods,
 	.properties	= ni_objectmodel_addrconf_ipv4_dhcp_properties,
 };
 
 ni_dbus_service_t			ni_objectmodel_addrconf_ipv4ll_service = {
-	.name		= WICKED_DBUS_ADDRCONF_IPV4AUTO_INTERFACE,
+	.name		= NI_OBJECTMODEL_ADDRCONF_IPV4AUTO_INTERFACE,
 	.methods	= ni_objectmodel_addrconf_ipv4ll_methods,
 	.properties	= ni_objectmodel_addrconf_ipv4ll_properties,
 };

@@ -45,14 +45,14 @@ ni_call_create_client(void)
 		ni_objectmodel_init(NULL);
 
 		/* Use ni_objectmodel_create_client() */
-		client = ni_create_dbus_client(WICKED_DBUS_BUS_NAME);
+		client = ni_create_dbus_client(NI_OBJECTMODEL_DBUS_BUS_NAME);
 		if (!client)
 			ni_fatal("Unable to connect to wicked dbus service");
 
 		root_object = ni_dbus_client_object_new(client,
 					&ni_dbus_anonymous_class,
-					WICKED_DBUS_OBJECT_PATH,
-					WICKED_DBUS_INTERFACE,
+					NI_OBJECTMODEL_OBJECT_PATH,
+					NI_OBJECTMODEL_INTERFACE,
 					NULL);
 	}
 
@@ -196,8 +196,8 @@ ni_call_identify_device(const xml_node_t *query)
 	ni_dbus_object_t *object;
 	char *object_path = NULL;
 
-	if (!(object = wicked_get_interface_object(WICKED_DBUS_NETIFLIST_INTERFACE))) {
-		ni_error("unable to create proxy object for %s", WICKED_DBUS_NETIFLIST_INTERFACE);
+	if (!(object = wicked_get_interface_object(NI_OBJECTMODEL_NETIFLIST_INTERFACE))) {
+		ni_error("unable to create proxy object for %s", NI_OBJECTMODEL_NETIFLIST_INTERFACE);
 		return NULL;
 	}
 

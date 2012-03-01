@@ -414,12 +414,12 @@ static ni_dbus_method_t		ni_objectmodel_bond_factory_methods[] = {
 };
 
 ni_dbus_service_t	ni_objectmodel_bond_service = {
-	.name		= WICKED_DBUS_BONDING_INTERFACE,
+	.name		= NI_OBJECTMODEL_BONDING_INTERFACE,
 	.methods	= ni_objectmodel_bond_methods,
 	.properties	= ni_objectmodel_bond_properties,
 };
 
 ni_dbus_service_t	ni_objectmodel_bond_factory_service = {
-	.name		= WICKED_DBUS_BONDING_INTERFACE ".Factory",
+	.name		= NI_OBJECTMODEL_BONDING_INTERFACE ".Factory",
 	.methods	= ni_objectmodel_bond_factory_methods,
 };
