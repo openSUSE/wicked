@@ -91,6 +91,7 @@ ni_call_link_layer_service(const char *link_type)
 
 /*
  * Get the factory interface for a given link layer type
+ * FIXME: rename link -> device
  */
 const ni_dbus_service_t *
 ni_call_link_layer_factory_service(const char *link_type)
@@ -117,6 +118,7 @@ ni_call_link_layer_factory_service(const char *link_type)
 
 /*
  * Get the authentication service for a given link layer type
+ * FIXME: rename link -> device
  */
 const ni_dbus_service_t *
 ni_call_link_layer_auth_service(const char *link_type)
@@ -139,6 +141,85 @@ ni_call_link_layer_auth_service(const char *link_type)
 	}
 
 	return service;
+}
+
+/*
+ * This works a lot like the serialization code in xml-dbus, except we're not defining a
+ * schema for this.
+ * Used by the device identification code below.
+ */
+static void
+__ni_call_build_dict(ni_dbus_variant_t *dict, const xml_node_t *query)
+{
+	if (query->cdata) {
+		ni_dbus_dict_add_string(dict, query->name, query->cdata);
+	} else if (query->children) {
+		const xml_node_t *attr;
+
+		dict = ni_dbus_dict_add(dict, query->name);
+		for (attr = query; attr; attr = attr->next)
+			__ni_call_build_dict(dict, attr);
+	} else {
+		ni_warn("ni_call_identify_device: empty query attribute %s (%s)",
+				query->name, xml_node_location(query));
+	}
+}
+
+/*
+ * Identify device.
+ * Device identification information usually looks like this:
+ *  <device>
+ *   <ethernet:permanent-address>01:02:03:04:05:06</ethernet:permanent-address>
+ *  </device>
+ * The name of the node is of the form naming-service:attribute.
+ *
+ * However, identification information may also be more complex. Consider
+ * a system that identifies network interfaces by chassis/card/port:
+ *
+ *  <device>
+ *    <funky-device>
+ *     <chassis>1</chassis>
+ *     <card>7</card>
+ *     <port>0</port>
+ *    </funky-device>
+ *  </device>
+ *
+ * This approach can also be used to make all the udev renaming obsolete that
+ * is done on system z, or with biosdevname.
+ */
+char *
+ni_call_identify_device(const xml_node_t *query)
+{
+	ni_dbus_variant_t argument = NI_DBUS_VARIANT_INIT;
+	ni_dbus_variant_t result = NI_DBUS_VARIANT_INIT;
+	DBusError error = DBUS_ERROR_INIT;
+	ni_dbus_object_t *object;
+	char *object_path = NULL;
+
+	if (!(object = wicked_get_interface_object(WICKED_DBUS_NETIFLIST_INTERFACE))) {
+		ni_error("unable to create proxy object for %s", WICKED_DBUS_NETIFLIST_INTERFACE);
+		return NULL;
+	}
+
+	ni_dbus_variant_init_dict(&argument);
+	__ni_call_build_dict(&argument, query);
+
+	if (ni_dbus_object_call_variant(object, NULL, "identifyDevice",
+						1, &argument, 1, &result, &error)) {
+		const char *response;
+
+		/* extract device object path from reply */
+		if (!ni_dbus_variant_get_string(&result, &response)) {
+			ni_error("identifyDevice(%s): succeeded but didn't return interface name", query->name);
+	} else {
+			ni_string_dup(&object_path, response);
+		}
+	}
+
+	ni_dbus_variant_destroy(&argument);
+	ni_dbus_variant_destroy(&result);
+	dbus_error_free(&error);
+	return object_path;
 }
 
 /*

@@ -74,6 +74,14 @@
      identification that what we usually have.
      ================================================= -->
 <service name="interface-list" interface="com.suse.Wicked.InterfaceList">
+  <method name="identifyDevice">
+    <arguments>
+      <query class="dict"/>
+    </arguments>
+    <return>
+      <string/>
+    </return>
+  </method>
 </service>
 
 <!-- =================================================

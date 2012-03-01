@@ -547,15 +547,14 @@ ni_ifworker_identify_device(const xml_node_t *devnode)
 		ni_trace("%s - attr %s=%s", __func__, attr->name, attr->cdata);
 		if (!strcmp(attr->name, "alias")) {
 			found = ni_ifworker_by_alias(attr->cdata);
-		}
-#if 0
-		else {
-			object_path = ni_call_identify_device(attr->name, attr->cdata);
+		} else {
+			char *object_path;
+
+			object_path = ni_call_identify_device(attr);
 			if (object_path)
-				ni_ifworker_by_object_path(object_path);
-			ni_string_free(object_path);
+				found = ni_ifworker_by_object_path(object_path);
+			ni_string_free(&object_path);
 		}
-#endif
 
 		if (found != NULL) {
 			if (best && best != found) {
@@ -1456,7 +1455,6 @@ ni_ifworker_fsm(void)
 {
 	unsigned int i, waiting;
 
-	ni_debug_dbus("%s()", __func__);
 	while (1) {
 		int made_progress = 0;
 

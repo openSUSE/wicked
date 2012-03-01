@@ -17,6 +17,7 @@
 #include <wicked/netinfo.h>
 #include <wicked/addrconf.h>
 #include <wicked/logging.h>
+#include <wicked/dbus-errors.h>
 #include <wicked/system.h>
 #include "netinfo_priv.h"
 #include "dbus-common.h"
@@ -198,7 +199,6 @@ ni_objectmodel_netif_list_refresh(ni_dbus_object_t *object)
 {
 	ni_netconfig_t *nc;
 
-	NI_TRACE_ENTER();
 	if (!(nc = ni_global_state_handle(1))) {
 		ni_error("failed to refresh network interfaces");
 		return FALSE;
@@ -211,10 +211,68 @@ ni_objectmodel_netif_list_refresh(ni_dbus_object_t *object)
 	return TRUE;
 }
 
+/*
+ * Identify a device
+ */
+static ni_interface_t *
+ni_objectmodel_interface_identify(const char *naming_service, const char *attribute, const ni_dbus_variant_t *var)
+{
+	ni_var_array_t attrs = { 0, NULL };
+
+	return NULL;
+}
+
+/*
+ * InterfaceList.identifyDevice
+ */
+static dbus_bool_t
+ni_objectmodel_netif_list_identify_device(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	const ni_dbus_variant_t *dict, *var;
+	const char *name;
+	char *copy, *naming_service, *attribute;
+	ni_interface_t *dev;
+
+	ni_assert(argc == 1);
+	if (argc != 1 || !ni_dbus_variant_is_dict(&argv[0]))
+		return ni_dbus_error_invalid_args(error, object->path, method->name);
+	dict = &argv[0];
+
+	if ((var = ni_dbus_dict_get_entry(dict, 0, &name)) == NULL)
+		goto invalid_args;
+
+	ni_debug_dbus("%s(name=%s)", __func__, name);
+	copy = naming_service = strdup(name);
+	if ((attribute = strchr(copy, ':')) != NULL)
+		*attribute++ = '\0';
+
+	dev = ni_objectmodel_interface_identify(naming_service, attribute, var);
+	free(copy);
+
+	if (dev == NULL) {
+		dbus_set_error(error, NI_DBUS_ERROR_INTERFACE_NOT_KNOWN,
+				"unable to identify interface via %s", name);
+		return FALSE;
+	}
+
+	ni_dbus_message_append_string(reply, ni_objectmodel_interface_path(dev));
+	return TRUE;
+
+invalid_args:
+	return ni_dbus_error_invalid_args(error, object->path, method->name);
+}
+
+static ni_dbus_method_t		ni_objectmodel_netif_list_methods[] = {
+	{ "identifyDevice",	"a{sv}",	ni_objectmodel_netif_list_identify_device },
+	{ NULL }
+};
 
 static ni_dbus_service_t	ni_objectmodel_netif_list_service = {
 	.name		= WICKED_DBUS_NETIFLIST_INTERFACE,
 	.compatible	= &ni_objectmodel_netif_list_class,
+	.methods	= ni_objectmodel_netif_list_methods,
 };
 
 /*
