@@ -299,7 +299,7 @@ ni_dbus_message_iter_get_dict(DBusMessageIter *iter, ni_dbus_variant_t *result)
 
 	ni_dbus_variant_init_dict(result);
 
-	if (!ni_dbus_dict_open_read(iter, &iter_dict))
+	if (!ni_dbus_message_open_dict_read(iter, &iter_dict))
 		return FALSE;
 
 	while (1) {
@@ -307,7 +307,7 @@ ni_dbus_message_iter_get_dict(DBusMessageIter *iter, ni_dbus_variant_t *result)
 		ni_dbus_variant_t *ev;
 
 		memset(&entry, 0, sizeof(entry));
-		if (!ni_dbus_dict_get_entry(&iter_dict, &entry))
+		if (!ni_dbus_message_get_next_dict_entry(&iter_dict, &entry))
 			break;
 
 		ev = ni_dbus_dict_add(result, entry.key);

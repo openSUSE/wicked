@@ -28,8 +28,8 @@
  * @return TRUE on success, FALSE on failure
  *
  */
-dbus_bool_t ni_dbus_dict_open_read(DBusMessageIter *iter,
-				    DBusMessageIter *iter_dict)
+dbus_bool_t
+ni_dbus_message_open_dict_read(DBusMessageIter *iter, DBusMessageIter *iter_dict)
 {
 	if (!iter || !iter_dict)
 		return FALSE;
@@ -53,14 +53,14 @@ dbus_bool_t ni_dbus_dict_open_read(DBusMessageIter *iter,
  * occurred.
  *
  * @param iter_dict A valid DBusMessageIter returned from
- *    ni_dbus_dict_open_read()
+ *    ni_dbus_message_open_dict_read()
  * @param entry A valid dict entry object into which the dict key and value
  *    will be placed
  * @return TRUE on success, FALSE on failure
  *
  */
 dbus_bool_t
-ni_dbus_dict_get_entry(DBusMessageIter *iter_dict, struct ni_dbus_dict_entry *entry)
+ni_dbus_message_get_next_dict_entry(DBusMessageIter *iter_dict, struct ni_dbus_dict_entry *entry)
 {
 	DBusMessageIter iter_dict_entry;
 	const char *key;

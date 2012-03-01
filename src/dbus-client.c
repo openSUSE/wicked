@@ -481,7 +481,7 @@ ni_dbus_object_get_managed_objects(ni_dbus_object_t *proxy, DBusError *error)
 		goto out;
 
 	dbus_message_iter_init(reply, &iter);
-	if (!ni_dbus_dict_open_read(&iter, &iter_dict))
+	if (!ni_dbus_message_open_dict_read(&iter, &iter_dict))
 		goto bad_reply;
 	while (dbus_message_iter_get_arg_type(&iter_dict) == DBUS_TYPE_DICT_ENTRY) {
 		DBusMessageIter iter_dict_entry;
@@ -541,7 +541,7 @@ __ni_dbus_object_get_managed_object_interfaces(ni_dbus_object_t *proxy, DBusMess
 		return FALSE;
 	dbus_message_iter_recurse(iter, &iter_variant);
 
-	if (!ni_dbus_dict_open_read(&iter_variant, &iter_dict))
+	if (!ni_dbus_message_open_dict_read(&iter_variant, &iter_dict))
 		return FALSE;
 
 	while (dbus_message_iter_get_arg_type(&iter_dict) == DBUS_TYPE_DICT_ENTRY) {
@@ -612,7 +612,7 @@ __ni_dbus_object_get_managed_object_properties(ni_dbus_object_t *proxy,
 		return FALSE;
 	dbus_message_iter_recurse(iter, &iter_variant);
 
-	if (!ni_dbus_dict_open_read(&iter_variant, &iter_dict))
+	if (!ni_dbus_message_open_dict_read(&iter_variant, &iter_dict))
 		return FALSE;
 
 	while (dbus_message_iter_get_arg_type(&iter_dict) == DBUS_TYPE_DICT_ENTRY) {

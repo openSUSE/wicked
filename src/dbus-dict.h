@@ -19,9 +19,9 @@
  * Reading a dict from a DBusMessage
  */
 
-extern dbus_bool_t	ni_dbus_dict_open_read(DBusMessageIter *iter,
+extern dbus_bool_t	ni_dbus_message_open_dict_read(DBusMessageIter *iter,
 				    DBusMessageIter *iter_dict);
-extern dbus_bool_t	ni_dbus_dict_get_entry(DBusMessageIter *iter_dict,
+extern dbus_bool_t	ni_dbus_message_get_next_dict_entry(DBusMessageIter *iter_dict,
 				    ni_dbus_dict_entry_t *entry);
 extern void		ni_dbus_dict_entry_clear(ni_dbus_dict_entry_t *);
 
