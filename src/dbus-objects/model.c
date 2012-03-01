@@ -109,8 +109,6 @@ ni_objectmodel_register_all(void)
 {
 	/* register all netif classes and service */
 	ni_objectmodel_register_netif_classes();
-
-	__ni_objectmodel_force_linkage();
 }
 
 /*

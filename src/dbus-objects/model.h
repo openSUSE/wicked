@@ -211,6 +211,4 @@ extern dbus_bool_t		__ni_objectmodel_set_route_dict(ni_route_t **list,
 						const ni_dbus_variant_t *dict,
 						DBusError *error);
 
-extern void			__ni_objectmodel_force_linkage(void);
-
 #endif /* __WICKED_OBJECTMODEL_P_H__ */
