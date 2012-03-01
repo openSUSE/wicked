@@ -1,7 +1,8 @@
 
 
 wickedd:
-	- Get rid of interface_activity stuff
+	- bug: linkUp on an interface that's up never returns the
+	  event callback.
 
 wicked:
 	- may want to move finite state machinery into the library
