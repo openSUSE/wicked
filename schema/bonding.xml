@@ -38,7 +38,7 @@
    </miimon>
  </define>
 
- <properties type="device-info"/>
+ <define name="properties" type="device-info"/>
 
  <method name="newDevice">
    <arguments>
