@@ -61,8 +61,10 @@ ni_objectmodel_netif_by_attrs(ni_objectmodel_netif_ns_t *ns, const ni_var_array_
 
 		for (i = 0, ap = attrs->data; match && i < attrs->count; ++i, ++ap)
 			match = ns->match_attr(dev, ap->name, ap->value);
-		if (match)
+		if (match) {
+			ni_debug_dbus("%s: found %s", __func__, dev->name);
 			return dev;
+		}
 	}
 	return NULL;
 }

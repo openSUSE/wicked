@@ -298,7 +298,7 @@ ni_objectmodel_netif_list_identify_device(ni_dbus_object_t *object, const ni_dbu
 		return FALSE;
 	}
 
-	ni_dbus_message_append_string(reply, ni_objectmodel_interface_path(dev));
+	ni_dbus_message_append_string(reply, ni_objectmodel_interface_full_path(dev));
 	return TRUE;
 
 invalid_args:
@@ -400,6 +400,15 @@ ni_objectmodel_interface_path(const ni_interface_t *ifp)
 	static char object_path[256];
 
 	snprintf(object_path, sizeof(object_path), "Interface/%u", ifp->link.ifindex);
+	return object_path;
+}
+
+const char *
+ni_objectmodel_interface_full_path(const ni_interface_t *ifp)
+{
+	static char object_path[256];
+
+	snprintf(object_path, sizeof(object_path), WICKED_DBUS_OBJECT_PATH "/Interface/%u", ifp->link.ifindex);
 	return object_path;
 }
 

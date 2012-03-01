@@ -166,6 +166,7 @@ extern ni_interface_t *		ni_objectmodel_get_netif_argument(const ni_dbus_variant
 extern dbus_bool_t		ni_objectmodel_device_factory_result(ni_dbus_server_t *, ni_dbus_message_t *,
 						ni_interface_t *, DBusError *);
 extern const char *		ni_objectmodel_interface_path(const ni_interface_t *);
+extern const char *		ni_objectmodel_interface_full_path(const ni_interface_t *);
 
 extern dbus_bool_t		__ni_objectmodel_get_address_list(ni_address_t *list,
 						ni_dbus_variant_t *result,

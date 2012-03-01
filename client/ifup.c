@@ -94,6 +94,7 @@ static ni_dbus_object_t *	__root_object;
 static const char *		ni_ifworker_state_name(int);
 static void			ni_ifworker_array_append(ni_ifworker_array_t *, ni_ifworker_t *);
 static void			ni_ifworker_array_destroy(ni_ifworker_array_t *);
+static ni_ifworker_t *		ni_ifworker_identify_device(const xml_node_t *);
 static void			ni_ifworker_fsm_init(ni_ifworker_t *);
 static const ni_dbus_service_t *__ni_ifworker_check_addrconf(const char *);
 
@@ -435,6 +436,7 @@ ni_ifworkers_from_xml(xml_document_t *doc)
 	for (ifnode = root->children; ifnode; ifnode = ifnode->next) {
 		const char *ifname = NULL;
 		xml_node_t *node;
+		ni_ifworker_t *w;
 
 		if (!ifnode->name || strcmp(ifnode->name, "interface")) {
 			ni_warn("%s: ignoring non-interface element <%s>",
@@ -443,8 +445,19 @@ ni_ifworkers_from_xml(xml_document_t *doc)
 			continue;
 		}
 
-		if ((node = xml_node_get_child(ifnode, "name")) != NULL)
+		if ((node = xml_node_get_child(ifnode, "name")) != NULL) {
 			ifname = node->cdata;
+		} else
+		if ((node = xml_node_get_child(ifnode, "identify")) != NULL) {
+			w = ni_ifworker_identify_device(node);
+			if (w != NULL) {
+				ni_debug_dbus("%s: identified interface %s",
+						xml_node_location(node),
+						w->name);
+				w->config = ifnode;
+				continue;
+			}
+		}
 
 		ni_ifworker_new(ifname, ifnode);
 		count++;
@@ -544,7 +557,6 @@ ni_ifworker_identify_device(const xml_node_t *devnode)
 	for (attr = devnode->children; attr; attr = attr->next) {
 		ni_ifworker_t *found = NULL;
 
-		ni_trace("%s - attr %s=%s", __func__, attr->name, attr->cdata);
 		if (!strcmp(attr->name, "alias")) {
 			found = ni_ifworker_by_alias(attr->cdata);
 		} else {
@@ -566,6 +578,9 @@ ni_ifworker_identify_device(const xml_node_t *devnode)
 		}
 	}
 
+	if (best)
+		ni_debug_dbus("%s: identified device as %s (%s)",
+				xml_node_location(devnode), best->name, best->object_path);
 	return best;
 }
 
@@ -1745,6 +1760,11 @@ usage:
 		ifname = "all";
 	}
 
+	if (!ni_ifworkers_create_client())
+		return 1;
+
+	ni_ifworkers_refresh_state();
+
 	if (opt_file) {
 		xml_document_t *config_doc;
 
@@ -1757,11 +1777,6 @@ usage:
 	} else {
 		ni_fatal("ifup: non-file case not implemented yet");
 	}
-
-	if (!ni_ifworkers_create_client())
-		return 1;
-
-	ni_ifworkers_refresh_state();
 
 	if (build_hierarchy() < 0)
 		ni_fatal("ifup: unable to build device hierarchy");

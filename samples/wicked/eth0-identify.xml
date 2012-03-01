@@ -1,0 +1,12 @@
+<interface>
+  <identify>
+    <ethernet:permanent-address>00:24:E8:CD:34:9B</ethernet:permanent-address>
+  </identify>
+  <description>Primary Ethernet Device</description>
+
+  <ipv4:dhcp>
+    <acquire-timeout>15</acquire-timeout>
+  </ipv4:dhcp>
+</interface>
+
+
