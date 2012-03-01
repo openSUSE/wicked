@@ -4,7 +4,6 @@
  * Copyright (C) 2011-2012 Olaf Kirch <okir@suse.de>
  */
 
-#include <sys/poll.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
@@ -111,6 +110,9 @@ ni_objectmodel_register_netif_classes(void)
 	ni_objectmodel_register_device_factory_service(&ni_objectmodel_bond_factory_service);
 	ni_objectmodel_register_device_factory_service(&ni_objectmodel_bridge_factory_service);
 	ni_objectmodel_register_device_factory_service(&ni_objectmodel_vlan_factory_service);
+
+	/* Register all builtin naming services */
+	ni_objectmodel_register_netif_ns_builtin();
 }
 
 static void
@@ -217,9 +219,48 @@ ni_objectmodel_netif_list_refresh(ni_dbus_object_t *object)
 static ni_interface_t *
 ni_objectmodel_interface_identify(const char *naming_service, const char *attribute, const ni_dbus_variant_t *var)
 {
+	ni_interface_t *dev = NULL;
+	ni_objectmodel_netif_ns_t *ns;
 	ni_var_array_t attrs = { 0, NULL };
+	const char *key, *value;
 
-	return NULL;
+	if (!(ns = ni_objectmodel_get_netif_ns(naming_service))) {
+		ni_warn("unknown naming service \"%s\"", naming_service);
+		return NULL;
+	}
+
+	if (ni_dbus_variant_get_string(var, &value)) {
+		if (attribute == NULL) {
+			if (ns->lookup_by_name == NULL)
+				return NULL;
+			return ns->lookup_by_name(ns, value);
+		}
+
+		/* A single attribute.
+		 * <foo:bar>blabla</foo:bar> is a shorthand for
+		 * "query naming service foo, asking for interfaces with
+		 * attribute "bar" equal to "blabla". This is the same as
+		 *  <foo>
+		 *    <bar>blabla</bar>
+		 *  </foo>
+		 */
+		ni_var_array_set(&attrs, attribute, value);
+	} else {
+		/* Loop over all dict entries and append them to the var array */
+		const ni_dbus_variant_t *dict = var;
+		unsigned int i = 0;
+
+		while ((var = ni_dbus_dict_get_entry(dict, i++, &key)) != NULL) {
+			if (!ni_dbus_variant_get_string(var, &value))
+				return NULL;
+			ni_var_array_set(&attrs, key, value);
+		}
+	}
+
+	dev = ni_objectmodel_netif_by_attrs(ns, &attrs);
+	ni_var_array_destroy(&attrs);
+
+	return dev;
 }
 
 /*
