@@ -5,9 +5,10 @@
 #include <string.h>
 #include <stdarg.h>
 #include <unistd.h>
-#include <mcheck.h>
 #include <stdlib.h>
 #include <getopt.h>
+#include <sys/param.h>
+#include <sys/stat.h>
 
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
@@ -17,8 +18,12 @@
 #include <wicked/dbus.h>
 #include <wicked/objectmodel.h>
 #include <wicked/dbus-errors.h>
+#include <wicked/socket.h>
 
 #include "wicked-client.h"
+
+
+#define WICKED_IFCONFIG_DIR_PATH	"/etc/sysconfig/network"
 
 extern ni_dbus_object_t *	wicked_get_interface(ni_dbus_object_t *, const char *);
 
@@ -1687,8 +1692,6 @@ ni_ifworkers_kickstart(void)
 	return 0;
 }
 
-#include <wicked/socket.h>
-
 static void
 ni_ifworker_mainloop(void)
 {
@@ -1721,18 +1724,76 @@ done:
 	ni_debug_dbus("finished with all devices.");
 }
 
+/*
+ * Read ifconfig file(s)
+ */
+static dbus_bool_t
+ni_ifconfig_file_load(const char *filename)
+{
+	xml_document_t *config_doc;
+
+	ni_debug_readwrite("%s(%s)", __func__, filename);
+	if (!(config_doc = xml_document_read(filename))) {
+		ni_error("unable to load interface definition from %s", filename);
+		return FALSE;
+	}
+
+	ni_ifworkers_from_xml(config_doc);
+
+	/* Do *not* delete config_doc; we are keeping references to its
+	 * descendant nodes in the ifworkers */
+	return TRUE;
+}
+
+static dbus_bool_t
+ni_ifconfig_load(const char *pathname)
+{
+	struct stat stb;
+
+	ni_debug_readwrite("%s(%s)", __func__, pathname);
+	if (stat(pathname, &stb) < 0) {
+		ni_error("%s: %m", pathname);
+		return FALSE;
+	}
+
+	if (S_ISREG(stb.st_mode))
+		return ni_ifconfig_file_load(pathname);
+	if (S_ISDIR(stb.st_mode)) {
+		ni_string_array_t files = NI_STRING_ARRAY_INIT;
+		char namebuf[PATH_MAX];
+		unsigned int i;
+
+		if (ni_scandir(pathname, "*.xml", &files) == 0) {
+			ni_string_array_destroy(&files);
+			return FALSE;
+		}
+		for (i = 0; i < files.count; ++i) {
+			const char *name = files.data[i];
+
+			snprintf(namebuf, sizeof(namebuf), "%s/%s", pathname, name);
+			if (!ni_ifconfig_file_load(namebuf))
+				return FALSE;
+		}
+		ni_string_array_destroy(&files);
+		return TRUE;
+	}
+
+	ni_error("%s: neither a directory nor a regular file", pathname);
+	return FALSE;
+}
+
 int
 do_ifup(int argc, char **argv)
 {
-	enum  { OPT_FILE, OPT_BOOT, OPT_TIMEOUT };
+	enum  { OPT_IFCONFIG, OPT_BOOT, OPT_TIMEOUT };
 	static struct option ifup_options[] = {
-		{ "file",	required_argument, NULL,	OPT_FILE },
+		{ "ifconfig",	required_argument, NULL,	OPT_IFCONFIG },
 		{ "boot-label",	required_argument, NULL,	OPT_BOOT },
 		{ "timeout",	required_argument, NULL,	OPT_TIMEOUT },
 		{ NULL }
 	};
 	static ni_ifmatcher_t ifmatch;
-	const char *opt_file = NULL;
+	const char *opt_ifconfig = WICKED_IFCONFIG_DIR_PATH;
 	int c, rv = 1;
 
 	memset(&ifmatch, 0, sizeof(ifmatch));
@@ -1741,8 +1802,8 @@ do_ifup(int argc, char **argv)
 	optind = 1;
 	while ((c = getopt_long(argc, argv, "", ifup_options, NULL)) != EOF) {
 		switch (c) {
-		case OPT_FILE:
-			opt_file = optarg;
+		case OPT_IFCONFIG:
+			opt_ifconfig = optarg;
 			break;
 
 		case OPT_BOOT:
@@ -1793,18 +1854,15 @@ usage:
 
 	ni_ifworkers_refresh_state();
 
-	if (opt_file) {
-		xml_document_t *config_doc;
+	if (opt_global_rootdir) {
+		static char namebuf[PATH_MAX];
 
-		if (!(config_doc = xml_document_read(opt_file))) {
-			ni_error("unable to load interface definition from %s", opt_file);
-			return 1;
-		}
-
-		ni_ifworkers_from_xml(config_doc);
-	} else {
-		ni_fatal("ifup: non-file case not implemented yet");
+		snprintf(namebuf, sizeof(namebuf), "%s/%s", opt_global_rootdir, opt_ifconfig);
+		opt_ifconfig = namebuf;
 	}
+
+	if (!ni_ifconfig_load(opt_ifconfig))
+		return 1;
 
 	if (build_hierarchy() < 0)
 		ni_fatal("ifup: unable to build device hierarchy");
@@ -1822,15 +1880,15 @@ usage:
 int
 do_ifdown(int argc, char **argv)
 {
-	enum  { OPT_FILE, OPT_DELETE, OPT_TIMEOUT };
+	enum  { OPT_IFCONFIG, OPT_DELETE, OPT_TIMEOUT };
 	static struct option ifdown_options[] = {
-		{ "file",	required_argument, NULL,	OPT_FILE },
+		{ "ifconfig",	required_argument, NULL,	OPT_IFCONFIG },
 		{ "delete",	no_argument, NULL,		OPT_DELETE },
 		{ "timeout",	required_argument, NULL,	OPT_TIMEOUT },
 		{ NULL }
 	};
 	static ni_ifmatcher_t ifmatch;
-	const char *opt_file = NULL;
+	const char *opt_ifconfig = NULL;
 	int opt_delete = 0;
 	int c, rv = 1;
 
@@ -1839,8 +1897,8 @@ do_ifdown(int argc, char **argv)
 	optind = 1;
 	while ((c = getopt_long(argc, argv, "", ifdown_options, NULL)) != EOF) {
 		switch (c) {
-		case OPT_FILE:
-			opt_file = optarg;
+		case OPT_IFCONFIG:
+			opt_ifconfig = optarg;
 			break;
 
 		case OPT_DELETE:
@@ -1881,17 +1939,15 @@ usage:
 	}
 	ifmatch.name = argv[optind++];
 
-	if (opt_file) {
-		xml_document_t *config_doc;
+	if (opt_global_rootdir) {
+		static char namebuf[PATH_MAX];
 
-		if (!(config_doc = xml_document_read(opt_file))) {
-			ni_error("unable to load interface definition from %s", opt_file);
-			return 1;
-		}
-
-		ni_ifworkers_from_xml(config_doc);
-		ifmatch.config_only = 1;
+		snprintf(namebuf, sizeof(namebuf), "%s/%s", opt_global_rootdir, opt_ifconfig);
+		opt_ifconfig = namebuf;
 	}
+
+	if (!ni_ifconfig_load(opt_ifconfig))
+		return 1;
 
 	if (!ni_ifworkers_create_client())
 		return 1;
