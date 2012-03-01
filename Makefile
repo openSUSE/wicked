@@ -5,7 +5,8 @@ CFLAGS_DBUS := $(shell pkg-config --cflags dbus-1)
 
 APPS	= wicked wickedd \
 	  dhcp4-supplicant autoip4-supplicant \
-	  util/mkconst
+	  mkconst
+APPBINS	= $(addprefix $(BIN)/,$(APPS))
 
 TGTLIBS	= libwicked.a
 	  # libwicked.so
@@ -97,6 +98,7 @@ SERVERSRCS = \
 GENFILES = \
 	  schema/constants.xml
 
+BIN	= bin
 OBJ	= obj
 LIBSRCS	= $(addprefix src/,$(__LIBSRCS))
 LIBOBJS	= $(addprefix $(OBJ)/lib/,$(__LIBSRCS:.c=.o))
@@ -109,11 +111,11 @@ SERVEROBJS= $(addprefix $(OBJ)/,$(SERVERSRCS:.c=.o))
 UTILSRCS= util/mkconst.c
 
 
-all: $(TGTLIBS) $(APPS) $(GENFILES)
+all: $(TGTLIBS) $(APPBINS) $(GENFILES)
 
 distclean clean::
-	rm -f *.o *.a *.so $(APPS) core tags
-	rm -rf $(OBJ) $(GENFILES)
+	rm -f *.o *.a *.so core tags LOG
+	rm -rf $(BIN) $(OBJ) $(GENFILES)
 	rm -f testing/*.o
 
 distclean::
@@ -137,22 +139,27 @@ install-files:
 	install -c -m 555 extensions/* $(DESTDIR)/etc/wicked/extensions
 	install -d -m 755 $(DESTDIR)/var/run/wicked
 
-schema/constants.xml: util/mkconst schema/constants.xml.in
-	util/mkconst < $@.in > $@
+schema/constants.xml: $(BIN)/mkconst schema/constants.xml.in
+	$(BIN)/mkconst < $@.in > $@
 
-wicked: $(CLIENTOBJS) $(TGTLIBS)
+$(BIN)/wicked: $(CLIENTOBJS) $(TGTLIBS)
+	@mkdir -p bin
 	$(CC) -o $@ $(CFLAGS) $(CLIENTOBJS) -rdynamic -L. -lwicked -lm -lnl -ldbus-1 -ldl
 
-wickedd: $(SERVEROBJS) $(TGTLIBS)
+$(BIN)/wickedd: $(SERVEROBJS) $(TGTLIBS)
+	@mkdir -p bin
 	$(CC) -o $@ $(CFLAGS) $(SERVEROBJS) -rdynamic -L. -lwicked -lm -lnl -ldbus-1 -ldl
 
-dhcp4-supplicant: $(DHCP4OBJS) $(TGTLIBS)
+$(BIN)/dhcp4-supplicant: $(DHCP4OBJS) $(TGTLIBS)
+	@mkdir -p bin
 	$(CC) -o $@ $(CFLAGS) $(DHCP4OBJS) -L. -lwicked -lm -lnl -ldbus-1 -ldl
 
-autoip4-supplicant: $(AUTO4OBJS) $(TGTLIBS)
+$(BIN)/autoip4-supplicant: $(AUTO4OBJS) $(TGTLIBS)
+	@mkdir -p bin
 	$(CC) -o $@ $(CFLAGS) $(AUTO4OBJS) -L. -lwicked -lm -lnl -ldbus-1 -ldl
 
-util/mkconst: $(OBJ)/util/mkconst.o $(TGTLIBS)
+$(BIN)/mkconst: $(OBJ)/util/mkconst.o $(TGTLIBS)
+	@mkdir -p bin
 	$(CC) -o $@ $(CFLAGS) $(OBJ)/util/mkconst.o -L. -lwicked -lnl -ldbus-1 -ldl
 
 test: $(OBJ)/test.o $(TGTLIBS)

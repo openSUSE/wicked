@@ -12,10 +12,5 @@ xml-test
 xpath-test
 core
 tags
-wicked
-wickedd
-wicked-convert
-dhcp4-supplicant
-autoip4-supplicant
+bin
 schema/constants.xml
-etc/mkconst
