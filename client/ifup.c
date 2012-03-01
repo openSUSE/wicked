@@ -584,33 +584,44 @@ ni_ifworker_identify_device(const xml_node_t *devnode)
 	return best;
 }
 
+typedef struct ni_ifmatcher {
+	const char *		name;
+	const char *		boot_label;
+	unsigned int		config_only : 1;
+} ni_ifmatcher_t;
+
 static unsigned int
-mark_matching_interfaces(const char *match_name, unsigned int target_state, int config_only)
+ni_ifworker_mark_matching(ni_ifmatcher_t *match, unsigned int target_state)
 {
 	unsigned int i, count = 0;
 
-	ni_debug_dbus("%s(name=%s, target_state=%s)", __func__, match_name, ni_ifworker_state_name(target_state));
+	ni_debug_dbus("%s(name=%s, target_state=%s)", __func__, match->name, ni_ifworker_state_name(target_state));
 
-	if (!strcmp(match_name, "all")) {
+	if (!strcmp(match->name, "all")) {
 		/* safeguard: "ifdown all" should mean "all interfaces with a config file */
-		config_only = 1;
-		match_name = NULL;
+		match->config_only = 1;
+		match->name = NULL;
 	}
 
 	for (i = 0; i < interface_workers.count; ++i) {
 		ni_ifworker_t *w = interface_workers.data[i];
 
-		if (w->config == NULL && config_only)
+		if (w->config == NULL && match->config_only)
 			continue;
 		if (w->exclusive_owner)
 			continue;
 
-		if (match_name) {
-			if (w->name == NULL || strcmp(match_name, w->name))
+		if (match->name && !ni_string_eq(match->name, w->name))
+			continue;
+
+		if (match->boot_label) {
+			xml_node_t *boot_node;
+
+			if (w->config == NULL
+			 || !(boot_node = xml_node_get_child(w->config, "boot-label"))
+			 || !ni_string_eq(match->boot_label, boot_node->cdata))
 				continue;
 		}
-
-		/* FIXME: check for matching behavior definition */
 
 		if (w->config == NULL) {
 			fprintf(stderr,
@@ -1715,13 +1726,15 @@ do_ifup(int argc, char **argv)
 	enum  { OPT_FILE, OPT_BOOT };
 	static struct option ifup_options[] = {
 		{ "file", required_argument, NULL, OPT_FILE },
-		{ "boot", no_argument, NULL, OPT_BOOT },
+		{ "boot-label", required_argument, NULL, OPT_BOOT },
 		{ NULL }
 	};
-	const char *ifname = NULL;
+	static ni_ifmatcher_t ifmatch;
 	const char *opt_file = NULL;
-	unsigned int ifevent = NI_IFACTION_MANUAL_UP;
 	int c, rv = 1;
+
+	memset(&ifmatch, 0, sizeof(ifmatch));
+	ifmatch.config_only = 1;
 
 	optind = 1;
 	while ((c = getopt_long(argc, argv, "", ifup_options, NULL)) != EOF) {
@@ -1731,7 +1744,7 @@ do_ifup(int argc, char **argv)
 			break;
 
 		case OPT_BOOT:
-			ifevent = NI_IFACTION_BOOT;
+			ifmatch.boot_label = optarg;
 			break;
 
 		default:
@@ -1742,8 +1755,8 @@ usage:
 				"\nSupported ifup-options:\n"
 				"  --file <filename>\n"
 				"      Read interface configuration(s) from file rather than using system config\n"
-				"  --boot\n"
-				"      Ignore interfaces with startmode != boot\n"
+				"  --boot-label <label>\n"
+				"      Only touch interfaces with matching <boot-label>\n"
 				);
 			return 1;
 		}
@@ -1753,14 +1766,12 @@ usage:
 		fprintf(stderr, "Missing interface argument\n");
 		goto usage;
 	}
-	ifname = argv[optind++];
+	ifmatch.name = argv[optind++];
 
-	if (!strcmp(ifname, "boot")) {
-		ifevent = NI_IFACTION_BOOT;
-		ifname = "all";
+	if (!strcmp(ifmatch.name, "boot")) {
+		ifmatch.name = "all";
+		ifmatch.boot_label = "boot";
 	}
-
-	(void) ifevent; /* FIXME: not used yet */
 
 	if (!ni_ifworkers_create_client())
 		return 1;
@@ -1783,7 +1794,7 @@ usage:
 	if (build_hierarchy() < 0)
 		ni_fatal("ifup: unable to build device hierarchy");
 
-	if (!mark_matching_interfaces(ifname, STATE_ADDRCONF_UP, 1))
+	if (!ni_ifworker_mark_matching(&ifmatch, STATE_ADDRCONF_UP))
 		return 0;
 
 	ni_ifworkers_kickstart();
@@ -1802,10 +1813,12 @@ do_ifdown(int argc, char **argv)
 		{ "delete", no_argument, NULL, OPT_DELETE },
 		{ NULL }
 	};
-	const char *ifname;
+	static ni_ifmatcher_t ifmatch;
 	const char *opt_file = NULL;
 	int opt_delete = 0;
 	int c, rv = 1;
+
+	memset(&ifmatch, 0, sizeof(ifmatch));
 
 	optind = 1;
 	while ((c = getopt_long(argc, argv, "", ifdown_options, NULL)) != EOF) {
@@ -1837,7 +1850,7 @@ usage:
 		fprintf(stderr, "Missing interface argument\n");
 		goto usage;
 	}
-	ifname = argv[optind++];
+	ifmatch.name = argv[optind++];
 
 	if (opt_file) {
 		xml_document_t *config_doc;
@@ -1848,6 +1861,7 @@ usage:
 		}
 
 		ni_ifworkers_from_xml(config_doc);
+		ifmatch.config_only = 1;
 	}
 
 	if (!ni_ifworkers_create_client())
@@ -1861,7 +1875,7 @@ usage:
 		ni_fatal("ifup: unable to build device hierarchy");
 #endif
 
-	if (!mark_matching_interfaces(ifname, opt_delete? STATE_DEVICE_DOWN : STATE_DEVICE_UP, opt_file != NULL))
+	if (!ni_ifworker_mark_matching(&ifmatch, opt_delete? STATE_DEVICE_DOWN : STATE_DEVICE_UP))
 		return 0;
 
 	ni_ifworkers_kickstart();

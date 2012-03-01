@@ -1,6 +1,7 @@
 <interface>
   <name>eth0</name>
   <description>Primary Ethernet Device</description>
+  <boot-label>boot</boot-label>
 
   <ipv4:dhcp>
     <acquire-timeout>15</acquire-timeout>
