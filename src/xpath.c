@@ -3,7 +3,7 @@
  *	This does not claim to be a complete XPATH implementation.
  *	XPATH is just way too weird :-)
  *
- *	Copyright (C) 2010  Olaf Kirch <okir@suse.de>
+ *	Copyright (C) 2010-2012  Olaf Kirch <okir@suse.de>
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by

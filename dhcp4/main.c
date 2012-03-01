@@ -1,7 +1,7 @@
 /*
  * DHCP4 supplicant
  *
- * Copyright (C) 2010, 2011 Olaf Kirch <okir@suse.de>
+ * Copyright (C) 2010-2012 Olaf Kirch <okir@suse.de>
  */
 
 #include <sys/poll.h>

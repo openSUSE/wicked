@@ -2,7 +2,7 @@
  * Internal helper functions.
  * Do not confuse with <wicked/util.h> which is public.
  *
- * Copyright (C) 2010 Olaf Kirch <okir@suse.de>
+ * Copyright (C) 2010-2012 Olaf Kirch <okir@suse.de>
  */
 
 #ifndef __WICKED_UTIL_PRIV_H__

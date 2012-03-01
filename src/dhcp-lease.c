@@ -1,7 +1,7 @@
 /*
  * Functions to represent DHCP specific lease information as XML
  *
- * Copyright (C) 2010 Olaf Kirch <okir@suse.de>
+ * Copyright (C) 2010-2012 Olaf Kirch <okir@suse.de>
  */
 
 #include <string.h>

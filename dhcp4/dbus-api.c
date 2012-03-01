@@ -1,7 +1,7 @@
 /*
  * DBus API for wicked dhcp4 supplicant
  *
- * Copyright (C) 2011 Olaf Kirch <okir@suse.de>
+ * Copyright (C) 2011-2012 Olaf Kirch <okir@suse.de>
  *
  * Much of this code is in dbus-objects/dhcp4.c for now.
  */

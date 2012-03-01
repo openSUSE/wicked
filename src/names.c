@@ -1,7 +1,7 @@
 /*
  * Routines for mapping constants to names and vice versa
  *
- * Copyright (C) 2009-2011 Olaf Kirch <okir@suse.de>
+ * Copyright (C) 2009-2012 Olaf Kirch <okir@suse.de>
  */
 #include <stdlib.h>
 #include <string.h>

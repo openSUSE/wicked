@@ -1,7 +1,7 @@
 /*
  * Wicked object model
  *
- * Copyright (C) 2011 Olaf Kirch <okir@suse.de>
+ * Copyright (C) 2011-2012 Olaf Kirch <okir@suse.de>
  */
 
 #ifndef __WICKED_OBJECTMODEL_H__

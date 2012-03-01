@@ -2,7 +2,7 @@
  * Internal wireless helper functions.
  * Do not confuse with <wicked/wireless.h> which is public.
  *
- * Copyright (C) 2010 Olaf Kirch <okir@suse.de>
+ * Copyright (C) 2010-2012 Olaf Kirch <okir@suse.de>
  */
 
 #ifndef __WICKED_WIRELESS_PRIV_H__

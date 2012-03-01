@@ -1,7 +1,7 @@
 /*
  * vlan definitions for netinfo
  *
- * Copyright (C) 2009-2011 Olaf Kirch <okir@suse.de>
+ * Copyright (C) 2009-2012 Olaf Kirch <okir@suse.de>
  */
 
 #ifndef __WICKED_VLAN_H__

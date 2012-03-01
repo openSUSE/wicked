@@ -1,7 +1,7 @@
 /*
  * Routines for detecting and monitoring network interfaces.
  *
- * Copyright (C) 2009-2010 Olaf Kirch <okir@suse.de>
+ * Copyright (C) 2009-2012 Olaf Kirch <okir@suse.de>
  *
  * TODO
  *  -	Check that the module options specified for the bonding

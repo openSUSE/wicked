@@ -2,7 +2,7 @@
  * Handling of network and link layer addresses.
  * Currently, just about formatting addresses for display.
  *
- * Copyright (C) 2009 Olaf Kirch <okir@suse.de>
+ * Copyright (C) 2009-2012 Olaf Kirch <okir@suse.de>
  */
 
 #include <arpa/inet.h>

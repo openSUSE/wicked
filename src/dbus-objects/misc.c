@@ -1,7 +1,7 @@
 /*
  * DBus encapsulation for various second-tier network structs
  *
- * Copyright (C) 2011 Olaf Kirch <okir@suse.de>
+ * Copyright (C) 2011-2012 Olaf Kirch <okir@suse.de>
  */
 
 #include <sys/poll.h>

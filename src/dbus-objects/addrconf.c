@@ -3,7 +3,7 @@
  * services implemented as separate DBus services (like dhcp,
  * ipv4ll)
  *
- * Copyright (C) 2011 Olaf Kirch <okir@suse.de>
+ * Copyright (C) 2011-2012 Olaf Kirch <okir@suse.de>
  */
 
 #include <sys/poll.h>

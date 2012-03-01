@@ -1,7 +1,7 @@
 /*
  * Build and parse DHCP packets
  *
- * Copyright (C) 2010, Olaf Kirch <okir@suse.de>
+ * Copyright (C) 2010-2012, Olaf Kirch <okir@suse.de>
  *
  * Heavily inspired by dhcpcd, which was written by Roy Marples <roy@marples.name>
  */

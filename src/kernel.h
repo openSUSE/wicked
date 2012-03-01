@@ -1,7 +1,7 @@
 /*
  * General kernel functions for network config and discovery
  *
- * Copyright (C) 2009-2010 Olaf Kirch <okir@suse.de>
+ * Copyright (C) 2009-2012 Olaf Kirch <okir@suse.de>
  */
 
 #ifndef __NETINFO_KERNEL_H__

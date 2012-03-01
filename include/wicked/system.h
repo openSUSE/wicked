@@ -1,7 +1,7 @@
 /*
  * System functions (configure interfaces and such)
  *
- * Copyright (C) 2009-2011 Olaf Kirch <okir@suse.de>
+ * Copyright (C) 2009-2012 Olaf Kirch <okir@suse.de>
  */
 
 #ifndef __WICKED_SYSTEM_H__

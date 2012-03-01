@@ -1,7 +1,7 @@
 /*
  * Routines for handling Ethernet devices.
  *
- * Copyright (C) 2010 Olaf Kirch <okir@suse.de>
+ * Copyright (C) 2010-2012 Olaf Kirch <okir@suse.de>
  */
 
 #include <stdlib.h>

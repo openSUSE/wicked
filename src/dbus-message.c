@@ -1,7 +1,7 @@
 /*
  * Convenience functions for marshalling dbus messages
  *
- * Copyright (C) 2011 Olaf Kirch <okir@suse.de>
+ * Copyright (C) 2011-2012 Olaf Kirch <okir@suse.de>
  */
 
 #include <wicked/util.h>

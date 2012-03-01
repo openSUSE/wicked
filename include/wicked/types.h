@@ -1,7 +1,7 @@
 /*
  * Type declarations for netinfo.
  *
- * Copyright (C) 2010 Olaf Kirch <okir@suse.de>
+ * Copyright (C) 2010-2012 Olaf Kirch <okir@suse.de>
  */
 #ifndef __WICKED_TYPES_H__
 #define __WICKED_TYPES_H__

@@ -1,7 +1,7 @@
 /*
  * ARP support - needed for DHCP, IPv4LL, and maybe others
  *
- * Copyright (C) 2010, Olaf Kirch <okir@suse.de>
+ * Copyright (C) 2010-2012, Olaf Kirch <okir@suse.de>
  */
 
 #include <net/if_arp.h>

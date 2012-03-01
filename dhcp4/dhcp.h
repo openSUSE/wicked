@@ -1,7 +1,7 @@
 /*
  * netinfo dhcp supplicant
  *
- * Copyright (C) 2010 Olaf Kirch <okir@suse.de>
+ * Copyright (C) 2010-2012 Olaf Kirch <okir@suse.de>
  */
 
 #ifndef __WICKED_DHCP_PRIVATE_H__

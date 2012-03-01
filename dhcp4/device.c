@@ -1,7 +1,7 @@
 /*
  * DHCP client for wicked.
  *
- * Copyright (C) 2010 Olaf Kirch <okir@suse.de>
+ * Copyright (C) 2010-2012 Olaf Kirch <okir@suse.de>
  */
 
 #include <sys/poll.h>

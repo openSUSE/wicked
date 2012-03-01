@@ -1,7 +1,7 @@
 /*
  * Simple DBus connection handling functions
  *
- * Copyright (C) 2011 Olaf Kirch <okir@suse.de>
+ * Copyright (C) 2011-2012 Olaf Kirch <okir@suse.de>
  */
 
 

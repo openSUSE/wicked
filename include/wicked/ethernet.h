@@ -1,7 +1,7 @@
 /*
  * ethernet definitions for netinfo
  *
- * Copyright (C) 2009-2010 Olaf Kirch <okir@suse.de>
+ * Copyright (C) 2009-2012 Olaf Kirch <okir@suse.de>
  */
 
 #ifndef __WICKED_ETHERNET_H__

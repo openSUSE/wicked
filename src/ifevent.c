@@ -2,7 +2,7 @@
  * Discover changes to network interfaces by listening to
  * netlink messages.
  *
- * Copyright (C) 2010 Olaf Kirch <okir@suse.de>
+ * Copyright (C) 2010-2012 Olaf Kirch <okir@suse.de>
  */
 
 #include <unistd.h>

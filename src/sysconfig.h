@@ -1,7 +1,7 @@
 /*
  * Routines for loading and storing sysconfig files
  *
- * Copyright (C) 2009-2010 Olaf Kirch <okir@suse.de>
+ * Copyright (C) 2009-2012 Olaf Kirch <okir@suse.de>
  */
 
 #ifndef __NETINFO_SYSCONFIG_H__

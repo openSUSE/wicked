@@ -1,7 +1,7 @@
 /*
  * Network socket related functionality for wicked.
  *
- * Copyright (C) 2009-2010 Olaf Kirch <okir@suse.de>
+ * Copyright (C) 2009-2012 Olaf Kirch <okir@suse.de>
  */
 
 #ifndef __WICKED_SOCKET_PRIV_H__

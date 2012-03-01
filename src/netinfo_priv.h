@@ -2,7 +2,7 @@
  * Private header file for netinfo library.
  * No user serviceable parts inside.
  *
- * Copyright (C) 2009-2010 Olaf Kirch <okir@suse.de>
+ * Copyright (C) 2009-2012 Olaf Kirch <okir@suse.de>
  */
 
 #ifndef __NETINFO_PRIV_H__

@@ -2,7 +2,7 @@
  * Network socket related functionality for wicked.
  * No user serviceable parts inside.
  *
- * Copyright (C) 2009-2010 Olaf Kirch <okir@suse.de>
+ * Copyright (C) 2009-2012 Olaf Kirch <okir@suse.de>
  */
 
 #ifndef __WICKED_SOCKET_H__

@@ -1,7 +1,7 @@
 /*
  * Discover list of existing kernel interfaces and their state.
  *
- * Copyright (C) 2009-2010 Olaf Kirch <okir@suse.de>
+ * Copyright (C) 2009-2012 Olaf Kirch <okir@suse.de>
  *
  * TODO:
  *  -	Discover bonding state
