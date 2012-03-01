@@ -55,12 +55,15 @@ ln -s ../../etc/init.d/wickedd  ${RPM_BUILD_ROOT}/usr/sbin/rcwickedd
 %defattr (-,root,root)
 %doc ANNOUNCE COPYING README TODO samples
 /sbin/wickedd
+/sbin/dhcp4-supplicant
+/sbin/auto4-supplicant
 /etc/init.d/wickedd
 /usr/sbin/rcwickedd
 %dir /etc/wicked
+%dir /etc/wicked/schema
 %dir /var/run/wicked
-#%config(noreplace) /etc/wicked/wicked-dhcp4
 %config(noreplace) /etc/wicked/*.xml
+/etc/wicked/schema/*.xml
 %{_mandir}/man7/*
 %{_mandir}/man8/*
 
