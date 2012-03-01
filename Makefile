@@ -5,11 +5,10 @@ CFLAGS_DBUS := $(shell pkg-config --cflags dbus-1)
 
 APPS	= wicked wickedd \
 	  dhcp4-supplicant autoip4-supplicant \
-	  testing/xml-test testing/xpath-test \
 	  etc/mkconst
 
-TGTLIBS	= libnetinfo.a
-	  # libnetinfo.so
+TGTLIBS	= libwicked.a
+	  # libwicked.so
 # Public header files
 LIBHDRS	= logging.h \
 	  netinfo.h \
@@ -79,17 +78,22 @@ __LIBSRCS= \
 	  wpa-supplicant.c \
 	  dhcp-lease.c
 DHCP4SRCS = \
+	  dhcp4/main.c \
 	  dhcp4/dbus-api.c \
 	  dhcp4/fsm.c \
 	  dhcp4/device.c \
 	  dhcp4/protocol.c
 AUTO4SRCS = \
+	  autoip4/main.c \
 	  autoip4/dbus-api.c \
 	  autoip4/device.c \
 	  autoip4/fsm.c
 CLIENTSRCS = \
+	  client/main.c \
 	  client/ifup.c \
 	  client/calls.c
+SERVERSRCS = \
+	  server/main.c
 GENFILES = \
 	  schema/constants.xml
 
@@ -101,6 +105,8 @@ APPSRCS	= $(addsuffix .c,$(APPS))
 DHCP4OBJS= $(addprefix $(OBJ)/,$(DHCP4SRCS:.c=.o))
 AUTO4OBJS= $(addprefix $(OBJ)/,$(AUTO4SRCS:.c=.o))
 CLIENTOBJS= $(addprefix $(OBJ)/,$(CLIENTSRCS:.c=.o))
+SERVEROBJS= $(addprefix $(OBJ)/,$(SERVERSRCS:.c=.o))
+UTILSRCS= etc/mkconst.c
 
 
 all: $(TGTLIBS) $(APPS) $(GENFILES)
@@ -135,44 +141,45 @@ install-files:
 schema/constants.xml: etc/mkconst schema/constants.xml.in
 	etc/mkconst < $@.in > $@
 
-wicked: $(OBJ)/wicked.o $(CLIENTOBJS) $(TGTLIBS)
-	$(CC) -o $@ $(CFLAGS) $(OBJ)/wicked.o $(CLIENTOBJS) -rdynamic -L. -lnetinfo -lm -lnl -ldbus-1 -ldl
+wicked: $(CLIENTOBJS) $(TGTLIBS)
+	$(CC) -o $@ $(CFLAGS) $(CLIENTOBJS) -rdynamic -L. -lwicked -lm -lnl -ldbus-1 -ldl
 
-wickedd: $(OBJ)/wickedd.o $(TGTLIBS)
-	$(CC) -o $@ $(CFLAGS) $(OBJ)/wickedd.o -rdynamic -L. -lnetinfo -lm -lnl -ldbus-1 -ldl
+wickedd: $(SERVEROBJS) $(TGTLIBS)
+	$(CC) -o $@ $(CFLAGS) $(SERVEROBJS) -rdynamic -L. -lwicked -lm -lnl -ldbus-1 -ldl
 
-dhcp4-supplicant: $(OBJ)/dhcp4-supplicant.o $(DHCP4OBJS) $(TGTLIBS)
-	$(CC) -o $@ $(CFLAGS) $(OBJ)/dhcp4-supplicant.o $(DHCP4OBJS) -L. -lnetinfo -lm -lnl -ldbus-1 -ldl
+dhcp4-supplicant: $(DHCP4OBJS) $(TGTLIBS)
+	$(CC) -o $@ $(CFLAGS) $(DHCP4OBJS) -L. -lwicked -lm -lnl -ldbus-1 -ldl
 
-autoip4-supplicant: $(OBJ)/autoip4-supplicant.o $(AUTO4OBJS) $(TGTLIBS)
-	$(CC) -o $@ $(CFLAGS) $(OBJ)/autoip4-supplicant.o $(AUTO4OBJS) -L. -lnetinfo -lm -lnl -ldbus-1 -ldl
+autoip4-supplicant: $(AUTO4OBJS) $(TGTLIBS)
+	$(CC) -o $@ $(CFLAGS) $(AUTO4OBJS) -L. -lwicked -lm -lnl -ldbus-1 -ldl
 
-etc/mkconst: etc/mkconst.o $(TGTLIBS)
-	$(CC) -o $@ $(CFLAGS) etc/mkconst.o -L. -lnetinfo -lnl -ldbus-1 -ldl
+etc/mkconst: $(OBJ)/etc/mkconst.o $(TGTLIBS)
+	$(CC) -o $@ $(CFLAGS) $(OBJ)/etc/mkconst.o -L. -lwicked -lnl -ldbus-1 -ldl
 
 test: $(OBJ)/test.o $(TGTLIBS)
-	$(CC) -o $@ $(CFLAGS) $(OBJ)/test.o -L. -lnetinfo -ldbus-1
+	$(CC) -o $@ $(CFLAGS) $(OBJ)/test.o -L. -lwicked -ldbus-1
 
 testing/xml-test: testing/xml-test.o $(TGTLIBS)
-	$(CC) -o $@ $(CFLAGS) testing/xml-test.o -L. -lnetinfo -ldbus-1
+	$(CC) -o $@ $(CFLAGS) testing/xml-test.o -L. -lwicked -ldbus-1
 
 testing/xpath-test: testing/xpath-test.o $(TGTLIBS)
-	$(CC) -o $@ $(CFLAGS) testing/xpath-test.o -L. -lnetinfo -ldbus-1
+	$(CC) -o $@ $(CFLAGS) testing/xpath-test.o -L. -lwicked -ldbus-1
 
-libnetinfo.a: $(LIBOBJS)
+libwicked.a: $(LIBOBJS)
 	@rm -f $@
 	ar cr $@ $(LIBOBJS)
 
-libnetinfo.so: $(SHLIBOBJS)
+libwicked.so: $(SHLIBOBJS)
 	$(CC) $(CFLAGS) -shared -o $@ $(SHLIBOBJS)
 
 depend:
 	gcc $(CFLAGS) -M $(LIBSRCS) | \
 		sed 's@^\([^.]*\)\.o: src/\([-a-z0-9/]*\)\1.c@obj/lib/\2&@' > .depend
-	gcc $(CFLAGS) -M $(APPSRCS) | sed 's:^[a-z]:$(OBJ)/&:' >> .depend
+	gcc $(CFLAGS) -M $(UTILSRCS) | sed 's:^[a-z]:$(OBJ)/&:' >> .depend
 	gcc $(CFLAGS) -M $(DHCP4SRCS) | sed 's:^[a-z]:$(OBJ)/dhcp4/&:' >> .depend
 	gcc $(CFLAGS) -M $(AUTO4SRCS) | sed 's:^[a-z]:$(OBJ)/autoip4/&:' >> .depend
 	gcc $(CFLAGS) -M $(CLIENTSRCS) | sed 's:^[a-z]:$(OBJ)/client/&:' >> .depend
+	gcc $(CFLAGS) -M $(SERVERSRCS) | sed 's:^[a-z]:$(OBJ)/server/&:' >> .depend
 
 $(OBJ)/%.o: %.c
 	@rm -f $@
