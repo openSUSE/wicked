@@ -4,20 +4,12 @@ CFLAGS	= -Wall -Werror -g -O2 -D_GNU_SOURCE -I. -Iinclude -Isrc \
 CFLAGS_DBUS := $(shell pkg-config --cflags dbus-1)
 
 APPS	= wicked wickedd \
-	  dhcp4-supplicant autoip4-supplicant \
-	  mkconst
-APPBINS	= $(addprefix $(BIN)/,$(APPS))
+	  dhcp4-supplicant autoip4-supplicant
+UTILS	= mkconst
+APPBINS	= $(addprefix $(BIN)/,$(APPS) $(UTILS))
 
 TGTLIBS	= libwicked.a
 	  # libwicked.so
-# Public header files
-LIBHDRS	= logging.h \
-	  netinfo.h \
-	  types.h \
-	  util.h \
-	  wicked.h \
-	  xml.h \
-	  xpath.h
 __LIBSRCS= \
 	  config.c \
 	  extension.c \
@@ -103,7 +95,6 @@ OBJ	= obj
 LIBSRCS	= $(addprefix src/,$(__LIBSRCS))
 LIBOBJS	= $(addprefix $(OBJ)/lib/,$(__LIBSRCS:.c=.o))
 SHLIBOBJS= $(addprefix $(OBJ)/shlib/,$(__LIBSRCS:.c=.o))
-APPSRCS	= $(addsuffix .c,$(APPS))
 DHCP4OBJS= $(addprefix $(OBJ)/,$(DHCP4SRCS:.c=.o))
 AUTO4OBJS= $(addprefix $(OBJ)/,$(AUTO4SRCS:.c=.o))
 CLIENTOBJS= $(addprefix $(OBJ)/,$(CLIENTSRCS:.c=.o))
@@ -124,14 +115,16 @@ distclean::
 install-strip: STRIP_FLAG=-s
 install-strip: install
 
-install: install-files
+install: $(APPBINS) install-files
 	install -d -m 755 $(DESTDIR)/sbin
-	install $(STRIP_FLAG) -m 555 wickedd wicked $(DESTDIR)/sbin
+	for app in $(APPS); do \
+		install $(STRIP_FLAG) -m 555 bin/$$app $(DESTDIR)/sbin; \
+	done
 	install -d -m 755 $(DESTDIR)/usr/share/man/man{7,8}
 	install -c -m 444 man/*.7 $(DESTDIR)/usr/share/man/man7
 	install -c -m 444 man/*.8 $(DESTDIR)/usr/share/man/man8
 
-install-files:
+install-files: $(GENFILES)
 	install -d -m 755 $(DESTDIR)/etc/wicked
 	install -m 644 etc/config.xml $(DESTDIR)/etc/wicked
 	install -d -m 755 $(DESTDIR)/etc/dbus-1/system.d
@@ -184,7 +177,7 @@ libwicked.so: $(SHLIBOBJS)
 depend:
 	gcc $(CFLAGS) -M $(LIBSRCS) | \
 		sed 's@^\([^.]*\)\.o: src/\([-a-z0-9/]*\)\1.c@obj/lib/\2&@' > .depend
-	gcc $(CFLAGS) -M $(UTILSRCS) | sed 's:^[a-z]:$(OBJ)/&:' >> .depend
+	gcc $(CFLAGS) -M $(UTILSRCS) | sed 's:^[a-z]:$(OBJ)/util/&:' >> .depend
 	gcc $(CFLAGS) -M $(DHCP4SRCS) | sed 's:^[a-z]:$(OBJ)/dhcp4/&:' >> .depend
 	gcc $(CFLAGS) -M $(AUTO4SRCS) | sed 's:^[a-z]:$(OBJ)/autoip4/&:' >> .depend
 	gcc $(CFLAGS) -M $(CLIENTSRCS) | sed 's:^[a-z]:$(OBJ)/client/&:' >> .depend
