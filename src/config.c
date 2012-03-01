@@ -1,7 +1,7 @@
 /*
  * Handle global configuration for netinfo
  *
- * Copyright (C) 2010-2011 Olaf Kirch <okir@suse.de>
+ * Copyright (C) 2010-2012 Olaf Kirch <okir@suse.de>
  */
 #include <stdlib.h>
 #include <string.h>
@@ -24,7 +24,8 @@ static int		ni_config_parse_afinfo(ni_afinfo_t *, const char *, xml_node_t *);
 static int		ni_config_parse_update_targets(unsigned int *, const xml_node_t *);
 static int		ni_config_parse_fslocation(ni_config_fslocation_t *, const char *, xml_node_t *);
 static int		ni_config_parse_extensions(ni_extension_t **, xml_node_t *);
-static ni_c_binding_t *	ni_c_binding_new(ni_extension_t *, const char *name, const char *lib, const char *symbol);
+static int		ni_config_parse_objectmodel_extension(ni_extension_t **, xml_node_t *);
+static ni_c_binding_t *	ni_c_binding_new(ni_c_binding_t **, const char *name, const char *lib, const char *symbol);
 
 /*
  * Create an empty config object
@@ -248,72 +249,84 @@ ni_config_parse_fslocation(ni_config_fslocation_t *fsloc, const char *name, xml_
 int
 ni_config_parse_extensions(ni_extension_t **list, xml_node_t *node)
 {
+	for (node = node->children; node; node = node->next) {
+
+		if (strcmp(node->name, "extension") == 0) {
+			if (ni_config_parse_objectmodel_extension(list, node) < 0)
+				return -1;
+		}
+	}
+
+	return 0;
+}
+
+/*
+ * Object model extensions let you implement parts of a dbus interface separately
+ * from the main wicked body of code; either through a shared library or an
+ * external command/shell script
+ *
+ * <extension interface="com.suse.Wicked.foobar">
+ *  <pidfile path="/var/run/dhcpcd-%{@name}.pid"/>
+ *  <start command="bla bla..."/>
+ *  <stop command="bla bla..."/>
+ *  ...
+ * </extension>
+ */
+int
+ni_config_parse_objectmodel_extension(ni_extension_t **list, xml_node_t *node)
+{
 	ni_extension_t *ex;
 	xml_node_t *child;
+	const char *name;
 
-	for (node = node->children; node; node = node->next) {
-		const char *name;
+	if (!(name = xml_node_get_attr(node, "interface"))) {
+		ni_error("%s: <extension> element lacks interface attribute",
+				xml_node_location(node));
+		return -1;
+	}
 
-		/*
-		 * <extension interface="com.suse.Wicked.foobar">
-		 *  <pidfile path="/var/run/dhcpcd-%{@name}.pid"/>
-		 *  <start command="bla bla..."/>
-		 *  <stop command="bla bla..."/>
-		 *  ...
-		 * </extension>
-		 */
-		if (strcmp(node->name, "extension") != 0)
-			continue;
+	ex = ni_extension_new(list, name);
+	for (child = node->children; child; child = child->next) {
+		if (!strcmp(child->name, "action")) {
+			const char *name, *command;
+			ni_shellcmd_t *process;
 
-		if (!(name = xml_node_get_attr(node, "interface"))) {
-			ni_error("%s: <extension> element lacks interface attribute",
-					xml_node_location(node));
-			return -1;
-		}
-
-		ex = ni_extension_new(list, name);
-		for (child = node->children; child; child = child->next) {
-			if (!strcmp(child->name, "action")) {
-				const char *name, *command;
-				ni_shellcmd_t *process;
-
-				if (!(name = xml_node_get_attr(child, "name"))) {
-					ni_error("action element without name attribute");
-					return -1;
-				}
-				if (!(command = xml_node_get_attr(child, "command"))) {
-					ni_error("action element without command attribute");
-					return -1;
-				}
-
-				process = ni_extension_script_new(ex, name, command);
-			} else
-			if (!strcmp(child->name, "builtin")) {
-				const char *name, *library, *symbol;
-
-				if (!(name = xml_node_get_attr(child, "name"))) {
-					ni_error("action element without name attribute");
-					return -1;
-				}
-				if (!(symbol = xml_node_get_attr(child, "symbol"))) {
-					ni_error("action element without command attribute");
-					return -1;
-				}
-				library = xml_node_get_attr(child, "library");
-
-				ni_c_binding_new(ex, name, library, symbol);
-			} else
-			if (!strcmp(child->name, "putenv")) {
-				const char *name, *value;
-
-				if (!(name = xml_node_get_attr(child, "name"))) {
-					ni_error("%s: <putenv> element without name attribute",
-							xml_node_location(child));
-					return -1;
-				}
-				value = xml_node_get_attr(child, "value");
-				ni_var_array_set(&ex->environment, name, value);
+			if (!(name = xml_node_get_attr(child, "name"))) {
+				ni_error("action element without name attribute");
+				return -1;
 			}
+			if (!(command = xml_node_get_attr(child, "command"))) {
+				ni_error("action element without command attribute");
+				return -1;
+			}
+
+			process = ni_extension_script_new(ex, name, command);
+		} else
+		if (!strcmp(child->name, "builtin")) {
+			const char *name, *library, *symbol;
+
+			if (!(name = xml_node_get_attr(child, "name"))) {
+				ni_error("builtin element without name attribute");
+				return -1;
+			}
+			if (!(symbol = xml_node_get_attr(child, "symbol"))) {
+				ni_error("action element without command attribute");
+				return -1;
+			}
+			library = xml_node_get_attr(child, "library");
+
+			ni_c_binding_new(&ex->c_bindings, name, library, symbol);
+		} else
+		if (!strcmp(child->name, "putenv")) {
+			const char *name, *value;
+
+			if (!(name = xml_node_get_attr(child, "name"))) {
+				ni_error("%s: <putenv> element without name attribute",
+						xml_node_location(child));
+				return -1;
+			}
+			value = xml_node_get_attr(child, "value");
+			ni_var_array_set(&ex->environment, name, value);
 		}
 	}
 
@@ -333,11 +346,11 @@ ni_config_find_extension(ni_config_t *conf, const char *interface)
  * Handle methods implemented via C bindings
  */
 static ni_c_binding_t *
-ni_c_binding_new(ni_extension_t *ex, const char *name, const char *library, const char *symbol)
+ni_c_binding_new(ni_c_binding_t **list, const char *name, const char *library, const char *symbol)
 {
 	ni_c_binding_t *binding, **pos;
 
-	for (pos = &ex->c_bindings; (binding = *pos) != NULL; pos = &binding->next)
+	for (pos = list; (binding = *pos) != NULL; pos = &binding->next)
 		;
 
 	binding = xcalloc(1, sizeof(*binding));
