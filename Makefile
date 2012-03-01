@@ -5,7 +5,7 @@ CFLAGS_DBUS := $(shell pkg-config --cflags dbus-1)
 
 APPS	= wicked wickedd \
 	  dhcp4-supplicant autoip4-supplicant \
-	  etc/mkconst
+	  util/mkconst
 
 TGTLIBS	= libwicked.a
 	  # libwicked.so
@@ -106,7 +106,7 @@ DHCP4OBJS= $(addprefix $(OBJ)/,$(DHCP4SRCS:.c=.o))
 AUTO4OBJS= $(addprefix $(OBJ)/,$(AUTO4SRCS:.c=.o))
 CLIENTOBJS= $(addprefix $(OBJ)/,$(CLIENTSRCS:.c=.o))
 SERVEROBJS= $(addprefix $(OBJ)/,$(SERVERSRCS:.c=.o))
-UTILSRCS= etc/mkconst.c
+UTILSRCS= util/mkconst.c
 
 
 all: $(TGTLIBS) $(APPS) $(GENFILES)
@@ -114,7 +114,6 @@ all: $(TGTLIBS) $(APPS) $(GENFILES)
 distclean clean::
 	rm -f *.o *.a *.so $(APPS) core tags
 	rm -rf $(OBJ) $(GENFILES)
-	rm -f etc/mkconst.o
 	rm -f testing/*.o
 
 distclean::
@@ -138,8 +137,8 @@ install-files:
 	install -c -m 555 extensions/* $(DESTDIR)/etc/wicked/extensions
 	install -d -m 755 $(DESTDIR)/var/run/wicked
 
-schema/constants.xml: etc/mkconst schema/constants.xml.in
-	etc/mkconst < $@.in > $@
+schema/constants.xml: util/mkconst schema/constants.xml.in
+	util/mkconst < $@.in > $@
 
 wicked: $(CLIENTOBJS) $(TGTLIBS)
 	$(CC) -o $@ $(CFLAGS) $(CLIENTOBJS) -rdynamic -L. -lwicked -lm -lnl -ldbus-1 -ldl
@@ -153,8 +152,8 @@ dhcp4-supplicant: $(DHCP4OBJS) $(TGTLIBS)
 autoip4-supplicant: $(AUTO4OBJS) $(TGTLIBS)
 	$(CC) -o $@ $(CFLAGS) $(AUTO4OBJS) -L. -lwicked -lm -lnl -ldbus-1 -ldl
 
-etc/mkconst: $(OBJ)/etc/mkconst.o $(TGTLIBS)
-	$(CC) -o $@ $(CFLAGS) $(OBJ)/etc/mkconst.o -L. -lwicked -lnl -ldbus-1 -ldl
+util/mkconst: $(OBJ)/util/mkconst.o $(TGTLIBS)
+	$(CC) -o $@ $(CFLAGS) $(OBJ)/util/mkconst.o -L. -lwicked -lnl -ldbus-1 -ldl
 
 test: $(OBJ)/test.o $(TGTLIBS)
 	$(CC) -o $@ $(CFLAGS) $(OBJ)/test.o -L. -lwicked -ldbus-1
