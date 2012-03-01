@@ -1314,8 +1314,7 @@ ni_dbus_dict_get(const ni_dbus_variant_t *dict, const char *key)
 	ni_dbus_dict_entry_t *entry;
 	unsigned int i;
 
-	if (dict->type != DBUS_TYPE_ARRAY
-	 || dict->array.element_type != DBUS_TYPE_DICT_ENTRY)
+	if (!ni_dbus_variant_is_dict(dict))
 		return NULL;
 
 	for (i = 0; i < dict->array.len; ++i) {
@@ -1325,6 +1324,23 @@ ni_dbus_dict_get(const ni_dbus_variant_t *dict, const char *key)
 	}
 
 	return NULL;
+}
+
+ni_dbus_variant_t *
+ni_dbus_dict_get_entry(const ni_dbus_variant_t *dict, unsigned int index, const char **key)
+{
+	ni_dbus_dict_entry_t *entry;
+
+	if (!ni_dbus_variant_is_dict(dict))
+		return NULL;
+
+	if (index >= dict->array.len)
+		return NULL;
+
+	entry = &dict->dict_array_value[index];
+	if (key)
+		*key = entry->key;
+	return &entry->datum;
 }
 
 ni_dbus_variant_t *
@@ -1355,7 +1371,7 @@ ni_dbus_dict_get_next(const ni_dbus_variant_t *dict, const char *key, const ni_d
 
 	while (pos < dict->array.len) {
 		entry = &dict->dict_array_value[pos++];
-		if (entry->key && !strcmp(entry->key, key))
+		if (key == NULL || ni_string_eq(entry->key, key))
 			return &entry->datum;
 	}
 
