@@ -11,6 +11,7 @@
 #include <wicked/types.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdarg.h>
 
 typedef struct ni_string_array {
 	unsigned int	count;
@@ -104,14 +105,16 @@ extern int		ni_var_array_set_boolean(ni_var_array_t *, const char *name, int);
 
 extern void		ni_stringbuf_set(ni_stringbuf_t *, const char *);
 extern void		ni_stringbuf_init(ni_stringbuf_t *);
+extern void		ni_stringbuf_grow(ni_stringbuf_t *, size_t);
 extern void		ni_stringbuf_puts(ni_stringbuf_t *, const char *);
 extern void		ni_stringbuf_putc(ni_stringbuf_t *, char);
-extern void		ni_stringbuf_printf(ni_stringbuf_t *, const char *, ...);
+extern int		ni_stringbuf_printf(ni_stringbuf_t *, const char *, ...);
+extern int		ni_stringbuf_vprintf(ni_stringbuf_t *, const char *, va_list);
 extern void		ni_stringbuf_move(ni_stringbuf_t *dest, ni_stringbuf_t *src);
 extern void		ni_stringbuf_clear(ni_stringbuf_t *);
 extern void		ni_stringbuf_destroy(ni_stringbuf_t *);
 extern void		ni_stringbuf_trim_empty_lines(ni_stringbuf_t *);
-extern int		ni_stringbuf_empty(const ni_stringbuf_t *);
+extern ni_bool_t	ni_stringbuf_empty(const ni_stringbuf_t *);
 
 extern int		ni_file_exists(const char *);
 extern const char *	ni_basename(const char *path);
