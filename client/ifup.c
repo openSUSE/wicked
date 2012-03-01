@@ -234,6 +234,9 @@ ni_ifworker_array_find(ni_ifworker_array_t *array, const char *ifname)
 {
 	unsigned int i;
 
+	if (!ifname)
+		return NULL;
+
 	for (i = 0; i < array->count; ++i) {
 		ni_ifworker_t *worker = array->data[i];
 
@@ -241,6 +244,12 @@ ni_ifworker_array_find(ni_ifworker_array_t *array, const char *ifname)
 			return worker;
 	}
 	return NULL;
+}
+
+static ni_ifworker_t *
+ni_ifworker_by_ifname(const char *ifname)
+{
+	return ni_ifworker_array_find(&interface_workers, ifname);
 }
 
 static ni_ifworker_t *
@@ -465,7 +474,15 @@ ni_ifworkers_from_xml(xml_document_t *doc)
 			}
 		}
 
-		ni_ifworker_new(ifname, ifnode);
+		if (ifname == NULL) {
+			ni_error("%s: ignoring unknown interface", xml_node_location(ifnode));
+			continue;
+		}
+
+		if ((w = ni_ifworker_by_ifname(ifname)) != NULL)
+			w->config = ifnode;
+		else
+			ni_ifworker_new(ifname, ifnode);
 		count++;
 	}
 
@@ -650,6 +667,7 @@ ni_ifworker_mark_matching(ni_ifmatcher_t *match, unsigned int target_state)
 		}
 	}
 
+	ni_debug_objectmodel("marked %u interfaces", count);
 	return count;
 }
 
