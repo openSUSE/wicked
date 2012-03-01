@@ -123,7 +123,7 @@ install: install-files
 
 install-files:
 	install -d -m 755 $(DESTDIR)/etc/wicked
-	install -m 644 etc/wicked/*.xml $(DESTDIR)/etc/wicked
+	install -m 644 etc/config.xml $(DESTDIR)/etc/wicked
 	install -d -m 755 $(DESTDIR)/etc/dbus-1/system.d
 	install -c -m 444 etc/wicked*.conf $(DESTDIR)/etc/dbus-1/system.d
 	install -d -m 755 $(DESTDIR)/etc/wicked/schema
