@@ -32,6 +32,7 @@ typedef enum {
 } ni_ether_tristate_t;
 
 struct ni_ethernet {
+	ni_hwaddr_t		permanent_address;
 	unsigned int		link_speed;
 	ni_ether_port_t		port_type;
 	ni_ether_duplex_t	duplex;

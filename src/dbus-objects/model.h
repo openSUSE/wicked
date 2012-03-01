@@ -33,10 +33,12 @@
 }
 #define NI_DBUS_DUMMY_PROPERTY(type, __name) \
 	__NI_DBUS_DUMMY_PROPERTY(DBUS_TYPE_##type##_AS_STRING, __name)
-#define __NI_DBUS_PROPERTY(__signature, __name, fstem, rw) { \
-	.name = #__name, \
+#define __NI_DBUS_PROPERTY(__signature, __name, fstem, rw) \
+	___NI_DBUS_PROPERTY(__signature, __name, __name, fstem, rw)
+#define ___NI_DBUS_PROPERTY(__signature, __dbus_name, __member_name, fstem, rw) { \
+	.name = #__dbus_name, \
 	.signature = __signature, \
-	__NI_DBUS_PROPERTY_##rw(fstem, __name), \
+	__NI_DBUS_PROPERTY_##rw(fstem, __member_name), \
 }
 #define NI_DBUS_PROPERTY(type, __name, fstem, rw) \
 	__NI_DBUS_PROPERTY(DBUS_TYPE_##type##_AS_STRING, __name, fstem, rw)

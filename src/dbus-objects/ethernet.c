@@ -95,6 +95,31 @@ ni_objectmodel_get_ethernet(const ni_dbus_object_t *object, DBusError *error)
 	return eth;
 }
 
+/*
+ * Get/set a hwaddr_t member
+ */
+static dbus_bool_t
+__ni_objectmodel_set_hwaddr(const ni_dbus_variant_t *argument, ni_hwaddr_t *hwaddr)
+{
+	unsigned int len;
+
+	if (!ni_dbus_variant_get_byte_array_minmax(argument, hwaddr->data, &len, 0, sizeof(hwaddr->data)))
+		return FALSE;
+
+	hwaddr->len = len;
+	return TRUE;
+}
+
+static dbus_bool_t
+__ni_objectmodel_get_hwaddr(ni_dbus_variant_t *result, const ni_hwaddr_t *hwaddr)
+{
+	ni_dbus_variant_set_byte_array(result, hwaddr->data, hwaddr->len);
+	return TRUE;
+}
+
+/*
+ * Get set ethernet hwaddr
+ */
 static dbus_bool_t
 __ni_objectmodel_ethernet_get_address(const ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
@@ -105,8 +130,8 @@ __ni_objectmodel_ethernet_get_address(const ni_dbus_object_t *object,
 
 	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
 		return FALSE;
-	ni_dbus_variant_set_byte_array(result, dev->link.hwaddr.data, dev->link.hwaddr.len);
-	return TRUE;
+
+	return __ni_objectmodel_get_hwaddr(result, &dev->link.hwaddr);
 }
 
 static dbus_bool_t
@@ -116,17 +141,40 @@ __ni_objectmodel_ethernet_set_address(ni_dbus_object_t *object,
 				DBusError *error)
 {
 	ni_interface_t *dev;
-	unsigned int len;
 
 	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
 		return FALSE;
 
-	if (!ni_dbus_variant_get_byte_array_minmax(argument, dev->link.hwaddr.data, &len,
-					0, sizeof(dev->link.hwaddr.data)))
-		return FALSE;
+	return __ni_objectmodel_set_hwaddr(argument, &dev->link.hwaddr);
+}
 
-	dev->link.hwaddr.len = len;
-	return TRUE;
+static dbus_bool_t
+__ni_objectmodel_ethernet_get_permanent_address(const ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				ni_dbus_variant_t *result,
+				DBusError *error)
+{
+	ni_ethernet_t *eth;
+
+	if (!(eth = ni_objectmodel_get_ethernet(object, error)))
+		return FALSE;
+	if (eth->permanent_address.type == NI_IFTYPE_UNKNOWN)
+		return ni_dbus_error_property_not_present(error, object->path, property->name);
+
+	return __ni_objectmodel_get_hwaddr(result, &eth->permanent_address);
+}
+
+static dbus_bool_t
+__ni_objectmodel_ethernet_set_permanent_address(ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *argument,
+				DBusError *error)
+{
+	ni_ethernet_t *eth;
+
+	if (!(eth = ni_objectmodel_get_ethernet(object, error)))
+		return FALSE;
+	return __ni_objectmodel_set_hwaddr(argument, &eth->permanent_address);
 }
 
 static dbus_bool_t
@@ -205,6 +253,9 @@ const ni_dbus_property_t	ni_objectmodel_ethernet_property_table[] = {
 	ETHERNET_UINT_PROPERTY(duplex, duplex, RO),
 	ETHERNET_UINT_PROPERTY(autoneg-enable, autoneg_enable, RO),
 
+	___NI_DBUS_PROPERTY(
+			DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING,
+			permanent-address, permanent_address, __ni_objectmodel_ethernet, RO),
 	__NI_DBUS_PROPERTY(
 			DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING,
 			address, __ni_objectmodel_ethernet, RO),

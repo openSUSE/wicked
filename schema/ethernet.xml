@@ -25,6 +25,7 @@
 
   <define name="properties" class="dict">
     <address type="ethernet-address"/>
+    <permanent-address type="ethernet-address"/>
 
     <link-speed type="uint32"/>
     <port-type type="port_t"/>

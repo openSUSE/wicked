@@ -284,6 +284,25 @@ __ni_system_ethernet_get(const char *ifname, ni_ethernet_t *ether)
 	if (value >= 0)
 		ether->offload.lro = (value & ETH_FLAG_LRO)? NI_ETHERNET_SETTING_ENABLE : NI_ETHERNET_SETTING_DISABLE;
 
+	/* Get the permanent address */
+	{
+		struct {
+			struct ethtool_perm_addr h;
+			unsigned char data[NI_MAXHWADDRLEN];
+		} parm;
+
+		parm.h.size = sizeof(parm.data);
+		if (__ni_ethtool(ifname, ETHTOOL_GPERMADDR, &parm) < 0) {
+			ni_warn("%s: ETHTOOL_GPERMADDR failed", ifname);
+		} else {
+			unsigned int alen = parm.h.size;
+
+			if (alen > NI_MAXHWADDRLEN)
+				alen = NI_MAXHWADDRLEN;
+			ni_link_address_set(&ether->permanent_address, NI_IFTYPE_ETHERNET, parm.data, alen);
+		}
+	}
+
 	return 0;
 }
 
