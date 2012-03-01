@@ -131,23 +131,23 @@ main(int argc, char **argv)
 		goto usage;
 	}
 
-	cmd = argv[optind++];
+	cmd = argv[optind];
 
 	if (!strcmp(cmd, "show"))
-		return do_show(argc - optind + 1, argv + optind - 1);
+		return do_show(argc - optind, argv + optind);
 
 	if (!strcmp(cmd, "show-xml"))
-		return do_show_xml(argc - optind + 1, argv + optind - 1);
+		return do_show_xml(argc - optind, argv + optind);
 
 	if (!strcmp(cmd, "ifup"))
-		return do_ifup(argc - optind + 1, argv + optind - 1);
+		return do_ifup(argc - optind, argv + optind);
 
 	if (!strcmp(cmd, "ifdown"))
-		return do_ifdown(argc - optind + 1, argv + optind - 1);
+		return do_ifdown(argc - optind, argv + optind);
 
 	/* Old wicked style functions follow */
 	if (!strcmp(cmd, "xpath"))
-		return do_xpath(argc - optind + 1, argv + optind - 1);
+		return do_xpath(argc - optind, argv + optind);
 
 	fprintf(stderr, "Unsupported command %s\n", cmd);
 	goto usage;
