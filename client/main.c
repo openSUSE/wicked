@@ -39,7 +39,6 @@ static struct option	options[] = {
 	{ "config",		required_argument,	NULL,	OPT_CONFIGFILE },
 	{ "dryrun",		no_argument,		NULL,	OPT_DRYRUN },
 	{ "dry-run",		no_argument,		NULL,	OPT_DRYRUN },
-	{ "link-timeout",	required_argument,	NULL,	OPT_LINK_TIMEOUT },
 	{ "no-progress-meter",	no_argument,		NULL,	OPT_NOPROGMETER },
 	{ "debug",		required_argument,	NULL,	OPT_DEBUG },
 	{ "root-directory",	required_argument,	NULL,	OPT_ROOTDIR },
@@ -49,7 +48,6 @@ static struct option	options[] = {
 
 static int		opt_dryrun = 0;
 static char *		opt_rootdir = NULL;
-static unsigned int	opt_link_timeout = 10;
 static int		opt_progressmeter = 1;
 static int		opt_shutdown_parents = 1;
 
@@ -81,17 +79,10 @@ main(int argc, char **argv)
 				"        Enable debugging for debug <facility>.\n"
 				"\n"
 				"Supported commands:\n"
-				"  create <iftype> [<property>=<value> <property>=<value> ...]\n"
 				"  ifup [--boot] [--file xmlspec] ifname\n"
 				"  ifdown [--delete] ifname\n"
-				"  get /config/interface\n"
-				"  get /config/interface/ifname\n"
-				"  put /config/interface/ifname < cfg.xml\n"
-				"  get /system/interface\n"
-				"  get /system/interface/ifname\n"
-				"  put /system/interface/ifname < cfg.xml\n"
-				"  delete /config/interface/ifname\n"
-				"  delete /system/interface/ifname\n"
+				"  show-xml [ifname]\n"
+				"  delete ifname\n"
 				"  xpath [options] expr ...\n"
 			       );
 			return 1;
@@ -106,11 +97,6 @@ main(int argc, char **argv)
 
 		case OPT_ROOTDIR:
 			opt_rootdir = optarg;
-			break;
-
-		case OPT_LINK_TIMEOUT:
-			if (ni_parse_int(optarg, &opt_link_timeout) < 0)
-				ni_fatal("unable to parse link timeout value");
 			break;
 
 		case OPT_NOPROGMETER:
