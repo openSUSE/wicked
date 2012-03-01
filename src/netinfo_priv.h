@@ -111,16 +111,6 @@ __ni_addrconf_should_update(unsigned int mask, unsigned int bit)
 }
 
 /*
- * Helper function to match interface "behaviors" to names
- */
-struct __ni_ifbehavior_map {
-	const char *	name;
-	ni_ifbehavior_t	behavior;
-};
-extern const char *	__ni_netinfo_best_behavior(const ni_ifbehavior_t *, const struct __ni_ifbehavior_map *);
-extern const ni_ifbehavior_t *__ni_netinfo_get_behavior(const char *, const struct __ni_ifbehavior_map *);
-
-/*
  * Packet capture and raw sockets
  */
 typedef struct ni_timeout_param {

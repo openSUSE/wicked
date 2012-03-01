@@ -288,33 +288,6 @@ ni_event_type_to_name(ni_event_t type)
 	return ni_format_int_mapped(type, __event_names);
 }
 
-static ni_intmap_t __ifaction_names[] = {
-	{ "boot",		NI_IFACTION_BOOT },
-	{ "shutdown",		NI_IFACTION_SHUTDOWN },
-	{ "manual-up",		NI_IFACTION_MANUAL_UP },
-	{ "manual-down",	NI_IFACTION_MANUAL_DOWN },
-	{ "link-up",		NI_IFACTION_LINK_UP },
-	{ "link-down",		NI_IFACTION_LINK_DOWN },
-
-	{ NULL }
-};
-
-int
-ni_ifaction_name_to_type(const char *name)
-{
-	unsigned int value;
-
-	if (ni_parse_int_mapped(name, __ifaction_names, &value) < 0)
-		return -1;
-	return value;
-}
-
-const char *
-ni_ifaction_type_to_name(unsigned int type)
-{
-	return ni_format_int_mapped(type, __ifaction_names);
-}
-
 /*
  * Map netinfo interface types to ARPHRD_ and vice versa
  */
