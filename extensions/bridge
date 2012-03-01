@@ -189,30 +189,9 @@ function bridge_set_link {
 			%{?path-cost}
 }
 
+# Note: interface creation/deletion is handled by the C interface
+# the other commands below will probably also go away soon.
 case $command in
-create)
-	# The create action is a factory method, bound to
-	# com.suse.Wicked.Bridge.Factory. The name of the interface
-	# to be created is passed as the first argument to the
-	# dbus call.
-	wicked_getargs 'bridge_name=%{name}'
-	if [ -z "$bridge_name" ]; then
-		# FIXME: pick the next free bridge device name
-		wicked_error "No bridge name specified"
-	fi
-
-	if ! netif_exists "$bridge_name"; then
-		$brctl addbr "$bridge_name" ||
-			wicked_error "unable to create bridge interface $bridge_name"
-	fi
-
-	# This will configure the bridge according to the options
-	# given in the request; including the list of ports to be added.
-	bridge_set_link $bridge_name
-
-	wicked_return_interface_object "$bridge_name"
-	;;
-
 addPort)
 	bridge_name=`wicked_get_interface_name`
 
@@ -228,12 +207,6 @@ removePort)
 	wicked_getargs 'port_name=%{port}'
 
 	bridge_remove_port $bridge_name $port_name
-	;;
-
-delete)
-	bridge_name=`wicked_get_interface_name`
-	$brctl delbr $bridge_name ||
-		wicked_error "error removing bridge device"
 	;;
 
 *)
