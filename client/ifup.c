@@ -1906,7 +1906,7 @@ do_ifdown(int argc, char **argv)
 		{ NULL }
 	};
 	static ni_ifmatcher_t ifmatch;
-	const char *opt_ifconfig = NULL;
+	const char *opt_ifconfig = WICKED_IFCONFIG_DIR_PATH;
 	int opt_delete = 0;
 	int c, rv = 1;
 
