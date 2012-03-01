@@ -1090,7 +1090,7 @@ ni_ifworker_do_device_up(ni_ifworker_t *w)
 	 * deviceNew and deviceChange.
 	 */
 	if ((service = ni_call_link_layer_service(link_type)) == NULL
-	 || !ni_dbus_service_get_method(service, "linkChange"))
+	 || !ni_dbus_service_get_method(service, "deviceChange"))
 		goto device_is_up;
 
 	if (!ni_call_device_change_xml(w->object, linknode, &callback_list, ni_ifworker_error_handler)) {
