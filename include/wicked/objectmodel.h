@@ -60,8 +60,9 @@ struct ni_objectmodel_netif_ns {
 	dbus_bool_t		(*match_attr)(const ni_interface_t *, const char *, const char *);
 };
 
-extern void			ni_objectmodel_register_netif_ns_builtin(void);
 extern void			ni_objectmodel_register_netif_ns(ni_objectmodel_netif_ns_t *);
+extern void			ni_objectmodel_register_netif_ns_builtin(void);
+extern void			ni_objectmodel_register_netif_ns_dynamic(void);
 extern ni_objectmodel_netif_ns_t *ni_objectmodel_get_netif_ns(const char *);
 extern ni_interface_t *		ni_objectmodel_netif_by_attrs(ni_objectmodel_netif_ns_t *, const ni_var_array_t *);
 

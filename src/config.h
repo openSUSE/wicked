@@ -94,6 +94,7 @@ typedef struct ni_config {
 
 	char *			dbus_xml_schema_file;
 	ni_extension_t *	extensions;
+	ni_extension_t *	ns_extensions;
 
 	char *			dbus_name;
 	char *			dbus_type;

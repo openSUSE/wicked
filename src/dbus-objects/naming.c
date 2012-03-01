@@ -13,6 +13,7 @@
 #include <wicked/ethernet.h>
 #include "dbus-common.h"
 #include "model.h"
+#include "config.h"
 #include "debug.h"
 
 static unsigned int			ni_objectmodel_ns_count;
@@ -40,6 +41,36 @@ ni_objectmodel_get_netif_ns(const char *name)
 			return ns;
 	}
 	return NULL;
+}
+
+/*
+ * Register all naming services specified in the config file.
+ * These naming services are supposed to be provided by shared libraries.
+ * The symbol specified by the C binding element must refer to a
+ * ni_objectmodel_netif_ns struct.
+ */
+void
+ni_objectmodel_register_netif_ns_dynamic(void)
+{
+	ni_config_t *config = ni_global.config;
+	ni_extension_t *ex;
+
+	ni_assert(config);
+	for (ex = config->ns_extensions; ex; ex = ex->next) {
+		ni_c_binding_t *binding;
+		void *addr;
+
+		for (binding = ex->c_bindings; binding; binding = binding->next) {
+			if ((addr = ni_c_binding_get_address(binding)) == NULL) {
+				ni_error("cannot bind %s name service - invalid C binding",
+						binding->name);
+				continue;
+			}
+
+			ni_debug_objectmodel("trying to bind netif naming service \"%s\"", binding->name);
+			ni_objectmodel_register_netif_ns((ni_objectmodel_netif_ns_t *) addr);
+		}
+	}
 }
 
 ni_interface_t *

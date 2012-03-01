@@ -4,11 +4,7 @@
  * This command line utility provides a daemon interface to the network
  * configuration/information facilities.
  *
- * It uses a RESTful interface (even though it's a command line utility).
- * The idea is to make it easier to extend this to some smallish daemon
- * with a AF_LOCAL socket interface.
- *
- * Copyright (C) 2010, 2011 Olaf Kirch <okir@suse.de>
+ * Copyright (C) 2010-2012 Olaf Kirch <okir@suse.de>
  */
 
 #include <sys/poll.h>

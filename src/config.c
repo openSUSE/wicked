@@ -23,8 +23,8 @@ static int		ni_config_parse_addrconf_dhcp(struct ni_config_dhcp *, xml_node_t *)
 static int		ni_config_parse_afinfo(ni_afinfo_t *, const char *, xml_node_t *);
 static int		ni_config_parse_update_targets(unsigned int *, const xml_node_t *);
 static int		ni_config_parse_fslocation(ni_config_fslocation_t *, const char *, xml_node_t *);
-static int		ni_config_parse_extensions(ni_extension_t **, xml_node_t *);
 static int		ni_config_parse_objectmodel_extension(ni_extension_t **, xml_node_t *);
+static int		ni_config_parse_objectmodel_netif_ns(ni_extension_t **, xml_node_t *);
 static ni_c_binding_t *	ni_c_binding_new(ni_c_binding_t **, const char *name, const char *lib, const char *symbol);
 
 /*
@@ -55,6 +55,7 @@ void
 ni_config_free(ni_config_t *conf)
 {
 	ni_extension_list_destroy(&conf->extensions);
+	ni_extension_list_destroy(&conf->ns_extensions);
 	ni_string_free(&conf->dbus_name);
 	ni_string_free(&conf->dbus_type);
 	ni_string_free(&conf->dbus_xml_schema_file);
@@ -122,8 +123,17 @@ ni_config_parse(const char *filename)
 	}
 
 	/* Parse extensions */
-	if (ni_config_parse_extensions(&conf->extensions, node) < 0)
-		goto failed;
+	for (child = node->children; child; child = child->next) {
+		if (strcmp(child->name, "extension") == 0) {
+			if (ni_config_parse_objectmodel_extension(&conf->extensions, child) < 0)
+				goto failed;
+		} else
+		if (strcmp(child->name, "netif-naming-services") == 0) {
+			if (ni_config_parse_objectmodel_netif_ns(&conf->ns_extensions, child) < 0)
+				goto failed;
+		}
+	}
+
 
 	xml_document_free(doc);
 	return conf;
@@ -246,30 +256,18 @@ ni_config_parse_fslocation(ni_config_fslocation_t *fsloc, const char *name, xml_
 	return 0;
 }
 
-int
-ni_config_parse_extensions(ni_extension_t **list, xml_node_t *node)
-{
-	for (node = node->children; node; node = node->next) {
-
-		if (strcmp(node->name, "extension") == 0) {
-			if (ni_config_parse_objectmodel_extension(list, node) < 0)
-				return -1;
-		}
-	}
-
-	return 0;
-}
-
 /*
  * Object model extensions let you implement parts of a dbus interface separately
  * from the main wicked body of code; either through a shared library or an
  * external command/shell script
  *
  * <extension interface="com.suse.Wicked.foobar">
- *  <pidfile path="/var/run/dhcpcd-%{@name}.pid"/>
- *  <start command="bla bla..."/>
- *  <stop command="bla bla..."/>
- *  ...
+ *  <action name="dbusMethodName" command="/some/shell/scripts some-args"/>
+ *  <builtin name="dbusOtherMethodName" library="/usr/lib/libfoo.so" symbol="c_method_impl_name"/>
+ *
+ *  <putenv name="WICKED_OBJECT_PATH" value="$object-path"/>
+ *  <putenv name="WICKED_INTERFACE_NAME" value="$property:name"/>
+ *  <putenv name="WICKED_INTERFACE_INDEX" value="$property:index"/>
  * </extension>
  */
 int
@@ -327,6 +325,45 @@ ni_config_parse_objectmodel_extension(ni_extension_t **list, xml_node_t *node)
 			}
 			value = xml_node_get_attr(child, "value");
 			ni_var_array_set(&ex->environment, name, value);
+		}
+	}
+
+	return 0;
+}
+
+/*
+ * Object model naming extensions let you implement alternative ways of specifying
+ * a network interface. This should help avoid all the messy udev tricks with renaming
+ * interfaces to obtain "persistent" device names.
+ *
+ * <netif-naming-services>
+ *  <builtin name="naming-service1" library="/usr/lib/libfoo.so" symbol="ns1_struct_name"/>
+ *  <builtin name="naming-service2" library="/usr/lib/libfoo.so" symbol="ns2_struct_name"/>
+ *  ...
+ * </netif-naming-services>
+ */
+int
+ni_config_parse_objectmodel_netif_ns(ni_extension_t **list, xml_node_t *node)
+{
+	ni_extension_t *ex;
+	xml_node_t *child;
+
+	ex = ni_extension_new(list, NULL);
+	for (child = node->children; child; child = child->next) {
+		if (!strcmp(child->name, "builtin")) {
+			const char *name, *library, *symbol;
+
+			if (!(name = xml_node_get_attr(child, "name"))) {
+				ni_error("builtin element without name attribute");
+				return -1;
+			}
+			if (!(symbol = xml_node_get_attr(child, "symbol"))) {
+				ni_error("action element without command attribute");
+				return -1;
+			}
+			library = xml_node_get_attr(child, "library");
+
+			ni_c_binding_new(&ex->c_bindings, name, library, symbol);
 		}
 	}
 

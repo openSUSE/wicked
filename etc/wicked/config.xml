@@ -11,6 +11,13 @@
   <dbus name="com.suse.Wicked" />
   <schema name="/etc/wicked/schema/wicked.xml"/>
 
+  <netif-naming-services>
+    <!-- This is just an example; the library itself isn't implemented yet -->
+    <!--
+    <builtin name="biosdevname" library="libwicked-biosname.so" symbol="biosdevname_ns"/>
+     -->
+  </netif-naming-services>
+
   <extension interface="com.suse.Wicked.Ethernet">
    <!-- default environment for all calls to this extension script -->
    <putenv name="WICKED_OBJECT_PATH" value="$object-path"/>

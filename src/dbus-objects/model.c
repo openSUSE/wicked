@@ -87,9 +87,15 @@ ni_objectmodel_init(ni_dbus_server_t *server)
 		ni_dbus_xml_register_services(objectmodel_schema);
 
 		/* If we're the server, create the initial objects of the
-		 * server-side object hierarchy. */
-		if (server)
+		 * server-side object hierarchy.
+		 * Also, register any netif naming services specified in
+		 * the config file.
+		 */
+		if (server) {
 			ni_objectmodel_create_initial_objects(server);
+
+			ni_objectmodel_register_netif_ns_dynamic();
+		}
 
 		/* Bind all extensions */
 		ni_objectmodel_bind_extensions();
