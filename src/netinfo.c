@@ -200,11 +200,11 @@ ni_netconfig_devlist(ni_netconfig_t *nc)
 ni_netdev_t *
 ni_netdev_by_name(ni_netconfig_t *nc, const char *name)
 {
-	ni_netdev_t *ifp;
+	ni_netdev_t *dev;
 
-	for (ifp = nc->interfaces; ifp; ifp = ifp->next) {
-		if (ifp->name && !strcmp(ifp->name, name))
-			return ifp;
+	for (dev = nc->interfaces; dev; dev = dev->next) {
+		if (dev->name && !strcmp(dev->name, name))
+			return dev;
 	}
 
 	return NULL;
@@ -216,11 +216,11 @@ ni_netdev_by_name(ni_netconfig_t *nc, const char *name)
 ni_netdev_t *
 ni_netdev_by_index(ni_netconfig_t *nc, unsigned int ifindex)
 {
-	ni_netdev_t *ifp;
+	ni_netdev_t *dev;
 
-	for (ifp = nc->interfaces; ifp; ifp = ifp->next) {
-		if (ifp->link.ifindex == ifindex)
-			return ifp;
+	for (dev = nc->interfaces; dev; dev = dev->next) {
+		if (dev->link.ifindex == ifindex)
+			return dev;
 	}
 
 	return NULL;
@@ -232,14 +232,14 @@ ni_netdev_by_index(ni_netconfig_t *nc, unsigned int ifindex)
 ni_netdev_t *
 ni_netdev_by_hwaddr(ni_netconfig_t *nc, const ni_hwaddr_t *lla)
 {
-	ni_netdev_t *ifp;
+	ni_netdev_t *dev;
 
 	if (!lla || !lla->len)
 		return NULL;
 
-	for (ifp = nc->interfaces; ifp; ifp = ifp->next) {
-		if (ni_link_address_equal(&ifp->link.hwaddr, lla))
-			return ifp;
+	for (dev = nc->interfaces; dev; dev = dev->next) {
+		if (ni_link_address_equal(&dev->link.hwaddr, lla))
+			return dev;
 	}
 
 	return NULL;
@@ -251,17 +251,17 @@ ni_netdev_by_hwaddr(ni_netconfig_t *nc, const ni_hwaddr_t *lla)
 ni_netdev_t *
 ni_netdev_by_vlan_name_and_tag(ni_netconfig_t *nc, const char *physdev_name, uint16_t tag)
 {
-	ni_netdev_t *ifp;
+	ni_netdev_t *dev;
 
 	if (!physdev_name || !tag)
 		return NULL;
-	for (ifp = nc->interfaces; ifp; ifp = ifp->next) {
-		if (ifp->link.type == NI_IFTYPE_VLAN
-		 && ifp->link.vlan
-		 && ifp->link.vlan->tag == tag
-		 && ifp->link.vlan->physdev_name
-		 && !strcmp(ifp->link.vlan->physdev_name, physdev_name))
-			return ifp;
+	for (dev = nc->interfaces; dev; dev = dev->next) {
+		if (dev->link.type == NI_IFTYPE_VLAN
+		 && dev->link.vlan
+		 && dev->link.vlan->tag == tag
+		 && dev->link.vlan->physdev_name
+		 && !strcmp(dev->link.vlan->physdev_name, physdev_name))
+			return dev;
 	}
 
 	return NULL;

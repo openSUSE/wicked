@@ -37,7 +37,7 @@ __ni_rta_get_uint16(uint16_t *val, struct rtattr *rta)
 }
 
 extern int		__ni_ethtool(const char *, int, void *);
-extern int		__ni_wireless_ext(const ni_netdev_t *ifp, int cmd,
+extern int		__ni_wireless_ext(const ni_netdev_t *dev, int cmd,
 				void *data, size_t data_len, unsigned int flags);
 extern int		__ni_brioctl_add_bridge(const char *);
 extern int		__ni_brioctl_del_bridge(const char *);

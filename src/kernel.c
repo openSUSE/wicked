@@ -72,12 +72,12 @@ __ni_ethtool(const char *ifname, int cmd, void *data)
  * Call a wireless extension
  */
 int
-__ni_wireless_ext(const ni_netdev_t *ifp, int cmd,
+__ni_wireless_ext(const ni_netdev_t *dev, int cmd,
 			void *data, size_t data_len, unsigned int flags)
 {
 	struct iwreq iwr;
 
-	strncpy(iwr.ifr_name, ifp->name, IFNAMSIZ);
+	strncpy(iwr.ifr_name, dev->name, IFNAMSIZ);
 	iwr.u.data.pointer = data;
 	iwr.u.data.length = data_len;
 	iwr.u.data.flags = flags;

@@ -101,12 +101,12 @@ __ni_rtevent_read(ni_socket_t *sock)
 }
 
 void
-__ni_netdev_event(ni_netconfig_t *nc, ni_netdev_t *ifp, ni_event_t ev)
+__ni_netdev_event(ni_netconfig_t *nc, ni_netdev_t *dev, ni_event_t ev)
 {
 	ni_debug_dhcp("%s(%s, idx=%d, %s)", __FUNCTION__,
-			ifp->name, ifp->link.ifindex, ni_event_type_to_name(ev));
+			dev->name, dev->link.ifindex, ni_event_type_to_name(ev));
 	if (ni_global.interface_event)
-		ni_global.interface_event(nc, ifp, ev);
+		ni_global.interface_event(nc, dev, ev);
 }
 
 int
@@ -154,7 +154,7 @@ __ni_rtevent_process(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 int
 __ni_rtevent_newlink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struct nlmsghdr *h)
 {
-	ni_netdev_t *ifp, *old;
+	ni_netdev_t *dev, *old;
 	struct ifinfomsg *ifi;
 	struct nlattr *nla;
 	char *ifname = NULL;
@@ -175,11 +175,11 @@ __ni_rtevent_newlink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 	old = ni_netdev_by_index(nc, ifi->ifi_index);
 	if (old != NULL) {
 		old_flags = old->link.ifflags;
-		ifp = old;
+		dev = old;
 	} else {
-		ifp = ni_netdev_new(nc, ifname, ifi->ifi_index);
+		dev = ni_netdev_new(nc, ifname, ifi->ifi_index);
 	}
-	if (__ni_netdev_process_newlink(ifp, h, ifi, nc) < 0) {
+	if (__ni_netdev_process_newlink(dev, h, ifi, nc) < 0) {
 		ni_error("Problem parsing RTM_NEWLINK message for %s", ifname);
 		return -1;
 	}
@@ -201,30 +201,30 @@ __ni_rtevent_newlink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 		unsigned int new_flags, flags_changed;
 
 		/* If the interface name changed, update it */
-		if (ifname && strcmp(ifname, ifp->name))
-			ni_string_dup(&ifp->name, ifname);
+		if (ifname && strcmp(ifname, dev->name))
+			ni_string_dup(&dev->name, ifname);
 
-		new_flags = ifp->link.ifflags;
+		new_flags = dev->link.ifflags;
 		flags_changed = old_flags ^ new_flags;
 
 		if (flags_changed & NI_IFF_LINK_UP) {
 			if (new_flags & NI_IFF_LINK_UP)
-				__ni_netdev_event(nc, ifp, NI_EVENT_LINK_UP);
+				__ni_netdev_event(nc, dev, NI_EVENT_LINK_UP);
 			else
-				__ni_netdev_event(nc, ifp, NI_EVENT_LINK_DOWN);
+				__ni_netdev_event(nc, dev, NI_EVENT_LINK_DOWN);
 		}
 		if (flags_changed & NI_IFF_NETWORK_UP) {
 			if (new_flags & NI_IFF_NETWORK_UP)
-				__ni_netdev_event(nc, ifp, NI_EVENT_NETWORK_UP);
+				__ni_netdev_event(nc, dev, NI_EVENT_NETWORK_UP);
 			else
-				__ni_netdev_event(nc, ifp, NI_EVENT_NETWORK_DOWN);
+				__ni_netdev_event(nc, dev, NI_EVENT_NETWORK_DOWN);
 		}
 	} else {
-		__ni_netdev_event(nc, ifp, NI_EVENT_LINK_CREATE);
+		__ni_netdev_event(nc, dev, NI_EVENT_LINK_CREATE);
 	}
 
 	if ((nla = nlmsg_find_attr(h, sizeof(*ifi), IFLA_WIRELESS)) != NULL)
-		__ni_wireless_link_event(nc, ifp, nla_data(nla), nla_len(nla));
+		__ni_wireless_link_event(nc, dev, nla_data(nla), nla_len(nla));
 
 	return 0;
 }
@@ -235,7 +235,7 @@ __ni_rtevent_newlink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 int
 __ni_rtevent_dellink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struct nlmsghdr *h)
 {
-	ni_netdev_t *ifp, **pos;
+	ni_netdev_t *dev, **pos;
 	struct ifinfomsg *ifi;
 
 	if (!(ifi = ni_rtnl_ifinfomsg(h, RTM_DELLINK)))
@@ -247,15 +247,15 @@ __ni_rtevent_dellink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 	}
 
 	/* Open code interface removal. */
-	for (pos = &nc->interfaces; (ifp = *pos) != NULL; pos = &ifp->next) {
-		if (ifp->link.ifindex == ifi->ifi_index) {
-			*pos = ifp->next;
-			ifp->next = NULL;
-			ifp->link.ifindex = 0;
-			ifp->link.ifflags = __ni_netdev_translate_ifflags(ifi->ifi_flags);
+	for (pos = &nc->interfaces; (dev = *pos) != NULL; pos = &dev->next) {
+		if (dev->link.ifindex == ifi->ifi_index) {
+			*pos = dev->next;
+			dev->next = NULL;
+			dev->link.ifindex = 0;
+			dev->link.ifflags = __ni_netdev_translate_ifflags(ifi->ifi_flags);
 
-			__ni_netdev_event(nc, ifp, NI_EVENT_LINK_DELETE);
-			ni_netdev_put(ifp);
+			__ni_netdev_event(nc, dev, NI_EVENT_LINK_DELETE);
+			ni_netdev_put(dev);
 			break;
 		}
 	}
@@ -271,17 +271,17 @@ int
 __ni_rtevent_newprefix(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struct nlmsghdr *h)
 {
 	struct prefixmsg *pfx;
-	ni_netdev_t *ifp;
+	ni_netdev_t *dev;
 
 	if (!(pfx = ni_rtnl_prefixmsg(h, RTM_NEWPREFIX)))
 		return -1;
 
-	ifp = ni_netdev_by_index(nc, pfx->prefix_ifindex);
-	if (ifp == NULL)
+	dev = ni_netdev_by_index(nc, pfx->prefix_ifindex);
+	if (dev == NULL)
 		return 0;
 
-	if (__ni_netdev_process_newprefix(ifp, h, pfx) < 0) {
-		ni_error("Problem parsing RTM_NEWPREFIX message for %s", ifp->name);
+	if (__ni_netdev_process_newprefix(dev, h, pfx) < 0) {
+		ni_error("Problem parsing RTM_NEWPREFIX message for %s", dev->name);
 		return -1;
 	}
 	return 0;

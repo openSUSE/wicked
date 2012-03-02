@@ -40,10 +40,10 @@
 #include "debug.h"
 
 static int	__ni_netdev_update_ipv6_settings(ni_netdev_t *, const ni_afinfo_t *);
-static int	__ni_netdev_update_addrs(ni_netdev_t *ifp,
+static int	__ni_netdev_update_addrs(ni_netdev_t *dev,
 				const ni_addrconf_lease_t *old_lease,
 				ni_address_t *cfg_addr_list);
-static int	__ni_netdev_update_routes(ni_netdev_t *ifp,
+static int	__ni_netdev_update_routes(ni_netdev_t *dev,
 				const ni_addrconf_lease_t *old_lease,
 				ni_route_t *cfg_route_list);
 static int	__ni_rtnl_link_create_vlan(const char *, const ni_vlan_t *, unsigned int);
@@ -55,53 +55,53 @@ static int	__ni_rtnl_send_delroute(ni_netdev_t *, ni_route_t *);
 static int	__ni_rtnl_send_newroute(ni_netdev_t *, ni_route_t *, int);
 
 int
-ni_system_interface_link_change(ni_netdev_t *ifp, const ni_netdev_req_t *ifp_req)
+ni_system_interface_link_change(ni_netdev_t *dev, const ni_netdev_req_t *ifp_req)
 {
 	unsigned int ifflags;
 	int res;
 
-	if (ifp == NULL)
+	if (dev == NULL)
 		return -NI_ERROR_INVALID_ARGS;
 
-	ni_debug_ifconfig("%s(%s)", __func__, ifp->name);
+	ni_debug_ifconfig("%s(%s)", __func__, dev->name);
 
 	/* FIXME: perform sanity check on configuration data */
 
 	ifflags = ifp_req? ifp_req->ifflags : 0;
 	if (ifflags & (NI_IFF_DEVICE_UP|NI_IFF_LINK_UP|NI_IFF_NETWORK_UP)) {
-		ni_debug_ifconfig("bringing up %s", ifp->name);
+		ni_debug_ifconfig("bringing up %s", dev->name);
 
 		/* If we want to disable ipv6 or ipv6 autoconf, we need to do so prior to bringing
 		 * the interface up. */
-		if (__ni_netdev_update_ipv6_settings(ifp, ifp_req->ipv6) < 0)
+		if (__ni_netdev_update_ipv6_settings(dev, ifp_req->ipv6) < 0)
 			return -1;
 
-		if (__ni_rtnl_link_up(ifp, ifp_req)) {
-			ni_error("%s: failed to bring up interface (rtnl error)", ifp->name);
+		if (__ni_rtnl_link_up(dev, ifp_req)) {
+			ni_error("%s: failed to bring up interface (rtnl error)", dev->name);
 			return -1;
 		}
 
-		if (ifp->link.type == NI_IFTYPE_WIRELESS)
-			ni_wireless_connect(ifp);
+		if (dev->link.type == NI_IFTYPE_WIRELESS)
+			ni_wireless_connect(dev);
 	} else {
 		/* FIXME: Shut down any addrconf services on this interface?
 		 * We should expect these services to detect the link down event...
 		 */
 
-		if (ifp->link.type == NI_IFTYPE_WIRELESS)
-			ni_wireless_disconnect(ifp);
+		if (dev->link.type == NI_IFTYPE_WIRELESS)
+			ni_wireless_disconnect(dev);
 
 		/* Now take down the link for real */
-		ni_debug_ifconfig("shutting down interface %s", ifp->name);
-		if (__ni_rtnl_link_down(ifp, RTM_NEWLINK)) {
-			ni_error("unable to shut down interface %s", ifp->name);
+		ni_debug_ifconfig("shutting down interface %s", dev->name);
+		if (__ni_rtnl_link_down(dev, RTM_NEWLINK)) {
+			ni_error("unable to shut down interface %s", dev->name);
 			return -1;
 		}
 	}
 
 	__ni_global_seqno++;
 
-	res = __ni_system_refresh_interface(ni_global_state_handle(0), ifp);
+	res = __ni_system_refresh_interface(ni_global_state_handle(0), dev);
 	return res;
 }
 
@@ -109,18 +109,18 @@ ni_system_interface_link_change(ni_netdev_t *ifp, const ni_netdev_req_t *ifp_req
  * An address configuration agent sends a lease update.
  */
 int
-__ni_system_interface_update_lease(ni_netdev_t *ifp, ni_addrconf_lease_t **lease_p)
+__ni_system_interface_update_lease(ni_netdev_t *dev, ni_addrconf_lease_t **lease_p)
 {
 	ni_netconfig_t *nc = ni_global_state_handle(0);
 	ni_addrconf_lease_t *lease = *lease_p, *old_lease = NULL;
 	int res;
 
-	ni_debug_ifconfig("%s: received %s/%s lease update; state %s", ifp->name,
+	ni_debug_ifconfig("%s: received %s/%s lease update; state %s", dev->name,
 			ni_addrconf_type_to_name(lease->type),
 			ni_addrfamily_type_to_name(lease->family),
 			ni_addrconf_state_to_name(lease->state));
 
-	if ((res = __ni_system_refresh_interface(nc, ifp)) < 0)
+	if ((res = __ni_system_refresh_interface(nc, dev)) < 0)
 		return -1;
 
 	/* Use the existing lease handle to identify those addresses already
@@ -128,40 +128,40 @@ __ni_system_interface_update_lease(ni_netdev_t *ifp, ni_addrconf_lease_t **lease
 	 * While we're getting the old lease, detach it from the interface
 	 * (but don't delete it yet).
 	 */
-	old_lease = __ni_netdev_find_lease(ifp, lease->family, lease->type, 1);
+	old_lease = __ni_netdev_find_lease(dev, lease->family, lease->type, 1);
 
 	if (lease->state == NI_ADDRCONF_STATE_GRANTED)
-		res = __ni_netdev_update_addrs(ifp, old_lease, lease->addrs);
+		res = __ni_netdev_update_addrs(dev, old_lease, lease->addrs);
 	else
-		res = __ni_netdev_update_addrs(ifp, old_lease, NULL);
+		res = __ni_netdev_update_addrs(dev, old_lease, NULL);
 	if (res < 0) {
 		ni_error("%s: error updating interface config from %s lease",
-				ifp->name, 
+				dev->name, 
 				ni_addrconf_type_to_name(lease->type));
 		goto out;
 	}
 
 	/* Refresh state here - routes may have disappeared, for instance,
 	 * when we took away the address. */
-	if ((res = __ni_system_refresh_interface(nc, ifp)) < 0)
+	if ((res = __ni_system_refresh_interface(nc, dev)) < 0)
 		goto out;
 
 	/* Loop over all routes and remove those no longer covered by the lease.
 	 * Ignore all routes covered by other address config mechanisms.
 	 */
 	if (lease->state == NI_ADDRCONF_STATE_GRANTED)
-		res = __ni_netdev_update_routes(ifp, old_lease, lease->routes);
+		res = __ni_netdev_update_routes(dev, old_lease, lease->routes);
 	else
-		res = __ni_netdev_update_routes(ifp, old_lease, NULL);
+		res = __ni_netdev_update_routes(dev, old_lease, NULL);
 	if (res < 0) {
 		ni_error("%s: error updating interface config from %s lease",
-				ifp->name, 
+				dev->name, 
 				ni_addrconf_type_to_name(lease->type));
 		goto out;
 	}
 
 	if (lease->state == NI_ADDRCONF_STATE_GRANTED) {
-		ni_netdev_set_lease(ifp, lease);
+		ni_netdev_set_lease(dev, lease);
 		*lease_p = NULL;
 	}
 
@@ -181,51 +181,51 @@ out:
 int
 ni_system_interface_delete(ni_netconfig_t *nc, const char *ifname)
 {
-	ni_netdev_t *ifp;
+	ni_netdev_t *dev;
 
 	ni_debug_ifconfig("ni_system_interface_delete(%s)", ifname);
 
 	/* FIXME: perform sanity check on configuration data */
 
-	ifp = ni_netdev_by_name(nc, ifname);
-	if (ifp == NULL) {
+	dev = ni_netdev_by_name(nc, ifname);
+	if (dev == NULL) {
 		ni_error("cannot delete interface %s - not known", ifname);
 		return -1;
 	}
 
-	switch (ifp->link.type) {
+	switch (dev->link.type) {
 	case NI_IFTYPE_LOOPBACK:
 	case NI_IFTYPE_ETHERNET:
 	case NI_IFTYPE_WIRELESS:
 	case NI_IFTYPE_DUMMY:
-		ni_error("cannot destroy %s interfaces", ni_linktype_type_to_name(ifp->link.type));
+		ni_error("cannot destroy %s interfaces", ni_linktype_type_to_name(dev->link.type));
 		return -1;
 
 	case NI_IFTYPE_VLAN:
-		if (__ni_rtnl_link_down(ifp, RTM_DELLINK)) {
-			ni_error("could not destroy VLAN interface %s", ifp->name);
+		if (__ni_rtnl_link_down(dev, RTM_DELLINK)) {
+			ni_error("could not destroy VLAN interface %s", dev->name);
 			return -1;
 		}
 		break;
 
 	case NI_IFTYPE_BRIDGE:
-		if (__ni_brioctl_del_bridge(ifp->name) < 0) {
-			ni_error("could not destroy bridge interface %s", ifp->name);
+		if (__ni_brioctl_del_bridge(dev->name) < 0) {
+			ni_error("could not destroy bridge interface %s", dev->name);
 			return -1;
 		}
 		break;
 
 	case NI_IFTYPE_BOND:
-		if (ni_sysfs_bonding_delete_master(ifp->name) < 0) {
-			ni_error("could not destroy bonding interface %s", ifp->name);
+		if (ni_sysfs_bonding_delete_master(dev->name) < 0) {
+			ni_error("could not destroy bonding interface %s", dev->name);
 			return -1;
 		}
 		break;
 
 	default:
 		ni_error("%s not implemented for link type %u (%s)",
-				__func__, ifp->link.type,
-				ni_linktype_type_to_name(ifp->link.type));
+				__func__, dev->link.type,
+				ni_linktype_type_to_name(dev->link.type));
 		return -1;
 	}
 
@@ -237,17 +237,17 @@ ni_system_interface_delete(ni_netconfig_t *nc, const char *ifname)
  * ni_system_vlan_create
  */
 int
-ni_system_vlan_create(ni_netconfig_t *nc, const char *ifname, const ni_vlan_t *cfg_vlan, ni_netdev_t **ifpp)
+ni_system_vlan_create(ni_netconfig_t *nc, const char *ifname, const ni_vlan_t *cfg_vlan, ni_netdev_t **dev_ret)
 {
-	ni_netdev_t *ifp, *phys_dev;
+	ni_netdev_t *dev, *phys_dev;
 	ni_vlan_t *cur_vlan = NULL;
 
-	*ifpp = NULL;
+	*dev_ret = NULL;
 
-	ifp = ni_netdev_by_vlan_name_and_tag(nc, cfg_vlan->physdev_name, cfg_vlan->tag);
-	if (ifp != NULL) {
+	dev = ni_netdev_by_vlan_name_and_tag(nc, cfg_vlan->physdev_name, cfg_vlan->tag);
+	if (dev != NULL) {
 		/* This is not necessarily an error */
-		*ifpp = ifp;
+		*dev_ret = dev;
 		return -NI_ERROR_INTERFACE_EXISTS;
 	}
 
@@ -267,13 +267,13 @@ ni_system_vlan_create(ni_netconfig_t *nc, const char *ifname, const ni_vlan_t *c
 	/* Refresh interface status */
 	__ni_system_refresh_interfaces(nc);
 
-	ifp = ni_netdev_by_vlan_name_and_tag(nc, cfg_vlan->physdev_name, cfg_vlan->tag);
-	if (ifp == NULL) {
+	dev = ni_netdev_by_vlan_name_and_tag(nc, cfg_vlan->physdev_name, cfg_vlan->tag);
+	if (dev == NULL) {
 		ni_error("tried to create interface %s; still not found", ifname);
 		return -1;
 	}
 
-	if (!(cur_vlan = ifp->link.vlan))
+	if (!(cur_vlan = dev->link.vlan))
 		return -1;
 
 	{
@@ -289,7 +289,7 @@ ni_system_vlan_create(ni_netconfig_t *nc, const char *ifname, const ni_vlan_t *c
 		}
 	}
 
-	*ifpp = ifp;
+	*dev_ret = dev;
 	return 0;
 }
 
@@ -297,10 +297,10 @@ ni_system_vlan_create(ni_netconfig_t *nc, const char *ifname, const ni_vlan_t *c
  * Delete a VLAN interface
  */
 int
-ni_system_vlan_delete(ni_netdev_t *ifp)
+ni_system_vlan_delete(ni_netdev_t *dev)
 {
-	if (__ni_rtnl_link_down(ifp, RTM_DELLINK)) {
-		ni_error("could not destroy VLAN interface %s", ifp->name);
+	if (__ni_rtnl_link_down(dev, RTM_DELLINK)) {
+		ni_error("could not destroy VLAN interface %s", dev->name);
 		return -1;
 	}
 	return 0;
@@ -311,9 +311,9 @@ ni_system_vlan_delete(ni_netdev_t *ifp)
  */
 int
 ni_system_bridge_create(ni_netconfig_t *nc, const char *ifname,
-			const ni_bridge_t *cfg_bridge, ni_netdev_t **ifpp)
+			const ni_bridge_t *cfg_bridge, ni_netdev_t **dev_ret)
 {
-	ni_netdev_t *ifp;
+	ni_netdev_t *dev;
 
 	ni_debug_ifconfig("%s: creating bridge interface", ifname);
 	if (__ni_brioctl_add_bridge(ifname) < 0) {
@@ -324,13 +324,13 @@ ni_system_bridge_create(ni_netconfig_t *nc, const char *ifname,
 	/* Refresh interface status */
 	__ni_system_refresh_interfaces(nc);
 
-	ifp = ni_netdev_by_name(nc, ifname);
-	if (ifp == NULL) {
+	dev = ni_netdev_by_name(nc, ifname);
+	if (dev == NULL) {
 		ni_error("tried to create interface %s; still not found", ifname);
 		return -1;
 	}
 
-	*ifpp = ifp;
+	*dev_ret = dev;
 	return 0;
 }
 
@@ -338,19 +338,19 @@ ni_system_bridge_create(ni_netconfig_t *nc, const char *ifname,
  * Given data provided by the user, update the bridge config
  */
 int
-ni_system_bridge_setup(ni_netconfig_t *nc, ni_netdev_t *ifp, const ni_bridge_t *bcfg)
+ni_system_bridge_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_bridge_t *bcfg)
 {
-	if (ifp->link.type != NI_IFTYPE_BRIDGE) {
-		ni_error("%s: %s is not a bridge interface", __func__, ifp->name);
+	if (dev->link.type != NI_IFTYPE_BRIDGE) {
+		ni_error("%s: %s is not a bridge interface", __func__, dev->name);
 		return -1;
 	}
 
-	if (ni_sysfs_bridge_update_config(ifp->name, bcfg) < 0) {
-		ni_error("%s: failed to update sysfs attributes for %s", __func__, ifp->name);
+	if (ni_sysfs_bridge_update_config(dev->name, bcfg) < 0) {
+		ni_error("%s: failed to update sysfs attributes for %s", __func__, dev->name);
 		return -1;
 	}
 
-	return __ni_system_refresh_interface(nc, ifp);
+	return __ni_system_refresh_interface(nc, dev);
 }
 
 /*
@@ -358,10 +358,10 @@ ni_system_bridge_setup(ni_netconfig_t *nc, ni_netdev_t *ifp, const ni_bridge_t *
  * ni_system_bridge_delete
  */
 int
-ni_system_bridge_delete(ni_netconfig_t *nc, ni_netdev_t *ifp)
+ni_system_bridge_delete(ni_netconfig_t *nc, ni_netdev_t *dev)
 {
-	if (__ni_brioctl_del_bridge(ifp->name) < 0) {
-		ni_error("could not destroy bridge interface %s", ifp->name);
+	if (__ni_brioctl_del_bridge(dev->name) < 0) {
+		ni_error("could not destroy bridge interface %s", dev->name);
 		return -1;
 	}
 	return 0;
@@ -427,18 +427,18 @@ ni_system_bridge_add_port(ni_netconfig_t *nc, ni_netdev_t *brdev, ni_bridge_port
  * ni_system_bridge_remove_port
  */
 int
-ni_system_bridge_remove_port(ni_netconfig_t *nc, ni_netdev_t *ifp, int port_ifindex)
+ni_system_bridge_remove_port(ni_netconfig_t *nc, ni_netdev_t *dev, int port_ifindex)
 {
-	ni_bridge_t *bridge = ni_netdev_get_bridge(ifp);
+	ni_bridge_t *bridge = ni_netdev_get_bridge(dev);
 	int rv;
 
 	if (port_ifindex == 0) {
-		ni_error("%s: cannot remove port: bad ifindex", ifp->name);
+		ni_error("%s: cannot remove port: bad ifindex", dev->name);
 		return -NI_ERROR_INTERFACE_NOT_KNOWN;
 	}
 
-	if ((rv = __ni_brioctl_del_port(ifp->name, port_ifindex)) < 0) {
-		ni_error("%s: cannot remove port: %s", ifp->name, ni_strerror(rv));
+	if ((rv = __ni_brioctl_del_port(dev->name, port_ifindex)) < 0) {
+		ni_error("%s: cannot remove port: %s", dev->name, ni_strerror(rv));
 		return rv;
 	}
 
@@ -450,9 +450,9 @@ ni_system_bridge_remove_port(ni_netconfig_t *nc, ni_netdev_t *ifp, int port_ifin
  * Create a bonding device
  */
 int
-ni_system_bond_create(ni_netconfig_t *nc, const char *ifname, const ni_bonding_t *bond, ni_netdev_t **ifpp)
+ni_system_bond_create(ni_netconfig_t *nc, const char *ifname, const ni_bonding_t *bond, ni_netdev_t **dev_ret)
 {
-	ni_netdev_t *ifp;
+	ni_netdev_t *dev;
 
 	if (!ni_sysfs_bonding_available()) {
 		unsigned int i, success = 0;
@@ -499,12 +499,12 @@ ni_system_bond_create(ni_netconfig_t *nc, const char *ifname, const ni_bonding_t
 	/* Refresh interface status */
 	__ni_system_refresh_interfaces(nc);
 
-	if ((ifp = ni_netdev_by_name(nc, ifname)) == NULL) {
+	if ((dev = ni_netdev_by_name(nc, ifname)) == NULL) {
 		ni_error("tried to create interface %s; still not found", ifname);
 		return -1;
 	}
 
-	*ifpp = ifp;
+	*dev_ret = dev;
 	return 0;
 }
 
@@ -512,10 +512,10 @@ ni_system_bond_create(ni_netconfig_t *nc, const char *ifname, const ni_bonding_t
  * Set up an ethernet device
  */
 int
-ni_system_ethernet_setup(ni_netconfig_t *nc, ni_netdev_t *ifp, const ni_ethernet_t *dev_cfg)
+ni_system_ethernet_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_ethernet_t *dev_cfg)
 {
-	if (__ni_system_ethernet_update(ifp, dev_cfg) < 0) {
-		ni_error("%s: failed to update ethernet device settings", ifp->name);
+	if (__ni_system_ethernet_update(dev, dev_cfg) < 0) {
+		ni_error("%s: failed to update ethernet device settings", dev->name);
 		return -1;
 	}
 
@@ -526,32 +526,32 @@ ni_system_ethernet_setup(ni_netconfig_t *nc, ni_netdev_t *ifp, const ni_ethernet
  * Set up a bonding device
  */
 int
-ni_system_bond_setup(ni_netconfig_t *nc, ni_netdev_t *ifp, const ni_bonding_t *bond_cfg)
+ni_system_bond_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_bonding_t *bond_cfg)
 {
 	const char *complaint;
 	ni_bonding_t *bond;
 
 	complaint = ni_bonding_validate(bond_cfg);
 	if (complaint != NULL) {
-		ni_error("%s: cannot set up bonding device: %s", ifp->name, complaint);
+		ni_error("%s: cannot set up bonding device: %s", dev->name, complaint);
 		return -NI_ERROR_INVALID_ARGS;
 	}
 
-	if ((bond = ni_netdev_get_bonding(ifp)) == NULL) {
-		ni_error("%s: not a bonding interface ", ifp->name);
+	if ((bond = ni_netdev_get_bonding(dev)) == NULL) {
+		ni_error("%s: not a bonding interface ", dev->name);
 		return -1;
 	}
 
 	/* Store attributes stage 0 - most attributes need to be written prior to
 	   bringing up the interface */
-	if (ni_bonding_write_sysfs_attrs(ifp->name, bond_cfg, bond, 0) < 0) {
-		ni_error("%s: error configuring bonding device (stage 0)", ifp->name);
+	if (ni_bonding_write_sysfs_attrs(dev->name, bond_cfg, bond, 0) < 0) {
+		ni_error("%s: error configuring bonding device (stage 0)", dev->name);
 		return -1;
 	}
 
 	/* Update the list of slave devices */
-	if (ni_sysfs_bonding_set_list_attr(ifp->name, "slaves", &bond_cfg->slave_names) < 0) {
-		ni_error("%s: could not update list of slaves", ifp->name);
+	if (ni_sysfs_bonding_set_list_attr(dev->name, "slaves", &bond_cfg->slave_names) < 0) {
+		ni_error("%s: could not update list of slaves", dev->name);
 		return -NI_ERROR_PERMISSION_DENIED;
 	}
 
@@ -559,9 +559,9 @@ ni_system_bond_setup(ni_netconfig_t *nc, ni_netdev_t *ifp, const ni_bonding_t *b
 	 * Otherwise, we have to remember it and assign it later */
 	ni_string_dup(&bond->requested_primary, bond_cfg->primary);
 
-	if (ni_netdev_device_is_up(ifp)) {
-		if (ni_bonding_write_sysfs_attrs(ifp->name, bond_cfg, bond, 1) < 0) {
-			ni_error("%s: error configuring bonding device (stage 1)", ifp->name);
+	if (ni_netdev_device_is_up(dev)) {
+		if (ni_bonding_write_sysfs_attrs(dev->name, bond_cfg, bond, 1) < 0) {
+			ni_error("%s: error configuring bonding device (stage 1)", dev->name);
 			return -1;
 		}
 	}
@@ -572,10 +572,10 @@ ni_system_bond_setup(ni_netconfig_t *nc, ni_netdev_t *ifp, const ni_bonding_t *b
  * Delete a bonding device
  */
 int
-ni_system_bond_delete(ni_netconfig_t *nc, ni_netdev_t *ifp)
+ni_system_bond_delete(ni_netconfig_t *nc, ni_netdev_t *dev)
 {
-	if (ni_sysfs_bonding_delete_master(ifp->name) < 0) {
-		ni_error("could not destroy bonding interface %s", ifp->name);
+	if (ni_sysfs_bonding_delete_master(dev->name) < 0) {
+		ni_error("could not destroy bonding interface %s", dev->name);
 		return -1;
 	}
 	return 0;
@@ -585,24 +585,24 @@ ni_system_bond_delete(ni_netconfig_t *nc, ni_netdev_t *ifp)
  * Add slave to a bond
  */
 int
-ni_system_bond_add_slave(ni_netconfig_t *nc, ni_netdev_t *ifp, unsigned int slave_idx)
+ni_system_bond_add_slave(ni_netconfig_t *nc, ni_netdev_t *dev, unsigned int slave_idx)
 {
-	ni_bonding_t *bond = ifp->bonding;
+	ni_bonding_t *bond = dev->bonding;
 	ni_netdev_t *slave_dev;
 
 	if (bond == NULL) {
-		ni_error("%s: %s is not a bonding device", __func__, ifp->name);
+		ni_error("%s: %s is not a bonding device", __func__, dev->name);
 		return -NI_ERROR_INTERFACE_NOT_COMPATIBLE;
 	}
 
 	slave_dev = ni_netdev_by_index(nc, slave_idx);
 	if (slave_dev == NULL) {
-		ni_error("%s: trying to add unknown interface to bond %s", __func__, ifp->name);
+		ni_error("%s: trying to add unknown interface to bond %s", __func__, dev->name);
 		return -NI_ERROR_INTERFACE_NOT_KNOWN;
 	}
 
 	if (ni_netdev_network_is_up(slave_dev)) {
-		ni_error("%s: trying to enslave %s, which is in use", ifp->name, slave_dev->name);
+		ni_error("%s: trying to enslave %s, which is in use", dev->name, slave_dev->name);
 		return -NI_ERROR_INTERFACE_NOT_DOWN;
 	}
 
@@ -611,8 +611,8 @@ ni_system_bond_add_slave(ni_netconfig_t *nc, ni_netdev_t *ifp, unsigned int slav
 		return 0;
 
 	ni_bonding_add_slave(bond, slave_dev->name);
-	if (ni_sysfs_bonding_set_list_attr(ifp->name, "slaves", &bond->slave_names) < 0) {
-		ni_error("%s: could not update list of slaves", ifp->name);
+	if (ni_sysfs_bonding_set_list_attr(dev->name, "slaves", &bond->slave_names) < 0) {
+		ni_error("%s: could not update list of slaves", dev->name);
 		return -NI_ERROR_PERMISSION_DENIED;
 	}
 
@@ -623,20 +623,20 @@ ni_system_bond_add_slave(ni_netconfig_t *nc, ni_netdev_t *ifp, unsigned int slav
  * Remove a slave from a bond
  */
 int
-ni_system_bond_remove_slave(ni_netconfig_t *nc, ni_netdev_t *ifp, unsigned int slave_idx)
+ni_system_bond_remove_slave(ni_netconfig_t *nc, ni_netdev_t *dev, unsigned int slave_idx)
 {
-	ni_bonding_t *bond = ifp->bonding;
+	ni_bonding_t *bond = dev->bonding;
 	ni_netdev_t *slave_dev;
 	int idx;
 
 	if (bond == NULL) {
-		ni_error("%s: %s is not a bonding device", __func__, ifp->name);
+		ni_error("%s: %s is not a bonding device", __func__, dev->name);
 		return -NI_ERROR_INTERFACE_NOT_COMPATIBLE;
 	}
 
 	slave_dev = ni_netdev_by_index(nc, slave_idx);
 	if (slave_dev == NULL) {
-		ni_error("%s: trying to add unknown interface to bond %s", __func__, ifp->name);
+		ni_error("%s: trying to add unknown interface to bond %s", __func__, dev->name);
 		return -NI_ERROR_INTERFACE_NOT_KNOWN;
 	}
 
@@ -645,8 +645,8 @@ ni_system_bond_remove_slave(ni_netconfig_t *nc, ni_netdev_t *ifp, unsigned int s
 		return 0;
 
 	ni_string_array_remove_index(&bond->slave_names, idx);
-	if (ni_sysfs_bonding_set_list_attr(ifp->name, "slaves", &bond->slave_names) < 0) {
-		ni_error("%s: could not update list of slaves", ifp->name);
+	if (ni_sysfs_bonding_set_list_attr(dev->name, "slaves", &bond->slave_names) < 0) {
+		ni_error("%s: could not update list of slaves", dev->name);
 		return -NI_ERROR_PERMISSION_DENIED;
 	}
 
@@ -657,7 +657,7 @@ ni_system_bond_remove_slave(ni_netconfig_t *nc, ni_netdev_t *ifp, unsigned int s
  * Update the IPv6 sysctl settings for the given interface
  */
 int
-__ni_netdev_update_ipv6_settings(ni_netdev_t *ifp, const ni_afinfo_t *afi)
+__ni_netdev_update_ipv6_settings(ni_netdev_t *dev, const ni_afinfo_t *afi)
 {
 	int enable = afi? afi->enabled : 0;
 	int brought_up = 0;
@@ -668,29 +668,29 @@ __ni_netdev_update_ipv6_settings(ni_netdev_t *ifp, const ni_afinfo_t *afi)
 	 * seems rather good at that. 
 	 * The only way to recover from that is by upping the interface briefly.
 	 */
-	if (!ni_sysctl_ipv6_ifconfig_is_present(ifp->name)) {
-		if (__ni_rtnl_link_up(ifp, NULL) >= 0) {
+	if (!ni_sysctl_ipv6_ifconfig_is_present(dev->name)) {
+		if (__ni_rtnl_link_up(dev, NULL) >= 0) {
 			unsigned int count = 100;
 
-			while (count-- && !ni_sysctl_ipv6_ifconfig_is_present(ifp->name))
+			while (count-- && !ni_sysctl_ipv6_ifconfig_is_present(dev->name))
 				usleep(100000);
 			brought_up = 1;
 		}
 	}
 
-	if (ni_sysctl_ipv6_ifconfig_set_uint(ifp->name, "disable_ipv6", !enable) < 0) {
-		ni_error("%s: cannot %s ipv6", ifp->name, enable? "enable" : "disable");
+	if (ni_sysctl_ipv6_ifconfig_set_uint(dev->name, "disable_ipv6", !enable) < 0) {
+		ni_error("%s: cannot %s ipv6", dev->name, enable? "enable" : "disable");
 		goto out;
 	}
 	if (enable) {
 		int autoconf = ni_afinfo_addrconf_test(afi, NI_ADDRCONF_STATIC);
 
-		if (ni_sysctl_ipv6_ifconfig_set_uint(ifp->name, "autoconf", autoconf) < 0) {
-			ni_error("%s: cannot %s ipv6 autoconf", ifp->name, autoconf? "enable" : "disable");
+		if (ni_sysctl_ipv6_ifconfig_set_uint(dev->name, "autoconf", autoconf) < 0) {
+			ni_error("%s: cannot %s ipv6 autoconf", dev->name, autoconf? "enable" : "disable");
 			goto out;
 		}
-		if (ni_sysctl_ipv6_ifconfig_set_uint(ifp->name, "forwarding", afi->forwarding) < 0) {
-			ni_error("%s: cannot %s ipv6 forwarding", ifp->name, afi->forwarding? "enable" : "disable");
+		if (ni_sysctl_ipv6_ifconfig_set_uint(dev->name, "forwarding", afi->forwarding) < 0) {
+			ni_error("%s: cannot %s ipv6 forwarding", dev->name, afi->forwarding? "enable" : "disable");
 			goto out;
 		}
 	}
@@ -698,7 +698,7 @@ __ni_netdev_update_ipv6_settings(ni_netdev_t *ifp, const ni_afinfo_t *afi)
 
 out:
 	if (brought_up)
-		__ni_rtnl_link_down(ifp, RTM_NEWLINK);
+		__ni_rtnl_link_down(dev, RTM_NEWLINK);
 
 	return rv;
 }
@@ -794,13 +794,13 @@ __ni_rtnl_simple(int msgtype, unsigned int flags, void *data, size_t len)
  * Bring down/delete an interface
  */
 static int
-__ni_rtnl_link_down(const ni_netdev_t *ifp, int cmd)
+__ni_rtnl_link_down(const ni_netdev_t *dev, int cmd)
 {
 	struct ifinfomsg ifi;
 
 	memset(&ifi, 0, sizeof(ifi));
 	ifi.ifi_family = AF_UNSPEC;
-	ifi.ifi_index = ifp->link.ifindex;
+	ifi.ifi_index = dev->link.ifindex;
 	ifi.ifi_change = IFF_UP;
 
 	return __ni_rtnl_simple(cmd, 0, &ifi, sizeof(ifi));
@@ -810,20 +810,20 @@ __ni_rtnl_link_down(const ni_netdev_t *ifp, int cmd)
  * (Re-)configure an interface
  */
 static int
-__ni_rtnl_link_up(const ni_netdev_t *ifp, const ni_netdev_req_t *cfg)
+__ni_rtnl_link_up(const ni_netdev_t *dev, const ni_netdev_req_t *cfg)
 {
 	struct ifinfomsg ifi;
 	struct nl_msg *msg;
 
-	if (ifp->link.ifindex == 0) {
-		ni_error("%s: bad interface index for %s", __func__, ifp->name);
+	if (dev->link.ifindex == 0) {
+		ni_error("%s: bad interface index for %s", __func__, dev->name);
 		return -NI_ERROR_INTERFACE_NOT_KNOWN;
 	}
 
-	NI_TRACE_ENTER_ARGS("%s, idx=%d", ifp->name, ifp->link.ifindex);
+	NI_TRACE_ENTER_ARGS("%s, idx=%d", dev->name, dev->link.ifindex);
 	memset(&ifi, 0, sizeof(ifi));
 	ifi.ifi_family = AF_UNSPEC;
-	ifi.ifi_index = ifp->link.ifindex;
+	ifi.ifi_index = dev->link.ifindex;
 	ifi.ifi_change = IFF_UP;
 	ifi.ifi_flags = IFF_UP;
 
@@ -833,20 +833,20 @@ __ni_rtnl_link_up(const ni_netdev_t *ifp, const ni_netdev_req_t *cfg)
 		goto nla_put_failure;
 
 	if (cfg) {
-		if (cfg->mtu && cfg->mtu != ifp->link.mtu)
+		if (cfg->mtu && cfg->mtu != dev->link.mtu)
 			NLA_PUT_U32(msg, IFLA_MTU, cfg->mtu);
 
-		if (cfg->txqlen && cfg->txqlen != ifp->link.txqlen)
+		if (cfg->txqlen && cfg->txqlen != dev->link.txqlen)
 			NLA_PUT_U32(msg, IFLA_TXQLEN, cfg->txqlen);
 
 #if 0
 		/* Need different way to set hwaddr */
 		if (cfg->link.hwaddr.type != NI_IFTYPE_UNKNOWN && cfg->link.hwaddr.len != 0
-		 && !ni_link_address_equal(&cfg->link.hwaddr, &ifp->link.hwaddr))
+		 && !ni_link_address_equal(&cfg->link.hwaddr, &dev->link.hwaddr))
 			NLA_PUT(msg, IFLA_ADDRESS, cfg->link.hwaddr.len, cfg->link.hwaddr.data);
 #endif
 
-		if (cfg->alias && !ni_string_eq(ifp->link.alias, cfg->alias))
+		if (cfg->alias && !ni_string_eq(dev->link.alias, cfg->alias))
 			NLA_PUT_STRING(msg, IFLA_IFALIAS, cfg->alias);
 
 		/* FIXME: handle COST, QDISC, MASTER */
@@ -918,7 +918,7 @@ __ni_netdev_address_list_contains(ni_address_t *list, const ni_address_t *ap)
 }
 
 static int
-__ni_rtnl_send_newaddr(ni_netdev_t *ifp, const ni_address_t *ap, int flags)
+__ni_rtnl_send_newaddr(ni_netdev_t *dev, const ni_address_t *ap, int flags)
 {
 	struct ifaddrmsg ifa;
 	struct nl_msg *msg;
@@ -927,7 +927,7 @@ __ni_rtnl_send_newaddr(ni_netdev_t *ifp, const ni_address_t *ap, int flags)
 	ni_debug_ifconfig("%s(%s/%u)", __FUNCTION__, ni_address_print(&ap->local_addr), ap->prefixlen);
 
 	memset(&ifa, 0, sizeof(ifa));
-	ifa.ifa_index = ifp->link.ifindex;
+	ifa.ifa_index = dev->link.ifindex;
 	ifa.ifa_family = ap->family;
 	ifa.ifa_prefixlen = ap->prefixlen;
 
@@ -964,7 +964,7 @@ __ni_rtnl_send_newaddr(ni_netdev_t *ifp, const ni_address_t *ap, int flags)
 
 	len = strlen(ap->label);
 	if (len) {
-		if (memcmp(ap->label, ifp->name, len) != 0) {
+		if (memcmp(ap->label, dev->name, len) != 0) {
 			ni_error("when specifying an interface label, the device name must "
 			   "be a prefix of the label");
 			goto failed;
@@ -990,7 +990,7 @@ failed:
 }
 
 static int
-__ni_rtnl_send_deladdr(ni_netdev_t *ifp, const ni_address_t *ap)
+__ni_rtnl_send_deladdr(ni_netdev_t *dev, const ni_address_t *ap)
 {
 	struct ifaddrmsg ifa;
 	struct nl_msg *msg;
@@ -998,7 +998,7 @@ __ni_rtnl_send_deladdr(ni_netdev_t *ifp, const ni_address_t *ap)
 	ni_debug_ifconfig("%s(%s/%u)", __FUNCTION__, ni_address_print(&ap->local_addr), ap->prefixlen);
 
 	memset(&ifa, 0, sizeof(ifa));
-	ifa.ifa_index = ifp->link.ifindex;
+	ifa.ifa_index = dev->link.ifindex;
 	ifa.ifa_family = ap->family;
 	ifa.ifa_prefixlen = ap->prefixlen;
 
@@ -1038,7 +1038,7 @@ failed:
  * Add a static route
  */
 static int
-__ni_rtnl_send_newroute(ni_netdev_t *ifp, ni_route_t *rp, int flags)
+__ni_rtnl_send_newroute(ni_netdev_t *dev, ni_route_t *rp, int flags)
 {
 	struct rtmsg rt;
 	struct nl_msg *msg;
@@ -1096,7 +1096,7 @@ __ni_rtnl_send_newroute(ni_netdev_t *ifp, ni_route_t *rp, int flags)
 	 && addattr_sockaddr(msg, RTA_GATEWAY, &rp->nh.gateway))
 		goto nla_put_failure;
 
-	NLA_PUT_U32(msg, RTA_OIF, ifp->link.ifindex);
+	NLA_PUT_U32(msg, RTA_OIF, dev->link.ifindex);
 
 	/* Add metrics if needed */
 	if (rp->mtu) {
@@ -1128,7 +1128,7 @@ failed:
 }
 
 static int
-__ni_rtnl_send_delroute(ni_netdev_t *ifp, ni_route_t *rp)
+__ni_rtnl_send_delroute(ni_netdev_t *dev, ni_route_t *rp)
 {
 	struct rtmsg rt;
 	struct nl_msg *msg;
@@ -1158,7 +1158,7 @@ __ni_rtnl_send_delroute(ni_netdev_t *ifp, ni_route_t *rp)
 	 && addattr_sockaddr(msg, RTA_GATEWAY, &rp->nh.gateway))
 		goto nla_put_failure;
 
-	NLA_PUT_U32(msg, RTA_OIF, ifp->link.ifindex);
+	NLA_PUT_U32(msg, RTA_OIF, dev->link.ifindex);
 
 	if (ni_nl_talk(msg) < 0) {
 		ni_error("%s(%s): rtnl_talk failed", __FUNCTION__, ni_route_print(rp));
@@ -1213,14 +1213,14 @@ __ni_netdev_route_list_contains(ni_route_t *list, const ni_route_t *rp)
  * for a given addrconf method
  */
 static int
-__ni_netdev_update_addrs(ni_netdev_t *ifp,
+__ni_netdev_update_addrs(ni_netdev_t *dev,
 				const ni_addrconf_lease_t *old_lease,
 				ni_address_t *cfg_addr_list)
 {
 	ni_address_t *ap, *next;
 	int rv;
 
-	for (ap = ifp->addrs; ap; ap = next) {
+	for (ap = dev->addrs; ap; ap = next) {
 		ni_address_t *new_addr;
 
 		next = ap->next;
@@ -1249,7 +1249,7 @@ __ni_netdev_update_addrs(ni_netdev_t *ifp,
 		if (ap->config_lease == old_lease) {
 			ni_addrconf_lease_t *other;
 
-			if ((other = __ni_netdev_address_to_lease(ifp, ap)) != NULL)
+			if ((other = __ni_netdev_address_to_lease(dev, ap)) != NULL)
 				ap->config_lease = other;
 		}
 
@@ -1259,7 +1259,7 @@ __ni_netdev_update_addrs(ni_netdev_t *ifp,
 			 */
 			if (new_addr != NULL) {
 				ni_warn("%s: address %s covered by a %s lease",
-					ifp->name,
+					dev->name,
 					ni_address_print(&ap->local_addr),
 					ni_addrconf_type_to_name(ap->config_lease->type));
 			}
@@ -1285,7 +1285,7 @@ __ni_netdev_update_addrs(ni_netdev_t *ifp,
 					ap->prefixlen);
 		}
 
-		if ((rv = __ni_rtnl_send_deladdr(ifp, ap)) < 0)
+		if ((rv = __ni_rtnl_send_deladdr(dev, ap)) < 0)
 			return rv;
 	}
 
@@ -1299,7 +1299,7 @@ __ni_netdev_update_addrs(ni_netdev_t *ifp,
 		ni_debug_ifconfig("Adding new interface address %s/%u",
 				ni_address_print(&ap->local_addr),
 				ap->prefixlen);
-		if ((rv = __ni_rtnl_send_newaddr(ifp, ap, NLM_F_CREATE)) < 0)
+		if ((rv = __ni_rtnl_send_newaddr(dev, ap, NLM_F_CREATE)) < 0)
 			return rv;
 	}
 
@@ -1307,7 +1307,7 @@ __ni_netdev_update_addrs(ni_netdev_t *ifp,
 }
 
 static int
-__ni_netdev_update_routes(ni_netdev_t *ifp,
+__ni_netdev_update_routes(ni_netdev_t *dev,
 				const ni_addrconf_lease_t *old_lease,
 				ni_route_t *cfg_route_list)
 {
@@ -1319,7 +1319,7 @@ __ni_netdev_update_routes(ni_netdev_t *ifp,
 	 * We need to mimic the kernel's matching behavior when modifying
 	 * the configuration of existing routes.
 	 */
-	for (rp = ifp->routes; rp; rp = next) {
+	for (rp = dev->routes; rp; rp = next) {
 		ni_route_t *new_route;
 
 		next = rp->next;
@@ -1346,7 +1346,7 @@ __ni_netdev_update_routes(ni_netdev_t *ifp,
 		if (rp->config_lease == old_lease) {
 			ni_addrconf_lease_t *other;
 
-			if ((other = __ni_netdev_route_to_lease(ifp, rp)) != NULL)
+			if ((other = __ni_netdev_route_to_lease(dev, rp)) != NULL)
 				rp->config_lease = other;
 		}
 
@@ -1363,19 +1363,19 @@ __ni_netdev_update_routes(ni_netdev_t *ifp,
 		}
 
 		if (new_route != NULL) {
-			if (__ni_rtnl_send_newroute(ifp, new_route, NLM_F_REPLACE) >= 0) {
+			if (__ni_rtnl_send_newroute(dev, new_route, NLM_F_REPLACE) >= 0) {
 				ni_debug_ifconfig("%s: successfully updated existing route %s",
-						ifp->name, ni_route_print(rp));
+						dev->name, ni_route_print(rp));
 				new_route->seq = __ni_global_seqno;
 				continue;
 			}
 
-			ni_error("%s: failed to update route %s", ifp->name, ni_route_print(rp));
+			ni_error("%s: failed to update route %s", dev->name, ni_route_print(rp));
 		}
 
 		ni_debug_ifconfig("%s: trying to delete existing route %s",
-				ifp->name, ni_route_print(rp));
-		if ((rv = __ni_rtnl_send_delroute(ifp, rp)) < 0)
+				dev->name, ni_route_print(rp));
+		if ((rv = __ni_rtnl_send_delroute(dev, rp)) < 0)
 			return rv;
 	}
 
@@ -1386,8 +1386,8 @@ __ni_netdev_update_routes(ni_netdev_t *ifp,
 		if (rp->seq == __ni_global_seqno)
 			continue;
 
-		ni_debug_ifconfig("%s: adding new route %s", ifp->name, ni_route_print(rp));
-		if ((rv = __ni_rtnl_send_newroute(ifp, rp, NLM_F_CREATE)) < 0)
+		ni_debug_ifconfig("%s: adding new route %s", dev->name, ni_route_print(rp));
+		if ((rv = __ni_rtnl_send_newroute(dev, rp, NLM_F_CREATE)) < 0)
 			return rv;
 	}
 

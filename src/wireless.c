@@ -82,27 +82,27 @@ ni_wireless_bind_supplicant(ni_netdev_t *dev)
  * Refresh what we think we know about this interface.
  */
 int
-ni_wireless_interface_refresh(ni_netdev_t *ifp)
+ni_wireless_interface_refresh(ni_netdev_t *dev)
 {
 	ni_wpa_interface_t *wif;
 	ni_wireless_t *wlan;
 
-	if (!(wif = ni_wireless_bind_supplicant(ifp)))
+	if (!(wif = ni_wireless_bind_supplicant(dev)))
 		return -1;
 
-	if ((wlan = ifp->wireless) == NULL) {
-		ifp->wireless = wlan = ni_wireless_new(ifp);
+	if ((wlan = dev->wireless) == NULL) {
+		dev->wireless = wlan = ni_wireless_new(dev);
 
 		wlan->capabilities = wif->capabilities;
 	}
 
 	if (wlan->scan)
-		__ni_wireless_do_scan(ifp);
+		__ni_wireless_do_scan(dev);
 
 	/* A wireless "link" isn't really up until we have associated
 	 * and authenticated. */
 	if (wlan->assoc.state != NI_WIRELESS_ESTABLISHED)
-		ifp->link.ifflags &= ~(NI_IFF_LINK_UP | NI_IFF_NETWORK_UP);
+		dev->link.ifflags &= ~(NI_IFF_LINK_UP | NI_IFF_NETWORK_UP);
 
 	return 0;
 }
@@ -376,9 +376,9 @@ ni_wireless_association_changed(unsigned int ifindex, ni_wireless_assoc_state_t 
  * rtnetlink sent us an RTM_NEWLINK event with IFLA_WIRELESS info
  */
 int
-__ni_wireless_link_event(ni_netconfig_t *nc, ni_netdev_t *ifp, void *data, size_t len)
+__ni_wireless_link_event(ni_netconfig_t *nc, ni_netdev_t *dev, void *data, size_t len)
 {
-	/* ni_debug_wireless("%s: ignoring wireless event", ifp->name); */
+	/* ni_debug_wireless("%s: ignoring wireless event", dev->name); */
 	return 0;
 }
 

@@ -29,9 +29,9 @@
 static const unsigned char *__ni_address_data(const ni_sockaddr_t *, unsigned int *);
 
 ni_address_t *
-ni_address_new(ni_netdev_t *ifp, int af, unsigned int prefix_len, const ni_sockaddr_t *local_addr)
+ni_address_new(ni_netdev_t *dev, int af, unsigned int prefix_len, const ni_sockaddr_t *local_addr)
 {
-	return __ni_address_new(&ifp->addrs, af, prefix_len, local_addr);
+	return __ni_address_new(&dev->addrs, af, prefix_len, local_addr);
 }
 
 ni_address_t *

@@ -31,197 +31,197 @@
 ni_netdev_t *
 __ni_netdev_new(const char *name, unsigned int index)
 {
-	ni_netdev_t *ifp;
+	ni_netdev_t *dev;
 
-	ifp = calloc(1, sizeof(*ifp) * 2);
-	if (!ifp)
+	dev = calloc(1, sizeof(*dev) * 2);
+	if (!dev)
 		return NULL;
 
-	ifp->users = 1;
-	ifp->link.type = NI_IFTYPE_UNKNOWN;
-	ifp->link.arp_type = ARPHRD_NONE;
-	ifp->link.hwaddr.type = ARPHRD_NONE;
-	ifp->link.ifindex = index;
+	dev->users = 1;
+	dev->link.type = NI_IFTYPE_UNKNOWN;
+	dev->link.arp_type = ARPHRD_NONE;
+	dev->link.hwaddr.type = ARPHRD_NONE;
+	dev->link.ifindex = index;
 
 	if (name)
-		ifp->name = xstrdup(name);
+		dev->name = xstrdup(name);
 
 	/* Initialize address family specific info */
-	__ni_afinfo_init(&ifp->ipv4, AF_INET);
-	__ni_afinfo_init(&ifp->ipv6, AF_INET6);
+	__ni_afinfo_init(&dev->ipv4, AF_INET);
+	__ni_afinfo_init(&dev->ipv6, AF_INET6);
 
-	return ifp;
+	return dev;
 }
 
 ni_netdev_t *
 ni_netdev_new(ni_netconfig_t *nc, const char *name, unsigned int index)
 {
-	ni_netdev_t *ifp;
+	ni_netdev_t *dev;
 
-	ifp = __ni_netdev_new(name, index);
-	if (nc && ifp)
-		__ni_netdev_list_append(&nc->interfaces, ifp);
+	dev = __ni_netdev_new(name, index);
+	if (nc && dev)
+		__ni_netdev_list_append(&nc->interfaces, dev);
 	
-	return ifp;
+	return dev;
 }
 
 /*
  * Destructor function (and assorted helpers)
  */
 void
-ni_netdev_clear_addresses(ni_netdev_t *ifp)
+ni_netdev_clear_addresses(ni_netdev_t *dev)
 {
-	ni_address_list_destroy(&ifp->addrs);
+	ni_address_list_destroy(&dev->addrs);
 }
 
 void
-ni_netdev_clear_routes(ni_netdev_t *ifp)
+ni_netdev_clear_routes(ni_netdev_t *dev)
 {
-	ni_route_list_destroy(&ifp->routes);
+	ni_route_list_destroy(&dev->routes);
 }
 
 static void
-ni_netdev_free(ni_netdev_t *ifp)
+ni_netdev_free(ni_netdev_t *dev)
 {
-	ni_string_free(&ifp->name);
-	ni_string_free(&ifp->link.qdisc);
-	ni_string_free(&ifp->link.kind);
-	ni_string_free(&ifp->link.alias);
+	ni_string_free(&dev->name);
+	ni_string_free(&dev->link.qdisc);
+	ni_string_free(&dev->link.kind);
+	ni_string_free(&dev->link.alias);
 
 	/* Clear out addresses, stats */
-	ni_netdev_clear_addresses(ifp);
-	ni_netdev_clear_routes(ifp);
-	ni_netdev_set_link_stats(ifp, NULL);
-	ni_netdev_set_ethernet(ifp, NULL);
-	ni_netdev_set_bonding(ifp, NULL);
-	ni_netdev_set_bridge(ifp, NULL);
-	ni_netdev_set_vlan(ifp, NULL);
-	ni_netdev_set_wireless(ifp, NULL);
+	ni_netdev_clear_addresses(dev);
+	ni_netdev_clear_routes(dev);
+	ni_netdev_set_link_stats(dev, NULL);
+	ni_netdev_set_ethernet(dev, NULL);
+	ni_netdev_set_bonding(dev, NULL);
+	ni_netdev_set_bridge(dev, NULL);
+	ni_netdev_set_vlan(dev, NULL);
+	ni_netdev_set_wireless(dev, NULL);
 
-	ni_addrconf_lease_list_destroy(&ifp->leases);
+	ni_addrconf_lease_list_destroy(&dev->leases);
 
-	free(ifp);
+	free(dev);
 }
 
 /*
  * Reference counting of interface objects
  */
 ni_netdev_t *
-ni_netdev_get(ni_netdev_t *ifp)
+ni_netdev_get(ni_netdev_t *dev)
 {
-	if (!ifp->users)
+	if (!dev->users)
 		return NULL;
-	ifp->users++;
-	return ifp;
+	dev->users++;
+	return dev;
 }
 
 int
-ni_netdev_put(ni_netdev_t *ifp)
+ni_netdev_put(ni_netdev_t *dev)
 {
-	if (!ifp->users) {
+	if (!dev->users) {
 		ni_error("ni_netdev_put: bad mojo");
 		return 0;
 	}
-	ifp->users--;
-	if (ifp->users == 0) {
-		ni_netdev_free(ifp);
+	dev->users--;
+	if (dev->users == 0) {
+		ni_netdev_free(dev);
 		return 0;
 	}
-	return ifp->users;
+	return dev->users;
 }
 
 /*
  * This is a convenience function for adding routes to an interface.
  */
 ni_route_t *
-ni_netdev_add_route(ni_netdev_t *ifp,
+ni_netdev_add_route(ni_netdev_t *dev,
 				unsigned int prefix_len,
 				const ni_sockaddr_t *dest,
 				const ni_sockaddr_t *gw)
 {
-	return __ni_route_new(&ifp->routes, prefix_len, dest, gw);
+	return __ni_route_new(&dev->routes, prefix_len, dest, gw);
 }
 
 /*
  * Get the interface's VLAN information
  */
 ni_vlan_t *
-ni_netdev_get_vlan(ni_netdev_t *ifp)
+ni_netdev_get_vlan(ni_netdev_t *dev)
 {
-	if (!ifp->link.vlan)
-		ifp->link.vlan = __ni_vlan_new();
-	return ifp->link.vlan;
+	if (!dev->link.vlan)
+		dev->link.vlan = __ni_vlan_new();
+	return dev->link.vlan;
 }
 
 void
-ni_netdev_set_vlan(ni_netdev_t *ifp, ni_vlan_t *vlan)
+ni_netdev_set_vlan(ni_netdev_t *dev, ni_vlan_t *vlan)
 {
-	if (ifp->link.vlan)
-		ni_vlan_free(ifp->link.vlan);
-	ifp->link.vlan = vlan;
+	if (dev->link.vlan)
+		ni_vlan_free(dev->link.vlan);
+	dev->link.vlan = vlan;
 }
 
 /*
  * Get the interface's bridge information
  */
 ni_bridge_t *
-ni_netdev_get_bridge(ni_netdev_t *ifp)
+ni_netdev_get_bridge(ni_netdev_t *dev)
 {
-	if (ifp->link.type != NI_IFTYPE_BRIDGE)
+	if (dev->link.type != NI_IFTYPE_BRIDGE)
 		return NULL;
-	if (!ifp->bridge)
-		ifp->bridge = ni_bridge_new();
-	return ifp->bridge;
+	if (!dev->bridge)
+		dev->bridge = ni_bridge_new();
+	return dev->bridge;
 }
 
 void
-ni_netdev_set_bridge(ni_netdev_t *ifp, ni_bridge_t *bridge)
+ni_netdev_set_bridge(ni_netdev_t *dev, ni_bridge_t *bridge)
 {
-	if (ifp->bridge)
-		ni_bridge_free(ifp->bridge);
-	ifp->bridge = bridge;
+	if (dev->bridge)
+		ni_bridge_free(dev->bridge);
+	dev->bridge = bridge;
 }
 
 /*
  * Get the interface's bonding information
  */
 ni_bonding_t *
-ni_netdev_get_bonding(ni_netdev_t *ifp)
+ni_netdev_get_bonding(ni_netdev_t *dev)
 {
-	if (ifp->link.type != NI_IFTYPE_BOND)
+	if (dev->link.type != NI_IFTYPE_BOND)
 		return NULL;
-	if (!ifp->bonding)
-		ifp->bonding = ni_bonding_new();
-	return ifp->bonding;
+	if (!dev->bonding)
+		dev->bonding = ni_bonding_new();
+	return dev->bonding;
 }
 
 void
-ni_netdev_set_bonding(ni_netdev_t *ifp, ni_bonding_t *bonding)
+ni_netdev_set_bonding(ni_netdev_t *dev, ni_bonding_t *bonding)
 {
-	if (ifp->bonding)
-		ni_bonding_free(ifp->bonding);
-	ifp->bonding = bonding;
+	if (dev->bonding)
+		ni_bonding_free(dev->bonding);
+	dev->bonding = bonding;
 }
 
 /*
  * Get the interface's ethernet information
  */
 ni_ethernet_t *
-ni_netdev_get_ethernet(ni_netdev_t *ifp)
+ni_netdev_get_ethernet(ni_netdev_t *dev)
 {
-	if (ifp->link.type != NI_IFTYPE_ETHERNET)
+	if (dev->link.type != NI_IFTYPE_ETHERNET)
 		return NULL;
-	if (!ifp->ethernet)
-		ifp->ethernet = calloc(1, sizeof(ni_ethernet_t));
-	return ifp->ethernet;
+	if (!dev->ethernet)
+		dev->ethernet = calloc(1, sizeof(ni_ethernet_t));
+	return dev->ethernet;
 }
 
 void
-ni_netdev_set_ethernet(ni_netdev_t *ifp, ni_ethernet_t *ethernet)
+ni_netdev_set_ethernet(ni_netdev_t *dev, ni_ethernet_t *ethernet)
 {
-	if (ifp->ethernet)
-		ni_ethernet_free(ifp->ethernet);
-	ifp->ethernet = ethernet;
+	if (dev->ethernet)
+		ni_ethernet_free(dev->ethernet);
+	dev->ethernet = ethernet;
 }
 
 /*
@@ -238,33 +238,33 @@ ni_netdev_get_wireless(ni_netdev_t *dev)
 }
 
 void
-ni_netdev_set_wireless(ni_netdev_t *ifp, ni_wireless_t *wireless)
+ni_netdev_set_wireless(ni_netdev_t *dev, ni_wireless_t *wireless)
 {
-	if (ifp->wireless)
-		ni_wireless_free(ifp->wireless);
-	ifp->wireless = wireless;
+	if (dev->wireless)
+		ni_wireless_free(dev->wireless);
+	dev->wireless = wireless;
 }
 
 /*
  * Set the interface's link stats
  */
 void
-ni_netdev_set_link_stats(ni_netdev_t *ifp, ni_link_stats_t *stats)
+ni_netdev_set_link_stats(ni_netdev_t *dev, ni_link_stats_t *stats)
 {
-	if (ifp->link.stats)
-		free(ifp->link.stats);
-	ifp->link.stats = stats;
+	if (dev->link.stats)
+		free(dev->link.stats);
+	dev->link.stats = stats;
 }
 
 /*
  * Locate any lease for the same addrconf mechanism
  */
 ni_addrconf_lease_t *
-__ni_netdev_find_lease(ni_netdev_t *ifp, int family, ni_addrconf_mode_t type, int remove)
+__ni_netdev_find_lease(ni_netdev_t *dev, int family, ni_addrconf_mode_t type, int remove)
 {
 	ni_addrconf_lease_t *lease, **pos;
 
-	for (pos = &ifp->leases; (lease = *pos) != NULL; pos = &lease->next) {
+	for (pos = &dev->leases; (lease = *pos) != NULL; pos = &lease->next) {
 		if (lease->type == type && lease->family == family) {
 			if (remove) {
 				*pos = lease->next;
@@ -281,12 +281,12 @@ __ni_netdev_find_lease(ni_netdev_t *ifp, int family, ni_addrconf_mode_t type, in
  * We received an updated lease from an addrconf agent.
  */
 int
-ni_netdev_set_lease(ni_netdev_t *ifp, ni_addrconf_lease_t *lease)
+ni_netdev_set_lease(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
 {
 	ni_addrconf_lease_t **pos;
 
-	ni_netdev_unset_lease(ifp, lease->family, lease->type);
-	for (pos = &ifp->leases; *pos != NULL; pos = &(*pos)->next)
+	ni_netdev_unset_lease(dev, lease->family, lease->type);
+	for (pos = &dev->leases; *pos != NULL; pos = &(*pos)->next)
 		;
 
 	*pos = lease;
@@ -294,11 +294,11 @@ ni_netdev_set_lease(ni_netdev_t *ifp, ni_addrconf_lease_t *lease)
 }
 
 int
-ni_netdev_unset_lease(ni_netdev_t *ifp, int family, ni_addrconf_mode_t type)
+ni_netdev_unset_lease(ni_netdev_t *dev, int family, ni_addrconf_mode_t type)
 {
 	ni_addrconf_lease_t *lease;
 
-	if ((lease = __ni_netdev_find_lease(ifp, family, type, 1)) != NULL)
+	if ((lease = __ni_netdev_find_lease(dev, family, type, 1)) != NULL)
 		ni_addrconf_lease_free(lease);
 	return 0;
 }
@@ -326,11 +326,11 @@ ni_netdev_get_lease_by_owner(ni_netdev_t *dev, const char *owner)
  * Given an address, look up the lease owning it
  */
 ni_addrconf_lease_t *
-__ni_netdev_address_to_lease(ni_netdev_t *ifp, const ni_address_t *ap)
+__ni_netdev_address_to_lease(ni_netdev_t *dev, const ni_address_t *ap)
 {
 	ni_addrconf_lease_t *lease;
 
-	for (lease = ifp->leases; lease; lease = lease->next) {
+	for (lease = dev->leases; lease; lease = lease->next) {
 		if (__ni_lease_owns_address(lease, ap))
 			return lease;
 	}
@@ -390,15 +390,15 @@ __ni_lease_owns_address(const ni_addrconf_lease_t *lease, const ni_address_t *ma
  * Given a route, look up the lease owning it
  */
 ni_addrconf_lease_t *
-__ni_netdev_route_to_lease(ni_netdev_t *ifp, const ni_route_t *rp)
+__ni_netdev_route_to_lease(ni_netdev_t *dev, const ni_route_t *rp)
 {
 	ni_addrconf_lease_t *lease;
 	ni_address_t *ap;
 
-	if (!ifp || !rp)
+	if (!dev || !rp)
 		return NULL;
 
-	for (lease = ifp->leases; lease; lease = lease->next) {
+	for (lease = dev->leases; lease; lease = lease->next) {
 		/* First, check if this is an interface route */
 		for (ap = lease->addrs; ap; ap = ap->next) {
 			if (rp->prefixlen == ap->prefixlen
@@ -442,32 +442,32 @@ static ni_intmap_t __ifname_types[] = {
 	{ NULL }
 };
 int
-ni_netdev_guess_type(ni_netdev_t *ifp)
+ni_netdev_guess_type(ni_netdev_t *dev)
 {
-	if (ifp->link.type != NI_IFTYPE_UNKNOWN)
-		return ifp->link.type;
+	if (dev->link.type != NI_IFTYPE_UNKNOWN)
+		return dev->link.type;
 
-	if (ifp->name == NULL)
-		return ifp->link.type;
+	if (dev->name == NULL)
+		return dev->link.type;
 
-	ifp->link.type = NI_IFTYPE_ETHERNET;
-	if (!strcmp(ifp->name, "lo")) {
-		ifp->link.type = NI_IFTYPE_LOOPBACK;
+	dev->link.type = NI_IFTYPE_ETHERNET;
+	if (!strcmp(dev->name, "lo")) {
+		dev->link.type = NI_IFTYPE_LOOPBACK;
 	} else {
 		ni_intmap_t *map;
 
 		for (map = __ifname_types; map->name; ++map) {
 			unsigned int len = strlen(map->name);
 
-			if (!strncmp(ifp->name, map->name, len)
-			 && isdigit(ifp->name[len])) {
-				ifp->link.type = map->value;
+			if (!strncmp(dev->name, map->name, len)
+			 && isdigit(dev->name[len])) {
+				dev->link.type = map->value;
 				break;
 			}
 		}
 	}
 
-	return ifp->link.type;
+	return dev->link.type;
 }
 
 /*
@@ -476,21 +476,21 @@ ni_netdev_guess_type(ni_netdev_t *ifp)
 void
 __ni_netdev_list_destroy(ni_netdev_t **list)
 {
-	ni_netdev_t *ifp;
+	ni_netdev_t *dev;
 
-	while ((ifp = *list) != NULL) {
-		*list = ifp->next;
-		ni_netdev_put(ifp);
+	while ((dev = *list) != NULL) {
+		*list = dev->next;
+		ni_netdev_put(dev);
 	}
 }
 
 void
 __ni_netdev_list_append(ni_netdev_t **list, ni_netdev_t *new_ifp)
 {
-	ni_netdev_t *ifp;
+	ni_netdev_t *dev;
 
-	while ((ifp = *list) != NULL)
-		list = &ifp->next;
+	while ((dev = *list) != NULL)
+		list = &dev->next;
 
 	new_ifp->next = NULL;
 	*list = new_ifp;

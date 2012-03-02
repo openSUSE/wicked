@@ -220,17 +220,17 @@ __ni_ethtool_set_tristate(const char *ifname, __ni_ioctl_info_t *ioc, int value)
  * Get ethtool settings from the kernel
  */
 int
-__ni_system_ethernet_refresh(ni_netdev_t *ifp)
+__ni_system_ethernet_refresh(ni_netdev_t *dev)
 {
 	ni_ethernet_t *ether;
 
 	ether = ni_ethernet_alloc();
-	if (__ni_system_ethernet_get(ifp->name, ether) < 0) {
+	if (__ni_system_ethernet_get(dev->name, ether) < 0) {
 		ni_ethernet_free(ether);
 		return -1;
 	}
 
-	ni_netdev_set_ethernet(ifp, ether);
+	ni_netdev_set_ethernet(dev, ether);
 	return 0;
 }
 
@@ -310,12 +310,12 @@ __ni_system_ethernet_get(const char *ifname, ni_ethernet_t *ether)
  * Write ethtool settings back to kernel
  */
 int
-__ni_system_ethernet_update(ni_netdev_t *ifp, const ni_ethernet_t *ether)
+__ni_system_ethernet_update(ni_netdev_t *dev, const ni_ethernet_t *ether)
 {
-	if (__ni_system_ethernet_set(ifp->name, ether) < 0)
+	if (__ni_system_ethernet_set(dev->name, ether) < 0)
 		return -1;
 
-	return __ni_system_ethernet_refresh(ifp);
+	return __ni_system_ethernet_refresh(dev);
 }
 
 int
