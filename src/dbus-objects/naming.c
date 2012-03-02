@@ -85,7 +85,7 @@ ni_objectmodel_netif_by_attrs(ni_objectmodel_netif_ns_t *ns, const ni_var_array_
 	if (ns->match_attr == NULL)
 		return NULL;
 
-	for (dev = ni_interfaces(nc); dev; dev = dev->next) {
+	for (dev = ni_netconfig_devlist(nc); dev; dev = dev->next) {
 		dbus_bool_t match = TRUE;
 		ni_var_t *ap;
 		unsigned int i;

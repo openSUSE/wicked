@@ -179,7 +179,7 @@ ni_netconfig_init(ni_netconfig_t *nc)
 void
 ni_netconfig_destroy(ni_netconfig_t *nc)
 {
-	__ni_interface_list_destroy(&nc->interfaces);
+	__ni_netdev_list_destroy(&nc->interfaces);
 	ni_route_list_destroy(&nc->routes);
 	memset(nc, 0, sizeof(*nc));
 }
@@ -189,7 +189,7 @@ ni_netconfig_destroy(ni_netconfig_t *nc)
  * netinfo handle.
  */
 ni_netdev_t *
-ni_interfaces(ni_netconfig_t *nc)
+ni_netconfig_devlist(ni_netconfig_t *nc)
 {
 	return nc->interfaces;
 }
@@ -198,7 +198,7 @@ ni_interfaces(ni_netconfig_t *nc)
  * Find interface by name
  */
 ni_netdev_t *
-ni_interface_by_name(ni_netconfig_t *nc, const char *name)
+ni_netdev_by_name(ni_netconfig_t *nc, const char *name)
 {
 	ni_netdev_t *ifp;
 
@@ -214,7 +214,7 @@ ni_interface_by_name(ni_netconfig_t *nc, const char *name)
  * Find interface by its ifindex
  */
 ni_netdev_t *
-ni_interface_by_index(ni_netconfig_t *nc, unsigned int ifindex)
+ni_netdev_by_index(ni_netconfig_t *nc, unsigned int ifindex)
 {
 	ni_netdev_t *ifp;
 
@@ -230,7 +230,7 @@ ni_interface_by_index(ni_netconfig_t *nc, unsigned int ifindex)
  * Find interface by its LL address
  */
 ni_netdev_t *
-ni_interface_by_hwaddr(ni_netconfig_t *nc, const ni_hwaddr_t *lla)
+ni_netdev_by_hwaddr(ni_netconfig_t *nc, const ni_hwaddr_t *lla)
 {
 	ni_netdev_t *ifp;
 
@@ -249,7 +249,7 @@ ni_interface_by_hwaddr(ni_netconfig_t *nc, const ni_hwaddr_t *lla)
  * Find VLAN interface by its tag
  */
 ni_netdev_t *
-ni_interface_by_vlan_name_and_tag(ni_netconfig_t *nc, const char *physdev_name, uint16_t tag)
+ni_netdev_by_vlan_name_and_tag(ni_netconfig_t *nc, const char *physdev_name, uint16_t tag)
 {
 	ni_netdev_t *ifp;
 
@@ -271,14 +271,14 @@ ni_interface_by_vlan_name_and_tag(ni_netconfig_t *nc, const char *physdev_name, 
  * Create a unique interface name
  */
 const char *
-ni_interface_make_name(ni_netconfig_t *nc, const char *stem)
+ni_netdev_make_name(ni_netconfig_t *nc, const char *stem)
 {
 	static char namebuf[64];
 	unsigned int num;
 
 	for (num = 0; num < 65536; ++num) {
 		snprintf(namebuf, sizeof(namebuf), "%s%u", stem, num);
-		if (!ni_interface_by_name(nc, namebuf))
+		if (!ni_netdev_by_name(nc, namebuf))
 			return namebuf;
 	}
 

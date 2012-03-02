@@ -230,7 +230,7 @@ __ni_system_ethernet_refresh(ni_netdev_t *ifp)
 		return -1;
 	}
 
-	ni_interface_set_ethernet(ifp, ether);
+	ni_netdev_set_ethernet(ifp, ether);
 	return 0;
 }
 

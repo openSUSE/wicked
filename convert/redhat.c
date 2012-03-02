@@ -99,9 +99,9 @@ __ni_redhat_read_interface(ni_netconfig_t *nc, const char *filename)
 
 	/* Beware - bonding slaves may create their master interface
 	 * on the fly */
-	ifp = ni_interface_by_name(nc, ifname);
+	ifp = ni_netdev_by_name(nc, ifname);
 	if (ifp == NULL) {
-		ifp = ni_interface_new(nc, ifname, 0);
+		ifp = ni_netdev_new(nc, ifname, 0);
 		if (!ifp) {
 			ni_error("Failed to alloc interface %s", ifname);
 			goto error;
@@ -177,7 +177,7 @@ __ni_redhat_sysconfig2ifconfig(ni_netconfig_t *nc, ni_interface_t *ifp, ni_sysco
 
 	/* Guess the interface type */
 	if (ifp->link.type == NI_IFTYPE_UNKNOWN)
-		ni_interface_guess_type(ifp);
+		ni_netdev_guess_type(ifp);
 
 	try_bonding_slave(nc, ifp, sc);
 	try_bridge_port(nc, ifp, sc);
@@ -249,7 +249,7 @@ try_bonding_master(ni_netconfig_t *nc, ni_interface_t *ifp, ni_sysconfig_t *sc)
 	if (!strncmp(ifp->name, "bond", 4)) {
 		ifp->link.type = NI_IFTYPE_BOND;
 
-		bonding = ni_interface_get_bonding(ifp);
+		bonding = ni_netdev_get_bonding(ifp);
 		ni_sysconfig_get_string(sc, "BONDING_OPTS", &bonding->module_opts);
 		ni_bonding_parse_module_options(bonding);
 		ni_trace("primary=%s", bonding->primary);
@@ -273,9 +273,9 @@ try_bonding_slave(ni_netconfig_t *nc, ni_interface_t *ifp, ni_sysconfig_t *sc)
 		return;
 	}
 
-	master = ni_interface_by_name(nc, var->value);
+	master = ni_netdev_by_name(nc, var->value);
 	if (master == NULL) {
-		master = ni_interface_new(nc, var->value, 0);
+		master = ni_netdev_new(nc, var->value, 0);
 		master->link.type = NI_IFTYPE_BOND;
 	} else if (master->link.type != NI_IFTYPE_BOND) {
 		ni_error("%s: specifies MASTER=%s which is not a bonding device",
@@ -283,7 +283,7 @@ try_bonding_slave(ni_netconfig_t *nc, ni_interface_t *ifp, ni_sysconfig_t *sc)
 		return;
 	}
 
-	bonding = ni_interface_get_bonding(master);
+	bonding = ni_netdev_get_bonding(master);
 	ni_bonding_add_slave(bonding, ifp->name);
 }
 
@@ -298,7 +298,7 @@ __ni_redhat_sysconfig2bridge(ni_interface_t *ifp, ni_sysconfig_t *sc)
 	ni_var_t *var;
 
 	/* Create the interface's bridge data */
-	bridge = ni_interface_get_bridge(ifp);
+	bridge = ni_netdev_get_bridge(ifp);
 	if ((var = ni_sysconfig_get(sc, "STP")) != NULL)
 		ni_bridge_set_stp(bridge, var->value);
 	if ((var = ni_sysconfig_get(sc, "DELAY")) != NULL)
@@ -320,9 +320,9 @@ try_bridge_port(ni_netconfig_t *nc, ni_interface_t *ifp, ni_sysconfig_t *sc)
 	if (!var || !var->value || !var->value[0])
 		return;
 
-	master = ni_interface_by_name(nc, var->value);
+	master = ni_netdev_by_name(nc, var->value);
 	if (master == NULL) {
-		master = ni_interface_new(nc, var->value, 0);
+		master = ni_netdev_new(nc, var->value, 0);
 		master->link.type = NI_IFTYPE_BRIDGE;
 	} else if (master->link.type != NI_IFTYPE_BRIDGE) {
 		ni_error("%s: specifies BRIDGE=%s which is not a bonding device",
@@ -330,7 +330,7 @@ try_bridge_port(ni_netconfig_t *nc, ni_interface_t *ifp, ni_sysconfig_t *sc)
 		return;
 	}
 
-	bridge = ni_interface_get_bridge(master);
+	bridge = ni_netdev_get_bridge(master);
 	ni_bridge_add_port_name(bridge, ifp->name);
 }
 
@@ -364,7 +364,7 @@ try_vlan(ni_netconfig_t *nc, ni_interface_t *ifp, ni_sysconfig_t *sc)
 
 	ifp->link.type = NI_IFTYPE_VLAN;
 
-	vlan = ni_interface_get_vlan(ifp);
+	vlan = ni_netdev_get_vlan(ifp);
 	vlan->tag = vlan_tag;
 
 	snprintf(namebuf, sizeof(namebuf), "eth%u", eth_num);

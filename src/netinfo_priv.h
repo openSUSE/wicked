@@ -32,22 +32,16 @@ extern unsigned int	__ni_global_seqno;
 extern ni_netlink_t *	__ni_netlink_open(int);
 extern void		__ni_netlink_close(ni_netlink_t *);
 
-extern ni_netdev_t *	__ni_interface_new(const char *name, unsigned int index);
-extern void		__ni_interface_list_append(ni_netdev_t **, ni_netdev_t *);
-extern void		__ni_interface_list_destroy(ni_netdev_t **);
-extern void		__ni_interfaces_clear(ni_netconfig_t *);
-extern ni_addrconf_lease_t *__ni_interface_find_lease(ni_netdev_t *, int, ni_addrconf_mode_t, int);
-extern ni_addrconf_lease_t *__ni_interface_address_to_lease(ni_netdev_t *, const ni_address_t *);
-extern ni_addrconf_lease_t *__ni_interface_route_to_lease(ni_netdev_t *, const ni_route_t *);
-extern void		__ni_interface_track_ipv6_autoconf(ni_netdev_t *, int);
-extern ni_route_t *	__ni_interface_add_autoconf_prefix(ni_netdev_t *, const ni_sockaddr_t *, unsigned int, unsigned int);
-extern unsigned int	__ni_interface_translate_ifflags(unsigned int);
-extern void		__ni_interface_event(ni_netconfig_t *, ni_netdev_t *, ni_event_t);
-
-#define __ni_interface_address_info(ifp, af) \
-	((af) == AF_INET? &((ifp)->ipv4) : \
-	 ((af) == AF_INET6? &((ifp)->ipv6) : \
-	  NULL))
+extern ni_netdev_t *	__ni_netdev_new(const char *name, unsigned int index);
+extern void		__ni_netdev_list_append(ni_netdev_t **, ni_netdev_t *);
+extern void		__ni_netdev_list_destroy(ni_netdev_t **);
+extern ni_addrconf_lease_t *__ni_netdev_find_lease(ni_netdev_t *, int, ni_addrconf_mode_t, int);
+extern ni_addrconf_lease_t *__ni_netdev_address_to_lease(ni_netdev_t *, const ni_address_t *);
+extern ni_addrconf_lease_t *__ni_netdev_route_to_lease(ni_netdev_t *, const ni_route_t *);
+extern void		__ni_netdev_track_ipv6_autoconf(ni_netdev_t *, int);
+extern ni_route_t *	__ni_netdev_add_autoconf_prefix(ni_netdev_t *, const ni_sockaddr_t *, unsigned int, unsigned int);
+extern unsigned int	__ni_netdev_translate_ifflags(unsigned int);
+extern void		__ni_netdev_event(ni_netconfig_t *, ni_netdev_t *, ni_event_t);
 
 extern void		__ni_afinfo_init(ni_afinfo_t *, int af);
 

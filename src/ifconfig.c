@@ -39,11 +39,11 @@
 #include "config.h"
 #include "debug.h"
 
-static int	__ni_interface_update_ipv6_settings(ni_netdev_t *, const ni_afinfo_t *);
-static int	__ni_interface_update_addrs(ni_netdev_t *ifp,
+static int	__ni_netdev_update_ipv6_settings(ni_netdev_t *, const ni_afinfo_t *);
+static int	__ni_netdev_update_addrs(ni_netdev_t *ifp,
 				const ni_addrconf_lease_t *old_lease,
 				ni_address_t *cfg_addr_list);
-static int	__ni_interface_update_routes(ni_netdev_t *ifp,
+static int	__ni_netdev_update_routes(ni_netdev_t *ifp,
 				const ni_addrconf_lease_t *old_lease,
 				ni_route_t *cfg_route_list);
 static int	__ni_rtnl_link_create_vlan(const char *, const ni_vlan_t *, unsigned int);
@@ -73,7 +73,7 @@ ni_system_interface_link_change(ni_netdev_t *ifp, const ni_netdev_req_t *ifp_req
 
 		/* If we want to disable ipv6 or ipv6 autoconf, we need to do so prior to bringing
 		 * the interface up. */
-		if (__ni_interface_update_ipv6_settings(ifp, ifp_req->ipv6) < 0)
+		if (__ni_netdev_update_ipv6_settings(ifp, ifp_req->ipv6) < 0)
 			return -1;
 
 		if (__ni_rtnl_link_up(ifp, ifp_req)) {
@@ -128,12 +128,12 @@ __ni_system_interface_update_lease(ni_netdev_t *ifp, ni_addrconf_lease_t **lease
 	 * While we're getting the old lease, detach it from the interface
 	 * (but don't delete it yet).
 	 */
-	old_lease = __ni_interface_find_lease(ifp, lease->family, lease->type, 1);
+	old_lease = __ni_netdev_find_lease(ifp, lease->family, lease->type, 1);
 
 	if (lease->state == NI_ADDRCONF_STATE_GRANTED)
-		res = __ni_interface_update_addrs(ifp, old_lease, lease->addrs);
+		res = __ni_netdev_update_addrs(ifp, old_lease, lease->addrs);
 	else
-		res = __ni_interface_update_addrs(ifp, old_lease, NULL);
+		res = __ni_netdev_update_addrs(ifp, old_lease, NULL);
 	if (res < 0) {
 		ni_error("%s: error updating interface config from %s lease",
 				ifp->name, 
@@ -150,9 +150,9 @@ __ni_system_interface_update_lease(ni_netdev_t *ifp, ni_addrconf_lease_t **lease
 	 * Ignore all routes covered by other address config mechanisms.
 	 */
 	if (lease->state == NI_ADDRCONF_STATE_GRANTED)
-		res = __ni_interface_update_routes(ifp, old_lease, lease->routes);
+		res = __ni_netdev_update_routes(ifp, old_lease, lease->routes);
 	else
-		res = __ni_interface_update_routes(ifp, old_lease, NULL);
+		res = __ni_netdev_update_routes(ifp, old_lease, NULL);
 	if (res < 0) {
 		ni_error("%s: error updating interface config from %s lease",
 				ifp->name, 
@@ -161,7 +161,7 @@ __ni_system_interface_update_lease(ni_netdev_t *ifp, ni_addrconf_lease_t **lease
 	}
 
 	if (lease->state == NI_ADDRCONF_STATE_GRANTED) {
-		ni_interface_set_lease(ifp, lease);
+		ni_netdev_set_lease(ifp, lease);
 		*lease_p = NULL;
 	}
 
@@ -187,7 +187,7 @@ ni_system_interface_delete(ni_netconfig_t *nc, const char *ifname)
 
 	/* FIXME: perform sanity check on configuration data */
 
-	ifp = ni_interface_by_name(nc, ifname);
+	ifp = ni_netdev_by_name(nc, ifname);
 	if (ifp == NULL) {
 		ni_error("cannot delete interface %s - not known", ifname);
 		return -1;
@@ -244,14 +244,14 @@ ni_system_vlan_create(ni_netconfig_t *nc, const char *ifname, const ni_vlan_t *c
 
 	*ifpp = NULL;
 
-	ifp = ni_interface_by_vlan_name_and_tag(nc, cfg_vlan->physdev_name, cfg_vlan->tag);
+	ifp = ni_netdev_by_vlan_name_and_tag(nc, cfg_vlan->physdev_name, cfg_vlan->tag);
 	if (ifp != NULL) {
 		/* This is not necessarily an error */
 		*ifpp = ifp;
 		return -NI_ERROR_INTERFACE_EXISTS;
 	}
 
-	phys_dev = ni_interface_by_name(nc, cfg_vlan->physdev_name);
+	phys_dev = ni_netdev_by_name(nc, cfg_vlan->physdev_name);
 	if (!phys_dev || !phys_dev->link.ifindex) {
 		ni_error("Cannot create VLAN interface %s: interface %s does not exist",
 				ifname, cfg_vlan->physdev_name);
@@ -267,7 +267,7 @@ ni_system_vlan_create(ni_netconfig_t *nc, const char *ifname, const ni_vlan_t *c
 	/* Refresh interface status */
 	__ni_system_refresh_interfaces(nc);
 
-	ifp = ni_interface_by_vlan_name_and_tag(nc, cfg_vlan->physdev_name, cfg_vlan->tag);
+	ifp = ni_netdev_by_vlan_name_and_tag(nc, cfg_vlan->physdev_name, cfg_vlan->tag);
 	if (ifp == NULL) {
 		ni_error("tried to create interface %s; still not found", ifname);
 		return -1;
@@ -281,7 +281,7 @@ ni_system_vlan_create(ni_netconfig_t *nc, const char *ifname, const ni_vlan_t *c
 
 		if (!cfg_vlan->physdev_name)
 			return -1;
-		real_dev = ni_interface_by_name(nc, cfg_vlan->physdev_name);
+		real_dev = ni_netdev_by_name(nc, cfg_vlan->physdev_name);
 		if (!real_dev || !real_dev->link.ifindex) {
 			ni_error("Cannot bring up VLAN interface %s: %s does not exist",
 					ifname, cfg_vlan->physdev_name);
@@ -324,7 +324,7 @@ ni_system_bridge_create(ni_netconfig_t *nc, const char *ifname,
 	/* Refresh interface status */
 	__ni_system_refresh_interfaces(nc);
 
-	ifp = ni_interface_by_name(nc, ifname);
+	ifp = ni_netdev_by_name(nc, ifname);
 	if (ifp == NULL) {
 		ni_error("tried to create interface %s; still not found", ifname);
 		return -1;
@@ -374,14 +374,14 @@ ni_system_bridge_delete(ni_netconfig_t *nc, ni_netdev_t *ifp)
 int
 ni_system_bridge_add_port(ni_netconfig_t *nc, ni_netdev_t *brdev, ni_bridge_port_t *port)
 {
-	ni_bridge_t *bridge = ni_interface_get_bridge(brdev);
+	ni_bridge_t *bridge = ni_netdev_get_bridge(brdev);
 	ni_netdev_t *pif = NULL;
 	int rv;
 
 	if (port->ifindex)
-		pif = ni_interface_by_index(nc, port->ifindex);
+		pif = ni_netdev_by_index(nc, port->ifindex);
 	else if (port->ifname)
-		pif = ni_interface_by_name(nc, port->ifname);
+		pif = ni_netdev_by_name(nc, port->ifname);
 
 	if (pif == NULL) {
 		ni_error("%s: cannot add port - interface not known", brdev->name);
@@ -429,7 +429,7 @@ ni_system_bridge_add_port(ni_netconfig_t *nc, ni_netdev_t *brdev, ni_bridge_port
 int
 ni_system_bridge_remove_port(ni_netconfig_t *nc, ni_netdev_t *ifp, int port_ifindex)
 {
-	ni_bridge_t *bridge = ni_interface_get_bridge(ifp);
+	ni_bridge_t *bridge = ni_netdev_get_bridge(ifp);
 	int rv;
 
 	if (port_ifindex == 0) {
@@ -499,7 +499,7 @@ ni_system_bond_create(ni_netconfig_t *nc, const char *ifname, const ni_bonding_t
 	/* Refresh interface status */
 	__ni_system_refresh_interfaces(nc);
 
-	if ((ifp = ni_interface_by_name(nc, ifname)) == NULL) {
+	if ((ifp = ni_netdev_by_name(nc, ifname)) == NULL) {
 		ni_error("tried to create interface %s; still not found", ifname);
 		return -1;
 	}
@@ -537,7 +537,7 @@ ni_system_bond_setup(ni_netconfig_t *nc, ni_netdev_t *ifp, const ni_bonding_t *b
 		return -NI_ERROR_INVALID_ARGS;
 	}
 
-	if ((bond = ni_interface_get_bonding(ifp)) == NULL) {
+	if ((bond = ni_netdev_get_bonding(ifp)) == NULL) {
 		ni_error("%s: not a bonding interface ", ifp->name);
 		return -1;
 	}
@@ -559,7 +559,7 @@ ni_system_bond_setup(ni_netconfig_t *nc, ni_netdev_t *ifp, const ni_bonding_t *b
 	 * Otherwise, we have to remember it and assign it later */
 	ni_string_dup(&bond->requested_primary, bond_cfg->primary);
 
-	if (ni_interface_device_is_up(ifp)) {
+	if (ni_netdev_device_is_up(ifp)) {
 		if (ni_bonding_write_sysfs_attrs(ifp->name, bond_cfg, bond, 1) < 0) {
 			ni_error("%s: error configuring bonding device (stage 1)", ifp->name);
 			return -1;
@@ -595,13 +595,13 @@ ni_system_bond_add_slave(ni_netconfig_t *nc, ni_netdev_t *ifp, unsigned int slav
 		return -NI_ERROR_INTERFACE_NOT_COMPATIBLE;
 	}
 
-	slave_dev = ni_interface_by_index(nc, slave_idx);
+	slave_dev = ni_netdev_by_index(nc, slave_idx);
 	if (slave_dev == NULL) {
 		ni_error("%s: trying to add unknown interface to bond %s", __func__, ifp->name);
 		return -NI_ERROR_INTERFACE_NOT_KNOWN;
 	}
 
-	if (ni_interface_network_is_up(slave_dev)) {
+	if (ni_netdev_network_is_up(slave_dev)) {
 		ni_error("%s: trying to enslave %s, which is in use", ifp->name, slave_dev->name);
 		return -NI_ERROR_INTERFACE_NOT_DOWN;
 	}
@@ -634,7 +634,7 @@ ni_system_bond_remove_slave(ni_netconfig_t *nc, ni_netdev_t *ifp, unsigned int s
 		return -NI_ERROR_INTERFACE_NOT_COMPATIBLE;
 	}
 
-	slave_dev = ni_interface_by_index(nc, slave_idx);
+	slave_dev = ni_netdev_by_index(nc, slave_idx);
 	if (slave_dev == NULL) {
 		ni_error("%s: trying to add unknown interface to bond %s", __func__, ifp->name);
 		return -NI_ERROR_INTERFACE_NOT_KNOWN;
@@ -657,7 +657,7 @@ ni_system_bond_remove_slave(ni_netconfig_t *nc, ni_netdev_t *ifp, unsigned int s
  * Update the IPv6 sysctl settings for the given interface
  */
 int
-__ni_interface_update_ipv6_settings(ni_netdev_t *ifp, const ni_afinfo_t *afi)
+__ni_netdev_update_ipv6_settings(ni_netdev_t *ifp, const ni_afinfo_t *afi)
 {
 	int enable = afi? afi->enabled : 0;
 	int brought_up = 0;
@@ -879,7 +879,7 @@ addattr_sockaddr(struct nl_msg *msg, int type, const ni_sockaddr_t *addr)
 }
 
 static ni_address_t *
-__ni_interface_address_list_contains(ni_address_t *list, const ni_address_t *ap)
+__ni_netdev_address_list_contains(ni_address_t *list, const ni_address_t *ap)
 {
 	ni_address_t *ap2;
 
@@ -1179,7 +1179,7 @@ failed:
  * Check if a route already exists.
  */
 static ni_route_t *
-__ni_interface_route_list_contains(ni_route_t *list, const ni_route_t *rp)
+__ni_netdev_route_list_contains(ni_route_t *list, const ni_route_t *rp)
 {
 	ni_route_t *rp2;
 
@@ -1213,7 +1213,7 @@ __ni_interface_route_list_contains(ni_route_t *list, const ni_route_t *rp)
  * for a given addrconf method
  */
 static int
-__ni_interface_update_addrs(ni_netdev_t *ifp,
+__ni_netdev_update_addrs(ni_netdev_t *ifp,
 				const ni_addrconf_lease_t *old_lease,
 				ni_address_t *cfg_addr_list)
 {
@@ -1227,7 +1227,7 @@ __ni_interface_update_addrs(ni_netdev_t *ifp,
 
 		/* See if the config list contains the address we've found in the
 		 * system. */
-		new_addr = __ni_interface_address_list_contains(cfg_addr_list, ap);
+		new_addr = __ni_netdev_address_list_contains(cfg_addr_list, ap);
 
 		/* Do not touch addresses not managed by us. */
 		if (ap->config_lease == NULL) {
@@ -1249,7 +1249,7 @@ __ni_interface_update_addrs(ni_netdev_t *ifp,
 		if (ap->config_lease == old_lease) {
 			ni_addrconf_lease_t *other;
 
-			if ((other = __ni_interface_address_to_lease(ifp, ap)) != NULL)
+			if ((other = __ni_netdev_address_to_lease(ifp, ap)) != NULL)
 				ap->config_lease = other;
 		}
 
@@ -1307,7 +1307,7 @@ __ni_interface_update_addrs(ni_netdev_t *ifp,
 }
 
 static int
-__ni_interface_update_routes(ni_netdev_t *ifp,
+__ni_netdev_update_routes(ni_netdev_t *ifp,
 				const ni_addrconf_lease_t *old_lease,
 				ni_route_t *cfg_route_list)
 {
@@ -1326,7 +1326,7 @@ __ni_interface_update_routes(ni_netdev_t *ifp,
 
 		/* See if the config list contains the route we've found in the
 		 * system. */
-		new_route = __ni_interface_route_list_contains(cfg_route_list, rp);
+		new_route = __ni_netdev_route_list_contains(cfg_route_list, rp);
 
 		/* Do not touch route not managed by us. */
 		if (rp->config_lease == NULL) {
@@ -1346,7 +1346,7 @@ __ni_interface_update_routes(ni_netdev_t *ifp,
 		if (rp->config_lease == old_lease) {
 			ni_addrconf_lease_t *other;
 
-			if ((other = __ni_interface_route_to_lease(ifp, rp)) != NULL)
+			if ((other = __ni_netdev_route_to_lease(ifp, rp)) != NULL)
 				rp->config_lease = other;
 		}
 

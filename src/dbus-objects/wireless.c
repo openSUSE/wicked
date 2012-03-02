@@ -191,7 +191,7 @@ __ni_objectmodel_get_wireless(const ni_dbus_object_t *object, DBusError *error)
 	if (!(ifp = ni_objectmodel_unwrap_interface(object, error)))
 		return NULL;
 
-	if (!(wlan = ni_interface_get_wireless(ifp))) {
+	if (!(wlan = ni_netdev_get_wireless(ifp))) {
 		dbus_set_error(error, DBUS_ERROR_FAILED, "Error getting wireless handle for interface");
 		return NULL;
 	}

@@ -29,7 +29,7 @@ static inline void
 __ni_vlan_unbind(ni_vlan_t *vlan)
 {
 	if (vlan->interface_dev)
-		ni_interface_put(vlan->interface_dev);
+		ni_netdev_put(vlan->interface_dev);
 	vlan->interface_dev = NULL;
 }
 
@@ -44,12 +44,12 @@ ni_vlan_bind_ifindex(ni_vlan_t *vlan, ni_netconfig_t *nc)
 	if (!vlan)
 		return -1;
 
-	real_dev = ni_interface_by_index(nc, vlan->physdev_index);
+	real_dev = ni_netdev_by_index(nc, vlan->physdev_index);
 	if (real_dev == NULL)
 		return -1;
 
 	ni_string_dup(&vlan->physdev_name, real_dev->name);
-	vlan->interface_dev = ni_interface_get(real_dev);
+	vlan->interface_dev = ni_netdev_get(real_dev);
 	return 0;
 }
 

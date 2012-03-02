@@ -115,7 +115,7 @@ ni_wireless_interface_set_scanning(ni_netdev_t *dev, ni_bool_t enable)
 {
 	ni_wireless_t *wlan;
 
-	if ((wlan = ni_interface_get_wireless(dev)) == NULL) {
+	if ((wlan = ni_netdev_get_wireless(dev)) == NULL) {
 		ni_error("%s: no wireless info for device", dev->name);
 		return -1;
 	}
@@ -153,7 +153,7 @@ __ni_wireless_do_scan(ni_netdev_t *dev)
 	__ni_wireless_scan_timer_arm(scan, dev);
 
 	/* If the device is down, we cannot scan */
-	if (!ni_interface_device_is_up(dev))
+	if (!ni_netdev_device_is_up(dev))
 		return 0;
 
 	if (!(wpa_dev = ni_wireless_bind_supplicant(dev)))
@@ -223,7 +223,7 @@ ni_wireless_set_network(ni_netdev_t *dev, ni_wireless_network_t *net)
 	ni_wireless_t *wlan;
 	ni_wpa_interface_t *wpa_dev;
 
-	if ((wlan = ni_interface_get_wireless(dev)) == NULL) {
+	if ((wlan = ni_netdev_get_wireless(dev)) == NULL) {
 		ni_error("%s: no wireless info for device", dev->name);
 		return -1;
 	}
@@ -251,7 +251,7 @@ ni_wireless_connect(ni_netdev_t *dev)
 	ni_wireless_t *wlan;
 	ni_wpa_interface_t *wpa_dev;
 
-	if ((wlan = ni_interface_get_wireless(dev)) == NULL) {
+	if ((wlan = ni_netdev_get_wireless(dev)) == NULL) {
 		ni_error("%s: no wireless info for device", dev->name);
 		return -1;
 	}
@@ -273,7 +273,7 @@ ni_wireless_disconnect(ni_netdev_t *dev)
 	ni_wireless_t *wlan;
 	ni_wpa_interface_t *wpa_dev;
 
-	if ((wlan = ni_interface_get_wireless(dev)) == NULL) {
+	if ((wlan = ni_netdev_get_wireless(dev)) == NULL) {
 		ni_error("%s: no wireless info for device", dev->name);
 		return -1;
 	}
@@ -310,8 +310,8 @@ __ni_wireless_association_timeout(void *ptr, const ni_timer_t *timer)
 	ni_debug_wireless("%s: association timed out", dev->name);
 	wlan->assoc.timer = NULL;
 
-	__ni_interface_event(nc, dev, NI_EVENT_LINK_DOWN);
-	__ni_interface_event(nc, dev, NI_EVENT_LINK_ASSOCIATION_LOST);
+	__ni_netdev_event(nc, dev, NI_EVENT_LINK_DOWN);
+	__ni_netdev_event(nc, dev, NI_EVENT_LINK_ASSOCIATION_LOST);
 
 	ni_wireless_disconnect(dev);
 }
@@ -350,7 +350,7 @@ ni_wireless_association_changed(unsigned int ifindex, ni_wireless_assoc_state_t 
 	ni_netdev_t *dev;
 	ni_wireless_t *wlan;
 
-	if (!(dev = ni_interface_by_index(nc, ifindex)))
+	if (!(dev = ni_netdev_by_index(nc, ifindex)))
 		return;
 
 	if (!(wlan = dev->wireless))
@@ -361,7 +361,7 @@ ni_wireless_association_changed(unsigned int ifindex, ni_wireless_assoc_state_t 
 
 	wlan->assoc.state = new_state;
 	if (new_state == NI_WIRELESS_ESTABLISHED)
-		__ni_interface_event(nc, dev, NI_EVENT_LINK_UP);
+		__ni_netdev_event(nc, dev, NI_EVENT_LINK_UP);
 
 	/* We keep track of when we were last changing to or
 	 * from fully authenticated state.

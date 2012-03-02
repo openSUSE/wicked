@@ -48,7 +48,7 @@ ni_objectmodel_ethernet_setup(ni_dbus_object_t *object, const ni_dbus_method_t *
 
 out:
 	if (cfg)
-		ni_interface_put(cfg);
+		ni_netdev_put(cfg);
 	return rv;
 }
 
@@ -62,7 +62,7 @@ __ni_objectmodel_ethernet_device_arg(const ni_dbus_variant_t *dict)
 	ni_netdev_t *dev;
 	dbus_bool_t rv;
 
-	dev = ni_interface_new(NULL, NULL, 0);
+	dev = ni_netdev_new(NULL, NULL, 0);
 	dev->link.type = NI_IFTYPE_ETHERNET;
 
 	dev_object = ni_objectmodel_wrap_interface(dev);
@@ -70,7 +70,7 @@ __ni_objectmodel_ethernet_device_arg(const ni_dbus_variant_t *dict)
 	ni_dbus_object_free(dev_object);
 
 	if (!rv) {
-		ni_interface_put(dev);
+		ni_netdev_put(dev);
 		dev = NULL;
 	}
 	return dev;
@@ -88,7 +88,7 @@ ni_objectmodel_get_ethernet(const ni_dbus_object_t *object, DBusError *error)
 	if (!(ifp = ni_objectmodel_unwrap_interface(object, error)))
 		return NULL;
 
-	if (!(eth = ni_interface_get_ethernet(ifp))) {
+	if (!(eth = ni_netdev_get_ethernet(ifp))) {
 		dbus_set_error(error, DBUS_ERROR_FAILED, "Error getting ethernet handle for interface");
 		return NULL;
 	}

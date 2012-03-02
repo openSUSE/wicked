@@ -250,7 +250,7 @@ dhcp4_discover_devices(ni_dbus_server_t *server)
 
 	/* FIXME: for wireless devices, we should disable all the
 	 * BSS discovery, it's not needed in the dhcp4 supplicant */
-	for (ifp = ni_interfaces(nc); ifp; ifp = ifp->next) {
+	for (ifp = ni_netconfig_devlist(nc); ifp; ifp = ifp->next) {
 
 		if (ifp->link.arp_type != ARPHRD_ETHER)
 			continue;
@@ -312,7 +312,7 @@ dhcp4_interface_event(ni_netconfig_t *nc, ni_netdev_t *ifp, ni_event_t event)
 	switch (event) {
 	case NI_EVENT_LINK_CREATE:
 		/* check for duplicate ifindex */
-		ofp = ni_interface_by_index(nc, ifp->link.ifindex);
+		ofp = ni_netdev_by_index(nc, ifp->link.ifindex);
 		if (ofp && ofp != ifp) {
 			ni_warn("duplicate ifindex in link-create event");
 			return;

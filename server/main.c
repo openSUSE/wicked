@@ -173,7 +173,7 @@ wicked_discover_state(void)
 		ni_fatal("failed to discover interface state");
 
 	if (opt_recover_leases) {
-		for (ifp = ni_interfaces(nc); ifp; ifp = ifp->next) {
+		for (ifp = ni_netconfig_devlist(nc); ifp; ifp = ifp->next) {
 			unsigned int mode;
 
 			for (mode = 0; mode < __NI_ADDRCONF_MAX; ++mode) {
@@ -184,7 +184,7 @@ wicked_discover_state(void)
 	}
 
 	if (wicked_dbus_server) {
-		for (ifp = ni_interfaces(nc); ifp; ifp = ifp->next)
+		for (ifp = ni_netconfig_devlist(nc); ifp; ifp = ifp->next)
 			ni_objectmodel_register_interface(wicked_dbus_server, ifp);
 	}
 }

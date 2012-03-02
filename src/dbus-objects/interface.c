@@ -172,7 +172,7 @@ ni_objectmodel_netif_list_init_child(ni_dbus_object_t *object)
 		netif_class = netif_service->compatible;
 	}
 
-	ifp = ni_interface_new(NULL, NULL, 0);
+	ifp = ni_netdev_new(NULL, NULL, 0);
 	object->class = netif_class;
 	object->handle = ifp;
 
@@ -354,9 +354,9 @@ __ni_objectmodel_build_interface_object(ni_dbus_server_t *server, ni_netdev_t *i
 	if (server != NULL) {
 		object = ni_dbus_server_register_object(server,
 						ni_objectmodel_interface_path(ifp),
-						class, ni_interface_get(ifp));
+						class, ni_netdev_get(ifp));
 	} else {
-		object = ni_dbus_object_new(class, NULL, ni_interface_get(ifp));
+		object = ni_dbus_object_new(class, NULL, ni_netdev_get(ifp));
 	}
 
 	if (object == NULL)
@@ -423,7 +423,7 @@ ni_objectmodel_get_netif_argument(const ni_dbus_variant_t *dict, ni_iftype_t ift
 	ni_netdev_t *dev;
 	dbus_bool_t rv;
 
-	dev = ni_interface_new(NULL, NULL, 0);
+	dev = ni_netdev_new(NULL, NULL, 0);
 	dev->link.type = iftype;
 
 	dev_object = ni_objectmodel_wrap_interface(dev);
@@ -431,7 +431,7 @@ ni_objectmodel_get_netif_argument(const ni_dbus_variant_t *dict, ni_iftype_t ift
 	ni_dbus_object_free(dev_object);
 
 	if (!rv) {
-		ni_interface_put(dev);
+		ni_netdev_put(dev);
 		dev = NULL;
 	}
 	return dev;
@@ -732,7 +732,7 @@ ni_objectmodel_netif_destroy(ni_dbus_object_t *object)
 
 	NI_TRACE_ENTER_ARGS("object=%s, dev=%p", object->path, ifp);
 	ni_assert(ifp);
-	ni_interface_put(ifp);
+	ni_netdev_put(ifp);
 }
 
 static ni_dbus_method_t		ni_objectmodel_netif_methods[] = {

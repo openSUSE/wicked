@@ -198,12 +198,12 @@ __ni_suse_read_interface(ni_netconfig_t *nc, const char *filename, const char *i
 		goto error;
 	}
 
-	ifp = __ni_interface_new(ifname, 0);
+	ifp = __ni_netdev_new(ifname, 0);
 	if (!ifp) {
 		ni_error("Failed to alloc interface %s", ifname);
 		goto error;
 	}
-	__ni_interface_list_append(&nc->interfaces, ifp);
+	__ni_netdev_list_append(&nc->interfaces, ifp);
 
 	if (__ni_suse_sysconfig2ifconfig(ifp, sc) < 0)
 		goto error;
@@ -266,7 +266,7 @@ __ni_suse_sysconfig2ifconfig(ni_interface_t *ifp, ni_sysconfig_t *sc)
 	try_wireless(ifp, sc);
 
 	/* Guess the interface type */
-	ni_interface_guess_type(ifp);
+	ni_netdev_guess_type(ifp);
 
 	/* FIXME: What to do with these:
 		NAME
@@ -408,7 +408,7 @@ try_add_bonding_slave(ni_interface_t *ifp, ni_sysconfig_t *sc, const char *suffi
 	if (!var || !var->value)
 		return;
 
-	bonding = ni_interface_get_bonding(ifp);
+	bonding = ni_netdev_get_bonding(ifp);
 	ni_bonding_add_slave(bonding, var->value);
 }
 
@@ -439,7 +439,7 @@ try_bridge(ni_interface_t *ifp, ni_sysconfig_t *sc)
 		return;
 
 	/* Create the interface's bridge data */
-	bridge = ni_interface_get_bridge(ifp);
+	bridge = ni_netdev_get_bridge(ifp);
 	ifp->link.type = NI_IFTYPE_BRIDGE;
 
 	if ((var = ni_sysconfig_get(sc, "BRIDGE_STP")) != NULL)
@@ -509,7 +509,7 @@ try_vlan(ni_interface_t *ifp, ni_sysconfig_t *sc)
 
 	ifp->link.type = NI_IFTYPE_VLAN;
 
-	vlan = ni_interface_get_vlan(ifp);
+	vlan = ni_netdev_get_vlan(ifp);
 	vlan->tag = strtoul(ifp->name + 4, NULL, 0);
 	ni_sysconfig_get_string(sc, "ETHERDEVICE", &vlan->physdev_name);
 }

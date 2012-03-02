@@ -75,9 +75,9 @@ __ni_objectmodel_bridge_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusEr
 	const ni_bridge_t *bridge;
 	int rv;
 
-	bridge = ni_interface_get_bridge(cfg_ifp);
+	bridge = ni_netdev_get_bridge(cfg_ifp);
 
-	if (ifname == NULL && !(ifname = ni_interface_make_name(nc, "br"))) {
+	if (ifname == NULL && !(ifname = ni_netdev_make_name(nc, "br"))) {
 		dbus_set_error(error, DBUS_ERROR_FAILED, "Unable to create bridging interface - too many interfaces");
 		goto out;
 	}
@@ -96,13 +96,13 @@ __ni_objectmodel_bridge_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusEr
 				DBUS_ERROR_FAILED,
 				"Unable to create bridging interface: new interface is of type %s",
 				ni_linktype_type_to_name(new_ifp->link.type));
-		ni_interface_put(new_ifp);
+		ni_netdev_put(new_ifp);
 		new_ifp = NULL;
 	}
 
 out:
 	if (cfg_ifp)
-		ni_interface_put(cfg_ifp);
+		ni_netdev_put(cfg_ifp);
 	return new_ifp;
 }
 
@@ -138,7 +138,7 @@ ni_objectmodel_bridge_setup(ni_dbus_object_t *object, const ni_dbus_method_t *me
 
 out:
 	if (cfg)
-		ni_interface_put(cfg);
+		ni_netdev_put(cfg);
 	return rv;
 }
 
@@ -181,7 +181,7 @@ __ni_objectmodel_bridge_handle(const ni_dbus_object_t *object, DBusError *error)
 	if (!(ifp = ni_objectmodel_unwrap_interface(object, error)))
 		return NULL;
 
-	if (!(bridge = ni_interface_get_bridge(ifp))) {
+	if (!(bridge = ni_netdev_get_bridge(ifp))) {
 		dbus_set_error(error, DBUS_ERROR_FAILED, "Error getting bridge handle for interface");
 		return NULL;
 	}
@@ -194,7 +194,7 @@ ni_objectmodel_get_bridge(const ni_dbus_object_t *object, DBusError *error)
 	ni_netdev_t *ifp = ni_dbus_object_get_handle(object);
 	ni_bridge_t *br;
 
-	if (!(br = ni_interface_get_bridge(ifp))) {
+	if (!(br = ni_netdev_get_bridge(ifp))) {
 		dbus_set_error(error, DBUS_ERROR_FAILED, "Error getting bridge handle for interface");
 		return NULL;
 	}

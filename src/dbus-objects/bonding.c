@@ -67,9 +67,9 @@ __ni_objectmodel_bond_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusErro
 	const ni_bonding_t *bond;
 	int rv;
 
-	bond = ni_interface_get_bonding(cfg_ifp);
+	bond = ni_netdev_get_bonding(cfg_ifp);
 
-	if (ifname == NULL && !(ifname = ni_interface_make_name(nc, "bond"))) {
+	if (ifname == NULL && !(ifname = ni_netdev_make_name(nc, "bond"))) {
 		dbus_set_error(error, DBUS_ERROR_FAILED, "Unable to create bonding interface - too many interfaces");
 		goto out;
 	}
@@ -92,13 +92,13 @@ __ni_objectmodel_bond_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusErro
 				DBUS_ERROR_FAILED,
 				"Unable to create bonding interface: new interface is of type %s",
 				ni_linktype_type_to_name(new_ifp->link.type));
-		ni_interface_put(new_ifp);
+		ni_netdev_put(new_ifp);
 		new_ifp = NULL;
 	}
 
 out:
 	if (cfg_ifp)
-		ni_interface_put(cfg_ifp);
+		ni_netdev_put(cfg_ifp);
 	return new_ifp;
 }
 
@@ -134,7 +134,7 @@ ni_objectmodel_bond_setup(ni_dbus_object_t *object, const ni_dbus_method_t *meth
 
 out:
 	if (cfg)
-		ni_interface_put(cfg);
+		ni_netdev_put(cfg);
 	return rv;
 }
 
@@ -178,7 +178,7 @@ __ni_objectmodel_get_bonding(const ni_dbus_object_t *object, DBusError *error)
 	if (!(ifp = ni_objectmodel_unwrap_interface(object, error)))
 		return NULL;
 
-	if (!(bond = ni_interface_get_bonding(ifp))) {
+	if (!(bond = ni_netdev_get_bonding(ifp))) {
 		dbus_set_error(error, DBUS_ERROR_FAILED, "Error getting bonding handle for interface");
 		return NULL;
 	}

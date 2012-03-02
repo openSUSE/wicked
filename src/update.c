@@ -287,7 +287,7 @@ ni_system_update_all(void)
 			up->lease = NULL;
 	}
 
-	for (dev = ni_interfaces(nc); dev; dev = dev->next) {
+	for (dev = ni_netconfig_devlist(nc); dev; dev = dev->next) {
 		ni_addrconf_lease_t *lease;
 
 		for (lease = dev->leases; lease; lease = lease->next) {

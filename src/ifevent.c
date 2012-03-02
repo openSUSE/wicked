@@ -101,7 +101,7 @@ __ni_rtevent_read(ni_socket_t *sock)
 }
 
 void
-__ni_interface_event(ni_netconfig_t *nc, ni_netdev_t *ifp, ni_event_t ev)
+__ni_netdev_event(ni_netconfig_t *nc, ni_netdev_t *ifp, ni_event_t ev)
 {
 	ni_debug_dhcp("%s(%s, idx=%d, %s)", __FUNCTION__,
 			ifp->name, ifp->link.ifindex, ni_event_type_to_name(ev));
@@ -172,14 +172,14 @@ __ni_rtevent_newlink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 		ifname = (char *) nla_data(nla);
 	}
 
-	old = ni_interface_by_index(nc, ifi->ifi_index);
+	old = ni_netdev_by_index(nc, ifi->ifi_index);
 	if (old != NULL) {
 		old_flags = old->link.ifflags;
 		ifp = old;
 	} else {
-		ifp = ni_interface_new(nc, ifname, ifi->ifi_index);
+		ifp = ni_netdev_new(nc, ifname, ifi->ifi_index);
 	}
-	if (__ni_interface_process_newlink(ifp, h, ifi, nc) < 0) {
+	if (__ni_netdev_process_newlink(ifp, h, ifi, nc) < 0) {
 		ni_error("Problem parsing RTM_NEWLINK message for %s", ifname);
 		return -1;
 	}
@@ -187,7 +187,7 @@ __ni_rtevent_newlink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 	if (ifname) {
 		ni_netdev_t *conflict;
 
-		conflict = ni_interface_by_name(nc, ifname);
+		conflict = ni_netdev_by_name(nc, ifname);
 		if (conflict && conflict->link.ifindex != ifi->ifi_index) {
 			/* We probably missed a deletion event. Just clobber the old interface. */
 			ni_warn("linkchange event: found interface %s with different ifindex", ifname);
@@ -209,18 +209,18 @@ __ni_rtevent_newlink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 
 		if (flags_changed & NI_IFF_LINK_UP) {
 			if (new_flags & NI_IFF_LINK_UP)
-				__ni_interface_event(nc, ifp, NI_EVENT_LINK_UP);
+				__ni_netdev_event(nc, ifp, NI_EVENT_LINK_UP);
 			else
-				__ni_interface_event(nc, ifp, NI_EVENT_LINK_DOWN);
+				__ni_netdev_event(nc, ifp, NI_EVENT_LINK_DOWN);
 		}
 		if (flags_changed & NI_IFF_NETWORK_UP) {
 			if (new_flags & NI_IFF_NETWORK_UP)
-				__ni_interface_event(nc, ifp, NI_EVENT_NETWORK_UP);
+				__ni_netdev_event(nc, ifp, NI_EVENT_NETWORK_UP);
 			else
-				__ni_interface_event(nc, ifp, NI_EVENT_NETWORK_DOWN);
+				__ni_netdev_event(nc, ifp, NI_EVENT_NETWORK_DOWN);
 		}
 	} else {
-		__ni_interface_event(nc, ifp, NI_EVENT_LINK_CREATE);
+		__ni_netdev_event(nc, ifp, NI_EVENT_LINK_CREATE);
 	}
 
 	if ((nla = nlmsg_find_attr(h, sizeof(*ifi), IFLA_WIRELESS)) != NULL)
@@ -252,10 +252,10 @@ __ni_rtevent_dellink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 			*pos = ifp->next;
 			ifp->next = NULL;
 			ifp->link.ifindex = 0;
-			ifp->link.ifflags = __ni_interface_translate_ifflags(ifi->ifi_flags);
+			ifp->link.ifflags = __ni_netdev_translate_ifflags(ifi->ifi_flags);
 
-			__ni_interface_event(nc, ifp, NI_EVENT_LINK_DELETE);
-			ni_interface_put(ifp);
+			__ni_netdev_event(nc, ifp, NI_EVENT_LINK_DELETE);
+			ni_netdev_put(ifp);
 			break;
 		}
 	}
@@ -276,11 +276,11 @@ __ni_rtevent_newprefix(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, str
 	if (!(pfx = ni_rtnl_prefixmsg(h, RTM_NEWPREFIX)))
 		return -1;
 
-	ifp = ni_interface_by_index(nc, pfx->prefix_ifindex);
+	ifp = ni_netdev_by_index(nc, pfx->prefix_ifindex);
 	if (ifp == NULL)
 		return 0;
 
-	if (__ni_interface_process_newprefix(ifp, h, pfx) < 0) {
+	if (__ni_netdev_process_newprefix(ifp, h, pfx) < 0) {
 		ni_error("Problem parsing RTM_NEWPREFIX message for %s", ifp->name);
 		return -1;
 	}

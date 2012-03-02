@@ -41,13 +41,13 @@
 
 static int	__ni_process_ifinfomsg(ni_linkinfo_t *link, struct nlmsghdr *h,
 				struct ifinfomsg *ifi, ni_netconfig_t *);
-static int	__ni_interface_process_newaddr(ni_netdev_t *, struct nlmsghdr *, struct ifaddrmsg *);
-static int	__ni_interface_process_newroute(ni_netdev_t *, struct nlmsghdr *,
+static int	__ni_netdev_process_newaddr(ni_netdev_t *, struct nlmsghdr *, struct ifaddrmsg *);
+static int	__ni_netdev_process_newroute(ni_netdev_t *, struct nlmsghdr *,
 				struct rtmsg *, ni_netconfig_t *);
 static int	__ni_discover_bridge(ni_netdev_t *);
 static int	__ni_discover_bond(ni_netdev_t *);
 static int	__ni_discover_addrconf(ni_netdev_t *);
-static ni_addrconf_lease_t *__ni_interface_get_autoconf_lease(ni_netdev_t *, int);
+static ni_addrconf_lease_t *__ni_netdev_get_autoconf_lease(ni_netdev_t *, int);
 
 struct ni_rtnl_info {
 	struct ni_nlmsg_list	nlmsg_list;
@@ -257,21 +257,21 @@ __ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list)
 		ifname = (char *) nla_data(nla);
 
 		/* Create interface if it doesn't exist. */
-		if ((ifp = ni_interface_by_index(nc, ifi->ifi_index)) == NULL) {
-			ifp = __ni_interface_new(ifname, ifi->ifi_index);
+		if ((ifp = ni_netdev_by_index(nc, ifi->ifi_index)) == NULL) {
+			ifp = __ni_netdev_new(ifname, ifi->ifi_index);
 			if (!ifp)
 				goto failed;
 			*tail = ifp;
 			tail = &ifp->next;
 		} else {
 			/* Clear out addresses and routes */
-			ni_interface_clear_addresses(ifp);
-			ni_interface_clear_routes(ifp);
+			ni_netdev_clear_addresses(ifp);
+			ni_netdev_clear_routes(ifp);
 		}
 
 		ifp->seq = seqno;
 
-		if (__ni_interface_process_newlink(ifp, h, ifi, nc) < 0)
+		if (__ni_netdev_process_newlink(ifp, h, ifi, nc) < 0)
 			ni_error("Problem parsing RTM_NEWLINK message for %s", ifname);
 	}
 
@@ -290,10 +290,10 @@ __ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list)
 		if (!(ifi = ni_rtnl_query_next_ipv6_link_info(&query, &h)))
 			break;
 
-		if ((ifp = ni_interface_by_index(nc, ifi->ifi_index)) == NULL)
+		if ((ifp = ni_netdev_by_index(nc, ifi->ifi_index)) == NULL)
 			continue;
 
-		if (__ni_interface_process_newlink_ipv6(ifp, h, ifi) < 0)
+		if (__ni_netdev_process_newlink_ipv6(ifp, h, ifi) < 0)
 			ni_error("Problem parsing IPv6 RTM_NEWLINK message for %s", ifp->name);
 	}
 
@@ -303,10 +303,10 @@ __ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list)
 		if (!(ifa = ni_rtnl_query_next_addr_info(&query, &h)))
 			break;
 
-		if ((ifp = ni_interface_by_index(nc, ifa->ifa_index)) == NULL)
+		if ((ifp = ni_netdev_by_index(nc, ifa->ifa_index)) == NULL)
 			continue;
 
-		if (__ni_interface_process_newaddr(ifp, h, ifa) < 0)
+		if (__ni_netdev_process_newaddr(ifp, h, ifa) < 0)
 			ni_error("Problem parsing RTM_NEWADDR message for %s", ifp->name);
 	}
 
@@ -318,7 +318,7 @@ __ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list)
 			break;
 
 		if (oif_index >= 0) {
-			ifp = ni_interface_by_index(nc, oif_index);
+			ifp = ni_netdev_by_index(nc, oif_index);
 			if (ifp == NULL) {
 				ni_error("route specifies OIF=%u; not found!", oif_index);
 				continue;
@@ -327,7 +327,7 @@ __ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list)
 			ifp = NULL;
 		}
 
-		if (__ni_interface_process_newroute(ifp, h, rtm, nc) < 0)
+		if (__ni_netdev_process_newroute(ifp, h, rtm, nc) < 0)
 			ni_error("Problem parsing RTM_NEWROUTE message");
 	}
 
@@ -337,7 +337,7 @@ __ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list)
 		if (ifp->seq != seqno) {
 			*tail = ifp->next;
 			if (del_list == NULL) {
-				ni_interface_put(ifp);
+				ni_netdev_put(ifp);
 			} else {
 				ifp->next = NULL;
 				*del_list = ifp;
@@ -377,10 +377,10 @@ __ni_system_refresh_interface(ni_netconfig_t *nc, ni_netdev_t *ifp)
 			break;
 
 		/* Clear out addresses and routes */
-		ni_interface_clear_addresses(ifp);
-		ni_interface_clear_routes(ifp);
+		ni_netdev_clear_addresses(ifp);
+		ni_netdev_clear_routes(ifp);
 
-		if (__ni_interface_process_newlink(ifp, h, ifi, nc) < 0)
+		if (__ni_netdev_process_newlink(ifp, h, ifi, nc) < 0)
 			ni_error("Problem parsing RTM_NEWLINK message for %s", ifp->name);
 	}
 
@@ -390,7 +390,7 @@ __ni_system_refresh_interface(ni_netconfig_t *nc, ni_netdev_t *ifp)
 		if (!(ifa = ni_rtnl_query_next_addr_info(&query, &h)))
 			break;
 
-		if (__ni_interface_process_newaddr(ifp, h, ifa) < 0)
+		if (__ni_netdev_process_newaddr(ifp, h, ifa) < 0)
 			ni_error("Problem parsing RTM_NEWADDR message for %s", ifp->name);
 	}
 
@@ -400,7 +400,7 @@ __ni_system_refresh_interface(ni_netconfig_t *nc, ni_netdev_t *ifp)
 		if (!(rtm = ni_rtnl_query_next_route_info(&query, &h, NULL)))
 			break;
 
-		if (__ni_interface_process_newroute(ifp, h, rtm, NULL) < 0)
+		if (__ni_netdev_process_newroute(ifp, h, rtm, NULL) < 0)
 			ni_error("Problem parsing RTM_NEWROUTE message");
 	}
 
@@ -460,7 +460,7 @@ __ni_system_interface_stats_refresh(ni_netconfig_t *nc, ni_netdev_t *ifp)
  * Translate interface flags
  */
 unsigned int
-__ni_interface_translate_ifflags(unsigned int ifflags)
+__ni_netdev_translate_ifflags(unsigned int ifflags)
 {
 	unsigned int retval = 0;
 
@@ -519,7 +519,7 @@ __ni_process_ifinfomsg(ni_linkinfo_t *link, struct nlmsghdr *h,
 	}
 
 	link->arp_type = ifi->ifi_type;
-	link->ifflags = __ni_interface_translate_ifflags(ifi->ifi_flags);
+	link->ifflags = __ni_netdev_translate_ifflags(ifi->ifi_flags);
 	link->type = NI_IFTYPE_UNKNOWN;
 
 	if (tb[IFLA_MTU])
@@ -682,7 +682,7 @@ __ni_process_ifinfomsg(ni_linkinfo_t *link, struct nlmsghdr *h,
 }
 
 int
-__ni_interface_process_newlink(ni_netdev_t *ifp, struct nlmsghdr *h,
+__ni_netdev_process_newlink(ni_netdev_t *ifp, struct nlmsghdr *h,
 				struct ifinfomsg *ifi, ni_netconfig_t *nc)
 {
 	struct nlattr *nla;
@@ -731,10 +731,10 @@ __ni_interface_process_newlink(ni_netdev_t *ifp, struct nlmsghdr *h,
 		ifp->ipv6.forwarding = val;
 
 		ni_sysctl_ipv6_ifconfig_get_uint(ifp->name, "autoconf", &val);
-		__ni_interface_track_ipv6_autoconf(ifp, !!val);
+		__ni_netdev_track_ipv6_autoconf(ifp, !!val);
 	} else {
 		ifp->ipv6.enabled = ifp->ipv6.forwarding = 0;
-		__ni_interface_track_ipv6_autoconf(ifp, 0);
+		__ni_netdev_track_ipv6_autoconf(ifp, 0);
 	}
 
 	if (ifp->link.type == NI_IFTYPE_ETHERNET)
@@ -759,7 +759,7 @@ __ni_interface_process_newlink(ni_netdev_t *ifp, struct nlmsghdr *h,
  * Refresh interface link layer IPv6 info given a RTM_NEWLINK message
  */
 int
-__ni_interface_process_newlink_ipv6(ni_netdev_t *ifp, struct nlmsghdr *h, struct ifinfomsg *ifi)
+__ni_netdev_process_newlink_ipv6(ni_netdev_t *ifp, struct nlmsghdr *h, struct ifinfomsg *ifi)
 {
 	struct nlattr *tb[IFLA_MAX+1];
 
@@ -791,7 +791,7 @@ __ni_interface_process_newlink_ipv6(ni_netdev_t *ifp, struct nlmsghdr *h, struct
  * Record IPv6 prefixes received via router advertisements
  */
 int
-__ni_interface_process_newprefix(ni_netdev_t *ifp, struct nlmsghdr *h, struct prefixmsg *pfx)
+__ni_netdev_process_newprefix(ni_netdev_t *ifp, struct nlmsghdr *h, struct prefixmsg *pfx)
 {
 	struct nlattr *tb[PREFIX_MAX+1];
 	unsigned int expires = 0;
@@ -825,20 +825,20 @@ __ni_interface_process_newprefix(ni_netdev_t *ifp, struct nlmsghdr *h, struct pr
 
 	__ni_nla_get_addr(pfx->prefix_family, &address, tb[PREFIX_ADDRESS]);
 
-	if(__ni_interface_add_autoconf_prefix(ifp, &address, pfx->prefix_len, expires) == NULL)
+	if(__ni_netdev_add_autoconf_prefix(ifp, &address, pfx->prefix_len, expires) == NULL)
 		return -1;
 	return 0;
 }
 
 ni_route_t *
-__ni_interface_add_autoconf_prefix(ni_netdev_t *ifp, const ni_sockaddr_t *addr, unsigned int pfxlen, unsigned int expires)
+__ni_netdev_add_autoconf_prefix(ni_netdev_t *ifp, const ni_sockaddr_t *addr, unsigned int pfxlen, unsigned int expires)
 {
 	ni_addrconf_lease_t *lease;
 	ni_route_t *rp;
 
 	ni_debug_ifconfig("%s(dev=%s, prefix=%s/%u", __func__, ifp->name, ni_address_print(addr), pfxlen);
 
-	lease = __ni_interface_get_autoconf_lease(ifp, addr->ss_family);
+	lease = __ni_netdev_get_autoconf_lease(ifp, addr->ss_family);
 	for (rp = lease->routes; rp; rp = rp->next) {
 		if (rp->prefixlen == pfxlen && ni_address_prefix_match(pfxlen, &rp->destination, addr))
 			break;
@@ -865,7 +865,7 @@ __ni_interface_add_autoconf_prefix(ni_netdev_t *ifp, const ni_sockaddr_t *addr, 
  * Update interface address list given a RTM_NEWADDR message
  */
 static int
-__ni_interface_process_newaddr(ni_netdev_t *ifp, struct nlmsghdr *h, struct ifaddrmsg *ifa)
+__ni_netdev_process_newaddr(ni_netdev_t *ifp, struct nlmsghdr *h, struct ifaddrmsg *ifa)
 {
 	struct nlattr *tb[IFA_MAX+1];
 	ni_addrconf_lease_t *lease;
@@ -901,7 +901,7 @@ __ni_interface_process_newaddr(ni_netdev_t *ifp, struct nlmsghdr *h, struct ifad
 	ap->bcast_addr = tmp.bcast_addr;
 	ap->anycast_addr = tmp.anycast_addr;
 
-	lease = __ni_interface_address_to_lease(ifp, ap);
+	lease = __ni_netdev_address_to_lease(ifp, ap);
 	if (lease == NULL) {
 		int probably_autoconf = 0;
 
@@ -923,7 +923,7 @@ __ni_interface_process_newaddr(ni_netdev_t *ifp, struct nlmsghdr *h, struct ifad
 		}
 
 		if (probably_autoconf)
-			lease = __ni_interface_get_autoconf_lease(ifp, ifa->ifa_family);
+			lease = __ni_netdev_get_autoconf_lease(ifp, ifa->ifa_family);
 	}
 
 	ap->config_lease = lease;
@@ -945,7 +945,7 @@ __ni_interface_process_newaddr(ni_netdev_t *ifp, struct nlmsghdr *h, struct ifad
 }
 
 int
-__ni_interface_process_newroute(ni_netdev_t *ifp, struct nlmsghdr *h,
+__ni_netdev_process_newroute(ni_netdev_t *ifp, struct nlmsghdr *h,
 				struct rtmsg *rtm, ni_netconfig_t *nc)
 {
 	ni_sockaddr_t src_addr, dst_addr, gw_addr;
@@ -1018,7 +1018,7 @@ __ni_interface_process_newroute(ni_netdev_t *ifp, struct nlmsghdr *h,
 
 	rp = NULL;
 	if (ifp) {
-		rp = ni_interface_add_route(ifp, rtm->rtm_dst_len, &dst_addr, &gw_addr);
+		rp = ni_netdev_add_route(ifp, rtm->rtm_dst_len, &dst_addr, &gw_addr);
 	} else if (nc != NULL) {
 		rp = ni_route_new(nc, rtm->rtm_dst_len, &dst_addr, &gw_addr);
 	} else {
@@ -1035,7 +1035,7 @@ __ni_interface_process_newroute(ni_netdev_t *ifp, struct nlmsghdr *h,
 
 	/* See if this route is owned by a lease */
 	if (ifp) {
-		lease = __ni_interface_route_to_lease(ifp, rp);
+		lease = __ni_netdev_route_to_lease(ifp, rp);
 		if (lease)
 			rp->config_lease = lease;
 	}
@@ -1044,14 +1044,14 @@ __ni_interface_process_newroute(ni_netdev_t *ifp, struct nlmsghdr *h,
 }
 
 ni_addrconf_lease_t *
-__ni_interface_get_autoconf_lease(ni_netdev_t *dev, int af)
+__ni_netdev_get_autoconf_lease(ni_netdev_t *dev, int af)
 {
 	ni_addrconf_lease_t *lease;
 
-	if ((lease = ni_interface_get_lease(dev, af, NI_ADDRCONF_AUTOCONF)) == NULL) {
+	if ((lease = ni_netdev_get_lease(dev, af, NI_ADDRCONF_AUTOCONF)) == NULL) {
 		lease = ni_addrconf_lease_new(NI_ADDRCONF_AUTOCONF, af);
 		lease->state = NI_ADDRCONF_STATE_GRANTED;
-		ni_interface_set_lease(dev, lease);
+		ni_netdev_set_lease(dev, lease);
 
 		/* In the IPv6 case, add the default prefix for link-local autoconf.
 		 * This is always on. */
@@ -1066,12 +1066,12 @@ __ni_interface_get_autoconf_lease(ni_netdev_t *dev, int af)
 }
 
 void
-__ni_interface_track_ipv6_autoconf(ni_netdev_t *dev, int enable)
+__ni_netdev_track_ipv6_autoconf(ni_netdev_t *dev, int enable)
 {
 	if (!enable) {
-		ni_interface_unset_lease(dev, AF_INET6, NI_ADDRCONF_AUTOCONF);
+		ni_netdev_unset_lease(dev, AF_INET6, NI_ADDRCONF_AUTOCONF);
 	} else {
-		(void) __ni_interface_get_autoconf_lease(dev, AF_INET6);
+		(void) __ni_netdev_get_autoconf_lease(dev, AF_INET6);
 	}
 }
 
@@ -1088,7 +1088,7 @@ __ni_discover_bridge(ni_netdev_t *ifp)
 	if (ifp->link.type != NI_IFTYPE_BRIDGE)
 		return 0;
 
-	bridge = ni_interface_get_bridge(ifp);
+	bridge = ni_netdev_get_bridge(ifp);
 
 	ni_sysfs_bridge_get_config(ifp->name, bridge);
 	ni_sysfs_bridge_get_status(ifp->name, &bridge->status);
@@ -1129,7 +1129,7 @@ __ni_discover_bond(ni_netdev_t *ifp)
 	if (ifp->link.type != NI_IFTYPE_BOND)
 		return 0;
 
-	bonding = ni_interface_get_bonding(ifp);
+	bonding = ni_netdev_get_bonding(ifp);
 
 	if (ni_bonding_parse_sysfs_attrs(ifp->name, bonding) < 0) {
 		ni_error("error retrieving bonding attribute from sysfs");

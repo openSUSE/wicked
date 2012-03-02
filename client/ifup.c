@@ -863,7 +863,7 @@ ni_ifworkers_refresh_state(void)
 
 		if ((dev = w->device) != NULL) {
 			w->device = NULL;
-			ni_interface_put(dev);
+			ni_netdev_put(dev);
 		}
 	}
 
@@ -897,11 +897,11 @@ ni_ifworkers_refresh_state(void)
 
 		if (!found->object_path)
 			ni_string_dup(&found->object_path, object->path);
-		found->device = ni_interface_get(dev);
+		found->device = ni_netdev_get(dev);
 		found->ifindex = dev->link.ifindex;
 		found->object = object;
 
-		if (ni_interface_link_is_up(dev))
+		if (ni_netdev_link_is_up(dev))
 			ni_ifworker_update_state(found, STATE_LINK_UP, __STATE_MAX);
 		else
 			ni_ifworker_update_state(found, 0, STATE_DEVICE_UP);
@@ -926,7 +926,7 @@ ni_ifworker_ready(const ni_ifworker_t *w)
  * ready.
  */
 static int
-ni_interface_children_ready_for(ni_ifworker_t *w, unsigned int next_parent_state)
+ni_ifworker_children_ready_for(ni_ifworker_t *w, unsigned int next_parent_state)
 {
 	const ni_uint_range_t *r;
 	unsigned int i;
@@ -1525,7 +1525,7 @@ ni_ifworker_fsm(void)
 
 			/* If we're still waiting for children to become ready,
 			 * there's nothing we can do but wait. */
-			if (!ni_interface_children_ready_for(w, w->actions->next_state))
+			if (!ni_ifworker_children_ready_for(w, w->actions->next_state))
 				continue;
 
 			/* We requested a change that takes time (such as acquiring

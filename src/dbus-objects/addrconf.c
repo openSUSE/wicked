@@ -88,7 +88,7 @@ ni_objectmodel_addrconf_path_to_device(const char *path)
 		return NULL;
 	}
 
-	return ni_interface_by_index(nc, ifindex);
+	return ni_netdev_by_index(nc, ifindex);
 }
 
 /*
@@ -343,13 +343,13 @@ ni_objectmodel_addrconf_forward_request(ni_dbus_addrconf_forwarder_t *forwarder,
 	/* Generate a uuid and assign an event ID */
 	ni_uuid_generate(&req_uuid);
 
-	if (ni_interface_get_lease(dev, forwarder->addrfamily, forwarder->addrconf) == NULL) {
+	if (ni_netdev_get_lease(dev, forwarder->addrfamily, forwarder->addrconf) == NULL) {
 		ni_addrconf_lease_t *lease;
 
 		lease = ni_addrconf_lease_new(forwarder->addrconf, forwarder->addrfamily);
 		lease->state = NI_ADDRCONF_STATE_REQUESTING;
 		lease->uuid = req_uuid;
-		ni_interface_set_lease(dev, lease);
+		ni_netdev_set_lease(dev, lease);
 	}
 
 	rv = ni_objectmodel_addrconf_forwarder_call(forwarder, dev, "acquire", &req_uuid, dict, error);
@@ -373,12 +373,12 @@ ni_objectmodel_addrconf_forward_release(ni_dbus_addrconf_forwarder_t *forwarder,
 
 	/* If we have no lease, neither pending nor granted, there's nothing we need to do.
 	 */
-	if ((lease = ni_interface_get_lease(dev, forwarder->addrfamily, forwarder->addrconf)) == NULL)
+	if ((lease = ni_netdev_get_lease(dev, forwarder->addrfamily, forwarder->addrconf)) == NULL)
 		return TRUE;
 
 	rv = ni_objectmodel_addrconf_forwarder_call(forwarder, dev, "drop", &lease->uuid, NULL, error);
 	if (rv
-	 && (lease = ni_interface_get_lease(dev, forwarder->addrfamily, forwarder->addrconf)) != NULL) {
+	 && (lease = ni_netdev_get_lease(dev, forwarder->addrfamily, forwarder->addrconf)) != NULL) {
 		/* Tell the client to wait for an addressAcquired event with the given uuid */
 		rv =  __ni_objectmodel_return_callback_info(reply, NI_EVENT_ADDRESS_RELEASED, &lease->uuid, error);
 	}
@@ -562,7 +562,7 @@ __ni_objectmodel_addrconf_generic_get_lease(const ni_dbus_object_t *object,
 			ni_addrfamily_type_to_name(addrfamily),
 			ni_addrconf_type_to_name(mode));
 #endif
-	if (!(lease = ni_interface_get_lease(dev, addrfamily, mode)))
+	if (!(lease = ni_netdev_get_lease(dev, addrfamily, mode)))
 		return TRUE;
 
 	ni_dbus_dict_add_uint32(dict, "state", lease->state);
@@ -586,7 +586,7 @@ __ni_objectmodel_addrconf_generic_set_lease(ni_dbus_object_t *object,
 
 		lease = ni_addrconf_lease_new(mode, addrfamily);
 		lease->state = state;
-		ni_interface_set_lease(dev, lease);
+		ni_netdev_set_lease(dev, lease);
 	}
 	return TRUE;
 }
