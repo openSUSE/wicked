@@ -288,17 +288,17 @@ ni_interface_make_name(ni_netconfig_t *nc, const char *stem)
 /*
  * Handle interface_request objects
  */
-ni_interface_request_t *
-ni_interface_request_new(void)
+ni_netdev_req_t *
+ni_netdev_req_new(void)
 {
-	ni_interface_request_t *req;
+	ni_netdev_req_t *req;
 
 	req = xcalloc(1, sizeof(*req));
 	return req;
 }
 
 void
-ni_interface_request_free(ni_interface_request_t *req)
+ni_netdev_req_free(ni_netdev_req_t *req)
 {
 	if (req->ipv4)
 		ni_afinfo_free(req->ipv4);

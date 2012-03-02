@@ -170,7 +170,7 @@ struct ni_netdev {
 	ni_wireless_t *		wireless;
 };
 
-struct ni_interface_request {
+struct ni_netdev_req {
 	unsigned int		ifflags;
 
 	unsigned int		mtu;
@@ -263,8 +263,8 @@ extern int		ni_interface_array_index(const ni_interface_array_t *, const ni_netd
 extern void             ni_interface_clear_addresses(ni_netdev_t *);
 extern void             ni_interface_clear_routes(ni_netdev_t *);
 
-extern ni_interface_request_t *ni_interface_request_new(void);
-extern void		ni_interface_request_free(ni_interface_request_t *req);
+extern ni_netdev_req_t *ni_netdev_req_new(void);
+extern void		ni_netdev_req_free(ni_netdev_req_t *req);
 
 extern ni_address_t *	ni_address_new(ni_netdev_t *ifp, int af,
 				unsigned int prefix_len,

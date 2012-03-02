@@ -55,8 +55,8 @@ extern ni_netdev_t *		ni_objectmodel_unwrap_interface(const ni_dbus_object_t *, 
 
 extern dbus_bool_t		ni_objectmodel_interface_event(ni_dbus_server_t *, ni_netdev_t *, ni_event_t, const ni_uuid_t *);
 
-extern dbus_bool_t		ni_objectmodel_marshal_interface_request(const ni_interface_request_t *, ni_dbus_variant_t *, DBusError *);
-extern dbus_bool_t		ni_objectmodel_unmarshal_interface_request(ni_interface_request_t *, const ni_dbus_variant_t *, DBusError *);
+extern dbus_bool_t		ni_objectmodel_marshal_interface_request(const ni_netdev_req_t *, ni_dbus_variant_t *, DBusError *);
+extern dbus_bool_t		ni_objectmodel_unmarshal_interface_request(ni_netdev_req_t *, const ni_dbus_variant_t *, DBusError *);
 
 typedef struct ni_objectmodel_callback_info ni_objectmodel_callback_info_t;
 struct ni_objectmodel_callback_info {

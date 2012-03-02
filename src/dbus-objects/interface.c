@@ -479,7 +479,7 @@ ni_objectmodel_wrap_interface(ni_netdev_t *ifp)
 }
 
 ni_dbus_object_t *
-ni_objectmodel_wrap_interface_request(ni_interface_request_t *req)
+ni_objectmodel_wrap_interface_request(ni_netdev_req_t *req)
 {
 	return ni_dbus_object_new(&ni_objectmodel_ifreq_class, NULL, req);
 }
@@ -547,13 +547,13 @@ static ni_dbus_service_t	ni_objectmodel_netifreq_service = {
 
 
 dbus_bool_t
-ni_objectmodel_marshal_interface_request(const ni_interface_request_t *req, ni_dbus_variant_t *dict, DBusError *error)
+ni_objectmodel_marshal_interface_request(const ni_netdev_req_t *req, ni_dbus_variant_t *dict, DBusError *error)
 {
 	return put_properties_to_dict(&ni_objectmodel_netifreq_service, req, dict, error);
 }
 
 dbus_bool_t
-ni_objectmodel_unmarshal_interface_request(ni_interface_request_t *req, const ni_dbus_variant_t *dict, DBusError *error)
+ni_objectmodel_unmarshal_interface_request(ni_netdev_req_t *req, const ni_dbus_variant_t *dict, DBusError *error)
 {
 	return get_properties_from_dict(&ni_objectmodel_netifreq_service, req, dict, error);
 }
@@ -573,7 +573,7 @@ ni_objectmodel_netif_link_up(ni_dbus_object_t *object, const ni_dbus_method_t *m
 			ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_netdev_t *dev;
-	ni_interface_request_t *req = NULL;
+	ni_netdev_req_t *req = NULL;
 	dbus_bool_t ret = FALSE;
 	int rv;
 
@@ -583,7 +583,7 @@ ni_objectmodel_netif_link_up(ni_dbus_object_t *object, const ni_dbus_method_t *m
 	NI_TRACE_ENTER_ARGS("dev=%s", dev->name);
 
 	/* Create an interface_request object and extract configuration from dict */
-	req = ni_interface_request_new();
+	req = ni_netdev_req_new();
 	if (argc != 1) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
 				"linkUp: missing argument");
@@ -613,7 +613,7 @@ ni_objectmodel_netif_link_up(ni_dbus_object_t *object, const ni_dbus_method_t *m
 
 failed:
 	if (req)
-		ni_interface_request_free(req);
+		ni_netdev_req_free(req);
 	return ret;
 }
 
@@ -972,8 +972,9 @@ static ni_dbus_service_t	ni_objectmodel_netif_service = {
  * These helper functions assist in marshalling InterfaceRequests
  */
 static void *
-ni_objectmodel_get_interface_request(const ni_dbus_object_t *object, DBusError *error)
+ni_objectmodel_get_netdev_req(const ni_dbus_object_t *object, DBusError *error)
 {
+	/* FIXME: check for object class */
 	return ni_dbus_object_get_handle(object);
 }
 
@@ -986,7 +987,7 @@ __ni_objectmodel_interface_request_get_ipv4(const ni_dbus_object_t *object,
 				ni_dbus_variant_t *result,
 				DBusError *error)
 {
-	ni_interface_request_t *req = ni_dbus_object_get_handle(object);
+	ni_netdev_req_t *req = ni_dbus_object_get_handle(object);
 
 	ni_dbus_variant_init_dict(result);
 	if (req->ipv4 && !__ni_objectmodel_get_afinfo(req->ipv4, result, error))
@@ -1000,7 +1001,7 @@ __ni_objectmodel_interface_request_set_ipv4(ni_dbus_object_t *object,
 				const ni_dbus_variant_t *argument,
 				DBusError *error)
 {
-	ni_interface_request_t *req = ni_dbus_object_get_handle(object);
+	ni_netdev_req_t *req = ni_dbus_object_get_handle(object);
 
 	if (!req->ipv4)
 		req->ipv4 = ni_afinfo_new(AF_INET);
@@ -1018,7 +1019,7 @@ __ni_objectmodel_interface_request_get_ipv6(const ni_dbus_object_t *object,
 				ni_dbus_variant_t *result,
 				DBusError *error)
 {
-	ni_interface_request_t *req = ni_dbus_object_get_handle(object);
+	ni_netdev_req_t *req = ni_dbus_object_get_handle(object);
 
 	if (req->ipv6 && !__ni_objectmodel_get_afinfo(req->ipv6, result, error))
 		return FALSE;
@@ -1031,7 +1032,7 @@ __ni_objectmodel_interface_request_set_ipv6(ni_dbus_object_t *object,
 				const ni_dbus_variant_t *argument,
 				DBusError *error)
 {
-	ni_interface_request_t *req = ni_dbus_object_get_handle(object);
+	ni_netdev_req_t *req = ni_dbus_object_get_handle(object);
 
 	if (!req->ipv6)
 		req->ipv6 = ni_afinfo_new(AF_INET6);
@@ -1041,7 +1042,7 @@ __ni_objectmodel_interface_request_set_ipv6(ni_dbus_object_t *object,
 }
 
 #define INTERFACE_REQUEST_UINT_PROPERTY(dbus_name, name, rw) \
-	NI_DBUS_GENERIC_UINT_PROPERTY(interface_request, dbus_name, name, rw)
+	NI_DBUS_GENERIC_UINT_PROPERTY(netdev_req, dbus_name, name, rw)
 #define INTERFACE_REQUEST_PROPERTY_SIGNATURE(signature, __name, rw) \
 	__NI_DBUS_PROPERTY(signature, __name, __ni_objectmodel_interface_request, rw)
 

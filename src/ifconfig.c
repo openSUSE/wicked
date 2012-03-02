@@ -47,7 +47,7 @@ static int	__ni_interface_update_routes(ni_netdev_t *ifp,
 				const ni_addrconf_lease_t *old_lease,
 				ni_route_t *cfg_route_list);
 static int	__ni_rtnl_link_create_vlan(const char *, const ni_vlan_t *, unsigned int);
-static int	__ni_rtnl_link_up(const ni_netdev_t *, const ni_interface_request_t *);
+static int	__ni_rtnl_link_up(const ni_netdev_t *, const ni_netdev_req_t *);
 static int	__ni_rtnl_link_down(const ni_netdev_t *, int);
 static int	__ni_rtnl_send_deladdr(ni_netdev_t *, const ni_address_t *);
 static int	__ni_rtnl_send_newaddr(ni_netdev_t *, const ni_address_t *, int);
@@ -55,7 +55,7 @@ static int	__ni_rtnl_send_delroute(ni_netdev_t *, ni_route_t *);
 static int	__ni_rtnl_send_newroute(ni_netdev_t *, ni_route_t *, int);
 
 int
-ni_system_interface_link_change(ni_netdev_t *ifp, const ni_interface_request_t *ifp_req)
+ni_system_interface_link_change(ni_netdev_t *ifp, const ni_netdev_req_t *ifp_req)
 {
 	unsigned int ifflags;
 	int res;
@@ -810,7 +810,7 @@ __ni_rtnl_link_down(const ni_netdev_t *ifp, int cmd)
  * (Re-)configure an interface
  */
 static int
-__ni_rtnl_link_up(const ni_netdev_t *ifp, const ni_interface_request_t *cfg)
+__ni_rtnl_link_up(const ni_netdev_t *ifp, const ni_netdev_req_t *cfg)
 {
 	struct ifinfomsg ifi;
 	struct nl_msg *msg;
