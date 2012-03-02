@@ -343,52 +343,16 @@ ni_interface_device_is_up(const ni_interface_t *ifp)
 	return ifp->link.ifflags & NI_IFF_DEVICE_UP;
 }
 
-static inline void
-ni_interface_device_mark_up(ni_interface_t *ifp)
-{
-	ifp->link.ifflags |= NI_IFF_DEVICE_UP;
-}
-
-static inline void
-ni_interface_device_mark_down(ni_interface_t *ifp)
-{
-	ifp->link.ifflags &= ~NI_IFF_DEVICE_UP;
-}
-
 static inline int
 ni_interface_link_is_up(const ni_interface_t *ifp)
 {
 	return ifp->link.ifflags & NI_IFF_LINK_UP;
 }
 
-static inline void
-ni_interface_link_mark_up(ni_interface_t *ifp)
-{
-	ifp->link.ifflags |= NI_IFF_LINK_UP;
-}
-
-static inline void
-ni_interface_link_mark_down(ni_interface_t *ifp)
-{
-	ifp->link.ifflags &= ~NI_IFF_LINK_UP;
-}
-
 static inline int
 ni_interface_network_is_up(const ni_interface_t *ifp)
 {
 	return ifp->link.ifflags & NI_IFF_NETWORK_UP;
-}
-
-static inline void
-ni_interface_network_mark_up(ni_interface_t *ifp)
-{
-	ifp->link.ifflags |= NI_IFF_NETWORK_UP;
-}
-
-static inline void
-ni_interface_network_mark_down(ni_interface_t *ifp)
-{
-	ifp->link.ifflags &= ~NI_IFF_NETWORK_UP;
 }
 
 #endif /* __WICKED_NETINFO_H__ */
