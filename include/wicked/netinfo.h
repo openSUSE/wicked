@@ -62,9 +62,26 @@ typedef struct ni_route {
 	ni_sockaddr_t		destination;
 	ni_route_nexthop_t	nh;
 
-	unsigned int		mtu;
+	int			type;			/* RTN_* */
+	int			scope;			/* RT_SCOPE_* */
+	int			protocol;		/* RTPROT_* */
+	int			table;			/* RT_TABLE_* */
 	unsigned int		tos;
+	unsigned int		metric;
+
+	unsigned int		mtu;
 	unsigned int		priority;
+	unsigned int		advmss;
+	unsigned int		rtt;
+	unsigned int		rttvar;
+	unsigned int		window;
+	unsigned int		cwnd;
+	unsigned int		initcwnd;
+	unsigned int		ssthresh;
+	unsigned int		realms;
+	unsigned int		rto_min;
+	unsigned int		hoplimit;
+
 	time_t			expires;		/* when route expires (ipv6) */
 } ni_route_t;
 

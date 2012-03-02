@@ -1056,32 +1056,39 @@ __ni_rtnl_send_newroute(ni_netdev_t *dev, ni_route_t *rp, int flags)
 
 	rt.rtm_dst_len = rp->prefixlen;
 
-#ifdef notyet
-	if (req.rt.rtm_type == RTN_LOCAL ||
-	    req.rt.rtm_type == RTN_BROADCAST ||
-	    req.rt.rtm_type == RTN_NAT ||
-	    req.rt.rtm_type == RTN_ANYCAST)
-		req.rt.rtm_table = RT_TABLE_LOCAL;
+	if (rp->table >= 0)
+		rt.rtm_table = rp->table;
+	if (rp->protocol >= 0)
+		rt.rtm_protocol = rp->protocol;
+	if (rp->scope >= 0)
+		rt.rtm_scope = rp->scope;
+	if (rp->type >= 0)
+		rt.rtm_type = rp->type;
 
-	switch (req.rt.rtm_type) {
+	if (rt.rtm_type == RTN_LOCAL ||
+	    rt.rtm_type == RTN_BROADCAST ||
+	    rt.rtm_type == RTN_NAT ||
+	    rt.rtm_type == RTN_ANYCAST)
+		rt.rtm_table = RT_TABLE_LOCAL;
+
+	switch (rt.rtm_type) {
 	case RTN_LOCAL:
 	case RTN_NAT:
-		req.rt.rtm_scope = RT_SCOPE_HOST;
+		rt.rtm_scope = RT_SCOPE_HOST;
 		break;
 
 	case RTN_BROADCAST:
 	case RTN_MULTICAST:
 	case RTN_ANYCAST:
-		req.rt.rtm_scope = RT_SCOPE_LINK;
+		rt.rtm_scope = RT_SCOPE_LINK;
 		break;
 
 	case RTN_UNICAST:
 	case RTN_UNSPEC:
-		if (rp->gateway.ss_family == AF_UNSPEC)
-			req.rt.rtm_scope = RT_SCOPE_LINK;
+		if (rp->nh.gateway.ss_family == AF_UNSPEC)
+			rt.rtm_scope = RT_SCOPE_LINK;
 		break;
 	}
-#endif
 
 	msg = nlmsg_alloc_simple(RTM_NEWROUTE, flags);
 	if (nlmsg_append(msg, &rt, sizeof(rt), NLMSG_ALIGNTO) < 0)
@@ -1096,7 +1103,8 @@ __ni_rtnl_send_newroute(ni_netdev_t *dev, ni_route_t *rp, int flags)
 	 && addattr_sockaddr(msg, RTA_GATEWAY, &rp->nh.gateway))
 		goto nla_put_failure;
 
-	NLA_PUT_U32(msg, RTA_OIF, dev->link.ifindex);
+	if (dev && dev->link.ifindex)
+		NLA_PUT_U32(msg, RTA_OIF, dev->link.ifindex);
 
 	/* Add metrics if needed */
 	if (rp->mtu) {
@@ -1108,6 +1116,20 @@ __ni_rtnl_send_newroute(ni_netdev_t *dev, ni_route_t *rp, int flags)
 
 		if (rp->mtu)
 			NLA_PUT_U32(msg, RTAX_MTU, rp->mtu);
+		if (rp->window)
+			NLA_PUT_U32(msg, RTAX_WINDOW, rp->window);
+		if (rp->rtt)
+			NLA_PUT_U32(msg, RTAX_RTT, rp->rtt);
+		if (rp->rttvar)
+			NLA_PUT_U32(msg, RTAX_RTTVAR, rp->rttvar);
+		if (rp->ssthresh)
+			NLA_PUT_U32(msg, RTAX_SSTHRESH, rp->ssthresh);
+		if (rp->cwnd)
+			NLA_PUT_U32(msg, RTAX_CWND, rp->cwnd);
+		if (rp->rto_min)
+			NLA_PUT_U32(msg, RTAX_RTO_MIN, rp->rto_min);
+		if (rp->advmss)
+			NLA_PUT_U32(msg, RTAX_ADVMSS, rp->advmss);
 
 		nla_nest_end(msg, mxrta);
 	}

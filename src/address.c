@@ -10,6 +10,7 @@
 #include <netinet/if_ether.h>
 #include <netinet/if_tr.h>
 #include <linux/if_infiniband.h>
+#include <linux/rtnetlink.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -591,6 +592,11 @@ __ni_route_new(ni_route_t **list, unsigned int prefixlen, const ni_sockaddr_t *d
 		memset(&rp->destination, 0, sizeof(rp->destination));
 		rp->destination.ss_family = af;
 	}
+
+	rp->type = RTN_UNICAST;
+	rp->scope = RT_SCOPE_UNIVERSE;
+	rp->protocol = RTPROT_BOOT;
+	rp->table = RT_TABLE_MAIN;
 
 	if (list)
 		__ni_route_list_append(list, rp);

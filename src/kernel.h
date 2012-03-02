@@ -9,6 +9,7 @@
 
 #include <net/if.h>
 #include <netlink/netlink.h>
+#include <linux/rtnetlink.h>
 
 #define __user /* unclean header file */
 #include <wireless.h>

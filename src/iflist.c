@@ -956,12 +956,13 @@ __ni_netdev_process_newroute(ni_netdev_t *dev, struct nlmsghdr *h,
 	if (rtm->rtm_table != RT_TABLE_MAIN)
 		return 0;
 
-	if (rtm->rtm_protocol == RTPROT_REDIRECT)
+	switch (rtm->rtm_protocol) {
+	case RTPROT_REDIRECT:
 		return 0;
 
-	if (rtm->rtm_protocol != RTPROT_BOOT
-	 && rtm->rtm_protocol != RTPROT_STATIC)
-		return 0;
+	default:
+		break;
+	}
 
 	memset(tb, 0, sizeof(tb));
 	if (nlmsg_parse(h, sizeof(*rtm), tb, RTN_MAX, NULL) < 0) {
@@ -1029,9 +1030,43 @@ __ni_netdev_process_newroute(ni_netdev_t *dev, struct nlmsghdr *h,
 		return 0;
 	}
 
+	rp->type = rtm->rtm_type;
+	rp->scope = rtm->rtm_scope;
+	rp->protocol = rtm->rtm_protocol;
+	rp->table = rtm->rtm_table;
+	rp->tos = rtm->rtm_tos;
+
 	if (tb[RTA_PRIORITY] != NULL)
 		rp->priority = nla_get_u32(tb[RTA_PRIORITY]);
-	rp->tos = rtm->rtm_tos;
+
+	if (tb[RTA_METRICS] != NULL) {
+		struct nlattr *rtattrs[__RTAX_MAX+1], *rtax;
+
+		if (nla_parse_nested(rtattrs, __RTAX_MAX, tb[RTA_METRICS], NULL) < 0) {
+			ni_error("unable to parse RTA_METRICS");
+			return -1;
+		}
+		if ((rtax = rtattrs[RTAX_MTU]) != NULL)
+			rp->mtu = nla_get_u32(rtax);
+		if ((rtax = rtattrs[RTAX_WINDOW]) != NULL)
+			rp->window = nla_get_u32(rtax);
+		if ((rtax = rtattrs[RTAX_RTT]) != NULL)
+			rp->rtt = nla_get_u32(rtax);
+		if ((rtax = rtattrs[RTAX_RTTVAR]) != NULL)
+			rp->rttvar = nla_get_u32(rtax);
+		if ((rtax = rtattrs[RTAX_SSTHRESH]) != NULL)
+			rp->ssthresh = nla_get_u32(rtax);
+		if ((rtax = rtattrs[RTAX_CWND]) != NULL)
+			rp->cwnd = nla_get_u32(rtax);
+		if ((rtax = rtattrs[RTAX_INITCWND]) != NULL)
+			rp->initcwnd = nla_get_u32(rtax);
+		if ((rtax = rtattrs[RTAX_ADVMSS]) != NULL)
+			rp->advmss = nla_get_u32(rtax);
+		if ((rtax = rtattrs[RTAX_HOPLIMIT]) != NULL)
+			rp->hoplimit = nla_get_u32(rtax);
+		if ((rtax = rtattrs[RTAX_RTO_MIN]) != NULL)
+			rp->rto_min = nla_get_u32(rtax);
+	}
 
 	/* See if this route is owned by a lease */
 	if (dev) {
