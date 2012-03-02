@@ -471,44 +471,6 @@ ni_interface_guess_type(ni_netdev_t *ifp)
 }
 
 /*
- * Functions for handling arrays of interfaces
- */
-void
-ni_interface_array_init(ni_interface_array_t *array)
-{
-	memset(array, 0, sizeof(*array));
-}
-
-void
-ni_interface_array_append(ni_interface_array_t *array, ni_netdev_t *ifp)
-{
-	if ((array->count & 15) == 0) {
-		array->data = realloc(array->data, (array->count + 16) * sizeof(ni_netdev_t *));
-		assert(array->data);
-	}
-	array->data[array->count++] = ifp;
-}
-
-int
-ni_interface_array_index(const ni_interface_array_t *array, const ni_netdev_t *ifp)
-{
-	unsigned int i;
-
-	for (i = 0; i < array->count; ++i) {
-		if (array->data[i] == ifp)
-			return i;
-	}
-	return -1;
-}
-
-void
-ni_interface_array_destroy(ni_interface_array_t *array)
-{
-	free(array->data);
-	memset(array, 0, sizeof(*array));
-}
-
-/*
  * Functions for handling lists of interfaces
  */
 void

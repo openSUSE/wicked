@@ -184,12 +184,6 @@ struct ni_netdev_req {
 	ni_afinfo_t *		ipv6;
 };
 
-typedef struct ni_interface_array {
-	unsigned int		count;
-	ni_netdev_t **		data;
-} ni_interface_array_t;
-#define NI_INTERFACE_ARRAY_INIT	{ .count = 0, .data = NULL }
-
 #define CONFIG_WICKED_STATEDIR	"/var/run/wicked"
 
 extern void		ni_set_global_config_path(const char *);
@@ -254,11 +248,6 @@ extern void		ni_interface_set_bridge(ni_netdev_t *, ni_bridge_t *);
 extern void		ni_interface_set_ethernet(ni_netdev_t *, ni_ethernet_t *);
 extern void		ni_interface_set_link_stats(ni_netdev_t *, ni_link_stats_t *);
 extern void		ni_interface_set_wireless(ni_netdev_t *, ni_wireless_t *);
-
-extern void		ni_interface_array_init(ni_interface_array_t *);
-extern void		ni_interface_array_append(ni_interface_array_t *, ni_netdev_t *);
-extern void		ni_interface_array_destroy(ni_interface_array_t *);
-extern int		ni_interface_array_index(const ni_interface_array_t *, const ni_netdev_t *);
 
 extern void             ni_interface_clear_addresses(ni_netdev_t *);
 extern void             ni_interface_clear_routes(ni_netdev_t *);
