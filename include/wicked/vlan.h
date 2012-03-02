@@ -14,7 +14,7 @@ struct ni_vlan {
 	unsigned int		physdev_index;	/* when parsing system state, this is the
 						 * ifindex of the master */
 	uint16_t		tag;
-	ni_interface_t *	interface_dev;
+	ni_netdev_t *		interface_dev;
 };
 
 extern int		ni_vlan_bind_ifindex(ni_vlan_t *, ni_netconfig_t *);

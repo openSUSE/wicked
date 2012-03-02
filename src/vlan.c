@@ -39,7 +39,7 @@ __ni_vlan_unbind(ni_vlan_t *vlan)
 int
 ni_vlan_bind_ifindex(ni_vlan_t *vlan, ni_netconfig_t *nc)
 {
-	ni_interface_t *real_dev;
+	ni_netdev_t *real_dev;
 
 	if (!vlan)
 		return -1;

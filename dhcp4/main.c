@@ -49,8 +49,8 @@ static ni_dbus_server_t *dhcp4_dbus_server;
 
 static void		dhcp4_supplicant(void);
 static void		dhcp4_discover_devices(ni_dbus_server_t *);
-static void		dhcp4_recover_lease(ni_interface_t *);
-static void		dhcp4_interface_event(ni_netconfig_t *, ni_interface_t *, ni_event_t);
+static void		dhcp4_recover_lease(ni_netdev_t *);
+static void		dhcp4_interface_event(ni_netconfig_t *, ni_netdev_t *, ni_event_t);
 static void		dhcp4_protocol_event(enum ni_dhcp_event, const ni_dhcp_device_t *, ni_addrconf_lease_t *);
 
 // Hack
@@ -125,7 +125,7 @@ main(int argc, char **argv)
  * This allows a daemon restart without losing lease state.
  */
 void
-dhcp4_recover_lease(ni_interface_t *ifp)
+dhcp4_recover_lease(ni_netdev_t *ifp)
 {
 #if 0 /* broken right now */
 	ni_afinfo_t *afi = &ifp->ipv4;
@@ -213,7 +213,7 @@ dhcp4_register_services(ni_dbus_server_t *server)
  * Add a newly discovered device
  */
 static void
-dhcp4_device_create(ni_dbus_server_t *server, const ni_interface_t *ifp)
+dhcp4_device_create(ni_dbus_server_t *server, const ni_netdev_t *ifp)
 {
 	ni_dhcp_device_t *dev;
 
@@ -230,7 +230,7 @@ dhcp4_device_create(ni_dbus_server_t *server, const ni_interface_t *ifp)
  * Remove a device that has disappeared
  */
 static void
-dhcp4_device_destroy(ni_dbus_server_t *server, const ni_interface_t *ifp)
+dhcp4_device_destroy(ni_dbus_server_t *server, const ni_netdev_t *ifp)
 {
 	ni_dhcp_device_t *dev;
 
@@ -243,7 +243,7 @@ void
 dhcp4_discover_devices(ni_dbus_server_t *server)
 {
 	ni_netconfig_t *nc;
-	ni_interface_t *ifp;
+	ni_netdev_t *ifp;
 
 	if (!(nc = ni_global_state_handle(1)))
 		ni_fatal("cannot refresh interface list!");
@@ -304,10 +304,10 @@ dhcp4_supplicant(void)
  * mucking with manually.
  */
 void
-dhcp4_interface_event(ni_netconfig_t *nc, ni_interface_t *ifp, ni_event_t event)
+dhcp4_interface_event(ni_netconfig_t *nc, ni_netdev_t *ifp, ni_event_t event)
 {
 	ni_dhcp_device_t *dev;
-	ni_interface_t *ofp;
+	ni_netdev_t *ofp;
 
 	switch (event) {
 	case NI_EVENT_LINK_CREATE:

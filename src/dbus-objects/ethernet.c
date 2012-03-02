@@ -14,7 +14,7 @@
 
 #include <wicked/ethernet.h>
 
-static ni_interface_t *	__ni_objectmodel_ethernet_device_arg(const ni_dbus_variant_t *);
+static ni_netdev_t *	__ni_objectmodel_ethernet_device_arg(const ni_dbus_variant_t *);
 
 /*
  * Ethernet.changeDevice method
@@ -25,7 +25,7 @@ ni_objectmodel_ethernet_setup(ni_dbus_object_t *object, const ni_dbus_method_t *
 			ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_netconfig_t *nc = ni_global_state_handle(0);
-	ni_interface_t *ifp, *cfg;
+	ni_netdev_t *ifp, *cfg;
 	dbus_bool_t rv = FALSE;
 
 	/* we've already checked that argv matches our signature */
@@ -55,11 +55,11 @@ out:
 /*
  * Common helper function to extract bonding device info from a dbus dict
  */
-static ni_interface_t *
+static ni_netdev_t *
 __ni_objectmodel_ethernet_device_arg(const ni_dbus_variant_t *dict)
 {
 	ni_dbus_object_t *dev_object;
-	ni_interface_t *dev;
+	ni_netdev_t *dev;
 	dbus_bool_t rv;
 
 	dev = ni_interface_new(NULL, NULL, 0);
@@ -82,7 +82,7 @@ __ni_objectmodel_ethernet_device_arg(const ni_dbus_variant_t *dict)
 void *
 ni_objectmodel_get_ethernet(const ni_dbus_object_t *object, DBusError *error)
 {
-	ni_interface_t *ifp;
+	ni_netdev_t *ifp;
 	ni_ethernet_t *eth;
 
 	if (!(ifp = ni_objectmodel_unwrap_interface(object, error)))
@@ -126,7 +126,7 @@ __ni_objectmodel_ethernet_get_address(const ni_dbus_object_t *object,
 				ni_dbus_variant_t *result,
 				DBusError *error)
 {
-	ni_interface_t *dev;
+	ni_netdev_t *dev;
 
 	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
 		return FALSE;
@@ -140,7 +140,7 @@ __ni_objectmodel_ethernet_set_address(ni_dbus_object_t *object,
 				const ni_dbus_variant_t *argument,
 				DBusError *error)
 {
-	ni_interface_t *dev;
+	ni_netdev_t *dev;
 
 	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
 		return FALSE;

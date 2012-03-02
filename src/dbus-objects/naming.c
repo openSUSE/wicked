@@ -73,11 +73,11 @@ ni_objectmodel_register_netif_ns_dynamic(void)
 	}
 }
 
-ni_interface_t *
+ni_netdev_t *
 ni_objectmodel_netif_by_attrs(ni_objectmodel_netif_ns_t *ns, const ni_var_array_t *attrs)
 {
 	ni_netconfig_t *nc = ni_global_state_handle(0);
-	ni_interface_t *dev;
+	ni_netdev_t *dev;
 
 	if (ns->lookup_by_attrs)
 		return ns->lookup_by_attrs(ns, attrs);
@@ -114,7 +114,7 @@ __match_hwaddr(const ni_hwaddr_t *hwaddr, const char *string)
 }
 
 static dbus_bool_t
-ni_objectmodel_ether_match_attr(const ni_interface_t *dev, const char *name, const char *value)
+ni_objectmodel_ether_match_attr(const ni_netdev_t *dev, const char *name, const char *value)
 {
 	ni_ethernet_t *eth;
 

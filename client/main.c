@@ -204,7 +204,7 @@ wicked_get_interface(ni_dbus_object_t *root_object, const char *ifname)
 
 	/* Loop over all interfaces and find the one with matching name */
 	for (object = interfaces->children; object; object = object->next) {
-		ni_interface_t *ifp = ni_objectmodel_unwrap_interface(object, NULL);
+		ni_netdev_t *ifp = ni_objectmodel_unwrap_interface(object, NULL);
 
 		if (ifp && ifp->name && !strcmp(ifp->name, ifname))
 			return object;
@@ -442,7 +442,7 @@ do_show(int argc, char **argv)
 			return 1;
 
 		for (object = object->children; object; object = object->next) {
-			ni_interface_t *ifp = object->handle;
+			ni_netdev_t *ifp = object->handle;
 			ni_address_t *ap;
 			ni_route_t *rp;
 

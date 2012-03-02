@@ -37,7 +37,7 @@ __ni_rta_get_uint16(uint16_t *val, struct rtattr *rta)
 }
 
 extern int		__ni_ethtool(const char *, int, void *);
-extern int		__ni_wireless_ext(const ni_interface_t *ifp, int cmd,
+extern int		__ni_wireless_ext(const ni_netdev_t *ifp, int cmd,
 				void *data, size_t data_len, unsigned int flags);
 extern int		__ni_brioctl_add_bridge(const char *);
 extern int		__ni_brioctl_del_bridge(const char *);
@@ -103,9 +103,9 @@ ni_rtnl_prefixmsg(struct nlmsghdr *h, int expected_type)
 	return __ni_rtnl_msgdata(h, expected_type, sizeof(struct prefixmsg));
 }
 
-extern int	__ni_interface_process_newlink(ni_interface_t *, struct nlmsghdr *, struct ifinfomsg *, ni_netconfig_t *);
-extern int	__ni_interface_process_newlink_ipv6(ni_interface_t *, struct nlmsghdr *, struct ifinfomsg *);
-extern int	__ni_interface_process_newprefix(ni_interface_t *, struct nlmsghdr *, struct prefixmsg *);
+extern int	__ni_interface_process_newlink(ni_netdev_t *, struct nlmsghdr *, struct ifinfomsg *, ni_netconfig_t *);
+extern int	__ni_interface_process_newlink_ipv6(ni_netdev_t *, struct nlmsghdr *, struct ifinfomsg *);
+extern int	__ni_interface_process_newprefix(ni_netdev_t *, struct nlmsghdr *, struct prefixmsg *);
 
 #ifndef IFF_LOWER_UP
 # define IFF_LOWER_UP	0x10000

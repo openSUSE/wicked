@@ -17,7 +17,7 @@ typedef unsigned char		ni_bool_t;
 # define FALSE 0
 #endif
 
-typedef struct ni_interface	ni_interface_t;		/* rename to ni_netif_t? */
+typedef struct ni_netdev	ni_netdev_t;
 typedef struct ni_vlan		ni_vlan_t;
 typedef struct ni_bridge	ni_bridge_t;
 typedef struct ni_bridge_port	ni_bridge_port_t;
@@ -62,7 +62,7 @@ typedef struct xpath_format_array {
  */
 typedef struct ni_netconfig	ni_netconfig_t;
 struct ni_netconfig {
-	ni_interface_t *	interfaces;
+	ni_netdev_t *	interfaces;
 	struct ni_route *	routes;		/* should kill this */
 };
 

@@ -101,7 +101,7 @@ __ni_rtevent_read(ni_socket_t *sock)
 }
 
 void
-__ni_interface_event(ni_netconfig_t *nc, ni_interface_t *ifp, ni_event_t ev)
+__ni_interface_event(ni_netconfig_t *nc, ni_netdev_t *ifp, ni_event_t ev)
 {
 	ni_debug_dhcp("%s(%s, idx=%d, %s)", __FUNCTION__,
 			ifp->name, ifp->link.ifindex, ni_event_type_to_name(ev));
@@ -154,7 +154,7 @@ __ni_rtevent_process(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 int
 __ni_rtevent_newlink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struct nlmsghdr *h)
 {
-	ni_interface_t *ifp, *old;
+	ni_netdev_t *ifp, *old;
 	struct ifinfomsg *ifi;
 	struct nlattr *nla;
 	char *ifname = NULL;
@@ -185,7 +185,7 @@ __ni_rtevent_newlink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 	}
 
 	if (ifname) {
-		ni_interface_t *conflict;
+		ni_netdev_t *conflict;
 
 		conflict = ni_interface_by_name(nc, ifname);
 		if (conflict && conflict->link.ifindex != ifi->ifi_index) {
@@ -235,7 +235,7 @@ __ni_rtevent_newlink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 int
 __ni_rtevent_dellink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struct nlmsghdr *h)
 {
-	ni_interface_t *ifp, **pos;
+	ni_netdev_t *ifp, **pos;
 	struct ifinfomsg *ifi;
 
 	if (!(ifi = ni_rtnl_ifinfomsg(h, RTM_DELLINK)))
@@ -271,7 +271,7 @@ int
 __ni_rtevent_newprefix(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struct nlmsghdr *h)
 {
 	struct prefixmsg *pfx;
-	ni_interface_t *ifp;
+	ni_netdev_t *ifp;
 
 	if (!(pfx = ni_rtnl_prefixmsg(h, RTM_NEWPREFIX)))
 		return -1;
@@ -291,7 +291,7 @@ __ni_rtevent_newprefix(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, str
 #define nl_mgrp(x)	(1 << ((x) - 1))
 
 int
-ni_server_listen_events(void (*ifevent_handler)(ni_netconfig_t *, ni_interface_t *, ni_event_t))
+ni_server_listen_events(void (*ifevent_handler)(ni_netconfig_t *, ni_netdev_t *, ni_event_t))
 {
 	struct nl_handle *handle;
 	ni_socket_t *sock;

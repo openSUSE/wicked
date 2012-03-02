@@ -50,8 +50,8 @@ static void		(*opt_personality)(void);
 
 static void		wicked_interface_server(void);
 static void		wicked_discover_state(void);
-static void		wicked_try_restart_addrconf(ni_interface_t *, ni_afinfo_t *, unsigned int);
-static void		wicked_interface_event(ni_netconfig_t *, ni_interface_t *, ni_event_t);
+static void		wicked_try_restart_addrconf(ni_netdev_t *, ni_afinfo_t *, unsigned int);
+static void		wicked_interface_event(ni_netconfig_t *, ni_netdev_t *, ni_event_t);
 
 int
 main(int argc, char **argv)
@@ -166,7 +166,7 @@ void
 wicked_discover_state(void)
 {
 	ni_netconfig_t *nc;
-	ni_interface_t *ifp;
+	ni_netdev_t *ifp;
 
 	nc = ni_global_state_handle(1);
 	if (nc == NULL)
@@ -193,7 +193,7 @@ wicked_discover_state(void)
  * This does not work right now
  */
 void
-wicked_try_restart_addrconf(ni_interface_t *ifp, ni_afinfo_t *afi, unsigned int mode)
+wicked_try_restart_addrconf(ni_netdev_t *ifp, ni_afinfo_t *afi, unsigned int mode)
 {
 #if 0
 	const ni_addrconf_t *mech;
@@ -258,7 +258,7 @@ wicked_try_restart_addrconf(ni_interface_t *ifp, ni_afinfo_t *afi, unsigned int 
  * mucking with manually.
  */
 void
-wicked_interface_event(ni_netconfig_t *nc, ni_interface_t *ifp, ni_event_t event)
+wicked_interface_event(ni_netconfig_t *nc, ni_netdev_t *ifp, ni_event_t event)
 {
 	static const char *evtype[__NI_EVENT_MAX] =  {
 		[NI_EVENT_LINK_CREATE]	= "link-create",

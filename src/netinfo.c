@@ -188,7 +188,7 @@ ni_netconfig_destroy(ni_netconfig_t *nc)
  * Get the list of all discovered interfaces, given a
  * netinfo handle.
  */
-ni_interface_t *
+ni_netdev_t *
 ni_interfaces(ni_netconfig_t *nc)
 {
 	return nc->interfaces;
@@ -197,10 +197,10 @@ ni_interfaces(ni_netconfig_t *nc)
 /*
  * Find interface by name
  */
-ni_interface_t *
+ni_netdev_t *
 ni_interface_by_name(ni_netconfig_t *nc, const char *name)
 {
-	ni_interface_t *ifp;
+	ni_netdev_t *ifp;
 
 	for (ifp = nc->interfaces; ifp; ifp = ifp->next) {
 		if (ifp->name && !strcmp(ifp->name, name))
@@ -213,10 +213,10 @@ ni_interface_by_name(ni_netconfig_t *nc, const char *name)
 /*
  * Find interface by its ifindex
  */
-ni_interface_t *
+ni_netdev_t *
 ni_interface_by_index(ni_netconfig_t *nc, unsigned int ifindex)
 {
-	ni_interface_t *ifp;
+	ni_netdev_t *ifp;
 
 	for (ifp = nc->interfaces; ifp; ifp = ifp->next) {
 		if (ifp->link.ifindex == ifindex)
@@ -229,10 +229,10 @@ ni_interface_by_index(ni_netconfig_t *nc, unsigned int ifindex)
 /*
  * Find interface by its LL address
  */
-ni_interface_t *
+ni_netdev_t *
 ni_interface_by_hwaddr(ni_netconfig_t *nc, const ni_hwaddr_t *lla)
 {
-	ni_interface_t *ifp;
+	ni_netdev_t *ifp;
 
 	if (!lla || !lla->len)
 		return NULL;
@@ -248,10 +248,10 @@ ni_interface_by_hwaddr(ni_netconfig_t *nc, const ni_hwaddr_t *lla)
 /*
  * Find VLAN interface by its tag
  */
-ni_interface_t *
+ni_netdev_t *
 ni_interface_by_vlan_name_and_tag(ni_netconfig_t *nc, const char *physdev_name, uint16_t tag)
 {
-	ni_interface_t *ifp;
+	ni_netdev_t *ifp;
 
 	if (!physdev_name || !tag)
 		return NULL;

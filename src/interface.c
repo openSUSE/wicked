@@ -28,10 +28,10 @@
  * Constructor for network interface.
  * Takes interface name and ifindex.
  */
-ni_interface_t *
+ni_netdev_t *
 __ni_interface_new(const char *name, unsigned int index)
 {
-	ni_interface_t *ifp;
+	ni_netdev_t *ifp;
 
 	ifp = calloc(1, sizeof(*ifp) * 2);
 	if (!ifp)
@@ -53,10 +53,10 @@ __ni_interface_new(const char *name, unsigned int index)
 	return ifp;
 }
 
-ni_interface_t *
+ni_netdev_t *
 ni_interface_new(ni_netconfig_t *nc, const char *name, unsigned int index)
 {
-	ni_interface_t *ifp;
+	ni_netdev_t *ifp;
 
 	ifp = __ni_interface_new(name, index);
 	if (nc && ifp)
@@ -69,19 +69,19 @@ ni_interface_new(ni_netconfig_t *nc, const char *name, unsigned int index)
  * Destructor function (and assorted helpers)
  */
 void
-ni_interface_clear_addresses(ni_interface_t *ifp)
+ni_interface_clear_addresses(ni_netdev_t *ifp)
 {
 	ni_address_list_destroy(&ifp->addrs);
 }
 
 void
-ni_interface_clear_routes(ni_interface_t *ifp)
+ni_interface_clear_routes(ni_netdev_t *ifp)
 {
 	ni_route_list_destroy(&ifp->routes);
 }
 
 static void
-ni_interface_free(ni_interface_t *ifp)
+ni_interface_free(ni_netdev_t *ifp)
 {
 	ni_string_free(&ifp->name);
 	ni_string_free(&ifp->link.qdisc);
@@ -106,8 +106,8 @@ ni_interface_free(ni_interface_t *ifp)
 /*
  * Reference counting of interface objects
  */
-ni_interface_t *
-ni_interface_get(ni_interface_t *ifp)
+ni_netdev_t *
+ni_interface_get(ni_netdev_t *ifp)
 {
 	if (!ifp->users)
 		return NULL;
@@ -116,7 +116,7 @@ ni_interface_get(ni_interface_t *ifp)
 }
 
 int
-ni_interface_put(ni_interface_t *ifp)
+ni_interface_put(ni_netdev_t *ifp)
 {
 	if (!ifp->users) {
 		ni_error("ni_interface_put: bad mojo");
@@ -134,7 +134,7 @@ ni_interface_put(ni_interface_t *ifp)
  * This is a convenience function for adding routes to an interface.
  */
 ni_route_t *
-ni_interface_add_route(ni_interface_t *ifp,
+ni_interface_add_route(ni_netdev_t *ifp,
 				unsigned int prefix_len,
 				const ni_sockaddr_t *dest,
 				const ni_sockaddr_t *gw)
@@ -146,7 +146,7 @@ ni_interface_add_route(ni_interface_t *ifp,
  * Get the interface's VLAN information
  */
 ni_vlan_t *
-ni_interface_get_vlan(ni_interface_t *ifp)
+ni_interface_get_vlan(ni_netdev_t *ifp)
 {
 	if (!ifp->link.vlan)
 		ifp->link.vlan = __ni_vlan_new();
@@ -154,7 +154,7 @@ ni_interface_get_vlan(ni_interface_t *ifp)
 }
 
 void
-ni_interface_set_vlan(ni_interface_t *ifp, ni_vlan_t *vlan)
+ni_interface_set_vlan(ni_netdev_t *ifp, ni_vlan_t *vlan)
 {
 	if (ifp->link.vlan)
 		ni_vlan_free(ifp->link.vlan);
@@ -165,7 +165,7 @@ ni_interface_set_vlan(ni_interface_t *ifp, ni_vlan_t *vlan)
  * Get the interface's bridge information
  */
 ni_bridge_t *
-ni_interface_get_bridge(ni_interface_t *ifp)
+ni_interface_get_bridge(ni_netdev_t *ifp)
 {
 	if (ifp->link.type != NI_IFTYPE_BRIDGE)
 		return NULL;
@@ -175,7 +175,7 @@ ni_interface_get_bridge(ni_interface_t *ifp)
 }
 
 void
-ni_interface_set_bridge(ni_interface_t *ifp, ni_bridge_t *bridge)
+ni_interface_set_bridge(ni_netdev_t *ifp, ni_bridge_t *bridge)
 {
 	if (ifp->bridge)
 		ni_bridge_free(ifp->bridge);
@@ -186,7 +186,7 @@ ni_interface_set_bridge(ni_interface_t *ifp, ni_bridge_t *bridge)
  * Get the interface's bonding information
  */
 ni_bonding_t *
-ni_interface_get_bonding(ni_interface_t *ifp)
+ni_interface_get_bonding(ni_netdev_t *ifp)
 {
 	if (ifp->link.type != NI_IFTYPE_BOND)
 		return NULL;
@@ -196,7 +196,7 @@ ni_interface_get_bonding(ni_interface_t *ifp)
 }
 
 void
-ni_interface_set_bonding(ni_interface_t *ifp, ni_bonding_t *bonding)
+ni_interface_set_bonding(ni_netdev_t *ifp, ni_bonding_t *bonding)
 {
 	if (ifp->bonding)
 		ni_bonding_free(ifp->bonding);
@@ -207,7 +207,7 @@ ni_interface_set_bonding(ni_interface_t *ifp, ni_bonding_t *bonding)
  * Get the interface's ethernet information
  */
 ni_ethernet_t *
-ni_interface_get_ethernet(ni_interface_t *ifp)
+ni_interface_get_ethernet(ni_netdev_t *ifp)
 {
 	if (ifp->link.type != NI_IFTYPE_ETHERNET)
 		return NULL;
@@ -217,7 +217,7 @@ ni_interface_get_ethernet(ni_interface_t *ifp)
 }
 
 void
-ni_interface_set_ethernet(ni_interface_t *ifp, ni_ethernet_t *ethernet)
+ni_interface_set_ethernet(ni_netdev_t *ifp, ni_ethernet_t *ethernet)
 {
 	if (ifp->ethernet)
 		ni_ethernet_free(ifp->ethernet);
@@ -228,7 +228,7 @@ ni_interface_set_ethernet(ni_interface_t *ifp, ni_ethernet_t *ethernet)
  * Set the interface's wireless info
  */
 ni_wireless_t *
-ni_interface_get_wireless(ni_interface_t *dev)
+ni_interface_get_wireless(ni_netdev_t *dev)
 {
 	if (dev->link.type != NI_IFTYPE_WIRELESS)
 		return NULL;
@@ -238,7 +238,7 @@ ni_interface_get_wireless(ni_interface_t *dev)
 }
 
 void
-ni_interface_set_wireless(ni_interface_t *ifp, ni_wireless_t *wireless)
+ni_interface_set_wireless(ni_netdev_t *ifp, ni_wireless_t *wireless)
 {
 	if (ifp->wireless)
 		ni_wireless_free(ifp->wireless);
@@ -249,7 +249,7 @@ ni_interface_set_wireless(ni_interface_t *ifp, ni_wireless_t *wireless)
  * Set the interface's link stats
  */
 void
-ni_interface_set_link_stats(ni_interface_t *ifp, ni_link_stats_t *stats)
+ni_interface_set_link_stats(ni_netdev_t *ifp, ni_link_stats_t *stats)
 {
 	if (ifp->link.stats)
 		free(ifp->link.stats);
@@ -260,7 +260,7 @@ ni_interface_set_link_stats(ni_interface_t *ifp, ni_link_stats_t *stats)
  * Locate any lease for the same addrconf mechanism
  */
 ni_addrconf_lease_t *
-__ni_interface_find_lease(ni_interface_t *ifp, int family, ni_addrconf_mode_t type, int remove)
+__ni_interface_find_lease(ni_netdev_t *ifp, int family, ni_addrconf_mode_t type, int remove)
 {
 	ni_addrconf_lease_t *lease, **pos;
 
@@ -281,7 +281,7 @@ __ni_interface_find_lease(ni_interface_t *ifp, int family, ni_addrconf_mode_t ty
  * We received an updated lease from an addrconf agent.
  */
 int
-ni_interface_set_lease(ni_interface_t *ifp, ni_addrconf_lease_t *lease)
+ni_interface_set_lease(ni_netdev_t *ifp, ni_addrconf_lease_t *lease)
 {
 	ni_addrconf_lease_t **pos;
 
@@ -294,7 +294,7 @@ ni_interface_set_lease(ni_interface_t *ifp, ni_addrconf_lease_t *lease)
 }
 
 int
-ni_interface_unset_lease(ni_interface_t *ifp, int family, ni_addrconf_mode_t type)
+ni_interface_unset_lease(ni_netdev_t *ifp, int family, ni_addrconf_mode_t type)
 {
 	ni_addrconf_lease_t *lease;
 
@@ -304,13 +304,13 @@ ni_interface_unset_lease(ni_interface_t *ifp, int family, ni_addrconf_mode_t typ
 }
 
 ni_addrconf_lease_t *
-ni_interface_get_lease(ni_interface_t *dev, int family, ni_addrconf_mode_t type)
+ni_interface_get_lease(ni_netdev_t *dev, int family, ni_addrconf_mode_t type)
 {
 	return __ni_interface_find_lease(dev, family, type, 0);
 }
 
 ni_addrconf_lease_t *
-ni_interface_get_lease_by_owner(ni_interface_t *dev, const char *owner)
+ni_interface_get_lease_by_owner(ni_netdev_t *dev, const char *owner)
 {
 	ni_addrconf_lease_t *lease;
 
@@ -326,7 +326,7 @@ ni_interface_get_lease_by_owner(ni_interface_t *dev, const char *owner)
  * Given an address, look up the lease owning it
  */
 ni_addrconf_lease_t *
-__ni_interface_address_to_lease(ni_interface_t *ifp, const ni_address_t *ap)
+__ni_interface_address_to_lease(ni_netdev_t *ifp, const ni_address_t *ap)
 {
 	ni_addrconf_lease_t *lease;
 
@@ -390,7 +390,7 @@ __ni_lease_owns_address(const ni_addrconf_lease_t *lease, const ni_address_t *ma
  * Given a route, look up the lease owning it
  */
 ni_addrconf_lease_t *
-__ni_interface_route_to_lease(ni_interface_t *ifp, const ni_route_t *rp)
+__ni_interface_route_to_lease(ni_netdev_t *ifp, const ni_route_t *rp)
 {
 	ni_addrconf_lease_t *lease;
 	ni_address_t *ap;
@@ -442,7 +442,7 @@ static ni_intmap_t __ifname_types[] = {
 	{ NULL }
 };
 int
-ni_interface_guess_type(ni_interface_t *ifp)
+ni_interface_guess_type(ni_netdev_t *ifp)
 {
 	if (ifp->link.type != NI_IFTYPE_UNKNOWN)
 		return ifp->link.type;
@@ -480,17 +480,17 @@ ni_interface_array_init(ni_interface_array_t *array)
 }
 
 void
-ni_interface_array_append(ni_interface_array_t *array, ni_interface_t *ifp)
+ni_interface_array_append(ni_interface_array_t *array, ni_netdev_t *ifp)
 {
 	if ((array->count & 15) == 0) {
-		array->data = realloc(array->data, (array->count + 16) * sizeof(ni_interface_t *));
+		array->data = realloc(array->data, (array->count + 16) * sizeof(ni_netdev_t *));
 		assert(array->data);
 	}
 	array->data[array->count++] = ifp;
 }
 
 int
-ni_interface_array_index(const ni_interface_array_t *array, const ni_interface_t *ifp)
+ni_interface_array_index(const ni_interface_array_t *array, const ni_netdev_t *ifp)
 {
 	unsigned int i;
 
@@ -512,9 +512,9 @@ ni_interface_array_destroy(ni_interface_array_t *array)
  * Functions for handling lists of interfaces
  */
 void
-__ni_interface_list_destroy(ni_interface_t **list)
+__ni_interface_list_destroy(ni_netdev_t **list)
 {
-	ni_interface_t *ifp;
+	ni_netdev_t *ifp;
 
 	while ((ifp = *list) != NULL) {
 		*list = ifp->next;
@@ -523,9 +523,9 @@ __ni_interface_list_destroy(ni_interface_t **list)
 }
 
 void
-__ni_interface_list_append(ni_interface_t **list, ni_interface_t *new_ifp)
+__ni_interface_list_append(ni_netdev_t **list, ni_netdev_t *new_ifp)
 {
-	ni_interface_t *ifp;
+	ni_netdev_t *ifp;
 
 	while ((ifp = *list) != NULL)
 		list = &ifp->next;

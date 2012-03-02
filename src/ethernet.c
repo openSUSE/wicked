@@ -220,7 +220,7 @@ __ni_ethtool_set_tristate(const char *ifname, __ni_ioctl_info_t *ioc, int value)
  * Get ethtool settings from the kernel
  */
 int
-__ni_system_ethernet_refresh(ni_interface_t *ifp)
+__ni_system_ethernet_refresh(ni_netdev_t *ifp)
 {
 	ni_ethernet_t *ether;
 
@@ -310,7 +310,7 @@ __ni_system_ethernet_get(const char *ifname, ni_ethernet_t *ether)
  * Write ethtool settings back to kernel
  */
 int
-__ni_system_ethernet_update(ni_interface_t *ifp, const ni_ethernet_t *ether)
+__ni_system_ethernet_update(ni_netdev_t *ifp, const ni_ethernet_t *ether)
 {
 	if (__ni_system_ethernet_set(ifp->name, ether) < 0)
 		return -1;

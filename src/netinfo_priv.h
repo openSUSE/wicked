@@ -32,17 +32,17 @@ extern unsigned int	__ni_global_seqno;
 extern ni_netlink_t *	__ni_netlink_open(int);
 extern void		__ni_netlink_close(ni_netlink_t *);
 
-extern ni_interface_t *	__ni_interface_new(const char *name, unsigned int index);
-extern void		__ni_interface_list_append(ni_interface_t **, ni_interface_t *);
-extern void		__ni_interface_list_destroy(ni_interface_t **);
+extern ni_netdev_t *	__ni_interface_new(const char *name, unsigned int index);
+extern void		__ni_interface_list_append(ni_netdev_t **, ni_netdev_t *);
+extern void		__ni_interface_list_destroy(ni_netdev_t **);
 extern void		__ni_interfaces_clear(ni_netconfig_t *);
-extern ni_addrconf_lease_t *__ni_interface_find_lease(ni_interface_t *, int, ni_addrconf_mode_t, int);
-extern ni_addrconf_lease_t *__ni_interface_address_to_lease(ni_interface_t *, const ni_address_t *);
-extern ni_addrconf_lease_t *__ni_interface_route_to_lease(ni_interface_t *, const ni_route_t *);
-extern void		__ni_interface_track_ipv6_autoconf(ni_interface_t *, int);
-extern ni_route_t *	__ni_interface_add_autoconf_prefix(ni_interface_t *, const ni_sockaddr_t *, unsigned int, unsigned int);
+extern ni_addrconf_lease_t *__ni_interface_find_lease(ni_netdev_t *, int, ni_addrconf_mode_t, int);
+extern ni_addrconf_lease_t *__ni_interface_address_to_lease(ni_netdev_t *, const ni_address_t *);
+extern ni_addrconf_lease_t *__ni_interface_route_to_lease(ni_netdev_t *, const ni_route_t *);
+extern void		__ni_interface_track_ipv6_autoconf(ni_netdev_t *, int);
+extern ni_route_t *	__ni_interface_add_autoconf_prefix(ni_netdev_t *, const ni_sockaddr_t *, unsigned int, unsigned int);
 extern unsigned int	__ni_interface_translate_ifflags(unsigned int);
-extern void		__ni_interface_event(ni_netconfig_t *, ni_interface_t *, ni_event_t);
+extern void		__ni_interface_event(ni_netconfig_t *, ni_netdev_t *, ni_event_t);
 
 #define __ni_interface_address_info(ifp, af) \
 	((af) == AF_INET? &((ifp)->ipv4) : \
@@ -62,19 +62,19 @@ extern ni_address_t *	__ni_address_new(ni_address_t **, int, unsigned int,
 extern int		__ni_address_list_dedup(ni_address_t **);
 extern ni_address_t *	__ni_address_list_find(ni_address_t *, const ni_sockaddr_t *);
 
-extern int		__ni_system_refresh_all(ni_netconfig_t *nc, ni_interface_t **del_list);
+extern int		__ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list);
 extern int		__ni_system_refresh_interfaces(ni_netconfig_t *nc);
-extern int		__ni_system_refresh_interface(ni_netconfig_t *, ni_interface_t *);
+extern int		__ni_system_refresh_interface(ni_netconfig_t *, ni_netdev_t *);
 extern int		__ni_device_refresh_link_info(ni_netconfig_t *, ni_linkinfo_t *);
-extern int		__ni_system_interface_configure(ni_netconfig_t *, ni_interface_t *, const ni_interface_t *);
+extern int		__ni_system_interface_configure(ni_netconfig_t *, ni_netdev_t *, const ni_netdev_t *);
 extern int		__ni_system_interface_delete(ni_netconfig_t *, const char *);
-extern int		__ni_system_interface_stats_refresh(ni_netconfig_t *, ni_interface_t *);
-extern int		__ni_system_ethernet_refresh(ni_interface_t *);
-extern int		__ni_system_ethernet_update(ni_interface_t *, const ni_ethernet_t *);
-extern int		__ni_rtevent_refresh_all(ni_netconfig_t *, ni_interface_t **del_list);
+extern int		__ni_system_interface_stats_refresh(ni_netconfig_t *, ni_netdev_t *);
+extern int		__ni_system_ethernet_refresh(ni_netdev_t *);
+extern int		__ni_system_ethernet_update(ni_netdev_t *, const ni_ethernet_t *);
+extern int		__ni_rtevent_refresh_all(ni_netconfig_t *, ni_netdev_t **del_list);
 
 /* FIXME: These should go elsewhere, maybe runtime.h */
-extern int		__ni_system_interface_update_lease(ni_interface_t *, ni_addrconf_lease_t **);
+extern int		__ni_system_interface_update_lease(ni_netdev_t *, ni_addrconf_lease_t **);
 
 /* FIXME: These should go elsewhere, maybe runtime.h */
 extern int		__ni_system_hostname_put(const char *);
@@ -96,7 +96,7 @@ extern ni_route_t *	__ni_lease_owns_route(const ni_addrconf_lease_t *, const ni_
 extern ni_vlan_t *	__ni_vlan_new(void);
 extern void		__ni_vlan_destroy(ni_vlan_t *);
 
-extern int		__ni_wireless_link_event(ni_netconfig_t *, ni_interface_t *, void *, size_t);
+extern int		__ni_wireless_link_event(ni_netconfig_t *, ni_netdev_t *, void *, size_t);
 
 static inline void
 __ni_addrconf_set_update(unsigned int *mask, unsigned int bit)

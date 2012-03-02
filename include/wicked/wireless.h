@@ -211,14 +211,14 @@ struct ni_wireless_scan {
 	const ni_timer_t *	timer;
 };
 
-extern ni_wireless_t *	ni_wireless_new(ni_interface_t *);
-extern int		ni_wireless_interface_set_scanning(ni_interface_t *, ni_bool_t);
-extern int		ni_wireless_interface_refresh(ni_interface_t *);
+extern ni_wireless_t *	ni_wireless_new(ni_netdev_t *);
+extern int		ni_wireless_interface_set_scanning(ni_netdev_t *, ni_bool_t);
+extern int		ni_wireless_interface_refresh(ni_netdev_t *);
 extern ni_wireless_network_t *ni_wireless_network_new(void);
 extern void		ni_wireless_free(ni_wireless_t *);
-extern int		ni_wireless_set_network(ni_interface_t *, ni_wireless_network_t *);
-extern int		ni_wireless_connect(ni_interface_t *);
-extern int		ni_wireless_disconnect(ni_interface_t *);
+extern int		ni_wireless_set_network(ni_netdev_t *, ni_wireless_network_t *);
+extern int		ni_wireless_connect(ni_netdev_t *);
+extern int		ni_wireless_disconnect(ni_netdev_t *);
 extern void		ni_wireless_network_set_key(ni_wireless_network_t *, const unsigned char *, size_t);
 extern void		ni_wireless_network_free(ni_wireless_network_t *);
 extern void		ni_wireless_network_array_init(ni_wireless_network_array_t *);

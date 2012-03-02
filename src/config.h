@@ -122,7 +122,7 @@ typedef struct ni_global {
 	char *			config_path;
 	ni_config_t *		config;
 
-	void			(*interface_event)(ni_netconfig_t *, ni_interface_t *, ni_event_t);
+	void			(*interface_event)(ni_netconfig_t *, ni_netdev_t *, ni_event_t);
 } ni_global_t;
 
 extern ni_global_t	ni_global;

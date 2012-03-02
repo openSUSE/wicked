@@ -161,7 +161,7 @@ static dbus_bool_t
 ni_objectmodel_netif_list_init_child(ni_dbus_object_t *object)
 {
 	static const ni_dbus_class_t *netif_class = NULL;
-	ni_interface_t *ifp;
+	ni_netdev_t *ifp;
 
 	if (netif_class == NULL) {
 		const ni_dbus_service_t *netif_service;
@@ -216,10 +216,10 @@ ni_objectmodel_netif_list_refresh(ni_dbus_object_t *object)
 /*
  * Identify a device
  */
-static ni_interface_t *
+static ni_netdev_t *
 ni_objectmodel_interface_identify(const char *naming_service, const char *attribute, const ni_dbus_variant_t *var)
 {
-	ni_interface_t *dev = NULL;
+	ni_netdev_t *dev = NULL;
 	ni_objectmodel_netif_ns_t *ns;
 	ni_var_array_t attrs = { 0, NULL };
 	const char *key, *value;
@@ -274,7 +274,7 @@ ni_objectmodel_netif_list_identify_device(ni_dbus_object_t *object, const ni_dbu
 	const ni_dbus_variant_t *dict, *var;
 	const char *name;
 	char *copy, *naming_service, *attribute;
-	ni_interface_t *dev;
+	ni_netdev_t *dev;
 
 	ni_assert(argc == 1);
 	if (argc != 1 || !ni_dbus_variant_is_dict(&argv[0]))
@@ -340,7 +340,7 @@ ni_objectmodel_link_classname(ni_iftype_t link_type)
  * If @server is non-NULL, register the object with a canonical object path
  */
 static ni_dbus_object_t *
-__ni_objectmodel_build_interface_object(ni_dbus_server_t *server, ni_interface_t *ifp)
+__ni_objectmodel_build_interface_object(ni_dbus_server_t *server, ni_netdev_t *ifp)
 {
 	const char *classname;
 	const ni_dbus_class_t *class = NULL;
@@ -372,7 +372,7 @@ __ni_objectmodel_build_interface_object(ni_dbus_server_t *server, ni_interface_t
  * and add the appropriate dbus services
  */
 ni_dbus_object_t *
-ni_objectmodel_register_interface(ni_dbus_server_t *server, ni_interface_t *ifp)
+ni_objectmodel_register_interface(ni_dbus_server_t *server, ni_netdev_t *ifp)
 {
 	return __ni_objectmodel_build_interface_object(server, ifp);
 }
@@ -381,7 +381,7 @@ ni_objectmodel_register_interface(ni_dbus_server_t *server, ni_interface_t *ifp)
  * Unregister a network interface from our dbus server.
  */
 dbus_bool_t
-ni_objectmodel_unregister_interface(ni_dbus_server_t *server, ni_interface_t *ifp)
+ni_objectmodel_unregister_interface(ni_dbus_server_t *server, ni_netdev_t *ifp)
 {
 	if (ni_dbus_server_unregister_object(server, ifp)) {
 		ni_debug_dbus("unregistered interface %s", ifp->name);
@@ -395,7 +395,7 @@ ni_objectmodel_unregister_interface(ni_dbus_server_t *server, ni_interface_t *if
  * Return the canonical object path for an interface object
  */
 const char *
-ni_objectmodel_interface_path(const ni_interface_t *ifp)
+ni_objectmodel_interface_path(const ni_netdev_t *ifp)
 {
 	static char object_path[256];
 
@@ -404,7 +404,7 @@ ni_objectmodel_interface_path(const ni_interface_t *ifp)
 }
 
 const char *
-ni_objectmodel_interface_full_path(const ni_interface_t *ifp)
+ni_objectmodel_interface_full_path(const ni_netdev_t *ifp)
 {
 	static char object_path[256];
 
@@ -416,11 +416,11 @@ ni_objectmodel_interface_full_path(const ni_interface_t *ifp)
  * Common helper function to extract a network device argument from a properties dict.
  * The attributes are specific to a given DBus interface.
  */
-ni_interface_t *
+ni_netdev_t *
 ni_objectmodel_get_netif_argument(const ni_dbus_variant_t *dict, ni_iftype_t iftype, const ni_dbus_service_t *service)
 {
 	ni_dbus_object_t *dev_object;
-	ni_interface_t *dev;
+	ni_netdev_t *dev;
 	dbus_bool_t rv;
 
 	dev = ni_interface_new(NULL, NULL, 0);
@@ -442,7 +442,7 @@ ni_objectmodel_get_netif_argument(const ni_dbus_variant_t *dict, ni_iftype_t ift
  * dbus service, and return the device's object path
  */
 dbus_bool_t
-ni_objectmodel_device_factory_result(ni_dbus_server_t *server, ni_dbus_message_t *reply, ni_interface_t *dev, DBusError *error)
+ni_objectmodel_device_factory_result(ni_dbus_server_t *server, ni_dbus_message_t *reply, ni_netdev_t *dev, DBusError *error)
 {
 	ni_dbus_variant_t result = NI_DBUS_VARIANT_INIT;
 	ni_dbus_object_t *new_object;
@@ -473,7 +473,7 @@ ni_objectmodel_device_factory_result(ni_dbus_server_t *server, ni_dbus_message_t
  * and add the appropriate dbus services
  */
 ni_dbus_object_t *
-ni_objectmodel_wrap_interface(ni_interface_t *ifp)
+ni_objectmodel_wrap_interface(ni_netdev_t *ifp)
 {
 	return __ni_objectmodel_build_interface_object(NULL, ifp);
 }
@@ -484,10 +484,10 @@ ni_objectmodel_wrap_interface_request(ni_interface_request_t *req)
 	return ni_dbus_object_new(&ni_objectmodel_ifreq_class, NULL, req);
 }
 
-ni_interface_t *
+ni_netdev_t *
 ni_objectmodel_unwrap_interface(const ni_dbus_object_t *object, DBusError *error)
 {
-	ni_interface_t *dev = object->handle;
+	ni_netdev_t *dev = object->handle;
 
 	if (ni_dbus_object_isa(object, &ni_objectmodel_netif_class))
 		return dev;
@@ -572,7 +572,7 @@ ni_objectmodel_netif_link_up(ni_dbus_object_t *object, const ni_dbus_method_t *m
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
-	ni_interface_t *dev;
+	ni_netdev_t *dev;
 	ni_interface_request_t *req = NULL;
 	dbus_bool_t ret = FALSE;
 	int rv;
@@ -622,7 +622,7 @@ ni_objectmodel_netif_link_down(ni_dbus_object_t *object, const ni_dbus_method_t 
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
-	ni_interface_t *dev;
+	ni_netdev_t *dev;
 	int rv;
 
 	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
@@ -646,7 +646,7 @@ ni_objectmodel_netif_link_down(ni_dbus_object_t *object, const ni_dbus_method_t 
  * from an addrconf service against its current state.
  */
 dbus_bool_t
-ni_objectmodel_interface_event(ni_dbus_server_t *server, ni_interface_t *dev,
+ni_objectmodel_interface_event(ni_dbus_server_t *server, ni_netdev_t *dev,
 			ni_event_t ifevent, const ni_uuid_t *uuid)
 {
 	ni_dbus_object_t *object;
@@ -725,7 +725,7 @@ __ni_objectmodel_event_to_signal(ni_event_t event)
 static void
 ni_objectmodel_netif_destroy(ni_dbus_object_t *object)
 {
-	ni_interface_t *ifp;
+	ni_netdev_t *ifp;
 
 	if (!(ifp = ni_objectmodel_unwrap_interface(object, NULL)))
 		return;
@@ -745,7 +745,7 @@ static ni_dbus_method_t		ni_objectmodel_netif_methods[] = {
  * Interface property handlers
  */
 static void *
-ni_objectmodel_get_interface(const ni_dbus_object_t *object, DBusError *error)
+ni_objectmodel_get_netdev(const ni_dbus_object_t *object, DBusError *error)
 {
 	return ni_objectmodel_unwrap_interface(object, NULL);
 }
@@ -759,7 +759,7 @@ __ni_objectmodel_interface_get_hwaddr(const ni_dbus_object_t *object,
 				ni_dbus_variant_t *result,
 				DBusError *error)
 {
-	ni_interface_t *ifp;
+	ni_netdev_t *ifp;
 
 	if (!(ifp = ni_objectmodel_unwrap_interface(object, error)))
 		return FALSE;
@@ -774,7 +774,7 @@ __ni_objectmodel_interface_set_hwaddr(ni_dbus_object_t *object,
 				const ni_dbus_variant_t *argument,
 				DBusError *error)
 {
-	ni_interface_t *ifp;
+	ni_netdev_t *ifp;
 	unsigned int addrlen;
 
 	if (!(ifp = ni_objectmodel_unwrap_interface(object, error)))
@@ -799,7 +799,7 @@ __ni_objectmodel_interface_get_addresses(const ni_dbus_object_t *object,
 				ni_dbus_variant_t *result,
 				DBusError *error)
 {
-	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
+	ni_netdev_t *ifp = ni_dbus_object_get_handle(object);
 
 	ni_dbus_dict_array_init(result);
 	return __ni_objectmodel_get_address_list(ifp->addrs, result, error);
@@ -811,7 +811,7 @@ __ni_objectmodel_interface_set_addresses(ni_dbus_object_t *object,
 				const ni_dbus_variant_t *argument,
 				DBusError *error)
 {
-	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
+	ni_netdev_t *ifp = ni_dbus_object_get_handle(object);
 
 	return __ni_objectmodel_set_address_list(&ifp->addrs, argument, error);
 }
@@ -826,7 +826,7 @@ __ni_objectmodel_interface_get_routes(const ni_dbus_object_t *object,
 				ni_dbus_variant_t *result,
 				DBusError *error)
 {
-	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
+	ni_netdev_t *ifp = ni_dbus_object_get_handle(object);
 
 	ni_dbus_dict_array_init(result);
 	return __ni_objectmodel_get_route_list(ifp->routes, result, error);
@@ -838,7 +838,7 @@ __ni_objectmodel_interface_set_routes(ni_dbus_object_t *object,
 				const ni_dbus_variant_t *argument,
 				DBusError *error)
 {
-	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
+	ni_netdev_t *ifp = ni_dbus_object_get_handle(object);
 
 	return __ni_objectmodel_set_route_list(&ifp->routes, argument, error);
 }
@@ -873,7 +873,7 @@ __ni_objectmodel_interface_get_ipv4(const ni_dbus_object_t *object,
 				ni_dbus_variant_t *argument,
 				DBusError *error)
 {
-	ni_interface_t *dev;
+	ni_netdev_t *dev;
 
 	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
 		return FALSE;
@@ -887,7 +887,7 @@ __ni_objectmodel_interface_set_ipv4(ni_dbus_object_t *object,
 				const ni_dbus_variant_t *argument,
 				DBusError *error)
 {
-	ni_interface_t *dev;
+	ni_netdev_t *dev;
 
 	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
 		return FALSE;
@@ -901,7 +901,7 @@ __ni_objectmodel_interface_get_ipv6(const ni_dbus_object_t *object,
 				ni_dbus_variant_t *argument,
 				DBusError *error)
 {
-	ni_interface_t *dev;
+	ni_netdev_t *dev;
 
 	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
 		return FALSE;
@@ -915,7 +915,7 @@ __ni_objectmodel_interface_set_ipv6(ni_dbus_object_t *object,
 				const ni_dbus_variant_t *argument,
 				DBusError *error)
 {
-	ni_interface_t *dev;
+	ni_netdev_t *dev;
 
 	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
 		return FALSE;
@@ -928,9 +928,9 @@ __ni_objectmodel_interface_set_ipv6(ni_dbus_object_t *object,
 #define INTERFACE_PROPERTY_SIGNATURE(signature, __name, rw) \
 	__NI_DBUS_PROPERTY(signature, __name, __ni_objectmodel_interface, rw)
 #define INTERFACE_STRING_PROPERTY(dbus_name, member_name, rw) \
-	NI_DBUS_GENERIC_STRING_PROPERTY(interface, dbus_name, member_name, rw)
+	NI_DBUS_GENERIC_STRING_PROPERTY(netdev, dbus_name, member_name, rw)
 #define INTERFACE_UINT_PROPERTY(dbus_name, member_name, rw) \
-	NI_DBUS_GENERIC_UINT_PROPERTY(interface, dbus_name, member_name, rw)
+	NI_DBUS_GENERIC_UINT_PROPERTY(netdev, dbus_name, member_name, rw)
 
 #ifndef NI_DBUS_DICT_ARRAY_SIGNATURE
 # define NI_DBUS_DICT_ARRAY_SIGNATURE DBUS_TYPE_ARRAY_AS_STRING NI_DBUS_DICT_SIGNATURE

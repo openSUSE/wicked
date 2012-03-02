@@ -185,7 +185,7 @@ extern ni_dhcp_device_t *ni_dhcp_device_by_index(unsigned int);
 extern ni_dhcp_device_t *ni_dhcp_device_get(ni_dhcp_device_t *);
 extern void		ni_dhcp_device_put(ni_dhcp_device_t *);
 extern void		ni_dhcp_device_event(ni_dhcp_device_t *, ni_event_t);
-extern int		ni_dhcp_device_reconfigure(ni_dhcp_device_t *, const ni_interface_t *);
+extern int		ni_dhcp_device_reconfigure(ni_dhcp_device_t *, const ni_netdev_t *);
 extern void		ni_dhcp_device_set_lease(ni_dhcp_device_t *, ni_addrconf_lease_t *);
 extern void		ni_dhcp_device_drop_lease(ni_dhcp_device_t *);
 extern void		ni_dhcp_device_alloc_buffer(ni_dhcp_device_t *);

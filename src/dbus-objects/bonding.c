@@ -23,14 +23,14 @@
 #include "model.h"
 #include "debug.h"
 
-static ni_interface_t *	__ni_objectmodel_bond_device_arg(const ni_dbus_variant_t *);
-static ni_interface_t *	__ni_objectmodel_bond_newlink(ni_interface_t *, const char *, DBusError *);
+static ni_netdev_t *	__ni_objectmodel_bond_device_arg(const ni_dbus_variant_t *);
+static ni_netdev_t *	__ni_objectmodel_bond_newlink(ni_netdev_t *, const char *, DBusError *);
 
 /*
  * Return an interface handle containing all bridge-specific information provided
  * by the dict argument
  */
-static inline ni_interface_t *
+static inline ni_netdev_t *
 __ni_objectmodel_bond_device_arg(const ni_dbus_variant_t *dict)
 {
 	return ni_objectmodel_get_netif_argument(dict, NI_IFTYPE_BOND, &ni_objectmodel_bond_service);
@@ -45,7 +45,7 @@ ni_objectmodel_new_bond(ni_dbus_object_t *factory_object, const ni_dbus_method_t
 			ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_dbus_server_t *server = ni_dbus_object_get_server(factory_object);
-	ni_interface_t *ifp;
+	ni_netdev_t *ifp;
 	const char *ifname = NULL;
 
 	ni_assert(argc == 2);
@@ -59,11 +59,11 @@ ni_objectmodel_new_bond(ni_dbus_object_t *factory_object, const ni_dbus_method_t
 	return ni_objectmodel_device_factory_result(server, reply, ifp, error);
 }
 
-static ni_interface_t *
-__ni_objectmodel_bond_newlink(ni_interface_t *cfg_ifp, const char *ifname, DBusError *error)
+static ni_netdev_t *
+__ni_objectmodel_bond_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusError *error)
 {
 	ni_netconfig_t *nc = ni_global_state_handle(0);
-	ni_interface_t *new_ifp = NULL;
+	ni_netdev_t *new_ifp = NULL;
 	const ni_bonding_t *bond;
 	int rv;
 
@@ -111,7 +111,7 @@ ni_objectmodel_bond_setup(ni_dbus_object_t *object, const ni_dbus_method_t *meth
 			ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_netconfig_t *nc = ni_global_state_handle(0);
-	ni_interface_t *ifp, *cfg;
+	ni_netdev_t *ifp, *cfg;
 	dbus_bool_t rv = FALSE;
 
 	/* we've already checked that argv matches our signature */
@@ -147,7 +147,7 @@ __ni_objectmodel_delete_bond(ni_dbus_object_t *object, const ni_dbus_method_t *m
 			ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_netconfig_t *nc = ni_global_state_handle(0);
-	ni_interface_t *ifp;
+	ni_netdev_t *ifp;
 
 	if (!(ifp = ni_objectmodel_unwrap_interface(object, error)))
 		return FALSE;
@@ -172,7 +172,7 @@ __ni_objectmodel_delete_bond(ni_dbus_object_t *object, const ni_dbus_method_t *m
 static ni_bonding_t *
 __ni_objectmodel_get_bonding(const ni_dbus_object_t *object, DBusError *error)
 {
-	ni_interface_t *ifp;
+	ni_netdev_t *ifp;
 	ni_bonding_t *bond;
 
 	if (!(ifp = ni_objectmodel_unwrap_interface(object, error)))

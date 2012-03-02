@@ -39,11 +39,11 @@
 # define IW_IE_KEY_MGMT_PSK      2
 #endif
 
-static ni_wireless_scan_t *ni_wireless_scan_new(ni_interface_t *, unsigned int);
+static ni_wireless_scan_t *ni_wireless_scan_new(ni_netdev_t *, unsigned int);
 static void		ni_wireless_scan_free(ni_wireless_scan_t *);
 static void		ni_wireless_set_assoc_network(ni_wireless_t *, ni_wireless_network_t *);
-static void		__ni_wireless_scan_timer_arm(ni_wireless_scan_t *, ni_interface_t *);
-static int		__ni_wireless_do_scan(ni_interface_t *);
+static void		__ni_wireless_scan_timer_arm(ni_wireless_scan_t *, ni_netdev_t *);
+static int		__ni_wireless_do_scan(ni_netdev_t *);
 static void		__ni_wireless_network_destroy(ni_wireless_network_t *net);
 
 static ni_wpa_client_t *wpa_client;
@@ -63,7 +63,7 @@ ni_wpa_client(void)
 }
 
 static ni_wpa_interface_t *
-ni_wireless_bind_supplicant(ni_interface_t *dev)
+ni_wireless_bind_supplicant(ni_netdev_t *dev)
 {
 	ni_wpa_client_t *wpa;
 	ni_wpa_interface_t *wpa_dev;
@@ -82,7 +82,7 @@ ni_wireless_bind_supplicant(ni_interface_t *dev)
  * Refresh what we think we know about this interface.
  */
 int
-ni_wireless_interface_refresh(ni_interface_t *ifp)
+ni_wireless_interface_refresh(ni_netdev_t *ifp)
 {
 	ni_wpa_interface_t *wif;
 	ni_wireless_t *wlan;
@@ -111,7 +111,7 @@ ni_wireless_interface_refresh(ni_interface_t *ifp)
  * Refresh what we think we know about this interface.
  */
 int
-ni_wireless_interface_set_scanning(ni_interface_t *dev, ni_bool_t enable)
+ni_wireless_interface_set_scanning(ni_netdev_t *dev, ni_bool_t enable)
 {
 	ni_wireless_t *wlan;
 
@@ -136,7 +136,7 @@ ni_wireless_interface_set_scanning(ni_interface_t *dev, ni_bool_t enable)
 }
 
 int
-__ni_wireless_do_scan(ni_interface_t *dev)
+__ni_wireless_do_scan(ni_netdev_t *dev)
 {
 	ni_wpa_interface_t *wpa_dev;
 	ni_wireless_t *wlan;
@@ -182,7 +182,7 @@ __ni_wireless_do_scan(ni_interface_t *dev)
 static void
 __ni_wireless_scan_timeout(void *ptr, const ni_timer_t *timer)
 {
-	ni_interface_t *dev = ptr;
+	ni_netdev_t *dev = ptr;
 	ni_wireless_scan_t *scan;
 
 	if (!dev || !dev->wireless || !(scan = dev->wireless->scan))
@@ -194,7 +194,7 @@ __ni_wireless_scan_timeout(void *ptr, const ni_timer_t *timer)
 }
 
 static void
-__ni_wireless_scan_timer_arm(ni_wireless_scan_t *scan, ni_interface_t *dev)
+__ni_wireless_scan_timer_arm(ni_wireless_scan_t *scan, ni_netdev_t *dev)
 {
 	unsigned int timeout;
 
@@ -217,7 +217,7 @@ __ni_wireless_scan_timer_arm(ni_wireless_scan_t *scan, ni_interface_t *dev)
  * Request association
  */
 int
-ni_wireless_set_network(ni_interface_t *dev, ni_wireless_network_t *net)
+ni_wireless_set_network(ni_netdev_t *dev, ni_wireless_network_t *net)
 {
 	int link_was_up = !!(dev->link.ifflags & NI_IFF_LINK_UP);
 	ni_wireless_t *wlan;
@@ -246,7 +246,7 @@ ni_wireless_set_network(ni_interface_t *dev, ni_wireless_network_t *net)
 }
 
 int
-ni_wireless_connect(ni_interface_t *dev)
+ni_wireless_connect(ni_netdev_t *dev)
 {
 	ni_wireless_t *wlan;
 	ni_wpa_interface_t *wpa_dev;
@@ -268,7 +268,7 @@ ni_wireless_connect(ni_interface_t *dev)
  * Disconnect
  */
 int
-ni_wireless_disconnect(ni_interface_t *dev)
+ni_wireless_disconnect(ni_netdev_t *dev)
 {
 	ni_wireless_t *wlan;
 	ni_wpa_interface_t *wpa_dev;
@@ -301,7 +301,7 @@ static void
 __ni_wireless_association_timeout(void *ptr, const ni_timer_t *timer)
 {
 	ni_netconfig_t *nc = ni_global_state_handle(0);
-	ni_interface_t *dev = ptr;
+	ni_netdev_t *dev = ptr;
 	ni_wireless_t *wlan = dev->wireless;
 
 	if (wlan->assoc.timer != timer)
@@ -317,7 +317,7 @@ __ni_wireless_association_timeout(void *ptr, const ni_timer_t *timer)
 }
 
 static void
-ni_wireless_update_association_timer(ni_interface_t *dev)
+ni_wireless_update_association_timer(ni_netdev_t *dev)
 {
 	ni_wireless_t *wlan = dev->wireless;
 
@@ -347,7 +347,7 @@ void
 ni_wireless_association_changed(unsigned int ifindex, ni_wireless_assoc_state_t new_state)
 {
 	ni_netconfig_t *nc = ni_global_state_handle(0);
-	ni_interface_t *dev;
+	ni_netdev_t *dev;
 	ni_wireless_t *wlan;
 
 	if (!(dev = ni_interface_by_index(nc, ifindex)))
@@ -376,7 +376,7 @@ ni_wireless_association_changed(unsigned int ifindex, ni_wireless_assoc_state_t 
  * rtnetlink sent us an RTM_NEWLINK event with IFLA_WIRELESS info
  */
 int
-__ni_wireless_link_event(ni_netconfig_t *nc, ni_interface_t *ifp, void *data, size_t len)
+__ni_wireless_link_event(ni_netconfig_t *nc, ni_netdev_t *ifp, void *data, size_t len)
 {
 	/* ni_debug_wireless("%s: ignoring wireless event", ifp->name); */
 	return 0;
@@ -783,7 +783,7 @@ format_error:
  * Wireless interface config
  */
 ni_wireless_t *
-ni_wireless_new(ni_interface_t *dev)
+ni_wireless_new(ni_netdev_t *dev)
 {
 	ni_wireless_t *wlan;
 
@@ -815,7 +815,7 @@ ni_wireless_set_assoc_network(ni_wireless_t *wireless, ni_wireless_network_t *ne
  * Wireless scan objects
  */
 ni_wireless_scan_t *
-ni_wireless_scan_new(ni_interface_t *dev, unsigned int interval)
+ni_wireless_scan_new(ni_netdev_t *dev, unsigned int interval)
 {
 	ni_wireless_scan_t *scan;
 

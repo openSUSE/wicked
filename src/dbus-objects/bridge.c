@@ -23,7 +23,7 @@
 #include "model.h"
 #include "debug.h"
 
-static ni_interface_t *	__ni_objectmodel_bridge_newlink(ni_interface_t *, const char *, DBusError *);
+static ni_netdev_t *	__ni_objectmodel_bridge_newlink(ni_netdev_t *, const char *, DBusError *);
 static dbus_bool_t	__ni_objectmodel_bridge_port_to_dict(const ni_bridge_port_t *port,
 				ni_dbus_variant_t *dict,
 				const ni_dbus_object_t *object,
@@ -37,7 +37,7 @@ static dbus_bool_t	__ni_objectmodel_bridge_port_from_dict(ni_bridge_port_t *port
  * Return an interface handle containing all bridge-specific information provided
  * by the dict argument
  */
-static inline ni_interface_t *
+static inline ni_netdev_t *
 __ni_objectmodel_bridge_device_arg(const ni_dbus_variant_t *dict)
 {
 	return ni_objectmodel_get_netif_argument(dict, NI_IFTYPE_BRIDGE, &ni_objectmodel_bridge_service);
@@ -53,7 +53,7 @@ ni_objectmodel_new_bridge(ni_dbus_object_t *factory_object, const ni_dbus_method
 			ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_dbus_server_t *server = ni_dbus_object_get_server(factory_object);
-	ni_interface_t *ifp;
+	ni_netdev_t *ifp;
 	const char *ifname = NULL;
 
 	ni_assert(argc == 2);
@@ -67,11 +67,11 @@ ni_objectmodel_new_bridge(ni_dbus_object_t *factory_object, const ni_dbus_method
 	return ni_objectmodel_device_factory_result(server, reply, ifp, error);
 }
 
-static ni_interface_t *
-__ni_objectmodel_bridge_newlink(ni_interface_t *cfg_ifp, const char *ifname, DBusError *error)
+static ni_netdev_t *
+__ni_objectmodel_bridge_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusError *error)
 {
 	ni_netconfig_t *nc = ni_global_state_handle(0);
-	ni_interface_t *new_ifp = NULL;
+	ni_netdev_t *new_ifp = NULL;
 	const ni_bridge_t *bridge;
 	int rv;
 
@@ -115,7 +115,7 @@ ni_objectmodel_bridge_setup(ni_dbus_object_t *object, const ni_dbus_method_t *me
 			ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_netconfig_t *nc = ni_global_state_handle(0);
-	ni_interface_t *ifp, *cfg;
+	ni_netdev_t *ifp, *cfg;
 	dbus_bool_t rv = FALSE;
 
 	/* we've already checked that argv matches our signature */
@@ -151,7 +151,7 @@ ni_objectmodel_delete_bridge(ni_dbus_object_t *object, const ni_dbus_method_t *m
 			ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_netconfig_t *nc = ni_global_state_handle(0);
-	ni_interface_t *ifp;
+	ni_netdev_t *ifp;
 
 	if (!(ifp = ni_objectmodel_unwrap_interface(object, error)))
 		return FALSE;
@@ -175,7 +175,7 @@ ni_objectmodel_delete_bridge(ni_dbus_object_t *object, const ni_dbus_method_t *m
 static ni_bridge_t *
 __ni_objectmodel_bridge_handle(const ni_dbus_object_t *object, DBusError *error)
 {
-	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
+	ni_netdev_t *ifp = ni_dbus_object_get_handle(object);
 	ni_bridge_t *bridge;
 
 	if (!(ifp = ni_objectmodel_unwrap_interface(object, error)))
@@ -191,7 +191,7 @@ __ni_objectmodel_bridge_handle(const ni_dbus_object_t *object, DBusError *error)
 void *
 ni_objectmodel_get_bridge(const ni_dbus_object_t *object, DBusError *error)
 {
-	ni_interface_t *ifp = ni_dbus_object_get_handle(object);
+	ni_netdev_t *ifp = ni_dbus_object_get_handle(object);
 	ni_bridge_t *br;
 
 	if (!(br = ni_interface_get_bridge(ifp))) {

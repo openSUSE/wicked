@@ -41,13 +41,13 @@
 
 static int	__ni_process_ifinfomsg(ni_linkinfo_t *link, struct nlmsghdr *h,
 				struct ifinfomsg *ifi, ni_netconfig_t *);
-static int	__ni_interface_process_newaddr(ni_interface_t *, struct nlmsghdr *, struct ifaddrmsg *);
-static int	__ni_interface_process_newroute(ni_interface_t *, struct nlmsghdr *,
+static int	__ni_interface_process_newaddr(ni_netdev_t *, struct nlmsghdr *, struct ifaddrmsg *);
+static int	__ni_interface_process_newroute(ni_netdev_t *, struct nlmsghdr *,
 				struct rtmsg *, ni_netconfig_t *);
-static int	__ni_discover_bridge(ni_interface_t *);
-static int	__ni_discover_bond(ni_interface_t *);
-static int	__ni_discover_addrconf(ni_interface_t *);
-static ni_addrconf_lease_t *__ni_interface_get_autoconf_lease(ni_interface_t *, int);
+static int	__ni_discover_bridge(ni_netdev_t *);
+static int	__ni_discover_bond(ni_netdev_t *);
+static int	__ni_discover_addrconf(ni_netdev_t *);
+static ni_addrconf_lease_t *__ni_interface_get_autoconf_lease(ni_netdev_t *, int);
 
 struct ni_rtnl_info {
 	struct ni_nlmsg_list	nlmsg_list;
@@ -224,11 +224,11 @@ __ni_system_refresh_interfaces(ni_netconfig_t *nc)
 }
 
 int
-__ni_system_refresh_all(ni_netconfig_t *nc, ni_interface_t **del_list)
+__ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list)
 {
 	struct ni_rtnl_query query;
 	struct nlmsghdr *h;
-	ni_interface_t **tail, *ifp;
+	ni_netdev_t **tail, *ifp;
 	unsigned int seqno;
 	int res = -1;
 
@@ -359,7 +359,7 @@ failed:
  * Refresh one interfaces
  */
 int
-__ni_system_refresh_interface(ni_netconfig_t *nc, ni_interface_t *ifp)
+__ni_system_refresh_interface(ni_netconfig_t *nc, ni_netdev_t *ifp)
 {
 	struct ni_rtnl_query query;
 	struct nlmsghdr *h;
@@ -450,7 +450,7 @@ done:
  * ethtool.
  */
 int
-__ni_system_interface_stats_refresh(ni_netconfig_t *nc, ni_interface_t *ifp)
+__ni_system_interface_stats_refresh(ni_netconfig_t *nc, ni_netdev_t *ifp)
 {
 	/* This is a NOP for now */
 	return 0;
@@ -597,7 +597,7 @@ __ni_process_ifinfomsg(ni_linkinfo_t *link, struct nlmsghdr *h,
 			ni_vlan_t *vlan;
 
 			/* There's more info in this LINKINFO; extract it in the caller
-			 * as we don't have access to the containing ni_interface_t here */
+			 * as we don't have access to the containing ni_netdev_t here */
 			link->type = NI_IFTYPE_VLAN;
 
 			if (!(vlan = link->vlan))
@@ -682,7 +682,7 @@ __ni_process_ifinfomsg(ni_linkinfo_t *link, struct nlmsghdr *h,
 }
 
 int
-__ni_interface_process_newlink(ni_interface_t *ifp, struct nlmsghdr *h,
+__ni_interface_process_newlink(ni_netdev_t *ifp, struct nlmsghdr *h,
 				struct ifinfomsg *ifi, ni_netconfig_t *nc)
 {
 	struct nlattr *nla;
@@ -759,7 +759,7 @@ __ni_interface_process_newlink(ni_interface_t *ifp, struct nlmsghdr *h,
  * Refresh interface link layer IPv6 info given a RTM_NEWLINK message
  */
 int
-__ni_interface_process_newlink_ipv6(ni_interface_t *ifp, struct nlmsghdr *h, struct ifinfomsg *ifi)
+__ni_interface_process_newlink_ipv6(ni_netdev_t *ifp, struct nlmsghdr *h, struct ifinfomsg *ifi)
 {
 	struct nlattr *tb[IFLA_MAX+1];
 
@@ -791,7 +791,7 @@ __ni_interface_process_newlink_ipv6(ni_interface_t *ifp, struct nlmsghdr *h, str
  * Record IPv6 prefixes received via router advertisements
  */
 int
-__ni_interface_process_newprefix(ni_interface_t *ifp, struct nlmsghdr *h, struct prefixmsg *pfx)
+__ni_interface_process_newprefix(ni_netdev_t *ifp, struct nlmsghdr *h, struct prefixmsg *pfx)
 {
 	struct nlattr *tb[PREFIX_MAX+1];
 	unsigned int expires = 0;
@@ -831,7 +831,7 @@ __ni_interface_process_newprefix(ni_interface_t *ifp, struct nlmsghdr *h, struct
 }
 
 ni_route_t *
-__ni_interface_add_autoconf_prefix(ni_interface_t *ifp, const ni_sockaddr_t *addr, unsigned int pfxlen, unsigned int expires)
+__ni_interface_add_autoconf_prefix(ni_netdev_t *ifp, const ni_sockaddr_t *addr, unsigned int pfxlen, unsigned int expires)
 {
 	ni_addrconf_lease_t *lease;
 	ni_route_t *rp;
@@ -865,7 +865,7 @@ __ni_interface_add_autoconf_prefix(ni_interface_t *ifp, const ni_sockaddr_t *add
  * Update interface address list given a RTM_NEWADDR message
  */
 static int
-__ni_interface_process_newaddr(ni_interface_t *ifp, struct nlmsghdr *h, struct ifaddrmsg *ifa)
+__ni_interface_process_newaddr(ni_netdev_t *ifp, struct nlmsghdr *h, struct ifaddrmsg *ifa)
 {
 	struct nlattr *tb[IFA_MAX+1];
 	ni_addrconf_lease_t *lease;
@@ -945,7 +945,7 @@ __ni_interface_process_newaddr(ni_interface_t *ifp, struct nlmsghdr *h, struct i
 }
 
 int
-__ni_interface_process_newroute(ni_interface_t *ifp, struct nlmsghdr *h,
+__ni_interface_process_newroute(ni_netdev_t *ifp, struct nlmsghdr *h,
 				struct rtmsg *rtm, ni_netconfig_t *nc)
 {
 	ni_sockaddr_t src_addr, dst_addr, gw_addr;
@@ -1044,7 +1044,7 @@ __ni_interface_process_newroute(ni_interface_t *ifp, struct nlmsghdr *h,
 }
 
 ni_addrconf_lease_t *
-__ni_interface_get_autoconf_lease(ni_interface_t *dev, int af)
+__ni_interface_get_autoconf_lease(ni_netdev_t *dev, int af)
 {
 	ni_addrconf_lease_t *lease;
 
@@ -1066,7 +1066,7 @@ __ni_interface_get_autoconf_lease(ni_interface_t *dev, int af)
 }
 
 void
-__ni_interface_track_ipv6_autoconf(ni_interface_t *dev, int enable)
+__ni_interface_track_ipv6_autoconf(ni_netdev_t *dev, int enable)
 {
 	if (!enable) {
 		ni_interface_unset_lease(dev, AF_INET6, NI_ADDRCONF_AUTOCONF);
@@ -1079,7 +1079,7 @@ __ni_interface_track_ipv6_autoconf(ni_interface_t *dev, int enable)
  * Discover bridge topology
  */
 static int
-__ni_discover_bridge(ni_interface_t *ifp)
+__ni_discover_bridge(ni_netdev_t *ifp)
 {
 	ni_bridge_t *bridge;
 	ni_string_array_t ports;
@@ -1122,7 +1122,7 @@ __ni_discover_bridge(ni_interface_t *ifp)
  * Discover bonding configuration
  */
 static int
-__ni_discover_bond(ni_interface_t *ifp)
+__ni_discover_bond(ni_netdev_t *ifp)
 {
 	ni_bonding_t *bonding;
 
@@ -1143,7 +1143,7 @@ __ni_discover_bond(ni_interface_t *ifp)
  * Discover whether we have any addrconf daemons running on this interface.
  */
 int
-__ni_discover_addrconf(ni_interface_t *ifp)
+__ni_discover_addrconf(ni_netdev_t *ifp)
 {
 	ni_addrconf_lease_t *lease;
 

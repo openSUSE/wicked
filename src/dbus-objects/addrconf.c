@@ -44,7 +44,7 @@ typedef struct ni_dbus_addrconf_forwarder {
 } ni_dbus_addrconf_forwarder_t;
 
 static dbus_bool_t	ni_objectmodel_addrconf_forwarder_call(ni_dbus_addrconf_forwarder_t *forwarder,
-					ni_interface_t *dev, const char *method_name,
+					ni_netdev_t *dev, const char *method_name,
 					const ni_uuid_t *uuid, const ni_dbus_variant_t *dict,
 					DBusError *error);
 
@@ -57,7 +57,7 @@ static dbus_bool_t	ni_objectmodel_addrconf_forwarder_call(ni_dbus_addrconf_forwa
  * Extract interface index from object path.
  * Path names must be NI_OBJECTMODEL_OBJECT_PATH "/" <something> "/Interface/" <index>
  */
-static ni_interface_t *
+static ni_netdev_t *
 ni_objectmodel_addrconf_path_to_device(const char *path)
 {
 	unsigned int ifindex;
@@ -103,7 +103,7 @@ ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_messa
 {
 	ni_dbus_addrconf_forwarder_t *forwarder = user_data;
 	const char *signal_name = dbus_message_get_member(msg);
-	ni_interface_t *ifp;
+	ni_netdev_t *ifp;
 	ni_addrconf_lease_t *lease = NULL;
 	ni_dbus_variant_t argv[16];
 	ni_uuid_t uuid = NI_UUID_INIT;
@@ -209,7 +209,7 @@ ni_objectmodel_addrconf_static_request(ni_dbus_object_t *object, int addrfamily,
 {
 	ni_addrconf_lease_t *lease = NULL;
 	const ni_dbus_variant_t *dict;
-	ni_interface_t *dev;
+	ni_netdev_t *dev;
 	int rv;
 
 	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
@@ -253,7 +253,7 @@ ni_objectmodel_addrconf_static_drop(ni_dbus_object_t *object, int addrfamily,
 			ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_addrconf_lease_t *lease = NULL;
-	ni_interface_t *dev;
+	ni_netdev_t *dev;
 	int rv;
 
 	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
@@ -334,7 +334,7 @@ ni_objectmodel_addrconf_ipv6_static_drop(ni_dbus_object_t *object, const ni_dbus
  */
 static dbus_bool_t
 ni_objectmodel_addrconf_forward_request(ni_dbus_addrconf_forwarder_t *forwarder,
-			ni_interface_t *dev, const ni_dbus_variant_t *dict,
+			ni_netdev_t *dev, const ni_dbus_variant_t *dict,
 			ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_uuid_t req_uuid;
@@ -365,7 +365,7 @@ ni_objectmodel_addrconf_forward_request(ni_dbus_addrconf_forwarder_t *forwarder,
  */
 static dbus_bool_t
 ni_objectmodel_addrconf_forward_release(ni_dbus_addrconf_forwarder_t *forwarder,
-			ni_interface_t *dev, const ni_dbus_variant_t *dict,
+			ni_netdev_t *dev, const ni_dbus_variant_t *dict,
 			ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_addrconf_lease_t *lease;
@@ -390,7 +390,7 @@ ni_objectmodel_addrconf_forward_release(ni_dbus_addrconf_forwarder_t *forwarder,
  */
 static dbus_bool_t
 ni_objectmodel_addrconf_forwarder_call(ni_dbus_addrconf_forwarder_t *forwarder,
-				ni_interface_t *dev, const char *method_name,
+				ni_netdev_t *dev, const char *method_name,
 				const ni_uuid_t *uuid, const ni_dbus_variant_t *dict,
 				DBusError *error)
 {
@@ -462,7 +462,7 @@ ni_objectmodel_addrconf_ipv4_dhcp_request(ni_dbus_object_t *object, const ni_dbu
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
-	ni_interface_t *dev;
+	ni_netdev_t *dev;
 
 	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
 		return FALSE;
@@ -482,7 +482,7 @@ ni_objectmodel_addrconf_ipv4_dhcp_drop(ni_dbus_object_t *object, const ni_dbus_m
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
-	ni_interface_t *dev;
+	ni_netdev_t *dev;
 
 	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
 		return FALSE;
@@ -514,7 +514,7 @@ ni_objectmodel_addrconf_ipv4ll_request(ni_dbus_object_t *object, const ni_dbus_m
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
-	ni_interface_t *dev;
+	ni_netdev_t *dev;
 
 	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
 		return FALSE;
@@ -534,7 +534,7 @@ ni_objectmodel_addrconf_ipv4ll_drop(ni_dbus_object_t *object, const ni_dbus_meth
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
-	ni_interface_t *dev;
+	ni_netdev_t *dev;
 
 	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
 		return FALSE;
@@ -551,7 +551,7 @@ __ni_objectmodel_addrconf_generic_get_lease(const ni_dbus_object_t *object,
 				ni_dbus_variant_t *dict,
 				DBusError *error)
 {
-	ni_interface_t *dev;
+	ni_netdev_t *dev;
 	const ni_addrconf_lease_t *lease;
 
 	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
@@ -575,7 +575,7 @@ __ni_objectmodel_addrconf_generic_set_lease(ni_dbus_object_t *object,
 				const ni_dbus_variant_t *dict,
 				DBusError *error)
 {
-	ni_interface_t *dev;
+	ni_netdev_t *dev;
 	uint32_t state;
 
 	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))

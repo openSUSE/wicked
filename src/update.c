@@ -277,7 +277,7 @@ ni_system_update_all(void)
 {
 	ni_netconfig_t *nc = ni_global_state_handle(0);
 	ni_updater_source_t *up;
-	ni_interface_t *dev;
+	ni_netdev_t *dev;
 	unsigned int kind;
 
 	ni_system_updaters_init();

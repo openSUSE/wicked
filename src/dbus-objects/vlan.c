@@ -13,13 +13,13 @@
 #include "debug.h"
 
 
-static ni_interface_t *	__ni_objectmodel_vlan_newlink(ni_interface_t *, const char *, DBusError *);
+static ni_netdev_t *	__ni_objectmodel_vlan_newlink(ni_netdev_t *, const char *, DBusError *);
 
 /*
  * Return an interface handle containing all vlan-specific information provided
  * by the dict argument
  */
-static inline ni_interface_t *
+static inline ni_netdev_t *
 __ni_objectmodel_vlan_device_arg(const ni_dbus_variant_t *dict)
 {
 	return ni_objectmodel_get_netif_argument(dict, NI_IFTYPE_VLAN, &ni_objectmodel_vlan_service);
@@ -35,7 +35,7 @@ ni_objectmodel_vlan_newlink(ni_dbus_object_t *factory_object, const ni_dbus_meth
 			ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_dbus_server_t *server = ni_dbus_object_get_server(factory_object);
-	ni_interface_t *ifp;
+	ni_netdev_t *ifp;
 	const char *ifname = NULL;
 
 	NI_TRACE_ENTER();
@@ -51,11 +51,11 @@ ni_objectmodel_vlan_newlink(ni_dbus_object_t *factory_object, const ni_dbus_meth
 	return ni_objectmodel_device_factory_result(server, reply, ifp, error);
 }
 
-static ni_interface_t *
-__ni_objectmodel_vlan_newlink(ni_interface_t *cfg_ifp, const char *ifname, DBusError *error)
+static ni_netdev_t *
+__ni_objectmodel_vlan_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusError *error)
 {
 	ni_netconfig_t *nc = ni_global_state_handle(0);
-	ni_interface_t *new_ifp = NULL;
+	ni_netdev_t *new_ifp = NULL;
 	const ni_vlan_t *vlan;
 	int rv;
 
@@ -108,7 +108,7 @@ ni_objectmodel_vlan_delete(ni_dbus_object_t *object, const ni_dbus_method_t *met
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
-	ni_interface_t *ifp;
+	ni_netdev_t *ifp;
 	int rv;
 
 	if (!(ifp = ni_objectmodel_unwrap_interface(object, error)))
@@ -133,7 +133,7 @@ ni_objectmodel_vlan_delete(ni_dbus_object_t *object, const ni_dbus_method_t *met
 static void *
 ni_objectmodel_get_vlan(const ni_dbus_object_t *object, DBusError *error)
 {
-	ni_interface_t *ifp;
+	ni_netdev_t *ifp;
 
 	if (!(ifp = ni_objectmodel_unwrap_interface(object, error)))
 		return NULL;

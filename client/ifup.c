@@ -78,7 +78,7 @@ struct ni_ifworker {
 				done		: 1;
 
 	xml_node_t *		config;
-	ni_interface_t *	device;
+	ni_netdev_t *		device;
 
 	unsigned int		shared_users;
 	ni_ifworker_t *		exclusive_owner;
@@ -849,7 +849,7 @@ ni_ifworkers_refresh_state(void)
 		ni_fatal("Couldn't refresh list of active network interfaces");
 
 	for (i = 0; i < interface_workers.count; ++i) {
-		ni_interface_t *dev;
+		ni_netdev_t *dev;
 
 		w = interface_workers.data[i];
 
@@ -868,7 +868,7 @@ ni_ifworkers_refresh_state(void)
 	}
 
 	for (object = iflist->children; object; object = object->next) {
-		ni_interface_t *dev = ni_objectmodel_unwrap_interface(object, NULL);
+		ni_netdev_t *dev = ni_objectmodel_unwrap_interface(object, NULL);
 		ni_ifworker_t *found = NULL;
 
 		if (dev == NULL || dev->name == NULL)

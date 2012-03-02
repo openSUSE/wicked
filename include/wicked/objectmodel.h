@@ -14,8 +14,8 @@ extern void			ni_objectmodel_register_all(void);
 extern ni_dbus_server_t *	ni_objectmodel_create_service(void);
 
 extern dbus_bool_t		ni_objectmodel_create_initial_objects(ni_dbus_server_t *);
-extern ni_dbus_object_t *	ni_objectmodel_register_interface(ni_dbus_server_t *, ni_interface_t *ifp);
-extern dbus_bool_t		ni_objectmodel_unregister_interface(ni_dbus_server_t *, ni_interface_t *ifp);
+extern ni_dbus_object_t *	ni_objectmodel_register_interface(ni_dbus_server_t *, ni_netdev_t *ifp);
+extern dbus_bool_t		ni_objectmodel_unregister_interface(ni_dbus_server_t *, ni_netdev_t *ifp);
 extern int			ni_objectmodel_bind_extensions(void);
 extern void			ni_objectmodel_register_class(const ni_dbus_class_t *);
 extern const ni_dbus_class_t *	ni_objectmodel_get_class(const char *);
@@ -50,10 +50,10 @@ extern const ni_dbus_service_t *ni_objectmodel_service_by_class(const ni_dbus_cl
 extern dbus_bool_t		ni_objectmodel_get_addrconf_lease(const ni_addrconf_lease_t *, ni_dbus_variant_t *);
 extern dbus_bool_t		ni_objectmodel_set_addrconf_lease(ni_addrconf_lease_t *, const ni_dbus_variant_t *);
 
-extern ni_dbus_object_t *	ni_objectmodel_wrap_interface(ni_interface_t *ifp);
-extern ni_interface_t *		ni_objectmodel_unwrap_interface(const ni_dbus_object_t *, DBusError *);
+extern ni_dbus_object_t *	ni_objectmodel_wrap_interface(ni_netdev_t *ifp);
+extern ni_netdev_t *		ni_objectmodel_unwrap_interface(const ni_dbus_object_t *, DBusError *);
 
-extern dbus_bool_t		ni_objectmodel_interface_event(ni_dbus_server_t *, ni_interface_t *, ni_event_t, const ni_uuid_t *);
+extern dbus_bool_t		ni_objectmodel_interface_event(ni_dbus_server_t *, ni_netdev_t *, ni_event_t, const ni_uuid_t *);
 
 extern dbus_bool_t		ni_objectmodel_marshal_interface_request(const ni_interface_request_t *, ni_dbus_variant_t *, DBusError *);
 extern dbus_bool_t		ni_objectmodel_unmarshal_interface_request(ni_interface_request_t *, const ni_dbus_variant_t *, DBusError *);
@@ -71,16 +71,16 @@ extern void			ni_objectmodel_callback_info_free(ni_objectmodel_callback_info_t *
 typedef struct ni_objectmodel_netif_ns ni_objectmodel_netif_ns_t;
 struct ni_objectmodel_netif_ns {
 	const char *		name;
-	ni_interface_t *	(*lookup_by_name)(ni_objectmodel_netif_ns_t *, const char *);
-	ni_interface_t *	(*lookup_by_attrs)(ni_objectmodel_netif_ns_t *, const ni_var_array_t *);
-	dbus_bool_t		(*match_attr)(const ni_interface_t *, const char *, const char *);
+	ni_netdev_t *	(*lookup_by_name)(ni_objectmodel_netif_ns_t *, const char *);
+	ni_netdev_t *	(*lookup_by_attrs)(ni_objectmodel_netif_ns_t *, const ni_var_array_t *);
+	dbus_bool_t		(*match_attr)(const ni_netdev_t *, const char *, const char *);
 };
 
 extern void			ni_objectmodel_register_netif_ns(ni_objectmodel_netif_ns_t *);
 extern void			ni_objectmodel_register_netif_ns_builtin(void);
 extern void			ni_objectmodel_register_netif_ns_dynamic(void);
 extern ni_objectmodel_netif_ns_t *ni_objectmodel_get_netif_ns(const char *);
-extern ni_interface_t *		ni_objectmodel_netif_by_attrs(ni_objectmodel_netif_ns_t *, const ni_var_array_t *);
+extern ni_netdev_t *		ni_objectmodel_netif_by_attrs(ni_objectmodel_netif_ns_t *, const ni_var_array_t *);
 
 
 #endif /* __WICKED_OBJECTMODEL_H__ */

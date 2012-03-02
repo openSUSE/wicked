@@ -68,6 +68,6 @@ extern void             ni_autoip_device_drop_lease(ni_autoip_device_t *);
 extern unsigned int     ni_autoip_device_uptime(const ni_autoip_device_t *, unsigned int);
 extern ni_autoip_device_t *ni_autoip_device_by_index(unsigned int);
 extern ni_autoip_device_t *ni_autoip_device_find(const char *);
-extern int              ni_autoip_device_reconfigure(ni_autoip_device_t *, const ni_interface_t *);
+extern int              ni_autoip_device_reconfigure(ni_autoip_device_t *, const ni_netdev_t *);
 
 #endif /* __WICKED_AUTOIP_PRIVATE_H__ */

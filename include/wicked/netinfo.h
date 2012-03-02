@@ -139,8 +139,8 @@ struct ni_linkinfo {
 	ni_uuid_t		event_uuid;
 };
 
-struct ni_interface {
-	ni_interface_t *	next;
+struct ni_netdev {
+	ni_netdev_t *		next;
 	unsigned int		seq;
 	unsigned int		modified : 1,
 				deleted : 1;
@@ -163,7 +163,7 @@ struct ni_interface {
 	ni_addrconf_lease_t *	leases;
 
 	/* link layer info specific to different device types. */
-	ni_interface_t *	parent;
+	ni_netdev_t *		parent;
 	ni_bonding_t *		bonding;
 	ni_bridge_t *		bridge;
 	ni_ethernet_t *		ethernet;
@@ -186,7 +186,7 @@ struct ni_interface_request {
 
 typedef struct ni_interface_array {
 	unsigned int		count;
-	ni_interface_t **	data;
+	ni_netdev_t **		data;
 } ni_interface_array_t;
 #define NI_INTERFACE_ARRAY_INIT	{ .count = 0, .data = NULL }
 
@@ -196,7 +196,7 @@ extern void		ni_set_global_config_path(const char *);
 extern int		ni_init(void);
 
 extern int		ni_server_background(void);
-extern int		ni_server_listen_events(void (*handler)(ni_netconfig_t *, ni_interface_t *, ni_event_t));
+extern int		ni_server_listen_events(void (*handler)(ni_netconfig_t *, ni_netdev_t *, ni_event_t));
 extern ni_dbus_server_t *ni_server_listen_dbus(const char *bus_name);
 extern ni_xs_scope_t *	ni_server_dbus_xml_schema(void);
 
@@ -217,56 +217,56 @@ extern void		ni_netconfig_destroy(ni_netconfig_t *);
 
 extern ni_netconfig_t *	ni_global_state_handle(int);
 
-extern ni_interface_t *	ni_interfaces(ni_netconfig_t *nic);
+extern ni_netdev_t *	ni_interfaces(ni_netconfig_t *nic);
 
-extern ni_interface_t *	ni_interface_by_name(ni_netconfig_t *nic, const char *name);
-extern ni_interface_t *	ni_interface_by_index(ni_netconfig_t *nic, unsigned int index);
-extern ni_interface_t *	ni_interface_by_hwaddr(ni_netconfig_t *nic, const ni_hwaddr_t *lla);
-extern ni_interface_t *	ni_interface_by_vlan_name_and_tag(ni_netconfig_t *nc,
+extern ni_netdev_t *	ni_interface_by_name(ni_netconfig_t *nic, const char *name);
+extern ni_netdev_t *	ni_interface_by_index(ni_netconfig_t *nic, unsigned int index);
+extern ni_netdev_t *	ni_interface_by_hwaddr(ni_netconfig_t *nic, const ni_hwaddr_t *lla);
+extern ni_netdev_t *	ni_interface_by_vlan_name_and_tag(ni_netconfig_t *nc,
 				const char *physdev, uint16_t tag);
 extern const char *	ni_interface_make_name(ni_netconfig_t *, const char *);
 
-extern ni_interface_t *	ni_interface_new(ni_netconfig_t *, const char *name, unsigned int ifindex);
-extern ni_interface_t *	ni_interface_get(ni_interface_t *ifp);
-extern int		ni_interface_put(ni_interface_t *ifp);
-extern int		ni_interface_update(ni_interface_t *ifp);
-extern int		ni_interface_guess_type(ni_interface_t *ifp);
+extern ni_netdev_t *	ni_interface_new(ni_netconfig_t *, const char *name, unsigned int ifindex);
+extern ni_netdev_t *	ni_interface_get(ni_netdev_t *ifp);
+extern int		ni_interface_put(ni_netdev_t *ifp);
+extern int		ni_interface_update(ni_netdev_t *ifp);
+extern int		ni_interface_guess_type(ni_netdev_t *ifp);
 
-extern int		ni_interface_set_lease(ni_interface_t *, ni_addrconf_lease_t *);
-extern int		ni_interface_unset_lease(ni_interface_t *, int af, ni_addrconf_mode_t type);
-ni_addrconf_lease_t *	ni_interface_get_lease(ni_interface_t *, int, ni_addrconf_mode_t);
-ni_addrconf_lease_t *	ni_interface_get_lease_by_owner(ni_interface_t *, const char *);
+extern int		ni_interface_set_lease(ni_netdev_t *, ni_addrconf_lease_t *);
+extern int		ni_interface_unset_lease(ni_netdev_t *, int af, ni_addrconf_mode_t type);
+ni_addrconf_lease_t *	ni_interface_get_lease(ni_netdev_t *, int, ni_addrconf_mode_t);
+ni_addrconf_lease_t *	ni_interface_get_lease_by_owner(ni_netdev_t *, const char *);
 
-extern ni_route_t *	ni_interface_add_route(ni_interface_t *,
+extern ni_route_t *	ni_interface_add_route(ni_netdev_t *,
 				unsigned int prefix_len,
 				const ni_sockaddr_t *dest,
 				const ni_sockaddr_t *gw);
 
-extern ni_address_t *	ni_interface_get_addresses(ni_interface_t *, int af);
-extern ni_ethernet_t *	ni_interface_get_ethernet(ni_interface_t *);
-extern ni_bonding_t *	ni_interface_get_bonding(ni_interface_t *);
-extern ni_vlan_t *	ni_interface_get_vlan(ni_interface_t *);
-extern ni_bridge_t *	ni_interface_get_bridge(ni_interface_t *);
-extern ni_wireless_t *	ni_interface_get_wireless(ni_interface_t *);
-extern void		ni_interface_set_bonding(ni_interface_t *, ni_bonding_t *);
-extern void		ni_interface_set_vlan(ni_interface_t *, ni_vlan_t *);
-extern void		ni_interface_set_bridge(ni_interface_t *, ni_bridge_t *);
-extern void		ni_interface_set_ethernet(ni_interface_t *, ni_ethernet_t *);
-extern void		ni_interface_set_link_stats(ni_interface_t *, ni_link_stats_t *);
-extern void		ni_interface_set_wireless(ni_interface_t *, ni_wireless_t *);
+extern ni_address_t *	ni_interface_get_addresses(ni_netdev_t *, int af);
+extern ni_ethernet_t *	ni_interface_get_ethernet(ni_netdev_t *);
+extern ni_bonding_t *	ni_interface_get_bonding(ni_netdev_t *);
+extern ni_vlan_t *	ni_interface_get_vlan(ni_netdev_t *);
+extern ni_bridge_t *	ni_interface_get_bridge(ni_netdev_t *);
+extern ni_wireless_t *	ni_interface_get_wireless(ni_netdev_t *);
+extern void		ni_interface_set_bonding(ni_netdev_t *, ni_bonding_t *);
+extern void		ni_interface_set_vlan(ni_netdev_t *, ni_vlan_t *);
+extern void		ni_interface_set_bridge(ni_netdev_t *, ni_bridge_t *);
+extern void		ni_interface_set_ethernet(ni_netdev_t *, ni_ethernet_t *);
+extern void		ni_interface_set_link_stats(ni_netdev_t *, ni_link_stats_t *);
+extern void		ni_interface_set_wireless(ni_netdev_t *, ni_wireless_t *);
 
 extern void		ni_interface_array_init(ni_interface_array_t *);
-extern void		ni_interface_array_append(ni_interface_array_t *, ni_interface_t *);
+extern void		ni_interface_array_append(ni_interface_array_t *, ni_netdev_t *);
 extern void		ni_interface_array_destroy(ni_interface_array_t *);
-extern int		ni_interface_array_index(const ni_interface_array_t *, const ni_interface_t *);
+extern int		ni_interface_array_index(const ni_interface_array_t *, const ni_netdev_t *);
 
-extern void             ni_interface_clear_addresses(ni_interface_t *);
-extern void             ni_interface_clear_routes(ni_interface_t *);
+extern void             ni_interface_clear_addresses(ni_netdev_t *);
+extern void             ni_interface_clear_routes(ni_netdev_t *);
 
 extern ni_interface_request_t *ni_interface_request_new(void);
 extern void		ni_interface_request_free(ni_interface_request_t *req);
 
-extern ni_address_t *	ni_address_new(ni_interface_t *ifp, int af,
+extern ni_address_t *	ni_address_new(ni_netdev_t *ifp, int af,
 				unsigned int prefix_len,
 				const ni_sockaddr_t *local_addr);
 extern void		ni_address_list_append(ni_address_t **, ni_address_t *);
@@ -338,19 +338,19 @@ extern const char *	ni_strerror(int errcode);
 
 
 static inline int
-ni_interface_device_is_up(const ni_interface_t *ifp)
+ni_interface_device_is_up(const ni_netdev_t *ifp)
 {
 	return ifp->link.ifflags & NI_IFF_DEVICE_UP;
 }
 
 static inline int
-ni_interface_link_is_up(const ni_interface_t *ifp)
+ni_interface_link_is_up(const ni_netdev_t *ifp)
 {
 	return ifp->link.ifflags & NI_IFF_LINK_UP;
 }
 
 static inline int
-ni_interface_network_is_up(const ni_interface_t *ifp)
+ni_interface_network_is_up(const ni_netdev_t *ifp)
 {
 	return ifp->link.ifflags & NI_IFF_NETWORK_UP;
 }

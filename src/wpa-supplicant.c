@@ -262,7 +262,7 @@ static ni_dbus_class_t		ni_objectmodel_wpanet_class = {
  * Note this is a synchronous call.
  */
 ni_wpa_interface_t *
-ni_wpa_interface_bind(ni_wpa_client_t *wpa, ni_interface_t *dev)
+ni_wpa_interface_bind(ni_wpa_client_t *wpa, ni_netdev_t *dev)
 {
 	ni_wpa_interface_t *ifp = NULL;
 	int rv;
