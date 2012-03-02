@@ -18,6 +18,7 @@
 #include <assert.h>
 
 #include <wicked/netinfo.h>
+#include <wicked/route.h>
 #include <wicked/addrconf.h>
 #include "netinfo_priv.h"
 

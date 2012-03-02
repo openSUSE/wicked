@@ -21,6 +21,7 @@
 #include <wicked/socket.h>
 #include <wicked/resolver.h>
 #include <wicked/nis.h>
+#include <wicked/route.h>
 #include "netinfo_priv.h"
 #include "config.h"
 

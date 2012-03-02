@@ -27,6 +27,7 @@
 
 #include <wicked/netinfo.h>
 #include <wicked/addrconf.h>
+#include <wicked/route.h>
 #include <wicked/bridge.h>
 #include <wicked/bonding.h>
 #include <wicked/system.h>

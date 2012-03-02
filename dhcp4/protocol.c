@@ -29,6 +29,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <wicked/netinfo.h>
+#include <wicked/route.h>
 #include <wicked/logging.h>
 #include <wicked/socket.h>
 #include <wicked/resolver.h>

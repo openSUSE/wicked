@@ -43,48 +43,6 @@ typedef struct ni_address {
 	time_t			expires;		/* when address expires (ipv6) */
 } ni_address_t;
 
-typedef struct ni_route_nexthop {
-	struct ni_route_nexthop *next;
-	ni_sockaddr_t		gateway;
-	char *                  device;
-	unsigned int		weight;
-	unsigned int		flags;
-} ni_route_nexthop_t;
-
-typedef struct ni_route {
-	struct ni_route *	next;
-
-	const ni_addrconf_lease_t *config_lease;	/* configured through lease */
-
-	unsigned int		seq;
-	unsigned int		family;
-	unsigned int		prefixlen;
-	ni_sockaddr_t		destination;
-	ni_route_nexthop_t	nh;
-
-	int			type;			/* RTN_* */
-	int			scope;			/* RT_SCOPE_* */
-	int			protocol;		/* RTPROT_* */
-	int			table;			/* RT_TABLE_* */
-	unsigned int		tos;
-	unsigned int		metric;
-
-	unsigned int		mtu;
-	unsigned int		priority;
-	unsigned int		advmss;
-	unsigned int		rtt;
-	unsigned int		rttvar;
-	unsigned int		window;
-	unsigned int		cwnd;
-	unsigned int		initcwnd;
-	unsigned int		ssthresh;
-	unsigned int		realms;
-	unsigned int		rto_min;
-	unsigned int		hoplimit;
-
-	time_t			expires;		/* when route expires (ipv6) */
-} ni_route_t;
-
 typedef struct ni_link_stats {
 	unsigned long		rx_packets;		/* total packets received	*/
 	unsigned long		tx_packets;		/* total packets transmitted	*/

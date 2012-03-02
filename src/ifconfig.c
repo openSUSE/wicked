@@ -26,6 +26,7 @@
 #include <time.h>
 
 #include <wicked/netinfo.h>
+#include <wicked/route.h>
 #include <wicked/addrconf.h>
 #include <wicked/bridge.h>
 #include <wicked/bonding.h>

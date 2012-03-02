@@ -18,6 +18,7 @@
 #include <wicked/logging.h>
 #include <wicked/wicked.h>
 #include <wicked/addrconf.h>
+#include <wicked/route.h>
 #include <wicked/bonding.h>
 #include <wicked/bridge.h>
 #include <wicked/xml.h>

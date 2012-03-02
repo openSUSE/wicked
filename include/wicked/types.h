@@ -18,6 +18,7 @@ typedef unsigned char		ni_bool_t;
 #endif
 
 typedef struct ni_netdev	ni_netdev_t;
+typedef struct ni_route		ni_route_t;
 typedef struct ni_vlan		ni_vlan_t;
 typedef struct ni_bridge	ni_bridge_t;
 typedef struct ni_bridge_port	ni_bridge_port_t;

@@ -16,6 +16,7 @@
 
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
+#include <wicked/route.h>
 #include <wicked/addrconf.h>
 #include <wicked/resolver.h>
 #include "netinfo_priv.h"
