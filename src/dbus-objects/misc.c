@@ -418,8 +418,21 @@ dbus_bool_t
 __ni_objectmodel_route_to_dict(const ni_route_t *rp, ni_dbus_variant_t *dict)
 {
 	const ni_route_nexthop_t *nh;
+	ni_dbus_variant_t *child;
 
 	__ni_objectmodel_add_sockaddr_prefix(dict, "destination", &rp->destination, rp->prefixlen);
+
+	child = ni_dbus_dict_add(dict, "kern");
+	ni_dbus_variant_init_dict(child);
+	if (rp->type)
+		ni_dbus_dict_add_uint32(child, "type", rp->type);
+	if (rp->protocol)
+		ni_dbus_dict_add_uint32(child, "protocol", rp->protocol);
+	if (rp->table)
+		ni_dbus_dict_add_uint32(child, "table", rp->table);
+	if (rp->scope)
+		ni_dbus_dict_add_uint32(child, "scope", rp->scope);
+
 	if (rp->config_lease)
 		ni_dbus_dict_add_uint32(dict, "owner", rp->config_lease->type);
 	if (rp->mtu)

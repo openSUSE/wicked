@@ -67,4 +67,13 @@ extern void		ni_route_free(ni_route_t *);
 extern int		ni_route_equal(const ni_route_t *, const ni_route_t *);
 extern const char *	ni_route_print(const ni_route_t *);
 
+extern int		ni_route_type_name_to_type(const char *);
+extern const char *	ni_route_type_type_to_name(unsigned int);
+extern int		ni_route_table_name_to_type(const char *);
+extern const char *	ni_route_table_type_to_name(unsigned int);
+extern int		ni_route_protocol_name_to_type(const char *);
+extern const char *	ni_route_protocol_type_to_name(unsigned int);
+extern int		ni_route_scope_name_to_type(const char *);
+extern const char *	ni_route_scope_type_to_name(unsigned int);
+
 #endif /* __WICKED_ROUTE_H__ */

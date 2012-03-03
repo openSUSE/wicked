@@ -972,14 +972,15 @@ __ni_netdev_process_newroute(ni_netdev_t *dev, struct nlmsghdr *h,
 	}
 
 #if 0
-	printf("RTM_NEWROUTE family=%d dstlen=%u srclen=%u type=%u proto=%d flags=0x%x table=%u\n",
+	ni_debug_ifconfig("RTM_NEWROUTE family=%d dstlen=%u srclen=%u type=%s proto=%s flags=0x%x table=%s scope=%s",
 			rtm->rtm_family,
 			rtm->rtm_dst_len,
 			rtm->rtm_src_len,
-			rtm->rtm_type,
-			rtm->rtm_protocol,
+			ni_route_type_type_to_name(rtm->rtm_type),
+			ni_route_protocol_type_to_name(rtm->rtm_protocol),
 			rtm->rtm_flags,
-			rtm->rtm_table
+			ni_route_table_type_to_name(rtm->rtm_table),
+			ni_route_scope_type_to_name(rtm->rtm_scope)
 			);
 #endif
 
