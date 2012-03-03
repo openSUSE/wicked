@@ -659,6 +659,19 @@ ni_format_int_mapped(unsigned int value, const ni_intmap_t *map)
 	return NULL;
 }
 
+const char *
+ni_format_int_maybe_mapped(unsigned int value, const ni_intmap_t *map)
+{
+	static char buffer[20];
+	const char *name;
+
+	if (!(name = ni_format_int_mapped(value, map))) {
+		snprintf(buffer, sizeof(buffer), "%u", value);
+		name = buffer;
+	}
+	return name;
+}
+
 int
 ni_parse_double(const char *input, double *result)
 {

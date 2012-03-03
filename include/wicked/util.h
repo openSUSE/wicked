@@ -129,6 +129,7 @@ extern int		ni_file_write(FILE *, const void *, size_t);
 extern int		ni_parse_int_mapped(const char *, const struct ni_intmap *, unsigned int *);
 extern int		ni_parse_int(const char *, unsigned int *);
 extern const char *	ni_format_int_mapped(unsigned int, const ni_intmap_t *);
+extern const char *	ni_format_int_maybe_mapped(unsigned int, const ni_intmap_t *);
 extern int		ni_parse_double(const char *, double *);
 extern const char *	ni_format_hex(const unsigned char *data, unsigned int data_len,
 				char *namebuf, size_t name_max);
