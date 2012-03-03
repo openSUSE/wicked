@@ -245,6 +245,9 @@ ni_dbus_xml_deserialize_properties(ni_xs_scope_t *schema, const char *interface_
 	xml_node_t *node;
 	ni_xs_type_t *type;
 
+	if (ni_dbus_variant_is_dict(var) && var->array.len == 0)
+		return NULL;
+
 	if (!(service = ni_dbus_xml_get_service_schema(schema, interface_name))) {
 		ni_error("cannot represent %s properties - no schema definition", interface_name);
 		return NULL;
