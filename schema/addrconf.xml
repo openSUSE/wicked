@@ -91,3 +91,28 @@
   </method>
 </service>
 
+<!-- =================================================
+     IPv4 zeroconf Address configuration service
+     ================================================= -->
+<service name="ipv4:auto" interface="com.suse.Wicked.Addrconf.ipv4.auto" object-class="netif">
+  <define name="request" class="dict">
+    <uuid type="uuid-type"/>
+  </define>
+  <define name="properties" type="interface:addrconf-lease"/>
+
+  <method name="requestLease">
+    <arguments>
+      <config type="request"/>
+    </arguments>
+    <return>
+      <interface:callback-info/>
+    </return>
+  </method>
+
+  <method name="dropLease">
+    <return>
+      <interface:callback-info/>
+    </return>
+  </method>
+</service>
+

@@ -3,6 +3,7 @@
 wickedd:
 	- bug: linkUp on an interface that's up never returns the
 	  event callback.
+	- support global (non-interface) routes
 
 wicked:
 	- when installing a policy for an auto device, also include a
@@ -15,7 +16,6 @@ netinfo:
 	  a mobile IP provider (UMTS), etc.
 
 ifconfig
-	- finish wireless support
 	- use wpa_supplicant for 802.1x too
 	- disable IPv6 on a device if requested
 	- support ppp, pppoe
@@ -28,6 +28,7 @@ overall
 
 extensions
 	- support openvpn
+	- add support conversion to a different file format when running extensions
 	- escape/reject shell metacharacters when expanding start/stop command
 
 events
