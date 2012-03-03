@@ -251,7 +251,7 @@ __ni_objectmodel_wireless_get_network(const ni_wireless_network_t *network,
 		ni_dbus_dict_add_uint32(child, "version", auth_info->version);
 		ni_dbus_dict_add_uint32(child, "group-cipher", auth_info->group_cipher);
 		ni_dbus_dict_add_uint32(child, "pairwise-ciphers", auth_info->pairwise_ciphers);
-		ni_dbus_dict_add_uint32(child, "key-management", auth_info->pairwise_ciphers);
+		ni_dbus_dict_add_uint32(child, "key-management", auth_info->keymgmt_algos);
 	}
 
 	return TRUE;
