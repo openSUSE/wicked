@@ -28,6 +28,13 @@
      <flags type="uint32" />
    </nexthop>
 
+   <kern class="dict">
+     <rt-type type="builtin-route-type"/>
+     <rt-scope type="builtin-route-scope"/>
+     <rt-table type="builtin-route-table"/>
+     <rt-protocol type="builtin-route-protocol"/>
+   </kern>
+
    <!-- This is the addrconf method that owns this address -->
    <owner type="builtin-addrconf" />
  </define>

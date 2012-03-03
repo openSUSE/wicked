@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <mcheck.h>
 #include <stdlib.h>
+#include <ctype.h>
 #include <net/if_arp.h>
 
 #include <wicked/netinfo.h>
@@ -16,6 +17,7 @@
 #include <wicked/logging.h>
 #include <wicked/wireless.h>
 #include <wicked/bonding.h>
+#include <wicked/route.h>
 
 static ni_intmap_t *	build_ifflag_bits_map(void);
 static ni_intmap_t *	buildmap(const char *(*)(unsigned), unsigned int);
@@ -85,6 +87,10 @@ static struct generic_map	generic_maps[] = {
 	MAP(WIRELESS_EAP_METHOD, ni_wireless_eap_method_to_name),
 	MAP(BONDING_MODE, ni_bonding_mode_type_to_name),
 	MAP(BONDING_VALIDATE, ni_bonding_validate_type_to_name),
+	MAP(ROUTE_TYPE, ni_route_type_type_to_name),
+	MAP(ROUTE_PROTOCOL, ni_route_protocol_type_to_name),
+	MAPN(ROUTE_SCOPE, ni_route_scope_type_to_name, 256),
+	MAPN(ROUTE_TABLE, ni_route_table_type_to_name, 256),
 
 	{ NULL }
 };
@@ -192,7 +198,7 @@ buildmap(const char *(*type2name)(unsigned int), unsigned int max)
 
 	map = calloc(max + 1, sizeof(map[0]));
 	for (iftype = k = 0; iftype < max; ++iftype) {
-		if ((name = type2name(iftype)) != NULL) {
+		if ((name = type2name(iftype)) != NULL && !isdigit(name[0])) {
 			map[k].name = name;
 			map[k].value = iftype;
 			++k;

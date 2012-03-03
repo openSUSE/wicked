@@ -425,13 +425,12 @@ __ni_objectmodel_route_to_dict(const ni_route_t *rp, ni_dbus_variant_t *dict)
 	child = ni_dbus_dict_add(dict, "kern");
 	ni_dbus_variant_init_dict(child);
 	if (rp->type)
-		ni_dbus_dict_add_uint32(child, "type", rp->type);
+		ni_dbus_dict_add_uint32(child, "rt-type", rp->type);
 	if (rp->protocol)
-		ni_dbus_dict_add_uint32(child, "protocol", rp->protocol);
+		ni_dbus_dict_add_uint32(child, "rt-protocol", rp->protocol);
 	if (rp->table)
-		ni_dbus_dict_add_uint32(child, "table", rp->table);
-	if (rp->scope)
-		ni_dbus_dict_add_uint32(child, "scope", rp->scope);
+		ni_dbus_dict_add_uint32(child, "rt-table", rp->table);
+	ni_dbus_dict_add_uint32(child, "rt-scope", rp->scope);
 
 	if (rp->config_lease)
 		ni_dbus_dict_add_uint32(dict, "owner", rp->config_lease->type);
@@ -465,7 +464,7 @@ __ni_objectmodel_route_to_dict(const ni_route_t *rp, ni_dbus_variant_t *dict)
 ni_route_t *
 __ni_objectmodel_route_from_dict(ni_route_t **list, const ni_dbus_variant_t *dict)
 {
-	const ni_dbus_variant_t *nhdict;
+	const ni_dbus_variant_t *nhdict, *child;
 	uint32_t prefixlen, value;
 	ni_sockaddr_t destination;
 	ni_route_t *rp;
@@ -482,9 +481,21 @@ __ni_objectmodel_route_from_dict(ni_route_t **list, const ni_dbus_variant_t *dic
 	if (ni_dbus_dict_get_uint32(dict, "priority", &value))
 		rp->priority = value;
 #if 0
+	/* FIXME: need to create dummy lease here */
 	if (!ni_dbus_dict_get_uint32(dict, "owner", &value))
 		rp->config_method = value;
 #endif
+
+	if ((child = ni_dbus_dict_get(dict, "kern")) != NULL) {
+		if (ni_dbus_dict_get_uint32(dict, "rt-type", &value))
+			rp->type = value;
+		if (ni_dbus_dict_get_uint32(dict, "rt-protocol", &value))
+			rp->protocol = value;
+		if (ni_dbus_dict_get_uint32(dict, "rt-table", &value))
+			rp->table = value;
+		if (ni_dbus_dict_get_uint32(dict, "rt-scope", &value))
+			rp->scope = value;
+	}
 
 	if ((nhdict = ni_dbus_dict_get(dict, "nexthop")) != NULL) {
 		ni_route_nexthop_t *nh = &rp->nh, **nhpos = &nh;
