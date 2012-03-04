@@ -172,6 +172,8 @@ ni_system_updater_run(ni_shellcmd_t *shellcmd, const char *filename)
 	int rv;
 
 	pi = ni_process_new(shellcmd);
+	if (filename)
+		ni_process_setenv(pi, "WICKED_NEWFILE", filename);
 
 	rv = ni_process_run_and_wait(pi);
 	ni_process_free(pi);
