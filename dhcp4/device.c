@@ -363,6 +363,11 @@ ni_dhcp_release(ni_dhcp_device_t *dev, const ni_uuid_t *lease_uuid)
 {
 	int rv;
 
+	if (dev->lease == NULL) {
+		ni_error("%s(%s): no lease set", __func__, dev->ifname);
+		return -NI_ERROR_ADDRCONF_NO_LEASE;
+	}
+
 	if (lease_uuid) {
 		/* FIXME: We should check the provided uuid against the
 		 * lease's uuid, and refuse the call if it doesn't match

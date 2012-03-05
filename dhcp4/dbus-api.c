@@ -13,13 +13,12 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <signal.h>
-#include <getopt.h>
 #include <errno.h>
 
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
-#include "netinfo_priv.h"
-#include "dbus-common.h"
+#include <wicked/dbus.h>
+#include <wicked/dbus-errors.h>
 #include "dbus-objects/model.h"
 #include "debug.h"
 #include "dhcp.h"
@@ -207,9 +206,8 @@ __wicked_dbus_dhcp4_drop_svc(ni_dbus_object_t *object, const ni_dbus_method_t *m
 	}
 
 	if ((rv = ni_dhcp_release(dev, &uuid)) < 0) {
-		dbus_set_error(error, DBUS_ERROR_FAILED,
-				"Unable to drop DHCP lease for interface %s: %s", dev->ifname,
-				ni_strerror(rv));
+		ni_dbus_set_error_from_code(error, rv,
+				"Unable to drop DHCP lease for interface %s", dev->ifname);
 		goto failed;
 	}
 

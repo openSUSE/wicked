@@ -867,6 +867,7 @@ ni_dhcp_send_event(enum ni_dhcp_event ev, ni_dhcp_device_t *dev, ni_addrconf_lea
 	if (ni_dhcp_fsm_event_handler)
 		ni_dhcp_fsm_event_handler(ev, dev, lease);
 }
+
 /*
  * Helper function to print name of DHCP FSM state
  */
