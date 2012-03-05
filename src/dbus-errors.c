@@ -43,3 +43,20 @@ ni_dbus_get_error(const DBusError *error, char **detail)
 		ni_string_dup(detail, error->message);
 	return -code;
 }
+
+void
+ni_dbus_set_error_from_code(DBusError *error, int errcode, const char *fmt, ...)
+{
+	const char *errname;
+	char msgbuf[1024];
+	va_list ap;
+
+	va_start(ap, fmt);
+	vsnprintf(msgbuf, sizeof(msgbuf), fmt, ap);
+	va_end(ap);
+
+	if ((errname = ni_format_int_mapped(-errcode, __ni_dbus_errors)) == NULL)
+		errname = DBUS_ERROR_FAILED;
+
+	dbus_set_error(error, errname, "%s", msgbuf);
+}
