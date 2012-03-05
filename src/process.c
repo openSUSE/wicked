@@ -225,7 +225,7 @@ ni_process_run_and_wait(ni_process_t *pi)
 	if (rv < 0)
 		return rv;
 
-	while (waitpid(pi->pid, &pi->status, WNOHANG) < 0) {
+	while (waitpid(pi->pid, &pi->status, 0) < 0) {
 		if (errno == EINTR)
 			continue;
 		ni_error("%s: waitpid returns error (%m)", __func__);
