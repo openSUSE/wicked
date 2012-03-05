@@ -388,6 +388,10 @@ dhcp4_protocol_event(enum ni_dhcp_event ev, const ni_dhcp_device_t *dev, ni_addr
 
 	switch (ev) {
 	case NI_DHCP_EVENT_ACQUIRED:
+		if (lease == NULL) {
+			ni_error("BUG: cannot send LeaseAcquired event without a lease handle");
+			goto done;
+		}
 		ni_dbus_server_send_signal(dhcp4_dbus_server, dev_object,
 				NI_OBJECTMODEL_DHCP4_INTERFACE, "LeaseAcquired",
 				argc, argv);
