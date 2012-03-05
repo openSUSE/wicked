@@ -159,6 +159,17 @@ ni_objectmodel_updater_select_source(ni_updater_t *updater)
 			best = src;
 	}
 
+#if 0
+	if (best == NULL)
+		ni_trace("%s: no source", ni_updater_name(updater->type));
+	else {
+		const ni_addrconf_lease_t *lease = best->lease;
+
+		ni_trace("%s: select source %s/%s", ni_updater_name(updater->type),
+					ni_addrconf_type_to_name(lease->type),
+					ni_addrfamily_type_to_name(lease->family));
+	}
+#endif
 	return best;
 }
 
@@ -173,7 +184,7 @@ ni_system_updater_run(ni_shellcmd_t *shellcmd, const char *filename)
 
 	pi = ni_process_new(shellcmd);
 	if (filename)
-		ni_process_setenv(pi, "WICKED_NEWFILE", filename);
+		ni_string_array_append(&pi->argv, filename);
 
 	rv = ni_process_run_and_wait(pi);
 	ni_process_free(pi);
@@ -231,9 +242,14 @@ ni_system_updater_restore(ni_updater_t *updater)
 static ni_bool_t
 ni_system_updater_install(ni_updater_t *updater, const ni_addrconf_lease_t *lease)
 {
-	const char *tempname = NULL;
+	const char *tempname = NULL, *argument = NULL;
 	ni_bool_t result = FALSE;
 	int rv = 0;
+
+	ni_debug_ifconfig("Updating system %s settings from %s/%s lease",
+					ni_updater_name(updater->type),
+					ni_addrconf_type_to_name(lease->type),
+					ni_addrfamily_type_to_name(lease->family));
 
 	if (!updater->have_backup && !ni_system_updater_backup(updater))
 		return FALSE;
@@ -242,7 +258,7 @@ ni_system_updater_install(ni_updater_t *updater, const ni_addrconf_lease_t *leas
 	 * indicated script with it */
 	switch (updater->type) {
 	case NI_ADDRCONF_UPDATE_RESOLVER:
-		tempname = _PATH_RESOLV_CONF ".new";
+		argument = tempname = _PATH_RESOLV_CONF ".new";
 
 		if ((rv = ni_resolver_write_resolv_conf(tempname, lease->resolver, NULL)) < 0) {
 			ni_error("failed to write resolver info to temp file: %s",
@@ -252,6 +268,9 @@ ni_system_updater_install(ni_updater_t *updater, const ni_addrconf_lease_t *leas
 		break;
 
 	case NI_ADDRCONF_UPDATE_HOSTNAME:
+		argument = lease->hostname;
+		break;
+
 	default:
 		ni_error("cannot install new %s settings - file format not understood",
 				ni_updater_name(updater->type));
@@ -259,7 +278,7 @@ ni_system_updater_install(ni_updater_t *updater, const ni_addrconf_lease_t *leas
 		return FALSE;
 	}
 
-	if (!ni_system_updater_run(updater->proc_install, tempname)) {
+	if (!ni_system_updater_run(updater->proc_install, argument)) {
 		ni_error("failed to install %s settings", ni_updater_name(updater->type));
 		goto done;
 	}
@@ -282,6 +301,7 @@ ni_system_update_all(void)
 	ni_netdev_t *dev;
 	unsigned int kind;
 
+	ni_debug_ifconfig("%s()", __func__);
 	ni_system_updaters_init();
 
 	for (kind = 0; kind < __NI_ADDRCONF_UPDATE_MAX; ++kind) {
@@ -293,6 +313,14 @@ ni_system_update_all(void)
 		ni_addrconf_lease_t *lease;
 
 		for (lease = dev->leases; lease; lease = lease->next) {
+#if 0
+			ni_trace(" %s: %s/%s hostname %s resolver %s",
+					dev->name,
+					ni_addrconf_type_to_name(lease->type),
+					ni_addrfamily_type_to_name(lease->family),
+					can_update_hostname(lease)? "YES" : "NO",
+					can_update_resolver(lease)? "YES" : "NO");
+#endif
 			if (can_update_hostname(lease))
 				ni_objectmodel_updater_add_source(NI_ADDRCONF_UPDATE_HOSTNAME, lease);
 			if (can_update_resolver(lease))

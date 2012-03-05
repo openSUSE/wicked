@@ -1,0 +1,38 @@
+#!/bin/bash
+
+backupdir=/var/run/wicked/backup
+
+filename=/etc/resolv.conf
+fileback=$backupdir/resolv.conf
+
+set -e
+cmd=$1; shift
+
+case $cmd in
+backup)
+	# Back up the existing resolv.conf file
+	if [ ! -f $fileback ]; then
+		mkdir -m755 -p $backupdir
+		cp -p $filename $fileback
+	fi
+	: ;;
+
+restore)
+	if [ -f $fileback ]; then
+		mv $fileback $filename
+	else
+		echo "$0: cannot restore $filename: no backup" >&2
+		exit 1
+	fi
+	: ;;
+
+install)
+	newfile=$1
+	chmod 644 $newfile
+	mv $newfile $filename
+	: ;;
+
+*)
+	echo "$0: command $cmd not supported" >&2
+	exit 1;;
+esac

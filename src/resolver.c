@@ -66,6 +66,7 @@ ni_resolver_write_resolv_conf(const char *filename, const ni_resolver_info_t *re
 	FILE *fp;
 	unsigned int i;
 
+	ni_debug_readwrite("Writing resolver info to %s", filename);
 	if ((fp = fopen(filename, "w")) == NULL) {
 		ni_error("cannot open %s: %m", filename);
 		return -1;
