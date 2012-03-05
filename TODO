@@ -1,4 +1,9 @@
 
+dhcp4:
+	BUG:
+	::: initiating discovery for wlan0 (ifindex 3)
+	Error: cannot get broadcast address for wlan0 (bad iftype)
+	Error: unable to open capture socket
 
 wickedd:
 	- bug: linkUp on an interface that's up never returns the
