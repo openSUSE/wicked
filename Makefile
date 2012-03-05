@@ -7,9 +7,14 @@ APPS	= wicked wickedd \
 	  dhcp4-supplicant autoip4-supplicant
 UTILS	= mkconst
 APPBINS	= $(addprefix $(BIN)/,$(APPS) $(UTILS))
+TGTLIBS	= $(LIBNAME).so
 
-TGTLIBS	= libwicked.a
-	  # libwicked.so
+sbindir	= /sbin
+libdir	= $(shell if test -f $(DESTDIR)/lib64; then echo /lib64; else echo /lib; fi)
+
+LIBNAME	= libwicked
+LIBVER	= 0.5
+LIBSONAME=$(LIBNAME).so.$(LIBVER)
 __LIBSRCS= \
 	  config.c \
 	  extension.c \
@@ -104,7 +109,7 @@ UTILSRCS= util/mkconst.c
 all: $(TGTLIBS) $(APPBINS) $(GENFILES)
 
 distclean clean::
-	rm -f *.o *.a *.so core tags LOG
+	rm -f *.o libwicked.* core tags LOG
 	rm -rf $(BIN) $(OBJ) $(GENFILES)
 	rm -f testing/*.o
 
@@ -115,10 +120,13 @@ install-strip: STRIP_FLAG=-s
 install-strip: install
 
 install: $(APPBINS) install-files
-	install -d -m 755 $(DESTDIR)/sbin
+	install -d -m 755 $(DESTDIR)$(sbindir)
+	install -d -m 755 $(DESTDIR)$(libdir)
 	for app in $(APPS); do \
-		install $(STRIP_FLAG) -m 555 bin/$$app $(DESTDIR)/sbin; \
+		install $(STRIP_FLAG) -m 555 bin/$$app $(DESTDIR)$(sbindir); \
 	done
+	install -c -m 555 $(LIBNAME).so $(DESTDIR)$(libdir)
+	ln -sf $(LIBNAME).so $(DESTDIR)$(libdir)/$(LIBSONAME)
 	install -d -m 755 $(DESTDIR)/usr/share/man/man{7,8}
 	install -c -m 444 man/*.7 $(DESTDIR)/usr/share/man/man7
 	install -c -m 444 man/*.8 $(DESTDIR)/usr/share/man/man8
@@ -135,7 +143,8 @@ install-files: $(GENFILES)
 	install -d -m 755 $(DESTDIR)/var/run/wicked
 
 schema/constants.xml: $(BIN)/mkconst schema/constants.xml.in
-	$(BIN)/mkconst < $@.in > $@
+	@echo Building $@ from $@.in
+	@LD_PRELOAD=$$PWD/$(LIBNAME).so $(BIN)/mkconst < $@.in > $@
 
 $(BIN)/wicked: $(CLIENTOBJS) $(TGTLIBS)
 	@mkdir -p bin
@@ -163,12 +172,13 @@ testing/xml-test: testing/xml-test.o $(TGTLIBS)
 testing/xpath-test: testing/xpath-test.o $(TGTLIBS)
 	$(CC) -o $@ $(CFLAGS) testing/xpath-test.o -L. -lwicked -ldbus-1
 
-libwicked.a: $(LIBOBJS)
+$(LIBNAME).a: $(LIBOBJS)
 	@rm -f $@
 	ar cr $@ $(LIBOBJS)
 
-libwicked.so: $(SHLIBOBJS)
-	$(CC) $(CFLAGS) -shared -o $@ $(SHLIBOBJS)
+$(LIBNAME).so: $(SHLIBOBJS)
+	$(CC) $(CFLAGS) -shared -Wl,-soname,$(LIBSONAME) -o $@ $(SHLIBOBJS)
+	ln -sf $@ $(LIBSONAME)
 
 depend:
 	gcc $(CFLAGS) -M $(LIBSRCS) | \
