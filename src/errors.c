@@ -20,6 +20,7 @@ static const char *	ni_errors[__NI_ERROR_MAX] = {
 [NI_ERROR_INTERFACE_NOT_COMPATIBLE]	= "Interface not compatible with requested operation",
 [NI_ERROR_INTERFACE_EXISTS]		= "Interface already exists",
 [NI_ERROR_AUTH_INFO_MISSING]		= "Authentication information missing",
+[NI_ERROR_ADDRCONF_NO_LEASE]		= "No address configuration lease set",
 [NI_ERROR_CANNOT_CONFIGURE_ADDRESS]	= "Cannot configure addresss",
 [NI_ERROR_CANNOT_CONFIGURE_ROUTE]	= "Cannot configure route",
 [NI_ERROR_CANNOT_MARSHAL]		= "Cannot marshal arguments for remote object call",
