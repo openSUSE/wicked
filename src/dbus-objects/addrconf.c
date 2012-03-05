@@ -20,6 +20,7 @@
 #include <wicked/logging.h>
 #include <wicked/addrconf.h>
 #include <wicked/system.h>
+#include <wicked/dbus-errors.h>
 #include "netinfo_priv.h"	/* for __ni_system_interface_update_lease */
 #include "dbus-common.h"
 #include "model.h"
@@ -377,9 +378,22 @@ ni_objectmodel_addrconf_forward_release(ni_dbus_addrconf_forwarder_t *forwarder,
 		return TRUE;
 
 	rv = ni_objectmodel_addrconf_forwarder_call(forwarder, dev, "drop", &lease->uuid, NULL, error);
-	if (rv
-	 && (lease = ni_netdev_get_lease(dev, forwarder->addrfamily, forwarder->addrconf)) != NULL) {
-		/* Tell the client to wait for an addressAcquired event with the given uuid */
+	if (!rv) {
+		switch (ni_dbus_get_error(error, NULL)) {
+		case NI_ERROR_ADDRCONF_NO_LEASE:
+			ni_debug_objectmodel("%s: no %s/%s lease", dev->name,
+				ni_addrconf_type_to_name(forwarder->addrconf),
+				ni_addrfamily_type_to_name(forwarder->addrfamily));
+			break;
+		default:
+			ni_debug_objectmodel("%s: service returned %s (%s)", forwarder->supplicant.interface,
+				error->name, error->message);
+		}
+	} else if ((lease = ni_netdev_get_lease(dev, forwarder->addrfamily, forwarder->addrconf)) != NULL) {
+		/* Tell the client to wait for an addressReleased event with the given uuid */
+		ni_debug_objectmodel("%s/%s: found lease, waiting for drop notification from supplicant",
+				ni_addrconf_type_to_name(forwarder->addrconf),
+				ni_addrfamily_type_to_name(forwarder->addrfamily));
 		rv =  __ni_objectmodel_return_callback_info(reply, NI_EVENT_ADDRESS_RELEASED, &lease->uuid, error);
 	}
 	return rv;
