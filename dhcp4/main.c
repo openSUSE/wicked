@@ -20,6 +20,7 @@
 #include <wicked/logging.h>
 #include <wicked/wicked.h>
 #include <wicked/socket.h>
+#include <wicked/wireless.h>
 #include <wicked/objectmodel.h>
 #include "dhcp4/dhcp.h"
 
@@ -203,7 +204,6 @@ dhcp4_register_services(ni_dbus_server_t *server)
 	if (object == NULL)
 		ni_fatal("Unable to create dbus object for interfaces");
 
-	// ni_dbus_object_register_service(object, &wicked_dbus_dhcpdev_interface);
 	dhcp4_discover_devices(server);
 
 	ni_dhcp_set_event_handler(dhcp4_protocol_event);
@@ -244,6 +244,9 @@ dhcp4_discover_devices(ni_dbus_server_t *server)
 {
 	ni_netconfig_t *nc;
 	ni_netdev_t *ifp;
+
+	/* Disable wireless AP scanning */
+	ni_wireless_set_scanning(FALSE);
 
 	if (!(nc = ni_global_state_handle(1)))
 		ni_fatal("cannot refresh interface list!");

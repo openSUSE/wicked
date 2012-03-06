@@ -19,6 +19,7 @@
 #include <wicked/logging.h>
 #include <wicked/wicked.h>
 #include <wicked/socket.h>
+#include <wicked/wireless.h>
 #include <wicked/objectmodel.h>
 #include "autoip4/autoip.h"
 
@@ -243,6 +244,9 @@ autoip4_discover_devices(ni_dbus_server_t *server)
 {
 	ni_netconfig_t *nc;
 	ni_netdev_t *ifp;
+
+	/* Disable wireless AP scanning */
+	ni_wireless_set_scanning(FALSE);
 
 	if (!(nc = ni_global_state_handle(1)))
 		ni_fatal("cannot refresh interface list!");
