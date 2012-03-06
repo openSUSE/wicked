@@ -143,7 +143,8 @@ ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_messa
 	}
 
 	if (!ni_objectmodel_set_addrconf_lease(lease, &argv[optind++])) {
-		ni_debug_dbus("%s: unable to parse lease argument", __func__);
+		ni_error("%s: unable to parse lease argument received from %s", __func__,
+				dbus_message_get_sender(msg));
 		goto done;
 	}
 
@@ -152,7 +153,7 @@ ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_messa
 			ni_addrconf_type_to_name(lease->type),
 			ni_addrfamily_type_to_name(lease->family),
 			ni_print_hex(uuid.octets, 16));
-	if (!strcmp(signal_name, "LeaseAcquired")) {
+	if (!strcmp(signal_name, NI_OBJECTMODEL_LEASE_ACQUIRED_SIGNAL)) {
 		if (lease->state != NI_ADDRCONF_STATE_GRANTED) {
 			ni_error("%s: unexpected lease state in signal %s", __func__, signal_name);
 			goto done;
@@ -163,10 +164,10 @@ ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_messa
 		if (!__ni_addrconf_should_update(lease->update, NI_ADDRCONF_UPDATE_DEFAULT_ROUTE)) {
 			/* FIXME: remove any default routes from the lease */
 		}
-	} else if (!strcmp(signal_name, "LeaseReleased")) {
+	} else if (!strcmp(signal_name, NI_OBJECTMODEL_LEASE_RELEASED_SIGNAL)) {
 		lease->state = NI_ADDRCONF_STATE_RELEASED;
 		ifevent = NI_EVENT_ADDRESS_RELEASED;
-	} else if (!strcmp(signal_name, "LeaseLost")) {
+	} else if (!strcmp(signal_name, NI_OBJECTMODEL_LEASE_LOST_SIGNAL)) {
 		lease->state = NI_ADDRCONF_STATE_FAILED;
 		ifevent = NI_EVENT_ADDRESS_LOST;
 	} else {

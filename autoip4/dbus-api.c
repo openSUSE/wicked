@@ -169,6 +169,12 @@ static ni_dbus_method_t		wicked_dbus_autoip4_methods[] = {
 	{ NULL }
 };
 
+static ni_dbus_method_t		wicked_dbus_autoip4_signals[] = {
+	{ NI_OBJECTMODEL_LEASE_ACQUIRED_SIGNAL },
+	{ NI_OBJECTMODEL_LEASE_RELEASED_SIGNAL },
+	{ NI_OBJECTMODEL_LEASE_LOST_SIGNAL },
+	{ NULL }
+};
 
 /*
  * Property name
@@ -215,5 +221,6 @@ static const ni_dbus_service_t	wicked_dbus_autoip4_service = {
 	.name		= NI_OBJECTMODEL_AUTO4_INTERFACE,
 	.compatible	= &ni_objectmodel_autoip4dev_class,
 	.methods	= wicked_dbus_autoip4_methods,
+	.signals	= wicked_dbus_autoip4_signals,
 	.properties	= wicked_dbus_autoip4_properties,
 };

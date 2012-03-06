@@ -365,20 +365,25 @@ autoip4_protocol_event(enum ni_lease_event ev, const ni_autoip_device_t *dev, ni
 
 	switch (ev) {
 	case NI_EVENT_LEASE_ACQUIRED:
+		if (lease == NULL) {
+			ni_error("BUG: cannot send %s event without a lease handle",
+					NI_OBJECTMODEL_LEASE_ACQUIRED_SIGNAL);
+			goto done;
+		}
 		ni_dbus_server_send_signal(autoip4_dbus_server, dev_object,
-				NI_OBJECTMODEL_AUTO4_INTERFACE, "LeaseAcquired",
+				NI_OBJECTMODEL_AUTO4_INTERFACE, NI_OBJECTMODEL_LEASE_ACQUIRED_SIGNAL,
 				argc, argv);
 		break;
 
 	case NI_EVENT_LEASE_RELEASED:
 		ni_dbus_server_send_signal(autoip4_dbus_server, dev_object,
-				NI_OBJECTMODEL_AUTO4_INTERFACE, "LeaseReleased",
+				NI_OBJECTMODEL_AUTO4_INTERFACE, NI_OBJECTMODEL_LEASE_RELEASED_SIGNAL,
 				argc, argv);
 		break;
 
 	case NI_EVENT_LEASE_LOST:
 		ni_dbus_server_send_signal(autoip4_dbus_server, dev_object,
-				NI_OBJECTMODEL_AUTO4_INTERFACE, "LeaseLost",
+				NI_OBJECTMODEL_AUTO4_INTERFACE, NI_OBJECTMODEL_LEASE_LOST_SIGNAL,
 				argc, argv);
 		break;
 

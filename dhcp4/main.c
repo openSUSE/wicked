@@ -392,23 +392,24 @@ dhcp4_protocol_event(enum ni_dhcp_event ev, const ni_dhcp_device_t *dev, ni_addr
 	switch (ev) {
 	case NI_DHCP_EVENT_ACQUIRED:
 		if (lease == NULL) {
-			ni_error("BUG: cannot send LeaseAcquired event without a lease handle");
+			ni_error("BUG: cannot send %s event without a lease handle",
+					NI_OBJECTMODEL_LEASE_ACQUIRED_SIGNAL);
 			goto done;
 		}
 		ni_dbus_server_send_signal(dhcp4_dbus_server, dev_object,
-				NI_OBJECTMODEL_DHCP4_INTERFACE, "LeaseAcquired",
+				NI_OBJECTMODEL_DHCP4_INTERFACE, NI_OBJECTMODEL_LEASE_ACQUIRED_SIGNAL,
 				argc, argv);
 		break;
 
 	case NI_DHCP_EVENT_RELEASED:
 		ni_dbus_server_send_signal(dhcp4_dbus_server, dev_object,
-				NI_OBJECTMODEL_DHCP4_INTERFACE, "LeaseReleased",
+				NI_OBJECTMODEL_DHCP4_INTERFACE, NI_OBJECTMODEL_LEASE_RELEASED_SIGNAL,
 				argc, argv);
 		break;
 
 	case NI_DHCP_EVENT_LOST:
 		ni_dbus_server_send_signal(dhcp4_dbus_server, dev_object,
-				NI_OBJECTMODEL_DHCP4_INTERFACE, "LeaseLost",
+				NI_OBJECTMODEL_DHCP4_INTERFACE, NI_OBJECTMODEL_LEASE_LOST_SIGNAL,
 				argc, argv);
 		break;
 

@@ -42,6 +42,13 @@ extern const ni_dbus_class_t *	ni_objectmodel_get_class(const char *);
 #define NI_OBJECTMODEL_DHCP4_INTERFACE		NI_OBJECTMODEL_INTERFACE ".DHCP4"
 #define NI_OBJECTMODEL_AUTO4_INTERFACE		NI_OBJECTMODEL_INTERFACE ".AUTO4"
 
+/*
+ * Signals emitted by addrconf services
+ */
+#define NI_OBJECTMODEL_LEASE_ACQUIRED_SIGNAL	"LeaseAcquired"
+#define NI_OBJECTMODEL_LEASE_RELEASED_SIGNAL	"LeaseReleased"
+#define NI_OBJECTMODEL_LEASE_LOST_SIGNAL	"LeaseLost"
+
 extern const char *		ni_objectmodel_link_classname(ni_iftype_t);
 
 extern const ni_dbus_service_t *ni_objectmodel_service_by_name(const char *interface_name);
