@@ -10,6 +10,7 @@
 test
 xml-test
 xpath-test
+ibft-test
 core
 tags
 bin

@@ -173,6 +173,9 @@ testing/xml-test: testing/xml-test.o $(TGTLIBS)
 testing/xpath-test: testing/xpath-test.o $(TGTLIBS)
 	$(CC) -o $@ $(CFLAGS) testing/xpath-test.o -L. -lwicked -ldbus-1
 
+testing/ibft-test: testing/ibft-test.o $(TGTLIBS)
+	$(CC) -o $@ $(CFLAGS) testing/ibft-test.o -L. -lnetinfo -ldbus-1
+
 $(LIBNAME).a: $(LIBOBJS)
 	@rm -f $@
 	ar cr $@ $(LIBOBJS)
