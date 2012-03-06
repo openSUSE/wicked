@@ -112,6 +112,8 @@ distclean clean::
 	rm -f *.o libwicked.* core tags LOG
 	rm -rf $(BIN) $(OBJ) $(GENFILES)
 	rm -f testing/*.o
+	rm -f testing/xml-test
+	rm -f testing/xpath-test
 
 distclean::
 	rm -f .depend
