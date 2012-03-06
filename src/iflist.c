@@ -2,10 +2,6 @@
  * Discover list of existing kernel interfaces and their state.
  *
  * Copyright (C) 2009-2012 Olaf Kirch <okir@suse.de>
- *
- * TODO:
- *  -	Discover bonding state
- *  -	Discover bonding module params
  */
 
 #include <string.h>
@@ -33,6 +29,7 @@
 #include <wicked/system.h>
 #include <wicked/vlan.h>
 #include <wicked/wireless.h>
+#include <wicked/linkstats.h>
 #include <wicked/xml.h>
 
 #include "netinfo_priv.h"
@@ -453,7 +450,14 @@ done:
 int
 __ni_system_interface_stats_refresh(ni_netconfig_t *nc, ni_netdev_t *dev)
 {
-	/* This is a NOP for now */
+	int rv = 0;
+
+	if (dev->link.ethtool_stats
+	 && (rv = __ni_ethtool_stats_refresh(dev->name, dev->link.ethtool_stats)) < 0)
+		return rv;
+
+	/* More stats may go here, such as routing statistics */
+
 	return 0;
 }
 
@@ -521,7 +525,7 @@ __ni_process_ifinfomsg(ni_linkinfo_t *link, struct nlmsghdr *h,
 
 	link->arp_type = ifi->ifi_type;
 	link->ifflags = __ni_netdev_translate_ifflags(ifi->ifi_flags);
-	link->type = NI_IFTYPE_UNKNOWN;
+	link->type = NI_IFTYPE_UNKNOWN; /* FIXME: we do we reset this?! */
 
 	if (tb[IFLA_MTU])
 		link->mtu = nla_get_u32(tb[IFLA_MTU]);
@@ -644,6 +648,9 @@ __ni_process_ifinfomsg(ni_linkinfo_t *link, struct nlmsghdr *h,
 				} else if (!strcmp(driver, "bonding")) {
 					link->type = NI_IFTYPE_BOND;
 				}
+
+				if (drv_info.n_stats != 0 && link->ethtool_stats == NULL)
+					link->ethtool_stats = __ni_ethtool_stats_init(ifname, &drv_info);
 			}
 
 			/* Detect WLAN device.

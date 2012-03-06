@@ -143,6 +143,8 @@ static __ni_ioctl_info_t __ethtool_gtso = { ETHTOOL_GTSO, "GTSO" };
 static __ni_ioctl_info_t __ethtool_gufo = { ETHTOOL_GUFO, "GUFO" };
 static __ni_ioctl_info_t __ethtool_ggso = { ETHTOOL_GGSO, "GGSO" };
 static __ni_ioctl_info_t __ethtool_ggro = { ETHTOOL_GGRO, "GGRO" };
+static __ni_ioctl_info_t __ethtool_gstrings = { ETHTOOL_GSTRINGS, "GSTRINGS" };
+static __ni_ioctl_info_t __ethtool_gstats = { ETHTOOL_GSTATS, "GSTATS" };
 static __ni_ioctl_info_t __ethtool_sflags = { ETHTOOL_SFLAGS, "SFLAGS" };
 static __ni_ioctl_info_t __ethtool_srxcsum = { ETHTOOL_SRXCSUM, "SRXCSUM" };
 static __ni_ioctl_info_t __ethtool_stxcsum = { ETHTOOL_STXCSUM, "STXCSUM" };
@@ -153,7 +155,7 @@ static __ni_ioctl_info_t __ethtool_sgso = { ETHTOOL_SGSO, "SGSO" };
 static __ni_ioctl_info_t __ethtool_sgro = { ETHTOOL_SGRO, "SGRO" };
 
 static int
-__ni_ethtool_do(const char *ifname, __ni_ioctl_info_t *ioc, struct ethtool_value *evp)
+__ni_ethtool_do(const char *ifname, __ni_ioctl_info_t *ioc, void *evp)
 {
 	if (ioc->not_supported) {
 		errno = EOPNOTSUPP;
@@ -191,6 +193,55 @@ __ni_ethtool_set_value(const char *ifname, __ni_ioctl_info_t *ioc, int value)
 }
 
 /*
+ * Get list of strings
+ */
+static int
+__ni_ethtool_get_strings(const char *ifname, int set_id, unsigned int num, struct ni_ethtool_counter *counters)
+{
+	typedef char eth_gstring[ETH_GSTRING_LEN];
+	struct ethtool_gstrings *ap;
+	eth_gstring *strings;
+	unsigned int i;
+
+	ap = malloc(sizeof(*ap) + num * ETH_GSTRING_LEN);
+	ap->string_set = set_id;
+	ap->len = num;
+
+	if (__ni_ethtool_do(ifname, &__ethtool_gstrings, ap) < 0)
+		return -1;
+
+	strings = (eth_gstring *)(ap + 1);
+	for (i = 0; i < ap->len; ++i)
+		ni_string_dup(&counters[i].name, strings[i]);
+
+	free(ap);
+	return 0;
+}
+
+/*
+ * Get statistics
+ */
+static int
+__ni_ethtool_get_stats(const char *ifname, unsigned int num, struct ni_ethtool_counter *counters)
+{
+	struct ethtool_stats *sp;
+	unsigned int i;
+	uint64_t *stats;
+
+	sp = malloc(sizeof(*sp) + num * sizeof(uint64_t));
+	sp->n_stats = num;
+
+	if (__ni_ethtool_do(ifname, &__ethtool_gstats, sp) < 0)
+		return -1;
+
+	stats = (uint64_t *)(sp + 1);
+	for (i = 0; i < num; ++i)
+		counters[i].value = stats[i];
+
+	return 0;
+}
+
+/*
  * Get a value from ethtool, and convert to tristate.
  */
 static int
@@ -214,6 +265,43 @@ __ni_ethtool_set_tristate(const char *ifname, __ni_ioctl_info_t *ioc, int value)
 
 	kern_value = (value == NI_ETHERNET_SETTING_ENABLE);
 	return __ni_ethtool_set_value(ifname, ioc, kern_value);
+}
+
+/*
+ * Handle ethtool stats
+ */
+ni_ethtool_stats_t *
+__ni_ethtool_stats_init(const char *ifname, const struct ethtool_drvinfo *drv_info)
+{
+	ni_ethtool_stats_t *stats;
+
+	stats = calloc(1, sizeof(*stats));
+	stats->count = drv_info->n_stats;
+	stats->data = calloc(stats->count, sizeof(struct ni_ethtool_counter));
+
+	if (__ni_ethtool_get_strings(ifname, ETH_SS_STATS, stats->count, stats->data) < 0) {
+		__ni_ethtool_stats_free(stats);
+		return NULL;
+	}
+
+	return stats;
+}
+
+int
+__ni_ethtool_stats_refresh(const char *ifname, ni_ethtool_stats_t *stats)
+{
+	return __ni_ethtool_get_stats(ifname, stats->count, stats->data);
+}
+
+void
+__ni_ethtool_stats_free(ni_ethtool_stats_t *stats)
+{
+	unsigned int i;
+
+	for (i = 0; i < stats->count; ++i)
+		ni_string_free(&stats->data[i].name);
+	free(stats->data);
+	free(stats);
 }
 
 /*

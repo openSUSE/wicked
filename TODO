@@ -23,9 +23,6 @@ ifconfig
 	- disable IPv6 on a device if requested
 	- support ppp, pppoe
 
-iflist
-	- Retrieve ethtool interface statistics
-
 overall
 	- Add INSTALL file describing how to build wicked
 
