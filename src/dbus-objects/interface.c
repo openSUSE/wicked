@@ -698,6 +698,8 @@ const char *
 __ni_objectmodel_event_to_signal(ni_event_t event)
 {
 	static const char *ifevent_signals[__NI_EVENT_MAX] = {
+	[NI_EVENT_DEVICE_UP]		= "deviceUp",
+	[NI_EVENT_DEVICE_DOWN]		= "deviceDown",
 	[NI_EVENT_LINK_ASSOCIATED]	= "linkAssociated",
 	[NI_EVENT_LINK_ASSOCIATION_LOST]= "linkAssociationLost",
 	[NI_EVENT_LINK_UP]		= "linkUp",

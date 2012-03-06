@@ -198,7 +198,17 @@ __ni_rtevent_newlink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 	}
 
 	if (old) {
-		unsigned int new_flags, flags_changed;
+		static struct flag_transition {
+			unsigned int	flag;
+			unsigned int	event_up;
+			unsigned int	event_down;
+		} *edge, flag_transitions[] = {
+			{ NI_IFF_DEVICE_UP,	NI_EVENT_DEVICE_UP,	NI_EVENT_DEVICE_DOWN	},
+			{ NI_IFF_LINK_UP,	NI_EVENT_LINK_UP,	NI_EVENT_LINK_DOWN	},
+			{ NI_IFF_NETWORK_UP,	NI_EVENT_NETWORK_UP,	NI_EVENT_NETWORK_DOWN	},
+			{ 0 }
+		};
+		unsigned int i, new_flags, flags_changed;
 
 		/* If the interface name changed, update it */
 		if (ifname && strcmp(ifname, dev->name))
@@ -207,17 +217,13 @@ __ni_rtevent_newlink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 		new_flags = dev->link.ifflags;
 		flags_changed = old_flags ^ new_flags;
 
-		if (flags_changed & NI_IFF_LINK_UP) {
-			if (new_flags & NI_IFF_LINK_UP)
-				__ni_netdev_event(nc, dev, NI_EVENT_LINK_UP);
+		for (i = 0, edge = flag_transitions; edge->flag; ++i, ++edge) {
+			if ((flags_changed & edge->flag) == 0)
+				continue;
+			if (new_flags & edge->flag)
+				__ni_netdev_event(nc, dev, edge->event_up);
 			else
-				__ni_netdev_event(nc, dev, NI_EVENT_LINK_DOWN);
-		}
-		if (flags_changed & NI_IFF_NETWORK_UP) {
-			if (new_flags & NI_IFF_NETWORK_UP)
-				__ni_netdev_event(nc, dev, NI_EVENT_NETWORK_UP);
-			else
-				__ni_netdev_event(nc, dev, NI_EVENT_NETWORK_DOWN);
+				__ni_netdev_event(nc, dev, edge->event_down);
 		}
 	} else {
 		__ni_netdev_event(nc, dev, NI_EVENT_LINK_CREATE);

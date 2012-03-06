@@ -259,6 +259,8 @@ ni_arphrd_type_to_name(unsigned int type)
 static ni_intmap_t __event_names[] = {
 	{ "link-create",		NI_EVENT_LINK_CREATE },
 	{ "link-delete",		NI_EVENT_LINK_DELETE },
+	{ "device-up",			NI_EVENT_DEVICE_UP },
+	{ "device-down",		NI_EVENT_DEVICE_DOWN },
 	{ "link-associated",		NI_EVENT_LINK_ASSOCIATED },
 	{ "link-association-lost",	NI_EVENT_LINK_ASSOCIATION_LOST },
 	{ "link-up",			NI_EVENT_LINK_UP },
