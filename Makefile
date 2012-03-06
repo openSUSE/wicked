@@ -33,6 +33,7 @@ __LIBSRCS= \
 	  kernel.c \
 	  address.c \
 	  sysconfig.c \
+	  ibft.c \
 	  sysfs.c \
 	  nis.c \
 	  resolver.c \
