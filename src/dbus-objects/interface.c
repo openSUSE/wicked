@@ -583,20 +583,17 @@ ni_objectmodel_netif_link_up(ni_dbus_object_t *object, const ni_dbus_method_t *m
 	NI_TRACE_ENTER_ARGS("dev=%s", dev->name);
 
 	/* Create an interface_request object and extract configuration from dict */
+	if (argc != 1)
+		return ni_dbus_error_invalid_args(error, object->path, method->name);
+
 	req = ni_netdev_req_new();
-	if (argc != 1) {
-		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-				"linkUp: missing argument");
-		goto failed;
-	}
 	if (!ni_objectmodel_unmarshal_interface_request(req, &argv[0], error))
 		goto failed;
 	req->ifflags = NI_IFF_LINK_UP | NI_IFF_NETWORK_UP;
 
 	if ((rv = ni_system_interface_link_change(dev, req)) < 0) {
-		dbus_set_error(error, DBUS_ERROR_FAILED,
-				"Cannot configure interface %s: %s", dev->name,
-				ni_strerror(rv));
+		ni_dbus_set_error_from_code(error, rv,
+				"failed to configure interface %s", dev->name);
 		ret = FALSE;
 		goto failed;
 	}
@@ -631,9 +628,8 @@ ni_objectmodel_netif_link_down(ni_dbus_object_t *object, const ni_dbus_method_t 
 	NI_TRACE_ENTER_ARGS("dev=%s", dev->name);
 
 	if ((rv = ni_system_interface_link_change(dev, NULL)) < 0) {
-		dbus_set_error(error, DBUS_ERROR_FAILED,
-				"Cannot take interface down %s: %s", dev->name,
-				ni_strerror(rv));
+		ni_dbus_set_error_from_code(error, rv,
+				"failed to shut down interface %s", dev->name);
 		return FALSE;
 	}
 
@@ -747,7 +743,7 @@ static ni_dbus_method_t		ni_objectmodel_netif_methods[] = {
 static void *
 ni_objectmodel_get_netdev(const ni_dbus_object_t *object, DBusError *error)
 {
-	return ni_objectmodel_unwrap_interface(object, NULL);
+	return ni_objectmodel_unwrap_interface(object, error);
 }
 
 /*
