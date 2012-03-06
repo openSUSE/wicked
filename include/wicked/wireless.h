@@ -211,6 +211,7 @@ struct ni_wireless_scan {
 	const ni_timer_t *	timer;
 };
 
+extern void		ni_wireless_set_scanning(ni_bool_t enable);
 extern ni_wireless_t *	ni_wireless_new(ni_netdev_t *);
 extern int		ni_wireless_interface_set_scanning(ni_netdev_t *, ni_bool_t);
 extern int		ni_wireless_interface_refresh(ni_netdev_t *);

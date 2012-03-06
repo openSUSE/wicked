@@ -47,6 +47,7 @@ static int		__ni_wireless_do_scan(ni_netdev_t *);
 static void		__ni_wireless_network_destroy(ni_wireless_network_t *net);
 
 static ni_wpa_client_t *wpa_client;
+static ni_bool_t	__ni_wireless_scanning_enabled = TRUE;
 
 /*
  * Get the dbus client handle for wpa_supplicant
@@ -108,7 +109,7 @@ ni_wireless_interface_refresh(ni_netdev_t *dev)
 }
 
 /*
- * Refresh what we think we know about this interface.
+ * Enable/disable wireless AP scanning on a device
  */
 int
 ni_wireless_interface_set_scanning(ni_netdev_t *dev, ni_bool_t enable)
@@ -135,6 +136,21 @@ ni_wireless_interface_set_scanning(ni_netdev_t *dev, ni_bool_t enable)
 	return 0;
 }
 
+/*
+ * Enable/disable AP scanning globally.
+ * This is just the default setting for newly registered devices.
+ * A client can still override this on a per device basis by calling
+ * ni_wireless_interface_set_scanning()
+ */
+void
+ni_wireless_set_scanning(ni_bool_t enable)
+{
+	__ni_wireless_scanning_enabled = enable;
+}
+
+/*
+ * Initiate a network scan
+ */
 int
 __ni_wireless_do_scan(ni_netdev_t *dev)
 {
@@ -787,8 +803,11 @@ ni_wireless_new(ni_netdev_t *dev)
 {
 	ni_wireless_t *wlan;
 
+	ni_assert(dev->wireless == NULL);
 	wlan = xcalloc(1, sizeof(ni_wireless_t));
-	wlan->scan = ni_wireless_scan_new(dev, NI_WIRELESS_DEFAUT_SCAN_INTERVAL);
+
+	if (__ni_wireless_scanning_enabled)
+		wlan->scan = ni_wireless_scan_new(dev, NI_WIRELESS_DEFAUT_SCAN_INTERVAL);
 	return wlan;
 }
 
@@ -798,6 +817,7 @@ ni_wireless_free(ni_wireless_t *wireless)
 	ni_wireless_set_assoc_network(wireless, NULL);
 	if (wireless->scan)
 		ni_wireless_scan_free(wireless->scan);
+	wireless->scan = NULL;
 	free(wireless);
 }
 
