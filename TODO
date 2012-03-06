@@ -1,18 +1,16 @@
 
-dhcp4:
-	BUG:
-	::: initiating discovery for wlan0 (ifindex 3)
-	Error: cannot get broadcast address for wlan0 (bad iftype)
-	Error: unable to open capture socket
-
 wickedd:
 	- bug: linkUp on an interface that's up never returns the
 	  event callback.
+	- bug: sometimes wpa supplicant just stops scanning
 	- support global (non-interface) routes
-
-wicked:
-	- when installing a policy for an auto device, also include a
-	  link-down policy that shuts it down again.
+	- support ppp: have a deviceNew method that associates a pppN
+	  and use deviceChange to bring up pppd.
+	- handle SIGTERM/SIGINT: bring down addrconf services, restore
+	  resolv.conf etc.
+	- write addrconf leases to a file
+	- when a wlan device changes association, tell dhcp about it
+	  so that it can request a new lease
 
 netinfo:
 	- Introduce an <access-provider> abstraction; this can be either
