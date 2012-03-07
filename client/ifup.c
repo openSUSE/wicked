@@ -610,7 +610,8 @@ ni_ifworker_identify_device(const xml_node_t *devnode)
 typedef struct ni_ifmatcher {
 	const char *		name;
 	const char *		boot_label;
-	unsigned int		config_only : 1;
+	unsigned int		require_config : 1,
+				skip_active    : 1;
 } ni_ifmatcher_t;
 
 static unsigned int
@@ -622,14 +623,14 @@ ni_ifworker_mark_matching(ni_ifmatcher_t *match, unsigned int target_state)
 
 	if (!strcmp(match->name, "all")) {
 		/* safeguard: "ifdown all" should mean "all interfaces with a config file */
-		match->config_only = 1;
+		match->require_config = 1;
 		match->name = NULL;
 	}
 
 	for (i = 0; i < interface_workers.count; ++i) {
 		ni_ifworker_t *w = interface_workers.data[i];
 
-		if (w->config == NULL && match->config_only)
+		if (w->config == NULL && match->require_config)
 			continue;
 		if (w->exclusive_owner)
 			continue;
@@ -645,6 +646,9 @@ ni_ifworker_mark_matching(ni_ifmatcher_t *match, unsigned int target_state)
 			 || !ni_string_eq(match->boot_label, boot_node->cdata))
 				continue;
 		}
+
+		if (match->skip_active && w->device && ni_netdev_device_is_up(w->device))
+			continue;
 
 		if (w->config == NULL) {
 			fprintf(stderr,
@@ -1803,10 +1807,11 @@ ni_ifconfig_load(const char *pathname)
 int
 do_ifup(int argc, char **argv)
 {
-	enum  { OPT_IFCONFIG, OPT_BOOT, OPT_TIMEOUT };
+	enum  { OPT_IFCONFIG, OPT_BOOT, OPT_TIMEOUT, OPT_SKIP_ACTIVE };
 	static struct option ifup_options[] = {
 		{ "ifconfig",	required_argument, NULL,	OPT_IFCONFIG },
 		{ "boot-label",	required_argument, NULL,	OPT_BOOT },
+		{ "skip-active",required_argument, NULL,	OPT_SKIP_ACTIVE },
 		{ "timeout",	required_argument, NULL,	OPT_TIMEOUT },
 		{ NULL }
 	};
@@ -1815,7 +1820,7 @@ do_ifup(int argc, char **argv)
 	int c, rv = 1;
 
 	memset(&ifmatch, 0, sizeof(ifmatch));
-	ifmatch.config_only = 1;
+	ifmatch.require_config = 1;
 
 	optind = 1;
 	while ((c = getopt_long(argc, argv, "", ifup_options, NULL)) != EOF) {
@@ -1837,6 +1842,10 @@ do_ifup(int argc, char **argv)
 				ni_error("ifup: cannot parse timeout option \"%s\"", optarg);
 				goto usage;
 			}
+			break;
+
+		case OPT_SKIP_ACTIVE:
+			ifmatch.skip_active = 1;
 			break;
 
 		default:
