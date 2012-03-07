@@ -78,8 +78,8 @@ extern void			ni_objectmodel_callback_info_free(ni_objectmodel_callback_info_t *
 typedef struct ni_objectmodel_netif_ns ni_objectmodel_netif_ns_t;
 struct ni_objectmodel_netif_ns {
 	const char *		name;
-	ni_netdev_t *	(*lookup_by_name)(ni_objectmodel_netif_ns_t *, const char *);
-	ni_netdev_t *	(*lookup_by_attrs)(ni_objectmodel_netif_ns_t *, const ni_var_array_t *);
+	ni_netdev_t *		(*lookup_by_name)(ni_objectmodel_netif_ns_t *, const char *);
+	ni_netdev_t *		(*lookup_by_attrs)(ni_objectmodel_netif_ns_t *, const ni_var_array_t *);
 	dbus_bool_t		(*match_attr)(const ni_netdev_t *, const char *, const char *);
 };
 
