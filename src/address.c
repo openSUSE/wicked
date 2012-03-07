@@ -609,7 +609,11 @@ __ni_route_new(ni_route_t **list, unsigned int prefixlen, const ni_sockaddr_t *d
 ni_route_t *
 ni_route_new(ni_netconfig_t *nc, unsigned int prefixlen, const ni_sockaddr_t *dest, const ni_sockaddr_t *gw)
 {
-	return __ni_route_new(&nc->routes, prefixlen, dest, gw);
+	ni_route_t *rp;
+
+	if ((rp = __ni_route_new(NULL, prefixlen, dest, gw)) != NULL)
+		ni_netconfig_route_append(nc, rp);
+	return rp;
 }
 
 void

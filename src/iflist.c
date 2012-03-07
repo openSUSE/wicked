@@ -236,7 +236,7 @@ __ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list)
 		goto failed;
 
 	/* Find tail of iflist */
-	tail = &nc->interfaces;
+	tail = ni_netconfig_device_list_head(nc);
 	while ((dev = *tail) != NULL)
 		tail = &dev->next;
 
@@ -273,7 +273,7 @@ __ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list)
 			ni_error("Problem parsing RTM_NEWLINK message for %s", ifname);
 	}
 
-	for (dev = nc->interfaces; dev; dev = dev->next) {
+	for (dev = ni_netconfig_devlist(nc); dev; dev = dev->next) {
 		if (dev->link.vlan && ni_vlan_bind_ifindex(dev->link.vlan, nc) < 0) {
 			ni_error("VLAN interface %s references unknown base interface (ifindex %u)",
 				dev->name, dev->link.vlan->physdev_index);
@@ -330,7 +330,7 @@ __ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list)
 	}
 
 	/* Cull any interfaces that went away */
-	tail = &nc->interfaces;
+	tail = ni_netconfig_device_list_head(nc);
 	while ((dev = *tail) != NULL) {
 		if (dev->seq != seqno) {
 			*tail = dev->next;

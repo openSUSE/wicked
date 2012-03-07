@@ -30,6 +30,11 @@
 #include "config.h"
 #include "xml-schema.h"
 
+struct ni_netconfig {
+	ni_netdev_t *		interfaces;
+	struct ni_route *	routes;		/* should kill this */
+};
+
 #define DEFAULT_ADDRCONF_IPV4 (\
 			NI_ADDRCONF_MASK(NI_ADDRCONF_STATIC) |\
 			NI_ADDRCONF_MASK(NI_ADDRCONF_DHCP))
@@ -192,6 +197,41 @@ ni_netdev_t *
 ni_netconfig_devlist(ni_netconfig_t *nc)
 {
 	return nc->interfaces;
+}
+
+ni_netdev_t **
+ni_netconfig_device_list_head(ni_netconfig_t *nc)
+{
+	return &nc->interfaces;
+}
+
+void
+ni_netconfig_device_append(ni_netconfig_t *nc, ni_netdev_t *dev)
+{
+	__ni_netdev_list_append(&nc->interfaces, dev);
+}
+
+void
+ni_netconfig_device_remove(ni_netconfig_t *nc, ni_netdev_t *dev)
+{
+	ni_netdev_t **pos, *cur;
+
+	for (pos = &nc->interfaces; (cur = *pos) != NULL; pos = &cur->next) {
+		if (cur == dev) {
+			*pos = cur->next;
+			ni_netdev_put(cur);
+			return;
+		}
+	}
+}
+
+/*
+ * Handle list of global routes
+ */
+void
+ni_netconfig_route_append(ni_netconfig_t *nc, ni_route_t *rp)
+{
+	__ni_route_list_append(&nc->routes, rp);
 }
 
 /*

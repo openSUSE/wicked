@@ -26,7 +26,7 @@ ni_global_state_handle(int refresh)
 				return NULL;
 		}
 
-		nc = calloc(1, sizeof(*nc));
+		nc = ni_netconfig_new();
 	}
 	if (refresh && __ni_system_refresh_interfaces(nc) < 0) {
 		ni_error("failed to refresh interface list");

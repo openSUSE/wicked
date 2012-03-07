@@ -61,7 +61,7 @@ ni_netdev_new(ni_netconfig_t *nc, const char *name, unsigned int index)
 
 	dev = __ni_netdev_new(name, index);
 	if (nc && dev)
-		__ni_netdev_list_append(&nc->interfaces, dev);
+		ni_netconfig_device_append(nc, dev);
 	
 	return dev;
 }

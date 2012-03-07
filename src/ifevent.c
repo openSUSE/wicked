@@ -241,8 +241,8 @@ __ni_rtevent_newlink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 int
 __ni_rtevent_dellink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struct nlmsghdr *h)
 {
-	ni_netdev_t *dev, **pos;
 	struct ifinfomsg *ifi;
+	ni_netdev_t *dev;
 
 	if (!(ifi = ni_rtnl_ifinfomsg(h, RTM_DELLINK)))
 		return -1;
@@ -253,17 +253,13 @@ __ni_rtevent_dellink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 	}
 
 	/* Open code interface removal. */
-	for (pos = &nc->interfaces; (dev = *pos) != NULL; pos = &dev->next) {
-		if (dev->link.ifindex == ifi->ifi_index) {
-			*pos = dev->next;
-			dev->next = NULL;
-			dev->link.ifindex = 0;
-			dev->link.ifflags = __ni_netdev_translate_ifflags(ifi->ifi_flags);
+	if ((dev = ni_netdev_by_index(nc, ifi->ifi_index)) != NULL) {
+		dev->next = NULL;
+		dev->link.ifindex = 0;
+		dev->link.ifflags = __ni_netdev_translate_ifflags(ifi->ifi_flags);
 
-			__ni_netdev_event(nc, dev, NI_EVENT_LINK_DELETE);
-			ni_netdev_put(dev);
-			break;
-		}
+		__ni_netdev_event(nc, dev, NI_EVENT_LINK_DELETE);
+		ni_netconfig_device_remove(nc, dev);
 	}
 
 	return 0;

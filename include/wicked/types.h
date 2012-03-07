@@ -17,6 +17,7 @@ typedef unsigned char		ni_bool_t;
 # define FALSE 0
 #endif
 
+typedef struct ni_netconfig	ni_netconfig_t;
 typedef struct ni_netdev	ni_netdev_t;
 typedef struct ni_route		ni_route_t;
 typedef struct ni_vlan		ni_vlan_t;
@@ -58,16 +59,6 @@ typedef struct xpath_format_array {
 	unsigned int		count;
 	xpath_format_t **	data;
 } xpath_format_array_t;
-
-/*
- * This is the all-encompassing thingy that holds a
- * complete network config state
- */
-typedef struct ni_netconfig	ni_netconfig_t;
-struct ni_netconfig {
-	ni_netdev_t *	interfaces;
-	struct ni_route *	routes;		/* should kill this */
-};
 
 typedef union ni_uuid {
 	unsigned char		octets[16];
