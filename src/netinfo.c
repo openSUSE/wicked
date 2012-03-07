@@ -2,10 +2,6 @@
  * Routines for detecting and monitoring network interfaces.
  *
  * Copyright (C) 2009-2012 Olaf Kirch <okir@suse.de>
- *
- * TODO
- *  -	Check that the module options specified for the bonding
- *	module do not conflict between interfaces
  */
 #include <stdlib.h>
 #include <string.h>
@@ -154,6 +150,37 @@ ni_server_dbus_xml_schema(void)
 	}
 
 	return scope;
+}
+
+/*
+ * This is the function used by all wicked code to get the current networking
+ * state.
+ * If refresh is 0, this will just return the current handle; if it is non-zero,
+ * the current state is retrieved.
+ */
+ni_netconfig_t *
+ni_global_state_handle(int refresh)
+{
+	static ni_netconfig_t *nc = NULL;
+
+	if (nc == NULL) {
+		if (__ni_global_netlink == NULL) {
+			__ni_global_netlink = __ni_netlink_open(0);
+			if (__ni_global_netlink == NULL)
+				return NULL;
+		}
+
+		nc = ni_netconfig_new();
+	}
+
+	if (refresh) {
+		if (__ni_system_refresh_interfaces(nc) < 0) {
+			ni_error("failed to refresh interface list");
+			return NULL;
+		}
+	}
+
+	return nc;
 }
 
 /*

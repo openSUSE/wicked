@@ -14,28 +14,6 @@
 
 #define CONFIG_WICKED_BACKUP_DIR	CONFIG_WICKED_STATEDIR "/backup"
 
-ni_netconfig_t *
-ni_global_state_handle(int refresh)
-{
-	static ni_netconfig_t *nc = NULL;
-
-	if (nc == NULL) {
-		if (__ni_global_netlink == NULL) {
-			__ni_global_netlink = __ni_netlink_open(0);
-			if (__ni_global_netlink == NULL)
-				return NULL;
-		}
-
-		nc = ni_netconfig_new();
-	}
-	if (refresh && __ni_system_refresh_interfaces(nc) < 0) {
-		ni_error("failed to refresh interface list");
-		return NULL;
-	}
-
-	return nc;
-}
-
 int
 __ni_system_hostname_get(char *buffer, size_t size)
 {
