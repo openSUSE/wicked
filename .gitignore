@@ -10,7 +10,9 @@
 test
 xml-test
 xpath-test
+ibft-test
 core
 tags
 bin
 schema/constants.xml
+.*project

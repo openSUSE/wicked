@@ -23,6 +23,8 @@
 #include "util_priv.h"
 
 #define NI_STRINGARRAY_CHUNK	16
+#define NC_STRINGBUF_CHUNK	64
+
 
 static int		__ni_pidfile_write(const char *, unsigned int, pid_t, int);
 static const char *	__ni_build_backup_path(const char *, const char *);
@@ -762,22 +764,48 @@ ni_stringbuf_destroy(ni_stringbuf_t *sb)
 	ni_stringbuf_clear(sb);
 }
 
-int
+ni_bool_t
 ni_stringbuf_empty(const ni_stringbuf_t *sb)
 {
 	return sb->len == 0; /* bool */
 }
 
+inline static size_t
+__ni_stringbuf_size(ni_stringbuf_t *sb, size_t len)
+{
+	return ((sb->len + len + (NC_STRINGBUF_CHUNK - 1)) & ~(NC_STRINGBUF_CHUNK - 1));
+}
+
+static void
+__ni_stringbuf_realloc(ni_stringbuf_t *sb, size_t len)
+{
+	size_t size;
+	char * data;
+
+	size = __ni_stringbuf_size(sb, 0);
+	if (sb->len + len + 1 > size) {
+		ni_assert(sb->dynamic);
+
+		size = __ni_stringbuf_size(sb, len + 1);
+		data = realloc(sb->string, size);
+		ni_assert(data != NULL);
+
+		sb->string = data;
+		memset(sb->string + sb->len, 0, size - sb->len);
+	}
+}
+
+void
+ni_stringbuf_grow(ni_stringbuf_t *sb, size_t len)
+{
+	__ni_stringbuf_realloc(sb, len);
+}
+
 static void
 __ni_stringbuf_put(ni_stringbuf_t *sb, const char *ptr, size_t len)
 {
-	size_t size;
+	__ni_stringbuf_realloc(sb, len);
 
-	size = (sb->len + 63) & ~63;
-	if (sb->len + len + 1 > size) {
-		size = (sb->len + len + 1 + 63) & ~63;
-		sb->string = realloc(sb->string, size);
-	}
 	memcpy(sb->string + sb->len, ptr, len);
 	sb->string[sb->len + len] = '\0';
 	sb->len += len;
@@ -796,17 +824,45 @@ ni_stringbuf_puts(ni_stringbuf_t *sb, const char *s)
 		__ni_stringbuf_put(sb, s, strlen(s));
 }
 
-void
+int
 ni_stringbuf_printf(ni_stringbuf_t *sb, const char *fmt, ...)
 {
-	char temp[256];
 	va_list ap;
+	int ret;
 
 	va_start(ap, fmt);
-	vsnprintf(temp, sizeof(temp), fmt, ap);
+	ret = ni_stringbuf_vprintf(sb, fmt, ap);
 	va_end(ap);
 
-	ni_stringbuf_puts(sb, temp);
+	return ret;
+}
+
+int
+ni_stringbuf_vprintf(ni_stringbuf_t *sb, const char *fmt, va_list ap)
+{
+	va_list cp;
+	size_t size = (NC_STRINGBUF_CHUNK * 4) - 1;
+	int n;
+
+	sb->len = 0;
+	ni_stringbuf_grow(sb, size++);
+	while(1) {
+		va_copy(cp, ap);
+		n = vsnprintf(sb->string, size, fmt, cp);
+		va_end(cp);
+
+		if(n > -1 && (size_t)n < size) {
+			sb->len = n;
+			break;
+		}
+		if (n > -1)
+			size = n;
+		else
+			size *= 2;
+
+		ni_stringbuf_grow(sb, size++);
+	}
+	return sb->len;
 }
 
 void
