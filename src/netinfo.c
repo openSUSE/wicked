@@ -25,10 +25,14 @@
 #include "dbus-server.h"
 #include "config.h"
 #include "xml-schema.h"
+#include "sysfs.h"
 
 struct ni_netconfig {
 	ni_netdev_t *		interfaces;
 	struct ni_route *	routes;		/* should kill this */
+
+	unsigned char		ibft_nics_init;
+	ni_ibft_nic_array_t	ibft_nics;
 };
 
 #define DEFAULT_ADDRCONF_IPV4 (\
@@ -174,6 +178,11 @@ ni_global_state_handle(int refresh)
 	}
 
 	if (refresh) {
+		if (!nc->ibft_nics_init) {
+			nc->ibft_nics_init = 1;
+			ni_sysfs_ibft_scan_nics(&nc->ibft_nics);
+		}
+
 		if (__ni_system_refresh_interfaces(nc) < 0) {
 			ni_error("failed to refresh interface list");
 			return NULL;
@@ -329,6 +338,40 @@ ni_netdev_by_vlan_name_and_tag(ni_netconfig_t *nc, const char *physdev_name, uin
 		 && dev->link.vlan->physdev_name
 		 && !strcmp(dev->link.vlan->physdev_name, physdev_name))
 			return dev;
+	}
+
+	return NULL;
+}
+
+/*
+ * Find ethernet interface by its ibft node name (ethernet0, ...)
+ */
+ni_netdev_t *
+ni_netdev_by_ibft_nodename(ni_netconfig_t *nc, const char *nodename)
+{
+	ni_netdev_t *dev;
+
+	for (dev = nc->interfaces; dev; dev = dev->next) {
+		ni_ibft_nic_t *nic;
+
+		if ((nic = dev->ibft_nic) != NULL
+		 && ni_string_eq(nic->node, nodename))
+			return dev;
+	}
+
+	return NULL;
+}
+
+ni_ibft_nic_t *
+ni_ibft_nic_by_index(ni_netconfig_t *nc, unsigned int ifindex)
+{
+	unsigned int i;
+
+	for (i = 0; i < nc->ibft_nics.count; ++i) {
+		ni_ibft_nic_t *nic = nc->ibft_nics.data[i];
+
+		if (nic->ifindex == ifindex)
+			return nic;
 	}
 
 	return NULL;

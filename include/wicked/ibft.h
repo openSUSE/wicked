@@ -45,4 +45,6 @@ void			ni_ibft_nic_array_init(ni_ibft_nic_array_t *nics);
 void			ni_ibft_nic_array_destroy(ni_ibft_nic_array_t *nics);
 void			ni_ibft_nic_array_append(ni_ibft_nic_array_t *nics, ni_ibft_nic_t *nic);
 
+ni_ibft_nic_t *		ni_ibft_nic_by_index(ni_netconfig_t *nc, unsigned int ifindex);
+
 #endif /* __NETINFO_IBFT_H__ */

@@ -256,9 +256,16 @@ __ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list)
 
 		/* Create interface if it doesn't exist. */
 		if ((dev = ni_netdev_by_index(nc, ifi->ifi_index)) == NULL) {
+			ni_ibft_nic_t *ibft_nic;
+
 			dev = __ni_netdev_new(ifname, ifi->ifi_index);
 			if (!dev)
 				goto failed;
+
+			if ((ibft_nic = ni_ibft_nic_by_index(nc, ifi->ifi_index)) != NULL)
+				ni_netdev_set_ibft_nic(dev, ibft_nic);
+
+			/* FIXME: use ni_netconfig_device_append() */
 			*tail = dev;
 			tail = &dev->next;
 		} else {

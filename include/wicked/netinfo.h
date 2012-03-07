@@ -115,6 +115,8 @@ struct ni_netdev {
 	ni_bridge_t *		bridge;
 	ni_ethernet_t *		ethernet;
 	ni_wireless_t *		wireless;
+
+	ni_ibft_nic_t *		ibft_nic;
 };
 
 struct ni_netdev_req {
@@ -163,6 +165,7 @@ extern ni_netconfig_t *	ni_global_state_handle(int);
 extern ni_netdev_t *	ni_netdev_by_name(ni_netconfig_t *nic, const char *name);
 extern ni_netdev_t *	ni_netdev_by_index(ni_netconfig_t *nic, unsigned int index);
 extern ni_netdev_t *	ni_netdev_by_hwaddr(ni_netconfig_t *nic, const ni_hwaddr_t *lla);
+extern ni_netdev_t *	ni_netdev_by_ibft_nodename(ni_netconfig_t *, const char *);
 extern ni_netdev_t *	ni_netdev_by_vlan_name_and_tag(ni_netconfig_t *nc,
 				const char *physdev, uint16_t tag);
 extern const char *	ni_netdev_make_name(ni_netconfig_t *, const char *);
@@ -195,6 +198,7 @@ extern void		ni_netdev_set_bridge(ni_netdev_t *, ni_bridge_t *);
 extern void		ni_netdev_set_ethernet(ni_netdev_t *, ni_ethernet_t *);
 extern void		ni_netdev_set_link_stats(ni_netdev_t *, ni_link_stats_t *);
 extern void		ni_netdev_set_wireless(ni_netdev_t *, ni_wireless_t *);
+extern void		ni_netdev_set_ibft_nic(ni_netdev_t *, ni_ibft_nic_t *);
 
 extern void             ni_netdev_clear_addresses(ni_netdev_t *);
 extern void             ni_netdev_clear_routes(ni_netdev_t *);
