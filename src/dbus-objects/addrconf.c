@@ -21,6 +21,8 @@
 #include <wicked/addrconf.h>
 #include <wicked/system.h>
 #include <wicked/dbus-errors.h>
+#include <wicked/ibft.h>
+#include <wicked/resolver.h>
 #include "netinfo_priv.h"	/* for __ni_system_interface_update_lease */
 #include "dbus-common.h"
 #include "model.h"
@@ -53,6 +55,8 @@ static dbus_bool_t	ni_objectmodel_addrconf_forwarder_call(ni_dbus_addrconf_forwa
 #define NI_OBJECTMODEL_ADDRCONF_IPV4DHCP_INTERFACE	NI_OBJECTMODEL_INTERFACE ".Addrconf.ipv4.dhcp"
 #define NI_OBJECTMODEL_ADDRCONF_IPV4AUTO_INTERFACE	NI_OBJECTMODEL_INTERFACE ".Addrconf.ipv4.auto"
 #define NI_OBJECTMODEL_ADDRCONF_IPV6STATIC_INTERFACE	NI_OBJECTMODEL_INTERFACE ".Addrconf.ipv6.static"
+#define NI_OBJECTMODEL_ADDRCONF_IPV4IBFT_INTERFACE	NI_OBJECTMODEL_INTERFACE ".Addrconf.ipv4.ibft"
+#define NI_OBJECTMODEL_ADDRCONF_IPV6IBFT_INTERFACE	NI_OBJECTMODEL_INTERFACE ".Addrconf.ipv6.ibft"
 
 /*
  * Extract interface index from object path.
@@ -317,6 +321,152 @@ ni_objectmodel_addrconf_ipv6_static_drop(ni_dbus_object_t *object, const ni_dbus
 			ni_dbus_message_t *reply, DBusError *error)
 {
 	return ni_objectmodel_addrconf_static_drop(object, AF_INET6, reply, error);
+}
+
+/*
+ * Generic functions for ibft address configuration
+ */
+static dbus_bool_t
+ni_objectmodel_addrconf_ibft_request(ni_dbus_object_t *object, int addrfamily,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_addrconf_lease_t *lease = NULL;
+	const ni_dbus_variant_t *dict;
+	ni_netdev_t *dev;
+	ni_ibft_nic_t *nic;
+	int rv;
+
+	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
+		return FALSE;
+
+	/* The addrconf request for iBFT doesn't hold much information for
+	 * now. At one point, it should contain at least the update mask,
+	 * in case an admin does *not* want iBFT to override the resolv.conf
+	 * settings.
+	 */
+	if (argc != 1 || !ni_dbus_variant_is_dict(&argv[0]))
+		return ni_dbus_error_invalid_args(error, object->path, "requestLease");
+	dict = &argv[0];
+
+	if ((nic = dev->ibft_nic) == NULL) {
+		dbus_set_error(error, NI_DBUS_ERROR_INTERFACE_NOT_COMPATIBLE,
+				"no iBFT configuration for interface %s",
+				dev->name);
+		return FALSE;
+	}
+
+	/* Build an addrconf lease from the iBFT address configuration.
+	 */
+	lease = ni_addrconf_lease_new(NI_ADDRCONF_IBFT, addrfamily);
+	lease->state = NI_ADDRCONF_STATE_GRANTED;
+
+	if (nic->ipaddr.ss_family == addrfamily)
+		__ni_address_new(&lease->addrs, addrfamily, nic->prefix_len, &nic->ipaddr);
+	if (nic->gateway.ss_family == addrfamily)
+		__ni_route_new(&lease->routes, 0, NULL, &nic->gateway);
+	if (nic->hostname)
+		ni_string_dup(&lease->hostname, nic->hostname);
+
+	if (nic->primary_dns.ss_family == addrfamily) {
+		if (lease->resolver == NULL)
+			lease->resolver = ni_resolver_info_new();
+
+		ni_string_array_append(&lease->resolver->dns_servers,
+				ni_address_print(&nic->primary_dns));
+	}
+	if (nic->secondary_dns.ss_family == addrfamily) {
+		if (lease->resolver == NULL)
+			lease->resolver = ni_resolver_info_new();
+
+		ni_string_array_append(&lease->resolver->dns_servers,
+				ni_address_print(&nic->secondary_dns));
+	}
+
+	rv = __ni_system_interface_update_lease(dev, &lease);
+	if (lease)
+		ni_addrconf_lease_free(lease);
+
+	if (rv < 0) {
+		dbus_set_error(error,
+				DBUS_ERROR_FAILED,
+				"Error configuring ibft %s addresses: %s",
+				ni_addrfamily_type_to_name(addrfamily),
+				ni_strerror(rv));
+		return FALSE;
+	}
+
+	/* Don't return anything. */
+	return TRUE;
+}
+
+static dbus_bool_t
+ni_objectmodel_addrconf_ibft_drop(ni_dbus_object_t *object, int addrfamily,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_addrconf_lease_t *lease = NULL;
+	ni_netdev_t *dev;
+	int rv;
+
+	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
+		return FALSE;
+
+	lease = ni_addrconf_lease_new(NI_ADDRCONF_IBFT, addrfamily);
+	lease->state = NI_ADDRCONF_STATE_RELEASED;
+
+	rv = __ni_system_interface_update_lease(dev, &lease);
+	if (lease)
+		ni_addrconf_lease_free(lease);
+
+	if (rv < 0) {
+		dbus_set_error(error,
+				DBUS_ERROR_FAILED,
+				"Error dropping ibft %s addresses: %s",
+				ni_addrfamily_type_to_name(addrfamily),
+				ni_strerror(rv));
+		return FALSE;
+	}
+
+	/* Don't return anything */
+	return TRUE;
+}
+
+/*
+ * Configure ibft IPv4 addresses
+ */
+static dbus_bool_t
+ni_objectmodel_addrconf_ipv4_ibft_request(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	return ni_objectmodel_addrconf_ibft_request(object, AF_INET, argc, argv, reply, error);
+}
+
+static dbus_bool_t
+ni_objectmodel_addrconf_ipv4_ibft_drop(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	return ni_objectmodel_addrconf_ibft_drop(object, AF_INET, reply, error);
+}
+
+/*
+ * Configure ibft IPv6 addresses
+ */
+static dbus_bool_t
+ni_objectmodel_addrconf_ipv6_ibft_request(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	return ni_objectmodel_addrconf_ibft_request(object, AF_INET6, argc, argv, reply, error);
+}
+
+static dbus_bool_t
+ni_objectmodel_addrconf_ipv6_ibft_drop(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	return ni_objectmodel_addrconf_ibft_drop(object, AF_INET6, reply, error);
 }
 
 /*
@@ -661,6 +811,24 @@ __ni_objectmodel_addrconf_ipv4ll_set_lease(ni_dbus_object_t *object,
 }
 
 static dbus_bool_t
+__ni_objectmodel_addrconf_ipv4_ibft_get_lease(const ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				ni_dbus_variant_t *result,
+				DBusError *error)
+{
+	return __ni_objectmodel_addrconf_generic_get_lease(object, NI_ADDRCONF_IBFT, AF_INET, result, error);
+}
+
+static dbus_bool_t
+__ni_objectmodel_addrconf_ipv4_ibft_set_lease(ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *argument,
+				DBusError *error)
+{
+	return __ni_objectmodel_addrconf_generic_set_lease(object, NI_ADDRCONF_IBFT, AF_INET, argument, error);
+}
+
+static dbus_bool_t
 __ni_objectmodel_addrconf_ipv6_static_get_lease(const ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				ni_dbus_variant_t *result,
@@ -676,6 +844,24 @@ __ni_objectmodel_addrconf_ipv6_static_set_lease(ni_dbus_object_t *object,
 				DBusError *error)
 {
 	return __ni_objectmodel_addrconf_generic_set_lease(object, NI_ADDRCONF_STATIC, AF_INET6, argument, error);
+}
+
+static dbus_bool_t
+__ni_objectmodel_addrconf_ipv6_ibft_get_lease(const ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				ni_dbus_variant_t *result,
+				DBusError *error)
+{
+	return __ni_objectmodel_addrconf_generic_get_lease(object, NI_ADDRCONF_IBFT, AF_INET6, result, error);
+}
+
+static dbus_bool_t
+__ni_objectmodel_addrconf_ipv6_ibft_set_lease(ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *argument,
+				DBusError *error)
+{
+	return __ni_objectmodel_addrconf_generic_set_lease(object, NI_ADDRCONF_IBFT, AF_INET6, argument, error);
 }
 
 static ni_dbus_property_t		ni_objectmodel_addrconf_ipv4_static_properties[] = {
@@ -695,6 +881,16 @@ static ni_dbus_property_t		ni_objectmodel_addrconf_ipv4_dhcp_properties[] = {
 
 static ni_dbus_property_t		ni_objectmodel_addrconf_ipv4ll_properties[] = {
 	__NI_DBUS_PROPERTY(NI_DBUS_DICT_SIGNATURE, lease, __ni_objectmodel_addrconf_ipv4ll, RO),
+	{ NULL }
+};
+
+static ni_dbus_property_t		ni_objectmodel_addrconf_ipv4_ibft_properties[] = {
+	__NI_DBUS_PROPERTY(NI_DBUS_DICT_SIGNATURE, lease, __ni_objectmodel_addrconf_ipv4_ibft, RO),
+	{ NULL }
+};
+
+static ni_dbus_property_t		ni_objectmodel_addrconf_ipv6_ibft_properties[] = {
+	__NI_DBUS_PROPERTY(NI_DBUS_DICT_SIGNATURE, lease, __ni_objectmodel_addrconf_ipv6_ibft, RO),
 	{ NULL }
 };
 
@@ -725,6 +921,18 @@ static const ni_dbus_method_t		ni_objectmodel_addrconf_ipv4ll_methods[] = {
 	{ NULL }
 };
 
+static const ni_dbus_method_t		ni_objectmodel_addrconf_ipv4_ibft_methods[] = {
+	{ "requestLease",	"a{sv}",		ni_objectmodel_addrconf_ipv4_ibft_request },
+	{ "dropLease",		"",			ni_objectmodel_addrconf_ipv4_ibft_drop },
+	{ NULL }
+};
+
+static const ni_dbus_method_t		ni_objectmodel_addrconf_ipv6_ibft_methods[] = {
+	{ "requestLease",	"a{sv}",		ni_objectmodel_addrconf_ipv6_ibft_request },
+	{ "dropLease",		"",			ni_objectmodel_addrconf_ipv6_ibft_drop },
+	{ NULL }
+};
+
 /*
  * IPv4 and IPv6 addrconf request service
  */
@@ -750,5 +958,17 @@ ni_dbus_service_t			ni_objectmodel_addrconf_ipv4ll_service = {
 	.name		= NI_OBJECTMODEL_ADDRCONF_IPV4AUTO_INTERFACE,
 	.methods	= ni_objectmodel_addrconf_ipv4ll_methods,
 	.properties	= ni_objectmodel_addrconf_ipv4ll_properties,
+};
+
+ni_dbus_service_t			ni_objectmodel_addrconf_ipv4_ibft_service = {
+	.name		= NI_OBJECTMODEL_ADDRCONF_IPV4IBFT_INTERFACE,
+	.methods	= ni_objectmodel_addrconf_ipv4_ibft_methods,
+	.properties	= ni_objectmodel_addrconf_ipv4_ibft_properties,
+};
+
+ni_dbus_service_t			ni_objectmodel_addrconf_ipv6_ibft_service = {
+	.name		= NI_OBJECTMODEL_ADDRCONF_IPV6IBFT_INTERFACE,
+	.methods	= ni_objectmodel_addrconf_ipv6_ibft_methods,
+	.properties	= ni_objectmodel_addrconf_ipv6_ibft_properties,
 };
 

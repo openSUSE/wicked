@@ -43,6 +43,8 @@ extern ni_dbus_service_t	ni_objectmodel_addrconf_ipv4_static_service;
 extern ni_dbus_service_t	ni_objectmodel_addrconf_ipv6_static_service;
 extern ni_dbus_service_t	ni_objectmodel_addrconf_ipv4_dhcp_service;
 extern ni_dbus_service_t	ni_objectmodel_addrconf_ipv4ll_service;
+extern ni_dbus_service_t	ni_objectmodel_addrconf_ipv4_ibft_service;
+extern ni_dbus_service_t	ni_objectmodel_addrconf_ipv6_ibft_service;
 extern ni_dbus_service_t	ni_objectmodel_wireless_service;
 static ni_dbus_property_t	ni_objectmodel_netif_request_properties[];
 
@@ -100,6 +102,12 @@ ni_objectmodel_register_netif_classes(void)
 
 	ni_objectmodel_addrconf_ipv4ll_service.compatible = &ni_objectmodel_netif_class;
 	ni_objectmodel_register_service(&ni_objectmodel_addrconf_ipv4ll_service);
+
+	ni_objectmodel_addrconf_ipv4_ibft_service.compatible = &ni_objectmodel_netif_class;
+	ni_objectmodel_register_service(&ni_objectmodel_addrconf_ipv4_ibft_service);
+
+	ni_objectmodel_addrconf_ipv6_ibft_service.compatible = &ni_objectmodel_netif_class;
+	ni_objectmodel_register_service(&ni_objectmodel_addrconf_ipv6_ibft_service);
 
 	ni_objectmodel_register_device_service(NI_IFTYPE_ETHERNET, &ni_objectmodel_ethernet_service);
 	ni_objectmodel_register_device_service(NI_IFTYPE_VLAN, &ni_objectmodel_vlan_service);
