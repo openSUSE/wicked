@@ -509,7 +509,9 @@ ni_dbus_serialize_xml_array(xml_node_t *node, const ni_xs_type_t *type, ni_dbus_
 					xml_node_location(node), notation->name);
 			return FALSE;
 		}
-		if (!notation->parse(node->cdata, &data)) {
+
+		ni_dbus_variant_init_byte_array(var);
+		if (!notation->parse(node->cdata, &var->byte_array_value, &var->array.len)) {
 			ni_error("%s: cannot parse array with notation \"%s\", value=\"%s\"",
 					xml_node_location(node), notation->name, node->cdata);
 			return FALSE;
@@ -572,7 +574,6 @@ ni_dbus_deserialize_xml_array(ni_dbus_variant_t *var, const ni_xs_type_t *type, 
 	array_len = var->array.len;
 	if (array_info->notation) {
 		const ni_xs_notation_t *notation = array_info->notation;
-		ni_opaque_t data = NI_OPAQUE_INIT;
 		char buffer[256];
 
 		/* For now, we handle only byte arrays */
@@ -585,13 +586,8 @@ ni_dbus_deserialize_xml_array(ni_dbus_variant_t *var, const ni_xs_type_t *type, 
 			ni_error("%s: expected byte array, but got something else", __func__);
 			return FALSE;
 		}
-		if (array_len > sizeof(data.data)) {
-			ni_error("%s: cannot extract data from byte array - too long (len=%u)", __func__, var->array.len);
-			return FALSE;
-		}
 
-		ni_opaque_set(&data, var->byte_array_value, array_len);
-		if (!notation->print(&data, buffer, sizeof(buffer))) {
+		if (!notation->print(var->byte_array_value, array_len, buffer, sizeof(buffer))) {
 			ni_error("%s: cannot represent array with notation \"%s\"", __func__, notation->name);
 			return FALSE;
 		}
@@ -809,100 +805,136 @@ ni_dbus_define_scalar_types(ni_xs_scope_t *typedict)
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-static ni_opaque_t *
-__ni_notation_ipv4addr_parse(const char *string_value, ni_opaque_t *data)
+/*
+ * We need to allocate the byte array as a multiple of 32, see __ni_dbus_array_grow
+ */
+static inline void *
+__ni_notation_alloc(size_t size)
+{
+	void *p = malloc((size + 31) & ~31);
+	ni_assert(p);
+	return p;
+}
+
+static inline ni_bool_t
+__ni_notation_return(const void *data, unsigned int size, unsigned char **retbuf, unsigned int *retlen)
+{
+	void *p;
+
+	*retlen = size;
+	*retbuf = p = __ni_notation_alloc(size);
+	memcpy(p, data, size);
+
+	return TRUE;
+}
+
+static ni_bool_t
+__ni_notation_ipv4addr_parse(const char *string_value, unsigned char **retbuf, unsigned int *retlen)
 {
 	struct in_addr addr;
 
 	if (inet_pton(AF_INET, string_value, &addr) != 1)
-		return NULL;
-	memcpy(data->data, &addr, sizeof(addr));
-	data->len = sizeof(addr);
-	return data;
+		return FALSE;
+
+	return __ni_notation_return(&addr, sizeof(addr), retbuf, retlen);
 }
 
 static const char *
-__ni_notation_ipv4addr_print(const ni_opaque_t *data, char *buffer, size_t size)
+__ni_notation_ipv4addr_print(const unsigned char *data_ptr, unsigned int data_len, char *buffer, size_t size)
 {
-	if (data->len != sizeof(struct in_addr))
+	if (data_len != sizeof(struct in_addr))
 		return NULL;
-	return inet_ntop(AF_INET, data->data, buffer, size);
+	return inet_ntop(AF_INET, data_ptr, buffer, size);
 }
 
-static ni_opaque_t *
-__ni_notation_ipv6addr_address_parse(const char *string_value, ni_opaque_t *data)
+static ni_bool_t
+__ni_notation_ipv6addr_address_parse(const char *string_value, unsigned char **retbuf, unsigned int *retlen)
 {
 	struct in6_addr addr;
 
 	if (inet_pton(AF_INET6, string_value, &addr) != 1)
-		return NULL;
-	memcpy(data->data, &addr, sizeof(addr));
-	data->len = sizeof(addr);
-	return data;
+		return FALSE;
+
+	return __ni_notation_return(&addr, sizeof(addr), retbuf, retlen);
 }
 
 static const char *
-__ni_notation_ipv6addr_address_print(const ni_opaque_t *data, char *buffer, size_t size)
+__ni_notation_ipv6addr_address_print(const unsigned char *data_ptr, unsigned int data_len, char *buffer, size_t size)
 {
-	if (data->len != sizeof(struct in6_addr))
+	if (data_len != sizeof(struct in6_addr))
 		return NULL;
-	return inet_ntop(AF_INET6, data->data, buffer, size);
+	return inet_ntop(AF_INET6, data_ptr, buffer, size);
 }
 
-static ni_opaque_t *
-__ni_notation_hwaddr_parse(const char *string_value, ni_opaque_t *data)
+static ni_bool_t
+__ni_notation_hwaddr_parse(const char *string_value, unsigned char **retbuf, unsigned int *retlen)
 {
+	unsigned int size;
 	int len;
+	void *p;
 
-	len = ni_parse_hex(string_value, data->data, sizeof(data->data));
-	if (len < 0)
-		return NULL;
-	data->len = len;
-	return data;
+	size = strlen(string_value);
+
+	p = __ni_notation_alloc(size);
+	len = ni_parse_hex(string_value, p, size);
+	if (len < 0) {
+		free(p);
+		return FALSE;
+	}
+
+	*retbuf = p;
+	*retlen = len;
+	return TRUE;
 }
 
 static const char *
-__ni_notation_hwaddr_print(const ni_opaque_t *data, char *buffer, size_t size)
+__ni_notation_hwaddr_print(const unsigned char *data_ptr, unsigned int data_len, char *buffer, size_t size)
 {
 	/* We need to check whether the resulting string would fit, as
 	 * ni_format_hex will happily truncate the output string if it
 	 * does not fit. */
-	if (3 * data->len + 1 > size)
+	if (3 * data_len + 1 > size)
 		return NULL;
 
-	return ni_format_hex(data->data, data->len, buffer, size);
+	return ni_format_hex(data_ptr, data_len, buffer, size);
 }
 
 /*
  * Parse and print functions for sockaddrs and prefixed sockaddrs
  */
-static ni_opaque_t *
-__ni_notation_netaddr_parse(const char *string_value, ni_opaque_t *pack)
+static ni_bool_t
+__ni_notation_netaddr_parse(const char *string_value, unsigned char **retbuf, unsigned int *retlen)
 {
 	ni_sockaddr_t sockaddr;
+	ni_opaque_t pack;
 
 	if (ni_address_parse(&sockaddr, string_value, AF_UNSPEC) < 0)
-		return NULL;
-	return ni_sockaddr_pack(&sockaddr, pack);
+		return FALSE;
+	if (!ni_sockaddr_pack(&sockaddr, &pack))
+		return FALSE;
+
+	return __ni_notation_return(pack.data, pack.len, retbuf, retlen);
 }
 
 static const char *
-__ni_notation_netaddr_print(const ni_opaque_t *pack, char *buffer, size_t size)
+__ni_notation_netaddr_print(const unsigned char *data_ptr, unsigned int data_len, char *buffer, size_t size)
 {
+	ni_opaque_t pack;
 	ni_sockaddr_t sockaddr;
 
-	if (!ni_sockaddr_unpack(&sockaddr, pack))
+	ni_opaque_set(&pack, data_ptr, data_len);
+	if (!ni_sockaddr_unpack(&sockaddr, &pack))
 		return NULL;
 	return ni_address_format(&sockaddr, buffer, size);
 }
 
-static ni_opaque_t *
-__ni_notation_netaddr_prefix_parse(const char *string_value, ni_opaque_t *pack)
+static ni_bool_t
+__ni_notation_netaddr_prefix_parse(const char *string_value, unsigned char **retbuf, unsigned int *retlen)
 {
 	char *copy = xstrdup(string_value), *s;
 	unsigned int prefix = 0xFFFF;
 	ni_sockaddr_t sockaddr;
-	ni_opaque_t *result = NULL;
+	ni_bool_t result = FALSE;
 
 	if ((s = strchr(copy, '/')) != NULL) {
 		unsigned long value;
@@ -916,8 +948,13 @@ __ni_notation_netaddr_prefix_parse(const char *string_value, ni_opaque_t *pack)
 		prefix = value;
 	}
 
-	if (ni_address_parse(&sockaddr, copy, AF_UNSPEC) >= 0)
-		result = ni_sockaddr_prefix_pack(&sockaddr, prefix, pack);
+	if (ni_address_parse(&sockaddr, copy, AF_UNSPEC) >= 0) {
+		ni_opaque_t pack;
+
+		if (!ni_sockaddr_prefix_pack(&sockaddr, prefix, &pack))
+			goto failed;
+		result = __ni_notation_return(pack.data, pack.len, retbuf, retlen);
+	}
 
 failed:
 	free(copy);
@@ -925,12 +962,14 @@ failed:
 }
 
 static const char *
-__ni_notation_netaddr_prefix_print(const ni_opaque_t *pack, char *buffer, size_t size)
+__ni_notation_netaddr_prefix_print(const unsigned char *data_ptr, unsigned int data_len, char *buffer, size_t size)
 {
+	ni_opaque_t pack;
 	ni_sockaddr_t sockaddr;
 	unsigned int prefix;
 
-	if (!ni_sockaddr_prefix_unpack(&sockaddr, &prefix, pack))
+	ni_opaque_set(&pack, data_ptr, data_len);
+	if (!ni_sockaddr_prefix_unpack(&sockaddr, &prefix, &pack))
 		return NULL;
 
 	snprintf(buffer, size, "%s/%u", ni_address_print(&sockaddr), prefix);

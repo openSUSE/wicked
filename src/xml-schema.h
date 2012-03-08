@@ -166,8 +166,8 @@ typedef struct ni_xs_notation	ni_xs_notation_t;
 struct ni_xs_notation {
 	const char *		name;
 	unsigned int		array_element_type;
-	ni_opaque_t *		(*parse)(const char *, ni_opaque_t *);
-	const char *		(*print)(const ni_opaque_t *, char *, size_t);
+	ni_bool_t		(*parse)(const char *, unsigned char **, unsigned int *);
+	const char *		(*print)(const unsigned char *, unsigned int, char *, size_t);
 };
 
 typedef struct ni_xs_array_info ni_xs_array_info_t;
