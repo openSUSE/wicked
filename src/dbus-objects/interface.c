@@ -91,23 +91,12 @@ ni_objectmodel_register_netif_classes(void)
 	ni_objectmodel_register_service(&ni_objectmodel_netif_list_service);
 
 	/* register our built-in addrconf services */
-	ni_objectmodel_addrconf_ipv4_static_service.compatible = &ni_objectmodel_netif_class;
-	ni_objectmodel_register_service(&ni_objectmodel_addrconf_ipv4_static_service);
-
-	ni_objectmodel_addrconf_ipv6_static_service.compatible = &ni_objectmodel_netif_class;
-	ni_objectmodel_register_service(&ni_objectmodel_addrconf_ipv6_static_service);
-
-	ni_objectmodel_addrconf_ipv4_dhcp_service.compatible = &ni_objectmodel_netif_class;
-	ni_objectmodel_register_service(&ni_objectmodel_addrconf_ipv4_dhcp_service);
-
-	ni_objectmodel_addrconf_ipv4ll_service.compatible = &ni_objectmodel_netif_class;
-	ni_objectmodel_register_service(&ni_objectmodel_addrconf_ipv4ll_service);
-
-	ni_objectmodel_addrconf_ipv4_ibft_service.compatible = &ni_objectmodel_netif_class;
-	ni_objectmodel_register_service(&ni_objectmodel_addrconf_ipv4_ibft_service);
-
-	ni_objectmodel_addrconf_ipv6_ibft_service.compatible = &ni_objectmodel_netif_class;
-	ni_objectmodel_register_service(&ni_objectmodel_addrconf_ipv6_ibft_service);
+	ni_objectmodel_register_device_service(NI_IFTYPE_UNKNOWN, &ni_objectmodel_addrconf_ipv4_static_service);
+	ni_objectmodel_register_device_service(NI_IFTYPE_UNKNOWN, &ni_objectmodel_addrconf_ipv6_static_service);
+	ni_objectmodel_register_device_service(NI_IFTYPE_UNKNOWN, &ni_objectmodel_addrconf_ipv4_dhcp_service);
+	ni_objectmodel_register_device_service(NI_IFTYPE_UNKNOWN, &ni_objectmodel_addrconf_ipv4ll_service);
+	ni_objectmodel_register_device_service(NI_IFTYPE_UNKNOWN, &ni_objectmodel_addrconf_ipv4_ibft_service);
+	ni_objectmodel_register_device_service(NI_IFTYPE_UNKNOWN, &ni_objectmodel_addrconf_ipv6_ibft_service);
 
 	ni_objectmodel_register_device_service(NI_IFTYPE_ETHERNET, &ni_objectmodel_ethernet_service);
 	ni_objectmodel_register_device_service(NI_IFTYPE_VLAN, &ni_objectmodel_vlan_service);
@@ -133,8 +122,10 @@ ni_objectmodel_register_device_factory_service(ni_dbus_service_t *svc)
 static void
 ni_objectmodel_register_device_service(ni_iftype_t iftype, ni_dbus_service_t *svc)
 {
-
-	svc->compatible = ni_objectmodel_get_class(ni_objectmodel_link_classname(iftype));
+	if (iftype == NI_IFTYPE_UNKNOWN)
+		svc->compatible = &ni_objectmodel_netif_class;
+	else
+		svc->compatible = ni_objectmodel_get_class(ni_objectmodel_link_classname(iftype));
 	ni_assert(svc->compatible);
 
 	ni_objectmodel_register_service(svc);
