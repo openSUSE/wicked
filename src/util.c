@@ -1143,6 +1143,34 @@ ni_file_write(FILE *fp, const void *data, size_t len)
 	return written;
 }
 
+void *
+ni_file_read(FILE *fp, unsigned int *lenp)
+{
+	struct stat stb;
+	unsigned char *buffer;
+	unsigned int count, done, size;
+
+	if (fstat(fileno(fp), &stb) < 0)
+		return NULL;
+	size = stb.st_size;
+
+	buffer = malloc(size);
+	if (buffer == NULL)
+		return NULL;
+
+	for (done = 0; done < size; done += count) {
+		count = fread(buffer + done, 1, size - done, fp);
+		if (count == 0) {
+			ni_error("%s: short read from file", __func__);
+			free(buffer);
+			return NULL;
+		}
+	}
+
+	*lenp = done;
+	return buffer;
+}
+
 /*
  * Copy file for backup
  */
