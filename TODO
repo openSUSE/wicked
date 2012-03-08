@@ -23,6 +23,33 @@ ifconfig
 	- disable IPv6 on a device if requested
 	- support ppp, pppoe
 
+ibft:
+	- ibft entries may refer to plain eth devices (easy) or vlans.
+	  the latter are more difficult, as they do not exist at the time
+	  we want to find out about them.
+	  Options:
+
+	   a) when trying to identify an ibft device that specifies a VLAN
+	      tag, we create the vlan device on the fly
+
+	   b) we change the way we create devices. Rather than having a per
+	      link type factory function, we use a different mechanism to
+	      infer the factory interface to use with a netdev config.
+	      This allows us to use an <ibft> element and an ibft factory.
+
+	      One side effect of this might be that the distinction between
+	      device creation and discovery is blurred.
+
+	   c) We create a fake ibft link layer type, and an ibft factory
+	      interface which "creates" the device - either by returning
+	      the object path of the ethernet device, or by creating the
+	      VLAN device.
+
+	   d) We special case ibft. Rather than having wickedd fudge the
+	      device creation and configuration for us, we just have it
+	      create the XML config for us and return it to us.
+	      This could even be scripted.
+
 overall
 	- Add INSTALL file describing how to build wicked
 
