@@ -35,6 +35,8 @@ static char *		ni_xs_type_to_dbus_signature(const ni_xs_type_t *);
 static ni_xs_service_t *ni_dbus_xml_get_service_schema(const ni_xs_scope_t *, const char *);
 static ni_xs_type_t *	ni_dbus_xml_get_properties_schema(const ni_xs_scope_t *, const ni_xs_service_t *);
 
+static ni_tempstate_t *	__ni_dbus_xml_global_temp_state;
+
 ni_xs_scope_t *
 ni_dbus_xml_init(void)
 {
@@ -220,11 +222,15 @@ ni_dbus_xml_serialize_arg(const ni_dbus_method_t *method, unsigned int narg,
 xml_node_t *
 ni_dbus_xml_deserialize_arguments(const ni_dbus_method_t *method,
 				unsigned int num_vars, ni_dbus_variant_t *vars,
-				xml_node_t *parent)
+				xml_node_t *parent, ni_tempstate_t *temp_state)
 {
 	xml_node_t *node = xml_node_new("arguments", parent);
 	ni_xs_method_t *xs_method = method->user_data;
 	unsigned int i;
+
+	/* This is a lousy hack, but it sure beats passing down the temp_state to
+	 * all functions. */
+	__ni_dbus_xml_global_temp_state = temp_state;
 
 	for (i = 0; i < num_vars; ++i) {
 		xml_node_t *arg = xml_node_new(xs_method->arguments.data[i].name, node);
@@ -235,6 +241,7 @@ ni_dbus_xml_deserialize_arguments(const ni_dbus_method_t *method,
 		}
 	}
 
+	__ni_dbus_xml_global_temp_state = NULL;
 	return node;
 }
 
@@ -999,7 +1006,26 @@ __ni_notation_external_file_parse(const char *string_value, unsigned char **retb
 static const char *
 __ni_notation_external_file_print(const unsigned char *data_ptr, unsigned int data_len, char *buffer, size_t size)
 {
-	snprintf(buffer, sizeof(buffer), "[[file data]]");
+	char *tempname = NULL;
+	FILE *fp;
+
+	if (__ni_dbus_xml_global_temp_state == NULL) {
+		snprintf(buffer, sizeof(buffer), "[[file data]]");
+		return buffer;
+	}
+
+	/* If we have a global tempstate, we can store the data in a temporary file
+	 * and track it for later deletion. */
+	if ((fp = ni_mkstemp(&tempname)) == NULL)
+		return NULL;
+
+	ni_tempstate_add_file(__ni_dbus_xml_global_temp_state, tempname);
+	ni_file_write(fp, data_ptr, data_len);
+	fclose(fp);
+
+	snprintf(buffer, sizeof(buffer), "%s", tempname);
+	ni_string_free(&tempname);
+
 	return buffer;
 }
 

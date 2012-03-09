@@ -359,7 +359,7 @@ __ni_objectmodel_write_message(ni_dbus_message_t *msg, const ni_dbus_method_t *m
 	if (argc < 0)
 		return NULL;
 
-	xmlnode = ni_dbus_xml_deserialize_arguments(method, argc, argv, NULL);
+	xmlnode = ni_dbus_xml_deserialize_arguments(method, argc, argv, NULL, temp_state);
 
 	while (argc--)
 		ni_dbus_variant_destroy(&argv[argc]);
