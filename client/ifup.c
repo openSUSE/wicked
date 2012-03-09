@@ -719,7 +719,7 @@ ni_ifworker_bind_device_apis(ni_ifworker_t *w)
 		if (device_service == NULL)
 			device_service = ni_call_link_layer_service(child->name);
 
-		if (device_service == NULL)
+		if (device_service == NULL || device_service->compatible == NULL)
 			continue;
 
 		/* Silently ignore elements that are compatible with the "netif" class. We
