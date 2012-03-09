@@ -1,0 +1,65 @@
+<!--
+  -- OpenVPN Tunnel Service definition
+  -->
+<service name="openvpn" interface="com.suse.Wicked.OpenVPN" object-class="netif-openvpn" factory="com.suse.Wicked.TUN.Factory">
+ <!-- This is the linkinfo returned in interface reports -->
+ <define name="linkinfo" class="dict">
+  <remote-address type="string"/>
+  <remote-port type="uint32"/>
+
+  <protocol type="uint32" constraint="enum">
+    <tcp value="6"/>
+    <udp value="17"/>
+  </protocol>
+
+  <!-- Tunnel MTU -->
+  <mtu type="uint32"/>
+
+  <auth class="dict">
+    <user type="string"/>
+    <pass type="string"/>
+  </auth>
+
+  <tls class="dict">
+    <ca-cert type="external-file"/>
+    <client-cert type="external-file"/>
+    <client-key type="external-file"/>
+
+    <!-- alternative: pkcs12 file -->
+    <pkcs12 type="external-file"/>
+  </tls>
+ </define>
+
+ <!-- the properties of a OpenVPN device: -->
+ <define name="properties" type="linkinfo"/>
+
+ <method name="changeDevice">
+   <arguments>
+     <config type="linkinfo"/>
+   </arguments>
+   <!-- returns callback list -->
+ </method>
+
+ <method name="deleteDevice">
+   <!-- no arguments, no return code -->
+ </method>
+</service>
+
+<service name="tun" interface="com.suse.Wicked.TUN" object-class="netif-virtual-tunnel">
+ <method name="deleteDevice">
+   <!-- no arguments, no return code -->
+ </method>
+</service>
+
+<service name="tun-factory" interface="com.suse.Wicked.TUN.Factory" object-class="netif-list">
+ <method name="newDevice">
+  <arguments>
+   <name type="string"/>
+   <openvpn type="openvpn:linkinfo"/>
+  </arguments>
+  <return>
+   <string/> <!-- this is really an object handle -->
+  </return>
+ </method>
+</service>
+

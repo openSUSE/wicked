@@ -114,10 +114,12 @@ ni_objectmodel_register_netif_classes(void)
 	ni_objectmodel_register_device_service(NI_IFTYPE_BOND, &ni_objectmodel_bond_service);
 	ni_objectmodel_register_device_service(NI_IFTYPE_BRIDGE, &ni_objectmodel_bridge_service);
 	ni_objectmodel_register_device_service(NI_IFTYPE_WIRELESS, &ni_objectmodel_wireless_service);
+	ni_objectmodel_register_device_service(NI_IFTYPE_TUN, &ni_objectmodel_tun_service);
 
 	ni_objectmodel_register_device_factory_service(&ni_objectmodel_bond_factory_service);
 	ni_objectmodel_register_device_factory_service(&ni_objectmodel_bridge_factory_service);
 	ni_objectmodel_register_device_factory_service(&ni_objectmodel_vlan_factory_service);
+	ni_objectmodel_register_device_factory_service(&ni_objectmodel_tun_factory_service);
 
 	/* Register all builtin naming services */
 	ni_objectmodel_register_netif_ns_builtin();

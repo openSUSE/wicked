@@ -160,6 +160,8 @@ extern ni_dbus_service_t	ni_objectmodel_bond_service;
 extern ni_dbus_service_t	ni_objectmodel_bond_factory_service;
 extern ni_dbus_service_t	ni_objectmodel_vlan_service;
 extern ni_dbus_service_t	ni_objectmodel_vlan_factory_service;
+extern ni_dbus_service_t	ni_objectmodel_tun_service;
+extern ni_dbus_service_t	ni_objectmodel_tun_factory_service;
 
 extern ni_netdev_t *		ni_objectmodel_get_netif_argument(const ni_dbus_variant_t *, ni_iftype_t,
 						const ni_dbus_service_t *);
