@@ -53,6 +53,9 @@ extern const char *		ni_objectmodel_link_classname(ni_iftype_t);
 
 extern const ni_dbus_service_t *ni_objectmodel_service_by_name(const char *interface_name);
 extern const ni_dbus_service_t *ni_objectmodel_service_by_class(const ni_dbus_class_t *);
+extern const ni_dbus_service_t *ni_objectmodel_service_by_tag(const char *tag);
+extern const ni_dbus_service_t *ni_objectmodel_factory_service(const ni_dbus_service_t *);
+extern const ni_dbus_service_t *ni_objectmodel_auth_service(const ni_dbus_service_t *);
 
 extern dbus_bool_t		ni_objectmodel_get_addrconf_lease(const ni_addrconf_lease_t *, ni_dbus_variant_t *);
 extern dbus_bool_t		ni_objectmodel_set_addrconf_lease(ni_addrconf_lease_t *, const ni_dbus_variant_t *);

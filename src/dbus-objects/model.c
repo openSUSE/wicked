@@ -20,6 +20,7 @@
 #include <wicked/dbus-errors.h>
 #include "netinfo_priv.h"
 #include "dbus-common.h"
+#include "xml-schema.h"
 #include "model.h"
 #include "config.h"
 #include "debug.h"
@@ -198,6 +199,73 @@ ni_objectmodel_service_by_class(const ni_dbus_class_t *class)
 	}
 
 	return NULL;
+}
+
+const ni_dbus_service_t *
+ni_objectmodel_service_by_tag(const char *tag)
+{
+	unsigned int i;
+
+	for (i = 0; i < ni_objectmodel_service_registry.count; ++i) {
+		const ni_dbus_service_t *service = ni_objectmodel_service_registry.services[i];
+		ni_xs_service_t *xs_service;
+
+		if ((xs_service = service->user_data) != NULL
+		 && ni_string_eq(xs_service->name, tag))
+			return service;
+	}
+
+	return NULL;
+}
+
+const ni_dbus_service_t *
+ni_objectmodel_factory_service(const ni_dbus_service_t *service)
+{
+	ni_xs_service_t *xs_service;
+	const char *factory_name = NULL;
+	char namebuf[256];
+
+	/* See if the schema specifies a factory service explicitly */
+	if ((xs_service = service->user_data) != NULL) {
+		const ni_var_t *attr;
+
+		attr = ni_var_array_get(&xs_service->attributes, "factory");
+		if (attr)
+			factory_name = attr->value;
+	}
+	
+	/* If not, the default is to append ".Factory" to the service name */
+	if (factory_name == NULL) {
+		snprintf(namebuf, sizeof(namebuf), "%s.Factory", service->name);
+		factory_name = namebuf;
+	}
+
+	return ni_objectmodel_service_by_name(factory_name);
+}
+
+const ni_dbus_service_t *
+ni_objectmodel_auth_service(const ni_dbus_service_t *service)
+{
+	ni_xs_service_t *xs_service;
+	const char *auth_name = NULL;
+	char namebuf[256];
+
+	/* See if the schema specifies a auth service explicitly */
+	if ((xs_service = service->user_data) != NULL) {
+		const ni_var_t *attr;
+
+		attr = ni_var_array_get(&xs_service->attributes, "auth");
+		if (attr)
+			auth_name = attr->value;
+	}
+	
+	/* If not, the default is to append ".Auth" to the service name */
+	if (auth_name == NULL) {
+		snprintf(namebuf, sizeof(namebuf), "%s.Auth", service->name);
+		auth_name = namebuf;
+	}
+
+	return ni_objectmodel_service_by_name(auth_name);
 }
 
 /*
