@@ -1845,7 +1845,7 @@ ni_ifconfig_load(const char *pathname)
 
 		if (ni_scandir(pathname, "*.xml", &files) == 0) {
 			ni_string_array_destroy(&files);
-			return FALSE;
+			return TRUE;
 		}
 		for (i = 0; i < files.count; ++i) {
 			const char *name = files.data[i];
