@@ -976,6 +976,33 @@ __ni_notation_netaddr_prefix_print(const unsigned char *data_ptr, unsigned int d
 	return buffer;
 }
 
+static ni_bool_t
+__ni_notation_external_file_parse(const char *string_value, unsigned char **retbuf, unsigned int *retlen)
+{
+	const char *filename = string_value;
+	FILE *fp;
+
+	if (!(fp = fopen(filename, "r"))) {
+		ni_error("%s: %m", filename);
+		return FALSE;
+	}
+
+	*retbuf = ni_file_read(fp, retlen);
+	if (*retbuf == NULL)
+		ni_error("unable to read %s: %m", filename);
+
+	fclose(fp);
+
+	return *retbuf != NULL;
+}
+
+static const char *
+__ni_notation_external_file_print(const unsigned char *data_ptr, unsigned int data_len, char *buffer, size_t size)
+{
+	snprintf(buffer, sizeof(buffer), "[[file data]]");
+	return buffer;
+}
+
 static ni_xs_notation_t	__ni_dbus_notations[] = {
 	{
 		.name = "ipv4addr",
@@ -1002,6 +1029,11 @@ static ni_xs_notation_t	__ni_dbus_notations[] = {
 		.array_element_type = DBUS_TYPE_BYTE,
 		.parse = __ni_notation_netaddr_prefix_parse,
 		.print = __ni_notation_netaddr_prefix_print,
+	}, {
+		.name = "external-file",
+		.array_element_type = DBUS_TYPE_BYTE,
+		.parse = __ni_notation_external_file_parse,
+		.print = __ni_notation_external_file_print,
 	},
 
 	{ NULL }
