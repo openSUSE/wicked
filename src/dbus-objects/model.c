@@ -345,7 +345,7 @@ ni_objectmodel_expand_environment(const ni_dbus_object_t *object, const ni_var_a
  * Write dbus message to a temporary file
  */
 static char *
-__ni_objectmodel_write_message(ni_dbus_message_t *msg, const ni_dbus_method_t *method)
+__ni_objectmodel_write_message(ni_dbus_message_t *msg, const ni_dbus_method_t *method, ni_tempstate_t *temp_state)
 {
 	ni_dbus_variant_t argv[16];
 	char *tempname = NULL;
@@ -372,11 +372,11 @@ __ni_objectmodel_write_message(ni_dbus_message_t *msg, const ni_dbus_method_t *m
 	if ((fp = ni_mkstemp(&tempname)) == NULL) {
 		ni_error("%s: unable to create tempfile for script arguments", __func__);
 	} else {
+		/* Add file to tempstate; it will be deleted when we destroy the process handle */
+		ni_tempstate_add_file(temp_state, tempname);
 		if (xml_node_print(xmlnode, fp) < 0) {
 			ni_error("%s: unable to store message arguments in file", method->name);
-			unlink(tempname);
-			ni_string_free(&tempname);
-			/* tempname is NULL after this */
+			ni_string_free(&tempname); /* tempname is NULL after this */
 		}
 
 		fclose(fp);
@@ -387,7 +387,7 @@ __ni_objectmodel_write_message(ni_dbus_message_t *msg, const ni_dbus_method_t *m
 }
 
 static char *
-__ni_objectmodel_empty_tempfile(void)
+__ni_objectmodel_empty_tempfile(ni_tempstate_t *temp_state)
 {
 	char *tempname = NULL;
 	FILE *fp;
@@ -398,6 +398,9 @@ __ni_objectmodel_empty_tempfile(void)
 	}
 
 	fclose(fp);
+
+	/* Add file to tempstate; it will be deleted when we destroy the process handle */
+	ni_tempstate_add_file(temp_state, tempname);
 	return tempname;
 }
 
@@ -408,6 +411,7 @@ ni_objectmodel_extension_call(ni_dbus_connection_t *connection,
 {
 	DBusError error = DBUS_ERROR_INIT;
 	const char *interface = dbus_message_get_interface(call);
+	ni_tempstate_t *temp_state = NULL;
 	ni_extension_t *extension;
 	ni_shellcmd_t *command;
 	ni_process_t *process;
@@ -436,9 +440,10 @@ ni_objectmodel_extension_call(ni_dbus_connection_t *connection,
 	process = ni_process_new(command);
 
 	ni_objectmodel_expand_environment(object, &extension->environment, process);
+	temp_state = ni_process_tempstate(process);
 
 	/* Build the argument blob and store it in a file */
-	tempname = __ni_objectmodel_write_message(call, method);
+	tempname = __ni_objectmodel_write_message(call, method, temp_state);
 	if (tempname != NULL) {
 		ni_process_setenv(process, "WICKED_ARGFILE", tempname);
 		ni_string_free(&tempname);
@@ -450,7 +455,7 @@ ni_objectmodel_extension_call(ni_dbus_connection_t *connection,
 	}
 
 	/* Create empty reply for script return data */
-	tempname = __ni_objectmodel_empty_tempfile();
+	tempname = __ni_objectmodel_empty_tempfile(temp_state);
 	if (tempname != NULL) {
 		ni_process_setenv(process, "WICKED_RETFILE", tempname);
 		ni_string_free(&tempname);
@@ -480,10 +485,6 @@ send_error:
 	if (process)
 		ni_process_free(process);
 
-	if (tempname) {
-		unlink(tempname);
-		free(tempname);
-	}
 	return FALSE;
 }
 
@@ -548,15 +549,6 @@ send_error:
 		ni_error("unable to send reply (out of memory)");
 
 	dbus_message_unref(reply);
-
-	if ((filename = ni_process_getenv(process, "WICKED_ARGFILE")) != NULL) {
-		ni_debug_dbus("cleaning up tempfile %s", filename);
-		unlink(filename);
-	}
-	if ((filename = ni_process_getenv(process, "WICKED_RETFILE")) != NULL) {
-		ni_debug_dbus("cleaning up tempfile %s", filename);
-		unlink(filename);
-	}
 	return TRUE;
 }
 
