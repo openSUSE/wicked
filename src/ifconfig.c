@@ -356,7 +356,6 @@ ni_system_bridge_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_bridge_t *
 
 /*
  * Delete a bridge interface
- * ni_system_bridge_delete
  */
 int
 ni_system_bridge_delete(ni_netconfig_t *nc, ni_netdev_t *dev)
@@ -651,6 +650,51 @@ ni_system_bond_remove_slave(ni_netconfig_t *nc, ni_netdev_t *dev, unsigned int s
 		return -NI_ERROR_PERMISSION_DENIED;
 	}
 
+	return 0;
+}
+
+/*
+ * Create a tun interface
+ */
+int
+ni_system_tun_create(ni_netconfig_t *nc, const char *ifname, ni_netdev_t **dev_ret)
+{
+	ni_netdev_t *dev;
+	char *newname;
+
+	ni_debug_ifconfig("%s: creating tun interface", ifname);
+	if ((newname = __ni_tuntap_create_tun(ifname)) == NULL) {
+		ni_error("__ni_tuntap_create_tun(%s) failed", ifname);
+		return -1;
+	}
+
+	/* Refresh interface status */
+	__ni_system_refresh_interfaces(nc);
+
+	dev = ni_netdev_by_name(nc, newname);
+	free(newname);
+
+	if (dev == NULL) {
+		ni_error("tried to create tun interface %s; still not found", ifname);
+		return -1;
+	}
+
+	*dev_ret = dev;
+	return 0;
+}
+
+/*
+ * Delete a tun interface
+ */
+int
+ni_system_tun_delete(ni_netdev_t *dev)
+{
+	int rv;
+
+	if ((rv = __ni_tuntap_delete(dev->name)) < 0) {
+		ni_error("could not destroy tun/tap interface %s", dev->name);
+		return rv;
+	}
 	return 0;
 }
 
