@@ -1431,3 +1431,41 @@ ni_opaque_free(ni_opaque_t *opaq)
 {
 	free(opaq);
 }
+
+/*
+ * Track temporary resources and clean them up when done
+ */
+struct ni_tempstate {
+	ni_string_array_t	files;
+};
+
+ni_tempstate_t *
+ni_tempstate_new()
+{
+	ni_tempstate_t *ts;
+
+	ts = calloc(1, sizeof(*ts));
+	return ts;
+}
+
+void
+ni_tempstate_finish(ni_tempstate_t *ts)
+{
+	unsigned int i;
+
+	for (i = 0; i < ts->files.count; ++i) {
+		const char *filename = ts->files.data[i];
+
+		if (unlink(filename) < 0)
+			ni_warn("failed to remove %s: %m", filename);
+	}
+
+	ni_string_array_destroy(&ts->files);
+	free(ts);
+}
+
+void
+ni_tempstate_add_file(ni_tempstate_t *ts, const char *filename)
+{
+	ni_string_array_append(&ts->files, filename);
+}

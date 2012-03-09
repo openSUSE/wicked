@@ -173,5 +173,14 @@ ni_string_eq(const char *a, const char *b)
 
 extern const char *	ni_string_strip_prefix(const char *, const char *);
 
+/*
+ * When we allocate temporary resources (such as tempfiles)
+ * we can track them as a whole, and clean them up as a whole.
+ */
+typedef struct ni_tempstate ni_tempstate_t;
+extern ni_tempstate_t *	ni_tempstate_new();
+extern void		ni_tempstate_finish(ni_tempstate_t *);
+extern void		ni_tempstate_add_file(ni_tempstate_t *, const char *filename);
+
 #endif /* __WICKED_UTIL_H__ */
 
