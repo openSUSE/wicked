@@ -78,6 +78,11 @@ ni_process_free(ni_process_t *pi)
 		pi->socket = NULL;
 	}
 
+	if (pi->temp_state != NULL) {
+		ni_tempstate_finish(pi->temp_state);
+		pi->temp_state = NULL;
+	}
+
 	ni_string_array_destroy(&pi->argv);
 	ni_string_array_destroy(&pi->environ);
 	ni_shellcmd_release(pi->process);
@@ -180,6 +185,19 @@ __ni_default_environment(void)
 	}
 
 	return &defenv;
+}
+
+/*
+ * Create a temp state for this process; this state will track
+ * temporary resources like tempfiles
+ */
+ni_tempstate_t *
+ni_process_tempstate(ni_process_t *process)
+{
+	if (process->temp_state == NULL)
+		process->temp_state = ni_tempstate_new();
+
+	return process->temp_state;
 }
 
 /*

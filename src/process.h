@@ -30,6 +30,8 @@ struct ni_process {
 	ni_string_array_t	argv;
 	ni_string_array_t	environ;
 
+	ni_tempstate_t *	temp_state;
+
 	void			(*notify_callback)(ni_process_t *);
 	void *			user_data;
 };
@@ -40,6 +42,7 @@ extern int			ni_process_run(ni_process_t *);
 extern int			ni_process_run_and_wait(ni_process_t *);
 extern void			ni_process_setenv(ni_process_t *, const char *, const char *);
 extern const char *		ni_process_getenv(const ni_process_t *, const char *);
+extern ni_tempstate_t *		ni_process_tempstate(ni_process_t *);
 extern void			ni_process_free(ni_process_t *);
 extern int			ni_process_exit_status_okay(const ni_process_t *);
 extern void			ni_shellcmd_free(ni_shellcmd_t *);
