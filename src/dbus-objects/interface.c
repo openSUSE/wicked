@@ -350,27 +350,38 @@ ni_objectmodel_link_classname(ni_iftype_t link_type)
  * If @server is non-NULL, register the object with a canonical object path
  */
 static ni_dbus_object_t *
-__ni_objectmodel_build_interface_object(ni_dbus_server_t *server, ni_netdev_t *ifp)
+__ni_objectmodel_build_netdev_object(ni_dbus_server_t *server, ni_netdev_t *dev, const ni_dbus_class_t *requested_class)
 {
 	const char *classname;
 	const ni_dbus_class_t *class = NULL;
 	ni_dbus_object_t *object;
 
-	if ((classname = ni_objectmodel_link_classname(ifp->link.type)) != NULL)
+	if ((classname = ni_objectmodel_link_classname(dev->link.type)) != NULL)
 		class = ni_objectmodel_get_class(classname);
 	if (class == NULL)
 		class = &ni_objectmodel_netif_class;
 
+	/* If the caller requests a specific class for this object, it must be a
+	 * subclass of the link type class. */
+	if (requested_class) {
+		if (!ni_dbus_class_is_subclass(requested_class, class)) {
+			ni_warn("ignoring caller specified class %s for netdev %s (class %s)",
+					requested_class->name, dev->name, class->name);
+		} else {
+			class = requested_class;
+		}
+	}
+
 	if (server != NULL) {
 		object = ni_dbus_server_register_object(server,
-						ni_objectmodel_interface_path(ifp),
-						class, ni_netdev_get(ifp));
+						ni_objectmodel_interface_path(dev),
+						class, ni_netdev_get(dev));
 	} else {
-		object = ni_dbus_object_new(class, NULL, ni_netdev_get(ifp));
+		object = ni_dbus_object_new(class, NULL, ni_netdev_get(dev));
 	}
 
 	if (object == NULL)
-		ni_fatal("Unable to create dbus object for interface %s", ifp->name);
+		ni_fatal("Unable to create dbus object for network interface %s", dev->name);
 
 	ni_objectmodel_bind_compatible_interfaces(object);
 	return object;
@@ -382,9 +393,9 @@ __ni_objectmodel_build_interface_object(ni_dbus_server_t *server, ni_netdev_t *i
  * and add the appropriate dbus services
  */
 ni_dbus_object_t *
-ni_objectmodel_register_interface(ni_dbus_server_t *server, ni_netdev_t *ifp)
+ni_objectmodel_register_interface(ni_dbus_server_t *server, ni_netdev_t *ifp, const ni_dbus_class_t *override_class)
 {
-	return __ni_objectmodel_build_interface_object(server, ifp);
+	return __ni_objectmodel_build_netdev_object(server, ifp, override_class);
 }
 
 /*
@@ -460,7 +471,7 @@ ni_objectmodel_device_factory_result(ni_dbus_server_t *server, ni_dbus_message_t
 
 	new_object = ni_dbus_server_find_object_by_handle(server, dev);
 	if (new_object == NULL)
-		new_object = ni_objectmodel_register_interface(server, dev);
+		new_object = ni_objectmodel_register_interface(server, dev, NULL);
 	if (!new_object) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
 				"failed to register new device %s",
@@ -485,7 +496,7 @@ ni_objectmodel_device_factory_result(ni_dbus_server_t *server, ni_dbus_message_t
 ni_dbus_object_t *
 ni_objectmodel_wrap_interface(ni_netdev_t *ifp)
 {
-	return __ni_objectmodel_build_interface_object(NULL, ifp);
+	return __ni_objectmodel_build_netdev_object(NULL, ifp, NULL);
 }
 
 ni_dbus_object_t *
