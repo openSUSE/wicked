@@ -463,7 +463,9 @@ ni_objectmodel_get_netif_argument(const ni_dbus_variant_t *dict, ni_iftype_t ift
  * dbus service, and return the device's object path
  */
 dbus_bool_t
-ni_objectmodel_device_factory_result(ni_dbus_server_t *server, ni_dbus_message_t *reply, ni_netdev_t *dev, DBusError *error)
+ni_objectmodel_device_factory_result(ni_dbus_server_t *server, ni_dbus_message_t *reply,
+				ni_netdev_t *dev, const ni_dbus_class_t *override_class,
+				DBusError *error)
 {
 	ni_dbus_variant_t result = NI_DBUS_VARIANT_INIT;
 	ni_dbus_object_t *new_object;
@@ -471,7 +473,7 @@ ni_objectmodel_device_factory_result(ni_dbus_server_t *server, ni_dbus_message_t
 
 	new_object = ni_dbus_server_find_object_by_handle(server, dev);
 	if (new_object == NULL)
-		new_object = ni_objectmodel_register_interface(server, dev, NULL);
+		new_object = ni_objectmodel_register_interface(server, dev, override_class);
 	if (!new_object) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
 				"failed to register new device %s",

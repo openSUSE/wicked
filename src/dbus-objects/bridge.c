@@ -64,7 +64,7 @@ ni_objectmodel_new_bridge(ni_dbus_object_t *factory_object, const ni_dbus_method
 	if (!(ifp = __ni_objectmodel_bridge_newlink(ifp, ifname, error)))
 		return FALSE;
 
-	return ni_objectmodel_device_factory_result(server, reply, ifp, error);
+	return ni_objectmodel_device_factory_result(server, reply, ifp, NULL, error);
 }
 
 static ni_netdev_t *
