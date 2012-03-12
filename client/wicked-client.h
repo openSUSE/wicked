@@ -18,6 +18,7 @@ typedef struct ni_call_error_context ni_call_error_context_t;
 typedef int			ni_call_error_handler_t(ni_call_error_context_t *, const DBusError *);
 
 extern xml_node_t *		ni_call_error_context_get_node(ni_call_error_context_t *, const char *);
+extern int			ni_call_error_context_get_retries(ni_call_error_context_t *, const DBusError *);
 
 extern ni_dbus_object_t *	wicked_get_interface_object(const char *);
 extern const ni_dbus_service_t *ni_call_link_layer_service(const char *);

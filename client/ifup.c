@@ -1047,6 +1047,11 @@ ni_ifworker_error_handler(ni_call_error_context_t *ctx, const DBusError *error)
 		char *node_spec, *prompt_type = NULL, *ident = NULL;
 		const char *value = NULL;
 		char buffer[256];
+		int nretries;
+
+		nretries = ni_call_error_context_get_retries(ctx, error);
+		if (nretries < 0 || nretries > 2)
+			goto out;
 
 		/* The error detail is supposed to be formatted as
 		 * "xml-node-spec|prompt-type|ident"

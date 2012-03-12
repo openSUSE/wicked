@@ -25,6 +25,13 @@ struct ni_call_error_context {
 	ni_call_error_handler_t *handler;
 	xml_node_t *		config;
 	xml_node_t *		__allocated;
+
+#define MAX_TRACKED_ERRORS	6
+	struct ni_call_error_counter {
+		unsigned int	count;
+		char *		error_name;
+		char *		error_message;
+	} tracked[MAX_TRACKED_ERRORS];
 };
 #define NI_CALL_ERROR_CONTEXT_INIT(func, node) \
 		{ .handler = func, .config = node, .__allocated = NULL }
@@ -422,10 +429,12 @@ out:
 	 * it up in the error handler. For instance, a wireless passphrase or a
 	 * UMTS PIN might have missed, and we prompted the user for it.
 	 * In this case, the error handler will retur RETRY_OPERATION.
+	 *
+	 * Note, the error context handler should limit the number of retries by
+	 * using ni_call_error_context_get_retries().
 	 */
 	if (rv == -NI_ERROR_RETRY_OPERATION && error_context != NULL && error_context->config) {
 		config = error_context->config;
-		error_context = NULL;
 		goto retry_operation;
 	}
 
@@ -534,9 +543,50 @@ ni_call_error_context_get_node(ni_call_error_context_t *error_context, const cha
 void
 ni_call_error_context_destroy(ni_call_error_context_t *error_context)
 {
+	struct ni_call_error_counter *ctr;
+	unsigned int i;
+
+	for (i = 0, ctr = error_context->tracked; i < MAX_TRACKED_ERRORS; ++i, ++ctr) {
+		ni_string_free(&ctr->error_name);
+		ni_string_free(&ctr->error_message);
+	}
+
 	if (error_context->__allocated)
 		xml_node_free(error_context->__allocated);
 	error_context->__allocated = NULL;
+}
+
+/*
+ * Count the number of times the server returns the same error code.
+ * This is used by the auth info code when retrieving missing user names,
+ * passwords or key phrases from the user. It'd be clumsy to limit the overall
+ * number of AuthInfoMissing errors we tolerate; instead, we want to limit
+ * how often we retry an operation because a specific piece of auth information
+ * was missing.
+ *
+ * This function returns -1 if we encountered more than MAX_TRACKED_ERRORS distinct
+ * errors. Otherwise, it returns how often we've seen this specific error.
+ */
+int
+ni_call_error_context_get_retries(ni_call_error_context_t *error_context, const DBusError *error)
+{
+	struct ni_call_error_counter *ctr;
+	unsigned int i;
+
+	for (i = 0, ctr = error_context->tracked; i < MAX_TRACKED_ERRORS; ++i, ++ctr) {
+		if (ctr->error_name == NULL) {
+			ni_string_dup(&ctr->error_name, error->name);
+			ni_string_dup(&ctr->error_message, error->message);
+		} else
+		if (!ni_string_eq(ctr->error_name, error->name)
+		 || !ni_string_eq(ctr->error_message, error->message))
+			continue;
+		
+		ctr->count++;
+		return ctr->count;
+	}
+
+	return -1;
 }
 
 /*
