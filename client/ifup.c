@@ -1152,6 +1152,11 @@ ni_ifworker_do_device_up(ni_ifworker_t *w)
 					NULL);
 
 		ni_string_free(&object_path);
+
+		if (!ni_dbus_object_refresh_children(w->object)) {
+			ni_ifworker_fail(w, "unable to refresh new device");
+			return -1;
+		}
 	}
 
 	if (linknode == NULL)
