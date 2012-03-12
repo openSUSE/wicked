@@ -60,3 +60,22 @@ ni_dbus_set_error_from_code(DBusError *error, int errcode, const char *fmt, ...)
 
 	dbus_set_error(error, errname, "%s", msgbuf);
 }
+
+void
+ni_dbus_print_error(const DBusError *error, const char *fmt, ...)
+{
+	va_list ap;
+
+	if (fmt) {
+		char msgbuf[1024];
+
+		va_start(ap, fmt);
+		vsnprintf(msgbuf, sizeof(msgbuf), fmt, ap);
+		va_end(ap);
+
+		ni_error("%s. Server responds:", msgbuf);
+	} else {
+		ni_error("DBus call returns error:");
+	}
+	ni_error_extra("%s: %s", error->name, error->message);
+}

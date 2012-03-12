@@ -243,8 +243,7 @@ ni_call_device_new(const ni_dbus_service_t *service, ni_dbus_variant_t call_argv
 				2, call_argv,
 				1, call_resp,
 				&error)) {
-		ni_error("Server refused to create interface. Server responds:");
-		ni_error_extra("%s: %s", error.name, error.message);
+		ni_dbus_print_error(&error, "server refused to create interface");
 	} else {
 		const char *response;
 
@@ -364,8 +363,7 @@ ni_call_device_method_common(ni_dbus_object_t *object,
 				rv = -rv;
 			}
 		} else {
-			ni_error("%s.%s() failed. Server responds:", service->name, method->name);
-			ni_error_extra("%s: %s", error.name, error.message);
+			ni_dbus_print_error(&error, "%s.%s() failed", service->name, method->name);
 			rv = ni_dbus_get_error(&error, NULL);
 		}
 	} else {
@@ -556,8 +554,7 @@ ni_call_request_lease(ni_dbus_object_t *object, const ni_dbus_service_t *service
 				1, arg,
 				1, &result,
 				&error)) {
-		ni_error("server refused to configure addresses. Server responds:");
-		ni_error_extra("%s: %s", error.name, error.message);
+		ni_dbus_print_error(&error, "server refused to configure addresses");
 	} else {
 		*callback_list = ni_objectmodel_callback_info_from_dict(&result);
 		rv = TRUE;
@@ -607,8 +604,7 @@ ni_call_drop_lease(ni_dbus_object_t *object, const ni_dbus_service_t *service,
 				0, NULL,
 				1, &result,
 				&error)) {
-		ni_error("server refused to drop lease. Server responds:");
-		ni_error_extra("%s: %s", error.name, error.message);
+		ni_dbus_print_error(&error, "server refused to drop lease");
 	} else {
 		*callback_list = ni_objectmodel_callback_info_from_dict(&result);
 		rv = TRUE;
