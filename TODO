@@ -1,5 +1,7 @@
 
 wickedd:
+	- bug: wickedd sometimes fails to collect exit status of
+	  extension scripts.
 	- bug: linkUp on an interface that's up never returns the
 	  event callback.
 	- bug: sometimes wpa supplicant just stops scanning

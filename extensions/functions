@@ -135,7 +135,7 @@ function wicked_log_call {
 	# the script has gone away.
 	exec 3>&2
 
-	exec >/var/log/wickedd.log 2>&1
+	exec >>/var/log/wickedd.log 2>&1
 	echo -----------
 	echo "Arguments: $*"
 	echo Environment:

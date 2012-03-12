@@ -57,6 +57,8 @@
 
   <extension interface="com.suse.Wicked.OpenVPN">
    <action name="changeDevice" command="/etc/wicked/extensions/openvpn change" />
+   <action name="linkUp" command="/etc/wicked/extensions/openvpn link-up" />
+   <action name="linkDown" command="/etc/wicked/extensions/openvpn link-down" />
 
    <!-- default environment for all calls to this extension script -->
    <putenv name="WICKED_OBJECT_PATH" value="$object-path"/>
