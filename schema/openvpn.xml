@@ -21,8 +21,9 @@
   <mtu type="uint32"/>
 
   <auth class="dict">
+    <require type="boolean"/>
     <user type="string"/>
-    <pass type="string"/>
+    <password type="string"/>
   </auth>
 
   <tls class="dict">
