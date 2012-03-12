@@ -83,4 +83,12 @@ extern unsigned int	ni_debug;
 		} \
 	} while(0)
 
+#define ni_warn_once(args...) \
+	do { \
+		static int __warned = 0; \
+		if (!__warned) \
+			ni_warn(args); \
+		__warned = 1; \
+	} while (0)
+
 #endif /* __WICKED_LOGGING_H__ */
