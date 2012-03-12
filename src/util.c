@@ -595,6 +595,12 @@ ni_file_remove_recursively(const char *path)
 	}
 
 	closedir(dir);
+
+	if (rv && rmdir(path) < 0) {
+		ni_error("unable to rmdir %s: %m", path);
+		rv = FALSE;
+	}
+
 	return rv;
 }
 
