@@ -26,6 +26,7 @@ __LIBSRCS= \
 	  bonding.c \
 	  bridge.c \
 	  wireless.c \
+	  openvpn.c \
 	  state.c \
 	  iflist.c \
 	  ifconfig.c \

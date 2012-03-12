@@ -1,7 +1,12 @@
 <!--
   -- OpenVPN Tunnel Service definition
+  --
+  -- We create a subclass of the tun/tap device class, which supports the OpenVPN
+  -- DBus interface.
   -->
-<service name="openvpn" interface="com.suse.Wicked.OpenVPN" object-class="netif-openvpn" factory="com.suse.Wicked.TUN.Factory">
+<object-class name="netif-openvpn" base-class="netif-virtual-tunnel"/>
+
+<service name="openvpn" interface="com.suse.Wicked.OpenVPN" object-class="netif-openvpn">
  <!-- This is the linkinfo returned in interface reports -->
  <define name="linkinfo" class="dict">
   <remote-address type="string"/>
@@ -40,6 +45,9 @@
    <!-- returns callback list -->
  </method>
 
+ <method name="linkUp">
+ </method>
+
  <method name="deleteDevice">
    <!-- no arguments, no return code -->
  </method>
@@ -51,11 +59,30 @@
  </method>
 </service>
 
-<service name="tun-factory" interface="com.suse.Wicked.TUN.Factory" object-class="netif-list">
+<service name="openvpn-factory" interface="com.suse.Wicked.OpenVPN.Factory" object-class="netif-list">
+ <!-- "Create" openvpn device.
+   -- This will create a tunX device and an openvpn config file.
+   -- The config file isn't used until the client invokes the linkUp method.
+   -->
  <method name="newDevice">
   <arguments>
    <name type="string"/>
    <openvpn type="openvpn:linkinfo"/>
+  </arguments>
+  <return>
+   <string/> <!-- this is really an object handle -->
+  </return>
+ </method>
+</service>
+
+<service name="tun-factory" interface="com.suse.Wicked.TUN.Factory" object-class="netif-list">
+ <define name="linkinfo" class="dict">
+   <!-- nothing -->
+ </define>
+ <method name="newDevice">
+  <arguments>
+   <name type="string"/>
+   <config type="linkinfo"/>
   </arguments>
   <return>
    <string/> <!-- this is really an object handle -->
