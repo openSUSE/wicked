@@ -55,8 +55,8 @@ ni_objectmodel_openvpn_newlink(ni_dbus_object_t *factory_object, const ni_dbus_m
 	 * Since the new device is just a TUN device (no openvpn), we have to explicitly
 	 * add the openvpn class interface to it.
 	 */
-	if ((class = ni_objectmodel_get_class("netdev-openvpn")) == NULL)
-		ni_warn_once("no netdev-openvpn class declared by schema");
+	if ((class = ni_objectmodel_get_class("netif-openvpn")) == NULL)
+		ni_warn_once("no netif-openvpn class declared by schema");
 	return ni_objectmodel_device_factory_result(server, reply, ifp, class, error);
 }
 
@@ -100,6 +100,7 @@ __ni_objectmodel_openvpn_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusE
 		ni_openvpn_t *vpn = ni_openvpn_new(NULL);
 
 		ni_netdev_set_openvpn(new_dev, vpn);
+		(void) ni_openvpn_mkdir(vpn);
 	}
 
 	/* FIXME: we should make sure the openvpn config dir exists */
@@ -126,10 +127,13 @@ ni_objectmodel_openvpn_delete(ni_dbus_object_t *object, const ni_dbus_method_t *
 
 	/* Delete the tunnel's openvpn handle. This will take care of
 	 * the configuration files, keys etc. */
+	if (dev->openvpn)
+		ni_trace("%s: vpn=%p dir=%s", __func__, dev->openvpn, dev->openvpn->dirpath);
 	ni_netdev_set_openvpn(dev, NULL);
+	ni_trace("%s: vpn=%p", __func__, dev->openvpn);
 
 	if ((rv = ni_system_tun_delete(dev)) < 0) {
-		ni_dbus_set_error_from_code(error, rv, "Cannot delete TUN interface %s", dev->name);
+		ni_dbus_set_error_from_code(error, rv, "Cannot delete OpenVPN interface %s", dev->name);
 		return FALSE;
 	}
 

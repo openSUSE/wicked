@@ -7,6 +7,7 @@
 #include <string.h>
 #include <limits.h>
 #include <ctype.h>
+#include <sys/stat.h>
 
 #include <wicked/netinfo.h>
 #include <wicked/openvpn.h>
@@ -45,21 +46,31 @@ ni_openvpn_new(const char *tag)
 	return p;
 }
 
-static void
-__ni_openvpn_cleanup(const char *tag)
+int
+ni_openvpn_mkdir(ni_openvpn_t *vpn)
 {
-	const char *dirname;
+	if (vpn->dirpath == NULL) {
+		const char *path;
 
-	dirname = __ni_openvpn_path(tag, NULL);
-	ni_file_remove_recursively(dirname);
+		path = __ni_openvpn_path(vpn->ident, NULL);
+		if (mkdir(path, 0700) < 0) {
+			ni_error("unable to create directory %s: %m", path);
+			return -1;
+		}
+
+		ni_string_dup(&vpn->dirpath, path);
+	}
+	return 0;
 }
 
 void
-ni_openvpn_free(ni_openvpn_t *p)
+ni_openvpn_free(ni_openvpn_t *vpn)
 {
-	__ni_openvpn_cleanup(p->ident);
-	ni_string_free(&p->ident);
-	free(p);
+	if (vpn->dirpath)
+		ni_file_remove_recursively(vpn->dirpath);
+	ni_string_free(&vpn->dirpath);
+	ni_string_free(&vpn->ident);
+	free(vpn);
 }
 
 static ni_bool_t
@@ -72,6 +83,15 @@ __ni_openvpn_is_running(const char *tag)
 	pid = ni_pidfile_check(pidfile);
 
 	return pid > 0;
+}
+
+static void
+__ni_openvpn_cleanup(const char *tag)
+{
+	const char *dirname;
+
+	dirname = __ni_openvpn_path(tag, NULL);
+	ni_file_remove_recursively(dirname);
 }
 
 /*

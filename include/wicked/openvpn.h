@@ -17,10 +17,12 @@
  */
 struct ni_openvpn {
 	char *			ident;
+	char *			dirpath;
 };
 
 extern int			ni_openvpn_discover(ni_netconfig_t *);
 extern ni_openvpn_t *		ni_openvpn_new(const char *tag);
+extern int			ni_openvpn_mkdir(ni_openvpn_t *);
 extern void			ni_openvpn_free(ni_openvpn_t *);
 
 #endif /* __WICKED_OPENVPN_H__ */
