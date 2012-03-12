@@ -44,7 +44,7 @@
     </wpa-psk>
   </define>
 
-  <method name="deviceChange">
+  <method name="changeDevice">
     <arguments>
       <link-request />
     </arguments>

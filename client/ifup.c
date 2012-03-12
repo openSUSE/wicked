@@ -1160,12 +1160,12 @@ ni_ifworker_do_device_up(ni_ifworker_t *w)
 	link_type = linknode->name;
 
 	/* See if there's a link layer service for this link type, and if it
-	 * has a deviceChange method. If not, this is not fatal; we just ignore
+	 * has a changeDevice method. If not, this is not fatal; we just ignore
 	 * bogus/unsupported link info for now because it's used for both
-	 * deviceNew and deviceChange.
+	 * deviceNew and changeDevice.
 	 */
 	if ((service = w->device_service) == NULL
-	 || !ni_dbus_service_get_method(service, "deviceChange"))
+	 || !ni_dbus_service_get_method(service, "changeDevice"))
 		goto device_is_up;
 
 	if (!ni_call_device_change_xml(w->object, linknode, &callback_list, ni_ifworker_error_handler)) {

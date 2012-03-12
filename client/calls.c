@@ -495,7 +495,7 @@ ni_call_device_change_xml(ni_dbus_object_t *object, xml_node_t *config, ni_objec
 	ni_call_error_context_t error_context = NI_CALL_ERROR_CONTEXT_INIT(error_handler, config);
 	dbus_bool_t success;
 
-	success = ni_call_device_method_xml(object, "deviceChange", config, callback_list, &error_context);
+	success = ni_call_device_method_xml(object, "changeDevice", config, callback_list, &error_context);
 	ni_call_error_context_destroy(&error_context);
 	return success;
 }
