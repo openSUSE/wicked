@@ -102,6 +102,8 @@ __ni_objectmodel_openvpn_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusE
 		ni_netdev_set_openvpn(new_dev, vpn);
 	}
 
+	/* FIXME: we should make sure the openvpn config dir exists */
+
 out:
 	if (cfg_ifp)
 		ni_netdev_put(cfg_ifp);
@@ -127,17 +129,38 @@ ni_objectmodel_openvpn_delete(ni_dbus_object_t *object, const ni_dbus_method_t *
 	ni_netdev_set_openvpn(dev, NULL);
 
 	if ((rv = ni_system_tun_delete(dev)) < 0) {
-		dbus_set_error(error,
-				DBUS_ERROR_FAILED,
-				"Error deleting TUN interface %s: %s",
-				dev->name, ni_strerror(rv));
+		ni_dbus_set_error_from_code(error, rv, "Cannot delete TUN interface %s", dev->name);
 		return FALSE;
 	}
 
 	return TRUE;
 }
 
+/*
+ * Helper function to obtain OpenVPN handle from dbus object
+ */
+static void *
+ni_objectmodel_get_openvpn(const ni_dbus_object_t *object, DBusError *error)
+{
+	ni_netdev_t *dev;
+	ni_openvpn_t *vpn;
+
+	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
+		return NULL;
+
+	if (!(vpn = ni_netdev_get_openvpn(dev))) {
+		vpn = ni_openvpn_new(NULL);
+		ni_netdev_set_openvpn(dev, vpn);
+	}
+
+	return vpn;
+}
+
+#define OPENVPN_STRING_PROPERTY(dbus_type, type, rw) \
+	NI_DBUS_GENERIC_STRING_PROPERTY(openvpn, dbus_type, type, rw)
+
 const ni_dbus_property_t	ni_objectmodel_openvpn_property_table[] = {
+	OPENVPN_STRING_PROPERTY(tunnel-id, ident, RO),
 	{ NULL }
 };
 
