@@ -611,6 +611,20 @@ ni_string_strip_prefix(const char *prefix, const char *string)
 	return NULL;
 }
 
+char *
+ni_string_strip_suffix(char *string, const char *suffix)
+{
+	unsigned int len, slen;
+
+	if (!string || !suffix)
+		return string;
+	len = strlen(string);
+	slen = strlen(suffix);
+	if (slen < len && !strcmp(string + len - slen, suffix))
+		string[len - slen] = '\0';
+	return string;
+}
+
 int
 ni_parse_int(const char *input, unsigned int *result)
 {

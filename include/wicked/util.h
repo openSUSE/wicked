@@ -171,7 +171,8 @@ ni_string_eq(const char *a, const char *b)
 	return strcmp(a, b) == 0;
 }
 
-extern const char *	ni_string_strip_prefix(const char *, const char *);
+extern const char *	ni_string_strip_prefix(const char *string, const char *prefix);
+extern char *		ni_string_strip_suffix(char *string, const char *suffix);
 
 /*
  * When we allocate temporary resources (such as tempfiles)
