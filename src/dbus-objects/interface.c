@@ -55,7 +55,6 @@ static ni_dbus_property_t	ni_objectmodel_netif_request_properties[];
 void
 ni_objectmodel_register_netif_classes(void)
 {
-	const ni_dbus_class_t *base_class = &ni_objectmodel_netif_class;
 	ni_dbus_class_t *link_class;
 	unsigned int iftype;
 
@@ -63,7 +62,7 @@ ni_objectmodel_register_netif_classes(void)
 	ni_objectmodel_register_class(&ni_objectmodel_netif_list_class);
 
 	/* register the netif class (to allow extensions to attach to it) */
-	ni_objectmodel_register_class(base_class);
+	ni_objectmodel_register_class(&ni_objectmodel_netif_class);
 
 	/* register the netif interface */
 	ni_objectmodel_register_service(&ni_objectmodel_netif_service);
@@ -74,17 +73,8 @@ ni_objectmodel_register_netif_classes(void)
 		if (!(classname = ni_objectmodel_link_classname(iftype)))
 			continue;
 
-		/* Create the new link class */
-		link_class = xcalloc(1, sizeof(*link_class));
-		ni_string_dup(&link_class->name, classname);
-		link_class->superclass = base_class;
-
-		/* inherit all methods from netif */
-		link_class->init_child = base_class->init_child;
-		link_class->destroy = base_class->destroy;
-		link_class->refresh = base_class->refresh;
-
-		/* Register this class */
+		/* Create and register the new link class */
+		link_class = ni_objectmodel_class_new(classname, &ni_objectmodel_netif_class);
 		ni_objectmodel_register_class(link_class);
 	}
 

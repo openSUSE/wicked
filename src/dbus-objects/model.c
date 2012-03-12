@@ -299,6 +299,24 @@ ni_objectmodel_get_class(const char *name)
 	return NULL;
 }
 
+ni_dbus_class_t *
+ni_objectmodel_class_new(const char *classname, const ni_dbus_class_t *base_class)
+{
+	ni_dbus_class_t *new_class;
+
+	/* Create the new class */
+	new_class = xcalloc(1, sizeof(*new_class));
+	ni_string_dup(&new_class->name, classname);
+	new_class->superclass = base_class;
+
+	/* inherit all methods from netif */
+	new_class->init_child = base_class->init_child;
+	new_class->destroy = base_class->destroy;
+	new_class->refresh = base_class->refresh;
+
+	return new_class;
+}
+
 /*
  * The interface for the dbus root node. Nothing much for now.
  */

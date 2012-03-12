@@ -20,7 +20,7 @@ extern dbus_bool_t		ni_objectmodel_unregister_interface(ni_dbus_server_t *, ni_n
 extern int			ni_objectmodel_bind_extensions(void);
 extern void			ni_objectmodel_register_class(const ni_dbus_class_t *);
 extern const ni_dbus_class_t *	ni_objectmodel_get_class(const char *);
-
+extern ni_dbus_class_t *	ni_objectmodel_class_new(const char *, const ni_dbus_class_t *);
 
 #define NI_OBJECTMODEL_NETIF_CLASS		"netif"
 #define NI_OBJECTMODEL_NETIF_LIST_CLASS		"netif-list"

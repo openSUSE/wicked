@@ -18,6 +18,7 @@
 
 static void		ni_dbus_define_scalar_types(ni_xs_scope_t *);
 static void		ni_dbus_define_xml_notations(void);
+static int		ni_dbus_xml_register_classes(ni_xs_scope_t *);
 static ni_dbus_method_t *ni_dbus_xml_register_methods(ni_xs_service_t *, ni_xs_method_t *, const ni_dbus_method_t *);
 
 static dbus_bool_t	ni_dbus_serialize_xml(xml_node_t *, const ni_xs_type_t *, ni_dbus_variant_t *);
@@ -56,8 +57,14 @@ int
 ni_dbus_xml_register_services(ni_xs_scope_t *scope)
 {
 	ni_xs_service_t *xs_service;
+	int rv;
 
 	NI_TRACE_ENTER_ARGS("scope=%s", scope->name);
+
+	/* First, register any classes defined by the schema */
+	if ((rv = ni_dbus_xml_register_classes(scope)) < 0)
+		return rv;
+
 	for (xs_service = scope->services; xs_service; xs_service = xs_service->next) {
 		ni_dbus_service_t *service;
 		const ni_dbus_class_t *class = NULL;
@@ -99,6 +106,31 @@ ni_dbus_xml_register_services(ni_xs_scope_t *scope)
 			service->methods = ni_dbus_xml_register_methods(xs_service, xs_service->methods, service->methods);
 		if (xs_service->signals)
 			service->signals = ni_dbus_xml_register_methods(xs_service, xs_service->signals, service->signals);
+	}
+
+	return 0;
+}
+
+/*
+ * Register all classes defined by a schema
+ */
+int
+ni_dbus_xml_register_classes(ni_xs_scope_t *scope)
+{
+	ni_xs_class_t *xs_class;
+
+	for (xs_class = scope->classes; xs_class; xs_class = xs_class->next) {
+		const ni_dbus_class_t *base_class;
+		ni_dbus_class_t *new_class;
+
+		base_class = ni_objectmodel_get_class(xs_class->base_name);
+		if (base_class == NULL) {
+			ni_error("unknown object base class \"%s\" referenced by schema", xs_class->base_name);
+			return -1;
+		}
+
+		new_class = ni_objectmodel_class_new(xs_class->name, base_class);
+		ni_objectmodel_register_class(new_class);
 	}
 
 	return 0;

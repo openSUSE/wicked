@@ -232,6 +232,13 @@ struct ni_xs_service {
 	ni_xs_method_t *	signals;
 };
 
+typedef struct ni_xs_class	ni_xs_class_t;
+struct ni_xs_class {
+	ni_xs_class_t *		next;
+	char *			name;
+	char *			base_name;
+};
+
 struct ni_xs_scope {
 	ni_xs_scope_t *		parent;
 	ni_xs_scope_t *		next;
@@ -239,6 +246,7 @@ struct ni_xs_scope {
 	char *			name;
 	ni_xs_name_type_array_t	types;
 	ni_xs_service_t *	services;
+	ni_xs_class_t *		classes;
 	ni_var_array_t		constants;
 
 	ni_xs_scope_t *		children;
