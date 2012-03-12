@@ -535,7 +535,6 @@ ni_dbus_serialize_xml_array(xml_node_t *node, const ni_xs_type_t *type, ni_dbus_
 
 	if (array_info->notation) {
 		const ni_xs_notation_t *notation = array_info->notation;
-		ni_opaque_t data = NI_OPAQUE_INIT;
 
 		/* For now, we handle only byte arrays */
 		if (notation->array_element_type != DBUS_TYPE_BYTE) {
@@ -555,7 +554,6 @@ ni_dbus_serialize_xml_array(xml_node_t *node, const ni_xs_type_t *type, ni_dbus_
 					xml_node_location(node), notation->name, node->cdata);
 			return FALSE;
 		}
-		ni_dbus_variant_set_byte_array(var, data.data, data.len);
 		return TRUE;
 	}
 
@@ -1055,7 +1053,7 @@ __ni_notation_external_file_print(const unsigned char *data_ptr, unsigned int da
 	ni_file_write(fp, data_ptr, data_len);
 	fclose(fp);
 
-	snprintf(buffer, sizeof(buffer), "%s", tempname);
+	snprintf(buffer, size, "%s", tempname);
 	ni_string_free(&tempname);
 
 	return buffer;
