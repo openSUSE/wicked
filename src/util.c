@@ -557,6 +557,48 @@ out:
 }
 
 /*
+ * Recursive removal of files/directories
+ */
+ni_bool_t
+ni_file_remove_recursively(const char *path)
+{
+	struct dirent *dp;
+	ni_bool_t rv = TRUE;
+	DIR *dir;
+
+	dir = opendir(path);
+	if (dir == NULL) {
+		if (errno != ENOTDIR) {
+			ni_error("unable to open %s: %m", path);
+			return FALSE;
+		}
+
+		if (unlink(path) < 0) {
+			ni_error("unable to remove %s: %m", path);
+			return FALSE;
+		}
+		return TRUE;
+	}
+
+	while ((dp = readdir(dir)) != NULL && rv) {
+		const char *name = dp->d_name;
+		char pathbuf[PATH_MAX];
+
+		if (name[0] == '.')
+			continue;
+
+		snprintf(pathbuf, sizeof(pathbuf), "%s/%s", path, name);
+		if (unlink(pathbuf) >= 0)
+			continue;
+
+		rv = ni_file_remove_recursively(pathbuf);
+	}
+
+	closedir(dir);
+	return rv;
+}
+
+/*
  * Check if the given file exists
  */
 extern int
