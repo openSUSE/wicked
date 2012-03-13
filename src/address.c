@@ -55,7 +55,7 @@ __ni_address_new(ni_address_t **list_head, int af, unsigned int prefix_len, cons
 		ap->local_addr = *local_addr;
 
 	/* FIXME: is this the right place to do this? */
-	if (af == AF_INET && local_addr) {
+	if (af == AF_INET && local_addr && prefix_len < 32) {
 		ap->bcast_addr = *local_addr;
 		ap->bcast_addr.sin.sin_addr.s_addr |= htonl(0xFFFFFFFFUL >> prefix_len);
 	}
