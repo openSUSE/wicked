@@ -46,9 +46,34 @@
    <!-- returns callback list -->
  </method>
 
+ <!-- Override the linkUp method of the netif base interface.
+   -- This will start an openvpn daemon process for this tunnel.
+   --
+   -- For now, we ignore any and all of the usual link parameters,
+   -- and let the openvpn daemon handle all that stuff.
+   --
+   -- Note that the MTU can be specified via the <openvpn> element.
+   -->
  <method name="linkUp">
+    <arguments>
+      <request type="interface:link-request" />
+    </arguments>
+   <return>
+     <interface:callback-info/>
+   </return>
  </method>
 
+ <!-- Override the linkDown method of the netif base interface.
+   -- This will shut down the openvpn daemon process and wait for
+   -- it to exit.
+   -->
+ <method name="linkDown">
+   <return>
+     <interface:callback-info/>
+   </return>
+ </method>
+
+ <!-- Delete the tuntap interface created for this tunnel -->
  <method name="deleteDevice">
    <!-- no arguments, no return code -->
  </method>

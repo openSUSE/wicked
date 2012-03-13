@@ -1,0 +1,103 @@
+#!/bin/bash
+
+scriptdir=`dirname $0`
+if [ -f "$scriptdir/functions" ]; then
+	. "$scriptdir/functions"
+fi
+
+if [ -z "$WICKED_TUNNEL_ID" ]; then
+	echo "$0: no tunnel-id" >&2
+	exit 1
+fi
+
+set -e
+umask 077
+
+confdir=/var/run/wicked/$WICKED_TUNNEL_ID
+mkdir -m 700 -p $confdir
+
+function openvpn_update_config {
+
+	conffile="$confdir/config"
+	cat <<EOF
+client
+persist-key
+persist-tun
+nobind
+comp-lzo
+explicit-exit-notify 5
+EOF
+
+	set -x
+	echo "dev $WICKED_INTERFACE_NAME"
+
+	wicked_getargs 'authreq=%{config/auth/require}' 'user=%{config/auth/user}' 'pass=%{config/auth/password}'
+	if [ "$authreq" = "true" ]; then
+		echo "auth-user-pass $confdir/auth"
+
+		if [ -z "$user" ]; then
+			wicked_auth_error "auth.user|USER|user name for openvpn connection"
+		fi
+		if [ -z "$pass" ]; then
+			wicked_auth_error "auth.password|PASSWORD|password for openvpn connection (user $user)"
+		fi
+
+		(
+			echo "$user"
+			echo "$pass"
+		) >"$confdir/auth"
+	fi
+
+	wicked_getargs 'address=%{config/remote-address}' 'port=%{config/remote-port}' 'protocol=%{config/protocol}'
+	if [ -n "$address" ]; then
+		echo "remote $address"
+	fi
+	if [ -n "$port" ]; then
+		echo "port $port"
+	fi
+	if [ -n "$protocol" ]; then
+		echo "proto $protocol"
+	fi
+
+	rm -f $confdir/*.pem
+	wicked_getargs 'tls_ca_cert=%{config/tls/ca-cert}' 'tls_client_cert=%{config/tls/client-cert}' 'tls_client_key=%{config/tls/client-key}'
+
+	if [ -n "$tls_ca_cert" ]; then
+		cp "$tls_ca_cert" $confdir/ca-cert.pem
+		echo "ns-cert-type server"
+		echo "ca $confdir/ca-cert.pem"
+	fi
+	if [ -n "$tls_client_cert" ]; then
+		cp "$tls_client_cert" $confdir/client-cert.pem
+		echo "cert $confdir/client-cert.pem"
+	fi
+	if [ -n "$tls_client_key" ]; then
+		cp "$tls_client_key" $confdir/client-key.pem
+		echo "key $confdir/client-key.pem"
+	fi
+
+	# Attention: add a script callback that notifies us when the link and addresses come up
+}
+
+cmd=$1; shift
+case $cmd in
+change)
+	openvpn_update_config >$confdir/config
+	: ;;
+
+link-up)
+	/usr/sbin/openvpn --daemon --writepid $confdir/pid --config $confdir/config --cd /etc/openvpn >/dev/null 2>&1 3>&1
+	: ;;
+
+link-down)
+	pidfile=$confdir/pid
+	if [ -f $pidfile ]; then
+		date
+		if ! killproc -p $pidfile /usr/sbin/openvpn; then
+			date
+			wicked_error "Error shutting down openvpn daemon for tunnel $WICKED_TUNNEL_ID"
+		fi
+		date
+	fi
+	: ;;
+esac
