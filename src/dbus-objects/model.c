@@ -527,12 +527,12 @@ ni_objectmodel_extension_completion(ni_dbus_connection_t *connection, const ni_d
 		xml_node_t *retnode = NULL;
 		int nres;
 
-		/* if the method returns anything, read it from the response file */
-		if (doc != NULL)
-			retnode = xml_node_get_child(xml_document_root(doc), "return");
-
-		/* Build the proper dbus return object from it */
-		if ((nres = ni_dbus_serialize_return(method, &result, retnode)) < 0) {
+		/* if the method returns anything, read it from the response file
+		 * and encode it. */
+		if (doc == NULL
+		 || (retnode = xml_node_get_child(xml_document_root(doc), "return")) == NULL) {
+			nres = 0;
+		} else if ((nres = ni_dbus_serialize_return(method, &result, retnode)) < 0) {
 			dbus_set_error(&error, NI_DBUS_ERROR_CANNOT_MARSHAL,
 					"%s.%s: unable to serialize returned data",
 					interface_name, method->name);
