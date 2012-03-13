@@ -191,11 +191,9 @@ wicked_get_interface_object(const char *default_interface)
  * Look up the dbus object for an interface by name.
  * The name can be either a kernel interface device name such as eth0,
  * or a dbus object path such as /com/suse/Wicked/Interfaces/5
- *
- * FIXME: the root_object param is obsolete; remove it.
  */
 static ni_dbus_object_t *
-wicked_get_interface(ni_dbus_object_t *root_object, const char *ifname)
+wicked_get_interface(const char *ifname)
 {
 	static ni_dbus_object_t *interfaces = NULL;
 	ni_dbus_object_t *object;
@@ -450,11 +448,8 @@ do_show(int argc, char **argv)
 		return 1;
 	}
 
-	if (!(object = ni_call_create_client()))
-		return 1;
-
 	if (argc == 1) {
-		object = wicked_get_interface(object, NULL);
+		object = wicked_get_interface(NULL);
 		if (!object)
 			return 1;
 
@@ -495,7 +490,7 @@ do_show(int argc, char **argv)
 	} else {
 		const char *ifname = argv[1];
 
-		object = wicked_get_interface(object, ifname);
+		object = wicked_get_interface(ifname);
 		if (!object)
 			return 1;
 	}
@@ -814,7 +809,7 @@ add_conflict:
 			goto failed;
 		}
 
-		obj = wicked_get_interface(NULL, opt_device);
+		obj = wicked_get_interface(opt_device);
 		if (obj == NULL) {
 			ni_error("no such device or object: %s", opt_device);
 			goto failed;
