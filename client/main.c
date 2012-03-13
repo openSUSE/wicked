@@ -181,12 +181,19 @@ wicked_get_interface_object(const char *default_interface)
 			NULL);
 
 	if (!default_interface)
-		default_interface = NI_OBJECTMODEL_INTERFACE ".Interface";
+		default_interface = NI_OBJECTMODEL_NETIFLIST_INTERFACE;
 	ni_dbus_object_set_default_interface(child, default_interface);
 
 	return child;
 }
 
+/*
+ * Look up the dbus object for an interface by name.
+ * The name can be either a kernel interface device name such as eth0,
+ * or a dbus object path such as /com/suse/Wicked/Interfaces/5
+ *
+ * FIXME: the root_object param is obsolete; remove it.
+ */
 static ni_dbus_object_t *
 wicked_get_interface(ni_dbus_object_t *root_object, const char *ifname)
 {
@@ -209,10 +216,15 @@ wicked_get_interface(ni_dbus_object_t *root_object, const char *ifname)
 
 	/* Loop over all interfaces and find the one with matching name */
 	for (object = interfaces->children; object; object = object->next) {
-		ni_netdev_t *ifp = ni_objectmodel_unwrap_interface(object, NULL);
+		if (ifname[0] == '/') {
+			if (ni_string_eq(object->path, ifname))
+				return object;
+		} else {
+			ni_netdev_t *ifp = ni_objectmodel_unwrap_interface(object, NULL);
 
-		if (ifp && ifp->name && !strcmp(ifp->name, ifname))
-			return object;
+			if (ifp && ifp->name && !strcmp(ifp->name, ifname))
+				return object;
+		}
 	}
 
 	ni_error("%s: unknown network interface", ifname);
@@ -702,9 +714,7 @@ add_conflict:
 			prefixlen = ni_netmask_bits(&addr);
 		}
 
-		if (!(node = xml_node_get_child(doc->root, "lease")))
-			node = xml_node_new("lease", doc->root);
-
+		node = doc->root;
 		if (opt_address) {
 			char *slash, addrbuf[128];
 			xml_node_t *list, *e;
@@ -754,6 +764,50 @@ add_conflict:
 		}
 
 		xml_document_write(doc, opt_file);
+	} else if (!strcmp(opt_cmd, "install")) {
+		static struct option install_options[] = {
+			{ "device", required_argument, NULL, 'd' },
+			{ NULL }
+		};
+		char *opt_device = NULL;
+		ni_dbus_object_t *obj;
+
+		while ((c = getopt_long(argc, argv, "", install_options, NULL)) != EOF) {
+			switch (c) {
+			case 'd':
+				opt_device = optarg;
+				break;
+
+			default:
+				goto usage;
+			}
+		}
+
+		if (opt_device == NULL) {
+			ni_error("missing --device argument");
+			goto usage;
+		}
+
+		doc = xml_document_read(opt_file);
+		if (!doc) {
+			ni_error("unable to parse XML document %s", opt_file);
+			return 1;
+		}
+		if (doc->root == NULL) {
+			ni_error("empty lease file");
+			goto failed;
+		}
+
+		obj = wicked_get_interface(NULL, opt_device);
+		if (obj == NULL) {
+			ni_error("no such device or object: %s", opt_device);
+			goto failed;
+		}
+
+		if (!ni_call_install_lease(obj, doc->root)) {
+			ni_error("unable to install addrconf lease");
+			goto failed;
+		}
 	} else {
 usage:
 		fprintf(stderr,
@@ -763,9 +817,17 @@ usage:
 			"  add --address <ipaddr>/<prefixlen> [--peer <ipaddr>\n"
 			"  add --route <network> --netmask <ipmask> [--gateway <ipaddr>]\n"
 			"  add --route <network>/<prefixlen> [--gateway <ipaddr>]\n"
+			"  install --device <object-path>\n"
 		       );
 		return 1;
 	}
 
+	if (doc)
+		xml_document_free(doc);
 	return 0;
+
+failed:
+	if (doc)
+		xml_document_free(doc);
+	return 1;
 }

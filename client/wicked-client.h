@@ -52,6 +52,7 @@ extern dbus_bool_t		ni_call_request_lease_xml(ni_dbus_object_t *, const ni_dbus_
 					xml_node_t *, ni_objectmodel_callback_info_t **);
 extern dbus_bool_t		ni_call_drop_lease(ni_dbus_object_t *object, const ni_dbus_service_t *service,
 					ni_objectmodel_callback_info_t **callback_list);
+extern dbus_bool_t		ni_call_install_lease(ni_dbus_object_t *, xml_node_t *);
 
 extern dbus_bool_t		ni_call_properties_from_argv(const ni_dbus_service_t *, ni_dbus_variant_t *, int, char **);
 

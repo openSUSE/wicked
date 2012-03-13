@@ -374,7 +374,8 @@ ni_call_device_method_common(ni_dbus_object_t *object,
 			rv = ni_dbus_get_error(&error, NULL);
 		}
 	} else {
-		*callback_list = ni_objectmodel_callback_info_from_dict(&result);
+		if (callback_list)
+			*callback_list = ni_objectmodel_callback_info_from_dict(&result);
 		rv = 0;
 	}
 
@@ -663,6 +664,13 @@ ni_call_drop_lease(ni_dbus_object_t *object, const ni_dbus_service_t *service,
 	ni_dbus_variant_destroy(&result);
 	dbus_error_free(&error);
 	return rv;
+}
+
+dbus_bool_t
+ni_call_install_lease(ni_dbus_object_t *object, xml_node_t *node)
+{
+	ni_debug_objectmodel("%s(%s)", __func__, object->path);
+	return ni_call_device_method_xml(object, "installLease", node, NULL, NULL);
 }
 
 /*
