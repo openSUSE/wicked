@@ -29,6 +29,13 @@ typedef enum ni_addrconf_mode {
 	NI_ADDRCONF_AUTOCONF,
 	NI_ADDRCONF_IBFT,	/* SUSE extension */
 
+	/* many interface types such as PPP, OpenVPN and iBFT use an
+	 * intrinsic addrconf mechanism. We do not provide any services
+	 * exposing these mechanisms, but we still want to be able to
+	 * tag the ownership properly.
+	 */
+	NI_ADDRCONF_INTRINSIC,
+
 	__NI_ADDRCONF_MAX
 } ni_addrconf_mode_t;
 

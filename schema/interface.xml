@@ -169,6 +169,8 @@
 
 
   <!-- Signals emitted by this interface -->
+  <signal name="deviceUp" />
+  <signal name="deviceDown" />
   <signal name="linkUp" />
   <signal name="linkDown" />
   <signal name="networkUp" />
