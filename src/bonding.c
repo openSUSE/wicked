@@ -29,6 +29,7 @@ ni_bonding_new(void)
 	bonding->monitoring = NI_BOND_MONITOR_ARP;
 	bonding->arpmon.interval = 2000;
 	bonding->arpmon.validate = NI_BOND_VALIDATE_ACTIVE;
+	bonding->xmit_hash_policy = NI_BOND_XMIT_HASH_LAYER2;
 
 	return bonding;
 }
@@ -239,6 +240,55 @@ ni_bonding_validate_name_to_type(const char *name)
 }
 
 /*
+ * Set the xmit hash policy
+ */
+static ni_intmap_t	__kernel_xmit_hash_policies[] = {
+	{ "layer2",		NI_BOND_XMIT_HASH_LAYER2 },
+	{ "layer2+3",		NI_BOND_XMIT_HASH_LAYER2_3 },
+	{ "layer3+4",		NI_BOND_XMIT_HASH_LAYER3_4 },
+	{ NULL }
+};
+
+static ni_intmap_t	__user_xmit_hash_policies[] = {
+	{ "layer2",		NI_BOND_XMIT_HASH_LAYER2 },
+	{ "layer23",		NI_BOND_XMIT_HASH_LAYER2_3 },
+	{ "layer34",		NI_BOND_XMIT_HASH_LAYER3_4 },
+	{ NULL }
+};
+
+int
+__ni_bonding_set_module_option_xmit_hash_policy(ni_bonding_t *bonding, char *value)
+{
+	return ni_parse_int_mapped(value, __kernel_xmit_hash_policies, &bonding->xmit_hash_policy);
+}
+
+const char *
+__ni_bonding_get_module_option_xmit_hash_policy(const ni_bonding_t *bonding)
+{
+	return ni_format_int_mapped(bonding->xmit_hash_policy, __kernel_xmit_hash_policies);
+}
+
+/*
+ * For now, the enum names in the xml schema use the same xmit hash policy names as
+ * the kernel.
+ */
+const char *
+ni_bonding_xmit_hash_policy_to_name(unsigned int value)
+{
+	return ni_format_int_mapped(value, __user_xmit_hash_policies);
+}
+
+int
+ni_bonding_xmit_hash_policy_to_type(const char *name)
+{
+	unsigned int value;
+
+	if (ni_parse_int_mapped(name, __user_xmit_hash_policies, &value) < 0)
+		return -1;
+	return value;
+}
+
+/*
  * Set one bonding module option/attribute
  */
 static int
@@ -281,15 +331,12 @@ ni_bonding_parse_sysfs_attribute(ni_bonding_t *bonding, const char *attr, char *
 		}
 	} else if (!strcmp(attr, "primary")) {
 		ni_string_dup(&bonding->primary, value);
+	} else if (!strcmp(attr, "xmit_hash_policy")) {
+		if (__ni_bonding_set_module_option_xmit_hash_policy(bonding, value) < 0)
+			return -1;
 	} else {
 		return -2;
 	}
-
-	/* FIXME: Support xmit_hash_policy
-	   	"layer2"
-		"layer3+4"
-		"layer2+3"
-	 */
 
 	return 0;
 }
@@ -333,15 +380,11 @@ ni_bonding_format_sysfs_attribute(const ni_bonding_t *bonding, const char *attr,
 		if (!bonding->primary)
 			return 0;
 		strncpy(buffer, bonding->primary, bufsize - 1);
+	} else if (!strcmp(attr, "xmit_hash_policy")) {
+		strncpy(buffer, __ni_bonding_get_module_option_xmit_hash_policy(bonding), bufsize - 1);
 	} else {
 		return -1;
 	}
-
-	/* FIXME: Support xmit_hash_policy
-	   	"layer2"
-		"layer3+4"
-		"layer2+3"
-	 */
 
 	return 0;
 }
@@ -355,6 +398,7 @@ ni_bonding_parse_sysfs_attrs(const char *ifname, ni_bonding_t *bonding)
 	const char *attrs[] = {
 		"mode",
 		"miimon",
+		"xmit_hash_policy",
 		"arp_validate",
 		"arp_interval",
 		"updelay",
@@ -448,6 +492,7 @@ ni_bonding_write_sysfs_attrs(const char *ifname, const ni_bonding_t *bonding, co
 	const char *stage0_attrs[] = {
 		"mode",
 		"miimon",
+		"xmit_hash_policy",
 
 		/* ignored for ARP monitoring: */
 		"updelay",

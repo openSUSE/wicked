@@ -31,6 +31,11 @@ enum {
 	NI_BOND_CARRIER_DETECT_IOCTL = 0,
 	NI_BOND_CARRIER_DETECT_NETIF = 1,
 };
+enum {
+	NI_BOND_XMIT_HASH_LAYER2 = 0,
+	NI_BOND_XMIT_HASH_LAYER2_3,
+	NI_BOND_XMIT_HASH_LAYER3_4,
+};
 
 struct ni_bonding {
 	unsigned int		mode;
@@ -48,6 +53,7 @@ struct ni_bonding {
 		unsigned int	carrier_detect;
 	}			miimon;
 	char *			primary;	/* FIXME: rename to primary_name/primary_dev */
+	unsigned int		xmit_hash_policy;
 
 	char *			requested_primary;
 
@@ -70,6 +76,8 @@ extern const char *	ni_bonding_mode_type_to_name(unsigned int);
 extern int		ni_bonding_mode_name_to_type(const char *);
 extern const char *	ni_bonding_validate_type_to_name(unsigned int);
 extern int		ni_bonding_validate_name_to_type(const char *);
+extern const char *	ni_bonding_xmit_hash_policy_to_name(unsigned int);
+extern int		ni_bonding_xmit_hash_name_to_policy(const char *);
 
 
 #endif /* __WICKED_BONDING_H__ */

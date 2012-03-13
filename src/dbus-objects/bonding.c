@@ -385,6 +385,7 @@ __ni_objectmodel_bonding_set_slaves(ni_dbus_object_t *object,
 static ni_dbus_property_t	ni_objectmodel_bond_properties[] = {
 	BONDING_UINT_PROPERTY(mode, mode, RO),
 	BONDING_STRING_PROPERTY(primary, primary, RO),
+	BONDING_UINT_PROPERTY(xmit-hash-policy, xmit_hash_policy, RO),
 
 	__NI_DBUS_PROPERTY(
 			DBUS_TYPE_ARRAY_AS_STRING NI_DBUS_DICT_SIGNATURE,
