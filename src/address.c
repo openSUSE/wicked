@@ -123,21 +123,21 @@ ni_address_list_destroy(ni_address_t **list)
 	}
 }
 
-int
+ni_bool_t
 __ni_address_info(int af, unsigned int *offset, unsigned int *len)
 {
 	switch (af) {
 	case AF_INET:
 		*offset = offsetof(struct sockaddr_in, sin_addr);
 		*len = 4;
-		return 1;
+		return TRUE;
 	case AF_INET6:
 		*offset = offsetof(struct sockaddr_in6, sin6_addr);
 		*len = 16;
-		return 1;
+		return TRUE;
 	}
 
-	return 0;
+	return FALSE;
 }
 
 static const unsigned char *
@@ -184,7 +184,7 @@ ni_sockaddr_set_ipv6(ni_sockaddr_t *ap, struct in6_addr ipv6, uint16_t port)
 	ap->six.sin6_port = htons(port);
 }
 
-int
+ni_bool_t
 ni_address_prefix_match(unsigned int prefix_bits, const ni_sockaddr_t *laddr, const ni_sockaddr_t *gw)
 {
 	const unsigned char *laddr_ptr, *gw_ptr;
@@ -194,14 +194,14 @@ ni_address_prefix_match(unsigned int prefix_bits, const ni_sockaddr_t *laddr, co
 	laddr_ptr = __ni_address_data(laddr, &len);
 	gw_ptr = __ni_address_data(gw, &len);
 	if (!laddr_ptr || !gw_ptr || laddr->ss_family != gw->ss_family)
-		return 0;
+		return FALSE;
 
 	if (prefix_bits > (len * 8))
 		prefix_bits = len * 8;
 
 	if (prefix_bits > 8) {
 		if (memcmp(laddr_ptr, gw_ptr, prefix_bits / 8))
-			return 0;
+			return FALSE;
 		offset = prefix_bits / 8;
 		prefix_bits = prefix_bits % 8;
 	}
@@ -211,23 +211,23 @@ ni_address_prefix_match(unsigned int prefix_bits, const ni_sockaddr_t *laddr, co
 	if (prefix_bits != 0) {
 		cc = laddr_ptr[offset] ^ gw_ptr[offset];
 		if ((0xFF00 & (cc << prefix_bits)) != 0)
-			return 0;
+			return FALSE;
 	}
 
-	return 1;
+	return TRUE;
 }
 
-int
+ni_bool_t
 ni_address_can_reach(const ni_address_t *laddr, const ni_sockaddr_t *gw)
 {
 	if (laddr->family != gw->ss_family)
-		return 0;
+		return FALSE;
 
 	/* if (laddr->peer_addr.ss_family != AF_UNSPEC) { ... } */
 	return ni_address_prefix_match(laddr->prefixlen, &laddr->local_addr, gw);
 }
 
-int
+ni_bool_t
 ni_address_is_loopback(const ni_address_t *laddr)
 {
 	if (laddr->family == AF_INET
@@ -238,29 +238,29 @@ ni_address_is_loopback(const ni_address_t *laddr)
 		return (inaddr >> 24) == IN_LOOPBACKNET;
 	}
 
-	return 0;
+	return FALSE;
 }
 
-int
+ni_bool_t
 ni_address_equal(const ni_sockaddr_t *ss1, const ni_sockaddr_t *ss2)
 {
 	const unsigned char *ap1, *ap2;
 	unsigned int len;
 
 	if (ss1->ss_family != ss2->ss_family)
-		return 0;
+		return FALSE;
 	if (ss1->ss_family == AF_UNSPEC)
-		return 1;
+		return TRUE;
 
 	ap1 = __ni_address_data(ss1, &len);
 	ap2 = __ni_address_data(ss2, &len);
 	if (!ap1 || !ap2 || ss1->ss_family != ss2->ss_family)
-		return 0;
+		return FALSE;
 
 	return !memcmp(ap1, ap2, len);
 }
 
-int
+ni_bool_t
 ni_address_probably_dynamic(const ni_address_t *ap)
 {
 	const unsigned char *addr;
@@ -498,12 +498,12 @@ ni_link_address_print(const ni_hwaddr_t *hwa)
 	return abuf;
 }
 
-int
+ni_bool_t
 ni_link_address_equal(const ni_hwaddr_t *hwa1, const ni_hwaddr_t *hwa2)
 {
 	if (hwa1->type != hwa2->type
 	 || hwa1->len != hwa2->len)
-		return 0;
+		return FALSE;
 	return !memcmp(hwa1->data, hwa2->data, hwa1->len);
 }
 
@@ -650,19 +650,19 @@ __ni_route_list_append(ni_route_t **list, ni_route_t *new_route)
 }
 
 
-int
+ni_bool_t
 ni_route_equal(const ni_route_t *r1, const ni_route_t *r2)
 {
 	const ni_route_nexthop_t *nh1, *nh2;
 	if (r1->prefixlen != r2->prefixlen
 	 || !ni_address_equal(&r1->destination, &r2->destination))
-		return 0;
+		return FALSE;
 
 	nh1 = &r1->nh;
 	nh2 = &r2->nh;
 	while (nh1 && nh2) {
 		if (!ni_address_equal(&nh1->gateway, &nh2->gateway))
-			return 0;
+			return FALSE;
 		nh1 = nh1->next;
 		nh2 = nh2->next;
 	}

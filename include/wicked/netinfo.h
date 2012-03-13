@@ -220,21 +220,21 @@ extern const char *	ni_address_format(const ni_sockaddr_t *ss, char *abuf, size_
 extern const char *	ni_address_print(const ni_sockaddr_t *ss);
 extern int		ni_address_parse(ni_sockaddr_t *ss, const char *string, int af);
 extern unsigned int	ni_address_length(int af);
-extern int		ni_address_can_reach(const ni_address_t *laddr, const ni_sockaddr_t *gw);
-extern int		ni_address_is_loopback(const ni_address_t *laddr);
+extern ni_bool_t	ni_address_can_reach(const ni_address_t *laddr, const ni_sockaddr_t *gw);
+extern ni_bool_t	ni_address_is_loopback(const ni_address_t *laddr);
 extern unsigned int	ni_netmask_bits(const ni_sockaddr_t *mask);
 extern int		ni_build_netmask(int, unsigned int, ni_sockaddr_t *);
-extern int		ni_address_prefix_match(unsigned int, const ni_sockaddr_t *,
+extern ni_bool_t	ni_address_prefix_match(unsigned int, const ni_sockaddr_t *,
 				const ni_sockaddr_t *);
-extern int		ni_address_equal(const ni_sockaddr_t *, const ni_sockaddr_t *);
-extern int		__ni_address_info(int, unsigned int *, unsigned int *);
-extern int		ni_address_probably_dynamic(const ni_address_t *);
+extern ni_bool_t	ni_address_equal(const ni_sockaddr_t *, const ni_sockaddr_t *);
+extern ni_bool_t	__ni_address_info(int, unsigned int *, unsigned int *);
+extern ni_bool_t	ni_address_probably_dynamic(const ni_address_t *);
 
 extern int		ni_link_address_format(const ni_hwaddr_t *ss,
 				char *abuf, size_t buflen);
 extern const char *	ni_link_address_print(const ni_hwaddr_t *ss);
 extern int		ni_link_address_parse(ni_hwaddr_t *, unsigned int, const char *);
-extern int		ni_link_address_equal(const ni_hwaddr_t *, const ni_hwaddr_t *);
+extern ni_bool_t	ni_link_address_equal(const ni_hwaddr_t *, const ni_hwaddr_t *);
 extern unsigned int	ni_link_address_length(int);
 extern int		ni_link_address_get_broadcast(int, ni_hwaddr_t *);
 extern int		ni_link_address_set(ni_hwaddr_t *, int iftype, const void *data, size_t len);
@@ -244,7 +244,7 @@ extern ni_route_t *	ni_route_new(ni_netconfig_t *, unsigned int prefix_len,
 				const ni_sockaddr_t *gw);
 extern void		ni_route_list_destroy(ni_route_t **);
 extern void		ni_route_free(ni_route_t *);
-extern int		ni_route_equal(const ni_route_t *, const ni_route_t *);
+extern ni_bool_t	ni_route_equal(const ni_route_t *, const ni_route_t *);
 extern const char *	ni_route_print(const ni_route_t *);
 
 extern void		ni_sockaddr_set_ipv4(ni_sockaddr_t *, struct in_addr, uint16_t);
