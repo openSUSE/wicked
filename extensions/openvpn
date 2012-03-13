@@ -145,7 +145,7 @@ link-up)
 	done
 
 	# Now inform wickedd about the lease
-	# wicked lease $confdir/lease send --addrconf intrinsic
+	wicked lease $confdir/lease install --device $WICKED_OBJECT_PATH
 	: ;;
 
 link-down)
