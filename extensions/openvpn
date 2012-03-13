@@ -89,6 +89,7 @@ function openvpn_build_lease {
 
 	filename=$1
 
+	wicked lease $filename set --state granted
 	wicked lease $filename add --address $ifconfig_local/32 --peer $ifconfig_remote
 
 	for n in ${!route_network_*}; do

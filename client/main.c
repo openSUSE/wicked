@@ -640,13 +640,14 @@ do_lease(int argc, char **argv)
 	opt_cmd = argv[2];
 
 	optind = 3;
-	if (!strcmp(opt_cmd, "add")) {
+	if (!strcmp(opt_cmd, "add") || !strcmp(opt_cmd, "set")) {
 		static struct option add_options[] = {
 			{ "address", required_argument, NULL, 'a' },
 			{ "route", required_argument, NULL, 'r' },
 			{ "netmask", required_argument, NULL, 'm' },
 			{ "gateway", required_argument, NULL, 'g' },
 			{ "peer", required_argument, NULL, 'p' },
+			{ "state", required_argument, NULL, 's' },
 			{ NULL }
 		};
 		char *opt_address = NULL;
@@ -654,6 +655,7 @@ do_lease(int argc, char **argv)
 		char *opt_netmask = NULL;
 		char *opt_gateway = NULL;
 		char *opt_peer = NULL;
+		char *opt_state = NULL;
 		xml_node_t *node;
 		int prefixlen = -1;
 
@@ -683,14 +685,18 @@ do_lease(int argc, char **argv)
 				opt_peer = optarg;
 				break;
 
+			case 's':
+				opt_state = optarg;
+				break;
+
 			default:
 				goto usage;
 			}
 		}
 
-		if (!opt_address && !opt_route) {
+		if (!opt_address && !opt_route && !opt_state) {
 add_conflict:
-			ni_error("wicked lease add: need exactly one --route or --address option");
+			ni_error("wicked lease add: need at least one --route, --address or --state option");
 			goto usage;
 		}
 
@@ -715,6 +721,14 @@ add_conflict:
 		}
 
 		node = doc->root;
+		if (opt_state) {
+			xml_node_t *e;
+
+			if (!(e = xml_node_get_child(node, "state")))
+				e = xml_node_new("state", node);
+			xml_node_set_cdata(e, opt_state);
+		}
+
 		if (opt_address) {
 			char *slash, addrbuf[128];
 			xml_node_t *list, *e;
@@ -737,7 +751,9 @@ add_conflict:
 
 			if (opt_gateway)
 				ni_warn("ignoring --gateway option");
-		} else {
+		}
+
+		if (opt_route) {
 			char *slash, addrbuf[128];
 			xml_node_t *list, *e;
 

@@ -168,6 +168,7 @@
   </method>
 
   <define name="intrinsic-lease" class="dict">
+    <state type="builtin-addrconf-state"/>
     <addresses type="network-interface:assigned-address-list" />
     <routes type="network-interface:assigned-route-list" />
     <hostname type="string" />
