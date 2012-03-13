@@ -817,6 +817,7 @@ ni_stringbuf_clear(ni_stringbuf_t *sb)
 	if (sb->dynamic)
 		free(sb->string);
 	sb->string = NULL;
+	sb->size = 0;
 	sb->len = 0;
 }
 
@@ -844,8 +845,7 @@ __ni_stringbuf_realloc(ni_stringbuf_t *sb, size_t len)
 	size_t size;
 	char * data;
 
-	size = __ni_stringbuf_size(sb, 0);
-	if (sb->len + len + 1 > size) {
+	if (sb->len + len + 1 > sb->size) {
 		ni_assert(sb->dynamic);
 
 		size = __ni_stringbuf_size(sb, len + 1);
@@ -853,6 +853,7 @@ __ni_stringbuf_realloc(ni_stringbuf_t *sb, size_t len)
 		ni_assert(data != NULL);
 
 		sb->string = data;
+		sb->size = size;
 		memset(sb->string + sb->len, 0, size - sb->len);
 	}
 }

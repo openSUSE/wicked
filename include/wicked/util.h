@@ -38,13 +38,14 @@ struct ni_var_array {
 };
 
 typedef struct ni_stringbuf {
+	size_t			size;
 	size_t			len;
 	char *			string;
 	int			dynamic;
 } ni_stringbuf_t;
 
-#define NI_STRINGBUF_INIT_BUFFER(buf)	{ sizeof(buf), buf, 0 }
-#define NI_STRINGBUF_INIT_DYNAMIC	{ 0, NULL, 1 }
+#define NI_STRINGBUF_INIT_BUFFER(buf)	{ .size = sizeof(buf), .len = 0, .string = buf, .dynamic = 0 }
+#define NI_STRINGBUF_INIT_DYNAMIC	{ .size = 0, .len = 0, .string = NULL, .dynamic = 1 }
 
 typedef struct ni_opaque {
 	unsigned char	data[128];
