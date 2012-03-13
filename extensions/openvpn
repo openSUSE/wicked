@@ -1,4 +1,69 @@
 #!/bin/bash
+#
+# Extension script for managing openvpn tunnels via wicked.
+#
+# Copyright (C) 2012, Olaf Kirch <okir@suse.de>
+#
+# Theory of operation.
+#
+#  1.	wicked client invokes OpenVPN.Factory.newDevice().
+#	This will create the tun device, make it persistent,
+#	and assign a tunnel ID (openvpnX).
+#	This piece of code is implemented in C, as there's
+#	no sane way to create tuntap devices from the command
+#	line.
+#
+#  2.	wicked client invokes OpenVPN.changeDevice() using
+#	the device configuration from the <openvpn> element
+#	of the config file.
+#
+#	Note that keys and certificates are passed as binary
+#	data through the dbus interface. Specific data types
+#	take care of reading/writing this data transparently.
+#
+#	The changeDevice method is implemented by calling this script
+#	as "openvpn change". wickedd will pass us the user
+#	configuration as an XML file (converted from the
+#	dbus dict argument).
+#
+#	Using the user supplied configuration, we create a config
+#	file and store it in /var/run/wicked/openvpnX/config.
+#	In the process of doing so, we also check whether
+#	auth information is need, and if so, we request it
+#	from the user by returning appropriate AuthInfoMissing
+#	errors.
+#
+#	We also copy any key and cert files to our
+#	openvpnX config directory in the process.
+#
+#  2a.	The wicked client brings up the firewall. Thanks to the
+#	modular architecture, we don't notice - this is handled
+#	by a different DBus interface.
+#
+#  3.	wicked client invokes OpenVPN.linkUp().
+#	Again, this method is implemented by calling this
+#	extension script as "openvpn link-up".
+#
+#	We will now start the openvpn daemon and wait for it
+#	to come up. This notification is implemented using
+#	an openvpn callback script hook.
+#
+#  4.	The callback script hook will invoke
+#	"openvpn network-up-notify", which will build an
+#	XML addrconf lease file and inform wickedd about
+#	the addresses obtained.
+#
+#  5.	"openvpn link-up" will now resume and return a success
+#	status to the wicked client.
+#
+#  6.	Depending on the configuration, the wicked client may now
+#	invoke additional methods on the established tunnel; for
+#	instance by configuring additional static addresses or routes.
+#
+# Shutdown works pretty much the same, in reverse. The wicked client
+# will first invoke the linkDown() method, which shuts down the tunnel,
+# and then invoke "deleteDevice", which will destroy the tuntap interface.
+#
 
 set -e
 umask 077
