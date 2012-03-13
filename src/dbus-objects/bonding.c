@@ -375,6 +375,8 @@ __ni_objectmodel_bonding_set_slaves(ni_dbus_object_t *object,
 
 #define BONDING_INT_PROPERTY(dbus_name, member_name, rw) \
 	NI_DBUS_GENERIC_INT_PROPERTY(bonding, dbus_name, member_name, rw)
+#define BONDING_STRING_PROPERTY(dbus_name, member_name, rw) \
+	NI_DBUS_GENERIC_STRING_PROPERTY(bonding, dbus_name, member_name, rw)
 #define BONDING_UINT_PROPERTY(dbus_name, member_name, rw) \
 	NI_DBUS_GENERIC_UINT_PROPERTY(bonding, dbus_name, member_name, rw)
 #define BONDING_STRING_ARRAY_PROPERTY(dbus_name, member_name, rw) \
@@ -382,6 +384,7 @@ __ni_objectmodel_bonding_set_slaves(ni_dbus_object_t *object,
 
 static ni_dbus_property_t	ni_objectmodel_bond_properties[] = {
 	BONDING_UINT_PROPERTY(mode, mode, RO),
+	BONDING_STRING_PROPERTY(primary, primary, RO),
 
 	__NI_DBUS_PROPERTY(
 			DBUS_TYPE_ARRAY_AS_STRING NI_DBUS_DICT_SIGNATURE,
