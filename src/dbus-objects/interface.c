@@ -652,6 +652,63 @@ ni_objectmodel_netif_link_down(ni_dbus_object_t *object, const ni_dbus_method_t 
 }
 
 /*
+ * Interface.installLease()
+ *
+ * This is used by network layers such as PPP or OpenVPN to inform wickedd about
+ * some intrinsic address configuration.
+ *
+ * The options dictionary contains address and route properties.
+ */
+static dbus_bool_t
+ni_objectmodel_netif_install_lease(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_netdev_t *dev;
+	ni_addrconf_lease_t *lease;
+	dbus_bool_t ret = FALSE;
+	int rv;
+
+	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
+		return FALSE;
+
+	NI_TRACE_ENTER_ARGS("dev=%s", dev->name);
+
+	/* Create an interface_request object and extract configuration from dict */
+	if (argc != 1)
+		return ni_dbus_error_invalid_args(error, object->path, method->name);
+
+	lease = ni_addrconf_lease_new(NI_ADDRCONF_INTRINSIC, AF_INET);
+	if (!__ni_objectmodel_set_addrconf_lease(lease, &argv[0], error))
+		goto failed;
+
+	/*
+	 * The following call updates the system with the information given in
+	 * the lease. This includes setting all addresses, as well as updating
+	 * resolver and hostname, if provided.
+	 * When a lease is dropped, we either fall back to the config information
+	 * from the next best lease, or if there is none, we restore the original
+	 * system settings.
+	 *
+	 * Note, lease may be NULL after this, as the interface object
+	 * takes ownership of it.
+	 */
+	rv = __ni_system_interface_update_lease(dev, &lease);
+	if (rv < 0) {
+		ni_dbus_set_error_from_code(error, rv,
+				"failed to install intrinsic lease on interface %s", dev->name);
+		goto failed;
+	}
+
+	ret = TRUE;
+
+failed:
+	if (lease)
+		ni_addrconf_lease_free(lease);
+	return ret;
+}
+
+/*
  * Broadcast an interface event
  * The optional uuid argument helps the client match e.g. notifications
  * from an addrconf service against its current state.
@@ -751,6 +808,7 @@ ni_objectmodel_netif_destroy(ni_dbus_object_t *object)
 static ni_dbus_method_t		ni_objectmodel_netif_methods[] = {
 	{ "linkUp",		"a{sv}",		ni_objectmodel_netif_link_up },
 	{ "linkDown",		"",			ni_objectmodel_netif_link_down },
+	{ "installLease",	"a{sv}",		ni_objectmodel_netif_install_lease },
 	{ NULL }
 };
 
