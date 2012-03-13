@@ -55,6 +55,7 @@ static int		do_show(int, char **);
 static int		do_show_xml(int, char **);
 extern int		do_ifup(int, char **);
 extern int		do_ifdown(int, char **);
+extern int		do_lease(int, char **);
 static int		do_xpath(int, char **);
 
 int
@@ -146,6 +147,9 @@ main(int argc, char **argv)
 	/* Old wicked style functions follow */
 	if (!strcmp(cmd, "xpath"))
 		return do_xpath(argc - optind, argv + optind);
+
+	if (!strcmp(cmd, "lease"))
+		return do_lease(argc - optind, argv + optind);
 
 	fprintf(stderr, "Unsupported command %s\n", cmd);
 	goto usage;
@@ -602,6 +606,165 @@ do_xpath(int argc, char **argv)
 
 		ni_string_array_destroy(&result);
 		xpath_format_free(format);
+	}
+
+	return 0;
+}
+
+/*
+ * Script extensions may trigger some action that take time to complete,
+ * and we may wish to notify the caller asynchronously.
+ */
+int
+do_lease(int argc, char **argv)
+{
+	const char *opt_file, *opt_cmd;
+	xml_document_t *doc;
+	int c;
+
+	if (argc <= 2)
+		goto usage;
+	opt_file = argv[1];
+	opt_cmd = argv[2];
+
+	optind = 3;
+	if (!strcmp(opt_cmd, "add")) {
+		static struct option add_options[] = {
+			{ "address", required_argument, NULL, 'a' },
+			{ "route", required_argument, NULL, 'r' },
+			{ "netmask", required_argument, NULL, 'm' },
+			{ "gateway", required_argument, NULL, 'g' },
+			{ "peer", required_argument, NULL, 'p' },
+			{ NULL }
+		};
+		char *opt_address = NULL;
+		char *opt_route = NULL;
+		char *opt_netmask = NULL;
+		char *opt_gateway = NULL;
+		char *opt_peer = NULL;
+		xml_node_t *node;
+		int prefixlen = -1;
+
+		while ((c = getopt_long(argc, argv, "", add_options, NULL)) != EOF) {
+			switch (c) {
+			case 'a':
+				if (opt_address || opt_route)
+					goto add_conflict;
+				opt_address = optarg;
+				break;
+
+			case 'r':
+				if (opt_address || opt_route)
+					goto add_conflict;
+				opt_route = optarg;
+				break;
+
+			case 'm':
+				opt_netmask = optarg;
+				break;
+
+			case 'g':
+				opt_gateway = optarg;
+				break;
+
+			case 'p':
+				opt_peer = optarg;
+				break;
+
+			default:
+				goto usage;
+			}
+		}
+
+		if (!opt_address && !opt_route) {
+add_conflict:
+			ni_error("wicked lease add: need exactly one --route or --address option");
+			goto usage;
+		}
+
+		if (!ni_file_exists(opt_file))
+			doc = xml_document_new();
+		else {
+			doc = xml_document_read(opt_file);
+			if (!doc) {
+				ni_error("unable to parse XML document %s", opt_file);
+				return 1;
+			}
+		}
+
+		if (opt_netmask) {
+			ni_sockaddr_t addr;
+
+			if (ni_address_parse(&addr, opt_netmask, AF_UNSPEC) < 0) {
+				ni_error("cannot parse netmask \"%s\"", opt_netmask);
+				return 1;
+			}
+			prefixlen = ni_netmask_bits(&addr);
+		}
+
+		if (!(node = xml_node_get_child(doc->root, "lease")))
+			node = xml_node_new("lease", doc->root);
+
+		if (opt_address) {
+			char *slash, addrbuf[128];
+			xml_node_t *list, *e;
+
+			slash = strchr(opt_address, '/');
+			if (prefixlen >= 0) {
+				if (slash)
+					*slash = '\0';
+				snprintf(addrbuf, sizeof(addrbuf), "%s/%d", opt_address, prefixlen);
+				opt_address = addrbuf;
+			}
+
+			if (!(list = xml_node_get_child(node, "addresses")))
+				list = xml_node_new("addresses", node);
+
+			e = xml_node_new("e", list);
+			xml_node_set_cdata(xml_node_new("local", e), opt_address);
+			if (opt_peer)
+				xml_node_set_cdata(xml_node_new("peer", e), opt_peer);
+
+			if (opt_gateway)
+				ni_warn("ignoring --gateway option");
+		} else {
+			char *slash, addrbuf[128];
+			xml_node_t *list, *e;
+
+			slash = strchr(opt_route, '/');
+			if (prefixlen >= 0) {
+				if (slash)
+					*slash = '\0';
+				snprintf(addrbuf, sizeof(addrbuf), "%s/%d", opt_route, prefixlen);
+				opt_route = addrbuf;
+			}
+
+			if (!(list = xml_node_get_child(node, "routes")))
+				list = xml_node_new("routes", node);
+
+			e = xml_node_new("e", list);
+			xml_node_set_cdata(xml_node_new("destination", e), opt_route);
+			if (opt_gateway) {
+				e = xml_node_new("nexthop", e);
+				xml_node_set_cdata(xml_node_new("gateway", e), opt_gateway);
+			}
+
+			if (opt_peer)
+				ni_warn("ignoring --peer option");
+		}
+
+		xml_document_write(doc, opt_file);
+	} else {
+usage:
+		fprintf(stderr,
+			"Usage: wicked lease <filename> cmd ...\n"
+			"Where cmd is one of the following:\n"
+			"  add --address <ipaddr> --netmask <ipmask> [--peer <ipaddr>\n"
+			"  add --address <ipaddr>/<prefixlen> [--peer <ipaddr>\n"
+			"  add --route <network> --netmask <ipmask> [--gateway <ipaddr>]\n"
+			"  add --route <network>/<prefixlen> [--gateway <ipaddr>]\n"
+		       );
+		return 1;
 	}
 
 	return 0;
