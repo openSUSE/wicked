@@ -330,13 +330,21 @@ __ni_process_run(ni_process_t *pi, int *pfd)
 static int
 ni_process_reap(ni_process_t *pi)
 {
+	int rv;
+
 	if (pi->pid == 0) {
 		ni_error("%s: child already reaped", __func__);
 		return 0;
 	}
 
-	if (waitpid(pi->pid, &pi->status, WNOHANG) < 0) {
+	rv = waitpid(pi->pid, &pi->status, WNOHANG);
+	if (rv < 0) {
 		ni_error("%s: waitpid returns error (%m)", __func__);
+		return -1;
+	}
+
+	if (rv == 0) {
+		ni_error("%s: process %u has not exited yet", __func__, pi->pid);
 		return -1;
 	}
 
