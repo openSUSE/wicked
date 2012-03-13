@@ -149,16 +149,29 @@ static ni_intmap_t	__kernel_bonding_mode_names[] = {
 int
 __ni_bonding_set_module_option_mode(ni_bonding_t *bonding, char *value)
 {
+	int rv;
+
 	/* When we parse /sys/net/class/<ifname>/bonding/mode, we end up
 	 * with "balance-rr 0" or similar; strip off the int value */
 	value[strcspn(value, " \t\n")] = '\0';
-	return ni_parse_int_mapped(value, __kernel_bonding_mode_names, &bonding->mode);
+	rv = ni_parse_int_mapped(value, __kernel_bonding_mode_names, &bonding->mode);
+	if (rv < 0)
+		ni_error("bonding: kernel reports unknown arp_validate mode \"%s\"", value);
+	return rv;
 }
 
-const char *
-__ni_bonding_get_module_option_mode(const ni_bonding_t *bonding)
+int
+__ni_bonding_get_module_option_mode(const ni_bonding_t *bonding, char *buffer, size_t bufsize)
 {
-	return ni_format_int_mapped(bonding->mode, __kernel_bonding_mode_names);
+	const char *name;
+
+	name = ni_format_int_mapped(bonding->mode, __kernel_bonding_mode_names);
+	if (name == NULL) {
+		ni_error("bonding: unsupported bonding mode %u", bonding->mode);
+		return -1;
+	}
+	strncpy(buffer, name, bufsize - 1);
+	return 0;
 }
 
 /*
@@ -207,16 +220,29 @@ static ni_intmap_t	__arp_validate[] = {
 int
 __ni_bonding_set_module_option_arp_validate(ni_bonding_t *bonding, char *value)
 {
+	int rv;
+
 	/* When we parse /sys/net/class/<ifname>/bonding/arp_validate, we end up
 	 * with "none 0" or similar; strip off the int value */
 	value[strcspn(value, " \t\n")] = '\0';
-	return ni_parse_int_mapped(value, __arp_validate, &bonding->arpmon.validate);
+	rv = ni_parse_int_mapped(value, __arp_validate, &bonding->arpmon.validate);
+	if (rv < 0)
+		ni_error("bonding: kernel reports unknown arp_validate mode \"%s\"", value);
+	return rv;
 }
 
-const char *
-__ni_bonding_get_module_option_arp_validate(const ni_bonding_t *bonding)
+int
+__ni_bonding_get_module_option_arp_validate(const ni_bonding_t *bonding, char *buffer, size_t bufsize)
 {
-	return ni_format_int_mapped(bonding->arpmon.validate, __arp_validate);
+	const char *name;
+
+	name = ni_format_int_mapped(bonding->arpmon.validate, __arp_validate);
+	if (name == NULL) {
+		ni_error("bonding: unsupported arp_validate mode %u", bonding->arpmon.validate);
+		return -1;
+	}
+	strncpy(buffer, name, bufsize - 1);
+	return 0;
 }
 
 /*
@@ -259,13 +285,27 @@ static ni_intmap_t	__user_xmit_hash_policies[] = {
 int
 __ni_bonding_set_module_option_xmit_hash_policy(ni_bonding_t *bonding, char *value)
 {
-	return ni_parse_int_mapped(value, __kernel_xmit_hash_policies, &bonding->xmit_hash_policy);
+	int rv;
+
+	value[strcspn(value, " \t\n")] = '\0';
+	rv = ni_parse_int_mapped(value, __kernel_xmit_hash_policies, &bonding->xmit_hash_policy);
+	if (rv < 0)
+		ni_error("bonding: kernel reports unknown xmit_hash_policy mode \"%s\"", value);
+	return rv;
 }
 
-const char *
-__ni_bonding_get_module_option_xmit_hash_policy(const ni_bonding_t *bonding)
+int
+__ni_bonding_get_module_option_xmit_hash_policy(const ni_bonding_t *bonding, char *buffer, size_t bufsize)
 {
-	return ni_format_int_mapped(bonding->xmit_hash_policy, __kernel_xmit_hash_policies);
+	const char *name;
+
+	name = ni_format_int_mapped(bonding->xmit_hash_policy, __kernel_xmit_hash_policies);
+	if (name == NULL) {
+		ni_error("bonding: unsupported xmit_hash_policy %u", bonding->xmit_hash_policy);
+		return -1;
+	}
+	strncpy(buffer, name, bufsize - 1);
+	return 0;
 }
 
 /*
@@ -349,7 +389,7 @@ ni_bonding_format_sysfs_attribute(const ni_bonding_t *bonding, const char *attr,
 {
 	memset(buffer, 0, bufsize);
 	if (!strcmp(attr, "mode")) {
-		strncpy(buffer, __ni_bonding_get_module_option_mode(bonding), bufsize - 1);
+		return __ni_bonding_get_module_option_mode(bonding, buffer, bufsize);
 	} else if (!strcmp(attr, "miimon")) {
 		unsigned int freq = 0;
 
@@ -371,7 +411,7 @@ ni_bonding_format_sysfs_attribute(const ni_bonding_t *bonding, const char *attr,
 	} else if (!strcmp(attr, "arp_validate")) {
 		if (bonding->monitoring != NI_BOND_MONITOR_ARP)
 			return 0;
-		strncpy(buffer, __ni_bonding_get_module_option_arp_validate(bonding), bufsize - 1);
+		return __ni_bonding_get_module_option_arp_validate(bonding, buffer, bufsize);
 	} else if (!strcmp(attr, "arp_interval")) {
 		if (bonding->monitoring != NI_BOND_MONITOR_ARP)
 			return 0;
@@ -381,7 +421,7 @@ ni_bonding_format_sysfs_attribute(const ni_bonding_t *bonding, const char *attr,
 			return 0;
 		strncpy(buffer, bonding->primary, bufsize - 1);
 	} else if (!strcmp(attr, "xmit_hash_policy")) {
-		strncpy(buffer, __ni_bonding_get_module_option_xmit_hash_policy(bonding), bufsize - 1);
+		return __ni_bonding_get_module_option_xmit_hash_policy(bonding, buffer, bufsize);
 	} else {
 		return -1;
 	}
