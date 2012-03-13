@@ -127,7 +127,6 @@ void
 ni_bonding_free(ni_bonding_t *bonding)
 {
 	ni_bonding_clear(bonding);
-	free(bonding->module_opts);
 	free(bonding);
 }
 
@@ -243,7 +242,7 @@ ni_bonding_validate_name_to_type(const char *name)
  * Set one bonding module option/attribute
  */
 static int
-ni_bonding_parse_module_attribute(ni_bonding_t *bonding, const char *attr, char *value)
+ni_bonding_parse_sysfs_attribute(ni_bonding_t *bonding, const char *attr, char *value)
 {
 	if (!strcmp(attr, "mode")) {
 		if (__ni_bonding_set_module_option_mode(bonding, value) < 0)
@@ -299,7 +298,7 @@ ni_bonding_parse_module_attribute(ni_bonding_t *bonding, const char *attr, char 
  * Get one bonding module option/attribute
  */
 static int
-ni_bonding_format_module_attribute(const ni_bonding_t *bonding, const char *attr, char *buffer, size_t bufsize)
+ni_bonding_format_sysfs_attribute(const ni_bonding_t *bonding, const char *attr, char *buffer, size_t bufsize)
 {
 	memset(buffer, 0, bufsize);
 	if (!strcmp(attr, "mode")) {
@@ -348,97 +347,6 @@ ni_bonding_format_module_attribute(const ni_bonding_t *bonding, const char *attr
 }
 
 /*
- * Parse the module options specified for a bonding device.
- *
- *  max_bonds:Max number of bonded devices (int)
- *  num_grat_arp:Number of gratuitous ARP packets to send on failover event (int)
- *  miimon:Link check interval in milliseconds (int)
- *  updelay:Delay before considering link up, in milliseconds (int)
- *  downdelay:Delay before considering link down, in milliseconds (int)
- *  use_carrier:Use netif_carrier_ok (vs MII ioctls) in miimon; 0 for off, 1 for on (default) (int)
- *  mode:Mode of operation : 0 for balance-rr, 1 for active-backup, 2 for balance-xor, 3 for broadcast, 4 for 802.3ad, 5 for balance-tlb, 6 for balance-alb (charp)
- *  primary:Primary network device to use (charp)
- *  lacp_rate:LACPDU tx rate to request from 802.3ad partner (slow/fast) (charp)
- *  xmit_hash_policy:XOR hashing method: 0 for layer 2 (default), 1 for layer 3+4 (charp)
- *  arp_interval:arp interval in milliseconds (int)
- *  arp_ip_target:arp targets in n.n.n.n form (array of charp)
- *  arp_validate:validate src/dst of ARP probes: none (default), active, backup or all (charp)
- *  fail_over_mac:For active-backup, do not set all slaves to the same MAC.  none (default), active or follow (charp)
- */
-void
-ni_bonding_parse_module_options(ni_bonding_t *bonding)
-{
-	char *temp, *s, *t, *saveptr = NULL;
-
-	ni_bonding_clear(bonding);
-	if (!bonding->module_opts)
-		return;
-
-	temp = xstrdup(bonding->module_opts);
-	for (s = strtok_r(temp, " \t", &saveptr); s; s = strtok_r(NULL, " \t", &saveptr)) {
-		int rv;
-
-		if ((t = strchr(s, '=')) == NULL) {
-			ni_error("ignoring unknown bonding module option %s", s);
-			continue;
-		}
-
-		*t++ = '\0';
-
-		rv = ni_bonding_parse_module_attribute(bonding, s, t);
-		if (rv == -2) {
-			ni_error("ignoring unknown bonding module option %s=%s", s, t);
-		} else if (rv < 0) {
-			ni_error("unable to parse bonding module option %s=%s", s, t);
-			/* we should really return an error here */
-		}
-	}
-
-	free(temp);
-}
-
-void
-ni_bonding_build_module_options(ni_bonding_t *bonding)
-{
-	ni_stringbuf_t outbuf = NI_STRINGBUF_INIT_DYNAMIC;
-	const char *attrs[] = {
-		"mode",
-		"miimon",
-		"primary",
-
-		/* ignored for ARP monitoring: */
-		"updelay",
-		"downdelay",
-		"use_carrier",
-
-		/* ignored for MII monitoring: */
-		"arp_interval",
-		"arp_validate",
-		NULL,
-	};
-	unsigned int i;
-
-	for (i = 0; attrs[i]; ++i) {
-		char value[128];
-
-		if (ni_bonding_format_module_attribute(bonding, attrs[i], value, sizeof(value)) < 0)
-			continue;
-
-		if (!ni_stringbuf_empty(&outbuf))
-			ni_stringbuf_putc(&outbuf, ' ');
-		ni_stringbuf_puts(&outbuf, value);
-	}
-
-#if 0
-	/* FIXME: do arp_ip_target */
-#endif
-
-	ni_string_free(&bonding->module_opts);
-	bonding->module_opts = outbuf.string;
-	return;
-}
-
-/*
  * Load bonding configuration from sysfs
  */
 int
@@ -473,7 +381,7 @@ ni_bonding_parse_sysfs_attrs(const char *ifname, ni_bonding_t *bonding)
 		if (attrval == NULL)
 			continue;
 
-		rv = ni_bonding_parse_module_attribute(bonding, attrname, attrval);
+		rv = ni_bonding_parse_sysfs_attribute(bonding, attrname, attrval);
 		if (rv == -2) {
 			ni_error("ignoring unknown bonding module option %s=%s", attrname, attrval);
 		} else if (rv < 0) {
@@ -501,8 +409,8 @@ ni_bonding_write_one_sysfs_attr(const char *ifname, const ni_bonding_t *bonding,
 {
 	char current_value[128], config_value[128];
 
-	if (ni_bonding_format_module_attribute(current, attrname, current_value, sizeof(current_value)) < 0
-	 || ni_bonding_format_module_attribute(bonding, attrname, config_value, sizeof(config_value)) < 0) {
+	if (ni_bonding_format_sysfs_attribute(current, attrname, current_value, sizeof(current_value)) < 0
+	 || ni_bonding_format_sysfs_attribute(bonding, attrname, config_value, sizeof(config_value)) < 0) {
 		ni_error("%s: cannot represent attribute %s", ifname, attrname);
 		return -1;
 	}
@@ -518,7 +426,7 @@ ni_bonding_write_one_sysfs_attr(const char *ifname, const ni_bonding_t *bonding,
 	}
 
 	/* FIXME: for stage 0 attributes, we should verify that the device is down.
-	 * For stage 1 attribures, we should verify that it is up */
+	 * For stage 1 attributes, we should verify that it is up */
 
 	ni_debug_ifconfig("%s: setting attr %s=%s", ifname, attrname, config_value);
 	if (ni_sysfs_bonding_set_attr(ifname, attrname, config_value) < 0) {

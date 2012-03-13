@@ -33,14 +33,6 @@ enum {
 };
 
 struct ni_bonding {
-	/* This is where we store the module options taken from
-	 * the sysconfig files. Most distros don't bother with breaking
-	 * these up into lots of little pieces; they just use one
-	 * string.
-	 * So we store the string, then analyze it.
-	 */
-	char *			module_opts;
-
 	unsigned int		mode;
 
 	int			monitoring;
