@@ -25,6 +25,9 @@ static const char *	ni_errors[__NI_ERROR_MAX] = {
 [NI_ERROR_CANNOT_CONFIGURE_ROUTE]	= "Cannot configure route",
 [NI_ERROR_CANNOT_MARSHAL]		= "Cannot marshal arguments for remote object call",
 [NI_ERROR_PROPERTY_NOT_PRESENT]		= "Object property not present",
+[NI_ERROR_METHOD_NOT_SUPPORTED]		= "Object does not support requested method",
+[NI_ERROR_UNRESOLVABLE_HOSTNAME]	= "Cannot resolve hostname",
+[NI_ERROR_UNREACHABLE_ADDRESS]		= "Address not reachable",
 };
 
 const char *

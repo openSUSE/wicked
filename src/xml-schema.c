@@ -13,6 +13,7 @@
 #include "util_priv.h"
 
 static int		ni_xs_process_include(xml_node_t *, ni_xs_scope_t *);
+static int		ni_xs_process_class(xml_node_t *, ni_xs_scope_t *);
 static int		ni_xs_process_define(xml_node_t *, ni_xs_scope_t *);
 static int		ni_xs_process_service(xml_node_t *, ni_xs_scope_t *);
 static int		ni_xs_process_method(xml_node_t *, ni_xs_service_t *, ni_xs_scope_t *);
@@ -498,7 +499,7 @@ static int
 ni_xs_is_reserved_name(const char *name)
 {
 	static const char *reserved[] = {
-		"dict", "struct", "array", "define",
+		"dict", "struct", "array", "define", "object-class",
 		NULL
 	};
 
@@ -549,6 +550,10 @@ ni_xs_process_schema(xml_node_t *node, ni_xs_scope_t *scope)
 
 		if (!strcmp(child->name, "include")) {
 			if ((rv = ni_xs_process_include(child, scope)) < 0)
+				return rv;
+		} else
+		if (!strcmp(child->name, "object-class")) {
+			if ((rv = ni_xs_process_class(child, scope)) < 0)
 				return rv;
 		} else
 		if (!strcmp(child->name, "define")) {
@@ -614,6 +619,7 @@ ni_xs_process_service(xml_node_t *node, ni_xs_scope_t *scope)
 	for (child = node->children; child; child = child->next) {
 		int rv;
 
+		/* We do not allow nested definitions of service or object-class */
 		if (!strcmp(child->name, "define")) {
 			if ((rv = ni_xs_process_define(child, sub_scope)) < 0)
 				return rv;
@@ -739,6 +745,40 @@ ni_xs_process_include(xml_node_t *node, ni_xs_scope_t *scope)
 
 	ni_debug_xml("trying to include %s", nameAttr);
 	return ni_xs_process_schema_file(nameAttr, scope);
+}
+
+/*
+ * Process an <object-class> element.
+ */
+int
+ni_xs_process_class(xml_node_t *node, ni_xs_scope_t *scope)
+{
+	const char *nameAttr, *baseClassAttr;
+	ni_xs_class_t *class, **tail;
+
+	if (node->name == NULL || strcmp(node->name, "object-class")) {
+		ni_error("%s: bad node name", xml_node_location(node));
+		return -1;
+	}
+
+	if (!(nameAttr = xml_node_get_attr(node, "name"))) {
+		ni_error("%s: <class> element lacks name attribute", xml_node_location(node));
+		return -1;
+	}
+	if (!(baseClassAttr = xml_node_get_attr(node, "base-class"))) {
+		ni_error("%s: <class> element lacks base-class attribute", xml_node_location(node));
+		return -1;
+	}
+
+	for (tail = &scope->classes; (class = *tail) != NULL; tail = &class->next)
+		;
+
+	class = xcalloc(1, sizeof(*class));
+	ni_string_dup(&class->name, nameAttr);
+	ni_string_dup(&class->base_name, baseClassAttr);
+	*tail = class;
+
+	return 0;
 }
 
 /*

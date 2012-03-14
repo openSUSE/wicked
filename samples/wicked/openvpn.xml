@@ -1,0 +1,25 @@
+<interface>
+  <name>tun1</name>
+  <alias>openvpn-suse</alias>
+
+  <openvpn>
+    <remote-address>gate.suse.de</remote-address>
+    <protocol>udp</protocol>
+
+    <auth>
+      <!-- require user name and password.
+        -- you can specify these here using the <user> and
+	-- <password> elements. If you don't, wicked will prompt
+	-- you for them.
+	-->
+      <require>true</require>
+    </auth>
+
+    <tls>
+      <ca-cert>/etc/openvpn/SUSE/SUSE-ca.crt</ca-cert>
+      <client-cert>/etc/openvpn/SUSE/SUSE-okir.crt</client-cert>
+      <client-key>/etc/openvpn/SUSE/SUSE-okir.key</client-key>
+    </tls>
+  </openvpn>
+</interface>
+

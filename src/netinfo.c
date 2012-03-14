@@ -18,6 +18,7 @@
 #include <wicked/ethernet.h>
 #include <wicked/wireless.h>
 #include <wicked/vlan.h>
+#include <wicked/openvpn.h>
 #include <wicked/socket.h>
 #include <wicked/resolver.h>
 #include <wicked/nis.h>
@@ -178,15 +179,19 @@ ni_global_state_handle(int refresh)
 	}
 
 	if (refresh) {
-		if (!nc->ibft_nics_init) {
-			nc->ibft_nics_init = 1;
+		int first_time = (nc->ibft_nics_init == 0);
+
+		nc->ibft_nics_init = 1;
+		if (first_time)
 			ni_sysfs_ibft_scan_nics(&nc->ibft_nics);
-		}
 
 		if (__ni_system_refresh_interfaces(nc) < 0) {
 			ni_error("failed to refresh interface list");
 			return NULL;
 		}
+
+		if (first_time)
+			ni_openvpn_discover(nc);
 	}
 
 	return nc;

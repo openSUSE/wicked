@@ -688,11 +688,11 @@ xml_expand_entity(xml_reader_t *xr, ni_stringbuf_t *res)
 		return 0;
 	}
 
-	if (!strcmp(entity.string, "lt"))
+	if (!strcasecmp(entity.string, "lt"))
 		expanded = '<';
-	else if (!strcmp(entity.string, "gt"))
+	else if (!strcasecmp(entity.string, "gt"))
 		expanded = '>';
-	else if (!strcmp(entity.string, "amp"))
+	else if (!strcasecmp(entity.string, "amp"))
 		expanded = '&';
 	else {
 		const char *es = entity.string;

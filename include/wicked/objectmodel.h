@@ -14,12 +14,13 @@ extern void			ni_objectmodel_register_all(void);
 extern ni_dbus_server_t *	ni_objectmodel_create_service(void);
 
 extern dbus_bool_t		ni_objectmodel_create_initial_objects(ni_dbus_server_t *);
-extern ni_dbus_object_t *	ni_objectmodel_register_interface(ni_dbus_server_t *, ni_netdev_t *ifp);
+extern ni_dbus_object_t *	ni_objectmodel_register_interface(ni_dbus_server_t *, ni_netdev_t *ifp,
+					const ni_dbus_class_t *override_class);
 extern dbus_bool_t		ni_objectmodel_unregister_interface(ni_dbus_server_t *, ni_netdev_t *ifp);
 extern int			ni_objectmodel_bind_extensions(void);
 extern void			ni_objectmodel_register_class(const ni_dbus_class_t *);
 extern const ni_dbus_class_t *	ni_objectmodel_get_class(const char *);
-
+extern ni_dbus_class_t *	ni_objectmodel_class_new(const char *, const ni_dbus_class_t *);
 
 #define NI_OBJECTMODEL_NETIF_CLASS		"netif"
 #define NI_OBJECTMODEL_NETIF_LIST_CLASS		"netif-list"
@@ -38,6 +39,8 @@ extern const ni_dbus_class_t *	ni_objectmodel_get_class(const char *);
 #define NI_OBJECTMODEL_BRIDGE_INTERFACE		NI_OBJECTMODEL_INTERFACE ".Bridge"
 #define NI_OBJECTMODEL_VLAN_INTERFACE		NI_OBJECTMODEL_INTERFACE ".VLAN"
 #define NI_OBJECTMODEL_BONDING_INTERFACE	NI_OBJECTMODEL_INTERFACE ".Bonding"
+#define NI_OBJECTMODEL_TUN_INTERFACE		NI_OBJECTMODEL_INTERFACE ".TUN"
+#define NI_OBJECTMODEL_OPENVPN_INTERFACE	NI_OBJECTMODEL_INTERFACE ".OpenVPN"
 #define NI_OBJECTMODEL_PPP_INTERFACE		NI_OBJECTMODEL_INTERFACE ".PPP"
 #define NI_OBJECTMODEL_DHCP4_INTERFACE		NI_OBJECTMODEL_INTERFACE ".DHCP4"
 #define NI_OBJECTMODEL_AUTO4_INTERFACE		NI_OBJECTMODEL_INTERFACE ".AUTO4"
@@ -53,6 +56,9 @@ extern const char *		ni_objectmodel_link_classname(ni_iftype_t);
 
 extern const ni_dbus_service_t *ni_objectmodel_service_by_name(const char *interface_name);
 extern const ni_dbus_service_t *ni_objectmodel_service_by_class(const ni_dbus_class_t *);
+extern const ni_dbus_service_t *ni_objectmodel_service_by_tag(const char *tag);
+extern const ni_dbus_service_t *ni_objectmodel_factory_service(const ni_dbus_service_t *);
+extern const ni_dbus_service_t *ni_objectmodel_auth_service(const ni_dbus_service_t *);
 
 extern dbus_bool_t		ni_objectmodel_get_addrconf_lease(const ni_addrconf_lease_t *, ni_dbus_variant_t *);
 extern dbus_bool_t		ni_objectmodel_set_addrconf_lease(ni_addrconf_lease_t *, const ni_dbus_variant_t *);

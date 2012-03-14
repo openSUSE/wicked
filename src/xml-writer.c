@@ -45,7 +45,7 @@ static void		xml_writer_printf(xml_writer_t *, const char *, ...);
 static void		xml_document_output(const xml_document_t *, xml_writer_t *);
 static void		xml_node_output(const xml_node_t *node, xml_writer_t *, unsigned int indent);
 static const char *	xml_escape_quote(const char *);
-static const char *	xml_escape_entities(const char *);
+static const char *	xml_escape_entities(const char *, char **);
 
 int
 xml_document_write(const xml_document_t *doc, const char *filename)
@@ -149,12 +149,14 @@ xml_node_output(const xml_node_t *node, xml_writer_t *writer, unsigned int inden
 
 	if (node->cdata) {
 		unsigned int len;
+		char *temp = NULL;
 
 		if (strchr(node->cdata, '\n')) {
 			xml_writer_printf(writer, "\n");
 			newline = 1;
 		}
-		xml_writer_printf(writer, "%s", xml_escape_entities(node->cdata));
+		xml_writer_printf(writer, "%s", xml_escape_entities(node->cdata, &temp));
+		ni_string_free(&temp);
 
 		if (newline) {
 			len = strlen(node->cdata);
@@ -180,10 +182,44 @@ xml_node_output(const xml_node_t *node, xml_writer_t *writer, unsigned int inden
 }
 
 const char *
-xml_escape_entities(const char *cdata)
+xml_escape_entities(const char *cdata, char **temp)
 {
-	/* FIXME FIXME FIXME - escape <>&; */
-	return cdata;
+	static const char *escmap[256] = {
+		['<'] = "&lt;",
+		['>'] = "&gt;",
+		['&'] = "&amp;",
+	};
+	const char *pos;
+	unsigned int expand = 0;
+	char *copy = NULL;
+
+	if (!cdata)
+		return NULL;
+
+	for (pos = cdata; *pos; ++pos) {
+		const char *replace;
+
+		if ((replace = escmap[(unsigned int) *pos]) != NULL)
+			expand += strlen(replace);
+	}
+
+	if (expand == 0)
+		return cdata;
+
+	copy = *temp = malloc(expand + strlen(cdata) + 1);
+	for (pos = cdata; *pos; ++pos) {
+		const char *replace;
+
+		if ((replace = escmap[(unsigned int) *pos]) != NULL) {
+			strcpy(copy, replace);
+			copy += strlen(copy);
+		} else {
+			*copy++ = *pos;
+		}
+	}
+	*copy = '\0';
+
+	return *temp;
 }
 
 const char *

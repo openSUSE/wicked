@@ -185,7 +185,7 @@ wicked_discover_state(void)
 
 	if (wicked_dbus_server) {
 		for (ifp = ni_netconfig_devlist(nc); ifp; ifp = ifp->next)
-			ni_objectmodel_register_interface(wicked_dbus_server, ifp);
+			ni_objectmodel_register_interface(wicked_dbus_server, ifp, NULL);
 	}
 }
 
@@ -274,7 +274,7 @@ wicked_interface_event(ni_netconfig_t *nc, ni_netdev_t *ifp, ni_event_t event)
 		switch (event) {
 		case NI_EVENT_LINK_CREATE:
 			/* Create dbus object and emit event */
-			ni_objectmodel_register_interface(wicked_dbus_server, ifp);
+			ni_objectmodel_register_interface(wicked_dbus_server, ifp, NULL);
 			break;
 
 		case NI_EVENT_LINK_DELETE:

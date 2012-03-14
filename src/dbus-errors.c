@@ -25,6 +25,10 @@ static ni_intmap_t	__ni_dbus_errors[] = {
 	{ NI_DBUS_ERROR_CANNOT_CONFIGURE_ROUTE,		NI_ERROR_CANNOT_CONFIGURE_ROUTE		},
 	{ NI_DBUS_ERROR_CANNOT_MARSHAL,			NI_ERROR_CANNOT_MARSHAL			},
 	{ NI_DBUS_ERROR_PROPERTY_NOT_PRESENT,		NI_ERROR_PROPERTY_NOT_PRESENT		},
+	{ NI_DBUS_ERROR_UNRESOLVABLE_HOSTNAME,		NI_ERROR_UNRESOLVABLE_HOSTNAME		},
+	{ NI_DBUS_ERROR_UNREACHABLE_ADDRESS,		NI_ERROR_UNREACHABLE_ADDRESS		},
+
+	{ DBUS_ERROR_UNKNOWN_METHOD,			NI_ERROR_METHOD_NOT_SUPPORTED		},
 
 	{ NULL }
 };
@@ -59,4 +63,23 @@ ni_dbus_set_error_from_code(DBusError *error, int errcode, const char *fmt, ...)
 		errname = DBUS_ERROR_FAILED;
 
 	dbus_set_error(error, errname, "%s", msgbuf);
+}
+
+void
+ni_dbus_print_error(const DBusError *error, const char *fmt, ...)
+{
+	va_list ap;
+
+	if (fmt) {
+		char msgbuf[1024];
+
+		va_start(ap, fmt);
+		vsnprintf(msgbuf, sizeof(msgbuf), fmt, ap);
+		va_end(ap);
+
+		ni_error("%s. Server responds:", msgbuf);
+	} else {
+		ni_error("DBus call returns error:");
+	}
+	ni_error_extra("%s: %s", error->name, error->message);
 }

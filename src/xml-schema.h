@@ -166,8 +166,8 @@ typedef struct ni_xs_notation	ni_xs_notation_t;
 struct ni_xs_notation {
 	const char *		name;
 	unsigned int		array_element_type;
-	ni_opaque_t *		(*parse)(const char *, ni_opaque_t *);
-	const char *		(*print)(const ni_opaque_t *, char *, size_t);
+	ni_bool_t		(*parse)(const char *, unsigned char **, unsigned int *);
+	const char *		(*print)(const unsigned char *, unsigned int, char *, size_t);
 };
 
 typedef struct ni_xs_array_info ni_xs_array_info_t;
@@ -232,6 +232,13 @@ struct ni_xs_service {
 	ni_xs_method_t *	signals;
 };
 
+typedef struct ni_xs_class	ni_xs_class_t;
+struct ni_xs_class {
+	ni_xs_class_t *		next;
+	char *			name;
+	char *			base_name;
+};
+
 struct ni_xs_scope {
 	ni_xs_scope_t *		parent;
 	ni_xs_scope_t *		next;
@@ -239,6 +246,7 @@ struct ni_xs_scope {
 	char *			name;
 	ni_xs_name_type_array_t	types;
 	ni_xs_service_t *	services;
+	ni_xs_class_t *		classes;
 	ni_var_array_t		constants;
 
 	ni_xs_scope_t *		children;

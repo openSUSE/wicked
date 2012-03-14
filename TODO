@@ -11,6 +11,15 @@ wickedd:
 	- write addrconf leases to a file
 	- when a wlan device changes association, tell dhcp about it
 	  so that it can request a new lease
+	- express extra dependencies between devices. For instance,
+	  we may have to bring up our ethernet device before we can
+	  bring up the openvpn tunnel.
+	- Add an error code for "I need to be able to resolve this name"
+	- Add an error code for "I need to be able to reach this host"
+	- Allow wicked to request event notification the resolver
+	  changes, or when a host becomes reachable?
+	- openvpn: check for resolvability and reachability of
+	  the remote address before trying to start openvpn
 
 netinfo:
 	- Introduce an <access-provider> abstraction; this can be either
@@ -54,7 +63,6 @@ overall
 	- Add INSTALL file describing how to build wicked
 
 extensions
-	- support openvpn
 	- add support conversion to a different file format when running extensions
 	- escape/reject shell metacharacters when expanding start/stop command
 

@@ -56,7 +56,7 @@ ni_objectmodel_new_bond(ni_dbus_object_t *factory_object, const ni_dbus_method_t
 	if (!(ifp = __ni_objectmodel_bond_newlink(ifp, ifname, error)))
 		return FALSE;
 
-	return ni_objectmodel_device_factory_result(server, reply, ifp, error);
+	return ni_objectmodel_device_factory_result(server, reply, ifp, NULL, error);
 }
 
 static ni_netdev_t *
@@ -375,6 +375,8 @@ __ni_objectmodel_bonding_set_slaves(ni_dbus_object_t *object,
 
 #define BONDING_INT_PROPERTY(dbus_name, member_name, rw) \
 	NI_DBUS_GENERIC_INT_PROPERTY(bonding, dbus_name, member_name, rw)
+#define BONDING_STRING_PROPERTY(dbus_name, member_name, rw) \
+	NI_DBUS_GENERIC_STRING_PROPERTY(bonding, dbus_name, member_name, rw)
 #define BONDING_UINT_PROPERTY(dbus_name, member_name, rw) \
 	NI_DBUS_GENERIC_UINT_PROPERTY(bonding, dbus_name, member_name, rw)
 #define BONDING_STRING_ARRAY_PROPERTY(dbus_name, member_name, rw) \
@@ -382,6 +384,8 @@ __ni_objectmodel_bonding_set_slaves(ni_dbus_object_t *object,
 
 static ni_dbus_property_t	ni_objectmodel_bond_properties[] = {
 	BONDING_UINT_PROPERTY(mode, mode, RO),
+	BONDING_STRING_PROPERTY(primary, primary, RO),
+	BONDING_UINT_PROPERTY(xmit-hash-policy, xmit_hash_policy, RO),
 
 	__NI_DBUS_PROPERTY(
 			DBUS_TYPE_ARRAY_AS_STRING NI_DBUS_DICT_SIGNATURE,

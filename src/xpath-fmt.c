@@ -252,6 +252,8 @@ xpath_format_extend(xpath_format_t *na)
 	}
 	fnp = &na->node[na->count++];
 	memset(fnp, 0, sizeof(*fnp));
+	ni_stringbuf_init(&fnp->before);
+	ni_stringbuf_init(&fnp->expression);
 
 	return fnp;
 }

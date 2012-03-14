@@ -18,6 +18,7 @@
 #include <wicked/ethernet.h>
 #include <wicked/wireless.h>
 #include <wicked/vlan.h>
+#include <wicked/openvpn.h>
 #include <wicked/socket.h>
 #include <wicked/resolver.h>
 #include <wicked/nis.h>
@@ -99,6 +100,7 @@ ni_netdev_free(ni_netdev_t *dev)
 	ni_netdev_set_bridge(dev, NULL);
 	ni_netdev_set_vlan(dev, NULL);
 	ni_netdev_set_wireless(dev, NULL);
+	ni_netdev_set_openvpn(dev, NULL);
 	ni_netdev_set_ibft_nic(dev, NULL);
 
 	ni_addrconf_lease_list_destroy(&dev->leases);
@@ -246,6 +248,25 @@ ni_netdev_set_wireless(ni_netdev_t *dev, ni_wireless_t *wireless)
 	if (dev->wireless)
 		ni_wireless_free(dev->wireless);
 	dev->wireless = wireless;
+}
+
+/*
+ * Set the interface's openvpn info
+ */
+ni_openvpn_t *
+ni_netdev_get_openvpn(ni_netdev_t *dev)
+{
+	if (dev->link.type != NI_IFTYPE_TUN)
+		return NULL;
+	return dev->openvpn;
+}
+
+void
+ni_netdev_set_openvpn(ni_netdev_t *dev, ni_openvpn_t *openvpn)
+{
+	if (dev->openvpn)
+		ni_openvpn_free(dev->openvpn);
+	dev->openvpn = openvpn;
 }
 
 /*

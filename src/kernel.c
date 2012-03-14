@@ -13,10 +13,12 @@
 #include <limits.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
+#include <fcntl.h>
 #include <netinet/in.h>
 #include <net/if_arp.h>
 #include <linux/ethtool.h>
 #include <linux/sockios.h>
+#include <linux/if_tun.h>
 #include <netlink/msg.h>
 #include <netlink/route/rtnl.h>
 #include <netlink/genl/genl.h>
@@ -26,6 +28,11 @@
 #include "netinfo_priv.h"
 #include "sysfs.h"
 #include "kernel.h"
+
+/* FIXME: we should really make this configurable */
+#ifndef CONFIG_TUNTAP_CHRDEV_PATH
+# define CONFIG_TUNTAP_CHRDEV_PATH	"/dev/net/tun"
+#endif
 
 #ifndef SIOCETHTOOL
 # define SIOCETHTOOL	0x8946
@@ -161,6 +168,91 @@ __ni_wireless_get_essid(const char *name, char *result, size_t size)
 		result[size-1] = '\0';
 	}
 	return 0;
+}
+
+/*
+ * Create/delete a tun/tap device
+ * Yet another API variant for interface creation...
+ */
+static int
+__ni_tuntap_open_dev(void)
+{
+	int devfd;
+
+	if ((devfd = open(CONFIG_TUNTAP_CHRDEV_PATH, O_RDWR)) < 0)
+		ni_error("unable to open %s: %m", CONFIG_TUNTAP_CHRDEV_PATH);
+
+	return devfd;
+}
+
+char *
+__ni_tuntap_create_tun(const char *ifname)
+{
+	unsigned int index = 0;
+	struct ifreq ifr;
+	int devfd;
+	char *retname = NULL;
+
+	if ((devfd = __ni_tuntap_open_dev()) < 0)
+		return NULL;
+
+	memset(&ifr, 0, sizeof(ifr));
+	ifr.ifr_flags = IFF_TUN | IFF_TUN_EXCL;
+
+	while (1) {
+		/* If the caller didn't specify an interface name, we try
+		 * all tunX names in turn until we find a free one.
+		 */
+		if (ifname != NULL)
+			strncpy(ifr.ifr_name, ifname, IFNAMSIZ);
+		else
+			snprintf(ifr.ifr_name, IFNAMSIZ, "tun%u", index++);
+
+		if (ioctl(devfd, TUNSETIFF, &ifr) >= 0) {
+			retname = xstrdup(ifr.ifr_name);
+
+			(void) ioctl(devfd, TUNSETPERSIST, 1);
+			break;
+		}
+
+		if (errno != EBUSY) {
+			ni_error("failed to create tun device: %m");
+			goto done;
+		}
+	}
+
+done:
+	close(devfd);
+	return retname;
+}
+
+int
+__ni_tuntap_delete(const char *ifname)
+{
+	struct ifreq ifr;
+	int devfd, rv = -1;
+
+	ni_trace("%s(%s)", __func__, ifname);
+	if ((devfd = __ni_tuntap_open_dev()) < 0)
+		return -1;
+
+	/* To destroy the interface, attach it to the chrdev, unset the
+	 * PERSIST flag, and close the chrdev. */
+	memset(&ifr, 0, sizeof(ifr));
+	strncpy(ifr.ifr_name, ifname, IFNAMSIZ);
+	ifr.ifr_flags = IFF_TUN;
+
+	if (ioctl(devfd, TUNSETIFF, &ifr) < 0) {
+		ni_error("%s: cannot attach tun device: %m", ifname);
+	} else
+	if (ioctl(devfd, TUNSETPERSIST, 0) < 0) {
+		ni_error("%s: unable to unset persist flag: %m", ifname);
+	} else {
+		rv = 0;
+	}
+
+	close(devfd);
+	return rv;
 }
 
 /*

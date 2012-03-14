@@ -167,6 +167,20 @@
     </return>
   </method>
 
+  <define name="intrinsic-lease" class="dict">
+    <state type="builtin-addrconf-state"/>
+    <addresses type="network-interface:assigned-address-list" />
+    <routes type="network-interface:assigned-route-list" />
+    <hostname type="string" />
+
+    <!-- FIXME: add support for resolver etc -->
+  </define>
+
+  <method name="installLease">
+    <arguments>
+      <arg type="intrinsic-lease"/>
+    </arguments>
+  </method>
 
   <!-- Signals emitted by this interface -->
   <signal name="deviceUp" />

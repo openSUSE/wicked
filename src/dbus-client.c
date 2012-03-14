@@ -12,6 +12,7 @@
 #include <wicked/util.h>
 #include <wicked/logging.h>
 #include <wicked/objectmodel.h>
+#include <wicked/dbus-errors.h>
 #include "socket_priv.h"
 #include "dbus-common.h"
 #include "dbus-client.h"
@@ -676,6 +677,8 @@ ni_dbus_object_refresh_children(ni_dbus_object_t *proxy)
 	dbus_bool_t rv;
 
 	rv = ni_dbus_object_get_managed_objects(proxy, &error);
+	if (!rv)
+		ni_dbus_print_error(&error, "%s.getManagedObjects failed", proxy->path);
 	dbus_error_free(&error);
 	return rv;
 }

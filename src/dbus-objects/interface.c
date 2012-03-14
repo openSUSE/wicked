@@ -55,7 +55,6 @@ static ni_dbus_property_t	ni_objectmodel_netif_request_properties[];
 void
 ni_objectmodel_register_netif_classes(void)
 {
-	const ni_dbus_class_t *base_class = &ni_objectmodel_netif_class;
 	ni_dbus_class_t *link_class;
 	unsigned int iftype;
 
@@ -63,7 +62,7 @@ ni_objectmodel_register_netif_classes(void)
 	ni_objectmodel_register_class(&ni_objectmodel_netif_list_class);
 
 	/* register the netif class (to allow extensions to attach to it) */
-	ni_objectmodel_register_class(base_class);
+	ni_objectmodel_register_class(&ni_objectmodel_netif_class);
 
 	/* register the netif interface */
 	ni_objectmodel_register_service(&ni_objectmodel_netif_service);
@@ -74,17 +73,8 @@ ni_objectmodel_register_netif_classes(void)
 		if (!(classname = ni_objectmodel_link_classname(iftype)))
 			continue;
 
-		/* Create the new link class */
-		link_class = xcalloc(1, sizeof(*link_class));
-		ni_string_dup(&link_class->name, classname);
-		link_class->superclass = base_class;
-
-		/* inherit all methods from netif */
-		link_class->init_child = base_class->init_child;
-		link_class->destroy = base_class->destroy;
-		link_class->refresh = base_class->refresh;
-
-		/* Register this class */
+		/* Create and register the new link class */
+		link_class = ni_objectmodel_class_new(classname, &ni_objectmodel_netif_class);
 		ni_objectmodel_register_class(link_class);
 	}
 
@@ -103,10 +93,14 @@ ni_objectmodel_register_netif_classes(void)
 	ni_objectmodel_register_device_service(NI_IFTYPE_BOND, &ni_objectmodel_bond_service);
 	ni_objectmodel_register_device_service(NI_IFTYPE_BRIDGE, &ni_objectmodel_bridge_service);
 	ni_objectmodel_register_device_service(NI_IFTYPE_WIRELESS, &ni_objectmodel_wireless_service);
+	ni_objectmodel_register_device_service(NI_IFTYPE_TUN, &ni_objectmodel_tun_service);
+	ni_objectmodel_register_device_service(NI_IFTYPE_TUN, &ni_objectmodel_openvpn_service);
 
 	ni_objectmodel_register_device_factory_service(&ni_objectmodel_bond_factory_service);
 	ni_objectmodel_register_device_factory_service(&ni_objectmodel_bridge_factory_service);
 	ni_objectmodel_register_device_factory_service(&ni_objectmodel_vlan_factory_service);
+	ni_objectmodel_register_device_factory_service(&ni_objectmodel_tun_factory_service);
+	ni_objectmodel_register_device_factory_service(&ni_objectmodel_openvpn_factory_service);
 
 	/* Register all builtin naming services */
 	ni_objectmodel_register_netif_ns_builtin();
@@ -339,27 +333,38 @@ ni_objectmodel_link_classname(ni_iftype_t link_type)
  * If @server is non-NULL, register the object with a canonical object path
  */
 static ni_dbus_object_t *
-__ni_objectmodel_build_interface_object(ni_dbus_server_t *server, ni_netdev_t *ifp)
+__ni_objectmodel_build_netdev_object(ni_dbus_server_t *server, ni_netdev_t *dev, const ni_dbus_class_t *requested_class)
 {
 	const char *classname;
 	const ni_dbus_class_t *class = NULL;
 	ni_dbus_object_t *object;
 
-	if ((classname = ni_objectmodel_link_classname(ifp->link.type)) != NULL)
+	if ((classname = ni_objectmodel_link_classname(dev->link.type)) != NULL)
 		class = ni_objectmodel_get_class(classname);
 	if (class == NULL)
 		class = &ni_objectmodel_netif_class;
 
+	/* If the caller requests a specific class for this object, it must be a
+	 * subclass of the link type class. */
+	if (requested_class) {
+		if (!ni_dbus_class_is_subclass(requested_class, class)) {
+			ni_warn("ignoring caller specified class %s for netdev %s (class %s)",
+					requested_class->name, dev->name, class->name);
+		} else {
+			class = requested_class;
+		}
+	}
+
 	if (server != NULL) {
 		object = ni_dbus_server_register_object(server,
-						ni_objectmodel_interface_path(ifp),
-						class, ni_netdev_get(ifp));
+						ni_objectmodel_interface_path(dev),
+						class, ni_netdev_get(dev));
 	} else {
-		object = ni_dbus_object_new(class, NULL, ni_netdev_get(ifp));
+		object = ni_dbus_object_new(class, NULL, ni_netdev_get(dev));
 	}
 
 	if (object == NULL)
-		ni_fatal("Unable to create dbus object for interface %s", ifp->name);
+		ni_fatal("Unable to create dbus object for network interface %s", dev->name);
 
 	ni_objectmodel_bind_compatible_interfaces(object);
 	return object;
@@ -371,9 +376,9 @@ __ni_objectmodel_build_interface_object(ni_dbus_server_t *server, ni_netdev_t *i
  * and add the appropriate dbus services
  */
 ni_dbus_object_t *
-ni_objectmodel_register_interface(ni_dbus_server_t *server, ni_netdev_t *ifp)
+ni_objectmodel_register_interface(ni_dbus_server_t *server, ni_netdev_t *ifp, const ni_dbus_class_t *override_class)
 {
-	return __ni_objectmodel_build_interface_object(server, ifp);
+	return __ni_objectmodel_build_netdev_object(server, ifp, override_class);
 }
 
 /*
@@ -441,7 +446,9 @@ ni_objectmodel_get_netif_argument(const ni_dbus_variant_t *dict, ni_iftype_t ift
  * dbus service, and return the device's object path
  */
 dbus_bool_t
-ni_objectmodel_device_factory_result(ni_dbus_server_t *server, ni_dbus_message_t *reply, ni_netdev_t *dev, DBusError *error)
+ni_objectmodel_device_factory_result(ni_dbus_server_t *server, ni_dbus_message_t *reply,
+				ni_netdev_t *dev, const ni_dbus_class_t *override_class,
+				DBusError *error)
 {
 	ni_dbus_variant_t result = NI_DBUS_VARIANT_INIT;
 	ni_dbus_object_t *new_object;
@@ -449,7 +456,7 @@ ni_objectmodel_device_factory_result(ni_dbus_server_t *server, ni_dbus_message_t
 
 	new_object = ni_dbus_server_find_object_by_handle(server, dev);
 	if (new_object == NULL)
-		new_object = ni_objectmodel_register_interface(server, dev);
+		new_object = ni_objectmodel_register_interface(server, dev, override_class);
 	if (!new_object) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
 				"failed to register new device %s",
@@ -474,7 +481,7 @@ ni_objectmodel_device_factory_result(ni_dbus_server_t *server, ni_dbus_message_t
 ni_dbus_object_t *
 ni_objectmodel_wrap_interface(ni_netdev_t *ifp)
 {
-	return __ni_objectmodel_build_interface_object(NULL, ifp);
+	return __ni_objectmodel_build_netdev_object(NULL, ifp, NULL);
 }
 
 ni_dbus_object_t *
@@ -636,6 +643,63 @@ ni_objectmodel_netif_link_down(ni_dbus_object_t *object, const ni_dbus_method_t 
 }
 
 /*
+ * Interface.installLease()
+ *
+ * This is used by network layers such as PPP or OpenVPN to inform wickedd about
+ * some intrinsic address configuration.
+ *
+ * The options dictionary contains address and route properties.
+ */
+static dbus_bool_t
+ni_objectmodel_netif_install_lease(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_netdev_t *dev;
+	ni_addrconf_lease_t *lease;
+	dbus_bool_t ret = FALSE;
+	int rv;
+
+	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
+		return FALSE;
+
+	NI_TRACE_ENTER_ARGS("dev=%s", dev->name);
+
+	/* Create an interface_request object and extract configuration from dict */
+	if (argc != 1)
+		return ni_dbus_error_invalid_args(error, object->path, method->name);
+
+	lease = ni_addrconf_lease_new(NI_ADDRCONF_INTRINSIC, AF_INET);
+	if (!__ni_objectmodel_set_addrconf_lease(lease, &argv[0], error))
+		goto failed;
+
+	/*
+	 * The following call updates the system with the information given in
+	 * the lease. This includes setting all addresses, as well as updating
+	 * resolver and hostname, if provided.
+	 * When a lease is dropped, we either fall back to the config information
+	 * from the next best lease, or if there is none, we restore the original
+	 * system settings.
+	 *
+	 * Note, lease may be NULL after this, as the interface object
+	 * takes ownership of it.
+	 */
+	rv = __ni_system_interface_update_lease(dev, &lease);
+	if (rv < 0) {
+		ni_dbus_set_error_from_code(error, rv,
+				"failed to install intrinsic lease on interface %s", dev->name);
+		goto failed;
+	}
+
+	ret = TRUE;
+
+failed:
+	if (lease)
+		ni_addrconf_lease_free(lease);
+	return ret;
+}
+
+/*
  * Broadcast an interface event
  * The optional uuid argument helps the client match e.g. notifications
  * from an addrconf service against its current state.
@@ -735,6 +799,7 @@ ni_objectmodel_netif_destroy(ni_dbus_object_t *object)
 static ni_dbus_method_t		ni_objectmodel_netif_methods[] = {
 	{ "linkUp",		"a{sv}",		ni_objectmodel_netif_link_up },
 	{ "linkDown",		"",			ni_objectmodel_netif_link_down },
+	{ "installLease",	"a{sv}",		ni_objectmodel_netif_install_lease },
 	{ NULL }
 };
 

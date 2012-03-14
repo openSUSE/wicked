@@ -87,6 +87,7 @@ static struct generic_map	generic_maps[] = {
 	MAP(WIRELESS_EAP_METHOD, ni_wireless_eap_method_to_name),
 	MAP(BONDING_MODE, ni_bonding_mode_type_to_name),
 	MAP(BONDING_VALIDATE, ni_bonding_validate_type_to_name),
+	MAP(BONDING_XMIT_HASH, ni_bonding_xmit_hash_policy_to_name),
 	MAP(ROUTE_TYPE, ni_route_type_type_to_name),
 	MAP(ROUTE_PROTOCOL, ni_route_protocol_type_to_name),
 	MAPN(ROUTE_SCOPE, ni_route_scope_type_to_name, 256),

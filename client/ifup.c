@@ -31,6 +31,7 @@ extern ni_dbus_object_t *	wicked_get_interface(ni_dbus_object_t *, const char *)
  * Interface state information
  */
 enum {
+	EVENT_ROUTING_CHANGED = -1,
 	STATE_NONE = 0,
 	STATE_DEVICE_DOWN,
 	STATE_DEVICE_UP,
@@ -79,6 +80,11 @@ struct ni_ifworker {
 
 	xml_node_t *		config;
 	ni_netdev_t *		device;
+
+	const ni_dbus_service_t *device_service;
+	const ni_dbus_service_t *device_factory_service;
+	const ni_dbus_service_t *device_auth_service;
+	xml_node_t *		device_config;
 
 	unsigned int		shared_users;
 	ni_ifworker_t *		exclusive_owner;
@@ -205,6 +211,8 @@ ni_ifworker_state_name(int state)
 		{ "link-up",		STATE_LINK_UP		},
 		{ "link-authenticated",	STATE_LINK_AUTHENTICATED},
 		{ "network-up",		STATE_ADDRCONF_UP	},
+
+		{ "route-change-event",	EVENT_ROUTING_CHANGED	},
 
 		{ NULL }
 	};
@@ -374,7 +382,9 @@ ni_ifworker_get_minmax_child_states(ni_ifworker_t *w, unsigned int *min_state, u
 	}
 }
 
-/* Create an event wait object */
+/*
+ * Create an event wait object
+ */
 static void
 ni_ifworker_add_callbacks(ni_ifworker_t *w, ni_objectmodel_callback_info_t *callback_list)
 {
@@ -420,6 +430,26 @@ ni_ifworker_waiting_for_event(ni_ifworker_t *w, const char *event_name)
 	return FALSE;
 }
 
+/*
+ * Make this ifworker wait for any other interface to come up, so that
+ * a given hostname or address becomes resolveable and routable.
+ */
+static void
+ni_ifworkers_routing_changed(const char *event_name)
+{
+	unsigned int i;
+
+	for (i = 0; i < interface_workers.count; ++i) {
+		ni_ifworker_t *w = interface_workers.data[i];
+
+		if (w->wait_for_state == EVENT_ROUTING_CHANGED)
+			w->wait_for_state = STATE_NONE;
+	}
+}
+
+/*
+ * Update the state of an ifworker
+ */
 static void
 ni_ifworker_update_state(ni_ifworker_t *w, unsigned int min_state, unsigned int max_state)
 {
@@ -676,47 +706,116 @@ ni_ifworker_mark_matching(ni_ifmatcher_t *match, unsigned int target_state)
 }
 
 /*
- * Given an XML interface description, find the link layer information.
+ * Given an XML interface description, find the device layer information.
  * By convention, the link layer information must be an XML element with
- * the name of the link layer, such as <ethernet>, <vlan> or <bond>.
+ * the name of the device type, such as <ethernet>, <vlan> or <bond>.
+ * We do however also support "virtual" types such as openvpn, which is
+ * really a tun device.
  */
 static xml_node_t *
-ni_ifworker_find_link_properties(const ni_ifworker_t *w)
+ni_ifworker_bind_device_apis(ni_ifworker_t *w)
 {
-	xml_node_t *ifnode, *child, *found = NULL;
+	xml_node_t *ifnode, *child, *best_config;
+	const ni_dbus_class_t *device_class = NULL, *best_class, *netif_class;
+	const ni_dbus_service_t *best_service;
+
+	if (w->device_config)
+		return w->device_config;
 
 	if ((ifnode = w->config) == NULL)
 		return NULL;
 
+	/* Check what type of interface we're dealing with. If the device exists,
+	 * the class is based on the link layer.
+	 */
+	if (w->object)
+		device_class = w->object->class;
+	if (device_class == NULL && w->device != NULL) {
+		const char *classname;
+
+		w->iftype = w->device->link.type;
+		if ((classname = ni_objectmodel_link_classname(w->device->link.type)) != NULL)
+			 device_class = ni_objectmodel_get_class(classname);
+	}
+
+	netif_class = best_class = ni_objectmodel_get_class(NI_OBJECTMODEL_NETIF_CLASS);
+	ni_assert(netif_class);
+
 	for (child = ifnode->children; child; child = child->next) {
-		if (ni_linktype_name_to_type(child->name) >= 0) {
-			if (found != NULL) {
-				ni_error("%s: ambiguous link layer, found both <%s> and <%s> element",
-						xml_node_location(ifnode),
-						found->name, child->name);
-				return NULL;
-			}
-			found = child;
+		const ni_dbus_service_t *device_service;
+
+		device_service = ni_objectmodel_service_by_tag(child->name);
+		if (device_service == NULL)
+			device_service = ni_call_link_layer_service(child->name);
+
+		if (device_service == NULL || device_service->compatible == NULL)
+			continue;
+
+		/* Silently ignore elements that are compatible with the "netif" class. We
+		 * are only interested in device-specific subclasses.
+		 */
+		if (device_service->compatible == netif_class)
+			continue;
+
+		/* Silently ignore services that are compatible with the current "best" class
+		 * or one of its super classes.
+		 */
+		if (ni_dbus_class_is_subclass(best_class, device_service->compatible))
+			continue;
+
+		ni_trace("<%s> - found %s, which is %s subclass of %s",
+				child->name,
+				device_service->compatible->name,
+				ni_dbus_class_is_subclass(device_service->compatible, best_class)? "a": "no",
+				best_class->name);
+
+		/* Ignore services that are not compatible with our device class */
+		if (device_class && !ni_dbus_class_is_subclass(device_class, device_service->compatible)) {
+			ni_debug_objectmodel("%s: ignoring <%s> element (class %s), which is incompatible with %s",
+					__func__, child->name, device_service->compatible->name,
+					device_class->name);
+			continue;
 		}
+
+		if (ni_dbus_class_is_subclass(device_service->compatible, best_class)) {
+			best_service = device_service;
+			best_config = child;
+			best_class = device_service->compatible;
+		} else {
+			ni_error("%s: ambiguous link layer, found both <%s> and <%s> element",
+					xml_node_location(ifnode),
+					best_config->name, child->name);
+			return NULL;
+		}
+
 	}
 
 	/* It's perfectly fine not to find any link layer config;
 	 * probably most people won't bother with adding any <ethernet>
 	 * configuration for their eth devices. */
-	return found;
-}
+	if (best_service) {
+		ni_debug_objectmodel("%s: using %s to configure device (using <%s> element)",
+				w->name, best_service->name, best_config->name);
 
-static xml_node_t *
-ni_ifworker_find_auth_properties(const ni_ifworker_t *w, const char **link_type)
-{
-	xml_node_t *linknode;
+		/* Remember the device service and config node */
+		w->device_service = best_service;
+		w->device_config = best_config;
 
-	if (!(linknode = ni_ifworker_find_link_properties(w)))
-		return NULL;
+		/* Now find the factory and auth services for this device class, if there are any. */
+		w->device_factory_service = ni_objectmodel_factory_service(best_service);
+		w->device_auth_service = ni_objectmodel_auth_service(best_service);
 
-	if (link_type)
-		*link_type = linknode->name;
-	return xml_node_get_child(linknode, "auth");
+		/* The device service specifies a class it is compatible with, ie netif-foobar,
+		 * where "foobar" must be a valid iftype name */
+		if (w->iftype == NI_IFTYPE_UNKNOWN) {
+			const char *classname = best_class->name;
+
+			if (!strncmp(classname, "netif-", 6))
+				w->iftype = ni_linktype_name_to_type(classname + 6);
+		}
+	}
+
+	return w->device_config;
 }
 
 /*
@@ -743,12 +842,13 @@ build_hierarchy(void)
 		if (!(ifnode = w->config))
 			continue;
 
-		if (!(linknode = ni_ifworker_find_link_properties(w)))
+		if (!(linknode = ni_ifworker_bind_device_apis(w)))
 			continue;
 
-		/* This cannot fail, as this is how ni_ifworker_find_link_properties tells
-		 * link nodes from others. */
-		w->iftype = ni_linktype_name_to_type(linknode->name);
+		if (w->iftype == NI_IFTYPE_UNKNOWN) {
+			ni_error("%s: bug - unable to identify link type of %s", __func__, w->name);
+			ni_fatal("Abort");
+		}
 
 		devnode = NULL;
 		while ((devnode = xml_node_get_next_named(linknode, "device", devnode)) != NULL) {
@@ -976,6 +1076,11 @@ ni_ifworker_error_handler(ni_call_error_context_t *ctx, const DBusError *error)
 		char *node_spec, *prompt_type = NULL, *ident = NULL;
 		const char *value = NULL;
 		char buffer[256];
+		int nretries;
+
+		nretries = ni_call_error_context_get_retries(ctx, error);
+		if (nretries < 0 || nretries > 2)
+			goto out;
 
 		/* The error detail is supposed to be formatted as
 		 * "xml-node-spec|prompt-type|ident"
@@ -1039,20 +1144,20 @@ ni_ifworker_do_device_up(ni_ifworker_t *w)
 	const char *link_type;
 
 	ni_debug_dbus("%s(%s)", __func__, w->name);
-	linknode = ni_ifworker_find_link_properties(w);
+	linknode = w->device_config;
 
 	if (w->device == NULL) {
 		const char *relative_path;
 		char *object_path;
 
 		if (linknode == NULL) {
-			ni_ifworker_fail(w, "cannot create interface: no link layer config");
+			ni_ifworker_fail(w, "cannot create interface: no device layer config");
 			return -1;
 		}
 
 		link_type = linknode->name;
-		if (!(service = ni_call_link_layer_factory_service(link_type))) {
-			ni_ifworker_fail(w, "unknown/unsupported link type %s", link_type);
+		if (!(service = w->device_factory_service)) {
+			ni_ifworker_fail(w, "unknown/unsupported device type %s", link_type);
 			return -1;
 		}
 
@@ -1081,6 +1186,11 @@ ni_ifworker_do_device_up(ni_ifworker_t *w)
 					NULL);
 
 		ni_string_free(&object_path);
+
+		if (!ni_dbus_object_refresh_children(w->object)) {
+			ni_ifworker_fail(w, "unable to refresh new device");
+			return -1;
+		}
 	}
 
 	if (linknode == NULL)
@@ -1089,15 +1199,15 @@ ni_ifworker_do_device_up(ni_ifworker_t *w)
 	link_type = linknode->name;
 
 	/* See if there's a link layer service for this link type, and if it
-	 * has a deviceChange method. If not, this is not fatal; we just ignore
+	 * has a changeDevice method. If not, this is not fatal; we just ignore
 	 * bogus/unsupported link info for now because it's used for both
-	 * deviceNew and deviceChange.
+	 * deviceNew and changeDevice.
 	 */
-	if ((service = ni_call_link_layer_service(link_type)) == NULL
-	 || !ni_dbus_service_get_method(service, "deviceChange"))
+	if ((service = w->device_service) == NULL
+	 || !ni_dbus_service_get_method(service, "changeDevice"))
 		goto device_is_up;
 
-	if (!ni_call_device_change_xml(w->object, linknode, &callback_list, ni_ifworker_error_handler)) {
+	if (ni_call_device_change_xml(w->object, linknode, &callback_list, ni_ifworker_error_handler) < 0) {
 		ni_ifworker_fail(w, "failed to configure %s device", link_type);
 		return -1;
 	}
@@ -1125,7 +1235,7 @@ ni_ifworker_do_firewall_up(ni_ifworker_t *w)
 	ni_debug_dbus("%s(name=%s, object=%p, path=%s)", __func__, w->name, w->object, w->object_path);
 
 	fwnode = xml_node_get_child(w->config, "firewall");
-	if (!ni_call_firewall_up_xml(w->object, fwnode, &callback_list)) {
+	if (ni_call_firewall_up_xml(w->object, fwnode, &callback_list) < 0) {
 		ni_ifworker_fail(w, "failed to protect device");
 		return -1;
 	}
@@ -1148,11 +1258,17 @@ ni_ifworker_do_link_up(ni_ifworker_t *w)
 {
 	ni_objectmodel_callback_info_t *callback_list = NULL;
 	xml_node_t *devnode;
+	int rv;
 
 	ni_debug_dbus("%s(name=%s, object=%p, path=%s)", __func__, w->name, w->object, w->object_path);
 
 	devnode = xml_node_get_child(w->config, "device");
-	if (!ni_call_link_up_xml(w->object, devnode, &callback_list)) {
+	if ((rv = ni_call_link_up_xml(w->object, devnode, &callback_list)) < 0) {
+		if (rv == -NI_ERROR_UNRESOLVABLE_HOSTNAME
+		 || rv == -NI_ERROR_UNREACHABLE_ADDRESS) {
+			w->wait_for_state = EVENT_ROUTING_CHANGED;
+			return 0;
+		}
 		ni_ifworker_fail(w, "failed to configure and bring up link");
 		return -1;
 	}
@@ -1173,30 +1289,17 @@ ni_ifworker_do_link_up(ni_ifworker_t *w)
 static int
 ni_ifworker_do_linkauth(ni_ifworker_t *w)
 {
-	const ni_dbus_service_t *service;
 	xml_node_t *authnode;
-	const char *link_type;
 	ni_objectmodel_callback_info_t *callback_list = NULL;
 
 	ni_debug_dbus("%s(%s)", __func__, w->name);
-	if (!(authnode = ni_ifworker_find_auth_properties(w, &link_type)))
+	if (w->device_config == NULL
+	 || w->device_auth_service == NULL
+	 || !(authnode = xml_node_get_child(w->device_config, "auth")))
 		goto link_authenticated;
 
-	if (!(service = ni_call_link_layer_auth_service(link_type))) {
-		ni_ifworker_fail(w, "unknown/unsupported authentication for link type %s", link_type);
-		return -1;
-	}
-
-	if ((service = ni_call_link_layer_auth_service(link_type)) == NULL
-	 || !ni_dbus_service_get_method(service, "login")) {
-		/* We're asked to configure the link layer, but the
-		 * service doesn't exist or doesn't support it. */
-		ni_ifworker_fail(w, "unknown/unsupported authentication for link type %s", link_type);
-		return -1;
-	}
-
-	if (!ni_call_link_login_xml(w->object, authnode, &callback_list, NULL)) {
-		ni_ifworker_fail(w, "failed to configure %s device", link_type);
+	if (ni_call_link_login_xml(w->object, authnode, &callback_list, NULL) < 0) {
+		ni_ifworker_fail(w, "failed to authenticate");
 		return -1;
 	}
 
@@ -1241,7 +1344,7 @@ ni_ifworker_do_network_up(ni_ifworker_t *w)
 		 * acquisition is in process. When that completes, the server
 		 * will emit a signal (addressConfigured) with the same token.
 		 */
-		if (!ni_call_request_lease_xml(w->object, service, child, &callback_list)) {
+		if (ni_call_request_lease_xml(w->object, service, child, &callback_list) < 0) {
 			ni_ifworker_fail(w, "address configuration failed (%s)", child->name);
 			return -1;
 		}
@@ -1312,7 +1415,7 @@ ni_ifworker_do_network_down(ni_ifworker_t *w)
 			ni_objectmodel_callback_info_t *callback_list = NULL;
 
 			ni_trace("%s is an addrconf service", service->name);
-			if (!ni_call_drop_lease(w->object, service, &callback_list)) {
+			if (ni_call_drop_lease(w->object, service, &callback_list) < 0) {
 				ni_ifworker_fail(w, "failed to shut down addresses (%s)", service->name);
 				/* return -1; */
 			}
@@ -1340,7 +1443,7 @@ ni_ifworker_do_link_down(ni_ifworker_t *w)
 {
 	ni_objectmodel_callback_info_t *callback_list = NULL;
 
-	if (!ni_call_link_down(w->object, &callback_list)) {
+	if (ni_call_link_down(w->object, &callback_list) < 0) {
 		ni_ifworker_fail(w, "failed to shut down link");
 		return -1;
 	}
@@ -1366,7 +1469,7 @@ ni_ifworker_do_firewall_down(ni_ifworker_t *w)
 	ni_objectmodel_callback_info_t *callback_list = NULL;
 
 	ni_debug_dbus("%s(name=%s, object=%p, path=%s)", __func__, w->name, w->object, w->object_path);
-	if (!ni_call_firewall_down_xml(w->object, &callback_list)) {
+	if (ni_call_firewall_down_xml(w->object, &callback_list) < 0) {
 		ni_ifworker_fail(w, "failed to shut down firewall");
 		return -1;
 	}
@@ -1393,7 +1496,7 @@ ni_ifworker_do_device_delete(ni_ifworker_t *w)
 	/* We should not get here without having verified that we can
 	 * indeed delete this interface, by using ni_ifworker_can_delete
 	 * below. */
-	if (!ni_call_device_delete(w->object, &callback_list)) {
+	if (ni_call_device_delete(w->object, &callback_list) < 0) {
 		ni_ifworker_fail(w, "failed to delete interface");
 		return -1;
 	}
@@ -1620,6 +1723,9 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 		ni_dbus_variant_destroy(&result);
 	}
 
+	if (ni_string_eq(signal_name, NI_OBJECTMODEL_LEASE_ACQUIRED_SIGNAL))
+		ni_ifworkers_routing_changed(signal_name);
+
 	if ((w = ni_ifworker_by_object_path(object_path)) != NULL && w->target_state != STATE_NONE) {
 		ni_objectmodel_callback_info_t *cb = NULL;
 
@@ -1787,7 +1893,7 @@ ni_ifconfig_load(const char *pathname)
 
 		if (ni_scandir(pathname, "*.xml", &files) == 0) {
 			ni_string_array_destroy(&files);
-			return FALSE;
+			return TRUE;
 		}
 		for (i = 0; i < files.count; ++i) {
 			const char *name = files.data[i];
@@ -1854,7 +1960,7 @@ usage:
 				"wicked [options] ifup [ifup-options] all\n"
 				"wicked [options] ifup [ifup-options] <ifname> [options ...]\n"
 				"\nSupported ifup-options:\n"
-				"  --file <filename>\n"
+				"  --ifconfig <filename>\n"
 				"      Read interface configuration(s) from file rather than using system config\n"
 				"  --boot-label <label>\n"
 				"      Only touch interfaces with matching <boot-label>\n"

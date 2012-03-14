@@ -35,3 +35,8 @@
 <define name="uuid-type">
   <array element-type="byte" minlen="16" maxlen="16" />
 </define>
+
+<define name="external-file">
+  <array element-type="byte" notation="external-file"/>
+</define>
+

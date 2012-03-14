@@ -66,6 +66,9 @@
 <define name="builtin-bonding-validate" type="uint32" constraint="enum">
   <@@BONDING_VALIDATE_NAME@@ value="@@BONDING_VALIDATE_VALUE@@"/>
 </define>
+<define name="builtin-bonding-xmit-hash-policy" type="uint32" constraint="enum">
+  <@@BONDING_XMIT_HASH_NAME@@ value="@@BONDING_XMIT_HASH_VALUE@@"/>
+</define>
 
 <!-- Built-in route type/scope/table/protocol -->
 <define name="builtin-route-type" type="uint32" constraint="enum">

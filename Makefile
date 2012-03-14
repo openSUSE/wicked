@@ -26,6 +26,7 @@ __LIBSRCS= \
 	  bonding.c \
 	  bridge.c \
 	  wireless.c \
+	  openvpn.c \
 	  state.c \
 	  iflist.c \
 	  ifconfig.c \
@@ -70,6 +71,8 @@ __LIBSRCS= \
 	  dbus-objects/vlan.c \
 	  dbus-objects/bridge.c \
 	  dbus-objects/bonding.c \
+	  dbus-objects/tun.c \
+	  dbus-objects/openvpn.c \
 	  dbus-objects/addrconf.c \
 	  dbus-objects/misc.c \
 	  dbus-objects/naming.c \

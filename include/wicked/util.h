@@ -38,13 +38,14 @@ struct ni_var_array {
 };
 
 typedef struct ni_stringbuf {
+	size_t			size;
 	size_t			len;
 	char *			string;
 	int			dynamic;
 } ni_stringbuf_t;
 
-#define NI_STRINGBUF_INIT_BUFFER(buf)	{ sizeof(buf), buf, 0 }
-#define NI_STRINGBUF_INIT_DYNAMIC	{ 0, NULL, 1 }
+#define NI_STRINGBUF_INIT_BUFFER(buf)	{ .size = sizeof(buf), .len = 0, .string = buf, .dynamic = 0 }
+#define NI_STRINGBUF_INIT_DYNAMIC	{ .size = 0, .len = 0, .string = NULL, .dynamic = 1 }
 
 typedef struct ni_opaque {
 	unsigned char	data[128];
@@ -127,7 +128,9 @@ extern FILE *		ni_mkstemp(char **namep);
 extern int		ni_copy_file(FILE *, FILE *);
 extern int		ni_backup_file_to(const char *, const char *);
 extern int		ni_restore_file_from(const char *, const char *);
+extern void *		ni_file_read(FILE *, unsigned int *);
 extern int		ni_file_write(FILE *, const void *, size_t);
+extern ni_bool_t	ni_file_remove_recursively(const char *path);
 
 extern int		ni_parse_int_mapped(const char *, const struct ni_intmap *, unsigned int *);
 extern int		ni_parse_int(const char *, unsigned int *);
@@ -170,7 +173,17 @@ ni_string_eq(const char *a, const char *b)
 	return strcmp(a, b) == 0;
 }
 
-extern const char *	ni_string_strip_prefix(const char *, const char *);
+extern const char *	ni_string_strip_prefix(const char *string, const char *prefix);
+extern char *		ni_string_strip_suffix(char *string, const char *suffix);
+
+/*
+ * When we allocate temporary resources (such as tempfiles)
+ * we can track them as a whole, and clean them up as a whole.
+ */
+typedef struct ni_tempstate ni_tempstate_t;
+extern ni_tempstate_t *	ni_tempstate_new();
+extern void		ni_tempstate_finish(ni_tempstate_t *);
+extern void		ni_tempstate_add_file(ni_tempstate_t *, const char *filename);
 
 #endif /* __WICKED_UTIL_H__ */
 

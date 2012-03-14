@@ -48,7 +48,7 @@ ni_objectmodel_vlan_newlink(ni_dbus_object_t *factory_object, const ni_dbus_meth
 	if (!(ifp = __ni_objectmodel_vlan_newlink(ifp, ifname, error)))
 		return FALSE;
 
-	return ni_objectmodel_device_factory_result(server, reply, ifp, error);
+	return ni_objectmodel_device_factory_result(server, reply, ifp, NULL, error);
 }
 
 static ni_netdev_t *

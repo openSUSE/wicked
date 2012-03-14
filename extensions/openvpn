@@ -1,0 +1,229 @@
+#!/bin/bash
+#
+# Extension script for managing openvpn tunnels via wicked.
+#
+# Copyright (C) 2012, Olaf Kirch <okir@suse.de>
+#
+# Theory of operation.
+#
+#  1.	wicked client invokes OpenVPN.Factory.newDevice().
+#	This will create the tun device, make it persistent,
+#	and assign a tunnel ID (openvpnX).
+#	This piece of code is implemented in C, as there's
+#	no sane way to create tuntap devices from the command
+#	line.
+#
+#  2.	wicked client invokes OpenVPN.changeDevice() using
+#	the device configuration from the <openvpn> element
+#	of the config file.
+#
+#	Note that keys and certificates are passed as binary
+#	data through the dbus interface. Specific data types
+#	take care of reading/writing this data transparently.
+#
+#	The changeDevice method is implemented by calling this script
+#	as "openvpn change". wickedd will pass us the user
+#	configuration as an XML file (converted from the
+#	dbus dict argument).
+#
+#	Using the user supplied configuration, we create a config
+#	file and store it in /var/run/wicked/openvpnX/config.
+#	In the process of doing so, we also check whether
+#	auth information is need, and if so, we request it
+#	from the user by returning appropriate AuthInfoMissing
+#	errors.
+#
+#	We also copy any key and cert files to our
+#	openvpnX config directory in the process.
+#
+#  2a.	The wicked client brings up the firewall. Thanks to the
+#	modular architecture, we don't notice - this is handled
+#	by a different DBus interface.
+#
+#  3.	wicked client invokes OpenVPN.linkUp().
+#	Again, this method is implemented by calling this
+#	extension script as "openvpn link-up".
+#
+#	We will now start the openvpn daemon and wait for it
+#	to come up. This notification is implemented using
+#	an openvpn callback script hook.
+#
+#  4.	The callback script hook will invoke
+#	"openvpn network-up-notify", which will build an
+#	XML addrconf lease file and inform wickedd about
+#	the addresses obtained.
+#
+#  5.	"openvpn link-up" will now resume and return a success
+#	status to the wicked client.
+#
+#  6.	Depending on the configuration, the wicked client may now
+#	invoke additional methods on the established tunnel; for
+#	instance by configuring additional static addresses or routes.
+#
+# Shutdown works pretty much the same, in reverse. The wicked client
+# will first invoke the linkDown() method, which shuts down the tunnel,
+# and then invoke "deleteDevice", which will destroy the tuntap interface.
+#
+
+set -e
+umask 077
+
+scriptname=$0
+scriptdir=`dirname $0`
+if [ -f "$scriptdir/functions" ]; then
+	. "$scriptdir/functions"
+fi
+
+##################################################################
+# Generate an openvpn config file from the XML data we've been
+# given.
+# It'd be tempting to do this with xsltproc, except that we need
+# to take care of incomplete auth information (and have the client
+# prompt for it), as well as copying the temporary key and cert files
+# to a permanent location.
+##################################################################
+function openvpn_update_config {
+
+	cat <<EOF
+client
+persist-key
+persist-tun
+nobind
+comp-lzo
+explicit-exit-notify 5
+EOF
+
+	echo "dev $WICKED_INTERFACE_NAME"
+
+	wicked_getargs 'authreq=%{config/auth/require}' 'user=%{config/auth/user}' 'pass=%{config/auth/password}'
+	if [ "$authreq" = "true" ]; then
+		echo "auth-user-pass $confdir/auth"
+
+		if [ -z "$user" ]; then
+			wicked_auth_error "auth.user|USER|openvpn connection"
+		fi
+		if [ -z "$pass" ]; then
+			wicked_auth_error "auth.password|PASSWORD|openvpn connection (user $user)"
+		fi
+
+		(
+			echo "$user"
+			echo "$pass"
+		) >"$confdir/auth"
+	fi
+
+	wicked_getargs 'address=%{config/remote-address}' 'port=%{config/remote-port}' 'protocol=%{config/protocol}'
+	if [ -n "$address" ]; then
+		echo "$address" > $confdir/remote
+		echo "remote $address"
+	fi
+	if [ -n "$port" ]; then
+		echo "port $port"
+	fi
+	if [ -n "$protocol" ]; then
+		echo "proto $protocol"
+	fi
+
+	rm -f $confdir/*.pem
+	wicked_getargs 'tls_ca_cert=%{config/tls/ca-cert}' 'tls_client_cert=%{config/tls/client-cert}' 'tls_client_key=%{config/tls/client-key}'
+
+	if [ -n "$tls_ca_cert" ]; then
+		cp "$tls_ca_cert" $confdir/ca-cert.pem
+		echo "ns-cert-type server"
+		echo "ca $confdir/ca-cert.pem"
+	fi
+	if [ -n "$tls_client_cert" ]; then
+		cp "$tls_client_cert" $confdir/client-cert.pem
+		echo "cert $confdir/client-cert.pem"
+	fi
+	if [ -n "$tls_client_key" ]; then
+		cp "$tls_client_key" $confdir/client-key.pem
+		echo "key $confdir/client-key.pem"
+	fi
+
+	# Attention: add a script callback that notifies us when the link and addresses come up
+	echo "up \"$scriptname network-up-notify\""
+	echo "setenv WICKED_TUNNEL_ID $WICKED_TUNNEL_ID"
+}
+
+##################################################################
+# When the network has been brought up by openvpn, we're being
+# called back through the --up hook.
+# Build an addrconf lease.
+##################################################################
+function openvpn_build_lease {
+
+	filename=$1
+
+	wicked lease $filename set --state granted
+	wicked lease $filename add --address $ifconfig_local/32 --peer $ifconfig_remote
+
+	for n in ${!route_network_*}; do
+		index=${n//route_network_}
+		for var in network netmask gateway; do
+			eval $var=\$route_${var}_${index}
+		done
+
+		wicked lease $filename add --route $network --netmask $netmask --gateway $gateway
+	done
+}
+
+if [ -z "$WICKED_TUNNEL_ID" ]; then
+	echo "$0: no tunnel-id" >&2
+	exit 1
+fi
+
+confdir=/var/run/wicked/$WICKED_TUNNEL_ID
+mkdir -m 700 -p $confdir
+
+cmd=$1; shift
+case $cmd in
+change)
+	openvpn_update_config >$confdir/config
+	: ;;
+
+link-up)
+	rm -f $confdir/lease
+
+	# Make sure that the remote gateway is reachable before we
+	# try to bring up the openvpn daemon. If that fails, abort
+	# and return an error to the client.
+	if [ -f $confdir/remote ]; then
+		address=`cat $confdir/remote`
+		wicked_check_route "$address"
+	fi
+
+	/usr/sbin/openvpn --daemon $WICKED_TUNNEL_ID --writepid $confdir/pid --config $confdir/config --cd /etc/openvpn >/dev/null 2>&1 3>&1
+
+	# retries is in 10th of a second
+	retries=100
+	while [ ! -f $confdir/lease ]; do
+		if [ $retries -lt 0 ]; then
+			wicked_error "Timed out waiting for tunnel to come up"
+		fi
+
+		usleep 500000
+		let retries-=5
+	done
+
+	# Now inform wickedd about the lease
+	wicked lease $confdir/lease install --device $WICKED_OBJECT_PATH
+	: ;;
+
+network-up-notify)
+	# This is the callback from the openvpn daemon when the link has come up
+	openvpn_build_lease $confdir/lease
+	: ;;
+
+link-down)
+	pidfile=$confdir/pid
+	if [ -f $pidfile ]; then
+		date
+		if ! killproc -p $pidfile /usr/sbin/openvpn; then
+			date
+			wicked_error "Error shutting down openvpn daemon for tunnel $WICKED_TUNNEL_ID"
+		fi
+		date
+	fi
+	: ;;
+esac

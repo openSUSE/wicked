@@ -1,0 +1,118 @@
+<!--
+  -- OpenVPN Tunnel Service definition
+  --
+  -- We create a subclass of the tun/tap device class, which supports the OpenVPN
+  -- DBus interface.
+  -->
+<object-class name="netif-openvpn" base-class="netif-virtual-tunnel"/>
+
+<service name="openvpn" interface="com.suse.Wicked.OpenVPN" object-class="netif-openvpn">
+ <!-- This is the linkinfo returned in interface reports -->
+ <define name="linkinfo" class="dict">
+  <remote-address type="string"/>
+  <remote-port type="uint32"/>
+
+  <protocol type="uint32" constraint="enum">
+    <tcp value="6"/>
+    <udp value="17"/>
+  </protocol>
+
+  <!-- Tunnel MTU -->
+  <mtu type="uint32"/>
+
+  <auth class="dict">
+    <require type="boolean"/>
+    <user type="string"/>
+    <password type="string"/>
+  </auth>
+
+  <tls class="dict">
+    <ca-cert type="external-file"/>
+    <client-cert type="external-file"/>
+    <client-key type="external-file"/>
+
+    <!-- alternative: pkcs12 file -->
+    <pkcs12 type="external-file"/>
+  </tls>
+ </define>
+
+ <!-- the properties of a OpenVPN device: -->
+ <define name="properties" type="linkinfo"/>
+
+ <method name="changeDevice">
+   <arguments>
+     <config type="linkinfo"/>
+   </arguments>
+   <!-- returns callback list -->
+ </method>
+
+ <!-- Override the linkUp method of the netif base interface.
+   -- This will start an openvpn daemon process for this tunnel.
+   --
+   -- For now, we ignore any and all of the usual link parameters,
+   -- and let the openvpn daemon handle all that stuff.
+   --
+   -- Note that the MTU can be specified via the <openvpn> element.
+   -->
+ <method name="linkUp">
+    <arguments>
+      <request type="interface:link-request" />
+    </arguments>
+   <return>
+     <interface:callback-info/>
+   </return>
+ </method>
+
+ <!-- Override the linkDown method of the netif base interface.
+   -- This will shut down the openvpn daemon process and wait for
+   -- it to exit.
+   -->
+ <method name="linkDown">
+   <return>
+     <interface:callback-info/>
+   </return>
+ </method>
+
+ <!-- Delete the tuntap interface created for this tunnel -->
+ <method name="deleteDevice">
+   <!-- no arguments, no return code -->
+ </method>
+</service>
+
+<service name="tun" interface="com.suse.Wicked.TUN" object-class="netif-virtual-tunnel">
+ <method name="deleteDevice">
+   <!-- no arguments, no return code -->
+ </method>
+</service>
+
+<service name="openvpn-factory" interface="com.suse.Wicked.OpenVPN.Factory" object-class="netif-list">
+ <!-- "Create" openvpn device.
+   -- This will create a tunX device and an openvpn config file.
+   -- The config file isn't used until the client invokes the linkUp method.
+   -->
+ <method name="newDevice">
+  <arguments>
+   <name type="string"/>
+   <openvpn type="openvpn:linkinfo"/>
+  </arguments>
+  <return>
+   <string/> <!-- this is really an object handle -->
+  </return>
+ </method>
+</service>
+
+<service name="tun-factory" interface="com.suse.Wicked.TUN.Factory" object-class="netif-list">
+ <define name="linkinfo" class="dict">
+   <!-- nothing -->
+ </define>
+ <method name="newDevice">
+  <arguments>
+   <name type="string"/>
+   <config type="linkinfo"/>
+  </arguments>
+  <return>
+   <string/> <!-- this is really an object handle -->
+  </return>
+ </method>
+</service>
+

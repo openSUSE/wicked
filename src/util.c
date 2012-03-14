@@ -557,6 +557,54 @@ out:
 }
 
 /*
+ * Recursive removal of files/directories
+ */
+ni_bool_t
+ni_file_remove_recursively(const char *path)
+{
+	struct dirent *dp;
+	ni_bool_t rv = TRUE;
+	DIR *dir;
+
+	dir = opendir(path);
+	if (dir == NULL) {
+		if (errno != ENOTDIR) {
+			ni_error("unable to open %s: %m", path);
+			return FALSE;
+		}
+
+		if (unlink(path) < 0) {
+			ni_error("unable to remove %s: %m", path);
+			return FALSE;
+		}
+		return TRUE;
+	}
+
+	while ((dp = readdir(dir)) != NULL && rv) {
+		const char *name = dp->d_name;
+		char pathbuf[PATH_MAX];
+
+		if (name[0] == '.')
+			continue;
+
+		snprintf(pathbuf, sizeof(pathbuf), "%s/%s", path, name);
+		if (unlink(pathbuf) >= 0)
+			continue;
+
+		rv = ni_file_remove_recursively(pathbuf);
+	}
+
+	closedir(dir);
+
+	if (rv && rmdir(path) < 0) {
+		ni_error("unable to rmdir %s: %m", path);
+		rv = FALSE;
+	}
+
+	return rv;
+}
+
+/*
  * Check if the given file exists
  */
 extern int
@@ -609,6 +657,20 @@ ni_string_strip_prefix(const char *prefix, const char *string)
 	if (!strncmp(string, prefix, len))
 		return string + len;
 	return NULL;
+}
+
+char *
+ni_string_strip_suffix(char *string, const char *suffix)
+{
+	unsigned int len, slen;
+
+	if (!string || !suffix)
+		return string;
+	len = strlen(string);
+	slen = strlen(suffix);
+	if (slen < len && !strcmp(string + len - slen, suffix))
+		string[len - slen] = '\0';
+	return string;
 }
 
 int
@@ -755,6 +817,7 @@ ni_stringbuf_clear(ni_stringbuf_t *sb)
 	if (sb->dynamic)
 		free(sb->string);
 	sb->string = NULL;
+	sb->size = 0;
 	sb->len = 0;
 }
 
@@ -782,8 +845,7 @@ __ni_stringbuf_realloc(ni_stringbuf_t *sb, size_t len)
 	size_t size;
 	char * data;
 
-	size = __ni_stringbuf_size(sb, 0);
-	if (sb->len + len + 1 > size) {
+	if (sb->len + len + 1 > sb->size) {
 		ni_assert(sb->dynamic);
 
 		size = __ni_stringbuf_size(sb, len + 1);
@@ -791,6 +853,7 @@ __ni_stringbuf_realloc(ni_stringbuf_t *sb, size_t len)
 		ni_assert(data != NULL);
 
 		sb->string = data;
+		sb->size = size;
 		memset(sb->string + sb->len, 0, size - sb->len);
 	}
 }
@@ -1143,6 +1206,34 @@ ni_file_write(FILE *fp, const void *data, size_t len)
 	return written;
 }
 
+void *
+ni_file_read(FILE *fp, unsigned int *lenp)
+{
+	struct stat stb;
+	unsigned char *buffer;
+	unsigned int count, done, size;
+
+	if (fstat(fileno(fp), &stb) < 0)
+		return NULL;
+	size = stb.st_size;
+
+	buffer = malloc(size);
+	if (buffer == NULL)
+		return NULL;
+
+	for (done = 0; done < size; done += count) {
+		count = fread(buffer + done, 1, size - done, fp);
+		if (count == 0) {
+			ni_error("%s: short read from file", __func__);
+			free(buffer);
+			return NULL;
+		}
+	}
+
+	*lenp = done;
+	return buffer;
+}
+
 /*
  * Copy file for backup
  */
@@ -1402,4 +1493,42 @@ void
 ni_opaque_free(ni_opaque_t *opaq)
 {
 	free(opaq);
+}
+
+/*
+ * Track temporary resources and clean them up when done
+ */
+struct ni_tempstate {
+	ni_string_array_t	files;
+};
+
+ni_tempstate_t *
+ni_tempstate_new()
+{
+	ni_tempstate_t *ts;
+
+	ts = calloc(1, sizeof(*ts));
+	return ts;
+}
+
+void
+ni_tempstate_finish(ni_tempstate_t *ts)
+{
+	unsigned int i;
+
+	for (i = 0; i < ts->files.count; ++i) {
+		const char *filename = ts->files.data[i];
+
+		if (unlink(filename) < 0)
+			ni_warn("failed to remove %s: %m", filename);
+	}
+
+	ni_string_array_destroy(&ts->files);
+	free(ts);
+}
+
+void
+ni_tempstate_add_file(ni_tempstate_t *ts, const char *filename)
+{
+	ni_string_array_append(&ts->files, filename);
 }

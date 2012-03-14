@@ -18,6 +18,7 @@
 
 static void		ni_dbus_define_scalar_types(ni_xs_scope_t *);
 static void		ni_dbus_define_xml_notations(void);
+static int		ni_dbus_xml_register_classes(ni_xs_scope_t *);
 static ni_dbus_method_t *ni_dbus_xml_register_methods(ni_xs_service_t *, ni_xs_method_t *, const ni_dbus_method_t *);
 
 static dbus_bool_t	ni_dbus_serialize_xml(xml_node_t *, const ni_xs_type_t *, ni_dbus_variant_t *);
@@ -34,6 +35,8 @@ static char *		__ni_xs_type_to_dbus_signature(const ni_xs_type_t *, char *, size
 static char *		ni_xs_type_to_dbus_signature(const ni_xs_type_t *);
 static ni_xs_service_t *ni_dbus_xml_get_service_schema(const ni_xs_scope_t *, const char *);
 static ni_xs_type_t *	ni_dbus_xml_get_properties_schema(const ni_xs_scope_t *, const ni_xs_service_t *);
+
+static ni_tempstate_t *	__ni_dbus_xml_global_temp_state;
 
 ni_xs_scope_t *
 ni_dbus_xml_init(void)
@@ -54,8 +57,14 @@ int
 ni_dbus_xml_register_services(ni_xs_scope_t *scope)
 {
 	ni_xs_service_t *xs_service;
+	int rv;
 
 	NI_TRACE_ENTER_ARGS("scope=%s", scope->name);
+
+	/* First, register any classes defined by the schema */
+	if ((rv = ni_dbus_xml_register_classes(scope)) < 0)
+		return rv;
+
 	for (xs_service = scope->services; xs_service; xs_service = xs_service->next) {
 		ni_dbus_service_t *service;
 		const ni_dbus_class_t *class = NULL;
@@ -97,6 +106,31 @@ ni_dbus_xml_register_services(ni_xs_scope_t *scope)
 			service->methods = ni_dbus_xml_register_methods(xs_service, xs_service->methods, service->methods);
 		if (xs_service->signals)
 			service->signals = ni_dbus_xml_register_methods(xs_service, xs_service->signals, service->signals);
+	}
+
+	return 0;
+}
+
+/*
+ * Register all classes defined by a schema
+ */
+int
+ni_dbus_xml_register_classes(ni_xs_scope_t *scope)
+{
+	ni_xs_class_t *xs_class;
+
+	for (xs_class = scope->classes; xs_class; xs_class = xs_class->next) {
+		const ni_dbus_class_t *base_class;
+		ni_dbus_class_t *new_class;
+
+		base_class = ni_objectmodel_get_class(xs_class->base_name);
+		if (base_class == NULL) {
+			ni_error("unknown object base class \"%s\" referenced by schema", xs_class->base_name);
+			return -1;
+		}
+
+		new_class = ni_objectmodel_class_new(xs_class->name, base_class);
+		ni_objectmodel_register_class(new_class);
 	}
 
 	return 0;
@@ -220,11 +254,15 @@ ni_dbus_xml_serialize_arg(const ni_dbus_method_t *method, unsigned int narg,
 xml_node_t *
 ni_dbus_xml_deserialize_arguments(const ni_dbus_method_t *method,
 				unsigned int num_vars, ni_dbus_variant_t *vars,
-				xml_node_t *parent)
+				xml_node_t *parent, ni_tempstate_t *temp_state)
 {
 	xml_node_t *node = xml_node_new("arguments", parent);
 	ni_xs_method_t *xs_method = method->user_data;
 	unsigned int i;
+
+	/* This is a lousy hack, but it sure beats passing down the temp_state to
+	 * all functions. */
+	__ni_dbus_xml_global_temp_state = temp_state;
 
 	for (i = 0; i < num_vars; ++i) {
 		xml_node_t *arg = xml_node_new(xs_method->arguments.data[i].name, node);
@@ -235,6 +273,7 @@ ni_dbus_xml_deserialize_arguments(const ni_dbus_method_t *method,
 		}
 	}
 
+	__ni_dbus_xml_global_temp_state = NULL;
 	return node;
 }
 
@@ -496,7 +535,6 @@ ni_dbus_serialize_xml_array(xml_node_t *node, const ni_xs_type_t *type, ni_dbus_
 
 	if (array_info->notation) {
 		const ni_xs_notation_t *notation = array_info->notation;
-		ni_opaque_t data = NI_OPAQUE_INIT;
 
 		/* For now, we handle only byte arrays */
 		if (notation->array_element_type != DBUS_TYPE_BYTE) {
@@ -509,12 +547,13 @@ ni_dbus_serialize_xml_array(xml_node_t *node, const ni_xs_type_t *type, ni_dbus_
 					xml_node_location(node), notation->name);
 			return FALSE;
 		}
-		if (!notation->parse(node->cdata, &data)) {
+
+		ni_dbus_variant_init_byte_array(var);
+		if (!notation->parse(node->cdata, &var->byte_array_value, &var->array.len)) {
 			ni_error("%s: cannot parse array with notation \"%s\", value=\"%s\"",
 					xml_node_location(node), notation->name, node->cdata);
 			return FALSE;
 		}
-		ni_dbus_variant_set_byte_array(var, data.data, data.len);
 		return TRUE;
 	}
 
@@ -572,7 +611,6 @@ ni_dbus_deserialize_xml_array(ni_dbus_variant_t *var, const ni_xs_type_t *type, 
 	array_len = var->array.len;
 	if (array_info->notation) {
 		const ni_xs_notation_t *notation = array_info->notation;
-		ni_opaque_t data = NI_OPAQUE_INIT;
 		char buffer[256];
 
 		/* For now, we handle only byte arrays */
@@ -585,13 +623,8 @@ ni_dbus_deserialize_xml_array(ni_dbus_variant_t *var, const ni_xs_type_t *type, 
 			ni_error("%s: expected byte array, but got something else", __func__);
 			return FALSE;
 		}
-		if (array_len > sizeof(data.data)) {
-			ni_error("%s: cannot extract data from byte array - too long (len=%u)", __func__, var->array.len);
-			return FALSE;
-		}
 
-		ni_opaque_set(&data, var->byte_array_value, array_len);
-		if (!notation->print(&data, buffer, sizeof(buffer))) {
+		if (!notation->print(var->byte_array_value, array_len, buffer, sizeof(buffer))) {
 			ni_error("%s: cannot represent array with notation \"%s\"", __func__, notation->name);
 			return FALSE;
 		}
@@ -809,100 +842,136 @@ ni_dbus_define_scalar_types(ni_xs_scope_t *typedict)
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-static ni_opaque_t *
-__ni_notation_ipv4addr_parse(const char *string_value, ni_opaque_t *data)
+/*
+ * We need to allocate the byte array as a multiple of 32, see __ni_dbus_array_grow
+ */
+static inline void *
+__ni_notation_alloc(size_t size)
+{
+	void *p = malloc((size + 31) & ~31);
+	ni_assert(p);
+	return p;
+}
+
+static inline ni_bool_t
+__ni_notation_return(const void *data, unsigned int size, unsigned char **retbuf, unsigned int *retlen)
+{
+	void *p;
+
+	*retlen = size;
+	*retbuf = p = __ni_notation_alloc(size);
+	memcpy(p, data, size);
+
+	return TRUE;
+}
+
+static ni_bool_t
+__ni_notation_ipv4addr_parse(const char *string_value, unsigned char **retbuf, unsigned int *retlen)
 {
 	struct in_addr addr;
 
 	if (inet_pton(AF_INET, string_value, &addr) != 1)
-		return NULL;
-	memcpy(data->data, &addr, sizeof(addr));
-	data->len = sizeof(addr);
-	return data;
+		return FALSE;
+
+	return __ni_notation_return(&addr, sizeof(addr), retbuf, retlen);
 }
 
 static const char *
-__ni_notation_ipv4addr_print(const ni_opaque_t *data, char *buffer, size_t size)
+__ni_notation_ipv4addr_print(const unsigned char *data_ptr, unsigned int data_len, char *buffer, size_t size)
 {
-	if (data->len != sizeof(struct in_addr))
+	if (data_len != sizeof(struct in_addr))
 		return NULL;
-	return inet_ntop(AF_INET, data->data, buffer, size);
+	return inet_ntop(AF_INET, data_ptr, buffer, size);
 }
 
-static ni_opaque_t *
-__ni_notation_ipv6addr_address_parse(const char *string_value, ni_opaque_t *data)
+static ni_bool_t
+__ni_notation_ipv6addr_address_parse(const char *string_value, unsigned char **retbuf, unsigned int *retlen)
 {
 	struct in6_addr addr;
 
 	if (inet_pton(AF_INET6, string_value, &addr) != 1)
-		return NULL;
-	memcpy(data->data, &addr, sizeof(addr));
-	data->len = sizeof(addr);
-	return data;
+		return FALSE;
+
+	return __ni_notation_return(&addr, sizeof(addr), retbuf, retlen);
 }
 
 static const char *
-__ni_notation_ipv6addr_address_print(const ni_opaque_t *data, char *buffer, size_t size)
+__ni_notation_ipv6addr_address_print(const unsigned char *data_ptr, unsigned int data_len, char *buffer, size_t size)
 {
-	if (data->len != sizeof(struct in6_addr))
+	if (data_len != sizeof(struct in6_addr))
 		return NULL;
-	return inet_ntop(AF_INET6, data->data, buffer, size);
+	return inet_ntop(AF_INET6, data_ptr, buffer, size);
 }
 
-static ni_opaque_t *
-__ni_notation_hwaddr_parse(const char *string_value, ni_opaque_t *data)
+static ni_bool_t
+__ni_notation_hwaddr_parse(const char *string_value, unsigned char **retbuf, unsigned int *retlen)
 {
+	unsigned int size;
 	int len;
+	void *p;
 
-	len = ni_parse_hex(string_value, data->data, sizeof(data->data));
-	if (len < 0)
-		return NULL;
-	data->len = len;
-	return data;
+	size = strlen(string_value);
+
+	p = __ni_notation_alloc(size);
+	len = ni_parse_hex(string_value, p, size);
+	if (len < 0) {
+		free(p);
+		return FALSE;
+	}
+
+	*retbuf = p;
+	*retlen = len;
+	return TRUE;
 }
 
 static const char *
-__ni_notation_hwaddr_print(const ni_opaque_t *data, char *buffer, size_t size)
+__ni_notation_hwaddr_print(const unsigned char *data_ptr, unsigned int data_len, char *buffer, size_t size)
 {
 	/* We need to check whether the resulting string would fit, as
 	 * ni_format_hex will happily truncate the output string if it
 	 * does not fit. */
-	if (3 * data->len + 1 > size)
+	if (3 * data_len + 1 > size)
 		return NULL;
 
-	return ni_format_hex(data->data, data->len, buffer, size);
+	return ni_format_hex(data_ptr, data_len, buffer, size);
 }
 
 /*
  * Parse and print functions for sockaddrs and prefixed sockaddrs
  */
-static ni_opaque_t *
-__ni_notation_netaddr_parse(const char *string_value, ni_opaque_t *pack)
+static ni_bool_t
+__ni_notation_netaddr_parse(const char *string_value, unsigned char **retbuf, unsigned int *retlen)
 {
 	ni_sockaddr_t sockaddr;
+	ni_opaque_t pack;
 
 	if (ni_address_parse(&sockaddr, string_value, AF_UNSPEC) < 0)
-		return NULL;
-	return ni_sockaddr_pack(&sockaddr, pack);
+		return FALSE;
+	if (!ni_sockaddr_pack(&sockaddr, &pack))
+		return FALSE;
+
+	return __ni_notation_return(pack.data, pack.len, retbuf, retlen);
 }
 
 static const char *
-__ni_notation_netaddr_print(const ni_opaque_t *pack, char *buffer, size_t size)
+__ni_notation_netaddr_print(const unsigned char *data_ptr, unsigned int data_len, char *buffer, size_t size)
 {
+	ni_opaque_t pack;
 	ni_sockaddr_t sockaddr;
 
-	if (!ni_sockaddr_unpack(&sockaddr, pack))
+	ni_opaque_set(&pack, data_ptr, data_len);
+	if (!ni_sockaddr_unpack(&sockaddr, &pack))
 		return NULL;
 	return ni_address_format(&sockaddr, buffer, size);
 }
 
-static ni_opaque_t *
-__ni_notation_netaddr_prefix_parse(const char *string_value, ni_opaque_t *pack)
+static ni_bool_t
+__ni_notation_netaddr_prefix_parse(const char *string_value, unsigned char **retbuf, unsigned int *retlen)
 {
 	char *copy = xstrdup(string_value), *s;
 	unsigned int prefix = 0xFFFF;
 	ni_sockaddr_t sockaddr;
-	ni_opaque_t *result = NULL;
+	ni_bool_t result = FALSE;
 
 	if ((s = strchr(copy, '/')) != NULL) {
 		unsigned long value;
@@ -916,8 +985,13 @@ __ni_notation_netaddr_prefix_parse(const char *string_value, ni_opaque_t *pack)
 		prefix = value;
 	}
 
-	if (ni_address_parse(&sockaddr, copy, AF_UNSPEC) >= 0)
-		result = ni_sockaddr_prefix_pack(&sockaddr, prefix, pack);
+	if (ni_address_parse(&sockaddr, copy, AF_UNSPEC) >= 0) {
+		ni_opaque_t pack;
+
+		if (!ni_sockaddr_prefix_pack(&sockaddr, prefix, &pack))
+			goto failed;
+		result = __ni_notation_return(pack.data, pack.len, retbuf, retlen);
+	}
 
 failed:
 	free(copy);
@@ -925,15 +999,63 @@ failed:
 }
 
 static const char *
-__ni_notation_netaddr_prefix_print(const ni_opaque_t *pack, char *buffer, size_t size)
+__ni_notation_netaddr_prefix_print(const unsigned char *data_ptr, unsigned int data_len, char *buffer, size_t size)
 {
+	ni_opaque_t pack;
 	ni_sockaddr_t sockaddr;
 	unsigned int prefix;
 
-	if (!ni_sockaddr_prefix_unpack(&sockaddr, &prefix, pack))
+	ni_opaque_set(&pack, data_ptr, data_len);
+	if (!ni_sockaddr_prefix_unpack(&sockaddr, &prefix, &pack))
 		return NULL;
 
 	snprintf(buffer, size, "%s/%u", ni_address_print(&sockaddr), prefix);
+	return buffer;
+}
+
+static ni_bool_t
+__ni_notation_external_file_parse(const char *string_value, unsigned char **retbuf, unsigned int *retlen)
+{
+	const char *filename = string_value;
+	FILE *fp;
+
+	if (!(fp = fopen(filename, "r"))) {
+		ni_error("%s: %m", filename);
+		return FALSE;
+	}
+
+	*retbuf = ni_file_read(fp, retlen);
+	if (*retbuf == NULL)
+		ni_error("unable to read %s: %m", filename);
+
+	fclose(fp);
+
+	return *retbuf != NULL;
+}
+
+static const char *
+__ni_notation_external_file_print(const unsigned char *data_ptr, unsigned int data_len, char *buffer, size_t size)
+{
+	char *tempname = NULL;
+	FILE *fp;
+
+	if (__ni_dbus_xml_global_temp_state == NULL) {
+		snprintf(buffer, sizeof(buffer), "[[file data]]");
+		return buffer;
+	}
+
+	/* If we have a global tempstate, we can store the data in a temporary file
+	 * and track it for later deletion. */
+	if ((fp = ni_mkstemp(&tempname)) == NULL)
+		return NULL;
+
+	ni_tempstate_add_file(__ni_dbus_xml_global_temp_state, tempname);
+	ni_file_write(fp, data_ptr, data_len);
+	fclose(fp);
+
+	snprintf(buffer, size, "%s", tempname);
+	ni_string_free(&tempname);
+
 	return buffer;
 }
 
@@ -963,6 +1085,11 @@ static ni_xs_notation_t	__ni_dbus_notations[] = {
 		.array_element_type = DBUS_TYPE_BYTE,
 		.parse = __ni_notation_netaddr_prefix_parse,
 		.print = __ni_notation_netaddr_prefix_print,
+	}, {
+		.name = "external-file",
+		.array_element_type = DBUS_TYPE_BYTE,
+		.parse = __ni_notation_external_file_parse,
+		.print = __ni_notation_external_file_print,
 	},
 
 	{ NULL }

@@ -20,6 +20,7 @@
 #include <wicked/dbus-errors.h>
 #include "netinfo_priv.h"
 #include "dbus-common.h"
+#include "xml-schema.h"
 #include "model.h"
 #include "config.h"
 #include "debug.h"
@@ -200,6 +201,73 @@ ni_objectmodel_service_by_class(const ni_dbus_class_t *class)
 	return NULL;
 }
 
+const ni_dbus_service_t *
+ni_objectmodel_service_by_tag(const char *tag)
+{
+	unsigned int i;
+
+	for (i = 0; i < ni_objectmodel_service_registry.count; ++i) {
+		const ni_dbus_service_t *service = ni_objectmodel_service_registry.services[i];
+		ni_xs_service_t *xs_service;
+
+		if ((xs_service = service->user_data) != NULL
+		 && ni_string_eq(xs_service->name, tag))
+			return service;
+	}
+
+	return NULL;
+}
+
+const ni_dbus_service_t *
+ni_objectmodel_factory_service(const ni_dbus_service_t *service)
+{
+	ni_xs_service_t *xs_service;
+	const char *factory_name = NULL;
+	char namebuf[256];
+
+	/* See if the schema specifies a factory service explicitly */
+	if ((xs_service = service->user_data) != NULL) {
+		const ni_var_t *attr;
+
+		attr = ni_var_array_get(&xs_service->attributes, "factory");
+		if (attr)
+			factory_name = attr->value;
+	}
+	
+	/* If not, the default is to append ".Factory" to the service name */
+	if (factory_name == NULL) {
+		snprintf(namebuf, sizeof(namebuf), "%s.Factory", service->name);
+		factory_name = namebuf;
+	}
+
+	return ni_objectmodel_service_by_name(factory_name);
+}
+
+const ni_dbus_service_t *
+ni_objectmodel_auth_service(const ni_dbus_service_t *service)
+{
+	ni_xs_service_t *xs_service;
+	const char *auth_name = NULL;
+	char namebuf[256];
+
+	/* See if the schema specifies a auth service explicitly */
+	if ((xs_service = service->user_data) != NULL) {
+		const ni_var_t *attr;
+
+		attr = ni_var_array_get(&xs_service->attributes, "auth");
+		if (attr)
+			auth_name = attr->value;
+	}
+	
+	/* If not, the default is to append ".Auth" to the service name */
+	if (auth_name == NULL) {
+		snprintf(namebuf, sizeof(namebuf), "%s.Auth", service->name);
+		auth_name = namebuf;
+	}
+
+	return ni_objectmodel_service_by_name(auth_name);
+}
+
 /*
  * objectmodel service registry
  * This is mostly needed for doing proper type checking when binding
@@ -229,6 +297,24 @@ ni_objectmodel_get_class(const char *name)
 			return class;
 	}
 	return NULL;
+}
+
+ni_dbus_class_t *
+ni_objectmodel_class_new(const char *classname, const ni_dbus_class_t *base_class)
+{
+	ni_dbus_class_t *new_class;
+
+	/* Create the new class */
+	new_class = xcalloc(1, sizeof(*new_class));
+	ni_string_dup(&new_class->name, classname);
+	new_class->superclass = base_class;
+
+	/* inherit all methods from netif */
+	new_class->init_child = base_class->init_child;
+	new_class->destroy = base_class->destroy;
+	new_class->refresh = base_class->refresh;
+
+	return new_class;
 }
 
 /*
@@ -277,7 +363,7 @@ ni_objectmodel_expand_environment(const ni_dbus_object_t *object, const ni_var_a
  * Write dbus message to a temporary file
  */
 static char *
-__ni_objectmodel_write_message(ni_dbus_message_t *msg, const ni_dbus_method_t *method)
+__ni_objectmodel_write_message(ni_dbus_message_t *msg, const ni_dbus_method_t *method, ni_tempstate_t *temp_state)
 {
 	ni_dbus_variant_t argv[16];
 	char *tempname = NULL;
@@ -291,7 +377,7 @@ __ni_objectmodel_write_message(ni_dbus_message_t *msg, const ni_dbus_method_t *m
 	if (argc < 0)
 		return NULL;
 
-	xmlnode = ni_dbus_xml_deserialize_arguments(method, argc, argv, NULL);
+	xmlnode = ni_dbus_xml_deserialize_arguments(method, argc, argv, NULL, temp_state);
 
 	while (argc--)
 		ni_dbus_variant_destroy(&argv[argc]);
@@ -304,11 +390,11 @@ __ni_objectmodel_write_message(ni_dbus_message_t *msg, const ni_dbus_method_t *m
 	if ((fp = ni_mkstemp(&tempname)) == NULL) {
 		ni_error("%s: unable to create tempfile for script arguments", __func__);
 	} else {
+		/* Add file to tempstate; it will be deleted when we destroy the process handle */
+		ni_tempstate_add_file(temp_state, tempname);
 		if (xml_node_print(xmlnode, fp) < 0) {
 			ni_error("%s: unable to store message arguments in file", method->name);
-			unlink(tempname);
-			ni_string_free(&tempname);
-			/* tempname is NULL after this */
+			ni_string_free(&tempname); /* tempname is NULL after this */
 		}
 
 		fclose(fp);
@@ -319,7 +405,7 @@ __ni_objectmodel_write_message(ni_dbus_message_t *msg, const ni_dbus_method_t *m
 }
 
 static char *
-__ni_objectmodel_empty_tempfile(void)
+__ni_objectmodel_empty_tempfile(ni_tempstate_t *temp_state)
 {
 	char *tempname = NULL;
 	FILE *fp;
@@ -330,6 +416,9 @@ __ni_objectmodel_empty_tempfile(void)
 	}
 
 	fclose(fp);
+
+	/* Add file to tempstate; it will be deleted when we destroy the process handle */
+	ni_tempstate_add_file(temp_state, tempname);
 	return tempname;
 }
 
@@ -340,6 +429,7 @@ ni_objectmodel_extension_call(ni_dbus_connection_t *connection,
 {
 	DBusError error = DBUS_ERROR_INIT;
 	const char *interface = dbus_message_get_interface(call);
+	ni_tempstate_t *temp_state = NULL;
 	ni_extension_t *extension;
 	ni_shellcmd_t *command;
 	ni_process_t *process;
@@ -368,9 +458,10 @@ ni_objectmodel_extension_call(ni_dbus_connection_t *connection,
 	process = ni_process_new(command);
 
 	ni_objectmodel_expand_environment(object, &extension->environment, process);
+	temp_state = ni_process_tempstate(process);
 
 	/* Build the argument blob and store it in a file */
-	tempname = __ni_objectmodel_write_message(call, method);
+	tempname = __ni_objectmodel_write_message(call, method, temp_state);
 	if (tempname != NULL) {
 		ni_process_setenv(process, "WICKED_ARGFILE", tempname);
 		ni_string_free(&tempname);
@@ -382,7 +473,7 @@ ni_objectmodel_extension_call(ni_dbus_connection_t *connection,
 	}
 
 	/* Create empty reply for script return data */
-	tempname = __ni_objectmodel_empty_tempfile();
+	tempname = __ni_objectmodel_empty_tempfile(temp_state);
 	if (tempname != NULL) {
 		ni_process_setenv(process, "WICKED_RETFILE", tempname);
 		ni_string_free(&tempname);
@@ -412,10 +503,6 @@ send_error:
 	if (process)
 		ni_process_free(process);
 
-	if (tempname) {
-		unlink(tempname);
-		free(tempname);
-	}
 	return FALSE;
 }
 
@@ -440,12 +527,12 @@ ni_objectmodel_extension_completion(ni_dbus_connection_t *connection, const ni_d
 		xml_node_t *retnode = NULL;
 		int nres;
 
-		/* if the method returns anything, read it from the response file */
-		if (doc != NULL)
-			retnode = xml_node_get_child(xml_document_root(doc), "return");
-
-		/* Build the proper dbus return object from it */
-		if ((nres = ni_dbus_serialize_return(method, &result, retnode)) < 0) {
+		/* if the method returns anything, read it from the response file
+		 * and encode it. */
+		if (doc == NULL
+		 || (retnode = xml_node_get_child(xml_document_root(doc), "return")) == NULL) {
+			nres = 0;
+		} else if ((nres = ni_dbus_serialize_return(method, &result, retnode)) < 0) {
 			dbus_set_error(&error, NI_DBUS_ERROR_CANNOT_MARSHAL,
 					"%s.%s: unable to serialize returned data",
 					interface_name, method->name);
@@ -480,15 +567,6 @@ send_error:
 		ni_error("unable to send reply (out of memory)");
 
 	dbus_message_unref(reply);
-
-	if ((filename = ni_process_getenv(process, "WICKED_ARGFILE")) != NULL) {
-		ni_debug_dbus("cleaning up tempfile %s", filename);
-		unlink(filename);
-	}
-	if ((filename = ni_process_getenv(process, "WICKED_RETFILE")) != NULL) {
-		ni_debug_dbus("cleaning up tempfile %s", filename);
-		unlink(filename);
-	}
 	return TRUE;
 }
 

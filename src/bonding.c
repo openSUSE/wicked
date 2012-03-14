@@ -29,6 +29,7 @@ ni_bonding_new(void)
 	bonding->monitoring = NI_BOND_MONITOR_ARP;
 	bonding->arpmon.interval = 2000;
 	bonding->arpmon.validate = NI_BOND_VALIDATE_ACTIVE;
+	bonding->xmit_hash_policy = NI_BOND_XMIT_HASH_LAYER2;
 
 	return bonding;
 }
@@ -127,7 +128,6 @@ void
 ni_bonding_free(ni_bonding_t *bonding)
 {
 	ni_bonding_clear(bonding);
-	free(bonding->module_opts);
 	free(bonding);
 }
 
@@ -149,16 +149,29 @@ static ni_intmap_t	__kernel_bonding_mode_names[] = {
 int
 __ni_bonding_set_module_option_mode(ni_bonding_t *bonding, char *value)
 {
+	int rv;
+
 	/* When we parse /sys/net/class/<ifname>/bonding/mode, we end up
 	 * with "balance-rr 0" or similar; strip off the int value */
 	value[strcspn(value, " \t\n")] = '\0';
-	return ni_parse_int_mapped(value, __kernel_bonding_mode_names, &bonding->mode);
+	rv = ni_parse_int_mapped(value, __kernel_bonding_mode_names, &bonding->mode);
+	if (rv < 0)
+		ni_error("bonding: kernel reports unknown arp_validate mode \"%s\"", value);
+	return rv;
 }
 
-const char *
-__ni_bonding_get_module_option_mode(const ni_bonding_t *bonding)
+int
+__ni_bonding_get_module_option_mode(const ni_bonding_t *bonding, char *buffer, size_t bufsize)
 {
-	return ni_format_int_mapped(bonding->mode, __kernel_bonding_mode_names);
+	const char *name;
+
+	name = ni_format_int_mapped(bonding->mode, __kernel_bonding_mode_names);
+	if (name == NULL) {
+		ni_error("bonding: unsupported bonding mode %u", bonding->mode);
+		return -1;
+	}
+	strncpy(buffer, name, bufsize - 1);
+	return 0;
 }
 
 /*
@@ -207,16 +220,29 @@ static ni_intmap_t	__arp_validate[] = {
 int
 __ni_bonding_set_module_option_arp_validate(ni_bonding_t *bonding, char *value)
 {
+	int rv;
+
 	/* When we parse /sys/net/class/<ifname>/bonding/arp_validate, we end up
 	 * with "none 0" or similar; strip off the int value */
 	value[strcspn(value, " \t\n")] = '\0';
-	return ni_parse_int_mapped(value, __arp_validate, &bonding->arpmon.validate);
+	rv = ni_parse_int_mapped(value, __arp_validate, &bonding->arpmon.validate);
+	if (rv < 0)
+		ni_error("bonding: kernel reports unknown arp_validate mode \"%s\"", value);
+	return rv;
 }
 
-const char *
-__ni_bonding_get_module_option_arp_validate(const ni_bonding_t *bonding)
+int
+__ni_bonding_get_module_option_arp_validate(const ni_bonding_t *bonding, char *buffer, size_t bufsize)
 {
-	return ni_format_int_mapped(bonding->arpmon.validate, __arp_validate);
+	const char *name;
+
+	name = ni_format_int_mapped(bonding->arpmon.validate, __arp_validate);
+	if (name == NULL) {
+		ni_error("bonding: unsupported arp_validate mode %u", bonding->arpmon.validate);
+		return -1;
+	}
+	strncpy(buffer, name, bufsize - 1);
+	return 0;
 }
 
 /*
@@ -240,10 +266,73 @@ ni_bonding_validate_name_to_type(const char *name)
 }
 
 /*
+ * Set the xmit hash policy
+ */
+static ni_intmap_t	__kernel_xmit_hash_policies[] = {
+	{ "layer2",		NI_BOND_XMIT_HASH_LAYER2 },
+	{ "layer2+3",		NI_BOND_XMIT_HASH_LAYER2_3 },
+	{ "layer3+4",		NI_BOND_XMIT_HASH_LAYER3_4 },
+	{ NULL }
+};
+
+static ni_intmap_t	__user_xmit_hash_policies[] = {
+	{ "layer2",		NI_BOND_XMIT_HASH_LAYER2 },
+	{ "layer23",		NI_BOND_XMIT_HASH_LAYER2_3 },
+	{ "layer34",		NI_BOND_XMIT_HASH_LAYER3_4 },
+	{ NULL }
+};
+
+int
+__ni_bonding_set_module_option_xmit_hash_policy(ni_bonding_t *bonding, char *value)
+{
+	int rv;
+
+	value[strcspn(value, " \t\n")] = '\0';
+	rv = ni_parse_int_mapped(value, __kernel_xmit_hash_policies, &bonding->xmit_hash_policy);
+	if (rv < 0)
+		ni_error("bonding: kernel reports unknown xmit_hash_policy mode \"%s\"", value);
+	return rv;
+}
+
+int
+__ni_bonding_get_module_option_xmit_hash_policy(const ni_bonding_t *bonding, char *buffer, size_t bufsize)
+{
+	const char *name;
+
+	name = ni_format_int_mapped(bonding->xmit_hash_policy, __kernel_xmit_hash_policies);
+	if (name == NULL) {
+		ni_error("bonding: unsupported xmit_hash_policy %u", bonding->xmit_hash_policy);
+		return -1;
+	}
+	strncpy(buffer, name, bufsize - 1);
+	return 0;
+}
+
+/*
+ * For now, the enum names in the xml schema use the same xmit hash policy names as
+ * the kernel.
+ */
+const char *
+ni_bonding_xmit_hash_policy_to_name(unsigned int value)
+{
+	return ni_format_int_mapped(value, __user_xmit_hash_policies);
+}
+
+int
+ni_bonding_xmit_hash_policy_to_type(const char *name)
+{
+	unsigned int value;
+
+	if (ni_parse_int_mapped(name, __user_xmit_hash_policies, &value) < 0)
+		return -1;
+	return value;
+}
+
+/*
  * Set one bonding module option/attribute
  */
 static int
-ni_bonding_parse_module_attribute(ni_bonding_t *bonding, const char *attr, char *value)
+ni_bonding_parse_sysfs_attribute(ni_bonding_t *bonding, const char *attr, char *value)
 {
 	if (!strcmp(attr, "mode")) {
 		if (__ni_bonding_set_module_option_mode(bonding, value) < 0)
@@ -282,15 +371,12 @@ ni_bonding_parse_module_attribute(ni_bonding_t *bonding, const char *attr, char 
 		}
 	} else if (!strcmp(attr, "primary")) {
 		ni_string_dup(&bonding->primary, value);
+	} else if (!strcmp(attr, "xmit_hash_policy")) {
+		if (__ni_bonding_set_module_option_xmit_hash_policy(bonding, value) < 0)
+			return -1;
 	} else {
 		return -2;
 	}
-
-	/* FIXME: Support xmit_hash_policy
-	   	"layer2"
-		"layer3+4"
-		"layer2+3"
-	 */
 
 	return 0;
 }
@@ -299,11 +385,11 @@ ni_bonding_parse_module_attribute(ni_bonding_t *bonding, const char *attr, char 
  * Get one bonding module option/attribute
  */
 static int
-ni_bonding_format_module_attribute(const ni_bonding_t *bonding, const char *attr, char *buffer, size_t bufsize)
+ni_bonding_format_sysfs_attribute(const ni_bonding_t *bonding, const char *attr, char *buffer, size_t bufsize)
 {
 	memset(buffer, 0, bufsize);
 	if (!strcmp(attr, "mode")) {
-		strncpy(buffer, __ni_bonding_get_module_option_mode(bonding), bufsize - 1);
+		return __ni_bonding_get_module_option_mode(bonding, buffer, bufsize);
 	} else if (!strcmp(attr, "miimon")) {
 		unsigned int freq = 0;
 
@@ -325,7 +411,7 @@ ni_bonding_format_module_attribute(const ni_bonding_t *bonding, const char *attr
 	} else if (!strcmp(attr, "arp_validate")) {
 		if (bonding->monitoring != NI_BOND_MONITOR_ARP)
 			return 0;
-		strncpy(buffer, __ni_bonding_get_module_option_arp_validate(bonding), bufsize - 1);
+		return __ni_bonding_get_module_option_arp_validate(bonding, buffer, bufsize);
 	} else if (!strcmp(attr, "arp_interval")) {
 		if (bonding->monitoring != NI_BOND_MONITOR_ARP)
 			return 0;
@@ -334,108 +420,13 @@ ni_bonding_format_module_attribute(const ni_bonding_t *bonding, const char *attr
 		if (!bonding->primary)
 			return 0;
 		strncpy(buffer, bonding->primary, bufsize - 1);
+	} else if (!strcmp(attr, "xmit_hash_policy")) {
+		return __ni_bonding_get_module_option_xmit_hash_policy(bonding, buffer, bufsize);
 	} else {
 		return -1;
 	}
 
-	/* FIXME: Support xmit_hash_policy
-	   	"layer2"
-		"layer3+4"
-		"layer2+3"
-	 */
-
 	return 0;
-}
-
-/*
- * Parse the module options specified for a bonding device.
- *
- *  max_bonds:Max number of bonded devices (int)
- *  num_grat_arp:Number of gratuitous ARP packets to send on failover event (int)
- *  miimon:Link check interval in milliseconds (int)
- *  updelay:Delay before considering link up, in milliseconds (int)
- *  downdelay:Delay before considering link down, in milliseconds (int)
- *  use_carrier:Use netif_carrier_ok (vs MII ioctls) in miimon; 0 for off, 1 for on (default) (int)
- *  mode:Mode of operation : 0 for balance-rr, 1 for active-backup, 2 for balance-xor, 3 for broadcast, 4 for 802.3ad, 5 for balance-tlb, 6 for balance-alb (charp)
- *  primary:Primary network device to use (charp)
- *  lacp_rate:LACPDU tx rate to request from 802.3ad partner (slow/fast) (charp)
- *  xmit_hash_policy:XOR hashing method: 0 for layer 2 (default), 1 for layer 3+4 (charp)
- *  arp_interval:arp interval in milliseconds (int)
- *  arp_ip_target:arp targets in n.n.n.n form (array of charp)
- *  arp_validate:validate src/dst of ARP probes: none (default), active, backup or all (charp)
- *  fail_over_mac:For active-backup, do not set all slaves to the same MAC.  none (default), active or follow (charp)
- */
-void
-ni_bonding_parse_module_options(ni_bonding_t *bonding)
-{
-	char *temp, *s, *t, *saveptr = NULL;
-
-	ni_bonding_clear(bonding);
-	if (!bonding->module_opts)
-		return;
-
-	temp = xstrdup(bonding->module_opts);
-	for (s = strtok_r(temp, " \t", &saveptr); s; s = strtok_r(NULL, " \t", &saveptr)) {
-		int rv;
-
-		if ((t = strchr(s, '=')) == NULL) {
-			ni_error("ignoring unknown bonding module option %s", s);
-			continue;
-		}
-
-		*t++ = '\0';
-
-		rv = ni_bonding_parse_module_attribute(bonding, s, t);
-		if (rv == -2) {
-			ni_error("ignoring unknown bonding module option %s=%s", s, t);
-		} else if (rv < 0) {
-			ni_error("unable to parse bonding module option %s=%s", s, t);
-			/* we should really return an error here */
-		}
-	}
-
-	free(temp);
-}
-
-void
-ni_bonding_build_module_options(ni_bonding_t *bonding)
-{
-	ni_stringbuf_t outbuf = NI_STRINGBUF_INIT_DYNAMIC;
-	const char *attrs[] = {
-		"mode",
-		"miimon",
-		"primary",
-
-		/* ignored for ARP monitoring: */
-		"updelay",
-		"downdelay",
-		"use_carrier",
-
-		/* ignored for MII monitoring: */
-		"arp_interval",
-		"arp_validate",
-		NULL,
-	};
-	unsigned int i;
-
-	for (i = 0; attrs[i]; ++i) {
-		char value[128];
-
-		if (ni_bonding_format_module_attribute(bonding, attrs[i], value, sizeof(value)) < 0)
-			continue;
-
-		if (!ni_stringbuf_empty(&outbuf))
-			ni_stringbuf_putc(&outbuf, ' ');
-		ni_stringbuf_puts(&outbuf, value);
-	}
-
-#if 0
-	/* FIXME: do arp_ip_target */
-#endif
-
-	ni_string_free(&bonding->module_opts);
-	bonding->module_opts = outbuf.string;
-	return;
 }
 
 /*
@@ -447,6 +438,7 @@ ni_bonding_parse_sysfs_attrs(const char *ifname, ni_bonding_t *bonding)
 	const char *attrs[] = {
 		"mode",
 		"miimon",
+		"xmit_hash_policy",
 		"arp_validate",
 		"arp_interval",
 		"updelay",
@@ -473,7 +465,7 @@ ni_bonding_parse_sysfs_attrs(const char *ifname, ni_bonding_t *bonding)
 		if (attrval == NULL)
 			continue;
 
-		rv = ni_bonding_parse_module_attribute(bonding, attrname, attrval);
+		rv = ni_bonding_parse_sysfs_attribute(bonding, attrname, attrval);
 		if (rv == -2) {
 			ni_error("ignoring unknown bonding module option %s=%s", attrname, attrval);
 		} else if (rv < 0) {
@@ -501,8 +493,8 @@ ni_bonding_write_one_sysfs_attr(const char *ifname, const ni_bonding_t *bonding,
 {
 	char current_value[128], config_value[128];
 
-	if (ni_bonding_format_module_attribute(current, attrname, current_value, sizeof(current_value)) < 0
-	 || ni_bonding_format_module_attribute(bonding, attrname, config_value, sizeof(config_value)) < 0) {
+	if (ni_bonding_format_sysfs_attribute(current, attrname, current_value, sizeof(current_value)) < 0
+	 || ni_bonding_format_sysfs_attribute(bonding, attrname, config_value, sizeof(config_value)) < 0) {
 		ni_error("%s: cannot represent attribute %s", ifname, attrname);
 		return -1;
 	}
@@ -518,7 +510,7 @@ ni_bonding_write_one_sysfs_attr(const char *ifname, const ni_bonding_t *bonding,
 	}
 
 	/* FIXME: for stage 0 attributes, we should verify that the device is down.
-	 * For stage 1 attribures, we should verify that it is up */
+	 * For stage 1 attributes, we should verify that it is up */
 
 	ni_debug_ifconfig("%s: setting attr %s=%s", ifname, attrname, config_value);
 	if (ni_sysfs_bonding_set_attr(ifname, attrname, config_value) < 0) {
@@ -540,6 +532,7 @@ ni_bonding_write_sysfs_attrs(const char *ifname, const ni_bonding_t *bonding, co
 	const char *stage0_attrs[] = {
 		"mode",
 		"miimon",
+		"xmit_hash_policy",
 
 		/* ignored for ARP monitoring: */
 		"updelay",

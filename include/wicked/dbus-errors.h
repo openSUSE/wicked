@@ -25,10 +25,13 @@
 #define NI_DBUS_ERROR_CANNOT_CONFIGURE_ROUTE	__NI_DBUS_ERROR(CannotConfigureRoute)
 #define NI_DBUS_ERROR_CANNOT_MARSHAL		__NI_DBUS_ERROR(CannotMarshal)
 #define NI_DBUS_ERROR_PROPERTY_NOT_PRESENT	__NI_DBUS_ERROR(PropertyNotPresent)
+#define NI_DBUS_ERROR_UNRESOLVABLE_HOSTNAME	__NI_DBUS_ERROR(CannotResolveHostname)
+#define NI_DBUS_ERROR_UNREACHABLE_ADDRESS	__NI_DBUS_ERROR(CannotReachAddress)
 
 /* Map dbus error strings to our internal error codes and vice versa */
 extern int		ni_dbus_get_error(const DBusError *error, char **detail);
 extern void		ni_dbus_set_error_from_code(DBusError *, int, const char *fmt, ...);
+extern void		ni_dbus_print_error(const DBusError *, const char *fmt, ...);
 
 static inline dbus_bool_t
 ni_dbus_error_property_not_present(DBusError *error, const char *path, const char *property)
