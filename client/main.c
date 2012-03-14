@@ -13,6 +13,8 @@
 #include <mcheck.h>
 #include <stdlib.h>
 #include <getopt.h>
+#include <signal.h>
+#include <netdb.h>
 
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
@@ -24,6 +26,7 @@
 #include <wicked/xml.h>
 #include <wicked/xpath.h>
 #include <wicked/objectmodel.h>
+#include <wicked/dbus-errors.h>
 
 #include "client/wicked-client.h"
 
@@ -56,6 +59,7 @@ static int		do_show_xml(int, char **);
 extern int		do_ifup(int, char **);
 extern int		do_ifdown(int, char **);
 extern int		do_lease(int, char **);
+extern int		do_check(int, char **);
 static int		do_xpath(int, char **);
 
 int
@@ -150,6 +154,9 @@ main(int argc, char **argv)
 
 	if (!strcmp(cmd, "lease"))
 		return do_lease(argc - optind, argv + optind);
+
+	if (!strcmp(cmd, "check"))
+		return do_check(argc - optind, argv + optind);
 
 	fprintf(stderr, "Unsupported command %s\n", cmd);
 	goto usage;
@@ -820,11 +827,12 @@ add_conflict:
 			goto failed;
 		}
 	} else {
+		ni_error("unsupported command wicked %s %s", argv[0], opt_cmd);
 usage:
 		fprintf(stderr,
 			"Usage: wicked lease <filename> cmd ...\n"
 			"Where cmd is one of the following:\n"
-			"  add --address <ipaddr> --netmask <ipmask> [--peer <ipaddr>\n"
+			"  add --address <ipaddr> --netmask <ipmask> [--peer <ipaddr>]\n"
 			"  add --address <ipaddr>/<prefixlen> [--peer <ipaddr>\n"
 			"  add --route <network> --netmask <ipmask> [--gateway <ipaddr>]\n"
 			"  add --route <network>/<prefixlen> [--gateway <ipaddr>]\n"
@@ -841,4 +849,204 @@ failed:
 	if (doc)
 		xml_document_free(doc);
 	return 1;
+}
+
+/*
+ * Check for various conditions, such as resolvability and reachability.
+ */
+static ni_bool_t	try_to_resolve(const char *, int, ni_sockaddr_t *, unsigned int *);
+static void		write_dbus_error(const char *filename, const char *name, const char *fmt, ...);
+
+int
+do_check(int argc, char **argv)
+{
+	enum { OPT_TIMEOUT, OPT_AF, OPT_WRITE_DBUS_ERROR };
+	static struct option options[] = {
+		{ "timeout", required_argument, NULL, OPT_TIMEOUT },
+		{ "af", required_argument, NULL, OPT_AF },
+		{ "write-dbus-error", required_argument, NULL, OPT_WRITE_DBUS_ERROR },
+		{ NULL }
+	};
+	const char *opt_cmd;
+	const char *opt_dbus_error_file = NULL;
+	unsigned int opt_timeout = 2;
+	int opt_af = AF_UNSPEC;
+	int c;
+
+	if (argc < 2) {
+		ni_error("wicked check: missing arguments");
+		goto usage;
+	}
+	opt_cmd = argv[1];
+
+	optind = 2;
+	while ((c = getopt_long(argc, argv, "", options, NULL)) != EOF) {
+		switch (c) {
+		case OPT_TIMEOUT:
+			if (ni_parse_int(optarg, &opt_timeout) < 0)
+				ni_fatal("cannot parse timeout value \"%s\"", optarg);
+			break;
+
+		case OPT_AF:
+			opt_af = ni_addrfamily_name_to_type(optarg);
+			if (opt_af < 0)
+				ni_fatal("unknown address family \"%s\"", optarg);
+			break;
+
+		case OPT_WRITE_DBUS_ERROR:
+			opt_dbus_error_file = optarg;
+			break;
+
+		default:
+			goto usage;
+		}
+	}
+
+	if (ni_string_eq(opt_cmd, "resolve") || ni_string_eq(opt_cmd, "route")) {
+		int failed = 0;
+
+		while (optind < argc) {
+			const char *hostname = argv[optind++];
+			ni_sockaddr_t address;
+
+			if (!try_to_resolve(hostname, opt_af, &address, &opt_timeout)) {
+				failed++;
+				if (opt_dbus_error_file) {
+					write_dbus_error(opt_dbus_error_file,
+							NI_DBUS_ERROR_UNRESOLVABLE_HOSTNAME,
+							hostname);
+					opt_dbus_error_file = NULL;
+				}
+				continue;
+			}
+
+			if (ni_string_eq(opt_cmd, "resolve")) {
+				printf("%s %s\n", hostname, ni_address_print(&address));
+				continue;
+			}
+
+			if (ni_string_eq(opt_cmd, "route")) {
+				/* The check for routability is implemented as a simple
+				 * UDP connect, which should return immediately, since no
+				 * packets are sent over the wire (except for hostname
+				 * resolution).
+				 */
+				int fd;
+
+				fd = socket(address.ss_family, SOCK_DGRAM, 0);
+				if (fd < 0) {
+					ni_error("%s: unable to open %s socket", hostname,
+							ni_addrfamily_type_to_name(address.ss_family));
+					failed++;
+					continue;
+				}
+
+				if (connect(fd, (struct sockaddr *) &address, sizeof(address)) == 0) {
+					printf("%s %s reachable\n", hostname, ni_address_print(&address));
+				} else {
+					ni_error("cannot connect to %s: %m", hostname);
+					failed++;
+					if (opt_dbus_error_file) {
+						write_dbus_error(opt_dbus_error_file,
+								NI_DBUS_ERROR_UNREACHABLE_ADDRESS,
+								hostname);
+						opt_dbus_error_file = NULL;
+					}
+				}
+
+				close(fd);
+			}
+		}
+	} else {
+		ni_error("unsupported command wicked %s %s", argv[0], opt_cmd);
+usage:
+		fprintf(stderr,
+			"Usage: wicked check <cmd> ...\n"
+			"Where <cmd> is one of the following:\n"
+			"  resolve [options ...] hostname ...\n"
+			"  route [options ...] address ...\n"
+			"\n"
+			"Supported options:\n"
+			"  --timeout n\n"
+			"        Fail after n seconds.\n"
+			"  --af <address-family>\n"
+			"        Specify the address family (ipv4, ipv6, ...) to use when resolving hostnames.\n"
+		       );
+		return 1;
+		;
+	}
+
+	return 0;
+}
+
+/*
+ * Try to resolve an address.
+ * If the timeout argument is non-zero, set up the alarm handler to time out and exit.
+ */
+ni_bool_t
+try_to_resolve(const char *hostname, int af, ni_sockaddr_t *addr, unsigned int *timeout_p)
+{
+	struct addrinfo *res, hints;
+	int gerr;
+
+	/* Set up the alarm handler, and clear timeout_p (so that we don't do this
+	 * again when this function is called multiple times). */
+	if (timeout_p && *timeout_p) {
+		/* FIXME: set the alarm handler */
+		signal(SIGALRM, exit);
+		alarm(*timeout_p);
+		*timeout_p = 0;
+	}
+
+	/* Just proceed if this is a numeric address */
+	if (ni_address_parse(addr, hostname, AF_UNSPEC) == 0)
+		return TRUE;
+
+	/* Set up the resolver hints. Note that we explicitly should not
+	 * set AI_ADDRCONFIG, as that tests whether one of the interfaces
+	 * has an IPv6 address set. Since we may be in the middle of setting
+	 * up our networking, we cannot rely on that to always be accurate. */
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_family = af;
+
+	ni_debug_objectmodel("trying to resolve \"%s\"", hostname);
+	if ((gerr = getaddrinfo(hostname, NULL, &hints, &res)) != 0) {
+		ni_error("unable to resolve %s: %s", hostname, gai_strerror(gerr));
+		return FALSE;
+	} else {
+		unsigned int alen;
+
+		if ((alen = res->ai_addrlen) > sizeof(*addr))
+			alen = sizeof(*addr);
+		memcpy(addr, res->ai_addr, alen);
+		freeaddrinfo(res);
+	}
+
+	return TRUE;
+}
+
+/*
+ * Write a dbus error message as XML to a file
+ */
+void
+write_dbus_error(const char *filename, const char *name, const char *fmt, ...)
+{
+	xml_document_t *doc;
+	xml_node_t *node;
+	char msgbuf[512];
+	va_list ap;
+
+	va_start(ap, fmt);
+	vsnprintf(msgbuf, sizeof(msgbuf), fmt, ap);
+	va_end(ap);
+
+	doc = xml_document_new();
+	node = xml_node_new("error", doc->root);
+	xml_node_add_attr(node, "name", name);
+	xml_node_set_cdata(node, msgbuf);
+
+	if (xml_document_write(doc, filename) < 0)
+		ni_fatal("failed to write xml error document");
+
+	xml_document_free(doc);
 }
