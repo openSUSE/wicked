@@ -56,4 +56,7 @@ extern int			ni_call_install_lease_xml(ni_dbus_object_t *, xml_node_t *);
 
 extern dbus_bool_t		ni_call_properties_from_argv(const ni_dbus_service_t *, ni_dbus_variant_t *, int, char **);
 
+/* We may want to move this into the library. */
+extern int			ni_resolve_hostname_timed(const char *, ni_sockaddr_t *, unsigned int);
+
 #endif /* WICKED_CLIENT_H */
