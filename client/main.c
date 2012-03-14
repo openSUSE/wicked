@@ -822,7 +822,7 @@ add_conflict:
 			goto failed;
 		}
 
-		if (!ni_call_install_lease(obj, doc->root)) {
+		if (ni_call_install_lease_xml(obj, doc->root) < 0) {
 			ni_error("unable to install addrconf lease");
 			goto failed;
 		}

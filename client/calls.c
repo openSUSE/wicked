@@ -384,7 +384,7 @@ ni_call_device_method_common(ni_dbus_object_t *object,
 	return rv;
 }
 
-static dbus_bool_t
+static int
 ni_call_device_method_xml(ni_dbus_object_t *object, const char *method_name, xml_node_t *config,
 			ni_objectmodel_callback_info_t **callback_list,
 			ni_call_error_context_t *error_context)
@@ -397,7 +397,7 @@ ni_call_device_method_xml(ni_dbus_object_t *object, const char *method_name, xml
 	if (!(service = ni_dbus_object_get_service_for_method(object, method_name))) {
 		ni_error("%s: no registered dbus service for method %s()",
 				object->path, method_name);
-		return FALSE;
+		return -NI_ERROR_METHOD_NOT_SUPPORTED;
 	}
 	method = ni_dbus_service_get_method(service, method_name);
 	ni_assert(method);
@@ -439,76 +439,76 @@ out:
 		goto retry_operation;
 	}
 
-	return rv >= 0;
+	return rv;
 }
 
-dbus_bool_t
+int
 ni_call_firewall_up_xml(ni_dbus_object_t *object, xml_node_t *config, ni_objectmodel_callback_info_t **callback_list)
 {
 	return ni_call_device_method_xml(object, "firewallUp", config, callback_list, NULL);
 }
 
-dbus_bool_t
+int
 ni_call_firewall_down_xml(ni_dbus_object_t *object, ni_objectmodel_callback_info_t **callback_list)
 {
 	return ni_call_device_method_xml(object, "firewallDown", NULL, callback_list, NULL);
 }
 
-dbus_bool_t
+int
 ni_call_link_up_xml(ni_dbus_object_t *object, xml_node_t *config, ni_objectmodel_callback_info_t **callback_list)
 {
 	return ni_call_device_method_xml(object, "linkUp", config, callback_list, NULL);
 }
 
-dbus_bool_t
+int
 ni_call_link_login_xml(ni_dbus_object_t *object, xml_node_t *config, ni_objectmodel_callback_info_t **callback_list,
 				ni_call_error_handler_t *error_handler)
 {
 	ni_call_error_context_t error_context = NI_CALL_ERROR_CONTEXT_INIT(error_handler, config);
-	dbus_bool_t success;
+	int rv;
 
-	success = ni_call_device_method_xml(object, "login", config, callback_list, &error_context);
+	rv = ni_call_device_method_xml(object, "login", config, callback_list, &error_context);
 	ni_call_error_context_destroy(&error_context);
-	return success;
+	return rv;
 }
 
-dbus_bool_t
+int
 ni_call_link_logout(ni_dbus_object_t *object, xml_node_t *config, ni_objectmodel_callback_info_t **callback_list)
 {
 	return ni_call_device_method_xml(object, "logout", config, callback_list, NULL);
 }
 
-dbus_bool_t
+int
 ni_call_link_change_xml(ni_dbus_object_t *object, xml_node_t *config, ni_objectmodel_callback_info_t **callback_list,
 				ni_call_error_handler_t *error_handler)
 {
 	ni_call_error_context_t error_context = NI_CALL_ERROR_CONTEXT_INIT(error_handler, config);
-	dbus_bool_t success;
+	int rv;
 
-	success = ni_call_device_method_xml(object, "linkChange", config, callback_list, &error_context);
+	rv = ni_call_device_method_xml(object, "linkChange", config, callback_list, &error_context);
 	ni_call_error_context_destroy(&error_context);
-	return success;
+	return rv;
 }
 
-dbus_bool_t
+int
 ni_call_link_down(ni_dbus_object_t *object, ni_objectmodel_callback_info_t **callback_list)
 {
 	return ni_call_device_method_xml(object, "linkDown", NULL, callback_list, NULL);
 }
 
-dbus_bool_t
+int
 ni_call_device_change_xml(ni_dbus_object_t *object, xml_node_t *config, ni_objectmodel_callback_info_t **callback_list,
 				ni_call_error_handler_t *error_handler)
 {
 	ni_call_error_context_t error_context = NI_CALL_ERROR_CONTEXT_INIT(error_handler, config);
-	dbus_bool_t success;
+	int rv;
 
-	success = ni_call_device_method_xml(object, "changeDevice", config, callback_list, &error_context);
+	rv = ni_call_device_method_xml(object, "changeDevice", config, callback_list, &error_context);
 	ni_call_error_context_destroy(&error_context);
-	return success;
+	return rv;
 }
 
-dbus_bool_t
+int
 ni_call_device_delete(ni_dbus_object_t *object, ni_objectmodel_callback_info_t **callback_list)
 {
 	return ni_call_device_method_xml(object, "deleteDevice", NULL, callback_list, NULL);
@@ -593,22 +593,22 @@ ni_call_error_context_get_retries(ni_call_error_context_t *error_context, const 
 /*
  * Configure address configuration on a link
  */
-dbus_bool_t
+int
 ni_call_request_lease(ni_dbus_object_t *object, const ni_dbus_service_t *service, ni_dbus_variant_t *arg,
 				ni_objectmodel_callback_info_t **callback_list)
 {
 	ni_dbus_variant_t result = NI_DBUS_VARIANT_INIT;
 	DBusError error = DBUS_ERROR_INIT;
-	dbus_bool_t rv = FALSE;
+	int rv = 0;
 
 	if (!ni_dbus_object_call_variant(object, service->name, "requestLease",
 				1, arg,
 				1, &result,
 				&error)) {
 		ni_dbus_print_error(&error, "server refused to configure addresses");
+		rv = ni_dbus_get_error(&error, NULL);
 	} else {
 		*callback_list = ni_objectmodel_callback_info_from_dict(&result);
-		rv = TRUE;
 	}
 
 	ni_dbus_variant_destroy(&result);
@@ -616,13 +616,13 @@ ni_call_request_lease(ni_dbus_object_t *object, const ni_dbus_service_t *service
 	return rv;
 }
 
-dbus_bool_t
+int
 ni_call_request_lease_xml(ni_dbus_object_t *object, const ni_dbus_service_t *service, xml_node_t *config,
 				ni_objectmodel_callback_info_t **callback_list)
 {
 	ni_dbus_variant_t argument = NI_DBUS_VARIANT_INIT;
 	const ni_dbus_method_t *method;
-	dbus_bool_t rv = FALSE;
+	int rv;
 
 	method = ni_dbus_service_get_method(service, "requestLease");
 	ni_assert(method);
@@ -630,6 +630,7 @@ ni_call_request_lease_xml(ni_dbus_object_t *object, const ni_dbus_service_t *ser
 	ni_dbus_variant_init_dict(&argument);
 	if (config && !ni_dbus_xml_serialize_arg(method, 0, &argument, config)) {
 		ni_error("%s.%s: error serializing argument", service->name, method->name);
+		rv = -NI_ERROR_CANNOT_MARSHAL;
 		goto out;
 	}
 
@@ -643,22 +644,23 @@ out:
 /*
  * Request that a given lease will be dropped.
  */
-dbus_bool_t
+int
 ni_call_drop_lease(ni_dbus_object_t *object, const ni_dbus_service_t *service,
 				ni_objectmodel_callback_info_t **callback_list)
 {
 	ni_dbus_variant_t result = NI_DBUS_VARIANT_INIT;
 	DBusError error = DBUS_ERROR_INIT;
-	dbus_bool_t rv = FALSE;
+	int rv;
 
 	if (!ni_dbus_object_call_variant(object, service->name, "dropLease",
 				0, NULL,
 				1, &result,
 				&error)) {
 		ni_dbus_print_error(&error, "server refused to drop lease");
+		rv = ni_dbus_get_error(&error, NULL);
 	} else {
 		*callback_list = ni_objectmodel_callback_info_from_dict(&result);
-		rv = TRUE;
+		rv = 0;
 	}
 
 	ni_dbus_variant_destroy(&result);
@@ -666,8 +668,8 @@ ni_call_drop_lease(ni_dbus_object_t *object, const ni_dbus_service_t *service,
 	return rv;
 }
 
-dbus_bool_t
-ni_call_install_lease(ni_dbus_object_t *object, xml_node_t *node)
+int
+ni_call_install_lease_xml(ni_dbus_object_t *object, xml_node_t *node)
 {
 	ni_debug_objectmodel("%s(%s)", __func__, object->path);
 	return ni_call_device_method_xml(object, "installLease", node, NULL, NULL);

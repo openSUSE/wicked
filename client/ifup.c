@@ -1178,7 +1178,7 @@ ni_ifworker_do_device_up(ni_ifworker_t *w)
 	 || !ni_dbus_service_get_method(service, "changeDevice"))
 		goto device_is_up;
 
-	if (!ni_call_device_change_xml(w->object, linknode, &callback_list, ni_ifworker_error_handler)) {
+	if (ni_call_device_change_xml(w->object, linknode, &callback_list, ni_ifworker_error_handler) < 0) {
 		ni_ifworker_fail(w, "failed to configure %s device", link_type);
 		return -1;
 	}
@@ -1206,7 +1206,7 @@ ni_ifworker_do_firewall_up(ni_ifworker_t *w)
 	ni_debug_dbus("%s(name=%s, object=%p, path=%s)", __func__, w->name, w->object, w->object_path);
 
 	fwnode = xml_node_get_child(w->config, "firewall");
-	if (!ni_call_firewall_up_xml(w->object, fwnode, &callback_list)) {
+	if (ni_call_firewall_up_xml(w->object, fwnode, &callback_list) < 0) {
 		ni_ifworker_fail(w, "failed to protect device");
 		return -1;
 	}
@@ -1233,7 +1233,7 @@ ni_ifworker_do_link_up(ni_ifworker_t *w)
 	ni_debug_dbus("%s(name=%s, object=%p, path=%s)", __func__, w->name, w->object, w->object_path);
 
 	devnode = xml_node_get_child(w->config, "device");
-	if (!ni_call_link_up_xml(w->object, devnode, &callback_list)) {
+	if (ni_call_link_up_xml(w->object, devnode, &callback_list) < 0) {
 		ni_ifworker_fail(w, "failed to configure and bring up link");
 		return -1;
 	}
@@ -1263,7 +1263,7 @@ ni_ifworker_do_linkauth(ni_ifworker_t *w)
 	 || !(authnode = xml_node_get_child(w->device_config, "auth")))
 		goto link_authenticated;
 
-	if (!ni_call_link_login_xml(w->object, authnode, &callback_list, NULL)) {
+	if (ni_call_link_login_xml(w->object, authnode, &callback_list, NULL) < 0) {
 		ni_ifworker_fail(w, "failed to authenticate");
 		return -1;
 	}
@@ -1309,7 +1309,7 @@ ni_ifworker_do_network_up(ni_ifworker_t *w)
 		 * acquisition is in process. When that completes, the server
 		 * will emit a signal (addressConfigured) with the same token.
 		 */
-		if (!ni_call_request_lease_xml(w->object, service, child, &callback_list)) {
+		if (ni_call_request_lease_xml(w->object, service, child, &callback_list) < 0) {
 			ni_ifworker_fail(w, "address configuration failed (%s)", child->name);
 			return -1;
 		}
@@ -1380,7 +1380,7 @@ ni_ifworker_do_network_down(ni_ifworker_t *w)
 			ni_objectmodel_callback_info_t *callback_list = NULL;
 
 			ni_trace("%s is an addrconf service", service->name);
-			if (!ni_call_drop_lease(w->object, service, &callback_list)) {
+			if (ni_call_drop_lease(w->object, service, &callback_list) < 0) {
 				ni_ifworker_fail(w, "failed to shut down addresses (%s)", service->name);
 				/* return -1; */
 			}
@@ -1408,7 +1408,7 @@ ni_ifworker_do_link_down(ni_ifworker_t *w)
 {
 	ni_objectmodel_callback_info_t *callback_list = NULL;
 
-	if (!ni_call_link_down(w->object, &callback_list)) {
+	if (ni_call_link_down(w->object, &callback_list) < 0) {
 		ni_ifworker_fail(w, "failed to shut down link");
 		return -1;
 	}
@@ -1434,7 +1434,7 @@ ni_ifworker_do_firewall_down(ni_ifworker_t *w)
 	ni_objectmodel_callback_info_t *callback_list = NULL;
 
 	ni_debug_dbus("%s(name=%s, object=%p, path=%s)", __func__, w->name, w->object, w->object_path);
-	if (!ni_call_firewall_down_xml(w->object, &callback_list)) {
+	if (ni_call_firewall_down_xml(w->object, &callback_list) < 0) {
 		ni_ifworker_fail(w, "failed to shut down firewall");
 		return -1;
 	}
@@ -1461,7 +1461,7 @@ ni_ifworker_do_device_delete(ni_ifworker_t *w)
 	/* We should not get here without having verified that we can
 	 * indeed delete this interface, by using ni_ifworker_can_delete
 	 * below. */
-	if (!ni_call_device_delete(w->object, &callback_list)) {
+	if (ni_call_device_delete(w->object, &callback_list) < 0) {
 		ni_ifworker_fail(w, "failed to delete interface");
 		return -1;
 	}
