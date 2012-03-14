@@ -114,7 +114,7 @@ EOF
 
 	wicked_getargs 'address=%{config/remote-address}' 'port=%{config/remote-port}' 'protocol=%{config/protocol}'
 	if [ -n "$address" ]; then
-		wicked_check_route "$address"
+		echo "$address" > $confdir/remote
 		echo "remote $address"
 	fi
 	if [ -n "$port" ]; then
@@ -184,6 +184,14 @@ change)
 
 link-up)
 	rm -f $confdir/lease
+
+	# Make sure that the remote gateway is reachable before we
+	# try to bring up the openvpn daemon. If that fails, abort
+	# and return an error to the client.
+	if [ -f $confdir/remote ]; then
+		address=`cat $confdir/remote`
+		wicked_check_route "$address"
+	fi
 
 	/usr/sbin/openvpn --daemon $WICKED_TUNNEL_ID --writepid $confdir/pid --config $confdir/config --cd /etc/openvpn >/dev/null 2>&1 3>&1
 
