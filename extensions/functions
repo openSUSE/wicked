@@ -135,6 +135,17 @@ function wicked_return_interface_object {
 	wicked_return_scalar "/com/suse/Wicked/Interface/$ifindex"
 }
 
+##################################################################
+# Check whether a given address or hostname is reachable,
+# based on our routing tables.
+# If it isn't, this will write an appropriate error code to our
+# $WICKED_RETFILE and exit.
+##################################################################
+function wicked_check_route {
+
+	wicked check route --write-dbus-error $WICKED_RETFILE -- "$@" || exit 1
+}
+
 function wicked_log_call {
 
 	# Do not close both fds 1 and 2, else wickedd will assume

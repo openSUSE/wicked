@@ -100,10 +100,10 @@ EOF
 		echo "auth-user-pass $confdir/auth"
 
 		if [ -z "$user" ]; then
-			wicked_auth_error "auth.user|USER|user name for openvpn connection"
+			wicked_auth_error "auth.user|USER|openvpn connection"
 		fi
 		if [ -z "$pass" ]; then
-			wicked_auth_error "auth.password|PASSWORD|password for openvpn connection (user $user)"
+			wicked_auth_error "auth.password|PASSWORD|openvpn connection (user $user)"
 		fi
 
 		(
@@ -114,6 +114,7 @@ EOF
 
 	wicked_getargs 'address=%{config/remote-address}' 'port=%{config/remote-port}' 'protocol=%{config/protocol}'
 	if [ -n "$address" ]; then
+		wicked_check_route "$address"
 		echo "remote $address"
 	fi
 	if [ -n "$port" ]; then
