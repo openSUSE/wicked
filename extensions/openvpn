@@ -114,7 +114,6 @@ EOF
 
 	wicked_getargs 'address=%{config/remote-address}' 'port=%{config/remote-port}' 'protocol=%{config/protocol}'
 	if [ -n "$address" ]; then
-		wicked_check_route "$address"
 		echo "remote $address"
 	fi
 	if [ -n "$port" ]; then

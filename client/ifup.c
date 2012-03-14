@@ -45,6 +45,7 @@ enum {
 #define NI_IFWORKER_DEFAULT_TIMEOUT	20000
 
 typedef struct ni_ifworker	ni_ifworker_t;
+typedef struct ni_ifworker_req	ni_ifworker_req_t;
 
 typedef struct ni_ifworker_array {
 	unsigned int		count;
@@ -93,12 +94,26 @@ struct ni_ifworker {
 
 	ni_ifworker_t *		parent;
 	ni_ifworker_array_t	children;
+
+	ni_ifworker_req_t *	dependencies;
 };
 
+typedef ni_bool_t		ni_ifworker_req_fn_t(ni_ifworker_req_t *);
+struct ni_ifworker_req {
+	ni_ifworker_req_t *	next;
+
+	unsigned int		event_seq;
+	int			from_state;
+	int			to_state;
+	ni_ifworker_req_fn_t *	test_fn;
+	xml_node_t *		data;
+};
 
 static ni_ifworker_array_t	interface_workers;
 static unsigned int		ni_ifworker_timeout = NI_IFWORKER_DEFAULT_TIMEOUT;
 static unsigned int		ni_ifworker_timeout_count;
+
+static unsigned int		ni_ifworker_lease_acquired_seq = 1;
 
 static ni_dbus_object_t *	__root_object;
 
@@ -106,8 +121,11 @@ static const char *		ni_ifworker_state_name(int);
 static void			ni_ifworker_array_append(ni_ifworker_array_t *, ni_ifworker_t *);
 static void			ni_ifworker_array_destroy(ni_ifworker_array_t *);
 static ni_ifworker_t *		ni_ifworker_identify_device(const xml_node_t *);
+static void			ni_ifworker_set_dependencies_xml(ni_ifworker_t *, xml_node_t *);
 static void			ni_ifworker_fsm_init(ni_ifworker_t *);
 static const ni_dbus_service_t *__ni_ifworker_check_addrconf(const char *);
+static ni_bool_t		ni_ifworker_req_check_reachable(ni_ifworker_req_t *);
+static void			ni_ifworker_req_free(ni_ifworker_req_t *);
 
 static inline ni_ifworker_t *
 __ni_ifworker_new(const char *name, xml_node_t *config)
@@ -137,10 +155,17 @@ ni_ifworker_new(const char *name, xml_node_t *config)
 static void
 ni_ifworker_free(ni_ifworker_t *w)
 {
+	ni_ifworker_req_t *req;
+
 	ni_string_free(&w->name);
 	ni_ifworker_array_destroy(&w->children);
 	if (w->actions)
 		free(w->actions);
+
+	while ((req = w->dependencies) != NULL) {
+		w->dependencies = req->next;
+		ni_ifworker_req_free(req);
+	}
 }
 
 static inline void
@@ -150,6 +175,72 @@ ni_ifworker_release(ni_ifworker_t *state)
 		ni_ifworker_free(state);
 }
 
+/*
+ * constructor/destructor for dependency objects
+ */
+ni_ifworker_req_t *
+ni_ifworker_req_new(const char *check, int from_state, int to_state, xml_node_t *node)
+{
+	ni_ifworker_req_fn_t *fn = NULL;
+	ni_ifworker_req_t *req;
+
+	if (ni_string_eq(check, "reachable")) {
+		fn = ni_ifworker_req_check_reachable;
+	}
+
+	if (fn == NULL) {
+		ni_error("%s: unknown dependency test \"%s\"", xml_node_location(node), check);
+		return NULL;
+	}
+
+	req = calloc(1, sizeof(*req));
+	req->from_state = from_state;
+	req->to_state = to_state;
+	req->test_fn = fn;
+	req->event_seq = ~0U;
+	req->data = node;
+
+	return req;
+}
+
+void
+ni_ifworker_req_free(ni_ifworker_req_t *req)
+{
+	free(req);
+}
+
+static ni_bool_t
+ni_ifworker_req_check_reachable(ni_ifworker_req_t *req)
+{
+	const char *hostname;
+	ni_sockaddr_t address;
+
+	if (!req->data)
+		return FALSE;
+	if (!(hostname = req->data->cdata))
+		return FALSE;
+
+	/* Do not check too often. If the dhcp or routing info didn't change,
+	 * there is no point wasting time on another lookup. */
+	if (req->event_seq == ni_ifworker_lease_acquired_seq) {
+		ni_debug_objectmodel("check reachability: %s SKIP", hostname);
+		return FALSE;
+	}
+	req->event_seq = ni_ifworker_lease_acquired_seq;
+
+	if (ni_resolve_hostname_timed(hostname, &address, 1) <= 0) {
+		ni_debug_objectmodel("check reachability: %s not resolvable", hostname);
+		return FALSE;
+	}
+
+	/* FIXME: actually check routability. */
+	ni_debug_objectmodel("check reachability: %s OK", hostname);
+	return TRUE;
+}
+
+/*
+ * Handle success/failure of an ifworker.
+ */
 static void
 ni_ifworker_fail(ni_ifworker_t *w, const char *fmt, ...)
 {
@@ -199,22 +290,32 @@ ni_ifworker_set_timeout(ni_ifworker_t *w, unsigned long timeout_ms)
 	w->timer = ni_timer_register(timeout_ms, __ni_ifworker_timeout, w);
 }
 
+static ni_intmap_t __state_names[] = {
+	{ "none",		STATE_NONE		},
+	{ "device-down",	STATE_DEVICE_DOWN	},
+	{ "device-up",		STATE_DEVICE_UP		},
+	{ "firewall-up",	STATE_FIREWALL_UP	},
+	{ "link-up",		STATE_LINK_UP		},
+	{ "link-authenticated",	STATE_LINK_AUTHENTICATED},
+	{ "network-up",		STATE_ADDRCONF_UP	},
+
+	{ NULL }
+};
+
 static const char *
 ni_ifworker_state_name(int state)
 {
-	static ni_intmap_t __state_names[] = {
-		{ "none",		STATE_NONE		},
-		{ "device-down",	STATE_DEVICE_DOWN	},
-		{ "device-up",		STATE_DEVICE_UP		},
-		{ "firewall-up",	STATE_FIREWALL_UP	},
-		{ "link-up",		STATE_LINK_UP		},
-		{ "link-authenticated",	STATE_LINK_AUTHENTICATED},
-		{ "network-up",		STATE_ADDRCONF_UP	},
-
-		{ NULL }
-	};
-
 	return ni_format_int_mapped(state, __state_names);
+}
+
+static int
+ni_ifworker_state_from_name(const char *name)
+{
+	unsigned int value;
+
+	if (ni_parse_int_mapped(name, __state_names, &value) < 0)
+		return -1;
+	return value;
 }
 
 static void
@@ -455,7 +556,7 @@ ni_ifworkers_from_xml(xml_document_t *doc)
 	root = xml_document_root(doc);
 	for (ifnode = root->children; ifnode; ifnode = ifnode->next) {
 		const char *ifname = NULL;
-		xml_node_t *node;
+		xml_node_t *node, *depnode;
 		ni_ifworker_t *w;
 
 		if (!ifnode->name || strcmp(ifnode->name, "interface")) {
@@ -487,13 +588,107 @@ ni_ifworkers_from_xml(xml_document_t *doc)
 		if ((w = ni_ifworker_by_ifname(ifname)) != NULL)
 			w->config = ifnode;
 		else
-			ni_ifworker_new(ifname, ifnode);
+			w = ni_ifworker_new(ifname, ifnode);
+
+		if ((depnode = xml_node_get_child(ifnode, "dependencies")) != NULL)
+			ni_ifworker_set_dependencies_xml(w, depnode);
 		count++;
 	}
 
 	return count;
 }
 
+/*
+ * Dependency handling for interface bring-up.
+ *
+ * You can specify explicit dependencies for an interface using
+ *   <dependencies>
+ *     <require check="name-of-check" action="ifup|ifdown" state="link-up">parameter(s)</require>
+ *   </dependencies>
+ *
+ * The "action" attribute specifies whether this rule applies to ifup or ifdown.
+ *
+ * The "state" attribute marks this as a requirement for entering the indicated
+ * state (device-up, firewall-up, network-up, ...). If omitted, it defaults to
+ * link-up.
+ *
+ * The "check" attribute specifies the name of the built-in test to use.
+ * Currently implemented checks:
+ *   reachable: the parameter is taken as a hostname, which must be resolvable
+ *		and for which we have a route.
+ */
+void
+ni_ifworker_set_dependencies_xml(ni_ifworker_t *w, xml_node_t *depnode)
+{
+	ni_ifworker_req_t **pos, *req;
+	xml_node_t *reqnode;
+
+	pos = &w->dependencies;
+	for (reqnode = depnode->children; reqnode; reqnode = reqnode->next) {
+		const char *check, *action, *state_name;
+		int from_state, to_state = STATE_LINK_UP;
+
+		if (!ni_string_eq(reqnode->name, "require"))
+			continue;
+
+		if (!(check = xml_node_get_attr(reqnode, "check"))) {
+			ni_error("%s: <require> element lacks check attribute", xml_node_location(reqnode));
+			continue;
+		}
+		if (!(action = xml_node_get_attr(reqnode, "action"))) {
+			ni_error("%s: <require> element lacks action attribute", xml_node_location(reqnode));
+			continue;
+		}
+
+		if ((state_name = xml_node_get_attr(reqnode, "state")) != NULL) {
+			to_state = ni_ifworker_state_from_name(state_name);
+			if (to_state < 0) {
+				ni_error("%s: <require> element specifies bad state=\"%s\" attribute", xml_node_location(reqnode), state_name);
+				continue;
+			}
+		}
+
+		if (ni_string_eq(action, "ifup"))
+			from_state = to_state - 1;
+		else if (ni_string_eq(action, "ifdown"))
+			from_state = to_state + 1;
+		else {
+			ni_error("%s: <require> element specifies bad action=\"%s\" attribute", xml_node_location(reqnode), action);
+			continue;
+		}
+
+		req = ni_ifworker_req_new(check, from_state, to_state, reqnode);
+
+		*pos = req;
+		pos = &req->next;
+	}
+}
+
+static ni_bool_t
+ni_ifworker_check_dependencies(ni_ifworker_t *w, int next_state)
+{
+	ni_ifworker_req_t *req;
+	int printed = 0;
+
+	for (req = w->dependencies; req; req = req->next) {
+		if (req->from_state == w->state
+		 && req->to_state == next_state) {
+			if (!printed++)
+				ni_debug_dbus("%s: checking requirements for %s -> %s transition",
+						w->name,
+						ni_ifworker_state_name(req->from_state),
+						ni_ifworker_state_name(req->to_state));
+			if (!req->test_fn(req))
+				return FALSE;
+		}
+	}
+
+	return TRUE;
+}
+
+/*
+ * Make sure the device's target state is in the [min, max] range.
+ */
 static void
 ni_ifworker_set_target(ni_ifworker_t *w, unsigned int min_state, unsigned int max_state)
 {
@@ -1615,6 +1810,12 @@ ni_ifworker_fsm(void)
 				continue;
 			}
 
+			/* See if we've fulfilled all dependencies for entering this state. */
+			if (!ni_ifworker_check_dependencies(w, action->next_state)) {
+				ni_debug_dbus("%s: not all dependencies fulfilled", w->name);
+				continue;
+			}
+
 			prev_state = w->state;
 			if (action->func(w) >= 0) {
 				made_progress = 1;
@@ -1687,6 +1888,9 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 			ni_debug_dbus("event does not have a uuid");
 		ni_dbus_variant_destroy(&result);
 	}
+
+	if (!strcmp(signal_name, "addressAcquired"))
+		ni_ifworker_lease_acquired_seq += 1;
 
 	if ((w = ni_ifworker_by_object_path(object_path)) != NULL && w->target_state != STATE_NONE) {
 		ni_objectmodel_callback_info_t *cb = NULL;

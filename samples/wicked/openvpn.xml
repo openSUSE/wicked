@@ -2,6 +2,11 @@
   <name>tun1</name>
   <alias>openvpn-suse</alias>
 
+  <!-- Dependencies: make sure that the VPN gateway hostname can be resolved and routed -->
+  <dependencies>
+    <require action="ifup" check="reachable" state="link-up" check="reachable">gate.suse.de</require>
+  </dependencies>
+
   <openvpn>
     <remote-address>gate.suse.de</remote-address>
     <protocol>udp</protocol>
