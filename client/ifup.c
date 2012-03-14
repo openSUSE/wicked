@@ -31,7 +31,6 @@ extern ni_dbus_object_t *	wicked_get_interface(ni_dbus_object_t *, const char *)
  * Interface state information
  */
 enum {
-	EVENT_ROUTING_CHANGED = -1,
 	STATE_NONE = 0,
 	STATE_DEVICE_DOWN,
 	STATE_DEVICE_UP,
@@ -212,8 +211,6 @@ ni_ifworker_state_name(int state)
 		{ "link-authenticated",	STATE_LINK_AUTHENTICATED},
 		{ "network-up",		STATE_ADDRCONF_UP	},
 
-		{ "route-change-event",	EVENT_ROUTING_CHANGED	},
-
 		{ NULL }
 	};
 
@@ -382,9 +379,7 @@ ni_ifworker_get_minmax_child_states(ni_ifworker_t *w, unsigned int *min_state, u
 	}
 }
 
-/*
- * Create an event wait object
- */
+/* Create an event wait object */
 static void
 ni_ifworker_add_callbacks(ni_ifworker_t *w, ni_objectmodel_callback_info_t *callback_list)
 {
@@ -430,26 +425,6 @@ ni_ifworker_waiting_for_event(ni_ifworker_t *w, const char *event_name)
 	return FALSE;
 }
 
-/*
- * Make this ifworker wait for any other interface to come up, so that
- * a given hostname or address becomes resolveable and routable.
- */
-static void
-ni_ifworkers_routing_changed(const char *event_name)
-{
-	unsigned int i;
-
-	for (i = 0; i < interface_workers.count; ++i) {
-		ni_ifworker_t *w = interface_workers.data[i];
-
-		if (w->wait_for_state == EVENT_ROUTING_CHANGED)
-			w->wait_for_state = STATE_NONE;
-	}
-}
-
-/*
- * Update the state of an ifworker
- */
 static void
 ni_ifworker_update_state(ni_ifworker_t *w, unsigned int min_state, unsigned int max_state)
 {
@@ -1254,17 +1229,11 @@ ni_ifworker_do_link_up(ni_ifworker_t *w)
 {
 	ni_objectmodel_callback_info_t *callback_list = NULL;
 	xml_node_t *devnode;
-	int rv;
 
 	ni_debug_dbus("%s(name=%s, object=%p, path=%s)", __func__, w->name, w->object, w->object_path);
 
 	devnode = xml_node_get_child(w->config, "device");
-	if ((rv = ni_call_link_up_xml(w->object, devnode, &callback_list)) < 0) {
-		if (rv == -NI_ERROR_UNRESOLVABLE_HOSTNAME
-		 || rv == -NI_ERROR_UNREACHABLE_ADDRESS) {
-			w->wait_for_state = EVENT_ROUTING_CHANGED;
-			return 0;
-		}
+	if (ni_call_link_up_xml(w->object, devnode, &callback_list) < 0) {
 		ni_ifworker_fail(w, "failed to configure and bring up link");
 		return -1;
 	}
@@ -1718,9 +1687,6 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 			ni_debug_dbus("event does not have a uuid");
 		ni_dbus_variant_destroy(&result);
 	}
-
-	if (ni_string_eq(signal_name, NI_OBJECTMODEL_LEASE_ACQUIRED_SIGNAL))
-		ni_ifworkers_routing_changed(signal_name);
 
 	if ((w = ni_ifworker_by_object_path(object_path)) != NULL && w->target_state != STATE_NONE) {
 		ni_objectmodel_callback_info_t *cb = NULL;
