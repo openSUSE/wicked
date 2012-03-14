@@ -84,7 +84,6 @@ fi
 ##################################################################
 function openvpn_update_config {
 
-	conffile="$confdir/config"
 	cat <<EOF
 client
 persist-key
@@ -142,7 +141,8 @@ EOF
 	fi
 
 	# Attention: add a script callback that notifies us when the link and addresses come up
-	echo "up \"$scriptname network-up-notify $WICKED_TUNNEL_ID\""
+	echo "up \"$scriptname network-up-notify\""
+	echo "setenv WICKED_TUNNEL_ID $WICKED_TUNNEL_ID"
 }
 
 ##################################################################
@@ -166,18 +166,6 @@ function openvpn_build_lease {
 		wicked lease $filename add --route $network --netmask $netmask --gateway $gateway
 	done
 }
-
-# Check if we're being called back from openvpn
-if [ "$1" = "network-up-notify" ]; then
-	WICKED_TUNNEL_ID=$2
-	shift 2
-
-	confdir=/var/run/wicked/$WICKED_TUNNEL_ID
-	mkdir -m 700 -p $confdir
-	openvpn_build_lease $confdir/lease
-
-	exit 0
-fi
 
 if [ -z "$WICKED_TUNNEL_ID" ]; then
 	echo "$0: no tunnel-id" >&2
@@ -211,6 +199,11 @@ link-up)
 
 	# Now inform wickedd about the lease
 	wicked lease $confdir/lease install --device $WICKED_OBJECT_PATH
+	: ;;
+
+network-up-notify)
+	# This is the callback from the openvpn daemon when the link has come up
+	openvpn_build_lease $confdir/lease
 	: ;;
 
 link-down)
