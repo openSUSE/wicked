@@ -154,7 +154,7 @@ schema/constants.xml: $(BIN)/mkconst schema/constants.xml.in
 
 $(BIN)/wicked: $(CLIENTOBJS) $(TGTLIBS)
 	@mkdir -p bin
-	$(CC) -o $@ $(CFLAGS) $(CLIENTOBJS) -rdynamic -L. -lwicked -lm -lnl -ldbus-1 -ldl
+	$(CC) -o $@ $(CFLAGS) $(CLIENTOBJS) -rdynamic -L. -lwicked -lanl -lm -lnl -ldbus-1 -ldl
 
 $(BIN)/wickedd: $(SERVEROBJS) $(TGTLIBS)
 	@mkdir -p bin
