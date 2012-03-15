@@ -82,6 +82,18 @@
  *	as
  *	  <disposition> <archive/> <secret/> </disposition>
  *
+ * All types can be constrained by one or more of the following
+ *
+ * required
+ *	This element must be present if the parent element is present.
+ * required:<group>
+ *	When several elements are tagged with this constraint using the
+ *	same <group> tag, then at least one of these must be present.
+ *	Note that only sibling members are taken into consideration.
+ * exclusive:<group>
+ *	When several elements are tagged with this constraint using the
+ *	same <group> tag, then at most one of these must be present.
+ *	Note that only sibling members are taken into consideration.
  *
  * Arrays are represented like this:
  *   <array element-type="..." minlen="..." maxlen="..."/>
@@ -163,6 +175,25 @@ typedef struct ni_xs_range {
 } ni_xs_range_t;
 
 enum {
+	NI_XS_GROUP_CONSTRAINT_REQUIRE,
+	NI_XS_GROUP_CONSTRAINT_CONFLICT,
+};
+
+typedef struct ni_xs_group	ni_xs_group_t;
+struct ni_xs_group {
+	unsigned int		refcount;
+
+	unsigned int		relation;
+	char *			name;
+
+	unsigned int		count;	/* used during validation */
+};
+typedef struct ni_xs_group_array {
+	unsigned int		count;
+	ni_xs_group_t **	data;
+} ni_xs_group_array_t;
+
+enum {
 	NI_XS_TYPE_SCALAR,
 	NI_XS_TYPE_STRUCT,
 	NI_XS_TYPE_ARRAY,
@@ -188,6 +219,7 @@ struct ni_xs_array_info {
 typedef struct ni_xs_dict_info	ni_xs_dict_info_t;
 struct ni_xs_dict_info {
 	ni_xs_name_type_array_t children;
+	ni_xs_group_array_t	groups;
 };
 
 typedef struct ni_xs_struct_info ni_xs_struct_info_t;
@@ -210,6 +242,11 @@ struct ni_xs_type {
 	unsigned int		refcount;
 	unsigned int		class;
 	char *			name;
+
+	struct {
+		ni_bool_t	mandatory;
+		ni_xs_group_t *	group;
+	} constraint;
 
 	union {
 		ni_xs_scalar_info_t *	scalar_info;

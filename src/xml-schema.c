@@ -18,20 +18,27 @@ static int		ni_xs_process_define(xml_node_t *, ni_xs_scope_t *);
 static int		ni_xs_process_service(xml_node_t *, ni_xs_scope_t *);
 static int		ni_xs_process_method(xml_node_t *, ni_xs_service_t *, ni_xs_scope_t *);
 static int		ni_xs_process_signal(xml_node_t *, ni_xs_service_t *, ni_xs_scope_t *);
-static int		ni_xs_build_typelist(xml_node_t *, ni_xs_name_type_array_t *, ni_xs_scope_t *, ni_bool_t);
-static ni_xs_type_t *	ni_xs_build_simple_type(xml_node_t *, const char *, ni_xs_scope_t *);
+static int		ni_xs_build_typelist(xml_node_t *, ni_xs_name_type_array_t *, ni_xs_scope_t *,
+				ni_bool_t, ni_xs_group_array_t *);
+static ni_xs_type_t *	ni_xs_build_simple_type(xml_node_t *, const char *, ni_xs_scope_t *, ni_xs_group_array_t *);
 static ni_xs_type_t *	ni_xs_build_complex_type(xml_node_t *, const char *, ni_xs_scope_t *);
 static void		ni_xs_name_type_array_copy(ni_xs_name_type_array_t *, const ni_xs_name_type_array_t *);
 static void		ni_xs_name_type_array_destroy(ni_xs_name_type_array_t *);
 static ni_xs_type_t *	ni_xs_build_one_type(xml_node_t *, ni_xs_scope_t *);
 static void		ni_xs_service_free(ni_xs_service_t *);
-static ni_bool_t	ni_xs_type_built_constraints(ni_xs_type_t **, const xml_node_t *);
+static ni_bool_t	ni_xs_type_build_constraints(ni_xs_type_t **, const xml_node_t *, ni_xs_group_array_t *);
 static ni_xs_intmap_t *	ni_xs_build_bitmap_constraint(const xml_node_t *);
 static ni_xs_intmap_t *	ni_xs_build_enum_constraint(const xml_node_t *);
 static ni_xs_range_t *	ni_xs_build_range_constraint(const xml_node_t *);
 static void		ni_xs_intmap_free(ni_xs_intmap_t *);
 static void		ni_xs_range_free(ni_xs_range_t *);
 static void		__ni_xs_intmap_free(ni_intmap_t *);
+static ni_xs_group_t *	ni_xs_group_clone(ni_xs_group_t *group);
+static void		ni_xs_group_free(ni_xs_group_t *group);
+static void		ni_xs_group_array_append(ni_xs_group_array_t *, ni_xs_group_t *);
+static void		ni_xs_group_array_copy(ni_xs_group_array_t *, const ni_xs_group_array_t *);
+static void		ni_xs_group_array_destroy(ni_xs_group_array_t *);
+static ni_xs_group_t *	ni_xs_group_get(ni_xs_group_array_t *, int, const char *);
 static void		ni_xs_scalar_set_bitmap(ni_xs_type_t *, ni_xs_intmap_t *);
 static void		ni_xs_scalar_set_enum(ni_xs_type_t *, ni_xs_intmap_t *);
 static void		ni_xs_scalar_set_range(ni_xs_type_t *, ni_xs_range_t *);
@@ -120,6 +127,7 @@ ni_xs_type_clone(const ni_xs_type_t *src)
 			ni_xs_dict_info_t *dict_info = src->u.dict_info;
 
 			dst = ni_xs_dict_new(&dict_info->children);
+			ni_xs_group_array_copy(&dst->u.dict_info->groups, &dict_info->groups);
 			break;
 		}
 
@@ -144,6 +152,9 @@ ni_xs_type_clone(const ni_xs_type_t *src)
 
 	}
 
+	dst->constraint.mandatory = src->constraint.mandatory;
+	dst->constraint.group = ni_xs_group_clone(src->constraint.group);
+
 	return dst;
 }
 
@@ -156,6 +167,7 @@ ni_xs_type_free(ni_xs_type_t *type)
 			ni_xs_dict_info_t *dict_info = type->u.dict_info;
 
 			ni_xs_name_type_array_destroy(&dict_info->children);
+			ni_xs_group_array_destroy(&dict_info->groups);
 			free(dict_info);
 			type->u.dict_info = NULL;
 			break;
@@ -193,6 +205,11 @@ ni_xs_type_free(ni_xs_type_t *type)
 			type->u.scalar_info = NULL;
 			break;
 		}
+	}
+
+	if (type->constraint.group) {
+		ni_xs_group_free(type->constraint.group);
+		type->constraint.group = NULL;
 	}
 
 	ni_string_free(&type->name);
@@ -666,7 +683,7 @@ ni_xs_process_method(xml_node_t *node, ni_xs_service_t *service, ni_xs_scope_t *
 		ni_xs_scope_t *temp_scope;
 
 		temp_scope = ni_xs_scope_new(scope, NULL);
-		if (ni_xs_build_typelist(child, &method->arguments, temp_scope, TRUE) < 0) {
+		if (ni_xs_build_typelist(child, &method->arguments, temp_scope, TRUE, NULL) < 0) {
 			ni_xs_scope_free(temp_scope);
 			return -1;
 		}
@@ -711,7 +728,7 @@ ni_xs_process_signal(xml_node_t *node, ni_xs_service_t *service, ni_xs_scope_t *
 		ni_xs_scope_t *temp_scope;
 
 		temp_scope = ni_xs_scope_new(scope, NULL);
-		if (ni_xs_build_typelist(child, &signal->arguments, temp_scope, TRUE) < 0) {
+		if (ni_xs_build_typelist(child, &signal->arguments, temp_scope, TRUE, NULL) < 0) {
 			ni_xs_scope_free(temp_scope);
 			return -1;
 		}
@@ -845,7 +862,7 @@ ni_xs_process_define(xml_node_t *node, ni_xs_scope_t *scope)
 		/* create (permanent) named scope as context */
 		context = ni_xs_scope_new(scope, nameAttr);
 
-		refType = ni_xs_build_simple_type(node, typeAttr, context);
+		refType = ni_xs_build_simple_type(node, typeAttr, context, NULL);
 		if (refType == NULL) {
 			ni_error("%s: definition of type <%s> references unknown base type <%s>",
 					xml_node_location(node), nameAttr, typeAttr);
@@ -886,7 +903,8 @@ ni_xs_process_define(xml_node_t *node, ni_xs_scope_t *scope)
 }
 
 int
-ni_xs_build_typelist(xml_node_t *node, ni_xs_name_type_array_t *result, ni_xs_scope_t *scope, ni_bool_t allow_anon)
+ni_xs_build_typelist(xml_node_t *node, ni_xs_name_type_array_t *result, ni_xs_scope_t *scope,
+			ni_bool_t allow_anon, ni_xs_group_array_t *group_array)
 {
 	xml_node_t *child;
 
@@ -962,7 +980,7 @@ ni_xs_build_typelist(xml_node_t *node, ni_xs_name_type_array_t *result, ni_xs_sc
 					memberType = ni_xs_build_complex_type(child, typeAttr, context);
 				} else
 				if ((typeAttr = xml_node_get_attr(child, "type")) != NULL) {
-					memberType = ni_xs_build_simple_type(child, typeAttr, context);
+					memberType = ni_xs_build_simple_type(child, typeAttr, context, group_array);
 				}
 
 				if (memberType == NULL) {
@@ -1015,7 +1033,7 @@ ni_xs_build_complex_type(xml_node_t *node, const char *className, ni_xs_scope_t 
 			type = ni_xs_struct_new(NULL);
 		}
 
-		if (ni_xs_build_typelist(node, &type->u.struct_info->children, scope, TRUE) < 0) {
+		if (ni_xs_build_typelist(node, &type->u.struct_info->children, scope, TRUE, NULL) < 0) {
 			ni_xs_type_free(type);
 			return NULL;
 		}
@@ -1089,7 +1107,7 @@ ni_xs_build_complex_type(xml_node_t *node, const char *className, ni_xs_scope_t 
 			type = ni_xs_dict_new(NULL);
 		}
 
-		if (ni_xs_build_typelist(node, &type->u.dict_info->children, scope, FALSE) < 0) {
+		if (ni_xs_build_typelist(node, &type->u.dict_info->children, scope, FALSE, &type->u.dict_info->groups) < 0) {
 			ni_xs_type_free(type);
 			return NULL;
 		}
@@ -1114,7 +1132,7 @@ ni_xs_build_complex_type(xml_node_t *node, const char *className, ni_xs_scope_t 
  * Build a simple type (by referencing another type).
  */
 ni_xs_type_t *
-ni_xs_build_simple_type(xml_node_t *node, const char *typeName, ni_xs_scope_t *scope)
+ni_xs_build_simple_type(xml_node_t *node, const char *typeName, ni_xs_scope_t *scope, ni_xs_group_array_t *group_array)
 {
 	ni_xs_type_t *result;
 
@@ -1128,7 +1146,7 @@ ni_xs_build_simple_type(xml_node_t *node, const char *typeName, ni_xs_scope_t *s
 		return NULL;
 
 	ni_xs_type_hold(result);
-	if (!ni_xs_type_built_constraints(&result, node)) {
+	if (!ni_xs_type_build_constraints(&result, node, group_array)) {
 		ni_xs_type_release(result);
 		return NULL;
 	}
@@ -1140,7 +1158,7 @@ ni_xs_build_simple_type(xml_node_t *node, const char *typeName, ni_xs_scope_t *s
  * Evaluate constraints associated with a type
  */
 ni_bool_t
-ni_xs_type_built_constraints(ni_xs_type_t **type_p, const xml_node_t *node)
+ni_xs_type_build_constraints(ni_xs_type_t **type_p, const xml_node_t *node, ni_xs_group_array_t *group_array)
 {
 	ni_xs_type_t *type = *type_p;
 	const ni_var_t *attr;
@@ -1153,6 +1171,30 @@ ni_xs_type_built_constraints(ni_xs_type_t **type_p, const xml_node_t *node)
 			continue;
 
 		attrValue = attr->value;
+
+		if (!strcmp(attrValue, "required")) {
+			type->constraint.mandatory = TRUE;
+			continue;
+		}
+		if (!strncmp(attrValue, "required:", 9)) {
+			if (type->constraint.group) {
+				ni_error("%s: conflicting group constraints",
+						xml_node_location(node));
+				return FALSE;
+			}
+			type->constraint.group = ni_xs_group_get(group_array, NI_XS_GROUP_CONSTRAINT_REQUIRE, attrValue + 9);
+			continue;
+		}
+		if (!strncmp(attrValue, "exclusive:", 10)) {
+			if (type->constraint.group) {
+				ni_error("%s: conflicting group constraints",
+						xml_node_location(node));
+				return FALSE;
+			}
+			type->constraint.group = ni_xs_group_get(group_array, NI_XS_GROUP_CONSTRAINT_CONFLICT, attrValue + 10);
+			continue;
+		}
+
 		if (type->class == NI_XS_TYPE_SCALAR) {
 			ni_xs_scalar_info_t *scalar_info;
 			ni_xs_type_t *clone;
@@ -1398,6 +1440,91 @@ ni_xs_scalar_set_range(ni_xs_type_t *type, ni_xs_range_t *range)
 	if (scalar_info->constraint.range)
 		ni_xs_range_free(scalar_info->constraint.range);
 	scalar_info->constraint.range = range;
+}
+
+/*
+ * Handling of group constraints
+ */
+ni_xs_group_t *
+ni_xs_group_new(int kind, const char *name)
+{
+	ni_xs_group_t *group;
+
+	group = calloc(1, sizeof(*group));
+	ni_string_dup(&group->name, name);
+	group->relation = kind;
+	group->refcount = 1;
+
+	return group;
+}
+
+ni_xs_group_t *
+ni_xs_group_clone(ni_xs_group_t *group)
+{
+	if (group == NULL)
+		return NULL;
+
+	ni_assert(group->refcount);
+	group->refcount++;
+	return group;
+}
+
+void
+ni_xs_group_array_append(ni_xs_group_array_t *group_array, ni_xs_group_t *group)
+{
+	group_array->data = realloc(group_array->data, (group_array->count + 1) * sizeof(group));
+	group_array->data[group_array->count++] = ni_xs_group_clone(group);
+}
+
+void
+ni_xs_group_array_copy(ni_xs_group_array_t *dst, const ni_xs_group_array_t *src)
+{
+	unsigned int i;
+
+	for (i = 0; i < src->count; ++i)
+		ni_xs_group_array_append(dst, src->data[i]);
+}
+
+ni_xs_group_t *
+ni_xs_group_get(ni_xs_group_array_t *group_array, int kind, const char *name)
+{
+	ni_xs_group_t *group;
+	unsigned int i;
+
+	for (i = 0; i < group_array->count; ++i) {
+		group = group_array->data[i];
+		if (group->relation == kind && ni_string_eq(group->name, name))
+			return ni_xs_group_clone(group);
+	}
+
+	group = ni_xs_group_new(kind, name);
+	ni_xs_group_array_append(group_array, group);
+	return group;
+}
+
+void
+ni_xs_group_free(ni_xs_group_t *group)
+{
+	if (group == NULL)
+		return;
+
+	ni_assert(group->refcount);
+	if (--(group->refcount) == 0) {
+		ni_string_free(&group->name);
+		free(group);
+	}
+}
+
+void
+ni_xs_group_array_destroy(ni_xs_group_array_t *group_array)
+{
+	unsigned int i;
+
+	for (i = 0; i < group_array->count; ++i)
+		ni_xs_group_free(group_array->data[i]);
+
+	free(group_array->data);
+	group_array->data = NULL;
 }
 
 /*

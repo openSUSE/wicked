@@ -2,6 +2,9 @@
  * Serialize and deserialize XML definitions, according to a given schema.
  *
  * Copyright (C) 2012, Olaf Kirch <okir@suse.de>
+ *
+ * FIXME: we ought to validate the schema, to make sure people don't do stupid things
+ * like attaching bitmap constraints to a string type etc.
  */
 
 #include <limits.h>
@@ -31,6 +34,7 @@ static dbus_bool_t	ni_dbus_deserialize_xml_scalar(ni_dbus_variant_t *, const ni_
 static dbus_bool_t	ni_dbus_deserialize_xml_struct(ni_dbus_variant_t *, const ni_xs_type_t *, xml_node_t *);
 static dbus_bool_t	ni_dbus_deserialize_xml_array(ni_dbus_variant_t *, const ni_xs_type_t *, xml_node_t *);
 static dbus_bool_t	ni_dbus_deserialize_xml_dict(ni_dbus_variant_t *, const ni_xs_type_t *, xml_node_t *);
+static dbus_bool_t	ni_dbus_validate_xml_dict(xml_node_t *, const ni_xs_type_t *);
 static char *		__ni_xs_type_to_dbus_signature(const ni_xs_type_t *, char *, size_t);
 static char *		ni_xs_type_to_dbus_signature(const ni_xs_type_t *);
 static ni_xs_service_t *ni_dbus_xml_get_service_schema(const ni_xs_scope_t *, const char *);
@@ -684,7 +688,8 @@ ni_dbus_serialize_xml_dict(xml_node_t *node, const ni_xs_type_t *type, ni_dbus_v
 	ni_xs_dict_info_t *dict_info = ni_xs_dict_info(type);
 	xml_node_t *child;
 
-	ni_assert(dict_info);
+	if (!ni_dbus_validate_xml_dict(node, type))
+		return FALSE;
 
 	ni_dbus_variant_init_dict(dict);
 	for (child = node->children; child; child = child->next) {
@@ -699,6 +704,71 @@ ni_dbus_serialize_xml_dict(xml_node_t *node, const ni_xs_type_t *type, ni_dbus_v
 		if (!ni_dbus_serialize_xml(child, child_type, child_var))
 			return FALSE;
 	}
+	return TRUE;
+}
+
+dbus_bool_t
+ni_dbus_validate_xml_dict(xml_node_t *node, const ni_xs_type_t *type)
+{
+	ni_xs_dict_info_t *dict_info = ni_xs_dict_info(type);
+	unsigned int i;
+
+	ni_assert(dict_info);
+	for (i = 0; i < dict_info->children.count; ++i) {
+		const ni_xs_name_type_t *name_type = &dict_info->children.data[i];
+
+		if (name_type->type->constraint.mandatory
+		 && !xml_node_get_child(node, name_type->name)) {
+			ni_error("%s: <%s> lacks mandatory <%s> child element",
+					xml_node_location(node),
+					node->name, name_type->name);
+			return FALSE;
+		}
+	}
+
+	if (dict_info->groups.count) {
+		xml_node_t *child;
+		unsigned int i;
+
+		for (i = 0; i < dict_info->groups.count; ++i)
+			dict_info->groups.data[i]->count = 0;
+
+		for (child = node->children; child; child = child->next) {
+			const ni_xs_type_t *child_type = ni_xs_dict_info_find(dict_info, child->name);
+
+			if (child_type == NULL) {
+				ni_warn("%s: ignoring unknown dict element \"%s\"", __func__, child->name);
+				continue;
+			}
+			if (child_type->constraint.group)
+				child_type->constraint.group->count++;
+		}
+
+		for (i = 0; i < dict_info->groups.count; ++i) {
+			ni_xs_group_t *group = dict_info->groups.data[i];
+
+			switch (group->relation) {
+			case NI_XS_GROUP_CONSTRAINT_REQUIRE:
+				if (group->count == 0) {
+					ni_error("%s: <%s> lacks child element of group required:%s",
+							xml_node_location(node), node->name,
+							group->name);
+					return FALSE;
+				}
+				break;
+
+			case NI_XS_GROUP_CONSTRAINT_CONFLICT:
+				if (group->count > 1) {
+					ni_error("%s: <%s> has more than one child element of group exclusive:%s",
+							xml_node_location(node), node->name,
+							group->name);
+					return FALSE;
+				}
+				break;
+			}
+		}
+	}
+
 	return TRUE;
 }
 
