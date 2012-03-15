@@ -27,10 +27,13 @@ static ni_xs_type_t *	ni_xs_build_one_type(xml_node_t *, ni_xs_scope_t *);
 static void		ni_xs_service_free(ni_xs_service_t *);
 static ni_xs_intmap_t *	ni_xs_build_bitmap_constraint(const xml_node_t *);
 static ni_xs_intmap_t *	ni_xs_build_enum_constraint(const xml_node_t *);
+static ni_xs_range_t *	ni_xs_build_range_constraint(const xml_node_t *);
 static void		ni_xs_intmap_free(ni_xs_intmap_t *);
+static void		ni_xs_range_free(ni_xs_range_t *);
 static void		__ni_xs_intmap_free(ni_intmap_t *);
 static void		ni_xs_scalar_set_bitmap(ni_xs_type_t *, ni_xs_intmap_t *);
 static void		ni_xs_scalar_set_enum(ni_xs_type_t *, ni_xs_intmap_t *);
+static void		ni_xs_scalar_set_range(ni_xs_type_t *, ni_xs_range_t *);
 
 /*
  * Constructor functions for basic and complex types
@@ -107,6 +110,7 @@ ni_xs_type_clone(const ni_xs_type_t *src)
 			/* we clone the constraints as well */
 			ni_xs_scalar_set_bitmap(dst, scalar_info->constraint.bitmap);
 			ni_xs_scalar_set_enum(dst, scalar_info->constraint.enums);
+			ni_xs_scalar_set_range(dst, scalar_info->constraint.range);
 			break;
 		}
 
@@ -182,6 +186,7 @@ ni_xs_type_free(ni_xs_type_t *type)
 
 			ni_xs_scalar_set_enum(type, NULL);
 			ni_xs_scalar_set_bitmap(type, NULL);
+			ni_xs_scalar_set_range(type, NULL);
 
 			free(scalar_info);
 			type->u.scalar_info = NULL;
@@ -1152,6 +1157,17 @@ ni_xs_build_simple_type(xml_node_t *node, const char *typeName, ni_xs_scope_t *s
 				}
 				ni_xs_scalar_set_enum(result, map);
 				ni_xs_intmap_free(map);
+			} else
+			if (!strcmp(attrValue, "range")) {
+				ni_xs_range_t *range;
+
+				if (!(range = ni_xs_build_range_constraint(node))) {
+					ni_xs_type_release(result);
+					return NULL;
+				}
+
+				ni_xs_scalar_set_range(result, range);
+				ni_xs_range_free(range);
 			}
 		}
 	}
@@ -1257,6 +1273,50 @@ ni_xs_build_enum_constraint(const xml_node_t *node)
 	return ni_xs_intmap_build(node, "value");
 }
 
+ni_xs_range_t *
+ni_xs_range_new(unsigned long min, unsigned long max)
+{
+	ni_xs_range_t *range;
+
+	range = calloc(1, sizeof(*range));
+	range->refcount = 1;
+	range->min = min;
+	range->max = max;
+	return range;
+}
+
+void
+ni_xs_range_free(ni_xs_range_t *constraint)
+{
+	ni_assert(constraint->refcount);
+	if (--(constraint->refcount) == 0)
+		free(constraint);
+}
+
+ni_xs_range_t *
+ni_xs_build_range_constraint(const xml_node_t *node)
+{
+	unsigned long min = 0, max = ~0UL;
+	const char *ep;
+
+	if ((ep = xml_node_get_attr(node, "min")) != NULL) {
+		min = strtoul(ep, (char **) ep, 0);
+		if (*ep) {
+			ni_error("%s: invalid min value for range constraint", xml_node_location(node));
+			return NULL;
+		}
+	}
+	if ((ep = xml_node_get_attr(node, "max")) != NULL) {
+		max = strtoul(ep, (char **) ep, 0);
+		if (*ep) {
+			ni_error("%s: invalid max value for range constraint", xml_node_location(node));
+			return NULL;
+		}
+	}
+
+	return ni_xs_range_new(min, max);
+}
+
 void
 ni_xs_scalar_set_bitmap(ni_xs_type_t *type, ni_xs_intmap_t *map)
 {
@@ -1291,6 +1351,24 @@ ni_xs_scalar_set_enum(ni_xs_type_t *type, ni_xs_intmap_t *map)
 	if (scalar_info->constraint.enums)
 		ni_xs_intmap_free(scalar_info->constraint.enums);
 	scalar_info->constraint.enums = map;
+}
+
+void
+ni_xs_scalar_set_range(ni_xs_type_t *type, ni_xs_range_t *range)
+{
+	ni_xs_scalar_info_t *scalar_info;
+
+	if (range) {
+		ni_assert(range->refcount);
+		range->refcount++;
+	}
+
+	scalar_info = ni_xs_scalar_info(type);
+	ni_assert(scalar_info);
+
+	if (scalar_info->constraint.range)
+		ni_xs_range_free(scalar_info->constraint.range);
+	scalar_info->constraint.range = range;
 }
 
 /*

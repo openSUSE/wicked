@@ -156,6 +156,12 @@ typedef struct ni_xs_intmap {
 	ni_intmap_t *		bits;
 } ni_xs_intmap_t;
 
+typedef struct ni_xs_range {
+	unsigned int		refcount;
+	unsigned long		min;
+	unsigned long		max;
+} ni_xs_range_t;
+
 enum {
 	NI_XS_TYPE_SCALAR,
 	NI_XS_TYPE_STRUCT,
@@ -194,8 +200,8 @@ struct ni_xs_scalar_info {
 	unsigned int		type;
 
 	struct {
-		ni_xs_intmap_t	*enums;
-		struct ni_xs_type_constraint_range *range;
+		ni_xs_intmap_t *enums;
+		ni_xs_range_t *	range;
 		ni_xs_intmap_t *bitmap;
 	} constraint;
 };
