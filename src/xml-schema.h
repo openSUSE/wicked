@@ -151,9 +151,10 @@ typedef struct ni_xs_name_type_array {
 	ni_xs_name_type_t *	data;
 } ni_xs_name_type_array_t;
 
-struct ni_xs_type_constraint_bitmap {
+typedef struct ni_xs_intmap {
+	unsigned int		refcount;
 	ni_intmap_t *		bits;
-};
+} ni_xs_intmap_t;
 
 enum {
 	NI_XS_TYPE_SCALAR,
@@ -193,9 +194,9 @@ struct ni_xs_scalar_info {
 	unsigned int		type;
 
 	struct {
-		ni_intmap_t	*enums;
+		ni_xs_intmap_t	*enums;
 		struct ni_xs_type_constraint_range *range;
-		struct ni_xs_type_constraint_bitmap *bitmap;
+		ni_xs_intmap_t *bitmap;
 	} constraint;
 };
 

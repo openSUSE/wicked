@@ -432,7 +432,7 @@ ni_dbus_serialize_xml_scalar(xml_node_t *node, const ni_xs_type_t *type, ni_dbus
 	}
 
 	if (scalar_info->constraint.enums) {
-		const ni_intmap_t *names = scalar_info->constraint.enums;
+		const ni_intmap_t *names = scalar_info->constraint.enums->bits;
 		unsigned int value;
 
 		if (ni_parse_int_mapped(node->cdata, names, &value) < 0) {
@@ -501,7 +501,7 @@ ni_dbus_deserialize_xml_scalar(ni_dbus_variant_t *var, const ni_xs_type_t *type,
 			return FALSE;
 		}
 
-		enum_name = ni_format_int_mapped(value, scalar_info->constraint.enums);
+		enum_name = ni_format_int_mapped(value, scalar_info->constraint.enums->bits);
 		if (enum_name != NULL) {
 			xml_node_set_cdata(node, enum_name);
 		} else {

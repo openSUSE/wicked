@@ -25,11 +25,12 @@ static void		ni_xs_name_type_array_copy(ni_xs_name_type_array_t *, const ni_xs_n
 static void		ni_xs_name_type_array_destroy(ni_xs_name_type_array_t *);
 static ni_xs_type_t *	ni_xs_build_one_type(xml_node_t *, ni_xs_scope_t *);
 static void		ni_xs_service_free(ni_xs_service_t *);
-static struct ni_xs_type_constraint_bitmap *ni_xs_build_bitmap_constraint(const xml_node_t *);
-static ni_intmap_t *	ni_xs_build_enum_constraint(const xml_node_t *);
-static void		ni_xs_free_bitmap_constraint(struct ni_xs_type_constraint_bitmap *);
-static void		ni_xs_free_enum_constraint(ni_intmap_t *);
+static ni_xs_intmap_t *	ni_xs_build_bitmap_constraint(const xml_node_t *);
+static ni_xs_intmap_t *	ni_xs_build_enum_constraint(const xml_node_t *);
+static void		ni_xs_intmap_free(ni_xs_intmap_t *);
 static void		__ni_xs_intmap_free(ni_intmap_t *);
+static void		ni_xs_scalar_set_bitmap(ni_xs_type_t *, ni_xs_intmap_t *);
+static void		ni_xs_scalar_set_enum(ni_xs_type_t *, ni_xs_intmap_t *);
 
 /*
  * Constructor functions for basic and complex types
@@ -103,7 +104,9 @@ ni_xs_type_clone(const ni_xs_type_t *src)
 
 			dst = ni_xs_scalar_new(scalar_info->type);
 
-			/* FIXME: should we clone the constraints as well? */
+			/* we clone the constraints as well */
+			ni_xs_scalar_set_bitmap(dst, scalar_info->constraint.bitmap);
+			ni_xs_scalar_set_enum(dst, scalar_info->constraint.enums);
 			break;
 		}
 
@@ -177,10 +180,8 @@ ni_xs_type_free(ni_xs_type_t *type)
 		{
 			ni_xs_scalar_info_t *scalar_info = type->u.scalar_info;
 
-			if (scalar_info->constraint.enums)
-				ni_xs_free_enum_constraint(scalar_info->constraint.enums);
-			if (scalar_info->constraint.bitmap)
-				ni_xs_free_bitmap_constraint(scalar_info->constraint.bitmap);
+			ni_xs_scalar_set_enum(type, NULL);
+			ni_xs_scalar_set_bitmap(type, NULL);
 
 			free(scalar_info);
 			type->u.scalar_info = NULL;
@@ -1133,18 +1134,24 @@ ni_xs_build_simple_type(xml_node_t *node, const char *typeName, ni_xs_scope_t *s
 
 			scalar_info = ni_xs_scalar_info(result);
 			if (!strcmp(attrValue, "bitmap")) {
-				scalar_info->constraint.bitmap = ni_xs_build_bitmap_constraint(node);
-				if (scalar_info->constraint.bitmap == NULL) {
+				ni_xs_intmap_t *map;
+
+				if (!(map = ni_xs_build_bitmap_constraint(node))) {
 					ni_xs_type_release(result);
 					return NULL;
 				}
+				ni_xs_scalar_set_bitmap(result, map);
+				ni_xs_intmap_free(map);
 			} else
 			if (!strcmp(attrValue, "enum")) {
-				scalar_info->constraint.enums = ni_xs_build_enum_constraint(node);
-				if (scalar_info->constraint.enums == NULL) {
+				ni_xs_intmap_t *map;
+
+				if (!(map = ni_xs_build_enum_constraint(node))) {
 					ni_xs_type_release(result);
 					return NULL;
 				}
+				ni_xs_scalar_set_enum(result, map);
+				ni_xs_intmap_free(map);
 			}
 		}
 	}
@@ -1193,6 +1200,7 @@ __ni_xs_intmap_build(const xml_node_t *node, const char *attr_name)
 		result[i].value = value;
 		last_value = value;
 	}
+
 	return result;
 
 failed:
@@ -1212,37 +1220,77 @@ __ni_xs_intmap_free(ni_intmap_t *map)
 	}
 }
 
-struct ni_xs_type_constraint_bitmap *
-ni_xs_build_bitmap_constraint(const xml_node_t *node)
+static ni_xs_intmap_t *
+ni_xs_intmap_build(const xml_node_t *node, const char *attr_name)
 {
-	struct ni_xs_type_constraint_bitmap *result;
+	ni_xs_intmap_t *result;
 	ni_intmap_t *bitmap;
 
-	if (!(bitmap = __ni_xs_intmap_build(node, "bit")))
+	if (!(bitmap = __ni_xs_intmap_build(node, attr_name)))
 		return NULL;
 
 	result = xcalloc(1, sizeof(*result));
+	result->refcount = 1;
 	result->bits = bitmap;
 	return result;
 }
 
-void
-ni_xs_free_bitmap_constraint(struct ni_xs_type_constraint_bitmap *constraint)
+ni_xs_intmap_t *
+ni_xs_build_bitmap_constraint(const xml_node_t *node)
 {
-	__ni_xs_intmap_free(constraint->bits);
-	free(constraint);
+	return ni_xs_intmap_build(node, "bit");
 }
 
-ni_intmap_t *
+void
+ni_xs_intmap_free(ni_xs_intmap_t *constraint)
+{
+	ni_assert(constraint->refcount);
+	if (--(constraint->refcount) == 0) {
+		__ni_xs_intmap_free(constraint->bits);
+		free(constraint);
+	}
+}
+
+ni_xs_intmap_t *
 ni_xs_build_enum_constraint(const xml_node_t *node)
 {
-	return __ni_xs_intmap_build(node, "value");
+	return ni_xs_intmap_build(node, "value");
 }
 
 void
-ni_xs_free_enum_constraint(ni_intmap_t *map)
+ni_xs_scalar_set_bitmap(ni_xs_type_t *type, ni_xs_intmap_t *map)
 {
-	__ni_xs_intmap_free(map);
+	ni_xs_scalar_info_t *scalar_info;
+
+	if (map) {
+		ni_assert(map->refcount);
+		map->refcount++;
+	}
+
+	scalar_info = ni_xs_scalar_info(type);
+	ni_assert(scalar_info);
+
+	if (scalar_info->constraint.bitmap)
+		ni_xs_intmap_free(scalar_info->constraint.bitmap);
+	scalar_info->constraint.bitmap = map;
+}
+
+void
+ni_xs_scalar_set_enum(ni_xs_type_t *type, ni_xs_intmap_t *map)
+{
+	ni_xs_scalar_info_t *scalar_info;
+
+	if (map) {
+		ni_assert(map->refcount);
+		map->refcount++;
+	}
+
+	scalar_info = ni_xs_scalar_info(type);
+	ni_assert(scalar_info);
+
+	if (scalar_info->constraint.enums)
+		ni_xs_intmap_free(scalar_info->constraint.enums);
+	scalar_info->constraint.enums = map;
 }
 
 /*
