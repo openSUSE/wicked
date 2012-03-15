@@ -1142,11 +1142,18 @@ ni_xs_build_simple_type(xml_node_t *node, const char *typeName, ni_xs_scope_t *s
 ni_bool_t
 ni_xs_type_built_constraints(ni_xs_type_t **type_p, const xml_node_t *node)
 {
-	const char *attrValue;
 	ni_xs_type_t *type = *type_p;
+	const ni_var_t *attr;
+	unsigned int i;
 
-	if (type->class == NI_XS_TYPE_SCALAR) {
-		if ((attrValue = xml_node_get_attr(node, "constraint")) != NULL) {
+	for (i = 0, attr = node->attrs.data; i < node->attrs.count; ++i, ++attr) {
+		const char *attrValue;
+
+		if (!ni_string_eq(attr->name, "constraint"))
+			continue;
+
+		attrValue = attr->value;
+		if (type->class == NI_XS_TYPE_SCALAR) {
 			ni_xs_scalar_info_t *scalar_info;
 			ni_xs_type_t *clone;
 
@@ -1162,6 +1169,7 @@ ni_xs_type_built_constraints(ni_xs_type_t **type_p, const xml_node_t *node)
 					return FALSE;
 				ni_xs_scalar_set_bitmap(type, map);
 				ni_xs_intmap_free(map);
+				continue;
 			} else
 			if (!strcmp(attrValue, "enum")) {
 				ni_xs_intmap_t *map;
@@ -1170,6 +1178,7 @@ ni_xs_type_built_constraints(ni_xs_type_t **type_p, const xml_node_t *node)
 					return FALSE;
 				ni_xs_scalar_set_enum(type, map);
 				ni_xs_intmap_free(map);
+				continue;
 			} else
 			if (!strcmp(attrValue, "range")) {
 				ni_xs_range_t *range;
@@ -1179,8 +1188,11 @@ ni_xs_type_built_constraints(ni_xs_type_t **type_p, const xml_node_t *node)
 
 				ni_xs_scalar_set_range(type, range);
 				ni_xs_range_free(range);
+				continue;
 			}
 		}
+
+		ni_warn("%s: unknown constraint=\"%s\"", xml_node_location(node), attrValue);
 	}
 
 	return TRUE;
@@ -1336,6 +1348,8 @@ ni_xs_scalar_set_bitmap(ni_xs_type_t *type, ni_xs_intmap_t *map)
 	if (map) {
 		ni_assert(map->refcount);
 		map->refcount++;
+
+		/* FIXME: warn if there's a conflicting scalar constraint */
 	}
 
 	scalar_info = ni_xs_scalar_info(type);
@@ -1354,6 +1368,8 @@ ni_xs_scalar_set_enum(ni_xs_type_t *type, ni_xs_intmap_t *map)
 	if (map) {
 		ni_assert(map->refcount);
 		map->refcount++;
+
+		/* FIXME: warn if there's a conflicting scalar constraint */
 	}
 
 	scalar_info = ni_xs_scalar_info(type);
@@ -1372,6 +1388,8 @@ ni_xs_scalar_set_range(ni_xs_type_t *type, ni_xs_range_t *range)
 	if (range) {
 		ni_assert(range->refcount);
 		range->refcount++;
+
+		/* FIXME: warn if there's a conflicting scalar constraint */
 	}
 
 	scalar_info = ni_xs_scalar_info(type);
