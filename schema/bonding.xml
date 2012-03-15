@@ -29,9 +29,10 @@
      <updelay type="uint32"/>
      <downdelay type="uint32"/>
 
-     <define name="carrier-detect" type="string" constraint="oneof">
-       <choice value="ioctl"/>
-       <choice value="netif"/>
+     <!-- Move this to constants.xml -->
+     <define name="carrier-detect" type="string" constraint="enum">
+       <ioctl value="0"/>
+       <netif value="1"/>
      </define>
 
      <carrier type="carrier-detect"/>
