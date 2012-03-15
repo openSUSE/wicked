@@ -25,6 +25,7 @@ static void		ni_xs_name_type_array_copy(ni_xs_name_type_array_t *, const ni_xs_n
 static void		ni_xs_name_type_array_destroy(ni_xs_name_type_array_t *);
 static ni_xs_type_t *	ni_xs_build_one_type(xml_node_t *, ni_xs_scope_t *);
 static void		ni_xs_service_free(ni_xs_service_t *);
+static ni_bool_t	ni_xs_type_built_constraints(ni_xs_type_t **, const xml_node_t *);
 static ni_xs_intmap_t *	ni_xs_build_bitmap_constraint(const xml_node_t *);
 static ni_xs_intmap_t *	ni_xs_build_enum_constraint(const xml_node_t *);
 static ni_xs_range_t *	ni_xs_build_range_constraint(const xml_node_t *);
@@ -1115,7 +1116,6 @@ ni_xs_build_complex_type(xml_node_t *node, const char *className, ni_xs_scope_t 
 ni_xs_type_t *
 ni_xs_build_simple_type(xml_node_t *node, const char *typeName, ni_xs_scope_t *scope)
 {
-	const char *attrValue;
 	ni_xs_type_t *result;
 
 	if (typeName == NULL) {
@@ -1128,6 +1128,23 @@ ni_xs_build_simple_type(xml_node_t *node, const char *typeName, ni_xs_scope_t *s
 		return NULL;
 
 	ni_xs_type_hold(result);
+	if (!ni_xs_type_built_constraints(&result, node)) {
+		ni_xs_type_release(result);
+		return NULL;
+	}
+
+	return result;
+}
+
+/*
+ * Evaluate constraints associated with a type
+ */
+ni_bool_t
+ni_xs_type_built_constraints(ni_xs_type_t **type_p, const xml_node_t *node)
+{
+	const char *attrValue;
+	ni_xs_type_t *result = *type_p;
+
 	if (result->class == NI_XS_TYPE_SCALAR) {
 		if ((attrValue = xml_node_get_attr(node, "constraint")) != NULL) {
 			ni_xs_scalar_info_t *scalar_info;
@@ -1135,36 +1152,30 @@ ni_xs_build_simple_type(xml_node_t *node, const char *typeName, ni_xs_scope_t *s
 
 			clone = ni_xs_type_clone(result);
 			ni_xs_type_release(result);
-			result = clone;
+			*type_p = result = clone;
 
 			scalar_info = ni_xs_scalar_info(result);
 			if (!strcmp(attrValue, "bitmap")) {
 				ni_xs_intmap_t *map;
 
-				if (!(map = ni_xs_build_bitmap_constraint(node))) {
-					ni_xs_type_release(result);
-					return NULL;
-				}
+				if (!(map = ni_xs_build_bitmap_constraint(node)))
+					return FALSE;
 				ni_xs_scalar_set_bitmap(result, map);
 				ni_xs_intmap_free(map);
 			} else
 			if (!strcmp(attrValue, "enum")) {
 				ni_xs_intmap_t *map;
 
-				if (!(map = ni_xs_build_enum_constraint(node))) {
-					ni_xs_type_release(result);
-					return NULL;
-				}
+				if (!(map = ni_xs_build_enum_constraint(node)))
+					return FALSE;
 				ni_xs_scalar_set_enum(result, map);
 				ni_xs_intmap_free(map);
 			} else
 			if (!strcmp(attrValue, "range")) {
 				ni_xs_range_t *range;
 
-				if (!(range = ni_xs_build_range_constraint(node))) {
-					ni_xs_type_release(result);
-					return NULL;
-				}
+				if (!(range = ni_xs_build_range_constraint(node)))
+					return FALSE;
 
 				ni_xs_scalar_set_range(result, range);
 				ni_xs_range_free(range);
@@ -1172,7 +1183,7 @@ ni_xs_build_simple_type(xml_node_t *node, const char *typeName, ni_xs_scope_t *s
 		}
 	}
 
-	return result;
+	return TRUE;
 }
 
 /*
