@@ -18,7 +18,7 @@ static int		ni_xs_process_define(xml_node_t *, ni_xs_scope_t *);
 static int		ni_xs_process_service(xml_node_t *, ni_xs_scope_t *);
 static int		ni_xs_process_method(xml_node_t *, ni_xs_service_t *, ni_xs_scope_t *);
 static int		ni_xs_process_signal(xml_node_t *, ni_xs_service_t *, ni_xs_scope_t *);
-static int		ni_xs_build_typelist(xml_node_t *, ni_xs_name_type_array_t *, ni_xs_scope_t *);
+static int		ni_xs_build_typelist(xml_node_t *, ni_xs_name_type_array_t *, ni_xs_scope_t *, ni_bool_t);
 static ni_xs_type_t *	ni_xs_build_simple_type(xml_node_t *, const char *, ni_xs_scope_t *);
 static ni_xs_type_t *	ni_xs_build_complex_type(xml_node_t *, const char *, ni_xs_scope_t *);
 static void		ni_xs_name_type_array_copy(ni_xs_name_type_array_t *, const ni_xs_name_type_array_t *);
@@ -659,7 +659,7 @@ ni_xs_process_method(xml_node_t *node, ni_xs_service_t *service, ni_xs_scope_t *
 		ni_xs_scope_t *temp_scope;
 
 		temp_scope = ni_xs_scope_new(scope, NULL);
-		if (ni_xs_build_typelist(child, &method->arguments, temp_scope) < 0) {
+		if (ni_xs_build_typelist(child, &method->arguments, temp_scope, TRUE) < 0) {
 			ni_xs_scope_free(temp_scope);
 			return -1;
 		}
@@ -704,7 +704,7 @@ ni_xs_process_signal(xml_node_t *node, ni_xs_service_t *service, ni_xs_scope_t *
 		ni_xs_scope_t *temp_scope;
 
 		temp_scope = ni_xs_scope_new(scope, NULL);
-		if (ni_xs_build_typelist(child, &signal->arguments, temp_scope) < 0) {
+		if (ni_xs_build_typelist(child, &signal->arguments, temp_scope, TRUE) < 0) {
 			ni_xs_scope_free(temp_scope);
 			return -1;
 		}
@@ -879,7 +879,7 @@ ni_xs_process_define(xml_node_t *node, ni_xs_scope_t *scope)
 }
 
 int
-ni_xs_build_typelist(xml_node_t *node, ni_xs_name_type_array_t *result, ni_xs_scope_t *scope)
+ni_xs_build_typelist(xml_node_t *node, ni_xs_name_type_array_t *result, ni_xs_scope_t *scope, ni_bool_t allow_anon)
 {
 	xml_node_t *child;
 
@@ -912,7 +912,7 @@ ni_xs_build_typelist(xml_node_t *node, ni_xs_name_type_array_t *result, ni_xs_sc
 				return -1;
 		} else {
 			/* This can be either
-			 *   <u32/>
+			 *   <u32/> (or any other scalar type)
 			 * or
 			 *   <somename class="(dict|struct|array)">
 			 * or
@@ -924,6 +924,11 @@ ni_xs_build_typelist(xml_node_t *node, ni_xs_name_type_array_t *result, ni_xs_sc
 				 || xml_node_get_attr(child, "type")) {
 					ni_error("%s: ambiguous type: node <%s> is a type, but has a type or class attribute",
 							xml_node_location(child), child->name);
+					return -1;
+				}
+				if (!allow_anon) {
+					ni_error("%s: anonymous child elements not allowed in this context",
+							xml_node_location(child));
 					return -1;
 				}
 				ni_xs_type_hold(memberType);
@@ -1003,7 +1008,7 @@ ni_xs_build_complex_type(xml_node_t *node, const char *className, ni_xs_scope_t 
 			type = ni_xs_struct_new(NULL);
 		}
 
-		if (ni_xs_build_typelist(node, &type->u.struct_info->children, scope) < 0) {
+		if (ni_xs_build_typelist(node, &type->u.struct_info->children, scope, TRUE) < 0) {
 			ni_xs_type_free(type);
 			return NULL;
 		}
@@ -1077,7 +1082,7 @@ ni_xs_build_complex_type(xml_node_t *node, const char *className, ni_xs_scope_t 
 			type = ni_xs_dict_new(NULL);
 		}
 
-		if (ni_xs_build_typelist(node, &type->u.dict_info->children, scope) < 0) {
+		if (ni_xs_build_typelist(node, &type->u.dict_info->children, scope, FALSE) < 0) {
 			ni_xs_type_free(type);
 			return NULL;
 		}
