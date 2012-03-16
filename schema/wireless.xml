@@ -38,10 +38,14 @@
     <mode type="builtin-wireless-mode"/>
     <access-point type="ethernet-address"/>
 
-    <wpa-psk class="dict">
+    <wpa-psk class="dict" constraint="exclusive:wpa-auth-data">
       <passphrase type="string"/>
       <key class="array" element-type="byte" minlen="64" maxlen="64" notation="hwaddr"/>
     </wpa-psk>
+
+    <wpa-eap class="dict" constraint="exclusive:wpa-auth-data">
+      <!-- TBD: add eap members -->
+    </wpa-eap>
   </define>
 
   <method name="changeDevice">

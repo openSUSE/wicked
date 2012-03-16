@@ -9,7 +9,7 @@
 <service name="openvpn" interface="com.suse.Wicked.OpenVPN" object-class="netif-openvpn">
  <!-- This is the linkinfo returned in interface reports -->
  <define name="linkinfo" class="dict">
-  <remote-address type="string"/>
+  <remote-address type="string" constraint="required"/>
   <remote-port type="uint32"/>
 
   <protocol type="uint32" constraint="enum">
@@ -20,10 +20,12 @@
   <!-- Tunnel MTU -->
   <mtu type="uint32"/>
 
+  <!-- user name and password. If the <auth> element is present, it must
+    -- have <user> and <password> children -->
   <auth class="dict">
     <require type="boolean"/>
-    <user type="string"/>
-    <password type="string"/>
+    <user type="string" constraint="required"/>
+    <password type="string" constraint="required"/>
   </auth>
 
   <tls class="dict">
