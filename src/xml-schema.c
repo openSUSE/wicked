@@ -158,6 +158,21 @@ ni_xs_type_clone(const ni_xs_type_t *src)
 	return dst;
 }
 
+/*
+ * Clone and release a type
+ */
+static inline ni_xs_type_t *
+ni_xs_type_clone_and_release(ni_xs_type_t *type)
+{
+	ni_xs_type_t *clone;
+
+	if (type->refcount == 1)
+		return type;
+	clone = ni_xs_type_clone(type);
+	ni_xs_type_release(type);
+	return clone;
+}
+
 void
 ni_xs_type_free(ni_xs_type_t *type)
 {
@@ -1170,6 +1185,8 @@ ni_xs_type_build_constraints(ni_xs_type_t **type_p, const xml_node_t *node, ni_x
 		if (!ni_string_eq(attr->name, "constraint"))
 			continue;
 
+		*type_p = type = ni_xs_type_clone_and_release(type);
+
 		attrValue = attr->value;
 
 		if (!strcmp(attrValue, "required")) {
@@ -1197,11 +1214,6 @@ ni_xs_type_build_constraints(ni_xs_type_t **type_p, const xml_node_t *node, ni_x
 
 		if (type->class == NI_XS_TYPE_SCALAR) {
 			ni_xs_scalar_info_t *scalar_info;
-			ni_xs_type_t *clone;
-
-			clone = ni_xs_type_clone(type);
-			ni_xs_type_release(type);
-			*type_p = type = clone;
 
 			scalar_info = ni_xs_scalar_info(type);
 			if (!strcmp(attrValue, "bitmap")) {
