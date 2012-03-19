@@ -12,6 +12,7 @@ static const char *	ni_errors[__NI_ERROR_MAX] = {
 [NI_ERROR_RETRY_OPERATION]		= "Retry operation",
 [NI_ERROR_INVALID_ARGS]			= "Invalid arguments",
 [NI_ERROR_PERMISSION_DENIED]		= "Permission denied",
+[NI_ERROR_DOCUMENT_ERROR]		= "Invalid XML document",
 [NI_ERROR_INTERFACE_NOT_KNOWN]		= "Interface not known",
 [NI_ERROR_INTERFACE_BAD_HIERARCHY]	= "Interface bad hierarchy",
 [NI_ERROR_INTERFACE_IN_USE]		= "Interface in use",
