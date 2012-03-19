@@ -355,6 +355,25 @@ xml_node_delete_child_node(xml_node_t *node, xml_node_t *destroy)
 	return 0;
 }
 
+void
+xml_node_detach(xml_node_t *node)
+{
+	xml_node_t *parent, **pos, *sibling;
+
+	if ((parent = node->parent) == NULL)
+		return;
+
+	pos = &parent->children;
+	while ((sibling = *pos) != NULL) {
+		if (sibling == node) {
+			*pos = node->next;
+			node->parent = NULL;
+			break;
+		}
+		pos = &sibling->next;
+	}
+}
+
 /*
  * Get xml node path relative to some top node
  */
