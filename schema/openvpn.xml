@@ -21,11 +21,22 @@
   <mtu type="uint32"/>
 
   <!-- user name and password. If the <auth> element is present, it must
-    -- have <user> and <password> children -->
+    -- have <user> and <password> children.
+    -- If these elements are absent, the wicked client will prompt for
+    -- them.
+    -->
   <auth class="dict">
     <require type="boolean"/>
-    <user type="string" constraint="required"/>
-    <password type="string" constraint="required"/>
+    <user type="string" constraint="required">
+      <meta>
+        <user-input type="user" prompt="Please enter openvpn user name"/>
+      </meta>
+    </user>
+    <password type="string" constraint="required">
+      <meta>
+        <user-input type="password" prompt="Please enter openvpn password"/>
+      </meta>
+    </password>
   </auth>
 
   <tls class="dict">
@@ -42,6 +53,15 @@
  <define name="properties" type="linkinfo"/>
 
  <method name="changeDevice">
+   <meta>
+     <!-- If an <auth> element is given, make sure user and password are present.
+       -- Prompt the user if not. -->
+     <if check="present" argument="${/config/auth}">
+      <prompt type="user" target="/config/auth/user"/>
+      <prompt type="password" target="/config/auth/password"/>
+     </if>
+   </meta>
+
    <arguments>
      <config type="linkinfo"/>
    </arguments>
@@ -57,9 +77,15 @@
    -- Note that the MTU can be specified via the <openvpn> element.
    -->
  <method name="linkUp">
-    <arguments>
-      <request type="interface:link-request" />
-    </arguments>
+   <meta>
+     <!-- When bringing up the interface, do not try to bring up the link until
+       -- the host referenced by this element is reachable. -->
+     <require check="reachable" argument="${/request/remote-address}" />
+   </meta>
+
+   <arguments>
+     <request type="interface:link-request" />
+   </arguments>
    <return>
      <interface:callback-info/>
    </return>
