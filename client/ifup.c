@@ -19,6 +19,7 @@
 #include <wicked/objectmodel.h>
 #include <wicked/dbus-errors.h>
 #include <wicked/socket.h>
+#include <wicked/xpath.h>
 
 #include "wicked-client.h"
 
@@ -52,10 +53,11 @@ typedef struct ni_ifworker_array {
 	ni_ifworker_t **	data;
 } ni_ifworker_array_t;
 
-typedef struct ni_netif_action	ni_netif_action_t;
+typedef struct ni_netif_action	ni_iftransition_t;
 
-typedef int			ni_netif_action_fn_t(ni_ifworker_t *, ni_netif_action_t *);
+typedef int			ni_netif_action_fn_t(ni_ifworker_t *, ni_iftransition_t *);
 struct ni_netif_action {
+	int			from_state;
 	int			next_state;
 	ni_netif_action_fn_t *	func;
 
@@ -100,11 +102,12 @@ struct ni_ifworker {
 	const ni_dbus_service_t *device_factory_service;
 	const ni_dbus_service_t *device_auth_service;
 	xml_node_t *		device_config;
+	xml_node_t *		device_auth_config;
 
 	unsigned int		shared_users;
 	ni_ifworker_t *		exclusive_owner;
 
-	ni_netif_action_t *	actions;
+	ni_iftransition_t *	actions;
 	ni_uint_range_t		child_states[__STATE_MAX];
 
 	ni_ifworker_t *		parent;
@@ -141,7 +144,7 @@ static void			ni_ifworker_fsm_init(ni_ifworker_t *);
 static const ni_dbus_service_t *__ni_ifworker_check_addrconf(const char *);
 static ni_bool_t		ni_ifworker_req_check_reachable(ni_ifworker_req_t *);
 static void			ni_ifworker_req_free(ni_ifworker_req_t *);
-static ni_netif_action_t *	ni_ifworker_get_action(ni_ifworker_t *w, int state);
+static ni_iftransition_t *	ni_ifworker_get_transition_up(ni_ifworker_t *w, int to);
 
 static inline ni_ifworker_t *
 __ni_ifworker_new(const char *name, xml_node_t *config)
@@ -980,8 +983,6 @@ ni_ifworker_bind_device_apis(ni_ifworker_t *w)
 	 * probably most people won't bother with adding any <ethernet>
 	 * configuration for their eth devices. */
 	if (best_service) {
-		ni_netif_action_t *action;
-
 		ni_debug_objectmodel("%s: using %s to configure device (using <%s> element)",
 				w->name, best_service->name, best_config->name);
 
@@ -991,11 +992,8 @@ ni_ifworker_bind_device_apis(ni_ifworker_t *w)
 
 		/* Now find the factory and auth services for this device class, if there are any. */
 		w->device_factory_service = ni_objectmodel_factory_service(best_service);
-
-		/* FIXME: we should only do this during ifup */
-		action = ni_ifworker_get_action(w, STATE_LINK_AUTHENTICATED);
-		action->common.service = ni_objectmodel_auth_service(best_service);
-		action->common.config = xml_node_get_child(w->device_config, "auth");
+		w->device_auth_service = ni_objectmodel_auth_service(best_service);
+		w->device_auth_config = xml_node_get_child(w->device_config, "auth");
 
 		/* The device service specifies a class it is compatible with, ie netif-foobar,
 		 * where "foobar" must be a valid iftype name */
@@ -1324,19 +1322,20 @@ out:
 /*
  * Most steps of the finite state machine follow the same pattern.
  */
-static ni_netif_action_t *
-ni_ifworker_get_action(ni_ifworker_t *w, int next_state)
+static ni_iftransition_t *
+ni_ifworker_get_transition_up(ni_ifworker_t *w, int next_state)
 {
-	ni_netif_action_t *action;
+	ni_iftransition_t *action;
 
 	for (action = w->actions; action->next_state; ++action)
-		if (action->next_state == next_state)
+		if (action->from_state == next_state - 1
+		 && action->next_state == next_state)
 			return action;
 	return NULL;
 }
 
 int
-ni_ifworker_do_common(ni_ifworker_t *w, ni_netif_action_t *action)
+ni_ifworker_do_common(ni_ifworker_t *w, ni_iftransition_t *action)
 {
 	ni_objectmodel_callback_info_t *callback_list = NULL;
 	const ni_dbus_service_t *service;
@@ -1379,9 +1378,42 @@ ni_ifworker_do_common(ni_ifworker_t *w, ni_netif_action_t *action)
 	}
 
 	config = action->common.config;
+
 	if (config == NULL && action->common.config_name) {
 		config = xml_node_get_child(w->config, action->common.config_name);
 		action->common.config = config;
+	}
+
+	if (config == NULL) {
+		/* Consult the method's metadata information to see how to
+		 * locate the configuration node. Any argument to a method may have
+		 * a <mapping> metadata element:
+		 *
+		 * <method ...>
+		 *   <arguments>
+		 *     <config type="...">
+		 *       <meta>
+		 *	   <mapping
+		 *	   	document-node="/some/xpath/expression" 
+		 *		skip-unless-present="true"
+		 *		/>
+		 *       </meta>
+		 *     </config>
+		 *   </arguments>
+		 * </method>
+		 *
+		 * The document node is an xpath relative to the enclosing
+		 * <interface> element. If the document does not contain the
+		 * referenced node, and skip-unless-present is true, then we
+		 * do not perform this call.
+		 */
+		ni_bool_t skip_call = FALSE;
+
+		if (ni_dbus_xml_map_method_argument(method, 0, w->config, &config, &skip_call) < 0)
+			goto document_error;
+
+		if (config == NULL && skip_call)
+			goto success;
 	}
 
 	if (config != NULL) {
@@ -1403,6 +1435,10 @@ ni_ifworker_do_common(ni_ifworker_t *w, ni_netif_action_t *action)
 success:
 	w->state = action->next_state;
 	return 0;
+
+document_error:
+	ni_ifworker_fail(w, "interface document error");
+	return -1;
 }
 
 /*
@@ -1412,7 +1448,7 @@ success:
  * to a bridge.
  */
 static int
-ni_ifworker_do_device_up(ni_ifworker_t *w, ni_netif_action_t *action)
+ni_ifworker_do_device_up(ni_ifworker_t *w, ni_iftransition_t *action)
 {
 	ni_objectmodel_callback_info_t *callback_list = NULL;
 	const ni_dbus_service_t *service;
@@ -1504,7 +1540,7 @@ device_is_up:
  */
 #if 0
 static int
-ni_ifworker_do_firewall_up(ni_ifworker_t *w, ni_netif_action_t *action)
+ni_ifworker_do_firewall_up(ni_ifworker_t *w, ni_iftransition_t *action)
 {
 	ni_objectmodel_callback_info_t *callback_list = NULL;
 	xml_node_t *fwnode;
@@ -1531,7 +1567,7 @@ ni_ifworker_do_firewall_up(ni_ifworker_t *w, ni_netif_action_t *action)
  * Finite state machine - bring up the device link layer.
  */
 static int
-ni_ifworker_do_link_up(ni_ifworker_t *w, ni_netif_action_t *action)
+ni_ifworker_do_link_up(ni_ifworker_t *w, ni_iftransition_t *action)
 {
 	ni_objectmodel_callback_info_t *callback_list = NULL;
 	xml_node_t *devnode;
@@ -1558,7 +1594,7 @@ ni_ifworker_do_link_up(ni_ifworker_t *w, ni_netif_action_t *action)
  * Finite state machine - do link authentication
  */
 static int
-ni_ifworker_do_linkauth(ni_ifworker_t *w, ni_netif_action_t *action)
+ni_ifworker_do_linkauth(ni_ifworker_t *w, ni_iftransition_t *action)
 {
 	xml_node_t *authnode;
 	ni_objectmodel_callback_info_t *callback_list = NULL;
@@ -1590,7 +1626,7 @@ link_authenticated:
  * Finite state machine - configure network addresses and routes
  */
 static int
-ni_ifworker_do_network_up(ni_ifworker_t *w, ni_netif_action_t *action)
+ni_ifworker_do_network_up(ni_ifworker_t *w, ni_iftransition_t *action)
 {
 	xml_node_t *child;
 
@@ -1668,7 +1704,7 @@ __ni_ifworker_check_addrconf(const char *name)
  * Shut down all network configuration on the given interface
  */
 static int
-ni_ifworker_do_network_down(ni_ifworker_t *w, ni_netif_action_t *action)
+ni_ifworker_do_network_down(ni_ifworker_t *w, ni_iftransition_t *action)
 {
 	const ni_dbus_service_t *service, **pos;
 
@@ -1688,20 +1724,20 @@ ni_ifworker_do_network_down(ni_ifworker_t *w, ni_netif_action_t *action)
 
 			ni_trace("%s is an addrconf service", service->name);
 			if (ni_call_drop_lease(w->object, service, &callback_list) < 0) {
-				ni_ifworker_fail(w, "failed to shut down addresses (%s)", service->name);
-				/* return -1; */
+				ni_warn("%s: failed to shut down addresses (%s)", w->name, service->name);
+				continue;
 			}
 
 			if (callback_list) {
 				ni_ifworker_add_callbacks(w, callback_list);
-				w->wait_for_state = STATE_LINK_UP;
+				w->wait_for_state = STATE_ADDRCONF_UP - 1;
 			}
 		}
 	}
 
 	if (w->callbacks == NULL && !w->failed) {
 		ni_debug_dbus("%s: all addresses down; we can proceed", w->name);
-		w->state = STATE_LINK_UP;
+		w->state = STATE_ADDRCONF_UP - 1;
 	}
 
 	return 0;
@@ -1712,7 +1748,7 @@ ni_ifworker_do_network_down(ni_ifworker_t *w, ni_netif_action_t *action)
  * Shut down the link
  */
 static int
-ni_ifworker_do_link_down(ni_ifworker_t *w, ni_netif_action_t *action)
+ni_ifworker_do_link_down(ni_ifworker_t *w, ni_iftransition_t *action)
 {
 	ni_objectmodel_callback_info_t *callback_list = NULL;
 
@@ -1737,7 +1773,7 @@ ni_ifworker_do_link_down(ni_ifworker_t *w, ni_netif_action_t *action)
  * Shut down the firewall on this device
  */
 static int
-ni_ifworker_do_firewall_down(ni_ifworker_t *w, ni_netif_action_t *action)
+ni_ifworker_do_firewall_down(ni_ifworker_t *w, ni_iftransition_t *action)
 {
 	ni_objectmodel_callback_info_t *callback_list = NULL;
 
@@ -1762,7 +1798,7 @@ ni_ifworker_do_firewall_down(ni_ifworker_t *w, ni_netif_action_t *action)
  * Delete the link
  */
 static int
-ni_ifworker_do_device_delete(ni_ifworker_t *w, ni_netif_action_t *action)
+ni_ifworker_do_device_delete(ni_ifworker_t *w, ni_iftransition_t *action)
 {
 	ni_objectmodel_callback_info_t *callback_list = NULL;
 
@@ -1790,67 +1826,84 @@ ni_ifworker_do_device_delete(ni_ifworker_t *w, ni_netif_action_t *action)
 static int
 ni_ifworker_can_delete(const ni_ifworker_t *w)
 {
-	return !!ni_dbus_object_get_service_for_method(w->object, "deleteLink");
+	return !!ni_dbus_object_get_service_for_method(w->object, "deleteDevice");
 }
 
 /*
  * Finite state machine
  */
-#define COMMON_ACTION(__state, __svc, __meth, __node, __more...) { \
+#define TRANSITION_UP_TO(__state, __func) { \
+	.from_state = __state - 1, .next_state = __state, .func = __func \
+}
+#define TRANSITION_DOWN_FROM(__state, __func) { \
+	.from_state = __state, .next_state = __state - 1, .func = __func \
+}
+
+#define COMMON_TRANSITION_UP_TO(__state, __svc, __meth, __node, __more...) { \
+	.from_state = __state - 1, \
 	.next_state = __state, \
 	.func = ni_ifworker_do_common, \
 	.common = { .service_name = __svc, .method_name = __meth, .config_name = __node, ##__more } \
 }
 
-static ni_netif_action_t	ni_ifworker_fsm_up[] = {
+#define COMMON_TRANSITION_DOWN_FROM(__state, __svc, __meth, __node, __more...) { \
+	.from_state = __state, \
+	.next_state = __state - 1, \
+	.func = ni_ifworker_do_common, \
+	.common = { .service_name = __svc, .method_name = __meth, .config_name = __node, ##__more } \
+}
+
+static ni_iftransition_t	ni_iftransitions[] = {
+	/* -------------------------------------- *
+	 * Transitions for bringing up a device
+	 * -------------------------------------- */
 	/* This creates the device (if it's virtual) and sets any device attributes,
 	 * such as a MAC address */
-	{ .next_state = STATE_DEVICE_UP,	.func = ni_ifworker_do_device_up },
+	TRANSITION_UP_TO(STATE_DEVICE_UP, ni_ifworker_do_device_up),
 
 	/* This step adds device-specific filtering, if available. Typical
 	 * example would be bridge filtering with ebtables. */
-	COMMON_ACTION(STATE_FIREWALL_UP, NULL, "firewallUp", "firewall"),
+	COMMON_TRANSITION_UP_TO(STATE_FIREWALL_UP, NULL, "firewallUp", "firewall"),
 
 	/* This brings up the link layer, and sets general device attributes such
 	 * as the MTU, the transfer queue length etc. */
 	/* FIXME: change the xml node name from <device> to something else.
 	 * See also linkDown() below. */
-	COMMON_ACTION(STATE_LINK_UP, NULL, "linkUp", "device"),
+	COMMON_TRANSITION_UP_TO(STATE_LINK_UP, NULL, "linkUp", "device"),
 
 	/* If the link requires authentication, this information can be provided
 	 * here; for instance ethernet 802.1x, wireless WPA, or PPP chap/pap.
 	 * NOTE: This may not be the right place; we may have to fold this into
 	 * the link_up step, or even do it prior to that. */
-	COMMON_ACTION(STATE_LINK_AUTHENTICATED, NULL, "login", NULL),
+	COMMON_TRANSITION_UP_TO(STATE_LINK_AUTHENTICATED, NULL, "login", NULL),
 
 	/* Configure all assigned addresses and bring up the network */
-	{ .next_state = STATE_ADDRCONF_UP,	.func = ni_ifworker_do_network_up },
+	TRANSITION_UP_TO(STATE_ADDRCONF_UP, ni_ifworker_do_network_up),
 
-	{ .next_state = STATE_NONE, .func = NULL }
-};
-
-static ni_netif_action_t	ni_ifworker_fsm_down[] = {
+	/* -------------------------------------- *
+	 * Transitions for bringing down a device
+	 * -------------------------------------- */
 	/* Remove all assigned addresses and bring down the network */
-	{ .next_state = STATE_LINK_UP,		.func = ni_ifworker_do_network_down },
+	TRANSITION_DOWN_FROM(STATE_ADDRCONF_UP, ni_ifworker_do_network_down),
 
 	/* Shut down the link */
-	COMMON_ACTION(STATE_FIREWALL_UP, NULL, "linkDown", "device"),
+	COMMON_TRANSITION_DOWN_FROM(STATE_LINK_UP, NULL, "linkDown", "device"),
 
 	/* Shut down the firewall */
-	COMMON_ACTION(STATE_DEVICE_UP, NULL, "firewallDown", "firewall"),
+	COMMON_TRANSITION_DOWN_FROM(STATE_FIREWALL_UP, NULL, "firewallDown", "firewall"),
 
 	/* Delete the device */
-	COMMON_ACTION(STATE_DEVICE_DOWN, NULL, "deviceDelete", NULL),
+	COMMON_TRANSITION_DOWN_FROM(STATE_DEVICE_UP, NULL, "deviceDelete", NULL),
 
-	{ .next_state = STATE_NONE, .func = NULL }
+	{ .from_state = STATE_NONE, .next_state = STATE_NONE, .func = NULL }
 };
 
 static void
 ni_ifworker_fsm_init(ni_ifworker_t *w)
 {
-	const ni_netif_action_t *actions, *a;
-	unsigned int num_actions;
-	unsigned int target_state;
+	unsigned int index, num_actions;
+	unsigned int target_state, from_state, cur_state;
+	int increment;
 
 	if (w->actions != NULL)
 		return;
@@ -1864,12 +1917,14 @@ ni_ifworker_fsm_init(ni_ifworker_t *w)
 	switch (target_state) {
 	case STATE_ADDRCONF_UP:
 	case STATE_LINK_UP:
-		actions = ni_ifworker_fsm_up;
+		from_state = STATE_DEVICE_DOWN;
+		increment = 1;
 		break;
 
 	case STATE_DEVICE_UP:
 	case STATE_DEVICE_DOWN:
-		actions = ni_ifworker_fsm_down;
+		from_state = STATE_ADDRCONF_UP;
+		increment = -1;
 		break;
 
 	default:
@@ -1877,16 +1932,54 @@ ni_ifworker_fsm_init(ni_ifworker_t *w)
 				w->name, ni_ifworker_state_name(w->target_state));
 	}
 
-	for (num_actions = 0, a = actions; a->func; ++a) {
-		/* Increment num_actions *before* we check whether we've reached
-		 * the target state. Otherwise we fail to include the last rule  */
-		++num_actions;
-		if (a->next_state == w->target_state)
-			break;
+	ni_debug_objectmodel("%s: set up FSM from %s -> %s", w->name,
+			ni_ifworker_state_name(from_state),
+			ni_ifworker_state_name(target_state));
+	num_actions = 0;
+
+do_it_again:
+	index = 0;
+	for (cur_state = from_state; cur_state != target_state; ) {
+		unsigned int next_state = cur_state + increment;
+		const ni_iftransition_t *a;
+
+		for (a = ni_iftransitions; a->func; ++a) {
+			if (a->from_state == cur_state && a->next_state == next_state) {
+				if (w->actions != NULL) {
+
+					if (a->common.method_name) {
+						ni_debug_objectmodel("  %s -> %s: %s()",
+							ni_ifworker_state_name(cur_state),
+							ni_ifworker_state_name(target_state),
+							a->common.method_name);
+					} else {
+						ni_debug_objectmodel("  %s -> %s: func=%p",
+							ni_ifworker_state_name(cur_state),
+							ni_ifworker_state_name(target_state),
+							a->func);
+					}
+					w->actions[index++] = *a;
+					break;
+				}
+				num_actions++;
+			}
+		}
+
+		cur_state = next_state;
 	}
 
-	w->actions = calloc(num_actions + 1, sizeof(ni_netif_action_t));
-	memcpy(w->actions, actions, num_actions * sizeof(ni_netif_action_t));
+	if (w->actions == NULL) {
+		w->actions = calloc(num_actions + 1, sizeof(ni_iftransition_t));
+		goto do_it_again;
+	}
+
+	if (w->device_auth_service && w->device_auth_config) {
+		ni_iftransition_t *action;
+
+		action =  ni_ifworker_get_transition_up(w, STATE_LINK_AUTHENTICATED);
+		action->common.service = w->device_auth_service;
+		action->common.config = w->device_auth_config;
+	}
 }
 
 static unsigned int
@@ -1899,7 +1992,7 @@ ni_ifworker_fsm(void)
 
 		for (i = 0; i < interface_workers.count; ++i) {
 			ni_ifworker_t *w = interface_workers.data[i];
-			ni_netif_action_t *action;
+			ni_iftransition_t *action;
 			int prev_state;
 
 			if (w->target_state != STATE_NONE)
