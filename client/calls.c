@@ -384,6 +384,56 @@ ni_call_device_method_common(ni_dbus_object_t *object,
 	return rv;
 }
 
+int
+ni_call_common_xml(ni_dbus_object_t *object, const ni_dbus_service_t *service, const ni_dbus_method_t *method,
+			xml_node_t *config, ni_objectmodel_callback_info_t **callback_list,
+			ni_call_error_handler_t *error_handler)
+{
+	ni_call_error_context_t error_context = NI_CALL_ERROR_CONTEXT_INIT(error_handler, config);
+	ni_dbus_variant_t argv[1];
+	int rv, argc;
+
+retry_operation:
+	memset(argv, 0, sizeof(argv));
+	argc = 0;
+
+	/* Query the xml schema whether the call expects an argument or not.
+	 * All calls that end up here always take at most one argument, which
+	 * would be a dict built from the xml node passed in by the caller. */
+	if (ni_dbus_xml_method_num_args(method)) {
+		ni_dbus_variant_t *dict = &argv[argc++];
+
+		ni_dbus_variant_init_dict(dict);
+		if (config && !ni_dbus_xml_serialize_arg(method, 0, dict, config)) {
+			ni_error("%s.%s: error serializing argument", service->name, method->name);
+			rv = -NI_ERROR_CANNOT_MARSHAL;
+			goto out;
+		}
+	}
+
+	rv = ni_call_device_method_common(object, service, method, argc, argv, callback_list, &error_context);
+
+out:
+	while (argc--)
+		ni_dbus_variant_destroy(&argv[argc]);
+
+	/* On the first time around, we may have run into a problem and tried to fix
+	 * it up in the error handler. For instance, a wireless passphrase or a
+	 * UMTS PIN might have missed, and we prompted the user for it.
+	 * In this case, the error handler will retur RETRY_OPERATION.
+	 *
+	 * Note, the error context handler should limit the number of retries by
+	 * using ni_call_error_context_get_retries().
+	 */
+	if (rv == -NI_ERROR_RETRY_OPERATION && error_context.config) {
+		config = error_context.config;
+		goto retry_operation;
+	}
+
+	ni_call_error_context_destroy(&error_context);
+	return rv;
+}
+
 static int
 ni_call_device_method_xml(ni_dbus_object_t *object, const char *method_name, xml_node_t *config,
 			ni_objectmodel_callback_info_t **callback_list,

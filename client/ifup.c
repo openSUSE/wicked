@@ -52,11 +52,26 @@ typedef struct ni_ifworker_array {
 	ni_ifworker_t **	data;
 } ni_ifworker_array_t;
 
-typedef int			ni_netif_action_fn_t(ni_ifworker_t *);
-typedef struct ni_netif_action {
+typedef struct ni_netif_action	ni_netif_action_t;
+
+typedef int			ni_netif_action_fn_t(ni_ifworker_t *, ni_netif_action_t *);
+struct ni_netif_action {
 	int			next_state;
 	ni_netif_action_fn_t *	func;
-} ni_netif_action_t;
+
+	struct {
+		const char *		service_name;
+		const ni_dbus_service_t *service;
+
+		const char *		method_name;
+		const ni_dbus_method_t *method;
+
+		const char *		config_name;
+		xml_node_t *		config;
+
+		ni_bool_t		skip_if_no_config;
+	} common;
+};
 
 struct ni_ifworker {
 	unsigned int		refcount;
@@ -126,6 +141,7 @@ static void			ni_ifworker_fsm_init(ni_ifworker_t *);
 static const ni_dbus_service_t *__ni_ifworker_check_addrconf(const char *);
 static ni_bool_t		ni_ifworker_req_check_reachable(ni_ifworker_req_t *);
 static void			ni_ifworker_req_free(ni_ifworker_req_t *);
+static ni_netif_action_t *	ni_ifworker_get_action(ni_ifworker_t *w, int state);
 
 static inline ni_ifworker_t *
 __ni_ifworker_new(const char *name, xml_node_t *config)
@@ -964,6 +980,8 @@ ni_ifworker_bind_device_apis(ni_ifworker_t *w)
 	 * probably most people won't bother with adding any <ethernet>
 	 * configuration for their eth devices. */
 	if (best_service) {
+		ni_netif_action_t *action;
+
 		ni_debug_objectmodel("%s: using %s to configure device (using <%s> element)",
 				w->name, best_service->name, best_config->name);
 
@@ -973,7 +991,11 @@ ni_ifworker_bind_device_apis(ni_ifworker_t *w)
 
 		/* Now find the factory and auth services for this device class, if there are any. */
 		w->device_factory_service = ni_objectmodel_factory_service(best_service);
-		w->device_auth_service = ni_objectmodel_auth_service(best_service);
+
+		/* FIXME: we should only do this during ifup */
+		action = ni_ifworker_get_action(w, STATE_LINK_AUTHENTICATED);
+		action->common.service = ni_objectmodel_auth_service(best_service);
+		action->common.config = xml_node_get_child(w->device_config, "auth");
 
 		/* The device service specifies a class it is compatible with, ie netif-foobar,
 		 * where "foobar" must be a valid iftype name */
@@ -1300,13 +1322,97 @@ out:
 }
 
 /*
+ * Most steps of the finite state machine follow the same pattern.
+ */
+static ni_netif_action_t *
+ni_ifworker_get_action(ni_ifworker_t *w, int next_state)
+{
+	ni_netif_action_t *action;
+
+	for (action = w->actions; action->next_state; ++action)
+		if (action->next_state == next_state)
+			return action;
+	return NULL;
+}
+
+int
+ni_ifworker_do_common(ni_ifworker_t *w, ni_netif_action_t *action)
+{
+	ni_objectmodel_callback_info_t *callback_list = NULL;
+	const ni_dbus_service_t *service;
+	const ni_dbus_method_t *method;
+	xml_node_t *config;
+	int rv;
+
+	ni_debug_objectmodel("%s(name=%s, object=%p, path=%s)",
+			action->common.method_name, w->name, w->object, w->object_path);
+
+	service = action->common.service;
+	if (service == NULL) {
+		if (action->common.service_name != NULL) {
+			/* Explicitly specifies a dbus service */
+			service = ni_dbus_object_get_service(w->object, action->common.service_name);
+			if (service == NULL) {
+				ni_ifworker_fail(w, "object does not support interface %s",
+						action->common.service_name);
+				return -NI_ERROR_METHOD_NOT_SUPPORTED;
+			}
+		} else {
+			/* Implicit: look up the service based on the method name.
+			 * If the interface doesn't support this interface, we trivially succeed. */
+			service = ni_dbus_object_get_service_for_method(w->object, action->common.method_name);
+			if (service == NULL)
+				goto success;
+		}
+
+		action->common.service = service;
+	}
+
+	method = action->common.method;
+	if (method == NULL) {
+		method = ni_dbus_service_get_method(service, action->common.method_name);
+
+		/* If the interface doesn't support this interface, we trivially succeed. */
+		if (method == NULL)
+			goto success;
+		action->common.method = method;
+	}
+
+	config = action->common.config;
+	if (config == NULL && action->common.config_name) {
+		config = xml_node_get_child(w->config, action->common.config_name);
+		action->common.config = config;
+	}
+
+	if (config != NULL) {
+		/* FIXME: validate XML */
+	}
+
+	rv = ni_call_common_xml(w->object, service, method, config, &callback_list, ni_ifworker_error_handler);
+	if (rv < 0) {
+		ni_ifworker_fail(w, "call to %s() failed: %s", method->name, ni_strerror(rv));
+		return rv;
+	}
+
+	if (callback_list) {
+		ni_ifworker_add_callbacks(w, callback_list);
+		w->wait_for_state = action->next_state;
+		return 0;
+	}
+
+success:
+	w->state = action->next_state;
+	return 0;
+}
+
+/*
  * Finite state machine - create the device if it does not exist
  * Note this is called for all virtual devices, because the deviceNew
  * call also takes care of setting up things like the ports assigned
  * to a bridge.
  */
 static int
-ni_ifworker_do_device_up(ni_ifworker_t *w)
+ni_ifworker_do_device_up(ni_ifworker_t *w, ni_netif_action_t *action)
 {
 	ni_objectmodel_callback_info_t *callback_list = NULL;
 	const ni_dbus_service_t *service;
@@ -1396,8 +1502,9 @@ device_is_up:
 /*
  * Finite state machine - bring up the firewall on this device
  */
+#if 0
 static int
-ni_ifworker_do_firewall_up(ni_ifworker_t *w)
+ni_ifworker_do_firewall_up(ni_ifworker_t *w, ni_netif_action_t *action)
 {
 	ni_objectmodel_callback_info_t *callback_list = NULL;
 	xml_node_t *fwnode;
@@ -1424,7 +1531,7 @@ ni_ifworker_do_firewall_up(ni_ifworker_t *w)
  * Finite state machine - bring up the device link layer.
  */
 static int
-ni_ifworker_do_link_up(ni_ifworker_t *w)
+ni_ifworker_do_link_up(ni_ifworker_t *w, ni_netif_action_t *action)
 {
 	ni_objectmodel_callback_info_t *callback_list = NULL;
 	xml_node_t *devnode;
@@ -1451,7 +1558,7 @@ ni_ifworker_do_link_up(ni_ifworker_t *w)
  * Finite state machine - do link authentication
  */
 static int
-ni_ifworker_do_linkauth(ni_ifworker_t *w)
+ni_ifworker_do_linkauth(ni_ifworker_t *w, ni_netif_action_t *action)
 {
 	xml_node_t *authnode;
 	ni_objectmodel_callback_info_t *callback_list = NULL;
@@ -1477,12 +1584,13 @@ link_authenticated:
 	w->state = STATE_LINK_AUTHENTICATED;
 	return 0;
 }
+#endif
 
 /*
  * Finite state machine - configure network addresses and routes
  */
 static int
-ni_ifworker_do_network_up(ni_ifworker_t *w)
+ni_ifworker_do_network_up(ni_ifworker_t *w, ni_netif_action_t *action)
 {
 	xml_node_t *child;
 
@@ -1560,7 +1668,7 @@ __ni_ifworker_check_addrconf(const char *name)
  * Shut down all network configuration on the given interface
  */
 static int
-ni_ifworker_do_network_down(ni_ifworker_t *w)
+ni_ifworker_do_network_down(ni_ifworker_t *w, ni_netif_action_t *action)
 {
 	const ni_dbus_service_t *service, **pos;
 
@@ -1599,11 +1707,12 @@ ni_ifworker_do_network_down(ni_ifworker_t *w)
 	return 0;
 }
 
+#if 0
 /*
  * Shut down the link
  */
 static int
-ni_ifworker_do_link_down(ni_ifworker_t *w)
+ni_ifworker_do_link_down(ni_ifworker_t *w, ni_netif_action_t *action)
 {
 	ni_objectmodel_callback_info_t *callback_list = NULL;
 
@@ -1628,7 +1737,7 @@ ni_ifworker_do_link_down(ni_ifworker_t *w)
  * Shut down the firewall on this device
  */
 static int
-ni_ifworker_do_firewall_down(ni_ifworker_t *w)
+ni_ifworker_do_firewall_down(ni_ifworker_t *w, ni_netif_action_t *action)
 {
 	ni_objectmodel_callback_info_t *callback_list = NULL;
 
@@ -1653,7 +1762,7 @@ ni_ifworker_do_firewall_down(ni_ifworker_t *w)
  * Delete the link
  */
 static int
-ni_ifworker_do_device_delete(ni_ifworker_t *w)
+ni_ifworker_do_device_delete(ni_ifworker_t *w, ni_netif_action_t *action)
 {
 	ni_objectmodel_callback_info_t *callback_list = NULL;
 
@@ -1676,6 +1785,7 @@ ni_ifworker_do_device_delete(ni_ifworker_t *w)
 	}
 	return 0;
 }
+#endif
 
 static int
 ni_ifworker_can_delete(const ni_ifworker_t *w)
@@ -1686,6 +1796,12 @@ ni_ifworker_can_delete(const ni_ifworker_t *w)
 /*
  * Finite state machine
  */
+#define COMMON_ACTION(__state, __svc, __meth, __node, __more...) { \
+	.next_state = __state, \
+	.func = ni_ifworker_do_common, \
+	.common = { .service_name = __svc, .method_name = __meth, .config_name = __node, ##__more } \
+}
+
 static ni_netif_action_t	ni_ifworker_fsm_up[] = {
 	/* This creates the device (if it's virtual) and sets any device attributes,
 	 * such as a MAC address */
@@ -1693,17 +1809,19 @@ static ni_netif_action_t	ni_ifworker_fsm_up[] = {
 
 	/* This step adds device-specific filtering, if available. Typical
 	 * example would be bridge filtering with ebtables. */
-	{ .next_state = STATE_FIREWALL_UP,	.func = ni_ifworker_do_firewall_up },
+	COMMON_ACTION(STATE_FIREWALL_UP, NULL, "firewallUp", "firewall"),
 
 	/* This brings up the link layer, and sets general device attributes such
 	 * as the MTU, the transfer queue length etc. */
-	{ .next_state = STATE_LINK_UP,		.func = ni_ifworker_do_link_up },
+	/* FIXME: change the xml node name from <device> to something else.
+	 * See also linkDown() below. */
+	COMMON_ACTION(STATE_LINK_UP, NULL, "linkUp", "device"),
 
 	/* If the link requires authentication, this information can be provided
 	 * here; for instance ethernet 802.1x, wireless WPA, or PPP chap/pap.
 	 * NOTE: This may not be the right place; we may have to fold this into
 	 * the link_up step, or even do it prior to that. */
-	{ .next_state = STATE_LINK_AUTHENTICATED,.func = ni_ifworker_do_linkauth },
+	COMMON_ACTION(STATE_LINK_AUTHENTICATED, NULL, "login", NULL),
 
 	/* Configure all assigned addresses and bring up the network */
 	{ .next_state = STATE_ADDRCONF_UP,	.func = ni_ifworker_do_network_up },
@@ -1716,13 +1834,13 @@ static ni_netif_action_t	ni_ifworker_fsm_down[] = {
 	{ .next_state = STATE_LINK_UP,		.func = ni_ifworker_do_network_down },
 
 	/* Shut down the link */
-	{ .next_state = STATE_FIREWALL_UP,	.func = ni_ifworker_do_link_down },
+	COMMON_ACTION(STATE_FIREWALL_UP, NULL, "linkDown", "device"),
 
 	/* Shut down the firewall */
-	{ .next_state = STATE_DEVICE_UP,	.func = ni_ifworker_do_firewall_down },
+	COMMON_ACTION(STATE_DEVICE_UP, NULL, "firewallDown", "firewall"),
 
 	/* Delete the device */
-	{ .next_state = STATE_DEVICE_DOWN,	.func = ni_ifworker_do_device_delete },
+	COMMON_ACTION(STATE_DEVICE_DOWN, NULL, "deviceDelete", NULL),
 
 	{ .next_state = STATE_NONE, .func = NULL }
 };
@@ -1804,13 +1922,14 @@ ni_ifworker_fsm(void)
 			if (w->wait_for_state)
 				continue;
 
-			action = w->actions++;
+			action = w->actions;
 			if (action->next_state == STATE_NONE)
 				w->state = w->target_state;
 
 			if (w->state == w->target_state) {
 				ni_ifworker_success(w);
 				made_progress = 1;
+				w->actions++;
 				continue;
 			}
 
@@ -1821,7 +1940,8 @@ ni_ifworker_fsm(void)
 			}
 
 			prev_state = w->state;
-			if (action->func(w) >= 0) {
+			w->actions++;
+			if (action->func(w, action) >= 0) {
 				made_progress = 1;
 				if (w->state == action->next_state) {
 					/* We should not have transitioned to the next state while
