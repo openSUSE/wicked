@@ -216,6 +216,10 @@ ni_xs_type_free(ni_xs_type_t *type)
 			ni_xs_scalar_set_bitmap(type, NULL);
 			ni_xs_scalar_set_range(type, NULL);
 
+			if (scalar_info->meta)
+				xml_node_free(scalar_info->meta);
+			scalar_info->meta = NULL;
+
 			free(scalar_info);
 			type->u.scalar_info = NULL;
 			break;
@@ -1150,6 +1154,7 @@ ni_xs_type_t *
 ni_xs_build_simple_type(xml_node_t *node, const char *typeName, ni_xs_scope_t *scope, ni_xs_group_array_t *group_array)
 {
 	ni_xs_type_t *result;
+	xml_node_t *meta;
 
 	if (typeName == NULL) {
 		ni_error("%s: NULL type name?!", xml_node_location(node));
@@ -1164,6 +1169,20 @@ ni_xs_build_simple_type(xml_node_t *node, const char *typeName, ni_xs_scope_t *s
 	if (!ni_xs_type_build_constraints(&result, node, group_array)) {
 		ni_xs_type_release(result);
 		return NULL;
+	}
+
+	/* If we find any <meta> type inside a scalar type definition,
+	 * detach it from the schema xml tree and store it in the scalar
+	 * type node for later use. */
+	if (result->class == NI_XS_TYPE_SCALAR
+	 && (meta = xml_node_get_child(node, "meta")) != NULL) {
+		if (result->u.scalar_info->meta) {
+			ni_error("%s: overwriting <meta> info of node", xml_node_location(node));
+		} else {
+			xml_node_detach(meta);
+			result = ni_xs_type_clone_and_release(result);
+			result->u.scalar_info->meta = meta;
+		}
 	}
 
 	return result;

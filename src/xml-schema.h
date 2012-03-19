@@ -236,6 +236,9 @@ struct ni_xs_scalar_info {
 		ni_xs_range_t *	range;
 		ni_xs_intmap_t *bitmap;
 	} constraint;
+
+	/* <meta> node holding additional information */
+	xml_node_t *		meta;
 };
 
 struct ni_xs_type {
