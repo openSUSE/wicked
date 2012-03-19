@@ -17,6 +17,7 @@
 #include "debug.h"
 
 #include <wicked/netinfo.h>
+#include <wicked/xpath.h>
 #include "dbus-objects/model.h"
 
 static void		ni_dbus_define_scalar_types(ni_xs_scope_t *);
@@ -24,6 +25,11 @@ static void		ni_dbus_define_xml_notations(void);
 static int		ni_dbus_xml_register_classes(ni_xs_scope_t *);
 static ni_dbus_method_t *ni_dbus_xml_register_methods(ni_xs_service_t *, ni_xs_method_t *, const ni_dbus_method_t *);
 
+static dbus_bool_t	ni_dbus_validate_xml(xml_node_t *, const ni_xs_type_t *, const ni_dbus_xml_validate_context_t *);
+static dbus_bool_t	ni_dbus_validate_xml_scalar(xml_node_t *, const ni_xs_type_t *, const ni_dbus_xml_validate_context_t *);
+static dbus_bool_t	ni_dbus_validate_xml_struct(xml_node_t *, const ni_xs_type_t *, const ni_dbus_xml_validate_context_t *);
+static dbus_bool_t	ni_dbus_validate_xml_array(xml_node_t *, const ni_xs_type_t *, const ni_dbus_xml_validate_context_t *);
+static dbus_bool_t	ni_dbus_validate_xml_dict(xml_node_t *, const ni_xs_type_t *, const ni_dbus_xml_validate_context_t *);
 static dbus_bool_t	ni_dbus_serialize_xml(xml_node_t *, const ni_xs_type_t *, ni_dbus_variant_t *);
 static dbus_bool_t	ni_dbus_serialize_xml_scalar(xml_node_t *, const ni_xs_type_t *, ni_dbus_variant_t *);
 static dbus_bool_t	ni_dbus_serialize_xml_struct(xml_node_t *, const ni_xs_type_t *, ni_dbus_variant_t *);
@@ -34,7 +40,6 @@ static dbus_bool_t	ni_dbus_deserialize_xml_scalar(ni_dbus_variant_t *, const ni_
 static dbus_bool_t	ni_dbus_deserialize_xml_struct(ni_dbus_variant_t *, const ni_xs_type_t *, xml_node_t *);
 static dbus_bool_t	ni_dbus_deserialize_xml_array(ni_dbus_variant_t *, const ni_xs_type_t *, xml_node_t *);
 static dbus_bool_t	ni_dbus_deserialize_xml_dict(ni_dbus_variant_t *, const ni_xs_type_t *, xml_node_t *);
-static dbus_bool_t	ni_dbus_validate_xml_dict(xml_node_t *, const ni_xs_type_t *);
 static char *		__ni_xs_type_to_dbus_signature(const ni_xs_type_t *, char *, size_t);
 static char *		ni_xs_type_to_dbus_signature(const ni_xs_type_t *);
 static ni_xs_service_t *ni_dbus_xml_get_service_schema(const ni_xs_scope_t *, const char *);
@@ -238,19 +243,49 @@ ni_dbus_xml_method_has_return(const ni_dbus_method_t *method)
  * Serialize XML rep of an argument to a dbus call
  */
 dbus_bool_t
-ni_dbus_xml_serialize_arg(const ni_dbus_method_t *method, unsigned int narg,
-					ni_dbus_variant_t *var, xml_node_t *node)
+ni_dbus_xml_validate_argument(const ni_dbus_method_t *method, unsigned int narg,
+					xml_node_t *node, const ni_dbus_xml_validate_context_t *ctx)
 {
 	ni_xs_method_t *xs_method = method->user_data;
-	ni_xs_type_t *xs_type;
 
 	ni_assert(xs_method);
 	if (narg >= xs_method->arguments.count)
 		return FALSE;
 
-	ni_debug_dbus("%s: serializing argument %u (%s)",
-			method->name, narg, xs_method->arguments.data[narg].name);
-	xs_type = xs_method->arguments.data[narg].type;
+	return ni_dbus_validate_xml(node, xs_method->arguments.data[narg].type, ctx);
+}
+
+ni_xs_type_t *
+ni_dbus_xml_get_argument_type(const ni_dbus_method_t *method, unsigned int narg)
+{
+	ni_xs_method_t *xs_method = method->user_data;
+
+	ni_assert(xs_method);
+	if (narg >= xs_method->arguments.count)
+		return NULL;
+
+	return xs_method->arguments.data[narg].type;
+}
+
+const xml_node_t *
+ni_dbus_xml_get_argument_metadata(const ni_dbus_method_t *method, unsigned int narg)
+{
+	ni_xs_type_t *xs_type;
+
+	if (!(xs_type = ni_dbus_xml_get_argument_type(method, narg)))
+		return NULL;
+
+	return xs_type->meta;
+}
+
+dbus_bool_t
+ni_dbus_xml_serialize_arg(const ni_dbus_method_t *method, unsigned int narg,
+					ni_dbus_variant_t *var, xml_node_t *node)
+{
+	ni_xs_type_t *xs_type;
+
+	if (!(xs_type = ni_dbus_xml_get_argument_type(method, narg)))
+		return FALSE;
 
 	return ni_dbus_serialize_xml(node, xs_type, var);
 }
@@ -347,6 +382,38 @@ ni_dbus_serialize_error(DBusError *error, xml_node_t *node)
 }
 
 /*
+ * Validate an XML tree
+ */
+dbus_bool_t
+ni_dbus_validate_xml(xml_node_t *node, const ni_xs_type_t *type, const ni_dbus_xml_validate_context_t *ctx)
+{
+	if (ctx && ctx->metadata_callback && type->meta) {
+		if (!ctx->metadata_callback(node, type, type->meta, ctx->user_data))
+			return FALSE;
+	}
+
+	switch (type->class) {
+	case NI_XS_TYPE_SCALAR:
+		return ni_dbus_validate_xml_scalar(node, type, ctx);
+
+	case NI_XS_TYPE_STRUCT:
+		return ni_dbus_validate_xml_struct(node, type, ctx);
+
+	case NI_XS_TYPE_ARRAY:
+		return ni_dbus_validate_xml_array(node, type, ctx);
+
+	case NI_XS_TYPE_DICT:
+		return ni_dbus_validate_xml_dict(node, type, ctx);
+
+	default:
+		ni_error("unsupported xml type class %u", type->class);
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+/*
  * Convert an XML tree to a dbus data object for serialization
  */
 dbus_bool_t
@@ -403,29 +470,82 @@ ni_dbus_deserialize_xml(ni_dbus_variant_t *var, const ni_xs_type_t *type, xml_no
 /*
  * XML -> dbus_variant conversion for scalars
  */
+static dbus_bool_t
+ni_dbus_serialize_xml_bitmap(const xml_node_t *node, const ni_xs_scalar_info_t *scalar_info, unsigned long *result)
+{
+	const ni_intmap_t *bits = scalar_info->constraint.bitmap->bits;
+	unsigned long value = 0;
+	xml_node_t *child;
+
+	for (child = node->children; child; child = child->next) {
+		unsigned int bb;
+
+		if (ni_parse_int_mapped(child->name, bits, &bb) < 0 || bb >= 32) {
+			ni_error("%s: unknown or bad bit value <%s>", xml_node_location(node), child->name);
+			return FALSE;
+		}
+
+		value |= 1 << bb;
+	}
+
+	*result = value;
+	return TRUE;
+}
+
+static dbus_bool_t
+ni_dbus_serialize_xml_enum(const xml_node_t *node, const ni_xs_scalar_info_t *scalar_info, unsigned long *result)
+{
+	const ni_intmap_t *names = scalar_info->constraint.enums->bits;
+	unsigned int value;
+
+	if (ni_parse_int_mapped(node->cdata, names, &value) < 0) {
+		ni_error("%s: unknown enum value \"%s\"", xml_node_location(node), node->cdata);
+		return FALSE;
+	}
+
+	*result = value;
+	return TRUE;
+}
+
+/*
+ * Validate a scalar node.
+ * This is where we use the validation callback for
+ *  - resolving references to e.g. device names
+ *  - prompting the user for authentication data too valuable to store in a file
+ *  - recording dependency information.
+ * and some more.
+ */
+dbus_bool_t
+ni_dbus_validate_xml_scalar(xml_node_t *node, const ni_xs_type_t *type, const ni_dbus_xml_validate_context_t *ctx)
+{
+	ni_xs_scalar_info_t *scalar_info = ni_xs_scalar_info(type);
+	unsigned long value;
+
+	if (scalar_info->constraint.bitmap)
+		return ni_dbus_serialize_xml_bitmap(node, scalar_info, &value);
+
+	if (node->cdata == NULL) {
+		ni_error("%s: unable to serialize scalar <%s> - no data", xml_node_location(node), node->name);
+		return FALSE;
+	}
+
+	if (scalar_info->constraint.enums)
+		return ni_dbus_serialize_xml_enum(node, scalar_info, &value);
+
+	/* FIXME: validate whether scalar value can be parsed! */
+	return TRUE;
+}
+
 dbus_bool_t
 ni_dbus_serialize_xml_scalar(xml_node_t *node, const ni_xs_type_t *type, ni_dbus_variant_t *var)
 {
 	ni_xs_scalar_info_t *scalar_info = ni_xs_scalar_info(type);
 
 	if (scalar_info->constraint.bitmap) {
-		const ni_intmap_t *bits = scalar_info->constraint.bitmap->bits;
-		unsigned long value = 0;
-		xml_node_t *child;
+		unsigned long value;
 
-		for (child = node->children; child; child = child->next) {
-			unsigned int bb;
-
-			if (ni_parse_int_mapped(child->name, bits, &bb) < 0 || bb >= 32) {
-				ni_warn("%s: ignoring unknown or bad bit value <%s>",
-						xml_node_location(node), child->name);
-				continue;
-			}
-
-			value |= 1 << bb;
-		}
-
-		if (!ni_dbus_variant_init_signature(var, ni_xs_type_to_dbus_signature(type)))
+		if (!ni_dbus_serialize_xml_bitmap(node, scalar_info, &value)
+		 || !ni_dbus_variant_init_signature(var, ni_xs_type_to_dbus_signature(type)))
 			return FALSE;
 		return ni_dbus_variant_set_ulong(var, value);
 	}
@@ -436,15 +556,10 @@ ni_dbus_serialize_xml_scalar(xml_node_t *node, const ni_xs_type_t *type, ni_dbus
 	}
 
 	if (scalar_info->constraint.enums) {
-		const ni_intmap_t *names = scalar_info->constraint.enums->bits;
-		unsigned int value;
+		unsigned long value;
 
-		if (ni_parse_int_mapped(node->cdata, names, &value) < 0) {
-			ni_error("%s: unknown enum value %s", xml_node_location(node), node->cdata);
-			return FALSE;
-		}
-
-		if (!ni_dbus_variant_init_signature(var, ni_xs_type_to_dbus_signature(type)))
+		if (!ni_dbus_serialize_xml_enum(node, scalar_info, &value)
+		 || !ni_dbus_variant_init_signature(var, ni_xs_type_to_dbus_signature(type)))
 			return FALSE;
 		return ni_dbus_variant_set_uint(var, value);
 	}
@@ -528,6 +643,61 @@ ni_dbus_deserialize_xml_scalar(ni_dbus_variant_t *var, const ni_xs_type_t *type,
 }
 
 /*
+ * Serialize arrays with special notation
+ */
+static dbus_bool_t
+ni_dbus_serialize_byte_array_notation(xml_node_t *node, const ni_xs_array_info_t *array_info,
+				unsigned char **data_ptr, unsigned int *data_len)
+{
+	const ni_xs_notation_t *notation = array_info->notation;
+
+	/* For now, we handle only byte arrays */
+	if (notation->array_element_type != DBUS_TYPE_BYTE) {
+		ni_error("%s: cannot handle array notation \"%s\"", xml_node_location(node), notation->name);
+		return FALSE;
+	}
+	if (node->cdata == NULL) {
+		ni_error("%s: array not compatible with notation \"%s\"", xml_node_location(node), notation->name);
+		return FALSE;
+	}
+
+	if (!notation->parse(node->cdata, data_ptr, data_len)) {
+		ni_error("%s: cannot parse array with notation \"%s\", value=\"%s\"",
+				xml_node_location(node), notation->name, node->cdata);
+		return FALSE;
+	}
+	return TRUE;
+}
+
+/*
+ * Validate an array
+ */
+dbus_bool_t
+ni_dbus_validate_xml_array(xml_node_t *node, const ni_xs_type_t *type, const ni_dbus_xml_validate_context_t *ctx)
+{
+	ni_xs_array_info_t *array_info = ni_xs_array_info(type);
+	ni_xs_type_t *element_type = array_info->element_type;
+	xml_node_t *child;
+
+	if (array_info->notation) {
+		unsigned char *data = NULL;
+		unsigned int len = 0;
+
+		if (!ni_dbus_serialize_byte_array_notation(node, array_info, &data, &len))
+			return FALSE;
+		free(data);
+		return TRUE;
+	}
+
+	for (child = node->children; child; child = child->next) {
+		if (!ni_dbus_validate_xml(child, element_type, ctx))
+			return FALSE;
+	}
+
+	return TRUE;
+}
+
+/*
  * Serialize an array
  */
 dbus_bool_t
@@ -538,27 +708,8 @@ ni_dbus_serialize_xml_array(xml_node_t *node, const ni_xs_type_t *type, ni_dbus_
 	xml_node_t *child;
 
 	if (array_info->notation) {
-		const ni_xs_notation_t *notation = array_info->notation;
-
-		/* For now, we handle only byte arrays */
-		if (notation->array_element_type != DBUS_TYPE_BYTE) {
-			ni_error("%s: cannot handle array notation \"%s\"",
-					xml_node_location(node), notation->name);
-			return FALSE;
-		}
-		if (node->cdata == NULL) {
-			ni_error("%s: array not compatible with notation \"%s\"",
-					xml_node_location(node), notation->name);
-			return FALSE;
-		}
-
 		ni_dbus_variant_init_byte_array(var);
-		if (!notation->parse(node->cdata, &var->byte_array_value, &var->array.len)) {
-			ni_error("%s: cannot parse array with notation \"%s\", value=\"%s\"",
-					xml_node_location(node), notation->name, node->cdata);
-			return FALSE;
-		}
-		return TRUE;
+		return ni_dbus_serialize_byte_array_notation(node, array_info, &var->byte_array_value, &var->array.len);
 	}
 
 	if (!ni_dbus_variant_init_signature(var, ni_xs_type_to_dbus_signature(type)))
@@ -688,9 +839,6 @@ ni_dbus_serialize_xml_dict(xml_node_t *node, const ni_xs_type_t *type, ni_dbus_v
 	ni_xs_dict_info_t *dict_info = ni_xs_dict_info(type);
 	xml_node_t *child;
 
-	if (!ni_dbus_validate_xml_dict(node, type))
-		return FALSE;
-
 	ni_dbus_variant_init_dict(dict);
 	for (child = node->children; child; child = child->next) {
 		const ni_xs_type_t *child_type = ni_xs_dict_info_find(dict_info, child->name);
@@ -708,17 +856,33 @@ ni_dbus_serialize_xml_dict(xml_node_t *node, const ni_xs_type_t *type, ni_dbus_v
 }
 
 dbus_bool_t
-ni_dbus_validate_xml_dict(xml_node_t *node, const ni_xs_type_t *type)
+ni_dbus_validate_xml_dict(xml_node_t *node, const ni_xs_type_t *type, const ni_dbus_xml_validate_context_t *ctx)
 {
 	ni_xs_dict_info_t *dict_info = ni_xs_dict_info(type);
+	xml_node_t *child;
 	unsigned int i;
 
 	ni_assert(dict_info);
+
+	/* First, validate all child nodes. This gives us an opportunity to fix up things
+	 * inside the callback */
+	for (child = node->children; child; child = child->next) {
+		const ni_xs_type_t *child_type = ni_xs_dict_info_find(dict_info, child->name);
+
+		if (child_type == NULL)
+			continue;
+		if (!ni_dbus_validate_xml(child, child_type, ctx))
+			return FALSE;
+	}
+
 	for (i = 0; i < dict_info->children.count; ++i) {
 		const ni_xs_name_type_t *name_type = &dict_info->children.data[i];
+		const ni_xs_type_t *child_type = name_type->type;
 
-		if (name_type->type->constraint.mandatory
+		if (child_type->constraint.mandatory
 		 && !xml_node_get_child(node, name_type->name)) {
+			/* FIXME: we might want to create the child node and call
+			 * the validate callback on it to prompt for it. */
 			ni_error("%s: <%s> lacks mandatory <%s> child element",
 					xml_node_location(node),
 					node->name, name_type->name);
@@ -727,7 +891,6 @@ ni_dbus_validate_xml_dict(xml_node_t *node, const ni_xs_type_t *type)
 	}
 
 	if (dict_info->groups.count) {
-		xml_node_t *child;
 		unsigned int i;
 
 		for (i = 0; i < dict_info->groups.count; ++i)
@@ -809,6 +972,13 @@ ni_dbus_deserialize_xml_dict(ni_dbus_variant_t *var, const ni_xs_type_t *type, x
 /*
  * Serialize a struct
  */
+dbus_bool_t
+ni_dbus_validate_xml_struct(xml_node_t *node, const ni_xs_type_t *type, const ni_dbus_xml_validate_context_t *ctx)
+{
+	ni_error("%s: not implemented yet", __func__);
+	return FALSE;
+}
+
 dbus_bool_t
 ni_dbus_serialize_xml_struct(xml_node_t *node, const ni_xs_type_t *type, ni_dbus_variant_t *var)
 {
@@ -1202,3 +1372,92 @@ ni_dbus_xml_get_properties_schema(const ni_xs_scope_t *scope, const ni_xs_servic
 	return ni_xs_scope_lookup_local(scope, "properties");
 }
 
+/*
+ * Process per-argument metadata for dbus methods
+ *
+ * Consult the method's metadata information to see how to
+ * locate the configuration node. Any argument to a method may have
+ * a <mapping> metadata element:
+ *
+ * <method ...>
+ *   <arguments>
+ *     <config type="...">
+ *       <meta>
+ *	   <mapping
+ *	   	document-node="/some/xpath/expression" 
+ *		skip-unless-present="true"
+ *		/>
+ *       </meta>
+ *     </config>
+ *   </arguments>
+ * </method>
+ *
+ * The document node is an xpath relative to the enclosing
+ * <interface> element. If the document does not contain the
+ * referenced node, and skip-unless-present is true, then we
+ * do not perform this call.
+ */
+int
+ni_dbus_xml_map_method_argument(const ni_dbus_method_t *method, unsigned int index,
+				xml_node_t *doc_node,
+				xml_node_t **ret_node,
+				ni_bool_t *skip_call)
+{
+	const xml_node_t *meta, *mapping;
+
+	/* The default is to not skip the call. */
+	*skip_call = FALSE;
+
+	meta = ni_dbus_xml_get_argument_metadata(method, 0);
+	if (meta && (mapping = xml_node_get_child(meta, "mapping")) != NULL) {
+		const char *attr;
+
+		attr = xml_node_get_attr(mapping, "skip-unless-present");
+		if (attr && !strcasecmp(attr, "true"))
+			*skip_call = TRUE;
+
+		attr = xml_node_get_attr(mapping, "document-node");
+		if (attr != NULL && doc_node) {
+			xpath_enode_t *expression;
+			xpath_result_t *result;
+
+			expression = xpath_expression_parse(attr);
+			if (expression == NULL) {
+				ni_error("%s: cannot parse xpath expression \"%s\"",
+						xml_node_location(mapping), attr);
+				return -NI_ERROR_DOCUMENT_ERROR;
+			}
+
+			result = xpath_expression_eval(expression, doc_node);
+			xpath_expression_free(expression);
+
+			if (result == NULL) {
+				ni_error("%s: unable to evaluate xpath expression \"%s\"",
+						xml_node_location(doc_node), attr);
+				return -NI_ERROR_DOCUMENT_ERROR;
+			}
+
+			if (result->count == 0) {
+				/* Fine, the element referenced by the xpath is not present. */
+			} else
+			if (result->count == 1) {
+				if (result->node[0].type != XPATH_ELEMENT) {
+					ni_error("%s: non-element result of xpath expression \"%s\"",
+							xml_node_location(doc_node), attr);
+					xpath_result_free(result);
+					return -NI_ERROR_DOCUMENT_ERROR;
+				}
+				*ret_node = result->node[0].value.node;
+			} else {
+				ni_error("%s: ambiguous result of xpath expression \"%s\"",
+						xml_node_location(doc_node), attr);
+				xpath_result_free(result);
+				return -NI_ERROR_DOCUMENT_ERROR;
+			}
+
+			xpath_result_free(result);
+		}
+	}
+
+	return 0;
+}

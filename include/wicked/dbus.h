@@ -414,9 +414,19 @@ extern dbus_bool_t		ni_dbus_message_append_int64(ni_dbus_message_t *, int64_t);
 extern dbus_bool_t		ni_dbus_message_append_string(ni_dbus_message_t *, const char *);
 extern dbus_bool_t		ni_dbus_message_append_uuid(ni_dbus_message_t *, const ni_uuid_t *);
 
+typedef struct ni_dbus_xml_validate_context {
+	dbus_bool_t		(*metadata_callback)(xml_node_t *, const ni_xs_type_t *, const xml_node_t *, void *);
+	void *			user_data;
+} ni_dbus_xml_validate_context_t;
+
 extern ni_xs_scope_t *		ni_dbus_xml_init(void);
 extern int			ni_dbus_xml_register_services(ni_xs_scope_t *);
 extern unsigned int		ni_dbus_xml_method_num_args(const ni_dbus_method_t *);
+extern const xml_node_t *	ni_dbus_xml_get_argument_metadata(const ni_dbus_method_t *, unsigned int);
+extern int			ni_dbus_xml_map_method_argument(const ni_dbus_method_t *method, unsigned int index,
+						xml_node_t *doc_node, xml_node_t **ret_node, ni_bool_t *skip_call);
+extern dbus_bool_t		ni_dbus_xml_validate_argument(const ni_dbus_method_t *, unsigned int,
+						xml_node_t *, const ni_dbus_xml_validate_context_t *);
 extern dbus_bool_t		ni_dbus_xml_serialize_arg(const ni_dbus_method_t *, unsigned int,
 						ni_dbus_variant_t *, xml_node_t *);
 extern dbus_bool_t		ni_dbus_xml_method_has_return(const ni_dbus_method_t *);

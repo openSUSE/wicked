@@ -236,9 +236,6 @@ struct ni_xs_scalar_info {
 		ni_xs_range_t *	range;
 		ni_xs_intmap_t *bitmap;
 	} constraint;
-
-	/* <meta> node holding additional information */
-	xml_node_t *		meta;
 };
 
 struct ni_xs_type {
@@ -257,6 +254,9 @@ struct ni_xs_type {
 		ni_xs_struct_info_t *	struct_info;
 		ni_xs_array_info_t *	array_info;
 	} u;
+
+	/* <meta> node holding additional information */
+	xml_node_t *		meta;
 };
 
 typedef struct ni_xs_method	ni_xs_method_t;
@@ -265,6 +265,9 @@ struct ni_xs_method {
 	char *			name;
 	ni_xs_name_type_array_t	arguments;
 	ni_xs_type_t *		retval;
+
+	/* <meta> node holding additional information */
+	xml_node_t *		meta;
 };
 
 typedef struct ni_xs_service	ni_xs_service_t;
