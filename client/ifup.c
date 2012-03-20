@@ -54,6 +54,16 @@ typedef struct ni_ifworker_array {
 	ni_ifworker_t **	data;
 } ni_ifworker_array_t;
 
+struct ni_ifworker_edge {
+	ni_ifworker_t *		child;
+	xml_node_t *		node;
+};
+
+typedef struct ni_ifworker_children {
+	unsigned int		count;
+	struct ni_ifworker_edge *data;
+} ni_ifworker_children_t;
+
 typedef struct ni_netif_action	ni_iftransition_t;
 
 typedef int			ni_netif_action_fn_t(ni_ifworker_t *, ni_iftransition_t *);
@@ -92,7 +102,7 @@ struct ni_ifworker {
 	char *			object_path;
 
 	unsigned int		ifindex;
-	ni_iftype_t		iftype;
+	ni_iftype_t		iftype;		 /* FIXME: nuke */
 
 	int			target_state;
 	int			state;
@@ -117,10 +127,10 @@ struct ni_ifworker {
 	ni_ifworker_t *		exclusive_owner;
 
 	ni_iftransition_t *	actions;
-	ni_uint_range_t		child_states[__STATE_MAX];
+	ni_uint_range_t		child_states[__STATE_MAX]; /* FIXME: nuke */
 
 	ni_ifworker_t *		parent;
-	ni_ifworker_array_t	children;
+	ni_ifworker_children_t	children;
 
 	ni_ifworker_req_t *	dependencies;
 };
@@ -146,7 +156,8 @@ static ni_dbus_object_t *	__root_object;
 
 static const char *		ni_ifworker_state_name(int);
 static void			ni_ifworker_array_append(ni_ifworker_array_t *, ni_ifworker_t *);
-static void			ni_ifworker_array_destroy(ni_ifworker_array_t *);
+static void			ni_ifworker_children_append(ni_ifworker_children_t *, ni_ifworker_t *, xml_node_t *);
+static void			ni_ifworker_children_destroy(ni_ifworker_children_t *);
 static ni_ifworker_t *		ni_ifworker_identify_device(const xml_node_t *);
 static void			ni_ifworker_set_dependencies_xml(ni_ifworker_t *, xml_node_t *);
 static void			ni_ifworker_fsm_init(ni_ifworker_t *);
@@ -185,7 +196,7 @@ ni_ifworker_free(ni_ifworker_t *w)
 	ni_ifworker_req_t *req;
 
 	ni_string_free(&w->name);
-	ni_ifworker_array_destroy(&w->children);
+	ni_ifworker_children_destroy(&w->children);
 	if (w->actions)
 		free(w->actions);
 
@@ -373,7 +384,7 @@ ni_ifworker_array_append(ni_ifworker_array_t *array, ni_ifworker_t *w)
 	w->refcount++;
 }
 
-static void
+void
 ni_ifworker_array_destroy(ni_ifworker_array_t *array)
 {
 	while (array->count)
@@ -496,6 +507,33 @@ ni_ifworker_resolve_reference(xml_node_t *devnode)
 	return child;
 }
 
+static void
+ni_ifworker_children_append(ni_ifworker_children_t *array, ni_ifworker_t *child, xml_node_t *node)
+{
+	struct ni_ifworker_edge *edge;
+
+	array->data = realloc(array->data, (array->count + 1) * sizeof(array->data[0]));
+	edge = &array->data[array->count++];
+
+	edge->child = child;
+	edge->node = node;
+	child->refcount++;
+}
+
+static void
+ni_ifworker_children_destroy(ni_ifworker_children_t *array)
+{
+	struct ni_ifworker_edge *edge;
+	unsigned int i;
+
+	for (edge = array->data, i = 0; i < array->count; ++i, ++edge) {
+		ni_ifworker_release(edge->child);
+	}
+	free(array->data);
+	memset(array, 0, sizeof(*array));
+}
+
+
 static ni_ifworker_t *
 ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *devnode, ni_bool_t shared)
 {
@@ -503,7 +541,7 @@ ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *d
 
 	/* Check if this child is already owned by the given parent. */
 	for (i = 0; i < parent->children.count; ++i) {
-		if (parent->children.data[i] == child)
+		if (parent->children.data[i].child == child)
 			return child;
 	}
 
@@ -529,10 +567,10 @@ ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *d
 		child->exclusive_owner = parent;
 	}
 
-	/* FIXME: we should record the devnode along with the child, and update
+	/* We record the devnode along with the child, so that we can update
 	 * devnode->cdata with the object path before we call any device change
 	 * functions. */
-	ni_ifworker_array_append(&parent->children, child);
+	ni_ifworker_children_append(&parent->children, child, devnode);
 
 #if 0
 	if (parent->behavior.mandatory)
@@ -907,7 +945,7 @@ ni_ifworker_set_target(ni_ifworker_t *w, unsigned int min_state, unsigned int ma
 				ni_ifworker_state_name(min_state),
 				ni_ifworker_state_name(max_state));
 		for (i = 0; i < w->children.count; ++i) {
-			ni_ifworker_t *child = w->children.data[i];
+			ni_ifworker_t *child = w->children.data[i].child;
 
 			ni_ifworker_set_target(child, min_state, max_state);
 		}
@@ -1334,7 +1372,7 @@ __ni_ifworker_print_tree(const char *arrow, const ni_ifworker_t *w, const char *
 
 		arrow = " +--> ";
 		for (i = 0; i < w->children.count; ++i) {
-			ni_ifworker_t *child = w->children.data[i];
+			ni_ifworker_t *child = w->children.data[i].child;
 
 			if (i != 0) {
 				fprintf(stderr, "%s%10s", branches, "");
@@ -1448,7 +1486,7 @@ ni_ifworker_children_ready_for(ni_ifworker_t *w, unsigned int next_parent_state)
 	r = &w->child_states[next_parent_state];
 
 	for (i = 0; i < w->children.count; ++i) {
-		ni_ifworker_t *child = w->children.data[i];
+		ni_ifworker_t *child = w->children.data[i].child;
 
 		if (r->min != __STATE_MAX && child->state < r->min) {
 			ni_debug_dbus("%s: waiting for %s to reach state %s",
