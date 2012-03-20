@@ -157,6 +157,31 @@ ni_objectmodel_bind_compatible_interfaces(ni_dbus_object_t *object)
 	return TRUE;
 }
 
+unsigned int
+ni_objectmodel_compatible_services_for_class(const ni_dbus_class_t *query_class,
+		const ni_dbus_service_t **list, unsigned int max)
+{
+	unsigned int i, count;
+
+	for (i = count = 0; i < ni_objectmodel_service_registry.count; ++i) {
+		const ni_dbus_service_t *service = ni_objectmodel_service_registry.services[i];
+		const ni_dbus_class_t *class;
+
+		/* If the service is compatible with the object's dbus class,
+		 * or any of its superclasses, register this interface to this
+		 * object */
+		for (class = query_class; class; class = class->superclass) {
+			if (service->compatible == class) {
+				if (count < max)
+					list[count++] = service;
+				break;
+			}
+		}
+	}
+
+	return count;
+}
+
 /*
  * objectmodel service registry
  */
