@@ -20,7 +20,11 @@
  <method name="newDevice">
   <arguments>
    <name type="string"/>
-   <vlan type="vlan:linkinfo"/>
+   <config type="vlan:linkinfo">
+    <meta>
+     <mapping document-node="/vlan"/>
+    </meta>
+   </config>
   </arguments>
   <return>
    <!-- this is really an object handle -->

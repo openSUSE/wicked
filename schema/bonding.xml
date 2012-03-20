@@ -64,7 +64,11 @@
   <method name="newDevice">
     <arguments>
      <name type="string"/>
-     <bond type="bonding:device-info"/>
+     <config type="bonding:device-info">
+      <meta>
+       <mapping document-node="/bond"/>
+      </meta>
+     </config>
     </arguments>
     <return>
      <string/>

@@ -18,7 +18,7 @@
     <multicast type="multicast_t"/>
   </define>
 
-  <method name="changeLink">
+  <method name="changeDevice">
     <arguments>
       <properties />
     </arguments>
@@ -40,7 +40,11 @@
   <method name="newDevice">
     <arguments>
       <name type="string"/>
-      <config type="infiniband-child:linkinfo"/>
+      <config type="infiniband-child:linkinfo">
+       <meta>
+        <mapping document-node="/infiniband-child"/>
+       </meta>
+      </config>
     </arguments>
     <return>
       <!-- this is really an object handle -->

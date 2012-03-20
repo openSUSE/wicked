@@ -64,7 +64,11 @@
   <method name="newDevice">
     <arguments>
      <name type="string"/>
-     <bridge type="bridge:linkconfig"/>
+     <config type="bridge:linkconfig">
+      <meta>
+       <mapping document-node="/bridge"/>
+      </meta>
+     </config>
     </arguments>
     <return>
      <string/>

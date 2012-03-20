@@ -1399,12 +1399,10 @@ int
 ni_dbus_xml_map_method_argument(const ni_dbus_method_t *method, unsigned int index,
 				xml_node_t *doc_node,
 				xml_node_t **ret_node,
-				ni_bool_t *skip_call)
+				ni_bool_t *ret_skip_call)
 {
+	ni_bool_t skip_call = FALSE; /* The default is to not skip the call. */
 	const xml_node_t *meta, *mapping;
-
-	/* The default is to not skip the call. */
-	*skip_call = FALSE;
 
 	meta = ni_dbus_xml_get_argument_metadata(method, 0);
 	if (meta && (mapping = xml_node_get_child(meta, "mapping")) != NULL) {
@@ -1412,7 +1410,7 @@ ni_dbus_xml_map_method_argument(const ni_dbus_method_t *method, unsigned int ind
 
 		attr = xml_node_get_attr(mapping, "skip-unless-present");
 		if (attr && !strcasecmp(attr, "true"))
-			*skip_call = TRUE;
+			skip_call = TRUE;
 
 		attr = xml_node_get_attr(mapping, "document-node");
 		if (attr != NULL && doc_node) {
@@ -1456,6 +1454,9 @@ ni_dbus_xml_map_method_argument(const ni_dbus_method_t *method, unsigned int ind
 			xpath_result_free(result);
 		}
 	}
+
+	if (ret_skip_call)
+		*ret_skip_call = skip_call;
 
 	return 0;
 }

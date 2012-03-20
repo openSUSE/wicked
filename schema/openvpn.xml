@@ -127,7 +127,11 @@
  <method name="newDevice">
   <arguments>
    <name type="string"/>
-   <openvpn type="openvpn:linkinfo"/>
+   <openvpn type="openvpn:linkinfo">
+    <meta>
+     <mapping document-node="/openvpn"/>
+    </meta>
+   </config>
   </arguments>
   <return>
    <string/> <!-- this is really an object handle -->

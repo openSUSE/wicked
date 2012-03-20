@@ -1479,9 +1479,9 @@ success:
 
 /*
  * Finite state machine - create the device if it does not exist
- * Note this is called for all virtual devices, because the deviceNew
- * call also takes care of setting up things like the ports assigned
- * to a bridge.
+ * Typically, this will create just the bare interface, like a bridge
+ * or bond device, without actually configuring it (such as adding
+ * bridge ports).
  */
 static int
 ni_ifworker_do_device_new(ni_ifworker_t *w, ni_iftransition_t *action)
@@ -1491,22 +1491,40 @@ ni_ifworker_do_device_new(ni_ifworker_t *w, ni_iftransition_t *action)
 	const char *link_type;
 
 	ni_debug_dbus("%s(%s)", __func__, w->name);
-	linknode = w->device_config;
 
 	if (w->device == NULL) {
+		const ni_dbus_method_t *method;
 		const char *relative_path;
 		char *object_path;
+		int rv;
 
+		if (w->config == NULL) {
+			ni_ifworker_fail(w, "cannot create device - no configuration");
+			return -1;
+		}
+
+		if (!(service = w->device_factory_service)) {
+			ni_ifworker_fail(w, "device does not exist");
+			return -1;
+		}
+
+		method = ni_dbus_service_get_method(service, "newDevice");
+		if (method == NULL) {
+			ni_ifworker_fail(w, "cannot create interface: service %s doesn't support newDevice()",
+					service->name);
+			return -1;
+		}
+
+		if ((rv = ni_dbus_xml_map_method_argument(method, 1, w->config, &linknode, NULL)) < 0) {
+			ni_ifworker_fail(w, "cannot create interface: xml document error");
+			return -1;
+		}
 		if (linknode == NULL) {
 			ni_ifworker_fail(w, "cannot create interface: no device layer config");
 			return -1;
 		}
 
 		link_type = linknode->name;
-		if (!(service = w->device_factory_service)) {
-			ni_ifworker_fail(w, "unknown/unsupported device type %s", link_type);
-			return -1;
-		}
 
 		object_path = ni_call_device_new_xml(service, w->name, linknode);
 		if (object_path == NULL) {
