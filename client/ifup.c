@@ -289,6 +289,21 @@ ni_ifworker_success(ni_ifworker_t *w)
 	w->done = 1;
 }
 
+static unsigned int
+ni_ifworkers_fail_count(void)
+{
+	unsigned int i, nfailed = 0;
+
+	for (i = 0; i < interface_workers.count; ++i) {
+		ni_ifworker_t *w = interface_workers.data[i];
+
+		if (w->failed)
+			nfailed++;
+	}
+
+	return nfailed;
+}
+
 /*
  * Handle timeouts of device config.
  */
@@ -2370,7 +2385,7 @@ do_ifup(int argc, char **argv)
 	};
 	static ni_ifmatcher_t ifmatch;
 	const char *opt_ifconfig = WICKED_IFCONFIG_DIR_PATH;
-	int c, rv = 1;
+	int c;
 
 	memset(&ifmatch, 0, sizeof(ifmatch));
 	ifmatch.require_config = 1;
@@ -2454,7 +2469,8 @@ usage:
 	if (ni_ifworker_fsm() != 0)
 		ni_ifworker_mainloop();
 
-	return rv;
+	/* return an error code if at least one of the devices failed */
+	return ni_ifworkers_fail_count() != 0;
 }
 
 int
@@ -2470,7 +2486,7 @@ do_ifdown(int argc, char **argv)
 	static ni_ifmatcher_t ifmatch;
 	const char *opt_ifconfig = WICKED_IFCONFIG_DIR_PATH;
 	int opt_delete = 0;
-	int c, rv = 1;
+	int c;
 
 	memset(&ifmatch, 0, sizeof(ifmatch));
 
@@ -2547,6 +2563,7 @@ usage:
 	if (ni_ifworker_fsm() != 0)
 		ni_ifworker_mainloop();
 
-	return rv;
+	/* return an error code if at least one of the devices failed */
+	return ni_ifworkers_fail_count() != 0;
 }
 
