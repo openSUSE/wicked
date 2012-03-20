@@ -38,7 +38,7 @@ extern ni_dbus_class_t *	ni_objectmodel_class_new(const char *, const ni_dbus_cl
 #define NI_OBJECTMODEL_WIRELESS_INTERFACE	NI_OBJECTMODEL_INTERFACE ".Wireless"
 #define NI_OBJECTMODEL_BRIDGE_INTERFACE		NI_OBJECTMODEL_INTERFACE ".Bridge"
 #define NI_OBJECTMODEL_VLAN_INTERFACE		NI_OBJECTMODEL_INTERFACE ".VLAN"
-#define NI_OBJECTMODEL_BONDING_INTERFACE	NI_OBJECTMODEL_INTERFACE ".Bonding"
+#define NI_OBJECTMODEL_BONDING_INTERFACE	NI_OBJECTMODEL_INTERFACE ".Bond"
 #define NI_OBJECTMODEL_TUN_INTERFACE		NI_OBJECTMODEL_INTERFACE ".TUN"
 #define NI_OBJECTMODEL_OPENVPN_INTERFACE	NI_OBJECTMODEL_INTERFACE ".OpenVPN"
 #define NI_OBJECTMODEL_PPP_INTERFACE		NI_OBJECTMODEL_INTERFACE ".PPP"
@@ -59,6 +59,8 @@ extern const ni_dbus_service_t *ni_objectmodel_service_by_class(const ni_dbus_cl
 extern const ni_dbus_service_t *ni_objectmodel_service_by_tag(const char *tag);
 extern const ni_dbus_service_t *ni_objectmodel_factory_service(const ni_dbus_service_t *);
 extern const ni_dbus_service_t *ni_objectmodel_auth_service(const ni_dbus_service_t *);
+extern unsigned int		ni_objectmodel_compatible_services_for_class(const ni_dbus_class_t *query_class,
+					const ni_dbus_service_t **list, unsigned int max);
 
 extern dbus_bool_t		ni_objectmodel_get_addrconf_lease(const ni_addrconf_lease_t *, ni_dbus_variant_t *);
 extern dbus_bool_t		ni_objectmodel_set_addrconf_lease(ni_addrconf_lease_t *, const ni_dbus_variant_t *);
