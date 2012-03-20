@@ -1486,14 +1486,16 @@ success:
 static int
 ni_ifworker_do_device_new(ni_ifworker_t *w, ni_iftransition_t *action)
 {
-	const ni_dbus_service_t *service;
-	xml_node_t *linknode;
-	const char *link_type;
+	const ni_dbus_service_t *device_service = NULL;
+	xml_node_t *device_config = NULL;
 
 	ni_debug_dbus("%s(%s)", __func__, w->name);
 
 	if (w->device == NULL) {
 		const ni_dbus_method_t *method;
+		const ni_dbus_class_t *netif_list_class;
+		const ni_dbus_service_t *list_services[128];
+		unsigned int i, count;
 		const char *relative_path;
 		char *object_path;
 		int rv;
@@ -1503,30 +1505,39 @@ ni_ifworker_do_device_new(ni_ifworker_t *w, ni_iftransition_t *action)
 			return -1;
 		}
 
-		if (!(service = w->device_factory_service)) {
+		netif_list_class = ni_objectmodel_get_class(NI_OBJECTMODEL_NETIF_LIST_CLASS);
+		count = ni_objectmodel_compatible_services_for_class(netif_list_class, list_services, 128);
+		for (i = 0; i < count; ++i) {
+			const ni_dbus_service_t *service = list_services[i];
+			xml_node_t *config = NULL;
+
+			method = ni_dbus_service_get_method(service, "newDevice");
+			if (method == NULL)
+				continue;
+
+			rv = ni_dbus_xml_map_method_argument(method, 1, w->config, &config, NULL);
+			if ((rv = ni_dbus_xml_map_method_argument(method, 1, w->config, &config, NULL)) < 0) {
+				ni_ifworker_fail(w, "cannot create interface: xml document error");
+				return -1;
+			}
+
+			if (config != NULL) {
+				if (device_config != NULL) {
+					ni_ifworker_fail(w, "ambiguous device configuration - found services %s and %s",
+							service->name, device_service->name);
+					return -1;
+				}
+				device_service = service;
+				device_config = config;
+			}
+		}
+
+		if (device_service == NULL) {
 			ni_ifworker_fail(w, "device does not exist");
 			return -1;
 		}
 
-		method = ni_dbus_service_get_method(service, "newDevice");
-		if (method == NULL) {
-			ni_ifworker_fail(w, "cannot create interface: service %s doesn't support newDevice()",
-					service->name);
-			return -1;
-		}
-
-		if ((rv = ni_dbus_xml_map_method_argument(method, 1, w->config, &linknode, NULL)) < 0) {
-			ni_ifworker_fail(w, "cannot create interface: xml document error");
-			return -1;
-		}
-		if (linknode == NULL) {
-			ni_ifworker_fail(w, "cannot create interface: no device layer config");
-			return -1;
-		}
-
-		link_type = linknode->name;
-
-		object_path = ni_call_device_new_xml(service, w->name, linknode);
+		object_path = ni_call_device_new_xml(device_service, w->name, device_config);
 		if (object_path == NULL) {
 			ni_ifworker_fail(w, "failed to create interface");
 			return -1;

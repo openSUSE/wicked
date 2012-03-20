@@ -41,12 +41,6 @@
 
  <define name="properties" type="device-info"/>
 
- <method name="newDevice">
-   <arguments>
-    <bond type="bonding:device-info"/>
-   </arguments>
- </method>
-
  <method name="addSlave">
   <arguments>
    <name type="string" />
