@@ -284,7 +284,8 @@ ni_ifworker_fail(ni_ifworker_t *w, const char *fmt, ...)
 static void
 ni_ifworker_success(ni_ifworker_t *w)
 {
-	printf("%s: %s\n", w->name, ni_ifworker_state_name(w->state));
+	if (!w->done)
+		printf("%s: %s\n", w->name, ni_ifworker_state_name(w->state));
 	w->done = 1;
 }
 
@@ -565,13 +566,16 @@ ni_ifworker_update_state(ni_ifworker_t *w, unsigned int min_state, unsigned int 
 	if (max_state < min_state)
 		w->state = max_state;
 
-	if (w->state != prev_state)
+	if (w->state != prev_state) {
 		ni_debug_dbus("device %s changed state %s -> %s%s",
 				w->name,
 				ni_ifworker_state_name(prev_state),
 				ni_ifworker_state_name(w->state),
 				(w->wait_for && w->wait_for->next_state == w->state)?
 					", resuming activity" : ", still waiting for event");
+		if (w->state == w->target_state)
+			ni_ifworker_success(w);
+	}
 
 	if (w->wait_for && w->wait_for->next_state == w->state)
 		w->wait_for = NULL;
@@ -2083,7 +2087,6 @@ ni_ifworker_fsm(void)
 			if (w->state == w->target_state) {
 				ni_ifworker_success(w);
 				made_progress = 1;
-				w->actions++;
 				continue;
 			}
 
