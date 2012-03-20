@@ -235,7 +235,7 @@ ni_dbus_xml_method_has_return(const ni_dbus_method_t *method)
 	ni_xs_method_t *xs_method = method->user_data;
 
 	if (xs_method == NULL)
-		return 0;
+		return FALSE;
 	return xs_method->retval != NULL;
 }
 
@@ -248,8 +248,7 @@ ni_dbus_xml_validate_argument(const ni_dbus_method_t *method, unsigned int narg,
 {
 	ni_xs_method_t *xs_method = method->user_data;
 
-	ni_assert(xs_method);
-	if (narg >= xs_method->arguments.count)
+	if (!xs_method || narg >= xs_method->arguments.count)
 		return FALSE;
 
 	return ni_dbus_validate_xml(node, xs_method->arguments.data[narg].type, ctx);
@@ -260,8 +259,7 @@ ni_dbus_xml_get_argument_type(const ni_dbus_method_t *method, unsigned int narg)
 {
 	ni_xs_method_t *xs_method = method->user_data;
 
-	ni_assert(xs_method);
-	if (narg >= xs_method->arguments.count)
+	if (!xs_method || narg >= xs_method->arguments.count)
 		return NULL;
 
 	return xs_method->arguments.data[narg].type;
