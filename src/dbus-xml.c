@@ -1404,7 +1404,7 @@ ni_dbus_xml_map_method_argument(const ni_dbus_method_t *method, unsigned int ind
 	ni_bool_t skip_call = FALSE; /* The default is to not skip the call. */
 	const xml_node_t *meta, *mapping;
 
-	meta = ni_dbus_xml_get_argument_metadata(method, 0);
+	meta = ni_dbus_xml_get_argument_metadata(method, index);
 	if (meta && (mapping = xml_node_get_child(meta, "mapping")) != NULL) {
 		const char *attr;
 
