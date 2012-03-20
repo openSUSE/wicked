@@ -1123,7 +1123,7 @@ ni_ifworker_bind_device_factory_api(ni_ifworker_t *w)
 	unsigned int i, count;
 	int rv;
 
-	if (w->config == NULL)
+	if (w->config == NULL || w->device_api.factory_service)
 		return 0;
 
 	netif_list_class = ni_objectmodel_get_class(NI_OBJECTMODEL_NETIF_LIST_CLASS);
@@ -1143,7 +1143,7 @@ ni_ifworker_bind_device_factory_api(ni_ifworker_t *w)
 		}
 
 		if (config != NULL) {
-			if (w->device_api.config != NULL) {
+			if (w->device_api.factory_service != NULL) {
 				ni_ifworker_fail(w, "ambiguous device configuration - found services %s and %s",
 						service->name, w->device_api.factory_service->name);
 				return -1;
