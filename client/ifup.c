@@ -102,9 +102,7 @@ struct ni_ifworker {
 
 	const ni_dbus_service_t *device_service;
 	const ni_dbus_service_t *device_factory_service;
-	const ni_dbus_service_t *device_auth_service;
 	xml_node_t *		device_config;
-	xml_node_t *		device_auth_config;
 
 	unsigned int		shared_users;
 	ni_ifworker_t *		exclusive_owner;
@@ -143,9 +141,6 @@ static void			ni_ifworker_array_destroy(ni_ifworker_array_t *);
 static ni_ifworker_t *		ni_ifworker_identify_device(const xml_node_t *);
 static void			ni_ifworker_set_dependencies_xml(ni_ifworker_t *, xml_node_t *);
 static void			ni_ifworker_fsm_init(ni_ifworker_t *);
-#if 0
-static const ni_dbus_service_t *__ni_ifworker_check_addrconf(const char *);
-#endif
 static ni_bool_t		ni_ifworker_req_check_reachable(ni_ifworker_req_t *);
 static void			ni_ifworker_req_free(ni_ifworker_req_t *);
 
@@ -1022,8 +1017,6 @@ ni_ifworker_bind_device_apis(ni_ifworker_t *w)
 
 		/* Now find the factory and auth services for this device class, if there are any. */
 		w->device_factory_service = ni_objectmodel_factory_service(best_service);
-		w->device_auth_service = ni_objectmodel_auth_service(best_service);
-		w->device_auth_config = xml_node_get_child(w->device_config, "auth");
 
 		/* The device service specifies a class it is compatible with, ie netif-foobar,
 		 * where "foobar" must be a valid iftype name */
@@ -1588,324 +1581,9 @@ ni_ifworker_do_device_new(ni_ifworker_t *w, ni_iftransition_t *action)
 		}
 	}
 
-#if 0
-	if (linknode == NULL)
-		goto device_exists;
-
-	link_type = linknode->name;
-
-	/* See if there's a link layer service for this link type, and if it
-	 * has a changeDevice method. If not, this is not fatal; we just ignore
-	 * bogus/unsupported link info for now because it's used for both
-	 * deviceNew and changeDevice.
-	 */
-	if ((service = w->device_service) == NULL
-	 || !ni_dbus_service_get_method(service, "changeDevice"))
-		goto device_exists;
-
-	if (ni_call_device_change_xml(w->object, linknode, &callback_list, ni_ifworker_error_handler) < 0) {
-		ni_ifworker_fail(w, "failed to configure %s device", link_type);
-		return -1;
-	}
-
-	if (callback_list) {
-		ni_ifworker_add_callbacks(action, callback_list, w->name);
-		w->wait_for = action;
-		return 0;
-	}
-
-device_exists:
-#endif
-
 	w->state = action->next_state;
 	return 0;
 }
-
-/*
- * Finite state machine - bring up the firewall on this device
- */
-#if 0
-static int
-ni_ifworker_do_firewall_up(ni_ifworker_t *w, ni_iftransition_t *action)
-{
-	ni_objectmodel_callback_info_t *callback_list = NULL;
-	xml_node_t *fwnode;
-
-	ni_debug_dbus("%s(name=%s, object=%p, path=%s)", __func__, w->name, w->object, w->object_path);
-
-	fwnode = xml_node_get_child(w->config, "firewall");
-	if (ni_call_firewall_up_xml(w->object, fwnode, &callback_list) < 0) {
-		ni_ifworker_fail(w, "failed to protect device");
-		return -1;
-	}
-
-	if (callback_list == NULL) {
-		w->state = STATE_FIREWALL_UP;
-	} else {
-		ni_ifworker_add_callbacks(w, callback_list);
-		w->wait_for_state = STATE_FIREWALL_UP;
-	}
-
-	return 0;
-}
-
-/*
- * Finite state machine - bring up the device link layer.
- */
-static int
-ni_ifworker_do_link_up(ni_ifworker_t *w, ni_iftransition_t *action)
-{
-	ni_objectmodel_callback_info_t *callback_list = NULL;
-	xml_node_t *devnode;
-
-	ni_debug_dbus("%s(name=%s, object=%p, path=%s)", __func__, w->name, w->object, w->object_path);
-
-	devnode = xml_node_get_child(w->config, "device");
-	if (ni_call_link_up_xml(w->object, devnode, &callback_list) < 0) {
-		ni_ifworker_fail(w, "failed to configure and bring up link");
-		return -1;
-	}
-
-	if (callback_list == NULL) {
-		w->state = STATE_LINK_UP;
-	} else {
-		ni_ifworker_add_callbacks(w, callback_list);
-		w->wait_for_state = STATE_LINK_UP;
-	}
-
-	return 0;
-}
-
-/*
- * Finite state machine - do link authentication
- */
-static int
-ni_ifworker_do_linkauth(ni_ifworker_t *w, ni_iftransition_t *action)
-{
-	xml_node_t *authnode;
-	ni_objectmodel_callback_info_t *callback_list = NULL;
-
-	ni_debug_dbus("%s(%s)", __func__, w->name);
-	if (w->device_config == NULL
-	 || w->device_auth_service == NULL
-	 || !(authnode = xml_node_get_child(w->device_config, "auth")))
-		goto link_authenticated;
-
-	if (ni_call_link_login_xml(w->object, authnode, &callback_list, NULL) < 0) {
-		ni_ifworker_fail(w, "failed to authenticate");
-		return -1;
-	}
-
-	if (callback_list) {
-		ni_ifworker_add_callbacks(w, callback_list);
-		w->wait_for_state = STATE_LINK_AUTHENTICATED;
-		return 0;
-	}
-
-link_authenticated:
-	w->state = STATE_LINK_AUTHENTICATED;
-	return 0;
-}
-
-/*
- * Finite state machine - configure network addresses and routes
- */
-static int
-ni_ifworker_do_network_up(ni_ifworker_t *w, ni_iftransition_t *action)
-{
-	xml_node_t *child;
-
-	ni_debug_dbus("%s(%s)", __func__, w->name);
-	for (child = w->config->children; child; child = child->next) {
-		ni_objectmodel_callback_info_t *callback_list = NULL;
-		const ni_dbus_service_t *service;
-
-		/* Addrconf elements are of the form <family:mode>, e.g.
-		 * ipv6:static or ipv4:dhcp */
-		if (!(service = __ni_ifworker_check_addrconf(child->name)))
-			continue;
-
-		/* Okay, this is an addrconf node */
-		ni_debug_dbus("%s: found element <%s>, using interface %s",
-				w->name, child->name, service->name);
-
-		/* Call the service's configure() method.
-		 * If the addresses could be configured instantly,
-		 * it will just return a success status.
-		 * If the address configuration is in progress (e.g. dhcp),
-		 * we will receive a token indicating that the address
-		 * acquisition is in process. When that completes, the server
-		 * will emit a signal (addressConfigured) with the same token.
-		 */
-		if (ni_call_request_lease_xml(w->object, service, child, &callback_list) < 0) {
-			ni_ifworker_fail(w, "address configuration failed (%s)", child->name);
-			return -1;
-		}
-
-		if (callback_list) {
-			ni_ifworker_add_callbacks(action, callback_list, w->name);
-			w->wait_for = action;
-		}
-	}
-	if (w->wait_for == NULL) {
-		ni_debug_dbus("%s: no pending address configuration; we're done", w->name);
-		w->state = STATE_ADDRCONF_UP;
-	}
-
-	return 0;
-}
-
-/*
- * Helper function to check if an XML node corresponds to an address config mode
- */
-static const ni_dbus_service_t *
-__ni_ifworker_check_addrconf(const char *name)
-{
-	const ni_dbus_service_t *service = NULL;
-	char *copy, *afname, *modename;
-
-	copy = afname = strdup(name);
-	if ((modename = strchr(copy, ':')) != NULL) {
-
-		*modename++ = '\0';
-		if (ni_addrfamily_name_to_type(afname) >= 0
-		 &&  ni_addrconf_name_to_type(modename) >= 0) {
-			char interface[128];
-
-			snprintf(interface, sizeof(interface), "%s.Addrconf.%s.%s",
-					NI_OBJECTMODEL_INTERFACE,
-					afname, modename);
-			service = ni_objectmodel_service_by_name(interface);
-			if (!service)
-				ni_warn("No addrconf service for %s:%s; ignored", afname, modename);
-		}
-	}
-
-	free(copy);
-	return service;
-}
-
-/*
- * Shut down all network configuration on the given interface
- */
-static int
-ni_ifworker_do_network_down(ni_ifworker_t *w, ni_iftransition_t *action)
-{
-	const ni_dbus_service_t *service, **pos;
-
-	ni_debug_dbus("%s(%s)", __func__, w->name);
-
-	if (w->object == NULL) {
-		ni_ifworker_fail(w, "%s has no object", w->name);
-		return 0;
-	}
-
-	for (pos = w->object->interfaces; (service = *pos) != NULL; ++pos) {
-		static const char service_prefix[] = NI_OBJECTMODEL_INTERFACE ".Addrconf.";
-
-		/* Check if this is an addrconf interface */
-		if (!strncmp(service->name, service_prefix, sizeof(service_prefix) - 1)) {
-			ni_objectmodel_callback_info_t *callback_list = NULL;
-
-			ni_trace("%s is an addrconf service", service->name);
-			if (ni_call_drop_lease(w->object, service, &callback_list) < 0) {
-				ni_warn("%s: failed to shut down addresses (%s)", w->name, service->name);
-				continue;
-			}
-
-			if (callback_list) {
-				ni_ifworker_add_callbacks(action, callback_list, w->name);
-				w->wait_for = action;
-			}
-		}
-	}
-
-	if (w->wait_for == NULL && !w->failed) {
-		ni_debug_dbus("%s: all addresses down; we can proceed", w->name);
-		w->state = action->next_state;
-	}
-
-	return 0;
-}
-
-/*
- * Shut down the link
- */
-static int
-ni_ifworker_do_link_down(ni_ifworker_t *w, ni_iftransition_t *action)
-{
-	ni_objectmodel_callback_info_t *callback_list = NULL;
-
-	if (ni_call_link_down(w->object, &callback_list) < 0) {
-		ni_ifworker_fail(w, "failed to shut down link");
-		return -1;
-	}
-
-	if (callback_list) {
-		ni_ifworker_add_callbacks(w, callback_list);
-		w->wait_for_state = STATE_FIREWALL_UP;
-	}
-
-	if (w->callbacks == NULL && !w->failed) {
-		ni_debug_dbus("%s: link is down; we can proceed", w->name);
-		w->state = STATE_FIREWALL_UP;
-	}
-	return 0;
-}
-
-/*
- * Shut down the firewall on this device
- */
-static int
-ni_ifworker_do_firewall_down(ni_ifworker_t *w, ni_iftransition_t *action)
-{
-	ni_objectmodel_callback_info_t *callback_list = NULL;
-
-	ni_debug_dbus("%s(name=%s, object=%p, path=%s)", __func__, w->name, w->object, w->object_path);
-	if (ni_call_firewall_down_xml(w->object, &callback_list) < 0) {
-		ni_ifworker_fail(w, "failed to shut down firewall");
-		return -1;
-	}
-
-	if (callback_list == NULL) {
-		ni_debug_dbus("%s: firewall is down; we can proceed", w->name);
-		w->state = STATE_DEVICE_UP;
-	} else {
-		ni_ifworker_add_callbacks(w, callback_list);
-		w->wait_for_state = STATE_DEVICE_UP;
-	}
-
-	return 0;
-}
-
-/*
- * Delete the link
- */
-static int
-ni_ifworker_do_device_delete(ni_ifworker_t *w, ni_iftransition_t *action)
-{
-	ni_objectmodel_callback_info_t *callback_list = NULL;
-
-	/* We should not get here without having verified that we can
-	 * indeed delete this interface, by using ni_ifworker_can_delete
-	 * below. */
-	if (ni_call_device_delete(w->object, &callback_list) < 0) {
-		ni_ifworker_fail(w, "failed to delete interface");
-		return -1;
-	}
-
-	if (callback_list) {
-		ni_ifworker_add_callbacks(w, callback_list);
-		w->wait_for_state = STATE_DEVICE_DOWN;
-	}
-
-	if (w->callbacks == NULL && !w->failed) {
-		ni_debug_dbus("%s: deleted interface; we can proceed", w->name);
-		w->state = STATE_DEVICE_DOWN;
-	}
-	return 0;
-}
-#endif
 
 static int
 ni_ifworker_can_delete(const ni_ifworker_t *w)
@@ -2549,12 +2227,6 @@ usage:
 		return 1;
 
 	ni_ifworkers_refresh_state();
-
-#if 0
-	/* FIXME: need to build hierarchy based on what's in the system */
-	if (build_hierarchy() < 0)
-		ni_fatal("ifup: unable to build device hierarchy");
-#endif
 
 	if (!ni_ifworker_mark_matching(&ifmatch, opt_delete? STATE_DEVICE_DOWN : STATE_DEVICE_UP))
 		return 0;
