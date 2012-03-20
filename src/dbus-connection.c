@@ -132,8 +132,10 @@ ni_dbus_connection_open(const char *bus_type_string, const char *bus_name)
 					bus_name, error.message);
 			goto failed;
 		}
-		if (rv != DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER)
-			goto failed_unexpectedly;
+		if (rv != DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER) {
+			ni_error("%s: failed to acquire dbus name %s (rv=%d) - service already running?", __func__, bus_name, rv);
+			goto failed;
+		}
 		ni_debug_dbus("Successfully acquired bus name \"%s\"", bus_name);
 	}
 
