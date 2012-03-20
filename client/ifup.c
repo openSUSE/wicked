@@ -34,6 +34,7 @@ extern ni_dbus_object_t *	wicked_get_interface(ni_dbus_object_t *, const char *)
 enum {
 	STATE_NONE = 0,
 	STATE_DEVICE_DOWN,
+	STATE_DEVICE_EXISTS,
 	STATE_DEVICE_UP,
 	STATE_FIREWALL_UP,
 	STATE_LINK_UP,
@@ -71,7 +72,7 @@ struct ni_netif_action {
 		const char *		config_name;
 		xml_node_t *		config;
 
-		ni_bool_t		skip_if_no_config;
+		ni_bool_t		call_overloading;
 	} common;
 
 	ni_objectmodel_callback_info_t *callbacks;
@@ -314,6 +315,7 @@ ni_ifworker_set_timeout(ni_ifworker_t *w, unsigned long timeout_ms)
 static ni_intmap_t __state_names[] = {
 	{ "none",		STATE_NONE		},
 	{ "device-down",	STATE_DEVICE_DOWN	},
+	{ "device-exists",	STATE_DEVICE_EXISTS	},
 	{ "device-up",		STATE_DEVICE_UP		},
 	{ "firewall-up",	STATE_FIREWALL_UP	},
 	{ "link-up",		STATE_LINK_UP		},
@@ -1420,10 +1422,26 @@ ni_ifworker_do_common(ni_ifworker_t *w, ni_iftransition_t *action)
 
 	service = action->common.service;
 	if (service == NULL) {
-		if (action->common.service_name == NULL) {
+		if (action->common.service_name != NULL) {
+			/* This transition explicitly specifies a dbus service.
+			 * Fail if it is not supported. */
+			service = ni_dbus_object_get_service(w->object, action->common.service_name);
+			if (service == NULL) {
+				ni_ifworker_fail(w, "object does not support interface %s",
+						action->common.service_name);
+				return -NI_ERROR_METHOD_NOT_SUPPORTED;
+			}
+		} else if (action->common.call_overloading) {
 			/* Implicit: look up the service(s) based on the method name.
-			 * We may be dealing with several services, for instance when it
-			 * comes to addrconf services.
+			 * We may have multiple services providing a given method,
+			 * but we should pick the most specific one. */
+			service = ni_dbus_object_get_service_for_method(w->object, action->common.method_name);
+			if (service == NULL)
+				goto success;
+		} else {
+			/* Implicit: look up the service(s) based on the method name.
+			 * We may be dealing with several services, and we want to call all of them.
+			 * This happens when it comes to addrconf services, for instance.
 			 */
 			const ni_dbus_service_t *services[32];
 			unsigned int i, count;
@@ -1443,15 +1461,6 @@ ni_ifworker_do_common(ni_ifworker_t *w, ni_iftransition_t *action)
 					return rv;
 			}
 			goto success;
-		}
-
-		/* This transition explicitly specifies a dbus service.
-		 * Fail if it is not supported. */
-		service = ni_dbus_object_get_service(w->object, action->common.service_name);
-		if (service == NULL) {
-			ni_ifworker_fail(w, "object does not support interface %s",
-					action->common.service_name);
-			return -NI_ERROR_METHOD_NOT_SUPPORTED;
 		}
 
 		action->common.service = service;
@@ -1475,9 +1484,8 @@ success:
  * to a bridge.
  */
 static int
-ni_ifworker_do_device_up(ni_ifworker_t *w, ni_iftransition_t *action)
+ni_ifworker_do_device_new(ni_ifworker_t *w, ni_iftransition_t *action)
 {
-	ni_objectmodel_callback_info_t *callback_list = NULL;
 	const ni_dbus_service_t *service;
 	xml_node_t *linknode;
 	const char *link_type;
@@ -1532,8 +1540,9 @@ ni_ifworker_do_device_up(ni_ifworker_t *w, ni_iftransition_t *action)
 		}
 	}
 
+#if 0
 	if (linknode == NULL)
-		goto device_is_up;
+		goto device_exists;
 
 	link_type = linknode->name;
 
@@ -1544,7 +1553,7 @@ ni_ifworker_do_device_up(ni_ifworker_t *w, ni_iftransition_t *action)
 	 */
 	if ((service = w->device_service) == NULL
 	 || !ni_dbus_service_get_method(service, "changeDevice"))
-		goto device_is_up;
+		goto device_exists;
 
 	if (ni_call_device_change_xml(w->object, linknode, &callback_list, ni_ifworker_error_handler) < 0) {
 		ni_ifworker_fail(w, "failed to configure %s device", link_type);
@@ -1557,8 +1566,10 @@ ni_ifworker_do_device_up(ni_ifworker_t *w, ni_iftransition_t *action)
 		return 0;
 	}
 
-device_is_up:
-	w->state = STATE_DEVICE_UP;
+device_exists:
+#endif
+
+	w->state = action->next_state;
 	return 0;
 }
 
@@ -1882,9 +1893,11 @@ static ni_iftransition_t	ni_iftransitions[] = {
 	/* -------------------------------------- *
 	 * Transitions for bringing up a device
 	 * -------------------------------------- */
-	/* This creates the device (if it's virtual) and sets any device attributes,
-	 * such as a MAC address */
-	TRANSITION_UP_TO(STATE_DEVICE_UP, ni_ifworker_do_device_up),
+	/* This creates the device (if it's virtual) */
+	TRANSITION_UP_TO(STATE_DEVICE_EXISTS, ni_ifworker_do_device_new),
+
+	/* This sets any device attributes, such as a MAC address */
+	COMMON_TRANSITION_UP_TO(STATE_DEVICE_UP, NULL, "changeDevice", NULL, .call_overloading = TRUE),
 
 	/* This step adds device-specific filtering, if available. Typical
 	 * example would be bridge filtering with ebtables. */
@@ -2076,7 +2089,7 @@ ni_ifworker_fsm(void)
 				ni_ifworker_fail(w, "%s: failed to transition from %s to %s",
 						w->name,
 						ni_ifworker_state_name(prev_state),
-						ni_ifworker_state_name(w->state));
+						ni_ifworker_state_name(action->next_state));
 			}
 		}
 
