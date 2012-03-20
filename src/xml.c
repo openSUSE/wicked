@@ -375,6 +375,7 @@ xml_node_detach(xml_node_t *node)
 		if (sibling == node) {
 			*pos = node->next;
 			node->parent = NULL;
+			node->next = NULL;
 			break;
 		}
 		pos = &sibling->next;
