@@ -63,7 +63,13 @@
    </meta>
 
    <arguments>
-     <config type="linkinfo"/>
+     <config type="linkinfo">
+       <meta>
+	 <!-- The mapping info tells the client to take the device
+	   -- configuration from the <openvpn> element. -->
+         <mapping document-node="/openvpn" />
+       </meta>
+     </config>
    </arguments>
    <!-- returns callback list -->
  </method>

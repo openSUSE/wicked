@@ -131,12 +131,6 @@
     </lease>
   </define>
 
-  <method name="firewallUp">
-    <arguments>
-      <!-- to be defined -->
-    </arguments>
-  </method>
-
   <method name="linkUp">
     <arguments>
       <request type="link-request" />

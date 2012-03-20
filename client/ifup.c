@@ -73,6 +73,8 @@ struct ni_netif_action {
 
 		ni_bool_t		skip_if_no_config;
 	} common;
+
+	ni_objectmodel_callback_info_t *callbacks;
 };
 
 struct ni_ifworker {
@@ -88,10 +90,9 @@ struct ni_ifworker {
 
 	int			target_state;
 	int			state;
-	int			wait_for_state;
+	ni_iftransition_t *	wait_for;
 	const ni_timer_t *	timer;
 
-	ni_objectmodel_callback_info_t *callbacks;
 	unsigned int		failed		: 1,
 				done		: 1;
 
@@ -141,10 +142,11 @@ static void			ni_ifworker_array_destroy(ni_ifworker_array_t *);
 static ni_ifworker_t *		ni_ifworker_identify_device(const xml_node_t *);
 static void			ni_ifworker_set_dependencies_xml(ni_ifworker_t *, xml_node_t *);
 static void			ni_ifworker_fsm_init(ni_ifworker_t *);
+#if 0
 static const ni_dbus_service_t *__ni_ifworker_check_addrconf(const char *);
+#endif
 static ni_bool_t		ni_ifworker_req_check_reachable(ni_ifworker_req_t *);
 static void			ni_ifworker_req_free(ni_ifworker_req_t *);
-static ni_iftransition_t *	ni_ifworker_get_transition_up(ni_ifworker_t *w, int to);
 
 static inline ni_ifworker_t *
 __ni_ifworker_new(const char *name, xml_node_t *config)
@@ -501,12 +503,12 @@ ni_ifworker_get_minmax_child_states(ni_ifworker_t *w, unsigned int *min_state, u
 
 /* Create an event wait object */
 static void
-ni_ifworker_add_callbacks(ni_ifworker_t *w, ni_objectmodel_callback_info_t *callback_list)
+ni_ifworker_add_callbacks(ni_iftransition_t *action, ni_objectmodel_callback_info_t *callback_list, const char *ifname)
 {
 	ni_objectmodel_callback_info_t **pos, *cb;
 
 	if (ni_debug & NI_TRACE_DBUS) {
-		ni_trace("%s waiting for callbacks:", w->name);
+		ni_trace("%s waiting for callbacks:", ifname);
 		for (cb = callback_list; cb; cb = cb->next) {
 			ni_trace(" %s event=%s",
 				ni_print_hex(cb->uuid.octets, 16),
@@ -514,7 +516,7 @@ ni_ifworker_add_callbacks(ni_ifworker_t *w, ni_objectmodel_callback_info_t *call
 		}
 	}
 
-	for (pos = &w->callbacks; (cb = *pos) != NULL; pos = &cb->next)
+	for (pos = &action->callbacks; (cb = *pos) != NULL; pos = &cb->next)
 		;
 	*pos = callback_list;
 }
@@ -523,8 +525,11 @@ static ni_objectmodel_callback_info_t *
 ni_ifworker_get_callback(ni_ifworker_t *w, const ni_uuid_t *uuid)
 {
 	ni_objectmodel_callback_info_t **pos, *cb;
+	ni_iftransition_t *action;
 
-	for (pos = &w->callbacks; (cb = *pos) != NULL; pos = &cb->next) {
+	if ((action = w->wait_for) == NULL)
+		return NULL;
+	for (pos = &action->callbacks; (cb = *pos) != NULL; pos = &cb->next) {
 		if (ni_uuid_equal(&cb->uuid, uuid)) {
 			*pos = cb->next;
 			return cb;
@@ -537,8 +542,11 @@ static dbus_bool_t
 ni_ifworker_waiting_for_event(ni_ifworker_t *w, const char *event_name)
 {
 	ni_objectmodel_callback_info_t *cb;
+	ni_iftransition_t *action;
 
-	for (cb = w->callbacks; cb != NULL; cb = cb->next) {
+	if ((action = w->wait_for) == NULL)
+		return FALSE;
+	for (cb = action->callbacks; cb != NULL; cb = cb->next) {
 		if (ni_string_eq(cb->event, event_name))
 			return TRUE;
 	}
@@ -560,10 +568,11 @@ ni_ifworker_update_state(ni_ifworker_t *w, unsigned int min_state, unsigned int 
 				w->name,
 				ni_ifworker_state_name(prev_state),
 				ni_ifworker_state_name(w->state),
-				w->state == w->wait_for_state? ", resuming activity" : ", still waiting for event");
+				(w->wait_for && w->wait_for->next_state == w->state)?
+					", resuming activity" : ", still waiting for event");
 
-	if (w->wait_for_state == w->state)
-		w->wait_for_state = STATE_NONE;
+	if (w->wait_for && w->wait_for->next_state == w->state)
+		w->wait_for = NULL;
 }
 
 static unsigned int
@@ -1322,50 +1331,14 @@ out:
 /*
  * Most steps of the finite state machine follow the same pattern.
  */
-static ni_iftransition_t *
-ni_ifworker_get_transition_up(ni_ifworker_t *w, int next_state)
-{
-	ni_iftransition_t *action;
-
-	for (action = w->actions; action->next_state; ++action)
-		if (action->from_state == next_state - 1
-		 && action->next_state == next_state)
-			return action;
-	return NULL;
-}
-
-int
-ni_ifworker_do_common(ni_ifworker_t *w, ni_iftransition_t *action)
+static int
+__ni_ifworker_do_common_service(ni_ifworker_t *w, ni_iftransition_t *action,
+		const ni_dbus_service_t *service)
 {
 	ni_objectmodel_callback_info_t *callback_list = NULL;
-	const ni_dbus_service_t *service;
 	const ni_dbus_method_t *method;
 	xml_node_t *config;
 	int rv;
-
-	ni_debug_objectmodel("%s(name=%s, object=%p, path=%s)",
-			action->common.method_name, w->name, w->object, w->object_path);
-
-	service = action->common.service;
-	if (service == NULL) {
-		if (action->common.service_name != NULL) {
-			/* Explicitly specifies a dbus service */
-			service = ni_dbus_object_get_service(w->object, action->common.service_name);
-			if (service == NULL) {
-				ni_ifworker_fail(w, "object does not support interface %s",
-						action->common.service_name);
-				return -NI_ERROR_METHOD_NOT_SUPPORTED;
-			}
-		} else {
-			/* Implicit: look up the service based on the method name.
-			 * If the interface doesn't support this interface, we trivially succeed. */
-			service = ni_dbus_object_get_service_for_method(w->object, action->common.method_name);
-			if (service == NULL)
-				goto success;
-		}
-
-		action->common.service = service;
-	}
 
 	method = action->common.method;
 	if (method == NULL) {
@@ -1373,15 +1346,12 @@ ni_ifworker_do_common(ni_ifworker_t *w, ni_iftransition_t *action)
 
 		/* If the interface doesn't support this interface, we trivially succeed. */
 		if (method == NULL)
-			goto success;
-		action->common.method = method;
+			return 0;
 	}
 
 	config = action->common.config;
-
 	if (config == NULL && action->common.config_name) {
 		config = xml_node_get_child(w->config, action->common.config_name);
-		action->common.config = config;
 	}
 
 	if (config == NULL) {
@@ -1391,14 +1361,14 @@ ni_ifworker_do_common(ni_ifworker_t *w, ni_iftransition_t *action)
 		 *
 		 * <method ...>
 		 *   <arguments>
-		 *     <config type="...">
+		 *     <foobar type="...">
 		 *       <meta>
 		 *	   <mapping
 		 *	   	document-node="/some/xpath/expression" 
 		 *		skip-unless-present="true"
 		 *		/>
 		 *       </meta>
-		 *     </config>
+		 *     </foobar>
 		 *   </arguments>
 		 * </method>
 		 *
@@ -1413,7 +1383,7 @@ ni_ifworker_do_common(ni_ifworker_t *w, ni_iftransition_t *action)
 			goto document_error;
 
 		if (config == NULL && skip_call)
-			goto success;
+			return 0;
 	}
 
 	if (config != NULL) {
@@ -1422,23 +1392,80 @@ ni_ifworker_do_common(ni_ifworker_t *w, ni_iftransition_t *action)
 
 	rv = ni_call_common_xml(w->object, service, method, config, &callback_list, ni_ifworker_error_handler);
 	if (rv < 0) {
-		ni_ifworker_fail(w, "call to %s() failed: %s", method->name, ni_strerror(rv));
+		ni_ifworker_fail(w, "call to %s.%s() failed: %s", service->name, method->name, ni_strerror(rv));
 		return rv;
 	}
 
 	if (callback_list) {
-		ni_ifworker_add_callbacks(w, callback_list);
-		w->wait_for_state = action->next_state;
+		ni_ifworker_add_callbacks(action, callback_list, w->name);
+		w->wait_for = action;
 		return 0;
 	}
 
-success:
-	w->state = action->next_state;
 	return 0;
 
 document_error:
 	ni_ifworker_fail(w, "interface document error");
 	return -1;
+}
+
+int
+ni_ifworker_do_common(ni_ifworker_t *w, ni_iftransition_t *action)
+{
+	const ni_dbus_service_t *service;
+	int rv;
+
+	ni_debug_objectmodel("%s(name=%s, object=%p, path=%s)",
+			action->common.method_name, w->name, w->object, w->object_path);
+
+	service = action->common.service;
+	if (service == NULL) {
+		if (action->common.service_name == NULL) {
+			/* Implicit: look up the service(s) based on the method name.
+			 * We may be dealing with several services, for instance when it
+			 * comes to addrconf services.
+			 */
+			const ni_dbus_service_t *services[32];
+			unsigned int i, count;
+
+			count = ni_dbus_object_get_all_services_for_method(w->object,
+						action->common.method_name, services, 32);
+
+			/* If the interface doesn't support this method, we trivially succeed. */
+			if (count == 0)
+				goto success;
+
+			ni_trace("%s: found %u services providing %s()",
+					w->name, count, action->common.method_name);
+			for (i = 0; i < count; ++i) {
+				rv = __ni_ifworker_do_common_service(w, action, services[i]);
+				if (rv < 0)
+					return rv;
+			}
+			goto success;
+		}
+
+		/* This transition explicitly specifies a dbus service.
+		 * Fail if it is not supported. */
+		service = ni_dbus_object_get_service(w->object, action->common.service_name);
+		if (service == NULL) {
+			ni_ifworker_fail(w, "object does not support interface %s",
+					action->common.service_name);
+			return -NI_ERROR_METHOD_NOT_SUPPORTED;
+		}
+
+		action->common.service = service;
+	}
+
+	if ((rv = __ni_ifworker_do_common_service(w, action, service)) < 0)
+		return -1;
+
+success:
+	if (w->wait_for != NULL)
+		return 0;
+
+	w->state = action->next_state;
+	return 0;
 }
 
 /*
@@ -1525,8 +1552,8 @@ ni_ifworker_do_device_up(ni_ifworker_t *w, ni_iftransition_t *action)
 	}
 
 	if (callback_list) {
-		ni_ifworker_add_callbacks(w, callback_list);
-		w->wait_for_state = STATE_DEVICE_UP;
+		ni_ifworker_add_callbacks(action, callback_list, w->name);
+		w->wait_for = action;
 		return 0;
 	}
 
@@ -1620,7 +1647,6 @@ link_authenticated:
 	w->state = STATE_LINK_AUTHENTICATED;
 	return 0;
 }
-#endif
 
 /*
  * Finite state machine - configure network addresses and routes
@@ -1658,11 +1684,11 @@ ni_ifworker_do_network_up(ni_ifworker_t *w, ni_iftransition_t *action)
 		}
 
 		if (callback_list) {
-			ni_ifworker_add_callbacks(w, callback_list);
-			w->wait_for_state = STATE_ADDRCONF_UP;
+			ni_ifworker_add_callbacks(action, callback_list, w->name);
+			w->wait_for = action;
 		}
 	}
-	if (w->callbacks == NULL) {
+	if (w->wait_for == NULL) {
 		ni_debug_dbus("%s: no pending address configuration; we're done", w->name);
 		w->state = STATE_ADDRCONF_UP;
 	}
@@ -1729,21 +1755,20 @@ ni_ifworker_do_network_down(ni_ifworker_t *w, ni_iftransition_t *action)
 			}
 
 			if (callback_list) {
-				ni_ifworker_add_callbacks(w, callback_list);
-				w->wait_for_state = STATE_ADDRCONF_UP - 1;
+				ni_ifworker_add_callbacks(action, callback_list, w->name);
+				w->wait_for = action;
 			}
 		}
 	}
 
-	if (w->callbacks == NULL && !w->failed) {
+	if (w->wait_for == NULL && !w->failed) {
 		ni_debug_dbus("%s: all addresses down; we can proceed", w->name);
-		w->state = STATE_ADDRCONF_UP - 1;
+		w->state = action->next_state;
 	}
 
 	return 0;
 }
 
-#if 0
 /*
  * Shut down the link
  */
@@ -1878,13 +1903,13 @@ static ni_iftransition_t	ni_iftransitions[] = {
 	COMMON_TRANSITION_UP_TO(STATE_LINK_AUTHENTICATED, NULL, "login", NULL),
 
 	/* Configure all assigned addresses and bring up the network */
-	TRANSITION_UP_TO(STATE_ADDRCONF_UP, ni_ifworker_do_network_up),
+	COMMON_TRANSITION_UP_TO(STATE_ADDRCONF_UP, NULL, "requestLease", NULL),
 
 	/* -------------------------------------- *
 	 * Transitions for bringing down a device
 	 * -------------------------------------- */
 	/* Remove all assigned addresses and bring down the network */
-	TRANSITION_DOWN_FROM(STATE_ADDRCONF_UP, ni_ifworker_do_network_down),
+	COMMON_TRANSITION_DOWN_FROM(STATE_ADDRCONF_UP, NULL, "dropLease", NULL),
 
 	/* Shut down the link */
 	COMMON_TRANSITION_DOWN_FROM(STATE_LINK_UP, NULL, "linkDown", "device"),
@@ -1893,7 +1918,7 @@ static ni_iftransition_t	ni_iftransitions[] = {
 	COMMON_TRANSITION_DOWN_FROM(STATE_FIREWALL_UP, NULL, "firewallDown", "firewall"),
 
 	/* Delete the device */
-	COMMON_TRANSITION_DOWN_FROM(STATE_DEVICE_UP, NULL, "deviceDelete", NULL),
+	COMMON_TRANSITION_DOWN_FROM(STATE_DEVICE_UP, NULL, "deleteDevice", NULL),
 
 	{ .from_state = STATE_NONE, .next_state = STATE_NONE, .func = NULL }
 };
@@ -1911,8 +1936,10 @@ ni_ifworker_fsm_init(ni_ifworker_t *w)
 	/* If the --delete option was given, but the specific device cannot
 	 * be deleted, then we don't try. */
 	target_state = w->target_state;
-	if (target_state == STATE_DEVICE_DOWN && !ni_ifworker_can_delete(w))
+	if (target_state == STATE_DEVICE_DOWN && !ni_ifworker_can_delete(w)) {
+		ni_debug_objectmodel("%s: cannot delete device, ignoring --delete option", w->name);
 		target_state = STATE_DEVICE_UP;
+	}
 
 	switch (target_state) {
 	case STATE_ADDRCONF_UP:
@@ -1972,14 +1999,6 @@ do_it_again:
 		w->actions = calloc(num_actions + 1, sizeof(ni_iftransition_t));
 		goto do_it_again;
 	}
-
-	if (w->device_auth_service && w->device_auth_config) {
-		ni_iftransition_t *action;
-
-		action =  ni_ifworker_get_transition_up(w, STATE_LINK_AUTHENTICATED);
-		action->common.service = w->device_auth_service;
-		action->common.config = w->device_auth_config;
-	}
 }
 
 static unsigned int
@@ -1999,8 +2018,8 @@ ni_ifworker_fsm(void)
 				ni_debug_dbus("%-12s: state=%s want=%s%s%s", w->name,
 					ni_ifworker_state_name(w->state),
 					ni_ifworker_state_name(w->target_state),
-					w->wait_for_state? ", wait-for=" : "",
-					w->wait_for_state?  ni_ifworker_state_name(w->wait_for_state) : "");
+					w->wait_for? ", wait-for=" : "",
+					w->wait_for?  ni_ifworker_state_name(w->wait_for->next_state) : "");
 
 			if (w->failed || ni_ifworker_ready(w))
 				continue;
@@ -2012,7 +2031,7 @@ ni_ifworker_fsm(void)
 
 			/* We requested a change that takes time (such as acquiring
 			 * a DHCP lease). Wait for a notification from wickedd */
-			if (w->wait_for_state)
+			if (w->wait_for)
 				continue;
 
 			action = w->actions;
@@ -2039,7 +2058,7 @@ ni_ifworker_fsm(void)
 				if (w->state == action->next_state) {
 					/* We should not have transitioned to the next state while
 					 * we were still waiting for some event. */
-					ni_assert(w->callbacks == NULL);
+					ni_assert(w->wait_for == NULL);
 					ni_debug_dbus("%s: successfully transitioned from %s to %s",
 						w->name,
 						ni_ifworker_state_name(prev_state),
@@ -2048,7 +2067,7 @@ ni_ifworker_fsm(void)
 					ni_debug_dbus("%s: waiting for event in state %s",
 						w->name,
 						ni_ifworker_state_name(w->state));
-					w->wait_for_state = action->next_state;
+					w->wait_for = action;
 				}
 			} else
 			if (!w->failed) {

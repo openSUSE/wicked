@@ -46,7 +46,17 @@
 
   <method name="changeDevice">
     <arguments>
-      <properties />
+      <!-- First and only argument to changeDevice() method is a
+        -- "properties" dict.
+        -- The mapping info tells the client to take the device
+	-- configuration from the <ethernet> element, and to skip the
+	-- call to changeDevice() if that element isn't there.
+	-->
+      <config type="properties">
+       <meta>
+         <mapping document-node="/ethernet" skip-unless-present="true" />
+       </meta>
+      </config>
     </arguments>
   </method>
 </service>
