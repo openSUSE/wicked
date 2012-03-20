@@ -54,14 +54,21 @@ typedef struct ni_ifworker_array {
 	ni_ifworker_t **	data;
 } ni_ifworker_array_t;
 
-struct ni_ifworker_edge {
+#define NI_IFWORKER_EDGE_MAX_CALLS	8
+typedef struct ni_ifworker_edge {
 	ni_ifworker_t *		child;
 	xml_node_t *		node;
-};
+
+	struct ni_ifworker_edge_precondition {
+		char *		call_name;
+		unsigned int	min_child_state;
+		unsigned int	max_child_state;
+	} call_pre[NI_IFWORKER_EDGE_MAX_CALLS];
+} ni_ifworker_edge_t;
 
 typedef struct ni_ifworker_children {
 	unsigned int		count;
-	struct ni_ifworker_edge *data;
+	ni_ifworker_edge_t *	data;
 } ni_ifworker_children_t;
 
 typedef struct ni_netif_action	ni_iftransition_t;
@@ -156,7 +163,7 @@ static ni_dbus_object_t *	__root_object;
 
 static const char *		ni_ifworker_state_name(int);
 static void			ni_ifworker_array_append(ni_ifworker_array_t *, ni_ifworker_t *);
-static void			ni_ifworker_children_append(ni_ifworker_children_t *, ni_ifworker_t *, xml_node_t *);
+static ni_ifworker_edge_t *	ni_ifworker_children_append(ni_ifworker_children_t *, ni_ifworker_t *, xml_node_t *);
 static void			ni_ifworker_children_destroy(ni_ifworker_children_t *);
 static ni_ifworker_t *		ni_ifworker_identify_device(const xml_node_t *);
 static void			ni_ifworker_set_dependencies_xml(ni_ifworker_t *, xml_node_t *);
@@ -507,7 +514,7 @@ ni_ifworker_resolve_reference(xml_node_t *devnode)
 	return child;
 }
 
-static void
+static ni_ifworker_edge_t *
 ni_ifworker_children_append(ni_ifworker_children_t *array, ni_ifworker_t *child, xml_node_t *node)
 {
 	struct ni_ifworker_edge *edge;
@@ -515,34 +522,40 @@ ni_ifworker_children_append(ni_ifworker_children_t *array, ni_ifworker_t *child,
 	array->data = realloc(array->data, (array->count + 1) * sizeof(array->data[0]));
 	edge = &array->data[array->count++];
 
+	memset(edge, 0, sizeof(*edge));
 	edge->child = child;
 	edge->node = node;
 	child->refcount++;
+
+	return edge;
 }
 
 static void
 ni_ifworker_children_destroy(ni_ifworker_children_t *array)
 {
 	struct ni_ifworker_edge *edge;
-	unsigned int i;
+	unsigned int i, j;
 
 	for (edge = array->data, i = 0; i < array->count; ++i, ++edge) {
 		ni_ifworker_release(edge->child);
+		for (j = 0; j < NI_IFWORKER_EDGE_MAX_CALLS; ++j)
+			ni_string_free(&edge->call_pre[i].call_name);
 	}
 	free(array->data);
 	memset(array, 0, sizeof(*array));
 }
 
 
-static ni_ifworker_t *
+static ni_ifworker_edge_t *
 ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *devnode, ni_bool_t shared)
 {
+	ni_ifworker_edge_t *edge;
 	unsigned int i;
 
 	/* Check if this child is already owned by the given parent. */
-	for (i = 0; i < parent->children.count; ++i) {
+	for (i = 0, edge = parent->children.data; i < parent->children.count; ++i, ++edge) {
 		if (parent->children.data[i].child == child)
-			return child;
+			return edge;
 	}
 
 	if (child->exclusive_owner != NULL) {
@@ -570,16 +583,39 @@ ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *d
 	/* We record the devnode along with the child, so that we can update
 	 * devnode->cdata with the object path before we call any device change
 	 * functions. */
-	ni_ifworker_children_append(&parent->children, child, devnode);
+	edge = ni_ifworker_children_append(&parent->children, child, devnode);
 
-#if 0
-	if (parent->behavior.mandatory)
-		child->behavior.mandatory = 1;
-#endif
-
-	return child;
+	return edge;
 }
 
+void
+ni_ifworker_edge_set_states(ni_ifworker_edge_t *edge, const char *call, unsigned int min_state, unsigned int max_state)
+{
+	struct ni_ifworker_edge_precondition *pre;
+	unsigned int i;
+
+	ni_trace("%s(%s, %s, %s, %s)", __func__, edge->child->name, call,
+			ni_ifworker_state_name(min_state),
+			ni_ifworker_state_name(max_state));
+	for (i = 0, pre = edge->call_pre; i < NI_IFWORKER_EDGE_MAX_CALLS; ++i, ++pre) {
+		if (pre->call_name == NULL) {
+			ni_string_dup(&pre->call_name, call);
+			pre->min_child_state = min_state;
+			pre->max_child_state = max_state;
+			return;
+		}
+
+		if (ni_string_eq(pre->call_name, call)) {
+			if (min_state < pre->min_child_state)
+				pre->min_child_state = min_state;
+			if (max_state > pre->max_child_state)
+				pre->max_child_state = max_state;
+			return;
+		}
+	}
+}
+
+#if 0
 static void
 ni_ifworker_set_min_child_state_for(ni_ifworker_t *w, unsigned int dev_state, unsigned int child_state)
 {
@@ -610,6 +646,7 @@ ni_ifworker_get_minmax_child_states(ni_ifworker_t *w, unsigned int *min_state, u
 			*max_state = r->max;
 	}
 }
+#endif
 
 /* Create an event wait object */
 static void
@@ -899,6 +936,7 @@ ni_ifworker_set_target(ni_ifworker_t *w, unsigned int min_state, unsigned int ma
 	}
 	ni_debug_dbus("%s: assuming current state=%s", w->name, ni_ifworker_state_name(w->state));
 
+#if 0
 	if (w->children.count != 0) {
 		unsigned int i;
 
@@ -950,6 +988,7 @@ ni_ifworker_set_target(ni_ifworker_t *w, unsigned int min_state, unsigned int ma
 			ni_ifworker_set_target(child, min_state, max_state);
 		}
 	}
+#endif
 }
 
 /*
@@ -1315,7 +1354,6 @@ build_hierarchy(void)
 				__ni_ifworker_print_tree("   +-> ", w, "   |   ");
 		}
 	}
-exit(0);
 	return 0;
 }
 
@@ -1324,6 +1362,7 @@ ni_ifworker_netif_resolve_cb(xml_node_t *node, const ni_xs_type_t *type, const x
 {
 	ni_ifworker_t *w = user_data;
 	ni_ifworker_t *child_worker = NULL;
+	ni_ifworker_edge_t *edge = NULL;
 	xml_node_t *mchild;
 
 	for (mchild = metadata->children; mchild; mchild = mchild->next) {
@@ -1339,18 +1378,46 @@ ni_ifworker_netif_resolve_cb(xml_node_t *node, const ni_xs_type_t *type, const x
 				shared = ni_string_eq(attr, "true");
 
 			ni_trace("%s: resolved reference to subordinate device %s", w->name, child_worker->name);
-			if (!ni_ifworker_add_child(w, child_worker, node, shared))
+			if (!(edge = ni_ifworker_add_child(w, child_worker, node, shared)))
 				return FALSE;
 		} else
 		if (ni_string_eq(mchild->name, "require")) {
+			int min_state = STATE_NONE, max_state = STATE_ADDRCONF_UP;
+
 			if ((attr = xml_node_get_attr(mchild, "check")) == NULL
 			 || !ni_string_eq(attr, "netif-child-state"))
 				continue;
 
-#if 0
-			if (child_worker == NULL) {
-				ni_error(""
-#endif
+			if ((attr = xml_node_get_attr(mchild, "min-state")) != NULL) {
+				min_state = ni_ifworker_state_from_name(attr);
+				if (min_state < 0) {
+					ni_error("%s: invalid state name min-state=\"%s\"",
+							xml_node_location(mchild), attr);
+					return FALSE;
+				}
+			}
+
+			if ((attr = xml_node_get_attr(mchild, "max-state")) != NULL) {
+				max_state = ni_ifworker_state_from_name(attr);
+				if (max_state < 0) {
+					ni_error("%s: invalid state name max-state=\"%s\"",
+							xml_node_location(mchild), attr);
+					return FALSE;
+				}
+			}
+
+			if ((attr = xml_node_get_attr(mchild, "op")) == NULL) {
+				ni_error("%s: missing op attribute", xml_node_location(mchild));
+				return FALSE;
+			}
+
+			if (edge == NULL) {
+				ni_error("%s: <meta:require check=netif-child-state> without netif-reference",
+						xml_node_location(mchild));
+				return FALSE;
+			}
+
+			ni_ifworker_edge_set_states(edge, attr, min_state, max_state);
 		}
 	}
 
