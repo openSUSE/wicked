@@ -690,7 +690,7 @@ ni_xs_process_method(xml_node_t *node, ni_xs_service_t *service, ni_xs_scope_t *
 {
 	const char *nameAttr;
 	ni_xs_method_t *method;
-	xml_node_t *child;
+	xml_node_t *child, *next;
 
 	if (!(nameAttr = xml_node_get_attr(node, "name"))) {
 		ni_error("%s: <method> element lacks name attribute", xml_node_location(node));
@@ -698,10 +698,11 @@ ni_xs_process_method(xml_node_t *node, ni_xs_service_t *service, ni_xs_scope_t *
 	}
 
 	method = ni_xs_method_new(&service->methods, nameAttr);
-	for (child = node->children; child; child = child->next) {
+	for (child = node->children; child; child = next) {
 		ni_xs_scope_t *temp_scope;
 
-		ni_trace("method %s, child %s", nameAttr, child->name);
+		next = child->next;
+
 		if (ni_string_eq(child->name, "arguments")) {
 			temp_scope = ni_xs_scope_new(scope, NULL);
 			if (ni_xs_build_typelist(child, &method->arguments, temp_scope, TRUE, NULL) < 0) {
@@ -733,9 +734,6 @@ ni_xs_process_method(xml_node_t *node, ni_xs_service_t *service, ni_xs_scope_t *
 				method->meta = xml_node_new("meta", NULL);
 			xml_node_reparent(method->meta, child);
 			ni_string_dup(&child->name, child->name + 5);
-
-			ni_trace("handled meta:%s", child->name);
-			xml_node_print(method->meta, NULL);
 		}
 	}
 
@@ -1169,7 +1167,7 @@ ni_xs_type_t *
 ni_xs_build_simple_type(xml_node_t *node, const char *typeName, ni_xs_scope_t *scope, ni_xs_group_array_t *group_array)
 {
 	ni_xs_type_t *result;
-	xml_node_t *child, *meta;
+	xml_node_t *child, *next, *meta;
 
 	if (typeName == NULL) {
 		ni_error("%s: NULL type name?!", xml_node_location(node));
@@ -1192,7 +1190,8 @@ ni_xs_build_simple_type(xml_node_t *node, const char *typeName, ni_xs_scope_t *s
 	 * <meta:foobar> is a shorthand for <foobar> nested inside <meta>.
 	 */
 	meta = NULL;
-	for (child = node->children; child; child = child->next) {
+	for (child = node->children; child; child = next) {
+		next = child->next;
 		if (ni_string_eq(child->name, "meta")) {
 			if (meta) {
 				ni_error("%s: duplicate <meta> elements", xml_node_location(node));
