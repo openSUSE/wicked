@@ -4,7 +4,11 @@
 <service name="vlan" interface="com.suse.Wicked.VLAN" object-class="netif-vlan">
  <!-- This is the linkinfo returned in interface reports -->
  <define name="linkinfo" class="dict">
-  <device type="string"/>
+  <device type="string">
+    <meta:netif-reference shared="true"/>
+    <meta:require op="deviceUp" check="netif-child-state" min-state="device-up" />
+    <meta:require op="linkUp" check="netif-child-state" min-state="link-up" />
+  </device>
   <tag type="uint16"/>
  </define>
 

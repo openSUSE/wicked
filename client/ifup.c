@@ -105,9 +105,13 @@ struct ni_ifworker {
 	xml_node_t *		config;
 	ni_netdev_t *		device;
 
-	const ni_dbus_service_t *device_service;
-	const ni_dbus_service_t *device_factory_service;
-	xml_node_t *		device_config;
+	struct {
+		const ni_dbus_service_t *service;
+		const ni_dbus_method_t *method;
+		const ni_dbus_service_t *factory_service;
+		const ni_dbus_method_t *factory_method;
+		xml_node_t *	config;
+	} device_api;
 
 	unsigned int		shared_users;
 	ni_ifworker_t *		exclusive_owner;
@@ -493,7 +497,7 @@ ni_ifworker_resolve_reference(xml_node_t *devnode)
 }
 
 static ni_ifworker_t *
-ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *devnode)
+ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *devnode, ni_bool_t shared)
 {
 	unsigned int i;
 
@@ -507,25 +511,22 @@ ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *d
 		char *other_owner;
 
 		other_owner = strdup(xml_node_location(child->exclusive_owner->config));
-		ni_error("%s: slave interface already owned by %s",
+		ni_error("%s: subordinate interface already owned by %s",
 				xml_node_location(devnode), other_owner);
 		free(other_owner);
 		return NULL;
 	}
 
-	switch (parent->iftype) {
-	case NI_IFTYPE_VLAN:
+	if (shared) {
+		/* The reference allows sharing with other uses, e.g. VLANs. */
 		child->shared_users++;
-		break;
-
-	default:
+	} else {
 		if (child->shared_users) {
 			ni_error("%s: interface already in shared use by other interfaces",
 					xml_node_location(devnode));
 			return NULL;
 		}
 		child->exclusive_owner = parent;
-		break;
 	}
 
 	/* FIXME: we should record the devnode along with the child, and update
@@ -718,7 +719,7 @@ ni_ifworker_req_netif_resolve(ni_ifworker_t *w, ni_ifworker_req_t *req)
 		return FALSE;
 
 	ni_trace("%s: resolved reference to subordinate device %s", w->name, child_worker->name);
-	if (!ni_ifworker_add_child(w, child_worker, devnode))
+	if (!ni_ifworker_add_child(w, child_worker, devnode, FALSE))
 		return FALSE;
 
 	return TRUE;
@@ -1024,25 +1025,99 @@ ni_ifworker_mark_matching(ni_ifmatcher_t *match, unsigned int target_state)
 }
 
 /*
- * Given an XML interface description, find the device layer information.
- * By convention, the link layer information must be an XML element with
- * the name of the device type, such as <ethernet>, <vlan> or <bond>.
- * We do however also support "virtual" types such as openvpn, which is
- * really a tun device.
+ * Bind a device API for an interface that doesn't exist yet.
+ * We do this by looking at all factory services and finding one for
+ * which our interface document provides a configuration.
+ *
+ * By convention, factory services have a newDevice method, which
+ * takes a string (the requested device name, if any), and a configuration
+ * dict. The xml schema specifies which element if an <interface>
+ * description should be used for this argument.
+ *
+ * For instance, the newDevice method of the VLAN.Factory service
+ * specifies that its configuration be taken from the <vlan> element.
  */
-static xml_node_t *
+static int
+ni_ifworker_bind_device_factory_api(ni_ifworker_t *w)
+{
+	const ni_dbus_method_t *method;
+	const ni_dbus_class_t *netif_list_class;
+	const ni_dbus_service_t *list_services[128];
+	unsigned int i, count;
+	int rv;
+
+	if (w->config == NULL)
+		return 0;
+
+	netif_list_class = ni_objectmodel_get_class(NI_OBJECTMODEL_NETIF_LIST_CLASS);
+	count = ni_objectmodel_compatible_services_for_class(netif_list_class, list_services, 128);
+	for (i = 0; i < count; ++i) {
+		const ni_dbus_service_t *service = list_services[i];
+		xml_node_t *config = NULL;
+
+		method = ni_dbus_service_get_method(service, "newDevice");
+		if (method == NULL)
+			continue;
+
+		rv = ni_dbus_xml_map_method_argument(method, 1, w->config, &config, NULL);
+		if ((rv = ni_dbus_xml_map_method_argument(method, 1, w->config, &config, NULL)) < 0) {
+			ni_ifworker_fail(w, "cannot create interface: xml document error");
+			return -1;
+		}
+
+		if (config != NULL) {
+			if (w->device_api.config != NULL) {
+				ni_ifworker_fail(w, "ambiguous device configuration - found services %s and %s",
+						service->name, w->device_api.factory_service->name);
+				return -1;
+			}
+			w->device_api.factory_service = service;
+			w->device_api.factory_method = method;
+			w->device_api.config = config;
+		}
+	}
+
+	return 0;
+}
+
+/*
+ * Given an XML interface description, find the device layer information.
+ * By convention, a DBus device service must provide a changeDevice function.
+ * The metadata of this function specifies which element of an <interface>
+ * declaration it pertains to.
+ */
+static int
 ni_ifworker_bind_device_apis(ni_ifworker_t *w)
 {
-	xml_node_t *ifnode, *child, *best_config;
-	const ni_dbus_class_t *device_class = NULL, *best_class, *netif_class;
-	const ni_dbus_service_t *best_service;
+	const ni_dbus_service_t *service;
+	const ni_dbus_method_t *method;
+	xml_node_t *config;
 
-	if (w->device_config)
-		return w->device_config;
+	if (w->device_api.config)
+		return 1;
 
-	if ((ifnode = w->config) == NULL)
-		return NULL;
+	if (w->config == NULL)
+		return 0;
 
+	if (w->object == NULL)
+		return 0;
+
+	service = ni_dbus_object_get_service_for_method(w->object, "changeDevice");
+	if (service == NULL)
+		return 0;
+
+	method = ni_dbus_service_get_method(service, "changeDevice");
+	ni_assert(method);
+
+	if (ni_dbus_xml_map_method_argument(method, 0, w->config, &config, NULL) < 0)
+		return -NI_ERROR_DOCUMENT_ERROR;
+
+	w->device_api.service = service;
+	w->device_api.method = method;
+	w->device_api.config = config;
+	return 1;
+
+#if 0
 	/* Check what type of interface we're dealing with. If the device exists,
 	 * the class is based on the link layer.
 	 */
@@ -1116,11 +1191,11 @@ ni_ifworker_bind_device_apis(ni_ifworker_t *w)
 				w->name, best_service->name, best_config->name);
 
 		/* Remember the device service and config node */
-		w->device_service = best_service;
-		w->device_config = best_config;
+		w->device_api.service = best_service;
+		w->device_api.config = best_config;
 
 		/* Now find the factory and auth services for this device class, if there are any. */
-		w->device_factory_service = ni_objectmodel_factory_service(best_service);
+		w->device_api.factory_service = ni_objectmodel_factory_service(best_service);
 
 		/* The device service specifies a class it is compatible with, ie netif-foobar,
 		 * where "foobar" must be a valid iftype name */
@@ -1132,7 +1207,8 @@ ni_ifworker_bind_device_apis(ni_ifworker_t *w)
 		}
 	}
 
-	return w->device_config;
+	return w->device_api.config;
+#endif
 }
 
 /*
@@ -1142,7 +1218,8 @@ ni_ifworker_bind_device_apis(ni_ifworker_t *w)
  * eth interface needs to come up before any of the VLANs that reference
  * it.
  */
-static void	__ni_ifworker_print_tree(const char *arrow, const ni_ifworker_t *, const char *);
+static void		__ni_ifworker_print_tree(const char *arrow, const ni_ifworker_t *, const char *);
+static dbus_bool_t	ni_ifworker_netif_resolve_cb(xml_node_t *, const ni_xs_type_t *, const xml_node_t *, void *);
 
 static int
 build_hierarchy(void)
@@ -1151,29 +1228,44 @@ build_hierarchy(void)
 
 	for (i = 0; i < interface_workers.count; ++i) {
 		ni_ifworker_t *w = interface_workers.data[i];
-		xml_node_t *ifnode, *linknode, *devnode;
-		ni_ifworker_t *child;
+		int rv;
 
 		/* A worker without an ifnode is one that we discovered in the
 		 * system, but which we've not been asked to configure. */
-		if (!(ifnode = w->config))
+		if (!w->config)
 			continue;
 
-		if (!(linknode = ni_ifworker_bind_device_apis(w)))
-			continue;
+		/* First, check for factory interface */
+		if ((rv = ni_ifworker_bind_device_factory_api(w)) < 0)
+			return rv;
+		if (w->device_api.config != NULL) {
+			ni_dbus_xml_validate_context_t context = {
+				.metadata_callback = ni_ifworker_netif_resolve_cb,
+				.user_data = w,
+			};
 
-		if (w->iftype == NI_IFTYPE_UNKNOWN) {
-			ni_error("%s: bug - unable to identify link type of %s", __func__, w->name);
-			ni_fatal("Abort");
+			/* The XML validation code will do a pass over the part of our XML
+			 * document that's used for the deviceNew() call, and call us for
+			 * every bit of metadata it finds.
+			 * This includes elements marked by <meta:netif-reference/>
+			 * in the schema.
+			 */
+			if (!ni_dbus_xml_validate_argument(w->device_api.factory_method, 1, w->device_api.config, &context))
+				return -NI_ERROR_DOCUMENT_ERROR;
+			continue;
 		}
 
-		devnode = NULL;
-		while ((devnode = xml_node_get_next_named(linknode, "device", devnode)) != NULL) {
-			if (!(child = ni_ifworker_resolve_reference(devnode)))
-				return -1;
+		if ((rv = ni_ifworker_bind_device_apis(w)) < 0)
+			return rv;
+		if (w->device_api.config != NULL) {
+			ni_dbus_xml_validate_context_t context = {
+				.metadata_callback = ni_ifworker_netif_resolve_cb,
+				.user_data = w,
+			};
 
-			if (!ni_ifworker_add_child(w, child, devnode))
-				return -1;
+			if (!ni_dbus_xml_validate_argument(w->device_api.method, 0, w->device_api.config, &context))
+				return -NI_ERROR_DOCUMENT_ERROR;
+			continue;
 		}
 	}
 
@@ -1185,7 +1277,46 @@ build_hierarchy(void)
 				__ni_ifworker_print_tree("   +-> ", w, "   |   ");
 		}
 	}
+exit(0);
 	return 0;
+}
+
+dbus_bool_t
+ni_ifworker_netif_resolve_cb(xml_node_t *node, const ni_xs_type_t *type, const xml_node_t *metadata, void *user_data)
+{
+	ni_ifworker_t *w = user_data;
+	ni_ifworker_t *child_worker = NULL;
+	xml_node_t *mchild;
+
+	for (mchild = metadata->children; mchild; mchild = mchild->next) {
+		const char *attr;
+
+		if (ni_string_eq(mchild->name, "netif-reference")) {
+			ni_bool_t shared = FALSE;
+
+			if (!(child_worker = ni_ifworker_resolve_reference(node)))
+				return FALSE;
+
+			if ((attr = xml_node_get_attr(mchild, "shared")) != NULL)
+				shared = ni_string_eq(attr, "true");
+
+			ni_trace("%s: resolved reference to subordinate device %s", w->name, child_worker->name);
+			if (!ni_ifworker_add_child(w, child_worker, node, shared))
+				return FALSE;
+		} else
+		if (ni_string_eq(mchild->name, "require")) {
+			if ((attr = xml_node_get_attr(mchild, "check")) == NULL
+			 || !ni_string_eq(attr, "netif-child-state"))
+				continue;
+
+#if 0
+			if (child_worker == NULL) {
+				ni_error(""
+#endif
+		}
+	}
+
+	return TRUE;
 }
 
 static void
@@ -1408,6 +1539,15 @@ out:
 }
 
 /*
+ * XML validation callback
+ */
+dbus_bool_t
+ni_ifworker_xml_metadata_callback(xml_node_t *node, const ni_xs_type_t *type, const xml_node_t *metadata, void *user_data)
+{
+	return TRUE;
+}
+
+/*
  * Parse any <require> tags contained in the per-method metadata
  */
 static int
@@ -1536,7 +1676,13 @@ __ni_ifworker_do_common_service(ni_ifworker_t *w, ni_iftransition_t *action,
 	}
 
 	if (config != NULL) {
-		/* FIXME: validate XML */
+		ni_dbus_xml_validate_context_t context = {
+			.metadata_callback = ni_ifworker_xml_metadata_callback,
+			.user_data = w,
+		};
+
+		if (!ni_dbus_xml_validate_argument(method, 0, config, &context))
+			goto document_error;
 	}
 
 	rv = ni_call_common_xml(w->object, service, method, config, &callback_list, ni_ifworker_error_handler);
@@ -1633,60 +1779,22 @@ success:
 static int
 ni_ifworker_do_device_new(ni_ifworker_t *w, ni_iftransition_t *action)
 {
-	const ni_dbus_service_t *device_service = NULL;
-	xml_node_t *device_config = NULL;
-	const ni_dbus_method_t *device_method = NULL;
-
 	ni_debug_dbus("%s(%s)", __func__, w->name);
 
 	if (w->device == NULL) {
-		const ni_dbus_method_t *method;
-		const ni_dbus_class_t *netif_list_class;
-		const ni_dbus_service_t *list_services[128];
-		unsigned int i, count;
 		const char *relative_path;
 		char *object_path;
 		int rv;
 
-		if (w->config == NULL) {
-			ni_ifworker_fail(w, "cannot create device - no configuration");
-			return -1;
-		}
+		if ((rv = ni_ifworker_bind_device_factory_api(w)) < 0)
+			return rv;
 
-		netif_list_class = ni_objectmodel_get_class(NI_OBJECTMODEL_NETIF_LIST_CLASS);
-		count = ni_objectmodel_compatible_services_for_class(netif_list_class, list_services, 128);
-		for (i = 0; i < count; ++i) {
-			const ni_dbus_service_t *service = list_services[i];
-			xml_node_t *config = NULL;
-
-			method = ni_dbus_service_get_method(service, "newDevice");
-			if (method == NULL)
-				continue;
-
-			rv = ni_dbus_xml_map_method_argument(method, 1, w->config, &config, NULL);
-			if ((rv = ni_dbus_xml_map_method_argument(method, 1, w->config, &config, NULL)) < 0) {
-				ni_ifworker_fail(w, "cannot create interface: xml document error");
-				return -1;
-			}
-
-			if (config != NULL) {
-				if (device_config != NULL) {
-					ni_ifworker_fail(w, "ambiguous device configuration - found services %s and %s",
-							service->name, device_service->name);
-					return -1;
-				}
-				device_service = service;
-				device_config = config;
-				device_method = method;
-			}
-		}
-
-		if (device_service == NULL) {
+		if (w->device_api.factory_service == NULL) {
 			ni_ifworker_fail(w, "device does not exist");
 			return -1;
 		}
 
-		rv = ni_ifworker_map_requires(w, action, device_service, device_method);
+		rv = ni_ifworker_map_requires(w, action, w->device_api.factory_service, w->device_api.factory_method);
 		if (rv < 0)
 			return rv;
 
@@ -1696,7 +1804,7 @@ ni_ifworker_do_device_new(ni_ifworker_t *w, ni_iftransition_t *action)
 			return 0;
 		}
 
-		object_path = ni_call_device_new_xml(device_service, w->name, device_config);
+		object_path = ni_call_device_new_xml(w->device_api.factory_service, w->name, w->device_api.config);
 		if (object_path == NULL) {
 			ni_ifworker_fail(w, "failed to create interface");
 			return -1;
