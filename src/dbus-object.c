@@ -319,6 +319,26 @@ ni_dbus_object_get_service_for_method(const ni_dbus_object_t *object, const char
 	return best;
 }
 
+unsigned int
+ni_dbus_object_get_all_services_for_method(const ni_dbus_object_t *object, const char *method,
+					const ni_dbus_service_t **list, unsigned int list_size)
+{
+	const ni_dbus_service_t *svc;
+	unsigned int i, found = 0;
+
+	if (object->interfaces == NULL || method == NULL)
+		return 0;
+
+	for (i = 0; (svc = object->interfaces[i]) != NULL; ++i) {
+		if (ni_dbus_service_get_method(svc, method)) {
+			if (found < list_size)
+				list[found++] = svc;
+		}
+	}
+
+	return found;
+}
+
 const ni_dbus_service_t *
 ni_dbus_object_get_service_for_signal(const ni_dbus_object_t *object, const char *signal_name)
 {

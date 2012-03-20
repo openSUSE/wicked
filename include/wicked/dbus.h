@@ -204,6 +204,8 @@ extern void *			ni_dbus_object_get_handle(const ni_dbus_object_t *);
 extern const ni_dbus_service_t *ni_dbus_object_get_service(const ni_dbus_object_t *, const char *);
 extern const ni_dbus_service_t *ni_dbus_object_get_service_for_method(const ni_dbus_object_t *, const char *);
 extern const ni_dbus_service_t *ni_dbus_object_get_service_for_signal(const ni_dbus_object_t *, const char *);
+extern unsigned int		ni_dbus_object_get_all_services_for_method(const ni_dbus_object_t *object, const char *method,
+					const ni_dbus_service_t **list, unsigned int list_size);
 extern const char *		ni_dbus_object_get_default_interface(const ni_dbus_object_t *);
 extern void			ni_dbus_object_set_default_interface(ni_dbus_object_t *, const char *);
 extern void			ni_dbus_object_free(ni_dbus_object_t *);
