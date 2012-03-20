@@ -441,6 +441,11 @@ extern xml_node_t *		ni_dbus_xml_deserialize_arguments(const ni_dbus_method_t *m
 extern xml_node_t *		ni_dbus_xml_deserialize_properties(ni_xs_scope_t *, const char *,
 						ni_dbus_variant_t *, xml_node_t *);
 
+extern int			ni_dbus_xml_get_method_metadata(const ni_dbus_method_t *method,
+						const char *node_name,
+						xml_node_t **list, unsigned int max_nodes);
+extern int			ni_dbus_xml_expand_element_reference(xml_node_t *doc_node, const char *expr_string,
+						xml_node_t **ret_nodes, unsigned int max_nodes);
 
 extern unsigned int		__ni_dbus_variant_offsets[256];
 

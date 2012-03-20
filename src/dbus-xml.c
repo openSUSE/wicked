@@ -1371,6 +1371,45 @@ ni_dbus_xml_get_properties_schema(const ni_xs_scope_t *scope, const ni_xs_servic
 }
 
 /*
+ * Given an xml node and an xpath expression, get list of nodes referenced by this
+ */
+int
+ni_dbus_xml_expand_element_reference(xml_node_t *doc_node, const char *expr_string,
+			xml_node_t **ret_nodes, unsigned int max_nodes)
+{
+	xpath_enode_t *expression;
+	xpath_result_t *result;
+	unsigned int i, nret;
+
+	if (doc_node == NULL)
+		return 0;
+
+	expression = xpath_expression_parse(expr_string);
+	if (expression == NULL)
+		return -NI_ERROR_DOCUMENT_ERROR;
+
+	result = xpath_expression_eval(expression, doc_node);
+	xpath_expression_free(expression);
+
+	if (result == NULL)
+		return -NI_ERROR_DOCUMENT_ERROR;
+
+	for (i = nret = 0; i < result->count; ++i) {
+		if (result->node[i].type != XPATH_ELEMENT) {
+			ni_error("%s: non-element result of xpath expression \"%s\"",
+					xml_node_location(doc_node), expr_string);
+			xpath_result_free(result);
+			return -NI_ERROR_DOCUMENT_ERROR;
+		}
+		if (nret < max_nodes)
+			ret_nodes[nret++] = result->node[i].value.node;
+	}
+
+	xpath_result_free(result);
+	return nret;
+}
+
+/*
  * Process per-argument metadata for dbus methods
  *
  * Consult the method's metadata information to see how to
@@ -1414,44 +1453,26 @@ ni_dbus_xml_map_method_argument(const ni_dbus_method_t *method, unsigned int ind
 
 		attr = xml_node_get_attr(mapping, "document-node");
 		if (attr != NULL && doc_node) {
-			xpath_enode_t *expression;
-			xpath_result_t *result;
+			xml_node_t *expanded[2];
+			int rv;
 
-			expression = xpath_expression_parse(attr);
-			if (expression == NULL) {
-				ni_error("%s: cannot parse xpath expression \"%s\"",
+			rv = ni_dbus_xml_expand_element_reference(doc_node, attr, expanded, 2);
+			if (rv < 0) {
+				ni_error("%s: invalid mapping expression \"%s\"",
+						xml_node_location(mapping), attr);
+				return rv;
+			}
+
+			if (rv == 0) {
+				/* Fine, the element referenced by the xpath is not present. */
+			} else
+			if (rv == 1) {
+				*ret_node = expanded[0];
+			} else {
+				ni_error("%s: ambiguous result of xpath expression \"%s\"",
 						xml_node_location(mapping), attr);
 				return -NI_ERROR_DOCUMENT_ERROR;
 			}
-
-			result = xpath_expression_eval(expression, doc_node);
-			xpath_expression_free(expression);
-
-			if (result == NULL) {
-				ni_error("%s: unable to evaluate xpath expression \"%s\"",
-						xml_node_location(doc_node), attr);
-				return -NI_ERROR_DOCUMENT_ERROR;
-			}
-
-			if (result->count == 0) {
-				/* Fine, the element referenced by the xpath is not present. */
-			} else
-			if (result->count == 1) {
-				if (result->node[0].type != XPATH_ELEMENT) {
-					ni_error("%s: non-element result of xpath expression \"%s\"",
-							xml_node_location(doc_node), attr);
-					xpath_result_free(result);
-					return -NI_ERROR_DOCUMENT_ERROR;
-				}
-				*ret_node = result->node[0].value.node;
-			} else {
-				ni_error("%s: ambiguous result of xpath expression \"%s\"",
-						xml_node_location(doc_node), attr);
-				xpath_result_free(result);
-				return -NI_ERROR_DOCUMENT_ERROR;
-			}
-
-			xpath_result_free(result);
 		}
 	}
 
@@ -1459,4 +1480,25 @@ ni_dbus_xml_map_method_argument(const ni_dbus_method_t *method, unsigned int ind
 		*ret_skip_call = skip_call;
 
 	return 0;
+}
+
+int
+ni_dbus_xml_get_method_metadata(const ni_dbus_method_t *method, const char *name,
+				xml_node_t **list, unsigned int max_nodes)
+{
+	ni_xs_method_t *xs_method;
+	xml_node_t *meta, *child;
+	unsigned int count = 0;
+
+	if (!(xs_method = method->user_data))
+		return 0;
+	if ((meta = xs_method->meta) == NULL)
+		return 0;
+
+	for (child = meta->children; child; child = child->next) {
+		if (ni_string_eq(child->name, name) && count < max_nodes)
+			list[count++] = child;
+	}
+
+	return count;
 }

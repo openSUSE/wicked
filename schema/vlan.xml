@@ -18,6 +18,7 @@
 
 <service name="vlan-factory" interface="com.suse.Wicked.VLAN.Factory" object-class="netif-list">
  <method name="newDevice">
+  <meta:require check="netif-resolve" document-node="/vlan/device"/>
   <arguments>
    <name type="string"/>
    <config type="vlan:linkinfo">

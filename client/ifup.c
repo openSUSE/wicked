@@ -76,6 +76,11 @@ struct ni_netif_action {
 	} common;
 
 	ni_objectmodel_callback_info_t *callbacks;
+
+	struct {
+		ni_bool_t		parsed;
+		ni_ifworker_req_t *	list;
+	} require;
 };
 
 struct ni_ifworker {
@@ -116,7 +121,7 @@ struct ni_ifworker {
 	ni_ifworker_req_t *	dependencies;
 };
 
-typedef ni_bool_t		ni_ifworker_req_fn_t(ni_ifworker_req_t *);
+typedef ni_bool_t		ni_ifworker_req_fn_t(ni_ifworker_t *, ni_ifworker_req_t *);
 struct ni_ifworker_req {
 	ni_ifworker_req_t *	next;
 
@@ -141,7 +146,8 @@ static void			ni_ifworker_array_destroy(ni_ifworker_array_t *);
 static ni_ifworker_t *		ni_ifworker_identify_device(const xml_node_t *);
 static void			ni_ifworker_set_dependencies_xml(ni_ifworker_t *, xml_node_t *);
 static void			ni_ifworker_fsm_init(ni_ifworker_t *);
-static ni_bool_t		ni_ifworker_req_check_reachable(ni_ifworker_req_t *);
+static ni_bool_t		ni_ifworker_req_check_reachable(ni_ifworker_t *, ni_ifworker_req_t *);
+static ni_bool_t		ni_ifworker_req_netif_resolve(ni_ifworker_t *, ni_ifworker_req_t *);
 static void			ni_ifworker_req_free(ni_ifworker_req_t *);
 
 static inline ni_ifworker_t *
@@ -203,6 +209,9 @@ ni_ifworker_req_new(const char *check, int from_state, int to_state, xml_node_t 
 
 	if (ni_string_eq(check, "reachable")) {
 		fn = ni_ifworker_req_check_reachable;
+	} else
+	if (ni_string_eq(check, "netif-resolve")) {
+		fn = ni_ifworker_req_netif_resolve;
 	}
 
 	if (fn == NULL) {
@@ -227,7 +236,7 @@ ni_ifworker_req_free(ni_ifworker_req_t *req)
 }
 
 static ni_bool_t
-ni_ifworker_req_check_reachable(ni_ifworker_req_t *req)
+ni_ifworker_req_check_reachable(ni_ifworker_t *w, ni_ifworker_req_t *req)
 {
 	const char *hostname;
 	ni_sockaddr_t address;
@@ -432,6 +441,55 @@ ni_ifworker_by_alias(const char *alias)
 	}
 
 	return NULL;
+}
+
+static ni_ifworker_t *
+ni_ifworker_resolve_reference(xml_node_t *devnode)
+{
+	ni_ifworker_t *child;
+	const char *slave_name;
+
+	slave_name = devnode->cdata;
+	if (slave_name != NULL) {
+		child = ni_ifworker_array_find(&interface_workers, slave_name);
+
+		if (child == NULL) {
+			ni_error("%s: <%s> element references unknown slave device %s",
+					xml_node_location(devnode),
+					devnode->name,
+					slave_name);
+			return NULL;
+		}
+	} else
+	if (devnode->children) {
+		/* Try to identify device based on attributes given in the
+		 * <device> node. */
+		child = ni_ifworker_identify_device(devnode);
+		if (child == NULL) {
+			ni_error("%s: <%s> element references unknown slave device",
+					xml_node_location(devnode),
+					devnode->name);
+			return NULL;
+		}
+
+		if (child->name == NULL) {
+			ni_warn("%s: <%s> element references slave device with no name",
+					xml_node_location(devnode),
+					devnode->name);
+		}
+
+		ni_debug_dbus("%s: identified device as \"%s\"",
+				xml_node_location(devnode),
+				child->name);
+		xml_node_set_cdata(devnode, child->name);
+	} else {
+		ni_error("%s: empty device reference in <%s> element",
+				xml_node_location(devnode),
+				devnode->name);
+		return NULL;
+	}
+
+	return child;
 }
 
 static ni_ifworker_t *
@@ -643,6 +701,30 @@ ni_ifworkers_from_xml(xml_document_t *doc)
 }
 
 /*
+ * Handle <require> metadata elements that mark netif references.
+ * We need to resolve these to a real device (and dbus object path).
+ * Optionally, the node may specify a minimum and/or maximum device state
+ */
+static ni_bool_t
+ni_ifworker_req_netif_resolve(ni_ifworker_t *w, ni_ifworker_req_t *req)
+{
+	ni_ifworker_t *child_worker;
+	xml_node_t *devnode;
+
+	if (!(devnode = req->data))
+		return FALSE;
+
+	if (!(child_worker = ni_ifworker_resolve_reference(devnode)))
+		return FALSE;
+
+	ni_trace("%s: resolved reference to subordinate device %s", w->name, child_worker->name);
+	if (!ni_ifworker_add_child(w, child_worker, devnode))
+		return FALSE;
+
+	return TRUE;
+}
+
+/*
  * Dependency handling for interface bring-up.
  *
  * You can specify explicit dependencies for an interface using
@@ -709,7 +791,29 @@ ni_ifworker_set_dependencies_xml(ni_ifworker_t *w, xml_node_t *depnode)
 }
 
 static ni_bool_t
-ni_ifworker_check_dependencies(ni_ifworker_t *w, int next_state)
+ni_ifworker_check_dependencies(ni_ifworker_t *w, ni_iftransition_t *action)
+{
+	ni_ifworker_req_t *req, *next;
+
+	if (!action->require.list)
+		return TRUE;
+
+	ni_debug_dbus("%s: checking requirements for %s -> %s transition",
+			w->name,
+			ni_ifworker_state_name(action->from_state),
+			ni_ifworker_state_name(action->next_state));
+
+	for (req = action->require.list; req; req = next) {
+		next = req->next;
+		if (!req->test_fn(w, req))
+			return FALSE;
+	}
+
+	return TRUE;
+}
+
+static ni_bool_t
+ni_ifworker_check_dependencies2(ni_ifworker_t *w, int next_state)
 {
 	ni_ifworker_req_t *req;
 	int printed = 0;
@@ -722,7 +826,7 @@ ni_ifworker_check_dependencies(ni_ifworker_t *w, int next_state)
 						w->name,
 						ni_ifworker_state_name(req->from_state),
 						ni_ifworker_state_name(req->to_state));
-			if (!req->test_fn(req))
+			if (!req->test_fn(w, req))
 				return FALSE;
 		}
 	}
@@ -1065,47 +1169,8 @@ build_hierarchy(void)
 
 		devnode = NULL;
 		while ((devnode = xml_node_get_next_named(linknode, "device", devnode)) != NULL) {
-			const char *slave_name;
-
-			slave_name = devnode->cdata;
-			if (slave_name != NULL) {
-				child = ni_ifworker_array_find(&interface_workers, slave_name);
-
-				if (child == NULL) {
-					ni_error("%s: <%s> element references unknown slave device %s",
-							xml_node_location(ifnode),
-							linknode->name,
-							slave_name);
-					return -1;
-				}
-			} else
-			if (devnode->children) {
-				/* Try to identify device based on attributes given in the
-				 * <device> node. */
-				child = ni_ifworker_identify_device(devnode);
-				if (child == NULL) {
-					ni_error("%s: <%s> element references unknown slave device",
-							xml_node_location(ifnode),
-							linknode->name);
-					return -1;
-				}
-
-				if (child->name == NULL) {
-					ni_warn("%s: <%s> element references slave device with no name",
-							xml_node_location(ifnode),
-							linknode->name);
-				}
-
-				ni_debug_dbus("%s: identified device as \"%s\"",
-						xml_node_location(devnode),
-						child->name);
-				xml_node_set_cdata(devnode, child->name);
-			} else {
-				ni_error("%s: empty <device> element in <%s> declaration",
-						xml_node_location(ifnode),
-						linknode->name);
+			if (!(child = ni_ifworker_resolve_reference(devnode)))
 				return -1;
-			}
 
 			if (!ni_ifworker_add_child(w, child, devnode))
 				return -1;
@@ -1343,6 +1408,65 @@ out:
 }
 
 /*
+ * Parse any <require> tags contained in the per-method metadata
+ */
+static int
+ni_ifworker_map_requires(ni_ifworker_t *w, ni_iftransition_t *action,
+		const ni_dbus_service_t *service, const ni_dbus_method_t *method)
+{
+	xml_node_t *req_nodes[32];
+	ni_ifworker_req_t **pos, *require;
+	unsigned int i, count;
+
+	action->require.parsed = TRUE;
+
+	count = ni_dbus_xml_get_method_metadata(method, "require", req_nodes, 32);
+	if (count == 0)
+		return 0;
+
+	for (pos = &action->require.list; (require = *pos) != NULL; pos = &require->next)
+		;
+
+	for (i = 0; i < count; ++i) {
+		xml_node_t *rnode, *expanded[64];
+		const char *attr, *check;
+		unsigned int j, num_expanded;
+		int rv;
+
+		rnode = req_nodes[i];
+		if ((check = xml_node_get_attr(rnode, "check")) == NULL) {
+			ni_error("%s: missing check attribute", xml_node_location(rnode));
+			return -NI_ERROR_DOCUMENT_ERROR;
+		}
+
+		if ((attr = xml_node_get_attr(rnode, "document-node")) == NULL) {
+			ni_error("%s: missing document-node attribute", xml_node_location(rnode));
+			return -NI_ERROR_DOCUMENT_ERROR;
+		}
+
+		rv = ni_dbus_xml_expand_element_reference(w->config, attr, expanded, 64);
+		if (rv < 0)
+			return rv;
+
+		num_expanded = rv;
+		for (j = 0; j < num_expanded; ++j) {
+			require = ni_ifworker_req_new(check, 0, 0, expanded[j]);
+			if (require == NULL) {
+				ni_error("%s: cannot build requirement", xml_node_location(rnode));
+				return -NI_ERROR_DOCUMENT_ERROR;
+			}
+
+			ni_trace("%s: add require check=%s node=%s", w->name, check, xml_node_location(expanded[j]));
+
+			*pos = require;
+			pos = &require->next;
+		}
+	}
+
+	return 0;
+}
+
+/*
  * Most steps of the finite state machine follow the same pattern.
  */
 static int
@@ -1361,6 +1485,17 @@ __ni_ifworker_do_common_service(ni_ifworker_t *w, ni_iftransition_t *action,
 		/* If the interface doesn't support this interface, we trivially succeed. */
 		if (method == NULL)
 			return 0;
+	}
+
+	if (!action->require.parsed) {
+		rv = ni_ifworker_map_requires(w, action, service, method);
+		if (rv < 0)
+			return rv;
+	}
+	if (!ni_ifworker_check_dependencies(w, action)) {
+		ni_debug_objectmodel("%s: defer action (pending dependencies)", w->name);
+		w->wait_for = action;
+		return 0;
 	}
 
 	config = action->common.config;
@@ -1500,6 +1635,7 @@ ni_ifworker_do_device_new(ni_ifworker_t *w, ni_iftransition_t *action)
 {
 	const ni_dbus_service_t *device_service = NULL;
 	xml_node_t *device_config = NULL;
+	const ni_dbus_method_t *device_method = NULL;
 
 	ni_debug_dbus("%s(%s)", __func__, w->name);
 
@@ -1541,12 +1677,23 @@ ni_ifworker_do_device_new(ni_ifworker_t *w, ni_iftransition_t *action)
 				}
 				device_service = service;
 				device_config = config;
+				device_method = method;
 			}
 		}
 
 		if (device_service == NULL) {
 			ni_ifworker_fail(w, "device does not exist");
 			return -1;
+		}
+
+		rv = ni_ifworker_map_requires(w, action, device_service, device_method);
+		if (rv < 0)
+			return rv;
+
+		if (!ni_ifworker_check_dependencies(w, action)) {
+			ni_debug_objectmodel("%s: defer device creation (pending dependencies)", w->name);
+			w->wait_for = action;
+			return 0;
 		}
 
 		object_path = ni_call_device_new_xml(device_service, w->name, device_config);
@@ -1716,7 +1863,7 @@ do_it_again:
 					if (a->common.method_name) {
 						ni_debug_objectmodel("  %s -> %s: %s()",
 							ni_ifworker_state_name(cur_state),
-							ni_ifworker_state_name(target_state),
+							ni_ifworker_state_name(next_state),
 							a->common.method_name);
 					} else {
 						ni_debug_objectmodel("  %s -> %s: func=%p",
@@ -1784,7 +1931,7 @@ ni_ifworker_fsm(void)
 			}
 
 			/* See if we've fulfilled all dependencies for entering this state. */
-			if (!ni_ifworker_check_dependencies(w, action->next_state)) {
+			if (!ni_ifworker_check_dependencies2(w, action->next_state)) {
 				ni_debug_dbus("%s: not all dependencies fulfilled", w->name);
 				continue;
 			}
