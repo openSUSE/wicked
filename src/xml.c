@@ -75,6 +75,21 @@ xml_document_free(xml_document_t *doc)
 	free(doc);
 }
 
+void
+xml_node_add_child(xml_node_t *parent, xml_node_t *child)
+{
+	xml_node_t **tail, *np;
+
+	ni_assert(child->parent == NULL);
+
+	tail = &parent->children;
+	while ((np = *tail) != NULL)
+		tail = &np->next;
+
+	child->parent = parent;
+	*tail = child;
+}
+
 xml_node_t *
 xml_node_new(const char *ident, xml_node_t *parent)
 {
@@ -84,16 +99,8 @@ xml_node_new(const char *ident, xml_node_t *parent)
 	if (ident)
 		node->name = xstrdup(ident);
 
-	if (parent) {
-		xml_node_t **tail, *np;
-
-		tail = &parent->children;
-		while ((np = *tail) != NULL)
-			tail = &np->next;
-
-		node->parent = parent;
-		*tail = node;
-	}
+	if (parent)
+		xml_node_add_child(parent, node);
 
 	return node;
 }
@@ -372,6 +379,14 @@ xml_node_detach(xml_node_t *node)
 		}
 		pos = &sibling->next;
 	}
+}
+
+void
+xml_node_reparent(xml_node_t *parent, xml_node_t *child)
+{
+	if (child->parent)
+		xml_node_detach(child);
+	xml_node_add_child(parent, child);
 }
 
 /*
