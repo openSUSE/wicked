@@ -32,7 +32,7 @@
 #include <wicked/xpath.h>
 #include "netinfo_priv.h"
 
-#define XPATH_DEBUG
+#undef XPATH_DEBUG
 
 enum {
 	XPATH_INFIXPRIO_NONE = 0,
@@ -91,7 +91,11 @@ static void		__xpath_skipws(const char **);
 static xpath_enode_t *	xpath_enode_new(const xpath_operator_t *);
 static void		xpath_enode_free(xpath_enode_t *);
 
-#define xtrace		ni_debug_xpath
+#ifdef XPATH_DEBUG
+# define xtrace		ni_debug_xpath
+#else
+# define xtrace		ni_debug_none
+#endif
 
 
 /*

@@ -68,6 +68,7 @@ extern unsigned int	ni_debug;
 			xml_node_print_fn(xml_node, (void (*)(const char *, void *)) ni_trace, NULL); \
 		} \
 	} while (0)
+#define ni_debug_none(fmt, args...)		do { } while (0)
 
 #define __ni_string(x) #x
 
