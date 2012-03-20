@@ -625,9 +625,14 @@ ni_string_free(char **pp)
 void
 ni_string_dup(char **pp, const char *value)
 {
+	char *newval;
+
+	/* Beware: dup the string first, then free *pp.
+	 * After all, value may be a substing of *pp */
+	newval = value? xstrdup(value) : NULL;
 	if (*pp)
 		free(*pp);
-	*pp = value? xstrdup(value) : NULL;
+	*pp = newval;
 }
 
 void
