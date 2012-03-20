@@ -698,35 +698,45 @@ ni_xs_process_method(xml_node_t *node, ni_xs_service_t *service, ni_xs_scope_t *
 	}
 
 	method = ni_xs_method_new(&service->methods, nameAttr);
-	if ((child = xml_node_get_child(node, "arguments")) != NULL) {
+	for (child = node->children; child; child = child->next) {
 		ni_xs_scope_t *temp_scope;
 
-		temp_scope = ni_xs_scope_new(scope, NULL);
-		if (ni_xs_build_typelist(child, &method->arguments, temp_scope, TRUE, NULL) < 0) {
+		ni_trace("method %s, child %s", nameAttr, child->name);
+		if (ni_string_eq(child->name, "arguments")) {
+			temp_scope = ni_xs_scope_new(scope, NULL);
+			if (ni_xs_build_typelist(child, &method->arguments, temp_scope, TRUE, NULL) < 0) {
+				ni_xs_scope_free(temp_scope);
+				return -1;
+			}
+
 			ni_xs_scope_free(temp_scope);
-			return -1;
+		} else
+		if (ni_string_eq(child->name, "return")) {
+			ni_xs_type_t *type;
+
+			temp_scope = ni_xs_scope_new(scope, NULL);
+			type = ni_xs_build_one_type(child, temp_scope);
+			ni_xs_scope_free(temp_scope);
+
+			if (type == NULL) {
+				ni_error("%s: cannot parse <return> element", xml_node_location(node));
+				return -1;
+			}
+			method->retval = ni_xs_type_hold(type);
+		} else
+		if (ni_string_eq(child->name, "meta")) {
+			xml_node_detach(child);
+			method->meta = child;
+		} else
+		if (!strncmp(child->name, "meta:", 5)) {
+			if (method->meta == NULL)
+				method->meta = xml_node_new("meta", NULL);
+			xml_node_reparent(method->meta, child);
+			ni_string_dup(&child->name, child->name + 5);
+
+			ni_trace("handled meta:%s", child->name);
+			xml_node_print(method->meta, NULL);
 		}
-
-		ni_xs_scope_free(temp_scope);
-	}
-
-	if ((child = xml_node_get_child(node, "return")) != NULL) {
-		ni_xs_scope_t *temp_scope = ni_xs_scope_new(scope, NULL);
-		ni_xs_type_t *type;
-
-		type = ni_xs_build_one_type(child, temp_scope);
-		ni_xs_scope_free(temp_scope);
-
-		if (type == NULL) {
-			ni_error("%s: cannot parse <return> element", xml_node_location(node));
-			return -1;
-		}
-		method->retval = ni_xs_type_hold(type);
-	}
-
-	if ((child = xml_node_get_child(node, "meta")) != NULL) {
-		xml_node_detach(child);
-		method->meta = child;
 	}
 
 	return 0;
@@ -1159,7 +1169,7 @@ ni_xs_type_t *
 ni_xs_build_simple_type(xml_node_t *node, const char *typeName, ni_xs_scope_t *scope, ni_xs_group_array_t *group_array)
 {
 	ni_xs_type_t *result;
-	xml_node_t *meta;
+	xml_node_t *child, *meta;
 
 	if (typeName == NULL) {
 		ni_error("%s: NULL type name?!", xml_node_location(node));
@@ -1178,15 +1188,32 @@ ni_xs_build_simple_type(xml_node_t *node, const char *typeName, ni_xs_scope_t *s
 
 	/* If we find any <meta> type inside a scalar type definition,
 	 * detach it from the schema xml tree and store it in the scalar
-	 * type node for later use. */
-	if ((meta = xml_node_get_child(node, "meta")) != NULL) {
-		if (result->meta) {
-			ni_error("%s: overwriting <meta> info of node", xml_node_location(node));
-		} else {
-			xml_node_detach(meta);
-			result = ni_xs_type_clone_and_release(result);
-			result->meta = meta;
+	 * type node for later use.
+	 * <meta:foobar> is a shorthand for <foobar> nested inside <meta>.
+	 */
+	meta = NULL;
+	for (child = node->children; child; child = child->next) {
+		if (ni_string_eq(child->name, "meta")) {
+			if (meta) {
+				ni_error("%s: duplicate <meta> elements", xml_node_location(node));
+			} else {
+				xml_node_detach(child);
+				meta = child;
+			}
+		} else
+		if (!strncasecmp(child->name, "meta:", 5)) {
+			if (meta == NULL)
+				meta = xml_node_new("meta", NULL);
+			xml_node_reparent(meta, child);
+			ni_string_dup(&child->name, child->name + 5);
 		}
+	}
+	if (meta) {
+		result = ni_xs_type_clone_and_release(result);
+		if (result->meta)
+			ni_error("%s: overwriting <meta> info of node", xml_node_location(node));
+		else
+			result->meta = meta;
 	}
 
 	return result;

@@ -18,9 +18,7 @@
     <arguments>
       <!-- Note: all addresses are expected to be IPv4 -->
       <config type="request">
-        <meta>
-	  <mapping document-node="ipv4:static" skip-unless-present="true"/>
-        </meta>
+        <meta:mapping document-node="ipv4:static" skip-unless-present="true"/>
       </config>
     </arguments>
     <return>
@@ -50,9 +48,7 @@
     <arguments>
       <!-- Note: all addresses are expected to be IPv6 -->
       <config type="request">
-        <meta>
-	  <mapping document-node="ipv6:static" skip-unless-present="true"/>
-        </meta>
+        <meta:mapping document-node="ipv6:static" skip-unless-present="true"/>
       </config>
     </arguments>
     <return>
@@ -86,9 +82,7 @@
   <method name="requestLease">
     <arguments>
       <config type="request">
-        <meta>
-	  <mapping document-node="ipv4:dhcp" skip-unless-present="true"/>
-        </meta>
+        <meta:mapping document-node="ipv4:dhcp" skip-unless-present="true"/>
       </config>
     </arguments>
     <return>
@@ -115,9 +109,7 @@
   <method name="requestLease">
     <arguments>
       <config type="request">
-        <meta>
-	  <mapping document-node="ipv4:auto" skip-unless-present="true"/>
-        </meta>
+        <meta:mapping document-node="ipv4:auto" skip-unless-present="true"/>
       </config>
     </arguments>
     <return>

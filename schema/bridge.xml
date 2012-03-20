@@ -65,9 +65,7 @@
     <arguments>
      <name type="string"/>
      <config type="bridge:linkconfig">
-      <meta>
-       <mapping document-node="/bridge"/>
-      </meta>
+      <meta:mapping document-node="/bridge"/>
      </config>
     </arguments>
     <return>

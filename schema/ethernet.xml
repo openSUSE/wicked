@@ -53,9 +53,7 @@
 	-- call to changeDevice() if that element isn't there.
 	-->
       <config type="properties">
-       <meta>
-         <mapping document-node="/ethernet" skip-unless-present="true" />
-       </meta>
+       <meta:mapping document-node="/ethernet" skip-unless-present="true" />
       </config>
     </arguments>
   </method>

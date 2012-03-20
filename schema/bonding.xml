@@ -59,9 +59,7 @@
     <arguments>
      <name type="string"/>
      <config type="bonding:device-info">
-      <meta>
-       <mapping document-node="/bond"/>
-      </meta>
+      <meta:mapping document-node="/bond"/>
      </config>
     </arguments>
     <return>

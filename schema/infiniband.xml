@@ -41,9 +41,7 @@
     <arguments>
       <name type="string"/>
       <config type="infiniband-child:linkinfo">
-       <meta>
-        <mapping document-node="/infiniband-child"/>
-       </meta>
+       <meta:mapping document-node="/infiniband-child"/>
       </config>
     </arguments>
     <return>

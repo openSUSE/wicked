@@ -21,9 +21,7 @@
   <arguments>
    <name type="string"/>
    <config type="vlan:linkinfo">
-    <meta>
-     <mapping document-node="/vlan"/>
-    </meta>
+    <meta:mapping document-node="/vlan"/>
    </config>
   </arguments>
   <return>
