@@ -85,8 +85,8 @@ ni_objectmodel_register_netif_classes(void)
 	ni_objectmodel_register_device_service(NI_IFTYPE_UNKNOWN, &ni_objectmodel_addrconf_ipv6_static_service);
 	ni_objectmodel_register_device_service(NI_IFTYPE_UNKNOWN, &ni_objectmodel_addrconf_ipv4_dhcp_service);
 	ni_objectmodel_register_device_service(NI_IFTYPE_UNKNOWN, &ni_objectmodel_addrconf_ipv4ll_service);
-	ni_objectmodel_register_device_service(NI_IFTYPE_UNKNOWN, &ni_objectmodel_addrconf_ipv4_ibft_service);
-	ni_objectmodel_register_device_service(NI_IFTYPE_UNKNOWN, &ni_objectmodel_addrconf_ipv6_ibft_service);
+//	ni_objectmodel_register_device_service(NI_IFTYPE_UNKNOWN, &ni_objectmodel_addrconf_ipv4_ibft_service);
+//	ni_objectmodel_register_device_service(NI_IFTYPE_UNKNOWN, &ni_objectmodel_addrconf_ipv6_ibft_service);
 
 	ni_objectmodel_register_device_service(NI_IFTYPE_ETHERNET, &ni_objectmodel_ethernet_service);
 	ni_objectmodel_register_device_service(NI_IFTYPE_VLAN, &ni_objectmodel_vlan_service);
