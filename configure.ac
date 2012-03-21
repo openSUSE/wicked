@@ -82,6 +82,7 @@ AC_CHECK_FUNCS([strdup strerror strrchr strstr strtol strtoul strtoull])
 
 AC_CONFIG_FILES([
 	Makefile
+	wicked.pc
 	wicked.spec
 ])
 
