@@ -109,8 +109,8 @@ struct ni_ifworker {
 	char *			object_path;
 
 	unsigned int		ifindex;
-	ni_iftype_t		iftype;		 /* FIXME: nuke */
 
+	ni_uint_range_t		target_range;
 	int			target_state;
 	int			state;
 	ni_iftransition_t *	wait_for;
@@ -134,9 +134,9 @@ struct ni_ifworker {
 	ni_ifworker_t *		exclusive_owner;
 
 	ni_iftransition_t *	actions;
-	ni_uint_range_t		child_states[__STATE_MAX]; /* FIXME: nuke */
 
 	ni_ifworker_t *		parent;
+	unsigned int		depth;		/* depth in device graph */
 	ni_ifworker_children_t	children;
 
 	ni_ifworker_req_t *	dependencies;
@@ -163,11 +163,12 @@ static ni_dbus_object_t *	__root_object;
 
 static const char *		ni_ifworker_state_name(int);
 static void			ni_ifworker_array_append(ni_ifworker_array_t *, ni_ifworker_t *);
+static int			ni_ifworker_array_index(const ni_ifworker_array_t *, const ni_ifworker_t *);
 static ni_ifworker_edge_t *	ni_ifworker_children_append(ni_ifworker_children_t *, ni_ifworker_t *, xml_node_t *);
 static void			ni_ifworker_children_destroy(ni_ifworker_children_t *);
 static ni_ifworker_t *		ni_ifworker_identify_device(const xml_node_t *);
 static void			ni_ifworker_set_dependencies_xml(ni_ifworker_t *, xml_node_t *);
-static void			ni_ifworker_fsm_init(ni_ifworker_t *);
+static void			ni_ifworker_fsm_init(ni_ifworker_t *, unsigned int, unsigned int);
 static ni_bool_t		ni_ifworker_req_check_reachable(ni_ifworker_t *, ni_ifworker_req_t *);
 static ni_bool_t		ni_ifworker_req_netif_resolve(ni_ifworker_t *, ni_ifworker_req_t *);
 static void			ni_ifworker_req_free(ni_ifworker_req_t *);
@@ -181,6 +182,9 @@ __ni_ifworker_new(const char *name, xml_node_t *config)
 	ni_string_dup(&w->name, name);
 	w->config = config;
 	w->refcount = 1;
+
+	w->target_range.min = STATE_NONE;
+	w->target_range.max = __STATE_MAX;
 
 	return w;
 }
@@ -363,6 +367,7 @@ static ni_intmap_t __state_names[] = {
 	{ "link-up",		STATE_LINK_UP		},
 	{ "link-authenticated",	STATE_LINK_AUTHENTICATED},
 	{ "network-up",		STATE_ADDRCONF_UP	},
+	{ "max",		__STATE_MAX		},
 
 	{ NULL }
 };
@@ -389,6 +394,18 @@ ni_ifworker_array_append(ni_ifworker_array_t *array, ni_ifworker_t *w)
 	array->data = realloc(array->data, (array->count + 1) * sizeof(array->data[0]));
 	array->data[array->count++] = w;
 	w->refcount++;
+}
+
+int
+ni_ifworker_array_index(const ni_ifworker_array_t *array, const ni_ifworker_t *w)
+{
+	unsigned int i;
+
+	for (i = 0; i < array->count; ++i) {
+		if (array->data[i] == w)
+			return i;
+	}
+	return -1;
 }
 
 void
@@ -910,21 +927,26 @@ ni_ifworker_check_dependencies2(ni_ifworker_t *w, int next_state)
 	return TRUE;
 }
 
+#if 0
 /*
  * Make sure the device's target state is in the [min, max] range.
  */
-static void
+static ni_bool_t
 ni_ifworker_set_target(ni_ifworker_t *w, unsigned int min_state, unsigned int max_state)
 {
-	/* By default, assume we're not chaging the interface state */
-	if (w->target_state == STATE_NONE)
-		w->target_state = w->state;
+	ni_bool_t changed = FALSE;
 
-	if (w->target_state < min_state)
+	if (w->target_state < min_state) {
 		w->target_state = min_state;
-	else
-	if (w->target_state > max_state)
+		changed = TRUE;
+	}
+	if (w->target_state > max_state) {
 		w->target_state = max_state;
+		changed = TRUE;
+	}
+
+	return changed;
+
 
 	if (min_state >= STATE_LINK_UP) {
 		/* If we're bringing up the device, assume the device does not
@@ -936,7 +958,6 @@ ni_ifworker_set_target(ni_ifworker_t *w, unsigned int min_state, unsigned int ma
 	}
 	ni_debug_dbus("%s: assuming current state=%s", w->name, ni_ifworker_state_name(w->state));
 
-#if 0
 	if (w->children.count != 0) {
 		unsigned int i;
 
@@ -988,8 +1009,8 @@ ni_ifworker_set_target(ni_ifworker_t *w, unsigned int min_state, unsigned int ma
 			ni_ifworker_set_target(child, min_state, max_state);
 		}
 	}
-#endif
 }
+#endif
 
 /*
  * Identify a device based on a set of attributes.
@@ -1033,6 +1054,9 @@ ni_ifworker_identify_device(const xml_node_t *devnode)
 	return best;
 }
 
+/*
+ * Get all interfaces matching some user-specified criteria
+ */
 typedef struct ni_ifmatcher {
 	const char *		name;
 	const char *		boot_label;
@@ -1041,13 +1065,11 @@ typedef struct ni_ifmatcher {
 } ni_ifmatcher_t;
 
 static unsigned int
-ni_ifworker_mark_matching(ni_ifmatcher_t *match, unsigned int target_state)
+ni_ifworker_get_matching(ni_ifmatcher_t *match, ni_ifworker_array_t *result)
 {
-	unsigned int i, count = 0;
+	unsigned int i;
 
-	ni_debug_dbus("%s(name=%s, target_state=%s)", __func__, match->name, ni_ifworker_state_name(target_state));
-
-	if (!strcmp(match->name, "all")) {
+	if (ni_string_eq(match->name, "all")) {
 		/* safeguard: "ifdown all" should mean "all interfaces with a config file */
 		match->require_config = 1;
 		match->name = NULL;
@@ -1076,24 +1098,208 @@ ni_ifworker_mark_matching(ni_ifmatcher_t *match, unsigned int target_state)
 		if (match->skip_active && w->device && ni_netdev_device_is_up(w->device))
 			continue;
 
-		if (w->config == NULL) {
-			fprintf(stderr,
-				"%s: no configuration for interface, but bringing %s anyway\n",
-				w->name, (target_state < STATE_LINK_UP)? "down" : "up");
-		}
+		ni_ifworker_array_append(result, w);
+	}
 
-		ni_ifworker_set_target(w, target_state, target_state);
-		count++;
+	return result->count;
+}
+
+/*
+ * Check for loops in the device tree
+ * We do this by counting edges - a graph has cycles iff there is a traversal
+ * with more edges than the overall number of edges in the graph.
+ */
+static ni_bool_t
+ni_ifworker_check_loops(const ni_ifworker_t *w, unsigned int *counter)
+{
+	unsigned int i, nchildren = w->children.count;
+	ni_bool_t ret = TRUE;
+
+	/* ni_trace("%s(%s, %u)", __func__, w->name, *counter); */
+	if (nchildren > *counter)
+		return FALSE;
+	*counter -= nchildren;
+
+	for (i = 0; i < w->children.count && ret; ++i) {
+		ni_ifworker_t *child = w->children.data[i].child;
+
+		ret = ni_ifworker_check_loops(child, counter);
+	}
+
+	return ret;
+}
+
+static ni_bool_t
+ni_ifworkers_check_loops(ni_ifworker_array_t *array)
+{
+	unsigned int i, num_edges;
+
+	for (i = num_edges = 0; i < interface_workers.count; ++i) {
+		ni_ifworker_t *w = interface_workers.data[i];
+
+		num_edges += w->children.count;
 	}
 
 	for (i = 0; i < interface_workers.count; ++i) {
 		ni_ifworker_t *w = interface_workers.data[i];
+		unsigned int counter = num_edges;
+
+		if (!ni_ifworker_check_loops(w, &counter)) {
+			ni_ifworker_fail(w, "detected loop in device hierarchy");
+			return FALSE;
+		}
+	}
+	return TRUE;
+}
+
+/*
+ * Flatten the device graph by sorting the nodes by depth
+ */
+static void
+__ni_ifworker_flatten(ni_ifworker_t *w, ni_ifworker_array_t *array, unsigned int depth)
+{
+	unsigned int i;
+
+	if (depth > w->depth)
+		w->depth = depth;
+
+	for (i = 0; i < w->children.count; ++i) {
+		ni_ifworker_t *child = w->children.data[i].child;
+
+		__ni_ifworker_flatten(child, array, depth + 1);
+		if (ni_ifworker_array_index(array, child) < 0)
+			ni_ifworker_array_append(array, child);
+	}
+}
+
+static int
+__ni_ifworker_depth_compare(const void *a, const void *b)
+{
+	const ni_ifworker_t *wa = (const ni_ifworker_t *) a;
+	const ni_ifworker_t *wb = (const ni_ifworker_t *) b;
+
+	return (int) (wa->depth - wb->depth);
+}
+
+static void
+ni_ifworkers_flatten(ni_ifworker_array_t *array)
+{
+	unsigned int i, count;
+
+	count = array->count;
+	for (i = 0; i < count; ++i)
+		__ni_ifworker_flatten(array->data[i], array, 0);
+
+	qsort(array->data, array->count, sizeof(array->data[0]), __ni_ifworker_depth_compare);
+}
+
+static int
+ni_ifworker_mark_up(ni_ifworker_t *w, const char *method)
+{
+	ni_ifworker_edge_t *edge;
+	unsigned int i;
+
+	for (i = 0, edge = w->children.data; i < w->children.count; ++i, ++edge) {
+		ni_ifworker_t *child = edge->child;
+		unsigned int j;
+
+		for (j = 0; j < NI_IFWORKER_EDGE_MAX_CALLS; ++j) {
+			if (ni_string_eq(edge->call_pre[j].call_name, method)) {
+				unsigned int min_state = edge->call_pre[j].min_child_state;
+				unsigned int max_state = edge->call_pre[j].max_child_state;
+
+				ni_debug_objectmodel("%s: %s transition requires state of child %s to be in range [%s, %s]",
+						w->name, method, child->name,
+						ni_ifworker_state_name(min_state),
+						ni_ifworker_state_name(max_state));
+				if (min_state > child->target_range.min)
+					child->target_range.min = min_state;
+				if (max_state < child->target_range.max)
+					child->target_range.max = max_state;
+			}
+		}
+	}
+
+	return 0;
+}
+
+static unsigned int
+ni_ifworker_mark_matching(ni_ifmatcher_t *match, unsigned int target_min_state, unsigned int target_max_state)
+{
+	ni_ifworker_array_t marked = { 0, NULL };
+	unsigned int i, j, count = 0;
+
+	if (!ni_ifworker_get_matching(match, &marked))
+		return 0;
+
+	ni_ifworkers_check_loops(&marked);
+
+	/* Mark all our primary devices with the requested target state */
+	for (i = 0; i < marked.count; ++i) {
+		ni_ifworker_t *w = marked.data[i];
+
+		w->target_range.min = target_min_state;
+		w->target_range.max = target_max_state;
+	}
+
+	/* Collect all workers in the device graph, and sort them by increasing
+	 * depth. */
+	ni_ifworkers_flatten(&marked);
+
+	for (i = 0; i < marked.count; ++i) {
+		ni_ifworker_t *w = marked.data[i];
+		unsigned int min_state = w->target_range.min;
+		unsigned int max_state = w->target_range.max;
+
+		if (w->failed)
+		{
+			ni_trace("%s: skipped (failed)", w->name);
+			continue;
+		}
+
+		ni_trace("%s: depth=%u min=%s max=%s",
+					w->name, w->depth,
+					ni_ifworker_state_name(min_state),
+					ni_ifworker_state_name(max_state));
+		if (min_state > max_state) {
+			ni_error("%s: conflicting target states: min=%s max=%s",
+					w->name,
+					ni_ifworker_state_name(min_state),
+					ni_ifworker_state_name(max_state));
+			return -1;
+		}
+
+		if (max_state == __STATE_MAX) {
+			if (min_state == STATE_NONE)
+				continue;
+
+			/* No upper bound; bring it up to min level */
+			ni_ifworker_fsm_init(w, STATE_DEVICE_DOWN, min_state);
+		} else if (min_state == STATE_NONE) {
+			/* No lower bound; bring it down to max level */
+			ni_ifworker_fsm_init(w, STATE_ADDRCONF_UP, max_state);
+		} else {
+			ni_warn("%s: not handled yet: bringing device into state range [%s, %s]",
+					w->name,
+					ni_ifworker_state_name(min_state),
+					ni_ifworker_state_name(max_state));
+		}
+
+		ni_trace("%s: current state=%s target state=%s",
+					w->name,
+					ni_ifworker_state_name(w->state),
+					ni_ifworker_state_name(w->target_state));
 
 		if (w->target_state != STATE_NONE) {
-			ni_debug_dbus("%s: target state %s",
-					w->name, ni_ifworker_state_name(w->target_state));
 			ni_ifworker_set_timeout(w, ni_ifworker_timeout);
-			ni_ifworker_fsm_init(w);
+			count++;
+		}
+
+		for (j = 0; j < w->actions[j].next_state; ++j) {
+			const char *method = w->actions[j].common.method_name;
+
+			if (method)
+				ni_ifworker_mark_up(w, method);
 		}
 	}
 
@@ -1382,7 +1588,7 @@ ni_ifworker_netif_resolve_cb(xml_node_t *node, const ni_xs_type_t *type, const x
 				return FALSE;
 		} else
 		if (ni_string_eq(mchild->name, "require")) {
-			int min_state = STATE_NONE, max_state = STATE_ADDRCONF_UP;
+			int min_state = STATE_NONE, max_state = __STATE_MAX;
 
 			if ((attr = xml_node_get_attr(mchild, "check")) == NULL
 			 || !ni_string_eq(attr, "netif-child-state"))
@@ -1543,33 +1749,40 @@ ni_ifworker_ready(const ni_ifworker_t *w)
  * The parent would like to move to the next state. See if all children are
  * ready.
  */
-static int
-ni_ifworker_children_ready_for(ni_ifworker_t *w, unsigned int next_parent_state)
+static ni_bool_t
+ni_ifworker_children_ready_for(ni_ifworker_t *w, const ni_iftransition_t *action)
 {
-	const ni_uint_range_t *r;
-	unsigned int i;
+	unsigned int i, j;
 
-	ni_assert(next_parent_state < __STATE_MAX);
-	r = &w->child_states[next_parent_state];
+	if (!action->common.method_name)
+		return TRUE;
 
 	for (i = 0; i < w->children.count; ++i) {
-		ni_ifworker_t *child = w->children.data[i].child;
+		ni_ifworker_edge_t *edge = &w->children.data[i];
+		ni_ifworker_t *child = edge->child;
 
-		if (r->min != __STATE_MAX && child->state < r->min) {
-			ni_debug_dbus("%s: waiting for %s to reach state %s",
+		for (j = 0; j < NI_IFWORKER_EDGE_MAX_CALLS; ++j) {
+			struct ni_ifworker_edge_precondition *pre = &edge->call_pre[j];
+
+			if (!ni_string_eq(pre->call_name, action->common.method_name))
+				continue;
+
+			if (child->state < pre->min_child_state) {
+				ni_debug_dbus("%s: waiting for %s to reach state %s",
 					w->name, child->name,
-					ni_ifworker_state_name(r->min));
-			return 0;
-		}
-		if (r->max != STATE_NONE && child->state > r->max) {
-			ni_debug_dbus("%s: waiting for %s to reach state %s",
+					ni_ifworker_state_name(pre->min_child_state));
+				return FALSE;
+			}
+			if (child->state > pre->max_child_state) {
+				ni_debug_dbus("%s: waiting for %s to reach state %s",
 					w->name, child->name,
-					ni_ifworker_state_name(r->max));
-			return 0;
+					ni_ifworker_state_name(pre->max_child_state));
+				return FALSE;
+			}
 		}
 	}
 
-	return 1;
+	return TRUE;
 }
 
 /*
@@ -1961,18 +2174,18 @@ ni_ifworker_can_delete(const ni_ifworker_t *w)
 	.from_state = __state, .next_state = __state - 1, .func = __func \
 }
 
-#define COMMON_TRANSITION_UP_TO(__state, __svc, __meth, __node, __more...) { \
+#define COMMON_TRANSITION_UP_TO(__state, __meth, __more...) { \
 	.from_state = __state - 1, \
 	.next_state = __state, \
 	.func = ni_ifworker_do_common, \
-	.common = { .service_name = __svc, .method_name = __meth, .config_name = __node, ##__more } \
+	.common = { .method_name = __meth, ##__more } \
 }
 
-#define COMMON_TRANSITION_DOWN_FROM(__state, __svc, __meth, __node, __more...) { \
+#define COMMON_TRANSITION_DOWN_FROM(__state, __meth, __more...) { \
 	.from_state = __state, \
 	.next_state = __state - 1, \
 	.func = ni_ifworker_do_common, \
-	.common = { .service_name = __svc, .method_name = __meth, .config_name = __node, ##__more } \
+	.common = { .method_name = __meth, ##__more } \
 }
 
 static ni_iftransition_t	ni_iftransitions[] = {
@@ -1983,50 +2196,48 @@ static ni_iftransition_t	ni_iftransitions[] = {
 	TRANSITION_UP_TO(STATE_DEVICE_EXISTS, ni_ifworker_do_device_new),
 
 	/* This sets any device attributes, such as a MAC address */
-	COMMON_TRANSITION_UP_TO(STATE_DEVICE_UP, NULL, "changeDevice", NULL, .call_overloading = TRUE),
+	COMMON_TRANSITION_UP_TO(STATE_DEVICE_UP, "changeDevice", .call_overloading = TRUE),
 
 	/* This step adds device-specific filtering, if available. Typical
 	 * example would be bridge filtering with ebtables. */
-	COMMON_TRANSITION_UP_TO(STATE_FIREWALL_UP, NULL, "firewallUp", "firewall"),
+	COMMON_TRANSITION_UP_TO(STATE_FIREWALL_UP, "firewallUp"),
 
 	/* This brings up the link layer, and sets general device attributes such
 	 * as the MTU, the transfer queue length etc. */
-	/* FIXME: change the xml node name from <device> to something else.
-	 * See also linkDown() below. */
-	COMMON_TRANSITION_UP_TO(STATE_LINK_UP, NULL, "linkUp", "device"),
+	COMMON_TRANSITION_UP_TO(STATE_LINK_UP, "linkUp", .call_overloading = TRUE),
 
 	/* If the link requires authentication, this information can be provided
 	 * here; for instance ethernet 802.1x, wireless WPA, or PPP chap/pap.
 	 * NOTE: This may not be the right place; we may have to fold this into
 	 * the link_up step, or even do it prior to that. */
-	COMMON_TRANSITION_UP_TO(STATE_LINK_AUTHENTICATED, NULL, "login", NULL),
+	COMMON_TRANSITION_UP_TO(STATE_LINK_AUTHENTICATED, "login", .call_overloading = TRUE),
 
 	/* Configure all assigned addresses and bring up the network */
-	COMMON_TRANSITION_UP_TO(STATE_ADDRCONF_UP, NULL, "requestLease", NULL),
+	COMMON_TRANSITION_UP_TO(STATE_ADDRCONF_UP, "requestLease"),
 
 	/* -------------------------------------- *
 	 * Transitions for bringing down a device
 	 * -------------------------------------- */
 	/* Remove all assigned addresses and bring down the network */
-	COMMON_TRANSITION_DOWN_FROM(STATE_ADDRCONF_UP, NULL, "dropLease", NULL),
+	COMMON_TRANSITION_DOWN_FROM(STATE_ADDRCONF_UP, "dropLease"),
 
 	/* Shut down the link */
-	COMMON_TRANSITION_DOWN_FROM(STATE_LINK_UP, NULL, "linkDown", "device"),
+	COMMON_TRANSITION_DOWN_FROM(STATE_LINK_UP, "linkDown", .call_overloading = TRUE),
 
 	/* Shut down the firewall */
-	COMMON_TRANSITION_DOWN_FROM(STATE_FIREWALL_UP, NULL, "firewallDown", "firewall"),
+	COMMON_TRANSITION_DOWN_FROM(STATE_FIREWALL_UP, "firewallDown"),
 
 	/* Delete the device */
-	COMMON_TRANSITION_DOWN_FROM(STATE_DEVICE_UP, NULL, "deleteDevice", NULL),
+	COMMON_TRANSITION_DOWN_FROM(STATE_DEVICE_UP, "deleteDevice", .call_overloading = TRUE),
 
 	{ .from_state = STATE_NONE, .next_state = STATE_NONE, .func = NULL }
 };
 
 static void
-ni_ifworker_fsm_init(ni_ifworker_t *w)
+ni_ifworker_fsm_init(ni_ifworker_t *w, unsigned int from_state, unsigned int target_state)
 {
 	unsigned int index, num_actions;
-	unsigned int target_state, from_state, cur_state;
+	unsigned int cur_state;
 	int increment;
 
 	if (w->actions != NULL)
@@ -2034,29 +2245,15 @@ ni_ifworker_fsm_init(ni_ifworker_t *w)
 
 	/* If the --delete option was given, but the specific device cannot
 	 * be deleted, then we don't try. */
-	target_state = w->target_state;
 	if (target_state == STATE_DEVICE_DOWN && !ni_ifworker_can_delete(w)) {
 		ni_debug_objectmodel("%s: cannot delete device, ignoring --delete option", w->name);
 		target_state = STATE_DEVICE_UP;
 	}
 
-	switch (target_state) {
-	case STATE_ADDRCONF_UP:
-	case STATE_LINK_UP:
-		from_state = STATE_DEVICE_DOWN;
+	if (from_state <= target_state)
 		increment = 1;
-		break;
-
-	case STATE_DEVICE_UP:
-	case STATE_DEVICE_DOWN:
-		from_state = STATE_ADDRCONF_UP;
+	else
 		increment = -1;
-		break;
-
-	default:
-		ni_fatal("%s: cannot assign fsm for target state %s",
-				w->name, ni_ifworker_state_name(w->target_state));
-	}
 
 	ni_debug_objectmodel("%s: set up FSM from %s -> %s", w->name,
 			ni_ifworker_state_name(from_state),
@@ -2098,6 +2295,8 @@ do_it_again:
 		w->actions = calloc(num_actions + 1, sizeof(ni_iftransition_t));
 		goto do_it_again;
 	}
+	w->state = from_state;
+	w->target_state = target_state;
 }
 
 static unsigned int
@@ -2125,7 +2324,7 @@ ni_ifworker_fsm(void)
 
 			/* If we're still waiting for children to become ready,
 			 * there's nothing we can do but wait. */
-			if (!ni_ifworker_children_ready_for(w, w->actions->next_state))
+			if (!ni_ifworker_children_ready_for(w, w->actions))
 				continue;
 
 			/* We requested a change that takes time (such as acquiring
@@ -2500,8 +2699,10 @@ usage:
 	if (build_hierarchy() < 0)
 		ni_fatal("ifup: unable to build device hierarchy");
 
-	if (!ni_ifworker_mark_matching(&ifmatch, STATE_ADDRCONF_UP))
+	if (!ni_ifworker_mark_matching(&ifmatch, STATE_ADDRCONF_UP, __STATE_MAX)) {
+		printf("No matching interfaces\n");
 		return 0;
+	}
 
 	ni_ifworkers_kickstart();
 	if (ni_ifworker_fsm() != 0)
@@ -2588,8 +2789,10 @@ usage:
 
 	ni_ifworkers_refresh_state();
 
-	if (!ni_ifworker_mark_matching(&ifmatch, opt_delete? STATE_DEVICE_DOWN : STATE_DEVICE_UP))
+	if (!ni_ifworker_mark_matching(&ifmatch, STATE_NONE, opt_delete? STATE_DEVICE_DOWN : STATE_DEVICE_UP)) {
+		printf("No matching interfaces\n");
 		return 0;
+	}
 
 	ni_ifworkers_kickstart();
 	if (ni_ifworker_fsm() != 0)

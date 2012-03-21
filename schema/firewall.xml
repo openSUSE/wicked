@@ -32,7 +32,9 @@
 
   <method name="firewallUp">
     <arguments>
-      <config type="fw-request"/>
+      <config type="fw-request">
+        <meta:mapping document-node="/firewall"/>
+      </config>
     </arguments>
   </method>
 

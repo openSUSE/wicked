@@ -2,10 +2,23 @@
 <service name="bridge" interface="com.suse.Wicked.Bridge" object-class="netif-bridge">
 
   <define name="port-type" class="dict">
-    <!-- There should be really some more flexible way of specifying the device,
-      -- so that we have to rely less on udev to get the interface names right
+    <!-- The port interface.
+      -- It's marked as a netif-reference, meaning that the device name is
+      -- optionally resolved by wicked at run time. You can use "classic"
+      -- device names such as eth0, but you can also use and <identify>
+      -- element to use any of the supported netif naming services
       -->
-    <device type="string" />
+    <device type="string">
+      <meta:netif-reference shared="false"/>
+      <meta:require check="netif-child-state" op="changeDevice" min-state="device-up" />
+      <meta:require check="netif-child-state" op="login" min-state="link-authenticated" />
+
+      <!-- FIXME: are bridge ports allowed to have addresses configured?
+        -- If not, we would have to limit them via max-state="link-up"
+	-->
+      <meta:require check="netif-child-state" op="linkUp" min-state="link-up" />
+    </device>
+
     <priority type="uint32" constraint="range">
       <min value="0"/>
       <max value="63"/>
