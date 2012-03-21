@@ -1292,6 +1292,7 @@ ni_ifworker_bind_device_apis(ni_ifworker_t *w)
  */
 static void		__ni_ifworker_print_tree(const char *arrow, const ni_ifworker_t *, const char *);
 static dbus_bool_t	ni_ifworker_netif_resolve_cb(xml_node_t *, const ni_xs_type_t *, const xml_node_t *, void *);
+static int		ni_ifworker_prompt_later_cb(xml_node_t *, const ni_xs_type_t *, const xml_node_t *, void *);
 
 static int
 build_hierarchy(void)
@@ -1313,6 +1314,7 @@ build_hierarchy(void)
 		if (w->device_api.config != NULL) {
 			ni_dbus_xml_validate_context_t context = {
 				.metadata_callback = ni_ifworker_netif_resolve_cb,
+				.prompt_callback = ni_ifworker_prompt_later_cb,
 				.user_data = w,
 			};
 
@@ -1332,6 +1334,7 @@ build_hierarchy(void)
 		if (w->device_api.config != NULL) {
 			ni_dbus_xml_validate_context_t context = {
 				.metadata_callback = ni_ifworker_netif_resolve_cb,
+				.prompt_callback = ni_ifworker_prompt_later_cb,
 				.user_data = w,
 			};
 
@@ -1417,6 +1420,12 @@ ni_ifworker_netif_resolve_cb(xml_node_t *node, const ni_xs_type_t *type, const x
 	}
 
 	return TRUE;
+}
+
+int
+ni_ifworker_prompt_later_cb(xml_node_t *node, const ni_xs_type_t *xs_type, const xml_node_t *metadata, void *user_data)
+{
+	return -NI_ERROR_RETRY_OPERATION;
 }
 
 static void
@@ -1655,6 +1664,47 @@ ni_ifworker_xml_metadata_callback(xml_node_t *node, const ni_xs_type_t *type, co
 }
 
 /*
+ * User input callback. A mandatory element is missing from the document, but the schema
+ * provides prompting information for it.
+ */
+int
+ni_ifworker_prompt_cb(xml_node_t *node, const ni_xs_type_t *xs_type, const xml_node_t *metadata, void *user_data)
+{
+	const char *prompt, *type, *value;
+	char buffer[256];
+
+	prompt = xml_node_get_attr(metadata, "prompt");
+	if ((type = xml_node_get_attr(metadata, "type")) == NULL) {
+		ni_error("%s: missing type attribute in %s element", xml_node_location(metadata), metadata->name);
+		return -1;
+	}
+
+	if (!strcasecmp(type, "password")) {
+		if (prompt == NULL)
+			prompt = "Please enter password";
+
+		snprintf(buffer, sizeof(buffer), "%s: ", prompt);
+		value = getpass(prompt);
+	} else {
+		if (prompt == NULL)
+			prompt = "Please enter user name";
+
+		printf("%s: ", prompt);
+		fflush(stdout);
+
+		value = fgets(buffer, sizeof(buffer), stdin);
+		/* EOF? User pressed Ctrl-D */
+		if (value == NULL)
+			printf("\n");
+	}
+
+	if (value == NULL)
+		return -1;
+	xml_node_set_cdata(node, value);
+	return 0;
+}
+
+/*
  * Parse any <require> tags contained in the per-method metadata
  */
 static int
@@ -1782,9 +1832,25 @@ __ni_ifworker_do_common_service(ni_ifworker_t *w, ni_iftransition_t *action,
 			return 0;
 	}
 
+	/* Validate the document. This will record possible requirements, and will
+	 * try to prompt for missing information.
+	 * Note that in order to prompt for e.g. a password, you have to mark that
+	 * element in the schema like this:
+	 *
+	 *	  <auth class="dict">
+	 *	    <user type="string" constraint="required">
+	 *	      <meta:user-input type="user" prompt="Please enter openvpn user name"/>
+	 *	    </user>
+	 *	    <password type="string" constraint="required">
+	 *	      <meta:user-input type="password" prompt="Please enter openvpn password"/>
+	 *	    </password>
+	 *	  </auth>
+	 *
+	 */
 	if (config != NULL) {
 		ni_dbus_xml_validate_context_t context = {
 			.metadata_callback = ni_ifworker_xml_metadata_callback,
+			.prompt_callback = ni_ifworker_prompt_cb,
 			.user_data = w,
 		};
 

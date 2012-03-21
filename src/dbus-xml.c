@@ -879,8 +879,28 @@ ni_dbus_validate_xml_dict(xml_node_t *node, const ni_xs_type_t *type, const ni_d
 
 		if (child_type->constraint.mandatory
 		 && !xml_node_get_child(node, name_type->name)) {
-			/* FIXME: we might want to create the child node and call
-			 * the validate callback on it to prompt for it. */
+			xml_node_t *meta;
+
+			if (ctx->prompt_callback != NULL
+			 && child_type->meta != NULL
+			 && (meta = xml_node_get_child(child_type->meta, "user-input")) != NULL) {
+				xml_node_t *child = xml_node_new(name_type->name, NULL);
+				int rv;
+
+				rv = ctx->prompt_callback(child, child_type, meta, ctx->user_data);
+				if (rv == 0) {
+					xml_node_add_child(node, child);
+					continue;
+				}
+
+				xml_node_free(child);
+
+				/* When the prompt function returns RETRY_OPERATION, it
+				 * asks us to ignore the issue for now and come back later. */
+				if (rv == -NI_ERROR_RETRY_OPERATION)
+					continue;
+			}
+
 			ni_error("%s: <%s> lacks mandatory <%s> child element",
 					xml_node_location(node),
 					node->name, name_type->name);

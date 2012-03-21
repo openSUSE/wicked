@@ -26,16 +26,11 @@
     -- them.
     -->
   <auth class="dict">
-    <require type="boolean"/>
     <user type="string" constraint="required">
-      <meta>
-        <user-input type="user" prompt="Please enter openvpn user name"/>
-      </meta>
+      <meta:user-input type="user" prompt="Please enter openvpn user name"/>
     </user>
     <password type="string" constraint="required">
-      <meta>
-        <user-input type="password" prompt="Please enter openvpn password"/>
-      </meta>
+      <meta:user-input type="password" prompt="Please enter openvpn password"/>
     </password>
   </auth>
 
@@ -53,15 +48,6 @@
  <define name="properties" type="linkinfo"/>
 
  <method name="changeDevice">
-   <meta>
-     <!-- If an <auth> element is given, make sure user and password are present.
-       -- Prompt the user if not. -->
-     <if check="present" argument="${/config/auth}">
-      <prompt type="user" target="/config/auth/user"/>
-      <prompt type="password" target="/config/auth/password"/>
-     </if>
-   </meta>
-
    <arguments>
      <config type="linkinfo">
        <!-- The mapping info tells the client to take the device
@@ -81,14 +67,16 @@
    -- Note that the MTU can be specified via the <openvpn> element.
    -->
  <method name="linkUp">
-   <meta>
-     <!-- When bringing up the interface, do not try to bring up the link until
-       -- the host referenced by this element is reachable. -->
-     <require check="reachable" argument="${/request/remote-address}" />
-   </meta>
+   <!-- When bringing up the interface, do not try to bring up the link until
+     -- the host referenced by this element is reachable. -->
+   <meta:require check="reachable" argument="${/request/remote-address}" />
 
    <arguments>
-     <request type="interface:link-request" />
+     <request type="interface:link-request">
+       <!-- Unlike most interfaces, we do not honor the <link> element,
+         -- but pass it the <openvpn> element once more. -->
+       <meta:mapping document-node="/openvpn" />
+     </request>
    </arguments>
    <return>
      <interface:callback-info/>

@@ -418,6 +418,7 @@ extern dbus_bool_t		ni_dbus_message_append_uuid(ni_dbus_message_t *, const ni_uu
 
 typedef struct ni_dbus_xml_validate_context {
 	dbus_bool_t		(*metadata_callback)(xml_node_t *, const ni_xs_type_t *, const xml_node_t *, void *);
+	int			(*prompt_callback)(xml_node_t *, const ni_xs_type_t *, const xml_node_t *, void *);
 	void *			user_data;
 } ni_dbus_xml_validate_context_t;
 
