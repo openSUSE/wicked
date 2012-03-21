@@ -455,6 +455,28 @@ ni_ifworker_by_object_path(const char *object_path)
 }
 
 static ni_ifworker_t *
+ni_ifworker_by_netdev(const ni_netdev_t *dev)
+{
+	unsigned int i;
+
+	if (dev == NULL)
+		return NULL;
+
+	for (i = 0; i < interface_workers.count; ++i) {
+		ni_ifworker_t *w = interface_workers.data[i];
+
+		if (w->device == dev)
+			return w;
+		if (w->ifindex && w->ifindex == dev->link.ifindex)
+			return w;
+		if (w->name && ni_string_eq(dev->name, w->name))
+			return w;
+	}
+
+	return NULL;
+}
+
+static ni_ifworker_t *
 ni_ifworker_by_alias(const char *alias)
 {
 	unsigned int i;
@@ -1413,20 +1435,9 @@ ni_ifworkers_refresh_state(void)
 		if (dev == NULL || dev->name == NULL)
 			continue;
 
-		for (i = 0; i < interface_workers.count; ++i) {
-			w = interface_workers.data[i];
-
-			if (w->ifindex) {
-				if (w->ifindex != dev->link.ifindex)
-					continue;
-			} else
-			if (w->name == NULL || strcmp(dev->name, w->name))
-				continue;
-
-			found = w;
-			break;
-		}
-
+		found = ni_ifworker_by_netdev(dev);
+		if (!found)
+			found = ni_ifworker_by_object_path(object->path);
 		if (!found)
 			found = ni_ifworker_new(dev->name, NULL);
 
@@ -1436,7 +1447,8 @@ ni_ifworkers_refresh_state(void)
 
 		if (!found->object_path)
 			ni_string_dup(&found->object_path, object->path);
-		found->device = ni_netdev_get(dev);
+		if (!found->device)
+			found->device = ni_netdev_get(dev);
 		found->ifindex = dev->link.ifindex;
 		found->object = object;
 
