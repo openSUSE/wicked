@@ -138,8 +138,6 @@ struct ni_ifworker {
 	ni_ifworker_t *		parent;
 	unsigned int		depth;		/* depth in device graph */
 	ni_ifworker_children_t	children;
-
-	ni_ifworker_req_t *	dependencies;
 };
 
 typedef ni_bool_t		ni_ifworker_req_fn_t(ni_ifworker_t *, ni_ifworker_req_t *);
@@ -171,7 +169,7 @@ static void			ni_ifworker_set_dependencies_xml(ni_ifworker_t *, xml_node_t *);
 static void			ni_ifworker_fsm_init(ni_ifworker_t *, unsigned int, unsigned int);
 static ni_bool_t		ni_ifworker_req_check_reachable(ni_ifworker_t *, ni_ifworker_req_t *);
 static ni_bool_t		ni_ifworker_req_netif_resolve(ni_ifworker_t *, ni_ifworker_req_t *);
-static void			ni_ifworker_req_free(ni_ifworker_req_t *);
+//static void			ni_ifworker_req_free(ni_ifworker_req_t *);
 
 static inline ni_ifworker_t *
 __ni_ifworker_new(const char *name, xml_node_t *config)
@@ -204,17 +202,15 @@ ni_ifworker_new(const char *name, xml_node_t *config)
 static void
 ni_ifworker_free(ni_ifworker_t *w)
 {
-	ni_ifworker_req_t *req;
-
 	ni_string_free(&w->name);
 	ni_ifworker_children_destroy(&w->children);
+
+#if 0
+	/* FIXME: this doesn't work, as we increment w->actions
+	 * in ni_ifworker_fsm() */
 	if (w->actions)
 		free(w->actions);
-
-	while ((req = w->dependencies) != NULL) {
-		w->dependencies = req->next;
-		ni_ifworker_req_free(req);
-	}
+#endif
 }
 
 static inline void
@@ -786,68 +782,11 @@ ni_ifworker_req_netif_resolve(ni_ifworker_t *w, ni_ifworker_req_t *req)
 
 /*
  * Dependency handling for interface bring-up.
- *
- * You can specify explicit dependencies for an interface using
- *   <dependencies>
- *     <require check="name-of-check" action="ifup|ifdown" state="link-up">parameter(s)</require>
- *   </dependencies>
- *
- * The "action" attribute specifies whether this rule applies to ifup or ifdown.
- *
- * The "state" attribute marks this as a requirement for entering the indicated
- * state (device-up, firewall-up, network-up, ...). If omitted, it defaults to
- * link-up.
- *
- * The "check" attribute specifies the name of the built-in test to use.
- * Currently implemented checks:
- *   reachable: the parameter is taken as a hostname, which must be resolvable
- *		and for which we have a route.
  */
 void
 ni_ifworker_set_dependencies_xml(ni_ifworker_t *w, xml_node_t *depnode)
 {
-	ni_ifworker_req_t **pos, *req;
-	xml_node_t *reqnode;
-
-	pos = &w->dependencies;
-	for (reqnode = depnode->children; reqnode; reqnode = reqnode->next) {
-		const char *check, *action, *state_name;
-		int from_state, to_state = STATE_LINK_UP;
-
-		if (!ni_string_eq(reqnode->name, "require"))
-			continue;
-
-		if (!(check = xml_node_get_attr(reqnode, "check"))) {
-			ni_error("%s: <require> element lacks check attribute", xml_node_location(reqnode));
-			continue;
-		}
-		if (!(action = xml_node_get_attr(reqnode, "action"))) {
-			ni_error("%s: <require> element lacks action attribute", xml_node_location(reqnode));
-			continue;
-		}
-
-		if ((state_name = xml_node_get_attr(reqnode, "state")) != NULL) {
-			to_state = ni_ifworker_state_from_name(state_name);
-			if (to_state < 0) {
-				ni_error("%s: <require> element specifies bad state=\"%s\" attribute", xml_node_location(reqnode), state_name);
-				continue;
-			}
-		}
-
-		if (ni_string_eq(action, "ifup"))
-			from_state = to_state - 1;
-		else if (ni_string_eq(action, "ifdown"))
-			from_state = to_state + 1;
-		else {
-			ni_error("%s: <require> element specifies bad action=\"%s\" attribute", xml_node_location(reqnode), action);
-			continue;
-		}
-
-		req = ni_ifworker_req_new(check, from_state, to_state, reqnode);
-
-		*pos = req;
-		pos = &req->next;
-	}
+	ni_warn("%s: dependencies not supported right now", xml_node_location(depnode));
 }
 
 static ni_bool_t
@@ -867,28 +806,6 @@ ni_ifworker_check_dependencies(ni_ifworker_t *w, ni_iftransition_t *action)
 		next = req->next;
 		if (!req->test_fn(w, req))
 			return FALSE;
-	}
-
-	return TRUE;
-}
-
-static ni_bool_t
-ni_ifworker_check_dependencies2(ni_ifworker_t *w, int next_state)
-{
-	ni_ifworker_req_t *req;
-	int printed = 0;
-
-	for (req = w->dependencies; req; req = req->next) {
-		if (req->from_state == w->state
-		 && req->to_state == next_state) {
-			if (!printed++)
-				ni_debug_dbus("%s: checking requirements for %s -> %s transition",
-						w->name,
-						ni_ifworker_state_name(req->from_state),
-						ni_ifworker_state_name(req->to_state));
-			if (!req->test_fn(w, req))
-				return FALSE;
-		}
 	}
 
 	return TRUE;
@@ -1791,8 +1708,7 @@ __ni_ifworker_do_common_service(ni_ifworker_t *w, ni_iftransition_t *action,
 	}
 	if (!ni_ifworker_check_dependencies(w, action)) {
 		ni_debug_objectmodel("%s: defer action (pending dependencies)", w->name);
-		w->wait_for = action;
-		return 0;
+		return -NI_ERROR_RETRY_OPERATION;
 	}
 
 	config = action->common.config;
@@ -1967,14 +1883,15 @@ ni_ifworker_do_device_new(ni_ifworker_t *w, ni_iftransition_t *action)
 			return -1;
 		}
 
-		rv = ni_ifworker_map_requires(w, action, w->device_api.factory_service, w->device_api.factory_method);
-		if (rv < 0)
-			return rv;
+		if (!action->require.parsed) {
+			rv = ni_ifworker_map_requires(w, action, w->device_api.factory_service, w->device_api.factory_method);
+			if (rv < 0)
+				return rv;
+		}
 
 		if (!ni_ifworker_check_dependencies(w, action)) {
 			ni_debug_objectmodel("%s: defer device creation (pending dependencies)", w->name);
-			w->wait_for = action;
-			return 0;
+			return -NI_ERROR_RETRY_OPERATION;
 		}
 
 		object_path = ni_call_device_new_xml(w->device_api.factory_service, w->name, w->device_api.config);
@@ -2165,7 +2082,7 @@ ni_ifworker_fsm(void)
 		for (i = 0; i < interface_workers.count; ++i) {
 			ni_ifworker_t *w = interface_workers.data[i];
 			ni_iftransition_t *action;
-			int prev_state;
+			int rv, prev_state;
 
 			if (w->target_state != STATE_NONE)
 				ni_debug_dbus("%-12s: state=%s want=%s%s%s", w->name,
@@ -2197,15 +2114,16 @@ ni_ifworker_fsm(void)
 				continue;
 			}
 
-			/* See if we've fulfilled all dependencies for entering this state. */
-			if (!ni_ifworker_check_dependencies2(w, action->next_state)) {
-				ni_debug_dbus("%s: not all dependencies fulfilled", w->name);
+			prev_state = w->state;
+			rv = action->func(w, action);
+			if (rv == - NI_ERROR_RETRY_OPERATION) {
+				ni_debug_objectmodel("%s: %s() returned retry-operation, pending dependencies",
+						w->name, action->common.method_name);
 				continue;
 			}
 
-			prev_state = w->state;
 			w->actions++;
-			if (action->func(w, action) >= 0) {
+			if (rv >= 0) {
 				made_progress = 1;
 				if (w->state == action->next_state) {
 					/* We should not have transitioned to the next state while
