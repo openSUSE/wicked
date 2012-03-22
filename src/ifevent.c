@@ -103,7 +103,7 @@ __ni_rtevent_read(ni_socket_t *sock)
 void
 __ni_netdev_event(ni_netconfig_t *nc, ni_netdev_t *dev, ni_event_t ev)
 {
-	ni_debug_dhcp("%s(%s, idx=%d, %s)", __FUNCTION__,
+	ni_debug_events("%s(%s, idx=%d, %s)", __FUNCTION__,
 			dev->name, dev->link.ifindex, ni_event_type_to_name(ev));
 	if (ni_global.interface_event)
 		ni_global.interface_event(nc, dev, ev);
@@ -253,8 +253,10 @@ __ni_rtevent_dellink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 	}
 
 	/* Open code interface removal. */
-	if ((dev = ni_netdev_by_index(nc, ifi->ifi_index)) != NULL) {
-		dev->next = NULL;
+	if ((dev = ni_netdev_by_index(nc, ifi->ifi_index)) == NULL) {
+		ni_error("bad RTM_DELLINK message for unknown interface index %d", ifi->ifi_index);
+		return -1;
+	} else {
 		dev->link.ifindex = 0;
 		dev->link.ifflags = __ni_netdev_translate_ifflags(ifi->ifi_flags);
 
