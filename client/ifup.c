@@ -1259,7 +1259,7 @@ static dbus_bool_t	ni_ifworker_netif_resolve_cb(xml_node_t *, const ni_xs_type_t
 static int		ni_ifworker_prompt_later_cb(xml_node_t *, const ni_xs_type_t *, const xml_node_t *, void *);
 
 static int
-build_hierarchy(void)
+ni_ifworkers_build_hierarchy(void)
 {
 	unsigned int i;
 
@@ -2634,7 +2634,7 @@ usage:
 	if (!ni_ifconfig_load(opt_ifconfig))
 		return 1;
 
-	if (build_hierarchy() < 0)
+	if (ni_ifworkers_build_hierarchy() < 0)
 		ni_fatal("ifup: unable to build device hierarchy");
 
 	while (optind < argc) {
