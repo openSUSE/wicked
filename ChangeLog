@@ -1,0 +1,18 @@
+Thu Mar 22 17:20:28 CET 2012 - okir
+
+	* Fairly big rewrite of the logic in the ifup/ifdown layer.
+	  Reduced the intrinsic knowledge about interface types and
+	  their relationships to zero; all of this is now embedded in
+	  the schema.
+
+	* Implement schema validation, and try to do it as early as
+	  possible - rather then when we're almost done with bringing
+	  up the interface, and *then* notice that the user messed up
+	  the config file.
+
+	* Teaching the schema about dependencies, and user-input.
+	  Yes, we have a working mechanism to get back to the user
+	  for a password or a login name, but it's awkward and probably
+	  error prone. Tagging schema nodes is easier, and needs to be
+	  implemented only once.
+
