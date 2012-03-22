@@ -1022,8 +1022,8 @@ __ni_ifworker_flatten(ni_ifworker_t *w, ni_ifworker_array_t *array, unsigned int
 static int
 __ni_ifworker_depth_compare(const void *a, const void *b)
 {
-	const ni_ifworker_t *wa = (const ni_ifworker_t *) a;
-	const ni_ifworker_t *wb = (const ni_ifworker_t *) b;
+	const ni_ifworker_t *wa = *(const ni_ifworker_t **) a;
+	const ni_ifworker_t *wb = *(const ni_ifworker_t **) b;
 
 	return (int) (wa->depth - wb->depth);
 }
@@ -1104,6 +1104,12 @@ ni_ifworker_mark_matching(ni_ifmatcher_t *match, unsigned int target_min_state, 
 		unsigned int min_state = w->target_range.min;
 		unsigned int max_state = w->target_range.max;
 
+#if 0
+		ni_trace("%s checking, min=%s, max=%s%s", w->name,
+					ni_ifworker_state_name(min_state),
+					ni_ifworker_state_name(max_state),
+					w->failed? " - failed" : "");
+#endif
 		if (w->failed)
 			continue;
 
