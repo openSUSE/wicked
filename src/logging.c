@@ -39,6 +39,7 @@ static ni_intmap_t __debug_flags_names[] = {
 	{ "wireless", 	NI_TRACE_WIRELESS },
 	{ "xml", 	NI_TRACE_XML },
 	{ "objectmodel",NI_TRACE_OBJECTMODEL },
+	{ "application",NI_TRACE_APPLICATION },
 
 	{ "most", 	NI_TRACE_MOST },
 	{ "all", 	NI_TRACE_ALL },
@@ -64,6 +65,7 @@ static ni_intmap_t __debug_flags_descriptions[] = {
 	{ "Wireless handling",		 		NI_TRACE_WIRELESS },
 	{ "XML processing",		 		NI_TRACE_XML },
 	{ "Wicked object model",	 		NI_TRACE_OBJECTMODEL },
+	{ "Application level activity",	 		NI_TRACE_APPLICATION },
 
 	{ "All useful debug facilities :-)", 		NI_TRACE_MOST },
 	{ "All debug facilities", 			NI_TRACE_ALL },
