@@ -99,6 +99,7 @@ struct ni_netif_action {
 		const ni_dbus_service_t *service;
 		const ni_dbus_method_t *method;
 		xml_node_t *		config;
+		ni_bool_t		skip_call;
 	} binding[NI_NETIF_ACTION_BINDINGS_MAX];
 
 	ni_objectmodel_callback_info_t *callbacks;
@@ -176,6 +177,7 @@ static void			ni_ifworker_children_destroy(ni_ifworker_children_t *);
 static ni_ifworker_t *		ni_ifworker_identify_device(const xml_node_t *);
 static void			ni_ifworker_set_dependencies_xml(ni_ifworker_t *, xml_node_t *);
 static void			ni_ifworker_fsm_init(ni_ifworker_t *, unsigned int, unsigned int);
+static int			ni_ifworker_fsm_bind_methods(ni_ifworker_t *);
 static ni_bool_t		ni_ifworker_req_check_reachable(ni_ifworker_t *, ni_ifworker_req_t *);
 static ni_bool_t		ni_ifworker_req_netif_resolve(ni_ifworker_t *, ni_ifworker_req_t *);
 //static void			ni_ifworker_req_free(ni_ifworker_req_t *);
@@ -1725,6 +1727,36 @@ ni_ifworker_map_requires(ni_ifworker_t *w, ni_iftransition_t *action,
 }
 
 /*
+ * Debugging: print the binding info
+ */
+static void
+ni_ifworker_print_binding(ni_ifworker_t *w, ni_iftransition_t *action)
+{
+	struct ni_netif_action_binding *bind;
+	unsigned int i;
+
+	for (i = 0, bind = action->binding; i < action->num_bindings; ++i, ++bind) {
+		if (bind->method == NULL) {
+			ni_trace("  %-40s %-12s   not supported by service",
+				bind->service->name,
+				action->common.method_name);
+		} else
+		if (bind->config == NULL) {
+			ni_trace("  %-40s %-12s   no config in interface document%s",
+					bind->service->name,
+					bind->method->name,
+					bind->skip_call? "; skipping call" : "");
+		} else {
+			ni_trace("  %-40s %-12s   mapped to <%s> @%s",
+					bind->service->name,
+					bind->method->name,
+					bind->config->name,
+					xml_node_location(bind->config));
+		}
+	}
+}
+
+/*
  * Most steps of the finite state machine follow the same pattern.
  *
  * First part: bind the service, method and argument that should be passed.
@@ -1736,17 +1768,14 @@ ni_ifworker_do_common_bind(ni_ifworker_t *w, ni_iftransition_t *action)
 	unsigned int i;
 	int rv;
 
+	/* If we haven't created the netdev yet, skip this binding
+	 * quietly. We will retry later (or fail). */
+	if (w->object == NULL)
+		return 0;
+
 	if (action->bound)
 		return 0;
 	action->bound = TRUE;
-
-	if (w->object == NULL) {
-		ni_ifworker_fail(w, "cannot bind netdev methods, no object yet (please kick the programmer)");
-		return -1;
-	}
-
-	ni_debug_objectmodel("%s(name=%s, object=%p, path=%s)",
-			action->common.method_name, w->name, w->object, w->object_path);
 
 	service = action->common.service;
 	if (service != NULL) {
@@ -1797,15 +1826,6 @@ ni_ifworker_do_common_bind(ni_ifworker_t *w, ni_iftransition_t *action)
 		}
 	}
 
-	if (ni_debug & NI_TRACE_OBJECTMODEL) {
-		ni_trace("%s: found %u service(s) providing %s()",
-				w->name, action->num_bindings,
-				action->common.method_name);
-
-		for (i = 0; i < action->num_bindings; ++i)
-			ni_trace("  %s", action->binding[i].service->name);
-	}
-
 	/* Now bind method and config. */
 	for (i = 0; i < action->num_bindings; ++i) {
 		struct ni_netif_action_binding *bind = &action->binding[i];
@@ -1821,51 +1841,28 @@ ni_ifworker_do_common_bind(ni_ifworker_t *w, ni_iftransition_t *action)
 		if (rv < 0)
 			return rv;
 
-		if (w->config == NULL) {
-			/* Consult the method's metadata information to see how to
-			 * locate the configuration node. Any argument to a method may have
-			 * a <mapping> metadata element:
-			 *
-			 * <method ...>
-			 *   <arguments>
-			 *     <foobar type="...">
-			 *       <meta:mapping
-			 *	   	document-node="/some/xpath/expression" 
-			 *		skip-unless-present="true"
-			 *		/>
-			 *     </foobar>
-			 *   </arguments>
-			 * </method>
-			 *
-			 * The document node is an xpath relative to the enclosing
-			 * <interface> element. If the document does not contain the
-			 * referenced node, and skip-unless-present is true, then we
-			 * do not perform this call.
-			 */
-			ni_bool_t skip_call = FALSE;
-
-			if (ni_dbus_xml_map_method_argument(bind->method, 0, w->config, &bind->config, &skip_call) < 0)
-				goto document_error;
-
-			if (ni_debug & NI_TRACE_OBJECTMODEL) {
-				if (bind->config) {
-					ni_debug_objectmodel("%s: %s.%s() - mapped to <%s> %s",
-							w->name, bind->service->name, bind->method->name,
-							bind->config->name,
-							xml_node_location(bind->config));
-				} else {
-					ni_debug_objectmodel("%s: %s.%s() - no config in interface document%s",
-							w->name, bind->service->name, bind->method->name,
-							skip_call? " - SKIP CALL" : "");
-				}
-			}
-
-			if (bind->config == NULL && skip_call) {
-				bind->method = NULL;
-				continue;
-			}
-
-		}
+		/* Consult the method's metadata information to see how to
+		 * locate the configuration node. Any argument to a method may have
+		 * a <mapping> metadata element:
+		 *
+		 * <method ...>
+		 *   <arguments>
+		 *     <foobar type="...">
+		 *       <meta:mapping
+		 *	   	document-node="/some/xpath/expression" 
+		 *		skip-unless-present="true"
+		 *		/>
+		 *     </foobar>
+		 *   </arguments>
+		 * </method>
+		 *
+		 * The document node is an xpath relative to the enclosing
+		 * <interface> element. If the document does not contain the
+		 * referenced node, and skip-unless-present is true, then we
+		 * do not perform this call.
+		 */
+		if (ni_dbus_xml_map_method_argument(bind->method, 0, w->config, &bind->config, &bind->skip_call) < 0)
+			goto document_error;
 
 		/* Validate the document. This will record possible requirements, and will
 		 * try to prompt for missing information.
@@ -1880,7 +1877,6 @@ ni_ifworker_do_common_bind(ni_ifworker_t *w, ni_iftransition_t *action)
 			if (!ni_dbus_xml_validate_argument(bind->method, 0, bind->config, &context))
 				goto document_error;
 		}
-
 	}
 
 	return 0;
@@ -1900,7 +1896,7 @@ ni_ifworker_do_common(ni_ifworker_t *w, ni_iftransition_t *action)
 		struct ni_netif_action_binding *bind = &action->binding[i];
 		ni_objectmodel_callback_info_t *callback_list = NULL;
 
-		if (bind->method == NULL)
+		if (bind->method == NULL || bind->skip_call)
 			continue;
 
 		rv = ni_call_common_xml(w->object, bind->service, bind->method, bind->config,
@@ -2005,6 +2001,8 @@ ni_ifworker_call_device_factory(ni_ifworker_t *w, ni_iftransition_t *action)
 			ni_ifworker_fail(w, "unable to refresh new device");
 			return -1;
 		}
+
+		ni_ifworker_fsm_bind_methods(w);
 	}
 
 	w->state = action->next_state;
@@ -2156,6 +2154,37 @@ do_it_again:
 	}
 	w->state = from_state;
 	w->target_state = target_state;
+
+	ni_ifworker_fsm_bind_methods(w);
+}
+
+/*
+ * After we have mapped out the transitions the ifworker needs to go through, we
+ * need to bind each of them to a dbus call.
+ * We try to do this in one go as early as possible, so that we can flag errors
+ * in the document early on.
+ */
+static int
+ni_ifworker_fsm_bind_methods(ni_ifworker_t *w)
+{
+	ni_iftransition_t *action;
+	int rv;
+
+	ni_trace("%s(%s)", __func__, w->name);
+	for (action = w->actions; action->func; ++action) {
+		if (action->bound)
+			continue;
+		rv = action->bind_func(w, action);
+		if (rv < 0) {
+			ni_ifworker_fail(w, "unable to bind %s() call", action->common.method_name);
+			return rv;
+		}
+
+		if (action->bound && (ni_debug & NI_TRACE_OBJECTMODEL))
+			ni_ifworker_print_binding(w, action);
+	}
+
+	return 0;
 }
 
 static unsigned int
@@ -2201,7 +2230,7 @@ ni_ifworker_fsm(void)
 				continue;
 			}
 
-			if (!action->bound && (rv = action->bind_func(w, action)) < 0) {
+			if (!action->bound) {
 				ni_ifworker_fail(w, "failed to bind services and methods for %s()",
 						action->common.method_name);
 				continue;

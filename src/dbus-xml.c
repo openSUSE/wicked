@@ -1483,6 +1483,11 @@ ni_dbus_xml_map_method_argument(const ni_dbus_method_t *method, unsigned int ind
 				return rv;
 			}
 
+#if 0
+			ni_trace("applying xpath %s to node <%s> @%s - rv=%d", attr,
+					doc_node->name, xml_node_location(doc_node), rv);
+#endif
+
 			if (rv == 0) {
 				/* Fine, the element referenced by the xpath is not present. */
 			} else
