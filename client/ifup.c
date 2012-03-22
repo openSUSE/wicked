@@ -1521,22 +1521,32 @@ ni_ifworker_children_ready_for(ni_ifworker_t *w, const ni_iftransition_t *action
 
 		for (j = 0; j < NI_IFWORKER_EDGE_MAX_CALLS; ++j) {
 			struct ni_ifworker_edge_precondition *pre = &edge->call_pre[j];
+			unsigned int wait_for_state;
 
 			if (!ni_string_eq(pre->call_name, action->common.method_name))
 				continue;
 
 			if (child->state < pre->min_child_state) {
-				ni_debug_application("%s: waiting for %s to reach state %s",
-					w->name, child->name,
-					ni_ifworker_state_name(pre->min_child_state));
-				return FALSE;
-			}
+				wait_for_state = pre->min_child_state;
+			} else
 			if (child->state > pre->max_child_state) {
-				ni_debug_application("%s: waiting for %s to reach state %s",
-					w->name, child->name,
-					ni_ifworker_state_name(pre->max_child_state));
+				wait_for_state = pre->max_child_state;
+			} else {
+				/* Okay, child interface is ready */
+				continue;
+			}
+
+			if (child->failed) {
+				/* Child is not in the expected state, but as it failed, it'll
+				 * never get there. Fail the parent as well. */
+				ni_ifworker_fail(w, "subordinate network interface %s failed", child->name);
 				return FALSE;
 			}
+
+			ni_debug_application("%s: waiting for %s to reach state %s",
+						w->name, child->name,
+						ni_ifworker_state_name(wait_for_state));
+			return FALSE;
 		}
 	}
 
@@ -2267,8 +2277,11 @@ ni_ifworker_fsm(void)
 
 			/* If we're still waiting for children to become ready,
 			 * there's nothing we can do but wait. */
-			if (!ni_ifworker_children_ready_for(w, w->actions))
+			if (!ni_ifworker_children_ready_for(w, w->actions)) {
+				if (w->failed)
+					made_progress = 1;
 				continue;
+			}
 
 			/* We requested a change that takes time (such as acquiring
 			 * a DHCP lease). Wait for a notification from wickedd */
