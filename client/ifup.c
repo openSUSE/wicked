@@ -155,8 +155,6 @@ struct ni_ifworker_req {
 	ni_ifworker_req_t *	next;
 
 	unsigned int		event_seq;
-	int			from_state;
-	int			to_state;
 	ni_ifworker_req_fn_t *	test_fn;
 	xml_node_t *		data;
 };
@@ -235,10 +233,10 @@ ni_ifworker_release(ni_ifworker_t *state)
  * constructor/destructor for dependency objects
  */
 ni_ifworker_req_t *
-ni_ifworker_req_new(const char *check, int from_state, int to_state, xml_node_t *node)
+ni_ifworker_req_new(const char *check, xml_node_t *node, ni_ifworker_req_t **list)
 {
 	ni_ifworker_req_fn_t *fn = NULL;
-	ni_ifworker_req_t *req;
+	ni_ifworker_req_t *req, **pos;
 
 	if (ni_string_eq(check, "reachable")) {
 		fn = ni_ifworker_req_check_reachable;
@@ -248,17 +246,20 @@ ni_ifworker_req_new(const char *check, int from_state, int to_state, xml_node_t 
 	}
 
 	if (fn == NULL) {
-		ni_error("%s: unknown dependency test \"%s\"", xml_node_location(node), check);
+		ni_error("unknown function in <require check=\"%s\"> at %s", check, xml_node_location(node));
 		return NULL;
 	}
 
+	/* Find tail of list */
+	for (pos = list; (req = *pos) != NULL; pos = &req->next)
+		;
+
 	req = calloc(1, sizeof(*req));
-	req->from_state = from_state;
-	req->to_state = to_state;
 	req->test_fn = fn;
 	req->event_seq = ~0U;
 	req->data = node;
 
+	*pos = req;
 	return req;
 }
 
@@ -1602,11 +1603,76 @@ out:
 }
 
 /*
+ * Process a <meta:require> element
+ */
+static int
+ni_ifworker_require_xml(ni_iftransition_t *action, const xml_node_t *req_node, xml_node_t *element, xml_node_t *config)
+{
+	const char *attr, *check;
+	ni_ifworker_req_t *require, **pos;
+	int rv;
+
+	pos = &action->require.list;
+	if (element == NULL && config == NULL) {
+		ni_error("%s: caller did not provide xml base nodes", __func__);
+		return -1;
+	}
+
+	if ((check = xml_node_get_attr(req_node, "check")) == NULL) {
+		ni_error("%s: missing check attribute", xml_node_location(req_node));
+		return -NI_ERROR_DOCUMENT_ERROR;
+	}
+
+	if (element != NULL) {
+		if (!ni_ifworker_req_new(check, element, pos)) {
+			ni_error("%s: cannot build requirement", xml_node_location(req_node));
+			return -NI_ERROR_DOCUMENT_ERROR;
+		}
+	} else {
+		xml_node_t *expanded[64];
+		unsigned int j, num_expanded;
+
+		if ((attr = xml_node_get_attr(req_node, "document-node")) == NULL) {
+			ni_error("%s: missing document-node attribute", xml_node_location(req_node));
+			return -NI_ERROR_DOCUMENT_ERROR;
+		}
+
+		rv = ni_dbus_xml_expand_element_reference(config, attr, expanded, 64);
+		if (rv < 0)
+			return rv;
+
+		num_expanded = rv;
+		for (j = 0; j < num_expanded; ++j) {
+			require = ni_ifworker_req_new(check, expanded[j], pos);
+			if (require == NULL) {
+				ni_error("%s: cannot build requirement", xml_node_location(req_node));
+				return -NI_ERROR_DOCUMENT_ERROR;
+			}
+
+			pos = &require->next;
+		}
+	}
+
+	return 0;
+}
+
+/*
  * XML validation callback
+ * This is invoked when we're validating the schema. It can be used for doing all sorts
+ * funny things, but right now, we use it only for expressing dependencies.
  */
 dbus_bool_t
 ni_ifworker_xml_metadata_callback(xml_node_t *node, const ni_xs_type_t *type, const xml_node_t *metadata, void *user_data)
 {
+	ni_iftransition_t *action = user_data;
+
+	if (ni_string_eq(metadata->name, "require")) {
+		if (ni_ifworker_require_xml(action, metadata, node, NULL) < 0)
+			return FALSE;
+	} else {
+		/* Ignore unknown meta node */
+	}
+
 	return TRUE;
 }
 
@@ -1673,11 +1739,10 @@ ni_ifworker_prompt_cb(xml_node_t *node, const ni_xs_type_t *xs_type, const xml_n
  * Parse any <require> tags contained in the per-method metadata
  */
 static int
-ni_ifworker_map_requires(ni_ifworker_t *w, ni_iftransition_t *action,
+ni_ifworker_map_method_requires(ni_ifworker_t *w, ni_iftransition_t *action,
 		const ni_dbus_service_t *service, const ni_dbus_method_t *method)
 {
 	xml_node_t *req_nodes[32];
-	ni_ifworker_req_t **pos, *require;
 	unsigned int i, count;
 
 	action->require.parsed = TRUE;
@@ -1686,41 +1751,11 @@ ni_ifworker_map_requires(ni_ifworker_t *w, ni_iftransition_t *action,
 	if (count == 0)
 		return 0;
 
-	for (pos = &action->require.list; (require = *pos) != NULL; pos = &require->next)
-		;
-
 	for (i = 0; i < count; ++i) {
-		xml_node_t *rnode, *expanded[64];
-		const char *attr, *check;
-		unsigned int j, num_expanded;
 		int rv;
 
-		rnode = req_nodes[i];
-		if ((check = xml_node_get_attr(rnode, "check")) == NULL) {
-			ni_error("%s: missing check attribute", xml_node_location(rnode));
-			return -NI_ERROR_DOCUMENT_ERROR;
-		}
-
-		if ((attr = xml_node_get_attr(rnode, "document-node")) == NULL) {
-			ni_error("%s: missing document-node attribute", xml_node_location(rnode));
-			return -NI_ERROR_DOCUMENT_ERROR;
-		}
-
-		rv = ni_dbus_xml_expand_element_reference(w->config, attr, expanded, 64);
-		if (rv < 0)
+		if ((rv = ni_ifworker_require_xml(action, req_nodes[i], NULL, w->config)) < 0)
 			return rv;
-
-		num_expanded = rv;
-		for (j = 0; j < num_expanded; ++j) {
-			require = ni_ifworker_req_new(check, 0, 0, expanded[j]);
-			if (require == NULL) {
-				ni_error("%s: cannot build requirement", xml_node_location(rnode));
-				return -NI_ERROR_DOCUMENT_ERROR;
-			}
-
-			*pos = require;
-			pos = &require->next;
-		}
 	}
 
 	return 0;
@@ -1836,8 +1871,8 @@ ni_ifworker_do_common_bind(ni_ifworker_t *w, ni_iftransition_t *action)
 		if (bind->method == NULL)
 			continue;
 
-		/* Bind method requirements shown in the schema */
-		rv = ni_ifworker_map_requires(w, action, bind->service, bind->method);
+		/* Bind <require> tags attached to the method (in the schema) */
+		rv = ni_ifworker_map_method_requires(w, action, bind->service, bind->method);
 		if (rv < 0)
 			return rv;
 
@@ -1871,7 +1906,7 @@ ni_ifworker_do_common_bind(ni_ifworker_t *w, ni_iftransition_t *action)
 			ni_dbus_xml_validate_context_t context = {
 				.metadata_callback = ni_ifworker_xml_metadata_callback,
 				.prompt_callback = ni_ifworker_prompt_cb,
-				.user_data = w,
+				.user_data = action,
 			};
 
 			if (!ni_dbus_xml_validate_argument(bind->method, 0, bind->config, &context))
@@ -1948,7 +1983,7 @@ ni_ifworker_bind_device_factory(ni_ifworker_t *w, ni_iftransition_t *action)
 	bind->config = w->device_api.config;
 	action->num_bindings++;
 
-	rv = ni_ifworker_map_requires(w, action, bind->service, bind->method);
+	rv = ni_ifworker_map_method_requires(w, action, bind->service, bind->method);
 	if (rv < 0)
 		return rv;
 
@@ -2156,6 +2191,8 @@ do_it_again:
 	w->target_state = target_state;
 
 	ni_ifworker_fsm_bind_methods(w);
+
+	/* FIXME: Add <require> targets from the interface document */
 }
 
 /*
