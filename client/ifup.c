@@ -1469,8 +1469,10 @@ ni_ifworkers_refresh_state(void)
 		found = ni_ifworker_by_netdev(dev);
 		if (!found)
 			found = ni_ifworker_by_object_path(object->path);
-		if (!found)
+		if (!found) {
+			ni_debug_application("received new device %s (%s)", dev->name, object->path);
 			found = ni_ifworker_new(dev->name, NULL);
+		}
 
 		/* Don't touch devices we're done with */
 		if (found->done)
@@ -2266,7 +2268,7 @@ ni_ifworker_fsm(void)
 			int rv, prev_state;
 
 			if (w->target_state != STATE_NONE)
-				ni_debug_application("%-12s: state=%s want=%s%s%s", w->name,
+				ni_debug_application("%s: state=%s want=%s%s%s", w->name,
 					ni_ifworker_state_name(w->state),
 					ni_ifworker_state_name(w->target_state),
 					w->wait_for? ", wait-for=" : "",
@@ -2343,6 +2345,7 @@ ni_ifworker_fsm(void)
 		if (!made_progress)
 			break;
 
+		ni_debug_application("-- refreshing interface state --");
 		ni_ifworkers_refresh_state();
 	}
 
