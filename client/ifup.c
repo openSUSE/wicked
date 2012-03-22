@@ -643,7 +643,7 @@ ni_ifworker_edge_set_states(ni_ifworker_edge_t *edge, const char *call, unsigned
 	struct ni_ifworker_edge_precondition *pre;
 	unsigned int i;
 
-	ni_trace("%s(%s, %s, %s, %s)", __func__, edge->child->name, call,
+	ni_debug_objectmodel("%s(%s, %s, %s, %s)", __func__, edge->child->name, call,
 			ni_ifworker_state_name(min_state),
 			ni_ifworker_state_name(max_state));
 	for (i = 0, pre = edge->call_pre; i < NI_IFWORKER_EDGE_MAX_CALLS; ++i, ++pre) {
@@ -809,7 +809,7 @@ ni_ifworker_req_netif_resolve(ni_ifworker_t *w, ni_ifworker_req_t *req)
 	if (!(child_worker = ni_ifworker_resolve_reference(devnode)))
 		return FALSE;
 
-	ni_trace("%s: resolved reference to subordinate device %s", w->name, child_worker->name);
+	ni_debug_objectmodel("%s: resolved reference to subordinate device %s", w->name, child_worker->name);
 	if (!ni_ifworker_add_child(w, child_worker, devnode, FALSE))
 		return FALSE;
 
@@ -1087,15 +1087,8 @@ ni_ifworker_mark_matching(ni_ifmatcher_t *match, unsigned int target_min_state, 
 		unsigned int max_state = w->target_range.max;
 
 		if (w->failed)
-		{
-			ni_trace("%s: skipped (failed)", w->name);
 			continue;
-		}
 
-		ni_trace("%s: depth=%u min=%s max=%s",
-					w->name, w->depth,
-					ni_ifworker_state_name(min_state),
-					ni_ifworker_state_name(max_state));
 		if (min_state > max_state) {
 			ni_error("%s: conflicting target states: min=%s max=%s",
 					w->name,
@@ -1120,7 +1113,7 @@ ni_ifworker_mark_matching(ni_ifmatcher_t *match, unsigned int target_min_state, 
 					ni_ifworker_state_name(max_state));
 		}
 
-		ni_trace("%s: current state=%s target state=%s",
+		ni_debug_objectmodel("%s: current state=%s target state=%s",
 					w->name,
 					ni_ifworker_state_name(w->state),
 					ni_ifworker_state_name(w->target_state));
@@ -1328,7 +1321,7 @@ ni_ifworker_netif_resolve_cb(xml_node_t *node, const ni_xs_type_t *type, const x
 			if ((attr = xml_node_get_attr(mchild, "shared")) != NULL)
 				shared = ni_string_eq(attr, "true");
 
-			ni_trace("%s: resolved reference to subordinate device %s", w->name, child_worker->name);
+			ni_debug_objectmodel("%s: resolved reference to subordinate device %s", w->name, child_worker->name);
 			if (!(edge = ni_ifworker_add_child(w, child_worker, node, shared)))
 				return FALSE;
 		} else
@@ -1847,7 +1840,8 @@ ni_ifworker_do_common(ni_ifworker_t *w, ni_iftransition_t *action)
 		} else {
 			/* Implicit: look up the service(s) based on the method name.
 			 * We may be dealing with several services, and we want to call all of them.
-			 * This happens when it comes to addrconf services, for instance.
+			 * This happens when it comes to addrconf services, for instance,
+			 * but also for link authentication and firewalling.
 			 */
 			const ni_dbus_service_t *services[32];
 			unsigned int i, count;
@@ -1855,12 +1849,17 @@ ni_ifworker_do_common(ni_ifworker_t *w, ni_iftransition_t *action)
 			count = ni_dbus_object_get_all_services_for_method(w->object,
 						action->common.method_name, services, 32);
 
-			/* If the interface doesn't support this method, we trivially succeed. */
+			/* If there is no interface supporting this method, we trivially succeed. */
 			if (count == 0)
 				goto success;
 
-			ni_trace("%s: found %u services providing %s()",
-					w->name, count, action->common.method_name);
+			if (ni_debug & NI_TRACE_OBJECTMODEL) {
+				ni_trace("%s: found %u service(s) providing %s()",
+						w->name, count, action->common.method_name);
+				for (i = 0; i < count; ++i)
+					ni_trace("  %s", services[i]->name);
+			}
+
 			for (i = 0; i < count; ++i) {
 				rv = __ni_ifworker_do_common_service(w, action, services[i]);
 				if (rv < 0)
