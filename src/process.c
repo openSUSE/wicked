@@ -338,13 +338,15 @@ ni_process_reap(ni_process_t *pi)
 	}
 
 	rv = waitpid(pi->pid, &pi->status, WNOHANG);
-	if (rv < 0) {
-		ni_error("%s: waitpid returns error (%m)", __func__);
-		return -1;
+	if (rv == 0) {
+		/* This is an ugly workaround. Sometimes, we seem to get a hangup on the socket even
+		 * though the script (provably) still has its end of the socket pair open for writing. */
+		ni_error("%s: process %u has not exited yet; now doing a blocking waitpid()", __func__, pi->pid);
+		rv = waitpid(pi->pid, &pi->status, 0);
 	}
 
-	if (rv == 0) {
-		ni_error("%s: process %u has not exited yet", __func__, pi->pid);
+	if (rv < 0) {
+		ni_error("%s: waitpid returns error (%m)", __func__);
 		return -1;
 	}
 
@@ -400,7 +402,7 @@ __ni_process_output_recv(ni_socket_t *sock)
 	}
 }
 
-void
+static void
 __ni_process_output_hangup(ni_socket_t *sock)
 {
 	ni_process_t *pi = sock->user_data;
