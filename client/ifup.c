@@ -2614,15 +2614,9 @@ usage:
 		}
 	}
 
-	if (optind + 1 != argc) {
+	if (optind >= argc) {
 		fprintf(stderr, "Missing interface argument\n");
 		goto usage;
-	}
-	ifmatch.name = argv[optind++];
-
-	if (!strcmp(ifmatch.name, "boot")) {
-		ifmatch.name = "all";
-		ifmatch.boot_label = "boot";
 	}
 
 	if (!ni_ifworkers_create_client())
@@ -2643,9 +2637,18 @@ usage:
 	if (build_hierarchy() < 0)
 		ni_fatal("ifup: unable to build device hierarchy");
 
-	if (!ni_ifworker_mark_matching(&ifmatch, STATE_ADDRCONF_UP, __STATE_MAX)) {
-		printf("No matching interfaces\n");
-		return 0;
+	while (optind < argc) {
+		ifmatch.name = argv[optind++];
+
+		if (!strcmp(ifmatch.name, "boot")) {
+			ifmatch.name = "all";
+			ifmatch.boot_label = "boot";
+		}
+
+		if (!ni_ifworker_mark_matching(&ifmatch, STATE_ADDRCONF_UP, __STATE_MAX)) {
+			printf("No matching interfaces\n");
+			return 0;
+		}
 	}
 
 	ni_ifworkers_kickstart();
@@ -2712,11 +2715,10 @@ usage:
 		}
 	}
 
-	if (optind + 1 != argc) {
+	if (optind >= argc) {
 		fprintf(stderr, "Missing interface argument\n");
 		goto usage;
 	}
-	ifmatch.name = argv[optind++];
 
 	if (opt_global_rootdir) {
 		static char namebuf[PATH_MAX];
@@ -2733,9 +2735,13 @@ usage:
 
 	ni_ifworkers_refresh_state();
 
-	if (!ni_ifworker_mark_matching(&ifmatch, STATE_NONE, opt_delete? STATE_DEVICE_DOWN : STATE_DEVICE_UP)) {
-		printf("No matching interfaces\n");
-		return 0;
+	while (optind < argc) {
+		ifmatch.name = argv[optind++];
+
+		if (!ni_ifworker_mark_matching(&ifmatch, STATE_NONE, opt_delete? STATE_DEVICE_DOWN : STATE_DEVICE_UP)) {
+			printf("No matching interfaces\n");
+			return 0;
+		}
 	}
 
 	ni_ifworkers_kickstart();
