@@ -1013,9 +1013,9 @@ __ni_ifworker_flatten(ni_ifworker_t *w, ni_ifworker_array_t *array, unsigned int
 	for (i = 0; i < w->children.count; ++i) {
 		ni_ifworker_t *child = w->children.data[i].child;
 
-		__ni_ifworker_flatten(child, array, depth + 1);
 		if (ni_ifworker_array_index(array, child) < 0)
 			ni_ifworker_array_append(array, child);
+		__ni_ifworker_flatten(child, array, depth + 1);
 	}
 }
 
@@ -1033,6 +1033,12 @@ ni_ifworkers_flatten(ni_ifworker_array_t *array)
 {
 	unsigned int i, count;
 
+	/* Note, we take the array->count outside the loop.
+	 * Inside the loop, we're adding new ifworkers to the array,
+	 * and do that recursively. Avoid processing these newly
+	 * added devices twice.
+	 * NB a simple tail recursion won't work here.
+	 */
 	count = array->count;
 	for (i = 0; i < count; ++i)
 		__ni_ifworker_flatten(array->data[i], array, 0);
@@ -1993,8 +1999,6 @@ ni_ifworker_bind_device_factory(ni_ifworker_t *w, ni_iftransition_t *action)
 static int
 ni_ifworker_call_device_factory(ni_ifworker_t *w, ni_iftransition_t *action)
 {
-	ni_debug_application("%s(%s)", __func__, w->name);
-
 	if (w->device == NULL) {
 		struct ni_netif_action_binding *bind;
 		const char *relative_path;
@@ -2006,6 +2010,7 @@ ni_ifworker_call_device_factory(ni_ifworker_t *w, ni_iftransition_t *action)
 		}
 		bind = &action->binding[0];
 
+		ni_debug_application("%s: calling device factory", w->name);
 		object_path = ni_call_device_new_xml(bind->service, w->name, bind->config);
 		if (object_path == NULL) {
 			ni_ifworker_fail(w, "failed to create interface");
