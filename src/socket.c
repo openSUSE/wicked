@@ -25,7 +25,7 @@
 #include <wicked/socket.h>
 #include "netinfo_priv.h"
 #include "socket_priv.h"
-#include "config.h"
+#include "appconfig.h"
 
 static void			__ni_socket_close(ni_socket_t *);
 static void			__ni_socket_accept(ni_socket_t *);

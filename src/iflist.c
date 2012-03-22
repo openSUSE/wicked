@@ -35,7 +35,7 @@
 #include "netinfo_priv.h"
 #include "sysfs.h"
 #include "kernel.h"
-#include "config.h"
+#include "appconfig.h"
 
 static int	__ni_process_ifinfomsg(ni_linkinfo_t *link, struct nlmsghdr *h,
 				struct ifinfomsg *ifi, ni_netconfig_t *);

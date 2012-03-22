@@ -16,7 +16,7 @@
 #include <wicked/xpath.h>
 #include <wicked/dbus.h>
 #include "netinfo_priv.h"
-#include "config.h"
+#include "appconfig.h"
 #include "xml-schema.h"
 
 static int		ni_config_parse_addrconf_dhcp(struct ni_config_dhcp *, xml_node_t *);

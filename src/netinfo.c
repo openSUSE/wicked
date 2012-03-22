@@ -24,7 +24,7 @@
 #include <wicked/nis.h>
 #include "netinfo_priv.h"
 #include "dbus-server.h"
-#include "config.h"
+#include "appconfig.h"
 #include "xml-schema.h"
 #include "sysfs.h"
 

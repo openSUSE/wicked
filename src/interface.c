@@ -25,7 +25,7 @@
 #include <wicked/route.h>
 #include <wicked/ibft.h>
 #include "netinfo_priv.h"
-#include "config.h"
+#include "appconfig.h"
 
 /*
  * Constructor for network interface.

@@ -18,7 +18,7 @@
 #include <wicked/logging.h>
 #include "netinfo_priv.h"
 #include "autoip.h"
-#include "config.h"
+#include "appconfig.h"
 
 ni_autoip_device_t *	ni_autoip_active;
 

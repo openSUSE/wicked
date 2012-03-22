@@ -10,7 +10,7 @@
 #include <wicked/nis.h>
 #include <wicked/resolver.h>
 #include "netinfo_priv.h"
-#include "config.h"
+#include "appconfig.h"
 
 #define CONFIG_WICKED_BACKUP_DIR	CONFIG_WICKED_STATEDIR "/backup"
 

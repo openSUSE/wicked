@@ -13,7 +13,7 @@
 #include <wicked/addrconf.h>
 #include <wicked/xpath.h>
 #include "netinfo_priv.h"
-#include "config.h"
+#include "appconfig.h"
 #include "process.h"
 
 static void		__ni_script_action_free(ni_script_action_t *);

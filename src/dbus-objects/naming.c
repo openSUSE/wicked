@@ -14,7 +14,7 @@
 #include <wicked/ibft.h>
 #include "dbus-common.h"
 #include "model.h"
-#include "config.h"
+#include "appconfig.h"
 #include "debug.h"
 
 static unsigned int			ni_objectmodel_ns_count;

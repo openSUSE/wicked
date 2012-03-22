@@ -19,7 +19,7 @@
 #include "socket_priv.h"
 #include "sysfs.h"
 #include "kernel.h"
-#include "config.h"
+#include "appconfig.h"
 
 static int	__ni_rtevent_process(ni_netconfig_t *, const struct sockaddr_nl *, struct nlmsghdr *);
 static int	__ni_rtevent_newlink(ni_netconfig_t *, const struct sockaddr_nl *, struct nlmsghdr *);

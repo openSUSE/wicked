@@ -37,7 +37,7 @@
 #include "netinfo_priv.h"
 #include "sysfs.h"
 #include "kernel.h"
-#include "config.h"
+#include "appconfig.h"
 #include "debug.h"
 
 static int	__ni_netdev_update_ipv6_settings(ni_netdev_t *, const ni_afinfo_t *);

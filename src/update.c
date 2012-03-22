@@ -12,7 +12,7 @@
 #include <unistd.h>
 #include "netinfo_priv.h"
 #include "process.h"
-#include "config.h"
+#include "appconfig.h"
 #include "debug.h"
 
 typedef struct ni_updater_source	ni_updater_source_t;

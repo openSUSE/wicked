@@ -18,7 +18,7 @@
 #include "netinfo_priv.h"
 #include "dhcp.h"
 #include "protocol.h"
-#include "config.h"
+#include "appconfig.h"
 
 
 static unsigned int	ni_dhcp_do_bits(unsigned int);

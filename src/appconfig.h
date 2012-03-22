@@ -1,12 +1,12 @@
 /*
- * Handle global configuration for netinfo
+ * Handle global application config file
  *
  * Copyright (C) 2010-2012 Olaf Kirch <okir@suse.de>
  */
 
 
-#ifndef __NI_NETINFO_CONFIG_H__
-#define __NI_NETINFO_CONFIG_H__
+#ifndef __NI_NETINFO_APPCONFIG_H__
+#define __NI_NETINFO_APPCONFIG_H__
 
 #include <wicked/types.h>
 #include <wicked/netinfo.h>
@@ -134,4 +134,4 @@ __ni_assert_initialized(void)
 		ni_fatal("Library not initialized, please call ni_init() first");
 }
 
-#endif /* __NI_NETINFO_CONFIG_H__ */
+#endif /* __NI_NETINFO_APPCONFIG_H__ */
