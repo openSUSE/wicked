@@ -123,6 +123,7 @@ ni_objectmodel_vlan_delete(ni_dbus_object_t *object, const ni_dbus_method_t *met
 		return FALSE;
 	}
 
+	ni_dbus_object_free(object);
 	return TRUE;
 }
 

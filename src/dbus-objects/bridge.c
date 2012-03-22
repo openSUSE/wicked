@@ -163,9 +163,7 @@ ni_objectmodel_delete_bridge(ni_dbus_object_t *object, const ni_dbus_method_t *m
 		return FALSE;
 	}
 
-	/* FIXME: destroy the object */
 	ni_dbus_object_free(object);
-
 	return TRUE;
 }
 
