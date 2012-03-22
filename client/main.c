@@ -980,12 +980,12 @@ gaicb_get_address(struct gaicb *cb, ni_sockaddr_t *addr)
 }
 
 int
-ni_resolve_hostname_timed(const char *hostname, ni_sockaddr_t *addr, unsigned int timeout)
+ni_resolve_hostname_timed(const char *hostname, int af, ni_sockaddr_t *addr, unsigned int timeout)
 {
 	struct gaicb *cb;
 	int gerr;
 
-	cb = gaicb_new(hostname, AF_UNSPEC);
+	cb = gaicb_new(hostname, af);
 	if (gaicb_list_resolve(&cb, 1, timeout) < 0)
 		return -1;
 
@@ -998,6 +998,33 @@ ni_resolve_hostname_timed(const char *hostname, ni_sockaddr_t *addr, unsigned in
 	}
 
 	return 1;
+}
+
+/*
+ * The check for routability is implemented as a simple
+ * UDP connect, which should return immediately, since no
+ * packets are sent over the wire (except for hostname
+ * resolution).
+ */
+int
+ni_host_is_reachable(const char *hostname, const ni_sockaddr_t *addr)
+{
+	int fd, rv = 1;
+
+	fd = socket(addr->ss_family, SOCK_DGRAM, 0);
+	if (fd < 0) {
+		ni_debug_objectmodel("%s: unable to open %s socket", hostname,
+				ni_addrfamily_type_to_name(addr->ss_family));
+		return -1;
+	}
+
+	if (connect(fd, (struct sockaddr *) addr, sizeof(*addr)) < 0) {
+		ni_debug_objectmodel("cannot connect to %s: %m", hostname);
+		rv = 0;
+	}
+
+	close(fd);
+	return rv;
 }
 
 /*
@@ -1092,35 +1119,26 @@ do_check(int argc, char **argv)
 			}
 
 			if (ni_string_eq(opt_cmd, "route")) {
-				/* The check for routability is implemented as a simple
-				 * UDP connect, which should return immediately, since no
-				 * packets are sent over the wire (except for hostname
-				 * resolution).
-				 */
-				int fd;
-
-				fd = socket(address.ss_family, SOCK_DGRAM, 0);
-				if (fd < 0) {
-					ni_error("%s: unable to open %s socket", hostname,
-							ni_addrfamily_type_to_name(address.ss_family));
-					failed++;
-					continue;
-				}
-
-				if (connect(fd, (struct sockaddr *) &address, sizeof(address)) == 0) {
+				switch (ni_host_is_reachable(hostname, &address)) {
+				case 1:
 					printf("%s %s reachable\n", hostname, ni_address_print(&address));
-				} else {
-					ni_error("cannot connect to %s: %m", hostname);
-					failed++;
+					break;
+
+				case 0:
 					if (opt_dbus_error_file) {
 						write_dbus_error(opt_dbus_error_file,
 								NI_DBUS_ERROR_UNREACHABLE_ADDRESS,
 								hostname);
 						opt_dbus_error_file = NULL;
 					}
+					/* fallthrough */
+
+				default:
+					ni_error("%s %s not reached", hostname, ni_address_print(&address));
+					failed++;
 				}
 
-				close(fd);
+				continue;
 			}
 		}
 		gaicb_list_free(greqs, nreqs);

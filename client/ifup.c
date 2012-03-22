@@ -260,7 +260,8 @@ ni_ifworker_req_free(ni_ifworker_req_t *req)
 static ni_bool_t
 ni_ifworker_req_check_reachable(ni_ifworker_t *w, ni_ifworker_req_t *req)
 {
-	const char *hostname;
+	const char *hostname, *attr;
+	int afhint = AF_UNSPEC;
 	ni_sockaddr_t address;
 
 	if (!req->data)
@@ -276,12 +277,25 @@ ni_ifworker_req_check_reachable(ni_ifworker_t *w, ni_ifworker_req_t *req)
 	}
 	req->event_seq = ni_ifworker_lease_acquired_seq;
 
-	if (ni_resolve_hostname_timed(hostname, &address, 1) <= 0) {
+	if ((attr = xml_node_get_attr(req->data, "address-family")) != NULL) {
+		if ((afhint = ni_addrfamily_name_to_type(attr)) < 0) {
+			ni_error("%s: bad address-family attribute \"%s\"",
+					xml_node_location(req->data), attr);
+			return FALSE;
+		}
+	}
+
+	if (ni_resolve_hostname_timed(hostname, afhint, &address, 1) <= 0) {
 		ni_debug_objectmodel("check reachability: %s not resolvable", hostname);
 		return FALSE;
 	}
 
-	/* FIXME: actually check routability. */
+	if (ni_host_is_reachable(hostname, &address) <= 0) {
+		ni_debug_objectmodel("check reachability: %s not reachable at %s",
+				hostname, ni_address_print(&address));
+		return FALSE;
+	}
+
 	ni_debug_objectmodel("check reachability: %s OK", hostname);
 	return TRUE;
 }
@@ -1681,8 +1695,6 @@ ni_ifworker_map_requires(ni_ifworker_t *w, ni_iftransition_t *action,
 				ni_error("%s: cannot build requirement", xml_node_location(rnode));
 				return -NI_ERROR_DOCUMENT_ERROR;
 			}
-
-			ni_trace("%s: add require check=%s node=%s", w->name, check, xml_node_location(expanded[j]));
 
 			*pos = require;
 			pos = &require->next;

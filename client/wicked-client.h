@@ -33,6 +33,7 @@ extern int			ni_call_common_xml(ni_dbus_object_t *,
 extern int			ni_call_install_lease_xml(ni_dbus_object_t *, xml_node_t *);
 
 /* We may want to move this into the library. */
-extern int			ni_resolve_hostname_timed(const char *, ni_sockaddr_t *, unsigned int);
+extern int			ni_resolve_hostname_timed(const char *, int, ni_sockaddr_t *, unsigned int);
+extern int			ni_host_is_reachable(const char *, const ni_sockaddr_t *);
 
 #endif /* WICKED_CLIENT_H */
