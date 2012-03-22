@@ -1495,6 +1495,7 @@ ni_dbus_xml_map_method_argument(const ni_dbus_method_t *method, unsigned int ind
 			} else
 			if (rv == 1) {
 				*ret_node = expanded[0];
+				skip_call = FALSE;
 			} else {
 				ni_error("%s: ambiguous result of xpath expression \"%s\"",
 						xml_node_location(mapping), attr);
