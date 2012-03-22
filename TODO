@@ -11,9 +11,9 @@ wickedd:
 	- write addrconf leases to a file
 	- when a wlan device changes association, tell dhcp about it
 	  so that it can request a new lease
-	- express extra dependencies between devices. For instance,
-	  we may have to bring up our ethernet device before we can
-	  bring up the openvpn tunnel.
+	- express explicit dependencies between devices.
+	   <meta:require check="netif-up">eth0</meta:require>
+	  or some such.
 	- Allow wicked to request event notification the resolver
 	  changes, or when a host becomes reachable?
 
@@ -32,18 +32,25 @@ ibft:
 	- ibft entries may refer to plain eth devices (easy) or vlans.
 	  the latter are more difficult, as they do not exist at the time
 	  we want to find out about them.
-	  Options:
 
-	   a) when trying to identify an ibft device that specifies a VLAN
-	      tag, we create the vlan device on the fly
+	  Options (currently preferring option a):
 
-	   b) we change the way we create devices. Rather than having a per
+	   a) we change the way we create devices. Rather than having a per
 	      link type factory function, we use a different mechanism to
 	      infer the factory interface to use with a netdev config.
 	      This allows us to use an <ibft> element and an ibft factory.
 
+	      IOW, we define an iBFT.Factory service, which is triggered
+	      by the presence of the <ibft> element in your interface xml.
+	      The factory function will either return the object path of
+	      the ethernet device (if it's plain ethernet), or create
+	      the VLAN and return its object path.
+
 	      One side effect of this might be that the distinction between
 	      device creation and discovery is blurred.
+
+	   b) when trying to identify an ibft device that specifies a VLAN
+	      tag, we create the vlan device on the fly
 
 	   c) We create a fake ibft link layer type, and an ibft factory
 	      interface which "creates" the device - either by returning

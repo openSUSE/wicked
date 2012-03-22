@@ -16,3 +16,7 @@ Thu Mar 22 17:20:28 CET 2012 - okir
 	  error prone. Tagging schema nodes is easier, and needs to be
 	  implemented only once.
 
+	* Oh yeah, and implement a <require> tag that lets you check
+	  whether a given hostname is reachable. To be used with openvpn,
+	  for instance, where you don't want to bring up the tunnel
+	  daemon before you can actually reach the VPN gateway.
