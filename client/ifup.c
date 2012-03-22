@@ -2572,6 +2572,7 @@ do_ifup(int argc, char **argv)
 	};
 	static ni_ifmatcher_t ifmatch;
 	const char *opt_ifconfig = WICKED_IFCONFIG_DIR_PATH;
+	unsigned int nmarked;
 	int c;
 
 	memset(&ifmatch, 0, sizeof(ifmatch));
@@ -2643,6 +2644,7 @@ usage:
 	if (ni_ifworkers_build_hierarchy() < 0)
 		ni_fatal("ifup: unable to build device hierarchy");
 
+	nmarked = 0;
 	while (optind < argc) {
 		ifmatch.name = argv[optind++];
 
@@ -2651,10 +2653,11 @@ usage:
 			ifmatch.boot_label = "boot";
 		}
 
-		if (!ni_ifworker_mark_matching(&ifmatch, STATE_ADDRCONF_UP, __STATE_MAX)) {
-			printf("No matching interfaces\n");
-			return 0;
-		}
+		nmarked += ni_ifworker_mark_matching(&ifmatch, STATE_ADDRCONF_UP, __STATE_MAX);
+	}
+	if (nmarked == 0) {
+		printf("No matching interfaces\n");
+		return 0;
 	}
 
 	ni_ifworkers_kickstart();
@@ -2677,6 +2680,7 @@ do_ifdown(int argc, char **argv)
 	};
 	static ni_ifmatcher_t ifmatch;
 	const char *opt_ifconfig = WICKED_IFCONFIG_DIR_PATH;
+	unsigned int nmarked;
 	int opt_delete = 0;
 	int c;
 
@@ -2741,13 +2745,14 @@ usage:
 
 	ni_ifworkers_refresh_state();
 
+	nmarked = 0;
 	while (optind < argc) {
 		ifmatch.name = argv[optind++];
-
-		if (!ni_ifworker_mark_matching(&ifmatch, STATE_NONE, opt_delete? STATE_DEVICE_DOWN : STATE_DEVICE_UP)) {
-			printf("No matching interfaces\n");
-			return 0;
-		}
+		nmarked += ni_ifworker_mark_matching(&ifmatch, STATE_NONE, opt_delete? STATE_DEVICE_DOWN : STATE_DEVICE_UP);
+	}
+	if (nmarked == 0) {
+		printf("No matching interfaces\n");
+		return 0;
 	}
 
 	ni_ifworkers_kickstart();
