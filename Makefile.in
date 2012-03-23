@@ -1,3 +1,35 @@
+#                                               -*- Autoconf -*-
+
+prefix			= @prefix@
+exec_prefix		= @exec_prefix@
+libdir			= @libdir@
+sbindir			= @sbindir@
+mandir			= @mandir@
+sysconfdir		= @sysconfdir@
+includedir		= @includedir@
+datarootdir		= @datarootdir@
+localstatedir		= @localstatedir@
+
+sysvinitdir		= @sysvinitdir@
+pkgconfigdir		= @pkgconfigdir@
+dbus_systemdir		= @dbus_systemdir@
+
+# Hmm.. devellibdir=/usr/%_lib libdir=/%_lib
+devellibdir		= ${exec_prefix}${libdir}
+
+wickedconfigdir		= ${sysconfdir}/wicked
+wickedpiddir		= ${localstatedir}/run/wicked
+
+PACKAGE_URL		= @PACKAGE_URL@
+PACKAGE_NAME		= @PACKAGE_NAME@
+PACKAGE_TARNAME		= @PACKAGE_TARNAME@
+PACKAGE_VERSION		= @PACKAGE_VERSION@
+PACKAGE_BUGREPORT	= @PACKAGE_BUGREPORT@
+
+LIBWICKED_SOFILE_VERSION= @LIBWICKED_SOFILE_VERSION@
+LIBWICKED_SONAME_VERSION= @LIBWICKED_SONAME_VERSION@
+
+# ---------------------------------------------------------------
 
 CFLAGS	= -Wall -Werror -g -O2 -D_GNU_SOURCE -I. -Iinclude -Isrc \
 	  $(CFLAGS_DBUS)
@@ -9,12 +41,12 @@ UTILS	= mkconst
 APPBINS	= $(addprefix $(BIN)/,$(APPS) $(UTILS))
 TGTLIBS	= $(LIBNAME).so
 
-sbindir	= /sbin
-libdir	= $(shell if test -f $(DESTDIR)/lib64; then echo /lib64; else echo /lib; fi)
+DIST_DIRNAME    = $(PACKAGE_TARNAME)-$(PACKAGE_VERSION)
+DIST_ARCHIVE	= $(PACKAGE_TARNAME)-$(PACKAGE_VERSION).tar.bz2
 
-LIBNAME	= libwicked
-LIBVER	= 0.5
-LIBSONAME=$(LIBNAME).so.$(LIBVER)
+LIBNAME		= libwicked
+LIBSONAME=$(LIBNAME).so.$(LIBWICKED_SONAME_VERSION)
+LIBSOFILE=$(LIBNAME).so.$(LIBWICKED_SOFILE_VERSION)
 __LIBSRCS= \
 	  config.c \
 	  extension.c \
@@ -109,44 +141,85 @@ CLIENTOBJS= $(addprefix $(OBJ)/,$(CLIENTSRCS:.c=.o))
 SERVEROBJS= $(addprefix $(OBJ)/,$(SERVERSRCS:.c=.o))
 UTILSRCS= util/mkconst.c
 
+SOURCES= $(LIBSRCS) $(DHCP4SRCS) $(AUTO4SRCS) $(CLIENTSRCS) \
+	 $(SERVERSRCS)
 
 all: $(TGTLIBS) $(APPBINS) $(GENFILES)
 
+dist: $(DIST_ARCHIVE)
+	@echo "=============================================="
+	@ls -1 wicked.spec $(DIST_ARCHIVE)
+	@echo "=============================================="
+
 distclean clean::
-	rm -f *.o libwicked.* core tags LOG
+	rm -f *~ *.o libwicked.* core tags LOG
 	rm -rf $(BIN) $(OBJ) $(GENFILES)
 	rm -f testing/*.o
 	rm -f testing/xml-test
 	rm -f testing/xpath-test
+	rm -f testing/ibft-test
+	rm -f src/autoconf.h
 
 distclean::
 	rm -f .depend
 
+realclean maintainer-clean: distclean
+	rm -rf autom4te.cache
+	rm -f aclocal.m4 config.* src/autoconf.h.in*
+	rm -f configure.scan configure Makefile *.log
+	rm -f wicked.pc wicked.spec $(DIST_ARCHIVE)
+
 install-strip: STRIP_FLAG=-s
 install-strip: install
 
-install: $(APPBINS) install-files
+install: install-no-devel install-devel
+
+install-devel: install-devel-lib install-devel-data
+
+install-no-devel: install-lib install-bin install-data install-man
+
+install-bin: $(APPBINS) install-bin
 	install -d -m 755 $(DESTDIR)$(sbindir)
-	install -d -m 755 $(DESTDIR)$(libdir)
 	for app in $(APPS); do \
 		install $(STRIP_FLAG) -m 555 bin/$$app $(DESTDIR)$(sbindir); \
 	done
-	install -c -m 555 $(LIBNAME).so $(DESTDIR)$(libdir)
-	ln -sf $(LIBNAME).so $(DESTDIR)$(libdir)/$(LIBSONAME)
-	install -d -m 755 $(DESTDIR)/usr/share/man/man{7,8}
-	install -c -m 444 man/*.7 $(DESTDIR)/usr/share/man/man7
-	install -c -m 444 man/*.8 $(DESTDIR)/usr/share/man/man8
+	install -d -m 755 $(DESTDIR)$(wickedpiddir)
 
-install-files: $(GENFILES)
-	install -d -m 755 $(DESTDIR)/etc/wicked
-	install -m 644 etc/config.xml $(DESTDIR)/etc/wicked
-	install -d -m 755 $(DESTDIR)/etc/dbus-1/system.d
-	install -c -m 444 etc/wicked*.conf $(DESTDIR)/etc/dbus-1/system.d
-	install -d -m 755 $(DESTDIR)/etc/wicked/schema
-	install -c -m 444 schema/*.xml $(DESTDIR)/etc/wicked/schema
-	install -d -m 755 $(DESTDIR)/etc/wicked/extensions
-	install -c -m 555 extensions/* $(DESTDIR)/etc/wicked/extensions
-	install -d -m 755 $(DESTDIR)/var/run/wicked
+install-lib: $(TGTLIBS)
+	install -d -m 755 $(DESTDIR)$(libdir)
+	install -c -m 555 $(LIBNAME).so $(DESTDIR)$(libdir)/$(LIBSOFILE)
+	ln -sf $(LIBSOFILE) $(DESTDIR)$(libdir)/$(LIBSONAME)
+
+install-data: $(GENFILES)
+	install -d -m 755 $(DESTDIR)$(sysvinitdir)
+	install -c -m 755 etc/wickedd.init $(DESTDIR)$(sysvinitdir)/wickedd
+	install -d -m 755 $(DESTDIR)$(wickedconfigdir)
+	install -m 644 etc/config.xml $(DESTDIR)$(wickedconfigdir)
+	install -d -m 755 $(DESTDIR)$(dbus_systemdir)
+	install -c -m 444 etc/wicked*.conf $(DESTDIR)$(dbus_systemdir)
+	install -d -m 755 $(DESTDIR)$(wickedconfigdir)/schema
+	install -c -m 444 schema/*.xml $(DESTDIR)$(wickedconfigdir)/schema
+	install -d -m 755 $(DESTDIR)$(wickedconfigdir)/extensions
+	install -c -m 555 extensions/* $(DESTDIR)$(wickedconfigdir)/extensions
+
+install-man:
+	install -d -m 755 $(DESTDIR)$(mandir)/man{7,8}
+	install -c -m 444 man/*.7 $(DESTDIR)$(mandir)/man7
+	install -c -m 444 man/*.8 $(DESTDIR)/$(mandir)/man8
+
+install-devel-lib: install-lib
+	install -d -m 755 $(DESTDIR)$(devellibdir)
+ifeq ($(devellibdir),$(libdir))
+	ln -sf $(LIBSONAME) $(DESTDIR)$(devellibdir)/$(LIBNAME).so
+else
+	ln -sf $(libdir)/$(LIBSONAME) $(DESTDIR)$(devellibdir)/$(LIBNAME).so
+endif
+
+install-devel-data:
+	install -d -m 755 $(DESTDIR)$(includedir)/wicked
+	install -c -m 644 $(wildcard include/wicked/*.h) $(DESTDIR)$(includedir)/wicked
+	install -d -m 755 $(DESTDIR)$(pkgconfigdir)
+	install -c -m 644 wicked.pc $(DESTDIR)$(pkgconfigdir)
 
 schema/constants.xml: $(BIN)/mkconst schema/constants.xml.in
 	@echo Building $@ from $@.in
@@ -219,6 +292,40 @@ $(OBJ)/netcf/%.o: src/%.c
 	@rm -f $@
 	@test -d $(dir $@) || mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c -o $@ $<
+
+wicked.spec: wicked.spec.in
+	./config.status --file=$@:$<
+
+# we use a tempdir so tar does not complain,
+# that the . directory changed while reading
+$(DIST_ARCHIVE): wicked.spec
+	tmpdir=`mktemp -d .XXXXXX` && \
+	tar -cf "$${tmpdir}/$@" --bzip2 --owner=0 --group=0  \
+		--transform="s;^[.];$(DIST_DIRNAME);" \
+		--show-transformed-names     \
+		--exclude="$(DIST_DIRNAME)*" \
+		--exclude="$(OBJ)"           \
+		--exclude="$(BIN)"           \
+		--exclude="*~"               \
+		--exclude="*.o"              \
+		--exclude="*.a"              \
+		--exclude="*.so*"            \
+		--exclude="*.log"            \
+		--exclude="*.swp"            \
+		--exclude=".git*"            \
+		--exclude=".depend"          \
+		--exclude=".*project"        \
+		--exclude="Makefile"         \
+		--exclude="wicked.pc"        \
+		--exclude="config.guess"     \
+		--exclude="config.status"    \
+		--exclude="autom4te.cache"   \
+		--exclude="src/autoconf.h"   \
+		--exclude="testing/xml-test"   \
+		--exclude="testing/ibft-test"  \
+		--exclude="testing/xpath-test" \
+		-- . && \
+	mv "$${tmpdir}/$@" . && rmdir "$${tmpdir}"
 
 -include .depend
 
