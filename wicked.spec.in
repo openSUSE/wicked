@@ -77,19 +77,6 @@ make %{?_smp_mflags}
 
 %install
 make install DESTDIR=${RPM_BUILD_ROOT}
-# FIXME: 
-#install -m755 -d %buildroot%_devellibdir
-#ln -sf %_libdir/libwicked.so.@LIBWICKED_SOFILE_VERSION@ \
-#       %buildroot%_devellibdir/libwicked.so
-#rm -f  %buildroot%_libdir/libwicked.so
-# FIXME:
-#install -m755 -d %buildroot%_varrundir
-#install -m755 -d %buildroot%_sysconfdir/init.d
-#install -m 755 etc/wickedd.init %buildroot%_sysconfdir/init.d/wickedd
-#nstall -m755 -d %buildroot%_includedir
-#p -r include/wicked %buildroot%_includedir
-#nstall -m755 -d %buildroot%_datadir/pkgconfig
-#nstall -m644 wicked.pc %buildroot%_datadir/pkgconfig
 
 %post
 %{fillup_and_insserv wickedd}
