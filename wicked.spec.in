@@ -1,10 +1,11 @@
-Summary:	network configuration infrastructure
 Name:		wicked
-Version:	0.0.0
-Release:	12.mge
-Source0:	%{name}-%{version}.tar.bz2
+Version:	@PACKAGE_VERSION@
+Release:	0
 Group:		Networking
 License:	GPL v2
+Summary:	network configuration infrastructure
+Url:            @PACKAGE_URL@
+Source0:	%{name}-%{version}.tar.bz2
 Buildroot:	%{_tmppath}/%{name}%{version}-buildroot/
 
 %if 0%{?suse_version} > 1110
@@ -12,15 +13,58 @@ BuildRequires:	libiw-devel libnl-devel dbus-1-devel
 %else
 BuildRequires:	wireless-tools libnl-devel dbus-1-devel
 %endif
+BuildRequires:  pkg-config
 
 %if 0%{?suse_version:1}
 PreReq:         %fillup_prereq %insserv_prereq
 %endif
 
+%define         _sbindir	/sbin
+%define         _libdir		/%_lib
+%define         _devellibdir	%{_prefix}/%{_lib}
+%define         _varrundir	%_localstatedir/run/%name
+
 %description
 wicked is a network configuration infrastructure incorporating a number
 of existing frameworks into a unified architecture, providing a REST
 interface to network configuration.
+
+%package client
+License:        GPL v2
+Group:          Networking
+Summary:        network configuration infrastructure - client
+Requires:       %name = %{version}
+
+%description client
+wicked is a network configuration infrastructure incorporating a number
+of existing frameworks into a unified architecture, providing a REST
+interface to network configuration.
+
+This package provides the wicked client.
+
+%package devel
+License:        GPL v2
+Summary:        network configuration infrastructure - development files
+Group:          Development/Libraries/C and C++
+
+%description devel
+wicked is a network configuration infrastructure incorporating a number
+of existing frameworks into a unified architecture, providing a REST
+interface to network configuration.
+
+This package provides the wicked development files.
+
+%package -n     libwicked@LIBWICKED_PACKAGE_SUFFIX@
+License:        GPL v2
+Summary:        network configuration infrastructure - shared library
+Group:          Networking
+
+%description -n libwicked@LIBWICKED_PACKAGE_SUFFIX@
+wicked is a network configuration infrastructure incorporating a number
+of existing frameworks into a unified architecture, providing a REST
+interface to network configuration.
+
+This package provides the wicked shared library.
 
 %prep
 rm -rf $RPM_BUILD_ROOT
@@ -28,16 +72,24 @@ rm -rf $RPM_BUILD_ROOT
 
 %build
 export CFLAGS="$RPM_OPT_FLAGS"
-make
+%configure
+make %{?_smp_mflags}
 
 %install
-%makeinstall DESTDIR=${RPM_BUILD_ROOT}
-make install-files DESTDIR=${RPM_BUILD_ROOT}
-#
-install -d -m 755 ${RPM_BUILD_ROOT}/etc/init.d
-install -d -m 755 ${RPM_BUILD_ROOT}/usr/sbin
-install -m 750 etc/wickedd.init ${RPM_BUILD_ROOT}/etc/init.d/wickedd
-ln -s ../../etc/init.d/wickedd  ${RPM_BUILD_ROOT}/usr/sbin/rcwickedd
+make install DESTDIR=${RPM_BUILD_ROOT}
+# FIXME: 
+#install -m755 -d %buildroot%_devellibdir
+#ln -sf %_libdir/libwicked.so.@LIBWICKED_SOFILE_VERSION@ \
+#       %buildroot%_devellibdir/libwicked.so
+#rm -f  %buildroot%_libdir/libwicked.so
+# FIXME:
+#install -m755 -d %buildroot%_varrundir
+#install -m755 -d %buildroot%_sysconfdir/init.d
+#install -m 755 etc/wickedd.init %buildroot%_sysconfdir/init.d/wickedd
+#nstall -m755 -d %buildroot%_includedir
+#p -r include/wicked %buildroot%_includedir
+#nstall -m755 -d %buildroot%_datadir/pkgconfig
+#nstall -m644 wicked.pc %buildroot%_datadir/pkgconfig
 
 %post
 %{fillup_and_insserv wickedd}
@@ -49,41 +101,56 @@ ln -s ../../etc/init.d/wickedd  ${RPM_BUILD_ROOT}/usr/sbin/rcwickedd
 %restart_on_update wickedd
 %insserv_cleanup
 
+%post -n libwicked@LIBWICKED_PACKAGE_SUFFIX@
+/sbin/ldconfig
+
+%postun -n libwicked@LIBWICKED_PACKAGE_SUFFIX@
+/sbin/ldconfig
+
+
 ## BASE
 
 %files
 %defattr (-,root,root)
-%doc ANNOUNCE COPYING README TODO samples
-/sbin/wickedd
-/sbin/dhcp4-supplicant
-/sbin/auto4-supplicant
-/etc/init.d/wickedd
-/usr/sbin/rcwickedd
-%dir /etc/wicked
-%dir /etc/wicked/schema
-%dir /var/run/wicked
-%config(noreplace) /etc/wicked/*.xml
-/etc/wicked/schema/*.xml
-%{_mandir}/man7/*
-%{_mandir}/man8/*
+%doc ChangeLog ANNOUNCE COPYING README TODO samples
+%_sbindir/wickedd
+%_sbindir/dhcp4-supplicant
+%_sbindir/autoip4-supplicant
+%_sysconfdir/init.d/wickedd
+#/usr/sbin/rcwickedd
+%dir %_sysconfdir/wicked
+%dir %_sysconfdir/wicked/schema
+%dir %_sysconfdir/wicked/extensions
+%dir %_localstatedir/run/wicked
+%config(noreplace) %_sysconfdir/wicked/*.xml
+%_sysconfdir/wicked/schema/*.xml
+%_sysconfdir/wicked/extensions/*
+%dir %_sysconfdir/dbus-1
+%dir %_sysconfdir/dbus-1/system.d
+%config(noreplace) %_sysconfdir/dbus-1/system.d/wicked*.conf
+%{_mandir}/man7/wicked*
+%{_mandir}/man8/wicked*
 
-## CLI
+## CLIENT
 
-%package cli
-License:        GPL v2
-Group:          Networking
-Summary:        network configuration infrastructure - cli
-Requires:       %name = %{version}
-
-%description cli
-wicked is a network configuration infrastructure incorporating a number
-of existing frameworks into a unified architecture, providing a REST
-interface to network configuration.
-This package provides the CLI.
-
-%files cli
+%files client
 %defattr (-,root,root)
-/sbin/wicked
+%_sbindir/wicked
+
+## DEVEL
+
+%files devel
+%defattr (-,root,root)
+%dir %_includedir/wicked
+%_includedir/wicked/*
+%_devellibdir/libwicked*.so
+%_datadir/pkgconfig/wicked.pc
+
+## LIBRARY
+
+%files -n libwicked@LIBWICKED_PACKAGE_SUFFIX@
+%defattr (-,root,root)
+%_libdir/libwicked*.so.*
 
 ## CHANGELOG
 
