@@ -16,3 +16,11 @@ tags
 bin
 schema/constants.xml
 .*project
+Makefile
+aclocal.m4
+autom4te.cache/
+config.*
+configure
+wicked-*
+wicked.pc
+wicked.spec
