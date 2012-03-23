@@ -1265,6 +1265,8 @@ ni_xs_type_build_constraints(ni_xs_type_t **type_p, const xml_node_t *node, ni_x
 			ni_xs_scalar_info_t *scalar_info;
 
 			scalar_info = ni_xs_scalar_info(type);
+			if(scalar_info) /* FIXME: unused */
+				;
 			if (!strcmp(attrValue, "bitmap")) {
 				ni_xs_intmap_t *map;
 

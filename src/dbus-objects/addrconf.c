@@ -348,6 +348,8 @@ ni_objectmodel_addrconf_ibft_request(ni_dbus_object_t *object, int addrfamily,
 	if (argc != 1 || !ni_dbus_variant_is_dict(&argv[0]))
 		return ni_dbus_error_invalid_args(error, object->path, "requestLease");
 	dict = &argv[0];
+	if(dict) /* FIXME: unused */
+		;
 
 	if ((nic = dev->ibft_nic) == NULL) {
 		dbus_set_error(error, NI_DBUS_ERROR_INTERFACE_NOT_COMPATIBLE,
