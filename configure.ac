@@ -1,8 +1,14 @@
 #                                               -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 AC_PREREQ([2.68])
-AC_INIT([wicked], [0.5.0], [feedback@suse.de], [wicked],
+AC_INIT([wicked], esyscmd([tr -d '\n' < VERSION]),
+	[feedback@suse.de], [wicked],
 	[http://gitorious.org/wicked])
+
+# at the moment we just use the package version...
+AC_SUBST(LIBWICKED_SOFILE_VERSION, ${PACKAGE_VERSION})
+AC_SUBST(LIBWICKED_SONAME_VERSION, ${PACKAGE_VERSION%.*})
+AC_SUBST(LIBWICKED_PACKAGE_SUFFIX, ${LIBWICKED_SONAME_VERSION//./_})
 
 AC_CONFIG_SRCDIR([src/config.c])
 AC_CONFIG_HEADERS([src/autoconf.h])
@@ -10,29 +16,21 @@ AC_CONFIG_HEADERS([src/autoconf.h])
 AC_PREFIX_DEFAULT([/usr])
 
 # Define sys-v init script directory
-sysvinitdir='${sysconfdir}/init.d'
-AC_SUBST(sysvinitdir)
+AC_SUBST(sysvinitdir, '${sysconfdir}/init.d')
 
 # Define dbus-1/system.d directory
-dbus_systemdir='${sysconfdir}/dbus-1/system.d'
-AC_SUBST(dbus_systemdir)
+AC_SUBST(dbus_systemdir, '${sysconfdir}/dbus-1/system.d')
 
-# Define wicked config directories
-wickedconfigdir='${sysconfdir}/wicked'
-wickedschemadir='${wickedconfigdir}/schema'
-wickedextensionsdir='${wickedconfigdir}/extensions'
-AC_SUBST(wickedconfigdir)
-AC_SUBST(wickedschemadir)
-AC_SUBST(wickedextensionsdir)
+# Define pkg-config data directory
+AC_SUBST(pkgconfigdir, '${datarootdir}/pkgconfig')
 
 # Enable system extensions (e.g. _GNU_SOURCE)
 AC_USE_SYSTEM_EXTENSIONS
 
 # Checks for programs.
-AC_PROG_CXX
-AC_PROG_AWK
 AC_PROG_CC
 AC_PROG_CPP
+AC_PROG_AWK
 AC_PATH_PROG(INSTALL, install)
 AC_PROG_LN_S
 AC_PROG_MAKE_SET
@@ -53,9 +51,9 @@ PKG_CHECK_MODULES(LIBNL, [libnl-1])
 PKG_CHECK_MODULES(LIBDBUS, [dbus-1])
 
 # Checks for header files.
-AC_CHECK_HEADERS([arpa/inet.h fcntl.h limits.h netinet/in.h stdint.h])
-AC_CHECK_HEADERS([stdlib.h string.h sys/ioctl.h sys/param.h sys/socket.h])
-AC_CHECK_HEADERS([sys/time.h syslog.h unistd.h])
+AC_CHECK_HEADERS([arpa/inet.h fcntl.h limits.h netdb.h netinet/in.h])
+AC_CHECK_HEADERS([stdint.h stdlib.h string.h sys/ioctl.h sys/param.h])
+AC_CHECK_HEADERS([sys/socket.h sys/time.h syslog.h unistd.h])
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_TYPE_UID_T
@@ -77,13 +75,14 @@ AC_FUNC_MALLOC
 AC_FUNC_REALLOC
 AC_FUNC_STRTOD
 AC_CHECK_FUNCS([dup2 gethostname getpass gettimeofday inet_ntoa memmove])
-AC_CHECK_FUNCS([memset mkdir sethostname socket strcasecmp strchr strcspn])
-AC_CHECK_FUNCS([strdup strerror strrchr strstr strtol strtoul strtoull])
+AC_CHECK_FUNCS([memset mkdir rmdir sethostname socket strcasecmp strchr])
+AC_CHECK_FUNCS([strcspn strdup strerror strrchr strstr strtol strtoul])
+AC_CHECK_FUNCS([strtoull])
 
 AC_CONFIG_FILES([
 	Makefile
 	wicked.pc
 	wicked.spec
 ])
-
 AC_OUTPUT
+
