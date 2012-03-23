@@ -1,33 +1,13 @@
-#                                               -*- Autoconf -*-
-
-prefix			= @prefix@
-exec_prefix		= @exec_prefix@
-libdir			= @libdir@
-sbindir			= @sbindir@
-mandir			= @mandir@
-sysconfdir		= @sysconfdir@
-includedir		= @includedir@
-datarootdir		= @datarootdir@
-localstatedir		= @localstatedir@
-
-sysvinitdir		= @sysvinitdir@
-pkgconfigdir		= @pkgconfigdir@
-dbus_systemdir		= @dbus_systemdir@
+#
+# Include autoconf variables
+#
+-include Makefile.vars
 
 # Hmm.. devellibdir=/usr/%_lib libdir=/%_lib
 devellibdir		= ${exec_prefix}${libdir}
 
 wickedconfigdir		= ${sysconfdir}/wicked
 wickedpiddir		= ${localstatedir}/run/wicked
-
-PACKAGE_URL		= @PACKAGE_URL@
-PACKAGE_NAME		= @PACKAGE_NAME@
-PACKAGE_TARNAME		= @PACKAGE_TARNAME@
-PACKAGE_VERSION		= @PACKAGE_VERSION@
-PACKAGE_BUGREPORT	= @PACKAGE_BUGREPORT@
-
-LIBWICKED_SOFILE_VERSION= @LIBWICKED_SOFILE_VERSION@
-LIBWICKED_SONAME_VERSION= @LIBWICKED_SONAME_VERSION@
 
 # ---------------------------------------------------------------
 
@@ -144,9 +124,9 @@ UTILSRCS= util/mkconst.c
 SOURCES= $(LIBSRCS) $(DHCP4SRCS) $(AUTO4SRCS) $(CLIENTSRCS) \
 	 $(SERVERSRCS)
 
-all: $(TGTLIBS) $(APPBINS) $(GENFILES)
+all: Makefile.vars $(TGTLIBS) $(APPBINS) $(GENFILES)
 
-dist: $(DIST_ARCHIVE)
+dist: Makefile.vars $(DIST_ARCHIVE)
 	@echo "=============================================="
 	@ls -1 wicked.spec $(DIST_ARCHIVE)
 	@echo "=============================================="
@@ -166,12 +146,13 @@ distclean::
 realclean maintainer-clean: distclean
 	rm -rf autom4te.cache
 	rm -f aclocal.m4 configure config.* *.log *.scan
-	rm -f Makefile wicked.pc wicked.spec $(DIST_ARCHIVE)
+	rm -f Makefile.vars wicked.pc wicked.spec
+	rm -f $(DIST_ARCHIVE)
 
 install-strip: STRIP_FLAG=-s
 install-strip: install
 
-install: install-no-devel install-devel
+install: Makefile.vars install-no-devel install-devel
 
 install-devel: install-devel-lib install-devel-data
 
@@ -315,17 +296,28 @@ $(DIST_ARCHIVE): wicked.spec
 		--exclude=".git*"            \
 		--exclude=".depend"          \
 		--exclude=".*project"        \
-		--exclude="Makefile"         \
 		--exclude="wicked.pc"        \
 		--exclude="config.h"         \
 		--exclude="config.guess"     \
 		--exclude="config.status"    \
 		--exclude="autom4te.cache"   \
+		--exclude="Makefile.vars"    \
 		--exclude="testing/xml-test"   \
 		--exclude="testing/ibft-test"  \
 		--exclude="testing/xpath-test" \
 		-- . && \
 	mv "$${tmpdir}/$@" . && rmdir "$${tmpdir}"
+
+
+config.status: configure
+
+configure: configure.ac
+	test -f $@ && ./config.status --recheck || ./autogen.sh
+
+Makefile: Makefile.vars
+
+Makefile.vars: Makefile.vars.in config.status
+	./config.status Makefile.vars
 
 -include .depend
 
