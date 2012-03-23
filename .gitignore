@@ -16,7 +16,7 @@ tags
 bin
 schema/constants.xml
 .*project
-Makefile
+Makefile.vars
 aclocal.m4
 autom4te.cache/
 config.*
