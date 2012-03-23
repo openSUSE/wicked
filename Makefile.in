@@ -158,16 +158,15 @@ distclean clean::
 	rm -f testing/xml-test
 	rm -f testing/xpath-test
 	rm -f testing/ibft-test
-	rm -f src/autoconf.h
+	rm -f config.h
 
 distclean::
 	rm -f .depend
 
 realclean maintainer-clean: distclean
 	rm -rf autom4te.cache
-	rm -f aclocal.m4 config.* src/autoconf.h.in*
-	rm -f configure.scan configure Makefile *.log
-	rm -f wicked.pc wicked.spec $(DIST_ARCHIVE)
+	rm -f aclocal.m4 configure config.* *.log *.scan
+	rm -f Makefile wicked.pc wicked.spec $(DIST_ARCHIVE)
 
 install-strip: STRIP_FLAG=-s
 install-strip: install
@@ -299,13 +298,14 @@ wicked.spec: wicked.spec.in
 # we use a tempdir so tar does not complain,
 # that the . directory changed while reading
 $(DIST_ARCHIVE): wicked.spec
-	tmpdir=`mktemp -d .XXXXXX` && \
+	tmpdir=`mktemp -d .dist.XXXXXX` && \
 	tar -cf "$${tmpdir}/$@" --bzip2 --owner=0 --group=0  \
 		--transform="s;^[.];$(DIST_DIRNAME);" \
 		--show-transformed-names     \
 		--exclude="$(DIST_DIRNAME)*" \
 		--exclude="$(OBJ)"           \
 		--exclude="$(BIN)"           \
+		--exclude=".dist.*"          \
 		--exclude="*~"               \
 		--exclude="*.o"              \
 		--exclude="*.a"              \
@@ -317,10 +317,10 @@ $(DIST_ARCHIVE): wicked.spec
 		--exclude=".*project"        \
 		--exclude="Makefile"         \
 		--exclude="wicked.pc"        \
+		--exclude="config.h"         \
 		--exclude="config.guess"     \
 		--exclude="config.status"    \
 		--exclude="autom4te.cache"   \
-		--exclude="src/autoconf.h"   \
 		--exclude="testing/xml-test"   \
 		--exclude="testing/ibft-test"  \
 		--exclude="testing/xpath-test" \
