@@ -1,6 +1,6 @@
 #                                               -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
-AC_PREREQ([2.68])
+AC_PREREQ([2.63])
 AC_INIT([wicked], esyscmd([tr -d '\n' < VERSION]),
 	[feedback@suse.de], [wicked],
 	[http://gitorious.org/wicked])
