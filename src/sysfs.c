@@ -763,14 +763,6 @@ __ni_sysfs_ibft_nic_parse(const char *node)
 		if(ni_address_parse(&nic->gateway, temp, AF_UNSPEC) != 0)
 			goto error;
 	}
-	if(__ni_sysfs_ibft_nic_get_string(node, "gateway", &temp) == 0 && temp) {
-		if(ni_address_parse(&nic->gateway, temp, AF_UNSPEC) != 0)
-			goto error;
-	}
-	if(__ni_sysfs_ibft_nic_get_string(node, "primary-dns", &temp) == 0 && temp) {
-		if(ni_address_parse(&nic->primary_dns, temp, AF_UNSPEC) != 0)
-			goto error;
-	}
 	if(__ni_sysfs_ibft_nic_get_string(node, "primary-dns", &temp) == 0 && temp) {
 		if(ni_address_parse(&nic->primary_dns, temp, AF_UNSPEC) != 0)
 			goto error;

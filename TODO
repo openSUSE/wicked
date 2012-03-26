@@ -17,6 +17,22 @@ wickedd:
 	- Allow wicked to request event notification the resolver
 	  changes, or when a host becomes reachable?
 
+	- Add a naming service to identify a PCI hotplug device by its
+	  enclosure.
+
+ifup replacement features:
+	- ifplugd: we could support this in the wicked client using
+	  some <policy> element.
+
+	  For each interface marked this way, wicked would background
+	  itself, and monitor linkUp/linkDown events.
+
+	- Support all sorts of trigger scripts when interfaces are
+	  brought up and down.
+	  execute scripts from ifup.d and ifdown.d
+	  execute {ifup,ifdown}-connections
+
+
 netinfo:
 	- Introduce an <access-provider> abstraction; this can be either
 	  a wireless network (ESSID, security information); an Internet
