@@ -5,6 +5,9 @@
  *
  * Much of this code is in dbus-objects/autoip4.c for now.
  */
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
 
 #include <sys/poll.h>
 #include <stdio.h>

@@ -3,6 +3,9 @@
  *
  * Copyright (C) 2011-2012 Marius Tomaschewski <mt@suse.com>
  */
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
 
 #include <wicked/types.h>
 #include <wicked/netinfo.h>

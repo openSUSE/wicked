@@ -6,6 +6,10 @@
  *
  * Copyright (C) 2010-2012 Olaf Kirch <okir@suse.de>
  */
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include <stdio.h>
 #include <string.h>
 #include <stdarg.h>

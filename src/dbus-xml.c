@@ -6,6 +6,9 @@
  * FIXME: we ought to validate the schema, to make sure people don't do stupid things
  * like attaching bitmap constraints to a string type etc.
  */
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
 
 #include <limits.h>
 #include <stdlib.h>

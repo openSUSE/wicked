@@ -25,6 +25,9 @@
  *  interface.disconnect()
  *  interface.removeNetwork(objectPath)
  */
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
 
 #include <dbus/dbus.h>
 #include <stdio.h>

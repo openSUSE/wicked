@@ -3,6 +3,9 @@
  *
  * Copyright (C) 2009-2010 Olaf Kirch <okir@suse.de>
  */
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
 
 #include <stdlib.h>
 #include <wicked/xml.h>

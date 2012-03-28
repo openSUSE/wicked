@@ -11,6 +11,9 @@
  *
  * See README and COPYING for more details.
  */
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
 
 #include <wicked/util.h>
 #include <dbus/dbus.h>

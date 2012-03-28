@@ -44,6 +44,9 @@
  * The "or false" clause will turn what is an XML element into a boolean value (empty list
  * means false, non-empty means true), which will then be printed as either "true" or "false"
  */
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
 
 #include <assert.h>
 #include <string.h>

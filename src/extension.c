@@ -4,6 +4,10 @@
  *
  * Copyright (C) 2010-2012 Olaf Kirch <okir@suse.de>
  */
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>

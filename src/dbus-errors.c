@@ -4,6 +4,9 @@
  *
  * Copyright (C) 2012 Olaf Kirch <okir@suse.de>
  */
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
 
 #include <wicked/constants.h>
 #include <wicked/dbus-errors.h>

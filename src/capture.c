@@ -5,6 +5,9 @@
  *
  * Heavily inspired by dhcpcd, which was written by Roy Marples <roy@marples.name>
  */
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
 
 #include <sys/types.h>
 #include <sys/socket.h>

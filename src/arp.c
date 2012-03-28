@@ -3,6 +3,9 @@
  *
  * Copyright (C) 2010-2012, Olaf Kirch <okir@suse.de>
  */
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
 
 #include <net/if_arp.h>
 #include <netinet/if_ether.h>
