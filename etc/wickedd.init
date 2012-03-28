@@ -47,6 +47,8 @@ test -r $wicked_CONFIG || { echo "$wicked_CONFIG not existing";
 	if [ "$1" = "stop" ]; then exit 0;
 	else exit 6; fi; }
 
+wicked_RUNDIR=/var/run/wicked
+
 # Read config	
 . $wicked_CONFIG
 
@@ -58,6 +60,7 @@ rc_reset
 case "$1" in
     start)
 	echo -n "Starting wickedd "
+	test -d "$wicked_RUNDIR" || mkdir -p "$wicked_RUNDIR"
 	/sbin/startproc $wicked_BIN
 	rc_status -v
 	;;
