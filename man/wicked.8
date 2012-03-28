@@ -268,7 +268,7 @@ can be convenient to a shell programmer...
 .PP
 For this, \fBwicked\fP supports expressions using a (subset of) the XPATH 1.0
 syntax. These xpath expressions can be embedded into format strings using
-.\fB%{\fIexpression\fP}.
+\fB"%{\fIexpression\fR}".
 Several expressions can be embedded into one format string; this can
 help to combine pairs of information such as e.g. address and prefix
 length.
@@ -300,7 +300,7 @@ an XML interface description):
 .B "# wicked xpath \(dq%{/interface/bridge/interface/@name}\(dq"
 .fi
 .PP
-.TI
+.TP
 Given a bridge interface definition, this will expand to a list
 of strings, representing the names of all devices assigned to the
 bridge as ports.
