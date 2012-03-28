@@ -11,9 +11,13 @@ wickedpiddir		= ${localstatedir}/run/wicked
 
 # ---------------------------------------------------------------
 
-CFLAGS	= -Wall -Werror -g -O2 -D_GNU_SOURCE -I. -Iinclude -Isrc \
-	  $(CFLAGS_DBUS)
-CFLAGS_DBUS := $(shell pkg-config --cflags dbus-1)
+CFLAGS	?= -g -O2
+CFLAGS	+= -Wall -Werror
+
+LDFLAGS	+=
+
+CPPFLAGS:= $(DEFS) $(CPPFLAGS)
+CPPFLAGS+= -I. -Iinclude -Isrc $(LIBNL_CFLAGS) $(LIBDBUS_CFLAGS)
 
 APPS	= wicked wickedd \
 	  dhcp4-supplicant autoip4-supplicant
@@ -239,39 +243,39 @@ $(LIBNAME).a: $(LIBOBJS)
 	ar cr $@ $(LIBOBJS)
 
 $(LIBNAME).so: $(SHLIBOBJS)
-	$(CC) $(CFLAGS) -shared -Wl,-soname,$(LIBSONAME) -o $@ $(SHLIBOBJS)
+	$(CC) $(CFLAGS) -shared -Wl,-soname,$(LIBSONAME) $(LDFLAGS) -o $@ $(SHLIBOBJS)
 	ln -sf $@ $(LIBSONAME)
 
 depend:
-	gcc $(CFLAGS) -M $(LIBSRCS) | \
+	$(CC) $(CFLAGS) -M $(LIBSRCS) | \
 		sed 's@^\([^.]*\)\.o: src/\([-a-z0-9/]*\)\1.c@obj/lib/\2&@' > .depend
-	gcc $(CFLAGS) -M $(LIBSRCS) | \
+	$(CC) $(CFLAGS) -M $(LIBSRCS) | \
 		sed 's@^\([^.]*\)\.o: src/\([-a-z0-9/]*\)\1.c@obj/shlib/\2&@' > .depend
-	gcc $(CFLAGS) -M $(UTILSRCS) | sed 's:^[a-z]:$(OBJ)/util/&:' >> .depend
-	gcc $(CFLAGS) -M $(DHCP4SRCS) | sed 's:^[a-z]:$(OBJ)/dhcp4/&:' >> .depend
-	gcc $(CFLAGS) -M $(AUTO4SRCS) | sed 's:^[a-z]:$(OBJ)/autoip4/&:' >> .depend
-	gcc $(CFLAGS) -M $(CLIENTSRCS) | sed 's:^[a-z]:$(OBJ)/client/&:' >> .depend
-	gcc $(CFLAGS) -M $(SERVERSRCS) | sed 's:^[a-z]:$(OBJ)/server/&:' >> .depend
+	$(CC) $(CFLAGS) -M $(UTILSRCS) | sed 's:^[a-z]:$(OBJ)/util/&:' >> .depend
+	$(CC) $(CFLAGS) -M $(DHCP4SRCS) | sed 's:^[a-z]:$(OBJ)/dhcp4/&:' >> .depend
+	$(CC) $(CFLAGS) -M $(AUTO4SRCS) | sed 's:^[a-z]:$(OBJ)/autoip4/&:' >> .depend
+	$(CC) $(CFLAGS) -M $(CLIENTSRCS) | sed 's:^[a-z]:$(OBJ)/client/&:' >> .depend
+	$(CC) $(CFLAGS) -M $(SERVERSRCS) | sed 's:^[a-z]:$(OBJ)/server/&:' >> .depend
 
 $(OBJ)/%.o: %.c
 	@rm -f $@
 	@test -d $(dir $@) || mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -c -o $@ $<
+	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
 
 $(OBJ)/lib/%.o: src/%.c
 	@rm -f $@
 	@test -d $(dir $@) || mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -c -o $@ $<
+	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
 
 $(OBJ)/shlib/%.o: src/%.c
 	@rm -f $@
 	@test -d $(dir $@) || mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -fPIC -c -o $@ $<
+	$(CC) $(CFLAGS) $(CPPFLAGS) -fPIC -c -o $@ $<
 
 $(OBJ)/netcf/%.o: src/%.c
 	@rm -f $@
 	@test -d $(dir $@) || mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -c -o $@ $<
+	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
 
 wicked.spec: wicked.spec.in
 	./config.status --file=$@:$<
