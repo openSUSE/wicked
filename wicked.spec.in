@@ -55,6 +55,13 @@ License:        GPL-2.0
 Group:          Development/Libraries/C and C++
 Summary:        Network configuration infrastructure - Development files
 Requires:       libwicked@LIBWICKED_PACKAGE_SUFFIX@ = %{version}
+Requires:       dbus-1-devel
+Requires:       libnl-devel
+%if 0%{?suse_version} > 1210
+Requires:       libnl-1_1-devel
+%else
+Requires:       libnl-devel
+%endif
 
 %description devel
 Wicked is a network configuration infrastructure incorporating a number
