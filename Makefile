@@ -142,10 +142,10 @@ distclean clean::
 	rm -f testing/xml-test
 	rm -f testing/xpath-test
 	rm -f testing/ibft-test
-	rm -f config.h
 
 distclean::
 	rm -f .depend
+	rm -f config.h
 
 realclean maintainer-clean: distclean
 	rm -rf autom4te.cache
