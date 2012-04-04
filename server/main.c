@@ -33,6 +33,7 @@ enum {
 	OPT_FOREGROUND,
 	OPT_NOFORK,
 	OPT_NORECOVER,
+	OPT_NOMODEMMGR,
 };
 
 static struct option	options[] = {
@@ -41,6 +42,7 @@ static struct option	options[] = {
 	{ "foreground",		no_argument,		NULL,	OPT_FOREGROUND },
 	{ "no-fork",		no_argument,		NULL,	OPT_NOFORK },
 	{ "no-recovery",	no_argument,		NULL,	OPT_NORECOVER },
+	{ "no-modem-manager",	no_argument,		NULL,	OPT_NOMODEMMGR },
 
 	{ NULL }
 };
@@ -48,6 +50,7 @@ static struct option	options[] = {
 static int		opt_foreground = 0;
 static int		opt_nofork = 0;
 static int		opt_recover_leases = 1;
+static int		opt_no_modem_manager = 0;
 static ni_dbus_server_t *wicked_dbus_server;
 static void		(*opt_personality)(void);
 
@@ -55,6 +58,9 @@ static void		wicked_interface_server(void);
 static void		wicked_discover_state(void);
 static void		wicked_try_restart_addrconf(ni_netdev_t *, ni_afinfo_t *, unsigned int);
 static void		wicked_interface_event(ni_netconfig_t *, ni_netdev_t *, ni_event_t);
+
+/* HACK FIXME */
+extern ni_bool_t	ni_modem_manager_init(void);
 
 int
 main(int argc, char **argv)
@@ -108,6 +114,10 @@ main(int argc, char **argv)
 		case OPT_NORECOVER:
 			opt_recover_leases = 0;
 			break;
+
+		case OPT_NOMODEMMGR:
+			opt_no_modem_manager = 1;
+			break;
 		}
 	}
 
@@ -140,6 +150,11 @@ wicked_interface_server(void)
 	/* open global RTNL socket to listen for kernel events */
 	if (ni_server_listen_events(wicked_interface_event) < 0)
 		ni_fatal("unable to initialize netlink listener");
+
+	if (!opt_no_modem_manager) {
+		if (!ni_modem_manager_init())
+			ni_error("unable to initialize modem manager client");
+	}
 
 	if (!opt_foreground) {
 		if (ni_server_background() < 0)
