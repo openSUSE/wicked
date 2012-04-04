@@ -42,22 +42,19 @@ ni_dbus_message_iter_append_byte_array(DBusMessageIter *iter,
 	return TRUE;
 }
 
-dbus_bool_t
-ni_dbus_message_iter_append_string_array(DBusMessageIter *iter,
+static dbus_bool_t
+__ni_dbus_message_iter_append_string_array(DBusMessageIter *iter, const char *element_signature,
 				char **string_array, unsigned int len)
 {
+	unsigned char element_type = element_signature[0];
 	DBusMessageIter iter_array;
 	unsigned int i;
 
-	if (!dbus_message_iter_open_container(iter, DBUS_TYPE_ARRAY,
-					      DBUS_TYPE_STRING_AS_STRING,
-					      &iter_array))
+	if (!dbus_message_iter_open_container(iter, DBUS_TYPE_ARRAY, element_signature, &iter_array))
 		return FALSE;
 
 	for (i = 0; i < len; i++) {
-		if (!dbus_message_iter_append_basic(&iter_array,
-						    DBUS_TYPE_STRING,
-						    &string_array[i]))
+		if (!dbus_message_iter_append_basic(&iter_array, element_type, &string_array[i]))
 			return FALSE;
 	}
 
@@ -65,6 +62,20 @@ ni_dbus_message_iter_append_string_array(DBusMessageIter *iter,
 		return FALSE;
 
 	return TRUE;
+}
+
+dbus_bool_t
+ni_dbus_message_iter_append_string_array(DBusMessageIter *iter,
+				char **string_array, unsigned int len)
+{
+	return __ni_dbus_message_iter_append_string_array(iter, DBUS_TYPE_STRING_AS_STRING, string_array, len);
+}
+
+dbus_bool_t
+ni_dbus_message_iter_append_object_path_array(DBusMessageIter *iter,
+				char **string_array, unsigned int len)
+{
+	return __ni_dbus_message_iter_append_string_array(iter, DBUS_TYPE_OBJECT_PATH_AS_STRING, string_array, len);
 }
 
 dbus_bool_t
@@ -209,6 +220,11 @@ ni_dbus_message_iter_append_value(DBusMessageIter *iter, const ni_dbus_variant_t
 					variant->string_array_value, variant->array.len);
 			break;
 
+		case DBUS_TYPE_OBJECT_PATH:
+			rv = ni_dbus_message_iter_append_object_path_array(iter_val,
+					variant->string_array_value, variant->array.len);
+			break;
+
 		case DBUS_TYPE_VARIANT:
 			rv = ni_dbus_message_iter_append_variant_array(iter_val,
 					variant->variant_array_value, variant->array.len);
@@ -270,6 +286,21 @@ ni_dbus_message_iter_get_string_array(DBusMessageIter *iter, ni_dbus_variant_t *
 
 		dbus_message_iter_get_basic(iter, &value);
 		ni_dbus_variant_append_string_array(variant, value);
+		dbus_message_iter_next(iter);
+	}
+
+	return TRUE;
+}
+
+dbus_bool_t
+ni_dbus_message_iter_get_object_path_array(DBusMessageIter *iter, ni_dbus_variant_t *variant)
+{
+	ni_dbus_variant_init_object_path_array(variant);
+	while (dbus_message_iter_get_arg_type(iter) == DBUS_TYPE_OBJECT_PATH) {
+		const char *value;
+
+		dbus_message_iter_get_basic(iter, &value);
+		ni_dbus_variant_append_object_path_array(variant, value);
 		dbus_message_iter_next(iter);
 	}
 
@@ -356,6 +387,9 @@ ni_dbus_message_iter_get_array(DBusMessageIter *iter, ni_dbus_variant_t *variant
 		break;
 	case DBUS_TYPE_STRING:
 		success = ni_dbus_message_iter_get_string_array(&iter_array, variant);
+		break;
+	case DBUS_TYPE_OBJECT_PATH:
+		success = ni_dbus_message_iter_get_object_path_array(&iter_array, variant);
 		break;
 	case DBUS_TYPE_DICT_ENTRY:
 		success = ni_dbus_message_iter_get_dict(iter, variant);

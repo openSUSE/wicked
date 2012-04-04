@@ -277,10 +277,13 @@ extern void			ni_dbus_variant_init_string_array(ni_dbus_variant_t *);
 extern void			ni_dbus_variant_set_string_array(ni_dbus_variant_t *,
 					const char **, unsigned int len);
 extern dbus_bool_t		ni_dbus_variant_append_string_array(ni_dbus_variant_t *, const char *);
+extern void			ni_dbus_variant_init_object_path_array(ni_dbus_variant_t *);
+extern dbus_bool_t		ni_dbus_variant_append_object_path_array(ni_dbus_variant_t *, const char *);
 extern void			ni_dbus_variant_init_variant_array(ni_dbus_variant_t *);
 extern ni_dbus_variant_t *	ni_dbus_variant_append_variant_element(ni_dbus_variant_t *);
 extern const char *		ni_dbus_variant_array_print_element(const ni_dbus_variant_t *, unsigned int);
 
+extern dbus_bool_t		ni_dbus_variant_is_array_of(const ni_dbus_variant_t *, const char *signature);
 extern dbus_bool_t		ni_dbus_variant_is_byte_array(const ni_dbus_variant_t *);
 extern dbus_bool_t		ni_dbus_variant_is_string_array(const ni_dbus_variant_t *);
 extern dbus_bool_t		ni_dbus_variant_is_variant_array(const ni_dbus_variant_t *);

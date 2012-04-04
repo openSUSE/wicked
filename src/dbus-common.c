@@ -218,6 +218,12 @@ __ni_dbus_is_array(const ni_dbus_variant_t *var, const char *element_signature)
 }
 
 dbus_bool_t
+ni_dbus_variant_is_array_of(const ni_dbus_variant_t *var, const char *signature)
+{
+	return __ni_dbus_is_array(var, signature);
+}
+
+dbus_bool_t
 ni_dbus_variant_is_dict(const ni_dbus_variant_t *var)
 {
 	return __ni_dbus_is_array(var, DBUS_TYPE_DICT_ENTRY_AS_STRING);
@@ -747,6 +753,28 @@ ni_dbus_variant_append_string_array(ni_dbus_variant_t *var, const char *string)
 }
 
 void
+ni_dbus_variant_init_object_path_array(ni_dbus_variant_t *var)
+{
+	ni_dbus_variant_destroy(var);
+	__ni_dbus_init_array(var, DBUS_TYPE_OBJECT_PATH);
+}
+
+dbus_bool_t
+ni_dbus_variant_append_object_path_array(ni_dbus_variant_t *var, const char *string)
+{
+	unsigned int len = var->array.len;
+
+	if (!__ni_dbus_is_array(var, DBUS_TYPE_OBJECT_PATH_AS_STRING))
+		return FALSE;
+
+	__ni_dbus_array_grow(var, sizeof(char *), 1);
+	var->string_array_value[len] = xstrdup(string?: "");
+	var->array.len++;
+
+	return TRUE;
+}
+
+void
 ni_dbus_variant_init_variant_array(ni_dbus_variant_t *var)
 {
 	ni_dbus_variant_destroy(var);
@@ -788,6 +816,7 @@ ni_dbus_variant_destroy(ni_dbus_variant_t *var)
 			free(var->byte_array_value);
 			break;
 		case DBUS_TYPE_STRING:
+		case DBUS_TYPE_OBJECT_PATH:
 			for (i = 0; i < var->array.len; ++i)
 				free(var->string_array_value[i]);
 			free(var->string_array_value);
