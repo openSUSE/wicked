@@ -43,6 +43,7 @@ __LIBSRCS= \
 	  bridge.c \
 	  wireless.c \
 	  openvpn.c \
+	  modem-manager.c \
 	  state.c \
 	  iflist.c \
 	  ifconfig.c \
