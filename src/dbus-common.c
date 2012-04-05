@@ -584,6 +584,13 @@ ni_dbus_variant_get_ulong(const ni_dbus_variant_t *var, unsigned long *ret)
 	}
 
 dbus_bool_t
+ni_dbus_variant_assign_bool(ni_dbus_variant_t *var, dbus_bool_t value)
+{
+	CAST_SWITCH(var, value);
+	return TRUE;
+}
+
+dbus_bool_t
 ni_dbus_variant_set_int(ni_dbus_variant_t *var, int value)
 {
 	CAST_SWITCH(var, value);

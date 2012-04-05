@@ -60,6 +60,8 @@
 		.u = { .dict_children = child_properties }, \
 	} \
 }
+#define NI_DBUS_GENERIC_BOOL_PROPERTY(struct_name, dbus_name, member_name, rw) \
+	__NI_DBUS_GENERIC_PROPERTY(struct_name, DBUS_TYPE_BOOLEAN_AS_STRING, dbus_name, bool, member_name, rw)
 #define NI_DBUS_GENERIC_INT_PROPERTY(struct_name, dbus_name, member_name, rw) \
 	__NI_DBUS_GENERIC_PROPERTY(struct_name, DBUS_TYPE_INT32_AS_STRING, dbus_name, int, member_name, rw)
 #define NI_DBUS_GENERIC_UINT_PROPERTY(struct_name, dbus_name, member_name, rw) \

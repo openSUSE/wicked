@@ -106,6 +106,7 @@ struct ni_dbus_property	{
 	struct {
 		void *			(*get_handle)(const ni_dbus_object_t *, DBusError *);
 		union {
+			dbus_bool_t *	bool_offset;
 			int *		int_offset;
 			unsigned int *	uint_offset;
 			uint16_t *	uint16_offset;
@@ -243,6 +244,8 @@ extern void			ni_dbus_variant_set_int32(ni_dbus_variant_t *, int32_t);
 extern void			ni_dbus_variant_set_uint64(ni_dbus_variant_t *, uint64_t);
 extern void			ni_dbus_variant_set_int64(ni_dbus_variant_t *, int64_t);
 extern void			ni_dbus_variant_set_double(ni_dbus_variant_t *, double);
+/* FIXME: we should really rename these to _assign_ */
+extern dbus_bool_t		ni_dbus_variant_assign_bool(ni_dbus_variant_t *, dbus_bool_t);
 extern dbus_bool_t		ni_dbus_variant_set_int(ni_dbus_variant_t *, int);
 extern dbus_bool_t		ni_dbus_variant_set_uint(ni_dbus_variant_t *, unsigned int);
 extern dbus_bool_t		ni_dbus_variant_set_long(ni_dbus_variant_t *, long);
@@ -329,6 +332,12 @@ extern ni_dbus_variant_t *	ni_dbus_dict_array_add(ni_dbus_variant_t *);
 extern void			ni_dbus_array_array_init(ni_dbus_variant_t *, const char *);
 extern ni_dbus_variant_t *	ni_dbus_array_array_add(ni_dbus_variant_t *);
 
+extern dbus_bool_t		ni_dbus_generic_property_get_bool(const ni_dbus_object_t *, const ni_dbus_property_t *,
+					ni_dbus_variant_t *r, DBusError *);
+extern dbus_bool_t		ni_dbus_generic_property_set_bool(ni_dbus_object_t *, const ni_dbus_property_t *,
+					const ni_dbus_variant_t *, DBusError *);
+extern dbus_bool_t		ni_dbus_generic_property_parse_bool(const ni_dbus_property_t *,
+					ni_dbus_variant_t *, const char *);
 extern dbus_bool_t		ni_dbus_generic_property_get_int(const ni_dbus_object_t *, const ni_dbus_property_t *,
 					ni_dbus_variant_t *r, DBusError *);
 extern dbus_bool_t		ni_dbus_generic_property_set_int(ni_dbus_object_t *, const ni_dbus_property_t *,
