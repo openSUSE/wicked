@@ -201,6 +201,7 @@ extern const ni_dbus_method_t *	ni_dbus_service_get_signal(const ni_dbus_service
 extern ni_dbus_server_t *	ni_dbus_object_get_server(const ni_dbus_object_t *);
 extern ni_dbus_client_t *	ni_dbus_object_get_client(const ni_dbus_object_t *);
 extern const char *		ni_dbus_object_get_path(const ni_dbus_object_t *);
+extern const char *		ni_dbus_object_get_relative_path(const ni_dbus_object_t *ancestor, const char *descendant_path);
 extern void *			ni_dbus_object_get_handle(const ni_dbus_object_t *);
 extern const ni_dbus_service_t *ni_dbus_object_get_service(const ni_dbus_object_t *, const char *);
 extern const ni_dbus_service_t *ni_dbus_object_get_service_for_method(const ni_dbus_object_t *, const char *);

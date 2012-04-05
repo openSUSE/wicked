@@ -395,6 +395,22 @@ ni_dbus_object_get_handle(const ni_dbus_object_t *object)
 	return object->handle;
 }
 
+const char *
+ni_dbus_object_get_relative_path(const ni_dbus_object_t *ancestor, const char *descendant_path)
+{
+	unsigned int len;
+
+	len = strlen(ancestor->path);
+	if (strncmp(descendant_path, ancestor->path, len)
+	 || (descendant_path[len] && descendant_path[len] != '/'))
+		return NULL;
+
+	while (descendant_path[len] == '/')
+		++len;
+
+	return descendant_path + len;
+}
+
 /*
  * Check if a given object's is of a (subclass of a) given type
  */
