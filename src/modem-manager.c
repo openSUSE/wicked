@@ -217,34 +217,70 @@ ni_modem_manager_add_modem(ni_modem_manager_client_t *modem_manager, const char 
 {
 	DBusError error = DBUS_ERROR_INIT;
 	ni_dbus_object_t *modem_object;
+	const char *relative_path;
 	ni_modem_t *modem;
 
 	ni_debug_dbus("%s(%s)", __func__, object_path);
+	if ((relative_path = ni_dbus_object_get_relative_path(modem_manager->proxy, object_path)) == NULL) {
+		ni_error("%s: cannot add modem object \"%s\", bad path", __func__, object_path);
+		return;
+	}
 
 	modem = ni_modem_new();
 
-	modem_object = ni_dbus_client_object_new(modem_manager->dbus,
-				&ni_objectmodel_modem_class,
-				object_path,
-				NI_MM_MODEM_IF,
-				modem);
+	/* Create the DBus client object for this modem. */
+	modem_object = ni_dbus_object_create(modem_manager->proxy, relative_path, &ni_objectmodel_modem_class, modem);
+	if (modem_object == NULL)
+		return;
+	ni_dbus_object_set_default_interface(modem_object, NI_MM_MODEM_IF);
 
+	/* Use Properties.GetAll() to refresh the properties of this modem */
 	if (!ni_dbus_object_refresh_properties(modem_object, &ni_objectmodel_modem_service, &error)) {
 		ni_dbus_print_error(&error, "cannot update properties of %s", object_path);
 		dbus_error_free(&error);
 		return;
 	}
 
-	ni_debug_dbus("%s: dev=%s master=%s type=%u", object_path, modem->device, modem->master_device, modem->type);
-
+	/* Override the dbus class of this object */
 	switch (modem->type) {
 	case MM_MODEM_TYPE_GSM:
 		modem_object->class = &ni_objectmodel_gsm_modem_class;
-		ni_objectmodel_bind_compatible_interfaces(modem_object);
 		break;
+
+#ifdef notyet
+	case MM_MODEM_TYPE_CDMA:
+		modem_object->class = &ni_objectmodel_cdma_modem_class;
+		break;
+#endif
 
 	default: ;
 	}
+
+	ni_debug_dbus("%s: dev=%s master=%s type=%u equipment-id=%s",
+			object_path, modem->device, modem->master_device, modem->type,
+			modem->identify.equipment);
+	ni_objectmodel_bind_compatible_interfaces(modem_object);
+}
+
+static void
+ni_modem_manager_remove_modem(ni_modem_manager_client_t *modem_manager, const char *object_path)
+{
+	ni_dbus_object_t *modem_object;
+	const char *relative_path;
+
+	ni_debug_dbus("%s(%s)", __func__, object_path);
+	if ((relative_path = ni_dbus_object_get_relative_path(modem_manager->proxy, object_path)) == NULL) {
+		ni_error("%s: cannot remove modem object \"%s\", bad path", __func__, object_path);
+		return;
+	}
+
+	modem_object = ni_dbus_object_lookup(modem_manager->proxy, relative_path);
+	if (modem_object == NULL) {
+		ni_warn("%s: spurious remove event, cannot find object \"%s\"", __func__, object_path);
+		return;
+	}
+
+	ni_dbus_object_free(modem_object);
 }
 
 /*
@@ -355,13 +391,25 @@ ni_modem_manager_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg, void
 {
 	ni_modem_manager_client_t *modem_manager = user_data;
 	const char *member = dbus_message_get_member(msg);
+	DBusMessageIter iter;
 
 	ni_debug_dbus("%s: %s", __func__, member);
+	dbus_message_iter_init(msg, &iter);
 	if (!strcmp(member, NI_MM_SIGNAL_DEVICE_ADDED)) {
-		/* TBD */
+		const char *object_path;
+
+		if (dbus_message_iter_get_arg_type(&iter) == DBUS_TYPE_OBJECT_PATH) {
+			dbus_message_iter_get_basic(&iter, &object_path);
+			ni_modem_manager_add_modem(modem_manager, object_path);
+		}
 	} else
 	if (!strcmp(member, NI_MM_SIGNAL_DEVICE_REMOVED)) {
-		/* TBD */
+		const char *object_path;
+
+		if (dbus_message_iter_get_arg_type(&iter) == DBUS_TYPE_OBJECT_PATH) {
+			dbus_message_iter_get_basic(&iter, &object_path);
+			ni_modem_manager_remove_modem(modem_manager, object_path);
+		}
 	} else {
 		ni_debug_wireless("%s signal received (not handled)", member);
 	}
