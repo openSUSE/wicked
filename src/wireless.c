@@ -26,7 +26,6 @@
 #include "netinfo_priv.h"
 #include "buffer.h"
 #include "kernel.h"
-#include "dbus-client.h"
 #include "wpa-supplicant.h"
 #include "wireless_priv.h"
 

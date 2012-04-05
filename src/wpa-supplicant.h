@@ -8,6 +8,7 @@
 #define __WICKED_WPA_CLIENT_H__
 
 #include <wicked/wireless.h>
+#include "dbus-connection.h"
 
 typedef enum {
 	NI_WPA_IFSTATE_UNKNOWN,

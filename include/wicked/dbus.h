@@ -412,6 +412,9 @@ extern ni_dbus_message_t *	ni_dbus_object_call_new(const ni_dbus_object_t *, con
 extern ni_dbus_message_t *	ni_dbus_object_call_new_va(const ni_dbus_object_t *obj,
 					const char *method, va_list *app);
 
+extern dbus_bool_t		ni_dbus_object_get_managed_objects(ni_dbus_object_t *, DBusError *);
+extern dbus_bool_t		ni_dbus_object_refresh_properties(ni_dbus_object_t *, const ni_dbus_service_t *, DBusError *);
+
 extern int			ni_dbus_message_get_args(ni_dbus_message_t *, ...);
 extern int			ni_dbus_message_get_args_variants(ni_dbus_message_t *msg,
 					ni_dbus_variant_t *argv, unsigned int max_args);

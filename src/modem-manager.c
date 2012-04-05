@@ -20,7 +20,6 @@
 #include <errno.h>
 #include <ctype.h>
 
-#include "dbus-client.h"
 #include "dbus-dict.h"
 #include "dbus-common.h"
 #include "dbus-objects/model.h"

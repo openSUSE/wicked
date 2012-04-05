@@ -18,7 +18,7 @@
 #include <wicked/dbus-errors.h>
 #include "socket_priv.h"
 #include "dbus-common.h"
-#include "dbus-client.h"
+#include "dbus-connection.h"
 #include "dbus-dict.h"
 #include "dbus-object.h"
 #include "debug.h"
