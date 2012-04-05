@@ -40,6 +40,9 @@ static dbus_bool_t	__ni_dbus_object_get_managed_object_interfaces(ni_dbus_object
 static dbus_bool_t	__ni_dbus_object_get_managed_object_properties(ni_dbus_object_t *proxy,
 					const ni_dbus_service_t *service,
 					DBusMessageIter *iter);
+static dbus_bool_t	__ni_dbus_object_refresh_properties(ni_dbus_object_t *proxy,
+					const ni_dbus_service_t *service,
+					DBusMessageIter *iter);
 static const char *	__ni_dbus_print_argument(char, const void *);
 
 /*
@@ -609,14 +612,22 @@ __ni_dbus_object_get_managed_object_properties(ni_dbus_object_t *proxy,
 				const ni_dbus_service_t *service,
 				DBusMessageIter *iter)
 {
-	DBusMessageIter iter_variant, iter_dict;
-	DBusError error = DBUS_ERROR_INIT;
+	DBusMessageIter iter_variant;
 
 	if (dbus_message_iter_get_arg_type(iter) != DBUS_TYPE_VARIANT)
 		return FALSE;
 	dbus_message_iter_recurse(iter, &iter_variant);
 
-	if (!ni_dbus_message_open_dict_read(&iter_variant, &iter_dict))
+	return __ni_dbus_object_refresh_properties(proxy, service, &iter_variant);
+}
+
+static dbus_bool_t
+__ni_dbus_object_refresh_properties(ni_dbus_object_t *proxy, const ni_dbus_service_t *service, DBusMessageIter *iter)
+{
+	DBusMessageIter iter_dict;
+	DBusError error = DBUS_ERROR_INIT;
+
+	if (!ni_dbus_message_open_dict_read(iter, &iter_dict))
 		return FALSE;
 
 	while (dbus_message_iter_get_arg_type(&iter_dict) == DBUS_TYPE_DICT_ENTRY) {
@@ -683,6 +694,46 @@ ni_dbus_object_refresh_children(ni_dbus_object_t *proxy)
 	if (!rv)
 		ni_dbus_print_error(&error, "%s.getManagedObjects failed", proxy->path);
 	dbus_error_free(&error);
+	return rv;
+}
+
+/*
+ * Use Properties.GetAll to refresh the properties of an object
+ */
+dbus_bool_t
+ni_dbus_object_refresh_properties(ni_dbus_object_t *proxy, const ni_dbus_service_t *service, DBusError *error)
+{
+	ni_dbus_client_t *client;
+	ni_dbus_object_t *objmgr;
+	ni_dbus_message_t *call = NULL, *reply = NULL;
+	DBusMessageIter iter;
+	dbus_bool_t rv = FALSE;
+
+	if (!(client = ni_dbus_object_get_client(proxy))) {
+		dbus_set_error(error, DBUS_ERROR_FAILED, "%s: not a client object", __func__);
+		return FALSE;
+	}
+
+	objmgr = ni_dbus_client_object_new(client, &ni_dbus_anonymous_class, proxy->path,
+			NI_DBUS_INTERFACE ".Properties",
+			NULL);
+
+	call = ni_dbus_object_call_new(objmgr, "GetAll", 0);
+	ni_dbus_message_append_string(call, service->name);
+	if ((reply = ni_dbus_client_call(client, call, error)) == NULL)
+		goto out;
+
+	dbus_message_iter_init(reply, &iter);
+	rv = __ni_dbus_object_refresh_properties(proxy, service, &iter);
+	if (!rv)
+		dbus_set_error(error, DBUS_ERROR_FAILED, "%s: failed to parse reply", __func__);
+
+out:
+	if (call)
+		dbus_message_unref(call);
+	if (reply)
+		dbus_message_unref(reply);
+	ni_dbus_object_free(objmgr);
 	return rv;
 }
 

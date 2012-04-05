@@ -12,6 +12,8 @@
 #include "dbus-connection.h"
 
 
+/* These should really be moved to wicked/dbus.h */
 extern dbus_bool_t	ni_dbus_object_get_managed_objects(ni_dbus_object_t *, DBusError *);
+extern dbus_bool_t	ni_dbus_object_refresh_properties(ni_dbus_object_t *, const ni_dbus_service_t *, DBusError *);
 
 #endif /* __WICKED_DBUS_CLIENT_H__ */
