@@ -218,31 +218,43 @@ schema/constants.xml: $(BIN)/mkconst schema/constants.xml.in
 	@echo Building $@ from $@.in
 	@LD_PRELOAD=$$PWD/$(LIBNAME).so $(BIN)/mkconst < $@.in > $@
 
+$(BIN)/wicked: LDFLAGS += -rdynamic -L. -lwicked -lm $(LIBS)
+$(BIN)/wicked: LDFLAGS += $(LIBDL_LIBS) $(LIBNL_LIBS) $(LIBANL_LIBS) $(LIBDBUS_LIBS)
 $(BIN)/wicked: $(CLIENTOBJS) $(TGTLIBS)
 	@mkdir -p bin
-	$(CC) -o $@ $(CFLAGS) $(CLIENTOBJS) -rdynamic -L. -lwicked -lanl -lm -lnl -ldbus-1 -ldl
+	$(CC) -o $@ $(CFLAGS) $(CLIENTOBJS) $(LDFLAGS)
 
+$(BIN)/wickedd: LDFLAGS += -rdynamic -L. -lwicked -lm $(LIBS)
+$(BIN)/wickedd: LDFLAGS += $(LIBDL_LIBS) $(LIBNL_LIBS) $(LIBDBUS_LIBS)
 $(BIN)/wickedd: $(SERVEROBJS) $(TGTLIBS)
 	@mkdir -p bin
-	$(CC) -o $@ $(CFLAGS) $(SERVEROBJS) -rdynamic -L. -lwicked -lm -lnl -ldbus-1 -ldl
+	$(CC) -o $@ $(CFLAGS) $(SERVEROBJS) $(LDFLAGS)
 
+$(BIN)/dhcp4-supplicant: LDFLAGS += -L. -lwicked -lm $(LIBS)
+$(BIN)/dhcp4-supplicant: LDFLAGS += $(LIBDL_LIBS) $(LIBNL_LIBS) $(LIBDBUS_LIBS)
 $(BIN)/dhcp4-supplicant: $(DHCP4OBJS) $(TGTLIBS)
 	@mkdir -p bin
-	$(CC) -o $@ $(CFLAGS) $(DHCP4OBJS) -L. -lwicked -lm -lnl -ldbus-1 -ldl
+	$(CC) -o $@ $(CFLAGS) $(DHCP4OBJS) $(LDFLAGS)
 
+$(BIN)/autoip4-supplicant: LDFLAGS += -L. -lwicked -lm $(LIBS)
+$(BIN)/autoip4-supplicant: LDFLAGS += $(LIBDL_LIBS) $(LIBNL_LIBS) $(LIBDBUS_LIBS)
 $(BIN)/autoip4-supplicant: $(AUTO4OBJS) $(TGTLIBS)
 	@mkdir -p bin
-	$(CC) -o $@ $(CFLAGS) $(AUTO4OBJS) -L. -lwicked -lm -lnl -ldbus-1 -ldl
+	$(CC) -o $@ $(CFLAGS) $(AUTO4OBJS) $(LDFLAGS)
 
+$(BIN)/mkconst: LDFLAGS += -L. -lwicked -lm $(LIBS)
+$(BIN)/mkconst: LDFLAGS += $(LIBDL_LIBS) $(LIBNL_LIBS) $(LIBDBUS_LIBS)
 $(BIN)/mkconst: $(OBJ)/util/mkconst.o $(TGTLIBS)
 	@mkdir -p bin
-	$(CC) -o $@ $(CFLAGS) $(OBJ)/util/mkconst.o -L. -lwicked -lnl -ldbus-1 -ldl
+	$(CC) -o $@ $(CFLAGS) $< $(LDFLAGS)
 
 testing: $(basename $(wildcard testing/*-test.c))
 
+testing/%-test: LDFLAGS += -L. -lwicked $(LIBS)
+testing/%-test: LDFLAGS += $(LIBDL_LIBS) $(LIBNL_LIBS) $(LIBDBUS_LIBS)
 testing/%-test: testing/%-test.o $(TGTLIBS)
 	@rm -f $@
-	$(CC) -o $@ $(CFLAGS) $< -L. -lwicked -lnl -ldbus-1 -ldl
+	$(CC) -o $@ $(CFLAGS) $< $(LDFLAGS)
 
 $(LIBNAME).a: $(LIBOBJS)
 	@rm -f $@
