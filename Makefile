@@ -150,9 +150,7 @@ distclean clean::
 	rm -f *~ *.o libwicked.* core tags LOG
 	rm -rf $(BIN) $(OBJ) $(GENFILES)
 	rm -f testing/*.o
-	rm -f testing/xml-test
-	rm -f testing/xpath-test
-	rm -f testing/ibft-test
+	rm -f testing/*-test
 
 distclean::
 	rm -f .depend
@@ -240,14 +238,11 @@ $(BIN)/mkconst: $(OBJ)/util/mkconst.o $(TGTLIBS)
 	@mkdir -p bin
 	$(CC) -o $@ $(CFLAGS) $(OBJ)/util/mkconst.o -L. -lwicked -lnl -ldbus-1 -ldl
 
-testing/xml-test: testing/xml-test.o $(TGTLIBS)
-	$(CC) -o $@ $(CFLAGS) testing/xml-test.o -L. -lwicked -lnl -ldbus-1 -ldl
+testing: $(basename $(wildcard testing/*-test.c))
 
-testing/xpath-test: testing/xpath-test.o $(TGTLIBS)
-	$(CC) -o $@ $(CFLAGS) testing/xpath-test.o -L. -lwicked -lnl -ldbus-1 -ldl
-
-testing/ibft-test: testing/ibft-test.o $(TGTLIBS)
-	$(CC) -o $@ $(CFLAGS) testing/ibft-test.o -L. -lwicked -lnl -ldbus-1 -ldl
+testing/%-test: testing/%-test.o $(TGTLIBS)
+	@rm -f $@
+	$(CC) -o $@ $(CFLAGS) $< -L. -lwicked -lnl -ldbus-1 -ldl
 
 $(LIBNAME).a: $(LIBOBJS)
 	@rm -f $@
