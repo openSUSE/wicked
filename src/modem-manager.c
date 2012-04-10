@@ -56,6 +56,7 @@ typedef enum ni_modem_ipmethod {
 } ni_modem_ipmethod_t;
 
 struct ni_modem {
+	unsigned int		refcount;
 	char *			device;
 	char *			master_device;
 	char *			driver;
@@ -86,7 +87,7 @@ static void			ni_modem_manager_add_modem(ni_modem_manager_client_t *modem_manage
 static void			ni_modem_manager_signal(ni_dbus_connection_t *, ni_dbus_message_t *, void *);
 
 static ni_dbus_class_t		ni_objectmodel_modem_manager_class = {
-	"modem-manager"
+	.name		= "modem-manager"
 };
 static ni_dbus_class_t		ni_objectmodel_modem_class = {
 	.name		= "modem",
@@ -230,8 +231,10 @@ ni_modem_manager_add_modem(ni_modem_manager_client_t *modem_manager, const char 
 
 	/* Create the DBus client object for this modem. */
 	modem_object = ni_dbus_object_create(modem_manager->proxy, relative_path, &ni_objectmodel_modem_class, modem);
-	if (modem_object == NULL)
+	if (modem_object == NULL) {
+		ni_modem_release(modem);
 		return;
+	}
 	ni_dbus_object_set_default_interface(modem_object, NI_MM_MODEM_IF);
 
 	/* Use Properties.GetAll() to refresh the properties of this modem */
@@ -289,12 +292,17 @@ ni_modem_manager_remove_modem(ni_modem_manager_client_t *modem_manager, const ch
 ni_modem_t *
 ni_modem_new(void)
 {
-	return xcalloc(1, sizeof(ni_modem_t));
+	ni_modem_t *modem;
+
+	modem = xcalloc(1, sizeof(ni_modem_t));
+	modem->refcount = 1;
+	return modem;
 }
 
 void
 ni_modem_free(ni_modem_t *modem)
 {
+	ni_assert(modem->refcount == 0);
 	ni_string_free(&modem->device);
 	ni_string_free(&modem->master_device);
 	ni_string_free(&modem->driver);
@@ -305,6 +313,29 @@ ni_modem_free(ni_modem_t *modem)
 	free(modem);
 }
 
+ni_modem_t *
+ni_modem_hold(ni_modem_t *modem)
+{
+	ni_assert(modem->refcount);
+	modem->refcount++;
+	return modem;
+}
+
+void
+ni_modem_release(ni_modem_t *modem)
+{
+	ni_assert(modem->refcount != 0);
+	if (--(modem->refcount) == 0)
+		ni_modem_free(modem);
+}
+
+
+/*
+ * Destructor function for a modem object.
+ * This function is used both for ModemManager client objects
+ * referencing a modem, as well as Wicked server side objects
+ * presenting a modem to wicked clients.
+ */
 static void
 ni_objectmodel_modem_destroy(ni_dbus_object_t *object)
 {
@@ -312,10 +343,14 @@ ni_objectmodel_modem_destroy(ni_dbus_object_t *object)
 
 	if ((modem = ni_objectmodel_modem_unwrap(object, NULL)) != NULL) {
 		object->handle = NULL;
-		ni_modem_free(modem);
+		ni_modem_release(modem);
 	}
 }
 
+/*
+ * Given a DBus object, make sure it represents a modem, and obtain the
+ * modem object
+ */
 static ni_modem_t *
 ni_objectmodel_modem_unwrap(const ni_dbus_object_t *object, DBusError *error)
 {
