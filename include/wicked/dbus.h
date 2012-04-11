@@ -140,7 +140,12 @@ struct ni_dbus_class {
 	char *			name;
 	const ni_dbus_class_t *	superclass;
 
+	struct {
+		const ni_dbus_class_t *item_class;
+	} list;
+
 	dbus_bool_t		(*init_child)(ni_dbus_object_t *);
+	void			(*initialize)(ni_dbus_object_t *);
 	void			(*destroy)(ni_dbus_object_t *);
 	dbus_bool_t		(*refresh)(ni_dbus_object_t *);
 };

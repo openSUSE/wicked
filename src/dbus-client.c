@@ -518,6 +518,24 @@ ni_dbus_object_get_managed_objects(ni_dbus_object_t *proxy, DBusError *error)
 		else
 			descendant = proxy;
 
+		/* On the client side, we may have to assign classes to newly created
+		 * proxy objects on the fly.
+		 * We do this in two pieces. When we instantiate an object as a child of a
+		 * list object (such as Wicked/Interfaces), we automatically assign the
+		 * default list item class to the new child.
+		 * In a second step, we check if the new child has an initialize member
+		 * function, and if it has, we use that to create a local netdev object
+		 * and assign that to the proxy object.
+		 */
+		if (descendant->class == &ni_dbus_anonymous_class && descendant->parent) {
+			ni_dbus_object_t *parent = descendant->parent;
+
+			if (parent->class)
+				descendant->class = parent->class->list.item_class;
+		}
+		if (descendant->class && descendant->handle == NULL && descendant->class->initialize)
+			descendant->class->initialize(descendant);
+
 		if (!__ni_dbus_object_get_managed_object_interfaces(descendant, &iter_dict_entry))
 			goto bad_reply;
 	}
@@ -576,7 +594,7 @@ __ni_dbus_object_get_managed_object_interfaces(ni_dbus_object_t *proxy, DBusMess
 		/* We may need to frob the object class here. When we receive a vlan interface,
 		 * the default object class would be netif. However, we would also find properties
 		 * for the VLAN interface, which specifies a class of "netif-vlan". We need to
-		 * the class in this case. */
+		 * specialize the class in this case. */
 		if (service->compatible && !ni_dbus_object_isa(proxy, service->compatible)) {
 			const ni_dbus_class_t *check;
 

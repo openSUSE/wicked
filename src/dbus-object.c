@@ -78,11 +78,13 @@ __ni_dbus_object_new_child(ni_dbus_object_t *parent, const ni_dbus_class_t *obje
 		__ni_dbus_client_object_inherit(child, parent);
 
 	if (object_class == NULL && object_handle == NULL) {
+#if 0
 		/* We get here when called from the client side's get_managed_object code,
 		 * where we do not know which objects we may be receiving from the server,
 		 * but we have to create a local proxy object with a C backing object for it. */
 		if (parent->class && parent->class->init_child)
 			parent->class->init_child(child);
+#endif
 	} else {
 		child->class = object_class;
 		child->handle = object_handle;

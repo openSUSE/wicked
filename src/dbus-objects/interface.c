@@ -29,10 +29,12 @@
 extern dbus_bool_t	ni_objectmodel_netif_list_refresh(ni_dbus_object_t *);
 static void		ni_objectmodel_register_device_factory_service(ni_dbus_service_t *);
 static void		ni_objectmodel_register_device_service(ni_iftype_t, ni_dbus_service_t *);
+static void		ni_objectmodel_netif_initialize(ni_dbus_object_t *object);
 static void		ni_objectmodel_netif_destroy(ni_dbus_object_t *object);
 
 static ni_dbus_class_t		ni_objectmodel_netif_class = {
 	.name		= NI_OBJECTMODEL_NETIF_CLASS,
+	.initialize	= ni_objectmodel_netif_initialize,
 	.destroy	= ni_objectmodel_netif_destroy,
 };
 static ni_dbus_class_t		ni_objectmodel_ifreq_class = {
@@ -177,6 +179,9 @@ ni_objectmodel_netif_list_init_child(ni_dbus_object_t *object)
 
 static const ni_dbus_class_t	ni_objectmodel_netif_list_class = {
 	.name		= NI_OBJECTMODEL_NETIF_LIST_CLASS,
+	.list = {
+		.item_class = &ni_objectmodel_netif_class,
+	},
 	.refresh	= ni_objectmodel_netif_list_refresh,
 	.init_child	= ni_objectmodel_netif_list_init_child,
 };
@@ -788,6 +793,17 @@ __ni_objectmodel_event_to_signal(ni_event_t event)
 		return NULL;
 
 	return ifevent_signals[event];
+}
+
+/*
+ * A new DBus object encapsulating a dummy netdev is created.
+ * This is called on the client side from GetManagedObject
+ */
+static void
+ni_objectmodel_netif_initialize(ni_dbus_object_t *object)
+{
+	ni_assert(object->handle == NULL);
+	object->handle = ni_netdev_new(NULL, NULL, 0);
 }
 
 /*
