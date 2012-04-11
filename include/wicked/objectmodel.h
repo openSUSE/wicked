@@ -83,19 +83,20 @@ struct ni_objectmodel_callback_info {
 ni_objectmodel_callback_info_t *ni_objectmodel_callback_info_from_dict(const ni_dbus_variant_t *);
 extern void			ni_objectmodel_callback_info_free(ni_objectmodel_callback_info_t *);
 
-typedef struct ni_objectmodel_netif_ns ni_objectmodel_netif_ns_t;
-struct ni_objectmodel_netif_ns {
+typedef struct ni_objectmodel_ns ni_objectmodel_ns_t;
+struct ni_objectmodel_ns {
 	const char *		name;
-	ni_netdev_t *		(*lookup_by_name)(ni_objectmodel_netif_ns_t *, const char *);
-	ni_netdev_t *		(*lookup_by_attrs)(ni_objectmodel_netif_ns_t *, const ni_var_array_t *);
-	dbus_bool_t		(*match_attr)(const ni_netdev_t *, const char *, const char *);
+	ni_dbus_object_t *	(*lookup_by_name)(ni_objectmodel_ns_t *, const char *);
+	ni_dbus_object_t *	(*lookup_by_attrs)(ni_objectmodel_ns_t *, const ni_var_array_t *);
+	dbus_bool_t		(*match_attr)(const ni_dbus_object_t *, const char *, const char *);
 };
 
-extern void			ni_objectmodel_register_netif_ns(ni_objectmodel_netif_ns_t *);
-extern void			ni_objectmodel_register_netif_ns_builtin(void);
-extern void			ni_objectmodel_register_netif_ns_dynamic(void);
-extern ni_objectmodel_netif_ns_t *ni_objectmodel_get_netif_ns(const char *);
-extern ni_netdev_t *		ni_objectmodel_netif_by_attrs(ni_objectmodel_netif_ns_t *, const ni_var_array_t *);
+extern void			ni_objectmodel_register_ns(ni_objectmodel_ns_t *);
+extern void			ni_objectmodel_register_ns_builtin(void);
+extern void			ni_objectmodel_register_ns_dynamic(void);
+extern ni_objectmodel_ns_t *	ni_objectmodel_get_ns(const char *);
+extern ni_dbus_object_t *	ni_objectmodel_lookup_by_attrs(ni_dbus_object_t *list_object,
+					ni_objectmodel_ns_t *, const ni_var_array_t *);
 
 
 #endif /* __WICKED_OBJECTMODEL_H__ */

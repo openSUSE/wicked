@@ -98,7 +98,7 @@ ni_objectmodel_init(ni_dbus_server_t *server)
 		if (server) {
 			ni_objectmodel_create_initial_objects(server);
 
-			ni_objectmodel_register_netif_ns_dynamic();
+			ni_objectmodel_register_ns_dynamic();
 		}
 
 		/* Bind all extensions */

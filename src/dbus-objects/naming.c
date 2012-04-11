@@ -20,11 +20,11 @@
 #include "appconfig.h"
 #include "debug.h"
 
-static unsigned int			ni_objectmodel_ns_count;
-static ni_objectmodel_netif_ns_t **	ni_objectmodel_ns_list;
+static unsigned int		ni_objectmodel_ns_count;
+static ni_objectmodel_ns_t **	ni_objectmodel_ns_list;
 
 void
-ni_objectmodel_register_netif_ns(ni_objectmodel_netif_ns_t *ns)
+ni_objectmodel_register_ns(ni_objectmodel_ns_t *ns)
 {
 	if ((ni_objectmodel_ns_count % 8) == 0)
 		ni_objectmodel_ns_list = realloc(ni_objectmodel_ns_list,
@@ -32,13 +32,13 @@ ni_objectmodel_register_netif_ns(ni_objectmodel_netif_ns_t *ns)
 	ni_objectmodel_ns_list[ni_objectmodel_ns_count++] = ns;
 }
 
-ni_objectmodel_netif_ns_t *
-ni_objectmodel_get_netif_ns(const char *name)
+ni_objectmodel_ns_t *
+ni_objectmodel_get_ns(const char *name)
 {
 	unsigned int i;
 
 	for (i = 0; i < ni_objectmodel_ns_count; ++i) {
-		ni_objectmodel_netif_ns_t *ns;
+		ni_objectmodel_ns_t *ns;
 
 		ns = ni_objectmodel_ns_list[i];
 		if (ni_string_eq(ns->name, name))
@@ -51,10 +51,10 @@ ni_objectmodel_get_netif_ns(const char *name)
  * Register all naming services specified in the config file.
  * These naming services are supposed to be provided by shared libraries.
  * The symbol specified by the C binding element must refer to a
- * ni_objectmodel_netif_ns struct.
+ * ni_objectmodel_ns struct.
  */
 void
-ni_objectmodel_register_netif_ns_dynamic(void)
+ni_objectmodel_register_ns_dynamic(void)
 {
 	ni_config_t *config = ni_global.config;
 	ni_extension_t *ex;
@@ -72,16 +72,15 @@ ni_objectmodel_register_netif_ns_dynamic(void)
 			}
 
 			ni_debug_objectmodel("trying to bind netif naming service \"%s\"", binding->name);
-			ni_objectmodel_register_netif_ns((ni_objectmodel_netif_ns_t *) addr);
+			ni_objectmodel_register_ns((ni_objectmodel_ns_t *) addr);
 		}
 	}
 }
 
-ni_netdev_t *
-ni_objectmodel_netif_by_attrs(ni_objectmodel_netif_ns_t *ns, const ni_var_array_t *attrs)
+ni_dbus_object_t *
+ni_objectmodel_lookup_by_attrs(ni_dbus_object_t *list_object, ni_objectmodel_ns_t *ns, const ni_var_array_t *attrs)
 {
-	ni_netconfig_t *nc = ni_global_state_handle(0);
-	ni_netdev_t *dev;
+	ni_dbus_object_t *obj;
 
 	if (ns->lookup_by_attrs)
 		return ns->lookup_by_attrs(ns, attrs);
@@ -89,16 +88,16 @@ ni_objectmodel_netif_by_attrs(ni_objectmodel_netif_ns_t *ns, const ni_var_array_
 	if (ns->match_attr == NULL)
 		return NULL;
 
-	for (dev = ni_netconfig_devlist(nc); dev; dev = dev->next) {
+	for (obj = list_object->children; obj; obj = obj->next) {
 		dbus_bool_t match = TRUE;
 		ni_var_t *ap;
 		unsigned int i;
 
 		for (i = 0, ap = attrs->data; match && i < attrs->count; ++i, ++ap)
-			match = ns->match_attr(dev, ap->name, ap->value);
+			match = ns->match_attr(obj, ap->name, ap->value);
 		if (match) {
-			ni_debug_dbus("%s: found %s", __func__, dev->name);
-			return dev;
+			ni_debug_dbus("%s: found %s", __func__, obj->path);
+			return obj;
 		}
 	}
 	return NULL;
@@ -118,9 +117,13 @@ __match_hwaddr(const ni_hwaddr_t *hwaddr, const char *string)
 }
 
 static dbus_bool_t
-ni_objectmodel_ether_match_attr(const ni_netdev_t *dev, const char *name, const char *value)
+ni_objectmodel_ether_match_attr(const ni_dbus_object_t *object, const char *name, const char *value)
 {
+	ni_netdev_t *dev;
 	ni_ethernet_t *eth;
+
+	if (!(dev = ni_objectmodel_unwrap_interface(object, NULL)))
+		return FALSE;
 
 	if (!(eth = dev->ethernet))
 		return FALSE;
@@ -135,7 +138,7 @@ ni_objectmodel_ether_match_attr(const ni_netdev_t *dev, const char *name, const 
 	return FALSE;
 }
 
-static ni_objectmodel_netif_ns_t ni_objectmodel_ether_ns = {
+static ni_objectmodel_ns_t ni_objectmodel_ether_ns = {
 	.name		= "ethernet",
 	.match_attr	= ni_objectmodel_ether_match_attr,
 };
@@ -143,22 +146,27 @@ static ni_objectmodel_netif_ns_t ni_objectmodel_ether_ns = {
 /*
  * The ibft naming service just uses the node name (ethernetX)
  */
-static ni_netdev_t *
-ni_objectmodel_ibft_lookup_by_name(ni_objectmodel_netif_ns_t *ns, const char *name)
+static ni_dbus_object_t *
+ni_objectmodel_ibft_lookup_by_name(ni_objectmodel_ns_t *ns, const char *name)
 {
+#ifdef notyet
 	ni_netconfig_t *nc = ni_global_state_handle(0);
 
 	return ni_netdev_by_ibft_nodename(nc, name);
+#else
+	ni_warn("%s(%s): not implemented", __func__, name);
+	return NULL;
+#endif
 }
 
-static ni_objectmodel_netif_ns_t ni_objectmodel_ibft_ns = {
+static ni_objectmodel_ns_t ni_objectmodel_ibft_ns = {
 	.name		= "ibft",
 	.lookup_by_name	= ni_objectmodel_ibft_lookup_by_name,
 };
 
 void
-ni_objectmodel_register_netif_ns_builtin(void)
+ni_objectmodel_register_ns_builtin(void)
 {
-	ni_objectmodel_register_netif_ns(&ni_objectmodel_ether_ns);
-	ni_objectmodel_register_netif_ns(&ni_objectmodel_ibft_ns);
+	ni_objectmodel_register_ns(&ni_objectmodel_ether_ns);
+	ni_objectmodel_register_ns(&ni_objectmodel_ibft_ns);
 }

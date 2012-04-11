@@ -106,7 +106,7 @@ ni_objectmodel_register_netif_classes(void)
 	ni_objectmodel_register_device_factory_service(&ni_objectmodel_openvpn_factory_service);
 
 	/* Register all builtin naming services */
-	ni_objectmodel_register_netif_ns_builtin();
+	ni_objectmodel_register_ns_builtin();
 }
 
 static void
@@ -210,17 +210,17 @@ ni_objectmodel_netif_list_refresh(ni_dbus_object_t *object)
 }
 
 /*
- * Identify a device
+ * General dbus object lookup
  */
-static ni_netdev_t *
-ni_objectmodel_interface_identify(const char *naming_service, const char *attribute, const ni_dbus_variant_t *var)
+static ni_dbus_object_t *
+ni_objectmodel_resolve_name(ni_dbus_object_t *parent, const char *naming_service, const char *attribute, const ni_dbus_variant_t *var)
 {
-	ni_netdev_t *dev = NULL;
-	ni_objectmodel_netif_ns_t *ns;
+	ni_dbus_object_t *result = NULL;
+	ni_objectmodel_ns_t *ns;
 	ni_var_array_t attrs = { 0, NULL };
 	const char *key, *value;
 
-	if (!(ns = ni_objectmodel_get_netif_ns(naming_service))) {
+	if (!(ns = ni_objectmodel_get_ns(naming_service))) {
 		ni_warn("unknown naming service \"%s\"", naming_service);
 		return NULL;
 	}
@@ -253,10 +253,10 @@ ni_objectmodel_interface_identify(const char *naming_service, const char *attrib
 		}
 	}
 
-	dev = ni_objectmodel_netif_by_attrs(ns, &attrs);
+	result = ni_objectmodel_lookup_by_attrs(parent, ns, &attrs);
 	ni_var_array_destroy(&attrs);
 
-	return dev;
+	return result;
 }
 
 /*
@@ -270,7 +270,7 @@ ni_objectmodel_netif_list_identify_device(ni_dbus_object_t *object, const ni_dbu
 	const ni_dbus_variant_t *dict, *var;
 	const char *name;
 	char *copy, *naming_service, *attribute;
-	ni_netdev_t *dev;
+	ni_dbus_object_t *found;
 
 	ni_assert(argc == 1);
 	if (argc != 1 || !ni_dbus_variant_is_dict(&argv[0]))
@@ -285,16 +285,23 @@ ni_objectmodel_netif_list_identify_device(ni_dbus_object_t *object, const ni_dbu
 	if ((attribute = strchr(copy, ':')) != NULL)
 		*attribute++ = '\0';
 
-	dev = ni_objectmodel_interface_identify(naming_service, attribute, var);
+	found = ni_objectmodel_resolve_name(object, naming_service, attribute, var);
 	free(copy);
 
-	if (dev == NULL) {
+	if (found == NULL) {
 		dbus_set_error(error, NI_DBUS_ERROR_INTERFACE_NOT_KNOWN,
 				"unable to identify interface via %s", name);
 		return FALSE;
 	}
 
-	ni_dbus_message_append_string(reply, ni_objectmodel_interface_full_path(dev));
+	if (ni_objectmodel_unwrap_interface(found, NULL) == NULL) {
+		dbus_set_error(error, NI_DBUS_ERROR_INTERFACE_NOT_KNOWN,
+				"failed to identify interface via %s - naming service returned "
+				"a %s object", name, found->class->name);
+		return FALSE;
+	}
+
+	ni_dbus_message_append_string(reply, found->path);
 	return TRUE;
 
 invalid_args:
