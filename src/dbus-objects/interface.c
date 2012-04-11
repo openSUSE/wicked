@@ -148,42 +148,12 @@ ni_objectmodel_create_netif_list(ni_dbus_server_t *server)
 	ni_objectmodel_bind_compatible_interfaces(object);
 }
 
-
-/*
- * The init_child method is needed by the client side when GetManagedObjects
- * returns an interface we haven't heard of before.
- * FIXME: We should really clean this up and use this callback exclusively from
- * GetManagedObjects, to avoid any bad side effects.
- */
-static dbus_bool_t
-ni_objectmodel_netif_list_init_child(ni_dbus_object_t *object)
-{
-	static const ni_dbus_class_t *netif_class = NULL;
-	ni_netdev_t *ifp;
-
-	if (netif_class == NULL) {
-		const ni_dbus_service_t *netif_service;
-
-		netif_service = ni_objectmodel_service_by_name(NI_OBJECTMODEL_NETIF_INTERFACE);
-		ni_assert(netif_service);
-
-		netif_class = netif_service->compatible;
-	}
-
-	ifp = ni_netdev_new(NULL, NULL, 0);
-	object->class = netif_class;
-	object->handle = ifp;
-
-	return TRUE;
-}
-
 static const ni_dbus_class_t	ni_objectmodel_netif_list_class = {
 	.name		= NI_OBJECTMODEL_NETIF_LIST_CLASS,
 	.list = {
 		.item_class = &ni_objectmodel_netif_class,
 	},
 	.refresh	= ni_objectmodel_netif_list_refresh,
-	.init_child	= ni_objectmodel_netif_list_init_child,
 };
 
 /*

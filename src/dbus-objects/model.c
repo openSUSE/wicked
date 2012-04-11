@@ -338,7 +338,7 @@ ni_objectmodel_class_new(const char *classname, const ni_dbus_class_t *base_clas
 	new_class->superclass = base_class;
 
 	/* inherit all methods from netif */
-	new_class->init_child = base_class->init_child;
+	new_class->list = base_class->list;
 	new_class->destroy = base_class->destroy;
 	new_class->refresh = base_class->refresh;
 
