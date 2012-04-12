@@ -114,7 +114,12 @@ xpath_expression_parse(const char *expr)
 	if (!expr)
 		return NULL;
 
-	tree = __xpath_build_expr(&expr, '\0', 0);
+	if (!strcmp(expr, "/") || !strcmp(expr, "//")) {
+		tree = xpath_enode_new(&__xpath_operator_node);
+		expr = "";
+	} else {
+		tree = __xpath_build_expr(&expr, '\0', 0);
+	}
 
 	if (!tree)
 		goto failed;
