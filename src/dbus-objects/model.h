@@ -43,6 +43,9 @@
 #define NI_DBUS_PROPERTY(type, __name, fstem, rw) \
 	__NI_DBUS_PROPERTY(DBUS_TYPE_##type##_AS_STRING, __name, fstem, rw)
 
+#define NI_DBUS_DICT_ARRAY_SIGNATURE DBUS_TYPE_ARRAY_AS_STRING NI_DBUS_DICT_SIGNATURE
+#define NI_DBUS_BYTE_ARRAY_SIGNATURE DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING
+
 #define __NI_DBUS_GENERIC_PROPERTY(struct_name, dbus_sig, dbus_name, member_type, member_name, rw, args...) { \
 	.name = #dbus_name, \
 	.signature = dbus_sig, \
@@ -76,7 +79,6 @@
 			dbus_name, string_array, member_name, rw)
 #define NI_DBUS_GENERIC_DICT_PROPERTY(dbus_name, child_properties, rw) \
 	__NI_DBUS_GENERIC_DICT_PROPERTY(dbus_name, child_properties, rw)
-
 
 #define __pointer(base, offset_ptr) \
 	((typeof(offset_ptr)) (((caddr_t) base) + (unsigned long) offset_ptr))

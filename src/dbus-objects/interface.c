@@ -551,7 +551,7 @@ ni_objectmodel_unmarshal_interface_request(ni_netdev_req_t *req, const ni_dbus_v
 }
 
 /*
- * Interface.linkChange(dict options)
+ * Interface.linkUp(dict options)
  *
  * Bring up the network interface, and assign the requested addresses.
  * In the case of virtual interfaces like VLANs or bridges, the interface

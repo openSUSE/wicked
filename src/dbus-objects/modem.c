@@ -32,6 +32,7 @@ extern dbus_bool_t	ni_objectmodel_modem_list_refresh(ni_dbus_object_t *);
 static void		ni_objectmodel_modem_initialize(ni_dbus_object_t *object);
 static void		ni_objectmodel_modem_destroy(ni_dbus_object_t *object);
 static const char *	ni_objectmodel_modem_path(const ni_modem_t *);
+static ni_modem_t *	__ni_objectmodel_get_modem_arg(const ni_dbus_variant_t *dict, ni_dbus_object_t **ret_object);
 
 static ni_dbus_class_t		ni_objectmodel_modem_class = {
 	.name		= NI_OBJECTMODEL_MODEM_CLASS,
@@ -330,24 +331,254 @@ static ni_dbus_service_t	ni_objectmodel_modem_list_service = {
  * This allows a wicked client to treat modems just the same way
  * as other subordinate devices that need to be brought up.
  */
+
+/*
+ * Modem.changeDevice(dict options)
+ */
+static dbus_bool_t
+ni_objectmodel_modem_change_device(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_dbus_object_t *config_object = NULL;
+	ni_modem_t *modem, *config;
+	dbus_bool_t ret = FALSE;
+	int rv;
+
+	if (!(modem = ni_objectmodel_modem_unwrap(object, error)))
+		return FALSE;
+
+	NI_TRACE_ENTER_ARGS("modem=%s", modem->real_path);
+
+	/* Create an interface_request object and extract configuration from dict */
+	if (!(config = __ni_objectmodel_get_modem_arg(&argv[0], &config_object)))
+		return ni_dbus_error_invalid_args(error, object->path, method->name);
+
+	/* Update the modem's pin cache */
+	while (config->unlock.auth) {
+		ni_modem_pin_t *pin = config->unlock.auth;
+
+		config->unlock.auth = pin->next;
+		pin->next = NULL;
+
+		ni_modem_add_pin(modem, pin);
+	}
+
+	/* See if we have the PIN required to unlock this modem */
+	if (modem->unlock.required) {
+		ni_modem_pin_t *pin;
+
+		if ((pin = ni_modem_get_pin(modem, modem->unlock.required)) == NULL) {
+			dbus_set_error(error, NI_DBUS_ERROR_AUTH_INFO_MISSING,
+					"%s|PASSWORD|%s",
+					modem->unlock.required,
+					"unidentified-modem");
+			goto failed;
+		}
+
+		if ((rv = ni_modem_manager_unlock(modem, pin)) < 0) {
+			ni_dbus_set_error_from_code(error, rv, "failed to unlock device");
+			goto failed;
+		}
+	}
+
+#if 0
+	if ((rv = ni_modem_manager_connect(modem, config)) < 0) {
+		ni_dbus_set_error_from_code(error, rv, "failed to set up device");
+		goto failed;
+	}
+#endif
+
+	ret = TRUE;
+
+failed:
+	ni_dbus_object_free(config_object);
+	return ret;
+}
+
+/*
+ * Modem.connect(dict options)
+ */
+static dbus_bool_t
+ni_objectmodel_modem_connect(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_dbus_object_t *config_object = NULL;
+	ni_modem_t *modem, *config;
+	dbus_bool_t ret = FALSE;
+	int rv;
+
+	if (!(modem = ni_objectmodel_modem_unwrap(object, error)))
+		return FALSE;
+
+	NI_TRACE_ENTER_ARGS("modem=%s", modem->real_path);
+
+	/* Create an interface_request object and extract configuration from dict */
+	if (!(config = __ni_objectmodel_get_modem_arg(&argv[0], &config_object)))
+		return ni_dbus_error_invalid_args(error, object->path, method->name);
+
+	if ((rv = ni_modem_manager_connect(modem, config)) < 0) {
+		ni_dbus_set_error_from_code(error, rv, "failed to connect");
+		goto failed;
+	}
+
+	ret = TRUE;
+
+#if 0
+	if (!ni_modem_is_connected(modem)) {
+		/* Link is not up yet. Tell the caller to wait for an event. */
+		if (ni_uuid_is_null(&modem->event_uuid))
+			ni_uuid_generate(&modem->event_uuid);
+		ret = __ni_objectmodel_return_callback_info(reply, NI_EVENT_LINK_UP, &modem->event_uuid, error);
+	}
+#endif
+
+failed:
+	ni_dbus_object_free(config_object);
+	return ret;
+}
+
+static dbus_bool_t
+ni_objectmodel_modem_disconnect(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_modem_t *modem;
+	int rv;
+
+	if (!(modem = ni_objectmodel_modem_unwrap(object, error)))
+		return FALSE;
+
+	if ((rv = ni_modem_manager_disconnect(modem)) < 0) {
+		ni_dbus_set_error_from_code(error, rv, "failed to disconnect modem");
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+/*
+ * Helper function: extract modem config from dict argument
+ */
+static ni_modem_t *
+__ni_objectmodel_get_modem_arg(const ni_dbus_variant_t *dict, ni_dbus_object_t **ret_object)
+{
+	ni_dbus_object_t *config_object;
+
+	config_object = ni_dbus_object_new(&ni_objectmodel_modem_class, NULL, NULL);
+	config_object->class->initialize(config_object);
+
+	if (!ni_dbus_object_set_properties_from_dict(config_object, &ni_objectmodel_modem_service, dict)) {
+		ni_dbus_object_free(config_object);
+		return NULL;
+	}
+
+	*ret_object = config_object;
+	return ni_objectmodel_modem_unwrap(config_object, NULL);
+}
+
+/*
+ * Properties of a modem object, as seen by a wicked client
+ */
 static void *
 ni_objectmodel_get_modem(const ni_dbus_object_t *object, DBusError *error)
 {
 	return ni_objectmodel_modem_unwrap(object, error);
 }
 
+static dbus_bool_t
+__ni_objectmodel_modem_get_auth(const ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				ni_dbus_variant_t *result,
+				DBusError *error)
+{
+	ni_modem_t *modem;
+	ni_modem_pin_t *pin;
+
+	if (!(modem = ni_objectmodel_modem_unwrap(object, error)))
+		return FALSE;
+
+	if (modem->unlock.auth == NULL) {
+		dbus_set_error(error, NI_DBUS_ERROR_PROPERTY_NOT_PRESENT, "property %s not present", property->name);
+		return FALSE;
+	}
+
+	for (pin = modem->unlock.auth; pin; pin = pin->next) {
+		ni_dbus_variant_t *dict;
+
+		dict = ni_dbus_dict_array_add(result);
+		if (pin->kind)
+			ni_dbus_dict_add_string(dict, "kind", pin->kind);
+		if (pin->value)
+			ni_dbus_dict_add_string(dict, "value", pin->value);
+		ni_dbus_dict_add_uint32(dict, "cache-lifetime", pin->cache_lifetime);
+	}
+
+	return TRUE;
+}
+
+static dbus_bool_t
+__ni_objectmodel_modem_set_auth(ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *argument,
+				DBusError *error)
+{
+	ni_modem_t *modem;
+	unsigned int i;
+
+	if (!(modem = ni_objectmodel_modem_unwrap(object, error)))
+		return FALSE;
+
+	if (!ni_dbus_variant_is_dict_array(argument)) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "%s: argument type mismatch", __func__);
+		return FALSE;
+	}
+
+	for (i = 0; i < argument->array.len; ++i) {
+		ni_dbus_variant_t *dict = &argument->variant_array_value[i];
+		const char *kind = NULL, *value = NULL;
+		ni_modem_pin_t *pin;
+
+		ni_dbus_dict_get_string(dict, "kind", &kind);
+		ni_dbus_dict_get_string(dict, "value", &value);
+		pin = ni_modem_pin_new(kind, value);
+
+		ni_modem_add_pin(modem, pin);
+	}
+	return TRUE;
+
+
+	return TRUE;
+}
+
+
 #define MODEM_STRING_PROPERTY(dbus_name, member_name, rw) \
 	NI_DBUS_GENERIC_STRING_PROPERTY(modem, dbus_name, member_name, rw)
 #define MODEM_UINT_PROPERTY(dbus_name, member_name, rw) \
 	NI_DBUS_GENERIC_UINT_PROPERTY(modem, dbus_name, member_name, rw)
+#define MODEM_PROPERTY_SIGNATURE(signature, __name, rw) \
+	__NI_DBUS_PROPERTY(signature, __name, __ni_objectmodel_modem, rw)
 
 static ni_dbus_property_t	ni_objectmodel_modem_properties[] = {
 	MODEM_STRING_PROPERTY(real-path, real_path, RO),
+	MODEM_STRING_PROPERTY(unlock-required, unlock.required, RO),
+
+	MODEM_PROPERTY_SIGNATURE(NI_DBUS_DICT_ARRAY_SIGNATURE, auth, RO),
 
 	{ NULL }
 };
+
+static ni_dbus_method_t		ni_objectmodel_modem_methods[] = {
+	{ "changeDevice",	"a{sv}",		ni_objectmodel_modem_change_device },
+	{ "linkUp",		"a{sv}",		ni_objectmodel_modem_connect },
+	{ "linkDown",		"",			ni_objectmodel_modem_disconnect },
+	{ NULL }
+};
+
 static ni_dbus_service_t	ni_objectmodel_modem_service = {
 	.name		= NI_OBJECTMODEL_MODEM_INTERFACE,
 	.properties	= ni_objectmodel_modem_properties,
+	.methods	= ni_objectmodel_modem_methods,
 	.compatible	= &ni_objectmodel_modem_proxy_class,
 };

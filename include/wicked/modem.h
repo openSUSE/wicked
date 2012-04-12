@@ -19,6 +19,16 @@ typedef enum ni_modem_ipmethod {
 	MM_MODEM_IP_METHOD_DHCP = 2,
 } ni_modem_ipmethod_t;
 
+/* We may want to turn this into a more generic type and
+ * use it elsewhere, too */
+typedef struct ni_modem_pin {
+	struct ni_modem_pin *	next;
+
+	char *			kind;
+	char *			value;
+	unsigned int		cache_lifetime;
+} ni_modem_pin_t;
+
 struct ni_modem {
 	unsigned int		refcount;
 	struct {
@@ -44,6 +54,8 @@ struct ni_modem {
 	struct {
 		char *		required;
 		uint32_t	retries;
+
+		ni_modem_pin_t *auth;
 	} unlock;
 
 	struct {
@@ -58,6 +70,10 @@ extern ni_bool_t	ni_modem_manager_init(void (*event_handler)(ni_modem_t *, ni_ev
 extern ni_modem_t *	ni_modem_new(void);
 extern ni_modem_t *	ni_modem_hold(ni_modem_t *);
 extern void		ni_modem_release(ni_modem_t *);
+
+extern int		ni_modem_manager_unlock(ni_modem_t *modem, const ni_modem_pin_t *pin);
+extern int		ni_modem_manager_connect(ni_modem_t *modem, const ni_modem_t *config);
+extern int		ni_modem_manager_disconnect(ni_modem_t *modem);
 
 #endif /* __WICKED_MODEM_H__ */
 

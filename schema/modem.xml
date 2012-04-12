@@ -1,6 +1,14 @@
 <service name="modem" interface="com.suse.Wicked.Modem" object-class="modem-proxy">
+  <define name="modem-pin" class="dict">
+    <kind type="string"/>
+    <value type="string"/>
+    <cache-lifetime type="uint32"/>
+  </define>
+
   <define name="properties" class="dict">
     <real-path type="string"/>
+
+    <auth class="array" element-type="modem-pin"/>
   </define>
 
   <method name="changeDevice">
@@ -10,6 +18,18 @@
       </config>
     </arguments>
   </method>
+
+  <method name="linkUp">
+    <arguments>
+      <config type="properties">
+       <meta:mapping document-node="/modem" skip-unless-present="true" />
+      </config>
+    </arguments>
+  </method>
+
+  <method name="linkDown">
+  </method>
+
 </service>
 
 

@@ -177,6 +177,61 @@ ni_modem_manager_init(void (*event_handler)(ni_modem_t *, ni_event_t))
 	return TRUE;
 }
 
+/*
+ * Given a modem object, look up the corresponding ModemManager object
+ */
+static ni_dbus_object_t *
+__ni_modem_manager_object(const ni_modem_t *modem)
+{
+	if (ni_modem_manager_client == NULL)
+		return NULL;
+
+	return ni_dbus_object_find_descendant_by_handle(ni_modem_manager_client->proxy, modem);
+}
+
+/*
+ * Unlock the modem
+ */
+int
+ni_modem_manager_unlock(ni_modem_t *modem, const ni_modem_pin_t *pin)
+{
+	ni_dbus_object_t *modem_object;
+	int rv = 0;
+
+	if ((modem_object = __ni_modem_manager_object(modem)) == NULL)
+		return -NI_ERROR_INTERFACE_NOT_KNOWN;
+
+	if (modem->type == MM_MODEM_TYPE_GSM) {
+		rv = ni_dbus_object_call_simple(modem_object, NI_MM_GSM_CARD_IF,
+				"SendPin",
+				DBUS_TYPE_STRING, (void *) &pin->value,
+				0, NULL);
+	} else {
+		ni_error("%s: not supported for this type of modem", __func__);
+		return -NI_ERROR_INTERFACE_NOT_COMPATIBLE;
+	}
+
+	return rv;
+}
+
+/*
+ * Connect
+ */
+int
+ni_modem_manager_connect(ni_modem_t *modem, const ni_modem_t *config)
+{
+	return -1;
+}
+
+int
+ni_modem_manager_disconnect(ni_modem_t *modem)
+{
+	return -1;
+}
+
+/*
+ * Support classes for objectmodel
+ */
 const char *
 ni_objectmodel_modem_get_classname(ni_modem_type_t type)
 {
@@ -330,6 +385,16 @@ ni_modem_free(ni_modem_t *modem)
 	ni_string_free(&modem->identify.equipment);
 	ni_string_free(&modem->gsm.imei);
 	ni_modem_unlink(modem);
+
+	if (modem->unlock.auth) {
+		ni_modem_pin_t *pin;
+
+		while ((pin = modem->unlock.auth) != NULL) {
+			modem->unlock.auth = pin->next;
+			ni_modem_pin_free(pin);
+		}
+	}
+
 	free(modem);
 }
 
@@ -367,6 +432,59 @@ ni_modem_unlink(ni_modem_t *modem)
 	modem->list.next = NULL;
 }
 
+/*
+ * Handle modem auth information
+ */
+ni_modem_pin_t *
+ni_modem_pin_new(const char *kind, const char *value)
+{
+	ni_modem_pin_t *pin;
+
+	pin = xcalloc(1, sizeof(*pin));
+	ni_string_dup(&pin->kind, kind);
+	ni_string_dup(&pin->value, value);
+
+	return pin;
+}
+
+void
+ni_modem_pin_free(ni_modem_pin_t *pin)
+{
+	ni_string_free(&pin->kind);
+	ni_string_free(&pin->value);
+	free(pin);
+}
+
+void
+ni_modem_add_pin(ni_modem_t *modem, ni_modem_pin_t *pin)
+{
+	ni_modem_pin_t **pos, *rover;
+
+	pos = &modem->unlock.auth;
+	while ((rover = *pos) != NULL) {
+		if (ni_string_eq(rover->kind, pin->kind)) {
+			*pos = rover->next;
+			ni_modem_pin_free(rover);
+		} else {
+			pos = &rover->next;
+		}
+	}
+
+	*pos = pin;
+}
+
+ni_modem_pin_t *
+ni_modem_get_pin(ni_modem_t *modem, const char *tag)
+{
+	ni_modem_pin_t *pin;
+
+	for (pin = modem->unlock.auth; pin; pin = pin->next) {
+		if (ni_string_eq(pin->kind, tag))
+			return pin;
+	}
+
+	return NULL;
+}
 
 /*
  * Properties for org.freedesktop.ModemManager.Modem
