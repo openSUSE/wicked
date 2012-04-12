@@ -383,6 +383,10 @@ ni_objectmodel_modem_change_device(ni_dbus_object_t *object, const ni_dbus_metho
 	}
 
 	if (!modem->enabled) {
+		if ((rv = ni_modem_manager_enable(modem)) < 0) {
+			ni_dbus_set_error_from_code(error, rv, "failed to enable device");
+			goto failed;
+		}
 	}
 
 #if 0

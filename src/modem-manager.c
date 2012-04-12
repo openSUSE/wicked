@@ -27,6 +27,8 @@
 
 #define NI_MM_SIGNAL_DEVICE_ADDED "DeviceAdded"
 #define NI_MM_SIGNAL_DEVICE_REMOVED "DeviceRemoved"
+#define NI_MM_SIGNAL_SIGNAL_QUALITY "SignalQuality"
+#define NI_MM_SIGNAL_REGISTRATION_INFO "RegistrationInfo"
 
 #define NI_MM_BUS_NAME		"org.freedesktop.ModemManager"
 #define NI_MM_OBJECT_PATH	"/org/freedesktop/ModemManager"
@@ -92,6 +94,14 @@ ni_modem_manager_client_open(void)
 				NI_MM_INTERFACE,	/* object interface */
 				ni_modem_manager_signal,
 				modem_manager);
+
+	ni_dbus_client_add_signal_handler(dbc,
+				NI_MM_BUS_NAME,		/* sender */
+				NULL,			/* object path */
+				NI_MM_GSM_NETWORK_IF,	/* object interface */
+				ni_modem_manager_signal,
+				modem_manager);
+
 
 	return modem_manager;
 }
@@ -209,6 +219,34 @@ ni_modem_manager_unlock(ni_modem_t *modem, const ni_modem_pin_t *pin)
 	} else {
 		ni_error("%s: not supported for this type of modem", __func__);
 		return -NI_ERROR_INTERFACE_NOT_COMPATIBLE;
+	}
+
+	return rv;
+}
+
+int
+ni_modem_manager_enable(ni_modem_t *modem)
+{
+	ni_dbus_object_t *modem_object;
+	int rv = 0;
+
+	if ((modem_object = __ni_modem_manager_object(modem)) == NULL)
+		return -NI_ERROR_INTERFACE_NOT_KNOWN;
+
+	if (modem->type == MM_MODEM_TYPE_GSM) {
+		dbus_bool_t enable = TRUE;
+
+		rv = ni_dbus_object_call_simple(modem_object, NI_MM_MODEM_IF,
+				"Enable",
+				DBUS_TYPE_BOOLEAN, &enable,
+				0, NULL);
+
+		if (rv < 0)
+			return rv;
+
+		/* FIXME: refresh object properties, and call Gsm.Card.GetStatus
+		 * to obtain the provider info */
+		modem->enabled = TRUE;
 	}
 
 	return rv;
@@ -360,6 +398,21 @@ ni_modem_manager_remove_modem(ni_modem_manager_client_t *modem_manager, const ch
 	ni_dbus_object_free(modem_object);
 }
 
+static ni_modem_t *
+ni_modem_manager_get_modem(ni_modem_manager_client_t *modem_manager, const char *object_path)
+{
+	const char *relative_path;
+	ni_dbus_object_t *modem_object;
+
+	if ((relative_path = ni_dbus_object_get_relative_path(modem_manager->proxy, object_path)) == NULL
+	 || !(modem_object = ni_dbus_object_lookup(modem_manager->proxy, relative_path))) {
+		ni_error("%s: cannot handle event for modem object \"%s\", bad path", __func__, object_path);
+		return NULL;
+	}
+
+	return ni_objectmodel_modem_unwrap(modem_object, NULL);
+}
+
 /*
  * Constructor/destructor for modem objects
  */
@@ -384,6 +437,8 @@ ni_modem_free(ni_modem_t *modem)
 	ni_string_free(&modem->identify.device);
 	ni_string_free(&modem->identify.equipment);
 	ni_string_free(&modem->gsm.imei);
+	ni_string_free(&modem->gsm.operator_code);
+	ni_string_free(&modem->gsm.operator_name);
 	ni_modem_unlink(modem);
 
 	if (modem->unlock.auth) {
@@ -525,8 +580,11 @@ static ni_dbus_service_t	ni_objectmodel_modem_service = {
 };
 
 const ni_dbus_property_t        ni_objectmodel_gsm_modem_property_table[] = {
+#ifdef broken
+	/* Current ModemManager versions don't report anything useful here */
 	MODEM_UINT_PROPERTY(SupportedBands, gsm.supported_bands, RO),
 	MODEM_UINT_PROPERTY(SupportedModes, gsm.supported_modes, RO),
+#endif
 	{ NULL }
 };
 
@@ -566,8 +624,60 @@ ni_modem_manager_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg, void
 			dbus_message_iter_get_basic(&iter, &object_path);
 			ni_modem_manager_remove_modem(modem_manager, object_path);
 		}
+	} else
+	if (!strcmp(member, NI_MM_SIGNAL_SIGNAL_QUALITY)) {
+		const char *object_path = dbus_message_get_sender(msg);
+		ni_modem_t *modem;
+
+		if ((modem = ni_modem_manager_get_modem(modem_manager, object_path)) == NULL) {
+			ni_error("%s: cannot handle event %s for modem object \"%s\", bad path",
+					__func__, member, object_path);
+			return;
+		}
+
+		if (dbus_message_iter_get_arg_type(&iter) == DBUS_TYPE_UINT32) {
+			uint32_t quality;
+
+			dbus_message_iter_get_basic(&iter, &quality);
+
+			ni_trace("%s: quality changed %u -> %u", object_path, 
+					modem->gsm.signal_quality, quality);
+			modem->gsm.signal_quality = quality;
+		}
+	} else
+	if (!strcmp(member, NI_MM_SIGNAL_REGISTRATION_INFO)) {
+		const char *object_path = dbus_message_get_sender(msg);
+		ni_modem_t *modem;
+
+		if ((modem = ni_modem_manager_get_modem(modem_manager, object_path)) == NULL) {
+			ni_error("%s: cannot handle event %s for modem object \"%s\", bad path",
+					__func__, member, object_path);
+			return;
+		} else {
+			const char *oper_code = NULL, *oper_name = NULL;
+			uint32_t status = 0; // MM_MODEM_GSM_NETWORK_REG_STATUS_IDLE;
+
+			if (dbus_message_iter_get_arg_type(&iter) != DBUS_TYPE_UINT32)
+				goto skip;
+			dbus_message_iter_get_basic(&iter, &status);
+
+			if (dbus_message_iter_get_arg_type(&iter) != DBUS_TYPE_STRING)
+				goto skip;
+			dbus_message_iter_get_basic(&iter, &oper_code);
+
+			if (dbus_message_iter_get_arg_type(&iter) != DBUS_TYPE_STRING)
+				goto skip;
+			dbus_message_iter_get_basic(&iter, &oper_name);
+
+			ni_trace("%s: reg info changed: status=%u, operator=%s (%s)", object_path, 
+					status, oper_code, oper_name);
+
+skip:
+			modem->gsm.reg_status = status;
+			ni_string_dup(&modem->gsm.operator_code, oper_code);
+			ni_string_dup(&modem->gsm.operator_name, oper_name);
+		}
 	} else {
-		ni_debug_wireless("%s signal received (not handled)", member);
+		ni_debug_objectmodel("%s signal received (not handled)", member);
 	}
-	(void) modem_manager;
 }
