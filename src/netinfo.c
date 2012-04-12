@@ -31,10 +31,12 @@
 #include "appconfig.h"
 #include "xml-schema.h"
 #include "sysfs.h"
+#include "modem-manager.h"
 
 struct ni_netconfig {
 	ni_netdev_t *		interfaces;
 	struct ni_route *	routes;		/* should kill this */
+	ni_modem_t *		modems;
 
 	unsigned char		ibft_nics_init;
 	ni_ibft_nic_array_t	ibft_nics;
@@ -268,6 +270,29 @@ ni_netconfig_device_remove(ni_netconfig_t *nc, ni_netdev_t *dev)
 			return;
 		}
 	}
+}
+
+/*
+ * Manage the list of modem devices
+ */
+ni_modem_t *
+ni_netconfig_modem_list(ni_netconfig_t *nc)
+{
+	return nc->modems;
+}
+
+void
+ni_netconfig_modem_append(ni_netconfig_t *nc, ni_modem_t *modem)
+{
+	ni_modem_t **tail;
+
+	ni_assert(!modem->list.prev && !modem->list.next);
+	tail = &nc->modems;
+	while (*tail)
+		tail = &(*tail)->list.next;
+
+	modem->list.prev = tail;
+	*tail = modem;
 }
 
 /*

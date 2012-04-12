@@ -17,6 +17,8 @@ extern dbus_bool_t		ni_objectmodel_create_initial_objects(ni_dbus_server_t *);
 extern ni_dbus_object_t *	ni_objectmodel_register_interface(ni_dbus_server_t *, ni_netdev_t *ifp,
 					const ni_dbus_class_t *override_class);
 extern dbus_bool_t		ni_objectmodel_unregister_interface(ni_dbus_server_t *, ni_netdev_t *ifp);
+extern ni_dbus_object_t *	ni_objectmodel_register_modem(ni_dbus_server_t *, ni_modem_t *);
+extern dbus_bool_t		ni_objectmodel_unregister_modem(ni_dbus_server_t *, ni_modem_t *);
 extern int			ni_objectmodel_bind_extensions(void);
 extern void			ni_objectmodel_register_class(const ni_dbus_class_t *);
 extern const ni_dbus_class_t *	ni_objectmodel_get_class(const char *);
@@ -26,6 +28,9 @@ extern ni_dbus_class_t *	ni_objectmodel_class_new(const char *, const ni_dbus_cl
 #define NI_OBJECTMODEL_NETIF_LIST_CLASS		"netif-list"
 #define NI_OBJECTMODEL_NETIF_REQUEST_CLASS	"netif-request"
 #define NI_OBJECTMODEL_ADDRCONF_REQUEST_CLASS	"addrconf-request"
+#define NI_OBJECTMODEL_MODEM_CLASS		"modem"
+#define NI_OBJECTMODEL_MODEM_PROXY_CLASS	"modem-proxy"
+#define NI_OBJECTMODEL_MODEM_LIST_CLASS		"modem-proxy-list"
 
 #define NI_OBJECTMODEL_DBUS_BUS_NAME		"com.suse.Wicked"
 #define NI_OBJECTMODEL_DBUS_BUS_NAME_DHCP4	"com.suse.Wicked.DHCP4"
@@ -44,6 +49,8 @@ extern ni_dbus_class_t *	ni_objectmodel_class_new(const char *, const ni_dbus_cl
 #define NI_OBJECTMODEL_PPP_INTERFACE		NI_OBJECTMODEL_INTERFACE ".PPP"
 #define NI_OBJECTMODEL_DHCP4_INTERFACE		NI_OBJECTMODEL_INTERFACE ".DHCP4"
 #define NI_OBJECTMODEL_AUTO4_INTERFACE		NI_OBJECTMODEL_INTERFACE ".AUTO4"
+#define NI_OBJECTMODEL_MODEM_LIST_INTERFACE	NI_OBJECTMODEL_INTERFACE ".ModemList"
+#define NI_OBJECTMODEL_MODEM_INTERFACE		NI_OBJECTMODEL_INTERFACE ".Modem"
 
 /*
  * Signals emitted by addrconf services
@@ -69,6 +76,7 @@ extern ni_dbus_object_t *	ni_objectmodel_wrap_interface(ni_netdev_t *ifp);
 extern ni_netdev_t *		ni_objectmodel_unwrap_interface(const ni_dbus_object_t *, DBusError *);
 
 extern dbus_bool_t		ni_objectmodel_interface_event(ni_dbus_server_t *, ni_netdev_t *, ni_event_t, const ni_uuid_t *);
+extern dbus_bool_t		ni_objectmodel_modem_event(ni_dbus_server_t *, ni_modem_t *, ni_event_t, const ni_uuid_t *);
 
 extern dbus_bool_t		ni_objectmodel_marshal_interface_request(const ni_netdev_req_t *, ni_dbus_variant_t *, DBusError *);
 extern dbus_bool_t		ni_objectmodel_unmarshal_interface_request(ni_netdev_req_t *, const ni_dbus_variant_t *, DBusError *);

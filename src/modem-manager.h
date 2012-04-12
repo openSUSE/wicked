@@ -2,13 +2,13 @@
 #ifndef __WICKED_MODEM_MANAGER_H__
 #define __WICKED_MODEM_MANAGER_H__
 
-typedef struct ni_modem ni_modem_t;
+#include <wicked/modem.h>
 
-ni_bool_t		ni_modem_manager_init(void);
+extern const char *		ni_objectmodel_modem_get_classname(ni_modem_type_t);
+extern const ni_dbus_class_t *	ni_objectmodel_modem_get_class(ni_modem_type_t);
 
-extern ni_modem_t *	ni_modem_new(void);
-extern ni_modem_t *	ni_modem_hold(ni_modem_t *);
-extern void		ni_modem_release(ni_modem_t *);
+extern const char *		ni_objectmodel_modem_get_proxy_classname(ni_modem_type_t);
+extern const ni_dbus_class_t *	ni_objectmodel_modem_get_proxy_class(ni_modem_type_t);
 
 #endif /* __WICKED_MODEM_MANAGER_H__ */
 

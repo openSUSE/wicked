@@ -90,6 +90,7 @@ __LIBSRCS= \
 	  dbus-objects/bonding.c \
 	  dbus-objects/tun.c \
 	  dbus-objects/openvpn.c \
+	  dbus-objects/modem.c \
 	  dbus-objects/addrconf.c \
 	  dbus-objects/misc.c \
 	  dbus-objects/naming.c \

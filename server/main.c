@@ -26,6 +26,7 @@
 #include <wicked/wicked.h>
 #include <wicked/socket.h>
 #include <wicked/objectmodel.h>
+#include <wicked/modem.h>
 
 enum {
 	OPT_CONFIGFILE,
@@ -58,9 +59,7 @@ static void		wicked_interface_server(void);
 static void		wicked_discover_state(void);
 static void		wicked_try_restart_addrconf(ni_netdev_t *, ni_afinfo_t *, unsigned int);
 static void		wicked_interface_event(ni_netconfig_t *, ni_netdev_t *, ni_event_t);
-
-/* HACK FIXME */
-extern ni_bool_t	ni_modem_manager_init(void);
+static void		wicked_modem_event(ni_modem_t *, ni_event_t);
 
 int
 main(int argc, char **argv)
@@ -143,6 +142,11 @@ wicked_interface_server(void)
 	if (!wicked_dbus_server)
 		ni_fatal("Cannot create server, giving up.");
 
+	if (!opt_no_modem_manager) {
+		if (!ni_modem_manager_init(wicked_modem_event))
+			ni_error("unable to initialize modem manager client");
+	}
+
 	wicked_dbus_xml_schema = ni_objectmodel_init(wicked_dbus_server);
 	if (wicked_dbus_xml_schema == NULL)
 		ni_fatal("Cannot initialize objectmodel, giving up.");
@@ -150,11 +154,6 @@ wicked_interface_server(void)
 	/* open global RTNL socket to listen for kernel events */
 	if (ni_server_listen_events(wicked_interface_event) < 0)
 		ni_fatal("unable to initialize netlink listener");
-
-	if (!opt_no_modem_manager) {
-		if (!ni_modem_manager_init())
-			ni_error("unable to initialize modem manager client");
-	}
 
 	if (!opt_foreground) {
 		if (ni_server_background() < 0)
@@ -185,6 +184,7 @@ wicked_discover_state(void)
 {
 	ni_netconfig_t *nc;
 	ni_netdev_t *ifp;
+	ni_modem_t *modem;
 
 	nc = ni_global_state_handle(1);
 	if (nc == NULL)
@@ -204,6 +204,9 @@ wicked_discover_state(void)
 	if (wicked_dbus_server) {
 		for (ifp = ni_netconfig_devlist(nc); ifp; ifp = ifp->next)
 			ni_objectmodel_register_interface(wicked_dbus_server, ifp, NULL);
+
+		for (modem = ni_netconfig_modem_list(nc); modem; modem = modem->list.next)
+			ni_objectmodel_register_modem(wicked_dbus_server, modem);
 	}
 }
 
@@ -278,14 +281,6 @@ wicked_try_restart_addrconf(ni_netdev_t *ifp, ni_afinfo_t *afi, unsigned int mod
 void
 wicked_interface_event(ni_netconfig_t *nc, ni_netdev_t *ifp, ni_event_t event)
 {
-	static const char *evtype[__NI_EVENT_MAX] =  {
-		[NI_EVENT_LINK_CREATE]	= "link-create",
-		[NI_EVENT_LINK_DELETE]	= "link-delete",
-		[NI_EVENT_LINK_UP]	= "link-up",
-		[NI_EVENT_LINK_DOWN]	= "link-down",
-		[NI_EVENT_NETWORK_UP]	= "network-up",
-		[NI_EVENT_NETWORK_DOWN]	= "network-down",
-	};
 	ni_uuid_t *event_uuid = NULL;
 
 	if (wicked_dbus_server) {
@@ -313,18 +308,28 @@ wicked_interface_event(ni_netconfig_t *nc, ni_netdev_t *ifp, ni_event_t event)
 			break;
 		}
 	}
+}
 
-	if (event >= __NI_EVENT_MAX || !evtype[event])
-		return;
+/*
+ * Modem event - device was plugged
+ */
+static void
+wicked_modem_event(ni_modem_t *modem, ni_event_t event)
+{
+	ni_debug_events("%s(%s, %s)", __func__, ni_event_type_to_name(event), modem->real_path);
+	if (wicked_dbus_server) {
+		switch (event) {
+		case NI_EVENT_LINK_CREATE:
+			/* Create dbus object and emit event */
+			ni_objectmodel_register_modem(wicked_dbus_server, modem);
+			break;
 
-#if 0
-	ni_policy_t *policy;
+		case NI_EVENT_LINK_DELETE:
+			/* Delete dbus object and emit event */
+			ni_objectmodel_unregister_modem(wicked_dbus_server, modem);
+			break;
 
-	ni_debug_events("%s: %s event", ifp->name, evtype[event]);
-	policy = ni_policy_match_event(nc, event, ifp);
-	if (policy != NULL) {
-		ni_debug_events("matched interface policy; configuring device");
-		//ni_interface_configure2(nc, ifp, policy->interface);
+		default: ;
+		}
 	}
-#endif
 }

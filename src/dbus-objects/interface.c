@@ -186,8 +186,9 @@ ni_objectmodel_netif_list_refresh(ni_dbus_object_t *object)
 
 /*
  * General dbus object lookup
+ * FIXME: move this to model.c
  */
-static ni_dbus_object_t *
+ni_dbus_object_t *
 ni_objectmodel_resolve_name(ni_dbus_object_t *parent, const char *naming_service, const char *attribute, const ni_dbus_variant_t *var)
 {
 	ni_dbus_object_t *result = NULL;

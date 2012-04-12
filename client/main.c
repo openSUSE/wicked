@@ -168,35 +168,59 @@ main(int argc, char **argv)
 }
 
 /*
- * Obtain an object handle for Wicked.Interface
+ * Obtain an object handle, generic version
  */
-ni_dbus_object_t *
-wicked_get_interface_object(const char *default_interface)
+static ni_dbus_object_t *
+__wicked_get_proxy_object(const ni_dbus_service_t *service, const char *relative_path)
 {
-	static const ni_dbus_class_t *netif_list_class = NULL;
 	ni_dbus_object_t *root_object, *child;
 
 	if (!(root_object = ni_call_create_client()))
 		return NULL;
 
-	if (netif_list_class == NULL) {
-		const ni_dbus_service_t *netif_list_service;
-
-		netif_list_service = ni_objectmodel_service_by_name(NI_OBJECTMODEL_NETIFLIST_INTERFACE);
-		ni_assert(netif_list_service);
-
-		netif_list_class = netif_list_service->compatible;
-	}
-
-	child = ni_dbus_object_create(root_object, "Interface",
-			netif_list_class,
-			NULL);
-
-	if (!default_interface)
-		default_interface = NI_OBJECTMODEL_NETIFLIST_INTERFACE;
-	ni_dbus_object_set_default_interface(child, default_interface);
+	child = ni_dbus_object_create(root_object, relative_path, service->compatible, NULL);
+	ni_dbus_object_set_default_interface(child, service->name);
 
 	return child;
+}
+
+/*
+ * Obtain an object handle for Wicked.Interface
+ */
+ni_dbus_object_t *
+wicked_get_interface_object(const char *default_interface)
+{
+	static const ni_dbus_service_t *netif_list_service;
+	ni_dbus_object_t *list_object;
+
+	if (netif_list_service == NULL) {
+		netif_list_service = ni_objectmodel_service_by_name(NI_OBJECTMODEL_NETIFLIST_INTERFACE);
+		ni_assert(netif_list_service);
+	}
+
+	list_object = __wicked_get_proxy_object(netif_list_service, "Interface");
+
+	if (default_interface)
+		ni_dbus_object_set_default_interface(list_object, default_interface);
+	return list_object;
+}
+
+/*
+ * Obtain an object handle for Wicked.Modem
+ */
+ni_dbus_object_t *
+wicked_get_modem_object(void)
+{
+	static const ni_dbus_service_t *modem_list_service;
+	ni_dbus_object_t *list_object;
+
+	if (modem_list_service == NULL) {
+		modem_list_service = ni_objectmodel_service_by_name(NI_OBJECTMODEL_MODEM_LIST_INTERFACE);
+		ni_assert(modem_list_service);
+	}
+
+	list_object = __wicked_get_proxy_object(modem_list_service, "Modem");
+	return list_object;
 }
 
 /*
@@ -371,16 +395,18 @@ __dump_schema_xml(const ni_dbus_variant_t *variant, ni_xs_scope_t *schema)
 int
 do_show_xml(int argc, char **argv)
 {
-	enum  { OPT_RAW, };
+	enum  { OPT_RAW, OPT_MODEMS, };
 	static struct option local_options[] = {
 		{ "raw", no_argument, NULL, OPT_RAW },
+		{ "modem", no_argument, NULL, OPT_MODEMS },
 		{ NULL }
 	};
-	ni_dbus_object_t *iflist, *object;
+	ni_dbus_object_t *list_object, *object;
 	ni_dbus_variant_t result = NI_DBUS_VARIANT_INIT;
 	DBusError error = DBUS_ERROR_INIT;
 	const char *ifname = NULL;
 	int opt_raw = 0;
+	int opt_modems = 0;
 	int c, rv = 1;
 
 	optind = 1;
@@ -388,6 +414,10 @@ do_show_xml(int argc, char **argv)
 		switch (c) {
 		case OPT_RAW:
 			opt_raw = 1;
+			break;
+
+		case OPT_MODEMS:
+			opt_modems = 1;
 			break;
 
 		default:
@@ -412,10 +442,15 @@ do_show_xml(int argc, char **argv)
 	if (!(object = ni_call_create_client()))
 		return 1;
 
-	if (!(iflist = wicked_get_interface_object(NULL)))
-		goto out;
+	if (!opt_modems) {
+		if (!(list_object = wicked_get_interface_object(NULL)))
+			goto out;
+	} else {
+		if (!(list_object = wicked_get_modem_object()))
+			goto out;
+	}
 
-	if (!ni_dbus_object_call_variant(iflist,
+	if (!ni_dbus_object_call_variant(list_object,
 			"org.freedesktop.DBus.ObjectManager", "GetManagedObjects",
 			0, NULL,
 			1, &result, &error)) {

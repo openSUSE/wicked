@@ -43,64 +43,22 @@ struct ni_modem_manager_client {
 	ni_dbus_object_t *	proxy;
 };
 
-typedef enum ni_modem_type {
-	MM_MODEM_TYPE_UNKNOWN = 0,
-	MM_MODEM_TYPE_GSM = 1,
-	MM_MODEM_TYPE_CDMA = 2,
-} ni_modem_type_t;
+extern void			ni_objectmodel_register_modem_classes(void);
+extern ni_modem_t *		ni_objectmodel_modem_unwrap(const ni_dbus_object_t *, DBusError *);
 
-typedef enum ni_modem_ipmethod {
-	MM_MODEM_IP_METHOD_PPP = 0,
-	MM_MODEM_IP_METHOD_STATIC = 1,
-	MM_MODEM_IP_METHOD_DHCP = 2,
-} ni_modem_ipmethod_t;
-
-struct ni_modem {
-	unsigned int		refcount;
-	char *			device;
-	char *			master_device;
-	char *			driver;
-	ni_modem_type_t		type;
-	ni_modem_ipmethod_t	ip_config_method;
-	dbus_bool_t		enabled;
-
-	struct {
-		char *		device;
-		char *		equipment;
-	} identify;
-
-	struct {
-		char *		required;
-		uint32_t	retries;
-	} unlock;
-
-	struct {
-		char *		imei;
-		uint32_t	supported_bands;
-		uint32_t	supported_modes;
-	} gsm;
-};
-
-static void			ni_objectmodel_modem_destroy(ni_dbus_object_t *);
-static ni_modem_t *		ni_objectmodel_modem_unwrap(const ni_dbus_object_t *, DBusError *);
 static void			ni_modem_manager_add_modem(ni_modem_manager_client_t *modem_manager, const char *object_path);
 static void			ni_modem_manager_signal(ni_dbus_connection_t *, ni_dbus_message_t *, void *);
+static void			ni_modem_unlink(ni_modem_t *);
 
 static ni_dbus_class_t		ni_objectmodel_modem_manager_class = {
 	.name		= "modem-manager"
 };
-static ni_dbus_class_t		ni_objectmodel_modem_class = {
-	.name		= "modem",
-	.destroy	= ni_objectmodel_modem_destroy,
-};
-static ni_dbus_class_t		ni_objectmodel_gsm_modem_class = {
-	.name		= "gsm-modem",
-	.superclass	= &ni_objectmodel_modem_class,
-};
+static const ni_dbus_class_t *	ni_objectmodel_modem_class_ptr;
 static ni_dbus_service_t	ni_objectmodel_modem_service;
 static ni_dbus_service_t	ni_objectmodel_gsm_modem_service;
 
 static ni_modem_manager_client_t *ni_modem_manager_client;
+static void			(*ni_modem_manager_event_handler)(ni_modem_t *, ni_event_t);
 
 static ni_intmap_t	__ni_modem_manager_error_names[] = {
 	{ "org.freedesktop.ModemManager.Modem.SerialSendfailed",	NI_ERROR_PERMISSION_DENIED },
@@ -190,7 +148,7 @@ done:
 }
 
 ni_bool_t
-ni_modem_manager_init(void)
+ni_modem_manager_init(void (*event_handler)(ni_modem_t *, ni_event_t))
 {
 	if (!ni_modem_manager_client) {
 		ni_modem_manager_client_t *client;
@@ -199,8 +157,12 @@ ni_modem_manager_init(void)
 		if (!client)
 			return FALSE;
 
-		ni_objectmodel_register_service(&ni_objectmodel_modem_service);
-		ni_objectmodel_register_service(&ni_objectmodel_gsm_modem_service);
+		ni_objectmodel_register_modem_classes();
+
+		ni_objectmodel_modem_class_ptr = ni_objectmodel_get_class(NI_OBJECTMODEL_MODEM_CLASS);
+
+		ni_objectmodel_modem_service.compatible = ni_objectmodel_modem_class_ptr;
+		ni_objectmodel_gsm_modem_service.compatible = ni_objectmodel_modem_get_class(MM_MODEM_TYPE_GSM);
 
 		if (!ni_modem_manager_enumerate(client)) {
 			ni_modem_manager_client_free(client);
@@ -210,7 +172,57 @@ ni_modem_manager_init(void)
 		ni_modem_manager_client = client;
 	}
 
+	ni_modem_manager_event_handler = event_handler;
+
 	return TRUE;
+}
+
+const char *
+ni_objectmodel_modem_get_classname(ni_modem_type_t type)
+{
+	switch (type) {
+	case MM_MODEM_TYPE_GSM:
+		return "modem-gsm";
+
+	case MM_MODEM_TYPE_CDMA:
+		return "modem-cdma";
+
+	default: ;
+	}
+
+	return NULL;
+}
+
+const ni_dbus_class_t *
+ni_objectmodel_modem_get_class(ni_modem_type_t type)
+{
+	const char *classname;
+
+	if ((classname = ni_objectmodel_modem_get_classname(type)) == NULL)
+		return NULL;
+	return ni_objectmodel_get_class(classname);
+}
+
+const char *
+ni_objectmodel_modem_get_proxy_classname(ni_modem_type_t type)
+{
+	static char proxyname[64];
+	const char *classname;
+
+	if ((classname = ni_objectmodel_modem_get_classname(type)) == NULL)
+		return NULL;
+	snprintf(proxyname, sizeof(proxyname), "%s-proxy", classname);
+	return proxyname;
+}
+
+const ni_dbus_class_t *
+ni_objectmodel_modem_get_proxy_class(ni_modem_type_t type)
+{
+	const char *classname;
+
+	if ((classname = ni_objectmodel_modem_get_proxy_classname(type)) == NULL)
+		return NULL;
+	return ni_objectmodel_get_class(classname);
 }
 
 static void
@@ -219,6 +231,7 @@ ni_modem_manager_add_modem(ni_modem_manager_client_t *modem_manager, const char 
 	DBusError error = DBUS_ERROR_INIT;
 	ni_dbus_object_t *modem_object;
 	const char *relative_path;
+	const ni_dbus_class_t *class;
 	ni_modem_t *modem;
 
 	ni_debug_dbus("%s(%s)", __func__, object_path);
@@ -228,9 +241,10 @@ ni_modem_manager_add_modem(ni_modem_manager_client_t *modem_manager, const char 
 	}
 
 	modem = ni_modem_new();
+	ni_string_dup(&modem->real_path, object_path);
 
 	/* Create the DBus client object for this modem. */
-	modem_object = ni_dbus_object_create(modem_manager->proxy, relative_path, &ni_objectmodel_modem_class, modem);
+	modem_object = ni_dbus_object_create(modem_manager->proxy, relative_path, ni_objectmodel_modem_class_ptr, modem);
 	if (modem_object == NULL) {
 		ni_modem_release(modem);
 		return;
@@ -245,24 +259,22 @@ ni_modem_manager_add_modem(ni_modem_manager_client_t *modem_manager, const char 
 	}
 
 	/* Override the dbus class of this object */
-	switch (modem->type) {
-	case MM_MODEM_TYPE_GSM:
-		modem_object->class = &ni_objectmodel_gsm_modem_class;
-		break;
-
-#ifdef notyet
-	case MM_MODEM_TYPE_CDMA:
-		modem_object->class = &ni_objectmodel_cdma_modem_class;
-		break;
-#endif
-
-	default: ;
-	}
+	if ((class = ni_objectmodel_modem_get_class(modem->type)) != NULL)
+		modem_object->class = class;
 
 	ni_debug_dbus("%s: dev=%s master=%s type=%u equipment-id=%s",
 			object_path, modem->device, modem->master_device, modem->type,
 			modem->identify.equipment);
 	ni_objectmodel_bind_compatible_interfaces(modem_object);
+
+	{
+		ni_netconfig_t *nc = ni_global_state_handle(0);
+
+		ni_netconfig_modem_append(nc, modem);
+	}
+
+	if (ni_modem_manager_event_handler)
+		ni_modem_manager_event_handler(modem, NI_EVENT_LINK_CREATE);
 }
 
 static void
@@ -270,6 +282,7 @@ ni_modem_manager_remove_modem(ni_modem_manager_client_t *modem_manager, const ch
 {
 	ni_dbus_object_t *modem_object;
 	const char *relative_path;
+	ni_modem_t *modem;
 
 	ni_debug_dbus("%s(%s)", __func__, object_path);
 	if ((relative_path = ni_dbus_object_get_relative_path(modem_manager->proxy, object_path)) == NULL) {
@@ -281,6 +294,12 @@ ni_modem_manager_remove_modem(ni_modem_manager_client_t *modem_manager, const ch
 	if (modem_object == NULL) {
 		ni_warn("%s: spurious remove event, cannot find object \"%s\"", __func__, object_path);
 		return;
+	}
+
+	if ((modem = ni_objectmodel_modem_unwrap(modem_object, NULL)) != NULL) {
+		if (ni_modem_manager_event_handler)
+			ni_modem_manager_event_handler(modem, NI_EVENT_LINK_DELETE);
+		ni_modem_unlink(modem);
 	}
 
 	ni_dbus_object_free(modem_object);
@@ -310,6 +329,7 @@ ni_modem_free(ni_modem_t *modem)
 	ni_string_free(&modem->identify.device);
 	ni_string_free(&modem->identify.equipment);
 	ni_string_free(&modem->gsm.imei);
+	ni_modem_unlink(modem);
 	free(modem);
 }
 
@@ -329,41 +349,24 @@ ni_modem_release(ni_modem_t *modem)
 		ni_modem_free(modem);
 }
 
-
 /*
- * Destructor function for a modem object.
- * This function is used both for ModemManager client objects
- * referencing a modem, as well as Wicked server side objects
- * presenting a modem to wicked clients.
+ * Remove the modem from the linked list attached to ni_netconfig_t
  */
-static void
-ni_objectmodel_modem_destroy(ni_dbus_object_t *object)
+void
+ni_modem_unlink(ni_modem_t *modem)
 {
-	ni_modem_t *modem;
+	ni_modem_t **prev = modem->list.prev;
+	ni_modem_t *next = modem->list.next;
 
-	if ((modem = ni_objectmodel_modem_unwrap(object, NULL)) != NULL) {
-		object->handle = NULL;
-		ni_modem_release(modem);
-	}
+	if (prev)
+		*prev = next;
+	if (next)
+		next->list.prev = prev;
+
+	modem->list.prev = NULL;
+	modem->list.next = NULL;
 }
 
-/*
- * Given a DBus object, make sure it represents a modem, and obtain the
- * modem object
- */
-static ni_modem_t *
-ni_objectmodel_modem_unwrap(const ni_dbus_object_t *object, DBusError *error)
-{
-	ni_modem_t *modem = object->handle;
-
-	if (ni_dbus_object_isa(object, &ni_objectmodel_modem_class))
-		return modem;
-	if (error)
-		dbus_set_error(error, DBUS_ERROR_FAILED,
-			"method not compatible with object %s of class %s (not a modem device)",
-			object->path, object->class->name);
-	return NULL;
-}
 
 /*
  * Properties for org.freedesktop.ModemManager.Modem
@@ -399,7 +402,7 @@ const ni_dbus_property_t        ni_objectmodel_modem_property_table[] = {
 
 static ni_dbus_service_t	ni_objectmodel_modem_service = {
 	.name		= NI_MM_MODEM_IF,
-	.compatible	= &ni_objectmodel_modem_class,
+	.compatible	= NULL,		/* will be filled in later */
 	.properties	= ni_objectmodel_modem_property_table,
 };
 
@@ -411,7 +414,7 @@ const ni_dbus_property_t        ni_objectmodel_gsm_modem_property_table[] = {
 
 static ni_dbus_service_t	ni_objectmodel_gsm_modem_service = {
 	.name		= NI_MM_GSM_CARD_IF,
-	.compatible	= &ni_objectmodel_gsm_modem_class,
+	.compatible	= NULL,		/* will be filled in later */
 	.properties	= ni_objectmodel_gsm_modem_property_table,
 };
 

@@ -160,6 +160,8 @@ extern void		ni_netconfig_init(ni_netconfig_t *);
 extern void		ni_netconfig_destroy(ni_netconfig_t *);
 extern ni_netdev_t *	ni_netconfig_devlist(ni_netconfig_t *nic);
 
+extern ni_modem_t *	ni_netconfig_modem_list(ni_netconfig_t *);
+
 extern ni_netconfig_t *	ni_global_state_handle(int);
 
 
