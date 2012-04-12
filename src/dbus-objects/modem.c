@@ -171,7 +171,7 @@ __ni_objectmodel_build_modem_object(ni_dbus_server_t *server, ni_modem_t *modem)
 	}
 
 	if (object == NULL)
-		ni_fatal("Unable to create proxy object for modem %s", modem->real_path);
+		ni_fatal("Unable to create proxy object for modem %s (%s)", modem->device, modem->real_path);
 
 	ni_objectmodel_bind_compatible_interfaces(object);
 	return object;
@@ -195,10 +195,10 @@ ni_objectmodel_unregister_modem(ni_dbus_server_t *server, ni_modem_t *modem)
 {
 	if (ni_dbus_server_unregister_object(server, modem)) {
 		ni_debug_dbus("unregistered modem %s", modem->real_path);
-		return 1;
+		return TRUE;
 	}
 
-	return 0;
+	return FALSE;
 }
 
 /*
@@ -348,7 +348,7 @@ ni_objectmodel_modem_change_device(ni_dbus_object_t *object, const ni_dbus_metho
 	if (!(modem = ni_objectmodel_modem_unwrap(object, error)))
 		return FALSE;
 
-	NI_TRACE_ENTER_ARGS("modem=%s", modem->real_path);
+	NI_TRACE_ENTER_ARGS("modem=%s", modem->device);
 
 	/* Create an interface_request object and extract configuration from dict */
 	if (!(config = __ni_objectmodel_get_modem_arg(&argv[0], &config_object)))
@@ -389,12 +389,15 @@ ni_objectmodel_modem_change_device(ni_dbus_object_t *object, const ni_dbus_metho
 		}
 	}
 
-#if 0
-	if ((rv = ni_modem_manager_connect(modem, config)) < 0) {
-		ni_dbus_set_error_from_code(error, rv, "failed to set up device");
-		goto failed;
+	if (modem->state >= MM_MODEM_STATE_REGISTERED) {
+		ret = TRUE;
+	} else {
+		/* Link is not associated yet. Tell the caller to wait for an event. */
+		if (ni_uuid_is_null(&modem->event_uuid))
+			ni_uuid_generate(&modem->event_uuid);
+		ret =  __ni_objectmodel_return_callback_info(reply, NI_EVENT_LINK_ASSOCIATED,
+				&modem->event_uuid, error);
 	}
-#endif
 
 	ret = TRUE;
 
@@ -419,7 +422,7 @@ ni_objectmodel_modem_connect(ni_dbus_object_t *object, const ni_dbus_method_t *m
 	if (!(modem = ni_objectmodel_modem_unwrap(object, error)))
 		return FALSE;
 
-	NI_TRACE_ENTER_ARGS("modem=%s", modem->real_path);
+	NI_TRACE_ENTER_ARGS("modem=%s", modem->device);
 
 	/* Create an interface_request object and extract configuration from dict */
 	if (!(config = __ni_objectmodel_get_modem_arg(&argv[0], &config_object)))
@@ -483,6 +486,32 @@ __ni_objectmodel_get_modem_arg(const ni_dbus_variant_t *dict, ni_dbus_object_t *
 
 	*ret_object = config_object;
 	return ni_objectmodel_modem_unwrap(config_object, NULL);
+}
+
+/*
+ * Broadcast a modem event
+ */
+dbus_bool_t
+ni_objectmodel_modem_event(ni_dbus_server_t *server, ni_modem_t *modem,
+			ni_event_t ifevent, const ni_uuid_t *uuid)
+{
+	ni_dbus_object_t *object;
+
+	if (ifevent >= __NI_EVENT_MAX)
+		return FALSE;
+
+	if (!server && !(server = __ni_objectmodel_server)) {
+		ni_error("%s: help! No dbus server handle! Cannot send signal.", __func__);
+		return FALSE;
+	}
+
+	object = ni_dbus_server_find_object_by_handle(server, modem);
+	if (object == NULL) {
+		ni_warn("no dbus object for modem %s. Cannot send signal", modem->device);
+		return FALSE;
+	}
+
+	return __ni_objectmodel_device_event(server, object, NI_OBJECTMODEL_MODEM_INTERFACE, ifevent, uuid);
 }
 
 /*

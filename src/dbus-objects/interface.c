@@ -710,12 +710,12 @@ ni_objectmodel_interface_event(ni_dbus_server_t *server, ni_netdev_t *dev,
 		return FALSE;
 	}
 
-	return __ni_objectmodel_interface_event(server, object, ifevent, uuid);
+	return __ni_objectmodel_device_event(server, object, NI_OBJECTMODEL_NETIF_INTERFACE, ifevent, uuid);
 }
 
 dbus_bool_t
-__ni_objectmodel_interface_event(ni_dbus_server_t *server, ni_dbus_object_t *object,
-			ni_event_t ifevent, const ni_uuid_t *uuid)
+__ni_objectmodel_device_event(ni_dbus_server_t *server, ni_dbus_object_t *object,
+			const char *interface, ni_event_t ifevent, const ni_uuid_t *uuid)
 {
 	ni_dbus_variant_t arg = NI_DBUS_VARIANT_INIT;
 	const char *signal_name = NULL;
@@ -736,8 +736,8 @@ __ni_objectmodel_interface_event(ni_dbus_server_t *server, ni_dbus_object_t *obj
 		argc++;
 	}
 
-	ni_debug_dbus("sending interface event \"%s\" for %s", signal_name, ni_dbus_object_get_path(object));
-	ni_dbus_server_send_signal(server, object, NI_OBJECTMODEL_NETIF_INTERFACE, signal_name, argc, &arg);
+	ni_debug_dbus("sending device event \"%s\" for %s", signal_name, ni_dbus_object_get_path(object));
+	ni_dbus_server_send_signal(server, object, interface, signal_name, argc, &arg);
 
 	ni_dbus_variant_destroy(&arg);
 	return TRUE;
