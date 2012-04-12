@@ -365,7 +365,7 @@ ni_objectmodel_modem_change_device(ni_dbus_object_t *object, const ni_dbus_metho
 	}
 
 	/* See if we have the PIN required to unlock this modem */
-	if (modem->unlock.required) {
+	if (!ni_string_empty(modem->unlock.required)) {
 		ni_modem_pin_t *pin;
 
 		if ((pin = ni_modem_get_pin(modem, modem->unlock.required)) == NULL) {
@@ -380,6 +380,9 @@ ni_objectmodel_modem_change_device(ni_dbus_object_t *object, const ni_dbus_metho
 			ni_dbus_set_error_from_code(error, rv, "failed to unlock device");
 			goto failed;
 		}
+	}
+
+	if (!modem->enabled) {
 	}
 
 #if 0
@@ -561,6 +564,7 @@ __ni_objectmodel_modem_set_auth(ni_dbus_object_t *object,
 	__NI_DBUS_PROPERTY(signature, __name, __ni_objectmodel_modem, rw)
 
 static ni_dbus_property_t	ni_objectmodel_modem_properties[] = {
+	MODEM_STRING_PROPERTY(device, device, RO),
 	MODEM_STRING_PROPERTY(real-path, real_path, RO),
 	MODEM_STRING_PROPERTY(unlock-required, unlock.required, RO),
 

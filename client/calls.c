@@ -78,13 +78,19 @@ ni_call_create_client(void)
 static void
 __ni_call_build_dict(ni_dbus_variant_t *dict, const xml_node_t *query)
 {
+	if (!ni_dbus_variant_is_dict(dict)) {
+		ni_error("%s: bad: argument is not a dict", __func__);
+		return;
+	}
+
 	if (query->cdata) {
 		ni_dbus_dict_add_string(dict, query->name, query->cdata);
 	} else if (query->children) {
 		const xml_node_t *attr;
 
 		dict = ni_dbus_dict_add(dict, query->name);
-		for (attr = query; attr; attr = attr->next)
+		ni_dbus_variant_init_dict(dict);
+		for (attr = query->children; attr; attr = attr->next)
 			__ni_call_build_dict(dict, attr);
 	} else {
 		ni_warn("ni_call_identify_device: empty query attribute %s (%s)",
@@ -114,31 +120,30 @@ __ni_call_build_dict(ni_dbus_variant_t *dict, const xml_node_t *query)
  * This approach can also be used to make all the udev renaming obsolete that
  * is done on system z, or with biosdevname.
  */
-char *
-ni_call_identify_device(const xml_node_t *query)
+static char *
+__ni_call_identify_device(ni_dbus_object_t *list_object, const xml_node_t *query)
 {
 	ni_dbus_variant_t argument = NI_DBUS_VARIANT_INIT;
 	ni_dbus_variant_t result = NI_DBUS_VARIANT_INIT;
 	DBusError error = DBUS_ERROR_INIT;
-	ni_dbus_object_t *object;
 	char *object_path = NULL;
 
-	if (!(object = wicked_get_interface_object(NI_OBJECTMODEL_NETIFLIST_INTERFACE))) {
-		ni_error("unable to create proxy object for %s", NI_OBJECTMODEL_NETIFLIST_INTERFACE);
+	if (list_object == NULL) {
+		ni_error("no proxy object for device list");
 		return NULL;
 	}
 
 	ni_dbus_variant_init_dict(&argument);
 	__ni_call_build_dict(&argument, query);
 
-	if (ni_dbus_object_call_variant(object, NULL, "identifyDevice",
+	if (ni_dbus_object_call_variant(list_object, NULL, "identifyDevice",
 						1, &argument, 1, &result, &error)) {
 		const char *response;
 
 		/* extract device object path from reply */
 		if (!ni_dbus_variant_get_string(&result, &response)) {
 			ni_error("identifyDevice(%s): succeeded but didn't return interface name", query->name);
-	} else {
+		} else {
 			ni_string_dup(&object_path, response);
 		}
 	}
@@ -147,6 +152,18 @@ ni_call_identify_device(const xml_node_t *query)
 	ni_dbus_variant_destroy(&result);
 	dbus_error_free(&error);
 	return object_path;
+}
+
+char *
+ni_call_identify_device(const xml_node_t *query)
+{
+	return __ni_call_identify_device(wicked_get_interface_object(NULL), query);
+}
+
+char *
+ni_call_identify_modem(const xml_node_t *query)
+{
+	return __ni_call_identify_device(wicked_get_modem_object(), query);
 }
 
 /*

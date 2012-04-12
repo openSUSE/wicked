@@ -200,8 +200,9 @@ wicked_get_interface_object(const char *default_interface)
 
 	list_object = __wicked_get_proxy_object(netif_list_service, "Interface");
 
-	if (default_interface)
-		ni_dbus_object_set_default_interface(list_object, default_interface);
+	if (default_interface == NULL)
+		default_interface = netif_list_service->name;
+	ni_dbus_object_set_default_interface(list_object, default_interface);
 	return list_object;
 }
 

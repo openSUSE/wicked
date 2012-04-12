@@ -21,9 +21,11 @@ extern xml_node_t *		ni_call_error_context_get_node(ni_call_error_context_t *, c
 extern int			ni_call_error_context_get_retries(ni_call_error_context_t *, const DBusError *);
 
 extern ni_dbus_object_t *	wicked_get_interface_object(const char *);
+extern ni_dbus_object_t *	wicked_get_modem_object(void);
 
 extern ni_dbus_object_t *	ni_call_create_client(void);
 extern char *			ni_call_identify_device(const xml_node_t *query);
+extern char *			ni_call_identify_modem(const xml_node_t *query);
 extern char *			ni_call_device_new_xml(const ni_dbus_service_t *, const char *, xml_node_t *);
 extern int			ni_call_common_xml(ni_dbus_object_t *,
 					const ni_dbus_service_t *, const ni_dbus_method_t *,

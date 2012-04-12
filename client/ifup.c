@@ -22,7 +22,7 @@
 #include <wicked/dbus.h>
 #include <wicked/objectmodel.h>
 #include <wicked/dbus-errors.h>
-#include <wicked/socket.h>
+#include <wicked/modem.h>
 #include <wicked/xpath.h>
 
 #include "wicked-client.h"
@@ -114,10 +114,16 @@ struct ni_netif_action {
 	} require;
 };
 
+typedef enum {
+	NI_IFWORKER_TYPE_NETDEV,
+	NI_IFWORKER_TYPE_MODEM,
+} ni_ifworker_type_t;
+
 struct ni_ifworker {
 	unsigned int		refcount;
 
 	char *			name;
+	ni_ifworker_type_t	type;
 
 	ni_dbus_object_t *	object;
 	char *			object_path;
@@ -134,7 +140,10 @@ struct ni_ifworker {
 				done		: 1;
 
 	xml_node_t *		config;
+
+	/* An ifworker can represent either a network device or a modem */
 	ni_netdev_t *		device;
+	ni_modem_t *		modem;
 
 	struct {
 		const ni_dbus_service_t *service;
@@ -176,21 +185,25 @@ static void			ni_ifworker_array_append(ni_ifworker_array_t *, ni_ifworker_t *);
 static int			ni_ifworker_array_index(const ni_ifworker_array_t *, const ni_ifworker_t *);
 static ni_ifworker_edge_t *	ni_ifworker_children_append(ni_ifworker_children_t *, ni_ifworker_t *, xml_node_t *);
 static void			ni_ifworker_children_destroy(ni_ifworker_children_t *);
-static ni_ifworker_t *		ni_ifworker_identify_device(const xml_node_t *);
+static ni_ifworker_t *		ni_ifworker_identify_device(const xml_node_t *, ni_ifworker_type_t);
 static void			ni_ifworker_set_dependencies_xml(ni_ifworker_t *, xml_node_t *);
 static void			ni_ifworker_fsm_init(ni_ifworker_t *, unsigned int, unsigned int);
 static int			ni_ifworker_fsm_bind_methods(ni_ifworker_t *);
 static ni_bool_t		ni_ifworker_req_check_reachable(ni_ifworker_t *, ni_ifworker_req_t *);
 static ni_bool_t		ni_ifworker_req_netif_resolve(ni_ifworker_t *, ni_ifworker_req_t *);
+static ni_bool_t		ni_ifworker_req_modem_resolve(ni_ifworker_t *, ni_ifworker_req_t *);
 //static void			ni_ifworker_req_free(ni_ifworker_req_t *);
+static void			__ni_ifworker_refresh_netdevs(void);
+static void			__ni_ifworker_refresh_modems(void);
 
 static inline ni_ifworker_t *
-__ni_ifworker_new(const char *name, xml_node_t *config)
+__ni_ifworker_new(ni_ifworker_type_t type, const char *name, xml_node_t *config)
 {
 	ni_ifworker_t *w;
 
 	w = calloc(1, sizeof(*w));
 	ni_string_dup(&w->name, name);
+	w->type = type;
 	w->config = config;
 	w->refcount = 1;
 
@@ -201,11 +214,11 @@ __ni_ifworker_new(const char *name, xml_node_t *config)
 }
 
 static ni_ifworker_t *
-ni_ifworker_new(const char *name, xml_node_t *config)
+ni_ifworker_new(ni_ifworker_type_t type, const char *name, xml_node_t *config)
 {
 	ni_ifworker_t *worker;
 
-	worker = __ni_ifworker_new(name, config);
+	worker = __ni_ifworker_new(type, name, config);
 	ni_ifworker_array_append(&interface_workers, worker);
 	worker->refcount--;
 
@@ -233,6 +246,21 @@ ni_ifworker_release(ni_ifworker_t *state)
 		ni_ifworker_free(state);
 }
 
+static inline ni_bool_t
+ni_ifworker_device_bound(const ni_ifworker_t *w)
+{
+	switch (w->type) {
+	case NI_IFWORKER_TYPE_NETDEV:
+		return w->device != NULL;
+
+	case NI_IFWORKER_TYPE_MODEM:
+		return w->modem != NULL;
+
+	default:
+		return FALSE;
+	}
+}
+
 /*
  * constructor/destructor for dependency objects
  */
@@ -247,6 +275,9 @@ ni_ifworker_req_new(const char *check, xml_node_t *node, ni_ifworker_req_t **lis
 	} else
 	if (ni_string_eq(check, "netif-resolve")) {
 		fn = ni_ifworker_req_netif_resolve;
+	} else
+	if (ni_string_eq(check, "modem-resolve")) {
+		fn = ni_ifworker_req_modem_resolve;
 	}
 
 	if (fn == NULL) {
@@ -444,7 +475,7 @@ ni_ifworker_array_destroy(ni_ifworker_array_t *array)
 }
 
 static ni_ifworker_t *
-ni_ifworker_array_find(ni_ifworker_array_t *array, const char *ifname)
+ni_ifworker_array_find(ni_ifworker_array_t *array, ni_ifworker_type_t type, const char *ifname)
 {
 	unsigned int i;
 
@@ -461,9 +492,9 @@ ni_ifworker_array_find(ni_ifworker_array_t *array, const char *ifname)
 }
 
 static ni_ifworker_t *
-ni_ifworker_by_ifname(const char *ifname)
+ni_ifworker_lookup(ni_ifworker_type_t type, const char *ifname)
 {
-	return ni_ifworker_array_find(&interface_workers, ifname);
+	return ni_ifworker_array_find(&interface_workers, type, ifname);
 }
 
 static ni_ifworker_t *
@@ -507,6 +538,24 @@ ni_ifworker_by_netdev(const ni_netdev_t *dev)
 }
 
 static ni_ifworker_t *
+ni_ifworker_by_modem(const ni_modem_t *dev)
+{
+	unsigned int i;
+
+	if (dev == NULL)
+		return NULL;
+
+	for (i = 0; i < interface_workers.count; ++i) {
+		ni_ifworker_t *w = interface_workers.data[i];
+
+		if (w->name && ni_string_eq(dev->driver, w->name))
+			return w;
+	}
+
+	return NULL;
+}
+
+static ni_ifworker_t *
 ni_ifworker_by_alias(const char *alias)
 {
 	unsigned int i;
@@ -531,17 +580,17 @@ ni_ifworker_by_alias(const char *alias)
 }
 
 static ni_ifworker_t *
-ni_ifworker_resolve_reference(xml_node_t *devnode)
+ni_ifworker_resolve_reference(xml_node_t *devnode, ni_ifworker_type_t type)
 {
 	ni_ifworker_t *child;
 	const char *slave_name;
 
 	slave_name = devnode->cdata;
 	if (slave_name != NULL) {
-		child = ni_ifworker_array_find(&interface_workers, slave_name);
+		child = ni_ifworker_array_find(&interface_workers, type, slave_name);
 
 		if (child == NULL) {
-			ni_error("%s: <%s> element references unknown slave device %s",
+			ni_error("%s: <%s> element references unknown device %s",
 					xml_node_location(devnode),
 					devnode->name,
 					slave_name);
@@ -551,16 +600,16 @@ ni_ifworker_resolve_reference(xml_node_t *devnode)
 	if (devnode->children) {
 		/* Try to identify device based on attributes given in the
 		 * <device> node. */
-		child = ni_ifworker_identify_device(devnode);
+		child = ni_ifworker_identify_device(devnode, type);
 		if (child == NULL) {
-			ni_error("%s: <%s> element references unknown slave device",
+			ni_error("%s: <%s> element references unknown device",
 					xml_node_location(devnode),
 					devnode->name);
 			return NULL;
 		}
 
 		if (child->name == NULL) {
-			ni_warn("%s: <%s> element references slave device with no name",
+			ni_warn("%s: <%s> element references device with no name",
 					xml_node_location(devnode),
 					devnode->name);
 		}
@@ -765,22 +814,28 @@ ni_ifworkers_from_xml(xml_document_t *doc)
 
 	root = xml_document_root(doc);
 	for (ifnode = root->children; ifnode; ifnode = ifnode->next) {
+		ni_ifworker_type_t type;
 		const char *ifname = NULL;
 		xml_node_t *node, *depnode;
 		ni_ifworker_t *w;
 
-		if (!ifnode->name || strcmp(ifnode->name, "interface")) {
+		if (ni_string_eq(ifnode->name, "interface")) {
+			type = NI_IFWORKER_TYPE_NETDEV;
+		} else
+		if (ni_string_eq(ifnode->name, "modem")) {
+			type = NI_IFWORKER_TYPE_MODEM;
+		} else {
 			ni_warn("%s: ignoring non-interface element <%s>",
 					xml_node_location(ifnode),
 					ifnode->name);
 			continue;
 		}
 
-		if ((node = xml_node_get_child(ifnode, "name")) != NULL) {
+		if ((node = xml_node_get_child(ifnode, "name")) != NULL)
 			ifname = node->cdata;
-		} else
+
 		if ((node = xml_node_get_child(ifnode, "identify")) != NULL) {
-			w = ni_ifworker_identify_device(node);
+			w = ni_ifworker_identify_device(node, type);
 			if (w != NULL) {
 				ni_debug_application("%s: identified interface %s",
 						xml_node_location(node),
@@ -795,10 +850,10 @@ ni_ifworkers_from_xml(xml_document_t *doc)
 			continue;
 		}
 
-		if ((w = ni_ifworker_by_ifname(ifname)) != NULL)
+		if ((w = ni_ifworker_lookup(type, ifname)) != NULL)
 			w->config = ifnode;
 		else
-			w = ni_ifworker_new(ifname, ifnode);
+			w = ni_ifworker_new(type, ifname, ifnode);
 
 		if ((depnode = xml_node_get_child(ifnode, "dependencies")) != NULL)
 			ni_ifworker_set_dependencies_xml(w, depnode);
@@ -822,7 +877,26 @@ ni_ifworker_req_netif_resolve(ni_ifworker_t *w, ni_ifworker_req_t *req)
 	if (!(devnode = req->data))
 		return FALSE;
 
-	if (!(child_worker = ni_ifworker_resolve_reference(devnode)))
+	if (!(child_worker = ni_ifworker_resolve_reference(devnode, NI_IFWORKER_TYPE_NETDEV)))
+		return FALSE;
+
+	ni_debug_application("%s: resolved reference to subordinate device %s", w->name, child_worker->name);
+	if (!ni_ifworker_add_child(w, child_worker, devnode, FALSE))
+		return FALSE;
+
+	return TRUE;
+}
+
+static ni_bool_t
+ni_ifworker_req_modem_resolve(ni_ifworker_t *w, ni_ifworker_req_t *req)
+{
+	ni_ifworker_t *child_worker;
+	xml_node_t *devnode;
+
+	if (!(devnode = req->data))
+		return FALSE;
+
+	if (!(child_worker = ni_ifworker_resolve_reference(devnode, NI_IFWORKER_TYPE_MODEM)))
 		return FALSE;
 
 	ni_debug_application("%s: resolved reference to subordinate device %s", w->name, child_worker->name);
@@ -870,7 +944,7 @@ ni_ifworker_check_dependencies(ni_ifworker_t *w, ni_iftransition_t *action)
  * System z etc.
  */
 static ni_ifworker_t *
-ni_ifworker_identify_device(const xml_node_t *devnode)
+ni_ifworker_identify_device(const xml_node_t *devnode, ni_ifworker_type_t type)
 {
 	ni_ifworker_t *best = NULL;
 	xml_node_t *attr;
@@ -881,9 +955,20 @@ ni_ifworker_identify_device(const xml_node_t *devnode)
 		if (!strcmp(attr->name, "alias")) {
 			found = ni_ifworker_by_alias(attr->cdata);
 		} else {
-			char *object_path;
+			char *object_path = NULL;
 
-			object_path = ni_call_identify_device(attr);
+			switch (type) {
+			case NI_IFWORKER_TYPE_NETDEV:
+				object_path = ni_call_identify_device(attr);
+				break;
+
+			case NI_IFWORKER_TYPE_MODEM:
+				object_path = ni_call_identify_modem(attr);
+				break;
+
+			default: ;
+			}
+
 			if (object_path)
 				found = ni_ifworker_by_object_path(object_path);
 			ni_string_free(&object_path);
@@ -929,6 +1014,8 @@ ni_ifworker_get_matching(ni_ifmatcher_t *match, ni_ifworker_array_t *result)
 	for (i = 0; i < interface_workers.count; ++i) {
 		ni_ifworker_t *w = interface_workers.data[i];
 
+		if (w->type != NI_IFWORKER_TYPE_NETDEV)
+			continue;
 		if (w->config == NULL && match->require_config)
 			continue;
 		if (w->exclusive_owner)
@@ -1343,7 +1430,20 @@ ni_ifworker_netif_resolve_cb(xml_node_t *node, const ni_xs_type_t *type, const x
 		if (ni_string_eq(mchild->name, "netif-reference")) {
 			ni_bool_t shared = FALSE;
 
-			if (!(child_worker = ni_ifworker_resolve_reference(node)))
+			if (!(child_worker = ni_ifworker_resolve_reference(node, NI_IFWORKER_TYPE_NETDEV)))
+				return FALSE;
+
+			if ((attr = xml_node_get_attr(mchild, "shared")) != NULL)
+				shared = ni_string_eq(attr, "true");
+
+			ni_debug_application("%s: resolved reference to subordinate device %s", w->name, child_worker->name);
+			if (!(edge = ni_ifworker_add_child(w, child_worker, node, shared)))
+				return FALSE;
+		} else
+		if (ni_string_eq(mchild->name, "modem-reference")) {
+			ni_bool_t shared = FALSE;
+
+			if (!(child_worker = ni_ifworker_resolve_reference(node, NI_IFWORKER_TYPE_MODEM)))
 				return FALSE;
 
 			if ((attr = xml_node_get_attr(mchild, "shared")) != NULL)
@@ -1432,17 +1532,8 @@ __ni_ifworker_print_tree(const char *arrow, const ni_ifworker_t *w, const char *
 void
 ni_ifworkers_refresh_state(void)
 {
-	static ni_dbus_object_t *iflist = NULL;
-	ni_dbus_object_t *object;
 	ni_ifworker_t *w;
 	unsigned int i;
-
-	if (!iflist && !(iflist = wicked_get_interface_object(NULL)))
-		ni_fatal("unable to get server's interface list");
-
-	/* Call ObjectManager.GetManagedObjects to get list of objects and their properties */
-	if (!ni_dbus_object_refresh_children(iflist))
-		ni_fatal("Couldn't refresh list of active network interfaces");
 
 	for (i = 0; i < interface_workers.count; ++i) {
 		ni_netdev_t *dev;
@@ -1463,7 +1554,31 @@ ni_ifworkers_refresh_state(void)
 		}
 	}
 
-	for (object = iflist->children; object; object = object->next) {
+	__ni_ifworker_refresh_netdevs();
+	__ni_ifworker_refresh_modems();
+
+	for (i = 0; i < interface_workers.count; ++i) {
+		w = interface_workers.data[i];
+
+		if (w->object == NULL)
+			ni_ifworker_update_state(w, STATE_NONE, STATE_DEVICE_DOWN);
+	}
+}
+
+static void
+__ni_ifworker_refresh_netdevs(void)
+{
+	static ni_dbus_object_t *list_object = NULL;
+	ni_dbus_object_t *object;
+
+	if (!list_object && !(list_object = wicked_get_interface_object(NULL)))
+		ni_fatal("unable to get server's interface list");
+
+	/* Call ObjectManager.GetManagedObjects to get list of objects and their properties */
+	if (!ni_dbus_object_refresh_children(list_object))
+		ni_fatal("Couldn't refresh list of active network interfaces");
+
+	for (object = list_object->children; object; object = object->next) {
 		ni_netdev_t *dev = ni_objectmodel_unwrap_interface(object, NULL);
 		ni_ifworker_t *found = NULL;
 
@@ -1475,7 +1590,7 @@ ni_ifworkers_refresh_state(void)
 			found = ni_ifworker_by_object_path(object->path);
 		if (!found) {
 			ni_debug_application("received new device %s (%s)", dev->name, object->path);
-			found = ni_ifworker_new(dev->name, NULL);
+			found = ni_ifworker_new(NI_IFWORKER_TYPE_NETDEV, dev->name, NULL);
 		}
 
 		/* Don't touch devices we're done with */
@@ -1494,12 +1609,47 @@ ni_ifworkers_refresh_state(void)
 		else
 			ni_ifworker_update_state(found, 0, STATE_DEVICE_UP);
 	}
+}
 
-	for (i = 0; i < interface_workers.count; ++i) {
-		w = interface_workers.data[i];
+static void
+__ni_ifworker_refresh_modems(void)
+{
+	static ni_dbus_object_t *list_object = NULL;
+	ni_dbus_object_t *object;
 
-		if (w->object == NULL)
-			ni_ifworker_update_state(w, STATE_NONE, STATE_DEVICE_DOWN);
+	if (!list_object && !(list_object = wicked_get_modem_object()))
+		ni_fatal("unable to get server's modem list");
+
+	/* Call ObjectManager.GetManagedObjects to get list of objects and their properties */
+	if (!ni_dbus_object_refresh_children(list_object))
+		ni_fatal("Couldn't refresh list of available modems");
+
+	for (object = list_object->children; object; object = object->next) {
+		ni_modem_t *modem = ni_objectmodel_modem_unwrap(object, NULL);
+		ni_ifworker_t *found = NULL;
+
+		if (modem == NULL || modem->device == NULL)
+			continue;
+
+		found = ni_ifworker_by_modem(modem);
+		if (!found)
+			found = ni_ifworker_by_object_path(object->path);
+		if (!found) {
+			ni_debug_application("received new modem %s (%s)", modem->device, object->path);
+			found = ni_ifworker_new(NI_IFWORKER_TYPE_MODEM, modem->device, NULL);
+		}
+
+		/* Don't touch devices we're done with */
+		if (found->done)
+			continue;
+
+		if (!found->object_path)
+			ni_string_dup(&found->object_path, object->path);
+		if (!found->modem)
+			found->modem = ni_modem_hold(modem);
+		found->object = object;
+
+		ni_ifworker_update_state(found, STATE_DEVICE_EXISTS, __STATE_MAX);
 	}
 }
 
@@ -1978,6 +2128,7 @@ ni_ifworker_do_common(ni_ifworker_t *w, ni_iftransition_t *action)
 	if (w->wait_for != NULL)
 		return 0;
 
+	ni_trace("%s: setting worker state to %s", __func__, ni_ifworker_state_name(action->next_state));
 	w->state = action->next_state;
 	return 0;
 }
@@ -2021,7 +2172,7 @@ ni_ifworker_bind_device_factory(ni_ifworker_t *w, ni_iftransition_t *action)
 static int
 ni_ifworker_call_device_factory(ni_ifworker_t *w, ni_iftransition_t *action)
 {
-	if (w->device == NULL) {
+	if (!ni_ifworker_device_bound(w)) {
 		struct ni_netif_action_binding *bind;
 		const char *relative_path;
 		char *object_path;
@@ -2067,6 +2218,7 @@ ni_ifworker_call_device_factory(ni_ifworker_t *w, ni_iftransition_t *action)
 		ni_ifworker_fsm_bind_methods(w);
 	}
 
+	ni_trace("%s: setting worker state to %s", __func__, ni_ifworker_state_name(action->next_state));
 	w->state = action->next_state;
 	return 0;
 }
@@ -2482,7 +2634,7 @@ ni_ifworkers_kickstart(void)
 			 */
 		}
 
-		if (w->device == NULL)
+		if (!ni_ifworker_device_bound(w))
 			w->state = STATE_DEVICE_DOWN;
 	}
 
