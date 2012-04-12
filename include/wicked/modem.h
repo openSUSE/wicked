@@ -43,6 +43,21 @@ typedef enum ni_modem_gsm_access_tech {
 	MM_MODEM_GSM_ACCESS_TECH_HSPA = 8,		/* HSPA (ETSI 27.007: "UTRAN w/HSDPA and HSUPA") */
 } ni_modem_gsm_access_tech_t;
 
+typedef enum ni_modem_state {
+	MM_MODEM_STATE_UNKNOWN = 0,
+	MM_MODEM_STATE_DISABLED = 10,
+	MM_MODEM_STATE_DISABLING = 20,
+	MM_MODEM_STATE_ENABLING = 30,
+	MM_MODEM_STATE_ENABLED = 40,
+	MM_MODEM_STATE_SEARCHING = 50,
+	MM_MODEM_STATE_REGISTERED = 60,
+	MM_MODEM_STATE_DISCONNECTING = 70,
+	MM_MODEM_STATE_CONNECTING = 80,
+	MM_MODEM_STATE_CONNECTED = 90,
+
+	__MM_MODEM_STATE_MAX
+} ni_modem_state_t;
+
 /* We may want to turn this into a more generic type and
  * use it elsewhere, too */
 typedef struct ni_modem_pin {
@@ -67,8 +82,12 @@ struct ni_modem {
 	char *			master_device;
 	char *			driver;
 	ni_modem_type_t		type;
+	ni_modem_state_t	state;
 	ni_modem_ipmethod_t	ip_config_method;
 	dbus_bool_t		enabled;
+
+	/* The uuid of a pending event */
+	ni_uuid_t		event_uuid;
 
 	struct {
 		char *		device;
@@ -92,9 +111,14 @@ struct ni_modem {
 		ni_modem_gsm_allowed_mode_t allowed_mode;	/* Gsm.Network.AllowedMode */
 		ni_modem_gsm_access_tech_t selected_mode;	/* Gsm.Network.AccessTechnology */
 	} gsm;
+
+	struct {
+		char *		number;				/* the phone number to call */
+	} pots;
 };
 
-extern ni_bool_t	ni_modem_manager_init(void (*event_handler)(ni_modem_t *, ni_event_t));
+typedef void		ni_modem_manager_event_handler_fn_t(ni_modem_t *, ni_event_t);
+extern ni_bool_t	ni_modem_manager_init(ni_modem_manager_event_handler_fn_t *);
 
 extern ni_modem_t *	ni_modem_new(void);
 extern ni_modem_t *	ni_modem_hold(ni_modem_t *);

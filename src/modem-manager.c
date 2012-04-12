@@ -25,10 +25,11 @@
 #include "dbus-objects/model.h"
 #include "modem-manager.h"
 
-#define NI_MM_SIGNAL_DEVICE_ADDED "DeviceAdded"
-#define NI_MM_SIGNAL_DEVICE_REMOVED "DeviceRemoved"
-#define NI_MM_SIGNAL_SIGNAL_QUALITY "SignalQuality"
-#define NI_MM_SIGNAL_REGISTRATION_INFO "RegistrationInfo"
+#define NI_MM_SIGNAL_DEVICE_ADDED	"DeviceAdded"
+#define NI_MM_SIGNAL_DEVICE_REMOVED	"DeviceRemoved"
+#define NI_MM_SIGNAL_STATE_CHANGED	"StateChanged"
+#define NI_MM_SIGNAL_SIGNAL_QUALITY	"SignalQuality"
+#define NI_MM_SIGNAL_REGISTRATION_INFO	"RegistrationInfo"
 
 #define NI_MM_BUS_NAME		"org.freedesktop.ModemManager"
 #define NI_MM_OBJECT_PATH	"/org/freedesktop/ModemManager"
@@ -60,7 +61,7 @@ static ni_dbus_service_t	ni_objectmodel_modem_service;
 static ni_dbus_service_t	ni_objectmodel_gsm_modem_service;
 
 static ni_modem_manager_client_t *ni_modem_manager_client;
-static void			(*ni_modem_manager_event_handler)(ni_modem_t *, ni_event_t);
+static ni_modem_manager_event_handler_fn_t *ni_modem_manager_event_handler;
 
 static ni_intmap_t	__ni_modem_manager_error_names[] = {
 	{ "org.freedesktop.ModemManager.Modem.SerialSendfailed",	NI_ERROR_PERMISSION_DENIED },
@@ -158,7 +159,7 @@ done:
 }
 
 ni_bool_t
-ni_modem_manager_init(void (*event_handler)(ni_modem_t *, ni_event_t))
+ni_modem_manager_init(ni_modem_manager_event_handler_fn_t *event_handler)
 {
 	if (!ni_modem_manager_client) {
 		ni_modem_manager_client_t *client;
@@ -439,6 +440,7 @@ ni_modem_free(ni_modem_t *modem)
 	ni_string_free(&modem->gsm.imei);
 	ni_string_free(&modem->gsm.operator_code);
 	ni_string_free(&modem->gsm.operator_name);
+	ni_string_free(&modem->pots.number);
 	ni_modem_unlink(modem);
 
 	if (modem->unlock.auth) {
@@ -570,6 +572,7 @@ const ni_dbus_property_t        ni_objectmodel_modem_property_table[] = {
 	MODEM_BOOL_PROPERTY(Enabled, enabled, RO),
 	MODEM_UINT_PROPERTY(Type, type, RO),
 	MODEM_UINT_PROPERTY(IpMethod, ip_config_method, RO),
+	MODEM_UINT_PROPERTY(State, state, RO),
 	{ NULL }
 };
 
@@ -626,7 +629,7 @@ ni_modem_manager_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg, void
 		}
 	} else
 	if (!strcmp(member, NI_MM_SIGNAL_SIGNAL_QUALITY)) {
-		const char *object_path = dbus_message_get_sender(msg);
+		const char *object_path = dbus_message_get_path(msg);
 		ni_modem_t *modem;
 
 		if ((modem = ni_modem_manager_get_modem(modem_manager, object_path)) == NULL) {
@@ -646,7 +649,7 @@ ni_modem_manager_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg, void
 		}
 	} else
 	if (!strcmp(member, NI_MM_SIGNAL_REGISTRATION_INFO)) {
-		const char *object_path = dbus_message_get_sender(msg);
+		const char *object_path = dbus_message_get_path(msg);
 		ni_modem_t *modem;
 
 		if ((modem = ni_modem_manager_get_modem(modem_manager, object_path)) == NULL) {
@@ -677,7 +680,49 @@ skip:
 			ni_string_dup(&modem->gsm.operator_code, oper_code);
 			ni_string_dup(&modem->gsm.operator_name, oper_name);
 		}
+	} else
+	if (!strcmp(member, NI_MM_SIGNAL_STATE_CHANGED)) {
+		const char *object_path = dbus_message_get_path(msg);
+		ni_modem_t *modem;
+
+		if ((modem = ni_modem_manager_get_modem(modem_manager, object_path)) == NULL) {
+			ni_error("%s: cannot handle event %s for modem object \"%s\", bad path",
+					__func__, member, object_path);
+			return;
+		} else {
+			uint32_t value[3]; /* oldState, newState, reason */
+			uint32_t old_state, new_state;
+			unsigned int i;
+
+			for (i = 0; i < 3; ++i) {
+				if (dbus_message_iter_get_arg_type(&iter) != DBUS_TYPE_UINT32)
+					goto bad_params;
+				dbus_message_iter_get_basic(&iter, &value[i]);
+			}
+
+			old_state = value[0];
+			new_state = value[1];
+
+			ni_trace("%s: state changed: %u -> %u", object_path, old_state, new_state);
+
+			if (ni_modem_manager_event_handler) {
+				if (modem->state < MM_MODEM_STATE_REGISTERED && new_state >= MM_MODEM_STATE_REGISTERED)
+					ni_modem_manager_event_handler(modem, NI_EVENT_LINK_ASSOCIATED);
+				else
+				if (modem->state >= MM_MODEM_STATE_REGISTERED && new_state < MM_MODEM_STATE_REGISTERED)
+					ni_modem_manager_event_handler(modem, NI_EVENT_LINK_ASSOCIATION_LOST);
+				memset(&modem->event_uuid, 0, sizeof(modem->event_uuid));
+			}
+
+			modem->state = new_state;
+		}
 	} else {
 		ni_debug_objectmodel("%s signal received (not handled)", member);
 	}
+
+	return;
+
+bad_params:
+	ni_error("%s: cannot handle event %s; bad parameters", __func__, member);
+	return;
 }
