@@ -15,6 +15,7 @@
 #include <wicked/dbus-errors.h>
 #include <wicked/ethernet.h>
 #include <wicked/ibft.h>
+#include <wicked/modem.h>
 #include "dbus-common.h"
 #include "model.h"
 #include "appconfig.h"
@@ -144,6 +145,32 @@ static ni_objectmodel_ns_t ni_objectmodel_ether_ns = {
 };
 
 /*
+ * Match modem devices
+ */
+static dbus_bool_t
+ni_objectmodel_modem_match_attr(const ni_dbus_object_t *object, const char *name, const char *value)
+{
+	ni_modem_t *modem;
+
+	if (!(modem = ni_objectmodel_modem_unwrap(object, NULL)))
+		return FALSE;
+
+	if (!strcmp(name, "equipment-id"))
+		return ni_string_eq(modem->identify.equipment, value);
+
+	if (!strcmp(name, "device"))
+		return ni_string_eq(modem->identify.device, value);
+
+	ni_warn("%s: unsupported query attribute %s", __func__, name);
+	return FALSE;
+}
+
+static ni_objectmodel_ns_t ni_objectmodel_modem_ns = {
+	.name		= "modem",
+	.match_attr	= ni_objectmodel_modem_match_attr,
+};
+
+/*
  * The ibft naming service just uses the node name (ethernetX)
  */
 static ni_dbus_object_t *
@@ -169,4 +196,5 @@ ni_objectmodel_register_ns_builtin(void)
 {
 	ni_objectmodel_register_ns(&ni_objectmodel_ether_ns);
 	ni_objectmodel_register_ns(&ni_objectmodel_ibft_ns);
+	ni_objectmodel_register_ns(&ni_objectmodel_modem_ns);
 }
