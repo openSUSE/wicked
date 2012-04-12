@@ -14,6 +14,7 @@
 <include name="interface.xml"/>
 <include name="wireless.xml"/>
 <include name="modem.xml"/>
+<include name="ppp.xml"/>
 <include name="firewall.xml"/>
 <include name="addrconf.xml"/>
 <include name="openvpn.xml"/>

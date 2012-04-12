@@ -1,7 +1,9 @@
 <service name="modem" interface="com.suse.Wicked.Modem" object-class="modem-proxy">
   <define name="modem-pin" class="dict">
-    <kind type="string"/>
-    <value type="string"/>
+    <kind type="string" constraint="required"/>
+    <value type="string" constraint="required">
+      <meta:user-input type="password" prompt="Please enter GSM SIM PIN"/>
+    </value>
     <cache-lifetime type="uint32"/>
   </define>
 
@@ -14,7 +16,7 @@
   <method name="changeDevice">
     <arguments>
       <config type="properties">
-       <meta:mapping document-node="/modem" skip-unless-present="true" />
+       <meta:mapping document-node="//" skip-unless-present="true" />
       </config>
     </arguments>
   </method>
@@ -22,7 +24,7 @@
   <method name="linkUp">
     <arguments>
       <config type="properties">
-       <meta:mapping document-node="/modem" skip-unless-present="true" />
+       <meta:mapping document-node="//" skip-unless-present="true" />
       </config>
     </arguments>
   </method>

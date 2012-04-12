@@ -1,0 +1,38 @@
+<!--
+  -- PPP Service definition
+  -->
+<service name="ppp" interface="com.suse.Wicked.PPP" object-class="netif-ppp">
+
+ <!-- This is the linkinfo returned in interface reports -->
+ <define name="linkinfo" class="dict">
+  <device type="string" constraint="required">
+    <meta:modem-reference shared="true"/>
+    <meta:require check="netif-child-state" op="newDevice" min-state="device-up" />
+    <meta:require check="netif-child-state" op="linkUp" min-state="link-up"/>
+  </device>
+
+ </define>
+
+ <!-- the properties of a PPP device: -->
+ <define name="properties" type="linkinfo"/>
+
+ <method name="deleteDevice">
+   <!-- no arguments, no return code -->
+ </method>
+</service>
+
+<service name="ppp-factory" interface="com.suse.Wicked.PPP.Factory" object-class="netif-list">
+ <method name="newDevice">
+  <arguments>
+   <name type="string"/>
+   <config type="ppp:linkinfo">
+    <meta:mapping document-node="/ppp"/>
+   </config>
+  </arguments>
+  <return>
+   <!-- this is really an object handle -->
+   <string/>
+  </return>
+ </method>
+</service>
+
