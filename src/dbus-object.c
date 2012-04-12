@@ -653,10 +653,6 @@ __ni_dbus_object_get_one_property(const ni_dbus_object_t *object,
 	}
 
 	if (!property->get(object, property, var, error)) {
-		ni_debug_dbus("%s: unable to get property %s.%s",
-				object->path,
-				context,
-				property->name);
 		ni_dbus_variant_destroy(var);
 		return FALSE;
 	}
@@ -715,6 +711,10 @@ __ni_dbus_object_get_properties_as_dict(const ni_dbus_object_t *object,
 				/* just ignore this error */
 				dbus_error_free(error);
 			} else {
+				ni_debug_dbus("%s: unable to get property %s.%s",
+						object->path,
+						context,
+						property->name);
 				return FALSE;
 			}
 		}
@@ -869,6 +869,10 @@ ni_dbus_generic_property_get_string(const ni_dbus_object_t *obj, const ni_dbus_p
 		return FALSE;
 
 	vptr = __property_data(prop, handle, string);
+	if (*vptr == NULL) {
+		dbus_set_error(error, NI_DBUS_ERROR_PROPERTY_NOT_PRESENT, "property %s not present", prop->name);
+		return FALSE;
+	}
 	ni_dbus_variant_set_string(var, *vptr);
 	return TRUE;
 }
