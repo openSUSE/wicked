@@ -318,6 +318,8 @@ wicked_modem_event(ni_modem_t *modem, ni_event_t event)
 {
 	ni_debug_events("%s(%s, %s)", __func__, ni_event_type_to_name(event), modem->real_path);
 	if (wicked_dbus_server) {
+		ni_uuid_t *event_uuid = NULL;
+
 		switch (event) {
 		case NI_EVENT_LINK_CREATE:
 			/* Create dbus object and emit event */
@@ -329,7 +331,17 @@ wicked_modem_event(ni_modem_t *modem, ni_event_t event)
 			ni_objectmodel_unregister_modem(wicked_dbus_server, modem);
 			break;
 
-		default: ;
+		case NI_EVENT_LINK_ASSOCIATED:
+		case NI_EVENT_LINK_ASSOCIATION_LOST:
+		case NI_EVENT_LINK_UP:
+		case NI_EVENT_LINK_DOWN:
+			if (!ni_uuid_is_null(&modem->event_uuid))
+				event_uuid = &modem->event_uuid;
+			/* fallthru */
+
+		default:
+			ni_objectmodel_modem_event(wicked_dbus_server, modem, event, event_uuid);
+			break;
 		}
 	}
 }
