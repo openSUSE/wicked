@@ -667,25 +667,10 @@ ni_dbus_object_get_vtable(const ni_dbus_object_t *dummy)
 /*
  * Find an object given its internal handle
  */
-static ni_dbus_object_t *
-__ni_dbus_server_find_object_by_handle(ni_dbus_object_t *parent, const void *object_handle)
-{
-	ni_dbus_object_t *object, *found = NULL;
-
-	for (object = parent->children; object && !found; object = object->next) {
-		if (object->handle == object_handle)
-			found = object;
-		else
-			found = __ni_dbus_server_find_object_by_handle(object, object_handle);
-	}
-
-	return found;
-}
-
 ni_dbus_object_t *
 ni_dbus_server_find_object_by_handle(ni_dbus_server_t *server, const void *object_handle)
 {
-	return __ni_dbus_server_find_object_by_handle(server->root_object, object_handle);
+	return ni_dbus_object_find_descendant_by_handle(server->root_object, object_handle);
 }
 
 /*

@@ -194,6 +194,7 @@ extern ni_dbus_object_t *	ni_dbus_object_create(ni_dbus_object_t *root_object,
 					const ni_dbus_class_t *class,
 					void *handle);
 extern ni_dbus_object_t *	ni_dbus_object_lookup(ni_dbus_object_t *root_object, const char *path);
+extern ni_dbus_object_t *	ni_dbus_object_find_descendant_by_handle(const ni_dbus_object_t *, const void *);
 extern dbus_bool_t		ni_dbus_object_isa(const ni_dbus_object_t *, const ni_dbus_class_t *);
 extern dbus_bool_t		ni_dbus_object_register_service(ni_dbus_object_t *object,
 					const ni_dbus_service_t *);

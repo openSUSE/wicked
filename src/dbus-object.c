@@ -260,6 +260,24 @@ ni_dbus_object_lookup(ni_dbus_object_t *root_object, const char *path)
 }
 
 /*
+ * Find an object given its internal handle
+ */
+ni_dbus_object_t *
+ni_dbus_object_find_descendant_by_handle(const ni_dbus_object_t *parent, const void *object_handle)
+{
+	ni_dbus_object_t *object, *found = NULL;
+
+	for (object = parent->children; object && !found; object = object->next) {
+		if (object->handle == object_handle)
+			found = object;
+		else
+			found = ni_dbus_object_find_descendant_by_handle(object, object_handle);
+	}
+
+	return found;
+}
+
+/*
  * Look up an object interface by name
  */
 const ni_dbus_service_t *
