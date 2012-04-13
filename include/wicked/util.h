@@ -174,6 +174,14 @@ ni_string_eq(const char *a, const char *b)
 }
 
 static inline ni_bool_t
+ni_string_eq_nocase(const char *a, const char *b)
+{
+	if (a == NULL || b == NULL)
+		return a == b;
+	return strcasecmp(a, b) == 0;
+}
+
+static inline ni_bool_t
 ni_string_empty(const char *s)
 {
 	return s == NULL || *s == '\0';
