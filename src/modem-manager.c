@@ -663,14 +663,17 @@ ni_modem_manager_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg, void
 			if (dbus_message_iter_get_arg_type(&iter) != DBUS_TYPE_UINT32)
 				goto skip;
 			dbus_message_iter_get_basic(&iter, &status);
+			dbus_message_iter_next(&iter);
 
 			if (dbus_message_iter_get_arg_type(&iter) != DBUS_TYPE_STRING)
 				goto skip;
 			dbus_message_iter_get_basic(&iter, &oper_code);
+			dbus_message_iter_next(&iter);
 
 			if (dbus_message_iter_get_arg_type(&iter) != DBUS_TYPE_STRING)
 				goto skip;
 			dbus_message_iter_get_basic(&iter, &oper_name);
+			dbus_message_iter_next(&iter);
 
 			ni_trace("%s: reg info changed: status=%u, operator=%s (%s)", object_path, 
 					status, oper_code, oper_name);
@@ -698,6 +701,7 @@ skip:
 				if (dbus_message_iter_get_arg_type(&iter) != DBUS_TYPE_UINT32)
 					goto bad_params;
 				dbus_message_iter_get_basic(&iter, &value[i]);
+				dbus_message_iter_next(&iter);
 			}
 
 			old_state = value[0];
