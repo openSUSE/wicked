@@ -90,6 +90,10 @@ struct ni_modem {
 	ni_uuid_t		event_uuid;
 
 	struct {
+		char *		manufacturer;
+		char *		model;
+		char *		version;
+
 		char *		device;
 		char *		equipment;
 	} identify;

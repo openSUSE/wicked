@@ -202,6 +202,36 @@ __ni_modem_manager_object(const ni_modem_t *modem)
 }
 
 /*
+ * Get modem information - manufacturer, model, version
+ */
+int
+ni_modem_manager_get_info(ni_modem_t *modem, ni_dbus_object_t *modem_object)
+{
+	DBusError error = DBUS_ERROR_INIT;
+	ni_dbus_variant_t result;
+	int rv = 0;
+
+	ni_trace("%s(%s)", __func__, modem_object->path);
+	if (!ni_dbus_object_call_variant(modem_object,
+				NI_MM_MODEM_IF, "GetInfo",
+				0, NULL, 1, &result, &error)) {
+		rv = ni_dbus_get_error(&error, NULL);
+	} else {
+		const char *string;
+
+		if (ni_dbus_struct_get_string(&result, 0, &string))
+			ni_string_dup(&modem->identify.manufacturer, string);
+		if (ni_dbus_struct_get_string(&result, 1, &string))
+			ni_string_dup(&modem->identify.model, string);
+		if (ni_dbus_struct_get_string(&result, 2, &string))
+			ni_string_dup(&modem->identify.version, string);
+	}
+
+	ni_dbus_variant_destroy(&result);
+	return rv;
+}
+
+/*
  * Unlock the modem
  */
 int
@@ -278,6 +308,9 @@ ni_modem_manager_connect(ni_modem_t *modem, const ni_modem_t *config)
 	if (pin)
 		ni_dbus_dict_add_string(&dict, "pin", pin->value);
 
+	/* FIXME: this call blocks until it managed to connect.
+	 * Turn this into an async call and assign an adequate timeout.
+	 */
 	if (!ni_dbus_object_call_variant(modem_object,
 				NI_MM_MODEM_SIMPLE_IF, "Connect",
 				1, &dict, 0, NULL, &error)) {
@@ -285,6 +318,7 @@ ni_modem_manager_connect(ni_modem_t *modem, const ni_modem_t *config)
 		return ni_dbus_get_error(&error, NULL);
 	}
 
+	ni_dbus_variant_destroy(&dict);
 	return 0;
 }
 
@@ -378,6 +412,9 @@ ni_modem_manager_add_modem(ni_modem_manager_client_t *modem_manager, const char 
 		return;
 	}
 
+	if (ni_modem_manager_get_info(modem, modem_object) < 0)
+		ni_error("Cannot obtain model info for modem (%s)", object_path);
+
 	/* Override the dbus class of this object */
 	if ((class = ni_objectmodel_modem_get_class(modem->type)) != NULL)
 		modem_object->class = class;
@@ -461,6 +498,9 @@ ni_modem_free(ni_modem_t *modem)
 	ni_string_free(&modem->master_device);
 	ni_string_free(&modem->driver);
 	ni_string_free(&modem->unlock.required);
+	ni_string_free(&modem->identify.manufacturer);
+	ni_string_free(&modem->identify.model);
+	ni_string_free(&modem->identify.version);
 	ni_string_free(&modem->identify.device);
 	ni_string_free(&modem->identify.equipment);
 	ni_string_free(&modem->gsm.imei);
