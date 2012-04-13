@@ -148,21 +148,31 @@ static ni_objectmodel_ns_t ni_objectmodel_ether_ns = {
  * Match modem devices
  */
 static dbus_bool_t
-ni_objectmodel_modem_match_attr(const ni_dbus_object_t *object, const char *name, const char *value)
+ni_objectmodel_modem_match_attr(const ni_dbus_object_t *object, const char *name, const char *match)
 {
 	ni_modem_t *modem;
+	const char *value = NULL;
 
 	if (!(modem = ni_objectmodel_modem_unwrap(object, NULL)))
 		return FALSE;
 
 	if (!strcmp(name, "equipment-id"))
-		return ni_string_eq(modem->identify.equipment, value);
+		value = modem->identify.equipment;
+	else if (!strcmp(name, "device"))
+		value = modem->identify.device;
+	else if (!strcmp(name, "manufacturer"))
+		value = modem->identify.manufacturer;
+	else if (!strcmp(name, "model"))
+		value = modem->identify.model;
+	else if (!strcmp(name, "version"))
+		value = modem->identify.version;
+	else {
+		ni_warn("%s: unsupported query attribute %s", __func__, name);
+		return FALSE;
+	}
 
-	if (!strcmp(name, "device"))
-		return ni_string_eq(modem->identify.device, value);
-
-	ni_warn("%s: unsupported query attribute %s", __func__, name);
-	return FALSE;
+	ni_trace("%s(%s): match=\"%s\", value=\"%s\"", __func__, name, match, value);
+	return ni_string_eq_nocase(match, value);
 }
 
 static ni_objectmodel_ns_t ni_objectmodel_modem_ns = {
