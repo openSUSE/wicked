@@ -38,6 +38,7 @@
 #define NI_MM_MODEM_IF		"org.freedesktop.ModemManager.Modem"
 #define NI_MM_GSM_CARD_IF	"org.freedesktop.ModemManager.Modem.Gsm.Card"
 #define NI_MM_GSM_NETWORK_IF	"org.freedesktop.ModemManager.Modem.Gsm.Network"
+#define NI_MM_MODEM_SIMPLE_IF	"org.freedesktop.ModemManager.Modem.Simple"
 
 typedef struct ni_modem_manager_client ni_modem_manager_client_t;
 struct ni_modem_manager_client {
@@ -259,7 +260,32 @@ ni_modem_manager_enable(ni_modem_t *modem)
 int
 ni_modem_manager_connect(ni_modem_t *modem, const ni_modem_t *config)
 {
-	return -1;
+	DBusError error = DBUS_ERROR_INIT;
+	ni_dbus_variant_t dict = NI_DBUS_VARIANT_INIT;
+	ni_dbus_object_t *modem_object;
+	ni_modem_pin_t *pin = NULL;
+
+	if ((modem_object = __ni_modem_manager_object(modem)) == NULL)
+		return -NI_ERROR_INTERFACE_NOT_KNOWN;
+
+	if (!ni_string_empty(modem->unlock.required)) {
+		if ((pin = ni_modem_get_pin(modem, modem->unlock.required)) == NULL)
+			return -NI_ERROR_AUTH_INFO_MISSING;
+	}
+
+	ni_dbus_variant_init_dict(&dict);
+	ni_dbus_dict_add_string(&dict, "number", "*99#");
+	if (pin)
+		ni_dbus_dict_add_string(&dict, "pin", pin->value);
+
+	if (!ni_dbus_object_call_variant(modem_object,
+				NI_MM_MODEM_SIMPLE_IF, "Connect",
+				1, &dict, 0, NULL, &error)) {
+		ni_dbus_variant_destroy(&dict);
+		return ni_dbus_get_error(&error, NULL);
+	}
+
+	return 0;
 }
 
 int
