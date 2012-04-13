@@ -842,6 +842,11 @@ ni_dbus_variant_destroy(ni_dbus_variant_t *var)
 				ni_dbus_variant_destroy(&var->variant_array_value[i]);
 			free(var->variant_array_value);
 			break;
+		case DBUS_TYPE_STRUCT:
+			for (i = 0; i < var->array.len; ++i)
+				ni_dbus_variant_destroy(&var->struct_value[i]);
+			free(var->struct_value);
+			break;
 		default:
 			ni_warn("Don't know how to destroy this type of array");
 			break;
@@ -1536,6 +1541,39 @@ ni_dbus_dict_array_add(ni_dbus_variant_t *var)
 
 	ni_dbus_variant_init_dict(dst);
 	return dst;
+}
+
+ni_dbus_variant_t *
+ni_dbus_struct_add(ni_dbus_variant_t *var)
+{
+	ni_dbus_variant_t *dst;
+
+	if (var->type != DBUS_TYPE_STRUCT)
+		return NULL;
+
+	__ni_dbus_array_grow(var, sizeof(ni_dbus_variant_t), 1);
+	dst = &var->struct_value[var->array.len++];
+
+	return dst;
+}
+
+ni_dbus_variant_t *
+ni_dbus_struct_get(ni_dbus_variant_t *var, unsigned int index)
+{
+	if (var->type != DBUS_TYPE_STRUCT || index >= var->array.len)
+		return NULL;
+
+	return &var->struct_value[index];
+}
+
+dbus_bool_t
+ni_dbus_struct_get_string(ni_dbus_variant_t *var, unsigned int index, const char **result)
+{
+	ni_dbus_variant_t *member;
+
+	if (!(member = ni_dbus_struct_get(var, index)))
+		return FALSE;
+	return ni_dbus_variant_get_string(member, result);
 }
 
 /*

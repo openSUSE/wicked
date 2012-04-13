@@ -408,6 +408,32 @@ ni_dbus_message_iter_get_array(DBusMessageIter *iter, ni_dbus_variant_t *variant
 	return success;
 }
 
+static dbus_bool_t
+ni_dbus_message_iter_get_struct(DBusMessageIter *iter, ni_dbus_variant_t *variant)
+{
+	DBusMessageIter iter_struct;
+	int type;
+
+	if (!variant)
+		return FALSE;
+
+	dbus_message_iter_recurse(iter, &iter_struct);
+
+	while ((type = dbus_message_iter_get_arg_type(&iter_struct)) != 0) {
+		ni_dbus_variant_t *member;
+
+		member = ni_dbus_struct_add(variant);
+		if (!member)
+			return FALSE;
+
+		if (!ni_dbus_message_iter_get_variant_data(&iter_struct, member))
+			return FALSE;
+		dbus_message_iter_next(&iter_struct);
+	}
+
+	return TRUE;
+}
+
 
 dbus_bool_t
 ni_dbus_message_iter_get_variant_data(DBusMessageIter *iter, ni_dbus_variant_t *variant)
@@ -428,8 +454,12 @@ ni_dbus_message_iter_get_variant_data(DBusMessageIter *iter, ni_dbus_variant_t *
 	} else if (variant->type == DBUS_TYPE_ARRAY) {
 		if (!ni_dbus_message_iter_get_array(iter, variant))
 			return FALSE;
+	} else if (variant->type == DBUS_TYPE_STRUCT) {
+		if (!ni_dbus_message_iter_get_struct(iter, variant))
+			return FALSE;
 	} else {
 		/* FIXME: need to handle other types here */
+		ni_debug_dbus("%s: cannot handle message with %c data", __func__, variant->type);
 		return FALSE;
 	}
 

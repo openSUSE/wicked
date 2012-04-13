@@ -26,7 +26,10 @@ struct ni_dbus_variant {
 	/* the dbus type of this value */
 	int			type;
 
-	/* Only valid if this variant is an array */
+	/* Only valid if this variant is an array
+	 * In the case of a struct, array.len holds
+	 * the number of struct members.
+	 */
 	struct {
 		int		element_type;
 		char *		element_signature;
@@ -298,6 +301,7 @@ extern dbus_bool_t		ni_dbus_variant_is_string_array(const ni_dbus_variant_t *);
 extern dbus_bool_t		ni_dbus_variant_is_variant_array(const ni_dbus_variant_t *);
 extern dbus_bool_t		ni_dbus_variant_is_dict_array(const ni_dbus_variant_t *);
 extern dbus_bool_t		ni_dbus_variant_is_dict(const ni_dbus_variant_t *);
+extern dbus_bool_t		ni_dbus_variant_is_struct(const ni_dbus_variant_t *);
 
 extern dbus_bool_t		ni_dbus_variant_array_parse_and_append_string(ni_dbus_variant_t *, const char *);
 
@@ -337,6 +341,10 @@ extern ni_dbus_variant_t *	ni_dbus_dict_array_add(ni_dbus_variant_t *);
 
 extern void			ni_dbus_array_array_init(ni_dbus_variant_t *, const char *);
 extern ni_dbus_variant_t *	ni_dbus_array_array_add(ni_dbus_variant_t *);
+
+extern ni_dbus_variant_t *	ni_dbus_struct_add(ni_dbus_variant_t *);
+extern ni_dbus_variant_t *	ni_dbus_struct_get(ni_dbus_variant_t *, unsigned int);
+extern dbus_bool_t		ni_dbus_struct_get_string(ni_dbus_variant_t *, unsigned int, const char **);
 
 extern dbus_bool_t		ni_dbus_generic_property_get_bool(const ni_dbus_object_t *, const ni_dbus_property_t *,
 					ni_dbus_variant_t *r, DBusError *);
