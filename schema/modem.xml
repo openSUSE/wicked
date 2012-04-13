@@ -32,6 +32,13 @@
   <method name="linkDown">
   </method>
 
+  <!-- Signals emitted by this interface -->
+  <signal name="deviceUp" />
+  <signal name="deviceDown" />
+  <signal name="linkUp" />
+  <signal name="linkDown" />
+  <signal name="linkAssociated" />
+  <signal name="linkAssociationLost" />
 </service>
 
 
