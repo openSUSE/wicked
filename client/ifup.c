@@ -2597,13 +2597,22 @@ done: ;
 static dbus_bool_t
 ni_ifworkers_create_client(void)
 {
+	ni_dbus_client_t *client;
+
 	if (!(__root_object = ni_call_create_client()))
 		return FALSE;
 
-	ni_dbus_client_add_signal_handler(ni_dbus_object_get_client(__root_object), NULL, NULL,
-			                        NI_OBJECTMODEL_NETIF_INTERFACE,
-						interface_state_change_signal,
-						NULL);
+	client = ni_dbus_object_get_client(__root_object);
+
+	ni_dbus_client_add_signal_handler(client, NULL, NULL,
+					NI_OBJECTMODEL_NETIF_INTERFACE,
+					interface_state_change_signal,
+					NULL);
+
+	ni_dbus_client_add_signal_handler(client, NULL, NULL,
+					NI_OBJECTMODEL_MODEM_INTERFACE,
+					interface_state_change_signal,
+					NULL);
 
 	return TRUE;
 }

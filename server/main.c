@@ -327,7 +327,12 @@ wicked_modem_event(ni_modem_t *modem, ni_event_t event)
 			break;
 
 		case NI_EVENT_LINK_DELETE:
-			/* Delete dbus object and emit event */
+			/* Emit deletion event */
+			if (!ni_uuid_is_null(&modem->event_uuid))
+				event_uuid = &modem->event_uuid;
+			ni_objectmodel_modem_event(wicked_dbus_server, modem, NI_EVENT_DEVICE_DOWN, event_uuid);
+
+			/* Delete dbus object */
 			ni_objectmodel_unregister_modem(wicked_dbus_server, modem);
 			break;
 
