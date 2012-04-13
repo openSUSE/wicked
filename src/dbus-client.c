@@ -781,6 +781,9 @@ __ni_dbus_print_argument(char type, const void *ptr)
 	case DBUS_TYPE_UINT32:
 		snprintf(bp, 128, "uint32:%u", *(const uint32_t *) ptr);
 		return bp;
+
+	case DBUS_TYPE_BOOLEAN:
+		return (*(const dbus_bool_t *) ptr)? "true" : "false";
 	}
 
 	snprintf(bp, 128, "%c/%p", type, ptr);
