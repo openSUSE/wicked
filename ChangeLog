@@ -1,3 +1,12 @@
+Sat Apr 14 10:36:15 CEST 2012 - okir
+
+	* Add support for modem devices, and prepare for ppp support.
+	  Modems are handled by the wicked client as "just another device",
+	  so a PPP link is really a network device that depends on a
+	  "modem thingy" - which allows us to use all the existing
+	  FSM for device bring-up without having to special case a lot
+	  of stuff.
+
 Fri Mar 23 14:31:44 CET 2012 - mt
 
 	* Initial autoconf scripts, adopted and improved spec file
