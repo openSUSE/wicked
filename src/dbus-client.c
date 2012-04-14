@@ -11,7 +11,6 @@
 #include <sys/poll.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <errno.h>
 #include <wicked/util.h>
 #include <wicked/logging.h>
 #include <wicked/objectmodel.h>
@@ -238,7 +237,7 @@ ni_dbus_message_serialize_va(DBusMessage *msg, va_list ap)
 
 	if ((type = va_arg(ap, int)) != 0
 	 && !dbus_message_append_args_valist(msg, type, ap))
-		return -EINVAL;
+		return -NI_ERROR_INVALID_ARGS;
 	return 0;
 }
 
@@ -287,38 +286,38 @@ ni_dbus_object_call_simple(const ni_dbus_object_t *proxy,
 	dbus_error_init(&error);
 
 	if (!client)
-		return -EIO;
+		return -NI_ERROR_INVALID_ARGS;
 
 	if (!interface_name)
 		interface_name = ni_dbus_object_get_default_interface(proxy);
 	if (interface_name == NULL) {
 		ni_error("ni_dbus_object_call_new: no default interface for object %s", proxy->path);
-		return -EIO;
+		return -NI_ERROR_INVALID_ARGS;
 	}
 
 	msg = dbus_message_new_method_call(client->bus_name, proxy->path, interface_name, method);
 	if (msg == NULL) {
 		ni_error("%s: unable to build %s() message", __FUNCTION__, method);
-		return -EIO;
+		return -NI_ERROR_DBUS_CALL_FAILED;
 	}
 
 	if (arg_type && !dbus_message_append_args(msg, arg_type, arg_ptr, 0)) {
 		ni_error("%s: unable to serialize %s(%c, %p) arguments",
 				__FUNCTION__, method, arg_type, arg_ptr);
-		rv = -EINVAL;
+		rv = -NI_ERROR_INVALID_ARGS;
 		goto out;
 	}
 
 	if ((reply = ni_dbus_client_call(client, msg, &error)) == NULL) {
-		rv = -EIO;
+		rv = -NI_ERROR_DBUS_CALL_FAILED;
 		if (dbus_error_is_set(&error))
-			rv = -ni_dbus_client_translate_error(client, &error);
+			rv = ni_dbus_client_translate_error(client, &error);
 		goto out;
 	}
 
 	if (res_type && !dbus_message_get_args(reply, &error, res_type, res_ptr, 0)) {
 		ni_error("%s: unable to deserialize %s() response", __FUNCTION__, method);
-		rv = -ni_dbus_client_translate_error(client, &error);
+		rv = ni_dbus_client_translate_error(client, &error);
 		goto out;
 	}
 	if (res_type == DBUS_TYPE_STRING
@@ -450,7 +449,7 @@ ni_dbus_object_call_async(ni_dbus_object_t *proxy,
 
 	if (call == NULL) {
 		ni_error("%s: unable to build %s message", __FUNCTION__, method);
-		rv = -EINVAL;
+		rv = -NI_ERROR_INVALID_ARGS;
 	} else {
 		rv = ni_dbus_connection_call_async(client->connection,
 			call, client->call_timeout,

@@ -312,7 +312,7 @@ ni_dbus_connection_call_async(ni_dbus_connection_t *connection,
 
 	if (!dbus_connection_send_with_reply(connection->conn, call, &pending, timeout)) {
 		ni_error("dbus_connection_send_with_reply: %m");
-		return -EIO;
+		return -NI_ERROR_DBUS_CALL_FAILED;
 	}
 
 	ni_dbus_connection_add_pending(connection, pending, callback, proxy);
@@ -336,7 +336,7 @@ int
 ni_dbus_connection_send_message(ni_dbus_connection_t *connection, ni_dbus_message_t *msg)
 {
 	if (!dbus_connection_send(connection->conn, msg, NULL))
-		return -ENOMEM;
+		return -NI_ERROR_DBUS_CALL_FAILED;
 	return 0;
 }
 

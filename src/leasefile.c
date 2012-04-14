@@ -10,7 +10,6 @@
 #include <limits.h>
 #include <unistd.h>
 #include <string.h>
-#include <errno.h>
 
 #include <wicked/netinfo.h>
 #include <wicked/addrconf.h>

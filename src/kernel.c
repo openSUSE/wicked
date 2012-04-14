@@ -492,13 +492,13 @@ __ni_nl_dump_valid(struct nl_msg *msg, void *p)
 	nlh = nlmsg_hdr(msg);
 	if (data->hdrlen && !nlmsg_valid_hdr(nlh, data->hdrlen)) {
 		ni_error("netlink message too short");
-		return -EINVAL;
+		return -1;
 	}
 
 	if (data->msg_type >= 0 && nlh->nlmsg_type != data->msg_type) {
 		ni_error("netlink has unexpected message type %d; expected %d",
 				nlh->nlmsg_type, data->msg_type);
-		return -EINVAL;
+		return -1;
 	}
 
 

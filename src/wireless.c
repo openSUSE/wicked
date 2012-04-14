@@ -11,14 +11,10 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include <time.h>
 #include <ctype.h>
-#include <net/if_arp.h>
 #include <net/ethernet.h>
 #include <arpa/inet.h>
-#include <errno.h>
-#include <math.h>
 
 #include <wicked/wireless.h>
 #include <wicked/socket.h>

@@ -12,13 +12,10 @@
 #include <dbus/dbus.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
 #include <wicked/util.h>
 #include <wicked/dbus.h>
 #include <wicked/dbus-errors.h>
 #include <netinfo_priv.h>
-#include <errno.h>
-#include <ctype.h>
 
 #include "dbus-dict.h"
 #include "dbus-common.h"
@@ -681,6 +678,7 @@ ni_modem_manager_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg, void
 	if (!strcmp(member, NI_MM_SIGNAL_DEVICE_ADDED)) {
 		const char *object_path;
 
+		/* FIXME: use ni_dbus_message_get_args */
 		if (dbus_message_iter_get_arg_type(&iter) == DBUS_TYPE_OBJECT_PATH) {
 			dbus_message_iter_get_basic(&iter, &object_path);
 			ni_modem_manager_add_modem(modem_manager, object_path);
@@ -689,6 +687,7 @@ ni_modem_manager_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg, void
 	if (!strcmp(member, NI_MM_SIGNAL_DEVICE_REMOVED)) {
 		const char *object_path;
 
+		/* FIXME: use ni_dbus_message_get_args */
 		if (dbus_message_iter_get_arg_type(&iter) == DBUS_TYPE_OBJECT_PATH) {
 			dbus_message_iter_get_basic(&iter, &object_path);
 			ni_modem_manager_remove_modem(modem_manager, object_path);
@@ -704,6 +703,7 @@ ni_modem_manager_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg, void
 			return;
 		}
 
+		/* FIXME: use ni_dbus_message_get_args */
 		if (dbus_message_iter_get_arg_type(&iter) == DBUS_TYPE_UINT32) {
 			uint32_t quality;
 
@@ -723,6 +723,7 @@ ni_modem_manager_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg, void
 					__func__, member, object_path);
 			return;
 		} else {
+			/* FIXME: use ni_dbus_message_get_args */
 			const char *oper_code = NULL, *oper_name = NULL;
 			uint32_t status = 0; // MM_MODEM_GSM_NETWORK_REG_STATUS_IDLE;
 
@@ -759,6 +760,7 @@ skip:
 					__func__, member, object_path);
 			return;
 		} else {
+			/* FIXME: use ni_dbus_message_get_args */
 			uint32_t value[3]; /* oldState, newState, reason */
 			uint32_t old_state, new_state;
 			unsigned int i;

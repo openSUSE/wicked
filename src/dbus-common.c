@@ -11,7 +11,6 @@
 #include <sys/poll.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <errno.h>
 #include <wicked/util.h>
 #include <wicked/logging.h>
 #include "socket_priv.h"
@@ -20,9 +19,9 @@
 #include "debug.h"
 
 static ni_intmap_t      __ni_dbus_error_map[] = {
-	{ "org.freedesktop.DBus.Error.AccessDenied",	EACCES },
-	{ "org.freedesktop.DBus.Error.InvalidArgs",	EINVAL },
-	{ "org.freedesktop.DBus.Error.UnknownMethod",	EOPNOTSUPP },
+	{ "org.freedesktop.DBus.Error.AccessDenied",	NI_ERROR_PERMISSION_DENIED },
+	{ "org.freedesktop.DBus.Error.InvalidArgs",	NI_ERROR_INVALID_ARGS },
+	{ "org.freedesktop.DBus.Error.UnknownMethod",	NI_ERROR_METHOD_NOT_SUPPORTED },
 
 	{ NULL }
 };
@@ -33,15 +32,15 @@ ni_dbus_translate_error(const DBusError *err, const ni_intmap_t *error_map)
 {
 	unsigned int errcode;
 
-	ni_debug_dbus("%s(%s, msg=%s)", __FUNCTION__, err->name, err->message);
+	ni_debug_dbus("%s(%s, msg=%s)", __func__, err->name, err->message);
 	if (error_map && ni_parse_int_mapped(err->name, error_map, &errcode) >= 0)
-		return errcode;
+		return -errcode;
 
 	if (ni_parse_int_mapped(err->name, __ni_dbus_error_map, &errcode) >= 0)
-		return errcode;
+		return -errcode;
 
 	ni_warn("Cannot translate DBus error <%s>", err->name);
-	return EIO;
+	return -NI_ERROR_GENERAL_FAILURE;
 }
 
 /*
@@ -66,7 +65,7 @@ ni_dbus_message_get_args(ni_dbus_message_t *msg, ...)
 	if (type
 	 && !dbus_message_get_args_valist(msg, &error, type, ap)) {
 		ni_error("%s: unable to retrieve msg data", __FUNCTION__);
-		rv = -EINVAL;
+		rv = -NI_ERROR_INVALID_ARGS;
 		goto done;
 	}
 

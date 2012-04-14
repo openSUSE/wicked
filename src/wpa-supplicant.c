@@ -37,7 +37,6 @@
 #include <wicked/dbus.h>
 #include <wicked/dbus-errors.h>
 #include <netinfo_priv.h>
-#include <errno.h>
 #include <ctype.h>
 
 #include "dbus-dict.h"
@@ -97,8 +96,8 @@ static dbus_bool_t	ni_wpa_eap_method_from_string(const char *, ni_wireless_eap_m
  * Map wpa_supplicant errors
  */
 static ni_intmap_t	__ni_wpa_error_names[] = {
-	{ "fi.epitest.hostap.WPASupplicant.InvalidInterface",	ENOENT },
-	{ "fi.epitest.hostap.WPASupplicant.AddError",		ENODEV },
+	{ "fi.epitest.hostap.WPASupplicant.InvalidInterface",	NI_ERROR_INTERFACE_NOT_KNOWN },
+	{ "fi.epitest.hostap.WPASupplicant.AddError",		NI_ERROR_CANNOT_CONFIGURE_DEVICE },
 
 	{ NULL }
 };
@@ -271,7 +270,7 @@ ni_wpa_interface_bind(ni_wpa_client_t *wpa, ni_netdev_t *dev)
 
 	rv = ni_wpa_get_interface(wpa, dev->name, dev->link.ifindex, &wpa_dev);
 	if (rv < 0) {
-		if (rv != -ENOENT)
+		if (rv != -NI_ERROR_INTERFACE_NOT_KNOWN)
 			goto failed;
 
 		ni_debug_wireless("%s: interface does not exist", dev->name);
@@ -440,14 +439,14 @@ ni_wpa_add_interface(ni_wpa_client_t *wpa, const char *ifname, unsigned int ifin
 					2, argv, 1, resp, &error)) {
 			ni_error("%s: dbus call failed (%s: %s)", __func__,
 					error.name, error.message);
-			rv = -EINVAL;
+			rv = -NI_ERROR_INVALID_ARGS;
 			goto failed;
 		}
 
 		if (resp[0].type != DBUS_TYPE_OBJECT_PATH
 		 || !ni_dbus_variant_get_object_path(&resp[0], &object_path)) {
 			ni_error("%s: unexpected type in reply", __func__);
-			rv = -EINVAL;
+			rv = -NI_ERROR_INVALID_ARGS;
 			goto failed;
 		}
 
@@ -1965,7 +1964,7 @@ ni_wpa_interface_get_capabilities(ni_wpa_client_t *wpa, ni_wpa_interface_t *wpa_
 	call = ni_dbus_object_call_new(wpa_dev->proxy, "capabilities", 0);
 	if (call == NULL) {
 		ni_error("%s: could not build message", __func__);
-		rv = -EINVAL;
+		rv = -NI_ERROR_INVALID_ARGS;
 		goto failed;
 	}
 
