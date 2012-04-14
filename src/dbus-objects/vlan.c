@@ -77,7 +77,7 @@ __ni_objectmodel_vlan_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusErro
 	}
 
 	if ((rv = ni_system_vlan_create(nc, ifname, vlan, &new_ifp)) < 0) {
-		if (rv != -NI_ERROR_INTERFACE_EXISTS
+		if (rv != -NI_ERROR_DEVICE_EXISTS
 		 && (ifname != NULL && strcmp(ifname, new_ifp->name))) {
 			dbus_set_error(error,
 					DBUS_ERROR_FAILED,

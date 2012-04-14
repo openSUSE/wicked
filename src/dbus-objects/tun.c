@@ -70,7 +70,7 @@ __ni_objectmodel_tun_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusError
 	}
 
 	if ((rv = ni_system_tun_create(nc, ifname, &new_ifp)) < 0) {
-		if (rv != -NI_ERROR_INTERFACE_EXISTS
+		if (rv != -NI_ERROR_DEVICE_EXISTS
 		 && (ifname != NULL && strcmp(ifname, new_ifp->name))) {
 			ni_dbus_set_error_from_code(error, rv,
 					"unable to create TUN interface %s",

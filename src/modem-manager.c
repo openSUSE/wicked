@@ -238,7 +238,7 @@ ni_modem_manager_unlock(ni_modem_t *modem, const ni_modem_pin_t *pin)
 	int rv = 0;
 
 	if ((modem_object = __ni_modem_manager_object(modem)) == NULL)
-		return -NI_ERROR_INTERFACE_NOT_KNOWN;
+		return -NI_ERROR_DEVICE_NOT_KNOWN;
 
 	if (modem->type == MM_MODEM_TYPE_GSM) {
 		rv = ni_dbus_object_call_simple(modem_object, NI_MM_GSM_CARD_IF,
@@ -247,7 +247,7 @@ ni_modem_manager_unlock(ni_modem_t *modem, const ni_modem_pin_t *pin)
 				0, NULL);
 	} else {
 		ni_error("%s: not supported for this type of modem", __func__);
-		return -NI_ERROR_INTERFACE_NOT_COMPATIBLE;
+		return -NI_ERROR_DEVICE_NOT_COMPATIBLE;
 	}
 
 	return rv;
@@ -260,7 +260,7 @@ ni_modem_manager_enable(ni_modem_t *modem)
 	int rv = 0;
 
 	if ((modem_object = __ni_modem_manager_object(modem)) == NULL)
-		return -NI_ERROR_INTERFACE_NOT_KNOWN;
+		return -NI_ERROR_DEVICE_NOT_KNOWN;
 
 	if (modem->type == MM_MODEM_TYPE_GSM) {
 		dbus_bool_t enable = TRUE;
@@ -293,7 +293,7 @@ ni_modem_manager_connect(ni_modem_t *modem, const ni_modem_t *config)
 	ni_modem_pin_t *pin = NULL;
 
 	if ((modem_object = __ni_modem_manager_object(modem)) == NULL)
-		return -NI_ERROR_INTERFACE_NOT_KNOWN;
+		return -NI_ERROR_DEVICE_NOT_KNOWN;
 
 	if (!ni_string_empty(modem->unlock.required)) {
 		if ((pin = ni_modem_get_pin(modem, modem->unlock.required)) == NULL)

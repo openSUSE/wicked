@@ -251,14 +251,14 @@ ni_system_vlan_create(ni_netconfig_t *nc, const char *ifname, const ni_vlan_t *c
 	if (dev != NULL) {
 		/* This is not necessarily an error */
 		*dev_ret = dev;
-		return -NI_ERROR_INTERFACE_EXISTS;
+		return -NI_ERROR_DEVICE_EXISTS;
 	}
 
 	phys_dev = ni_netdev_by_name(nc, cfg_vlan->physdev_name);
 	if (!phys_dev || !phys_dev->link.ifindex) {
 		ni_error("Cannot create VLAN interface %s: interface %s does not exist",
 				ifname, cfg_vlan->physdev_name);
-		return -NI_ERROR_INTERFACE_NOT_KNOWN;
+		return -NI_ERROR_DEVICE_NOT_KNOWN;
 	}
 
 	ni_debug_ifconfig("%s: creating VLAN device", ifname);
@@ -288,7 +288,7 @@ ni_system_vlan_create(ni_netconfig_t *nc, const char *ifname, const ni_vlan_t *c
 		if (!real_dev || !real_dev->link.ifindex) {
 			ni_error("Cannot bring up VLAN interface %s: %s does not exist",
 					ifname, cfg_vlan->physdev_name);
-			return -NI_ERROR_INTERFACE_NOT_KNOWN;
+			return -NI_ERROR_DEVICE_NOT_KNOWN;
 		}
 	}
 
@@ -387,11 +387,11 @@ ni_system_bridge_add_port(ni_netconfig_t *nc, ni_netdev_t *brdev, ni_bridge_port
 
 	if (pif == NULL) {
 		ni_error("%s: cannot add port - interface not known", brdev->name);
-		return -NI_ERROR_INTERFACE_NOT_KNOWN;
+		return -NI_ERROR_DEVICE_NOT_KNOWN;
 	}
 	if (pif->link.ifindex == 0) {
 		ni_error("%s: cannot add port - %s has no ifindex?!", brdev->name, pif->name);
-		return -NI_ERROR_INTERFACE_NOT_KNOWN;
+		return -NI_ERROR_DEVICE_NOT_KNOWN;
 	}
 
 	/* This should be a more elaborate check - neither device can be an ancestor of
@@ -399,12 +399,12 @@ ni_system_bridge_add_port(ni_netconfig_t *nc, ni_netdev_t *brdev, ni_bridge_port
 	 */
 	if (pif == brdev) {
 		ni_error("%s: cannot add interface as its own bridge port", brdev->name);
-		return -NI_ERROR_INTERFACE_BAD_HIERARCHY;
+		return -NI_ERROR_DEVICE_BAD_HIERARCHY;
 	}
 
 	if (ni_bridge_port_by_index(bridge, pif->link.ifindex) != NULL) {
 		ni_error("%s: interface %s is already port", brdev->name, pif->name);
-		return -NI_ERROR_INTERFACE_BAD_HIERARCHY;
+		return -NI_ERROR_DEVICE_BAD_HIERARCHY;
 	}
 
 	if ((rv = __ni_brioctl_add_port(brdev->name, pif->link.ifindex)) < 0) {
@@ -436,7 +436,7 @@ ni_system_bridge_remove_port(ni_netconfig_t *nc, ni_netdev_t *dev, int port_ifin
 
 	if (port_ifindex == 0) {
 		ni_error("%s: cannot remove port: bad ifindex", dev->name);
-		return -NI_ERROR_INTERFACE_NOT_KNOWN;
+		return -NI_ERROR_DEVICE_NOT_KNOWN;
 	}
 
 	if ((rv = __ni_brioctl_del_port(dev->name, port_ifindex)) < 0) {
@@ -594,18 +594,18 @@ ni_system_bond_add_slave(ni_netconfig_t *nc, ni_netdev_t *dev, unsigned int slav
 
 	if (bond == NULL) {
 		ni_error("%s: %s is not a bonding device", __func__, dev->name);
-		return -NI_ERROR_INTERFACE_NOT_COMPATIBLE;
+		return -NI_ERROR_DEVICE_NOT_COMPATIBLE;
 	}
 
 	slave_dev = ni_netdev_by_index(nc, slave_idx);
 	if (slave_dev == NULL) {
 		ni_error("%s: trying to add unknown interface to bond %s", __func__, dev->name);
-		return -NI_ERROR_INTERFACE_NOT_KNOWN;
+		return -NI_ERROR_DEVICE_NOT_KNOWN;
 	}
 
 	if (ni_netdev_network_is_up(slave_dev)) {
 		ni_error("%s: trying to enslave %s, which is in use", dev->name, slave_dev->name);
-		return -NI_ERROR_INTERFACE_NOT_DOWN;
+		return -NI_ERROR_DEVICE_NOT_DOWN;
 	}
 
 	/* Silently ignore duplicate slave attach */
@@ -633,13 +633,13 @@ ni_system_bond_remove_slave(ni_netconfig_t *nc, ni_netdev_t *dev, unsigned int s
 
 	if (bond == NULL) {
 		ni_error("%s: %s is not a bonding device", __func__, dev->name);
-		return -NI_ERROR_INTERFACE_NOT_COMPATIBLE;
+		return -NI_ERROR_DEVICE_NOT_COMPATIBLE;
 	}
 
 	slave_dev = ni_netdev_by_index(nc, slave_idx);
 	if (slave_dev == NULL) {
 		ni_error("%s: trying to add unknown interface to bond %s", __func__, dev->name);
-		return -NI_ERROR_INTERFACE_NOT_KNOWN;
+		return -NI_ERROR_DEVICE_NOT_KNOWN;
 	}
 
 	/* Silently ignore duplicate slave removal */
@@ -864,7 +864,7 @@ __ni_rtnl_link_up(const ni_netdev_t *dev, const ni_netdev_req_t *cfg)
 
 	if (dev->link.ifindex == 0) {
 		ni_error("%s: bad interface index for %s", __func__, dev->name);
-		return -NI_ERROR_INTERFACE_NOT_KNOWN;
+		return -NI_ERROR_DEVICE_NOT_KNOWN;
 	}
 
 	NI_TRACE_ENTER_ARGS("%s, idx=%d", dev->name, dev->link.ifindex);

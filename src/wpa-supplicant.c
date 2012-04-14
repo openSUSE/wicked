@@ -96,7 +96,7 @@ static dbus_bool_t	ni_wpa_eap_method_from_string(const char *, ni_wireless_eap_m
  * Map wpa_supplicant errors
  */
 static ni_intmap_t	__ni_wpa_error_names[] = {
-	{ "fi.epitest.hostap.WPASupplicant.InvalidInterface",	NI_ERROR_INTERFACE_NOT_KNOWN },
+	{ "fi.epitest.hostap.WPASupplicant.InvalidInterface",	NI_ERROR_DEVICE_NOT_KNOWN },
 	{ "fi.epitest.hostap.WPASupplicant.AddError",		NI_ERROR_CANNOT_CONFIGURE_DEVICE },
 
 	{ NULL }
@@ -270,7 +270,7 @@ ni_wpa_interface_bind(ni_wpa_client_t *wpa, ni_netdev_t *dev)
 
 	rv = ni_wpa_get_interface(wpa, dev->name, dev->link.ifindex, &wpa_dev);
 	if (rv < 0) {
-		if (rv != -NI_ERROR_INTERFACE_NOT_KNOWN)
+		if (rv != -NI_ERROR_DEVICE_NOT_KNOWN)
 			goto failed;
 
 		ni_debug_wireless("%s: interface does not exist", dev->name);

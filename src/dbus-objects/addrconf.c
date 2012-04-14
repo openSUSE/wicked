@@ -355,7 +355,7 @@ ni_objectmodel_addrconf_ibft_request(ni_dbus_object_t *object, int addrfamily,
 		;
 
 	if ((nic = dev->ibft_nic) == NULL) {
-		dbus_set_error(error, NI_DBUS_ERROR_INTERFACE_NOT_COMPATIBLE,
+		dbus_set_error(error, NI_DBUS_ERROR_DEVICE_NOT_COMPATIBLE,
 				"no iBFT configuration for interface %s",
 				dev->name);
 		return FALSE;

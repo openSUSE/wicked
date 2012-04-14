@@ -80,7 +80,7 @@ __ni_objectmodel_openvpn_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusE
 	}
 
 	if ((rv = ni_system_tun_create(nc, ifname, &new_dev)) < 0) {
-		if (rv != -NI_ERROR_INTERFACE_EXISTS
+		if (rv != -NI_ERROR_DEVICE_EXISTS
 		 && (ifname != NULL && strcmp(ifname, new_dev->name))) {
 			ni_dbus_set_error_from_code(error, rv,
 					"unable to create OpenVPN interface %s",

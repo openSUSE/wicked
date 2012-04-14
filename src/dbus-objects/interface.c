@@ -265,13 +265,13 @@ ni_objectmodel_netif_list_identify_device(ni_dbus_object_t *object, const ni_dbu
 	free(copy);
 
 	if (found == NULL) {
-		dbus_set_error(error, NI_DBUS_ERROR_INTERFACE_NOT_KNOWN,
+		dbus_set_error(error, NI_DBUS_ERROR_DEVICE_NOT_KNOWN,
 				"unable to identify interface via %s", name);
 		return FALSE;
 	}
 
 	if (ni_objectmodel_unwrap_interface(found, NULL) == NULL) {
-		dbus_set_error(error, NI_DBUS_ERROR_INTERFACE_NOT_KNOWN,
+		dbus_set_error(error, NI_DBUS_ERROR_DEVICE_NOT_KNOWN,
 				"failed to identify interface via %s - naming service returned "
 				"a %s object", name, found->class->name);
 		return FALSE;
