@@ -1695,7 +1695,7 @@ ni_ifworker_children_ready_for(ni_ifworker_t *w, const ni_iftransition_t *action
 			if (child->failed) {
 				/* Child is not in the expected state, but as it failed, it'll
 				 * never get there. Fail the parent as well. */
-				ni_ifworker_fail(w, "subordinate network interface %s failed", child->name);
+				ni_ifworker_fail(w, "subordinate device %s failed", child->name);
 				return FALSE;
 			}
 
