@@ -285,12 +285,12 @@ wicked_interface_event(ni_netconfig_t *nc, ni_netdev_t *ifp, ni_event_t event)
 
 	if (wicked_dbus_server) {
 		switch (event) {
-		case NI_EVENT_LINK_CREATE:
+		case NI_EVENT_DEVICE_CREATE:
 			/* Create dbus object and emit event */
 			ni_objectmodel_register_interface(wicked_dbus_server, ifp, NULL);
 			break;
 
-		case NI_EVENT_LINK_DELETE:
+		case NI_EVENT_DEVICE_DELETE:
 			/* Delete dbus object and emit event */
 			ni_objectmodel_unregister_interface(wicked_dbus_server, ifp);
 			break;
@@ -321,12 +321,12 @@ wicked_modem_event(ni_modem_t *modem, ni_event_t event)
 		ni_uuid_t *event_uuid = NULL;
 
 		switch (event) {
-		case NI_EVENT_LINK_CREATE:
+		case NI_EVENT_DEVICE_CREATE:
 			/* Create dbus object and emit event */
 			ni_objectmodel_register_modem(wicked_dbus_server, modem);
 			break;
 
-		case NI_EVENT_LINK_DELETE:
+		case NI_EVENT_DEVICE_DELETE:
 			/* Emit deletion event */
 			if (!ni_uuid_is_null(&modem->event_uuid))
 				event_uuid = &modem->event_uuid;

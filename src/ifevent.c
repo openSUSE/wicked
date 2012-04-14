@@ -229,7 +229,7 @@ __ni_rtevent_newlink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 				__ni_netdev_event(nc, dev, edge->event_down);
 		}
 	} else {
-		__ni_netdev_event(nc, dev, NI_EVENT_LINK_CREATE);
+		__ni_netdev_event(nc, dev, NI_EVENT_DEVICE_CREATE);
 	}
 
 	if ((nla = nlmsg_find_attr(h, sizeof(*ifi), IFLA_WIRELESS)) != NULL)
@@ -263,7 +263,7 @@ __ni_rtevent_dellink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 		dev->link.ifindex = 0;
 		dev->link.ifflags = __ni_netdev_translate_ifflags(ifi->ifi_flags);
 
-		__ni_netdev_event(nc, dev, NI_EVENT_LINK_DELETE);
+		__ni_netdev_event(nc, dev, NI_EVENT_DEVICE_DELETE);
 		ni_netconfig_device_remove(nc, dev);
 	}
 

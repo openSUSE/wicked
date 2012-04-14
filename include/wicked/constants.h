@@ -88,8 +88,8 @@ typedef enum ni_iftype {
  * by us.
  */
 typedef enum ni_event {
-	NI_EVENT_LINK_CREATE = 0,
-	NI_EVENT_LINK_DELETE,
+	NI_EVENT_DEVICE_CREATE = 0,
+	NI_EVENT_DEVICE_DELETE,
 	NI_EVENT_DEVICE_UP,
 	NI_EVENT_DEVICE_DOWN,
 	NI_EVENT_LINK_ASSOCIATED,	/* wireless */

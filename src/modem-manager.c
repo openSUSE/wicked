@@ -428,7 +428,7 @@ ni_modem_manager_add_modem(ni_modem_manager_client_t *modem_manager, const char 
 	}
 
 	if (ni_modem_manager_event_handler)
-		ni_modem_manager_event_handler(modem, NI_EVENT_LINK_CREATE);
+		ni_modem_manager_event_handler(modem, NI_EVENT_DEVICE_CREATE);
 }
 
 static void
@@ -452,7 +452,7 @@ ni_modem_manager_remove_modem(ni_modem_manager_client_t *modem_manager, const ch
 
 	if ((modem = ni_objectmodel_modem_unwrap(modem_object, NULL)) != NULL) {
 		if (ni_modem_manager_event_handler)
-			ni_modem_manager_event_handler(modem, NI_EVENT_LINK_DELETE);
+			ni_modem_manager_event_handler(modem, NI_EVENT_DEVICE_DELETE);
 		ni_modem_unlink(modem);
 	}
 
