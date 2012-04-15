@@ -5,16 +5,81 @@
 
  <!-- This is the linkinfo returned in interface reports -->
  <define name="linkinfo" class="dict">
+
+  <!-- The modem device. We need to subclass for ppp over ethernet,
+    -- since this will reference an ethernet device instead of a modem.
+    -->
   <device type="string" constraint="required">
     <meta:modem-reference shared="true"/>
     <meta:require check="netif-child-state" op="newDevice" min-state="device-up" />
     <meta:require check="netif-child-state" op="linkUp" min-state="link-up"/>
   </device>
 
+  <!-- Maximum Receive Unit -->
+  <mru type="uint32"/>
+
+  <!-- user name and password. If the <auth> element is present, it must
+    -- have <user> and <password> children.
+    -- If these elements are absent, the wicked client will prompt for
+    -- them.
+    -- If you do not need to authenticate (eg when using a GSM usb stick)
+    -- omit the <auth> element completely.
+    -->
+  <auth class="dict">
+    <protocol type="uint32" constraint="enum">
+      <pap value="0"/>
+      <chap value="1"/>
+      <ms-chap value="2"/>
+      <ms-chapv2 value="3"/>
+      <eap value="4"/>
+    </protocol>
+
+    <hostname type="string"/>
+    <user type="string" constraint="required">
+      <meta:user-input type="user" prompt="Please enter ppp user name"/>
+    </user>
+    <password type="string" constraint="required">
+      <meta:user-input type="password" prompt="Please enter ppp password"/>
+    </password>
+  </auth>
+
+  <!-- The number to dial -->
+  <number type="string"/>
+
+  <!-- disconnect after n seconds of link idle -->
+  <idle-timeout type="uint32"/>
+
  </define>
 
  <!-- the properties of a PPP device: -->
  <define name="properties" type="linkinfo"/>
+
+ <!-- Override the linkUp method of the netif base interface.
+   -- This will start a ppp daemon process for this device.
+   --
+   -- For now, we ignore any and all of the usual link parameters,
+   -- and let the ppp daemon handle all that stuff.
+   -->
+ <method name="linkUp">
+   <arguments>
+     <request type="interface:link-request">
+       <meta:mapping document-node="/link" />
+     </request>
+   </arguments>
+   <return>
+     <interface:callback-info/>
+   </return>
+ </method>
+
+ <!-- Override the linkDown method of the netif base interface.
+   -- This will shut down the ppp daemon process and wait for
+   -- it to exit.
+   -->
+ <method name="linkDown">
+   <return>
+     <interface:callback-info/>
+   </return>
+ </method>
 
  <method name="deleteDevice">
    <!-- no arguments, no return code -->
