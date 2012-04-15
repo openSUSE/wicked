@@ -1,20 +1,10 @@
 <!--
   -- PPP Service definition
   -->
-<service name="ppp" interface="com.suse.Wicked.PPP" object-class="netif-ppp">
+<service name="ppp-base" interface="com.suse.Wicked.PPP.Base" object-class="netif-ppp">
 
  <!-- This is the linkinfo returned in interface reports -->
  <define name="linkinfo" class="dict">
-
-  <!-- The modem device. We need to subclass for ppp over ethernet,
-    -- since this will reference an ethernet device instead of a modem.
-    -->
-  <device type="string" constraint="required">
-    <meta:modem-reference shared="true"/>
-    <meta:require check="netif-child-state" op="newDevice" min-state="device-up" />
-    <meta:require check="netif-child-state" op="linkUp" min-state="link-up"/>
-  </device>
-
   <!-- Maximum Receive Unit -->
   <mru type="uint32"/>
 
@@ -51,9 +41,6 @@
 
  </define>
 
- <!-- the properties of a PPP device: -->
- <define name="properties" type="linkinfo"/>
-
  <!-- Override the linkUp method of the netif base interface.
    -- This will start a ppp daemon process for this device.
    --
@@ -86,18 +73,101 @@
  </method>
 </service>
 
-<service name="ppp-factory" interface="com.suse.Wicked.PPP.Factory" object-class="netif-list">
+<!--
+     Define the standard PPP over Serial device
+     This inherits all properties from the standard PPP device, and adds
+     a <device> element that references a modem device.
+  -->
+<object-class name="netif-ppp-serial" base-class="netif-ppp"/>
+<service name="ppp-serial" interface="com.suse.Wicked.PPP" object-class="netif-ppp-serial">
+  <define name="linkinfo" class="dict" extends="ppp-base:linkinfo">
+    <!-- The modem device. We need to subclass for ppp over ethernet,
+      -- since this will reference an ethernet device instead of a modem.
+      -->
+    <device type="string" constraint="required">
+      <meta:modem-reference shared="true"/>
+      <meta:require check="netif-child-state" op="newDevice" min-state="device-up" />
+      <meta:require check="netif-child-state" op="linkUp" min-state="link-up"/>
+    </device>
+ </define>
+
+ <method name="changeDevice">
+   <arguments>
+     <config type="linkinfo">
+       <!-- The mapping info tells the client to take the device
+	 -- configuration from the <ppp> element. -->
+       <meta:mapping document-node="/ppp" />
+     </config>
+   </arguments>
+   <!-- returns callback list -->
+ </method>
+
+</service>
+
+<service name="ppp-serial-factory" interface="com.suse.Wicked.PPP.Factory" object-class="netif-list">
+ <!-- "Create" ppp device.
+   -- This will create a pppX device and a ppp config file.
+   -- The config file isn't used until the client invokes the linkUp method.
+   -->
  <method name="newDevice">
   <arguments>
    <name type="string"/>
-   <config type="ppp:linkinfo">
+   <config type="ppp-serial:linkinfo">
     <meta:mapping document-node="/ppp"/>
    </config>
   </arguments>
+
   <return>
-   <!-- this is really an object handle -->
-   <string/>
+   <string/>		<!-- this is really an object handle -->
   </return>
  </method>
 </service>
 
+<!--
+     Define the PPP over Ethernet device
+     This inherits all properties from the PPP base device, and adds
+     a <device> element that references an Ethernet device.
+
+     Unlike the "standard" PPP interface for serial connections, the
+     configuration is contained in the <pppoe> element.
+  -->
+<object-class name="netif-pppoe" base-class="netif-ppp"/>
+<service name="pppoe" interface="com.suse.Wicked.PPPoE" object-class="netif-pppoe">
+ <define name="linkinfo" class="dict" extends="ppp-base:linkinfo">
+  <device type="string">
+    <meta:netif-reference shared="true" object-class="netif-ethernet"/>
+    <meta:require check="netif-child-state" op="newDevice" min-state="device-up" />
+    <meta:require check="netif-child-state" op="login" min-state="link-authenticated" />
+    <meta:require check="netif-child-state" op="linkUp" min-state="link-up" />
+  </device>
+ </define>
+
+ <method name="changeDevice">
+   <arguments>
+     <config type="linkinfo">
+       <!-- The mapping info tells the client to take the device
+	 -- configuration from the <pppoe> element. -->
+       <meta:mapping document-node="/pppoe" />
+     </config>
+   </arguments>
+   <!-- returns callback list -->
+ </method>
+</service>
+
+<service name="pppoe-factory" interface="com.suse.Wicked.PPPoE.Factory" object-class="netif-list">
+ <!-- "Create" ppp device.
+   -- This will create a pppX device and a ppp config file.
+   -- The config file isn't used until the client invokes the linkUp method.
+   -->
+ <method name="newDevice">
+  <arguments>
+   <name type="string"/>
+   <config type="pppoe:linkinfo">
+    <meta:mapping document-node="/pppoe"/>
+   </config>
+  </arguments>
+  <return>
+   <string/> <!-- this is really an object handle -->
+  </return>
+ </method>
+</service>
