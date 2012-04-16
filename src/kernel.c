@@ -218,7 +218,7 @@ __ni_tuntap_create_tun(const char *ifname)
 			break;
 		}
 
-		if (errno != EBUSY) {
+		if (errno != EBUSY || ifname) {
 			ni_error("failed to create tun device: %m");
 			goto done;
 		}
