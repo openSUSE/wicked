@@ -153,7 +153,7 @@ ni_objectmodel_modem_match_attr(const ni_dbus_object_t *object, const char *name
 	ni_modem_t *modem;
 	const char *value = NULL;
 
-	if (!(modem = ni_objectmodel_modem_unwrap(object, NULL)))
+	if (!(modem = ni_objectmodel_unwrap_modem(object, NULL)))
 		return FALSE;
 
 	if (!strcmp(name, "equipment-id"))

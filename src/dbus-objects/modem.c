@@ -141,7 +141,7 @@ ni_objectmodel_modem_destroy(ni_dbus_object_t *object)
 {
 	ni_modem_t *modem;
 
-	if ((modem = ni_objectmodel_modem_unwrap(object, NULL)) != NULL) {
+	if ((modem = ni_objectmodel_unwrap_modem(object, NULL)) != NULL) {
 		object->handle = NULL;
 		ni_modem_release(modem);
 	}
@@ -231,7 +231,7 @@ ni_objectmodel_modem_full_path(const ni_modem_t *modem)
  * modem object
  */
 ni_modem_t *
-ni_objectmodel_modem_unwrap(const ni_dbus_object_t *object, DBusError *error)
+ni_objectmodel_unwrap_modem(const ni_dbus_object_t *object, DBusError *error)
 {
 	ni_modem_t *modem = object->handle;
 
@@ -282,7 +282,7 @@ ni_objectmodel_modem_list_identify_device(ni_dbus_object_t *object, const ni_dbu
 		return FALSE;
 	}
 
-	if (ni_objectmodel_modem_unwrap(found, NULL) == NULL) {
+	if (ni_objectmodel_unwrap_modem(found, NULL) == NULL) {
 		dbus_set_error(error, NI_DBUS_ERROR_DEVICE_NOT_KNOWN,
 				"failed to identify interface via %s - naming service returned "
 				"a %s object", name, found->class->name);
@@ -344,7 +344,7 @@ ni_objectmodel_modem_change_device(ni_dbus_object_t *object, const ni_dbus_metho
 	dbus_bool_t ret = FALSE;
 	int rv;
 
-	if (!(modem = ni_objectmodel_modem_unwrap(object, error)))
+	if (!(modem = ni_objectmodel_unwrap_modem(object, error)))
 		return FALSE;
 
 	NI_TRACE_ENTER_ARGS("modem=%s", modem->device);
@@ -418,7 +418,7 @@ ni_objectmodel_modem_connect(ni_dbus_object_t *object, const ni_dbus_method_t *m
 	dbus_bool_t ret = FALSE;
 	int rv;
 
-	if (!(modem = ni_objectmodel_modem_unwrap(object, error)))
+	if (!(modem = ni_objectmodel_unwrap_modem(object, error)))
 		return FALSE;
 
 	NI_TRACE_ENTER_ARGS("modem=%s", modem->device);
@@ -456,7 +456,7 @@ ni_objectmodel_modem_disconnect(ni_dbus_object_t *object, const ni_dbus_method_t
 	ni_modem_t *modem;
 	int rv;
 
-	if (!(modem = ni_objectmodel_modem_unwrap(object, error)))
+	if (!(modem = ni_objectmodel_unwrap_modem(object, error)))
 		return FALSE;
 
 	if ((rv = ni_modem_manager_disconnect(modem)) < 0) {
@@ -484,7 +484,7 @@ __ni_objectmodel_get_modem_arg(const ni_dbus_variant_t *dict, ni_dbus_object_t *
 	}
 
 	*ret_object = config_object;
-	return ni_objectmodel_modem_unwrap(config_object, NULL);
+	return ni_objectmodel_unwrap_modem(config_object, NULL);
 }
 
 /*
@@ -519,7 +519,7 @@ ni_objectmodel_modem_event(ni_dbus_server_t *server, ni_modem_t *modem,
 static void *
 ni_objectmodel_get_modem(const ni_dbus_object_t *object, DBusError *error)
 {
-	return ni_objectmodel_modem_unwrap(object, error);
+	return ni_objectmodel_unwrap_modem(object, error);
 }
 
 static dbus_bool_t
@@ -531,7 +531,7 @@ __ni_objectmodel_modem_get_auth(const ni_dbus_object_t *object,
 	ni_modem_t *modem;
 	ni_modem_pin_t *pin;
 
-	if (!(modem = ni_objectmodel_modem_unwrap(object, error)))
+	if (!(modem = ni_objectmodel_unwrap_modem(object, error)))
 		return FALSE;
 
 	if (modem->unlock.auth == NULL) {
@@ -562,7 +562,7 @@ __ni_objectmodel_modem_set_auth(ni_dbus_object_t *object,
 	ni_modem_t *modem;
 	unsigned int i;
 
-	if (!(modem = ni_objectmodel_modem_unwrap(object, error)))
+	if (!(modem = ni_objectmodel_unwrap_modem(object, error)))
 		return FALSE;
 
 	if (!ni_dbus_variant_is_dict_array(argument)) {

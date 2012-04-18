@@ -161,7 +161,7 @@ __ni_objectmodel_ppp_device_arg(const ni_dbus_variant_t *dict, DBusError *error)
 		return NULL;
 	}
 
-	modem = ni_objectmodel_modem_unwrap(device_object, error);
+	modem = ni_objectmodel_unwrap_modem(device_object, error);
 	if (modem == NULL) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
 				"PPP device configuration references incompatible object (expected a modem)");

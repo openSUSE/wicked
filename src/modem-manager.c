@@ -45,7 +45,6 @@ struct ni_modem_manager_client {
 };
 
 extern void			ni_objectmodel_register_modem_classes(void);
-extern ni_modem_t *		ni_objectmodel_modem_unwrap(const ni_dbus_object_t *, DBusError *);
 
 static void			ni_modem_manager_add_modem(ni_modem_manager_client_t *modem_manager, const char *object_path);
 static void			ni_modem_manager_signal(ni_dbus_connection_t *, ni_dbus_message_t *, void *);
@@ -450,7 +449,7 @@ ni_modem_manager_remove_modem(ni_modem_manager_client_t *modem_manager, const ch
 		return;
 	}
 
-	if ((modem = ni_objectmodel_modem_unwrap(modem_object, NULL)) != NULL) {
+	if ((modem = ni_objectmodel_unwrap_modem(modem_object, NULL)) != NULL) {
 		if (ni_modem_manager_event_handler)
 			ni_modem_manager_event_handler(modem, NI_EVENT_DEVICE_DELETE);
 		ni_modem_unlink(modem);
@@ -471,7 +470,7 @@ ni_modem_manager_get_modem(ni_modem_manager_client_t *modem_manager, const char 
 		return NULL;
 	}
 
-	return ni_objectmodel_modem_unwrap(modem_object, NULL);
+	return ni_objectmodel_unwrap_modem(modem_object, NULL);
 }
 
 /*
@@ -613,7 +612,7 @@ ni_modem_get_pin(ni_modem_t *modem, const char *tag)
 static void *
 ni_objectmodel_get_modem(const ni_dbus_object_t *object, DBusError *error)
 {
-	return ni_objectmodel_modem_unwrap(object, error);
+	return ni_objectmodel_unwrap_modem(object, error);
 }
 
 #define MODEM_STRING_PROPERTY(dbus_type, type, rw) \

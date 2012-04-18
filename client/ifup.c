@@ -1661,7 +1661,7 @@ __ni_ifworker_refresh_modems(void)
 		ni_fatal("Couldn't refresh list of available modems");
 
 	for (object = list_object->children; object; object = object->next) {
-		ni_modem_t *modem = ni_objectmodel_modem_unwrap(object, NULL);
+		ni_modem_t *modem = ni_objectmodel_unwrap_modem(object, NULL);
 		ni_ifworker_t *found = NULL;
 
 		if (modem == NULL || modem->device == NULL)
