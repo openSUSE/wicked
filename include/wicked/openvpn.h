@@ -17,7 +17,7 @@
  */
 struct ni_openvpn {
 	char *			ident;
-	char *			dirpath;
+	ni_tempstate_t *	temp_state;
 };
 
 extern int			ni_openvpn_discover(ni_netconfig_t *);

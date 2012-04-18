@@ -198,7 +198,7 @@ ni_tempstate_t *
 ni_process_tempstate(ni_process_t *process)
 {
 	if (process->temp_state == NULL)
-		process->temp_state = ni_tempstate_new();
+		process->temp_state = ni_tempstate_new(NULL);
 
 	return process->temp_state;
 }

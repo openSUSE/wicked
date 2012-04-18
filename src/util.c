@@ -23,6 +23,7 @@
 
 #include <wicked/util.h>
 #include <wicked/logging.h>
+#include <wicked/netinfo.h> /* only for CONFIG_WICKED_STATEDIR */
 #include "util_priv.h"
 
 #define NI_STRINGARRAY_CHUNK	16
@@ -1507,15 +1508,18 @@ ni_opaque_free(ni_opaque_t *opaq)
  * Track temporary resources and clean them up when done
  */
 struct ni_tempstate {
+	char *			ident;
+	char *			dirpath;
 	ni_string_array_t	files;
 };
 
 ni_tempstate_t *
-ni_tempstate_new()
+ni_tempstate_new(const char *tag)
 {
 	ni_tempstate_t *ts;
 
 	ts = calloc(1, sizeof(*ts));
+	ni_string_dup(&ts->ident, tag);
 	return ts;
 }
 
@@ -1531,8 +1535,51 @@ ni_tempstate_finish(ni_tempstate_t *ts)
 			ni_warn("failed to remove %s: %m", filename);
 	}
 
+	if (ts->dirpath) {
+		ni_file_remove_recursively(ts->dirpath);
+		ni_string_free(&ts->dirpath);
+	}
+
 	ni_string_array_destroy(&ts->files);
+	ni_string_free(&ts->ident);
 	free(ts);
+}
+
+int
+ni_tempstate_mkdir(ni_tempstate_t *ts)
+{
+	if (ts->dirpath == NULL) {
+		char pathbuf[PATH_MAX];
+
+		if (ts->ident == NULL) {
+			ni_error("cannot create temp directory in %s: no identifier for this tempstate",
+					CONFIG_WICKED_STATEDIR);
+			return -1;
+		}
+		snprintf(pathbuf, sizeof(pathbuf), "%s/%s", CONFIG_WICKED_STATEDIR, ts->ident);
+
+		if (mkdir(pathbuf, 0700) < 0) {
+			ni_error("unable to create directory %s: %m", pathbuf);
+			return -1;
+		}
+
+		ni_string_dup(&ts->dirpath, pathbuf);
+	}
+	return 0;
+}
+
+char *
+ni_tempstate_mkfile(ni_tempstate_t *ts, const char *name)
+{
+	static char pathbuf[PATH_MAX];
+
+	if (ts->dirpath == NULL) {
+		if (ni_tempstate_mkdir(ts) < 0)
+			return NULL;
+	}
+
+	snprintf(pathbuf, sizeof(pathbuf), "%s/%s", ts->dirpath, name);
+	return pathbuf;
 }
 
 void

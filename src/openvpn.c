@@ -46,6 +46,7 @@ ni_openvpn_new(const char *tag)
 
 	p = calloc(1, sizeof(*p));
 	ni_string_dup(&p->ident, tag);
+	p->temp_state = ni_tempstate_new(tag);
 
 	return p;
 }
@@ -53,26 +54,15 @@ ni_openvpn_new(const char *tag)
 int
 ni_openvpn_mkdir(ni_openvpn_t *vpn)
 {
-	if (vpn->dirpath == NULL) {
-		const char *path;
-
-		path = __ni_openvpn_path(vpn->ident, NULL);
-		if (mkdir(path, 0700) < 0) {
-			ni_error("unable to create directory %s: %m", path);
-			return -1;
-		}
-
-		ni_string_dup(&vpn->dirpath, path);
-	}
-	return 0;
+	return ni_tempstate_mkdir(vpn->temp_state);
 }
 
 void
 ni_openvpn_free(ni_openvpn_t *vpn)
 {
-	if (vpn->dirpath)
-		ni_file_remove_recursively(vpn->dirpath);
-	ni_string_free(&vpn->dirpath);
+	if (vpn->temp_state)
+		ni_tempstate_finish(vpn->temp_state);
+	vpn->temp_state = NULL;
 	ni_string_free(&vpn->ident);
 	free(vpn);
 }

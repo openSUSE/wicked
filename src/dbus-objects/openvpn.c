@@ -130,10 +130,7 @@ ni_objectmodel_openvpn_delete(ni_dbus_object_t *object, const ni_dbus_method_t *
 
 	/* Delete the tunnel's openvpn handle. This will take care of
 	 * the configuration files, keys etc. */
-	if (dev->openvpn)
-		ni_trace("%s: vpn=%p dir=%s", __func__, dev->openvpn, dev->openvpn->dirpath);
 	ni_netdev_set_openvpn(dev, NULL);
-	ni_trace("%s: vpn=%p", __func__, dev->openvpn);
 
 	if ((rv = ni_system_tun_delete(dev)) < 0) {
 		ni_dbus_set_error_from_code(error, rv, "Cannot delete OpenVPN interface %s", dev->name);
