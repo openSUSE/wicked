@@ -6,7 +6,7 @@
 *.la
 *.so
 *.so.*
-.depend
+.*
 test
 xml-test
 xpath-test
@@ -15,7 +15,6 @@ core
 tags
 bin
 schema/constants.xml
-.*project
 Makefile.vars
 aclocal.m4
 autom4te.cache/
