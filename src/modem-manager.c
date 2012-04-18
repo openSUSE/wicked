@@ -484,6 +484,7 @@ ni_modem_new(void)
 
 	modem = xcalloc(1, sizeof(ni_modem_t));
 	modem->refcount = 1;
+	modem->use_lock_file = TRUE;
 	return modem;
 }
 

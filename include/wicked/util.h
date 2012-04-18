@@ -199,6 +199,7 @@ extern ni_tempstate_t *	ni_tempstate_new(const char *);
 extern void		ni_tempstate_finish(ni_tempstate_t *);
 extern void		ni_tempstate_add_file(ni_tempstate_t *, const char *filename);
 extern int		ni_tempstate_mkdir(ni_tempstate_t *);
+extern char *		ni_tempstate_mkfile(ni_tempstate_t *, const char *);
 
 #endif /* __WICKED_UTIL_H__ */
 

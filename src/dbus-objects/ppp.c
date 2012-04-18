@@ -89,6 +89,15 @@ __ni_objectmodel_ppp_newlink(ni_netdev_t *cfg, const char *ifname, DBusError *er
 				DBUS_ERROR_FAILED,
 				"Unable to create PPP interface: new interface is of type %s",
 				ni_linktype_type_to_name(new_dev->link.type));
+		/* FIXME: delete device? */
+		return NULL;
+	}
+
+	if (ni_ppp_write_config(new_dev->ppp) < 0) {
+		dbus_set_error(error,
+				DBUS_ERROR_FAILED,
+				"Unable to create PPP interface: failed to write coniguration files");
+		/* FIXME: delete device */
 		return NULL;
 	}
 
@@ -237,7 +246,7 @@ __ni_objectmodel_get_ppp_config(const ni_dbus_object_t *object, DBusError *error
 
 	ppp = ni_netdev_get_ppp(dev);
 	if (!ppp->config)
-		ppp->config = xcalloc(1, sizeof(ni_ppp_config_t));
+		ppp->config = ni_ppp_config_new();
 	return ppp->config;
 }
 
@@ -247,20 +256,35 @@ ni_objectmodel_get_ppp_config(const ni_dbus_object_t *object, DBusError *error)
 	return __ni_objectmodel_get_ppp_config(object, error);
 }
 
+static void *
+ni_objectmodel_get_ppp_authconfig(const ni_dbus_object_t *object, DBusError *error)
+{
+	ni_ppp_config_t *ppp_config;
+
+	if (!(ppp_config = ni_objectmodel_get_ppp_config(object, error)))
+		return NULL;
+
+	if (!ppp_config->auth)
+		ppp_config->auth = ni_ppp_authconfig_new();
+	return ppp_config->auth;
+}
+
 #define PPPCFG_STRING_PROPERTY(dbus_type, type, rw) \
 	NI_DBUS_GENERIC_STRING_PROPERTY(ppp_config, dbus_type, type, rw)
 #define PPPCFG_UINT_PROPERTY(dbus_type, type, rw) \
 	NI_DBUS_GENERIC_UINT_PROPERTY(ppp_config, dbus_type, type, rw)
 #define PPPCFG_PROPERTY_SIGNATURE(signature, __name, rw) \
 	__NI_DBUS_PROPERTY(signature, __name, __ni_objectmodel_ppp_config, rw)
+#define PPPAUTH_STRING_PROPERTY(dbus_type, type, rw) \
+	NI_DBUS_GENERIC_STRING_PROPERTY(ppp_authconfig, dbus_type, type, rw)
 
 /*
  * Authentication properties are wrapped into a separate <auth> element
  */
 const ni_dbus_property_t	ni_objectmodel_ppp_auth_property_table[] = {
-	PPPCFG_STRING_PROPERTY(user, username, RO),
-	PPPCFG_STRING_PROPERTY(password, password, RO),
-	PPPCFG_STRING_PROPERTY(hostname, hostname, RO),
+	PPPAUTH_STRING_PROPERTY(user, username, RO),
+	PPPAUTH_STRING_PROPERTY(password, password, RO),
+	PPPAUTH_STRING_PROPERTY(hostname, hostname, RO),
 
 	{ NULL }
 };

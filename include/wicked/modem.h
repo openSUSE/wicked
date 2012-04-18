@@ -119,6 +119,9 @@ struct ni_modem {
 	struct {
 		char *		number;				/* the phone number to call */
 	} pots;
+
+	/* Configuration and policy */
+	ni_bool_t		use_lock_file;			/* Use a LCK..* lock file when we claim this device */
 };
 
 typedef void		ni_modem_manager_event_handler_fn_t(ni_modem_t *, ni_event_t);

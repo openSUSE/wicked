@@ -15,12 +15,12 @@
 
 #include <wicked/netinfo.h>
 #include <wicked/ppp.h>
+#include <wicked/modem.h>
 #include "netinfo_priv.h"
 
 #define NI_PPPDEV_TAG	"pppdev"
 
 static ni_bool_t	__ni_ppp_tag_to_index(const char *, unsigned int *);
-static const char *	__ni_ppp_path(const char *tag, const char *file);
 
 ni_ppp_t *
 ni_ppp_new(const char *tag)
@@ -44,7 +44,7 @@ ni_ppp_new(const char *tag)
 
 	ppp = xcalloc(1, sizeof(*ppp));
 
-	ni_string_dup(&ppp->ident, tag);
+	ppp->temp_state = ni_tempstate_new(tag);
 	ppp->unit = -1;
 	ppp->devfd = -1;
 	return ppp;
@@ -59,51 +59,134 @@ ni_ppp_close(ni_ppp_t *ppp)
 	ppp->devfd = -1;
 }
 
-int
-ni_ppp_mkdir(ni_ppp_t *ppp)
-{
-	if (ppp->dirpath == NULL) {
-		const char *path;
-
-		path = __ni_ppp_path(ppp->ident, NULL);
-		if (mkdir(path, 0700) < 0) {
-			ni_error("unable to create directory %s: %m", path);
-			return -1;
-		}
-
-		ni_string_dup(&ppp->dirpath, path);
-	}
-	return 0;
-}
-
 void
 ni_ppp_free(ni_ppp_t *ppp)
 {
 	ni_ppp_close(ppp);
 
-	if (ppp->dirpath)
-		ni_file_remove_recursively(ppp->dirpath);
+	ni_tempstate_finish(ppp->temp_state);
+	ppp->temp_state = NULL;
 
-	ni_string_free(&ppp->ident);
-	ni_string_free(&ppp->dirpath);
+	if (ppp->config)
+		ni_ppp_config_free(ppp->config);
+
 	free(ppp);
 }
 
 /*
- * Given a tag like "pppdev0", return the path name of the config file, pid file,
- * or of the directory itself.
- * FIXME: share this code with openvpn
+ * Handle ppp_config
  */
-static const char *
-__ni_ppp_path(const char *tag, const char *filename)
+ni_ppp_config_t *
+ni_ppp_config_new(void)
 {
-	static char pathbuf[PATH_MAX];
+	ni_ppp_config_t *conf;
 
-	if (filename)
-		snprintf(pathbuf, sizeof(pathbuf), "%s/%s/%s", CONFIG_WICKED_STATEDIR, tag, filename);
-	else
-		snprintf(pathbuf, sizeof(pathbuf), "%s/%s", CONFIG_WICKED_STATEDIR, tag);
-	return pathbuf;
+	conf = xcalloc(1, sizeof(*conf));
+	return conf;
+}
+
+void
+ni_ppp_config_free(ni_ppp_config_t *conf)
+{
+	ni_string_free(&conf->device.object_path);
+	ni_string_free(&conf->device.name);
+	if (conf->device.modem) {
+		ni_modem_release(conf->device.modem);
+		conf->device.modem = NULL;
+	}
+	if (conf->device.ethernet) {
+		ni_netdev_put(conf->device.ethernet);
+		conf->device.ethernet = NULL;
+	}
+	ni_string_free(&conf->number);
+	if (conf->auth) {
+		ni_ppp_authconfig_free(conf->auth);
+		conf->auth = NULL;
+	}
+
+	free(conf);
+}
+
+ni_ppp_authconfig_t *
+ni_ppp_authconfig_new(void)
+{
+	ni_ppp_authconfig_t *auth;
+
+	auth = xcalloc(1, sizeof(*auth));
+	return auth;
+}
+
+void
+ni_ppp_authconfig_free(ni_ppp_authconfig_t *auth)
+{
+	ni_string_free(&auth->username);
+	ni_string_free(&auth->password);
+	ni_string_free(&auth->hostname);
+	free(auth);
+}
+
+/*
+ * Write the configuration file
+ */
+int
+ni_ppp_write_config(const ni_ppp_t *ppp)
+{
+	ni_ppp_config_t *conf;
+	char *configpath;
+	FILE *fp;
+
+	if ((conf = ppp->config) == NULL) {
+		ni_error("no configuration attached to ppp device");
+		return -1;
+	}
+
+	configpath = ni_tempstate_mkfile(ppp->temp_state, "config");
+	if ((fp = fopen(configpath, "w")) == NULL) {
+		ni_error("unable to open %s for writing: %m", configpath);
+		return -1;
+	}
+
+	fprintf(fp, "ifname %s\n", ppp->devname);
+	fprintf(fp, "unit %u\n", ppp->unit);
+
+	fprintf(fp, "usepeerdns\n");
+	fprintf(fp, "defaultroute\n");
+	if (conf->device.modem) {
+		ni_modem_t *modem = conf->device.modem;
+		
+		fprintf(fp, "modem\n");
+		if (modem->use_lock_file)
+			fprintf(fp, "lock\n");
+	}
+	if (conf->mru)
+		fprintf(fp, "mru %u\n", conf->mru);
+	if (conf->idle_timeout)
+		fprintf(fp, "idle %u\n", conf->idle_timeout);
+
+	if (conf->auth) {
+		ni_ppp_authconfig_t *auth = conf->auth;
+
+		configpath = ni_tempstate_mkfile(ppp->temp_state, "auth");
+		fprintf(fp, "file %s\n", configpath);
+		fclose(fp);
+
+		fp = fopen(configpath, "w");
+		if (fp == NULL) {
+			ni_error("unable to open %s for writing: %m", configpath);
+			return -1;
+		}
+
+		if (auth->hostname)
+			fprintf(fp, "name %s\n", auth->hostname);
+		if (auth->username)
+			fprintf(fp, "user %s\n", auth->username);
+		if (auth->password)
+			fprintf(fp, "password %s\n", auth->password);
+	}
+
+	if (fp)
+		fclose(fp);
+	return -1;
 }
 
 /*
