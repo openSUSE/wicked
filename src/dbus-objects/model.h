@@ -166,6 +166,10 @@ extern ni_dbus_service_t	ni_objectmodel_vlan_service;
 extern ni_dbus_service_t	ni_objectmodel_vlan_factory_service;
 extern ni_dbus_service_t	ni_objectmodel_tun_service;
 extern ni_dbus_service_t	ni_objectmodel_tun_factory_service;
+extern ni_dbus_service_t	ni_objectmodel_ppp_base_service;
+extern ni_dbus_service_t	ni_objectmodel_ppp_service;
+extern ni_dbus_service_t	ni_objectmodel_ppp_factory_service;
+extern ni_dbus_service_t	ni_objectmodel_pppoe_factory_service;
 extern ni_dbus_service_t	ni_objectmodel_openvpn_service;
 extern ni_dbus_service_t	ni_objectmodel_openvpn_factory_service;
 

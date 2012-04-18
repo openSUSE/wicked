@@ -773,7 +773,7 @@ dbus_bool_t
 ni_dbus_generic_property_get_bool(const ni_dbus_object_t *obj, const ni_dbus_property_t *prop,
 					ni_dbus_variant_t *var, DBusError *error)
 {
-	const unsigned int *vptr;
+	const ni_bool_t *vptr;
 	const void *handle;
 
 	if (!(handle = prop->generic.get_handle(obj, error)))
@@ -787,14 +787,18 @@ dbus_bool_t
 ni_dbus_generic_property_set_bool(ni_dbus_object_t *obj, const ni_dbus_property_t *prop,
 					const ni_dbus_variant_t *var, DBusError *error)
 {
-	unsigned int *vptr;
+	dbus_bool_t dbool;
+	ni_bool_t *vptr;
 	void *handle;
 
 	if (!(handle = prop->generic.get_handle(obj, error)))
 		return FALSE;
 
 	vptr = __property_data(prop, handle, bool);
-	return ni_dbus_variant_get_bool(var, vptr);
+	if (!ni_dbus_variant_get_bool(var, &dbool))
+		return FALSE;
+	*vptr = dbool;
+	return TRUE;
 }
 
 dbus_bool_t

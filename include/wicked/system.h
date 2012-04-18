@@ -36,6 +36,9 @@ extern int		ni_system_bond_delete(ni_netconfig_t *nc, ni_netdev_t *ifp);
 extern int		ni_system_tun_create(ni_netconfig_t *nc, const char *ifname,
 				ni_netdev_t **ifpp);
 extern int		ni_system_tun_delete(ni_netdev_t *ifp);
+extern int		ni_system_ppp_create(ni_netconfig_t *nc, const char *ifname,
+				ni_ppp_t *cfg_ppp, ni_netdev_t **ifpp);
+extern int		ni_system_ppp_delete(ni_netdev_t *ifp);
 
 #endif /* __WICKED_SYSTEM_H__ */
 

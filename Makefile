@@ -43,6 +43,7 @@ __LIBSRCS= \
 	  bridge.c \
 	  wireless.c \
 	  openvpn.c \
+	  ppp.c \
 	  modem-manager.c \
 	  state.c \
 	  iflist.c \
@@ -90,6 +91,7 @@ __LIBSRCS= \
 	  dbus-objects/bonding.c \
 	  dbus-objects/tun.c \
 	  dbus-objects/openvpn.c \
+	  dbus-objects/ppp.c \
 	  dbus-objects/modem.c \
 	  dbus-objects/addrconf.c \
 	  dbus-objects/misc.c \

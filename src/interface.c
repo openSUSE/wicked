@@ -23,6 +23,7 @@
 #include <wicked/wireless.h>
 #include <wicked/vlan.h>
 #include <wicked/openvpn.h>
+#include <wicked/ppp.h>
 #include <wicked/socket.h>
 #include <wicked/resolver.h>
 #include <wicked/nis.h>
@@ -105,6 +106,7 @@ ni_netdev_free(ni_netdev_t *dev)
 	ni_netdev_set_vlan(dev, NULL);
 	ni_netdev_set_wireless(dev, NULL);
 	ni_netdev_set_openvpn(dev, NULL);
+	ni_netdev_set_ppp(dev, NULL);
 	ni_netdev_set_ibft_nic(dev, NULL);
 
 	ni_addrconf_lease_list_destroy(&dev->leases);
@@ -271,6 +273,25 @@ ni_netdev_set_openvpn(ni_netdev_t *dev, ni_openvpn_t *openvpn)
 	if (dev->openvpn)
 		ni_openvpn_free(dev->openvpn);
 	dev->openvpn = openvpn;
+}
+
+/*
+ * Set the interface's ppp info
+ */
+ni_ppp_t *
+ni_netdev_get_ppp(ni_netdev_t *dev)
+{
+	if (dev->link.type != NI_IFTYPE_PPP)
+		return NULL;
+	return dev->ppp;
+}
+
+void
+ni_netdev_set_ppp(ni_netdev_t *dev, ni_ppp_t *ppp)
+{
+	if (dev->ppp)
+		ni_ppp_free(dev->ppp);
+	dev->ppp = ppp;
 }
 
 /*

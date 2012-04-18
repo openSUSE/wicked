@@ -348,6 +348,24 @@ ni_objectmodel_class_new(const char *classname, const ni_dbus_class_t *base_clas
 }
 
 /*
+ * Do an object lookup using the full path
+ */
+ni_dbus_object_t *
+ni_objectmodel_object_by_path(const char *path)
+{
+	ni_dbus_object_t *root;
+
+	if (!__ni_objectmodel_server || !path)
+		return NULL;
+
+	root = ni_dbus_server_get_root_object(__ni_objectmodel_server);
+	if (!(path = ni_dbus_object_get_relative_path(root, path)))
+		return NULL;
+
+	return ni_dbus_object_lookup(root, path);
+}
+
+/*
  * The interface for the dbus root node. Nothing much for now.
  */
 static ni_dbus_service_t	ni_objectmodel_netif_root_interface = {

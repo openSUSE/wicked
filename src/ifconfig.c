@@ -35,6 +35,7 @@
 #include <wicked/vlan.h>
 #include <wicked/system.h>
 #include <wicked/wireless.h>
+#include <wicked/ppp.h>
 
 #include "netinfo_priv.h"
 #include "sysfs.h"
@@ -697,6 +698,61 @@ ni_system_tun_delete(ni_netdev_t *dev)
 		ni_error("could not destroy tun/tap interface %s", dev->name);
 		return rv;
 	}
+	return 0;
+}
+
+/*
+ * Create a ppp interface
+ */
+int
+ni_system_ppp_create(ni_netconfig_t *nc, const char *ifname, ni_ppp_t *cfg, ni_netdev_t **dev_ret)
+{
+	ni_netdev_t *dev;
+	ni_ppp_t *ppp;
+	char *newname;
+
+	ni_debug_ifconfig("%s: creating ppp interface", ifname);
+
+	ppp = ni_ppp_new(NULL);
+	if ((newname = __ni_ppp_create_device(ppp, ifname)) == NULL) {
+		ni_error("__ni_ppp_create_device(%s) failed", ifname);
+		ni_ppp_free(ppp);
+		return -1;
+	}
+
+	/* Refresh interface status */
+	__ni_system_refresh_interfaces(nc);
+
+	dev = ni_netdev_by_name(nc, newname);
+	free(newname);
+
+	if (dev == NULL) {
+		ni_error("tried to create ppp interface %s; still not found", ifname);
+		return -1;
+	}
+
+	if (cfg) {
+		ppp->config = cfg->config;
+		cfg->config = NULL;
+	}
+
+	ni_netdev_set_ppp(dev, ppp);
+	*dev_ret = dev;
+	return 0;
+}
+
+/*
+ * Delete a ppp interface
+ */
+int
+ni_system_ppp_delete(ni_netdev_t *dev)
+{
+	ni_ppp_t *ppp;
+
+	if ((ppp = dev->ppp) == NULL)
+		return 0;
+
+	ni_ppp_close(ppp);
 	return 0;
 }
 

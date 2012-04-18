@@ -84,7 +84,7 @@ struct ni_modem {
 	ni_modem_type_t		type;
 	ni_modem_state_t	state;
 	ni_modem_ipmethod_t	ip_config_method;
-	dbus_bool_t		enabled;
+	ni_bool_t		enabled;
 
 	/* The uuid of a pending event */
 	ni_uuid_t		event_uuid;

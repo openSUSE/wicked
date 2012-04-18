@@ -27,7 +27,6 @@
 #include "model.h"
 #include "debug.h"
 
-extern ni_modem_t *	ni_objectmodel_modem_unwrap(const ni_dbus_object_t *, DBusError *);
 extern dbus_bool_t	ni_objectmodel_modem_list_refresh(ni_dbus_object_t *);
 static void		ni_objectmodel_modem_initialize(ni_dbus_object_t *object);
 static void		ni_objectmodel_modem_destroy(ni_dbus_object_t *object);

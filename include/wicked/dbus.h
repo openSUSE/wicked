@@ -109,7 +109,7 @@ struct ni_dbus_property	{
 	struct {
 		void *			(*get_handle)(const ni_dbus_object_t *, DBusError *);
 		union {
-			dbus_bool_t *	bool_offset;
+			ni_bool_t *	bool_offset;
 			int *		int_offset;
 			unsigned int *	uint_offset;
 			uint16_t *	uint16_offset;

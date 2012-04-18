@@ -18,10 +18,14 @@
 #include <sys/ioctl.h>
 #include <fcntl.h>
 #include <netinet/in.h>
+#include <net/if.h>
 #include <net/if_arp.h>
 #include <linux/ethtool.h>
 #include <linux/sockios.h>
 #include <linux/if_tun.h>
+#include <linux/ppp_defs.h>
+#define aligned_u64 uint64_t
+#include <linux/if_ppp.h>
 #include <netlink/msg.h>
 #include <netlink/route/rtnl.h>
 #include <netlink/genl/genl.h>
@@ -31,10 +35,14 @@
 #include "netinfo_priv.h"
 #include "sysfs.h"
 #include "kernel.h"
+#include <wicked/ppp.h>
 
 /* FIXME: we should really make this configurable */
 #ifndef CONFIG_TUNTAP_CHRDEV_PATH
 # define CONFIG_TUNTAP_CHRDEV_PATH	"/dev/net/tun"
+#endif
+#ifndef CONFIG_PPP_CHRDEV_PATH
+# define CONFIG_PPP_CHRDEV_PATH		"/dev/ppp"
 #endif
 
 #ifndef SIOCETHTOOL
@@ -59,6 +67,30 @@ __ni_ioctl(int ioc, void *arg)
 	}
 
 	return ioctl(__ni_global_iocfd, ioc, arg);
+}
+
+/*
+ * Rename a network interface
+ */
+int
+__ni_netdev_rename(const char *old_name, const char *new_name)
+{
+	struct ifreq ifr;
+
+	if (ni_string_eq(old_name, new_name))
+		return 0;
+
+	memset(&ifr, 0, sizeof(ifr));
+	strncpy(ifr.ifr_name, old_name, sizeof(ifr.ifr_name));
+	strncpy(ifr.ifr_newname, new_name, sizeof(ifr.ifr_newname));
+
+	if (__ni_ioctl(SIOCSIFNAME, &ifr) < 0) {
+		ni_error("unable to rename network device %s to %s: %m",
+				old_name, new_name);
+		return -1;
+	}
+
+	return 0;
 }
 
 /*
@@ -256,6 +288,50 @@ __ni_tuntap_delete(const char *ifname)
 
 	close(devfd);
 	return rv;
+}
+
+/*
+ * Create a ppp device
+ */
+char *
+__ni_ppp_create_device(ni_ppp_t *ppp, const char *ifname)
+{
+	int devfd, ifunit = -1;
+
+	if (ppp->devfd >= 0) {
+		ni_error("%s: this ppp handle already has a devfd?", __func__);
+		return NULL;
+	}
+
+	if ((devfd = open(CONFIG_PPP_CHRDEV_PATH, O_RDWR)) < 0) {
+		ni_error("unable to open %s: %m", CONFIG_PPP_CHRDEV_PATH);
+		return NULL;
+	}
+
+	/* If we're asked to create a device named pppN, assume we should be
+	 * creating the device with the specified ppp unit N */
+	if (ifname && !strncmp(ifname, "ppp", 3)
+	 && ni_parse_int(ifname + 3, (unsigned int *) &ifunit) >= 0)
+		ifname = NULL;
+
+	if (ioctl(devfd, PPPIOCNEWUNIT, &ifunit) < 0) {
+		ni_error("unable to create new PPP network device: %m");
+		close(devfd);
+		return NULL;
+	}
+
+	snprintf(ppp->devname, sizeof(ppp->devname), "ppp%u", ifunit);
+	if (ifname != NULL) {
+		if (__ni_netdev_rename(ppp->devname, ifname) < 0) {
+			close(devfd);
+			return NULL;
+		}
+		strncpy(ppp->devname, ifname, sizeof(ppp->devname));
+	}
+
+	ppp->devfd = devfd;
+	ppp->unit = ifunit;
+	return ppp->devname;
 }
 
 /*

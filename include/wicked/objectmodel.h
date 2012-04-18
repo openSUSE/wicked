@@ -47,6 +47,7 @@ extern ni_dbus_class_t *	ni_objectmodel_class_new(const char *, const ni_dbus_cl
 #define NI_OBJECTMODEL_TUN_INTERFACE		NI_OBJECTMODEL_INTERFACE ".TUN"
 #define NI_OBJECTMODEL_OPENVPN_INTERFACE	NI_OBJECTMODEL_INTERFACE ".OpenVPN"
 #define NI_OBJECTMODEL_PPP_INTERFACE		NI_OBJECTMODEL_INTERFACE ".PPP"
+#define NI_OBJECTMODEL_PPPOE_INTERFACE		NI_OBJECTMODEL_INTERFACE ".PPPoE"
 #define NI_OBJECTMODEL_DHCP4_INTERFACE		NI_OBJECTMODEL_INTERFACE ".DHCP4"
 #define NI_OBJECTMODEL_AUTO4_INTERFACE		NI_OBJECTMODEL_INTERFACE ".AUTO4"
 #define NI_OBJECTMODEL_MODEM_LIST_INTERFACE	NI_OBJECTMODEL_INTERFACE ".ModemList"
@@ -71,6 +72,8 @@ extern unsigned int		ni_objectmodel_compatible_services_for_class(const ni_dbus_
 
 extern dbus_bool_t		ni_objectmodel_get_addrconf_lease(const ni_addrconf_lease_t *, ni_dbus_variant_t *);
 extern dbus_bool_t		ni_objectmodel_set_addrconf_lease(ni_addrconf_lease_t *, const ni_dbus_variant_t *);
+
+extern ni_dbus_object_t *	ni_objectmodel_object_by_path(const char *path);
 
 extern ni_dbus_object_t *	ni_objectmodel_wrap_interface(ni_netdev_t *ifp);
 extern ni_netdev_t *		ni_objectmodel_unwrap_interface(const ni_dbus_object_t *, DBusError *);
