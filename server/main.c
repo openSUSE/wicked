@@ -56,7 +56,6 @@ static int		opt_recover_leases = 1;
 static int		opt_no_modem_manager = 0;
 static ni_dbus_server_t *wicked_dbus_server;
 static ni_xs_scope_t *	wicked_dbus_xml_schema;
-static void		(*opt_personality)(void);
 static int		wicked_term_sig = 0;
 
 static void		wicked_interface_server(void);
@@ -72,8 +71,6 @@ main(int argc, char **argv)
 {
 	const char *progname;
 	int c;
-
-	opt_personality = wicked_interface_server;
 
 	progname = ni_basename(argv[0]);
 
@@ -132,7 +129,7 @@ main(int argc, char **argv)
 	if (optind != argc)
 		goto usage;
 
-	opt_personality();
+	wicked_interface_server();
 	return 0;
 }
 
