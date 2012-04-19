@@ -70,17 +70,26 @@ ni_bool_t
 wicked_save_state(ni_xs_scope_t *schema, ni_dbus_server_t *server, const char *filename)
 {
 	xml_document_t *doc;
-	ni_bool_t rv;
+	ni_bool_t rv = FALSE;
+	FILE *fp = NULL;
 
 	ni_debug_wicked("saving server state to %s", filename);
 
 	doc = xml_document_new();
-	rv = wicked_save_state_xml(schema, doc->root, server);
-	if (rv && xml_document_write(doc, filename) < 0) {
+	if (!wicked_save_state_xml(schema, doc->root, server))
+		goto done;
+
+	fp = ni_file_open(filename, "w", 0600);
+	if (xml_document_print(doc, fp) < 0) {
 		ni_error("%s: unable to write server state to %s", __func__, filename);
-		rv = FALSE;
+		goto done;
 	}
 
+	rv = TRUE;
+
+done:
+	if (fp)
+		fclose(fp);
 	xml_document_free(doc);
 	return rv;
 }
