@@ -27,6 +27,8 @@
 #include <wicked/objectmodel.h>
 #include "dhcp4/dhcp.h"
 
+#define CONFIG_DHCP4_STATE_PATH		CONFIG_WICKED_STATEDIR "dhcp4-state.xml"
+
 enum {
 	OPT_CONFIGFILE,
 	OPT_DEBUG,
@@ -50,12 +52,14 @@ static struct option	options[] = {
 static int		opt_foreground = 0;
 static int		opt_recover_leases = 1;
 static ni_dbus_server_t *dhcp4_dbus_server;
+static int		dhcp4_term_sig = 0;
 
 static void		dhcp4_supplicant(void);
+static void		dhcp4_recover_addrconf(const char *);
 static void		dhcp4_discover_devices(ni_dbus_server_t *);
-static void		dhcp4_recover_lease(ni_netdev_t *);
 static void		dhcp4_interface_event(ni_netdev_t *, ni_event_t);
 static void		dhcp4_protocol_event(enum ni_dhcp_event, const ni_dhcp_device_t *, ni_addrconf_lease_t *);
+static void		dhcp4_catch_term_signal(int);
 
 // Hack
 extern ni_dbus_object_t *ni_objectmodel_register_dhcp4_device(ni_dbus_server_t *, ni_dhcp_device_t *);
@@ -128,10 +132,10 @@ main(int argc, char **argv)
  * If we have any live leases, restart address configuration for them.
  * This allows a daemon restart without losing lease state.
  */
+#if 0 /* broken right now */
 void
 dhcp4_recover_lease(ni_netdev_t *ifp)
 {
-#if 0 /* broken right now */
 	ni_afinfo_t *afi = &ifp->ipv4;
 	ni_addrconf_lease_t *lease;
 
@@ -177,8 +181,8 @@ dhcp4_recover_lease(ni_netdev_t *ifp)
 	ni_debug_wicked("%s: initiated recovery of %s/%s lease", ifp->name,
 				ni_addrconf_type_to_name(lease->type),
 				ni_addrfamily_type_to_name(lease->family));
-#endif
 }
+#endif
 
 /*
  * Functions to support the DHCP4 DBus binding
@@ -261,9 +265,6 @@ dhcp4_discover_devices(ni_dbus_server_t *server)
 		if (ifp->link.arp_type != ARPHRD_ETHER)
 			continue;
 		dhcp4_device_create(server, ifp);
-
-		if (opt_recover_leases)
-			dhcp4_recover_lease(ifp);
 	}
 }
 
@@ -292,7 +293,13 @@ dhcp4_supplicant(void)
 	/* We're using randomized timeouts. Seed the RNG */
 	ni_srandom();
 
-	while (1) {
+	if (opt_recover_leases)
+		dhcp4_recover_addrconf(CONFIG_DHCP4_STATE_PATH);
+
+	signal(SIGTERM, dhcp4_catch_term_signal);
+	signal(SIGINT, dhcp4_catch_term_signal);
+
+	while (dhcp4_term_sig == 0) {
 		long timeout;
 
 		timeout = ni_timer_next_timeout();
@@ -300,7 +307,16 @@ dhcp4_supplicant(void)
 			ni_fatal("ni_socket_wait failed");
 	}
 
+	ni_debug_dhcp("caught signal %u, exiting", dhcp4_term_sig);
+	ni_objectmodel_save_state(CONFIG_DHCP4_STATE_PATH);
+
 	exit(0);
+}
+
+void
+dhcp4_catch_term_signal(int sig)
+{
+	dhcp4_term_sig = sig;
 }
 
 /*
@@ -425,3 +441,24 @@ done:
 	while (argc--)
 		ni_dbus_variant_destroy(&argv[argc]);
 }
+
+/*
+ * Recover lease information from the state.xml file.
+ */
+void
+dhcp4_recover_addrconf(const char *filename)
+{
+	if (!ni_file_exists(filename)) {
+		ni_debug_wicked("%s: %s does not exist, skip this", __func__, filename);
+		return;
+	}
+
+	/* Recover the lease information of all interfaces. */
+	if (!ni_objectmodel_recover_state(filename, NULL)) {
+		ni_error("unable to recover dhcp4 state");
+		return;
+	}
+
+	/* FIXME: update resolver etc. */
+}
+
