@@ -346,6 +346,32 @@ ni_dbus_xml_deserialize_properties(ni_xs_scope_t *schema, const char *interface_
 	return node;
 }
 
+int
+ni_dbus_xml_serialize_properties(ni_xs_scope_t *schema, ni_dbus_variant_t *result, xml_node_t *node)
+{
+	const char *interface_name = node->name;
+	ni_xs_service_t *service;
+	ni_xs_type_t *type;
+
+	ni_dbus_variant_init_dict(result);
+	if (!(service = ni_dbus_xml_get_service_schema(schema, interface_name))) {
+		ni_error("cannot represent %s properties - no schema definition", interface_name);
+		return -NI_ERROR_CANNOT_MARSHAL;
+	}
+
+	if (!(type = ni_dbus_xml_get_properties_schema(schema, service))) {
+		ni_error("no type named <properties> for interface %s", interface_name);
+		return -NI_ERROR_CANNOT_MARSHAL;
+	}
+
+	if (!ni_dbus_serialize_xml(node, type, result)) {
+		ni_error("failed to parse xml for %s properties", interface_name);
+		return -NI_ERROR_CANNOT_MARSHAL;
+	}
+
+	return 0;
+}
+
 /*
  * Given an XML tree representing the data returned by an extension script,
  * build the dbus response from it

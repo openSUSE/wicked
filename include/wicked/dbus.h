@@ -470,6 +470,7 @@ extern xml_node_t *		ni_dbus_xml_deserialize_arguments(const ni_dbus_method_t *m
 						ni_tempstate_t *);
 extern xml_node_t *		ni_dbus_xml_deserialize_properties(ni_xs_scope_t *, const char *,
 						ni_dbus_variant_t *, xml_node_t *);
+extern int			ni_dbus_xml_serialize_properties(ni_xs_scope_t *, ni_dbus_variant_t *, xml_node_t *);
 
 extern int			ni_dbus_xml_get_method_metadata(const ni_dbus_method_t *method,
 						const char *node_name,
