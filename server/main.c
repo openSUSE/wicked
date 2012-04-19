@@ -54,6 +54,7 @@ static int		opt_recover_leases = 1;
 static int		opt_no_modem_manager = 0;
 static ni_dbus_server_t *wicked_dbus_server;
 static void		(*opt_personality)(void);
+static int		wicked_term_sig = 0;
 
 static void		wicked_interface_server(void);
 static void		wicked_discover_state(void);
@@ -61,6 +62,7 @@ static void		wicked_try_restart_addrconf(ni_netdev_t *, ni_afinfo_t *, unsigned 
 static void		wicked_interface_event(ni_netdev_t *, ni_event_t);
 static void		wicked_other_event(ni_event_t);
 static void		wicked_modem_event(ni_modem_t *, ni_event_t);
+static void		wicked_catch_term_signal(int);
 
 int
 main(int argc, char **argv)
@@ -167,7 +169,10 @@ wicked_interface_server(void)
 
 	wicked_discover_state();
 
-	while (1) {
+	signal(SIGTERM, wicked_catch_term_signal);
+	signal(SIGINT, wicked_catch_term_signal);
+
+	while (wicked_term_sig == 0) {
 		long timeout;
 
 		timeout = ni_timer_next_timeout();
@@ -175,7 +180,15 @@ wicked_interface_server(void)
 			ni_fatal("ni_socket_wait failed");
 	}
 
+	ni_debug_wicked("caught signal %u, exiting", wicked_term_sig);
+
 	exit(0);
+}
+
+void
+wicked_catch_term_signal(int sig)
+{
+	wicked_term_sig = sig;
 }
 
 /*
