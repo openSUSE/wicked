@@ -114,7 +114,8 @@ CLIENTSRCS = \
 	  client/ifup.c \
 	  client/calls.c
 SERVERSRCS = \
-	  server/main.c
+	  server/main.c \
+	  server/state.c
 GENFILES = \
 	  schema/constants.xml
 

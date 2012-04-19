@@ -27,6 +27,7 @@
 #include <wicked/socket.h>
 #include <wicked/objectmodel.h>
 #include <wicked/modem.h>
+#include "server.h"
 
 enum {
 	OPT_CONFIGFILE,
@@ -181,6 +182,9 @@ wicked_interface_server(void)
 	}
 
 	ni_debug_wicked("caught signal %u, exiting", wicked_term_sig);
+	
+	wicked_save_state(wicked_dbus_xml_schema, wicked_dbus_server,
+			CONFIG_WICKED_STATEDIR "/state.xml");
 
 	exit(0);
 }
