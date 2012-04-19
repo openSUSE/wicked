@@ -740,7 +740,7 @@ ni_ifworker_add_callbacks(ni_iftransition_t *action, ni_objectmodel_callback_inf
 		ni_trace("%s waiting for callbacks:", ifname);
 		for (cb = callback_list; cb; cb = cb->next) {
 			ni_trace(" %s event=%s",
-				ni_print_hex(cb->uuid.octets, 16),
+				ni_uuid_print(&cb->uuid),
 				cb->event);
 		}
 	}
@@ -2574,7 +2574,7 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 			return;
 		}
 		if (ni_dbus_variant_get_uuid(&result, &event_uuid))
-			ni_debug_dbus("event uuid=%s", ni_print_hex(event_uuid.octets, 16));
+			ni_debug_dbus("event uuid=%s", ni_uuid_print(&event_uuid));
 		else
 			ni_debug_dbus("event does not have a uuid");
 		ni_dbus_variant_destroy(&result);

@@ -286,7 +286,7 @@ ni_dhcp_acquire(ni_dhcp_device_t *dev, const ni_dhcp4_request_t *info)
 		ni_trace("  hostname        %s", config->hostname[0]? config->hostname : "<none>");
 		ni_trace("  vendor-class    %s", config->classid[0]? config->classid : "<none>");
 		ni_trace("  client-id       %s", ni_print_hex(config->raw_client_id.data, config->raw_client_id.len));
-		ni_trace("  uuid            %s", ni_print_hex(config->uuid.octets, 16));
+		ni_trace("  uuid            %s", ni_uuid_print(&config->uuid));
 		ni_trace("  flags           %s", __ni_dhcp_print_flags(config->flags));
 	}
 

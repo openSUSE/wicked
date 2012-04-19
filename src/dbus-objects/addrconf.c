@@ -156,7 +156,7 @@ ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_messa
 			signal_name, ifp->name, ifp->link.ifindex,
 			ni_addrconf_type_to_name(lease->type),
 			ni_addrfamily_type_to_name(lease->family),
-			ni_print_hex(uuid.octets, 16));
+			ni_uuid_print(&uuid));
 	if (!strcmp(signal_name, NI_OBJECTMODEL_LEASE_ACQUIRED_SIGNAL)) {
 		if (lease->state != NI_ADDRCONF_STATE_GRANTED) {
 			ni_error("%s: unexpected lease state in signal %s", __func__, signal_name);
