@@ -316,6 +316,25 @@ ni_dhcp_acquire(ni_dhcp_device_t *dev, const ni_dhcp4_request_t *info)
 }
 
 /*
+ * When the supplicant restarts, we reload the state from file, and check
+ * for which devices we have existing requests.
+ *
+ * For now, we go through a full discover/request cycle. If this proves
+ * a too coarse approach, we should probably store the current leases
+ * in the state file as well, and just do a renew/rebind.
+ */
+void
+ni_dhcp_restart_leases(void)
+{
+	ni_dhcp_device_t *dev;
+
+	for (dev = ni_dhcp_active; dev; dev = dev->next) {
+		if (dev->request)
+			ni_dhcp_acquire(dev, dev->request);
+	}
+}
+
+/*
  * Translate a bitmap of NI_ADDRCONF_UPDATE_* flags into a bitmap of
  * DHCP_DO_* masks
  */

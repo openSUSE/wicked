@@ -164,6 +164,7 @@ extern void		ni_dhcp_set_event_handler(ni_dhcp_event_handler_t);
 
 extern int		ni_dhcp_acquire(ni_dhcp_device_t *, const ni_dhcp4_request_t *);
 extern int		ni_dhcp_release(ni_dhcp_device_t *, const ni_uuid_t *);
+extern void		ni_dhcp_restart_leases(void);
 
 extern int		ni_dhcp_fsm_discover(ni_dhcp_device_t *);
 extern int		ni_dhcp_fsm_release(ni_dhcp_device_t *);

@@ -459,6 +459,8 @@ dhcp4_recover_addrconf(const char *filename)
 		return;
 	}
 
-	/* FIXME: update resolver etc. */
+	/* Now loop over all devices that have a request associated with them,
+	 * and kickstart those. */
+	ni_dhcp_restart_leases();
 }
 
