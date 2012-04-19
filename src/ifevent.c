@@ -109,7 +109,7 @@ __ni_netdev_event(ni_netconfig_t *nc, ni_netdev_t *dev, ni_event_t ev)
 	ni_debug_events("%s(%s, idx=%d, %s)", __FUNCTION__,
 			dev->name, dev->link.ifindex, ni_event_type_to_name(ev));
 	if (ni_global.interface_event)
-		ni_global.interface_event(nc, dev, ev);
+		ni_global.interface_event(dev, ev);
 }
 
 int
@@ -298,7 +298,7 @@ __ni_rtevent_newprefix(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, str
 #define nl_mgrp(x)	(1 << ((x) - 1))
 
 int
-ni_server_listen_events(void (*ifevent_handler)(ni_netconfig_t *, ni_netdev_t *, ni_event_t))
+ni_server_listen_interface_events(void (*ifevent_handler)(ni_netdev_t *, ni_event_t))
 {
 	struct nl_handle *handle;
 	ni_socket_t *sock;

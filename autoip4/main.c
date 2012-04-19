@@ -51,7 +51,7 @@ static ni_dbus_server_t *autoip4_dbus_server;
 static void		autoip4_supplicant(void);
 static void		autoip4_discover_devices(ni_dbus_server_t *);
 static void		autoip4_recover_lease(ni_netdev_t *);
-static void		autoip4_interface_event(ni_netconfig_t *, ni_netdev_t *, ni_event_t);
+static void		autoip4_interface_event(ni_netdev_t *, ni_event_t);
 static void		autoip4_protocol_event(enum ni_lease_event, const ni_autoip_device_t *, ni_addrconf_lease_t *);
 
 // Hack
@@ -275,7 +275,7 @@ autoip4_supplicant(void)
 	autoip4_register_services(autoip4_dbus_server);
 
 	/* open global RTNL socket to listen for kernel events */
-	if (ni_server_listen_events(autoip4_interface_event) < 0)
+	if (ni_server_listen_interface_events(autoip4_interface_event) < 0)
 		ni_fatal("unable to initialize netlink listener");
 
 	if (!opt_foreground) {
@@ -302,8 +302,9 @@ autoip4_supplicant(void)
  * mucking with manually.
  */
 void
-autoip4_interface_event(ni_netconfig_t *nc, ni_netdev_t *ifp, ni_event_t event)
+autoip4_interface_event(ni_netdev_t *ifp, ni_event_t event)
 {
+	ni_netconfig_t *nc = ni_global_state_handle(0);
 	ni_autoip_device_t *dev;
 	ni_netdev_t *ofp;
 

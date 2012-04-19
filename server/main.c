@@ -58,7 +58,7 @@ static void		(*opt_personality)(void);
 static void		wicked_interface_server(void);
 static void		wicked_discover_state(void);
 static void		wicked_try_restart_addrconf(ni_netdev_t *, ni_afinfo_t *, unsigned int);
-static void		wicked_interface_event(ni_netconfig_t *, ni_netdev_t *, ni_event_t);
+static void		wicked_interface_event(ni_netdev_t *, ni_event_t);
 static void		wicked_modem_event(ni_modem_t *, ni_event_t);
 
 int
@@ -152,7 +152,7 @@ wicked_interface_server(void)
 		ni_fatal("Cannot initialize objectmodel, giving up.");
 
 	/* open global RTNL socket to listen for kernel events */
-	if (ni_server_listen_events(wicked_interface_event) < 0)
+	if (ni_server_listen_interface_events(wicked_interface_event) < 0)
 		ni_fatal("unable to initialize netlink listener");
 
 	if (!opt_foreground) {
@@ -279,7 +279,7 @@ wicked_try_restart_addrconf(ni_netdev_t *ifp, ni_afinfo_t *afi, unsigned int mod
  * mucking with manually.
  */
 void
-wicked_interface_event(ni_netconfig_t *nc, ni_netdev_t *ifp, ni_event_t event)
+wicked_interface_event(ni_netdev_t *dev, ni_event_t event)
 {
 	ni_uuid_t *event_uuid = NULL;
 
@@ -287,24 +287,24 @@ wicked_interface_event(ni_netconfig_t *nc, ni_netdev_t *ifp, ni_event_t event)
 		switch (event) {
 		case NI_EVENT_DEVICE_CREATE:
 			/* Create dbus object and emit event */
-			ni_objectmodel_register_interface(wicked_dbus_server, ifp, NULL);
+			ni_objectmodel_register_interface(wicked_dbus_server, dev, NULL);
 			break;
 
 		case NI_EVENT_DEVICE_DELETE:
 			/* Delete dbus object and emit event */
-			ni_objectmodel_unregister_interface(wicked_dbus_server, ifp);
+			ni_objectmodel_unregister_interface(wicked_dbus_server, dev);
 			break;
 
 		case NI_EVENT_LINK_ASSOCIATED:
 		case NI_EVENT_LINK_ASSOCIATION_LOST:
 		case NI_EVENT_LINK_UP:
 		case NI_EVENT_LINK_DOWN:
-			if (!ni_uuid_is_null(&ifp->link.event_uuid))
-				event_uuid = &ifp->link.event_uuid;
+			if (!ni_uuid_is_null(&dev->link.event_uuid))
+				event_uuid = &dev->link.event_uuid;
 			/* fallthru */
 
 		default:
-			ni_objectmodel_interface_event(wicked_dbus_server, ifp, event, event_uuid);
+			ni_objectmodel_interface_event(wicked_dbus_server, dev, event, event_uuid);
 			break;
 		}
 	}
