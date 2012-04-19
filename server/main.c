@@ -29,6 +29,8 @@
 #include <wicked/modem.h>
 #include "server.h"
 
+#define CONFIG_WICKED_STATE_PATH	CONFIG_WICKED_STATEDIR "/state.xml"
+
 enum {
 	OPT_CONFIGFILE,
 	OPT_DEBUG,
@@ -54,11 +56,13 @@ static int		opt_nofork = 0;
 static int		opt_recover_leases = 1;
 static int		opt_no_modem_manager = 0;
 static ni_dbus_server_t *wicked_dbus_server;
+static ni_xs_scope_t *	wicked_dbus_xml_schema;
 static void		(*opt_personality)(void);
 static int		wicked_term_sig = 0;
 
 static void		wicked_interface_server(void);
 static void		wicked_discover_state(void);
+static void		wicked_recover_addrconf(const char *filename);
 static void		wicked_try_restart_addrconf(ni_netdev_t *, ni_afinfo_t *, unsigned int);
 static void		wicked_interface_event(ni_netdev_t *, ni_event_t);
 static void		wicked_other_event(ni_event_t);
@@ -140,8 +144,6 @@ main(int argc, char **argv)
 void
 wicked_interface_server(void)
 {
-	ni_xs_scope_t *wicked_dbus_xml_schema;
-
 	wicked_dbus_server = ni_objectmodel_create_service();
 	if (!wicked_dbus_server)
 		ni_fatal("Cannot create server, giving up.");
@@ -170,6 +172,9 @@ wicked_interface_server(void)
 
 	wicked_discover_state();
 
+	if (opt_recover_leases)
+		wicked_recover_addrconf(CONFIG_WICKED_STATE_PATH);
+
 	signal(SIGTERM, wicked_catch_term_signal);
 	signal(SIGINT, wicked_catch_term_signal);
 
@@ -183,8 +188,7 @@ wicked_interface_server(void)
 
 	ni_debug_wicked("caught signal %u, exiting", wicked_term_sig);
 	
-	wicked_save_state(wicked_dbus_xml_schema, wicked_dbus_server,
-			CONFIG_WICKED_STATEDIR "/state.xml");
+	wicked_save_state(wicked_dbus_xml_schema, wicked_dbus_server, CONFIG_WICKED_STATE_PATH);
 
 	exit(0);
 }
@@ -229,6 +233,28 @@ wicked_discover_state(void)
 		for (modem = ni_netconfig_modem_list(nc); modem; modem = modem->list.next)
 			ni_objectmodel_register_modem(wicked_dbus_server, modem);
 	}
+}
+
+/*
+ * Recover lease information from the state.xml file.
+ * Note that this does *not* restart address configuration protocols like DHCP automatically;
+ * this needs to happen in the respective supplicants.
+ */
+void
+wicked_recover_addrconf(const char *filename)
+{
+	if (!ni_file_exists(filename)) {
+		ni_debug_wicked("%s: %s does not exist, skip this", __func__, filename);
+		return;
+	}
+
+	/* Recover the lease information of all interfaces. */
+	if (!wicked_recover_state(wicked_dbus_xml_schema, wicked_dbus_server, filename)) {
+		ni_error("unable to recover address configuration state");
+		return;
+	}
+
+	/* FIXME: update resolver etc. */
 }
 
 /*
