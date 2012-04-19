@@ -545,8 +545,11 @@ __ni_objectmodel_get_addrconf_lease(const ni_addrconf_lease_t *lease,
 
 	ni_dbus_dict_add_uint32(result, "state", lease->state);
 	ni_dbus_dict_add_uint32(result, "acquired", lease->time_acquired);
-	ni_dbus_dict_add_byte_array(result, "uuid", lease->uuid.octets, 16);
 	ni_dbus_dict_add_uint32(result, "update", lease->update);
+
+	if (!(child = ni_dbus_dict_add(result, "uuid")))
+		return FALSE;
+	ni_dbus_variant_set_uuid(child, &lease->uuid);
 
 	if (lease->hostname)
 		ni_dbus_dict_add_string(result, "hostname", lease->hostname);
@@ -616,7 +619,6 @@ __ni_objectmodel_set_addrconf_lease(ni_addrconf_lease_t *lease,
 {
 	const ni_dbus_variant_t *child;
 	const char *string_value;
-	unsigned int dummy;
 	uint32_t value32;
 
 	if (ni_dbus_dict_get_uint32(argument, "state", &value32))
@@ -635,7 +637,7 @@ __ni_objectmodel_set_addrconf_lease(ni_addrconf_lease_t *lease,
 		ni_string_dup(&lease->hostname, string_value);
 
 	if ((child = ni_dbus_dict_get(argument, "uuid")) != NULL
-	 && !ni_dbus_variant_get_byte_array_minmax(child, lease->uuid.octets, &dummy, 16, 16))
+	 && !ni_dbus_variant_get_uuid(child, &lease->uuid))
 		return FALSE;
 
 	if ((child = ni_dbus_dict_get(argument, "addresses")) != NULL

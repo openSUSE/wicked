@@ -204,9 +204,7 @@ __wicked_dbus_dhcp4_drop_svc(ni_dbus_object_t *object, const ni_dbus_method_t *m
 		/* Extract the lease uuid and pass that along to ni_dhcp_release.
 		 * This makes sure we don't cancel the wrong lease.
 		 */
-		unsigned int len;
-
-		if (!ni_dbus_variant_get_byte_array_minmax(&argv[0], uuid.octets, &len, 16, 16)) {
+		if (!ni_dbus_variant_get_uuid(&argv[0], &uuid)) {
 			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "bad uuid argument");
 			goto failed;
 		}

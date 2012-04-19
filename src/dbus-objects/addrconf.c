@@ -141,13 +141,9 @@ ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_messa
 		goto done;
 	}
 
-	if (argc == 2) {
-		unsigned int dummy;
-
-		if (!ni_dbus_variant_get_byte_array_minmax(&argv[optind++], uuid.octets, &dummy, 16, 16)) {
-			ni_debug_dbus("%s: unable to parse uuid argument", __func__);
-			goto done;
-		}
+	if (argc == 2 && !ni_dbus_variant_get_uuid(&argv[optind++], &uuid)) {
+		ni_debug_dbus("%s: unable to parse uuid argument", __func__);
+		goto done;
 	}
 
 	if (!ni_objectmodel_set_addrconf_lease(lease, &argv[optind++])) {
