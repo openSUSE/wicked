@@ -39,7 +39,7 @@ ni_objectmodel_save_object_state_xml(const ni_dbus_object_t *object, xml_node_t 
 		xml_node_t *prop_node;
 
 		ni_dbus_variant_init_dict(&dict);
-		rv = ni_dbus_object_get_properties_as_dict(object, service, &dict);
+		rv = ni_dbus_object_get_properties_as_dict(object, service, &dict, NULL);
 		if (rv && dict.array.len != 0) {
 			/* serialize as XML */
 			prop_node = ni_dbus_xml_deserialize_properties(__ni_objectmodel_schema, service->name, &dict, object_node);
@@ -138,7 +138,7 @@ ni_objectmodel_recover_object_state_xml(xml_node_t *object_node, ni_dbus_object_
 		service = ni_objectmodel_service_by_name(interface_name);
 
 		/* Now set the object properties from the dbus dict */
-		rv = ni_dbus_object_set_properties_from_dict(object, service, &dict);
+		rv = ni_dbus_object_set_properties_from_dict(object, service, &dict, NULL);
 		ni_dbus_variant_destroy(&dict);
 
 		if (!rv) {
