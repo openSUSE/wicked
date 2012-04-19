@@ -767,6 +767,89 @@ ni_dbus_object_get_properties_as_dict(const ni_dbus_object_t *object,
 }
 
 /*
+ * Helper function for setting all properties from a dict
+ */
+static dbus_bool_t
+__ni_dbus_object_set_properties_from_dict(ni_dbus_object_t *object,
+				const char *context,
+				const ni_dbus_property_t *properties,
+				const ni_dbus_variant_t *dict,
+				DBusError *error)
+{
+	unsigned int i;
+
+	for (i = 0; i < dict->array.len; ++i) {
+		ni_dbus_dict_entry_t *entry = &dict->dict_array_value[i];
+		const ni_dbus_property_t *property;
+
+		/* now set the object property */
+		if (!(property = __ni_dbus_service_get_property(properties, entry->key))) {
+			ni_debug_dbus("%s: ignoring unknown property %s.%s=%s",
+					object->path, context, entry->key,
+					ni_dbus_variant_sprint(&entry->datum));
+			continue;
+		}
+
+		/* We could just have a .set function for dicts that does what
+		 * the following if() statement does, except we'd lose the context
+		 * of the surrounding interface/property names in error messages.
+		 * Maybe not such a great loss, though...
+		 */
+		if (property->signature && !strcmp(property->signature, NI_DBUS_DICT_SIGNATURE)
+		 && property->generic.u.dict_children != NULL) {
+			const ni_dbus_property_t *child_properties = property->generic.u.dict_children;
+			char subcontext[512];
+
+			snprintf(subcontext, sizeof(subcontext), "%s.%s", context, property->name);
+			if (!__ni_dbus_object_set_properties_from_dict(object, subcontext, child_properties, &entry->datum, error))
+				return FALSE;
+			continue;
+		}
+
+		if (!property->set) {
+			ni_debug_dbus("%s: ignoring read-only property %s.%s=%s",
+					object->path, context, entry->key,
+					ni_dbus_variant_sprint(&entry->datum));
+			continue;
+		}
+
+		if (!property->set(object, property, &entry->datum, error)) {
+			ni_debug_dbus("%s: error setting property %s.%s=%s (%s: %s)",
+					object->path, context, entry->key,
+					ni_dbus_variant_sprint(&entry->datum),
+					error->name, error->message);
+			dbus_error_free(error);
+			continue;
+		}
+
+#if 0
+		ni_debug_dbus("Setting property %s=%s", entry->key, ni_dbus_variant_sprint(&entry->datum));
+#endif
+	}
+
+	return TRUE;
+}
+
+dbus_bool_t
+ni_dbus_object_set_properties_from_dict(ni_dbus_object_t *object,
+				const ni_dbus_service_t *interface,
+				const ni_dbus_variant_t *dict, DBusError *error)
+{
+	DBusError local_error = DBUS_ERROR_INIT;
+	dbus_bool_t rv;
+
+	if (!error)
+		error = &local_error;
+	rv = __ni_dbus_object_set_properties_from_dict(object,
+				interface->name,
+				interface->properties,
+				dict,
+				error);
+	dbus_error_free(&local_error);
+	return rv;
+}
+
+/*
  * Generic property handlers
  */
 #define __property_offset(prop, type)		prop->generic.u.type##_offset
