@@ -12,6 +12,8 @@
 extern ni_xs_scope_t *		ni_objectmodel_init(ni_dbus_server_t *);
 extern void			ni_objectmodel_register_all(void);
 extern ni_dbus_server_t *	ni_objectmodel_create_service(void);
+extern ni_bool_t		ni_objectmodel_save_state(const char *);
+extern ni_bool_t		ni_objectmodel_recover_state(const char *, const char **);
 
 extern dbus_bool_t		ni_objectmodel_create_initial_objects(ni_dbus_server_t *);
 extern ni_dbus_object_t *	ni_objectmodel_register_netif(ni_dbus_server_t *, ni_netdev_t *ifp,

@@ -27,7 +27,6 @@
 #include <wicked/socket.h>
 #include <wicked/objectmodel.h>
 #include <wicked/modem.h>
-#include "server.h"
 
 #define CONFIG_WICKED_STATE_PATH	CONFIG_WICKED_STATEDIR "/state.xml"
 
@@ -186,8 +185,7 @@ wicked_interface_server(void)
 	}
 
 	ni_debug_wicked("caught signal %u, exiting", wicked_term_sig);
-	
-	wicked_save_state(wicked_dbus_xml_schema, wicked_dbus_server, CONFIG_WICKED_STATE_PATH);
+	ni_objectmodel_save_state(CONFIG_WICKED_STATE_PATH);
 
 	exit(0);
 }
@@ -231,13 +229,18 @@ wicked_discover_state(void)
 void
 wicked_recover_addrconf(const char *filename)
 {
+	const char *prefix_list[] = {
+		NI_OBJECTMODEL_INTERFACE ".Addrconf",
+		NULL
+	};
+
 	if (!ni_file_exists(filename)) {
 		ni_debug_wicked("%s: %s does not exist, skip this", __func__, filename);
 		return;
 	}
 
 	/* Recover the lease information of all interfaces. */
-	if (!wicked_recover_state(wicked_dbus_xml_schema, wicked_dbus_server, filename)) {
+	if (!ni_objectmodel_recover_state(filename, prefix_list)) {
 		ni_error("unable to recover address configuration state");
 		return;
 	}

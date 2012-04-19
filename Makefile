@@ -96,6 +96,7 @@ __LIBSRCS= \
 	  dbus-objects/addrconf.c \
 	  dbus-objects/misc.c \
 	  dbus-objects/naming.c \
+	  dbus-objects/state.c \
 	  wpa-supplicant.c \
 	  dhcp-lease.c
 DHCP4SRCS = \
@@ -114,8 +115,7 @@ CLIENTSRCS = \
 	  client/ifup.c \
 	  client/calls.c
 SERVERSRCS = \
-	  server/main.c \
-	  server/state.c
+	  server/main.c
 GENFILES = \
 	  schema/constants.xml
 

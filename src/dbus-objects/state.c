@@ -14,7 +14,7 @@
 #include <wicked/dbus.h>
 #include <wicked/objectmodel.h>
 #include <wicked/xml.h>
-#include "server.h"
+#include "model.h"
 
 /*
  * Get the state of a dbus object as XML.
@@ -24,7 +24,7 @@
  * In fact, this is a lot like doing a Properties.GetAll call...
  */
 static ni_bool_t
-wicked_save_object_state_xml(ni_xs_scope_t *schema, const ni_dbus_object_t *object, xml_node_t *parent)
+ni_objectmodel_save_object_state_xml(const ni_dbus_object_t *object, xml_node_t *parent)
 {
 	const ni_dbus_service_t *service;
 	xml_node_t *object_node;
@@ -42,7 +42,7 @@ wicked_save_object_state_xml(ni_xs_scope_t *schema, const ni_dbus_object_t *obje
 		rv = ni_dbus_object_get_properties_as_dict(object, service, &dict);
 		if (rv && dict.array.len != 0) {
 			/* serialize as XML */
-			prop_node = ni_dbus_xml_deserialize_properties(schema, service->name, &dict, object_node);
+			prop_node = ni_dbus_xml_deserialize_properties(__ni_objectmodel_schema, service->name, &dict, object_node);
 			if (!prop_node)
 				rv = FALSE;
 		}
@@ -53,30 +53,30 @@ wicked_save_object_state_xml(ni_xs_scope_t *schema, const ni_dbus_object_t *obje
 }
 
 static ni_bool_t
-wicked_save_state_xml(ni_xs_scope_t *schema, xml_node_t *list, ni_dbus_server_t *server)
+ni_objectmodel_save_state_xml(xml_node_t *list, ni_dbus_server_t *server)
 {
 	ni_dbus_object_t *object, *netif_object;
 	ni_bool_t rv = TRUE;
 
 	object = ni_objectmodel_object_by_path(NI_OBJECTMODEL_NETIF_LIST_PATH);
 	for (netif_object = object->children; rv && netif_object; netif_object = netif_object->next) {
-		rv = wicked_save_object_state_xml(schema, netif_object, list);
+		rv = ni_objectmodel_save_object_state_xml(netif_object, list);
 	}
 
 	return rv;
 }
 
 ni_bool_t
-wicked_save_state(ni_xs_scope_t *schema, ni_dbus_server_t *server, const char *filename)
+ni_objectmodel_save_state(const char *filename)
 {
 	xml_document_t *doc;
 	ni_bool_t rv = FALSE;
 	FILE *fp = NULL;
 
-	ni_debug_wicked("saving server state to %s", filename);
+	ni_debug_objectmodel("saving server state to %s", filename);
 
 	doc = xml_document_new();
-	if (!wicked_save_state_xml(schema, doc->root, server))
+	if (!ni_objectmodel_save_state_xml(doc->root, __ni_objectmodel_server))
 		goto done;
 
 	fp = ni_file_open(filename, "w", 0600);
@@ -98,13 +98,12 @@ done:
  * Recover object state from an XML file
  */
 static ni_bool_t
-wicked_recover_object_state_xml(ni_xs_scope_t *schema, xml_node_t *object_node, ni_dbus_object_t *object)
+ni_objectmodel_recover_object_state_xml(xml_node_t *object_node, ni_dbus_object_t *object, const char **prefix_list)
 {
 	xml_node_t *prop_node;
 
 	/* Now process all the different properties */
 	for (prop_node = object_node->children; prop_node; prop_node = prop_node->next) {
-		static const char addrconf_prefix[] = NI_OBJECTMODEL_INTERFACE ".Addrconf.";
 		ni_dbus_variant_t dict = NI_DBUS_VARIANT_INIT;
 		const char *interface_name;
 		const ni_dbus_service_t *service;
@@ -112,12 +111,24 @@ wicked_recover_object_state_xml(ni_xs_scope_t *schema, xml_node_t *object_node, 
 
 		interface_name = prop_node->name;
 
-		/* For now, recover only addrconf state */
-		if (strncmp(interface_name, addrconf_prefix, sizeof(addrconf_prefix)-1))
-			continue;
+		if (prefix_list) {
+			ni_bool_t match = FALSE;
+			unsigned int i;
+
+			for (i = 0; prefix_list[i] && !match; ++i) {
+				const char *pfx = prefix_list[i];
+				unsigned int len;
+
+				len = strlen(pfx);
+				match = !strncmp(pfx, interface_name, len)
+					&& (interface_name[len] == '.' || interface_name[len] == '\0');
+			}
+			if (!match)
+				continue;
+		}
 
 		/* Parse the XML properties and store in a dbus dict. */
-		if (ni_dbus_xml_serialize_properties(schema, &dict, prop_node) < 0) {
+		if (ni_dbus_xml_serialize_properties(__ni_objectmodel_schema, &dict, prop_node) < 0) {
 			ni_error("%s: unable to parse xml properties", xml_node_location(prop_node));
 			ni_dbus_variant_destroy(&dict);
 			return FALSE;
@@ -140,12 +151,12 @@ wicked_recover_object_state_xml(ni_xs_scope_t *schema, xml_node_t *object_node, 
 }
 
 static ni_bool_t
-wicked_recover_state_xml(ni_xs_scope_t *schema, xml_node_t *list, ni_dbus_server_t *server)
+ni_objectmodel_recover_state_xml(xml_node_t *list, const char **prefix_list)
 {
 	ni_dbus_object_t *root_object;
 	xml_node_t *object_node;
 
-	root_object = ni_dbus_server_get_root_object(server);
+	root_object = ni_dbus_server_get_root_object(__ni_objectmodel_server);
 	for (object_node = list->children; object_node; object_node = object_node->next) {
 		ni_dbus_object_t *object;
 		const char *name;
@@ -167,7 +178,7 @@ wicked_recover_state_xml(ni_xs_scope_t *schema, xml_node_t *list, ni_dbus_server
 		if (!(object = ni_dbus_object_lookup(root_object, name)))
 			continue;
 
-		if (!wicked_recover_object_state_xml(schema, object_node, object))
+		if (!ni_objectmodel_recover_object_state_xml(object_node, object, prefix_list))
 			return FALSE;
 
 	}
@@ -176,7 +187,7 @@ wicked_recover_state_xml(ni_xs_scope_t *schema, xml_node_t *list, ni_dbus_server
 }
 
 ni_bool_t
-wicked_recover_state(ni_xs_scope_t *schema, ni_dbus_server_t *server, const char *filename)
+ni_objectmodel_recover_state(const char *filename, const char **prefix_list)
 {
 	xml_document_t *doc;
 	ni_bool_t rv;
@@ -186,8 +197,9 @@ wicked_recover_state(ni_xs_scope_t *schema, ni_dbus_server_t *server, const char
 		return FALSE;
 	}
 
-	rv = wicked_recover_state_xml(schema, doc->root, server);
+	rv = ni_objectmodel_recover_state_xml(doc->root, prefix_list);
 	xml_document_free(doc);
 	return rv;
 }
+
 
