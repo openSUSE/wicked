@@ -12,6 +12,7 @@
 #include <wicked/ethernet.h>
 #include <wicked/system.h>
 #include <wicked/dbus-errors.h>
+#include <wicked/dbus-service.h>
 #include "dbus-common.h"
 #include "model.h"
 

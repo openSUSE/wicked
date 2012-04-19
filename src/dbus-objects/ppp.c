@@ -13,6 +13,7 @@
 #include <wicked/ppp.h>
 #include <wicked/modem.h>
 #include <wicked/dbus-errors.h>
+#include <wicked/dbus-service.h>
 #include "model.h"
 #include "debug.h"
 #include "util_priv.h"

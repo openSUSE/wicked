@@ -187,13 +187,8 @@ dhcp4_recover_lease(ni_netdev_t *ifp)
 /*
  * Functions to support the DHCP4 DBus binding
  */
-static ni_dbus_method_t		__wicked_dbus_dhcp4_methods[] = {
-	{ NULL }
-};
-
 static ni_dbus_service_t	__wicked_dbus_dhcp4_interface = {
 	.name		= NI_OBJECTMODEL_DHCP4_INTERFACE,
-	.methods	= __wicked_dbus_dhcp4_methods,
 };
 
 

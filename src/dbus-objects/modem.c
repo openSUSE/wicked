@@ -20,6 +20,7 @@
 #include <wicked/addrconf.h>
 #include <wicked/logging.h>
 #include <wicked/dbus-errors.h>
+#include <wicked/dbus-service.h>
 #include <wicked/system.h>
 #include "netinfo_priv.h"
 #include "dbus-common.h"

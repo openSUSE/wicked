@@ -22,10 +22,8 @@
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
 #include <wicked/addrconf.h>
-#include "netinfo_priv.h"
-#include "dbus-common.h"
-#include "dbus-objects/model.h"
-#include "debug.h"
+#include <wicked/dbus-service.h>
+#include <wicked/objectmodel.h>
 #include "autoip.h"
 
 
@@ -104,7 +102,7 @@ __wicked_dbus_autoip4_acquire_svc(ni_dbus_object_t *object, const ni_dbus_method
 	dbus_bool_t ret = FALSE;
 	int rv;
 
-	NI_TRACE_ENTER_ARGS("dev=%s", dev->ifname);
+	ni_debug_dbus("%s(dev=%s)", __func__, dev->ifname);
 
 	/* Ignore all arguments for now */
 	if ((rv = ni_autoip_acquire(dev)) < 0) {
@@ -138,7 +136,7 @@ __wicked_dbus_autoip4_drop_svc(ni_dbus_object_t *object, const ni_dbus_method_t 
 	ni_uuid_t uuid;
 	int rv;
 
-	NI_TRACE_ENTER_ARGS("dev=%s", dev->ifname);
+	ni_debug_dbus("%s(dev=%s)", __func__, dev->ifname);
 
 	memset(&uuid, 0, sizeof(uuid));
 	if (argc == 1) {

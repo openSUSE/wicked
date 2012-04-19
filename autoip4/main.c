@@ -181,13 +181,8 @@ autoip4_recover_lease(ni_netdev_t *ifp)
 /*
  * Functions to support the AUTO4 DBus binding
  */
-static ni_dbus_method_t		__wicked_dbus_autoip4_methods[] = {
-	{ NULL }
-};
-
 static ni_dbus_service_t	__wicked_dbus_autoip4_interface = {
 	.name		= NI_OBJECTMODEL_AUTO4_INTERFACE,
-	.methods	= __wicked_dbus_autoip4_methods,
 };
 
 

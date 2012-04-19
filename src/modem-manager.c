@@ -13,7 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <wicked/util.h>
-#include <wicked/dbus.h>
+#include <wicked/dbus-service.h>
 #include <wicked/dbus-errors.h>
 #include <netinfo_priv.h>
 

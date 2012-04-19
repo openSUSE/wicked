@@ -19,6 +19,7 @@
 #include <wicked/xml.h>
 #include <wicked/objectmodel.h>
 #include <wicked/dbus-errors.h>
+#include <wicked/dbus-service.h>
 
 #include "client/wicked-client.h"
 
@@ -225,8 +226,6 @@ ni_call_device_new_xml(const ni_dbus_service_t *service,
 
 	method = ni_dbus_service_get_method(service, "newDevice");
 	ni_assert(method);
-
-	ni_assert(method->user_data);
 
 	if (ni_dbus_xml_serialize_arg(method, 1, &call_argv[1], linkdef)) {
 		result = ni_call_device_new(service, call_argv);

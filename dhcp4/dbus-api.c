@@ -20,10 +20,9 @@
 
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
-#include <wicked/dbus.h>
+#include <wicked/dbus-service.h>
 #include <wicked/dbus-errors.h>
-#include "dbus-objects/model.h"
-#include "debug.h"
+#include <wicked/objectmodel.h>
 #include "dhcp.h"
 
 static ni_dhcp4_request_t *	ni_objectmodel_dhcp4_request_from_dict(const ni_dbus_variant_t *);
@@ -150,7 +149,7 @@ __wicked_dbus_dhcp4_acquire_svc(ni_dbus_object_t *object, const ni_dbus_method_t
 		goto failed;
 	}
 
-	NI_TRACE_ENTER_ARGS("dev=%s", dev->ifname);
+	ni_debug_dhcp("%s(dev=%s)", __func__, dev->ifname);
 
 	/* Extract configuration from dict */
 	if (!(req = ni_objectmodel_dhcp4_request_from_dict(&argv[0]))) {
@@ -198,7 +197,7 @@ __wicked_dbus_dhcp4_drop_svc(ni_dbus_object_t *object, const ni_dbus_method_t *m
 	if ((dev = ni_objectmodel_unwrap_dhcp4_device(object, error)) == NULL)
 		goto failed;
 
-	NI_TRACE_ENTER_ARGS("dev=%s", dev->ifname);
+	ni_debug_dhcp("%s(dev=%s)", __func__, dev->ifname);
 
 	memset(&uuid, 0, sizeof(uuid));
 	if (argc == 1) {

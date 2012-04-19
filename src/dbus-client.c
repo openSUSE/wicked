@@ -15,6 +15,7 @@
 #include <wicked/logging.h>
 #include <wicked/objectmodel.h>
 #include <wicked/dbus-errors.h>
+#include <wicked/dbus-service.h>
 #include "socket_priv.h"
 #include "dbus-common.h"
 #include "dbus-connection.h"

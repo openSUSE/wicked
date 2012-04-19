@@ -21,6 +21,7 @@
 #include <wicked/logging.h>
 #include <wicked/bridge.h>
 #include <wicked/dbus-errors.h>
+#include <wicked/dbus-service.h>
 #include <wicked/system.h>
 #include "dbus-common.h"
 #include "model.h"

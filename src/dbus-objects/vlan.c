@@ -12,6 +12,7 @@
 #include <wicked/system.h>
 #include <wicked/vlan.h>
 #include <wicked/dbus-errors.h>
+#include <wicked/dbus-service.h>
 #include "model.h"
 #include "debug.h"
 

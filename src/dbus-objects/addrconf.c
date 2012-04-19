@@ -24,6 +24,7 @@
 #include <wicked/addrconf.h>
 #include <wicked/system.h>
 #include <wicked/dbus-errors.h>
+#include <wicked/dbus-service.h>
 #include <wicked/ibft.h>
 #include <wicked/resolver.h>
 #include "netinfo_priv.h"	/* for __ni_system_interface_update_lease */

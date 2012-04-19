@@ -12,6 +12,7 @@
 #include <wicked/util.h>
 #include <wicked/logging.h>
 #include <wicked/dbus-errors.h>
+#include <wicked/dbus-service.h>
 #include "dbus-server.h"
 #include "dbus-object.h"
 #include "dbus-dict.h"
