@@ -95,6 +95,7 @@ struct ni_netdev {
 	char *			name;
 	ni_linkinfo_t		link;
 
+	char *			client_state;
 	ni_uuid_t		uuid;
 
 	unsigned int		users;

@@ -972,30 +972,19 @@ __ni_objectmodel_netif_set_ipv6(ni_dbus_object_t *object,
 	return __ni_objectmodel_set_afinfo(&dev->ipv6, argument, error);
 }
 
-#define NETIF_PROPERTY(type, __name, rw) \
-	NI_DBUS_PROPERTY(type, __name, __ni_objectmodel_netif, rw)
 #define NETIF_PROPERTY_SIGNATURE(signature, __name, rw) \
 	__NI_DBUS_PROPERTY(signature, __name, __ni_objectmodel_netif, rw)
-#define NETIF_STRING_PROPERTY(dbus_name, member_name, rw) \
-	NI_DBUS_GENERIC_STRING_PROPERTY(netdev, dbus_name, member_name, rw)
-#define NETIF_UINT_PROPERTY(dbus_name, member_name, rw) \
-	NI_DBUS_GENERIC_UINT_PROPERTY(netdev, dbus_name, member_name, rw)
-
-#ifndef NI_DBUS_DICT_ARRAY_SIGNATURE
-# define NI_DBUS_DICT_ARRAY_SIGNATURE DBUS_TYPE_ARRAY_AS_STRING NI_DBUS_DICT_SIGNATURE
-#endif
-#ifndef NI_DBUS_BYTE_ARRAY_SIGNATURE
-# define NI_DBUS_BYTE_ARRAY_SIGNATURE DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING
-#endif
 
 static ni_dbus_property_t	ni_objectmodel_netif_properties[] = {
-	NETIF_STRING_PROPERTY(name, name, RO),
-	NETIF_UINT_PROPERTY(index, link.ifindex, RO),
-	NETIF_UINT_PROPERTY(status, link.ifflags, RO),
-	NETIF_UINT_PROPERTY(link-type, link.type, RO),
-	NETIF_UINT_PROPERTY(mtu, link.mtu, RO),
-	NETIF_UINT_PROPERTY(txqlen, link.txqlen, RO),
-	NETIF_STRING_PROPERTY(alias, link.alias, RO),
+	NI_DBUS_GENERIC_STRING_PROPERTY(netdev, name, name, RO),
+	NI_DBUS_GENERIC_STRING_PROPERTY(netdev, client-state, client_state, RO),
+	NI_DBUS_GENERIC_UUID_PROPERTY(netdev, client-uuid, uuid, RO),
+	NI_DBUS_GENERIC_UINT_PROPERTY(netdev, index, link.ifindex, RO),
+	NI_DBUS_GENERIC_UINT_PROPERTY(netdev, status, link.ifflags, RO),
+	NI_DBUS_GENERIC_UINT_PROPERTY(netdev, link-type, link.type, RO),
+	NI_DBUS_GENERIC_UINT_PROPERTY(netdev, mtu, link.mtu, RO),
+	NI_DBUS_GENERIC_UINT_PROPERTY(netdev, txqlen, link.txqlen, RO),
+	NI_DBUS_GENERIC_STRING_PROPERTY(netdev, alias, link.alias, RO),
 
 	NETIF_PROPERTY_SIGNATURE(NI_DBUS_DICT_SIGNATURE, ipv4, RO),
 	NETIF_PROPERTY_SIGNATURE(NI_DBUS_DICT_SIGNATURE, ipv6, RO),
