@@ -359,7 +359,7 @@ ni_objectmodel_object_by_path(const char *path)
 		return NULL;
 
 	root = ni_dbus_server_get_root_object(__ni_objectmodel_server);
-	if (!(path = ni_dbus_object_get_relative_path(root, path)))
+	if (path[0] == '/' && !(path = ni_dbus_object_get_relative_path(root, path)))
 		return NULL;
 
 	return ni_dbus_object_lookup(root, path);
