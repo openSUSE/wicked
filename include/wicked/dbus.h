@@ -502,5 +502,16 @@ ni_dbus_variant_datum_const_ptr(const ni_dbus_variant_t *variant)
 	return (const void *) (((const caddr_t) variant) + offset);
 }
 
+#define NI_DBUS_DICT_ENTRY_SIGNATURE \
+		DBUS_DICT_ENTRY_BEGIN_CHAR_AS_STRING \
+		DBUS_TYPE_STRING_AS_STRING \
+		DBUS_TYPE_VARIANT_AS_STRING \
+		DBUS_DICT_ENTRY_END_CHAR_AS_STRING
+#define NI_DBUS_DICT_SIGNATURE \
+		DBUS_TYPE_ARRAY_AS_STRING \
+		NI_DBUS_DICT_ENTRY_SIGNATURE
+
+
+
 #endif /* __WICKED_DBUS_H__ */
 
