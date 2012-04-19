@@ -1034,36 +1034,98 @@ ni_daemonize(const char *pidfile, unsigned int permissions)
 }
 
 /*
+ * Open a file given O_* flags and permissions.
+ */
+static FILE *
+__ni_file_open(const char *pathname, const char *fmode, unsigned int flags, unsigned int permissions)
+{
+	FILE *fp;
+	int fd;
+
+	if ((fd = open(pathname, flags, permissions)) < 0) {
+		ni_error("unable to open file %s for %s: %m",
+				pathname,
+				(flags & O_ACCMODE) == O_RDONLY? "reading" : "writing");
+		return NULL;
+	}
+
+	switch (flags & O_ACCMODE) {
+	case O_RDONLY:
+		fmode = "r"; break;
+
+	case O_WRONLY:
+		fmode = (flags & O_APPEND)? "a" : "w";
+		break;
+
+	case O_RDWR:
+		fmode = (flags & O_APPEND)? "a+" : "w+";
+		break;
+
+	default:
+		ni_fatal("%s: bad open mode 0%o", __func__, flags & O_ACCMODE);
+	}
+
+	fp = fdopen(fd, fmode);
+	if (fp == NULL) {
+		ni_error("%s: fdopen(%d, %s) failed: %m", __func__, fd, fmode);
+		close(fd);
+		return NULL;
+	}
+
+	return fp;
+}
+
+FILE *
+ni_file_open(const char *pathname, const char *fmode, unsigned int permissions)
+{
+	const char *ofmode = fmode;
+	unsigned int flags = 0;
+
+	switch (*fmode++) {
+	case 'r':
+		flags = O_RDONLY; break;
+	case 'w':
+		flags = O_WRONLY | O_CREAT; break;
+	case 'a':
+		flags = O_WRONLY | O_CREAT | O_APPEND; break;
+	default:
+		goto bad_fmode;
+	}
+
+	if (*fmode == '+') {
+		flags = (flags & ~O_ACCMODE) | O_RDWR;
+		fmode++;
+	}
+
+	if (*fmode != '\0')
+		goto bad_fmode;
+
+	return __ni_file_open(pathname, ofmode, flags, permissions);
+
+bad_fmode:
+	ni_error("%s(%s, %s, 0%o): bad fmode", __func__, pathname, fmode, permissions);
+	return NULL;
+}
+
+/*
  * pidfile management functions
  */
 static int
 __ni_pidfile_write(const char *pidfile, unsigned int permissions, pid_t pid, int oflags)
 {
-	char buffer[64];
-	int fd, len, r;
+	FILE *fp;
 
-	if ((fd = open(pidfile, O_WRONLY|oflags, permissions)) < 0) {
-		ni_error("unable to open pidfile %s for writing: %m", pidfile);
+	if ((fp = __ni_file_open(pidfile, "w", O_WRONLY|oflags, permissions)) == NULL)
 		return -1;
-	}
 
-	snprintf(buffer, sizeof(buffer), "%u", (unsigned int) pid);
-	len = strlen(buffer);
-
-	if ((r = write(fd, buffer, len)) < 0) {
+	fprintf(fp, "%u", (unsigned int) pid);
+	if (fclose(fp) < 0) {
 		ni_error("error writing to pidfile %s: %m", pidfile);
-failed:
 		unlink(pidfile);
-		close(fd);
 		return -1;
 	}
 
-	if (r < len) {
-		ni_error("error writing to pidfile %s: short write", pidfile);
-		goto failed;
-	}
-
-	close(fd);
+	fclose(fp);
 	return 0;
 }
 
