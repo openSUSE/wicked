@@ -32,7 +32,7 @@ ni_objectmodel_wireless_set_scanning(ni_dbus_object_t *object, const ni_dbus_met
 		return FALSE;
 	}
 
-	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return FALSE;
 
 	if (ni_wireless_interface_set_scanning(dev, enable) < 0) {
@@ -55,7 +55,7 @@ ni_objectmodel_wireless_change_device(ni_dbus_object_t *object, const ni_dbus_me
 	ni_wireless_network_t *net;
 	dbus_bool_t rv = FALSE;
 
-	if (!(ifp = ni_objectmodel_unwrap_interface(object, error)))
+	if (!(ifp = ni_objectmodel_unwrap_netif(object, error)))
 		return FALSE;
 
 	net = ni_wireless_network_new();
@@ -191,7 +191,7 @@ __ni_objectmodel_get_wireless(const ni_dbus_object_t *object, DBusError *error)
 	ni_netdev_t *ifp;
 	ni_wireless_t *wlan;
 
-	if (!(ifp = ni_objectmodel_unwrap_interface(object, error)))
+	if (!(ifp = ni_objectmodel_unwrap_netif(object, error)))
 		return NULL;
 
 	if (!(wlan = ni_netdev_get_wireless(ifp))) {

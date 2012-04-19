@@ -123,7 +123,7 @@ ni_objectmodel_ether_match_attr(const ni_dbus_object_t *object, const char *name
 	ni_netdev_t *dev;
 	ni_ethernet_t *eth;
 
-	if (!(dev = ni_objectmodel_unwrap_interface(object, NULL)))
+	if (!(dev = ni_objectmodel_unwrap_netif(object, NULL)))
 		return FALSE;
 
 	if (!(eth = dev->ethernet))

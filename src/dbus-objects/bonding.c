@@ -59,7 +59,7 @@ ni_objectmodel_new_bond(ni_dbus_object_t *factory_object, const ni_dbus_method_t
 	if (!(ifp = __ni_objectmodel_bond_newlink(ifp, ifname, error)))
 		return FALSE;
 
-	return ni_objectmodel_device_factory_result(server, reply, ifp, NULL, error);
+	return ni_objectmodel_netif_factory_result(server, reply, ifp, NULL, error);
 }
 
 static ni_netdev_t *
@@ -120,7 +120,7 @@ ni_objectmodel_bond_setup(ni_dbus_object_t *object, const ni_dbus_method_t *meth
 	/* we've already checked that argv matches our signature */
 	ni_assert(argc == 1);
 
-	if (!(ifp = ni_objectmodel_unwrap_interface(object, error)))
+	if (!(ifp = ni_objectmodel_unwrap_netif(object, error)))
 		return FALSE;
 
 	if (!(cfg = __ni_objectmodel_bond_device_arg(&argv[0]))) {
@@ -152,7 +152,7 @@ __ni_objectmodel_delete_bond(ni_dbus_object_t *object, const ni_dbus_method_t *m
 	ni_netconfig_t *nc = ni_global_state_handle(0);
 	ni_netdev_t *ifp;
 
-	if (!(ifp = ni_objectmodel_unwrap_interface(object, error)))
+	if (!(ifp = ni_objectmodel_unwrap_netif(object, error)))
 		return FALSE;
 
 	NI_TRACE_ENTER_ARGS("ifp=%s", ifp->name);
@@ -176,7 +176,7 @@ __ni_objectmodel_get_bonding(const ni_dbus_object_t *object, DBusError *error)
 	ni_netdev_t *ifp;
 	ni_bonding_t *bond;
 
-	if (!(ifp = ni_objectmodel_unwrap_interface(object, error)))
+	if (!(ifp = ni_objectmodel_unwrap_netif(object, error)))
 		return NULL;
 
 	if (!(bond = ni_netdev_get_bonding(ifp))) {

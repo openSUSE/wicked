@@ -60,7 +60,7 @@ ni_objectmodel_openvpn_newlink(ni_dbus_object_t *factory_object, const ni_dbus_m
 	 */
 	if ((class = ni_objectmodel_get_class("netif-openvpn")) == NULL)
 		ni_warn_once("no netif-openvpn class declared by schema");
-	return ni_objectmodel_device_factory_result(server, reply, ifp, class, error);
+	return ni_objectmodel_netif_factory_result(server, reply, ifp, class, error);
 }
 
 static ni_netdev_t *
@@ -125,7 +125,7 @@ ni_objectmodel_openvpn_delete(ni_dbus_object_t *object, const ni_dbus_method_t *
 	ni_netdev_t *dev;
 	int rv;
 
-	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return FALSE;
 
 	/* Delete the tunnel's openvpn handle. This will take care of
@@ -149,7 +149,7 @@ ni_objectmodel_get_openvpn(const ni_dbus_object_t *object, DBusError *error)
 	ni_netdev_t *dev;
 	ni_openvpn_t *vpn;
 
-	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return NULL;
 
 	if (!(vpn = ni_netdev_get_openvpn(dev))) {

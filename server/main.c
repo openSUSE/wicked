@@ -207,7 +207,7 @@ wicked_discover_state(void)
 
 	if (wicked_dbus_server) {
 		for (ifp = ni_netconfig_devlist(nc); ifp; ifp = ifp->next)
-			ni_objectmodel_register_interface(wicked_dbus_server, ifp, NULL);
+			ni_objectmodel_register_netif(wicked_dbus_server, ifp, NULL);
 
 		for (modem = ni_netconfig_modem_list(nc); modem; modem = modem->list.next)
 			ni_objectmodel_register_modem(wicked_dbus_server, modem);
@@ -291,12 +291,12 @@ wicked_interface_event(ni_netdev_t *dev, ni_event_t event)
 		switch (event) {
 		case NI_EVENT_DEVICE_CREATE:
 			/* Create dbus object and emit event */
-			ni_objectmodel_register_interface(wicked_dbus_server, dev, NULL);
+			ni_objectmodel_register_netif(wicked_dbus_server, dev, NULL);
 			break;
 
 		case NI_EVENT_DEVICE_DELETE:
 			/* Delete dbus object and emit event */
-			ni_objectmodel_unregister_interface(wicked_dbus_server, dev);
+			ni_objectmodel_unregister_netif(wicked_dbus_server, dev);
 			break;
 
 		case NI_EVENT_LINK_ASSOCIATED:
@@ -308,7 +308,7 @@ wicked_interface_event(ni_netdev_t *dev, ni_event_t event)
 			/* fallthru */
 
 		default:
-			ni_objectmodel_interface_event(wicked_dbus_server, dev, event, event_uuid);
+			ni_objectmodel_netif_event(wicked_dbus_server, dev, event, event_uuid);
 			break;
 		}
 	}

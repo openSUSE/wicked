@@ -34,7 +34,7 @@ ni_objectmodel_ethernet_setup(ni_dbus_object_t *object, const ni_dbus_method_t *
 	/* we've already checked that argv matches our signature */
 	ni_assert(argc == 1);
 
-	if (!(ifp = ni_objectmodel_unwrap_interface(object, error)))
+	if (!(ifp = ni_objectmodel_unwrap_netif(object, error)))
 		return FALSE;
 
 	if (!(cfg = __ni_objectmodel_ethernet_device_arg(&argv[0]))) {
@@ -68,7 +68,7 @@ __ni_objectmodel_ethernet_device_arg(const ni_dbus_variant_t *dict)
 	dev = ni_netdev_new(NULL, NULL, 0);
 	dev->link.type = NI_IFTYPE_ETHERNET;
 
-	dev_object = ni_objectmodel_wrap_interface(dev);
+	dev_object = ni_objectmodel_wrap_netif(dev);
 	rv = ni_dbus_object_set_properties_from_dict(dev_object, &ni_objectmodel_ethernet_service, dict);
 	ni_dbus_object_free(dev_object);
 
@@ -88,7 +88,7 @@ ni_objectmodel_get_ethernet(const ni_dbus_object_t *object, DBusError *error)
 	ni_netdev_t *ifp;
 	ni_ethernet_t *eth;
 
-	if (!(ifp = ni_objectmodel_unwrap_interface(object, error)))
+	if (!(ifp = ni_objectmodel_unwrap_netif(object, error)))
 		return NULL;
 
 	if (!(eth = ni_netdev_get_ethernet(ifp))) {
@@ -131,7 +131,7 @@ __ni_objectmodel_ethernet_get_address(const ni_dbus_object_t *object,
 {
 	ni_netdev_t *dev;
 
-	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return FALSE;
 
 	return __ni_objectmodel_get_hwaddr(result, &dev->link.hwaddr);
@@ -145,7 +145,7 @@ __ni_objectmodel_ethernet_set_address(ni_dbus_object_t *object,
 {
 	ni_netdev_t *dev;
 
-	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return FALSE;
 
 	return __ni_objectmodel_set_hwaddr(argument, &dev->link.hwaddr);

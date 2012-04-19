@@ -56,7 +56,7 @@ ni_objectmodel_ppp_newlink(ni_dbus_object_t *factory_object, const ni_dbus_metho
 	if (dev == NULL)
 		return FALSE;
 
-	return ni_objectmodel_device_factory_result(server, reply, dev, NULL, error);
+	return ni_objectmodel_netif_factory_result(server, reply, dev, NULL, error);
 }
 
 static ni_netdev_t *
@@ -115,7 +115,7 @@ ni_objectmodel_ppp_delete(ni_dbus_object_t *object, const ni_dbus_method_t *meth
 	ni_netdev_t *dev;
 	int rv;
 
-	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return FALSE;
 
 	NI_TRACE_ENTER_ARGS("dev=%s", dev->name);
@@ -211,7 +211,7 @@ __ni_objectmodel_pppoe_device_arg(const ni_dbus_variant_t *dict, DBusError *erro
 		return NULL;
 	}
 
-	eth_dev = ni_objectmodel_unwrap_interface(device_object, error);
+	eth_dev = ni_objectmodel_unwrap_netif(device_object, error);
 	if (eth_dev == NULL || !eth_dev->ethernet) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
 				"PPP device configuration references incompatible object (expected an ethernet device)");
@@ -241,7 +241,7 @@ __ni_objectmodel_get_ppp_config(const ni_dbus_object_t *object, DBusError *error
 	ni_netdev_t *dev;
 	ni_ppp_t *ppp;
 
-	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return NULL;
 
 	ppp = ni_netdev_get_ppp(dev);

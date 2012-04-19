@@ -255,7 +255,7 @@ wicked_get_interface(const char *ifname)
 			if (ni_string_eq(object->path, ifname))
 				return object;
 		} else {
-			ni_netdev_t *ifp = ni_objectmodel_unwrap_interface(object, NULL);
+			ni_netdev_t *ifp = ni_objectmodel_unwrap_netif(object, NULL);
 
 			if (ifp && ifp->name && !strcmp(ifp->name, ifname))
 				return object;

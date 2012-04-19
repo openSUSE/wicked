@@ -199,7 +199,7 @@ ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_messa
 	 * We use the UUID that's passed back and forth to make sure we
 	 * really match the event we were expecting to match.
 	 */
-	ni_objectmodel_interface_event(NULL, ifp, ifevent, ni_uuid_is_null(&uuid)? NULL : &uuid);
+	ni_objectmodel_netif_event(NULL, ifp, ifevent, ni_uuid_is_null(&uuid)? NULL : &uuid);
 
 done:
 	while (argc--)
@@ -221,7 +221,7 @@ ni_objectmodel_addrconf_static_request(ni_dbus_object_t *object, int addrfamily,
 	ni_netdev_t *dev;
 	int rv;
 
-	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return FALSE;
 
 	if (argc != 1 || !ni_dbus_variant_is_dict(&argv[0])) {
@@ -265,7 +265,7 @@ ni_objectmodel_addrconf_static_drop(ni_dbus_object_t *object, int addrfamily,
 	ni_netdev_t *dev;
 	int rv;
 
-	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return FALSE;
 
 	lease = ni_addrconf_lease_new(NI_ADDRCONF_STATIC, addrfamily);
@@ -340,7 +340,7 @@ ni_objectmodel_addrconf_ibft_request(ni_dbus_object_t *object, int addrfamily,
 	ni_ibft_nic_t *nic;
 	int rv;
 
-	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return FALSE;
 
 	/* The addrconf request for iBFT doesn't hold much information for
@@ -413,7 +413,7 @@ ni_objectmodel_addrconf_ibft_drop(ni_dbus_object_t *object, int addrfamily,
 	ni_netdev_t *dev;
 	int rv;
 
-	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return FALSE;
 
 	lease = ni_addrconf_lease_new(NI_ADDRCONF_IBFT, addrfamily);
@@ -634,7 +634,7 @@ ni_objectmodel_addrconf_ipv4_dhcp_request(ni_dbus_object_t *object, const ni_dbu
 {
 	ni_netdev_t *dev;
 
-	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return FALSE;
 
 	if (argc != 1 || !ni_dbus_variant_is_dict(&argv[0])) {
@@ -654,7 +654,7 @@ ni_objectmodel_addrconf_ipv4_dhcp_drop(ni_dbus_object_t *object, const ni_dbus_m
 {
 	ni_netdev_t *dev;
 
-	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return FALSE;
 
 	return ni_objectmodel_addrconf_forward_release(&dhcp4_forwarder, dev, NULL, reply, error);
@@ -686,7 +686,7 @@ ni_objectmodel_addrconf_ipv4ll_request(ni_dbus_object_t *object, const ni_dbus_m
 {
 	ni_netdev_t *dev;
 
-	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return FALSE;
 
 	if (argc != 1 || !ni_dbus_variant_is_dict(&argv[0])) {
@@ -706,7 +706,7 @@ ni_objectmodel_addrconf_ipv4ll_drop(ni_dbus_object_t *object, const ni_dbus_meth
 {
 	ni_netdev_t *dev;
 
-	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return FALSE;
 
 	return ni_objectmodel_addrconf_forward_release(&ipv4ll_forwarder, dev, NULL, reply, error);
@@ -724,7 +724,7 @@ __ni_objectmodel_addrconf_generic_get_lease(const ni_dbus_object_t *object,
 	ni_netdev_t *dev;
 	const ni_addrconf_lease_t *lease;
 
-	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return FALSE;
 
 #if 0
@@ -748,7 +748,7 @@ __ni_objectmodel_addrconf_generic_set_lease(ni_dbus_object_t *object,
 	ni_netdev_t *dev;
 	uint32_t state;
 
-	if (!(dev = ni_objectmodel_unwrap_interface(object, error)))
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return FALSE;
 
 	if (ni_dbus_dict_get_uint32(dict, "state", &state)) {

@@ -1615,7 +1615,7 @@ __ni_ifworker_refresh_netdevs(void)
 		ni_fatal("Couldn't refresh list of active network interfaces");
 
 	for (object = list_object->children; object; object = object->next) {
-		ni_netdev_t *dev = ni_objectmodel_unwrap_interface(object, NULL);
+		ni_netdev_t *dev = ni_objectmodel_unwrap_netif(object, NULL);
 		ni_ifworker_t *found = NULL;
 
 		if (dev == NULL || dev->name == NULL)
