@@ -692,14 +692,14 @@ ni_objectmodel_netif_set_client_state(ni_dbus_object_t *object, const ni_dbus_me
 	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return FALSE;
 
-	NI_TRACE_ENTER_ARGS("dev=%s", dev->name);
-
 	if (argc != 2)
 		return ni_dbus_error_invalid_args(error, object->path, method->name);
 
 	if (!ni_dbus_variant_get_uuid(&argv[0], &uuid)
 	 || !ni_dbus_variant_get_string(&argv[1], &state))
 		return ni_dbus_error_invalid_args(error, object->path, method->name);
+
+	NI_TRACE_ENTER_ARGS("dev=%s, uuid=%s, state=%s", dev->name, ni_uuid_print(&uuid), state);
 
 	dev->uuid = uuid;
 	ni_string_dup(&dev->client_state, state && *state? state : NULL);

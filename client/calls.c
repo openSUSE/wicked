@@ -331,21 +331,52 @@ out:
 }
 
 static int
+ni_get_device_method(ni_dbus_object_t *object, const char *method_name, const ni_dbus_service_t **service_ret, const ni_dbus_method_t **method_ret)
+{
+	if (!(*service_ret = ni_dbus_object_get_service_for_method(object, method_name))) {
+		ni_error("%s: no registered dbus service for method %s()",
+				object->path, method_name);
+		return -NI_ERROR_METHOD_NOT_SUPPORTED;
+	}
+	*method_ret = ni_dbus_service_get_method(*service_ret, method_name);
+	ni_assert(*method_ret);
+	return 0;
+}
+
+static int
 ni_call_device_method_xml(ni_dbus_object_t *object, const char *method_name, xml_node_t *config,
 			ni_objectmodel_callback_info_t **callback_list)
 {
 	const ni_dbus_service_t *service;
 	const ni_dbus_method_t *method;
+	int rv;
 
-	if (!(service = ni_dbus_object_get_service_for_method(object, method_name))) {
-		ni_error("%s: no registered dbus service for method %s()",
-				object->path, method_name);
-		return -NI_ERROR_METHOD_NOT_SUPPORTED;
-	}
-	method = ni_dbus_service_get_method(service, method_name);
-	ni_assert(method);
+	if ((rv = ni_get_device_method(object, method_name, &service, &method)) < 0)
+		return rv;
 
 	return ni_call_common_xml(object, service, method, config, callback_list, NULL);
+}
+
+int
+ni_call_set_client_state(ni_dbus_object_t *object, const ni_uuid_t *uuid, const char *state)
+{
+	const ni_dbus_service_t *service;
+	const ni_dbus_method_t *method;
+	ni_dbus_variant_t argv[2];
+	int rv;
+
+	if ((rv = ni_get_device_method(object, "setClientState", &service, &method)) < 0)
+		return rv;
+
+	memset(argv, 0, sizeof(argv));
+	ni_dbus_variant_set_uuid(&argv[0], uuid);
+	ni_dbus_variant_set_string(&argv[1], state);
+
+	rv = ni_call_device_method_common(object, service, method, 2, argv, NULL, NULL);
+
+	ni_dbus_variant_destroy(&argv[0]);
+	ni_dbus_variant_destroy(&argv[1]);
+	return rv;
 }
 
 /*

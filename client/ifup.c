@@ -139,6 +139,7 @@ struct ni_ifworker {
 	unsigned int		failed		: 1,
 				done		: 1;
 
+	ni_uuid_t		uuid;
 	xml_node_t *		config;
 
 	/* An ifworker can represent either a network device or a modem */
@@ -801,6 +802,9 @@ ni_ifworker_update_state(ni_ifworker_t *w, unsigned int min_state, unsigned int 
 					", resuming activity" : ", still waiting for event");
 		if (w->state == w->target_state)
 			ni_ifworker_success(w);
+
+		if (w->object)
+			ni_call_set_client_state(w->object, &w->uuid, ni_ifworker_state_name(w->state));
 	}
 
 	if (w->wait_for && w->wait_for->next_state == w->state)
@@ -837,24 +841,30 @@ ni_ifworkers_from_xml(xml_document_t *doc)
 
 		if ((node = xml_node_get_child(ifnode, "identify")) != NULL) {
 			w = ni_ifworker_identify_device(node, type);
-			if (w != NULL) {
+			if (w == NULL) {
+				ni_error("%s: unable to identify interface", xml_node_location(ifnode));
+				continue;
+			} else {
 				ni_debug_application("%s: identified interface %s",
 						xml_node_location(node),
 						w->name);
 				w->config = ifnode;
+			}
+		} else {
+			if (ifname == NULL) {
+				ni_error("%s: ignoring unknown interface", xml_node_location(ifnode));
 				continue;
 			}
+
+			if ((w = ni_ifworker_lookup(type, ifname)) != NULL)
+				w->config = ifnode;
+			else
+				w = ni_ifworker_new(type, ifname, ifnode);
 		}
 
-		if (ifname == NULL) {
-			ni_error("%s: ignoring unknown interface", xml_node_location(ifnode));
-			continue;
-		}
-
-		if ((w = ni_ifworker_lookup(type, ifname)) != NULL)
-			w->config = ifnode;
-		else
-			w = ni_ifworker_new(type, ifname, ifnode);
+		/* FIXME: we should really check whether the xml document has a
+		 * <uuid> element and use that if present */
+		ni_uuid_generate(&w->uuid);
 
 		if ((depnode = xml_node_get_child(ifnode, "dependencies")) != NULL)
 			ni_ifworker_set_dependencies_xml(w, depnode);
