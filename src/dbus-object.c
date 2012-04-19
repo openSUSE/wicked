@@ -740,7 +740,8 @@ __ni_dbus_object_get_properties_as_dict(const ni_dbus_object_t *object,
 dbus_bool_t
 ni_dbus_object_get_properties_as_dict(const ni_dbus_object_t *object,
 					const ni_dbus_service_t *interface,
-					ni_dbus_variant_t *dict)
+					ni_dbus_variant_t *dict,
+					DBusError *error)
 {
 	int rv = TRUE;
 
@@ -750,13 +751,16 @@ ni_dbus_object_get_properties_as_dict(const ni_dbus_object_t *object,
 
 	/* Loop over properties and add them here */
 	if (interface->properties) {
-		DBusError error = DBUS_ERROR_INIT;
+		DBusError local_error = DBUS_ERROR_INIT;
+
+		if (error == NULL)
+			error = &local_error;
 
 		rv = __ni_dbus_object_get_properties_as_dict(object,
 						interface->name,
 						interface->properties,
-						dict, &error);
-		dbus_error_free(&error);
+						dict, error);
+		dbus_error_free(&local_error);
 	}
 
 	return rv;

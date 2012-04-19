@@ -522,13 +522,7 @@ put_properties_to_dict(const ni_dbus_service_t *service, const void *handle, ni_
 	dummy.handle = (void *) handle;
 
 	ni_dbus_variant_init_dict(dict);
-	if (!ni_dbus_object_get_properties_as_dict(&dummy, service, dict)) {
-		if (error)
-			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "Cannot encode argument as property dict");
-		return FALSE;
-	}
-
-	return TRUE;
+	return ni_dbus_object_get_properties_as_dict(&dummy, service, dict, error);
 }
 
 static ni_dbus_service_t	ni_objectmodel_netifreq_service = {

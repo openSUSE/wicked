@@ -207,7 +207,7 @@ ni_dbus_server_register_object(ni_dbus_server_t *server, const char *object_path
 static const ni_dbus_service_t __ni_dbus_object_manager_interface;
 static const ni_dbus_service_t __ni_dbus_object_properties_interface;
 static dbus_bool_t		__ni_dbus_object_manager_enumerate_object(ni_dbus_object_t *,
-					ni_dbus_variant_t *dict);
+					ni_dbus_variant_t *dict, DBusError *);
 
 dbus_bool_t
 ni_dbus_object_register_object_manager(ni_dbus_object_t *object)
@@ -253,7 +253,7 @@ __ni_dbus_object_manager_get_managed_objects(ni_dbus_object_t *object,
 	NI_TRACE_ENTER_ARGS("path=%s, method=%s", object->path, method->name);
 
 	ni_dbus_variant_init_dict(&obj_dict);
-	rv = __ni_dbus_object_manager_enumerate_object(object, &obj_dict);
+	rv = __ni_dbus_object_manager_enumerate_object(object, &obj_dict, error);
 	if (rv)
 		rv = ni_dbus_message_serialize_variants(reply, 1, &obj_dict, error);
 	ni_dbus_variant_destroy(&obj_dict);
@@ -351,12 +351,12 @@ __ni_dbus_object_properties_getall(ni_dbus_object_t *object, const ni_dbus_metho
 
 	ni_dbus_variant_init_dict(&dict);
 	if (service != NULL) {
-		rv = ni_dbus_object_get_properties_as_dict(object, service, &dict);
+		rv = ni_dbus_object_get_properties_as_dict(object, service, &dict, error);
 	} else {
 		unsigned int i;
 
 		for (i = 0; rv && (service = object->interfaces[i]) != NULL; ++i)
-			rv = ni_dbus_object_get_properties_as_dict(object, service, &dict);
+			rv = ni_dbus_object_get_properties_as_dict(object, service, &dict, error);
 	}
 
 	if (rv)
@@ -462,7 +462,7 @@ static const ni_dbus_service_t __ni_dbus_object_properties_interface = {
 };
 
 dbus_bool_t
-__ni_dbus_object_manager_enumerate_object(ni_dbus_object_t *object, ni_dbus_variant_t *obj_dict)
+__ni_dbus_object_manager_enumerate_object(ni_dbus_object_t *object, ni_dbus_variant_t *obj_dict, DBusError *error)
 {
 	ni_dbus_object_t *child;
 	int rv = TRUE;
@@ -477,7 +477,7 @@ __ni_dbus_object_manager_enumerate_object(ni_dbus_object_t *object, ni_dbus_vari
 			ni_dbus_variant_t *propdict = ni_dbus_dict_add(ifdict, service->name);
 
 			ni_dbus_variant_init_dict(propdict);
-			rv = ni_dbus_object_get_properties_as_dict(object, service, propdict);
+			rv = ni_dbus_object_get_properties_as_dict(object, service, propdict, error);
 		}
 	}
 
@@ -493,7 +493,7 @@ __ni_dbus_object_manager_enumerate_object(ni_dbus_object_t *object, ni_dbus_vari
 			continue;
 		}
 
-		rv = __ni_dbus_object_manager_enumerate_object(child, obj_dict);
+		rv = __ni_dbus_object_manager_enumerate_object(child, obj_dict, error);
 	}
 
 	return rv;

@@ -702,7 +702,7 @@ ni_wpa_network_set(ni_dbus_object_t *net_object, ni_wireless_network_t *net)
 	net_object->handle = ni_wireless_network_get(net);
 
 	ni_dbus_variant_init_dict(&dict);
-	if (!ni_dbus_object_get_properties_as_dict(net_object, &ni_wpa_network_service, &dict)) {
+	if (!ni_dbus_object_get_properties_as_dict(net_object, &ni_wpa_network_service, &dict, NULL)) {
 		ni_error("failed to obtain wireless network properties");
 		goto done;
 	}
