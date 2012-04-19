@@ -35,6 +35,7 @@ struct ni_dbus_property	{
 			uint16_t *	uint16_offset;
 			char **		string_offset;
 			ni_string_array_t *string_array_offset;
+			ni_uuid_t *	uuid_offset;
 			const ni_dbus_property_t *dict_children;
 		} u;
 	} generic;
@@ -69,6 +70,12 @@ extern dbus_bool_t		ni_dbus_generic_property_set_uint16(ni_dbus_object_t *, cons
 					const ni_dbus_variant_t *, DBusError *);
 extern dbus_bool_t		ni_dbus_generic_property_parse_uint16(const ni_dbus_property_t *,
 					ni_dbus_variant_t *, const char *);
+extern dbus_bool_t		ni_dbus_generic_property_get_uuid(const ni_dbus_object_t *, const ni_dbus_property_t *,
+					ni_dbus_variant_t *r, DBusError *);
+extern dbus_bool_t		ni_dbus_generic_property_set_uuid(ni_dbus_object_t *, const ni_dbus_property_t *,
+					const ni_dbus_variant_t *, DBusError *);
+extern dbus_bool_t		ni_dbus_generic_property_parse_uuid(const ni_dbus_property_t *,
+					ni_dbus_variant_t *, const char *);
 extern dbus_bool_t		ni_dbus_generic_property_get_string(const ni_dbus_object_t *, const ni_dbus_property_t *,
 					ni_dbus_variant_t *r, DBusError *);
 extern dbus_bool_t		ni_dbus_generic_property_set_string(ni_dbus_object_t *, const ni_dbus_property_t *,
@@ -81,20 +88,6 @@ extern dbus_bool_t		ni_dbus_generic_property_set_string_array(ni_dbus_object_t *
 					const ni_dbus_variant_t *, DBusError *);
 extern dbus_bool_t		ni_dbus_generic_property_parse_string_array(const ni_dbus_property_t *,
 					ni_dbus_variant_t *, const char *);
-
-
-#define NI_DBUS_DICT_ENTRY_SIGNATURE \
-		DBUS_DICT_ENTRY_BEGIN_CHAR_AS_STRING \
-		DBUS_TYPE_STRING_AS_STRING \
-		DBUS_TYPE_VARIANT_AS_STRING \
-		DBUS_DICT_ENTRY_END_CHAR_AS_STRING
-#define NI_DBUS_DICT_SIGNATURE \
-		DBUS_TYPE_ARRAY_AS_STRING \
-		NI_DBUS_DICT_ENTRY_SIGNATURE
-#define NI_DBUS_DICT_ARRAY_SIGNATURE \
-		DBUS_TYPE_ARRAY_AS_STRING NI_DBUS_DICT_SIGNATURE
-#define NI_DBUS_BYTE_ARRAY_SIGNATURE \
-		DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING
 
 
 
@@ -162,6 +155,10 @@ extern dbus_bool_t		ni_dbus_generic_property_parse_string_array(const ni_dbus_pr
 	__NI_DBUS_GENERIC_PROPERTY(struct_name, DBUS_TYPE_UINT32_AS_STRING, dbus_name, uint, member_name, rw)
 #define NI_DBUS_GENERIC_UINT16_PROPERTY(struct_name, dbus_name, member_name, rw) \
 	__NI_DBUS_GENERIC_PROPERTY(struct_name, DBUS_TYPE_UINT16_AS_STRING, dbus_name, uint16, member_name, rw)
+#define NI_DBUS_GENERIC_UUID_PROPERTY(struct_name, dbus_name, member_name, rw) \
+	__NI_DBUS_GENERIC_PROPERTY(struct_name, \
+			NI_DBUS_BYTE_ARRAY_SIGNATURE, \
+			dbus_name, uuid, member_name, rw)
 #define NI_DBUS_GENERIC_STRING_PROPERTY(struct_name, dbus_name, member_name, rw) \
 	__NI_DBUS_GENERIC_PROPERTY(struct_name, DBUS_TYPE_STRING_AS_STRING, dbus_name, string, member_name, rw)
 #define NI_DBUS_GENERIC_STRING_ARRAY_PROPERTY(struct_name, dbus_name, member_name, rw) \

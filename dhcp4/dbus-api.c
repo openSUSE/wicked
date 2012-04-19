@@ -273,6 +273,8 @@ static ni_dbus_class_t		ni_objectmodel_dhcp4req_class = {
 	NI_DBUS_GENERIC_STRING_PROPERTY(dhcp4_request, dbus_name, member_name, rw)
 #define DHCP4REQ_UINT_PROPERTY(dbus_name, member_name, rw) \
 	NI_DBUS_GENERIC_UINT_PROPERTY(dhcp4_request, dbus_name, member_name, rw)
+#define DHCP4REQ_UUID_PROPERTY(dbus_name, member_name, rw) \
+	NI_DBUS_GENERIC_UUID_PROPERTY(dhcp4_request, dbus_name, member_name, rw)
 #define DHCP4REQ_PROPERTY_SIGNATURE(signature, __name, rw) \
 	__NI_DBUS_PROPERTY(signature, __name, __dhcp4_request, rw)
 
@@ -298,40 +300,8 @@ ni_objectmodel_get_dhcp4_request(const ni_dbus_object_t *object, DBusError *erro
 	return __ni_objectmodel_get_dhcp4_request(object, error);
 }
 
-static dbus_bool_t
-__dhcp4_request_get_uuid(const ni_dbus_object_t *object,
-				const ni_dbus_property_t *property,
-				ni_dbus_variant_t *result,
-				DBusError *error)
-{
-	ni_dhcp4_request_t *req;
-
-	if (!(req = __ni_objectmodel_get_dhcp4_request(object, error)))
-		return FALSE;
-
-	if (ni_uuid_is_null(&req->uuid))
-		return ni_dbus_error_property_not_present(error, object->path, property->name);
-
-	ni_dbus_variant_set_uuid(result, &req->uuid);
-	return TRUE;
-}
-
-static dbus_bool_t
-__dhcp4_request_set_uuid(ni_dbus_object_t *object,
-				const ni_dbus_property_t *property,
-				const ni_dbus_variant_t *argument,
-				DBusError *error)
-{
-	ni_dhcp4_request_t *req;
-
-	if (!(req = __ni_objectmodel_get_dhcp4_request(object, error)))
-		return FALSE;
-
-	return ni_dbus_variant_get_uuid(argument, &req->uuid);
-}
-
 static ni_dbus_property_t	dhcp4_request_properties[] = {
-	DHCP4REQ_PROPERTY_SIGNATURE(NI_DBUS_BYTE_ARRAY_SIGNATURE, uuid, RO),
+	DHCP4REQ_UUID_PROPERTY(uuid, uuid, RO),
 	DHCP4REQ_UINT_PROPERTY(settle-timeout, settle_timeout, RO),
 	DHCP4REQ_UINT_PROPERTY(acquire-timeout, acquire_timeout, RO),
 	DHCP4REQ_STRING_PROPERTY(hostname, hostname, RO),
