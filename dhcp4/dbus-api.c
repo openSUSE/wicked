@@ -86,11 +86,19 @@ ni_objectmodel_register_dhcp4_device(ni_dbus_server_t *server, ni_dhcp_device_t 
  * Extract the dhcp4_device handle from a dbus object
  */
 static ni_dhcp_device_t *
-ni_objectmodel_unwrap_dhcp4_device(const ni_dbus_object_t *object)
+ni_objectmodel_unwrap_dhcp4_device(const ni_dbus_object_t *object, DBusError *error)
 {
-	ni_dhcp_device_t *dev = object->handle;
+	ni_dhcp_device_t *dev = ni_dbus_object_get_handle(object);
 
-	return object->class == &ni_objectmodel_dhcp4dev_class? dev : NULL;
+	if (ni_dbus_object_isa(object, &ni_objectmodel_dhcp4dev_class))
+		return dev;
+
+	if (error)
+		dbus_set_error(error, DBUS_ERROR_FAILED,
+			"method not compatible with object %s of class %s (not a network interface)",
+			object->path, object->class->name);
+
+	return NULL;
 }
 
 /*
@@ -99,7 +107,7 @@ ni_objectmodel_unwrap_dhcp4_device(const ni_dbus_object_t *object)
 void
 __ni_objectmodel_dhcp_device_release(ni_dbus_object_t *object)
 {
-	ni_dhcp_device_t *dev = ni_objectmodel_unwrap_dhcp4_device(object);
+	ni_dhcp_device_t *dev = ni_objectmodel_unwrap_dhcp4_device(object, NULL);
 
 	ni_assert(dev != NULL);
 	ni_dhcp_device_put(dev);
@@ -117,18 +125,14 @@ __wicked_dbus_dhcp4_acquire_svc(ni_dbus_object_t *object, const ni_dbus_method_t
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
-	ni_dhcp_device_t *dev = ni_objectmodel_unwrap_dhcp4_device(object);
+	ni_dhcp_device_t *dev;
 	ni_uuid_t req_uuid = NI_UUID_INIT;
 	ni_dhcp4_request_t *req = NULL;
 	dbus_bool_t ret = FALSE;
 	int rv;
 
-	if ((dev = ni_objectmodel_unwrap_dhcp4_device(object)) == NULL) {
-		dbus_set_error(error, DBUS_ERROR_FAILED,
-				"method %s called on incompatible object (class %s)",
-				method->name, object->class->name);
+	if ((dev = ni_objectmodel_unwrap_dhcp4_device(object, error)) == NULL)
 		goto failed;
-	}
 
 	if (argc == 2) {
 		unsigned int dummy;
@@ -188,10 +192,13 @@ __wicked_dbus_dhcp4_drop_svc(ni_dbus_object_t *object, const ni_dbus_method_t *m
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
-	ni_dhcp_device_t *dev = ni_objectmodel_unwrap_dhcp4_device(object);
+	ni_dhcp_device_t *dev;
 	dbus_bool_t ret = FALSE;
 	ni_uuid_t uuid;
 	int rv;
+
+	if ((dev = ni_objectmodel_unwrap_dhcp4_device(object, error)) == NULL)
+		goto failed;
 
 	NI_TRACE_ENTER_ARGS("dev=%s", dev->ifname);
 
@@ -308,7 +315,10 @@ __wicked_dbus_dhcp4_get_name(const ni_dbus_object_t *object,
 				ni_dbus_variant_t *result,
 				DBusError *error)
 {
-	ni_dhcp_device_t *dev = ni_dbus_object_get_handle(object);
+	ni_dhcp_device_t *dev;
+	
+	if (!(dev = ni_objectmodel_unwrap_dhcp4_device(object, error)))
+		return FALSE;
 
 	ni_dbus_variant_set_string(result, dev->ifname);
 	return TRUE;
@@ -320,8 +330,11 @@ __wicked_dbus_dhcp4_set_name(ni_dbus_object_t *object,
 				const ni_dbus_variant_t *argument,
 				DBusError *error)
 {
-	ni_dhcp_device_t *dev = ni_dbus_object_get_handle(object);
+	ni_dhcp_device_t *dev;
 	const char *value;
+
+	if (!(dev = ni_objectmodel_unwrap_dhcp4_device(object, error)))
+		return FALSE;
 
 	if (!ni_dbus_variant_get_string(argument, &value))
 		return FALSE;
