@@ -289,6 +289,9 @@ ni_system_updater_install(ni_updater_t *updater, const ni_addrconf_lease_t *leas
 	updater->seqno = lease->seqno;
 	result = TRUE;
 
+	if (ni_global.other_event)
+		ni_global.other_event(NI_EVENT_RESOLVER_UPDATED);
+
 done:
 	if (tempname)
 		unlink(tempname);

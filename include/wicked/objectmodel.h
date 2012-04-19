@@ -82,6 +82,8 @@ extern dbus_bool_t		ni_objectmodel_interface_event(ni_dbus_server_t *, ni_netdev
 extern ni_modem_t *		ni_objectmodel_unwrap_modem(const ni_dbus_object_t *, DBusError *);
 extern dbus_bool_t		ni_objectmodel_modem_event(ni_dbus_server_t *, ni_modem_t *, ni_event_t, const ni_uuid_t *);
 
+extern dbus_bool_t		ni_objectmodel_other_event(ni_dbus_server_t *, ni_event_t, const ni_uuid_t *);
+
 extern dbus_bool_t		ni_objectmodel_marshal_interface_request(const ni_netdev_req_t *, ni_dbus_variant_t *, DBusError *);
 extern dbus_bool_t		ni_objectmodel_unmarshal_interface_request(ni_netdev_req_t *, const ni_dbus_variant_t *, DBusError *);
 

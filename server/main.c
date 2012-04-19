@@ -59,6 +59,7 @@ static void		wicked_interface_server(void);
 static void		wicked_discover_state(void);
 static void		wicked_try_restart_addrconf(ni_netdev_t *, ni_afinfo_t *, unsigned int);
 static void		wicked_interface_event(ni_netdev_t *, ni_event_t);
+static void		wicked_other_event(ni_event_t);
 static void		wicked_modem_event(ni_modem_t *, ni_event_t);
 
 int
@@ -154,6 +155,9 @@ wicked_interface_server(void)
 	/* open global RTNL socket to listen for kernel events */
 	if (ni_server_listen_interface_events(wicked_interface_event) < 0)
 		ni_fatal("unable to initialize netlink listener");
+
+	/* Listen for other events, such as RESOLVER_UPDATED */
+	ni_server_listen_other_events(wicked_other_event);
 
 	if (!opt_foreground) {
 		if (ni_server_background() < 0)
@@ -308,6 +312,14 @@ wicked_interface_event(ni_netdev_t *dev, ni_event_t event)
 			break;
 		}
 	}
+}
+
+static void
+wicked_other_event(ni_event_t event)
+{
+	ni_debug_events("%s(%s)", __func__, ni_event_type_to_name(event));
+	if (wicked_dbus_server)
+		ni_objectmodel_other_event(wicked_dbus_server, event, NULL);
 }
 
 /*

@@ -114,6 +114,12 @@ ni_server_background(void)
 	return ni_daemonize(fsloc->path, fsloc->mode);
 }
 
+void
+ni_server_listen_other_events(void (*event_handler)(ni_event_t))
+{
+	ni_global.other_event = event_handler;
+}
+
 ni_dbus_server_t *
 ni_server_listen_dbus(const char *dbus_name)
 {

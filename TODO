@@ -20,6 +20,11 @@ wickedd:
 	- Add a naming service to identify a PCI hotplug device by its
 	  enclosure.
 
+wicked client:
+	- allow option to bring up a network device even though the link
+	  is not up. This has been the default behavior of ethernet interfaces
+	  for ages.
+
 ifup replacement features:
 	- ifplugd: we could support this in the wicked client using
 	  some <policy> element.

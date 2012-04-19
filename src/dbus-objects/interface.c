@@ -758,6 +758,7 @@ __ni_objectmodel_event_to_signal(ni_event_t event)
 	[NI_EVENT_ADDRESS_ACQUIRED]	= "addressAcquired",
 	[NI_EVENT_ADDRESS_RELEASED]	= "addressReleased",
 	[NI_EVENT_ADDRESS_LOST]		= "addressLost",
+	[NI_EVENT_RESOLVER_UPDATED]	= "resolverUpdated",
 	};
 
 	if (event >= __NI_EVENT_MAX)

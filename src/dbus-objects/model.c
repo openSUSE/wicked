@@ -366,10 +366,50 @@ ni_objectmodel_object_by_path(const char *path)
 }
 
 /*
+ * Send out an event (not associated with a network device or other object)
+ */
+dbus_bool_t
+ni_objectmodel_other_event(ni_dbus_server_t *server, ni_event_t event, const ni_uuid_t *uuid)
+{
+	ni_dbus_variant_t arg = NI_DBUS_VARIANT_INIT;
+	const char *signal_name = NULL;
+	unsigned int argc = 0;
+
+	if (!(signal_name = __ni_objectmodel_event_to_signal(event)))
+		return FALSE;
+
+	if (!server && !(server = __ni_objectmodel_server)) {
+		ni_error("%s: help! No dbus server handle! Cannot send signal.", __func__);
+		return FALSE;
+	}
+
+	if (uuid) {
+		ni_dbus_variant_set_uuid(&arg, uuid);
+		argc++;
+	}
+
+	ni_debug_dbus("sending event \"%s\"", signal_name);
+	ni_dbus_server_send_signal(server,
+				ni_dbus_server_get_root_object(server),
+				ni_objectmodel_netif_root_interface.name,
+				signal_name, argc, &arg);
+
+	ni_dbus_variant_destroy(&arg);
+	return TRUE;
+}
+
+/*
  * The interface for the dbus root node. Nothing much for now.
  */
+static ni_dbus_method_t		ni_objectmodel_netif_root_signals[] = {
+	{ "resolverUpdated",	"",		NULL },
+
+	{ NULL }
+};
+
 static ni_dbus_service_t	ni_objectmodel_netif_root_interface = {
 	.name		= NI_OBJECTMODEL_INTERFACE,
+	.signals	= ni_objectmodel_netif_root_signals,
 };
 
 /*
