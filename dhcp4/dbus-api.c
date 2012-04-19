@@ -27,8 +27,6 @@
 #include "dhcp.h"
 
 static ni_dhcp4_request_t *	ni_objectmodel_dhcp4_request_from_dict(const ni_dbus_variant_t *);
-static ni_dhcp4_request_t *	ni_dhcp4_request_new(void);
-static void			ni_dhcp4_request_free(ni_dhcp4_request_t *);
 static void			__ni_objectmodel_dhcp_device_release(ni_dbus_object_t *);
 
 static ni_dbus_class_t		ni_objectmodel_dhcp4dev_class = {
@@ -95,7 +93,7 @@ ni_objectmodel_unwrap_dhcp4_device(const ni_dbus_object_t *object, DBusError *er
 
 	if (error)
 		dbus_set_error(error, DBUS_ERROR_FAILED,
-			"method not compatible with object %s of class %s (not a network interface)",
+			"method not compatible with object %s of class %s (not a dhcp4 device)",
 			object->path, object->class->name);
 
 	return NULL;
@@ -135,12 +133,11 @@ __wicked_dbus_dhcp4_acquire_svc(ni_dbus_object_t *object, const ni_dbus_method_t
 		goto failed;
 
 	if (argc == 2) {
-		unsigned int dummy;
-
-		if (!ni_dbus_variant_get_byte_array_minmax(&argv[0], req_uuid.octets, &dummy, 16, 16)) {
+		if (!ni_dbus_variant_get_uuid(&argv[0], &req_uuid)) {
 			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
 					"%s: unable to extract uuid from argument",
 					method->name);
+			goto failed;
 		}
 		argc--;
 		argv++;
@@ -175,7 +172,8 @@ __wicked_dbus_dhcp4_acquire_svc(ni_dbus_object_t *object, const ni_dbus_method_t
 	 * asynchronously, and when done, we will emit a signal that
 	 * notifies the sender of its results. */
 
-	ret = TRUE;
+	ni_dhcp_device_set_request(dev, req);
+	return TRUE;
 
 failed:
 	if (req)
@@ -241,49 +239,8 @@ static ni_dbus_method_t		wicked_dbus_dhcp4_signals[] = {
 };
 
 /*
- * This is a helper function extracts a ni_dhcp4_request_t from a dbus dict
+ * Create or delete a dhcp4 request object
  */
-ni_dhcp4_request_t *
-ni_objectmodel_dhcp4_request_from_dict(const ni_dbus_variant_t *dict)
-{
-	ni_dhcp4_request_t *req;
-	const ni_dbus_variant_t *child;
-	const char *string_value;
-	unsigned int dummy;
-	uint32_t value32;
-
-	if (!ni_dbus_variant_is_dict(dict))
-		return NULL;
-
-	req = ni_dhcp4_request_new();
-	if (ni_dbus_dict_get_uint32(dict, "settle-timeout", &value32))
-		req->settle_timeout = value32;
-	if (ni_dbus_dict_get_uint32(dict, "acquire-timeout", &value32))
-		req->acquire_timeout = value32;
-
-	if ((child = ni_dbus_dict_get(dict, "uuid")) != NULL
-	 && !ni_dbus_variant_get_byte_array_minmax(child, req->uuid.octets, &dummy, 16, 16))
-		goto failed;
-
-	if (ni_dbus_dict_get_string(dict, "hostname", &string_value))
-		ni_string_dup(&req->hostname, string_value);
-	if (ni_dbus_dict_get_string(dict, "clientid", &string_value))
-		ni_string_dup(&req->clientid, string_value);
-	if (ni_dbus_dict_get_string(dict, "vendor-class", &string_value))
-		ni_string_dup(&req->vendor_class, string_value);
-	if (ni_dbus_dict_get_uint32(dict, "lease-time", &value32))
-		req->lease_time = value32;
-
-	if (ni_dbus_dict_get_uint32(dict, "update", &value32))
-		req->update = value32;
-
-	return req;
-
-failed:
-	ni_dhcp4_request_free(req);
-	return NULL;
-}
-
 ni_dhcp4_request_t *
 ni_dhcp4_request_new(void)
 {
@@ -307,48 +264,190 @@ ni_dhcp4_request_free(ni_dhcp4_request_t *req)
 }
 
 /*
- * Property name
+ * Properties associated with a DHCP4 request
  */
+static ni_dbus_class_t		ni_objectmodel_dhcp4req_class = {
+	.name		= "dhcp4-request",
+};
+
+#define DHCP4REQ_STRING_PROPERTY(dbus_name, member_name, rw) \
+	NI_DBUS_GENERIC_STRING_PROPERTY(dhcp4_request, dbus_name, member_name, rw)
+#define DHCP4REQ_UINT_PROPERTY(dbus_name, member_name, rw) \
+	NI_DBUS_GENERIC_UINT_PROPERTY(dhcp4_request, dbus_name, member_name, rw)
+#define DHCP4REQ_PROPERTY_SIGNATURE(signature, __name, rw) \
+	__NI_DBUS_PROPERTY(signature, __name, __dhcp4_request, rw)
+
+static ni_dhcp4_request_t *
+__ni_objectmodel_get_dhcp4_request(const ni_dbus_object_t *object, DBusError *error)
+{
+	ni_dhcp4_request_t *req = ni_dbus_object_get_handle(object);
+
+	if (ni_dbus_object_isa(object, &ni_objectmodel_dhcp4req_class))
+		return req;
+
+	if (error)
+		dbus_set_error(error, DBUS_ERROR_FAILED,
+			"method not compatible with object %s of class %s (not a dhcp4 request)",
+			object->path, object->class->name);
+
+	return NULL;
+}
+
+static void *
+ni_objectmodel_get_dhcp4_request(const ni_dbus_object_t *object, DBusError *error)
+{
+	return __ni_objectmodel_get_dhcp4_request(object, error);
+}
+
 static dbus_bool_t
-__wicked_dbus_dhcp4_get_name(const ni_dbus_object_t *object,
+__dhcp4_request_get_uuid(const ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				ni_dbus_variant_t *result,
 				DBusError *error)
 {
+	ni_dhcp4_request_t *req;
+
+	if (!(req = __ni_objectmodel_get_dhcp4_request(object, error)))
+		return FALSE;
+
+	if (ni_uuid_is_null(&req->uuid))
+		return ni_dbus_error_property_not_present(error, object->path, property->name);
+
+	ni_dbus_variant_set_uuid(result, &req->uuid);
+	return TRUE;
+}
+
+static dbus_bool_t
+__dhcp4_request_set_uuid(ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *argument,
+				DBusError *error)
+{
+	ni_dhcp4_request_t *req;
+
+	if (!(req = __ni_objectmodel_get_dhcp4_request(object, error)))
+		return FALSE;
+
+	return ni_dbus_variant_get_uuid(argument, &req->uuid);
+}
+
+static ni_dbus_property_t	dhcp4_request_properties[] = {
+	DHCP4REQ_PROPERTY_SIGNATURE(NI_DBUS_BYTE_ARRAY_SIGNATURE, uuid, RO),
+	DHCP4REQ_UINT_PROPERTY(settle-timeout, settle_timeout, RO),
+	DHCP4REQ_UINT_PROPERTY(acquire-timeout, acquire_timeout, RO),
+	DHCP4REQ_STRING_PROPERTY(hostname, hostname, RO),
+	DHCP4REQ_STRING_PROPERTY(client-id, clientid, RO),
+	DHCP4REQ_STRING_PROPERTY(vendor-class, vendor_class, RO),
+	DHCP4REQ_UINT_PROPERTY(update, update, RO),
+	{ NULL },
+};
+
+static ni_dbus_service_t	ni_objectmodel_dhcp4req_service = {
+	.name		= NI_OBJECTMODEL_DHCP4_INTERFACE ".Request",
+	.compatible	= &ni_objectmodel_dhcp4req_class,
+	.properties	= dhcp4_request_properties,
+};
+
+/*
+ * Create a dummy DBus object encapsulating a dhcp4 request
+ */
+static ni_dbus_object_t *
+__dhcp4_request_dummy_object(ni_dhcp4_request_t *req)
+{
+	static ni_dbus_object_t dummy;
+
+	memset(&dummy, 0, sizeof(dummy));
+	dummy.handle = req;
+	dummy.class = &ni_objectmodel_dhcp4req_class;
+	return &dummy;
+}
+
+/*
+ * This is a helper function extracts a ni_dhcp4_request_t from a dbus dict
+ */
+ni_dhcp4_request_t *
+ni_objectmodel_dhcp4_request_from_dict(const ni_dbus_variant_t *dict)
+{
+	ni_dhcp4_request_t *req;
+	ni_dbus_object_t *dummy;
+
+	req = ni_dhcp4_request_new();
+
+	dummy = __dhcp4_request_dummy_object(req);
+	if (!ni_dbus_object_set_properties_from_dict(dummy, &ni_objectmodel_dhcp4req_service, dict, NULL)) {
+		ni_dhcp4_request_free(req);
+		return NULL;
+	}
+
+	return req;
+}
+
+/*
+ * Property name
+ */
+static void *
+ni_objectmodel_get_dhcp_device(const ni_dbus_object_t *object, DBusError *error)
+{
+	ni_dhcp_device_t *dev;
+
+	dev = ni_objectmodel_unwrap_dhcp4_device(object, error);
+	return dev;
+}
+
+/*
+ * Property config
+ */
+static dbus_bool_t
+__wicked_dbus_dhcp4_get_request(const ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				ni_dbus_variant_t *result,
+				DBusError *error)
+{
+	ni_dbus_object_t *dummy;
 	ni_dhcp_device_t *dev;
 	
 	if (!(dev = ni_objectmodel_unwrap_dhcp4_device(object, error)))
 		return FALSE;
 
-	ni_dbus_variant_set_string(result, dev->ifname);
-	return TRUE;
+	if (dev->request == NULL)
+		return ni_dbus_error_property_not_present(error, object->path, property->name);
+	dummy = __dhcp4_request_dummy_object(dev->request);
+
+	ni_dbus_variant_init_dict(result);
+	return ni_dbus_object_get_properties_as_dict(dummy, &ni_objectmodel_dhcp4req_service, result, error);
 }
 
 static dbus_bool_t
-__wicked_dbus_dhcp4_set_name(ni_dbus_object_t *object,
+__wicked_dbus_dhcp4_set_request(ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				const ni_dbus_variant_t *argument,
 				DBusError *error)
 {
+	ni_dbus_object_t *dummy;
 	ni_dhcp_device_t *dev;
-	const char *value;
 
 	if (!(dev = ni_objectmodel_unwrap_dhcp4_device(object, error)))
 		return FALSE;
 
-	if (!ni_dbus_variant_get_string(argument, &value))
-		return FALSE;
-	ni_string_dup(&dev->ifname, value);
-	return TRUE;
+	if (dev->request == NULL)
+		dev->request = ni_dhcp4_request_new();
+	dummy = __dhcp4_request_dummy_object(dev->request);
+
+	return ni_dbus_object_set_properties_from_dict(dummy, &ni_objectmodel_dhcp4req_service, argument, error);
 }
 
-#define WICKED_INTERFACE_PROPERTY(type, __name, rw) \
+
+#define DHCP4DEV_PROPERTY(type, __name, rw) \
 	NI_DBUS_PROPERTY(type, __name, __wicked_dbus_dhcp4, rw)
-#define WICKED_INTERFACE_PROPERTY_SIGNATURE(signature, __name, rw) \
+#define DHCP4DEV_STRING_PROPERTY(dbus_name, member_name, rw) \
+	NI_DBUS_GENERIC_STRING_PROPERTY(dhcp_device, dbus_name, member_name, rw)
+#define DHCP4DEV_PROPERTY_SIGNATURE(signature, __name, rw) \
 	__NI_DBUS_PROPERTY(signature, __name, __wicked_dbus_dhcp4, rw)
 
 static ni_dbus_property_t	wicked_dbus_dhcp4_properties[] = {
-	WICKED_INTERFACE_PROPERTY(STRING, name, RO),
+	DHCP4DEV_STRING_PROPERTY(name, ifname, RO),
+
+	DHCP4DEV_PROPERTY_SIGNATURE(NI_DBUS_DICT_SIGNATURE, request, RO),
 
 	{ NULL }
 };

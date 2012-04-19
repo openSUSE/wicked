@@ -101,10 +101,25 @@ ni_dhcp_device_stop(ni_dhcp_device_t *dev)
 	ni_dhcp_fsm_commit_lease(dev, NULL);
 	ni_dhcp_device_close(dev);
 
-	/* Drop existing config */
+	/* Drop existing config and request */
+	ni_dhcp_device_set_config(dev, NULL);
+	ni_dhcp_device_set_request(dev, NULL);
+}
+
+void
+ni_dhcp_device_set_config(ni_dhcp_device_t *dev, ni_dhcp_config_t *config)
+{
 	if (dev->config)
 		free(dev->config);
-	dev->config = NULL;
+	dev->config = config;
+}
+
+void
+ni_dhcp_device_set_request(ni_dhcp_device_t *dev, ni_dhcp4_request_t *request)
+{
+	if (dev->request)
+		ni_dhcp4_request_free(dev->request);
+	dev->request = request;
 }
 
 void
@@ -118,6 +133,10 @@ ni_dhcp_device_free(ni_dhcp_device_t *dev)
 	ni_dhcp_device_drop_best_offer(dev);
 	ni_dhcp_device_close(dev);
 	ni_string_free(&dev->ifname);
+
+	/* Drop existing config and request */
+	ni_dhcp_device_set_config(dev, NULL);
+	ni_dhcp_device_set_request(dev, NULL);
 
 	for (pos = &ni_dhcp_active; *pos; pos = &(*pos)->next) {
 		if (*pos == dev) {
@@ -271,9 +290,7 @@ ni_dhcp_acquire(ni_dhcp_device_t *dev, const ni_dhcp4_request_t *info)
 		ni_trace("  flags           %s", __ni_dhcp_print_flags(config->flags));
 	}
 
-	if (dev->config)
-		free(dev->config);
-	dev->config = config;
+	ni_dhcp_device_set_config(dev, config);
 
 #if 0
 	/* FIXME: This cores for now */

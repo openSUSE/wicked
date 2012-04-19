@@ -33,6 +33,7 @@ enum {
 
 typedef struct ni_dhcp_message ni_dhcp_message_t;
 typedef struct ni_dhcp_config ni_dhcp_config_t;
+typedef struct ni_dhcp4_request	ni_dhcp4_request_t;
 
 typedef struct ni_dhcp_device {
 	struct ni_dhcp_device *	next;
@@ -51,6 +52,7 @@ typedef struct ni_dhcp_device {
 
 	time_t			start_time;	/* when we starting managing */
 
+	ni_dhcp4_request_t *	request;
 	ni_dhcp_config_t *	config;
 	ni_addrconf_lease_t *	lease;
 
@@ -102,7 +104,7 @@ enum {
 /*
  * This is the on-the wire request we receive from clients.
  */
-typedef struct ni_dhcp4_request {
+struct ni_dhcp4_request {
 	ni_uuid_t		uuid;
 
 	unsigned int		settle_timeout;	/* wait that long before starting DHCP */
@@ -119,7 +121,7 @@ typedef struct ni_dhcp4_request {
 	 * This is a bitmap; individual bits correspond to
 	 * NI_ADDRCONF_UPDATE_* (this is an index enum, not a bitmask) */
 	unsigned int		update;
-} ni_dhcp4_request_t;
+};
 
 /*
  * This is what we turn the above ni_dhcp4_request_t into for
@@ -186,6 +188,8 @@ extern ni_dhcp_device_t *ni_dhcp_device_get(ni_dhcp_device_t *);
 extern void		ni_dhcp_device_put(ni_dhcp_device_t *);
 extern void		ni_dhcp_device_event(ni_dhcp_device_t *, ni_event_t);
 extern int		ni_dhcp_device_reconfigure(ni_dhcp_device_t *, const ni_netdev_t *);
+extern void		ni_dhcp_device_set_config(ni_dhcp_device_t *, ni_dhcp_config_t *);
+extern void		ni_dhcp_device_set_request(ni_dhcp_device_t *, ni_dhcp4_request_t *);
 extern void		ni_dhcp_device_set_lease(ni_dhcp_device_t *, ni_addrconf_lease_t *);
 extern void		ni_dhcp_device_drop_lease(ni_dhcp_device_t *);
 extern void		ni_dhcp_device_alloc_buffer(ni_dhcp_device_t *);
@@ -211,5 +215,8 @@ extern int		ni_dhcp_config_have_server_preference(void);
 extern int		ni_dhcp_config_server_preference(struct in_addr);
 extern unsigned int	ni_dhcp_config_max_lease_time(void);
 extern void		ni_dhcp_config_free(ni_dhcp_config_t *);
+
+extern ni_dhcp4_request_t *ni_dhcp4_request_new(void);
+extern void		ni_dhcp4_request_free(ni_dhcp4_request_t *);
 
 #endif /* __WICKED_DHCP_PRIVATE_H__ */
