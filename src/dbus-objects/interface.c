@@ -417,7 +417,7 @@ ni_objectmodel_get_netif_argument(const ni_dbus_variant_t *dict, ni_iftype_t ift
 	dev->link.type = iftype;
 
 	dev_object = ni_objectmodel_wrap_netif(dev);
-	rv = ni_dbus_object_set_properties_from_dict(dev_object, service, dict);
+	rv = ni_dbus_object_set_properties_from_dict(dev_object, service, dict, NULL);
 	ni_dbus_object_free(dev_object);
 
 	if (!rv) {
@@ -503,13 +503,7 @@ get_properties_from_dict(const ni_dbus_service_t *service, void *handle, const n
 	dummy.class = service->compatible;
 	dummy.handle = handle;
 
-	if (!ni_dbus_object_set_properties_from_dict(&dummy, service, dict)) {
-		if (error)
-			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "Cannot extract argument from property dict");
-		return FALSE;
-	}
-
-	return TRUE;
+	return ni_dbus_object_set_properties_from_dict(&dummy, service, dict, error);
 }
 
 static dbus_bool_t

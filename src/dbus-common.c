@@ -186,17 +186,19 @@ __ni_dbus_object_set_properties_from_dict(ni_dbus_object_t *object,
 dbus_bool_t
 ni_dbus_object_set_properties_from_dict(ni_dbus_object_t *object,
 				const ni_dbus_service_t *interface,
-				const ni_dbus_variant_t *dict)
+				const ni_dbus_variant_t *dict, DBusError *error)
 {
-	DBusError error = DBUS_ERROR_INIT;
+	DBusError local_error = DBUS_ERROR_INIT;
 	dbus_bool_t rv;
 
+	if (!error)
+		error = &local_error;
 	rv = __ni_dbus_object_set_properties_from_dict(object,
 				interface->name,
 				interface->properties,
 				dict,
-				&error);
-	dbus_error_free(&error);
+				error);
+	dbus_error_free(&local_error);
 	return rv;
 }
 

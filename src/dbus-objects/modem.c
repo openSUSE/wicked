@@ -478,7 +478,7 @@ __ni_objectmodel_get_modem_arg(const ni_dbus_variant_t *dict, ni_dbus_object_t *
 	config_object = ni_dbus_object_new(&ni_objectmodel_modem_class, NULL, NULL);
 	config_object->class->initialize(config_object);
 
-	if (!ni_dbus_object_set_properties_from_dict(config_object, &ni_objectmodel_modem_service, dict)) {
+	if (!ni_dbus_object_set_properties_from_dict(config_object, &ni_objectmodel_modem_service, dict, NULL)) {
 		ni_dbus_object_free(config_object);
 		return NULL;
 	}

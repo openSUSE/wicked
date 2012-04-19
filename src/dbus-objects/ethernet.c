@@ -69,7 +69,7 @@ __ni_objectmodel_ethernet_device_arg(const ni_dbus_variant_t *dict)
 	dev->link.type = NI_IFTYPE_ETHERNET;
 
 	dev_object = ni_objectmodel_wrap_netif(dev);
-	rv = ni_dbus_object_set_properties_from_dict(dev_object, &ni_objectmodel_ethernet_service, dict);
+	rv = ni_dbus_object_set_properties_from_dict(dev_object, &ni_objectmodel_ethernet_service, dict, NULL);
 	ni_dbus_object_free(dev_object);
 
 	if (!rv) {

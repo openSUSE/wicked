@@ -1497,7 +1497,7 @@ ni_wpa_bss_properties_result(ni_dbus_object_t *proxy, ni_dbus_message_t *msg)
 
 	ni_wpa_network_properties_destroy(net);
 
-	if (!ni_dbus_object_set_properties_from_dict(proxy, &ni_wpa_bssid_service, &dict))
+	if (!ni_dbus_object_set_properties_from_dict(proxy, &ni_wpa_bssid_service, &dict, NULL))
 		goto failed;
 
 	ni_debug_wireless("Updated BSS %s, freq=%.3f GHz, quality=%.2f, noise=%u, level=%.2f dBm, maxrate=%u MB/s, essid=%.*s",
@@ -1978,7 +1978,7 @@ ni_wpa_interface_get_capabilities(ni_wpa_client_t *wpa, ni_wpa_interface_t *wpa_
 	ni_dbus_variant_init_dict(&dict);
 	if (!ni_dbus_message_iter_get_variant_data(&iter, &dict))
 		goto failed;
-	rv = ni_dbus_object_set_properties_from_dict(wpa_dev->proxy, &ni_wpa_device_service, &dict);
+	rv = ni_dbus_object_set_properties_from_dict(wpa_dev->proxy, &ni_wpa_device_service, &dict, NULL);
 
 #if 0
 	if (rv) {
