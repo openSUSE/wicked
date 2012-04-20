@@ -63,6 +63,7 @@ static int		do_show(int, char **);
 static int		do_show_xml(int, char **);
 extern int		do_ifup(int, char **);
 extern int		do_ifdown(int, char **);
+extern int		do_ifcheck(int, char **);
 extern int		do_lease(int, char **);
 extern int		do_check(int, char **);
 static int		do_xpath(int, char **);
@@ -152,6 +153,9 @@ main(int argc, char **argv)
 
 	if (!strcmp(cmd, "ifdown"))
 		return do_ifdown(argc - optind, argv + optind);
+
+	if (!strcmp(cmd, "ifcheck"))
+		return do_ifcheck(argc - optind, argv + optind);
 
 	/* Old wicked style functions follow */
 	if (!strcmp(cmd, "xpath"))

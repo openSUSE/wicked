@@ -628,6 +628,17 @@ ni_ifworker_waiting_for_event(ni_ifworker_t *w, const char *event_name)
 }
 
 static void
+ni_ifworker_set_state(ni_ifworker_t *w, unsigned int new_state)
+{
+	if (w->fsm.state != new_state) {
+		w->fsm.state = new_state;
+
+		if (w->object)
+			ni_call_set_client_state(w->object, &w->uuid, ni_ifworker_state_name(w->fsm.state));
+	}
+}
+
+static void
 ni_ifworker_update_state(ni_ifworker_t *w, unsigned int min_state, unsigned int max_state)
 {
 	unsigned int prev_state = w->fsm.state;
@@ -646,9 +657,6 @@ ni_ifworker_update_state(ni_ifworker_t *w, unsigned int min_state, unsigned int 
 					", resuming activity" : ", still waiting for event");
 		if (w->fsm.state == w->target_state)
 			ni_ifworker_success(w);
-
-		if (w->object)
-			ni_call_set_client_state(w->object, &w->uuid, ni_ifworker_state_name(w->fsm.state));
 	}
 
 	if (w->fsm.wait_for && w->fsm.wait_for->next_state == w->fsm.state)
@@ -1169,6 +1177,7 @@ ni_ifworker_mark_matching(ni_objectmodel_fsm_t *fsm, ni_ifmatcher_t *match)
 	}
 
 	ni_debug_application("marked %u interfaces", count);
+	ni_ifworker_array_destroy(&marked);
 	return count;
 }
 
@@ -1497,7 +1506,7 @@ __ni_ifworker_print_tree(const char *arrow, const ni_ifworker_t *w, const char *
 	}
 }
 
-void
+static void
 ni_ifworkers_refresh_state(ni_objectmodel_fsm_t *fsm)
 {
 	ni_ifworker_t *w;
@@ -1530,6 +1539,8 @@ ni_ifworkers_refresh_state(ni_objectmodel_fsm_t *fsm)
 
 		if (w->object == NULL)
 			ni_ifworker_update_state(w, STATE_NONE, STATE_DEVICE_DOWN);
+		else
+			ni_ifworker_update_state(w, STATE_DEVICE_UP, __STATE_MAX);
 	}
 }
 
@@ -2097,7 +2108,7 @@ ni_ifworker_do_common(ni_ifworker_t *w, ni_iftransition_t *action)
 		return 0;
 
 	ni_trace("%s: setting worker state to %s", __func__, ni_ifworker_state_name(action->next_state));
-	w->fsm.state = action->next_state;
+	ni_ifworker_set_state(w, action->next_state);
 	return 0;
 }
 
@@ -2187,7 +2198,7 @@ ni_ifworker_call_device_factory(ni_ifworker_t *w, ni_iftransition_t *action)
 	}
 
 	ni_trace("%s: setting worker state to %s", __func__, ni_ifworker_state_name(action->next_state));
-	w->fsm.state = action->next_state;
+	ni_ifworker_set_state(w, action->next_state);
 	return 0;
 }
 
@@ -2608,7 +2619,9 @@ ni_ifworkers_kickstart(ni_objectmodel_fsm_t *fsm)
 		}
 
 		if (!ni_ifworker_device_bound(w))
-			w->fsm.state = STATE_DEVICE_DOWN;
+			ni_ifworker_set_state(w, STATE_DEVICE_DOWN);
+		else if (w->object)
+			ni_call_set_client_state(w->object, &w->uuid, ni_ifworker_state_name(w->fsm.state));
 	}
 
 	return 0;
@@ -2756,7 +2769,7 @@ do_ifup(int argc, char **argv)
 usage:
 			fprintf(stderr,
 				"wicked [options] ifup [ifup-options] all\n"
-				"wicked [options] ifup [ifup-options] <ifname> [options ...]\n"
+				"wicked [options] ifup [ifup-options] <ifname> ...\n"
 				"\nSupported ifup-options:\n"
 				"  --ifconfig <filename>\n"
 				"      Read interface configuration(s) from file rather than using system config\n"
@@ -2868,8 +2881,8 @@ usage:
 			fprintf(stderr,
 				"wicked [options] ifdown [ifdown-options] all\n"
 				"wicked [options] ifdown [ifdown-options] <ifname> [options ...]\n"
-				"\nSupported ifup-options:\n"
-				"  --file <filename>\n"
+				"\nSupported ifdown-options:\n"
+				"  --ifconfig <filename>\n"
 				"      Read interface configuration(s) from file rather than using system config\n"
 				"  --delete\n"
 				"      Delete virtual interfaces\n"
@@ -2918,3 +2931,140 @@ usage:
 	return ni_ifworkers_fail_count(fsm) != 0;
 }
 
+int
+do_ifcheck(int argc, char **argv)
+{
+	enum  { OPT_QUIET, OPT_IFCONFIG, OPT_STATE, OPT_CHANGED };
+	static struct option ifcheck_options[] = {
+		{ "quiet",	no_argument, NULL,		OPT_QUIET },
+		{ "ifconfig",	required_argument, NULL,	OPT_IFCONFIG },
+		{ "state",	required_argument, NULL,	OPT_STATE },
+		{ "changed",	no_argument, NULL,		OPT_CHANGED },
+		{ NULL }
+	};
+	static ni_ifmatcher_t ifmatch;
+	const char *opt_ifconfig = WICKED_IFCONFIG_DIR_PATH;
+	unsigned int nmarked;
+	ni_bool_t opt_check_changed = FALSE;
+	ni_bool_t opt_quiet = FALSE;
+	const char *opt_state = NULL;
+	ni_objectmodel_fsm_t *fsm;
+	int c, status = 0;
+
+	fsm = ni_objectmodel_fsm_new(STATE_NONE, __STATE_MAX);
+
+	memset(&ifmatch, 0, sizeof(ifmatch));
+
+	optind = 1;
+	while ((c = getopt_long(argc, argv, "", ifcheck_options, NULL)) != EOF) {
+		switch (c) {
+		case OPT_IFCONFIG:
+			opt_ifconfig = optarg;
+			break;
+
+		case OPT_STATE:
+			if (ni_ifworker_state_from_name(optarg) < 0)
+				ni_warn("unknown device state \"%s\"", optarg);
+			opt_state = optarg;
+			break;
+
+		case OPT_CHANGED:
+			opt_check_changed = TRUE;
+			break;
+
+		case OPT_QUIET:
+			opt_quiet = TRUE;
+			break;
+
+		default:
+usage:
+			fprintf(stderr,
+				"wicked [options] ifcheck [ifcheck-options] all\n"
+				"wicked [options] ifcheck [ifcheck-options] <ifname> ...\n"
+				"\nSupported ifcheck-options:\n"
+				"  --ifconfig <filename>\n"
+				"      Read interface configuration(s) from file rather than using system config\n"
+				"  --state <state-name>\n"
+				"      Verify that the interface(s) are in the given state\n"
+				"  --check-changed\n"
+				"      Verify that the interface(s) use the current configuration\n"
+				"  --quiet\n"
+				"      Do not print out errors, but just signal the result through exit status\n"
+				);
+			return 1;
+		}
+	}
+
+	if (optind >= argc) {
+		ni_error("missing interface argument\n");
+		goto usage;
+	}
+
+	if (opt_global_rootdir) {
+		static char namebuf[PATH_MAX];
+
+		snprintf(namebuf, sizeof(namebuf), "%s/%s", opt_global_rootdir, opt_ifconfig);
+		opt_ifconfig = namebuf;
+	}
+
+	if (!ni_ifconfig_load(fsm, opt_ifconfig))
+		return 1;
+
+	if (!ni_ifworkers_create_client(fsm))
+		return 1;
+
+	ni_ifworkers_refresh_state(fsm);
+
+	nmarked = 0;
+	while (optind < argc) {
+		ni_ifworker_array_t marked = { 0, NULL };
+		const char *ifname = argv[optind++];
+		unsigned int i;
+
+		ifmatch.name = ifname;
+		if (ni_ifworker_get_matching(fsm, &ifmatch, &marked) == 0) {
+			ni_error("%s: no matching interfaces", ifname);
+			status = 1;
+			continue;
+		}
+
+		for (i = 0; i < marked.count; ++i) {
+			ni_ifworker_t *w = marked.data[i];
+			ni_netdev_t *dev;
+
+			if ((dev = w->device) == NULL) {
+				if (!opt_quiet)
+					ni_error("%s: device %s does not exist", ifname, w->object_path);
+				status = 2;
+				continue;
+			}
+
+			if (opt_check_changed) {
+				if (memcmp(&w->uuid, &dev->uuid, sizeof(ni_uuid_t))) {
+					if (!opt_quiet)
+						ni_error("%s: device configuration changed", w->name);
+					ni_debug_wicked("%s: config file uuid is %s", w->name, ni_uuid_print(&w->uuid));
+					ni_debug_wicked("%s: system dev. uuid is %s", w->name, ni_uuid_print(&dev->uuid));
+					status = 3;
+					continue;
+					ni_debug_wicked("%s: system dev. uuid is %s", w->name, ni_uuid_print(&dev->uuid));
+				}
+			}
+
+			if (opt_state && !ni_string_eq(dev->client_state, opt_state)) {
+				if (!opt_quiet)
+					ni_error("%s: device has state %s, expected %s", w->name,
+							dev->client_state,
+							opt_state);
+				status = 4;
+				continue;
+			}
+
+			printf("%s: exists%s%s", w->name,
+					opt_check_changed? ", configuration unchanged" : "",
+					opt_state? ", interface state as expected" : "");
+		}
+	}
+
+	return status;
+}

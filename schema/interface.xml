@@ -55,6 +55,9 @@
 
  <link-type type="builtin-iftype"/>
 
+ <client-uuid type="uuid-type"/>
+ <client-state type="string"/>
+
  <index type="uint32"/>
  <metric type="uint32"/>
  <txqlen type="uint32"/>

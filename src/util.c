@@ -1400,7 +1400,7 @@ ni_uuid_print(const ni_uuid_t *uuid)
 	if (!uuid)
 		return NULL;
 	if (ni_uuid_is_null(uuid))
-		return "";
+		return "<>";
 
 	p = uuid->octets;
 	snprintf(buffer, sizeof(buffer),
