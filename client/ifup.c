@@ -132,9 +132,6 @@ struct ni_ifworker {
 
 	ni_uint_range_t		target_range;
 	int			target_state;
-	int			state;
-	ni_iftransition_t *	wait_for;
-	const ni_timer_t *	timer;
 
 	unsigned int		failed		: 1,
 				done		: 1;
@@ -154,11 +151,16 @@ struct ni_ifworker {
 		xml_node_t *	config;
 	} device_api;
 
+	struct {
+		int		state;
+		ni_iftransition_t *wait_for;
+		ni_iftransition_t *next_action;
+		ni_iftransition_t *action_table;
+		const ni_timer_t *timer;
+	} fsm;
+
 	unsigned int		shared_users;
 	ni_ifworker_t *		exclusive_owner;
-
-	ni_iftransition_t *	action_table;
-	ni_iftransition_t *	next_action;
 
 	ni_ifworker_t *		parent;
 	unsigned int		depth;		/* depth in device graph */
@@ -234,9 +236,9 @@ ni_ifworker_free(ni_ifworker_t *w)
 	ni_string_free(&w->name);
 	ni_ifworker_children_destroy(&w->children);
 
-	if (w->action_table)
-		free(w->action_table);
-	w->action_table = NULL;
+	if (w->fsm.action_table)
+		free(w->fsm.action_table);
+	w->fsm.action_table = NULL;
 
 	free(w);
 }
@@ -366,7 +368,7 @@ ni_ifworker_fail(ni_ifworker_t *w, const char *fmt, ...)
 	va_end(ap);
 
 	ni_error("device %s failed: %s", w->name, errmsg);
-	w->state = w->target_state = STATE_NONE;
+	w->fsm.state = w->target_state = STATE_NONE;
 	w->failed = 1;
 }
 
@@ -374,7 +376,7 @@ static void
 ni_ifworker_success(ni_ifworker_t *w)
 {
 	if (!w->done)
-		printf("%s: %s\n", w->name, ni_ifworker_state_name(w->state));
+		printf("%s: %s\n", w->name, ni_ifworker_state_name(w->fsm.state));
 	w->done = 1;
 }
 
@@ -401,7 +403,7 @@ __ni_ifworker_timeout(void *user_data, const ni_timer_t *timer)
 {
 	ni_ifworker_t *w = user_data;
 
-	if (w->timer != timer) {
+	if (w->fsm.timer != timer) {
 		ni_error("%s(%s) called with unexpected timer", __func__, w->name);
 	} else {
 		ni_ifworker_fail(w, "operation timed out");
@@ -412,9 +414,9 @@ __ni_ifworker_timeout(void *user_data, const ni_timer_t *timer)
 static void
 ni_ifworker_set_timeout(ni_ifworker_t *w, unsigned long timeout_ms)
 {
-	if (w->timer)
-		ni_timer_cancel(w->timer);
-	w->timer = ni_timer_register(timeout_ms, __ni_ifworker_timeout, w);
+	if (w->fsm.timer)
+		ni_timer_cancel(w->fsm.timer);
+	w->fsm.timer = ni_timer_register(timeout_ms, __ni_ifworker_timeout, w);
 }
 
 static ni_intmap_t __state_names[] = {
@@ -757,7 +759,7 @@ ni_ifworker_get_callback(ni_ifworker_t *w, const ni_uuid_t *uuid)
 	ni_objectmodel_callback_info_t **pos, *cb;
 	ni_iftransition_t *action;
 
-	if ((action = w->wait_for) == NULL)
+	if ((action = w->fsm.wait_for) == NULL)
 		return NULL;
 	for (pos = &action->callbacks; (cb = *pos) != NULL; pos = &cb->next) {
 		if (ni_uuid_equal(&cb->uuid, uuid)) {
@@ -774,7 +776,7 @@ ni_ifworker_waiting_for_event(ni_ifworker_t *w, const char *event_name)
 	ni_objectmodel_callback_info_t *cb;
 	ni_iftransition_t *action;
 
-	if ((action = w->wait_for) == NULL)
+	if ((action = w->fsm.wait_for) == NULL)
 		return FALSE;
 	for (cb = action->callbacks; cb != NULL; cb = cb->next) {
 		if (ni_string_eq(cb->event, event_name))
@@ -786,29 +788,29 @@ ni_ifworker_waiting_for_event(ni_ifworker_t *w, const char *event_name)
 static void
 ni_ifworker_update_state(ni_ifworker_t *w, unsigned int min_state, unsigned int max_state)
 {
-	unsigned int prev_state = w->state;
+	unsigned int prev_state = w->fsm.state;
 
-	if (w->state < min_state)
-		w->state = min_state;
+	if (w->fsm.state < min_state)
+		w->fsm.state = min_state;
 	if (max_state < min_state)
-		w->state = max_state;
+		w->fsm.state = max_state;
 
-	if (w->state != prev_state) {
+	if (w->fsm.state != prev_state) {
 		ni_debug_application("device %s changed state %s -> %s%s",
 				w->name,
 				ni_ifworker_state_name(prev_state),
-				ni_ifworker_state_name(w->state),
-				(w->wait_for && w->wait_for->next_state == w->state)?
+				ni_ifworker_state_name(w->fsm.state),
+				(w->fsm.wait_for && w->fsm.wait_for->next_state == w->fsm.state)?
 					", resuming activity" : ", still waiting for event");
-		if (w->state == w->target_state)
+		if (w->fsm.state == w->target_state)
 			ni_ifworker_success(w);
 
 		if (w->object)
-			ni_call_set_client_state(w->object, &w->uuid, ni_ifworker_state_name(w->state));
+			ni_call_set_client_state(w->object, &w->uuid, ni_ifworker_state_name(w->fsm.state));
 	}
 
-	if (w->wait_for && w->wait_for->next_state == w->state)
-		w->wait_for = NULL;
+	if (w->fsm.wait_for && w->fsm.wait_for->next_state == w->fsm.state)
+		w->fsm.wait_for = NULL;
 }
 
 /*
@@ -1274,7 +1276,7 @@ ni_ifworker_mark_matching(ni_ifmatcher_t *match, unsigned int target_min_state, 
 
 		ni_debug_application("%s: current state=%s target state=%s",
 					w->name,
-					ni_ifworker_state_name(w->state),
+					ni_ifworker_state_name(w->fsm.state),
 					ni_ifworker_state_name(w->target_state));
 
 		if (w->target_state != STATE_NONE) {
@@ -1286,8 +1288,8 @@ ni_ifworker_mark_matching(ni_ifmatcher_t *match, unsigned int target_min_state, 
 		 * check whether there are constraints on child devices that
 		 * require a certain minimum/maximum state.
 		 */
-		for (j = 0; j < w->action_table[j].next_state; ++j) {
-			const char *method = w->action_table[j].common.method_name;
+		for (j = 0; j < w->fsm.action_table[j].next_state; ++j) {
+			const char *method = w->fsm.action_table[j].common.method_name;
 
 			if (method)
 				ni_ifworker_mark_up(w, method);
@@ -1739,7 +1741,7 @@ __ni_ifworker_refresh_modems(void)
 static inline int
 ni_ifworker_ready(const ni_ifworker_t *w)
 {
-	return w->done || w->target_state == STATE_NONE || w->target_state == w->state;
+	return w->done || w->target_state == STATE_NONE || w->target_state == w->fsm.state;
 }
 
 /*
@@ -1765,10 +1767,10 @@ ni_ifworker_children_ready_for(ni_ifworker_t *w, const ni_iftransition_t *action
 			if (!ni_string_eq(pre->call_name, action->common.method_name))
 				continue;
 
-			if (child->state < pre->min_child_state) {
+			if (child->fsm.state < pre->min_child_state) {
 				wait_for_state = pre->min_child_state;
 			} else
-			if (child->state > pre->max_child_state) {
+			if (child->fsm.state > pre->max_child_state) {
 				wait_for_state = pre->max_child_state;
 			} else {
 				/* Okay, child interface is ready */
@@ -2204,15 +2206,15 @@ ni_ifworker_do_common(ni_ifworker_t *w, ni_iftransition_t *action)
 
 		if (callback_list) {
 			ni_ifworker_add_callbacks(action, callback_list, w->name);
-			w->wait_for = action;
+			w->fsm.wait_for = action;
 		}
 	}
 
-	if (w->wait_for != NULL)
+	if (w->fsm.wait_for != NULL)
 		return 0;
 
 	ni_trace("%s: setting worker state to %s", __func__, ni_ifworker_state_name(action->next_state));
-	w->state = action->next_state;
+	w->fsm.state = action->next_state;
 	return 0;
 }
 
@@ -2302,7 +2304,7 @@ ni_ifworker_call_device_factory(ni_ifworker_t *w, ni_iftransition_t *action)
 	}
 
 	ni_trace("%s: setting worker state to %s", __func__, ni_ifworker_state_name(action->next_state));
-	w->state = action->next_state;
+	w->fsm.state = action->next_state;
 	return 0;
 }
 
@@ -2402,7 +2404,7 @@ ni_ifworker_fsm_init(ni_ifworker_t *w, unsigned int from_state, unsigned int tar
 	unsigned int cur_state;
 	int increment;
 
-	if (w->action_table != NULL)
+	if (w->fsm.action_table != NULL)
 		return;
 
 	/* If the --delete option was given, but the specific device cannot
@@ -2430,13 +2432,13 @@ do_it_again:
 
 		for (a = ni_iftransitions; a->func; ++a) {
 			if (a->from_state == cur_state && a->next_state == next_state) {
-				if (w->action_table != NULL) {
+				if (w->fsm.action_table != NULL) {
 
 					ni_debug_application("  %s -> %s: %s()",
 						ni_ifworker_state_name(cur_state),
 						ni_ifworker_state_name(next_state),
 						a->common.method_name);
-					w->action_table[index++] = *a;
+					w->fsm.action_table[index++] = *a;
 					break;
 				}
 				num_actions++;
@@ -2446,12 +2448,12 @@ do_it_again:
 		cur_state = next_state;
 	}
 
-	if (w->action_table == NULL) {
-		w->action_table = calloc(num_actions + 1, sizeof(ni_iftransition_t));
+	if (w->fsm.action_table == NULL) {
+		w->fsm.action_table = calloc(num_actions + 1, sizeof(ni_iftransition_t));
 		goto do_it_again;
 	}
-	w->next_action = w->action_table;
-	w->state = from_state;
+	w->fsm.next_action = w->fsm.action_table;
+	w->fsm.state = from_state;
 	w->target_state = target_state;
 
 	ni_ifworker_fsm_bind_methods(w);
@@ -2473,7 +2475,7 @@ ni_ifworker_fsm_bind_methods(ni_ifworker_t *w)
 	int rv;
 
 	ni_debug_application("%s: binding dbus calls to FSM transitions", w->name);
-	for (action = w->action_table; action->func; ++action) {
+	for (action = w->fsm.action_table; action->func; ++action) {
 		if (action->bound)
 			continue;
 		rv = action->bind_func(w, action);
@@ -2507,19 +2509,22 @@ ni_ifworker_fsm(void)
 			ni_iftransition_t *action;
 			int rv, prev_state;
 
-			if (w->target_state != STATE_NONE)
+			if (w->target_state != STATE_NONE) {
+				ni_iftransition_t *wait_for = w->fsm.wait_for;
+
 				ni_debug_application("%s: state=%s want=%s%s%s", w->name,
-					ni_ifworker_state_name(w->state),
+					ni_ifworker_state_name(w->fsm.state),
 					ni_ifworker_state_name(w->target_state),
-					w->wait_for? ", wait-for=" : "",
-					w->wait_for?  ni_ifworker_state_name(w->wait_for->next_state) : "");
+					wait_for? ", wait-for=" : "",
+					wait_for?  ni_ifworker_state_name(wait_for->next_state) : "");
+			}
 
 			if (w->failed || ni_ifworker_ready(w))
 				continue;
 
 			/* If we're still waiting for children to become ready,
 			 * there's nothing we can do but wait. */
-			if (!ni_ifworker_children_ready_for(w, w->next_action)) {
+			if (!ni_ifworker_children_ready_for(w, w->fsm.next_action)) {
 				if (w->failed)
 					made_progress = 1;
 				continue;
@@ -2527,14 +2532,14 @@ ni_ifworker_fsm(void)
 
 			/* We requested a change that takes time (such as acquiring
 			 * a DHCP lease). Wait for a notification from wickedd */
-			if (w->wait_for)
+			if (w->fsm.wait_for)
 				continue;
 
-			action = w->next_action;
+			action = w->fsm.next_action;
 			if (action->next_state == STATE_NONE)
-				w->state = w->target_state;
+				w->fsm.state = w->target_state;
 
-			if (w->state == w->target_state) {
+			if (w->fsm.state == w->target_state) {
 				ni_ifworker_success(w);
 				made_progress = 1;
 				continue;
@@ -2551,25 +2556,25 @@ ni_ifworker_fsm(void)
 				continue;
 			}
 
-			prev_state = w->state;
+			prev_state = w->fsm.state;
 			rv = action->func(w, action);
-			w->next_action++;
+			w->fsm.next_action++;
 
 			if (rv >= 0) {
 				made_progress = 1;
-				if (w->state == action->next_state) {
+				if (w->fsm.state == action->next_state) {
 					/* We should not have transitioned to the next state while
 					 * we were still waiting for some event. */
-					ni_assert(w->wait_for == NULL);
+					ni_assert(w->fsm.wait_for == NULL);
 					ni_debug_application("%s: successfully transitioned from %s to %s",
 						w->name,
 						ni_ifworker_state_name(prev_state),
-						ni_ifworker_state_name(w->state));
+						ni_ifworker_state_name(w->fsm.state));
 				} else {
 					ni_debug_application("%s: waiting for event in state %s",
 						w->name,
-						ni_ifworker_state_name(w->state));
-					w->wait_for = action;
+						ni_ifworker_state_name(w->fsm.state));
+					w->fsm.wait_for = action;
 				}
 			} else
 			if (!w->failed) {
@@ -2728,7 +2733,7 @@ ni_ifworkers_kickstart(void)
 		}
 
 		if (!ni_ifworker_device_bound(w))
-			w->state = STATE_DEVICE_DOWN;
+			w->fsm.state = STATE_DEVICE_DOWN;
 	}
 
 	return 0;
