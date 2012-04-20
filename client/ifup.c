@@ -157,7 +157,8 @@ struct ni_ifworker {
 	unsigned int		shared_users;
 	ni_ifworker_t *		exclusive_owner;
 
-	ni_iftransition_t *	actions;
+	ni_iftransition_t *	action_table;
+	ni_iftransition_t *	next_action;
 
 	ni_ifworker_t *		parent;
 	unsigned int		depth;		/* depth in device graph */
@@ -233,12 +234,11 @@ ni_ifworker_free(ni_ifworker_t *w)
 	ni_string_free(&w->name);
 	ni_ifworker_children_destroy(&w->children);
 
-#if 0
-	/* FIXME: this doesn't work, as we increment w->actions
-	 * in ni_ifworker_fsm() */
-	if (w->actions)
-		free(w->actions);
-#endif
+	if (w->action_table)
+		free(w->action_table);
+	w->action_table = NULL;
+
+	free(w);
 }
 
 static inline void
@@ -1206,6 +1206,11 @@ ni_ifworker_mark_up(ni_ifworker_t *w, const char *method)
 	return 0;
 }
 
+/*
+ * After we've picked the list of matching interfaces, set their target state.
+ * We need to do this recursively - for instance, bringing up a VLAN interface
+ * requires that the underlying ethernet device at least has brought up the link.
+ */
 static unsigned int
 ni_ifworker_mark_matching(ni_ifmatcher_t *match, unsigned int target_min_state, unsigned int target_max_state)
 {
@@ -1277,8 +1282,12 @@ ni_ifworker_mark_matching(ni_ifmatcher_t *match, unsigned int target_min_state, 
 			count++;
 		}
 
-		for (j = 0; j < w->actions[j].next_state; ++j) {
-			const char *method = w->actions[j].common.method_name;
+		/* For each of the DBus calls we will execute on this device,
+		 * check whether there are constraints on child devices that
+		 * require a certain minimum/maximum state.
+		 */
+		for (j = 0; j < w->action_table[j].next_state; ++j) {
+			const char *method = w->action_table[j].common.method_name;
 
 			if (method)
 				ni_ifworker_mark_up(w, method);
@@ -2393,7 +2402,7 @@ ni_ifworker_fsm_init(ni_ifworker_t *w, unsigned int from_state, unsigned int tar
 	unsigned int cur_state;
 	int increment;
 
-	if (w->actions != NULL)
+	if (w->action_table != NULL)
 		return;
 
 	/* If the --delete option was given, but the specific device cannot
@@ -2421,13 +2430,13 @@ do_it_again:
 
 		for (a = ni_iftransitions; a->func; ++a) {
 			if (a->from_state == cur_state && a->next_state == next_state) {
-				if (w->actions != NULL) {
+				if (w->action_table != NULL) {
 
 					ni_debug_application("  %s -> %s: %s()",
 						ni_ifworker_state_name(cur_state),
 						ni_ifworker_state_name(next_state),
 						a->common.method_name);
-					w->actions[index++] = *a;
+					w->action_table[index++] = *a;
 					break;
 				}
 				num_actions++;
@@ -2437,10 +2446,11 @@ do_it_again:
 		cur_state = next_state;
 	}
 
-	if (w->actions == NULL) {
-		w->actions = calloc(num_actions + 1, sizeof(ni_iftransition_t));
+	if (w->action_table == NULL) {
+		w->action_table = calloc(num_actions + 1, sizeof(ni_iftransition_t));
 		goto do_it_again;
 	}
+	w->next_action = w->action_table;
 	w->state = from_state;
 	w->target_state = target_state;
 
@@ -2463,7 +2473,7 @@ ni_ifworker_fsm_bind_methods(ni_ifworker_t *w)
 	int rv;
 
 	ni_debug_application("%s: binding dbus calls to FSM transitions", w->name);
-	for (action = w->actions; action->func; ++action) {
+	for (action = w->action_table; action->func; ++action) {
 		if (action->bound)
 			continue;
 		rv = action->bind_func(w, action);
@@ -2509,7 +2519,7 @@ ni_ifworker_fsm(void)
 
 			/* If we're still waiting for children to become ready,
 			 * there's nothing we can do but wait. */
-			if (!ni_ifworker_children_ready_for(w, w->actions)) {
+			if (!ni_ifworker_children_ready_for(w, w->next_action)) {
 				if (w->failed)
 					made_progress = 1;
 				continue;
@@ -2520,7 +2530,7 @@ ni_ifworker_fsm(void)
 			if (w->wait_for)
 				continue;
 
-			action = w->actions;
+			action = w->next_action;
 			if (action->next_state == STATE_NONE)
 				w->state = w->target_state;
 
@@ -2543,7 +2553,7 @@ ni_ifworker_fsm(void)
 
 			prev_state = w->state;
 			rv = action->func(w, action);
-			w->actions++;
+			w->next_action++;
 
 			if (rv >= 0) {
 				made_progress = 1;
