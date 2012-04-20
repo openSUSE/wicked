@@ -30,8 +30,6 @@
 
 #define WICKED_IFCONFIG_DIR_PATH	"/etc/sysconfig/network"
 
-extern ni_dbus_object_t *	wicked_get_interface(ni_dbus_object_t *, const char *);
-
 /*
  * Interface state information
  */
@@ -63,6 +61,10 @@ typedef struct ni_ifworker_edge {
 	ni_ifworker_t *		child;
 	xml_node_t *		node;
 
+	/* Associate a transition (ie a dbus call name like "linkUp")
+	 * with a minimum and/or maximum state the child must be in
+	 * before we can make this transition
+	 */
 	struct ni_ifworker_edge_precondition {
 		char *		call_name;
 		unsigned int	min_child_state;
@@ -167,6 +169,10 @@ struct ni_ifworker {
 	ni_ifworker_children_t	children;
 };
 
+/*
+ * Express requirements.
+ * This is essentially a test function that is invoked "when adequate"
+ */
 typedef ni_bool_t		ni_ifworker_req_fn_t(ni_ifworker_t *, ni_ifworker_req_t *);
 struct ni_ifworker_req {
 	ni_ifworker_req_t *	next;
@@ -2319,16 +2325,6 @@ ni_ifworker_can_delete(const ni_ifworker_t *w)
  */
 #define __TRANSITION_UP_TO(__state)		.from_state = __state - 1, .next_state = __state
 #define __TRANSITION_DOWN_FROM(__state)		.from_state = __state, .next_state = __state - 1
-#define TRANSITION_UP_TO(__state, __bind_func, __func) { \
-	__TRANSITION_UP_TO(__state), \
-	.bind_func = __bind_func, \
-	.func = __func \
-}
-#define TRANSITION_DOWN_FROM(__state, __bind_func, __func) { \
-	__TRANSITION_DOWN_FROM(__state), \
-	.bind_func = __bind_func, \
-	.func = __func \
-}
 
 #define COMMON_TRANSITION_UP_TO(__state, __meth, __more...) { \
 	__TRANSITION_UP_TO(__state), \
