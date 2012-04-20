@@ -811,6 +811,36 @@ ni_ifworker_update_state(ni_ifworker_t *w, unsigned int min_state, unsigned int 
 		w->wait_for = NULL;
 }
 
+/*
+ * Given the configuration for a device, generate a UUID that uniquely
+ * identifies this configuration. We want to use this later to check
+ * whether the configuration changed.
+ *
+ * For now, we use ni_uuid_for_file on the XML file this configuration
+ * originates from. This works okay-ish as long as we're not introducing
+ * things like templates, where a configuration may be the result of
+ * applying data from different file sources.
+ *
+ * In the long run, the most robust approach might be to just generate
+ * ASCII from the XML config and run a cryptographic hash routine
+ * over it.
+ */
+static void
+ni_ifworker_generate_uuid(ni_ifworker_t *w)
+{
+	const char *filename;
+
+	if (w->config && w->config->location) {
+		filename = w->config->location->shared->filename;
+		if (ni_uuid_for_file(&w->uuid, filename) >= 0)
+			return;
+	}
+
+	/* Generate a temporary uuid only */
+	ni_uuid_generate(&w->uuid);
+	return;
+}
+
 static unsigned int
 ni_ifworkers_from_xml(xml_document_t *doc)
 {
@@ -862,9 +892,7 @@ ni_ifworkers_from_xml(xml_document_t *doc)
 				w = ni_ifworker_new(type, ifname, ifnode);
 		}
 
-		/* FIXME: we should really check whether the xml document has a
-		 * <uuid> element and use that if present */
-		ni_uuid_generate(&w->uuid);
+		ni_ifworker_generate_uuid(w);
 
 		if ((depnode = xml_node_get_child(ifnode, "dependencies")) != NULL)
 			ni_ifworker_set_dependencies_xml(w, depnode);
