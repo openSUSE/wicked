@@ -26,6 +26,7 @@ enum {
 
 #define NI_IFWORKER_DEFAULT_TIMEOUT	20000
 
+typedef struct ni_objectmodel_fsm ni_objectmodel_fsm_t;
 typedef struct ni_ifworker	ni_ifworker_t;
 typedef struct ni_ifworker_req	ni_ifworker_req_t;
 
@@ -151,7 +152,7 @@ struct ni_ifworker {
  * Express requirements.
  * This is essentially a test function that is invoked "when adequate"
  */
-typedef ni_bool_t		ni_ifworker_req_fn_t(ni_ifworker_t *, ni_ifworker_req_t *);
+typedef ni_bool_t		ni_ifworker_req_fn_t(ni_objectmodel_fsm_t *, ni_ifworker_t *, ni_ifworker_req_t *);
 struct ni_ifworker_req {
 	ni_ifworker_req_t *	next;
 
@@ -160,5 +161,15 @@ struct ni_ifworker_req {
 	xml_node_t *		data;
 };
 
+struct ni_objectmodel_fsm {
+	ni_ifworker_array_t	workers;
+	unsigned int		worker_timeout;
+	unsigned int		target_min_state;
+	unsigned int		target_max_state;
+};
+
+
+extern ni_objectmodel_fsm_t *	ni_objectmodel_fsm_new(unsigned int min_state, unsigned int max_state);
+extern void			ni_objectmodel_fsm_free(ni_objectmodel_fsm_t *);
 
 #endif /* __CLIENT_FSM_H__ */
