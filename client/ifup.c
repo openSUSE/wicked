@@ -37,8 +37,6 @@
 
 static unsigned int		ni_ifworker_timeout_count;
 
-static unsigned int		ni_ifworker_lease_acquired_seq = 1;
-
 static ni_dbus_object_t *	__root_object;
 
 static const char *		ni_ifworker_state_name(int);
@@ -51,7 +49,6 @@ static ni_ifworker_t *		ni_ifworker_identify_device(ni_objectmodel_fsm_t *, cons
 static void			ni_ifworker_set_dependencies_xml(ni_ifworker_t *, xml_node_t *);
 static void			ni_ifworker_fsm_init(ni_ifworker_t *, unsigned int, unsigned int);
 static int			ni_ifworker_fsm_bind_methods(ni_ifworker_t *);
-static ni_bool_t		ni_ifworker_req_check_reachable(ni_objectmodel_fsm_t *, ni_ifworker_t *, ni_ifworker_req_t *);
 static ni_bool_t		ni_ifworker_req_netif_resolve(ni_objectmodel_fsm_t *, ni_ifworker_t *, ni_ifworker_req_t *);
 static ni_bool_t		ni_ifworker_req_modem_resolve(ni_objectmodel_fsm_t *, ni_ifworker_t *, ni_ifworker_req_t *);
 //static void			ni_ifworker_req_free(ni_ifworker_req_t *);
@@ -146,13 +143,18 @@ ni_ifworker_device_bound(const ni_ifworker_t *w)
  * constructor/destructor for dependency objects
  */
 ni_ifworker_req_t *
-ni_ifworker_req_new(const char *check, xml_node_t *node, ni_ifworker_req_t **list)
+ni_ifworker_requirement_build(const char *check, xml_node_t *node, ni_ifworker_req_t **list)
 {
 	ni_ifworker_req_fn_t *fn = NULL;
 	ni_ifworker_req_t *req, **pos;
 
+	/* Find tail of list */
+	for (pos = list; (req = *pos) != NULL; pos = &req->next)
+		;
+
 	if (ni_string_eq(check, "reachable")) {
-		fn = ni_ifworker_req_check_reachable;
+		*pos = req = ni_ifworker_reachability_check_new(node);
+		return req;
 	} else
 	if (ni_string_eq(check, "netif-resolve")) {
 		fn = ni_ifworker_req_netif_resolve;
@@ -166,66 +168,31 @@ ni_ifworker_req_new(const char *check, xml_node_t *node, ni_ifworker_req_t **lis
 		return NULL;
 	}
 
-	/* Find tail of list */
-	for (pos = list; (req = *pos) != NULL; pos = &req->next)
-		;
-
-	req = calloc(1, sizeof(*req));
-	req->test_fn = fn;
-	req->event_seq = ~0U;
+	req = ni_ifworker_req_new(fn, NULL);
 	req->data = node;
 
 	*pos = req;
 	return req;
 }
 
+ni_ifworker_req_t *
+ni_ifworker_req_new(ni_ifworker_req_fn_t *test_fn, ni_ifworker_req_dtor_t *destroy_fn)
+{
+	ni_ifworker_req_t *req;
+
+	req = calloc(1, sizeof(*req));
+	req->test_fn = test_fn;
+	req->destroy_fn = destroy_fn;
+	req->event_seq = ~0U;
+	return req;
+}
+
 void
 ni_ifworker_req_free(ni_ifworker_req_t *req)
 {
+	if (req->destroy_fn)
+		req->destroy_fn(req);
 	free(req);
-}
-
-static ni_bool_t
-ni_ifworker_req_check_reachable(ni_objectmodel_fsm_t *fsm, ni_ifworker_t *w, ni_ifworker_req_t *req)
-{
-	const char *hostname, *attr;
-	int afhint = AF_UNSPEC;
-	ni_sockaddr_t address;
-
-	if (!req->data)
-		return FALSE;
-	if (!(hostname = req->data->cdata))
-		return FALSE;
-
-	/* Do not check too often. If the dhcp or routing info didn't change,
-	 * there is no point wasting time on another lookup. */
-	if (req->event_seq == ni_ifworker_lease_acquired_seq) {
-		ni_debug_application("check reachability: %s SKIP", hostname);
-		return FALSE;
-	}
-	req->event_seq = ni_ifworker_lease_acquired_seq;
-
-	if ((attr = xml_node_get_attr(req->data, "address-family")) != NULL) {
-		if ((afhint = ni_addrfamily_name_to_type(attr)) < 0) {
-			ni_error("%s: bad address-family attribute \"%s\"",
-					xml_node_location(req->data), attr);
-			return FALSE;
-		}
-	}
-
-	if (ni_resolve_hostname_timed(hostname, afhint, &address, 1) <= 0) {
-		ni_debug_application("check reachability: %s not resolvable", hostname);
-		return FALSE;
-	}
-
-	if (ni_host_is_reachable(hostname, &address) <= 0) {
-		ni_debug_application("check reachability: %s not reachable at %s",
-				hostname, ni_address_print(&address));
-		return FALSE;
-	}
-
-	ni_debug_application("check reachability: %s OK", hostname);
-	return TRUE;
 }
 
 /*
@@ -1775,7 +1742,7 @@ ni_ifworker_require_xml(ni_iftransition_t *action, const xml_node_t *req_node, x
 	}
 
 	if (element != NULL) {
-		if (!ni_ifworker_req_new(check, element, pos)) {
+		if (!ni_ifworker_requirement_build(check, element, pos)) {
 			ni_error("%s: cannot build requirement", xml_node_location(req_node));
 			return -NI_ERROR_DOCUMENT_ERROR;
 		}
@@ -1794,7 +1761,7 @@ ni_ifworker_require_xml(ni_iftransition_t *action, const xml_node_t *req_node, x
 
 		num_expanded = rv;
 		for (j = 0; j < num_expanded; ++j) {
-			require = ni_ifworker_req_new(check, expanded[j], pos);
+			require = ni_ifworker_requirement_build(check, expanded[j], pos);
 			if (require == NULL) {
 				ni_error("%s: cannot build requirement", xml_node_location(req_node));
 				return -NI_ERROR_DOCUMENT_ERROR;
@@ -2512,8 +2479,9 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 		ni_dbus_variant_destroy(&result);
 	}
 
+	fsm->event_seq += 1;
 	if (!strcmp(signal_name, "addressAcquired"))
-		ni_ifworker_lease_acquired_seq += 1;
+		fsm->last_event_seq[NI_EVENT_ADDRESS_ACQUIRED] = fsm->event_seq;
 
 	if ((w = ni_ifworker_by_object_path(fsm, object_path)) != NULL && w->target_state != STATE_NONE) {
 		ni_objectmodel_callback_info_t *cb = NULL;

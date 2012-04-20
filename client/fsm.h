@@ -153,12 +153,17 @@ struct ni_ifworker {
  * This is essentially a test function that is invoked "when adequate"
  */
 typedef ni_bool_t		ni_ifworker_req_fn_t(ni_objectmodel_fsm_t *, ni_ifworker_t *, ni_ifworker_req_t *);
+typedef void			ni_ifworker_req_dtor_t(ni_ifworker_req_t *);
+
 struct ni_ifworker_req {
 	ni_ifworker_req_t *	next;
 
 	unsigned int		event_seq;
 	ni_ifworker_req_fn_t *	test_fn;
+	ni_ifworker_req_dtor_t *destroy_fn;
+
 	xml_node_t *		data;
+	void *			user_data;
 };
 
 struct ni_objectmodel_fsm {
@@ -166,10 +171,17 @@ struct ni_objectmodel_fsm {
 	unsigned int		worker_timeout;
 	unsigned int		target_min_state;
 	unsigned int		target_max_state;
+
+	unsigned int		event_seq;
+	unsigned int		last_event_seq[__NI_EVENT_MAX];
 };
 
 
 extern ni_objectmodel_fsm_t *	ni_objectmodel_fsm_new(unsigned int min_state, unsigned int max_state);
 extern void			ni_objectmodel_fsm_free(ni_objectmodel_fsm_t *);
+
+extern ni_ifworker_req_t *	ni_ifworker_reachability_check_new(xml_node_t *);
+
+extern ni_ifworker_req_t *	ni_ifworker_req_new(ni_ifworker_req_fn_t *, ni_ifworker_req_dtor_t *);
 
 #endif /* __CLIENT_FSM_H__ */
