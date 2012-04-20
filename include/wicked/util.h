@@ -148,6 +148,7 @@ extern int		ni_uuid_parse(ni_uuid_t *, const char *);
 extern int		ni_uuid_is_null(const ni_uuid_t *);
 extern int		ni_uuid_equal(const ni_uuid_t *, const ni_uuid_t *);
 extern ni_uuid_t *	ni_uuid_generate(ni_uuid_t *);
+extern int		ni_uuid_for_file(ni_uuid_t *, const char *);
 
 extern void		ni_srandom(void);
 

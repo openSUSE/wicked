@@ -1487,6 +1487,23 @@ ni_uuid_generate(ni_uuid_t *uuid)
 	return uuid;
 }
 
+int
+ni_uuid_for_file(ni_uuid_t *uuid, const char *filename)
+{
+	struct stat stb;
+
+	if (stat(filename, &stb) < 0) {
+		ni_error("%s: cannot stat %s: %m", __func__, filename);
+		return -1;
+	}
+
+	uuid->words[0] = stb.st_dev;
+	uuid->words[1] = stb.st_ino;
+	uuid->words[2] = stb.st_size;
+	uuid->words[3] = stb.st_mtime;
+	return 0;
+}
+
 /*
  * Seed the RNG from /dev/urandom
  */
