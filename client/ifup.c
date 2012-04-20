@@ -49,8 +49,8 @@ static ni_ifworker_t *		ni_ifworker_identify_device(ni_objectmodel_fsm_t *, cons
 static void			ni_ifworker_set_dependencies_xml(ni_ifworker_t *, xml_node_t *);
 static void			ni_ifworker_fsm_init(ni_ifworker_t *, unsigned int, unsigned int);
 static int			ni_ifworker_fsm_bind_methods(ni_ifworker_t *);
-static ni_bool_t		ni_ifworker_req_netif_resolve(ni_objectmodel_fsm_t *, ni_ifworker_t *, ni_ifworker_req_t *);
-static ni_bool_t		ni_ifworker_req_modem_resolve(ni_objectmodel_fsm_t *, ni_ifworker_t *, ni_ifworker_req_t *);
+static ni_ifworker_req_t *	ni_ifworker_netif_resolver_new(xml_node_t *);
+static ni_ifworker_req_t *	ni_ifworker_modem_resolver_new(xml_node_t *);
 //static void			ni_ifworker_req_free(ni_ifworker_req_t *);
 static int			ni_ifworker_bind_device_apis(ni_ifworker_t *, const ni_dbus_service_t *);
 static void			__ni_ifworker_refresh_netdevs(ni_objectmodel_fsm_t *);
@@ -143,33 +143,31 @@ ni_ifworker_device_bound(const ni_ifworker_t *w)
  * constructor/destructor for dependency objects
  */
 ni_ifworker_req_t *
-ni_ifworker_requirement_build(const char *check, xml_node_t *node, ni_ifworker_req_t **list)
+ni_ifworker_requirement_build(const char *check_name, xml_node_t *node, ni_ifworker_req_t **list)
 {
-	ni_ifworker_req_fn_t *fn = NULL;
 	ni_ifworker_req_t *req, **pos;
 
 	/* Find tail of list */
 	for (pos = list; (req = *pos) != NULL; pos = &req->next)
 		;
 
-	if (ni_string_eq(check, "reachable")) {
-		*pos = req = ni_ifworker_reachability_check_new(node);
-		return req;
+	if (ni_string_eq(check_name, "reachable")) {
+		req = ni_ifworker_reachability_check_new(node);
 	} else
-	if (ni_string_eq(check, "netif-resolve")) {
-		fn = ni_ifworker_req_netif_resolve;
+	if (ni_string_eq(check_name, "netif-resolve")) {
+		req = ni_ifworker_netif_resolver_new(node);
 	} else
-	if (ni_string_eq(check, "modem-resolve")) {
-		fn = ni_ifworker_req_modem_resolve;
-	}
-
-	if (fn == NULL) {
-		ni_error("unknown function in <require check=\"%s\"> at %s", check, xml_node_location(node));
+	if (ni_string_eq(check_name, "modem-resolve")) {
+		req = ni_ifworker_modem_resolver_new(node);
+	} else {
+		ni_error("unknown function in <require check=\"%s\"> at %s", check_name, xml_node_location(node));
 		return NULL;
 	}
 
-	req = ni_ifworker_req_new(fn, NULL);
-	req->data = node;
+	if (req == NULL) {
+		ni_error("%s: invalid <require check=\"%s\"> element, cannot parse", xml_node_location(node), check_name);
+		return NULL;
+	}
 
 	*pos = req;
 	return req;
@@ -756,11 +754,11 @@ ni_ifworkers_from_xml(ni_objectmodel_fsm_t *fsm, xml_document_t *doc)
 static ni_bool_t
 ni_ifworker_req_netif_resolve(ni_objectmodel_fsm_t *fsm, ni_ifworker_t *w, ni_ifworker_req_t *req)
 {
+	xml_node_t *devnode = req->user_data;
 	ni_ifworker_t *child_worker;
-	xml_node_t *devnode;
 
-	if (!(devnode = req->data))
-		return FALSE;
+	if (req->user_data == NULL)
+		return TRUE;
 
 	if (!(child_worker = ni_ifworker_resolve_reference(fsm, devnode, NI_IFWORKER_TYPE_NETDEV)))
 		return FALSE;
@@ -769,17 +767,32 @@ ni_ifworker_req_netif_resolve(ni_objectmodel_fsm_t *fsm, ni_ifworker_t *w, ni_if
 	if (!ni_ifworker_add_child(w, child_worker, devnode, FALSE))
 		return FALSE;
 
+	req->user_data = NULL;
 	return TRUE;
+}
+
+ni_ifworker_req_t *
+ni_ifworker_netif_resolver_new(xml_node_t *node)
+{
+	ni_ifworker_req_t *req;
+
+	if (node == NULL)
+		return NULL;
+
+	req = ni_ifworker_req_new(ni_ifworker_req_netif_resolve, NULL);
+	req->user_data = node;
+
+	return req;
 }
 
 static ni_bool_t
 ni_ifworker_req_modem_resolve(ni_objectmodel_fsm_t *fsm, ni_ifworker_t *w, ni_ifworker_req_t *req)
 {
+	xml_node_t *devnode = req->user_data;
 	ni_ifworker_t *child_worker;
-	xml_node_t *devnode;
 
-	if (!(devnode = req->data))
-		return FALSE;
+	if (req->user_data == NULL)
+		return TRUE;
 
 	if (!(child_worker = ni_ifworker_resolve_reference(fsm, devnode, NI_IFWORKER_TYPE_MODEM)))
 		return FALSE;
@@ -788,7 +801,22 @@ ni_ifworker_req_modem_resolve(ni_objectmodel_fsm_t *fsm, ni_ifworker_t *w, ni_if
 	if (!ni_ifworker_add_child(w, child_worker, devnode, FALSE))
 		return FALSE;
 
+	req->user_data = NULL;
 	return TRUE;
+}
+
+ni_ifworker_req_t *
+ni_ifworker_modem_resolver_new(xml_node_t *node)
+{
+	ni_ifworker_req_t *req;
+
+	if (node == NULL)
+		return NULL;
+
+	req = ni_ifworker_req_new(ni_ifworker_req_modem_resolve, NULL);
+	req->user_data = node;
+
+	return req;
 }
 
 /*

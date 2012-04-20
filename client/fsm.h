@@ -162,7 +162,6 @@ struct ni_ifworker_req {
 	ni_ifworker_req_fn_t *	test_fn;
 	ni_ifworker_req_dtor_t *destroy_fn;
 
-	xml_node_t *		data;
 	void *			user_data;
 };
 
