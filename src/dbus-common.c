@@ -851,7 +851,7 @@ ni_dbus_variant_parse(ni_dbus_variant_t *var,
 			if (!strcmp(string_value, "true"))
 				var->bool_value = 1;
 			else if (!strcmp(string_value, "false"))
-				var->bool_value = 1;
+				var->bool_value = 0;
 			else
 				var->bool_value = strtoul(string_value, &ep, 0);
 			break;
