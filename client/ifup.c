@@ -2840,9 +2840,10 @@ do_ifup(int argc, char **argv)
 		{ "timeout",	required_argument, NULL,	OPT_TIMEOUT },
 		{ NULL }
 	};
-	static ni_ifmatcher_t ifmatch;
 	const char *opt_ifconfig = WICKED_IFCONFIG_DIR_PATH;
 	const char *opt_ifpolicy = NULL;
+	const char *opt_boot_label = NULL;
+	ni_bool_t opt_skip_active = FALSE;
 	unsigned int nmarked;
 	ni_objectmodel_fsm_t *fsm;
 	int c;
@@ -2861,7 +2862,7 @@ do_ifup(int argc, char **argv)
 			break;
 
 		case OPT_BOOT:
-			ifmatch.boot_label = optarg;
+			opt_boot_label = optarg;
 			break;
 
 		case OPT_TIMEOUT:
@@ -2876,7 +2877,7 @@ do_ifup(int argc, char **argv)
 			break;
 
 		case OPT_SKIP_ACTIVE:
-			ifmatch.skip_active = 1;
+			opt_skip_active = 1;
 			break;
 
 		default:
@@ -2920,13 +2921,18 @@ usage:
 
 	nmarked = 0;
 	while (optind < argc) {
+		static ni_ifmatcher_t ifmatch;
+
 		memset(&ifmatch, 0, sizeof(ifmatch));
 		ifmatch.name = argv[optind++];
+		ifmatch.skip_active = opt_skip_active;
 
 		if (!strcmp(ifmatch.name, "boot")) {
 			ifmatch.name = "all";
 			ifmatch.boot_label = "boot";
 			ifmatch.require_config = TRUE;
+		} else {
+			ifmatch.boot_label = opt_boot_label;
 		}
 
 		nmarked += ni_ifworker_mark_matching(fsm, &ifmatch);
