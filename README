@@ -22,18 +22,27 @@ One of the bigger problems with network interface management today,
 and with the ifup scripts in general, is that different layers of
 network management get jumbled together into one single script,
 or at most two different scripts, that interact with each other in a
-not-really-well-defined way, with side effects that are difficult to be
-aware of, obscure constraints and conventions, etc. Address configuration
-protocols are being used that are implemented via daemons like dhcpcd,
-which interact rather poorly with the rest of the infrastructure.
+not-really-well-defined way, with side effects that are difficult to
+be aware of, obscure constraints and conventions, etc.  Several layers
+of special hacks for a variety of different scenarios cover them like
+barnacles.  Address configuration protocols are being used that are
+implemented via daemons like dhcpcd, which interact rather poorly with
+the rest of the infrastructure. Funky interface naming schemes that
+require heavy udev support are introduced to achieve persistent
+identification of interfaces.
 
-The idea of wicked is to decompose the problem in several ways.
+In other words, a maintenance nightmare.
 
-One is to use a client/server model. This allows wicked to define
+The idea of wicked is to decompose the problem in several ways. None
+of them is entirely novel, but trying to put ideas from different
+other projects together is hopefully going to create a better solution
+overall.
+
+One approach is to use a client/server model. This allows wicked to define
 standardized facilities for things like address configuration that
 are well integrated with the overall framework. For instance, with
-address configuration, the admin may request that an interface should be
-configured via dhcp, ipv4 zeroconf or ibft, and all the respective
+address configuration, the admin may request that an interface should
+be configured via dhcp, ipv4 zeroconf or ibft, and all the respective
 addrconf service does is obtain the lease from its server, and pass it
 on to the wicked server process, which installs the requested addresses
 and routes.
@@ -41,7 +50,7 @@ and routes.
 The other approach to decomposing the problem is to enforce the layering
 aspect. For any type of network interface, it is possible to define
 a dbus service that configures the network interface's device layer -
-be it a vlan, a bridge, a bond, or an SRIOV virtual function. Common
+be it a vlan, a bridge, a bond, or an paravirtualized NIC. Common
 functionality, such as address configuration, is implemented by joint
 services that are layered on top of these device specific services,
 without having to implement them specifically.
