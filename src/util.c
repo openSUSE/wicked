@@ -1085,7 +1085,7 @@ ni_file_open(const char *pathname, const char *fmode, unsigned int permissions)
 	case 'r':
 		flags = O_RDONLY; break;
 	case 'w':
-		flags = O_WRONLY | O_CREAT; break;
+		flags = O_WRONLY | O_CREAT | O_TRUNC; break;
 	case 'a':
 		flags = O_WRONLY | O_CREAT | O_APPEND; break;
 	default:
@@ -1093,7 +1093,7 @@ ni_file_open(const char *pathname, const char *fmode, unsigned int permissions)
 	}
 
 	if (*fmode == '+') {
-		flags = (flags & ~O_ACCMODE) | O_RDWR;
+		flags = (flags & ~O_ACCMODE) | O_RDWR | O_CREAT;
 		fmode++;
 	}
 
