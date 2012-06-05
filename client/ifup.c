@@ -30,6 +30,7 @@
 
 #include "wicked-client.h"
 #include "fsm.h"
+#include "policy.h"
 
 
 #define WICKED_IFCONFIG_DIR_PATH	"/etc/sysconfig/network"
@@ -706,12 +707,15 @@ ni_ifworkers_from_xml(ni_objectmodel_fsm_t *fsm, xml_document_t *doc)
 		xml_node_t *node, *depnode;
 		ni_ifworker_t *w;
 
-		if (ni_string_eq(ifnode->name, "interface")) {
-			type = NI_IFWORKER_TYPE_NETDEV;
-		} else
-		if (ni_string_eq(ifnode->name, "modem")) {
-			type = NI_IFWORKER_TYPE_MODEM;
-		} else {
+		if (ni_string_eq(ifnode->name, "policy")) {
+			const char *name;
+
+			name = xml_node_get_attr(ifnode, "name");
+			ni_ifpolicy_install(ni_ifpolicy_new(name, ifnode));
+			continue;
+		}
+
+		if ((type = ni_ifworker_type_from_string(ifnode->name)) < 0) {
 			ni_warn("%s: ignoring non-interface element <%s>",
 					xml_node_location(ifnode),
 					ifnode->name);
@@ -921,6 +925,64 @@ typedef struct ni_ifmatcher {
 				skip_active    : 1;
 } ni_ifmatcher_t;
 
+static ni_bool_t
+ni_ifworker_merge_policy(ni_ifworker_t *w, ni_ifpolicy_t *policy)
+{
+	ni_warn("%s(%s, %s) TBD", __func__, w->name, policy->name);
+	return TRUE;
+}
+
+static ni_bool_t
+ni_ifworker_apply_policies(ni_ifworker_t *w)
+{
+	ni_bool_t use_default_policies = TRUE;
+	ni_ifpolicy_t *policy;
+	xml_node_t *config;
+
+	if (w->config && (config = xml_node_get_child(w->config, "policies"))) {
+		xml_node_t *child;
+
+		for (child = config->children; child; child = child->next) {
+			if (ni_string_eq(child->name, "default"))
+				use_default_policies = TRUE;
+			else
+			if (ni_string_eq(child->name, "nodefault"))
+				use_default_policies = FALSE;
+			else
+			if (ni_string_eq(child->name, "policy")) {
+				if (!(policy = ni_ifpolicy_by_name(child->cdata))) {
+					ni_error("%s: unknown policy \"%s\"", w->name, child->cdata);
+					return FALSE;
+				}
+				ni_ifworker_merge_policy(w, policy);
+			} else {
+				ni_error("%s: ignoring unknown policy element <%s>",
+						xml_node_location(child), child->name);
+				continue;
+			}
+		}
+	}
+
+	w->use_default_policies = use_default_policies;
+	return TRUE;
+}
+
+int
+ni_ifworker_type_from_string(const char *s)
+{
+	if (ni_string_eq(s, "interface"))
+		return NI_IFWORKER_TYPE_NETDEV;
+	if (ni_string_eq(s, "modem"))
+		return NI_IFWORKER_TYPE_MODEM;
+
+	return -1;
+}
+
+/*
+ * Parse an interface configuration file.
+ * These files can contain <interface>, <modem> and <policy>
+ * elements.
+ */
 static unsigned int
 ni_ifworker_get_matching(ni_objectmodel_fsm_t *fsm, ni_ifmatcher_t *match, ni_ifworker_array_t *result)
 {
@@ -1295,6 +1357,8 @@ ni_ifworker_bind_device_apis(ni_ifworker_t *w, const ni_dbus_service_t *service)
 	if (w->object == NULL)
 		return 0;
 
+	/* FIXME: look up the device service based on the object class */
+
 	if (service == NULL)
 		service = ni_dbus_object_get_service_for_method(w->object, "changeDevice");
 	if (service == NULL)
@@ -1337,7 +1401,7 @@ ni_ifworkers_build_hierarchy(ni_objectmodel_fsm_t *fsm)
 		/* A worker without an ifnode is one that we discovered in the
 		 * system, but which we've not been asked to configure. */
 		if (!w->config)
-			continue;
+			goto no_device_bindings;
 
 		/* First, check for factory interface */
 		if ((rv = ni_ifworker_bind_device_factory_api(w)) < 0)
@@ -1379,6 +1443,10 @@ ni_ifworkers_build_hierarchy(ni_objectmodel_fsm_t *fsm)
 				return -NI_ERROR_DOCUMENT_ERROR;
 			continue;
 		}
+
+		/* For now, we apply policies here */
+no_device_bindings:
+		ni_ifworker_apply_policies(w);
 	}
 
 	if (ni_debug & NI_TRACE_DBUS) {
@@ -2088,7 +2156,44 @@ ni_ifworker_do_common(ni_ifworker_t *w, ni_iftransition_t *action)
 		struct ni_netif_action_binding *bind = &action->binding[i];
 		ni_objectmodel_callback_info_t *callback_list = NULL;
 
-		if (bind->method == NULL || bind->skip_call)
+		ni_trace("%s(%s, %s, %s)", __func__, w->name,
+				bind->service? bind->service->name : "NIL",
+				bind->method? bind->method->name : "NIL");
+		if (bind->method == NULL)
+			continue;
+
+		/* If the document does not specify a configuration for this service,
+		 * check if there's an applicable policy that specifies a default
+		 * configuration for this service.
+		 *
+		 * For instance, you can create a WLAN network interface definition
+		 * without a <wireless> element. In this case, ifup would normally
+		 * skip the changeDevice(). However, you could specify the that
+		 * via policy in a separate file:
+		 *
+		 *  <policy>
+		 *   <match><wireless:network>mynetwork</wireless:network></match>
+		 *   <merge>
+		 *    <wireless>
+		 *      <essid>mynetwork</essid>
+		 *      <wpa-psk>...</wpa-psk>
+		 *    </wireless>
+		 *   </merge>
+		 *  </policy>
+		 */
+		if (bind->skip_call) {
+			rv = ni_ifpolicy_rebind_action(w, bind);
+			if (rv < 0)
+				return -1;
+			if (bind->config) {
+				ni_trace("  rebinding argument to <%s> @%s",
+					bind->config->name,
+					xml_node_location(bind->config));
+				bind->skip_call = FALSE;
+			}
+		}
+
+		if (bind->skip_call)
 			continue;
 
 		rv = ni_call_common_xml(w->object, bind->service, bind->method, bind->config,
@@ -2683,7 +2788,13 @@ ni_ifconfig_file_load(ni_objectmodel_fsm_t *fsm, const char *filename)
 static dbus_bool_t
 ni_ifconfig_load(ni_objectmodel_fsm_t *fsm, const char *pathname)
 {
+	char chroot_namebuf[PATH_MAX];
 	struct stat stb;
+
+	if (opt_global_rootdir) {
+		snprintf(chroot_namebuf, sizeof(chroot_namebuf), "%s/%s", opt_global_rootdir, pathname);
+		pathname = chroot_namebuf;
+	}
 
 	ni_debug_readwrite("%s(%s)", __func__, pathname);
 	if (stat(pathname, &stb) < 0) {
@@ -2720,9 +2831,10 @@ ni_ifconfig_load(ni_objectmodel_fsm_t *fsm, const char *pathname)
 int
 do_ifup(int argc, char **argv)
 {
-	enum  { OPT_IFCONFIG, OPT_BOOT, OPT_TIMEOUT, OPT_SKIP_ACTIVE };
+	enum  { OPT_IFCONFIG, OPT_IFPOLICY, OPT_BOOT, OPT_TIMEOUT, OPT_SKIP_ACTIVE };
 	static struct option ifup_options[] = {
 		{ "ifconfig",	required_argument, NULL,	OPT_IFCONFIG },
+		{ "ifpolicy",	required_argument, NULL,	OPT_IFPOLICY },
 		{ "boot-label",	required_argument, NULL,	OPT_BOOT },
 		{ "skip-active",required_argument, NULL,	OPT_SKIP_ACTIVE },
 		{ "timeout",	required_argument, NULL,	OPT_TIMEOUT },
@@ -2730,20 +2842,22 @@ do_ifup(int argc, char **argv)
 	};
 	static ni_ifmatcher_t ifmatch;
 	const char *opt_ifconfig = WICKED_IFCONFIG_DIR_PATH;
+	const char *opt_ifpolicy = NULL;
 	unsigned int nmarked;
 	ni_objectmodel_fsm_t *fsm;
 	int c;
 
 	fsm = ni_objectmodel_fsm_new(STATE_ADDRCONF_UP, __STATE_MAX);
 
-	memset(&ifmatch, 0, sizeof(ifmatch));
-	ifmatch.require_config = 1;
-
 	optind = 1;
 	while ((c = getopt_long(argc, argv, "", ifup_options, NULL)) != EOF) {
 		switch (c) {
 		case OPT_IFCONFIG:
 			opt_ifconfig = optarg;
+			break;
+
+		case OPT_IFPOLICY:
+			opt_ifpolicy = optarg;
 			break;
 
 		case OPT_BOOT:
@@ -2795,14 +2909,10 @@ usage:
 
 	ni_ifworkers_refresh_state(fsm);
 
-	if (opt_global_rootdir) {
-		static char namebuf[PATH_MAX];
-
-		snprintf(namebuf, sizeof(namebuf), "%s/%s", opt_global_rootdir, opt_ifconfig);
-		opt_ifconfig = namebuf;
-	}
-
 	if (!ni_ifconfig_load(fsm, opt_ifconfig))
+		return 1;
+
+	if (opt_ifpolicy && !ni_ifconfig_load(fsm, opt_ifpolicy))
 		return 1;
 
 	if (ni_ifworkers_build_hierarchy(fsm) < 0)
@@ -2810,11 +2920,13 @@ usage:
 
 	nmarked = 0;
 	while (optind < argc) {
+		memset(&ifmatch, 0, sizeof(ifmatch));
 		ifmatch.name = argv[optind++];
 
 		if (!strcmp(ifmatch.name, "boot")) {
 			ifmatch.name = "all";
 			ifmatch.boot_label = "boot";
+			ifmatch.require_config = TRUE;
 		}
 
 		nmarked += ni_ifworker_mark_matching(fsm, &ifmatch);
@@ -2896,13 +3008,6 @@ usage:
 	if (optind >= argc) {
 		fprintf(stderr, "Missing interface argument\n");
 		goto usage;
-	}
-
-	if (opt_global_rootdir) {
-		static char namebuf[PATH_MAX];
-
-		snprintf(namebuf, sizeof(namebuf), "%s/%s", opt_global_rootdir, opt_ifconfig);
-		opt_ifconfig = namebuf;
 	}
 
 	if (!ni_ifconfig_load(fsm, opt_ifconfig))
@@ -2998,13 +3103,6 @@ usage:
 	if (optind >= argc) {
 		ni_error("missing interface argument\n");
 		goto usage;
-	}
-
-	if (opt_global_rootdir) {
-		static char namebuf[PATH_MAX];
-
-		snprintf(namebuf, sizeof(namebuf), "%s/%s", opt_global_rootdir, opt_ifconfig);
-		opt_ifconfig = namebuf;
 	}
 
 	if (!ni_ifconfig_load(fsm, opt_ifconfig))

@@ -113,6 +113,7 @@ AUTO4SRCS = \
 CLIENTSRCS = \
 	  client/main.c \
 	  client/ifup.c \
+	  client/policy.c \
 	  client/calls.c \
 	  client/reachable.c
 SERVERSRCS = \

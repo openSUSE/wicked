@@ -8,6 +8,11 @@
 #ifndef __CLIENT_FSM_H__
 #define __CLIENT_FSM_H__
 
+#include <wicked/socket.h>	/* needed for ni_timer_t */
+#include <wicked/objectmodel.h>
+#include <wicked/dbus.h>
+#include <wicked/xml.h>
+
 /*
  * Interface state information
  */
@@ -119,6 +124,7 @@ struct ni_ifworker {
 
 	ni_uuid_t		uuid;
 	xml_node_t *		config;
+	ni_bool_t		use_default_policies;
 
 	/* An ifworker can represent either a network device or a modem */
 	ni_netdev_t *		device;
@@ -179,6 +185,7 @@ struct ni_objectmodel_fsm {
 extern ni_objectmodel_fsm_t *	ni_objectmodel_fsm_new(unsigned int min_state, unsigned int max_state);
 extern void			ni_objectmodel_fsm_free(ni_objectmodel_fsm_t *);
 
+extern int			ni_ifworker_type_from_string(const char *);
 extern ni_ifworker_req_t *	ni_ifworker_reachability_check_new(xml_node_t *);
 
 extern ni_ifworker_req_t *	ni_ifworker_req_new(ni_ifworker_req_fn_t *, ni_ifworker_req_dtor_t *);
