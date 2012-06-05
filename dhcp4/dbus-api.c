@@ -273,6 +273,8 @@ static ni_dbus_class_t		ni_objectmodel_dhcp4req_class = {
 	NI_DBUS_GENERIC_UINT_PROPERTY(dhcp4_request, dbus_name, member_name, rw)
 #define DHCP4REQ_UUID_PROPERTY(dbus_name, member_name, rw) \
 	NI_DBUS_GENERIC_UUID_PROPERTY(dhcp4_request, dbus_name, member_name, rw)
+#define DHCP4REQ_BOOL_PROPERTY(dbus_name, member_name, rw) \
+	NI_DBUS_GENERIC_BOOL_PROPERTY(dhcp4_request, dbus_name, member_name, rw)
 #define DHCP4REQ_PROPERTY_SIGNATURE(signature, __name, rw) \
 	__NI_DBUS_PROPERTY(signature, __name, __dhcp4_request, rw)
 
@@ -299,6 +301,7 @@ ni_objectmodel_get_dhcp4_request(const ni_dbus_object_t *object, DBusError *erro
 }
 
 static ni_dbus_property_t	dhcp4_request_properties[] = {
+	DHCP4REQ_BOOL_PROPERTY(enabled, enabled, RO),
 	DHCP4REQ_UUID_PROPERTY(uuid, uuid, RO),
 	DHCP4REQ_UINT_PROPERTY(settle-timeout, settle_timeout, RO),
 	DHCP4REQ_UINT_PROPERTY(acquire-timeout, acquire_timeout, RO),

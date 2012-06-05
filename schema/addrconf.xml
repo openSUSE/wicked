@@ -70,6 +70,7 @@
 <service name="ipv4:dhcp" interface="com.suse.Wicked.Addrconf.ipv4.dhcp" object-class="netif">
   <define name="request" class="dict">
     <uuid type="uuid-type"/>
+    <enabled type="boolean"/>
 
     <acquire-timeout type="uint32" />
     <hostname type="string" />
@@ -103,6 +104,7 @@
 <service name="ipv4:auto" interface="com.suse.Wicked.Addrconf.ipv4.auto" object-class="netif">
   <define name="request" class="dict">
     <uuid type="uuid-type"/>
+    <enabled type="boolean"/>
   </define>
   <define name="properties" type="interface:addrconf-lease"/>
 

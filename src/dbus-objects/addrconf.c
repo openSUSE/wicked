@@ -54,6 +54,9 @@ static dbus_bool_t	ni_objectmodel_addrconf_forwarder_call(ni_dbus_addrconf_forwa
 					ni_netdev_t *dev, const char *method_name,
 					const ni_uuid_t *uuid, const ni_dbus_variant_t *dict,
 					DBusError *error);
+static dbus_bool_t	ni_objectmodel_addrconf_forward_release(ni_dbus_addrconf_forwarder_t *forwarder,
+					ni_netdev_t *dev, const ni_dbus_variant_t *dict,
+					ni_dbus_message_t *reply, DBusError *error);
 
 #define NI_OBJECTMODEL_ADDRCONF_IPV4STATIC_INTERFACE	NI_OBJECTMODEL_INTERFACE ".Addrconf.ipv4.static"
 #define NI_OBJECTMODEL_ADDRCONF_IPV4DHCP_INTERFACE	NI_OBJECTMODEL_INTERFACE ".Addrconf.ipv4.dhcp"
@@ -491,20 +494,29 @@ ni_objectmodel_addrconf_forward_request(ni_dbus_addrconf_forwarder_t *forwarder,
 			ni_netdev_t *dev, const ni_dbus_variant_t *dict,
 			ni_dbus_message_t *reply, DBusError *error)
 {
+	ni_addrconf_lease_t *lease;
 	ni_uuid_t req_uuid;
-	dbus_bool_t rv;
+	dbus_bool_t rv, enabled;
+
+	/* Check whether we already have a lease on this interface. */
+	lease = ni_netdev_get_lease(dev, forwarder->addrfamily, forwarder->addrconf);
 
 	/* Generate a uuid and assign an event ID */
 	ni_uuid_generate(&req_uuid);
 
-	if (ni_netdev_get_lease(dev, forwarder->addrfamily, forwarder->addrconf) == NULL) {
-		ni_addrconf_lease_t *lease;
+	/* If the caller tells us to disable this addrconf family, we may need
+	 * to do a release() call. */
+	if (!ni_dbus_dict_get_bool(dict, "enabled", &enabled) || !enabled)
+		return ni_objectmodel_addrconf_forward_release(forwarder, dev, NULL, reply, error);
 
+	if (lease == NULL) {
+		/* We didn't have a lease for this address family and addrconf protocol yet.
+		 * Create one and track it. */
 		lease = ni_addrconf_lease_new(forwarder->addrconf, forwarder->addrfamily);
 		lease->state = NI_ADDRCONF_STATE_REQUESTING;
-		lease->uuid = req_uuid;
 		ni_netdev_set_lease(dev, lease);
 	}
+	lease->uuid = req_uuid;
 
 	rv = ni_objectmodel_addrconf_forwarder_call(forwarder, dev, "acquire", &req_uuid, dict, error);
 	if (rv) {
@@ -537,12 +549,21 @@ ni_objectmodel_addrconf_forward_release(ni_dbus_addrconf_forwarder_t *forwarder,
 			ni_debug_objectmodel("%s: no %s/%s lease", dev->name,
 				ni_addrconf_type_to_name(forwarder->addrconf),
 				ni_addrfamily_type_to_name(forwarder->addrfamily));
+			rv = TRUE;
 			break;
 		default:
 			ni_debug_objectmodel("%s: service returned %s (%s)", forwarder->supplicant.interface,
 				error->name, error->message);
 		}
-	} else if ((lease = ni_netdev_get_lease(dev, forwarder->addrfamily, forwarder->addrconf)) != NULL) {
+		return rv;
+	}
+
+	/* Check again whether we still have a lease for this. The addrconf supplicant may
+	 * actually be fast, so that the callback has arrived before the reply to our original
+	 * release() call. In that case, we would tell the client to wait for a release event
+	 * that has already been broadcast (and ignored).
+	 */
+	if ((lease = ni_netdev_get_lease(dev, forwarder->addrfamily, forwarder->addrconf)) != NULL) {
 		/* Tell the client to wait for an addressReleased event with the given uuid */
 		ni_debug_objectmodel("%s/%s: found lease, waiting for drop notification from supplicant",
 				ni_addrconf_type_to_name(forwarder->addrconf),

@@ -20,6 +20,7 @@
   </wireless>
 
   <ipv4:dhcp>
+    <enabled>true</enabled>
     <acquire-timeout>15</acquire-timeout>
   </ipv4:dhcp>
 </interface>

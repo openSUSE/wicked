@@ -106,6 +106,7 @@ enum {
  */
 struct ni_dhcp4_request {
 	ni_uuid_t		uuid;
+	ni_bool_t		enabled;
 
 	unsigned int		settle_timeout;	/* wait that long before starting DHCP */
 	unsigned int		acquire_timeout;/* how long we try before we give up */
