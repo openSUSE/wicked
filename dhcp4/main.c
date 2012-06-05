@@ -27,7 +27,7 @@
 #include <wicked/objectmodel.h>
 #include "dhcp4/dhcp.h"
 
-#define CONFIG_DHCP4_STATE_PATH		CONFIG_WICKED_STATEDIR "dhcp4-state.xml"
+#define CONFIG_DHCP4_STATE_PATH		CONFIG_WICKED_STATEDIR "/dhcp4-state.xml"
 
 enum {
 	OPT_CONFIGFILE,
