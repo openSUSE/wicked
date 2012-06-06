@@ -1,0 +1,45 @@
+<!--
+     Schema definition for network protocols
+     This allows you to change protocol-specific settings for IPv4 or IPv6
+     on a per-interface basis
+
+     Copyright (C) 2012, Olaf Kirch <okir@suse.de>
+  -->
+
+<!-- =================================================
+     IPv4
+     ================================================= -->
+<service name="ipv4" interface="com.suse.Wicked.Protocol.IPv4" object-class="netif">
+  <define name="properties" class="dict">
+    <forwarding type="boolean" />
+  </define>
+
+  <method name="changeProtocol">
+    <arguments>
+      <!-- Note: all addresses are expected to be IPv4 -->
+      <config type="properties">
+        <meta:mapping document-node="ipv4" skip-unless-present="true"/>
+      </config>
+    </arguments>
+  </method>
+</service>
+
+<!-- =================================================
+     IPv6
+     ================================================= -->
+<service name="ipv6" interface="com.suse.Wicked.Protocol.IPv6" object-class="netif">
+  <define name="properties" class="dict">
+    <enabled type="boolean" />
+    <forwarding type="boolean" />
+  </define>
+
+  <method name="changeProtocol">
+    <arguments>
+      <!-- Note: all addresses are expected to be IPv6 -->
+      <config type="properties">
+        <meta:mapping document-node="ipv6" skip-unless-present="true"/>
+      </config>
+    </arguments>
+  </method>
+</service>
+

@@ -53,11 +53,13 @@ enum {
 
 typedef struct ni_afinfo {
 	int			family;
-	int			enabled;
-	int			forwarding;
+	unsigned int		enabled;
+	unsigned int		forwarding;
 
 	unsigned int		addrconf;	/* bitmask of enabled addrconf modes */
 } ni_afinfo_t;
+typedef struct ni_afinfo	ni_ipv6_devinfo_t;	/* for now */
+typedef struct ni_afinfo	ni_ipv4_devinfo_t;	/* for now */
 
 typedef struct ni_linkinfo ni_linkinfo_t;
 struct ni_linkinfo {

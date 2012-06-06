@@ -13,5 +13,9 @@
      <!-- if you need to set a specified client-id, or wish to request
           a different lease timeout, you can do this here. -->
    </ipv4:dhcp>
+
+   <ipv6>
+     <enabled>false</enabled>
+   </ipv6>
  </merge>
 </policy>

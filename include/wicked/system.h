@@ -15,6 +15,7 @@ extern int		ni_system_interface_link_change(ni_netdev_t *, const ni_netdev_req_t
  * Most of this stuff will go as we move things into extension scripts:
  */
 extern int		ni_system_interface_stats_refresh(ni_netconfig_t *, ni_netdev_t *);
+extern int		ni_system_ipv6_setup(ni_netconfig_t *, ni_netdev_t *dev, const ni_ipv6_devinfo_t *conf);
 extern int		ni_system_ethernet_setup(ni_netconfig_t *nc, ni_netdev_t *ifp, 
 				const ni_ethernet_t *dev_cfg);
 extern int		ni_system_vlan_create(ni_netconfig_t *nc, const char *ifname,

@@ -786,12 +786,14 @@ __ni_netdev_update_ipv6_settings(ni_netdev_t *dev, const ni_afinfo_t *afi)
 		goto out;
 	}
 	if (enable) {
+#if 0
 		int autoconf = ni_afinfo_addrconf_test(afi, NI_ADDRCONF_STATIC);
 
 		if (ni_sysctl_ipv6_ifconfig_set_uint(dev->name, "autoconf", autoconf) < 0) {
 			ni_error("%s: cannot %s ipv6 autoconf", dev->name, autoconf? "enable" : "disable");
 			goto out;
 		}
+#endif
 		if (ni_sysctl_ipv6_ifconfig_set_uint(dev->name, "forwarding", afi->forwarding) < 0) {
 			ni_error("%s: cannot %s ipv6 forwarding", dev->name, afi->forwarding? "enable" : "disable");
 			goto out;
@@ -804,6 +806,12 @@ out:
 		__ni_rtnl_link_down(dev, RTM_NEWLINK);
 
 	return rv;
+}
+
+int
+ni_system_ipv6_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_ipv6_devinfo_t *conf)
+{
+	return __ni_netdev_update_ipv6_settings(dev, conf);
 }
 
 /*

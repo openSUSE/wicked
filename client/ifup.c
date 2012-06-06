@@ -267,6 +267,7 @@ static ni_intmap_t __state_names[] = {
 	{ "device-down",	STATE_DEVICE_DOWN	},
 	{ "device-exists",	STATE_DEVICE_EXISTS	},
 	{ "device-up",		STATE_DEVICE_UP		},
+	{ "protocols-up",	STATE_PROTOCOLS_UP	},
 	{ "firewall-up",	STATE_FIREWALL_UP	},
 	{ "link-up",		STATE_LINK_UP		},
 	{ "link-authenticated",	STATE_LINK_AUTHENTICATED},
@@ -1997,17 +1998,17 @@ ni_ifworker_print_binding(ni_ifworker_t *w, ni_iftransition_t *action)
 
 	for (i = 0, bind = action->binding; i < action->num_bindings; ++i, ++bind) {
 		if (bind->method == NULL) {
-			ni_trace("  %-40s %-12s   not supported by service",
+			ni_trace("  %-40s %-14s   not supported by service",
 					bind->service->name,
 					action->common.method_name);
 		} else
 		if (bind->config == NULL) {
-			ni_trace("  %-40s %-12s   no config in interface document%s",
+			ni_trace("  %-40s %-14s   no config in interface document%s",
 					bind->service->name,
 					bind->method->name,
 					bind->skip_call? "; skipping call" : "");
 		} else {
-			ni_trace("  %-40s %-12s   mapped to <%s> @%s",
+			ni_trace("  %-40s %-14s   mapped to <%s> @%s",
 					bind->service->name,
 					bind->method->name,
 					bind->config->name,
@@ -2350,6 +2351,9 @@ static ni_iftransition_t	ni_iftransitions[] = {
 
 	/* This sets any device attributes, such as a MAC address */
 	COMMON_TRANSITION_UP_TO(STATE_DEVICE_UP, "changeDevice", .call_overloading = TRUE),
+
+	/* This sets the per-interface protocol attributes, such as forwarding */
+	COMMON_TRANSITION_UP_TO(STATE_PROTOCOLS_UP, "changeProtocol"),
 
 	/* This step adds device-specific filtering, if available. Typical
 	 * example would be bridge filtering with ebtables. */
