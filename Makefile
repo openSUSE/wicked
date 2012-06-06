@@ -44,6 +44,8 @@ __LIBSRCS= \
 	  wireless.c \
 	  openvpn.c \
 	  ppp.c \
+	  ipv4.c \
+	  ipv6.c \
 	  modem-manager.c \
 	  state.c \
 	  iflist.c \

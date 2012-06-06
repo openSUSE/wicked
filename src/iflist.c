@@ -736,20 +736,26 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 	 * When we bring the interface back up, everything is fine; but until
 	 * then we need to ignore this glitch.
 	 */
-	if (ni_sysctl_ipv6_ifconfig_is_present(dev->name)) {
-		unsigned int val;
+	{
+		ni_ipv6_devinfo_t *ipv6;
+		
+		ipv6 = ni_netdev_get_ipv6(dev);
+		if (ni_sysctl_ipv6_ifconfig_is_present(dev->name)) {
+			unsigned int val;
 
-		ni_sysctl_ipv6_ifconfig_get_uint(dev->name, "disable_ipv6", &val);
-		dev->ipv6.enabled = !val;
+			ni_sysctl_ipv6_ifconfig_get_uint(dev->name, "disable_ipv6", &val);
+			ipv6->enabled = !val;
 
-		ni_sysctl_ipv6_ifconfig_get_uint(dev->name, "forwarding", &val);
-		dev->ipv6.forwarding = val;
+			ni_sysctl_ipv6_ifconfig_get_uint(dev->name, "forwarding", &val);
+			ipv6->forwarding = val;
 
-		ni_sysctl_ipv6_ifconfig_get_uint(dev->name, "autoconf", &val);
-		dev->ipv6.autoconf = val;
-	} else {
-		dev->ipv6.enabled = dev->ipv6.forwarding = 0;
-		__ni_netdev_track_ipv6_autoconf(dev, 0);
+			ni_sysctl_ipv6_ifconfig_get_uint(dev->name, "autoconf", &val);
+			ipv6->autoconf = val;
+		} else {
+			ipv6->enabled = 0;
+			ipv6->forwarding = 0;
+			ipv6->autoconf = 0;
+		}
 	}
 
 	if (dev->link.type == NI_IFTYPE_ETHERNET)

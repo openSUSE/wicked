@@ -60,8 +60,6 @@ typedef struct ni_afinfo {
 
 	unsigned int		addrconf;	/* bitmask of enabled addrconf modes */
 } ni_afinfo_t;
-typedef struct ni_ipv6_devinfo	ni_ipv6_devinfo_t;
-typedef struct ni_ipv4_devinfo	ni_ipv4_devinfo_t;	/* for now */
 
 typedef struct ni_linkinfo ni_linkinfo_t;
 struct ni_linkinfo {
@@ -108,8 +106,8 @@ struct ni_netdev {
 	ni_route_t *		routes;
 
 	/* Network layer */
-	ni_ipv4_devinfo_t	ipv4;
-	ni_ipv6_devinfo_t	ipv6;
+	ni_ipv4_devinfo_t *	ipv4;
+	ni_ipv6_devinfo_t *	ipv6;
 
 	/* Assigned leases */
 	ni_addrconf_lease_t *	leases;
@@ -213,6 +211,8 @@ extern void		ni_netdev_set_wireless(ni_netdev_t *, ni_wireless_t *);
 extern void		ni_netdev_set_openvpn(ni_netdev_t *, ni_openvpn_t *);
 extern void		ni_netdev_set_ppp(ni_netdev_t *, ni_ppp_t *);
 extern void		ni_netdev_set_ibft_nic(ni_netdev_t *, ni_ibft_nic_t *);
+extern ni_ipv6_devinfo_t *ni_netdev_get_ipv6(ni_netdev_t *);
+extern ni_ipv4_devinfo_t *ni_netdev_get_ipv4(ni_netdev_t *);
 
 extern void             ni_netdev_clear_addresses(ni_netdev_t *);
 extern void             ni_netdev_clear_routes(ni_netdev_t *);

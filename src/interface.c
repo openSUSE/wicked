@@ -29,6 +29,8 @@
 #include <wicked/nis.h>
 #include <wicked/route.h>
 #include <wicked/ibft.h>
+#include <wicked/ipv4.h>
+#include <wicked/ipv6.h>
 #include "netinfo_priv.h"
 #include "appconfig.h"
 
@@ -53,10 +55,6 @@ __ni_netdev_new(const char *name, unsigned int index)
 
 	if (name)
 		dev->name = xstrdup(name);
-
-	/* will become a pointer later */
-	memset(&dev->ipv6, 0, sizeof(dev->ipv6));
-	memset(&dev->ipv4, 0, sizeof(dev->ipv4));
 
 	return dev;
 }
@@ -110,12 +108,8 @@ ni_netdev_free(ni_netdev_t *dev)
 	ni_netdev_set_ppp(dev, NULL);
 	ni_netdev_set_ibft_nic(dev, NULL);
 
-#ifdef notyet
-	if (dev->ipv6)
-		ni_ipv6_definfo_free(dev->ipv6);
-	if (dev->ipv4)
-		ni_ipv4_definfo_free(dev->ipv4);
-#endif
+	ni_netdev_set_ipv4(dev, NULL);
+	ni_netdev_set_ipv6(dev, NULL);
 
 	ni_addrconf_lease_list_destroy(&dev->leases);
 
