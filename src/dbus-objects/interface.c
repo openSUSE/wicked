@@ -86,6 +86,9 @@ ni_objectmodel_register_netif_classes(void)
 
 	ni_objectmodel_register_service(&ni_objectmodel_netif_list_service);
 
+	/* register built-in protocol services */
+	ni_objectmodel_register_device_service(NI_IFTYPE_UNKNOWN, &ni_objectmodel_ipv6_service);
+
 	/* register our built-in addrconf services */
 	ni_objectmodel_register_device_service(NI_IFTYPE_UNKNOWN, &ni_objectmodel_addrconf_ipv4_static_service);
 	ni_objectmodel_register_device_service(NI_IFTYPE_UNKNOWN, &ni_objectmodel_addrconf_ipv6_static_service);
@@ -950,62 +953,6 @@ __ni_objectmodel_set_afinfo(ni_afinfo_t *afi, const ni_dbus_variant_t *dict, DBu
 	return TRUE;
 }
 
-static dbus_bool_t
-__ni_objectmodel_netif_get_ipv4(const ni_dbus_object_t *object,
-				const ni_dbus_property_t *property,
-				ni_dbus_variant_t *argument,
-				DBusError *error)
-{
-	ni_netdev_t *dev;
-
-	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
-		return FALSE;
-
-	return __ni_objectmodel_get_afinfo(&dev->ipv4, argument, error);
-}
-
-static dbus_bool_t
-__ni_objectmodel_netif_set_ipv4(ni_dbus_object_t *object,
-				const ni_dbus_property_t *property,
-				const ni_dbus_variant_t *argument,
-				DBusError *error)
-{
-	ni_netdev_t *dev;
-
-	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
-		return FALSE;
-
-	return __ni_objectmodel_set_afinfo(&dev->ipv4, argument, error);
-}
-
-static dbus_bool_t
-__ni_objectmodel_netif_get_ipv6(const ni_dbus_object_t *object,
-				const ni_dbus_property_t *property,
-				ni_dbus_variant_t *argument,
-				DBusError *error)
-{
-	ni_netdev_t *dev;
-
-	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
-		return FALSE;
-
-	return __ni_objectmodel_get_afinfo(&dev->ipv6, argument, error);
-}
-
-static dbus_bool_t
-__ni_objectmodel_netif_set_ipv6(ni_dbus_object_t *object,
-				const ni_dbus_property_t *property,
-				const ni_dbus_variant_t *argument,
-				DBusError *error)
-{
-	ni_netdev_t *dev;
-
-	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
-		return FALSE;
-
-	return __ni_objectmodel_set_afinfo(&dev->ipv6, argument, error);
-}
-
 #define NETIF_PROPERTY_SIGNATURE(signature, __name, rw) \
 	__NI_DBUS_PROPERTY(signature, __name, __ni_objectmodel_netif, rw)
 
@@ -1019,9 +966,6 @@ static ni_dbus_property_t	ni_objectmodel_netif_properties[] = {
 	NI_DBUS_GENERIC_UINT_PROPERTY(netdev, mtu, link.mtu, RO),
 	NI_DBUS_GENERIC_UINT_PROPERTY(netdev, txqlen, link.txqlen, RO),
 	NI_DBUS_GENERIC_STRING_PROPERTY(netdev, alias, link.alias, RO),
-
-	NETIF_PROPERTY_SIGNATURE(NI_DBUS_DICT_SIGNATURE, ipv4, RO),
-	NETIF_PROPERTY_SIGNATURE(NI_DBUS_DICT_SIGNATURE, ipv6, RO),
 
 	/* This should really go to the link layer classes */
 	NETIF_PROPERTY_SIGNATURE(NI_DBUS_BYTE_ARRAY_SIGNATURE, hwaddr, RO),

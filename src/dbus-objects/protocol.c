@@ -1,5 +1,5 @@
 /*
- * DBus encapsulation for interface-specific network protocol settings
+ * DBus encapsulation for interface-specific IPv6 settings
  * (ie IPv4 and IPv6).
  *
  * Copyright (C) 2012 Olaf Kirch <okir@suse.de>
@@ -91,10 +91,10 @@ __ni_objectmodel_protocol_arg(const ni_dbus_variant_t *dict, const ni_dbus_servi
 }
 
 /*
- * Functions for dealing wit Ethernet properties
+ * Functions for dealing with IPv6 properties
  */
-void *
-ni_objectmodel_get_ipv6_devinfo(const ni_dbus_object_t *object, DBusError *error)
+static ni_ipv6_devinfo_t *
+__ni_objectmodel_get_ipv6_devinfo(const ni_dbus_object_t *object, DBusError *error)
 {
 	ni_netdev_t *dev;
 
@@ -104,14 +104,23 @@ ni_objectmodel_get_ipv6_devinfo(const ni_dbus_object_t *object, DBusError *error
 	return &dev->ipv6;
 }
 
+void *
+ni_objectmodel_get_ipv6_devinfo(const ni_dbus_object_t *object, DBusError *error)
+{
+	return __ni_objectmodel_get_ipv6_devinfo(object, error);
+}
+
 #define IPV6_UINT_PROPERTY(dbus_name, member_name, rw) \
 	NI_DBUS_GENERIC_UINT_PROPERTY(ipv6_devinfo, dbus_name, member_name, rw)
 #define IPV6_BOOL_PROPERTY(dbus_name, member_name, rw) \
 	NI_DBUS_GENERIC_BOOL_PROPERTY(ipv6_devinfo, dbus_name, member_name, rw)
 
 const ni_dbus_property_t	ni_objectmodel_ipv6_property_table[] = {
-	IPV6_UINT_PROPERTY(enabled, enabled, RO),
+	IPV6_BOOL_PROPERTY(enabled, enabled, RO),
 	IPV6_UINT_PROPERTY(forwarding, forwarding, RO),
+	IPV6_BOOL_PROPERTY(autoconf, autoconf, RO),
+	IPV6_BOOL_PROPERTY(accept-redirects, accept_redirects, RO),
+	IPV6_BOOL_PROPERTY(privacy, privacy, RO),
 
 	{ NULL }
 };

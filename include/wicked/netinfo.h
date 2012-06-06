@@ -15,6 +15,8 @@
 #include <wicked/types.h>
 #include <wicked/constants.h>
 #include <wicked/util.h>
+#include <wicked/ipv6.h> /* for now */
+#include <wicked/ipv4.h> /* for now */
 
 #define NI_MAXADDRLEN		16
 
@@ -58,8 +60,8 @@ typedef struct ni_afinfo {
 
 	unsigned int		addrconf;	/* bitmask of enabled addrconf modes */
 } ni_afinfo_t;
-typedef struct ni_afinfo	ni_ipv6_devinfo_t;	/* for now */
-typedef struct ni_afinfo	ni_ipv4_devinfo_t;	/* for now */
+typedef struct ni_ipv6_devinfo	ni_ipv6_devinfo_t;
+typedef struct ni_ipv4_devinfo	ni_ipv4_devinfo_t;	/* for now */
 
 typedef struct ni_linkinfo ni_linkinfo_t;
 struct ni_linkinfo {
@@ -106,8 +108,8 @@ struct ni_netdev {
 	ni_route_t *		routes;
 
 	/* Network layer */
-	ni_afinfo_t		ipv4;
-	ni_afinfo_t		ipv6;
+	ni_ipv4_devinfo_t	ipv4;
+	ni_ipv6_devinfo_t	ipv6;
 
 	/* Assigned leases */
 	ni_addrconf_lease_t *	leases;

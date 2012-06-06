@@ -54,9 +54,9 @@ __ni_netdev_new(const char *name, unsigned int index)
 	if (name)
 		dev->name = xstrdup(name);
 
-	/* Initialize address family specific info */
-	__ni_afinfo_init(&dev->ipv4, AF_INET);
-	__ni_afinfo_init(&dev->ipv6, AF_INET6);
+	/* will become a pointer later */
+	memset(&dev->ipv6, 0, sizeof(dev->ipv6));
+	memset(&dev->ipv4, 0, sizeof(dev->ipv4));
 
 	return dev;
 }
@@ -109,6 +109,13 @@ ni_netdev_free(ni_netdev_t *dev)
 	ni_netdev_set_openvpn(dev, NULL);
 	ni_netdev_set_ppp(dev, NULL);
 	ni_netdev_set_ibft_nic(dev, NULL);
+
+#ifdef notyet
+	if (dev->ipv6)
+		ni_ipv6_definfo_free(dev->ipv6);
+	if (dev->ipv4)
+		ni_ipv4_definfo_free(dev->ipv4);
+#endif
 
 	ni_addrconf_lease_list_destroy(&dev->leases);
 

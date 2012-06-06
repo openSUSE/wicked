@@ -36,6 +36,7 @@
 #include <wicked/system.h>
 #include <wicked/wireless.h>
 #include <wicked/ppp.h>
+#include <wicked/ipv6.h>
 
 #include "netinfo_priv.h"
 #include "sysfs.h"
@@ -43,7 +44,7 @@
 #include "appconfig.h"
 #include "debug.h"
 
-static int	__ni_netdev_update_ipv6_settings(ni_netdev_t *, const ni_afinfo_t *);
+static int	__ni_netdev_update_ipv6_settings(ni_netdev_t *, const ni_ipv6_devinfo_t *);
 static int	__ni_netdev_update_addrs(ni_netdev_t *dev,
 				const ni_addrconf_lease_t *old_lease,
 				ni_address_t *cfg_addr_list);
@@ -75,10 +76,12 @@ ni_system_interface_link_change(ni_netdev_t *dev, const ni_netdev_req_t *ifp_req
 	if (ifflags & (NI_IFF_DEVICE_UP|NI_IFF_LINK_UP|NI_IFF_NETWORK_UP)) {
 		ni_debug_ifconfig("bringing up %s", dev->name);
 
+#if 0 /* DEAD */
 		/* If we want to disable ipv6 or ipv6 autoconf, we need to do so prior to bringing
 		 * the interface up. */
 		if (__ni_netdev_update_ipv6_settings(dev, ifp_req->ipv6) < 0)
 			return -1;
+#endif
 
 		if (__ni_rtnl_link_up(dev, ifp_req)) {
 			ni_error("%s: failed to bring up interface (rtnl error)", dev->name);
@@ -760,7 +763,7 @@ ni_system_ppp_delete(ni_netdev_t *dev)
  * Update the IPv6 sysctl settings for the given interface
  */
 int
-__ni_netdev_update_ipv6_settings(ni_netdev_t *dev, const ni_afinfo_t *afi)
+__ni_netdev_update_ipv6_settings(ni_netdev_t *dev, const ni_ipv6_devinfo_t *afi)
 {
 	int enable = afi? afi->enabled : 0;
 	int brought_up = 0;

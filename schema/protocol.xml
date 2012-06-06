@@ -30,7 +30,10 @@
 <service name="ipv6" interface="com.suse.Wicked.Protocol.IPv6" object-class="netif">
   <define name="properties" class="dict">
     <enabled type="boolean" />
-    <forwarding type="boolean" />
+    <forwarding type="uint32" />
+    <autoconf type="boolean" />
+    <accept-redirects type="boolean" />
+    <privacy type="boolean" />
   </define>
 
   <method name="changeProtocol">

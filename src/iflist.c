@@ -728,9 +728,6 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 		ni_oper_state_type_to_name(dev->link.oper_state));
 #endif
 
-	dev->ipv4.addrconf = NI_ADDRCONF_MASK(NI_ADDRCONF_STATIC);
-	dev->ipv6.addrconf = NI_ADDRCONF_MASK(NI_ADDRCONF_AUTOCONF) | NI_ADDRCONF_MASK(NI_ADDRCONF_STATIC);
-
 	/* dhcpcd does something very odd when shutting down an interface;
 	 * in addition to removing all IPv4 addresses, it also removes any
 	 * IPv6 addresses. The kernel seems to take this as "disable IPv6
@@ -749,7 +746,7 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 		dev->ipv6.forwarding = val;
 
 		ni_sysctl_ipv6_ifconfig_get_uint(dev->name, "autoconf", &val);
-		__ni_netdev_track_ipv6_autoconf(dev, !!val);
+		dev->ipv6.autoconf = val;
 	} else {
 		dev->ipv6.enabled = dev->ipv6.forwarding = 0;
 		__ni_netdev_track_ipv6_autoconf(dev, 0);
@@ -1206,10 +1203,10 @@ __ni_discover_addrconf(ni_netdev_t *dev)
 	for (lease = dev->leases; lease; lease = lease->next) {
 		switch (lease->family) {
 		case AF_INET:
-			ni_afinfo_addrconf_enable(&dev->ipv4, lease->type);
+			//ni_afinfo_addrconf_enable(&dev->ipv4, lease->type);
 			break;
 		case AF_INET6:
-			ni_afinfo_addrconf_enable(&dev->ipv6, lease->type);
+			//ni_afinfo_addrconf_enable(&dev->ipv6, lease->type);
 			break;
 		}
 	}
