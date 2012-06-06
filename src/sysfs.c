@@ -482,6 +482,55 @@ ni_sysfs_bridge_port_get_status(const char *ifname, ni_bridge_port_status_t *ps)
 }
 
 /*
+ * Get/set IPv4 sysctls
+ */
+static inline const char *
+__ni_sysctl_ipv4_ifconfig_path(const char *ifname, const char *ctl_name)
+{
+	static char pathname[PATH_MAX];
+
+	if (ctl_name)
+		snprintf(pathname, sizeof(pathname), "/proc/sys/net/ipv4/conf/%s/%s", ifname, ctl_name);
+	else
+		snprintf(pathname, sizeof(pathname), "/proc/sys/net/ipv4/conf/%s", ifname);
+	return pathname;
+}
+
+int
+ni_sysctl_ipv4_ifconfig_is_present(const char *ifname)
+{
+	const char *pathname = __ni_sysctl_ipv4_ifconfig_path(ifname, NULL);
+
+	return access(pathname, F_OK) == 0;
+}
+
+int
+ni_sysctl_ipv4_ifconfig_get_uint(const char *ifname, const char *ctl_name, unsigned int *value)
+{
+	const char *pathname = __ni_sysctl_ipv4_ifconfig_path(ifname, ctl_name);
+	char *result = NULL;
+
+	*value = 0;
+	if (__ni_sysfs_read_string(pathname, &result) < 0) {
+		ni_error("%s: unable to read file: %m", pathname);
+		return -1;
+	}
+	if (result == NULL) {
+		ni_error("%s: empty file", pathname);
+		return -1;
+	}
+	*value = strtoul(result, NULL, 0);
+	ni_string_free(&result);
+	return 0;
+}
+
+int
+ni_sysctl_ipv4_ifconfig_set_uint(const char *ifname, const char *ctl_name, unsigned int newval)
+{
+	return __ni_sysfs_printf(__ni_sysctl_ipv4_ifconfig_path(ifname, ctl_name), "%u", newval);
+}
+
+/*
  * Get/set IPv6 sysctls
  */
 static inline const char *

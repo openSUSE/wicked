@@ -12,6 +12,7 @@
 <service name="ipv4" interface="com.suse.Wicked.Protocol.IPv4" object-class="netif">
   <define name="properties" class="dict">
     <forwarding type="boolean" />
+    <accept-redirects type="boolean" />
   </define>
 
   <method name="changeProtocol">

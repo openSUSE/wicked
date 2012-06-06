@@ -86,6 +86,7 @@ __LIBSRCS= \
 	  dbus-errors.c \
 	  dbus-objects/model.c \
 	  dbus-objects/interface.c \
+	  dbus-objects/ipv4.c \
 	  dbus-objects/ipv6.c \
 	  dbus-objects/ethernet.c \
 	  dbus-objects/wireless.c \

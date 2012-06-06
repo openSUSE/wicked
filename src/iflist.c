@@ -728,6 +728,7 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 		ni_oper_state_type_to_name(dev->link.oper_state));
 #endif
 
+	ni_system_ipv4_devinfo_get(dev, NULL);
 	ni_system_ipv6_devinfo_get(dev, NULL);
 
 	if (dev->link.type == NI_IFTYPE_ETHERNET)

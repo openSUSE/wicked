@@ -87,6 +87,7 @@ ni_objectmodel_register_netif_classes(void)
 	ni_objectmodel_register_service(&ni_objectmodel_netif_list_service);
 
 	/* register built-in protocol services */
+	ni_objectmodel_register_device_service(NI_IFTYPE_UNKNOWN, &ni_objectmodel_ipv4_service);
 	ni_objectmodel_register_device_service(NI_IFTYPE_UNKNOWN, &ni_objectmodel_ipv6_service);
 
 	/* register our built-in addrconf services */

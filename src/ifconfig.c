@@ -752,6 +752,15 @@ ni_system_ppp_delete(ni_netdev_t *dev)
 }
 
 /*
+ * Update the IPv4 sysctl settings for the given interface
+ */
+int
+ni_system_ipv4_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_ipv4_devinfo_t *ipv4)
+{
+	return ni_system_ipv4_devinfo_set(dev, ipv4);
+}
+
+/*
  * Update the IPv6 sysctl settings for the given interface
  */
 int

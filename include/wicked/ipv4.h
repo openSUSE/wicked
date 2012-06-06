@@ -25,5 +25,8 @@ extern void			ni_netdev_set_ipv4(ni_netdev_t *, ni_ipv4_devinfo_t *);
 extern ni_ipv4_devinfo_t *	ni_ipv4_devinfo_new(void);
 extern void			ni_ipv4_devinfo_free(ni_ipv4_devinfo_t *);
 
+extern int			ni_system_ipv4_devinfo_get(ni_netdev_t *, ni_ipv4_devinfo_t *);
+extern int			ni_system_ipv4_devinfo_set(ni_netdev_t *, const ni_ipv4_devinfo_t *);
+
 #endif /* __WICKED_IPv4_H__ */
 
