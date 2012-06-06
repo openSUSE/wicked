@@ -728,35 +728,7 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 		ni_oper_state_type_to_name(dev->link.oper_state));
 #endif
 
-	/* dhcpcd does something very odd when shutting down an interface;
-	 * in addition to removing all IPv4 addresses, it also removes any
-	 * IPv6 addresses. The kernel seems to take this as "disable IPv6
-	 * on this interface", and subsequently, /proc/sys/ipv6/conf/<ifname>
-	 * is gone.
-	 * When we bring the interface back up, everything is fine; but until
-	 * then we need to ignore this glitch.
-	 */
-	{
-		ni_ipv6_devinfo_t *ipv6;
-		
-		ipv6 = ni_netdev_get_ipv6(dev);
-		if (ni_sysctl_ipv6_ifconfig_is_present(dev->name)) {
-			unsigned int val;
-
-			ni_sysctl_ipv6_ifconfig_get_uint(dev->name, "disable_ipv6", &val);
-			ipv6->enabled = !val;
-
-			ni_sysctl_ipv6_ifconfig_get_uint(dev->name, "forwarding", &val);
-			ipv6->forwarding = val;
-
-			ni_sysctl_ipv6_ifconfig_get_uint(dev->name, "autoconf", &val);
-			ipv6->autoconf = val;
-		} else {
-			ipv6->enabled = 0;
-			ipv6->forwarding = 0;
-			ipv6->autoconf = 0;
-		}
-	}
+	ni_system_ipv6_devinfo_get(dev, NULL);
 
 	if (dev->link.type == NI_IFTYPE_ETHERNET)
 		__ni_system_ethernet_refresh(dev);

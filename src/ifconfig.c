@@ -44,7 +44,6 @@
 #include "appconfig.h"
 #include "debug.h"
 
-static int	__ni_netdev_update_ipv6_settings(ni_netdev_t *, const ni_ipv6_devinfo_t *);
 static int	__ni_netdev_update_addrs(ni_netdev_t *dev,
 				const ni_addrconf_lease_t *old_lease,
 				ni_address_t *cfg_addr_list);
@@ -75,13 +74,6 @@ ni_system_interface_link_change(ni_netdev_t *dev, const ni_netdev_req_t *ifp_req
 	ifflags = ifp_req? ifp_req->ifflags : 0;
 	if (ifflags & (NI_IFF_DEVICE_UP|NI_IFF_LINK_UP|NI_IFF_NETWORK_UP)) {
 		ni_debug_ifconfig("bringing up %s", dev->name);
-
-#if 0 /* DEAD */
-		/* If we want to disable ipv6 or ipv6 autoconf, we need to do so prior to bringing
-		 * the interface up. */
-		if (__ni_netdev_update_ipv6_settings(dev, ifp_req->ipv6) < 0)
-			return -1;
-#endif
 
 		if (__ni_rtnl_link_up(dev, ifp_req)) {
 			ni_error("%s: failed to bring up interface (rtnl error)", dev->name);
@@ -763,9 +755,8 @@ ni_system_ppp_delete(ni_netdev_t *dev)
  * Update the IPv6 sysctl settings for the given interface
  */
 int
-__ni_netdev_update_ipv6_settings(ni_netdev_t *dev, const ni_ipv6_devinfo_t *afi)
+ni_system_ipv6_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_ipv6_devinfo_t *ipv6)
 {
-	int enable = afi? afi->enabled : 0;
 	int brought_up = 0;
 	int rv = -1;
 
@@ -784,37 +775,11 @@ __ni_netdev_update_ipv6_settings(ni_netdev_t *dev, const ni_ipv6_devinfo_t *afi)
 		}
 	}
 
-	if (ni_sysctl_ipv6_ifconfig_set_uint(dev->name, "disable_ipv6", !enable) < 0) {
-		ni_error("%s: cannot %s ipv6", dev->name, enable? "enable" : "disable");
-		goto out;
-	}
-	if (enable) {
-#if 0
-		int autoconf = ni_afinfo_addrconf_test(afi, NI_ADDRCONF_STATIC);
+	rv = ni_system_ipv6_devinfo_set(dev, ipv6);
 
-		if (ni_sysctl_ipv6_ifconfig_set_uint(dev->name, "autoconf", autoconf) < 0) {
-			ni_error("%s: cannot %s ipv6 autoconf", dev->name, autoconf? "enable" : "disable");
-			goto out;
-		}
-#endif
-		if (ni_sysctl_ipv6_ifconfig_set_uint(dev->name, "forwarding", afi->forwarding) < 0) {
-			ni_error("%s: cannot %s ipv6 forwarding", dev->name, afi->forwarding? "enable" : "disable");
-			goto out;
-		}
-	}
-	rv = 0;
-
-out:
 	if (brought_up)
 		__ni_rtnl_link_down(dev, RTM_NEWLINK);
-
 	return rv;
-}
-
-int
-ni_system_ipv6_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_ipv6_devinfo_t *conf)
-{
-	return __ni_netdev_update_ipv6_settings(dev, conf);
 }
 
 /*
