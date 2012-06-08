@@ -105,6 +105,7 @@ xml_node_new(const char *ident, xml_node_t *parent)
 
 	if (parent)
 		xml_node_add_child(parent, node);
+	node->refcount = 1;
 
 	return node;
 }
@@ -151,6 +152,11 @@ xml_node_free(xml_node_t *node)
 
 	if (!node)
 		return;
+
+	ni_assert(node->refcount);
+	if (--(node->refcount) != 0)
+		return;
+
 	while ((child = node->children) != NULL) {
 		node->children = child->next;
 		xml_node_free(child);

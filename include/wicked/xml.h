@@ -46,6 +46,7 @@ struct xml_location {
 
 struct xml_node {
 	struct xml_node *	next;
+	unsigned int		refcount;
 
 	char *			name;
 	struct xml_node *	parent;
