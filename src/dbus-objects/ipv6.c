@@ -119,7 +119,7 @@ const ni_dbus_property_t	ni_objectmodel_ipv6_property_table[] = {
 	IPV6_BOOL_PROPERTY(enabled, enabled, RO),
 	IPV6_UINT_PROPERTY(forwarding, forwarding, RO),
 	IPV6_BOOL_PROPERTY(autoconf, autoconf, RO),
-	IPV6_BOOL_PROPERTY(accept-redirects, accept_redirects, RO),
+	IPV6_UINT_PROPERTY(accept-redirects, accept_redirects, RO),
 	IPV6_BOOL_PROPERTY(privacy, privacy, RO),
 
 	{ NULL }
