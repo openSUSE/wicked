@@ -2163,37 +2163,6 @@ ni_ifworker_do_common(ni_ifworker_t *w, ni_iftransition_t *action)
 		if (bind->method == NULL)
 			continue;
 
-		/* If the document does not specify a configuration for this service,
-		 * check if there's an applicable policy that specifies a default
-		 * configuration for this service.
-		 *
-		 * For instance, you can create a WLAN network interface definition
-		 * without a <wireless> element. In this case, ifup would normally
-		 * skip the changeDevice(). However, you could specify the that
-		 * via policy in a separate file:
-		 *
-		 *  <policy>
-		 *   <match><wireless:network>mynetwork</wireless:network></match>
-		 *   <merge>
-		 *    <wireless>
-		 *      <essid>mynetwork</essid>
-		 *      <wpa-psk>...</wpa-psk>
-		 *    </wireless>
-		 *   </merge>
-		 *  </policy>
-		 */
-		if (bind->skip_call) {
-			rv = ni_ifpolicy_rebind_action(w, bind);
-			if (rv < 0)
-				return -1;
-			if (bind->config) {
-				ni_trace("  rebinding argument to <%s> @%s",
-					bind->config->name,
-					xml_node_location(bind->config));
-				bind->skip_call = FALSE;
-			}
-		}
-
 		if (bind->skip_call)
 			continue;
 

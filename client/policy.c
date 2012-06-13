@@ -155,43 +155,10 @@ ni_ifpolicy_by_name(const char *name)
 	return NULL;
 }
 
-static ni_bool_t
+ni_bool_t
 ni_ifpolicy_applicable(ni_ifpolicy_t *policy, ni_ifworker_t *w)
 {
 	return policy->match && ni_ifcondition_check(policy->match, w);
-}
-
-int
-ni_ifpolicy_rebind_action(ni_ifworker_t *w, struct ni_netif_action_binding *bind)
-{
-	ni_ifpolicy_t *policy, *best = NULL;
-	int rv = 0;
-
-	if (!w->use_default_policies)
-		return FALSE;
-
-	/* FIXME: first loop over explicitly specified policies; if we
-	 * find a policy there, record its weight */
-
-	for (policy = ni_ifpolicies; policy; policy = policy->next) {
-		if (policy->action.type == NI_IFPOLICY_TYPE_MERGE && ni_ifpolicy_applicable(policy, w)) {
-			if (best == NULL || best->weight < policy->weight) {
-				/* See if this merge policy specifies input for this method */
-				xml_node_t *config = NULL;
-
-				rv = ni_dbus_xml_map_method_argument(bind->method, 0, policy->action.data, &config, NULL);
-				if (rv < 0)
-					return rv;
-				if (config) {
-					bind->config = config;
-					bind->skip_call = FALSE;
-					best = policy;
-				}
-			}
-		}
-	}
-
-	return rv;
 }
 
 /*
