@@ -195,6 +195,31 @@ xml_node_clone_ref(xml_node_t *src)
 }
 
 /*
+ * Merge node @merge into node @base.
+ */
+void
+xml_node_merge(xml_node_t *base, const xml_node_t *merge)
+{
+	const xml_node_t *mchild;
+
+	for (mchild = merge->children; mchild; mchild = mchild->next) {
+		xml_node_t **pos, *np, *clone;
+
+		for (pos = &base->children; (np = *pos) != NULL; pos = &np->next) {
+			if (ni_string_eq(mchild->name, np->name))
+				goto dont_merge;
+		}
+
+		clone = xml_node_clone(mchild, NULL);
+		__xml_node_list_insert(pos, clone, base);
+
+dont_merge: ;
+	}
+}
+
+
+
+/*
  * Free an XML node
  */
 void
