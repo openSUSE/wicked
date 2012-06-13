@@ -143,6 +143,17 @@ xml_node_clone(const xml_node_t *src, xml_node_t *parent)
 }
 
 /*
+ * "Clone" an XML node by incrementing its refcount
+ */
+xml_node_t *
+xml_node_clone_ref(xml_node_t *src)
+{
+	ni_assert(src->refcount);
+	src->refcount++;
+	return src;
+}
+
+/*
  * Free an XML node
  */
 void
