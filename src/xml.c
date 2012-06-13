@@ -37,7 +37,7 @@ xml_document_new()
 	xml_document_t *doc;
 
 	doc = calloc(1, sizeof(*doc));
-	doc->root = calloc(1, sizeof(xml_node_t));
+	doc->root = xml_node_new(NULL, NULL);
 	return doc;
 }
 
