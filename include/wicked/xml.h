@@ -106,6 +106,7 @@ extern int		xml_node_match_attrs(const xml_node_t *, const ni_var_array_t *);
 
 extern const char *	xml_node_location(const xml_node_t *);
 extern void		xml_location_free(struct xml_location *);
+extern struct xml_location *xml_location_clone(const struct xml_location *);
 
 
 #endif /* __WICKED_XML_H__ */

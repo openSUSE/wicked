@@ -867,6 +867,14 @@ xml_location_new(struct xml_location_shared *shared_location, unsigned int line)
 	return location;
 }
 
+struct xml_location *
+xml_location_clone(const struct xml_location *loc)
+{
+	if (loc == NULL)
+		return NULL;
+	return xml_location_new(loc->shared, loc->line);
+}
+
 void
 xml_location_free(struct xml_location *loc)
 {

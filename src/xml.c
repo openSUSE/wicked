@@ -179,6 +179,7 @@ xml_node_clone(const xml_node_t *src, xml_node_t *parent)
 	for (child = src->children; child; child = child->next)
 		xml_node_clone(child, dst);
 
+	dst->location = xml_location_clone(src->location);
 	return dst;
 }
 
