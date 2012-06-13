@@ -60,6 +60,13 @@ struct xml_node {
 	struct xml_location *	location;
 };
 
+typedef struct xml_node_array	xml_node_array_t;
+struct xml_node_array {
+	unsigned int		count;
+	xml_node_t **		data;
+};
+#define XML_NODE_ARRAY_INIT	{ 0, NULL }
+
 extern xml_document_t *	xml_document_read(const char *);
 extern xml_document_t *	xml_document_scan(FILE *);
 extern int		xml_document_write(const xml_document_t *, const char *);
@@ -109,5 +116,10 @@ extern const char *	xml_node_location(const xml_node_t *);
 extern void		xml_location_free(struct xml_location *);
 extern struct xml_location *xml_location_clone(const struct xml_location *);
 
+extern void		xml_node_array_init(xml_node_array_t *);
+extern void		xml_node_array_destroy(xml_node_array_t *);
+extern void		xml_node_array_append(xml_node_array_t *, xml_node_t *);
+extern xml_node_array_t *xml_node_array_new(void);
+extern void		xml_node_array_free(xml_node_array_t *);
 
 #endif /* __WICKED_XML_H__ */

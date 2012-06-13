@@ -31,6 +31,8 @@
 #include <wicked/logging.h>
 #include "util_priv.h"
 
+#define XML_NODEARRAY_CHUNK	8
+
 xml_document_t *
 xml_document_new()
 {
@@ -567,4 +569,67 @@ xml_node_match_attrs(const xml_node_t *node, const ni_var_array_t *attrlist)
 		}
 	}
 	return 1;
+}
+
+/*
+ * XML node arrays
+ */
+void
+xml_node_array_init(xml_node_array_t *array)
+{
+	memset(array, 0, sizeof(*array));
+}
+
+void
+xml_node_array_destroy(xml_node_array_t *array)
+{
+	unsigned int i;
+
+	for (i = 0; i < array->count; ++i)
+		xml_node_free(array->data[i]);
+
+	if (array->data)
+		free(array->data);
+	memset(array, 0, sizeof(*array));
+}
+
+xml_node_array_t *
+xml_node_array_new(void)
+{
+	xml_node_array_t *array;
+
+	array = xcalloc(1, sizeof(*array));
+	return array;
+}
+
+void
+xml_node_array_free(xml_node_array_t *array)
+{
+	xml_node_array_destroy(array);
+	free(array);
+}
+
+static void
+__xml_node_array_realloc(xml_node_array_t *array, unsigned int newsize)
+{
+	xml_node_t **newdata;
+	unsigned int i;
+
+	newsize = (newsize + XML_NODEARRAY_CHUNK) + 1;
+	newdata = realloc(array->data, newsize * sizeof(array->data[0]));
+	if (!newdata)
+		ni_fatal("%s: out of memory", __FUNCTION__);
+
+	array->data = newdata;
+	for (i = array->count; i < newsize; ++i)
+		array->data[i] = NULL;
+}
+
+void
+xml_node_array_append(xml_node_array_t *array, xml_node_t *node)
+{
+	if ((array->count % XML_NODEARRAY_CHUNK) == 0)
+		__xml_node_array_realloc(array, array->count);
+
+	array->data[array->count++] = xml_node_clone_ref(node);
 }
