@@ -79,19 +79,59 @@ xml_document_free(xml_document_t *doc)
 	free(doc);
 }
 
+/*
+ * Helper functions for xml node list management
+ */
+static inline void
+__xml_node_list_insert(xml_node_t **pos, xml_node_t *node, xml_node_t *parent)
+{
+	node->parent = parent;
+	node->next = *pos;
+	*pos = node;
+}
+
+static inline xml_node_t *
+__xml_node_list_remove(xml_node_t **pos)
+{
+	xml_node_t *np = *pos;
+
+	if (np) {
+		np->parent = NULL;
+		*pos = np->next;
+		np->next = NULL;
+	}
+
+	return np;
+}
+
+static inline void
+__xml_node_list_drop(xml_node_t **pos)
+{
+	xml_node_t *np;
+
+	if ((np = __xml_node_list_remove(pos)) != NULL)
+		xml_node_free(np);
+}
+
+static inline xml_node_t **
+__xml_node_list_tail(xml_node_t **pos)
+{
+	xml_node_t *np;
+
+	while ((np = *pos) != NULL)
+		pos = &np->next;
+	return pos;
+}
+
 void
 xml_node_add_child(xml_node_t *parent, xml_node_t *child)
 {
-	xml_node_t **tail, *np;
+	xml_node_t **tail;
 
 	ni_assert(child->parent == NULL);
 
-	tail = &parent->children;
-	while ((np = *tail) != NULL)
-		tail = &np->next;
-
-	child->parent = parent;
-	*tail = child;
+	tail = __xml_node_list_tail(&parent->children);
+	__xml_node_list_insert(tail, child, parent);
 }
 
 xml_node_t *
@@ -328,16 +368,14 @@ xml_node_replace_child(xml_node_t *node, xml_node_t *newchild)
 	pos = &node->children;
 	while ((child = *pos) != NULL) {
 		if (!strcmp(child->name, newchild->name)) {
-			*pos = child->next;
-			child->parent = NULL;
-			xml_node_free(child);
+			__xml_node_list_drop(pos);
+			found++;
 		} else {
 			pos = &child->next;
 		}
 	}
 
-	newchild->parent = node;
-	*pos = newchild;
+	__xml_node_list_insert(pos, newchild, node);
 	return found;
 }
 
@@ -350,9 +388,7 @@ xml_node_delete_child(xml_node_t *node, const char *name)
 	pos = &node->children;
 	while ((child = *pos) != NULL) {
 		if (!strcmp(child->name, name)) {
-			*pos = child->next;
-			child->parent = NULL;
-			xml_node_free(child);
+			__xml_node_list_drop(pos);
 			found++;
 		} else {
 			pos = &child->next;
@@ -372,9 +408,7 @@ xml_node_delete_child_node(xml_node_t *node, xml_node_t *destroy)
 	pos = &node->children;
 	while ((child = *pos) != NULL) {
 		if (child == destroy) {
-			*pos = child->next;
-			child->parent = NULL;
-			xml_node_free(child);
+			__xml_node_list_drop(pos);
 			return 1;
 		}
 		pos = &child->next;
@@ -394,9 +428,7 @@ xml_node_detach(xml_node_t *node)
 	pos = &parent->children;
 	while ((sibling = *pos) != NULL) {
 		if (sibling == node) {
-			*pos = node->next;
-			node->parent = NULL;
-			node->next = NULL;
+			__xml_node_list_remove(pos);
 			break;
 		}
 		pos = &sibling->next;
