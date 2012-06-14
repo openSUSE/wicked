@@ -2948,7 +2948,7 @@ do_ifdown(int argc, char **argv)
 	static ni_ifmatcher_t ifmatch;
 	const char *opt_ifconfig = WICKED_IFCONFIG_DIR_PATH;
 	unsigned int nmarked;
-	int opt_delete = 0;
+	/* int opt_delete = 0; */
 	ni_objectmodel_fsm_t *fsm;
 	int c;
 
@@ -2965,7 +2965,7 @@ do_ifdown(int argc, char **argv)
 
 		case OPT_DELETE:
 			fsm->target_max_state = STATE_DEVICE_DOWN;
-			opt_delete = 1;
+			/* opt_delete = 1; */
 			break;
 
 		case OPT_TIMEOUT:
@@ -3040,7 +3040,7 @@ do_ifcheck(int argc, char **argv)
 	};
 	static ni_ifmatcher_t ifmatch;
 	const char *opt_ifconfig = WICKED_IFCONFIG_DIR_PATH;
-	unsigned int nmarked;
+	/* unsigned int nmarked; */
 	ni_bool_t opt_check_changed = FALSE;
 	ni_bool_t opt_quiet = FALSE;
 	const char *opt_state = NULL;
@@ -3104,7 +3104,7 @@ usage:
 
 	ni_ifworkers_refresh_state(fsm);
 
-	nmarked = 0;
+	/* nmarked = 0; */
 	while (optind < argc) {
 		ni_ifworker_array_t marked = { 0, NULL };
 		const char *ifname = argv[optind++];
