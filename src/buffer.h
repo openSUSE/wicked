@@ -108,13 +108,19 @@ ni_buffer_tail(const ni_buffer_t *bp)
 static inline unsigned int
 ni_buffer_count(const ni_buffer_t *bp)
 {
-	return bp->tail - bp->head;
+	if (bp->tail > bp->head)
+		return bp->tail - bp->head;
+	else
+		return 0;
 }
 
 static inline unsigned int
 ni_buffer_tailroom(const ni_buffer_t *bp)
 {
-	return bp->size - bp->tail;
+	if (bp->size > bp->tail)
+		return bp->size - bp->tail;
+	else
+		return 0;
 }
 
 static inline int
