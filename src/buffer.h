@@ -185,7 +185,7 @@ ni_buffer_pull_head(ni_buffer_t *bp, size_t count)
 	void *result;
 
 	if (bp->tail - bp->head < count) {
-		bp->overflow = 1;
+		bp->underflow = 1;
 		return NULL;
 	}
 
