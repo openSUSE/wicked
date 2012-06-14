@@ -1537,12 +1537,35 @@ ni_srandom(void)
  * Alloc helpers with NULLL check
  */
 void *
+xmalloc(size_t size)
+{
+	void *p = malloc(size);
+
+	if (p == NULL)
+		ni_fatal("allocation failed malloc(%zu): %m", size);
+
+	return p;
+}
+
+void *
 xcalloc(unsigned int count, size_t size)
 {
 	void *p = calloc(count, size);
 
 	if (p == NULL)
-		ni_fatal("allocation failed calloc(%u, %lu): %m", count, (unsigned long) size);
+		ni_fatal("allocation failed calloc(%u, %zu): %m", count, size);
+
+	return p;
+}
+
+void *
+xrealloc(void *ptr, size_t size)
+{
+	void *p = realloc(ptr, size);
+
+	if (p == NULL)
+		ni_fatal("allocation failed realloc(%p, %zu): %m", ptr, size);
+
 	return p;
 }
 
