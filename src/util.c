@@ -1125,7 +1125,6 @@ __ni_pidfile_write(const char *pidfile, unsigned int permissions, pid_t pid, int
 		return -1;
 	}
 
-	fclose(fp);
 	return 0;
 }
 
