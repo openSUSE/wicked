@@ -34,23 +34,35 @@
 ### END INIT INFO
 # 
 
-# Check for missing binaries (stale symlinks should not happen)
-# Note: Special treatment of stop for LSB conformance
+# Check for missing binary/config (stale symlinks should not happen)
+# Note: Special treatment of stop/status for LSB conformance
 wicked_BIN=/sbin/wickedd
-test -x $wicked_BIN || { echo "$wicked_BIN not installed"; 
-	if [ "$1" = "stop" ]; then exit 0;
-	else exit 5; fi; }
-
-# Check for existence of needed config file and read it
-wicked_CONFIG=/etc/sysconfig/wicked
-test -r $wicked_CONFIG || { echo "$wicked_CONFIG not existing";
-	if [ "$1" = "stop" ]; then exit 0;
-	else exit 6; fi; }
-
+wicked_CONFIG=/etc/wicked/config.xml
 wicked_RUNDIR=/var/run/wicked
-
-# Read config	
-. $wicked_CONFIG
+if ! [ -x "$wicked_BIN"  ]; then
+	case $1 in
+	stop)   ;;
+	*)	echo -n >&2 "$0: \"$wicked_BIN\" is not executable. Exiting."
+		case $1 in
+		status) rc_failed 4 ;;
+		*)      rc_failed 5 ;;
+		esac
+		rc_status -v
+	;;
+	esac
+	rc_exit
+fi
+if ! [ -r "$wicked_CONFIG" ] ; then
+	case $1 in
+	stop|status) ;;
+	*)
+		echo -n >&2 "$0: \"$wicked_CONFIG\" config file missed. Exiting."
+		rc_failed 6
+		rc_status -v
+		rc_exit
+	;;
+	esac
+fi
 
 . /etc/rc.status
 
