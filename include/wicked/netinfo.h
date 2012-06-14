@@ -23,6 +23,7 @@
 typedef union ni_sockaddr {
 	sa_family_t		ss_family;
 	struct sockaddr_storage	ss;
+	struct sockaddr        	sa;
 	struct sockaddr_in	sin;
 	struct sockaddr_in6	six;
 } ni_sockaddr_t;
