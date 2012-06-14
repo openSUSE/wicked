@@ -336,7 +336,7 @@ __ni_socket_wrap(int fd, int sotype, const struct ni_socket_ops *iops)
 {
 	ni_socket_t *socket;
 
-	socket = calloc(1, sizeof(*socket));
+	socket = xcalloc(1, sizeof(*socket));
 	socket->refcount = 1;
 	socket->__fd = fd;
 	socket->stream = (sotype == SOCK_STREAM)? 1 : 0;
