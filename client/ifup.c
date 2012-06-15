@@ -403,6 +403,25 @@ ni_ifworker_by_modem(ni_objectmodel_fsm_t *fsm, const ni_modem_t *dev)
 	return NULL;
 }
 
+ni_bool_t
+ni_ifworker_match_alias(const ni_ifworker_t *w, const char *alias)
+{
+	xml_node_t *node;
+
+	if (!alias)
+		return FALSE;
+
+	if (w->device && ni_string_eq(w->device->link.alias, alias))
+		return TRUE;
+
+	if (w->config && (node = xml_node_get_child(w->config, "alias")) != NULL) {
+		if (ni_string_eq(node->cdata, alias))
+			return TRUE;
+	}
+
+	return FALSE;
+}
+
 static ni_ifworker_t *
 ni_ifworker_by_alias(ni_objectmodel_fsm_t *fsm, const char *alias)
 {
@@ -413,15 +432,9 @@ ni_ifworker_by_alias(ni_objectmodel_fsm_t *fsm, const char *alias)
 
 	for (i = 0; i < fsm->workers.count; ++i) {
 		ni_ifworker_t *w = fsm->workers.data[i];
-		xml_node_t *node;
 
-		if (w->device && ni_string_eq(w->device->link.alias, alias))
+		if (ni_ifworker_match_alias(w, alias))
 			return w;
-
-		if (w->config && (node = xml_node_get_child(w->config, "alias")) != NULL) {
-			if (ni_string_eq(node->cdata, alias))
-				return w;
-		}
 	}
 
 	return NULL;

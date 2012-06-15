@@ -188,6 +188,7 @@ extern void			ni_objectmodel_fsm_free(ni_objectmodel_fsm_t *);
 
 extern int			ni_ifworker_type_from_string(const char *);
 extern ni_ifworker_req_t *	ni_ifworker_reachability_check_new(xml_node_t *);
+extern ni_bool_t		ni_ifworker_match_alias(const ni_ifworker_t *w, const char *alias);
 
 extern ni_ifworker_req_t *	ni_ifworker_req_new(ni_ifworker_req_fn_t *, ni_ifworker_req_dtor_t *);
 
