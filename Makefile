@@ -59,6 +59,7 @@ __LIBSRCS= \
 	  firmware.c \
 	  nis.c \
 	  resolver.c \
+	  async-resolver.c \
 	  update.c \
 	  leasefile.c \
 	  xml.c \
@@ -263,6 +264,7 @@ $(LIBNAME).a: $(LIBOBJS)
 	@rm -f $@
 	ar cr $@ $(LIBOBJS)
 
+$(LIBNAME).so: LDFLAGS += -lanl
 $(LIBNAME).so: $(SHLIBOBJS)
 	$(CC) $(CFLAGS) -shared -Wl,-soname,$(LIBSONAME) $(LDFLAGS) -o $@ $(SHLIBOBJS)
 	ln -sf $@ $(LIBSONAME)
