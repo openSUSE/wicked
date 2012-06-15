@@ -33,7 +33,7 @@
 </define>
 
 <define name="uuid-type">
-  <array element-type="byte" minlen="16" maxlen="16" />
+  <array element-type="byte" minlen="16" maxlen="16" notation="uuid"/>
 </define>
 
 <define name="external-file">

@@ -1223,6 +1223,41 @@ __ni_notation_hwaddr_print(const unsigned char *data_ptr, unsigned int data_len,
 	return ni_format_hex(data_ptr, data_len, buffer, size);
 }
 
+static ni_bool_t
+__ni_notation_uuid_parse(const char *string_value, unsigned char **retbuf, unsigned int *retlen)
+{
+	ni_uuid_t uuid;
+	void *p;
+
+	if (ni_uuid_parse(&uuid, string_value) < 0)
+		return FALSE;
+
+	p = __ni_notation_alloc(16);
+	memcpy(p, uuid.octets, 16);
+
+	*retbuf = p;
+	*retlen = 16;
+	return TRUE;
+}
+
+static const char *
+__ni_notation_uuid_print(const unsigned char *data_ptr, unsigned int data_len, char *buffer, size_t size)
+{
+	ni_uuid_t uuid;
+	const char *formatted;
+
+	if (data_len != 16)
+		return NULL;
+	memcpy(uuid.octets, buffer, 16);
+
+	formatted = ni_uuid_print(&uuid);
+	if (strlen(formatted) >= size)
+		return NULL;
+
+	strcpy(buffer, formatted);
+	return buffer;
+}
+
 /*
  * Parse and print functions for sockaddrs and prefixed sockaddrs
  */
@@ -1362,6 +1397,11 @@ static ni_xs_notation_t	__ni_dbus_notations[] = {
 		.array_element_type = DBUS_TYPE_BYTE,
 		.parse = __ni_notation_hwaddr_parse,
 		.print = __ni_notation_hwaddr_print,
+	}, {
+		.name = "uuid",
+		.array_element_type = DBUS_TYPE_BYTE,
+		.parse = __ni_notation_uuid_parse,
+		.print = __ni_notation_uuid_print,
 	}, {
 		.name = "net-address",
 		.array_element_type = DBUS_TYPE_BYTE,
