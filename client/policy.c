@@ -41,6 +41,7 @@ struct ni_ifcondition {
 			ni_ifcondition_t *right;
 		} terms;
 		const ni_dbus_class_t *	class;
+		char *			alias;
 	} args;
 };
 
@@ -734,6 +735,30 @@ ni_ifcondition_device(xml_node_t *node)
 }
 
 /*
+ * <device-alias>foobidoo</device-alias>
+ */
+static ni_bool_t
+__ni_ifpolicy_match_device_alias_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
+{
+	return ni_ifworker_match_alias(w, cond->args.alias);
+}
+
+static ni_ifcondition_t *
+ni_ifcondition_device_alias(xml_node_t *node)
+{
+	ni_ifcondition_t *result;
+
+	if (node->cdata == NULL) {
+		ni_error("%s: no alias name specified", xml_node_location(node));
+		return NULL;
+	}
+
+	result = ni_ifcondition_new(__ni_ifpolicy_match_device_alias_check);
+	ni_string_dup(&result->args.alias, node->cdata);
+	return result;
+}
+
+/*
  * <any>...</any>
  */
 static ni_bool_t
@@ -788,6 +813,8 @@ ni_ifcondition_from_xml(xml_node_t *node)
 		return ni_ifcondition_class(node);
 	if (!strcmp(node->name, "link-type"))
 		return ni_ifcondition_linktype(node);
+	if (!strcmp(node->name, "device-alias"))
+		return ni_ifcondition_device_alias(node);
 
 	ni_error("%s: unsupported policy conditional <%s>", xml_node_location(node), node->name);
 	return NULL;
