@@ -17,6 +17,7 @@ typedef unsigned char		ni_bool_t;
 # define FALSE 0
 #endif
 
+typedef union ni_sockaddr	ni_sockaddr_t;
 typedef struct ni_netconfig	ni_netconfig_t;
 typedef struct ni_netdev	ni_netdev_t;
 typedef struct ni_route		ni_route_t;
