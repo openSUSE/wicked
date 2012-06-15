@@ -2436,6 +2436,18 @@ ni_ifworker_fsm_bind_methods(ni_ifworker_t *w)
 	unsigned int unbound = 0;
 	int rv;
 
+	if (w->use_default_policies) {
+		static const unsigned int MAX_POLICIES = 64;
+		const ni_ifpolicy_t *policies[MAX_POLICIES];
+		unsigned int count;
+
+		ni_debug_application("%s: applying policies", w->name);
+
+		count = ni_ifpolicy_get_applicable_policies(w, policies, MAX_POLICIES);
+
+		w->config = ni_ifpolicy_transform_document(w->config, policies, count);
+	}
+
 	ni_debug_application("%s: binding dbus calls to FSM transitions", w->name);
 	for (action = w->fsm.action_table; action->func; ++action) {
 		if (action->bound)
