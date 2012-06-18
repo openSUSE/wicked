@@ -18,6 +18,7 @@ LDFLAGS	+=
 
 CPPFLAGS:= $(DEFS) $(CPPFLAGS)
 CPPFLAGS+= -I. -Iinclude -Isrc $(LIBNL_CFLAGS) $(LIBDBUS_CFLAGS)
+CPPFLAGS+= -DWICKED_CONFIGDIR=\"$(wickedconfigdir)\"
 
 APPS	= wicked wickedd \
 	  dhcp4-supplicant autoip4-supplicant

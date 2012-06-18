@@ -12,8 +12,6 @@
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
 
-#define NI_DEFAULT_CONFIG_PATH	"/etc/wicked/config.xml"
-
 struct ni_script_action {
 	ni_script_action_t *	next;
 	char *			name;

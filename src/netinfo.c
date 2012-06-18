@@ -33,6 +33,8 @@
 #include "sysfs.h"
 #include "modem-manager.h"
 
+#define NI_DEFAULT_CONFIG_PATH	WICKED_CONFIGDIR "/config.xml"
+
 struct ni_netconfig {
 	ni_netdev_t *		interfaces;
 	struct ni_route *	routes;		/* should kill this */
