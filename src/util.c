@@ -1311,6 +1311,21 @@ ni_file_read(FILE *fp, unsigned int *lenp)
 }
 
 /*
+ * Create directory if it does not exist
+ */
+int
+ni_mkdir_maybe(const char *pathname, unsigned int mode)
+{
+	if (access(pathname, F_OK) >= 0)
+		return 0;
+
+	if (errno == ENOENT)
+		return mkdir(pathname, mode);
+
+	return -1;
+}
+
+/*
  * Copy file for backup
  */
 int
@@ -1320,8 +1335,8 @@ ni_backup_file_to(const char *srcpath, const char *backupdir)
 
 	if (!(dstpath = __ni_build_backup_path(srcpath, backupdir)))
 		return -1;
-	if (access(backupdir, F_OK) < 0 && errno == ENOENT)
-		mkdir(backupdir, 0700);
+	if (ni_mkdir_maybe(backupdir, 0700) < 0)
+		return -1;
 	if (access(dstpath, F_OK) == 0) {
 		ni_debug_readwrite("%s(%s, %s): backup copy already exists",
 				__FUNCTION__, srcpath, backupdir);
