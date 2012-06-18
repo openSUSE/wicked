@@ -172,7 +172,7 @@ install-devel: install-devel-lib install-devel-data
 
 install-no-devel: install-lib install-bin install-data install-man
 
-install-bin: $(APPBINS) install-bin
+install-bin: $(APPBINS) install-lib
 	install -d -m 755 $(DESTDIR)$(sbindir)
 	for app in $(APPS); do \
 		install $(STRIP_FLAG) -m 555 bin/$$app $(DESTDIR)$(sbindir); \
