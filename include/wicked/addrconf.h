@@ -105,30 +105,6 @@ enum ni_lease_event {
 	NI_EVENT_LEASE_LOST
 };
 
-#define NI_ADDRCONF_MASK(mode)		(1 << (mode))
-#define NI_ADDRCONF_TEST(mask, mode)	!!((mask) & NI_ADDRCONF_MASK(mode))
-
-static inline void
-ni_afinfo_addrconf_enable(struct ni_afinfo *afi, ni_addrconf_mode_t mode)
-{
-	afi->addrconf |= NI_ADDRCONF_MASK(mode);
-}
-
-static inline void
-ni_afinfo_addrconf_disable(struct ni_afinfo *afi, ni_addrconf_mode_t mode)
-{
-	afi->addrconf &= ~NI_ADDRCONF_MASK(mode);
-}
-
-static inline int
-ni_afinfo_addrconf_test(const struct ni_afinfo *afi, ni_addrconf_mode_t mode)
-{
-	return !!(afi->addrconf & NI_ADDRCONF_MASK(mode));
-}
-
-extern ni_afinfo_t *	ni_afinfo_new(int family);
-extern void		ni_afinfo_free(ni_afinfo_t *);
-
 extern ni_addrconf_lease_t *ni_addrconf_lease_new(int type, int family);
 extern void		ni_addrconf_lease_destroy(ni_addrconf_lease_t *);
 extern void		ni_addrconf_lease_free(ni_addrconf_lease_t *);

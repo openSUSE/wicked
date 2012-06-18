@@ -931,29 +931,8 @@ __ni_objectmodel_netif_set_routes(ni_dbus_object_t *object,
 }
 
 /*
- * Get/set afinfo
+ * Properties of an interface
  */
-static dbus_bool_t
-__ni_objectmodel_get_afinfo(ni_afinfo_t *afi, ni_dbus_variant_t *dict, DBusError *error)
-{
-	ni_dbus_dict_add_bool(dict, "enabled", afi->enabled);
-	ni_dbus_dict_add_bool(dict, "forwarding", afi->forwarding);
-	return TRUE;
-}
-
-static dbus_bool_t
-__ni_objectmodel_set_afinfo(ni_afinfo_t *afi, const ni_dbus_variant_t *dict, DBusError *error)
-{
-	dbus_bool_t value;
-
-	if (ni_dbus_dict_get_bool(dict, "enabled", &value))
-		afi->enabled = value;
-	if (ni_dbus_dict_get_bool(dict, "forwarding", &value))
-		afi->forwarding = value;
-
-	return TRUE;
-}
-
 #define NETIF_PROPERTY_SIGNATURE(signature, __name, rw) \
 	__NI_DBUS_PROPERTY(signature, __name, __ni_objectmodel_netif, rw)
 
@@ -995,69 +974,6 @@ ni_objectmodel_get_netdev_req(const ni_dbus_object_t *object, DBusError *error)
 	return ni_dbus_object_get_handle(object);
 }
 
-/*
- * Property InterfaceRequest.ipv4
- */
-static dbus_bool_t
-__ni_objectmodel_netif_request_get_ipv4(const ni_dbus_object_t *object,
-				const ni_dbus_property_t *property,
-				ni_dbus_variant_t *result,
-				DBusError *error)
-{
-	ni_netdev_req_t *req = ni_dbus_object_get_handle(object);
-
-	ni_dbus_variant_init_dict(result);
-	if (req->ipv4 && !__ni_objectmodel_get_afinfo(req->ipv4, result, error))
-		return FALSE;
-	return TRUE;
-}
-
-static dbus_bool_t
-__ni_objectmodel_netif_request_set_ipv4(ni_dbus_object_t *object,
-				const ni_dbus_property_t *property,
-				const ni_dbus_variant_t *argument,
-				DBusError *error)
-{
-	ni_netdev_req_t *req = ni_dbus_object_get_handle(object);
-
-	if (!req->ipv4)
-		req->ipv4 = ni_afinfo_new(AF_INET);
-	if (!__ni_objectmodel_set_afinfo(req->ipv4, argument, error))
-		return FALSE;
-	return TRUE;
-}
-
-/*
- * Property InterfaceRequest.ipv6
- */
-static dbus_bool_t
-__ni_objectmodel_netif_request_get_ipv6(const ni_dbus_object_t *object,
-				const ni_dbus_property_t *property,
-				ni_dbus_variant_t *result,
-				DBusError *error)
-{
-	ni_netdev_req_t *req = ni_dbus_object_get_handle(object);
-
-	if (req->ipv6 && !__ni_objectmodel_get_afinfo(req->ipv6, result, error))
-		return FALSE;
-	return TRUE;
-}
-
-static dbus_bool_t
-__ni_objectmodel_netif_request_set_ipv6(ni_dbus_object_t *object,
-				const ni_dbus_property_t *property,
-				const ni_dbus_variant_t *argument,
-				DBusError *error)
-{
-	ni_netdev_req_t *req = ni_dbus_object_get_handle(object);
-
-	if (!req->ipv6)
-		req->ipv6 = ni_afinfo_new(AF_INET6);
-	if (!__ni_objectmodel_set_afinfo(req->ipv6, argument, error))
-		return FALSE;
-	return TRUE;
-}
-
 #define NETIF_REQUEST_UINT_PROPERTY(dbus_name, name, rw) \
 	NI_DBUS_GENERIC_UINT_PROPERTY(netdev_req, dbus_name, name, rw)
 #define NETIF_REQUEST_PROPERTY_SIGNATURE(signature, __name, rw) \
@@ -1068,9 +984,6 @@ static ni_dbus_property_t	ni_objectmodel_netif_request_properties[] = {
 	NETIF_REQUEST_UINT_PROPERTY(mtu, mtu, RO),
 	NETIF_REQUEST_UINT_PROPERTY(metric, metric, RO),
 	NETIF_REQUEST_UINT_PROPERTY(txqlen, txqlen, RO),
-
-	NETIF_REQUEST_PROPERTY_SIGNATURE(NI_DBUS_DICT_SIGNATURE, ipv4, RO),
-	NETIF_REQUEST_PROPERTY_SIGNATURE(NI_DBUS_DICT_SIGNATURE, ipv6, RO),
 
 	{ NULL }
 };

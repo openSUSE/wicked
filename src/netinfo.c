@@ -450,41 +450,8 @@ ni_netdev_req_new(void)
 void
 ni_netdev_req_free(ni_netdev_req_t *req)
 {
-	if (req->ipv4)
-		ni_afinfo_free(req->ipv4);
-	if (req->ipv6)
-		ni_afinfo_free(req->ipv6);
 	ni_string_free(&req->alias);
 	free(req);
-}
-
-/*
- * Address configuration info
- */
-ni_afinfo_t *
-ni_afinfo_new(int family)
-{
-	ni_afinfo_t *afi = xcalloc(1, sizeof(*afi));
-
-	__ni_afinfo_init(afi, family);
-	return afi;
-}
-
-void
-__ni_afinfo_init(ni_afinfo_t *afi, int family)
-{
-	afi->family = family;
-	if (family == AF_INET)
-		afi->addrconf = DEFAULT_ADDRCONF_IPV4;
-	else if (family == AF_INET6)
-		afi->addrconf = DEFAULT_ADDRCONF_IPV6;
-	afi->enabled = 1;
-}
-
-void
-ni_afinfo_free(ni_afinfo_t *afi)
-{
-	free(afi);
 }
 
 /*

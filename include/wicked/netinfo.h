@@ -20,20 +20,6 @@
 typedef struct ni_link_stats	ni_link_stats_t;
 typedef struct ni_ethtool_stats	ni_ethtool_stats_t;
 
-enum {
-	NI_AF_MASK_IPV4		= 0x0001,
-	NI_AF_MASK_IPV6		= 0x0002,
-};
-
-/* XXX nuke */
-typedef struct ni_afinfo {
-	int			family;
-	unsigned int		enabled;
-	unsigned int		forwarding;
-
-	unsigned int		addrconf;	/* bitmask of enabled addrconf modes */
-} ni_afinfo_t;
-
 typedef struct ni_linkinfo ni_linkinfo_t;
 struct ni_linkinfo {
 	ni_iftype_t		type;
@@ -105,10 +91,6 @@ struct ni_netdev_req {
 	unsigned int		txqlen;
 
 	char *			alias;
-
-	/* Network layer */
-	ni_afinfo_t *		ipv4;
-	ni_afinfo_t *		ipv6;
 };
 
 #define CONFIG_WICKED_STATEDIR	"/var/run/wicked"

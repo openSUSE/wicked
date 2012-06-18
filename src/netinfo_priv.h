@@ -45,8 +45,6 @@ extern ni_route_t *	__ni_netdev_add_autoconf_prefix(ni_netdev_t *, const ni_sock
 extern unsigned int	__ni_netdev_translate_ifflags(unsigned int);
 extern void		__ni_netdev_event(ni_netconfig_t *, ni_netdev_t *, ni_event_t);
 
-extern void		__ni_afinfo_init(ni_afinfo_t *, int af);
-
 extern ni_route_t *	__ni_route_new(ni_route_t **, unsigned int prefix_len,
 				const ni_sockaddr_t *, const ni_sockaddr_t *);
 extern void		__ni_route_list_append(ni_route_t **, ni_route_t *);

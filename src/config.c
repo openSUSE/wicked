@@ -24,7 +24,7 @@
 #include "xml-schema.h"
 
 static int		ni_config_parse_addrconf_dhcp(struct ni_config_dhcp *, xml_node_t *);
-static int		ni_config_parse_afinfo(ni_afinfo_t *, const char *, xml_node_t *);
+static int		ni_config_parse_afconfig(struct ni_afconfig *, const char *, xml_node_t *);
 static int		ni_config_parse_update_targets(unsigned int *, const xml_node_t *);
 static int		ni_config_parse_fslocation(ni_config_fslocation_t *, const char *, xml_node_t *);
 static int		ni_config_parse_objectmodel_extension(ni_extension_t **, xml_node_t *);
@@ -42,10 +42,8 @@ ni_config_new()
 	ni_config_t *conf;
 
 	conf = calloc(1, sizeof(*conf));
-	conf->ipv4.family = AF_INET;
-	conf->ipv4.enabled = 1;
-	conf->ipv6.family = AF_INET6;
-	conf->ipv6.enabled = 1;
+	conf->ipv4.enabled = TRUE;
+	conf->ipv6.enabled = TRUE;
 
 	conf->addrconf.default_allow_update = ~0;
 	conf->addrconf.dhcp.allow_update = ~0;
@@ -93,8 +91,8 @@ ni_config_parse(const char *filename)
 
 	conf->pidfile.mode = 0644;
 
-	if (ni_config_parse_afinfo(&conf->ipv4, "ipv4", node) < 0
-	 || ni_config_parse_afinfo(&conf->ipv6, "ipv6", node) < 0
+	if (ni_config_parse_afconfig(&conf->ipv4, "ipv4", node) < 0
+	 || ni_config_parse_afconfig(&conf->ipv6, "ipv6", node) < 0
 	 || ni_config_parse_fslocation(&conf->pidfile, "pidfile", node) < 0)
 		goto failed;
 
@@ -235,7 +233,7 @@ ni_config_parse_update_targets(unsigned int *update_mask, const xml_node_t *node
 }
 
 int
-ni_config_parse_afinfo(ni_afinfo_t *afi, const char *afname, xml_node_t *node)
+ni_config_parse_afconfig(struct ni_afconfig *afi, const char *afname, xml_node_t *node)
 {
 	/* No config data for this address family? use defaults. */
 	if (!(node = xml_node_get_child(node, afname)))
