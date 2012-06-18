@@ -44,13 +44,6 @@ struct ni_netconfig {
 	ni_ibft_nic_array_t	ibft_nics;
 };
 
-#define DEFAULT_ADDRCONF_IPV4 (\
-			NI_ADDRCONF_MASK(NI_ADDRCONF_STATIC) |\
-			NI_ADDRCONF_MASK(NI_ADDRCONF_DHCP))
-#define DEFAULT_ADDRCONF_IPV6 (\
-			NI_ADDRCONF_MASK(NI_ADDRCONF_STATIC) |\
-			NI_ADDRCONF_MASK(NI_ADDRCONF_AUTOCONF))
-
 /*
  * Global data for netinfo library
  */
