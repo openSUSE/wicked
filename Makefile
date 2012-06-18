@@ -309,16 +309,13 @@ $(DIST_ARCHIVE): wicked.spec
 		--exclude="$(DIST_DIRNAME)*" \
 		--exclude="$(OBJ)"           \
 		--exclude="$(BIN)"           \
-		--exclude=".dist.*"          \
+		--exclude="*/.[^.]*"         \
 		--exclude="*~"               \
 		--exclude="*.o"              \
 		--exclude="*.a"              \
 		--exclude="*.so*"            \
 		--exclude="*.log"            \
 		--exclude="*.swp"            \
-		--exclude=".git*"            \
-		--exclude=".depend"          \
-		--exclude=".*project"        \
 		--exclude="wicked.pc"        \
 		--exclude="config.h"         \
 		--exclude="config.guess"     \
