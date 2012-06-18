@@ -16,8 +16,6 @@
 #include "netinfo_priv.h"
 #include "appconfig.h"
 
-#define CONFIG_WICKED_BACKUP_DIR	CONFIG_WICKED_STATEDIR "/backup"
-
 int
 __ni_system_hostname_get(char *buffer, size_t size)
 {
@@ -92,14 +90,14 @@ __ni_system_nis_put(const ni_nis_info_t *nis)
 int
 __ni_system_nis_backup(void)
 {
-	return ni_backup_file_to(_PATH_YP_CONF, CONFIG_WICKED_BACKUP_DIR);
+	return ni_backup_file_to(_PATH_YP_CONF, ni_config_backupdir());
 }
 
 int
 __ni_system_nis_restore(void)
 {
 	__ni_system_nis_domain_put(NULL);
-	return ni_restore_file_from(_PATH_YP_CONF, CONFIG_WICKED_BACKUP_DIR);
+	return ni_restore_file_from(_PATH_YP_CONF, ni_config_backupdir());
 }
 
 ni_resolver_info_t *
@@ -129,11 +127,11 @@ __ni_system_resolver_put(const ni_resolver_info_t *resolver)
 int
 __ni_system_resolver_backup(void)
 {
-	return ni_backup_file_to(_PATH_RESOLV_CONF, CONFIG_WICKED_BACKUP_DIR);
+	return ni_backup_file_to(_PATH_RESOLV_CONF, ni_config_backupdir());
 }
 
 int
 __ni_system_resolver_restore(void)
 {
-	return ni_restore_file_from(_PATH_RESOLV_CONF, CONFIG_WICKED_BACKUP_DIR);
+	return ni_restore_file_from(_PATH_RESOLV_CONF, ni_config_backupdir());
 }

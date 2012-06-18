@@ -8,6 +8,8 @@
 
   <pidfile path="/var/run/wicked.pid" mode="0644"/>
 
+  <statedir path="/var/run/wicked" mode="0755"/>
+
   <dbus name="com.suse.Wicked" />
   <schema name="/etc/wicked/schema/wicked.xml"/>
 

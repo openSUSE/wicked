@@ -70,6 +70,8 @@ typedef struct ni_config {
 	} ipv4, ipv6;
 
 	ni_config_fslocation_t	pidfile;
+	ni_config_fslocation_t	statedir;
+	ni_config_fslocation_t	backupdir;
 	unsigned int		recv_max;
 
 	struct {

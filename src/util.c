@@ -1675,10 +1675,10 @@ ni_tempstate_mkdir(ni_tempstate_t *ts)
 
 		if (ts->ident == NULL) {
 			ni_error("cannot create temp directory in %s: no identifier for this tempstate",
-					CONFIG_WICKED_STATEDIR);
+					ni_config_statedir());
 			return -1;
 		}
-		snprintf(pathbuf, sizeof(pathbuf), "%s/%s", CONFIG_WICKED_STATEDIR, ts->ident);
+		snprintf(pathbuf, sizeof(pathbuf), "%s/%s", ni_config_statedir(), ts->ident);
 
 		if (mkdir(pathbuf, 0700) < 0) {
 			ni_error("unable to create directory %s: %m", pathbuf);

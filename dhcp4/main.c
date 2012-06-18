@@ -15,6 +15,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include <getopt.h>
+#include <limits.h>
 #include <errno.h>
 #include <net/if_arp.h>
 
@@ -26,8 +27,6 @@
 #include <wicked/wireless.h>
 #include <wicked/objectmodel.h>
 #include "dhcp4/dhcp.h"
-
-#define CONFIG_DHCP4_STATE_PATH		CONFIG_WICKED_STATEDIR "/dhcp4-state.xml"
 
 enum {
 	OPT_CONFIGFILE,
@@ -51,6 +50,8 @@ static struct option	options[] = {
 
 static int		opt_foreground = 0;
 static int		opt_recover_leases = 1;
+static char *		opt_state_file;
+
 static ni_dbus_server_t *dhcp4_dbus_server;
 static int		dhcp4_term_sig = 0;
 
@@ -119,6 +120,13 @@ main(int argc, char **argv)
 
 	if (ni_init() < 0)
 		return 1;
+
+	if (opt_state_file == NULL) {
+		static char dirname[PATH_MAX];
+
+		snprintf(dirname, sizeof(dirname), "%s/dhcp4-state.xml", ni_config_statedir());
+		opt_state_file = dirname;
+	}
 
 	if (optind != argc)
 		goto usage;
@@ -289,7 +297,7 @@ dhcp4_supplicant(void)
 	ni_srandom();
 
 	if (opt_recover_leases)
-		dhcp4_recover_addrconf(CONFIG_DHCP4_STATE_PATH);
+		dhcp4_recover_addrconf(opt_state_file);
 
 	signal(SIGTERM, dhcp4_catch_term_signal);
 	signal(SIGINT, dhcp4_catch_term_signal);
@@ -303,7 +311,7 @@ dhcp4_supplicant(void)
 	}
 
 	ni_debug_dhcp("caught signal %u, exiting", dhcp4_term_sig);
-	ni_objectmodel_save_state(CONFIG_DHCP4_STATE_PATH);
+	ni_objectmodel_save_state(opt_state_file);
 
 	exit(0);
 }

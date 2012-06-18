@@ -18,6 +18,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include <getopt.h>
+#include <limits.h>
 #include <errno.h>
 
 #include <wicked/netinfo.h>
@@ -27,8 +28,6 @@
 #include <wicked/socket.h>
 #include <wicked/objectmodel.h>
 #include <wicked/modem.h>
-
-#define CONFIG_WICKED_STATE_PATH	CONFIG_WICKED_STATEDIR "/state.xml"
 
 enum {
 	OPT_CONFIGFILE,
@@ -54,6 +53,7 @@ static int		opt_foreground = 0;
 static int		opt_nofork = 0;
 static int		opt_recover_leases = 1;
 static int		opt_no_modem_manager = 0;
+static char *		opt_state_file = NULL;
 static ni_dbus_server_t *wicked_dbus_server;
 static ni_xs_scope_t *	wicked_dbus_xml_schema;
 static int		wicked_term_sig = 0;
@@ -126,6 +126,13 @@ main(int argc, char **argv)
 	if (ni_init() < 0)
 		return 1;
 
+	if (opt_state_file == NULL) {
+		static char dirname[PATH_MAX];
+
+		snprintf(dirname, sizeof(dirname), "%s/state.xml", ni_config_statedir());
+		opt_state_file = dirname;
+	}
+
 	if (optind != argc)
 		goto usage;
 
@@ -168,7 +175,7 @@ wicked_interface_server(void)
 	wicked_discover_state();
 
 	if (opt_recover_leases)
-		wicked_recover_addrconf(CONFIG_WICKED_STATE_PATH);
+		wicked_recover_addrconf(opt_state_file);
 
 	signal(SIGTERM, wicked_catch_term_signal);
 	signal(SIGINT, wicked_catch_term_signal);
@@ -182,7 +189,7 @@ wicked_interface_server(void)
 	}
 
 	ni_debug_wicked("caught signal %u, exiting", wicked_term_sig);
-	ni_objectmodel_save_state(CONFIG_WICKED_STATE_PATH);
+	ni_objectmodel_save_state(opt_state_file);
 
 	exit(0);
 }

@@ -142,7 +142,7 @@ __ni_addrconf_lease_file_path(int type, int family, const char *ifname)
 	static char pathname[PATH_MAX];
 
 	snprintf(pathname, sizeof(pathname), "%s/lease-%s-%s-%s.xml",
-			CONFIG_WICKED_STATEDIR,
+			ni_config_statedir(),
 			ni_addrconf_type_to_name(type),
 			ni_addrfamily_type_to_name(family),
 			ifname);

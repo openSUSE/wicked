@@ -100,7 +100,7 @@ ni_openvpn_discover(ni_netconfig_t *nc)
 {
 	ni_string_array_t subdirs = NI_STRING_ARRAY_INIT;
 
-	if (ni_scandir(CONFIG_WICKED_STATEDIR, "openvpn*", &subdirs) != 0) {
+	if (ni_scandir(ni_config_statedir(), "openvpn*", &subdirs) != 0) {
 		unsigned int i;
 
 		for (i = 0; i < subdirs.count; ++i) {
@@ -194,9 +194,9 @@ __ni_openvpn_path(const char *tag, const char *filename)
 	static char pathbuf[PATH_MAX];
 
 	if (filename)
-		snprintf(pathbuf, sizeof(pathbuf), "%s/%s/%s", CONFIG_WICKED_STATEDIR, tag, filename);
+		snprintf(pathbuf, sizeof(pathbuf), "%s/%s/%s", ni_config_statedir(), tag, filename);
 	else
-		snprintf(pathbuf, sizeof(pathbuf), "%s/%s", CONFIG_WICKED_STATEDIR, tag);
+		snprintf(pathbuf, sizeof(pathbuf), "%s/%s", ni_config_statedir(), tag);
 	return pathbuf;
 }
 

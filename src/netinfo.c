@@ -102,6 +102,36 @@ ni_set_global_config_path(const char *pathname)
 	ni_string_dup(&ni_global.config_path, pathname);
 }
 
+const char *
+ni_config_statedir(void)
+{
+	ni_config_fslocation_t *fsloc = &ni_global.config->statedir;
+	static ni_bool_t firsttime = TRUE;
+
+	if (firsttime) {
+		if (ni_mkdir_maybe(fsloc->path, fsloc->mode) < 0)
+			ni_fatal("Cannot create state directory \"%s\": %m", fsloc->path);
+		firsttime = FALSE;
+	}
+
+	return fsloc->path;
+}
+
+const char *
+ni_config_backupdir(void)
+{
+	ni_config_fslocation_t *fsloc = &ni_global.config->backupdir;
+	static ni_bool_t firsttime = TRUE;
+
+	if (firsttime) {
+		if (ni_mkdir_maybe(fsloc->path, fsloc->mode) < 0)
+			ni_fatal("Cannot create backup directory \"%s\": %m", fsloc->path);
+		firsttime = FALSE;
+	}
+
+	return fsloc->path;
+}
+
 /*
  * Utility functions for starting/stopping the wicked daemon,
  * and for connecting to it

@@ -11,6 +11,7 @@
 #include <string.h>
 #include <assert.h>
 #include <ctype.h>
+#include <limits.h>
 #include <dlfcn.h>
 
 #include <wicked/util.h>
@@ -32,6 +33,8 @@ static int		ni_config_parse_objectmodel_netif_ns(ni_extension_t **, xml_node_t *
 static int		ni_config_parse_objectmodel_firmware_discovery(ni_extension_t **, xml_node_t *);
 static int		ni_config_parse_extension(ni_extension_t *, xml_node_t *);
 static ni_c_binding_t *	ni_c_binding_new(ni_c_binding_t **, const char *name, const char *lib, const char *symbol);
+static void		ni_config_fslocation_init(ni_config_fslocation_t *, const char *path, unsigned int mode);
+static void		ni_config_fslocation_destroy(ni_config_fslocation_t *);
 
 /*
  * Create an empty config object
@@ -52,6 +55,9 @@ ni_config_new()
 
 	conf->recv_max = 64 * 1024;
 
+	ni_config_fslocation_init(&conf->pidfile, "/var/run/wicked.pid", 0644);
+	ni_config_fslocation_init(&conf->statedir, "/var/run/wicked", 0755);
+
 	return conf;
 }
 
@@ -64,6 +70,9 @@ ni_config_free(ni_config_t *conf)
 	ni_string_free(&conf->dbus_name);
 	ni_string_free(&conf->dbus_type);
 	ni_string_free(&conf->dbus_xml_schema_file);
+	ni_config_fslocation_destroy(&conf->pidfile);
+	ni_config_fslocation_destroy(&conf->statedir);
+	ni_config_fslocation_destroy(&conf->backupdir);
 	free(conf);
 }
 
@@ -93,6 +102,7 @@ ni_config_parse(const char *filename)
 
 	if (ni_config_parse_afconfig(&conf->ipv4, "ipv4", node) < 0
 	 || ni_config_parse_afconfig(&conf->ipv6, "ipv6", node) < 0
+	 || ni_config_parse_fslocation(&conf->statedir, "statedir", node) < 0
 	 || ni_config_parse_fslocation(&conf->pidfile, "pidfile", node) < 0)
 		goto failed;
 
@@ -143,6 +153,12 @@ ni_config_parse(const char *filename)
 		}
 	}
 
+	if (conf->backupdir.path == NULL) {
+		char pathname[PATH_MAX];
+
+		snprintf(pathname, sizeof(pathname), "%s/backup", conf->statedir.path);
+		ni_config_fslocation_init(&conf->backupdir, pathname, 0700);
+	}
 
 	xml_document_free(doc);
 	return conf;
@@ -466,4 +482,19 @@ ni_config_addrconf_update_mask(ni_config_t *conf, ni_addrconf_mode_t type)
 	default: ;
 	}
 	return update_mask;
+}
+
+void
+ni_config_fslocation_init(ni_config_fslocation_t *loc, const char *path, unsigned int mode)
+{
+	memset(loc, 0, sizeof(*loc));
+	ni_string_dup(&loc->path, path);
+	loc->mode = mode;
+}
+
+void
+ni_config_fslocation_destroy(ni_config_fslocation_t *loc)
+{
+	ni_string_free(&loc->path);
+	memset(loc, 0, sizeof(*loc));
 }
