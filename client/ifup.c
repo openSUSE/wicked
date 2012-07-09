@@ -935,6 +935,7 @@ ni_ifworker_identify_device(ni_objectmodel_fsm_t *fsm, const xml_node_t *devnode
 typedef struct ni_ifmatcher {
 	const char *		name;
 	const char *		boot_label;
+	const char *		boot_stage;
 	unsigned int		require_config : 1,
 				skip_active    : 1;
 } ni_ifmatcher_t;
@@ -1027,6 +1028,15 @@ ni_ifworker_get_matching(ni_objectmodel_fsm_t *fsm, ni_ifmatcher_t *match, ni_if
 			if (w->config == NULL
 			 || !(boot_node = xml_node_get_child(w->config, "boot-label"))
 			 || !ni_string_eq(match->boot_label, boot_node->cdata))
+				continue;
+		}
+
+		if (match->boot_stage) {
+			xml_node_t *boot_node;
+
+			if (w->config == NULL
+			 || !(boot_node = xml_node_get_child(w->config, "boot-stage"))
+			 || !ni_string_eq(match->boot_stage, boot_node->cdata))
 				continue;
 		}
 
@@ -2829,11 +2839,12 @@ ni_ifconfig_load(ni_objectmodel_fsm_t *fsm, const char *pathname)
 int
 do_ifup(int argc, char **argv)
 {
-	enum  { OPT_IFCONFIG, OPT_IFPOLICY, OPT_BOOT, OPT_TIMEOUT, OPT_SKIP_ACTIVE };
+	enum  { OPT_IFCONFIG, OPT_IFPOLICY, OPT_BOOT, OPT_STAGE, OPT_TIMEOUT, OPT_SKIP_ACTIVE };
 	static struct option ifup_options[] = {
 		{ "ifconfig",	required_argument, NULL,	OPT_IFCONFIG },
 		{ "ifpolicy",	required_argument, NULL,	OPT_IFPOLICY },
 		{ "boot-label",	required_argument, NULL,	OPT_BOOT },
+		{ "boot-stage",	required_argument, NULL,	OPT_STAGE },
 		{ "skip-active",required_argument, NULL,	OPT_SKIP_ACTIVE },
 		{ "timeout",	required_argument, NULL,	OPT_TIMEOUT },
 		{ NULL }
@@ -2841,6 +2852,7 @@ do_ifup(int argc, char **argv)
 	const char *opt_ifconfig = WICKED_IFCONFIG_DIR_PATH;
 	const char *opt_ifpolicy = NULL;
 	const char *opt_boot_label = NULL;
+	const char *opt_boot_stage = NULL;
 	ni_bool_t opt_skip_active = FALSE;
 	unsigned int nmarked;
 	ni_objectmodel_fsm_t *fsm;
@@ -2861,6 +2873,10 @@ do_ifup(int argc, char **argv)
 
 		case OPT_BOOT:
 			opt_boot_label = optarg;
+			break;
+
+		case OPT_STAGE:
+			opt_boot_stage = optarg;
 			break;
 
 		case OPT_TIMEOUT:
@@ -2888,6 +2904,8 @@ usage:
 				"      Read interface configuration(s) from file rather than using system config\n"
 				"  --boot-label <label>\n"
 				"      Only touch interfaces with matching <boot-label>\n"
+				"  --boot-stage <label>\n"
+				"      Only touch interfaces with matching <boot-stage>\n"
 				"  --timeout <nsec>\n"
 				"      Timeout after <nsec> seconds\n"
 				);
@@ -2931,6 +2949,7 @@ usage:
 			ifmatch.require_config = TRUE;
 		} else {
 			ifmatch.boot_label = opt_boot_label;
+			ifmatch.boot_stage = opt_boot_stage;
 		}
 
 		nmarked += ni_ifworker_mark_matching(fsm, &ifmatch);
