@@ -29,6 +29,7 @@ static int		ni_config_parse_update_targets(unsigned int *, const xml_node_t *);
 static int		ni_config_parse_fslocation(ni_config_fslocation_t *, const char *, xml_node_t *);
 static int		ni_config_parse_objectmodel_extension(ni_extension_t **, xml_node_t *);
 static int		ni_config_parse_objectmodel_netif_ns(ni_extension_t **, xml_node_t *);
+static int		ni_config_parse_objectmodel_firmware_discovery(ni_extension_t **, xml_node_t *);
 static int		ni_config_parse_extension(ni_extension_t *, xml_node_t *);
 static ni_c_binding_t *	ni_c_binding_new(ni_c_binding_t **, const char *name, const char *lib, const char *symbol);
 
@@ -61,6 +62,7 @@ ni_config_free(ni_config_t *conf)
 {
 	ni_extension_list_destroy(&conf->extensions);
 	ni_extension_list_destroy(&conf->ns_extensions);
+	ni_extension_list_destroy(&conf->fw_extensions);
 	ni_string_free(&conf->dbus_name);
 	ni_string_free(&conf->dbus_type);
 	ni_string_free(&conf->dbus_xml_schema_file);
@@ -135,6 +137,10 @@ ni_config_parse(const char *filename)
 		} else
 		if (strcmp(child->name, "netif-naming-services") == 0) {
 			if (ni_config_parse_objectmodel_netif_ns(&conf->ns_extensions, child) < 0)
+				goto failed;
+		} else
+		if (strcmp(child->name, "netif-firmware-discovery") == 0) {
+			if (ni_config_parse_objectmodel_firmware_discovery(&conf->fw_extensions, child) < 0)
 				goto failed;
 		}
 	}
@@ -298,7 +304,7 @@ ni_config_parse_extension(ni_extension_t *ex, xml_node_t *node)
 	xml_node_t *child;
 
 	for (child = node->children; child; child = child->next) {
-		if (!strcmp(child->name, "action")) {
+		if (!strcmp(child->name, "action") || !strcmp(child->name, "script")) {
 			const char *name, *command;
 
 			if (!(name = xml_node_get_attr(child, "name"))) {
@@ -357,6 +363,25 @@ ni_config_parse_extension(ni_extension_t *ex, xml_node_t *node)
  */
 int
 ni_config_parse_objectmodel_netif_ns(ni_extension_t **list, xml_node_t *node)
+{
+	ni_extension_t *ex;
+
+	ex = ni_extension_new(list, NULL);
+	return ni_config_parse_extension(ex, node);
+}
+
+/*
+ * Another class of extensions helps with discovery of interface configuration through
+ * firmware, such as iBFT. You can use this to specify one or more shell commands
+ * that generate a list of <interface> elemens as output.
+ *
+ * <netif-firmware-discovery>
+ *  <script name="ibft" command="/some/crazy/path/to/script" />
+ *  ...
+ * </netif-firmware-discovery>
+ */
+int
+ni_config_parse_objectmodel_firmware_discovery(ni_extension_t **list, xml_node_t *node)
 {
 	ni_extension_t *ex;
 
