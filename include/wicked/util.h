@@ -48,7 +48,7 @@ typedef struct ni_stringbuf {
 #define NI_STRINGBUF_INIT_DYNAMIC	{ .size = 0, .len = 0, .string = NULL, .dynamic = 1 }
 
 typedef struct ni_opaque {
-	unsigned char	data[128];
+	unsigned char	data[130];
 	size_t		len;
 } ni_opaque_t;
 
