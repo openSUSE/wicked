@@ -92,16 +92,17 @@ ni_buffer_clear(ni_buffer_t *bp)
 	bp->head = bp->tail = 0;
 }
 
-static inline void
+static inline int
 ni_buffer_put(ni_buffer_t *bp, const void *data, size_t len)
 {
 	if (bp->tail + len > bp->size) {
 		bp->overflow = 1;
-		return;
+		return -1;
 	}
 	if (data)
 		memcpy(bp->base + bp->tail, data, len);
 	bp->tail += len;
+	return 0;
 }
 
 static inline void
@@ -154,7 +155,7 @@ ni_buffer_get(ni_buffer_t *bp, void *data, size_t len)
 {
 	if (bp->head + len > bp->tail) {
 		bp->underflow = 1;
-		return - 1;
+		return -1;
 	}
 	memcpy(data, bp->base + bp->head, len);
 	bp->head += len;
