@@ -227,7 +227,13 @@ ni_process_run(ni_process_t *pi)
 	}
 
 	rv = __ni_process_run(pi, pfd);
-	if (rv < 0) {
+	if (rv >= 0) {
+		/* Set up a socket to receive the redirected output of the
+		 * subprocess. */
+		pi->socket = __ni_process_get_output(pi, pfd[0]);
+		ni_socket_activate(pi->socket);
+		close(pfd[1]);
+	} else  {
 		if (pfd[0] >= 0)
 			close(pfd[0]);
 		if (pfd[1] >= 0)
@@ -245,6 +251,60 @@ ni_process_run_and_wait(ni_process_t *pi)
 	rv = __ni_process_run(pi, NULL);
 	if (rv < 0)
 		return rv;
+
+	while (waitpid(pi->pid, &pi->status, 0) < 0) {
+		if (errno == EINTR)
+			continue;
+		ni_error("%s: waitpid returns error (%m)", __func__);
+		return -1;
+	}
+
+	pi->pid = 0;
+	if (pi->notify_callback)
+		pi->notify_callback(pi);
+
+	if (!ni_process_exit_status_okay(pi)) {
+		ni_error("subprocesses exited with error");
+		return -1;
+	}
+
+	return rv;
+}
+
+int
+ni_process_run_and_capture_output(ni_process_t *pi, ni_buffer_t *out_buffer)
+{
+	int pfd[2],  rv;
+
+	if (pipe(pfd) < 0) {
+		ni_error("%s: unable to create pipe: %m", __func__);
+		return -1;
+	}
+
+	rv = __ni_process_run(pi, pfd);
+	if (rv < 0) {
+		close(pfd[0]);
+		close(pfd[1]);
+		return rv;
+	}
+
+	close(pfd[1]);
+	while (1) {
+		int cnt;
+
+		if (ni_buffer_tailroom(out_buffer) < 256)
+			ni_buffer_ensure_tailroom(out_buffer, 4096);
+
+		cnt = read(pfd[0], ni_buffer_tail(out_buffer), ni_buffer_tailroom(out_buffer));
+		if (cnt == 0) {
+			break;
+		} else if (cnt > 0) {
+			out_buffer->tail += cnt;
+		} else if (errno != EINTR) {
+			ni_error("read error on subprocess pipe: %m");
+			return -1;
+		}
+	}
 
 	while (waitpid(pi->pid, &pi->status, 0) < 0) {
 		if (errno == EINTR)
@@ -314,14 +374,6 @@ __ni_process_run(ni_process_t *pi, int *pfd)
 		execve(arg0, pi->argv.data, pi->environ.data);
 
 		ni_fatal("%s: cannot execute %s: %m", __func__, arg0);
-	}
-
-	if (pfd) {
-		/* Set up a socket to receive the redirected output of the
-		 * subprocess. */
-		pi->socket = __ni_process_get_output(pi, pfd[0]);
-		ni_socket_activate(pi->socket);
-		close(pfd[1]);
 	}
 
 	return 0;
