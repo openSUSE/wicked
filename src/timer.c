@@ -70,7 +70,7 @@ ni_timer_next_timeout(void)
 	ni_timer_t *timer;
 	long timeout;
 
-	gettimeofday(&now, NULL);
+	ni_timer_get_time(&now);
 	while ((timer = ni_timer_list) != NULL) {
 		if (!timercmp(&timer->expires, &now, <)) {
 			timersub(&timer->expires, &now, &delta);
@@ -97,7 +97,7 @@ __ni_timer_arm(ni_timer_t *timer, unsigned long timeout)
 {
 	ni_timer_t *tail, **pos;
 
-	gettimeofday(&timer->expires, NULL);
+	ni_timer_get_time(&timer->expires);
 	timer->expires.tv_sec += timeout / 1000;
 	timer->expires.tv_usec += (timeout % 1000) * 1000;
 	if (timer->expires.tv_usec >= 1000000) {
@@ -128,3 +128,30 @@ __ni_timer_disarm(const ni_timer_t *handle)
 	}
 	return timer;
 }
+
+int
+ni_timer_get_time(struct timeval *tv)
+{
+#if 0
+/*  defined(WITH_CLOCK_GETTIME) && defined(CLOCK_MONOTONIC) */
+	/*
+	 * Note: Requires to link using -lrt
+	 */
+	static int use_monotonic = 1;
+
+	if (use_monotonic == 1) {
+		use_monotonic = clock_getres(CLOCK_MONOTONIC, NULL);
+	}
+	if (use_monotonic == 0) {
+		struct timespec now;
+		int ret;
+
+		ret = clock_gettime(CLOCK_MONOTONIC, &now);
+		TIMESPEC_TO_TIMEVAL(tv, &now);
+
+		return ret;
+	}
+#endif
+	return gettimeofday(tv, NULL);
+}
+

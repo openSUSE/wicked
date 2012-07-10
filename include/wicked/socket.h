@@ -20,6 +20,7 @@ extern const ni_timer_t *ni_timer_register(unsigned long, ni_timeout_callback_t 
 extern void *		ni_timer_cancel(const ni_timer_t *);
 extern const ni_timer_t *ni_timer_rearm(const ni_timer_t *, unsigned long);
 extern long		ni_timer_next_timeout(void);
+extern int		ni_timer_get_time(struct timeval *tv);
 
 extern ni_socket_t *	ni_local_socket_listen(const char *, unsigned int);
 extern ni_socket_t *	ni_local_socket_connect(const char *);
