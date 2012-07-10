@@ -68,12 +68,15 @@ ni_timer_next_timeout(void)
 {
 	struct timeval now, delta;
 	ni_timer_t *timer;
+	long timeout;
 
 	gettimeofday(&now, NULL);
 	while ((timer = ni_timer_list) != NULL) {
-		if (timercmp(&timer->expires, &now, >)) {
+		if (!timercmp(&timer->expires, &now, <)) {
 			timersub(&timer->expires, &now, &delta);
-			return delta.tv_sec * 1000 + delta.tv_usec / 1000;
+			timeout = delta.tv_sec * 1000 + delta.tv_usec / 1000;
+			if (timeout > 0)
+				return timeout;
 		}
 
 #if 0
