@@ -29,6 +29,7 @@ static int		ni_config_parse_update_targets(unsigned int *, const xml_node_t *);
 static int		ni_config_parse_fslocation(ni_config_fslocation_t *, const char *, xml_node_t *);
 static int		ni_config_parse_objectmodel_extension(ni_extension_t **, xml_node_t *);
 static int		ni_config_parse_objectmodel_netif_ns(ni_extension_t **, xml_node_t *);
+static int		ni_config_parse_extension(ni_extension_t *, xml_node_t *);
 static ni_c_binding_t *	ni_c_binding_new(ni_c_binding_t **, const char *name, const char *lib, const char *symbol);
 
 /*
@@ -278,7 +279,6 @@ int
 ni_config_parse_objectmodel_extension(ni_extension_t **list, xml_node_t *node)
 {
 	ni_extension_t *ex;
-	xml_node_t *child;
 	const char *name;
 
 	if (!(name = xml_node_get_attr(node, "interface"))) {
@@ -288,6 +288,15 @@ ni_config_parse_objectmodel_extension(ni_extension_t **list, xml_node_t *node)
 	}
 
 	ex = ni_extension_new(list, name);
+
+	return ni_config_parse_extension(ex, node);
+}
+
+static int
+ni_config_parse_extension(ni_extension_t *ex, xml_node_t *node)
+{
+	xml_node_t *child;
+
 	for (child = node->children; child; child = child->next) {
 		if (!strcmp(child->name, "action")) {
 			const char *name, *command;
@@ -350,28 +359,9 @@ int
 ni_config_parse_objectmodel_netif_ns(ni_extension_t **list, xml_node_t *node)
 {
 	ni_extension_t *ex;
-	xml_node_t *child;
 
 	ex = ni_extension_new(list, NULL);
-	for (child = node->children; child; child = child->next) {
-		if (!strcmp(child->name, "builtin")) {
-			const char *name, *library, *symbol;
-
-			if (!(name = xml_node_get_attr(child, "name"))) {
-				ni_error("builtin element without name attribute");
-				return -1;
-			}
-			if (!(symbol = xml_node_get_attr(child, "symbol"))) {
-				ni_error("action element without command attribute");
-				return -1;
-			}
-			library = xml_node_get_attr(child, "library");
-
-			ni_c_binding_new(&ex->c_bindings, name, library, symbol);
-		}
-	}
-
-	return 0;
+	return ni_config_parse_extension(ex, node);
 }
 
 /*
