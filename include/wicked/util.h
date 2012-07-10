@@ -189,6 +189,11 @@ ni_string_empty(const char *s)
 {
 	return s == NULL || *s == '\0';
 }
+static inline size_t
+ni_string_len(const char *s)
+{
+	return s ? strlen(s) : 0;
+}
 
 extern const char *	ni_string_strip_prefix(const char *string, const char *prefix);
 extern char *		ni_string_strip_suffix(char *string, const char *suffix);
