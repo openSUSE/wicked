@@ -155,3 +155,54 @@ ni_timer_get_time(struct timeval *tv)
 	return gettimeofday(tv, NULL);
 }
 
+/*
+ * Timeout handling
+ */
+ni_bool_t
+ni_timeout_recompute(ni_timeout_param_t *tmo)
+{
+	if (tmo->nretries == 0)
+		return FALSE;
+
+	if (tmo->increment >= 0)
+		tmo->timeout += tmo->increment;
+	else
+		tmo->timeout <<= 1;
+	if (tmo->timeout > tmo->max_timeout)
+		tmo->timeout = tmo->max_timeout;
+
+	if (tmo->backoff_callback)
+		return tmo->backoff_callback(tmo);
+	return TRUE;
+}
+
+static void
+__ni_timeout_arm(struct timeval *deadline, unsigned long timeout, const ni_int_range_t *jitter)
+{
+	timeout *= 1000;
+	if (jitter && jitter->min < jitter->max) {
+		unsigned int jitter_range = (jitter->max - jitter->min) * 1000;
+
+		timeout += ((long) random() % jitter_range) + jitter->min;
+	}
+
+	ni_debug_socket("arming retransmit timer (%lu msec)", timeout);
+	ni_timer_get_time(deadline);
+	deadline->tv_sec += timeout / 1000;
+	deadline->tv_usec += (timeout % 1000) * 1000;
+	if (deadline->tv_usec < 0) {
+		deadline->tv_sec -= 1;
+		deadline->tv_usec += 1000000;
+	} else
+	if (deadline->tv_usec > 1000000) {
+		deadline->tv_sec += 1;
+		deadline->tv_usec -= 1000000;
+	}
+}
+
+void
+ni_timeout_arm(struct timeval *deadline, const ni_timeout_param_t *tp)
+{
+	__ni_timeout_arm(deadline, tp->timeout, &tp->jitter);
+}
+
