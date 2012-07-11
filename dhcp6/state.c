@@ -25,8 +25,9 @@
 #endif
 
 #include <stdio.h>
-#include <unistd.h>
 #include <errno.h>
+#include <limits.h>
+#include <unistd.h>
 
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
@@ -35,9 +36,8 @@
 
 #include "dhcp6/duid.h"
 
-#define CONFIG_DHCP6_DUID_NODE		"default-duid"
-#define CONFIG_DHCP6_DUID_FILE		CONFIG_WICKED_STATEDIR "/dhcp6-duid.xml"
-#define CONFIG_DHCP6_STATE_FILE		CONFIG_WICKED_STATEDIR "/dhcp6-state.xml"
+#define CONFIG_DHCP6_DUID_NODE	"default-duid"
+#define CONFIG_DHCP6_DUID_FILE	"dhcp6-duid.xml"
 
 /*
  * Use some locking here...
@@ -45,16 +45,21 @@
 int
 ni_dhcp6_load_duid(ni_opaque_t *duid, const char *filename)
 {
+	char path[PATH_MAX];
 	const char *name = CONFIG_DHCP6_DUID_NODE;
 	xml_node_t *xml = NULL;
 	xml_node_t *node;
 	FILE *fp;
 	int rv;
 
-	if (!filename)
-		filename = CONFIG_DHCP6_DUID_FILE;
-	else
+	if (!filename) {
+		snprintf(path, sizeof(path), "%s/%s",
+				ni_config_statedir(),
+				CONFIG_DHCP6_DUID_FILE);
+		filename = path;
+	} else {
 		name = "duid";
+	}
 
 	if ((fp = fopen(filename, "r")) == NULL) {
 		if (errno != ENOENT)
@@ -93,6 +98,7 @@ ni_dhcp6_load_duid(ni_opaque_t *duid, const char *filename)
 int
 ni_dhcp6_save_duid(const ni_opaque_t *duid, const char *filename)
 {
+	char path[PATH_MAX];
 	const char *name = CONFIG_DHCP6_DUID_NODE;
 	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 	ni_opaque_t temp = NI_OPAQUE_INIT;
@@ -105,10 +111,14 @@ ni_dhcp6_save_duid(const ni_opaque_t *duid, const char *filename)
 		return -1;
 	}
 
-	if (!filename)
-		filename = CONFIG_DHCP6_DUID_FILE;
-	else
+	if (!filename) {
+		snprintf(path, sizeof(path), "%s/%s",
+				ni_config_statedir(),
+				CONFIG_DHCP6_DUID_FILE);
+		filename = path;
+	} else {
 		name = "duid";
+	}
 
 	if(ni_dhcp6_load_duid(&temp, filename) == 0)
 		return 1;

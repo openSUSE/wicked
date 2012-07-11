@@ -28,6 +28,7 @@
 #include <stdlib.h>
 #include <getopt.h>
 #include <signal.h>
+#include <limits.h>
 #include <net/if_arp.h>
 
 #include <wicked/types.h>
@@ -39,6 +40,7 @@
 
 #include "dhcp6/dbus-api.h"
 
+#define CONFIG_DHCP6_STATE_FILE	"dhcp6-state.xml"
 
 /* Hmm .. */
 #ifndef no_argument
@@ -50,8 +52,6 @@
 #ifndef optional_argument
 #define optional_argument	2
 #endif
-
-#define CONFIG_DHCP6_STATE_PATH         CONFIG_WICKED_STATEDIR "/dhcp6-state.xml"
 
 enum {
 	OPT_CONFIGFILE,
@@ -80,6 +80,8 @@ static struct option		options[] = {
 
 static int			opt_foreground = 1;
 static int			opt_recover_leases = 0;
+static char *			opt_state_file;
+
 static ni_dbus_server_t *	dhcp6_dbus_server;
 static int			dhcp6_term_sig = 0;
 
@@ -172,6 +174,13 @@ main(int argc, char **argv)
 	if (ni_init() < 0)
 		return 1;
 
+	if (opt_state_file == NULL) {
+		static char dirname[PATH_MAX];
+
+		snprintf(dirname, sizeof(dirname), "%s/%s", ni_config_statedir(),
+							CONFIG_DHCP6_STATE_FILE);
+		opt_state_file = dirname;
+	}
 
 	/* We're using randomized timeouts. Seed the RNG */
 	ni_srandom();
@@ -434,7 +443,7 @@ dhcp6_supplicant(void)
 	}
 
 	if (opt_recover_leases)
-		dhcp6_recover_addrconf(CONFIG_DHCP6_STATE_PATH);
+		dhcp6_recover_addrconf(opt_state_file);
 
 	signal(SIGTERM, dhcp6_catch_term_signal);
 	signal(SIGINT,  dhcp6_catch_term_signal);
@@ -449,7 +458,7 @@ dhcp6_supplicant(void)
 
 	ni_debug_dhcp("caught signal %u, exiting", dhcp6_term_sig);
 	/*
-	ni_objectmodel_save_state(CONFIG_DHCP4_STATE_PATH);
+	ni_objectmodel_save_state(opt_state_file);
 	*/
 
 	exit(0);
