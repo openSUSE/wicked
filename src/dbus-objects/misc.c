@@ -263,6 +263,16 @@ __ni_objectmodel_address_to_dict(const ni_address_t *ap, ni_dbus_variant_t *dict
 	if (ap->anycast_addr.ss_family == ap->family)
 		__ni_objectmodel_add_sockaddr(dict, "anycast", &ap->anycast_addr);
 
+	if (ap->ipv6_cache_info.preferred_lft || ap->ipv6_cache_info.valid_lft) {
+		ni_dbus_variant_t *var;
+
+		var = ni_dbus_dict_add(dict, "cache-info");
+		ni_dbus_variant_init_dict(var);
+
+		ni_dbus_dict_add_uint32(var, "preferred-lifetime", ap->ipv6_cache_info.preferred_lft);
+		ni_dbus_dict_add_uint32(var, "valid-lifetime", ap->ipv6_cache_info.valid_lft);
+	}
+
 	if (ap->config_lease)
 		ni_dbus_dict_add_uint32(dict, "owner", ap->config_lease->type);
 
@@ -277,10 +287,21 @@ __ni_objectmodel_address_from_dict(ni_address_t **list, const ni_dbus_variant_t 
 	unsigned int prefixlen;
 
 	if (__ni_objectmodel_get_sockaddr_prefix(dict, "local", &local_addr, &prefixlen)) {
+		const ni_dbus_variant_t *var;
+
 		ap = __ni_address_new(list, local_addr.ss_family, prefixlen, &local_addr);
 
 		__ni_objectmodel_get_sockaddr(dict, "peer", &ap->peer_addr);
 		__ni_objectmodel_get_sockaddr(dict, "anycast", &ap->anycast_addr);
+
+		if ((var = ni_dbus_dict_get(dict, "cache-info")) != NULL) {
+			uint32_t value;
+
+			if (ni_dbus_dict_get_uint32(var, "preferred-lifetime", &value))
+				ap->ipv6_cache_info.preferred_lft = value;
+			if (ni_dbus_dict_get_uint32(var, "valid-lifetime", &value))
+				ap->ipv6_cache_info.valid_lft = value;
+		}
 
 #if 0
 		if (ni_dbus_dict_get_uint32(dict, "owner", &value))

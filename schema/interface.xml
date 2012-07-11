@@ -8,6 +8,11 @@
    <local type="network-address-prefix"/>
    <peer type="network-address"/>
 
+   <cache-info class="dict">
+     <valid-lifetime type="uint32" />
+     <preferred-lifetime type="uint32" />
+   </cache-info>
+
    <!-- This is the addrconf method that owns this address -->
    <owner type="builtin-addrconf" />
  </define>
