@@ -1,4 +1,181 @@
 #!/bin/bash
 
-# Needs to be written, won't output anything for now
+shopt -s nullglob
+
+function glob_first {
+
+	pattern="$1"
+
+	# This works because we set nullglob above - if there's
+	# no match, the pattern word is removed
+	set -- $pattern
+	echo $1
+}
+
+function ibft_get_ifindex {
+
+	devpath=$1
+	ifpath=
+
+	if [ -d "$devpath/net/" ]; then
+		# normal reference, e.g. device/net/eth0
+		ifpath="$devpath/net"
+	else
+		# virtio reference, e.g. device/virtio0/net/eth0,
+		# because iBFT references PCI IDs without func.
+		ifpath=`glob_first $devpath/*/net/`
+	fi
+
+	if [ -n "$ifpath" ]; then
+		idxpath=`glob_first "$ifpath/*/ifindex"`
+		if [ -f "$idxpath" ]; then
+			ifindex=`cat $idxpath`
+			ifname=${idxpath%/ifindex}
+			ifname=${ifname##*/}
+			echo $ifindex $ifname
+			return 0
+		fi
+	fi
+
+	echo "$devpath: unable to identify device" >&2
+	return 1
+}
+
+function ibft_getattr {
+
+	path="$1"
+	if [ -f "$path" ]; then
+		cat "$path"
+	fi
+}
+
+function netmask2pfxlen {
+
+	netmask=$1
+
+	OFS=$IFS
+	IFS=.
+	set $netmask
+	IFS=$OFS
+
+	declare -i nbits=0
+	for octet; do
+		case $octet in
+		255)	nbits+=8;;
+		254)	nbits+=7;;
+		252)	nbits+=6;;
+		248)	nbits+=5;;
+		240)	nbits+=4;;
+		224)	nbits+=3;;
+		192)	nbits+=2;;
+		128)	nbits+=1;;
+		0)	: ;;
+		*)	echo "Invalid netmask $netmask" >&2
+			return 1;;
+		esac
+	done
+
+	echo $nbits
+}
+
+set -- `getopt r: "$@"`
+while [ $# -gt 0 -a "$1" != "--" ]; do
+	opt=$1; shift;
+	case $opt in
+	-r)	opt_rootdir=$1; shift;;
+	*)	echo "Bad command line option $opt" >&2; exit 1;;
+	esac
+done
+
+IBFT_PATH=$opt_rootdir/sys/firmware/ibft
+
+ibft_num=0
+for nicpath in $IBFT_PATH/ethernet*; do
+	[ -d "$nicpath" ] || continue
+
+	devpath=`readlink -f $nicpath/device`
+	[ -n "$devpath" ] || continue
+
+	set -- `ibft_get_ifindex $devpath`
+	[ $# -gt 0 ] || continue
+
+	nic_ifindex=$1
+	nic_name=$2
+
+	nic_vlan=`ibft_getattr "$nicpath/vlan"`
+	nic_mac=`ibft_getattr "$nicpath/mac"`
+
+	nic_ipaddr=`ibft_getattr "$nicpath/ip-addr"`
+	nic_prefixlen=
+
+	netmask=`ibft_getattr "$nicpath/subnet-mask"`
+	if [ -n "$netmask" ]; then
+		nic_prefixlen=`netmask2pfxlen $netmask`
+		[ -n "$nic_prefixlen" ] || continue
+	fi
+
+	nic_dhcp_server=`ibft_getattr "$nicpath/dhcp"`
+	nic_gateway=`ibft_getattr "$nicpath/gateway"`
+	nic_dns_server1=`ibft_getattr "$nicpath/primary-dns"`
+	nic_dns_server2=`ibft_getattr "$nicpath/secondary-dns"`
+	nic_hostname=`ibft_getattr "$nicpath/hostname"`
+
+	cat <<-EOF
+	<interface>
+	  <!-- interface $nic_name -->
+	  <device>
+	    <identify>
+	      <ifindex>$nic_ifindex</ifindex>
+	    </identify>
+	  </device>
+EOF
+
+	if [ -n "$nic_vlan" ]; then
+		cat <<-EOF
+		</interface>
+
+		<interface>
+		  <name>$nic_name.$nic_vlan</name>
+		  <vlan>
+		    <device>
+		      <identify>
+		        <ifindex>$nic_ifindex</ifindex>
+		      </identify>
+		    </device>
+		    <tag>$nic_vlan</tag>
+		  </vlan>
+EOF
+	fi
+
+	echo "  <alias>ibft$ibft_num</alias>"
+
+	if [ -n "$nic_ipaddr" ]; then
+		default_route="<!-- no default route -->"
+		if [ -n "$nic_gateway" ]; then
+			$default_route="<route><nexthop><gateway>$nic_gateway</gateway></nexthop></route>"
+		fi
+
+		# FIXME: we have no way yet to include other lease information
+		# in a static addrconf element. In this case, we would like to tell
+		# wickedd about the hostname and DNS server addresses, if given
+		cat <<-EOF
+		  <ipv4:static>
+		    <address>$nic_ipaddr/$nic_prefixlen</address>
+		    $default_route
+		  </ipv4:static>
+EOF
+	else
+		# Default to DHCPv4
+		cat <<-EOF
+		  <ipv4:dhcp>
+		    <enabled>true</enabled>
+		  </ipv4:dhcp>
+EOF
+	fi
+
+	echo "</interface>"
+
+	ibftnum+=1
+done
+
 exit 0
