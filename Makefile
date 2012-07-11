@@ -156,6 +156,8 @@ distclean clean::
 distclean::
 	rm -f .depend
 	rm -f config.h
+	rm -f etc/init.d/wicked
+	rm -f etc/init.d/network
 
 realclean maintainer-clean: distclean
 	rm -rf autom4te.cache
