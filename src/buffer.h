@@ -51,6 +51,32 @@ ni_buffer_destroy(ni_buffer_t *bp)
 	memset(bp, 0, sizeof(*bp));
 }
 
+static inline ni_buffer_t *
+ni_buffer_new_dynamic(size_t size)
+{
+	ni_buffer_t *bp;
+
+	bp = xcalloc(1, sizeof(*bp));
+	ni_buffer_init_dynamic(bp, size);
+	return bp;
+}
+
+static inline ni_buffer_t *
+ni_buffer_new(size_t size)
+{
+	ni_buffer_t *bp;
+
+	bp = xcalloc(1, sizeof(*bp) + size);
+	ni_buffer_init(bp, (char *) (bp + 1), size);
+	return bp;
+}
+
+static inline void
+ni_buffer_free(ni_buffer_t *bp)
+{
+	ni_buffer_destroy(bp);
+	free(bp);
+}
 
 static inline void
 ni_buffer_init_reader(ni_buffer_t *bp, void *base, size_t size)
@@ -141,6 +167,15 @@ ni_buffer_getc(ni_buffer_t *bp)
 	if (bp->head >= bp->tail)
 		return EOF;
 	return bp->base[bp->head++];
+}
+
+static inline int
+ni_buffer_ungetc(ni_buffer_t *bp, char cc)
+{
+	if (bp->head == 0 || bp->base[bp->head - 1] != cc)
+		return -1;
+	bp->head--;
+	return 0;
 }
 
 static inline int
