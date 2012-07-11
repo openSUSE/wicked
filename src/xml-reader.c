@@ -35,7 +35,7 @@
 
 #include <wicked/xml.h>
 #include <wicked/logging.h>
-#include "netinfo_priv.h"
+#include "buffer.h"
 
 #undef XMLDEBUG_PARSER
 
@@ -60,8 +60,11 @@ typedef enum {
 #define XML_READER_BUFSZ	512
 typedef struct xml_reader {
 	const char *		filename;
+
+	ni_buffer_t *		in_buffer;
+
 	FILE *			file;
-	char *			buffer;
+	char *			buffer;		/* FIXME: use in_buffer for this as well */
 
 	unsigned int		no_close : 1;
 
@@ -100,6 +103,7 @@ static void		xml_debug(const char *, ...);
 #endif
 
 static int		xml_reader_init_file(xml_reader_t *xr, FILE *fp);
+static int		xml_reader_init_buffer(xml_reader_t *xr, ni_buffer_t *buf);
 static int		xml_reader_open(xml_reader_t *xr, const char *filename);
 static int		xml_reader_destroy(xml_reader_t *xr);
 static char		xml_getc(xml_reader_t *xr);
@@ -119,6 +123,23 @@ xml_document_read(const char *filename)
 			return NULL;
 	} else
 	if (!xml_reader_open(&reader, filename))
+		return NULL;
+
+	doc = xml_process_document(&reader);
+	if (xml_reader_destroy(&reader) < 0) {
+		xml_document_free(doc);
+		return NULL;
+	}
+	return doc;
+}
+
+xml_document_t *
+xml_document_from_buffer(ni_buffer_t *in_buffer)
+{
+	xml_reader_t reader;
+	xml_document_t *doc;
+
+	if (!xml_reader_init_buffer(&reader, in_buffer))
 		return NULL;
 
 	doc = xml_process_document(&reader);
@@ -919,6 +940,20 @@ xml_reader_init_file(xml_reader_t *xr, FILE *fp)
 	return 1;
 }
 
+static int
+xml_reader_init_buffer(xml_reader_t *xr, ni_buffer_t *buf)
+{
+	memset(xr, 0, sizeof(*xr));
+	xr->filename = "<unknown>";
+	xr->in_buffer = buf;
+	xr->no_close = 1;
+
+	xr->state = Initial;
+	xr->lineCount = 1;
+	xr->shared_location = xml_location_shared_new("<buffer>");
+	return 1;
+}
+
 int
 xml_reader_destroy(xml_reader_t *xr)
 {
@@ -930,8 +965,10 @@ xml_reader_destroy(xml_reader_t *xr)
 		fclose(xr->file);
 		xr->file = NULL;
 	}
-	free(xr->buffer);
-	xr->buffer = NULL;
+	if (xr->buffer) {
+		free(xr->buffer);
+		xr->buffer = NULL;
+	}
 
 	if (xr->shared_location) {
 		xml_location_shared_release(xr->shared_location);
@@ -944,6 +981,9 @@ char
 xml_getc(xml_reader_t *xr)
 {
 	char cc;
+
+	if (xr->in_buffer)
+		return ni_buffer_getc(xr->in_buffer);
 
 	while (1) {
 		if (xr->pos) {
@@ -972,6 +1012,14 @@ xml_getc(xml_reader_t *xr)
 void
 xml_ungetc(xml_reader_t *xr, char cc)
 {
+	if (xr->in_buffer) {
+		if (ni_buffer_ungetc(xr->in_buffer, cc) < 0)
+			ni_error("xml_ungetc: cannot put back");
+		if (cc == '\n')
+			xr->lineCount--;
+		return;
+	}
+
 	if (xr->pos == NULL
 	 || xr->pos == (unsigned char *) xr->buffer
 	 || xr->pos[-1] != cc) {
