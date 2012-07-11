@@ -25,6 +25,7 @@
 #include "xml-schema.h"
 
 static int		ni_config_parse_addrconf_dhcp(struct ni_config_dhcp *, xml_node_t *);
+static int		ni_config_parse_addrconf_dhcp6(struct ni_config_dhcp6 *, xml_node_t *);
 static int		ni_config_parse_afconfig(struct ni_afconfig *, const char *, xml_node_t *);
 static int		ni_config_parse_update_targets(unsigned int *, const xml_node_t *);
 static int		ni_config_parse_fslocation(ni_config_fslocation_t *, const char *, xml_node_t *);
@@ -50,6 +51,7 @@ ni_config_new()
 
 	conf->addrconf.default_allow_update = ~0;
 	conf->addrconf.dhcp.allow_update = ~0;
+	conf->addrconf.dhcp6.allow_update = ~0;
 	conf->addrconf.ibft.allow_update = ~0;
 	conf->addrconf.autoip.allow_update = ~0;
 
@@ -134,6 +136,10 @@ ni_config_parse(const char *filename)
 			if (!strcmp(child->name, "dhcp")
 			 && ni_config_parse_addrconf_dhcp(&conf->addrconf.dhcp, child) < 0)
 				goto failed;
+
+			if (!strcmp(child->name, "dhcp6")
+			 && ni_config_parse_addrconf_dhcp6(&conf->addrconf.dhcp6, child) < 0)
+				goto failed;
 		}
 	}
 
@@ -196,7 +202,7 @@ ni_config_parse_addrconf_dhcp(struct ni_config_dhcp *dhcp, xml_node_t *node)
 			}
 
 			pref = &dhcp->preferred_server[dhcp->num_preferred_servers++];
-			if (ni_address_parse(&pref->address, attrval, AF_UNSPEC) < 0) {
+			if (ni_address_parse(&pref->address, attrval, AF_INET) < 0) {
 				ni_error("config: unable to parse <prefer-server ip=\"%s\"",
 						attrval);
 				return -1;
@@ -221,6 +227,318 @@ ni_config_parse_addrconf_dhcp(struct ni_config_dhcp *dhcp, xml_node_t *node)
 		}
 		if (!strcmp(child->name, "allow-update"))
 			ni_config_parse_update_targets(&dhcp->allow_update, child);
+	}
+	return 0;
+}
+
+static int
+__ni_config_parse_dhcp6_class_data(xml_node_t *node, ni_string_array_t *data, const char *parent)
+{
+	const char *attrval;
+	enum {
+		FORMAT_STR,	/* normal string */
+		FORMAT_HEX,	/* XX:XX format  */
+	};
+	int format = FORMAT_STR;
+	size_t len;
+
+	if (strcmp(node->name, "class-data")) {
+		ni_error("config: <%s> is not a valid <%s> class-data node",
+			node->name, parent);
+		return -1;
+	}
+
+	len = ni_string_len(node->cdata);
+	if (len == 0) {
+		ni_warn("config: empty %s <class-data> node",
+			parent);
+		return 0;
+	}
+
+	if ((attrval = xml_node_get_attr(node, "format")) != NULL) {
+		if (!strcmp(attrval, "hex") || !strcmp(attrval, "mac")) {
+			format = FORMAT_HEX;
+		} else
+		if (!strcmp(attrval, "str") || !strcmp(attrval, "string")) {
+			format = FORMAT_STR;
+		} else {
+			ni_error("config: unknown %s <class-data format=\"%s\"",
+				parent, attrval);
+			return -1;
+		}
+	}
+
+	if(format == FORMAT_HEX) {
+		unsigned char *buf;
+
+		/* verify the format early ... */
+		len = (len / 3) + 1;
+		buf = xcalloc(1, len);
+		if (ni_parse_hex(node->cdata, buf, len) <= 0) {
+			ni_error("config: unable to parse %s hex class-data",
+				parent);
+			free(buf);
+			return -1;
+		}
+		free(buf);
+
+		ni_string_array_append(data, node->cdata);
+	} else {
+		ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
+
+		/* convert to hex-string format */
+		ni_stringbuf_grow(&buf, (len * 3));
+		ni_format_hex((unsigned char *)node->cdata, len, buf.string, buf.size);
+
+		ni_string_array_append(data, buf.string);
+		ni_stringbuf_destroy(&buf);
+	}
+
+	return 0;
+}
+
+static int
+__ni_config_parse_dhcp6_class_data_nodes(xml_node_t *node, ni_string_array_t *data)
+{
+	xml_node_t *child;
+
+	for (child = node->children; child; child = child->next) {
+		if (__ni_config_parse_dhcp6_class_data(child, data, node->name) < 0)
+			return -1;
+	}
+	return 0;
+}
+
+static int
+__ni_config_parse_dhcp6_vendor_opt_node(xml_node_t *node, ni_var_array_t *opts, const char *parent)
+{
+	const char *attrval;
+	const char *code = NULL;
+	enum {
+		FORMAT_STR,	/* normal string */
+		FORMAT_HEX,	/* XX:XX format  */
+	};
+	int format = FORMAT_STR;
+	size_t len;
+
+	if (strcmp(node->name, "option")) {
+		ni_error("config: <%s> is not a valid <%s> option node",
+			node->name, parent);
+		return -1;
+	}
+
+	if ((attrval = xml_node_get_attr(node, "code")) != NULL) {
+		char *      err;
+		long        num;
+
+		num = strtol(attrval, &err, 0);
+		if (*err != '\0' || num < 0 || num > 0xffff) {
+			ni_error("config: unable to parse %s <option code=\"%s\"",
+				parent, attrval);
+			return -1;
+		}
+		code = attrval;
+	} else {
+		ni_error("config: missed %s <option> without code attribute",
+			parent);
+		return -1;
+	}
+
+	if ((attrval = xml_node_get_attr(node, "format")) != NULL) {
+		if (!strcmp(attrval, "hex") || !strcmp(attrval, "mac")) {
+			format = FORMAT_HEX;
+		} else
+		if (!strcmp(attrval, "str") || !strcmp(attrval, "string")) {
+			format = FORMAT_STR;
+		} else {
+			ni_error("config: unknown %s <option format=\"%s\"",
+				parent, attrval);
+			return -1;
+		}
+	}
+
+	len = ni_string_len(node->cdata);
+	if(format == FORMAT_HEX) {
+		unsigned char *buf;
+
+		/* verify the format early ... */
+		if (len > 0) {
+			len = (len / 3) + 1;
+			buf = xcalloc(1, len);
+			if (ni_parse_hex(node->cdata, buf, len) <= 0) {
+				ni_error("config: unable to parse %s hex option data",
+					parent);
+				free(buf);
+				return -1;
+			}
+			free(buf);
+		}
+
+		ni_var_array_set(opts, code, node->cdata);
+	} else {
+		ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
+
+		/* convert to hex-string format */
+		if (len > 0) {
+			ni_stringbuf_grow(&buf, (len * 3));
+			ni_format_hex((unsigned char *)node->cdata, len, buf.string, buf.size);
+		}
+
+		ni_var_array_set(opts, code, buf.string);
+		ni_stringbuf_destroy(&buf);
+	}
+
+	return 0;
+}
+
+static int
+__ni_config_parse_dhcp6_vendor_opts_nodes(xml_node_t *node, ni_var_array_t *opts)
+{
+	xml_node_t *child;
+	for (child = node->children; child; child = child->next) {
+		if (__ni_config_parse_dhcp6_vendor_opt_node(child, opts, node->name) < 0)
+			return -1;
+	}
+	return 0;
+}
+
+int
+ni_config_parse_addrconf_dhcp6(struct ni_config_dhcp6 *dhcp6, xml_node_t *node)
+{
+	xml_node_t *child;
+
+	for (child = node->children; child; child = child->next) {
+		const char *attrval;
+
+		if (!strcmp(child->name, "default-duid") && !ni_string_empty(child->cdata)) {
+			ni_string_dup(&dhcp6->default_duid, child->cdata);
+		} else
+		if (!strcmp(child->name, "user-class")) {
+			ni_string_array_destroy(&dhcp6->user_class_data);
+
+			if (__ni_config_parse_dhcp6_class_data_nodes(child, &dhcp6->user_class_data) < 0) {
+				ni_string_array_destroy(&dhcp6->user_class_data);
+				return -1; /* errors reported */
+			}
+
+			if (dhcp6->user_class_data.count == 0) {
+				ni_warn("config: discarding <user-class> without any <class-data>");
+			}
+		} else
+		if (!strcmp(child->name, "vendor-class") &&
+		    (attrval = xml_node_get_attr(child, "enterprise-number")) != NULL) {
+			char *      err;
+			long        num;
+			
+			num = strtol(attrval, &err, 0);
+			if (*err != '\0' || num < 0 || num >= 0xffffffff) {
+				ni_error("config: unable to parse <vendor-class enterprise-number=\"%s\"",
+						attrval);
+				return -1;
+			}
+
+			ni_string_array_destroy(&dhcp6->vendor_class_data);
+			if (__ni_config_parse_dhcp6_class_data_nodes(child, &dhcp6->vendor_class_data) < 0) {
+				ni_string_array_destroy(&dhcp6->vendor_class_data);
+				return -1; /* errors reported */
+			}
+
+			if (dhcp6->vendor_class_data.count == 0) {
+				ni_warn("config: discarding <vendor-class> without any <class-data>");
+			} else {
+				dhcp6->vendor_class_en = num;
+			}
+		} else
+		if (!strcmp(child->name, "vendor-opts") &&
+		    (attrval = xml_node_get_attr(child, "enterprise-number")) != NULL) {
+			char *      err;
+			long        num;
+			
+			num = strtol(attrval, &err, 0);
+			if (*err != '\0' || num < 0 || num >= 0xffffffff) {
+				ni_error("config: unable to parse <vendor-class enterprise-number=\"%s\"",
+						attrval);
+				return -1;
+			}
+
+			ni_var_array_destroy(&dhcp6->vendor_opts_data);
+			if (__ni_config_parse_dhcp6_vendor_opts_nodes(child, &dhcp6->vendor_opts_data) < 0) {
+				ni_var_array_destroy(&dhcp6->vendor_opts_data);
+			}
+
+			if (dhcp6->vendor_opts_data.count == 0) {
+				ni_warn("config: discarding <vendor-opts> without any <option>");
+			} else {
+				dhcp6->vendor_opts_en = num;
+			}
+		} else
+		if (!strcmp(child->name, "lease-time") && child->cdata) {
+			dhcp6->lease_time = strtoul(child->cdata, NULL, 0);
+		} else
+		if (!strcmp(child->name, "ignore-server")
+		 && (attrval = xml_node_get_attr(child, "ip")) != NULL) {
+			ni_string_array_append(&dhcp6->ignore_servers, attrval);
+		} else
+		if (!strcmp(child->name, "prefer-server")) {
+			ni_server_preference_t *pref;
+			const char *id, *ip;
+
+			ip = xml_node_get_attr(child, "ip"); 
+			id = xml_node_get_attr(child, "id");
+
+			if (ip == NULL && id == NULL)
+				continue;
+
+			if (dhcp6->num_preferred_servers >= NI_DHCP_SERVER_PREFERENCES_MAX) {
+				ni_warn("config: too many <prefer-server> elements");
+				continue;
+			}
+
+			pref = &dhcp6->preferred_server[dhcp6->num_preferred_servers++];
+
+			if (ip && ni_address_parse(&pref->address, ip, AF_INET6) < 0) {
+				ni_error("config: unable to parse <prefer-server ip=\"%s\"",
+						ip);
+				return -1;
+			}
+
+			if (id) {
+				int len;
+
+				/* DUID is "opaque", but has 2 bytes type + up to 128 bytes */
+				if ((len = sizeof(pref->serverid.data)) > 130)
+					len = 130;
+
+				 /* DUID-LL has 2+2 fixed bytes + variable length hwaddress
+				  * and seems to be the shortest one I'm aware of ...       */
+				if ((len = ni_parse_hex(id, pref->serverid.data, len)) <= 4) {
+					ni_error("config: unable to parse <prefer-server id=\"%s\"",
+							id);
+					return -1;
+				}
+				pref->serverid.len = (size_t)len;
+			}
+
+			pref->weight = 255;
+			if ((attrval = xml_node_get_attr(child, "weight")) != NULL) {
+				if (!strcmp(attrval, "always")) {
+					pref->weight = 255;
+				} else if (!strcmp(attrval, "never")) {
+					pref->weight =  -1;
+				} else {
+					pref->weight = strtol(attrval, NULL, 0);
+					if (pref->weight > 255) {
+						pref->weight = 255;
+						ni_warn("preferred dhcp server weight exceeds max, "
+							"clamping to %d",
+							pref->weight);
+					}
+				}
+			}
+		} else
+		if (!strcmp(child->name, "allow-update")) {
+			ni_config_parse_update_targets(&dhcp6->allow_update, child);
+		}
 	}
 	return 0;
 }

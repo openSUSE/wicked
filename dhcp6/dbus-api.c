@@ -1,0 +1,459 @@
+/*
+ *	DBus API for wicked dhcp6 supplicant
+ *
+ *	Copyright (C) 2011-2012 Olaf Kirch <okir@suse.de>
+ *	Copyright (C) 2012 Marius Tomaschewski <mt@suse.de>
+ *
+ *	This program is free software; you can redistribute it and/or modify
+ *	it under the terms of the GNU General Public License as published by
+ *	the Free Software Foundation; either version 2 of the License, or
+ *	(at your option) any later version.
+ *
+ *	This program is distributed in the hope that it will be useful,
+ *	but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *	GNU General Public License for more details.
+ *
+ *	You should have received a copy of the GNU General Public License along
+ *	with this program; if not, see <http://www.gnu.org/licenses/> or write
+ *	to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
+ *	Boston, MA 02110-1301 USA.
+ */
+/*
+ * Much of this code is in dbus-objects/dhcp4.c for now.
+ */
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
+#include <stdio.h>
+#include <stdlib.h>
+
+#include <wicked/logging.h>
+#include <wicked/netinfo.h>
+#include <wicked/objectmodel.h>
+#include <wicked/dbus-service.h>
+#include <wicked/dbus-errors.h>
+
+#include "dhcp6/dhcp6.h"
+#include "util_priv.h"
+
+static ni_dhcp6_request_t *	ni_objectmodel_dhcp6_request_from_dict(const ni_dbus_variant_t *);
+
+static void			__ni_objectmodel_dhcp6_device_release(ni_dbus_object_t *);
+
+static ni_dbus_class_t		ni_objectmodel_dhcp6_device_class = {
+	.name		= "dhcp6-device",
+	.destroy	= __ni_objectmodel_dhcp6_device_release,
+};
+
+//extern const ni_dbus_service_t	wicked_dbus_addrconf_request_service; /* XXX */
+static const ni_dbus_service_t	wicked_dbus_dhcp6_service;
+
+/*
+ * Build a dbus-object encapsulating a network device.
+ * If @server is non-NULL, register the object with a canonical object path
+ */
+static ni_dbus_object_t *
+__ni_objectmodel_dhcp6_device_build_object(ni_dbus_server_t *server, ni_dhcp6_device_t *dev)
+{
+	ni_dbus_object_t *object;
+	char object_path[256];
+
+	if (dev->link.ifindex <= 0) {
+		ni_error("%s: dhcp6 device %s has bad ifindex %d", __func__,
+				dev->ifname, dev->link.ifindex);
+		return NULL;
+	}
+
+	if (server != NULL) {
+		snprintf(object_path, sizeof(object_path), "Interface/%d", dev->link.ifindex);
+
+		object = ni_dbus_server_register_object(server, object_path,
+						&ni_objectmodel_dhcp6_device_class,
+						ni_dhcp6_device_get(dev));
+	} else {
+		object = ni_dbus_object_new(&ni_objectmodel_dhcp6_device_class, NULL,
+						ni_dhcp6_device_get(dev));
+	}
+
+	if (object == NULL)
+		ni_fatal("Unable to create dbus object for dhcp6 device %s", dev->ifname);
+
+	ni_dbus_object_register_service(object, &wicked_dbus_dhcp6_service);
+	return object;
+}
+
+/*
+ * Register a network interface with our dbus server,
+ * and add the appropriate dbus services
+ */
+ni_dbus_object_t *
+ni_objectmodel_register_dhcp6_device(ni_dbus_server_t *server, ni_dhcp6_device_t *dev)
+{
+	return __ni_objectmodel_dhcp6_device_build_object(server, dev);
+}
+
+/*
+ * Extract the dhcp4_device handle from a dbus object
+ */
+static ni_dhcp6_device_t *
+ni_objectmodel_dhcp6_device_unwrap(const ni_dbus_object_t *object, DBusError *error)
+{
+	ni_dhcp6_device_t *dev = ni_dbus_object_get_handle(object);
+
+	if (ni_dbus_object_isa(object, &ni_objectmodel_dhcp6_device_class))
+		return dev;
+
+	if (error) {
+		dbus_set_error(error, DBUS_ERROR_FAILED,
+			"method not compatible with object %s of class %s (not a dhcp6 device)",
+			object->path, object->class->name);
+	}
+	return NULL;
+}
+
+/*
+ * Destroy a dbus object wrapping a dhcp_device.
+ */
+
+void
+__ni_objectmodel_dhcp6_device_release(ni_dbus_object_t *object)
+{
+	ni_dhcp6_device_t *dev = ni_objectmodel_dhcp6_device_unwrap(object, NULL);
+
+	ni_assert(dev != NULL);
+	ni_dhcp6_device_put(dev);
+	object->handle = NULL;
+}
+
+/*
+ * Interface.acquire(dict options)
+ * Acquire a lease for the given interface.
+ *
+ * Server side method implementation
+ */
+static dbus_bool_t
+__wicked_dbus_dhcp6_acquire_svc(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_dhcp6_device_t *dev;
+	ni_uuid_t req_uuid = NI_UUID_INIT;
+	ni_dhcp6_request_t *req = NULL;
+	int rv;
+
+	if ((dev = ni_objectmodel_dhcp6_device_unwrap(object, error)) == NULL)
+		goto failed;
+
+	if (argc == 2) {
+		if (!ni_dbus_variant_get_uuid(&argv[0], &req_uuid)) {
+			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+					"%s: unable to extract uuid from argument",
+					method->name);
+			goto failed;
+		}
+		argc--;
+		argv++;
+	}
+
+	if (argc != 1) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"method %s called with %d arguments (expected 1)",
+				argc);
+		goto failed;
+	}
+
+	ni_debug_dhcp("%s(dev=%s)", __func__, dev->ifname);
+
+	/* Extract configuration from dict */
+	if (!(req = ni_objectmodel_dhcp6_request_from_dict(&argv[0]))) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"%s: unable to extract request from argument",
+				method->name);
+		goto failed;
+	}
+	req->uuid = req_uuid;
+	req->info_only = FALSE;
+
+	if ((rv = ni_dhcp6_acquire(dev, req)) < 0) {
+		dbus_set_error(error, DBUS_ERROR_FAILED,
+				"cannot configure interface %s: %s",
+				dev->ifname,
+				ni_strerror(rv));
+		goto failed;
+	}
+
+	/* We've now initiated the DHCP exchange. It will complete
+	 * asynchronously, and when done, we will emit a signal that
+	 * notifies the sender of its results. */
+
+	/* remember request for a restart */
+	ni_dhcp6_device_set_request(dev, req);
+	return TRUE;
+
+failed:
+	if (req)
+		ni_dhcp6_request_free(req);
+	return FALSE;
+}
+
+/*
+ * Interface.drop(void)
+ * Drop a DHCP lease
+ */
+static dbus_bool_t
+__wicked_dbus_dhcp6_drop_svc(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_dhcp6_device_t *dev;
+	dbus_bool_t ret = FALSE;
+	ni_uuid_t uuid;
+	int rv;
+
+	if ((dev = ni_objectmodel_dhcp6_device_unwrap(object, error)) == NULL)
+		goto failed;
+
+	ni_debug_dhcp("%s(dev=%s)", __func__, dev->ifname);
+
+	memset(&uuid, 0, sizeof(uuid));
+	if (argc == 1) {
+		/* Extract the lease uuid and pass that along to ni_dhcp_release.
+		 * This makes sure we don't cancel the wrong lease.
+		 */
+		if (!ni_dbus_variant_get_uuid(&argv[0], &uuid)) {
+			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "bad uuid argument");
+			goto failed;
+		}
+	}
+
+	if ((rv = ni_dhcp6_release(dev, &uuid)) < 0) {
+		ni_dbus_set_error_from_code(error, rv,
+				"Unable to drop DHCP lease for interface %s",
+				dev->ifname);
+		goto failed;
+	}
+
+	ret = TRUE;
+
+failed:
+	return ret;
+}
+
+static ni_dbus_method_t		wicked_dbus_dhcp6_methods[] = {
+	{ "acquire",		"aya{sv}",		__wicked_dbus_dhcp6_acquire_svc },
+	{ "drop",		"ay",			__wicked_dbus_dhcp6_drop_svc },
+	{ NULL }
+};
+
+static ni_dbus_method_t		wicked_dbus_dhcp6_signals[] = {
+	{ NI_OBJECTMODEL_LEASE_ACQUIRED_SIGNAL },
+	{ NI_OBJECTMODEL_LEASE_RELEASED_SIGNAL },
+	{ NI_OBJECTMODEL_LEASE_LOST_SIGNAL },
+	{ NULL }
+};
+
+
+/*
+ * Create/delete a dhcp6 request object
+ */
+ni_dhcp6_request_t *
+ni_dhcp6_request_new(void)
+{
+	ni_dhcp6_request_t *req;
+
+	req = xcalloc(1, sizeof(*req));
+
+	/* By default, we try to obtain all sorts of config from the server */
+	req->update = ~0;
+
+	return req;
+}
+
+void
+ni_dhcp6_request_free(ni_dhcp6_request_t *req)
+{
+	if(req) {
+		ni_string_free(&req->hostname);
+		ni_string_free(&req->clientid);
+		/*
+		 * req->vendor_class
+		 * ....
+		 */
+		free(req);
+	}
+}
+
+
+/*
+ * Properties associated with a DHCP6 request
+ */
+static ni_dbus_class_t		ni_objectmodel_dhcp6_request_class = {
+	.name		= "dhcp4-request",
+	//FIXME: no .destroy ?
+};
+
+#define DHCP6REQ_STRING_PROPERTY(dbus_name, member_name, rw) \
+	NI_DBUS_GENERIC_STRING_PROPERTY(dhcp6_request, dbus_name, member_name, rw)
+#define DHCP6REQ_UINT_PROPERTY(dbus_name, member_name, rw) \
+	NI_DBUS_GENERIC_UINT_PROPERTY(dhcp6_request, dbus_name, member_name, rw)
+#define DHCP6REQ_UUID_PROPERTY(dbus_name, member_name, rw) \
+	NI_DBUS_GENERIC_UUID_PROPERTY(dhcp6_request, dbus_name, member_name, rw)
+#define DHCP6REQ_BOOL_PROPERTY(dbus_name, member_name, rw) \
+	NI_DBUS_GENERIC_BOOL_PROPERTY(dhcp6_request, dbus_name, member_name, rw)
+#define DHCP6REQ_PROPERTY_SIGNATURE(signature, __name, rw) \
+	__NI_DBUS_PROPERTY(signature, __name, __dhcp4_request, rw)
+
+static ni_dhcp6_request_t *
+__ni_objectmodel_get_dhcp6_request(const ni_dbus_object_t *object, DBusError *error)
+{
+	ni_dhcp6_request_t *req = ni_dbus_object_get_handle(object);
+
+	if (ni_dbus_object_isa(object, &ni_objectmodel_dhcp6_request_class))
+		return req;
+
+	if (error)
+		dbus_set_error(error, DBUS_ERROR_FAILED,
+			"method not compatible with object %s of class %s (not a dhcp4 request)",
+			object->path, object->class->name);
+
+	return NULL;
+}
+
+static void *
+ni_objectmodel_get_dhcp6_request(const ni_dbus_object_t *object, DBusError *error)
+{
+	return __ni_objectmodel_get_dhcp6_request(object, error);
+}
+
+static ni_dbus_property_t	dhcp6_request_properties[] = {
+	DHCP6REQ_BOOL_PROPERTY(enabled, enabled, RO),
+	DHCP6REQ_UUID_PROPERTY(uuid, uuid, RO),
+	//DHCP6REQ_UINT_PROPERTY(settle-timeout, settle_timeout, RO),
+	//DHCP6REQ_UINT_PROPERTY(acquire-timeout, acquire_timeout, RO),
+	DHCP6REQ_STRING_PROPERTY(hostname, hostname, RO),
+	DHCP6REQ_STRING_PROPERTY(client-id, clientid, RO),
+	//DHCP6REQ_STRING_PROPERTY(vendor-class, vendor_class, RO),
+	DHCP6REQ_UINT_PROPERTY(update, update, RO),
+	{ NULL },
+};
+
+static ni_dbus_service_t	ni_objectmodel_dhcp6_request_service = {
+	.name		= NI_OBJECTMODEL_DHCP6_INTERFACE ".Request",
+	.compatible	= &ni_objectmodel_dhcp6_request_class,
+	.properties	= dhcp6_request_properties,
+};
+
+/*
+ * Create a dummy DBus object encapsulating a dhcp4 request
+ */
+static ni_dbus_object_t *
+__dhcp6_request_dummy_object(ni_dhcp6_request_t *req)
+{
+	static ni_dbus_object_t dummy;
+
+	memset(&dummy, 0, sizeof(dummy));
+	dummy.handle = req;
+	dummy.class = &ni_objectmodel_dhcp6_request_class;
+	return &dummy;
+}
+
+/*
+ * This is a helper function extracts a ni_dhcp4_request_t from a dbus dict
+ */
+ni_dhcp6_request_t *
+ni_objectmodel_dhcp6_request_from_dict(const ni_dbus_variant_t *dict)
+{
+	ni_dhcp6_request_t *req;
+	ni_dbus_object_t *dummy;
+
+	req = ni_dhcp6_request_new();
+
+	dummy = __dhcp6_request_dummy_object(req);
+	if (!ni_dbus_object_set_properties_from_dict(dummy, &ni_objectmodel_dhcp6_request_service, dict, NULL)) {
+		ni_dhcp6_request_free(req);
+		return NULL;
+	}
+
+	return req;
+}
+
+/*
+ * Property name
+ */
+static void *
+ni_objectmodel_get_dhcp6_device(const ni_dbus_object_t *object, DBusError *error)
+{
+	ni_dhcp6_device_t *dev;
+
+	dev = ni_objectmodel_dhcp6_device_unwrap(object, error);
+	return dev;
+}
+
+/*
+ * Property config
+ */
+static dbus_bool_t
+__wicked_dbus_dhcp6_get_request(const ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				ni_dbus_variant_t *result,
+				DBusError *error)
+{
+	ni_dbus_object_t *dummy;
+	ni_dhcp6_device_t *dev;
+	
+	if (!(dev = ni_objectmodel_dhcp6_device_unwrap(object, error)))
+		return FALSE;
+
+	if (dev->request == NULL)
+		return ni_dbus_error_property_not_present(error, object->path, property->name);
+	dummy = __dhcp6_request_dummy_object(dev->request);
+
+	ni_dbus_variant_init_dict(result);
+	return ni_dbus_object_get_properties_as_dict(dummy, &ni_objectmodel_dhcp6_request_service, result, error);
+}
+
+static dbus_bool_t
+__wicked_dbus_dhcp6_set_request(ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *argument,
+				DBusError *error)
+{
+	ni_dbus_object_t *dummy;
+	ni_dhcp6_device_t *dev;
+
+	if (!(dev = ni_objectmodel_dhcp6_device_unwrap(object, error)))
+		return FALSE;
+
+	if (dev->request == NULL)
+		dev->request = ni_dhcp6_request_new();
+	dummy = __dhcp6_request_dummy_object(dev->request);
+
+	return ni_dbus_object_set_properties_from_dict(dummy, &ni_objectmodel_dhcp6_request_service, argument, error);
+}
+
+
+#define DHCP6DEV_PROPERTY(type, __name, rw) \
+	NI_DBUS_PROPERTY(type, __name, __wicked_dbus_dhcp6, rw)
+
+#define DHCP6DEV_STRING_PROPERTY(dbus_name, member_name, rw) \
+	NI_DBUS_GENERIC_STRING_PROPERTY(dhcp6_device, dbus_name, member_name, rw)
+
+#define DHCP6DEV_PROPERTY_SIGNATURE(signature, __name, rw) \
+	__NI_DBUS_PROPERTY(signature, __name, __wicked_dbus_dhcp6, rw)
+
+static ni_dbus_property_t	wicked_dbus_dhcp6_properties[] = {
+	DHCP6DEV_STRING_PROPERTY(name, ifname, RO),
+	DHCP6DEV_PROPERTY_SIGNATURE(NI_DBUS_DICT_SIGNATURE, request, RO),
+
+	{ NULL }
+};
+
+static const ni_dbus_service_t	wicked_dbus_dhcp6_service = {
+	.name		= NI_OBJECTMODEL_DHCP6_INTERFACE,
+	.compatible	= &ni_objectmodel_dhcp6_device_class,
+	.methods	= wicked_dbus_dhcp6_methods,
+	.signals	= wicked_dbus_dhcp6_signals,
+	.properties	= wicked_dbus_dhcp6_properties,
+};
