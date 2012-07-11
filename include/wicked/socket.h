@@ -13,6 +13,22 @@
 #include <wicked/types.h>
 #include <sys/types.h>
 
+typedef struct ni_timeout_param {
+	int			nretries;	/* limit the number of retries; < 0 means unlimited */
+
+	unsigned int		timeout;	/* current timeout value, without jitter */
+	int			increment;	/* how to change the timeout every time ni_timeout_increase()
+						 * is called.
+						 * If == 0, timeout stays constant.
+						 * If > 0, timeout is incremented by this value every time (linear backoff).
+						 * If < 0, timeout is doubled every time (exponential backoff)
+						 */
+	ni_int_range_t		jitter;		/* randomize timeout in [jitter.min, jitter.max] interval */
+	unsigned int		max_timeout;	/* timeout is capped by max_timeout */
+
+	ni_bool_t		(*backoff_callback)(struct ni_timeout_param *);
+} ni_timeout_param_t;
+
 typedef struct ni_timer	ni_timer_t;
 typedef void		ni_timeout_callback_t(void *, const ni_timer_t *);
 
@@ -47,6 +63,8 @@ extern char *		ni_socket_gets(ni_socket_t *, char *, size_t);
 extern xml_node_t *	ni_socket_recv_xml(ni_socket_t *);
 extern void		ni_socket_close(ni_socket_t *);
 
+extern void		ni_timeout_arm(struct timeval *, const ni_timeout_param_t *);
+extern ni_bool_t	ni_timeout_recompute(ni_timeout_param_t *);
 
 #endif /* __WICKED_SOCKET_H__ */
 

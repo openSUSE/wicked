@@ -284,24 +284,32 @@ ni_capture_inspect_udp_header(unsigned char *data, size_t bytes, size_t *payload
 /*
  * Timeout handling
  */
-void
-ni_timeout_increase(ni_timeout_param_t *tmo)
+ni_bool_t
+ni_timeout_recompute(ni_timeout_param_t *tmo)
 {
-	if (tmo->increment)
+	if (tmo->nretries == 0)
+		return FALSE;
+
+	if (tmo->increment >= 0)
 		tmo->timeout += tmo->increment;
 	else
 		tmo->timeout <<= 1;
 	if (tmo->timeout > tmo->max_timeout)
 		tmo->timeout = tmo->max_timeout;
+
+	if (tmo->backoff_callback)
+		return tmo->backoff_callback(tmo);
+	return TRUE;
 }
 
-int
-ni_timeout_arm(struct timeval *deadline, unsigned long timeout, unsigned int jitter)
+static void
+__ni_timeout_arm(struct timeval *deadline, unsigned long timeout, const ni_int_range_t *jitter)
 {
 	timeout *= 1000;
-	if (jitter) {
-		jitter *= 1000;
-		timeout += (random() % (2 * jitter)) - jitter;
+	if (jitter && jitter->min < jitter->max) {
+		unsigned int jitter_range = (jitter->max - jitter->min) * 1000;
+
+		timeout += ((long) random() % jitter_range) + jitter->min;
 	}
 
 	ni_debug_socket("arming retransmit timer (%lu msec)", timeout);
@@ -316,15 +324,18 @@ ni_timeout_arm(struct timeval *deadline, unsigned long timeout, unsigned int jit
 		deadline->tv_sec += 1;
 		deadline->tv_usec -= 1000000;
 	}
-	return 0;
+}
+
+void
+ni_timeout_arm(struct timeval *deadline, const ni_timeout_param_t *tp)
+{
+	__ni_timeout_arm(deadline, tp->timeout, &tp->jitter);
 }
 
 void
 ni_capture_arm_retransmit(ni_capture_t *capture)
 {
-	ni_timeout_arm(&capture->retrans.deadline,
-			capture->retrans.timeout.timeout,
-			capture->retrans.timeout.max_jitter);
+	ni_timeout_arm(&capture->retrans.deadline, &capture->retrans.timeout);
 }
 
 void
@@ -337,8 +348,12 @@ ni_capture_disarm_retransmit(ni_capture_t *capture)
 void
 ni_capture_force_retransmit(ni_capture_t *capture, unsigned int delay)
 {
-	if (timerisset(&capture->retrans.deadline))
-		ni_timeout_arm(&capture->retrans.deadline, delay, 0);
+	if (timerisset(&capture->retrans.deadline)) {
+		struct timeval *deadline = &capture->retrans.deadline;
+
+		gettimeofday(deadline, NULL);
+		deadline->tv_sec += delay;
+	}
 }
 
 /*
@@ -357,7 +372,7 @@ ni_capture_retransmit(ni_capture_t *capture)
 		return;
 	}
 
-	ni_timeout_increase(&capture->retrans.timeout);
+	ni_timeout_recompute(&capture->retrans.timeout);
 	rv = __ni_capture_broadcast(capture, capture->retrans.buffer);
 
 	/* We don't care whether sending failed or not. Quite possibly

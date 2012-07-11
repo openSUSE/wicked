@@ -527,7 +527,9 @@ ni_dhcp_device_send_message(ni_dhcp_device_t *dev, unsigned int msg_code, const 
 		memset(&timeout, 0, sizeof(timeout));
 		timeout.timeout = dev->config->resend_timeout;
 		timeout.increment = dev->config->resend_timeout;
-		timeout.max_jitter = 1;	/* add a random jitter of +/-1 sec */
+		timeout.nretries = -1;
+		timeout.jitter.min = -1;/* add a random jitter of +/-1 sec */
+		timeout.jitter.min = 1;
 		timeout.max_timeout = NI_DHCP_RESEND_TIMEOUT_MAX;
 
 		/* FIXME: during renewal, we really want to unicast the request */

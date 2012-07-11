@@ -106,12 +106,7 @@ __ni_addrconf_should_update(unsigned int mask, unsigned int bit)
 /*
  * Packet capture and raw sockets
  */
-typedef struct ni_timeout_param {
-	unsigned int		timeout;
-	unsigned int		increment;
-	unsigned int		max_jitter;
-	unsigned int		max_timeout;
-} ni_timeout_param_t;
+#include <wicked/socket.h>
 
 typedef struct ni_capture_devinfo {
 	const char *		ifname;
