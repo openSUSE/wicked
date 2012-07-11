@@ -40,14 +40,15 @@
 #include "kernel.h"
 #include "appconfig.h"
 
-static int	__ni_process_ifinfomsg(ni_linkinfo_t *link, struct nlmsghdr *h,
-				struct ifinfomsg *ifi, ni_netconfig_t *);
-static int	__ni_netdev_process_newaddr(ni_netdev_t *, struct nlmsghdr *, struct ifaddrmsg *);
-static int	__ni_netdev_process_newroute(ni_netdev_t *, struct nlmsghdr *,
-				struct rtmsg *, ni_netconfig_t *);
-static int	__ni_discover_bridge(ni_netdev_t *);
-static int	__ni_discover_bond(ni_netdev_t *);
-static int	__ni_discover_addrconf(ni_netdev_t *);
+static int		__ni_process_ifinfomsg(ni_linkinfo_t *link, struct nlmsghdr *h,
+					struct ifinfomsg *ifi, ni_netconfig_t *);
+static int		__ni_netdev_process_newaddr(ni_netdev_t *, struct nlmsghdr *, struct ifaddrmsg *);
+static int		__ni_netdev_process_newroute(ni_netdev_t *, struct nlmsghdr *,
+					struct rtmsg *, ni_netconfig_t *);
+static int		__ni_discover_bridge(ni_netdev_t *);
+static int		__ni_discover_bond(ni_netdev_t *);
+static int		__ni_discover_addrconf(ni_netdev_t *);
+static ni_route_t *	__ni_netdev_add_autoconf_prefix(ni_netdev_t *, const ni_sockaddr_t *, unsigned int, unsigned int);
 static ni_addrconf_lease_t *__ni_netdev_get_autoconf_lease(ni_netdev_t *, int);
 
 struct ni_rtnl_info {
