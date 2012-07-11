@@ -649,19 +649,23 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *info)
 
 	ni_dhcp6_device_set_config(dev, config);
 
+	/* FIXME: move to ni_dhcp6_device_start(dev) */
         if (config->info_only) {
         	if ((rv = ni_dhcp6_init_message(dev, NI_DHCP6_INFO_REQUEST, NULL)) != 0)
         		return rv;
+		dev->fsm.state = NI_DHCP6_STATE_REQUESTING_INFO;
         }
 #if 0
         else if(have_valid_lease) {
         	if ((rv = ni_dhcp6_init_message(dev, NI_DHCP6_CONFIRM, NULL)) != 0)
         	        		return rv;
+		dev->fsm.state = NI_DHCP6_STATE_VALIDATING;
         }
 #endif
         else {
         	if ((rv = ni_dhcp6_init_message(dev, NI_DHCP6_SOLICIT, NULL)) != 0)
         	        		return rv;
+		dev->fsm.state = NI_DHCP6_STATE_SELECTING;
         }
 
 	if (ni_dhcp6_device_transmit_arm_delay(dev))

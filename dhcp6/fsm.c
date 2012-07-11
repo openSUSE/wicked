@@ -124,8 +124,19 @@ ni_dhcp6_fsm_process_client_packet(ni_dhcp6_device_t *dev, ni_buffer_t *msgbuf, 
          * We've received a valid response; if something goes wrong now
          * it's nothing that could be fixed by retransmitting the message.
          */
+        if (dev->fsm.timer)
+		ni_timer_cancel(dev->fsm.timer);
         ni_dhcp6_device_retransmit_disarm(dev);
 
+        /* here we are .......... */
+
+	/* if (dev->lease != lease) { */
+        if (lease) {
+		ni_dhcp6_ia_list_destroy(&lease->dhcp6.ia_na);
+		ni_dhcp6_ia_list_destroy(&lease->dhcp6.ia_ta);
+		ni_dhcp6_ia_list_destroy(&lease->dhcp6.ia_pd);
+		ni_addrconf_lease_free(lease);
+	}
 	return 0;
 }
 
@@ -159,6 +170,7 @@ static const char *__dhcp6_state_name[__NI_DHCP6_STATE_MAX] = {
 	[NI_DHCP6_STATE_REBOOT]         = "REBOOT",
 	[NI_DHCP6_STATE_RENEW_REQUESTED]= "RENEW_REQUESTED",
 	[NI_DHCP6_STATE_RELEASED]       = "RELEASED",
+	[NI_DHCP6_STATE_REQUESTING_INFO]= "REQUESTING INFO",
 };
 
 const char *

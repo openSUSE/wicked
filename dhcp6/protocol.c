@@ -900,6 +900,17 @@ ni_dhcp6_ia_list_append(struct ni_dhcp6_ia **list, struct ni_dhcp6_ia *ia)
 	*list = ia;
 }
 
+void
+ni_dhcp6_ia_list_destroy(struct ni_dhcp6_ia **list)
+{
+	struct ni_dhcp6_ia *ia;
+	while ((ia = *list) != NULL) {
+		*list = ia->next;
+		ni_dhcp6_ia_addr_list_destroy(&ia->addrs);
+		free(ia);
+	}
+}
+
 static int
 ni_dhcp6_option_parse_ia_address(ni_buffer_t *bp, struct ni_dhcp6_ia *ia, uint16_t addr_type)
 {
@@ -1232,14 +1243,12 @@ ni_dhcp6_client_parse_response(ni_dhcp6_device_t *dev, ni_buffer_t *buffer,  con
 
 	msg_type = header->type;
 	msg_xid  = ntohl(header->xid) & NI_DHCP6_XID_MASK;
-#if 0
 	if (dev->fsm.state == NI_DHCP6_STATE_INIT) {
 		ni_error("%s: ignoring unexpected %s message xid 0x%06x in state %s",
 			dev->ifname, ni_dhcp6_message_name(msg_type), msg_xid,
 			ni_dhcp6_fsm_state_name(dev->fsm.state));
 		return -1;
 	}
-#endif
 	if (dev->dhcp6.xid == 0) {
 		ni_error("%s: ignoring unexpected %s message xid 0x%06x",
 			dev->ifname, ni_dhcp6_message_name(msg_type), msg_xid);
@@ -1283,8 +1292,12 @@ cleanup:
 	return msg_type;
 
 failure:
-	if (lease)
+	if (lease) {
+		ni_dhcp6_ia_list_destroy(&lease->dhcp6.ia_na);
+		ni_dhcp6_ia_list_destroy(&lease->dhcp6.ia_ta);
+		ni_dhcp6_ia_list_destroy(&lease->dhcp6.ia_pd);
 		ni_addrconf_lease_free(lease);
+	}
 	msg_type = -1;
 	goto cleanup;
 	return msg_type;

@@ -291,5 +291,7 @@ extern ni_bool_t	ni_dhcp6_set_message_timing(unsigned int, ni_dhcp6_timeout_para
 extern int		ni_dhcp6_client_parse_response(ni_dhcp6_device_t *, ni_buffer_t *,
 					const struct in6_addr *, ni_addrconf_lease_t **);
 
+/* FIXME: */
+extern void		ni_dhcp6_ia_list_destroy(struct ni_dhcp6_ia **list);
 
 #endif /* __WICKED_DHCP6_PROTOCOL_H__ */
