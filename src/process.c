@@ -328,10 +328,16 @@ ni_process_run_and_capture_output(ni_process_t *pi, ni_buffer_t *out_buffer)
 int
 __ni_process_run(ni_process_t *pi, int *pfd)
 {
+	const char *arg0 = pi->argv.data[0];
 	pid_t pid;
 
 	if (pi->pid != 0) {
 		ni_error("Cannot execute process instance twice (%s)", pi->process->command);
+		return -1;
+	}
+
+	if (!ni_file_executable(arg0)) {
+		ni_error("Unable to run %s; does not exist or is not executable", arg0);
 		return -1;
 	}
 
@@ -345,7 +351,6 @@ __ni_process_run(ni_process_t *pi, int *pfd)
 
 	if (pid == 0) {
 		int maxfd;
-		const char *arg0;
 		int fd;
 
 		if (chdir("/") < 0)
