@@ -699,7 +699,12 @@ ni_ifworker_generate_uuid(ni_ifworker_t *w)
 
 	if (w->config && w->config->location) {
 		filename = w->config->location->shared->filename;
-		if (ni_uuid_for_file(&w->uuid, filename) >= 0)
+
+		/* The XML reader code may use filenames such as
+		 * <stdin> or <buffer>; of course, you cannot generate
+		 * a uuid from these. */
+		if (filename[0] != '<'
+		 && ni_uuid_for_file(&w->uuid, filename) >= 0)
 			return;
 	}
 
@@ -2773,6 +2778,27 @@ done:
 }
 
 /*
+ * Read firmware ifconfig (eg iBFT)
+ */
+static ni_bool_t
+ni_ifconfig_firmware_load(ni_objectmodel_fsm_t *fsm)
+{
+	xml_document_t *config_doc;
+
+	ni_debug_readwrite("%s()", __func__);
+	if (!(config_doc = ni_netconfig_firmware_discovery())) {
+		ni_error("unable to get firmware interface definitions");
+		return FALSE;
+	}
+
+	ni_ifworkers_from_xml(fsm, config_doc);
+
+	/* Do *not* delete config_doc; we are keeping references to its
+	 * descendant nodes in the ifworkers */
+	return TRUE;
+}
+
+/*
  * Read ifconfig file(s)
  */
 static dbus_bool_t
@@ -2798,6 +2824,9 @@ ni_ifconfig_load(ni_objectmodel_fsm_t *fsm, const char *pathname)
 {
 	char chroot_namebuf[PATH_MAX];
 	struct stat stb;
+
+	if (!strcmp(pathname, "FIRMWARE"))
+		return ni_ifconfig_firmware_load(fsm);
 
 	if (opt_global_rootdir) {
 		snprintf(chroot_namebuf, sizeof(chroot_namebuf), "%s/%s", opt_global_rootdir, pathname);

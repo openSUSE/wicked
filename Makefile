@@ -56,6 +56,7 @@ __LIBSRCS= \
 	  sysconfig.c \
 	  ibft.c \
 	  sysfs.c \
+	  firmware.c \
 	  nis.c \
 	  resolver.c \
 	  update.c \
