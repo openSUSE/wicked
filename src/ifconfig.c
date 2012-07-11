@@ -1060,6 +1060,17 @@ __ni_rtnl_send_newaddr(ni_netdev_t *dev, const ni_address_t *ap, int flags)
 		NLA_PUT_STRING(msg, IFA_LABEL, ap->label);
 	}
 
+	if (ap->family == AF_INET6
+	 && ap->ipv6_cache_info.valid_lft && ap->ipv6_cache_info.preferred_lft) {
+		struct ifa_cacheinfo ci;
+
+		memset(&ci, 0, sizeof(ci));
+		ci.ifa_valid = ap->ipv6_cache_info.valid_lft;
+		ci.ifa_prefered = ap->ipv6_cache_info.preferred_lft;
+
+		nla_put(msg, IFA_CACHEINFO, sizeof(ci), &ci);
+	}
+
 	if (ni_nl_talk(msg) < 0) {
 		ni_error("%s(%s/%u): ni_nl_talk failed", __func__,
 				ni_address_print(&ap->local_addr),

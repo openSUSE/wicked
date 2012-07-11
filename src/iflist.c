@@ -48,7 +48,7 @@ static int		__ni_netdev_process_newroute(ni_netdev_t *, struct nlmsghdr *,
 static int		__ni_discover_bridge(ni_netdev_t *);
 static int		__ni_discover_bond(ni_netdev_t *);
 static int		__ni_discover_addrconf(ni_netdev_t *);
-static ni_route_t *	__ni_netdev_add_autoconf_prefix(ni_netdev_t *, const ni_sockaddr_t *, unsigned int, unsigned int);
+static ni_route_t *	__ni_netdev_add_autoconf_prefix(ni_netdev_t *, const ni_sockaddr_t *, unsigned int, const struct prefix_cacheinfo *);
 static ni_addrconf_lease_t *__ni_netdev_get_autoconf_lease(ni_netdev_t *, int);
 
 struct ni_rtnl_info {
@@ -789,7 +789,7 @@ int
 __ni_netdev_process_newprefix(ni_netdev_t *dev, struct nlmsghdr *h, struct prefixmsg *pfx)
 {
 	struct nlattr *tb[PREFIX_MAX+1];
-	unsigned int expires = 0;
+	const struct prefix_cacheinfo *cache_info = NULL;
 	ni_sockaddr_t address;
 
 	if (pfx->prefix_family != AF_INET6)
@@ -810,23 +810,19 @@ __ni_netdev_process_newprefix(ni_netdev_t *dev, struct nlmsghdr *h, struct prefi
 		return -1;
 	}
 
-	if (tb[PREFIX_CACHEINFO]) {
-		struct prefix_cacheinfo *ci = (struct prefix_cacheinfo *) tb[PREFIX_CACHEINFO];
-
-		if (ci->valid_time != 0xFFFFFFFF)
-			expires = ci->valid_time;
-	}
+	if (tb[PREFIX_CACHEINFO])
+		cache_info = (struct prefix_cacheinfo *) tb[PREFIX_CACHEINFO];
 
 
 	__ni_nla_get_addr(pfx->prefix_family, &address, tb[PREFIX_ADDRESS]);
 
-	if(__ni_netdev_add_autoconf_prefix(dev, &address, pfx->prefix_len, expires) == NULL)
+	if (__ni_netdev_add_autoconf_prefix(dev, &address, pfx->prefix_len, cache_info) == NULL)
 		return -1;
 	return 0;
 }
 
 ni_route_t *
-__ni_netdev_add_autoconf_prefix(ni_netdev_t *dev, const ni_sockaddr_t *addr, unsigned int pfxlen, unsigned int expires)
+__ni_netdev_add_autoconf_prefix(ni_netdev_t *dev, const ni_sockaddr_t *addr, unsigned int pfxlen, const struct prefix_cacheinfo *cache_info)
 {
 	ni_addrconf_lease_t *lease;
 	ni_route_t *rp;
@@ -841,6 +837,11 @@ __ni_netdev_add_autoconf_prefix(ni_netdev_t *dev, const ni_sockaddr_t *addr, uns
 
 	if (rp == NULL)
 		rp = __ni_route_new(&lease->routes, pfxlen, addr, NULL);
+
+	if (cache_info) {
+		rp->ipv6_cache_info.valid_lft = cache_info->valid_time;
+		rp->ipv6_cache_info.preferred_lft = cache_info->preferred_time;
+	}
 
 	return rp;
 }
@@ -884,6 +885,13 @@ __ni_netdev_process_newaddr(ni_netdev_t *dev, struct nlmsghdr *h, struct ifaddrm
 	ap->peer_addr = tmp.peer_addr;
 	ap->bcast_addr = tmp.bcast_addr;
 	ap->anycast_addr = tmp.anycast_addr;
+
+	if (tb[IFA_CACHEINFO]) {
+		struct ifa_cacheinfo *ci = (struct ifa_cacheinfo *) tb[IFA_CACHEINFO];
+
+		ap->ipv6_cache_info.valid_lft = ci->ifa_valid;
+		ap->ipv6_cache_info.preferred_lft = ci->ifa_prefered;
+	}
 
 	lease = __ni_netdev_address_to_lease(dev, ap);
 	if (lease == NULL) {

@@ -54,6 +54,8 @@ struct ni_route {
 	unsigned int		realms;
 	unsigned int		rto_min;
 	unsigned int		hoplimit;
+
+	ni_ipv6_cache_info_t	ipv6_cache_info;
 };
 
 

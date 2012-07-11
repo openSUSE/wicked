@@ -103,4 +103,9 @@ ni_uint_range_update_max(ni_uint_range_t *r, unsigned int max)
 		r->max = max;
 }
 
+typedef struct ni_ipv6_cache_info {
+	unsigned int		valid_lft;
+	unsigned int		preferred_lft;
+} ni_ipv6_cache_info_t;
+
 #endif /* __WICKED_TYPES_H__ */
