@@ -54,8 +54,6 @@ struct ni_route {
 	unsigned int		realms;
 	unsigned int		rto_min;
 	unsigned int		hoplimit;
-
-	time_t			expires;		/* when route expires (ipv6) */
 };
 
 

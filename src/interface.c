@@ -406,7 +406,6 @@ __ni_netdev_address_to_lease(ni_netdev_t *dev, const ni_address_t *ap)
 int
 __ni_lease_owns_address(const ni_addrconf_lease_t *lease, const ni_address_t *match)
 {
-	time_t now = time(NULL);
 	ni_address_t *ap;
 
 	if (!lease || lease->family != match->family)
@@ -420,8 +419,6 @@ __ni_lease_owns_address(const ni_addrconf_lease_t *lease, const ni_address_t *ma
 		for (rp = lease->routes; rp; rp = rp->next) {
 			if (rp->prefixlen != match->prefixlen)
 				continue;
-			if (rp->expires && rp->expires <= now)
-				continue;
 			if (ni_address_prefix_match(rp->prefixlen, &rp->destination, &match->local_addr))
 				return 1;
 		}
@@ -429,8 +426,6 @@ __ni_lease_owns_address(const ni_addrconf_lease_t *lease, const ni_address_t *ma
 
 	for (ap = lease->addrs; ap; ap = ap->next) {
 		if (ap->prefixlen != match->prefixlen)
-			continue;
-		if (ap->expires && ap->expires <= now)
 			continue;
 
 		/* Note: for IPv6 autoconf, we will usually have recorded the

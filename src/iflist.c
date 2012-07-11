@@ -841,17 +841,6 @@ __ni_netdev_add_autoconf_prefix(ni_netdev_t *dev, const ni_sockaddr_t *addr, uns
 	if (rp == NULL)
 		rp = __ni_route_new(&lease->routes, pfxlen, addr, NULL);
 
-	rp->expires = 0;
-	if (expires != 0) {
-		time_t now = time(NULL);
-
-		rp->expires = now + expires;
-		if (expires < now) {
-			ni_warn("%s: time overflow", __func__);
-			rp->expires = now + 365 * 24 * 3600;
-		}
-	}
-
 	return rp;
 }
 

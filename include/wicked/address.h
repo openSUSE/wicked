@@ -36,7 +36,6 @@ typedef struct ni_address {
 	ni_sockaddr_t		anycast_addr;
 	ni_sockaddr_t		bcast_addr;
 	char			label[IFNAMSIZ];
-	time_t			expires;		/* when address expires (ipv6) */
 } ni_address_t;
 
 #endif /* __WICKED_ADDRESS_H__ */
