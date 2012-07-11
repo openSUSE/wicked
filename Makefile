@@ -21,7 +21,8 @@ CPPFLAGS+= -I. -Iinclude -Isrc $(LIBNL_CFLAGS) $(LIBDBUS_CFLAGS)
 CPPFLAGS+= -DWICKED_CONFIGDIR=\"$(wickedconfigdir)\"
 
 APPS	= wicked wickedd \
-	  dhcp4-supplicant autoip4-supplicant
+	  dhcp4-supplicant autoip4-supplicant \
+	  dhcp6-supplicant
 UTILS	= mkconst
 APPBINS	= $(addprefix $(BIN)/,$(APPS) $(UTILS))
 TGTLIBS	= $(LIBNAME).so
@@ -117,6 +118,14 @@ AUTO4SRCS = \
 	  autoip4/dbus-api.c \
 	  autoip4/device.c \
 	  autoip4/fsm.c
+DHCP6SRCS = \
+	  dhcp6/main.c \
+	  dhcp6/dbus-api.c \
+	  dhcp6/duid.c \
+	  dhcp6/fsm.c \
+	  dhcp6/device.c \
+	  dhcp6/protocol.c \
+	  dhcp6/state.c
 CLIENTSRCS = \
 	  client/main.c \
 	  client/ifup.c \
@@ -135,12 +144,13 @@ LIBOBJS	= $(addprefix $(OBJ)/lib/,$(__LIBSRCS:.c=.o))
 SHLIBOBJS= $(addprefix $(OBJ)/shlib/,$(__LIBSRCS:.c=.o))
 DHCP4OBJS= $(addprefix $(OBJ)/,$(DHCP4SRCS:.c=.o))
 AUTO4OBJS= $(addprefix $(OBJ)/,$(AUTO4SRCS:.c=.o))
+DHCP6OBJS= $(addprefix $(OBJ)/,$(DHCP6SRCS:.c=.o))
 CLIENTOBJS= $(addprefix $(OBJ)/,$(CLIENTSRCS:.c=.o))
 SERVEROBJS= $(addprefix $(OBJ)/,$(SERVERSRCS:.c=.o))
 UTILSRCS= util/mkconst.c
 
-SOURCES= $(LIBSRCS) $(DHCP4SRCS) $(AUTO4SRCS) $(CLIENTSRCS) \
-	 $(SERVERSRCS)
+SOURCES= $(LIBSRCS) $(DHCP4SRCS) $(AUTO4SRCS) $(DHCP6SRCS) \
+	 $(CLIENTSRCS) $(SERVERSRCS)
 
 all: Makefile.vars $(TGTLIBS) $(APPBINS) $(GENFILES)
 
@@ -247,6 +257,12 @@ $(BIN)/autoip4-supplicant: $(AUTO4OBJS) $(TGTLIBS)
 	@mkdir -p bin
 	$(CC) -o $@ $(CFLAGS) $(AUTO4OBJS) $(LDFLAGS)
 
+$(BIN)/dhcp6-supplicant: LDFLAGS += -rdynamic -L. -lwicked -lm $(LIBS)
+$(BIN)/dhcp6-supplicant: LDFLAGS += $(LIBDL_LIBS) $(LIBNL_LIBS) $(LIBDBUS_LIBS)
+$(BIN)/dhcp6-supplicant: $(DHCP6OBJS) $(TGTLIBS)
+	@mkdir -p bin
+	$(CC) -o $@ $(CFLAGS) $(DHCP6OBJS) $(LDFLAGS)
+
 $(BIN)/mkconst: LDFLAGS += -L. -lwicked -lm $(LIBS)
 $(BIN)/mkconst: LDFLAGS += $(LIBDL_LIBS) $(LIBNL_LIBS) $(LIBDBUS_LIBS)
 $(BIN)/mkconst: $(OBJ)/util/mkconst.o $(TGTLIBS)
@@ -277,6 +293,7 @@ depend:
 		sed 's@^\([^.]*\)\.o: src/\([-a-z0-9/]*\)\1.c@obj/shlib/\2&@' > .depend
 	$(CC) $(CPPFLAGS) -M $(UTILSRCS) | sed 's:^[a-z]:$(OBJ)/util/&:' >> .depend
 	$(CC) $(CPPFLAGS) -M $(DHCP4SRCS) | sed 's:^[a-z]:$(OBJ)/dhcp4/&:' >> .depend
+	$(CC) $(CPPFLAGS) -M $(DHCP6SRCS) | sed 's:^[a-z]:$(OBJ)/dhcp6/&:' >> .depend
 	$(CC) $(CPPFLAGS) -M $(AUTO4SRCS) | sed 's:^[a-z]:$(OBJ)/autoip4/&:' >> .depend
 	$(CC) $(CPPFLAGS) -M $(CLIENTSRCS) | sed 's:^[a-z]:$(OBJ)/client/&:' >> .depend
 	$(CC) $(CPPFLAGS) -M $(SERVERSRCS) | sed 's:^[a-z]:$(OBJ)/server/&:' >> .depend
