@@ -111,7 +111,6 @@ typedef struct ni_timeout_param {
 	unsigned int		increment;
 	unsigned int		max_jitter;
 	unsigned int		max_timeout;
-	struct timeval		deadline;
 } ni_timeout_param_t;
 
 typedef struct ni_capture_devinfo {
