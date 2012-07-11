@@ -43,35 +43,12 @@ enum {
 	__NI_ADDRCONF_STATE_MAX
 };
 
-enum ni_dhcp_ia_type {
-	NI_DHCP6_IA_NA_TYPE = 0x03,
-	NI_DHCP6_IA_TA_TYPE = 0x04,
-	NI_DHCP6_IA_PD_TYPE = 0x19,
-};
-
+/* FIXME: Should these really be here? */
 struct ni_dhcp6_status {
 	uint16_t		code;
 	char *			message;
 };
-struct ni_dhcp6_ia_addr {
-	struct ni_dhcp6_ia_addr *next;
-
-	struct in6_addr		addr;
-	uint8_t			plen;
-	uint32_t		preferred_lft;
-	uint32_t		valid_lft;
-	struct ni_dhcp6_status	status;
-};
-struct ni_dhcp6_ia {
-	struct ni_dhcp6_ia	*next;
-
-	uint16_t		type;
-	uint32_t		iaid;
-	uint32_t		renewal_time;
-	uint32_t		rebind_time;
-	struct ni_dhcp6_ia_addr*addrs;
-	struct ni_dhcp6_status	status;
-};
+struct ni_dhcp6_ia;
 
 struct ni_addrconf_lease {
 	ni_addrconf_lease_t *	next;

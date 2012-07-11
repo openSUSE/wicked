@@ -177,6 +177,12 @@ enum NI_DHCP6_STATUS_CODE {
 	NI_DHCP6_STATUS_USEMULTICAST		= 5,
 };
 
+enum ni_dhcp6_ia_type {
+	NI_DHCP6_IA_NA_TYPE = 0x03,
+	NI_DHCP6_IA_TA_TYPE = 0x04,
+	NI_DHCP6_IA_PD_TYPE = 0x19,
+};
+
 /*
  * DHCPv6 Timings
  *

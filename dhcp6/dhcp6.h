@@ -44,6 +44,26 @@ extern int			ni_dhcp6_acquire(ni_dhcp6_device_t *, const ni_dhcp6_request_t *);
 extern int			ni_dhcp6_release(ni_dhcp6_device_t *, const ni_uuid_t *);
 extern void			ni_dhcp6_restart(void);
 
+struct ni_dhcp6_ia_addr {
+	struct ni_dhcp6_ia_addr *next;
+
+	struct in6_addr		addr;
+	uint8_t			plen;
+	uint32_t		preferred_lft;
+	uint32_t		valid_lft;
+	struct ni_dhcp6_status	status;
+};
+
+struct ni_dhcp6_ia {
+	struct ni_dhcp6_ia	*next;
+
+	uint16_t		type;
+	uint32_t		iaid;
+	uint32_t		renewal_time;
+	uint32_t		rebind_time;
+	struct ni_dhcp6_ia_addr*addrs;
+	struct ni_dhcp6_status	status;
+};
 
 /*
  * -- supplicant request
