@@ -364,6 +364,21 @@ ni_ifworker_by_object_path(ni_objectmodel_fsm_t *fsm, const char *object_path)
 }
 
 static ni_ifworker_t *
+ni_ifworker_by_ifindex(ni_objectmodel_fsm_t *fsm, unsigned int ifindex)
+{
+	unsigned int i;
+
+	for (i = 0; i < fsm->workers.count; ++i) {
+		ni_ifworker_t *w = fsm->workers.data[i];
+
+		if (w->ifindex && w->ifindex == ifindex)
+			return w;
+	}
+
+	return NULL;
+}
+
+static ni_ifworker_t *
 ni_ifworker_by_netdev(ni_objectmodel_fsm_t *fsm, const ni_netdev_t *dev)
 {
 	unsigned int i;
@@ -898,6 +913,16 @@ ni_ifworker_identify_device(ni_objectmodel_fsm_t *fsm, const xml_node_t *devnode
 
 		if (!strcmp(attr->name, "alias")) {
 			found = ni_ifworker_by_alias(fsm, attr->cdata);
+		} else
+		if (type == NI_IFWORKER_TYPE_NETDEV && !strcmp(attr->name, "ifindex")) {
+			unsigned int ifindex;
+
+			if (ni_parse_int(attr->cdata, &ifindex) < 0) {
+				ni_error("%s: cannot parse ifindex attribute",
+						xml_node_location(devnode));
+				return NULL;
+			}
+			found = ni_ifworker_by_ifindex(fsm, ifindex);
 		} else {
 			char *object_path = NULL;
 
