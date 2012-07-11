@@ -611,10 +611,16 @@ ni_file_remove_recursively(const char *path)
 /*
  * Check if the given file exists
  */
-extern int
+extern ni_bool_t
 ni_file_exists(const char *filename)
 {
-	return access(filename, F_OK) == 0; /* bool */
+	return access(filename, F_OK) == 0;
+}
+
+extern ni_bool_t
+ni_file_executable(const char *filename)
+{
+	return access(filename, X_OK) == 0;
 }
 
 void

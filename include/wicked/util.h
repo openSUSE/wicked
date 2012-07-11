@@ -117,7 +117,8 @@ extern void		ni_stringbuf_destroy(ni_stringbuf_t *);
 extern void		ni_stringbuf_trim_empty_lines(ni_stringbuf_t *);
 extern ni_bool_t	ni_stringbuf_empty(const ni_stringbuf_t *);
 
-extern int		ni_file_exists(const char *);
+extern ni_bool_t	ni_file_exists(const char *);
+extern ni_bool_t	ni_file_executable(const char *);
 extern const char *	ni_basename(const char *path);
 extern int		ni_scandir(const char *, const char *, ni_string_array_t *);
 extern int		ni_daemonize(const char *, unsigned int);
