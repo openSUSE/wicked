@@ -1,0 +1,206 @@
+#!/bin/bash
+#
+# Network interface configuration
+#
+# Copyright (c) 2012 Olaf Kirch <okir@suse.com>
+#
+# This program is free software; you can redistribute it and/or modify it under
+# the terms of the GNU General Public License as published by the Free Software
+# Foundation; either version 2 of the License, or (at your option) any later
+# version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+# FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
+# details.
+#
+# You should have received a copy of the GNU General Public License along with
+# this program; if not, write to the Free Software Foundation, Inc., 59 Temple
+# Place, Suite 330, Boston, MA 02111-1307 USA
+#
+### BEGIN INIT INFO
+# Provides:		wicked
+# Required-Start:	$local_fs dbus
+# Required-Stop:	$local_fs dbus
+# Default-Start:	2 3 5
+# Default-Stop:		
+# Short-Description:	Start and stop the wicked network management services
+# Description:		Start and stop the wicked network management services
+### END INIT INFO
+
+. /etc/rc.status
+rc_reset
+
+# Check for missing binary/config (stale symlinks should not happen)
+# Note: Special treatment of stop/status for LSB conformance
+wicked_DAEMON_BIN=@sbindir@/wickedd
+wicked_CONFIG=@sysconfdir@/wicked/config.xml
+wicked_RUNDIR=/var/run/wicked
+wicked_PIDFILE=/var/run/wicked.pid
+
+function check_executable {
+
+	path=$1
+	if ! [ -x "$path"  ]; then
+		echo -n >&2 "$0: \"$path\" is not executable. Exiting."
+		case $ACTION in
+		status) rc_failed 4 ;;
+		*)      rc_failed 5 ;;
+		esac
+		rc_status -v
+		rc_exit
+	fi
+}
+
+function check_readable {
+
+	path=$1
+	if ! [ -r "$path" ] ; then
+		echo -n >&2 "$0: \"$path\" config file missed. Exiting."
+		rc_failed 6
+		rc_status -v
+		rc_exit
+	fi
+}
+
+function start_one {
+
+	path=$1
+
+	if [ -x $path ]; then
+		echo -n " ${path##*/}"
+		/sbin/startproc "$@"
+		rc_status
+	fi
+}
+
+function stop_one {
+
+	path=$1
+
+	if [ -x $path ]; then
+		echo -n " ${path##*/}"
+		/sbin/killproc -TERM "$@"
+		rc_status
+	fi
+}
+
+function check_one {
+
+	path=$1
+
+	if [ -x $path ]; then
+		echo -n " ${path##*/}"
+		/sbin/checkproc "$@"
+		rc_status
+	fi
+}
+
+
+ACTION=$1
+case $ACTION in
+    stop) : ;;
+    status)
+	check_executable $wicked_DAEMON_BIN
+	;;
+
+    *)
+	check_executable $wicked_DAEMON_BIN
+	check_readable $wicked_CONFIG
+	;;
+esac
+
+case $ACTION in
+    start)
+	COMMON_ARGS=""
+	if [ -n "$WICKED_DEBUG_LEVEL" ]; then
+		COMMON_ARGS+=" --debug $WICKED_DEBUG_LEVEL"
+	fi
+
+	echo -n "Starting"
+
+	start_one @sbindir@/autoip4-supplicant $COMMON_ARGS
+	start_one @sbindir@/dhcp4-supplicant $COMMON_ARGS
+	start_one @sbindir@/wickedd $COMMON_ARGS
+
+	rc_status -v
+	;;
+
+    stop)
+	echo -n "Shutting down"
+
+	stop_one @sbindir@/wickedd
+	stop_one @sbindir@/dhcp4-supplicant
+	stop_one @sbindir@/autoip4-supplicant
+
+	rc_status -v
+	;;
+
+    try-restart|condrestart)
+	## Do a restart only if the service was active before.
+	## Note: try-restart is now part of LSB (as of 1.9).
+	## RH has a similar command named condrestart.
+	if test "$1" = "condrestart"; then
+		echo "${attn} Use try-restart ${done}(LSB)${attn} rather than condrestart ${warn}(RH)${norm}"
+	fi
+	if $0 status; then
+		$0 restart
+	else
+		rc_reset	# Not running is not a failure.
+	fi
+	rc_status
+	;;
+
+    restart)
+	$0 stop
+	$0 start
+	rc_status
+	;;
+
+    force-reload)
+	$0 try-restart
+	rc_status
+	;;
+
+    reload)
+	rc_failed 3
+	rc_status -v
+	;;
+
+    status)
+	## Check status with checkproc(8), if process is running
+	## checkproc will return with exit status 0.
+
+	# Return value is slightly different for the status command:
+	# 0 - service up and running
+	# 1 - service dead, but /var/run/  pid  file exists
+	# 2 - service dead, but /var/lock/ lock file exists
+	# 3 - service not running (unused)
+	# 4 - service status unknown :-(
+	# 5--199 reserved (5--99 LSB, 100--149 distro, 150--199 appl.)
+	
+	echo -n "Checking for service"
+	check_one @sbindir@/wickedd
+	check_one @sbindir@/dhcp4-supplicant
+	check_one @sbindir@/autoip4-supplicant
+
+	# NOTE: rc_status knows that we called this init script with
+	# "status" option and adapts its messages accordingly.
+	rc_status -v
+	;;
+
+    probe)
+	## Optional: Probe for the necessity of a reload, print out the
+	## argument to this init script which is required for a reload.
+	## Note: probe is not (yet) part of LSB (as of 1.9)
+
+	test $wicked_CONFIG -nt $wicked_PIDFILE && echo reload
+	;;
+
+    *)
+	echo "Usage: $0 {start|stop|status|try-restart|restart|force-reload|reload|probe}"
+	exit 1
+	;;
+esac
+
+rc_exit
