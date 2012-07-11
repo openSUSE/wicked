@@ -121,6 +121,7 @@ case $ACTION in
 
 	start_one @sbindir@/autoip4-supplicant $COMMON_ARGS
 	start_one @sbindir@/dhcp4-supplicant $COMMON_ARGS
+	start_one @sbindir@/dhcp6-supplicant $COMMON_ARGS
 	start_one @sbindir@/wickedd $COMMON_ARGS
 
 	rc_status -v
@@ -131,6 +132,7 @@ case $ACTION in
 
 	stop_one @sbindir@/wickedd
 	stop_one @sbindir@/dhcp4-supplicant
+	stop_one @sbindir@/dhcp6-supplicant
 	stop_one @sbindir@/autoip4-supplicant
 
 	rc_status -v
@@ -182,6 +184,7 @@ case $ACTION in
 	echo -n "Checking for service"
 	check_one @sbindir@/wickedd
 	check_one @sbindir@/dhcp4-supplicant
+	check_one @sbindir@/dhcp6-supplicant
 	check_one @sbindir@/autoip4-supplicant
 
 	# NOTE: rc_status knows that we called this init script with
