@@ -210,5 +210,18 @@ extern void		ni_tempstate_add_file(ni_tempstate_t *, const char *filename);
 extern int		ni_tempstate_mkdir(ni_tempstate_t *);
 extern char *		ni_tempstate_mkfile(ni_tempstate_t *, const char *);
 
+/*
+ * Functions for hashing
+ */
+typedef struct ni_hashctx ni_hashctx_t;
+
+extern ni_hashctx_t *	ni_hashctx_new(void);
+extern void		ni_hashctx_free(ni_hashctx_t *);
+extern void		ni_hashctx_begin(ni_hashctx_t *);
+extern void		ni_hashctx_finish(ni_hashctx_t *);
+extern int		ni_hashctx_get_digest(ni_hashctx_t *, void *, size_t);
+extern void		ni_hashctx_puts(ni_hashctx_t *, const char *);
+
+
 #endif /* __WICKED_UTIL_H__ */
 

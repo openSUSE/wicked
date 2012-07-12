@@ -46,6 +46,16 @@ AC_CHECK_LIB([anl], [getaddrinfo_a], [LIBANL_LIBS="-lanl"],[
 ])
 AC_SUBST(LIBANL_LIBS)
 
+AC_MSG_CHECKING([for libgcrypt])
+if ! test -x /usr/bin/libgcrypt-config; then
+	AC_MSG_ERROR([libgcrypt-config not found])
+fi
+LIBGCRYPT_CFLAGS=`/usr/bin/libgcrypt-config --cflags`
+LIBGCRYPT_LIBS=`/usr/bin/libgcrypt-config --libs`
+AC_SUBST(LIBGCRYPT_CFLAGS)
+AC_SUBST(LIBGCRYPT_LIBS)
+AC_MSG_RESULT([found.])
+
 # Checks for pkg-config modules.
 PKG_CHECK_MODULES(LIBNL, [libnl-1])
 PKG_CHECK_MODULES(LIBDBUS, [dbus-1])
