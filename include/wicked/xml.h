@@ -73,6 +73,7 @@ extern xml_document_t *	xml_document_scan(FILE *);
 extern xml_document_t *	xml_document_from_buffer(ni_buffer_t *);
 extern int		xml_document_write(const xml_document_t *, const char *);
 extern int		xml_document_print(const xml_document_t *, FILE *fp);
+extern int		xml_document_hash(const xml_document_t *, void *, size_t);
 extern const char *	xml_document_dtd(const xml_document_t *);
 
 extern xml_document_t *	xml_document_new();
@@ -88,6 +89,7 @@ extern xml_node_t *	xml_node_clone_ref(xml_node_t *src);
 extern void		xml_node_merge(xml_node_t *, const xml_node_t *);
 extern void		xml_node_free(xml_node_t *);
 extern int		xml_node_print(const xml_node_t *, FILE *fp);
+extern int		xml_node_hash(const xml_node_t *, void *md_buffer, size_t md_bufsz);
 extern int		xml_node_print_fn(const xml_node_t *, void (*)(const char *, void *), void *);
 extern xml_node_t *	xml_node_scan(FILE *fp);
 extern void		xml_node_set_cdata(xml_node_t *, const char *);
