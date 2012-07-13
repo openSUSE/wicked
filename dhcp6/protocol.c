@@ -63,7 +63,7 @@
 #define IPV6_RECVPKTINFO IPV6_PKTINFO
 #endif
 
-extern int	ni_dhcp6_device_retransmit(ni_dhcp6_device_t *dev);
+//extern int	ni_dhcp6_device_retransmit(ni_dhcp6_device_t *dev);
 
 static void	ni_dhcp6_socket_recv		(ni_socket_t *);
 static int	ni_dhcp6_process_packet		(ni_dhcp6_device_t *dev, ni_buffer_t *msgbuf,
@@ -329,46 +329,6 @@ ni_dhcp6_process_packet(ni_dhcp6_device_t *dev, ni_buffer_t *msgbuf, const struc
 	return rv;
 }
 
-long
-ni_dhcp6_timeout_jitter(unsigned int neg, unsigned int pos)
-{
-        long ret = 0;
-
-        if (pos > 0) {
-       		ret += (random() % (neg + pos)) - neg;
-        } else if (neg > 0) {
-        	ret -= (random() % (neg));
-        }
-
-        return ret;
-}
-
-unsigned long
-ni_dhcp6_timeout_arm_msec(struct timeval *deadline, unsigned long timeout, unsigned int jitter_neg, unsigned int jitter_pos)
-{
-	long jitter = 0;
-
-	if(timeout > jitter_neg && timeout > jitter_pos)
-		jitter = ni_dhcp6_timeout_jitter(jitter_neg, jitter_pos);
-
-	timeout += jitter;
-
-	ni_trace("arming retransmit timer (timeout %lu msec [± %ld])", timeout, jitter);
-
-	/* TODO: use monotonic clock? -> adopt src/timers.c */
-	gettimeofday(deadline, NULL);
-	deadline->tv_sec += timeout / 1000;
-	deadline->tv_usec += (timeout % 1000) * 1000;
-	if (deadline->tv_usec < 0) {
-		deadline->tv_sec -= 1;
-		deadline->tv_usec += 1000000;
-	} else
-	if (deadline->tv_usec > 1000000) {
-		deadline->tv_sec += 1;
-		deadline->tv_usec -= 1000000;
-        }
-	return timeout;
-}
 
 static int
 ni_dhcp6_socket_get_timeout(const ni_socket_t *sock, struct timeval *tv)
@@ -379,40 +339,51 @@ ni_dhcp6_socket_get_timeout(const ni_socket_t *sock, struct timeval *tv)
 		return -1;
 	}
 
-	ni_trace("get timeout: deadline: %ld.%ld",
-		dev->retrans.deadline.tv_sec,dev->retrans.deadline.tv_usec);
-
 	timerclear(tv);
 	if (timerisset(&dev->retrans.deadline)) {
 		*tv = dev->retrans.deadline;
-		ni_trace("%s: get socket timeout for socket [fd=%d]: %ld sec + %ld usec",
-				dev->ifname, sock->__fd, tv->tv_sec, tv->tv_usec);
+		ni_trace("%s: get socket timeout for socket [fd=%d]: %s",
+				dev->ifname, sock->__fd, __ni_dhcp6_format_time(tv));
 #if 1
 	} else {
-		ni_trace("%s: get socket timeout for socket [fd=%d]: none",
+		ni_trace("%s: get socket timeout for socket [fd=%d]: unset",
 				dev->ifname, sock->__fd);
 #endif
 	}
 	return timerisset(tv) ? 0 : -1;
 }
 
+const char *
+__ni_dhcp6_format_time(const struct timeval *tv)
+{
+	static char buf[64];
+	struct tm tm;
+
+	memset(buf, 0, sizeof(buf));
+	memset(&tm, 0, sizeof(tm));
+
+	localtime_r(&tv->tv_sec, &tm);
+	strftime(buf, sizeof(buf), "%T", &tm);
+	snprintf(buf + strlen(buf), sizeof(buf)-strlen(buf), ".%ld", tv->tv_usec);
+
+	return buf;
+}
+
 static void
 ni_dhcp6_socket_check_timeout(ni_socket_t *sock, const struct timeval *now)
 {
 	ni_dhcp6_device_t * dev;
+	struct tm;
 
 	if (!(dev = sock->user_data)) {
 		ni_error("check_timeout: socket without device object?!");
 		return;
 	}
 
-	ni_trace("check timeout: deadline: %ld.%ld",
-		dev->retrans.deadline.tv_sec,dev->retrans.deadline.tv_usec);
-
 	if (timerisset(&dev->retrans.deadline) && timercmp(&dev->retrans.deadline, now, <)) {
-		ni_trace("%s: check socket timeout for socket [fd=%d]: %ld sec + %ld usec",
+		ni_trace("%s: check socket timeout for socket [fd=%d]: %s",
 				dev->ifname, sock->__fd,
-				dev->retrans.deadline.tv_sec, dev->retrans.deadline.tv_usec);
+				__ni_dhcp6_format_time(&dev->retrans.deadline));
 
 		ni_dhcp6_device_retransmit(dev);
 #if 1
@@ -1306,7 +1277,7 @@ failure:
 /*
  * Map DHCP6 options to names
  */
-static const char *__dhcp6_option_names[__NI_DHCP6_OPTION_END] = {
+static const char *__dhcp6_option_names[__NI_DHCP6_OPTION_MAX] = {
 	[NI_DHCP6_OPTION_CLIENTID]          =	"client-id",
 	[NI_DHCP6_OPTION_SERVERID]          =	"server-id",
 	[NI_DHCP6_OPTION_IA_NA]             =	"ia-na",
@@ -1381,7 +1352,7 @@ ni_dhcp6_option_name(unsigned int option)
 	static char namebuf[64];
 	const char *name = NULL;
 
-	if (option < (sizeof(__dhcp6_option_names)/sizeof(__dhcp6_option_names[0])))
+	if (option < __NI_DHCP6_OPTION_MAX)
 		name = __dhcp6_option_names[option];
 
 	if (!name) {
@@ -1391,7 +1362,7 @@ ni_dhcp6_option_name(unsigned int option)
 	return name;
 }
 
-static const char *	__dhcp6_message_names[__NI_DHCP6_MSG_TYPE_END] = {
+static const char *	__dhcp6_message_names[__NI_DHCP6_MSG_TYPE_MAX] = {
 	[NI_DHCP6_SOLICIT] =		"SOLICIT",
 	[NI_DHCP6_ADVERTISE] =		"ADVERTISE",
 	[NI_DHCP6_REQUEST] =		"REQUEST",
@@ -1417,7 +1388,7 @@ ni_dhcp6_message_name(unsigned int type)
 	static char namebuf[64];
 	const char *name = NULL;
 
-	if (type < (sizeof(__dhcp6_message_names)/sizeof(__dhcp6_message_names[0])))
+	if (type < __NI_DHCP6_MSG_TYPE_MAX)
 		name = __dhcp6_message_names[type];
 
 	if (!name) {
@@ -1427,75 +1398,146 @@ ni_dhcp6_message_name(unsigned int type)
 	return name;
 }
 
-static const ni_dhcp6_timeout_param_t __dhcp6_message_timings[__NI_DHCP6_MSG_TYPE_END] = {
+
+/*
+ * ni_timeout_t settings we're using in the timing table
+ */
+#define NI_DHCP6_EXP_BACKOFF	     -1 /* exponential increment type  */
+#define NI_DHCP6_UNLIMITED	     -1 /* unlimited number of retries */
+
+typedef struct ni_dhcp6_timing {
+	unsigned int		delay;
+	unsigned int		jitter;
+	ni_timeout_param_t	params;
+	unsigned int		duration;
+} ni_dhcp6_timing_t;
+
+static const ni_dhcp6_timing_t __dhcp6_msg_timings[__NI_DHCP6_MSG_TYPE_MAX] = {
 	[NI_DHCP6_SOLICIT] = {
-		.delay		= NI_DHCP6_SOL_MAX_DELAY,
-		.timeout	= NI_DHCP6_SOL_TIMEOUT,
-		.pos_jitter	= TRUE,
-		.max_jitter	= NI_DHCP6_MAX_JITTER,
-		.max_timeout	= NI_DHCP6_SOL_MAX_RT,
+		.delay			= NI_DHCP6_SOL_MAX_DELAY,
+		.jitter			= NI_DHCP6_MAX_JITTER,
+		.params = {
+			.increment	= NI_DHCP6_EXP_BACKOFF,
+			.nretries	= NI_DHCP6_UNLIMITED,
+			.timeout	= NI_DHCP6_SOL_TIMEOUT,
+			.max_timeout	= NI_DHCP6_SOL_MAX_RT,
+		},
 	},
 	[NI_DHCP6_REQUEST] = {
-		.timeout	= NI_DHCP6_REQ_TIMEOUT,
-		.max_jitter	= NI_DHCP6_MAX_JITTER,
-		.max_timeout	= NI_DHCP6_REQ_MAX_RT,
-		.max_retransmits= NI_DHCP6_REQ_MAX_RC,
+		.jitter			= NI_DHCP6_MAX_JITTER,
+		.params = {
+			.increment	= NI_DHCP6_EXP_BACKOFF,
+			.nretries	= NI_DHCP6_REQ_MAX_RC,
+			.timeout	= NI_DHCP6_REQ_TIMEOUT,
+			.max_timeout	= NI_DHCP6_REQ_MAX_RT,
+		},
 	},
 	[NI_DHCP6_CONFIRM] = {
-		.delay		= NI_DHCP6_CNF_MAX_DELAY,
-		.timeout	= NI_DHCP6_CNF_TIMEOUT,
-		.max_jitter	= NI_DHCP6_MAX_JITTER,
-		.max_timeout	= NI_DHCP6_CNF_MAX_RT,
-		.max_duration	= NI_DHCP6_CNF_MAX_RD,
+		.delay			= NI_DHCP6_CNF_MAX_DELAY,
+		.jitter			= NI_DHCP6_MAX_JITTER,
+		.params = {
+			.increment	= NI_DHCP6_EXP_BACKOFF,
+			.nretries	= NI_DHCP6_UNLIMITED,
+			.timeout	= NI_DHCP6_CNF_TIMEOUT,
+			.max_timeout	= NI_DHCP6_CNF_MAX_RT,
+		},
+		.duration		= NI_DHCP6_CNF_MAX_RD,
 	},
 	[NI_DHCP6_RENEW] = {
-		.timeout	= NI_DHCP6_REN_TIMEOUT,
-		.max_jitter	= NI_DHCP6_MAX_JITTER,
-		.max_timeout	= NI_DHCP6_REN_MAX_RT,
+		.jitter			= NI_DHCP6_MAX_JITTER,
+		.params = {
+			.increment	= NI_DHCP6_EXP_BACKOFF,
+			.nretries	= NI_DHCP6_UNLIMITED,
+			.timeout	= NI_DHCP6_REN_TIMEOUT,
+			.max_timeout	= NI_DHCP6_REN_MAX_RT,
+		},
 	},
 	[NI_DHCP6_REBIND] = {
-		.timeout	= NI_DHCP6_REB_TIMEOUT,
-		.max_jitter	= NI_DHCP6_MAX_JITTER,
-		.max_timeout	= NI_DHCP6_REB_MAX_RT,
+		.jitter			= NI_DHCP6_MAX_JITTER,
+		.params = {
+			.increment	= NI_DHCP6_EXP_BACKOFF,
+			.nretries	= NI_DHCP6_UNLIMITED,
+			.timeout	= NI_DHCP6_REB_TIMEOUT,
+			.max_timeout	= NI_DHCP6_REB_MAX_RT,
+		},
 	},
 	[NI_DHCP6_RELEASE] = {
-		.timeout	= NI_DHCP6_REL_TIMEOUT,
-		.max_jitter	= NI_DHCP6_MAX_JITTER,
-		.max_retransmits= NI_DHCP6_REL_MAX_RC,
+		.jitter			= NI_DHCP6_MAX_JITTER,
+		.params = {
+			.nretries	= NI_DHCP6_REL_MAX_RC,
+			.timeout	= NI_DHCP6_REL_TIMEOUT,
+			.max_timeout	= NI_DHCP6_UNLIMITED,
+		},
 	},
 	[NI_DHCP6_DECLINE] = {
-		.timeout	= NI_DHCP6_DEC_TIMEOUT,
-		.max_jitter	= NI_DHCP6_MAX_JITTER,
-		.max_retransmits= NI_DHCP6_DEC_MAX_RC,
+		.jitter			= NI_DHCP6_MAX_JITTER,
+		.params = {
+			.increment	= NI_DHCP6_EXP_BACKOFF,
+			.nretries	= NI_DHCP6_DEC_MAX_RC,
+			.timeout	= NI_DHCP6_DEC_TIMEOUT,
+			.max_timeout	= NI_DHCP6_UNLIMITED,
+		},
 	},
 	[NI_DHCP6_INFO_REQUEST] = {
-		.delay		= NI_DHCP6_INF_MAX_DELAY,
-		.timeout	= NI_DHCP6_INF_TIMEOUT,
-		.max_jitter	= NI_DHCP6_MAX_JITTER,
-		.max_timeout	= NI_DHCP6_INF_MAX_RT,
+		.delay			= NI_DHCP6_INF_MAX_DELAY,
+		.jitter			= NI_DHCP6_MAX_JITTER,
+		.params = {
+			.increment	= NI_DHCP6_EXP_BACKOFF,
+			.nretries	= NI_DHCP6_UNLIMITED,
+			.timeout	= NI_DHCP6_INF_TIMEOUT,
+			.max_timeout	= NI_DHCP6_INF_MAX_RT,
+		},
 	},
 };
 
-ni_bool_t
-ni_dhcp6_set_message_timing(unsigned int code, ni_dhcp6_timeout_param_t *timeout)
+static inline int
+__ni_dhcp6_jitter_rebase(unsigned msec, int jitter)
 {
-	memset(timeout, 0, sizeof(*timeout));
-	if (code < sizeof(__dhcp6_message_timings)/sizeof(__dhcp6_message_timings[0])) {
+	if (jitter < 0) {
+		return 0 - ((msec * (0 - jitter)) / 1000);
+	} else {
+		return 0 + ((msec * (0 + jitter)) / 1000);
+	}
+}
+
+ni_int_range_t
+ni_dhcp6_jitter_rebase(unsigned int msec, int lower, int upper)
+{
+	ni_int_range_t jitter;
+	jitter.min = __ni_dhcp6_jitter_rebase(msec, lower);
+	jitter.max = __ni_dhcp6_jitter_rebase(msec, upper);
+	return jitter;
+}
+
+ni_bool_t
+ni_dhcp6_set_message_timing(ni_dhcp6_device_t *dev, unsigned int msg_type)
+{
+	memset(&dev->retrans, 0, sizeof(dev->retrans));
+
+	if (msg_type < __NI_DHCP6_MSG_TYPE_MAX) {
 
 		/* Each message has a timeout */
-		if (!__dhcp6_message_timings[code].timeout)
+		if (!__dhcp6_msg_timings[msg_type].params.timeout)
 			return FALSE;
 
-		*timeout = __dhcp6_message_timings[code];
+		dev->retrans.delay    = __dhcp6_msg_timings[msg_type].delay;
+		dev->retrans.jitter   = __dhcp6_msg_timings[msg_type].jitter;
+		dev->retrans.params   = __dhcp6_msg_timings[msg_type].params;
+		dev->retrans.duration = __dhcp6_msg_timings[msg_type].duration;
+
 #if 1
-		ni_trace("%s TIMING: IDT(%lus), IRT(%lus), MRT(%lus), MRC(%u), MRD(%lus), RND(%.3fs)\n",
-			 ni_dhcp6_message_name(code),
-			 timeout->delay/1000,
-			 timeout->timeout/1000,
-			 timeout->max_timeout/1000,
-			 timeout->max_retransmits,
-			 timeout->max_duration/1000,
-			 (double)timeout->max_jitter/1000);
+		/*
+		 * Note: MRD of 0 means unlimited in RFC, nretries 0 means no retries
+		 *	 (one transmit attempt only) and nretries < 0 means unlimited.
+		 */
+		ni_trace("%s TIMING: IDT(%us), IRT(%us), MRT(%us), MRC(%u), MRD(%us), RND(%.3fs)\n",
+			ni_dhcp6_message_name(msg_type),
+			dev->retrans.delay/1000,
+			dev->retrans.params.timeout/1000,
+			dev->retrans.params.max_timeout/1000,
+			(dev->retrans.params.nretries < 0 ? 0 : dev->retrans.params.nretries),
+			dev->retrans.duration/1000,
+			(double)dev->retrans.jitter/1000);
 #endif
 		return TRUE;
 	}

@@ -78,7 +78,7 @@ enum NI_DHCP6_MSG_TYPE {
 	NI_DHCP6_LEASEQUERY_DONE	= 16,	/* RFC5460 */
 	NI_DHCP6_LEASEQUERY_DATA	= 17,
 
-	__NI_DHCP6_MSG_TYPE_END
+	__NI_DHCP6_MSG_TYPE_MAX
 };
 
 /*
@@ -161,7 +161,7 @@ enum NI_DHCP6_OPTION {
 	NI_DHCP6_OPTION_VSS			= 68,	/* [RFC-ietf-dhc-vpn-option-15] */
 	/*					69-255:	  Unassigned */
 
-	__NI_DHCP6_OPTION_END
+	__NI_DHCP6_OPTION_MAX
 };
 
 /*
@@ -188,7 +188,7 @@ enum ni_dhcp6_ia_type {
  *
  * http://tools.ietf.org/html/rfc3315#section-5.5
  *
- *      Parameter		      Value    Description
+ *      Parameter		  Value    Description
  * ---------------------------------------------------------------------------
  */
 #define	NI_DHCP6_SOL_MAX_DELAY	   1000	/* Max delay of first Solicit  */
@@ -215,7 +215,7 @@ enum ni_dhcp6_ia_type {
 #define NI_DHCP6_REC_TIMEOUT	   2000	/* Initial Reconfigure timeout */
 #define NI_DHCP6_REC_MAX_RC	      8	/* Max Reconfigure attempts    */
 #define NI_DHCP6_HOP_COUNT_LIMIT     32	/* Max hop count in Relay-fwd  */
-#define NI_DHCP6_MAX_JITTER	    100	/* Randomization factor [± 0.1sec]   */
+#define NI_DHCP6_MAX_JITTER	    100	/* Randomization factor [± 0.1]*/
 
 /*
  * Option Format
@@ -280,18 +280,17 @@ extern const char *	ni_dhcp6_option_name(unsigned int);
 
 extern int		ni_dhcp6_socket_open(ni_dhcp6_device_t *);
 
-extern long		ni_dhcp6_timeout_jitter(unsigned int, unsigned int);
-extern unsigned long	ni_dhcp6_timeout_arm_msec(struct timeval *, unsigned long, unsigned int, unsigned int);
-
 extern int		ni_dhcp6_build_message( const ni_dhcp6_device_t *, unsigned int,
 		 				const ni_addrconf_lease_t *, ni_buffer_t *);
 
-extern ni_bool_t	ni_dhcp6_set_message_timing(unsigned int, ni_dhcp6_timeout_param_t *);
+extern ni_int_range_t	ni_dhcp6_jitter_rebase(unsigned int msec, int lower, int upper);
+extern ni_bool_t	ni_dhcp6_set_message_timing(ni_dhcp6_device_t *dev, unsigned int msg_type);
 
 extern int		ni_dhcp6_client_parse_response(ni_dhcp6_device_t *, ni_buffer_t *,
 					const struct in6_addr *, ni_addrconf_lease_t **);
 
 /* FIXME: */
 extern void		ni_dhcp6_ia_list_destroy(struct ni_dhcp6_ia **list);
+const char *		__ni_dhcp6_format_time(const struct timeval *tv);
 
 #endif /* __WICKED_DHCP6_PROTOCOL_H__ */

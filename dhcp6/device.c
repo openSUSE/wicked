@@ -378,60 +378,92 @@ ni_dhcp6_device_refresh(ni_dhcp6_device_t *dev)
 static ni_bool_t
 ni_dhcp6_device_transmit_arm_delay(ni_dhcp6_device_t *dev)
 {
-	dev->tx_counter = 0;
+	ni_int_range_t jitter;
+	unsigned long  delay;
 
-	if ((dev->tx_delay = dev->retrans.params.delay)) {
-		long jitter;
+	/*
+	 * rfc3315#section-5.5 (17.1.2, 18.1.2, 18.1.5):
+	 *
+	 * Initial delay is a MUST for Solicit, Confirm and InfoRequest.
+	 */
+	if (dev->retrans.delay == 0)
+		return FALSE;
 
-		jitter = ni_dhcp6_timeout_jitter(dev->retrans.params.max_jitter,
-						 dev->retrans.params.max_jitter);
+	ni_trace("Setting initial transmit delay of %u [%d .. %d] msec",
+			dev->retrans.delay,
+			0 - dev->retrans.jitter,
+			0 + dev->retrans.jitter);
 
-		dev->tx_delay += jitter;
+	/* we can use base jitter as is, it's 0.1 msec already */
+	jitter.min = 0 - dev->retrans.jitter;
+	jitter.max = 0 + dev->retrans.jitter;
+	delay = ni_timeout_randomize(dev->retrans.delay, &jitter);
 
-		ni_trace("transmit arm delay %ld +/- %ld", dev->tx_delay, jitter);
+	ni_dhcp6_fsm_set_timeout_msec(dev, delay);
 
-		if (dev->tx_delay) {
-			ni_dhcp6_fsm_set_timeout_msec(dev, dev->tx_delay);
-			return TRUE;
-		}
-	}
-	return FALSE;
+	return TRUE;
 }
 
 void
 ni_dhcp6_device_retransmit_arm(ni_dhcp6_device_t *dev)
 {
-	unsigned long timeout;
-
-	dev->tx_delay = 0;	/* initial transmit is done here */
-
-	ni_timer_get_time(&dev->retrans.start);
+	/* when we're here, initial delay is over */
+	dev->retrans.delay = 0;
 
 	/*
-	 ** rfc3315: 17.1.2. Transmission of Solicit Messages
-	 ** [...]
-	 ** the first RT MUST be selected to be strictly greater than
-	 ** IRT by choosing RAND to be strictly greater than 0.
-	 ** [...]
+	 * Hmm... Remember the time of the first transmission
 	 */
-	if (!(dev->tx_counter > 1) && dev->retrans.params.pos_jitter) {
-		timeout = ni_dhcp6_timeout_arm_msec(&dev->retrans.deadline,
-					dev->retrans.params.timeout,
-					0,
-					dev->retrans.params.max_jitter);
+	ni_timer_get_time(&dev->retrans.start);
+
+	/* Leave, when retransmissions aren't enabled */
+	if (dev->retrans.params.nretries == 0)
+		return;
+
+	if (dev->fsm.state == NI_DHCP6_STATE_SELECTING && dev->retrans.count == 1) {
+		/*
+		 * rfc3315#section-17.1.1
+		 *
+		 * "[...]
+		 * the first RT MUST be selected to be strictly greater than
+		 * IRT by choosing RAND to be strictly greater than 0.
+		 * [...]"
+		 */
+		dev->retrans.params.jitter = ni_dhcp6_jitter_rebase(
+				dev->retrans.params.timeout,
+				0, /* exception, no negative jitter */
+				0 + dev->retrans.jitter);
 	} else {
-		timeout = ni_dhcp6_timeout_arm_msec(&dev->retrans.deadline,
-					dev->retrans.params.timeout,
-					dev->retrans.params.max_jitter,
-					dev->retrans.params.max_jitter);
-	}
-	dev->retrans.timeout = timeout;
-
-	ni_trace("retransmit timeout: %lu", dev->retrans.timeout);
-
-	if (dev->retrans.params.max_duration) {
 		/*
 		 * rfc3315#section-14
+		 *
+		 * "[...]
+		 * Each new RT include a randomization factor (RAND) [...]
+		 * between -0.1 and +0.1.
+		 * [...]"
+		 */
+		dev->retrans.params.jitter = ni_dhcp6_jitter_rebase(
+				dev->retrans.params.timeout,
+				0 - dev->retrans.jitter,
+				0 + dev->retrans.jitter);
+	}
+	/*
+	 * rfc3315#section-14
+	 *
+	 * "[...]RT for the first message transmission is based on IRT:
+	 * 		RT = IRT + RAND*IRT
+	 *  [...]"
+	 *
+	 *  IRT is already initialized in retrans.params.timeout.
+	 */
+	dev->retrans.params.timeout = ni_timeout_arm_msec(&dev->retrans.deadline,
+							  &dev->retrans.params);
+
+	ni_trace("Setting retransmit timeout to %u", dev->retrans.params.timeout);
+
+	if (dev->retrans.duration) {
+		/*
+		 * rfc3315#section-14
+		 *
 		 * "[...]
 		 * MRD specifies an upper bound on the length of time a client may
 		 * retransmit a message. Unless MRD is zero, the message exchange
@@ -439,73 +471,71 @@ ni_dhcp6_device_retransmit_arm(ni_dhcp6_device_t *dev)
 		 * transmitted the message.
 		 * [...]"
 		 */
-		ni_trace("retransmit duration deadline: %lu", dev->retrans.params.max_duration);
-		ni_dhcp6_fsm_set_timeout_msec(dev, dev->retrans.params.max_duration);
+		ni_trace("Setting retransmit duration timeout of %u",
+				dev->retrans.duration);
+		ni_dhcp6_fsm_set_timeout_msec(dev, dev->retrans.duration);
 	}
-
-	ni_trace("retransmit start at %ld.%ld, rt deadline: %ld.%ld [timeout=%lu]",
-			dev->retrans.start.tv_sec, dev->retrans.start.tv_usec,
-			dev->retrans.deadline.tv_sec,dev->retrans.deadline.tv_usec,
-			timeout);
+#if 0
+	ni_trace("Transmit start at %s, rt deadline: %s [timeout=%u]",
+			__ni_dhcp6_format_time(&dev->retrans.start),
+			__ni_dhcp6_format_time(&dev->retrans.deadline),
+			dev->retrans.params.timeout);
+#endif
 }
 
 void
 ni_dhcp6_device_retransmit_disarm(ni_dhcp6_device_t *dev)
 {
+	struct timeval now;
+
+	ni_timer_get_time(&now);
+	ni_trace("Disarming retransmission at %s", __ni_dhcp6_format_time(&now));
+
 	memset(&dev->retrans, 0, sizeof(dev->retrans));
 }
 
 static ni_bool_t
 ni_dhcp6_device_retransmit_advance(ni_dhcp6_device_t *dev)
 {
-	if (dev->retrans.params.max_retransmits) {
+	/*
+	 * rfc3315#section-14
+	 *
+	 * "[...]
+	 * Each new RT include a randomization factor (RAND) [...]
+	 * between -0.1 and +0.1.
+	 * [...]
+	 * RT for each subsequent message transmission is based on
+	 * the previous value of RT:
+	 *
+	 * 	RT = 2*RTprev + RAND*RTprev
+	 * [...]"
+	 *
+	 */
+	if( ni_timeout_recompute(&dev->retrans.params)) {
+		unsigned int old_timeout = dev->retrans.params.timeout;
+
 		/*
-		 * rfc3315#section-14
-		 * "[...]
-		 * MRC specifies an upper bound on the number of times a client may
-		 * retransmit a message.  Unless MRC is zero, the message exchange
-		 * fails once the client has transmitted the message MRC times.
-		 * [...]"
-		 *
-		 * Hmm... max transmits (1 + retransmits) or retransmits ??
-		 * MRC 0 means no limit, I'm using MDC 1 to transmit once...
+		 * Hmm... should we set this as backoff callback?
 		 */
-		if (dev->tx_counter >= dev->retrans.params.max_retransmits)
-			return FALSE;
-	}
+		dev->retrans.params.jitter = ni_dhcp6_jitter_rebase(
+				dev->retrans.params.timeout,
+				0 - dev->retrans.jitter,
+				0 + dev->retrans.jitter);
 
-	if (timerisset(&dev->retrans.deadline)) {
-		/*
-		 * rfc3315#section-14
-		 * "[...]
-		 * RT for each subsequent message transmission is based on the previous
-		 * value of RT:
-		 *
-		 * 	RT = 2*RTprev + RAND*RTprev
-		 *
-		 * MRT specifies an upper bound on the value of RT (disregarding the
-		 * randomization added by the use of RAND).  If MRT has a value of 0,
-		 * there is no upper limit on the value of RT.  Otherwise:
-		 *
-		 * 	if (RT > MRT)
-		 * 		RT = MRT + RAND*MRT
-		 * [...]"
-		 */
-		dev->retrans.timeout *= 2;
+		dev->retrans.params.timeout = ni_timeout_arm_msec(
+				&dev->retrans.deadline,
+				&dev->retrans.params);
 
-		if(dev->retrans.params.max_timeout) {
-			if(dev->retrans.timeout > dev->retrans.params.max_timeout)
-				dev->retrans.timeout = dev->retrans.params.max_timeout;
-		}
-
-		dev->retrans.timeout = ni_dhcp6_timeout_arm_msec(
-						&dev->retrans.deadline,
-						dev->retrans.timeout,
-						dev->retrans.params.max_jitter,
-						dev->retrans.params.max_jitter);
+		ni_trace("Increased retransmission timeout from %u to %u [%d .. %d]: %s",
+				old_timeout,
+				dev->retrans.params.timeout,
+				dev->retrans.params.jitter.min,
+				dev->retrans.params.jitter.max,
+				__ni_dhcp6_format_time(&dev->retrans.deadline));
 
 		return TRUE;
 	}
+	ni_trace("Retransmissions are disabled");
 	return FALSE;
 }
 
@@ -537,8 +567,7 @@ ni_dhcp6_device_retransmit(ni_dhcp6_device_t *dev)
 	if ((rv = ni_dhcp6_device_transmit(dev)) != 0)
 		return rv;
 
-	ni_trace("retransmitted, deadline: %ld.%ld",
-		dev->retrans.deadline.tv_sec,dev->retrans.deadline.tv_usec);
+	ni_trace("Retransmitted, next deadline at %s", __ni_dhcp6_format_time(&dev->retrans.deadline));
 
 	return -1;
 }
@@ -671,10 +700,10 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *info)
 	if (ni_dhcp6_device_transmit_arm_delay(dev))
 		return 0;
 
+	ni_dhcp6_device_retransmit_arm(dev);
+
 	if ((rv = ni_dhcp6_device_transmit(dev)) != 0)
 		return rv;
-
-	ni_dhcp6_device_retransmit_arm(dev);
 
 	ni_trace("transmitted, retrans deadline: %ld.%ld",
 		dev->retrans.deadline.tv_sec,dev->retrans.deadline.tv_usec);
@@ -873,18 +902,16 @@ ni_dhcp6_device_alloc_buffer(ni_dhcp6_device_t *dev)
 }
 
 void
+ni_dhcp6_device_clear_buffer(ni_dhcp6_device_t *dev)
+{
+	ni_buffer_clear(&dev->message);
+}
+
+void
 ni_dhcp6_device_drop_buffer(ni_dhcp6_device_t *dev)
 {
 	ni_buffer_destroy(&dev->message);
 }
-
-#if 0
-static void ni_dhcp6_device_retrans_init()
-{
-	uint32_t ni_dhcp6_xid;
-
-}
-#endif
 
 static ni_bool_t
 ni_dhcp6_device_can_send_unicast(ni_dhcp6_device_t *dev, unsigned int msg_code, const ni_addrconf_lease_t *lease)
@@ -979,7 +1006,7 @@ ni_dhcp6_init_message(ni_dhcp6_device_t *dev, unsigned int msg_code, const ni_ad
 		return -1;
 	}
 
-	if(!ni_dhcp6_set_message_timing(msg_code, &dev->retrans.params))
+	if(!ni_dhcp6_set_message_timing(dev, msg_code))
 		return -1;
 
 	return 0;
@@ -1035,15 +1062,26 @@ ni_dhcp6_device_transmit(ni_dhcp6_device_t *dev)
 	rv = sendto(dev->sock->__fd, ni_buffer_head(&dev->message),
 			ni_buffer_count(&dev->message), flags,
 			&dev->server_addr.sa, sizeof(dev->server_addr.six));
-	if(rv < 0) {
-		ni_error("unable to send dhcp packet: %m");
+
+	if(rv < 0 || (size_t)rv != (ssize_t)ni_buffer_count(&dev->message)) {
+		ni_error("unable to send %s message #%u: %m",
+			ni_dhcp6_message_name(header->type), dev->retrans.count + 1);
+
+		ni_dhcp6_device_clear_buffer(dev);
 		return -1;
 	} else {
-		ni_trace("message with %zu of %zd bytes sent", rv, cnt);
+		struct timeval now;
 
-		// clear buffer
+		dev->retrans.count++;
+
+		ni_timer_get_time(&now);
+		ni_trace("%s message #%u with %zu of %zd bytes sent at %s",
+			ni_dhcp6_message_name(header->type),
+			dev->retrans.count, rv, cnt, __ni_dhcp6_format_time(&now));
+
+		ni_dhcp6_device_clear_buffer(dev);
+		return 0;
 	}
-	return (size_t)rv == (ssize_t)ni_buffer_count(&dev->message) ? 0 : -1;
 }
 
 /*

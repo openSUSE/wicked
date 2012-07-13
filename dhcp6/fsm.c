@@ -64,14 +64,14 @@ ni_dhcp6_fsm_timeout(ni_dhcp6_device_t *dev)
 
 	dev->fsm.timer = NULL;
 
-	if(dev->tx_delay) {
-		dev->tx_delay = 0;
+	if(dev->retrans.delay) {
+		dev->retrans.delay = 0;
 
-		ni_dhcp6_device_transmit(dev);
 		ni_dhcp6_device_retransmit_arm(dev);
+		ni_dhcp6_device_transmit(dev);
 
 		ni_trace("transmitted, retrans deadline: %ld.%ld",
-			dev->retrans.deadline.tv_sec,dev->retrans.deadline.tv_usec);
+			dev->retrans.deadline.tv_sec, dev->retrans.deadline.tv_usec);
 	}
 
 	switch (dev->fsm.state) {
@@ -96,12 +96,6 @@ ni_dhcp6_fsm_set_timeout_msec(ni_dhcp6_device_t *dev, unsigned long msec)
 			dev->fsm.timer = ni_timer_register(msec, __ni_dhcp6_fsm_timeout, dev);
 		}
 	}
-}
-
-void
-ni_dhcp6_fsm_set_timeout(ni_dhcp6_device_t *dev, unsigned int seconds)
-{
-        ni_dhcp6_fsm_set_timeout_msec(dev, 1000 * seconds);
 }
 
 int
