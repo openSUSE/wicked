@@ -43,11 +43,7 @@ enum {
 	__NI_ADDRCONF_STATE_MAX
 };
 
-/* FIXME: Should these really be here? */
-struct ni_dhcp6_status {
-	uint16_t		code;
-	char *			message;
-};
+struct ni_dhcp6_status;
 struct ni_dhcp6_ia;
 
 struct ni_addrconf_lease {
@@ -109,7 +105,7 @@ struct ni_addrconf_lease {
 		uint8_t			server_pref;
 		struct in6_addr		server_unicast;
 		ni_bool_t		rapid_commit;
-		struct ni_dhcp6_status	status;
+		struct ni_dhcp6_status *status;
 		struct ni_dhcp6_ia *	ia_na;
 		struct ni_dhcp6_ia *	ia_ta;
 		struct ni_dhcp6_ia *	ia_pd;
