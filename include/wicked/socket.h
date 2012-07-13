@@ -63,7 +63,9 @@ extern char *		ni_socket_gets(ni_socket_t *, char *, size_t);
 extern xml_node_t *	ni_socket_recv_xml(ni_socket_t *);
 extern void		ni_socket_close(ni_socket_t *);
 
-extern void		ni_timeout_arm(struct timeval *, const ni_timeout_param_t *);
+extern unsigned long	ni_timeout_arm(struct timeval *, const ni_timeout_param_t *);
+extern unsigned long	ni_timeout_arm_msec(struct timeval *, const ni_timeout_param_t *);
+extern unsigned long	ni_timeout_randomize(unsigned long timeout, const ni_int_range_t *jitter);
 extern ni_bool_t	ni_timeout_recompute(ni_timeout_param_t *);
 
 #endif /* __WICKED_SOCKET_H__ */
