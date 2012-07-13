@@ -658,13 +658,24 @@ ni_ifworker_waiting_for_event(ni_ifworker_t *w, const char *event_name)
 }
 
 static void
+ni_ifworker_update_client_info(ni_ifworker_t *w)
+{
+	ni_netdev_clientinfo_t client_info;
+
+	memset(&client_info, 0, sizeof(client_info));
+	client_info.state = (char *) ni_ifworker_state_name(w->fsm.state);
+	client_info.config_origin = NULL;
+	client_info.config_uuid = w->uuid;
+	ni_call_set_client_info(w->object, &client_info);
+}
+
+static void
 ni_ifworker_set_state(ni_ifworker_t *w, unsigned int new_state)
 {
 	if (w->fsm.state != new_state) {
 		w->fsm.state = new_state;
-
 		if (w->object)
-			ni_call_set_client_state(w->object, &w->uuid, ni_ifworker_state_name(w->fsm.state));
+			ni_ifworker_update_client_info(w);
 	}
 }
 
@@ -698,29 +709,22 @@ ni_ifworker_update_state(ni_ifworker_t *w, unsigned int min_state, unsigned int 
  * identifies this configuration. We want to use this later to check
  * whether the configuration changed.
  *
- * For now, we use ni_uuid_for_file on the XML file this configuration
- * originates from. This works okay-ish as long as we're not introducing
- * things like templates, where a configuration may be the result of
- * applying data from different file sources.
- *
- * In the long run, the most robust approach might be to just generate
- * ASCII from the XML config and run a cryptographic hash routine
- * over it.
+ * We do this by hashing the XML configuration using a reasonably collision
+ * free hash algorithm, and storing that in the UUID. If the algorithm's output
+ * is less than the size of a UUID, the result is zero-padded; if it's bigger,
+ * the digest is simply truncated.
  */
 static void
 ni_ifworker_generate_uuid(ni_ifworker_t *w)
 {
-	const char *filename;
+	if (w->config) {
+		int md_len;
 
-	if (w->config && w->config->location) {
-		filename = w->config->location->shared->filename;
-
-		/* The XML reader code may use filenames such as
-		 * <stdin> or <buffer>; of course, you cannot generate
-		 * a uuid from these. */
-		if (filename[0] != '<'
-		 && ni_uuid_for_file(&w->uuid, filename) >= 0)
-			return;
+		memset(&w->uuid, 0, sizeof(w->uuid));
+		md_len = xml_node_hash(w->config, w->uuid.octets, sizeof(w->uuid.octets));
+		if (md_len < 0)
+			ni_fatal("cannot generate uuid for %s config - hashing failed?!", w->name);
+		return;
 	}
 
 	/* Generate a temporary uuid only */
@@ -2764,7 +2768,7 @@ ni_ifworkers_kickstart(ni_objectmodel_fsm_t *fsm)
 		if (!ni_ifworker_device_bound(w))
 			ni_ifworker_set_state(w, STATE_DEVICE_DOWN);
 		else if (w->object)
-			ni_call_set_client_state(w->object, &w->uuid, ni_ifworker_state_name(w->fsm.state));
+			ni_ifworker_update_client_info(w);
 	}
 
 	return 0;
@@ -3206,6 +3210,7 @@ usage:
 		for (i = 0; i < marked.count; ++i) {
 			ni_ifworker_t *w = marked.data[i];
 			ni_netdev_t *dev;
+			ni_netdev_clientinfo_t *client_info;
 
 			if ((dev = w->device) == NULL) {
 				if (!opt_quiet)
@@ -3214,25 +3219,28 @@ usage:
 				continue;
 			}
 
+			client_info = dev->client_info;
 			if (opt_check_changed) {
-				if (memcmp(&w->uuid, &dev->uuid, sizeof(ni_uuid_t))) {
+				if (!client_info || !ni_uuid_equal(&client_info->config_uuid, &w->uuid)) {
 					if (!opt_quiet)
 						ni_error("%s: device configuration changed", w->name);
 					ni_debug_wicked("%s: config file uuid is %s", w->name, ni_uuid_print(&w->uuid));
-					ni_debug_wicked("%s: system dev. uuid is %s", w->name, ni_uuid_print(&dev->uuid));
+					ni_debug_wicked("%s: system dev. uuid is %s", w->name,
+							client_info? ni_uuid_print(&client_info->config_uuid) : "NOT SET");
 					status = 3;
 					continue;
-					ni_debug_wicked("%s: system dev. uuid is %s", w->name, ni_uuid_print(&dev->uuid));
 				}
 			}
 
-			if (opt_state && !ni_string_eq(dev->client_state, opt_state)) {
-				if (!opt_quiet)
-					ni_error("%s: device has state %s, expected %s", w->name,
-							dev->client_state,
-							opt_state);
-				status = 4;
-				continue;
+			if (opt_state) {
+				if (!client_info || !ni_string_eq(client_info->state, opt_state)) {
+					if (!opt_quiet)
+						ni_error("%s: device has state %s, expected %s", w->name,
+								client_info? client_info->state : "NONE",
+								opt_state);
+					status = 4;
+					continue;
+				}
 			}
 
 			printf("%s: exists%s%s", w->name,

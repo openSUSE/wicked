@@ -17,8 +17,10 @@ CFLAGS	+= -Wall -Werror
 LDFLAGS	+=
 
 CPPFLAGS:= $(DEFS) $(CPPFLAGS)
-CPPFLAGS+= -I. -Iinclude -Isrc $(LIBNL_CFLAGS) $(LIBDBUS_CFLAGS)
+CPPFLAGS+= -I. -Iinclude -Isrc $(LIBNL_CFLAGS) $(LIBDBUS_CFLAGS) $(LIBGCRYPT_FLAGS)
 CPPFLAGS+= -DWICKED_CONFIGDIR=\"$(wickedconfigdir)\"
+
+LDCOMMON= $(LIBDL_LIBS) $(LIBNL_LIBS) $(LIBDBUS_LIBS) $(LIBGCRYPT_LIBS)
 
 APPS	= wicked wickedd \
 	  dhcp4-supplicant autoip4-supplicant \
@@ -70,6 +72,7 @@ __LIBSRCS= \
 	  xml-schema.c \
 	  xpath.c \
 	  xpath-fmt.c \
+	  md5sum.c \
 	  buffer.c \
 	  process.c \
 	  util.c \
@@ -234,37 +237,37 @@ schema/constants.xml: $(BIN)/mkconst schema/constants.xml.in
 	@LD_PRELOAD=$$PWD/$(LIBNAME).so $(BIN)/mkconst < $@.in > $@
 
 $(BIN)/wicked: LDFLAGS += -rdynamic -L. -lwicked -lm $(LIBS)
-$(BIN)/wicked: LDFLAGS += $(LIBDL_LIBS) $(LIBNL_LIBS) $(LIBANL_LIBS) $(LIBDBUS_LIBS)
+$(BIN)/wicked: LDFLAGS += $(LIBANL_LIBS) $(LDCOMMON)
 $(BIN)/wicked: $(CLIENTOBJS) $(TGTLIBS)
 	@mkdir -p bin
 	$(CC) -o $@ $(CFLAGS) $(CLIENTOBJS) $(LDFLAGS)
 
 $(BIN)/wickedd: LDFLAGS += -rdynamic -L. -lwicked -lm $(LIBS)
-$(BIN)/wickedd: LDFLAGS += $(LIBDL_LIBS) $(LIBNL_LIBS) $(LIBDBUS_LIBS)
+$(BIN)/wickedd: LDFLAGS += $(LDCOMMON)
 $(BIN)/wickedd: $(SERVEROBJS) $(TGTLIBS)
 	@mkdir -p bin
 	$(CC) -o $@ $(CFLAGS) $(SERVEROBJS) $(LDFLAGS)
 
 $(BIN)/dhcp4-supplicant: LDFLAGS += -L. -lwicked -lm $(LIBS)
-$(BIN)/dhcp4-supplicant: LDFLAGS += $(LIBDL_LIBS) $(LIBNL_LIBS) $(LIBDBUS_LIBS)
+$(BIN)/dhcp4-supplicant: LDFLAGS += $(LDCOMMON)
 $(BIN)/dhcp4-supplicant: $(DHCP4OBJS) $(TGTLIBS)
 	@mkdir -p bin
 	$(CC) -o $@ $(CFLAGS) $(DHCP4OBJS) $(LDFLAGS)
 
 $(BIN)/autoip4-supplicant: LDFLAGS += -L. -lwicked -lm $(LIBS)
-$(BIN)/autoip4-supplicant: LDFLAGS += $(LIBDL_LIBS) $(LIBNL_LIBS) $(LIBDBUS_LIBS)
+$(BIN)/autoip4-supplicant: LDFLAGS += $(LDCOMMON)
 $(BIN)/autoip4-supplicant: $(AUTO4OBJS) $(TGTLIBS)
 	@mkdir -p bin
 	$(CC) -o $@ $(CFLAGS) $(AUTO4OBJS) $(LDFLAGS)
 
 $(BIN)/dhcp6-supplicant: LDFLAGS += -rdynamic -L. -lwicked -lm $(LIBS)
-$(BIN)/dhcp6-supplicant: LDFLAGS += $(LIBDL_LIBS) $(LIBNL_LIBS) $(LIBDBUS_LIBS)
+$(BIN)/dhcp6-supplicant: LDFLAGS += $(LDCOMMON)
 $(BIN)/dhcp6-supplicant: $(DHCP6OBJS) $(TGTLIBS)
 	@mkdir -p bin
 	$(CC) -o $@ $(CFLAGS) $(DHCP6OBJS) $(LDFLAGS)
 
 $(BIN)/mkconst: LDFLAGS += -L. -lwicked -lm $(LIBS)
-$(BIN)/mkconst: LDFLAGS += $(LIBDL_LIBS) $(LIBNL_LIBS) $(LIBDBUS_LIBS)
+$(BIN)/mkconst: LDFLAGS += $(LDCOMMON)
 $(BIN)/mkconst: $(OBJ)/util/mkconst.o $(TGTLIBS)
 	@mkdir -p bin
 	$(CC) -o $@ $(CFLAGS) $< $(LDFLAGS)
@@ -272,7 +275,7 @@ $(BIN)/mkconst: $(OBJ)/util/mkconst.o $(TGTLIBS)
 testing: $(basename $(wildcard testing/*-test.c))
 
 testing/%-test: LDFLAGS += -L. -lwicked $(LIBS)
-testing/%-test: LDFLAGS += $(LIBDL_LIBS) $(LIBNL_LIBS) $(LIBDBUS_LIBS)
+testing/%-test: LDFLAGS += $(LDCOMMON)
 testing/%-test: testing/%-test.o $(TGTLIBS)
 	@rm -f $@
 	$(CC) -o $@ $(CFLAGS) $< $(LDFLAGS)

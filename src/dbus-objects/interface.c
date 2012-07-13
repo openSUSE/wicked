@@ -679,35 +679,32 @@ failed:
 }
 
 /*
- * Interface.setClientState()
+ * Interface.setClientInfo()
  *
  * This is used by clients to record a uuid identifying the configuration used, and
  * a "state" string that helps them track where they are.
  */
 static dbus_bool_t
-ni_objectmodel_netif_set_client_state(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+ni_objectmodel_netif_set_client_info(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_netdev_t *dev;
-	ni_uuid_t uuid;
-	const char *state;
+	ni_netdev_clientinfo_t *client_info;
 
 	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return FALSE;
 
-	if (argc != 2)
+	if (argc != 1 || !ni_dbus_variant_is_dict(&argv[0]))
 		return ni_dbus_error_invalid_args(error, object->path, method->name);
 
-	if (!ni_dbus_variant_get_uuid(&argv[0], &uuid)
-	 || !ni_dbus_variant_get_string(&argv[1], &state))
+	client_info = ni_netdev_clientinfo_new();
+	if (!ni_objectmodel_netif_client_info_from_dict(client_info, &argv[0])) {
+		ni_netdev_clientinfo_free(client_info);
 		return ni_dbus_error_invalid_args(error, object->path, method->name);
+	}
 
-	NI_TRACE_ENTER_ARGS("dev=%s, uuid=%s, state=%s", dev->name, ni_uuid_print(&uuid), state);
-
-	dev->uuid = uuid;
-	ni_string_dup(&dev->client_state, state && *state? state : NULL);
-
+	ni_netdev_set_client_info(dev, client_info);
 	return TRUE;
 }
 
@@ -824,7 +821,7 @@ static ni_dbus_method_t		ni_objectmodel_netif_methods[] = {
 	{ "linkUp",		"a{sv}",		ni_objectmodel_netif_link_up },
 	{ "linkDown",		"",			ni_objectmodel_netif_link_down },
 	{ "installLease",	"a{sv}",		ni_objectmodel_netif_install_lease },
-	{ "setClientState",	"ays",			ni_objectmodel_netif_set_client_state },
+	{ "setClientInfo",	"a{sv}",		ni_objectmodel_netif_set_client_info },
 	{ NULL }
 };
 
@@ -931,6 +928,74 @@ __ni_objectmodel_netif_set_routes(ni_dbus_object_t *object,
 }
 
 /*
+ * Property Interface.client_info
+ */
+static dbus_bool_t
+__ni_objectmodel_netif_get_client_info(const ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				ni_dbus_variant_t *result,
+				DBusError *error)
+{
+	ni_netdev_t *dev = ni_dbus_object_get_handle(object);
+	ni_netdev_clientinfo_t *client_info;
+
+	if ((client_info = dev->client_info) == NULL)
+		return ni_dbus_error_property_not_present(error, object->path, property->name);
+
+	ni_dbus_variant_init_dict(result);
+	return ni_objectmodel_netif_client_info_to_dict(client_info, result);
+}
+
+dbus_bool_t
+ni_objectmodel_netif_client_info_to_dict(const ni_netdev_clientinfo_t *client_info, ni_dbus_variant_t *dict)
+{
+	if (client_info->state)
+		ni_dbus_dict_add_string(dict, "state", client_info->state);
+	if (client_info->config_origin)
+		ni_dbus_dict_add_string(dict, "config-origin", client_info->config_origin);
+
+	if (!ni_uuid_is_null(&client_info->config_uuid))
+		ni_dbus_dict_add_byte_array(dict, "config-uuid",
+				client_info->config_uuid.octets,
+				sizeof(client_info->config_uuid.octets));
+	return TRUE;
+}
+
+static dbus_bool_t
+__ni_objectmodel_netif_set_client_info(ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *argument,
+				DBusError *error)
+{
+	ni_netdev_t *dev = ni_dbus_object_get_handle(object);
+	ni_netdev_clientinfo_t *client_info;
+
+	client_info = ni_netdev_clientinfo_new();
+	if (!ni_objectmodel_netif_client_info_from_dict(client_info, argument)) {
+		ni_netdev_clientinfo_free(client_info);
+		return FALSE;
+	}
+	ni_netdev_set_client_info(dev, client_info);
+	return TRUE;
+}
+
+dbus_bool_t
+ni_objectmodel_netif_client_info_from_dict(ni_netdev_clientinfo_t *client_info, const ni_dbus_variant_t *dict)
+{
+	ni_dbus_variant_t *child;
+	const char *sval;
+
+	if (ni_dbus_dict_get_string(dict, "state", &sval))
+		ni_string_dup(&client_info->state, sval);
+	if (ni_dbus_dict_get_string(dict, "config-origin", &sval))
+		ni_string_dup(&client_info->config_origin, sval);
+	if ((child = ni_dbus_dict_get(dict, "config-uuid")) != NULL)
+		ni_dbus_variant_get_uuid(child, &client_info->config_uuid);
+
+	return TRUE;
+}
+
+/*
  * Properties of an interface
  */
 #define NETIF_PROPERTY_SIGNATURE(signature, __name, rw) \
@@ -938,14 +1003,15 @@ __ni_objectmodel_netif_set_routes(ni_dbus_object_t *object,
 
 static ni_dbus_property_t	ni_objectmodel_netif_properties[] = {
 	NI_DBUS_GENERIC_STRING_PROPERTY(netdev, name, name, RO),
-	NI_DBUS_GENERIC_STRING_PROPERTY(netdev, client-state, client_state, RO),
-	NI_DBUS_GENERIC_UUID_PROPERTY(netdev, client-uuid, uuid, RO),
 	NI_DBUS_GENERIC_UINT_PROPERTY(netdev, index, link.ifindex, RO),
 	NI_DBUS_GENERIC_UINT_PROPERTY(netdev, status, link.ifflags, RO),
 	NI_DBUS_GENERIC_UINT_PROPERTY(netdev, link-type, link.type, RO),
 	NI_DBUS_GENERIC_UINT_PROPERTY(netdev, mtu, link.mtu, RO),
 	NI_DBUS_GENERIC_UINT_PROPERTY(netdev, txqlen, link.txqlen, RO),
 	NI_DBUS_GENERIC_STRING_PROPERTY(netdev, alias, link.alias, RO),
+	___NI_DBUS_PROPERTY(NI_DBUS_DICT_SIGNATURE,
+				client-info, client_info,
+				__ni_objectmodel_netif, RO),
 
 	/* This should really go to the link layer classes */
 	NETIF_PROPERTY_SIGNATURE(NI_DBUS_BYTE_ARRAY_SIGNATURE, hwaddr, RO),

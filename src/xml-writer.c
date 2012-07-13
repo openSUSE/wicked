@@ -36,14 +36,17 @@
 
 typedef struct xml_writer {
 	FILE *		file;
+	ni_hashctx_t *	hash;
 	unsigned int	noclose : 1;
 	ni_stringbuf_t	buffer;
 } xml_writer_t;
 
 static int		xml_writer_open(xml_writer_t *, const char *);
 static int		xml_writer_init_file(xml_writer_t *, FILE *);
+static int		xml_writer_init_hash(xml_writer_t *);
 static int		xml_writer_close(xml_writer_t *);
 static int		xml_writer_destroy(xml_writer_t *);
+static int		xml_writer_destroy_get_hash(xml_writer_t *, void *, size_t);
 static void		xml_writer_printf(xml_writer_t *, const char *, ...);
 
 static void		xml_document_output(const xml_document_t *, xml_writer_t *);
@@ -75,6 +78,18 @@ xml_document_print(const xml_document_t *doc, FILE *fp)
 	return xml_writer_destroy(&writer);
 }
 
+int
+xml_document_hash(const xml_document_t *doc, void *md_buffer, size_t md_size)
+{
+	xml_writer_t writer;
+
+	if (xml_writer_init_hash(&writer) < 0)
+		return -1;
+
+	xml_document_output(doc, &writer);
+	return xml_writer_destroy_get_hash(&writer, md_buffer, md_size);
+}
+
 void
 xml_document_output(const xml_document_t *doc, xml_writer_t *writer)
 {
@@ -94,6 +109,18 @@ xml_node_print(const xml_node_t *node, FILE *fp)
 	}
 
 	return rv;
+}
+
+int
+xml_node_hash(const xml_node_t *node, void *md_buffer, size_t md_size)
+{
+	xml_writer_t writer;
+
+	if (xml_writer_init_hash(&writer) < 0)
+		return -1;
+
+	xml_node_output(node, &writer, 0);
+	return xml_writer_destroy_get_hash(&writer, md_buffer, md_size);
 }
 
 int
@@ -258,6 +285,14 @@ xml_writer_init_file(xml_writer_t *writer, FILE *file)
 }
 
 int
+xml_writer_init_hash(xml_writer_t *writer)
+{
+	memset(writer, 0, sizeof(*writer));
+	writer->hash = ni_hashctx_new();
+	return 0;
+}
+
+int
 xml_writer_close(xml_writer_t *writer)
 {
 	int rv = 0;
@@ -268,6 +303,10 @@ xml_writer_close(xml_writer_t *writer)
 		fclose(writer->file);
 		writer->file = NULL;
 	}
+	if (writer->hash) {
+		ni_hashctx_free(writer->hash);
+		writer->hash = NULL;
+	}
 	return rv;
 }
 
@@ -276,6 +315,20 @@ xml_writer_destroy(xml_writer_t *writer)
 {
 	ni_stringbuf_destroy(&writer->buffer);
 	return xml_writer_close(writer);
+}
+
+int
+xml_writer_destroy_get_hash(xml_writer_t *writer, void *md_buffer, size_t md_size)
+{
+	int rv;
+
+	ni_hashctx_finish(writer->hash);
+
+	rv = ni_hashctx_get_digest(writer->hash, md_buffer, md_size);
+	if (xml_writer_destroy(writer) < 0)
+		rv = -1;
+
+	return rv;
 }
 
 void
@@ -289,7 +342,10 @@ xml_writer_printf(xml_writer_t *writer, const char *fmt, ...)
 		vfprintf(writer->file, fmt, ap);
 	} else {
 		vsnprintf(temp, sizeof(temp), fmt, ap);
-		ni_stringbuf_puts(&writer->buffer, temp);
+		if (writer->hash)
+			ni_hashctx_puts(writer->hash, temp);
+		else
+			ni_stringbuf_puts(&writer->buffer, temp);
 	}
 	va_end(ap);
 }

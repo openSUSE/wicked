@@ -90,7 +90,6 @@ static void
 ni_netdev_free(ni_netdev_t *dev)
 {
 	ni_string_free(&dev->name);
-	ni_string_free(&dev->client_state);
 	ni_string_free(&dev->link.qdisc);
 	ni_string_free(&dev->link.kind);
 	ni_string_free(&dev->link.alias);
@@ -107,6 +106,7 @@ ni_netdev_free(ni_netdev_t *dev)
 	ni_netdev_set_openvpn(dev, NULL);
 	ni_netdev_set_ppp(dev, NULL);
 	ni_netdev_set_ibft_nic(dev, NULL);
+	ni_netdev_set_client_info(dev, NULL);
 
 	ni_netdev_set_ipv4(dev, NULL);
 	ni_netdev_set_ipv6(dev, NULL);
@@ -319,6 +319,39 @@ ni_netdev_set_ibft_nic(ni_netdev_t *dev, ni_ibft_nic_t *nic)
 		ni_ibft_nic_free(dev->ibft_nic);
 
 	dev->ibft_nic = nic;
+}
+
+/*
+ * Set the interface's client_info.
+ * This information is not intepreted by the server at all, but
+ * we retain it for the client.
+ */
+void
+ni_netdev_set_client_info(ni_netdev_t *dev, ni_netdev_clientinfo_t *client_info)
+{
+	if (dev->client_info == client_info)
+		return;
+	if (dev->client_info)
+		ni_netdev_clientinfo_free(dev->client_info);
+
+	dev->client_info = client_info;
+}
+
+ni_netdev_clientinfo_t *
+ni_netdev_clientinfo_new(void)
+{
+	ni_netdev_clientinfo_t *client_info;
+
+	client_info = xcalloc(1, sizeof(*client_info));
+	return client_info;
+}
+
+void
+ni_netdev_clientinfo_free(ni_netdev_clientinfo_t *client_info)
+{
+	ni_string_free(&client_info->state);
+	ni_string_free(&client_info->config_origin);
+	free(client_info);
 }
 
 /*
