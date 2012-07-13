@@ -190,9 +190,9 @@ struct ni_dhcp6_device {
 
 	struct {
 	    uint32_t		xid;
+	    unsigned int	accept_any_offer : 1;
 #if 0
 	    unsigned int	nak_backoff;	/* backoff timer when we get NAKs */
-	    unsigned int	accept_any_offer : 1;
 #endif
 	} dhcp6;
 

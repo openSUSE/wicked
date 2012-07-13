@@ -187,7 +187,7 @@ __ni_dhcp6_socket_open(ni_dhcp6_device_t *dev)
 /*
  * Open a DHCP6 socket for send and receive
  */
-int
+static int
 ni_dhcp6_socket_open(ni_dhcp6_device_t *dev)
 {
 	int fd;
@@ -845,6 +845,61 @@ ni_dhcp6_build_message(const ni_dhcp6_device_t *dev,
 	ni_trace("built dhcp6 packet: %s", ni_print_hex(msgbuf->base, ni_buffer_count(msgbuf)));
 
 	return 0;
+}
+
+int
+ni_dhcp6_init_message(ni_dhcp6_device_t *dev, unsigned int msg_code, const ni_addrconf_lease_t *lease)
+{
+	int rv;
+
+	if (ni_dhcp6_socket_open(dev) < 0) {
+		ni_error("%s: unable to open DHCP6 socket", dev->ifname);
+		goto transient_failure;
+	}
+
+	/* Assign a new XID to this message */
+	while (dev->dhcp6.xid == 0) {
+		dev->dhcp6.xid = random() & NI_DHCP6_XID_MASK;
+	}
+
+	ni_trace("%s: building %s with xid 0x%x", dev->ifname,
+		ni_dhcp6_message_name(msg_code), dev->dhcp6.xid);
+
+	rv = ni_dhcp6_build_message(dev, msg_code, lease, &dev->message);
+	if (rv < 0) {
+		ni_error("%s: unable to build %s message", dev->ifname,
+			ni_dhcp6_message_name(msg_code));
+		return -1;
+	}
+
+	memset(&dev->server_addr, 0, sizeof(dev->server_addr));
+	dev->server_addr.six.sin6_family = AF_INET6;
+	dev->server_addr.six.sin6_port = htons(NI_DHCP6_SERVER_PORT);
+	dev->server_addr.six.sin6_scope_id = dev->link.ifindex;
+
+#if 0
+	if(ni_dhcp6_device_can_send_unicast(dev, msg_code, lease)) {
+		memcpy(&dev->server_addr.six.sin6_addr, &lease->dhcp6.server_unicast,
+			sizeof(dev->server_addr.six.sin6_addr));
+	} else
+#endif
+	if(inet_pton(AF_INET6, NI_DHCP6_ALL_RAGENTS,
+				&dev->server_addr.six.sin6_addr) != 1) {
+		ni_error("%s: Unable to prepare DHCP6 destination address", dev->ifname);
+		return -1;
+	}
+
+	if(!ni_dhcp6_set_message_timing(dev, msg_code))
+		return -1;
+
+	return 0;
+
+transient_failure:
+	/* We ran into a transient problem, such as being unable to open
+	 * a raw socket. We should schedule a "short" timeout after which
+	 * we should re-try the operation. */
+	/* FIXME: Not done yet. */
+	return 1;
 }
 
 void

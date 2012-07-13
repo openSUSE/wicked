@@ -66,12 +66,7 @@ ni_dhcp6_fsm_timeout(ni_dhcp6_device_t *dev)
 
 	if(dev->retrans.delay) {
 		dev->retrans.delay = 0;
-
-		ni_dhcp6_device_retransmit_arm(dev);
-		ni_dhcp6_device_transmit(dev);
-
-		ni_trace("transmitted, retrans deadline: %ld.%ld",
-			dev->retrans.deadline.tv_sec, dev->retrans.deadline.tv_usec);
+		ni_dhcp6_device_transmit_start(dev);
 	}
 
 	switch (dev->fsm.state) {
@@ -129,6 +124,87 @@ ni_dhcp6_fsm_process_client_packet(ni_dhcp6_device_t *dev, ni_buffer_t *msgbuf, 
 		ni_addrconf_dhcp6_lease_free(lease);
 	}
 	return 0;
+}
+
+static int
+__ni_dhcp6_fsm_solicit(ni_dhcp6_device_t *dev, int scan_offers)
+{
+	ni_addrconf_lease_t *lease;
+	int rv = -1;
+
+	ni_debug_dhcp("%s[%u]: Initiating DHCPv6 Server Solicitation",
+			dev->ifname, dev->link.ifindex);
+
+	/*
+	 * /rfc3315#section-17.1.1
+	 *
+	 * If we already have a lease, we
+	 * "[...] include addresses in the IAs as a hint to the server
+	 * about addresses for which the client has a preference. [...]
+	 * The client uses IA_NA options to request the assignment of
+	 * non-temporary addresses and uses IA_TA options to request
+	 * the assignment of temporary addresses.[...]"
+	 *
+	 * If not, create a dummy lease with NULL fields.
+	 */
+	if ((lease = dev->lease) == NULL) {
+		lease = ni_addrconf_lease_new(NI_ADDRCONF_DHCP, AF_INET6);
+
+		/* TODO: add addrs from interface as hint */
+	}
+
+	if ((rv = ni_dhcp6_init_message(dev, NI_DHCP6_SOLICIT, lease)) != 0)
+		goto cleanup;
+
+	dev->fsm.state = NI_DHCP6_STATE_SELECTING;
+	dev->dhcp6.accept_any_offer = scan_offers;
+
+	rv = ni_dhcp6_device_transmit_init(dev);
+
+cleanup:
+	if (lease != dev->lease) {
+		ni_addrconf_dhcp6_lease_free(lease);
+	}
+	return rv;
+}
+
+int
+ni_dhcp6_fsm_solicit(ni_dhcp6_device_t *dev)
+{
+	return __ni_dhcp6_fsm_solicit(dev, 1);
+}
+
+int
+ni_dhcp6_fsm_request_lease(ni_dhcp6_device_t *dev, const ni_addrconf_lease_t *lease)
+{
+	(void)dev;
+	(void)lease;
+	return -1;
+}
+
+int
+ni_dhcp6_fsm_confirm_lease(ni_dhcp6_device_t *dev, const ni_addrconf_lease_t *lease)
+{
+	(void)dev;
+	(void)lease;
+	return -1;
+}
+
+int
+ni_dhcp6_fsm_request_info(ni_dhcp6_device_t *dev)
+{
+	int rv;
+
+	ni_debug_dhcp("%s[%u]: Initiating DHCPv6 Info Request",
+			dev->ifname, dev->link.ifindex);
+
+	if ((rv = ni_dhcp6_init_message(dev, NI_DHCP6_INFO_REQUEST, NULL)) != 0)
+		return rv;
+
+	dev->fsm.state = NI_DHCP6_STATE_REQUESTING_INFO;
+	dev->dhcp6.accept_any_offer = 1;
+
+	return ni_dhcp6_device_transmit_init(dev);
 }
 
 /*
