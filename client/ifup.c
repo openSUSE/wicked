@@ -109,6 +109,7 @@ static void
 ni_ifworker_free(ni_ifworker_t *w)
 {
 	ni_string_free(&w->name);
+	ni_string_free(&w->config_origin);
 	ni_ifworker_children_destroy(&w->children);
 
 	if (w->fsm.action_table)
@@ -664,7 +665,7 @@ ni_ifworker_update_client_info(ni_ifworker_t *w)
 
 	memset(&client_info, 0, sizeof(client_info));
 	client_info.state = (char *) ni_ifworker_state_name(w->fsm.state);
-	client_info.config_origin = NULL;
+	client_info.config_origin = w->config_origin;
 	client_info.config_uuid = w->uuid;
 	ni_call_set_client_info(w->object, &client_info);
 }
@@ -733,7 +734,7 @@ ni_ifworker_generate_uuid(ni_ifworker_t *w)
 }
 
 static unsigned int
-ni_ifworkers_from_xml(ni_objectmodel_fsm_t *fsm, xml_document_t *doc)
+ni_ifworkers_from_xml(ni_objectmodel_fsm_t *fsm, xml_document_t *doc, const char *config_origin)
 {
 	xml_node_t *root, *ifnode;
 	unsigned int count = 0;
@@ -787,6 +788,8 @@ ni_ifworkers_from_xml(ni_objectmodel_fsm_t *fsm, xml_document_t *doc)
 		}
 
 		ni_ifworker_generate_uuid(w);
+		if (config_origin)
+			ni_string_dup(&w->config_origin, config_origin);
 
 		if ((depnode = xml_node_get_child(ifnode, "dependencies")) != NULL)
 			ni_ifworker_set_dependencies_xml(w, depnode);
@@ -2820,7 +2823,7 @@ ni_ifconfig_firmware_load(ni_objectmodel_fsm_t *fsm)
 		return FALSE;
 	}
 
-	ni_ifworkers_from_xml(fsm, config_doc);
+	ni_ifworkers_from_xml(fsm, config_doc, "firmware");
 
 	/* Do *not* delete config_doc; we are keeping references to its
 	 * descendant nodes in the ifworkers */
@@ -2841,7 +2844,7 @@ ni_ifconfig_file_load(ni_objectmodel_fsm_t *fsm, const char *filename)
 		return FALSE;
 	}
 
-	ni_ifworkers_from_xml(fsm, config_doc);
+	ni_ifworkers_from_xml(fsm, config_doc, NULL);
 
 	/* Do *not* delete config_doc; we are keeping references to its
 	 * descendant nodes in the ifworkers */
