@@ -698,29 +698,22 @@ ni_ifworker_update_state(ni_ifworker_t *w, unsigned int min_state, unsigned int 
  * identifies this configuration. We want to use this later to check
  * whether the configuration changed.
  *
- * For now, we use ni_uuid_for_file on the XML file this configuration
- * originates from. This works okay-ish as long as we're not introducing
- * things like templates, where a configuration may be the result of
- * applying data from different file sources.
- *
- * In the long run, the most robust approach might be to just generate
- * ASCII from the XML config and run a cryptographic hash routine
- * over it.
+ * We do this by hashing the XML configuration using a reasonably collision
+ * free hash algorithm, and storing that in the UUID. If the algorithm's output
+ * is less than the size of a UUID, the result is zero-padded; if it's bigger,
+ * the digest is simply truncated.
  */
 static void
 ni_ifworker_generate_uuid(ni_ifworker_t *w)
 {
-	const char *filename;
+	if (w->config) {
+		int md_len;
 
-	if (w->config && w->config->location) {
-		filename = w->config->location->shared->filename;
-
-		/* The XML reader code may use filenames such as
-		 * <stdin> or <buffer>; of course, you cannot generate
-		 * a uuid from these. */
-		if (filename[0] != '<'
-		 && ni_uuid_for_file(&w->uuid, filename) >= 0)
-			return;
+		memset(&w->uuid, 0, sizeof(w->uuid));
+		md_len = xml_node_hash(w->config, w->uuid.octets, sizeof(w->uuid.octets));
+		if (md_len < 0)
+			ni_fatal("cannot generate uuid for %s config - hashing failed?!", w->name);
+		return;
 	}
 
 	/* Generate a temporary uuid only */
