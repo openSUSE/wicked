@@ -290,7 +290,10 @@ extern int		ni_dhcp6_client_parse_response(ni_dhcp6_device_t *, ni_buffer_t *,
 					const struct in6_addr *, ni_addrconf_lease_t **);
 
 /* FIXME: */
+extern void		ni_dhcp6_status_free(struct ni_dhcp6_status *status);
 extern void		ni_dhcp6_ia_list_destroy(struct ni_dhcp6_ia **list);
+void			ni_addrconf_dhcp6_lease_free(ni_addrconf_lease_t *);
+
 const char *		__ni_dhcp6_format_time(const struct timeval *tv);
 
 #endif /* __WICKED_DHCP6_PROTOCOL_H__ */

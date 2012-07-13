@@ -126,10 +126,7 @@ ni_dhcp6_fsm_process_client_packet(ni_dhcp6_device_t *dev, ni_buffer_t *msgbuf, 
 
 	/* if (dev->lease != lease) { */
         if (lease) {
-		ni_dhcp6_ia_list_destroy(&lease->dhcp6.ia_na);
-		ni_dhcp6_ia_list_destroy(&lease->dhcp6.ia_ta);
-		ni_dhcp6_ia_list_destroy(&lease->dhcp6.ia_pd);
-		ni_addrconf_lease_free(lease);
+		ni_addrconf_dhcp6_lease_free(lease);
 	}
 	return 0;
 }
