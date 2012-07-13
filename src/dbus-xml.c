@@ -473,6 +473,18 @@ ni_dbus_serialize_xml(xml_node_t *node, const ni_xs_type_t *type, ni_dbus_varian
 dbus_bool_t
 ni_dbus_deserialize_xml(ni_dbus_variant_t *var, const ni_xs_type_t *type, xml_node_t *node)
 {
+#if 0
+	int depth = 0;
+
+	{
+		xml_node_t *p;
+		for (p = node->parent; p; p = p->parent)
+			depth++;
+	}
+
+	ni_trace("%*.*sdeserialize <%s>", depth, depth, "", node->name);
+#endif
+
 	switch (type->class) {
 	case NI_XS_TYPE_SCALAR:
 		return ni_dbus_deserialize_xml_scalar(var, type, node);
@@ -1248,7 +1260,7 @@ __ni_notation_uuid_print(const unsigned char *data_ptr, unsigned int data_len, c
 
 	if (data_len != 16)
 		return NULL;
-	memcpy(uuid.octets, buffer, 16);
+	memcpy(uuid.octets, data_ptr, 16);
 
 	formatted = ni_uuid_print(&uuid);
 	if (strlen(formatted) >= size)
