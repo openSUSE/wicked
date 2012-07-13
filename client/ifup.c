@@ -674,7 +674,7 @@ ni_ifworker_set_state(ni_ifworker_t *w, unsigned int new_state)
 {
 	if (w->fsm.state != new_state) {
 		w->fsm.state = new_state;
-		if (w->object)
+		if (w->object && new_state != STATE_DEVICE_DOWN)
 			ni_ifworker_update_client_info(w);
 	}
 }
@@ -2411,7 +2411,7 @@ static ni_iftransition_t	ni_iftransitions[] = {
 	COMMON_TRANSITION_DOWN_FROM(STATE_FIREWALL_UP, "firewallDown"),
 
 	/* Delete the device */
-	COMMON_TRANSITION_DOWN_FROM(STATE_DEVICE_UP, "deleteDevice", .call_overloading = TRUE),
+	COMMON_TRANSITION_DOWN_FROM(STATE_DEVICE_EXISTS, "deleteDevice", .call_overloading = TRUE),
 
 	{ .from_state = STATE_NONE, .next_state = STATE_NONE, .func = NULL }
 };
