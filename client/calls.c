@@ -358,24 +358,24 @@ ni_call_device_method_xml(ni_dbus_object_t *object, const char *method_name, xml
 }
 
 int
-ni_call_set_client_state(ni_dbus_object_t *object, const ni_uuid_t *uuid, const char *state)
+ni_call_set_client_info(ni_dbus_object_t *object, const ni_netdev_clientinfo_t *client_info)
 {
 	const ni_dbus_service_t *service;
 	const ni_dbus_method_t *method;
-	ni_dbus_variant_t argv[2];
+	ni_dbus_variant_t dict;
 	int rv;
 
-	if ((rv = ni_get_device_method(object, "setClientState", &service, &method)) < 0)
+	if ((rv = ni_get_device_method(object, "setClientInfo", &service, &method)) < 0)
 		return rv;
 
-	memset(argv, 0, sizeof(argv));
-	ni_dbus_variant_set_uuid(&argv[0], uuid);
-	ni_dbus_variant_set_string(&argv[1], state);
+	memset(&dict, 0, sizeof(dict));
+	ni_dbus_variant_init_dict(&dict);
+	if (!ni_objectmodel_netif_client_info_to_dict(client_info, &dict))
+		return -1;
 
-	rv = ni_call_device_method_common(object, service, method, 2, argv, NULL, NULL);
+	rv = ni_call_device_method_common(object, service, method, 1, &dict, NULL, NULL);
 
-	ni_dbus_variant_destroy(&argv[0]);
-	ni_dbus_variant_destroy(&argv[1]);
+	ni_dbus_variant_destroy(&dict);
 	return rv;
 }
 

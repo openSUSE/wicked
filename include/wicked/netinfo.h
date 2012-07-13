@@ -51,11 +51,11 @@ struct ni_linkinfo {
  * This information can be set by set any client to
  * "mark" the interface
  */
-typedef struct ni_netdev_clientinfo {
+struct ni_netdev_clientinfo {
 	char *			state;
 	ni_uuid_t		config_uuid;
 	char *			config_origin;		/* manual, sysconfig, firmware, ... */
-} ni_netdev_clientinfo_t;
+};
 
 struct ni_netdev {
 	ni_netdev_t *		next;

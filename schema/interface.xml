@@ -60,8 +60,13 @@
 
  <link-type type="builtin-iftype"/>
 
- <client-uuid type="uuid-type"/>
- <client-state type="string"/>
+ <define name="client-info-type" class="dict">
+   <config-origin type="string"/>
+   <config-uuid type="uuid-type"/>
+   <state type="string"/>
+ </define>
+
+ <client-info type="client-info-type" />
 
  <index type="uint32"/>
  <metric type="uint32"/>
@@ -181,6 +186,12 @@
   <method name="installLease">
     <arguments>
       <arg type="intrinsic-lease"/>
+    </arguments>
+  </method>
+
+  <method name="setClientInfo">
+    <arguments>
+      <arg type="network-interface:client-info-type" />
     </arguments>
   </method>
 

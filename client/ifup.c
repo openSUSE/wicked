@@ -658,13 +658,24 @@ ni_ifworker_waiting_for_event(ni_ifworker_t *w, const char *event_name)
 }
 
 static void
+ni_ifworker_update_client_info(ni_ifworker_t *w)
+{
+	ni_netdev_clientinfo_t client_info;
+
+	memset(&client_info, 0, sizeof(client_info));
+	client_info.state = (char *) ni_ifworker_state_name(w->fsm.state);
+	client_info.config_origin = NULL;
+	client_info.config_uuid = w->uuid;
+	ni_call_set_client_info(w->object, &client_info);
+}
+
+static void
 ni_ifworker_set_state(ni_ifworker_t *w, unsigned int new_state)
 {
 	if (w->fsm.state != new_state) {
 		w->fsm.state = new_state;
-
 		if (w->object)
-			ni_call_set_client_state(w->object, &w->uuid, ni_ifworker_state_name(w->fsm.state));
+			ni_ifworker_update_client_info(w);
 	}
 }
 
@@ -2757,7 +2768,7 @@ ni_ifworkers_kickstart(ni_objectmodel_fsm_t *fsm)
 		if (!ni_ifworker_device_bound(w))
 			ni_ifworker_set_state(w, STATE_DEVICE_DOWN);
 		else if (w->object)
-			ni_call_set_client_state(w->object, &w->uuid, ni_ifworker_state_name(w->fsm.state));
+			ni_ifworker_update_client_info(w);
 	}
 
 	return 0;
