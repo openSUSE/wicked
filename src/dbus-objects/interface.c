@@ -32,6 +32,8 @@ static void		ni_objectmodel_register_device_factory_service(ni_dbus_service_t *)
 static void		ni_objectmodel_register_device_service(ni_iftype_t, ni_dbus_service_t *);
 static void		ni_objectmodel_netif_initialize(ni_dbus_object_t *object);
 static void		ni_objectmodel_netif_destroy(ni_dbus_object_t *object);
+static dbus_bool_t	__ni_objectmodel_netif_client_info_to_dict(const ni_netdev_clientinfo_t *, ni_dbus_variant_t *);
+static dbus_bool_t	__ni_objectmodel_netif_client_info_from_dict(ni_netdev_clientinfo_t *, const ni_dbus_variant_t *);
 
 static ni_dbus_class_t		ni_objectmodel_netif_class = {
 	.name		= NI_OBJECTMODEL_NETIF_CLASS,
@@ -697,7 +699,7 @@ ni_objectmodel_netif_set_client_state(ni_dbus_object_t *object, const ni_dbus_me
 	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return FALSE;
 
-	if (argc != 2)
+	if (argc != 1)
 		return ni_dbus_error_invalid_args(error, object->path, method->name);
 
 	client_info = ni_netdev_clientinfo_new();
@@ -949,18 +951,27 @@ __ni_objectmodel_netif_get_client_info(const ni_dbus_object_t *object,
 				DBusError *error)
 {
 	ni_netdev_t *dev = ni_dbus_object_get_handle(object);
-	ni_netdev_clientinfo_t *ci;
+	ni_netdev_clientinfo_t *client_info;
 
-	if ((ci = dev->client_info) == NULL)
+	if ((client_info = dev->client_info) == NULL)
 		return ni_dbus_error_property_not_present(error, object->path, property->name);
 
 	ni_dbus_variant_init_dict(result);
-	if (ci->state)
-		ni_dbus_dict_add_string(result, "state", ci->state);
-	if (!ni_uuid_is_null(&ci->config_uuid))
-		ni_dbus_dict_add_byte_array(result, "config-uuid",
-				ci->config_uuid.octets,
-				sizeof(ci->config_uuid.octets));
+	return __ni_objectmodel_netif_client_info_to_dict(client_info, result);
+}
+
+static dbus_bool_t
+__ni_objectmodel_netif_client_info_to_dict(const ni_netdev_clientinfo_t *client_info, ni_dbus_variant_t *dict)
+{
+	if (client_info->state)
+		ni_dbus_dict_add_string(dict, "state", client_info->state);
+	if (client_info->config_origin)
+		ni_dbus_dict_add_string(dict, "config-origin", client_info->config_origin);
+
+	if (!ni_uuid_is_null(&client_info->config_uuid))
+		ni_dbus_dict_add_byte_array(dict, "config-uuid",
+				client_info->config_uuid.octets,
+				sizeof(client_info->config_uuid.octets));
 	return TRUE;
 }
 
@@ -971,18 +982,30 @@ __ni_objectmodel_netif_set_client_info(ni_dbus_object_t *object,
 				DBusError *error)
 {
 	ni_netdev_t *dev = ni_dbus_object_get_handle(object);
-	ni_netdev_clientinfo_t *ci;
+	ni_netdev_clientinfo_t *client_info;
+
+	client_info = ni_netdev_clientinfo_new();
+	if (!__ni_objectmodel_netif_client_info_from_dict(client_info, argument)) {
+		ni_netdev_clientinfo_free(client_info);
+		return FALSE;
+	}
+	ni_netdev_set_client_info(dev, client_info);
+	return TRUE;
+}
+
+static dbus_bool_t
+__ni_objectmodel_netif_client_info_from_dict(ni_netdev_clientinfo_t *client_info, const ni_dbus_variant_t *dict)
+{
 	ni_dbus_variant_t *child;
 	const char *sval;
 
-	ci = ni_netdev_clientinfo_new();
-	if (ni_dbus_dict_get_string(argument, "state", &sval))
-		ni_string_dup(&ci->state, sval);
+	if (ni_dbus_dict_get_string(dict, "state", &sval))
+		ni_string_dup(&client_info->state, sval);
+	if (ni_dbus_dict_get_string(dict, "config-origin", &sval))
+		ni_string_dup(&client_info->config_origin, sval);
+	if ((child = ni_dbus_dict_get(dict, "config-uuid")) != NULL)
+		ni_dbus_variant_get_uuid(child, &client_info->config_uuid);
 
-	if ((child = ni_dbus_dict_get(argument, "config-uuid")) != NULL)
-		ni_dbus_variant_get_uuid(child, &ci->config_uuid);
-
-	ni_netdev_set_client_info(dev, ci);
 	return TRUE;
 }
 

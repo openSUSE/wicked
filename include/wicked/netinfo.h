@@ -54,6 +54,7 @@ struct ni_linkinfo {
 typedef struct ni_netdev_clientinfo {
 	char *			state;
 	ni_uuid_t		config_uuid;
+	char *			config_origin;		/* manual, sysconfig, firmware, ... */
 } ni_netdev_clientinfo_t;
 
 struct ni_netdev {

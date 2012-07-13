@@ -350,6 +350,7 @@ void
 ni_netdev_clientinfo_free(ni_netdev_clientinfo_t *client_info)
 {
 	ni_string_free(&client_info->state);
+	ni_string_free(&client_info->config_origin);
 	free(client_info);
 }
 
