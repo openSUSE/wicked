@@ -581,11 +581,13 @@ ni_dhcp6_option_get_elapsed_time(ni_buffer_t *bp, struct timeval *tv)
 }
 
 static int
-ni_dhcp6_option_get_status(ni_buffer_t *bp, uint16_t *code, char **message)
+ni_dhcp6_option_get_status(ni_buffer_t *bp, struct ni_dhcp6_status *status)
 {
-	if (ni_dhcp6_option_get16(bp, code) < 0)
+	status->code = 0;
+	ni_string_free(&status->message);
+	if (ni_dhcp6_option_get16(bp, &status->code) < 0)
 		return -1;
-	if (ni_dhcp6_option_gets(bp, message) < 0)
+	if (ni_dhcp6_option_gets(bp, &status->message) < 0)
 		return -1;
 	return 0;
 }
@@ -845,6 +847,15 @@ ni_dhcp6_build_message(const ni_dhcp6_device_t *dev,
 	return 0;
 }
 
+void
+ni_dhcp6_status_free(struct ni_dhcp6_status *status)
+{
+	if (status) {
+		ni_string_free(&status->message);
+		free(status);
+	}
+}
+
 static void
 ni_dhcp6_ia_addr_list_append(struct ni_dhcp6_ia_addr **list, struct ni_dhcp6_ia_addr *ap)
 {
@@ -859,6 +870,7 @@ ni_dhcp6_ia_addr_list_destroy(struct ni_dhcp6_ia_addr **list)
 	struct ni_dhcp6_ia_addr *addr;
 	while ((addr = *list) != NULL) {
 		*list = addr->next;
+		ni_dhcp6_status_free(addr->status);
 		free(addr);
 	}
 }
@@ -877,6 +889,7 @@ ni_dhcp6_ia_list_destroy(struct ni_dhcp6_ia **list)
 	struct ni_dhcp6_ia *ia;
 	while ((ia = *list) != NULL) {
 		*list = ia->next;
+		ni_dhcp6_status_free(ia->status);
 		ni_dhcp6_ia_addr_list_destroy(&ia->addrs);
 		free(ia);
 	}
@@ -948,7 +961,10 @@ ni_dhcp6_option_parse_ia_address(ni_buffer_t *bp, struct ni_dhcp6_ia *ia, uint16
 
 		switch (option) {
 		case NI_DHCP6_OPTION_STATUS_CODE:
-			ni_dhcp6_option_get_status(&optbuf, &ap->status.code, &ap->status.message);
+			if (!ap->status)
+				ap->status = calloc(1, sizeof(struct ni_dhcp6_status));
+			if (!ap->status || ni_dhcp6_option_get_status(&optbuf, ap->status) < 0)
+				goto failure;
 		break;
 
 		default:
@@ -1017,8 +1033,9 @@ ni_dhcp6_client_parse_ia_options(ni_buffer_t *bp,  struct ni_dhcp6_ia *ia)
 		break;
 
 		case NI_DHCP6_OPTION_STATUS_CODE:
-			if (ni_dhcp6_option_get_status(&optbuf, &ia->status.code,
-								&ia->status.message) < 0)
+			if (!ia->status)
+				ia->status = calloc(1, sizeof(struct ni_dhcp6_status));
+			if (!ia->status || ni_dhcp6_option_get_status(&optbuf, ia->status) < 0)
 				goto failure;
 		break;
 
@@ -1119,8 +1136,11 @@ ni_dhcp6_client_parse_options(ni_dhcp6_device_t *dev, ni_buffer_t *buffer, ni_ad
 				ni_dhcp6_option_get_ipv6(&optbuf, &lease->dhcp6.server_unicast);
 			break;
 			case NI_DHCP6_OPTION_STATUS_CODE:
-				ni_dhcp6_option_get_status(&optbuf, &lease->dhcp6.status.code,
-								&lease->dhcp6.status.message);
+				if (!lease->dhcp6.status)
+					lease->dhcp6.status = calloc(1, sizeof(struct ni_dhcp6_status));
+				if (!lease->dhcp6.status ||
+				    ni_dhcp6_option_get_status(&optbuf, lease->dhcp6.status) < 0)
+					goto failure;
 			break;
 			case NI_DHCP6_OPTION_ELAPSED_TIME:
 				ni_dhcp6_option_get_elapsed_time(&optbuf, &elapsed);
@@ -1263,15 +1283,23 @@ cleanup:
 	return msg_type;
 
 failure:
+	ni_addrconf_dhcp6_lease_free(lease);
+	msg_type = -1;
+	goto cleanup;
+	return msg_type;
+}
+
+void
+ni_addrconf_dhcp6_lease_free(ni_addrconf_lease_t *lease)
+{
 	if (lease) {
+		ni_dhcp6_status_free(lease->dhcp6.status);
+		lease->dhcp6.status = NULL;
 		ni_dhcp6_ia_list_destroy(&lease->dhcp6.ia_na);
 		ni_dhcp6_ia_list_destroy(&lease->dhcp6.ia_ta);
 		ni_dhcp6_ia_list_destroy(&lease->dhcp6.ia_pd);
 		ni_addrconf_lease_free(lease);
 	}
-	msg_type = -1;
-	goto cleanup;
-	return msg_type;
 }
 
 /*
