@@ -56,6 +56,8 @@ struct ni_dbus_variant {
 		ni_dbus_variant_t *variant_array_value;
 		ni_dbus_variant_t *struct_value;
 	};
+
+	ni_dbus_message_t *	__message;
 };
 #define NI_DBUS_VARIANT_INIT	{ .type = DBUS_TYPE_INVALID }
 

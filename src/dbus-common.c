@@ -110,9 +110,20 @@ ni_dbus_message_get_args_variants(ni_dbus_message_t *msg, ni_dbus_variant_t *arg
 			dbus_message_iter_recurse(&iter, &iter_val);
 			iter_p = &iter_val;
 		}
-		if (!ni_dbus_message_iter_get_variant_data(iter_p, &argv[argc]))
-			return -1;
 
+		if (!ni_dbus_message_iter_get_variant_data(iter_p, &argv[argc])) {
+			do {
+				ni_dbus_variant_destroy(&argv[argc]);
+			} while (argc--);
+			return -1;
+		}
+
+		/* We keep a reference to the dbus message in this variant variable,
+		 * because the caller may decide to free the message (eg in
+		 * ni_dbus_object_call_variant()). However, some strings we use point
+		 * directly into the message; such as the dict keys.
+		 */
+		argv[argc].__message = dbus_message_ref(msg);
 		dbus_message_iter_next(&iter);
 	}
 
@@ -771,6 +782,10 @@ ni_dbus_variant_destroy(ni_dbus_variant_t *var)
 		}
 		ni_string_free(&var->array.element_signature);
 	}
+
+	if (var->__message)
+		dbus_message_unref(var->__message);
+
 	memset(var, 0, sizeof(*var));
 	var->type = DBUS_TYPE_INVALID;
 }
