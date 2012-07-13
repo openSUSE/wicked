@@ -72,7 +72,6 @@ struct ni_netdev {
 	ni_addrconf_lease_t *	leases;
 
 	/* link layer info specific to different device types. */
-	ni_netdev_t *		parent;
 	ni_bonding_t *		bonding;
 	ni_bridge_t *		bridge;
 	ni_ethernet_t *		ethernet;
