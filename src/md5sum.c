@@ -89,6 +89,12 @@ ni_hashctx_finish(ni_hashctx_t *ctx)
 	gcry_md_final(ctx->handle);
 }
 
+unsigned int
+ni_hashctx_get_digest_length(ni_hashctx_t *ctx)
+{
+	return ctx->md_length;
+}
+
 int
 ni_hashctx_get_digest(ni_hashctx_t *ctx, void *md_buffer, size_t md_size)
 {
@@ -96,18 +102,16 @@ ni_hashctx_get_digest(ni_hashctx_t *ctx, void *md_buffer, size_t md_size)
 
 	if (ctx->handle == NULL)
 		return -1;
-	if (md_size < ctx->md_length) {
-		ni_error("%s: digest too large for buffer", __func__);
-		return -1;
-	}
 
 	if (!(md = gcry_md_read(ctx->handle, 0))) {
 		ni_error("%s: failed to obtain digest", __func__);
 		return -1;
 	}
 
-	memcpy(md_buffer, md, ctx->md_length);
-	return ctx->md_length;
+	if (md_size > ctx->md_length)
+		md_size = ctx->md_length;
+	memcpy(md_buffer, md, md_size);
+	return md_size;
 }
 
 /*

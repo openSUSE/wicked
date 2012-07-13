@@ -219,6 +219,7 @@ extern ni_hashctx_t *	ni_hashctx_new(void);
 extern void		ni_hashctx_free(ni_hashctx_t *);
 extern void		ni_hashctx_begin(ni_hashctx_t *);
 extern void		ni_hashctx_finish(ni_hashctx_t *);
+extern unsigned int	ni_hashctx_get_digest_length(ni_hashctx_t *);
 extern int		ni_hashctx_get_digest(ni_hashctx_t *, void *, size_t);
 extern void		ni_hashctx_puts(ni_hashctx_t *, const char *);
 
