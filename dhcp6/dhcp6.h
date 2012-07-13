@@ -142,33 +142,6 @@ struct ni_dhcp6_config {
 
 
 /*
- * -- dhcp6 timeout parameters
- *
- * Internal, but visible in the device struct
- *
- * TODO: extend ni_timeout_param_t to contain
- *       all parameters
- *         + delay
- *         - increment -> advance callback?
- *         + pos_jitter info for advance
- *         + max_retransmits
- *         ? max_duration == deadline
- *       => .include/wicked/socket.h ??
- */
-typedef struct ni_dhcp6_timeout_param ni_dhcp6_timeout_param_t;
-
-struct ni_dhcp6_timeout_param {
-	unsigned long   delay;			/* IDT: Initial delay time [msec]		*/
-	unsigned long   timeout;		/* IRT: Initial retransmission time [msec]	*/
-	unsigned long   max_timeout;		/* MRT:  Maximum retransmission time [msec]	*/
-	unsigned long   max_duration;		/* MRD:  Maximum retransmission duration [msec]	*/
-	unsigned int    max_retransmits;	/* MRC:  Maximum retransmission count		*/
-	unsigned int    max_jitter;		/* RAND: Randomization factor [+/- msec]	*/
-	ni_bool_t       pos_jitter;		/* Initial RT with RAND strictly greater than 0	*/
-};
-
-
-/*
  * -- dhcp6 device
  *
  * Basically only ifindex, name, ... are needed to
@@ -197,17 +170,15 @@ struct ni_dhcp6_device {
 	ni_addrconf_lease_t *	lease;		/* last known / acquired lease      */
 
 	struct timeval		start_time;	/* when we started managing         */
-
-	unsigned long		tx_delay;	/* initial transmit delay [msec]    */
-	unsigned int		tx_counter;	/* (re)transmits counter            */
-
 	struct {
-	    struct timeval		start;	/* time of first retransmit         */
-	    unsigned long		timeout;
-	    struct timeval		deadline;
-	    ni_dhcp6_timeout_param_t	params;
-	    /* const ni_buffer_t *	buffer; */  /* IMO we don't need this ...   */
-	}			retrans;
+	    struct timeval	start;		/* when we've sent first msg        */
+	    unsigned int	count;		/* transfer count                   */
+	    unsigned int	delay;		/* initial delay                    */
+	    unsigned int	jitter;		/* jitter base for 1000 msec        */
+	    unsigned int	duration;	/* max duration in msec             */
+	    struct timeval	deadline;	/* next delay/timeout deadline      */
+	    ni_timeout_param_t	params;		/* timeout parameters               */
+	} retrans;
 
 	unsigned int		failed : 1,
 				notify : 1;

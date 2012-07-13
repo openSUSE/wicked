@@ -64,14 +64,14 @@ ni_dhcp6_fsm_timeout(ni_dhcp6_device_t *dev)
 
 	dev->fsm.timer = NULL;
 
-	if(dev->tx_delay) {
-		dev->tx_delay = 0;
+	if(dev->retrans.delay) {
+		dev->retrans.delay = 0;
 
-		ni_dhcp6_device_transmit(dev);
 		ni_dhcp6_device_retransmit_arm(dev);
+		ni_dhcp6_device_transmit(dev);
 
 		ni_trace("transmitted, retrans deadline: %ld.%ld",
-			dev->retrans.deadline.tv_sec,dev->retrans.deadline.tv_usec);
+			dev->retrans.deadline.tv_sec, dev->retrans.deadline.tv_usec);
 	}
 
 	switch (dev->fsm.state) {
@@ -98,12 +98,6 @@ ni_dhcp6_fsm_set_timeout_msec(ni_dhcp6_device_t *dev, unsigned long msec)
 	}
 }
 
-void
-ni_dhcp6_fsm_set_timeout(ni_dhcp6_device_t *dev, unsigned int seconds)
-{
-        ni_dhcp6_fsm_set_timeout_msec(dev, 1000 * seconds);
-}
-
 int
 ni_dhcp6_fsm_process_client_packet(ni_dhcp6_device_t *dev, ni_buffer_t *msgbuf, const struct in6_addr *sender)
 {
@@ -125,7 +119,7 @@ ni_dhcp6_fsm_process_client_packet(ni_dhcp6_device_t *dev, ni_buffer_t *msgbuf, 
          * it's nothing that could be fixed by retransmitting the message.
          */
         if (dev->fsm.timer)
-		ni_timer_cancel(dev->fsm.timer);
+        	ni_timer_cancel(dev->fsm.timer);
         ni_dhcp6_device_retransmit_disarm(dev);
 
         /* here we are .......... */
