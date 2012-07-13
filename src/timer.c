@@ -176,15 +176,10 @@ ni_timeout_recompute(ni_timeout_param_t *tmo)
 	return TRUE;
 }
 
-static void
-__ni_timeout_arm(struct timeval *deadline, unsigned long timeout, const ni_int_range_t *jitter)
+static unsigned long
+__ni_timeout_arm_msec(struct timeval *deadline, unsigned long timeout, const ni_int_range_t *jitter)
 {
-	timeout *= 1000;
-	if (jitter && jitter->min < jitter->max) {
-		unsigned int jitter_range = (jitter->max - jitter->min) * 1000;
-
-		timeout += ((long) random() % jitter_range) + jitter->min;
-	}
+	timeout = ni_timeout_randomize(timeout, jitter);
 
 	ni_debug_socket("arming retransmit timer (%lu msec)", timeout);
 	ni_timer_get_time(deadline);
@@ -198,11 +193,31 @@ __ni_timeout_arm(struct timeval *deadline, unsigned long timeout, const ni_int_r
 		deadline->tv_sec += 1;
 		deadline->tv_usec -= 1000000;
 	}
+	return timeout;
 }
 
-void
+unsigned long
+ni_timeout_randomize(unsigned long timeout, const ni_int_range_t *jitter)
+{
+	if (jitter && jitter->min < jitter->max) {
+		unsigned int jitter_range = (jitter->max - jitter->min);
+		timeout += ((long) random() % jitter_range) + jitter->min;
+	}
+	return timeout;
+}
+
+unsigned long
+ni_timeout_arm_msec(struct timeval *deadline, const ni_timeout_param_t *tp)
+{
+	return __ni_timeout_arm_msec(deadline, tp->timeout, &tp->jitter);
+}
+
+unsigned long
 ni_timeout_arm(struct timeval *deadline, const ni_timeout_param_t *tp)
 {
-	__ni_timeout_arm(deadline, tp->timeout, &tp->jitter);
+	ni_int_range_t jitter = tp->jitter;
+	jitter.min *= 1000;
+	jitter.max *= 1000;
+	return __ni_timeout_arm_msec(deadline, tp->timeout * 1000, &jitter);
 }
 
