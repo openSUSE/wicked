@@ -3199,6 +3199,7 @@ usage:
 		for (i = 0; i < marked.count; ++i) {
 			ni_ifworker_t *w = marked.data[i];
 			ni_netdev_t *dev;
+			ni_netdev_clientinfo_t *client_info;
 
 			if ((dev = w->device) == NULL) {
 				if (!opt_quiet)
@@ -3207,25 +3208,28 @@ usage:
 				continue;
 			}
 
+			client_info = dev->client_info;
 			if (opt_check_changed) {
-				if (memcmp(&w->uuid, &dev->uuid, sizeof(ni_uuid_t))) {
+				if (!client_info || !ni_uuid_equal(&client_info->config_uuid, &w->uuid)) {
 					if (!opt_quiet)
 						ni_error("%s: device configuration changed", w->name);
 					ni_debug_wicked("%s: config file uuid is %s", w->name, ni_uuid_print(&w->uuid));
-					ni_debug_wicked("%s: system dev. uuid is %s", w->name, ni_uuid_print(&dev->uuid));
+					ni_debug_wicked("%s: system dev. uuid is %s", w->name,
+							client_info? ni_uuid_print(&client_info->config_uuid) : "NOT SET");
 					status = 3;
 					continue;
-					ni_debug_wicked("%s: system dev. uuid is %s", w->name, ni_uuid_print(&dev->uuid));
 				}
 			}
 
-			if (opt_state && !ni_string_eq(dev->client_state, opt_state)) {
-				if (!opt_quiet)
-					ni_error("%s: device has state %s, expected %s", w->name,
-							dev->client_state,
-							opt_state);
-				status = 4;
-				continue;
+			if (opt_state) {
+				if (!client_info || !ni_string_eq(client_info->state, opt_state)) {
+					if (!opt_quiet)
+						ni_error("%s: device has state %s, expected %s", w->name,
+								client_info? client_info->state : "NONE",
+								opt_state);
+					status = 4;
+					continue;
+				}
 			}
 
 			printf("%s: exists%s%s", w->name,

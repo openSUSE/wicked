@@ -690,6 +690,7 @@ ni_objectmodel_netif_set_client_state(ni_dbus_object_t *object, const ni_dbus_me
 			ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_netdev_t *dev;
+	ni_netdev_clientinfo_t *client_info;
 	ni_uuid_t uuid;
 	const char *state;
 
@@ -699,16 +700,24 @@ ni_objectmodel_netif_set_client_state(ni_dbus_object_t *object, const ni_dbus_me
 	if (argc != 2)
 		return ni_dbus_error_invalid_args(error, object->path, method->name);
 
-	if (!ni_dbus_variant_get_uuid(&argv[0], &uuid)
-	 || !ni_dbus_variant_get_string(&argv[1], &state))
-		return ni_dbus_error_invalid_args(error, object->path, method->name);
+	client_info = ni_netdev_clientinfo_new();
+	if (!ni_dbus_variant_get_uuid(&argv[0], &client_info->config_uuid))
+		goto invalid_arg;
+
+	if (!ni_dbus_variant_get_string(&argv[1], &state))
+		goto invalid_arg;
+	ni_string_dup(&client_info->state, state);
 
 	NI_TRACE_ENTER_ARGS("dev=%s, uuid=%s, state=%s", dev->name, ni_uuid_print(&uuid), state);
 
-	dev->uuid = uuid;
-	ni_string_dup(&dev->client_state, state && *state? state : NULL);
-
+	ni_netdev_set_client_info(dev, client_info);
 	return TRUE;
+
+invalid_arg:
+	if (client_info)
+		ni_netdev_clientinfo_free(client_info);
+
+	return ni_dbus_error_invalid_args(error, object->path, method->name);
 }
 
 /*
@@ -931,6 +940,53 @@ __ni_objectmodel_netif_set_routes(ni_dbus_object_t *object,
 }
 
 /*
+ * Property Interface.client_info
+ */
+static dbus_bool_t
+__ni_objectmodel_netif_get_client_info(const ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				ni_dbus_variant_t *result,
+				DBusError *error)
+{
+	ni_netdev_t *dev = ni_dbus_object_get_handle(object);
+	ni_netdev_clientinfo_t *ci;
+
+	if ((ci = dev->client_info) == NULL)
+		return ni_dbus_error_property_not_present(error, object->path, property->name);
+
+	ni_dbus_variant_init_dict(result);
+	if (ci->state)
+		ni_dbus_dict_add_string(result, "state", ci->state);
+	if (!ni_uuid_is_null(&ci->config_uuid))
+		ni_dbus_dict_add_byte_array(result, "config-uuid",
+				ci->config_uuid.octets,
+				sizeof(ci->config_uuid.octets));
+	return TRUE;
+}
+
+static dbus_bool_t
+__ni_objectmodel_netif_set_client_info(ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *argument,
+				DBusError *error)
+{
+	ni_netdev_t *dev = ni_dbus_object_get_handle(object);
+	ni_netdev_clientinfo_t *ci;
+	ni_dbus_variant_t *child;
+	const char *sval;
+
+	ci = ni_netdev_clientinfo_new();
+	if (ni_dbus_dict_get_string(argument, "state", &sval))
+		ni_string_dup(&ci->state, sval);
+
+	if ((child = ni_dbus_dict_get(argument, "config-uuid")) != NULL)
+		ni_dbus_variant_get_uuid(child, &ci->config_uuid);
+
+	ni_netdev_set_client_info(dev, ci);
+	return TRUE;
+}
+
+/*
  * Properties of an interface
  */
 #define NETIF_PROPERTY_SIGNATURE(signature, __name, rw) \
@@ -938,14 +994,15 @@ __ni_objectmodel_netif_set_routes(ni_dbus_object_t *object,
 
 static ni_dbus_property_t	ni_objectmodel_netif_properties[] = {
 	NI_DBUS_GENERIC_STRING_PROPERTY(netdev, name, name, RO),
-	NI_DBUS_GENERIC_STRING_PROPERTY(netdev, client-state, client_state, RO),
-	NI_DBUS_GENERIC_UUID_PROPERTY(netdev, client-uuid, uuid, RO),
 	NI_DBUS_GENERIC_UINT_PROPERTY(netdev, index, link.ifindex, RO),
 	NI_DBUS_GENERIC_UINT_PROPERTY(netdev, status, link.ifflags, RO),
 	NI_DBUS_GENERIC_UINT_PROPERTY(netdev, link-type, link.type, RO),
 	NI_DBUS_GENERIC_UINT_PROPERTY(netdev, mtu, link.mtu, RO),
 	NI_DBUS_GENERIC_UINT_PROPERTY(netdev, txqlen, link.txqlen, RO),
 	NI_DBUS_GENERIC_STRING_PROPERTY(netdev, alias, link.alias, RO),
+	___NI_DBUS_PROPERTY(NI_DBUS_DICT_SIGNATURE,
+				client-info, client_info,
+				__ni_objectmodel_netif, RO),
 
 	/* This should really go to the link layer classes */
 	NETIF_PROPERTY_SIGNATURE(NI_DBUS_BYTE_ARRAY_SIGNATURE, hwaddr, RO),
