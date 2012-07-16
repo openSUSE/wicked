@@ -278,8 +278,10 @@ typedef struct ni_dhcp6_option_array {
 extern const char *	ni_dhcp6_message_name(unsigned int);
 extern const char *	ni_dhcp6_option_name(unsigned int);
 
-extern int		ni_dhcp6_socket_open(ni_dhcp6_device_t *);
+//extern int		ni_dhcp6_socket_open(ni_dhcp6_device_t *);
 
+extern int		ni_dhcp6_init_message(	ni_dhcp6_device_t *dev, unsigned int msg_code,
+						const ni_addrconf_lease_t *lease);
 extern int		ni_dhcp6_build_message( const ni_dhcp6_device_t *, unsigned int,
 		 				const ni_addrconf_lease_t *, ni_buffer_t *);
 

@@ -56,4 +56,6 @@ extern int			ni_dhcp6_fsm_process_client_packet(ni_dhcp6_device_t *,
 extern void			ni_dhcp6_fsm_set_timeout_msec(ni_dhcp6_device_t *, unsigned long);
 extern void			ni_dhcp6_fsm_set_timeout(ni_dhcp6_device_t *, unsigned int);
 
+extern int			ni_dhcp6_fsm_solicit(ni_dhcp6_device_t *dev);
+
 #endif /* __WICKED_DHCP6_FSM_H__ */

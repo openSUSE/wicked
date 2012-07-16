@@ -76,7 +76,7 @@
 extern int			ni_dhcp6_load_duid(ni_opaque_t *duid, const char *filename);
 extern int			ni_dhcp6_save_duid(const ni_opaque_t *duid, const char *filename);
 
-extern void			ni_dhcp6_fsm_set_timeout_msec(ni_dhcp6_device_t *dev, unsigned long msec);
+//extern void			ni_dhcp6_fsm_set_timeout_msec(ni_dhcp6_device_t *dev, unsigned long msec);
 
 
 ni_dhcp6_device_t *		ni_dhcp6_active;
@@ -92,14 +92,15 @@ static void			ni_dhcp6_device_set_config(ni_dhcp6_device_t *, ni_dhcp6_config_t 
 static int			ni_dhcp6_device_refresh(ni_dhcp6_device_t *dev);
 #endif
 
-static ni_bool_t		ni_dhcp6_device_transmit_arm_delay(ni_dhcp6_device_t *);
+static void			ni_dhcp6_device_alloc_buffer(ni_dhcp6_device_t *);
+static void			ni_dhcp6_device_clear_buffer(ni_dhcp6_device_t *);
+static void			ni_dhcp6_device_drop_buffer(ni_dhcp6_device_t *);
 
-static ni_bool_t		ni_dhcp6_device_retransmit_advance(ni_dhcp6_device_t *);
+static int			ni_dhcp6_device_transmit_arm_delay(ni_dhcp6_device_t *);
+static int			ni_dhcp6_device_transmit(ni_dhcp6_device_t *);
 
-static int			ni_dhcp6_init_message(ni_dhcp6_device_t *dev, unsigned int msg_code,
-							const ni_addrconf_lease_t *lease);
-
-
+static void			ni_dhcp6_device_retransmit_arm(ni_dhcp6_device_t *dev);
+//static ni_bool_t		ni_dhcp6_device_retransmit_advance(ni_dhcp6_device_t *);
 
 /*
  * Create and destroy dhcp6 device handles
@@ -123,6 +124,8 @@ ni_dhcp6_device_new(const char *ifname, const ni_linkinfo_t *link)
 
 	dev->link.arp_type	= link->arp_type;
 	memcpy(&dev->link.hwaddr, &link->hwaddr, sizeof(dev->link.hwaddr));
+
+	ni_dhcp6_device_alloc_buffer(dev);
 
 	ni_timer_get_time(&dev->start_time);
 	dev->fsm.state = NI_DHCP6_STATE_INIT;
@@ -204,8 +207,8 @@ ni_dhcp6_device_free(ni_dhcp6_device_t *dev)
 	ni_dhcp6_device_t **pos;
 
 	ni_assert(dev->users == 0);
-#if 0
 	ni_dhcp6_device_drop_buffer(dev);
+#if 0
 	ni_dhcp6_device_drop_lease(dev);
 	ni_dhcp6_device_drop_best_offer(dev);
 #endif
@@ -307,25 +310,29 @@ ni_dhcp6_device_iaid(const ni_dhcp6_device_t *dev, uint32_t *iaid)
 }
 
 
-
-#if 0
 static int
 ni_dhcp6_device_start(ni_dhcp6_device_t *dev)
 {
-	ni_dhcp6_device_drop_lease(dev);
-	ni_dhcp6_device_drop_buffer(dev);
 	dev->failed = 0;
+	ni_dhcp6_device_clear_buffer(dev);
 
-	if (ni_dhcp6_fsm_discover(dev) < 0) {
-		ni_error("unable to initiate discovery");
+	if (!dev->config)
 		return -1;
-	}
 
-	return 0;
-}
+#if 0
+        if (dev->config->info_only) {
+        	return ni_dhcp6_fsm_request_info(dev);
+        }
+        else if(started_and_have_valid_lease) {
+        	if ((rv = ni_dhcp6_init_message(dev, NI_DHCP6_CONFIRM, NULL)) != 0)
+        		return rv;
+        	dev->fsm.state = NI_DHCP6_STATE_VALIDATING;
+        }
 #endif
-
-
+        else {
+        	return ni_dhcp6_fsm_solicit(dev);
+        }
+}
 
 void
 ni_dhcp6_restart(void)
@@ -375,7 +382,24 @@ ni_dhcp6_device_refresh(ni_dhcp6_device_t *dev)
 	return rv;
 }
 
-static ni_bool_t
+int
+ni_dhcp6_device_transmit_init(ni_dhcp6_device_t *dev)
+{
+	if (ni_dhcp6_device_transmit_arm_delay(dev))
+		return 0;
+
+	return ni_dhcp6_device_transmit_start(dev);
+}
+
+int
+ni_dhcp6_device_transmit_start(ni_dhcp6_device_t *dev)
+{
+	ni_dhcp6_device_retransmit_arm(dev);
+
+	return ni_dhcp6_device_transmit(dev);
+}
+
+static int
 ni_dhcp6_device_transmit_arm_delay(ni_dhcp6_device_t *dev)
 {
 	ni_int_range_t jitter;
@@ -404,7 +428,7 @@ ni_dhcp6_device_transmit_arm_delay(ni_dhcp6_device_t *dev)
 	return TRUE;
 }
 
-void
+static void
 ni_dhcp6_device_retransmit_arm(ni_dhcp6_device_t *dev)
 {
 	/* when we're here, initial delay is over */
@@ -678,37 +702,8 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *info)
 
 	ni_dhcp6_device_set_config(dev, config);
 
-	/* FIXME: move to ni_dhcp6_device_start(dev) */
-        if (config->info_only) {
-        	if ((rv = ni_dhcp6_init_message(dev, NI_DHCP6_INFO_REQUEST, NULL)) != 0)
-        		return rv;
-		dev->fsm.state = NI_DHCP6_STATE_REQUESTING_INFO;
-        }
-#if 0
-        else if(have_valid_lease) {
-        	if ((rv = ni_dhcp6_init_message(dev, NI_DHCP6_CONFIRM, NULL)) != 0)
-        	        		return rv;
-		dev->fsm.state = NI_DHCP6_STATE_VALIDATING;
-        }
-#endif
-        else {
-        	if ((rv = ni_dhcp6_init_message(dev, NI_DHCP6_SOLICIT, NULL)) != 0)
-        	        		return rv;
-		dev->fsm.state = NI_DHCP6_STATE_SELECTING;
-        }
+	return ni_dhcp6_device_start(dev);
 
-	if (ni_dhcp6_device_transmit_arm_delay(dev))
-		return 0;
-
-	ni_dhcp6_device_retransmit_arm(dev);
-
-	if ((rv = ni_dhcp6_device_transmit(dev)) != 0)
-		return rv;
-
-	ni_trace("transmitted, retrans deadline: %ld.%ld",
-		dev->retrans.deadline.tv_sec,dev->retrans.deadline.tv_usec);
-
-	return rv;
 
 #if 0
 	config->max_lease_time = ni_dhcp6_config_max_lease_time();
@@ -892,7 +887,7 @@ ni_dhcp6_device_event(ni_dhcp6_device_t *dev, ni_event_t event)
 	}
 }
 
-void
+static void
 ni_dhcp6_device_alloc_buffer(ni_dhcp6_device_t *dev)
 {
 	if (dev->message.size < NI_DHCP6_WBUF_SIZE) {
@@ -901,18 +896,19 @@ ni_dhcp6_device_alloc_buffer(ni_dhcp6_device_t *dev)
 	ni_buffer_clear(&dev->message);
 }
 
-void
+static void
 ni_dhcp6_device_clear_buffer(ni_dhcp6_device_t *dev)
 {
 	ni_buffer_clear(&dev->message);
 }
 
-void
+static void
 ni_dhcp6_device_drop_buffer(ni_dhcp6_device_t *dev)
 {
 	ni_buffer_destroy(&dev->message);
 }
 
+#if 0
 static ni_bool_t
 ni_dhcp6_device_can_send_unicast(ni_dhcp6_device_t *dev, unsigned int msg_code, const ni_addrconf_lease_t *lease)
 {
@@ -963,61 +959,7 @@ ni_dhcp6_device_can_send_unicast(ni_dhcp6_device_t *dev, unsigned int msg_code, 
 #endif
 	return FALSE;
 }
-
-static int
-ni_dhcp6_init_message(ni_dhcp6_device_t *dev, unsigned int msg_code, const ni_addrconf_lease_t *lease)
-{
-	int rv;
-
-	if (ni_dhcp6_socket_open(dev) < 0) {
-		ni_error("%s: unable to open DHCP6 socket", dev->ifname);
-		goto transient_failure;
-	}
-
-	/* Assign a new XID to this message */
-	while (dev->dhcp6.xid == 0) {
-		dev->dhcp6.xid = random() & NI_DHCP6_XID_MASK;
-	}
-
-	/* Allocate an empty buffer */
-	ni_dhcp6_device_alloc_buffer(dev);
-
-	ni_trace("%s: building %s with xid 0x%x", dev->ifname,
-		ni_dhcp6_message_name(msg_code), dev->dhcp6.xid);
-
-	rv = ni_dhcp6_build_message(dev, msg_code, lease, &dev->message);
-	if (rv < 0) {
-		ni_error("%s: unable to build %s message", dev->ifname,
-			ni_dhcp6_message_name(msg_code));
-		return -1;
-	}
-
-	memset(&dev->server_addr, 0, sizeof(dev->server_addr));
-	dev->server_addr.six.sin6_family = AF_INET6;
-	dev->server_addr.six.sin6_port = htons(NI_DHCP6_SERVER_PORT);
-	dev->server_addr.six.sin6_scope_id = dev->link.ifindex;
-
-	if(ni_dhcp6_device_can_send_unicast(dev, msg_code, lease)) {
-		memcpy(&dev->server_addr.six.sin6_addr, &lease->dhcp6.server_unicast,
-			sizeof(dev->server_addr.six.sin6_addr));
-	} else if(inet_pton(AF_INET6, NI_DHCP6_ALL_RAGENTS,
-				&dev->server_addr.six.sin6_addr) != 1) {
-		ni_error("%s: Unable to prepare DHCP6 destination address", dev->ifname);
-		return -1;
-	}
-
-	if(!ni_dhcp6_set_message_timing(dev, msg_code))
-		return -1;
-
-	return 0;
-
-transient_failure:
-	/* We ran into a transient problem, such as being unable to open
-	 * a raw socket. We should schedule a "short" timeout after which
-	 * we should re-try the operation. */
-	/* FIXME: Not done yet. */
-	return 1;
-}
+#endif
 
 #if 0
 int
@@ -1032,7 +974,7 @@ ni_dhcp6_device_send_message(ni_dhcp6_device_t *dev, unsigned int msg_code, cons
 }
 #endif
 
-int
+static int
 ni_dhcp6_device_transmit(ni_dhcp6_device_t *dev)
 {
 	ni_dhcp6_packet_header_t *header;
