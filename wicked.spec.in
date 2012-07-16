@@ -21,6 +21,7 @@ BuildRequires:  wireless-tools
 %endif
 BuildRequires:  dbus-1-devel
 BuildRequires:  pkg-config
+BuildRequires:  libgcrypt-devel
 
 %if 0%{?suse_version:1}
 PreReq:         %fillup_prereq %insserv_prereq

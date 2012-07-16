@@ -20,7 +20,7 @@ CPPFLAGS:= $(DEFS) $(CPPFLAGS)
 CPPFLAGS+= -I. -Iinclude -Isrc $(LIBNL_CFLAGS) $(LIBDBUS_CFLAGS) $(LIBGCRYPT_FLAGS)
 CPPFLAGS+= -DWICKED_CONFIGDIR=\"$(wickedconfigdir)\"
 
-LDCOMMON= $(LIBDL_LIBS) $(LIBNL_LIBS) $(LIBDBUS_LIBS) $(LIBGCRYPT_LIBS)
+LDCOMMON= $(LIBDL_LIBS) $(LIBNL_LIBS) $(LIBANL_LIBS) $(LIBDBUS_LIBS) $(LIBGCRYPT_LIBS)
 
 APPS	= wicked wickedd \
 	  dhcp4-supplicant autoip4-supplicant \
@@ -237,7 +237,7 @@ schema/constants.xml: $(BIN)/mkconst schema/constants.xml.in
 	@LD_PRELOAD=$$PWD/$(LIBNAME).so $(BIN)/mkconst < $@.in > $@
 
 $(BIN)/wicked: LDFLAGS += -rdynamic -L. -lwicked -lm $(LIBS)
-$(BIN)/wicked: LDFLAGS += $(LIBANL_LIBS) $(LDCOMMON)
+$(BIN)/wicked: LDFLAGS += $(LDCOMMON)
 $(BIN)/wicked: $(CLIENTOBJS) $(TGTLIBS)
 	@mkdir -p bin
 	$(CC) -o $@ $(CFLAGS) $(CLIENTOBJS) $(LDFLAGS)
