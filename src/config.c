@@ -32,6 +32,7 @@ static int		ni_config_parse_fslocation(ni_config_fslocation_t *, const char *, x
 static int		ni_config_parse_objectmodel_extension(ni_extension_t **, xml_node_t *);
 static int		ni_config_parse_objectmodel_netif_ns(ni_extension_t **, xml_node_t *);
 static int		ni_config_parse_objectmodel_firmware_discovery(ni_extension_t **, xml_node_t *);
+static int		ni_config_parse_system_updater(ni_extension_t **, xml_node_t *);
 static int		ni_config_parse_extension(ni_extension_t *, xml_node_t *);
 static ni_c_binding_t *	ni_c_binding_new(ni_c_binding_t **, const char *name, const char *lib, const char *symbol);
 static void		ni_config_fslocation_init(ni_config_fslocation_t *, const char *path, unsigned int mode);
@@ -69,6 +70,7 @@ ni_config_free(ni_config_t *conf)
 	ni_extension_list_destroy(&conf->dbus_extensions);
 	ni_extension_list_destroy(&conf->ns_extensions);
 	ni_extension_list_destroy(&conf->fw_extensions);
+	ni_extension_list_destroy(&conf->updater_extensions);
 	ni_string_free(&conf->dbus_name);
 	ni_string_free(&conf->dbus_type);
 	ni_string_free(&conf->dbus_xml_schema_file);
@@ -156,6 +158,10 @@ ni_config_parse(const char *filename)
 		} else
 		if (strcmp(child->name, "netif-firmware-discovery") == 0) {
 			if (ni_config_parse_objectmodel_firmware_discovery(&conf->fw_extensions, child) < 0)
+				goto failed;
+		} else
+		if (strcmp(child->name, "system-updater") == 0) {
+			if (ni_config_parse_system_updater(&conf->updater_extensions, child) < 0)
 				goto failed;
 		}
 	}
@@ -621,8 +627,8 @@ ni_config_parse_objectmodel_extension(ni_extension_t **list, xml_node_t *node)
 	const char *name;
 
 	if (!(name = xml_node_get_attr(node, "interface"))) {
-		ni_error("%s: <extension> element lacks interface attribute",
-				xml_node_location(node));
+		ni_error("%s: <%s> element lacks interface attribute",
+				node->name, xml_node_location(node));
 		return -1;
 	}
 
@@ -723,12 +729,45 @@ ni_config_parse_objectmodel_firmware_discovery(ni_extension_t **list, xml_node_t
 }
 
 /*
+ * Another class of extensions helps with updating system files such as resolv.conf
+ * This expects scripts for install, backup and restore (named accordingly).
+ *
+ * <system-updater name="resolver">
+ *  <script name="install" command="/some/crazy/path/to/script install" />
+ *  <script name="backup" command="/some/crazy/path/to/script backup" />
+ *  <script name="restore" command="/some/crazy/path/to/script restore" />
+ *  ...
+ * </system-updater>
+ */
+int
+ni_config_parse_system_updater(ni_extension_t **list, xml_node_t *node)
+{
+	ni_extension_t *ex;
+	const char *name;
+
+	if (!(name = xml_node_get_attr(node, "name"))) {
+		ni_error("%s: <%s> element lacks name attribute",
+				node->name, xml_node_location(node));
+		return -1;
+	}
+
+	ex = ni_extension_new(list, name);
+	return ni_config_parse_extension(ex, node);
+}
+
+/*
  * Extension handling
  */
 ni_extension_t *
 ni_config_find_extension(ni_config_t *conf, const char *interface)
 {
 	return ni_extension_list_find(conf->dbus_extensions, interface);
+}
+
+ni_extension_t *
+ni_config_find_system_updater(ni_config_t *conf, const char *name)
+{
+	return ni_extension_list_find(conf->updater_extensions, name);
 }
 
 /*

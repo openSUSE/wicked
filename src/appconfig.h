@@ -115,6 +115,7 @@ typedef struct ni_config {
 	ni_extension_t *	dbus_extensions;
 	ni_extension_t *	ns_extensions;
 	ni_extension_t *	fw_extensions;
+	ni_extension_t *	updater_extensions;
 
 	char *			dbus_name;
 	char *			dbus_type;
@@ -123,6 +124,7 @@ typedef struct ni_config {
 extern ni_config_t *	ni_config_new();
 extern ni_config_t *	ni_config_parse(const char *);
 extern ni_extension_t *	ni_config_find_extension(ni_config_t *, const char *);
+extern ni_extension_t *	ni_config_find_system_updater(ni_config_t *, const char *);
 extern unsigned int	ni_config_addrconf_update_mask(ni_config_t *, ni_addrconf_mode_t); /* KILL */
 
 extern ni_extension_t *	ni_extension_list_find(ni_extension_t *, const char *);

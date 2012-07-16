@@ -61,13 +61,12 @@ ni_system_updaters_init(void)
 		ni_updater_t *updater = &updaters[kind];
 		const char *name = ni_updater_name(kind);
 		ni_extension_t *ex;
-		char exname[128];
 
 		updater->type = kind;
 		if (name == NULL)
 			continue;
-		snprintf(exname, sizeof(exname), "%s-updater", name);
-		if (!(ex = ni_config_find_extension(ni_global.config, exname)))
+
+		if (!(ex = ni_config_find_system_updater(ni_global.config, name)))
 			continue;
 
 		updater->enabled = 1;
@@ -76,11 +75,11 @@ ni_system_updaters_init(void)
 		updater->proc_install = ni_extension_script_find(ex, "install");
 
 		if (updater->proc_install == NULL) {
-			ni_warn("extension %s configured, but no install script defined", exname);
+			ni_warn("system-updater %s configured, but no install script defined", name);
 			updater->enabled = 0;
 		} else
 		if (updater->proc_backup == NULL || updater->proc_restore == NULL) {
-			ni_warn("extension %s configured, but no backup/restore script defined", exname);
+			ni_warn("system-updater %s configured, but no backup/restore script defined", name);
 			updater->proc_backup = updater->proc_restore = NULL;
 		}
 	}

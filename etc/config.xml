@@ -82,16 +82,16 @@
 
   <!-- Define the scripts for updating various system settings with
     -- data obtained from addrconf services, such as dhcp -->
-  <dbus-service interface="resolver-updater">
+  <system-updater name="resolver">
     <action name="backup" command="/etc/wicked/extensions/resolver backup"/>
     <action name="restore" command="/etc/wicked/extensions/resolver restore"/>
     <action name="install" command="/etc/wicked/extensions/resolver install"/>
-  </dbus-service>
+  </system-updater>
 
-  <dbus-service interface="hostname-updater">
+  <system-updater name="hostname">
     <action name="backup" command="/etc/wicked/extensions/hostname backup"/>
     <action name="restore" command="/etc/wicked/extensions/hostname restore"/>
     <action name="install" command="/etc/wicked/extensions/hostname install"/>
-  </dbus-service>
+  </system-updater>
 
 </config>
