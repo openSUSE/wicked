@@ -1,4 +1,4 @@
-.TH WICKED 7 "13 February 2010
+.TH WICKED 7 "16 July 2012
 .SH NAME
 wicked \- network management service
 .SH SYNOPSIS
@@ -10,169 +10,222 @@ Wicked provides a new, experimental framework for network configuration.
 .PP
 The idea is to replace much of the shell scripting that happens in
 \fB/sbin/ifup\fP and the related init scripts with a combination of C
-code that handles most of the basic interface configuration tasks, with a
+code that handles most of the basic interface configuration tasks, and a
 powerful, extensible XML representation of the network configuration. The
-major motivation in choosing XML was the ability to represent complex
-nested configurations.
+major motivation in choosing XML was the ability to represent and
+manipulate complex nested configurations.
 .PP
-This implementation uses a daemon service and a command
-line utility. These two communicate securely via a local UNIX socket,
-allowing the server to validate the client's user id.
-.PP
-The server offers a REST interface to various aspects of network
-configuration. The client application uses REST calls to retrieve
-interface configuration and status, or to reconfigure interfaces.
-The namespace used by the API can be extended to cover other
-aspects of network configuration as well, such as reading, writing
-and restoring the \fBresolv.conf\fP file.
-.PP
-.SH The Namespace
-Conceptually, the wicked network management system deals with two
-very distinct classes of information; one is the stored configuration,
-and the other is the current run-time state of your system. For
-network interfaces, configuration is commonly stored in files residing
-in \fB/etc/sysconfig/network\fP, whereas the run-time information is
-retrieved by talking to the kernel's rtnetlink facility, by reading
-sysfs files, and by using device specific \fBioctl\fP(2) calls.
-.PP
-Based on this premise, the namespace is split into two major pieces,
-\fB/config\fP and \fB/system\fP, respectively.  Below these two top
-nodes, the two hierarchies are mostly identical in naming. For instance,
-for a given interface named \fBeth0\fP, there are two nodes in the namespace:
-\fB/config/interface/eth0\fP, representing the stored configuration,
-and \fB/system/interface/eth0\fP, respectively.
-.PP
-The RESTful interface supports four verbs, but not every node necessarily
-supports all of them. Many nodes actually do not support any verbs.
-.TP
-.B GET
-This retrieves the data located at the given node of the namespace, in
-XML representation, and returns it to the client in the response.
-.TP
-.B PUT
-This expects the body of request to contain an XML document, which is
-then used to overwrite the configuration at the given namespace node.
-For instance, by putting an interface definition to
-\fB/system/interface/br0\fP, you can reconfigure the bridge interface 
-\fBbr0\fP, optionally creating it if it doesn't exist yet.
-.TP
-.B POST
-This expects the body of request to contain an XML document, which is
-then used to augment the configuration at the given namespace node.
-For instance, this is used to add an interface policy to the daemon's
-list of policies.
-.TP
-.B DELETE
-This deletes the given namespace node. For instance, this can be used
-to delete the stored configuration for an interface, or bring down and
-delete a VLAN virtual interface.
 .\" ------------------------------------------------------------------
-.SS The Configuration hierarchy
-.TP
-.B /config/interface
-This node holds all stored interface configuration. The only supported
-operation is \fBGET\fP, which retrieves the XML representation of all
-interface configurations.
-.TP
-.BI /config/interface/ ifname
-This node represents the interface configuration of interface \fIifname\fP.
-Valid operations are \fBGET\fP, \fBPUT\fP and \fBDELETE\fP,
-which retrieve, overwrite and destroy the stored configuration, respectively.
-.TP
-.B /config/resolver
-This node represents the (permanent) resolver configuration, which may be
-different from what is currently active in the system.
-.IP
-.IR "Caveat: This is not implemented yet" .
+.SH DBus Services
+This implementation uses a DBus based server and a command line utility.
+If you're familiar with DBus terminology, you will recall that the
+DBus concept revolves around "objects" that can have one or more
+"interfaces" associated with them; pretty much like in any object
+oriented model. Since we're talking a lot about "network interfaces"
+in this manual page and other documentation, I would like to avoid
+the term "DBus interface" as much as possible, and refer to "DBus
+APIs" instead.
+.PP
+The wicked server is called \fBwickedd\fP, and
+offers a variety of APIs to manage network interfaces, to create
+and delete virtual interfaces, etc. These APIs are structured
+in a layered fashion that matches the different layers in the network
+stack. For instance, there is an Ethernet API for accessing the
+link-layer properties of an Ethernet API; there is an API
+class that represents the properties of a generic kernel network device;
+and there are APIs for address configuration.
+.PP
+For every network interface in the system, the server creates an
+object and attaches the appropriate DBus APIs to it. The DBus
+object path is formed by concatenating \fB/com/suse/Wicked/Interface\fP
+with the interface index. This allows the object handle to be unaffected
+when the interface is renamed.
+.PP
+In addition to the \fBwickedd\fP server itself, there are several
+auxiliary services that handle various dynamic address configuration
+protocols. For instance, there are daemons to handle DHCP4, DHCP6 and
+IPv4 link-layer autoconfiguration (aka ipv4ll, or IP zeroconf). The
+reason to create these anew is to be able to integrate them more closely
+with \fBwickedd\fP.
+.PP
 .\" ------------------------------------------------------------------
-.SS The System hiearchy
-.TP
-.B /system/interface
-This node holds all current interface status. The only supported
-operation is
-.BR GET ,
-which retrieves the XML representation of the runtime state all interfaces.
-.TP
-.BI /system/interface/ ifname
-This node represents the runtime state of the interface \fIifname\fP.
-Valid operations are \fBGET\fP, \fBPUT\fP and \fBDELETE\fP.
-The \fBGET\fP request retrieves the current state. The \fBPUT\fP
-request reconfigures the device according to the provided XML document,
-including taking the interface up or down, assigning addresses, assembling
-a bond from a list of slave devices, etc. The \fBDELETE\fP
-request is only valid for virtual interfaces such as VLANs, bonds or
-bridges, and deletes the virtual interface completely.
-.TP
-.BI /system/interface/ ifname /stats
-This node allows clients to retrieve the statistics of an interface using
-a \fBGET\fP request.  At a minimum, this will include general link and
-device statistics. Depending on the type of device, additional statistics
-may be present.
-.TP
-.BI /system/interface/ ifname /scan
-This node provides access to link layer scanning for those devices that
-support it. For now, this is provided for wireless interfaces only.
-A \fBPUT\fP request without any arguments will trigger a scan. Results
-can be retrieved using a subsequent \fBGET\fP request. Note that results
-will remain accessible long after the scan completed, and will not be
-purged automatically. The user can purge scan results manually by issuing
-a \fBDELETE\fP request.
-.TP
-.B /system/policy
-This node represents how the system reacts to interfaces coming online
-(for instance, the link layer on an Ethernet interface coming up), or
-going offline. By default, \fBwickedd\fP does not react to such events
-at all. By posting a policy to this node, it can be instructed to configure
-such an interface, for instance, or take it down.
-.IP
-Valid operations are \fBGET\fP and \fBPOST\fP.
-.TP
-.B /system/hostname
-This node provides access to the system's hostname. Obviously, an application
-could easily use the \fBgethostname\fP(2) and \fBsethostname\fP(2) system
-calls instead of this interface. This node is used by address configuration
-mechanisms such as DHCP to set the hostname, if desired.
-.IP
-Valid operations are \fBGET\fP and \fBPUT\fP.
-.TP
-.B /system/resolver
-This node represents the current resolver configuration. It can be
-retrieved and changed using the \fBGET\fP and \fBPUT\fP requests,
-respectively.
-.TP
-.B /system/nis
-This node represents the current NIS client configuration. It can be
-retrieved and changed using the \fBGET\fP and \fBPUT\fP requests,
-respectively.
-.TP
-.BI /system/event/ ifname
-This is an event sink, used for instance by address configuration agent.
-The only supported operation is \fBPOST\fP, which sends an event to interface
-\fIifname\fP. Currently, only \fBlease\fP events are supported, which inform
-the service when DHCP or a similar address configuration mechanism has
-obtained or dropped a lease.
-.IP
-This interface is internal, and should not be used by applications.
+.SH File format
+\fBWicked\fP strictly separates \fIconfiguration files\fP stored somewhere
+in the system from the current \fIconfiguration state\fP maintained
+by the kernel and closely related system daemons like \fBpppd\fP(8) or
+\fBopenvpn\fP(8). The server only knows about the latter, but does not
+parse any configuration files, and does not maintain any state besides
+what is actually in effect. On the other hand, the client never probes
+the kernel directly to obtain the current system state. The client's
+job is to parse the configuration file(s) handed to it by the user,
+process them and perform the necessary calls to the server to make the
+system state match the desired configuration.
+.PP
+Currently, the \fBwicked\fP client supports an XML based configuration
+file format, which was at one point inspired by what the netcf library
+uses, but quickly outgrew it.
+.PP
+At some future stage, we may add support for reading "legacy" network
+configuration files used by the current sysconfig-based implementations.
+.PP
+.SS Simple Ethernet Example
+In its simplest format, an interface description consists of little
+more than an \fB<interface>\fP element specifying the interface name
+and the requested address configuration:
+.PP
+.nf
+ <interface>
+   <name>eth0</name>
+   <boot-label>boot</boot-label>
+
+   <ipv4:dhcp>
+     <enabled>true</enabled>
+   </ipv4:dhcp>
+ </interface>
+.fi
+.PP
+Just like DHCPv4, there are elements for other address configuration
+modes as well, such as \fB<ipv6:dhcp>\fP, or \fB<ipv4:static>\fP
+\(em you get the idea.
+.PP
+.SS Persistent interface names
+Note that in this example, the interface is referred to by its kernel
+name \fBeth0\fP. While this is the most convenient way for the casual user,
+anyone who needs to manage more than one network device in his system
+usually wants a naming scheme that is persistent across reboots - but
+unfortunately, the interface names assigned by the kernel are not. In
+order to support this, \fBwicked\fP offers a number of alternative mechanisms
+to identify a network device; which we will not go into here, however.
+.PP
+.SS Slightly more complex example - VLAN
+The following example is slightly more complex, and shows a VLAN interface
+on top of \fBeth0\fP, with a static address configuration:
+.PP
+.nf
+<interface>
+  <name>eth0.42</name>
+  <boot-label>boot</boot-label>
+  <description>VLAN 42</description>
+
+  <vlan>
+    <device>eth0</device>
+    <tag>42</tag>
+  </vlan>
+
+  <ipv4:static>
+    <address>
+      <local>17.99.0.1/24</local>
+    </address>
+    <address>
+      <local>17.99.1.1/24</local>
+    </address>
+
+    <route>
+      <destination>17.99.12.0/24</destination>
+      <nexthop>
+        <gateway>17.99.0.254</gateway>
+      </nexthop>
+    </route>
+  </ipv4:static>
+</interface>
+.fi
+.PP
+For further information on the file syntax, refer to
+.\fBwicked\fP(5).
+.PP
 .\" ------------------------------------------------------------------
-.SS The wicked node
+.SH Mode of Operation
+The \fBwicked\fP client utility supports a number of different activities,
+but its most important job is probably to bring up network interfaces.
+This is performed by calling \fBwicked ifup\fP, which takes a number of
+parameters to select which interfaces to bring up, and how. If you want to
+learn about the details, please refer to \fBwicked\fP(8).
+.PP
+For the sake of this discussion, let's assume we're asking \fBwicked\fP to
+bring up the VLAN interface described by the configuration above. After parsing
+the XML configuration, \fBwicked\fP will do several things in preparation of
+bringing up the device:
 .TP
-.B /wicked/meta
-This node supports the \fBGET\fP request only. It will return an XML document
-describing the supported namespace, along with the supported operations.
+*
+Match the given configuration against existing network interfaces (existing means,
+the kernel knows about them).
 .TP
-.B /wicked/debug
-This node lets you query and change the current debugging level of the
-wicked daemon. Using \fBGET\fP will give you a
-.BR <debug>
-element with the current debug settings. Using \fBPUT\fP with such a document
-will set the debug status according to the given data. A \fBPOST\fP command
-will change the named debug facilities, but leave the others untouched.
+*
+Build a \fIhierarchy\fP of devices depending on each other. In this example,
+for instance, the VLAN device depends on the underlying interface \fBeth0\fP.
+In order to bring up the VLAN, the Ethernet interface must be brought up as
+well (at least in terms of the link-layer).
+.TP
+*
+Mark the desired state for each interface. In this example, \fBeth\fP's desired
+state would be "at least the link should be up", whereas the desired state
+of the VLAN interface should be fully configured, including the requested
+address assignments.
+.PP
+With these steps performed, \fBwicked\fP will works its way through all
+layers of network configuration to activate the devices.
+.TP
+Device creation
+Since the VLAN interface is a virtual interface which does not exist yet,
+it has to be created first. \fBWicked\fP does this by calling a \fIdevice
+factory\fP service for VLAN devices with the contents of the \fB<vlan>\fP
+element.
+.TP
+Link-layer configuration
+Next, it will apply any link-layer configurations specified. For Ethernet
+interfaces, this could include any \fBethtool\fP settings, or a change of
+the MAC address.
+.TP
+Network protocol selection
+This step is used to change the per-device settings of IPv4 and IPv6, such
+as packet forwarding. This steps also takes care of disabling IPv6 on the
+device, if requested.
+.TP
+Firewall
+This step will bring up the firewall.
+.TP
+Link layer configuration and authentication
+These steps will take care of bringing up the link layer. In the case
+of an Ethernet device, this will wait for the link layer negotiation
+to complete.  In the case of an authenticated link layer, such as 802.11
+WiFi or 802.1x Ethernet authentication, care would be taken to perform
+the required authentication steps.
+.IP
+In our example, \fBwicked\fP would first need to bring up \fBeth0\fP and
+wait for its link layer negotiation to complete. The configuration of the
+VLAN device is not allowed to proceed until the subordinate device is up.
+Once that is the case, \fBwicked\fP would also bring up the VLAN device.
+.IP
+As we've reached the desired state for the eth0 device with this step,
+no further action is taken.
+.TP
+Address Configuration
+Finally, \fBwicked\fP would trigger address configuration for all
+requested modes. In the given example, it would just assign the given
+static addresses. If we had also requested say DHCPv6, it would start
+the DHCPv6 protocol on this device and wait for it to come back with
+an address lease.
+.IP
+Note that in the \fBwicked\fP universe, address assignment should happen
+through \fBwickedd\fP so that it can track which addresses are active,
+and have been assigned through which protocol. This prevents different
+address configuration mechanisms to step on each other's toes.
+.PP
+In terms of the implementation, one fairly important aspect is worth
+noting in this context. The above is implemented as an abstract finite
+state machine on the client side, with only minimal interpretation of the
+data that is being passed around. The client side essentially takes note
+of the DBus APIs associated with a network device, and invokes the
+DBus methods associated with the required state transitions.
+.\" ------------------------------------------------------------------
+.SH Events
+TBD
+
 .\" ------------------------------------------------------------------
 .SH "SEE ALSO"
 .BR wickedd (8),
 .BR wicked (7),
 .BR wicked (5).
-
 .SH AUTHORS
 Written by Olaf Kirch <okir@suse.de>
 

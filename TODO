@@ -37,6 +37,12 @@ ifup replacement features:
 	  execute scripts from ifup.d and ifdown.d
 	  execute {ifup,ifdown}-connections
 
+	- Make interface selection less messy (unify all the --boot-* and --skip-*
+	  options and provide one generic expression mechanism)
+
+	- Allow selection of link-detection timeout per device, and as policy.
+
+	- Allow policy selection based on boot-label and boot-stage.
 
 netinfo:
 	- Introduce an <access-provider> abstraction; this can be either

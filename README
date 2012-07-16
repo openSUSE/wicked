@@ -42,7 +42,7 @@ One approach is to use a client/server model. This allows wicked to define
 standardized facilities for things like address configuration that
 are well integrated with the overall framework. For instance, with
 address configuration, the admin may request that an interface should
-be configured via dhcp, ipv4 zeroconf or ibft, and all the respective
+be configured via dhcp or ipv4 zeroconf, and all the respective
 addrconf service does is obtain the lease from its server, and pass it
 on to the wicked server process, which installs the requested addresses
 and routes.
@@ -66,7 +66,7 @@ Each network interface is represented via a child object of
 /com/suse/Wicked/Interfaces. The name of the child object is given by
 its ifindex, so e.g. the loopback interface, which usually gets
 ifindex 1, is /com/suse/Wicked/Interfaces/1, the first ethernet interface
-registered is /com.suse/Wicked/Interfaces/2, etc.
+registered is /com/suse/Wicked/Interfaces/2, etc.
 
 Each network interface has a "class" associated with it, which is
 used to select the dbus interfaces it supports. By default, each
@@ -107,29 +107,6 @@ com.suse.Wicked.VLAN.Factory. Such a factory interface offers a single
 function that lets you create an interface of the requested type. These
 factory interfaces are attched to the /com/suse/Wicked/Interfaces list
 node.
-
-
-, with standardized facilities for
-configure addresses, routes, name resolution etc.
-
-The idea is to decompose the different aspects of network configuration
-management
-
-The idea is to replace much of the shell scripting that happens in
-/sbin/ifup and friends with a combination of C code that handles most
-of the basic interface configuration tasks, with a powerful,
-extensible XML representation of the network configuration.
-
-Right now, this implementation uses a daemon service and a command
-line utility. These two communicate securely via dbus.
-
-The server offers a REST interface to various aspects of network
-configuration. The client application uses REST calls to retrieve
-interface configuration and status, or to reconfigure interfaces.
-The path space used by the API can be extended to cover other
-aspects of network configuration as well, such as reading, writing
-and restoring the resolv.conf file.
-
 
 What's currently supported
 ==========================

@@ -1,38 +1,41 @@
-.TH WICKED 8 "13 February 2010
+.TH WICKED 8 "16 July 2012
 .SH NAME
 wicked \- network management utility
 .SH SYNOPSIS
-.BI "wicked ifup [" options "] " interface
+.BI "wicked [" global-options "] ifup [" options "] " interface
 .br
-.BI "wicked ifdown [" options "] " interface
+.BI "wicked [" global-options "] ifdown [" options "] " interface
 .br
-.BI "wicked (get|put|post|delete) " pathname
+.BI "wicked [" global-options "] ifcheck [" options "] " interface
 .br
-.BI "wicked xpath [" options "] " format ...
+.BI "wicked [" global-options "] show-xml [" options "] [" interface "]
+.br
+.BI "wicked [" global-options "] xpath [" options "] " format ...
 .br
 .PP
 .\" ----------------------------------------
 .SH DESCRIPTION
-.B wicked
-offers access to the wicked network managment service from the
-command line. It can be used to execute bare calls to the REST
-interface, or to perform more complex operation of bringing up
-interface (in the case of bridges and bonds, including all
-subordinate devices).
+\fBwicked\fP offers access to the wicked network managment service from the
+command line. It can be used to display the current state of network devices,
+to bring interfaces up or down, or to check their operational status.
 .PP
-Conceptually, the wicked network management system deals with two
-very distinct classes of information; one is the stored configuration,
-and the other is the current run-time state of your system. For
-network interfaces, configuration is commonly stored in files residing
-in \fB/etc/sysconfig/network\fP,
-whereas the run-time information is retrieved by talking to the kernel's
-rtnetlink facility, by reading sysfs files, and by using device specific
-\fBioctl\fP(2) calls. It is useful to bear this notion in mind, as much of
-\fBwicked\fP's functionality is designed along this conceptual separation.
+Conceptually, the wicked network management system deals with two very
+distinct classes of information. One is the set of \fIconfiguration
+files\fP stored somewhere in the system; the other is the current
+\fIconfiguration state\fP maintained by the kernel and closely related
+system daemons like \fBpppd\fP(8) or \fBopenvpn\fP(8).
 .PP
-The utility communicates with \fBwickedd\fP(8) through an \fBAF_LOCAL\fP
-socket, using a RESTful interface. For a description of the
-namespace and its operations, see \fBwicked\fP(7).
+The server only knows about the latter, but does not parse any configuration
+files, and does not maintain any state besides what is actually in
+effect. On the other hand, the client never probes the kernel directly
+to obtain the current system state. The client's job is to parse the
+configuration file(s) handed to it by the user, process them and perform
+the necessary calls to the server to make the system state match the
+desired configuration.
+.PP
+The client and server communicate with each other over DBus. For a
+conceptual overview of the supported DBus APIs, please refer
+to \fBwicked\fP(7).
 .\" ----------------------------------------
 .SH OPTIONS
 .B wicked
@@ -57,11 +60,19 @@ Enable debugging for \fIfacility\fP.
 The list of available facilities can be obtained using
 \fB"\-\-debug help"\fP.
 .TP
+.BI "\-\-root-directory " pathname
+Specify an alternative root directory from where to load files.
+This applies to the client's configuration file as well as any
+interface configuration files.
+.TP
 .BI "\-\-dry-run
 skips all calls to \fBwickedd\fP that would modify the current system
 settings, instead displaying the command that would be sent, along with
-the XML definition.  Helpful for getting a feel for how the utility and
-the protocol work, and for debugging.
+an XML representation of the XML.
+Helpful for getting a feel for how the utility and the protocol work,
+and for debugging.
+.IP
+.B This does not work at the moment.
 .\" ----------------------------------------
 .SH ifup - bring up one or more interfaces
 To bring up interfaces, use \fBwicked ifup\fP.
@@ -73,7 +84,10 @@ it will bring up the interface using the stored system configuration:
 .B " wicked ifup eth0
 .fi
 .PP
-This will bring the interface and establish its network configuration.
+This invocation makes \fBwicked\fP read all network configuration files
+from \fB/etc/sysconfig/network\fP by looking for files with a \fB.xml\fP
+suffix, and look for a description of the named interface. If found, it
+will proceed to bring up the interface and establish its network configuration.
 This includes assigning static address, and starting DHCP and similar
 address configuration protocols as required.
 .PP
@@ -81,65 +95,198 @@ Instead of an interface name, you can also use the special names \fBall\fP
 or \fBboot\fP, which will tell \fBwicked\fP to bring up all interfaces.
 The difference between \fBall\fP and \fBboot\fP is in behavior. When
 using the latter, \fBwicked\fP will ignore any interfaces that are not
-configured as boot time interfaces. Depending on the expected default
-behavior of the Linux distribution we're on, this may also change how
-long we wait for an interface to come up, etc.
+configured as boot time interfaces.
 .PP
 It is also possible to bring up interfaces that do not have a
-configuration stored in the system; using the
-.B \-\-file
+configuration stored in the system; using the \fB--ifconfig\fP
 option you can provide an XML interface description independent from
 any stored configuration. Again, you have to specify the name of the
-interface to bring up, or
-.B all
+interface to bring up, or \fBall\fP
 to bring up all interfaces described in the file:
 .PP
 .nf
-.B " wicked ifup --file bridgecfg.xml all
+.B " wicked ifup --ifconfig bridgecfg.xml all
 .fi
 .PP
-Note that
-.B wicked
-attempts to bring up interfaces in a "reasonable order": it always
-tries to bring up loopback interfaces first. For VLAN interfaces, the
-underlying bare ethernet device is brought up before the VLAN device.
-For bridges and bonding devices, all subordinate devices are brought up
-before bringing up the composite devices.
+Note that \fBwicked\fP attempts to bring up interfaces in a "reasonable
+order": for virtual interfaces like VLANs, bridges or bonds, it will
+always make sure that all subordinate devices are in the required state
+before bringing up the virtual device itself.
 .PP
-The
-.BR ifup
-command supports the following options:
+The \fBifup\fP command supports the following options:
 .TP
-.BI "\-\-file " filename
+.BI "\-\-ifconfig " pathname
 Specify an alternative source of network configuration, instead of
-obtaining the system's interface configuration. The named file must
-contain an XML definition of the interface.
+obtaining the system's interface configuration.
+.IP
+When specifying the path of a file, it must contain an XML definition
+of the interface(s). When \fIpathname\fP refers to a directory,
+\fBwicked\fP will scan it for files having a \fB.xml\fP suffix and
+parse these.
+.IP
+The special name \fBFIRMWARE\fP can be used to obtain the interface
+definition(s) from firmware services like iBFT.
+.TP
+.BI "\-\-ifpolicy " pathname
+Specify an alternative source of network configuration policies, instead
+of obtaining the system-wide policy. Policies provide a mechanism for
+separating address configuration behavior from actual interface instances.
+.IP
+When specifying the path of a file, it must contain an XML definition
+of the interface(s). When \fIpathname\fP refers to a directory,
+\fBwicked\fP will scan it for files having a \fB.xml\fP suffix and
+parse these.
+.TP
+.BI "\-\-boot-label " identifier
+This can be used in conjunction with the special interface name \fBall\fP,
+in order to restrict the set of interfaces that will be brought up.
+If this option is given, only those interface configurations are considered
+that have a \fB<boot-label>\fP element containing the given identifier.
+.TP
+.BI "\-\-boot-stage " identifier
+This can be used in conjunction with the special interface name \fBall\fP,
+in order to restrict the set of interfaces that will be brought up.
+If this option is given, only those interface configurations are considered
+that have a \fB<boot-stage>\fP element containing the given identifier.
+.TP
+.BI "\-\-skip-origin " identifier
+This can be used to ignore interfaces that have already been configured.
+For instance, an interface that has been configured based on a firmware
+configuration (see option \fB\-\-ifconfig\fP above) will be marked as
+having a configuration origin of \fBfirmware\fP. When bringing up the
+remaining network interfaces, it is a good idea to not touch these.
+This can be achieved by running \fBwicked\fP with the option
+\fB\-\-skip-origin firmware\fP.
+.TP
+.BI "\-\-skip-active
+Ignore all interfaces that have already been brought up.
+.TP
+.BI "\-\-timeout " seconds
+The default timeout for bringing up a network device is 5 seconds. If
+the interface fails to come up within this time, \fBwicked\fP will fail
+the device and and exit with an error code. All interfaces depending
+on the failed interface will fail as well.
+.IP
+Failed interfaces are left in and undefined state.
 .\" ----------------------------------------
 .SH ifdown - bring down one or more interfaces
-This command does the reverse of
-\fBifup\fP.
+This command does the reverse of \fBifup\fP.
 Again, you can give it either a specific interface name, or use
-the special names
-.BR all " or " shutdown
+the special names \fBall\fP or \fBshutdown\fP
 to bring down all devices. When bringing down several interfaces,
-the utility tries to do this in a suitable order. The difference
-between
-.BR all " and " shutdown
-is again in behavior. Some Linux distributions allow to configure
-a device to not be deconfigured during system shutdown - e.g. when
-for diskless clients that mount their root file system via NFS.
-If you invoke \fBwicked\fP with the \fBshutdown\fP option, it will
-respect these settings.
+the utility tries to do this in a suitable order.
 .PP
-The
-.BR ifdown
-command supports the following options:
+The \fBifdown\fP command supports the following options:
+.TP
+.BI "\-\-ifconfig " pathname
+Specify an alternative source of network configuration, instead of
+obtaining the system's interface configuration.
+.IP
+When specifying the path of a file, it must contain an XML definition
+of the interface(s). When \fIpathname\fP refers to a directory,
+\fBwicked\fP will scan it for files having a \fB.xml\fP suffix and
+parse these.
 .TP
 .BI "\-\-delete
 When bringing down a virtual interface such as a VLAN or a bridge,
 delete the virtual interface in addition to shutting it down.
+.TP
+.BI "\-\-timeout " seconds
+The default timeout for bringing down a network device is 5 seconds. If
+the interface fails to shut down within this time, \fBwicked\fP will fail
+the device and and exit with an error code. All interfaces that are
+used by the failed interface will fail as well.
+.IP
+Failed interfaces are left in and undefined state.
+.\" ----------------------------------------
+.SH xpath - retrieve data from an XML blob
+The \fBwickedd\fP server can be enhanced to support new network device types
+via extension commands \(em usually shell scripts. When invoking such a script,
+\fBwickedd\fP will hand it the arguments of the DBus call as an XML document.
+.PP
+The \fBxpath\fPP command tries to provide a flexible and convenient interface for extracting
+individual bits of information from an XML document. To the degree that XML
+can be convenient to a shell programmer...
+.PP
+For this, \fBwicked\fP supports expressions using a (subset of) the XPATH 1.0
+syntax. These xpath expressions can be embedded into format strings using
+\fB"%{\fIexpression\fR}".
+Several expressions can be embedded into one format string; this can
+help to combine pairs of information such as e.g. address and prefix
+length.
+.PP
+The \fBxpath\fP command by default expects an XML document on standard input.
+You can use the \fB\-\-file\fP option to specify a filename.
+.PP
+The \fBxpath\fP command supports the following options:
+.TP
+.BR "\-\-reference " xpath-expr
+By default, the command will evaluate all XPATH expressions relative to
+the document's root node. Using this option allows you to "drill into"
+the document: the utility will first evaluate the given expression to
+look up 0 or more XML nodes in the document, and then evaluate all
+format strings relative to these nodes. It is an error for the
+reference expression to yield data other than XML elements (such as
+strings).
+.TP
+.BR "\-\-file " filename
+The file containing the XML document to operate on.
+.PP
+This manual page cannot give a full overview of xpath, of course, 
+however consider the following examples (which assume the input is
+an XML interface description):
+.PP
+.nf
+.B "# wicked xpath \(dqvlan_tag=%{/interface/vlan/tag}\(dq"
+.fi
+.PP
+Given a VLAN interface definition, this will expand to the contents 
+of the \fB<tag>\fB element of the VLAN definition. The "path-like"
+syntax specifies how to traverse the XML tree to find the desired node.
+Assuming the tag is 42, the above command will print \fBvlan_tag=42\fP.
+In case the document contains several VLAN interface definitions,
+this would of course print several lines of output; one per VLAN tag
+found.
+.PP
+Note that the \fBxpath\fP command considers an empty expansion as error.
+If an element or expansion is considered optional, you can prefix it
+with a question mark, as in \fB%{?...}\fP. If the expansion fails, the
+expression will be replaced with an empty string.
+.PP
+As a different example, consider a bridge definition like the following:
+.PP
+.nf
+<bridge>
+  <ports>
+    <e>
+     <device>eth0</device>
+     <priority>1</priority>
+    </e>
+    <e>
+     <device>eth0</device>
+     <priority>1</priority>
+    </e>
+  </ports>
+</bridge>
+.fi
+.PP
+In order to print out a list of device/priority pairs of all ports, you could
+invoke \fBwicked\fP like this:
+.PP
+.nf
+.B "# wicked xpath --reference \(dq/bridge/ports/e\(dq \(rs
+.B "          \(dqdev=%{device} priority=%{?priority}\(dq
+.fi
+.PP
+By using the \fB\-\-reference\fP option, you instruct \fBwicked\fP to loop over
+all XML nodes matching this expression - i.e. the two child nodes of the
+\fB<ports>\fP element. For each of them in turn, the xpath expression is
+evaluated \fIrelative to each node\fP. Note the use of the question mark in
+the \fBpriority\fP term, marking the field as optional.
 .\" ----------------------------------------
 .SH How interface bring-up works
+.B "Everything in this and any following section is out of date and needs to be rewritten"
+.PP
 Interfaces can be configured for different behaviors during bring-up
 and shutdown. In many Linux distributions, this is controlled by
 configuration variables like \fBSTARTMODE\fP or \fBONBOOT\fP in a
@@ -244,110 +391,10 @@ Finally, the \fBlink-down\fP action is used to determine whether to install
 a policy that automatically shuts down the network on the interface in case
 the link should go down.
 .\" ----------------------------------------
-.SH Using REST commands directly
-You can also use \fBwicked\fP to talk to the service's REST API
-directly, using one of the commands \fBget\fP, \fBput\fP, \fBpost\fP,
-or \fBdelete\fP, followed by a pathname from the wicked namespace. For
-example, the following command will retrieve the current interface
-configuration for device \fBeth0\fP:
-.PP
-.nf
-.B " # wicked get /system/interface/eth0"
-.fi
-.PP
-The \fBput\fP and \fBpost\fP commands expect to read an XML document
-from standard input.
-.PP
-For a description of the namespace and the semantics of supported
-operations, please refer to \fBwicked\fP(7).
-.\" ----------------------------------------
-.SH xpath - retrieve data from an XML blob
-This command tries to provide a flexible and convenient interface for extracting
-individual bits of information from an XML document. To the degree that XML
-can be convenient to a shell programmer...
-.PP
-For this, \fBwicked\fP supports expressions using a (subset of) the XPATH 1.0
-syntax. These xpath expressions can be embedded into format strings using
-\fB"%{\fIexpression\fR}".
-Several expressions can be embedded into one format string; this can
-help to combine pairs of information such as e.g. address and prefix
-length.
-.PP
-The \fBxpath\fP command by default expects an XML document either on standard input.
-You can use the \fB\-\-file\fP option to specify a filename.
-.PP
-The
-.B xpath
-command supports the following options:
-.TP
-.BR "\-\-reference " xpath-expr
-By default, the command will evaluate all XPATH expressions relative to
-the document's root node. Using this option allows you to "drill into"
-the document: the utility will first evaluate the given expression to
-look up 0 or more XML nodes in the document, and then evaluate all
-format strings relative to these nodes. It is an error for the
-reference expression to yield data other than XML elements (such as
-strings).
-.TP
-.BR "\-\-file " filename
-The file containing the XML document to operate on.
-.PP
-This manual page cannot give a full overview of xpath, of course, 
-however consider the following examples (which assume the input is
-an XML interface description):
-.PP
-.nf
-.B "# wicked xpath \(dq%{/interface/bridge/interface/@name}\(dq"
-.fi
-.PP
-.TP
-Given a bridge interface definition, this will expand to a list
-of strings, representing the names of all devices assigned to the
-bridge as ports.
-.PP
-.nf
-.B "# wicked xpath --reference \(dq/interface/protocol[@family = 'ipv4']/ip\(dq \(rs
-.B "          %{@address}/%{@prefix}
-.fi
-.PP
-This will look up any
-.B protocol
-elements that specify a
-.B family
-attribute of
-\fBipv4\fP,
-and retrieve any and all
-.B ip
-elements with these. In the wicked XML schema, these elements define the
-statically configured IP addresses assigned to the interface. For each of
-these, it will will evaluate the given format string. This format string
-retrieves the
-.BR address " and " prefix
-attributes of each element, and print these, separated by a slash.
-.\" ----------------------------------------
-.SH FILES
-.TP
-.BR /etc/wicked/config.xml
-specifies the global configuration of the daemon. This file may pull
-in additional configuration data from the same directory.
-.TP
-.BR /var/run/wicked.pid
-Location of the PID file written by the daemon when backgrounding
-itself.
-Can be changed in the configuration file.
-.TP
-.BR /var/run/wicked.sock
-Path of the
-.B AF_LOCAL
-socket through which clients can communicate
-with the server.
-Can be changed in the configuration file.
-.\" ----------------------------------------
 .SH "SEE ALSO"
 \fBwickedd\fP(8),
 \fBwicked\fP(7),
 \fBwicked\fP(5).
-
 .\" ----------------------------------------
 .SH AUTHORS
 Written by Olaf Kirch <okir@suse.de>
