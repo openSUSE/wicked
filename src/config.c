@@ -66,7 +66,7 @@ ni_config_new()
 void
 ni_config_free(ni_config_t *conf)
 {
-	ni_extension_list_destroy(&conf->extensions);
+	ni_extension_list_destroy(&conf->dbus_extensions);
 	ni_extension_list_destroy(&conf->ns_extensions);
 	ni_extension_list_destroy(&conf->fw_extensions);
 	ni_string_free(&conf->dbus_name);
@@ -145,8 +145,9 @@ ni_config_parse(const char *filename)
 
 	/* Parse extensions */
 	for (child = node->children; child; child = child->next) {
-		if (strcmp(child->name, "extension") == 0) {
-			if (ni_config_parse_objectmodel_extension(&conf->extensions, child) < 0)
+		if (strcmp(child->name, "extension") == 0
+		 || strcmp(child->name, "dbus-service") == 0) {
+			if (ni_config_parse_objectmodel_extension(&conf->dbus_extensions, child) < 0)
 				goto failed;
 		} else
 		if (strcmp(child->name, "netif-naming-services") == 0) {
@@ -727,7 +728,7 @@ ni_config_parse_objectmodel_firmware_discovery(ni_extension_t **list, xml_node_t
 ni_extension_t *
 ni_config_find_extension(ni_config_t *conf, const char *interface)
 {
-	return ni_extension_list_find(conf->extensions, interface);
+	return ni_extension_list_find(conf->dbus_extensions, interface);
 }
 
 /*

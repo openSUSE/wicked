@@ -24,17 +24,14 @@
     <script name="ibft" command="/etc/wicked/extensions/ibft" />
   </netif-firmware-discovery>
 
-  <extension interface="com.suse.Wicked.Ethernet">
+  <dbus-service interface="com.suse.Wicked.Ethernet">
    <!-- default environment for all calls to this extension script -->
    <putenv name="WICKED_OBJECT_PATH" value="$object-path"/>
    <putenv name="WICKED_INTERFACE_NAME" value="$property:name"/>
    <putenv name="WICKED_INTERFACE_INDEX" value="$property:index"/>
-  </extension>
+  </dbus-service>
 
-  <extension interface="com.suse.Wicked.VLAN">
-  </extension>
-
-  <extension interface="com.suse.Wicked.Bond">
+  <dbus-service interface="com.suse.Wicked.Bond">
    <action name="addSlave" command="/etc/wicked/extensions/bonding addSlave" />
    <action name="removeSlave" command="/etc/wicked/extensions/bonding removeSlave" />
 
@@ -42,9 +39,9 @@
    <putenv name="WICKED_OBJECT_PATH" value="$object-path"/>
    <putenv name="WICKED_INTERFACE_NAME" value="$property:name"/>
    <putenv name="WICKED_INTERFACE_INDEX" value="$property:index"/>
-  </extension>
+  </dbus-service>
 
-  <extension interface="com.suse.Wicked.Bridge">
+  <dbus-service interface="com.suse.Wicked.Bridge">
    <action name="addPort" command="/etc/wicked/extensions/bridge addPort" />
    <action name="removePort" command="/etc/wicked/extensions/bridge removePort" />
 
@@ -52,16 +49,16 @@
    <putenv name="WICKED_OBJECT_PATH" value="$object-path"/>
    <putenv name="WICKED_INTERFACE_NAME" value="$property:name"/>
    <putenv name="WICKED_INTERFACE_INDEX" value="$property:index"/>
-  </extension>
+  </dbus-service>
 
-  <extension interface="com.suse.Wicked.Wireless">
+  <dbus-service interface="com.suse.Wicked.Wireless">
    <!-- default environment for all calls to this extension script -->
    <putenv name="WICKED_OBJECT_PATH" value="$object-path"/>
    <putenv name="WICKED_INTERFACE_NAME" value="$property:name"/>
    <putenv name="WICKED_INTERFACE_INDEX" value="$property:index"/>
-  </extension>
+  </dbus-service>
 
-  <extension interface="com.suse.Wicked.OpenVPN">
+  <dbus-service interface="com.suse.Wicked.OpenVPN">
    <action name="changeDevice" command="/etc/wicked/extensions/openvpn change" />
    <action name="linkUp" command="/etc/wicked/extensions/openvpn link-up" />
    <action name="linkDown" command="/etc/wicked/extensions/openvpn link-down" />
@@ -71,9 +68,9 @@
    <putenv name="WICKED_INTERFACE_NAME" value="$property:name"/>
    <putenv name="WICKED_INTERFACE_INDEX" value="$property:index"/>
    <putenv name="WICKED_TUNNEL_ID" value="$property:tunnel-id"/>
-  </extension>
+  </dbus-service>
 
-  <extension interface="com.suse.Wicked.Firewall">
+  <dbus-service interface="com.suse.Wicked.Firewall">
    <action name="firewallUp" command="/etc/wicked/extensions/firewall up"/>
    <action name="firewallDown" command="/etc/wicked/extensions/firewall down"/>
 
@@ -81,20 +78,20 @@
    <putenv name="WICKED_OBJECT_PATH" value="$object-path"/>
    <putenv name="WICKED_INTERFACE_NAME" value="$property:name"/>
    <putenv name="WICKED_INTERFACE_INDEX" value="$property:index"/>
-  </extension>
+  </dbus-service>
 
   <!-- Define the scripts for updating various system settings with
     -- data obtained from addrconf services, such as dhcp -->
-  <extension interface="resolver-updater">
+  <dbus-service interface="resolver-updater">
     <action name="backup" command="/etc/wicked/extensions/resolver backup"/>
     <action name="restore" command="/etc/wicked/extensions/resolver restore"/>
     <action name="install" command="/etc/wicked/extensions/resolver install"/>
-  </extension>
+  </dbus-service>
 
-  <extension interface="hostname-updater">
+  <dbus-service interface="hostname-updater">
     <action name="backup" command="/etc/wicked/extensions/hostname backup"/>
     <action name="restore" command="/etc/wicked/extensions/hostname restore"/>
     <action name="install" command="/etc/wicked/extensions/hostname install"/>
-  </extension>
+  </dbus-service>
 
 </config>

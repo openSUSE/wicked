@@ -112,7 +112,7 @@ typedef struct ni_config {
 	} addrconf;
 
 	char *			dbus_xml_schema_file;
-	ni_extension_t *	extensions;
+	ni_extension_t *	dbus_extensions;
 	ni_extension_t *	ns_extensions;
 	ni_extension_t *	fw_extensions;
 
