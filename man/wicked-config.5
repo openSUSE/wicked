@@ -1,0 +1,170 @@
+.TH WICKED-CONFIG 5 "16 July 2012
+.SH NAME
+wicked-config.xml \- wicked configuration file
+.SH SYNOPSIS
+.B /etc/wicked/config.xml
+.SH DESCRIPTION
+This file contains the global configuration options for the \fBwicked\fP
+network management service. Mostly, these options apply to the server side,
+but some are used by client applications as well.
+.PP
+The configuration file is an XML document; its root node must be called
+\fB<config>\fP.
+.PP
+.\" --------------------------------------------------------
+.SS Server pathnames
+.TP
+.B statedir
+This element specifies the location of the directory containing various
+files relating to the state of the server. For instance, temporary files
+are stored here when starting external programs like \fBpppd\fP(8).
+.IP
+The \fBpath\fP attribute of this element contains the path to this
+directory. The optional \fBmode\fP attribute can be used to specify
+the permissions of this directory.
+.IP
+The default is to use \fB/var/run/wicked\fP, mode \fB0755\fP.
+.IP
+.nf
+.B "  <statedir path=\(dq/var/run/wicked\(dq mode=\(dq0755\(dq />
+.fi
+.TP
+.B pidfile
+This element specifies the location of the daemon's PID file.
+.IP
+The \fBpath\fP attribute of this element contains the path to this
+directory. The optional \fBmode\fP attribute can be used to specify
+the permissions of this directory.
+.IP
+The default is to use \fB/var/run/wicked.pid\fP, mode \fB0644\fP.
+.IP
+.nf
+.B "  <pidfile path=\(dq/var/run/wicked.pid\(dq mode=\(dq0644\(dq />
+.fi
+.PP
+.\" --------------------------------------------------------
+.SS DBus service parameters
+.TP
+.B dbus
+This element can be used to override the DBus service name used.
+The default is "com.suse.Wicked"
+.IP
+.nf
+.B "  <dbus name=\(dqcom.suse.Wicked\(dq />
+.fi
+.TP
+.B schema
+This can be used to override the location of the schema files.
+The schema defines the various DBus APIs offered by the server,
+and how portions of an interface XML description map to their
+arguments. The schema files do not contain user-serviceable parts,
+so it's best to leave this option untouched.
+.IP
+.nf
+.B "  <schema name=\(dq/etc/wicked/schema/wicked.xml\(dq />
+.fi
+.TP
+.\" --------------------------------------------------------
+.SH Extensions
+The functionality of \fBwickedd\fP can be extended in various ways.
+All of these extensions are declared in \fBconfig.xml\fP, and all
+of them follow the same pattern.
+.PP
+Generally, two extension methods are supported \(em through external
+commands and shell scripts, and through shared libraries, respectively.
+Not all extension classes support both of these methods, but some do.
+.PP
+.TP
+Shared library extensions
+These are specified via a \fB<builtin\fP element, that needs to provide
+three attributes: \fBname\fP, \fBlibrary\fP, and \fBsymbol\fP, respectively.
+The name serves as an identifier of the extension. The \fBlibrary\fP attribute
+specifies the name of the shared library image. If it's found in the global
+search path for shared libraries, just the file name is sufficient; otherwise,
+the full pathname must be given. The \fBsymbol\fP attribute specifies the
+name of a shared symbol in the library that is to be used. The use of this
+symbol depends on the extension class.
+.IP
+An example would look like this:
+.IP
+.nf
+.B "  <builtin name=\(dqbiosdevname\(dq
+.B "           library=\(dqlibwicked-biosname.so\(dq
+.B "           symbol=\(dqbiosdevname_ns\(dq/>
+.fi
+.TP
+Script extensions
+Scripts are specified via the \fB<script>\fP element, which needs to provide
+a \fBname\fP attribute and a \fBcommand\fP attribute. Again, the name serves
+as an identifier, while the command specifies the command to be invoked.
+\fBwicked\fP comes with a (simple) parser for this, which splits up this command
+into a argument array which is passed to \fBexecve\fP(2) eventually.
+.IP
+An example would look like this:
+.IP
+.nf
+.B "  <script name=\(dqinstall\(dq
+.B "          command=\(dq/etc/wicked/extensions/hostname install\(dq/>
+.fi
+.IP
+When defininig script extensions, it is possible to define additional environment
+variables that get passed to the script. This mechanism is explained in more
+detail below.
+.PP
+Extensions are always grouped under a parent element. The following configuration
+elements can contain extensions:
+.\" --------------------------------------------------------
+.SS System updaters
+These specify extensions for managing files like \fBresolv.conf\fP, or the system
+hostname, based on information contained through an address configuration protocol
+like DHCP. The configuration element must have a \fBname\fP attribute that specifies
+the system service to configure, and include extensions for backing up the current
+configuration, for installing new settings, and for restoring the backup.
+.PP
+The configuration for the resolver might look like this:
+.PP
+.nf
+.B "  <system-updater name="resolver">
+.B "    <script name=\(dqbackup\(dq command=\(dq/etc/wicked/extensions/resolver backup\(dq/>
+.B "    <script name=\(dqrestore\(dq command=\(dq/etc/wicked/extensions/resolver restore\(dq/>
+.B "    <script name=\(dqinstall\(dq command=\(dq/etc/wicked/extensions/resolver install\(dq/>
+.B "  </system-updater>
+.fi
+.PP
+Currently, \fBwicked\fP supports system updaters for \fBresolver\fP, and \fBhostname\fP,
+respectively.
+.PP
+This extension class supports shell scripts only.
+.\" --------------------------------------------------------
+.SS Firmware discovery
+Some platforms support iBFT or similar mechanisms to provide the configuration for
+a network device through the firmware (so that it's possible to boot off that device).
+In order to support these mechanisms, \fBwicked\fP supports extensions to discover such
+configuration through firmware discovery extensions.
+.PP
+.nf
+.B "  <netif-firmware-discovery>
+.B "    <script name="ibft" command="/etc/wicked/extensions/ibft" />
+.B "  </netif-firmware-discovery>
+.fi
+.PP
+When looking for firmware interface configuration, \fBwicked\fP will invoke all these scripts
+in turn and parse their output. Scripts are expected to return XML documents that contain
+zero or more \fB<interface>\fP elements describing the configuration.
+.PP
+This extension class supports shell scripts only.
+.PP
+.\" --------------------------------------------------------
+.SS Network device naming
+TBD
+.PP
+.\" --------------------------------------------------------
+.SS DBus service implementation
+TBD
+.\" ------------------------------------------------------------------
+.SH "SEE ALSO"
+.BR wickedd (8),
+.BR wicked (7),
+.BR wicked (5).
+.SH AUTHORS
+Written by Olaf Kirch <okir@suse.de>
