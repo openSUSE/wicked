@@ -33,7 +33,6 @@ enum {
 	OPT_CONFIGFILE,
 	OPT_DEBUG,
 	OPT_FOREGROUND,
-	OPT_NOFORK,
 	OPT_NORECOVER,
 	OPT_NOMODEMMGR,
 };
@@ -42,7 +41,6 @@ static struct option	options[] = {
 	{ "config",		required_argument,	NULL,	OPT_CONFIGFILE },
 	{ "debug",		required_argument,	NULL,	OPT_DEBUG },
 	{ "foreground",		no_argument,		NULL,	OPT_FOREGROUND },
-	{ "no-fork",		no_argument,		NULL,	OPT_NOFORK },
 	{ "no-recovery",	no_argument,		NULL,	OPT_NORECOVER },
 	{ "no-modem-manager",	no_argument,		NULL,	OPT_NOMODEMMGR },
 
@@ -50,7 +48,6 @@ static struct option	options[] = {
 };
 
 static int		opt_foreground = 0;
-static int		opt_nofork = 0;
 static int		opt_recover_leases = 1;
 static int		opt_no_modem_manager = 0;
 static char *		opt_state_file = NULL;
@@ -107,10 +104,6 @@ main(int argc, char **argv)
 
 		case OPT_FOREGROUND:
 			opt_foreground = 1;
-			break;
-
-		case OPT_NOFORK:
-			opt_nofork = 1;
 			break;
 
 		case OPT_NORECOVER:
