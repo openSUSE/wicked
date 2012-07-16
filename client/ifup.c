@@ -973,6 +973,7 @@ typedef struct ni_ifmatcher {
 	const char *		name;
 	const char *		boot_label;
 	const char *		boot_stage;
+	const char *		skip_origin;
 	unsigned int		require_config : 1,
 				skip_active    : 1;
 } ni_ifmatcher_t;
@@ -1074,6 +1075,15 @@ ni_ifworker_get_matching(ni_objectmodel_fsm_t *fsm, ni_ifmatcher_t *match, ni_if
 			if (w->config == NULL
 			 || !(boot_node = xml_node_get_child(w->config, "boot-stage"))
 			 || !ni_string_eq(match->boot_stage, boot_node->cdata))
+				continue;
+		}
+
+		if (match->skip_origin) {
+			ni_netdev_t *dev;
+
+			if ((dev = w->device) == 0
+			 || dev->client_info == NULL
+			 || !ni_string_eq(dev->client_info->config_origin, match->skip_origin))
 				continue;
 		}
 
@@ -2900,13 +2910,14 @@ ni_ifconfig_load(ni_objectmodel_fsm_t *fsm, const char *pathname)
 int
 do_ifup(int argc, char **argv)
 {
-	enum  { OPT_IFCONFIG, OPT_IFPOLICY, OPT_BOOT, OPT_STAGE, OPT_TIMEOUT, OPT_SKIP_ACTIVE };
+	enum  { OPT_IFCONFIG, OPT_IFPOLICY, OPT_BOOT, OPT_STAGE, OPT_TIMEOUT, OPT_SKIP_ACTIVE, OPT_SKIP_ORIGIN };
 	static struct option ifup_options[] = {
 		{ "ifconfig",	required_argument, NULL,	OPT_IFCONFIG },
 		{ "ifpolicy",	required_argument, NULL,	OPT_IFPOLICY },
 		{ "boot-label",	required_argument, NULL,	OPT_BOOT },
 		{ "boot-stage",	required_argument, NULL,	OPT_STAGE },
 		{ "skip-active",required_argument, NULL,	OPT_SKIP_ACTIVE },
+		{ "skip-origin",required_argument, NULL,	OPT_SKIP_ORIGIN },
 		{ "timeout",	required_argument, NULL,	OPT_TIMEOUT },
 		{ NULL }
 	};
@@ -2914,6 +2925,7 @@ do_ifup(int argc, char **argv)
 	const char *opt_ifpolicy = NULL;
 	const char *opt_boot_label = NULL;
 	const char *opt_boot_stage = NULL;
+	const char *opt_skip_origin = NULL;
 	ni_bool_t opt_skip_active = FALSE;
 	unsigned int nmarked;
 	ni_objectmodel_fsm_t *fsm;
@@ -2951,6 +2963,10 @@ do_ifup(int argc, char **argv)
 			}
 			break;
 
+		case OPT_SKIP_ORIGIN:
+			opt_skip_origin = optarg;
+			break;
+
 		case OPT_SKIP_ACTIVE:
 			opt_skip_active = 1;
 			break;
@@ -2961,12 +2977,20 @@ usage:
 				"wicked [options] ifup [ifup-options] all\n"
 				"wicked [options] ifup [ifup-options] <ifname> ...\n"
 				"\nSupported ifup-options:\n"
-				"  --ifconfig <filename>\n"
-				"      Read interface configuration(s) from file rather than using system config\n"
+				"  --ifconfig <pathname>\n"
+				"      Read interface configuration(s) from file/directory rather than using system config\n"
+				"  --ifpolicy <pathname>\n"
+				"      Read interface policies from the given file/directory\n"
 				"  --boot-label <label>\n"
 				"      Only touch interfaces with matching <boot-label>\n"
 				"  --boot-stage <label>\n"
 				"      Only touch interfaces with matching <boot-stage>\n"
+				"  --skip-active\n"
+				"      Do not touch running interfaces\n"
+				"  --skip-origin <name>\n"
+				"      Skip interfaces that have a configuration origin of <name>\n"
+				"      Usually, you would use this with the name \"firmware\" to avoid\n"
+				"      touching interfaces that have been set up via firmware (like iBFT) previously\n"
 				"  --timeout <nsec>\n"
 				"      Timeout after <nsec> seconds\n"
 				);
@@ -3003,6 +3027,7 @@ usage:
 		memset(&ifmatch, 0, sizeof(ifmatch));
 		ifmatch.name = argv[optind++];
 		ifmatch.skip_active = opt_skip_active;
+		ifmatch.skip_origin = opt_skip_origin;
 
 		if (!strcmp(ifmatch.name, "boot")) {
 			ifmatch.name = "all";
