@@ -84,7 +84,7 @@ __ni_ifworker_new(ni_ifworker_type_t type, const char *name, xml_node_t *config)
 	w = calloc(1, sizeof(*w));
 	ni_string_dup(&w->name, name);
 	w->type = type;
-	w->config = config;
+	w->config.node = config;
 	w->refcount = 1;
 
 	w->target_range.min = STATE_NONE;
@@ -430,7 +430,7 @@ ni_ifworker_match_alias(const ni_ifworker_t *w, const char *alias)
 	if (w->device && ni_string_eq(w->device->link.alias, alias))
 		return TRUE;
 
-	if (w->config && (node = xml_node_get_child(w->config, "alias")) != NULL) {
+	if (w->config.node && (node = xml_node_get_child(w->config.node, "alias")) != NULL) {
 		if (ni_string_eq(node->cdata, alias))
 			return TRUE;
 	}
@@ -552,7 +552,7 @@ ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *d
 	if (child->exclusive_owner != NULL) {
 		char *other_owner;
 
-		other_owner = strdup(xml_node_location(child->exclusive_owner->config));
+		other_owner = strdup(xml_node_location(child->exclusive_owner->config.node));
 		ni_error("%s: subordinate interface already owned by %s",
 				xml_node_location(devnode), other_owner);
 		free(other_owner);
@@ -718,11 +718,11 @@ ni_ifworker_update_state(ni_ifworker_t *w, unsigned int min_state, unsigned int 
 static void
 ni_ifworker_generate_uuid(ni_ifworker_t *w)
 {
-	if (w->config) {
+	if (w->config.node) {
 		int md_len;
 
 		memset(&w->uuid, 0, sizeof(w->uuid));
-		md_len = xml_node_hash(w->config, w->uuid.octets, sizeof(w->uuid.octets));
+		md_len = xml_node_hash(w->config.node, w->uuid.octets, sizeof(w->uuid.octets));
 		if (md_len < 0)
 			ni_fatal("cannot generate uuid for %s config - hashing failed?!", w->name);
 		return;
@@ -773,7 +773,7 @@ ni_ifworkers_from_xml(ni_objectmodel_fsm_t *fsm, xml_document_t *doc, const char
 				ni_debug_application("%s: identified interface %s",
 						xml_node_location(node),
 						w->name);
-				w->config = ifnode;
+				w->config.node = ifnode;
 			}
 		} else {
 			if (ifname == NULL) {
@@ -782,7 +782,7 @@ ni_ifworkers_from_xml(ni_objectmodel_fsm_t *fsm, xml_document_t *doc, const char
 			}
 
 			if ((w = ni_ifworker_lookup(fsm, type, ifname)) != NULL)
-				w->config = ifnode;
+				w->config.node = ifnode;
 			else
 				w = ni_ifworker_new(fsm, type, ifname, ifnode);
 		}
@@ -992,7 +992,7 @@ ni_ifworker_apply_policies(ni_ifworker_t *w)
 	ni_ifpolicy_t *policy;
 	xml_node_t *config;
 
-	if (w->config && (config = xml_node_get_child(w->config, "policies"))) {
+	if (w->config.node && (config = xml_node_get_child(w->config.node, "policies"))) {
 		xml_node_t *child;
 
 		for (child = config->children; child; child = child->next) {
@@ -1052,7 +1052,7 @@ ni_ifworker_get_matching(ni_objectmodel_fsm_t *fsm, ni_ifmatcher_t *match, ni_if
 
 		if (w->type != NI_IFWORKER_TYPE_NETDEV)
 			continue;
-		if (w->config == NULL && match->require_config)
+		if (w->config.node == NULL && match->require_config)
 			continue;
 		if (w->exclusive_owner)
 			continue;
@@ -1063,8 +1063,8 @@ ni_ifworker_get_matching(ni_objectmodel_fsm_t *fsm, ni_ifmatcher_t *match, ni_if
 		if (match->boot_label) {
 			xml_node_t *boot_node;
 
-			if (w->config == NULL
-			 || !(boot_node = xml_node_get_child(w->config, "boot-label"))
+			if (w->config.node == NULL
+			 || !(boot_node = xml_node_get_child(w->config.node, "boot-label"))
 			 || !ni_string_eq(match->boot_label, boot_node->cdata))
 				continue;
 		}
@@ -1072,8 +1072,8 @@ ni_ifworker_get_matching(ni_objectmodel_fsm_t *fsm, ni_ifmatcher_t *match, ni_if
 		if (match->boot_stage) {
 			xml_node_t *boot_node;
 
-			if (w->config == NULL
-			 || !(boot_node = xml_node_get_child(w->config, "boot-stage"))
+			if (w->config.node == NULL
+			 || !(boot_node = xml_node_get_child(w->config.node, "boot-stage"))
 			 || !ni_string_eq(match->boot_stage, boot_node->cdata))
 				continue;
 		}
@@ -1336,11 +1336,11 @@ ni_ifworker_bind_device_factory_api(ni_ifworker_t *w)
 	unsigned int i, count;
 	int rv;
 
-	if (w->config == NULL || w->device_api.factory_service)
+	if (w->config.node == NULL || w->device_api.factory_service)
 		return 0;
 
 	/* Allow the configuration to explicitly specify a link-type. */
-	link_type = xml_node_get_attr(w->config, "link-type");
+	link_type = xml_node_get_attr(w->config.node, "link-type");
 	if (link_type != NULL) {
 		const ni_dbus_service_t *service, *factory_service;
 		const ni_dbus_class_t *class;
@@ -1349,7 +1349,7 @@ ni_ifworker_bind_device_factory_api(ni_ifworker_t *w)
 		snprintf(classname, sizeof(classname), "netif-%s", link_type);
 		if (!(class = ni_objectmodel_get_class(classname))) {
 			ni_error("%s: unknown device class \"%s\" in link-type attribute",
-					xml_node_location(w->config), link_type);
+					xml_node_location(w->config.node), link_type);
 			ni_ifworker_fail(w, "cannot create interface: xml document error");
 			return -NI_ERROR_DOCUMENT_ERROR;
 		}
@@ -1359,7 +1359,7 @@ ni_ifworker_bind_device_factory_api(ni_ifworker_t *w)
 		if (!(service = ni_objectmodel_service_by_class(class))
 		 || !(factory_service = ni_objectmodel_factory_service(service))) {
 			ni_error("%s: unsupported device class \"%s\" in link-type attribute",
-					xml_node_location(w->config), link_type);
+					xml_node_location(w->config.node), link_type);
 			ni_ifworker_fail(w, "cannot create interface: device class not supported");
 			return -NI_ERROR_DEVICE_NOT_COMPATIBLE;
 		}
@@ -1386,7 +1386,7 @@ ni_ifworker_bind_device_factory_api(ni_ifworker_t *w)
 		if (method == NULL)
 			continue;
 
-		if ((rv = ni_dbus_xml_map_method_argument(method, 1, w->config, &config, NULL)) < 0) {
+		if ((rv = ni_dbus_xml_map_method_argument(method, 1, w->config.node, &config, NULL)) < 0) {
 			ni_ifworker_fail(w, "cannot create interface: xml document error");
 			return -NI_ERROR_DOCUMENT_ERROR;
 		}
@@ -1422,7 +1422,7 @@ ni_ifworker_bind_device_apis(ni_ifworker_t *w, const ni_dbus_service_t *service)
 	if (w->device_api.service)
 		return 1;
 
-	if (w->config == NULL)
+	if (w->config.node == NULL)
 		return 0;
 
 	if (w->object == NULL)
@@ -1436,7 +1436,7 @@ ni_ifworker_bind_device_apis(ni_ifworker_t *w, const ni_dbus_service_t *service)
 		return 0;
 
 	method = ni_dbus_service_get_method(service, "changeDevice");
-	if (method && ni_dbus_xml_map_method_argument(method, 0, w->config, &config, NULL) < 0)
+	if (method && ni_dbus_xml_map_method_argument(method, 0, w->config.node, &config, NULL) < 0)
 		return -NI_ERROR_DOCUMENT_ERROR;
 
 	w->device_api.service = service;
@@ -1471,7 +1471,7 @@ ni_ifworkers_build_hierarchy(ni_objectmodel_fsm_t *fsm)
 
 		/* A worker without an ifnode is one that we discovered in the
 		 * system, but which we've not been asked to configure. */
-		if (!w->config)
+		if (!w->config.node)
 			goto no_device_bindings;
 
 		/* First, check for factory interface */
@@ -2050,7 +2050,7 @@ ni_ifworker_map_method_requires(ni_ifworker_t *w, ni_iftransition_t *action,
 	for (i = 0; i < count; ++i) {
 		int rv;
 
-		if ((rv = ni_ifworker_require_xml(action, req_nodes[i], NULL, w->config)) < 0)
+		if ((rv = ni_ifworker_require_xml(action, req_nodes[i], NULL, w->config.node)) < 0)
 			return rv;
 	}
 
@@ -2192,7 +2192,7 @@ ni_ifworker_do_common_bind(ni_ifworker_t *w, ni_iftransition_t *action)
 		 * referenced node, and skip-unless-present is true, then we
 		 * do not perform this call.
 		 */
-		if (ni_dbus_xml_map_method_argument(bind->method, 0, w->config, &bind->config, &bind->skip_call) < 0)
+		if (ni_dbus_xml_map_method_argument(bind->method, 0, w->config.node, &bind->config, &bind->skip_call) < 0)
 			goto document_error;
 
 		/* Validate the document. This will record possible requirements, and will
@@ -2515,7 +2515,7 @@ ni_ifworker_fsm_bind_methods(ni_ifworker_t *w)
 
 		count = ni_ifpolicy_get_applicable_policies(w, policies, MAX_POLICIES);
 
-		w->config = ni_ifpolicy_transform_document(w->config, policies, count);
+		w->config.node = ni_ifpolicy_transform_document(w->config.node, policies, count);
 	}
 
 	ni_debug_application("%s: binding dbus calls to FSM transitions", w->name);

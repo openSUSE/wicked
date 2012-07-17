@@ -126,7 +126,9 @@ struct ni_ifworker {
 	ni_uuid_t		uuid;
 	char *			config_origin;
 
-	xml_node_t *		config;
+	struct {
+		xml_node_t *	node;
+	}			config;
 	ni_bool_t		use_default_policies;
 
 	/* An ifworker can represent either a network device or a modem */
