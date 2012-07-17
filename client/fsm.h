@@ -123,10 +123,9 @@ struct ni_ifworker {
 	unsigned int		failed		: 1,
 				done		: 1;
 
-	ni_uuid_t		uuid;
-	char *			config_origin;
-
 	struct {
+		char *		origin;
+		ni_uuid_t	uuid;
 		xml_node_t *	node;
 	}			config;
 	ni_bool_t		use_default_policies;

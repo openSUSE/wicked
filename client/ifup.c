@@ -109,7 +109,7 @@ static void
 ni_ifworker_free(ni_ifworker_t *w)
 {
 	ni_string_free(&w->name);
-	ni_string_free(&w->config_origin);
+	ni_string_free(&w->config.origin);
 	ni_ifworker_children_destroy(&w->children);
 
 	if (w->fsm.action_table)
@@ -665,8 +665,8 @@ ni_ifworker_update_client_info(ni_ifworker_t *w)
 
 	memset(&client_info, 0, sizeof(client_info));
 	client_info.state = (char *) ni_ifworker_state_name(w->fsm.state);
-	client_info.config_origin = w->config_origin;
-	client_info.config_uuid = w->uuid;
+	client_info.config_origin = w->config.origin;
+	client_info.config_uuid = w->config.uuid;
 	ni_call_set_client_info(w->object, &client_info);
 }
 
@@ -721,15 +721,14 @@ ni_ifworker_generate_uuid(ni_ifworker_t *w)
 	if (w->config.node) {
 		int md_len;
 
-		memset(&w->uuid, 0, sizeof(w->uuid));
-		md_len = xml_node_hash(w->config.node, w->uuid.octets, sizeof(w->uuid.octets));
+		memset(&w->config.uuid, 0, sizeof(w->config.uuid));
+		md_len = xml_node_hash(w->config.node, w->config.uuid.octets, sizeof(w->config.uuid.octets));
 		if (md_len < 0)
 			ni_fatal("cannot generate uuid for %s config - hashing failed?!", w->name);
-		return;
+	} else {
+		/* Generate a temporary uuid only */
+		ni_uuid_generate(&w->config.uuid);
 	}
-
-	/* Generate a temporary uuid only */
-	ni_uuid_generate(&w->uuid);
 	return;
 }
 
@@ -789,7 +788,7 @@ ni_ifworkers_from_xml(ni_objectmodel_fsm_t *fsm, xml_document_t *doc, const char
 
 		ni_ifworker_generate_uuid(w);
 		if (config_origin)
-			ni_string_dup(&w->config_origin, config_origin);
+			ni_string_dup(&w->config.origin, config_origin);
 
 		if ((depnode = xml_node_get_child(ifnode, "dependencies")) != NULL)
 			ni_ifworker_set_dependencies_xml(w, depnode);
@@ -3249,10 +3248,10 @@ usage:
 
 			client_info = dev->client_info;
 			if (opt_check_changed) {
-				if (!client_info || !ni_uuid_equal(&client_info->config_uuid, &w->uuid)) {
+				if (!client_info || !ni_uuid_equal(&client_info->config_uuid, &w->config.uuid)) {
 					if (!opt_quiet)
 						ni_error("%s: device configuration changed", w->name);
-					ni_debug_wicked("%s: config file uuid is %s", w->name, ni_uuid_print(&w->uuid));
+					ni_debug_wicked("%s: config file uuid is %s", w->name, ni_uuid_print(&w->config.uuid));
 					ni_debug_wicked("%s: system dev. uuid is %s", w->name,
 							client_info? ni_uuid_print(&client_info->config_uuid) : "NOT SET");
 					status = 3;
