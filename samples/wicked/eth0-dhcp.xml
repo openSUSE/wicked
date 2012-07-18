@@ -1,7 +1,14 @@
 <interface>
   <name>eth0</name>
   <description>Primary Ethernet Device</description>
-  <boot-label>boot</boot-label>
+
+  <control>
+    <mode>boot</mode>
+    <link-detection>
+      <require-link />
+      <timeout>10</timeout>
+    </link-detection>
+  </control>
 
   <ipv4:dhcp>
     <enabled>true</enabled>

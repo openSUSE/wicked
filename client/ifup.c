@@ -90,7 +90,7 @@ __ni_ifworker_new(ni_ifworker_type_t type, const char *name, xml_node_t *config)
 	w->target_range.min = STATE_NONE;
 	w->target_range.max = __STATE_MAX;
 
-	ni_string_dup(&w->control.boot_label, "boot");
+	ni_string_dup(&w->control.mode, "boot");
 	ni_string_dup(&w->control.boot_stage, "default");
 	w->control.link_timeout = NI_IFWORKER_INFINITE_TIMEOUT;
 
@@ -114,7 +114,7 @@ ni_ifworker_free(ni_ifworker_t *w)
 {
 	ni_string_free(&w->name);
 	ni_string_free(&w->config.origin);
-	ni_string_free(&w->control.boot_label);
+	ni_string_free(&w->control.mode);
 	ni_string_free(&w->control.boot_stage);
 	ni_ifworker_children_destroy(&w->children);
 
@@ -806,8 +806,8 @@ ni_ifworkers_from_xml(ni_objectmodel_fsm_t *fsm, xml_document_t *doc, const char
 			xml_node_t *ctrlnode, *linknode, *np;
 
 			ctrlnode = node;
-			if ((np = xml_node_get_child(ctrlnode, "boot-label")) != NULL)
-				ni_string_dup(&w->control.boot_label, np->cdata);
+			if ((np = xml_node_get_child(ctrlnode, "mode")) != NULL)
+				ni_string_dup(&w->control.mode, np->cdata);
 			if ((np = xml_node_get_child(ctrlnode, "boot-stage")) != NULL)
 				ni_string_dup(&w->control.boot_stage, np->cdata);
 			if ((linknode = xml_node_get_child(ctrlnode, "link-detection")) != NULL) {
@@ -1060,7 +1060,7 @@ ni_ifworker_identify_device(ni_objectmodel_fsm_t *fsm, const xml_node_t *devnode
  */
 typedef struct ni_ifmatcher {
 	const char *		name;
-	const char *		boot_label;
+	const char *		mode;
 	const char *		boot_stage;
 	const char *		skip_origin;
 	unsigned int		require_config : 1,
@@ -1149,7 +1149,7 @@ ni_ifworker_get_matching(ni_objectmodel_fsm_t *fsm, ni_ifmatcher_t *match, ni_if
 		if (match->name && !ni_string_eq(match->name, w->name))
 			continue;
 
-		if (match->boot_label && !ni_string_eq(match->boot_label, w->control.boot_label))
+		if (match->mode && !ni_string_eq(match->mode, w->control.mode))
 			continue;
 
 		if (match->boot_stage && !ni_string_eq(match->boot_stage, w->control.boot_stage))
@@ -2998,11 +2998,11 @@ ni_ifconfig_load(ni_objectmodel_fsm_t *fsm, const char *pathname)
 int
 do_ifup(int argc, char **argv)
 {
-	enum  { OPT_IFCONFIG, OPT_IFPOLICY, OPT_BOOT, OPT_STAGE, OPT_TIMEOUT, OPT_SKIP_ACTIVE, OPT_SKIP_ORIGIN };
+	enum  { OPT_IFCONFIG, OPT_IFPOLICY, OPT_CONTROL_MODE, OPT_STAGE, OPT_TIMEOUT, OPT_SKIP_ACTIVE, OPT_SKIP_ORIGIN };
 	static struct option ifup_options[] = {
 		{ "ifconfig",	required_argument, NULL,	OPT_IFCONFIG },
 		{ "ifpolicy",	required_argument, NULL,	OPT_IFPOLICY },
-		{ "boot-label",	required_argument, NULL,	OPT_BOOT },
+		{ "mode",	required_argument, NULL,	OPT_CONTROL_MODE },
 		{ "boot-stage",	required_argument, NULL,	OPT_STAGE },
 		{ "skip-active",required_argument, NULL,	OPT_SKIP_ACTIVE },
 		{ "skip-origin",required_argument, NULL,	OPT_SKIP_ORIGIN },
@@ -3011,7 +3011,7 @@ do_ifup(int argc, char **argv)
 	};
 	const char *opt_ifconfig = WICKED_IFCONFIG_DIR_PATH;
 	const char *opt_ifpolicy = NULL;
-	const char *opt_boot_label = NULL;
+	const char *opt_control_mode = NULL;
 	const char *opt_boot_stage = NULL;
 	const char *opt_skip_origin = NULL;
 	ni_bool_t opt_skip_active = FALSE;
@@ -3032,8 +3032,8 @@ do_ifup(int argc, char **argv)
 			opt_ifpolicy = optarg;
 			break;
 
-		case OPT_BOOT:
-			opt_boot_label = optarg;
+		case OPT_CONTROL_MODE:
+			opt_control_mode = optarg;
 			break;
 
 		case OPT_STAGE:
@@ -3069,8 +3069,8 @@ usage:
 				"      Read interface configuration(s) from file/directory rather than using system config\n"
 				"  --ifpolicy <pathname>\n"
 				"      Read interface policies from the given file/directory\n"
-				"  --boot-label <label>\n"
-				"      Only touch interfaces with matching <boot-label>\n"
+				"  --mode <label>\n"
+				"      Only touch interfaces with matching control <mode>\n"
 				"  --boot-stage <label>\n"
 				"      Only touch interfaces with matching <boot-stage>\n"
 				"  --skip-active\n"
@@ -3119,10 +3119,10 @@ usage:
 
 		if (!strcmp(ifmatch.name, "boot")) {
 			ifmatch.name = "all";
-			ifmatch.boot_label = "boot";
+			ifmatch.mode = "boot";
 			ifmatch.require_config = TRUE;
 		} else {
-			ifmatch.boot_label = opt_boot_label;
+			ifmatch.mode = opt_control_mode;
 			ifmatch.boot_stage = opt_boot_stage;
 		}
 

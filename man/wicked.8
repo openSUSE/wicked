@@ -137,17 +137,23 @@ of the interface(s). When \fIpathname\fP refers to a directory,
 \fBwicked\fP will scan it for files having a \fB.xml\fP suffix and
 parse these.
 .TP
-.BI "\-\-boot-label " identifier
+.BI "\-\-mode " identifier
 This can be used in conjunction with the special interface name \fBall\fP,
 in order to restrict the set of interfaces that will be brought up.
 If this option is given, only those interface configurations are considered
-that have a \fB<boot-label>\fP element containing the given identifier.
+that have a control \fB<mode>\fP element containing the given identifier.
+.IP
+If the interface does not specify a \fB<mode>\fP element in its control
+section, then it defaults to \fBboot\fP.
 .TP
 .BI "\-\-boot-stage " identifier
 This can be used in conjunction with the special interface name \fBall\fP,
 in order to restrict the set of interfaces that will be brought up.
 If this option is given, only those interface configurations are considered
 that have a \fB<boot-stage>\fP element containing the given identifier.
+.IP
+If the interface does not specify a \fB<boot-stage>\fP element in its control
+section, then it defaults to \fBdefault\fP.
 .TP
 .BI "\-\-skip-origin " identifier
 This can be used to ignore interfaces that have already been configured.
@@ -167,7 +173,7 @@ the interface fails to come up within this time, \fBwicked\fP will fail
 the device and and exit with an error code. All interfaces depending
 on the failed interface will fail as well.
 .IP
-Failed interfaces are left in and undefined state.
+Failed interfaces are left in an undefined state.
 .\" ----------------------------------------
 .SH ifdown - bring down one or more interfaces
 This command does the reverse of \fBifup\fP.
@@ -197,7 +203,7 @@ the interface fails to shut down within this time, \fBwicked\fP will fail
 the device and and exit with an error code. All interfaces that are
 used by the failed interface will fail as well.
 .IP
-Failed interfaces are left in and undefined state.
+Failed interfaces are left in an undefined state.
 .\" ----------------------------------------
 .SH xpath - retrieve data from an XML blob
 The \fBwickedd\fP server can be enhanced to support new network device types

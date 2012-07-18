@@ -125,7 +125,7 @@ struct ni_ifworker {
 				done		: 1;
 
 	struct {
-		char *		boot_label;
+		char *		mode;
 		char *		boot_stage;
 		ni_bool_t	link_required;
 		unsigned int	link_timeout;
