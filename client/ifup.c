@@ -90,6 +90,10 @@ __ni_ifworker_new(ni_ifworker_type_t type, const char *name, xml_node_t *config)
 	w->target_range.min = STATE_NONE;
 	w->target_range.max = __STATE_MAX;
 
+	ni_string_dup(&w->control.boot_label, "boot");
+	ni_string_dup(&w->control.boot_stage, "default");
+	w->control.link_timeout = NI_IFWORKER_INFINITE_TIMEOUT;
+
 	return w;
 }
 
@@ -110,6 +114,8 @@ ni_ifworker_free(ni_ifworker_t *w)
 {
 	ni_string_free(&w->name);
 	ni_string_free(&w->config.origin);
+	ni_string_free(&w->control.boot_label);
+	ni_string_free(&w->control.boot_stage);
 	ni_ifworker_children_destroy(&w->children);
 
 	if (w->fsm.action_table)
@@ -260,7 +266,17 @@ ni_ifworker_set_timeout(ni_ifworker_t *w, unsigned long timeout_ms)
 {
 	if (w->fsm.timer)
 		ni_timer_cancel(w->fsm.timer);
-	w->fsm.timer = ni_timer_register(timeout_ms, __ni_ifworker_timeout, w);
+	if (timeout_ms && timeout_ms != NI_IFWORKER_INFINITE_TIMEOUT)
+		w->fsm.timer = ni_timer_register(timeout_ms, __ni_ifworker_timeout, w);
+}
+
+static void
+ni_ifworker_set_secondary_timeout(ni_ifworker_t *w, unsigned long timeout_ms, void (*handler)(void *, const ni_timer_t *))
+{
+	if (w->fsm.secondary_timer)
+		ni_timer_cancel(w->fsm.secondary_timer);
+	if (handler && timeout_ms && timeout_ms != NI_IFWORKER_INFINITE_TIMEOUT)
+		w->fsm.secondary_timer = ni_timer_register(timeout_ms, handler, w);
 }
 
 static ni_intmap_t __state_names[] = {
@@ -786,6 +802,26 @@ ni_ifworkers_from_xml(ni_objectmodel_fsm_t *fsm, xml_document_t *doc, const char
 				w = ni_ifworker_new(fsm, type, ifname, ifnode);
 		}
 
+		if ((node = xml_node_get_child(ifnode, "control")) != NULL) {
+			xml_node_t *ctrlnode, *linknode, *np;
+
+			ctrlnode = node;
+			if ((np = xml_node_get_child(ctrlnode, "boot-label")) != NULL)
+				ni_string_dup(&w->control.boot_label, np->cdata);
+			if ((np = xml_node_get_child(ctrlnode, "boot-stage")) != NULL)
+				ni_string_dup(&w->control.boot_stage, np->cdata);
+			if ((linknode = xml_node_get_child(ctrlnode, "link-detection")) != NULL) {
+				if ((np = xml_node_get_child(linknode, "timeout")) != NULL) {
+					if (ni_string_eq(np->cdata, "infinite"))
+						w->control.link_timeout = NI_IFWORKER_INFINITE_TIMEOUT;
+					else
+						ni_parse_int(np->cdata, &w->control.link_timeout);
+				}
+				if (xml_node_get_child(linknode, "require-link"))
+					w->control.link_required = TRUE;
+			}
+		}
+
 		ni_ifworker_generate_uuid(w);
 		if (config_origin)
 			ni_string_dup(&w->config.origin, config_origin);
@@ -867,6 +903,60 @@ ni_ifworker_modem_resolver_new(xml_node_t *node)
 
 	req = ni_ifworker_req_new(ni_ifworker_req_modem_resolve, NULL);
 	req->user_data = node;
+
+	return req;
+}
+
+/*
+ * Handle link-detection check
+ */
+static void
+__ni_ifworker_link_detection_timeout(void *user_data, const ni_timer_t *timer)
+{
+	ni_ifworker_t *w = user_data;
+
+	if (w->fsm.secondary_timer != timer) {
+		ni_error("%s(%s) called with unexpected timer", __func__, w->name);
+	} else {
+		w->fsm.secondary_timer = NULL;
+		if (w->control.link_required)
+			ni_ifworker_fail(w, "link did not come up");
+		else {
+			ni_warn("%s: link did not come up, proceeding anyway", w->name);
+			w->fsm.state = STATE_LINK_UP;
+		}
+	}
+}
+
+static ni_bool_t
+ni_ifworker_req_detect_link(ni_objectmodel_fsm_t *fsm, ni_ifworker_t *w, ni_ifworker_req_t *req)
+{
+	if (w->fsm.state == STATE_LINK_UP)
+		return TRUE;
+
+	if (req->user_data != NULL) {
+		req->user_data = NULL;
+		if (w->control.link_timeout == 0) {
+			if (w->control.link_required)
+				return FALSE;
+
+			/* timeout==0 and link not required means ignore link detection */
+			w->fsm.state = STATE_LINK_UP;
+			return TRUE;
+		}
+		ni_ifworker_set_secondary_timeout(w, w->control.link_timeout, __ni_ifworker_link_detection_timeout);
+	}
+
+	return FALSE;
+}
+
+ni_ifworker_req_t *
+ni_ifworker_link_detection_new(void)
+{
+	ni_ifworker_req_t *req;
+
+	req = ni_ifworker_req_new(ni_ifworker_req_detect_link, NULL);
+	req->user_data = (void *) 1;
 
 	return req;
 }
@@ -1059,23 +1149,11 @@ ni_ifworker_get_matching(ni_objectmodel_fsm_t *fsm, ni_ifmatcher_t *match, ni_if
 		if (match->name && !ni_string_eq(match->name, w->name))
 			continue;
 
-		if (match->boot_label) {
-			xml_node_t *boot_node;
+		if (match->boot_label && !ni_string_eq(match->boot_label, w->control.boot_label))
+			continue;
 
-			if (w->config.node == NULL
-			 || !(boot_node = xml_node_get_child(w->config.node, "boot-label"))
-			 || !ni_string_eq(match->boot_label, boot_node->cdata))
-				continue;
-		}
-
-		if (match->boot_stage) {
-			xml_node_t *boot_node;
-
-			if (w->config.node == NULL
-			 || !(boot_node = xml_node_get_child(w->config.node, "boot-stage"))
-			 || !ni_string_eq(match->boot_stage, boot_node->cdata))
-				continue;
-		}
+		if (match->boot_stage && !ni_string_eq(match->boot_stage, w->control.boot_stage))
+			continue;
 
 		if (match->skip_origin) {
 			ni_netdev_t *dev;
@@ -1284,6 +1362,15 @@ ni_ifworker_mark_matching(ni_objectmodel_fsm_t *fsm, ni_ifmatcher_t *match)
 					w->name,
 					ni_ifworker_state_name(min_state),
 					ni_ifworker_state_name(max_state));
+		}
+
+		for (j = 0; j < w->children.count; ++j) {
+			ni_ifworker_t *child = w->children.data[j].child;
+
+			if (w->control.link_required)
+				child->control.link_required = TRUE;
+			if (w->control.link_timeout < child->control.link_timeout)
+				child->control.link_timeout = w->control.link_timeout;
 		}
 
 		ni_debug_application("%s: current state=%s target state=%s",
@@ -2599,6 +2686,8 @@ ni_ifworker_fsm(ni_objectmodel_fsm_t *fsm)
 				continue;
 			}
 
+			ni_ifworker_set_secondary_timeout(w, 0, NULL);
+
 			prev_state = w->fsm.state;
 			rv = action->func(w, action);
 			w->fsm.next_action++;
@@ -2953,7 +3042,7 @@ do_ifup(int argc, char **argv)
 
 		case OPT_TIMEOUT:
 			if (!strcmp(optarg, "infinite")) {
-				fsm->worker_timeout = 0;
+				fsm->worker_timeout = NI_IFWORKER_INFINITE_TIMEOUT;
 			} else if (ni_parse_int(optarg, &fsm->worker_timeout) >= 0) {
 				fsm->worker_timeout *= 1000; /* sec -> msec */
 			} else {
@@ -3087,7 +3176,7 @@ do_ifdown(int argc, char **argv)
 
 		case OPT_TIMEOUT:
 			if (!strcmp(optarg, "infinite")) {
-				fsm->worker_timeout = 0;
+				fsm->worker_timeout = NI_IFWORKER_INFINITE_TIMEOUT;
 			} else if (ni_parse_int(optarg, &fsm->worker_timeout) >= 0) {
 				fsm->worker_timeout *= 1000; /* sec -> msec */
 			} else {

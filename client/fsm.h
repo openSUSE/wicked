@@ -31,6 +31,7 @@ enum {
 };
 
 #define NI_IFWORKER_DEFAULT_TIMEOUT	20000
+#define NI_IFWORKER_INFINITE_TIMEOUT	((unsigned int) -1)
 
 typedef struct ni_objectmodel_fsm ni_objectmodel_fsm_t;
 typedef struct ni_ifworker	ni_ifworker_t;
@@ -124,6 +125,13 @@ struct ni_ifworker {
 				done		: 1;
 
 	struct {
+		char *		boot_label;
+		char *		boot_stage;
+		ni_bool_t	link_required;
+		unsigned int	link_timeout;
+	} control;
+
+	struct {
 		char *		origin;
 		ni_uuid_t	uuid;
 		xml_node_t *	node;
@@ -148,6 +156,7 @@ struct ni_ifworker {
 		ni_iftransition_t *next_action;
 		ni_iftransition_t *action_table;
 		const ni_timer_t *timer;
+		const ni_timer_t *secondary_timer;
 	} fsm;
 
 	unsigned int		shared_users;

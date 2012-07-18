@@ -76,7 +76,9 @@ and the requested address configuration:
 .nf
  <interface>
    <name>eth0</name>
-   <boot-label>boot</boot-label>
+   <control>
+    <boot-label>boot</boot-label>
+   </control>
 
    <ipv4:dhcp>
      <enabled>true</enabled>
@@ -104,7 +106,9 @@ on top of \fBeth0\fP, with a static address configuration:
 .nf
 <interface>
   <name>eth0.42</name>
-  <boot-label>boot</boot-label>
+   <control>
+    <boot-label>boot</boot-label>
+   </control>
   <description>VLAN 42</description>
 
   <vlan>
