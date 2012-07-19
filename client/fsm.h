@@ -42,14 +42,14 @@ typedef struct ni_ifworker_array {
 	ni_ifworker_t **	data;
 } ni_ifworker_array_t;
 
-typedef struct ni_netif_action	ni_iftransition_t;
+typedef struct ni_iftransition	ni_iftransition_t;
 
-typedef int			ni_netif_action_fn_t(ni_ifworker_t *, ni_iftransition_t *);
-struct ni_netif_action {
+typedef int			ni_iftransition_fn_t(ni_ifworker_t *, ni_iftransition_t *);
+struct ni_iftransition {
 	int			from_state;
 	int			next_state;
-	ni_netif_action_fn_t *	bind_func;
-	ni_netif_action_fn_t *	func;
+	ni_iftransition_fn_t *	bind_func;
+	ni_iftransition_fn_t *	func;
 
 	struct {
 		const char *		service_name;
@@ -63,15 +63,15 @@ struct ni_netif_action {
 		ni_bool_t		call_overloading;
 	} common;
 
-#define NI_NETIF_ACTION_BINDINGS_MAX	32
+#define NI_IFTRANSITION_BINDINGS_MAX	32
 	ni_bool_t			bound;
 	unsigned int			num_bindings;
-	struct ni_netif_action_binding {
+	struct ni_iftransition_binding {
 		const ni_dbus_service_t *service;
 		const ni_dbus_method_t *method;
 		xml_node_t *		config;
 		ni_bool_t		skip_call;
-	} binding[NI_NETIF_ACTION_BINDINGS_MAX];
+	} binding[NI_IFTRANSITION_BINDINGS_MAX];
 
 	ni_objectmodel_callback_info_t *callbacks;
 

@@ -2138,7 +2138,7 @@ ni_ifworker_map_method_requires(ni_ifworker_t *w, ni_iftransition_t *action,
 static void
 ni_ifworker_print_binding(ni_ifworker_t *w, ni_iftransition_t *action)
 {
-	struct ni_netif_action_binding *bind;
+	struct ni_iftransition_binding *bind;
 	unsigned int i;
 
 	for (i = 0, bind = action->binding; i < action->num_bindings; ++i, ++bind) {
@@ -2215,12 +2215,12 @@ ni_ifworker_do_common_bind(ni_ifworker_t *w, ni_iftransition_t *action)
 			 * This happens when it comes to addrconf services, for instance,
 			 * but also for link authentication and firewalling.
 			 */
-			const ni_dbus_service_t *services[NI_NETIF_ACTION_BINDINGS_MAX];
+			const ni_dbus_service_t *services[NI_IFTRANSITION_BINDINGS_MAX];
 			unsigned int count;
 
 			count = ni_dbus_object_get_all_services_for_method(w->object,
 						action->common.method_name,
-						services, NI_NETIF_ACTION_BINDINGS_MAX);
+						services, NI_IFTRANSITION_BINDINGS_MAX);
 
 			/* If there is no interface supporting this method, we trivially succeed. */
 			if (count == 0)
@@ -2234,7 +2234,7 @@ ni_ifworker_do_common_bind(ni_ifworker_t *w, ni_iftransition_t *action)
 
 	/* Now bind method and config. */
 	for (i = 0; i < action->num_bindings; ++i) {
-		struct ni_netif_action_binding *bind = &action->binding[i];
+		struct ni_iftransition_binding *bind = &action->binding[i];
 
 		bind->method = ni_dbus_service_get_method(bind->service, action->common.method_name);
 
@@ -2299,7 +2299,7 @@ ni_ifworker_do_common(ni_ifworker_t *w, ni_iftransition_t *action)
 	int rv;
 
 	for (i = 0; i < action->num_bindings; ++i) {
-		struct ni_netif_action_binding *bind = &action->binding[i];
+		struct ni_iftransition_binding *bind = &action->binding[i];
 		ni_objectmodel_callback_info_t *callback_list = NULL;
 
 		ni_trace("%s(%s, %s, %s)", __func__, w->name,
@@ -2341,7 +2341,7 @@ ni_ifworker_do_common(ni_ifworker_t *w, ni_iftransition_t *action)
 static int
 ni_ifworker_bind_device_factory(ni_ifworker_t *w, ni_iftransition_t *action)
 {
-	struct ni_netif_action_binding *bind;
+	struct ni_iftransition_binding *bind;
 	int rv;
 
 	if (action->bound)
@@ -2372,7 +2372,7 @@ static int
 ni_ifworker_call_device_factory(ni_ifworker_t *w, ni_iftransition_t *action)
 {
 	if (!ni_ifworker_device_bound(w)) {
-		struct ni_netif_action_binding *bind;
+		struct ni_iftransition_binding *bind;
 		const char *relative_path;
 		char *object_path;
 
