@@ -41,7 +41,7 @@ struct ni_ifcondition {
 			ni_ifcondition_t *right;
 		} terms;
 		const ni_dbus_class_t *	class;
-		char *			alias;
+		char *			string;
 	} args;
 };
 
@@ -740,7 +740,7 @@ ni_ifcondition_device(xml_node_t *node)
 static ni_bool_t
 __ni_ifpolicy_match_device_alias_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
 {
-	return ni_ifworker_match_alias(w, cond->args.alias);
+	return ni_ifworker_match_alias(w, cond->args.string);
 }
 
 static ni_ifcondition_t *
@@ -754,7 +754,57 @@ ni_ifcondition_device_alias(xml_node_t *node)
 	}
 
 	result = ni_ifcondition_new(__ni_ifpolicy_match_device_alias_check);
-	ni_string_dup(&result->args.alias, node->cdata);
+	ni_string_dup(&result->args.string, node->cdata);
+	return result;
+}
+
+/*
+ * <control-mode>xyz</control-mode>
+ * Compare xyz to the contents of <control><mode> ...</mode></control>
+ */
+static ni_bool_t
+__ni_ifpolicy_match_control_mode_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
+{
+	return ni_string_eq(w->control.mode, cond->args.string);
+}
+
+static ni_ifcondition_t *
+ni_ifcondition_control_mode(xml_node_t *node)
+{
+	ni_ifcondition_t *result;
+
+	if (node->cdata == NULL) {
+		ni_error("%s: no mode specified", xml_node_location(node));
+		return NULL;
+	}
+
+	result = ni_ifcondition_new(__ni_ifpolicy_match_control_mode_check);
+	ni_string_dup(&result->args.string, node->cdata);
+	return result;
+}
+
+/*
+ * <boot-stage>xyz</boot-stage>
+ * Compare xyz to the contents of <control><boot-stage> ...</boot-stage></control>
+ */
+static ni_bool_t
+__ni_ifpolicy_match_boot_stage_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
+{
+	return ni_string_eq(w->control.boot_stage, cond->args.string);
+}
+
+static ni_ifcondition_t *
+ni_ifcondition_boot_stage(xml_node_t *node)
+{
+	ni_ifcondition_t *result;
+
+	if (node->cdata == NULL) {
+		ni_error("%s: no boot stage specified", xml_node_location(node));
+		return NULL;
+	}
+
+	result = ni_ifcondition_new(__ni_ifpolicy_match_boot_stage_check);
+	ni_string_dup(&result->args.string, node->cdata);
 	return result;
 }
 
@@ -815,6 +865,10 @@ ni_ifcondition_from_xml(xml_node_t *node)
 		return ni_ifcondition_linktype(node);
 	if (!strcmp(node->name, "device-alias"))
 		return ni_ifcondition_device_alias(node);
+	if (!strcmp(node->name, "control-mode"))
+		return ni_ifcondition_control_mode(node);
+	if (!strcmp(node->name, "boot-stage"))
+		return ni_ifcondition_boot_stage(node);
 
 	ni_error("%s: unsupported policy conditional <%s>", xml_node_location(node), node->name);
 	return NULL;

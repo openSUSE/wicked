@@ -20,11 +20,6 @@ wickedd:
 	- Add a naming service to identify a PCI hotplug device by its
 	  enclosure.
 
-wicked client:
-	- allow option to bring up a network device even though the link
-	  is not up. This has been the default behavior of ethernet interfaces
-	  for ages.
-
 ifup replacement features:
 	- ifplugd: we could support this in the wicked client using
 	  some <policy> element.
@@ -41,8 +36,6 @@ ifup replacement features:
 	  options and provide one generic expression mechanism)
 
 	- Allow selection of link-detection timeout per device, and as policy.
-
-	- Allow policy selection based on boot-label and boot-stage.
 
 netinfo:
 	- Introduce an <access-provider> abstraction; this can be either
