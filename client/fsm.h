@@ -42,16 +42,6 @@ typedef struct ni_ifworker_array {
 	ni_ifworker_t **	data;
 } ni_ifworker_array_t;
 
-#define NI_IFWORKER_EDGE_MAX_CALLS	8
-typedef struct ni_ifworker_edge {
-	ni_ifworker_t *		child;
-} ni_ifworker_edge_t;
-
-typedef struct ni_ifworker_children {
-	unsigned int		count;
-	ni_ifworker_edge_t *	data;
-} ni_ifworker_children_t;
-
 typedef struct ni_netif_action	ni_iftransition_t;
 
 typedef int			ni_netif_action_fn_t(ni_ifworker_t *, ni_iftransition_t *);
@@ -155,7 +145,7 @@ struct ni_ifworker {
 
 	ni_ifworker_t *		parent;
 	unsigned int		depth;		/* depth in device graph */
-	ni_ifworker_children_t	children;
+	ni_ifworker_array_t	children;
 };
 
 /*

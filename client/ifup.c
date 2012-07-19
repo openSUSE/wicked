@@ -44,8 +44,6 @@ static const char *		ni_ifworker_state_name(int);
 static void			ni_ifworker_array_destroy(ni_ifworker_array_t *);
 static void			ni_ifworker_array_append(ni_ifworker_array_t *, ni_ifworker_t *);
 static int			ni_ifworker_array_index(const ni_ifworker_array_t *, const ni_ifworker_t *);
-static ni_ifworker_edge_t *	ni_ifworker_children_append(ni_ifworker_children_t *, ni_ifworker_t *);
-static void			ni_ifworker_children_destroy(ni_ifworker_children_t *);
 static ni_ifworker_t *		ni_ifworker_identify_device(ni_objectmodel_fsm_t *, const xml_node_t *, ni_ifworker_type_t);
 static void			ni_ifworker_set_dependencies_xml(ni_ifworker_t *, xml_node_t *);
 static void			ni_ifworker_fsm_init(ni_ifworker_t *, unsigned int, unsigned int);
@@ -117,7 +115,7 @@ ni_ifworker_free(ni_ifworker_t *w)
 	ni_string_free(&w->config.origin);
 	ni_string_free(&w->control.mode);
 	ni_string_free(&w->control.boot_stage);
-	ni_ifworker_children_destroy(&w->children);
+	ni_ifworker_array_destroy(&w->children);
 
 	if (w->fsm.action_table) {
 		ni_iftransition_t *action;
@@ -547,45 +545,15 @@ ni_ifworker_resolve_reference(ni_objectmodel_fsm_t *fsm, xml_node_t *devnode, ni
 	return child;
 }
 
-static ni_ifworker_edge_t *
-ni_ifworker_children_append(ni_ifworker_children_t *array, ni_ifworker_t *child)
-{
-	struct ni_ifworker_edge *edge;
-
-	array->data = realloc(array->data, (array->count + 1) * sizeof(array->data[0]));
-	edge = &array->data[array->count++];
-
-	memset(edge, 0, sizeof(*edge));
-	edge->child = child;
-	child->refcount++;
-
-	return edge;
-}
-
-static void
-ni_ifworker_children_destroy(ni_ifworker_children_t *array)
-{
-	struct ni_ifworker_edge *edge;
-	unsigned int i;
-
-	for (edge = array->data, i = 0; i < array->count; ++i, ++edge) {
-		ni_ifworker_release(edge->child);
-	}
-	free(array->data);
-	memset(array, 0, sizeof(*array));
-}
-
-
-static ni_ifworker_edge_t *
+static ni_bool_t
 ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *devnode, ni_bool_t shared)
 {
-	ni_ifworker_edge_t *edge;
 	unsigned int i;
 
 	/* Check if this child is already owned by the given parent. */
-	for (i = 0, edge = parent->children.data; i < parent->children.count; ++i, ++edge) {
-		if (parent->children.data[i].child == child)
-			return edge;
+	for (i = 0; i < parent->children.count; ++i) {
+		if (parent->children.data[i] == child)
+			return TRUE;
 	}
 
 	if (child->exclusive_owner != NULL) {
@@ -595,7 +563,7 @@ ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *d
 		ni_error("%s: subordinate interface already owned by %s",
 				xml_node_location(devnode), other_owner);
 		free(other_owner);
-		return NULL;
+		return FALSE;
 	}
 
 	if (shared) {
@@ -605,17 +573,13 @@ ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *d
 		if (child->shared_users) {
 			ni_error("%s: interface already in shared use by other interfaces",
 					xml_node_location(devnode));
-			return NULL;
+			return FALSE;
 		}
 		child->exclusive_owner = parent;
 	}
 
-	/* We record the devnode along with the child, so that we can update
-	 * devnode->cdata with the object path before we call any device change
-	 * functions. */
-	edge = ni_ifworker_children_append(&parent->children, child);
-
-	return edge;
+	ni_ifworker_array_append(&parent->children, child);
+	return TRUE;
 }
 
 /* Create an event wait object */
@@ -1289,7 +1253,7 @@ ni_ifworker_check_loops(const ni_ifworker_t *w, unsigned int *counter)
 	*counter -= nchildren;
 
 	for (i = 0; i < w->children.count && ret; ++i) {
-		ni_ifworker_t *child = w->children.data[i].child;
+		ni_ifworker_t *child = w->children.data[i];
 
 		ret = ni_ifworker_check_loops(child, counter);
 	}
@@ -1332,7 +1296,7 @@ __ni_ifworker_flatten(ni_ifworker_t *w, ni_ifworker_array_t *array, unsigned int
 		w->depth = depth;
 
 	for (i = 0; i < w->children.count; ++i) {
-		ni_ifworker_t *child = w->children.data[i].child;
+		ni_ifworker_t *child = w->children.data[i];
 
 		if (ni_ifworker_array_index(array, child) < 0)
 			ni_ifworker_array_append(array, child);
@@ -1434,7 +1398,7 @@ ni_ifworker_mark_matching(ni_objectmodel_fsm_t *fsm, ni_ifmatcher_t *match)
 		}
 
 		for (j = 0; j < w->children.count; ++j) {
-			ni_ifworker_t *child = w->children.data[j].child;
+			ni_ifworker_t *child = w->children.data[j];
 
 			if (w->control.link_required)
 				child->control.link_required = TRUE;
@@ -1690,7 +1654,6 @@ ni_ifworker_netif_resolve_cb(xml_node_t *node, const ni_xs_type_t *type, const x
 	struct ni_ifworker_xml_validation_user_data *closure = user_data;
 	ni_ifworker_t *w = closure->worker;
 	ni_ifworker_t *child_worker = NULL;
-	ni_ifworker_edge_t *edge = NULL;
 	xml_node_t *mchild;
 
 	for (mchild = metadata->children; mchild; mchild = mchild->next) {
@@ -1710,7 +1673,7 @@ ni_ifworker_netif_resolve_cb(xml_node_t *node, const ni_xs_type_t *type, const x
 				shared = ni_string_eq(attr, "true");
 
 			ni_debug_application("%s: resolved reference to subordinate device %s", w->name, child_worker->name);
-			if (!(edge = ni_ifworker_add_child(w, child_worker, node, shared)))
+			if (!ni_ifworker_add_child(w, child_worker, node, shared))
 				return FALSE;
 		} else
 		if (ni_string_eq(mchild->name, "modem-reference")) {
@@ -1727,7 +1690,7 @@ ni_ifworker_netif_resolve_cb(xml_node_t *node, const ni_xs_type_t *type, const x
 				shared = ni_string_eq(attr, "true");
 
 			ni_debug_application("%s: resolved reference to subordinate device %s", w->name, child_worker->name);
-			if (!(edge = ni_ifworker_add_child(w, child_worker, node, shared)))
+			if (!ni_ifworker_add_child(w, child_worker, node, shared))
 				return FALSE;
 		} else
 		if (ni_string_eq(mchild->name, "require")) {
@@ -1795,7 +1758,7 @@ __ni_ifworker_print_tree(const char *arrow, const ni_ifworker_t *w, const char *
 
 		arrow = " +--> ";
 		for (i = 0; i < w->children.count; ++i) {
-			ni_ifworker_t *child = w->children.data[i].child;
+			ni_ifworker_t *child = w->children.data[i];
 
 			if (i != 0) {
 				fprintf(stderr, "%s%10s", branches, "");
