@@ -156,6 +156,8 @@ struct ni_ifworker {
 		ni_iftransition_t *action_table;
 		const ni_timer_t *timer;
 		const ni_timer_t *secondary_timer;
+
+		ni_ifworker_req_t *child_state_req_list;
 	} fsm;
 
 	unsigned int		shared_users;

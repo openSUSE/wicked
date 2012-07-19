@@ -128,6 +128,8 @@ ni_ifworker_free(ni_ifworker_t *w)
 	}
 	w->fsm.action_table = NULL;
 
+	ni_ifworker_req_list_destroy(&w->fsm.child_state_req_list);
+
 	free(w);
 }
 
@@ -216,6 +218,13 @@ ni_ifworker_req_list_destroy(ni_ifworker_req_t **list)
 		*list = req->next;
 		ni_ifworker_req_free(req);
 	}
+}
+
+void
+ni_ifworker_req_list_insert(ni_ifworker_req_t **list, ni_ifworker_req_t *req)
+{
+	req->next = *list;
+	*list = req;
 }
 
 /*
@@ -978,6 +987,109 @@ ni_ifworker_link_detection_new(void)
 }
 
 /*
+ * Handle dependencies that check for a specific child state.
+ */
+struct ni_child_state_req_data {
+	ni_ifworker_t *		child;
+	char *			method;
+	unsigned int		min_child_state;
+	unsigned int		max_child_state;
+};
+
+static ni_bool_t
+ni_ifworker_child_state_req_test(ni_objectmodel_fsm_t *fsm, ni_ifworker_t *w, ni_ifworker_req_t *req)
+{
+	struct ni_child_state_req_data *data = (struct ni_child_state_req_data *) req->user_data;
+	ni_ifworker_t *child = data->child;
+	unsigned int wait_for_state;
+
+	if (child->fsm.state < data->min_child_state) {
+		wait_for_state = data->min_child_state;
+	} else
+	if (child->fsm.state > data->max_child_state) {
+		wait_for_state = data->max_child_state;
+	} else {
+		/* Okay, child interface is ready */
+		return TRUE;
+	}
+
+	if (child->failed) {
+		/* Child is not in the expected state, but as it failed, it'll
+		 * never get there. Fail the parent as well. */
+		ni_ifworker_fail(w, "subordinate device %s failed", child->name);
+		return FALSE;
+	}
+
+	ni_debug_application("%s: waiting for %s to reach state %s",
+				w->name, child->name,
+				ni_ifworker_state_name(wait_for_state));
+	return FALSE;
+}
+
+static void
+ni_ifworker_child_state_req_free(ni_ifworker_req_t *req)
+{
+	struct ni_child_state_req_data *data = (struct ni_child_state_req_data *) req->user_data;
+
+	if (data) {
+		ni_string_free(&data->method);
+		free(data);
+	}
+	req->user_data = NULL;
+}
+
+static void
+ni_ifworker_add_child_state_req(ni_ifworker_t *w, const char *method, ni_ifworker_t *child_worker,
+			unsigned int min_state, unsigned int max_state)
+{
+	struct ni_child_state_req_data *data;
+	ni_ifworker_req_t *req;
+
+	data = calloc(1, sizeof(*data));
+	data->child = child_worker;
+	ni_string_dup(&data->method, method);
+	data->min_child_state = min_state;
+	data->max_child_state = max_state;
+
+	req = ni_ifworker_req_new(ni_ifworker_child_state_req_test, ni_ifworker_child_state_req_free);
+	req->user_data = data;
+
+	req->next = w->fsm.child_state_req_list;
+	w->fsm.child_state_req_list = req;
+}
+
+static void
+ni_ifworker_get_child_state_reqs_for_method(ni_ifworker_t *w, ni_iftransition_t *action)
+{
+	ni_ifworker_req_t **list, *req;
+
+	for (list = &w->fsm.child_state_req_list; (req = *list) != NULL; ) {
+		struct ni_child_state_req_data *data = req->user_data;
+		unsigned int min_state = data->min_child_state;
+		unsigned int max_state = data->max_child_state;
+		ni_ifworker_t *child = data->child;
+
+		if (!ni_string_eq(data->method, action->common.method_name)) {
+			list = &req->next;
+			continue;
+		}
+
+		ni_debug_application("%s: %s transition requires state of child %s to be in range [%s, %s]",
+				w->name, data->method, child->name,
+				ni_ifworker_state_name(min_state),
+				ni_ifworker_state_name(max_state));
+		if (min_state > child->target_range.min)
+			child->target_range.min = min_state;
+		if (max_state < child->target_range.max)
+			child->target_range.max = max_state;
+
+		/* Move this requirement to the action's req list */
+		*list = req->next;
+		ni_ifworker_req_list_insert(&action->require.list, req);
+	}
+}
+
+/*
  * Dependency handling for interface bring-up.
  */
 void
@@ -1284,6 +1396,7 @@ ni_ifworkers_flatten(ni_ifworker_array_t *array)
 	qsort(array->data, array->count, sizeof(array->data[0]), __ni_ifworker_depth_compare);
 }
 
+#if 0
 static int
 ni_ifworker_mark_up(ni_ifworker_t *w, const char *method)
 {
@@ -1313,6 +1426,7 @@ ni_ifworker_mark_up(ni_ifworker_t *w, const char *method)
 
 	return 0;
 }
+#endif
 
 /*
  * After we've picked the list of matching interfaces, set their target state.
@@ -1405,10 +1519,7 @@ ni_ifworker_mark_matching(ni_objectmodel_fsm_t *fsm, ni_ifmatcher_t *match)
 		 * minimum/maximum state.
 		 */
 		for (j = 0; j < w->fsm.action_table[j].next_state; ++j) {
-			const char *method = w->fsm.action_table[j].common.method_name;
-
-			if (method)
-				ni_ifworker_mark_up(w, method);
+			ni_ifworker_get_child_state_reqs_for_method(w, &w->fsm.action_table[j]);
 		}
 	}
 
@@ -1682,6 +1793,7 @@ ni_ifworker_netif_resolve_cb(xml_node_t *node, const ni_xs_type_t *type, const x
 		} else
 		if (ni_string_eq(mchild->name, "require")) {
 			int min_state = STATE_NONE, max_state = __STATE_MAX;
+			const char *method;
 
 			if ((attr = xml_node_get_attr(mchild, "check")) == NULL
 			 || !ni_string_eq(attr, "netif-child-state"))
@@ -1705,18 +1817,18 @@ ni_ifworker_netif_resolve_cb(xml_node_t *node, const ni_xs_type_t *type, const x
 				}
 			}
 
-			if ((attr = xml_node_get_attr(mchild, "op")) == NULL) {
+			if ((method = xml_node_get_attr(mchild, "op")) == NULL) {
 				ni_error("%s: missing op attribute", xml_node_location(mchild));
 				return FALSE;
 			}
 
-			if (edge == NULL) {
+			if (child_worker == NULL) {
 				ni_error("%s: <meta:require check=netif-child-state> without netif-reference",
 						xml_node_location(mchild));
 				return FALSE;
 			}
 
-			ni_ifworker_edge_set_states(edge, attr, min_state, max_state);
+			ni_ifworker_add_child_state_req(w, method, child_worker, min_state, max_state);
 		}
 	}
 
@@ -1888,6 +2000,7 @@ ni_ifworker_ready(const ni_ifworker_t *w)
 	return w->done || w->target_state == STATE_NONE || w->target_state == w->fsm.state;
 }
 
+#if 0
 /*
  * The parent would like to move to the next state. See if all children are
  * ready.
@@ -1937,6 +2050,7 @@ ni_ifworker_children_ready_for(ni_ifworker_t *w, const ni_iftransition_t *action
 
 	return TRUE;
 }
+#endif
 
 /*
  * This error handler can be used by link management functions to request
@@ -2677,6 +2791,7 @@ ni_ifworker_fsm(ni_objectmodel_fsm_t *fsm)
 			if (w->failed || ni_ifworker_ready(w))
 				continue;
 
+#if 0
 			/* If we're still waiting for children to become ready,
 			 * there's nothing we can do but wait. */
 			if (!ni_ifworker_children_ready_for(w, w->fsm.next_action)) {
@@ -2684,6 +2799,7 @@ ni_ifworker_fsm(ni_objectmodel_fsm_t *fsm)
 					made_progress = 1;
 				continue;
 			}
+#endif
 
 			/* We requested a change that takes time (such as acquiring
 			 * a DHCP lease). Wait for a notification from wickedd */
