@@ -168,8 +168,7 @@ struct ni_ifworker_req {
 struct ni_objectmodel_fsm {
 	ni_ifworker_array_t	workers;
 	unsigned int		worker_timeout;
-	unsigned int		target_min_state;
-	unsigned int		target_max_state;
+	ni_uint_range_t		target_state;
 
 	unsigned int		event_seq;
 	unsigned int		last_event_seq[__NI_EVENT_MAX];

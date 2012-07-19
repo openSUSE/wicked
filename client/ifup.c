@@ -63,8 +63,8 @@ ni_objectmodel_fsm_new(unsigned int target_min_state, unsigned int target_max_st
 
 	fsm = calloc(1, sizeof(*fsm));
 	fsm->worker_timeout = NI_IFWORKER_DEFAULT_TIMEOUT;
-	fsm->target_min_state = target_min_state;
-	fsm->target_max_state = target_max_state;
+	fsm->target_state.min = target_min_state;
+	fsm->target_state.max = target_max_state;
 	return fsm;
 }
 
@@ -927,8 +927,7 @@ ni_ifworker_link_detection_new(void)
 struct ni_child_state_req_data {
 	ni_ifworker_t *		child;
 	char *			method;
-	unsigned int		min_child_state;
-	unsigned int		max_child_state;
+	ni_uint_range_t		child_state;
 };
 
 static ni_bool_t
@@ -938,11 +937,11 @@ ni_ifworker_child_state_req_test(ni_objectmodel_fsm_t *fsm, ni_ifworker_t *w, ni
 	ni_ifworker_t *child = data->child;
 	unsigned int wait_for_state;
 
-	if (child->fsm.state < data->min_child_state) {
-		wait_for_state = data->min_child_state;
+	if (child->fsm.state < data->child_state.min) {
+		wait_for_state = data->child_state.min;
 	} else
-	if (child->fsm.state > data->max_child_state) {
-		wait_for_state = data->max_child_state;
+	if (child->fsm.state > data->child_state.max) {
+		wait_for_state = data->child_state.max;
 	} else {
 		/* Okay, child interface is ready */
 		return TRUE;
@@ -983,8 +982,8 @@ ni_ifworker_add_child_state_req(ni_ifworker_t *w, const char *method, ni_ifworke
 	data = calloc(1, sizeof(*data));
 	data->child = child_worker;
 	ni_string_dup(&data->method, method);
-	data->min_child_state = min_state;
-	data->max_child_state = max_state;
+	data->child_state.min = min_state;
+	data->child_state.max = max_state;
 
 	req = ni_ifworker_req_new(ni_ifworker_child_state_req_test, ni_ifworker_child_state_req_free);
 	req->user_data = data;
@@ -1000,8 +999,8 @@ ni_ifworker_get_child_state_reqs_for_method(ni_ifworker_t *w, ni_iftransition_t 
 
 	for (list = &w->fsm.child_state_req_list; (req = *list) != NULL; ) {
 		struct ni_child_state_req_data *data = req->user_data;
-		unsigned int min_state = data->min_child_state;
-		unsigned int max_state = data->max_child_state;
+		unsigned int min_state = data->child_state.min;
+		unsigned int max_state = data->child_state.max;
 		ni_ifworker_t *child = data->child;
 
 		if (!ni_string_eq(data->method, action->common.method_name)) {
@@ -1351,8 +1350,7 @@ ni_ifworker_mark_matching(ni_objectmodel_fsm_t *fsm, ni_ifmatcher_t *match)
 	for (i = 0; i < marked.count; ++i) {
 		ni_ifworker_t *w = marked.data[i];
 
-		w->target_range.min = fsm->target_min_state;
-		w->target_range.max = fsm->target_max_state;
+		w->target_range = fsm->target_state;
 	}
 
 	/* Collect all workers in the device graph, and sort them by increasing
@@ -3082,8 +3080,8 @@ usage:
 		goto usage;
 	}
 
-	fsm->target_min_state = STATE_ADDRCONF_UP;
-	fsm->target_max_state = __STATE_MAX;
+	fsm->target_state.min = STATE_ADDRCONF_UP;
+	fsm->target_state.max = __STATE_MAX;
 
 	if (!ni_ifworkers_create_client(fsm))
 		return 1;
@@ -3161,7 +3159,7 @@ do_ifdown(int argc, char **argv)
 			break;
 
 		case OPT_DELETE:
-			fsm->target_max_state = STATE_DEVICE_DOWN;
+			fsm->target_state.max = STATE_DEVICE_DOWN;
 			/* opt_delete = 1; */
 			break;
 
