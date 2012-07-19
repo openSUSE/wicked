@@ -1632,6 +1632,10 @@ ni_ifworker_netif_resolve_cb(xml_node_t *node, const ni_xs_type_t *type, const x
 		if (ni_string_eq(mchild->name, "netif-reference")) {
 			ni_bool_t shared = FALSE;
 
+			if (child_worker) {
+				ni_error("%s: duplicate/conflicting references", xml_node_location(node));
+				return FALSE;
+			}
 			if (!(child_worker = ni_ifworker_resolve_reference(closure->fsm, node, NI_IFWORKER_TYPE_NETDEV)))
 				return FALSE;
 
@@ -1645,6 +1649,10 @@ ni_ifworker_netif_resolve_cb(xml_node_t *node, const ni_xs_type_t *type, const x
 		if (ni_string_eq(mchild->name, "modem-reference")) {
 			ni_bool_t shared = FALSE;
 
+			if (child_worker) {
+				ni_error("%s: duplicate/conflicting references", xml_node_location(node));
+				return FALSE;
+			}
 			if (!(child_worker = ni_ifworker_resolve_reference(closure->fsm, node, NI_IFWORKER_TYPE_MODEM)))
 				return FALSE;
 
