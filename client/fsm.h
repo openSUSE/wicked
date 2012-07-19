@@ -45,16 +45,6 @@ typedef struct ni_ifworker_array {
 #define NI_IFWORKER_EDGE_MAX_CALLS	8
 typedef struct ni_ifworker_edge {
 	ni_ifworker_t *		child;
-
-	/* Associate a transition (ie a dbus call name like "linkUp")
-	 * with a minimum and/or maximum state the child must be in
-	 * before we can make this transition
-	 */
-	struct ni_ifworker_edge_precondition {
-		char *		call_name;
-		unsigned int	min_child_state;
-		unsigned int	max_child_state;
-	} call_pre[NI_IFWORKER_EDGE_MAX_CALLS];
 } ni_ifworker_edge_t;
 
 typedef struct ni_ifworker_children {

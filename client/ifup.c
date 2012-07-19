@@ -566,12 +566,10 @@ static void
 ni_ifworker_children_destroy(ni_ifworker_children_t *array)
 {
 	struct ni_ifworker_edge *edge;
-	unsigned int i, j;
+	unsigned int i;
 
 	for (edge = array->data, i = 0; i < array->count; ++i, ++edge) {
 		ni_ifworker_release(edge->child);
-		for (j = 0; j < NI_IFWORKER_EDGE_MAX_CALLS; ++j)
-			ni_string_free(&edge->call_pre[i].call_name);
 	}
 	free(array->data);
 	memset(array, 0, sizeof(*array));
@@ -618,33 +616,6 @@ ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *d
 	edge = ni_ifworker_children_append(&parent->children, child);
 
 	return edge;
-}
-
-void
-ni_ifworker_edge_set_states(ni_ifworker_edge_t *edge, const char *call, unsigned int min_state, unsigned int max_state)
-{
-	struct ni_ifworker_edge_precondition *pre;
-	unsigned int i;
-
-	ni_debug_application("%s(%s, %s, %s, %s)", __func__, edge->child->name, call,
-			ni_ifworker_state_name(min_state),
-			ni_ifworker_state_name(max_state));
-	for (i = 0, pre = edge->call_pre; i < NI_IFWORKER_EDGE_MAX_CALLS; ++i, ++pre) {
-		if (pre->call_name == NULL) {
-			ni_string_dup(&pre->call_name, call);
-			pre->min_child_state = min_state;
-			pre->max_child_state = max_state;
-			return;
-		}
-
-		if (ni_string_eq(pre->call_name, call)) {
-			if (min_state < pre->min_child_state)
-				pre->min_child_state = min_state;
-			if (max_state > pre->max_child_state)
-				pre->max_child_state = max_state;
-			return;
-		}
-	}
 }
 
 /* Create an event wait object */
@@ -1396,38 +1367,6 @@ ni_ifworkers_flatten(ni_ifworker_array_t *array)
 	qsort(array->data, array->count, sizeof(array->data[0]), __ni_ifworker_depth_compare);
 }
 
-#if 0
-static int
-ni_ifworker_mark_up(ni_ifworker_t *w, const char *method)
-{
-	ni_ifworker_edge_t *edge;
-	unsigned int i;
-
-	for (i = 0, edge = w->children.data; i < w->children.count; ++i, ++edge) {
-		ni_ifworker_t *child = edge->child;
-		unsigned int j;
-
-		for (j = 0; j < NI_IFWORKER_EDGE_MAX_CALLS; ++j) {
-			if (ni_string_eq(edge->call_pre[j].call_name, method)) {
-				unsigned int min_state = edge->call_pre[j].min_child_state;
-				unsigned int max_state = edge->call_pre[j].max_child_state;
-
-				ni_debug_application("%s: %s transition requires state of child %s to be in range [%s, %s]",
-						w->name, method, child->name,
-						ni_ifworker_state_name(min_state),
-						ni_ifworker_state_name(max_state));
-				if (min_state > child->target_range.min)
-					child->target_range.min = min_state;
-				if (max_state < child->target_range.max)
-					child->target_range.max = max_state;
-			}
-		}
-	}
-
-	return 0;
-}
-#endif
-
 /*
  * After we've picked the list of matching interfaces, set their target state.
  * We need to do this recursively - for instance, bringing up a VLAN interface
@@ -1999,58 +1938,6 @@ ni_ifworker_ready(const ni_ifworker_t *w)
 {
 	return w->done || w->target_state == STATE_NONE || w->target_state == w->fsm.state;
 }
-
-#if 0
-/*
- * The parent would like to move to the next state. See if all children are
- * ready.
- */
-static ni_bool_t
-ni_ifworker_children_ready_for(ni_ifworker_t *w, const ni_iftransition_t *action)
-{
-	unsigned int i, j;
-
-	if (!action->common.method_name)
-		return TRUE;
-
-	for (i = 0; i < w->children.count; ++i) {
-		ni_ifworker_edge_t *edge = &w->children.data[i];
-		ni_ifworker_t *child = edge->child;
-
-		for (j = 0; j < NI_IFWORKER_EDGE_MAX_CALLS; ++j) {
-			struct ni_ifworker_edge_precondition *pre = &edge->call_pre[j];
-			unsigned int wait_for_state;
-
-			if (!ni_string_eq(pre->call_name, action->common.method_name))
-				continue;
-
-			if (child->fsm.state < pre->min_child_state) {
-				wait_for_state = pre->min_child_state;
-			} else
-			if (child->fsm.state > pre->max_child_state) {
-				wait_for_state = pre->max_child_state;
-			} else {
-				/* Okay, child interface is ready */
-				continue;
-			}
-
-			if (child->failed) {
-				/* Child is not in the expected state, but as it failed, it'll
-				 * never get there. Fail the parent as well. */
-				ni_ifworker_fail(w, "subordinate device %s failed", child->name);
-				return FALSE;
-			}
-
-			ni_debug_application("%s: waiting for %s to reach state %s",
-						w->name, child->name,
-						ni_ifworker_state_name(wait_for_state));
-			return FALSE;
-		}
-	}
-
-	return TRUE;
-}
-#endif
 
 /*
  * This error handler can be used by link management functions to request
