@@ -52,7 +52,8 @@ static void			ni_ifworker_fsm_init(ni_ifworker_t *, unsigned int, unsigned int);
 static int			ni_ifworker_fsm_bind_methods(ni_ifworker_t *);
 static ni_ifworker_req_t *	ni_ifworker_netif_resolver_new(xml_node_t *);
 static ni_ifworker_req_t *	ni_ifworker_modem_resolver_new(xml_node_t *);
-//static void			ni_ifworker_req_free(ni_ifworker_req_t *);
+static void			ni_ifworker_req_list_destroy(ni_ifworker_req_t **);
+static void			ni_ifworker_req_free(ni_ifworker_req_t *);
 static int			ni_ifworker_bind_device_apis(ni_ifworker_t *, const ni_dbus_service_t *);
 static void			__ni_ifworker_refresh_netdevs(ni_objectmodel_fsm_t *);
 static void			__ni_ifworker_refresh_modems(ni_objectmodel_fsm_t *);
@@ -118,8 +119,13 @@ ni_ifworker_free(ni_ifworker_t *w)
 	ni_string_free(&w->control.boot_stage);
 	ni_ifworker_children_destroy(&w->children);
 
-	if (w->fsm.action_table)
+	if (w->fsm.action_table) {
+		ni_iftransition_t *action;
+
+		for (action = w->fsm.action_table; action->next_state; action++)
+			ni_ifworker_req_list_destroy(&action->require.list);
 		free(w->fsm.action_table);
+	}
 	w->fsm.action_table = NULL;
 
 	free(w);
@@ -199,6 +205,17 @@ ni_ifworker_req_free(ni_ifworker_req_t *req)
 	if (req->destroy_fn)
 		req->destroy_fn(req);
 	free(req);
+}
+
+void
+ni_ifworker_req_list_destroy(ni_ifworker_req_t **list)
+{
+	ni_ifworker_req_t *req;
+
+	while ((req = *list) != NULL) {
+		*list = req->next;
+		ni_ifworker_req_free(req);
+	}
 }
 
 /*
