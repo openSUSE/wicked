@@ -35,8 +35,6 @@ ifup replacement features:
 	- Make interface selection less messy (unify all the --boot-* and --skip-*
 	  options and provide one generic expression mechanism)
 
-	- Allow selection of link-detection timeout per device, and as policy.
-
 netinfo:
 	- Introduce an <access-provider> abstraction; this can be either
 	  a wireless network (ESSID, security information); an Internet
