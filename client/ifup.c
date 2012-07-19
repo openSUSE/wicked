@@ -44,7 +44,7 @@ static const char *		ni_ifworker_state_name(int);
 static void			ni_ifworker_array_destroy(ni_ifworker_array_t *);
 static void			ni_ifworker_array_append(ni_ifworker_array_t *, ni_ifworker_t *);
 static int			ni_ifworker_array_index(const ni_ifworker_array_t *, const ni_ifworker_t *);
-static ni_ifworker_edge_t *	ni_ifworker_children_append(ni_ifworker_children_t *, ni_ifworker_t *, xml_node_t *);
+static ni_ifworker_edge_t *	ni_ifworker_children_append(ni_ifworker_children_t *, ni_ifworker_t *);
 static void			ni_ifworker_children_destroy(ni_ifworker_children_t *);
 static ni_ifworker_t *		ni_ifworker_identify_device(ni_objectmodel_fsm_t *, const xml_node_t *, ni_ifworker_type_t);
 static void			ni_ifworker_set_dependencies_xml(ni_ifworker_t *, xml_node_t *);
@@ -522,7 +522,7 @@ ni_ifworker_resolve_reference(ni_objectmodel_fsm_t *fsm, xml_node_t *devnode, ni
 }
 
 static ni_ifworker_edge_t *
-ni_ifworker_children_append(ni_ifworker_children_t *array, ni_ifworker_t *child, xml_node_t *node)
+ni_ifworker_children_append(ni_ifworker_children_t *array, ni_ifworker_t *child)
 {
 	struct ni_ifworker_edge *edge;
 
@@ -531,7 +531,6 @@ ni_ifworker_children_append(ni_ifworker_children_t *array, ni_ifworker_t *child,
 
 	memset(edge, 0, sizeof(*edge));
 	edge->child = child;
-	edge->node = node;
 	child->refcount++;
 
 	return edge;
@@ -590,7 +589,7 @@ ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *d
 	/* We record the devnode along with the child, so that we can update
 	 * devnode->cdata with the object path before we call any device change
 	 * functions. */
-	edge = ni_ifworker_children_append(&parent->children, child, devnode);
+	edge = ni_ifworker_children_append(&parent->children, child);
 
 	return edge;
 }
@@ -1385,7 +1384,8 @@ ni_ifworker_mark_matching(ni_objectmodel_fsm_t *fsm, ni_ifmatcher_t *match)
 
 		/* For each of the DBus calls we will execute on this device,
 		 * check whether there are constraints on child devices that
-		 * require a certain minimum/maximum state.
+		 * require the subordinate device to have a certain
+		 * minimum/maximum state.
 		 */
 		for (j = 0; j < w->fsm.action_table[j].next_state; ++j) {
 			const char *method = w->fsm.action_table[j].common.method_name;
