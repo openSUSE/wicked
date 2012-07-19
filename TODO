@@ -14,7 +14,7 @@ wickedd:
 	- express explicit dependencies between devices.
 	   <meta:require check="netif-up">eth0</meta:require>
 	  or some such.
-	- Allow wicked to request event notification the resolver
+	- Allow wicked to request event notification when the resolver
 	  changes, or when a host becomes reachable?
 
 	- Add a naming service to identify a PCI hotplug device by its
@@ -46,58 +46,12 @@ ifconfig
 	- disable IPv6 on a device if requested
 	- support ppp, pppoe
 
-ibft:
-	- ibft entries may refer to plain eth devices (easy) or vlans.
-	  the latter are more difficult, as they do not exist at the time
-	  we want to find out about them.
-
-	  Options (currently preferring option a):
-
-	   a) we change the way we create devices. Rather than having a per
-	      link type factory function, we use a different mechanism to
-	      infer the factory interface to use with a netdev config.
-	      This allows us to use an <ibft> element and an ibft factory.
-
-	      IOW, we define an iBFT.Factory service, which is triggered
-	      by the presence of the <ibft> element in your interface xml.
-	      The factory function will either return the object path of
-	      the ethernet device (if it's plain ethernet), or create
-	      the VLAN and return its object path.
-
-	      One side effect of this might be that the distinction between
-	      device creation and discovery is blurred.
-
-	   b) when trying to identify an ibft device that specifies a VLAN
-	      tag, we create the vlan device on the fly
-
-	   c) We create a fake ibft link layer type, and an ibft factory
-	      interface which "creates" the device - either by returning
-	      the object path of the ethernet device, or by creating the
-	      VLAN device.
-
-	   d) We special case ibft. Rather than having wickedd fudge the
-	      device creation and configuration for us, we just have it
-	      create the XML config for us and return it to us.
-	      This could even be scripted.
-
 overall
 	- Add INSTALL file describing how to build wicked
 
 extensions
 	- add support conversion to a different file format when running extensions
 	- escape/reject shell metacharacters when expanding start/stop command
-
-events
-	- how to send events to a number of listeners without
-	  blocking on a SOCK_STREAM send?
-
-	  Use SOCK_DGRAM sockets. Listeners establish themselves
-	  by sending a LISTEN_ENABLE message to the server,
-	  which records the sender address.
-
-	  Any notifications are sent to all recorded listener addresses.
-	  If a send fails, the address is removed from the list
-	  of listeners.
 
 other link layers, totally unsupported as of yet
 	- infiniband
