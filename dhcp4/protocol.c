@@ -388,7 +388,9 @@ ni_dhcp_build_message(const ni_dhcp_device_t *dev,
 			if (options->fqdn == FQDN_DISABLE) {
 				ni_dhcp_option_puts(msgbuf, DHCP_HOSTNAME, options->hostname);
 			} else {
-				/* Draft IETF DHC-FQDN option(81)
+				/* IETF DHC-FQDN option(81)
+				 * http://tools.ietf.org/html/rfc4702#section-2.1
+				 *
 				 * Flags: 0000NEOS
 				 * S: 1 => Client requests Server to update
 				 *         a RR in DNS as well as PTR
