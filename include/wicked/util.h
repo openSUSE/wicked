@@ -163,6 +163,12 @@ ni_opaque_set(ni_opaque_t *obj, const void *data, size_t len)
 	obj->len = len;
 }
 
+static inline ni_bool_t
+ni_opaque_eq(const ni_opaque_t *a, const ni_opaque_t *b)
+{
+	return a->len == b->len && !memcmp(a->data, b->data, a->len);
+}
+
 extern ni_opaque_t *	ni_opaque_new(const void *data, size_t len);
 extern void		ni_opaque_free(ni_opaque_t *);
 
