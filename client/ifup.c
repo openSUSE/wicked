@@ -1790,7 +1790,7 @@ __ni_ifworker_print_tree(const char *arrow, const ni_ifworker_t *w, const char *
 	}
 }
 
-static void
+void
 ni_ifworkers_refresh_state(ni_objectmodel_fsm_t *fsm)
 {
 	ni_ifworker_t *w;
@@ -2639,7 +2639,7 @@ ni_ifworker_fsm_bind_methods(ni_ifworker_t *w)
 	return 0;
 }
 
-static unsigned int
+unsigned int
 ni_ifworker_fsm(ni_objectmodel_fsm_t *fsm)
 {
 	unsigned int i, waiting;
@@ -2832,7 +2832,7 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 done: ;
 }
 
-static dbus_bool_t
+ni_bool_t
 ni_ifworkers_create_client(ni_objectmodel_fsm_t *fsm)
 {
 	ni_dbus_client_t *client;
@@ -2855,7 +2855,7 @@ ni_ifworkers_create_client(ni_objectmodel_fsm_t *fsm)
 	return TRUE;
 }
 
-static int
+int
 ni_ifworkers_kickstart(ni_objectmodel_fsm_t *fsm)
 {
 	unsigned int i;
@@ -2890,7 +2890,7 @@ ni_ifworkers_kickstart(ni_objectmodel_fsm_t *fsm)
 	return 0;
 }
 
-static void
+void
 ni_ifworker_mainloop(ni_objectmodel_fsm_t *fsm)
 {
 	while (1) {
