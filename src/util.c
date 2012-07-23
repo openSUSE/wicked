@@ -787,8 +787,9 @@ ni_format_hex(const unsigned char *data, unsigned int datalen, char *namebuf, si
 const char *
 ni_print_hex(const unsigned char *data, unsigned int datalen)
 {
-	static char addrbuf[256];
+	static char addrbuf[512]; /* >= ni_opaque_t data * 3 */
 
+	addrbuf[0] = '\0';
 	return ni_format_hex(data, datalen, addrbuf, sizeof(addrbuf));
 }
 
