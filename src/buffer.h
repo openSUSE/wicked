@@ -92,6 +92,13 @@ ni_buffer_clear(ni_buffer_t *bp)
 	bp->head = bp->tail = 0;
 }
 
+static inline void
+ni_buffer_reset(ni_buffer_t *bp)
+{
+	ni_buffer_clear(bp);
+	bp->overflow = bp->underflow = 0;
+}
+
 static inline int
 ni_buffer_put(ni_buffer_t *bp, const void *data, size_t len)
 {
@@ -105,10 +112,10 @@ ni_buffer_put(ni_buffer_t *bp, const void *data, size_t len)
 	return 0;
 }
 
-static inline void
+static inline int
 ni_buffer_putc(ni_buffer_t *bp, unsigned char cc)
 {
-	ni_buffer_put(bp, &cc, 1);
+	return ni_buffer_put(bp, &cc, 1);
 }
 
 static inline void
