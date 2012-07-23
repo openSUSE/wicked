@@ -168,14 +168,13 @@ struct ni_ifworker_req {
 struct ni_objectmodel_fsm {
 	ni_ifworker_array_t	workers;
 	unsigned int		worker_timeout;
-	ni_uint_range_t		target_state;
 
 	unsigned int		event_seq;
 	unsigned int		last_event_seq[__NI_EVENT_MAX];
 };
 
 
-extern ni_objectmodel_fsm_t *	ni_objectmodel_fsm_new(unsigned int min_state, unsigned int max_state);
+extern ni_objectmodel_fsm_t *	ni_objectmodel_fsm_new(void);
 extern void			ni_objectmodel_fsm_free(ni_objectmodel_fsm_t *);
 
 extern int			ni_ifworker_type_from_string(const char *);

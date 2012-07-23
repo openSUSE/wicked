@@ -58,14 +58,12 @@ static void			__ni_ifworker_refresh_netdevs(ni_objectmodel_fsm_t *);
 static void			__ni_ifworker_refresh_modems(ni_objectmodel_fsm_t *);
 
 ni_objectmodel_fsm_t *
-ni_objectmodel_fsm_new(unsigned int target_min_state, unsigned int target_max_state)
+ni_objectmodel_fsm_new(void)
 {
 	ni_objectmodel_fsm_t *fsm;
 
 	fsm = calloc(1, sizeof(*fsm));
 	fsm->worker_timeout = NI_IFWORKER_DEFAULT_TIMEOUT;
-	fsm->target_state.min = target_min_state;
-	fsm->target_state.max = target_max_state;
 	return fsm;
 }
 
@@ -1360,7 +1358,7 @@ ni_ifworkers_flatten(ni_ifworker_array_t *array)
  * requires that the underlying ethernet device at least has brought up the link.
  */
 static unsigned int
-ni_ifworker_mark_matching(ni_objectmodel_fsm_t *fsm, ni_ifmatcher_t *match)
+ni_ifworker_mark_matching(ni_objectmodel_fsm_t *fsm, ni_ifmatcher_t *match, const ni_uint_range_t *target_range)
 {
 	ni_ifworker_array_t marked = { 0, NULL };
 	unsigned int i, j, count = 0;
@@ -1374,7 +1372,7 @@ ni_ifworker_mark_matching(ni_objectmodel_fsm_t *fsm, ni_ifmatcher_t *match)
 	for (i = 0; i < marked.count; ++i) {
 		ni_ifworker_t *w = marked.data[i];
 
-		w->target_range = fsm->target_state;
+		w->target_range = *target_range;
 	}
 
 	/* Collect all workers in the device graph, and sort them by increasing
@@ -3026,6 +3024,7 @@ do_ifup(int argc, char **argv)
 		{ "timeout",	required_argument, NULL,	OPT_TIMEOUT },
 		{ NULL }
 	};
+	ni_uint_range_t state_range = { .min = STATE_ADDRCONF_UP, .max = __STATE_MAX };
 	const char *opt_ifconfig = WICKED_IFCONFIG_DIR_PATH;
 	const char *opt_ifpolicy = NULL;
 	const char *opt_control_mode = NULL;
@@ -3036,7 +3035,7 @@ do_ifup(int argc, char **argv)
 	ni_objectmodel_fsm_t *fsm;
 	int c;
 
-	fsm = ni_objectmodel_fsm_new(STATE_ADDRCONF_UP, __STATE_MAX);
+	fsm = ni_objectmodel_fsm_new();
 
 	optind = 1;
 	while ((c = getopt_long(argc, argv, "", ifup_options, NULL)) != EOF) {
@@ -3108,9 +3107,6 @@ usage:
 		goto usage;
 	}
 
-	fsm->target_state.min = STATE_ADDRCONF_UP;
-	fsm->target_state.max = __STATE_MAX;
-
 	if (!ni_ifworkers_create_client(fsm))
 		return 1;
 
@@ -3143,7 +3139,7 @@ usage:
 			ifmatch.boot_stage = opt_boot_stage;
 		}
 
-		nmarked += ni_ifworker_mark_matching(fsm, &ifmatch);
+		nmarked += ni_ifworker_mark_matching(fsm, &ifmatch, &state_range);
 	}
 	if (nmarked == 0) {
 		printf("No matching interfaces\n");
@@ -3169,13 +3165,14 @@ do_ifdown(int argc, char **argv)
 		{ NULL }
 	};
 	static ni_ifmatcher_t ifmatch;
+	ni_uint_range_t target_range = { .min = STATE_NONE, .max = STATE_DEVICE_UP };
 	const char *opt_ifconfig = WICKED_IFCONFIG_DIR_PATH;
 	unsigned int nmarked;
 	/* int opt_delete = 0; */
 	ni_objectmodel_fsm_t *fsm;
 	int c;
 
-	fsm = ni_objectmodel_fsm_new(STATE_NONE, STATE_DEVICE_UP);
+	fsm = ni_objectmodel_fsm_new();
 
 	memset(&ifmatch, 0, sizeof(ifmatch));
 
@@ -3187,7 +3184,7 @@ do_ifdown(int argc, char **argv)
 			break;
 
 		case OPT_DELETE:
-			fsm->target_state.max = STATE_DEVICE_DOWN;
+			target_range.max = STATE_DEVICE_DOWN;
 			/* opt_delete = 1; */
 			break;
 
@@ -3235,7 +3232,7 @@ usage:
 	nmarked = 0;
 	while (optind < argc) {
 		ifmatch.name = argv[optind++];
-		nmarked += ni_ifworker_mark_matching(fsm, &ifmatch);
+		nmarked += ni_ifworker_mark_matching(fsm, &ifmatch, &target_range);
 	}
 	if (nmarked == 0) {
 		printf("No matching interfaces\n");
@@ -3270,7 +3267,7 @@ do_ifcheck(int argc, char **argv)
 	ni_objectmodel_fsm_t *fsm;
 	int c, status = 0;
 
-	fsm = ni_objectmodel_fsm_new(STATE_NONE, __STATE_MAX);
+	fsm = ni_objectmodel_fsm_new();
 
 	memset(&ifmatch, 0, sizeof(ifmatch));
 
