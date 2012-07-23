@@ -66,6 +66,7 @@ extern int		do_ifdown(int, char **);
 extern int		do_ifcheck(int, char **);
 extern int		do_lease(int, char **);
 extern int		do_check(int, char **);
+extern int		do_zookeeper(int, char **);
 static int		do_xpath(int, char **);
 
 int
@@ -159,7 +160,9 @@ main(int argc, char **argv)
 	if (!strcmp(cmd, "ifcheck"))
 		return do_ifcheck(argc - optind, argv + optind);
 
-	/* Old wicked style functions follow */
+	if (!strcmp(cmd, "zookeeper"))
+		return do_zookeeper(argc - optind, argv + optind);
+
 	if (!strcmp(cmd, "xpath"))
 		return do_xpath(argc - optind, argv + optind);
 

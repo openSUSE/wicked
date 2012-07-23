@@ -132,6 +132,7 @@ DHCP6SRCS = \
 CLIENTSRCS = \
 	  client/main.c \
 	  client/ifup.c \
+	  client/zookeeper.c \
 	  client/policy.c \
 	  client/calls.c \
 	  client/reachable.c
