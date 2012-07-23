@@ -78,6 +78,7 @@ static struct option		options[] = {
 	{ NULL,			no_argument,		NULL,	0 }
 };
 
+static const char *		program_name;
 static int			opt_foreground = 0;
 static int			opt_recover_leases = 0;
 static char *			opt_state_file;
@@ -97,12 +98,11 @@ static void			dhcp6_client_release_lease(const char *ifname);
 int
 main(int argc, char **argv)
 {
-	const char *progname;
 	const char *ifname = NULL;
 	int action = OPT_DBUS;
 	int c;
 
-	progname = ni_basename(argv[0]);
+	program_name = ni_basename(argv[0]);
 
 	while ((c = getopt_long(argc, argv, "+", options, NULL)) != EOF) {
 		switch (c) {
@@ -125,7 +125,7 @@ main(int argc, char **argv)
 				"        Send lease request on interface and show it\n"
 				"  --release-lease <ifname>\n"
 				"        Send lease release on interface and show it\n"
-				, progname
+				, program_name
 			       );
 			return 1;
 
@@ -437,7 +437,7 @@ dhcp6_supplicant(void)
 		ni_fatal("unable to initialize netlink listener");
 
 	if (!opt_foreground) {
-		if (ni_server_background() < 0)
+		if (ni_server_background(program_name) < 0)
 			ni_fatal("unable to background server");
 		ni_log_destination_syslog("wickedd");
 	}

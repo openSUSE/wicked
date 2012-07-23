@@ -47,6 +47,7 @@ static struct option	options[] = {
 	{ NULL }
 };
 
+static const char *	program_name;
 static int		opt_foreground = 0;
 static int		opt_recover_leases = 1;
 static int		opt_no_modem_manager = 0;
@@ -66,10 +67,9 @@ static void		wicked_catch_term_signal(int);
 int
 main(int argc, char **argv)
 {
-	const char *progname;
 	int c;
 
-	progname = ni_basename(argv[0]);
+	program_name = ni_basename(argv[0]);
 
 	while ((c = getopt_long(argc, argv, "+", options, NULL)) != EOF) {
 		switch (c) {
@@ -82,7 +82,7 @@ main(int argc, char **argv)
 				"        Read configuration file <filename> instead of system default.\n"
 				"  --debug facility\n"
 				"        Enable debugging for debug <facility>.\n",
-				progname
+				program_name
 			       );
 			return 1;
 
@@ -160,7 +160,7 @@ wicked_interface_server(void)
 	ni_server_listen_other_events(wicked_other_event);
 
 	if (!opt_foreground) {
-		if (ni_server_background() < 0)
+		if (ni_server_background(program_name) < 0)
 			ni_fatal("unable to background server");
 		ni_log_destination_syslog("wickedd");
 	}

@@ -14,6 +14,7 @@
 #include <net/if_arp.h>
 #include <signal.h>
 #include <time.h>
+#include <limits.h>
 
 #include <wicked/netinfo.h>
 #include <wicked/addrconf.h>
@@ -132,11 +133,14 @@ ni_config_backupdir(void)
  * and for connecting to it
  */
 int
-ni_server_background(void)
+ni_server_background(const char *appname)
 {
-	ni_config_fslocation_t *fsloc = &ni_global.config->pidfile;
+	const char *statedir = ni_config_statedir();
+	char pidfilepath[PATH_MAX];
 
-	return ni_daemonize(fsloc->path, fsloc->mode);
+	ni_assert(appname != NULL);
+	snprintf(pidfilepath, sizeof(pidfilepath), "%s/%s.pid", statedir, appname);
+	return ni_daemonize(pidfilepath, 0644);
 }
 
 void

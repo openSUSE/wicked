@@ -48,6 +48,7 @@ static struct option	options[] = {
 	{ NULL }
 };
 
+static const char *	program_name;
 static int		opt_foreground = 0;
 static int		opt_recover_leases = 1;
 static char *		opt_state_file;
@@ -68,10 +69,9 @@ extern ni_dbus_object_t *ni_objectmodel_register_dhcp4_device(ni_dbus_server_t *
 int
 main(int argc, char **argv)
 {
-	const char *progname;
 	int c;
 
-	progname = ni_basename(argv[0]);
+	program_name = ni_basename(argv[0]);
 
 	while ((c = getopt_long(argc, argv, "+", options, NULL)) != EOF) {
 		switch (c) {
@@ -88,7 +88,7 @@ main(int argc, char **argv)
 				"        Do not background the service.\n"
 				"  --norecover\n"
 				"        Disable automatic recovery of leases.\n"
-				, progname
+				, program_name
 			       );
 			return 1;
 
@@ -288,7 +288,7 @@ dhcp4_supplicant(void)
 		ni_fatal("unable to initialize netlink listener");
 
 	if (!opt_foreground) {
-		if (ni_server_background() < 0)
+		if (ni_server_background(program_name) < 0)
 			ni_fatal("unable to background server");
 		ni_log_destination_syslog("wickedd");
 	}
