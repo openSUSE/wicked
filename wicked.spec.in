@@ -94,16 +94,17 @@ make %{?_smp_mflags}
 %install
 make install DESTDIR=${RPM_BUILD_ROOT}
 install -d -m755 ${RPM_BUILD_ROOT}%_prefix%_sbindir
-ln -s %_sysconfdir/init.d/wickedd ${RPM_BUILD_ROOT}%_prefix%_sbindir/rcwickedd
+ln -s %_sysconfdir/init.d/wicked ${RPM_BUILD_ROOT}%_prefix%_sbindir/rcwicked
+ln -s %_sysconfdir/init.d/network ${RPM_BUILD_ROOT}%_prefix%_sbindir/rcnetwork
 
 %post
-%{fillup_and_insserv wickedd}
+%{fillup_and_insserv wicked}
 
 %preun
-%stop_on_removal wickedd
+%stop_on_removal wicked
 
 %postun
-%restart_on_update wickedd
+%restart_on_update wicked
 %insserv_cleanup
 
 %post -n libwicked@LIBWICKED_PACKAGE_SUFFIX@
@@ -122,8 +123,10 @@ ln -s %_sysconfdir/init.d/wickedd ${RPM_BUILD_ROOT}%_prefix%_sbindir/rcwickedd
 %_sbindir/dhcp4-supplicant
 %_sbindir/dhcp6-supplicant
 %_sbindir/autoip4-supplicant
-%_sysconfdir/init.d/wickedd
-%_prefix%_sbindir/rcwickedd
+%_sysconfdir/init.d/wicked
+%_prefix%_sbindir/rcwicked
+%_sysconfdir/init.d/network
+%_prefix%_sbindir/rcnetwork
 %dir %_sysconfdir/wicked
 %config(noreplace) %_sysconfdir/wicked/*.xml
 %dir %_sysconfdir/wicked/schema
