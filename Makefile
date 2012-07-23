@@ -205,7 +205,8 @@ install-lib: $(TGTLIBS)
 
 install-data: $(GENFILES)
 	install -d -m 755 $(DESTDIR)$(sysvinitdir)
-	install -c -m 755 etc/wickedd.init $(DESTDIR)$(sysvinitdir)/wickedd
+	install -c -m 755 etc/init.d/wicked  $(DESTDIR)$(sysvinitdir)/wicked
+	install -c -m 755 etc/init.d/network $(DESTDIR)$(sysvinitdir)/network
 	install -d -m 755 $(DESTDIR)$(wickedconfigdir)
 	install -m 644 etc/config.xml $(DESTDIR)$(wickedconfigdir)
 	install -d -m 755 $(DESTDIR)$(dbus_systemdir)
