@@ -129,7 +129,7 @@ enum NI_DHCP6_OPTION {
 	NI_DHCP6_OPTION_GEOCONF_CIVIC		= 36,	/* [RFC4776] */
 	NI_DHCP6_OPTION_REMOTE_ID		= 37,	/* [RFC4649] */
 	NI_DHCP6_OPTION_SUBSCRIBER_ID		= 38,	/* [RFC4580] */
-	NI_DHCP6_OPTION_CLIENT_FQDN		= 39,	/* [RFC4704] */
+	NI_DHCP6_OPTION_FQDN			= 39,	/* [RFC4704] */
 	NI_DHCP6_OPTION_PANA_AGENT		= 40,	/* [RFC5192] */
 	NI_DHCP6_OPTION_POSIX_TIMEZONE		= 41,	/* [RFC4833] */
 	NI_DHCP6_OPTION_POSIX_TIMEZONEDB	= 42,	/* [RFC4833] */
@@ -167,6 +167,20 @@ enum NI_DHCP6_OPTION {
 /*
  * DHCPv6 Status Codes
  * http://tools.ietf.org/html/rfc3315#section-24.4
+ *
+ * Success         0 Success.
+ * UnspecFail      1 Failure, reason unspecified; this
+ *                   status code is sent by either a client
+ *                   or a server to indicate a failure not
+ *                   explicitly specified in this document.
+ * NoAddrsAvail    2 Server has no addresses available to
+ *                   assign to the IA(s).
+ * NoBinding       3 Client record (binding) unavailable.
+ * NotOnLink       4 The prefix for the address is not appropriate
+ *                   for the link to which the client is attached.
+ * UseMulticast    5 Sent by a server to a client to force the
+ *                   client to send messages to the server using
+ *                   the All_DHCP_Relay_Agents_and_Servers address.
  */
 enum NI_DHCP6_STATUS_CODE {
 	NI_DHCP6_STATUS_SUCCESS			= 0,
@@ -175,12 +189,14 @@ enum NI_DHCP6_STATUS_CODE {
 	NI_DHCP6_STATUS_NOBINDING		= 3,
 	NI_DHCP6_STATUS_NOTONLINK		= 4,
 	NI_DHCP6_STATUS_USEMULTICAST		= 5,
+
+	__NI_DHCP6_STATUS_MAX
 };
 
 enum ni_dhcp6_ia_type {
-	NI_DHCP6_IA_NA_TYPE = 0x03,
-	NI_DHCP6_IA_TA_TYPE = 0x04,
-	NI_DHCP6_IA_PD_TYPE = 0x19,
+	NI_DHCP6_IA_NA_TYPE			= 0x01,
+	NI_DHCP6_IA_TA_TYPE			= 0x02,
+	NI_DHCP6_IA_PD_TYPE			= 0x04,
 };
 
 /*
@@ -271,31 +287,49 @@ typedef struct ni_dhcp6_option_array {
 } ni_dhcp6_option_array_t;
 */
 
+/*
+ * Option request option code array
+ */
+typedef struct ni_dhcp6_option_request {
+	unsigned int			count;
+	uint16_t *			options;
+} ni_dhcp6_option_request_t;
 
 /*
  * functions used in device.c and fsm.c
  */
 extern const char *	ni_dhcp6_message_name(unsigned int);
 extern const char *	ni_dhcp6_option_name(unsigned int);
+const char *		ni_dhcp6_status_name(unsigned int);
+extern const char *	ni_dhcp6_ia_type_name(unsigned int);
 
 //extern int		ni_dhcp6_socket_open(ni_dhcp6_device_t *);
 
-extern int		ni_dhcp6_init_message(	ni_dhcp6_device_t *dev, unsigned int msg_code,
-						const ni_addrconf_lease_t *lease);
-extern int		ni_dhcp6_build_message( const ni_dhcp6_device_t *, unsigned int,
-		 				const ni_addrconf_lease_t *, ni_buffer_t *);
+extern int		ni_dhcp6_init_message(	ni_dhcp6_device_t *, unsigned int,
+						const ni_addrconf_lease_t *);
+extern int		ni_dhcp6_build_message( ni_dhcp6_device_t *, unsigned int,
+						ni_buffer_t *,
+						const ni_addrconf_lease_t *);
 
 extern ni_int_range_t	ni_dhcp6_jitter_rebase(unsigned int msec, int lower, int upper);
 extern ni_bool_t	ni_dhcp6_set_message_timing(ni_dhcp6_device_t *dev, unsigned int msg_type);
 
 extern int		ni_dhcp6_client_parse_response(ni_dhcp6_device_t *, ni_buffer_t *,
-					const struct in6_addr *, ni_addrconf_lease_t **);
+							unsigned int *, unsigned int *,
+							ni_addrconf_lease_t **);
 
 /* FIXME: */
 extern void		ni_dhcp6_status_free(struct ni_dhcp6_status *status);
 extern void		ni_dhcp6_ia_list_destroy(struct ni_dhcp6_ia **list);
-void			ni_addrconf_dhcp6_lease_free(ni_addrconf_lease_t *);
+extern void		ni_addrconf_dhcp6_lease_free(ni_addrconf_lease_t *);
 
-const char *		__ni_dhcp6_format_time(const struct timeval *tv);
+extern const char *	ni_dhcp6_format_time(const struct timeval *);
+extern const char *	ni_dhcp6_address_print(const struct in6_addr *);
+extern int		ni_dhcp6_check_domain_name(const char *, size_t, int);
+extern int		ni_dhcp6_check_domain_list(const char *, size_t, int);
+
+extern void		ni_dhcp6_option_request_init(ni_dhcp6_option_request_t *);
+extern int		ni_dhcp6_option_request_append(ni_dhcp6_option_request_t *, uint16_t);
+extern void		ni_dhcp6_option_request_destroy(ni_dhcp6_option_request_t *);
 
 #endif /* __WICKED_DHCP6_PROTOCOL_H__ */

@@ -30,8 +30,9 @@
 enum {
 	NI_DHCP6_STATE_INIT,
 	NI_DHCP6_STATE_SELECTING,
-	/* --- */
 	NI_DHCP6_STATE_REQUESTING,
+	/* ... */
+	NI_DHCP6_STATE_CONFIRMING,
 	NI_DHCP6_STATE_VALIDATING,
 	NI_DHCP6_STATE_BOUND,
 	NI_DHCP6_STATE_RENEWING,
@@ -54,8 +55,8 @@ extern int			ni_dhcp6_fsm_process_client_packet(ni_dhcp6_device_t *,
 						ni_buffer_t *, const struct in6_addr *);
 
 extern void			ni_dhcp6_fsm_set_timeout_msec(ni_dhcp6_device_t *, unsigned long);
-extern void			ni_dhcp6_fsm_set_timeout(ni_dhcp6_device_t *, unsigned int);
 
-extern int			ni_dhcp6_fsm_solicit(ni_dhcp6_device_t *dev);
+extern int			ni_dhcp6_fsm_start(ni_dhcp6_device_t *dev);
+extern int			ni_dhcp6_fsm_retransmit(ni_dhcp6_device_t *dev);
 
 #endif /* __WICKED_DHCP6_FSM_H__ */

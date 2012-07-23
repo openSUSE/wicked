@@ -94,76 +94,9 @@ typedef union ni_duid_data {
 	ni_duid_en_t		en;
 } PACKED ni_duid_data_t;
 
-#if 0
-ni_duid_t *
-ni_duid_new_llt(unsigned int hwtype, const void *hwaddr, size_t len)
-{
-	ni_duid_t *	duid;
-
-	duid = malloc(sizeof(*duid));
-	if(duid) {
-		if(ni_duid_init_llt(duid, hwtype, hwaddr, len))
-			return duid;
-		free(duid);
-	}
-	return FALSE;
-}
-
-
-ni_duid_t *
-ni_duid_new_ll(unsigned int hwtype, const void *hwaddr, size_t len)
-{
-	ni_duid_t *	duid;
-
-	duid = malloc(sizeof(*duid));
-	if(duid) {
-		if(ni_duid_init_ll(duid, hwtype, hwaddr, len))
-			return duid;
-		free(duid);
-	}
-	return NULL;
-}
-
-
-ni_duid_t *
-ni_duid_new_en(unsigned int enumber, const void *identifier, size_t len)
-{
-	ni_duid_t *	duid;
-
-	duid = malloc(sizeof(*duid));
-	if(duid) {
-		if(ni_duid_init_ll(duid, enumber, identifier, len))
-			return duid;
-		free(duid);
-	}
-	return NULL;
-}
-
-
-ni_duid_t *
-ni_duid_clone(const ni_duid_t *duid)
-{
-	return duid ? ni_opaque_new(&duid->data, duid->len) : NULL;
-}
-#endif
-
-
-void
-ni_duid_free(ni_duid_t *duid)
-{
-	free(duid);
-}
-
-
-void
-ni_duid_clear(ni_duid_t *duid)
-{
-	memset(duid, 0, sizeof(*duid));
-}
-
 
 ni_bool_t
-ni_duid_init_llt(ni_duid_t *duid, unsigned int hwtype, const void *hwaddr, size_t len)
+ni_duid_init_llt(ni_opaque_t *duid, unsigned int hwtype, const void *hwaddr, size_t len)
 {
 	ni_duid_data_t *data;
 	time_t		now;
@@ -191,7 +124,7 @@ ni_duid_init_llt(ni_duid_t *duid, unsigned int hwtype, const void *hwaddr, size_
 }
 
 ni_bool_t
-ni_duid_init_ll (ni_duid_t *duid, unsigned int hwtype, const void *hwaddr, size_t len)
+ni_duid_init_ll (ni_opaque_t *duid, unsigned int hwtype, const void *hwaddr, size_t len)
 {
 	ni_duid_data_t *data;
 
@@ -212,7 +145,7 @@ ni_duid_init_ll (ni_duid_t *duid, unsigned int hwtype, const void *hwaddr, size_
 }
 
 ni_bool_t
-ni_duid_init_en (ni_duid_t *duid, unsigned int enumber, const void *identifier, size_t len)
+ni_duid_init_en (ni_opaque_t *duid, unsigned int enumber, const void *identifier, size_t len)
 {
 	ni_duid_data_t *data;
 
@@ -233,7 +166,7 @@ ni_duid_init_en (ni_duid_t *duid, unsigned int enumber, const void *identifier, 
 }
 
 ni_bool_t
-ni_duid_init_uuid(ni_duid_t *duid, const ni_uuid_t *uuid)
+ni_duid_init_uuid(ni_opaque_t *duid, const ni_uuid_t *uuid)
 {
 	ni_duid_data_t *data;
 
@@ -249,21 +182,32 @@ ni_duid_init_uuid(ni_duid_t *duid, const ni_uuid_t *uuid)
 	return TRUE;
 }
 
+void
+ni_duid_clear(ni_opaque_t *duid)
+{
+	memset(duid, 0, sizeof(*duid));
+}
 
 ni_bool_t
-ni_duid_parse_hex(ni_duid_t *duid, const char *string)
+ni_duid_parse_hex(ni_opaque_t *duid, const char *hex)
 {
-	int         len;
+	int len;
 
-	len = ni_parse_hex(string, duid->data, sizeof(duid->data));
-	if(len <= sizeof(ni_duid_ll_t))
+	len = ni_parse_hex(hex, duid->data, sizeof(duid->data));
+	if (len <= sizeof(ni_duid_ll_t))
 		return FALSE;
 
 	return (duid->len = len) > 0;
 }
 
-ni_bool_t
-ni_duid_eq(const ni_duid_t *duid1, const ni_duid_t *duid2)
+const char *
+ni_duid_format_hex(char **hex, const ni_opaque_t *duid)
 {
-	return duid1->len == duid2->len && memcmp(duid1->data, duid2->data, duid1->len) == 0;
+	ni_string_free(hex);
+
+	if (duid->len > 0) {
+		*hex = xcalloc(1, duid->len * 3);
+		ni_format_hex(duid->data, duid->len, *hex, duid->len * 3);
+	}
+	return *hex;
 }

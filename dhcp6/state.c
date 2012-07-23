@@ -100,7 +100,6 @@ ni_dhcp6_save_duid(const ni_opaque_t *duid, const char *filename)
 {
 	char path[PATH_MAX];
 	const char *name = CONFIG_DHCP6_DUID_NODE;
-	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 	ni_opaque_t temp = NI_OPAQUE_INIT;
 	xml_node_t *node;
 	FILE *fp;
@@ -123,16 +122,11 @@ ni_dhcp6_save_duid(const ni_opaque_t *duid, const char *filename)
 	if(ni_dhcp6_load_duid(&temp, filename) == 0)
 		return 1;
 
-	ni_stringbuf_grow(&buf, duid->len * 3);
-	ni_format_hex(duid->data, duid->len, buf.string, buf.size);
-
 	if ((node = xml_node_new(name, NULL)) == NULL) {
-		ni_stringbuf_destroy(&buf);
 		ni_error("Unable to create %s xml node: %m", name);
 		return -1;
 	}
-
-	node->cdata = buf.string;
+	ni_duid_format_hex(&node->cdata, duid);
 
 	if ((fp = fopen(filename, "w")) == NULL) {
 		ni_error("%s: unable to open file for writing: %m", filename);

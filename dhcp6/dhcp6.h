@@ -128,9 +128,13 @@ struct ni_dhcp6_config {
 	ni_bool_t			info_only;
 	ni_bool_t			rapid_commit;
 
+	ni_opaque_t			client_duid;	/* our own raw client id	*/
+	ni_sockaddr_t			client_addr;	/* our own address (link-local)	*/
+
+	ni_opaque_t			server_duid;	/* destination raw server id	*/
+	ni_sockaddr_t			server_addr;	/* multicast or server unicast  */
+
 	char				hostname[256];
-	char *				client_id;
-	ni_opaque_t			client_duid;
 	ni_string_array_t		user_class;
 	struct {
 		unsigned int		en;
@@ -158,21 +162,19 @@ struct ni_dhcp6_device {
 
 	char *			ifname;
 	ni_linkinfo_t		link;
+	uint32_t		iaid;
+
+	ni_socket_t *		sock;
+
+	ni_dhcp6_request_t *	request;	/* the wicked request params/info   */
+	ni_dhcp6_config_t *	config;		/* config built from request info   */
+	ni_addrconf_lease_t *	lease;		/* last acquired lease		    */
 
 	struct {
 	    int			state;
 	    unsigned int	fail_on_timeout : 1;
 	    const ni_timer_t *	timer;
 	} fsm;
-
-	ni_socket_t *		sock;
-
-	ni_sockaddr_t		client_addr;	/* our own address (link-local)     */
-	ni_sockaddr_t		server_addr;	/* multicast or server unicast      */
-
-	ni_dhcp6_request_t *	request;	/* the wicked request params/info   */
-	ni_dhcp6_config_t *	config;		/* config built from request info   */
-	ni_addrconf_lease_t *	lease;		/* last known / acquired lease      */
 
 	struct timeval		start_time;	/* when we started managing         */
 	struct {
@@ -191,12 +193,14 @@ struct ni_dhcp6_device {
 	struct {
 	    uint32_t		xid;
 	    unsigned int	accept_any_offer : 1;
-#if 0
-	    unsigned int	nak_backoff;	/* backoff timer when we get NAKs */
-#endif
 	} dhcp6;
-
 	ni_buffer_t		message;
+
+	struct {
+		char *		id;		/* lease ack server id string       */
+		ni_opaque_t	duid;		/* lease ack server raw duid        */
+		ni_sockaddr_t	addr;		/* lease ack server address	    */
+	} server;
 
 	struct {
 	   ni_addrconf_lease_t *lease;

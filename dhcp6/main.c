@@ -566,7 +566,6 @@ dhcp6_protocol_event(enum ni_dhcp6_event ev, const ni_dhcp6_device_t *dev, ni_ad
 
 	memset(argv, 0, sizeof(argv));
 
-#if 0
 	if (dev->config) {
 		var = &argv[argc++];
 		ni_dbus_variant_set_uuid(var, &dev->config->uuid);
@@ -576,7 +575,6 @@ dhcp6_protocol_event(enum ni_dhcp6_event ev, const ni_dhcp6_device_t *dev, ni_ad
 		if (lease)
 			lease->update = dev->config->update;
 	}
-#endif
 
 	var = &argv[argc++];
 	ni_dbus_variant_init_dict(var);

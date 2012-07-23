@@ -26,15 +26,14 @@
 /* device functions used in fsm.c and protocol.c */
 extern int		ni_dhcp6_device_transmit_init(ni_dhcp6_device_t *);
 extern int		ni_dhcp6_device_transmit_start(ni_dhcp6_device_t *);
+extern int		ni_dhcp6_device_transmit(ni_dhcp6_device_t *);
+
 extern int		ni_dhcp6_device_retransmit(ni_dhcp6_device_t *);
-
-#if 0
-//extern int		ni_dhcp6_device_transmit(ni_dhcp6_device_t *);
-
-int			ni_dhcp6_device_retransmit_start(ni_dhcp6_device_t *);
-//extern void		ni_dhcp6_device_retransmit_arm(ni_dhcp6_device_t *);
-#endif
 extern void		ni_dhcp6_device_retransmit_disarm(ni_dhcp6_device_t *);
+
+extern void		ni_dhcp6_device_set_lease(ni_dhcp6_device_t *,  ni_addrconf_lease_t *);
+extern void		ni_dhcp6_device_drop_lease(ni_dhcp6_device_t *);
+extern void		ni_dhcp6_device_drop_best_offer(ni_dhcp6_device_t *);
 
 extern unsigned int	ni_dhcp6_device_uptime(const ni_dhcp6_device_t *, unsigned int);
 extern int		ni_dhcp6_device_iaid(const ni_dhcp6_device_t *dev, uint32_t *iaid);
@@ -45,8 +44,8 @@ extern int		ni_dhcp6_config_user_class(ni_string_array_t *);
 extern int		ni_dhcp6_config_vendor_class(unsigned int *, ni_string_array_t *);
 extern int		ni_dhcp6_config_vendor_opts(unsigned int *, ni_var_array_t *);
 extern int		ni_dhcp6_config_ignore_server(struct in6_addr);
-extern int		ni_dhcp6_config_have_server_preference(void);
-extern int		ni_dhcp6_config_server_preference(struct in6_addr *, ni_opaque_t *);
+extern ni_bool_t	ni_dhcp6_config_have_server_preference(void);
+extern ni_bool_t	ni_dhcp6_config_server_preference(const struct in6_addr *, const ni_opaque_t *, int *);
 extern unsigned int	ni_dhcp6_config_max_lease_time(void);
 
 #endif /* __WICKED_DHCP6_DEVICE_H__ */

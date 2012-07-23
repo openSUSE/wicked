@@ -57,29 +57,19 @@
 
 /* TODO: MAC based uuid duid, see http://tools.ietf.org/html/rfc4122#section-4.1.6  */
 
-/*
- * DUID len is not more than 128 octets + type code.
- */
-typedef ni_opaque_t		ni_duid_t;
+extern ni_bool_t		ni_duid_init_llt(ni_opaque_t *duid, unsigned int hwtype, const void *hwaddr, size_t len);
+extern ni_bool_t		ni_duid_init_ll (ni_opaque_t *duid, unsigned int hwtype, const void *hwaddr, size_t len);
+extern ni_bool_t		ni_duid_init_en (ni_opaque_t *duid, unsigned int enumber, const void *identifier, size_t len);
+extern ni_bool_t		ni_duid_init_uuid(ni_opaque_t *duid, const ni_uuid_t *uuid);
 
-#if 0
-extern ni_duid_t *		ni_duid_new_llt (unsigned int hwtype, const void *hwaddr, size_t len);
-extern ni_duid_t *		ni_duid_new_ll  (unsigned int hwtype, const void *hwaddr, size_t len);
-extern ni_duid_t *		ni_duid_new_en  (unsigned int enumber, const void *identifier, size_t len);
+extern void			ni_duid_clear(ni_opaque_t * duid);
 
-extern ni_duid_t *		ni_duid_clone(const ni_duid_t * duid);
-#endif
+extern ni_bool_t		ni_duid_parse_hex(ni_opaque_t *duid, const char *hex);
+extern const char *		ni_duid_format_hex(char **hex, const ni_opaque_t *duid);
 
-extern void			ni_duid_free (ni_duid_t * duid);
-extern void			ni_duid_clear(ni_duid_t * duid);
-
-extern ni_bool_t		ni_duid_init_llt(ni_duid_t *duid, unsigned int hwtype, const void *hwaddr, size_t len);
-extern ni_bool_t		ni_duid_init_ll (ni_duid_t *duid, unsigned int hwtype, const void *hwaddr, size_t len);
-extern ni_bool_t		ni_duid_init_en (ni_duid_t *duid, unsigned int enumber, const void *identifier, size_t len);
-extern ni_bool_t		ni_duid_init_uuid(ni_duid_t *duid, const ni_uuid_t *uuid);
-
-extern ni_bool_t		ni_duid_parse_hex(ni_duid_t *duid, const char *str);
-
-extern ni_bool_t		ni_duid_eq(const ni_duid_t *duid1, const ni_duid_t *duid2);
+static inline const char *	ni_duid_print_hex(const ni_opaque_t *duid)
+{
+	return ni_print_hex(duid->data, duid->len);
+}
 
 #endif /* __WICKED_DHCP6_DUID_H__ */
