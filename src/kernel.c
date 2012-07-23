@@ -559,29 +559,29 @@ __ni_nl_dump_valid(struct nl_msg *msg, void *p)
 
 	if (sender->nl_pid) {
 		ni_warn("received netlink message from %d - spoof", sender->nl_pid);
-		return -1;
+		return NL_SKIP;
 	}
 
 	if (data->list == NULL)
-		return 0;
+		return NL_OK;
 
 	nlh = nlmsg_hdr(msg);
 	if (data->hdrlen && !nlmsg_valid_hdr(nlh, data->hdrlen)) {
 		ni_error("netlink message too short");
-		return -1;
+		return NL_SKIP;
 	}
 
 	if (data->msg_type >= 0 && nlh->nlmsg_type != data->msg_type) {
 		ni_error("netlink has unexpected message type %d; expected %d",
 				nlh->nlmsg_type, data->msg_type);
-		return -1;
+		return NL_SKIP;
 	}
 
 
 	if (!ni_nlmsg_list_append(data->list, nlh))
-		return -1;
+		return NL_SKIP;
 
-	return 0;
+	return NL_OK;
 }
 
 /*
