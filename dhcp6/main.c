@@ -78,7 +78,7 @@ static struct option		options[] = {
 	{ NULL,			no_argument,		NULL,	0 }
 };
 
-static int			opt_foreground = 1;
+static int			opt_foreground = 0;
 static int			opt_recover_leases = 0;
 static char *			opt_state_file;
 
