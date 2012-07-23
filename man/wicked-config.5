@@ -28,19 +28,6 @@ The default is to use \fB/var/run/wicked\fP, mode \fB0755\fP.
 .nf
 .B "  <statedir path=\(dq/var/run/wicked\(dq mode=\(dq0755\(dq />
 .fi
-.TP
-.B pidfile
-This element specifies the location of the daemon's PID file.
-.IP
-The \fBpath\fP attribute of this element contains the path to this
-directory. The optional \fBmode\fP attribute can be used to specify
-the permissions of this directory.
-.IP
-The default is to use \fB/var/run/wicked.pid\fP, mode \fB0644\fP.
-.IP
-.nf
-.B "  <pidfile path=\(dq/var/run/wicked.pid\(dq mode=\(dq0644\(dq />
-.fi
 .PP
 .\" --------------------------------------------------------
 .SS DBus service parameters

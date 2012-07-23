@@ -58,7 +58,6 @@ ni_config_new()
 
 	conf->recv_max = 64 * 1024;
 
-	ni_config_fslocation_init(&conf->pidfile, "/var/run/wicked.pid", 0644);
 	ni_config_fslocation_init(&conf->statedir, "/var/run/wicked", 0755);
 
 	return conf;
@@ -74,7 +73,6 @@ ni_config_free(ni_config_t *conf)
 	ni_string_free(&conf->dbus_name);
 	ni_string_free(&conf->dbus_type);
 	ni_string_free(&conf->dbus_xml_schema_file);
-	ni_config_fslocation_destroy(&conf->pidfile);
 	ni_config_fslocation_destroy(&conf->statedir);
 	ni_config_fslocation_destroy(&conf->backupdir);
 	free(conf);
@@ -102,12 +100,9 @@ ni_config_parse(const char *filename)
 
 	conf = ni_config_new();
 
-	conf->pidfile.mode = 0644;
-
 	if (ni_config_parse_afconfig(&conf->ipv4, "ipv4", node) < 0
 	 || ni_config_parse_afconfig(&conf->ipv6, "ipv6", node) < 0
-	 || ni_config_parse_fslocation(&conf->statedir, "statedir", node) < 0
-	 || ni_config_parse_fslocation(&conf->pidfile, "pidfile", node) < 0)
+	 || ni_config_parse_fslocation(&conf->statedir, "statedir", node) < 0)
 		goto failed;
 
 	child = xml_node_get_child(node, "dbus");
