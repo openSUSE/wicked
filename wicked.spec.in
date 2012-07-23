@@ -164,15 +164,3 @@ ln -s %_sysconfdir/init.d/network ${RPM_BUILD_ROOT}%_prefix%_sbindir/rcnetwork
 ## CHANGELOG
 
 %changelog
-* Mon Mar 26 2012 Marius Tomaschewski <mt@suse.de>
-- update to git commit 05ca350, updated spec file
-  to build a lib sub-package
-* Mon Jan 24 2011 Marius Tomaschewski <mt@suse.de>
-- update to git commit 6288068
-* Thu Nov 25 2010 Matthias Eckermann <mge@novell.com>
-- update to git version as of Thu Nov 25 16:16:13 CET 2010
-* Mon Oct 18 2010 Matthias Eckermann <mge@novell.com>
-- update to git version as of Thu Oct 14 13:25:15 2010 +0200
-* Thu Sep  2 2010 Matthias Eckermann <mge@novell.com>
-- initial SPEC file
-
