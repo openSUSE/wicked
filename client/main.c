@@ -54,6 +54,7 @@ static struct option	options[] = {
 	{ NULL }
 };
 
+const char *	program_name;
 int		opt_global_dryrun = 0;
 char *		opt_global_rootdir = NULL;
 int		opt_global_progressmeter = 1;
@@ -74,12 +75,14 @@ main(int argc, char **argv)
 	int c;
 
 	mtrace();
+
+	program_name = ni_basename(argv[0]);
 	while ((c = getopt_long(argc, argv, "+", options, NULL)) != EOF) {
 		switch (c) {
 		default:
 		usage:
 			fprintf(stderr,
-				"./wicked [options] cmd path\n"
+				"wicked [options] cmd path\n"
 				"This command understands the following options\n"
 				"  --config filename\n"
 				"        Use alternative configuration file.\n"
