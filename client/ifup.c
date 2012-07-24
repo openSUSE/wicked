@@ -48,10 +48,10 @@ static ni_ifworker_t *		ni_ifworker_identify_device(ni_objectmodel_fsm_t *, cons
 static void			ni_ifworker_set_dependencies_xml(ni_ifworker_t *, xml_node_t *);
 static void			ni_ifworker_fsm_init(ni_ifworker_t *, unsigned int, unsigned int);
 static int			ni_ifworker_fsm_bind_methods(ni_ifworker_t *);
-static ni_ifworker_req_t *	ni_ifworker_netif_resolver_new(xml_node_t *);
-static ni_ifworker_req_t *	ni_ifworker_modem_resolver_new(xml_node_t *);
-static void			ni_ifworker_req_list_destroy(ni_ifworker_req_t **);
-static void			ni_ifworker_req_free(ni_ifworker_req_t *);
+static ni_fsm_require_t *	ni_ifworker_netif_resolver_new(xml_node_t *);
+static ni_fsm_require_t *	ni_ifworker_modem_resolver_new(xml_node_t *);
+static void			ni_fsm_require_list_destroy(ni_fsm_require_t **);
+static void			ni_fsm_require_free(ni_fsm_require_t *);
 static int			ni_ifworker_bind_device_apis(ni_ifworker_t *, const ni_dbus_service_t *);
 static void			ni_ifworker_control_set_defaults(ni_ifworker_t *);
 static void			__ni_ifworker_refresh_netdevs(ni_objectmodel_fsm_t *);
@@ -118,12 +118,12 @@ ni_ifworker_free(ni_ifworker_t *w)
 		ni_iftransition_t *action;
 
 		for (action = w->fsm.action_table; action->next_state; action++)
-			ni_ifworker_req_list_destroy(&action->require.list);
+			ni_fsm_require_list_destroy(&action->require.list);
 		free(w->fsm.action_table);
 	}
 	w->fsm.action_table = NULL;
 
-	ni_ifworker_req_list_destroy(&w->fsm.child_state_req_list);
+	ni_fsm_require_list_destroy(&w->fsm.child_state_req_list);
 
 	free(w);
 }
@@ -153,10 +153,10 @@ ni_ifworker_device_bound(const ni_ifworker_t *w)
 /*
  * constructor/destructor for dependency objects
  */
-ni_ifworker_req_t *
-ni_ifworker_requirement_build(const char *check_name, xml_node_t *node, ni_ifworker_req_t **list)
+ni_fsm_require_t *
+ni_ifworker_requirement_build(const char *check_name, xml_node_t *node, ni_fsm_require_t **list)
 {
-	ni_ifworker_req_t *req, **pos;
+	ni_fsm_require_t *req, **pos;
 
 	/* Find tail of list */
 	for (pos = list; (req = *pos) != NULL; pos = &req->next)
@@ -184,10 +184,10 @@ ni_ifworker_requirement_build(const char *check_name, xml_node_t *node, ni_ifwor
 	return req;
 }
 
-ni_ifworker_req_t *
-ni_ifworker_req_new(ni_ifworker_req_fn_t *test_fn, ni_ifworker_req_dtor_t *destroy_fn)
+ni_fsm_require_t *
+ni_fsm_require_new(ni_fsm_require_fn_t *test_fn, ni_fsm_require_dtor_t *destroy_fn)
 {
-	ni_ifworker_req_t *req;
+	ni_fsm_require_t *req;
 
 	req = calloc(1, sizeof(*req));
 	req->test_fn = test_fn;
@@ -197,7 +197,7 @@ ni_ifworker_req_new(ni_ifworker_req_fn_t *test_fn, ni_ifworker_req_dtor_t *destr
 }
 
 void
-ni_ifworker_req_free(ni_ifworker_req_t *req)
+ni_fsm_require_free(ni_fsm_require_t *req)
 {
 	if (req->destroy_fn)
 		req->destroy_fn(req);
@@ -205,18 +205,18 @@ ni_ifworker_req_free(ni_ifworker_req_t *req)
 }
 
 void
-ni_ifworker_req_list_destroy(ni_ifworker_req_t **list)
+ni_fsm_require_list_destroy(ni_fsm_require_t **list)
 {
-	ni_ifworker_req_t *req;
+	ni_fsm_require_t *req;
 
 	while ((req = *list) != NULL) {
 		*list = req->next;
-		ni_ifworker_req_free(req);
+		ni_fsm_require_free(req);
 	}
 }
 
 void
-ni_ifworker_req_list_insert(ni_ifworker_req_t **list, ni_ifworker_req_t *req)
+ni_fsm_require_list_insert(ni_fsm_require_t **list, ni_fsm_require_t *req)
 {
 	req->next = *list;
 	*list = req;
@@ -822,7 +822,7 @@ ni_ifworkers_from_xml(ni_objectmodel_fsm_t *fsm, xml_document_t *doc, const char
  * Optionally, the node may specify a minimum and/or maximum device state
  */
 static ni_bool_t
-ni_ifworker_req_netif_resolve(ni_objectmodel_fsm_t *fsm, ni_ifworker_t *w, ni_ifworker_req_t *req)
+ni_fsm_require_netif_resolve(ni_objectmodel_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_require_t *req)
 {
 	xml_node_t *devnode = req->user_data;
 	ni_ifworker_t *child_worker;
@@ -841,22 +841,22 @@ ni_ifworker_req_netif_resolve(ni_objectmodel_fsm_t *fsm, ni_ifworker_t *w, ni_if
 	return TRUE;
 }
 
-ni_ifworker_req_t *
+ni_fsm_require_t *
 ni_ifworker_netif_resolver_new(xml_node_t *node)
 {
-	ni_ifworker_req_t *req;
+	ni_fsm_require_t *req;
 
 	if (node == NULL)
 		return NULL;
 
-	req = ni_ifworker_req_new(ni_ifworker_req_netif_resolve, NULL);
+	req = ni_fsm_require_new(ni_fsm_require_netif_resolve, NULL);
 	req->user_data = node;
 
 	return req;
 }
 
 static ni_bool_t
-ni_ifworker_req_modem_resolve(ni_objectmodel_fsm_t *fsm, ni_ifworker_t *w, ni_ifworker_req_t *req)
+ni_fsm_require_modem_resolve(ni_objectmodel_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_require_t *req)
 {
 	xml_node_t *devnode = req->user_data;
 	ni_ifworker_t *child_worker;
@@ -875,15 +875,15 @@ ni_ifworker_req_modem_resolve(ni_objectmodel_fsm_t *fsm, ni_ifworker_t *w, ni_if
 	return TRUE;
 }
 
-ni_ifworker_req_t *
+ni_fsm_require_t *
 ni_ifworker_modem_resolver_new(xml_node_t *node)
 {
-	ni_ifworker_req_t *req;
+	ni_fsm_require_t *req;
 
 	if (node == NULL)
 		return NULL;
 
-	req = ni_ifworker_req_new(ni_ifworker_req_modem_resolve, NULL);
+	req = ni_fsm_require_new(ni_fsm_require_modem_resolve, NULL);
 	req->user_data = node;
 
 	return req;
@@ -911,7 +911,7 @@ __ni_ifworker_link_detection_timeout(void *user_data, const ni_timer_t *timer)
 }
 
 static ni_bool_t
-ni_ifworker_req_detect_link(ni_objectmodel_fsm_t *fsm, ni_ifworker_t *w, ni_ifworker_req_t *req)
+ni_fsm_require_detect_link(ni_objectmodel_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_require_t *req)
 {
 	if (w->fsm.state == STATE_LINK_UP)
 		return TRUE;
@@ -932,12 +932,12 @@ ni_ifworker_req_detect_link(ni_objectmodel_fsm_t *fsm, ni_ifworker_t *w, ni_ifwo
 	return FALSE;
 }
 
-ni_ifworker_req_t *
+ni_fsm_require_t *
 ni_ifworker_link_detection_new(void)
 {
-	ni_ifworker_req_t *req;
+	ni_fsm_require_t *req;
 
-	req = ni_ifworker_req_new(ni_ifworker_req_detect_link, NULL);
+	req = ni_fsm_require_new(ni_fsm_require_detect_link, NULL);
 	req->user_data = (void *) 1;
 
 	return req;
@@ -953,7 +953,7 @@ struct ni_child_state_req_data {
 };
 
 static ni_bool_t
-ni_ifworker_child_state_req_test(ni_objectmodel_fsm_t *fsm, ni_ifworker_t *w, ni_ifworker_req_t *req)
+ni_ifworker_child_state_req_test(ni_objectmodel_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_require_t *req)
 {
 	struct ni_child_state_req_data *data = (struct ni_child_state_req_data *) req->user_data;
 	ni_ifworker_t *child = data->child;
@@ -983,7 +983,7 @@ ni_ifworker_child_state_req_test(ni_objectmodel_fsm_t *fsm, ni_ifworker_t *w, ni
 }
 
 static void
-ni_ifworker_child_state_req_free(ni_ifworker_req_t *req)
+ni_ifworker_child_state_req_free(ni_fsm_require_t *req)
 {
 	struct ni_child_state_req_data *data = (struct ni_child_state_req_data *) req->user_data;
 
@@ -999,7 +999,7 @@ ni_ifworker_add_child_state_req(ni_ifworker_t *w, const char *method, ni_ifworke
 			unsigned int min_state, unsigned int max_state)
 {
 	struct ni_child_state_req_data *data;
-	ni_ifworker_req_t *req;
+	ni_fsm_require_t *req;
 
 	data = calloc(1, sizeof(*data));
 	data->child = child_worker;
@@ -1007,7 +1007,7 @@ ni_ifworker_add_child_state_req(ni_ifworker_t *w, const char *method, ni_ifworke
 	data->child_state.min = min_state;
 	data->child_state.max = max_state;
 
-	req = ni_ifworker_req_new(ni_ifworker_child_state_req_test, ni_ifworker_child_state_req_free);
+	req = ni_fsm_require_new(ni_ifworker_child_state_req_test, ni_ifworker_child_state_req_free);
 	req->user_data = data;
 
 	req->next = w->fsm.child_state_req_list;
@@ -1017,7 +1017,7 @@ ni_ifworker_add_child_state_req(ni_ifworker_t *w, const char *method, ni_ifworke
 static void
 ni_ifworker_get_child_state_reqs_for_method(ni_ifworker_t *w, ni_iftransition_t *action)
 {
-	ni_ifworker_req_t **list, *req;
+	ni_fsm_require_t **list, *req;
 
 	for (list = &w->fsm.child_state_req_list; (req = *list) != NULL; ) {
 		struct ni_child_state_req_data *data = req->user_data;
@@ -1041,7 +1041,7 @@ ni_ifworker_get_child_state_reqs_for_method(ni_ifworker_t *w, ni_iftransition_t 
 
 		/* Move this requirement to the action's req list */
 		*list = req->next;
-		ni_ifworker_req_list_insert(&action->require.list, req);
+		ni_fsm_require_list_insert(&action->require.list, req);
 	}
 }
 
@@ -1057,7 +1057,7 @@ ni_ifworker_set_dependencies_xml(ni_ifworker_t *w, xml_node_t *depnode)
 static ni_bool_t
 ni_ifworker_check_dependencies(ni_objectmodel_fsm_t *fsm, ni_ifworker_t *w, ni_iftransition_t *action)
 {
-	ni_ifworker_req_t *req, *next;
+	ni_fsm_require_t *req, *next;
 
 	if (!action->require.list)
 		return TRUE;
@@ -2000,7 +2000,7 @@ static int
 ni_ifworker_require_xml(ni_iftransition_t *action, const xml_node_t *req_node, xml_node_t *element, xml_node_t *config)
 {
 	const char *attr, *check;
-	ni_ifworker_req_t *require, **pos;
+	ni_fsm_require_t *require, **pos;
 	int rv;
 
 	pos = &action->require.list;

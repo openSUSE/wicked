@@ -35,7 +35,7 @@ typedef struct ni_reachability_check {
 
 
 static ni_bool_t
-ni_ifworker_req_check_reachable(ni_objectmodel_fsm_t *fsm, ni_ifworker_t *w, ni_ifworker_req_t *req)
+ni_fsm_require_check_reachable(ni_objectmodel_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_require_t *req)
 {
 	ni_reachability_check_t *check = req->user_data;
 
@@ -68,7 +68,7 @@ ni_ifworker_req_check_reachable(ni_objectmodel_fsm_t *fsm, ni_ifworker_t *w, ni_
 }
 
 static void
-ni_ifworker_reachability_check_destroy(ni_ifworker_req_t *req)
+ni_ifworker_reachability_check_destroy(ni_fsm_require_t *req)
 {
 	ni_reachability_check_t *check = req->user_data;
 
@@ -80,13 +80,13 @@ ni_ifworker_reachability_check_destroy(ni_ifworker_req_t *req)
 	req->user_data = NULL;
 }
 
-ni_ifworker_req_t *
+ni_fsm_require_t *
 ni_ifworker_reachability_check_new(xml_node_t *node)
 {
 	ni_reachability_check_t *check;
 	const char *hostname, *attr;
 	int afhint = AF_UNSPEC;
-	ni_ifworker_req_t *req;
+	ni_fsm_require_t *req;
 
 	if (!(hostname = node->cdata))
 		return NULL;
@@ -104,7 +104,7 @@ ni_ifworker_reachability_check_new(xml_node_t *node)
 	ni_string_dup(&check->hostname, hostname);
 	check->family = afhint;
 
-	req = ni_ifworker_req_new(ni_ifworker_req_check_reachable, ni_ifworker_reachability_check_destroy);
+	req = ni_fsm_require_new(ni_fsm_require_check_reachable, ni_ifworker_reachability_check_destroy);
 	req->user_data = check;
 
 	return req;

@@ -35,7 +35,7 @@ enum {
 
 typedef struct ni_objectmodel_fsm ni_objectmodel_fsm_t;
 typedef struct ni_ifworker	ni_ifworker_t;
-typedef struct ni_ifworker_req	ni_ifworker_req_t;
+typedef struct ni_fsm_require	ni_fsm_require_t;
 
 typedef struct ni_ifworker_array {
 	unsigned int		count;
@@ -77,7 +77,7 @@ struct ni_iftransition {
 
 	struct {
 		ni_bool_t		parsed;
-		ni_ifworker_req_t *	list;
+		ni_fsm_require_t *	list;
 	} require;
 };
 
@@ -137,7 +137,7 @@ struct ni_ifworker {
 		const ni_timer_t *timer;
 		const ni_timer_t *secondary_timer;
 
-		ni_ifworker_req_t *child_state_req_list;
+		ni_fsm_require_t *child_state_req_list;
 	} fsm;
 
 	unsigned int		shared_users;
@@ -152,15 +152,15 @@ struct ni_ifworker {
  * Express requirements.
  * This is essentially a test function that is invoked "when adequate"
  */
-typedef ni_bool_t		ni_ifworker_req_fn_t(ni_objectmodel_fsm_t *, ni_ifworker_t *, ni_ifworker_req_t *);
-typedef void			ni_ifworker_req_dtor_t(ni_ifworker_req_t *);
+typedef ni_bool_t		ni_fsm_require_fn_t(ni_objectmodel_fsm_t *, ni_ifworker_t *, ni_fsm_require_t *);
+typedef void			ni_fsm_require_dtor_t(ni_fsm_require_t *);
 
-struct ni_ifworker_req {
-	ni_ifworker_req_t *	next;
+struct ni_fsm_require {
+	ni_fsm_require_t *	next;
 
 	unsigned int		event_seq;
-	ni_ifworker_req_fn_t *	test_fn;
-	ni_ifworker_req_dtor_t *destroy_fn;
+	ni_fsm_require_fn_t *	test_fn;
+	ni_fsm_require_dtor_t *	destroy_fn;
 
 	void *			user_data;
 };
@@ -185,9 +185,9 @@ extern void			ni_ifworker_mainloop(ni_objectmodel_fsm_t *);
 extern unsigned int		ni_ifworkers_from_xml(ni_objectmodel_fsm_t *, xml_document_t *, const char *);
 
 extern int			ni_ifworker_type_from_string(const char *);
-extern ni_ifworker_req_t *	ni_ifworker_reachability_check_new(xml_node_t *);
+extern ni_fsm_require_t *	ni_ifworker_reachability_check_new(xml_node_t *);
 extern ni_bool_t		ni_ifworker_match_alias(const ni_ifworker_t *w, const char *alias);
 
-extern ni_ifworker_req_t *	ni_ifworker_req_new(ni_ifworker_req_fn_t *, ni_ifworker_req_dtor_t *);
+extern ni_fsm_require_t *	ni_fsm_require_new(ni_fsm_require_fn_t *, ni_fsm_require_dtor_t *);
 
 #endif /* __CLIENT_FSM_H__ */
