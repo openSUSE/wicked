@@ -38,6 +38,7 @@ extern ni_dbus_class_t *	ni_objectmodel_class_new(const char *, const ni_dbus_cl
 #define NI_OBJECTMODEL_DBUS_BUS_NAME_DHCP4	"com.suse.Wicked.DHCP4"
 #define NI_OBJECTMODEL_DBUS_BUS_NAME_DHCP6	"com.suse.Wicked.DHCP6"
 #define NI_OBJECTMODEL_DBUS_BUS_NAME_AUTO4	"com.suse.Wicked.AUTO4"
+#define NI_OBJECTMODEL_DBUS_BUS_NAME_MANAGER	"com.suse.Wicked.Manager"
 #define NI_OBJECTMODEL_OBJECT_PATH		"/com/suse/Wicked"
 #define NI_OBJECTMODEL_NETIF_LIST_PATH		"/com/suse/Wicked/Interface"
 #define NI_OBJECTMODEL_MODEM_LIST_PATH		"/com/suse/Wicked/Modem"
