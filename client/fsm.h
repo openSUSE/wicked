@@ -44,7 +44,7 @@ typedef struct ni_ifworker_array {
 
 typedef struct ni_iftransition	ni_iftransition_t;
 
-typedef int			ni_iftransition_fn_t(ni_ifworker_t *, ni_iftransition_t *);
+typedef int			ni_iftransition_fn_t(ni_fsm_t *, ni_ifworker_t *, ni_iftransition_t *);
 struct ni_iftransition {
 	int			from_state;
 	int			next_state;
@@ -171,6 +171,8 @@ struct ni_fsm {
 
 	unsigned int		event_seq;
 	unsigned int		last_event_seq[__NI_EVENT_MAX];
+
+	ni_dbus_object_t *	client_root_object;
 };
 
 

@@ -38,16 +38,14 @@
 
 static unsigned int		ni_ifworker_timeout_count;
 
-static ni_dbus_object_t *	__root_object;
-
 static const char *		ni_ifworker_state_name(int);
 static void			ni_ifworker_array_destroy(ni_ifworker_array_t *);
 static void			ni_ifworker_array_append(ni_ifworker_array_t *, ni_ifworker_t *);
 static int			ni_ifworker_array_index(const ni_ifworker_array_t *, const ni_ifworker_t *);
 static ni_ifworker_t *		ni_ifworker_identify_device(ni_fsm_t *, const xml_node_t *, ni_ifworker_type_t);
 static void			ni_ifworker_set_dependencies_xml(ni_ifworker_t *, xml_node_t *);
-static void			ni_ifworker_fsm_init(ni_ifworker_t *, unsigned int, unsigned int);
-static int			ni_ifworker_fsm_bind_methods(ni_ifworker_t *);
+static void			ni_ifworker_fsm_init(ni_fsm_t *fsm, ni_ifworker_t *, unsigned int, unsigned int);
+static int			ni_ifworker_fsm_bind_methods(ni_fsm_t *, ni_ifworker_t *);
 static ni_fsm_require_t *	ni_ifworker_netif_resolver_new(xml_node_t *);
 static ni_fsm_require_t *	ni_ifworker_modem_resolver_new(xml_node_t *);
 static void			ni_fsm_require_list_destroy(ni_fsm_require_t **);
@@ -1406,10 +1404,10 @@ ni_ifworker_mark_matching(ni_fsm_t *fsm, ni_ifmatcher_t *match, const ni_uint_ra
 				continue;
 
 			/* No upper bound; bring it up to min level */
-			ni_ifworker_fsm_init(w, NI_FSM_STATE_DEVICE_DOWN, min_state);
+			ni_ifworker_fsm_init(fsm, w, NI_FSM_STATE_DEVICE_DOWN, min_state);
 		} else if (min_state == NI_FSM_STATE_NONE) {
 			/* No lower bound; bring it down to max level */
-			ni_ifworker_fsm_init(w, NI_FSM_STATE_ADDRCONF_UP, max_state);
+			ni_ifworker_fsm_init(fsm, w, NI_FSM_STATE_ADDRCONF_UP, max_state);
 		} else {
 			ni_warn("%s: not handled yet: bringing device into state range [%s, %s]",
 					w->name,
@@ -2188,7 +2186,7 @@ ni_ifworker_print_binding(ni_ifworker_t *w, ni_iftransition_t *action)
  * First part: bind the service, method and argument that should be passed.
  */
 int
-ni_ifworker_do_common_bind(ni_ifworker_t *w, ni_iftransition_t *action)
+ni_ifworker_do_common_bind(ni_fsm_t *fsm, ni_ifworker_t *w, ni_iftransition_t *action)
 {
 	const ni_dbus_service_t *service;
 	unsigned int i;
@@ -2313,7 +2311,7 @@ document_error:
 }
 
 static int
-ni_ifworker_do_common(ni_ifworker_t *w, ni_iftransition_t *action)
+ni_ifworker_do_common(ni_fsm_t *fsm, ni_ifworker_t *w, ni_iftransition_t *action)
 {
 	unsigned int i;
 	int rv;
@@ -2359,7 +2357,7 @@ ni_ifworker_do_common(ni_ifworker_t *w, ni_iftransition_t *action)
  * bridge ports).
  */
 static int
-ni_ifworker_bind_device_factory(ni_ifworker_t *w, ni_iftransition_t *action)
+ni_ifworker_bind_device_factory(ni_fsm_t *fsm, ni_ifworker_t *w, ni_iftransition_t *action)
 {
 	struct ni_iftransition_binding *bind;
 	int rv;
@@ -2389,7 +2387,7 @@ ni_ifworker_bind_device_factory(ni_ifworker_t *w, ni_iftransition_t *action)
 }
 
 static int
-ni_ifworker_call_device_factory(ni_ifworker_t *w, ni_iftransition_t *action)
+ni_ifworker_call_device_factory(ni_fsm_t *fsm, ni_ifworker_t *w, ni_iftransition_t *action)
 {
 	if (!ni_ifworker_device_bound(w)) {
 		struct ni_iftransition_binding *bind;
@@ -2423,7 +2421,7 @@ ni_ifworker_call_device_factory(ni_ifworker_t *w, ni_iftransition_t *action)
 		 * exist, create it on the fly (with a generic class of "netif" -
 		 * the next refresh call with take care of this and correct the
 		 * class */
-		w->object = ni_dbus_object_create(__root_object, relative_path,
+		w->object = ni_dbus_object_create(fsm->client_root_object, relative_path,
 					NULL,
 					NULL);
 
@@ -2434,7 +2432,7 @@ ni_ifworker_call_device_factory(ni_ifworker_t *w, ni_iftransition_t *action)
 			return -1;
 		}
 
-		ni_ifworker_fsm_bind_methods(w);
+		ni_ifworker_fsm_bind_methods(fsm, w);
 	}
 
 	ni_trace("%s: setting worker state to %s", __func__, ni_ifworker_state_name(action->next_state));
@@ -2525,7 +2523,7 @@ static ni_iftransition_t	ni_iftransitions[] = {
 };
 
 static void
-ni_ifworker_fsm_init(ni_ifworker_t *w, unsigned int from_state, unsigned int target_state)
+ni_ifworker_fsm_init(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned int from_state, unsigned int target_state)
 {
 	unsigned int index, num_actions;
 	unsigned int cur_state;
@@ -2583,7 +2581,7 @@ do_it_again:
 	w->fsm.state = from_state;
 	w->target_state = target_state;
 
-	ni_ifworker_fsm_bind_methods(w);
+	ni_ifworker_fsm_bind_methods(fsm, w);
 
 	/* FIXME: Add <require> targets from the interface document */
 }
@@ -2595,7 +2593,7 @@ do_it_again:
  * in the document early on.
  */
 static int
-ni_ifworker_fsm_bind_methods(ni_ifworker_t *w)
+ni_ifworker_fsm_bind_methods(ni_fsm_t *fsm, ni_ifworker_t *w)
 {
 	ni_iftransition_t *action;
 	unsigned int unbound = 0;
@@ -2621,7 +2619,7 @@ ni_ifworker_fsm_bind_methods(ni_ifworker_t *w)
 	for (action = w->fsm.action_table; action->func; ++action) {
 		if (action->bound)
 			continue;
-		rv = action->bind_func(w, action);
+		rv = action->bind_func(fsm, w, action);
 		if (rv < 0) {
 			ni_ifworker_fail(w, "unable to bind %s() call", action->common.method_name);
 			return rv;
@@ -2704,7 +2702,7 @@ ni_ifworker_fsm(ni_fsm_t *fsm)
 			ni_ifworker_set_secondary_timeout(w, 0, NULL);
 
 			prev_state = w->fsm.state;
-			rv = action->func(w, action);
+			rv = action->func(fsm, w, action);
 			w->fsm.next_action++;
 
 			if (rv >= 0) {
@@ -2837,10 +2835,10 @@ ni_ifworkers_create_client(ni_fsm_t *fsm)
 {
 	ni_dbus_client_t *client;
 
-	if (!(__root_object = ni_call_create_client()))
+	if (!(fsm->client_root_object = ni_call_create_client()))
 		return FALSE;
 
-	client = ni_dbus_object_get_client(__root_object);
+	client = ni_dbus_object_get_client(fsm->client_root_object);
 
 	ni_dbus_client_add_signal_handler(client, NULL, NULL,
 					NI_OBJECTMODEL_NETIF_INTERFACE,
