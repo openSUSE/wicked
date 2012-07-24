@@ -71,6 +71,7 @@ struct xml_node_array {
 extern xml_document_t *	xml_document_read(const char *);
 extern xml_document_t *	xml_document_scan(FILE *);
 extern xml_document_t *	xml_document_from_buffer(ni_buffer_t *);
+extern xml_document_t *	xml_document_from_string(const char *);
 extern int		xml_document_write(const xml_document_t *, const char *);
 extern int		xml_document_print(const xml_document_t *, FILE *fp);
 extern int		xml_document_hash(const xml_document_t *, void *, size_t);

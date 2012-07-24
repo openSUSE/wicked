@@ -134,6 +134,19 @@ xml_document_read(const char *filename)
 }
 
 xml_document_t *
+xml_document_from_string(const char *string)
+{
+	ni_buffer_t buf;
+
+	if (string == NULL) {
+		ni_error("%s: argument string is NULL", __func__);
+		return NULL;
+	}
+	ni_buffer_init(&buf, (char *) string, strlen(string));
+	return xml_document_from_buffer(&buf);
+}
+
+xml_document_t *
 xml_document_from_buffer(ni_buffer_t *in_buffer)
 {
 	xml_reader_t reader;
