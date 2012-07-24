@@ -54,6 +54,7 @@
 
 #include "buffer.h"
 #include "socket_priv.h"
+#include "netinfo_priv.h"
 
 
 /*
@@ -96,7 +97,8 @@ __ni_dhcp6_socket_open(ni_dhcp6_device_t *dev)
 	int fd, on;
 
 	/*
-	 * FIXME: Error handling in case link-layer address is missed, ....
+	 * FIXME: Error handling in case link-layer address is missed,
+	 *        in tentative or even in dad-failed state, ....
 	 *
 	 * http://tools.ietf.org/html/rfc3315#section-13
 	 *   13. Transmission of Messages by a Client
@@ -115,13 +117,14 @@ __ni_dhcp6_socket_open(ni_dhcp6_device_t *dev)
 	 *   [...]
 	 *
 	 * Further:
-	 * Unicasts only after receiving the Server Unicast option from server.
+	 * Unicasts only after receiving the server unicast option from server.
 	 */
 	if (!dev->link.ifindex) {
 		ni_error("interface index not set");
 		return -1;
 	}
-	if (!IN6_IS_ADDR_LINKLOCAL(&dev->config->client_addr.six.sin6_addr)) {
+	if (dev->config->client_addr.ss_family != AF_INET6 ||
+	    !IN6_IS_ADDR_LINKLOCAL(&dev->config->client_addr.six.sin6_addr)) {
 		ni_error("link layer address not (yet) available");
 		return -1;
 	}
@@ -149,18 +152,12 @@ __ni_dhcp6_socket_open(ni_dhcp6_device_t *dev)
 		ni_error("fcntl(SETDF, CLOEXEC): %m");
 
 
-	memset(&saddr, 0, sizeof(saddr));
-	saddr.six.sin6_family = AF_INET6;
-	saddr.six.sin6_port = htons(NI_DHCP6_CLIENT_PORT);
-	saddr.six.sin6_scope_id = dev->link.ifindex;
 	/*
-	 * Hmm... when we bind to the link local address, we're unable to
-	 * send unicast (direct) messages to the sender any more ...
-	 * So we bind to port+scope and set IPV6_MULTICAST_IF ???
-	 *
+	 * Should we use dev->config->client_addr directly?
 	 */
-	memcpy(&saddr.six.sin6_addr, &dev->config->client_addr.six.sin6_addr,
-			sizeof(saddr.six.sin6_addr));
+	ni_sockaddr_set_ipv6(&saddr, dev->config->client_addr.six.sin6_addr,
+					NI_DHCP6_CLIENT_PORT);
+	saddr.six.sin6_scope_id = dev->link.ifindex;
 
 	/*
 	 * TODO: Tests needed.
@@ -186,9 +183,9 @@ __ni_dhcp6_socket_open(ni_dhcp6_device_t *dev)
 	if (setsockopt(fd, IPPROTO_IPV6, IPV6_MULTICAST_IF, &on, sizeof(on)) != 0)
 		ni_error("setsockopt(IPV6_MULTICAST_IF, %d: %m", on);
 
-	ni_debug_dhcp("Bound DHCPv6 socket to [%s]:%u on %s[%u]",
-		ni_address_print(&saddr), NI_DHCP6_CLIENT_PORT,
-		dev->ifname, dev->link.ifindex);
+	ni_debug_dhcp("%s: bound DHCPv6 socket to [%s%%%u]:%u",
+		dev->ifname, ni_address_print(&saddr), saddr.six.sin6_scope_id,
+		ntohs(saddr.six.sin6_port));
 
 	return fd;
 }
@@ -1658,89 +1655,90 @@ ni_dhcp6_client_parse_options(ni_dhcp6_device_t *dev, ni_buffer_t *buffer, ni_ad
 #endif
 
 		switch(option) {
-			case NI_DHCP6_OPTION_CLIENTID:
-				ni_dhcp6_option_get_duid(&optbuf, &lease->dhcp6.client_id);
-			break;
-			case NI_DHCP6_OPTION_SERVERID:
-				ni_dhcp6_option_get_duid(&optbuf, &lease->dhcp6.server_id);
-			break;
-			case NI_DHCP6_OPTION_PREFERENCE:
-				ni_dhcp6_option_get8(&optbuf, &lease->dhcp6.server_pref);
-			break;
-			case NI_DHCP6_OPTION_UNICAST:
-				ni_dhcp6_option_get_ipv6(&optbuf, &lease->dhcp6.server_addr);
-			break;
-			case NI_DHCP6_OPTION_STATUS_CODE:
-				if (!lease->dhcp6.status)
-					lease->dhcp6.status = calloc(1, sizeof(struct ni_dhcp6_status));
-				if (!lease->dhcp6.status ||
-				    ni_dhcp6_option_get_status(&optbuf, lease->dhcp6.status) < 0)
-					goto failure;
-			break;
-			case NI_DHCP6_OPTION_ELAPSED_TIME:
-				ni_dhcp6_option_get_elapsed_time(&optbuf, &elapsed);
-			break;
-			case NI_DHCP6_OPTION_RAPID_COMMIT:
-				lease->dhcp6.rapid_commit = TRUE;
-			break;
+		case NI_DHCP6_OPTION_CLIENTID:
+			ni_dhcp6_option_get_duid(&optbuf, &lease->dhcp6.client_id);
+		break;
+		case NI_DHCP6_OPTION_SERVERID:
+			ni_dhcp6_option_get_duid(&optbuf, &lease->dhcp6.server_id);
+		break;
 
-			case NI_DHCP6_OPTION_IA_NA:
-				ni_dhcp6_client_parse_ia(&optbuf, &lease->dhcp6.ia_na, NI_DHCP6_IA_NA_TYPE);
-			break;
-			case NI_DHCP6_OPTION_IA_TA:
-				ni_dhcp6_client_parse_ia(&optbuf, &lease->dhcp6.ia_ta, NI_DHCP6_IA_TA_TYPE);
-			break;
-			case NI_DHCP6_OPTION_IA_PD:
-				ni_dhcp6_client_parse_ia(&optbuf, &lease->dhcp6.ia_pd, NI_DHCP6_IA_PD_TYPE);
-			break;
+		case NI_DHCP6_OPTION_PREFERENCE:
+			ni_dhcp6_option_get8(&optbuf, &lease->dhcp6.server_pref);
+		break;
+		case NI_DHCP6_OPTION_UNICAST:
+			ni_dhcp6_option_get_ipv6(&optbuf, &lease->dhcp6.server_addr);
+		break;
+		case NI_DHCP6_OPTION_STATUS_CODE:
+			if (!lease->dhcp6.status)
+				lease->dhcp6.status = calloc(1, sizeof(struct ni_dhcp6_status));
+			if (!lease->dhcp6.status ||
+			    ni_dhcp6_option_get_status(&optbuf, lease->dhcp6.status) < 0)
+				goto failure;
+		break;
+		case NI_DHCP6_OPTION_ELAPSED_TIME:
+			ni_dhcp6_option_get_elapsed_time(&optbuf, &elapsed);
+		break;
+		case NI_DHCP6_OPTION_RAPID_COMMIT:
+			lease->dhcp6.rapid_commit = TRUE;
+		break;
 
-			case NI_DHCP6_OPTION_DNS_SERVERS:
-				if (lease->resolver == NULL)
-					lease->resolver = ni_resolver_info_new();
-				if (lease->resolver != NULL) {
-					ni_dhcp6_decode_address_list(&optbuf, &lease->resolver->dns_servers);
-#if 0
-					for (i = 0; i < lease->resolver->dns_servers.count; ++i)
-						ni_trace("option %s[%u]: %s", ni_dhcp6_option_name(option), i,
-							lease->resolver->dns_servers.data[i]);
-#endif
-				}
-			break;
+		case NI_DHCP6_OPTION_IA_NA:
+			ni_dhcp6_client_parse_ia(&optbuf, &lease->dhcp6.ia_na, NI_DHCP6_IA_NA_TYPE);
+		break;
+		case NI_DHCP6_OPTION_IA_TA:
+			ni_dhcp6_client_parse_ia(&optbuf, &lease->dhcp6.ia_ta, NI_DHCP6_IA_TA_TYPE);
+		break;
+		case NI_DHCP6_OPTION_IA_PD:
+			ni_dhcp6_client_parse_ia(&optbuf, &lease->dhcp6.ia_pd, NI_DHCP6_IA_PD_TYPE);
+		break;
 
-			case NI_DHCP6_OPTION_DNS_DOMAINS:
-				if (lease->resolver == NULL)
-					lease->resolver = ni_resolver_info_new();
-				if (lease->resolver != NULL) {
-					ni_dhcp6_decode_dnssearch(&optbuf, &lease->resolver->dns_search);
+		case NI_DHCP6_OPTION_DNS_SERVERS:
+			if (lease->resolver == NULL)
+				lease->resolver = ni_resolver_info_new();
+			if (lease->resolver != NULL) {
+				ni_dhcp6_decode_address_list(&optbuf, &lease->resolver->dns_servers);
 #if 0
-					for (i = 0; i < lease->resolver->dns_search.count; ++i)
-						ni_trace("option %s[%u]: %s", ni_dhcp6_option_name(option), i,
-							lease->resolver->dns_search.data[i]);
-#endif
-				}
-			break;
-			case NI_DHCP6_OPTION_SIP_SERVER_A:
-				ni_dhcp6_decode_address_list(&optbuf, &lease->sip_servers);
-#if 0
-				for (i = 0; i < lease->sip_servers.count; ++i)
+				for (i = 0; i < lease->resolver->dns_servers.count; ++i)
 					ni_trace("option %s[%u]: %s", ni_dhcp6_option_name(option), i,
-							lease->sip_servers.data[i]);
+						lease->resolver->dns_servers.data[i]);
 #endif
-			break;
-			case NI_DHCP6_OPTION_SIP_SERVER_D:
-				ni_dhcp6_decode_dnssearch(&optbuf, &lease->sip_servers);
+			}
+		break;
+		case NI_DHCP6_OPTION_DNS_DOMAINS:
+			if (lease->resolver == NULL)
+				lease->resolver = ni_resolver_info_new();
+			if (lease->resolver != NULL) {
+				ni_dhcp6_decode_dnssearch(&optbuf, &lease->resolver->dns_search);
 #if 0
-				for (i = 0; i < lease->sip_servers.count; ++i)
+				for (i = 0; i < lease->resolver->dns_search.count; ++i)
 					ni_trace("option %s[%u]: %s", ni_dhcp6_option_name(option), i,
-							lease->sip_servers.data[i]);
+						lease->resolver->dns_search.data[i]);
 #endif
-			break;
-			default:
+			}
+		break;
+		case NI_DHCP6_OPTION_SIP_SERVER_A:
+			ni_dhcp6_decode_address_list(&optbuf, &lease->sip_servers);
 #if 0
-				ni_trace("%s: option %s: not supported - ignoring",
-					dev->ifname, ni_dhcp6_option_name(option));
+			for (i = 0; i < lease->sip_servers.count; ++i)
+				ni_trace("option %s[%u]: %s", ni_dhcp6_option_name(option), i,
+						lease->sip_servers.data[i]);
 #endif
-			break;
+		break;
+		case NI_DHCP6_OPTION_SIP_SERVER_D:
+			ni_dhcp6_decode_dnssearch(&optbuf, &lease->sip_servers);
+#if 0
+			for (i = 0; i < lease->sip_servers.count; ++i)
+				ni_trace("option %s[%u]: %s", ni_dhcp6_option_name(option), i,
+						lease->sip_servers.data[i]);
+#endif
+		break;
+
+		default:
+#if 0
+			ni_trace("%s: option %s: not supported - ignoring",
+				dev->ifname, ni_dhcp6_option_name(option));
+#endif
+		break;
 		}
 
 		if (optbuf.underflow) {
@@ -1755,6 +1753,41 @@ ni_dhcp6_client_parse_options(ni_dhcp6_device_t *dev, ni_buffer_t *buffer, ni_ad
 			ni_stringbuf_destroy(&hexbuf);
 		}
 	}
+
+#if 1	/* too early here -- do it after parsing depending on the state */
+	if (!lease->dhcp6.status || lease->dhcp6.status->code == NI_DHCP6_STATUS_SUCCESS) {
+		ni_sockaddr_t            laddr;
+		struct ni_dhcp6_ia_addr *iaddr;
+		struct ni_dhcp6_ia *     ia;
+		ni_address_t *           ap;
+
+		ni_address_list_destroy(&lease->addrs);
+		lease->addrs = NULL;
+		for (ia = lease->dhcp6.ia_na; ia; ia = ia->next) {
+			if (ia->type != NI_DHCP6_IA_NA_TYPE)
+				continue; /* Hmm... */
+
+			if (!ia->status || ia->status->code != NI_DHCP6_STATUS_SUCCESS)
+				continue;
+
+			for (iaddr = ia->addrs; iaddr ; iaddr = iaddr->next) {
+				if (!iaddr->status || iaddr->status->code != NI_DHCP6_STATUS_SUCCESS)
+					continue;
+
+				ni_sockaddr_set_ipv6(&laddr, iaddr->addr, 0);
+
+				/*
+				 * FIXME: lookup if iadr matches some RA prefix for this interface
+				 *        and use prefix lenght of the RA prefix...
+				 */
+				ap = __ni_address_new(&lease->addrs, AF_INET6, 64, &laddr);
+				ap->ipv6_cache_info.preferred_lft = iaddr->preferred_lft;
+				ap->ipv6_cache_info.valid_lft = iaddr->valid_lft;
+				ap->config_lease = lease;
+			}
+		}
+	}
+#endif
 
 	return 0;
 
@@ -1802,7 +1835,7 @@ ni_dhcp6_client_parse_response(ni_dhcp6_device_t *dev, ni_buffer_t *msgbuf,
 				dev->ifname, ni_dhcp6_message_name(*msg_type), *msg_xid, dev->dhcp6.xid);
 			return -1;
 		}
-		break;
+	break;
 #if 0
 	case NI_DHCP6_RECONFIGURE:
 		if (dev->dhcp6.xid != 0) {
@@ -1810,12 +1843,12 @@ ni_dhcp6_client_parse_response(ni_dhcp6_device_t *dev, ni_buffer_t *msgbuf,
 				dev->ifname, ni_dhcp6_message_name(*msg_type), *msg_xid);
 			return -1;
 		}
-		break;
+	break;
 #endif
 	default:
 		ni_error("%s: ignoring unexpected %s message xid 0x%06x",
 				dev->ifname, ni_dhcp6_message_name(*msg_type), *msg_xid);
-		return -1;
+	return -1;
 	}
 
 	lease = ni_addrconf_lease_new(NI_ADDRCONF_DHCP, AF_INET6);
