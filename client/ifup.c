@@ -1832,7 +1832,7 @@ __ni_ifworker_refresh_netdevs(ni_fsm_t *fsm)
 	static ni_dbus_object_t *list_object = NULL;
 	ni_dbus_object_t *object;
 
-	if (!list_object && !(list_object = wicked_get_interface_object(NULL)))
+	if (!list_object && !(list_object = ni_call_get_netif_list_object()))
 		ni_fatal("unable to get server's interface list");
 
 	/* Call ObjectManager.GetManagedObjects to get list of objects and their properties */
@@ -1878,7 +1878,7 @@ __ni_ifworker_refresh_modems(ni_fsm_t *fsm)
 	static ni_dbus_object_t *list_object = NULL;
 	ni_dbus_object_t *object;
 
-	if (!list_object && !(list_object = wicked_get_modem_object()))
+	if (!list_object && !(list_object = ni_call_get_modem_list_object()))
 		ni_fatal("unable to get server's modem list");
 
 	/* Call ObjectManager.GetManagedObjects to get list of objects and their properties */

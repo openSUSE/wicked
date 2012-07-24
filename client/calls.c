@@ -24,6 +24,12 @@
 #include "client/wicked-client.h"
 
 /*
+ * Wicked client handle
+ */
+struct ni_client {
+};
+
+/*
  * Error context - this is an opaque type.
  */
 struct ni_call_error_context {
@@ -158,13 +164,13 @@ __ni_call_identify_device(ni_dbus_object_t *list_object, const xml_node_t *query
 char *
 ni_call_identify_device(const xml_node_t *query)
 {
-	return __ni_call_identify_device(wicked_get_interface_object(NULL), query);
+	return __ni_call_identify_device(ni_call_get_netif_list_object(), query);
 }
 
 char *
 ni_call_identify_modem(const xml_node_t *query)
 {
-	return __ni_call_identify_device(wicked_get_modem_object(), query);
+	return __ni_call_identify_device(ni_call_get_modem_list_object(), query);
 }
 
 /*
@@ -179,7 +185,7 @@ ni_call_device_new(const ni_dbus_service_t *service, ni_dbus_variant_t call_argv
 	char *result = NULL;
 
 	memset(call_resp, 0, sizeof(call_resp));
-	if (!(object = wicked_get_interface_object(service->name))) {
+	if (!(object = ni_call_get_netif_list_object())) {
 		ni_error("unable to create proxy object for %s", service->name);
 		goto failed;
 	}

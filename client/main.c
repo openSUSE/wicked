@@ -197,7 +197,7 @@ __wicked_get_proxy_object(const ni_dbus_service_t *service, const char *relative
  * Obtain an object handle for Wicked.Interface
  */
 ni_dbus_object_t *
-wicked_get_interface_object(const char *default_interface)
+ni_call_get_netif_list_object(void)
 {
 	static const ni_dbus_service_t *netif_list_service;
 	ni_dbus_object_t *list_object;
@@ -209,9 +209,7 @@ wicked_get_interface_object(const char *default_interface)
 
 	list_object = __wicked_get_proxy_object(netif_list_service, "Interface");
 
-	if (default_interface == NULL)
-		default_interface = netif_list_service->name;
-	ni_dbus_object_set_default_interface(list_object, default_interface);
+	ni_dbus_object_set_default_interface(list_object, netif_list_service->name);
 	return list_object;
 }
 
@@ -219,7 +217,7 @@ wicked_get_interface_object(const char *default_interface)
  * Obtain an object handle for Wicked.Modem
  */
 ni_dbus_object_t *
-wicked_get_modem_object(void)
+ni_call_get_modem_list_object(void)
 {
 	static const ni_dbus_service_t *modem_list_service;
 	ni_dbus_object_t *list_object;
@@ -245,7 +243,7 @@ wicked_get_interface(const char *ifname)
 	ni_dbus_object_t *object;
 
 	if (interfaces == NULL) {
-		if (!(interfaces = wicked_get_interface_object(NULL)))
+		if (!(interfaces = ni_call_get_netif_list_object()))
 			return NULL;
 
 		/* Call ObjectManager.GetManagedObjects to get list of objects and their properties */
@@ -453,10 +451,10 @@ do_show_xml(int argc, char **argv)
 		return 1;
 
 	if (!opt_modems) {
-		if (!(list_object = wicked_get_interface_object(NULL)))
+		if (!(list_object = ni_call_get_netif_list_object()))
 			goto out;
 	} else {
-		if (!(list_object = wicked_get_modem_object()))
+		if (!(list_object = ni_call_get_modem_list_object()))
 			goto out;
 	}
 

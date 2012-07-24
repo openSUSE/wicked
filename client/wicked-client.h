@@ -15,14 +15,16 @@ extern int			opt_global_progressmeter;
 extern int			do_ifup(int argc, char **argv);
 extern int			do_ifdown(int argc, char **argv);
 
+typedef struct ni_client	ni_client_t;
+
 typedef struct ni_call_error_context ni_call_error_context_t;
 typedef int			ni_call_error_handler_t(ni_call_error_context_t *, const DBusError *);
 
 extern xml_node_t *		ni_call_error_context_get_node(ni_call_error_context_t *, const char *);
 extern int			ni_call_error_context_get_retries(ni_call_error_context_t *, const DBusError *);
 
-extern ni_dbus_object_t *	wicked_get_interface_object(const char *);
-extern ni_dbus_object_t *	wicked_get_modem_object(void);
+extern ni_dbus_object_t *	ni_call_get_netif_list_object(void);
+extern ni_dbus_object_t *	ni_call_get_modem_list_object(void);
 
 extern ni_dbus_object_t *	ni_call_create_client(void);
 extern char *			ni_call_identify_device(const xml_node_t *query);
