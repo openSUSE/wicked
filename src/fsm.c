@@ -39,8 +39,8 @@ static void			ni_ifworker_array_append(ni_ifworker_array_t *, ni_ifworker_t *);
 static int			ni_ifworker_array_index(const ni_ifworker_array_t *, const ni_ifworker_t *);
 static ni_ifworker_t *		ni_ifworker_identify_device(ni_fsm_t *, const xml_node_t *, ni_ifworker_type_t);
 static void			ni_ifworker_set_dependencies_xml(ni_ifworker_t *, xml_node_t *);
-static void			ni_ifworker_fsm_init(ni_fsm_t *fsm, ni_ifworker_t *, unsigned int, unsigned int);
-static int			ni_ifworker_fsm_bind_methods(ni_fsm_t *, ni_ifworker_t *);
+static void			ni_fsm_schedule_init(ni_fsm_t *fsm, ni_ifworker_t *, unsigned int, unsigned int);
+static int			ni_fsm_schedule_bind_methods(ni_fsm_t *, ni_ifworker_t *);
 static ni_fsm_require_t *	ni_ifworker_netif_resolver_new(xml_node_t *);
 static ni_fsm_require_t *	ni_ifworker_modem_resolver_new(xml_node_t *);
 static void			ni_fsm_require_list_destroy(ni_fsm_require_t **);
@@ -65,6 +65,24 @@ ni_fsm_free(ni_fsm_t *fsm)
 {
 	ni_ifworker_array_destroy(&fsm->workers);
 	free(fsm);
+}
+
+/*
+ * Return number of failed interfaces
+ */
+unsigned int
+ni_fsm_fail_count(ni_fsm_t *fsm)
+{
+	unsigned int i, nfailed = 0;
+
+	for (i = 0; i < fsm->workers.count; ++i) {
+		ni_ifworker_t *w = fsm->workers.data[i];
+
+		if (w->failed)
+			nfailed++;
+	}
+
+	return nfailed;
 }
 
 static inline ni_ifworker_t *
@@ -281,24 +299,6 @@ ni_ifworker_success(ni_ifworker_t *w)
 	if (!w->done)
 		printf("%s: %s\n", w->name, ni_ifworker_state_name(w->fsm.state));
 	w->done = 1;
-}
-
-/*
- * XXX: rename to ni_fsm_fail_count
- */
-unsigned int
-ni_ifworkers_fail_count(ni_fsm_t *fsm)
-{
-	unsigned int i, nfailed = 0;
-
-	for (i = 0; i < fsm->workers.count; ++i) {
-		ni_ifworker_t *w = fsm->workers.data[i];
-
-		if (w->failed)
-			nfailed++;
-	}
-
-	return nfailed;
 }
 
 /*
@@ -783,7 +783,7 @@ ni_ifworker_control_from_xml(ni_ifworker_t *w, xml_node_t *ctrlnode)
  * Given an XML document, build interface and modem objects, and policies from it.
  */
 unsigned int
-ni_ifworkers_from_xml(ni_fsm_t *fsm, xml_document_t *doc, const char *config_origin)
+ni_fsm_workers_from_xml(ni_fsm_t *fsm, xml_document_t *doc, const char *config_origin)
 {
 	xml_node_t *root, *ifnode;
 	unsigned int count = 0;
@@ -1229,11 +1229,9 @@ ni_ifworker_type_from_string(const char *s)
 
 /*
  * Get all interfaces matching some user-specified criteria
- *
- * XXX: rename to ni_fsm_get_matching
  */
 unsigned int
-ni_ifworker_get_matching(ni_fsm_t *fsm, ni_ifmatcher_t *match, ni_ifworker_array_t *result)
+ni_fsm_get_matching_workers(ni_fsm_t *fsm, ni_ifmatcher_t *match, ni_ifworker_array_t *result)
 {
 	unsigned int i;
 
@@ -1379,16 +1377,14 @@ ni_ifworkers_flatten(ni_ifworker_array_t *array)
  * After we've picked the list of matching interfaces, set their target state.
  * We need to do this recursively - for instance, bringing up a VLAN interface
  * requires that the underlying ethernet device at least has brought up the link.
- *
- * XXX: rename to ni_fsm_mark_matching
  */
 unsigned int
-ni_ifworker_mark_matching(ni_fsm_t *fsm, ni_ifmatcher_t *match, const ni_uint_range_t *target_range)
+ni_fsm_mark_matching_workers(ni_fsm_t *fsm, ni_ifmatcher_t *match, const ni_uint_range_t *target_range)
 {
 	ni_ifworker_array_t marked = { 0, NULL };
 	unsigned int i, j, count = 0;
 
-	if (!ni_ifworker_get_matching(fsm, match, &marked))
+	if (!ni_fsm_get_matching_workers(fsm, match, &marked))
 		return 0;
 
 	ni_ifworkers_check_loops(fsm, &marked);
@@ -1431,10 +1427,10 @@ ni_ifworker_mark_matching(ni_fsm_t *fsm, ni_ifmatcher_t *match, const ni_uint_ra
 				continue;
 
 			/* No upper bound; bring it up to min level */
-			ni_ifworker_fsm_init(fsm, w, NI_FSM_STATE_DEVICE_DOWN, min_state);
+			ni_fsm_schedule_init(fsm, w, NI_FSM_STATE_DEVICE_DOWN, min_state);
 		} else if (min_state == NI_FSM_STATE_NONE) {
 			/* No lower bound; bring it down to max level */
-			ni_ifworker_fsm_init(fsm, w, NI_FSM_STATE_ADDRCONF_UP, max_state);
+			ni_fsm_schedule_init(fsm, w, NI_FSM_STATE_ADDRCONF_UP, max_state);
 		} else {
 			ni_warn("%s: not handled yet: bringing device into state range [%s, %s]",
 					w->name,
@@ -1613,8 +1609,6 @@ ni_ifworker_bind_device_apis(ni_ifworker_t *w, const ni_dbus_service_t *service)
  * We need to ensure that we bring up devices in the proper order; e.g. an
  * eth interface needs to come up before any of the VLANs that reference
  * it.
- *
- * XXX: Rename to ni_fsm_build_hierarchy
  */
 struct ni_ifworker_xml_validation_user_data {
 	ni_fsm_t *	fsm;
@@ -1625,7 +1619,7 @@ static dbus_bool_t	ni_ifworker_netif_resolve_cb(xml_node_t *, const ni_xs_type_t
 static int		ni_ifworker_prompt_later_cb(xml_node_t *, const ni_xs_type_t *, const xml_node_t *, void *);
 
 int
-ni_ifworkers_build_hierarchy(ni_fsm_t *fsm)
+ni_fsm_build_hierarchy(ni_fsm_t *fsm)
 {
 	unsigned int i;
 
@@ -1818,7 +1812,7 @@ __ni_ifworker_print_tree(const char *arrow, const ni_ifworker_t *w, const char *
 }
 
 void
-ni_ifworkers_refresh_state(ni_fsm_t *fsm)
+ni_fsm_refresh_state(ni_fsm_t *fsm)
 {
 	ni_ifworker_t *w;
 	unsigned int i;
@@ -2461,7 +2455,7 @@ ni_ifworker_call_device_factory(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transiti
 			return -1;
 		}
 
-		ni_ifworker_fsm_bind_methods(fsm, w);
+		ni_fsm_schedule_bind_methods(fsm, w);
 	}
 
 	ni_trace("%s: setting worker state to %s", __func__, ni_ifworker_state_name(action->next_state));
@@ -2552,7 +2546,7 @@ static ni_fsm_transition_t	ni_iftransitions[] = {
 };
 
 static void
-ni_ifworker_fsm_init(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned int from_state, unsigned int target_state)
+ni_fsm_schedule_init(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned int from_state, unsigned int target_state)
 {
 	unsigned int index, num_actions;
 	unsigned int cur_state;
@@ -2610,7 +2604,7 @@ do_it_again:
 	w->fsm.state = from_state;
 	w->target_state = target_state;
 
-	ni_ifworker_fsm_bind_methods(fsm, w);
+	ni_fsm_schedule_bind_methods(fsm, w);
 
 	/* FIXME: Add <require> targets from the interface document */
 }
@@ -2622,7 +2616,7 @@ do_it_again:
  * in the document early on.
  */
 static int
-ni_ifworker_fsm_bind_methods(ni_fsm_t *fsm, ni_ifworker_t *w)
+ni_fsm_schedule_bind_methods(ni_fsm_t *fsm, ni_ifworker_t *w)
 {
 	ni_fsm_transition_t *action;
 	unsigned int unbound = 0;
@@ -2667,7 +2661,7 @@ ni_ifworker_fsm_bind_methods(ni_fsm_t *fsm, ni_ifworker_t *w)
 }
 
 unsigned int
-ni_ifworker_fsm(ni_fsm_t *fsm)
+ni_fsm_schedule(ni_fsm_t *fsm)
 {
 	unsigned int i, waiting;
 
@@ -2765,7 +2759,7 @@ ni_ifworker_fsm(ni_fsm_t *fsm)
 			break;
 
 		ni_debug_application("-- refreshing interface state --");
-		ni_ifworkers_refresh_state(fsm);
+		ni_fsm_refresh_state(fsm);
 	}
 
 	for (i = waiting = 0; i < fsm->workers.count; ++i) {
@@ -2860,7 +2854,7 @@ done: ;
 }
 
 ni_bool_t
-ni_ifworkers_create_client(ni_fsm_t *fsm)
+ni_fsm_create_client(ni_fsm_t *fsm)
 {
 	ni_dbus_client_t *client;
 
@@ -2883,11 +2877,11 @@ ni_ifworkers_create_client(ni_fsm_t *fsm)
 }
 
 int
-ni_ifworkers_kickstart(ni_fsm_t *fsm)
+ni_fsm_kickstart(ni_fsm_t *fsm)
 {
 	unsigned int i;
 
-	ni_ifworkers_refresh_state(fsm);
+	ni_fsm_refresh_state(fsm);
 
 	for (i = 0; i < fsm->workers.count; ++i) {
 		ni_ifworker_t *w = fsm->workers.data[i];
@@ -2918,7 +2912,7 @@ ni_ifworkers_kickstart(ni_fsm_t *fsm)
 }
 
 void
-ni_ifworker_mainloop(ni_fsm_t *fsm)
+ni_fsm_mainloop(ni_fsm_t *fsm)
 {
 	while (1) {
 		long timeout;
@@ -2932,7 +2926,7 @@ ni_ifworker_mainloop(ni_fsm_t *fsm)
 			 * last device that we were waiting for. If that's
 			 * the case, we're done.
 			 */
-			if (ni_ifworker_fsm(fsm) == 0)
+			if (ni_fsm_schedule(fsm) == 0)
 				goto done;
 
 			ni_ifworker_timeout_count = 0;
@@ -2941,7 +2935,7 @@ ni_ifworker_mainloop(ni_fsm_t *fsm)
 		if (ni_socket_wait(timeout) < 0)
 			ni_fatal("ni_socket_wait failed");
 
-		if (ni_ifworker_fsm(fsm) == 0)
+		if (ni_fsm_schedule(fsm) == 0)
 			break;
 	}
 

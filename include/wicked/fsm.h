@@ -199,16 +199,16 @@ extern unsigned int		ni_fsm_policy_get_applicable_policies(ni_fsm_t *, ni_ifwork
 extern xml_node_t *		ni_fsm_policy_transform_document(xml_node_t *, const ni_fsm_policy_t * const *, unsigned int);
 extern const char *		ni_fsm_policy_name(const ni_fsm_policy_t *);
 
-extern ni_bool_t		ni_ifworkers_create_client(ni_fsm_t *);
-extern void			ni_ifworkers_refresh_state(ni_fsm_t *);
-extern int			ni_ifworkers_kickstart(ni_fsm_t *);
-extern unsigned int		ni_ifworker_fsm(ni_fsm_t *);
-extern void			ni_ifworker_mainloop(ni_fsm_t *);
-extern unsigned int		ni_ifworker_get_matching(ni_fsm_t *, ni_ifmatcher_t *, ni_ifworker_array_t *);
-extern unsigned int		ni_ifworker_mark_matching(ni_fsm_t *, ni_ifmatcher_t *, const ni_uint_range_t *);
-extern int			ni_ifworkers_build_hierarchy(ni_fsm_t *);
-extern unsigned int		ni_ifworkers_from_xml(ni_fsm_t *, xml_document_t *, const char *);
-extern unsigned int		ni_ifworkers_fail_count(ni_fsm_t *);
+extern ni_bool_t		ni_fsm_create_client(ni_fsm_t *);
+extern void			ni_fsm_refresh_state(ni_fsm_t *);
+extern int			ni_fsm_kickstart(ni_fsm_t *);
+extern unsigned int		ni_fsm_schedule(ni_fsm_t *);
+extern void			ni_fsm_mainloop(ni_fsm_t *);
+extern unsigned int		ni_fsm_get_matching_workers(ni_fsm_t *, ni_ifmatcher_t *, ni_ifworker_array_t *);
+extern unsigned int		ni_fsm_mark_matching_workers(ni_fsm_t *, ni_ifmatcher_t *, const ni_uint_range_t *);
+extern int			ni_fsm_build_hierarchy(ni_fsm_t *);
+extern unsigned int		ni_fsm_workers_from_xml(ni_fsm_t *, xml_document_t *, const char *);
+extern unsigned int		ni_fsm_fail_count(ni_fsm_t *);
 
 extern int			ni_ifworker_type_from_string(const char *);
 extern int			ni_ifworker_state_from_name(const char *);

@@ -48,7 +48,7 @@ ni_ifconfig_firmware_load(ni_fsm_t *fsm)
 		return FALSE;
 	}
 
-	ni_ifworkers_from_xml(fsm, config_doc, "firmware");
+	ni_fsm_workers_from_xml(fsm, config_doc, "firmware");
 
 	/* Do *not* delete config_doc; we are keeping references to its
 	 * descendant nodes in the ifworkers */
@@ -69,7 +69,7 @@ ni_ifconfig_file_load(ni_fsm_t *fsm, const char *filename)
 		return FALSE;
 	}
 
-	ni_ifworkers_from_xml(fsm, config_doc, NULL);
+	ni_fsm_workers_from_xml(fsm, config_doc, NULL);
 
 	/* Do *not* delete config_doc; we are keeping references to its
 	 * descendant nodes in the ifworkers */
@@ -231,10 +231,10 @@ usage:
 		goto usage;
 	}
 
-	if (!ni_ifworkers_create_client(fsm))
+	if (!ni_fsm_create_client(fsm))
 		return 1;
 
-	ni_ifworkers_refresh_state(fsm);
+	ni_fsm_refresh_state(fsm);
 
 	if (!ni_ifconfig_load(fsm, opt_ifconfig))
 		return 1;
@@ -242,7 +242,7 @@ usage:
 	if (opt_ifpolicy && !ni_ifconfig_load(fsm, opt_ifpolicy))
 		return 1;
 
-	if (ni_ifworkers_build_hierarchy(fsm) < 0)
+	if (ni_fsm_build_hierarchy(fsm) < 0)
 		ni_fatal("ifup: unable to build device hierarchy");
 
 	nmarked = 0;
@@ -263,19 +263,19 @@ usage:
 			ifmatch.boot_stage = opt_boot_stage;
 		}
 
-		nmarked += ni_ifworker_mark_matching(fsm, &ifmatch, &state_range);
+		nmarked += ni_fsm_mark_matching_workers(fsm, &ifmatch, &state_range);
 	}
 	if (nmarked == 0) {
 		printf("No matching interfaces\n");
 		return 0;
 	}
 
-	ni_ifworkers_kickstart(fsm);
-	if (ni_ifworker_fsm(fsm) != 0)
-		ni_ifworker_mainloop(fsm);
+	ni_fsm_kickstart(fsm);
+	if (ni_fsm_schedule(fsm) != 0)
+		ni_fsm_mainloop(fsm);
 
 	/* return an error code if at least one of the devices failed */
-	return ni_ifworkers_fail_count(fsm) != 0;
+	return ni_fsm_fail_count(fsm) != 0;
 }
 
 int
@@ -348,27 +348,27 @@ usage:
 	if (!ni_ifconfig_load(fsm, opt_ifconfig))
 		return 1;
 
-	if (!ni_ifworkers_create_client(fsm))
+	if (!ni_fsm_create_client(fsm))
 		return 1;
 
-	ni_ifworkers_refresh_state(fsm);
+	ni_fsm_refresh_state(fsm);
 
 	nmarked = 0;
 	while (optind < argc) {
 		ifmatch.name = argv[optind++];
-		nmarked += ni_ifworker_mark_matching(fsm, &ifmatch, &target_range);
+		nmarked += ni_fsm_mark_matching_workers(fsm, &ifmatch, &target_range);
 	}
 	if (nmarked == 0) {
 		printf("No matching interfaces\n");
 		return 0;
 	}
 
-	ni_ifworkers_kickstart(fsm);
-	if (ni_ifworker_fsm(fsm) != 0)
-		ni_ifworker_mainloop(fsm);
+	ni_fsm_kickstart(fsm);
+	if (ni_fsm_schedule(fsm) != 0)
+		ni_fsm_mainloop(fsm);
 
 	/* return an error code if at least one of the devices failed */
-	return ni_ifworkers_fail_count(fsm) != 0;
+	return ni_fsm_fail_count(fsm) != 0;
 }
 
 int
@@ -443,10 +443,10 @@ usage:
 	if (!ni_ifconfig_load(fsm, opt_ifconfig))
 		return 1;
 
-	if (!ni_ifworkers_create_client(fsm))
+	if (!ni_fsm_create_client(fsm))
 		return 1;
 
-	ni_ifworkers_refresh_state(fsm);
+	ni_fsm_refresh_state(fsm);
 
 	/* nmarked = 0; */
 	while (optind < argc) {
@@ -455,7 +455,7 @@ usage:
 		unsigned int i;
 
 		ifmatch.name = ifname;
-		if (ni_ifworker_get_matching(fsm, &ifmatch, &marked) == 0) {
+		if (ni_fsm_get_matching_workers(fsm, &ifmatch, &marked) == 0) {
 			ni_error("%s: no matching interfaces", ifname);
 			status = 1;
 			continue;

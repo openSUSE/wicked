@@ -69,10 +69,10 @@ usage:
 
 	create_zookeeper_service(fsm);
 
-	if (!ni_ifworkers_create_client(fsm))
+	if (!ni_fsm_create_client(fsm))
 		return 1;
 
-	ni_ifworkers_refresh_state(fsm);
+	ni_fsm_refresh_state(fsm);
 
 	if (!opt_foreground) {
 		if (ni_server_background(program_name) < 0)
@@ -80,9 +80,9 @@ usage:
 		ni_log_destination_syslog(program_name);
 	}
 
-	ni_ifworkers_kickstart(fsm);
-	if (ni_ifworker_fsm(fsm) != 0)
-		ni_ifworker_mainloop(fsm);
+	ni_fsm_kickstart(fsm);
+	if (ni_fsm_schedule(fsm) != 0)
+		ni_fsm_mainloop(fsm);
 
 	return 1;
 }
@@ -108,7 +108,7 @@ ni_objectmodel_zookeeper_manage_interface(ni_dbus_object_t *object, const ni_dbu
 	}
 
 	/* FIXME: do this properly, with error checking */
-	if (ni_ifworkers_from_xml(fsm, doc, "zookeeper") != 1) {
+	if (ni_fsm_workers_from_xml(fsm, doc, "zookeeper") != 1) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
 				"Document did not contain any interface definition");
 		xml_document_free(doc);
