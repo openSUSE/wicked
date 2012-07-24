@@ -747,7 +747,7 @@ ni_ifworker_control_from_xml(ni_ifworker_t *w, xml_node_t *ctrlnode)
 /*
  * Given an XML document, build interface and modem objects, and policies from it.
  */
-static unsigned int
+unsigned int
 ni_ifworkers_from_xml(ni_objectmodel_fsm_t *fsm, xml_document_t *doc, const char *config_origin)
 {
 	xml_node_t *root, *ifnode;

@@ -182,6 +182,7 @@ extern void			ni_ifworkers_refresh_state(ni_objectmodel_fsm_t *);
 extern int			ni_ifworkers_kickstart(ni_objectmodel_fsm_t *);
 extern unsigned int		ni_ifworker_fsm(ni_objectmodel_fsm_t *);
 extern void			ni_ifworker_mainloop(ni_objectmodel_fsm_t *);
+extern unsigned int		ni_ifworkers_from_xml(ni_objectmodel_fsm_t *, xml_document_t *, const char *);
 
 extern int			ni_ifworker_type_from_string(const char *);
 extern ni_ifworker_req_t *	ni_ifworker_reachability_check_new(xml_node_t *);
