@@ -20,11 +20,10 @@
 #include <wicked/netinfo.h>
 #include <wicked/fsm.h>
 
-#include "policy.h"
-
 /*
  * The <match> expression
  */
+typedef struct ni_ifcondition	ni_ifcondition_t;
 typedef ni_bool_t	ni_ifcondition_check_fn_t(const ni_ifcondition_t *, ni_ifworker_t *);
 
 struct ni_ifcondition {
@@ -54,8 +53,9 @@ typedef enum {
 	NI_IFPOLICY_TYPE_CREATE,
 } ni_fsm_policy_action_type_t;
 
+typedef struct ni_fsm_policy_action ni_fsm_policy_action_t;
 struct ni_fsm_policy_action {
-	ni_fsm_policy_action_t *		next;
+	ni_fsm_policy_action_t *	next;
 	ni_fsm_policy_action_type_t	type;
 	xml_node_t *			data;
 
@@ -66,6 +66,20 @@ struct ni_fsm_policy_action {
 	char *				xpath;
 	ni_bool_t			final;
 };
+
+/*
+ * Opaque policy object
+ */
+struct ni_fsm_policy {
+	ni_fsm_policy_t *		next;
+	char *				name;
+	xml_node_t *			node;
+	unsigned int			weight;
+
+	ni_ifcondition_t *		match;
+	ni_fsm_policy_action_t *	actions;
+};
+
 
 static void			ni_fsm_policy_free(ni_fsm_policy_t *);
 static ni_ifcondition_t *	ni_fsm_policy_conditions_from_xml(xml_node_t *);
@@ -186,6 +200,18 @@ ni_fsm_policy_by_name(ni_fsm_t *fsm, const char *name)
 	return NULL;
 }
 
+/*
+ * Get the policy's name (if set)
+ */
+const char *
+ni_fsm_policy_name(const ni_fsm_policy_t *policy)
+{
+	return policy->name;
+}
+
+/*
+ * Check whether policy applies to this ifworker
+ */
 static ni_bool_t
 ni_fsm_policy_applicable(ni_fsm_policy_t *policy, ni_ifworker_t *w)
 {

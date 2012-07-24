@@ -187,7 +187,7 @@ extern ni_fsm_policy_t *	ni_fsm_policy_by_name(ni_fsm_t *, const char *);
 extern unsigned int		ni_fsm_policy_get_applicable_policies(ni_fsm_t *, ni_ifworker_t *,
 						const ni_fsm_policy_t **, unsigned int);
 extern xml_node_t *		ni_fsm_policy_transform_document(xml_node_t *, const ni_fsm_policy_t * const *, unsigned int);
-
+extern const char *		ni_fsm_policy_name(const ni_fsm_policy_t *);
 
 extern ni_bool_t		ni_ifworkers_create_client(ni_fsm_t *);
 extern void			ni_ifworkers_refresh_state(ni_fsm_t *);

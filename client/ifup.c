@@ -30,7 +30,6 @@
 #include <wicked/fsm.h>
 
 #include "wicked-client.h"
-#include "policy.h"
 
 
 #define WICKED_IFCONFIG_DIR_PATH	"/etc/sysconfig/network"
@@ -1152,7 +1151,7 @@ typedef struct ni_ifmatcher {
 static ni_bool_t
 ni_ifworker_merge_policy(ni_ifworker_t *w, ni_fsm_policy_t *policy)
 {
-	ni_warn("%s(%s, %s) TBD", __func__, w->name, policy->name);
+	ni_warn("%s(%s, %s) TBD", __func__, w->name, ni_fsm_policy_name(policy));
 	return TRUE;
 }
 
