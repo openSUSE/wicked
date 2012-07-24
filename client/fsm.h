@@ -33,7 +33,7 @@ enum {
 #define NI_IFWORKER_DEFAULT_TIMEOUT	20000
 #define NI_IFWORKER_INFINITE_TIMEOUT	((unsigned int) -1)
 
-typedef struct ni_objectmodel_fsm ni_objectmodel_fsm_t;
+typedef struct ni_fsm		ni_fsm_t;
 typedef struct ni_ifworker	ni_ifworker_t;
 typedef struct ni_fsm_require	ni_fsm_require_t;
 
@@ -152,7 +152,7 @@ struct ni_ifworker {
  * Express requirements.
  * This is essentially a test function that is invoked "when adequate"
  */
-typedef ni_bool_t		ni_fsm_require_fn_t(ni_objectmodel_fsm_t *, ni_ifworker_t *, ni_fsm_require_t *);
+typedef ni_bool_t		ni_fsm_require_fn_t(ni_fsm_t *, ni_ifworker_t *, ni_fsm_require_t *);
 typedef void			ni_fsm_require_dtor_t(ni_fsm_require_t *);
 
 struct ni_fsm_require {
@@ -165,7 +165,7 @@ struct ni_fsm_require {
 	void *			user_data;
 };
 
-struct ni_objectmodel_fsm {
+struct ni_fsm {
 	ni_ifworker_array_t	workers;
 	unsigned int		worker_timeout;
 
@@ -174,15 +174,15 @@ struct ni_objectmodel_fsm {
 };
 
 
-extern ni_objectmodel_fsm_t *	ni_objectmodel_fsm_new(void);
-extern void			ni_objectmodel_fsm_free(ni_objectmodel_fsm_t *);
+extern ni_fsm_t *		ni_fsm_new(void);
+extern void			ni_fsm_free(ni_fsm_t *);
 
-extern ni_bool_t		ni_ifworkers_create_client(ni_objectmodel_fsm_t *);
-extern void			ni_ifworkers_refresh_state(ni_objectmodel_fsm_t *);
-extern int			ni_ifworkers_kickstart(ni_objectmodel_fsm_t *);
-extern unsigned int		ni_ifworker_fsm(ni_objectmodel_fsm_t *);
-extern void			ni_ifworker_mainloop(ni_objectmodel_fsm_t *);
-extern unsigned int		ni_ifworkers_from_xml(ni_objectmodel_fsm_t *, xml_document_t *, const char *);
+extern ni_bool_t		ni_ifworkers_create_client(ni_fsm_t *);
+extern void			ni_ifworkers_refresh_state(ni_fsm_t *);
+extern int			ni_ifworkers_kickstart(ni_fsm_t *);
+extern unsigned int		ni_ifworker_fsm(ni_fsm_t *);
+extern void			ni_ifworker_mainloop(ni_fsm_t *);
+extern unsigned int		ni_ifworkers_from_xml(ni_fsm_t *, xml_document_t *, const char *);
 
 extern int			ni_ifworker_type_from_string(const char *);
 extern ni_fsm_require_t *	ni_ifworker_reachability_check_new(xml_node_t *);

@@ -35,7 +35,7 @@ typedef struct ni_reachability_check {
 
 
 static ni_bool_t
-ni_fsm_require_check_reachable(ni_objectmodel_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_require_t *req)
+ni_fsm_require_check_reachable(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_require_t *req)
 {
 	ni_reachability_check_t *check = req->user_data;
 

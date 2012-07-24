@@ -25,7 +25,7 @@
 #include "wicked-client.h"
 #include "fsm.h"
 
-static ni_bool_t		create_zookeeper_service(ni_objectmodel_fsm_t *fsm);
+static ni_bool_t		create_zookeeper_service(ni_fsm_t *fsm);
 static void			discover_state(ni_dbus_server_t *);
 
 int
@@ -36,11 +36,11 @@ do_zookeeper(int argc, char **argv)
 		{ "foreground",	no_argument,		 NULL,	OPT_FOREGROUND },
 		{ NULL }
 	};
-	ni_objectmodel_fsm_t *fsm;
+	ni_fsm_t *fsm;
 	int opt_foreground = 0;
 	int c;
 
-	fsm = ni_objectmodel_fsm_new();
+	fsm = ni_fsm_new();
 
 	optind = 1;
 	while ((c = getopt_long(argc, argv, "", options, NULL)) != EOF) {
@@ -92,7 +92,7 @@ ni_objectmodel_zookeeper_manage_interface(ni_dbus_object_t *object, const ni_dbu
 				unsigned int argc, const ni_dbus_variant_t *argv,
 				ni_dbus_message_t *reply, DBusError *error)
 {
-	ni_objectmodel_fsm_t *fsm = object->handle;
+	ni_fsm_t *fsm = object->handle;
 	xml_document_t *doc;
 	const char *ifxml;
 
@@ -133,7 +133,7 @@ static ni_dbus_service_t        ni_objectmodel_zookeeper_interface = {
 #endif
 
 static ni_bool_t
-create_zookeeper_service(ni_objectmodel_fsm_t *fsm)
+create_zookeeper_service(ni_fsm_t *fsm)
 {
 	ni_dbus_server_t *server;
 	ni_dbus_object_t *object;

@@ -44,7 +44,7 @@ static const char *		ni_ifworker_state_name(int);
 static void			ni_ifworker_array_destroy(ni_ifworker_array_t *);
 static void			ni_ifworker_array_append(ni_ifworker_array_t *, ni_ifworker_t *);
 static int			ni_ifworker_array_index(const ni_ifworker_array_t *, const ni_ifworker_t *);
-static ni_ifworker_t *		ni_ifworker_identify_device(ni_objectmodel_fsm_t *, const xml_node_t *, ni_ifworker_type_t);
+static ni_ifworker_t *		ni_ifworker_identify_device(ni_fsm_t *, const xml_node_t *, ni_ifworker_type_t);
 static void			ni_ifworker_set_dependencies_xml(ni_ifworker_t *, xml_node_t *);
 static void			ni_ifworker_fsm_init(ni_ifworker_t *, unsigned int, unsigned int);
 static int			ni_ifworker_fsm_bind_methods(ni_ifworker_t *);
@@ -54,13 +54,13 @@ static void			ni_fsm_require_list_destroy(ni_fsm_require_t **);
 static void			ni_fsm_require_free(ni_fsm_require_t *);
 static int			ni_ifworker_bind_device_apis(ni_ifworker_t *, const ni_dbus_service_t *);
 static void			ni_ifworker_control_set_defaults(ni_ifworker_t *);
-static void			__ni_ifworker_refresh_netdevs(ni_objectmodel_fsm_t *);
-static void			__ni_ifworker_refresh_modems(ni_objectmodel_fsm_t *);
+static void			__ni_ifworker_refresh_netdevs(ni_fsm_t *);
+static void			__ni_ifworker_refresh_modems(ni_fsm_t *);
 
-ni_objectmodel_fsm_t *
-ni_objectmodel_fsm_new(void)
+ni_fsm_t *
+ni_fsm_new(void)
 {
-	ni_objectmodel_fsm_t *fsm;
+	ni_fsm_t *fsm;
 
 	fsm = calloc(1, sizeof(*fsm));
 	fsm->worker_timeout = NI_IFWORKER_DEFAULT_TIMEOUT;
@@ -68,7 +68,7 @@ ni_objectmodel_fsm_new(void)
 }
 
 void
-ni_objectmodel_fsm_free(ni_objectmodel_fsm_t *fsm)
+ni_fsm_free(ni_fsm_t *fsm)
 {
 	ni_ifworker_array_destroy(&fsm->workers);
 	free(fsm);
@@ -94,7 +94,7 @@ __ni_ifworker_new(ni_ifworker_type_t type, const char *name, xml_node_t *config)
 }
 
 static ni_ifworker_t *
-ni_ifworker_new(ni_objectmodel_fsm_t *fsm, ni_ifworker_type_t type, const char *name, xml_node_t *config)
+ni_ifworker_new(ni_fsm_t *fsm, ni_ifworker_type_t type, const char *name, xml_node_t *config)
 {
 	ni_ifworker_t *worker;
 
@@ -252,7 +252,7 @@ ni_ifworker_success(ni_ifworker_t *w)
 }
 
 static unsigned int
-ni_ifworkers_fail_count(ni_objectmodel_fsm_t *fsm)
+ni_ifworkers_fail_count(ni_fsm_t *fsm)
 {
 	unsigned int i, nfailed = 0;
 
@@ -378,13 +378,13 @@ ni_ifworker_array_find(ni_ifworker_array_t *array, ni_ifworker_type_t type, cons
 }
 
 static ni_ifworker_t *
-ni_ifworker_lookup(ni_objectmodel_fsm_t *fsm, ni_ifworker_type_t type, const char *ifname)
+ni_ifworker_lookup(ni_fsm_t *fsm, ni_ifworker_type_t type, const char *ifname)
 {
 	return ni_ifworker_array_find(&fsm->workers, type, ifname);
 }
 
 static ni_ifworker_t *
-ni_ifworker_by_object_path(ni_objectmodel_fsm_t *fsm, const char *object_path)
+ni_ifworker_by_object_path(ni_fsm_t *fsm, const char *object_path)
 {
 	unsigned int i;
 
@@ -402,7 +402,7 @@ ni_ifworker_by_object_path(ni_objectmodel_fsm_t *fsm, const char *object_path)
 }
 
 static ni_ifworker_t *
-ni_ifworker_by_ifindex(ni_objectmodel_fsm_t *fsm, unsigned int ifindex)
+ni_ifworker_by_ifindex(ni_fsm_t *fsm, unsigned int ifindex)
 {
 	unsigned int i;
 
@@ -417,7 +417,7 @@ ni_ifworker_by_ifindex(ni_objectmodel_fsm_t *fsm, unsigned int ifindex)
 }
 
 static ni_ifworker_t *
-ni_ifworker_by_netdev(ni_objectmodel_fsm_t *fsm, const ni_netdev_t *dev)
+ni_ifworker_by_netdev(ni_fsm_t *fsm, const ni_netdev_t *dev)
 {
 	unsigned int i;
 
@@ -439,7 +439,7 @@ ni_ifworker_by_netdev(ni_objectmodel_fsm_t *fsm, const ni_netdev_t *dev)
 }
 
 static ni_ifworker_t *
-ni_ifworker_by_modem(ni_objectmodel_fsm_t *fsm, const ni_modem_t *dev)
+ni_ifworker_by_modem(ni_fsm_t *fsm, const ni_modem_t *dev)
 {
 	unsigned int i;
 
@@ -476,7 +476,7 @@ ni_ifworker_match_alias(const ni_ifworker_t *w, const char *alias)
 }
 
 static ni_ifworker_t *
-ni_ifworker_by_alias(ni_objectmodel_fsm_t *fsm, const char *alias)
+ni_ifworker_by_alias(ni_fsm_t *fsm, const char *alias)
 {
 	unsigned int i;
 
@@ -494,7 +494,7 @@ ni_ifworker_by_alias(ni_objectmodel_fsm_t *fsm, const char *alias)
 }
 
 static ni_ifworker_t *
-ni_ifworker_resolve_reference(ni_objectmodel_fsm_t *fsm, xml_node_t *devnode, ni_ifworker_type_t type)
+ni_ifworker_resolve_reference(ni_fsm_t *fsm, xml_node_t *devnode, ni_ifworker_type_t type)
 {
 	ni_ifworker_t *child;
 	const char *slave_name;
@@ -748,7 +748,7 @@ ni_ifworker_control_from_xml(ni_ifworker_t *w, xml_node_t *ctrlnode)
  * Given an XML document, build interface and modem objects, and policies from it.
  */
 unsigned int
-ni_ifworkers_from_xml(ni_objectmodel_fsm_t *fsm, xml_document_t *doc, const char *config_origin)
+ni_ifworkers_from_xml(ni_fsm_t *fsm, xml_document_t *doc, const char *config_origin)
 {
 	xml_node_t *root, *ifnode;
 	unsigned int count = 0;
@@ -822,7 +822,7 @@ ni_ifworkers_from_xml(ni_objectmodel_fsm_t *fsm, xml_document_t *doc, const char
  * Optionally, the node may specify a minimum and/or maximum device state
  */
 static ni_bool_t
-ni_fsm_require_netif_resolve(ni_objectmodel_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_require_t *req)
+ni_fsm_require_netif_resolve(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_require_t *req)
 {
 	xml_node_t *devnode = req->user_data;
 	ni_ifworker_t *child_worker;
@@ -856,7 +856,7 @@ ni_ifworker_netif_resolver_new(xml_node_t *node)
 }
 
 static ni_bool_t
-ni_fsm_require_modem_resolve(ni_objectmodel_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_require_t *req)
+ni_fsm_require_modem_resolve(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_require_t *req)
 {
 	xml_node_t *devnode = req->user_data;
 	ni_ifworker_t *child_worker;
@@ -911,7 +911,7 @@ __ni_ifworker_link_detection_timeout(void *user_data, const ni_timer_t *timer)
 }
 
 static ni_bool_t
-ni_fsm_require_detect_link(ni_objectmodel_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_require_t *req)
+ni_fsm_require_detect_link(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_require_t *req)
 {
 	if (w->fsm.state == NI_FSM_STATE_LINK_UP)
 		return TRUE;
@@ -953,7 +953,7 @@ struct ni_child_state_req_data {
 };
 
 static ni_bool_t
-ni_ifworker_child_state_req_test(ni_objectmodel_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_require_t *req)
+ni_ifworker_child_state_req_test(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_require_t *req)
 {
 	struct ni_child_state_req_data *data = (struct ni_child_state_req_data *) req->user_data;
 	ni_ifworker_t *child = data->child;
@@ -1055,7 +1055,7 @@ ni_ifworker_set_dependencies_xml(ni_ifworker_t *w, xml_node_t *depnode)
 }
 
 static ni_bool_t
-ni_ifworker_check_dependencies(ni_objectmodel_fsm_t *fsm, ni_ifworker_t *w, ni_iftransition_t *action)
+ni_ifworker_check_dependencies(ni_fsm_t *fsm, ni_ifworker_t *w, ni_iftransition_t *action)
 {
 	ni_fsm_require_t *req, *next;
 
@@ -1083,7 +1083,7 @@ ni_ifworker_check_dependencies(ni_objectmodel_fsm_t *fsm, ni_ifworker_t *w, ni_i
  * System z etc.
  */
 static ni_ifworker_t *
-ni_ifworker_identify_device(ni_objectmodel_fsm_t *fsm, const xml_node_t *devnode, ni_ifworker_type_t type)
+ni_ifworker_identify_device(ni_fsm_t *fsm, const xml_node_t *devnode, ni_ifworker_type_t type)
 {
 	ni_ifworker_t *best = NULL;
 	xml_node_t *attr;
@@ -1210,7 +1210,7 @@ ni_ifworker_type_from_string(const char *s)
  * elements.
  */
 static unsigned int
-ni_ifworker_get_matching(ni_objectmodel_fsm_t *fsm, ni_ifmatcher_t *match, ni_ifworker_array_t *result)
+ni_ifworker_get_matching(ni_fsm_t *fsm, ni_ifmatcher_t *match, ni_ifworker_array_t *result)
 {
 	unsigned int i;
 
@@ -1283,7 +1283,7 @@ ni_ifworker_check_loops(const ni_ifworker_t *w, unsigned int *counter)
 }
 
 static ni_bool_t
-ni_ifworkers_check_loops(ni_objectmodel_fsm_t *fsm, ni_ifworker_array_t *array)
+ni_ifworkers_check_loops(ni_fsm_t *fsm, ni_ifworker_array_t *array)
 {
 	unsigned int i, num_edges;
 
@@ -1358,7 +1358,7 @@ ni_ifworkers_flatten(ni_ifworker_array_t *array)
  * requires that the underlying ethernet device at least has brought up the link.
  */
 static unsigned int
-ni_ifworker_mark_matching(ni_objectmodel_fsm_t *fsm, ni_ifmatcher_t *match, const ni_uint_range_t *target_range)
+ni_ifworker_mark_matching(ni_fsm_t *fsm, ni_ifmatcher_t *match, const ni_uint_range_t *target_range)
 {
 	ni_ifworker_array_t marked = { 0, NULL };
 	unsigned int i, j, count = 0;
@@ -1590,7 +1590,7 @@ ni_ifworker_bind_device_apis(ni_ifworker_t *w, const ni_dbus_service_t *service)
  * it.
  */
 struct ni_ifworker_xml_validation_user_data {
-	ni_objectmodel_fsm_t *	fsm;
+	ni_fsm_t *	fsm;
 	ni_ifworker_t *		worker;
 };
 static void		__ni_ifworker_print_tree(const char *arrow, const ni_ifworker_t *, const char *);
@@ -1598,7 +1598,7 @@ static dbus_bool_t	ni_ifworker_netif_resolve_cb(xml_node_t *, const ni_xs_type_t
 static int		ni_ifworker_prompt_later_cb(xml_node_t *, const ni_xs_type_t *, const xml_node_t *, void *);
 
 static int
-ni_ifworkers_build_hierarchy(ni_objectmodel_fsm_t *fsm)
+ni_ifworkers_build_hierarchy(ni_fsm_t *fsm)
 {
 	unsigned int i;
 
@@ -1791,7 +1791,7 @@ __ni_ifworker_print_tree(const char *arrow, const ni_ifworker_t *w, const char *
 }
 
 void
-ni_ifworkers_refresh_state(ni_objectmodel_fsm_t *fsm)
+ni_ifworkers_refresh_state(ni_fsm_t *fsm)
 {
 	ni_ifworker_t *w;
 	unsigned int i;
@@ -1829,7 +1829,7 @@ ni_ifworkers_refresh_state(ni_objectmodel_fsm_t *fsm)
 }
 
 static void
-__ni_ifworker_refresh_netdevs(ni_objectmodel_fsm_t *fsm)
+__ni_ifworker_refresh_netdevs(ni_fsm_t *fsm)
 {
 	static ni_dbus_object_t *list_object = NULL;
 	ni_dbus_object_t *object;
@@ -1875,7 +1875,7 @@ __ni_ifworker_refresh_netdevs(ni_objectmodel_fsm_t *fsm)
 }
 
 static void
-__ni_ifworker_refresh_modems(ni_objectmodel_fsm_t *fsm)
+__ni_ifworker_refresh_modems(ni_fsm_t *fsm)
 {
 	static ni_dbus_object_t *list_object = NULL;
 	ni_dbus_object_t *object;
@@ -2640,7 +2640,7 @@ ni_ifworker_fsm_bind_methods(ni_ifworker_t *w)
 }
 
 unsigned int
-ni_ifworker_fsm(ni_objectmodel_fsm_t *fsm)
+ni_ifworker_fsm(ni_fsm_t *fsm)
 {
 	unsigned int i, waiting;
 
@@ -2755,7 +2755,7 @@ ni_ifworker_fsm(ni_objectmodel_fsm_t *fsm)
 static void
 interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg, void *user_data)
 {
-	ni_objectmodel_fsm_t *fsm = user_data;
+	ni_fsm_t *fsm = user_data;
 	const char *signal_name = dbus_message_get_member(msg);
 	const char *object_path = dbus_message_get_path(msg);
 	ni_uuid_t event_uuid = NI_UUID_INIT;
@@ -2833,7 +2833,7 @@ done: ;
 }
 
 ni_bool_t
-ni_ifworkers_create_client(ni_objectmodel_fsm_t *fsm)
+ni_ifworkers_create_client(ni_fsm_t *fsm)
 {
 	ni_dbus_client_t *client;
 
@@ -2856,7 +2856,7 @@ ni_ifworkers_create_client(ni_objectmodel_fsm_t *fsm)
 }
 
 int
-ni_ifworkers_kickstart(ni_objectmodel_fsm_t *fsm)
+ni_ifworkers_kickstart(ni_fsm_t *fsm)
 {
 	unsigned int i;
 
@@ -2891,7 +2891,7 @@ ni_ifworkers_kickstart(ni_objectmodel_fsm_t *fsm)
 }
 
 void
-ni_ifworker_mainloop(ni_objectmodel_fsm_t *fsm)
+ni_ifworker_mainloop(ni_fsm_t *fsm)
 {
 	while (1) {
 		long timeout;
@@ -2926,7 +2926,7 @@ done:
  * Read firmware ifconfig (eg iBFT)
  */
 static ni_bool_t
-ni_ifconfig_firmware_load(ni_objectmodel_fsm_t *fsm)
+ni_ifconfig_firmware_load(ni_fsm_t *fsm)
 {
 	xml_document_t *config_doc;
 
@@ -2947,7 +2947,7 @@ ni_ifconfig_firmware_load(ni_objectmodel_fsm_t *fsm)
  * Read ifconfig file(s)
  */
 static dbus_bool_t
-ni_ifconfig_file_load(ni_objectmodel_fsm_t *fsm, const char *filename)
+ni_ifconfig_file_load(ni_fsm_t *fsm, const char *filename)
 {
 	xml_document_t *config_doc;
 
@@ -2965,7 +2965,7 @@ ni_ifconfig_file_load(ni_objectmodel_fsm_t *fsm, const char *filename)
 }
 
 static dbus_bool_t
-ni_ifconfig_load(ni_objectmodel_fsm_t *fsm, const char *pathname)
+ni_ifconfig_load(ni_fsm_t *fsm, const char *pathname)
 {
 	char chroot_namebuf[PATH_MAX];
 	struct stat stb;
@@ -3032,10 +3032,10 @@ do_ifup(int argc, char **argv)
 	const char *opt_skip_origin = NULL;
 	ni_bool_t opt_skip_active = FALSE;
 	unsigned int nmarked;
-	ni_objectmodel_fsm_t *fsm;
+	ni_fsm_t *fsm;
 	int c;
 
-	fsm = ni_objectmodel_fsm_new();
+	fsm = ni_fsm_new();
 
 	optind = 1;
 	while ((c = getopt_long(argc, argv, "", ifup_options, NULL)) != EOF) {
@@ -3169,10 +3169,10 @@ do_ifdown(int argc, char **argv)
 	const char *opt_ifconfig = WICKED_IFCONFIG_DIR_PATH;
 	unsigned int nmarked;
 	/* int opt_delete = 0; */
-	ni_objectmodel_fsm_t *fsm;
+	ni_fsm_t *fsm;
 	int c;
 
-	fsm = ni_objectmodel_fsm_new();
+	fsm = ni_fsm_new();
 
 	memset(&ifmatch, 0, sizeof(ifmatch));
 
@@ -3264,10 +3264,10 @@ do_ifcheck(int argc, char **argv)
 	ni_bool_t opt_check_changed = FALSE;
 	ni_bool_t opt_quiet = FALSE;
 	const char *opt_state = NULL;
-	ni_objectmodel_fsm_t *fsm;
+	ni_fsm_t *fsm;
 	int c, status = 0;
 
-	fsm = ni_objectmodel_fsm_new();
+	fsm = ni_fsm_new();
 
 	memset(&ifmatch, 0, sizeof(ifmatch));
 
