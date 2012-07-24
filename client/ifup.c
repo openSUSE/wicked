@@ -762,7 +762,7 @@ ni_ifworkers_from_xml(ni_fsm_t *fsm, xml_document_t *doc, const char *config_ori
 			const char *name;
 
 			name = xml_node_get_attr(ifnode, "name");
-			ni_ifpolicy_install(ni_ifpolicy_new(name, ifnode));
+			ni_fsm_policy_new(fsm, name, ifnode);
 			continue;
 		}
 
@@ -1150,17 +1150,17 @@ typedef struct ni_ifmatcher {
 } ni_ifmatcher_t;
 
 static ni_bool_t
-ni_ifworker_merge_policy(ni_ifworker_t *w, ni_ifpolicy_t *policy)
+ni_ifworker_merge_policy(ni_ifworker_t *w, ni_fsm_policy_t *policy)
 {
 	ni_warn("%s(%s, %s) TBD", __func__, w->name, policy->name);
 	return TRUE;
 }
 
 static ni_bool_t
-ni_ifworker_apply_policies(ni_ifworker_t *w)
+ni_ifworker_apply_policies(ni_fsm_t *fsm, ni_ifworker_t *w)
 {
 	ni_bool_t use_default_policies = TRUE;
-	ni_ifpolicy_t *policy;
+	ni_fsm_policy_t *policy;
 	xml_node_t *config;
 
 	if (w->config.node && (config = xml_node_get_child(w->config.node, "policies"))) {
@@ -1174,7 +1174,7 @@ ni_ifworker_apply_policies(ni_ifworker_t *w)
 				use_default_policies = FALSE;
 			else
 			if (ni_string_eq(child->name, "policy")) {
-				if (!(policy = ni_ifpolicy_by_name(child->cdata))) {
+				if (!(policy = ni_fsm_policy_by_name(fsm, child->cdata))) {
 					ni_error("%s: unknown policy \"%s\"", w->name, child->cdata);
 					return FALSE;
 				}
@@ -1589,7 +1589,7 @@ ni_ifworker_bind_device_apis(ni_ifworker_t *w, const ni_dbus_service_t *service)
  */
 struct ni_ifworker_xml_validation_user_data {
 	ni_fsm_t *	fsm;
-	ni_ifworker_t *		worker;
+	ni_ifworker_t *	worker;
 };
 static void		__ni_ifworker_print_tree(const char *arrow, const ni_ifworker_t *, const char *);
 static dbus_bool_t	ni_ifworker_netif_resolve_cb(xml_node_t *, const ni_xs_type_t *, const xml_node_t *, void *);
@@ -1652,7 +1652,7 @@ ni_ifworkers_build_hierarchy(ni_fsm_t *fsm)
 
 		/* For now, we apply policies here */
 no_device_bindings:
-		ni_ifworker_apply_policies(w);
+		ni_ifworker_apply_policies(fsm, w);
 	}
 
 	if (ni_debug & NI_TRACE_DBUS) {
@@ -2601,14 +2601,14 @@ ni_ifworker_fsm_bind_methods(ni_fsm_t *fsm, ni_ifworker_t *w)
 
 	if (w->use_default_policies) {
 		static const unsigned int MAX_POLICIES = 64;
-		const ni_ifpolicy_t *policies[MAX_POLICIES];
+		const ni_fsm_policy_t *policies[MAX_POLICIES];
 		unsigned int count;
 
 		ni_debug_application("%s: applying policies", w->name);
 
-		count = ni_ifpolicy_get_applicable_policies(w, policies, MAX_POLICIES);
+		count = ni_fsm_policy_get_applicable_policies(fsm, w, policies, MAX_POLICIES);
 
-		w->config.node = ni_ifpolicy_transform_document(w->config.node, policies, count);
+		w->config.node = ni_fsm_policy_transform_document(w->config.node, policies, count);
 
 		/* Update the control information - it may have been changed by policy */
 		ni_ifworker_control_set_defaults(w);

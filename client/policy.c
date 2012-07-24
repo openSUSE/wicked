@@ -52,11 +52,11 @@ typedef enum {
 	NI_IFPOLICY_TYPE_MERGE,
 	NI_IFPOLICY_TYPE_REPLACE,
 	NI_IFPOLICY_TYPE_CREATE,
-} ni_ifpolicy_action_type_t;
+} ni_fsm_policy_action_type_t;
 
-struct ni_ifpolicy_action {
-	ni_ifpolicy_action_t *		next;
-	ni_ifpolicy_action_type_t	type;
+struct ni_fsm_policy_action {
+	ni_fsm_policy_action_t *		next;
+	ni_fsm_policy_action_type_t	type;
 	xml_node_t *			data;
 
 	/* An xml policy may specify the node it
@@ -67,23 +67,21 @@ struct ni_ifpolicy_action {
 	ni_bool_t			final;
 };
 
-static void			ni_ifpolicy_free(ni_ifpolicy_t *);
-static ni_ifcondition_t *	ni_ifpolicy_conditions_from_xml(xml_node_t *);
+static void			ni_fsm_policy_free(ni_fsm_policy_t *);
+static ni_ifcondition_t *	ni_fsm_policy_conditions_from_xml(xml_node_t *);
 static ni_bool_t		ni_ifcondition_check(const ni_ifcondition_t *, ni_ifworker_t *);
 static ni_ifcondition_t *	ni_ifcondition_from_xml(xml_node_t *);
 static void			ni_ifcondition_free(ni_ifcondition_t *);
-static ni_ifpolicy_action_t *	ni_ifpolicy_action_new(ni_ifpolicy_action_type_t, xml_node_t *, ni_ifpolicy_t *);
-static void			ni_ifpolicy_action_free(ni_ifpolicy_action_t *);
-static xml_node_t *		ni_ifpolicy_action_xml_merge(const ni_ifpolicy_action_t *, xml_node_t *);
-static xml_node_t *		ni_ifpolicy_action_xml_replace(const ni_ifpolicy_action_t *, xml_node_t *);
-
-static ni_ifpolicy_t *		ni_ifpolicies;
+static ni_fsm_policy_action_t *	ni_fsm_policy_action_new(ni_fsm_policy_action_type_t, xml_node_t *, ni_fsm_policy_t *);
+static void			ni_fsm_policy_action_free(ni_fsm_policy_action_t *);
+static xml_node_t *		ni_fsm_policy_action_xml_merge(const ni_fsm_policy_action_t *, xml_node_t *);
+static xml_node_t *		ni_fsm_policy_action_xml_replace(const ni_fsm_policy_action_t *, xml_node_t *);
 
 /*
  * Destructor for policy objects
  */
 static void
-ni_ifpolicy_free(ni_ifpolicy_t *policy)
+ni_fsm_policy_free(ni_fsm_policy_t *policy)
 {
 	ni_string_free(&policy->name);
 	if (policy->match) {
@@ -91,17 +89,17 @@ ni_ifpolicy_free(ni_ifpolicy_t *policy)
 		policy->match = NULL;
 	}
 	while (policy->actions) {
-		ni_ifpolicy_action_t *a = policy->actions;
+		ni_fsm_policy_action_t *a = policy->actions;
 
 		policy->actions = a->next;
-		ni_ifpolicy_action_free(a);
+		ni_fsm_policy_action_free(a);
 	}
 
 	free(policy);
 }
 
 static ni_bool_t
-__ni_ifpolicy_from_xml(ni_ifpolicy_t *policy, xml_node_t *node)
+__ni_fsm_policy_from_xml(ni_fsm_policy_t *policy, xml_node_t *node)
 {
 	xml_node_t *item;
 	const char *attr;
@@ -117,7 +115,7 @@ __ni_ifpolicy_from_xml(ni_ifpolicy_t *policy, xml_node_t *node)
 	}
 
 	for (item = node->children; item; item = item->next) {
-		ni_ifpolicy_action_t *action = NULL;
+		ni_fsm_policy_action_t *action = NULL;
 
 		if (ni_string_eq(item->name, "match")) {
 			if (policy->match) {
@@ -125,19 +123,19 @@ __ni_ifpolicy_from_xml(ni_ifpolicy_t *policy, xml_node_t *node)
 				return FALSE;
 			}
 
-			if (!(policy->match = ni_ifpolicy_conditions_from_xml(item))) {
+			if (!(policy->match = ni_fsm_policy_conditions_from_xml(item))) {
 				ni_error("%s: trouble parsing policy conditions", xml_node_location(item));
 				return FALSE;
 			}
 		} else
 		if (ni_string_eq(item->name, "merge")) {
-			action = ni_ifpolicy_action_new(NI_IFPOLICY_TYPE_MERGE, item, policy);
+			action = ni_fsm_policy_action_new(NI_IFPOLICY_TYPE_MERGE, item, policy);
 		} else
 		if (ni_string_eq(item->name, "replace")) {
-			action = ni_ifpolicy_action_new(NI_IFPOLICY_TYPE_REPLACE, item, policy);
+			action = ni_fsm_policy_action_new(NI_IFPOLICY_TYPE_REPLACE, item, policy);
 		} else
 		if (ni_string_eq(item->name, "create")) {
-			action = ni_ifpolicy_action_new(NI_IFPOLICY_TYPE_CREATE, item, policy);
+			action = ni_fsm_policy_action_new(NI_IFPOLICY_TYPE_CREATE, item, policy);
 		} else {
 			ni_error("%s: unknown <%s> element in policy",
 					xml_node_location(item), item->name);
@@ -154,38 +152,33 @@ __ni_ifpolicy_from_xml(ni_ifpolicy_t *policy, xml_node_t *node)
 	return TRUE;
 }
 
-ni_ifpolicy_t *
-ni_ifpolicy_new(const char *name, xml_node_t *node)
+ni_fsm_policy_t *
+ni_fsm_policy_new(ni_fsm_t *fsm, const char *name, xml_node_t *node)
 {
-	ni_ifpolicy_t *policy;
+	ni_fsm_policy_t *policy;
+	ni_fsm_policy_t *pos, **tail;
 	
 	policy = calloc(1, sizeof(*policy));
 	ni_string_dup(&policy->name, name);
 
-	if (!__ni_ifpolicy_from_xml(policy, node)) {
-		ni_ifpolicy_free(policy);
+	if (!__ni_fsm_policy_from_xml(policy, node)) {
+		ni_fsm_policy_free(policy);
 		return NULL;
 	}
+
+	for (tail = &fsm->policies; (pos = *tail) != NULL; tail = &pos->next)
+		;
+	*tail = policy;
 
 	return policy;
 }
 
-void
-ni_ifpolicy_install(ni_ifpolicy_t *policy)
+ni_fsm_policy_t *
+ni_fsm_policy_by_name(ni_fsm_t *fsm, const char *name)
 {
-	ni_ifpolicy_t *pos, **tail;
+	ni_fsm_policy_t *policy;
 
-	for (tail = &ni_ifpolicies; (pos = *tail) != NULL; tail = &pos->next)
-		;
-	*tail = policy;
-}
-
-ni_ifpolicy_t *
-ni_ifpolicy_by_name(const char *name)
-{
-	ni_ifpolicy_t *policy;
-
-	for (policy = ni_ifpolicies; policy; policy = policy->next) {
+	for (policy = fsm->policies; policy; policy = policy->next) {
 		if (policy->name && ni_string_eq(policy->name, name))
 			return policy;
 	}
@@ -194,7 +187,7 @@ ni_ifpolicy_by_name(const char *name)
 }
 
 static ni_bool_t
-ni_ifpolicy_applicable(ni_ifpolicy_t *policy, ni_ifworker_t *w)
+ni_fsm_policy_applicable(ni_fsm_policy_t *policy, ni_ifworker_t *w)
 {
 	return policy->match && ni_ifcondition_check(policy->match, w);
 }
@@ -204,10 +197,10 @@ ni_ifpolicy_applicable(ni_ifpolicy_t *policy, ni_ifworker_t *w)
  * Returns < 0 if a's weight is smaller than that of b, etc.
  */
 static int
-__ni_ifpolicy_compare(const void *a, const void *b)
+__ni_fsm_policy_compare(const void *a, const void *b)
 {
-	const ni_ifpolicy_t *pa = a;
-	const ni_ifpolicy_t *pb = b;
+	const ni_fsm_policy_t *pa = a;
+	const ni_fsm_policy_t *pb = b;
 
 	return ((int) pa->weight) - ((int) pb->weight);
 }
@@ -216,28 +209,29 @@ __ni_ifpolicy_compare(const void *a, const void *b)
  * Obtain the list of applicable policies
  */
 unsigned int
-ni_ifpolicy_get_applicable_policies(ni_ifworker_t *w, const ni_ifpolicy_t **result, unsigned int max)
+ni_fsm_policy_get_applicable_policies(ni_fsm_t *fsm, ni_ifworker_t *w,
+			const ni_fsm_policy_t **result, unsigned int max)
 {
 	unsigned int count = 0;
-	ni_ifpolicy_t *policy;
+	ni_fsm_policy_t *policy;
 
 	if (!w->use_default_policies)
 		return 0;
 
-	for (policy = ni_ifpolicies; policy; policy = policy->next) {
-		if (ni_ifpolicy_applicable(policy, w)) {
+	for (policy = fsm->policies; policy; policy = policy->next) {
+		if (ni_fsm_policy_applicable(policy, w)) {
 			if (count < max)
 				result[count++] = policy;
 		}
 	}
 
-	qsort(result, count, sizeof(result[0]), __ni_ifpolicy_compare);
+	qsort(result, count, sizeof(result[0]), __ni_fsm_policy_compare);
 	return count;
 }
 
 /*
  * Transform an interface or modem XML document according to a list of policies.
- * Usually, you would obtain that list via ni_ifpolicy_get_applicable_policies
+ * Usually, you would obtain that list via ni_fsm_policy_get_applicable_policies
  * above.
  *
  * The way this works is
@@ -284,23 +278,23 @@ ni_ifpolicy_get_applicable_policies(ni_ifworker_t *w, const ni_ifpolicy_t **resu
  *	changes made by a policy with lower weight.
  */
 xml_node_t *
-ni_ifpolicy_transform_document(xml_node_t *node, const ni_ifpolicy_t * const *policies, unsigned int count)
+ni_fsm_policy_transform_document(xml_node_t *node, const ni_fsm_policy_t * const *policies, unsigned int count)
 {
 	unsigned int i = 0;
 
 	/* Apply policies in order of decreasing weight */
 	for (i = count; i--; ) {
-		const ni_ifpolicy_t *policy = policies[i];
-		ni_ifpolicy_action_t *action;
+		const ni_fsm_policy_t *policy = policies[i];
+		ni_fsm_policy_action_t *action;
 
 		for (action = policy->actions; action; action = action->next) {
 			switch (action->type) {
 			case NI_IFPOLICY_TYPE_MERGE:
-				node = ni_ifpolicy_action_xml_merge(action, node);
+				node = ni_fsm_policy_action_xml_merge(action, node);
 				break;
 
 			case NI_IFPOLICY_TYPE_REPLACE:
-				node = ni_ifpolicy_action_xml_replace(action, node);
+				node = ni_fsm_policy_action_xml_replace(action, node);
 				break;
 
 			default:
@@ -315,11 +309,11 @@ ni_ifpolicy_transform_document(xml_node_t *node, const ni_ifpolicy_t * const *po
 /*
  * Policy actions
  */
-ni_ifpolicy_action_t *
-ni_ifpolicy_action_new(ni_ifpolicy_action_type_t type, xml_node_t *node, ni_ifpolicy_t *policy)
+ni_fsm_policy_action_t *
+ni_fsm_policy_action_new(ni_fsm_policy_action_type_t type, xml_node_t *node, ni_fsm_policy_t *policy)
 {
-	ni_ifpolicy_action_t **list = NULL;
-	ni_ifpolicy_action_t *action;
+	ni_fsm_policy_action_t **list = NULL;
+	ni_fsm_policy_action_t *action;
 	const char *attr;
 
 	if (policy) {
@@ -351,7 +345,7 @@ ni_ifpolicy_action_new(ni_ifpolicy_action_type_t type, xml_node_t *node, ni_ifpo
 }
 
 void
-ni_ifpolicy_action_free(ni_ifpolicy_action_t *action)
+ni_fsm_policy_action_free(ni_fsm_policy_action_t *action)
 {
 	if (action->xpath)
 		ni_string_free(&action->xpath);
@@ -365,7 +359,7 @@ ni_ifpolicy_action_free(ni_ifpolicy_action_t *action)
  * any further.
  */
 static void
-__ni_ifpolicy_action_xml_lookup(xml_node_t *node, const char *name, xml_node_array_t *res)
+__ni_fsm_policy_action_xml_lookup(xml_node_t *node, const char *name, xml_node_array_t *res)
 {
 	xml_node_t *child;
 	unsigned int found = 0;
@@ -383,7 +377,7 @@ __ni_ifpolicy_action_xml_lookup(xml_node_t *node, const char *name, xml_node_arr
 }
 
 static xml_node_array_t *
-ni_ifpolicy_action_xml_lookup(xml_node_t *node, const char *path)
+ni_fsm_policy_action_xml_lookup(xml_node_t *node, const char *path)
 {
 	xml_node_array_t *cur;
 	char *copy, *name;
@@ -405,7 +399,7 @@ ni_ifpolicy_action_xml_lookup(xml_node_t *node, const char *path)
 		for (i = 0; i < cur->count; ++i) {
 			xml_node_t *np = cur->data[i];
 
-			__ni_ifpolicy_action_xml_lookup(np, name, next);
+			__ni_fsm_policy_action_xml_lookup(np, name, next);
 		}
 
 		xml_node_array_free(cur);
@@ -428,7 +422,7 @@ ni_ifpolicy_action_xml_lookup(xml_node_t *node, const char *path)
  * top-level xml node (which is usually an <interface> or <modem> element).
  */
 xml_node_t *
-ni_ifpolicy_action_xml_merge(const ni_ifpolicy_action_t *action, xml_node_t *node)
+ni_fsm_policy_action_xml_merge(const ni_fsm_policy_action_t *action, xml_node_t *node)
 {
 	xml_node_array_t *nodes;
 	unsigned int i;
@@ -442,7 +436,7 @@ ni_ifpolicy_action_xml_merge(const ni_ifpolicy_action_t *action, xml_node_t *nod
 		return node;
 	}
 
-	nodes = ni_ifpolicy_action_xml_lookup(node, action->xpath);
+	nodes = ni_fsm_policy_action_xml_lookup(node, action->xpath);
 	if (nodes == NULL)
 		return NULL;
 
@@ -469,7 +463,7 @@ ni_ifpolicy_action_xml_merge(const ni_ifpolicy_action_t *action, xml_node_t *nod
  * top-level xml node (which is usually an <interface> or <modem> element).
  */
 xml_node_t *
-ni_ifpolicy_action_xml_replace(const ni_ifpolicy_action_t *action, xml_node_t *node)
+ni_fsm_policy_action_xml_replace(const ni_fsm_policy_action_t *action, xml_node_t *node)
 {
 	xml_node_array_t *nodes;
 	unsigned int i;
@@ -482,7 +476,7 @@ ni_ifpolicy_action_xml_replace(const ni_ifpolicy_action_t *action, xml_node_t *n
 		return xml_node_clone_ref(action->data);
 	}
 
-	nodes = ni_ifpolicy_action_xml_lookup(node, action->xpath);
+	nodes = ni_fsm_policy_action_xml_lookup(node, action->xpath);
 	if (nodes == NULL)
 		return NULL;
 
@@ -577,7 +571,7 @@ ni_ifcondition_term2(xml_node_t *node, ni_ifcondition_check_fn_t *check_fn)
  * </and>
  */
 static ni_bool_t
-__ni_ifpolicy_match_and_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
+__ni_fsm_policy_match_and_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
 {
 	return ni_ifcondition_check(cond->args.terms.left, w)
 	    && ni_ifcondition_check(cond->args.terms.right, w);
@@ -586,7 +580,7 @@ __ni_ifpolicy_match_and_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
 static ni_ifcondition_t *
 ni_ifcondition_and(xml_node_t *node)
 {
-	return ni_ifcondition_term2(node, __ni_ifpolicy_match_and_check);
+	return ni_ifcondition_term2(node, __ni_fsm_policy_match_and_check);
 }
 
 /*
@@ -597,7 +591,7 @@ ni_ifcondition_and(xml_node_t *node)
  * </or>
  */
 static ni_bool_t
-__ni_ifpolicy_match_or_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
+__ni_fsm_policy_match_or_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
 {
 	return ni_ifcondition_check(cond->args.terms.left, w)
 	    || ni_ifcondition_check(cond->args.terms.right, w);
@@ -606,7 +600,7 @@ __ni_ifpolicy_match_or_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
 static ni_ifcondition_t *
 ni_ifcondition_or(xml_node_t *node)
 {
-	return ni_ifcondition_term2(node, __ni_ifpolicy_match_or_check);
+	return ni_ifcondition_term2(node, __ni_fsm_policy_match_or_check);
 }
 
 /*
@@ -615,7 +609,7 @@ ni_ifcondition_or(xml_node_t *node)
  * </not>
  */
 static ni_bool_t
-__ni_ifpolicy_match_not_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
+__ni_fsm_policy_match_not_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
 {
 	return !ni_ifcondition_check(cond->args.terms.left, w);
 }
@@ -635,7 +629,7 @@ ni_ifcondition_not(xml_node_t *node)
 	if (!(child = ni_ifcondition_from_xml(node->children)))
 		return NULL;
 
-	result = ni_ifcondition_new(__ni_ifpolicy_match_not_check);
+	result = ni_ifcondition_new(__ni_fsm_policy_match_not_check);
 	result->args.terms.left = child;
 
 	return result;
@@ -646,7 +640,7 @@ ni_ifcondition_not(xml_node_t *node)
  * <type>modem</type>
  */
 static ni_bool_t
-__ni_ifpolicy_match_type_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
+__ni_fsm_policy_match_type_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
 {
 	return cond->args.type == w->type;
 }
@@ -662,7 +656,7 @@ ni_ifcondition_type(xml_node_t *node)
 				xml_node_location(node), node->cdata);
 		return NULL;
 	}
-	result = ni_ifcondition_new(__ni_ifpolicy_match_type_check);
+	result = ni_ifcondition_new(__ni_fsm_policy_match_type_check);
 	result->args.type = type;
 	return result;
 }
@@ -672,13 +666,13 @@ ni_ifcondition_type(xml_node_t *node)
  * <link-type>...</link-type>
  */
 static ni_bool_t
-__ni_ifpolicy_match_class_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
+__ni_fsm_policy_match_class_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
 {
 	return w->object && ni_dbus_object_isa(w->object, cond->args.class);
 }
 
 static ni_ifcondition_t *
-__ni_ifpolicy_match_class_new(xml_node_t *node, const char *classname)
+__ni_fsm_policy_match_class_new(xml_node_t *node, const char *classname)
 {
 	const ni_dbus_class_t *class;
 	ni_ifcondition_t *result;
@@ -689,7 +683,7 @@ __ni_ifpolicy_match_class_new(xml_node_t *node, const char *classname)
 		return NULL;
 	}
 
-	result = ni_ifcondition_new(__ni_ifpolicy_match_class_check);
+	result = ni_ifcondition_new(__ni_fsm_policy_match_class_check);
 	result->args.class = class;
 
 	return result;
@@ -698,7 +692,7 @@ __ni_ifpolicy_match_class_new(xml_node_t *node, const char *classname)
 static ni_ifcondition_t *
 ni_ifcondition_class(xml_node_t *node)
 {
-	return __ni_ifpolicy_match_class_new(node, node->cdata);
+	return __ni_fsm_policy_match_class_new(node, node->cdata);
 }
 
 static ni_ifcondition_t *
@@ -711,14 +705,14 @@ ni_ifcondition_linktype(xml_node_t *node)
 		return NULL;
 	}
 	snprintf(namebuf, sizeof(namebuf), "netif-%s", node->cdata);
-	return __ni_ifpolicy_match_class_new(node, namebuf);
+	return __ni_fsm_policy_match_class_new(node, namebuf);
 }
 
 /*
  * <device>...</device>
  */
 static ni_bool_t
-__ni_ifpolicy_match_device_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
+__ni_fsm_policy_match_device_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
 {
 	ni_warn("<device> condition not implemented yet");
 	return FALSE;
@@ -729,7 +723,7 @@ ni_ifcondition_device(xml_node_t *node)
 {
 	ni_ifcondition_t *result;
 
-	result = ni_ifcondition_new(__ni_ifpolicy_match_device_check);
+	result = ni_ifcondition_new(__ni_fsm_policy_match_device_check);
 	result->args.device.node = node;
 	return result;
 }
@@ -738,7 +732,7 @@ ni_ifcondition_device(xml_node_t *node)
  * <device-alias>foobidoo</device-alias>
  */
 static ni_bool_t
-__ni_ifpolicy_match_device_alias_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
+__ni_fsm_policy_match_device_alias_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
 {
 	return ni_ifworker_match_alias(w, cond->args.string);
 }
@@ -753,7 +747,7 @@ ni_ifcondition_device_alias(xml_node_t *node)
 		return NULL;
 	}
 
-	result = ni_ifcondition_new(__ni_ifpolicy_match_device_alias_check);
+	result = ni_ifcondition_new(__ni_fsm_policy_match_device_alias_check);
 	ni_string_dup(&result->args.string, node->cdata);
 	return result;
 }
@@ -763,7 +757,7 @@ ni_ifcondition_device_alias(xml_node_t *node)
  * Compare xyz to the contents of <control><mode> ...</mode></control>
  */
 static ni_bool_t
-__ni_ifpolicy_match_control_mode_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
+__ni_fsm_policy_match_control_mode_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
 {
 	return ni_string_eq(w->control.mode, cond->args.string);
 }
@@ -778,7 +772,7 @@ ni_ifcondition_control_mode(xml_node_t *node)
 		return NULL;
 	}
 
-	result = ni_ifcondition_new(__ni_ifpolicy_match_control_mode_check);
+	result = ni_ifcondition_new(__ni_fsm_policy_match_control_mode_check);
 	ni_string_dup(&result->args.string, node->cdata);
 	return result;
 }
@@ -788,7 +782,7 @@ ni_ifcondition_control_mode(xml_node_t *node)
  * Compare xyz to the contents of <control><boot-stage> ...</boot-stage></control>
  */
 static ni_bool_t
-__ni_ifpolicy_match_boot_stage_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
+__ni_fsm_policy_match_boot_stage_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
 {
 	return ni_string_eq(w->control.boot_stage, cond->args.string);
 }
@@ -803,7 +797,7 @@ ni_ifcondition_boot_stage(xml_node_t *node)
 		return NULL;
 	}
 
-	result = ni_ifcondition_new(__ni_ifpolicy_match_boot_stage_check);
+	result = ni_ifcondition_new(__ni_fsm_policy_match_boot_stage_check);
 	ni_string_dup(&result->args.string, node->cdata);
 	return result;
 }
@@ -812,7 +806,7 @@ ni_ifcondition_boot_stage(xml_node_t *node)
  * <any>...</any>
  */
 static ni_bool_t
-__ni_ifpolicy_match_any_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
+__ni_fsm_policy_match_any_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
 {
 	return TRUE;
 }
@@ -820,14 +814,14 @@ __ni_ifpolicy_match_any_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
 static ni_ifcondition_t *
 ni_ifcondition_any(xml_node_t *node)
 {
-	return ni_ifcondition_new(__ni_ifpolicy_match_any_check);
+	return ni_ifcondition_new(__ni_fsm_policy_match_any_check);
 }
 
 /*
  * <none>...</none>
  */
 static ni_bool_t
-__ni_ifpolicy_match_none_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
+__ni_fsm_policy_match_none_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
 {
 	return FALSE;
 }
@@ -835,7 +829,7 @@ __ni_ifpolicy_match_none_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
 static ni_ifcondition_t *
 ni_ifcondition_none(xml_node_t *node)
 {
-	return ni_ifcondition_new(__ni_ifpolicy_match_none_check);
+	return ni_ifcondition_new(__ni_fsm_policy_match_none_check);
 }
 
 /*
@@ -879,7 +873,7 @@ ni_ifcondition_from_xml(xml_node_t *node)
  * is treated as an <and> statement
  */
 ni_ifcondition_t *
-ni_ifpolicy_conditions_from_xml(xml_node_t *node)
+ni_fsm_policy_conditions_from_xml(xml_node_t *node)
 {
 	return ni_ifcondition_and(node);
 }

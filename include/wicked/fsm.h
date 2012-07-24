@@ -36,13 +36,14 @@ enum {
 typedef struct ni_fsm		ni_fsm_t;
 typedef struct ni_ifworker	ni_ifworker_t;
 typedef struct ni_fsm_require	ni_fsm_require_t;
+typedef struct ni_fsm_policy	ni_fsm_policy_t;
 
 typedef struct ni_ifworker_array {
 	unsigned int		count;
 	ni_ifworker_t **	data;
 } ni_ifworker_array_t;
 
-typedef struct ni_fsm_transition	ni_fsm_transition_t;
+typedef struct ni_fsm_transition ni_fsm_transition_t;
 
 typedef int			ni_fsm_transition_fn_t(ni_fsm_t *, ni_ifworker_t *, ni_fsm_transition_t *);
 struct ni_fsm_transition {
@@ -172,12 +173,21 @@ struct ni_fsm {
 	unsigned int		event_seq;
 	unsigned int		last_event_seq[__NI_EVENT_MAX];
 
+	ni_fsm_policy_t *	policies;
+
 	ni_dbus_object_t *	client_root_object;
 };
 
 
 extern ni_fsm_t *		ni_fsm_new(void);
 extern void			ni_fsm_free(ni_fsm_t *);
+
+extern ni_fsm_policy_t *	ni_fsm_policy_new(ni_fsm_t *, const char *, xml_node_t *);
+extern ni_fsm_policy_t *	ni_fsm_policy_by_name(ni_fsm_t *, const char *);
+extern unsigned int		ni_fsm_policy_get_applicable_policies(ni_fsm_t *, ni_ifworker_t *,
+						const ni_fsm_policy_t **, unsigned int);
+extern xml_node_t *		ni_fsm_policy_transform_document(xml_node_t *, const ni_fsm_policy_t * const *, unsigned int);
+
 
 extern ni_bool_t		ni_ifworkers_create_client(ni_fsm_t *);
 extern void			ni_ifworkers_refresh_state(ni_fsm_t *);
