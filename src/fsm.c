@@ -29,6 +29,7 @@
 #include <wicked/xpath.h>
 #include <wicked/fsm.h>
 #include <wicked/client.h>
+#include "util_priv.h"
 
 static unsigned int		ni_ifworker_timeout_count;
 
@@ -143,22 +144,59 @@ ni_ifworker_device_bound(const ni_ifworker_t *w)
 }
 
 /*
+ * Register dependency types
+ */
+typedef struct ni_fsm_require_type ni_fsm_require_type_t;
+struct ni_fsm_require_type {
+	ni_fsm_require_type_t *	next;
+	char *			name;
+	ni_fsm_require_ctor_t *	func;
+};
+
+static struct ni_fsm_require_type *ni_fsm_require_type_registry;
+
+void
+ni_fsm_require_register_type(const char *name, ni_fsm_require_ctor_t *ctor)
+{
+	ni_fsm_require_type_t *type;
+
+	type = xcalloc(1, sizeof(*type));
+	ni_string_dup(&type->name, name);
+	type->func = ctor;
+
+	type->next = ni_fsm_require_type_registry;
+	ni_fsm_require_type_registry = type;
+}
+
+static ni_fsm_require_ctor_t *
+ni_fsm_require_find_type(const char *name)
+{
+	ni_fsm_require_type_t *type;
+
+	for (type = ni_fsm_require_type_registry; type; type = type->next) {
+		if (ni_string_eq(type->name, name))
+			return type->func;
+	}
+
+	return NULL;
+}
+
+/*
  * constructor/destructor for dependency objects
  */
 ni_fsm_require_t *
 ni_ifworker_requirement_build(const char *check_name, xml_node_t *node, ni_fsm_require_t **list)
 {
 	ni_fsm_require_t *req, **pos;
+	ni_fsm_require_ctor_t *ctor;
 
 	/* Find tail of list */
 	for (pos = list; (req = *pos) != NULL; pos = &req->next)
 		;
 
-#if 0 /* XXX */
-	if (ni_string_eq(check_name, "reachable")) {
-		req = ni_ifworker_reachability_check_new(node);
+	if ((ctor = ni_fsm_require_find_type(check_name)) != NULL) {
+		req = ctor(node);
 	} else
-#endif
 	if (ni_string_eq(check_name, "netif-resolve")) {
 		req = ni_ifworker_netif_resolver_new(node);
 	} else

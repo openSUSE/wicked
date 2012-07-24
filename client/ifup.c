@@ -122,6 +122,17 @@ ni_ifconfig_load(ni_fsm_t *fsm, const char *pathname)
 	return FALSE;
 }
 
+static ni_fsm_t *
+ni_ifup_down_init(void)
+{
+	ni_fsm_t *fsm;
+
+	fsm = ni_fsm_new();
+
+	ni_fsm_require_register_type("reachable", ni_ifworker_reachability_check_new);
+
+	return fsm;
+}
 
 int
 do_ifup(int argc, char **argv)
@@ -148,7 +159,7 @@ do_ifup(int argc, char **argv)
 	ni_fsm_t *fsm;
 	int c;
 
-	fsm = ni_fsm_new();
+	fsm = ni_ifup_down_init();
 
 	optind = 1;
 	while ((c = getopt_long(argc, argv, "", ifup_options, NULL)) != EOF) {
@@ -285,7 +296,7 @@ do_ifdown(int argc, char **argv)
 	ni_fsm_t *fsm;
 	int c;
 
-	fsm = ni_fsm_new();
+	fsm = ni_ifup_down_init();
 
 	memset(&ifmatch, 0, sizeof(ifmatch));
 
@@ -380,7 +391,7 @@ do_ifcheck(int argc, char **argv)
 	ni_fsm_t *fsm;
 	int c, status = 0;
 
-	fsm = ni_fsm_new();
+	fsm = ni_ifup_down_init();
 
 	memset(&ifmatch, 0, sizeof(ifmatch));
 

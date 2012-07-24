@@ -153,6 +153,7 @@ struct ni_ifworker {
  * Express requirements.
  * This is essentially a test function that is invoked "when adequate"
  */
+typedef ni_fsm_require_t *	ni_fsm_require_ctor_t(xml_node_t *);
 typedef ni_bool_t		ni_fsm_require_fn_t(ni_fsm_t *, ni_ifworker_t *, ni_fsm_require_t *);
 typedef void			ni_fsm_require_dtor_t(ni_fsm_require_t *);
 
@@ -214,6 +215,7 @@ extern int			ni_ifworker_state_from_name(const char *);
 extern ni_fsm_require_t *	ni_ifworker_reachability_check_new(xml_node_t *);
 extern ni_bool_t		ni_ifworker_match_alias(const ni_ifworker_t *w, const char *alias);
 
+extern void			ni_fsm_require_register_type(const char *, ni_fsm_require_ctor_t *);
 extern ni_fsm_require_t *	ni_fsm_require_new(ni_fsm_require_fn_t *, ni_fsm_require_dtor_t *);
 
 #endif /* __CLIENT_FSM_H__ */
