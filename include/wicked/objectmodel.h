@@ -15,6 +15,7 @@ extern void			ni_objectmodel_register_netif_classes(void);
 extern void			ni_objectmodel_register_netif_services(void);
 extern void			ni_objectmodel_register_modem_classes(void);
 extern void			ni_objectmodel_register_modem_services(void);
+extern void			ni_objectmodel_register_netif_service(ni_iftype_t, ni_dbus_service_t *);
 extern ni_dbus_server_t *	ni_objectmodel_create_service(void);
 extern ni_bool_t		ni_objectmodel_save_state(const char *);
 extern ni_bool_t		ni_objectmodel_recover_state(const char *, const char **);

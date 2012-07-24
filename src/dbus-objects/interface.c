@@ -28,8 +28,7 @@
 #include "debug.h"
 
 extern dbus_bool_t	ni_objectmodel_netif_list_refresh(ni_dbus_object_t *);
-static void		ni_objectmodel_register_device_factory_service(ni_dbus_service_t *);
-static void		ni_objectmodel_register_device_service(ni_iftype_t, ni_dbus_service_t *);
+static void		ni_objectmodel_register_netif_factory_service(ni_dbus_service_t *);
 static void		ni_objectmodel_netif_initialize(ni_dbus_object_t *object);
 static void		ni_objectmodel_netif_destroy(ni_dbus_object_t *object);
 
@@ -89,44 +88,44 @@ ni_objectmodel_register_netif_services(void)
 	ni_objectmodel_register_service(&ni_objectmodel_netif_list_service);
 
 	/* register built-in protocol services */
-	ni_objectmodel_register_device_service(NI_IFTYPE_UNKNOWN, &ni_objectmodel_ipv4_service);
-	ni_objectmodel_register_device_service(NI_IFTYPE_UNKNOWN, &ni_objectmodel_ipv6_service);
+	ni_objectmodel_register_netif_service(NI_IFTYPE_UNKNOWN, &ni_objectmodel_ipv4_service);
+	ni_objectmodel_register_netif_service(NI_IFTYPE_UNKNOWN, &ni_objectmodel_ipv6_service);
 
 	/* register our built-in addrconf services */
-	ni_objectmodel_register_device_service(NI_IFTYPE_UNKNOWN, &ni_objectmodel_addrconf_ipv4_static_service);
-	ni_objectmodel_register_device_service(NI_IFTYPE_UNKNOWN, &ni_objectmodel_addrconf_ipv6_static_service);
-	ni_objectmodel_register_device_service(NI_IFTYPE_UNKNOWN, &ni_objectmodel_addrconf_ipv4_dhcp_service);
-	ni_objectmodel_register_device_service(NI_IFTYPE_UNKNOWN, &ni_objectmodel_addrconf_ipv4ll_service);
-//	ni_objectmodel_register_device_service(NI_IFTYPE_UNKNOWN, &ni_objectmodel_addrconf_ipv4_ibft_service);
-//	ni_objectmodel_register_device_service(NI_IFTYPE_UNKNOWN, &ni_objectmodel_addrconf_ipv6_ibft_service);
+	ni_objectmodel_register_netif_service(NI_IFTYPE_UNKNOWN, &ni_objectmodel_addrconf_ipv4_static_service);
+	ni_objectmodel_register_netif_service(NI_IFTYPE_UNKNOWN, &ni_objectmodel_addrconf_ipv6_static_service);
+	ni_objectmodel_register_netif_service(NI_IFTYPE_UNKNOWN, &ni_objectmodel_addrconf_ipv4_dhcp_service);
+	ni_objectmodel_register_netif_service(NI_IFTYPE_UNKNOWN, &ni_objectmodel_addrconf_ipv4ll_service);
+//	ni_objectmodel_register_netif_service(NI_IFTYPE_UNKNOWN, &ni_objectmodel_addrconf_ipv4_ibft_service);
+//	ni_objectmodel_register_netif_service(NI_IFTYPE_UNKNOWN, &ni_objectmodel_addrconf_ipv6_ibft_service);
 
-	ni_objectmodel_register_device_service(NI_IFTYPE_ETHERNET, &ni_objectmodel_ethernet_service);
-	ni_objectmodel_register_device_service(NI_IFTYPE_VLAN, &ni_objectmodel_vlan_service);
-	ni_objectmodel_register_device_service(NI_IFTYPE_BOND, &ni_objectmodel_bond_service);
-	ni_objectmodel_register_device_service(NI_IFTYPE_BRIDGE, &ni_objectmodel_bridge_service);
-	ni_objectmodel_register_device_service(NI_IFTYPE_WIRELESS, &ni_objectmodel_wireless_service);
-	ni_objectmodel_register_device_service(NI_IFTYPE_TUN, &ni_objectmodel_tun_service);
-	ni_objectmodel_register_device_service(NI_IFTYPE_TUN, &ni_objectmodel_openvpn_service);
+	ni_objectmodel_register_netif_service(NI_IFTYPE_ETHERNET, &ni_objectmodel_ethernet_service);
+	ni_objectmodel_register_netif_service(NI_IFTYPE_VLAN, &ni_objectmodel_vlan_service);
+	ni_objectmodel_register_netif_service(NI_IFTYPE_BOND, &ni_objectmodel_bond_service);
+	ni_objectmodel_register_netif_service(NI_IFTYPE_BRIDGE, &ni_objectmodel_bridge_service);
+	ni_objectmodel_register_netif_service(NI_IFTYPE_WIRELESS, &ni_objectmodel_wireless_service);
+	ni_objectmodel_register_netif_service(NI_IFTYPE_TUN, &ni_objectmodel_tun_service);
+	ni_objectmodel_register_netif_service(NI_IFTYPE_TUN, &ni_objectmodel_openvpn_service);
 
-	ni_objectmodel_register_device_factory_service(&ni_objectmodel_bond_factory_service);
-	ni_objectmodel_register_device_factory_service(&ni_objectmodel_bridge_factory_service);
-	ni_objectmodel_register_device_factory_service(&ni_objectmodel_vlan_factory_service);
-	ni_objectmodel_register_device_factory_service(&ni_objectmodel_tun_factory_service);
-	ni_objectmodel_register_device_factory_service(&ni_objectmodel_openvpn_factory_service);
+	ni_objectmodel_register_netif_factory_service(&ni_objectmodel_bond_factory_service);
+	ni_objectmodel_register_netif_factory_service(&ni_objectmodel_bridge_factory_service);
+	ni_objectmodel_register_netif_factory_service(&ni_objectmodel_vlan_factory_service);
+	ni_objectmodel_register_netif_factory_service(&ni_objectmodel_tun_factory_service);
+	ni_objectmodel_register_netif_factory_service(&ni_objectmodel_openvpn_factory_service);
 
 	/* Register all builtin naming services */
 	ni_objectmodel_register_ns_builtin();
 }
 
 static void
-ni_objectmodel_register_device_factory_service(ni_dbus_service_t *svc)
+ni_objectmodel_register_netif_factory_service(ni_dbus_service_t *svc)
 {
 	svc->compatible = &ni_objectmodel_netif_list_class;
 	ni_objectmodel_register_service(svc);
 }
 
-static void
-ni_objectmodel_register_device_service(ni_iftype_t iftype, ni_dbus_service_t *svc)
+void
+ni_objectmodel_register_netif_service(ni_iftype_t iftype, ni_dbus_service_t *svc)
 {
 	if (iftype == NI_IFTYPE_UNKNOWN)
 		svc->compatible = &ni_objectmodel_netif_class;
@@ -173,6 +172,8 @@ static const ni_dbus_class_t	ni_objectmodel_netif_list_class = {
  * Note that this still doesn't fix things when calling GetManagedObjects
  * or GetAllProperties on a netif object directly; we haven't assigned
  * refresh handlers to these.
+ *
+ * FIXME: remove this ruin and the dbus_class.list stuff with it
  */
 dbus_bool_t
 ni_objectmodel_netif_list_refresh(ni_dbus_object_t *object)
