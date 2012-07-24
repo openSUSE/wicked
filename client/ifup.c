@@ -113,7 +113,7 @@ ni_ifworker_free(ni_ifworker_t *w)
 	ni_ifworker_array_destroy(&w->children);
 
 	if (w->fsm.action_table) {
-		ni_iftransition_t *action;
+		ni_fsm_transition_t *action;
 
 		for (action = w->fsm.action_table; action->next_state; action++)
 			ni_fsm_require_list_destroy(&action->require.list);
@@ -579,7 +579,7 @@ ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *d
 
 /* Create an event wait object */
 static void
-ni_ifworker_add_callbacks(ni_iftransition_t *action, ni_objectmodel_callback_info_t *callback_list, const char *ifname)
+ni_ifworker_add_callbacks(ni_fsm_transition_t *action, ni_objectmodel_callback_info_t *callback_list, const char *ifname)
 {
 	ni_objectmodel_callback_info_t **pos, *cb;
 
@@ -601,7 +601,7 @@ static ni_objectmodel_callback_info_t *
 ni_ifworker_get_callback(ni_ifworker_t *w, const ni_uuid_t *uuid)
 {
 	ni_objectmodel_callback_info_t **pos, *cb;
-	ni_iftransition_t *action;
+	ni_fsm_transition_t *action;
 
 	if ((action = w->fsm.wait_for) == NULL)
 		return NULL;
@@ -618,7 +618,7 @@ static dbus_bool_t
 ni_ifworker_waiting_for_event(ni_ifworker_t *w, const char *event_name)
 {
 	ni_objectmodel_callback_info_t *cb;
-	ni_iftransition_t *action;
+	ni_fsm_transition_t *action;
 
 	if ((action = w->fsm.wait_for) == NULL)
 		return FALSE;
@@ -1013,7 +1013,7 @@ ni_ifworker_add_child_state_req(ni_ifworker_t *w, const char *method, ni_ifworke
 }
 
 static void
-ni_ifworker_get_child_state_reqs_for_method(ni_ifworker_t *w, ni_iftransition_t *action)
+ni_ifworker_get_child_state_reqs_for_method(ni_ifworker_t *w, ni_fsm_transition_t *action)
 {
 	ni_fsm_require_t **list, *req;
 
@@ -1053,7 +1053,7 @@ ni_ifworker_set_dependencies_xml(ni_ifworker_t *w, xml_node_t *depnode)
 }
 
 static ni_bool_t
-ni_ifworker_check_dependencies(ni_fsm_t *fsm, ni_ifworker_t *w, ni_iftransition_t *action)
+ni_ifworker_check_dependencies(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t *action)
 {
 	ni_fsm_require_t *req, *next;
 
@@ -1995,7 +1995,7 @@ out:
  * Process a <meta:require> element
  */
 static int
-ni_ifworker_require_xml(ni_iftransition_t *action, const xml_node_t *req_node, xml_node_t *element, xml_node_t *config)
+ni_ifworker_require_xml(ni_fsm_transition_t *action, const xml_node_t *req_node, xml_node_t *element, xml_node_t *config)
 {
 	const char *attr, *check;
 	ni_fsm_require_t *require, **pos;
@@ -2053,7 +2053,7 @@ ni_ifworker_require_xml(ni_iftransition_t *action, const xml_node_t *req_node, x
 dbus_bool_t
 ni_ifworker_xml_metadata_callback(xml_node_t *node, const ni_xs_type_t *type, const xml_node_t *metadata, void *user_data)
 {
-	ni_iftransition_t *action = user_data;
+	ni_fsm_transition_t *action = user_data;
 
 	if (ni_string_eq(metadata->name, "require")) {
 		if (ni_ifworker_require_xml(action, metadata, node, NULL) < 0)
@@ -2128,7 +2128,7 @@ ni_ifworker_prompt_cb(xml_node_t *node, const ni_xs_type_t *xs_type, const xml_n
  * Parse any <require> tags contained in the per-method metadata
  */
 static int
-ni_ifworker_map_method_requires(ni_ifworker_t *w, ni_iftransition_t *action,
+ni_ifworker_map_method_requires(ni_ifworker_t *w, ni_fsm_transition_t *action,
 		const ni_dbus_service_t *service, const ni_dbus_method_t *method)
 {
 	xml_node_t *req_nodes[32];
@@ -2154,9 +2154,9 @@ ni_ifworker_map_method_requires(ni_ifworker_t *w, ni_iftransition_t *action,
  * Debugging: print the binding info
  */
 static void
-ni_ifworker_print_binding(ni_ifworker_t *w, ni_iftransition_t *action)
+ni_ifworker_print_binding(ni_ifworker_t *w, ni_fsm_transition_t *action)
 {
-	struct ni_iftransition_binding *bind;
+	struct ni_fsm_transition_binding *bind;
 	unsigned int i;
 
 	for (i = 0, bind = action->binding; i < action->num_bindings; ++i, ++bind) {
@@ -2186,7 +2186,7 @@ ni_ifworker_print_binding(ni_ifworker_t *w, ni_iftransition_t *action)
  * First part: bind the service, method and argument that should be passed.
  */
 int
-ni_ifworker_do_common_bind(ni_fsm_t *fsm, ni_ifworker_t *w, ni_iftransition_t *action)
+ni_ifworker_do_common_bind(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t *action)
 {
 	const ni_dbus_service_t *service;
 	unsigned int i;
@@ -2252,7 +2252,7 @@ ni_ifworker_do_common_bind(ni_fsm_t *fsm, ni_ifworker_t *w, ni_iftransition_t *a
 
 	/* Now bind method and config. */
 	for (i = 0; i < action->num_bindings; ++i) {
-		struct ni_iftransition_binding *bind = &action->binding[i];
+		struct ni_fsm_transition_binding *bind = &action->binding[i];
 
 		bind->method = ni_dbus_service_get_method(bind->service, action->common.method_name);
 
@@ -2311,13 +2311,13 @@ document_error:
 }
 
 static int
-ni_ifworker_do_common(ni_fsm_t *fsm, ni_ifworker_t *w, ni_iftransition_t *action)
+ni_ifworker_do_common(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t *action)
 {
 	unsigned int i;
 	int rv;
 
 	for (i = 0; i < action->num_bindings; ++i) {
-		struct ni_iftransition_binding *bind = &action->binding[i];
+		struct ni_fsm_transition_binding *bind = &action->binding[i];
 		ni_objectmodel_callback_info_t *callback_list = NULL;
 
 		ni_trace("%s(%s, %s, %s)", __func__, w->name,
@@ -2357,9 +2357,9 @@ ni_ifworker_do_common(ni_fsm_t *fsm, ni_ifworker_t *w, ni_iftransition_t *action
  * bridge ports).
  */
 static int
-ni_ifworker_bind_device_factory(ni_fsm_t *fsm, ni_ifworker_t *w, ni_iftransition_t *action)
+ni_ifworker_bind_device_factory(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t *action)
 {
-	struct ni_iftransition_binding *bind;
+	struct ni_fsm_transition_binding *bind;
 	int rv;
 
 	if (action->bound)
@@ -2387,10 +2387,10 @@ ni_ifworker_bind_device_factory(ni_fsm_t *fsm, ni_ifworker_t *w, ni_iftransition
 }
 
 static int
-ni_ifworker_call_device_factory(ni_fsm_t *fsm, ni_ifworker_t *w, ni_iftransition_t *action)
+ni_ifworker_call_device_factory(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t *action)
 {
 	if (!ni_ifworker_device_bound(w)) {
-		struct ni_iftransition_binding *bind;
+		struct ni_fsm_transition_binding *bind;
 		const char *relative_path;
 		char *object_path;
 
@@ -2466,7 +2466,7 @@ ni_ifworker_can_delete(const ni_ifworker_t *w)
 	.common = { .method_name = __meth, ##__more } \
 }
 
-static ni_iftransition_t	ni_iftransitions[] = {
+static ni_fsm_transition_t	ni_iftransitions[] = {
 	/* -------------------------------------- *
 	 * Transitions for bringing up a device
 	 * -------------------------------------- */
@@ -2553,7 +2553,7 @@ do_it_again:
 	index = 0;
 	for (cur_state = from_state; cur_state != target_state; ) {
 		unsigned int next_state = cur_state + increment;
-		const ni_iftransition_t *a;
+		const ni_fsm_transition_t *a;
 
 		for (a = ni_iftransitions; a->func; ++a) {
 			if (a->from_state == cur_state && a->next_state == next_state) {
@@ -2574,7 +2574,7 @@ do_it_again:
 	}
 
 	if (w->fsm.action_table == NULL) {
-		w->fsm.action_table = calloc(num_actions + 1, sizeof(ni_iftransition_t));
+		w->fsm.action_table = calloc(num_actions + 1, sizeof(ni_fsm_transition_t));
 		goto do_it_again;
 	}
 	w->fsm.next_action = w->fsm.action_table;
@@ -2595,7 +2595,7 @@ do_it_again:
 static int
 ni_ifworker_fsm_bind_methods(ni_fsm_t *fsm, ni_ifworker_t *w)
 {
-	ni_iftransition_t *action;
+	ni_fsm_transition_t *action;
 	unsigned int unbound = 0;
 	int rv;
 
@@ -2647,11 +2647,11 @@ ni_ifworker_fsm(ni_fsm_t *fsm)
 
 		for (i = 0; i < fsm->workers.count; ++i) {
 			ni_ifworker_t *w = fsm->workers.data[i];
-			ni_iftransition_t *action;
+			ni_fsm_transition_t *action;
 			int rv, prev_state;
 
 			if (w->target_state != NI_FSM_STATE_NONE) {
-				ni_iftransition_t *wait_for = w->fsm.wait_for;
+				ni_fsm_transition_t *wait_for = w->fsm.wait_for;
 
 				ni_debug_application("%s: state=%s want=%s%s%s", w->name,
 					ni_ifworker_state_name(w->fsm.state),

@@ -42,14 +42,14 @@ typedef struct ni_ifworker_array {
 	ni_ifworker_t **	data;
 } ni_ifworker_array_t;
 
-typedef struct ni_iftransition	ni_iftransition_t;
+typedef struct ni_fsm_transition	ni_fsm_transition_t;
 
-typedef int			ni_iftransition_fn_t(ni_fsm_t *, ni_ifworker_t *, ni_iftransition_t *);
-struct ni_iftransition {
+typedef int			ni_fsm_transition_fn_t(ni_fsm_t *, ni_ifworker_t *, ni_fsm_transition_t *);
+struct ni_fsm_transition {
 	int			from_state;
 	int			next_state;
-	ni_iftransition_fn_t *	bind_func;
-	ni_iftransition_fn_t *	func;
+	ni_fsm_transition_fn_t *bind_func;
+	ni_fsm_transition_fn_t *func;
 
 	struct {
 		const char *		service_name;
@@ -66,7 +66,7 @@ struct ni_iftransition {
 #define NI_IFTRANSITION_BINDINGS_MAX	32
 	ni_bool_t			bound;
 	unsigned int			num_bindings;
-	struct ni_iftransition_binding {
+	struct ni_fsm_transition_binding {
 		const ni_dbus_service_t *service;
 		const ni_dbus_method_t *method;
 		xml_node_t *		config;
@@ -131,9 +131,9 @@ struct ni_ifworker {
 
 	struct {
 		int		state;
-		ni_iftransition_t *wait_for;
-		ni_iftransition_t *next_action;
-		ni_iftransition_t *action_table;
+		ni_fsm_transition_t *wait_for;
+		ni_fsm_transition_t *next_action;
+		ni_fsm_transition_t *action_table;
 		const ni_timer_t *timer;
 		const ni_timer_t *secondary_timer;
 
