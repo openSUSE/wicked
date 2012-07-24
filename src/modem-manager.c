@@ -44,8 +44,6 @@ struct ni_modem_manager_client {
 	ni_dbus_object_t *	proxy;
 };
 
-extern void			ni_objectmodel_register_modem_classes(void);
-
 static void			ni_modem_manager_add_modem(ni_modem_manager_client_t *modem_manager, const char *object_path);
 static void			ni_modem_manager_signal(ni_dbus_connection_t *, ni_dbus_message_t *, void *);
 static void			ni_modem_unlink(ni_modem_t *);
@@ -166,6 +164,7 @@ ni_modem_manager_init(ni_modem_manager_event_handler_fn_t *event_handler)
 			return FALSE;
 
 		ni_objectmodel_register_modem_classes();
+		ni_objectmodel_register_modem_services();
 
 		ni_objectmodel_modem_class_ptr = ni_objectmodel_get_class(NI_OBJECTMODEL_MODEM_CLASS);
 

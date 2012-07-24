@@ -78,9 +78,6 @@ ni_objectmodel_register_modem_classes(void)
 	/* register the modem class (to allow extensions to attach to it) */
 	ni_objectmodel_register_class(&ni_objectmodel_modem_class);
 
-	/* register the modem interface */
-	ni_objectmodel_register_service(&ni_objectmodel_modem_service);
-
 	for (modem_type = 0; modem_type < __MM_MODEM_TYPE_MAX; ++modem_type) {
 		ni_dbus_class_t *class;
 		const char *classname;
@@ -97,7 +94,12 @@ ni_objectmodel_register_modem_classes(void)
 		class = ni_objectmodel_class_new(proxyname, &ni_objectmodel_modem_proxy_class);
 		ni_objectmodel_register_class(class);
 	}
+}
 
+void
+ni_objectmodel_register_modem_services(void)
+{
+	ni_objectmodel_register_service(&ni_objectmodel_modem_service);
 	ni_objectmodel_register_service(&ni_objectmodel_modem_list_service);
 }
 

@@ -70,9 +70,6 @@ ni_objectmodel_register_netif_classes(void)
 	/* register the netif class (to allow extensions to attach to it) */
 	ni_objectmodel_register_class(&ni_objectmodel_netif_class);
 
-	/* register the netif interface */
-	ni_objectmodel_register_service(&ni_objectmodel_netif_service);
-
 	for (iftype = 0; iftype < __NI_IFTYPE_MAX; ++iftype) {
 		const char *classname;
 
@@ -83,7 +80,12 @@ ni_objectmodel_register_netif_classes(void)
 		link_class = ni_objectmodel_class_new(classname, &ni_objectmodel_netif_class);
 		ni_objectmodel_register_class(link_class);
 	}
+}
 
+void
+ni_objectmodel_register_netif_services(void)
+{
+	ni_objectmodel_register_service(&ni_objectmodel_netif_service);
 	ni_objectmodel_register_service(&ni_objectmodel_netif_list_service);
 
 	/* register built-in protocol services */

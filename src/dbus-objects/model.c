@@ -112,7 +112,9 @@ ni_objectmodel_register_all(void)
 {
 	/* register all netif classes and service */
 	ni_objectmodel_register_netif_classes();
+	ni_objectmodel_register_netif_services();
 	ni_objectmodel_register_modem_classes();
+	ni_objectmodel_register_modem_services();
 }
 
 /*
