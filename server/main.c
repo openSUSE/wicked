@@ -162,7 +162,7 @@ wicked_interface_server(void)
 	if (!opt_foreground) {
 		if (ni_server_background(program_name) < 0)
 			ni_fatal("unable to background server");
-		ni_log_destination_syslog("wickedd");
+		ni_log_destination_syslog(program_name);
 	}
 
 	wicked_discover_state();
