@@ -37,6 +37,7 @@ LIBSONAME=$(LIBNAME).so.$(LIBWICKED_SONAME_VERSION)
 LIBSOFILE=$(LIBNAME).so.$(LIBWICKED_SOFILE_VERSION)
 __LIBSRCS= \
 	  config.c \
+	  calls.c \
 	  extension.c \
 	  netinfo.c \
 	  interface.c \
@@ -134,7 +135,6 @@ CLIENTSRCS = \
 	  client/ifup.c \
 	  client/zookeeper.c \
 	  client/policy.c \
-	  client/calls.c \
 	  client/reachable.c
 SERVERSRCS = \
 	  server/main.c

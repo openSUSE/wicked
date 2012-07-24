@@ -177,61 +177,6 @@ main(int argc, char **argv)
 }
 
 /*
- * Obtain an object handle, generic version
- */
-static ni_dbus_object_t *
-__wicked_get_proxy_object(const ni_dbus_service_t *service, const char *relative_path)
-{
-	ni_dbus_object_t *root_object, *child;
-
-	if (!(root_object = ni_call_create_client()))
-		return NULL;
-
-	child = ni_dbus_object_create(root_object, relative_path, service->compatible, NULL);
-	ni_dbus_object_set_default_interface(child, service->name);
-
-	return child;
-}
-
-/*
- * Obtain an object handle for Wicked.Interface
- */
-ni_dbus_object_t *
-ni_call_get_netif_list_object(void)
-{
-	static const ni_dbus_service_t *netif_list_service;
-	ni_dbus_object_t *list_object;
-
-	if (netif_list_service == NULL) {
-		netif_list_service = ni_objectmodel_service_by_name(NI_OBJECTMODEL_NETIFLIST_INTERFACE);
-		ni_assert(netif_list_service);
-	}
-
-	list_object = __wicked_get_proxy_object(netif_list_service, "Interface");
-
-	ni_dbus_object_set_default_interface(list_object, netif_list_service->name);
-	return list_object;
-}
-
-/*
- * Obtain an object handle for Wicked.Modem
- */
-ni_dbus_object_t *
-ni_call_get_modem_list_object(void)
-{
-	static const ni_dbus_service_t *modem_list_service;
-	ni_dbus_object_t *list_object;
-
-	if (modem_list_service == NULL) {
-		modem_list_service = ni_objectmodel_service_by_name(NI_OBJECTMODEL_MODEM_LIST_INTERFACE);
-		ni_assert(modem_list_service);
-	}
-
-	list_object = __wicked_get_proxy_object(modem_list_service, "Modem");
-	return list_object;
-}
-
-/*
  * Look up the dbus object for an interface by name.
  * The name can be either a kernel interface device name such as eth0,
  * or a dbus object path such as /com/suse/Wicked/Interfaces/5
