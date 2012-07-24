@@ -85,8 +85,8 @@ __ni_ifworker_new(ni_ifworker_type_t type, const char *name, xml_node_t *config)
 	w->config.node = config;
 	w->refcount = 1;
 
-	w->target_range.min = STATE_NONE;
-	w->target_range.max = __STATE_MAX;
+	w->target_range.min = NI_FSM_STATE_NONE;
+	w->target_range.max = __NI_FSM_STATE_MAX;
 
 	ni_ifworker_control_set_defaults(w);
 
@@ -239,7 +239,7 @@ ni_ifworker_fail(ni_ifworker_t *w, const char *fmt, ...)
 	va_end(ap);
 
 	ni_error("device %s failed: %s", w->name, errmsg);
-	w->fsm.state = w->target_state = STATE_NONE;
+	w->fsm.state = w->target_state = NI_FSM_STATE_NONE;
 	w->failed = 1;
 }
 
@@ -301,16 +301,16 @@ ni_ifworker_set_secondary_timeout(ni_ifworker_t *w, unsigned long timeout_ms, vo
 }
 
 static ni_intmap_t __state_names[] = {
-	{ "none",		STATE_NONE		},
-	{ "device-down",	STATE_DEVICE_DOWN	},
-	{ "device-exists",	STATE_DEVICE_EXISTS	},
-	{ "device-up",		STATE_DEVICE_UP		},
-	{ "protocols-up",	STATE_PROTOCOLS_UP	},
-	{ "firewall-up",	STATE_FIREWALL_UP	},
-	{ "link-up",		STATE_LINK_UP		},
-	{ "link-authenticated",	STATE_LINK_AUTHENTICATED},
-	{ "network-up",		STATE_ADDRCONF_UP	},
-	{ "max",		__STATE_MAX		},
+	{ "none",		NI_FSM_STATE_NONE		},
+	{ "device-down",	NI_FSM_STATE_DEVICE_DOWN	},
+	{ "device-exists",	NI_FSM_STATE_DEVICE_EXISTS	},
+	{ "device-up",		NI_FSM_STATE_DEVICE_UP		},
+	{ "protocols-up",	NI_FSM_STATE_PROTOCOLS_UP	},
+	{ "firewall-up",	NI_FSM_STATE_FIREWALL_UP	},
+	{ "link-up",		NI_FSM_STATE_LINK_UP		},
+	{ "link-authenticated",	NI_FSM_STATE_LINK_AUTHENTICATED	},
+	{ "network-up",		NI_FSM_STATE_ADDRCONF_UP	},
+	{ "max",		__NI_FSM_STATE_MAX		},
 
 	{ NULL }
 };
@@ -648,7 +648,7 @@ ni_ifworker_set_state(ni_ifworker_t *w, unsigned int new_state)
 {
 	if (w->fsm.state != new_state) {
 		w->fsm.state = new_state;
-		if (w->object && new_state != STATE_DEVICE_DOWN)
+		if (w->object && new_state != NI_FSM_STATE_DEVICE_DOWN)
 			ni_ifworker_update_client_info(w);
 	}
 }
@@ -905,7 +905,7 @@ __ni_ifworker_link_detection_timeout(void *user_data, const ni_timer_t *timer)
 			ni_ifworker_fail(w, "link did not come up");
 		else {
 			ni_warn("%s: link did not come up, proceeding anyway", w->name);
-			w->fsm.state = STATE_LINK_UP;
+			w->fsm.state = NI_FSM_STATE_LINK_UP;
 		}
 	}
 }
@@ -913,7 +913,7 @@ __ni_ifworker_link_detection_timeout(void *user_data, const ni_timer_t *timer)
 static ni_bool_t
 ni_fsm_require_detect_link(ni_objectmodel_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_require_t *req)
 {
-	if (w->fsm.state == STATE_LINK_UP)
+	if (w->fsm.state == NI_FSM_STATE_LINK_UP)
 		return TRUE;
 
 	if (req->user_data != NULL) {
@@ -923,7 +923,7 @@ ni_fsm_require_detect_link(ni_objectmodel_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_r
 				return FALSE;
 
 			/* timeout==0 and link not required means ignore link detection */
-			w->fsm.state = STATE_LINK_UP;
+			w->fsm.state = NI_FSM_STATE_LINK_UP;
 			return TRUE;
 		}
 		ni_ifworker_set_secondary_timeout(w, w->control.link_timeout, __ni_ifworker_link_detection_timeout);
@@ -1401,15 +1401,15 @@ ni_ifworker_mark_matching(ni_objectmodel_fsm_t *fsm, ni_ifmatcher_t *match, cons
 			return -1;
 		}
 
-		if (max_state == __STATE_MAX) {
-			if (min_state == STATE_NONE)
+		if (max_state == __NI_FSM_STATE_MAX) {
+			if (min_state == NI_FSM_STATE_NONE)
 				continue;
 
 			/* No upper bound; bring it up to min level */
-			ni_ifworker_fsm_init(w, STATE_DEVICE_DOWN, min_state);
-		} else if (min_state == STATE_NONE) {
+			ni_ifworker_fsm_init(w, NI_FSM_STATE_DEVICE_DOWN, min_state);
+		} else if (min_state == NI_FSM_STATE_NONE) {
 			/* No lower bound; bring it down to max level */
-			ni_ifworker_fsm_init(w, STATE_ADDRCONF_UP, max_state);
+			ni_ifworker_fsm_init(w, NI_FSM_STATE_ADDRCONF_UP, max_state);
 		} else {
 			ni_warn("%s: not handled yet: bringing device into state range [%s, %s]",
 					w->name,
@@ -1431,7 +1431,7 @@ ni_ifworker_mark_matching(ni_objectmodel_fsm_t *fsm, ni_ifmatcher_t *match, cons
 					ni_ifworker_state_name(w->fsm.state),
 					ni_ifworker_state_name(w->target_state));
 
-		if (w->target_state != STATE_NONE) {
+		if (w->target_state != NI_FSM_STATE_NONE) {
 			ni_ifworker_set_timeout(w, fsm->worker_timeout);
 			count++;
 		}
@@ -1714,7 +1714,7 @@ ni_ifworker_netif_resolve_cb(xml_node_t *node, const ni_xs_type_t *type, const x
 				return FALSE;
 		} else
 		if (ni_string_eq(mchild->name, "require")) {
-			int min_state = STATE_NONE, max_state = __STATE_MAX;
+			int min_state = NI_FSM_STATE_NONE, max_state = __NI_FSM_STATE_MAX;
 			const char *method;
 
 			if ((attr = xml_node_get_attr(mchild, "check")) == NULL
@@ -1822,9 +1822,9 @@ ni_ifworkers_refresh_state(ni_objectmodel_fsm_t *fsm)
 		w = fsm->workers.data[i];
 
 		if (w->object == NULL)
-			ni_ifworker_update_state(w, STATE_NONE, STATE_DEVICE_DOWN);
+			ni_ifworker_update_state(w, NI_FSM_STATE_NONE, NI_FSM_STATE_DEVICE_DOWN);
 		else
-			ni_ifworker_update_state(w, STATE_DEVICE_UP, __STATE_MAX);
+			ni_ifworker_update_state(w, NI_FSM_STATE_DEVICE_UP, __NI_FSM_STATE_MAX);
 	}
 }
 
@@ -1868,9 +1868,9 @@ __ni_ifworker_refresh_netdevs(ni_objectmodel_fsm_t *fsm)
 		found->object = object;
 
 		if (ni_netdev_link_is_up(dev))
-			ni_ifworker_update_state(found, STATE_LINK_UP, __STATE_MAX);
+			ni_ifworker_update_state(found, NI_FSM_STATE_LINK_UP, __NI_FSM_STATE_MAX);
 		else
-			ni_ifworker_update_state(found, 0, STATE_DEVICE_UP);
+			ni_ifworker_update_state(found, 0, NI_FSM_STATE_DEVICE_UP);
 	}
 }
 
@@ -1912,14 +1912,14 @@ __ni_ifworker_refresh_modems(ni_objectmodel_fsm_t *fsm)
 			found->modem = ni_modem_hold(modem);
 		found->object = object;
 
-		ni_ifworker_update_state(found, STATE_DEVICE_EXISTS, __STATE_MAX);
+		ni_ifworker_update_state(found, NI_FSM_STATE_DEVICE_EXISTS, __NI_FSM_STATE_MAX);
 	}
 }
 
 static inline int
 ni_ifworker_ready(const ni_ifworker_t *w)
 {
-	return w->done || w->target_state == STATE_NONE || w->target_state == w->fsm.state;
+	return w->done || w->target_state == NI_FSM_STATE_NONE || w->target_state == w->fsm.state;
 }
 
 /*
@@ -2477,51 +2477,51 @@ static ni_iftransition_t	ni_iftransitions[] = {
 	 * that takes a different approach, because it has to use a factory
 	 * service, rather than the device services. */
 	{
-		__TRANSITION_UP_TO(STATE_DEVICE_EXISTS),
+		__TRANSITION_UP_TO(NI_FSM_STATE_DEVICE_EXISTS),
 		.bind_func = ni_ifworker_bind_device_factory,
 		.func = ni_ifworker_call_device_factory,
 		.common = { .method_name = "newDevice" },
 	},
 
 	/* This sets any device attributes, such as a MAC address */
-	COMMON_TRANSITION_UP_TO(STATE_DEVICE_UP, "changeDevice", .call_overloading = TRUE),
+	COMMON_TRANSITION_UP_TO(NI_FSM_STATE_DEVICE_UP, "changeDevice", .call_overloading = TRUE),
 
 	/* This sets the per-interface protocol attributes, such as forwarding */
-	COMMON_TRANSITION_UP_TO(STATE_PROTOCOLS_UP, "changeProtocol"),
+	COMMON_TRANSITION_UP_TO(NI_FSM_STATE_PROTOCOLS_UP, "changeProtocol"),
 
 	/* This step adds device-specific filtering, if available. Typical
 	 * example would be bridge filtering with ebtables. */
-	COMMON_TRANSITION_UP_TO(STATE_FIREWALL_UP, "firewallUp"),
+	COMMON_TRANSITION_UP_TO(NI_FSM_STATE_FIREWALL_UP, "firewallUp"),
 
 	/* This brings up the link layer, and sets general device attributes such
 	 * as the MTU, the transfer queue length etc. */
-	COMMON_TRANSITION_UP_TO(STATE_LINK_UP, "linkUp", .call_overloading = TRUE),
+	COMMON_TRANSITION_UP_TO(NI_FSM_STATE_LINK_UP, "linkUp", .call_overloading = TRUE),
 
 	/* If the link requires authentication, this information can be provided
 	 * here; for instance ethernet 802.1x, wireless WPA, or PPP chap/pap.
 	 * NOTE: This may not be the right place; we may have to fold this into
 	 * the link_up step, or even do it prior to that. */
-	COMMON_TRANSITION_UP_TO(STATE_LINK_AUTHENTICATED, "login", .call_overloading = TRUE),
+	COMMON_TRANSITION_UP_TO(NI_FSM_STATE_LINK_AUTHENTICATED, "login", .call_overloading = TRUE),
 
 	/* Configure all assigned addresses and bring up the network */
-	COMMON_TRANSITION_UP_TO(STATE_ADDRCONF_UP, "requestLease"),
+	COMMON_TRANSITION_UP_TO(NI_FSM_STATE_ADDRCONF_UP, "requestLease"),
 
 	/* -------------------------------------- *
 	 * Transitions for bringing down a device
 	 * -------------------------------------- */
 	/* Remove all assigned addresses and bring down the network */
-	COMMON_TRANSITION_DOWN_FROM(STATE_ADDRCONF_UP, "dropLease"),
+	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_ADDRCONF_UP, "dropLease"),
 
 	/* Shut down the link */
-	COMMON_TRANSITION_DOWN_FROM(STATE_LINK_UP, "linkDown", .call_overloading = TRUE),
+	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_LINK_UP, "linkDown", .call_overloading = TRUE),
 
 	/* Shut down the firewall */
-	COMMON_TRANSITION_DOWN_FROM(STATE_FIREWALL_UP, "firewallDown"),
+	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_FIREWALL_UP, "firewallDown"),
 
 	/* Delete the device */
-	COMMON_TRANSITION_DOWN_FROM(STATE_DEVICE_EXISTS, "deleteDevice", .call_overloading = TRUE),
+	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_DEVICE_EXISTS, "deleteDevice", .call_overloading = TRUE),
 
-	{ .from_state = STATE_NONE, .next_state = STATE_NONE, .func = NULL }
+	{ .from_state = NI_FSM_STATE_NONE, .next_state = NI_FSM_STATE_NONE, .func = NULL }
 };
 
 static void
@@ -2536,9 +2536,9 @@ ni_ifworker_fsm_init(ni_ifworker_t *w, unsigned int from_state, unsigned int tar
 
 	/* If the --delete option was given, but the specific device cannot
 	 * be deleted, then we don't try. */
-	if (target_state == STATE_DEVICE_DOWN && !ni_ifworker_can_delete(w)) {
+	if (target_state == NI_FSM_STATE_DEVICE_DOWN && !ni_ifworker_can_delete(w)) {
 		ni_debug_application("%s: cannot delete device, ignoring --delete option", w->name);
-		target_state = STATE_DEVICE_UP;
+		target_state = NI_FSM_STATE_DEVICE_UP;
 	}
 
 	if (from_state <= target_state)
@@ -2652,7 +2652,7 @@ ni_ifworker_fsm(ni_objectmodel_fsm_t *fsm)
 			ni_iftransition_t *action;
 			int rv, prev_state;
 
-			if (w->target_state != STATE_NONE) {
+			if (w->target_state != NI_FSM_STATE_NONE) {
 				ni_iftransition_t *wait_for = w->fsm.wait_for;
 
 				ni_debug_application("%s: state=%s want=%s%s%s", w->name,
@@ -2681,7 +2681,7 @@ ni_ifworker_fsm(ni_objectmodel_fsm_t *fsm)
 				continue;
 
 			action = w->fsm.next_action;
-			if (action->next_state == STATE_NONE)
+			if (action->next_state == NI_FSM_STATE_NONE)
 				w->fsm.state = w->target_state;
 
 			if (w->fsm.state == w->target_state) {
@@ -2785,7 +2785,7 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 	if (!strcmp(signal_name, "addressAcquired"))
 		fsm->last_event_seq[NI_EVENT_ADDRESS_ACQUIRED] = fsm->event_seq;
 
-	if ((w = ni_ifworker_by_object_path(fsm, object_path)) != NULL && w->target_state != STATE_NONE) {
+	if ((w = ni_ifworker_by_object_path(fsm, object_path)) != NULL && w->target_state != NI_FSM_STATE_NONE) {
 		ni_objectmodel_callback_info_t *cb = NULL;
 
 		if (!ni_uuid_is_null(&event_uuid)) {
@@ -2814,16 +2814,16 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 		}
 
 		if (!w->failed) {
-			unsigned int min_state = STATE_NONE, max_state = __STATE_MAX;
+			unsigned int min_state = NI_FSM_STATE_NONE, max_state = __NI_FSM_STATE_MAX;
 
 			if (!strcmp(signal_name, "linkUp"))
-				min_state = STATE_LINK_UP;
+				min_state = NI_FSM_STATE_LINK_UP;
 			if (!strcmp(signal_name, "linkDown"))
-				max_state = STATE_LINK_UP - 1;
+				max_state = NI_FSM_STATE_LINK_UP - 1;
 			if (!strcmp(signal_name, "addressAcquired"))
-				min_state = STATE_ADDRCONF_UP;
+				min_state = NI_FSM_STATE_ADDRCONF_UP;
 			if (!strcmp(signal_name, "addressReleased"))
-				max_state = STATE_ADDRCONF_UP - 1;
+				max_state = NI_FSM_STATE_ADDRCONF_UP - 1;
 
 			ni_ifworker_update_state(w, min_state, max_state);
 		}
@@ -2865,7 +2865,7 @@ ni_ifworkers_kickstart(ni_objectmodel_fsm_t *fsm)
 	for (i = 0; i < fsm->workers.count; ++i) {
 		ni_ifworker_t *w = fsm->workers.data[i];
 
-		if (w->target_state == STATE_NONE)
+		if (w->target_state == NI_FSM_STATE_NONE)
 			continue;
 
 		/* Instead of a plain device name, an interface configuration can
@@ -2882,7 +2882,7 @@ ni_ifworkers_kickstart(ni_objectmodel_fsm_t *fsm)
 		}
 
 		if (!ni_ifworker_device_bound(w))
-			ni_ifworker_set_state(w, STATE_DEVICE_DOWN);
+			ni_ifworker_set_state(w, NI_FSM_STATE_DEVICE_DOWN);
 		else if (w->object)
 			ni_ifworker_update_client_info(w);
 	}
@@ -3024,7 +3024,7 @@ do_ifup(int argc, char **argv)
 		{ "timeout",	required_argument, NULL,	OPT_TIMEOUT },
 		{ NULL }
 	};
-	ni_uint_range_t state_range = { .min = STATE_ADDRCONF_UP, .max = __STATE_MAX };
+	ni_uint_range_t state_range = { .min = NI_FSM_STATE_ADDRCONF_UP, .max = __NI_FSM_STATE_MAX };
 	const char *opt_ifconfig = WICKED_IFCONFIG_DIR_PATH;
 	const char *opt_ifpolicy = NULL;
 	const char *opt_control_mode = NULL;
@@ -3165,7 +3165,7 @@ do_ifdown(int argc, char **argv)
 		{ NULL }
 	};
 	static ni_ifmatcher_t ifmatch;
-	ni_uint_range_t target_range = { .min = STATE_NONE, .max = STATE_DEVICE_UP };
+	ni_uint_range_t target_range = { .min = NI_FSM_STATE_NONE, .max = NI_FSM_STATE_DEVICE_UP };
 	const char *opt_ifconfig = WICKED_IFCONFIG_DIR_PATH;
 	unsigned int nmarked;
 	/* int opt_delete = 0; */
@@ -3184,7 +3184,7 @@ do_ifdown(int argc, char **argv)
 			break;
 
 		case OPT_DELETE:
-			target_range.max = STATE_DEVICE_DOWN;
+			target_range.max = NI_FSM_STATE_DEVICE_DOWN;
 			/* opt_delete = 1; */
 			break;
 
