@@ -146,6 +146,10 @@ MANAGERSRCS = \
 	  manager/interface.c
 GENFILES = \
 	  schema/constants.xml
+TAGDIRS	= \
+	  include src \
+	  client server \
+	  autoip4 dhcp4 dhcp6
 
 BIN	= bin
 OBJ	= obj
@@ -169,6 +173,9 @@ dist: Makefile.vars $(DIST_ARCHIVE)
 	@echo "=============================================="
 	@ls -1 wicked.spec $(DIST_ARCHIVE)
 	@echo "=============================================="
+
+tags:
+	-ctags -f tags $(find $(TAGDIRS) -type f -name "*.[ch]")
 
 distclean clean::
 	rm -f *~ *.o libwicked.* core tags LOG
