@@ -18,9 +18,9 @@
 #include <wicked/dbus-errors.h>
 #include <wicked/modem.h>
 #include <wicked/xpath.h>
+#include <wicked/fsm.h>
 
 #include "wicked-client.h"
-#include "fsm.h"
 
 /*
  * Data needed for this check

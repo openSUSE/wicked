@@ -18,8 +18,8 @@
 
 #include <wicked/logging.h>
 #include <wicked/netinfo.h>
+#include <wicked/fsm.h>
 
-#include "fsm.h"
 #include "policy.h"
 
 /*

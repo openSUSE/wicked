@@ -22,8 +22,9 @@
 #include <wicked/logging.h>
 #include <wicked/dbus.h>
 #include <wicked/dbus-errors.h>
+#include <wicked/fsm.h>
+
 #include "wicked-client.h"
-#include "fsm.h"
 
 static ni_bool_t		create_zookeeper_service(ni_fsm_t *fsm);
 static void			discover_state(ni_dbus_server_t *);
