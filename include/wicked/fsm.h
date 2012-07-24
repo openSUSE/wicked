@@ -178,6 +178,15 @@ struct ni_fsm {
 	ni_dbus_object_t *	client_root_object;
 };
 
+typedef struct ni_ifmatcher {
+	const char *		name;
+	const char *		mode;
+	const char *		boot_stage;
+	const char *		skip_origin;
+	unsigned int		require_config : 1,
+				skip_active    : 1;
+} ni_ifmatcher_t;
+
 
 extern ni_fsm_t *		ni_fsm_new(void);
 extern void			ni_fsm_free(ni_fsm_t *);
@@ -194,9 +203,14 @@ extern void			ni_ifworkers_refresh_state(ni_fsm_t *);
 extern int			ni_ifworkers_kickstart(ni_fsm_t *);
 extern unsigned int		ni_ifworker_fsm(ni_fsm_t *);
 extern void			ni_ifworker_mainloop(ni_fsm_t *);
+extern unsigned int		ni_ifworker_get_matching(ni_fsm_t *, ni_ifmatcher_t *, ni_ifworker_array_t *);
+extern unsigned int		ni_ifworker_mark_matching(ni_fsm_t *, ni_ifmatcher_t *, const ni_uint_range_t *);
+extern int			ni_ifworkers_build_hierarchy(ni_fsm_t *);
 extern unsigned int		ni_ifworkers_from_xml(ni_fsm_t *, xml_document_t *, const char *);
+extern unsigned int		ni_ifworkers_fail_count(ni_fsm_t *);
 
 extern int			ni_ifworker_type_from_string(const char *);
+extern int			ni_ifworker_state_from_name(const char *);
 extern ni_fsm_require_t *	ni_ifworker_reachability_check_new(xml_node_t *);
 extern ni_bool_t		ni_ifworker_match_alias(const ni_ifworker_t *w, const char *alias);
 
