@@ -1486,7 +1486,7 @@ static void
 ni_wpa_bss_properties_result(ni_dbus_object_t *proxy, ni_dbus_message_t *msg)
 {
 	ni_wireless_network_t *net = proxy->handle;
-	ni_dbus_variant_t dict;
+	ni_dbus_variant_t dict = NI_DBUS_VARIANT_INIT;
 	DBusMessageIter iter;
 
 	dbus_message_iter_init(msg, &iter);
@@ -1957,7 +1957,7 @@ ni_wpa_interface_get_capabilities(ni_wpa_client_t *wpa, ni_wpa_interface_t *wpa_
 {
 	ni_dbus_message_t *call = NULL, *reply = NULL;
 	DBusError error = DBUS_ERROR_INIT;
-	ni_dbus_variant_t dict;
+	ni_dbus_variant_t dict = NI_DBUS_VARIANT_INIT;
 	DBusMessageIter iter;
 	int rv = -1;
 

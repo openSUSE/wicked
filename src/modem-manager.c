@@ -203,7 +203,7 @@ int
 ni_modem_manager_get_info(ni_modem_t *modem, ni_dbus_object_t *modem_object)
 {
 	DBusError error = DBUS_ERROR_INIT;
-	ni_dbus_variant_t result;
+	ni_dbus_variant_t result = NI_DBUS_VARIANT_INIT;
 	int rv = 0;
 
 	ni_trace("%s(%s)", __func__, modem_object->path);

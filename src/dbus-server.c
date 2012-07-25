@@ -343,7 +343,7 @@ __ni_dbus_object_properties_getall(ni_dbus_object_t *object, const ni_dbus_metho
 		ni_dbus_message_t *reply, DBusError *error)
 {
 	const ni_dbus_service_t *service;
-	ni_dbus_variant_t dict;
+	ni_dbus_variant_t dict = NI_DBUS_VARIANT_INIT;
 	int rv = TRUE;
 
 	if (!__ni_dbus_object_properties_arg_interface(object, method,
