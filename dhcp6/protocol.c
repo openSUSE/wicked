@@ -1603,6 +1603,8 @@ ni_dhcp6_client_parse_ia(ni_buffer_t *bp,  struct ni_dhcp6_ia **ia_na_list, uint
 			goto failure;
 		if (ni_dhcp6_option_get32(bp, &ia->rebind_time) < 0)
 			goto failure;
+		if (ia->rebind_time > ia->renewal_time)
+			goto failure;
 	} else {
 		if (ni_dhcp6_option_get32(bp, &ia->iaid) < 0)
 			goto failure;
@@ -1767,15 +1769,14 @@ ni_dhcp6_client_parse_options(ni_dhcp6_device_t *dev, ni_buffer_t *buffer, ni_ad
 			if (ia->type != NI_DHCP6_IA_NA_TYPE)
 				continue; /* Hmm... */
 
-			if (!ia->status || ia->status->code != NI_DHCP6_STATUS_SUCCESS)
+			if (ia->status && ia->status->code != NI_DHCP6_STATUS_SUCCESS)
 				continue;
 
 			for (iaddr = ia->addrs; iaddr ; iaddr = iaddr->next) {
-				if (!iaddr->status || iaddr->status->code != NI_DHCP6_STATUS_SUCCESS)
+				if (iaddr->status &&  iaddr->status->code != NI_DHCP6_STATUS_SUCCESS)
 					continue;
 
 				ni_sockaddr_set_ipv6(&laddr, iaddr->addr, 0);
-
 				/*
 				 * FIXME: lookup if iadr matches some RA prefix for this interface
 				 *        and use prefix lenght of the RA prefix...
@@ -1783,7 +1784,10 @@ ni_dhcp6_client_parse_options(ni_dhcp6_device_t *dev, ni_buffer_t *buffer, ni_ad
 				ap = __ni_address_new(&lease->addrs, AF_INET6, 64, &laddr);
 				ap->ipv6_cache_info.preferred_lft = iaddr->preferred_lft;
 				ap->ipv6_cache_info.valid_lft = iaddr->valid_lft;
-				ap->config_lease = lease;
+
+				ni_trace("%s: added IPv6 address %s/%u to lease candidate",
+						dev->ifname,
+						ni_address_print(&ap->local_addr), ap->prefixlen);
 			}
 		}
 	}
@@ -1852,6 +1856,8 @@ ni_dhcp6_client_parse_response(ni_dhcp6_device_t *dev, ni_buffer_t *msgbuf,
 	}
 
 	lease = ni_addrconf_lease_new(NI_ADDRCONF_DHCP, AF_INET6);
+	lease->state = NI_ADDRCONF_STATE_GRANTED;
+	lease->type = NI_ADDRCONF_DHCP;
 	lease->time_acquired = time(NULL);
 
 	if (ni_dhcp6_client_parse_options(dev, msgbuf, lease) < 0) {

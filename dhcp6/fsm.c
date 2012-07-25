@@ -67,6 +67,9 @@ ni_dhcp6_fsm_start(ni_dhcp6_device_t *dev)
 		/* drop old lease here ? */
         }
 #endif
+	ni_dhcp6_device_set_lease(dev, NULL);
+	ni_dhcp6_device_drop_best_offer(dev);
+
 	return ni_dhcp6_fsm_solicit(dev);
 }
 
@@ -152,6 +155,12 @@ ni_dhcp6_fsm_timeout(ni_dhcp6_device_t *dev)
 		break;
 
 	case NI_DHCP6_STATE_REQUESTING:
+		break;
+
+	case NI_DHCP6_STATE_VALIDATING:
+		break;
+
+	case NI_DHCP6_STATE_BOUND:
 		break;
 
 	default:
@@ -524,10 +533,19 @@ ni_dhcp6_fsm_commit_lease(ni_dhcp6_device_t *dev, ni_addrconf_lease_t *lease)
 		 * As soon as dad finished, we can change to
 		 * BOUND state and wait until renew etc.
 		 */
-		dev->fsm.state = NI_DHCP6_STATE_VALIDATING;
 
-		// ni_dhcp6_fsm_set_timeout(dev, renewal_time);
-
+		/*
+		 * dev->fsm.state = NI_DHCP6_STATE_VALIDATING;
+		 *
+		 * For now:
+		 */
+		dev->fsm.state = NI_DHCP6_STATE_BOUND;
+		/*
+		 * Calculate the renewal_time from ia's addr pref_lft, ...
+		 *
+		 * ni_dhcp6_fsm_set_timeout_msec(dev, renewal_time);
+		 *
+		 */
 		ni_dhcp6_device_set_lease(dev, lease);
 
 		ni_addrconf_lease_file_write(dev->ifname, lease);
@@ -542,8 +560,8 @@ ni_dhcp6_fsm_commit_lease(ni_dhcp6_device_t *dev, ni_addrconf_lease_t *lease)
 
 			ni_addrconf_lease_file_remove(dev->ifname, lease->type,
 							lease->family);
-
 			ni_dhcp6_device_drop_lease(dev);
+			ni_dhcp6_device_drop_best_offer(dev);
 			dev->fsm.state = NI_DHCP6_STATE_INIT;
 		}
 
