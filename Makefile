@@ -22,7 +22,7 @@ CPPFLAGS+= -DWICKED_CONFIGDIR=\"$(wickedconfigdir)\"
 
 LDCOMMON= $(LIBDL_LIBS) $(LIBNL_LIBS) $(LIBANL_LIBS) $(LIBDBUS_LIBS) $(LIBGCRYPT_LIBS)
 
-APPS	= wicked wickedd \
+APPS	= wicked wickedd network-mgr \
 	  dhcp4-supplicant autoip4-supplicant \
 	  dhcp6-supplicant
 UTILS	= mkconst
@@ -139,6 +139,11 @@ CLIENTSRCS = \
 	  client/reachable.c
 SERVERSRCS = \
 	  server/main.c
+MANAGERSRCS = \
+	  manager/main.c \
+	  manager/manager.c \
+	  manager/policy.c \
+	  manager/interface.c
 GENFILES = \
 	  schema/constants.xml
 
@@ -152,10 +157,11 @@ AUTO4OBJS= $(addprefix $(OBJ)/,$(AUTO4SRCS:.c=.o))
 DHCP6OBJS= $(addprefix $(OBJ)/,$(DHCP6SRCS:.c=.o))
 CLIENTOBJS= $(addprefix $(OBJ)/,$(CLIENTSRCS:.c=.o))
 SERVEROBJS= $(addprefix $(OBJ)/,$(SERVERSRCS:.c=.o))
+MANAGEROBJS= $(addprefix $(OBJ)/,$(MANAGERSRCS:.c=.o))
 UTILSRCS= util/mkconst.c
 
 SOURCES= $(LIBSRCS) $(DHCP4SRCS) $(AUTO4SRCS) $(DHCP6SRCS) \
-	 $(CLIENTSRCS) $(SERVERSRCS)
+	 $(CLIENTSRCS) $(SERVERSRCS) $(MANAGERSRCS)
 
 all: Makefile.vars $(TGTLIBS) $(APPBINS) $(GENFILES)
 
@@ -210,7 +216,7 @@ install-data: $(GENFILES)
 	install -d -m 755 $(DESTDIR)$(wickedconfigdir)
 	install -m 644 etc/config.xml $(DESTDIR)$(wickedconfigdir)
 	install -d -m 755 $(DESTDIR)$(dbus_systemdir)
-	install -c -m 444 etc/wicked*.conf $(DESTDIR)$(dbus_systemdir)
+	install -c -m 444 etc/*.conf $(DESTDIR)$(dbus_systemdir)
 	install -d -m 755 $(DESTDIR)$(wickedconfigdir)/schema
 	install -c -m 444 schema/*.xml $(DESTDIR)$(wickedconfigdir)/schema
 	install -d -m 755 $(DESTDIR)$(wickedconfigdir)/extensions
@@ -250,6 +256,12 @@ $(BIN)/wickedd: LDFLAGS += $(LDCOMMON)
 $(BIN)/wickedd: $(SERVEROBJS) $(TGTLIBS)
 	@mkdir -p bin
 	$(CC) -o $@ $(CFLAGS) $(SERVEROBJS) $(LDFLAGS)
+
+$(BIN)/network-mgr: LDFLAGS += -rdynamic -L. -lwicked -lm $(LIBS)
+$(BIN)/network-mgr: LDFLAGS += $(LDCOMMON)
+$(BIN)/network-mgr: $(MANAGEROBJS) $(TGTLIBS)
+	@mkdir -p bin
+	$(CC) -o $@ $(CFLAGS) $(MANAGEROBJS) $(LDFLAGS)
 
 $(BIN)/dhcp4-supplicant: LDFLAGS += -L. -lwicked -lm $(LIBS)
 $(BIN)/dhcp4-supplicant: LDFLAGS += $(LDCOMMON)
@@ -303,6 +315,7 @@ depend:
 	$(CC) $(CPPFLAGS) -M $(AUTO4SRCS) | sed 's:^[a-z]:$(OBJ)/autoip4/&:' >> .depend
 	$(CC) $(CPPFLAGS) -M $(CLIENTSRCS) | sed 's:^[a-z]:$(OBJ)/client/&:' >> .depend
 	$(CC) $(CPPFLAGS) -M $(SERVERSRCS) | sed 's:^[a-z]:$(OBJ)/server/&:' >> .depend
+	$(CC) $(CPPFLAGS) -M $(MANAGERSRCS) | sed 's:^[a-z]:$(OBJ)/manager/&:' >> .depend
 
 $(OBJ)/%.o: %.c
 	@rm -f $@

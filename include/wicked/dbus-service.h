@@ -52,6 +52,8 @@ extern dbus_bool_t		ni_dbus_generic_property_set_bool(ni_dbus_object_t *, const 
 					const ni_dbus_variant_t *, DBusError *);
 extern dbus_bool_t		ni_dbus_generic_property_parse_bool(const ni_dbus_property_t *,
 					ni_dbus_variant_t *, const char *);
+extern dbus_bool_t		ni_dbus_generic_property_update_bool(ni_dbus_object_t *, const ni_dbus_property_t *,
+					const ni_dbus_variant_t *r, DBusError *);
 extern dbus_bool_t		ni_dbus_generic_property_get_int(const ni_dbus_object_t *, const ni_dbus_property_t *,
 					ni_dbus_variant_t *r, DBusError *);
 extern dbus_bool_t		ni_dbus_generic_property_set_int(ni_dbus_object_t *, const ni_dbus_property_t *,

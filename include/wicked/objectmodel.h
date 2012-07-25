@@ -67,6 +67,13 @@ extern ni_dbus_class_t *	ni_objectmodel_class_new(const char *, const ni_dbus_cl
 #define NI_OBJECTMODEL_AUTO4_INTERFACE		NI_OBJECTMODEL_INTERFACE ".AUTO4"
 #define NI_OBJECTMODEL_MODEM_LIST_INTERFACE	NI_OBJECTMODEL_INTERFACE ".ModemList"
 #define NI_OBJECTMODEL_MODEM_INTERFACE		NI_OBJECTMODEL_INTERFACE ".Modem"
+#define NI_OBJECTMODEL_MANAGER_PATH		"/com/suse/Wicked/Manager"
+#define NI_OBJECTMODEL_MANAGED_NETIF_LIST_PATH	"/com/suse/Wicked/Manager/Interface"
+#define NI_OBJECTMODEL_MANAGED_MODEM_LIST_PATH	"/com/suse/Wicked/Manager/Modem"
+#define NI_OBJECTMODEL_MANAGER_INTERFACE	NI_OBJECTMODEL_INTERFACE ".Manager"
+#define NI_OBJECTMODEL_MANAGED_NETIF_INTERFACE	NI_OBJECTMODEL_INTERFACE ".ManagedInterface"
+#define NI_OBJECTMODEL_MANAGED_MODEM_INTERFACE	NI_OBJECTMODEL_INTERFACE ".ManagedModem"
+#define NI_OBJECTMODEL_MANAGED_POLICY_INTERFACE	NI_OBJECTMODEL_INTERFACE ".ManagedPolicy"
 
 /*
  * Signals emitted by addrconf services
@@ -84,6 +91,7 @@ extern const ni_dbus_service_t *ni_objectmodel_factory_service(const ni_dbus_ser
 extern const ni_dbus_service_t *ni_objectmodel_auth_service(const ni_dbus_service_t *);
 extern unsigned int		ni_objectmodel_compatible_services_for_class(const ni_dbus_class_t *query_class,
 					const ni_dbus_service_t **list, unsigned int max);
+extern dbus_bool_t		ni_objectmodel_bind_compatible_interfaces(ni_dbus_object_t *);
 
 extern dbus_bool_t		ni_objectmodel_get_addrconf_lease(const ni_addrconf_lease_t *, ni_dbus_variant_t *);
 extern dbus_bool_t		ni_objectmodel_set_addrconf_lease(ni_addrconf_lease_t *, const ni_dbus_variant_t *);

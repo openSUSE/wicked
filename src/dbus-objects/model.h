@@ -129,7 +129,6 @@ extern dbus_bool_t		__ni_objectmodel_set_addrconf_lease(ni_addrconf_lease_t *lea
 
 extern void			ni_objectmodel_create_netif_list(ni_dbus_server_t *);
 extern void			ni_objectmodel_create_modem_list(ni_dbus_server_t *);
-extern dbus_bool_t		ni_objectmodel_bind_compatible_interfaces(ni_dbus_object_t *);
 
 extern ni_dbus_object_t *	ni_objectmodel_resolve_name(ni_dbus_object_t *parent, const char *naming_service,
 					const char *attribute, const ni_dbus_variant_t *var);

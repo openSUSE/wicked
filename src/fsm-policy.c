@@ -82,6 +82,7 @@ struct ni_fsm_policy {
 
 
 static void			ni_fsm_policy_free(ni_fsm_policy_t *);
+static void			__ni_fsm_policy_reset(ni_fsm_policy_t *);
 static ni_ifcondition_t *	ni_fsm_policy_conditions_from_xml(xml_node_t *);
 static ni_bool_t		ni_ifcondition_check(const ni_ifcondition_t *, ni_ifworker_t *);
 static ni_ifcondition_t *	ni_ifcondition_from_xml(xml_node_t *);
@@ -98,6 +99,13 @@ static void
 ni_fsm_policy_free(ni_fsm_policy_t *policy)
 {
 	ni_string_free(&policy->name);
+	__ni_fsm_policy_reset(policy);
+	free(policy);
+}
+
+static void
+__ni_fsm_policy_reset(ni_fsm_policy_t *policy)
+{
 	if (policy->match) {
 		ni_ifcondition_free(policy->match);
 		policy->match = NULL;
@@ -108,8 +116,6 @@ ni_fsm_policy_free(ni_fsm_policy_t *policy)
 		policy->actions = a->next;
 		ni_fsm_policy_action_free(a);
 	}
-
-	free(policy);
 }
 
 static ni_bool_t
@@ -119,6 +125,9 @@ __ni_fsm_policy_from_xml(ni_fsm_policy_t *policy, xml_node_t *node)
 	const char *attr;
 
 	policy->node = node;
+
+	if (node == NULL)
+		return TRUE;
 
 	if ((attr = xml_node_get_attr(node, "weight")) != NULL) {
 		if (ni_parse_int(attr, &policy->weight) < 0) {
@@ -185,6 +194,22 @@ ni_fsm_policy_new(ni_fsm_t *fsm, const char *name, xml_node_t *node)
 	*tail = policy;
 
 	return policy;
+}
+
+ni_bool_t
+ni_fsm_policy_update(ni_fsm_policy_t *policy, xml_node_t *node)
+{
+	ni_fsm_policy_t temp;
+
+	if (!__ni_fsm_policy_from_xml(&temp, node))
+		return FALSE;
+
+	__ni_fsm_policy_reset(policy);
+	policy->weight = temp.weight;
+	policy->actions = temp.actions;
+	policy->match = temp.match;
+	policy->node = node;
+	return TRUE;
 }
 
 ni_fsm_policy_t *

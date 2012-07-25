@@ -896,6 +896,19 @@ ni_dbus_generic_property_parse_bool(const ni_dbus_property_t *prop, ni_dbus_vari
 }
 
 dbus_bool_t
+ni_dbus_generic_property_update_bool(ni_dbus_object_t *obj, const ni_dbus_property_t *prop,
+					const ni_dbus_variant_t *var, DBusError *error)
+{
+	if (!ni_dbus_generic_property_set_bool(obj, prop, var, error))
+		return FALSE;
+
+#if 0
+	/* call object's "property_updated" callback */
+#endif
+	return TRUE;
+}
+
+dbus_bool_t
 ni_dbus_generic_property_get_uint(const ni_dbus_object_t *obj, const ni_dbus_property_t *prop,
 					ni_dbus_variant_t *var, DBusError *error)
 {
