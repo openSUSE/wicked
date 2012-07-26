@@ -78,6 +78,30 @@ xml_document_print(const xml_document_t *doc, FILE *fp)
 	return xml_writer_destroy(&writer);
 }
 
+char *
+xml_document_sprint(const xml_document_t *doc)
+{
+	char *string = NULL;
+	size_t size = 0;
+	FILE *fp;
+	int rv;
+
+	if ((fp = open_memstream(&string, &size)) == NULL) {
+		ni_error("%s: unable to open memstream", __func__);
+		return NULL;
+	}
+
+	rv = xml_document_print(doc, fp);
+	fclose(fp);
+
+	if (rv < 0) {
+		free(string);
+		return NULL;
+	}
+
+	return string;
+}
+
 int
 xml_document_hash(const xml_document_t *doc, void *md_buffer, size_t md_size)
 {
@@ -109,6 +133,30 @@ xml_node_print(const xml_node_t *node, FILE *fp)
 	}
 
 	return rv;
+}
+
+char *
+xml_node_sprint(const xml_node_t *node)
+{
+	char *string = NULL;
+	size_t size = 0;
+	FILE *fp;
+	int rv;
+
+	if ((fp = open_memstream(&string, &size)) == NULL) {
+		ni_error("%s: unable to open memstream", __func__);
+		return NULL;
+	}
+
+	rv = xml_node_print(node, fp);
+	fclose(fp);
+
+	if (rv < 0) {
+		free(string);
+		return NULL;
+	}
+
+	return string;
 }
 
 int
