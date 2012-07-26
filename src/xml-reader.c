@@ -142,7 +142,7 @@ xml_document_from_string(const char *string)
 		ni_error("%s: argument string is NULL", __func__);
 		return NULL;
 	}
-	ni_buffer_init(&buf, (char *) string, strlen(string));
+	ni_buffer_init_reader(&buf, (char *) string, strlen(string));
 	return xml_document_from_buffer(&buf);
 }
 
