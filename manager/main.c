@@ -49,14 +49,13 @@ static const char *	program_name;
 static int		opt_foreground = 0;
 static int		opt_no_modem_manager = 0;
 
-static ni_fsm_t *	global_fsm;
-static ni_dbus_server_t *global_dbus_server;
 static int		wicked_term_sig = 0;
 
 static void		interface_manager(void);
-static void		discover_state(void);
-static void		handle_interface_event(ni_netdev_t *, ni_event_t);
-static void		handle_modem_event(ni_modem_t *, ni_event_t);
+static void		ni_manager_discover_state(ni_manager_t *);
+static void		ni_manager_netif_state_change_signal_receive(ni_dbus_connection_t *, ni_dbus_message_t *, void *);
+//static void		handle_interface_event(ni_netdev_t *, ni_event_t);
+//static void		handle_modem_event(ni_modem_t *, ni_event_t);
 static void		wicked_catch_term_signal(int);
 
 int
@@ -119,27 +118,59 @@ main(int argc, char **argv)
 	return 0;
 }
 
+ni_manager_t *
+ni_manager_new(void)
+{
+	ni_manager_t *mgr;
+
+	mgr = calloc(1, sizeof(*mgr));
+
+	mgr->server = ni_server_listen_dbus(NI_OBJECTMODEL_DBUS_BUS_NAME_MANAGER);
+	if (!mgr->server)
+		ni_fatal("Cannot create server, giving up.");
+
+	mgr->fsm = ni_fsm_new();
+	ni_objectmodel_manager_init(mgr->server, mgr->fsm);
+	ni_objectmodel_register_all();
+
+	return mgr;
+}
+
+void
+ni_manager_schedule_recheck(ni_manager_t *mgr, ni_ifworker_t *w)
+{
+	if (ni_ifworker_array_index(&mgr->recheck, w) < 0)
+		ni_ifworker_array_append(&mgr->recheck, w);
+}
+
+void
+ni_manager_schedule_down(ni_manager_t *mgr, ni_ifworker_t *w)
+{
+	if (ni_ifworker_array_index(&mgr->down, w) < 0)
+		ni_ifworker_array_append(&mgr->down, w);
+}
+
+ni_managed_netdev_t *
+ni_manager_get_netdev(ni_manager_t *mgr, ni_netdev_t *dev)
+{
+	ni_managed_netdev_t *mdev;
+
+	for (mdev = mgr->netdev_list; mdev; mdev = mdev->next) {
+		if (mdev->dev == dev)
+			return mdev;
+	}
+	return NULL;
+}
+
 /*
  * Implement service for configuring the system's network interfaces
  */
 void
 interface_manager(void)
 {
-	global_dbus_server = ni_server_listen_dbus(NI_OBJECTMODEL_DBUS_BUS_NAME_MANAGER);
-	if (!global_dbus_server)
-		ni_fatal("Cannot create server, giving up.");
+	ni_manager_t *mgr;
 
-	if (!opt_no_modem_manager) {
-		if (!ni_modem_manager_init(handle_modem_event))
-			ni_error("unable to initialize modem manager client");
-	}
-
-	global_fsm = ni_fsm_new();
-	ni_objectmodel_manager_init(global_dbus_server, global_fsm);
-
-	/* open global RTNL socket to listen for kernel events */
-	if (ni_server_listen_interface_events(handle_interface_event) < 0)
-		ni_fatal("unable to initialize netlink listener");
+	mgr = ni_manager_new();
 
 	if (!opt_foreground) {
 		if (ni_server_background(program_name) < 0)
@@ -147,13 +178,31 @@ interface_manager(void)
 		ni_log_destination_syslog(program_name);
 	}
 
-	discover_state();
+	ni_manager_discover_state(mgr);
 
 	signal(SIGTERM, wicked_catch_term_signal);
 	signal(SIGINT, wicked_catch_term_signal);
 
 	while (wicked_term_sig == 0) {
 		long timeout;
+
+		if (mgr->recheck.count != 0) {
+			unsigned int i;
+
+			ni_fsm_refresh_state(mgr->fsm);
+
+			for (i = 0; i < mgr->recheck.count; ++i)
+				ni_manager_recheck(mgr, mgr->recheck.data[i]);
+			ni_ifworker_array_destroy(&mgr->recheck);
+		}
+
+		if (mgr->down.count != 0) {
+			unsigned int i;
+
+			for (i = 0; i < mgr->down.count; ++i)
+				; // ni_manager_down(mgr, mgr->down.data[i]);
+			ni_ifworker_array_destroy(&mgr->down);
+		}
 
 		timeout = ni_timer_next_timeout();
 		if (ni_socket_wait(timeout) < 0)
@@ -177,99 +226,122 @@ wicked_catch_term_signal(int sig)
  * This allows a daemon restart without losing lease state.
  */
 void
-discover_state(void)
+ni_manager_discover_state(ni_manager_t *mgr)
 {
-	ni_netconfig_t *nc;
-	ni_netdev_t *dev;
-	ni_modem_t *modem;
+	ni_dbus_client_t *client;
+	unsigned int i;
 
-	nc = ni_global_state_handle(1);
-	if (nc == NULL)
-		ni_fatal("failed to discover interface state");
+	if (!(client = ni_fsm_create_client(mgr->fsm)))
+		ni_fatal("Unable to create FSM client");
 
-	if (global_dbus_server) {
-		for (dev = ni_netconfig_devlist(nc); dev; dev = dev->next)
-			ni_objectmodel_register_managed_netdev(global_dbus_server, ni_managed_netdev_new(dev));
+	ni_dbus_client_add_signal_handler(client, NULL, NULL,
+			NI_OBJECTMODEL_NETIF_INTERFACE,
+			ni_manager_netif_state_change_signal_receive,
+			mgr);
 
-		for (modem = ni_netconfig_modem_list(nc); modem; modem = modem->list.next)
-			ni_objectmodel_register_modem(global_dbus_server, modem);
+	ni_fsm_refresh_state(mgr->fsm);
+
+	for (i = 0; i < mgr->fsm->workers.count; ++i) {
+		ni_ifworker_t *w = mgr->fsm->workers.data[i];
+
+		if (w->type == NI_IFWORKER_TYPE_NETDEV) {
+			ni_managed_netdev_t *mdev;
+
+			mdev = ni_managed_netdev_new(mgr, w->device);
+			ni_objectmodel_register_managed_netdev(mgr->server, mdev);
+#ifdef notyet
+		} else
+		if (w->type == NI_IFWORKER_TYPE_MODEM) {
+			ni_objectmodel_register_managed_modem(mgr->server,
+					ni_managed_modem_new(mgr, w->modem));
+#endif
+		}
 	}
 }
 
 /*
- * Handle network layer events for interface server.
- * FIXME: There should be some locking here, which prevents us from
- * calling event handlers on an interface that the admin is currently
- * mucking with manually.
+ * Wickedd is sending us a signal (such a linkUp/linkDown, or change in the set of
+ * visible WLANs)
  */
 void
-handle_interface_event(ni_netdev_t *dev, ni_event_t event)
+ni_manager_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_message_t *msg, void *user_data)
 {
-	ni_uuid_t *event_uuid = NULL;
+	ni_manager_t *mgr = user_data;
+	const char *signal_name = dbus_message_get_member(msg);
+	const char *object_path = dbus_message_get_path(msg);
+	ni_managed_netdev_t *mdev;
+	ni_ifworker_t *w;
 
-	if (global_dbus_server) {
-		switch (event) {
-		case NI_EVENT_DEVICE_CREATE:
-			/* Create dbus object */
-			ni_objectmodel_register_netif(global_dbus_server, dev, NULL);
+	if ((w = ni_fsm_ifworker_by_object_path(mgr->fsm, object_path)) == NULL) {
+		ni_warn("received signal \"%s\" from unknown object \"%s\"",
+				signal_name, object_path);
+		return;
+	}
+
+	if (ni_string_eq(signal_name, "deviceDown")) {
+		// XXX: delete the worker and the managed netif
+	} else
+	if (ni_string_eq(signal_name, "linkDown")) {
+		// If we have recorded a policy for this device, it means
+		// we were the ones who took it up - so bring it down
+		// again
+		if ((mdev = ni_manager_get_netdev(mgr, w->device)) != NULL
+		 && mdev->selected_policy != NULL
+		 && mdev->user_controlled)
+			ni_manager_schedule_down(mgr, w);
+	} else
+	if (ni_string_eq(signal_name, "linkAssociationLost")) {
+		// If we have recorded a policy for this device, it means
+		// we were the ones who took it up - so bring it down
+		// again
+		if ((mdev = ni_manager_get_netdev(mgr, w->device)) != NULL
+		 && mdev->selected_policy != NULL
+		 && mdev->user_controlled)
+			ni_manager_schedule_down(mgr, w);
+	} else
+	if (ni_string_eq(signal_name, "deviceUp")) {
+		// A new device was added. Could be a virtual device like
+		// a VLAN or vif, or a hotplug modem or NIC
+		// Create a worker and a managed_netif for this device.
+		switch (w->type) {
+		case NI_IFWORKER_TYPE_NETDEV:
+			if (ni_manager_get_netdev(mgr, w->device) == NULL)
+				ni_objectmodel_register_managed_netdev(mgr->server,
+						ni_managed_netdev_new(mgr, w->device));
 			break;
 
-		case NI_EVENT_DEVICE_DELETE:
-			/* FIXME: cancel pending FSM workers */
-			/* Delete dbus object */
-			ni_objectmodel_unregister_netif(global_dbus_server, dev);
+#ifdef notyet
+		case NI_IFWORKER_TYPE_MODEM:
+			if (ni_manager_get_modem(mgr, w->modem) == NULL)
+				ni_objectmodel_register_managed_modem(mgr->server,
+						ni_managed_modem_new(mgr, w->modem));
 			break;
+#endif
 
-		case NI_EVENT_LINK_ASSOCIATED:
-		case NI_EVENT_LINK_ASSOCIATION_LOST:
-		case NI_EVENT_LINK_UP:
-		case NI_EVENT_LINK_DOWN:
-			if (!ni_uuid_is_null(&dev->link.event_uuid))
-				event_uuid = &dev->link.event_uuid;
-			/* fallthru */
-
-		default:
-			break;
+		default: ;
 		}
+	} else
+	if (ni_string_eq(signal_name, "linkUp")) {
+		// Link detection - eg for ethernet
+		if ((mdev = ni_manager_get_netdev(mgr, w->device)) != NULL
+		 && mdev->selected_policy == NULL
+		 && mdev->user_controlled)
+			ni_manager_schedule_recheck(mgr, w);
+	} else {
+		// ignore
 	}
 }
 
 /*
- * Modem event - device was plugged
+ * Check whether a given interface should be reconfigured
  */
-static void
-handle_modem_event(ni_modem_t *modem, ni_event_t event)
+void
+ni_manager_recheck(ni_manager_t *mgr, ni_ifworker_t *w)
 {
-	ni_debug_events("%s(%s, %s)", __func__, ni_event_type_to_name(event), modem->real_path);
-	if (global_dbus_server) {
-		ni_uuid_t *event_uuid = NULL;
+	static const unsigned int MAX_POLICIES = 20;
+	const ni_fsm_policy_t *policies[MAX_POLICIES];
 
-		switch (event) {
-		case NI_EVENT_DEVICE_CREATE:
-			/* Create dbus object and emit event */
-			ni_objectmodel_register_modem(global_dbus_server, modem);
-			break;
-
-		case NI_EVENT_DEVICE_DELETE:
-			/* Emit deletion event */
-			if (!ni_uuid_is_null(&modem->event_uuid))
-				event_uuid = &modem->event_uuid;
-			ni_objectmodel_modem_event(global_dbus_server, modem, NI_EVENT_DEVICE_DOWN, event_uuid);
-
-			/* Delete dbus object */
-			ni_objectmodel_unregister_modem(global_dbus_server, modem);
-			break;
-
-		case NI_EVENT_LINK_ASSOCIATED:
-		case NI_EVENT_LINK_ASSOCIATION_LOST:
-		case NI_EVENT_LINK_UP:
-		case NI_EVENT_LINK_DOWN:
-			if (!ni_uuid_is_null(&modem->event_uuid))
-				event_uuid = &modem->event_uuid;
-			/* fallthru */
-
-		default:
-			break;
-		}
-	}
+	ni_trace("%s(%s)", __func__, w->name);
+	if (ni_fsm_policy_get_applicable_policies(mgr->fsm, w, policies, MAX_POLICIES) == 0)
+		return;
 }

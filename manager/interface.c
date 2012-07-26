@@ -47,7 +47,7 @@ ni_objectmodel_managed_netif_init(ni_dbus_server_t *server)
  * managed_netdev objects
  */
 ni_managed_netdev_t *
-ni_managed_netdev_new(ni_netdev_t *dev)
+ni_managed_netdev_new(ni_manager_t *mgr, ni_netdev_t *dev)
 {
 	ni_managed_netdev_t *mdev;
 
@@ -62,6 +62,9 @@ ni_managed_netdev_new(ni_netdev_t *dev)
 
 	default: ;
 	}
+
+	mdev->next = mgr->netdev_list;
+	mgr->netdev_list = mdev;
 
 	return mdev;
 }
