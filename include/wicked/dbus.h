@@ -27,6 +27,7 @@ typedef struct ni_dbus_variant	ni_dbus_variant_t;
 struct ni_dbus_variant {
 	/* the dbus type of this value */
 	int			type;
+	unsigned int		__magic;
 
 	/* Only valid if this variant is an array
 	 * In the case of a struct, array.len holds
@@ -59,7 +60,9 @@ struct ni_dbus_variant {
 
 	ni_dbus_message_t *	__message;
 };
-#define NI_DBUS_VARIANT_INIT	{ .type = DBUS_TYPE_INVALID }
+
+#define NI_DBUS_VARIANT_MAGIC	0x1234babe
+#define NI_DBUS_VARIANT_INIT	{ .type = DBUS_TYPE_INVALID, .__magic = NI_DBUS_VARIANT_MAGIC }
 
 typedef dbus_bool_t		ni_dbus_method_handler_t(ni_dbus_object_t *object,
 					const ni_dbus_method_t *method,

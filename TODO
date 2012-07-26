@@ -35,6 +35,12 @@ ifup replacement features:
 	- Make interface selection less messy (unify all the --boot-* and --skip-*
 	  options and provide one generic expression mechanism)
 
+dbus:
+	- replace all those dbus_variant_t argv[...] arrays with a
+	  ni_dbus_argv_t, with corresponding functions for initialization
+	  and destruction. Also taking care of the variant __magic cookie
+	  field.
+
 netinfo:
 	- Introduce an <access-provider> abstraction; this can be either
 	  a wireless network (ESSID, security information); an Internet

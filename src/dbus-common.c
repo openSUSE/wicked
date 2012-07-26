@@ -26,7 +26,6 @@ static ni_intmap_t      __ni_dbus_error_map[] = {
 	{ NULL }
 };
 
-
 int
 ni_dbus_translate_error(const DBusError *err, const ni_intmap_t *error_map)
 {
@@ -741,6 +740,11 @@ ni_dbus_variant_copy(ni_dbus_variant_t *dst, const ni_dbus_variant_t *src)
 void
 ni_dbus_variant_destroy(ni_dbus_variant_t *var)
 {
+	if (var->__magic != 0 && var->__magic != NI_DBUS_VARIANT_MAGIC) {
+		ni_fatal("%s: variant with bad magic cookie 0x%x",
+				__func__, var->__magic);
+	}
+
 	if (var->type == DBUS_TYPE_STRING
 	 || var->type == DBUS_TYPE_OBJECT_PATH)
 		ni_string_free(&var->string_value);
@@ -788,6 +792,7 @@ ni_dbus_variant_destroy(ni_dbus_variant_t *var)
 
 	memset(var, 0, sizeof(*var));
 	var->type = DBUS_TYPE_INVALID;
+	var->__magic = NI_DBUS_VARIANT_MAGIC;
 }
 
 const char *
