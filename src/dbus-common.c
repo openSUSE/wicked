@@ -13,18 +13,11 @@
 #include <stdlib.h>
 #include <wicked/util.h>
 #include <wicked/logging.h>
+#include <wicked/dbus-errors.h>
 #include "socket_priv.h"
 #include "dbus-common.h"
 #include "dbus-dict.h"
 #include "debug.h"
-
-static ni_intmap_t      __ni_dbus_error_map[] = {
-	{ "org.freedesktop.DBus.Error.AccessDenied",	NI_ERROR_PERMISSION_DENIED },
-	{ "org.freedesktop.DBus.Error.InvalidArgs",	NI_ERROR_INVALID_ARGS },
-	{ "org.freedesktop.DBus.Error.UnknownMethod",	NI_ERROR_METHOD_NOT_SUPPORTED },
-
-	{ NULL }
-};
 
 int
 ni_dbus_translate_error(const DBusError *err, const ni_intmap_t *error_map)
@@ -35,11 +28,7 @@ ni_dbus_translate_error(const DBusError *err, const ni_intmap_t *error_map)
 	if (error_map && ni_parse_int_mapped(err->name, error_map, &errcode) >= 0)
 		return -errcode;
 
-	if (ni_parse_int_mapped(err->name, __ni_dbus_error_map, &errcode) >= 0)
-		return -errcode;
-
-	ni_warn("Cannot translate DBus error <%s>", err->name);
-	return -NI_ERROR_GENERAL_FAILURE;
+	return ni_dbus_get_error(err, NULL);
 }
 
 /*
