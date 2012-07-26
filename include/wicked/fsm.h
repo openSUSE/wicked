@@ -217,6 +217,10 @@ extern int			ni_ifworker_state_from_name(const char *);
 extern ni_fsm_require_t *	ni_ifworker_reachability_check_new(xml_node_t *);
 extern ni_bool_t		ni_ifworker_match_alias(const ni_ifworker_t *w, const char *alias);
 
+extern void			ni_ifworker_array_append(ni_ifworker_array_t *, ni_ifworker_t *);
+extern int			ni_ifworker_array_index(const ni_ifworker_array_t *, const ni_ifworker_t *);
+extern void			ni_ifworker_array_destroy(ni_ifworker_array_t *);
+
 extern void			ni_fsm_require_register_type(const char *, ni_fsm_require_ctor_t *);
 extern ni_fsm_require_t *	ni_fsm_require_new(ni_fsm_require_fn_t *, ni_fsm_require_dtor_t *);
 

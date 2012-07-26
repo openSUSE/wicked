@@ -34,9 +34,6 @@
 static unsigned int		ni_ifworker_timeout_count;
 
 static const char *		ni_ifworker_state_name(int);
-static void			ni_ifworker_array_destroy(ni_ifworker_array_t *);
-static void			ni_ifworker_array_append(ni_ifworker_array_t *, ni_ifworker_t *);
-static int			ni_ifworker_array_index(const ni_ifworker_array_t *, const ni_ifworker_t *);
 static ni_ifworker_t *		ni_ifworker_identify_device(ni_fsm_t *, const xml_node_t *, ni_ifworker_type_t);
 static void			ni_ifworker_set_dependencies_xml(ni_ifworker_t *, xml_node_t *);
 static void			ni_fsm_schedule_init(ni_fsm_t *fsm, ni_ifworker_t *, unsigned int, unsigned int);
@@ -366,7 +363,7 @@ ni_ifworker_state_from_name(const char *name)
 	return value;
 }
 
-static void
+void
 ni_ifworker_array_append(ni_ifworker_array_t *array, ni_ifworker_t *w)
 {
 	array->data = realloc(array->data, (array->count + 1) * sizeof(array->data[0]));
