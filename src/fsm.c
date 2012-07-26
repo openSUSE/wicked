@@ -2853,13 +2853,13 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 done: ;
 }
 
-ni_bool_t
+ni_dbus_client_t *
 ni_fsm_create_client(ni_fsm_t *fsm)
 {
 	ni_dbus_client_t *client;
 
 	if (!(fsm->client_root_object = ni_call_create_client()))
-		return FALSE;
+		return NULL;
 
 	client = ni_dbus_object_get_client(fsm->client_root_object);
 
@@ -2873,7 +2873,7 @@ ni_fsm_create_client(ni_fsm_t *fsm)
 					interface_state_change_signal,
 					fsm);
 
-	return TRUE;
+	return client;
 }
 
 int

@@ -200,7 +200,7 @@ extern unsigned int		ni_fsm_policy_get_applicable_policies(ni_fsm_t *, ni_ifwork
 extern xml_node_t *		ni_fsm_policy_transform_document(xml_node_t *, const ni_fsm_policy_t * const *, unsigned int);
 extern const char *		ni_fsm_policy_name(const ni_fsm_policy_t *);
 
-extern ni_bool_t		ni_fsm_create_client(ni_fsm_t *);
+extern ni_dbus_client_t *	ni_fsm_create_client(ni_fsm_t *);
 extern void			ni_fsm_refresh_state(ni_fsm_t *);
 extern int			ni_fsm_kickstart(ni_fsm_t *);
 extern unsigned int		ni_fsm_schedule(ni_fsm_t *);
