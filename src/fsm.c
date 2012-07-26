@@ -418,8 +418,8 @@ ni_ifworker_lookup(ni_fsm_t *fsm, ni_ifworker_type_t type, const char *ifname)
 	return ni_ifworker_array_find(&fsm->workers, type, ifname);
 }
 
-static ni_ifworker_t *
-ni_ifworker_by_object_path(ni_fsm_t *fsm, const char *object_path)
+ni_ifworker_t *
+ni_fsm_ifworker_by_object_path(ni_fsm_t *fsm, const char *object_path)
 {
 	unsigned int i;
 
@@ -1154,7 +1154,7 @@ ni_ifworker_identify_device(ni_fsm_t *fsm, const xml_node_t *devnode, ni_ifworke
 			}
 
 			if (object_path)
-				found = ni_ifworker_by_object_path(fsm, object_path);
+				found = ni_fsm_ifworker_by_object_path(fsm, object_path);
 			ni_string_free(&object_path);
 		}
 
@@ -1871,7 +1871,7 @@ __ni_ifworker_refresh_netdevs(ni_fsm_t *fsm)
 
 		found = ni_ifworker_by_netdev(fsm, dev);
 		if (!found)
-			found = ni_ifworker_by_object_path(fsm, object->path);
+			found = ni_fsm_ifworker_by_object_path(fsm, object->path);
 		if (!found) {
 			ni_debug_application("received new device %s (%s)", dev->name, object->path);
 			found = ni_ifworker_new(fsm, NI_IFWORKER_TYPE_NETDEV, dev->name, NULL);
@@ -1917,7 +1917,7 @@ __ni_ifworker_refresh_modems(ni_fsm_t *fsm)
 
 		found = ni_ifworker_by_modem(fsm, modem);
 		if (!found)
-			found = ni_ifworker_by_object_path(fsm, object->path);
+			found = ni_fsm_ifworker_by_object_path(fsm, object->path);
 		if (!found) {
 			ni_debug_application("received new modem %s (%s)", modem->device, object->path);
 			found = ni_ifworker_new(fsm, NI_IFWORKER_TYPE_MODEM, modem->device, NULL);
@@ -2806,7 +2806,7 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 	if (!strcmp(signal_name, "addressAcquired"))
 		fsm->last_event_seq[NI_EVENT_ADDRESS_ACQUIRED] = fsm->event_seq;
 
-	if ((w = ni_ifworker_by_object_path(fsm, object_path)) != NULL && w->target_state != NI_FSM_STATE_NONE) {
+	if ((w = ni_fsm_ifworker_by_object_path(fsm, object_path)) != NULL && w->target_state != NI_FSM_STATE_NONE) {
 		ni_objectmodel_callback_info_t *cb = NULL;
 
 		if (!ni_uuid_is_null(&event_uuid)) {

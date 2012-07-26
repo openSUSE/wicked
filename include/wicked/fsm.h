@@ -210,6 +210,7 @@ extern unsigned int		ni_fsm_mark_matching_workers(ni_fsm_t *, ni_ifmatcher_t *, 
 extern int			ni_fsm_build_hierarchy(ni_fsm_t *);
 extern unsigned int		ni_fsm_workers_from_xml(ni_fsm_t *, xml_document_t *, const char *);
 extern unsigned int		ni_fsm_fail_count(ni_fsm_t *);
+extern ni_ifworker_t *		ni_fsm_ifworker_by_object_path(ni_fsm_t *, const char *);
 
 extern int			ni_ifworker_type_from_string(const char *);
 extern int			ni_ifworker_state_from_name(const char *);
