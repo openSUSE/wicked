@@ -2779,8 +2779,6 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 	ni_uuid_t event_uuid = NI_UUID_INIT;
 	ni_ifworker_t *w;
 
-	ni_debug_dbus("%s: got signal %s from %s", __func__, signal_name, object_path);
-
 	/* See if this event comes with a uuid */
 	{
 		ni_dbus_variant_t result = NI_DBUS_VARIANT_INIT;
@@ -2793,9 +2791,12 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 			return;
 		}
 		if (ni_dbus_variant_get_uuid(&result, &event_uuid))
-			ni_debug_dbus("event uuid=%s", ni_uuid_print(&event_uuid));
+			ni_debug_dbus("%s: got signal %s from %s; event uuid=%s",
+					__func__, signal_name, object_path,
+					ni_uuid_print(&event_uuid));
 		else
-			ni_debug_dbus("event does not have a uuid");
+			ni_debug_dbus("%s: got signal %s from %s; event uuid=<>",
+					__func__, signal_name, object_path);
 		ni_dbus_variant_destroy(&result);
 	}
 
