@@ -102,7 +102,8 @@ struct ni_ifworker {
 	int			target_state;
 
 	unsigned int		failed		: 1,
-				done		: 1;
+				done		: 1,
+				kickstarted	: 1;
 
 	struct {
 		char *		mode;
@@ -199,6 +200,7 @@ extern unsigned int		ni_fsm_policy_get_applicable_policies(ni_fsm_t *, ni_ifwork
 						const ni_fsm_policy_t **, unsigned int);
 extern xml_node_t *		ni_fsm_policy_transform_document(xml_node_t *, const ni_fsm_policy_t * const *, unsigned int);
 extern const char *		ni_fsm_policy_name(const ni_fsm_policy_t *);
+extern ni_bool_t		ni_fsm_policies_changed_since(const ni_fsm_t *, unsigned int *tstamp);
 
 extern ni_dbus_client_t *	ni_fsm_create_client(ni_fsm_t *);
 extern void			ni_fsm_refresh_state(ni_fsm_t *);
@@ -211,11 +213,15 @@ extern int			ni_fsm_build_hierarchy(ni_fsm_t *);
 extern unsigned int		ni_fsm_workers_from_xml(ni_fsm_t *, xml_document_t *, const char *);
 extern unsigned int		ni_fsm_fail_count(ni_fsm_t *);
 extern ni_ifworker_t *		ni_fsm_ifworker_by_object_path(ni_fsm_t *, const char *);
+extern ni_ifworker_t *		ni_fsm_ifworker_by_netdev(ni_fsm_t *, const ni_netdev_t *);
 
 extern int			ni_ifworker_type_from_string(const char *);
 extern int			ni_ifworker_state_from_name(const char *);
 extern ni_fsm_require_t *	ni_ifworker_reachability_check_new(xml_node_t *);
 extern ni_bool_t		ni_ifworker_match_alias(const ni_ifworker_t *w, const char *alias);
+extern void			ni_ifworker_set_config(ni_ifworker_t *, xml_node_t *, const char *);
+extern void			ni_ifworker_reset(ni_ifworker_t *);
+extern int			ni_ifworker_start(ni_fsm_t *, ni_ifworker_t *);
 
 extern void			ni_ifworker_array_append(ni_ifworker_array_t *, ni_ifworker_t *);
 extern int			ni_ifworker_array_index(const ni_ifworker_array_t *, const ni_ifworker_t *);

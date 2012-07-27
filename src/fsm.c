@@ -83,14 +83,13 @@ ni_fsm_fail_count(ni_fsm_t *fsm)
 }
 
 static inline ni_ifworker_t *
-__ni_ifworker_new(ni_ifworker_type_t type, const char *name, xml_node_t *config)
+__ni_ifworker_new(ni_ifworker_type_t type, const char *name)
 {
 	ni_ifworker_t *w;
 
-	w = calloc(1, sizeof(*w));
+	w = xcalloc(1, sizeof(*w));
 	ni_string_dup(&w->name, name);
 	w->type = type;
-	w->config.node = config;
 	w->refcount = 1;
 
 	w->target_range.min = NI_FSM_STATE_NONE;
@@ -102,21 +101,21 @@ __ni_ifworker_new(ni_ifworker_type_t type, const char *name, xml_node_t *config)
 }
 
 static ni_ifworker_t *
-ni_ifworker_new(ni_fsm_t *fsm, ni_ifworker_type_t type, const char *name, xml_node_t *config)
+ni_ifworker_new(ni_fsm_t *fsm, ni_ifworker_type_t type, const char *name)
 {
 	ni_ifworker_t *worker;
 
-	worker = __ni_ifworker_new(type, name, config);
+	worker = __ni_ifworker_new(type, name);
 	ni_ifworker_array_append(&fsm->workers, worker);
 	worker->refcount--;
 
 	return worker;
 }
 
-static void
-ni_ifworker_free(ni_ifworker_t *w)
+void
+ni_ifworker_reset(ni_ifworker_t *w)
 {
-	ni_string_free(&w->name);
+	ni_string_free(&w->object_path);
 	ni_string_free(&w->config.origin);
 	ni_string_free(&w->control.mode);
 	ni_string_free(&w->control.boot_stage);
@@ -131,8 +130,28 @@ ni_ifworker_free(ni_ifworker_t *w)
 	}
 	w->fsm.action_table = NULL;
 
-	ni_fsm_require_list_destroy(&w->fsm.child_state_req_list);
+	w->target_state = NI_FSM_STATE_NONE;
+	w->target_range.min = NI_FSM_STATE_NONE;
+	w->target_range.max = __NI_FSM_STATE_MAX;
 
+	if (w->fsm.timer) {
+		ni_timer_cancel(w->fsm.timer);
+	}
+
+	ni_fsm_require_list_destroy(&w->fsm.child_state_req_list);
+	memset(&w->fsm, 0, sizeof(w->fsm));
+	memset(&w->device_api, 0, sizeof(w->device_api));
+
+	w->failed = FALSE;
+	w->done = FALSE;
+	w->kickstarted = FALSE;
+}
+
+static void
+ni_ifworker_free(ni_ifworker_t *w)
+{
+	ni_string_free(&w->name);
+	ni_ifworker_reset(w);
 	free(w);
 }
 
@@ -448,8 +467,8 @@ ni_ifworker_by_ifindex(ni_fsm_t *fsm, unsigned int ifindex)
 	return NULL;
 }
 
-static ni_ifworker_t *
-ni_ifworker_by_netdev(ni_fsm_t *fsm, const ni_netdev_t *dev)
+ni_ifworker_t *
+ni_fsm_ifworker_by_netdev(ni_fsm_t *fsm, const ni_netdev_t *dev)
 {
 	unsigned int i;
 
@@ -777,6 +796,27 @@ ni_ifworker_control_from_xml(ni_ifworker_t *w, xml_node_t *ctrlnode)
 }
 
 /*
+ * Set the configuration of an ifworker
+ */
+void
+ni_ifworker_set_config(ni_ifworker_t *w, xml_node_t *ifnode, const char *config_origin)
+{
+	xml_node_t *child;
+
+	w->config.node = ifnode;
+
+	if ((child = xml_node_get_child(ifnode, "control")) != NULL)
+		ni_ifworker_control_from_xml(w, child);
+
+	ni_ifworker_generate_uuid(w);
+	if (config_origin)
+		ni_string_dup(&w->config.origin, config_origin);
+
+	if ((child = xml_node_get_child(ifnode, "dependencies")) != NULL)
+		ni_ifworker_set_dependencies_xml(w, child);
+}
+
+/*
  * Given an XML document, build interface and modem objects, and policies from it.
  */
 unsigned int
@@ -789,7 +829,7 @@ ni_fsm_workers_from_xml(ni_fsm_t *fsm, xml_document_t *doc, const char *config_o
 	for (ifnode = root->children; ifnode; ifnode = ifnode->next) {
 		ni_ifworker_type_t type;
 		const char *ifname = NULL;
-		xml_node_t *node, *depnode;
+		xml_node_t *node;
 		ni_ifworker_t *w;
 
 		if (ni_string_eq(ifnode->name, "policy")) {
@@ -827,21 +867,11 @@ ni_fsm_workers_from_xml(ni_fsm_t *fsm, xml_document_t *doc, const char *config_o
 				continue;
 			}
 
-			if ((w = ni_ifworker_lookup(fsm, type, ifname)) != NULL)
-				w->config.node = ifnode;
-			else
-				w = ni_ifworker_new(fsm, type, ifname, ifnode);
+			if ((w = ni_ifworker_lookup(fsm, type, ifname)) == NULL)
+				w = ni_ifworker_new(fsm, type, ifname);
 		}
 
-		if ((node = xml_node_get_child(ifnode, "control")) != NULL)
-			ni_ifworker_control_from_xml(w, node);
-
-		ni_ifworker_generate_uuid(w);
-		if (config_origin)
-			ni_string_dup(&w->config.origin, config_origin);
-
-		if ((depnode = xml_node_get_child(ifnode, "dependencies")) != NULL)
-			ni_ifworker_set_dependencies_xml(w, depnode);
+		ni_ifworker_set_config(w, node, config_origin);
 		count++;
 	}
 
@@ -1379,7 +1409,7 @@ unsigned int
 ni_fsm_mark_matching_workers(ni_fsm_t *fsm, ni_ifmatcher_t *match, const ni_uint_range_t *target_range)
 {
 	ni_ifworker_array_t marked = { 0, NULL };
-	unsigned int i, j, count = 0;
+	unsigned int i, count = 0;
 
 	if (!ni_fsm_get_matching_workers(fsm, match, &marked))
 		return 0;
@@ -1399,74 +1429,81 @@ ni_fsm_mark_matching_workers(ni_fsm_t *fsm, ni_ifmatcher_t *match, const ni_uint
 
 	for (i = 0; i < marked.count; ++i) {
 		ni_ifworker_t *w = marked.data[i];
-		unsigned int min_state = w->target_range.min;
-		unsigned int max_state = w->target_range.max;
+		int rv;
 
-#if 0
-		ni_trace("%s checking, min=%s, max=%s%s", w->name,
-					ni_ifworker_state_name(min_state),
-					ni_ifworker_state_name(max_state),
-					w->failed? " - failed" : "");
-#endif
 		if (w->failed)
 			continue;
 
-		if (min_state > max_state) {
-			ni_error("%s: conflicting target states: min=%s max=%s",
-					w->name,
-					ni_ifworker_state_name(min_state),
-					ni_ifworker_state_name(max_state));
-			return -1;
-		}
+		if ((rv = ni_ifworker_start(fsm, w)) < 0)
+			return rv;
 
-		if (max_state == __NI_FSM_STATE_MAX) {
-			if (min_state == NI_FSM_STATE_NONE)
-				continue;
-
-			/* No upper bound; bring it up to min level */
-			ni_fsm_schedule_init(fsm, w, NI_FSM_STATE_DEVICE_DOWN, min_state);
-		} else if (min_state == NI_FSM_STATE_NONE) {
-			/* No lower bound; bring it down to max level */
-			ni_fsm_schedule_init(fsm, w, NI_FSM_STATE_ADDRCONF_UP, max_state);
-		} else {
-			ni_warn("%s: not handled yet: bringing device into state range [%s, %s]",
-					w->name,
-					ni_ifworker_state_name(min_state),
-					ni_ifworker_state_name(max_state));
-		}
-
-		for (j = 0; j < w->children.count; ++j) {
-			ni_ifworker_t *child = w->children.data[j];
-
-			if (w->control.link_required)
-				child->control.link_required = TRUE;
-			if (w->control.link_timeout < child->control.link_timeout)
-				child->control.link_timeout = w->control.link_timeout;
-		}
-
-		ni_debug_application("%s: current state=%s target state=%s",
-					w->name,
-					ni_ifworker_state_name(w->fsm.state),
-					ni_ifworker_state_name(w->target_state));
-
-		if (w->target_state != NI_FSM_STATE_NONE) {
-			ni_ifworker_set_timeout(w, fsm->worker_timeout);
+		if (w->target_state != NI_FSM_STATE_NONE)
 			count++;
-		}
-
-		/* For each of the DBus calls we will execute on this device,
-		 * check whether there are constraints on child devices that
-		 * require the subordinate device to have a certain
-		 * minimum/maximum state.
-		 */
-		for (j = 0; j < w->fsm.action_table[j].next_state; ++j) {
-			ni_ifworker_get_child_state_reqs_for_method(w, &w->fsm.action_table[j]);
-		}
 	}
 
 	ni_debug_application("marked %u interfaces", count);
 	ni_ifworker_array_destroy(&marked);
 	return count;
+}
+
+int
+ni_ifworker_start(ni_fsm_t *fsm, ni_ifworker_t *w)
+{
+	unsigned int min_state = w->target_range.min;
+	unsigned int max_state = w->target_range.max;
+	unsigned int j;
+
+	if (min_state > max_state) {
+		ni_error("%s: conflicting target states: min=%s max=%s",
+				w->name,
+				ni_ifworker_state_name(min_state),
+				ni_ifworker_state_name(max_state));
+		return -1;
+	}
+
+	if (max_state == __NI_FSM_STATE_MAX) {
+		if (min_state == NI_FSM_STATE_NONE)
+			return 0;
+
+		/* No upper bound; bring it up to min level */
+		ni_fsm_schedule_init(fsm, w, NI_FSM_STATE_DEVICE_DOWN, min_state);
+	} else if (min_state == NI_FSM_STATE_NONE) {
+		/* No lower bound; bring it down to max level */
+		ni_fsm_schedule_init(fsm, w, NI_FSM_STATE_ADDRCONF_UP, max_state);
+	} else {
+		ni_warn("%s: not handled yet: bringing device into state range [%s, %s]",
+				w->name,
+				ni_ifworker_state_name(min_state),
+				ni_ifworker_state_name(max_state));
+	}
+
+	for (j = 0; j < w->children.count; ++j) {
+		ni_ifworker_t *child = w->children.data[j];
+
+		if (w->control.link_required)
+			child->control.link_required = TRUE;
+		if (w->control.link_timeout < child->control.link_timeout)
+			child->control.link_timeout = w->control.link_timeout;
+	}
+
+	ni_debug_application("%s: current state=%s target state=%s",
+				w->name,
+				ni_ifworker_state_name(w->fsm.state),
+				ni_ifworker_state_name(w->target_state));
+
+	if (w->target_state != NI_FSM_STATE_NONE)
+		ni_ifworker_set_timeout(w, fsm->worker_timeout);
+
+	/* For each of the DBus calls we will execute on this device,
+	 * check whether there are constraints on child devices that
+	 * require the subordinate device to have a certain
+	 * minimum/maximum state.
+	 */
+	for (j = 0; j < w->fsm.action_table[j].next_state; ++j) {
+		ni_ifworker_get_child_state_reqs_for_method(w, &w->fsm.action_table[j]);
+	}
+
+	return 0;
 }
 
 /*
@@ -1866,12 +1903,12 @@ __ni_ifworker_refresh_netdevs(ni_fsm_t *fsm)
 		if (dev == NULL || dev->name == NULL)
 			continue;
 
-		found = ni_ifworker_by_netdev(fsm, dev);
+		found = ni_fsm_ifworker_by_netdev(fsm, dev);
 		if (!found)
 			found = ni_fsm_ifworker_by_object_path(fsm, object->path);
 		if (!found) {
 			ni_debug_application("received new device %s (%s)", dev->name, object->path);
-			found = ni_ifworker_new(fsm, NI_IFWORKER_TYPE_NETDEV, dev->name, NULL);
+			found = ni_ifworker_new(fsm, NI_IFWORKER_TYPE_NETDEV, dev->name);
 		}
 
 		/* Don't touch devices we're done with */
@@ -1917,7 +1954,7 @@ __ni_ifworker_refresh_modems(ni_fsm_t *fsm)
 			found = ni_fsm_ifworker_by_object_path(fsm, object->path);
 		if (!found) {
 			ni_debug_application("received new modem %s (%s)", modem->device, object->path);
-			found = ni_ifworker_new(fsm, NI_IFWORKER_TYPE_MODEM, modem->device, NULL);
+			found = ni_ifworker_new(fsm, NI_IFWORKER_TYPE_MODEM, modem->device);
 		}
 
 		/* Don't touch devices we're done with */
@@ -2884,7 +2921,8 @@ ni_fsm_kickstart(ni_fsm_t *fsm)
 	for (i = 0; i < fsm->workers.count; ++i) {
 		ni_ifworker_t *w = fsm->workers.data[i];
 
-		if (w->target_state == NI_FSM_STATE_NONE)
+		if (w->target_state == NI_FSM_STATE_NONE
+		 || w->kickstarted)
 			continue;
 
 		/* Instead of a plain device name, an interface configuration can
