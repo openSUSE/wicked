@@ -70,6 +70,7 @@ extern ni_dbus_class_t *	ni_objectmodel_class_new(const char *, const ni_dbus_cl
 #define NI_OBJECTMODEL_MANAGER_PATH		"/com/suse/Wicked/Manager"
 #define NI_OBJECTMODEL_MANAGED_NETIF_LIST_PATH	"/com/suse/Wicked/Manager/Interface"
 #define NI_OBJECTMODEL_MANAGED_MODEM_LIST_PATH	"/com/suse/Wicked/Manager/Modem"
+#define NI_OBJECTMODEL_MANAGED_POLICY_LIST_PATH	"/com/suse/Wicked/Manager/Policy"
 #define NI_OBJECTMODEL_MANAGER_INTERFACE	NI_OBJECTMODEL_INTERFACE ".Manager"
 #define NI_OBJECTMODEL_MANAGED_NETIF_INTERFACE	NI_OBJECTMODEL_INTERFACE ".ManagedInterface"
 #define NI_OBJECTMODEL_MANAGED_MODEM_INTERFACE	NI_OBJECTMODEL_INTERFACE ".ManagedModem"
