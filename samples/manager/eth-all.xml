@@ -1,0 +1,26 @@
+<policy name="eth_all">
+ <match>
+   <link-type>ethernet</link-type>
+ </match>
+
+ <merge final="true">
+   <!-- You can use this to configure specific address conf mechanisms.
+     -- For instance, here we enable DHCP by default for all Ethernet
+     -- interfaces.
+     --
+     -- In this action, we merge all of the <ipv4:dhcp> element into the
+     -- interface description unless that element exists already. In other
+     -- words, this is an all-or-nothing approach. IF your interface
+     -- configuration has an <ipv4:dhcp> element already, we do not change
+     -- it; if it doesn't specify one at all, we use the one from this
+     -- policy.
+     -->
+   <ipv4:dhcp>
+     <enabled>true</enabled>
+
+     <!-- if you need to set a specified client-id, or wish to request
+          a different lease timeout, you can do this here. -->
+   </ipv4:dhcp>
+ </merge>
+
+</policy>

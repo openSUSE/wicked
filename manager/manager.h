@@ -1,14 +1,32 @@
+/*
+ * Declarations to the manager service. This service is supposed
+ * to bring up interfaces in response to events, such as link detection
+ * or presence of wireless networks.
+ *
+ * Copyright (C) 2010-2012 Olaf Kirch <okir@suse.de>
+ */
+
+
+#ifndef __WICKED_MANAGER_H__
+#define __WICKED_MANAGER_H__
 
 #include <wicked/fsm.h>
 
+typedef struct ni_manager	ni_manager_t;
 typedef struct ni_managed_netdev ni_managed_netdev_t;
 typedef struct ni_managed_policy ni_managed_policy_t;
 
 struct ni_managed_netdev {
 	ni_managed_netdev_t *	next;
+
+	ni_manager_t *		manager;	// back pointer at mgr
 	ni_netdev_t *		dev;
+	ni_ifworker_t *		worker;
 	ni_bool_t		user_controlled;
+
 	ni_managed_policy_t *	selected_policy;
+	xml_node_t *		selected_config;
+	unsigned long		timeout;
 };
 
 struct ni_managed_policy {
@@ -17,15 +35,18 @@ struct ni_managed_policy {
 	xml_document_t *	doc;
 };
 
-typedef struct ni_manager {
+struct ni_manager {
 	ni_dbus_server_t *	server;
 	ni_fsm_t *		fsm;
 
 	ni_managed_netdev_t *	netdev_list;
+	ni_managed_policy_t *	policy_list;
 
 	ni_ifworker_array_t	recheck;
 	ni_ifworker_array_t	down;
-} ni_manager_t;
+
+	unsigned int		policy_seq;
+};
 
 extern ni_dbus_class_t		managed_netdev_class;
 extern ni_dbus_class_t		managed_policy_class;
@@ -40,18 +61,22 @@ extern void			ni_manager_schedule_recheck(ni_manager_t *, ni_ifworker_t *);
 extern void			ni_manager_schedule_down(ni_manager_t *, ni_ifworker_t *);
 extern void			ni_manager_recheck(ni_manager_t *, ni_ifworker_t *);
 extern ni_managed_netdev_t *	ni_manager_get_netdev(ni_manager_t *, ni_netdev_t *);
+extern ni_managed_policy_t *	ni_manager_get_policy(ni_manager_t *, const ni_fsm_policy_t *);
 
-extern ni_managed_netdev_t *	ni_managed_netdev_new(ni_manager_t *, ni_netdev_t *);
+extern ni_managed_netdev_t *	ni_managed_netdev_new(ni_manager_t *, ni_ifworker_t *);
 extern void			ni_managed_netdev_free(ni_managed_netdev_t *);
+extern ni_bool_t		ni_managed_netdev_enable(ni_managed_netdev_t *);
+extern void			ni_managed_netdev_up(ni_managed_netdev_t *, unsigned int);
 
-extern ni_managed_policy_t *	ni_managed_policy_new(ni_fsm_policy_t *, xml_document_t *);
+extern ni_managed_policy_t *	ni_managed_policy_new(ni_manager_t *, ni_fsm_policy_t *, xml_document_t *);
 extern void			ni_managed_policy_free(ni_managed_policy_t *);
 
 extern ni_dbus_object_t *	ni_objectmodel_register_managed_netdev(ni_dbus_server_t *, ni_managed_netdev_t *);
 extern ni_dbus_object_t *	ni_objectmodel_register_managed_policy(ni_dbus_server_t *, ni_managed_policy_t *);
 
 extern void			interface_manager_register_all(ni_dbus_server_t *);
-extern void			ni_objectmodel_manager_init(ni_dbus_server_t *server, ni_fsm_t *fsm);
+extern void			ni_objectmodel_manager_init(ni_manager_t *mgr);
 extern void			ni_objectmodel_managed_netif_init(ni_dbus_server_t *);
 extern void			ni_objectmodel_managed_policy_init(ni_dbus_server_t *);
 
+#endif /* __WICKED_MANAGER_H__ */

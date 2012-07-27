@@ -130,7 +130,7 @@ ni_manager_new(void)
 		ni_fatal("Cannot create server, giving up.");
 
 	mgr->fsm = ni_fsm_new();
-	ni_objectmodel_manager_init(mgr->server, mgr->fsm);
+	ni_objectmodel_manager_init(mgr);
 	ni_objectmodel_register_all();
 
 	return mgr;
@@ -162,6 +162,18 @@ ni_manager_get_netdev(ni_manager_t *mgr, ni_netdev_t *dev)
 	return NULL;
 }
 
+ni_managed_policy_t *
+ni_manager_get_policy(ni_manager_t *mgr, const ni_fsm_policy_t *policy)
+{
+	ni_managed_policy_t *mpolicy;
+
+	for (mpolicy = mgr->policy_list; mpolicy; mpolicy = mpolicy->next) {
+		if (mpolicy->fsm_policy == policy)
+			return mpolicy;
+	}
+	return NULL;
+}
+
 /*
  * Implement service for configuring the system's network interfaces
  */
@@ -184,7 +196,23 @@ interface_manager(void)
 	signal(SIGINT, wicked_catch_term_signal);
 
 	while (wicked_term_sig == 0) {
+		static unsigned int policy_seq = 0;
 		long timeout;
+
+		if (ni_fsm_policies_changed_since(mgr->fsm, &policy_seq)) {
+			ni_managed_netdev_t *mdev;
+
+			for (mdev = mgr->netdev_list; mdev; mdev = mdev->next) {
+				ni_ifworker_t *w;
+
+				if (!mdev->user_controlled)
+					continue;
+
+				w = ni_fsm_ifworker_by_netdev(mgr->fsm, mdev->dev);
+				if (w)
+					ni_manager_schedule_recheck(mgr, w);
+			}
+		}
 
 		if (mgr->recheck.count != 0) {
 			unsigned int i;
@@ -204,7 +232,7 @@ interface_manager(void)
 			ni_ifworker_array_destroy(&mgr->down);
 		}
 
-		timeout = ni_timer_next_timeout();
+		ni_fsm_do(mgr->fsm, &timeout);
 		if (ni_socket_wait(timeout) < 0)
 			ni_fatal("ni_socket_wait failed");
 	}
@@ -247,7 +275,7 @@ ni_manager_discover_state(ni_manager_t *mgr)
 		if (w->type == NI_IFWORKER_TYPE_NETDEV) {
 			ni_managed_netdev_t *mdev;
 
-			mdev = ni_managed_netdev_new(mgr, w->device);
+			mdev = ni_managed_netdev_new(mgr, w);
 			ni_objectmodel_register_managed_netdev(mgr->server, mdev);
 #ifdef notyet
 		} else
@@ -278,6 +306,9 @@ ni_manager_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus
 		return;
 	}
 
+	ni_trace("%s: received signal %s from %s", w->name, signal_name, object_path);
+	ni_assert(w->device);
+
 	if (ni_string_eq(signal_name, "deviceDown")) {
 		// XXX: delete the worker and the managed netif
 	} else
@@ -307,7 +338,7 @@ ni_manager_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus
 		case NI_IFWORKER_TYPE_NETDEV:
 			if (ni_manager_get_netdev(mgr, w->device) == NULL)
 				ni_objectmodel_register_managed_netdev(mgr->server,
-						ni_managed_netdev_new(mgr, w->device));
+						ni_managed_netdev_new(mgr, w));
 			break;
 
 #ifdef notyet
@@ -339,9 +370,49 @@ void
 ni_manager_recheck(ni_manager_t *mgr, ni_ifworker_t *w)
 {
 	static const unsigned int MAX_POLICIES = 20;
+	ni_managed_netdev_t *mdev;
 	const ni_fsm_policy_t *policies[MAX_POLICIES];
+	unsigned int count;
+	const ni_fsm_policy_t *policy;
+	ni_managed_policy_t *mpolicy;
+	xml_node_t *config;
+
+	if ((mdev = ni_manager_get_netdev(mgr, w->device)) == NULL)
+		return;
 
 	ni_trace("%s(%s)", __func__, w->name);
-	if (ni_fsm_policy_get_applicable_policies(mgr->fsm, w, policies, MAX_POLICIES) == 0)
+	w->use_default_policies = TRUE;
+	if ((count = ni_fsm_policy_get_applicable_policies(mgr->fsm, w, policies, MAX_POLICIES)) == 0) {
+		ni_trace("%s: no applicable policies", w->name);
 		return;
+	}
+
+	policy = policies[count-1];
+	mpolicy = ni_manager_get_policy(mgr, policy);
+
+	if (mdev->selected_policy == mpolicy) {
+		ni_trace("%s: keep using policy %s", w->name, ni_fsm_policy_name(policy));
+		return;
+	}
+
+	ni_trace("%s: using policy %s", w->name, ni_fsm_policy_name(policy));
+	config = xml_node_new("interface", NULL);
+	xml_node_new_element("name", config, w->name);
+
+	config = ni_fsm_policy_transform_document(config, &policy, 1);
+	if (config == NULL) {
+		ni_error("%s: error when applying policy to interface document", w->name);
+		return;
+	}
+
+	ni_trace("%s: using device config", w->name);
+	xml_node_print(config, NULL);
+	if (mdev->selected_config)
+		xml_node_free(mdev->selected_config);
+	mdev->selected_config = config;
+	mdev->selected_policy = mpolicy;
+	mdev->timeout = mgr->fsm->worker_timeout;
+
+	/* Now do the fandango */
+	ni_managed_netdev_up(mdev, NI_FSM_STATE_ADDRCONF_UP);
 }

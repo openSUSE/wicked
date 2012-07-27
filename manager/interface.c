@@ -27,7 +27,9 @@
 #include <wicked/objectmodel.h>
 #include <wicked/modem.h>
 #include <wicked/dbus-service.h>
+#include <wicked/dbus-errors.h>
 #include <wicked/fsm.h>
+#include <wicked/client.h>
 #include "manager.h"
 
 
@@ -47,24 +49,28 @@ ni_objectmodel_managed_netif_init(ni_dbus_server_t *server)
  * managed_netdev objects
  */
 ni_managed_netdev_t *
-ni_managed_netdev_new(ni_manager_t *mgr, ni_netdev_t *dev)
+ni_managed_netdev_new(ni_manager_t *mgr, ni_ifworker_t *w)
 {
 	ni_managed_netdev_t *mdev;
 
 	mdev = calloc(1, sizeof(*mdev));
-	mdev->dev = ni_netdev_get(dev);
+	mdev->manager = mgr;
+	mdev->worker = ni_ifworker_get(w);
+	mdev->dev = ni_netdev_get(w->device);
 
-	switch (dev->link.type) {
+	mdev->next = mgr->netdev_list;
+	mgr->netdev_list = mdev;
+
+#if 0
+	switch (w->device->link.type) {
 	case NI_IFTYPE_ETHERNET:
 	case NI_IFTYPE_WIRELESS:
-		mdev->user_controlled = TRUE;
+		ni_managed_netdev_enable(mdev);
 		break;
 
 	default: ;
 	}
-
-	mdev->next = mgr->netdev_list;
-	mgr->netdev_list = mdev;
+#endif
 
 	return mdev;
 }
@@ -78,6 +84,47 @@ ni_managed_netdev_free(ni_managed_netdev_t *mdev)
 	}
 
 	free(mdev);
+}
+
+/*
+ * Enable a netdev for monitoring
+ */
+ni_bool_t
+ni_managed_netdev_enable(ni_managed_netdev_t *mdev)
+{
+	ni_ifworker_t *w = mdev->worker;
+
+	switch (w->device->link.type) {
+	case NI_IFTYPE_ETHERNET:
+		/* bring it to state "UP" so that we can monitor for link status */
+		if (ni_call_link_monitor(w->object) < 0) {
+			ni_error("Failed to enable monitoring on %s", w->name);
+			return FALSE;
+		}
+		break;
+
+	default:
+		return FALSE;
+	}
+
+	ni_manager_schedule_recheck(mdev->manager, mdev->worker);
+	mdev->user_controlled = TRUE;
+	return TRUE;
+}
+
+/*
+ * Bring up the device
+ */
+void
+ni_managed_netdev_up(ni_managed_netdev_t *mdev, unsigned int target_state)
+{
+	ni_ifworker_t *w = mdev->worker;
+
+	ni_ifworker_reset(w);
+	ni_ifworker_set_config(w, mdev->selected_config, "manager");
+	w->target_range.min = target_state;
+	w->target_range.max = __NI_FSM_STATE_MAX;
+	ni_ifworker_start(mdev->manager->fsm, w, mdev->timeout);
 }
 
 /*
@@ -141,6 +188,35 @@ ni_dbus_class_t			managed_netdev_class = {
 };
 
 /*
+ * ManagedInterface.enable
+ */
+static dbus_bool_t
+ni_objectmodel_managed_netdev_enable(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+					unsigned int argc, const ni_dbus_variant_t *argv,
+					ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_managed_netdev_t *mdev;
+
+	if ((mdev = ni_objectmodel_managed_netdev_unwrap(object, error)) == NULL)
+		return FALSE;
+
+	if (argc != 0)
+		return ni_dbus_error_invalid_args(error, ni_dbus_object_get_path(object), method->name);
+
+	if (!ni_managed_netdev_enable(mdev)) {
+		dbus_set_error(error, DBUS_ERROR_FAILED, "failed to enable device");
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+static ni_dbus_method_t		ni_objectmodel_managed_netdev_methods[] = {
+	{ "enable",		"",		ni_objectmodel_managed_netdev_enable	},
+	{ NULL }
+};
+
+/*
  * Handle object properties
  */
 static void *
@@ -152,7 +228,7 @@ ni_objectmodel_get_managed_netdev(const ni_dbus_object_t *object, DBusError *err
 #define MANAGED_NETIF_BOOL_PROPERTY(dbus_name, name, rw) \
 	NI_DBUS_GENERIC_BOOL_PROPERTY(managed_netdev, dbus_name, name, rw)
 
-static ni_dbus_property_t	managed_netdev_properties[] = {
+static ni_dbus_property_t	ni_objectmodel_managed_netdev_properties[] = {
 	MANAGED_NETIF_BOOL_PROPERTY(user-controlled, user_controlled, RW),
 	{ NULL }
 };
@@ -160,5 +236,6 @@ static ni_dbus_property_t	managed_netdev_properties[] = {
 ni_dbus_service_t		managed_netdev_service = {
 	.name		= NI_OBJECTMODEL_MANAGED_NETIF_INTERFACE,
 	.compatible	= &managed_netdev_class,
-	.properties	= managed_netdev_properties,
+	.methods	= ni_objectmodel_managed_netdev_methods,
+	.properties	= ni_objectmodel_managed_netdev_properties,
 };

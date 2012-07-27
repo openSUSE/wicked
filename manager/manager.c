@@ -33,31 +33,43 @@
 
 
 void
-ni_objectmodel_manager_init(ni_dbus_server_t *server, ni_fsm_t *fsm)
+ni_objectmodel_manager_init(ni_manager_t *mgr)
 {
 	ni_dbus_object_t *root_object;
 
-	ni_objectmodel_managed_policy_init(server);
-	ni_objectmodel_managed_netif_init(server);
+	ni_objectmodel_managed_policy_init(mgr->server);
+	ni_objectmodel_managed_netif_init(mgr->server);
 
 	ni_objectmodel_register_service(&ni_objectmodel_manager_service);
 
-	root_object = ni_dbus_server_get_root_object(server);
-	root_object->handle = fsm;
+	root_object = ni_dbus_server_get_root_object(mgr->server);
+	root_object->handle = mgr;
 	root_object->class = &ni_objectmodel_manager_class;
 	ni_objectmodel_bind_compatible_interfaces(root_object);
+
+	{
+		unsigned int i;
+
+		ni_trace("%s supports:", ni_dbus_object_get_path(root_object));
+		for (i = 0; root_object->interfaces[i]; ++i) {
+			const ni_dbus_service_t *service = root_object->interfaces[i];
+
+			ni_trace("  %s", service->name);
+		}
+		ni_trace("(%u interfaces)", i);
+	}
 }
 
 /*
  * Extract fsm handle from dbus object
  */
-static ni_fsm_t *
+static ni_manager_t *
 ni_objectmodel_manager_unwrap(const ni_dbus_object_t *object, DBusError *error)
 {
-	ni_fsm_t *fsm = object->handle;
+	ni_manager_t *mgr = object->handle;
 
 	if (ni_dbus_object_isa(object, &ni_objectmodel_manager_class))
-		return fsm;
+		return mgr;
 
 	if (error)
 		dbus_set_error(error, DBUS_ERROR_FAILED,
@@ -65,6 +77,48 @@ ni_objectmodel_manager_unwrap(const ni_dbus_object_t *object, DBusError *error)
 			object->path, object->class->name);
 	return NULL;
 }
+
+/*
+ * Manager.getDevice(devname)
+ */
+static dbus_bool_t
+ni_objectmodel_manager_get_device(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+					unsigned int argc, const ni_dbus_variant_t *argv,
+					ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_manager_t *mgr;
+	const char *ifname;
+	ni_ifworker_t *w;
+	ni_managed_netdev_t *mdev = NULL;
+
+	if ((mgr = ni_objectmodel_manager_unwrap(object, error)) == NULL)
+		return FALSE;
+
+	if (argc != 1 || !ni_dbus_variant_get_string(&argv[0], &ifname))
+		return ni_dbus_error_invalid_args(error, ni_dbus_object_get_path(object), method->name);
+
+	/* XXX: scalability. Use ni_call_identify_device() */
+	ni_fsm_refresh_state(mgr->fsm);
+	w = ni_fsm_ifworker_by_name(mgr->fsm, NI_IFWORKER_TYPE_NETDEV, ifname);
+
+	if (w)
+		mdev = ni_manager_get_netdev(mgr, w->device);
+
+	if (mdev == NULL) {
+		dbus_set_error(error, NI_DBUS_ERROR_DEVICE_NOT_KNOWN, "No such device: %s", ifname);
+		return FALSE;
+	} else {
+		char object_path[128];
+
+		snprintf(object_path, sizeof(object_path),
+				NI_OBJECTMODEL_MANAGED_NETIF_LIST_PATH "/%u",
+				mdev->dev->link.ifindex);
+
+		ni_dbus_message_append_object_path(reply, object_path);
+	}
+	return TRUE;
+}
+
 
 /*
  * Manager.createPolicy()
@@ -75,16 +129,25 @@ ni_objectmodel_manager_create_policy(ni_dbus_object_t *object, const ni_dbus_met
 					ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_dbus_object_t *policy_object;
-	ni_fsm_t *fsm;
+	ni_manager_t *mgr;
 	ni_fsm_policy_t *policy;
-	//xml_document_t *doc;
 	const char *name;
+	char namebuf[64];
 
-	if ((fsm = ni_objectmodel_manager_unwrap(object, error)) == NULL)
+	if ((mgr = ni_objectmodel_manager_unwrap(object, error)) == NULL)
 		return FALSE;
 
 	if (argc != 1 || !ni_dbus_variant_get_string(&argv[0], &name))
 		return ni_dbus_error_invalid_args(error, ni_dbus_object_get_path(object), method->name);
+
+	if (*name == '\0') {
+		static unsigned int counter = 0;
+
+		do {
+			snprintf(namebuf, sizeof(namebuf), "policy%u", counter++);
+		} while (ni_fsm_policy_by_name(mgr->fsm, namebuf) == NULL);
+		name = namebuf;
+	}
 
 #ifdef notyet
 	if (!ni_policy_name_valid(name)) {
@@ -95,24 +158,25 @@ ni_objectmodel_manager_create_policy(ni_dbus_object_t *object, const ni_dbus_met
 	}
 #endif
 
-	if (ni_fsm_policy_by_name(fsm, name) == NULL) {
-		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+	if (ni_fsm_policy_by_name(mgr->fsm, name) != NULL) {
+		dbus_set_error(error, NI_DBUS_ERROR_POLICY_EXISTS,
 				"Policy \"%s\" already exists in call to %s.%s",
 				name, ni_dbus_object_get_path(object), method->name);
 		return FALSE;
 	}
 
-	policy = ni_fsm_policy_new(fsm, name, NULL);
+	policy = ni_fsm_policy_new(mgr->fsm, name, NULL);
 
 	policy_object = ni_objectmodel_register_managed_policy(ni_dbus_object_get_server(object),
-					ni_managed_policy_new(policy, NULL));
+					ni_managed_policy_new(mgr, policy, NULL));
 
-	ni_dbus_message_append_string(reply, ni_dbus_object_get_path(policy_object));
+	ni_dbus_message_append_object_path(reply, ni_dbus_object_get_path(policy_object));
 	return TRUE;
 }
 
 static ni_dbus_method_t		ni_objectmodel_manager_methods[] = {
 	{ "createPolicy",	"s",		ni_objectmodel_manager_create_policy	},
+	{ "getDevice",		"s",		ni_objectmodel_manager_get_device	},
 	{ NULL }
 };
 
