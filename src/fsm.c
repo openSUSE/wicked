@@ -2702,10 +2702,21 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 	while (1) {
 		int made_progress = 0;
 
+		ni_debug_application("-- refreshing interface state --");
+		ni_fsm_refresh_state(fsm);
+
 		for (i = 0; i < fsm->workers.count; ++i) {
 			ni_ifworker_t *w = fsm->workers.data[i];
 			ni_fsm_transition_t *action;
 			int rv, prev_state;
+
+			if (!w->kickstarted) {
+				if (!ni_ifworker_device_bound(w))
+					ni_ifworker_set_state(w, NI_FSM_STATE_DEVICE_DOWN);
+				else if (w->object)
+					ni_ifworker_update_client_info(w);
+				w->kickstarted = TRUE;
+			}
 
 			if (w->target_state != NI_FSM_STATE_NONE) {
 				ni_fsm_transition_t *wait_for = w->fsm.wait_for;
@@ -2792,8 +2803,6 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 		if (!made_progress)
 			break;
 
-		ni_debug_application("-- refreshing interface state --");
-		ni_fsm_refresh_state(fsm);
 	}
 
 	for (i = waiting = 0; i < fsm->workers.count; ++i) {
@@ -2909,42 +2918,6 @@ ni_fsm_create_client(ni_fsm_t *fsm)
 					fsm);
 
 	return client;
-}
-
-int
-ni_fsm_kickstart(ni_fsm_t *fsm)
-{
-	unsigned int i;
-
-	ni_fsm_refresh_state(fsm);
-
-	for (i = 0; i < fsm->workers.count; ++i) {
-		ni_ifworker_t *w = fsm->workers.data[i];
-
-		if (w->target_state == NI_FSM_STATE_NONE
-		 || w->kickstarted)
-			continue;
-
-		/* Instead of a plain device name, an interface configuration can
-		 * contain a different sort of interface identification - such as
-		 * its MAC address, or a platform specific name (such as the Dell
-		 * biosdevname, or a System z specific interface name).
-		 * Here, we should try to resolve these names.
-		 */
-		if (w->device == NULL) {
-			/* check if the device has an <identify> element instead
-			 * of (or in addition to) its name, and if so, call
-			 * InterfaceList.identify() with this information.
-			 */
-		}
-
-		if (!ni_ifworker_device_bound(w))
-			ni_ifworker_set_state(w, NI_FSM_STATE_DEVICE_DOWN);
-		else if (w->object)
-			ni_ifworker_update_client_info(w);
-	}
-
-	return 0;
 }
 
 void

@@ -80,7 +80,6 @@ usage:
 		ni_log_destination_syslog(program_name);
 	}
 
-	ni_fsm_kickstart(fsm);
 	if (ni_fsm_schedule(fsm) != 0)
 		ni_fsm_mainloop(fsm);
 

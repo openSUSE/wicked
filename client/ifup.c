@@ -270,7 +270,6 @@ usage:
 		return 0;
 	}
 
-	ni_fsm_kickstart(fsm);
 	if (ni_fsm_schedule(fsm) != 0)
 		ni_fsm_mainloop(fsm);
 
@@ -363,7 +362,6 @@ usage:
 		return 0;
 	}
 
-	ni_fsm_kickstart(fsm);
 	if (ni_fsm_schedule(fsm) != 0)
 		ni_fsm_mainloop(fsm);
 

@@ -204,7 +204,6 @@ extern ni_bool_t		ni_fsm_policies_changed_since(const ni_fsm_t *, unsigned int *
 
 extern ni_dbus_client_t *	ni_fsm_create_client(ni_fsm_t *);
 extern void			ni_fsm_refresh_state(ni_fsm_t *);
-extern int			ni_fsm_kickstart(ni_fsm_t *);
 extern unsigned int		ni_fsm_schedule(ni_fsm_t *);
 extern void			ni_fsm_mainloop(ni_fsm_t *);
 extern unsigned int		ni_fsm_get_matching_workers(ni_fsm_t *, ni_ifmatcher_t *, ni_ifworker_array_t *);
