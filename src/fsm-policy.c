@@ -72,6 +72,9 @@ struct ni_fsm_policy_action {
  */
 struct ni_fsm_policy {
 	ni_fsm_policy_t *		next;
+
+	unsigned int			seq;
+
 	char *				name;
 	xml_node_t *			node;
 	unsigned int			weight;
@@ -121,6 +124,7 @@ __ni_fsm_policy_reset(ni_fsm_policy_t *policy)
 static ni_bool_t
 __ni_fsm_policy_from_xml(ni_fsm_policy_t *policy, xml_node_t *node)
 {
+	static unsigned int __policy_seq = 1;
 	xml_node_t *item;
 	const char *attr;
 
@@ -150,6 +154,7 @@ __ni_fsm_policy_from_xml(ni_fsm_policy_t *policy, xml_node_t *node)
 				ni_error("%s: trouble parsing policy conditions", xml_node_location(item));
 				return FALSE;
 			}
+			continue;
 		} else
 		if (ni_string_eq(item->name, "merge")) {
 			action = ni_fsm_policy_action_new(NI_IFPOLICY_TYPE_MERGE, item, policy);
@@ -172,6 +177,7 @@ __ni_fsm_policy_from_xml(ni_fsm_policy_t *policy, xml_node_t *node)
 		}
 	}
 
+	policy->seq = __policy_seq++;
 	return TRUE;
 }
 
@@ -201,15 +207,32 @@ ni_fsm_policy_update(ni_fsm_policy_t *policy, xml_node_t *node)
 {
 	ni_fsm_policy_t temp;
 
+	memset(&temp, 0, sizeof(temp));
 	if (!__ni_fsm_policy_from_xml(&temp, node))
 		return FALSE;
 
 	__ni_fsm_policy_reset(policy);
+	policy->seq = temp.seq;
 	policy->weight = temp.weight;
 	policy->actions = temp.actions;
 	policy->match = temp.match;
 	policy->node = node;
 	return TRUE;
+}
+
+ni_bool_t
+ni_fsm_policies_changed_since(const ni_fsm_t *fsm, unsigned int *tstamp)
+{
+	ni_fsm_policy_t *policy;
+	ni_bool_t rv = FALSE;
+
+	for (policy = fsm->policies; policy; policy = policy->next) {
+		if (policy->seq > *tstamp) {
+			*tstamp = policy->seq;
+			rv = TRUE;
+		}
+	}
+	return rv;
 }
 
 ni_fsm_policy_t *
