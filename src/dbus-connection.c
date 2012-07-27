@@ -359,24 +359,6 @@ ni_dbus_connection_send_error(ni_dbus_connection_t *connection, ni_dbus_message_
 }
 
 /*
- * Mainloop for watching a single connection.
- * Kill this.
- */
-void
-ni_dbus_mainloop(ni_dbus_connection_t *connection)
-{
-	NI_TRACE_ENTER();
-	while (dbus_connection_dispatch(connection->conn) == DBUS_DISPATCH_DATA_REMAINS)
-		;
-	while (ni_socket_wait(1000) >= 0) {
-#if 0
-		while (dbus_connection_dispatch(connection->conn) == DBUS_DISPATCH_DATA_REMAINS)
-			;
-#endif
-	}
-}
-
-/*
  * Signal handling
  */
 static ni_dbus_sigaction_t *

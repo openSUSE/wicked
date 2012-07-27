@@ -2731,16 +2731,6 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 			if (w->failed || ni_ifworker_ready(w))
 				continue;
 
-#if 0
-			/* If we're still waiting for children to become ready,
-			 * there's nothing we can do but wait. */
-			if (!ni_ifworker_children_ready_for(w, w->fsm.next_action)) {
-				if (w->failed)
-					made_progress = 1;
-				continue;
-			}
-#endif
-
 			/* We requested a change that takes time (such as acquiring
 			 * a DHCP lease). Wait for a notification from wickedd */
 			if (w->fsm.wait_for)
