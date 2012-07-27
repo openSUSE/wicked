@@ -96,6 +96,7 @@ ni_managed_netdev_enable(ni_managed_netdev_t *mdev)
 
 	switch (w->device->link.type) {
 	case NI_IFTYPE_ETHERNET:
+	case NI_IFTYPE_WIRELESS:
 		/* bring it to state "UP" so that we can monitor for link status */
 		if (ni_call_link_monitor(w->object) < 0) {
 			ni_error("Failed to enable monitoring on %s", w->name);
