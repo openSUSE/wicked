@@ -377,6 +377,7 @@ extern dbus_bool_t		ni_dbus_message_append_int16(ni_dbus_message_t *, int16_t);
 extern dbus_bool_t		ni_dbus_message_append_int32(ni_dbus_message_t *, int32_t);
 extern dbus_bool_t		ni_dbus_message_append_int64(ni_dbus_message_t *, int64_t);
 extern dbus_bool_t		ni_dbus_message_append_string(ni_dbus_message_t *, const char *);
+extern dbus_bool_t		ni_dbus_message_append_object_path(ni_dbus_message_t *, const char *);
 extern dbus_bool_t		ni_dbus_message_append_uuid(ni_dbus_message_t *, const ni_uuid_t *);
 
 typedef struct ni_dbus_xml_validate_context {

@@ -562,6 +562,12 @@ ni_dbus_message_append_string(ni_dbus_message_t *msg, const char * value)
 }
 
 dbus_bool_t
+ni_dbus_message_append_object_path(ni_dbus_message_t *msg, const char * value)
+{
+	return dbus_message_append_args(msg, DBUS_TYPE_OBJECT_PATH, &value, 0);
+}
+
+dbus_bool_t
 ni_dbus_message_append_double(ni_dbus_message_t *msg, double value)
 {
 	return dbus_message_append_args(msg, DBUS_TYPE_DOUBLE, &value, 0);
