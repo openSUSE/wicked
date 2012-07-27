@@ -99,6 +99,40 @@
 </service>
 
 <!-- =================================================
+     IPv6 DHCP Address configuration service
+     ================================================= -->
+<service name="ipv6:dhcp" interface="com.suse.Wicked.Addrconf.ipv6.dhcp" object-class="netif">
+  <define name="request" class="dict">
+    <uuid type="uuid-type"/>
+    <enabled type="boolean"/>
+
+    <acquire-timeout type="uint32" />
+    <hostname type="string" />
+    <client-id type="string" />
+    <vendor-class type="string" />
+    <lease-time type="uint32" />
+  </define>
+  <define name="properties" type="interface:addrconf-lease"/>
+
+  <method name="requestLease">
+    <arguments>
+      <config type="request">
+        <meta:mapping document-node="ipv6:dhcp" skip-unless-present="true"/>
+      </config>
+    </arguments>
+    <return>
+      <interface:callback-info/>
+    </return>
+  </method>
+
+  <method name="dropLease">
+    <return>
+      <interface:callback-info/>
+    </return>
+  </method>
+</service>
+
+<!-- =================================================
      IPv4 zeroconf Address configuration service
      ================================================= -->
 <service name="ipv4:auto" interface="com.suse.Wicked.Addrconf.ipv4.auto" object-class="netif">

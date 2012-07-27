@@ -711,7 +711,7 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 		ni_warn("RTM_NEWLINK message without IFNAME");
 		return 0;
 	}
-	strncpy(dev->name, (char *) nla_data(nla), sizeof(dev->name) - 1);
+	ni_string_dup(&dev->name, (char *) nla_data(nla));
 
 	rv = __ni_process_ifinfomsg(&dev->link, h, ifi, nc);
 	if (rv < 0)

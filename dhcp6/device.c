@@ -193,7 +193,12 @@ ni_dhcp6_device_stop(ni_dhcp6_device_t *dev)
 	/* Clear the lease. This will trigger an event to wickedd
 	 * with a lease that has state RELEASED. */
 	ni_dhcp6_fsm_commit_lease(dev, NULL);
+#else
+	ni_dhcp6_device_drop_lease(dev);
+	ni_dhcp6_device_drop_best_offer(dev);
+	dev->fsm.state = NI_DHCP6_STATE_INIT;
 #endif
+
 	ni_dhcp6_device_close(dev);
 
 	/* Drop existing config and request */
