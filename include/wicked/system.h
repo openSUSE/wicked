@@ -10,6 +10,7 @@
 #include <wicked/types.h>
 
 extern int		ni_system_interface_link_change(ni_netdev_t *, const ni_netdev_req_t *);
+extern int		ni_system_interface_link_monitor(ni_netdev_t *);
 
 /*
  * Most of this stuff will go as we move things into extension scripts:

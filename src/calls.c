@@ -435,6 +435,22 @@ ni_call_set_client_info(ni_dbus_object_t *object, const ni_netdev_clientinfo_t *
 }
 
 /*
+ * Call setMonitor(bool) on a device
+ */
+int
+ni_call_link_monitor(ni_dbus_object_t *object)
+{
+	const ni_dbus_service_t *service;
+	const ni_dbus_method_t *method;
+	int rv;
+
+	if ((rv = ni_get_device_method(object, "linkMonitor", &service, &method)) < 0)
+		return rv;
+
+	return ni_call_device_method_common(object, service, method, 0, NULL, NULL, NULL);
+}
+
+/*
  * Helper functions for dealing with error contexts.
  */
 xml_node_t *

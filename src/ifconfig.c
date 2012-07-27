@@ -104,6 +104,29 @@ ni_system_interface_link_change(ni_netdev_t *dev, const ni_netdev_req_t *ifp_req
 	return res;
 }
 
+int
+ni_system_interface_link_monitor(ni_netdev_t *dev)
+{
+	int rv;
+
+	if (dev == NULL)
+		return -NI_ERROR_INVALID_ARGS;
+
+	ni_debug_ifconfig("%s(%s)", __func__, dev->name);
+
+	if ((rv = __ni_rtnl_link_up(dev, NULL)) < 0) {
+		ni_error("%s: failed to bring up interface (rtnl error)", dev->name);
+		return rv;
+	}
+
+	if (dev->link.type == NI_IFTYPE_WIRELESS
+	 && (rv = ni_wireless_interface_set_scanning(dev, TRUE)) < 0) {
+		/* Take it down again? */
+		return rv;
+	}
+	return 0;
+}
+
 /*
  * An address configuration agent sends a lease update.
  */

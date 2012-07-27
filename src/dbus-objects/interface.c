@@ -547,9 +547,44 @@ ni_objectmodel_unmarshal_netdev_request(ni_netdev_req_t *req, const ni_dbus_vari
 }
 
 /*
- * Interface.linkUp(dict options)
+ * Interface.setMonitor(bool)
  *
  * Bring up the network interface, and assign the requested addresses.
+ * In the case of virtual interfaces like VLANs or bridges, the interface
+ * must have been created and configured prior to this call.
+ *
+ * The options dictionary contains interface properties.
+ */
+static dbus_bool_t
+ni_objectmodel_netif_link_monitor(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_netdev_t *dev;
+	int rv;
+
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
+		return FALSE;
+
+	NI_TRACE_ENTER_ARGS("dev=%s", dev->name);
+
+	/* Create an interface_request object and extract configuration from dict */
+	if (argc != 0)
+		return ni_dbus_error_invalid_args(error, object->path, method->name);
+
+	if ((rv = ni_system_interface_link_monitor(dev)) < 0) {
+		ni_dbus_set_error_from_code(error, rv,
+				"failed to enable monitoring for interface %s",
+				dev->name);
+		return FALSE;
+	}
+	return TRUE;
+}
+
+/*
+ * Interface.linkUp(dict options)
+ *
+ * Bring up the network interface, and wait for link negotiation to complete.
  * In the case of virtual interfaces like VLANs or bridges, the interface
  * must have been created and configured prior to this call.
  *
@@ -825,6 +860,7 @@ static ni_dbus_method_t		ni_objectmodel_netif_methods[] = {
 	{ "linkDown",		"",			ni_objectmodel_netif_link_down },
 	{ "installLease",	"a{sv}",		ni_objectmodel_netif_install_lease },
 	{ "setClientInfo",	"a{sv}",		ni_objectmodel_netif_set_client_info },
+	{ "linkMonitor",	"",			ni_objectmodel_netif_link_monitor },
 	{ NULL }
 };
 
