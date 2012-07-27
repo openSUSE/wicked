@@ -205,6 +205,7 @@ extern ni_bool_t		ni_fsm_policies_changed_since(const ni_fsm_t *, unsigned int *
 extern ni_dbus_client_t *	ni_fsm_create_client(ni_fsm_t *);
 extern void			ni_fsm_refresh_state(ni_fsm_t *);
 extern unsigned int		ni_fsm_schedule(ni_fsm_t *);
+extern ni_bool_t		ni_fsm_do(ni_fsm_t *fsm, long *timeout_p);
 extern void			ni_fsm_mainloop(ni_fsm_t *);
 extern unsigned int		ni_fsm_get_matching_workers(ni_fsm_t *, ni_ifmatcher_t *, ni_ifworker_array_t *);
 extern unsigned int		ni_fsm_mark_matching_workers(ni_fsm_t *, ni_ifmatcher_t *, const ni_uint_range_t *);
@@ -213,6 +214,7 @@ extern unsigned int		ni_fsm_workers_from_xml(ni_fsm_t *, xml_document_t *, const
 extern unsigned int		ni_fsm_fail_count(ni_fsm_t *);
 extern ni_ifworker_t *		ni_fsm_ifworker_by_object_path(ni_fsm_t *, const char *);
 extern ni_ifworker_t *		ni_fsm_ifworker_by_netdev(ni_fsm_t *, const ni_netdev_t *);
+extern ni_ifworker_t *		ni_fsm_ifworker_by_name(ni_fsm_t *, ni_ifworker_type_t, const char *);
 
 extern int			ni_ifworker_type_from_string(const char *);
 extern int			ni_ifworker_state_from_name(const char *);
@@ -220,7 +222,8 @@ extern ni_fsm_require_t *	ni_ifworker_reachability_check_new(xml_node_t *);
 extern ni_bool_t		ni_ifworker_match_alias(const ni_ifworker_t *w, const char *alias);
 extern void			ni_ifworker_set_config(ni_ifworker_t *, xml_node_t *, const char *);
 extern void			ni_ifworker_reset(ni_ifworker_t *);
-extern int			ni_ifworker_start(ni_fsm_t *, ni_ifworker_t *);
+extern int			ni_ifworker_start(ni_fsm_t *, ni_ifworker_t *, unsigned long);
+extern void			ni_ifworker_free(ni_ifworker_t *);
 
 extern void			ni_ifworker_array_append(ni_ifworker_array_t *, ni_ifworker_t *);
 extern int			ni_ifworker_array_index(const ni_ifworker_array_t *, const ni_ifworker_t *);
@@ -228,5 +231,19 @@ extern void			ni_ifworker_array_destroy(ni_ifworker_array_t *);
 
 extern void			ni_fsm_require_register_type(const char *, ni_fsm_require_ctor_t *);
 extern ni_fsm_require_t *	ni_fsm_require_new(ni_fsm_require_fn_t *, ni_fsm_require_dtor_t *);
+
+static inline ni_ifworker_t *
+ni_ifworker_get(ni_ifworker_t *w)
+{
+	w->refcount++;
+	return w;
+}
+
+static inline void
+ni_ifworker_release(ni_ifworker_t *state)
+{
+	if (--(state->refcount) == 0)
+		ni_ifworker_free(state);
+}
 
 #endif /* __CLIENT_FSM_H__ */

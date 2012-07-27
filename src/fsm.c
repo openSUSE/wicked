@@ -147,19 +147,12 @@ ni_ifworker_reset(ni_ifworker_t *w)
 	w->kickstarted = FALSE;
 }
 
-static void
+void
 ni_ifworker_free(ni_ifworker_t *w)
 {
 	ni_string_free(&w->name);
 	ni_ifworker_reset(w);
 	free(w);
-}
-
-static inline void
-ni_ifworker_release(ni_ifworker_t *state)
-{
-	if (--(state->refcount) == 0)
-		ni_ifworker_free(state);
 }
 
 static inline ni_bool_t
@@ -306,7 +299,7 @@ ni_ifworker_fail(ni_ifworker_t *w, const char *fmt, ...)
 
 	ni_error("device %s failed: %s", w->name, errmsg);
 	w->fsm.state = w->target_state = NI_FSM_STATE_NONE;
-	w->failed = 1;
+	w->failed = TRUE;
 }
 
 static void
@@ -422,14 +415,14 @@ ni_ifworker_array_find(ni_ifworker_array_t *array, ni_ifworker_type_t type, cons
 	for (i = 0; i < array->count; ++i) {
 		ni_ifworker_t *worker = array->data[i];
 
-		if (!strcmp(worker->name, ifname))
+		if (worker->type == type && !strcmp(worker->name, ifname))
 			return worker;
 	}
 	return NULL;
 }
 
-static ni_ifworker_t *
-ni_ifworker_lookup(ni_fsm_t *fsm, ni_ifworker_type_t type, const char *ifname)
+ni_ifworker_t *
+ni_fsm_ifworker_by_name(ni_fsm_t *fsm, ni_ifworker_type_t type, const char *ifname)
 {
 	return ni_ifworker_array_find(&fsm->workers, type, ifname);
 }
@@ -867,7 +860,7 @@ ni_fsm_workers_from_xml(ni_fsm_t *fsm, xml_document_t *doc, const char *config_o
 				continue;
 			}
 
-			if ((w = ni_ifworker_lookup(fsm, type, ifname)) == NULL)
+			if ((w = ni_fsm_ifworker_by_name(fsm, type, ifname)) == NULL)
 				w = ni_ifworker_new(fsm, type, ifname);
 		}
 
@@ -1434,7 +1427,7 @@ ni_fsm_mark_matching_workers(ni_fsm_t *fsm, ni_ifmatcher_t *match, const ni_uint
 		if (w->failed)
 			continue;
 
-		if ((rv = ni_ifworker_start(fsm, w)) < 0)
+		if ((rv = ni_ifworker_start(fsm, w, fsm->worker_timeout)) < 0)
 			return rv;
 
 		if (w->target_state != NI_FSM_STATE_NONE)
@@ -1447,7 +1440,7 @@ ni_fsm_mark_matching_workers(ni_fsm_t *fsm, ni_ifmatcher_t *match, const ni_uint
 }
 
 int
-ni_ifworker_start(ni_fsm_t *fsm, ni_ifworker_t *w)
+ni_ifworker_start(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned long timeout)
 {
 	unsigned int min_state = w->target_range.min;
 	unsigned int max_state = w->target_range.max;
@@ -1460,6 +1453,10 @@ ni_ifworker_start(ni_fsm_t *fsm, ni_ifworker_t *w)
 				ni_ifworker_state_name(max_state));
 		return -1;
 	}
+	ni_trace("%s: target state min=%s max=%s",
+				w->name,
+				ni_ifworker_state_name(min_state),
+				ni_ifworker_state_name(max_state));
 
 	if (max_state == __NI_FSM_STATE_MAX) {
 		if (min_state == NI_FSM_STATE_NONE)
@@ -1492,7 +1489,7 @@ ni_ifworker_start(ni_fsm_t *fsm, ni_ifworker_t *w)
 				ni_ifworker_state_name(w->target_state));
 
 	if (w->target_state != NI_FSM_STATE_NONE)
-		ni_ifworker_set_timeout(w, fsm->worker_timeout);
+		ni_ifworker_set_timeout(w, timeout);
 
 	/* For each of the DBus calls we will execute on this device,
 	 * check whether there are constraints on child devices that
@@ -1852,8 +1849,6 @@ ni_fsm_refresh_state(ni_fsm_t *fsm)
 	unsigned int i;
 
 	for (i = 0; i < fsm->workers.count; ++i) {
-		ni_netdev_t *dev;
-
 		w = fsm->workers.data[i];
 
 		/* Always clear the object - we don't know if it's still there
@@ -1864,10 +1859,6 @@ ni_fsm_refresh_state(ni_fsm_t *fsm)
 		if (w->done)
 			continue;
 
-		if ((dev = w->device) != NULL) {
-			w->device = NULL;
-			ni_netdev_put(dev);
-		}
 	}
 
 	__ni_ifworker_refresh_netdevs(fsm);
@@ -1876,9 +1867,18 @@ ni_fsm_refresh_state(ni_fsm_t *fsm)
 	for (i = 0; i < fsm->workers.count; ++i) {
 		w = fsm->workers.data[i];
 
-		if (w->object == NULL)
+		if (w->object == NULL) {
 			ni_ifworker_update_state(w, NI_FSM_STATE_NONE, NI_FSM_STATE_DEVICE_DOWN);
-		else
+
+			if (w->device) {
+				ni_netdev_put(w->device);
+				w->device = NULL;
+			}
+			if (w->modem) {
+				ni_modem_release(w->modem);
+				w->modem = NULL;
+			}
+		} else
 			ni_ifworker_update_state(w, NI_FSM_STATE_DEVICE_UP, __NI_FSM_STATE_MAX);
 	}
 }
@@ -1971,10 +1971,10 @@ __ni_ifworker_refresh_modems(ni_fsm_t *fsm)
 	}
 }
 
-static inline int
-ni_ifworker_ready(const ni_ifworker_t *w)
+static inline ni_bool_t
+ni_ifworker_complete(const ni_ifworker_t *w)
 {
-	return w->done || w->target_state == NI_FSM_STATE_NONE || w->target_state == w->fsm.state;
+	return w->failed || w->done || w->target_state == NI_FSM_STATE_NONE || w->target_state == w->fsm.state;
 }
 
 /*
@@ -2710,6 +2710,9 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 			ni_fsm_transition_t *action;
 			int rv, prev_state;
 
+			if (ni_ifworker_complete(w))
+				continue;
+
 			if (!w->kickstarted) {
 				if (!ni_ifworker_device_bound(w))
 					ni_ifworker_set_state(w, NI_FSM_STATE_DEVICE_DOWN);
@@ -2718,23 +2721,20 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 				w->kickstarted = TRUE;
 			}
 
-			if (w->target_state != NI_FSM_STATE_NONE) {
-				ni_fsm_transition_t *wait_for = w->fsm.wait_for;
-
-				ni_debug_application("%s: state=%s want=%s%s%s", w->name,
-					ni_ifworker_state_name(w->fsm.state),
-					ni_ifworker_state_name(w->target_state),
-					wait_for? ", wait-for=" : "",
-					wait_for?  ni_ifworker_state_name(wait_for->next_state) : "");
-			}
-
-			if (w->failed || ni_ifworker_ready(w))
-				continue;
-
 			/* We requested a change that takes time (such as acquiring
 			 * a DHCP lease). Wait for a notification from wickedd */
-			if (w->fsm.wait_for)
+			if (w->fsm.wait_for) {
+				ni_debug_application("%s: state=%s want=%s, wait-for=%s", w->name,
+					ni_ifworker_state_name(w->fsm.state),
+					ni_ifworker_state_name(w->target_state),
+					ni_ifworker_state_name(w->fsm.wait_for->next_state));
 				continue;
+			}
+
+			ni_debug_application("%s: state=%s want=%s, trying to transition to %s", w->name,
+				ni_ifworker_state_name(w->fsm.state),
+				ni_ifworker_state_name(w->target_state),
+				ni_ifworker_state_name(w->fsm.next_action->next_state));
 
 			action = w->fsm.next_action;
 			if (action->next_state == NI_FSM_STATE_NONE)
@@ -2798,7 +2798,7 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 	for (i = waiting = 0; i < fsm->workers.count; ++i) {
 		ni_ifworker_t *w = fsm->workers.data[i];
 
-		if (!w->failed && !ni_ifworker_ready(w))
+		if (!w->failed && !ni_ifworker_complete(w))
 			waiting++;
 	}
 
@@ -2910,26 +2910,38 @@ ni_fsm_create_client(ni_fsm_t *fsm)
 	return client;
 }
 
+ni_bool_t
+ni_fsm_do(ni_fsm_t *fsm, long *timeout_p)
+{
+	ni_bool_t pending_workers;
+
+	/*
+	 * This loop is small but the ordering is non-trivial.
+	 *
+	 *  - We should always call ni_fsm_schedule() at least once
+	 *  - if an ifworker timeout fires, we should re-run
+	 *    ni_fsm_schedule
+	 *  - we should return a bool indicating whether there are
+	 *    active workers, or whether we're done.
+	 */
+	do {
+		pending_workers = ni_fsm_schedule(fsm);
+
+		ni_ifworker_timeout_count = 0;
+		*timeout_p = ni_timer_next_timeout();
+	} while (ni_ifworker_timeout_count);
+
+	return pending_workers;
+}
+
 void
 ni_fsm_mainloop(ni_fsm_t *fsm)
 {
+	long timeout;
+
 	while (1) {
-		long timeout;
-
-		while (1) {
-			timeout = ni_timer_next_timeout();
-			if (!ni_ifworker_timeout_count)
-				break;
-
-			/* A timeout has fired. Check whether we've failed the
-			 * last device that we were waiting for. If that's
-			 * the case, we're done.
-			 */
-			if (ni_fsm_schedule(fsm) == 0)
-				goto done;
-
-			ni_ifworker_timeout_count = 0;
-		}
+		if (!ni_fsm_do(fsm, &timeout))
+			break;
 
 		if (ni_socket_wait(timeout) < 0)
 			ni_fatal("ni_socket_wait failed");
@@ -2938,6 +2950,5 @@ ni_fsm_mainloop(ni_fsm_t *fsm)
 			break;
 	}
 
-done:
 	ni_debug_application("finished with all devices.");
 }
