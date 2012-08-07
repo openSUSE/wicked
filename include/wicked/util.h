@@ -154,6 +154,11 @@ extern int		ni_uuid_for_file(ni_uuid_t *, const char *);
 
 extern void		ni_srandom(void);
 
+/* Use this in mainloop-like functions to check at defined execution points
+ * whether we were signaled in the meantime.
+ */
+extern ni_bool_t	ni_caught_terminal_signal(void);
+
 static inline void
 ni_opaque_set(ni_opaque_t *obj, const void *data, size_t len)
 {

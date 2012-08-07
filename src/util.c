@@ -1603,6 +1603,9 @@ xstrdup(const char *string)
 	return p;
 }
 
+/*
+ * ni_opaque_t encapsulates a (small) chunk of binary data
+ */
 ni_opaque_t *
 ni_opaque_new(const void *data, size_t len)
 {
@@ -1625,6 +1628,34 @@ void
 ni_opaque_free(ni_opaque_t *opaq)
 {
 	free(opaq);
+}
+
+/*
+ * Catch terminal signals
+ */
+static int	__ni_terminal_signal = 0;
+
+static void
+__ni_catch_terminal_signal(int sig)
+{
+	__ni_terminal_signal = sig;
+}
+
+ni_bool_t
+ni_caught_terminal_signal(void)
+{
+	static ni_bool_t installed_handlers = FALSE;
+
+	if (!installed_handlers) {
+		signal(SIGTERM, __ni_catch_terminal_signal);
+		signal(SIGINT, __ni_catch_terminal_signal);
+	}
+
+	if (!__ni_terminal_signal)
+		return FALSE;
+
+	ni_debug_wicked("caught signal %u, exiting", __ni_terminal_signal);
+	return TRUE;
 }
 
 /*

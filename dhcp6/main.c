@@ -27,7 +27,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <getopt.h>
-#include <signal.h>
 #include <limits.h>
 #include <net/if_arp.h>
 
@@ -84,11 +83,9 @@ static int			opt_recover_leases = 0;
 static char *			opt_state_file;
 
 static ni_dbus_server_t *	dhcp6_dbus_server;
-static int			dhcp6_term_sig = 0;
 
 
 static void			dhcp6_supplicant(void);
-static void			dhcp6_catch_term_signal(int);
 
 extern ni_dhcp6_request_t *	ni_dhcp6_request_new(void);
 static void			dhcp6_client_request_info(const char *ifname);
@@ -248,10 +245,7 @@ dhcp6_client_request_info(const char *ifname)
 		ni_fatal("Failed to schedule dhcp6 request");
 	}
 
-	signal(SIGTERM, dhcp6_catch_term_signal);
-	signal(SIGINT,  dhcp6_catch_term_signal);
-
-	while (dhcp6_term_sig == 0) {
+	while (!ni_caught_terminal_signal()) {
 		long timeout;
 
 		timeout = ni_timer_next_timeout();
@@ -259,8 +253,6 @@ dhcp6_client_request_info(const char *ifname)
 		if (ni_socket_wait(timeout) < 0)
 			ni_fatal("ni_socket_wait failed");
 	}
-
-	ni_debug_dhcp("caught signal %u, exiting", dhcp6_term_sig);
 }
 
 static void
@@ -303,10 +295,7 @@ dhcp6_client_request_lease(const char *ifname)
 	}
 	ni_dhcp6_device_set_request(dev, req);
 
-	signal(SIGTERM, dhcp6_catch_term_signal);
-	signal(SIGINT,  dhcp6_catch_term_signal);
-
-	while (dhcp6_term_sig == 0) {
+	while (!ni_caught_terminal_signal()) {
 		long timeout;
 
 		timeout = ni_timer_next_timeout();
@@ -314,8 +303,6 @@ dhcp6_client_request_lease(const char *ifname)
 		if (ni_socket_wait(timeout) < 0)
 			ni_fatal("ni_socket_wait failed");
 	}
-
-	ni_debug_dhcp("caught signal %u, exiting", dhcp6_term_sig);
 }
 
 static void
@@ -445,32 +432,18 @@ dhcp6_supplicant(void)
 	if (opt_recover_leases)
 		dhcp6_recover_addrconf(opt_state_file);
 
-	signal(SIGTERM, dhcp6_catch_term_signal);
-	signal(SIGINT,  dhcp6_catch_term_signal);
-
-	while (dhcp6_term_sig == 0) {
+	while (!ni_caught_terminal_signal()) {
 		long timeout;
 
 		timeout = ni_timer_next_timeout();
 		if (ni_socket_wait(timeout) < 0)
 			ni_fatal("ni_socket_wait failed");
 	}
-
-	ni_debug_dhcp("caught signal %u, exiting", dhcp6_term_sig);
 	/*
 	ni_objectmodel_save_state(opt_state_file);
 	*/
 
 	exit(0);
-}
-
-/*
- * Remember signal for later handling
- */
-static void
-dhcp6_catch_term_signal(int sig)
-{
-	dhcp6_term_sig = sig;
 }
 
 /*

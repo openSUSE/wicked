@@ -13,7 +13,6 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <signal.h>
 #include <getopt.h>
 #include <limits.h>
 #include <errno.h>
@@ -54,14 +53,12 @@ static int		opt_recover_leases = 1;
 static char *		opt_state_file;
 
 static ni_dbus_server_t *dhcp4_dbus_server;
-static int		dhcp4_term_sig = 0;
 
 static void		dhcp4_supplicant(void);
 static void		dhcp4_recover_addrconf(const char *);
 static void		dhcp4_discover_devices(ni_dbus_server_t *);
 static void		dhcp4_interface_event(ni_netdev_t *, ni_event_t);
 static void		dhcp4_protocol_event(enum ni_dhcp_event, const ni_dhcp_device_t *, ni_addrconf_lease_t *);
-static void		dhcp4_catch_term_signal(int);
 
 // Hack
 extern ni_dbus_object_t *ni_objectmodel_register_dhcp4_device(ni_dbus_server_t *, ni_dhcp_device_t *);
@@ -299,10 +296,7 @@ dhcp4_supplicant(void)
 	if (opt_recover_leases)
 		dhcp4_recover_addrconf(opt_state_file);
 
-	signal(SIGTERM, dhcp4_catch_term_signal);
-	signal(SIGINT, dhcp4_catch_term_signal);
-
-	while (dhcp4_term_sig == 0) {
+	while (!ni_caught_terminal_signal()) {
 		long timeout;
 
 		timeout = ni_timer_next_timeout();
@@ -310,16 +304,9 @@ dhcp4_supplicant(void)
 			ni_fatal("ni_socket_wait failed");
 	}
 
-	ni_debug_dhcp("caught signal %u, exiting", dhcp4_term_sig);
 	ni_objectmodel_save_state(opt_state_file);
 
 	exit(0);
-}
-
-void
-dhcp4_catch_term_signal(int sig)
-{
-	dhcp4_term_sig = sig;
 }
 
 /*

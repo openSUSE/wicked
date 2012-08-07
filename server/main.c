@@ -16,7 +16,6 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <signal.h>
 #include <getopt.h>
 #include <limits.h>
 #include <errno.h>
@@ -54,7 +53,6 @@ static int		opt_no_modem_manager = 0;
 static char *		opt_state_file = NULL;
 static ni_dbus_server_t *wicked_dbus_server;
 static ni_xs_scope_t *	wicked_dbus_xml_schema;
-static int		wicked_term_sig = 0;
 
 static void		wicked_interface_server(void);
 static void		wicked_discover_state(void);
@@ -62,7 +60,6 @@ static void		wicked_recover_addrconf(const char *filename);
 static void		wicked_interface_event(ni_netdev_t *, ni_event_t);
 static void		wicked_other_event(ni_event_t);
 static void		wicked_modem_event(ni_modem_t *, ni_event_t);
-static void		wicked_catch_term_signal(int);
 
 int
 main(int argc, char **argv)
@@ -170,10 +167,7 @@ wicked_interface_server(void)
 	if (opt_recover_leases)
 		wicked_recover_addrconf(opt_state_file);
 
-	signal(SIGTERM, wicked_catch_term_signal);
-	signal(SIGINT, wicked_catch_term_signal);
-
-	while (wicked_term_sig == 0) {
+	while (!ni_caught_terminal_signal()) {
 		long timeout;
 
 		timeout = ni_timer_next_timeout();
@@ -181,16 +175,9 @@ wicked_interface_server(void)
 			ni_fatal("ni_socket_wait failed");
 	}
 
-	ni_debug_wicked("caught signal %u, exiting", wicked_term_sig);
 	ni_objectmodel_save_state(opt_state_file);
 
 	exit(0);
-}
-
-void
-wicked_catch_term_signal(int sig)
-{
-	wicked_term_sig = sig;
 }
 
 /*

@@ -14,7 +14,6 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <signal.h>
 #include <getopt.h>
 #include <limits.h>
 #include <errno.h>
@@ -49,14 +48,11 @@ static const char *	program_name;
 static int		opt_foreground = 0;
 static int		opt_no_modem_manager = 0;
 
-static int		wicked_term_sig = 0;
-
 static void		interface_manager(void);
 static void		ni_manager_discover_state(ni_manager_t *);
 static void		ni_manager_netif_state_change_signal_receive(ni_dbus_connection_t *, ni_dbus_message_t *, void *);
 //static void		handle_interface_event(ni_netdev_t *, ni_event_t);
 //static void		handle_modem_event(ni_modem_t *, ni_event_t);
-static void		wicked_catch_term_signal(int);
 
 int
 main(int argc, char **argv)
@@ -192,10 +188,7 @@ interface_manager(void)
 
 	ni_manager_discover_state(mgr);
 
-	signal(SIGTERM, wicked_catch_term_signal);
-	signal(SIGINT, wicked_catch_term_signal);
-
-	while (wicked_term_sig == 0) {
+	while (!ni_caught_terminal_signal()) {
 		static unsigned int policy_seq = 0;
 		long timeout;
 
@@ -237,15 +230,7 @@ interface_manager(void)
 			ni_fatal("ni_socket_wait failed");
 	}
 
-	ni_debug_wicked("caught signal %u, exiting", wicked_term_sig);
-
 	exit(0);
-}
-
-void
-wicked_catch_term_signal(int sig)
-{
-	wicked_term_sig = sig;
 }
 
 /*
