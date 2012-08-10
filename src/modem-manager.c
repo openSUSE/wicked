@@ -678,18 +678,26 @@ ni_modem_manager_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg, void
 		const char *object_path;
 
 		/* FIXME: use ni_dbus_message_get_args */
-		if (dbus_message_iter_get_arg_type(&iter) == DBUS_TYPE_OBJECT_PATH) {
+		if (dbus_message_iter_get_arg_type(&iter) == DBUS_TYPE_OBJECT_PATH
+		 || dbus_message_iter_get_arg_type(&iter) == DBUS_TYPE_STRING) {
 			dbus_message_iter_get_basic(&iter, &object_path);
 			ni_modem_manager_add_modem(modem_manager, object_path);
+		} else {
+			ni_error("%s: unexpected argument type 0x%x",
+					member, dbus_message_iter_get_arg_type(&iter));
 		}
 	} else
 	if (!strcmp(member, NI_MM_SIGNAL_DEVICE_REMOVED)) {
 		const char *object_path;
 
 		/* FIXME: use ni_dbus_message_get_args */
-		if (dbus_message_iter_get_arg_type(&iter) == DBUS_TYPE_OBJECT_PATH) {
+		if (dbus_message_iter_get_arg_type(&iter) == DBUS_TYPE_OBJECT_PATH
+		 || dbus_message_iter_get_arg_type(&iter) == DBUS_TYPE_STRING) {
 			dbus_message_iter_get_basic(&iter, &object_path);
 			ni_modem_manager_remove_modem(modem_manager, object_path);
+		} else {
+			ni_error("%s: unexpected argument type 0x%x",
+					member, dbus_message_iter_get_arg_type(&iter));
 		}
 	} else
 	if (!strcmp(member, NI_MM_SIGNAL_SIGNAL_QUALITY)) {
