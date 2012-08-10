@@ -248,10 +248,16 @@ wicked_interface_event(ni_netdev_t *dev, ni_event_t event)
 		case NI_EVENT_DEVICE_CREATE:
 			/* Create dbus object and emit event */
 			ni_objectmodel_register_netif(wicked_dbus_server, dev, NULL);
+			ni_objectmodel_netif_event(wicked_dbus_server, dev, event, NULL);
 			break;
 
 		case NI_EVENT_DEVICE_DELETE:
 			/* Delete dbus object and emit event */
+			if (!ni_uuid_is_null(&dev->link.event_uuid))
+				event_uuid = &dev->link.event_uuid;
+			ni_objectmodel_netif_event(wicked_dbus_server, dev, NI_EVENT_DEVICE_DOWN, event_uuid);
+			ni_objectmodel_netif_event(wicked_dbus_server, dev, NI_EVENT_DEVICE_DELETE, NULL);
+
 			ni_objectmodel_unregister_netif(wicked_dbus_server, dev);
 			break;
 
@@ -292,6 +298,7 @@ wicked_modem_event(ni_modem_t *modem, ni_event_t event)
 		case NI_EVENT_DEVICE_CREATE:
 			/* Create dbus object and emit event */
 			ni_objectmodel_register_modem(wicked_dbus_server, modem);
+			ni_objectmodel_modem_event(wicked_dbus_server, modem, event, event_uuid);
 			break;
 
 		case NI_EVENT_DEVICE_DELETE:
@@ -299,6 +306,7 @@ wicked_modem_event(ni_modem_t *modem, ni_event_t event)
 			if (!ni_uuid_is_null(&modem->event_uuid))
 				event_uuid = &modem->event_uuid;
 			ni_objectmodel_modem_event(wicked_dbus_server, modem, NI_EVENT_DEVICE_DOWN, event_uuid);
+			ni_objectmodel_modem_event(wicked_dbus_server, modem, NI_EVENT_DEVICE_DELETE, NULL);
 
 			/* Delete dbus object */
 			ni_objectmodel_unregister_modem(wicked_dbus_server, modem);
