@@ -18,6 +18,7 @@
 
 #include <wicked/logging.h>
 #include <wicked/netinfo.h>
+#include <wicked/modem.h>
 #include <wicked/fsm.h>
 
 /*
@@ -587,6 +588,29 @@ ni_ifcondition_new(ni_ifcondition_check_fn_t *check_fn)
 	return cond;
 }
 
+static ni_ifcondition_t *
+ni_ifcondition_new_string(ni_ifcondition_check_fn_t *check_fn, const char *string)
+{
+	ni_ifcondition_t *cond;
+
+	cond = ni_ifcondition_new(check_fn);
+	ni_string_dup(&cond->args.string, string);
+	return cond;
+}
+
+static ni_ifcondition_t *
+ni_ifcondition_new_term2(ni_ifcondition_check_fn_t *check_fn,
+			ni_ifcondition_t *left,
+			ni_ifcondition_t *right)
+{
+	ni_ifcondition_t *cond;
+
+	cond = ni_ifcondition_new(check_fn);
+	cond->args.terms.left = left;
+	cond->args.terms.right = right;
+	return cond;
+}
+
 static void
 ni_ifcondition_free(ni_ifcondition_t *cond)
 {
@@ -649,6 +673,12 @@ __ni_fsm_policy_match_and_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
 {
 	return ni_ifcondition_check(cond->args.terms.left, w)
 	    && ni_ifcondition_check(cond->args.terms.right, w);
+}
+
+static ni_ifcondition_t *
+ni_ifcondition_and_terms(ni_ifcondition_t *left, ni_ifcondition_t *right)
+{
+	return ni_ifcondition_new_term2(__ni_fsm_policy_match_and_check, left, right);
 }
 
 static ni_ifcondition_t *
@@ -750,6 +780,10 @@ __ni_fsm_policy_match_class_new(xml_node_t *node, const char *classname)
 {
 	const ni_dbus_class_t *class;
 	ni_ifcondition_t *result;
+
+	/* Workaround for our funky internal naming of modem classes. */
+	if (ni_string_eq(classname, "modem"))
+		classname = NI_OBJECTMODEL_MODEM_PROXY_CLASS;
 
 	if ((class = ni_objectmodel_get_class(classname)) == NULL) {
 		ni_error("%s: unknown object class \"%s\" in <%s> condition",
@@ -877,6 +911,78 @@ ni_ifcondition_boot_stage(xml_node_t *node)
 }
 
 /*
+ * <modem>...</modem>
+ * <modem:foobar>...</modem:foobar>
+ */
+static ni_bool_t
+__ni_fsm_policy_match_modem_equipment_id_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
+{
+	ni_modem_t *modem;
+
+	if (!(modem = ni_ifworker_get_modem(w)))
+		return FALSE;
+	return ni_string_eq(modem->identify.equipment, cond->args.string);
+}
+
+static ni_bool_t
+__ni_fsm_policy_match_modem_manufacturer_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
+{
+	ni_modem_t *modem;
+
+	if (!(modem = ni_ifworker_get_modem(w)))
+		return FALSE;
+	return ni_string_eq(modem->identify.manufacturer, cond->args.string);
+}
+
+static ni_bool_t
+__ni_fsm_policy_match_modem_model_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
+{
+	ni_modem_t *modem;
+
+	if (!(modem = ni_ifworker_get_modem(w)))
+		return FALSE;
+	return ni_string_eq(modem->identify.model, cond->args.string);
+}
+
+static ni_ifcondition_t *
+ni_ifcondition_modem_element(xml_node_t *node, const char *name)
+{
+	if (ni_string_eq(name, "equipment-id"))
+		return ni_ifcondition_new_string(__ni_fsm_policy_match_modem_equipment_id_check, node->cdata);
+	if (ni_string_eq(name, "manufacturer"))
+		return ni_ifcondition_new_string(__ni_fsm_policy_match_modem_manufacturer_check, node->cdata);
+	if (ni_string_eq(name, "model"))
+		return ni_ifcondition_new_string(__ni_fsm_policy_match_modem_model_check, node->cdata);
+
+	ni_error("%s: unknown modem condition <%s>", xml_node_location(node), name);
+	return NULL;
+}
+
+static ni_ifcondition_t *
+ni_ifcondition_modem(xml_node_t *node)
+{
+	ni_ifcondition_t *result = NULL;
+
+	for (node = node->children; node; node = node->next) {
+		ni_ifcondition_t *cond;
+
+		cond = ni_ifcondition_modem_element(node, node->name);
+		if (cond == NULL) {
+			if (result)
+				ni_ifcondition_free(result);
+			return NULL;
+		}
+
+		if (result == NULL)
+			result = cond;
+		else
+			result = ni_ifcondition_and_terms(result, cond);
+	}
+
+	return result;
+}
+
+/*
  * <any>...</any>
  */
 static ni_bool_t
@@ -937,6 +1043,10 @@ ni_ifcondition_from_xml(xml_node_t *node)
 		return ni_ifcondition_control_mode(node);
 	if (!strcmp(node->name, "boot-stage"))
 		return ni_ifcondition_boot_stage(node);
+	if (!strcmp(node->name, "modem"))
+		return ni_ifcondition_modem(node);
+	if (!strncmp(node->name, "modem:", 6))
+		return ni_ifcondition_modem_element(node, node->name + 6);
 
 	ni_error("%s: unsupported policy conditional <%s>", xml_node_location(node), node->name);
 	return NULL;
