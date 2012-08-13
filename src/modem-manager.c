@@ -27,6 +27,7 @@
 #define NI_MM_SIGNAL_STATE_CHANGED	"StateChanged"
 #define NI_MM_SIGNAL_SIGNAL_QUALITY	"SignalQuality"
 #define NI_MM_SIGNAL_REGISTRATION_INFO	"RegistrationInfo"
+#define NI_MM_SIGNAL_NETWORK_MODE	"NetworkMode"
 
 #define NI_MM_BUS_NAME		"org.freedesktop.ModemManager"
 #define NI_MM_OBJECT_PATH	"/org/freedesktop/ModemManager"
@@ -206,7 +207,6 @@ ni_modem_manager_get_info(ni_modem_t *modem, ni_dbus_object_t *modem_object)
 	ni_dbus_variant_t result = NI_DBUS_VARIANT_INIT;
 	int rv = 0;
 
-	ni_trace("%s(%s)", __func__, modem_object->path);
 	if (!ni_dbus_object_call_variant(modem_object,
 				NI_MM_MODEM_IF, "GetInfo",
 				0, NULL, 1, &result, &error)) {
@@ -671,6 +671,7 @@ ni_modem_manager_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg, void
 	ni_modem_manager_client_t *modem_manager = user_data;
 	const char *member = dbus_message_get_member(msg);
 	DBusMessageIter iter;
+	DBusError error = DBUS_ERROR_INIT;
 
 	ni_debug_dbus("%s: %s", __func__, member);
 	dbus_message_iter_init(msg, &iter);
@@ -703,6 +704,7 @@ ni_modem_manager_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg, void
 	if (!strcmp(member, NI_MM_SIGNAL_SIGNAL_QUALITY)) {
 		const char *object_path = dbus_message_get_path(msg);
 		ni_modem_t *modem;
+		uint32_t quality;
 
 		if ((modem = ni_modem_manager_get_modem(modem_manager, object_path)) == NULL) {
 			ni_error("%s: cannot handle event %s for modem object \"%s\", bad path",
@@ -711,15 +713,12 @@ ni_modem_manager_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg, void
 		}
 
 		/* FIXME: use ni_dbus_message_get_args */
-		if (dbus_message_iter_get_arg_type(&iter) == DBUS_TYPE_UINT32) {
-			uint32_t quality;
+		if (!dbus_message_get_args(msg, &error, DBUS_TYPE_UINT32, &quality, DBUS_TYPE_INVALID))
+			goto bad_vibes;
 
-			dbus_message_iter_get_basic(&iter, &quality);
-
-			ni_trace("%s: quality changed %u -> %u", object_path, 
-					modem->gsm.signal_quality, quality);
-			modem->gsm.signal_quality = quality;
-		}
+		ni_debug_modem("%s: quality changed %u -> %u", object_path, 
+				modem->gsm.signal_quality, quality);
+		modem->gsm.signal_quality = quality;
 	} else
 	if (!strcmp(member, NI_MM_SIGNAL_REGISTRATION_INFO)) {
 		const char *object_path = dbus_message_get_path(msg);
@@ -730,29 +729,19 @@ ni_modem_manager_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg, void
 					__func__, member, object_path);
 			return;
 		} else {
-			/* FIXME: use ni_dbus_message_get_args */
 			const char *oper_code = NULL, *oper_name = NULL;
-			uint32_t status = 0; // MM_MODEM_GSM_NETWORK_REG_STATUS_IDLE;
+			uint32_t status = MM_MODEM_GSM_NETWORK_REG_STATUS_IDLE;
 
-			if (dbus_message_iter_get_arg_type(&iter) != DBUS_TYPE_UINT32)
-				goto skip;
-			dbus_message_iter_get_basic(&iter, &status);
-			dbus_message_iter_next(&iter);
+			if (!dbus_message_get_args(msg, &error,
+						DBUS_TYPE_UINT32, &status,
+						DBUS_TYPE_STRING, &oper_code,
+						DBUS_TYPE_STRING, &oper_name,
+						DBUS_TYPE_INVALID, NULL))
+				goto bad_vibes;
 
-			if (dbus_message_iter_get_arg_type(&iter) != DBUS_TYPE_STRING)
-				goto skip;
-			dbus_message_iter_get_basic(&iter, &oper_code);
-			dbus_message_iter_next(&iter);
+			ni_debug_modem("%s: reg info changed: status=%u, operator=%s (%s)",
+				object_path, status, oper_code, oper_name);
 
-			if (dbus_message_iter_get_arg_type(&iter) != DBUS_TYPE_STRING)
-				goto skip;
-			dbus_message_iter_get_basic(&iter, &oper_name);
-			dbus_message_iter_next(&iter);
-
-			ni_trace("%s: reg info changed: status=%u, operator=%s (%s)", object_path, 
-					status, oper_code, oper_name);
-
-skip:
 			modem->gsm.reg_status = status;
 			ni_string_dup(&modem->gsm.operator_code, oper_code);
 			ni_string_dup(&modem->gsm.operator_name, oper_name);
@@ -767,22 +756,16 @@ skip:
 					__func__, member, object_path);
 			return;
 		} else {
-			/* FIXME: use ni_dbus_message_get_args */
-			uint32_t value[3]; /* oldState, newState, reason */
-			uint32_t old_state, new_state;
-			unsigned int i;
+			uint32_t old_state, new_state, reason;
 
-			for (i = 0; i < 3; ++i) {
-				if (dbus_message_iter_get_arg_type(&iter) != DBUS_TYPE_UINT32)
-					goto bad_params;
-				dbus_message_iter_get_basic(&iter, &value[i]);
-				dbus_message_iter_next(&iter);
-			}
+			if (!dbus_message_get_args(msg, &error,
+						DBUS_TYPE_UINT32, &old_state,
+						DBUS_TYPE_UINT32, &new_state,
+						DBUS_TYPE_UINT32, &reason,
+						DBUS_TYPE_INVALID, NULL))
+				goto bad_vibes;
 
-			old_state = value[0];
-			new_state = value[1];
-
-			ni_trace("%s: state changed: %u -> %u", object_path, old_state, new_state);
+			ni_debug_modem("%s: state changed: %u -> %u", object_path, old_state, new_state);
 
 			if (ni_modem_manager_event_handler) {
 				if (modem->state < MM_MODEM_STATE_REGISTERED && new_state >= MM_MODEM_STATE_REGISTERED)
@@ -795,13 +778,35 @@ skip:
 
 			modem->state = new_state;
 		}
+	} else
+	if (!strcmp(member, NI_MM_SIGNAL_NETWORK_MODE)) {
+		const char *object_path = dbus_message_get_path(msg);
+		ni_modem_t *modem;
+
+		if ((modem = ni_modem_manager_get_modem(modem_manager, object_path)) == NULL) {
+			ni_error("%s: cannot handle event %s for modem object \"%s\", bad path",
+					__func__, member, object_path);
+			return;
+		} else {
+			uint32_t mode;
+
+			if (!dbus_message_get_args(msg, &error,
+						DBUS_TYPE_UINT32, &mode,
+						DBUS_TYPE_INVALID, NULL))
+				goto bad_vibes;
+
+			ni_debug_modem("%s: network mode changed: %u", object_path, mode);
+		}
 	} else {
 		ni_debug_objectmodel("%s signal received (not handled)", member);
 	}
 
+out:
+	dbus_error_free(&error);
 	return;
 
-bad_params:
-	ni_error("%s: cannot handle event %s; bad parameters", __func__, member);
-	return;
+bad_vibes:
+	ni_error("unable to process signal \"%s\" from object \"%s\"",
+			member, dbus_message_get_path(msg));
+	goto out;
 }

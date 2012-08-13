@@ -58,6 +58,15 @@ typedef enum ni_modem_state {
 	__MM_MODEM_STATE_MAX
 } ni_modem_state_t;
 
+typedef enum ni_gsm_modem_reg_state {
+	MM_MODEM_GSM_NETWORK_REG_STATUS_IDLE = 0,
+	MM_MODEM_GSM_NETWORK_REG_STATUS_HOME = 1,
+	MM_MODEM_GSM_NETWORK_REG_STATUS_SEARCHING = 2,
+	MM_MODEM_GSM_NETWORK_REG_STATUS_DENIED = 3,
+	MM_MODEM_GSM_NETWORK_REG_STATUS_UNKNOWN = 4,
+	MM_MODEM_GSM_NETWORK_REG_STATUS_ROAMING = 5,
+} ni_gsm_modem_reg_state_t;
+
 /* We may want to turn this into a more generic type and
  * use it elsewhere, too */
 typedef struct ni_modem_pin {
