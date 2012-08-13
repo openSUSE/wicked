@@ -125,6 +125,7 @@ ni_ifworker_reset(ni_ifworker_t *w)
 	ni_string_free(&w->config.origin);
 	ni_string_free(&w->control.mode);
 	ni_string_free(&w->control.boot_stage);
+	ni_string_free(&w->security_id);
 	ni_ifworker_array_destroy(&w->children);
 
 	if (w->fsm.action_table) {

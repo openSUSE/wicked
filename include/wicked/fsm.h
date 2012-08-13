@@ -119,6 +119,15 @@ struct ni_ifworker {
 	}			config;
 	ni_bool_t		use_default_policies;
 
+	/* The security ID can be used as a unique identifier
+	 * to look up user name/password/pin type info in a
+	 * database.
+	 * It is usually set when binding the device (eg from
+	 * the GSM Modem's IMEI), but can also be overwritten
+	 * from the policy.
+	 */
+	char *			security_id;
+
 	/* An ifworker can represent either a network device or a modem */
 	ni_netdev_t *		device;
 	ni_modem_t *		modem;
