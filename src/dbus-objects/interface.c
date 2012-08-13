@@ -784,8 +784,10 @@ __ni_objectmodel_device_event(ni_dbus_server_t *server, ni_dbus_object_t *object
 	const char *signal_name = NULL;
 	unsigned int argc = 0;
 
-	if (!(signal_name = __ni_objectmodel_event_to_signal(ifevent)))
+	if (!(signal_name = __ni_objectmodel_event_to_signal(ifevent))) {
+		ni_warn("%s: no signal name for event %u", __func__, ifevent);
 		return FALSE;
+	}
 
 	if (!server
 	 && !(server = ni_dbus_object_get_server(object))
@@ -810,6 +812,8 @@ const char *
 __ni_objectmodel_event_to_signal(ni_event_t event)
 {
 	static const char *ifevent_signals[__NI_EVENT_MAX] = {
+	[NI_EVENT_DEVICE_CREATE]	= "deviceCreate",
+	[NI_EVENT_DEVICE_DELETE]	= "deviceDelete",
 	[NI_EVENT_DEVICE_UP]		= "deviceUp",
 	[NI_EVENT_DEVICE_DOWN]		= "deviceDown",
 	[NI_EVENT_LINK_ASSOCIATED]	= "linkAssociated",
