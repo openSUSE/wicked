@@ -589,17 +589,22 @@ ni_ifcondition_new(ni_ifcondition_check_fn_t *check_fn)
 }
 
 static ni_ifcondition_t *
-ni_ifcondition_new_string(ni_ifcondition_check_fn_t *check_fn, const char *string)
+ni_ifcondition_new_cdata(ni_ifcondition_check_fn_t *check_fn, const xml_node_t *node)
 {
 	ni_ifcondition_t *cond;
 
+	if (node->cdata == NULL) {
+		ni_error("%s: empty policy condition", xml_node_location(node));
+		return NULL;
+	}
+
 	cond = ni_ifcondition_new(check_fn);
-	ni_string_dup(&cond->args.string, string);
+	ni_string_dup(&cond->args.string, node->cdata);
 	return cond;
 }
 
 static ni_ifcondition_t *
-ni_ifcondition_new_term2(ni_ifcondition_check_fn_t *check_fn,
+ni_ifcondition_new_terms(ni_ifcondition_check_fn_t *check_fn,
 			ni_ifcondition_t *left,
 			ni_ifcondition_t *right)
 {
@@ -640,21 +645,18 @@ ni_ifcondition_term2(xml_node_t *node, ni_ifcondition_check_fn_t *check_fn)
 	}
 
 	for (child = node->children; child; child = child->next) {
-		ni_ifcondition_t *policy, *new;
+		ni_ifcondition_t *cond;
 
-		if (!(policy = ni_ifcondition_from_xml(child))) {
+		if (!(cond = ni_ifcondition_from_xml(child))) {
 			if (result)
 				ni_ifcondition_free(result);
 			return NULL;
 		}
 
 		if (result == NULL) {
-			result = policy;
+			result = cond;
 		} else {
-			new = ni_ifcondition_new(check_fn);
-			new->args.terms.left = result;
-			new->args.terms.right = policy;
-			result = new;
+			result = ni_ifcondition_new_terms(check_fn, result, cond);
 		}
 	}
 
@@ -678,7 +680,7 @@ __ni_fsm_policy_match_and_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
 static ni_ifcondition_t *
 ni_ifcondition_and_terms(ni_ifcondition_t *left, ni_ifcondition_t *right)
 {
-	return ni_ifcondition_new_term2(__ni_fsm_policy_match_and_check, left, right);
+	return ni_ifcondition_new_terms(__ni_fsm_policy_match_and_check, left, right);
 }
 
 static ni_ifcondition_t *
@@ -721,7 +723,6 @@ __ni_fsm_policy_match_not_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
 static ni_ifcondition_t *
 ni_ifcondition_not(xml_node_t *node)
 {
-	ni_ifcondition_t *result = NULL;
 	ni_ifcondition_t *child;
 
 	if (node->children == NULL || node->children->next != NULL) {
@@ -733,10 +734,7 @@ ni_ifcondition_not(xml_node_t *node)
 	if (!(child = ni_ifcondition_from_xml(node->children)))
 		return NULL;
 
-	result = ni_ifcondition_new(__ni_fsm_policy_match_not_check);
-	result->args.terms.left = child;
-
-	return result;
+	return ni_ifcondition_new_terms(__ni_fsm_policy_match_not_check, child, NULL);
 }
 
 /*
@@ -848,16 +846,7 @@ __ni_fsm_policy_match_device_alias_check(const ni_ifcondition_t *cond, ni_ifwork
 static ni_ifcondition_t *
 ni_ifcondition_device_alias(xml_node_t *node)
 {
-	ni_ifcondition_t *result;
-
-	if (node->cdata == NULL) {
-		ni_error("%s: no alias name specified", xml_node_location(node));
-		return NULL;
-	}
-
-	result = ni_ifcondition_new(__ni_fsm_policy_match_device_alias_check);
-	ni_string_dup(&result->args.string, node->cdata);
-	return result;
+	return ni_ifcondition_new_cdata(__ni_fsm_policy_match_device_alias_check, node);
 }
 
 /*
@@ -873,16 +862,7 @@ __ni_fsm_policy_match_control_mode_check(const ni_ifcondition_t *cond, ni_ifwork
 static ni_ifcondition_t *
 ni_ifcondition_control_mode(xml_node_t *node)
 {
-	ni_ifcondition_t *result;
-
-	if (node->cdata == NULL) {
-		ni_error("%s: no mode specified", xml_node_location(node));
-		return NULL;
-	}
-
-	result = ni_ifcondition_new(__ni_fsm_policy_match_control_mode_check);
-	ni_string_dup(&result->args.string, node->cdata);
-	return result;
+	return ni_ifcondition_new_cdata(__ni_fsm_policy_match_control_mode_check, node);
 }
 
 /*
@@ -898,16 +878,7 @@ __ni_fsm_policy_match_boot_stage_check(const ni_ifcondition_t *cond, ni_ifworker
 static ni_ifcondition_t *
 ni_ifcondition_boot_stage(xml_node_t *node)
 {
-	ni_ifcondition_t *result;
-
-	if (node->cdata == NULL) {
-		ni_error("%s: no boot stage specified", xml_node_location(node));
-		return NULL;
-	}
-
-	result = ni_ifcondition_new(__ni_fsm_policy_match_boot_stage_check);
-	ni_string_dup(&result->args.string, node->cdata);
-	return result;
+	return ni_ifcondition_new_cdata(__ni_fsm_policy_match_boot_stage_check, node);
 }
 
 /*
@@ -948,11 +919,11 @@ static ni_ifcondition_t *
 ni_ifcondition_modem_element(xml_node_t *node, const char *name)
 {
 	if (ni_string_eq(name, "equipment-id"))
-		return ni_ifcondition_new_string(__ni_fsm_policy_match_modem_equipment_id_check, node->cdata);
+		return ni_ifcondition_new_cdata(__ni_fsm_policy_match_modem_equipment_id_check, node);
 	if (ni_string_eq(name, "manufacturer"))
-		return ni_ifcondition_new_string(__ni_fsm_policy_match_modem_manufacturer_check, node->cdata);
+		return ni_ifcondition_new_cdata(__ni_fsm_policy_match_modem_manufacturer_check, node);
 	if (ni_string_eq(name, "model"))
-		return ni_ifcondition_new_string(__ni_fsm_policy_match_modem_model_check, node->cdata);
+		return ni_ifcondition_new_cdata(__ni_fsm_policy_match_modem_model_check, node);
 
 	ni_error("%s: unknown modem condition <%s>", xml_node_location(node), name);
 	return NULL;
