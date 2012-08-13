@@ -1,0 +1,34 @@
+<policy name="huawei_stick">
+  <match>
+    <class>modem</class>
+
+    <!-- The device is identified by its "equipment id" as determined
+      -- by ModemManager. For most GSM USB sticks, this will be the
+      -- IMEI of the GSM card.
+      -- Using this approach is probably a good idea, especially
+      -- if you decide to store the SIM PIN in this file - in which
+      -- case you really want to make sure that you're not using
+      -- the PIN with the wrong device.
+      -->
+    <modem:equipment-id>353871023279109</modem:equipment-id>
+
+    <!--
+      --  Alternatively, you can match by manufacturer/model, if
+      --  desired, for instance like this:
+      --
+      --     <modem>
+      --       <manufacturer>huawei</manufacturer>
+      --       <model>e160</model>
+      --     </modem>
+      -->
+  </match>
+
+  <merge final="true">
+    <auth>
+     <pin>
+       <kind>sim-pin</kind>
+     </pin>
+    </auth>
+  </merge>
+</policy>
+
