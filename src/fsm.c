@@ -499,7 +499,9 @@ ni_ifworker_by_modem(ni_fsm_t *fsm, const ni_modem_t *dev)
 	for (i = 0; i < fsm->workers.count; ++i) {
 		ni_ifworker_t *w = fsm->workers.data[i];
 
-		if (w->name && ni_string_eq(dev->driver, w->name))
+		if (w->modem == dev)
+			return w;
+		if (w->name && ni_string_eq(dev->device, w->name))
 			return w;
 	}
 
@@ -1885,7 +1887,7 @@ ni_fsm_refresh_state(ni_fsm_t *fsm)
 				w->modem = NULL;
 			}
 		} else
-			ni_ifworker_update_state(w, NI_FSM_STATE_DEVICE_UP, __NI_FSM_STATE_MAX);
+			ni_ifworker_update_state(w, NI_FSM_STATE_DEVICE_EXISTS, __NI_FSM_STATE_MAX);
 	}
 }
 
