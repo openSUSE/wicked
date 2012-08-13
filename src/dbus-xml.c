@@ -925,16 +925,14 @@ ni_dbus_validate_xml_dict(xml_node_t *node, const ni_xs_type_t *type, const ni_d
 			if (ctx->prompt_callback != NULL
 			 && child_type->meta != NULL
 			 && (meta = xml_node_get_child(child_type->meta, "user-input")) != NULL) {
-				xml_node_t *child = xml_node_new(name_type->name, NULL);
+				xml_node_t *child = xml_node_new(name_type->name, node);
 				int rv;
 
 				rv = ctx->prompt_callback(child, child_type, meta, ctx->user_data);
-				if (rv == 0) {
-					xml_node_add_child(node, child);
+				if (rv == 0)
 					continue;
-				}
 
-				xml_node_free(child);
+				xml_node_delete_child_node(node, child);
 
 				/* When the prompt function returns RETRY_OPERATION, it
 				 * asks us to ignore the issue for now and come back later. */
