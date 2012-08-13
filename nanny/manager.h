@@ -16,6 +16,7 @@ typedef struct ni_manager	ni_manager_t;
 typedef struct ni_managed_netdev ni_managed_netdev_t;
 typedef struct ni_managed_policy ni_managed_policy_t;
 typedef struct ni_managed_modem	ni_managed_modem_t;
+typedef struct ni_manager_secret ni_manager_secret_t;
 
 struct ni_managed_netdev {
 	ni_managed_netdev_t *	next;
@@ -61,6 +62,8 @@ struct ni_manager {
 	ni_ifworker_array_t	down;
 
 	unsigned int		policy_seq;
+
+	ni_manager_secret_t *	secret_db;
 };
 
 extern ni_dbus_class_t		managed_netdev_class;
@@ -81,6 +84,7 @@ extern ni_managed_netdev_t *	ni_manager_get_netdev(ni_manager_t *, ni_netdev_t *
 extern ni_managed_modem_t *	ni_manager_get_modem(ni_manager_t *, ni_modem_t *);
 extern ni_managed_policy_t *	ni_manager_get_policy(ni_manager_t *, const ni_fsm_policy_t *);
 extern void			ni_manager_apply_policy(ni_manager_t *, ni_managed_policy_t *, ni_ifworker_t *);
+extern const char *		ni_manager_get_secret(ni_manager_t *, const char *, const char *);
 
 extern ni_managed_netdev_t *	ni_managed_netdev_new(ni_manager_t *, ni_ifworker_t *);
 extern void			ni_managed_netdev_free(ni_managed_netdev_t *);

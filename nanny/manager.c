@@ -31,7 +31,18 @@
 #include "manager.h"
 
 
+struct ni_manager_secret {
+	ni_manager_secret_t *	next;
 
+	char *			security_id;
+	char *			path;
+	char *			value;
+};
+
+
+/*
+ * Initialize the manager objectmodel
+ */
 void
 ni_objectmodel_manager_init(ni_manager_t *mgr)
 {
@@ -85,6 +96,49 @@ ni_manager_apply_policy(ni_manager_t *mgr, ni_managed_policy_t *mpolicy, ni_ifwo
 	}
 }
 
+/*
+ * Handle nanny's security database
+ */
+ni_manager_secret_t **
+__ni_manager_find_secret(ni_manager_t *mgr, const char *security_id, const char *path)
+{
+	ni_manager_secret_t *sec, **pos;
+
+	for (pos = &mgr->secret_db; (sec = *pos) != NULL; pos = &sec->next) {
+		if (ni_string_eq(sec->security_id, security_id)
+		 && ni_string_eq(sec->path, path))
+			break;
+	}
+
+	return pos;
+}
+
+void
+ni_manager_add_secret(ni_manager_t *mgr, const char *security_id, const char *path, const char *value)
+{
+	ni_manager_secret_t *sec, **pos;
+
+	pos = __ni_manager_find_secret(mgr, security_id, path);
+	if ((sec = *pos) == NULL) {
+		*pos = sec = calloc(1, sizeof(*sec));
+		ni_string_dup(&sec->security_id, security_id);
+		ni_string_dup(&sec->path, path);
+	}
+
+	ni_string_dup(&sec->value, value);
+}
+
+const char *
+ni_manager_get_secret(ni_manager_t *mgr, const char *security_id, const char *path)
+{
+	ni_manager_secret_t *sec, **pos;
+
+	pos = __ni_manager_find_secret(mgr, security_id, path);
+	if ((sec = *pos) == NULL)
+		return NULL;
+
+	return sec->value;
+}
 
 /*
  * Extract fsm handle from dbus object
@@ -200,9 +254,37 @@ ni_objectmodel_manager_create_policy(ni_dbus_object_t *object, const ni_dbus_met
 	return TRUE;
 }
 
+/*
+ * Manager.addSecret(security-id, path, value)
+ * The security-id is an identifier that is derived from eg the modem's IMEI,
+ * or the wireless ESSID.
+ */
+static dbus_bool_t
+ni_objectmodel_manager_set_secret(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+					unsigned int argc, const ni_dbus_variant_t *argv,
+					ni_dbus_message_t *reply, DBusError *error)
+{
+	const char *security_id, *element_path, *value;
+	ni_manager_t *mgr;
+
+	if ((mgr = ni_objectmodel_manager_unwrap(object, error)) == NULL)
+		return FALSE;
+
+	if (argc != 3
+	 || !ni_dbus_variant_get_string(&argv[0], &security_id)
+	 || !ni_dbus_variant_get_string(&argv[1], &element_path)
+	 || !ni_dbus_variant_get_string(&argv[2], &value))
+		return ni_dbus_error_invalid_args(error, ni_dbus_object_get_path(object), method->name);
+
+	ni_manager_add_secret(mgr, security_id, element_path, value);
+	return TRUE;
+}
+
+
 static ni_dbus_method_t		ni_objectmodel_manager_methods[] = {
 	{ "createPolicy",	"s",		ni_objectmodel_manager_create_policy	},
 	{ "getDevice",		"s",		ni_objectmodel_manager_get_device	},
+	{ "addSecret",		"sss",		ni_objectmodel_manager_set_secret	},
 	{ NULL }
 };
 

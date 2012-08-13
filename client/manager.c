@@ -34,6 +34,7 @@
 extern ni_bool_t	ni_manager_call_add_policy(const char *, xml_node_t *);
 extern ni_bool_t	ni_manager_call_device_enable(const char *ifname);
 extern ni_dbus_object_t *ni_manager_call_get_device(const char *);
+extern ni_bool_t	ni_manager_call_add_secret(const char *, const char *, const char *);
 
 /*
  * Read a policy file
@@ -116,6 +117,29 @@ do_manager_addpolicy(int argc, char **argv)
 }
 
 /*
+ * Install a user name/password
+ */
+static int
+do_manager_addsecret(int argc, char **argv)
+{
+	const char *security_id, *path, *value;
+
+	if (optind + 3 != argc) {
+		ni_error("wicked manager addsecret: expected 3 arguments (security-id, path, value)");
+		return 1;
+	}
+
+	security_id = argv[optind++];
+	path = argv[optind++];
+	value = argv[optind++];
+
+	if (!ni_manager_call_add_secret(security_id, path, value))
+		return 1;
+
+	return 0;
+}
+
+/*
  * Force a re-check on a given interface
  */
 static int
@@ -190,6 +214,8 @@ usage:
 		return do_manager_recheck(argc, argv);
 	if (ni_string_eq(command, "enable"))
 		return do_manager_enable(argc, argv);
+	if (ni_string_eq(command, "addsecret"))
+		return do_manager_addsecret(argc, argv);
 	
 	ni_error("Unsupported manager subcommand \"%s\"", command);
 	goto usage;
@@ -270,6 +296,35 @@ ni_manager_call_add_policy(const char *name, xml_node_t *node)
 		ni_error("Call to ManagedPolicy.update() failed: %s", ni_strerror(rv));
 		return FALSE;
 	}
+
+	return TRUE;
+}
+
+ni_bool_t
+ni_manager_call_add_secret(const char *security_id, const char *path, const char *value)
+{
+	DBusError error = DBUS_ERROR_INIT;
+	ni_dbus_client_t *client;
+	ni_dbus_object_t *root_object;
+	ni_dbus_variant_t argv[3];
+
+	client = ni_manager_create_client(&root_object);
+
+	memset(argv, 0, sizeof(argv));
+	ni_dbus_variant_set_string(&argv[0], security_id);
+	ni_dbus_variant_set_string(&argv[1], path);
+	ni_dbus_variant_set_string(&argv[2], value);
+
+	if (!ni_dbus_object_call_variant(root_object, NI_OBJECTMODEL_MANAGER_INTERFACE, "addSecret",
+					3, argv, 0, NULL, &error)) {
+		ni_dbus_print_error(&error, "call to addSecret failed");
+		dbus_error_free(&error);
+		return FALSE;
+	}
+
+	ni_dbus_variant_destroy(&argv[0]);
+	ni_dbus_variant_destroy(&argv[1]);
+	ni_dbus_variant_destroy(&argv[2]);
 
 	return TRUE;
 }
