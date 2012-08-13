@@ -77,6 +77,7 @@ ni_objectmodel_register_modem_classes(void)
 
 	/* register the modem class (to allow extensions to attach to it) */
 	ni_objectmodel_register_class(&ni_objectmodel_modem_class);
+	ni_objectmodel_register_class(&ni_objectmodel_modem_proxy_class);
 
 	for (modem_type = 0; modem_type < __MM_MODEM_TYPE_MAX; ++modem_type) {
 		ni_dbus_class_t *class;
@@ -585,7 +586,53 @@ __ni_objectmodel_modem_set_auth(ni_dbus_object_t *object,
 		ni_modem_add_pin(modem, pin);
 	}
 	return TRUE;
+}
 
+
+static dbus_bool_t
+__ni_objectmodel_modem_get_identify(const ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				ni_dbus_variant_t *result,
+				DBusError *error)
+{
+	ni_modem_t *modem;
+
+	if (!(modem = ni_objectmodel_unwrap_modem(object, error)))
+		return FALSE;
+
+	ni_dbus_variant_init_dict(result);
+	if (modem->identify.manufacturer)
+		ni_dbus_dict_add_string(result, "manufacturer", modem->identify.manufacturer);
+	if (modem->identify.model)
+		ni_dbus_dict_add_string(result, "model", modem->identify.model);
+	if (modem->identify.version)
+		ni_dbus_dict_add_string(result, "version", modem->identify.version);
+	if (modem->identify.equipment)
+		ni_dbus_dict_add_string(result, "equipment-id", modem->identify.equipment);
+
+	return TRUE;
+}
+
+static dbus_bool_t
+__ni_objectmodel_modem_set_identify(ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *argument,
+				DBusError *error)
+{
+	ni_modem_t *modem;
+	const char *value;
+
+	if (!(modem = ni_objectmodel_unwrap_modem(object, error)))
+		return FALSE;
+
+	if (ni_dbus_dict_get_string(argument, "manufacturer", &value))
+		ni_string_dup(&modem->identify.manufacturer, value);
+	if (ni_dbus_dict_get_string(argument, "model", &value))
+		ni_string_dup(&modem->identify.model, value);
+	if (ni_dbus_dict_get_string(argument, "version", &value))
+		ni_string_dup(&modem->identify.version, value);
+	if (ni_dbus_dict_get_string(argument, "equipment-id", &value))
+		ni_string_dup(&modem->identify.equipment, value);
 
 	return TRUE;
 }
@@ -604,6 +651,7 @@ static ni_dbus_property_t	ni_objectmodel_modem_properties[] = {
 	MODEM_STRING_PROPERTY(unlock-required, unlock.required, RO),
 
 	MODEM_PROPERTY_SIGNATURE(NI_DBUS_DICT_ARRAY_SIGNATURE, auth, RO),
+	MODEM_PROPERTY_SIGNATURE(NI_DBUS_DICT_ARRAY_SIGNATURE, identify, RO),
 
 	{ NULL }
 };
