@@ -51,6 +51,7 @@ static int		opt_no_modem_manager = 0;
 static void		interface_manager(void);
 static void		ni_manager_discover_state(ni_manager_t *);
 static void		ni_manager_netif_state_change_signal_receive(ni_dbus_connection_t *, ni_dbus_message_t *, void *);
+static void		ni_manager_modem_state_change_signal_receive(ni_dbus_connection_t *, ni_dbus_message_t *, void *);
 //static void		handle_interface_event(ni_netdev_t *, ni_event_t);
 //static void		handle_modem_event(ni_modem_t *, ni_event_t);
 
@@ -158,6 +159,18 @@ ni_manager_get_netdev(ni_manager_t *mgr, ni_netdev_t *dev)
 	return NULL;
 }
 
+ni_managed_modem_t *
+ni_manager_get_modem(ni_manager_t *mgr, ni_modem_t *dev)
+{
+	ni_managed_modem_t *mdev;
+
+	for (mdev = mgr->modem_list; mdev; mdev = mdev->next) {
+		if (mdev->dev == dev)
+			return mdev;
+	}
+	return NULL;
+}
+
 ni_managed_policy_t *
 ni_manager_get_policy(ni_manager_t *mgr, const ni_fsm_policy_t *policy)
 {
@@ -251,6 +264,10 @@ ni_manager_discover_state(ni_manager_t *mgr)
 			NI_OBJECTMODEL_NETIF_INTERFACE,
 			ni_manager_netif_state_change_signal_receive,
 			mgr);
+	ni_dbus_client_add_signal_handler(client, NULL, NULL,
+			NI_OBJECTMODEL_MODEM_INTERFACE,
+			ni_manager_modem_state_change_signal_receive,
+			mgr);
 
 	ni_fsm_refresh_state(mgr->fsm);
 
@@ -262,12 +279,11 @@ ni_manager_discover_state(ni_manager_t *mgr)
 
 			mdev = ni_managed_netdev_new(mgr, w);
 			ni_objectmodel_register_managed_netdev(mgr->server, mdev);
-#ifdef notyet
+
 		} else
 		if (w->type == NI_IFWORKER_TYPE_MODEM) {
 			ni_objectmodel_register_managed_modem(mgr->server,
-					ni_managed_modem_new(mgr, w->modem));
-#endif
+					ni_managed_modem_new(mgr, w));
 		}
 	}
 }
@@ -294,7 +310,7 @@ ni_manager_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus
 	ni_trace("%s: received signal %s from %s", w->name, signal_name, object_path);
 	ni_assert(w->device);
 
-	if (ni_string_eq(signal_name, "deviceDown")) {
+	if (ni_string_eq(signal_name, "deviceDelete")) {
 		// XXX: delete the worker and the managed netif
 	} else
 	if (ni_string_eq(signal_name, "linkDown")) {
@@ -315,24 +331,26 @@ ni_manager_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus
 		 && mdev->user_controlled)
 			ni_manager_schedule_down(mgr, w);
 	} else
-	if (ni_string_eq(signal_name, "deviceUp")) {
+	if (ni_string_eq(signal_name, "deviceCreate")) {
 		// A new device was added. Could be a virtual device like
 		// a VLAN or vif, or a hotplug modem or NIC
 		// Create a worker and a managed_netif for this device.
 		switch (w->type) {
 		case NI_IFWORKER_TYPE_NETDEV:
-			if (ni_manager_get_netdev(mgr, w->device) == NULL)
+			if (ni_manager_get_netdev(mgr, w->device) == NULL) {
 				ni_objectmodel_register_managed_netdev(mgr->server,
 						ni_managed_netdev_new(mgr, w));
+				ni_manager_schedule_recheck(mgr, w);
+			}
 			break;
 
-#ifdef notyet
 		case NI_IFWORKER_TYPE_MODEM:
-			if (ni_manager_get_modem(mgr, w->modem) == NULL)
+			if (ni_manager_get_modem(mgr, w->modem) == NULL) {
 				ni_objectmodel_register_managed_modem(mgr->server,
-						ni_managed_modem_new(mgr, w->modem));
+						ni_managed_modem_new(mgr, w));
+				ni_manager_schedule_recheck(mgr, w);
+			}
 			break;
-#endif
 
 		default: ;
 		}
@@ -349,21 +367,56 @@ ni_manager_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus
 }
 
 /*
+ * Wickedd is sending us a signal (such a linkUp/linkDown, or change in the set of
+ * visible WLANs)
+ */
+void
+ni_manager_modem_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_message_t *msg, void *user_data)
+{
+	ni_manager_t *mgr = user_data;
+	const char *signal_name = dbus_message_get_member(msg);
+	const char *object_path = dbus_message_get_path(msg);
+	ni_ifworker_t *w;
+
+	// We receive a deviceCreate signal when a modem was plugged in
+	if (ni_string_eq(signal_name, "deviceCreate")) {
+		w = ni_fsm_recv_new_modem_path(mgr->fsm, object_path);
+		if (ni_manager_get_modem(mgr, w->modem) == NULL) {
+			ni_objectmodel_register_managed_modem(mgr->server,
+					ni_managed_modem_new(mgr, w));
+			ni_manager_schedule_recheck(mgr, w);
+		}
+		return;
+	}
+
+	if ((w = ni_fsm_ifworker_by_object_path(mgr->fsm, object_path)) == NULL) {
+		ni_warn("received signal \"%s\" from unknown object \"%s\"",
+				signal_name, object_path);
+		return;
+	}
+
+	ni_trace("%s: received signal %s from %s", w->name, signal_name, object_path);
+	ni_assert(w->type == NI_IFWORKER_TYPE_MODEM);
+	ni_assert(w->modem);
+
+	if (ni_string_eq(signal_name, "deviceDelete")) {
+		// XXX: delete the worker and the managed modem
+	} else {
+		// ignore
+	}
+}
+
+/*
  * Check whether a given interface should be reconfigured
  */
 void
 ni_manager_recheck(ni_manager_t *mgr, ni_ifworker_t *w)
 {
 	static const unsigned int MAX_POLICIES = 20;
-	ni_managed_netdev_t *mdev;
 	const ni_fsm_policy_t *policies[MAX_POLICIES];
-	unsigned int count;
 	const ni_fsm_policy_t *policy;
 	ni_managed_policy_t *mpolicy;
-	xml_node_t *config;
-
-	if ((mdev = ni_manager_get_netdev(mgr, w->device)) == NULL)
-		return;
+	unsigned int count;
 
 	ni_trace("%s(%s)", __func__, w->name);
 	w->use_default_policies = TRUE;
@@ -375,29 +428,5 @@ ni_manager_recheck(ni_manager_t *mgr, ni_ifworker_t *w)
 	policy = policies[count-1];
 	mpolicy = ni_manager_get_policy(mgr, policy);
 
-	if (mdev->selected_policy == mpolicy) {
-		ni_trace("%s: keep using policy %s", w->name, ni_fsm_policy_name(policy));
-		return;
-	}
-
-	ni_trace("%s: using policy %s", w->name, ni_fsm_policy_name(policy));
-	config = xml_node_new("interface", NULL);
-	xml_node_new_element("name", config, w->name);
-
-	config = ni_fsm_policy_transform_document(config, &policy, 1);
-	if (config == NULL) {
-		ni_error("%s: error when applying policy to interface document", w->name);
-		return;
-	}
-
-	ni_trace("%s: using device config", w->name);
-	xml_node_print(config, NULL);
-	if (mdev->selected_config)
-		xml_node_free(mdev->selected_config);
-	mdev->selected_config = config;
-	mdev->selected_policy = mpolicy;
-	mdev->timeout = mgr->fsm->worker_timeout;
-
-	/* Now do the fandango */
-	ni_managed_netdev_up(mdev, NI_FSM_STATE_ADDRCONF_UP);
+	ni_manager_apply_policy(mgr, mpolicy, w);
 }

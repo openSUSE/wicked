@@ -114,6 +114,43 @@ ni_managed_netdev_enable(ni_managed_netdev_t *mdev)
 }
 
 /*
+ * Apply the selected policy to this netdev
+ */
+void
+ni_managed_netdev_apply_policy(ni_managed_netdev_t *mdev, ni_managed_policy_t *mpolicy, ni_fsm_t *fsm)
+{
+	const char *device_name = mdev->worker->name;
+	const ni_fsm_policy_t *policy = mpolicy->fsm_policy;
+	xml_node_t *config;
+
+	if (mdev->selected_policy == mpolicy) {
+		ni_trace("%s: keep using policy %s", device_name, ni_fsm_policy_name(policy));
+		return;
+	}
+
+	ni_trace("%s: using policy %s", device_name, ni_fsm_policy_name(policy));
+	config = xml_node_new("interface", NULL);
+	xml_node_new_element("name", config, device_name);
+
+	config = ni_fsm_policy_transform_document(config, &policy, 1);
+	if (config == NULL) {
+		ni_error("%s: error when applying policy to interface document", device_name);
+		return;
+	}
+
+	ni_trace("%s: using device config", device_name);
+	xml_node_print(config, NULL);
+	if (mdev->selected_config)
+		xml_node_free(mdev->selected_config);
+	mdev->selected_config = config;
+	mdev->selected_policy = mpolicy;
+	mdev->timeout = fsm->worker_timeout;
+
+	/* Now do the fandango */
+	ni_managed_netdev_up(mdev, NI_FSM_STATE_ADDRCONF_UP);
+}
+
+/*
  * Bring up the device
  */
 void

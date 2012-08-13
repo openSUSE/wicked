@@ -39,6 +39,7 @@ ni_objectmodel_manager_init(ni_manager_t *mgr)
 
 	ni_objectmodel_managed_policy_init(mgr->server);
 	ni_objectmodel_managed_netif_init(mgr->server);
+	ni_objectmodel_managed_modem_init(mgr->server);
 
 	ni_objectmodel_register_service(&ni_objectmodel_manager_service);
 
@@ -59,6 +60,31 @@ ni_objectmodel_manager_init(ni_manager_t *mgr)
 		ni_trace("(%u interfaces)", i);
 	}
 }
+
+/*
+ * Apply the selected policy to this worker
+ */
+void
+ni_manager_apply_policy(ni_manager_t *mgr, ni_managed_policy_t *mpolicy, ni_ifworker_t *w)
+{
+	if (w->type == NI_IFWORKER_TYPE_NETDEV) {
+		ni_managed_netdev_t *mdev;
+
+		if ((mdev = ni_manager_get_netdev(mgr, w->device)) == NULL)
+			return;
+
+		ni_managed_netdev_apply_policy(mdev, mpolicy, mgr->fsm);
+	} else
+	if (w->type == NI_IFWORKER_TYPE_MODEM) {
+		ni_managed_modem_t *mmodem;
+
+		if ((mmodem = ni_manager_get_modem(mgr, w->modem)) == NULL)
+			return;
+
+		ni_managed_modem_apply_policy(mmodem, mpolicy, mgr->fsm);
+	}
+}
+
 
 /*
  * Extract fsm handle from dbus object
