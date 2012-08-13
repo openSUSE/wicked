@@ -58,6 +58,9 @@ ni_managed_modem_new(ni_manager_t *mgr, ni_ifworker_t *w)
 	mdev->worker = ni_ifworker_get(w);
 	mdev->dev = ni_modem_hold(w->modem);
 
+	/* FIXME: for now, we allow users to control all modems */
+	mdev->user_controlled = TRUE;
+
 	mdev->next = mgr->modem_list;
 	mgr->modem_list = mdev;
 
