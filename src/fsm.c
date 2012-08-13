@@ -687,7 +687,7 @@ ni_ifworker_waiting_for_event(ni_ifworker_t *w, const char *event_name)
 static void
 ni_ifworker_update_client_info(ni_ifworker_t *w)
 {
-	ni_netdev_clientinfo_t client_info;
+	ni_device_clientinfo_t client_info;
 
 	memset(&client_info, 0, sizeof(client_info));
 	client_info.state = (char *) ni_ifworker_state_name(w->fsm.state);

@@ -24,7 +24,7 @@ extern int			ni_call_common_xml(ni_dbus_object_t *,
 					const ni_dbus_service_t *, const ni_dbus_method_t *,
 					xml_node_t *, ni_objectmodel_callback_info_t **,
 					ni_call_error_handler_t *error_func);
-extern int			ni_call_set_client_info(ni_dbus_object_t *, const ni_netdev_clientinfo_t *);
+extern int			ni_call_set_client_info(ni_dbus_object_t *, const ni_device_clientinfo_t *);
 extern int			ni_call_link_monitor(ni_dbus_object_t *);
 
 extern int			ni_call_install_lease_xml(ni_dbus_object_t *, xml_node_t *);

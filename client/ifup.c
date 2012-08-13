@@ -462,7 +462,7 @@ usage:
 		for (i = 0; i < marked.count; ++i) {
 			ni_ifworker_t *w = marked.data[i];
 			ni_netdev_t *dev;
-			ni_netdev_clientinfo_t *client_info;
+			ni_device_clientinfo_t *client_info;
 
 			if ((dev = w->device) == NULL) {
 				if (!opt_quiet)

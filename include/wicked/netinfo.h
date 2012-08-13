@@ -51,7 +51,7 @@ struct ni_linkinfo {
  * This information can be set by set any client to
  * "mark" the interface
  */
-struct ni_netdev_clientinfo {
+struct ni_device_clientinfo {
 	char *			state;
 	ni_uuid_t		config_uuid;
 	char *			config_origin;		/* manual, sysconfig, firmware, ... */
@@ -66,7 +66,7 @@ struct ni_netdev {
 	char *			name;
 	ni_linkinfo_t		link;
 
-	ni_netdev_clientinfo_t *client_info;
+	ni_device_clientinfo_t *client_info;
 
 	unsigned int		users;
 
@@ -175,7 +175,7 @@ extern void		ni_netdev_set_wireless(ni_netdev_t *, ni_wireless_t *);
 extern void		ni_netdev_set_openvpn(ni_netdev_t *, ni_openvpn_t *);
 extern void		ni_netdev_set_ppp(ni_netdev_t *, ni_ppp_t *);
 extern void		ni_netdev_set_ibft_nic(ni_netdev_t *, ni_ibft_nic_t *);
-extern void		ni_netdev_set_client_info(ni_netdev_t *, ni_netdev_clientinfo_t *);
+extern void		ni_netdev_set_client_info(ni_netdev_t *, ni_device_clientinfo_t *);
 extern ni_ipv6_devinfo_t *ni_netdev_get_ipv6(ni_netdev_t *);
 extern ni_ipv4_devinfo_t *ni_netdev_get_ipv4(ni_netdev_t *);
 
@@ -230,8 +230,8 @@ extern ni_sockaddr_t *	ni_sockaddr_unpack(ni_sockaddr_t *, const ni_opaque_t *);
 extern ni_opaque_t *	ni_sockaddr_prefix_pack(const ni_sockaddr_t *, unsigned int, ni_opaque_t *);
 extern ni_sockaddr_t *	ni_sockaddr_prefix_unpack(ni_sockaddr_t *, unsigned int *, const ni_opaque_t *);
 
-extern ni_netdev_clientinfo_t *ni_netdev_clientinfo_new(void);
-extern void		ni_netdev_clientinfo_free(ni_netdev_clientinfo_t *);
+extern ni_device_clientinfo_t *ni_device_clientinfo_new(void);
+extern void		ni_device_clientinfo_free(ni_device_clientinfo_t *);
 
 extern const char *	ni_print_link_flags(int flags);
 extern const char *	ni_print_link_type(int type);

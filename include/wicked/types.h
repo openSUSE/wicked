@@ -39,7 +39,7 @@ typedef struct ni_netdev_req	ni_netdev_req_t;
 typedef struct ni_ipv6_devinfo	ni_ipv6_devinfo_t;
 typedef struct ni_ipv4_devinfo	ni_ipv4_devinfo_t;
 typedef struct ni_modem		ni_modem_t;
-typedef struct ni_netdev_clientinfo ni_netdev_clientinfo_t;
+typedef struct ni_device_clientinfo ni_device_clientinfo_t;
 
 typedef struct ni_dbus_server	ni_dbus_server_t;
 typedef struct ni_dbus_client	ni_dbus_client_t;

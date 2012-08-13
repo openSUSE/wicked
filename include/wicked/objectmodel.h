@@ -96,8 +96,8 @@ extern dbus_bool_t		ni_objectmodel_bind_compatible_interfaces(ni_dbus_object_t *
 
 extern dbus_bool_t		ni_objectmodel_get_addrconf_lease(const ni_addrconf_lease_t *, ni_dbus_variant_t *);
 extern dbus_bool_t		ni_objectmodel_set_addrconf_lease(ni_addrconf_lease_t *, const ni_dbus_variant_t *);
-extern dbus_bool_t		ni_objectmodel_netif_client_info_from_dict(ni_netdev_clientinfo_t *, const ni_dbus_variant_t *);
-extern dbus_bool_t		ni_objectmodel_netif_client_info_to_dict(const ni_netdev_clientinfo_t *, ni_dbus_variant_t *);
+extern dbus_bool_t		ni_objectmodel_netif_client_info_from_dict(ni_device_clientinfo_t *, const ni_dbus_variant_t *);
+extern dbus_bool_t		ni_objectmodel_netif_client_info_to_dict(const ni_device_clientinfo_t *, ni_dbus_variant_t *);
 
 extern ni_dbus_object_t *	ni_objectmodel_object_by_path(const char *path);
 

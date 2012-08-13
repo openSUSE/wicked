@@ -413,7 +413,7 @@ ni_call_device_method_xml(ni_dbus_object_t *object, const char *method_name, xml
 }
 
 int
-ni_call_set_client_info(ni_dbus_object_t *object, const ni_netdev_clientinfo_t *client_info)
+ni_call_set_client_info(ni_dbus_object_t *object, const ni_device_clientinfo_t *client_info)
 {
 	const ni_dbus_service_t *service;
 	const ni_dbus_method_t *method;

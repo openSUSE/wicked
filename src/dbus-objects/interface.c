@@ -730,7 +730,7 @@ ni_objectmodel_netif_set_client_info(ni_dbus_object_t *object, const ni_dbus_met
 			ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_netdev_t *dev;
-	ni_netdev_clientinfo_t *client_info;
+	ni_device_clientinfo_t *client_info;
 
 	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return FALSE;
@@ -738,9 +738,9 @@ ni_objectmodel_netif_set_client_info(ni_dbus_object_t *object, const ni_dbus_met
 	if (argc != 1 || !ni_dbus_variant_is_dict(&argv[0]))
 		return ni_dbus_error_invalid_args(error, object->path, method->name);
 
-	client_info = ni_netdev_clientinfo_new();
+	client_info = ni_device_clientinfo_new();
 	if (!ni_objectmodel_netif_client_info_from_dict(client_info, &argv[0])) {
-		ni_netdev_clientinfo_free(client_info);
+		ni_device_clientinfo_free(client_info);
 		return ni_dbus_error_invalid_args(error, object->path, method->name);
 	}
 
@@ -982,7 +982,7 @@ __ni_objectmodel_netif_get_client_info(const ni_dbus_object_t *object,
 				DBusError *error)
 {
 	ni_netdev_t *dev = ni_dbus_object_get_handle(object);
-	ni_netdev_clientinfo_t *client_info;
+	ni_device_clientinfo_t *client_info;
 
 	if ((client_info = dev->client_info) == NULL)
 		return ni_dbus_error_property_not_present(error, object->path, property->name);
@@ -992,7 +992,7 @@ __ni_objectmodel_netif_get_client_info(const ni_dbus_object_t *object,
 }
 
 dbus_bool_t
-ni_objectmodel_netif_client_info_to_dict(const ni_netdev_clientinfo_t *client_info, ni_dbus_variant_t *dict)
+ni_objectmodel_netif_client_info_to_dict(const ni_device_clientinfo_t *client_info, ni_dbus_variant_t *dict)
 {
 	if (client_info->state)
 		ni_dbus_dict_add_string(dict, "state", client_info->state);
@@ -1013,11 +1013,11 @@ __ni_objectmodel_netif_set_client_info(ni_dbus_object_t *object,
 				DBusError *error)
 {
 	ni_netdev_t *dev = ni_dbus_object_get_handle(object);
-	ni_netdev_clientinfo_t *client_info;
+	ni_device_clientinfo_t *client_info;
 
-	client_info = ni_netdev_clientinfo_new();
+	client_info = ni_device_clientinfo_new();
 	if (!ni_objectmodel_netif_client_info_from_dict(client_info, argument)) {
-		ni_netdev_clientinfo_free(client_info);
+		ni_device_clientinfo_free(client_info);
 		return FALSE;
 	}
 	ni_netdev_set_client_info(dev, client_info);
@@ -1025,7 +1025,7 @@ __ni_objectmodel_netif_set_client_info(ni_dbus_object_t *object,
 }
 
 dbus_bool_t
-ni_objectmodel_netif_client_info_from_dict(ni_netdev_clientinfo_t *client_info, const ni_dbus_variant_t *dict)
+ni_objectmodel_netif_client_info_from_dict(ni_device_clientinfo_t *client_info, const ni_dbus_variant_t *dict)
 {
 	ni_dbus_variant_t *child;
 	const char *sval;

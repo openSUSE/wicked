@@ -327,27 +327,27 @@ ni_netdev_set_ibft_nic(ni_netdev_t *dev, ni_ibft_nic_t *nic)
  * we retain it for the client.
  */
 void
-ni_netdev_set_client_info(ni_netdev_t *dev, ni_netdev_clientinfo_t *client_info)
+ni_netdev_set_client_info(ni_netdev_t *dev, ni_device_clientinfo_t *client_info)
 {
 	if (dev->client_info == client_info)
 		return;
 	if (dev->client_info)
-		ni_netdev_clientinfo_free(dev->client_info);
+		ni_device_clientinfo_free(dev->client_info);
 
 	dev->client_info = client_info;
 }
 
-ni_netdev_clientinfo_t *
-ni_netdev_clientinfo_new(void)
+ni_device_clientinfo_t *
+ni_device_clientinfo_new(void)
 {
-	ni_netdev_clientinfo_t *client_info;
+	ni_device_clientinfo_t *client_info;
 
 	client_info = xcalloc(1, sizeof(*client_info));
 	return client_info;
 }
 
 void
-ni_netdev_clientinfo_free(ni_netdev_clientinfo_t *client_info)
+ni_device_clientinfo_free(ni_device_clientinfo_t *client_info)
 {
 	ni_string_free(&client_info->state);
 	ni_string_free(&client_info->config_origin);

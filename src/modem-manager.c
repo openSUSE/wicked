@@ -502,6 +502,7 @@ ni_modem_free(ni_modem_t *modem)
 		}
 	}
 
+	ni_modem_set_client_info(modem, NULL);
 	free(modem);
 }
 
@@ -519,6 +520,17 @@ ni_modem_release(ni_modem_t *modem)
 	ni_assert(modem->refcount != 0);
 	if (--(modem->refcount) == 0)
 		ni_modem_free(modem);
+}
+
+void
+ni_modem_set_client_info(ni_modem_t *modem, ni_device_clientinfo_t *client_info)
+{
+	if (modem->client_info == client_info)
+		return;
+	if (modem->client_info)
+		ni_device_clientinfo_free(modem->client_info);
+
+	modem->client_info = client_info;
 }
 
 /*
