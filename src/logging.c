@@ -43,6 +43,7 @@ static ni_intmap_t __debug_flags_names[] = {
 	{ "xml", 	NI_TRACE_XML },
 	{ "objectmodel",NI_TRACE_OBJECTMODEL },
 	{ "application",NI_TRACE_APPLICATION },
+	{ "modem",	NI_TRACE_MODEM },
 
 	{ "most", 	NI_TRACE_MOST },
 	{ "all", 	NI_TRACE_ALL },
