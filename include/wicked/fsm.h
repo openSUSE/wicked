@@ -248,4 +248,20 @@ ni_ifworker_release(ni_ifworker_t *state)
 		ni_ifworker_free(state);
 }
 
+static inline ni_netdev_t *
+ni_ifworker_get_netdev(const ni_ifworker_t *w)
+{
+	if (w->type != NI_IFWORKER_TYPE_NETDEV)
+		return NULL;
+	return w->device;
+}
+
+static inline ni_modem_t *
+ni_ifworker_get_modem(const ni_ifworker_t *w)
+{
+	if (w->type != NI_IFWORKER_TYPE_MODEM)
+		return NULL;
+	return w->modem;
+}
+
 #endif /* __CLIENT_FSM_H__ */
