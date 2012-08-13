@@ -232,6 +232,7 @@ extern int			ni_ifworker_state_from_name(const char *);
 extern ni_fsm_require_t *	ni_ifworker_reachability_check_new(xml_node_t *);
 extern ni_bool_t		ni_ifworker_match_alias(const ni_ifworker_t *w, const char *alias);
 extern void			ni_ifworker_set_config(ni_ifworker_t *, xml_node_t *, const char *);
+extern ni_bool_t		ni_ifworker_check_config(const ni_ifworker_t *, const xml_node_t *, const char *);
 extern void			ni_ifworker_reset(ni_ifworker_t *);
 extern int			ni_ifworker_start(ni_fsm_t *, ni_ifworker_t *, unsigned long);
 extern void			ni_ifworker_free(ni_ifworker_t *);
@@ -292,6 +293,15 @@ ni_ifworker_get_modem(const ni_ifworker_t *w)
 	if (w->type != NI_IFWORKER_TYPE_MODEM)
 		return NULL;
 	return w->modem;
+}
+
+/*
+ * Returns true iff the device was configured correctly
+ */
+static inline ni_bool_t
+ni_ifworker_is_running(const ni_ifworker_t *w)
+{
+	return w->done && !w->failed;
 }
 
 #endif /* __CLIENT_FSM_H__ */

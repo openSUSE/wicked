@@ -741,15 +741,18 @@ ni_ifworker_update_state(ni_ifworker_t *w, unsigned int min_state, unsigned int 
  * is less than the size of a UUID, the result is zero-padded; if it's bigger,
  * the digest is simply truncated.
  */
+static inline int
+__ni_ifworker_generate_config_uuid(const xml_node_t *config, ni_uuid_t *uuid)
+{
+	memset(uuid, 0, sizeof(*uuid));
+	return xml_node_hash(config, uuid->octets, sizeof(uuid->octets));
+}
+
 static void
 ni_ifworker_generate_uuid(ni_ifworker_t *w)
 {
 	if (w->config.node) {
-		int md_len;
-
-		memset(&w->config.uuid, 0, sizeof(w->config.uuid));
-		md_len = xml_node_hash(w->config.node, w->config.uuid.octets, sizeof(w->config.uuid.octets));
-		if (md_len < 0)
+		if (__ni_ifworker_generate_config_uuid(w->config.node, &w->config.uuid) < 0)
 			ni_fatal("cannot generate uuid for %s config - hashing failed?!", w->name);
 	} else {
 		/* Generate a temporary uuid only */
@@ -816,6 +819,26 @@ ni_ifworker_set_config(ni_ifworker_t *w, xml_node_t *ifnode, const char *config_
 
 	if ((child = xml_node_get_child(ifnode, "dependencies")) != NULL)
 		ni_ifworker_set_dependencies_xml(w, child);
+}
+
+/*
+ * Check if the ifworker is still using the same config
+ */
+ni_bool_t
+ni_ifworker_check_config(const ni_ifworker_t *w, const xml_node_t *config_node, const char *config_origin)
+{
+	ni_uuid_t uuid;
+
+	if (__ni_ifworker_generate_config_uuid(config_node, &uuid) < 0)
+		return FALSE;
+
+	if (!ni_string_eq(w->config.origin, config_origin))
+		return FALSE;
+
+	if (memcmp(&w->config.uuid, &uuid, sizeof(uuid)) != 0)
+		return FALSE;
+
+	return TRUE;
 }
 
 /*
