@@ -1943,24 +1943,42 @@ __ni_ifworker_refresh_modems(ni_fsm_t *fsm)
 		ni_fatal("Couldn't refresh list of available modems");
 
 	for (object = list_object->children; object; object = object->next) {
-		ni_modem_t *modem = ni_objectmodel_unwrap_modem(object, NULL);
-		ni_ifworker_t *found = NULL;
+		ni_fsm_recv_new_modem(fsm, object, FALSE);
+	}
+}
 
-		if (modem == NULL || modem->device == NULL)
-			continue;
+ni_ifworker_t *
+ni_fsm_recv_new_modem(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh)
+{
+	ni_ifworker_t *found = NULL;
+	ni_modem_t *modem;
 
-		found = ni_ifworker_by_modem(fsm, modem);
-		if (!found)
-			found = ni_fsm_ifworker_by_object_path(fsm, object->path);
-		if (!found) {
-			ni_debug_application("received new modem %s (%s)", modem->device, object->path);
-			found = ni_ifworker_new(fsm, NI_IFWORKER_TYPE_MODEM, modem->device);
+	modem = ni_objectmodel_unwrap_modem(object, NULL);
+	if ((modem == NULL || modem->device == NULL) && refresh) {
+		if (!ni_dbus_object_refresh_children(object)) {
+			ni_error("%s: failed to refresh modem object", object->path);
+			return NULL;
 		}
 
-		/* Don't touch devices we're done with */
-		if (found->done)
-			continue;
+		modem = ni_objectmodel_unwrap_modem(object, NULL);
+	}
 
+	if (modem == NULL || modem->device == NULL) {
+		ni_error("%s: refresh failed to set up modem object", object->path);
+		return NULL;
+	}
+
+
+	found = ni_ifworker_by_modem(fsm, modem);
+	if (!found)
+		found = ni_fsm_ifworker_by_object_path(fsm, object->path);
+	if (!found) {
+		ni_debug_application("received new modem %s (%s)", modem->device, object->path);
+		found = ni_ifworker_new(fsm, NI_IFWORKER_TYPE_MODEM, modem->device);
+	}
+
+	/* Don't touch devices we're done with */
+	if (!found->done) {
 		if (!found->object_path)
 			ni_string_dup(&found->object_path, object->path);
 		if (!found->modem)
@@ -1969,6 +1987,21 @@ __ni_ifworker_refresh_modems(ni_fsm_t *fsm)
 
 		ni_ifworker_update_state(found, NI_FSM_STATE_DEVICE_EXISTS, __NI_FSM_STATE_MAX);
 	}
+
+	return found;
+}
+
+ni_ifworker_t *
+ni_fsm_recv_new_modem_path(ni_fsm_t *fsm, const char *path)
+{
+	static ni_dbus_object_t *list_object = NULL;
+	ni_dbus_object_t *object;
+
+	if (!list_object && !(list_object = ni_call_get_modem_list_object()))
+		ni_fatal("unable to get server's modem list");
+
+	object = ni_dbus_object_create(list_object, path, NULL, NULL);
+	return ni_fsm_recv_new_modem(fsm, object, TRUE);
 }
 
 static inline ni_bool_t
