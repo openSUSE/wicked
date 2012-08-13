@@ -207,6 +207,7 @@ interface_manager(void)
 
 		if (ni_fsm_policies_changed_since(mgr->fsm, &policy_seq)) {
 			ni_managed_netdev_t *mdev;
+			ni_managed_modem_t *mmod;
 
 			for (mdev = mgr->netdev_list; mdev; mdev = mdev->next) {
 				ni_ifworker_t *w;
@@ -217,6 +218,9 @@ interface_manager(void)
 				w = ni_fsm_ifworker_by_netdev(mgr->fsm, mdev->dev);
 				if (w)
 					ni_manager_schedule_recheck(mgr, w);
+			}
+			for (mmod = mgr->modem_list; mmod; mmod = mmod->next) {
+				ni_manager_schedule_recheck(mgr, mmod->worker);
 			}
 		}
 
