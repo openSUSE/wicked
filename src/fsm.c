@@ -32,6 +32,8 @@
 #include "util_priv.h"
 
 static unsigned int		ni_ifworker_timeout_count;
+static ni_fsm_user_prompt_fn_t *ni_fsm_user_prompt_fn;
+static void *			ni_fsm_user_prompt_data;
 
 static const char *		ni_ifworker_state_name(int);
 static ni_ifworker_t *		ni_ifworker_identify_device(ni_fsm_t *, const xml_node_t *, ni_ifworker_type_t);
@@ -46,6 +48,8 @@ static int			ni_ifworker_bind_device_apis(ni_ifworker_t *, const ni_dbus_service
 static void			ni_ifworker_control_set_defaults(ni_ifworker_t *);
 static void			__ni_ifworker_refresh_netdevs(ni_fsm_t *);
 static void			__ni_ifworker_refresh_modems(ni_fsm_t *);
+static int			ni_fsm_user_prompt_default(const ni_fsm_prompt_t *, xml_node_t *, void *);
+
 
 ni_fsm_t *
 ni_fsm_new(void)
@@ -54,6 +58,8 @@ ni_fsm_new(void)
 
 	fsm = calloc(1, sizeof(*fsm));
 	fsm->worker_timeout = NI_IFWORKER_DEFAULT_TIMEOUT;
+
+	ni_fsm_user_prompt_fn = ni_fsm_user_prompt_default;
 	return fsm;
 }
 
@@ -2024,10 +2030,9 @@ ni_ifworker_error_handler(ni_call_error_context_t *ctx, const DBusError *error)
 	ni_debug_dbus("%s(%s, %s)", __func__, error->name, error->message);
 	errcode = ni_dbus_get_error(error, &detail);
 	if (errcode == -NI_ERROR_AUTH_INFO_MISSING) {
-		xml_node_t *authnode;
+		ni_fsm_prompt_t prompt;
 		char *node_spec, *prompt_type = NULL, *ident = NULL;
-		const char *value = NULL;
-		char buffer[256];
+		xml_node_t *authnode;
 		int nretries;
 
 		nretries = ni_call_error_context_get_retries(ctx, error);
@@ -2041,39 +2046,24 @@ ni_ifworker_error_handler(ni_call_error_context_t *ctx, const DBusError *error)
 		 * or USER, and ident is an optional identifier of what
 		 * is being asked for.
 		 */
+		memset(&prompt, 0, sizeof(prompt));
 		if (!(node_spec = strtok(detail, "|")))
 			goto out;
 		if ((prompt_type = strtok(NULL, "|")) != NULL)
 			ident = strtok(NULL, "|");
 
-		if (prompt_type && !strcmp(prompt_type, "PASSWORD")) {
-			char *prompt;
-
-			prompt = "Please enter password: ";
-			if (ident) {
-				snprintf(buffer, sizeof(buffer), "Please enter password for %s: ", ident);
-				prompt = buffer;
-			}
-
-			value = getpass(prompt);
-		} else {
-			if (ident)
-				printf("Please enter user name for %s: ", ident);
-			else
-				printf("Please enter user name: ");
-			fflush(stdout);
-
-			value = fgets(buffer, sizeof(buffer), stdin);
-			/* EOF? User pressed Ctrl-D */
-			if (value == NULL)
-				printf("\n");
+		prompt.id = ident;
+		prompt.type = NI_FSM_PROMPT_OTHER;
+		if (prompt_type != NULL) {
+			if (!strcasecmp(prompt_type, "password"))
+				prompt.type = NI_FSM_PROMPT_PASSWORD;
+			else if (!strcasecmp(prompt_type, "user"))
+				prompt.type = NI_FSM_PROMPT_USERNAME;
 		}
 
-		if (value) {
-			authnode = ni_call_error_context_get_node(ctx, node_spec);
-			xml_node_set_cdata(authnode, value);
+		authnode = ni_call_error_context_get_node(ctx, node_spec);
+		if (ni_fsm_user_prompt_fn(&prompt, authnode, ni_fsm_user_prompt_data) == 0)
 			errcode = -NI_ERROR_RETRY_OPERATION;
-		}
 	}
 
 out:
@@ -2180,38 +2170,26 @@ ni_ifworker_xml_metadata_callback(xml_node_t *node, const ni_xs_type_t *type, co
 int
 ni_ifworker_prompt_cb(xml_node_t *node, const ni_xs_type_t *xs_type, const xml_node_t *metadata, void *user_data)
 {
-	const char *prompt, *type, *value;
-	char buffer[256];
+	ni_fsm_prompt_t prompt;
+	const char *type;
 
-	prompt = xml_node_get_attr(metadata, "prompt");
+	memset(&prompt, 0, sizeof(prompt));
+
+	prompt.string = xml_node_get_attr(metadata, "prompt");
+	prompt.id = xml_node_get_attr(metadata, "id");
+
 	if ((type = xml_node_get_attr(metadata, "type")) == NULL) {
 		ni_error("%s: missing type attribute in %s element", xml_node_location(metadata), metadata->name);
 		return -1;
 	}
+	if (!strcasecmp(type, "user"))
+		prompt.type = NI_FSM_PROMPT_USERNAME;
+	else if (!strcasecmp(type, "password"))
+		prompt.type = NI_FSM_PROMPT_PASSWORD;
+	else
+		prompt.type = NI_FSM_PROMPT_OTHER;
 
-	if (!strcasecmp(type, "password")) {
-		if (prompt == NULL)
-			prompt = "Please enter password";
-
-		snprintf(buffer, sizeof(buffer), "%s: ", prompt);
-		value = getpass(prompt);
-	} else {
-		if (prompt == NULL)
-			prompt = "Please enter user name";
-
-		printf("%s: ", prompt);
-		fflush(stdout);
-
-		value = fgets(buffer, sizeof(buffer), stdin);
-		/* EOF? User pressed Ctrl-D */
-		if (value == NULL)
-			printf("\n");
-	}
-
-	if (value == NULL)
-		return -1;
-	xml_node_set_cdata(node, value);
-	return 0;
+	return ni_fsm_user_prompt_fn(&prompt, node, ni_fsm_user_prompt_data);
 }
 
 /*
@@ -2985,3 +2963,77 @@ ni_fsm_mainloop(ni_fsm_t *fsm)
 
 	ni_debug_application("finished with all devices.");
 }
+
+/*
+ * Prompt for data.
+ * The default implementation is to use stdio
+ */
+int
+ni_fsm_user_prompt_default(const ni_fsm_prompt_t *p, xml_node_t *node, void *user_data)
+{
+	ni_stringbuf_t prompt_buf;
+	int rv = -1;
+
+	if (node == NULL)
+		return -NI_ERROR_INVALID_ARGS;
+
+	ni_stringbuf_init(&prompt_buf);
+
+	if (p->string != NULL) {
+		ni_stringbuf_puts(&prompt_buf, p->string);
+	} else {
+		ni_stringbuf_puts(&prompt_buf, "Please enter ");
+		switch (p->type) {
+		case NI_FSM_PROMPT_PASSWORD:
+			ni_stringbuf_puts(&prompt_buf, "password");
+			break;
+		case NI_FSM_PROMPT_USERNAME:
+			ni_stringbuf_puts(&prompt_buf, "user name");
+			break;
+		default:
+			ni_stringbuf_puts(&prompt_buf, "value");
+			break;
+		}
+
+		if (p->id)
+			ni_stringbuf_printf(&prompt_buf, " for %s", p->id);
+	}
+	ni_stringbuf_puts(&prompt_buf, ": ");
+
+	if (p->type == NI_FSM_PROMPT_PASSWORD) {
+		const char *value;
+
+		value = getpass(prompt_buf.string);
+		if (value == NULL)
+			goto done;
+
+		xml_node_set_cdata(node, value);
+	} else {
+		char buffer[256];
+
+		fputs(prompt_buf.string, stdout);
+		fflush(stdout);
+
+		if (fgets(buffer, sizeof(buffer), stdin) == NULL) {
+			/* EOF: User pressed Ctrl-D */
+			printf("\n");
+			goto done;
+		}
+
+		xml_node_set_cdata(node, buffer);
+	}
+
+	rv = 0;
+
+done:
+	ni_stringbuf_destroy(&prompt_buf);
+	return rv;
+}
+
+void
+ni_fsm_set_user_prompt_fn(ni_fsm_t *fsm, ni_fsm_user_prompt_fn_t *fn, void *user_data)
+{
+	ni_fsm_user_prompt_fn = fn;
+	ni_fsm_user_prompt_data = user_data;
+}
+

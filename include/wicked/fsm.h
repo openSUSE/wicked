@@ -234,6 +234,27 @@ extern void			ni_ifworker_array_destroy(ni_ifworker_array_t *);
 extern void			ni_fsm_require_register_type(const char *, ni_fsm_require_ctor_t *);
 extern ni_fsm_require_t *	ni_fsm_require_new(ni_fsm_require_fn_t *, ni_fsm_require_dtor_t *);
 
+/*
+ * This callback is invoked when the FSM engine needs user input
+ */
+enum {
+	NI_FSM_PROMPT_USERNAME,
+	NI_FSM_PROMPT_PASSWORD,
+	NI_FSM_PROMPT_OTHER
+};
+typedef struct ni_fsm_prompt {
+	unsigned int		type;
+	const char *		string;
+	const char *		id;
+} ni_fsm_prompt_t;
+
+typedef int			ni_fsm_user_prompt_fn_t(const ni_fsm_prompt_t *, xml_node_t *, void *);
+
+extern void			ni_fsm_set_user_prompt_fn(ni_fsm_t *, ni_fsm_user_prompt_fn_t *, void *);
+
+/*
+ * Various simple inline helpers
+ */
 static inline ni_ifworker_t *
 ni_ifworker_get(ni_ifworker_t *w)
 {
