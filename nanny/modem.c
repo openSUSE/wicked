@@ -53,6 +53,9 @@ ni_managed_modem_new(ni_manager_t *mgr, ni_ifworker_t *w)
 {
 	ni_managed_modem_t *mdev;
 
+	if (w->modem == NULL)
+		ni_warn("%s(%s): device not bound", __func__, w->name);
+
 	mdev = calloc(1, sizeof(*mdev));
 	mdev->manager = mgr;
 	mdev->worker = ni_ifworker_get(w);
@@ -85,9 +88,13 @@ ni_managed_modem_apply_policy(ni_managed_modem_t *mdev, ni_managed_policy_t *mpo
 	const ni_fsm_policy_t *policy = mpolicy->fsm_policy;
 	xml_node_t *config;
 
-	if (mdev->selected_policy == mpolicy) {
-		ni_trace("%s: keep using policy %s", device_name, ni_fsm_policy_name(policy));
-		return;
+	/* If the device is up and running, do not reconfigure unless the policy
+	 * has really changed */
+	if (ni_ifworker_is_running(mdev->worker)) {
+		if (mdev->selected_policy == mpolicy && mdev->selected_policy_seq == mpolicy->seqno) {
+			ni_trace("%s: keep using policy %s", device_name, ni_fsm_policy_name(policy));
+			return;
+		}
 	}
 
 	ni_trace("%s: using policy %s", device_name, ni_fsm_policy_name(policy));
@@ -106,10 +113,11 @@ ni_managed_modem_apply_policy(ni_managed_modem_t *mdev, ni_managed_policy_t *mpo
 		xml_node_free(mdev->selected_config);
 	mdev->selected_config = config;
 	mdev->selected_policy = mpolicy;
+	mdev->selected_policy_seq = mpolicy->seqno;
 	mdev->timeout = fsm->worker_timeout;
 
 	/* Now do the fandango */
-	ni_managed_modem_up(mdev, NI_FSM_STATE_ADDRCONF_UP);
+	ni_managed_modem_up(mdev, NI_FSM_STATE_DEVICE_UP);
 }
 
 /*
@@ -119,8 +127,13 @@ void
 ni_managed_modem_up(ni_managed_modem_t *mdev, unsigned int target_state)
 {
 	ni_ifworker_t *w = mdev->worker;
+	char security_id[256];
 
 	ni_ifworker_reset(w);
+
+	snprintf(security_id, sizeof(security_id), "modem:%s", w->modem->identify.equipment);
+	ni_string_dup(&w->security_id, security_id);
+
 	ni_ifworker_set_config(w, mdev->selected_config, "manager");
 	w->target_range.min = target_state;
 	w->target_range.max = __NI_FSM_STATE_MAX;

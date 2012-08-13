@@ -27,6 +27,7 @@ struct ni_managed_netdev {
 	ni_bool_t		user_controlled;
 
 	ni_managed_policy_t *	selected_policy;
+	unsigned int		selected_policy_seq;
 	xml_node_t *		selected_config;
 	unsigned long		timeout;
 };
@@ -40,12 +41,15 @@ struct ni_managed_modem {
 	ni_bool_t		user_controlled;
 
 	ni_managed_policy_t *	selected_policy;
+	unsigned int		selected_policy_seq;
 	xml_node_t *		selected_config;
 	unsigned long		timeout;
 };
 
 struct ni_managed_policy {
 	ni_managed_policy_t *	next;
+
+	unsigned int		seqno;
 	ni_fsm_policy_t *	fsm_policy;
 	xml_document_t *	doc;
 };

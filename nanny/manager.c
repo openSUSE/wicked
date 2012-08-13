@@ -117,6 +117,7 @@ void
 ni_manager_add_secret(ni_manager_t *mgr, const char *security_id, const char *path, const char *value)
 {
 	ni_manager_secret_t *sec, **pos;
+	ni_managed_modem_t *mmod;
 
 	pos = __ni_manager_find_secret(mgr, security_id, path);
 	if ((sec = *pos) == NULL) {
@@ -126,6 +127,18 @@ ni_manager_add_secret(ni_manager_t *mgr, const char *security_id, const char *pa
 	}
 
 	ni_string_dup(&sec->value, value);
+
+	ni_trace("%s: secret for %s updated", security_id, path);
+	for (mmod = mgr->modem_list; mmod; mmod = mmod->next) {
+		ni_ifworker_t *w = mmod->worker;
+
+		ni_trace("%s: security-id=%s", w->name, w->security_id);
+		if (w && ni_string_eq(w->security_id, security_id)
+		 && !ni_ifworker_is_running(w)) {
+			ni_trace("%s: secret for %s updated, rechecking", w->name, path);
+			ni_manager_schedule_recheck(mgr, w);
+		}
+	}
 }
 
 const char *
