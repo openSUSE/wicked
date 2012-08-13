@@ -379,21 +379,16 @@ ni_modem_manager_add_modem(ni_modem_manager_client_t *modem_manager, const char 
 {
 	DBusError error = DBUS_ERROR_INIT;
 	ni_dbus_object_t *modem_object;
-	const char *relative_path;
 	const ni_dbus_class_t *class;
 	ni_modem_t *modem;
 
 	ni_debug_dbus("%s(%s)", __func__, object_path);
-	if ((relative_path = ni_dbus_object_get_relative_path(modem_manager->proxy, object_path)) == NULL) {
-		ni_error("%s: cannot add modem object \"%s\", bad path", __func__, object_path);
-		return;
-	}
 
 	modem = ni_modem_new();
 	ni_string_dup(&modem->real_path, object_path);
 
 	/* Create the DBus client object for this modem. */
-	modem_object = ni_dbus_object_create(modem_manager->proxy, relative_path, ni_objectmodel_modem_class_ptr, modem);
+	modem_object = ni_dbus_object_create(modem_manager->proxy, object_path, ni_objectmodel_modem_class_ptr, modem);
 	if (modem_object == NULL) {
 		ni_modem_release(modem);
 		return;
@@ -433,16 +428,11 @@ static void
 ni_modem_manager_remove_modem(ni_modem_manager_client_t *modem_manager, const char *object_path)
 {
 	ni_dbus_object_t *modem_object;
-	const char *relative_path;
 	ni_modem_t *modem;
 
 	ni_debug_dbus("%s(%s)", __func__, object_path);
-	if ((relative_path = ni_dbus_object_get_relative_path(modem_manager->proxy, object_path)) == NULL) {
-		ni_error("%s: cannot remove modem object \"%s\", bad path", __func__, object_path);
-		return;
-	}
 
-	modem_object = ni_dbus_object_lookup(modem_manager->proxy, relative_path);
+	modem_object = ni_dbus_object_lookup(modem_manager->proxy, object_path);
 	if (modem_object == NULL) {
 		ni_warn("%s: spurious remove event, cannot find object \"%s\"", __func__, object_path);
 		return;
@@ -460,11 +450,9 @@ ni_modem_manager_remove_modem(ni_modem_manager_client_t *modem_manager, const ch
 static ni_modem_t *
 ni_modem_manager_get_modem(ni_modem_manager_client_t *modem_manager, const char *object_path)
 {
-	const char *relative_path;
 	ni_dbus_object_t *modem_object;
 
-	if ((relative_path = ni_dbus_object_get_relative_path(modem_manager->proxy, object_path)) == NULL
-	 || !(modem_object = ni_dbus_object_lookup(modem_manager->proxy, relative_path))) {
+	if (!(modem_object = ni_dbus_object_lookup(modem_manager->proxy, object_path))) {
 		ni_error("%s: cannot handle event for modem object \"%s\", bad path", __func__, object_path);
 		return NULL;
 	}

@@ -195,6 +195,21 @@ __ni_dbus_object_lookup(ni_dbus_object_t *root_object, const char *path, int cre
 	if (path == NULL)
 		return root_object;
 
+	/* If the path starts with a /, it's an absolute path.
+	 * Strip off the root node's path. */
+	if (*path == '/') {
+		const char *relative_path;
+
+		relative_path = ni_dbus_object_get_relative_path(root_object, path);
+		if (relative_path == NULL) {
+			ni_warn("cannot look up object %s (not a descendant of %s)",
+					path, root_object->path);
+			return NULL;
+		}
+
+		path = relative_path;
+	}
+
 	ni_string_dup(&path_copy, path);
 
 	found = root_object;

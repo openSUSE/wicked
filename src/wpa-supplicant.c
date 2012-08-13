@@ -204,19 +204,10 @@ ni_dbus_object_t *
 ni_wpa_interface_network_by_path(ni_wpa_interface_t *wpa_dev, const char *object_path)
 {
 	ni_dbus_object_t *dev_object, *net_object;
-	unsigned int dev_path_len;
 
 	ni_assert((dev_object = wpa_dev->proxy) != NULL);
-	dev_path_len = strlen(dev_object->path);
 
-	if (strncmp(object_path, dev_object->path, dev_path_len)
-	 || object_path[dev_path_len] != '/') {
-		ni_error("%s: rejecting network object %s, path doesn't match prefix %s",
-				__func__, object_path, dev_object->path);
-		return NULL;
-	}
-
-	net_object = ni_dbus_object_create(dev_object, object_path + dev_path_len,
+	net_object = ni_dbus_object_create(dev_object, object_path,
 			&ni_objectmodel_wpanet_class, NULL);
 	if (net_object == NULL) {
 		ni_error("could not create dbus object %s", object_path);

@@ -493,7 +493,7 @@ ni_dbus_object_get_managed_objects(ni_dbus_object_t *proxy, DBusError *error)
 	while (dbus_message_iter_get_arg_type(&iter_dict) == DBUS_TYPE_DICT_ENTRY) {
 		DBusMessageIter iter_dict_entry;
 		ni_dbus_object_t *descendant;
-		const char *object_path, *relative_path;
+		const char *object_path;
 
 		dbus_message_iter_recurse(&iter_dict, &iter_dict_entry);
 		dbus_message_iter_next(&iter_dict);
@@ -506,17 +506,7 @@ ni_dbus_object_get_managed_objects(ni_dbus_object_t *proxy, DBusError *error)
 			goto bad_reply;
 
 		ni_debug_dbus("received remote object %s", object_path);
-
-		relative_path = ni_dbus_object_get_relative_path(proxy, object_path);
-		if (relative_path == NULL) {
-			ni_warn("%s: ignoring remote object %s (not a descendant of %s)",
-					__func__, object_path, proxy->path);
-			continue;
-		}
-		if (*relative_path)
-			descendant = ni_dbus_object_create(proxy, relative_path, NULL, NULL);
-		else
-			descendant = proxy;
+		descendant = ni_dbus_object_create(proxy, object_path, NULL, NULL);
 
 		/* On the client side, we may have to assign classes to newly created
 		 * proxy objects on the fly.
