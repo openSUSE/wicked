@@ -292,24 +292,39 @@ wicked_modem_event(ni_modem_t *modem, ni_event_t event)
 {
 	ni_debug_events("%s(%s, %s)", __func__, ni_event_type_to_name(event), modem->real_path);
 	if (wicked_dbus_server) {
+		ni_dbus_object_t *object;
 		ni_uuid_t *event_uuid = NULL;
+
+		if (event == NI_EVENT_DEVICE_CREATE) {
+			/* A new modem was discovered; create a dbus server object
+			 * enacpsulating it. */
+			object = ni_objectmodel_register_modem(wicked_dbus_server, modem);
+		} else
+		if (!(object = ni_objectmodel_get_modem_object(wicked_dbus_server, modem))) {
+			ni_error("cannot send %s event for model \"%s\" - no dbus device",
+				ni_event_type_to_name(event), modem->real_path);
+			return;
+		}
 
 		switch (event) {
 		case NI_EVENT_DEVICE_CREATE:
 			/* Create dbus object and emit event */
-			ni_objectmodel_register_modem(wicked_dbus_server, modem);
-			ni_objectmodel_modem_event(wicked_dbus_server, modem, event, event_uuid);
+			ni_objectmodel_send_modem_event(wicked_dbus_server, object, event, event_uuid);
 			break;
 
 		case NI_EVENT_DEVICE_DELETE:
+			/* Delete dbus object first, so that GetManagedObjects doesn't
+			 * return it any longer.
+			 * Note; deletion of the object will be deferred until we return to
+			 * the main loop.
+			 */
+			ni_objectmodel_unregister_modem(wicked_dbus_server, modem);
+
 			/* Emit deletion event */
 			if (!ni_uuid_is_null(&modem->event_uuid))
 				event_uuid = &modem->event_uuid;
-			ni_objectmodel_modem_event(wicked_dbus_server, modem, NI_EVENT_DEVICE_DOWN, event_uuid);
-			ni_objectmodel_modem_event(wicked_dbus_server, modem, NI_EVENT_DEVICE_DELETE, NULL);
-
-			/* Delete dbus object */
-			ni_objectmodel_unregister_modem(wicked_dbus_server, modem);
+			ni_objectmodel_send_modem_event(wicked_dbus_server, object, NI_EVENT_DEVICE_DOWN, event_uuid);
+			ni_objectmodel_send_modem_event(wicked_dbus_server, object, NI_EVENT_DEVICE_DELETE, NULL);
 			break;
 
 		case NI_EVENT_LINK_ASSOCIATED:
@@ -321,7 +336,7 @@ wicked_modem_event(ni_modem_t *modem, ni_event_t event)
 			/* fallthru */
 
 		default:
-			ni_objectmodel_modem_event(wicked_dbus_server, modem, event, event_uuid);
+			ni_objectmodel_send_modem_event(wicked_dbus_server, object, event, event_uuid);
 			break;
 		}
 	}

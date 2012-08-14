@@ -250,6 +250,28 @@ ni_objectmodel_unwrap_modem(const ni_dbus_object_t *object, DBusError *error)
 	return NULL;
 }
 
+/*
+ * Given a modem device, look up the server object encapsulating it
+ */
+ni_dbus_object_t *
+ni_objectmodel_get_modem_object(ni_dbus_server_t *server, const ni_modem_t *modem)
+{
+	ni_dbus_object_t *object;
+
+	if (!modem)
+		return NULL;
+
+	object = ni_dbus_server_find_object_by_handle(server, modem);
+	if (object == NULL)
+		return NULL;
+
+	if (!ni_dbus_object_isa(object, &ni_objectmodel_modem_proxy_class)) {
+		ni_error("%s: modem is encapsulated by a %s class object", __func__, object->class->name);
+		return NULL;
+	}
+
+	return object;
+}
 
 /*
  * The ModemList service
@@ -541,22 +563,14 @@ ni_objectmodel_modem_set_client_info(ni_dbus_object_t *object, const ni_dbus_met
  * Broadcast a modem event
  */
 dbus_bool_t
-ni_objectmodel_modem_event(ni_dbus_server_t *server, ni_modem_t *modem,
+ni_objectmodel_send_modem_event(ni_dbus_server_t *server, ni_dbus_object_t *object,
 			ni_event_t ifevent, const ni_uuid_t *uuid)
 {
-	ni_dbus_object_t *object;
-
 	if (ifevent >= __NI_EVENT_MAX)
 		return FALSE;
 
 	if (!server && !(server = __ni_objectmodel_server)) {
 		ni_error("%s: help! No dbus server handle! Cannot send signal.", __func__);
-		return FALSE;
-	}
-
-	object = ni_dbus_server_find_object_by_handle(server, modem);
-	if (object == NULL) {
-		ni_warn("no dbus object for modem %s. Cannot send signal", modem->device);
 		return FALSE;
 	}
 
