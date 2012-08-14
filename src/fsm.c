@@ -1319,6 +1319,20 @@ ni_ifworker_type_from_string(const char *s)
 	return -1;
 }
 
+const char *
+ni_ifworker_type_to_string(ni_ifworker_type_t type)
+{
+	switch (type) {
+	case NI_IFWORKER_TYPE_NETDEV:
+		return "interface";
+	case NI_IFWORKER_TYPE_MODEM:
+		return "modem";
+	default: ;
+	}
+
+	return NULL;
+}
+
 /*
  * Get all interfaces matching some user-specified criteria
  */
