@@ -13,27 +13,14 @@
 #include <wicked/fsm.h>
 
 typedef struct ni_manager	ni_manager_t;
-typedef struct ni_managed_netdev ni_managed_netdev_t;
+typedef struct ni_managed_device ni_managed_device_t;
+typedef struct ni_managed_device ni_managed_netdev_t;
+typedef struct ni_managed_device ni_managed_modem_t;
 typedef struct ni_managed_policy ni_managed_policy_t;
-typedef struct ni_managed_modem	ni_managed_modem_t;
 typedef struct ni_manager_secret ni_manager_secret_t;
 
-struct ni_managed_netdev {
-	ni_managed_netdev_t *	next;
-
-	ni_manager_t *		manager;	// back pointer at mgr
-	ni_dbus_object_t *	object;		// server object
-	ni_ifworker_t *		worker;
-	ni_bool_t		user_controlled;
-
-	ni_managed_policy_t *	selected_policy;
-	unsigned int		selected_policy_seq;
-	xml_node_t *		selected_config;
-	unsigned long		timeout;
-};
-
-struct ni_managed_modem {
-	ni_managed_modem_t *	next;
+struct ni_managed_device {
+	ni_managed_device_t *	next;
 
 	ni_manager_t *		manager;	// back pointer at mgr
 	ni_dbus_object_t *	object;		// server object
