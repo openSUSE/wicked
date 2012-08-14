@@ -84,13 +84,16 @@ ni_manager_register_device(ni_manager_t *mgr, ni_ifworker_t *w)
 		return;
 
 	if (w->type == NI_IFWORKER_TYPE_NETDEV) {
-		mdev = ni_managed_netdev_new(mgr, w);
+		mdev = ni_managed_device_new(mgr, w, &mgr->netdev_list);
 		mdev->object = ni_objectmodel_register_managed_netdev(mgr->server, mdev);
 
 	} else
 	if (w->type == NI_IFWORKER_TYPE_MODEM) {
-		mdev = ni_managed_modem_new(mgr, w);
+		mdev = ni_managed_device_new(mgr, w, &mgr->modem_list);
 		mdev->object = ni_objectmodel_register_managed_modem(mgr->server, mdev);
+
+		/* FIXME: for now, we allow users to control all modems */
+		mdev->user_controlled = TRUE;
 	}
 }
 

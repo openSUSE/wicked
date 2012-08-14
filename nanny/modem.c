@@ -45,25 +45,6 @@ ni_objectmodel_managed_modem_init(ni_dbus_server_t *server)
 	ni_dbus_object_create(root_object, "Modem", NULL, NULL);
 }
 
-/*
- * managed_modem objects
- */
-ni_managed_device_t *
-ni_managed_modem_new(ni_manager_t *mgr, ni_ifworker_t *w)
-{
-	ni_managed_device_t *mdev;
-
-	if (w->modem == NULL)
-		ni_warn("%s(%s): device not bound", __func__, w->name);
-
-	mdev = ni_managed_device_new(mgr, w, &mgr->modem_list);
-
-	/* FIXME: for now, we allow users to control all modems */
-	mdev->user_controlled = TRUE;
-
-	return mdev;
-}
-
 void
 ni_managed_modem_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *mpolicy, ni_fsm_t *fsm)
 {

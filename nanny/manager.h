@@ -78,12 +78,10 @@ extern ni_managed_policy_t *	ni_manager_get_policy(ni_manager_t *, const ni_fsm_
 extern void			ni_manager_apply_policy(ni_manager_t *, ni_managed_policy_t *, ni_ifworker_t *);
 extern const char *		ni_manager_get_secret(ni_manager_t *, const char *, const char *);
 
-extern ni_managed_device_t *	ni_managed_netdev_new(ni_manager_t *, ni_ifworker_t *);
 extern ni_bool_t		ni_managed_netdev_enable(ni_managed_device_t *);
 extern void			ni_managed_netdev_apply_policy(ni_managed_device_t *, ni_managed_policy_t *, ni_fsm_t *);
 extern void			ni_managed_netdev_up(ni_managed_device_t *, unsigned int);
 
-extern ni_managed_device_t *	ni_managed_modem_new(ni_manager_t *, ni_ifworker_t *);
 extern void			ni_managed_modem_apply_policy(ni_managed_device_t *, ni_managed_policy_t *, ni_fsm_t *);
 extern void			ni_managed_modem_up(ni_managed_device_t *, unsigned int);
 

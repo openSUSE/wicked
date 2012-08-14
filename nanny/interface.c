@@ -46,15 +46,6 @@ ni_objectmodel_managed_netif_init(ni_dbus_server_t *server)
 }
 
 /*
- * managed_netdev objects
- */
-ni_managed_device_t *
-ni_managed_netdev_new(ni_manager_t *mgr, ni_ifworker_t *w)
-{
-	return ni_managed_device_new(mgr, w, &mgr->netdev_list);
-}
-
-/*
  * Enable a netdev for monitoring
  */
 ni_bool_t
