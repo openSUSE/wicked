@@ -428,6 +428,30 @@ ni_ifworker_array_find(ni_ifworker_array_t *array, ni_ifworker_type_t type, cons
 	return NULL;
 }
 
+static ni_bool_t
+ni_fsm_ifworker_array_remove(ni_ifworker_array_t *array, ni_ifworker_t *w)
+{
+	unsigned int i, j;
+	ni_bool_t found = FALSE;
+
+	for (i = 0; i < array->count; ) {
+		if (w == array->data[i]) {
+			ni_ifworker_release(w);
+
+			/* Shift remainder of array down one position */
+			array->count -= 1;
+			for (j = i; j < array->count; ++j)
+				array->data[j] = array->data[j + 1];
+
+			found = TRUE;
+		} else {
+			++i;
+		}
+	}
+
+	return found;
+}
+
 ni_ifworker_t *
 ni_fsm_ifworker_by_name(ni_fsm_t *fsm, ni_ifworker_type_t type, const char *ifname)
 {
@@ -1469,6 +1493,30 @@ ni_fsm_mark_matching_workers(ni_fsm_t *fsm, ni_ifmatcher_t *match, const ni_uint
 	ni_debug_application("marked %u interfaces", count);
 	ni_ifworker_array_destroy(&marked);
 	return count;
+}
+
+ni_bool_t
+ni_fsm_destroy_worker(ni_fsm_t *fsm, ni_ifworker_t *w)
+{
+	ni_ifworker_get(w);
+
+	ni_trace("%s(%s)", __func__, w->name);
+	if (!ni_fsm_ifworker_array_remove(&fsm->workers, w)) {
+		ni_ifworker_release(w);
+		return FALSE;
+	}
+
+	if (w->object) {
+		ni_dbus_object_free(w->object);
+		w->object = NULL;
+	}
+
+	if (w->config.node && !w->done)
+		ni_ifworker_fail(w, "device was deleted");
+	w->dead = TRUE;
+
+	ni_ifworker_release(w);
+	return TRUE;
 }
 
 int
