@@ -157,7 +157,7 @@ ni_manager_get_netdev(ni_manager_t *mgr, ni_netdev_t *dev)
 	ni_managed_netdev_t *mdev;
 
 	for (mdev = mgr->netdev_list; mdev; mdev = mdev->next) {
-		if (mdev->dev == dev)
+		if (ni_ifworker_get_netdev(mdev->worker) == dev)
 			return mdev;
 	}
 	return NULL;
@@ -244,14 +244,8 @@ interface_manager(void)
 			ni_managed_modem_t *mmod;
 
 			for (mdev = mgr->netdev_list; mdev; mdev = mdev->next) {
-				ni_ifworker_t *w;
-
-				if (!mdev->user_controlled)
-					continue;
-
-				w = ni_fsm_ifworker_by_netdev(mgr->fsm, mdev->dev);
-				if (w)
-					ni_manager_schedule_recheck(mgr, w);
+				if (mdev->user_controlled)
+					ni_manager_schedule_recheck(mgr, mdev->worker);
 			}
 			for (mmod = mgr->modem_list; mmod; mmod = mmod->next) {
 				ni_manager_schedule_recheck(mgr, mmod->worker);

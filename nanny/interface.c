@@ -56,7 +56,6 @@ ni_managed_netdev_new(ni_manager_t *mgr, ni_ifworker_t *w)
 	mdev = calloc(1, sizeof(*mdev));
 	mdev->manager = mgr;
 	mdev->worker = ni_ifworker_get(w);
-	mdev->dev = ni_netdev_get(w->device);
 
 	mdev->next = mgr->netdev_list;
 	mgr->netdev_list = mdev;
@@ -80,11 +79,6 @@ ni_managed_netdev_free(ni_managed_netdev_t *mdev)
 {
 	if (mdev->object)
 		ni_dbus_object_free(mdev->object);
-
-	if (mdev->dev != NULL) {
-		ni_netdev_put(mdev->dev);
-		mdev->dev = NULL;
-	}
 
 	if (mdev->worker)
 		ni_ifworker_release(mdev->worker);
@@ -177,10 +171,11 @@ ni_managed_netdev_up(ni_managed_netdev_t *mdev, unsigned int target_state)
 ni_dbus_object_t *
 ni_objectmodel_register_managed_netdev(ni_dbus_server_t *server, ni_managed_netdev_t *mdev)
 {
+	ni_netdev_t *dev = ni_ifworker_get_netdev(mdev->worker);
 	char relative_path[128];
 	ni_dbus_object_t *object;
 
-	snprintf(relative_path, sizeof(relative_path), "Interface/%u", mdev->dev->link.ifindex);
+	snprintf(relative_path, sizeof(relative_path), "Interface/%u", dev->link.ifindex);
 	object = ni_dbus_server_register_object(server, relative_path, &managed_netdev_class, mdev);
 
 	if (object)

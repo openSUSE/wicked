@@ -256,11 +256,12 @@ ni_objectmodel_manager_get_device(ni_dbus_object_t *object, const ni_dbus_method
 		dbus_set_error(error, NI_DBUS_ERROR_DEVICE_NOT_KNOWN, "No such device: %s", ifname);
 		return FALSE;
 	} else {
+		ni_netdev_t *dev = ni_ifworker_get_netdev(w);
 		char object_path[128];
 
 		snprintf(object_path, sizeof(object_path),
 				NI_OBJECTMODEL_MANAGED_NETIF_LIST_PATH "/%u",
-				mdev->dev->link.ifindex);
+				dev->link.ifindex);
 
 		ni_dbus_message_append_object_path(reply, object_path);
 	}
