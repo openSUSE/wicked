@@ -70,6 +70,30 @@ ni_managed_device_free(ni_managed_device_t *mdev)
 	free(mdev);
 }
 
+/*
+ * Look up managed device for a given ifworker
+ */
+ni_managed_device_t *
+ni_manager_get_device(ni_manager_t *mgr, ni_ifworker_t *w)
+{
+	ni_managed_device_t *mdev, *list;
+
+	switch (w->type) {
+	case NI_IFWORKER_TYPE_NETDEV:
+		list = mgr->netdev_list; break;
+	case NI_IFWORKER_TYPE_MODEM:
+		list = mgr->modem_list; break;
+	default:
+		return NULL;
+	}
+
+	for (mdev = list; mdev; mdev = mdev->next) {
+		if (mdev->worker == w)
+			return mdev;
+	}
+	return NULL;
+}
+
 void
 ni_objectmodel_unregister_managed_device(ni_managed_device_t *mdev)
 {

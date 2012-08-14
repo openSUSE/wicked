@@ -78,22 +78,19 @@ ni_objectmodel_manager_init(ni_manager_t *mgr)
 void
 ni_manager_register_device(ni_manager_t *mgr, ni_ifworker_t *w)
 {
-	if (w->type == NI_IFWORKER_TYPE_NETDEV) {
-		ni_managed_netdev_t *mdev;
+	ni_managed_device_t *mdev;
 
-		if (ni_manager_get_netdev(mgr, w->device) == NULL) {
-			mdev = ni_managed_netdev_new(mgr, w);
-			mdev->object = ni_objectmodel_register_managed_netdev(mgr->server, mdev);
-		}
+	if (ni_manager_get_device(mgr, w) != NULL)
+		return;
+
+	if (w->type == NI_IFWORKER_TYPE_NETDEV) {
+		mdev = ni_managed_netdev_new(mgr, w);
+		mdev->object = ni_objectmodel_register_managed_netdev(mgr->server, mdev);
 
 	} else
 	if (w->type == NI_IFWORKER_TYPE_MODEM) {
-		ni_managed_modem_t *mdev;
-
-		if (ni_manager_get_modem(mgr, w->modem) == NULL) {
-			mdev = ni_managed_modem_new(mgr, w);
-			mdev->object = ni_objectmodel_register_managed_modem(mgr->server, mdev);
-		}
+		mdev = ni_managed_modem_new(mgr, w);
+		mdev->object = ni_objectmodel_register_managed_modem(mgr->server, mdev);
 	}
 }
 
@@ -105,22 +102,17 @@ ni_manager_unregister_device(ni_manager_t *mgr, ni_ifworker_t *w)
 {
 	ni_managed_device_t *mdev = NULL;
 
+	if ((mdev = ni_manager_get_device(mgr, w)) == NULL) {
+		ni_error("%s: cannot unregister; device not known", w->name);
+		return;
+	}
+
 	if (w->type == NI_IFWORKER_TYPE_NETDEV) {
-
-		if ((mdev = ni_manager_get_netdev(mgr, w->device)) == NULL)
-			return;
-
 		ni_manager_remove_netdev(mgr, mdev);
 	} else
 	if (w->type == NI_IFWORKER_TYPE_MODEM) {
-		if ((mdev = ni_manager_get_modem(mgr, w->modem)) == NULL) {
-			ni_error("%s: cannot unregister; device not known", w->name);
-			return;
-		}
-
 		ni_manager_remove_modem(mgr, mdev);
-	} else
-		return;
+	}
 
 	ni_objectmodel_unregister_managed_device(mdev);
 	ni_fsm_destroy_worker(mgr->fsm, w);
@@ -132,21 +124,16 @@ ni_manager_unregister_device(ni_manager_t *mgr, ni_ifworker_t *w)
 void
 ni_manager_apply_policy(ni_manager_t *mgr, ni_managed_policy_t *mpolicy, ni_ifworker_t *w)
 {
+	ni_managed_device_t *mdev;
+
+	if ((mdev = ni_manager_get_device(mgr, w)) == NULL)
+		return;
+
 	if (w->type == NI_IFWORKER_TYPE_NETDEV) {
-		ni_managed_netdev_t *mdev;
-
-		if ((mdev = ni_manager_get_netdev(mgr, w->device)) == NULL)
-			return;
-
 		ni_managed_netdev_apply_policy(mdev, mpolicy, mgr->fsm);
 	} else
 	if (w->type == NI_IFWORKER_TYPE_MODEM) {
-		ni_managed_modem_t *mmodem;
-
-		if ((mmodem = ni_manager_get_modem(mgr, w->modem)) == NULL)
-			return;
-
-		ni_managed_modem_apply_policy(mmodem, mpolicy, mgr->fsm);
+		ni_managed_modem_apply_policy(mdev, mpolicy, mgr->fsm);
 	}
 }
 
@@ -249,7 +236,7 @@ ni_objectmodel_manager_get_device(ni_dbus_object_t *object, const ni_dbus_method
 	w = ni_fsm_ifworker_by_name(mgr->fsm, NI_IFWORKER_TYPE_NETDEV, ifname);
 
 	if (w)
-		mdev = ni_manager_get_netdev(mgr, w->device);
+		mdev = ni_manager_get_device(mgr, w);
 
 	if (mdev == NULL) {
 		dbus_set_error(error, NI_DBUS_ERROR_DEVICE_NOT_KNOWN, "No such device: %s", ifname);

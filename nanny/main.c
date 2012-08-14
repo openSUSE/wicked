@@ -152,18 +152,6 @@ ni_manager_schedule_down(ni_manager_t *mgr, ni_ifworker_t *w)
 }
 
 ni_managed_netdev_t *
-ni_manager_get_netdev(ni_manager_t *mgr, ni_netdev_t *dev)
-{
-	ni_managed_netdev_t *mdev;
-
-	for (mdev = mgr->netdev_list; mdev; mdev = mdev->next) {
-		if (ni_ifworker_get_netdev(mdev->worker) == dev)
-			return mdev;
-	}
-	return NULL;
-}
-
-ni_managed_netdev_t *
 ni_manager_remove_netdev(ni_manager_t *mgr, ni_managed_netdev_t *mdev)
 {
 	ni_managed_netdev_t *cur, **pos;
@@ -174,18 +162,6 @@ ni_manager_remove_netdev(ni_manager_t *mgr, ni_managed_netdev_t *mdev)
 			cur->next = NULL;
 			return cur;
 		}
-	}
-	return NULL;
-}
-
-ni_managed_modem_t *
-ni_manager_get_modem(ni_manager_t *mgr, ni_modem_t *dev)
-{
-	ni_managed_modem_t *mdev;
-
-	for (mdev = mgr->modem_list; mdev; mdev = mdev->next) {
-		if (ni_ifworker_get_modem(mdev->worker) == dev)
-			return mdev;
 	}
 	return NULL;
 }
@@ -339,7 +315,7 @@ ni_manager_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus
 		// If we have recorded a policy for this device, it means
 		// we were the ones who took it up - so bring it down
 		// again
-		if ((mdev = ni_manager_get_netdev(mgr, w->device)) != NULL
+		if ((mdev = ni_manager_get_device(mgr, w)) != NULL
 		 && mdev->selected_policy != NULL
 		 && mdev->user_controlled)
 			ni_manager_schedule_down(mgr, w);
@@ -348,7 +324,7 @@ ni_manager_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus
 		// If we have recorded a policy for this device, it means
 		// we were the ones who took it up - so bring it down
 		// again
-		if ((mdev = ni_manager_get_netdev(mgr, w->device)) != NULL
+		if ((mdev = ni_manager_get_device(mgr, w)) != NULL
 		 && mdev->selected_policy != NULL
 		 && mdev->user_controlled)
 			ni_manager_schedule_down(mgr, w);
@@ -362,7 +338,7 @@ ni_manager_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus
 	} else
 	if (ni_string_eq(signal_name, "linkUp")) {
 		// Link detection - eg for ethernet
-		if ((mdev = ni_manager_get_netdev(mgr, w->device)) != NULL
+		if ((mdev = ni_manager_get_device(mgr, w)) != NULL
 		 && mdev->selected_policy == NULL
 		 && mdev->user_controlled)
 			ni_manager_schedule_recheck(mgr, w);
