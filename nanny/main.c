@@ -184,7 +184,7 @@ ni_manager_get_modem(ni_manager_t *mgr, ni_modem_t *dev)
 	ni_managed_modem_t *mdev;
 
 	for (mdev = mgr->modem_list; mdev; mdev = mdev->next) {
-		if (mdev->dev == dev)
+		if (ni_ifworker_get_modem(mdev->worker) == dev)
 			return mdev;
 	}
 	return NULL;

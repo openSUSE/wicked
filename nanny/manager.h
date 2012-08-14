@@ -37,7 +37,6 @@ struct ni_managed_modem {
 
 	ni_manager_t *		manager;	// back pointer at mgr
 	ni_dbus_object_t *	object;		// server object
-	ni_modem_t *		dev;
 	ni_ifworker_t *		worker;
 	ni_bool_t		user_controlled;
 

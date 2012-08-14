@@ -59,7 +59,6 @@ ni_managed_modem_new(ni_manager_t *mgr, ni_ifworker_t *w)
 	mdev = calloc(1, sizeof(*mdev));
 	mdev->manager = mgr;
 	mdev->worker = ni_ifworker_get(w);
-	mdev->dev = ni_modem_hold(w->modem);
 
 	/* FIXME: for now, we allow users to control all modems */
 	mdev->user_controlled = TRUE;
@@ -77,11 +76,6 @@ ni_managed_modem_free(ni_managed_modem_t *mdev)
 			mdev->worker? mdev->worker->name : "anon",
 			mdev->object);
 	ni_assert(mdev->object == NULL);
-
-	if (mdev->dev != NULL) {
-		ni_modem_release(mdev->dev);
-		mdev->dev = NULL;
-	}
 
 	if (mdev->worker) {
 		ni_ifworker_release(mdev->worker);
@@ -162,10 +156,11 @@ ni_managed_modem_up(ni_managed_modem_t *mdev, unsigned int target_state)
 ni_dbus_object_t *
 ni_objectmodel_register_managed_modem(ni_dbus_server_t *server, ni_managed_modem_t *mdev)
 {
+	ni_modem_t *modem = ni_ifworker_get_modem(mdev->worker);
 	char relative_path[128];
 	ni_dbus_object_t *object;
 
-	snprintf(relative_path, sizeof(relative_path), "Modem/%s", mdev->dev->device);
+	snprintf(relative_path, sizeof(relative_path), "Modem/%s", modem->device);
 	object = ni_dbus_server_register_object(server, relative_path, &ni_objectmodel_managed_modem_class, mdev);
 
 	if (object)
