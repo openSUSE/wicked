@@ -51,6 +51,7 @@ struct ni_manager {
 	ni_managed_device_t *	modem_list;
 	ni_managed_policy_t *	policy_list;
 
+	unsigned int		last_policy_seq;
 	ni_ifworker_array_t	recheck;
 	ni_ifworker_array_t	down;
 
@@ -69,7 +70,9 @@ extern ni_dbus_service_t	ni_objectmodel_manager_service;
 extern ni_manager_t *		ni_manager_new(void);
 extern void			ni_manager_free(ni_manager_t *);
 extern void			ni_manager_schedule_recheck(ni_manager_t *, ni_ifworker_t *);
+extern void			ni_manager_recheck_do(ni_manager_t *mgr);
 extern void			ni_manager_schedule_down(ni_manager_t *, ni_ifworker_t *);
+extern void			ni_manager_down_do(ni_manager_t *mgr);
 extern void			ni_manager_recheck(ni_manager_t *, ni_ifworker_t *);
 extern void			ni_manager_register_device(ni_manager_t *, ni_ifworker_t *);
 extern void			ni_manager_unregister_device(ni_manager_t *, ni_ifworker_t *);

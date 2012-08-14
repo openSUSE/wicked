@@ -39,6 +39,7 @@ struct ni_manager_secret {
 	char *			value;
 };
 
+static int		ni_manager_prompt(const ni_fsm_prompt_t *, xml_node_t *, void *);
 
 /*
  * Initialize the manager objectmodel
@@ -70,6 +71,131 @@ ni_objectmodel_manager_init(ni_manager_t *mgr)
 		}
 		ni_trace("(%u interfaces)", i);
 	}
+}
+
+ni_manager_t *
+ni_manager_new(void)
+{
+	ni_manager_t *mgr;
+
+	mgr = calloc(1, sizeof(*mgr));
+
+	mgr->server = ni_server_listen_dbus(NI_OBJECTMODEL_DBUS_BUS_NAME_MANAGER);
+	if (!mgr->server)
+		ni_fatal("Cannot create server, giving up.");
+
+	mgr->fsm = ni_fsm_new();
+
+	ni_fsm_set_user_prompt_fn(mgr->fsm, ni_manager_prompt, mgr);
+
+	ni_objectmodel_manager_init(mgr);
+	ni_objectmodel_register_all();
+
+	return mgr;
+}
+
+/*
+ * (Re-) check a device to see if the applicable policy changed.
+ * This is a multi-stage process.
+ * One, devices can be scheduled for a recheck explicitly (eg when they
+ * appear via hotplug).
+ *
+ * Two, all enabled devices are checked when policies have been updated.
+ *
+ * Both checks happen once per mainloop iteration.
+ */
+void
+ni_manager_schedule_recheck(ni_manager_t *mgr, ni_ifworker_t *w)
+{
+	if (ni_ifworker_array_index(&mgr->recheck, w) < 0)
+		ni_ifworker_array_append(&mgr->recheck, w);
+}
+
+void
+ni_manager_recheck_do(ni_manager_t *mgr)
+{
+	unsigned int i;
+
+	if (ni_fsm_policies_changed_since(mgr->fsm, &mgr->last_policy_seq)) {
+		ni_managed_device_t *mdev;
+
+		for (mdev = mgr->netdev_list; mdev; mdev = mdev->next) {
+			if (mdev->user_controlled)
+				ni_manager_schedule_recheck(mgr, mdev->worker);
+		}
+		for (mdev = mgr->modem_list; mdev; mdev = mdev->next) {
+			ni_manager_schedule_recheck(mgr, mdev->worker);
+		}
+	}
+
+	if (mgr->recheck.count == 0)
+		return;
+
+	ni_fsm_refresh_state(mgr->fsm);
+
+	for (i = 0; i < mgr->recheck.count; ++i)
+		ni_manager_recheck(mgr, mgr->recheck.data[i]);
+	ni_ifworker_array_destroy(&mgr->recheck);
+}
+
+/*
+ * Check whether a given interface should be reconfigured
+ */
+void
+ni_manager_recheck(ni_manager_t *mgr, ni_ifworker_t *w)
+{
+	static const unsigned int MAX_POLICIES = 20;
+	const ni_fsm_policy_t *policies[MAX_POLICIES];
+	const ni_fsm_policy_t *policy;
+	ni_managed_policy_t *mpolicy;
+	unsigned int count;
+
+	ni_trace("%s(%s)", __func__, w->name);
+	w->use_default_policies = TRUE;
+	if ((count = ni_fsm_policy_get_applicable_policies(mgr->fsm, w, policies, MAX_POLICIES)) == 0) {
+		ni_trace("%s: no applicable policies", w->name);
+		return;
+	}
+
+	policy = policies[count-1];
+	mpolicy = ni_manager_get_policy(mgr, policy);
+
+	ni_manager_apply_policy(mgr, mpolicy, w);
+}
+
+/*
+ * Taking down an interface
+ */
+void
+ni_manager_schedule_down(ni_manager_t *mgr, ni_ifworker_t *w)
+{
+	if (ni_ifworker_array_index(&mgr->down, w) < 0)
+		ni_ifworker_array_append(&mgr->down, w);
+}
+
+void
+ni_manager_down_do(ni_manager_t *mgr)
+{
+	unsigned int i;
+
+	if (mgr->down.count == 0)
+		return;
+
+	for (i = 0; i < mgr->down.count; ++i)
+		; // ni_manager_down(mgr, mgr->down.data[i]);
+	ni_ifworker_array_destroy(&mgr->down);
+}
+
+ni_managed_policy_t *
+ni_manager_get_policy(ni_manager_t *mgr, const ni_fsm_policy_t *policy)
+{
+	ni_managed_policy_t *mpolicy;
+
+	for (mpolicy = mgr->policy_list; mpolicy; mpolicy = mpolicy->next) {
+		if (mpolicy->fsm_policy == policy)
+			return mpolicy;
+	}
+	return NULL;
 }
 
 /*
@@ -127,6 +253,81 @@ ni_manager_apply_policy(ni_manager_t *mgr, ni_managed_policy_t *mpolicy, ni_ifwo
 		return;
 
 	ni_managed_device_apply_policy(mdev, mpolicy);
+}
+
+/*
+ * Handle prompting
+ */
+static ni_ifworker_t *
+ni_manager_identify_node_owner(ni_manager_t *mgr, xml_node_t *node, ni_stringbuf_t *path)
+{
+	ni_managed_device_t *mdev;
+	ni_ifworker_t *w = NULL;
+
+	for (mdev = mgr->netdev_list; mdev; mdev = mdev->next) {
+		if (mdev->selected_config == node) {
+			w = mdev->worker;
+			goto found;
+		}
+	}
+	for (mdev = mgr->modem_list; mdev; mdev = mdev->next) {
+		if (mdev->selected_config == node) {
+			w = mdev->worker;
+			goto found;
+		}
+	}
+
+	if (node != NULL)
+		w = ni_manager_identify_node_owner(mgr, node->parent, path);
+
+	if (w == NULL)
+		return NULL;
+
+found:
+	ni_stringbuf_putc(path, '/');
+	ni_stringbuf_puts(path, node->name);
+	return w;
+}
+
+int
+ni_manager_prompt(const ni_fsm_prompt_t *p, xml_node_t *node, void *user_data)
+{
+	ni_stringbuf_t path_buf;
+	ni_manager_t *mgr = user_data;
+	ni_ifworker_t *w = NULL;
+	const char *value;
+	int rv = -1;
+
+	ni_trace("%s: type=%u string=%s id=%s", __func__, p->type, p->string, p->id);
+
+	ni_stringbuf_init(&path_buf);
+
+	w = ni_manager_identify_node_owner(mgr, node, &path_buf);
+	if (w == NULL) {
+		ni_error("%s: unable to identify device owning this config", __func__);
+		goto done;
+	}
+
+	if (w->security_id == NULL) {
+		ni_error("%s: no security id set, cannot handle prompt for \"%s\"",
+				w->name, path_buf.string);
+		goto done;
+	}
+
+	value = ni_manager_get_secret(mgr, w->security_id, path_buf.string);
+	if (value == NULL) {
+		/* FIXME: Send out event that we need this piece of information */
+		ni_trace("%s: prompting for type=%u id=%s path=%s",
+				w->name, p->type, w->security_id, path_buf.string);
+		goto done;
+	}
+
+	xml_node_set_cdata(node, value);
+	rv = 0;
+
+done:
+	ni_stringbuf_destroy(&path_buf);
+	return rv;
 }
 
 /*
