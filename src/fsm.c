@@ -38,7 +38,7 @@ static void *			ni_fsm_user_prompt_data;
 static const char *		ni_ifworker_state_name(int);
 static ni_ifworker_t *		ni_ifworker_identify_device(ni_fsm_t *, const xml_node_t *, ni_ifworker_type_t);
 static void			ni_ifworker_set_dependencies_xml(ni_ifworker_t *, xml_node_t *);
-static void			ni_fsm_schedule_init(ni_fsm_t *fsm, ni_ifworker_t *, unsigned int, unsigned int);
+static int			ni_fsm_schedule_init(ni_fsm_t *fsm, ni_ifworker_t *, unsigned int, unsigned int);
 static int			ni_fsm_schedule_bind_methods(ni_fsm_t *, ni_ifworker_t *);
 static ni_fsm_require_t *	ni_ifworker_netif_resolver_new(xml_node_t *);
 static ni_fsm_require_t *	ni_ifworker_modem_resolver_new(xml_node_t *);
@@ -1561,6 +1561,7 @@ ni_ifworker_start(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned long timeout)
 	unsigned int min_state = w->target_range.min;
 	unsigned int max_state = w->target_range.max;
 	unsigned int j;
+	int rv;
 
 	if (min_state > max_state) {
 		ni_error("%s: conflicting target states: min=%s max=%s",
@@ -1579,15 +1580,20 @@ ni_ifworker_start(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned long timeout)
 			return 0;
 
 		/* No upper bound; bring it up to min level */
-		ni_fsm_schedule_init(fsm, w, NI_FSM_STATE_DEVICE_DOWN, min_state);
+		rv = ni_fsm_schedule_init(fsm, w, NI_FSM_STATE_DEVICE_DOWN, min_state);
+		if (rv < 0)
+			return rv;
 	} else if (min_state == NI_FSM_STATE_NONE) {
 		/* No lower bound; bring it down to max level */
-		ni_fsm_schedule_init(fsm, w, NI_FSM_STATE_ADDRCONF_UP, max_state);
+		rv = ni_fsm_schedule_init(fsm, w, NI_FSM_STATE_ADDRCONF_UP, max_state);
+		if (rv < 0)
+			return rv;
 	} else {
 		ni_warn("%s: not handled yet: bringing device into state range [%s, %s]",
 				w->name,
 				ni_ifworker_state_name(min_state),
 				ni_ifworker_state_name(max_state));
+		return -NI_ERROR_GENERAL_FAILURE;
 	}
 
 	for (j = 0; j < w->children.count; ++j) {
@@ -2483,7 +2489,7 @@ ni_ifworker_do_common_bind(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t 
 
 document_error:
 	ni_ifworker_fail(w, "interface document error");
-	return -1;
+	return -NI_ERROR_DOCUMENT_ERROR;
 }
 
 static int
@@ -2698,15 +2704,16 @@ static ni_fsm_transition_t	ni_iftransitions[] = {
 	{ .from_state = NI_FSM_STATE_NONE, .next_state = NI_FSM_STATE_NONE, .func = NULL }
 };
 
-static void
+static int
 ni_fsm_schedule_init(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned int from_state, unsigned int target_state)
 {
 	unsigned int index, num_actions;
 	unsigned int cur_state;
 	int increment;
+	int rv;
 
 	if (w->fsm.action_table != NULL)
-		return;
+		return 0;
 
 	/* If the --delete option was given, but the specific device cannot
 	 * be deleted, then we don't try. */
@@ -2757,9 +2764,12 @@ do_it_again:
 	w->fsm.state = from_state;
 	w->target_state = target_state;
 
-	ni_fsm_schedule_bind_methods(fsm, w);
+	if ((rv = ni_fsm_schedule_bind_methods(fsm, w)) < 0)
+		return rv;
 
 	/* FIXME: Add <require> targets from the interface document */
+
+	return 0;
 }
 
 /*
