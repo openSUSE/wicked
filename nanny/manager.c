@@ -73,6 +73,61 @@ ni_objectmodel_manager_init(ni_manager_t *mgr)
 }
 
 /*
+ * Register a device
+ */
+void
+ni_manager_register_device(ni_manager_t *mgr, ni_ifworker_t *w)
+{
+	if (w->type == NI_IFWORKER_TYPE_NETDEV) {
+		ni_managed_netdev_t *mdev;
+
+		if (ni_manager_get_netdev(mgr, w->device) == NULL) {
+			mdev = ni_managed_netdev_new(mgr, w);
+			mdev->object = ni_objectmodel_register_managed_netdev(mgr->server, mdev);
+		}
+
+	} else
+	if (w->type == NI_IFWORKER_TYPE_MODEM) {
+		ni_managed_modem_t *mdev;
+
+		if (ni_manager_get_modem(mgr, w->modem) == NULL) {
+			mdev = ni_managed_modem_new(mgr, w);
+			mdev->object = ni_objectmodel_register_managed_modem(mgr->server, mdev);
+		}
+	}
+}
+
+/*
+ * Unregister a device
+ */
+void
+ni_manager_unregister_device(ni_manager_t *mgr, ni_ifworker_t *w)
+{
+	if (w->type == NI_IFWORKER_TYPE_NETDEV) {
+		ni_managed_netdev_t *mdev;
+
+		if ((mdev = ni_manager_get_netdev(mgr, w->device)) == NULL)
+			return;
+
+		ni_manager_remove_netdev(mgr, mdev);
+		ni_objectmodel_unregister_managed_netdev(mdev);
+	} else
+	if (w->type == NI_IFWORKER_TYPE_MODEM) {
+		ni_managed_modem_t *mdev;
+
+		if ((mdev = ni_manager_get_modem(mgr, w->modem)) == NULL) {
+			ni_error("%s: cannot unregister; device not known", w->name);
+			return;
+		}
+
+		ni_manager_remove_modem(mgr, mdev);
+		ni_objectmodel_unregister_managed_modem(mdev);
+	}
+
+	ni_fsm_destroy_worker(mgr->fsm, w);
+}
+
+/*
  * Apply the selected policy to this worker
  */
 void

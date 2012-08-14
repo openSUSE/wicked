@@ -22,6 +22,7 @@ struct ni_managed_netdev {
 	ni_managed_netdev_t *	next;
 
 	ni_manager_t *		manager;	// back pointer at mgr
+	ni_dbus_object_t *	object;		// server object
 	ni_netdev_t *		dev;
 	ni_ifworker_t *		worker;
 	ni_bool_t		user_controlled;
@@ -36,6 +37,7 @@ struct ni_managed_modem {
 	ni_managed_modem_t *	next;
 
 	ni_manager_t *		manager;	// back pointer at mgr
+	ni_dbus_object_t *	object;		// server object
 	ni_modem_t *		dev;
 	ni_ifworker_t *		worker;
 	ni_bool_t		user_controlled;
@@ -84,8 +86,12 @@ extern void			ni_manager_free(ni_manager_t *);
 extern void			ni_manager_schedule_recheck(ni_manager_t *, ni_ifworker_t *);
 extern void			ni_manager_schedule_down(ni_manager_t *, ni_ifworker_t *);
 extern void			ni_manager_recheck(ni_manager_t *, ni_ifworker_t *);
+extern void			ni_manager_register_device(ni_manager_t *, ni_ifworker_t *);
+extern void			ni_manager_unregister_device(ni_manager_t *, ni_ifworker_t *);
 extern ni_managed_netdev_t *	ni_manager_get_netdev(ni_manager_t *, ni_netdev_t *);
+extern ni_managed_netdev_t *	ni_manager_remove_netdev(ni_manager_t *, ni_managed_netdev_t *);
 extern ni_managed_modem_t *	ni_manager_get_modem(ni_manager_t *, ni_modem_t *);
+extern ni_managed_modem_t *	ni_manager_remove_modem(ni_manager_t *, ni_managed_modem_t *);
 extern ni_managed_policy_t *	ni_manager_get_policy(ni_manager_t *, const ni_fsm_policy_t *);
 extern void			ni_manager_apply_policy(ni_manager_t *, ni_managed_policy_t *, ni_ifworker_t *);
 extern const char *		ni_manager_get_secret(ni_manager_t *, const char *, const char *);
@@ -107,6 +113,8 @@ extern void			ni_managed_policy_free(ni_managed_policy_t *);
 extern ni_dbus_object_t *	ni_objectmodel_register_managed_netdev(ni_dbus_server_t *, ni_managed_netdev_t *);
 extern ni_dbus_object_t *	ni_objectmodel_register_managed_modem(ni_dbus_server_t *, ni_managed_modem_t *);
 extern ni_dbus_object_t *	ni_objectmodel_register_managed_policy(ni_dbus_server_t *, ni_managed_policy_t *);
+extern void			ni_objectmodel_unregister_managed_netdev(ni_managed_netdev_t *);
+extern void			ni_objectmodel_unregister_managed_modem(ni_managed_modem_t *);
 
 extern void			interface_manager_register_all(ni_dbus_server_t *);
 extern void			ni_objectmodel_manager_init(ni_manager_t *mgr);

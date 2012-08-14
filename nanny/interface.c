@@ -78,10 +78,16 @@ ni_managed_netdev_new(ni_manager_t *mgr, ni_ifworker_t *w)
 void
 ni_managed_netdev_free(ni_managed_netdev_t *mdev)
 {
+	if (mdev->object)
+		ni_dbus_object_free(mdev->object);
+
 	if (mdev->dev != NULL) {
 		ni_netdev_put(mdev->dev);
 		mdev->dev = NULL;
 	}
+
+	if (mdev->worker)
+		ni_ifworker_release(mdev->worker);
 
 	free(mdev);
 }
@@ -177,8 +183,18 @@ ni_objectmodel_register_managed_netdev(ni_dbus_server_t *server, ni_managed_netd
 	snprintf(relative_path, sizeof(relative_path), "Interface/%u", mdev->dev->link.ifindex);
 	object = ni_dbus_server_register_object(server, relative_path, &managed_netdev_class, mdev);
 
-	ni_objectmodel_bind_compatible_interfaces(object);
+	if (object)
+		ni_objectmodel_bind_compatible_interfaces(object);
 	return object;
+}
+
+void
+ni_objectmodel_unregister_managed_netdev(ni_managed_netdev_t *mdev)
+{
+	if (mdev->object) {
+		ni_dbus_object_free(mdev->object);
+		mdev->object = NULL;
+	}
 }
 
 /*

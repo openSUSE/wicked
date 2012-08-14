@@ -163,6 +163,21 @@ ni_manager_get_netdev(ni_manager_t *mgr, ni_netdev_t *dev)
 	return NULL;
 }
 
+ni_managed_netdev_t *
+ni_manager_remove_netdev(ni_manager_t *mgr, ni_managed_netdev_t *mdev)
+{
+	ni_managed_netdev_t *cur, **pos;
+
+	for (pos = &mgr->netdev_list; (cur = *pos) != NULL; pos = &cur->next) {
+		if (mdev == cur) {
+			*pos = cur->next;
+			cur->next = NULL;
+			return cur;
+		}
+	}
+	return NULL;
+}
+
 ni_managed_modem_t *
 ni_manager_get_modem(ni_manager_t *mgr, ni_modem_t *dev)
 {
@@ -171,6 +186,21 @@ ni_manager_get_modem(ni_manager_t *mgr, ni_modem_t *dev)
 	for (mdev = mgr->modem_list; mdev; mdev = mdev->next) {
 		if (mdev->dev == dev)
 			return mdev;
+	}
+	return NULL;
+}
+
+ni_managed_modem_t *
+ni_manager_remove_modem(ni_manager_t *mgr, ni_managed_modem_t *mdev)
+{
+	ni_managed_modem_t *cur, **pos;
+
+	for (pos = &mgr->modem_list; (cur = *pos) != NULL; pos = &cur->next) {
+		if (mdev == cur) {
+			*pos = cur->next;
+			cur->next = NULL;
+			return cur;
+		}
 	}
 	return NULL;
 }
@@ -282,17 +312,7 @@ ni_manager_discover_state(ni_manager_t *mgr)
 	for (i = 0; i < mgr->fsm->workers.count; ++i) {
 		ni_ifworker_t *w = mgr->fsm->workers.data[i];
 
-		if (w->type == NI_IFWORKER_TYPE_NETDEV) {
-			ni_managed_netdev_t *mdev;
-
-			mdev = ni_managed_netdev_new(mgr, w);
-			ni_objectmodel_register_managed_netdev(mgr->server, mdev);
-
-		} else
-		if (w->type == NI_IFWORKER_TYPE_MODEM) {
-			ni_objectmodel_register_managed_modem(mgr->server,
-					ni_managed_modem_new(mgr, w));
-		}
+		ni_manager_register_device(mgr, w);
 	}
 }
 
@@ -343,25 +363,8 @@ ni_manager_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus
 		// A new device was added. Could be a virtual device like
 		// a VLAN or vif, or a hotplug modem or NIC
 		// Create a worker and a managed_netif for this device.
-		switch (w->type) {
-		case NI_IFWORKER_TYPE_NETDEV:
-			if (ni_manager_get_netdev(mgr, w->device) == NULL) {
-				ni_objectmodel_register_managed_netdev(mgr->server,
-						ni_managed_netdev_new(mgr, w));
-				ni_manager_schedule_recheck(mgr, w);
-			}
-			break;
-
-		case NI_IFWORKER_TYPE_MODEM:
-			if (ni_manager_get_modem(mgr, w->modem) == NULL) {
-				ni_objectmodel_register_managed_modem(mgr->server,
-						ni_managed_modem_new(mgr, w));
-				ni_manager_schedule_recheck(mgr, w);
-			}
-			break;
-
-		default: ;
-		}
+		ni_manager_register_device(mgr, w);
+		ni_manager_schedule_recheck(mgr, w);
 	} else
 	if (ni_string_eq(signal_name, "linkUp")) {
 		// Link detection - eg for ethernet
@@ -386,14 +389,13 @@ ni_manager_modem_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus
 	const char *object_path = dbus_message_get_path(msg);
 	ni_ifworker_t *w;
 
+	ni_trace("%s(%s, %s)", __func__, object_path, signal_name);
+
 	// We receive a deviceCreate signal when a modem was plugged in
 	if (ni_string_eq(signal_name, "deviceCreate")) {
 		w = ni_fsm_recv_new_modem_path(mgr->fsm, object_path);
-		if (ni_manager_get_modem(mgr, w->modem) == NULL) {
-			ni_objectmodel_register_managed_modem(mgr->server,
-					ni_managed_modem_new(mgr, w));
-			ni_manager_schedule_recheck(mgr, w);
-		}
+		ni_manager_register_device(mgr, w);
+		ni_manager_schedule_recheck(mgr, w);
 		return;
 	}
 
@@ -408,7 +410,8 @@ ni_manager_modem_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus
 	ni_assert(w->modem);
 
 	if (ni_string_eq(signal_name, "deviceDelete")) {
-		// XXX: delete the worker and the managed modem
+		// delete the worker and the managed modem
+		ni_manager_unregister_device(mgr, w);
 	} else {
 		// ignore
 	}

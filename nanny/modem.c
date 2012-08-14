@@ -73,9 +73,19 @@ ni_managed_modem_new(ni_manager_t *mgr, ni_ifworker_t *w)
 void
 ni_managed_modem_free(ni_managed_modem_t *mdev)
 {
+	ni_trace("%s(%s): obj=%p", __func__,
+			mdev->worker? mdev->worker->name : "anon",
+			mdev->object);
+	ni_assert(mdev->object == NULL);
+
 	if (mdev->dev != NULL) {
 		ni_modem_release(mdev->dev);
 		mdev->dev = NULL;
+	}
+
+	if (mdev->worker) {
+		ni_ifworker_release(mdev->worker);
+		mdev->worker = NULL;
 	}
 
 	free(mdev);
@@ -158,8 +168,18 @@ ni_objectmodel_register_managed_modem(ni_dbus_server_t *server, ni_managed_modem
 	snprintf(relative_path, sizeof(relative_path), "Modem/%s", mdev->dev->device);
 	object = ni_dbus_server_register_object(server, relative_path, &ni_objectmodel_managed_modem_class, mdev);
 
-	ni_objectmodel_bind_compatible_interfaces(object);
+	if (object)
+		ni_objectmodel_bind_compatible_interfaces(object);
 	return object;
+}
+
+void
+ni_objectmodel_unregister_managed_modem(ni_managed_modem_t *mdev)
+{
+	if (mdev->object) {
+		ni_dbus_object_free(mdev->object);
+		mdev->object = NULL;
+	}
 }
 
 /*
