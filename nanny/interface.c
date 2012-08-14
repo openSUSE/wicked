@@ -151,15 +151,6 @@ ni_objectmodel_register_managed_netdev(ni_dbus_server_t *server, ni_managed_netd
 	return object;
 }
 
-void
-ni_objectmodel_unregister_managed_netdev(ni_managed_netdev_t *mdev)
-{
-	if (mdev->object) {
-		ni_dbus_object_free(mdev->object);
-		mdev->object = NULL;
-	}
-}
-
 /*
  * Extract managed_netdev handle from dbus object
  */

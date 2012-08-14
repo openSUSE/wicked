@@ -69,3 +69,13 @@ ni_managed_device_free(ni_managed_device_t *mdev)
 
 	free(mdev);
 }
+
+void
+ni_objectmodel_unregister_managed_device(ni_managed_device_t *mdev)
+{
+	if (mdev->object) {
+		ni_dbus_object_free(mdev->object);
+		mdev->object = NULL;
+	}
+}
+

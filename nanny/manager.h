@@ -99,8 +99,7 @@ extern void			ni_managed_policy_free(ni_managed_policy_t *);
 extern ni_dbus_object_t *	ni_objectmodel_register_managed_netdev(ni_dbus_server_t *, ni_managed_netdev_t *);
 extern ni_dbus_object_t *	ni_objectmodel_register_managed_modem(ni_dbus_server_t *, ni_managed_modem_t *);
 extern ni_dbus_object_t *	ni_objectmodel_register_managed_policy(ni_dbus_server_t *, ni_managed_policy_t *);
-extern void			ni_objectmodel_unregister_managed_netdev(ni_managed_netdev_t *);
-extern void			ni_objectmodel_unregister_managed_modem(ni_managed_modem_t *);
+extern void			ni_objectmodel_unregister_managed_device(ni_managed_device_t *);
 
 extern void			interface_manager_register_all(ni_dbus_server_t *);
 extern void			ni_objectmodel_manager_init(ni_manager_t *mgr);

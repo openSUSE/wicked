@@ -147,15 +147,6 @@ ni_objectmodel_register_managed_modem(ni_dbus_server_t *server, ni_managed_modem
 	return object;
 }
 
-void
-ni_objectmodel_unregister_managed_modem(ni_managed_modem_t *mdev)
-{
-	if (mdev->object) {
-		ni_dbus_object_free(mdev->object);
-		mdev->object = NULL;
-	}
-}
-
 /*
  * Extract managed_modem handle from dbus object
  */
