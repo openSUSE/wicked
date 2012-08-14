@@ -29,7 +29,6 @@ struct ni_managed_device {
 	ni_managed_policy_t *	selected_policy;
 	unsigned int		selected_policy_seq;
 	xml_node_t *		selected_config;
-	unsigned long		timeout;
 };
 
 struct ni_managed_policy {
@@ -87,6 +86,8 @@ extern void			ni_managed_modem_up(ni_managed_device_t *, unsigned int);
 
 extern ni_managed_device_t *	ni_managed_device_new(ni_manager_t *, ni_ifworker_t *, ni_managed_device_t **list);
 extern void			ni_managed_device_free(ni_managed_device_t *);
+extern void			ni_managed_device_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *mpolicy);
+extern void			ni_managed_device_up(ni_managed_device_t *mdev);
 
 extern ni_managed_policy_t *	ni_managed_policy_new(ni_manager_t *, ni_fsm_policy_t *, xml_document_t *);
 extern void			ni_managed_policy_free(ni_managed_policy_t *);

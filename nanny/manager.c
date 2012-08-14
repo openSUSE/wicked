@@ -126,12 +126,7 @@ ni_manager_apply_policy(ni_manager_t *mgr, ni_managed_policy_t *mpolicy, ni_ifwo
 	if ((mdev = ni_manager_get_device(mgr, w)) == NULL)
 		return;
 
-	if (w->type == NI_IFWORKER_TYPE_NETDEV) {
-		ni_managed_netdev_apply_policy(mdev, mpolicy, mgr->fsm);
-	} else
-	if (w->type == NI_IFWORKER_TYPE_MODEM) {
-		ni_managed_modem_apply_policy(mdev, mpolicy, mgr->fsm);
-	}
+	ni_managed_device_apply_policy(mdev, mpolicy);
 }
 
 /*

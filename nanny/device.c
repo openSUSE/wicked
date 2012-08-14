@@ -99,6 +99,99 @@ ni_managed_device_free(ni_managed_device_t *mdev)
 	free(mdev);
 }
 
+ni_ifworker_type_t
+ni_managed_device_type(const ni_managed_device_t *mdev)
+{
+	return mdev->worker->type;
+}
+
+/*
+ * Apply policy to a device
+ */
+void
+ni_managed_device_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *mpolicy)
+{
+	ni_ifworker_t *w = mdev->worker;
+	const char *type_name;
+	const ni_fsm_policy_t *policy = mpolicy->fsm_policy;
+	xml_node_t *config = NULL;
+
+	/* If the device is up and running, do not reconfigure unless the policy
+	 * has really changed */
+	if (ni_ifworker_is_running(mdev->worker)) {
+
+		ni_trace("%s: flags:%s%s%s%s", w->name,
+				w->kickstarted? " kickstarted" : "",
+				w->done? " done" : "",
+				w->failed? " failed" : "",
+				w->dead? " dead" : "");
+		if (mdev->selected_policy == mpolicy && mdev->selected_policy_seq == mpolicy->seqno) {
+			ni_trace("%s: keep using policy %s", w->name, ni_fsm_policy_name(policy));
+			return;
+		}
+	}
+
+	ni_trace("%s: using policy %s", w->name, ni_fsm_policy_name(policy));
+
+	/* This returns "modem" or "interface" */
+	type_name = ni_ifworker_type_to_string(w->type);
+
+	config = xml_node_new(type_name, NULL);
+	xml_node_new_element("name", config, w->name);
+
+	config = ni_fsm_policy_transform_document(config, &policy, 1);
+	if (config == NULL) {
+		ni_error("%s: error when applying policy to %s document", w->name, type_name);
+		return;
+	}
+	ni_trace("%s: using device config", w->name);
+	xml_node_print_debug(config, 0);
+
+	if (mdev->selected_config)
+		xml_node_free(mdev->selected_config);
+	mdev->selected_config = config;
+	mdev->selected_policy = mpolicy;
+	mdev->selected_policy_seq = mpolicy->seqno;
+
+	/* Now do the fandango */
+	ni_managed_device_up(mdev);
+}
+
+/*
+ * Bring up the device
+ */
+void
+ni_managed_device_up(ni_managed_device_t *mdev)
+{
+	ni_fsm_t *fsm = mdev->manager->fsm;
+	ni_ifworker_t *w = mdev->worker;
+	unsigned int target_state;
+	char security_id[256];
+
+	ni_ifworker_reset(w);
+
+	switch (w->type) {
+	case NI_IFWORKER_TYPE_NETDEV:
+		target_state = NI_FSM_STATE_ADDRCONF_UP;
+		break;
+
+	case NI_IFWORKER_TYPE_MODEM:
+		snprintf(security_id, sizeof(security_id), "modem:%s", w->modem->identify.equipment);
+		ni_string_dup(&w->security_id, security_id);
+
+		target_state = NI_FSM_STATE_LINK_UP;
+		break;
+
+	default:
+		return;
+	}
+
+	ni_ifworker_set_config(w, mdev->selected_config, "manager");
+	w->target_range.min = target_state;
+	w->target_range.max = __NI_FSM_STATE_MAX;
+	ni_ifworker_start(fsm, w, fsm->worker_timeout);
+}
+
 /*
  * Look up managed device for a given ifworker
  */
