@@ -379,10 +379,12 @@ ni_objectmodel_modem_change_device(ni_dbus_object_t *object, const ni_dbus_metho
 			goto failed;
 		}
 
+#if 0
 		if ((rv = ni_modem_manager_unlock(modem, pin)) < 0) {
 			ni_dbus_set_error_from_code(error, rv, "failed to unlock device");
 			goto failed;
 		}
+#endif
 	}
 
 	if (!modem->enabled) {
@@ -392,6 +394,7 @@ ni_objectmodel_modem_change_device(ni_dbus_object_t *object, const ni_dbus_metho
 		}
 	}
 
+#if 0
 	if (modem->state >= MM_MODEM_STATE_REGISTERED) {
 		ret = TRUE;
 	} else {
@@ -401,8 +404,9 @@ ni_objectmodel_modem_change_device(ni_dbus_object_t *object, const ni_dbus_metho
 		ret =  __ni_objectmodel_return_callback_info(reply, NI_EVENT_LINK_ASSOCIATED,
 				&modem->event_uuid, error);
 	}
-
+#else
 	ret = TRUE;
+#endif
 
 failed:
 	ni_dbus_object_free(config_object);
@@ -431,6 +435,8 @@ ni_objectmodel_modem_connect(ni_dbus_object_t *object, const ni_dbus_method_t *m
 	if (!(config = __ni_objectmodel_get_modem_arg(&argv[0], &config_object)))
 		return ni_dbus_error_invalid_args(error, object->path, method->name);
 
+	(void) ni_modem_manager_disconnect(modem);
+
 	if ((rv = ni_modem_manager_connect(modem, config)) < 0) {
 		ni_dbus_set_error_from_code(error, rv, "failed to connect");
 		goto failed;
@@ -444,6 +450,16 @@ ni_objectmodel_modem_connect(ni_dbus_object_t *object, const ni_dbus_method_t *m
 		if (ni_uuid_is_null(&modem->event_uuid))
 			ni_uuid_generate(&modem->event_uuid);
 		ret = __ni_objectmodel_return_callback_info(reply, NI_EVENT_LINK_UP, &modem->event_uuid, error);
+	}
+#else
+	if (modem->state >= MM_MODEM_STATE_REGISTERED) {
+		ret = TRUE;
+	} else {
+		/* Link is not associated yet. Tell the caller to wait for an event. */
+		if (ni_uuid_is_null(&modem->event_uuid))
+			ni_uuid_generate(&modem->event_uuid);
+		ret =  __ni_objectmodel_return_callback_info(reply, NI_EVENT_LINK_UP,
+				&modem->event_uuid, error);
 	}
 #endif
 

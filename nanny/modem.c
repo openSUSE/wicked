@@ -91,6 +91,12 @@ ni_managed_modem_apply_policy(ni_managed_modem_t *mdev, ni_managed_policy_t *mpo
 	/* If the device is up and running, do not reconfigure unless the policy
 	 * has really changed */
 	if (ni_ifworker_is_running(mdev->worker)) {
+		ni_ifworker_t *w = mdev->worker;
+		ni_trace("%s: flags:%s%s%s%s", w->name,
+				w->kickstarted? " kickstarted" : "",
+				w->done? " done" : "",
+				w->failed? " failed" : "",
+				w->dead? " dead" : "");
 		if (mdev->selected_policy == mpolicy && mdev->selected_policy_seq == mpolicy->seqno) {
 			ni_trace("%s: keep using policy %s", device_name, ni_fsm_policy_name(policy));
 			return;
@@ -117,7 +123,7 @@ ni_managed_modem_apply_policy(ni_managed_modem_t *mdev, ni_managed_policy_t *mpo
 	mdev->timeout = fsm->worker_timeout;
 
 	/* Now do the fandango */
-	ni_managed_modem_up(mdev, NI_FSM_STATE_DEVICE_UP);
+	ni_managed_modem_up(mdev, NI_FSM_STATE_LINK_UP);
 }
 
 /*

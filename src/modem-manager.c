@@ -37,6 +37,7 @@
 #define NI_MM_GSM_CARD_IF	"org.freedesktop.ModemManager.Modem.Gsm.Card"
 #define NI_MM_GSM_NETWORK_IF	"org.freedesktop.ModemManager.Modem.Gsm.Network"
 #define NI_MM_MODEM_SIMPLE_IF	"org.freedesktop.ModemManager.Modem.Simple"
+#define NI_MM_MODEM_GSM_IF	"org.freedesktop.ModemManager.Modem.Gsm"
 
 typedef struct ni_modem_manager_client ni_modem_manager_client_t;
 struct ni_modem_manager_client {
@@ -261,6 +262,7 @@ ni_modem_manager_enable(ni_modem_t *modem)
 		return -NI_ERROR_DEVICE_NOT_KNOWN;
 
 	if (modem->type == MM_MODEM_TYPE_GSM) {
+#if 0
 		dbus_bool_t enable = TRUE;
 
 		rv = ni_dbus_object_call_simple(modem_object, NI_MM_MODEM_IF,
@@ -270,6 +272,12 @@ ni_modem_manager_enable(ni_modem_t *modem)
 
 		if (rv < 0)
 			return rv;
+#endif
+
+		rv = ni_dbus_object_send_property_string(modem_object,
+				NI_MM_MODEM_IF,
+				"InitCommandOptional",
+				"AT^U2DIAG=256", NULL);
 
 		/* FIXME: refresh object properties, and call Gsm.Card.GetStatus
 		 * to obtain the provider info */
@@ -302,6 +310,12 @@ ni_modem_manager_connect(ni_modem_t *modem, const ni_modem_t *config)
 	ni_dbus_dict_add_string(&dict, "number", "*99#");
 	if (pin)
 		ni_dbus_dict_add_string(&dict, "pin", pin->value);
+
+	/* Other items to handle here:
+	 * network_id - numeric ID of provider to select
+	 * apn - APN id
+	 * home_only - roaming not allowed
+	 */
 
 	/* FIXME: this call blocks until it managed to connect.
 	 * Turn this into an async call and assign an adequate timeout.
