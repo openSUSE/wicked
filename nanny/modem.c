@@ -48,10 +48,10 @@ ni_objectmodel_managed_modem_init(ni_dbus_server_t *server)
 /*
  * managed_modem objects
  */
-ni_managed_modem_t *
+ni_managed_device_t *
 ni_managed_modem_new(ni_manager_t *mgr, ni_ifworker_t *w)
 {
-	ni_managed_modem_t *mdev;
+	ni_managed_device_t *mdev;
 
 	if (w->modem == NULL)
 		ni_warn("%s(%s): device not bound", __func__, w->name);
@@ -65,7 +65,7 @@ ni_managed_modem_new(ni_manager_t *mgr, ni_ifworker_t *w)
 }
 
 void
-ni_managed_modem_apply_policy(ni_managed_modem_t *mdev, ni_managed_policy_t *mpolicy, ni_fsm_t *fsm)
+ni_managed_modem_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *mpolicy, ni_fsm_t *fsm)
 {
 	const char *device_name = mdev->worker->name;
 	const ni_fsm_policy_t *policy = mpolicy->fsm_policy;
@@ -113,7 +113,7 @@ ni_managed_modem_apply_policy(ni_managed_modem_t *mdev, ni_managed_policy_t *mpo
  * Bring up the device
  */
 void
-ni_managed_modem_up(ni_managed_modem_t *mdev, unsigned int target_state)
+ni_managed_modem_up(ni_managed_device_t *mdev, unsigned int target_state)
 {
 	ni_ifworker_t *w = mdev->worker;
 	char security_id[256];
@@ -133,7 +133,7 @@ ni_managed_modem_up(ni_managed_modem_t *mdev, unsigned int target_state)
  * Create a dbus object representing the managed modem
  */
 ni_dbus_object_t *
-ni_objectmodel_register_managed_modem(ni_dbus_server_t *server, ni_managed_modem_t *mdev)
+ni_objectmodel_register_managed_modem(ni_dbus_server_t *server, ni_managed_device_t *mdev)
 {
 	ni_modem_t *modem = ni_ifworker_get_modem(mdev->worker);
 	char relative_path[128];
@@ -150,10 +150,10 @@ ni_objectmodel_register_managed_modem(ni_dbus_server_t *server, ni_managed_modem
 /*
  * Extract managed_modem handle from dbus object
  */
-static ni_managed_modem_t *
+static ni_managed_device_t *
 ni_objectmodel_managed_modem_unwrap(const ni_dbus_object_t *object, DBusError *error)
 {
-	ni_managed_modem_t *mdev = object->handle;
+	ni_managed_device_t *mdev = object->handle;
 
 	if (ni_dbus_object_isa(object, &ni_objectmodel_managed_modem_class))
 		return mdev;
@@ -177,7 +177,7 @@ ni_managed_modem_initialize(ni_dbus_object_t *object)
 static void
 ni_managed_modem_destroy(ni_dbus_object_t *object)
 {
-	ni_managed_modem_t *mdev;
+	ni_managed_device_t *mdev;
 
 	if (!(mdev = ni_objectmodel_managed_modem_unwrap(object, NULL)))
 		return;
@@ -199,13 +199,13 @@ static ni_dbus_method_t		ni_objectmodel_managed_modem_methods[] = {
  * Handle object properties
  */
 static void *
-ni_objectmodel_get_managed_modem(const ni_dbus_object_t *object, DBusError *error)
+ni_objectmodel_get_managed_device(const ni_dbus_object_t *object, DBusError *error)
 {
 	return ni_objectmodel_managed_modem_unwrap(object, error);
 }
 
 #define MANAGED_MODEM_BOOL_PROPERTY(dbus_name, name, rw) \
-	NI_DBUS_GENERIC_BOOL_PROPERTY(managed_modem, dbus_name, name, rw)
+	NI_DBUS_GENERIC_BOOL_PROPERTY(managed_device, dbus_name, name, rw)
 
 static ni_dbus_property_t	ni_objectmodel_managed_modem_properties[] = {
 	MANAGED_MODEM_BOOL_PROPERTY(user-controlled, user_controlled, RW),

@@ -152,7 +152,7 @@ void
 ni_manager_add_secret(ni_manager_t *mgr, const char *security_id, const char *path, const char *value)
 {
 	ni_manager_secret_t *sec, **pos;
-	ni_managed_modem_t *mmod;
+	ni_managed_device_t *mmod;
 
 	pos = __ni_manager_find_secret(mgr, security_id, path);
 	if ((sec = *pos) == NULL) {
@@ -217,7 +217,7 @@ ni_objectmodel_manager_get_device(ni_dbus_object_t *object, const ni_dbus_method
 	ni_manager_t *mgr;
 	const char *ifname;
 	ni_ifworker_t *w;
-	ni_managed_netdev_t *mdev = NULL;
+	ni_managed_device_t *mdev = NULL;
 
 	if ((mgr = ni_objectmodel_manager_unwrap(object, error)) == NULL)
 		return FALSE;

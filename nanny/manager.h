@@ -14,8 +14,6 @@
 
 typedef struct ni_manager	ni_manager_t;
 typedef struct ni_managed_device ni_managed_device_t;
-typedef struct ni_managed_device ni_managed_netdev_t;
-typedef struct ni_managed_device ni_managed_modem_t;
 typedef struct ni_managed_policy ni_managed_policy_t;
 typedef struct ni_manager_secret ni_manager_secret_t;
 
@@ -46,8 +44,8 @@ struct ni_manager {
 	ni_dbus_server_t *	server;
 	ni_fsm_t *		fsm;
 
-	ni_managed_netdev_t *	netdev_list;
-	ni_managed_modem_t *	modem_list;
+	ni_managed_device_t *	netdev_list;
+	ni_managed_device_t *	modem_list;
 	ni_managed_policy_t *	policy_list;
 
 	ni_ifworker_array_t	recheck;
@@ -80,14 +78,14 @@ extern ni_managed_policy_t *	ni_manager_get_policy(ni_manager_t *, const ni_fsm_
 extern void			ni_manager_apply_policy(ni_manager_t *, ni_managed_policy_t *, ni_ifworker_t *);
 extern const char *		ni_manager_get_secret(ni_manager_t *, const char *, const char *);
 
-extern ni_managed_netdev_t *	ni_managed_netdev_new(ni_manager_t *, ni_ifworker_t *);
-extern ni_bool_t		ni_managed_netdev_enable(ni_managed_netdev_t *);
-extern void			ni_managed_netdev_apply_policy(ni_managed_netdev_t *, ni_managed_policy_t *, ni_fsm_t *);
-extern void			ni_managed_netdev_up(ni_managed_netdev_t *, unsigned int);
+extern ni_managed_device_t *	ni_managed_netdev_new(ni_manager_t *, ni_ifworker_t *);
+extern ni_bool_t		ni_managed_netdev_enable(ni_managed_device_t *);
+extern void			ni_managed_netdev_apply_policy(ni_managed_device_t *, ni_managed_policy_t *, ni_fsm_t *);
+extern void			ni_managed_netdev_up(ni_managed_device_t *, unsigned int);
 
-extern ni_managed_modem_t *	ni_managed_modem_new(ni_manager_t *, ni_ifworker_t *);
-extern void			ni_managed_modem_apply_policy(ni_managed_modem_t *, ni_managed_policy_t *, ni_fsm_t *);
-extern void			ni_managed_modem_up(ni_managed_modem_t *, unsigned int);
+extern ni_managed_device_t *	ni_managed_modem_new(ni_manager_t *, ni_ifworker_t *);
+extern void			ni_managed_modem_apply_policy(ni_managed_device_t *, ni_managed_policy_t *, ni_fsm_t *);
+extern void			ni_managed_modem_up(ni_managed_device_t *, unsigned int);
 
 extern ni_managed_device_t *	ni_managed_device_new(ni_manager_t *, ni_ifworker_t *, ni_managed_device_t **list);
 extern void			ni_managed_device_free(ni_managed_device_t *);
@@ -95,8 +93,8 @@ extern void			ni_managed_device_free(ni_managed_device_t *);
 extern ni_managed_policy_t *	ni_managed_policy_new(ni_manager_t *, ni_fsm_policy_t *, xml_document_t *);
 extern void			ni_managed_policy_free(ni_managed_policy_t *);
 
-extern ni_dbus_object_t *	ni_objectmodel_register_managed_netdev(ni_dbus_server_t *, ni_managed_netdev_t *);
-extern ni_dbus_object_t *	ni_objectmodel_register_managed_modem(ni_dbus_server_t *, ni_managed_modem_t *);
+extern ni_dbus_object_t *	ni_objectmodel_register_managed_netdev(ni_dbus_server_t *, ni_managed_device_t *);
+extern ni_dbus_object_t *	ni_objectmodel_register_managed_modem(ni_dbus_server_t *, ni_managed_device_t *);
 extern ni_dbus_object_t *	ni_objectmodel_register_managed_policy(ni_dbus_server_t *, ni_managed_policy_t *);
 extern void			ni_objectmodel_unregister_managed_device(ni_managed_device_t *);
 

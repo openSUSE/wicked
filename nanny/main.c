@@ -186,15 +186,14 @@ interface_manager(void)
 		long timeout;
 
 		if (ni_fsm_policies_changed_since(mgr->fsm, &policy_seq)) {
-			ni_managed_netdev_t *mdev;
-			ni_managed_modem_t *mmod;
+			ni_managed_device_t *mdev;
 
 			for (mdev = mgr->netdev_list; mdev; mdev = mdev->next) {
 				if (mdev->user_controlled)
 					ni_manager_schedule_recheck(mgr, mdev->worker);
 			}
-			for (mmod = mgr->modem_list; mmod; mmod = mmod->next) {
-				ni_manager_schedule_recheck(mgr, mmod->worker);
+			for (mdev = mgr->modem_list; mdev; mdev = mdev->next) {
+				ni_manager_schedule_recheck(mgr, mdev->worker);
 			}
 		}
 
@@ -266,7 +265,7 @@ ni_manager_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus
 	ni_manager_t *mgr = user_data;
 	const char *signal_name = dbus_message_get_member(msg);
 	const char *object_path = dbus_message_get_path(msg);
-	ni_managed_netdev_t *mdev;
+	ni_managed_device_t *mdev;
 	ni_ifworker_t *w;
 
 	if ((w = ni_fsm_ifworker_by_object_path(mgr->fsm, object_path)) == NULL) {
@@ -388,8 +387,7 @@ ni_manager_recheck(ni_manager_t *mgr, ni_ifworker_t *w)
 static ni_ifworker_t *
 ni_manager_identify_node_owner(ni_manager_t *mgr, xml_node_t *node, ni_stringbuf_t *path)
 {
-	ni_managed_netdev_t *mdev;
-	ni_managed_modem_t *mmod;
+	ni_managed_device_t *mdev;
 	ni_ifworker_t *w = NULL;
 
 	for (mdev = mgr->netdev_list; mdev; mdev = mdev->next) {
@@ -398,9 +396,9 @@ ni_manager_identify_node_owner(ni_manager_t *mgr, xml_node_t *node, ni_stringbuf
 			goto found;
 		}
 	}
-	for (mmod = mgr->modem_list; mmod; mmod = mmod->next) {
-		if (mmod->selected_config == node) {
-			w = mmod->worker;
+	for (mdev = mgr->modem_list; mdev; mdev = mdev->next) {
+		if (mdev->selected_config == node) {
+			w = mdev->worker;
 			goto found;
 		}
 	}

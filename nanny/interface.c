@@ -58,7 +58,7 @@ ni_managed_netdev_new(ni_manager_t *mgr, ni_ifworker_t *w)
  * Enable a netdev for monitoring
  */
 ni_bool_t
-ni_managed_netdev_enable(ni_managed_netdev_t *mdev)
+ni_managed_netdev_enable(ni_managed_device_t *mdev)
 {
 	ni_ifworker_t *w = mdev->worker;
 
@@ -85,7 +85,7 @@ ni_managed_netdev_enable(ni_managed_netdev_t *mdev)
  * Apply the selected policy to this netdev
  */
 void
-ni_managed_netdev_apply_policy(ni_managed_netdev_t *mdev, ni_managed_policy_t *mpolicy, ni_fsm_t *fsm)
+ni_managed_netdev_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *mpolicy, ni_fsm_t *fsm)
 {
 	const char *device_name = mdev->worker->name;
 	const ni_fsm_policy_t *policy = mpolicy->fsm_policy;
@@ -122,7 +122,7 @@ ni_managed_netdev_apply_policy(ni_managed_netdev_t *mdev, ni_managed_policy_t *m
  * Bring up the device
  */
 void
-ni_managed_netdev_up(ni_managed_netdev_t *mdev, unsigned int target_state)
+ni_managed_netdev_up(ni_managed_device_t *mdev, unsigned int target_state)
 {
 	ni_ifworker_t *w = mdev->worker;
 
@@ -137,7 +137,7 @@ ni_managed_netdev_up(ni_managed_netdev_t *mdev, unsigned int target_state)
  * Create a dbus object representing the managed netdev
  */
 ni_dbus_object_t *
-ni_objectmodel_register_managed_netdev(ni_dbus_server_t *server, ni_managed_netdev_t *mdev)
+ni_objectmodel_register_managed_netdev(ni_dbus_server_t *server, ni_managed_device_t *mdev)
 {
 	ni_netdev_t *dev = ni_ifworker_get_netdev(mdev->worker);
 	char relative_path[128];
@@ -154,10 +154,10 @@ ni_objectmodel_register_managed_netdev(ni_dbus_server_t *server, ni_managed_netd
 /*
  * Extract managed_netdev handle from dbus object
  */
-static ni_managed_netdev_t *
+static ni_managed_device_t *
 ni_objectmodel_managed_netdev_unwrap(const ni_dbus_object_t *object, DBusError *error)
 {
-	ni_managed_netdev_t *mdev = object->handle;
+	ni_managed_device_t *mdev = object->handle;
 
 	if (ni_dbus_object_isa(object, &managed_netdev_class))
 		return mdev;
@@ -181,7 +181,7 @@ ni_managed_netdev_initialize(ni_dbus_object_t *object)
 static void
 ni_managed_netdev_destroy(ni_dbus_object_t *object)
 {
-	ni_managed_netdev_t *mdev;
+	ni_managed_device_t *mdev;
 
 	if (!(mdev = ni_objectmodel_managed_netdev_unwrap(object, NULL)))
 		return;
@@ -203,7 +203,7 @@ ni_objectmodel_managed_netdev_enable(ni_dbus_object_t *object, const ni_dbus_met
 					unsigned int argc, const ni_dbus_variant_t *argv,
 					ni_dbus_message_t *reply, DBusError *error)
 {
-	ni_managed_netdev_t *mdev;
+	ni_managed_device_t *mdev;
 
 	if ((mdev = ni_objectmodel_managed_netdev_unwrap(object, error)) == NULL)
 		return FALSE;
@@ -228,13 +228,13 @@ static ni_dbus_method_t		ni_objectmodel_managed_netdev_methods[] = {
  * Handle object properties
  */
 static void *
-ni_objectmodel_get_managed_netdev(const ni_dbus_object_t *object, DBusError *error)
+ni_objectmodel_get_managed_device(const ni_dbus_object_t *object, DBusError *error)
 {
 	return ni_objectmodel_managed_netdev_unwrap(object, error);
 }
 
 #define MANAGED_NETIF_BOOL_PROPERTY(dbus_name, name, rw) \
-	NI_DBUS_GENERIC_BOOL_PROPERTY(managed_netdev, dbus_name, name, rw)
+	NI_DBUS_GENERIC_BOOL_PROPERTY(managed_device, dbus_name, name, rw)
 
 static ni_dbus_property_t	ni_objectmodel_managed_netdev_properties[] = {
 	MANAGED_NETIF_BOOL_PROPERTY(user-controlled, user_controlled, RW),
