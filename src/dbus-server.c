@@ -510,8 +510,12 @@ __ni_dbus_object_unregister(DBusConnection *conn, void *user_data)
 
 	NI_TRACE_ENTER_ARGS("path=%s, handle=%p", object->path, object->handle);
 	if (object->handle) {
-		if (object->class && object->class->destroy)
-			object->class->destroy(object);
+		const ni_dbus_class_t *class;
+
+		for (class = object->class; class; class = class->superclass) {
+			if (class->destroy)
+				class->destroy(object);
+		}
 		object->handle = NULL;
 	}
 }
