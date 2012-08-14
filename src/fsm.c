@@ -307,6 +307,9 @@ ni_ifworker_fail(ni_ifworker_t *w, const char *fmt, ...)
 	ni_error("device %s failed: %s", w->name, errmsg);
 	w->fsm.state = w->target_state = NI_FSM_STATE_NONE;
 	w->failed = TRUE;
+
+	if (w->completion.callback)
+		w->completion.callback(w);
 }
 
 static void
@@ -315,6 +318,19 @@ ni_ifworker_success(ni_ifworker_t *w)
 	if (!w->done)
 		printf("%s: %s\n", w->name, ni_ifworker_state_name(w->fsm.state));
 	w->done = 1;
+
+	if (w->completion.callback)
+		w->completion.callback(w);
+}
+
+/*
+ * Set the completion callback
+ */
+void
+ni_ifworker_set_completion_callback(ni_ifworker_t *w, void (*cb)(ni_ifworker_t *), void *user_data)
+{
+	w->completion.callback = cb;
+	w->completion.user_data = user_data;
 }
 
 /*
@@ -3113,4 +3129,3 @@ ni_fsm_set_user_prompt_fn(ni_fsm_t *fsm, ni_fsm_user_prompt_fn_t *fn, void *user
 	ni_fsm_user_prompt_fn = fn;
 	ni_fsm_user_prompt_data = user_data;
 }
-

@@ -150,7 +150,13 @@ struct ni_ifworker {
 		const ni_timer_t *secondary_timer;
 
 		ni_fsm_require_t *child_state_req_list;
+
 	} fsm;
+
+	struct {
+		void		(*callback)(ni_ifworker_t *);
+		void *		user_data;
+	} completion;
 
 	unsigned int		shared_users;
 	ni_ifworker_t *		exclusive_owner;
@@ -237,6 +243,7 @@ extern void			ni_ifworker_set_config(ni_ifworker_t *, xml_node_t *, const char *
 extern ni_bool_t		ni_ifworker_check_config(const ni_ifworker_t *, const xml_node_t *, const char *);
 extern void			ni_ifworker_reset(ni_ifworker_t *);
 extern int			ni_ifworker_start(ni_fsm_t *, ni_ifworker_t *, unsigned long);
+extern void			ni_ifworker_set_completion_callback(ni_ifworker_t *, void (*)(ni_ifworker_t *), void *);
 extern void			ni_ifworker_free(ni_ifworker_t *);
 
 extern void			ni_ifworker_array_append(ni_ifworker_array_t *, ni_ifworker_t *);
