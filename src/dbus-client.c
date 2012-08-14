@@ -744,6 +744,57 @@ out:
 }
 
 /*
+ * Use Properties.Set to update one properties of an object
+ */
+dbus_bool_t
+ni_dbus_object_send_property(ni_dbus_object_t *proxy,
+				const char *service_name,
+				const char *property_name,
+				const ni_dbus_variant_t *value,
+				DBusError *error)
+{
+	DBusError local_error = DBUS_ERROR_INIT;
+	ni_dbus_variant_t argv[3];
+	dbus_bool_t rv = FALSE;
+
+	memset(argv, 0, sizeof(argv));
+	ni_dbus_variant_set_string(&argv[0], service_name);
+	ni_dbus_variant_set_string(&argv[1], property_name);
+	argv[2] = *value;
+
+	if (!error)
+		error = &local_error;
+
+	rv = ni_dbus_object_call_variant(proxy, NI_DBUS_INTERFACE ".Properties", "Set", 3, argv, 0, NULL, error);
+
+	if (!rv && error == &local_error)
+		ni_dbus_print_error(&local_error, "failed to set property %s.%s=\"%s\"",
+				service_name, property_name,
+				ni_dbus_variant_sprint(value));
+
+	ni_dbus_variant_destroy(&argv[0]);
+	ni_dbus_variant_destroy(&argv[1]);
+
+	return rv;
+}
+
+dbus_bool_t
+ni_dbus_object_send_property_string(ni_dbus_object_t *proxy,
+				const char *service_name,
+				const char *property_name,
+				const char *value,
+				DBusError *error)
+{
+	ni_dbus_variant_t var = NI_DBUS_VARIANT_INIT;
+	dbus_bool_t rv;
+
+	ni_dbus_variant_set_string(&var, value);
+	rv = ni_dbus_object_send_property(proxy, service_name, property_name, &var, error);
+	ni_dbus_variant_destroy(&var);
+	return rv;
+}
+
+/*
  * Helper function for debug purposes
  */
 static const char *
