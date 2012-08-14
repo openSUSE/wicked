@@ -197,6 +197,23 @@ xml_node_print_fn(const xml_node_t *node, void (*writefn)(const char *, void *),
 	return rv;
 }
 
+/*
+ * Callback for xml_node_print_fn that writes the output to the trace log
+ */
+static void
+xml_node_trace_printer(const char *line, void *user_data)
+{
+	if (user_data == NULL
+	 || (ni_debug & *(unsigned int *) user_data) != 0)
+		ni_trace("%s", line);
+}
+
+int
+xml_node_print_debug(const xml_node_t *node, unsigned int facility)
+{
+	return xml_node_print_fn(node, xml_node_trace_printer, facility? &facility : NULL);
+}
+
 void
 xml_node_output(const xml_node_t *node, xml_writer_t *writer, unsigned int indent)
 {
