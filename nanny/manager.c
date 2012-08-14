@@ -146,6 +146,26 @@ __ni_manager_find_secret(ni_manager_t *mgr, const char *security_id, const char 
 	return pos;
 }
 
+static ni_manager_secret_t *
+ni_manager_secret_new(const char *security_id, const char *path)
+{
+	ni_manager_secret_t *sec;
+
+	sec = calloc(1, sizeof(*sec));
+	ni_string_dup(&sec->security_id, security_id);
+	ni_string_dup(&sec->path, path);
+	return sec;
+}
+
+static void
+ni_manager_secret_free(ni_manager_secret_t *sec)
+{
+	ni_string_free(&sec->security_id);
+	ni_string_free(&sec->path);
+	ni_string_free(&sec->value);
+	free(sec);
+}
+
 void
 ni_manager_add_secret(ni_manager_t *mgr, const char *security_id, const char *path, const char *value)
 {
@@ -153,11 +173,8 @@ ni_manager_add_secret(ni_manager_t *mgr, const char *security_id, const char *pa
 	ni_managed_device_t *mmod;
 
 	pos = __ni_manager_find_secret(mgr, security_id, path);
-	if ((sec = *pos) == NULL) {
-		*pos = sec = calloc(1, sizeof(*sec));
-		ni_string_dup(&sec->security_id, security_id);
-		ni_string_dup(&sec->path, path);
-	}
+	if ((sec = *pos) == NULL)
+		*pos = sec = ni_manager_secret_new(security_id, path);
 
 	ni_string_dup(&sec->value, value);
 
@@ -170,6 +187,24 @@ ni_manager_add_secret(ni_manager_t *mgr, const char *security_id, const char *pa
 		 && !ni_ifworker_is_running(w)) {
 			ni_trace("%s: secret for %s updated, rechecking", w->name, path);
 			ni_manager_schedule_recheck(mgr, w);
+		}
+	}
+}
+
+void
+ni_manager_clear_secrets(ni_manager_t *mgr, const char *security_id, const char *path)
+{
+	ni_manager_secret_t *sec, **pos;
+
+	ni_trace("%s(%s, %s)", __func__, security_id, path);
+	for (pos = &mgr->secret_db; (sec = *pos) != NULL; ) {
+		if ((security_id == NULL || ni_string_eq(sec->security_id, security_id))
+		 && (path == NULL || ni_string_eq(sec->path, path))) {
+			*pos = sec->next;
+
+			ni_manager_secret_free(sec);
+		} else {
+			pos = &sec->next;
 		}
 	}
 }

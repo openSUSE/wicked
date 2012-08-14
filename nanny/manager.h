@@ -25,6 +25,10 @@ struct ni_managed_device {
 	ni_dbus_object_t *	object;		// server object
 	ni_ifworker_t *		worker;
 	ni_bool_t		user_controlled;
+	ni_bool_t		running;	// we brought it up successfully
+
+	unsigned int		fail_count;
+	unsigned int		max_fail_count;
 
 	ni_managed_policy_t *	selected_policy;
 	unsigned int		selected_policy_seq;
@@ -50,8 +54,6 @@ struct ni_manager {
 	ni_ifworker_array_t	recheck;
 	ni_ifworker_array_t	down;
 
-	unsigned int		policy_seq;
-
 	ni_manager_secret_t *	secret_db;
 };
 
@@ -75,6 +77,7 @@ extern ni_managed_device_t *	ni_manager_get_device(ni_manager_t *, ni_ifworker_t
 extern void			ni_manager_remove_device(ni_manager_t *, ni_managed_device_t *);
 extern ni_managed_policy_t *	ni_manager_get_policy(ni_manager_t *, const ni_fsm_policy_t *);
 extern void			ni_manager_apply_policy(ni_manager_t *, ni_managed_policy_t *, ni_ifworker_t *);
+extern void			ni_manager_clear_secrets(ni_manager_t *mgr, const char *security_id, const char *path);
 extern const char *		ni_manager_get_secret(ni_manager_t *, const char *, const char *);
 
 extern ni_bool_t		ni_managed_netdev_enable(ni_managed_device_t *);

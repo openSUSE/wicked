@@ -118,13 +118,7 @@ ni_managed_device_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *m
 
 	/* If the device is up and running, do not reconfigure unless the policy
 	 * has really changed */
-	if (ni_ifworker_is_running(mdev->worker)) {
-
-		ni_trace("%s: flags:%s%s%s%s", w->name,
-				w->kickstarted? " kickstarted" : "",
-				w->done? " done" : "",
-				w->failed? " failed" : "",
-				w->dead? " dead" : "");
+	if (mdev->running) {
 		if (mdev->selected_policy == mpolicy && mdev->selected_policy_seq == mpolicy->seqno) {
 			ni_trace("%s: keep using policy %s", w->name, ni_fsm_policy_name(policy));
 			return;
@@ -152,9 +146,50 @@ ni_managed_device_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *m
 	mdev->selected_config = config;
 	mdev->selected_policy = mpolicy;
 	mdev->selected_policy_seq = mpolicy->seqno;
+	mdev->running = FALSE;
 
 	/* Now do the fandango */
 	ni_managed_device_up(mdev);
+}
+
+/*
+ * Completion callback
+ */
+static void
+ni_managed_device_work_done(ni_ifworker_t *w)
+{
+	ni_manager_t *mgr = w->completion.user_data;
+	ni_managed_device_t *mdev;
+
+	if ((mdev = ni_manager_get_device(mgr, w)) == NULL) {
+		ni_error("%s: no managed device for worker %s", __func__, w->name);
+		return;
+	}
+
+	if (w->failed) {
+		mdev->fail_count++;
+		if (w->dead) {
+			ni_error("%s: failed to bring up device, device about to be removed", w->name);
+		} else
+		if (mdev->fail_count < mdev->max_fail_count) {
+			ni_error("%s: failed to bring up device, still continuing", w->name);
+		} else {
+			/* Broadcast an error and take down the device
+			 * for good. */
+			/* FIXME TBD */
+		}
+
+		/* A wrong PIN or password may have triggered the problem;
+		 * for now better play it safe and wipe all secrets for this
+		 * device. Using the wrong PIN repeatedly may end up locking
+		 * the device. */
+		if (w->security_id)
+			ni_manager_clear_secrets(mgr, w->security_id, NULL);
+	} else {
+		ni_ifworker_reset(w);
+		mdev->fail_count = 0;
+		mdev->running = TRUE;
+	}
 }
 
 /*
@@ -172,10 +207,12 @@ ni_managed_device_up(ni_managed_device_t *mdev)
 
 	switch (w->type) {
 	case NI_IFWORKER_TYPE_NETDEV:
+		mdev->max_fail_count = 3;
 		target_state = NI_FSM_STATE_ADDRCONF_UP;
 		break;
 
 	case NI_IFWORKER_TYPE_MODEM:
+		mdev->max_fail_count = 1;
 		snprintf(security_id, sizeof(security_id), "modem:%s", w->modem->identify.equipment);
 		ni_string_dup(&w->security_id, security_id);
 
@@ -185,6 +222,8 @@ ni_managed_device_up(ni_managed_device_t *mdev)
 	default:
 		return;
 	}
+
+	ni_ifworker_set_completion_callback(w, ni_managed_device_work_done, mdev->manager);
 
 	ni_ifworker_set_config(w, mdev->selected_config, "manager");
 	w->target_range.min = target_state;
