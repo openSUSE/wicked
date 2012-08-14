@@ -314,4 +314,13 @@ ni_ifworker_is_running(const ni_ifworker_t *w)
 	return w->done && !w->failed;
 }
 
+/*
+ * Returns true iff the worker is currently executing
+ */
+static inline ni_bool_t
+ni_ifworker_active(const ni_ifworker_t *w)
+{
+	return w->fsm.action_table != NULL;
+}
+
 #endif /* __CLIENT_FSM_H__ */

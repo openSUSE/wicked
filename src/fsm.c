@@ -292,6 +292,15 @@ ni_fsm_require_list_insert(ni_fsm_require_t **list, ni_fsm_require_t *req)
  * Handle success/failure of an ifworker.
  */
 static void
+__ni_ifworker_done(ni_ifworker_t *w)
+{
+	w->fsm.action_table = NULL;
+	if (w->completion.callback)
+		w->completion.callback(w);
+	w->done = 1;
+}
+
+static void
 ni_ifworker_fail(ni_ifworker_t *w, const char *fmt, ...)
 {
 	char errmsg[256];
@@ -308,8 +317,7 @@ ni_ifworker_fail(ni_ifworker_t *w, const char *fmt, ...)
 	w->fsm.state = w->target_state = NI_FSM_STATE_NONE;
 	w->failed = TRUE;
 
-	if (w->completion.callback)
-		w->completion.callback(w);
+	__ni_ifworker_done(w);
 }
 
 static void
@@ -317,10 +325,8 @@ ni_ifworker_success(ni_ifworker_t *w)
 {
 	if (!w->done)
 		printf("%s: %s\n", w->name, ni_ifworker_state_name(w->fsm.state));
-	w->done = 1;
 
-	if (w->completion.callback)
-		w->completion.callback(w);
+	__ni_ifworker_done(w);
 }
 
 /*
@@ -1541,7 +1547,7 @@ ni_fsm_destroy_worker(ni_fsm_t *fsm, ni_ifworker_t *w)
 		w->object = NULL;
 	}
 
-	if (w->config.node && !w->done)
+	if (ni_ifworker_active(w))
 		ni_ifworker_fail(w, "device was deleted");
 	w->dead = TRUE;
 
@@ -1964,11 +1970,6 @@ ni_fsm_refresh_state(ni_fsm_t *fsm)
 		/* Always clear the object - we don't know if it's still there
 		 * after we've called ni_dbus_object_refresh_children() */
 		w->object = NULL;
-
-		/* Don't touch devices we're done with */
-		if (w->done)
-			continue;
-
 	}
 
 	__ni_ifworker_refresh_netdevs(fsm);
@@ -1988,7 +1989,7 @@ ni_fsm_refresh_state(ni_fsm_t *fsm)
 				ni_modem_release(w->modem);
 				w->modem = NULL;
 			}
-			if (w->config.node && !w->done)
+			if (ni_ifworker_active(w))
 				ni_ifworker_fail(w, "device was deleted");
 			w->dead = TRUE;
 		} else
