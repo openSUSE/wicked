@@ -152,7 +152,8 @@ ni_objectmodel_managed_policy_update(ni_dbus_object_t *object, const ni_dbus_met
 		xml_document_free(mpolicy->doc);
 	mpolicy->doc = doc;
 
-	/* FIXME: update seqno */
+	mpolicy->seqno++;
+
 	return TRUE;
 }
 
