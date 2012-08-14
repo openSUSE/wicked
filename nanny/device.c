@@ -32,7 +32,38 @@
 #include "manager.h"
 
 /*
- * managed_modem objects
+ * List handling functions
+ */
+static inline void
+ni_managed_device_list_append(ni_managed_device_t **list, ni_managed_device_t *mdev)
+{
+	ni_managed_device_t *next;
+
+	if ((next = *list) != NULL)
+		next->prev = &mdev->next;
+	mdev->next = *list;
+	mdev->prev = list;
+	*list = mdev;
+}
+
+static inline void
+ni_managed_device_list_unlink(ni_managed_device_t *mdev)
+{
+	ni_managed_device_t **prev, *next;
+
+	prev = mdev->prev;
+	next = mdev->next;
+
+	if (prev)
+		*prev = next;
+	if (next)
+		next->prev = prev;
+	mdev->prev = NULL;
+	mdev->next = NULL;
+}
+
+/*
+ * create a new managed_device object
  */
 ni_managed_device_t *
 ni_managed_device_new(ni_manager_t *mgr, ni_ifworker_t *w, ni_managed_device_t **list)
@@ -46,10 +77,8 @@ ni_managed_device_new(ni_manager_t *mgr, ni_ifworker_t *w, ni_managed_device_t *
 	mdev->manager = mgr;
 	mdev->worker = ni_ifworker_get(w);
 
-	if (list) {
-		mdev->next = *list;
-		*list = mdev;
-	}
+	if (list)
+		ni_managed_device_list_append(list, mdev);
 
 	return mdev;
 }
@@ -78,6 +107,8 @@ ni_manager_get_device(ni_manager_t *mgr, ni_ifworker_t *w)
 {
 	ni_managed_device_t *mdev, *list;
 
+	ni_assert(w);
+
 	switch (w->type) {
 	case NI_IFWORKER_TYPE_NETDEV:
 		list = mgr->netdev_list; break;
@@ -92,6 +123,12 @@ ni_manager_get_device(ni_manager_t *mgr, ni_ifworker_t *w)
 			return mdev;
 	}
 	return NULL;
+}
+
+void
+ni_manager_remove_device(ni_manager_t *mgr, ni_managed_device_t *mdev)
+{
+	ni_managed_device_list_unlink(mdev);
 }
 
 void

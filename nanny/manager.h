@@ -20,6 +20,7 @@ typedef struct ni_managed_policy ni_managed_policy_t;
 typedef struct ni_manager_secret ni_manager_secret_t;
 
 struct ni_managed_device {
+	ni_managed_device_t **	prev;
 	ni_managed_device_t *	next;
 
 	ni_manager_t *		manager;	// back pointer at mgr
@@ -74,8 +75,7 @@ extern void			ni_manager_recheck(ni_manager_t *, ni_ifworker_t *);
 extern void			ni_manager_register_device(ni_manager_t *, ni_ifworker_t *);
 extern void			ni_manager_unregister_device(ni_manager_t *, ni_ifworker_t *);
 extern ni_managed_device_t *	ni_manager_get_device(ni_manager_t *, ni_ifworker_t *);
-extern ni_managed_netdev_t *	ni_manager_remove_netdev(ni_manager_t *, ni_managed_netdev_t *);
-extern ni_managed_modem_t *	ni_manager_remove_modem(ni_manager_t *, ni_managed_modem_t *);
+extern void			ni_manager_remove_device(ni_manager_t *, ni_managed_device_t *);
 extern ni_managed_policy_t *	ni_manager_get_policy(ni_manager_t *, const ni_fsm_policy_t *);
 extern void			ni_manager_apply_policy(ni_manager_t *, ni_managed_policy_t *, ni_ifworker_t *);
 extern const char *		ni_manager_get_secret(ni_manager_t *, const char *, const char *);

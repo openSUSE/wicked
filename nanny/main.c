@@ -151,36 +151,6 @@ ni_manager_schedule_down(ni_manager_t *mgr, ni_ifworker_t *w)
 		ni_ifworker_array_append(&mgr->down, w);
 }
 
-ni_managed_netdev_t *
-ni_manager_remove_netdev(ni_manager_t *mgr, ni_managed_netdev_t *mdev)
-{
-	ni_managed_netdev_t *cur, **pos;
-
-	for (pos = &mgr->netdev_list; (cur = *pos) != NULL; pos = &cur->next) {
-		if (mdev == cur) {
-			*pos = cur->next;
-			cur->next = NULL;
-			return cur;
-		}
-	}
-	return NULL;
-}
-
-ni_managed_modem_t *
-ni_manager_remove_modem(ni_manager_t *mgr, ni_managed_modem_t *mdev)
-{
-	ni_managed_modem_t *cur, **pos;
-
-	for (pos = &mgr->modem_list; (cur = *pos) != NULL; pos = &cur->next) {
-		if (mdev == cur) {
-			*pos = cur->next;
-			cur->next = NULL;
-			return cur;
-		}
-	}
-	return NULL;
-}
-
 ni_managed_policy_t *
 ni_manager_get_policy(ni_manager_t *mgr, const ni_fsm_policy_t *policy)
 {

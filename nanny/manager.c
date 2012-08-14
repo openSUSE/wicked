@@ -107,13 +107,7 @@ ni_manager_unregister_device(ni_manager_t *mgr, ni_ifworker_t *w)
 		return;
 	}
 
-	if (w->type == NI_IFWORKER_TYPE_NETDEV) {
-		ni_manager_remove_netdev(mgr, mdev);
-	} else
-	if (w->type == NI_IFWORKER_TYPE_MODEM) {
-		ni_manager_remove_modem(mgr, mdev);
-	}
-
+	ni_manager_remove_device(mgr, mdev);
 	ni_objectmodel_unregister_managed_device(mdev);
 	ni_fsm_destroy_worker(mgr->fsm, w);
 }
