@@ -103,7 +103,9 @@ extern ni_dbus_object_t *	ni_objectmodel_object_by_path(const char *path);
 
 extern ni_dbus_object_t *	ni_objectmodel_wrap_netif(ni_netdev_t *ifp);
 extern ni_netdev_t *		ni_objectmodel_unwrap_netif(const ni_dbus_object_t *, DBusError *);
-extern dbus_bool_t		ni_objectmodel_netif_event(ni_dbus_server_t *, ni_netdev_t *, ni_event_t, const ni_uuid_t *);
+extern ni_dbus_object_t *	ni_objectmodel_get_netif_object(ni_dbus_server_t *, const ni_netdev_t *);
+extern dbus_bool_t		ni_objectmodel_send_netif_event(ni_dbus_server_t *, ni_dbus_object_t *,
+					ni_event_t, const ni_uuid_t *);
 
 extern ni_modem_t *		ni_objectmodel_unwrap_modem(const ni_dbus_object_t *, DBusError *);
 extern ni_dbus_object_t *	ni_objectmodel_get_modem_object(ni_dbus_server_t *, const ni_modem_t *);

@@ -502,6 +502,32 @@ ni_objectmodel_unwrap_netif(const ni_dbus_object_t *object, DBusError *error)
 }
 
 /*
+ * Given a network device, look up the server object encapsulating it
+ */
+ni_dbus_object_t *
+ni_objectmodel_get_netif_object(ni_dbus_server_t *server, const ni_netdev_t *dev)
+{
+	ni_dbus_object_t *object;
+
+	if (!dev)
+		return NULL;
+
+	if (!server && !(server = __ni_objectmodel_server))
+		return NULL;
+
+	object = ni_dbus_server_find_object_by_handle(server, dev);
+	if (object == NULL)
+		return NULL;
+
+	if (!ni_dbus_object_isa(object, &ni_objectmodel_netif_class)) {
+		ni_error("%s: netdev is encapsulated by a %s class object", __func__, object->class->name);
+		return NULL;
+	}
+
+	return object;
+}
+
+/*
  * Helper functions to extract all properties from a dict argument
  */
 static dbus_bool_t
@@ -754,22 +780,14 @@ ni_objectmodel_netif_set_client_info(ni_dbus_object_t *object, const ni_dbus_met
  * from an addrconf service against its current state.
  */
 dbus_bool_t
-ni_objectmodel_netif_event(ni_dbus_server_t *server, ni_netdev_t *dev,
+ni_objectmodel_send_netif_event(ni_dbus_server_t *server, ni_dbus_object_t *object,
 			ni_event_t ifevent, const ni_uuid_t *uuid)
 {
-	ni_dbus_object_t *object;
-
 	if (ifevent >= __NI_EVENT_MAX)
 		return FALSE;
 
 	if (!server && !(server = __ni_objectmodel_server)) {
 		ni_error("%s: help! No dbus server handle! Cannot send signal.", __func__);
-		return FALSE;
-	}
-
-	object = ni_dbus_server_find_object_by_handle(server, dev);
-	if (object == NULL) {
-		ni_warn("no dbus object for interface %s. Cannot send signal", dev->name);
 		return FALSE;
 	}
 

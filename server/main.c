@@ -244,21 +244,38 @@ wicked_interface_event(ni_netdev_t *dev, ni_event_t event)
 	ni_uuid_t *event_uuid = NULL;
 
 	if (wicked_dbus_server) {
+		ni_dbus_object_t *object;
+
+		if (event == NI_EVENT_DEVICE_CREATE) {
+			/* A new netif was discovered; create a dbus server object
+			 * enacpsulating it. */
+			object = ni_objectmodel_register_netif(wicked_dbus_server, dev, NULL);
+		} else
+		if (!(object = ni_objectmodel_get_netif_object(wicked_dbus_server, dev))) {
+			ni_error("cannot send %s event for model \"%s\" - no dbus device",
+				ni_event_type_to_name(event), dev->name);
+			return;
+		}
+
 		switch (event) {
 		case NI_EVENT_DEVICE_CREATE:
 			/* Create dbus object and emit event */
-			ni_objectmodel_register_netif(wicked_dbus_server, dev, NULL);
-			ni_objectmodel_netif_event(wicked_dbus_server, dev, event, NULL);
+			ni_objectmodel_send_netif_event(wicked_dbus_server, object, event, NULL);
 			break;
 
 		case NI_EVENT_DEVICE_DELETE:
+			/* Delete dbus object first, so that GetManagedObjects doesn't
+			 * return it any longer.
+			 * Note; deletion of the object will be deferred until we return to
+			 * the main loop.
+			 */
+			ni_objectmodel_unregister_netif(wicked_dbus_server, dev);
+
 			/* Delete dbus object and emit event */
 			if (!ni_uuid_is_null(&dev->link.event_uuid))
 				event_uuid = &dev->link.event_uuid;
-			ni_objectmodel_netif_event(wicked_dbus_server, dev, NI_EVENT_DEVICE_DOWN, event_uuid);
-			ni_objectmodel_netif_event(wicked_dbus_server, dev, NI_EVENT_DEVICE_DELETE, NULL);
-
-			ni_objectmodel_unregister_netif(wicked_dbus_server, dev);
+			ni_objectmodel_send_netif_event(wicked_dbus_server, object, NI_EVENT_DEVICE_DOWN, event_uuid);
+			ni_objectmodel_send_netif_event(wicked_dbus_server, object, NI_EVENT_DEVICE_DELETE, NULL);
 			break;
 
 		case NI_EVENT_LINK_ASSOCIATED:
@@ -270,7 +287,7 @@ wicked_interface_event(ni_netdev_t *dev, ni_event_t event)
 			/* fallthru */
 
 		default:
-			ni_objectmodel_netif_event(wicked_dbus_server, dev, event, event_uuid);
+			ni_objectmodel_send_netif_event(wicked_dbus_server, object, event, event_uuid);
 			break;
 		}
 	}

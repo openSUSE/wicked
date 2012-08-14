@@ -200,7 +200,14 @@ ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_messa
 	 * We use the UUID that's passed back and forth to make sure we
 	 * really match the event we were expecting to match.
 	 */
-	ni_objectmodel_netif_event(NULL, ifp, ifevent, ni_uuid_is_null(&uuid)? NULL : &uuid);
+	{
+		ni_dbus_object_t *object;
+
+		object = ni_objectmodel_get_netif_object(__ni_objectmodel_server, ifp);
+		if (object)
+			ni_objectmodel_send_netif_event(__ni_objectmodel_server, object,
+					ifevent, ni_uuid_is_null(&uuid)? NULL : &uuid);
+	}
 
 done:
 	while (argc--)
