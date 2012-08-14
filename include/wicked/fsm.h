@@ -101,7 +101,8 @@ struct ni_ifworker {
 	ni_uint_range_t		target_range;
 	int			target_state;
 
-	unsigned int		failed		: 1,
+	unsigned int		dead		: 1,
+				failed		: 1,
 				done		: 1,
 				kickstarted	: 1;
 

@@ -1910,6 +1910,9 @@ ni_fsm_refresh_state(ni_fsm_t *fsm)
 				ni_modem_release(w->modem);
 				w->modem = NULL;
 			}
+			if (w->config.node && !w->done)
+				ni_ifworker_fail(w, "device was deleted");
+			w->dead = TRUE;
 		} else
 			ni_ifworker_update_state(w, NI_FSM_STATE_DEVICE_EXISTS, __NI_FSM_STATE_MAX);
 	}
