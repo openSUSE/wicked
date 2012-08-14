@@ -56,33 +56,12 @@ ni_managed_modem_new(ni_manager_t *mgr, ni_ifworker_t *w)
 	if (w->modem == NULL)
 		ni_warn("%s(%s): device not bound", __func__, w->name);
 
-	mdev = calloc(1, sizeof(*mdev));
-	mdev->manager = mgr;
-	mdev->worker = ni_ifworker_get(w);
+	mdev = ni_managed_device_new(mgr, w, &mgr->modem_list);
 
 	/* FIXME: for now, we allow users to control all modems */
 	mdev->user_controlled = TRUE;
 
-	mdev->next = mgr->modem_list;
-	mgr->modem_list = mdev;
-
 	return mdev;
-}
-
-void
-ni_managed_modem_free(ni_managed_modem_t *mdev)
-{
-	ni_trace("%s(%s): obj=%p", __func__,
-			mdev->worker? mdev->worker->name : "anon",
-			mdev->object);
-	ni_assert(mdev->object == NULL);
-
-	if (mdev->worker) {
-		ni_ifworker_release(mdev->worker);
-		mdev->worker = NULL;
-	}
-
-	free(mdev);
 }
 
 void
@@ -212,7 +191,7 @@ ni_managed_modem_destroy(ni_dbus_object_t *object)
 	if (!(mdev = ni_objectmodel_managed_modem_unwrap(object, NULL)))
 		return;
 
-	ni_managed_modem_free(mdev);
+	ni_managed_device_free(mdev);
 }
 
 ni_dbus_class_t			ni_objectmodel_managed_modem_class = {

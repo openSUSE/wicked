@@ -144,7 +144,8 @@ NANNYSRCS = \
 	  nanny/manager.c \
 	  nanny/policy.c \
 	  nanny/interface.c \
-	  nanny/modem.c
+	  nanny/modem.c \
+	  nanny/device.c
 GENFILES = \
 	  schema/constants.xml
 TAGDIRS	= \

@@ -48,42 +48,10 @@ ni_objectmodel_managed_netif_init(ni_dbus_server_t *server)
 /*
  * managed_netdev objects
  */
-ni_managed_netdev_t *
+ni_managed_device_t *
 ni_managed_netdev_new(ni_manager_t *mgr, ni_ifworker_t *w)
 {
-	ni_managed_netdev_t *mdev;
-
-	mdev = calloc(1, sizeof(*mdev));
-	mdev->manager = mgr;
-	mdev->worker = ni_ifworker_get(w);
-
-	mdev->next = mgr->netdev_list;
-	mgr->netdev_list = mdev;
-
-#if 0
-	switch (w->device->link.type) {
-	case NI_IFTYPE_ETHERNET:
-	case NI_IFTYPE_WIRELESS:
-		ni_managed_netdev_enable(mdev);
-		break;
-
-	default: ;
-	}
-#endif
-
-	return mdev;
-}
-
-void
-ni_managed_netdev_free(ni_managed_netdev_t *mdev)
-{
-	if (mdev->object)
-		ni_dbus_object_free(mdev->object);
-
-	if (mdev->worker)
-		ni_ifworker_release(mdev->worker);
-
-	free(mdev);
+	return ni_managed_device_new(mgr, w, &mgr->netdev_list);
 }
 
 /*
@@ -227,7 +195,7 @@ ni_managed_netdev_destroy(ni_dbus_object_t *object)
 	if (!(mdev = ni_objectmodel_managed_netdev_unwrap(object, NULL)))
 		return;
 
-	ni_managed_netdev_free(mdev);
+	ni_managed_device_free(mdev);
 }
 
 ni_dbus_class_t			managed_netdev_class = {
