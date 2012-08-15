@@ -32,3 +32,21 @@
   </merge>
 </policy>
 
+<template name="gsm">
+  <create instantiate="multi" class="netif-ppp">
+    <input-device id="modem" shared="false">
+      <match>
+        <class>modem</class>
+        <modem:equipment-id>353871023279109</modem:equipment-id>
+      </match>
+    </input-device>
+  </create>
+
+  <merge final="true">
+    <!-- Identify the modem device to use - in this case, the input device
+      -- matched above. -->
+    <ppp>
+      <device><template:use id="modem"/></device>
+    </ppp>
+  </merge>
+</template>
