@@ -453,7 +453,7 @@ __ni_lease_owns_address(const ni_addrconf_lease_t *lease, const ni_address_t *ma
 			if (rp->prefixlen != match->prefixlen)
 				continue;
 			if (ni_address_prefix_match(rp->prefixlen, &rp->destination, &match->local_addr))
-				return 1;
+				return TRUE;
 		}
 	}
 
@@ -468,15 +468,15 @@ __ni_lease_owns_address(const ni_addrconf_lease_t *lease, const ni_address_t *ma
 			if (!ni_address_prefix_match(match->prefixlen, &ap->local_addr, &match->local_addr))
 				continue;
 		} else {
-			if (ni_address_equal(&ap->local_addr, &match->local_addr))
+			if (!ni_address_equal(&ap->local_addr, &match->local_addr))
 				continue;
 		}
 
 		if (ni_address_equal(&ap->peer_addr, &match->peer_addr)
 		 && ni_address_equal(&ap->anycast_addr, &match->anycast_addr))
-			return 1;
+			return TRUE;
 	}
-	return 0;
+	return FALSE;
 }
 
 /*
