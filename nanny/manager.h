@@ -89,7 +89,6 @@ extern void			ni_manager_unregister_device(ni_manager_t *, ni_ifworker_t *);
 extern ni_managed_device_t *	ni_manager_get_device(ni_manager_t *, ni_ifworker_t *);
 extern void			ni_manager_remove_device(ni_manager_t *, ni_managed_device_t *);
 extern ni_managed_policy_t *	ni_manager_get_policy(ni_manager_t *, const ni_fsm_policy_t *);
-extern void			ni_manager_apply_policy(ni_manager_t *, ni_managed_policy_t *, ni_ifworker_t *);
 extern void			ni_manager_clear_secrets(ni_manager_t *mgr, const char *security_id, const char *path);
 extern const char *		ni_manager_get_secret(ni_manager_t *, const char *, const char *);
 

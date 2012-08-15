@@ -173,8 +173,7 @@ ni_manager_recheck(ni_manager_t *mgr, ni_ifworker_t *w)
 	policy = policies[count-1];
 	mpolicy = ni_manager_get_policy(mgr, policy);
 
-	/* FIXME: pass mdev rather than worker */
-	ni_manager_apply_policy(mgr, mpolicy, w);
+	ni_managed_device_apply_policy(mdev, mpolicy);
 }
 
 /*
@@ -253,20 +252,6 @@ ni_manager_unregister_device(ni_manager_t *mgr, ni_ifworker_t *w)
 	ni_manager_remove_device(mgr, mdev);
 	ni_objectmodel_unregister_managed_device(mdev);
 	ni_fsm_destroy_worker(mgr->fsm, w);
-}
-
-/*
- * Apply the selected policy to this worker
- */
-void
-ni_manager_apply_policy(ni_manager_t *mgr, ni_managed_policy_t *mpolicy, ni_ifworker_t *w)
-{
-	ni_managed_device_t *mdev;
-
-	if ((mdev = ni_manager_get_device(mgr, w)) == NULL)
-		return;
-
-	ni_managed_device_apply_policy(mdev, mpolicy);
 }
 
 /*
