@@ -518,8 +518,10 @@ __ni_dbus_object_unregister(DBusConnection *conn, void *user_data)
 		const ni_dbus_class_t *class;
 
 		for (class = object->class; class; class = class->superclass) {
-			if (class->destroy)
+			if (class->destroy) {
 				class->destroy(object);
+				break;
+			}
 		}
 		object->handle = NULL;
 	}
