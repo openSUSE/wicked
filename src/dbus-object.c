@@ -143,13 +143,18 @@ ni_dbus_object_free(ni_dbus_object_t *object)
 	}
 }
 
-void
-__ni_dbus_objects_garbage_collect(void)
+ni_bool_t
+ni_dbus_objects_garbage_collect(void)
 {
 	ni_dbus_object_t *object;
 
+	if (!__ni_dbus_objects_trashcan)
+		return FALSE;
+
+	ni_debug_dbus("%s()", __func__);
 	while ((object = __ni_dbus_objects_trashcan) != NULL)
 		__ni_dbus_object_free(object);
+	return TRUE;
 }
 
 /*

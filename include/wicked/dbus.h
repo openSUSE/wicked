@@ -174,6 +174,7 @@ extern const ni_dbus_method_t *	ni_dbus_service_get_method(const ni_dbus_service
 					const char *name);
 extern const ni_dbus_method_t *	ni_dbus_service_get_signal(const ni_dbus_service_t *service,
 					const char *name);
+extern ni_bool_t		ni_dbus_objects_garbage_collect(void);
 
 extern ni_dbus_server_t *	ni_dbus_object_get_server(const ni_dbus_object_t *);
 extern ni_dbus_client_t *	ni_dbus_object_get_client(const ni_dbus_object_t *);

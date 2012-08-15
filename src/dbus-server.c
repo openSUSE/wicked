@@ -184,6 +184,11 @@ __ni_dbus_server_object_destroy(ni_dbus_object_t *object)
 
 	if (server && object->path)
 		ni_dbus_connection_unregister_object(server->connection, object);
+
+	if (object->server_object) {
+		free(object->server_object);
+		object->server_object = NULL;
+	}
 }
 
 /*
@@ -534,7 +539,7 @@ __ni_dbus_object_message(DBusConnection *conn, DBusMessage *call, void *user_dat
 	dbus_bool_t rv = FALSE;
 
 	/* Clean out deceased objects */
-	__ni_dbus_objects_garbage_collect();
+	ni_dbus_objects_garbage_collect();
 
 	if (dbus_message_get_type(call) != DBUS_MESSAGE_TYPE_METHOD_CALL
 	 || interface == NULL
@@ -693,7 +698,8 @@ __ni_dbus_server_unregister_object(ni_dbus_object_t *parent, void *object_handle
 				rv = 1;
 			pos = &object->next;
 		} else {
-			__ni_dbus_object_free(object);
+			__ni_dbus_server_object_destroy(object);
+			ni_dbus_object_free(object);
 			rv = 1;
 		}
 	}
