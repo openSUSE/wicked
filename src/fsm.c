@@ -2048,10 +2048,6 @@ __ni_ifworker_refresh_netdevs(ni_fsm_t *fsm)
 			found = ni_ifworker_new(fsm, NI_IFWORKER_TYPE_NETDEV, dev->name);
 		}
 
-		/* Don't touch devices we're done with */
-		if (found->done)
-			continue;
-
 		if (!found->object_path)
 			ni_string_dup(&found->object_path, object->path);
 		if (!found->device)
@@ -2059,10 +2055,13 @@ __ni_ifworker_refresh_netdevs(ni_fsm_t *fsm)
 		found->ifindex = dev->link.ifindex;
 		found->object = object;
 
-		if (ni_netdev_link_is_up(dev))
-			ni_ifworker_update_state(found, NI_FSM_STATE_LINK_UP, __NI_FSM_STATE_MAX);
-		else
-			ni_ifworker_update_state(found, 0, NI_FSM_STATE_DEVICE_UP);
+		/* Don't touch devices we're done with */
+		if (!found->done) {
+			if (ni_netdev_link_is_up(dev))
+				ni_ifworker_update_state(found, NI_FSM_STATE_LINK_UP, __NI_FSM_STATE_MAX);
+			else
+				ni_ifworker_update_state(found, 0, NI_FSM_STATE_DEVICE_UP);
+		}
 	}
 }
 
@@ -2114,16 +2113,15 @@ ni_fsm_recv_new_modem(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 		found = ni_ifworker_new(fsm, NI_IFWORKER_TYPE_MODEM, modem->device);
 	}
 
-	/* Don't touch devices we're done with */
-	if (!found->done) {
-		if (!found->object_path)
-			ni_string_dup(&found->object_path, object->path);
-		if (!found->modem)
-			found->modem = ni_modem_hold(modem);
-		found->object = object;
+	if (!found->object_path)
+		ni_string_dup(&found->object_path, object->path);
+	if (!found->modem)
+		found->modem = ni_modem_hold(modem);
+	found->object = object;
 
+	/* Don't touch devices we're done with */
+	if (!found->done)
 		ni_ifworker_update_state(found, NI_FSM_STATE_DEVICE_EXISTS, __NI_FSM_STATE_MAX);
-	}
 
 	return found;
 }
