@@ -32,7 +32,7 @@ static void		ni_objectmodel_register_netif_factory_service(ni_dbus_service_t *);
 static void		ni_objectmodel_netif_initialize(ni_dbus_object_t *object);
 static void		ni_objectmodel_netif_destroy(ni_dbus_object_t *object);
 
-static ni_dbus_class_t		ni_objectmodel_netif_class = {
+const ni_dbus_class_t		ni_objectmodel_netif_class = {
 	.name		= NI_OBJECTMODEL_NETIF_CLASS,
 	.initialize	= ni_objectmodel_netif_initialize,
 	.destroy	= ni_objectmodel_netif_destroy,
