@@ -71,7 +71,7 @@ extern unsigned int	ni_debug;
 	do { \
 		if (ni_debug & NI_TRACE_WICKED_XML) { \
 			ni_trace(fmt, ##args); \
-			xml_node_print_fn(xml_node, (void (*)(const char *, void *)) ni_trace, NULL); \
+			xml_node_print_debug(xml_node, NI_TRACE_WICKED_XML); \
 		} \
 	} while (0)
 #define ni_debug_none(fmt, args...)		do { } while (0)
