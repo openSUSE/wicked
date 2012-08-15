@@ -34,6 +34,7 @@ struct ni_managed_device {
 	ni_dbus_object_t *	object;		// server object
 	ni_ifworker_t *		worker;
 	ni_bool_t		user_controlled;
+	ni_bool_t		rfkill_blocked;
 
 	ni_managed_state_t	state;
 
@@ -91,6 +92,7 @@ extern void			ni_manager_remove_device(ni_manager_t *, ni_managed_device_t *);
 extern ni_managed_policy_t *	ni_manager_get_policy(ni_manager_t *, const ni_fsm_policy_t *);
 extern void			ni_manager_clear_secrets(ni_manager_t *mgr, const char *security_id, const char *path);
 extern const char *		ni_manager_get_secret(ni_manager_t *, const char *, const char *);
+extern void			ni_manager_rfkill_event(ni_manager_t *mgr, ni_rfkill_type_t type, ni_bool_t blocked);
 
 extern ni_bool_t		ni_managed_netdev_enable(ni_managed_device_t *);
 extern void			ni_managed_netdev_apply_policy(ni_managed_device_t *, ni_managed_policy_t *, ni_fsm_t *);

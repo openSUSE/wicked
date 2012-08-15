@@ -609,6 +609,40 @@ ni_ifworker_by_alias(ni_fsm_t *fsm, const char *alias)
 	return NULL;
 }
 
+/*
+ * Determine what class of devices a worker belongs to
+ */
+ni_rfkill_type_t
+ni_ifworker_get_rfkill_type(const ni_ifworker_t *w)
+{
+	if (w->object == NULL)
+		return FALSE;
+
+	switch (w->type) {
+	case NI_IFWORKER_TYPE_MODEM:
+		/* FIXME */
+		return -1;
+
+	case NI_IFWORKER_TYPE_NETDEV:
+		if (w->device == NULL)
+			return -1;
+		switch (w->device->link.type) {
+		case NI_IFTYPE_WIRELESS:
+			return NI_RFKILL_TYPE_WIRELESS;
+		default: ;
+		}
+		break;
+
+	default: ;
+	}
+
+	return -1;
+}
+
+/*
+ * When processing an <interface> or <modem> document, resolve any references to
+ * other devices.
+ */
 static ni_ifworker_t *
 ni_ifworker_resolve_reference(ni_fsm_t *fsm, xml_node_t *devnode, ni_ifworker_type_t type)
 {

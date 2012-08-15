@@ -26,6 +26,7 @@
 #include <wicked/wicked.h>
 #include <wicked/socket.h>
 #include <wicked/objectmodel.h>
+#include <wicked/wireless.h>
 #include <wicked/modem.h>
 
 enum {
@@ -58,6 +59,7 @@ static void		wicked_interface_server(void);
 static void		wicked_discover_state(void);
 static void		wicked_recover_addrconf(const char *filename);
 static void		wicked_interface_event(ni_netdev_t *, ni_event_t);
+static void		wicked_rfkill_event(ni_rfkill_type_t, ni_bool_t, void *);
 static void		wicked_other_event(ni_event_t);
 static void		wicked_modem_event(ni_modem_t *, ni_event_t);
 
@@ -152,6 +154,8 @@ wicked_interface_server(void)
 	/* open global RTNL socket to listen for kernel events */
 	if (ni_server_listen_interface_events(wicked_interface_event) < 0)
 		ni_fatal("unable to initialize netlink listener");
+
+	ni_rfkill_open(wicked_rfkill_event, NULL);
 
 	/* Listen for other events, such as RESOLVER_UPDATED */
 	ni_server_listen_other_events(wicked_other_event);
@@ -360,4 +364,11 @@ wicked_modem_event(ni_modem_t *modem, ni_event_t event)
 			break;
 		}
 	}
+}
+
+void
+wicked_rfkill_event(ni_rfkill_type_t type, ni_bool_t blocked, void *user_data)
+{
+	ni_debug_application("rfkill: %s devices %s", ni_rfkill_type_string(type),
+			blocked? "blocked" : "enabled");
 }

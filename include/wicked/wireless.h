@@ -252,6 +252,11 @@ extern ni_wireless_key_mgmt_t ni_wireless_name_to_key_management(const char *);
 extern const char *	ni_wireless_eap_method_to_name(ni_wireless_eap_method_t);
 extern ni_wireless_eap_method_t ni_wireless_name_to_eap_method(const char *);
 
+/* rfkill support */
+typedef void		ni_rfkill_event_handler_t(ni_rfkill_type_t, ni_bool_t, void *user_data);
+extern int		ni_rfkill_open(ni_rfkill_event_handler_t *, void *user_data);
+extern const char *	ni_rfkill_type_string(ni_rfkill_type_t type);
+
 static inline ni_wireless_network_t *
 ni_wireless_network_get(ni_wireless_network_t *net)
 {

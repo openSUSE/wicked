@@ -212,6 +212,41 @@ ni_manager_get_policy(ni_manager_t *mgr, const ni_fsm_policy_t *policy)
 }
 
 /*
+ * Handle events from an rfkill switch
+ */
+static void
+__ni_manager_rfkill_event(ni_managed_device_t *list, ni_rfkill_type_t type, ni_bool_t blocked)
+{
+	ni_managed_device_t *mdev;
+
+	for (mdev = list; mdev; mdev = mdev->next) {
+		ni_ifworker_t *w = mdev->worker;
+
+		if (!mdev->user_controlled)
+			continue;
+
+		if (ni_ifworker_get_rfkill_type(w) == type) {
+			mdev->rfkill_blocked = blocked;
+			if (blocked) {
+				ni_debug_nanny("%s: radio disabled", w->name);
+			} else {
+				/* Re-enable scanning */
+				ni_debug_nanny("%s: radio re-enabled, resume monitoring", w->name);
+				ni_managed_netdev_enable(mdev);
+				ni_manager_schedule_recheck(mdev->manager, w);
+			}
+		}
+	}
+}
+
+void
+ni_manager_rfkill_event(ni_manager_t *mgr, ni_rfkill_type_t type, ni_bool_t blocked)
+{
+	__ni_manager_rfkill_event(mgr->netdev_list, type, blocked);
+	__ni_manager_rfkill_event(mgr->modem_list, type, blocked);
+}
+
+/*
  * Register a device
  */
 void

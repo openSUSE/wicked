@@ -25,6 +25,7 @@
 #include <wicked/socket.h>
 #include <wicked/objectmodel.h>
 #include <wicked/modem.h>
+#include <wicked/wireless.h>
 #include <wicked/fsm.h>
 #include "manager.h"
 
@@ -54,6 +55,7 @@ static void		ni_manager_netif_state_change_signal_receive(ni_dbus_connection_t *
 static void		ni_manager_modem_state_change_signal_receive(ni_dbus_connection_t *, ni_dbus_message_t *, void *);
 //static void		handle_interface_event(ni_netdev_t *, ni_event_t);
 //static void		handle_modem_event(ni_modem_t *, ni_event_t);
+static void		handle_rfkill_event(ni_rfkill_type_t, ni_bool_t, void *user_data);
 
 int
 main(int argc, char **argv)
@@ -130,6 +132,8 @@ interface_manager(void)
 			ni_fatal("unable to background server");
 		ni_log_destination_syslog(program_name);
 	}
+
+	ni_rfkill_open(handle_rfkill_event, mgr);
 
 	ni_manager_discover_state(mgr);
 
@@ -278,4 +282,15 @@ ni_manager_modem_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus
 	} else {
 		// ignore
 	}
+}
+
+void
+handle_rfkill_event(ni_rfkill_type_t type, ni_bool_t blocked, void *user_data)
+{
+	ni_manager_t *mgr = user_data;
+
+	ni_debug_application("rfkill: %s devices %s", ni_rfkill_type_string(type),
+			blocked? "blocked" : "enabled");
+
+	ni_manager_rfkill_event(mgr, type, blocked);
 }

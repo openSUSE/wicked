@@ -49,6 +49,7 @@ __LIBSRCS= \
 	  bonding.c \
 	  bridge.c \
 	  wireless.c \
+	  rfkill.c \
 	  openvpn.c \
 	  ppp.c \
 	  ipv4.c \

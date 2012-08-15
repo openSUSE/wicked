@@ -245,6 +245,7 @@ extern ni_bool_t		ni_ifworker_check_config(const ni_ifworker_t *, const xml_node
 extern void			ni_ifworker_reset(ni_ifworker_t *);
 extern int			ni_ifworker_start(ni_fsm_t *, ni_ifworker_t *, unsigned long);
 extern void			ni_ifworker_set_completion_callback(ni_ifworker_t *, void (*)(ni_ifworker_t *), void *);
+extern ni_rfkill_type_t		ni_ifworker_get_rfkill_type(const ni_ifworker_t *);
 extern void			ni_ifworker_free(ni_ifworker_t *);
 
 extern void			ni_ifworker_array_append(ni_ifworker_array_t *, ni_ifworker_t *);
