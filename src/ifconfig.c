@@ -925,6 +925,7 @@ __ni_rtnl_link_up(const ni_netdev_t *dev, const ni_netdev_req_t *cfg)
 {
 	struct ifinfomsg ifi;
 	struct nl_msg *msg;
+	int rv = -1;
 
 	if (dev->link.ifindex == 0) {
 		ni_error("%s: bad interface index for %s", __func__, dev->name);
@@ -940,8 +941,10 @@ __ni_rtnl_link_up(const ni_netdev_t *dev, const ni_netdev_req_t *cfg)
 
 	msg = nlmsg_alloc_simple(RTM_NEWLINK, NLM_F_CREATE);
 
-	if (nlmsg_append(msg, &ifi, sizeof(ifi), NLMSG_ALIGNTO) < 0)
+	if (nlmsg_append(msg, &ifi, sizeof(ifi), NLMSG_ALIGNTO) < 0) {
+		ni_error("failed to encode netlink attr");
 		goto nla_put_failure;
+	}
 
 	if (cfg) {
 		if (cfg->mtu && cfg->mtu != dev->link.mtu)
@@ -964,18 +967,20 @@ __ni_rtnl_link_up(const ni_netdev_t *dev, const ni_netdev_req_t *cfg)
 	}
 
 	if (ni_nl_talk(msg) < 0) {
+		if (errno == ERFKILL)
+			rv = -NI_ERROR_RADIO_DISABLED;
+		else
+			rv = -NI_ERROR_GENERAL_FAILURE;
 		ni_debug_ifconfig("%s: rtnl_talk failed", __func__);
-		goto failed;
 	}
 
+out:
 	nlmsg_free(msg);
 	return 0;
 
 nla_put_failure:
-	ni_error("failed to encode netlink attr");
-failed:
-	nlmsg_free(msg);
-	return -1;
+	rv = -NI_ERROR_GENERAL_FAILURE;
+	goto out;
 }
 
 static inline int
