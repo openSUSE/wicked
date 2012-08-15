@@ -815,6 +815,31 @@ ni_ifcondition_linktype(xml_node_t *node)
 }
 
 /*
+ * <sharable>...</sharable>
+ */
+static ni_bool_t
+__ni_fsm_policy_match_sharable_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
+{
+	if (ni_string_eq(cond->args.string, "shared"))
+		return w->exclusive_owner == NULL;
+	if (ni_string_eq(cond->args.string, "exclusive"))
+		return w->exclusive_owner == NULL && w->shared_users == 0;
+	return FALSE;
+}
+
+static ni_ifcondition_t *
+ni_ifcondition_sharable(xml_node_t *node)
+{
+	if (!ni_string_eq(node->cdata, "shared")
+	 && !ni_string_eq(node->cdata, "exclusive")) {
+		ni_error("bad <%s> condition: must be either shared or exclusive (found \"%s\")",
+				node->name, node->cdata);
+		return NULL;
+	}
+	return ni_ifcondition_new_cdata(__ni_fsm_policy_match_sharable_check, node);
+}
+
+/*
  * <device>...</device>
  */
 static ni_bool_t
@@ -1006,6 +1031,8 @@ ni_ifcondition_from_xml(xml_node_t *node)
 		return ni_ifcondition_device(node);
 	if (!strcmp(node->name, "class"))
 		return ni_ifcondition_class(node);
+	if (!strcmp(node->name, "sharable"))
+		return ni_ifcondition_sharable(node);
 	if (!strcmp(node->name, "link-type"))
 		return ni_ifcondition_linktype(node);
 	if (!strcmp(node->name, "device-alias"))
