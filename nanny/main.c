@@ -202,7 +202,8 @@ ni_manager_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus
 	ni_assert(w->device);
 
 	if (ni_string_eq(signal_name, "deviceDelete")) {
-		// XXX: delete the worker and the managed netif
+		// delete the worker and the managed netif
+		ni_manager_unregister_device(mgr, w);
 	} else
 	if (ni_string_eq(signal_name, "linkDown")) {
 		// If we have recorded a policy for this device, it means
