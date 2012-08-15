@@ -49,9 +49,9 @@ struct ni_ifcondition {
  * Actions associated with the policy - <merge>, <create> etc.
  */
 typedef enum {
-	NI_IFPOLICY_TYPE_MERGE,
-	NI_IFPOLICY_TYPE_REPLACE,
-	NI_IFPOLICY_TYPE_CREATE,
+	NI_IFPOLICY_ACTION_MERGE,
+	NI_IFPOLICY_ACTION_REPLACE,
+	NI_IFPOLICY_ACTION_CREATE,
 } ni_fsm_policy_action_type_t;
 
 typedef struct ni_fsm_policy_action ni_fsm_policy_action_t;
@@ -158,13 +158,13 @@ __ni_fsm_policy_from_xml(ni_fsm_policy_t *policy, xml_node_t *node)
 			continue;
 		} else
 		if (ni_string_eq(item->name, "merge")) {
-			action = ni_fsm_policy_action_new(NI_IFPOLICY_TYPE_MERGE, item, policy);
+			action = ni_fsm_policy_action_new(NI_IFPOLICY_ACTION_MERGE, item, policy);
 		} else
 		if (ni_string_eq(item->name, "replace")) {
-			action = ni_fsm_policy_action_new(NI_IFPOLICY_TYPE_REPLACE, item, policy);
+			action = ni_fsm_policy_action_new(NI_IFPOLICY_ACTION_REPLACE, item, policy);
 		} else
 		if (ni_string_eq(item->name, "create")) {
-			action = ni_fsm_policy_action_new(NI_IFPOLICY_TYPE_CREATE, item, policy);
+			action = ni_fsm_policy_action_new(NI_IFPOLICY_ACTION_CREATE, item, policy);
 		} else {
 			ni_error("%s: unknown <%s> element in policy",
 					xml_node_location(item), item->name);
@@ -364,11 +364,11 @@ ni_fsm_policy_transform_document(xml_node_t *node, const ni_fsm_policy_t * const
 
 		for (action = policy->actions; action; action = action->next) {
 			switch (action->type) {
-			case NI_IFPOLICY_TYPE_MERGE:
+			case NI_IFPOLICY_ACTION_MERGE:
 				node = ni_fsm_policy_action_xml_merge(action, node);
 				break;
 
-			case NI_IFPOLICY_TYPE_REPLACE:
+			case NI_IFPOLICY_ACTION_REPLACE:
 				node = ni_fsm_policy_action_xml_replace(action, node);
 				break;
 
@@ -401,8 +401,8 @@ ni_fsm_policy_action_new(ni_fsm_policy_action_type_t type, xml_node_t *node, ni_
 	action->data = node;
 	
 	switch (type) {
-	case NI_IFPOLICY_TYPE_MERGE:
-	case NI_IFPOLICY_TYPE_REPLACE:
+	case NI_IFPOLICY_ACTION_MERGE:
+	case NI_IFPOLICY_ACTION_REPLACE:
 		if ((attr = xml_node_get_attr(node, "path")) != NULL)
 			ni_string_dup(&action->xpath, attr);
 		if ((attr = xml_node_get_attr(node, "final")) != NULL) {
