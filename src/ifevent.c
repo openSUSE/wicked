@@ -9,7 +9,6 @@
 #endif
 
 #include <unistd.h>
-#include <fcntl.h>
 #include <errno.h>
 #include <string.h>
 #include <netlink/msg.h>
@@ -29,80 +28,12 @@ static int	__ni_rtevent_newlink(ni_netconfig_t *, const struct sockaddr_nl *, st
 static int	__ni_rtevent_dellink(ni_netconfig_t *, const struct sockaddr_nl *, struct nlmsghdr *);
 static int	__ni_rtevent_newprefix(ni_netconfig_t *, const struct sockaddr_nl *, struct nlmsghdr *);
 
+static const char *	__ni_rtevent_msg_name(unsigned int);
+
+
 /*
- * Receive events from netlink socket and generate events.
+ * Helper to trigger interface events
  */
-void
-__ni_rtevent_read(ni_socket_t *sock)
-{
-	ni_netconfig_t *nc = ni_global_state_handle(0);
-	//struct nl_handle *handle = sock->user_data;
-	struct nlmsghdr *h;
-	struct sockaddr_nl nladdr;
-	struct iovec iov;
-	struct msghdr msg = {
-		.msg_name = &nladdr,
-		.msg_namelen = sizeof(nladdr),
-		.msg_iov = &iov,
-		.msg_iovlen = 1,
-	};
-	char   buf[8192];
-
-	memset(&nladdr, 0, sizeof(nladdr));
-	nladdr.nl_family = AF_NETLINK;
-	nladdr.nl_pid = 0;
-	nladdr.nl_groups = 0;
-
-	iov.iov_base = buf;
-	while (1) {
-		iov.iov_len = sizeof(buf);
-		int status;
-
-		status = recvmsg(sock->__fd, &msg, 0);
-		if (status < 0) {
-			if (errno == EINTR || errno == EAGAIN)
-				return;
-
-			ni_error("netlink receive error: %m");
-			ni_error("shutting down event listener");
-			ni_socket_close(sock);
-			return;
-		}
-
-		if (status == 0) {
-			ni_warn("EOF on netlink");
-			return;
-		}
-
-		if (msg.msg_namelen != sizeof(nladdr)) {
-			ni_warn("sender address length == %u", msg.msg_namelen);
-			continue;
-		}
-
-		for (h = (struct nlmsghdr *) buf; NLMSG_OK(h, status); h = NLMSG_NEXT(h, status)) {
-			int len = h->nlmsg_len;
-			int l = len - sizeof(*h);
-
-			if (l < 0 || len > status) {
-				if (msg.msg_flags & MSG_TRUNC) {
-					ni_warn("truncated netlink message");
-					continue;
-				}
-				ni_fatal("malformed netlink message: len=%d", len);
-			}
-
-			if (__ni_rtevent_process(nc, &nladdr, h) < 0)
-				continue;
-		}
-		if (msg.msg_flags & MSG_TRUNC) {
-			ni_warn("truncated netlink message");
-			continue;
-		}
-		if (status)
-			ni_fatal("malformed netlink message: remnant of %d bytes", status);
-	}
-}
-
 void
 __ni_netdev_event(ni_netconfig_t *nc, ni_netdev_t *dev, ni_event_t ev)
 {
@@ -112,22 +43,17 @@ __ni_netdev_event(ni_netconfig_t *nc, ni_netdev_t *dev, ni_event_t ev)
 		ni_global.interface_event(dev, ev);
 }
 
+/*
+ * Process netlink events
+ */
 int
 __ni_rtevent_process(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struct nlmsghdr *h)
 {
-#define _(x)	[x] = #x
-	static const char *rtnl_name[RTM_MAX] = {
-	_(RTM_NEWLINK), _(RTM_DELLINK),
-	_(RTM_NEWADDR), _(RTM_DELADDR),
-	_(RTM_NEWROUTE), _(RTM_DELROUTE),
-	_(RTM_NEWPREFIX),
-	};
+	const char *rtnl_name;
 	int rv;
 
-	if (h->nlmsg_type >= RTM_MAX)
-		return -1;
-	if (rtnl_name[h->nlmsg_type])
-		ni_debug_events("received %s event", rtnl_name[h->nlmsg_type]);
+	if ((rtnl_name = __ni_rtevent_msg_name(h->nlmsg_type)) != NULL)
+		ni_debug_events("received %s event", rtnl_name);
 	else
 		ni_debug_events("received rtnetlink event %u", h->nlmsg_type);
 
@@ -154,6 +80,9 @@ __ni_rtevent_process(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 	return rv;
 }
 
+/*
+ * Process NEWLINK event
+ */
 int
 __ni_rtevent_newlink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struct nlmsghdr *h)
 {
@@ -295,16 +224,111 @@ __ni_rtevent_newprefix(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, str
 }
 
 
-#define nl_mgrp(x)	(1 << ((x) - 1))
+/*
+ * Receive events from netlink socket and generate events.
+ */
+static int
+__ni_rtevent_process_cb(struct nl_msg *msg, void *ptr)
+{
+	const struct sockaddr_nl *sender = nlmsg_get_src(msg);
+	struct nlmsghdr *nlh;
+	ni_netconfig_t *nc;
 
+	if ((nc = ni_global_state_handle(0)) == NULL)
+		return NL_SKIP;
+
+	if (sender->nl_pid != 0) {
+		ni_error("ignoring rtnetlink event message from PID %u",
+			sender->nl_pid);
+		return NL_SKIP;
+	}
+
+	nlh = nlmsg_hdr(msg);
+	if (__ni_rtevent_process(nc, sender, nlh) < 0) {
+		ni_debug_events("ignoring %s rtnetlink event",
+			__ni_rtevent_msg_name(nlh->nlmsg_type));
+		return NL_SKIP;
+	}
+
+	return NL_OK;
+}
+
+/*
+ * Helper returning name of a rtnetlink message
+ */
+static const char *
+__ni_rtevent_msg_name(unsigned int nlmsg_type)
+{
+#define _t2n(x)	[x] = #x
+	static const char *rtnl_name[RTM_MAX] = {
+	_t2n(RTM_NEWLINK),	_t2n(RTM_DELLINK),
+	_t2n(RTM_NEWADDR),	_t2n(RTM_DELADDR),
+	_t2n(RTM_NEWROUTE),	_t2n(RTM_DELROUTE),
+	_t2n(RTM_NEWPREFIX),
+	};
+#undef _t2n
+
+	if (nlmsg_type < RTM_MAX && rtnl_name[nlmsg_type])
+		return rtnl_name[nlmsg_type];
+	else
+		return NULL;
+}
+
+
+/*
+ * Receive netlink message and trigger processing by callback
+ */
+static void
+__ni_rtevent_receive(ni_socket_t *sock)
+{
+	struct nl_handle *handle = sock->user_data;
+	int status;
+
+	status = nl_recvmsgs_default(handle);
+	if (status != 0) {
+		ni_error("netlink receive error: %m");
+		ni_error("shutting down event listener");
+		ni_socket_close(sock);
+	}
+}
+
+/*
+ * Cleanup netlink handle inside of a socket.
+ */
+static void
+__ni_rtevent_close(ni_socket_t *sock)
+{
+	struct nl_handle *handle = sock->user_data;
+
+	if (handle) {
+		nl_handle_destroy(handle);
+		sock->user_data = NULL;
+	}
+}
+
+
+/*
+ * Embed rtnetlink socket into ni_socket_t and set ifevent handler
+ */
 int
 ni_server_listen_interface_events(void (*ifevent_handler)(ni_netdev_t *, ni_event_t))
 {
 	struct nl_handle *handle;
 	ni_socket_t *sock;
-	uint32_t groups;
+	uint32_t groups = 0;
 	int fd;
 
+	if (ni_global.interface_event) {
+		ni_error("Interface event handler already set");
+		return -1;
+	}
+
+	if ((handle = nl_handle_alloc()) == NULL) {
+		ni_error("Cannot allocate rtnetlink event handle: %m");
+		return -1;
+	}
+
+#define nl_mgrp(x)	(1 << ((x) - 1))
 	groups = nl_mgrp(RTNLGRP_LINK) |
 		 nl_mgrp(RTNLGRP_IPV4_IFADDR) |
 		 nl_mgrp(RTNLGRP_IPV6_IFADDR) |
@@ -312,23 +336,44 @@ ni_server_listen_interface_events(void (*ifevent_handler)(ni_netdev_t *, ni_even
 		 nl_mgrp(RTNLGRP_IPV6_ROUTE) |
 		 nl_mgrp(RTNLGRP_IPV6_PREFIX);
 
-	handle = nl_handle_alloc();
 	nl_join_groups(handle, groups);
+#undef nl_mgrp
 
-	if (nl_connect(handle, 0) < 0) {
+	/*
+	 * Modify the callback for processing valid messages...
+	 * We may pass some kind of data (event filter?) too...
+	 */
+	nl_socket_modify_cb(handle, NL_CB_VALID, NL_CB_CUSTOM,
+				__ni_rtevent_process_cb, NULL);
+
+	/* Required to receive async event notifications */
+	nl_disable_sequence_check(handle);
+
+	if (nl_connect(handle, NETLINK_ROUTE) < 0) {
 		ni_error("Cannot open rtnetlink: %m");
 		nl_handle_destroy(handle);
 		return -1;
 	}
 
+	/* Enable non-blocking processing */
+	nl_socket_set_nonblocking(handle);
+
 	fd = nl_socket_get_fd(handle);
-	fcntl(fd, F_SETFL, O_NONBLOCK);
+	if ((sock = ni_socket_wrap(fd, SOCK_DGRAM)) == NULL) {
+		ni_error("Cannot wrap rtnetlink event socket: %m");
+		nl_handle_destroy(handle);
+		return -1;
+	}
 
-	sock = ni_socket_wrap(fd, SOCK_DGRAM);
-	sock->user_data = handle;
-	sock->receive = __ni_rtevent_read;
+	sock->user_data	= handle;
+	sock->receive	= __ni_rtevent_receive;
+	sock->close	= __ni_rtevent_close;
+
 	ni_socket_activate(sock);
-
 	ni_global.interface_event = ifevent_handler;
+
+	/* TODO: our socket ref -> ni_global */
+	ni_socket_release(sock);
+
 	return 0;
 }
