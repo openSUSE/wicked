@@ -70,8 +70,6 @@ ni_objectmodel_register_modem_classes(void)
 		return;
 	initialized = TRUE;
 
-	ni_trace("%s()", __func__);
-
 	/* register the modem-list class (to allow extensions to attach to it) */
 	ni_objectmodel_register_class(&ni_objectmodel_modem_list_class);
 
