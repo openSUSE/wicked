@@ -51,16 +51,6 @@ extern void		ni_socket_deactivate(ni_socket_t *);
 extern void		ni_socket_deactivate_all(void);
 extern int		ni_socket_wait(long timeout);
 
-typedef int		ni_socket_accept_callback_t(ni_socket_t *, uid_t, gid_t);
-typedef int		ni_socket_request_callback_t(ni_socket_t *);
-extern void		ni_socket_set_accept_callback(ni_socket_t *, ni_socket_accept_callback_t);
-extern void		ni_socket_set_request_callback(ni_socket_t *, ni_socket_request_callback_t);
-
-extern int		ni_socket_printf(ni_socket_t *, const char *, ...);
-extern int		ni_socket_send_xml(ni_socket_t *, const xml_node_t *);
-extern int		ni_socket_push(ni_socket_t *);
-extern char *		ni_socket_gets(ni_socket_t *, char *, size_t);
-extern xml_node_t *	ni_socket_recv_xml(ni_socket_t *);
 extern void		ni_socket_close(ni_socket_t *);
 
 extern unsigned long	ni_timeout_arm(struct timeval *, const ni_timeout_param_t *);
