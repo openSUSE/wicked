@@ -292,7 +292,7 @@ __xml_node_get_attr(const xml_node_t *node, const char *name)
 	return NULL;
 }
 
-int
+ni_bool_t
 xml_node_has_attr(const xml_node_t *node, const char *name)
 {
 	return __xml_node_get_attr(node, name) != NULL;
@@ -308,7 +308,10 @@ xml_node_get_attr(const xml_node_t *node, const char *name)
 	return attr->value;
 }
 
-int
+/*
+ * FIXME: The next 3 functions aren't used at all
+ */
+ni_bool_t
 xml_node_get_attr_uint(const xml_node_t *node, const char *name, unsigned int *valp)
 {
 	const ni_var_t *attr;
@@ -323,7 +326,7 @@ xml_node_get_attr_uint(const xml_node_t *node, const char *name, unsigned int *v
 	return 0;
 }
 
-int
+ni_bool_t
 xml_node_get_attr_ulong(const xml_node_t *node, const char *name, unsigned long *valp)
 {
 	const ni_var_t *attr;
@@ -338,7 +341,7 @@ xml_node_get_attr_ulong(const xml_node_t *node, const char *name, unsigned long 
 	return 0;
 }
 
-int
+ni_bool_t
 xml_node_get_attr_double(const xml_node_t *node, const char *name, double *valp)
 {
 	const ni_var_t *attr;
@@ -387,17 +390,17 @@ xml_node_get_child_with_attrs(const xml_node_t *node, const char *name,
 	return NULL;
 }
 
-int
+ni_bool_t
 xml_node_replace_child(xml_node_t *node, xml_node_t *newchild)
 {
 	xml_node_t **pos, *child;
-	int found = 0;
+	ni_bool_t found = FALSE;
 
 	pos = &node->children;
 	while ((child = *pos) != NULL) {
 		if (!strcmp(child->name, newchild->name)) {
 			__xml_node_list_drop(pos);
-			found++;
+			found = TRUE;
 		} else {
 			pos = &child->next;
 		}
@@ -407,17 +410,17 @@ xml_node_replace_child(xml_node_t *node, xml_node_t *newchild)
 	return found;
 }
 
-int
+ni_bool_t
 xml_node_delete_child(xml_node_t *node, const char *name)
 {
 	xml_node_t **pos, *child;
-	int found = 0;
+	ni_bool_t found = FALSE;
 
 	pos = &node->children;
 	while ((child = *pos) != NULL) {
 		if (!strcmp(child->name, name)) {
 			__xml_node_list_drop(pos);
-			found++;
+			found = TRUE;
 		} else {
 			pos = &child->next;
 		}
@@ -426,7 +429,7 @@ xml_node_delete_child(xml_node_t *node, const char *name)
 	return found;
 }
 
-int
+ni_bool_t
 xml_node_delete_child_node(xml_node_t *node, xml_node_t *destroy)
 {
 	xml_node_t **pos, *child;
@@ -437,12 +440,12 @@ xml_node_delete_child_node(xml_node_t *node, xml_node_t *destroy)
 	while ((child = *pos) != NULL) {
 		if (child == destroy) {
 			__xml_node_list_drop(pos);
-			return 1;
+			return TRUE;
 		}
 		pos = &child->next;
 	}
 
-	return 0;
+	return FALSE;
 }
 
 void
@@ -551,7 +554,7 @@ xml_node_get_next_named(xml_node_t *top, const char *name, xml_node_t *cur)
 /*
  * XML node matching functions
  */
-int
+ni_bool_t
 xml_node_match_attrs(const xml_node_t *node, const ni_var_array_t *attrlist)
 {
 	unsigned int i;
@@ -563,12 +566,12 @@ xml_node_match_attrs(const xml_node_t *node, const ni_var_array_t *attrlist)
 		value = xml_node_get_attr(node, attr->name);
 		if (attr->value == NULL || value == NULL) {
 			if (attr->value != value)
-				return 0;
+				return FALSE;
 		} else if (strcmp(attr->value, value)) {
-			return 0;
+			return FALSE;
 		}
 	}
-	return 1;
+	return TRUE;
 }
 
 /*

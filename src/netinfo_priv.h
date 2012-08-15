@@ -83,7 +83,7 @@ extern ni_resolver_info_t *__ni_system_resolver_get(void);
 extern int		__ni_system_resolver_backup(void);
 extern int		__ni_system_resolver_restore(void);
 
-extern int		__ni_lease_owns_address(const ni_addrconf_lease_t *, const ni_address_t *);
+extern ni_bool_t	__ni_lease_owns_address(const ni_addrconf_lease_t *, const ni_address_t *);
 extern ni_route_t *	__ni_lease_owns_route(const ni_addrconf_lease_t *, const ni_route_t *);
 
 extern ni_vlan_t *	__ni_vlan_new(void);

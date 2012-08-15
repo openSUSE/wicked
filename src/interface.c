@@ -436,7 +436,7 @@ __ni_netdev_address_to_lease(ni_netdev_t *dev, const ni_address_t *ap)
 	return NULL;
 }
 
-int
+ni_bool_t
 __ni_lease_owns_address(const ni_addrconf_lease_t *lease, const ni_address_t *match)
 {
 	ni_address_t *ap;

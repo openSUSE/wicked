@@ -102,23 +102,23 @@ extern void		xml_node_add_attr_uint(xml_node_t *, const char *, unsigned int);
 extern void		xml_node_add_attr_ulong(xml_node_t *, const char *, unsigned long);
 extern void		xml_node_add_attr_double(xml_node_t *, const char *, double);
 
-extern int		xml_node_has_attr(const xml_node_t *, const char *);
+extern ni_bool_t	xml_node_has_attr(const xml_node_t *, const char *);
 extern const char *	xml_node_get_attr(const xml_node_t *, const char *);
-extern int		xml_node_get_attr_uint(const xml_node_t *, const char *, unsigned int *);
-extern int		xml_node_get_attr_ulong(const xml_node_t *, const char *, unsigned long *);
-extern int		xml_node_get_attr_double(const xml_node_t *, const char *, double *);
+extern ni_bool_t	xml_node_get_attr_uint(const xml_node_t *, const char *, unsigned int *);
+extern ni_bool_t	xml_node_get_attr_ulong(const xml_node_t *, const char *, unsigned long *);
+extern ni_bool_t	xml_node_get_attr_double(const xml_node_t *, const char *, double *);
 extern xml_node_t *	xml_node_get_child(const xml_node_t *, const char *);
 extern xml_node_t *	xml_node_get_child_with_attrs(const xml_node_t *, const char *,
 					const ni_var_array_t *);
-extern int		xml_node_replace_child(xml_node_t *, xml_node_t *);
-extern int		xml_node_delete_child(xml_node_t *, const char *);
-extern int		xml_node_delete_child_node(xml_node_t *, xml_node_t *);
+extern ni_bool_t	xml_node_replace_child(xml_node_t *, xml_node_t *);
+extern ni_bool_t	xml_node_delete_child(xml_node_t *, const char *);
+extern ni_bool_t	xml_node_delete_child_node(xml_node_t *, xml_node_t *);
 extern void		xml_node_detach(xml_node_t *);
 extern void		xml_node_reparent(xml_node_t *parent, xml_node_t *child);
 extern void		xml_node_add_child(xml_node_t *, xml_node_t *);
 extern xml_node_t *	xml_node_get_next_named(xml_node_t *, const char *, xml_node_t *);
 
-extern int		xml_node_match_attrs(const xml_node_t *, const ni_var_array_t *);
+extern ni_bool_t	xml_node_match_attrs(const xml_node_t *, const ni_var_array_t *);
 
 extern const char *	xml_node_location(const xml_node_t *);
 extern void		xml_location_free(struct xml_location *);

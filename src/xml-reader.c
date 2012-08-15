@@ -81,14 +81,14 @@ typedef struct xml_reader {
 } xml_reader_t;
 
 static xml_document_t *	xml_process_document(xml_reader_t *);
-static int		xml_process_element_nested(xml_reader_t *, xml_node_t *, unsigned int);
-static int		xml_get_identifier(xml_reader_t *, ni_stringbuf_t *);
+static ni_bool_t	xml_process_element_nested(xml_reader_t *, xml_node_t *, unsigned int);
+static ni_bool_t	xml_get_identifier(xml_reader_t *, ni_stringbuf_t *);
 static xml_token_type_t	xml_get_token(xml_reader_t *, ni_stringbuf_t *);
 static xml_token_type_t	xml_get_token_initial(xml_reader_t *, ni_stringbuf_t *);
 static xml_token_type_t	xml_get_token_tag(xml_reader_t *, ni_stringbuf_t *);
 static xml_token_type_t	xml_skip_comment(xml_reader_t *);
-static int		xml_get_tag_attributes(xml_reader_t *, xml_node_t *);
-static int		xml_expand_entity(xml_reader_t *, ni_stringbuf_t *);
+static xml_token_type_t	xml_get_tag_attributes(xml_reader_t *, xml_node_t *);
+static ni_bool_t	xml_expand_entity(xml_reader_t *, ni_stringbuf_t *);
 static void		xml_skip_space(xml_reader_t *, ni_stringbuf_t *);
 static void		xml_parse_error(xml_reader_t *, const char *, ...);
 static const char *	xml_parser_state_name(xml_parser_state_t);
@@ -119,10 +119,10 @@ xml_document_read(const char *filename)
 	xml_document_t *doc;
 
 	if (!strcmp(filename, "-")) {
-		if (!xml_reader_init_file(&reader, stdin))
+		if (xml_reader_init_file(&reader, stdin) < 0)
 			return NULL;
 	} else
-	if (!xml_reader_open(&reader, filename))
+	if (xml_reader_open(&reader, filename) < 0)
 		return NULL;
 
 	doc = xml_process_document(&reader);
@@ -152,7 +152,7 @@ xml_document_from_buffer(ni_buffer_t *in_buffer)
 	xml_reader_t reader;
 	xml_document_t *doc;
 
-	if (!xml_reader_init_buffer(&reader, in_buffer))
+	if (xml_reader_init_buffer(&reader, in_buffer) < 0)
 		return NULL;
 
 	doc = xml_process_document(&reader);
@@ -169,7 +169,7 @@ xml_document_scan(FILE *fp)
 	xml_reader_t reader;
 	xml_document_t *doc;
 
-	if (!xml_reader_init_file(&reader, fp))
+	if (xml_reader_init_file(&reader, fp) < 0)
 		return NULL;
 
 	doc = xml_process_document(&reader);
@@ -207,7 +207,7 @@ xml_node_scan(FILE *fp)
 	xml_reader_t reader;
 	xml_node_t *root = xml_node_new(NULL, NULL);
 
-	if (!xml_reader_init_file(&reader, fp))
+	if (xml_reader_init_file(&reader, fp) < 0)
 		return NULL;
 
 	if (reader.shared_location)
@@ -246,7 +246,7 @@ xml_process_pi_node(xml_reader_t *xr, xml_node_t *pi)
 		
 }
 
-int
+ni_bool_t
 xml_process_element_nested(xml_reader_t *xr, xml_node_t *cur, unsigned int nesting)
 {
 	ni_stringbuf_t tokenValue, identifier;
@@ -397,21 +397,21 @@ xml_process_element_nested(xml_reader_t *xr, xml_node_t *cur, unsigned int nesti
 success:
 	ni_stringbuf_destroy(&tokenValue);
 	ni_stringbuf_destroy(&identifier);
-	return 1;
+	return TRUE;
 
 error:
 	ni_stringbuf_destroy(&tokenValue);
 	ni_stringbuf_destroy(&identifier);
-	return 0;
+	return FALSE;
 }
 
-int
+ni_bool_t
 xml_get_identifier(xml_reader_t *xr, ni_stringbuf_t *res)
 {
 	return xml_get_token(xr, res) == Identifier;
 }
 
-int
+xml_token_type_t
 xml_get_tag_attributes(xml_reader_t *xr, xml_node_t *node)
 {
 	ni_stringbuf_t tokenValue, attrName, attrValue;
@@ -704,7 +704,7 @@ xml_skip_comment(xml_reader_t *xr)
  * For now, we support &<number>; as well as symbolic entities
  *   lt gt amp
  */
-int
+ni_bool_t
 xml_expand_entity(xml_reader_t *xr, ni_stringbuf_t *res)
 {
 	char temp[128];
@@ -714,7 +714,7 @@ xml_expand_entity(xml_reader_t *xr, ni_stringbuf_t *res)
 	while ((cc = xml_getc(xr)) != ';') {
 		if (cc == EOF) {
 			xml_parse_error(xr, "Unexpenced EOF in entity");
-			return 0;
+			return FALSE;
 		}
 		if (isspace(cc))
 			continue;
@@ -723,7 +723,7 @@ xml_expand_entity(xml_reader_t *xr, ni_stringbuf_t *res)
 
 	if (!entity.string) {
 		xml_parse_error(xr, "Empty entity &;");
-		return 0;
+		return FALSE;
 	}
 
 	if (!strcasecmp(entity.string, "lt"))
@@ -742,12 +742,12 @@ xml_expand_entity(xml_reader_t *xr, ni_stringbuf_t *res)
 		}
 
 		xml_parse_error(xr, "Cannot expand unknown entity &%s;", entity.string);
-		return 0;
+		return FALSE;
 	}
 
 good:
 	ni_stringbuf_putc(res, expanded);
-	return 1;
+	return TRUE;
 }
 
 /*
@@ -928,14 +928,14 @@ xml_reader_open(xml_reader_t *xr, const char *filename)
 	xr->file = fopen(filename, "r");
 	if (xr->file == NULL) {
 		ni_error("Unable to open %s: %m", filename);
-		return 0;
+		return -1;
 	}
 
 	xr->buffer = malloc(XML_READER_BUFSZ);
 	xr->state = Initial;
 	xr->lineCount = 1;
 	xr->shared_location = xml_location_shared_new(filename);
-	return 1;
+	return 0;
 }
 
 static int
@@ -950,7 +950,8 @@ xml_reader_init_file(xml_reader_t *xr, FILE *fp)
 	xr->state = Initial;
 	xr->lineCount = 1;
 	xr->shared_location = xml_location_shared_new("<stdin>");
-	return 1;
+
+	return 0;
 }
 
 static int
@@ -964,7 +965,8 @@ xml_reader_init_buffer(xml_reader_t *xr, ni_buffer_t *buf)
 	xr->state = Initial;
 	xr->lineCount = 1;
 	xr->shared_location = xml_location_shared_new("<buffer>");
-	return 1;
+
+	return 0;
 }
 
 int
