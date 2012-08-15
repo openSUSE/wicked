@@ -150,6 +150,10 @@ ni_manager_recheck(ni_manager_t *mgr, ni_ifworker_t *w)
 	ni_managed_policy_t *mpolicy;
 	unsigned int count;
 
+	/* Ignore devices that went away */
+	if (w->dead)
+		return;
+
 	ni_trace("%s(%s)", __func__, w->name);
 	w->use_default_policies = TRUE;
 	if ((count = ni_fsm_policy_get_applicable_policies(mgr->fsm, w, policies, MAX_POLICIES)) == 0) {
