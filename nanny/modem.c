@@ -120,11 +120,14 @@ ni_objectmodel_get_managed_device(const ni_dbus_object_t *object, DBusError *err
 	return ni_objectmodel_managed_modem_unwrap(object, error);
 }
 
+#define MANAGED_MODEM_UINT_PROPERTY(dbus_name, name, rw) \
+	NI_DBUS_GENERIC_UINT_PROPERTY(managed_device, dbus_name, name, rw)
 #define MANAGED_MODEM_BOOL_PROPERTY(dbus_name, name, rw) \
 	NI_DBUS_GENERIC_BOOL_PROPERTY(managed_device, dbus_name, name, rw)
 
 static ni_dbus_property_t	ni_objectmodel_managed_modem_properties[] = {
 	MANAGED_MODEM_BOOL_PROPERTY(user-controlled, user_controlled, RW),
+	MANAGED_MODEM_UINT_PROPERTY(state, state, RO),
 	{ NULL }
 };
 

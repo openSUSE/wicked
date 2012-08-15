@@ -116,13 +116,18 @@ ni_managed_device_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *m
 	const ni_fsm_policy_t *policy = mpolicy->fsm_policy;
 	xml_node_t *config = NULL;
 
+	if (mdev->state == NI_MANAGED_STATE_FAILED)
+		return; // we shouldn't have gotten here?
+
 	/* If the device is up and running, do not reconfigure unless the policy
 	 * has really changed */
-	if (mdev->running) {
+	if (mdev->state != NI_MANAGED_STATE_STOPPED) {
 		if (mdev->selected_policy == mpolicy && mdev->selected_policy_seq == mpolicy->seqno) {
 			ni_debug_nanny("%s: keep using policy %s", w->name, ni_fsm_policy_name(policy));
 			return;
 		}
+
+		/* Just install the new policy and reconfigure. */
 	}
 
 	ni_debug_nanny("%s: using policy %s", w->name, ni_fsm_policy_name(policy));
@@ -136,6 +141,8 @@ ni_managed_device_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *m
 	config = ni_fsm_policy_transform_document(config, &policy, 1);
 	if (config == NULL) {
 		ni_error("%s: error when applying policy to %s document", w->name, type_name);
+		if (mdev->state != NI_MANAGED_STATE_STOPPED)
+			ni_manager_schedule_down(mdev->manager, w);
 		return;
 	}
 	ni_debug_nanny("%s: using device config", w->name);
@@ -146,7 +153,6 @@ ni_managed_device_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *m
 	mdev->selected_config = config;
 	mdev->selected_policy = mpolicy;
 	mdev->selected_policy_seq = mpolicy->seqno;
-	mdev->running = FALSE;
 
 	/* Now do the fandango */
 	ni_managed_device_up(mdev);
@@ -173,10 +179,13 @@ ni_managed_device_work_done(ni_ifworker_t *w)
 		} else
 		if (mdev->fail_count < mdev->max_fail_count) {
 			ni_error("%s: failed to bring up device, still continuing", w->name);
+			mdev->state = NI_MANAGED_STATE_LIMBO;
+			ni_manager_schedule_recheck(mgr, w);
 		} else {
 			/* Broadcast an error and take down the device
 			 * for good. */
 			/* FIXME TBD */
+			mdev->state = NI_MANAGED_STATE_FAILED;
 		}
 
 		/* A wrong PIN or password may have triggered the problem;
@@ -188,7 +197,7 @@ ni_managed_device_work_done(ni_ifworker_t *w)
 	} else {
 		ni_ifworker_reset(w);
 		mdev->fail_count = 0;
-		mdev->running = TRUE;
+		mdev->state = NI_MANAGED_STATE_RUNNING;
 	}
 }
 
@@ -202,6 +211,7 @@ ni_managed_device_up(ni_managed_device_t *mdev)
 	ni_ifworker_t *w = mdev->worker;
 	unsigned int target_state;
 	char security_id[256];
+	int rv;
 
 	ni_ifworker_reset(w);
 
@@ -228,7 +238,36 @@ ni_managed_device_up(ni_managed_device_t *mdev)
 	ni_ifworker_set_config(w, mdev->selected_config, "manager");
 	w->target_range.min = target_state;
 	w->target_range.max = __NI_FSM_STATE_MAX;
-	ni_ifworker_start(fsm, w, fsm->worker_timeout);
+
+	if ((rv = ni_ifworker_start(fsm, w, fsm->worker_timeout)) >= 0) {
+		mdev->state = NI_MANAGED_STATE_STARTING;
+	} else {
+		ni_error("%s: cannot start device: %s", w->name, ni_strerror(rv));
+		mdev->state = NI_MANAGED_STATE_FAILED;
+	}
+}
+
+/*
+ * Print managed_state names
+ */
+static ni_intmap_t	__managed_state_names[] = {
+	{ "stopped",	NI_MANAGED_STATE_STOPPED	},
+	{ "starting",	NI_MANAGED_STATE_STARTING	},
+	{ "running",	NI_MANAGED_STATE_RUNNING	},
+	{ "stopping",	NI_MANAGED_STATE_STOPPING	},
+	{ "limbo",	NI_MANAGED_STATE_LIMBO		},
+	{ "failed",	NI_MANAGED_STATE_FAILED		},
+	{ NULL }
+};
+
+const char *
+ni_managed_state_to_string(ni_managed_state_t state)
+{
+	const char *name;
+
+	if ((name = ni_format_int_mapped(state, __managed_state_names)) == NULL)
+		name = "unknown";
+	return name;
 }
 
 /*

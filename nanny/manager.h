@@ -17,6 +17,15 @@ typedef struct ni_managed_device ni_managed_device_t;
 typedef struct ni_managed_policy ni_managed_policy_t;
 typedef struct ni_manager_secret ni_manager_secret_t;
 
+typedef enum ni_managed_state {
+	NI_MANAGED_STATE_STOPPED,
+	NI_MANAGED_STATE_STARTING,
+	NI_MANAGED_STATE_RUNNING,
+	NI_MANAGED_STATE_STOPPING,
+	NI_MANAGED_STATE_LIMBO,
+	NI_MANAGED_STATE_FAILED,
+} ni_managed_state_t;
+
 struct ni_managed_device {
 	ni_managed_device_t **	prev;
 	ni_managed_device_t *	next;
@@ -25,7 +34,8 @@ struct ni_managed_device {
 	ni_dbus_object_t *	object;		// server object
 	ni_ifworker_t *		worker;
 	ni_bool_t		user_controlled;
-	ni_bool_t		running;	// we brought it up successfully
+
+	ni_managed_state_t	state;
 
 	unsigned int		fail_count;
 	unsigned int		max_fail_count;
@@ -97,6 +107,8 @@ extern void			ni_managed_device_up(ni_managed_device_t *mdev);
 
 extern ni_managed_policy_t *	ni_managed_policy_new(ni_manager_t *, ni_fsm_policy_t *, xml_document_t *);
 extern void			ni_managed_policy_free(ni_managed_policy_t *);
+
+extern const char *		ni_managed_state_to_string(ni_managed_state_t);
 
 extern ni_dbus_object_t *	ni_objectmodel_register_managed_netdev(ni_dbus_server_t *, ni_managed_device_t *);
 extern ni_dbus_object_t *	ni_objectmodel_register_managed_modem(ni_dbus_server_t *, ni_managed_device_t *);
