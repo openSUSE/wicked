@@ -105,6 +105,17 @@ ni_managed_device_type(const ni_managed_device_t *mdev)
 	return mdev->worker->type;
 }
 
+void
+ni_managed_device_set_policy(ni_managed_device_t *mdev, ni_managed_policy_t *mpolicy, xml_node_t *config)
+{
+	if (mdev->selected_config)
+		xml_node_free(mdev->selected_config);
+	mdev->selected_config = config;
+
+	mdev->selected_policy = mpolicy;
+	mdev->selected_policy_seq = mpolicy? mpolicy->seqno : 0;
+}
+
 /*
  * Apply policy to a device
  */
@@ -148,21 +159,17 @@ ni_managed_device_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *m
 	ni_debug_nanny("%s: using device config", w->name);
 	xml_node_print_debug(config, 0);
 
-	if (mdev->selected_config)
-		xml_node_free(mdev->selected_config);
-	mdev->selected_config = config;
-	mdev->selected_policy = mpolicy;
-	mdev->selected_policy_seq = mpolicy->seqno;
+	ni_managed_device_set_policy(mdev, mpolicy, config);
 
 	/* Now do the fandango */
 	ni_managed_device_up(mdev);
 }
 
 /*
- * Completion callback
+ * Completion callback for bringup
  */
 static void
-ni_managed_device_work_done(ni_ifworker_t *w)
+ni_managed_device_up_done(ni_ifworker_t *w)
 {
 	ni_manager_t *mgr = w->completion.user_data;
 	ni_managed_device_t *mdev;
@@ -233,7 +240,7 @@ ni_managed_device_up(ni_managed_device_t *mdev)
 		return;
 	}
 
-	ni_ifworker_set_completion_callback(w, ni_managed_device_work_done, mdev->manager);
+	ni_ifworker_set_completion_callback(w, ni_managed_device_up_done, mdev->manager);
 
 	ni_ifworker_set_config(w, mdev->selected_config, "manager");
 	w->target_range.min = target_state;
@@ -243,6 +250,67 @@ ni_managed_device_up(ni_managed_device_t *mdev)
 		mdev->state = NI_MANAGED_STATE_STARTING;
 	} else {
 		ni_error("%s: cannot start device: %s", w->name, ni_strerror(rv));
+		mdev->state = NI_MANAGED_STATE_FAILED;
+	}
+}
+
+/*
+ * Completion callback for shutdown
+ */
+static void
+ni_managed_device_down_done(ni_ifworker_t *w)
+{
+	ni_manager_t *mgr = w->completion.user_data;
+	ni_managed_device_t *mdev;
+
+	if ((mdev = ni_manager_get_device(mgr, w)) == NULL) {
+		ni_error("%s: no managed device for worker %s", __func__, w->name);
+		return;
+	}
+
+	if (w->failed) {
+		mdev->fail_count++;
+		if (w->dead) {
+			/* Quietly ignore the problem */
+			ni_debug_nanny("%s: failed to shut down device, device about to be removed", w->name);
+		} else {
+			ni_error("%s: failed to shut down device", w->name);
+			mdev->state = NI_MANAGED_STATE_FAILED;
+		}
+	} else {
+		ni_ifworker_reset(w);
+		mdev->state = NI_MANAGED_STATE_STOPPED;
+	}
+	ni_managed_device_set_policy(mdev, NULL, NULL);
+
+	if (mdev->user_controlled && w->type == NI_IFWORKER_TYPE_NETDEV) {
+		/* Re-enable wireless scanning and ethernet link status monitoring */
+		ni_managed_netdev_enable(mdev);
+	}
+}
+
+/*
+ * Bring up the device
+ */
+void
+ni_managed_device_down(ni_managed_device_t *mdev)
+{
+	ni_fsm_t *fsm = mdev->manager->fsm;
+	ni_ifworker_t *w = mdev->worker;
+	int rv;
+
+	ni_ifworker_reset(w);
+
+	ni_ifworker_set_completion_callback(w, ni_managed_device_down_done, mdev->manager);
+
+	ni_ifworker_set_config(w, mdev->selected_config, "manager");
+	w->target_range.min = NI_FSM_STATE_NONE;
+	w->target_range.max = NI_FSM_STATE_DEVICE_EXISTS;
+
+	if ((rv = ni_ifworker_start(fsm, w, fsm->worker_timeout)) >= 0) {
+		mdev->state = NI_MANAGED_STATE_STOPPING;
+	} else {
+		ni_error("%s: cannot stop device: %s", w->name, ni_strerror(rv));
 		mdev->state = NI_MANAGED_STATE_FAILED;
 	}
 }

@@ -147,6 +147,7 @@ ni_manager_recheck(ni_manager_t *mgr, ni_ifworker_t *w)
 	static const unsigned int MAX_POLICIES = 20;
 	const ni_fsm_policy_t *policies[MAX_POLICIES];
 	const ni_fsm_policy_t *policy;
+	ni_managed_device_t *mdev;
 	ni_managed_policy_t *mpolicy;
 	unsigned int count;
 
@@ -154,16 +155,25 @@ ni_manager_recheck(ni_manager_t *mgr, ni_ifworker_t *w)
 	if (w->dead)
 		return;
 
+	if ((mdev = ni_manager_get_device(mgr, w)) == NULL)
+		return;
+
 	ni_debug_nanny("%s(%s)", __func__, w->name);
 	w->use_default_policies = TRUE;
 	if ((count = ni_fsm_policy_get_applicable_policies(mgr->fsm, w, policies, MAX_POLICIES)) == 0) {
-		ni_debug_nanny("%s: no applicable policies", w->name);
+		if (mdev->state == NI_MANAGED_STATE_RUNNING) {
+			ni_debug_nanny("%s: taking down device", w->name);
+			ni_managed_device_down(mdev);
+		} else {
+			ni_debug_nanny("%s: no applicable policies", w->name);
+		}
 		return;
 	}
 
 	policy = policies[count-1];
 	mpolicy = ni_manager_get_policy(mgr, policy);
 
+	/* FIXME: pass mdev rather than worker */
 	ni_manager_apply_policy(mgr, mpolicy, w);
 }
 

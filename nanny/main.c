@@ -212,7 +212,7 @@ ni_manager_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus
 		if ((mdev = ni_manager_get_device(mgr, w)) != NULL
 		 && mdev->selected_policy != NULL
 		 && mdev->user_controlled)
-			ni_manager_schedule_down(mgr, w);
+			ni_manager_schedule_recheck(mgr, w);
 	} else
 	if (ni_string_eq(signal_name, "linkAssociationLost")) {
 		// If we have recorded a policy for this device, it means
