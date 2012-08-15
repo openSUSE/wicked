@@ -39,8 +39,8 @@ extern ni_bool_t	ni_manager_call_add_secret(const char *, const char *, const ch
 /*
  * Read a policy file
  */
-static xml_node_t *
-ni_ifpolicy_file_load(const char *filename, xml_document_t **doc_p)
+static xml_document_t *
+ni_ifpolicy_file_load(const char *filename)
 {
 	xml_document_t *config_doc;
 	xml_node_t *node;
@@ -58,15 +58,16 @@ ni_ifpolicy_file_load(const char *filename, xml_document_t **doc_p)
 		return NULL;
 	}
 
-	node = config_doc->root->children;
-	if (!ni_string_eq(node->name, "policy") || node->next != NULL) {
-		ni_error("policy document \"%s\" should contain exactly one <policy> element", filename);
-		xml_document_free(config_doc);
-		return NULL;
+	for (node = config_doc->root->children; node; node = node->next) {
+		if (!ni_string_eq(node->name, "policy")
+		 && !ni_string_eq(node->name, "template")) {
+			ni_error("policy document \"%s\" contains unexpected <%s> element", filename, node->name);
+			xml_document_free(config_doc);
+			return NULL;
+		}
 	}
 
-	*doc_p = config_doc;
-	return node;
+	return config_doc;
 }
 
 /*
@@ -95,6 +96,7 @@ do_manager_addpolicy(int argc, char **argv)
 	xml_document_t *doc = NULL;
 	xml_node_t *policy_node;
 	const char *name;
+	int rv = 0;
 
 	if (optind + 1 != argc) {
 		ni_error("wicked manager addpolicy: expected filename argument");
@@ -102,18 +104,20 @@ do_manager_addpolicy(int argc, char **argv)
 	}
 
 	filename = argv[optind++];
-	if ((policy_node = ni_ifpolicy_file_load(filename, &doc)) == NULL) {
+	if ((doc = ni_ifpolicy_file_load(filename)) == NULL) {
 		ni_error("unable to load policy file");
 		return 1;
 	}
 
-	if ((name = xml_node_get_attr(policy_node, "name")) == NULL)
-		name = "";
+	for (policy_node = doc->root->children; policy_node; policy_node = policy_node->next) {
+		if ((name = xml_node_get_attr(policy_node, "name")) == NULL)
+			name = "";
 
-	if (!ni_manager_call_add_policy(name, policy_node))
-		return 1;
+		if (!ni_manager_call_add_policy(name, policy_node))
+			rv = 1;
+	}
 
-	return 0;
+	return rv;
 }
 
 /*
