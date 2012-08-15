@@ -126,6 +126,23 @@ ni_ifworker_reset(ni_ifworker_t *w)
 	ni_string_free(&w->control.mode);
 	ni_string_free(&w->control.boot_stage);
 	ni_string_free(&w->security_id);
+
+	/* When detaching children, clear their shared/exclusive ownership info */
+	if (w->children.count != 0) {
+		unsigned int i;
+
+		for (i = 0; i < w->children.count; ++i) {
+			ni_ifworker_t *child_worker = w->children.data[i];
+
+			if (child_worker->exclusive_owner == w) {
+				child_worker->exclusive_owner = NULL;
+			} else {
+				ni_assert(child_worker->exclusive_owner == NULL);
+				ni_assert(child_worker->shared_users);
+				child_worker->shared_users -= 1;
+			}
+		}
+	}
 	ni_ifworker_array_destroy(&w->children);
 
 	if (w->fsm.action_table) {
