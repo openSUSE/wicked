@@ -20,6 +20,7 @@
 #include <wicked/netinfo.h>
 #include <wicked/modem.h>
 #include <wicked/fsm.h>
+#include "util_priv.h"
 
 /*
  * The <match> expression
@@ -46,6 +47,22 @@ struct ni_ifcondition {
 };
 
 /*
+ * A template operates on one or more devices, aggregating
+ * them or building a virtual device on top of them.
+ */
+typedef struct ni_fsm_template_input	ni_fsm_template_input_t;
+struct ni_fsm_template_input {
+	ni_fsm_template_input_t *	next;
+
+	char *				id;
+
+	ni_bool_t			shared;
+	ni_ifcondition_t *		match;
+
+	ni_ifworker_t *			device;
+};
+
+/*
  * Actions associated with the policy - <merge>, <create> etc.
  */
 typedef enum {
@@ -66,21 +83,37 @@ struct ni_fsm_policy_action {
 	 */
 	char *				xpath;
 	ni_bool_t			final;
+
+	/* Templates can create one or more devices */
+	struct {
+		const ni_dbus_class_t *	class;
+		unsigned int		serial;
+		ni_bool_t		instantiate_multi;
+		ni_fsm_template_input_t *inputs;
+	} create;
 };
 
 /*
  * Opaque policy object
  */
+typedef enum {
+	NI_IFPOLICY_TYPE_CONFIG,
+	NI_IFPOLICY_TYPE_TEMPLATE,
+} ni_fsm_policy_type_t;
+
 struct ni_fsm_policy {
 	ni_fsm_policy_t *		next;
 
 	unsigned int			seq;
 
+	ni_fsm_policy_type_t		type;
 	char *				name;
 	xml_node_t *			node;
 	unsigned int			weight;
 
 	ni_ifcondition_t *		match;
+
+	ni_fsm_policy_action_t *	create_action;
 	ni_fsm_policy_action_t *	actions;
 };
 
@@ -95,6 +128,10 @@ static ni_fsm_policy_action_t *	ni_fsm_policy_action_new(ni_fsm_policy_action_ty
 static void			ni_fsm_policy_action_free(ni_fsm_policy_action_t *);
 static xml_node_t *		ni_fsm_policy_action_xml_merge(const ni_fsm_policy_action_t *, xml_node_t *);
 static xml_node_t *		ni_fsm_policy_action_xml_replace(const ni_fsm_policy_action_t *, xml_node_t *);
+static xml_node_t *		ni_fsm_template_build_document(ni_fsm_policy_t *policy, ni_fsm_policy_action_t *action);
+static ni_bool_t		ni_fsm_template_bind_devices(ni_fsm_policy_t *, ni_fsm_policy_action_t *, xml_node_t *);
+static ni_fsm_template_input_t *ni_fsm_template_input_new(const char *id, ni_fsm_template_input_t ***tailp);
+static void			ni_fsm_template_input_free(ni_fsm_template_input_t *);
 
 /*
  * Destructor for policy objects
@@ -120,6 +157,10 @@ __ni_fsm_policy_reset(ni_fsm_policy_t *policy)
 		policy->actions = a->next;
 		ni_fsm_policy_action_free(a);
 	}
+	if (policy->create_action) {
+		ni_fsm_policy_action_free(policy->create_action);
+		policy->create_action = NULL;
+	}
 }
 
 static ni_bool_t
@@ -134,6 +175,16 @@ __ni_fsm_policy_from_xml(ni_fsm_policy_t *policy, xml_node_t *node)
 	if (node == NULL)
 		return TRUE;
 
+	if (ni_string_eq(node->name, "policy"))
+		policy->type = NI_IFPOLICY_TYPE_CONFIG;
+	else
+	if (ni_string_eq(node->name, "template"))
+		policy->type = NI_IFPOLICY_TYPE_TEMPLATE;
+	else {
+		ni_error("invalid policy, must be either <policy> or <template>");
+		return FALSE;
+	}
+
 	if ((attr = xml_node_get_attr(node, "weight")) != NULL) {
 		if (ni_parse_int(attr, &policy->weight) < 0) {
 			ni_error("%s: cannot parse weight=\"%s\" attribute",
@@ -146,6 +197,11 @@ __ni_fsm_policy_from_xml(ni_fsm_policy_t *policy, xml_node_t *node)
 		ni_fsm_policy_action_t *action = NULL;
 
 		if (ni_string_eq(item->name, "match")) {
+			if (policy->type == NI_IFPOLICY_TYPE_TEMPLATE) {
+				ni_error("%s: match elements not permitted in templates", xml_node_location(item));
+				return FALSE;
+			}
+
 			if (policy->match) {
 				ni_error("%s: policy specifies multiple <match> elements", xml_node_location(item));
 				return FALSE;
@@ -164,7 +220,19 @@ __ni_fsm_policy_from_xml(ni_fsm_policy_t *policy, xml_node_t *node)
 			action = ni_fsm_policy_action_new(NI_IFPOLICY_ACTION_REPLACE, item, policy);
 		} else
 		if (ni_string_eq(item->name, "create")) {
-			action = ni_fsm_policy_action_new(NI_IFPOLICY_ACTION_CREATE, item, policy);
+			if (policy->type != NI_IFPOLICY_TYPE_TEMPLATE) {
+				ni_error("%s: <create> elements are permitted in templates only",
+						xml_node_location(item));
+				return FALSE;
+			}
+
+			if (policy->create_action) {
+				ni_error("%s: template specifies more than one <create> action",
+						xml_node_location(item));
+				return FALSE;
+			}
+
+			policy->create_action = ni_fsm_policy_action_new(NI_IFPOLICY_ACTION_CREATE, item, NULL);
 		} else {
 			ni_error("%s: unknown <%s> element in policy",
 					xml_node_location(item), item->name);
@@ -176,6 +244,12 @@ __ni_fsm_policy_from_xml(ni_fsm_policy_t *policy, xml_node_t *node)
 					xml_node_location(item), item->name);
 			return FALSE;
 		}
+	}
+
+	/* if we have a template, make sure it has exactly one <create> element */
+	if (policy->type == NI_IFPOLICY_TYPE_TEMPLATE && policy->create_action == NULL) {
+		ni_error("%s: template does not specify a <create> element", xml_node_location(node));
+		return FALSE;
 	}
 
 	policy->seq = __policy_seq++;
@@ -213,8 +287,10 @@ ni_fsm_policy_update(ni_fsm_policy_t *policy, xml_node_t *node)
 		return FALSE;
 
 	__ni_fsm_policy_reset(policy);
+	policy->type = temp.type;
 	policy->seq = temp.seq;
 	policy->weight = temp.weight;
+	policy->create_action = temp.create_action;
 	policy->actions = temp.actions;
 	policy->match = temp.match;
 	policy->node = node;
@@ -264,6 +340,8 @@ ni_fsm_policy_name(const ni_fsm_policy_t *policy)
 static ni_bool_t
 ni_fsm_policy_applicable(ni_fsm_policy_t *policy, ni_ifworker_t *w)
 {
+	if (policy->type != NI_IFPOLICY_TYPE_CONFIG)
+		return FALSE;
 	return policy->match && ni_ifcondition_check(policy->match, w);
 }
 
@@ -399,23 +477,78 @@ ni_fsm_policy_action_new(ni_fsm_policy_action_type_t type, xml_node_t *node, ni_
 	action = calloc(1, sizeof(*action));
 	action->type = type;
 	action->data = node;
-	
-	switch (type) {
-	case NI_IFPOLICY_ACTION_MERGE:
-	case NI_IFPOLICY_ACTION_REPLACE:
+
+	if (list)
+		*list = action;
+
+	if (type == NI_IFPOLICY_ACTION_MERGE || type == NI_IFPOLICY_ACTION_REPLACE) {
 		if ((attr = xml_node_get_attr(node, "path")) != NULL)
 			ni_string_dup(&action->xpath, attr);
 		if ((attr = xml_node_get_attr(node, "final")) != NULL) {
 			if (!strcasecmp(attr, "true") || !strcmp(attr, "1"))
 				action->final = TRUE;
 		}
-		break;
+	} else
+	if (type == NI_IFPOLICY_ACTION_CREATE) {
+		ni_fsm_template_input_t **input_tail;
+		xml_node_t *child;
 
-	default: ;
+		if ((attr = xml_node_get_attr(node, "class")) == NULL) {
+			ni_error("%s: <%s> element lacks class attribute", xml_node_location(node), node->name);
+			return NULL;
+		}
+		action->create.class = ni_objectmodel_get_class(attr);
+		if (action->create.class == NULL) {
+			ni_error("%s: <%s> specifies unknown class \"%s\"", xml_node_location(node), node->name, attr);
+			return NULL;
+		}
+
+		action->create.instantiate_multi = FALSE;
+		if ((attr = xml_node_get_attr(node, "instantiate")) != NULL) {
+			if (ni_string_eq(attr, "multi"))
+				action->create.instantiate_multi = TRUE;
+			else if (!ni_string_eq(attr, "once")) {
+				ni_error("%s: <%s> specifies bad instantiate=\"%s\" attribute",
+						xml_node_location(node), node->name, attr);
+				return NULL;
+			}
+		}
+
+		input_tail = &action->create.inputs;
+		for (child = node->children; child; child = child->next) {
+			if (ni_string_eq(child->name, "input-device")) {
+				ni_fsm_template_input_t *input;
+				xml_node_t *matchnode;
+
+				if (!(attr = xml_node_get_attr(child, "id"))) {
+					ni_error("%s: <%s> element lacks id attribute", xml_node_location(child), child->name);
+					return NULL;
+				}
+
+				/* FIXME: check for duplicate IDs */
+
+				input = ni_fsm_template_input_new(attr, &input_tail);
+
+				if ((attr = xml_node_get_attr(child, "shared")) != NULL) {
+					if (!strcasecmp(attr, "true") || !strcmp(attr, "1"))
+						input->shared = TRUE;
+				}
+
+				if (!(matchnode = xml_node_get_child(child, "match"))) {
+					ni_error("%s: <%s> element lacks <match> child", xml_node_location(child), child->name);
+					return NULL;
+				}
+				if (!(input->match = ni_fsm_policy_conditions_from_xml(matchnode))) {
+					ni_error("%s: trouble parsing policy conditions", xml_node_location(matchnode));
+					return NULL;
+				}
+			} else {
+				ni_error("%s: unexpected element <%s>", xml_node_location(child), child->name);
+				return NULL;
+			}
+		}
 	}
 
-	if (list)
-		*list = action;
 	return action;
 }
 
@@ -424,7 +557,44 @@ ni_fsm_policy_action_free(ni_fsm_policy_action_t *action)
 {
 	if (action->xpath)
 		ni_string_free(&action->xpath);
+
+	if (action->type == NI_IFPOLICY_ACTION_CREATE) {
+		ni_fsm_template_input_t *input;
+
+		while ((input = action->create.inputs) != NULL) {
+			action->create.inputs = input->next;
+			ni_fsm_template_input_free(input);
+		}
+	}
 	free(action);
+}
+
+ni_fsm_template_input_t *
+ni_fsm_template_input_new(const char *id, ni_fsm_template_input_t ***tailp)
+{
+	ni_fsm_template_input_t **tail;
+	ni_fsm_template_input_t *result;
+
+	result = xcalloc(1, sizeof(*result));
+	ni_string_dup(&result->id, id);
+
+	if (tailp && (tail = *tailp)) {
+		*tail = result;
+		*tailp = &result->next;
+	}
+
+	return result;
+}
+
+void
+ni_fsm_template_input_free(ni_fsm_template_input_t *input)
+{
+	ni_string_free(&input->id);
+	if (input->match) {
+		ni_ifcondition_free(input->match);
+		input->match = NULL;
+	}
+	free(input);
 }
 
 /*
@@ -572,6 +742,163 @@ ni_fsm_policy_action_xml_replace(const ni_fsm_policy_action_t *action, xml_node_
 
 	xml_node_array_free(nodes);
 	return node;
+}
+
+/*
+ * Template handling
+ */
+ni_bool_t
+ni_fsm_policy_is_template(const ni_fsm_policy_t *policy)
+{
+	return policy->type == NI_IFPOLICY_TYPE_TEMPLATE;
+}
+
+ni_bool_t
+ni_fsm_template_multi_instance(const ni_fsm_policy_t *policy)
+{
+	return policy->create_action && policy->create_action->create.instantiate_multi;
+}
+
+xml_node_t *
+ni_fsm_template_instantiate(ni_fsm_policy_t *policy, const ni_ifworker_array_t *devices)
+{
+	ni_fsm_template_input_t *input;
+	ni_fsm_policy_action_t *action;
+	unsigned int i, num_needed;
+	xml_node_t *config;
+
+	if (policy->type != NI_IFPOLICY_TYPE_TEMPLATE
+	 || (action = policy->create_action) == NULL)
+		return NULL;
+
+	num_needed = 0;
+	for (input = action->create.inputs; input; input = input->next) {
+		input->device = NULL;
+		num_needed++;
+	}
+
+	for (i = 0; i < devices->count && num_needed; ++i) {
+		ni_ifworker_t *w = devices->data[i];
+		unsigned int nshared = 0;
+
+		for (input = action->create.inputs; input; input = input->next) {
+			if (input->device != NULL)
+				continue;
+
+			if (!ni_ifcondition_check(input->match, w))
+				continue;
+
+			if (input->shared) {
+				input->device = w;
+				num_needed--;
+				nshared++;
+			} else if (nshared == 0) {
+				input->device = w;
+				num_needed--;
+				break;
+			}
+		}
+	}
+
+	if (num_needed)
+		return NULL;
+
+	config = ni_fsm_template_build_document(policy, action);
+	if (config == NULL)
+		return NULL;
+
+	if (!ni_fsm_template_bind_devices(policy, action, config)) {
+		xml_node_free(config);
+		return NULL;
+	}
+
+	return config;
+}
+
+xml_node_t *
+ni_fsm_template_build_document(ni_fsm_policy_t *policy, ni_fsm_policy_action_t *action)
+{
+	xml_node_t *config;
+
+	if (ni_dbus_class_is_subclass(action->create.class, &ni_objectmodel_netif_class)) {
+		config = xml_node_new("interface", NULL);
+	} else {
+		ni_error("%s: class %s not supported", __func__, action->create.class->name);
+		return NULL;
+	}
+
+	xml_node_add_attr(config, "class", action->create.class->name);
+
+	if (action->create.instantiate_multi) {
+		char new_name[128];
+
+		snprintf(new_name, sizeof(new_name), "%s%u", policy->name, action->create.serial++);
+		xml_node_new_element("name", config, new_name);
+	} else {
+		xml_node_new_element("name", config, policy->name);
+	}
+
+	/* Now transform the document */
+	for (action = policy->actions; action; action = action->next) {
+		switch (action->type) {
+		case NI_IFPOLICY_ACTION_MERGE:
+			config = ni_fsm_policy_action_xml_merge(action, config);
+			break;
+
+		case NI_IFPOLICY_ACTION_REPLACE:
+			config = ni_fsm_policy_action_xml_replace(action, config);
+			break;
+
+		default:
+			continue;
+		}
+
+		if (config == NULL) {
+			ni_error("%s: failed to build document", policy->name);
+			return NULL;
+		}
+	}
+
+	return config;
+}
+
+ni_bool_t
+ni_fsm_template_bind_devices(ni_fsm_policy_t *policy, ni_fsm_policy_action_t *action, xml_node_t *node)
+{
+	xml_node_t *child;
+
+again:
+	for (child = node->children; child; child = child->next) {
+		ni_fsm_template_input_t *input;
+		const char *id;
+
+		if (!ni_string_eq(child->name, "template:use"))
+			continue;
+
+		if (!(id = xml_node_get_attr(child, "id"))) {
+			ni_error("%s: <%s> element lacking id attribute",
+					xml_node_location(child), child->name);
+			return FALSE;
+		}
+
+		for (input = action->create.inputs; input; input = input->next) {
+			if (ni_string_eq(input->id, id))
+				break;
+		}
+
+		if (input == NULL) {
+			ni_error("%s: <%s> element specifies unknown id=\"%s\"",
+					xml_node_location(child), child->name,
+					id);
+			return FALSE;
+		}
+
+		xml_node_new_element("path", node, input->device->object_path);
+		xml_node_delete_child_node(node, child);
+		goto again;
+	}
+
+	return TRUE;
 }
 
 /*
