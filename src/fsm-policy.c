@@ -43,6 +43,7 @@ struct ni_ifcondition {
 		} terms;
 		const ni_dbus_class_t *	class;
 		char *			string;
+		unsigned int		uint;
 	} args;
 };
 
@@ -931,6 +932,16 @@ ni_ifcondition_new_cdata(ni_ifcondition_check_fn_t *check_fn, const xml_node_t *
 }
 
 static ni_ifcondition_t *
+ni_ifcondition_new_uint(ni_ifcondition_check_fn_t *check_fn, unsigned int value)
+{
+	ni_ifcondition_t *cond;
+
+	cond = ni_ifcondition_new(check_fn);
+	cond->args.uint = value;
+	return cond;
+}
+
+static ni_ifcondition_t *
 ni_ifcondition_new_terms(ni_ifcondition_check_fn_t *check_fn,
 			ni_ifcondition_t *left,
 			ni_ifcondition_t *right)
@@ -1234,6 +1245,28 @@ ni_ifcondition_boot_stage(xml_node_t *node)
 }
 
 /*
+ * <minimum-device-state>link-up</minimum-device-state>
+ */
+static ni_bool_t
+__ni_fsm_policy_min_device_state_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
+{
+	ni_trace("%s: state is %u, need %u", w->name, w->fsm.state, cond->args.uint);
+	return w->fsm.state >= cond->args.uint;
+}
+
+static ni_ifcondition_t *
+ni_ifcondition_min_device_state(xml_node_t *node)
+{
+	int state;
+
+	if ((state = ni_ifworker_state_from_name(node->cdata)) < 0) {
+		ni_error("%s: invalid device state \"%s\"", xml_node_location(node), node->cdata);
+		return NULL;
+	}
+	return ni_ifcondition_new_uint(__ni_fsm_policy_min_device_state_check, state);
+}
+
+/*
  * <modem>...</modem>
  * <modem:foobar>...</modem:foobar>
  */
@@ -1368,6 +1401,8 @@ ni_ifcondition_from_xml(xml_node_t *node)
 		return ni_ifcondition_control_mode(node);
 	if (!strcmp(node->name, "boot-stage"))
 		return ni_ifcondition_boot_stage(node);
+	if (!strcmp(node->name, "minimum-device-state"))
+		return ni_ifcondition_min_device_state(node);
 	if (!strcmp(node->name, "modem"))
 		return ni_ifcondition_modem(node);
 	if (!strncmp(node->name, "modem:", 6))

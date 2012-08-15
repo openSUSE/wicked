@@ -1,6 +1,7 @@
 <policy name="eth_all">
  <match>
    <link-type>ethernet</link-type>
+   <minimum-device-state>link-up</minimum-device-state>
  </match>
 
  <merge final="true">
