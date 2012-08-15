@@ -776,7 +776,7 @@ ni_ifworker_update_state(ni_ifworker_t *w, unsigned int min_state, unsigned int 
 
 	if (w->fsm.state < min_state)
 		w->fsm.state = min_state;
-	if (max_state < min_state)
+	if (max_state < w->fsm.state)
 		w->fsm.state = max_state;
 
 	if (w->fsm.state != prev_state) {
@@ -2984,7 +2984,7 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 	if (!strcmp(signal_name, "addressAcquired"))
 		fsm->last_event_seq[NI_EVENT_ADDRESS_ACQUIRED] = fsm->event_seq;
 
-	if ((w = ni_fsm_ifworker_by_object_path(fsm, object_path)) != NULL && w->target_state != NI_FSM_STATE_NONE) {
+	if ((w = ni_fsm_ifworker_by_object_path(fsm, object_path)) != NULL) {
 		ni_objectmodel_callback_info_t *cb = NULL;
 
 		if (!ni_uuid_is_null(&event_uuid)) {
@@ -3012,7 +3012,7 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 			}
 		}
 
-		if (!w->failed) {
+		{
 			unsigned int min_state = NI_FSM_STATE_NONE, max_state = __NI_FSM_STATE_MAX;
 
 			if (!strcmp(signal_name, "linkUp"))
