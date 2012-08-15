@@ -784,8 +784,9 @@ ni_ifworker_update_state(ni_ifworker_t *w, unsigned int min_state, unsigned int 
 				w->name,
 				ni_ifworker_state_name(prev_state),
 				ni_ifworker_state_name(w->fsm.state),
-				(w->fsm.wait_for && w->fsm.wait_for->next_state == w->fsm.state)?
-					", resuming activity" : ", still waiting for event");
+				w->fsm.wait_for == NULL? "" :
+				(w->fsm.wait_for->next_state == w->fsm.state?
+					", resuming activity" : ", still waiting for event"));
 		if (w->fsm.state == w->target_state)
 			ni_ifworker_success(w);
 	}
