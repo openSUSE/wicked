@@ -63,13 +63,13 @@ ni_objectmodel_manager_init(ni_manager_t *mgr)
 	{
 		unsigned int i;
 
-		ni_trace("%s supports:", ni_dbus_object_get_path(root_object));
+		ni_debug_nanny("%s supports:", ni_dbus_object_get_path(root_object));
 		for (i = 0; root_object->interfaces[i]; ++i) {
 			const ni_dbus_service_t *service = root_object->interfaces[i];
 
-			ni_trace("  %s", service->name);
+			ni_debug_nanny("  %s", service->name);
 		}
-		ni_trace("(%u interfaces)", i);
+		ni_debug_nanny("(%u interfaces)", i);
 	}
 }
 
@@ -154,10 +154,10 @@ ni_manager_recheck(ni_manager_t *mgr, ni_ifworker_t *w)
 	if (w->dead)
 		return;
 
-	ni_trace("%s(%s)", __func__, w->name);
+	ni_debug_nanny("%s(%s)", __func__, w->name);
 	w->use_default_policies = TRUE;
 	if ((count = ni_fsm_policy_get_applicable_policies(mgr->fsm, w, policies, MAX_POLICIES)) == 0) {
-		ni_trace("%s: no applicable policies", w->name);
+		ni_debug_nanny("%s: no applicable policies", w->name);
 		return;
 	}
 
@@ -302,7 +302,7 @@ ni_manager_prompt(const ni_fsm_prompt_t *p, xml_node_t *node, void *user_data)
 	const char *value;
 	int rv = -1;
 
-	ni_trace("%s: type=%u string=%s id=%s", __func__, p->type, p->string, p->id);
+	ni_debug_nanny("%s: type=%u string=%s id=%s", __func__, p->type, p->string, p->id);
 
 	ni_stringbuf_init(&path_buf);
 
@@ -321,7 +321,7 @@ ni_manager_prompt(const ni_fsm_prompt_t *p, xml_node_t *node, void *user_data)
 	value = ni_manager_get_secret(mgr, w->security_id, path_buf.string);
 	if (value == NULL) {
 		/* FIXME: Send out event that we need this piece of information */
-		ni_trace("%s: prompting for type=%u id=%s path=%s",
+		ni_debug_nanny("%s: prompting for type=%u id=%s path=%s",
 				w->name, p->type, w->security_id, path_buf.string);
 		goto done;
 	}
@@ -383,14 +383,14 @@ ni_manager_add_secret(ni_manager_t *mgr, const char *security_id, const char *pa
 
 	ni_string_dup(&sec->value, value);
 
-	ni_trace("%s: secret for %s updated", security_id, path);
+	ni_debug_nanny("%s: secret for %s updated", security_id, path);
 	for (mmod = mgr->modem_list; mmod; mmod = mmod->next) {
 		ni_ifworker_t *w = mmod->worker;
 
-		ni_trace("%s: security-id=%s", w->name, w->security_id);
+		ni_debug_nanny("%s: security-id=%s", w->name, w->security_id);
 		if (w && ni_string_eq(w->security_id, security_id)
 		 && !ni_ifworker_is_running(w)) {
-			ni_trace("%s: secret for %s updated, rechecking", w->name, path);
+			ni_debug_nanny("%s: secret for %s updated, rechecking", w->name, path);
 			ni_manager_schedule_recheck(mgr, w);
 		}
 	}
@@ -401,7 +401,7 @@ ni_manager_clear_secrets(ni_manager_t *mgr, const char *security_id, const char 
 {
 	ni_manager_secret_t *sec, **pos;
 
-	ni_trace("%s(%s, %s)", __func__, security_id, path);
+	ni_debug_nanny("%s(%s, %s)", __func__, security_id, path);
 	for (pos = &mgr->secret_db; (sec = *pos) != NULL; ) {
 		if ((security_id == NULL || ni_string_eq(sec->security_id, security_id))
 		 && (path == NULL || ni_string_eq(sec->path, path))) {

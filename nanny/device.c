@@ -86,7 +86,7 @@ ni_managed_device_new(ni_manager_t *mgr, ni_ifworker_t *w, ni_managed_device_t *
 void
 ni_managed_device_free(ni_managed_device_t *mdev)
 {
-	ni_trace("%s(%s): obj=%p", __func__,
+	ni_debug_nanny("%s(%s): obj=%p", __func__,
 			mdev->worker? mdev->worker->name : "anon",
 			mdev->object);
 	ni_assert(mdev->object == NULL);
@@ -120,12 +120,12 @@ ni_managed_device_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *m
 	 * has really changed */
 	if (mdev->running) {
 		if (mdev->selected_policy == mpolicy && mdev->selected_policy_seq == mpolicy->seqno) {
-			ni_trace("%s: keep using policy %s", w->name, ni_fsm_policy_name(policy));
+			ni_debug_nanny("%s: keep using policy %s", w->name, ni_fsm_policy_name(policy));
 			return;
 		}
 	}
 
-	ni_trace("%s: using policy %s", w->name, ni_fsm_policy_name(policy));
+	ni_debug_nanny("%s: using policy %s", w->name, ni_fsm_policy_name(policy));
 
 	/* This returns "modem" or "interface" */
 	type_name = ni_ifworker_type_to_string(w->type);
@@ -138,7 +138,7 @@ ni_managed_device_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *m
 		ni_error("%s: error when applying policy to %s document", w->name, type_name);
 		return;
 	}
-	ni_trace("%s: using device config", w->name);
+	ni_debug_nanny("%s: using device config", w->name);
 	xml_node_print_debug(config, 0);
 
 	if (mdev->selected_config)

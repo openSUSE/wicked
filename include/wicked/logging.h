@@ -65,6 +65,8 @@ extern unsigned int	ni_debug;
 #define ni_debug_application(fmt, args...)	__ni_debug(NI_TRACE_APPLICATION, fmt, ##args)
 #define ni_debug_modem(fmt, args...)		__ni_debug(NI_TRACE_MODEM, fmt, ##args)
 
+#define ni_debug_nanny				ni_debug_application
+
 #define ni_debug_wicked_xml(xml_node, fmt, args...) \
 	do { \
 		if (ni_debug & NI_TRACE_WICKED_XML) { \

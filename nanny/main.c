@@ -198,7 +198,7 @@ ni_manager_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus
 		return;
 	}
 
-	ni_trace("%s: received signal %s from %s", w->name, signal_name, object_path);
+	ni_debug_nanny("%s: received signal %s from %s", w->name, signal_name, object_path);
 	ni_assert(w->device);
 
 	if (ni_string_eq(signal_name, "deviceDelete")) {
@@ -252,7 +252,7 @@ ni_manager_modem_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus
 	const char *object_path = dbus_message_get_path(msg);
 	ni_ifworker_t *w;
 
-	ni_trace("%s(%s, %s)", __func__, object_path, signal_name);
+	ni_debug_nanny("%s(%s, %s)", __func__, object_path, signal_name);
 
 	// We receive a deviceCreate signal when a modem was plugged in
 	if (ni_string_eq(signal_name, "deviceCreate")) {
@@ -268,7 +268,7 @@ ni_manager_modem_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus
 		return;
 	}
 
-	ni_trace("%s: received signal %s from %s", w->name, signal_name, object_path);
+	ni_debug_nanny("%s: received signal %s from %s", w->name, signal_name, object_path);
 	ni_assert(w->type == NI_IFWORKER_TYPE_MODEM);
 	ni_assert(w->modem);
 
