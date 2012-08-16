@@ -12,13 +12,13 @@
 #include <stdarg.h>
 #include <unistd.h>
 #include <stdlib.h>
-#include <getopt.h>
 #include <sys/param.h>
 #include <sys/stat.h>
 
 #include <wicked/logging.h>
 #include <wicked/netinfo.h>
 #include <wicked/modem.h>
+#include <wicked/wireless.h>
 #include <wicked/fsm.h>
 #include "util_priv.h"
 
@@ -1335,6 +1335,79 @@ ni_ifcondition_modem(xml_node_t *node)
 }
 
 /*
+ * <wireless>...</wireless>
+ * <wireless:foobar>...</wireless:foobar>
+ */
+static ni_bool_t
+__ni_fsm_policy_match_wireless_essid_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
+{
+	ni_netdev_t *dev;
+	ni_wireless_t *wireless;
+
+	if (!(dev = ni_ifworker_get_netdev(w)) || !(wireless = dev->wireless))
+		return FALSE;
+
+	if (wireless->scan) {
+		ni_wireless_scan_t *scan = wireless->scan;
+		ni_wireless_ssid_t essid;
+		unsigned int i;
+
+		ni_wireless_parse_ssid(cond->args.string, &essid);
+		for (i = 0; i < scan->networks.count; ++i) {
+			ni_wireless_network_t *net = scan->networks.data[i];
+
+			if (memcmp(&net->essid, &essid, sizeof(essid)) == 0)
+				return TRUE;
+		}
+	}
+
+	return FALSE;
+}
+
+static ni_ifcondition_t *
+ni_ifcondition_wireless_element(xml_node_t *node, const char *name)
+{
+	if (ni_string_eq(name, "essid")) {
+		ni_wireless_ssid_t essid;
+
+		if (!ni_wireless_parse_ssid(node->cdata, &essid)) {
+			ni_error("%s: cannot parse essid \"%s\"",
+					xml_node_location(node), node->cdata);
+			return NULL;
+		}
+
+		return ni_ifcondition_new_cdata(__ni_fsm_policy_match_wireless_essid_check, node);
+	}
+
+	ni_error("%s: unknown wireless condition <%s>", xml_node_location(node), name);
+	return NULL;
+}
+
+static ni_ifcondition_t *
+ni_ifcondition_wireless(xml_node_t *node)
+{
+	ni_ifcondition_t *result = NULL;
+
+	for (node = node->children; node; node = node->next) {
+		ni_ifcondition_t *cond;
+
+		cond = ni_ifcondition_wireless_element(node, node->name);
+		if (cond == NULL) {
+			if (result)
+				ni_ifcondition_free(result);
+			return NULL;
+		}
+
+		if (result == NULL)
+			result = cond;
+		else
+			result = ni_ifcondition_and_terms(result, cond);
+	}
+
+	return result;
+}
+
+/*
  * <any>...</any>
  */
 static ni_bool_t
@@ -1403,6 +1476,10 @@ ni_ifcondition_from_xml(xml_node_t *node)
 		return ni_ifcondition_modem(node);
 	if (!strncmp(node->name, "modem:", 6))
 		return ni_ifcondition_modem_element(node, node->name + 6);
+	if (!strcmp(node->name, "wireless"))
+		return ni_ifcondition_wireless(node);
+	if (!strncmp(node->name, "wireless:", 9))
+		return ni_ifcondition_wireless_element(node, node->name + 9);
 
 	ni_error("%s: unsupported policy conditional <%s>", xml_node_location(node), node->name);
 	return NULL;
