@@ -213,6 +213,9 @@ install-bin: $(APPBINS) install-lib
 		install $(STRIP_FLAG) -m 555 bin/$$app $(DESTDIR)$(sbindir); \
 	done
 	install -d -m 755 $(DESTDIR)$(wickedpiddir)
+	install -d -m 755 $(DESTDIR)$(sysvinitdir)
+	install -c -m 755 etc/init.d/wicked  $(DESTDIR)$(sysvinitdir)/wicked
+	install -c -m 755 etc/init.d/network $(DESTDIR)$(sysvinitdir)/network
 
 install-lib: $(TGTLIBS)
 	install -d -m 755 $(DESTDIR)$(libdir)
@@ -220,9 +223,6 @@ install-lib: $(TGTLIBS)
 	ln -sf $(LIBSOFILE) $(DESTDIR)$(libdir)/$(LIBSONAME)
 
 install-data: $(GENFILES)
-	install -d -m 755 $(DESTDIR)$(sysvinitdir)
-	install -c -m 755 etc/init.d/wicked  $(DESTDIR)$(sysvinitdir)/wicked
-	install -c -m 755 etc/init.d/network $(DESTDIR)$(sysvinitdir)/network
 	install -d -m 755 $(DESTDIR)$(wickedconfigdir)
 	install -m 644 etc/config.xml $(DESTDIR)$(wickedconfigdir)
 	install -d -m 755 $(DESTDIR)$(dbus_systemdir)
