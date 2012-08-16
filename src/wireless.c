@@ -45,7 +45,7 @@ static int		__ni_wireless_do_scan(ni_netdev_t *);
 static void		__ni_wireless_network_destroy(ni_wireless_network_t *net);
 
 static ni_wpa_client_t *wpa_client;
-static ni_bool_t	__ni_wireless_scanning_enabled = TRUE;
+static ni_bool_t	__ni_wireless_scanning_enabled = FALSE;
 
 /*
  * Get the dbus client handle for wpa_supplicant

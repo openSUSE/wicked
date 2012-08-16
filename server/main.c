@@ -147,6 +147,9 @@ wicked_interface_server(void)
 			ni_error("unable to initialize modem manager client");
 	}
 
+	/* Enable scanning for all wireless interfaces */
+	ni_wireless_set_scanning(TRUE);
+
 	wicked_dbus_xml_schema = ni_objectmodel_init(wicked_dbus_server);
 	if (wicked_dbus_xml_schema == NULL)
 		ni_fatal("Cannot initialize objectmodel, giving up.");
