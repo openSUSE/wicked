@@ -1809,19 +1809,70 @@ ni_ifworker_bind_device_apis(ni_ifworker_t *w, const ni_dbus_service_t *service)
 }
 
 /*
+ * Callback data used for callbacks from XML validation
+ */
+struct ni_ifworker_xml_validation_user_data {
+	ni_fsm_t *	fsm;
+	ni_ifworker_t *	worker;
+};
+static dbus_bool_t	ni_ifworker_netif_resolve_cb(xml_node_t *, const ni_xs_type_t *, const xml_node_t *, void *);
+static int		ni_ifworker_prompt_cb(xml_node_t *, const ni_xs_type_t *, const xml_node_t *, void *);
+static int		ni_ifworker_prompt_later_cb(xml_node_t *, const ni_xs_type_t *, const xml_node_t *, void *);
+
+int
+ni_ifworker_bind_early(ni_ifworker_t *w, ni_fsm_t *fsm, ni_bool_t prompt_now)
+{
+	struct ni_ifworker_xml_validation_user_data user_data = {
+		.fsm = fsm, .worker = w,
+	};
+	ni_dbus_xml_validate_context_t context = {
+		.metadata_callback = ni_ifworker_netif_resolve_cb,
+		.prompt_callback = ni_ifworker_prompt_later_cb,
+		.user_data = &user_data,
+	};
+	int rv;
+
+	if (prompt_now)
+		context.prompt_callback = ni_ifworker_prompt_cb;
+
+	/* First, check for factory interface */
+	if ((rv = ni_ifworker_bind_device_factory_api(w)) < 0)
+		return rv;
+
+	if (w->device_api.factory_method && w->device_api.config) {
+		/* The XML validation code will do a pass over the part of our XML
+		 * document that's used for the deviceNew() call, and call us for
+		 * every bit of metadata it finds.
+		 * This includes elements marked by <meta:netif-reference/>
+		 * in the schema.
+		 */
+		if (!ni_dbus_xml_validate_argument(w->device_api.factory_method, 1, w->device_api.config, &context))
+			return -NI_ERROR_DOCUMENT_ERROR;
+		return 0;
+	}
+
+	if ((rv = ni_ifworker_bind_device_apis(w, NULL)) < 0)
+		return rv;
+
+	if (w->device_api.method && w->device_api.config) {
+		if (!ni_dbus_xml_validate_argument(w->device_api.method, 0, w->device_api.config, &context))
+			return -NI_ERROR_DOCUMENT_ERROR;
+		return 0;
+	}
+
+	/* For now, just apply policies here */
+	ni_ifworker_apply_policies(fsm, w);
+	return 0;
+}
+
+/*
  * Build the hierarchy of devices.
  *
  * We need to ensure that we bring up devices in the proper order; e.g. an
  * eth interface needs to come up before any of the VLANs that reference
  * it.
  */
-struct ni_ifworker_xml_validation_user_data {
-	ni_fsm_t *	fsm;
-	ni_ifworker_t *	worker;
-};
 static void		__ni_ifworker_print_tree(const char *arrow, const ni_ifworker_t *, const char *);
-static dbus_bool_t	ni_ifworker_netif_resolve_cb(xml_node_t *, const ni_xs_type_t *, const xml_node_t *, void *);
-static int		ni_ifworker_prompt_later_cb(xml_node_t *, const ni_xs_type_t *, const xml_node_t *, void *);
 
 int
 ni_fsm_build_hierarchy(ni_fsm_t *fsm)
@@ -1834,53 +1885,13 @@ ni_fsm_build_hierarchy(ni_fsm_t *fsm)
 
 		/* A worker without an ifnode is one that we discovered in the
 		 * system, but which we've not been asked to configure. */
-		if (!w->config.node)
-			goto no_device_bindings;
-
-		/* First, check for factory interface */
-		if ((rv = ni_ifworker_bind_device_factory_api(w)) < 0)
-			return rv;
-		if (w->device_api.factory_method && w->device_api.config) {
-			struct ni_ifworker_xml_validation_user_data user_data = {
-				.fsm = fsm, .worker = w,
-			};
-			ni_dbus_xml_validate_context_t context = {
-				.metadata_callback = ni_ifworker_netif_resolve_cb,
-				.prompt_callback = ni_ifworker_prompt_later_cb,
-				.user_data = &user_data,
-			};
-
-			/* The XML validation code will do a pass over the part of our XML
-			 * document that's used for the deviceNew() call, and call us for
-			 * every bit of metadata it finds.
-			 * This includes elements marked by <meta:netif-reference/>
-			 * in the schema.
-			 */
-			if (!ni_dbus_xml_validate_argument(w->device_api.factory_method, 1, w->device_api.config, &context))
-				return -NI_ERROR_DOCUMENT_ERROR;
+		if (!w->config.node) {
+			w->use_default_policies = TRUE;
 			continue;
 		}
 
-		if ((rv = ni_ifworker_bind_device_apis(w, NULL)) < 0)
+		if ((rv = ni_ifworker_bind_early(w, fsm, FALSE)) < 0)
 			return rv;
-		if (w->device_api.method && w->device_api.config) {
-			struct ni_ifworker_xml_validation_user_data user_data = {
-				.fsm = fsm, .worker = w,
-			};
-			ni_dbus_xml_validate_context_t context = {
-				.metadata_callback = ni_ifworker_netif_resolve_cb,
-				.prompt_callback = ni_ifworker_prompt_later_cb,
-				.user_data = &user_data,
-			};
-
-			if (!ni_dbus_xml_validate_argument(w->device_api.method, 0, w->device_api.config, &context))
-				return -NI_ERROR_DOCUMENT_ERROR;
-			continue;
-		}
-
-		/* For now, we apply policies here */
-no_device_bindings:
-		ni_ifworker_apply_policies(fsm, w);
 	}
 
 	if (ni_debug & NI_TRACE_DBUS) {

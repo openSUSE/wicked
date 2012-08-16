@@ -243,7 +243,8 @@ ni_managed_device_up(ni_managed_device_t *mdev)
 	w->target_range.min = target_state;
 	w->target_range.max = __NI_FSM_STATE_MAX;
 
-	if ((rv = ni_ifworker_start(fsm, w, fsm->worker_timeout)) >= 0) {
+	if ((rv = ni_ifworker_bind_early(w, fsm, TRUE)) >= 0
+	 && (rv = ni_ifworker_start(fsm, w, fsm->worker_timeout)) >= 0) {
 		mdev->state = NI_MANAGED_STATE_STARTING;
 	} else {
 		ni_error("%s: cannot start device: %s", w->name, ni_strerror(rv));
