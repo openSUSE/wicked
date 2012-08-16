@@ -222,9 +222,6 @@ __ni_manager_rfkill_event(ni_managed_device_t *list, ni_rfkill_type_t type, ni_b
 	for (mdev = list; mdev; mdev = mdev->next) {
 		ni_ifworker_t *w = mdev->worker;
 
-		if (!mdev->user_controlled)
-			continue;
-
 		if (ni_ifworker_get_rfkill_type(w) == type) {
 			mdev->rfkill_blocked = blocked;
 			if (blocked) {
@@ -232,8 +229,10 @@ __ni_manager_rfkill_event(ni_managed_device_t *list, ni_rfkill_type_t type, ni_b
 			} else {
 				/* Re-enable scanning */
 				ni_debug_nanny("%s: radio re-enabled, resume monitoring", w->name);
-				ni_managed_netdev_enable(mdev);
-				ni_manager_schedule_recheck(mdev->manager, w);
+				if (mdev->user_controlled) {
+					ni_managed_netdev_enable(mdev);
+					ni_manager_schedule_recheck(mdev->manager, w);
+				}
 			}
 		}
 	}
