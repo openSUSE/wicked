@@ -168,10 +168,10 @@ ni_modem_manager_init(ni_modem_manager_event_handler_fn_t *event_handler)
 		ni_objectmodel_register_modem_classes();
 		ni_objectmodel_register_modem_services();
 
-		ni_objectmodel_modem_class_ptr = ni_objectmodel_get_class(NI_OBJECTMODEL_MODEM_CLASS);
+		ni_objectmodel_modem_class_ptr = ni_objectmodel_get_class(NI_OBJECTMODEL_MM_MODEM_CLASS);
 
 		ni_objectmodel_modem_service.compatible = ni_objectmodel_modem_class_ptr;
-		ni_objectmodel_gsm_modem_service.compatible = ni_objectmodel_modem_get_class(MM_MODEM_TYPE_GSM);
+		ni_objectmodel_gsm_modem_service.compatible = ni_objectmodel_mm_modem_get_class(MM_MODEM_TYPE_GSM);
 
 		if (!ni_modem_manager_enumerate(client)) {
 			ni_modem_manager_client_free(client);
@@ -341,14 +341,14 @@ ni_modem_manager_disconnect(ni_modem_t *modem)
  * Support classes for objectmodel
  */
 const char *
-ni_objectmodel_modem_get_classname(ni_modem_type_t type)
+ni_objectmodel_mm_modem_get_classname(ni_modem_type_t type)
 {
 	switch (type) {
 	case MM_MODEM_TYPE_GSM:
-		return "modem-gsm";
+		return NI_OBJECTMODEL_MM_MODEM_GSM_CLASS;
 
 	case MM_MODEM_TYPE_CDMA:
-		return "modem-cdma";
+		return NI_OBJECTMODEL_MM_MODEM_CDMA_CLASS;
 
 	default: ;
 	}
@@ -357,11 +357,11 @@ ni_objectmodel_modem_get_classname(ni_modem_type_t type)
 }
 
 const ni_dbus_class_t *
-ni_objectmodel_modem_get_class(ni_modem_type_t type)
+ni_objectmodel_mm_modem_get_class(ni_modem_type_t type)
 {
 	const char *classname;
 
-	if ((classname = ni_objectmodel_modem_get_classname(type)) == NULL)
+	if ((classname = ni_objectmodel_mm_modem_get_classname(type)) == NULL)
 		return NULL;
 	return ni_objectmodel_get_class(classname);
 }
@@ -369,13 +369,17 @@ ni_objectmodel_modem_get_class(ni_modem_type_t type)
 const char *
 ni_objectmodel_modem_get_proxy_classname(ni_modem_type_t type)
 {
-	static char proxyname[64];
-	const char *classname;
+	switch (type) {
+	case MM_MODEM_TYPE_GSM:
+		return NI_OBJECTMODEL_MODEM_PROXY_GSM_CLASS;
 
-	if ((classname = ni_objectmodel_modem_get_classname(type)) == NULL)
-		return NULL;
-	snprintf(proxyname, sizeof(proxyname), "%s-proxy", classname);
-	return proxyname;
+	case MM_MODEM_TYPE_CDMA:
+		return NI_OBJECTMODEL_MODEM_PROXY_CDMA_CLASS;
+
+	default: ;
+	}
+
+	return NULL;
 }
 
 const ni_dbus_class_t *
@@ -420,7 +424,7 @@ ni_modem_manager_add_modem(ni_modem_manager_client_t *modem_manager, const char 
 		ni_error("Cannot obtain model info for modem (%s)", object_path);
 
 	/* Override the dbus class of this object */
-	if ((class = ni_objectmodel_modem_get_class(modem->type)) != NULL)
+	if ((class = ni_objectmodel_mm_modem_get_class(modem->type)) != NULL)
 		modem_object->class = class;
 
 	ni_debug_dbus("%s: dev=%s master=%s type=%u equipment-id=%s",

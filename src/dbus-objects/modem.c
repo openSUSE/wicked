@@ -34,8 +34,8 @@ static void		ni_objectmodel_modem_destroy(ni_dbus_object_t *object);
 static const char *	ni_objectmodel_modem_path(const ni_modem_t *);
 static ni_modem_t *	__ni_objectmodel_get_modem_arg(const ni_dbus_variant_t *dict, ni_dbus_object_t **ret_object);
 
-static ni_dbus_class_t		ni_objectmodel_modem_class = {
-	.name		= NI_OBJECTMODEL_MODEM_CLASS,
+static ni_dbus_class_t		ni_objectmodel_mm_modem_class = {
+	.name		= NI_OBJECTMODEL_MM_MODEM_CLASS,
 	.initialize	= ni_objectmodel_modem_initialize,
 	.destroy	= ni_objectmodel_modem_destroy,
 };
@@ -74,24 +74,24 @@ ni_objectmodel_register_modem_classes(void)
 	ni_objectmodel_register_class(&ni_objectmodel_modem_list_class);
 
 	/* register the modem class (to allow extensions to attach to it) */
-	ni_objectmodel_register_class(&ni_objectmodel_modem_class);
+	ni_objectmodel_register_class(&ni_objectmodel_mm_modem_class);
 	ni_objectmodel_register_class(&ni_objectmodel_modem_proxy_class);
 
 	for (modem_type = 0; modem_type < __MM_MODEM_TYPE_MAX; ++modem_type) {
 		ni_dbus_class_t *class;
 		const char *classname;
-		char proxyname[64];
 
-		if (!(classname = ni_objectmodel_modem_get_classname(modem_type)))
-			continue;
+		/* Create and register the modem-manager client class for this modem type */
+		if ((classname = ni_objectmodel_mm_modem_get_classname(modem_type)) != NULL) {
+			class = ni_objectmodel_class_new(classname, &ni_objectmodel_mm_modem_class);
+			ni_objectmodel_register_class(class);
+		}
 
-		/* Create and register the new modem class */
-		class = ni_objectmodel_class_new(classname, &ni_objectmodel_modem_class);
-		ni_objectmodel_register_class(class);
-
-		snprintf(proxyname, sizeof(proxyname), "%s-proxy", classname);
-		class = ni_objectmodel_class_new(proxyname, &ni_objectmodel_modem_proxy_class);
-		ni_objectmodel_register_class(class);
+		/* Create and register the wicked server class for this modem type */
+		if ((classname = ni_objectmodel_modem_get_proxy_classname(modem_type)) != NULL) {
+			class = ni_objectmodel_class_new(classname, &ni_objectmodel_modem_proxy_class);
+			ni_objectmodel_register_class(class);
+		}
 	}
 }
 
@@ -161,7 +161,7 @@ __ni_objectmodel_build_modem_object(ni_dbus_server_t *server, ni_modem_t *modem)
 
 	class = ni_objectmodel_modem_get_proxy_class(modem->type);
 	if (class == NULL)
-		class = &ni_objectmodel_modem_class;
+		class = &ni_objectmodel_mm_modem_class;
 
 	if (server != NULL) {
 		object = ni_dbus_server_register_object(server,
@@ -237,7 +237,7 @@ ni_objectmodel_unwrap_modem(const ni_dbus_object_t *object, DBusError *error)
 {
 	ni_modem_t *modem = object->handle;
 
-	if (ni_dbus_object_isa(object, &ni_objectmodel_modem_class))
+	if (ni_dbus_object_isa(object, &ni_objectmodel_mm_modem_class))
 		return modem;
 	if (ni_dbus_object_isa(object, &ni_objectmodel_modem_proxy_class))
 		return modem;
@@ -515,7 +515,7 @@ __ni_objectmodel_get_modem_arg(const ni_dbus_variant_t *dict, ni_dbus_object_t *
 {
 	ni_dbus_object_t *config_object;
 
-	config_object = ni_dbus_object_new(&ni_objectmodel_modem_class, NULL, NULL);
+	config_object = ni_dbus_object_new(&ni_objectmodel_mm_modem_class, NULL, NULL);
 	config_object->class->initialize(config_object);
 
 	if (!ni_dbus_object_set_properties_from_dict(config_object, &ni_objectmodel_modem_service, dict, NULL)) {

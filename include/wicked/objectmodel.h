@@ -36,8 +36,12 @@ extern ni_dbus_class_t *	ni_objectmodel_class_new(const char *, const ni_dbus_cl
 #define NI_OBJECTMODEL_NETIF_LIST_CLASS		"netif-list"
 #define NI_OBJECTMODEL_NETIF_REQUEST_CLASS	"netif-request"
 #define NI_OBJECTMODEL_ADDRCONF_REQUEST_CLASS	"addrconf-request"
-#define NI_OBJECTMODEL_MODEM_CLASS		"modem"
+#define NI_OBJECTMODEL_MM_MODEM_CLASS		"modem"
+#define NI_OBJECTMODEL_MM_MODEM_GSM_CLASS	"modem-gsm"
+#define NI_OBJECTMODEL_MM_MODEM_CDMA_CLASS	"modem-cdma"
 #define NI_OBJECTMODEL_MODEM_PROXY_CLASS	"modem-proxy"
+#define NI_OBJECTMODEL_MODEM_PROXY_GSM_CLASS	"modem-proxy-gsm"
+#define NI_OBJECTMODEL_MODEM_PROXY_CDMA_CLASS	"modem-proxy-cdma"
 #define NI_OBJECTMODEL_MODEM_LIST_CLASS		"modem-proxy-list"
 
 #define NI_OBJECTMODEL_DBUS_BUS_NAME		"com.suse.Wicked"
