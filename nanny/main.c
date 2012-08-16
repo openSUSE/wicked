@@ -226,7 +226,7 @@ ni_manager_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus
 		if ((mdev = ni_manager_get_device(mgr, w)) != NULL
 		 && mdev->selected_policy != NULL
 		 && mdev->user_controlled)
-			ni_manager_schedule_down(mgr, w);
+			ni_manager_schedule_recheck(mgr, w);
 	} else
 	if (ni_string_eq(signal_name, "deviceCreate")) {
 		// A new device was added. Could be a virtual device like
@@ -234,6 +234,11 @@ ni_manager_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus
 		// Create a worker and a managed_netif for this device.
 		ni_manager_register_device(mgr, w);
 		ni_manager_schedule_recheck(mgr, w);
+	} else
+	if (ni_string_eq(signal_name, "linkScanUpdated")) {
+		if ((mdev = ni_manager_get_device(mgr, w)) != NULL
+		 && mdev->user_controlled)
+			ni_manager_schedule_recheck(mgr, w);
 	} else
 	if (ni_string_eq(signal_name, "linkUp")) {
 		// Link detection - eg for ethernet
