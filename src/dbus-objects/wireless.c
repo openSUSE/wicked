@@ -262,6 +262,55 @@ __ni_objectmodel_wireless_get_network(const ni_wireless_network_t *network,
 }
 
 static dbus_bool_t
+__ni_objectmodel_wireless_set_network(ni_wireless_network_t *network,
+				const ni_dbus_variant_t *dict,
+				DBusError *error)
+{
+	ni_dbus_variant_t *child;
+	const char *string;
+	uint32_t valu32;
+	double valdbl;
+
+	if (ni_dbus_dict_get_string(dict, "essid", &string)
+	 && !ni_wireless_parse_ssid(string, &network->essid))
+		return FALSE;
+
+	if ((child = ni_dbus_dict_get(dict, "access-point")) != NULL)
+		__ni_objectmodel_set_hwaddr(child, &network->access_point);
+
+	if (ni_dbus_dict_get_uint32(dict, "mode", &valu32))
+		network->mode = valu32;
+	if (ni_dbus_dict_get_uint32(dict, "channel", &valu32))
+		network->channel = valu32;
+	if (ni_dbus_dict_get_double(dict, "frequency", &valdbl))
+		network->scan_info.frequency = valdbl;
+	if (ni_dbus_dict_get_uint32(dict, "max-bitrate", &valu32))
+		network->scan_info.max_bitrate = valu32;
+
+	child = NULL;
+	while ((child = ni_dbus_dict_get_next(dict, "auth-info", child)) != NULL) {
+		ni_wireless_auth_info_t *auth_info;
+		uint32_t mode, version;
+
+		if (!ni_dbus_dict_get_uint32(child, "mode", &mode)
+		 || !ni_dbus_dict_get_uint32(child, "version", &version))
+			return FALSE;
+
+		auth_info = ni_wireless_auth_info_new(mode, version);
+		ni_wireless_auth_info_array_append(&network->scan_info.supported_auth_modes, auth_info);
+
+		if (ni_dbus_dict_get_uint32(child, "group-cipher", &valu32))
+			auth_info->group_cipher = valu32;
+		if (ni_dbus_dict_get_uint32(child, "pairwise-ciphers", &valu32))
+			auth_info->pairwise_ciphers = valu32;
+		if (ni_dbus_dict_get_uint32(child, "key-management", &valu32))
+			auth_info->keymgmt_algos = valu32;
+	}
+
+	return TRUE;
+}
+
+static dbus_bool_t
 __ni_objectmodel_wireless_get_scan(const ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				ni_dbus_variant_t *result,
@@ -292,9 +341,31 @@ __ni_objectmodel_wireless_set_scan(ni_dbus_object_t *object,
 				DBusError *error)
 {
 	ni_wireless_t *wlan;
+	ni_wireless_scan_t *scan;
+	const ni_dbus_variant_t *child;
+	uint32_t valu32;
 
 	if (!(wlan = __ni_objectmodel_get_wireless(object, error)))
 		return FALSE;
+
+	if ((scan = wlan->scan) != NULL)
+		ni_wireless_scan_free(scan);
+	wlan->scan = scan = ni_wireless_scan_new(NULL, 0);
+
+	if (ni_dbus_dict_get_uint32(argument, "timestamp", &valu32))
+		scan->timestamp = valu32;
+
+	child = NULL;
+	while ((child = ni_dbus_dict_get_next(argument, "network", child)) != NULL) {
+		ni_wireless_network_t *net = ni_wireless_network_new();
+
+		if (!__ni_objectmodel_wireless_set_network(net, child, error)) {
+			ni_wireless_network_free(net);
+			return FALSE;
+		}
+
+		ni_wireless_network_array_append(&scan->networks, net);
+	}
 
 	return TRUE;
 }
