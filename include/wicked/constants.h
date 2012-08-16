@@ -14,13 +14,6 @@ typedef enum ni_layer {
 	NI_LAYER_ADDRCONF,
 } ni_layer_t;
 
-/* FIXME: delete */
-typedef enum ni_evaction {
-	NI_INTERFACE_IGNORE = 0,
-	NI_INTERFACE_START,
-	NI_INTERFACE_STOP,
-} ni_evaction_t;
-
 /*
  * Address configuration modes
  */
