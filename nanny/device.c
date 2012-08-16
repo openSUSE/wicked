@@ -70,9 +70,6 @@ ni_managed_device_new(ni_manager_t *mgr, ni_ifworker_t *w, ni_managed_device_t *
 {
 	ni_managed_device_t *mdev;
 
-	if (w->modem == NULL)
-		ni_warn("%s(%s): device not bound", __func__, w->name);
-
 	mdev = calloc(1, sizeof(*mdev));
 	mdev->manager = mgr;
 	mdev->worker = ni_ifworker_get(w);
