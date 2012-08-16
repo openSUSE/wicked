@@ -220,6 +220,8 @@ extern void		ni_wireless_free(ni_wireless_t *);
 extern int		ni_wireless_set_network(ni_netdev_t *, ni_wireless_network_t *);
 extern int		ni_wireless_connect(ni_netdev_t *);
 extern int		ni_wireless_disconnect(ni_netdev_t *);
+extern ni_wireless_scan_t *ni_wireless_scan_new(ni_netdev_t *, unsigned int);
+extern void		ni_wireless_scan_free(ni_wireless_scan_t *);
 extern void		ni_wireless_network_set_key(ni_wireless_network_t *, const unsigned char *, size_t);
 extern void		ni_wireless_network_free(ni_wireless_network_t *);
 extern void		ni_wireless_network_array_init(ni_wireless_network_array_t *);
@@ -236,6 +238,7 @@ extern void		ni_wireless_auth_info_array_destroy(ni_wireless_auth_info_array_t *
 extern void		ni_wireless_association_changed(unsigned int ifindex, ni_wireless_assoc_state_t new_state);
 
 extern const char *	ni_wireless_print_ssid(const ni_wireless_ssid_t *);
+extern ni_bool_t	ni_wireless_parse_ssid(const char *, ni_wireless_ssid_t *);
 
 extern const char *	ni_wireless_mode_to_name(ni_wireless_mode_t);
 extern ni_wireless_mode_t ni_wireless_name_to_mode(const char *);

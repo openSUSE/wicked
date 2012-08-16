@@ -37,8 +37,6 @@
 # define IW_IE_KEY_MGMT_PSK      2
 #endif
 
-static ni_wireless_scan_t *ni_wireless_scan_new(ni_netdev_t *, unsigned int);
-static void		ni_wireless_scan_free(ni_wireless_scan_t *);
 static void		ni_wireless_set_assoc_network(ni_wireless_t *, ni_wireless_network_t *);
 static void		__ni_wireless_scan_timer_arm(ni_wireless_scan_t *, ni_netdev_t *);
 static int		__ni_wireless_do_scan(ni_netdev_t *);
@@ -838,11 +836,12 @@ ni_wireless_scan_new(ni_netdev_t *dev, unsigned int interval)
 	ni_wireless_scan_t *scan;
 
 	scan = xcalloc(1, sizeof(ni_wireless_scan_t));
-	scan->interval = interval? interval : NI_WIRELESS_DEFAUT_SCAN_INTERVAL;
+	scan->interval = interval;
 	scan->max_age = NI_WIRELESS_SCAN_MAX_AGE;
 	scan->lifetime = 60;
 
-	__ni_wireless_scan_timer_arm(scan, dev);
+	if (dev && scan->interval)
+		__ni_wireless_scan_timer_arm(scan, dev);
 
 	return scan;
 }
@@ -1017,3 +1016,40 @@ ni_wireless_print_ssid(const ni_wireless_ssid_t *ssid)
 	return result;
 }
 
+ni_bool_t
+ni_wireless_parse_ssid(const char *string, ni_wireless_ssid_t *ssid)
+{
+	const char *s;
+
+	memset(ssid, 0, sizeof(*ssid));
+	for (s = string; *s; ) {
+		unsigned char cc = *s++;
+
+		if (cc == '\\') {
+			unsigned int value = 0;
+			unsigned int j;
+
+			for (j = 0; j < 3; ++j) {
+				cc = *s;
+
+				if (cc < '0' || '7' < cc)
+					break;
+
+				value = (value << 3) | (cc - '0');
+				++s;
+			}
+			if (j == 0)
+				goto bad_ssid;
+			cc = value;
+		}
+		if (ssid->len >= sizeof(ssid->data))
+			goto bad_ssid;
+		ssid->data[ssid->len++] = cc;
+	}
+
+	return TRUE;
+
+bad_ssid:
+	ni_debug_wireless("unable to parse wireless ssid \"%s\"", string);
+	return FALSE;
+}
