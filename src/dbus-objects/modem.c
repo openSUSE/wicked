@@ -40,8 +40,8 @@ static ni_dbus_class_t		ni_objectmodel_mm_modem_class = {
 	.destroy	= ni_objectmodel_modem_destroy,
 };
 
-static ni_dbus_class_t		ni_objectmodel_modem_proxy_class = {
-	.name		= NI_OBJECTMODEL_MODEM_PROXY_CLASS,
+static ni_dbus_class_t		ni_objectmodel_modem_class = {
+	.name		= NI_OBJECTMODEL_MODEM_CLASS,
 	.initialize	= ni_objectmodel_modem_initialize,
 	.destroy	= ni_objectmodel_modem_destroy,
 };
@@ -49,7 +49,7 @@ static ni_dbus_class_t		ni_objectmodel_modem_proxy_class = {
 static const ni_dbus_class_t	ni_objectmodel_modem_list_class = {
 	.name		= NI_OBJECTMODEL_MODEM_LIST_CLASS,
 	.list = {
-		.item_class = &ni_objectmodel_modem_proxy_class,
+		.item_class = &ni_objectmodel_modem_class,
 	},
 };
 
@@ -75,7 +75,7 @@ ni_objectmodel_register_modem_classes(void)
 
 	/* register the modem class (to allow extensions to attach to it) */
 	ni_objectmodel_register_class(&ni_objectmodel_mm_modem_class);
-	ni_objectmodel_register_class(&ni_objectmodel_modem_proxy_class);
+	ni_objectmodel_register_class(&ni_objectmodel_modem_class);
 
 	for (modem_type = 0; modem_type < __MM_MODEM_TYPE_MAX; ++modem_type) {
 		ni_dbus_class_t *class;
@@ -89,7 +89,7 @@ ni_objectmodel_register_modem_classes(void)
 
 		/* Create and register the wicked server class for this modem type */
 		if ((classname = ni_objectmodel_modem_get_proxy_classname(modem_type)) != NULL) {
-			class = ni_objectmodel_class_new(classname, &ni_objectmodel_modem_proxy_class);
+			class = ni_objectmodel_class_new(classname, &ni_objectmodel_modem_class);
 			ni_objectmodel_register_class(class);
 		}
 	}
@@ -239,7 +239,7 @@ ni_objectmodel_unwrap_modem(const ni_dbus_object_t *object, DBusError *error)
 
 	if (ni_dbus_object_isa(object, &ni_objectmodel_mm_modem_class))
 		return modem;
-	if (ni_dbus_object_isa(object, &ni_objectmodel_modem_proxy_class))
+	if (ni_dbus_object_isa(object, &ni_objectmodel_modem_class))
 		return modem;
 	if (error)
 		dbus_set_error(error, DBUS_ERROR_FAILED,
@@ -263,7 +263,7 @@ ni_objectmodel_get_modem_object(ni_dbus_server_t *server, const ni_modem_t *mode
 	if (object == NULL)
 		return NULL;
 
-	if (!ni_dbus_object_isa(object, &ni_objectmodel_modem_proxy_class)) {
+	if (!ni_dbus_object_isa(object, &ni_objectmodel_modem_class)) {
 		ni_error("%s: modem is encapsulated by a %s class object", __func__, object->class->name);
 		return NULL;
 	}
@@ -726,5 +726,5 @@ static ni_dbus_service_t	ni_objectmodel_modem_service = {
 	.name		= NI_OBJECTMODEL_MODEM_INTERFACE,
 	.properties	= ni_objectmodel_modem_properties,
 	.methods	= ni_objectmodel_modem_methods,
-	.compatible	= &ni_objectmodel_modem_proxy_class,
+	.compatible	= &ni_objectmodel_modem_class,
 };

@@ -1117,10 +1117,6 @@ __ni_fsm_policy_match_class_new(xml_node_t *node, const char *classname)
 	const ni_dbus_class_t *class;
 	ni_ifcondition_t *result;
 
-	/* Workaround for our funky internal naming of modem classes. */
-	if (ni_string_eq(classname, "modem"))
-		classname = NI_OBJECTMODEL_MODEM_PROXY_CLASS;
-
 	if ((class = ni_objectmodel_get_class(classname)) == NULL) {
 		ni_error("%s: unknown object class \"%s\" in <%s> condition",
 				xml_node_location(node), classname, node->name);

@@ -371,10 +371,10 @@ ni_objectmodel_modem_get_proxy_classname(ni_modem_type_t type)
 {
 	switch (type) {
 	case MM_MODEM_TYPE_GSM:
-		return NI_OBJECTMODEL_MODEM_PROXY_GSM_CLASS;
+		return NI_OBJECTMODEL_MODEM_GSM_CLASS;
 
 	case MM_MODEM_TYPE_CDMA:
-		return NI_OBJECTMODEL_MODEM_PROXY_CDMA_CLASS;
+		return NI_OBJECTMODEL_MODEM_CDMA_CLASS;
 
 	default: ;
 	}

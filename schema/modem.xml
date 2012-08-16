@@ -1,4 +1,4 @@
-<service name="modem" interface="com.suse.Wicked.Modem" object-class="modem-proxy">
+<service name="modem" interface="com.suse.Wicked.Modem" object-class="modem">
   <define name="modem-pin" class="dict">
     <kind type="string" constraint="required"/>
     <value type="string" constraint="required">
