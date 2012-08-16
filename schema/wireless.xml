@@ -39,7 +39,9 @@
     <access-point type="ethernet-address"/>
 
     <wpa-psk class="dict" constraint="exclusive:wpa-auth-data">
-      <passphrase type="string"/>
+      <passphrase type="string" constraint="required">
+        <meta:user-input type="password" prompt="please enter WPA PSK passphrase"/>
+      </passphrase>
       <key class="array" element-type="byte" minlen="64" maxlen="64" notation="hwaddr"/>
     </wpa-psk>
 
@@ -50,7 +52,9 @@
 
   <method name="changeDevice">
     <arguments>
-      <link-request />
+      <config type="link-request">
+       <meta:mapping document-node="/wireless" skip-unless-present="true" />
+      </config>
     </arguments>
   </method>
 

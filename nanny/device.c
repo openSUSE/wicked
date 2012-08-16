@@ -31,6 +31,9 @@
 #include <wicked/client.h>
 #include "manager.h"
 
+
+static const char *	ni_managed_device_get_essid(xml_node_t *);
+
 /*
  * List handling functions
  */
@@ -222,6 +225,15 @@ ni_managed_device_up(ni_managed_device_t *mdev)
 	switch (w->type) {
 	case NI_IFWORKER_TYPE_NETDEV:
 		mdev->max_fail_count = 3;
+		if (w->device->link.type == NI_IFTYPE_WIRELESS) {
+			const char *essid;
+
+			if ((essid = ni_managed_device_get_essid(mdev->selected_config)) != NULL) {
+				snprintf(security_id, sizeof(security_id), "wireless:%s", essid);
+				ni_string_dup(&w->security_id, security_id);
+			}
+		}
+
 		target_state = NI_FSM_STATE_ADDRCONF_UP;
 		break;
 
@@ -250,6 +262,25 @@ ni_managed_device_up(ni_managed_device_t *mdev)
 		ni_error("%s: cannot start device: %s", w->name, ni_strerror(rv));
 		mdev->state = NI_MANAGED_STATE_FAILED;
 	}
+}
+
+/*
+ * Helper function: given the config document, find out which essid we are
+ * about to configure.
+ */
+const char *
+ni_managed_device_get_essid(xml_node_t *config)
+{
+	xml_node_t *node;
+
+	if (config == NULL)
+		return NULL;
+
+	if (!(node = xml_node_get_child(config, "wireless"))
+	 || !(node = xml_node_get_child(node, "essid")))
+		return NULL;
+
+	return node->cdata;
 }
 
 /*
