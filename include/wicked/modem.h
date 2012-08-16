@@ -5,14 +5,6 @@
 #ifndef __WICKED_MODEM_H__
 #define __WICKED_MODEM_H__
 
-typedef enum ni_modem_type {
-	MM_MODEM_TYPE_UNKNOWN = 0,
-	MM_MODEM_TYPE_GSM = 1,
-	MM_MODEM_TYPE_CDMA = 2,
-
-	__MM_MODEM_TYPE_MAX,
-} ni_modem_type_t;
-
 typedef enum ni_modem_ipmethod {
 	MM_MODEM_IP_METHOD_PPP = 0,
 	MM_MODEM_IP_METHOD_STATIC = 1,

@@ -88,11 +88,37 @@ ni_objectmodel_register_modem_classes(void)
 		}
 
 		/* Create and register the wicked server class for this modem type */
-		if ((classname = ni_objectmodel_modem_get_proxy_classname(modem_type)) != NULL) {
+		if ((classname = ni_objectmodel_modem_get_classname(modem_type)) != NULL) {
 			class = ni_objectmodel_class_new(classname, &ni_objectmodel_modem_class);
 			ni_objectmodel_register_class(class);
 		}
 	}
+}
+
+const char *
+ni_objectmodel_modem_get_classname(ni_modem_type_t type)
+{
+	switch (type) {
+	case MM_MODEM_TYPE_GSM:
+		return NI_OBJECTMODEL_MODEM_GSM_CLASS;
+
+	case MM_MODEM_TYPE_CDMA:
+		return NI_OBJECTMODEL_MODEM_CDMA_CLASS;
+
+	default: ;
+	}
+
+	return NULL;
+}
+
+const ni_dbus_class_t *
+ni_objectmodel_modem_get_class(ni_modem_type_t type)
+{
+	const char *classname;
+
+	if ((classname = ni_objectmodel_modem_get_classname(type)) == NULL)
+		return NULL;
+	return ni_objectmodel_get_class(classname);
 }
 
 void
@@ -159,7 +185,7 @@ __ni_objectmodel_build_modem_object(ni_dbus_server_t *server, ni_modem_t *modem)
 	const ni_dbus_class_t *class = NULL;
 	ni_dbus_object_t *object;
 
-	class = ni_objectmodel_modem_get_proxy_class(modem->type);
+	class = ni_objectmodel_modem_get_class(modem->type);
 	if (class == NULL)
 		class = &ni_objectmodel_mm_modem_class;
 

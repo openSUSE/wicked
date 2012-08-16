@@ -366,32 +366,6 @@ ni_objectmodel_mm_modem_get_class(ni_modem_type_t type)
 	return ni_objectmodel_get_class(classname);
 }
 
-const char *
-ni_objectmodel_modem_get_proxy_classname(ni_modem_type_t type)
-{
-	switch (type) {
-	case MM_MODEM_TYPE_GSM:
-		return NI_OBJECTMODEL_MODEM_GSM_CLASS;
-
-	case MM_MODEM_TYPE_CDMA:
-		return NI_OBJECTMODEL_MODEM_CDMA_CLASS;
-
-	default: ;
-	}
-
-	return NULL;
-}
-
-const ni_dbus_class_t *
-ni_objectmodel_modem_get_proxy_class(ni_modem_type_t type)
-{
-	const char *classname;
-
-	if ((classname = ni_objectmodel_modem_get_proxy_classname(type)) == NULL)
-		return NULL;
-	return ni_objectmodel_get_class(classname);
-}
-
 static void
 ni_modem_manager_add_modem(ni_modem_manager_client_t *modem_manager, const char *object_path)
 {
