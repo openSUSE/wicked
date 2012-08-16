@@ -1356,8 +1356,11 @@ __ni_fsm_policy_match_wireless_essid_check(const ni_ifcondition_t *cond, ni_ifwo
 		for (i = 0; i < scan->networks.count; ++i) {
 			ni_wireless_network_t *net = scan->networks.data[i];
 
-			if (memcmp(&net->essid, &essid, sizeof(essid)) == 0)
+			if (memcmp(&net->essid, &essid, sizeof(essid)) == 0) {
+				ni_trace("essid \"%s\" found - ap %s",
+						cond->args.string, ni_wireless_print_ssid(&net->essid));
 				return TRUE;
+			}
 		}
 	}
 
