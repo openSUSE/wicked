@@ -49,7 +49,7 @@ static const char *	program_name;
 static int		opt_foreground = 0;
 static int		opt_no_modem_manager = 0;
 
-static void		interface_manager(void);
+static void		babysit(void);
 static void		ni_manager_discover_state(ni_manager_t *);
 static void		ni_manager_netif_state_change_signal_receive(ni_dbus_connection_t *, ni_dbus_message_t *, void *);
 static void		ni_manager_modem_state_change_signal_receive(ni_dbus_connection_t *, ni_dbus_message_t *, void *);
@@ -113,15 +113,16 @@ main(int argc, char **argv)
 	if (optind != argc)
 		goto usage;
 
-	interface_manager();
+	babysit();
 	return 0;
 }
 
 /*
  * Implement service for configuring the system's network interfaces
+ * based on events and user-supplied policies.
  */
 void
-interface_manager(void)
+babysit(void)
 {
 	ni_manager_t *mgr;
 

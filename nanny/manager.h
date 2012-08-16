@@ -68,13 +68,13 @@ struct ni_manager {
 	ni_manager_secret_t *	secret_db;
 };
 
-extern ni_dbus_class_t		managed_netdev_class;
+extern ni_dbus_class_t		ni_objectmodel_managed_netdev_class;
 extern ni_dbus_class_t		ni_objectmodel_managed_modem_class;
-extern ni_dbus_class_t		managed_policy_class;
+extern ni_dbus_class_t		ni_objectmodel_managed_policy_class;
 extern ni_dbus_class_t		ni_objectmodel_manager_class;
-extern ni_dbus_service_t	managed_netdev_service;
+extern ni_dbus_service_t	ni_objectmodel_managed_netdev_service;
 extern ni_dbus_service_t	ni_objectmodel_managed_modem_service;
-extern ni_dbus_service_t	managed_policy_service;
+extern ni_dbus_service_t	ni_objectmodel_managed_policy_service;
 extern ni_dbus_service_t	ni_objectmodel_manager_service;
 
 extern ni_manager_t *		ni_manager_new(void);

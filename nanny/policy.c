@@ -36,8 +36,8 @@ ni_objectmodel_managed_policy_init(ni_dbus_server_t *server)
 {
 	ni_dbus_object_t *root_object, *list_object;
 
-	ni_objectmodel_register_class(&managed_policy_class);
-	ni_objectmodel_register_service(&managed_policy_service);
+	ni_objectmodel_register_class(&ni_objectmodel_managed_policy_class);
+	ni_objectmodel_register_service(&ni_objectmodel_managed_policy_service);
 
 	root_object = ni_dbus_server_get_root_object(server);
 	list_object = ni_dbus_object_create(root_object, "Policy", NULL, NULL);
@@ -81,7 +81,7 @@ ni_objectmodel_register_managed_policy(ni_dbus_server_t *server, ni_managed_poli
 
 	snprintf(relative_path, sizeof(relative_path), "Policy/%s",
 					ni_fsm_policy_name(mpolicy->fsm_policy));
-	object = ni_dbus_server_register_object(server, relative_path, &managed_policy_class, mpolicy);
+	object = ni_dbus_server_register_object(server, relative_path, &ni_objectmodel_managed_policy_class, mpolicy);
 
 	ni_objectmodel_bind_compatible_interfaces(object);
 	return object;
@@ -95,7 +95,7 @@ ni_objectmodel_managed_policy_unwrap(const ni_dbus_object_t *object, DBusError *
 {
 	ni_managed_policy_t *mpolicy = object->handle;
 
-	if (ni_dbus_object_isa(object, &managed_policy_class))
+	if (ni_dbus_object_isa(object, &ni_objectmodel_managed_policy_class))
 		return mpolicy;
 
 	if (error)
@@ -182,15 +182,15 @@ ni_managed_policy_destroy(ni_dbus_object_t *object)
 	ni_managed_policy_free(policy);
 }
 
-ni_dbus_class_t			managed_policy_class = {
+ni_dbus_class_t			ni_objectmodel_managed_policy_class = {
 	.name		= "managed-policy",
 	.initialize	= ni_managed_policy_initialize,
 	.destroy	= ni_managed_policy_destroy,
 };
 
-ni_dbus_service_t		managed_policy_service = {
+ni_dbus_service_t		ni_objectmodel_managed_policy_service = {
 	.name		= NI_OBJECTMODEL_MANAGED_POLICY_INTERFACE,
-	.compatible	= &managed_policy_class,
+	.compatible	= &ni_objectmodel_managed_policy_class,
 	.methods	= ni_objectmodel_managed_policy_methods,
 };
 

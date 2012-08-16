@@ -38,8 +38,8 @@ ni_objectmodel_managed_netif_init(ni_dbus_server_t *server)
 {
 	ni_dbus_object_t *root_object;
 
-	ni_objectmodel_register_class(&managed_netdev_class);
-	ni_objectmodel_register_service(&managed_netdev_service);
+	ni_objectmodel_register_class(&ni_objectmodel_managed_netdev_class);
+	ni_objectmodel_register_service(&ni_objectmodel_managed_netdev_service);
 
 	root_object = ni_dbus_server_get_root_object(server);
 	ni_dbus_object_create(root_object, "Interface", NULL, NULL);
@@ -89,7 +89,7 @@ ni_objectmodel_register_managed_netdev(ni_dbus_server_t *server, ni_managed_devi
 	ni_dbus_object_t *object;
 
 	snprintf(relative_path, sizeof(relative_path), "Interface/%u", dev->link.ifindex);
-	object = ni_dbus_server_register_object(server, relative_path, &managed_netdev_class, mdev);
+	object = ni_dbus_server_register_object(server, relative_path, &ni_objectmodel_managed_netdev_class, mdev);
 
 	if (object)
 		ni_objectmodel_bind_compatible_interfaces(object);
@@ -104,7 +104,7 @@ ni_objectmodel_managed_netdev_unwrap(const ni_dbus_object_t *object, DBusError *
 {
 	ni_managed_device_t *mdev = object->handle;
 
-	if (ni_dbus_object_isa(object, &managed_netdev_class))
+	if (ni_dbus_object_isa(object, &ni_objectmodel_managed_netdev_class))
 		return mdev;
 
 	if (error)
@@ -134,7 +134,7 @@ ni_managed_netdev_destroy(ni_dbus_object_t *object)
 	ni_managed_device_free(mdev);
 }
 
-ni_dbus_class_t			managed_netdev_class = {
+ni_dbus_class_t			ni_objectmodel_managed_netdev_class = {
 	.name		= "managed-netif",
 	.initialize	= ni_managed_netdev_initialize,
 	.destroy	= ni_managed_netdev_destroy,
@@ -186,9 +186,9 @@ static ni_dbus_property_t	ni_objectmodel_managed_netdev_properties[] = {
 	{ NULL }
 };
 
-ni_dbus_service_t		managed_netdev_service = {
+ni_dbus_service_t		ni_objectmodel_managed_netdev_service = {
 	.name		= NI_OBJECTMODEL_MANAGED_NETIF_INTERFACE,
-	.compatible	= &managed_netdev_class,
+	.compatible	= &ni_objectmodel_managed_netdev_class,
 	.methods	= ni_objectmodel_managed_netdev_methods,
 	.properties	= ni_objectmodel_managed_netdev_properties,
 };
