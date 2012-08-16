@@ -252,16 +252,14 @@ dhcp4_discover_devices(ni_dbus_server_t *server)
 	ni_netconfig_t *nc;
 	ni_netdev_t *ifp;
 
-	/* Disable wireless AP scanning */
-	ni_wireless_set_scanning(FALSE);
+	/* FIXME: We should instruct the wireless code to not talk to
+	 * wpa-supplicant. We're not interested in that stuff, and all
+	 * it does is burn CPU cycles. */
 
 	if (!(nc = ni_global_state_handle(1)))
 		ni_fatal("cannot refresh interface list!");
 
-	/* FIXME: for wireless devices, we should disable all the
-	 * BSS discovery, it's not needed in the dhcp4 supplicant */
 	for (ifp = ni_netconfig_devlist(nc); ifp; ifp = ifp->next) {
-
 		if (ifp->link.arp_type != ARPHRD_ETHER)
 			continue;
 		dhcp4_device_create(server, ifp);
