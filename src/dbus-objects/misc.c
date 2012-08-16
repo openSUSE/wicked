@@ -102,6 +102,28 @@ __ni_objectmodel_get_sockaddr_prefix(const ni_dbus_variant_t *dict, const char *
 }
 
 /*
+ * Get/set a hwaddr_t member
+ */
+dbus_bool_t
+__ni_objectmodel_set_hwaddr(const ni_dbus_variant_t *argument, ni_hwaddr_t *hwaddr)
+{
+	unsigned int len;
+
+	if (!ni_dbus_variant_get_byte_array_minmax(argument, hwaddr->data, &len, 0, sizeof(hwaddr->data)))
+		return FALSE;
+
+	hwaddr->len = len;
+	return TRUE;
+}
+
+dbus_bool_t
+__ni_objectmodel_get_hwaddr(ni_dbus_variant_t *result, const ni_hwaddr_t *hwaddr)
+{
+	ni_dbus_variant_set_byte_array(result, hwaddr->data, hwaddr->len);
+	return TRUE;
+}
+
+/*
  * Add or retrieve an array of strings to a dict.
  * Empty string arrays are omitted, rather than being encoded as a
  * zero length array.

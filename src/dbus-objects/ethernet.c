@@ -100,28 +100,6 @@ ni_objectmodel_get_ethernet(const ni_dbus_object_t *object, DBusError *error)
 }
 
 /*
- * Get/set a hwaddr_t member
- */
-static dbus_bool_t
-__ni_objectmodel_set_hwaddr(const ni_dbus_variant_t *argument, ni_hwaddr_t *hwaddr)
-{
-	unsigned int len;
-
-	if (!ni_dbus_variant_get_byte_array_minmax(argument, hwaddr->data, &len, 0, sizeof(hwaddr->data)))
-		return FALSE;
-
-	hwaddr->len = len;
-	return TRUE;
-}
-
-static dbus_bool_t
-__ni_objectmodel_get_hwaddr(ni_dbus_variant_t *result, const ni_hwaddr_t *hwaddr)
-{
-	ni_dbus_variant_set_byte_array(result, hwaddr->data, hwaddr->len);
-	return TRUE;
-}
-
-/*
  * Get set ethernet hwaddr
  */
 static dbus_bool_t
