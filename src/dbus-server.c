@@ -30,6 +30,7 @@ struct ni_dbus_server {
 };
 
 static dbus_bool_t		ni_dbus_object_register_object_manager(ni_dbus_object_t *);
+static dbus_bool_t		ni_dbus_object_register_introspectable_interface(ni_dbus_object_t *);
 static const char *		__ni_dbus_server_root_path(const char *);
 static void			__ni_dbus_server_object_init(ni_dbus_object_t *object, ni_dbus_server_t *server);
 
@@ -106,6 +107,7 @@ __ni_dbus_server_object_init(ni_dbus_object_t *object, ni_dbus_server_t *server)
 		if (object->path) {
 			ni_dbus_connection_register_object(server->connection, object);
 			ni_dbus_object_register_object_manager(object);
+			ni_dbus_object_register_introspectable_interface(object);
 		}
 	}
 }
@@ -210,6 +212,7 @@ ni_dbus_server_register_object(ni_dbus_server_t *server, const char *object_path
  */
 static const ni_dbus_service_t __ni_dbus_object_manager_interface;
 static const ni_dbus_service_t __ni_dbus_object_properties_interface;
+static const ni_dbus_service_t __ni_dbus_object_introspectable_interface;
 static dbus_bool_t		__ni_dbus_object_manager_enumerate_object(ni_dbus_object_t *,
 					ni_dbus_variant_t *dict, DBusError *);
 
@@ -226,12 +229,19 @@ ni_dbus_object_register_property_interface(ni_dbus_object_t *object)
 	return ni_dbus_object_register_service(object, &__ni_dbus_object_properties_interface);
 }
 
+dbus_bool_t
+ni_dbus_object_register_introspectable_interface(ni_dbus_object_t *object)
+{
+	return ni_dbus_object_register_service(object, &__ni_dbus_object_introspectable_interface);
+}
+
 const ni_dbus_service_t *
 ni_dbus_get_standard_service(const char *name)
 {
 	const ni_dbus_service_t *services[] = {
 		&__ni_dbus_object_manager_interface,
 		&__ni_dbus_object_properties_interface,
+		&__ni_dbus_object_introspectable_interface,
 
 		NULL
 	};
@@ -463,6 +473,25 @@ static ni_dbus_method_t	__ni_dbus_object_properties_methods[] = {
 static const ni_dbus_service_t __ni_dbus_object_properties_interface = {
 	.name = NI_DBUS_INTERFACE ".Properties",
 	.methods = __ni_dbus_object_properties_methods,
+};
+
+static dbus_bool_t
+__ni_dbus_object_introspectable_introspect(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+		unsigned int argc, const ni_dbus_variant_t *argv,
+		ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_dbus_message_append_string(reply, "<node><node name='dummy'/></node>");
+	return TRUE;
+}
+
+static ni_dbus_method_t	__ni_dbus_object_introspectable_methods[] = {
+	{ "Introspect",		"",		__ni_dbus_object_introspectable_introspect },
+	{ NULL }
+};
+
+static const ni_dbus_service_t __ni_dbus_object_introspectable_interface = {
+	.name = NI_DBUS_INTERFACE ".Introspectable",
+	.methods = __ni_dbus_object_introspectable_methods,
 };
 
 dbus_bool_t
