@@ -58,8 +58,7 @@ struct ni_manager {
 	ni_dbus_server_t *	server;
 	ni_fsm_t *		fsm;
 
-	ni_managed_device_t *	netdev_list;
-	ni_managed_device_t *	modem_list;
+	ni_managed_device_t *	device_list;
 	ni_managed_policy_t *	policy_list;
 
 	unsigned int		last_policy_seq;

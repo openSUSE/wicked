@@ -119,12 +119,9 @@ ni_manager_recheck_do(ni_manager_t *mgr)
 	if (ni_fsm_policies_changed_since(mgr->fsm, &mgr->last_policy_seq)) {
 		ni_managed_device_t *mdev;
 
-		for (mdev = mgr->netdev_list; mdev; mdev = mdev->next) {
+		for (mdev = mgr->device_list; mdev; mdev = mdev->next) {
 			if (mdev->user_controlled)
 				ni_manager_schedule_recheck(mgr, mdev->worker);
-		}
-		for (mdev = mgr->modem_list; mdev; mdev = mdev->next) {
-			ni_manager_schedule_recheck(mgr, mdev->worker);
 		}
 	}
 
@@ -214,12 +211,12 @@ ni_manager_get_policy(ni_manager_t *mgr, const ni_fsm_policy_t *policy)
 /*
  * Handle events from an rfkill switch
  */
-static void
-__ni_manager_rfkill_event(ni_managed_device_t *list, ni_rfkill_type_t type, ni_bool_t blocked)
+void
+ni_manager_rfkill_event(ni_manager_t *mgr, ni_rfkill_type_t type, ni_bool_t blocked)
 {
 	ni_managed_device_t *mdev;
 
-	for (mdev = list; mdev; mdev = mdev->next) {
+	for (mdev = mgr->device_list; mdev; mdev = mdev->next) {
 		ni_ifworker_t *w = mdev->worker;
 
 		if (ni_ifworker_get_rfkill_type(w) == type) {
@@ -231,18 +228,11 @@ __ni_manager_rfkill_event(ni_managed_device_t *list, ni_rfkill_type_t type, ni_b
 				ni_debug_nanny("%s: radio re-enabled, resume monitoring", w->name);
 				if (mdev->user_controlled) {
 					ni_managed_netdev_enable(mdev);
-					ni_manager_schedule_recheck(mdev->manager, w);
+					ni_manager_schedule_recheck(mgr, w);
 				}
 			}
 		}
 	}
-}
-
-void
-ni_manager_rfkill_event(ni_manager_t *mgr, ni_rfkill_type_t type, ni_bool_t blocked)
-{
-	__ni_manager_rfkill_event(mgr->netdev_list, type, blocked);
-	__ni_manager_rfkill_event(mgr->modem_list, type, blocked);
 }
 
 /*
@@ -256,13 +246,11 @@ ni_manager_register_device(ni_manager_t *mgr, ni_ifworker_t *w)
 	if (ni_manager_get_device(mgr, w) != NULL)
 		return;
 
+	mdev = ni_managed_device_new(mgr, w, &mgr->device_list);
 	if (w->type == NI_IFWORKER_TYPE_NETDEV) {
-		mdev = ni_managed_device_new(mgr, w, &mgr->netdev_list);
 		mdev->object = ni_objectmodel_register_managed_netdev(mgr->server, mdev);
-
 	} else
 	if (w->type == NI_IFWORKER_TYPE_MODEM) {
-		mdev = ni_managed_device_new(mgr, w, &mgr->modem_list);
 		mdev->object = ni_objectmodel_register_managed_modem(mgr->server, mdev);
 
 		/* FIXME: for now, we allow users to control all modems */
@@ -297,13 +285,7 @@ ni_manager_identify_node_owner(ni_manager_t *mgr, xml_node_t *node, ni_stringbuf
 	ni_managed_device_t *mdev;
 	ni_ifworker_t *w = NULL;
 
-	for (mdev = mgr->netdev_list; mdev; mdev = mdev->next) {
-		if (mdev->selected_config == node) {
-			w = mdev->worker;
-			goto found;
-		}
-	}
-	for (mdev = mgr->modem_list; mdev; mdev = mdev->next) {
+	for (mdev = mgr->device_list; mdev; mdev = mdev->next) {
 		if (mdev->selected_config == node) {
 			w = mdev->worker;
 			goto found;
@@ -413,7 +395,7 @@ ni_manager_add_secret(ni_manager_t *mgr, const char *security_id, const char *pa
 	ni_string_dup(&sec->value, value);
 
 	ni_debug_nanny("%s: secret for %s updated", security_id, path);
-	for (mmod = mgr->modem_list; mmod; mmod = mmod->next) {
+	for (mmod = mgr->device_list; mmod; mmod = mmod->next) {
 		ni_ifworker_t *w = mmod->worker;
 
 		ni_debug_nanny("%s: security-id=%s", w->name, w->security_id);

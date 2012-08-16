@@ -341,20 +341,11 @@ ni_managed_state_to_string(ni_managed_state_t state)
 ni_managed_device_t *
 ni_manager_get_device(ni_manager_t *mgr, ni_ifworker_t *w)
 {
-	ni_managed_device_t *mdev, *list;
+	ni_managed_device_t *mdev;
 
 	ni_assert(w);
 
-	switch (w->type) {
-	case NI_IFWORKER_TYPE_NETDEV:
-		list = mgr->netdev_list; break;
-	case NI_IFWORKER_TYPE_MODEM:
-		list = mgr->modem_list; break;
-	default:
-		return NULL;
-	}
-
-	for (mdev = list; mdev; mdev = mdev->next) {
+	for (mdev = mgr->device_list; mdev; mdev = mdev->next) {
 		if (mdev->worker == w)
 			return mdev;
 	}
