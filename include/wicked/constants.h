@@ -7,13 +7,6 @@
 #ifndef __WICKED_CONSTANTS_H__
 #define __WICKED_CONSTANTS_H__
 
-typedef enum ni_layer {
-	NI_LAYER_NONE = 0,
-	NI_LAYER_LINK,
-	NI_LAYER_LINK_AUTH,
-	NI_LAYER_ADDRCONF,
-} ni_layer_t;
-
 /*
  * Address configuration modes
  */
