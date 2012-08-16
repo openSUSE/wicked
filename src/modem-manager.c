@@ -53,9 +53,9 @@ static void			ni_modem_unlink(ni_modem_t *);
 static ni_dbus_class_t		ni_objectmodel_modem_manager_class = {
 	.name		= "modem-manager"
 };
-static const ni_dbus_class_t *	ni_objectmodel_modem_class_ptr;
-static ni_dbus_service_t	ni_objectmodel_modem_service;
-static ni_dbus_service_t	ni_objectmodel_gsm_modem_service;
+static const ni_dbus_class_t *	ni_objectmodel_mm_modem_class_ptr;
+static ni_dbus_service_t	ni_objectmodel_mm_modem_service;
+static ni_dbus_service_t	ni_objectmodel_mm_gsm_modem_service;
 
 static ni_modem_manager_client_t *ni_modem_manager_client;
 static ni_modem_manager_event_handler_fn_t *ni_modem_manager_event_handler;
@@ -168,10 +168,10 @@ ni_modem_manager_init(ni_modem_manager_event_handler_fn_t *event_handler)
 		ni_objectmodel_register_modem_classes();
 		ni_objectmodel_register_modem_services();
 
-		ni_objectmodel_modem_class_ptr = ni_objectmodel_get_class(NI_OBJECTMODEL_MM_MODEM_CLASS);
+		ni_objectmodel_mm_modem_class_ptr = ni_objectmodel_get_class(NI_OBJECTMODEL_MM_MODEM_CLASS);
 
-		ni_objectmodel_modem_service.compatible = ni_objectmodel_modem_class_ptr;
-		ni_objectmodel_gsm_modem_service.compatible = ni_objectmodel_mm_modem_get_class(MM_MODEM_TYPE_GSM);
+		ni_objectmodel_mm_modem_service.compatible = ni_objectmodel_mm_modem_class_ptr;
+		ni_objectmodel_mm_gsm_modem_service.compatible = ni_objectmodel_mm_modem_get_class(MM_MODEM_TYPE_GSM);
 
 		if (!ni_modem_manager_enumerate(client)) {
 			ni_modem_manager_client_free(client);
@@ -406,7 +406,7 @@ ni_modem_manager_add_modem(ni_modem_manager_client_t *modem_manager, const char 
 	ni_string_dup(&modem->real_path, object_path);
 
 	/* Create the DBus client object for this modem. */
-	modem_object = ni_dbus_object_create(modem_manager->proxy, object_path, ni_objectmodel_modem_class_ptr, modem);
+	modem_object = ni_dbus_object_create(modem_manager->proxy, object_path, ni_objectmodel_mm_modem_class_ptr, modem);
 	if (modem_object == NULL) {
 		ni_modem_release(modem);
 		return;
@@ -414,7 +414,7 @@ ni_modem_manager_add_modem(ni_modem_manager_client_t *modem_manager, const char 
 	ni_dbus_object_set_default_interface(modem_object, NI_MM_MODEM_IF);
 
 	/* Use Properties.GetAll() to refresh the properties of this modem */
-	if (!ni_dbus_object_refresh_properties(modem_object, &ni_objectmodel_modem_service, &error)) {
+	if (!ni_dbus_object_refresh_properties(modem_object, &ni_objectmodel_mm_modem_service, &error)) {
 		ni_dbus_print_error(&error, "cannot update properties of %s", object_path);
 		dbus_error_free(&error);
 		return;
@@ -656,7 +656,7 @@ const ni_dbus_property_t        ni_objectmodel_modem_property_table[] = {
 	{ NULL }
 };
 
-static ni_dbus_service_t	ni_objectmodel_modem_service = {
+static ni_dbus_service_t	ni_objectmodel_mm_modem_service = {
 	.name		= NI_MM_MODEM_IF,
 	.compatible	= NULL,		/* will be filled in later */
 	.properties	= ni_objectmodel_modem_property_table,
@@ -671,7 +671,7 @@ const ni_dbus_property_t        ni_objectmodel_gsm_modem_property_table[] = {
 	{ NULL }
 };
 
-static ni_dbus_service_t	ni_objectmodel_gsm_modem_service = {
+static ni_dbus_service_t	ni_objectmodel_mm_gsm_modem_service = {
 	.name		= NI_MM_GSM_CARD_IF,
 	.compatible	= NULL,		/* will be filled in later */
 	.properties	= ni_objectmodel_gsm_modem_property_table,
