@@ -583,32 +583,66 @@ ni_wpa_interface_request_scan(ni_wpa_interface_t *wpa_dev, ni_wireless_scan_t *s
 }
 
 /*
- * Copy scan results from wpa objects to geneic ni_wireless_scan_t object
+ * Check whether a scan is still in progress
  */
-int
+ni_bool_t
+ni_wpa_interface_scan_in_progress(ni_wpa_interface_t *wpa_dev)
+{
+	ni_wireless_network_t *net;
+	ni_dbus_object_t *pos;
+
+	if (wpa_dev->scan.pending)
+		return TRUE;
+
+	for (net = ni_wpa_interface_first_network(wpa_dev, &pos, NULL); net; net = ni_wpa_interface_next_network(wpa_dev, &pos, NULL)) {
+		if (net->scan_info.updating)
+			return TRUE;
+	}
+	return FALSE;
+}
+
+/*
+ * Copy scan results from wpa objects to generic ni_wireless_scan_t object
+ * Returns TRUE iff the list of networks in scanning range changed.
+ */
+ni_bool_t
 ni_wpa_interface_retrieve_scan(ni_wpa_interface_t *wpa_dev, ni_wireless_scan_t *scan)
 {
 	ni_wireless_network_t *net;
 	ni_dbus_object_t *pos;
+	ni_bool_t send_event = FALSE;
 
 	/* Prune old BSSes */
 	if (ni_wpa_interface_expire_networks(wpa_dev) == 0) {
 		/* Nothing pruned. If we didn't receive new scan results in the
 		 * mean time, there's nothing we need to do. */
 		if (scan->timestamp == wpa_dev->scan.timestamp)
-			return 0;
+			return FALSE;
+
+		send_event = TRUE;
 	}
 
 	ni_wireless_network_array_destroy(&scan->networks);
 	for (net = ni_wpa_interface_first_network(wpa_dev, &pos, NULL); net; net = ni_wpa_interface_next_network(wpa_dev, &pos, NULL)) {
 		/* We mix networks learned through scanning with those we configured manually.
 		 * We can tell them apart by their expires field. Manually configured networks
-		 * never expire. */
-		if (net->expires)
+		 * never expire.
+		 *
+		 * Note, we may just be in the process of obtaining the BSS properties of a
+		 * new network from wpa-supplicant. In this case, the access_point has not been
+		 * set yet.
+		 */
+		if (net->expires && net->access_point.len != 0) {
 			ni_wireless_network_array_append(&scan->networks, net);
+			if (!net->notified) {
+				net->notified = TRUE;
+				send_event = TRUE;
+			}
+		}
 	}
 	scan->timestamp = wpa_dev->scan.timestamp;
-	return 0;
+
+	return send_event;
 }
 
 /*
@@ -887,6 +921,7 @@ ni_wpa_interface_scan_results(ni_dbus_object_t *proxy, ni_dbus_message_t *msg)
 
 			net = net_object->handle;
 			net->expires = wpa_dev->scan.timestamp + NI_WIRELESS_SCAN_MAX_AGE;
+			net->scan_info.updating = TRUE;
 
 			ni_wpa_network_request_properties(net_object);
 		}
@@ -1478,6 +1513,7 @@ ni_wpa_bss_properties_result(ni_dbus_object_t *proxy, ni_dbus_message_t *msg)
 {
 	ni_wireless_network_t *net = proxy->handle;
 	ni_dbus_variant_t dict = NI_DBUS_VARIANT_INIT;
+	ni_wireless_ssid_t old_essid;
 	DBusMessageIter iter;
 
 	dbus_message_iter_init(msg, &iter);
@@ -1486,6 +1522,7 @@ ni_wpa_bss_properties_result(ni_dbus_object_t *proxy, ni_dbus_message_t *msg)
 	if (!ni_dbus_message_iter_get_variant_data(&iter, &dict))
 		goto failed;
 
+	old_essid = net->essid;
 	ni_wpa_network_properties_destroy(net);
 
 	if (!ni_dbus_object_set_properties_from_dict(proxy, &ni_wpa_bssid_service, &dict, NULL))
@@ -1499,6 +1536,11 @@ ni_wpa_bss_properties_result(ni_dbus_object_t *proxy, ni_dbus_message_t *msg)
 			net->scan_info.level,
 			net->scan_info.max_bitrate / 1000000,
 			net->essid.len, net->essid.data);
+
+	if (net->notified && memcmp(&old_essid, &net->essid, sizeof(old_essid)) != 0) {
+		ni_debug_wireless("%s: essid changed", ni_link_address_print(&net->access_point));
+		net->notified = FALSE;
+	}
 
 	ni_dbus_variant_destroy(&dict);
 	return;

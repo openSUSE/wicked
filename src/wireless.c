@@ -38,7 +38,7 @@
 #endif
 
 static void		ni_wireless_set_assoc_network(ni_wireless_t *, ni_wireless_network_t *);
-static void		__ni_wireless_scan_timer_arm(ni_wireless_scan_t *, ni_netdev_t *);
+static void		__ni_wireless_scan_timer_arm(ni_wireless_scan_t *, ni_netdev_t *, unsigned int);
 static int		__ni_wireless_do_scan(ni_netdev_t *);
 static void		__ni_wireless_network_destroy(ni_wireless_network_t *net);
 
@@ -162,7 +162,7 @@ __ni_wireless_do_scan(ni_netdev_t *dev)
 	}
 
 	/* (Re-)arm the scan timer */
-	__ni_wireless_scan_timer_arm(scan, dev);
+	__ni_wireless_scan_timer_arm(scan, dev, scan->interval);
 
 	/* If the device is down, we cannot scan */
 	if (!ni_netdev_device_is_up(dev))
@@ -171,8 +171,22 @@ __ni_wireless_do_scan(ni_netdev_t *dev)
 	if (!(wpa_dev = ni_wireless_bind_supplicant(dev)))
 		return -1;
 
+	/* We currently don't have a reasonable way to call back
+	 * to a higher level from the depths of the wpa-supplicant
+	 * code. Thus we have to result to polling here :-(
+	 */
+	if (ni_wpa_interface_scan_in_progress(wpa_dev)) {
+		__ni_wireless_scan_timer_arm(scan, dev, 1);
+		return 0;
+	}
+
 	/* Retrieve whatever is there. */
-	ni_wpa_interface_retrieve_scan(wpa_dev, scan);
+	if (ni_wpa_interface_retrieve_scan(wpa_dev, scan)) {
+		ni_netconfig_t *nc = ni_global_state_handle(0);
+
+		ni_debug_wireless("%s: list of networks changed", dev->name);
+		__ni_netdev_event(nc, dev, NI_EVENT_LINK_SCAN_UPDATED);
+	}
 
 	/* If we haven't seen a scan in a long time, request one. */
 	now = time(NULL);
@@ -206,15 +220,13 @@ __ni_wireless_scan_timeout(void *ptr, const ni_timer_t *timer)
 }
 
 static void
-__ni_wireless_scan_timer_arm(ni_wireless_scan_t *scan, ni_netdev_t *dev)
+__ni_wireless_scan_timer_arm(ni_wireless_scan_t *scan, ni_netdev_t *dev, unsigned int timeout)
 {
-	unsigned int timeout;
-
 	/* Fire twice as often as requested. This is because we rearm the
 	 * timer at the point where we *request* a new scan, but the scan
 	 * timestamp is updated when the last *response* comes in, which is
 	 * usually half a second later or so. */
-	timeout = 1000 * scan->interval / 2;
+	timeout = 1000 * timeout / 2;
 
 	if (scan->timer == NULL) {
 		scan->timer = ni_timer_register(timeout,
@@ -841,7 +853,7 @@ ni_wireless_scan_new(ni_netdev_t *dev, unsigned int interval)
 	scan->lifetime = 60;
 
 	if (dev && scan->interval)
-		__ni_wireless_scan_timer_arm(scan, dev);
+		__ni_wireless_scan_timer_arm(scan, dev, scan->interval);
 
 	return scan;
 }

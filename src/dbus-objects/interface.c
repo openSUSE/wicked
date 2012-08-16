@@ -836,6 +836,7 @@ __ni_objectmodel_event_to_signal(ni_event_t event)
 	[NI_EVENT_DEVICE_DOWN]		= "deviceDown",
 	[NI_EVENT_LINK_ASSOCIATED]	= "linkAssociated",
 	[NI_EVENT_LINK_ASSOCIATION_LOST]= "linkAssociationLost",
+	[NI_EVENT_LINK_SCAN_UPDATED]	= "linkScanUpdated",
 	[NI_EVENT_LINK_UP]		= "linkUp",
 	[NI_EVENT_LINK_DOWN]		= "linkDown",
 	[NI_EVENT_NETWORK_UP]		= "networkUp",

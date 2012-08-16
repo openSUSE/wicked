@@ -155,6 +155,11 @@ ni_manager_recheck(ni_manager_t *mgr, ni_ifworker_t *w)
 	if ((mdev = ni_manager_get_device(mgr, w)) == NULL)
 		return;
 
+	if (mdev->state == NI_MANAGED_STATE_FAILED) {
+		ni_debug_nanny("%s(%s) - skipping; device in state FAILED", __func__, w->name);
+		return; // we shouldn't have gotten here?
+	}
+
 	ni_debug_nanny("%s(%s)", __func__, w->name);
 	w->use_default_policies = TRUE;
 	if ((count = ni_fsm_policy_get_applicable_policies(mgr->fsm, w, policies, MAX_POLICIES)) == 0) {

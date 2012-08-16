@@ -116,6 +116,7 @@ typedef struct ni_wireless_ssid {
 struct ni_wireless_network {
 	unsigned int			refcount;
 	time_t				expires;
+	ni_bool_t			notified;		/* did we send an event for this? */
 
 	ni_wireless_ssid_t		essid;
 	unsigned int			essid_encode_index;
@@ -124,6 +125,7 @@ struct ni_wireless_network {
 	unsigned int			channel;
 
 	struct ni_wireless_scan_info {
+		ni_bool_t		updating;		/* retrieving new scan info */
 		int			noise;
 		double			level;			/* in dBm*/
 		double			quality;		/* n/70 */

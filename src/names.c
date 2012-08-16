@@ -268,6 +268,7 @@ static ni_intmap_t __event_names[] = {
 	{ "device-down",		NI_EVENT_DEVICE_DOWN },
 	{ "link-associated",		NI_EVENT_LINK_ASSOCIATED },
 	{ "link-association-lost",	NI_EVENT_LINK_ASSOCIATION_LOST },
+	{ "link-scan-updated",		NI_EVENT_LINK_SCAN_UPDATED },
 	{ "link-up",			NI_EVENT_LINK_UP },
 	{ "link-down",			NI_EVENT_LINK_DOWN },
 	{ "network-up",			NI_EVENT_NETWORK_UP },

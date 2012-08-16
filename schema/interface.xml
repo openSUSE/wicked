@@ -201,6 +201,9 @@
   <signal name="deviceUp" />
   <signal name="deviceDown" />
   <signal name="linkUp" />
+  <signal name="linkAssociated" />
+  <signal name="linkAssociationLost" />
+  <signal name="linkScanUpdated" />
   <signal name="linkDown" />
   <signal name="networkUp" />
   <signal name="networkDown" />
