@@ -32,7 +32,8 @@
 
 static int		__ni_process_ifinfomsg(ni_linkinfo_t *link, struct nlmsghdr *h,
 					struct ifinfomsg *ifi, ni_netconfig_t *);
-static int		__ni_netdev_process_newaddr(ni_netdev_t *, struct nlmsghdr *, struct ifaddrmsg *);
+static int		__ni_netdev_process_newaddr(ni_netdev_t *dev, struct nlmsghdr *h,
+					struct ifaddrmsg *ifa);
 static int		__ni_netdev_process_newroute(ni_netdev_t *, struct nlmsghdr *,
 					struct rtmsg *, ni_netconfig_t *);
 static int		__ni_discover_bridge(ni_netdev_t *);
@@ -839,18 +840,22 @@ __ni_netdev_add_autoconf_prefix(ni_netdev_t *dev, const ni_sockaddr_t *addr, uns
 /*
  * Update interface address list given a RTM_NEWADDR message
  */
-static int
-__ni_netdev_process_newaddr(ni_netdev_t *dev, struct nlmsghdr *h, struct ifaddrmsg *ifa)
+int
+__ni_rtnl_parse_newaddr(unsigned ifflags, struct nlmsghdr *h, struct ifaddrmsg *ifa, ni_address_t *ap)
 {
 	struct nlattr *tb[IFA_MAX+1];
-	ni_addrconf_lease_t *lease;
-	ni_address_t tmp, *ap;
 
+	memset(tb, 0, sizeof(tb));
 	if (nlmsg_parse(h, sizeof(*ifa), tb, IFA_MAX, NULL) < 0) {
 		ni_error("unable to parse rtnl ADDR message");
 		return -1;
 	}
-	memset(&tmp, 0, sizeof(tmp));
+
+	memset(ap, 0, sizeof(*ap));
+	ap->family	= ifa->ifa_family;
+	ap->prefixlen	= ifa->ifa_prefixlen;
+	ap->scope	= ifa->ifa_scope;
+	ap->flags	= ifa->ifa_flags;
 
 	/*
 	 * Quoting linux/if_addr.h:
@@ -859,22 +864,24 @@ __ni_netdev_process_newaddr(ni_netdev_t *dev, struct nlmsghdr *h, struct ifaddrm
 	 * but for point-to-point IFA_ADDRESS is DESTINATION address,
 	 * local address is supplied in IFA_LOCAL attribute.
 	 */
-	if (dev->link.ifflags & NI_IFF_POINT_TO_POINT) {
-		__ni_nla_get_addr(ifa->ifa_family, &tmp.local_addr, tb[IFA_LOCAL]);
-		__ni_nla_get_addr(ifa->ifa_family, &tmp.peer_addr, tb[IFA_ADDRESS]);
+	if (ifflags & NI_IFF_POINT_TO_POINT) {
+		__ni_nla_get_addr(ifa->ifa_family, &ap->local_addr, tb[IFA_LOCAL]);
+		__ni_nla_get_addr(ifa->ifa_family, &ap->peer_addr, tb[IFA_ADDRESS]);
 		/* Note iproute2 code obtains peer_addr from IFA_BROADCAST */
+		/* When I read and remember it correctly, iproute2 is using:
+		 *   !tb[IFA_BROADCAST] && tb[IFA_LOCAL] && tb[IFA_ADDRESS]
+		 * instead of the p-t-p flag ...
+		 */
 	} else {
-		__ni_nla_get_addr(ifa->ifa_family, &tmp.local_addr, tb[IFA_ADDRESS]);
-		__ni_nla_get_addr(ifa->ifa_family, &tmp.bcast_addr, tb[IFA_BROADCAST]);
+		__ni_nla_get_addr(ifa->ifa_family, &ap->local_addr, tb[IFA_ADDRESS]);
+		if (tb[IFA_BROADCAST]) {
+			__ni_nla_get_addr(ifa->ifa_family, &ap->bcast_addr, tb[IFA_BROADCAST]);
+		} else if(ifa->ifa_family == AF_INET && tb[IFA_ADDRESS] && ifa->ifa_prefixlen < 32) {
+			ap->bcast_addr = ap->local_addr;
+			ap->bcast_addr.sin.sin_addr.s_addr |= htonl(0xFFFFFFFFUL >> ifa->ifa_prefixlen);
+		}
 	}
-	__ni_nla_get_addr(ifa->ifa_family, &tmp.anycast_addr, tb[IFA_ANYCAST]);
-
-	ap = ni_address_new(dev, ifa->ifa_family, ifa->ifa_prefixlen, &tmp.local_addr);
-	ap->scope = ifa->ifa_scope;
-	ap->flags = ifa->ifa_flags;
-	ap->peer_addr = tmp.peer_addr;
-	ap->bcast_addr = tmp.bcast_addr;
-	ap->anycast_addr = tmp.anycast_addr;
+	__ni_nla_get_addr(ifa->ifa_family, &ap->anycast_addr, tb[IFA_ANYCAST]);
 
 	if (tb[IFA_CACHEINFO]) {
 		struct ifa_cacheinfo *ci = (struct ifa_cacheinfo *) tb[IFA_CACHEINFO];
@@ -883,7 +890,32 @@ __ni_netdev_process_newaddr(ni_netdev_t *dev, struct nlmsghdr *h, struct ifaddrm
 		ap->ipv6_cache_info.preferred_lft = ci->ifa_prefered;
 	}
 
-	lease = __ni_netdev_address_to_lease(dev, ap);
+	return 0;
+}
+
+int
+__ni_netdev_process_newaddr_event(ni_netdev_t *dev, struct nlmsghdr *h, struct ifaddrmsg *ifa, const ni_address_t **hint)
+{
+	ni_addrconf_lease_t *lease = NULL;
+	ni_address_t tmp, *ap;
+
+	if (__ni_rtnl_parse_newaddr(dev->link.ifflags, h, ifa, &tmp) < 0)
+		return -1;
+
+	ap = __ni_address_list_find(dev->addrs, &tmp.local_addr);
+	if (!ap) {
+		ap = ni_address_new(dev, tmp.family, tmp.prefixlen, &tmp.local_addr);
+	}
+	ap->scope = tmp.scope;
+	ap->flags = tmp.flags;
+	ap->peer_addr = tmp.peer_addr;
+	ap->bcast_addr = tmp.bcast_addr;
+	ap->anycast_addr = tmp.anycast_addr;
+	ap->ipv6_cache_info = tmp.ipv6_cache_info;
+
+	if (ap->config_lease == NULL)
+		lease = __ni_netdev_address_to_lease(dev, ap);
+
 	if (lease == NULL) {
 		int probably_autoconf = 0;
 
@@ -911,19 +943,37 @@ __ni_netdev_process_newaddr(ni_netdev_t *dev, struct nlmsghdr *h, struct ifaddrm
 	ap->config_lease = lease;
 
 #if 0
-	ni_debug_ifconfig("%-5s %-20s scope %s, flags%s%s%s, owned by %s",
-				dev->name, ni_address_print(&tmp.local_addr),
-				(ifa->ifa_scope == RT_SCOPE_HOST)? "host" :
-				 (ifa->ifa_scope == RT_SCOPE_LINK)? "link" :
-				  (ifa->ifa_scope == RT_SCOPE_SITE)? "site" :
-				   "universe",
-				(ifa->ifa_flags & IFA_F_PERMANENT)? " permanent" : "",
-				(ifa->ifa_flags & IFA_F_TEMPORARY)? " temporary" : "",
-				(ifa->ifa_flags & IFA_F_TENTATIVE)? " tentative" : "",
-				ap->config_lease? ni_addrconf_type_to_name(ap->config_lease->type) : "nobody");
+	ni_debug_ifconfig("%s[%u]: address %s scope %s, flags%s%s%s%s%s%s%s%s [%02x], lft{%u,%u}, owned by %s",
+			dev->name, dev->link.ifindex,
+			ni_address_print(&ap->local_addr),
+			(ap->scope == RT_SCOPE_HOST)? "host" :
+			 (ap->scope == RT_SCOPE_LINK)? "link" :
+			  (ap->scope == RT_SCOPE_SITE)? "site" :
+			   "universe",
+			(ap->flags & IFA_F_TEMPORARY)?   " temporary" : "",
+			(ap->flags & IFA_F_PERMANENT)?   " permanent" : " dynamic",
+			(ap->flags & IFA_F_TENTATIVE)?   " tentative" : "",
+			(ap->flags & IFA_F_DADFAILED)?   " dadfailed" : "",
+			(ap->flags & IFA_F_DEPRECATED)?  " deprecated": "",
+			(ap->flags & IFA_F_OPTIMISTIC)?  " optimistic": "",
+			(ap->flags & IFA_F_HOMEADDRESS)? " home"      : "",
+			(ap->flags & IFA_F_NODAD)?       " nodad"     : "",
+			(unsigned int)ap->flags,
+			ap->ipv6_cache_info.valid_lft,
+			ap->ipv6_cache_info.preferred_lft,
+			(ap->config_lease? ni_addrconf_type_to_name(ap->config_lease->type) : "nobody"));
 #endif
 
+	if (hint)
+		*hint = ap;
+
 	return 0;
+}
+
+static int
+__ni_netdev_process_newaddr(ni_netdev_t *dev, struct nlmsghdr *h, struct ifaddrmsg *ifa)
+{
+	return __ni_netdev_process_newaddr_event(dev, h, ifa, NULL);
 }
 
 int
