@@ -8,9 +8,7 @@
 *.so.*
 .*
 test
-xml-test
-xpath-test
-ibft-test
+testing/*-test
 core
 tags
 bin
