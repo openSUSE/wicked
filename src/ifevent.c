@@ -23,10 +23,17 @@
 #include "kernel.h"
 #include "appconfig.h"
 
+/*
+ * TODO: Move the socket somewhere else & add cleanup...
+ */
+static ni_socket_t *	__ni_rtevent_sock;
+
 static int	__ni_rtevent_process(ni_netconfig_t *, const struct sockaddr_nl *, struct nlmsghdr *);
 static int	__ni_rtevent_newlink(ni_netconfig_t *, const struct sockaddr_nl *, struct nlmsghdr *);
 static int	__ni_rtevent_dellink(ni_netconfig_t *, const struct sockaddr_nl *, struct nlmsghdr *);
 static int	__ni_rtevent_newprefix(ni_netconfig_t *, const struct sockaddr_nl *, struct nlmsghdr *);
+static int	__ni_rtevent_newaddr(ni_netconfig_t *, const struct sockaddr_nl *, struct nlmsghdr *);
+static int	__ni_rtevent_deladdr(ni_netconfig_t *, const struct sockaddr_nl *, struct nlmsghdr *);
 
 static const char *	__ni_rtevent_msg_name(unsigned int);
 
@@ -41,6 +48,13 @@ __ni_netdev_event(ni_netconfig_t *nc, ni_netdev_t *dev, ni_event_t ev)
 			dev->name, dev->link.ifindex, ni_event_type_to_name(ev));
 	if (ni_global.interface_event)
 		ni_global.interface_event(dev, ev);
+}
+
+static inline void
+__ni_netdev_addr_event(ni_netdev_t *dev, ni_event_t ev, const ni_address_t *ap)
+{
+	if (ni_global.interface_addr_event)
+		ni_global.interface_addr_event(dev, ev, ap);
 }
 
 /*
@@ -71,6 +85,14 @@ __ni_rtevent_process(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 	 * Advertisement */
 	case RTM_NEWPREFIX:
 		rv = __ni_rtevent_newprefix(nc, nladdr, h);
+		break;
+
+	case RTM_NEWADDR:
+		rv = __ni_rtevent_newaddr(nc, nladdr, h);
+		break;
+
+	case RTM_DELADDR:
+		rv = __ni_rtevent_deladdr(nc, nladdr, h);
 		break;
 
 	default:
@@ -223,6 +245,58 @@ __ni_rtevent_newprefix(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, str
 	return 0;
 }
 
+static int
+__ni_rtevent_newaddr(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struct nlmsghdr *h)
+{
+	struct ifaddrmsg *ifa;
+	const ni_address_t *ap = NULL;
+	ni_netdev_t *dev;
+
+	if (!(ifa = ni_rtnl_ifaddrmsg(h, RTM_NEWADDR)))
+		return -1;
+
+	dev = ni_netdev_by_index(nc, ifa->ifa_index);
+	if (dev == NULL)
+		return 0;
+
+	/*
+	 * Here we just get a const pointer (=what we need)
+	 * to the address stored in the list...
+	 */
+	if(__ni_netdev_process_newaddr_event(dev, h, ifa, &ap) < 0)
+		return -1;
+
+	__ni_netdev_addr_event(dev, NI_EVENT_ADDRESS_UPDATE, ap);
+	return 0;
+}
+
+static int
+__ni_rtevent_deladdr(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struct nlmsghdr *h)
+{
+	struct ifaddrmsg *ifa;
+	ni_address_t tmp, *ap;
+	ni_netdev_t *dev;
+
+	if (!(ifa = ni_rtnl_ifaddrmsg(h, RTM_DELADDR)))
+		return -1;
+
+	dev = ni_netdev_by_index(nc, ifa->ifa_index);
+	if (dev == NULL)
+		return 0;
+
+	if (__ni_rtnl_parse_newaddr(dev->link.ifflags, h, ifa, &tmp) < 0) {
+		ni_error("Problem parsing RTM_DELADDR message for %s", dev->name);
+		return -1;
+	}
+
+	if ((ap = __ni_address_list_find(dev->addrs, &tmp.local_addr)) != NULL) {
+		__ni_netdev_addr_event(dev, NI_EVENT_ADDRESS_DELETE, ap);
+
+		__ni_address_list_remove(&dev->addrs, ap);
+	}
+
+	return 0;
+}
 
 /*
  * Receive events from netlink socket and generate events.
@@ -318,8 +392,8 @@ ni_server_listen_interface_events(void (*ifevent_handler)(ni_netdev_t *, ni_even
 	uint32_t groups = 0;
 	int fd;
 
-	if (ni_global.interface_event) {
-		ni_error("Interface event handler already set");
+	if (__ni_rtevent_sock || ni_global.interface_event) {
+		ni_error("Interface event handler is already set");
 		return -1;
 	}
 
@@ -330,10 +404,6 @@ ni_server_listen_interface_events(void (*ifevent_handler)(ni_netdev_t *, ni_even
 
 #define nl_mgrp(x)	(1 << ((x) - 1))
 	groups = nl_mgrp(RTNLGRP_LINK) |
-		 nl_mgrp(RTNLGRP_IPV4_IFADDR) |
-		 nl_mgrp(RTNLGRP_IPV6_IFADDR) |
-		 nl_mgrp(RTNLGRP_IPV4_ROUTE) |
-		 nl_mgrp(RTNLGRP_IPV6_ROUTE) |
 		 nl_mgrp(RTNLGRP_IPV6_PREFIX);
 
 	nl_join_groups(handle, groups);
@@ -369,11 +439,44 @@ ni_server_listen_interface_events(void (*ifevent_handler)(ni_netdev_t *, ni_even
 	sock->receive	= __ni_rtevent_receive;
 	sock->close	= __ni_rtevent_close;
 
-	ni_socket_activate(sock);
+	__ni_rtevent_sock         = sock;
 	ni_global.interface_event = ifevent_handler;
 
-	/* TODO: our socket ref -> ni_global */
-	ni_socket_release(sock);
+	ni_socket_activate(__ni_rtevent_sock);
 
 	return 0;
 }
+
+int
+ni_server_enable_interface_addr_events(void (*ifaddr_handler)(ni_netdev_t *, ni_event_t, const ni_address_t *))
+{
+	struct nl_handle *handle;
+
+	if (!__ni_rtevent_sock || ni_global.interface_addr_event) {
+		ni_error("Interface address event handler already set");
+		return -1;
+	}
+
+	handle = __ni_rtevent_sock->user_data;
+
+	if (nl_socket_add_membership(handle, RTNLGRP_IPV4_IFADDR) < 0 ||
+	    nl_socket_add_membership(handle, RTNLGRP_IPV6_IFADDR) < 0)
+		return -1;
+
+	ni_global.interface_addr_event = ifaddr_handler;
+	return 0;
+}
+
+void
+ni_server_deactivate_interface_events(void)
+{
+	if (__ni_rtevent_sock) {
+		ni_socket_deactivate(__ni_rtevent_sock);
+
+		ni_global.interface_event = NULL;
+		ni_global.interface_addr_event = NULL;
+		ni_socket_release(__ni_rtevent_sock);
+		__ni_rtevent_sock = NULL;
+	}
+}
+
