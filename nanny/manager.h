@@ -19,11 +19,13 @@ typedef struct ni_managed_policy ni_managed_policy_t;
 
 typedef enum ni_managed_state {
 	NI_MANAGED_STATE_STOPPED,
+	NI_MANAGED_STATE_BINDING,
 	NI_MANAGED_STATE_STARTING,
 	NI_MANAGED_STATE_RUNNING,
 	NI_MANAGED_STATE_STOPPING,
 	NI_MANAGED_STATE_LIMBO,
 	NI_MANAGED_STATE_FAILED,
+	NI_MANAGED_STATE_MISSING_SECRETS,
 } ni_managed_state_t;
 
 struct ni_managed_device {
@@ -44,6 +46,8 @@ struct ni_managed_device {
 	ni_managed_policy_t *	selected_policy;
 	unsigned int		selected_policy_seq;
 	xml_node_t *		selected_config;
+
+	ni_secret_array_t	secrets;
 };
 
 struct ni_managed_policy {
@@ -90,7 +94,7 @@ extern ni_managed_device_t *	ni_manager_get_device(ni_manager_t *, ni_ifworker_t
 extern void			ni_manager_remove_device(ni_manager_t *, ni_managed_device_t *);
 extern ni_managed_policy_t *	ni_manager_get_policy(ni_manager_t *, const ni_fsm_policy_t *);
 extern void			ni_manager_clear_secrets(ni_manager_t *mgr, const char *security_id, const char *path);
-extern const char *		ni_manager_get_secret(ni_manager_t *, const char *, const char *);
+extern ni_secret_t *		ni_manager_get_secret(ni_manager_t *, const char *, const char *);
 extern void			ni_manager_rfkill_event(ni_manager_t *mgr, ni_rfkill_type_t type, ni_bool_t blocked);
 
 extern ni_bool_t		ni_managed_netdev_enable(ni_managed_device_t *);

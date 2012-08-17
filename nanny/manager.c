@@ -305,10 +305,11 @@ found:
 int
 ni_manager_prompt(const ni_fsm_prompt_t *p, xml_node_t *node, void *user_data)
 {
-	ni_stringbuf_t path_buf;
 	ni_manager_t *mgr = user_data;
+	ni_stringbuf_t path_buf;
 	ni_ifworker_t *w = NULL;
-	const char *value;
+	ni_managed_device_t *mdev;
+	ni_secret_t *sec;
 	int rv = -1;
 
 	ni_debug_nanny("%s: type=%u string=%s id=%s", __func__, p->type, p->string, p->id);
@@ -321,21 +322,36 @@ ni_manager_prompt(const ni_fsm_prompt_t *p, xml_node_t *node, void *user_data)
 		goto done;
 	}
 
+	if (!(mdev = ni_manager_get_device(mgr, w))) {
+		ni_error("%s: device not managed by us?!", w->name);
+		goto done;
+	}
+
 	if (w->security_id == NULL) {
 		ni_error("%s: no security id set, cannot handle prompt for \"%s\"",
 				w->name, path_buf.string);
 		goto done;
 	}
 
-	value = ni_manager_get_secret(mgr, w->security_id, path_buf.string);
-	if (value == NULL) {
+	sec = ni_manager_get_secret(mgr, w->security_id, path_buf.string);
+	if (sec == NULL) {
+		if (mdev->state == NI_MANAGED_STATE_BINDING) {
+			mdev->state = NI_MANAGED_STATE_MISSING_SECRETS;
+
+			/* Return retry-operation - this makes the validator ignore
+			 * the missing secret. In this way, we can record all required
+			 * secrets. */
+			ni_secret_array_append(&mdev->secrets, sec);
+			rv = -NI_ERROR_RETRY_OPERATION;
+			goto done;
+		}
 		/* FIXME: Send out event that we need this piece of information */
 		ni_debug_nanny("%s: prompting for type=%u id=%s path=%s",
 				w->name, p->type, w->security_id, path_buf.string);
 		goto done;
 	}
 
-	xml_node_set_cdata(node, value);
+	xml_node_set_cdata(node, sec->value);
 	rv = 0;
 
 done:
@@ -359,9 +375,21 @@ ni_manager_add_secret(ni_manager_t *mgr, const char *security_id, const char *pa
 	for (mdev = mgr->device_list; mdev; mdev = mdev->next) {
 		ni_ifworker_t *w = mdev->worker;
 
-		ni_debug_nanny("%s: security-id=%s", w->name, w->security_id);
-		if (w && ni_string_eq(w->security_id, security_id)
-		 && !ni_ifworker_is_running(w)) {
+		if (mdev->state == NI_MANAGED_STATE_MISSING_SECRETS) {
+			ni_secret_t *missing = NULL;
+			unsigned int i;
+
+			for (i = 0; i < mdev->secrets.count; ++i) {
+				ni_secret_t *osec = mdev->secrets.data[i];
+				if (osec->value == NULL)
+					missing = osec;
+			}
+
+			if (missing) {
+				ni_debug_nanny("%s: secret for %s still missing", w->name, missing->path);
+				continue;
+			}
+
 			ni_debug_nanny("%s: secret for %s updated, rechecking", w->name, path);
 			ni_manager_schedule_recheck(mgr, w);
 		}
@@ -374,15 +402,10 @@ ni_manager_clear_secrets(ni_manager_t *mgr, const char *security_id, const char 
 	ni_secret_db_drop(mgr->secret_db, security_id, path);
 }
 
-const char *
+ni_secret_t *
 ni_manager_get_secret(ni_manager_t *mgr, const char *security_id, const char *path)
 {
-	ni_secret_t *sec;
-
-	if ((sec = ni_secret_db_find(mgr->secret_db, security_id, path)) == NULL)
-		return NULL;
-
-	return sec->value;
+	return ni_secret_db_find(mgr->secret_db, security_id, path);
 }
 
 /*

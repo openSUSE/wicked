@@ -96,6 +96,7 @@ ni_managed_device_free(ni_managed_device_t *mdev)
 		mdev->worker = NULL;
 	}
 
+	ni_secret_array_destroy(&mdev->secrets);
 	free(mdev);
 }
 
@@ -114,6 +115,16 @@ ni_managed_device_set_policy(ni_managed_device_t *mdev, ni_managed_policy_t *mpo
 
 	mdev->selected_policy = mpolicy;
 	mdev->selected_policy_seq = mpolicy? mpolicy->seqno : 0;
+}
+
+void
+ni_managed_device_set_security_id(ni_managed_device_t *mdev, const char *security_id)
+{
+	ni_ifworker_t *w = mdev->worker;
+
+	if (!ni_string_eq(w->security_id, security_id))
+		ni_secret_array_destroy(&mdev->secrets);
+	ni_string_dup(&w->security_id, security_id);
 }
 
 /*
@@ -230,7 +241,7 @@ ni_managed_device_up(ni_managed_device_t *mdev)
 
 			if ((essid = ni_managed_device_get_essid(mdev->selected_config)) != NULL) {
 				snprintf(security_id, sizeof(security_id), "wireless:%s", essid);
-				ni_string_dup(&w->security_id, security_id);
+				ni_managed_device_set_security_id(mdev, security_id);
 			}
 		}
 
@@ -240,7 +251,7 @@ ni_managed_device_up(ni_managed_device_t *mdev)
 	case NI_IFWORKER_TYPE_MODEM:
 		mdev->max_fail_count = 1;
 		snprintf(security_id, sizeof(security_id), "modem:%s", w->modem->identify.equipment);
-		ni_string_dup(&w->security_id, security_id);
+		ni_managed_device_set_security_id(mdev, security_id);
 
 		target_state = NI_FSM_STATE_LINK_UP;
 		break;
@@ -255,13 +266,30 @@ ni_managed_device_up(ni_managed_device_t *mdev)
 	w->target_range.min = target_state;
 	w->target_range.max = __NI_FSM_STATE_MAX;
 
-	if ((rv = ni_ifworker_bind_early(w, fsm, TRUE)) >= 0
-	 && (rv = ni_ifworker_start(fsm, w, fsm->worker_timeout)) >= 0) {
-		mdev->state = NI_MANAGED_STATE_STARTING;
-	} else {
-		ni_error("%s: cannot start device: %s", w->name, ni_strerror(rv));
-		mdev->state = NI_MANAGED_STATE_FAILED;
+	/* Binding: this validates the XML configuration document,
+	 * resolves any references to other devices (if there are any),
+	 * and retrieves any keys/passwords etc via the prompt callback.
+	 * Inside the prompt callback, we record all secrets for tracking
+	 */
+	ni_secret_array_destroy(&mdev->secrets);
+	mdev->state = NI_MANAGED_STATE_BINDING;
+	if ((rv = ni_ifworker_bind_early(w, fsm, TRUE)) < 0)
+		goto failed;
+	if (mdev->state == NI_MANAGED_STATE_MISSING_SECRETS) {
+		/* FIXME: Emit an event listing the secrets we're missing.
+		 */
+		return;
 	}
+
+	mdev->state = NI_MANAGED_STATE_STARTING;
+	if ((rv = ni_ifworker_start(fsm, w, fsm->worker_timeout)) < 0)
+		goto failed;
+
+	return;
+
+failed:
+	ni_error("%s: cannot start device: %s", w->name, ni_strerror(rv));
+	mdev->state = NI_MANAGED_STATE_FAILED;
 }
 
 /*
