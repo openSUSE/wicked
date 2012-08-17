@@ -7,9 +7,6 @@
 #include "config.h"
 #endif
 
-#include <string.h>
-#include <stdlib.h>
-
 #include <wicked/xml.h>
 #include "buffer.h"
 #include "appconfig.h"

@@ -9,9 +9,6 @@
 #include "config.h"
 #endif
 
-#include <dbus/dbus.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <wicked/util.h>
 #include <wicked/dbus-service.h>
 #include <wicked/dbus-errors.h>

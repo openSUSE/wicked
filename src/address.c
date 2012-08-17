@@ -14,11 +14,9 @@
 #include <netinet/if_tr.h>
 #include <linux/if_infiniband.h>
 #include <linux/rtnetlink.h>
-#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
-#include <assert.h>
 
 #include <wicked/netinfo.h>
 #include <wicked/route.h>
@@ -44,7 +42,7 @@ __ni_address_new(ni_address_t **list_head, int af, unsigned int prefix_len, cons
 {
 	ni_address_t *ap, **tail;
 
-	assert(!local_addr || local_addr->ss_family == af);
+	ni_assert(!local_addr || local_addr->ss_family == af);
 
 	tail = list_head;
 	while ((ap = *tail) != NULL)

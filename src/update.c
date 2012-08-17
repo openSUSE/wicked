@@ -7,12 +7,14 @@
 #include "config.h"
 #endif
 
+#include <unistd.h>
+
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
 #include <wicked/addrconf.h>
 #include <wicked/system.h>
 #include <wicked/resolver.h>
-#include <unistd.h>
+
 #include "netinfo_priv.h"
 #include "process.h"
 #include "appconfig.h"

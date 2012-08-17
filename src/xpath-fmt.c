@@ -49,11 +49,6 @@
 #include "config.h"
 #endif
 
-#include <assert.h>
-#include <string.h>
-#include <stdlib.h>
-#include <ctype.h>
-
 #include <wicked/xml.h>
 #include <wicked/logging.h>
 #include <wicked/xml.h>

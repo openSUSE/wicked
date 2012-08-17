@@ -16,10 +16,8 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdarg.h>
 #include <unistd.h>
 #include <errno.h>
-#include <assert.h>
 #include <fcntl.h>
 
 #include <wicked/netinfo.h>
@@ -115,7 +113,7 @@ ni_socket_release(ni_socket_t *sock)
 	sock->refcount--;
 	if (sock->refcount == 0) {
 		__ni_socket_close(sock);
-		assert(!sock->active);
+		ni_assert(!sock->active);
 		free(sock);
 	}
 }

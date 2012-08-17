@@ -9,7 +9,6 @@
 
 #include <wicked/resolver.h>
 #include <wicked/logging.h>
-#include <stdlib.h>
 #include <ctype.h>
 
 ni_resolver_info_t *

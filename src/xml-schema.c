@@ -8,7 +8,7 @@
 #endif
 
 #include <limits.h>
-#include <stdlib.h>
+
 #include <wicked/logging.h>
 #include <wicked/xml.h>
 #include <wicked/logging.h>

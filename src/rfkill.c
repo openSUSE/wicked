@@ -11,19 +11,6 @@
 #include "config.h"
 #endif
 
-/* 
-#include <sys/socket.h>
-#include <sys/stat.h>
-#include <sys/time.h>
-#include <sys/poll.h>
-#include <sys/un.h>
-#include <signal.h>
-#include <string.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <stdarg.h>
-#include <errno.h>
-*/
 #include <unistd.h>
 #include <fcntl.h>
 

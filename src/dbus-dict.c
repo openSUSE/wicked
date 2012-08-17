@@ -16,7 +16,6 @@
 #endif
 
 #include <wicked/util.h>
-#include <dbus/dbus.h>
 
 #include "netinfo_priv.h"
 #include "dbus-common.h"

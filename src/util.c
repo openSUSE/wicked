@@ -9,14 +9,10 @@
 
 #include <sys/time.h>
 #include <sys/stat.h>
-#include <string.h>
-#include <stdlib.h>
 #include <dirent.h>
 #include <ctype.h>
 #include <stdio.h>
-#include <assert.h>
 #include <unistd.h>
-#include <stdarg.h>
 #include <signal.h>
 #include <fcntl.h>
 #include <errno.h>
@@ -215,7 +211,7 @@ ni_string_array_remove_match(ni_string_array_t *nsa, const char *str, unsigned i
 		}
 	}
 
-	/* assert(j + killed == nsa->count); */
+	/* ni_assert(j + killed == nsa->count); */
 	memset(&nsa->data[j], 0, killed * sizeof(char *));
 	nsa->count = j;
 
@@ -947,7 +943,7 @@ ni_stringbuf_vprintf(ni_stringbuf_t *sb, const char *fmt, va_list ap)
 void
 ni_stringbuf_move(ni_stringbuf_t *dest, ni_stringbuf_t *src)
 {
-	assert(dest->dynamic == src->dynamic);
+	ni_assert(dest->dynamic == src->dynamic);
 	ni_stringbuf_clear(dest);
 	*dest = *src;
 

@@ -10,8 +10,6 @@
 #include "config.h"
 #endif
 
-#include <limits.h>
-#include <stdlib.h>
 #include <wicked/logging.h>
 #include <wicked/xml.h>
 #include "dbus-common.h"

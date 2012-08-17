@@ -25,13 +25,7 @@
 #include "config.h"
 #endif
 
-#include <unistd.h>
 #include <ctype.h>
-#include <stdio.h>
-#include <stdarg.h>
-#include <string.h>
-#include <stdlib.h>
-#include <assert.h>
 
 #include <wicked/xml.h>
 #include <wicked/logging.h>

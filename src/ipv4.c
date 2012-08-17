@@ -7,9 +7,6 @@
 #include "config.h"
 #endif
 
-#include <stdlib.h>
-#include <string.h>
-
 #include <wicked/netinfo.h>
 #include <wicked/ipv4.h>
 #include <wicked/logging.h>

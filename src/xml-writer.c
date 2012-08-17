@@ -25,11 +25,6 @@
 #include "config.h"
 #endif
 
-#include <stdio.h>
-#include <string.h>
-#include <stdarg.h>
-#include <stdlib.h>
-
 #include <wicked/xml.h>
 #include <wicked/logging.h>
 #include "netinfo_priv.h"

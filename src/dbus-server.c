@@ -7,8 +7,6 @@
 #include "config.h"
 #endif
 
-#include <dbus/dbus.h>
-#include <stdlib.h>
 #include <wicked/util.h>
 #include <wicked/logging.h>
 #include <wicked/dbus-service.h>

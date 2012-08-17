@@ -7,10 +7,9 @@
 #include "config.h"
 #endif
 
-#include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
 #include <errno.h>
+
 #include <wicked/nis.h>
 #include <wicked/resolver.h>
 #include "netinfo_priv.h"

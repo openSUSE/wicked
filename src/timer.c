@@ -8,7 +8,6 @@
 #endif
 
 #include <sys/time.h>
-#include <stdlib.h>
 #include <wicked/socket.h>
 #include "netinfo_priv.h"
 

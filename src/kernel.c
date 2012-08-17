@@ -7,13 +7,8 @@
 #include "config.h"
 #endif
 
-#include <string.h>
-#include <stdlib.h>
-#include <stdio.h>
 #include <unistd.h>
-#include <stdarg.h>
 #include <errno.h>
-#include <limits.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 #include <fcntl.h>

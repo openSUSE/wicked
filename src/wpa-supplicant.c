@@ -29,21 +29,18 @@
 #include "config.h"
 #endif
 
-#include <dbus/dbus.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <time.h>
 #include <wicked/util.h>
 #include <wicked/dbus-service.h>
 #include <wicked/dbus-errors.h>
-#include <netinfo_priv.h>
-#include <ctype.h>
+#include <wicked/netinfo.h>
 
 #include "dbus-dict.h"
 #include "dbus-common.h"
 #include "dbus-objects/model.h"
 #include "wpa-supplicant.h"
 #include "wireless_priv.h"
+#include "util_priv.h"
 
 
 #define NI_WPA_BUS_NAME		"fi.epitest.hostap.WPASupplicant"

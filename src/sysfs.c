@@ -7,10 +7,6 @@
 #include "config.h"
 #endif
 
-#include <stdlib.h>
-#include <string.h>
-#include <stdarg.h>
-#include <stdio.h>
 #include <unistd.h>
 #include <limits.h>
 

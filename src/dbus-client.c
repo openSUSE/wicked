@@ -7,10 +7,6 @@
 #include "config.h"
 #endif
 
-#include <dbus/dbus.h>
-#include <sys/poll.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <wicked/util.h>
 #include <wicked/logging.h>
 #include <wicked/objectmodel.h>

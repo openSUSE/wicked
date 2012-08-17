@@ -8,14 +8,8 @@
 #include "config.h"
 #endif
 
-#include <stdio.h>
 #include <string.h>
-#include <stdarg.h>
 #include <unistd.h>
-#include <stdlib.h>
-#include <getopt.h>
-#include <sys/param.h>
-#include <sys/stat.h>
 
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>

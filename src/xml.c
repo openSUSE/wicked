@@ -23,10 +23,6 @@
 #include "config.h"
 #endif
 
-#include <assert.h>
-#include <string.h>
-#include <stdlib.h>
-
 #include <wicked/xml.h>
 #include <wicked/logging.h>
 #include "util_priv.h"
@@ -434,7 +430,7 @@ xml_node_delete_child_node(xml_node_t *node, xml_node_t *destroy)
 {
 	xml_node_t **pos, *child;
 
-	assert(destroy->parent == node);
+	ni_assert(destroy->parent == node);
 
 	pos = &node->children;
 	while ((child = *pos) != NULL) {

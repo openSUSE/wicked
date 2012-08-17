@@ -7,22 +7,12 @@
 #include "config.h"
 #endif
 
-#include <string.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <stdarg.h>
-#include <errno.h>
-#include <limits.h>
-#include <time.h>
 #include <sys/socket.h>
-#include <sys/ioctl.h>
 #include <netinet/in.h>
 #include <net/if.h>
 #include <net/if_arp.h>
 #include <netlink/attr.h>
 #include <netlink/msg.h>
-#include <linux/ethtool.h>
 
 #include <wicked/netinfo.h>
 #include <wicked/addrconf.h>

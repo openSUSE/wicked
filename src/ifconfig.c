@@ -16,11 +16,8 @@
 
 #include <string.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <unistd.h>
-#include <stdarg.h>
 #include <errno.h>
-#include <limits.h>
 #include <sys/socket.h>
 #include <net/if.h>
 #include <net/if_arp.h>

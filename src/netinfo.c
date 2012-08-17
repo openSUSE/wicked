@@ -7,13 +7,7 @@
 #include "config.h"
 #endif
 
-#include <stdlib.h>
-#include <string.h>
-#include <assert.h>
-#include <ctype.h>
-#include <net/if_arp.h>
 #include <signal.h>
-#include <time.h>
 #include <limits.h>
 
 #include <wicked/netinfo.h>
