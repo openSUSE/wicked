@@ -70,6 +70,7 @@ __LIBSRCS= \
 	  async-resolver.c \
 	  update.c \
 	  leasefile.c \
+	  secret.c \
 	  xml.c \
 	  xml-reader.c \
 	  xml-writer.c \

@@ -7,6 +7,7 @@
 #define __WICKED_TYPES_H__
 
 #include <wicked/constants.h>
+#include <sys/types.h>
 #include <stdint.h>
 
 typedef unsigned char		ni_bool_t;

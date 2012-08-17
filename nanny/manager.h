@@ -11,11 +11,11 @@
 #define __WICKED_MANAGER_H__
 
 #include <wicked/fsm.h>
+#include <wicked/secret.h>
 
 typedef struct ni_manager	ni_manager_t;
 typedef struct ni_managed_device ni_managed_device_t;
 typedef struct ni_managed_policy ni_managed_policy_t;
-typedef struct ni_manager_secret ni_manager_secret_t;
 
 typedef enum ni_managed_state {
 	NI_MANAGED_STATE_STOPPED,
@@ -65,7 +65,7 @@ struct ni_manager {
 	ni_ifworker_array_t	recheck;
 	ni_ifworker_array_t	down;
 
-	ni_manager_secret_t *	secret_db;
+	ni_secret_db_t *	secret_db;
 };
 
 extern ni_dbus_class_t		ni_objectmodel_managed_netdev_class;

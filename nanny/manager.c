@@ -31,14 +31,6 @@
 #include "manager.h"
 
 
-struct ni_manager_secret {
-	ni_manager_secret_t *	next;
-
-	char *			security_id;
-	char *			path;
-	char *			value;
-};
-
 static int		ni_manager_prompt(const ni_fsm_prompt_t *, xml_node_t *, void *);
 
 /*
@@ -85,6 +77,7 @@ ni_manager_new(void)
 		ni_fatal("Cannot create server, giving up.");
 
 	mgr->fsm = ni_fsm_new();
+	mgr->secret_db = ni_secret_db_new();
 
 	ni_fsm_set_user_prompt_fn(mgr->fsm, ni_manager_prompt, mgr);
 
@@ -351,57 +344,20 @@ done:
 }
 
 /*
- * Handle nanny's security database
+ * Update a secret. If there's a device that has been waiting for this
+ * update, recheck it now.
  */
-ni_manager_secret_t **
-__ni_manager_find_secret(ni_manager_t *mgr, const char *security_id, const char *path)
-{
-	ni_manager_secret_t *sec, **pos;
-
-	for (pos = &mgr->secret_db; (sec = *pos) != NULL; pos = &sec->next) {
-		if (ni_string_eq(sec->security_id, security_id)
-		 && ni_string_eq(sec->path, path))
-			break;
-	}
-
-	return pos;
-}
-
-static ni_manager_secret_t *
-ni_manager_secret_new(const char *security_id, const char *path)
-{
-	ni_manager_secret_t *sec;
-
-	sec = calloc(1, sizeof(*sec));
-	ni_string_dup(&sec->security_id, security_id);
-	ni_string_dup(&sec->path, path);
-	return sec;
-}
-
-static void
-ni_manager_secret_free(ni_manager_secret_t *sec)
-{
-	ni_string_free(&sec->security_id);
-	ni_string_free(&sec->path);
-	ni_string_free(&sec->value);
-	free(sec);
-}
-
 void
 ni_manager_add_secret(ni_manager_t *mgr, const char *security_id, const char *path, const char *value)
 {
-	ni_manager_secret_t *sec, **pos;
-	ni_managed_device_t *mmod;
+	ni_managed_device_t *mdev;
+	ni_secret_t *sec;
 
-	pos = __ni_manager_find_secret(mgr, security_id, path);
-	if ((sec = *pos) == NULL)
-		*pos = sec = ni_manager_secret_new(security_id, path);
-
-	ni_string_dup(&sec->value, value);
+	sec = ni_secret_db_update(mgr->secret_db, security_id, path, value);
 
 	ni_debug_nanny("%s: secret for %s updated", security_id, path);
-	for (mmod = mgr->device_list; mmod; mmod = mmod->next) {
-		ni_ifworker_t *w = mmod->worker;
+	for (mdev = mgr->device_list; mdev; mdev = mdev->next) {
+		ni_ifworker_t *w = mdev->worker;
 
 		ni_debug_nanny("%s: security-id=%s", w->name, w->security_id);
 		if (w && ni_string_eq(w->security_id, security_id)
@@ -415,28 +371,15 @@ ni_manager_add_secret(ni_manager_t *mgr, const char *security_id, const char *pa
 void
 ni_manager_clear_secrets(ni_manager_t *mgr, const char *security_id, const char *path)
 {
-	ni_manager_secret_t *sec, **pos;
-
-	ni_debug_nanny("%s(%s, %s)", __func__, security_id, path);
-	for (pos = &mgr->secret_db; (sec = *pos) != NULL; ) {
-		if ((security_id == NULL || ni_string_eq(sec->security_id, security_id))
-		 && (path == NULL || ni_string_eq(sec->path, path))) {
-			*pos = sec->next;
-
-			ni_manager_secret_free(sec);
-		} else {
-			pos = &sec->next;
-		}
-	}
+	ni_secret_db_drop(mgr->secret_db, security_id, path);
 }
 
 const char *
 ni_manager_get_secret(ni_manager_t *mgr, const char *security_id, const char *path)
 {
-	ni_manager_secret_t *sec, **pos;
+	ni_secret_t *sec;
 
-	pos = __ni_manager_find_secret(mgr, security_id, path);
-	if ((sec = *pos) == NULL)
+	if ((sec = ni_secret_db_find(mgr->secret_db, security_id, path)) == NULL)
 		return NULL;
 
 	return sec->value;
