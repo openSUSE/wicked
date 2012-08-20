@@ -1,0 +1,22 @@
+<policy name="wlan_okirnet">
+  <match>
+    <link-type>wireless</link-type>
+    <wireless:essid>okirnet</wireless:essid>
+  </match>
+
+  <merge>
+    <wireless>
+      <essid>okirnet</essid>
+      <!-- This empty wpa-psk element requests that we
+	-- we should authenticate via PSK. The pass phrase
+	-- or key is not provided here; we will be prompted
+	-- for it later. -->
+      <wpa-psk />
+    </wireless>
+  
+    <ipv4:dhcp>
+      <enabled>true</enabled>
+      <acquire-timeout>15</acquire-timeout>
+    </ipv4:dhcp>
+  </merge>
+</policy>
