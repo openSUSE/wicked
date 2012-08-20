@@ -988,7 +988,7 @@ ni_fsm_workers_from_xml(ni_fsm_t *fsm, xml_document_t *doc, const char *config_o
 				w = ni_ifworker_new(fsm, type, ifname);
 		}
 
-		ni_ifworker_set_config(w, node, config_origin);
+		ni_ifworker_set_config(w, ifnode, config_origin);
 		count++;
 	}
 
