@@ -790,37 +790,43 @@ ni_ifworker_update_client_info(ni_ifworker_t *w)
 static void
 ni_ifworker_set_state(ni_ifworker_t *w, unsigned int new_state)
 {
-	if (w->fsm.state != new_state) {
+	unsigned int prev_state = w->fsm.state;
+
+	if (prev_state != new_state) {
 		w->fsm.state = new_state;
+
+		ni_debug_application("device %s changed state %s -> %s%s",
+				w->name,
+				ni_ifworker_state_name(prev_state),
+				ni_ifworker_state_name(new_state),
+				w->fsm.wait_for == NULL? "" :
+				(w->fsm.wait_for->next_state == w->fsm.state?
+					", resuming activity" : ", still waiting for event"));
+
+		if (w->fsm.wait_for && w->fsm.wait_for->next_state == new_state)
+			w->fsm.wait_for = NULL;
+
 		if (w->object && new_state != NI_FSM_STATE_DEVICE_DOWN)
 			ni_ifworker_update_client_info(w);
+
+		if (w->target_state == new_state)
+			ni_ifworker_success(w);
 	}
 }
 
 static void
 ni_ifworker_update_state(ni_ifworker_t *w, unsigned int min_state, unsigned int max_state)
 {
-	unsigned int prev_state = w->fsm.state;
+	unsigned int new_state = w->fsm.state;
 
-	if (w->fsm.state < min_state)
-		w->fsm.state = min_state;
-	if (max_state < w->fsm.state)
-		w->fsm.state = max_state;
+	if (new_state < min_state)
+		new_state = min_state;
+	if (max_state < new_state)
+		new_state = max_state;
 
-	if (w->fsm.state != prev_state) {
-		ni_debug_application("device %s changed state %s -> %s%s",
-				w->name,
-				ni_ifworker_state_name(prev_state),
-				ni_ifworker_state_name(w->fsm.state),
-				w->fsm.wait_for == NULL? "" :
-				(w->fsm.wait_for->next_state == w->fsm.state?
-					", resuming activity" : ", still waiting for event"));
-		if (w->fsm.state == w->target_state)
-			ni_ifworker_success(w);
-	}
+	if (w->fsm.state != new_state)
+		ni_ifworker_set_state(w, new_state);
 
-	if (w->fsm.wait_for && w->fsm.wait_for->next_state == w->fsm.state)
-		w->fsm.wait_for = NULL;
 }
 
 /*
@@ -1888,7 +1894,7 @@ ni_fsm_build_hierarchy(ni_fsm_t *fsm)
 			return rv;
 	}
 
-	if (ni_debug & NI_TRACE_DBUS) {
+	if (ni_debug & NI_TRACE_APPLICATION) {
 		for (i = 0; i < fsm->workers.count; ++i) {
 			ni_ifworker_t *w = fsm->workers.data[i];
 
@@ -2052,7 +2058,7 @@ ni_fsm_refresh_state(ni_fsm_t *fsm)
 				ni_modem_release(w->modem);
 				w->modem = NULL;
 			}
-			if (ni_ifworker_active(w))
+			if (ni_ifworker_active(w) && !w->device_api.factory_method)
 				ni_ifworker_fail(w, "device was deleted");
 			w->dead = TRUE;
 		} else
