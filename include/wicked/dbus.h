@@ -128,6 +128,8 @@ struct ni_dbus_object {
 	ni_dbus_object_t *	next;
 	ni_dbus_object_t *	parent;
 
+	ni_bool_t		stale;		/* used by GetManagedObjects client code */
+
 	const ni_dbus_class_t *	class;
 	char *			name;		/* relative path */
 	char *			path;		/* absolute path */
@@ -361,7 +363,7 @@ extern ni_dbus_message_t *	ni_dbus_object_call_new(const ni_dbus_object_t *, con
 extern ni_dbus_message_t *	ni_dbus_object_call_new_va(const ni_dbus_object_t *obj,
 					const char *method, va_list *app);
 
-extern dbus_bool_t		ni_dbus_object_get_managed_objects(ni_dbus_object_t *, DBusError *);
+extern dbus_bool_t		ni_dbus_object_get_managed_objects(ni_dbus_object_t *, DBusError *, ni_bool_t purge);
 extern dbus_bool_t		ni_dbus_object_refresh_properties(ni_dbus_object_t *, const ni_dbus_service_t *, DBusError *);
 extern dbus_bool_t		ni_dbus_object_send_property(ni_dbus_object_t *proxy,
 					const char *service_name,

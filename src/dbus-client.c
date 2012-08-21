@@ -39,6 +39,8 @@ static dbus_bool_t	__ni_dbus_object_get_managed_object_properties(ni_dbus_object
 static dbus_bool_t	__ni_dbus_object_refresh_properties(ni_dbus_object_t *proxy,
 					const ni_dbus_service_t *service,
 					DBusMessageIter *iter);
+static void		__ni_dbus_object_mark_stale(ni_dbus_object_t *);
+static void		__ni_dbus_object_purge_stale(ni_dbus_object_t *);
 static const char *	__ni_dbus_print_argument(char, const void *);
 
 /*
@@ -462,7 +464,7 @@ ni_dbus_object_call_async(ni_dbus_object_t *proxy,
  * the server's object hierarchy
  */
 dbus_bool_t
-ni_dbus_object_get_managed_objects(ni_dbus_object_t *proxy, DBusError *error)
+ni_dbus_object_get_managed_objects(ni_dbus_object_t *proxy, DBusError *error, ni_bool_t purge)
 {
 	ni_dbus_client_t *client;
 	ni_dbus_object_t *objmgr;
@@ -474,6 +476,9 @@ ni_dbus_object_get_managed_objects(ni_dbus_object_t *proxy, DBusError *error)
 		dbus_set_error(error, DBUS_ERROR_FAILED, "%s: not a client object", __FUNCTION__);
 		return FALSE;
 	}
+
+	if (purge)
+		__ni_dbus_object_mark_stale(proxy);
 
 	objmgr = ni_dbus_client_object_new(client, &ni_dbus_anonymous_class, proxy->path,
 			NI_DBUS_INTERFACE ".ObjectManager",
@@ -524,7 +529,12 @@ ni_dbus_object_get_managed_objects(ni_dbus_object_t *proxy, DBusError *error)
 
 		if (!__ni_dbus_object_get_managed_object_interfaces(descendant, &iter_dict_entry))
 			goto bad_reply;
+
+		descendant->stale = FALSE;
 	}
+
+	if (purge)
+		__ni_dbus_object_purge_stale(proxy);
 
 	rv = TRUE;
 
@@ -686,13 +696,45 @@ __ni_dbus_object_refresh_properties(ni_dbus_object_t *proxy, const ni_dbus_servi
 	return TRUE;
 }
 
+/*
+ * Handle purging of stale objects
+ */
+void
+__ni_dbus_object_mark_stale(ni_dbus_object_t *proxy)
+{
+	ni_dbus_object_t *child;
+
+	for (child = proxy->children; child; child = child->next) {
+		child->stale = TRUE;
+		if (child->children)
+			__ni_dbus_object_mark_stale(child);
+	}
+}
+
+void
+__ni_dbus_object_purge_stale(ni_dbus_object_t *proxy)
+{
+	ni_dbus_object_t *child, *next;
+
+	for (child = proxy->children; child; child = next) {
+		next = child->next;
+
+		if (child->stale) {
+			ni_debug_dbus("purging stale object %s", child->path);
+			ni_dbus_object_free(child);
+		} else if (child->children) {
+			__ni_dbus_object_purge_stale(child);
+		}
+	}
+}
+
 dbus_bool_t
 ni_dbus_object_refresh_children(ni_dbus_object_t *proxy)
 {
 	DBusError error = DBUS_ERROR_INIT;
 	dbus_bool_t rv;
 
-	rv = ni_dbus_object_get_managed_objects(proxy, &error);
+	rv = ni_dbus_object_get_managed_objects(proxy, &error, TRUE);
 	if (!rv)
 		ni_dbus_print_error(&error, "%s.getManagedObjects failed", proxy->path);
 	dbus_error_free(&error);
