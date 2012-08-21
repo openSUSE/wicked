@@ -189,8 +189,13 @@ ni_manager_down_do(ni_manager_t *mgr)
 	if (mgr->down.count == 0)
 		return;
 
-	for (i = 0; i < mgr->down.count; ++i)
-		; // ni_manager_down(mgr, mgr->down.data[i]);
+	for (i = 0; i < mgr->down.count; ++i) {
+		ni_ifworker_t *w = mgr->down.data[i];
+		ni_managed_device_t *mdev;
+
+		if ((mdev = ni_manager_get_device(mgr, w)) != NULL)
+			ni_managed_device_down(mdev);
+	}
 	ni_ifworker_array_destroy(&mgr->down);
 }
 

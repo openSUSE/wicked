@@ -33,6 +33,7 @@
 
 extern ni_bool_t	ni_manager_call_add_policy(const char *, xml_node_t *);
 extern ni_bool_t	ni_manager_call_device_enable(const char *ifname);
+extern ni_bool_t	ni_manager_call_device_disable(const char *ifname);
 extern ni_dbus_object_t *ni_manager_call_get_device(const char *);
 extern ni_bool_t	ni_manager_call_add_secret(const char *, const char *, const char *);
 
@@ -83,6 +84,19 @@ do_manager_enable(int argc, char **argv)
 
 	while (optind < argc)
 		ni_manager_call_device_enable(argv[optind++]);
+	return 0;
+}
+
+static int
+do_manager_disable(int argc, char **argv)
+{
+	if (optind >= argc) {
+		ni_error("wicked manager disable: expected interface argument");
+		return 1;
+	}
+
+	while (optind < argc)
+		ni_manager_call_device_disable(argv[optind++]);
 	return 0;
 }
 
@@ -218,6 +232,8 @@ usage:
 		return do_manager_recheck(argc, argv);
 	if (ni_string_eq(command, "enable"))
 		return do_manager_enable(argc, argv);
+	if (ni_string_eq(command, "disable"))
+		return do_manager_disable(argc, argv);
 	if (ni_string_eq(command, "addsecret"))
 		return do_manager_addsecret(argc, argv);
 	
@@ -363,7 +379,7 @@ ni_manager_call_get_device(const char *ifname)
 }
 
 ni_bool_t
-ni_manager_call_device_enable(const char *ifname)
+ni_manager_call_device_void_method(const char *ifname, const char *method)
 {
 	ni_dbus_object_t *object;
 	int rv;
@@ -372,15 +388,27 @@ ni_manager_call_device_enable(const char *ifname)
 		return FALSE;
 
 	rv = ni_dbus_object_call_simple(object,
-					NI_OBJECTMODEL_MANAGED_NETIF_INTERFACE, "enable",
+					NI_OBJECTMODEL_MANAGED_NETIF_INTERFACE, method,
 					DBUS_TYPE_INVALID, NULL,
 					DBUS_TYPE_INVALID, NULL);
 	
 	if (rv < 0) {
-		ni_error("Call to %s.enable() failed: %s",
-				ni_dbus_object_get_path(object), ni_strerror(rv));
+		ni_error("Call to %s.%s() failed: %s",
+				ni_dbus_object_get_path(object), method, ni_strerror(rv));
 		return FALSE;
 	}
 
 	return TRUE;
+}
+
+ni_bool_t
+ni_manager_call_device_enable(const char *ifname)
+{
+	return ni_manager_call_device_void_method(ifname, "enable");
+}
+
+ni_bool_t
+ni_manager_call_device_disable(const char *ifname)
+{
+	return ni_manager_call_device_void_method(ifname, "disable");
 }

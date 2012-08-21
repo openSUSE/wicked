@@ -79,6 +79,18 @@ ni_managed_netdev_enable(ni_managed_device_t *mdev)
 }
 
 /*
+ * Stop monitoring interface
+ */
+ni_bool_t
+ni_managed_netdev_disable(ni_managed_device_t *mdev)
+{
+	if (mdev->user_controlled)
+		ni_manager_schedule_down(mdev->manager, mdev->worker);
+	mdev->user_controlled = FALSE;
+	return TRUE;
+}
+
+/*
  * Create a dbus object representing the managed netdev
  */
 ni_dbus_object_t *
@@ -164,8 +176,33 @@ ni_objectmodel_managed_netdev_enable(ni_dbus_object_t *object, const ni_dbus_met
 	return TRUE;
 }
 
+/*
+ * ManagedInterface.disable
+ */
+static dbus_bool_t
+ni_objectmodel_managed_netdev_disable(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+					unsigned int argc, const ni_dbus_variant_t *argv,
+					ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_managed_device_t *mdev;
+
+	if ((mdev = ni_objectmodel_managed_netdev_unwrap(object, error)) == NULL)
+		return FALSE;
+
+	if (argc != 0)
+		return ni_dbus_error_invalid_args(error, ni_dbus_object_get_path(object), method->name);
+
+	if (!ni_managed_netdev_disable(mdev)) {
+		dbus_set_error(error, DBUS_ERROR_FAILED, "failed to disable device");
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
 static ni_dbus_method_t		ni_objectmodel_managed_netdev_methods[] = {
 	{ "enable",		"",		ni_objectmodel_managed_netdev_enable	},
+	{ "disable",		"",		ni_objectmodel_managed_netdev_disable	},
 	{ NULL }
 };
 
