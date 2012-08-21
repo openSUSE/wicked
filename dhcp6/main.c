@@ -32,7 +32,6 @@
 
 #include <wicked/types.h>
 #include <wicked/util.h>
-#include <wicked/wireless.h>
 #include <wicked/netinfo.h>
 #include <wicked/objectmodel.h>
 #include <wicked/logging.h>
@@ -215,9 +214,6 @@ dhcp6_client_request_info(const char *ifname)
 	//ni_duid_t *duid;
 	ni_dhcp6_request_t *req;
 
-	/* Disable wireless AP scanning */
-	ni_wireless_set_scanning(FALSE);
-
 	if (!(nc = ni_global_state_handle(1)))
 		ni_fatal("cannot refresh interface list!");
 
@@ -263,9 +259,6 @@ dhcp6_client_request_lease(const char *ifname)
 	ni_netdev_t *ifp;
 	//ni_duid_t *duid;
 	ni_dhcp6_request_t *req;
-
-	/* Disable wireless AP scanning */
-	ni_wireless_set_scanning(FALSE);
 
 	if (!(nc = ni_global_state_handle(1)))
 		ni_fatal("cannot refresh interface list!");
@@ -387,15 +380,9 @@ dhcp6_discover_devices(ni_dbus_server_t *server)
 	ni_netconfig_t *nc;
 	ni_netdev_t *	ifp;
 
-	/* Disable wireless AP scanning */
-	ni_wireless_set_scanning(FALSE);
-
 	if (!(nc = ni_global_state_handle(1)))
 		ni_fatal("cannot refresh interface list!");
 
-	/* FIXME: for wireless devices, we should disable all the
-	 * BSS discovery, it's not needed in the dhcp6 supplicant
-	 */
 	for (ifp = ni_netconfig_devlist(nc); ifp; ifp = ifp->next) {
 
 		/* currently ether type only */
