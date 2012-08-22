@@ -177,15 +177,12 @@ main(int argc, char **argv)
 }
 
 /*
- * Look up the dbus object for an interface by name.
- * The name can be either a kernel interface device name such as eth0,
- * or a dbus object path such as /org/opensuse/Network/Interfaces/5
+ * Get the dbus object for a list of interfaces.
  */
 static ni_dbus_object_t *
-wicked_get_interface(const char *ifname)
+get_netif_list_object(void)
 {
 	static ni_dbus_object_t *interfaces = NULL;
-	ni_dbus_object_t *object;
 
 	if (interfaces == NULL) {
 		if (!(interfaces = ni_call_get_netif_list_object()))
@@ -198,11 +195,24 @@ wicked_get_interface(const char *ifname)
 		}
 	}
 
-	if (ifname == NULL)
-		return interfaces;
+	return interfaces;
+}
+
+/*
+ * Look up the dbus object for an interface by name.
+ * The name can be either a kernel interface device name such as eth0,
+ * or a dbus object path such as /org/opensuse/Network/Interfaces/5
+ */
+static ni_dbus_object_t *
+get_netif_object(const char *ifname)
+{
+	ni_dbus_object_t *list_object, *object;
+
+	if (!(list_object = get_netif_list_object()))
+		return NULL;
 
 	/* Loop over all interfaces and find the one with matching name */
-	for (object = interfaces->children; object; object = object->next) {
+	for (object = list_object->children; object; object = object->next) {
 		if (ifname[0] == '/') {
 			if (ni_string_eq(object->path, ifname))
 				return object;
@@ -449,7 +459,7 @@ do_show(int argc, char **argv)
 	}
 
 	if (argc == 1) {
-		object = wicked_get_interface(NULL);
+		object = get_netif_list_object();
 		if (!object)
 			return 1;
 
@@ -490,7 +500,7 @@ do_show(int argc, char **argv)
 	} else {
 		const char *ifname = argv[1];
 
-		object = wicked_get_interface(ifname);
+		object = get_netif_object(ifname);
 		if (!object)
 			return 1;
 	}
@@ -809,7 +819,7 @@ add_conflict:
 			goto failed;
 		}
 
-		obj = wicked_get_interface(opt_device);
+		obj = get_netif_object(opt_device);
 		if (obj == NULL) {
 			ni_error("no such device or object: %s", opt_device);
 			goto failed;
