@@ -563,7 +563,7 @@ ni_objectmodel_manager_set_secret(ni_dbus_object_t *object, const ni_dbus_method
 static ni_dbus_method_t		ni_objectmodel_manager_methods[] = {
 	{ "createPolicy",	"s",		ni_objectmodel_manager_create_policy	},
 	{ "getDevice",		"s",		ni_objectmodel_manager_get_device	},
-	{ "addSecret",		"sss",		ni_objectmodel_manager_set_secret	},
+	{ "addSecret",		"a{sv}ss",	ni_objectmodel_manager_set_secret	},
 	{ NULL }
 };
 
