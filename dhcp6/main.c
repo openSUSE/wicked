@@ -83,6 +83,8 @@ static char *			opt_state_file;
 
 static ni_dbus_server_t *	dhcp6_dbus_server;
 
+static void			dhcp6_interface_event(ni_netdev_t *, ni_event_t);
+static void			dhcp6_interface_addr_event(ni_netdev_t *, ni_event_t, const ni_address_t *);
 
 static void			dhcp6_supplicant(void);
 
@@ -217,6 +219,13 @@ dhcp6_client_request_info(const char *ifname)
 	if (!(nc = ni_global_state_handle(1)))
 		ni_fatal("cannot refresh interface list!");
 
+	/* open global RTNL socket to listen for kernel events */
+	if (ni_server_listen_interface_events(dhcp6_interface_event) < 0)
+		ni_fatal("unable to initialize netlink listener");
+
+	if (ni_server_enable_interface_addr_events(dhcp6_interface_addr_event) < 0)
+		ni_fatal("unable to initialize netlink address update listener");
+
 	ifp = ni_netdev_by_name(nc, ifname);
 	if (!ifp)
 		ni_fatal("unable to find interface with name %s", ifname);
@@ -262,6 +271,13 @@ dhcp6_client_request_lease(const char *ifname)
 
 	if (!(nc = ni_global_state_handle(1)))
 		ni_fatal("cannot refresh interface list!");
+
+	/* open global RTNL socket to listen for kernel events */
+	if (ni_server_listen_interface_events(dhcp6_interface_event) < 0)
+		ni_fatal("unable to initialize netlink listener");
+
+	if (ni_server_enable_interface_addr_events(dhcp6_interface_addr_event) < 0)
+		ni_fatal("unable to initialize netlink address update listener");
 
 	ifp = ni_netdev_by_name(nc, ifname);
 	if (!ifp)
@@ -312,7 +328,6 @@ static ni_dbus_service_t	__wicked_dbus_dhcp6_interface = {
 };
 
 static void			dhcp6_discover_devices(ni_dbus_server_t *);
-static void			dhcp6_interface_event(ni_netdev_t *, ni_event_t);
 static void			dhcp6_protocol_event(enum ni_dhcp6_event, const ni_dhcp6_device_t *, ni_addrconf_lease_t *);
 static void			dhcp6_recover_addrconf(const char *filename);
 
@@ -410,6 +425,9 @@ dhcp6_supplicant(void)
 	if (ni_server_listen_interface_events(dhcp6_interface_event) < 0)
 		ni_fatal("unable to initialize netlink listener");
 
+	if (ni_server_enable_interface_addr_events(dhcp6_interface_addr_event) < 0)
+		ni_fatal("unable to initialize netlink address update listener");
+
 	if (!opt_foreground) {
 		if (ni_server_background(program_name) < 0)
 			ni_fatal("unable to background server");
@@ -463,8 +481,8 @@ dhcp6_interface_event(ni_netdev_t *ifp, ni_event_t event)
 	ni_dhcp6_device_t *dev;
 	ni_netdev_t *ofp;
 
-	ni_debug_dhcp("Received event %d for interface %s [%u]",
-			(int)event, ifp->name, ifp->link.ifindex);
+	ni_debug_events("%s[%u]: received interface event: %s",
+			ifp->name, ifp->link.ifindex, ni_event_type_to_name(event));
 
         switch (event) {
         case NI_EVENT_DEVICE_CREATE:
@@ -504,6 +522,27 @@ dhcp6_interface_event(ni_netdev_t *ifp, ni_event_t event)
         default:
         break;
         }
+}
+
+static void
+dhcp6_interface_addr_event(ni_netdev_t *ifp, ni_event_t event, const ni_address_t *ap)
+{
+	ni_dhcp6_device_t *dev;
+
+	if ((dev = ni_dhcp6_device_by_index(ifp->link.ifindex)) == NULL)
+		return;
+
+	switch (event) {
+	case NI_EVENT_ADDRESS_UPDATE:
+	case NI_EVENT_ADDRESS_DELETE:
+		ni_debug_events("%s[%u]: received interface address event: %s %s",
+			dev->ifname, dev->link.ifindex, ni_event_type_to_name(event),
+			ni_address_print(&ap->local_addr));
+		ni_dhcp6_device_address_event(ifp, dev, event, ap);
+		break;
+	default:
+		break;
+	}
 }
 
 static void
