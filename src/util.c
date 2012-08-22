@@ -915,28 +915,24 @@ ni_stringbuf_printf(ni_stringbuf_t *sb, const char *fmt, ...)
 int
 ni_stringbuf_vprintf(ni_stringbuf_t *sb, const char *fmt, va_list ap)
 {
-	va_list cp;
-	size_t size = (NC_STRINGBUF_CHUNK * 4) - 1;
+	char *s;
 	int n;
 
-	sb->len = 0;
-	ni_stringbuf_grow(sb, size++);
-	while(1) {
-		va_copy(cp, ap);
-		n = vsnprintf(sb->string, size, fmt, cp);
-		va_end(cp);
+	n = vasprintf(&s, fmt, ap);
+	if (n < 0)
+		return -1;
 
-		if(n > -1 && (size_t)n < size) {
-			sb->len = n;
-			break;
-		}
-		if (n > -1)
-			size = n;
-		else
-			size *= 2;
+	if (sb->autoreset)
+		ni_stringbuf_destroy(sb);
 
-		ni_stringbuf_grow(sb, size++);
+	if (sb->dynamic && sb->len == 0) {
+		sb->string = s;
+		sb->size = sb->len = n;
+	} else {
+		ni_stringbuf_puts(sb, s);
+		free(s);
 	}
+
 	return sb->len;
 }
 
