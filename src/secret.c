@@ -350,7 +350,7 @@ ni_security_id_parse(ni_security_id_t *id, const char *string)
 failed:
 	ni_error("unable to parse security id");
 	ni_error("  %s", orig_string);
-	ni_error("  %.*s^--- failed here", string - orig_string, "");
+	ni_error("  %.*s^--- failed here", (int)(string - orig_string), "");
 	return FALSE;
 }
 
