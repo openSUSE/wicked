@@ -485,6 +485,9 @@ __handle_address_update(ni_netdev_t *ifp, ni_dhcp6_device_t *dev, const ni_addre
 
 	switch (dev->fsm.state) {
 	case NI_DHCP6_STATE_WAIT_READY:
+		if (addr->family != AF_INET6)
+			return;
+
 		if (!dev->config) {
 			ni_error("%s[%u]: BUG -- wait ready without config",
 					dev->ifname, dev->link.ifindex);
