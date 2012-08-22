@@ -52,16 +52,15 @@ static int		opt_foreground = 0;
 static int		opt_recover_leases = 1;
 static int		opt_no_modem_manager = 0;
 static char *		opt_state_file = NULL;
-static ni_dbus_server_t *wicked_dbus_server;
-static ni_xs_scope_t *	wicked_dbus_xml_schema;
+static ni_dbus_server_t *dbus_server;
 
-static void		wicked_interface_server(void);
-static void		wicked_discover_state(void);
-static void		wicked_recover_addrconf(const char *filename);
-static void		wicked_interface_event(ni_netdev_t *, ni_event_t);
-static void		wicked_rfkill_event(ni_rfkill_type_t, ni_bool_t, void *);
-static void		wicked_other_event(ni_event_t);
-static void		wicked_modem_event(ni_modem_t *, ni_event_t);
+static void		run_interface_server(void);
+static void		discover_state(ni_dbus_server_t *);
+static void		recover_addrconf(const char *filename);
+static void		handle_interface_event(ni_netdev_t *, ni_event_t);
+static void		handle_rfkill_event(ni_rfkill_type_t, ni_bool_t, void *);
+static void		handle_other_event(ni_event_t);
+static void		handle_modem_event(ni_modem_t *, ni_event_t);
 
 int
 main(int argc, char **argv)
@@ -128,7 +127,7 @@ main(int argc, char **argv)
 	if (optind != argc)
 		goto usage;
 
-	wicked_interface_server();
+	run_interface_server();
 	return 0;
 }
 
@@ -136,32 +135,34 @@ main(int argc, char **argv)
  * Implement service for configuring the system's network interfaces
  */
 void
-wicked_interface_server(void)
+run_interface_server(void)
 {
-	wicked_dbus_server = ni_objectmodel_create_service();
-	if (!wicked_dbus_server)
+	ni_xs_scope_t *	schema;
+
+	dbus_server = ni_objectmodel_create_service();
+	if (!dbus_server)
 		ni_fatal("Cannot create server, giving up.");
 
 	if (!opt_no_modem_manager) {
-		if (!ni_modem_manager_init(wicked_modem_event))
+		if (!ni_modem_manager_init(handle_modem_event))
 			ni_error("unable to initialize modem manager client");
 	}
 
 	/* Enable scanning for all wireless interfaces */
 	ni_wireless_set_scanning(TRUE);
 
-	wicked_dbus_xml_schema = ni_objectmodel_init(wicked_dbus_server);
-	if (wicked_dbus_xml_schema == NULL)
+	schema = ni_objectmodel_init(dbus_server);
+	if (schema == NULL)
 		ni_fatal("Cannot initialize objectmodel, giving up.");
 
 	/* open global RTNL socket to listen for kernel events */
-	if (ni_server_listen_interface_events(wicked_interface_event) < 0)
+	if (ni_server_listen_interface_events(handle_interface_event) < 0)
 		ni_fatal("unable to initialize netlink listener");
 
-	ni_rfkill_open(wicked_rfkill_event, NULL);
+	ni_rfkill_open(handle_rfkill_event, NULL);
 
 	/* Listen for other events, such as RESOLVER_UPDATED */
-	ni_server_listen_other_events(wicked_other_event);
+	ni_server_listen_other_events(handle_other_event);
 
 	if (!opt_foreground) {
 		if (ni_server_background(program_name) < 0)
@@ -169,10 +170,10 @@ wicked_interface_server(void)
 		ni_log_destination_syslog(program_name);
 	}
 
-	wicked_discover_state();
+	discover_state(dbus_server);
 
 	if (opt_recover_leases)
-		wicked_recover_addrconf(opt_state_file);
+		recover_addrconf(opt_state_file);
 
 	while (!ni_caught_terminal_signal()) {
 		long timeout;
@@ -196,7 +197,7 @@ wicked_interface_server(void)
  * This allows a daemon restart without losing lease state.
  */
 void
-wicked_discover_state(void)
+discover_state(ni_dbus_server_t *server)
 {
 	ni_netconfig_t *nc;
 	ni_netdev_t *ifp;
@@ -206,12 +207,12 @@ wicked_discover_state(void)
 	if (nc == NULL)
 		ni_fatal("failed to discover interface state");
 
-	if (wicked_dbus_server) {
+	if (server) {
 		for (ifp = ni_netconfig_devlist(nc); ifp; ifp = ifp->next)
-			ni_objectmodel_register_netif(wicked_dbus_server, ifp, NULL);
+			ni_objectmodel_register_netif(server, ifp, NULL);
 
 		for (modem = ni_netconfig_modem_list(nc); modem; modem = modem->list.next)
-			ni_objectmodel_register_modem(wicked_dbus_server, modem);
+			ni_objectmodel_register_modem(server, modem);
 	}
 }
 
@@ -221,7 +222,7 @@ wicked_discover_state(void)
  * this needs to happen in the respective supplicants.
  */
 void
-wicked_recover_addrconf(const char *filename)
+recover_addrconf(const char *filename)
 {
 	const char *prefix_list[] = {
 		NI_OBJECTMODEL_ADDRCONF_INTERFACE,
@@ -249,19 +250,19 @@ wicked_recover_addrconf(const char *filename)
  * mucking with manually.
  */
 void
-wicked_interface_event(ni_netdev_t *dev, ni_event_t event)
+handle_interface_event(ni_netdev_t *dev, ni_event_t event)
 {
 	ni_uuid_t *event_uuid = NULL;
 
-	if (wicked_dbus_server) {
+	if (dbus_server) {
 		ni_dbus_object_t *object;
 
 		if (event == NI_EVENT_DEVICE_CREATE) {
 			/* A new netif was discovered; create a dbus server object
 			 * enacpsulating it. */
-			object = ni_objectmodel_register_netif(wicked_dbus_server, dev, NULL);
+			object = ni_objectmodel_register_netif(dbus_server, dev, NULL);
 		} else
-		if (!(object = ni_objectmodel_get_netif_object(wicked_dbus_server, dev))) {
+		if (!(object = ni_objectmodel_get_netif_object(dbus_server, dev))) {
 			ni_error("cannot send %s event for model \"%s\" - no dbus device",
 				ni_event_type_to_name(event), dev->name);
 			return;
@@ -270,7 +271,7 @@ wicked_interface_event(ni_netdev_t *dev, ni_event_t event)
 		switch (event) {
 		case NI_EVENT_DEVICE_CREATE:
 			/* Create dbus object and emit event */
-			ni_objectmodel_send_netif_event(wicked_dbus_server, object, event, NULL);
+			ni_objectmodel_send_netif_event(dbus_server, object, event, NULL);
 			break;
 
 		case NI_EVENT_DEVICE_DELETE:
@@ -279,13 +280,13 @@ wicked_interface_event(ni_netdev_t *dev, ni_event_t event)
 			 * Note; deletion of the object will be deferred until we return to
 			 * the main loop.
 			 */
-			ni_objectmodel_unregister_netif(wicked_dbus_server, dev);
+			ni_objectmodel_unregister_netif(dbus_server, dev);
 
 			/* Delete dbus object and emit event */
 			if (!ni_uuid_is_null(&dev->link.event_uuid))
 				event_uuid = &dev->link.event_uuid;
-			ni_objectmodel_send_netif_event(wicked_dbus_server, object, NI_EVENT_DEVICE_DOWN, event_uuid);
-			ni_objectmodel_send_netif_event(wicked_dbus_server, object, NI_EVENT_DEVICE_DELETE, NULL);
+			ni_objectmodel_send_netif_event(dbus_server, object, NI_EVENT_DEVICE_DOWN, event_uuid);
+			ni_objectmodel_send_netif_event(dbus_server, object, NI_EVENT_DEVICE_DELETE, NULL);
 			break;
 
 		case NI_EVENT_LINK_ASSOCIATED:
@@ -297,37 +298,37 @@ wicked_interface_event(ni_netdev_t *dev, ni_event_t event)
 			/* fallthru */
 
 		default:
-			ni_objectmodel_send_netif_event(wicked_dbus_server, object, event, event_uuid);
+			ni_objectmodel_send_netif_event(dbus_server, object, event, event_uuid);
 			break;
 		}
 	}
 }
 
 static void
-wicked_other_event(ni_event_t event)
+handle_other_event(ni_event_t event)
 {
 	ni_debug_events("%s(%s)", __func__, ni_event_type_to_name(event));
-	if (wicked_dbus_server)
-		ni_objectmodel_other_event(wicked_dbus_server, event, NULL);
+	if (dbus_server)
+		ni_objectmodel_other_event(dbus_server, event, NULL);
 }
 
 /*
  * Modem event - device was plugged
  */
 static void
-wicked_modem_event(ni_modem_t *modem, ni_event_t event)
+handle_modem_event(ni_modem_t *modem, ni_event_t event)
 {
 	ni_debug_events("%s(%s, %s)", __func__, ni_event_type_to_name(event), modem->real_path);
-	if (wicked_dbus_server) {
+	if (dbus_server) {
 		ni_dbus_object_t *object;
 		ni_uuid_t *event_uuid = NULL;
 
 		if (event == NI_EVENT_DEVICE_CREATE) {
 			/* A new modem was discovered; create a dbus server object
 			 * enacpsulating it. */
-			object = ni_objectmodel_register_modem(wicked_dbus_server, modem);
+			object = ni_objectmodel_register_modem(dbus_server, modem);
 		} else
-		if (!(object = ni_objectmodel_get_modem_object(wicked_dbus_server, modem))) {
+		if (!(object = ni_objectmodel_get_modem_object(dbus_server, modem))) {
 			ni_error("cannot send %s event for model \"%s\" - no dbus device",
 				ni_event_type_to_name(event), modem->real_path);
 			return;
@@ -336,7 +337,7 @@ wicked_modem_event(ni_modem_t *modem, ni_event_t event)
 		switch (event) {
 		case NI_EVENT_DEVICE_CREATE:
 			/* Create dbus object and emit event */
-			ni_objectmodel_send_modem_event(wicked_dbus_server, object, event, event_uuid);
+			ni_objectmodel_send_modem_event(dbus_server, object, event, event_uuid);
 			break;
 
 		case NI_EVENT_DEVICE_DELETE:
@@ -345,13 +346,13 @@ wicked_modem_event(ni_modem_t *modem, ni_event_t event)
 			 * Note; deletion of the object will be deferred until we return to
 			 * the main loop.
 			 */
-			ni_objectmodel_unregister_modem(wicked_dbus_server, modem);
+			ni_objectmodel_unregister_modem(dbus_server, modem);
 
 			/* Emit deletion event */
 			if (!ni_uuid_is_null(&modem->event_uuid))
 				event_uuid = &modem->event_uuid;
-			ni_objectmodel_send_modem_event(wicked_dbus_server, object, NI_EVENT_DEVICE_DOWN, event_uuid);
-			ni_objectmodel_send_modem_event(wicked_dbus_server, object, NI_EVENT_DEVICE_DELETE, NULL);
+			ni_objectmodel_send_modem_event(dbus_server, object, NI_EVENT_DEVICE_DOWN, event_uuid);
+			ni_objectmodel_send_modem_event(dbus_server, object, NI_EVENT_DEVICE_DELETE, NULL);
 			break;
 
 		case NI_EVENT_LINK_ASSOCIATED:
@@ -363,14 +364,14 @@ wicked_modem_event(ni_modem_t *modem, ni_event_t event)
 			/* fallthru */
 
 		default:
-			ni_objectmodel_send_modem_event(wicked_dbus_server, object, event, event_uuid);
+			ni_objectmodel_send_modem_event(dbus_server, object, event, event_uuid);
 			break;
 		}
 	}
 }
 
 void
-wicked_rfkill_event(ni_rfkill_type_t type, ni_bool_t blocked, void *user_data)
+handle_rfkill_event(ni_rfkill_type_t type, ni_bool_t blocked, void *user_data)
 {
 	ni_debug_application("rfkill: %s devices %s", ni_rfkill_type_string(type),
 			blocked? "blocked" : "enabled");
