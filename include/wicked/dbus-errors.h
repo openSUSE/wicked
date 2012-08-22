@@ -8,8 +8,9 @@
 #define __WICKED_DBUS_ERRORS_H__
 
 #include <dbus/dbus.h>
+#include <wicked/objectmodel.h>
 
-#define __NI_DBUS_ERROR(x)		"com.suse.Wicked." #x
+#define __NI_DBUS_ERROR(x)		NI_OBJECTMODEL_NAMESPACE "." #x
 
 #define NI_DBUS_ERROR_PERMISSION_DENIED		__NI_DBUS_ERROR(PermissionDenied)
 #define NI_DBUS_ERROR_DEVICE_NOT_KNOWN		__NI_DBUS_ERROR(DeviceNotKnown)

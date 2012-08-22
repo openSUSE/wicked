@@ -224,7 +224,7 @@ void
 wicked_recover_addrconf(const char *filename)
 {
 	const char *prefix_list[] = {
-		NI_OBJECTMODEL_INTERFACE ".Addrconf",
+		NI_OBJECTMODEL_ADDRCONF_INTERFACE,
 		NULL
 	};
 
