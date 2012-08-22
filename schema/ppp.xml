@@ -1,7 +1,7 @@
 <!--
   -- PPP Service definition
   -->
-<service name="ppp" interface="com.suse.Wicked.PPP" object-class="netif-ppp">
+<service name="ppp" interface="org.opensuse.Network.PPP" object-class="netif-ppp">
 
  <!-- This is the linkinfo returned in interface reports -->
  <define name="linkinfo" class="dict">
@@ -80,7 +80,7 @@
      element. It inherits all properties from the base PPP linkinfo, and adds
      a <device> element that references a modem device.
   -->
-<service name="ppp-serial-factory" interface="com.suse.Wicked.PPP.Factory" object-class="netif-list">
+<service name="ppp-serial-factory" interface="org.opensuse.Network.PPP.Factory" object-class="netif-list">
  <define name="ppp-serial-linkinfo" class="dict" extends="ppp:linkinfo">
    <!-- The modem device. We need to subclass for ppp over ethernet,
      -- since this will reference an ethernet device instead of a modem.
@@ -117,7 +117,7 @@
      element. It inherits all properties from the base PPP linkinfo, and adds
      a <device> element that references an Ethernet device.
   -->
-<service name="pppoe-factory" interface="com.suse.Wicked.PPPoE.Factory" object-class="netif-list">
+<service name="pppoe-factory" interface="org.opensuse.Network.PPPoE.Factory" object-class="netif-list">
  <define name="pppoe-linkinfo" class="dict" extends="ppp:linkinfo">
   <device type="string">
     <meta:netif-reference shared="true" object-class="netif-ethernet"/>

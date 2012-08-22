@@ -136,8 +136,9 @@ ni_objectmodel_create_modem_list(ni_dbus_server_t *server)
 {
 	ni_dbus_object_t *object;
 
-	/* Register com.suse.Wicked.Modem, which is the list of all modems */
-	object = ni_dbus_server_register_object(server, "Modem",
+	/* Register the list of all modems */
+	object = ni_dbus_server_register_object(server,
+					NI_OBJECTMODEL_MODEM_LIST_PATH,
 					&ni_objectmodel_modem_list_class,
 					NULL);
 	if (object == NULL)

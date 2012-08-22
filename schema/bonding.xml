@@ -1,4 +1,4 @@
-<service name="bonding" interface="com.suse.Wicked.Bond" object-class="netif-bond">
+<service name="bonding" interface="org.opensuse.Network.Bond" object-class="netif-bond">
  <!-- This is the device-info returned in interface reports -->
  <define name="device-info" class="dict">
    <mode type="builtin-bonding-mode"/>
@@ -54,7 +54,7 @@
  </method>
 </service>
 
-<service name="bonding-factory" interface="com.suse.Wicked.Bond.Factory" object-class="netif-list">
+<service name="bonding-factory" interface="org.opensuse.Network.Bond.Factory" object-class="netif-list">
   <method name="newDevice">
     <arguments>
      <name type="string"/>

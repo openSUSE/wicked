@@ -1,7 +1,7 @@
 <!--
   -- Ethernet Service definition
   -->
-<service name="ethernet" interface="com.suse.Wicked.Ethernet" object-class="netif-ethernet">
+<service name="ethernet" interface="org.opensuse.Network.Ethernet" object-class="netif-ethernet">
   <!-- This is the linkinfo returned in interface reports -->
   <define name="tristate" type="uint32" constraint="enum">
       <default value="0"/>

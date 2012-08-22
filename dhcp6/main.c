@@ -315,7 +315,7 @@ dhcp6_client_release_lease(const char *ifname)
  * Functions to support the DHCP6 DBus binding
  */
 static ni_dbus_service_t	__wicked_dbus_dhcp6_interface = {
-	.name			= NI_OBJECTMODEL_DHCP6_INTERFACE,	/* com.suse.Wicked.DHCP6 */
+	.name			= NI_OBJECTMODEL_DHCP6_INTERFACE,	/* org.opensuse.Network.DHCP6 */
 };
 
 static void			dhcp6_discover_devices(ni_dbus_server_t *);
@@ -333,10 +333,10 @@ dhcp6_register_services(ni_dbus_server_t *server)
 	ni_dbus_object_t *root_object = ni_dbus_server_get_root_object(server);
 	ni_dbus_object_t *object;
 
-	/*  Register the root object (com.suse.Wicked.DHCP6) */
+	/*  Register the root object (org.opensuse.Network.DHCP6) */
 	ni_dbus_object_register_service(root_object, &__wicked_dbus_dhcp6_interface);
 
-	/* Register /com/suse/Wicked/DHCP6/Interface */
+	/* Register /org/opensuse/Network/DHCP6/Interface */
 	object = ni_dbus_server_register_object(server, "Interface", &ni_dbus_anonymous_class, NULL);
 	if (object == NULL)
 		ni_fatal("Unable to create dbus object for interfaces");
@@ -412,7 +412,7 @@ dhcp6_discover_devices(ni_dbus_server_t *server)
 static void
 dhcp6_supplicant(void)
 {
-	/* Initialize dbus server (com.suse.Wicked.DHCP6) */
+	/* Initialize dbus server (org.opensuse.Network.DHCP6) */
 	dhcp6_dbus_server = ni_server_listen_dbus(NI_OBJECTMODEL_DBUS_BUS_NAME_DHCP6);
 	if (dhcp6_dbus_server == NULL)
 		ni_fatal("Unable to initialize dbus server");

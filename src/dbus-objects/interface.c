@@ -146,8 +146,9 @@ ni_objectmodel_create_netif_list(ni_dbus_server_t *server)
 {
 	ni_dbus_object_t *object;
 
-	/* Register com.suse.Wicked.Interface, which is the list of all interfaces */
-	object = ni_dbus_server_register_object(server, "Interface",
+	/* Register the list of all interfaces */
+	object = ni_dbus_server_register_object(server,
+					NI_OBJECTMODEL_NETIF_LIST_PATH,
 					&ni_objectmodel_netif_list_class,
 					NULL);
 	if (object == NULL)

@@ -606,7 +606,7 @@ ni_config_parse_fslocation(ni_config_fslocation_t *fsloc, const char *name, xml_
  * from the main wicked body of code; either through a shared library or an
  * external command/shell script
  *
- * <extension interface="com.suse.Wicked.foobar">
+ * <extension interface="org.opensuse.Network.foobar">
  *  <action name="dbusMethodName" command="/some/shell/scripts some-args"/>
  *  <builtin name="dbusOtherMethodName" library="/usr/lib/libfoo.so" symbol="c_method_impl_name"/>
  *

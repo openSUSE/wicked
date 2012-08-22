@@ -4,7 +4,7 @@
   -- All of this is still very simplistic, and the whole point of doing it
   -- this way is to show how it *could* be done.
   -->
-<service name="firewall" interface="com.suse.Wicked.Firewall" object-class="netif">
+<service name="firewall" interface="org.opensuse.Network.Firewall" object-class="netif">
   <define name="proto_t" type="uint32" constraint="enum">
     <tcp/>
     <udp/>

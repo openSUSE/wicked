@@ -8,7 +8,7 @@
 
   <statedir path="/var/run/wicked" mode="0755"/>
 
-  <dbus name="com.suse.Wicked" />
+  <dbus name="org.opensuse.Network" />
   <schema name="/etc/wicked/schema/wicked.xml"/>
 
   <netif-naming-services>
@@ -22,14 +22,14 @@
     <script name="ibft" command="/etc/wicked/extensions/ibft" />
   </netif-firmware-discovery>
 
-  <dbus-service interface="com.suse.Wicked.Ethernet">
+  <dbus-service interface="org.opensuse.Network.Ethernet">
    <!-- default environment for all calls to this extension script -->
    <putenv name="WICKED_OBJECT_PATH" value="$object-path"/>
    <putenv name="WICKED_INTERFACE_NAME" value="$property:name"/>
    <putenv name="WICKED_INTERFACE_INDEX" value="$property:index"/>
   </dbus-service>
 
-  <dbus-service interface="com.suse.Wicked.Bond">
+  <dbus-service interface="org.opensuse.Network.Bond">
    <action name="addSlave" command="/etc/wicked/extensions/bonding addSlave" />
    <action name="removeSlave" command="/etc/wicked/extensions/bonding removeSlave" />
 
@@ -39,7 +39,7 @@
    <putenv name="WICKED_INTERFACE_INDEX" value="$property:index"/>
   </dbus-service>
 
-  <dbus-service interface="com.suse.Wicked.Bridge">
+  <dbus-service interface="org.opensuse.Network.Bridge">
    <action name="addPort" command="/etc/wicked/extensions/bridge addPort" />
    <action name="removePort" command="/etc/wicked/extensions/bridge removePort" />
 
@@ -49,14 +49,14 @@
    <putenv name="WICKED_INTERFACE_INDEX" value="$property:index"/>
   </dbus-service>
 
-  <dbus-service interface="com.suse.Wicked.Wireless">
+  <dbus-service interface="org.opensuse.Network.Wireless">
    <!-- default environment for all calls to this extension script -->
    <putenv name="WICKED_OBJECT_PATH" value="$object-path"/>
    <putenv name="WICKED_INTERFACE_NAME" value="$property:name"/>
    <putenv name="WICKED_INTERFACE_INDEX" value="$property:index"/>
   </dbus-service>
 
-  <dbus-service interface="com.suse.Wicked.OpenVPN">
+  <dbus-service interface="org.opensuse.Network.OpenVPN">
    <action name="changeDevice" command="/etc/wicked/extensions/openvpn change" />
    <action name="linkUp" command="/etc/wicked/extensions/openvpn link-up" />
    <action name="linkDown" command="/etc/wicked/extensions/openvpn link-down" />
@@ -68,7 +68,7 @@
    <putenv name="WICKED_TUNNEL_ID" value="$property:tunnel-id"/>
   </dbus-service>
 
-  <dbus-service interface="com.suse.Wicked.Firewall">
+  <dbus-service interface="org.opensuse.Network.Firewall">
    <action name="firewallUp" command="/etc/wicked/extensions/firewall up"/>
    <action name="firewallDown" command="/etc/wicked/extensions/firewall down"/>
 

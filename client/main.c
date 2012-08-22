@@ -179,7 +179,7 @@ main(int argc, char **argv)
 /*
  * Look up the dbus object for an interface by name.
  * The name can be either a kernel interface device name such as eth0,
- * or a dbus object path such as /com/suse/Wicked/Interfaces/5
+ * or a dbus object path such as /org/opensuse/Network/Interfaces/5
  */
 static ni_dbus_object_t *
 wicked_get_interface(const char *ifname)

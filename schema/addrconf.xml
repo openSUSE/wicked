@@ -7,7 +7,7 @@
 <!-- =================================================
      Static IPv4 Address configuration service
      ================================================= -->
-<service name="ipv4:static" interface="com.suse.Wicked.Addrconf.ipv4.static" object-class="netif">
+<service name="ipv4:static" interface="org.opensuse.Network.Addrconf.ipv4.static" object-class="netif">
   <define name="request" class="dict">
     <address type="network-interface:assigned-address" />
     <route type="network-interface:assigned-route" />
@@ -37,7 +37,7 @@
 <!-- =================================================
      Static IPv6 Address configuration service
      ================================================= -->
-<service name="ipv6:static" interface="com.suse.Wicked.Addrconf.ipv6.static" object-class="netif">
+<service name="ipv6:static" interface="org.opensuse.Network.Addrconf.ipv6.static" object-class="netif">
   <define name="request" class="dict">
     <address type="network-interface:assigned-address" />
     <route type="network-interface:assigned-route" />
@@ -67,7 +67,7 @@
 <!-- =================================================
      IPv4 DHCP Address configuration service
      ================================================= -->
-<service name="ipv4:dhcp" interface="com.suse.Wicked.Addrconf.ipv4.dhcp" object-class="netif">
+<service name="ipv4:dhcp" interface="org.opensuse.Network.Addrconf.ipv4.dhcp" object-class="netif">
   <define name="request" class="dict">
     <uuid type="uuid-type"/>
     <enabled type="boolean"/>
@@ -101,7 +101,7 @@
 <!-- =================================================
      IPv6 DHCP Address configuration service
      ================================================= -->
-<service name="ipv6:dhcp" interface="com.suse.Wicked.Addrconf.ipv6.dhcp" object-class="netif">
+<service name="ipv6:dhcp" interface="org.opensuse.Network.Addrconf.ipv6.dhcp" object-class="netif">
   <define name="request" class="dict">
     <uuid type="uuid-type"/>
     <enabled type="boolean"/>
@@ -135,7 +135,7 @@
 <!-- =================================================
      IPv4 zeroconf Address configuration service
      ================================================= -->
-<service name="ipv4:auto" interface="com.suse.Wicked.Addrconf.ipv4.auto" object-class="netif">
+<service name="ipv4:auto" interface="org.opensuse.Network.Addrconf.ipv4.auto" object-class="netif">
   <define name="request" class="dict">
     <uuid type="uuid-type"/>
     <enabled type="boolean"/>

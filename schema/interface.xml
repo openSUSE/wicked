@@ -93,7 +93,7 @@
      path. This could be used to use other means of interface
      identification that what we usually have.
      ================================================= -->
-<service name="interface-list" interface="com.suse.Wicked.InterfaceList">
+<service name="interface-list" interface="org.opensuse.Network.InterfaceList">
   <method name="identifyDevice">
     <arguments>
       <query class="dict"/>
@@ -109,13 +109,13 @@
 
      Note that link-layer specific properties and methods
      are defined by overlay DBus services, such as
-     com.suse.Wicked.Ethernet, etc.
+     org.opensuse.Network.Ethernet, etc.
 
      Address configuration services are provided by yet
      another set of interfaces that are attached to a network
      interface.
      ================================================= -->
-<service name="interface" interface="com.suse.Wicked.Interface" object-class="netif">
+<service name="interface" interface="org.opensuse.Network.Interface" object-class="netif">
   <define name="properties" type="network-interface"/>
 
   <define name="callback-info" class="dict">

@@ -117,7 +117,7 @@ function wicked_error {
 
 function wicked_auth_error {
 
-	echo "<error name=\"com.suse.Wicked.AuthInfoMissing\">$@</error>" >$WICKED_RETFILE
+	echo "<error name=\"org.opensuse.Network.AuthInfoMissing\">$@</error>" >$WICKED_RETFILE
 	exit 1
 }
 
@@ -132,7 +132,7 @@ function wicked_return_interface_object {
 
 	ifname=$1
 	ifindex=`/sbin/ip link show dev "$ifname" | sed '/^\([0-9]\+\):.*/s//\1/;t;d'`
-	wicked_return_scalar "/com/suse/Wicked/Interface/$ifindex"
+	wicked_return_scalar "/org/opensuse/Network/Interface/$ifindex"
 }
 
 ##################################################################

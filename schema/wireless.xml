@@ -1,7 +1,7 @@
 <!--
   -- Wireless Service definition
   -->
-<service name="wireless" interface="com.suse.Wicked.Wireless" object-class="netif-wireless">
+<service name="wireless" interface="org.opensuse.Network.Wireless" object-class="netif-wireless">
   <define name="network_t" class="dict">
     <essid type="string"/>
     <access-point type="ethernet-address"/>

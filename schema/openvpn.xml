@@ -6,7 +6,7 @@
   -->
 <object-class name="netif-openvpn" base-class="netif-virtual-tunnel"/>
 
-<service name="openvpn" interface="com.suse.Wicked.OpenVPN" object-class="netif-openvpn">
+<service name="openvpn" interface="org.opensuse.Network.OpenVPN" object-class="netif-openvpn">
  <!-- This is the linkinfo returned in interface reports -->
  <define name="linkinfo" class="dict">
   <remote-address type="string" constraint="required"/>
@@ -99,13 +99,13 @@
  </method>
 </service>
 
-<service name="tun" interface="com.suse.Wicked.TUN" object-class="netif-virtual-tunnel">
+<service name="tun" interface="org.opensuse.Network.TUN" object-class="netif-virtual-tunnel">
  <method name="deleteDevice">
    <!-- no arguments, no return code -->
  </method>
 </service>
 
-<service name="openvpn-factory" interface="com.suse.Wicked.OpenVPN.Factory" object-class="netif-list">
+<service name="openvpn-factory" interface="org.opensuse.Network.OpenVPN.Factory" object-class="netif-list">
  <!-- "Create" openvpn device.
    -- This will create a tunX device and an openvpn config file.
    -- The config file isn't used until the client invokes the linkUp method.
@@ -123,7 +123,7 @@
  </method>
 </service>
 
-<service name="tun-factory" interface="com.suse.Wicked.TUN.Factory" object-class="netif-list">
+<service name="tun-factory" interface="org.opensuse.Network.TUN.Factory" object-class="netif-list">
  <define name="linkinfo" class="dict">
    <!-- nothing -->
  </define>

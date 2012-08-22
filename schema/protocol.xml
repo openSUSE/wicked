@@ -9,7 +9,7 @@
 <!-- =================================================
      IPv4
      ================================================= -->
-<service name="ipv4" interface="com.suse.Wicked.Protocol.IPv4" object-class="netif">
+<service name="ipv4" interface="org.opensuse.Network.Protocol.IPv4" object-class="netif">
   <define name="properties" class="dict">
     <forwarding type="boolean" />
     <accept-redirects type="boolean" />
@@ -28,7 +28,7 @@
 <!-- =================================================
      IPv6
      ================================================= -->
-<service name="ipv6" interface="com.suse.Wicked.Protocol.IPv6" object-class="netif">
+<service name="ipv6" interface="org.opensuse.Network.Protocol.IPv6" object-class="netif">
   <define name="properties" class="dict">
     <enabled type="boolean" />
     <forwarding type="uint32" />

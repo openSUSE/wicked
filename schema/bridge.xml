@@ -1,5 +1,5 @@
 
-<service name="bridge" interface="com.suse.Wicked.Bridge" object-class="netif-bridge">
+<service name="bridge" interface="org.opensuse.Network.Bridge" object-class="netif-bridge">
 
   <define name="port-type" class="dict">
     <!-- The port interface.
@@ -87,7 +87,7 @@
   </method>
 </service>
 
-<service name="bridge-factory" interface="com.suse.Wicked.Bridge.Factory" object-class="netif-list">
+<service name="bridge-factory" interface="org.opensuse.Network.Bridge.Factory" object-class="netif-list">
   <method name="newDevice">
     <arguments>
      <name type="string"/>

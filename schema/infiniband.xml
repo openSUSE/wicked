@@ -1,7 +1,7 @@
 <!--
   -- Infiniband Service definition
   -->
-<service name="infiniband" interface="com.suse.Wicked.Infiniband" object-class="netif-infiniband">
+<service name="infiniband" interface="org.opensuse.Network.Infiniband" object-class="netif-infiniband">
   <define name="mode_t" type="uint32" constraint="enum">
       <default value="0"/>
       <connected value="1"/>
@@ -25,7 +25,7 @@
   </method>
 </service>
 
-<service name="infiniband-child" interface="com.suse.Wicked.InfinibandChild" object-class="netif-infiniband-child">
+<service name="infiniband-child" interface="org.opensuse.Network.InfinibandChild" object-class="netif-infiniband-child">
   <define name="linkinfo" class="dict">
     <device type="string" />
     <mode type="infiniband:mode_t"/>
@@ -35,7 +35,7 @@
   <method name="deleteDevice" />
 </service>
 
-<service name="infiniband-child-factory" interface="com.suse.Wicked.InfinibandChild.Factory" object-class="netif-list">
+<service name="infiniband-child-factory" interface="org.opensuse.Network.InfinibandChild.Factory" object-class="netif-list">
 
   <method name="newDevice">
     <arguments>

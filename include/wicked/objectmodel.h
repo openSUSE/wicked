@@ -45,8 +45,8 @@ extern ni_dbus_class_t *	ni_objectmodel_class_new(const char *, const ni_dbus_cl
 #define NI_OBJECTMODEL_MODEM_CDMA_CLASS		"modem-cdma"
 #define NI_OBJECTMODEL_MODEM_LIST_CLASS		"modem-list"
 
-#define NI_OBJECTMODEL_NAMESPACE		"com.suse.Wicked"
-#define NI_OBJECTMODEL_OBJECT_ROOT		"/com/suse/Wicked"
+#define NI_OBJECTMODEL_NAMESPACE		"org.opensuse.Network"
+#define NI_OBJECTMODEL_OBJECT_ROOT		"/org/opensuse/Network"
 
 #define NI_OBJECTMODEL_DBUS_BUS_NAME		NI_OBJECTMODEL_NAMESPACE
 #define NI_OBJECTMODEL_DBUS_BUS_NAME_DHCP4	NI_OBJECTMODEL_NAMESPACE ".DHCP4"
