@@ -153,6 +153,9 @@ extern int		ni_uuid_equal(const ni_uuid_t *, const ni_uuid_t *);
 extern ni_uuid_t *	ni_uuid_generate(ni_uuid_t *);
 extern int		ni_uuid_for_file(ni_uuid_t *, const char *);
 
+extern char *		ni_quote(const char *string, const char *sepa);
+extern char *		ni_unquote(const char **stringp, const char *sepa);
+
 extern void		ni_srandom(void);
 
 /* Use this in mainloop-like functions to check at defined execution points

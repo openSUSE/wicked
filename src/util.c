@@ -1733,3 +1733,69 @@ ni_tempstate_add_file(ni_tempstate_t *ts, const char *filename)
 {
 	ni_string_array_append(&ts->files, filename);
 }
+
+/*
+ * Quote/unquote a string using shell style quoting
+ */
+char *
+ni_quote(const char *string, const char *sepa)
+{
+	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
+	unsigned int n, m;
+	char cc;
+
+	m = strcspn(string, sepa);
+	n = strcspn(string, "\"'");
+	if (m == n && string[n] == '\0')
+		return xstrdup(string);
+
+	ni_stringbuf_putc(&buf, '"');
+	while ((cc = *string++) != '\0') {
+		if (cc == '"' || cc == '\'' || cc == '\\')
+			ni_stringbuf_putc(&buf, '\\');
+		ni_stringbuf_putc(&buf, cc);
+	}
+	ni_stringbuf_putc(&buf, '"');
+	return buf.string;
+}
+
+char *
+ni_unquote(const char **stringp, const char *sepa)
+{
+	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
+	const char *src = *stringp;
+	char cc;
+
+	while ((cc = *src) != '\0') {
+		++src;
+		if (sepa && strchr(sepa, cc))
+			break;
+		if (cc == '"') {
+			while ((cc = *src++) != '"') {
+				if (cc == '\0')
+					goto failed;
+				if (cc == '\\') {
+					cc = *src++;
+					if (cc == '\0')
+						goto failed;
+				}
+				ni_stringbuf_putc(&buf, cc);
+			}
+		} else if (cc == '\'') {
+			while ((cc = *src++) != '\'') {
+				if (cc == '\0')
+					goto failed;
+				ni_stringbuf_putc(&buf, cc);
+			}
+		} else {
+			ni_stringbuf_putc(&buf, cc);
+		}
+	}
+
+	*stringp = src;
+	return buf.string;
+
+failed:
+	ni_stringbuf_destroy(&buf);
+	return NULL;
+}
