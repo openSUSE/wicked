@@ -119,7 +119,7 @@ ni_ifworker_reset(ni_ifworker_t *w)
 	ni_string_free(&w->config.origin);
 	ni_string_free(&w->control.mode);
 	ni_string_free(&w->control.boot_stage);
-	ni_string_free(&w->security_id);
+	ni_security_id_destroy(&w->security_id);
 
 	/* When detaching children, clear their shared/exclusive ownership info */
 	if (w->children.count != 0) {
@@ -2109,6 +2109,52 @@ __ni_ifworker_refresh_netdevs(ni_fsm_t *fsm)
 				ni_ifworker_update_state(found, 0, NI_FSM_STATE_DEVICE_UP);
 		}
 	}
+}
+
+ni_ifworker_t *
+ni_fsm_recv_new_netdev(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh)
+{
+	ni_netdev_t *dev = ni_objectmodel_unwrap_netif(object, NULL);
+	ni_ifworker_t *found = NULL;
+
+	if ((dev == NULL || dev->name == NULL) && refresh) {
+		if (!ni_dbus_object_refresh_children(object)) {
+			ni_error("%s: failed to refresh netdev object", object->path);
+			return NULL;
+		}
+
+		dev = ni_objectmodel_unwrap_netif(object, NULL);
+	}
+
+	if (dev == NULL || dev->name == NULL) {
+		ni_error("%s: refresh failed to set up netdev object", object->path);
+		return NULL;
+	}
+
+	found = ni_fsm_ifworker_by_netdev(fsm, dev);
+	if (!found)
+		found = ni_fsm_ifworker_by_object_path(fsm, object->path);
+	if (!found) {
+		ni_debug_application("received new device %s (%s)", dev->name, object->path);
+		found = ni_ifworker_new(fsm, NI_IFWORKER_TYPE_NETDEV, dev->name);
+	}
+
+	if (!found->object_path)
+		ni_string_dup(&found->object_path, object->path);
+	if (!found->device)
+		found->device = ni_netdev_get(dev);
+	found->ifindex = dev->link.ifindex;
+	found->object = object;
+
+	/* Don't touch devices we're done with */
+	if (!found->done) {
+		if (ni_netdev_link_is_up(dev))
+			ni_ifworker_update_state(found, NI_FSM_STATE_LINK_UP, __NI_FSM_STATE_MAX);
+		else
+			ni_ifworker_update_state(found, 0, NI_FSM_STATE_DEVICE_UP);
+	}
+
+	return found;
 }
 
 static void

@@ -757,6 +757,46 @@ ni_objectmodel_set_addrconf_lease(ni_addrconf_lease_t *lease, const ni_dbus_vari
 }
 
 /*
+ * Handle security_id
+ */
+dbus_bool_t
+ni_objectmodel_unmarshal_security_id(ni_security_id_t *security_id, const ni_dbus_variant_t *argument)
+{
+	const char *key, *value;
+	const ni_dbus_variant_t *var;
+	unsigned int i;
+
+	for (i = 0; (var = ni_dbus_dict_get_entry(argument, i, &key)) != NULL; ++i) {
+		if (!ni_dbus_variant_get_string(var, &value))
+			return FALSE;
+
+		if (ni_string_eq(key, "class"))
+			ni_string_dup(&security_id->class, value);
+		else
+			ni_security_id_set_attr(security_id, key, value);
+	}
+
+	return TRUE;
+}
+
+dbus_bool_t
+ni_objectmodel_marshal_security_id(const ni_security_id_t *security_id, ni_dbus_variant_t *argument)
+{
+	unsigned int i;
+
+	ni_dbus_variant_init_dict(argument);
+	ni_dbus_dict_add_string(argument, "class", security_id->class);
+	for (i = 0; i < security_id->attributes.count; ++i) {
+		ni_var_t *var = &security_id->attributes.data[i];
+
+		if (!ni_string_eq(var->name, "class"))
+		ni_dbus_dict_add_string(argument, var->name, var->value);
+	}
+
+	return TRUE;
+}
+
+/*
  * When we've forwarded an addrconf call to a supplicant, such as dhcp4
  * or ipv4ll, we need to return to the caller the uuid and event he's supposed
  * to wait for.

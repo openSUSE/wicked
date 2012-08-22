@@ -606,6 +606,8 @@ __xpath_node_array_print_short(const xpath_result_t *na)
 
 	ni_stringbuf_init(&buf);
 	ni_stringbuf_putc(&buf, '[');
+	buf.autoreset = FALSE;
+
 	for (n = 0; n < na->count; ++n) {
 		const char *string;
 

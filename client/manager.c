@@ -35,7 +35,7 @@ extern ni_bool_t	ni_manager_call_add_policy(const char *, xml_node_t *);
 extern ni_bool_t	ni_manager_call_device_enable(const char *ifname);
 extern ni_bool_t	ni_manager_call_device_disable(const char *ifname);
 extern ni_dbus_object_t *ni_manager_call_get_device(const char *);
-extern ni_bool_t	ni_manager_call_add_secret(const char *, const char *, const char *);
+extern ni_bool_t	ni_manager_call_add_secret(const ni_security_id_t *, const char *, const char *);
 
 /*
  * Read a policy file
@@ -140,21 +140,29 @@ do_manager_addpolicy(int argc, char **argv)
 static int
 do_manager_addsecret(int argc, char **argv)
 {
-	const char *security_id, *path, *value;
+	ni_security_id_t security_id = NI_SECURITY_ID_INIT;
+	const char *path, *value;
+	ni_bool_t rv;
 
 	if (optind + 3 != argc) {
 		ni_error("wicked manager addsecret: expected 3 arguments (security-id, path, value)");
 		return 1;
 	}
 
-	security_id = argv[optind++];
+	if (!ni_security_id_parse(&security_id, argv[optind])) {
+		ni_error("failed to parse security id \"%s\"", argv[optind]);
+		goto out;
+	}
+	optind++;
+
 	path = argv[optind++];
 	value = argv[optind++];
 
-	if (!ni_manager_call_add_secret(security_id, path, value))
-		return 1;
+	rv = ni_manager_call_add_secret(&security_id, path, value);
 
-	return 0;
+out:
+	ni_security_id_destroy(&security_id);
+	return rv? 0 : 1;
 }
 
 /*
@@ -321,7 +329,7 @@ ni_manager_call_add_policy(const char *name, xml_node_t *node)
 }
 
 ni_bool_t
-ni_manager_call_add_secret(const char *security_id, const char *path, const char *value)
+ni_manager_call_add_secret(const ni_security_id_t *security_id, const char *path, const char *value)
 {
 	DBusError error = DBUS_ERROR_INIT;
 	ni_dbus_client_t *client;
@@ -331,7 +339,7 @@ ni_manager_call_add_secret(const char *security_id, const char *path, const char
 	client = ni_manager_create_client(&root_object);
 
 	memset(argv, 0, sizeof(argv));
-	ni_dbus_variant_set_string(&argv[0], security_id);
+	ni_objectmodel_marshal_security_id(security_id, &argv[0]);
 	ni_dbus_variant_set_string(&argv[1], path);
 	ni_dbus_variant_set_string(&argv[2], value);
 

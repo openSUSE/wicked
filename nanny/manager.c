@@ -332,13 +332,13 @@ ni_manager_prompt(const ni_fsm_prompt_t *p, xml_node_t *node, void *user_data)
 		goto done;
 	}
 
-	if (w->security_id == NULL) {
+	if (w->security_id.attributes.count == 0) {
 		ni_error("%s: no security id set, cannot handle prompt for \"%s\"",
 				w->name, path_buf.string);
 		goto done;
 	}
 
-	sec = ni_manager_get_secret(mgr, w->security_id, path_buf.string);
+	sec = ni_manager_get_secret(mgr, &w->security_id, path_buf.string);
 	if (sec == NULL) {
 		if (mdev->state == NI_MANAGED_STATE_BINDING) {
 			mdev->state = NI_MANAGED_STATE_MISSING_SECRETS;
@@ -350,9 +350,11 @@ ni_manager_prompt(const ni_fsm_prompt_t *p, xml_node_t *node, void *user_data)
 			rv = -NI_ERROR_RETRY_OPERATION;
 			goto done;
 		}
+#if 0
 		/* FIXME: Send out event that we need this piece of information */
 		ni_debug_nanny("%s: prompting for type=%u id=%s path=%s",
 				w->name, p->type, w->security_id, path_buf.string);
+#endif
 		goto done;
 	}
 
@@ -369,14 +371,14 @@ done:
  * update, recheck it now.
  */
 void
-ni_manager_add_secret(ni_manager_t *mgr, const char *security_id, const char *path, const char *value)
+ni_manager_add_secret(ni_manager_t *mgr, const ni_security_id_t *security_id, const char *path, const char *value)
 {
 	ni_managed_device_t *mdev;
 	ni_secret_t *sec;
 
 	sec = ni_secret_db_update(mgr->secret_db, security_id, path, value);
 
-	ni_debug_nanny("%s: secret for %s updated", security_id, path);
+	ni_debug_nanny("%s: secret for %s updated", ni_security_id_print(security_id), path);
 	for (mdev = mgr->device_list; mdev; mdev = mdev->next) {
 		ni_ifworker_t *w = mdev->worker;
 
@@ -402,13 +404,13 @@ ni_manager_add_secret(ni_manager_t *mgr, const char *security_id, const char *pa
 }
 
 void
-ni_manager_clear_secrets(ni_manager_t *mgr, const char *security_id, const char *path)
+ni_manager_clear_secrets(ni_manager_t *mgr, const ni_security_id_t *security_id, const char *path)
 {
 	ni_secret_db_drop(mgr->secret_db, security_id, path);
 }
 
 ni_secret_t *
-ni_manager_get_secret(ni_manager_t *mgr, const char *security_id, const char *path)
+ni_manager_get_secret(ni_manager_t *mgr, const ni_security_id_t *security_id, const char *path)
 {
 	return ni_secret_db_find(mgr->secret_db, security_id, path);
 }
@@ -538,22 +540,25 @@ ni_objectmodel_manager_set_secret(ni_dbus_object_t *object, const ni_dbus_method
 					unsigned int argc, const ni_dbus_variant_t *argv,
 					ni_dbus_message_t *reply, DBusError *error)
 {
-	const char *security_id, *element_path, *value;
+	ni_security_id_t security_id = NI_SECURITY_ID_INIT;
+	const char *element_path, *value;
 	ni_manager_t *mgr;
 
 	if ((mgr = ni_objectmodel_manager_unwrap(object, error)) == NULL)
 		return FALSE;
 
 	if (argc != 3
-	 || !ni_dbus_variant_get_string(&argv[0], &security_id)
+	 || !ni_objectmodel_unmarshal_security_id(&security_id, &argv[0])
 	 || !ni_dbus_variant_get_string(&argv[1], &element_path)
-	 || !ni_dbus_variant_get_string(&argv[2], &value))
+	 || !ni_dbus_variant_get_string(&argv[2], &value)) {
+		ni_security_id_destroy(&security_id);
 		return ni_dbus_error_invalid_args(error, ni_dbus_object_get_path(object), method->name);
+	}
 
-	ni_manager_add_secret(mgr, security_id, element_path, value);
+	ni_manager_add_secret(mgr, &security_id, element_path, value);
+	ni_security_id_destroy(&security_id);
 	return TRUE;
 }
-
 
 static ni_dbus_method_t		ni_objectmodel_manager_methods[] = {
 	{ "createPolicy",	"s",		ni_objectmodel_manager_create_policy	},

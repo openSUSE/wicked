@@ -93,8 +93,9 @@ extern void			ni_manager_unregister_device(ni_manager_t *, ni_ifworker_t *);
 extern ni_managed_device_t *	ni_manager_get_device(ni_manager_t *, ni_ifworker_t *);
 extern void			ni_manager_remove_device(ni_manager_t *, ni_managed_device_t *);
 extern ni_managed_policy_t *	ni_manager_get_policy(ni_manager_t *, const ni_fsm_policy_t *);
-extern void			ni_manager_clear_secrets(ni_manager_t *mgr, const char *security_id, const char *path);
-extern ni_secret_t *		ni_manager_get_secret(ni_manager_t *, const char *, const char *);
+extern void			ni_manager_clear_secrets(ni_manager_t *mgr,
+						const ni_security_id_t *security_id, const char *path);
+extern ni_secret_t *		ni_manager_get_secret(ni_manager_t *, const ni_security_id_t *, const char *);
 extern void			ni_manager_rfkill_event(ni_manager_t *mgr, ni_rfkill_type_t type, ni_bool_t blocked);
 
 extern ni_bool_t		ni_managed_netdev_enable(ni_managed_device_t *);

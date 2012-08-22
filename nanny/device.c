@@ -118,13 +118,13 @@ ni_managed_device_set_policy(ni_managed_device_t *mdev, ni_managed_policy_t *mpo
 }
 
 void
-ni_managed_device_set_security_id(ni_managed_device_t *mdev, const char *security_id)
+ni_managed_device_set_security_id(ni_managed_device_t *mdev, const ni_security_id_t *security_id)
 {
 	ni_ifworker_t *w = mdev->worker;
 
-	if (!ni_string_eq(w->security_id, security_id))
+	if (!ni_security_id_equal(&w->security_id, security_id))
 		ni_secret_array_destroy(&mdev->secrets);
-	ni_string_dup(&w->security_id, security_id);
+	ni_security_id_set(&w->security_id, security_id);
 }
 
 /*
@@ -210,8 +210,8 @@ ni_managed_device_up_done(ni_ifworker_t *w)
 		 * for now better play it safe and wipe all secrets for this
 		 * device. Using the wrong PIN repeatedly may end up locking
 		 * the device. */
-		if (w->security_id)
-			ni_manager_clear_secrets(mgr, w->security_id, NULL);
+		if (ni_security_id_valid(&w->security_id))
+			ni_manager_clear_secrets(mgr, &w->security_id, NULL);
 	} else {
 		ni_ifworker_reset(w);
 		mdev->fail_count = 0;
@@ -228,7 +228,7 @@ ni_managed_device_up(ni_managed_device_t *mdev)
 	ni_fsm_t *fsm = mdev->manager->fsm;
 	ni_ifworker_t *w = mdev->worker;
 	unsigned int target_state;
-	char security_id[256];
+	ni_security_id_t security_id = NI_SECURITY_ID_INIT;
 	int rv;
 
 	ni_ifworker_reset(w);
@@ -239,10 +239,9 @@ ni_managed_device_up(ni_managed_device_t *mdev)
 		if (w->device->link.type == NI_IFTYPE_WIRELESS) {
 			const char *essid;
 
-			if ((essid = ni_managed_device_get_essid(mdev->selected_config)) != NULL) {
-				snprintf(security_id, sizeof(security_id), "wireless:%s", essid);
-				ni_managed_device_set_security_id(mdev, security_id);
-			}
+			ni_security_id_init(&security_id, "wireless");
+			if ((essid = ni_managed_device_get_essid(mdev->selected_config)) != NULL)
+				ni_security_id_set_attr(&security_id, "essid", essid);
 		}
 
 		target_state = NI_FSM_STATE_ADDRCONF_UP;
@@ -250,8 +249,10 @@ ni_managed_device_up(ni_managed_device_t *mdev)
 
 	case NI_IFWORKER_TYPE_MODEM:
 		mdev->max_fail_count = 1;
-		snprintf(security_id, sizeof(security_id), "modem:%s", w->modem->identify.equipment);
-		ni_managed_device_set_security_id(mdev, security_id);
+
+		ni_security_id_init(&security_id, "modem");
+		if (w->modem->identify.equipment)
+			ni_security_id_set_attr(&security_id, "equipment-id", w->modem->identify.equipment);
 
 		target_state = NI_FSM_STATE_LINK_UP;
 		break;
@@ -259,6 +260,9 @@ ni_managed_device_up(ni_managed_device_t *mdev)
 	default:
 		return;
 	}
+
+	if (ni_security_id_valid(&security_id))
+		ni_managed_device_set_security_id(mdev, &security_id);
 
 	ni_ifworker_set_completion_callback(w, ni_managed_device_up_done, mdev->manager);
 

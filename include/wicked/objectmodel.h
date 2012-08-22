@@ -7,6 +7,7 @@
 #ifndef __WICKED_OBJECTMODEL_H__
 #define __WICKED_OBJECTMODEL_H__
 
+#include <wicked/secret.h>
 #include <wicked/dbus.h>
 
 extern ni_xs_scope_t *		ni_objectmodel_init(ni_dbus_server_t *);
@@ -124,6 +125,8 @@ extern dbus_bool_t		ni_objectmodel_other_event(ni_dbus_server_t *, ni_event_t, c
 
 extern dbus_bool_t		ni_objectmodel_marshal_netdev_request(const ni_netdev_req_t *, ni_dbus_variant_t *, DBusError *);
 extern dbus_bool_t		ni_objectmodel_unmarshal_netdev_request(ni_netdev_req_t *, const ni_dbus_variant_t *, DBusError *);
+extern dbus_bool_t		ni_objectmodel_marshal_security_id(const ni_security_id_t *, ni_dbus_variant_t *);
+extern dbus_bool_t		ni_objectmodel_unmarshal_security_id(ni_security_id_t *, const ni_dbus_variant_t *);
 
 typedef struct ni_objectmodel_callback_info ni_objectmodel_callback_info_t;
 struct ni_objectmodel_callback_info {

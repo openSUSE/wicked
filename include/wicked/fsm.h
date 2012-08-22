@@ -9,6 +9,7 @@
 #define __CLIENT_FSM_H__
 
 #include <wicked/socket.h>	/* needed for ni_timer_t */
+#include <wicked/secret.h>
 #include <wicked/objectmodel.h>
 #include <wicked/dbus.h>
 #include <wicked/xml.h>
@@ -120,14 +121,18 @@ struct ni_ifworker {
 	}			config;
 	ni_bool_t		use_default_policies;
 
-	/* The security ID can be used as a unique identifier
+	/* The security ID can be used as a set of identifiers
 	 * to look up user name/password/pin type info in a
 	 * database.
+	 *
 	 * It is usually set when binding the device (eg from
 	 * the GSM Modem's IMEI), but can also be overwritten
 	 * from the policy.
+	 *
+	 * It must contain at least one attribute named "class",
+	 * and one or more class-specific attributes.
 	 */
-	char *			security_id;
+	ni_security_id_t	security_id;
 
 	/* An ifworker can represent either a network device or a modem */
 	ni_netdev_t *		device;
