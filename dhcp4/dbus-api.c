@@ -33,8 +33,7 @@ static ni_dbus_class_t		ni_objectmodel_dhcp4dev_class = {
 	.destroy	= __ni_objectmodel_dhcp_device_release,
 };
 
-extern const ni_dbus_service_t	wicked_dbus_addrconf_request_service; /* XXX */
-static const ni_dbus_service_t	wicked_dbus_dhcp4_service;
+static const ni_dbus_service_t	ni_objectmodel_dhcp4_service;
 
 /*
  * Build a dbus-object encapsulating a network device.
@@ -64,7 +63,7 @@ __ni_objectmodel_build_dhcp4_device_object(ni_dbus_server_t *server, ni_dhcp_dev
 	if (object == NULL)
 		ni_fatal("Unable to create dbus object for dhcp4 device %s", dev->ifname);
 
-	ni_dbus_object_register_service(object, &wicked_dbus_dhcp4_service);
+	ni_dbus_object_register_service(object, &ni_objectmodel_dhcp4_service);
 	return object;
 }
 
@@ -118,7 +117,7 @@ __ni_objectmodel_dhcp_device_release(ni_dbus_object_t *object)
  * Server side method implementation
  */
 static dbus_bool_t
-__wicked_dbus_dhcp4_acquire_svc(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+__ni_objectmodel_dhcp4_acquire_svc(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
@@ -185,7 +184,7 @@ failed:
  * Drop a DHCP lease
  */
 static dbus_bool_t
-__wicked_dbus_dhcp4_drop_svc(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+__ni_objectmodel_dhcp4_drop_svc(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
@@ -222,13 +221,13 @@ failed:
 	return ret;
 }
 
-static ni_dbus_method_t		wicked_dbus_dhcp4_methods[] = {
-	{ "acquire",		"aya{sv}",		__wicked_dbus_dhcp4_acquire_svc },
-	{ "drop",		"ay",			__wicked_dbus_dhcp4_drop_svc },
+static ni_dbus_method_t		ni_objectmodel_dhcp4_methods[] = {
+	{ "acquire",		"aya{sv}",		__ni_objectmodel_dhcp4_acquire_svc },
+	{ "drop",		"ay",			__ni_objectmodel_dhcp4_drop_svc },
 	{ NULL }
 };
 
-static ni_dbus_method_t		wicked_dbus_dhcp4_signals[] = {
+static ni_dbus_method_t		ni_objectmodel_dhcp4_signals[] = {
 	{ NI_OBJECTMODEL_LEASE_ACQUIRED_SIGNAL },
 	{ NI_OBJECTMODEL_LEASE_RELEASED_SIGNAL },
 	{ NI_OBJECTMODEL_LEASE_LOST_SIGNAL },
@@ -368,7 +367,7 @@ ni_objectmodel_get_dhcp_device(const ni_dbus_object_t *object, DBusError *error)
  * Property config
  */
 static dbus_bool_t
-__wicked_dbus_dhcp4_get_request(const ni_dbus_object_t *object,
+__ni_objectmodel_dhcp4_get_request(const ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				ni_dbus_variant_t *result,
 				DBusError *error)
@@ -388,7 +387,7 @@ __wicked_dbus_dhcp4_get_request(const ni_dbus_object_t *object,
 }
 
 static dbus_bool_t
-__wicked_dbus_dhcp4_set_request(ni_dbus_object_t *object,
+__ni_objectmodel_dhcp4_set_request(ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				const ni_dbus_variant_t *argument,
 				DBusError *error)
@@ -408,13 +407,13 @@ __wicked_dbus_dhcp4_set_request(ni_dbus_object_t *object,
 
 
 #define DHCP4DEV_PROPERTY(type, __name, rw) \
-	NI_DBUS_PROPERTY(type, __name, __wicked_dbus_dhcp4, rw)
+	NI_DBUS_PROPERTY(type, __name, __ni_objectmodel_dhcp4, rw)
 #define DHCP4DEV_STRING_PROPERTY(dbus_name, member_name, rw) \
 	NI_DBUS_GENERIC_STRING_PROPERTY(dhcp_device, dbus_name, member_name, rw)
 #define DHCP4DEV_PROPERTY_SIGNATURE(signature, __name, rw) \
-	__NI_DBUS_PROPERTY(signature, __name, __wicked_dbus_dhcp4, rw)
+	__NI_DBUS_PROPERTY(signature, __name, __ni_objectmodel_dhcp4, rw)
 
-static ni_dbus_property_t	wicked_dbus_dhcp4_properties[] = {
+static ni_dbus_property_t	ni_objectmodel_dhcp4_properties[] = {
 	DHCP4DEV_STRING_PROPERTY(name, ifname, RO),
 
 	DHCP4DEV_PROPERTY_SIGNATURE(NI_DBUS_DICT_SIGNATURE, request, RO),
@@ -422,10 +421,10 @@ static ni_dbus_property_t	wicked_dbus_dhcp4_properties[] = {
 	{ NULL }
 };
 
-static const ni_dbus_service_t	wicked_dbus_dhcp4_service = {
+static const ni_dbus_service_t	ni_objectmodel_dhcp4_service = {
 	.name		= NI_OBJECTMODEL_DHCP4_INTERFACE,
 	.compatible	= &ni_objectmodel_dhcp4dev_class,
-	.methods	= wicked_dbus_dhcp4_methods,
-	.signals	= wicked_dbus_dhcp4_signals,
-	.properties	= wicked_dbus_dhcp4_properties,
+	.methods	= ni_objectmodel_dhcp4_methods,
+	.signals	= ni_objectmodel_dhcp4_signals,
+	.properties	= ni_objectmodel_dhcp4_properties,
 };

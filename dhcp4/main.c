@@ -192,7 +192,7 @@ dhcp4_recover_lease(ni_netdev_t *ifp)
 /*
  * Functions to support the DHCP4 DBus binding
  */
-static ni_dbus_service_t	__wicked_dbus_dhcp4_interface = {
+static ni_dbus_service_t	__ni_objectmodel_dhcp4_interface = {
 	.name		= NI_OBJECTMODEL_DHCP4_INTERFACE,
 };
 
@@ -204,7 +204,7 @@ dhcp4_register_services(ni_dbus_server_t *server)
 	ni_dbus_object_t *object;
 
 	/* Register the root object /org/opensuse/Network/DHCP4 */
-	ni_dbus_object_register_service(root_object, &__wicked_dbus_dhcp4_interface);
+	ni_dbus_object_register_service(root_object, &__ni_objectmodel_dhcp4_interface);
 
 	/* Register /org/opensuse/Network/DHCP4/Interface */
 	object = ni_dbus_server_register_object(server, "Interface", &ni_dbus_anonymous_class, NULL);
