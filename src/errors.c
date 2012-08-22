@@ -30,6 +30,7 @@ static const char *	ni_errors[__NI_ERROR_MAX] = {
 [NI_ERROR_CANNOT_CONFIGURE_ROUTE]	= "Cannot configure route",
 [NI_ERROR_DBUS_CALL_FAILED]		= "DBus call failed",
 [NI_ERROR_CANNOT_MARSHAL]		= "Cannot marshal arguments for remote object call",
+[NI_ERROR_SERVICE_UNKNOWN]		= "Service not known",
 [NI_ERROR_PROPERTY_NOT_PRESENT]		= "Object property not present",
 [NI_ERROR_METHOD_CALL_TIMED_OUT]	= "DBus method call timed out",
 [NI_ERROR_METHOD_NOT_SUPPORTED]		= "Object does not support requested method",
