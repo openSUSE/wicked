@@ -135,6 +135,9 @@ extern dbus_bool_t		ni_objectmodel_unmarshal_netdev_request(ni_netdev_req_t *, c
 extern dbus_bool_t		ni_objectmodel_marshal_security_id(const ni_security_id_t *, ni_dbus_variant_t *);
 extern dbus_bool_t		ni_objectmodel_unmarshal_security_id(ni_security_id_t *, const ni_dbus_variant_t *);
 
+extern ni_event_t		ni_objectmodel_signal_to_event(const char *);
+extern const char *		ni_objectmodel_event_to_signal(ni_event_t);
+
 typedef struct ni_objectmodel_callback_info ni_objectmodel_callback_info_t;
 struct ni_objectmodel_callback_info {
 	ni_objectmodel_callback_info_t *next;
