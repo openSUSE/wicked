@@ -25,7 +25,6 @@ typedef enum ni_managed_state {
 	NI_MANAGED_STATE_STOPPING,
 	NI_MANAGED_STATE_LIMBO,
 	NI_MANAGED_STATE_FAILED,
-	NI_MANAGED_STATE_MISSING_SECRETS,
 } ni_managed_state_t;
 
 struct ni_managed_device {
@@ -37,6 +36,7 @@ struct ni_managed_device {
 	ni_ifworker_t *		worker;
 	ni_bool_t		user_controlled;
 	ni_bool_t		rfkill_blocked;
+	ni_bool_t		missing_secrets;
 
 	ni_managed_state_t	state;
 

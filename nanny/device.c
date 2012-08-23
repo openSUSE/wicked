@@ -159,7 +159,6 @@ ni_managed_device_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *m
 		break;
 
 	case NI_MANAGED_STATE_BINDING:
-	case NI_MANAGED_STATE_MISSING_SECRETS:
 		ni_error("%s(%s): should not get here in state %s",
 				__func__, w->name, ni_managed_state_to_string(mdev->state));
 		return;
@@ -240,6 +239,7 @@ ni_managed_device_up(ni_managed_device_t *mdev)
 {
 	ni_fsm_t *fsm = mdev->manager->fsm;
 	ni_ifworker_t *w = mdev->worker;
+	unsigned int previous_state;
 	unsigned int target_state;
 	ni_security_id_t security_id = NI_SECURITY_ID_INIT;
 	int rv;
@@ -289,12 +289,15 @@ ni_managed_device_up(ni_managed_device_t *mdev)
 	 * Inside the prompt callback, we record all secrets for tracking
 	 */
 	ni_secret_array_destroy(&mdev->secrets);
+
+	previous_state = mdev->state;
 	mdev->state = NI_MANAGED_STATE_BINDING;
 	if ((rv = ni_ifworker_bind_early(w, fsm, TRUE)) < 0)
 		goto failed;
-	if (mdev->state == NI_MANAGED_STATE_MISSING_SECRETS) {
+	if (mdev->missing_secrets) {
 		/* FIXME: Emit an event listing the secrets we're missing.
 		 */
+		mdev->state = previous_state;
 		return;
 	}
 
