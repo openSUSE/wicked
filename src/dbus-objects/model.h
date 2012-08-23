@@ -140,7 +140,6 @@ extern void			ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *,
 						ni_dbus_message_t *, void *);
 extern dbus_bool_t		__ni_objectmodel_device_event(ni_dbus_server_t *server, ni_dbus_object_t *object,
 						const char *interface, ni_event_t event, const ni_uuid_t *uuid);
-extern const char *		__ni_objectmodel_event_to_signal(ni_event_t);
 extern dbus_bool_t		__ni_objectmodel_return_callback_info(ni_dbus_message_t *, ni_event_t, const ni_uuid_t *,
 						DBusError *);
 

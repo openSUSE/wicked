@@ -803,7 +803,7 @@ __ni_objectmodel_device_event(ni_dbus_server_t *server, ni_dbus_object_t *object
 	const char *signal_name = NULL;
 	unsigned int argc = 0;
 
-	if (!(signal_name = __ni_objectmodel_event_to_signal(ifevent))) {
+	if (!(signal_name = ni_objectmodel_event_to_signal(ifevent))) {
 		ni_warn("%s: no signal name for event %u", __func__, ifevent);
 		return FALSE;
 	}
@@ -827,31 +827,44 @@ __ni_objectmodel_device_event(ni_dbus_server_t *server, ni_dbus_object_t *object
 	return TRUE;
 }
 
+static ni_intmap_t	__ni_objectmodel_event_names[] = {
+	{ "deviceCreate",		NI_EVENT_DEVICE_CREATE },
+	{ "deviceDelete",		NI_EVENT_DEVICE_DELETE },
+	{ "deviceUp",			NI_EVENT_DEVICE_UP },
+	{ "deviceDown",			NI_EVENT_DEVICE_DOWN },
+	{ "linkAssociated",		NI_EVENT_LINK_ASSOCIATED },
+	{ "linkAssociationLost",	NI_EVENT_LINK_ASSOCIATION_LOST },
+	{ "linkScanUpdated",		NI_EVENT_LINK_SCAN_UPDATED },
+	{ "linkUp",			NI_EVENT_LINK_UP },
+	{ "linkDown",			NI_EVENT_LINK_DOWN },
+	{ "networkUp",			NI_EVENT_NETWORK_UP },
+	{ "networkDown",		NI_EVENT_NETWORK_DOWN },
+	{ "addressAcquired",		NI_EVENT_ADDRESS_ACQUIRED },
+	{ "addressReleased",		NI_EVENT_ADDRESS_RELEASED },
+	{ "addressLost",		NI_EVENT_ADDRESS_LOST },
+	{ "resolverUpdated",		NI_EVENT_RESOLVER_UPDATED },
+
+	{ NULL, 0 }
+};
+
 const char *
-__ni_objectmodel_event_to_signal(ni_event_t event)
+ni_objectmodel_event_to_signal(ni_event_t event)
 {
-	static const char *ifevent_signals[__NI_EVENT_MAX] = {
-	[NI_EVENT_DEVICE_CREATE]	= "deviceCreate",
-	[NI_EVENT_DEVICE_DELETE]	= "deviceDelete",
-	[NI_EVENT_DEVICE_UP]		= "deviceUp",
-	[NI_EVENT_DEVICE_DOWN]		= "deviceDown",
-	[NI_EVENT_LINK_ASSOCIATED]	= "linkAssociated",
-	[NI_EVENT_LINK_ASSOCIATION_LOST]= "linkAssociationLost",
-	[NI_EVENT_LINK_SCAN_UPDATED]	= "linkScanUpdated",
-	[NI_EVENT_LINK_UP]		= "linkUp",
-	[NI_EVENT_LINK_DOWN]		= "linkDown",
-	[NI_EVENT_NETWORK_UP]		= "networkUp",
-	[NI_EVENT_NETWORK_DOWN]		= "networkDown",
-	[NI_EVENT_ADDRESS_ACQUIRED]	= "addressAcquired",
-	[NI_EVENT_ADDRESS_RELEASED]	= "addressReleased",
-	[NI_EVENT_ADDRESS_LOST]		= "addressLost",
-	[NI_EVENT_RESOLVER_UPDATED]	= "resolverUpdated",
-	};
+	return ni_format_int_mapped(event, __ni_objectmodel_event_names);
+}
 
-	if (event >= __NI_EVENT_MAX)
-		return NULL;
+ni_event_t
+ni_objectmodel_signal_to_event(const char *signal)
+{
+	unsigned int event;
 
-	return ifevent_signals[event];
+	if (!signal)
+		return -1;
+
+	if (ni_parse_int_mapped(signal, __ni_objectmodel_event_names, &event) < 0)
+		return -1;
+
+	return event;
 }
 
 /*

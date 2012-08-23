@@ -376,7 +376,7 @@ ni_objectmodel_other_event(ni_dbus_server_t *server, ni_event_t event, const ni_
 	const char *signal_name = NULL;
 	unsigned int argc = 0;
 
-	if (!(signal_name = __ni_objectmodel_event_to_signal(event)))
+	if (!(signal_name = ni_objectmodel_event_to_signal(event)))
 		return FALSE;
 
 	if (!server && !(server = __ni_objectmodel_server)) {
