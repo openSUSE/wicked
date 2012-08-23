@@ -138,18 +138,31 @@ ni_managed_device_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *m
 	const ni_fsm_policy_t *policy = mpolicy->fsm_policy;
 	xml_node_t *config = NULL;
 
-	if (mdev->state == NI_MANAGED_STATE_FAILED)
-		return; // we shouldn't have gotten here?
-
 	/* If the device is up and running, do not reconfigure unless the policy
 	 * has really changed */
-	if (mdev->state != NI_MANAGED_STATE_STOPPED) {
+	switch (mdev->state) {
+	case NI_MANAGED_STATE_STOPPING:
+	case NI_MANAGED_STATE_STOPPED:
+	case NI_MANAGED_STATE_LIMBO:
+		/* Just install the new policy and reconfigure. */
+		break;
+
+	case NI_MANAGED_STATE_STARTING:
+	case NI_MANAGED_STATE_RUNNING:
+	case NI_MANAGED_STATE_FAILED:
 		if (mdev->selected_policy == mpolicy && mdev->selected_policy_seq == mpolicy->seqno) {
 			ni_debug_nanny("%s: keep using policy %s", w->name, ni_fsm_policy_name(policy));
 			return;
 		}
 
 		/* Just install the new policy and reconfigure. */
+		break;
+
+	case NI_MANAGED_STATE_BINDING:
+	case NI_MANAGED_STATE_MISSING_SECRETS:
+		ni_error("%s(%s): should not get here in state %s",
+				__func__, w->name, ni_managed_state_to_string(mdev->state));
+		return;
 	}
 
 	ni_debug_nanny("%s: using policy %s", w->name, ni_fsm_policy_name(policy));

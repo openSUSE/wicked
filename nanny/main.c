@@ -204,6 +204,12 @@ ni_manager_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus
 	}
 
 	ni_debug_nanny("%s: received signal %s from %s", w->name, signal_name, object_path);
+	if ((mdev = ni_manager_get_device(mgr, w)) != NULL) {
+		ni_debug_nanny("   state=%s, policy=%s%s",
+				ni_managed_state_to_string(mdev->state),
+				mdev->selected_policy? ni_fsm_policy_name(mdev->selected_policy->fsm_policy): "<none>",
+				mdev->user_controlled? ", user controlled" : "");
+	}
 	ni_assert(w->device);
 
 	if (ni_string_eq(signal_name, "deviceDelete")) {
@@ -243,7 +249,6 @@ ni_manager_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus
 	if (ni_string_eq(signal_name, "linkUp")) {
 		// Link detection - eg for ethernet
 		if ((mdev = ni_manager_get_device(mgr, w)) != NULL
-		 && mdev->selected_policy == NULL
 		 && mdev->user_controlled)
 			ni_manager_schedule_recheck(mgr, w);
 	} else {
