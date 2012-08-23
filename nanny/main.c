@@ -197,59 +197,65 @@ ni_manager_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus
 	ni_managed_device_t *mdev;
 	ni_ifworker_t *w;
 
+	if (ni_string_eq(signal_name, "deviceCreate")) {
+		// A new device was added. Could be a virtual device like
+		// a VLAN or vif, or a hotplug device
+		// Create a worker and a managed_netif for this device.
+		w = ni_fsm_recv_new_netif_path(mgr->fsm, object_path);
+		ni_manager_register_device(mgr, w);
+		ni_manager_schedule_recheck(mgr, w);
+		return;
+	}
+
 	if ((w = ni_fsm_ifworker_by_object_path(mgr->fsm, object_path)) == NULL) {
 		ni_warn("received signal \"%s\" from unknown object \"%s\"",
 				signal_name, object_path);
 		return;
 	}
 
-	ni_debug_nanny("%s: received signal %s from %s", w->name, signal_name, object_path);
-	if ((mdev = ni_manager_get_device(mgr, w)) != NULL) {
-		ni_debug_nanny("   state=%s, policy=%s%s",
-				ni_managed_state_to_string(mdev->state),
-				mdev->selected_policy? ni_fsm_policy_name(mdev->selected_policy->fsm_policy): "<none>",
-				mdev->user_controlled? ", user controlled" : "");
-	}
+	ni_assert(w->type == NI_IFWORKER_TYPE_NETDEV);
 	ni_assert(w->device);
 
 	if (ni_string_eq(signal_name, "deviceDelete")) {
+		ni_debug_nanny("%s: received signal %s from %s", w->name, signal_name, object_path);
 		// delete the worker and the managed netif
 		ni_manager_unregister_device(mgr, w);
-	} else
+		return;
+	}
+
+	if ((mdev = ni_manager_get_device(mgr, w)) == NULL) {
+		ni_debug_nanny("%s: received signal %s from %s (not a managed device)",
+				w->name, signal_name, object_path);
+		return;
+	}
+
+	ni_debug_nanny("%s: received signal %s; state=%s, policy=%s%s",
+			w->name, signal_name,
+			ni_managed_state_to_string(mdev->state),
+			mdev->selected_policy? ni_fsm_policy_name(mdev->selected_policy->fsm_policy): "<none>",
+			mdev->user_controlled? ", user controlled" : "");
+	
 	if (ni_string_eq(signal_name, "linkDown")) {
 		// If we have recorded a policy for this device, it means
 		// we were the ones who took it up - so bring it down
 		// again
-		if ((mdev = ni_manager_get_device(mgr, w)) != NULL
-		 && mdev->selected_policy != NULL
-		 && mdev->user_controlled)
+		if (mdev->selected_policy != NULL && mdev->user_controlled)
 			ni_manager_schedule_recheck(mgr, w);
 	} else
 	if (ni_string_eq(signal_name, "linkAssociationLost")) {
 		// If we have recorded a policy for this device, it means
 		// we were the ones who took it up - so bring it down
 		// again
-		if ((mdev = ni_manager_get_device(mgr, w)) != NULL
-		 && mdev->selected_policy != NULL
-		 && mdev->user_controlled)
+		if (mdev->selected_policy != NULL && mdev->user_controlled)
 			ni_manager_schedule_recheck(mgr, w);
 	} else
-	if (ni_string_eq(signal_name, "deviceCreate")) {
-		// A new device was added. Could be a virtual device like
-		// a VLAN or vif, or a hotplug modem or NIC
-		// Create a worker and a managed_netif for this device.
-		ni_manager_register_device(mgr, w);
-		ni_manager_schedule_recheck(mgr, w);
-	} else
 	if (ni_string_eq(signal_name, "linkScanUpdated")) {
-		if ((mdev = ni_manager_get_device(mgr, w)) != NULL
-		 && mdev->user_controlled)
+		if (mdev->user_controlled)
 			ni_manager_schedule_recheck(mgr, w);
 	} else
 	if (ni_string_eq(signal_name, "linkUp")) {
 		// Link detection - eg for ethernet
-		if ((mdev = ni_manager_get_device(mgr, w)) != NULL
-		 && mdev->user_controlled)
+		if (mdev->user_controlled)
 			ni_manager_schedule_recheck(mgr, w);
 	} else {
 		// ignore
