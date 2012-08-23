@@ -194,10 +194,17 @@ ni_manager_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus
 	ni_manager_t *mgr = user_data;
 	const char *signal_name = dbus_message_get_member(msg);
 	const char *object_path = dbus_message_get_path(msg);
+	ni_event_t event;
 	ni_managed_device_t *mdev;
 	ni_ifworker_t *w;
 
-	if (ni_string_eq(signal_name, "deviceCreate")) {
+	if ((event = ni_objectmodel_signal_to_event(signal_name)) < 0) {
+		ni_debug_nanny("received unknown signal \"%s\" from object \"%s\"",
+				signal_name, object_path);
+		return;
+	}
+
+	if (event == NI_EVENT_DEVICE_CREATE) {
 		// A new device was added. Could be a virtual device like
 		// a VLAN or vif, or a hotplug device
 		// Create a worker and a managed_netif for this device.
@@ -216,7 +223,7 @@ ni_manager_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus
 	ni_assert(w->type == NI_IFWORKER_TYPE_NETDEV);
 	ni_assert(w->device);
 
-	if (ni_string_eq(signal_name, "deviceDelete")) {
+	if (event == NI_EVENT_DEVICE_DELETE) {
 		ni_debug_nanny("%s: received signal %s from %s", w->name, signal_name, object_path);
 		// delete the worker and the managed netif
 		ni_manager_unregister_device(mgr, w);
@@ -234,31 +241,36 @@ ni_manager_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus
 			ni_managed_state_to_string(mdev->state),
 			mdev->selected_policy? ni_fsm_policy_name(mdev->selected_policy->fsm_policy): "<none>",
 			mdev->user_controlled? ", user controlled" : "");
-	
-	if (ni_string_eq(signal_name, "linkDown")) {
+
+	switch (event) {
+	case NI_EVENT_LINK_DOWN:
 		// If we have recorded a policy for this device, it means
 		// we were the ones who took it up - so bring it down
 		// again
 		if (mdev->selected_policy != NULL && mdev->user_controlled)
 			ni_manager_schedule_recheck(mgr, w);
-	} else
-	if (ni_string_eq(signal_name, "linkAssociationLost")) {
+		break;
+
+	case NI_EVENT_LINK_ASSOCIATION_LOST:
 		// If we have recorded a policy for this device, it means
 		// we were the ones who took it up - so bring it down
 		// again
 		if (mdev->selected_policy != NULL && mdev->user_controlled)
 			ni_manager_schedule_recheck(mgr, w);
-	} else
-	if (ni_string_eq(signal_name, "linkScanUpdated")) {
+		break;
+
+	case NI_EVENT_LINK_SCAN_UPDATED:
 		if (mdev->user_controlled)
 			ni_manager_schedule_recheck(mgr, w);
-	} else
-	if (ni_string_eq(signal_name, "linkUp")) {
+		break;
+
+	case NI_EVENT_LINK_UP:
 		// Link detection - eg for ethernet
 		if (mdev->user_controlled)
 			ni_manager_schedule_recheck(mgr, w);
-	} else {
-		// ignore
+		break;
+
+	default: ;
 	}
 }
 
@@ -271,12 +283,17 @@ ni_manager_modem_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus
 	ni_manager_t *mgr = user_data;
 	const char *signal_name = dbus_message_get_member(msg);
 	const char *object_path = dbus_message_get_path(msg);
+	ni_event_t event;
 	ni_ifworker_t *w;
 
-	ni_debug_nanny("%s(%s, %s)", __func__, object_path, signal_name);
+	if ((event = ni_objectmodel_signal_to_event(signal_name)) < 0) {
+		ni_debug_nanny("received unknown signal \"%s\" from object \"%s\"",
+				signal_name, object_path);
+		return;
+	}
 
 	// We receive a deviceCreate signal when a modem was plugged in
-	if (ni_string_eq(signal_name, "deviceCreate")) {
+	if (event == NI_EVENT_DEVICE_CREATE) {
 		w = ni_fsm_recv_new_modem_path(mgr->fsm, object_path);
 		ni_manager_register_device(mgr, w);
 		ni_manager_schedule_recheck(mgr, w);
@@ -293,7 +310,7 @@ ni_manager_modem_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus
 	ni_assert(w->type == NI_IFWORKER_TYPE_MODEM);
 	ni_assert(w->modem);
 
-	if (ni_string_eq(signal_name, "deviceDelete")) {
+	if (event == NI_EVENT_DEVICE_DELETE) {
 		// delete the worker and the managed modem
 		ni_manager_unregister_device(mgr, w);
 	} else {
