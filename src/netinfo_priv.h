@@ -53,7 +53,7 @@ extern void		__ni_routes_clear(ni_netconfig_t *);
 extern ni_address_t *	__ni_address_new(ni_address_t **, int, unsigned int,
 				const ni_sockaddr_t *);
 extern int		__ni_address_list_dedup(ni_address_t **);
-extern int		__ni_address_list_remove(ni_address_t **, ni_address_t *);
+extern ni_bool_t	__ni_address_list_remove(ni_address_t **, ni_address_t *);
 extern ni_address_t *	__ni_address_list_find(ni_address_t *, const ni_sockaddr_t *);
 
 extern int		__ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list);

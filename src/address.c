@@ -113,20 +113,19 @@ __ni_address_list_find(ni_address_t *list, const ni_sockaddr_t *addr)
 	return NULL;
 }
 
-int
+ni_bool_t
 __ni_address_list_remove(ni_address_t **list, ni_address_t *ap)
 {
 	ni_address_t **pos, *cur;
-	int cnt = 0;
 
 	for (pos = list; (cur = *pos) != NULL; pos = &cur->next) {
 		if (cur == ap) {
 			*pos = cur->next;
 			ni_address_free(cur);
-			++cnt;
+			return TRUE;
 		}
 	}
-	return cnt;
+	return FALSE;
 }
 
 void
