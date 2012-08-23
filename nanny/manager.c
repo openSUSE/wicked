@@ -148,15 +148,24 @@ ni_manager_recheck(ni_manager_t *mgr, ni_ifworker_t *w)
 	if ((mdev = ni_manager_get_device(mgr, w)) == NULL)
 		return;
 
-	if (mdev->state == NI_MANAGED_STATE_FAILED) {
-		ni_debug_nanny("%s(%s) - skipping; device in state FAILED", __func__, w->name);
-		return; // we shouldn't have gotten here?
-	}
+	/* Note, we also check devices in state FAILED.
+	 * ni_managed_device_apply_policy() will then check if the policy
+	 * changed. If it did, then we give it another try.
+	 */
 
 	ni_debug_nanny("%s(%s)", __func__, w->name);
 	w->use_default_policies = TRUE;
 	if ((count = ni_fsm_policy_get_applicable_policies(mgr->fsm, w, policies, MAX_POLICIES)) == 0) {
-		if (mdev->state == NI_MANAGED_STATE_RUNNING) {
+		/* Don't try to take down a FAILED device.
+		 * Either we succeed, then we mark it STOPPED (and then try to take it
+		 * up again... and fail), or we fail to take it down (and then we try to
+		 * take it down once more... and fail).
+		 * In either case, we're ending up in a endless loop.
+		 * FIXME: use a ni_managed_device_down_emergency() function, which does a hard
+		 * shutdown of the device. This needs cooperation from the server; which would have
+		 * to kill all leases and destroy all addresses.
+		 */
+		if (mdev->state != NI_MANAGED_STATE_STOPPED && mdev->state != NI_MANAGED_STATE_FAILED) {
 			ni_debug_nanny("%s: taking down device", w->name);
 			ni_managed_device_down(mdev);
 		} else {

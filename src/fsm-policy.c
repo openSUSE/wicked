@@ -433,7 +433,7 @@ ni_fsm_policy_transform_document(xml_node_t *node, const ni_fsm_policy_t * const
 		const ni_fsm_policy_t *policy = policies[i];
 		ni_fsm_policy_action_t *action;
 
-		for (action = policy->actions; action; action = action->next) {
+		for (action = policy->actions; action && node; action = action->next) {
 			switch (action->type) {
 			case NI_IFPOLICY_ACTION_MERGE:
 				node = ni_fsm_policy_action_xml_merge(action, node);

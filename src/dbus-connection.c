@@ -53,12 +53,14 @@ struct ni_dbus_connection {
 	ni_dbus_async_client_call_t *async_client_calls;
 	ni_dbus_async_server_call_t *async_server_calls;
 	ni_dbus_sigaction_t *	sighandlers;
+
+	ni_bool_t		dispatching;
 };
 
 typedef struct ni_dbus_watch_data ni_dbus_watch_data_t;
 struct ni_dbus_watch_data {
 	ni_dbus_watch_data_t *	next;
-	DBusConnection *	conn;
+	ni_dbus_connection_t *	connection;
 	DBusWatch *		watch;
 	ni_socket_t *		socket;
 };
@@ -71,6 +73,7 @@ static void			__ni_dbus_notify_async(DBusPendingCall *, void *);
 static dbus_bool_t		__ni_dbus_add_watch(DBusWatch *, void *);
 static void			__ni_dbus_remove_watch(DBusWatch *, void *);
 static DBusHandlerResult	__ni_dbus_signal_filter(DBusConnection *, DBusMessage *, void *);
+static void			__ni_dbus_connection_dispatch(ni_dbus_connection_t *);
 
 static int			ni_dbus_use_socket_mainloop = 1;
 
@@ -146,7 +149,7 @@ ni_dbus_connection_open(const char *bus_type_string, const char *bus_name)
 				__ni_dbus_add_watch,
 				__ni_dbus_remove_watch,
 				NULL,			/* toggle_function */
-				connection->conn,	/* data */
+				connection,		/* data */
 				NULL);			/* free_data_function */
 	}
 
@@ -268,9 +271,9 @@ ni_dbus_connection_call(ni_dbus_connection_t *connection,
 	dbus_pending_call_block(pending);
 
 	/* This makes sure that any signals we received while waiting for the reply
-	 * do get dispatchd. */
-	while (dbus_connection_dispatch(connection->conn) == DBUS_DISPATCH_DATA_REMAINS)
-		;
+	 * do get dispatched. */
+	if (!connection->dispatching)
+		__ni_dbus_connection_dispatch(connection);
 
 	reply = dbus_pending_call_steal_reply(pending);
 
@@ -623,12 +626,8 @@ __ni_dbus_watch_handle(const char *func, ni_socket_t *sock, int flags)
 #endif
 		dbus_watch_handle(wd->watch, flags);
 
-		if (flags & (DBUS_WATCH_READABLE | DBUS_WATCH_WRITABLE)) {
-			DBusConnection *conn = wd->conn;
-
-			while (dbus_connection_dispatch(conn) == DBUS_DISPATCH_DATA_REMAINS)
-				;
-		}
+		if (flags & (DBUS_WATCH_READABLE | DBUS_WATCH_WRITABLE))
+			__ni_dbus_connection_dispatch(wd->connection);
 
 		new_watch_flags = dbus_watch_get_flags(wd->watch);
 		if (dbus_watch_get_enabled(wd->watch)) {
@@ -697,23 +696,23 @@ __ni_dbus_watch_close(ni_socket_t *sock)
 dbus_bool_t
 __ni_dbus_add_watch(DBusWatch *watch, void *data)
 {
-	DBusConnection *conn = data;
+	ni_dbus_connection_t *connection = data;
 	ni_dbus_watch_data_t *wd;
 	ni_socket_t *sock = NULL;
 
 	for (wd = ni_dbus_watches; wd; wd = wd->next) {
-		if (wd->conn == conn) {
+		if (wd->connection == connection) {
 			sock = wd->socket;
 			break;
 		}
 	}
 
-	ni_debug_dbus("%s(%p, conn=%p, fd=%d, reuse sock=%p)",
-			__FUNCTION__, watch, conn, dbus_watch_get_socket(watch), sock);
+	ni_debug_dbus("%s(%p, connection=%p, fd=%d, reuse sock=%p)",
+			__FUNCTION__, watch, connection, dbus_watch_get_socket(watch), sock);
 
-	if (!(wd = calloc(1, sizeof(*wd))))
+	if (!(wd = xcalloc(1, sizeof(*wd))))
 		return 0;
-	wd->conn = conn;
+	wd->connection = connection;
 	wd->watch = watch;
 	wd->next = ni_dbus_watches;
 	ni_dbus_watches = wd;
@@ -754,3 +753,13 @@ __ni_dbus_remove_watch(DBusWatch *watch, void *dummy)
 	ni_warn("%s(%p): watch not found", __FUNCTION__, watch);
 }
 
+void
+__ni_dbus_connection_dispatch(ni_dbus_connection_t *connection)
+{
+	ni_assert(!connection->dispatching);
+
+	connection->dispatching = TRUE;
+	while (dbus_connection_dispatch(connection->conn) == DBUS_DISPATCH_DATA_REMAINS)
+		;
+	connection->dispatching = FALSE;
+}

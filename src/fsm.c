@@ -2079,40 +2079,12 @@ __ni_ifworker_refresh_netdevs(ni_fsm_t *fsm)
 	if (!ni_dbus_object_refresh_children(list_object))
 		ni_fatal("Couldn't refresh list of active network interfaces");
 
-	for (object = list_object->children; object; object = object->next) {
-		ni_netdev_t *dev = ni_objectmodel_unwrap_netif(object, NULL);
-		ni_ifworker_t *found = NULL;
-
-		if (dev == NULL || dev->name == NULL)
-			continue;
-
-		found = ni_fsm_ifworker_by_netdev(fsm, dev);
-		if (!found)
-			found = ni_fsm_ifworker_by_object_path(fsm, object->path);
-		if (!found) {
-			ni_debug_application("received new device %s (%s)", dev->name, object->path);
-			found = ni_ifworker_new(fsm, NI_IFWORKER_TYPE_NETDEV, dev->name);
-		}
-
-		if (!found->object_path)
-			ni_string_dup(&found->object_path, object->path);
-		if (!found->device)
-			found->device = ni_netdev_get(dev);
-		found->ifindex = dev->link.ifindex;
-		found->object = object;
-
-		/* Don't touch devices we're done with */
-		if (!found->done) {
-			if (ni_netdev_link_is_up(dev))
-				ni_ifworker_update_state(found, NI_FSM_STATE_LINK_UP, __NI_FSM_STATE_MAX);
-			else
-				ni_ifworker_update_state(found, 0, NI_FSM_STATE_DEVICE_UP);
-		}
-	}
+	for (object = list_object->children; object; object = object->next)
+		ni_fsm_recv_new_netif(fsm, object, FALSE);
 }
 
 ni_ifworker_t *
-ni_fsm_recv_new_netdev(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh)
+ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh)
 {
 	ni_netdev_t *dev = ni_objectmodel_unwrap_netif(object, NULL);
 	ni_ifworker_t *found = NULL;
@@ -2155,6 +2127,19 @@ ni_fsm_recv_new_netdev(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refres
 	}
 
 	return found;
+}
+
+ni_ifworker_t *
+ni_fsm_recv_new_netif_path(ni_fsm_t *fsm, const char *path)
+{
+	static ni_dbus_object_t *list_object = NULL;
+	ni_dbus_object_t *object;
+
+	if (!list_object && !(list_object = ni_call_get_netif_list_object()))
+		ni_fatal("unable to get server's netdev list");
+
+	object = ni_dbus_object_create(list_object, path, NULL, NULL);
+	return ni_fsm_recv_new_netif(fsm, object, TRUE);
 }
 
 static void

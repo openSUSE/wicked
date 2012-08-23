@@ -168,6 +168,11 @@ ni_objectmodel_managed_netdev_enable(ni_dbus_object_t *object, const ni_dbus_met
 	if (argc != 0)
 		return ni_dbus_error_invalid_args(error, ni_dbus_object_get_path(object), method->name);
 
+	/* When calling enable on a failed device, implicitly clear the error state */
+	if (mdev->state == NI_MANAGED_STATE_FAILED
+	 || mdev->state == NI_MANAGED_STATE_MISSING_SECRETS)
+		mdev->state = NI_MANAGED_STATE_LIMBO;
+
 	if (!ni_managed_netdev_enable(mdev)) {
 		dbus_set_error(error, DBUS_ERROR_FAILED, "failed to enable device");
 		return FALSE;
