@@ -350,7 +350,7 @@ ni_manager_prompt(const ni_fsm_prompt_t *p, xml_node_t *node, void *user_data)
 	sec = ni_manager_get_secret(mgr, &w->security_id, path_buf.string);
 	if (sec == NULL) {
 		if (mdev->state == NI_MANAGED_STATE_BINDING) {
-			mdev->state = NI_MANAGED_STATE_MISSING_SECRETS;
+			mdev->missing_secrets = TRUE;
 
 			/* Return retry-operation - this makes the validator ignore
 			 * the missing secret. In this way, we can record all required
@@ -391,7 +391,7 @@ ni_manager_add_secret(ni_manager_t *mgr, const ni_security_id_t *security_id, co
 	for (mdev = mgr->device_list; mdev; mdev = mdev->next) {
 		ni_ifworker_t *w = mdev->worker;
 
-		if (mdev->state == NI_MANAGED_STATE_MISSING_SECRETS) {
+		if (mdev->missing_secrets) {
 			ni_secret_t *missing = NULL;
 			unsigned int i;
 
