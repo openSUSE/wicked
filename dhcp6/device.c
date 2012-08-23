@@ -397,45 +397,28 @@ ni_dhcp6_restart(void)
 	}
 }
 
-static inline int
-ni_dhcp6_address_is_usable(const ni_address_t *addr)
-{
-	if (addr->flags & IFA_F_DADFAILED)
-		return -1;
-
-	if (addr->flags & IFA_F_TENTATIVE)
-		return 1;
-
-	return 0;
-}
-
 static int
 ni_dhcp6_device_set_lladdr(ni_dhcp6_device_t *dev, ni_dhcp6_config_t *config, const ni_address_t *addr)
 {
-	int usable = ni_dhcp6_address_is_usable(addr);
-
-	switch (usable) {
-	case 0:
-		ni_debug_dhcp("%s[%u]: Found usable link-local IPv6 address: %s",
-			dev->ifname, dev->link.ifindex,
-			ni_address_print(&addr->local_addr));
-
-		memcpy(&config->client_addr, &addr->local_addr, sizeof(config->client_addr));
-		break;
-
-	case 1:
-		ni_debug_dhcp("%s[%u]: Link-local IPv6 address is tentative: %s",
-			dev->ifname, dev->link.ifindex,
-			ni_address_print(&addr->local_addr));
-		break;
-
-	case -1:
+	if (ni_address_is_duplicate(addr)) {
 		ni_error("%s[%u]: Link-local IPv6 address is marked duplicate: %s",
 			dev->ifname, dev->link.ifindex,
 			ni_address_print(&addr->local_addr));
-		break;
+		return -1;
 	}
-	return usable;
+	if (ni_address_is_tentative(addr)) {
+		ni_debug_dhcp("%s[%u]: Link-local IPv6 address is tentative: %s",
+			dev->ifname, dev->link.ifindex,
+			ni_address_print(&addr->local_addr));
+		return 1;
+	}
+
+	ni_debug_dhcp("%s[%u]: Found usable link-local IPv6 address: %s",
+		dev->ifname, dev->link.ifindex,
+		ni_address_print(&addr->local_addr));
+
+	memcpy(&config->client_addr, &addr->local_addr, sizeof(config->client_addr));
+	return 0;
 }
 
 static int
@@ -459,10 +442,7 @@ ni_dhcp6_device_find_lladdr(ni_dhcp6_device_t *dev, ni_dhcp6_config_t *config)
 	}
 
 	for(addr = ifp->addrs; addr; addr = addr->next) {
-		if (addr->family != AF_INET6)
-			continue;
-
-		if (!IN6_IS_ADDR_LINKLOCAL(&addr->local_addr.six.sin6_addr))
+		if (addr->family != AF_INET6 || !ni_address_is_linklocal(addr))
 			continue;
 
 		cnt++;
@@ -485,9 +465,6 @@ __handle_address_update(ni_netdev_t *ifp, ni_dhcp6_device_t *dev, const ni_addre
 
 	switch (dev->fsm.state) {
 	case NI_DHCP6_STATE_WAIT_READY:
-		if (addr->family != AF_INET6)
-			return;
-
 		if (!dev->config) {
 			ni_error("%s[%u]: BUG -- wait ready without config",
 					dev->ifname, dev->link.ifindex);
@@ -496,13 +473,17 @@ __handle_address_update(ni_netdev_t *ifp, ni_dhcp6_device_t *dev, const ni_addre
 			return;
 		}
 
-		if (IN6_IS_ADDR_LINKLOCAL(&addr->local_addr.six.sin6_addr)) {
+		if (addr->family == AF_INET6 && ni_address_is_linklocal(addr)) {
 			if( ni_dhcp6_device_set_lladdr(dev, dev->config, addr) == 0)
 				dev->fsm.fail_on_timeout = 0;
 		}
 
 		for (ap = ifp->addrs; ap; ap = ap->next) {
-			if (ni_dhcp6_address_is_usable(ap) > 0)
+			if (ap->family != AF_INET6)
+				continue;
+			if (ni_address_is_duplicate(ap))
+				continue;
+			if (ni_address_is_tentative(ap))
 				tentative++;
 		}
 
