@@ -26,6 +26,7 @@
 
 #include <sys/time.h>
 #include <net/if_arp.h>
+#include <linux/if_addr.h>
 #include <arpa/inet.h>
 
 #include <wicked/util.h>
@@ -72,6 +73,12 @@
 #ifndef NI_DHCP6_VENDOR_VERSION_STRING
 #define NI_DHCP6_VENDOR_VERSION_STRING		NI_DHCP6_PACKAGE_NAME"/"NI_DHCP6_PACKAGE_VERSION
 #endif
+
+/*
+ * How long to wait until (link-layer) address is ready to use
+ */
+#define NI_DHCP6_WAIT_READY_MSEC		2000
+
 
 extern int			ni_dhcp6_load_duid(ni_opaque_t *duid, const char *filename);
 extern int			ni_dhcp6_save_duid(const ni_opaque_t *duid, const char *filename);
@@ -123,9 +130,8 @@ ni_dhcp6_device_new(const char *ifname, const ni_linkinfo_t *link)
 	dev->link.arp_type	= link->arp_type;
 	memcpy(&dev->link.hwaddr, &link->hwaddr, sizeof(dev->link.hwaddr));
 
+	/* FIXME: for now, we always generate one */
 	ni_dhcp6_device_iaid(dev, &dev->iaid);
-
-	ni_dhcp6_device_alloc_buffer(dev);
 
 	ni_timer_get_time(&dev->start_time);
 	dev->fsm.state = NI_DHCP6_STATE_INIT;
@@ -362,14 +368,14 @@ ni_dhcp6_device_iaid(const ni_dhcp6_device_t *dev, uint32_t *iaid)
 }
 
 
-static int
+int
 ni_dhcp6_device_start(ni_dhcp6_device_t *dev)
 {
-	dev->failed = 0;
-	ni_dhcp6_device_clear_buffer(dev);
-
 	if (!dev->config)
 		return -1;
+
+	dev->failed = 0;
+	ni_dhcp6_device_alloc_buffer(dev);
 
 	return ni_dhcp6_fsm_start(dev);
 }
@@ -391,38 +397,109 @@ ni_dhcp6_restart(void)
 	}
 }
 
-/*
- * Refresh the device info prior to taking any actions
- */
 static int
-ni_dhcp6_device_refresh(ni_dhcp6_device_t *dev, ni_dhcp6_config_t *config)
+ni_dhcp6_device_set_lladdr(ni_dhcp6_device_t *dev, ni_dhcp6_config_t *config, const ni_address_t *addr)
+{
+	if (ni_address_is_duplicate(addr)) {
+		ni_error("%s[%u]: Link-local IPv6 address is marked duplicate: %s",
+			dev->ifname, dev->link.ifindex,
+			ni_address_print(&addr->local_addr));
+		return -1;
+	}
+	if (ni_address_is_tentative(addr)) {
+		ni_debug_dhcp("%s[%u]: Link-local IPv6 address is tentative: %s",
+			dev->ifname, dev->link.ifindex,
+			ni_address_print(&addr->local_addr));
+		return 1;
+	}
+
+	ni_debug_dhcp("%s[%u]: Found usable link-local IPv6 address: %s",
+		dev->ifname, dev->link.ifindex,
+		ni_address_print(&addr->local_addr));
+
+	memcpy(&config->client_addr, &addr->local_addr, sizeof(config->client_addr));
+	return 0;
+}
+
+static int
+ni_dhcp6_device_find_lladdr(ni_dhcp6_device_t *dev, ni_dhcp6_config_t *config)
 {
 	ni_netconfig_t *nc;
 	ni_netdev_t *ifp;
 	ni_address_t *addr;
-	int rv = -1;
+	int rv = 1, cnt = 0;
 
 	nc = ni_global_state_handle(0);
-	if(!nc || !(ifp = ni_netdev_by_index(nc, dev->link.ifindex)))
+	if(!nc || !(ifp = ni_netdev_by_index(nc, dev->link.ifindex))) {
+		ni_error("%s[%u]: Unable to find network interface by index",
+			dev->ifname, dev->link.ifindex);
 		return -1;
-
-	for(addr = ifp->addrs; addr; addr = addr->next) {
-		if(addr->family != AF_INET6)
-			continue;
-
-		/* FIXME: ignore tentative and dad-failed addresses */
-
-		if (IN6_IS_ADDR_LINKLOCAL(&addr->local_addr.six.sin6_addr)) {
-			ni_trace("Found link-local address %s",
-					ni_address_print(&addr->local_addr));
-			memcpy(&config->client_addr, &addr->local_addr,
-					sizeof(config->client_addr));
-			rv = 0;
-			break;
-		}
 	}
 
+	if (!ni_netdev_link_is_up(ifp)) {
+		ni_error("%s[%u]: Link is not up", dev->ifname, dev->link.ifindex);
+		return -1;
+	}
+
+	for(addr = ifp->addrs; addr; addr = addr->next) {
+		if (addr->family != AF_INET6 || !ni_address_is_linklocal(addr))
+			continue;
+
+		cnt++;
+		if ((rv = ni_dhcp6_device_set_lladdr(dev, config, addr)) == 0)
+			return 0;
+	}
+
+	if (cnt == 0) {
+		ni_debug_dhcp("%s[%u]: Link-local IPv6 address not (yet) available",
+			dev->ifname, dev->link.ifindex);
+	}
 	return rv;
+}
+
+static void
+__handle_address_update(ni_netdev_t *ifp, ni_dhcp6_device_t *dev, const ni_address_t *addr)
+{
+	ni_address_t *ap;
+	unsigned int tentative = 0;
+
+	switch (dev->fsm.state) {
+	case NI_DHCP6_STATE_WAIT_READY:
+		if (!dev->config) {
+			ni_error("%s[%u]: BUG -- wait ready without config",
+					dev->ifname, dev->link.ifindex);
+
+			ni_dhcp6_device_stop(dev);
+			return;
+		}
+
+		if (addr->family == AF_INET6 && ni_address_is_linklocal(addr)) {
+			if( ni_dhcp6_device_set_lladdr(dev, dev->config, addr) == 0)
+				dev->fsm.fail_on_timeout = 0;
+		}
+
+		for (ap = ifp->addrs; ap; ap = ap->next) {
+			if (ap->family != AF_INET6)
+				continue;
+			if (ni_address_is_duplicate(ap))
+				continue;
+			if (ni_address_is_tentative(ap))
+				tentative++;
+		}
+
+		if (tentative == 0) {
+			ni_dhcp6_fsm_set_timeout_msec(dev, 0);
+			ni_dhcp6_device_start(dev);
+		}
+		break;
+	}
+}
+
+void
+ni_dhcp6_device_address_event(ni_netdev_t *ifp, ni_dhcp6_device_t *dev, ni_event_t ev, const ni_address_t *ap)
+{
+	if (ev == NI_EVENT_ADDRESS_UPDATE)
+		__handle_address_update(ifp, dev, ap);
 }
 
 int
@@ -725,12 +802,6 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *info)
 	config->info_only = info->info_only;
 	config->rapid_commit = info->rapid_commit;
 
-        if ((rv = ni_dhcp6_device_refresh(dev, config)) < 0) {
-		ni_error("%s: unable to refresh interface", dev->ifname);
-		__ni_dhcp6_device_config_free(config);
-                return rv;
-        }
-
         /*
          * Make sure we have a DUID for client-id
          */
@@ -748,10 +819,22 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *info)
 	ni_dhcp6_config_vendor_class(&config->vendor_class.en, &config->vendor_class.data);
 	ni_dhcp6_config_vendor_opts(&config->vendor_opts.en, &config->vendor_opts.data);
 
+	rv = ni_dhcp6_device_find_lladdr(dev, config);
+	if (rv < 0) {
+		__ni_dhcp6_device_config_free(config);
+		return rv;
+	}
+
 	ni_dhcp6_device_set_config(dev, config);
+	if (rv > 0) {
+		dev->fsm.state = NI_DHCP6_STATE_WAIT_READY;
+		ni_dhcp6_fsm_set_timeout_msec(dev, NI_DHCP6_WAIT_READY_MSEC);
+		dev->fsm.fail_on_timeout = 1;
+		return rv;
+	}
 
+	/* OK, then let's start */
 	return ni_dhcp6_device_start(dev);
-
 
 #if 0
 	config->max_lease_time = ni_dhcp6_config_max_lease_time();

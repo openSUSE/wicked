@@ -110,6 +110,9 @@ ni_dhcp6_save_duid(const ni_opaque_t *duid, const char *filename)
 		return -1;
 	}
 
+	if(ni_dhcp6_load_duid(&temp, filename) == 0)
+		return 1;
+
 	if (!filename) {
 		snprintf(path, sizeof(path), "%s/%s",
 				ni_config_statedir(),
@@ -118,9 +121,6 @@ ni_dhcp6_save_duid(const ni_opaque_t *duid, const char *filename)
 	} else {
 		name = "duid";
 	}
-
-	if(ni_dhcp6_load_duid(&temp, filename) == 0)
-		return 1;
 
 	if ((node = xml_node_new(name, NULL)) == NULL) {
 		ni_error("Unable to create %s xml node: %m", name);

@@ -110,7 +110,7 @@ start)
 	# Bring up interfaces that have a bios config
 	$WICKED_CLIENT_BIN ifup $IFUP_ARGS --ifconfig FIRMWARE all
 
-	if [ $MODE = "onboot" ]; then
+	if [ "$MODE" = "onboot" ]; then
 		IFUP_ARGS+=" --boot-label boot"
 	fi
 	if [ -n "$BOOT_STAGE" ]; then

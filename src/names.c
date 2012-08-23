@@ -274,6 +274,8 @@ static ni_intmap_t __event_names[] = {
 	{ "address-acquired",		NI_EVENT_ADDRESS_ACQUIRED },
 	{ "address-released",		NI_EVENT_ADDRESS_RELEASED },
 	{ "address-lost",		NI_EVENT_ADDRESS_LOST },
+	{ "address-updated",		NI_EVENT_ADDRESS_UPDATE },
+	{ "address-deleted",		NI_EVENT_ADDRESS_DELETE },
 
 	{ NULL }
 };

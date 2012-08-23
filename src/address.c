@@ -113,6 +113,21 @@ __ni_address_list_find(ni_address_t *list, const ni_sockaddr_t *addr)
 	return NULL;
 }
 
+ni_bool_t
+__ni_address_list_remove(ni_address_t **list, ni_address_t *ap)
+{
+	ni_address_t **pos, *cur;
+
+	for (pos = list; (cur = *pos) != NULL; pos = &cur->next) {
+		if (cur == ap) {
+			*pos = cur->next;
+			ni_address_free(cur);
+			return TRUE;
+		}
+	}
+	return FALSE;
+}
+
 void
 ni_address_list_destroy(ni_address_t **list)
 {
@@ -231,15 +246,37 @@ ni_address_can_reach(const ni_address_t *laddr, const ni_sockaddr_t *gw)
 ni_bool_t
 ni_address_is_loopback(const ni_address_t *laddr)
 {
-	if (laddr->family == AF_INET
-	 && laddr->local_addr.ss_family == AF_INET) {
+	if (laddr->family == AF_INET && laddr->local_addr.ss_family == AF_INET) {
 		uint32_t inaddr;
 
 		inaddr = ntohl(laddr->local_addr.sin.sin_addr.s_addr);
 		return (inaddr >> 24) == IN_LOOPBACKNET;
 	}
+	if (laddr->family == AF_INET6 && laddr->local_addr.ss_family == AF_INET6)
+		return IN6_IS_ADDR_LOOPBACK(&laddr->local_addr.six.sin6_addr);
 
 	return FALSE;
+}
+
+ni_bool_t
+ni_address_is_linklocal(const ni_address_t *laddr)
+{
+	if (laddr->family == AF_INET6 && laddr->local_addr.ss_family == AF_INET6)
+		return IN6_IS_ADDR_LINKLOCAL(&laddr->local_addr.six.sin6_addr);
+
+	return FALSE;
+}
+
+ni_bool_t
+ni_address_is_tentative(const ni_address_t *laddr)
+{
+	return laddr->flags & IFA_F_TENTATIVE;
+}
+
+ni_bool_t
+ni_address_is_duplicate(const ni_address_t *laddr)
+{
+	return laddr->flags & IFA_F_DADFAILED;
 }
 
 ni_bool_t

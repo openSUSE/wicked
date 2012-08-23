@@ -142,7 +142,7 @@ do_manager_addsecret(int argc, char **argv)
 {
 	ni_security_id_t security_id = NI_SECURITY_ID_INIT;
 	const char *path, *value;
-	ni_bool_t rv;
+	ni_bool_t rv = FALSE;
 
 	if (optind + 3 != argc) {
 		ni_error("wicked manager addsecret: expected 3 arguments (security-id, path, value)");

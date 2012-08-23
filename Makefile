@@ -179,7 +179,7 @@ dist: Makefile.vars $(DIST_ARCHIVE)
 	@echo "=============================================="
 
 tags:
-	-ctags -f tags $(find $(TAGDIRS) -type f -name "*.[ch]")
+	@-ctags -f tags $$(find $(TAGDIRS) -type f -name "*.[ch]")
 
 distclean clean::
 	rm -f *~ *.o libwicked.* core tags LOG

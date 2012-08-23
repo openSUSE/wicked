@@ -234,11 +234,12 @@ enum ni_dhcp6_event {
 	NI_DHCP6_EVENT_LOST     = NI_EVENT_LEASE_LOST,
 };
 
+extern void			ni_dhcp6_device_address_event(ni_netdev_t *ifp, ni_dhcp6_device_t *dev, ni_event_t, const ni_address_t *ap);
+
 typedef void			ni_dhcp6_event_handler_t(enum ni_dhcp6_event,
 							 const ni_dhcp6_device_t *,
 							 ni_addrconf_lease_t *);
 
 extern void			ni_dhcp6_set_event_handler(ni_dhcp6_event_handler_t);
-
 
 #endif /* __WICKED_DHCP6_SUPPLICANT_H__ */
