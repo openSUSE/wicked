@@ -963,7 +963,7 @@ __ni_rtnl_link_up(const ni_netdev_t *dev, const ni_netdev_req_t *cfg)
 		/* FIXME: handle COST, QDISC, MASTER */
 	}
 
-	if (ni_nl_talk(msg) < 0) {
+	if ((rv = ni_nl_talk(msg)) < 0) {
 		if (errno == ERFKILL)
 			rv = -NI_ERROR_RADIO_DISABLED;
 		else
@@ -973,7 +973,7 @@ __ni_rtnl_link_up(const ni_netdev_t *dev, const ni_netdev_req_t *cfg)
 
 out:
 	nlmsg_free(msg);
-	return 0;
+	return rv;
 
 nla_put_failure:
 	rv = -NI_ERROR_GENERAL_FAILURE;
