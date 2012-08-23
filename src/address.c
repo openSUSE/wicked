@@ -246,13 +246,14 @@ ni_address_can_reach(const ni_address_t *laddr, const ni_sockaddr_t *gw)
 ni_bool_t
 ni_address_is_loopback(const ni_address_t *laddr)
 {
-	if (laddr->family == AF_INET
-	 && laddr->local_addr.ss_family == AF_INET) {
+	if (laddr->family == AF_INET && laddr->local_addr.ss_family == AF_INET) {
 		uint32_t inaddr;
 
 		inaddr = ntohl(laddr->local_addr.sin.sin_addr.s_addr);
 		return (inaddr >> 24) == IN_LOOPBACKNET;
 	}
+	if (laddr->family == AF_INET6 && laddr->local_addr.ss_family == AF_INET6)
+		return IN6_IS_ADDR_LOOPBACK(&laddr->local_addr.six.sin6_addr);
 
 	return FALSE;
 }
