@@ -258,6 +258,27 @@ ni_address_is_loopback(const ni_address_t *laddr)
 }
 
 ni_bool_t
+ni_address_is_linklocal(const ni_address_t *laddr)
+{
+	if (laddr->family == AF_INET6 && laddr->local_addr.ss_family == AF_INET6)
+		return IN6_IS_ADDR_LINKLOCAL(&laddr->local_addr.six.sin6_addr);
+
+	return FALSE;
+}
+
+ni_bool_t
+ni_address_is_tentative(const ni_address_t *laddr)
+{
+	return laddr->flags & IFA_F_TENTATIVE;
+}
+
+ni_bool_t
+ni_address_is_duplicate(const ni_address_t *laddr)
+{
+	return laddr->flags & IFA_F_DADFAILED;
+}
+
+ni_bool_t
 ni_address_equal(const ni_sockaddr_t *ss1, const ni_sockaddr_t *ss2)
 {
 	const unsigned char *ap1, *ap2;

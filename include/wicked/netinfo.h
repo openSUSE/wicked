@@ -200,6 +200,9 @@ extern int		ni_address_parse(ni_sockaddr_t *ss, const char *string, int af);
 extern unsigned int	ni_address_length(int af);
 extern ni_bool_t	ni_address_can_reach(const ni_address_t *laddr, const ni_sockaddr_t *gw);
 extern ni_bool_t	ni_address_is_loopback(const ni_address_t *laddr);
+extern ni_bool_t	ni_address_is_linklocal(const ni_address_t *laddr);
+extern ni_bool_t	ni_address_is_duplicate(const ni_address_t *laddr);
+extern ni_bool_t	ni_address_is_tentative(const ni_address_t *laddr);
 extern unsigned int	ni_netmask_bits(const ni_sockaddr_t *mask);
 extern int		ni_build_netmask(int, unsigned int, ni_sockaddr_t *);
 extern ni_bool_t	ni_address_prefix_match(unsigned int, const ni_sockaddr_t *,
