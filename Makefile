@@ -206,7 +206,12 @@ install: Makefile.vars install-no-devel install-devel
 
 install-devel: install-devel-lib install-devel-data
 
-install-no-devel: install-lib install-bin install-data install-man
+install-no-devel: install-lib install-bin install-init install-data install-man
+
+install-init: install-bin
+	install -d -m 755 $(DESTDIR)$(sysvinitdir)
+	install -c -m 755 etc/init.d/wicked  $(DESTDIR)$(sysvinitdir)/wicked
+	install -c -m 755 etc/init.d/network $(DESTDIR)$(sysvinitdir)/network
 
 install-bin: $(APPBINS) install-lib
 	install -d -m 755 $(DESTDIR)$(sbindir)
@@ -214,9 +219,6 @@ install-bin: $(APPBINS) install-lib
 		install $(STRIP_FLAG) -m 555 bin/$$app $(DESTDIR)$(sbindir); \
 	done
 	install -d -m 755 $(DESTDIR)$(wickedpiddir)
-	install -d -m 755 $(DESTDIR)$(sysvinitdir)
-	install -c -m 755 etc/init.d/wicked  $(DESTDIR)$(sysvinitdir)/wicked
-	install -c -m 755 etc/init.d/network $(DESTDIR)$(sysvinitdir)/network
 
 install-lib: $(TGTLIBS)
 	install -d -m 755 $(DESTDIR)$(libdir)
