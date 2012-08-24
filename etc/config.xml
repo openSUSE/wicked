@@ -79,7 +79,7 @@
   </dbus-service>
 
   <!-- Define the scripts for updating various system settings with
-    -- data obtained from addrconf services, such as dhcp -->
+       data obtained from addrconf services, such as dhcp -->
   <system-updater name="resolver">
     <action name="backup" command="/etc/wicked/extensions/resolver backup"/>
     <action name="restore" command="/etc/wicked/extensions/resolver restore"/>
