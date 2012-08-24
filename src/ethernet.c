@@ -326,7 +326,8 @@ __ni_system_ethernet_get(const char *ifname, ni_ethernet_t *ether)
 	int mapped, value;
 
 	if (__ni_ethtool(ifname, ETHTOOL_GSET, &ecmd) < 0) {
-		ni_error("%s: ETHTOOL_GSET failed: %m", ifname);
+		if (errno != EOPNOTSUPP)
+			ni_error("%s: ETHTOOL_GSET failed: %m", ifname);
 		return -1;
 	}
 
@@ -410,7 +411,8 @@ __ni_system_ethernet_set(const char *ifname, const ni_ethernet_t *ether)
 	int mapped, value;
 
 	if (__ni_ethtool(ifname, ETHTOOL_GSET, &ecmd) < 0) {
-		ni_error("%s: ETHTOOL_GSET failed: %m", ifname);
+		if (errno != EOPNOTSUPP)
+			ni_error("%s: ETHTOOL_GSET failed: %m", ifname);
 		return -1;
 	}
 
