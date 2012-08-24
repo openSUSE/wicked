@@ -110,7 +110,7 @@ ni_dbus_xml_register_services(ni_xs_scope_t *scope)
 			ni_objectmodel_register_service(service);
 		}
 
-		service->user_data = xs_service;
+		service->schema = xs_service;
 
 		if (xs_service->methods)
 			service->methods = ni_dbus_xml_register_methods(xs_service, xs_service->methods, service->methods);
@@ -186,7 +186,7 @@ ni_dbus_xml_register_methods(ni_xs_service_t *xs_service, ni_xs_method_t *xs_met
 		if (method != NULL) {
 			ni_debug_dbus("%s method %s is built-in, do not redefine",
 					xs_service->interface, xs_method->name);
-			method->user_data = xs_method;
+			method->schema = xs_method;
 			continue;
 		}
 
@@ -209,7 +209,7 @@ ni_dbus_xml_register_methods(ni_xs_service_t *xs_service, ni_xs_method_t *xs_met
 		ni_string_dup((char **) &method->name, xs_method->name);
 		ni_string_dup((char **) &method->call_signature, sigbuf);
 		method->handler = NULL; /* will be bound later in ni_objectmodel_bind_extensions() */
-		method->user_data = xs_method;
+		method->schema = xs_method;
 
 next_method: ;
 	}
@@ -223,7 +223,7 @@ next_method: ;
 unsigned int
 ni_dbus_xml_method_num_args(const ni_dbus_method_t *method)
 {
-	ni_xs_method_t *xs_method = method->user_data;
+	const ni_xs_method_t *xs_method = method->schema;
 
 	if (xs_method == NULL)
 		return 0;
@@ -233,7 +233,7 @@ ni_dbus_xml_method_num_args(const ni_dbus_method_t *method)
 dbus_bool_t
 ni_dbus_xml_method_has_return(const ni_dbus_method_t *method)
 {
-	ni_xs_method_t *xs_method = method->user_data;
+	const ni_xs_method_t *xs_method = method->schema;
 
 	if (xs_method == NULL)
 		return FALSE;
@@ -247,7 +247,7 @@ dbus_bool_t
 ni_dbus_xml_validate_argument(const ni_dbus_method_t *method, unsigned int narg,
 					xml_node_t *node, const ni_dbus_xml_validate_context_t *ctx)
 {
-	ni_xs_method_t *xs_method = method->user_data;
+	const ni_xs_method_t *xs_method = method->schema;
 
 	if (!xs_method || narg >= xs_method->arguments.count)
 		return FALSE;
@@ -258,7 +258,7 @@ ni_dbus_xml_validate_argument(const ni_dbus_method_t *method, unsigned int narg,
 ni_xs_type_t *
 ni_dbus_xml_get_argument_type(const ni_dbus_method_t *method, unsigned int narg)
 {
-	ni_xs_method_t *xs_method = method->user_data;
+	const ni_xs_method_t *xs_method = method->schema;
 
 	if (!xs_method || narg >= xs_method->arguments.count)
 		return NULL;
@@ -295,7 +295,7 @@ ni_dbus_xml_deserialize_arguments(const ni_dbus_method_t *method,
 				xml_node_t *parent, ni_tempstate_t *temp_state)
 {
 	xml_node_t *node = xml_node_new("arguments", parent);
-	ni_xs_method_t *xs_method = method->user_data;
+	const ni_xs_method_t *xs_method = method->schema;
 	unsigned int i;
 
 	/* This is a lousy hack, but it sure beats passing down the temp_state to
@@ -377,7 +377,7 @@ ni_dbus_xml_serialize_properties(ni_xs_scope_t *schema, ni_dbus_variant_t *resul
 int
 ni_dbus_serialize_return(const ni_dbus_method_t *method, ni_dbus_variant_t *result, xml_node_t *node)
 {
-	ni_xs_method_t *xs_method = method->user_data;
+	const ni_xs_method_t *xs_method = method->schema;
 	ni_xs_type_t *xs_type;
 
 	ni_assert(xs_method);
@@ -1591,11 +1591,11 @@ int
 ni_dbus_xml_get_method_metadata(const ni_dbus_method_t *method, const char *name,
 				xml_node_t **list, unsigned int max_nodes)
 {
-	ni_xs_method_t *xs_method;
+	const ni_xs_method_t *xs_method;
 	xml_node_t *meta, *child;
 	unsigned int count = 0;
 
-	if (!(xs_method = method->user_data))
+	if (!(xs_method = method->schema))
 		return 0;
 	if ((meta = xs_method->meta) == NULL)
 		return 0;

@@ -90,7 +90,7 @@ struct ni_dbus_method {
 	ni_dbus_async_method_handler_t *async_handler;
 	ni_dbus_async_method_completion_t *async_completion;
 
-	void *			user_data;
+	const ni_xs_method_t *	schema;
 };
 
 
@@ -105,7 +105,7 @@ struct ni_dbus_service {
 	const ni_dbus_method_t *	signals;
 	const ni_dbus_property_t *	properties;
 
-	void *				user_data;
+	const ni_xs_service_t *		schema;
 };
 
 struct ni_dbus_class {
