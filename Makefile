@@ -318,11 +318,11 @@ $(LIBNAME).so: $(SHLIBOBJS)
 	$(CC) $(CFLAGS) -shared -Wl,-soname,$(LIBSONAME) $(LDFLAGS) -o $@ $(SHLIBOBJS)
 	ln -sf $@ $(LIBSONAME)
 
-depend:
+depend: config.h
 	$(CC) $(CPPFLAGS) -M $(LIBSRCS) | \
 		sed 's@^\([^.]*\)\.o: src/\([-a-z0-9/]*\)\1.c@obj/lib/\2&@' > .depend
 	$(CC) $(CPPFLAGS) -M $(LIBSRCS) | \
-		sed 's@^\([^.]*\)\.o: src/\([-a-z0-9/]*\)\1.c@obj/shlib/\2&@' > .depend
+		sed 's@^\([^.]*\)\.o: src/\([-a-z0-9/]*\)\1.c@obj/shlib/\2&@' >> .depend
 	$(CC) $(CPPFLAGS) -M $(UTILSRCS) | sed 's:^[a-z]:$(OBJ)/util/&:' >> .depend
 	$(CC) $(CPPFLAGS) -M $(DHCP4SRCS) | sed 's:^[a-z]:$(OBJ)/dhcp4/&:' >> .depend
 	$(CC) $(CPPFLAGS) -M $(DHCP6SRCS) | sed 's:^[a-z]:$(OBJ)/dhcp6/&:' >> .depend
@@ -382,8 +382,9 @@ $(DIST_ARCHIVE): wicked.spec
 		-- . && \
 	mv "$${tmpdir}/$@" . && rmdir "$${tmpdir}"
 
+config.h: config.h.in
 
-config.status: configure
+config.h.in config.status: configure
 
 configure: configure.ac
 	test -f $@ && ./config.status --recheck || ./autogen.sh
