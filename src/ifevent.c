@@ -263,7 +263,7 @@ __ni_rtevent_newaddr(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 	 * Here we just get a const pointer (=what we need)
 	 * to the address stored in the list...
 	 */
-	if(__ni_netdev_process_newaddr_event(dev, h, ifa, &ap) < 0)
+	if (__ni_netdev_process_newaddr_event(dev, h, ifa, &ap) < 0)
 		return -1;
 
 	__ni_netdev_addr_event(dev, NI_EVENT_ADDRESS_UPDATE, ap);
@@ -460,8 +460,10 @@ ni_server_enable_interface_addr_events(void (*ifaddr_handler)(ni_netdev_t *, ni_
 	handle = __ni_rtevent_sock->user_data;
 
 	if (nl_socket_add_membership(handle, RTNLGRP_IPV4_IFADDR) < 0 ||
-	    nl_socket_add_membership(handle, RTNLGRP_IPV6_IFADDR) < 0)
+	    nl_socket_add_membership(handle, RTNLGRP_IPV6_IFADDR) < 0) {
+		ni_error("Cannot add rtnetlink address event membership: %m");
 		return -1;
+	}
 
 	ni_global.interface_addr_event = ifaddr_handler;
 	return 0;
