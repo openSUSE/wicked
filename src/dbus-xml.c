@@ -1607,3 +1607,12 @@ ni_dbus_xml_get_method_metadata(const ni_dbus_method_t *method, const char *name
 
 	return count;
 }
+
+/*
+ * A different entry point for ni_xs_type_to_dbus_signature
+ */
+const char *
+ni_dbus_xml_type_signature(const ni_xs_type_t *type)
+{
+	return ni_xs_type_to_dbus_signature(type);
+}

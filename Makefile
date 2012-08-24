@@ -92,6 +92,7 @@ __LIBSRCS= \
 	  dbus-common.c \
 	  dbus-connection.c \
 	  dbus-dict.c \
+	  dbus-introspect.c \
 	  dbus-xml.c \
 	  dbus-server.c \
 	  dbus-object.c \

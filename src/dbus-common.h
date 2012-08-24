@@ -16,6 +16,7 @@
 #define NI_DBUS_INTERFACE	"org.freedesktop.DBus"
 
 extern const char *		ni_dbus_object_get_path(const ni_dbus_object_t *);
+extern char *			ni_dbus_object_introspect(ni_dbus_object_t *object);
 extern const DBusObjectPathVTable *ni_dbus_object_get_vtable(const ni_dbus_object_t *);
 extern int			ni_dbus_translate_error(const DBusError *, const ni_intmap_t *);
 

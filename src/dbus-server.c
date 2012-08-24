@@ -480,7 +480,15 @@ __ni_dbus_object_introspectable_introspect(ni_dbus_object_t *object, const ni_db
 		unsigned int argc, const ni_dbus_variant_t *argv,
 		ni_dbus_message_t *reply, DBusError *error)
 {
-	ni_dbus_message_append_string(reply, "<node><node name='dummy'/></node>");
+	char *data;
+
+	if (!(data = ni_dbus_object_introspect(object))) {
+		dbus_set_error(error, DBUS_ERROR_FAILED, "Failed to introspect object %s", object->path);
+		return FALSE;
+	}
+
+	ni_dbus_message_append_string(reply, data);
+	free(data);
 	return TRUE;
 }
 
