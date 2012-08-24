@@ -239,9 +239,9 @@ ni_objectmodel_service_by_tag(const char *tag)
 
 	for (i = 0; i < ni_objectmodel_service_registry.count; ++i) {
 		const ni_dbus_service_t *service = ni_objectmodel_service_registry.services[i];
-		ni_xs_service_t *xs_service;
+		const ni_xs_service_t *xs_service;
 
-		if ((xs_service = service->user_data) != NULL
+		if ((xs_service = service->schema) != NULL
 		 && ni_string_eq(xs_service->name, tag))
 			return service;
 	}
@@ -252,12 +252,12 @@ ni_objectmodel_service_by_tag(const char *tag)
 const ni_dbus_service_t *
 ni_objectmodel_factory_service(const ni_dbus_service_t *service)
 {
-	ni_xs_service_t *xs_service;
+	const ni_xs_service_t *xs_service;
 	const char *factory_name = NULL;
 	char namebuf[256];
 
 	/* See if the schema specifies a factory service explicitly */
-	if ((xs_service = service->user_data) != NULL) {
+	if ((xs_service = service->schema) != NULL) {
 		const ni_var_t *attr;
 
 		attr = ni_var_array_get(&xs_service->attributes, "factory");
@@ -277,12 +277,12 @@ ni_objectmodel_factory_service(const ni_dbus_service_t *service)
 const ni_dbus_service_t *
 ni_objectmodel_auth_service(const ni_dbus_service_t *service)
 {
-	ni_xs_service_t *xs_service;
+	const ni_xs_service_t *xs_service;
 	const char *auth_name = NULL;
 	char namebuf[256];
 
 	/* See if the schema specifies a auth service explicitly */
-	if ((xs_service = service->user_data) != NULL) {
+	if ((xs_service = service->schema) != NULL) {
 		const ni_var_t *attr;
 
 		attr = ni_var_array_get(&xs_service->attributes, "auth");

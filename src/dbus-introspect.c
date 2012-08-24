@@ -113,7 +113,7 @@ __ni_dbus_introspect_method(const ni_dbus_method_t *method, xml_node_t *node)
 	xml_node_add_attr(node, "name", method->name);
 
 	/* If we have the schema definition, call out the arguments here */
-	if ((xs_method = method->user_data) != NULL) {
+	if ((xs_method = method->schema) != NULL) {
 		xml_node_t *arg;
 		unsigned int i;
 

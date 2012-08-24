@@ -259,7 +259,6 @@ struct ni_xs_type {
 	xml_node_t *		meta;
 };
 
-typedef struct ni_xs_method	ni_xs_method_t;
 struct ni_xs_method {
 	ni_xs_method_t *	next;
 	char *			name;
@@ -270,7 +269,6 @@ struct ni_xs_method {
 	xml_node_t *		meta;
 };
 
-typedef struct ni_xs_service	ni_xs_service_t;
 struct ni_xs_service {
 	ni_xs_service_t *	next;
 	char *			name;
