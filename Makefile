@@ -171,9 +171,9 @@ UTILSRCS= util/mkconst.c
 SOURCES= $(LIBSRCS) $(DHCP4SRCS) $(AUTO4SRCS) $(DHCP6SRCS) \
 	 $(CLIENTSRCS) $(SERVERSRCS) $(NANNYSRCS)
 
-all: Makefile.vars $(TGTLIBS) $(APPBINS) $(GENFILES)
+all: Makefile.vars config.h $(TGTLIBS) $(APPBINS) $(GENFILES)
 
-dist: Makefile.vars $(DIST_ARCHIVE)
+dist: Makefile.vars wicked.spec $(DIST_ARCHIVE)
 	@echo "=============================================="
 	@ls -1 wicked.spec $(DIST_ARCHIVE)
 	@echo "=============================================="
@@ -182,21 +182,21 @@ tags:
 	@-ctags -f tags $$(find $(TAGDIRS) -type f -name "*.[ch]")
 
 distclean clean::
-	rm -f *~ *.o libwicked.* core tags LOG
+	rm -f *~ *.o libwicked.* core LOG
 	rm -rf $(BIN) $(OBJ) $(GENFILES)
 	rm -f testing/*.o
 	rm -f testing/*-test
 
 distclean::
-	rm -f .depend
-	rm -f config.h
+	rm -f .depend tags
+	rm -f config.h wicked.pc
 	rm -f etc/init.d/wicked
 	rm -f etc/init.d/network
 
 realclean maintainer-clean: distclean
-	rm -rf autom4te.cache
-	rm -f aclocal.m4 configure config.* *.log *.scan
-	rm -f Makefile.vars wicked.pc wicked.spec
+	rm -rf autom4te.cache *.log *.scan
+	rm -f aclocal.m4 configure config.*
+	rm -f Makefile.vars wicked.spec
 	rm -f $(DIST_ARCHIVE)
 
 install-strip: STRIP_FLAG=-s
@@ -248,7 +248,7 @@ else
 	ln -sf $(libdir)/$(LIBSONAME) $(DESTDIR)$(devellibdir)/$(LIBNAME).so
 endif
 
-install-devel-data:
+install-devel-data: wicked.pc
 	install -d -m 755 $(DESTDIR)$(includedir)/wicked
 	install -c -m 644 $(wildcard include/wicked/*.h) $(DESTDIR)$(includedir)/wicked
 	install -d -m 755 $(DESTDIR)$(pkgconfigdir)
@@ -350,9 +350,6 @@ $(OBJ)/netcf/%.o: src/%.c
 	@test -d $(dir $@) || mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
 
-wicked.spec: wicked.spec.in
-	./config.status --file=$@:$<
-
 # we use a tempdir so tar does not complain,
 # that the . directory changed while reading
 $(DIST_ARCHIVE): wicked.spec
@@ -370,6 +367,8 @@ $(DIST_ARCHIVE): wicked.spec
 		--exclude="*.so*"            \
 		--exclude="*.log"            \
 		--exclude="*.swp"            \
+		--exclude="*.rej"            \
+		--exclude="*.orig"           \
 		--exclude="wicked.pc"        \
 		--exclude="config.h"         \
 		--exclude="config.guess"     \
@@ -390,8 +389,8 @@ configure: configure.ac
 
 Makefile: Makefile.vars
 
-Makefile.vars: Makefile.vars.in config.status
-	./config.status Makefile.vars
+Makefile.vars config.h wicked.pc wicked.spec: config.status
+	./config.status $@
 
 -include .depend
 
