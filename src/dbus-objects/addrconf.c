@@ -604,8 +604,10 @@ ni_objectmodel_addrconf_forwarder_call(ni_dbus_addrconf_forwarder_t *forwarder,
 			return FALSE;
 		}
 
-		ni_dbus_client_add_signal_handler(forwarder->supplicant.client, NULL, NULL,
-				forwarder->supplicant.interface,
+		ni_dbus_client_add_signal_handler(forwarder->supplicant.client,
+				forwarder->supplicant.bus_name,		/* sender must be the supplicant */
+				NULL,					/* any object */
+				NI_OBJECTMODEL_ADDRCONF_INTERFACE,	/* interface */
 				ni_objectmodel_addrconf_signal_handler,
 				forwarder);
 	}

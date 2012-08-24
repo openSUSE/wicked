@@ -592,19 +592,19 @@ dhcp6_protocol_event(enum ni_dhcp6_event ev, const ni_dhcp6_device_t *dev, ni_ad
 			goto done;
 		}
 		ni_dbus_server_send_signal(dhcp6_dbus_server, dev_object,
-				NI_OBJECTMODEL_DHCP6_INTERFACE, NI_OBJECTMODEL_LEASE_ACQUIRED_SIGNAL,
+				NI_OBJECTMODEL_ADDRCONF_INTERFACE, NI_OBJECTMODEL_LEASE_ACQUIRED_SIGNAL,
 				argc, argv);
 		break;
 
 	case NI_DHCP6_EVENT_RELEASED:
 		ni_dbus_server_send_signal(dhcp6_dbus_server, dev_object,
-				NI_OBJECTMODEL_DHCP6_INTERFACE, NI_OBJECTMODEL_LEASE_RELEASED_SIGNAL,
+				NI_OBJECTMODEL_ADDRCONF_INTERFACE, NI_OBJECTMODEL_LEASE_RELEASED_SIGNAL,
 				argc, argv);
 		break;
 
 	case NI_DHCP6_EVENT_LOST:
 		ni_dbus_server_send_signal(dhcp6_dbus_server, dev_object,
-				NI_OBJECTMODEL_DHCP6_INTERFACE, NI_OBJECTMODEL_LEASE_LOST_SIGNAL,
+				NI_OBJECTMODEL_ADDRCONF_INTERFACE, NI_OBJECTMODEL_LEASE_LOST_SIGNAL,
 				argc, argv);
 		break;
 
