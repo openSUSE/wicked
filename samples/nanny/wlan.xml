@@ -13,7 +13,7 @@
 	-- for it later. -->
       <wpa-psk />
     </wireless>
-  
+
     <ipv4:dhcp>
       <enabled>true</enabled>
       <acquire-timeout>15</acquire-timeout>
