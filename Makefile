@@ -138,7 +138,7 @@ DHCP6SRCS = \
 CLIENTSRCS = \
 	  client/main.c \
 	  client/ifup.c \
-	  client/manager.c \
+	  client/nanny.c \
 	  client/reachable.c
 SERVERSRCS = \
 	  server/main.c
