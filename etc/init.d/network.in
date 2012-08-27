@@ -42,6 +42,8 @@
 #                       and set up routing
 ### END INIT INFO
 
+WICKED_CLIENT_BIN=@sbindir@/wicked
+
 ROOTDIR=${0%etc/*}
 
 . /etc/rc.status
