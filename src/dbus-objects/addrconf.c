@@ -563,7 +563,7 @@ ni_objectmodel_addrconf_forward_release(ni_dbus_addrconf_forwarder_t *forwarder,
 	rv = ni_objectmodel_addrconf_forwarder_call(forwarder, dev, "drop", &lease->uuid, NULL, error);
 	if (!rv) {
 		switch (ni_dbus_get_error(error, NULL)) {
-		case NI_ERROR_ADDRCONF_NO_LEASE:
+		case -NI_ERROR_ADDRCONF_NO_LEASE:
 			ni_debug_objectmodel("%s: no %s/%s lease", dev->name,
 				ni_addrconf_type_to_name(forwarder->addrconf),
 				ni_addrfamily_type_to_name(forwarder->addrfamily));
