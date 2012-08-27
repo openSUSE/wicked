@@ -66,6 +66,14 @@ ni_init(const char *appname)
 			appname = "config";
 		}
 		asprintf(&ni_global.config_path, "%s/%s.xml", WICKED_CONFIGDIR, appname);
+
+		/* If the application-specific config file does not exist, fall
+		 * back to common.xml */
+		if (!ni_file_exists(ni_global.config_path)) {
+			ni_string_free(&ni_global.config_path);
+			asprintf(&ni_global.config_path, "%s/common.xml", WICKED_CONFIGDIR);
+		}
+
 		explicit_config = 0;
 	}
 
