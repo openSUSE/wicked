@@ -56,6 +56,7 @@ static void		ni_nanny_modem_state_change_signal_receive(ni_dbus_connection_t *, 
 //static void		handle_interface_event(ni_netdev_t *, ni_event_t);
 //static void		handle_modem_event(ni_modem_t *, ni_event_t);
 static void		handle_rfkill_event(ni_rfkill_type_t, ni_bool_t, void *user_data);
+static ni_bool_t	ni_nanny_config_callback(void *, const xml_node_t *);
 
 int
 main(int argc, char **argv)
@@ -107,9 +108,6 @@ main(int argc, char **argv)
 		}
 	}
 
-	if (ni_init(program_name) < 0)
-		return 1;
-
 	if (optind != argc)
 		goto usage;
 
@@ -127,6 +125,11 @@ babysit(void)
 	ni_nanny_t *mgr;
 
 	mgr = ni_nanny_new();
+
+	if (ni_init_ex(program_name, ni_nanny_config_callback, mgr) < 0)
+		ni_fatal("error in configuration file");
+
+	ni_nanny_start(mgr);
 
 	if (!opt_foreground) {
 		if (ni_server_background(program_name) < 0)
@@ -327,4 +330,59 @@ handle_rfkill_event(ni_rfkill_type_t type, ni_bool_t blocked, void *user_data)
 			blocked? "blocked" : "enabled");
 
 	ni_nanny_rfkill_event(mgr, type, blocked);
+}
+
+/*
+ * Handle config file option in <nanny> element
+ */
+ni_bool_t
+ni_nanny_config_callback(void *appdata, const xml_node_t *node)
+{
+	ni_nanny_t *nanny = appdata;
+	ni_nanny_devmatch_t **pos;
+	xml_node_t *child;
+
+	pos = &nanny->enable;
+	for (child = node->children; child; child = child->next) {
+		if (ni_string_eq(child->name, "enable")) {
+			ni_nanny_devmatch_t *match = NULL;
+			const char *attrval;
+			char classname[64];
+			unsigned int type;
+
+			if ((attrval = xml_node_get_attr(child, "link-layer")) != NULL) {
+				snprintf(classname, sizeof(classname), "netif-%s", attrval);
+				attrval = classname;
+				type = NI_NANNY_DEVMATCH_CLASS;
+			} else
+			if ((attrval = xml_node_get_attr(child, "class")) != NULL) {
+				type = NI_NANNY_DEVMATCH_CLASS;
+			} else
+			if ((attrval = xml_node_get_attr(child, "device")) != NULL) {
+				type = NI_NANNY_DEVMATCH_DEVICE;
+			} else {
+				ni_warn("%s: cannot parse <enable> element",
+						xml_node_location(child));
+				goto skip_option;
+			}
+
+			match = calloc(1, sizeof(*match));
+			match->type = type;
+			ni_string_dup(&match->value, attrval);
+
+			if ((attrval = xml_node_get_attr(child, "auto")) != NULL
+			 && !strcasecmp(attrval, "true"))
+				match->auto_enable = TRUE;
+
+			ni_debug_nanny("enable type=%u, value=%s%s", match->type, match->value,
+						match->auto_enable? ", auto" : "");
+
+			*pos = match;
+			pos = &match->next;
+		}
+
+skip_option: ;
+	}
+
+	return TRUE;
 }

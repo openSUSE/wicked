@@ -126,7 +126,8 @@ ni_objectmodel_get_managed_device(const ni_dbus_object_t *object, DBusError *err
 	NI_DBUS_GENERIC_BOOL_PROPERTY(managed_device, dbus_name, name, rw)
 
 static ni_dbus_property_t	ni_objectmodel_managed_modem_properties[] = {
-	MANAGED_MODEM_BOOL_PROPERTY(user-controlled, monitor, RW),
+	MANAGED_MODEM_BOOL_PROPERTY(allowed, allowed, RW),
+	MANAGED_MODEM_BOOL_PROPERTY(monitor, monitor, RW),
 	MANAGED_MODEM_UINT_PROPERTY(state, state, RO),
 	{ NULL }
 };
