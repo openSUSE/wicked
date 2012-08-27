@@ -31,9 +31,22 @@ static void			__ni_objectmodel_dhcp_device_release(ni_dbus_object_t *);
 static ni_dbus_class_t		ni_objectmodel_dhcp4dev_class = {
 	.name		= "dhcp4-device",
 	.destroy	= __ni_objectmodel_dhcp_device_release,
+	.superclass	= &ni_objectmodel_addrconf_device_class,
 };
 
 static const ni_dbus_service_t	ni_objectmodel_dhcp4_service;
+
+/*
+ * Register services and classes for dhcp4 supplicant service
+ */
+void
+ni_objectmodel_dhcp4_init(void)
+{
+	if (ni_objectmodel_init(NULL) == NULL)
+		ni_fatal("Cannot initialize objectmodel, giving up.");
+	ni_objectmodel_register_class(&ni_objectmodel_dhcp4dev_class);
+	ni_objectmodel_register_service(&ni_objectmodel_dhcp4_service);
+}
 
 /*
  * Build a dbus-object encapsulating a network device.
@@ -63,7 +76,7 @@ __ni_objectmodel_build_dhcp4_device_object(ni_dbus_server_t *server, ni_dhcp_dev
 	if (object == NULL)
 		ni_fatal("Unable to create dbus object for dhcp4 device %s", dev->ifname);
 
-	ni_dbus_object_register_service(object, &ni_objectmodel_dhcp4_service);
+	ni_objectmodel_bind_compatible_interfaces(object);
 	return object;
 }
 

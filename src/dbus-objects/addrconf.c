@@ -32,6 +32,10 @@
 #include "model.h"
 #include "debug.h"
 
+const ni_dbus_class_t		ni_objectmodel_addrconf_device_class = {
+	.name = "addrconf-device",
+};
+
 typedef struct ni_dbus_addrconf_forwarder {
 
 	struct {
@@ -65,6 +69,12 @@ static dbus_bool_t	ni_objectmodel_addrconf_forward_release(ni_dbus_addrconf_forw
 #define NI_OBJECTMODEL_ADDRCONF_IPV6STATIC_INTERFACE	NI_OBJECTMODEL_ADDRCONF_INTERFACE ".ipv6.static"
 #define NI_OBJECTMODEL_ADDRCONF_IPV4IBFT_INTERFACE	NI_OBJECTMODEL_ADDRCONF_INTERFACE ".ipv4.ibft"
 #define NI_OBJECTMODEL_ADDRCONF_IPV6IBFT_INTERFACE	NI_OBJECTMODEL_ADDRCONF_INTERFACE ".ipv6.ibft"
+
+void
+ni_objectmodel_register_addrconf_classes(void)
+{
+	ni_objectmodel_register_class(&ni_objectmodel_addrconf_device_class);
+}
 
 /*
  * Extract interface index from object path.
@@ -604,8 +614,10 @@ ni_objectmodel_addrconf_forwarder_call(ni_dbus_addrconf_forwarder_t *forwarder,
 			return FALSE;
 		}
 
-		ni_dbus_client_add_signal_handler(forwarder->supplicant.client, NULL, NULL,
-				forwarder->supplicant.interface,
+		ni_dbus_client_add_signal_handler(forwarder->supplicant.client,
+				forwarder->supplicant.bus_name,		/* sender must be the supplicant */
+				NULL,					/* any object */
+				NI_OBJECTMODEL_ADDRCONF_INTERFACE,	/* interface */
 				ni_objectmodel_addrconf_signal_handler,
 				forwarder);
 	}

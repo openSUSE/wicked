@@ -41,6 +41,9 @@ dbus:
 	  and destruction. Also taking care of the variant __magic cookie
 	  field.
 
+dhcp4:
+	- fix save-state code
+
 netinfo:
 	- Introduce an <access-provider> abstraction; this can be either
 	  a wireless network (ESSID, security information); an Internet

@@ -221,7 +221,7 @@ autoip4_device_create(ni_dbus_server_t *server, const ni_netdev_t *ifp)
 	dev->link.ifindex = ifp->link.ifindex;
 
 	ni_objectmodel_register_autoip4_device(server, dev);
-	ni_debug_dbus("Created device for %s", ifp->name);
+	ni_debug_dhcp("Created device for %s", ifp->name);
 }
 
 /*
@@ -266,6 +266,8 @@ autoip4_supplicant(void)
 	autoip4_dbus_server = ni_server_listen_dbus(NI_OBJECTMODEL_DBUS_BUS_NAME_AUTO4);
 	if (autoip4_dbus_server == NULL)
 		ni_fatal("unable to initialize dbus service");
+
+	ni_objectmodel_autoip4_init();
 
 	autoip4_register_services(autoip4_dbus_server);
 
@@ -370,19 +372,19 @@ autoip4_protocol_event(enum ni_lease_event ev, const ni_autoip_device_t *dev, ni
 			goto done;
 		}
 		ni_dbus_server_send_signal(autoip4_dbus_server, dev_object,
-				NI_OBJECTMODEL_AUTO4_INTERFACE, NI_OBJECTMODEL_LEASE_ACQUIRED_SIGNAL,
+				NI_OBJECTMODEL_ADDRCONF_INTERFACE, NI_OBJECTMODEL_LEASE_ACQUIRED_SIGNAL,
 				argc, argv);
 		break;
 
 	case NI_EVENT_LEASE_RELEASED:
 		ni_dbus_server_send_signal(autoip4_dbus_server, dev_object,
-				NI_OBJECTMODEL_AUTO4_INTERFACE, NI_OBJECTMODEL_LEASE_RELEASED_SIGNAL,
+				NI_OBJECTMODEL_ADDRCONF_INTERFACE, NI_OBJECTMODEL_LEASE_RELEASED_SIGNAL,
 				argc, argv);
 		break;
 
 	case NI_EVENT_LEASE_LOST:
 		ni_dbus_server_send_signal(autoip4_dbus_server, dev_object,
-				NI_OBJECTMODEL_AUTO4_INTERFACE, NI_OBJECTMODEL_LEASE_LOST_SIGNAL,
+				NI_OBJECTMODEL_ADDRCONF_INTERFACE, NI_OBJECTMODEL_LEASE_LOST_SIGNAL,
 				argc, argv);
 		break;
 

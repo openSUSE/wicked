@@ -5,6 +5,61 @@
   -->
 
 <!-- =================================================
+     Generic Addrconf facilities
+     ================================================= -->
+<service name="addrconf" interface="org.opensuse.Network.Addrconf" object-class="addrconf-device">
+  <define name="lease-type" class="dict">
+    <state type="uint32" />  	<!-- This should really be an enum -->
+    <acquired type="uint32" />	<!-- timestamp -->
+    <update type="uint32" />	<!-- bitmap -->
+
+    <uuid type="uuid-type" />
+    <hostname type="string" />
+    <addresses type="network-interface:assigned-address-list" />
+    <routes type="network-interface:assigned-route-list" />
+
+    <resolver class="dict">
+      <default-domain type="string" />
+      <servers class="array" element-type="string" />
+      <search class="array" element-type="string" />
+    </resolver>
+
+    <log-servers class="array" element-type="string" />
+    <ntp-servers class="array" element-type="string" />
+    <slp-servers class="array" element-type="string" />
+    <slp-scopes class="array" element-type="string" />
+    <sip-servers class="array" element-type="string" />
+    <lpr-servers class="array" element-type="string" />
+
+    <netbios-name-servers class="array" element-type="string" />
+    <netbios-dd-servers class="array" element-type="string" />
+    <netbios-domain type="string" />
+    <netbios-scope type="string" />
+  </define>
+
+  <signal name="LeaseAcquired">
+    <arguments>
+      <uuid type="uuid-type"/>
+      <lease type="lease-type" />
+    </arguments>
+  </signal>
+
+  <signal name="LeaseReleased">
+    <arguments>
+      <uuid type="uuid-type"/>
+      <lease type="lease-type" />
+    </arguments>
+  </signal>
+
+  <signal name="LeaseLost">
+    <arguments>
+      <uuid type="uuid-type"/>
+      <lease type="lease-type" />
+    </arguments>
+  </signal>
+</service>
+
+<!-- =================================================
      Static IPv4 Address configuration service
      ================================================= -->
 <service name="ipv4:static" interface="org.opensuse.Network.Addrconf.ipv4.static" object-class="netif">
