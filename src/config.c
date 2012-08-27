@@ -98,11 +98,13 @@ __ni_config_parse(ni_config_t *conf, const char *filename)
 	/* Loop over all elements in the config file */
 	for (child = node->children; child; child = child->next) {
 		if (strcmp(child->name, "include") == 0) {
-			if (child->cdata == NULL) {
+			const char *attrval;
+
+			if ((attrval = xml_node_get_attr(child, "name")) == NULL) {
 				ni_error("%s: <include> element lacks filename", xml_node_location(child));
 				goto failed;
 			}
-			if (!ni_config_include(conf, filename, child->cdata))
+			if (!ni_config_include(conf, filename, attrval))
 				goto failed;
 		} else
 		if (strcmp(child->name, "statedir") == 0) {
