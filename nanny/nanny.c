@@ -31,6 +31,7 @@
 #include "nanny.h"
 
 
+static void		__ni_nanny_user_free(ni_nanny_user_t *);
 static int		ni_nanny_prompt(const ni_fsm_prompt_t *, xml_node_t *, void *);
 
 /*
@@ -77,7 +78,6 @@ ni_nanny_new(void)
 		ni_fatal("Cannot create server, giving up.");
 
 	mgr->fsm = ni_fsm_new();
-	mgr->secret_db = ni_secret_db_new();
 
 	ni_fsm_set_user_prompt_fn(mgr->fsm, ni_nanny_prompt, mgr);
 
@@ -85,6 +85,21 @@ ni_nanny_new(void)
 	ni_objectmodel_register_all();
 
 	return mgr;
+}
+
+void
+ni_nanny_free(ni_nanny_t *mgr)
+{
+	if (mgr->users) {
+		ni_nanny_user_t *user;
+
+		while ((user = mgr->users) != NULL) {
+			mgr->users = user->next;
+			__ni_nanny_user_free(user);
+		}
+	}
+
+	ni_fatal("%s(): incomplete", __func__);
 }
 
 /*
@@ -323,6 +338,7 @@ ni_nanny_prompt(const ni_fsm_prompt_t *p, xml_node_t *node, void *user_data)
 	ni_stringbuf_t path_buf;
 	ni_ifworker_t *w = NULL;
 	ni_managed_device_t *mdev;
+	ni_nanny_user_t *user;
 	ni_secret_t *sec;
 	int rv = -1;
 
@@ -347,7 +363,17 @@ ni_nanny_prompt(const ni_fsm_prompt_t *p, xml_node_t *node, void *user_data)
 		goto done;
 	}
 
-	sec = ni_nanny_get_secret(mgr, &w->security_id, path_buf.string);
+	if (mdev->selected_policy == NULL) {
+		ni_error("%s: no policy set, cannot handle prompt for \"%s\"",
+				w->name, path_buf.string);
+		goto done;
+	}
+	if ((user = ni_nanny_get_user(mgr, mdev->selected_policy->owner)) == NULL) {
+		ni_error("%s: policy not owned by anyone?!", w->name);
+		goto done;
+	}
+
+	sec = ni_secret_db_find(user->secret_db, &w->security_id, path_buf.string);
 	if (sec == NULL) {
 		if (mdev->state == NI_MANAGED_STATE_BINDING) {
 			mdev->missing_secrets = TRUE;
@@ -380,12 +406,17 @@ done:
  * update, recheck it now.
  */
 void
-ni_nanny_add_secret(ni_nanny_t *mgr, const ni_security_id_t *security_id, const char *path, const char *value)
+ni_nanny_add_secret(ni_nanny_t *mgr, uid_t caller_uid,
+			const ni_security_id_t *security_id, const char *path, const char *value)
 {
 	ni_managed_device_t *mdev;
+	ni_nanny_user_t *user;
 	ni_secret_t *sec;
 
-	sec = ni_secret_db_update(mgr->secret_db, security_id, path, value);
+	if (!(user = ni_nanny_create_user(mgr, caller_uid)))
+		return;
+
+	sec = ni_secret_db_update(user->secret_db, security_id, path, value);
 
 	ni_debug_nanny("%s: secret for %s updated", ni_security_id_print(security_id), path);
 	for (mdev = mgr->device_list; mdev; mdev = mdev->next) {
@@ -415,13 +446,60 @@ ni_nanny_add_secret(ni_nanny_t *mgr, const ni_security_id_t *security_id, const 
 void
 ni_nanny_clear_secrets(ni_nanny_t *mgr, const ni_security_id_t *security_id, const char *path)
 {
-	ni_secret_db_drop(mgr->secret_db, security_id, path);
+	ni_nanny_user_t *user;
+
+	for (user = mgr->users; user; user = user->next)
+		ni_secret_db_drop(user->secret_db, security_id, path);
 }
 
-ni_secret_t *
-ni_nanny_get_secret(ni_nanny_t *mgr, const ni_security_id_t *security_id, const char *path)
+/*
+ * Handle nanny_user objects
+ */
+ni_nanny_user_t *
+ni_nanny_user_new(uid_t uid)
 {
-	return ni_secret_db_find(mgr->secret_db, security_id, path);
+	ni_nanny_user_t *user;
+
+	user = calloc(1, sizeof(*user));
+	user->uid = uid;
+	user->secret_db = ni_secret_db_new();
+	return user;
+}
+
+void
+__ni_nanny_user_free(ni_nanny_user_t *user)
+{
+	ni_secret_db_free(user->secret_db);
+	user->secret_db = NULL;
+	free(user);
+}
+
+static ni_nanny_user_t *
+__ni_nanny_get_user(ni_nanny_t *mgr, uid_t uid, ni_bool_t create)
+{
+	ni_nanny_user_t **pos, *user;
+
+	for (pos = &mgr->users; (user = *pos) != NULL; pos = &user->next) {
+		if (user->uid == uid)
+			return user;
+	}
+
+	if (create)
+		*pos = user = ni_nanny_user_new(uid);
+
+	return user;
+}
+
+ni_nanny_user_t *
+ni_nanny_get_user(ni_nanny_t *mgr, uid_t uid)
+{
+	return __ni_nanny_get_user(mgr, uid, FALSE);
+}
+
+ni_nanny_user_t *
+ni_nanny_create_user(ni_nanny_t *mgr, uid_t uid)
+{
+	return __ni_nanny_get_user(mgr, uid, TRUE);
 }
 
 /*
@@ -547,6 +625,7 @@ ni_objectmodel_nanny_create_policy(ni_dbus_object_t *object, const ni_dbus_metho
 static dbus_bool_t
 ni_objectmodel_nanny_set_secret(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 					unsigned int argc, const ni_dbus_variant_t *argv,
+					uid_t caller_uid,
 					ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_security_id_t security_id = NI_SECURITY_ID_INIT;
@@ -564,15 +643,15 @@ ni_objectmodel_nanny_set_secret(ni_dbus_object_t *object, const ni_dbus_method_t
 		return ni_dbus_error_invalid_args(error, ni_dbus_object_get_path(object), method->name);
 	}
 
-	ni_nanny_add_secret(mgr, &security_id, element_path, value);
+	ni_nanny_add_secret(mgr, caller_uid, &security_id, element_path, value);
 	ni_security_id_destroy(&security_id);
 	return TRUE;
 }
 
 static ni_dbus_method_t		ni_objectmodel_nanny_methods[] = {
-	{ "createPolicy",	"s",		ni_objectmodel_nanny_create_policy	},
 	{ "getDevice",		"s",		ni_objectmodel_nanny_get_device	},
-	{ "addSecret",		"a{sv}ss",	ni_objectmodel_nanny_set_secret	},
+	{ "createPolicy",	"s",		ni_objectmodel_nanny_create_policy	},
+	{ "addSecret",		"a{sv}ss",	.handler_ex = ni_objectmodel_nanny_set_secret	},
 	{ NULL }
 };
 

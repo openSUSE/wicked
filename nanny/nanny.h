@@ -13,7 +13,7 @@
 #include <wicked/fsm.h>
 #include <wicked/secret.h>
 
-typedef struct ni_manager	ni_nanny_t;
+typedef struct ni_nanny		ni_nanny_t;
 typedef struct ni_managed_device ni_managed_device_t;
 typedef struct ni_managed_policy ni_managed_policy_t;
 
@@ -50,15 +50,24 @@ struct ni_managed_device {
 	ni_secret_array_t	secrets;
 };
 
+typedef struct ni_nanny_user	ni_nanny_user_t;
+struct ni_nanny_user {
+	ni_nanny_user_t *	next;
+
+	uid_t			uid;
+	ni_secret_db_t *	secret_db;
+};
+
 struct ni_managed_policy {
 	ni_managed_policy_t *	next;
 
+	uid_t			owner;
 	unsigned int		seqno;
 	ni_fsm_policy_t *	fsm_policy;
 	xml_document_t *	doc;
 };
 
-struct ni_manager {
+struct ni_nanny {
 	ni_dbus_server_t *	server;
 	ni_fsm_t *		fsm;
 
@@ -69,7 +78,7 @@ struct ni_manager {
 	ni_ifworker_array_t	recheck;
 	ni_ifworker_array_t	down;
 
-	ni_secret_db_t *	secret_db;
+	ni_nanny_user_t *	users;
 };
 
 extern ni_dbus_class_t		ni_objectmodel_managed_netdev_class;
@@ -93,9 +102,11 @@ extern void			ni_nanny_unregister_device(ni_nanny_t *, ni_ifworker_t *);
 extern ni_managed_device_t *	ni_nanny_get_device(ni_nanny_t *, ni_ifworker_t *);
 extern void			ni_nanny_remove_device(ni_nanny_t *, ni_managed_device_t *);
 extern ni_managed_policy_t *	ni_nanny_get_policy(ni_nanny_t *, const ni_fsm_policy_t *);
+extern ni_nanny_user_t *	ni_nanny_get_user(ni_nanny_t *, uid_t);
+extern ni_nanny_user_t *	ni_nanny_create_user(ni_nanny_t *, uid_t);
 extern void			ni_nanny_clear_secrets(ni_nanny_t *mgr,
 						const ni_security_id_t *security_id, const char *path);
-extern ni_secret_t *		ni_nanny_get_secret(ni_nanny_t *, const ni_security_id_t *, const char *);
+extern ni_secret_t *		ni_nanny_get_secret(ni_nanny_t *, uid_t, const ni_security_id_t *, const char *);
 extern void			ni_nanny_rfkill_event(ni_nanny_t *mgr, ni_rfkill_type_t type, ni_bool_t blocked);
 
 extern ni_bool_t		ni_managed_netdev_enable(ni_managed_device_t *);

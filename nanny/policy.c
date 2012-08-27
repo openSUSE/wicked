@@ -111,6 +111,7 @@ ni_objectmodel_managed_policy_unwrap(const ni_dbus_object_t *object, DBusError *
 static dbus_bool_t
 ni_objectmodel_managed_policy_update(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 					unsigned int argc, const ni_dbus_variant_t *argv,
+					uid_t caller_uid,
 					ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_managed_policy_t *mpolicy;
@@ -148,6 +149,7 @@ ni_objectmodel_managed_policy_update(ni_dbus_object_t *object, const ni_dbus_met
 		return FALSE;
 	}
 
+	mpolicy->owner = caller_uid;
 	if (mpolicy->doc)
 		xml_document_free(mpolicy->doc);
 	mpolicy->doc = doc;
@@ -158,7 +160,7 @@ ni_objectmodel_managed_policy_update(ni_dbus_object_t *object, const ni_dbus_met
 }
 
 static ni_dbus_method_t		ni_objectmodel_managed_policy_methods[] = {
-	{ "update",		"s",		ni_objectmodel_managed_policy_update	},
+	{ "update",		"s",		.handler_ex = ni_objectmodel_managed_policy_update	},
 	{ NULL }
 };
 
