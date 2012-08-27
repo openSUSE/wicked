@@ -24,6 +24,7 @@
 #include "appconfig.h"
 #include "xml-schema.h"
 
+static ni_bool_t	ni_config_include(ni_config_t *, const char *, const char *);
 static int		ni_config_parse_addrconf_dhcp(struct ni_config_dhcp *, xml_node_t *);
 static int		ni_config_parse_addrconf_dhcp6(struct ni_config_dhcp6 *, xml_node_t *);
 static int		ni_config_parse_afconfig(struct ni_afconfig *, const char *, xml_node_t *);
@@ -78,12 +79,11 @@ ni_config_free(ni_config_t *conf)
 	free(conf);
 }
 
-ni_config_t *
-ni_config_parse(const char *filename)
+ni_bool_t
+__ni_config_parse(ni_config_t *conf, const char *filename)
 {
 	xml_document_t *doc;
 	xml_node_t *node, *child;
-	ni_config_t *conf = NULL;
 
 	ni_debug_wicked("Reading config file %s", filename);
 	doc = xml_document_read(filename);
@@ -97,8 +97,6 @@ ni_config_parse(const char *filename)
 		ni_error("%s: no <config> element", filename);
 		goto failed;
 	}
-
-	conf = ni_config_new();
 
 	if (ni_config_parse_afconfig(&conf->ipv4, "ipv4", node) < 0
 	 || ni_config_parse_afconfig(&conf->ipv6, "ipv6", node) < 0
@@ -140,8 +138,16 @@ ni_config_parse(const char *filename)
 		}
 	}
 
-	/* Parse extensions */
+	/* Loop over all elements in the config file */
 	for (child = node->children; child; child = child->next) {
+		if (strcmp(child->name, "include") == 0) {
+			if (child->cdata == NULL) {
+				ni_error("%s: <include> element lacks filename", xml_node_location(child));
+				goto failed;
+			}
+			if (!ni_config_include(conf, filename, child->cdata))
+				goto failed;
+		} else
 		if (strcmp(child->name, "extension") == 0
 		 || strcmp(child->name, "dbus-service") == 0) {
 			if (ni_config_parse_objectmodel_extension(&conf->dbus_extensions, child) < 0)
@@ -169,14 +175,55 @@ ni_config_parse(const char *filename)
 	}
 
 	xml_document_free(doc);
-	return conf;
+	return TRUE;
 
 failed:
-	if (conf)
-		ni_config_free(conf);
 	if (doc)
 		xml_document_free(doc);
-	return NULL;
+	return FALSE;
+}
+
+ni_config_t *
+ni_config_parse(const char *filename)
+{
+	ni_config_t *conf;
+
+	conf = ni_config_new();
+	if (!__ni_config_parse(conf, filename)) {
+		ni_config_free(conf);
+		return NULL;
+	}
+
+	return conf;
+}
+
+ni_bool_t
+ni_config_include(ni_config_t *conf, const char *parent_filename, const char *incl_filename)
+{
+	char fullname[PATH_MAX + 1];
+
+	if (incl_filename[0] != '/') {
+		unsigned int i;
+
+		i = strlen(parent_filename);
+		if (i >= PATH_MAX)
+			goto too_long;
+		strcpy(fullname, parent_filename);
+
+		while (i && fullname[i-1] != '/')
+			--i;
+		fullname[i] = '\0';
+
+		if (i + strlen(incl_filename) >= PATH_MAX)
+			goto too_long;
+		strcpy(&fullname[i], incl_filename);
+		incl_filename = fullname;
+	}
+	return __ni_config_parse(conf, incl_filename);
+
+too_long:
+	ni_error("unable to include \"%s\" - path too long", incl_filename);
+	return FALSE;
 }
 
 int
