@@ -711,6 +711,17 @@ ni_dbus_object_get_vtable(const ni_dbus_object_t *dummy)
 	return &vtable;
 }
 
+int
+ni_dbus_object_get_caller_uid(const ni_dbus_object_t *object, ni_dbus_message_t *call, uid_t *uidp)
+{
+	ni_dbus_server_t *server;
+
+	if ((server = ni_dbus_object_get_server(object)) == NULL)
+		return -NI_ERROR_INVALID_ARGS;
+
+	return ni_dbus_connection_get_caller_uid(server->connection, dbus_message_get_sender(call), uidp);
+}
+
 /*
  * Find an object given its internal handle
  */

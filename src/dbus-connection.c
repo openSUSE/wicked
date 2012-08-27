@@ -12,6 +12,7 @@
 
 #include <wicked/util.h>
 #include <wicked/logging.h>
+#include <wicked/dbus-errors.h>
 #include "socket_priv.h"
 #include "dbus-connection.h"
 #include "dbus-dict.h"
@@ -568,6 +569,59 @@ ni_dbus_async_server_call_run_command(ni_dbus_connection_t *conn,
 	process->user_data = conn;
 
 	return 0;
+}
+
+/*
+ * Get the uid of the process having sent us a specific message
+ */
+int
+ni_dbus_connection_get_caller_uid(ni_dbus_connection_t *conn, const char *name, uid_t *uidp)
+{
+	DBusError error = DBUS_ERROR_INIT;
+	DBusMessage *call = NULL, *reply = NULL;
+	uint32_t user_id;
+	int rv = 0;
+
+	call = dbus_message_new_method_call("org.freedesktop.DBus",
+					"/org/freedesktop/DBus",
+					"org.freedesktop.DBus",
+					"GetConnectionUnixUser");
+	if (call == NULL) {
+		ni_error("%s: unable to build GetConnectionUnixUser() message", __func__);
+		return -NI_ERROR_DBUS_CALL_FAILED;
+	}
+
+	if (!dbus_message_append_args(call, DBUS_TYPE_STRING, &name, 0)) {
+		rv = -NI_ERROR_INVALID_ARGS;
+		goto out;
+	}
+
+	reply = ni_dbus_connection_call(conn, call, 15, &error);
+	if (reply == NULL) {
+		rv = -NI_ERROR_DBUS_CALL_FAILED;
+		if (dbus_error_is_set(&error))
+			rv = ni_dbus_get_error(&error, NULL);
+		goto out;
+	}
+
+	if (!dbus_message_get_args(reply, &error, DBUS_TYPE_UINT32, &user_id, 0)) {
+		ni_error("%s: unable to deserialize GetConnectionUnixUser() response", __func__);
+		rv = ni_dbus_get_error(&error, NULL);
+		goto out;
+	}
+
+	ni_trace("%s(%s): user_id=%u", __func__, name, user_id);
+	if (uidp)
+		*uidp = user_id;
+	rv = 0;
+
+out:
+	if (call)
+		dbus_message_unref(call);
+	if (reply)
+		dbus_message_unref(reply);
+	dbus_error_free(&error);
+	return rv;
 }
 
 /*

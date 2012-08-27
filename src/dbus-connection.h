@@ -35,4 +35,6 @@ extern int			ni_dbus_async_server_call_run_command(ni_dbus_connection_t *conn,
 					ni_process_t *process);
 extern void			ni_dbus_mainloop(ni_dbus_connection_t *);
 
+extern int			ni_dbus_connection_get_caller_uid(ni_dbus_connection_t *, const char *, uid_t *);
+
 #endif /* __WICKED_DBUS_CONNECTION_H__ */

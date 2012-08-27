@@ -180,6 +180,7 @@ extern ni_bool_t		ni_dbus_objects_garbage_collect(void);
 
 extern ni_dbus_server_t *	ni_dbus_object_get_server(const ni_dbus_object_t *);
 extern ni_dbus_client_t *	ni_dbus_object_get_client(const ni_dbus_object_t *);
+extern int			ni_dbus_object_get_caller_uid(const ni_dbus_object_t *, ni_dbus_message_t *, uid_t *);
 extern const char *		ni_dbus_object_get_path(const ni_dbus_object_t *);
 extern const char *		ni_dbus_object_get_relative_path(const ni_dbus_object_t *ancestor, const char *descendant_path);
 extern void *			ni_dbus_object_get_handle(const ni_dbus_object_t *);
