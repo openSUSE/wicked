@@ -132,6 +132,8 @@
     <client-id type="string" />
     <vendor-class type="string" />
     <lease-time type="uint32" />
+
+    <route-priority type="uint32" />
   </define>
   <define name="properties" type="interface:addrconf-lease"/>
 

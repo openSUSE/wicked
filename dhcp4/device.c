@@ -252,6 +252,7 @@ ni_dhcp_acquire(ni_dhcp_device_t *dev, const ni_dhcp4_request_t *info)
 	config->initial_discovery_timeout = NI_DHCP_DISCOVERY_TIMEOUT;
 	config->uuid = info->uuid;
 	config->update = info->update;
+	config->route_priority = info->route_priority;
 
 	config->max_lease_time = ni_dhcp_config_max_lease_time();
 	if (config->max_lease_time == 0)

@@ -19,6 +19,7 @@
 
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
+#include <wicked/route.h>
 #include "netinfo_priv.h"
 #include "dhcp.h"
 #include "protocol.h"
@@ -633,6 +634,15 @@ ni_dhcp_fsm_commit_lease(ni_dhcp_device_t *dev, ni_addrconf_lease_t *lease)
 		/* Save the client id we used */
 		strncpy(lease->dhcp.client_id, dev->config->client_id,
 				sizeof(lease->dhcp.client_id)-1);
+
+		/* If the user requested a specific route metric, apply it now */
+		ni_trace("=== route priority %u ===", dev->config->route_priority);
+		if (dev->config && dev->config->route_priority) {
+			ni_route_t *rp;
+
+			for (rp = lease->routes; rp; rp = rp->next)
+				rp->priority = dev->config->route_priority;
+		}
 
 		ni_dhcp_device_set_lease(dev, lease);
 		dev->fsm.state = NI_DHCP_STATE_BOUND;

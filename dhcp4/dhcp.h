@@ -117,6 +117,8 @@ struct ni_dhcp4_request {
 	char *			vendor_class;
 	unsigned int		lease_time;
 
+	unsigned int		route_priority;
+
 	/* Options what to update based on the info received from
 	 * the DHCP server.
 	 * This is a bitmap; individual bits correspond to
@@ -147,6 +149,8 @@ struct ni_dhcp_config {
 	unsigned int		resend_timeout;
 	unsigned int		max_lease_time;
 	unsigned int		update;
+
+	unsigned int		route_priority;
 };
 
 enum ni_dhcp_event {

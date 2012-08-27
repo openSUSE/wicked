@@ -320,6 +320,7 @@ static ni_dbus_property_t	dhcp4_request_properties[] = {
 	DHCP4REQ_STRING_PROPERTY(hostname, hostname, RO),
 	DHCP4REQ_STRING_PROPERTY(client-id, clientid, RO),
 	DHCP4REQ_STRING_PROPERTY(vendor-class, vendor_class, RO),
+	DHCP4REQ_UINT_PROPERTY(route-priority, route_priority, RO),
 	DHCP4REQ_UINT_PROPERTY(update, update, RO),
 	{ NULL },
 };
