@@ -192,7 +192,7 @@ ni_objectmodel_compatible_services_for_class(const ni_dbus_class_t *query_class,
  * objectmodel service registry
  */
 void
-ni_objectmodel_register_service(ni_dbus_service_t *service)
+ni_objectmodel_register_service(const ni_dbus_service_t *service)
 {
 	unsigned int index = ni_objectmodel_service_registry.count;
 
