@@ -221,4 +221,6 @@ extern void		ni_dhcp_config_free(ni_dhcp_config_t *);
 extern ni_dhcp4_request_t *ni_dhcp4_request_new(void);
 extern void		ni_dhcp4_request_free(ni_dhcp4_request_t *);
 
+extern void		ni_objectmodel_dhcp4_init(void);
+
 #endif /* __WICKED_DHCP_PRIVATE_H__ */
