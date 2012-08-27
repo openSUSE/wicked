@@ -1,0 +1,7 @@
+<!-- Common configuration file sourced by all application-specific files -->
+<config>
+  <statedir path="/var/run/wicked" mode="0755"/>
+
+  <dbus name="org.opensuse.Network" />
+  <schema name="/etc/wicked/schema/wicked.xml"/>
+</config>
