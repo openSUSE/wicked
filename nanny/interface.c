@@ -55,7 +55,7 @@ ni_managed_netdev_enable(ni_managed_device_t *mdev)
 
 	if (mdev->rfkill_blocked) {
 		ni_debug_nanny("%s: radio disabled, will enable scanning later", w->name);
-		mdev->user_controlled = TRUE;
+		mdev->monitor = TRUE;
 		return TRUE;
 	}
 
@@ -74,7 +74,7 @@ ni_managed_netdev_enable(ni_managed_device_t *mdev)
 	}
 
 	ni_nanny_schedule_recheck(mdev->nanny, mdev->worker);
-	mdev->user_controlled = TRUE;
+	mdev->monitor = TRUE;
 	return TRUE;
 }
 
@@ -84,9 +84,9 @@ ni_managed_netdev_enable(ni_managed_device_t *mdev)
 ni_bool_t
 ni_managed_netdev_disable(ni_managed_device_t *mdev)
 {
-	if (mdev->user_controlled)
+	if (mdev->monitor)
 		ni_nanny_schedule_down(mdev->nanny, mdev->worker);
-	mdev->user_controlled = FALSE;
+	mdev->monitor = FALSE;
 	return TRUE;
 }
 
@@ -223,7 +223,7 @@ ni_objectmodel_get_managed_device(const ni_dbus_object_t *object, DBusError *err
 	NI_DBUS_GENERIC_BOOL_PROPERTY(managed_device, dbus_name, name, rw)
 
 static ni_dbus_property_t	ni_objectmodel_managed_netdev_properties[] = {
-	MANAGED_NETIF_BOOL_PROPERTY(user-controlled, user_controlled, RW),
+	MANAGED_NETIF_BOOL_PROPERTY(user-controlled, monitor, RW),
 	{ NULL }
 };
 

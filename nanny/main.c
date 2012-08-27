@@ -240,14 +240,14 @@ ni_nanny_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_m
 			w->name, signal_name,
 			ni_managed_state_to_string(mdev->state),
 			mdev->selected_policy? ni_fsm_policy_name(mdev->selected_policy->fsm_policy): "<none>",
-			mdev->user_controlled? ", user controlled" : "");
+			mdev->monitor? ", user controlled" : "");
 
 	switch (event) {
 	case NI_EVENT_LINK_DOWN:
 		// If we have recorded a policy for this device, it means
 		// we were the ones who took it up - so bring it down
 		// again
-		if (mdev->selected_policy != NULL && mdev->user_controlled)
+		if (mdev->selected_policy != NULL && mdev->monitor)
 			ni_nanny_schedule_recheck(mgr, w);
 		break;
 
@@ -255,18 +255,18 @@ ni_nanny_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_m
 		// If we have recorded a policy for this device, it means
 		// we were the ones who took it up - so bring it down
 		// again
-		if (mdev->selected_policy != NULL && mdev->user_controlled)
+		if (mdev->selected_policy != NULL && mdev->monitor)
 			ni_nanny_schedule_recheck(mgr, w);
 		break;
 
 	case NI_EVENT_LINK_SCAN_UPDATED:
-		if (mdev->user_controlled)
+		if (mdev->monitor)
 			ni_nanny_schedule_recheck(mgr, w);
 		break;
 
 	case NI_EVENT_LINK_UP:
 		// Link detection - eg for ethernet
-		if (mdev->user_controlled)
+		if (mdev->monitor)
 			ni_nanny_schedule_recheck(mgr, w);
 		break;
 

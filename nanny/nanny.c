@@ -128,7 +128,7 @@ ni_nanny_recheck_do(ni_nanny_t *mgr)
 		ni_managed_device_t *mdev;
 
 		for (mdev = mgr->device_list; mdev; mdev = mdev->next) {
-			if (mdev->user_controlled)
+			if (mdev->monitor)
 				ni_nanny_schedule_recheck(mgr, mdev->worker);
 		}
 	}
@@ -253,7 +253,7 @@ ni_nanny_rfkill_event(ni_nanny_t *mgr, ni_rfkill_type_t type, ni_bool_t blocked)
 			} else {
 				/* Re-enable scanning */
 				ni_debug_nanny("%s: radio re-enabled, resume monitoring", w->name);
-				if (mdev->user_controlled) {
+				if (mdev->monitor) {
 					ni_managed_netdev_enable(mdev);
 					ni_nanny_schedule_recheck(mgr, w);
 				}
@@ -281,7 +281,7 @@ ni_nanny_register_device(ni_nanny_t *mgr, ni_ifworker_t *w)
 		mdev->object = ni_objectmodel_register_managed_modem(mgr->server, mdev);
 
 		/* FIXME: for now, we allow users to control all modems */
-		mdev->user_controlled = TRUE;
+		mdev->monitor = TRUE;
 	}
 }
 

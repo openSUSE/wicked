@@ -34,7 +34,7 @@ struct ni_managed_device {
 	ni_nanny_t *		nanny;		// back pointer at mgr
 	ni_dbus_object_t *	object;		// server object
 	ni_ifworker_t *		worker;
-	ni_bool_t		user_controlled;
+	ni_bool_t		monitor;	// true iff we're monitoring it
 	ni_bool_t		rfkill_blocked;
 	ni_bool_t		missing_secrets;
 
