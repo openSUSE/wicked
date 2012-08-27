@@ -31,11 +31,11 @@
 
 #include "wicked-client.h"
 
-extern ni_bool_t	ni_manager_call_add_policy(const char *, xml_node_t *);
-extern ni_bool_t	ni_manager_call_device_enable(const char *ifname);
-extern ni_bool_t	ni_manager_call_device_disable(const char *ifname);
-extern ni_dbus_object_t *ni_manager_call_get_device(const char *);
-extern ni_bool_t	ni_manager_call_add_secret(const ni_security_id_t *, const char *, const char *);
+extern ni_bool_t	ni_nanny_call_add_policy(const char *, xml_node_t *);
+extern ni_bool_t	ni_nanny_call_device_enable(const char *ifname);
+extern ni_bool_t	ni_nanny_call_device_disable(const char *ifname);
+extern ni_dbus_object_t *ni_nanny_call_get_device(const char *);
+extern ni_bool_t	ni_nanny_call_add_secret(const ni_security_id_t *, const char *, const char *);
 
 /*
  * Read a policy file
@@ -75,28 +75,28 @@ ni_ifpolicy_file_load(const char *filename)
  * Enable the given user interface
  */
 static int
-do_manager_enable(int argc, char **argv)
+do_nanny_enable(int argc, char **argv)
 {
 	if (optind >= argc) {
-		ni_error("wicked manager enable: expected interface argument");
+		ni_error("wicked nanny enable: expected interface argument");
 		return 1;
 	}
 
 	while (optind < argc)
-		ni_manager_call_device_enable(argv[optind++]);
+		ni_nanny_call_device_enable(argv[optind++]);
 	return 0;
 }
 
 static int
-do_manager_disable(int argc, char **argv)
+do_nanny_disable(int argc, char **argv)
 {
 	if (optind >= argc) {
-		ni_error("wicked manager disable: expected interface argument");
+		ni_error("wicked nanny disable: expected interface argument");
 		return 1;
 	}
 
 	while (optind < argc)
-		ni_manager_call_device_disable(argv[optind++]);
+		ni_nanny_call_device_disable(argv[optind++]);
 	return 0;
 }
 
@@ -104,7 +104,7 @@ do_manager_disable(int argc, char **argv)
  * Install a policy
  */
 static int
-do_manager_addpolicy(int argc, char **argv)
+do_nanny_addpolicy(int argc, char **argv)
 {
 	const char *filename;
 	xml_document_t *doc = NULL;
@@ -113,7 +113,7 @@ do_manager_addpolicy(int argc, char **argv)
 	int rv = 0;
 
 	if (optind + 1 != argc) {
-		ni_error("wicked manager addpolicy: expected filename argument");
+		ni_error("wicked nanny addpolicy: expected filename argument");
 		return 1;
 	}
 
@@ -127,7 +127,7 @@ do_manager_addpolicy(int argc, char **argv)
 		if ((name = xml_node_get_attr(policy_node, "name")) == NULL)
 			name = "";
 
-		if (!ni_manager_call_add_policy(name, policy_node))
+		if (!ni_nanny_call_add_policy(name, policy_node))
 			rv = 1;
 	}
 
@@ -138,14 +138,14 @@ do_manager_addpolicy(int argc, char **argv)
  * Install a user name/password
  */
 static int
-do_manager_addsecret(int argc, char **argv)
+do_nanny_addsecret(int argc, char **argv)
 {
 	ni_security_id_t security_id = NI_SECURITY_ID_INIT;
 	const char *path, *value;
 	ni_bool_t rv = FALSE;
 
 	if (optind + 3 != argc) {
-		ni_error("wicked manager addsecret: expected 3 arguments (security-id, path, value)");
+		ni_error("wicked nanny addsecret: expected 3 arguments (security-id, path, value)");
 		return 1;
 	}
 
@@ -158,7 +158,7 @@ do_manager_addsecret(int argc, char **argv)
 	path = argv[optind++];
 	value = argv[optind++];
 
-	rv = ni_manager_call_add_secret(&security_id, path, value);
+	rv = ni_nanny_call_add_secret(&security_id, path, value);
 
 out:
 	ni_security_id_destroy(&security_id);
@@ -169,12 +169,12 @@ out:
  * Force a re-check on a given interface
  */
 static int
-do_manager_recheck(int argc, char **argv)
+do_nanny_recheck(int argc, char **argv)
 {
 	const char *ifname;
 
 	if (optind + 1 != argc) {
-		ni_error("wicked manager recheck: expected interface argument");
+		ni_error("wicked nanny recheck: expected interface argument");
 		return 1;
 	}
 
@@ -184,41 +184,27 @@ do_manager_recheck(int argc, char **argv)
 }
 
 int
-do_manager(int argc, char **argv)
+do_nanny(int argc, char **argv)
 {
-	static struct option manager_options[] = {
+	static struct option nanny_options[] = {
 		{ NULL }
 	};
 	const char *command;
 	int c;
 
 	optind = 1;
-	while ((c = getopt_long(argc, argv, "+", manager_options, NULL)) != EOF) {
+	while ((c = getopt_long(argc, argv, "+", nanny_options, NULL)) != EOF) {
 		switch (c) {
 		default:
 usage:
 			fprintf(stderr,
-				"wicked [options] manager subcommand [subcommand-options]\n"
+				"wicked [options] nanny <subcommand>\n"
 				"\nSupported subcommands:\n"
+				"  enable <device>\n"
+				"  disable <device>\n"
 				"  addpolicy <filename>\n"
+				"  addsecret <security-id> <path> <value>\n"
 				"  recheck <ifname>\n"
-				"\nSupported ifup-options:\n"
-				"  --ifconfig <pathname>\n"
-				"      Read interface configuration(s) from file/directory rather than using system config\n"
-				"  --ifpolicy <pathname>\n"
-				"      Read interface policies from the given file/directory\n"
-				"  --mode <label>\n"
-				"      Only touch interfaces with matching control <mode>\n"
-				"  --boot-stage <label>\n"
-				"      Only touch interfaces with matching <boot-stage>\n"
-				"  --skip-active\n"
-				"      Do not touch running interfaces\n"
-				"  --skip-origin <name>\n"
-				"      Skip interfaces that have a configuration origin of <name>\n"
-				"      Usually, you would use this with the name \"firmware\" to avoid\n"
-				"      touching interfaces that have been set up via firmware (like iBFT) previously\n"
-				"  --timeout <nsec>\n"
-				"      Timeout after <nsec> seconds\n"
 				);
 			return 1;
 		}
@@ -235,25 +221,25 @@ usage:
 
 	command = argv[0];
 	if (ni_string_eq(command, "addpolicy"))
-		return do_manager_addpolicy(argc, argv);
+		return do_nanny_addpolicy(argc, argv);
 	if (ni_string_eq(command, "recheck"))
-		return do_manager_recheck(argc, argv);
+		return do_nanny_recheck(argc, argv);
 	if (ni_string_eq(command, "enable"))
-		return do_manager_enable(argc, argv);
+		return do_nanny_enable(argc, argv);
 	if (ni_string_eq(command, "disable"))
-		return do_manager_disable(argc, argv);
+		return do_nanny_disable(argc, argv);
 	if (ni_string_eq(command, "addsecret"))
-		return do_manager_addsecret(argc, argv);
+		return do_nanny_addsecret(argc, argv);
 	
-	ni_error("Unsupported manager subcommand \"%s\"", command);
+	ni_error("Unsupported nanny subcommand \"%s\"", command);
 	goto usage;
 }
 
 /*
- * Functions for communicating with the manager
+ * Functions for communicating with nanny
  */
 ni_dbus_client_t *
-ni_manager_create_client(ni_dbus_object_t **root_p)
+ni_nanny_create_client(ni_dbus_object_t **root_p)
 {
 	static ni_dbus_client_t *client;
 	static ni_dbus_object_t *root;
@@ -261,7 +247,7 @@ ni_manager_create_client(ni_dbus_object_t **root_p)
 	if (root == NULL) {
 		client = ni_create_dbus_client(NI_OBJECTMODEL_DBUS_BUS_NAME_MANAGER);
 		if (!client)
-			ni_fatal("Unable to connect to manager dbus service");
+			ni_fatal("Unable to connect to nanny dbus service");
 
 		root = ni_dbus_client_object_new(client,
 					&ni_dbus_anonymous_class,
@@ -277,7 +263,7 @@ ni_manager_create_client(ni_dbus_object_t **root_p)
 }
 
 ni_bool_t
-ni_manager_call_add_policy(const char *name, xml_node_t *node)
+ni_nanny_call_add_policy(const char *name, xml_node_t *node)
 {
 	ni_dbus_client_t *client;
 	ni_dbus_object_t *root_object, *proxy;
@@ -285,7 +271,7 @@ ni_manager_call_add_policy(const char *name, xml_node_t *node)
 	char *policy_path, *doc_string;
 	int rv;
 
-	client = ni_manager_create_client(&root_object);
+	client = ni_nanny_create_client(&root_object);
 
 	rv = ni_dbus_object_call_simple(root_object,
 					NI_OBJECTMODEL_MANAGER_INTERFACE, "createPolicy",
@@ -329,14 +315,14 @@ ni_manager_call_add_policy(const char *name, xml_node_t *node)
 }
 
 ni_bool_t
-ni_manager_call_add_secret(const ni_security_id_t *security_id, const char *path, const char *value)
+ni_nanny_call_add_secret(const ni_security_id_t *security_id, const char *path, const char *value)
 {
 	DBusError error = DBUS_ERROR_INIT;
 	ni_dbus_client_t *client;
 	ni_dbus_object_t *root_object;
 	ni_dbus_variant_t argv[3];
 
-	client = ni_manager_create_client(&root_object);
+	client = ni_nanny_create_client(&root_object);
 
 	memset(argv, 0, sizeof(argv));
 	ni_objectmodel_marshal_security_id(security_id, &argv[0]);
@@ -358,7 +344,7 @@ ni_manager_call_add_secret(const ni_security_id_t *security_id, const char *path
 }
 
 ni_dbus_object_t *
-ni_manager_call_get_device(const char *ifname)
+ni_nanny_call_get_device(const char *ifname)
 {
 	ni_dbus_client_t *client;
 	ni_dbus_object_t *root_object;
@@ -366,7 +352,7 @@ ni_manager_call_get_device(const char *ifname)
 	char *object_path;
 	int rv;
 
-	client = ni_manager_create_client(&root_object);
+	client = ni_nanny_create_client(&root_object);
 
 	rv = ni_dbus_object_call_simple(root_object,
 					NI_OBJECTMODEL_MANAGER_INTERFACE, "getDevice",
@@ -387,12 +373,12 @@ ni_manager_call_get_device(const char *ifname)
 }
 
 ni_bool_t
-ni_manager_call_device_void_method(const char *ifname, const char *method)
+ni_nanny_call_device_void_method(const char *ifname, const char *method)
 {
 	ni_dbus_object_t *object;
 	int rv;
 
-	if ((object = ni_manager_call_get_device(ifname)) == NULL)
+	if ((object = ni_nanny_call_get_device(ifname)) == NULL)
 		return FALSE;
 
 	rv = ni_dbus_object_call_simple(object,
@@ -410,13 +396,13 @@ ni_manager_call_device_void_method(const char *ifname, const char *method)
 }
 
 ni_bool_t
-ni_manager_call_device_enable(const char *ifname)
+ni_nanny_call_device_enable(const char *ifname)
 {
-	return ni_manager_call_device_void_method(ifname, "enable");
+	return ni_nanny_call_device_void_method(ifname, "enable");
 }
 
 ni_bool_t
-ni_manager_call_device_disable(const char *ifname)
+ni_nanny_call_device_disable(const char *ifname)
 {
-	return ni_manager_call_device_void_method(ifname, "disable");
+	return ni_nanny_call_device_void_method(ifname, "disable");
 }
