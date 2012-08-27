@@ -1230,8 +1230,12 @@ __ni_rtnl_send_newroute(ni_netdev_t *dev, ni_route_t *rp, int flags)
 	if (dev && dev->link.ifindex)
 		NLA_PUT_U32(msg, RTA_OIF, dev->link.ifindex);
 
+	if (rp->priority)
+		NLA_PUT_U32(msg, RTA_PRIORITY, rp->priority);
+
 	/* Add metrics if needed */
-	if (rp->mtu) {
+	if (rp->mtu || rp->window || rp->rtt || rp->rttvar || rp->ssthresh
+	 || rp->cwnd || rp->rto_min || rp->advmss) {
 		struct nlattr *mxrta;
 
 		mxrta = nla_nest_start(msg, RTA_METRICS);
