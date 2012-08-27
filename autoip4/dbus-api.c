@@ -27,11 +27,24 @@
 #include "autoip.h"
 
 
-extern const ni_dbus_service_t	wicked_dbus_addrconf_request_service; /* XXX */
-static const ni_dbus_service_t	wicked_dbus_autoip4_service;
+static const ni_dbus_service_t	ni_objectmodel_autoip4_service;
 static ni_dbus_class_t		ni_objectmodel_autoip4dev_class = {
-	"autoip4-device",
+	.name		= "autoip4-device",
+	.superclass	= &ni_objectmodel_addrconf_device_class,
 };
+
+/*
+ * Register services and classes for dhcp4 supplicant service
+ */
+void
+ni_objectmodel_autoip4_init(void)
+{
+	if (ni_objectmodel_init(NULL) == NULL)
+		ni_fatal("Cannot initialize objectmodel, giving up.");
+	ni_objectmodel_register_class(&ni_objectmodel_autoip4dev_class);
+	ni_objectmodel_register_service(&ni_objectmodel_autoip4_service);
+}
+
 
 /*
  * Build a dbus-object encapsulating a network device.
@@ -61,7 +74,7 @@ __ni_objectmodel_build_autoip4_device_object(ni_dbus_server_t *server, ni_autoip
 	if (object == NULL)
 		ni_fatal("Unable to create dbus object for autoip4 device %s", dev->ifname);
 
-	ni_dbus_object_register_service(object, &wicked_dbus_autoip4_service);
+	ni_objectmodel_bind_compatible_interfaces(object);
 	return object;
 }
 
@@ -216,7 +229,7 @@ static ni_dbus_property_t	wicked_dbus_autoip4_properties[] = {
 	{ NULL }
 };
 
-static const ni_dbus_service_t	wicked_dbus_autoip4_service = {
+static const ni_dbus_service_t	ni_objectmodel_autoip4_service = {
 	.name		= NI_OBJECTMODEL_AUTO4_INTERFACE,
 	.compatible	= &ni_objectmodel_autoip4dev_class,
 	.methods	= wicked_dbus_autoip4_methods,

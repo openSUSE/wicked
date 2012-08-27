@@ -70,4 +70,6 @@ extern ni_autoip_device_t *ni_autoip_device_by_index(unsigned int);
 extern ni_autoip_device_t *ni_autoip_device_find(const char *);
 extern int              ni_autoip_device_reconfigure(ni_autoip_device_t *, const ni_netdev_t *);
 
+extern void		ni_objectmodel_autoip4_init(void);
+
 #endif /* __WICKED_AUTOIP_PRIVATE_H__ */

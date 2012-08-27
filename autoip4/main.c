@@ -221,7 +221,7 @@ autoip4_device_create(ni_dbus_server_t *server, const ni_netdev_t *ifp)
 	dev->link.ifindex = ifp->link.ifindex;
 
 	ni_objectmodel_register_autoip4_device(server, dev);
-	ni_debug_dbus("Created device for %s", ifp->name);
+	ni_debug_dhcp("Created device for %s", ifp->name);
 }
 
 /*
@@ -266,6 +266,8 @@ autoip4_supplicant(void)
 	autoip4_dbus_server = ni_server_listen_dbus(NI_OBJECTMODEL_DBUS_BUS_NAME_AUTO4);
 	if (autoip4_dbus_server == NULL)
 		ni_fatal("unable to initialize dbus service");
+
+	ni_objectmodel_autoip4_init();
 
 	autoip4_register_services(autoip4_dbus_server);
 
