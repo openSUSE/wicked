@@ -59,6 +59,11 @@ ni_objectmodel_save_state_xml(xml_node_t *list, ni_dbus_server_t *server)
 	ni_bool_t rv = TRUE;
 
 	object = ni_objectmodel_object_by_path(NI_OBJECTMODEL_NETIF_LIST_PATH);
+	if (object == NULL) {
+		ni_error("Cannot save state: no object list at %s", NI_OBJECTMODEL_NETIF_LIST_PATH);
+		return FALSE;
+	}
+
 	for (netif_object = object->children; rv && netif_object; netif_object = netif_object->next) {
 		rv = ni_objectmodel_save_object_state_xml(netif_object, list);
 	}
