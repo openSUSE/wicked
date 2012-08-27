@@ -245,14 +245,14 @@ ni_nanny_create_client(ni_dbus_object_t **root_p)
 	static ni_dbus_object_t *root;
 
 	if (root == NULL) {
-		client = ni_create_dbus_client(NI_OBJECTMODEL_DBUS_BUS_NAME_MANAGER);
+		client = ni_create_dbus_client(NI_OBJECTMODEL_DBUS_BUS_NAME_NANNY);
 		if (!client)
 			ni_fatal("Unable to connect to nanny dbus service");
 
 		root = ni_dbus_client_object_new(client,
 					&ni_dbus_anonymous_class,
-					NI_OBJECTMODEL_MANAGER_PATH,
-					NI_OBJECTMODEL_MANAGER_INTERFACE,
+					NI_OBJECTMODEL_NANNY_PATH,
+					NI_OBJECTMODEL_NANNY_INTERFACE,
 					NULL);
 	}
 
@@ -274,7 +274,7 @@ ni_nanny_call_add_policy(const char *name, xml_node_t *node)
 	client = ni_nanny_create_client(&root_object);
 
 	rv = ni_dbus_object_call_simple(root_object,
-					NI_OBJECTMODEL_MANAGER_INTERFACE, "createPolicy",
+					NI_OBJECTMODEL_NANNY_INTERFACE, "createPolicy",
 					DBUS_TYPE_STRING, &name,
 					DBUS_TYPE_OBJECT_PATH, &policy_path);
 	
@@ -329,7 +329,7 @@ ni_nanny_call_add_secret(const ni_security_id_t *security_id, const char *path, 
 	ni_dbus_variant_set_string(&argv[1], path);
 	ni_dbus_variant_set_string(&argv[2], value);
 
-	if (!ni_dbus_object_call_variant(root_object, NI_OBJECTMODEL_MANAGER_INTERFACE, "addSecret",
+	if (!ni_dbus_object_call_variant(root_object, NI_OBJECTMODEL_NANNY_INTERFACE, "addSecret",
 					3, argv, 0, NULL, &error)) {
 		ni_dbus_print_error(&error, "call to addSecret failed");
 		dbus_error_free(&error);
@@ -355,7 +355,7 @@ ni_nanny_call_get_device(const char *ifname)
 	client = ni_nanny_create_client(&root_object);
 
 	rv = ni_dbus_object_call_simple(root_object,
-					NI_OBJECTMODEL_MANAGER_INTERFACE, "getDevice",
+					NI_OBJECTMODEL_NANNY_INTERFACE, "getDevice",
 					DBUS_TYPE_STRING, &ifname,
 					DBUS_TYPE_OBJECT_PATH, &object_path);
 	

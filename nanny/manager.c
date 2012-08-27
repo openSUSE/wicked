@@ -72,7 +72,7 @@ ni_manager_new(void)
 
 	mgr = calloc(1, sizeof(*mgr));
 
-	mgr->server = ni_server_listen_dbus(NI_OBJECTMODEL_DBUS_BUS_NAME_MANAGER);
+	mgr->server = ni_server_listen_dbus(NI_OBJECTMODEL_DBUS_BUS_NAME_NANNY);
 	if (!mgr->server)
 		ni_fatal("Cannot create server, giving up.");
 
@@ -443,7 +443,7 @@ ni_objectmodel_manager_unwrap(const ni_dbus_object_t *object, DBusError *error)
 }
 
 /*
- * Manager.getDevice(devname)
+ * Nanny.getDevice(devname)
  */
 static dbus_bool_t
 ni_objectmodel_manager_get_device(ni_dbus_object_t *object, const ni_dbus_method_t *method,
@@ -486,7 +486,7 @@ ni_objectmodel_manager_get_device(ni_dbus_object_t *object, const ni_dbus_method
 
 
 /*
- * Manager.createPolicy()
+ * Nanny.createPolicy()
  */
 static dbus_bool_t
 ni_objectmodel_manager_create_policy(ni_dbus_object_t *object, const ni_dbus_method_t *method,
@@ -540,7 +540,7 @@ ni_objectmodel_manager_create_policy(ni_dbus_object_t *object, const ni_dbus_met
 }
 
 /*
- * Manager.addSecret(security-id, path, value)
+ * Nanny.addSecret(security-id, path, value)
  * The security-id is an identifier that is derived from eg the modem's IMEI,
  * or the wireless ESSID.
  */
@@ -581,7 +581,7 @@ ni_dbus_class_t			ni_objectmodel_manager_class = {
 };
 
 ni_dbus_service_t		ni_objectmodel_manager_service = {
-	.name		= NI_OBJECTMODEL_MANAGER_INTERFACE,
+	.name		= NI_OBJECTMODEL_NANNY_INTERFACE,
 	.compatible	= &ni_objectmodel_manager_class,
 	.methods	= ni_objectmodel_manager_methods
 };
