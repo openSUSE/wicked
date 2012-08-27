@@ -1,3 +1,22 @@
+<!--
+     Sample policy file for network-nanny.
+
+     This will configure any WLAN device in your system that
+     discovers a network with essid okirnet.
+
+     You need to take these steps to enable this policy:
+
+	     wicked nanny enable wlan0
+	     wicked nanny addpolicy samples/nanny/wlan.xml
+	     wicked nanny addsecret wireless:essid=okirnet \
+				/interface/wireless/wpa-psk/passphrase \
+				$YOUR_PASSPHRASE
+
+     Caveat: at this stage of development, you still need to be root
+     to do these things.
+
+  -->
+
 <policy name="wlan_okirnet">
   <match>
     <link-type>wireless</link-type>
@@ -8,9 +27,9 @@
     <wireless>
       <essid>okirnet</essid>
       <!-- This empty wpa-psk element requests that we
-	-- we should authenticate via PSK. The pass phrase
-	-- or key is not provided here; we will be prompted
-	-- for it later. -->
+	   we should authenticate via PSK. The pass phrase
+	   or key is not provided here; we will be prompted
+	   for it later. -->
       <wpa-psk />
     </wireless>
 

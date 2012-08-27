@@ -1,3 +1,21 @@
+<!--
+     Sample policy file for network-nanny.
+
+     This will configure any Ethernet device in your system.
+
+     You need to take these steps to enable this policy:
+
+	     wicked nanny enable eth0
+	     wicked nanny addpolicy samples/nanny/eth_all.xml
+
+     This will automatically configure the interface when the
+     link is up, and bring it down as you lose the link.
+
+     Caveat: at this stage of development, you still need to be root
+     to do these things.
+
+  -->
+
 <policy name="eth_all">
  <match>
    <link-type>ethernet</link-type>
