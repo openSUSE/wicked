@@ -692,8 +692,12 @@ ni_bool_t
 ni_route_equal(const ni_route_t *r1, const ni_route_t *r2)
 {
 	const ni_route_nexthop_t *nh1, *nh2;
+
 	if (r1->prefixlen != r2->prefixlen
 	 || !ni_address_equal(&r1->destination, &r2->destination))
+		return FALSE;
+
+	if (r1->priority != r2->priority)
 		return FALSE;
 
 	nh1 = &r1->nh;
