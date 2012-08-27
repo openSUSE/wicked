@@ -27,7 +27,6 @@
 static ni_bool_t	ni_config_include(ni_config_t *, const char *, const char *);
 static int		ni_config_parse_addrconf_dhcp(struct ni_config_dhcp *, xml_node_t *);
 static int		ni_config_parse_addrconf_dhcp6(struct ni_config_dhcp6 *, xml_node_t *);
-static int		ni_config_parse_afconfig(struct ni_afconfig *, const char *, xml_node_t *);
 static int		ni_config_parse_update_targets(unsigned int *, const xml_node_t *);
 static int		ni_config_parse_fslocation(ni_config_fslocation_t *, const char *, xml_node_t *);
 static int		ni_config_parse_objectmodel_extension(ni_extension_t **, xml_node_t *);
@@ -48,8 +47,6 @@ ni_config_new()
 	ni_config_t *conf;
 
 	conf = calloc(1, sizeof(*conf));
-	conf->ipv4.enabled = TRUE;
-	conf->ipv6.enabled = TRUE;
 
 	conf->addrconf.default_allow_update = ~0;
 	conf->addrconf.dhcp.allow_update = ~0;
@@ -98,9 +95,7 @@ __ni_config_parse(ni_config_t *conf, const char *filename)
 		goto failed;
 	}
 
-	if (ni_config_parse_afconfig(&conf->ipv4, "ipv4", node) < 0
-	 || ni_config_parse_afconfig(&conf->ipv6, "ipv6", node) < 0
-	 || ni_config_parse_fslocation(&conf->statedir, "statedir", node) < 0)
+	if (ni_config_parse_fslocation(&conf->statedir, "statedir", node) < 0)
 		goto failed;
 
 	/* Loop over all elements in the config file */
@@ -608,24 +603,6 @@ ni_config_parse_update_targets(unsigned int *update_mask, const xml_node_t *node
 			ni_warn("ignoring unknown addrconf update target \"%s\"", child->name);
 		}
 	}
-	return 0;
-}
-
-int
-ni_config_parse_afconfig(struct ni_afconfig *afi, const char *afname, xml_node_t *node)
-{
-	/* No config data for this address family? use defaults. */
-	if (!(node = xml_node_get_child(node, afname)))
-		return 0;
-
-	if (xml_node_get_child(node, "enabled"))
-		afi->enabled = 1;
-	else if (xml_node_get_child(node, "disabled"))
-		afi->enabled = 0;
-
-	if (xml_node_get_child(node, "forwarding"))
-		afi->forwarding = 1;
-
 	return 0;
 }
 

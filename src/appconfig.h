@@ -62,12 +62,6 @@ typedef struct ni_server_preference {
 } ni_server_preference_t;
 
 typedef struct ni_config {
-	/* Mostly using enabled, forwarding from these: */
-	struct ni_afconfig {
-		ni_bool_t	enabled;
-		ni_bool_t	forwarding;
-	} ipv4, ipv6;
-
 	ni_config_fslocation_t	statedir;
 	ni_config_fslocation_t	backupdir;
 	unsigned int		recv_max;
