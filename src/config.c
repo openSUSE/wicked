@@ -103,41 +103,6 @@ __ni_config_parse(ni_config_t *conf, const char *filename)
 	 || ni_config_parse_fslocation(&conf->statedir, "statedir", node) < 0)
 		goto failed;
 
-	child = xml_node_get_child(node, "dbus");
-	if (child) {
-		const char *attrval;
-
-		if ((attrval = xml_node_get_attr(child, "name")) != NULL)
-			ni_string_dup(&conf->dbus_name, attrval);
-		if ((attrval = xml_node_get_attr(child, "type")) != NULL)
-			ni_string_dup(&conf->dbus_type, attrval);
-	}
-
-	child = xml_node_get_child(node, "schema");
-	if (child) {
-		const char *attrval;
-
-		if ((attrval = xml_node_get_attr(child, "name")) != NULL)
-			ni_string_dup(&conf->dbus_xml_schema_file, attrval);
-	}
-
-	child = xml_node_get_child(node, "addrconf");
-	if (child) {
-		for (child = child->children; child; child = child->next) {
-			if (!strcmp(child->name, "default-allow-update")
-			 && ni_config_parse_update_targets(&conf->addrconf.default_allow_update, child) < 0)
-				goto failed;
-
-			if (!strcmp(child->name, "dhcp")
-			 && ni_config_parse_addrconf_dhcp(&conf->addrconf.dhcp, child) < 0)
-				goto failed;
-
-			if (!strcmp(child->name, "dhcp6")
-			 && ni_config_parse_addrconf_dhcp6(&conf->addrconf.dhcp6, child) < 0)
-				goto failed;
-		}
-	}
-
 	/* Loop over all elements in the config file */
 	for (child = node->children; child; child = child->next) {
 		if (strcmp(child->name, "include") == 0) {
@@ -147,6 +112,37 @@ __ni_config_parse(ni_config_t *conf, const char *filename)
 			}
 			if (!ni_config_include(conf, filename, child->cdata))
 				goto failed;
+		} else
+		if (strcmp(child->name, "dbus") == 0) {
+			const char *attrval;
+
+			if ((attrval = xml_node_get_attr(child, "name")) != NULL)
+				ni_string_dup(&conf->dbus_name, attrval);
+			if ((attrval = xml_node_get_attr(child, "type")) != NULL)
+				ni_string_dup(&conf->dbus_type, attrval);
+		} else 
+		if (strcmp(child->name, "schema") == 0) {
+			const char *attrval;
+
+			if ((attrval = xml_node_get_attr(child, "name")) != NULL)
+				ni_string_dup(&conf->dbus_xml_schema_file, attrval);
+		} else
+		if (strcmp(child->name, "addrconf") == 0) {
+			xml_node_t *gchild;
+
+			for (gchild = child->children; gchild; gchild = gchild->next) {
+				if (!strcmp(gchild->name, "default-allow-update")
+				 && ni_config_parse_update_targets(&conf->addrconf.default_allow_update, gchild) < 0)
+					goto failed;
+
+				if (!strcmp(gchild->name, "dhcp")
+				 && ni_config_parse_addrconf_dhcp(&conf->addrconf.dhcp, gchild) < 0)
+					goto failed;
+
+				if (!strcmp(gchild->name, "dhcp6")
+				 && ni_config_parse_addrconf_dhcp6(&conf->addrconf.dhcp6, gchild) < 0)
+					goto failed;
+			}
 		} else
 		if (strcmp(child->name, "extension") == 0
 		 || strcmp(child->name, "dbus-service") == 0) {
