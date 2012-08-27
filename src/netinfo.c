@@ -51,6 +51,12 @@ unsigned int	__ni_global_seqno;
 int
 ni_init(const char *appname)
 {
+	return ni_init_ex(appname, NULL, NULL);
+}
+
+int
+ni_init_ex(const char *appname, ni_init_appdata_callback_t *cb, void *appdata)
+{
 	int explicit_config = 1;
 
 	if (ni_global.initialized) {
@@ -78,7 +84,7 @@ ni_init(const char *appname)
 	}
 
 	if (ni_file_exists(ni_global.config_path)) {
-		ni_global.config = ni_config_parse(ni_global.config_path);
+		ni_global.config = ni_config_parse(ni_global.config_path, cb, appdata);
 		if (!ni_global.config) {
 			ni_error("Unable to parse netinfo configuration file");
 			return -1;

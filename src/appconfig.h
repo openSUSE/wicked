@@ -115,7 +115,7 @@ typedef struct ni_config {
 } ni_config_t;
 
 extern ni_config_t *	ni_config_new();
-extern ni_config_t *	ni_config_parse(const char *);
+extern ni_config_t *	ni_config_parse(const char *, ni_init_appdata_callback_t *, void *);
 extern ni_extension_t *	ni_config_find_extension(ni_config_t *, const char *);
 extern ni_extension_t *	ni_config_find_system_updater(ni_config_t *, const char *);
 extern unsigned int	ni_config_addrconf_update_mask(ni_config_t *, ni_addrconf_mode_t); /* KILL */
