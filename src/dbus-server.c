@@ -10,6 +10,7 @@
 #include <wicked/util.h>
 #include <wicked/logging.h>
 #include <wicked/dbus-service.h>
+#include <wicked/dbus-errors.h>
 #include "dbus-server.h"
 #include "dbus-object.h"
 #include "dbus-dict.h"
@@ -595,7 +596,8 @@ __ni_dbus_object_message(DBusConnection *conn, DBusMessage *call, void *user_dat
 	server = ni_dbus_object_get_server(object);
 
 	method = ni_dbus_service_get_method(svc, method_name);
-	if (method == NULL || (method->handler == NULL && method->async_handler == NULL)) {
+	if (method == NULL
+	 || (!method->handler && !method->handler_ex && !method->async_handler)) {
 		dbus_set_error(&error,
 				DBUS_ERROR_UNKNOWN_METHOD,
 				"Unknown method in call to object %s, %s.%s",
@@ -604,6 +606,7 @@ __ni_dbus_object_message(DBusConnection *conn, DBusMessage *call, void *user_dat
 				method_name);
 	} else {
 		ni_dbus_variant_t argv[16];
+		uid_t caller_uid = -1;
 		int argc = 0;
 
 		memset(argv, 0, sizeof(argv));
@@ -634,7 +637,17 @@ __ni_dbus_object_message(DBusConnection *conn, DBusMessage *call, void *user_dat
 			goto error_reply;
 		}
 
-		if (method->handler) {
+		if (method->handler_ex) {
+			int err;
+
+			err = ni_dbus_object_get_caller_uid(object, call, &caller_uid);
+			if (err < 0) {
+				ni_dbus_set_error_from_code(&error, err, "unable to get caller's uid");
+				goto error_reply;
+			}
+		}
+
+		if (method->handler || method->handler_ex) {
 			/* Deserialize dbus message */
 			argc = ni_dbus_message_get_args_variants(call, argv, 16);
 			if (argc < 0) {
@@ -651,7 +664,11 @@ __ni_dbus_object_message(DBusConnection *conn, DBusMessage *call, void *user_dat
 			reply = dbus_message_new_method_return(call);
 
 			/* Now do the call. */
-			rv = method->handler(object, method, argc, argv, reply, &error);
+			if (method->handler_ex) {
+				rv = method->handler_ex(object, method, argc, argv, caller_uid, reply, &error);
+			} else {
+				rv = method->handler(object, method, argc, argv, reply, &error);
+			}
 
 			/* Beware, object may be gone after this! */
 			object = NULL;
