@@ -323,7 +323,7 @@ dhcp6_client_release_lease(const char *ifname)
 /*
  * Functions to support the DHCP6 DBus binding
  */
-static ni_dbus_service_t	__wicked_dbus_dhcp6_interface = {
+static ni_dbus_service_t	__ni_objectmodel_dhcp6_interface = {
 	.name			= NI_OBJECTMODEL_DHCP6_INTERFACE,	/* org.opensuse.Network.DHCP6 */
 };
 
@@ -342,7 +342,7 @@ dhcp6_register_services(ni_dbus_server_t *server)
 	ni_dbus_object_t *object;
 
 	/*  Register the root object (org.opensuse.Network.DHCP6) */
-	ni_dbus_object_register_service(root_object, &__wicked_dbus_dhcp6_interface);
+	ni_dbus_object_register_service(root_object, &__ni_objectmodel_dhcp6_interface);
 
 	/* Register /org/opensuse/Network/DHCP6/Interface */
 	object = ni_dbus_server_register_object(server, "Interface", &ni_dbus_anonymous_class, NULL);
@@ -369,7 +369,7 @@ dhcp6_device_create(ni_dbus_server_t *server, const ni_netdev_t *ifp)
 	}
 
 	ni_objectmodel_register_dhcp6_device(server, dev);
-	ni_debug_dbus("Created device for %s", ifp->name);
+	ni_debug_dhcp("Created device for %s", ifp->name);
 	return TRUE;
 }
 
@@ -419,6 +419,8 @@ dhcp6_supplicant(void)
 	if (dhcp6_dbus_server == NULL)
 		ni_fatal("Unable to initialize dbus server");
 
+	ni_objectmodel_dhcp6_init();
+
 	dhcp6_register_services(dhcp6_dbus_server);
 
 	/* open global RTNL socket to listen for kernel events */
@@ -458,7 +460,7 @@ void
 dhcp6_recover_addrconf(const char *filename)
 {
 	if (!ni_file_exists(filename)) {
-		ni_debug_wicked("%s: %s does not exist, skip this", __func__, filename);
+		ni_debug_dhcp("%s: %s does not exist, skip this", __func__, filename);
 		return;
 	}
 

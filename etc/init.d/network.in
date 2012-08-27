@@ -42,6 +42,8 @@
 #                       and set up routing
 ### END INIT INFO
 
+WICKED_CLIENT_BIN=@sbindir@/wicked
+
 ROOTDIR=${0%etc/*}
 
 . /etc/rc.status
@@ -111,7 +113,7 @@ start)
 	$WICKED_CLIENT_BIN ifup $IFUP_ARGS --ifconfig FIRMWARE all
 
 	if [ "$MODE" = "onboot" ]; then
-		IFUP_ARGS+=" --boot-label boot"
+		IFUP_ARGS+=" --mode boot"
 	fi
 	if [ -n "$BOOT_STAGE" ]; then
 		IFUP_ARGS+=" --boot-stage $BOOT_STAGE"

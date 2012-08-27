@@ -25,6 +25,7 @@
 #include <wicked/dbus.h>
 #include <dhcp6/dhcp6.h>
 
+extern void				ni_objectmodel_dhcp6_init(void);
 extern ni_dbus_object_t *		ni_objectmodel_register_dhcp6_device(ni_dbus_server_t *, ni_dhcp6_device_t *);
 
 #endif /* __WICKED_DHCP6_DBUS_API_H__ */
