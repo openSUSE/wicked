@@ -102,7 +102,7 @@ struct ni_netdev_req {
 };
 
 extern void		ni_set_global_config_path(const char *);
-extern int		ni_init(void);
+extern int		ni_init(const char *appname);
 
 extern int		ni_server_background(const char *);
 extern int		ni_server_listen_interface_events(void (*handler)(ni_netdev_t *, ni_event_t));

@@ -107,7 +107,7 @@ main(int argc, char **argv)
 		}
 	}
 
-	if (ni_init() < 0)
+	if (ni_init(program_name) < 0)
 		return 1;
 
 	if (optind != argc)

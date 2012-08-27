@@ -135,7 +135,7 @@ main(int argc, char **argv)
 	if (!isatty(1))
 		opt_global_progressmeter = 0;
 
-	if (ni_init() < 0)
+	if (ni_init("client") < 0)
 		return 1;
 
 	if (optind >= argc) {

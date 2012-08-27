@@ -49,7 +49,7 @@ unsigned int	__ni_global_seqno;
  * Global initialization of application
  */
 int
-ni_init()
+ni_init(const char *appname)
 {
 	int explicit_config = 1;
 
@@ -59,7 +59,13 @@ ni_init()
 	}
 
 	if (ni_global.config_path == NULL) {
-		ni_string_dup(&ni_global.config_path, NI_DEFAULT_CONFIG_PATH);
+		if (appname == NULL) {
+			/* Backward compatible - for now.
+			 * The server will load config.xml
+			 */
+			appname = "config";
+		}
+		asprintf(&ni_global.config_path, "%s/%s.xml", WICKED_CONFIGDIR, appname);
 		explicit_config = 0;
 	}
 
