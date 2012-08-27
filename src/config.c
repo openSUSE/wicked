@@ -28,7 +28,7 @@ static ni_bool_t	ni_config_include(ni_config_t *, const char *, const char *);
 static int		ni_config_parse_addrconf_dhcp(struct ni_config_dhcp *, xml_node_t *);
 static int		ni_config_parse_addrconf_dhcp6(struct ni_config_dhcp6 *, xml_node_t *);
 static int		ni_config_parse_update_targets(unsigned int *, const xml_node_t *);
-static int		ni_config_parse_fslocation(ni_config_fslocation_t *, const char *, xml_node_t *);
+static void		ni_config_parse_fslocation(ni_config_fslocation_t *, xml_node_t *);
 static int		ni_config_parse_objectmodel_extension(ni_extension_t **, xml_node_t *);
 static int		ni_config_parse_objectmodel_netif_ns(ni_extension_t **, xml_node_t *);
 static int		ni_config_parse_objectmodel_firmware_discovery(ni_extension_t **, xml_node_t *);
@@ -95,9 +95,6 @@ __ni_config_parse(ni_config_t *conf, const char *filename)
 		goto failed;
 	}
 
-	if (ni_config_parse_fslocation(&conf->statedir, "statedir", node) < 0)
-		goto failed;
-
 	/* Loop over all elements in the config file */
 	for (child = node->children; child; child = child->next) {
 		if (strcmp(child->name, "include") == 0) {
@@ -107,6 +104,9 @@ __ni_config_parse(ni_config_t *conf, const char *filename)
 			}
 			if (!ni_config_include(conf, filename, child->cdata))
 				goto failed;
+		} else
+		if (strcmp(child->name, "statedir") == 0) {
+			ni_config_parse_fslocation(&conf->statedir, node);
 		} else
 		if (strcmp(child->name, "dbus") == 0) {
 			const char *attrval;
@@ -606,19 +606,15 @@ ni_config_parse_update_targets(unsigned int *update_mask, const xml_node_t *node
 	return 0;
 }
 
-int
-ni_config_parse_fslocation(ni_config_fslocation_t *fsloc, const char *name, xml_node_t *node)
+void
+ni_config_parse_fslocation(ni_config_fslocation_t *fsloc, xml_node_t *node)
 {
 	const char *attrval;
-
-	if (!(node = xml_node_get_child(node, name)))
-		return 0;
 
 	if ((attrval = xml_node_get_attr(node, "path")) != NULL)
 		ni_string_dup(&fsloc->path, attrval);
 	if ((attrval = xml_node_get_attr(node, "mode")) != NULL)
 		ni_parse_int(attrval, &fsloc->mode);
-	return 0;
 }
 
 /*
