@@ -7,7 +7,7 @@
 <!-- =================================================
      Generic Addrconf facilities
      ================================================= -->
-<service name="addrconf" interface="org.opensuse.Network.Addrconf" object-class="netif">
+<service name="addrconf" interface="org.opensuse.Network.Addrconf" object-class="addrconf-device">
   <define name="lease-type" class="dict">
     <state type="uint32" />  	<!-- This should really be an enum -->
     <acquired type="uint32" />	<!-- timestamp -->

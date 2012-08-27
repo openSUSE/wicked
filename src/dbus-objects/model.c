@@ -115,6 +115,7 @@ ni_objectmodel_register_all(void)
 	ni_objectmodel_register_netif_services();
 	ni_objectmodel_register_modem_classes();
 	ni_objectmodel_register_modem_services();
+	ni_objectmodel_register_addrconf_classes();
 }
 
 /*
@@ -147,17 +148,12 @@ ni_objectmodel_bind_compatible_interfaces(ni_dbus_object_t *object)
 	NI_TRACE_ENTER_ARGS("object=%s, class=%s", object->path, object->class->name);
 	for (i = 0; i < ni_objectmodel_service_registry.count; ++i) {
 		const ni_dbus_service_t *service = ni_objectmodel_service_registry.services[i];
-		const ni_dbus_class_t *class;
 
 		/* If the service is compatible with the object's dbus class,
 		 * or any of its superclasses, register this interface to this
 		 * object */
-		for (class = object->class; class; class = class->superclass) {
-			if (service->compatible == class) {
-				ni_dbus_object_register_service(object, service);
-				break;
-			}
-		}
+		if (ni_dbus_object_isa(object, service->compatible))
+			ni_dbus_object_register_service(object, service);
 	}
 
 	return TRUE;

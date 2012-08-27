@@ -16,6 +16,7 @@ extern void			ni_objectmodel_register_netif_classes(void);
 extern void			ni_objectmodel_register_netif_services(void);
 extern void			ni_objectmodel_register_modem_classes(void);
 extern void			ni_objectmodel_register_modem_services(void);
+extern void			ni_objectmodel_register_addrconf_classes(void);
 extern void			ni_objectmodel_register_netif_service(ni_iftype_t, ni_dbus_service_t *);
 extern ni_dbus_server_t *	ni_objectmodel_create_service(void);
 extern ni_bool_t		ni_objectmodel_save_state(const char *);
@@ -44,6 +45,7 @@ extern ni_dbus_class_t *	ni_objectmodel_class_new(const char *, const ni_dbus_cl
 #define NI_OBJECTMODEL_MODEM_GSM_CLASS		"modem-gsm"
 #define NI_OBJECTMODEL_MODEM_CDMA_CLASS		"modem-cdma"
 #define NI_OBJECTMODEL_MODEM_LIST_CLASS		"modem-list"
+#define NI_OBJECTMODEL_ADDRCONF_DEVICE_CLASS	"addrconf-device"
 
 #define NI_OBJECTMODEL_NAMESPACE		"org.opensuse.Network"
 #define NI_OBJECTMODEL_OBJECT_ROOT		"/org/opensuse/Network"
@@ -96,6 +98,7 @@ extern ni_dbus_class_t *	ni_objectmodel_class_new(const char *, const ni_dbus_cl
 #define NI_OBJECTMODEL_LEASE_LOST_SIGNAL	"LeaseLost"
 
 extern const ni_dbus_class_t	ni_objectmodel_netif_class;
+extern const ni_dbus_class_t	ni_objectmodel_addrconf_device_class;
 
 extern const char *		ni_objectmodel_link_classname(ni_iftype_t);
 
