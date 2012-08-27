@@ -183,12 +183,6 @@ ni_dbus_xml_register_methods(ni_xs_service_t *xs_service, ni_xs_method_t *xs_met
 				break;
 			}
 		}
-		if (method != NULL) {
-			ni_debug_dbus("%s method %s is built-in, do not redefine",
-					xs_service->interface, xs_method->name);
-			method->schema = xs_method;
-			continue;
-		}
 
 		/* First, build the method signature */
 		sigbuf[0] = '\0';
@@ -203,6 +197,16 @@ ni_dbus_xml_register_methods(ni_xs_service_t *xs_service, ni_xs_method_t *xs_met
 					 xs_method->arguments.data[i].name);
 				goto next_method;
 			}
+		}
+
+		if (method != NULL) {
+			if (method->call_signature && !ni_string_eq(method->call_signature, sigbuf)) {
+				ni_warn("%s method %s signature mismatch. Built-in \"%s\" vs schema \"%s\"",
+					xs_service->interface, xs_method->name,
+					method->call_signature, sigbuf);
+			}
+			method->schema = xs_method;
+			continue;
 		}
 
 		method = &method_array[num_methods++];
