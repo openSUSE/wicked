@@ -129,10 +129,7 @@ ni_objectmodel_register_netif_factory_service(ni_dbus_service_t *svc)
 void
 ni_objectmodel_register_netif_service(ni_iftype_t iftype, ni_dbus_service_t *svc)
 {
-	if (iftype == NI_IFTYPE_UNKNOWN)
-		svc->compatible = &ni_objectmodel_netif_class;
-	else
-		svc->compatible = ni_objectmodel_get_class(ni_objectmodel_link_classname(iftype));
+	svc->compatible = ni_objectmodel_link_class(iftype);
 	ni_assert(svc->compatible);
 
 	ni_objectmodel_register_service(svc);
@@ -325,6 +322,19 @@ ni_objectmodel_link_classname(ni_iftype_t link_type)
 	return namebuf;
 }
 
+const ni_dbus_class_t *
+ni_objectmodel_link_class(ni_iftype_t iftype)
+{
+	const ni_dbus_class_t *class = NULL;
+	const char *classname;
+
+	if ((classname = ni_objectmodel_link_classname(iftype)) != NULL)
+		class = ni_objectmodel_get_class(classname);
+	if (class == NULL)
+		class = &ni_objectmodel_netif_class;
+	return class;
+}
+
 /*
  * Build a dbus-object encapsulating a network device.
  * If @server is non-NULL, register the object with a canonical object path
@@ -332,14 +342,10 @@ ni_objectmodel_link_classname(ni_iftype_t link_type)
 static ni_dbus_object_t *
 __ni_objectmodel_build_netif_object(ni_dbus_server_t *server, ni_netdev_t *dev, const ni_dbus_class_t *requested_class)
 {
-	const char *classname;
-	const ni_dbus_class_t *class = NULL;
+	const ni_dbus_class_t *class;
 	ni_dbus_object_t *object;
 
-	if ((classname = ni_objectmodel_link_classname(dev->link.type)) != NULL)
-		class = ni_objectmodel_get_class(classname);
-	if (class == NULL)
-		class = &ni_objectmodel_netif_class;
+	class = ni_objectmodel_link_class(dev->link.type);
 
 	/* If the caller requests a specific class for this object, it must be a
 	 * subclass of the link type class. */
