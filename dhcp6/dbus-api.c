@@ -45,9 +45,22 @@ static void			__ni_objectmodel_dhcp6_device_release(ni_dbus_object_t *);
 static ni_dbus_class_t		ni_objectmodel_dhcp6_device_class = {
 	.name		= "dhcp6-device",
 	.destroy	= __ni_objectmodel_dhcp6_device_release,
+	.superclass	= &ni_objectmodel_addrconf_device_class,
 };
 
 static const ni_dbus_service_t	ni_objectmodel_dhcp6_service;
+
+/*
+ * Register services and classes for dhcp6 supplicant service
+ */
+void
+ni_objectmodel_dhcp6_init(void)
+{
+	if (ni_objectmodel_init(NULL) == NULL)
+		ni_fatal("Cannot initialize objectmodel, giving up.");
+	ni_objectmodel_register_class(&ni_objectmodel_dhcp6_device_class);
+	ni_objectmodel_register_service(&ni_objectmodel_dhcp6_service);
+}
 
 /*
  * Build a dbus-object encapsulating a network device.
@@ -79,7 +92,7 @@ __ni_objectmodel_dhcp6_device_build_object(ni_dbus_server_t *server, ni_dhcp6_de
 	if (object == NULL)
 		ni_fatal("Unable to create dbus object for dhcp6 device %s", dev->ifname);
 
-	ni_dbus_object_register_service(object, &ni_objectmodel_dhcp6_service);
+	ni_objectmodel_bind_compatible_interfaces(object);
 	return object;
 }
 

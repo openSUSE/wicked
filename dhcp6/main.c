@@ -369,7 +369,7 @@ dhcp6_device_create(ni_dbus_server_t *server, const ni_netdev_t *ifp)
 	}
 
 	ni_objectmodel_register_dhcp6_device(server, dev);
-	ni_debug_dbus("Created device for %s", ifp->name);
+	ni_debug_dhcp("Created device for %s", ifp->name);
 	return TRUE;
 }
 
@@ -418,6 +418,8 @@ dhcp6_supplicant(void)
 	dhcp6_dbus_server = ni_server_listen_dbus(NI_OBJECTMODEL_DBUS_BUS_NAME_DHCP6);
 	if (dhcp6_dbus_server == NULL)
 		ni_fatal("Unable to initialize dbus server");
+
+	ni_objectmodel_dhcp6_init();
 
 	dhcp6_register_services(dhcp6_dbus_server);
 
