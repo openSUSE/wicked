@@ -69,12 +69,12 @@ ni_managed_device_list_unlink(ni_managed_device_t *mdev)
  * create a new managed_device object
  */
 ni_managed_device_t *
-ni_managed_device_new(ni_manager_t *mgr, ni_ifworker_t *w, ni_managed_device_t **list)
+ni_managed_device_new(ni_nanny_t *mgr, ni_ifworker_t *w, ni_managed_device_t **list)
 {
 	ni_managed_device_t *mdev;
 
 	mdev = calloc(1, sizeof(*mdev));
-	mdev->manager = mgr;
+	mdev->nanny = mgr;
 	mdev->worker = ni_ifworker_get(w);
 
 	if (list)
@@ -176,7 +176,7 @@ ni_managed_device_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *m
 	if (config == NULL) {
 		ni_error("%s: error when applying policy to %s document", w->name, type_name);
 		if (mdev->state != NI_MANAGED_STATE_STOPPED)
-			ni_manager_schedule_down(mdev->manager, w);
+			ni_nanny_schedule_down(mdev->nanny, w);
 		return;
 	}
 	ni_debug_nanny("%s: using device config", w->name);
@@ -194,10 +194,10 @@ ni_managed_device_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *m
 static void
 ni_managed_device_up_done(ni_ifworker_t *w)
 {
-	ni_manager_t *mgr = w->completion.user_data;
+	ni_nanny_t *mgr = w->completion.user_data;
 	ni_managed_device_t *mdev;
 
-	if ((mdev = ni_manager_get_device(mgr, w)) == NULL) {
+	if ((mdev = ni_nanny_get_device(mgr, w)) == NULL) {
 		ni_error("%s: no managed device for worker %s", __func__, w->name);
 		return;
 	}
@@ -210,7 +210,7 @@ ni_managed_device_up_done(ni_ifworker_t *w)
 		if (mdev->fail_count < mdev->max_fail_count) {
 			ni_error("%s: failed to bring up device, still continuing", w->name);
 			mdev->state = NI_MANAGED_STATE_LIMBO;
-			ni_manager_schedule_recheck(mgr, w);
+			ni_nanny_schedule_recheck(mgr, w);
 		} else {
 			/* Broadcast an error and take down the device
 			 * for good. */
@@ -223,7 +223,7 @@ ni_managed_device_up_done(ni_ifworker_t *w)
 		 * device. Using the wrong PIN repeatedly may end up locking
 		 * the device. */
 		if (ni_security_id_valid(&w->security_id))
-			ni_manager_clear_secrets(mgr, &w->security_id, NULL);
+			ni_nanny_clear_secrets(mgr, &w->security_id, NULL);
 	} else {
 		ni_ifworker_reset(w);
 		mdev->fail_count = 0;
@@ -237,7 +237,7 @@ ni_managed_device_up_done(ni_ifworker_t *w)
 void
 ni_managed_device_up(ni_managed_device_t *mdev)
 {
-	ni_fsm_t *fsm = mdev->manager->fsm;
+	ni_fsm_t *fsm = mdev->nanny->fsm;
 	ni_ifworker_t *w = mdev->worker;
 	unsigned int previous_state;
 	unsigned int target_state;
@@ -277,9 +277,9 @@ ni_managed_device_up(ni_managed_device_t *mdev)
 	if (ni_security_id_valid(&security_id))
 		ni_managed_device_set_security_id(mdev, &security_id);
 
-	ni_ifworker_set_completion_callback(w, ni_managed_device_up_done, mdev->manager);
+	ni_ifworker_set_completion_callback(w, ni_managed_device_up_done, mdev->nanny);
 
-	ni_ifworker_set_config(w, mdev->selected_config, "manager");
+	ni_ifworker_set_config(w, mdev->selected_config, "nanny");
 	w->target_range.min = target_state;
 	w->target_range.max = __NI_FSM_STATE_MAX;
 
@@ -337,10 +337,10 @@ ni_managed_device_get_essid(xml_node_t *config)
 static void
 ni_managed_device_down_done(ni_ifworker_t *w)
 {
-	ni_manager_t *mgr = w->completion.user_data;
+	ni_nanny_t *mgr = w->completion.user_data;
 	ni_managed_device_t *mdev;
 
-	if ((mdev = ni_manager_get_device(mgr, w)) == NULL) {
+	if ((mdev = ni_nanny_get_device(mgr, w)) == NULL) {
 		ni_error("%s: no managed device for worker %s", __func__, w->name);
 		return;
 	}
@@ -372,15 +372,15 @@ ni_managed_device_down_done(ni_ifworker_t *w)
 void
 ni_managed_device_down(ni_managed_device_t *mdev)
 {
-	ni_fsm_t *fsm = mdev->manager->fsm;
+	ni_fsm_t *fsm = mdev->nanny->fsm;
 	ni_ifworker_t *w = mdev->worker;
 	int rv;
 
 	ni_ifworker_reset(w);
 
-	ni_ifworker_set_completion_callback(w, ni_managed_device_down_done, mdev->manager);
+	ni_ifworker_set_completion_callback(w, ni_managed_device_down_done, mdev->nanny);
 
-	ni_ifworker_set_config(w, mdev->selected_config, "manager");
+	ni_ifworker_set_config(w, mdev->selected_config, "nanny");
 	w->target_range.min = NI_FSM_STATE_NONE;
 	w->target_range.max = NI_FSM_STATE_DEVICE_EXISTS;
 
@@ -419,7 +419,7 @@ ni_managed_state_to_string(ni_managed_state_t state)
  * Look up managed device for a given ifworker
  */
 ni_managed_device_t *
-ni_manager_get_device(ni_manager_t *mgr, ni_ifworker_t *w)
+ni_nanny_get_device(ni_nanny_t *mgr, ni_ifworker_t *w)
 {
 	ni_managed_device_t *mdev;
 
@@ -433,7 +433,7 @@ ni_manager_get_device(ni_manager_t *mgr, ni_ifworker_t *w)
 }
 
 void
-ni_manager_remove_device(ni_manager_t *mgr, ni_managed_device_t *mdev)
+ni_nanny_remove_device(ni_nanny_t *mgr, ni_managed_device_t *mdev)
 {
 	ni_managed_device_list_unlink(mdev);
 }

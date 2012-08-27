@@ -73,7 +73,7 @@ ni_managed_netdev_enable(ni_managed_device_t *mdev)
 		return FALSE;
 	}
 
-	ni_manager_schedule_recheck(mdev->manager, mdev->worker);
+	ni_nanny_schedule_recheck(mdev->nanny, mdev->worker);
 	mdev->user_controlled = TRUE;
 	return TRUE;
 }
@@ -85,7 +85,7 @@ ni_bool_t
 ni_managed_netdev_disable(ni_managed_device_t *mdev)
 {
 	if (mdev->user_controlled)
-		ni_manager_schedule_down(mdev->manager, mdev->worker);
+		ni_nanny_schedule_down(mdev->nanny, mdev->worker);
 	mdev->user_controlled = FALSE;
 	return TRUE;
 }

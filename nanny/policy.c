@@ -47,7 +47,7 @@ ni_objectmodel_managed_policy_init(ni_dbus_server_t *server)
  * managed_policy objects
  */
 ni_managed_policy_t *
-ni_managed_policy_new(ni_manager_t *mgr, ni_fsm_policy_t *policy, xml_document_t *doc)
+ni_managed_policy_new(ni_nanny_t *mgr, ni_fsm_policy_t *policy, xml_document_t *doc)
 {
 	ni_managed_policy_t *mpolicy;
 

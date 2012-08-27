@@ -50,9 +50,9 @@ static int		opt_foreground = 0;
 static int		opt_no_modem_manager = 0;
 
 static void		babysit(void);
-static void		ni_manager_discover_state(ni_manager_t *);
-static void		ni_manager_netif_state_change_signal_receive(ni_dbus_connection_t *, ni_dbus_message_t *, void *);
-static void		ni_manager_modem_state_change_signal_receive(ni_dbus_connection_t *, ni_dbus_message_t *, void *);
+static void		ni_nanny_discover_state(ni_nanny_t *);
+static void		ni_nanny_netif_state_change_signal_receive(ni_dbus_connection_t *, ni_dbus_message_t *, void *);
+static void		ni_nanny_modem_state_change_signal_receive(ni_dbus_connection_t *, ni_dbus_message_t *, void *);
 //static void		handle_interface_event(ni_netdev_t *, ni_event_t);
 //static void		handle_modem_event(ni_modem_t *, ni_event_t);
 static void		handle_rfkill_event(ni_rfkill_type_t, ni_bool_t, void *user_data);
@@ -124,9 +124,9 @@ main(int argc, char **argv)
 void
 babysit(void)
 {
-	ni_manager_t *mgr;
+	ni_nanny_t *mgr;
 
-	mgr = ni_manager_new();
+	mgr = ni_nanny_new();
 
 	if (!opt_foreground) {
 		if (ni_server_background(program_name) < 0)
@@ -136,13 +136,13 @@ babysit(void)
 
 	ni_rfkill_open(handle_rfkill_event, mgr);
 
-	ni_manager_discover_state(mgr);
+	ni_nanny_discover_state(mgr);
 
 	while (!ni_caught_terminal_signal()) {
 		long timeout;
 
-		ni_manager_recheck_do(mgr);
-		ni_manager_down_do(mgr);
+		ni_nanny_recheck_do(mgr);
+		ni_nanny_down_do(mgr);
 
 		ni_fsm_do(mgr->fsm, &timeout);
 		if (ni_socket_wait(timeout) < 0)
@@ -158,7 +158,7 @@ babysit(void)
  * This allows a daemon restart without losing lease state.
  */
 void
-ni_manager_discover_state(ni_manager_t *mgr)
+ni_nanny_discover_state(ni_nanny_t *mgr)
 {
 	ni_dbus_client_t *client;
 	unsigned int i;
@@ -168,11 +168,11 @@ ni_manager_discover_state(ni_manager_t *mgr)
 
 	ni_dbus_client_add_signal_handler(client, NULL, NULL,
 			NI_OBJECTMODEL_NETIF_INTERFACE,
-			ni_manager_netif_state_change_signal_receive,
+			ni_nanny_netif_state_change_signal_receive,
 			mgr);
 	ni_dbus_client_add_signal_handler(client, NULL, NULL,
 			NI_OBJECTMODEL_MODEM_INTERFACE,
-			ni_manager_modem_state_change_signal_receive,
+			ni_nanny_modem_state_change_signal_receive,
 			mgr);
 
 	ni_fsm_refresh_state(mgr->fsm);
@@ -180,7 +180,7 @@ ni_manager_discover_state(ni_manager_t *mgr)
 	for (i = 0; i < mgr->fsm->workers.count; ++i) {
 		ni_ifworker_t *w = mgr->fsm->workers.data[i];
 
-		ni_manager_register_device(mgr, w);
+		ni_nanny_register_device(mgr, w);
 	}
 }
 
@@ -189,9 +189,9 @@ ni_manager_discover_state(ni_manager_t *mgr)
  * visible WLANs)
  */
 void
-ni_manager_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_message_t *msg, void *user_data)
+ni_nanny_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_message_t *msg, void *user_data)
 {
-	ni_manager_t *mgr = user_data;
+	ni_nanny_t *mgr = user_data;
 	const char *signal_name = dbus_message_get_member(msg);
 	const char *object_path = dbus_message_get_path(msg);
 	ni_event_t event;
@@ -209,8 +209,8 @@ ni_manager_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus
 		// a VLAN or vif, or a hotplug device
 		// Create a worker and a managed_netif for this device.
 		w = ni_fsm_recv_new_netif_path(mgr->fsm, object_path);
-		ni_manager_register_device(mgr, w);
-		ni_manager_schedule_recheck(mgr, w);
+		ni_nanny_register_device(mgr, w);
+		ni_nanny_schedule_recheck(mgr, w);
 		return;
 	}
 
@@ -226,11 +226,11 @@ ni_manager_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus
 	if (event == NI_EVENT_DEVICE_DELETE) {
 		ni_debug_nanny("%s: received signal %s from %s", w->name, signal_name, object_path);
 		// delete the worker and the managed netif
-		ni_manager_unregister_device(mgr, w);
+		ni_nanny_unregister_device(mgr, w);
 		return;
 	}
 
-	if ((mdev = ni_manager_get_device(mgr, w)) == NULL) {
+	if ((mdev = ni_nanny_get_device(mgr, w)) == NULL) {
 		ni_debug_nanny("%s: received signal %s from %s (not a managed device)",
 				w->name, signal_name, object_path);
 		return;
@@ -248,7 +248,7 @@ ni_manager_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus
 		// we were the ones who took it up - so bring it down
 		// again
 		if (mdev->selected_policy != NULL && mdev->user_controlled)
-			ni_manager_schedule_recheck(mgr, w);
+			ni_nanny_schedule_recheck(mgr, w);
 		break;
 
 	case NI_EVENT_LINK_ASSOCIATION_LOST:
@@ -256,18 +256,18 @@ ni_manager_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus
 		// we were the ones who took it up - so bring it down
 		// again
 		if (mdev->selected_policy != NULL && mdev->user_controlled)
-			ni_manager_schedule_recheck(mgr, w);
+			ni_nanny_schedule_recheck(mgr, w);
 		break;
 
 	case NI_EVENT_LINK_SCAN_UPDATED:
 		if (mdev->user_controlled)
-			ni_manager_schedule_recheck(mgr, w);
+			ni_nanny_schedule_recheck(mgr, w);
 		break;
 
 	case NI_EVENT_LINK_UP:
 		// Link detection - eg for ethernet
 		if (mdev->user_controlled)
-			ni_manager_schedule_recheck(mgr, w);
+			ni_nanny_schedule_recheck(mgr, w);
 		break;
 
 	default: ;
@@ -278,9 +278,9 @@ ni_manager_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus
  * Wickedd is sending us a modem signal (usually discovery or removal of a modem)
  */
 void
-ni_manager_modem_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_message_t *msg, void *user_data)
+ni_nanny_modem_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_message_t *msg, void *user_data)
 {
-	ni_manager_t *mgr = user_data;
+	ni_nanny_t *mgr = user_data;
 	const char *signal_name = dbus_message_get_member(msg);
 	const char *object_path = dbus_message_get_path(msg);
 	ni_event_t event;
@@ -295,8 +295,8 @@ ni_manager_modem_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus
 	// We receive a deviceCreate signal when a modem was plugged in
 	if (event == NI_EVENT_DEVICE_CREATE) {
 		w = ni_fsm_recv_new_modem_path(mgr->fsm, object_path);
-		ni_manager_register_device(mgr, w);
-		ni_manager_schedule_recheck(mgr, w);
+		ni_nanny_register_device(mgr, w);
+		ni_nanny_schedule_recheck(mgr, w);
 		return;
 	}
 
@@ -312,7 +312,7 @@ ni_manager_modem_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus
 
 	if (event == NI_EVENT_DEVICE_DELETE) {
 		// delete the worker and the managed modem
-		ni_manager_unregister_device(mgr, w);
+		ni_nanny_unregister_device(mgr, w);
 	} else {
 		// ignore
 	}
@@ -321,10 +321,10 @@ ni_manager_modem_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus
 void
 handle_rfkill_event(ni_rfkill_type_t type, ni_bool_t blocked, void *user_data)
 {
-	ni_manager_t *mgr = user_data;
+	ni_nanny_t *mgr = user_data;
 
 	ni_debug_application("rfkill: %s devices %s", ni_rfkill_type_string(type),
 			blocked? "blocked" : "enabled");
 
-	ni_manager_rfkill_event(mgr, type, blocked);
+	ni_nanny_rfkill_event(mgr, type, blocked);
 }
