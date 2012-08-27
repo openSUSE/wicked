@@ -30,7 +30,7 @@
 #include <wicked/dbus-errors.h>
 #include <wicked/fsm.h>
 #include <wicked/client.h>
-#include "manager.h"
+#include "nanny.h"
 
 
 void

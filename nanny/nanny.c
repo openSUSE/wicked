@@ -28,7 +28,7 @@
 #include <wicked/dbus-service.h>
 #include <wicked/dbus-errors.h>
 #include <wicked/fsm.h>
-#include "manager.h"
+#include "nanny.h"
 
 
 static int		ni_nanny_prompt(const ni_fsm_prompt_t *, xml_node_t *, void *);

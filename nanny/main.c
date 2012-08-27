@@ -27,7 +27,7 @@
 #include <wicked/modem.h>
 #include <wicked/wireless.h>
 #include <wicked/fsm.h>
-#include "manager.h"
+#include "nanny.h"
 
 enum {
 	OPT_CONFIGFILE,

@@ -144,7 +144,7 @@ SERVERSRCS = \
 	  server/main.c
 NANNYSRCS = \
 	  nanny/main.c \
-	  nanny/manager.c \
+	  nanny/nanny.c \
 	  nanny/policy.c \
 	  nanny/interface.c \
 	  nanny/modem.c \

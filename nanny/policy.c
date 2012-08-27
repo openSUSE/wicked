@@ -28,7 +28,7 @@
 #include <wicked/dbus-service.h>
 #include <wicked/dbus-errors.h>
 #include <wicked/fsm.h>
-#include "manager.h"
+#include "nanny.h"
 
 
 void

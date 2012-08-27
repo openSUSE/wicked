@@ -29,7 +29,7 @@
 #include <wicked/dbus-errors.h>
 #include <wicked/fsm.h>
 #include <wicked/client.h>
-#include "manager.h"
+#include "nanny.h"
 
 
 static const char *	ni_managed_device_get_essid(xml_node_t *);
