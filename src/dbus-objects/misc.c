@@ -48,35 +48,34 @@ __ni_dbus_variant_get_opaque(const ni_dbus_variant_t *var, ni_opaque_t *packed)
 }
 
 static inline dbus_bool_t
-__ni_dbus_dict_add_sockaddr(ni_dbus_variant_t *dict, const char *name, const ni_sockaddr_t *sockaddr)
+__ni_dbus_variant_set_sockaddr(ni_dbus_variant_t *var, const ni_sockaddr_t *sockaddr)
 {
 	ni_opaque_t packed;
 
 	if (!ni_sockaddr_pack(sockaddr, &packed))
 		return FALSE;
 
-	return ni_dbus_dict_add_byte_array(dict, name, packed.data, packed.len);
+	ni_dbus_variant_set_byte_array(var, packed.data, packed.len);
+	return TRUE;
 }
 
 static inline dbus_bool_t
-__ni_dbus_dict_add_sockaddr_prefix(ni_dbus_variant_t *dict, const char *name, const ni_sockaddr_t *sockaddr, unsigned int prefix_len)
+__ni_dbus_variant_set_sockaddr_prefix(ni_dbus_variant_t *var, const ni_sockaddr_t *sockaddr, unsigned int prefix_len)
 {
 	ni_opaque_t packed;
 
 	if (!ni_sockaddr_prefix_pack(sockaddr, prefix_len, &packed))
 		return FALSE;
 
-	return ni_dbus_dict_add_byte_array(dict, name, packed.data, packed.len);
+	ni_dbus_variant_set_byte_array(var, packed.data, packed.len);
+	return TRUE;
 }
 
 static inline dbus_bool_t
-__ni_dbus_dict_get_sockaddr(const ni_dbus_variant_t *dict, const char *name, ni_sockaddr_t *sockaddr)
+__ni_dbus_variant_get_sockaddr(const ni_dbus_variant_t *var, ni_sockaddr_t *sockaddr)
 {
-	const ni_dbus_variant_t *var;
 	ni_opaque_t packed;
 
-	if (!(var = ni_dbus_dict_get(dict, name)))
-		return FALSE;
 	if (!__ni_dbus_variant_get_opaque(var, &packed))
 		return FALSE;
 	if (!ni_sockaddr_unpack(sockaddr, &packed))
@@ -86,19 +85,57 @@ __ni_dbus_dict_get_sockaddr(const ni_dbus_variant_t *dict, const char *name, ni_
 }
 
 static inline dbus_bool_t
-__ni_dbus_dict_get_sockaddr_prefix(const ni_dbus_variant_t *dict, const char *name, ni_sockaddr_t *sockaddr, unsigned int *prefixlen)
+__ni_dbus_variant_get_sockaddr_prefix(const ni_dbus_variant_t *var, ni_sockaddr_t *sockaddr, unsigned int *prefixlen)
 {
-	const ni_dbus_variant_t *var;
 	ni_opaque_t packed;
 
-	if (!(var = ni_dbus_dict_get(dict, name)))
-		return FALSE;
 	if (!__ni_dbus_variant_get_opaque(var, &packed))
 		return FALSE;
 	if (!ni_sockaddr_prefix_unpack(sockaddr, prefixlen, &packed))
 		return FALSE;
 
 	return TRUE;
+}
+
+static inline dbus_bool_t
+__ni_dbus_dict_add_sockaddr(ni_dbus_variant_t *dict, const char *name, const ni_sockaddr_t *sockaddr)
+{
+	ni_dbus_variant_t *dst;
+
+	if (!(dst = ni_dbus_dict_add(dict, name)))
+		return FALSE;
+	return __ni_dbus_variant_set_sockaddr(dst, sockaddr);
+}
+
+static inline dbus_bool_t
+__ni_dbus_dict_add_sockaddr_prefix(ni_dbus_variant_t *dict, const char *name, const ni_sockaddr_t *sockaddr, unsigned int prefix_len)
+{
+	ni_dbus_variant_t *dst;
+
+	if (!(dst = ni_dbus_dict_add(dict, name)))
+		return FALSE;
+
+	return __ni_dbus_variant_set_sockaddr_prefix(dst, sockaddr, prefix_len);
+}
+
+static inline dbus_bool_t
+__ni_dbus_dict_get_sockaddr(const ni_dbus_variant_t *dict, const char *name, ni_sockaddr_t *sockaddr)
+{
+	const ni_dbus_variant_t *var;
+
+	if (!(var = ni_dbus_dict_get(dict, name)))
+		return FALSE;
+	return __ni_dbus_variant_get_sockaddr(var, sockaddr);
+}
+
+static inline dbus_bool_t
+__ni_dbus_dict_get_sockaddr_prefix(const ni_dbus_variant_t *dict, const char *name, ni_sockaddr_t *sockaddr, unsigned int *prefixlen)
+{
+	const ni_dbus_variant_t *var;
+
+	if (!(var = ni_dbus_dict_get(dict, name)))
+		return FALSE;
+	return __ni_dbus_variant_get_sockaddr_prefix(var, sockaddr, prefixlen);
 }
 
 /*
