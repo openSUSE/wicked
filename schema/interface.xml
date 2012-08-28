@@ -146,7 +146,9 @@
 
   <method name="linkUp">
     <arguments>
-      <request type="link-request" />
+      <request type="link-request">
+        <meta:mapping document-node="/link" skip-unless-present="true" />
+      </request>
     </arguments>
     <return>
       <callback-info/>
