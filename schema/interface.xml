@@ -96,6 +96,7 @@
 <service name="interface-list" interface="org.opensuse.Network.InterfaceList">
   <method name="identifyDevice">
     <arguments>
+      <namespace type="string"/>
       <query class="dict"/>
     </arguments>
     <return>

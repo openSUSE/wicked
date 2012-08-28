@@ -31,6 +31,7 @@ static void *			ni_fsm_user_prompt_data;
 
 static const char *		ni_ifworker_state_name(int);
 static ni_ifworker_t *		ni_ifworker_identify_device(ni_fsm_t *, const xml_node_t *, ni_ifworker_type_t);
+static ni_ifworker_t *		__ni_ifworker_identify_device(ni_fsm_t *, const char *, const xml_node_t *, ni_ifworker_type_t);
 static void			ni_ifworker_set_dependencies_xml(ni_ifworker_t *, xml_node_t *);
 static int			ni_fsm_schedule_init(ni_fsm_t *fsm, ni_ifworker_t *, unsigned int, unsigned int);
 static int			ni_fsm_schedule_bind_methods(ni_fsm_t *, ni_ifworker_t *);
@@ -641,24 +642,32 @@ static ni_ifworker_t *
 ni_ifworker_resolve_reference(ni_fsm_t *fsm, xml_node_t *devnode, ni_ifworker_type_t type)
 {
 	ni_ifworker_t *child;
-	const char *slave_name;
 
-	slave_name = devnode->cdata;
-	if (slave_name != NULL) {
-		child = ni_ifworker_array_find(&fsm->workers, type, slave_name);
-
-		if (child == NULL) {
-			ni_error("%s: <%s> element references unknown device %s",
-					xml_node_location(devnode),
-					devnode->name,
-					slave_name);
-			return NULL;
-		}
-	} else
-	if (devnode->children) {
+	if (devnode->children || devnode->cdata) {
 		/* Try to identify device based on attributes given in the
 		 * <device> node. */
-		child = ni_ifworker_identify_device(fsm, devnode, type);
+		const char *namespace;
+
+		namespace = xml_node_get_attr(devnode, "namespace");
+		if (namespace != NULL) {
+			child = __ni_ifworker_identify_device(fsm, namespace, devnode, type);
+		} else if (devnode->cdata) {
+			const char *slave_name = devnode->cdata;
+			child = ni_ifworker_array_find(&fsm->workers, type, slave_name);
+
+			if (child == NULL) {
+				ni_error("%s: <%s> element references unknown device %s",
+						xml_node_location(devnode),
+						devnode->name,
+						slave_name);
+				return NULL;
+			}
+		} else {
+			ni_warn("%s: obsolete: using <device> node without namespace attribute "
+				"- please use <device namespace=\"...\"> instead",
+					xml_node_location(devnode));
+			child = ni_ifworker_identify_device(fsm, devnode, type);
+		}
 		if (child == NULL) {
 			ni_error("%s: <%s> element references unknown device",
 					xml_node_location(devnode),
@@ -953,7 +962,7 @@ ni_fsm_workers_from_xml(ni_fsm_t *fsm, xml_document_t *doc, const char *config_o
 		ni_ifworker_type_t type;
 		const char *ifname = NULL;
 		xml_node_t *node;
-		ni_ifworker_t *w;
+		ni_ifworker_t *w = NULL;
 
 		if (ni_string_eq(ifnode->name, "policy")) {
 			const char *name;
@@ -970,28 +979,26 @@ ni_fsm_workers_from_xml(ni_fsm_t *fsm, xml_document_t *doc, const char *config_o
 			continue;
 		}
 
-		if ((node = xml_node_get_child(ifnode, "name")) != NULL)
-			ifname = node->cdata;
-
 		if ((node = xml_node_get_child(ifnode, "identify")) != NULL) {
+			ni_warn("%s: using obsolete <identify> element - please use <name namespace=\"...\"> instead", xml_node_location(ifnode));
 			w = ni_ifworker_identify_device(fsm, node, type);
-			if (w == NULL) {
-				ni_error("%s: unable to identify interface", xml_node_location(ifnode));
-				continue;
-			} else {
-				ni_debug_application("%s: identified interface %s",
-						xml_node_location(node),
-						w->name);
-				w->config.node = ifnode;
-			}
-		} else {
-			if (ifname == NULL) {
-				ni_error("%s: ignoring unknown interface", xml_node_location(ifnode));
-				continue;
-			}
+		} else 
+		if ((node = xml_node_get_child(ifnode, "name")) != NULL) {
+			const char *namespace;
 
-			if ((w = ni_fsm_ifworker_by_name(fsm, type, ifname)) == NULL)
-				w = ni_ifworker_new(fsm, type, ifname);
+			namespace = xml_node_get_attr(node, "namespace");
+			if (namespace != NULL) {
+				w = __ni_ifworker_identify_device(fsm, namespace, node, type);
+			} else {
+				ifname = node->cdata;
+				if (ifname && (w = ni_fsm_ifworker_by_name(fsm, type, ifname)) == NULL)
+					w = ni_ifworker_new(fsm, type, ifname);
+			}
+		}
+
+		if (w == NULL) {
+			ni_error("%s: ignoring unknown interface", xml_node_location(ifnode));
+			continue;
 		}
 
 		ni_ifworker_set_config(w, ifnode, config_origin);
@@ -1268,50 +1275,83 @@ ni_ifworker_check_dependencies(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transitio
  * System z etc.
  */
 static ni_ifworker_t *
+__ni_ifworker_identify_device(ni_fsm_t *fsm, const char *namespace, const xml_node_t *devnode, ni_ifworker_type_t type)
+{
+	ni_ifworker_t *found = NULL;
+	char *object_path = NULL;
+
+	/* Handle simple namespace first */
+	if (namespace == NULL)
+		return ni_fsm_ifworker_by_name(fsm, type, devnode->cdata);
+
+	if (!strcmp(namespace, "alias"))
+		return ni_ifworker_by_alias(fsm, devnode->cdata);
+
+	if (type == NI_IFWORKER_TYPE_NETDEV && !strcmp(devnode->name, "ifindex")) {
+		unsigned int ifindex;
+
+		if (ni_parse_int(devnode->cdata, &ifindex) < 0) {
+			ni_error("%s: cannot parse ifindex attribute", xml_node_location(devnode));
+			return NULL;
+		}
+		return ni_ifworker_by_ifindex(fsm, ifindex);
+	}
+
+	switch (type) {
+	case NI_IFWORKER_TYPE_NETDEV:
+		object_path = ni_call_identify_device(namespace, devnode);
+		break;
+
+	case NI_IFWORKER_TYPE_MODEM:
+		object_path = ni_call_identify_modem(namespace, devnode);
+		break;
+
+	default: ;
+	}
+
+	if (object_path)
+		found = ni_fsm_ifworker_by_object_path(fsm, object_path);
+	ni_string_free(&object_path);
+
+	if (found)
+		ni_debug_application("%s: identified device as %s (%s)",
+				xml_node_location(devnode), found->name, found->object_path);
+	return found;
+}
+
+static ni_ifworker_t *
 ni_ifworker_identify_device(ni_fsm_t *fsm, const xml_node_t *devnode, ni_ifworker_type_t type)
 {
 	ni_ifworker_t *best = NULL;
 	xml_node_t *attr;
 
 	for (attr = devnode->children; attr; attr = attr->next) {
-		ni_ifworker_t *found = NULL;
+		ni_ifworker_t *found;
+		xml_node_t *query = attr;
 
-		if (!strcmp(attr->name, "alias")) {
-			found = ni_ifworker_by_alias(fsm, attr->cdata);
-		} else
-		if (type == NI_IFWORKER_TYPE_NETDEV && !strcmp(attr->name, "ifindex")) {
-			unsigned int ifindex;
+		/* If the attribute is of the form <foo:bar>, construct
+		 *  <foo>
+		 *    <bar>... original value ...</bar>
+		 *  </foo>
+		 */
+		if (strchr(attr->name, ':') != NULL) {
+			char *namespace = xstrdup(attr->name);
+			char *key;
 
-			if (ni_parse_int(attr->cdata, &ifindex) < 0) {
-				ni_error("%s: cannot parse ifindex attribute",
-						xml_node_location(devnode));
-				return NULL;
-			}
-			found = ni_ifworker_by_ifindex(fsm, ifindex);
-		} else {
-			char *object_path = NULL;
+			key = strchr(namespace, ':');
+			*key++ = '\0';
 
-			switch (type) {
-			case NI_IFWORKER_TYPE_NETDEV:
-				object_path = ni_call_identify_device(attr);
-				break;
-
-			case NI_IFWORKER_TYPE_MODEM:
-				object_path = ni_call_identify_modem(attr);
-				break;
-
-			default: ;
-			}
-
-			if (object_path)
-				found = ni_fsm_ifworker_by_object_path(fsm, object_path);
-			ni_string_free(&object_path);
+			query = xml_node_new(namespace, NULL);
+			xml_node_new_element(key, query, attr->cdata);
+			free(namespace);
 		}
 
+		found = __ni_ifworker_identify_device(fsm, query->name, query, type);
+		if (query != attr)
+			xml_node_free(query);
 		if (found != NULL) {
 			if (best && best != found) {
-				ni_error("%s: ambiguous device reference",
-						xml_node_location(devnode));
+				ni_error("%s: ambiguous device reference", xml_node_location(devnode));
 				return NULL;
 			}
 			best = found;

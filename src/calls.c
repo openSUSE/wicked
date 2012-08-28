@@ -132,22 +132,16 @@ ni_call_get_modem_list_object(void)
  * Used by the device identification code below.
  */
 static void
-__ni_call_build_dict(ni_dbus_variant_t *dict, const xml_node_t *query)
+__ni_call_build_dict(ni_dbus_variant_t *var, const xml_node_t *query)
 {
-	if (!ni_dbus_variant_is_dict(dict)) {
-		ni_error("%s: bad: argument is not a dict", __func__);
-		return;
-	}
-
 	if (query->cdata) {
-		ni_dbus_dict_add_string(dict, query->name, query->cdata);
+		ni_dbus_variant_set_string(var, query->cdata);
 	} else if (query->children) {
 		const xml_node_t *attr;
 
-		dict = ni_dbus_dict_add(dict, query->name);
-		ni_dbus_variant_init_dict(dict);
+		ni_dbus_variant_init_dict(var);
 		for (attr = query->children; attr; attr = attr->next)
-			__ni_call_build_dict(dict, attr);
+			__ni_call_build_dict(ni_dbus_dict_add(var, attr->name), attr);
 	} else {
 		ni_warn("ni_call_identify_device: empty query attribute %s (%s)",
 				query->name, xml_node_location(query));
@@ -157,29 +151,27 @@ __ni_call_build_dict(ni_dbus_variant_t *dict, const xml_node_t *query)
 /*
  * Identify device.
  * Device identification information usually looks like this:
- *  <device>
- *   <ethernet:permanent-address>01:02:03:04:05:06</ethernet:permanent-address>
+ *  <device namespace="ethernet">
+ *   <permanent-address>01:02:03:04:05:06</permanent-address>
  *  </device>
  * The name of the node is of the form naming-service:attribute.
  *
  * However, identification information may also be more complex. Consider
  * a system that identifies network interfaces by chassis/card/port:
  *
- *  <device>
- *    <funky-device>
- *     <chassis>1</chassis>
- *     <card>7</card>
- *     <port>0</port>
- *    </funky-device>
+ *  <device namespace="funky-device">
+ *    <chassis>1</chassis>
+ *    <card>7</card>
+ *    <port>0</port>
  *  </device>
  *
  * This approach can also be used to make all the udev renaming obsolete that
  * is done on system z, or with biosdevname.
  */
 static char *
-__ni_call_identify_device(ni_dbus_object_t *list_object, const xml_node_t *query)
+__ni_call_identify_device(ni_dbus_object_t *list_object, const char *namespace, const xml_node_t *query)
 {
-	ni_dbus_variant_t argument = NI_DBUS_VARIANT_INIT;
+	ni_dbus_variant_t argv[2];
 	ni_dbus_variant_t result = NI_DBUS_VARIANT_INIT;
 	DBusError error = DBUS_ERROR_INIT;
 	char *object_path = NULL;
@@ -189,11 +181,12 @@ __ni_call_identify_device(ni_dbus_object_t *list_object, const xml_node_t *query
 		return NULL;
 	}
 
-	ni_dbus_variant_init_dict(&argument);
-	__ni_call_build_dict(&argument, query);
+	memset(argv, 0, sizeof(argv));
+	ni_dbus_variant_set_string(&argv[0], namespace);
+	__ni_call_build_dict(&argv[1], query);
 
 	if (ni_dbus_object_call_variant(list_object, NULL, "identifyDevice",
-						1, &argument, 1, &result, &error)) {
+						2, argv, 1, &result, &error)) {
 		const char *response;
 
 		/* extract device object path from reply */
@@ -204,22 +197,23 @@ __ni_call_identify_device(ni_dbus_object_t *list_object, const xml_node_t *query
 		}
 	}
 
-	ni_dbus_variant_destroy(&argument);
+	ni_dbus_variant_destroy(&argv[0]);
+	ni_dbus_variant_destroy(&argv[1]);
 	ni_dbus_variant_destroy(&result);
 	dbus_error_free(&error);
 	return object_path;
 }
 
 char *
-ni_call_identify_device(const xml_node_t *query)
+ni_call_identify_device(const char *namespace, const xml_node_t *query)
 {
-	return __ni_call_identify_device(ni_call_get_netif_list_object(), query);
+	return __ni_call_identify_device(ni_call_get_netif_list_object(), namespace, query);
 }
 
 char *
-ni_call_identify_modem(const xml_node_t *query)
+ni_call_identify_modem(const char *namespace, const xml_node_t *query)
 {
-	return __ni_call_identify_device(ni_call_get_modem_list_object(), query);
+	return __ni_call_identify_device(ni_call_get_modem_list_object(), namespace, query);
 }
 
 /*

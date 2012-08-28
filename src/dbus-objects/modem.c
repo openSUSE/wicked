@@ -306,45 +306,30 @@ ni_objectmodel_modem_list_identify_device(ni_dbus_object_t *object, const ni_dbu
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
-	const ni_dbus_variant_t *dict, *var;
-	const char *name;
-	char *copy, *naming_service, *attribute;
+	const char *namespace;
 	ni_dbus_object_t *found;
 
-	ni_assert(argc == 1);
-	if (argc != 1 || !ni_dbus_variant_is_dict(&argv[0]))
+	if (argc != 2
+	 || !ni_dbus_variant_get_string(&argv[0], &namespace)
+	 || (!ni_dbus_variant_is_dict(&argv[1]) && argv[1].type != DBUS_TYPE_STRING))
 		return ni_dbus_error_invalid_args(error, object->path, method->name);
-	dict = &argv[0];
 
-	if ((var = ni_dbus_dict_get_entry(dict, 0, &name)) == NULL)
-		goto invalid_args;
-
-	ni_debug_dbus("%s(name=%s)", __func__, name);
-	copy = naming_service = strdup(name);
-	if ((attribute = strchr(copy, ':')) != NULL)
-		*attribute++ = '\0';
-
-	found = ni_objectmodel_resolve_name(object, naming_service, attribute, var);
-	free(copy);
-
+	found = ni_objectmodel_resolve_name(object, namespace, &argv[1]);
 	if (found == NULL) {
 		dbus_set_error(error, NI_DBUS_ERROR_DEVICE_NOT_KNOWN,
-				"unable to identify interface via %s", name);
+				"unable to identify interface via %s", namespace);
 		return FALSE;
 	}
 
 	if (ni_objectmodel_unwrap_modem(found, NULL) == NULL) {
 		dbus_set_error(error, NI_DBUS_ERROR_DEVICE_NOT_KNOWN,
 				"failed to identify interface via %s - naming service returned "
-				"a %s object", name, found->class->name);
+				"a %s object", namespace, found->class->name);
 		return FALSE;
 	}
 
 	ni_dbus_message_append_string(reply, found->path);
 	return TRUE;
-
-invalid_args:
-	return ni_dbus_error_invalid_args(error, object->path, method->name);
 }
 
 static ni_dbus_method_t		ni_objectmodel_modem_list_methods[] = {

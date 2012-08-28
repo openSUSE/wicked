@@ -37,6 +37,8 @@ struct ni_var_array {
 	ni_var_t *	data;
 };
 
+#define NI_VAR_ARRAY_INIT	{ .count = 0, .data = NULL }
+
 typedef struct ni_stringbuf {
 	size_t			size;
 	size_t			len;

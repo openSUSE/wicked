@@ -1,7 +1,7 @@
 <interface>
-  <identify>
-    <ethernet:permanent-address>00:24:E8:CD:34:9B</ethernet:permanent-address>
-  </identify>
+  <name namespace="ethernet">
+    <permanent-address>00:1C:C4:83:3F:CE</permanent-address>
+  </name>
   <description>Primary Ethernet Device</description>
 
   <ipv4:dhcp>

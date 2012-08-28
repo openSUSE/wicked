@@ -2,25 +2,24 @@
   <description>Huawei USB Stick</description>
   <alias>huawei-stick</alias>
 
-  <identify>
-     <!-- The device is identified by its "equipment id" as determined
-       -- by ModemManager. For most GSM USB sticks, this will be the
-       -- IMEI of the GSM card.
-       -- Using this approach is probably a good idea, especially
-       -- if you decide to store the SIM PIN in this file - in which
-       -- case you really want to make sure that you're not using
-       -- the PIN with the wrong device.
+  <name namespace="modem">
+     <!--
+          The device is identified by its "equipment id" as determined
+          by ModemManager. For most GSM USB sticks, this will be the
+          IMEI of the GSM card.
+          Using this approach is probably a good idea, especially
+          if you decide to store the SIM PIN in this file - in which
+          case you really want to make sure that you're not using
+          the PIN with the wrong device.
        -->
-     <modem:equipment-id>353871023279109</modem:equipment-id>
+     <equipment-id>353871023279109</equipment-id>
 
      <!--
           Alternatively, you can match by manufacturer/model, if
           desired, for instance like this:
 
-	     <modem>
-		<manufacturer>huawei</manufacturer>
-		<model>e160</model>
-	     </modem>
+	    <manufacturer>huawei</manufacturer>
+	    <model>e160</model>
 	-->
   </identify>
 
@@ -43,9 +42,7 @@
   <name>ppp0</name>
   <ppp>
     <!-- Reference the GSM modem by its alias -->
-    <device>
-      <alias>huawei-stick</alias>
-    </device>
+    <device namespace="alias">huawei-stick</device>
   </ppp>
 </interface>
 
