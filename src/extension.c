@@ -76,7 +76,7 @@ ni_extension_list_destroy(ni_extension_t **list)
 }
 
 /*
- * Find extension given a type (dhcp, ibft, ..) and address family.
+ * Find extension given a type (dhcp, ..) and address family.
  */
 ni_extension_t *
 ni_extension_list_find(ni_extension_t *head, const char *name)

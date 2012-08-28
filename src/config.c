@@ -53,7 +53,6 @@ ni_config_new()
 	conf->addrconf.default_allow_update = ~0;
 	conf->addrconf.dhcp.allow_update = ~0;
 	conf->addrconf.dhcp6.allow_update = ~0;
-	conf->addrconf.ibft.allow_update = ~0;
 	conf->addrconf.autoip.allow_update = ~0;
 
 	conf->recv_max = 64 * 1024;

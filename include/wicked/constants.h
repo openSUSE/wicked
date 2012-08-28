@@ -14,7 +14,6 @@ typedef enum ni_addrconf_mode {
 	NI_ADDRCONF_DHCP,
 	NI_ADDRCONF_STATIC,
 	NI_ADDRCONF_AUTOCONF,
-	NI_ADDRCONF_IBFT,	/* SUSE extension */
 
 	/* many interface types such as PPP, OpenVPN and iBFT use an
 	 * intrinsic addrconf mechanism. We do not provide any services

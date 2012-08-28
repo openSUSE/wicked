@@ -29,7 +29,7 @@ struct ni_c_binding {
 struct ni_extension {
 	ni_extension_t *	next;
 
-	/* Name of the extension; could be "dhcp4" or "ibft". */
+	/* Name of the extension, such as "dhcp4". */
 	char *			name;
 
 	/* Supported dbus interface */
@@ -104,10 +104,6 @@ typedef struct ni_config {
 	    struct ni_config_autoip {
 	        unsigned int	allow_update;
 	    } autoip;
-
-	    struct ni_config_ibft {
-	        unsigned int	allow_update;
-	    } ibft;
 	} addrconf;
 
 	char *			dbus_xml_schema_file;
