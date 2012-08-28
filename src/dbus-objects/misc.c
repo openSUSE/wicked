@@ -37,7 +37,7 @@ static ni_route_t *		__ni_objectmodel_route_from_dict(ni_route_t **, const ni_db
  * Helper functions for getting and setting socket addresses
  */
 static inline dbus_bool_t
-__ni_objectmodel_get_opaque(const ni_dbus_variant_t *var, ni_opaque_t *packed)
+__ni_dbus_variant_get_opaque(const ni_dbus_variant_t *var, ni_opaque_t *packed)
 {
 	unsigned int len;
 
@@ -48,7 +48,7 @@ __ni_objectmodel_get_opaque(const ni_dbus_variant_t *var, ni_opaque_t *packed)
 }
 
 static inline dbus_bool_t
-__ni_objectmodel_add_sockaddr(ni_dbus_variant_t *dict, const char *name, const ni_sockaddr_t *sockaddr)
+__ni_dbus_dict_add_sockaddr(ni_dbus_variant_t *dict, const char *name, const ni_sockaddr_t *sockaddr)
 {
 	ni_opaque_t packed;
 
@@ -59,7 +59,7 @@ __ni_objectmodel_add_sockaddr(ni_dbus_variant_t *dict, const char *name, const n
 }
 
 static inline dbus_bool_t
-__ni_objectmodel_add_sockaddr_prefix(ni_dbus_variant_t *dict, const char *name, const ni_sockaddr_t *sockaddr, unsigned int prefix_len)
+__ni_dbus_dict_add_sockaddr_prefix(ni_dbus_variant_t *dict, const char *name, const ni_sockaddr_t *sockaddr, unsigned int prefix_len)
 {
 	ni_opaque_t packed;
 
@@ -70,14 +70,14 @@ __ni_objectmodel_add_sockaddr_prefix(ni_dbus_variant_t *dict, const char *name, 
 }
 
 static inline dbus_bool_t
-__ni_objectmodel_get_sockaddr(const ni_dbus_variant_t *dict, const char *name, ni_sockaddr_t *sockaddr)
+__ni_dbus_dict_get_sockaddr(const ni_dbus_variant_t *dict, const char *name, ni_sockaddr_t *sockaddr)
 {
 	const ni_dbus_variant_t *var;
 	ni_opaque_t packed;
 
 	if (!(var = ni_dbus_dict_get(dict, name)))
 		return FALSE;
-	if (!__ni_objectmodel_get_opaque(var, &packed))
+	if (!__ni_dbus_variant_get_opaque(var, &packed))
 		return FALSE;
 	if (!ni_sockaddr_unpack(sockaddr, &packed))
 		return FALSE;
@@ -86,14 +86,14 @@ __ni_objectmodel_get_sockaddr(const ni_dbus_variant_t *dict, const char *name, n
 }
 
 static inline dbus_bool_t
-__ni_objectmodel_get_sockaddr_prefix(const ni_dbus_variant_t *dict, const char *name, ni_sockaddr_t *sockaddr, unsigned int *prefixlen)
+__ni_dbus_dict_get_sockaddr_prefix(const ni_dbus_variant_t *dict, const char *name, ni_sockaddr_t *sockaddr, unsigned int *prefixlen)
 {
 	const ni_dbus_variant_t *var;
 	ni_opaque_t packed;
 
 	if (!(var = ni_dbus_dict_get(dict, name)))
 		return FALSE;
-	if (!__ni_objectmodel_get_opaque(var, &packed))
+	if (!__ni_dbus_variant_get_opaque(var, &packed))
 		return FALSE;
 	if (!ni_sockaddr_prefix_unpack(sockaddr, prefixlen, &packed))
 		return FALSE;
@@ -279,11 +279,11 @@ __ni_objectmodel_set_address_dict(ni_address_t **list,
 dbus_bool_t
 __ni_objectmodel_address_to_dict(const ni_address_t *ap, ni_dbus_variant_t *dict)
 {
-	__ni_objectmodel_add_sockaddr_prefix(dict, "local", &ap->local_addr, ap->prefixlen);
+	__ni_dbus_dict_add_sockaddr_prefix(dict, "local", &ap->local_addr, ap->prefixlen);
 	if (ap->peer_addr.ss_family == ap->family)
-		__ni_objectmodel_add_sockaddr(dict, "peer", &ap->peer_addr);
+		__ni_dbus_dict_add_sockaddr(dict, "peer", &ap->peer_addr);
 	if (ap->anycast_addr.ss_family == ap->family)
-		__ni_objectmodel_add_sockaddr(dict, "anycast", &ap->anycast_addr);
+		__ni_dbus_dict_add_sockaddr(dict, "anycast", &ap->anycast_addr);
 
 	if (ap->ipv6_cache_info.preferred_lft || ap->ipv6_cache_info.valid_lft) {
 		ni_dbus_variant_t *var;
@@ -308,13 +308,13 @@ __ni_objectmodel_address_from_dict(ni_address_t **list, const ni_dbus_variant_t 
 	ni_sockaddr_t local_addr;
 	unsigned int prefixlen;
 
-	if (__ni_objectmodel_get_sockaddr_prefix(dict, "local", &local_addr, &prefixlen)) {
+	if (__ni_dbus_dict_get_sockaddr_prefix(dict, "local", &local_addr, &prefixlen)) {
 		const ni_dbus_variant_t *var;
 
 		ap = __ni_address_new(list, local_addr.ss_family, prefixlen, &local_addr);
 
-		__ni_objectmodel_get_sockaddr(dict, "peer", &ap->peer_addr);
-		__ni_objectmodel_get_sockaddr(dict, "anycast", &ap->anycast_addr);
+		__ni_dbus_dict_get_sockaddr(dict, "peer", &ap->peer_addr);
+		__ni_dbus_dict_get_sockaddr(dict, "anycast", &ap->anycast_addr);
 
 		if ((var = ni_dbus_dict_get(dict, "cache-info")) != NULL) {
 			uint32_t value;
@@ -466,7 +466,7 @@ __ni_objectmodel_route_to_dict(const ni_route_t *rp, ni_dbus_variant_t *dict)
 	const ni_route_nexthop_t *nh;
 	ni_dbus_variant_t *child;
 
-	__ni_objectmodel_add_sockaddr_prefix(dict, "destination", &rp->destination, rp->prefixlen);
+	__ni_dbus_dict_add_sockaddr_prefix(dict, "destination", &rp->destination, rp->prefixlen);
 
 	child = ni_dbus_dict_add(dict, "kern");
 	ni_dbus_variant_init_dict(child);
@@ -494,7 +494,7 @@ __ni_objectmodel_route_to_dict(const ni_route_t *rp, ni_dbus_variant_t *dict)
 			nhdict = ni_dbus_dict_add(dict, "nexthop");
 			ni_dbus_variant_init_dict(nhdict);
 
-			__ni_objectmodel_add_sockaddr(nhdict, "gateway", &nh->gateway);
+			__ni_dbus_dict_add_sockaddr(nhdict, "gateway", &nh->gateway);
 			if (nh->device)
 				ni_dbus_dict_add_string(nhdict, "device", nh->device);
 			if (nh->weight)
@@ -515,7 +515,7 @@ __ni_objectmodel_route_from_dict(ni_route_t **list, const ni_dbus_variant_t *dic
 	ni_sockaddr_t destination;
 	ni_route_t *rp;
 
-	if (!__ni_objectmodel_get_sockaddr_prefix(dict, "destination", &destination, &prefixlen))
+	if (!__ni_dbus_dict_get_sockaddr_prefix(dict, "destination", &destination, &prefixlen))
 		return NULL;
 
 	rp = __ni_route_new(list, prefixlen, &destination, NULL);
@@ -551,7 +551,7 @@ __ni_objectmodel_route_from_dict(ni_route_t **list, const ni_dbus_variant_t *dic
 			uint32_t value;
 			ni_sockaddr_t gateway;
 
-			if (!__ni_objectmodel_get_sockaddr(nhdict, "gateway", &gateway)) {
+			if (!__ni_dbus_dict_get_sockaddr(nhdict, "gateway", &gateway)) {
 				ni_debug_dbus("%s: bad nexthop gateway", __func__);
 				return FALSE;
 			}
