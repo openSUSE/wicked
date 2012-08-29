@@ -146,10 +146,11 @@ So, I started to work on something I called wicked initially, which was a REST
 based service. If you haven't guess so far, I have a passion for really cheesy
 puns - REST for the wicked was something I couldn't pass up.
 
-The thing evolved quite a bit over time, moving from REST to a dbus based
-transport, among others - and it keeps evolving. Among other things,
-it'll probably change its name in the not too distant future. I just
-haven't come up with a really cheesy pun related to dbus yet.
+The thing evolved quite a bit over time, moving from REST to a dbus
+based transport, among others - and it keeps evolving. Among other
+things, it'll probably change its name in the not too distant future,
+because people keep confusing wicked with WICD. I just need to come up
+with another cheesy pun.
 
 
 Basic architecture
@@ -187,9 +188,10 @@ different formats, including json and XML.
 I ended up picking XML as the primary configuration file format. Mentioning
 XML always tends to cause some eyebrows to go up - like mentioning that
 you're really a vi aficionado in a crowd of emacs users. But really,
-there's nothing particularly special about XML. Other formats offer a
-similar set of structural features - you're free to add support for such
-format and send me the patch.
+there's nothing particularly special about XML as long as you don't go
+religious about it. Other formats offer a similar set of structural
+features - you're free to add support for such format and send me
+the patch.
 
 A simple network configuration file for an Ethernet device with DHCP
 enabled looks like this:
@@ -330,6 +332,14 @@ Trigger Scripts
 ===============
 
 These hooks don't exist yet, but will be implemented soonishly.
+
+
+
+Where can I find it?
+====================
+
+Currently, you can find the source at https://git.gitorious.org/wicked/wicked.git
+Packages for testing on openSUSE are work in progress.
 
 
 28. August 2012
