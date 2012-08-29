@@ -13,7 +13,7 @@
 
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
-#include "sysconfig.h"
+#include <wicked/sysconfig.h>
 #include "util_priv.h"
 
 static int	unquote(char *);
