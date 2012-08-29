@@ -6,28 +6,30 @@ Do we really need yet another network management thing?
 =======================================================
 
 
-No, not really. We already have the good old ifup/ifdown scripts, who
-are doing their job nicely, if you don't strain them too much or try to
-make them learn new tricks (like integrating with systemd). Of all the
+No, not really. We already have the good old ifup/ifdown scripts, which
+are doing their job nicely. If you don't strain them too much or try to
+teach them new tricks (like integrating with systemd). Of all the
 tunables and knobs the kernel supports for each network interface, we're
 covering maybe 10%, but what was good enough for grandpa should be
 good enough for me as well, right?
 
 We've got udev messing around with network interface names, because
 users don't like it when what's called eth0 today is called eth15
-on the next boot. Which works nicely except when it fails, for some
-weird reason.
+on the next boot. Which works nicely except when it fails, for one
+or the other weird reason.
 
 We've got Network Manager, which is also doing it's job nicely and won't
 give you any headaches if you prevent it from stepping on anybody else's
-toes.
+toes. Or try to make it manage a thousand devices, like on System z.
 
 Then we've got libvirt and netcf, which do kind of an okay job if you
 manage to frob netcf enough that it deals with configuration files other
 than RedHat's, and as long as your network configuration doesn't get too
-complicated. Which happens quickly in a virtualization environment.  Oh,
-and then there are things like openvswitch, which is crucial in a cloud
-environment but not at all integrated with any of the other components.
+complicated. Which happens quickly in a virtualization environment.
+
+Beyond these, there are things like openvswitch, which is crucial in
+a cloud environment but not at all integrated with any of the other
+components.
 
 So no, we don't really need yet another network management thingy.
 
@@ -38,7 +40,7 @@ We need a management thingy that replaces a lot of this stuff.
 Yeah, but it kind of works, why should we mess with it
 ======================================================
 
-Quick, can you tell me how to...
+Quick, using any of the existing frameworks, can you tell me how to...
 
  - ... disable IPv6 on a specific interface?
  - ... set up an interface for DHCPv4 and DHCPv6?
@@ -65,8 +67,8 @@ people. You need to be able to change your network settings from an ssh
 session; and you want to be able to script network management tasks, too.
 
 Similarly, people like NetworkManager because it allows them to set up
-network interfaces using a GUI, and it does so more or less automatically,
-and without the user having to be root.
+network interfaces in response to various events, and it does so more
+or less automatically, and without the user having to be root.
 
 From a maintenance perspective, extensibility and debugging are critical,
 too. While shell scripts are certainly not the latest in Software Engineering,
@@ -83,7 +85,7 @@ changes, and react to them appropriately.
 
 Two, a modern network management framework should be layered - both in
 its implementation, and its configuration. One of the reasons why the
-existing ifcfg files are such a mess is the inherent limitations of
+existing ifcfg files are such a mess are the inherent limitations of
 shell scripts and shell variables dealing with complex types.
 
 	BOOTPROTO='static'
@@ -100,7 +102,7 @@ you start to support additional parameters for your network devices - because
 you will quickly end up with VERY_LONG_VARIABLE_NAMES_NOBODY_WILL_EVER_REMEMBER.
 And some things are just tough to do using shell variables (while still maintaining
 a certain level of sanity), so that auxiliary file formats had to be invented -
-viz the ifcfg-routes file.
+viz the ifcfg-routes file in opensuse.
 
 Ideally, the configuration file format should structure options into logical
 units - having syntactic groups for lumps of data that belong together;
