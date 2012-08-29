@@ -194,21 +194,11 @@ extern void		ni_address_list_append(ni_address_t **, ni_address_t *);
 extern void		ni_address_list_destroy(ni_address_t **);
 extern void		ni_address_free(ni_address_t *);
 
-extern const char *	ni_address_format(const ni_sockaddr_t *ss, char *abuf, size_t buflen);
-extern const char *	ni_address_print(const ni_sockaddr_t *ss);
-extern int		ni_address_parse(ni_sockaddr_t *ss, const char *string, int af);
-extern unsigned int	ni_address_length(int af);
 extern ni_bool_t	ni_address_can_reach(const ni_address_t *laddr, const ni_sockaddr_t *gw);
 extern ni_bool_t	ni_address_is_loopback(const ni_address_t *laddr);
 extern ni_bool_t	ni_address_is_linklocal(const ni_address_t *laddr);
 extern ni_bool_t	ni_address_is_duplicate(const ni_address_t *laddr);
 extern ni_bool_t	ni_address_is_tentative(const ni_address_t *laddr);
-extern unsigned int	ni_netmask_bits(const ni_sockaddr_t *mask);
-extern int		ni_build_netmask(int, unsigned int, ni_sockaddr_t *);
-extern ni_bool_t	ni_address_prefix_match(unsigned int, const ni_sockaddr_t *,
-				const ni_sockaddr_t *);
-extern ni_bool_t	ni_address_equal(const ni_sockaddr_t *, const ni_sockaddr_t *);
-extern ni_bool_t	__ni_address_info(int, unsigned int *, unsigned int *);
 extern ni_bool_t	ni_address_probably_dynamic(const ni_address_t *);
 
 extern int		ni_link_address_format(const ni_hwaddr_t *ss,
@@ -227,13 +217,6 @@ extern void		ni_route_list_destroy(ni_route_t **);
 extern void		ni_route_free(ni_route_t *);
 extern ni_bool_t	ni_route_equal(const ni_route_t *, const ni_route_t *);
 extern const char *	ni_route_print(const ni_route_t *);
-
-extern void		ni_sockaddr_set_ipv4(ni_sockaddr_t *, struct in_addr, uint16_t);
-extern void		ni_sockaddr_set_ipv6(ni_sockaddr_t *, struct in6_addr, uint16_t);
-extern ni_opaque_t *	ni_sockaddr_pack(const ni_sockaddr_t *, ni_opaque_t *);
-extern ni_sockaddr_t *	ni_sockaddr_unpack(ni_sockaddr_t *, const ni_opaque_t *);
-extern ni_opaque_t *	ni_sockaddr_prefix_pack(const ni_sockaddr_t *, unsigned int, ni_opaque_t *);
-extern ni_sockaddr_t *	ni_sockaddr_prefix_unpack(ni_sockaddr_t *, unsigned int *, const ni_opaque_t *);
 
 extern ni_device_clientinfo_t *ni_device_clientinfo_new(void);
 extern void		ni_device_clientinfo_free(ni_device_clientinfo_t *);

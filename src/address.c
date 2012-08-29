@@ -354,6 +354,19 @@ ni_address_print(const ni_sockaddr_t *ss)
 	return abuf;
 }
 
+const char *
+ni_sockaddr_prefix_print(const ni_sockaddr_t *ss, unsigned int pfxlen)
+{
+	static char abuf[128];
+	const char *s;
+
+	if (!(s = ni_address_print(ss)))
+		return NULL;
+
+	snprintf(abuf, sizeof(abuf), "%s/%u", s, pfxlen);
+	return abuf;
+}
+
 static int
 __ni_parse_ipv4shorthand(ni_sockaddr_t *ss, const char *string)
 {
