@@ -555,7 +555,7 @@ __ni_objectmodel_route_from_dict(ni_route_t **list, const ni_dbus_variant_t *dic
 	if (!__ni_dbus_dict_get_sockaddr_prefix(dict, "destination", &destination, &prefixlen))
 		return NULL;
 
-	rp = __ni_route_new(list, prefixlen, &destination, NULL);
+	rp = ni_route_new(prefixlen, &destination, NULL, list);
 
 	if (ni_dbus_dict_get_uint32(dict, "mtu", &value))
 		rp->mtu = value;

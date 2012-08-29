@@ -827,7 +827,7 @@ __ni_netdev_add_autoconf_prefix(ni_netdev_t *dev, const ni_sockaddr_t *addr, uns
 	}
 
 	if (rp == NULL)
-		rp = __ni_route_new(&lease->routes, pfxlen, addr, NULL);
+		rp = ni_route_new(pfxlen, addr, NULL, &lease->routes);
 
 	if (cache_info) {
 		rp->ipv6_cache_info.valid_lft = cache_info->valid_time;
@@ -1054,7 +1054,9 @@ __ni_netdev_process_newroute(ni_netdev_t *dev, struct nlmsghdr *h,
 	if (dev) {
 		rp = ni_netdev_add_route(dev, rtm->rtm_dst_len, &dst_addr, &gw_addr);
 	} else if (nc != NULL) {
-		rp = ni_route_new(nc, rtm->rtm_dst_len, &dst_addr, &gw_addr);
+		rp = ni_route_new(rtm->rtm_dst_len, &dst_addr, &gw_addr, NULL);
+		if (rp)
+			ni_netconfig_route_append(nc, rp);
 	} else {
 		return 0;
 	}
@@ -1127,7 +1129,7 @@ __ni_netdev_get_autoconf_lease(ni_netdev_t *dev, int af)
 			ni_sockaddr_t prefix;
 
 			ni_address_parse(&prefix, "fe80::", AF_INET6);
-			__ni_route_new(&lease->routes, 64, &prefix, NULL);
+			ni_route_new(64, &prefix, NULL, &lease->routes);
 		}
 	}
 	return lease;

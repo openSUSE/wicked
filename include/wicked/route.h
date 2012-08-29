@@ -59,9 +59,10 @@ struct ni_route {
 };
 
 
-extern ni_route_t *	ni_route_new(ni_netconfig_t *, unsigned int prefix_len,
+extern ni_route_t *	ni_route_new(unsigned int prefix_len,
 				const ni_sockaddr_t *dest,
-				const ni_sockaddr_t *gw);
+				const ni_sockaddr_t *gw,
+				ni_route_t **list);
 extern void		ni_route_list_destroy(ni_route_t **);
 extern void		ni_route_free(ni_route_t *);
 extern ni_bool_t	ni_route_equal(const ni_route_t *, const ni_route_t *);

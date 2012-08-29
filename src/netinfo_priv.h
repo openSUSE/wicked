@@ -44,8 +44,6 @@ extern void		__ni_netdev_track_ipv6_autoconf(ni_netdev_t *, int);
 extern unsigned int	__ni_netdev_translate_ifflags(unsigned int);
 extern void		__ni_netdev_event(ni_netconfig_t *, ni_netdev_t *, ni_event_t);
 
-extern ni_route_t *	__ni_route_new(ni_route_t **, unsigned int prefix_len,
-				const ni_sockaddr_t *, const ni_sockaddr_t *);
 extern void		__ni_route_list_append(ni_route_t **, ni_route_t *);
 extern void		__ni_route_list_destroy(ni_route_t **);
 extern void		__ni_routes_clear(ni_netconfig_t *);

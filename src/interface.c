@@ -147,7 +147,7 @@ ni_netdev_add_route(ni_netdev_t *dev,
 				const ni_sockaddr_t *dest,
 				const ni_sockaddr_t *gw)
 {
-	return __ni_route_new(&dev->routes, prefix_len, dest, gw);
+	return ni_route_new(prefix_len, dest, gw, &dev->routes);
 }
 
 /*
