@@ -210,14 +210,6 @@ extern unsigned int	ni_link_address_length(int);
 extern int		ni_link_address_get_broadcast(int, ni_hwaddr_t *);
 extern int		ni_link_address_set(ni_hwaddr_t *, int iftype, const void *data, size_t len);
 
-extern ni_route_t *	ni_route_new(ni_netconfig_t *, unsigned int prefix_len,
-				const ni_sockaddr_t *dest,
-				const ni_sockaddr_t *gw);
-extern void		ni_route_list_destroy(ni_route_t **);
-extern void		ni_route_free(ni_route_t *);
-extern ni_bool_t	ni_route_equal(const ni_route_t *, const ni_route_t *);
-extern const char *	ni_route_print(const ni_route_t *);
-
 extern ni_device_clientinfo_t *ni_device_clientinfo_new(void);
 extern void		ni_device_clientinfo_free(ni_device_clientinfo_t *);
 
