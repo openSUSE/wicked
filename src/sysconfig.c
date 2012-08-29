@@ -36,6 +36,10 @@ ni_sysconfig_new(const char *pathname)
 	return sc;
 }
 
+/*
+ * Destroy the sysconfig object
+ * FIXME: should be called ni_sysconfig_free
+ */
 void
 ni_sysconfig_destroy(ni_sysconfig_t *sc)
 {
@@ -364,7 +368,7 @@ ni_sysconfig_get(const ni_sysconfig_t *sc, const char *name)
 }
 
 int
-ni_sysconfig_find_matching(ni_sysconfig_t *sc, const char *prefix,
+ni_sysconfig_find_matching(const ni_sysconfig_t *sc, const char *prefix,
 		ni_string_array_t *res)
 {
 	unsigned int i, pfxlen;

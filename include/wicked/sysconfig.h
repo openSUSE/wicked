@@ -37,7 +37,7 @@ extern int		ni_sysconfig_get_integer_optional(const ni_sysconfig_t *, const char
 extern int		ni_sysconfig_get_boolean_optional(const ni_sysconfig_t *, const char *, int *);
 extern int		ni_sysconfig_test_boolean(const ni_sysconfig_t *, const char *);
 
-extern int		ni_sysconfig_find_matching(ni_sysconfig_t *, const char *,
+extern int		ni_sysconfig_find_matching(const ni_sysconfig_t *, const char *,
 				struct ni_string_array *);
 
 
