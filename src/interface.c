@@ -34,7 +34,7 @@
  * Takes interface name and ifindex.
  */
 ni_netdev_t *
-__ni_netdev_new(const char *name, unsigned int index)
+ni_netdev_new(const char *name, unsigned int index)
 {
 	ni_netdev_t *dev;
 
@@ -51,18 +51,6 @@ __ni_netdev_new(const char *name, unsigned int index)
 	if (name)
 		dev->name = xstrdup(name);
 
-	return dev;
-}
-
-ni_netdev_t *
-ni_netdev_new(ni_netconfig_t *nc, const char *name, unsigned int index)
-{
-	ni_netdev_t *dev;
-
-	dev = __ni_netdev_new(name, index);
-	if (nc && dev)
-		ni_netconfig_device_append(nc, dev);
-	
 	return dev;
 }
 

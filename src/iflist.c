@@ -253,7 +253,7 @@ __ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list)
 		if ((dev = ni_netdev_by_index(nc, ifi->ifi_index)) == NULL) {
 			ni_ibft_nic_t *ibft_nic;
 
-			dev = __ni_netdev_new(ifname, ifi->ifi_index);
+			dev = ni_netdev_new(ifname, ifi->ifi_index);
 			if (!dev)
 				goto failed;
 

@@ -144,7 +144,7 @@ extern ni_netdev_t *	ni_netdev_by_vlan_name_and_tag(ni_netconfig_t *nc,
 				const char *physdev, uint16_t tag);
 extern const char *	ni_netdev_make_name(ni_netconfig_t *, const char *);
 
-extern ni_netdev_t *	ni_netdev_new(ni_netconfig_t *, const char *name, unsigned int ifindex);
+extern ni_netdev_t *	ni_netdev_new(const char *name, unsigned int ifindex);
 extern ni_netdev_t *	ni_netdev_get(ni_netdev_t *ifp);
 extern int		ni_netdev_put(ni_netdev_t *ifp);
 extern int		ni_netdev_update(ni_netdev_t *ifp);

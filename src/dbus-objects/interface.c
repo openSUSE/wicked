@@ -393,7 +393,7 @@ ni_objectmodel_get_netif_argument(const ni_dbus_variant_t *dict, ni_iftype_t ift
 	ni_netdev_t *dev;
 	dbus_bool_t rv;
 
-	dev = ni_netdev_new(NULL, NULL, 0);
+	dev = ni_netdev_new(NULL, 0);
 	dev->link.type = iftype;
 
 	dev_object = ni_objectmodel_wrap_netif(dev);
@@ -844,7 +844,7 @@ static void
 ni_objectmodel_netif_initialize(ni_dbus_object_t *object)
 {
 	ni_assert(object->handle == NULL);
-	object->handle = ni_netdev_new(NULL, NULL, 0);
+	object->handle = ni_netdev_new(NULL, 0);
 }
 
 /*

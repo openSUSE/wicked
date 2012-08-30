@@ -34,7 +34,6 @@ extern ni_netdev_t **	ni_netconfig_device_list_head(ni_netconfig_t *);
 extern void		ni_netconfig_route_append(ni_netconfig_t *, ni_route_t *);
 extern void		ni_netconfig_modem_append(ni_netconfig_t *, ni_modem_t *);
 
-extern ni_netdev_t *	__ni_netdev_new(const char *name, unsigned int index);
 extern void		__ni_netdev_list_append(ni_netdev_t **, ni_netdev_t *);
 extern void		__ni_netdev_list_destroy(ni_netdev_t **);
 extern ni_addrconf_lease_t *__ni_netdev_find_lease(ni_netdev_t *, int, ni_addrconf_mode_t, int);
