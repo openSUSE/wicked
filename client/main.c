@@ -68,6 +68,7 @@ extern int		do_nanny(int, char **);
 extern int		do_lease(int, char **);
 extern int		do_check(int, char **);
 static int		do_xpath(int, char **);
+static int		do_convert(int, char **);
 
 int
 main(int argc, char **argv)
@@ -171,6 +172,9 @@ main(int argc, char **argv)
 
 	if (!strcmp(cmd, "check"))
 		return do_check(argc - optind, argv + optind);
+
+	if (!strcmp(cmd, "convert"))
+		return do_convert(argc - optind, argv + optind);
 
 	fprintf(stderr, "Unsupported command %s\n", cmd);
 	goto usage;
@@ -1039,3 +1043,77 @@ write_dbus_error(const char *filename, const char *name, const char *fmt, ...)
 
 	xml_document_free(doc);
 }
+
+/*
+ * Read native sysconfig files and display resulting XML
+ */
+int
+do_convert(int argc, char **argv)
+{
+	enum { OPT_FORMAT, OPT_OUTPUT };
+	static struct option options[] = {
+		{ "format",	required_argument, NULL, OPT_FORMAT },
+		{ "output",	required_argument, NULL, OPT_OUTPUT },
+		{ NULL }
+	};
+	const char *opt_format = NULL;
+	const char *opt_output = NULL;
+	xml_document_t *result = NULL;
+	int c;
+
+	optind = 1;
+	while ((c = getopt_long(argc, argv, "", options, NULL)) != EOF) {
+		switch (c) {
+		case OPT_FORMAT:
+			opt_format = optarg;
+			break;
+
+		case OPT_OUTPUT:
+			opt_output = optarg;
+			break;
+
+		default:
+			fprintf(stderr,
+				"Usage: wicked convert [options] [path ...]\n"
+				"\n"
+				"This will parse one or more files/directories in legacy format,\n"
+				"and render their content as XML.\n"
+				"If no path is given, a format-specific default path is used.\n"
+				"\n"
+				"Supported options:\n"
+				"  --format <name>\n"
+				"        Specify the file format (suse, redhat, ...)\n"
+				"  --output <path>\n"
+				"        Specify output file\n"
+			       );
+			return 1;
+		}
+	}
+
+	result = xml_document_new();
+	if (optind == argc) {
+		if (!__ni_compat_get_interfaces(opt_format, NULL, result))
+			ni_fatal("conversion of default files failed");
+	} else {
+		while (optind < argc) {
+			const char *path = argv[optind++];
+
+			if (!__ni_compat_get_interfaces(opt_format, path, result))
+				ni_fatal("%s: conversion failed", path);
+		}
+	}
+
+	if (opt_output == NULL) {
+		xml_document_print(result, stdout);
+	} else {
+		FILE *fp;
+
+		if ((fp = fopen(opt_output, "w")) == NULL)
+			ni_fatal("unable to open %s for writing: %m", opt_output);
+		xml_document_print(result, fp);
+		fclose(fp);
+	}
+	xml_document_free(result);
+	return 0;
+}
+

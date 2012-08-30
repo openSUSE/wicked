@@ -21,4 +21,7 @@ extern int			do_ifdown(int argc, char **argv);
 extern int			ni_resolve_hostname_timed(const char *, int, ni_sockaddr_t *, unsigned int);
 extern int			ni_host_is_reachable(const char *, const ni_sockaddr_t *);
 
+extern ni_bool_t		__ni_compat_get_interfaces(const char *, const char *, xml_document_t *);
+extern ni_bool_t		__ni_suse_get_interfaces(const char *path, xml_document_t *);
+
 #endif /* WICKED_CLIENT_H */
