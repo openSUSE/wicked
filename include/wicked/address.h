@@ -61,6 +61,7 @@ extern ni_opaque_t *	ni_sockaddr_prefix_pack(const ni_sockaddr_t *, unsigned int
 extern ni_sockaddr_t *	ni_sockaddr_prefix_unpack(ni_sockaddr_t *, unsigned int *, const ni_opaque_t *);
 
 extern const char *	ni_sockaddr_prefix_print(const ni_sockaddr_t *, unsigned int);
+extern ni_bool_t	ni_sockaddr_prefix_parse(const char *, ni_sockaddr_t *, unsigned int *);
 
 extern ni_address_t *	ni_address_new(int af, unsigned int prefix_len,
 				const ni_sockaddr_t *local_addr,

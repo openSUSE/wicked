@@ -369,6 +369,27 @@ ni_sockaddr_prefix_print(const ni_sockaddr_t *ss, unsigned int pfxlen)
 	return abuf;
 }
 
+ni_bool_t
+ni_sockaddr_prefix_parse(const char *address_string, ni_sockaddr_t *addr, unsigned int *prefixlen)
+{
+	char *string, *sp;
+	ni_bool_t rv = FALSE;
+
+	string = xstrdup(address_string);
+	if ((sp = strchr(address_string, '/')) != NULL) {
+		*sp++ = '\0';
+		*prefixlen = strtoul(sp, NULL, 0);
+	} else {
+		*prefixlen = ~0U;
+	}
+
+	if (ni_address_parse(addr, string, AF_UNSPEC) >= 0)
+		rv = FALSE;
+
+	free(string);
+	return rv;
+}
+
 static int
 __ni_parse_ipv4shorthand(ni_sockaddr_t *ss, const char *string)
 {
