@@ -59,8 +59,8 @@ ni_address_new(int af, unsigned int prefix_len, const ni_sockaddr_t *local_addr,
 
 	if (list_head) {
 		ni_address_t **tail = list_head;
-		while ((ap = *tail) != NULL)
-			tail = &ap->next;
+		while (*tail != NULL)
+			tail = &(*tail)->next;
 
 		*tail = ap;
 	}
@@ -81,8 +81,8 @@ ni_address_list_append(ni_address_t **list, ni_address_t *ap)
 	*list = ap;
 }
 
-int
-__ni_address_list_dedup(ni_address_t **list)
+void
+ni_address_list_dedup(ni_address_t **list)
 {
 	ni_address_t **pos, *ap;
 	ni_address_t **pos2, *ap2;
@@ -90,8 +90,11 @@ __ni_address_list_dedup(ni_address_t **list)
 	for (pos = list; (ap = *pos) != NULL; pos = &ap->next) {
 		for (pos2 = &ap->next; (ap2 = *pos2) != NULL; ) {
 			if (ni_address_equal(&ap->local_addr, &ap2->local_addr)) {
-				if (memcmp(ap, ap2, sizeof(*ap)) != 0)
-					return -1; // duplicate address
+				if (ap->prefixlen != ap2->prefixlen
+				 || ap->scope != ap2->scope) {
+					ni_warn("%s(): duplicate address %s with prefix or scope mismatch",
+							__func__, ni_address_print(&ap->local_addr));
+				}
 				*pos2 = ap2->next;
 				ni_address_free(ap2);
 			} else {
@@ -99,8 +102,6 @@ __ni_address_list_dedup(ni_address_t **list)
 			}
 		}
 	}
-
-	return 0;
 }
 
 ni_address_t *
@@ -376,7 +377,7 @@ ni_sockaddr_prefix_parse(const char *address_string, ni_sockaddr_t *addr, unsign
 	ni_bool_t rv = FALSE;
 
 	string = xstrdup(address_string);
-	if ((sp = strchr(address_string, '/')) != NULL) {
+	if ((sp = strchr(string, '/')) != NULL) {
 		*sp++ = '\0';
 		*prefixlen = strtoul(sp, NULL, 0);
 	} else {
@@ -384,7 +385,7 @@ ni_sockaddr_prefix_parse(const char *address_string, ni_sockaddr_t *addr, unsign
 	}
 
 	if (ni_address_parse(addr, string, AF_UNSPEC) >= 0)
-		rv = FALSE;
+		rv = TRUE;
 
 	free(string);
 	return rv;
