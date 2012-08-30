@@ -248,30 +248,6 @@ __ni_suse_read_interface(xml_document_t *doc, const char *filename, const char *
 	if (__ni_suse_sysconfig2xml(sc, ifnode, ifname) < 0)
 		goto error;
 
-#if 0
-	/* We rely on the kernel to set up the ::1 device (if ipv6 is enabled) */
-	if (ifp->link.type == NI_IFTYPE_LOOPBACK) {
-		ni_sockaddr_t local_addr;
-
-		ni_address_parse(&local_addr, "127.0.0.1", AF_INET);
-		if (__ni_address_list_find(ifp->addrs, &local_addr) == NULL) {
-			ni_debug_readwrite("%s: adding 127.0.0.1/8 to config", ifp->name);
-			ni_address_new(ifp, local_addr.ss_family, 8, &local_addr);
-		}
-		ni_afinfo_addrconf_enable(&ifp->ipv4, NI_ADDRCONF_STATIC);
-
-		ni_address_parse(&local_addr, "::1", AF_INET6);
-		if (__ni_address_list_find(ifp->addrs, &local_addr) == NULL) {
-			ni_debug_readwrite("%s: adding ::1/128 to config", ifp->name);
-			ni_address_new(ifp, local_addr.ss_family, 128, &local_addr);
-		}
-		ni_afinfo_addrconf_enable(&ifp->ipv6, NI_ADDRCONF_STATIC);
-	}
-
-	if (ifp->link.type == NI_IFTYPE_LOOPBACK)
-		ni_afinfo_addrconf_disable(&ifp->ipv6, NI_ADDRCONF_AUTOCONF);
-#endif
-
 	ni_sysconfig_destroy(sc);
 	return TRUE;
 
