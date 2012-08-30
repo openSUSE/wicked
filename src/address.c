@@ -414,6 +414,7 @@ __ni_parse_ipv4shorthand(ni_sockaddr_t *ss, const char *string)
 		}
 	}
 
+	in_addr.s_addr = htonl(in_addr.s_addr);
 	ni_sockaddr_set_ipv4(ss, in_addr, 0);
 	return 0;
 }
