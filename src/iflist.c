@@ -902,7 +902,7 @@ __ni_netdev_process_newaddr_event(ni_netdev_t *dev, struct nlmsghdr *h, struct i
 	if (__ni_rtnl_parse_newaddr(dev->link.ifflags, h, ifa, &tmp) < 0)
 		return -1;
 
-	ap = __ni_address_list_find(dev->addrs, &tmp.local_addr);
+	ap = ni_address_list_find(dev->addrs, &tmp.local_addr);
 	if (!ap) {
 		ap = ni_netdev_add_address(dev, tmp.family, tmp.prefixlen, &tmp.local_addr);
 	}

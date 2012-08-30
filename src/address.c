@@ -105,7 +105,7 @@ ni_address_list_dedup(ni_address_t **list)
 }
 
 ni_address_t *
-__ni_address_list_find(ni_address_t *list, const ni_sockaddr_t *addr)
+ni_address_list_find(ni_address_t *list, const ni_sockaddr_t *addr)
 {
 	ni_address_t *ap;
 

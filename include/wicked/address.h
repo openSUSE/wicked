@@ -69,6 +69,7 @@ extern ni_address_t *	ni_address_new(int af, unsigned int prefix_len,
 extern void		ni_address_list_append(ni_address_t **, ni_address_t *);
 extern void		ni_address_list_destroy(ni_address_t **);
 extern void		ni_address_list_dedup(ni_address_t **);
+extern ni_address_t *	ni_address_list_find(ni_address_t *, const ni_sockaddr_t *);
 extern void		ni_address_free(ni_address_t *);
 
 

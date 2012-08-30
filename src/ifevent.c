@@ -289,7 +289,7 @@ __ni_rtevent_deladdr(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 		return -1;
 	}
 
-	if ((ap = __ni_address_list_find(dev->addrs, &tmp.local_addr)) != NULL) {
+	if ((ap = ni_address_list_find(dev->addrs, &tmp.local_addr)) != NULL) {
 		__ni_netdev_addr_event(dev, NI_EVENT_ADDRESS_DELETE, ap);
 
 		__ni_address_list_remove(&dev->addrs, ap);
