@@ -676,7 +676,55 @@ ni_route_new(unsigned int prefixlen, const ni_sockaddr_t *dest, const ni_sockadd
 	rp->table = RT_TABLE_MAIN;
 
 	if (list)
-		__ni_route_list_append(list, rp);
+		ni_route_list_append(list, rp);
+
+	return rp;
+}
+
+ni_route_t *
+ni_route_clone(const ni_route_t *src)
+{
+	ni_route_t *rp;
+	ni_route_nexthop_t *nh;
+	const ni_route_nexthop_t *srcnh;
+
+	rp = xcalloc(1, sizeof(*rp));
+
+#define C(x)	rp->x = src->x
+	C(family);
+	C(prefixlen);
+	C(destination);
+
+	C(type);
+	C(scope);
+	C(protocol);
+	C(table);
+	C(tos);
+	C(metric);
+	C(mtu);
+	C(priority);
+	C(advmss);
+	C(rtt);
+	C(rttvar);
+	C(window);
+	C(cwnd);
+	C(initcwnd);
+	C(ssthresh);
+	C(realms);
+	C(rto_min);
+	C(hoplimit);
+#undef C
+
+	for (nh = &rp->nh, srcnh = &src->nh; srcnh; srcnh = srcnh->next, nh = nh->next) {
+		nh->gateway = srcnh->gateway;
+		nh->weight = srcnh->weight;
+		nh->flags = srcnh->flags;
+		if (srcnh->device)
+			ni_string_dup(&nh->device, srcnh->device);
+
+		if (srcnh->next)
+			nh->next = xcalloc(1, sizeof(*nh));
+	}
 
 	return rp;
 }
@@ -705,7 +753,7 @@ ni_route_list_destroy(ni_route_t **list)
 }
 
 void
-__ni_route_list_append(ni_route_t **list, ni_route_t *new_route)
+ni_route_list_append(ni_route_t **list, ni_route_t *new_route)
 {
 	ni_route_t *rp;
 
