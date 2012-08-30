@@ -160,6 +160,10 @@ extern ni_route_t *	ni_netdev_add_route(ni_netdev_t *,
 				const ni_sockaddr_t *dest,
 				const ni_sockaddr_t *gw);
 
+extern ni_address_t *	ni_netdev_add_address(ni_netdev_t *ifp, int af,
+				unsigned int prefix_len,
+				const ni_sockaddr_t *local_addr);
+
 extern ni_address_t *	ni_netdev_get_addresses(ni_netdev_t *, int af);
 extern ni_ethernet_t *	ni_netdev_get_ethernet(ni_netdev_t *);
 extern ni_bonding_t *	ni_netdev_get_bonding(ni_netdev_t *);
@@ -186,13 +190,6 @@ extern void             ni_netdev_clear_routes(ni_netdev_t *);
 
 extern ni_netdev_req_t *ni_netdev_req_new(void);
 extern void		ni_netdev_req_free(ni_netdev_req_t *req);
-
-extern ni_address_t *	ni_address_new(ni_netdev_t *ifp, int af,
-				unsigned int prefix_len,
-				const ni_sockaddr_t *local_addr);
-extern void		ni_address_list_append(ni_address_t **, ni_address_t *);
-extern void		ni_address_list_destroy(ni_address_t **);
-extern void		ni_address_free(ni_address_t *);
 
 extern ni_bool_t	ni_address_can_reach(const ni_address_t *laddr, const ni_sockaddr_t *gw);
 extern ni_bool_t	ni_address_is_loopback(const ni_address_t *laddr);

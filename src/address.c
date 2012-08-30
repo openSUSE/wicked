@@ -32,21 +32,17 @@
 static const unsigned char *__ni_address_data(const ni_sockaddr_t *, unsigned int *);
 
 ni_address_t *
-ni_address_new(ni_netdev_t *dev, int af, unsigned int prefix_len, const ni_sockaddr_t *local_addr)
+ni_netdev_add_address(ni_netdev_t *dev, int af, unsigned int prefix_len, const ni_sockaddr_t *local_addr)
 {
-	return __ni_address_new(&dev->addrs, af, prefix_len, local_addr);
+	return ni_address_new(af, prefix_len, local_addr, &dev->addrs);
 }
 
 ni_address_t *
-__ni_address_new(ni_address_t **list_head, int af, unsigned int prefix_len, const ni_sockaddr_t *local_addr)
+ni_address_new(int af, unsigned int prefix_len, const ni_sockaddr_t *local_addr, ni_address_t **list_head)
 {
-	ni_address_t *ap, **tail;
+	ni_address_t *ap;
 
 	ni_assert(!local_addr || local_addr->ss_family == af);
-
-	tail = list_head;
-	while ((ap = *tail) != NULL)
-		tail = &ap->next;
 
 	ap = calloc(1, sizeof(*ap));
 	ap->family = af;
@@ -61,7 +57,13 @@ __ni_address_new(ni_address_t **list_head, int af, unsigned int prefix_len, cons
 		ap->bcast_addr.sin.sin_addr.s_addr |= htonl(0xFFFFFFFFUL >> prefix_len);
 	}
 
-	*tail = ap;
+	if (list_head) {
+		ni_address_t **tail = list_head;
+		while ((ap = *tail) != NULL)
+			tail = &ap->next;
+
+		*tail = ap;
+	}
 	return ap;
 }
 

@@ -348,7 +348,7 @@ __ni_objectmodel_address_from_dict(ni_address_t **list, const ni_dbus_variant_t 
 	if (__ni_dbus_dict_get_sockaddr_prefix(dict, "local", &local_addr, &prefixlen)) {
 		const ni_dbus_variant_t *var;
 
-		ap = __ni_address_new(list, local_addr.ss_family, prefixlen, &local_addr);
+		ap = ni_address_new(local_addr.ss_family, prefixlen, &local_addr, list);
 
 		__ni_dbus_dict_get_sockaddr(dict, "peer", &ap->peer_addr);
 		__ni_dbus_dict_get_sockaddr(dict, "anycast", &ap->anycast_addr);

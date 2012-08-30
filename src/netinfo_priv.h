@@ -48,8 +48,6 @@ extern void		__ni_route_list_append(ni_route_t **, ni_route_t *);
 extern void		__ni_route_list_destroy(ni_route_t **);
 extern void		__ni_routes_clear(ni_netconfig_t *);
 
-extern ni_address_t *	__ni_address_new(ni_address_t **, int, unsigned int,
-				const ni_sockaddr_t *);
 extern int		__ni_address_list_dedup(ni_address_t **);
 extern ni_bool_t	__ni_address_list_remove(ni_address_t **, ni_address_t *);
 extern ni_address_t *	__ni_address_list_find(ni_address_t *, const ni_sockaddr_t *);

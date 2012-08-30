@@ -155,7 +155,7 @@ ni_autoip_fsm_build_lease(ni_autoip_device_t *dev)
 	memset(&addr, 0, sizeof(addr));
 	addr.sin.sin_family = AF_INET;
 	addr.sin.sin_addr = dev->autoip.candidate;
-	__ni_address_new(&lease->addrs, AF_INET, 16, &addr);
+	ni_address_new(AF_INET, 16, &addr, &lease->addrs);
 
 	ni_address_parse(&addr, "169.254.0.0", AF_INET);
 	ni_route_new(16, &addr, NULL, &lease->routes);

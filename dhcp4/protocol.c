@@ -989,9 +989,9 @@ parse_more:
 		memset(&local_addr, 0, sizeof(local_addr));
 		local_addr.sin.sin_family = AF_INET;
 		local_addr.sin.sin_addr = lease->dhcp.address;
-		ap = __ni_address_new(&lease->addrs, AF_INET,
+		ap = ni_address_new(AF_INET,
 				__count_net_bits(ntohl(lease->dhcp.netmask.s_addr)),
-				&local_addr);
+				&local_addr, &lease->addrs);
 
 		memset(&ap->bcast_addr, 0, sizeof(ap->bcast_addr));
 		ap->bcast_addr.sin.sin_family = AF_INET;

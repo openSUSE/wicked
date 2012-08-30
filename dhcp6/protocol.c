@@ -1781,7 +1781,7 @@ ni_dhcp6_client_parse_options(ni_dhcp6_device_t *dev, ni_buffer_t *buffer, ni_ad
 				 * FIXME: lookup if iadr matches some RA prefix for this interface
 				 *        and use prefix lenght of the RA prefix...
 				 */
-				ap = __ni_address_new(&lease->addrs, AF_INET6, 64, &laddr);
+				ap = ni_address_new(AF_INET6, 64, &laddr, &lease->addrs);
 				ap->ipv6_cache_info.preferred_lft = iaddr->preferred_lft;
 				ap->ipv6_cache_info.valid_lft = iaddr->valid_lft;
 
