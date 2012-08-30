@@ -1105,6 +1105,26 @@ do_convert(int argc, char **argv)
 
 	if (opt_output == NULL) {
 		xml_document_print(result, stdout);
+	} else
+	if (ni_isdir(opt_output)) {
+		xml_node_t *ifnode;
+
+		/* Write resulting XML document as a bunch of files, one per interface */
+		for (ifnode = result->root->children; ifnode; ifnode = ifnode->next) {
+			char pathbuf[4096];
+			xml_node_t *namenode;
+			const char *ifname;
+			FILE *fp;
+
+			namenode = xml_node_get_child(ifnode, "name");
+			ifname = namenode->cdata;
+
+			snprintf(pathbuf, sizeof(pathbuf), "%s/%s.xml", opt_output, ifname);
+			if ((fp = fopen(pathbuf, "w")) == NULL)
+				ni_fatal("unable to open %s for writing: %m", pathbuf);
+			xml_node_print(ifnode, fp);
+			fclose(fp);
+		}
 	} else {
 		FILE *fp;
 
