@@ -616,6 +616,29 @@ ni_file_executable(const char *filename)
 	return access(filename, X_OK) == 0;
 }
 
+extern ni_bool_t
+ni_isdir(const char *path)
+{
+	struct stat stb;
+
+	if (stat(path, &stb) < 0)
+		return FALSE;
+	return S_ISDIR(stb.st_mode);
+}
+
+extern ni_bool_t
+ni_isreg(const char *path)
+{
+	struct stat stb;
+
+	if (stat(path, &stb) < 0)
+		return FALSE;
+	return S_ISREG(stb.st_mode);
+}
+
+/*
+ * String handling
+ */
 void
 ni_string_free(char **pp)
 {

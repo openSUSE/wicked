@@ -122,6 +122,8 @@ extern ni_bool_t	ni_stringbuf_empty(const ni_stringbuf_t *);
 
 extern ni_bool_t	ni_file_exists(const char *);
 extern ni_bool_t	ni_file_executable(const char *);
+extern ni_bool_t	ni_isdir(const char *);
+extern ni_bool_t	ni_isreg(const char *);
 extern const char *	ni_basename(const char *path);
 extern const char *	ni_dirname(const char *path);
 extern const char *	ni_sibling_path(const char *path, const char *file);
