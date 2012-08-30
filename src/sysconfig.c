@@ -383,7 +383,7 @@ ni_sysconfig_get_value(const ni_sysconfig_t *sc, const char *name)
 {
 	ni_var_t *var;
 
-	if ((var = ni_sysconfig_get(sc, name)) != NULL)
+	if ((var = ni_sysconfig_get(sc, name)) != NULL && var->value && var->value[0])
 		return var->value;
 	return NULL;
 }
