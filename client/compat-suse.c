@@ -15,27 +15,29 @@
 #include <wicked/netinfo.h>
 #include <wicked/route.h>
 #include <wicked/xml.h>
+#include <wicked/ethernet.h>
+#include <wicked/bonding.h>
+#include <wicked/bridge.h>
+#include <wicked/vlan.h>
+#include <wicked/fsm.h>
 
 #include <wicked/objectmodel.h>
 #include <wicked/dbus.h>
 #include "wicked-client.h"
 
-static ni_bool_t	__ni_suse_read_interface(xml_document_t *, const char *, const char *);
+static ni_compat_netdev_t *__ni_suse_read_interface(const char *, const char *);
 static ni_bool_t	__ni_suse_read_globals(const char *path);
-static ni_bool_t	__ni_suse_sysconfig2xml(ni_sysconfig_t *, xml_node_t *, const char *);
-static ni_bool_t	__process_indexed_variables(const ni_sysconfig_t *, xml_node_t *, const char *, void (*)(const ni_sysconfig_t *, xml_node_t *, const char *));
+static ni_bool_t	__ni_suse_sysconfig2xml(ni_sysconfig_t *, ni_compat_netdev_t *);
+static ni_bool_t	__process_indexed_variables(const ni_sysconfig_t *, ni_netdev_t *, const char *,
+				void (*)(const ni_sysconfig_t *, ni_netdev_t *, const char *));
 static ni_var_t *	__find_indexed_variable(const ni_sysconfig_t *, const char *, const char *);
 static ni_route_t *	__ni_suse_read_routes(const char *);
-
-/* Helper functions */
-static xml_node_t *	xml_node_create(xml_node_t *, const char *);
-static void		xml_node_dict_set(xml_node_t *, const char *, const char *);
 
 static ni_sysconfig_t *	__ni_suse_dhcp_defaults;
 static ni_route_t *	__ni_suse_global_routes = NULL;
 
 ni_bool_t
-__ni_suse_get_interfaces(const char *path, xml_document_t *doc)
+__ni_suse_get_interfaces(const char *path, ni_compat_netdev_array_t *result)
 {
 	ni_string_array_t files = NI_STRING_ARRAY_INIT;
 	ni_bool_t success = FALSE;
@@ -57,13 +59,16 @@ __ni_suse_get_interfaces(const char *path, xml_document_t *doc)
 			const char *filename = files.data[i];
 			const char *ifname = filename + 6;
 			char pathbuf[PATH_MAX];
+			ni_compat_netdev_t *compat;
 
 			snprintf(pathbuf, sizeof(pathbuf), "%s/%s", path, filename);
-			if (!__ni_suse_read_interface(doc, pathbuf, ifname))
+			if (!(compat = __ni_suse_read_interface(pathbuf, ifname)))
 				goto done;
+			ni_compat_netdev_array_append(result, compat);
 		}
 	} else {
 		char *basedir;
+		ni_compat_netdev_t *compat;
 
 		ni_string_dup(&basedir, ni_dirname(path));
 		if (!__ni_suse_read_globals(path)) {
@@ -72,8 +77,9 @@ __ni_suse_get_interfaces(const char *path, xml_document_t *doc)
 		}
 		ni_string_free(&basedir);
 
-		if (!__ni_suse_read_interface(doc, path, NULL))
+		if (!(compat = __ni_suse_read_interface(path, NULL)))
 			goto done;
+		ni_compat_netdev_array_append(result, compat);
 	}
 
 	success = TRUE;
@@ -220,10 +226,10 @@ error:
 /*
  * Read the configuration of a single interface from a sysconfig file
  */
-static ni_bool_t
-__ni_suse_read_interface(xml_document_t *doc, const char *filename, const char *ifname)
+static ni_compat_netdev_t *
+__ni_suse_read_interface(const char *filename, const char *ifname)
 {
-	xml_node_t *ifnode;
+	ni_compat_netdev_t *compat = NULL;
 	ni_sysconfig_t *sc;
 
 	if (!(sc = ni_sysconfig_read(filename))) {
@@ -242,58 +248,51 @@ __ni_suse_read_interface(xml_document_t *doc, const char *filename, const char *
 		return FALSE;
 	}
 
-	ifnode = xml_node_new("interface", doc->root);
-	xml_node_new_element("name", ifnode, ifname);
-
-	if (__ni_suse_sysconfig2xml(sc, ifnode, ifname) < 0)
+	compat = ni_compat_netdev_new(ifname);
+	if (__ni_suse_sysconfig2xml(sc, compat) < 0)
 		goto error;
 
 	ni_sysconfig_destroy(sc);
-	return TRUE;
+	return compat;
 
 error:
 	if (sc)
 		ni_sysconfig_destroy(sc);
-	return FALSE;
+	if (compat)
+		ni_compat_netdev_free(compat);
+	return NULL;
 }
 
-/*
- * Helper function - should go to util.c
- */
-const char *
-ni_sprint_uint(unsigned int value)
+ni_compat_netdev_t *
+ni_compat_netdev_new(const char *ifname)
 {
-	static char buffer[64];
+	ni_compat_netdev_t *compat;
 
-	snprintf(buffer, sizeof(buffer), "%u", value);
-	return buffer;
+	compat = calloc(1, sizeof(*compat));
+	compat->dev = ni_netdev_new(ifname, 0);
+
+	return compat;
 }
 
 /*
  * Translate the SUSE startmodes to <control> element
  */
-static xml_node_t *
-__ni_suse_startmode2xml(const char *mode, xml_node_t *ifnode)
+static const ni_ifworker_control_t *
+__ni_suse_startmode(const char *mode)
 {
 	static struct __ni_control_params {
 		const char *		name;
-		const char *		control_mode;
-		const char *		boot_stage;
-
-		ni_bool_t		mandatory;
-		ni_bool_t		link_required;
-		unsigned int		timeout;
+		ni_ifworker_control_t	control;
 	} __ni_suse_control_params[] = {
-		{ "manual",	NULL,		NULL,		TRUE,	FALSE,	30	},
-		{ "auto",	"auto",		NULL,		TRUE,	TRUE,	30	},
-		{ "hotplug",	NULL,		NULL,		FALSE,	TRUE,	30	},
-		{ "ifplugd",	"ignore",	NULL,		FALSE,	FALSE,	30	},
-		{ "nfsroot",	"boot",		"localfs",	TRUE,	TRUE,	~0	},
-		{ "off",	"off",		NULL,		FALSE,	FALSE,	0	},
+		{ "manual",	{ NULL,		NULL,		TRUE,	FALSE,	30	} },
+		{ "auto",	{ "auto",	NULL,		TRUE,	TRUE,	30	} },
+		{ "hotplug",	{ NULL,		NULL,		FALSE,	TRUE,	30	} },
+		{ "ifplugd",	{ "ignore",	NULL,		FALSE,	FALSE,	30	} },
+		{ "nfsroot",	{ "boot",	"localfs",	TRUE,	TRUE,	NI_IFWORKER_INFINITE_TIMEOUT	} },
+		{ "off",	{ "off",	NULL,		FALSE,	FALSE,	0	} },
 		{ NULL }
 	};
 	struct __ni_control_params *p, *params = NULL;
-	xml_node_t *control, *link;
 
 	if (ni_string_eq(mode, "on")
 	 || ni_string_eq(mode, "boot")
@@ -310,46 +309,28 @@ __ni_suse_startmode2xml(const char *mode, xml_node_t *ifnode)
 	if (!params)
 		params = &__ni_suse_control_params[0];
 
-	control = xml_node_create(ifnode, "control");
-	if (params->control_mode)
-		xml_node_new_element("mode", control, params->control_mode);
-	if (params->boot_stage)
-		xml_node_new_element("boot-stage", control, params->boot_stage);
-
-	link = xml_node_create(control, "link-detection");
-	if (params->timeout == ~0)
-		xml_node_new_element("timeout", link, "infinite");
-	else if (params->timeout) {
-		xml_node_new_element("timeout", link, ni_sprint_uint(params->timeout));
-	}
-	if (params->link_required)
-		(void) xml_node_new("link-required", link);
-
-	return control;
+	return &params->control;
 }
 
 /*
  * Handle Ethernet devices
  */
 static ni_bool_t
-try_ethernet(const ni_sysconfig_t *sc, xml_node_t *ifnode, const char *ifname)
+try_ethernet(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 {
+	ni_netdev_t *dev = compat->dev;
+	ni_ethernet_t *eth;
 	const char *value;
-	xml_node_t *child;
 
-	if (strncmp(ifname, "eth", 3))
+	if (strncmp(dev->name, "eth", 3))
 		return FALSE;
 
-	child = xml_node_new("ethernet", ifnode);
+	dev->link.type = NI_IFTYPE_ETHERNET;
+	eth = ni_netdev_get_ethernet(dev);
 
-	if ((value = ni_sysconfig_get_value(sc, "LLADDR")) != NULL) {
-		ni_hwaddr_t link_addr;
-
-		if (ni_link_address_parse(&link_addr, NI_IFTYPE_ETHERNET, value) >= 0) {
-			xml_node_new_element("address", child, value);
-		} else {
-			ni_warn("cannot parse LLADDR=%s", value);
-		}
+	if ((value = ni_sysconfig_get_value(sc, "LLADDR")) != NULL
+	 && ni_link_address_parse(&dev->link.hwaddr, NI_IFTYPE_ETHERNET, value) < 0) {
+		ni_warn("cannot parse LLADDR=%s", value);
 	}
 
 	if ((value = ni_sysconfig_get_value(sc, "ETHTOOL_OPTIONS")) != NULL) {
@@ -372,30 +353,30 @@ try_ethernet(const ni_sysconfig_t *sc, xml_node_t *ifnode, const char *ifname)
  * Global bonding configuration is contained in BONDING_MODULE_OPTS
  */
 static void
-try_add_bonding_slave(const ni_sysconfig_t *sc, xml_node_t *ifnode, const char *suffix)
+try_add_bonding_slave(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *suffix)
 {
-	xml_node_t *bond, *slave;
+	ni_bonding_t *bond;
 	ni_var_t *var;
 
 	var = __find_indexed_variable(sc, "BONDING_SLAVE", suffix);
 	if (!var || !var->value)
 		return;
 
-	bond = xml_node_create(ifnode, "bond");
+	dev->link.type = NI_IFTYPE_BOND;
 
-	slave = xml_node_new("slave", bond);
-	xml_node_new_element("device", slave, var->value);
-
-	/* May add <primary>true</primary> if the slave is the primary slave */
+	bond = ni_netdev_get_bonding(dev);
+	ni_bonding_add_slave(bond, var->value);
 }
 
 static ni_bool_t
-try_bonding(ni_sysconfig_t *sc, xml_node_t *ifnode, const char *ifname)
+try_bonding(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 {
+	ni_netdev_t *dev = compat->dev;
 	const char *module_opts;
 
-	if (!__process_indexed_variables(sc, ifnode, "BONDING_SLAVE", try_add_bonding_slave))
+	if (!__process_indexed_variables(sc, dev, "BONDING_SLAVE", try_add_bonding_slave))
 		return FALSE;
+
 
 	if ((module_opts = ni_sysconfig_get_value(sc, "BONDING_MODULE_OPTS")) != NULL) {
 		// ni_bonding_parse_module_options(module_opts);
@@ -408,61 +389,70 @@ try_bonding(ni_sysconfig_t *sc, xml_node_t *ifnode, const char *ifname)
  * Bridge devices are recognized by BRIDGE=yes
  */
 static ni_bool_t
-try_bridge(const ni_sysconfig_t *sc, xml_node_t *ifnode, const char *ifname)
+try_bridge(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 {
-	xml_node_t *bridge;
+	ni_netdev_t *dev = compat->dev;
+	ni_bridge_t *bridge;
 	ni_bool_t enabled;
-	ni_var_t *var;
+	const char *value;
 
 	if (ni_sysconfig_get_boolean(sc, "BRIDGE", &enabled) || !enabled)
 		return FALSE;
 
-	bridge = xml_node_create(ifnode, "brigde");
-	if ((var = ni_sysconfig_get(sc, "BRIDGE_STP")) != NULL)
-		xml_node_new_element("stp", bridge, var->value);
-	if ((var = ni_sysconfig_get(sc, "BRIDGE_FORWARDDELAY")) != NULL)
-		xml_node_new_element("forward-delay", bridge, var->value);
-	if ((var = ni_sysconfig_get(sc, "BRIDGE_AGEINGTIME")) != NULL)
-		xml_node_new_element("aging-time", bridge, var->value);
-	if( (var = ni_sysconfig_get(sc, "BRIDGE_HELLOTIME")) != NULL)
-		xml_node_new_element("hello-time", bridge, var->value);
-	if( (var = ni_sysconfig_get(sc, "BRIDGE_MAXAGE")) != NULL)
-		xml_node_new_element("max-age", bridge, var->value);
-	if( (var = ni_sysconfig_get(sc, "BRIDGE_PRIORITY")) != NULL)
-		xml_node_new_element("priority", bridge, var->value);
+	dev->link.type = NI_IFTYPE_BRIDGE;
+	bridge = ni_netdev_get_bridge(dev);
 
-	if ((var = ni_sysconfig_get(sc, "BRIDGE_PORTS")) != NULL) {
-		char *port_pos = NULL, *cost_pos = NULL, *prio_pos = NULL;
-		char *port, *cost = NULL, *prio = NULL;
-		char *ports, *pathcosts = NULL, *portprios = NULL;
+	if ((value = ni_sysconfig_get_value(sc, "BRIDGE_STP")) != NULL) {
+		if (!strcasecmp(value, "off") || !strcasecmp(value, "no"))
+			bridge->stp = 0;
+		else
+		if (!strcasecmp(value, "on") || !strcasecmp(value, "yes"))
+			bridge->stp = 1;
+		else
+			bridge->stp = strtoul(value, NULL, 0);
+	}
 
-		ports = strdup(var->value);
+	if ((value = ni_sysconfig_get_value(sc, "BRIDGE_FORWARDDELAY")) != NULL)
+		bridge->forward_delay = strtoul(value, NULL, 0);
+	if ((value = ni_sysconfig_get_value(sc, "BRIDGE_AGEINGTIME")) != NULL)
+		bridge->ageing_time = strtoul(value, NULL, 0);
+	if ((value = ni_sysconfig_get_value(sc, "BRIDGE_HELLOTIME")) != NULL)
+		bridge->hello_time = strtoul(value, NULL, 0);
+	if ((value = ni_sysconfig_get_value(sc, "BRIDGE_MAXAGE")) != NULL)
+		bridge->max_age = strtoul(value, NULL, 0);
+	if ((value = ni_sysconfig_get_value(sc, "BRIDGE_PRIORITY")) != NULL)
+		bridge->priority = strtoul(value, NULL, 0);
 
-		if ((var = ni_sysconfig_get(sc, "BRIDGE_PORTPRIORITIES")) != NULL)
-			portprios = strdup(var->value);
-		if ((var = ni_sysconfig_get(sc, "BRIDGE_PATHCOSTS")) != NULL)
-			pathcosts = strdup(var->value);
+	if ((value = ni_sysconfig_get_value(sc, "BRIDGE_PORTS")) != NULL) {
+		char *portnames = NULL, *name_pos = NULL, *name = NULL;
+		char *portprios = NULL, *prio_pos = NULL, *prio = NULL;
+		char *portcosts = NULL, *cost_pos = NULL, *cost = NULL;
 
-		port = strtok_r(ports, " \t", &port_pos);
+		portnames = strdup(value);
+		if ((value = ni_sysconfig_get_value(sc, "BRIDGE_PORTPRIORITIES")) != NULL)
+			portprios = strdup(value);
+		if ((value = ni_sysconfig_get_value(sc, "BRIDGE_PATHCOSTS")) != NULL)
+			portcosts = strdup(value);
+
+		name = strtok_r(portnames, " \t", &name_pos);
 		prio = strtok_r(portprios, " \t", &prio_pos);
-		cost = strtok_r(pathcosts, " \t", &cost_pos);
+		cost = strtok_r(portcosts, " \t", &cost_pos);
 
-		while (port != NULL) {
-			xml_node_t *portnode = xml_node_new("port", bridge);
+		while (name != NULL) {
+			ni_bridge_port_t *port = ni_bridge_port_new(bridge, name, 0);
 
-			xml_node_new_element("device", portnode, port);
 			if (prio)
-				xml_node_new_element("priority", portnode, prio);
+				port->priority = strtoul(prio, NULL, 0);
 			if (cost)
-				xml_node_new_element("path-cost", portnode, cost);
+				port->path_cost = strtoul(cost, NULL, 0);
 
-			port = strtok_r(NULL, " \t", &port_pos);
+			name = strtok_r(NULL, " \t", &name_pos);
 			prio = strtok_r(NULL, " \t", &prio_pos);
 			cost = strtok_r(NULL, " \t", &cost_pos);
 		}
-		ni_string_free(&ports);
+		ni_string_free(&portnames);
 		ni_string_free(&portprios);
-		ni_string_free(&pathcosts);
+		ni_string_free(&portcosts);
 	}
 
 	return TRUE;
@@ -473,24 +463,27 @@ try_bridge(const ni_sysconfig_t *sc, xml_node_t *ifnode, const char *ifname)
  * VLAN interfaces are recognized by their name (vlan<N>)
  */
 static ni_bool_t
-try_vlan(const ni_sysconfig_t *sc, xml_node_t *ifnode, const char *ifname)
+try_vlan(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 {
-	xml_node_t *vlan;
+	ni_netdev_t *dev = compat->dev;
+	ni_vlan_t *vlan;
 	const char *etherdev = NULL;
 
 	/* SLES and openSUSE currently use the vlan<TAG> naming
 	 * convention for VLAN interfaces. */
-	if (strncmp(ifname, "vlan", 4))
+	if (strncmp(dev->name, "vlan", 4))
 		return FALSE;
 
 	if ((etherdev = ni_sysconfig_get_value(sc, "ETHERDEVICE")) != NULL) {
-		ni_warn("%s: missing ETHERDEVICE", ifname);
+		ni_warn("%s: missing ETHERDEVICE", dev->name);
 		return FALSE;
 	}
 
-	vlan = xml_node_create(ifnode, "vlan");
-	xml_node_new_element("device", vlan, etherdev);
-	xml_node_new_element("tag", vlan, ifname + 4);
+	dev->link.type = NI_IFTYPE_VLAN;
+
+	vlan = ni_netdev_get_vlan(dev);
+	ni_string_dup(&vlan->physdev_name, etherdev);
+	vlan->tag = strtoul(dev->name + 4, NULL, 0);
 	return TRUE;
 }
 
@@ -499,13 +492,17 @@ try_vlan(const ni_sysconfig_t *sc, xml_node_t *ifnode, const char *ifname)
  * Not yet implemented
  */
 static ni_bool_t
-try_wireless(const ni_sysconfig_t *sc, xml_node_t *ifnode, const char *ifname)
+try_wireless(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 {
+	ni_netdev_t *dev = compat->dev;
+
 	if (ni_sysconfig_get(sc, "WIRELESS_ESSID") == NULL)
 		return FALSE;
 
-	ni_warn("%s: conversion of wireless interfaces not yet supported", ifname);
-	return FALSE;
+	dev->link.type = NI_IFTYPE_WIRELESS;
+	ni_warn("%s: conversion of wireless interfaces not yet supported", dev->name);
+
+	return TRUE;
 }
 
 /*
@@ -587,77 +584,14 @@ cannot_parse:
 	return TRUE;
 }
 
-
-static xml_node_t *
-__ni_suse_convert_addrs(xml_node_t *ifnode, ni_address_t *addr_list, int af)
-{
-	ni_address_t *ap;
-	const char *afname;
-	xml_node_t *aconf = NULL;
-
-	afname = ni_addrfamily_type_to_name(af);
-	if (!afname) {
-		ni_error("%s: unknown address family %u", __func__, af);
-		return NULL;
-	}
-
-	for (ap = addr_list; ap; ap = ap->next) {
-		xml_node_t *anode;
-
-		if (ap->family != af)
-			continue;
-
-		if (aconf == NULL) {
-			char buffer[64];
-
-			snprintf(buffer, sizeof(buffer), "%s:static", afname);
-			aconf = xml_node_create(ifnode, buffer);
-		}
-
-		anode = xml_node_new("address", aconf);
-		xml_node_new_element("local", anode, ni_sockaddr_prefix_print(&ap->local_addr, ap->prefixlen));
-
-		if (ap->peer_addr.ss_family != AF_UNSPEC)
-			xml_node_new_element("peer", anode, ni_address_print(&ap->peer_addr));
-		if (ap->bcast_addr.ss_family != AF_UNSPEC)
-			xml_node_new_element("broadcast", anode, ni_address_print(&ap->bcast_addr));
-	}
-
-	return aconf;
-}
-
-void
-__ni_suse_convert_route(xml_node_t *aconf, const ni_route_t *rp)
-{
-	xml_node_t *rnode;
-	const ni_route_nexthop_t *nh;
-
-	rnode = xml_node_new("route", aconf);
-	if (rp->destination.ss_family != AF_UNSPEC && rp->prefixlen != 0) {
-		xml_node_new_element("destination", rnode,
-				ni_sockaddr_prefix_print(&rp->destination, rp->prefixlen));
-	}
-
-	for (nh = &rp->nh; nh; nh = nh->next) {
-		xml_node_t *nhnode;
-
-		nhnode = xml_node_new("nexthop", rnode);
-		if (nh->gateway.ss_family != AF_UNSPEC)
-			xml_node_new_element("gateway", nhnode,
-				ni_address_print(&nh->gateway));
-	}
-}
-
 /*
  * Process static addrconf
  */
 static ni_bool_t
-__ni_suse_addrconf_static(const ni_sysconfig_t *sc, xml_node_t *ifnode, const char *ifname)
+__ni_suse_addrconf_static(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 {
-	ni_address_t *device_addrs = NULL;
-	ni_route_t *device_routes = NULL;
+	ni_netdev_t *dev = compat->dev;
 	const char *routespath;
-	xml_node_t *aconf;
 
 	/* Loop over all IPADDR* variables and get the addresses */
 	{
@@ -668,80 +602,67 @@ __ni_suse_addrconf_static(const ni_sysconfig_t *sc, xml_node_t *ifnode, const ch
 			return FALSE;
 
 		for (i = 0; i < names.count; ++i) {
-			if (!__get_ipaddr(sc, names.data[i] + 6, &device_addrs))
+			if (!__get_ipaddr(sc, names.data[i] + 6, &dev->addrs))
 				return FALSE;
 		}
 		ni_string_array_destroy(&names);
 	}
 
 	/* Hack up the loopback interface */
-	if (!strcmp(ifname, "lo")) {
+	if (!strcmp(dev->name, "lo")) {
 		ni_sockaddr_t local_addr;
 
 		ni_address_parse(&local_addr, "127.0.0.1", AF_INET);
-		if (ni_address_list_find(device_addrs, &local_addr) == NULL)
-			ni_address_new(AF_INET, 8, &local_addr, &device_addrs);
+		if (ni_address_list_find(dev->addrs, &local_addr) == NULL)
+			ni_address_new(AF_INET, 8, &local_addr, &dev->addrs);
 
 		ni_address_parse(&local_addr, "::1", AF_INET6);
-		if (ni_address_list_find(device_addrs, &local_addr) == NULL)
-			ni_address_new(AF_INET6, 128, &local_addr, &device_addrs);
+		if (ni_address_list_find(dev->addrs, &local_addr) == NULL)
+			ni_address_new(AF_INET6, 128, &local_addr, &dev->addrs);
 	}
 
-	routespath = ni_sibling_path_printf(sc->pathname, "ifroute-%s", ifname);
+	routespath = ni_sibling_path_printf(sc->pathname, "ifroute-%s", dev->name);
 	if (routespath && ni_file_exists(routespath)) {
-		ni_route_t *device_routes;
-
-		device_routes = __ni_suse_read_routes(routespath);
-		if (device_routes == NULL)
+		dev->routes = __ni_suse_read_routes(routespath);
+		if (dev->routes == NULL)
 			ni_warn("unable to parse %s", routespath);
 	}
 
-	ni_address_list_dedup(&device_addrs);
-
-	if ((aconf = __ni_suse_convert_addrs(ifnode, device_addrs, AF_INET)) != NULL) {
+	if (__ni_suse_global_routes) {
 		ni_route_t *rp;
 
 		for (rp = __ni_suse_global_routes; rp; rp = rp->next) {
 			ni_address_t *ap;
 
-			if (rp->family != AF_INET)
-				continue;
-			if (rp->nh.device && !ni_string_eq(rp->nh.device, ifname))
-				continue;
-			for (ap = device_addrs; ap; ap = ap->next) {
-				if (rp->nh.gateway.ss_family == AF_INET
-				 && ni_address_can_reach(ap, &rp->nh.gateway)) {
-					__ni_suse_convert_route(aconf, rp);
-					break;
+			switch (rp->family) {
+			case AF_INET:
+				if (rp->nh.device && !ni_string_eq(rp->nh.device, dev->name))
+					continue;
+
+				for (ap = dev->addrs; ap; ap = ap->next) {
+					if (ap->family == AF_INET
+					 && rp->nh.gateway.ss_family == AF_INET
+					 && ni_address_can_reach(ap, &rp->nh.gateway)) {
+						ni_route_list_append(&dev->routes, ni_route_clone(rp));
+						break;
+					}
 				}
+				break;
+
+			case AF_INET6:
+				/* For IPv6, we add the route as long as the interface name matches */
+				if (!rp->nh.device || !ni_string_eq(rp->nh.device, dev->name))
+					continue;
+
+				ni_route_list_append(&dev->routes, ni_route_clone(rp));
+				break;
+
+			default: ;
 			}
 		}
-
-		for (rp = device_routes; rp; rp = rp->next) {
-			if (rp->family == AF_INET)
-				__ni_suse_convert_route(aconf, rp);
-		}
 	}
 
-	if ((aconf = __ni_suse_convert_addrs(ifnode, device_addrs, AF_INET6)) != NULL) {
-		ni_route_t *rp;
-
-		for (rp = __ni_suse_global_routes; rp; rp = rp->next) {
-			if (rp->family != AF_INET6)
-				continue;
-			if (rp->nh.device && !ni_string_eq(rp->nh.device, ifname))
-				continue;
-
-			__ni_suse_convert_route(aconf, rp);
-		}
-
-		for (rp = device_routes; rp; rp = rp->next) {
-			if (rp->family == AF_INET6)
-				__ni_suse_convert_route(aconf, rp);
-		}
-	}
-
-	ni_route_list_destroy(&device_routes);
+	ni_address_list_dedup(&dev->addrs);
 	return TRUE;
 }
 
@@ -749,23 +670,22 @@ __ni_suse_addrconf_static(const ni_sysconfig_t *sc, xml_node_t *ifnode, const ch
  * Process DHCPv4 addrconf
  */
 static ni_bool_t
-__ni_suse_addrconf_dhcp_options(const ni_sysconfig_t *sc, xml_node_t *dhcp)
+__ni_suse_addrconf_dhcp_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 {
-	const ni_var_t *var;
+	const char *string;
+	unsigned int uint;
 
-	if ((var = ni_sysconfig_get(sc, "DHCLIENT_HOSTNAME_OPTION")) != NULL
-	 && var->value && strcasecmp(var->value, "auto"))
-		xml_node_dict_set(dhcp, "hostname", var->value);
+	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT_HOSTNAME_OPTION")) && strcasecmp(string, "auto"))
+		ni_string_dup(&compat->dhcp4.hostname, string);
+	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT_CLIENT_ID")) != NULL)
+		ni_string_dup(&compat->dhcp4.client_id, string);
+	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT_VENDOR_CLASS_ID")) != NULL)
+		ni_string_dup(&compat->dhcp4.vendor_class, string);
 
-	if ((var = ni_sysconfig_get(sc, "DHCLIENT_WAIT_AT_BOOT")) != NULL)
-		xml_node_dict_set(dhcp, "acquire-timeout", var->value);
-
-	if ((var = ni_sysconfig_get(sc, "DHCLIENT_CLIENT_ID")) != NULL)
-		xml_node_dict_set(dhcp, "client-id", var->value);
-	if ((var = ni_sysconfig_get(sc, "DHCLIENT_VENDOR_CLASS_ID")) != NULL)
-		xml_node_dict_set(dhcp, "vendor-class", var->value);
-	if ((var = ni_sysconfig_get(sc, "DHCLIENT_LEASE_TIME")) != NULL)
-		xml_node_dict_set(dhcp, "lease-time", var->value);
+	if (ni_sysconfig_get_integer(sc, "DHCLIENT_WAIT_AT_BOOT", &uint))
+		compat->dhcp4.acquire_timeout = uint? uint : NI_IFWORKER_INFINITE_TIMEOUT;
+	if (ni_sysconfig_get_integer(sc, "DHCLIENT_LEASE_TIME", &uint))
+		compat->dhcp4.lease_time = ((int) uint >= 0)? uint : NI_IFWORKER_INFINITE_TIMEOUT;
 
 	/* Ignored for now:
 	   DHCLIENT_USE_LAST_LEASE
@@ -779,19 +699,15 @@ __ni_suse_addrconf_dhcp_options(const ni_sysconfig_t *sc, xml_node_t *dhcp)
 }
 
 static ni_bool_t
-__ni_suse_addrconf_dhcp4(const ni_sysconfig_t *sc, xml_node_t *ifnode, const char *ifname)
+__ni_suse_addrconf_dhcp4(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 {
-	xml_node_t *aconf;
-
-	aconf = xml_node_new("ipv4:dhcp", ifnode);
-	xml_node_new_element("enabled", aconf, "true");
-
 	if (__ni_suse_dhcp_defaults)
-		__ni_suse_addrconf_dhcp_options(__ni_suse_dhcp_defaults, aconf);
+		__ni_suse_addrconf_dhcp_options(__ni_suse_dhcp_defaults, compat);
 
 	/* overwrite DHCP defaults with parameters from this ifcfg file */
-	__ni_suse_addrconf_dhcp_options(sc, aconf);
+	__ni_suse_addrconf_dhcp_options(sc, compat);
 
+	compat->dhcp4.enabled = TRUE;
 	return TRUE;
 }
 
@@ -799,43 +715,39 @@ __ni_suse_addrconf_dhcp4(const ni_sysconfig_t *sc, xml_node_t *ifnode, const cha
  * Convert an ifcfg file to XML
  */
 ni_bool_t
-__ni_suse_sysconfig2xml(ni_sysconfig_t *sc, xml_node_t *ifnode, const char *ifname)
+__ni_suse_sysconfig2xml(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 {
-	const char *value = NULL;
+	ni_netdev_t *dev = compat->dev;
+	const char *value;
 	unsigned int mtu = 0;
-	xml_node_t *child;
 
-	if (ni_sysconfig_get_string(sc, "STARTMODE", &value))
-		__ni_suse_startmode2xml(value, ifnode);
+	if ((value = ni_sysconfig_get_value(sc, "STARTMODE")) != NULL)
+		compat->control = __ni_suse_startmode(value);
 	else
-		__ni_suse_startmode2xml(value, NULL);
+		compat->control = __ni_suse_startmode(NULL);
 
-	child = xml_node_new("link", ifnode);
-	if (ni_sysconfig_get_integer(sc, "MTU", &mtu) && mtu) {
-		xml_node_new_element("mtu", child, ni_sprint_uint(mtu));
+	if (ni_sysconfig_get_integer(sc, "MTU", &mtu) && mtu)
+		compat->dev->link.mtu = mtu;
 
-		/* Other values? */
-	}
-
-	if (!try_ethernet(sc, ifnode, ifname)
-	 && !try_bonding(sc, ifnode, ifname)
-	 && !try_bridge(sc, ifnode, ifname)
-	 && !try_vlan(sc, ifnode, ifname)
-	 && !try_wireless(sc, ifnode, ifname)
+	if (!try_ethernet(sc, compat)
+	 && !try_bonding(sc, compat)
+	 && !try_bridge(sc, compat)
+	 && !try_vlan(sc, compat)
+	 && !try_wireless(sc, compat)
 	 )
 		;
 
 	if ((value = ni_sysconfig_get_value(sc, "BOOTPROTO")) == NULL) {
-		if (ni_string_eq(ifname, "lo"))
+		if (ni_string_eq(dev->name, "lo"))
 			value = "static";
 		else
 			value = "dhcp";
 	}
 
 	if (ni_string_eq(value, "static"))
-		__ni_suse_addrconf_static(sc, ifnode, ifname);
+		__ni_suse_addrconf_static(sc, compat);
 	else if (ni_string_eq(value, "dhcp"))
-		__ni_suse_addrconf_dhcp4(sc, ifnode, ifname);
+		__ni_suse_addrconf_dhcp4(sc, compat);
 
 	/* FIXME: What to do with these:
 		NAME
@@ -852,9 +764,9 @@ __ni_suse_sysconfig2xml(ni_sysconfig_t *sc, xml_node_t *ifnode, const char *ifna
  * the full variable name into the called function.
  */
 static ni_bool_t
-__process_indexed_variables(const ni_sysconfig_t *sc, xml_node_t *node,
+__process_indexed_variables(const ni_sysconfig_t *sc, ni_netdev_t *dev,
 				const char *basename,
-				void (*func)(const ni_sysconfig_t *, xml_node_t *, const char *))
+				void (*func)(const ni_sysconfig_t *, ni_netdev_t *, const char *))
 {
 	ni_string_array_t names = NI_STRING_ARRAY_INIT;
 	unsigned int i, pfxlen;
@@ -864,7 +776,7 @@ __process_indexed_variables(const ni_sysconfig_t *sc, xml_node_t *node,
 
 	pfxlen = strlen(basename);
 	for (i = 0; i < names.count; ++i)
-		func(sc, node, names.data[i] + pfxlen);
+		func(sc, dev, names.data[i] + pfxlen);
 	ni_string_array_destroy(&names);
 	return TRUE;
 }
@@ -884,26 +796,4 @@ __find_indexed_variable(const ni_sysconfig_t *sc, const char *basename, const ch
 	if (res && (res->value == NULL || res->value[0] == '\0'))
 		res = NULL;
 	return res;
-}
-
-static xml_node_t *
-xml_node_create(xml_node_t *parent, const char *name)
-{
-	xml_node_t *child;
-
-	if ((child = xml_node_get_child(parent, name)) == NULL)
-		child = xml_node_new(name, parent);
-	return child;
-}
-
-static void
-xml_node_dict_set(xml_node_t *parent, const char *name, const char *value)
-{
-	xml_node_t *child;
-
-	if (!value || !*value)
-		return;
-
-	child = xml_node_create(parent, name);
-	xml_node_set_cdata(child, value);
 }
