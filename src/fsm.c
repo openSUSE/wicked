@@ -2163,7 +2163,7 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 		if (ni_netdev_link_is_up(dev))
 			ni_ifworker_update_state(found, NI_FSM_STATE_LINK_UP, __NI_FSM_STATE_MAX);
 		else
-			ni_ifworker_update_state(found, 0, NI_FSM_STATE_DEVICE_UP);
+			ni_ifworker_update_state(found, 0, NI_FSM_STATE_LINK_UP - 1);
 	}
 
 	return found;
