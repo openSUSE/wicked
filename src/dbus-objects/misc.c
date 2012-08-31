@@ -321,6 +321,10 @@ __ni_objectmodel_address_to_dict(const ni_address_t *ap, ni_dbus_variant_t *dict
 		__ni_dbus_dict_add_sockaddr(dict, "peer", &ap->peer_addr);
 	if (ap->anycast_addr.ss_family == ap->family)
 		__ni_dbus_dict_add_sockaddr(dict, "anycast", &ap->anycast_addr);
+	if (ap->bcast_addr.ss_family == ap->family)
+		__ni_dbus_dict_add_sockaddr(dict, "broadcast", &ap->bcast_addr);
+	if (ap->label[0])
+		ni_dbus_dict_add_string(dict, "label", ap->label);
 
 	if (ap->ipv6_cache_info.preferred_lft || ap->ipv6_cache_info.valid_lft) {
 		ni_dbus_variant_t *var;
@@ -347,11 +351,16 @@ __ni_objectmodel_address_from_dict(ni_address_t **list, const ni_dbus_variant_t 
 
 	if (__ni_dbus_dict_get_sockaddr_prefix(dict, "local", &local_addr, &prefixlen)) {
 		const ni_dbus_variant_t *var;
+		const char *label;
 
 		ap = ni_address_new(local_addr.ss_family, prefixlen, &local_addr, list);
 
 		__ni_dbus_dict_get_sockaddr(dict, "peer", &ap->peer_addr);
 		__ni_dbus_dict_get_sockaddr(dict, "anycast", &ap->anycast_addr);
+		__ni_dbus_dict_get_sockaddr(dict, "broadcast", &ap->bcast_addr);
+
+		if (ni_dbus_dict_get_string(dict, "label", &label))
+			strncpy(ap->label, label, sizeof(label)-1);
 
 		if ((var = ni_dbus_dict_get(dict, "cache-info")) != NULL) {
 			uint32_t value;
