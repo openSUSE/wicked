@@ -321,18 +321,18 @@ $(LIBNAME).so: $(SHLIBOBJS)
 	$(CC) $(CFLAGS) -shared -Wl,-soname,$(LIBSONAME) $(LDFLAGS) -o $@ $(SHLIBOBJS)
 	ln -sf $@ $(LIBSONAME)
 
-depend: config.h
-	$(CC) $(CPPFLAGS) -M $(LIBSRCS) | \
+depend: config.h $(SOURCES)
+	$(CC) $(CPPFLAGS) -MM $(LIBSRCS) | \
 		sed 's@^\([^.]*\)\.o: src/\([-a-z0-9/]*\)\1.c@obj/lib/\2&@' > .depend
-	$(CC) $(CPPFLAGS) -M $(LIBSRCS) | \
+	$(CC) $(CPPFLAGS) -MM $(LIBSRCS) | \
 		sed 's@^\([^.]*\)\.o: src/\([-a-z0-9/]*\)\1.c@obj/shlib/\2&@' >> .depend
-	$(CC) $(CPPFLAGS) -M $(UTILSRCS) | sed 's:^[a-z]:$(OBJ)/util/&:' >> .depend
-	$(CC) $(CPPFLAGS) -M $(DHCP4SRCS) | sed 's:^[a-z]:$(OBJ)/dhcp4/&:' >> .depend
-	$(CC) $(CPPFLAGS) -M $(DHCP6SRCS) | sed 's:^[a-z]:$(OBJ)/dhcp6/&:' >> .depend
-	$(CC) $(CPPFLAGS) -M $(AUTO4SRCS) | sed 's:^[a-z]:$(OBJ)/autoip4/&:' >> .depend
-	$(CC) $(CPPFLAGS) -M $(CLIENTSRCS) | sed 's:^[a-z]:$(OBJ)/client/&:' >> .depend
-	$(CC) $(CPPFLAGS) -M $(SERVERSRCS) | sed 's:^[a-z]:$(OBJ)/server/&:' >> .depend
-	$(CC) $(CPPFLAGS) -M $(NANNYSRCS) | sed 's:^[a-z]:$(OBJ)/nanny/&:' >> .depend
+	$(CC) $(CPPFLAGS) -MM $(UTILSRCS) | sed 's:^[a-z]:$(OBJ)/util/&:' >> .depend
+	$(CC) $(CPPFLAGS) -MM $(DHCP4SRCS) | sed 's:^[a-z]:$(OBJ)/dhcp4/&:' >> .depend
+	$(CC) $(CPPFLAGS) -MM $(DHCP6SRCS) | sed 's:^[a-z]:$(OBJ)/dhcp6/&:' >> .depend
+	$(CC) $(CPPFLAGS) -MM $(AUTO4SRCS) | sed 's:^[a-z]:$(OBJ)/autoip4/&:' >> .depend
+	$(CC) $(CPPFLAGS) -MM $(CLIENTSRCS) | sed 's:^[a-z]:$(OBJ)/client/&:' >> .depend
+	$(CC) $(CPPFLAGS) -MM $(SERVERSRCS) | sed 's:^[a-z]:$(OBJ)/server/&:' >> .depend
+	$(CC) $(CPPFLAGS) -MM $(NANNYSRCS) | sed 's:^[a-z]:$(OBJ)/nanny/&:' >> .depend
 
 $(OBJ)/%.o: %.c
 	@rm -f $@
