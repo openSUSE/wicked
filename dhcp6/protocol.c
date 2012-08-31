@@ -579,38 +579,12 @@ failure:
 	return -1;
 }
 
-static inline int
-__ni_dhcp6_option_ia_type_to_option(uint16_t *option, uint16_t type)
-{
-	switch (type) {
-	case NI_DHCP6_IA_PD_TYPE:
-		*option = NI_DHCP6_OPTION_IA_PD;
-		return 0;
-	case NI_DHCP6_IA_NA_TYPE:
-		*option = NI_DHCP6_OPTION_IA_NA;
-		return 0;
-	case NI_DHCP6_IA_TA_TYPE:
-		*option = NI_DHCP6_OPTION_IA_TA;
-		return 0;
-	default:
-		return -1;
-	}
-}
-
 static int
 ni_dhcp6_option_put_ia(ni_buffer_t *bp, struct ni_dhcp6_ia *ia)
 {
 	struct ni_dhcp6_ia_addr *iadr;
 	ni_buffer_t data;
-	uint16_t option;
 	uint32_t value32;
-
-	/*
-	 * Hmm... perhaps we don't need a mask and should use option
-	 * codes directly in ia->type?
-	 */
-	if(__ni_dhcp6_option_ia_type_to_option(&option, ia->type) < 0)
-		return -1;
 
 	ni_buffer_init(&data, ni_buffer_tail(bp), ni_buffer_tailroom(bp));
 	if (ni_buffer_reserve_head(&data, sizeof(ni_dhcp6_option_header_t)) < 0)
@@ -622,7 +596,7 @@ ni_dhcp6_option_put_ia(ni_buffer_t *bp, struct ni_dhcp6_ia *ia)
 	if (ni_buffer_put(&data, &value32, sizeof(value32)) < 0)
 		goto failure;
 
-	if (ia->type == NI_DHCP6_IA_NA_TYPE || ia->type == NI_DHCP6_IA_PD_TYPE) {
+	if (ia->type == NI_DHCP6_OPTION_IA_NA || ia->type == NI_DHCP6_OPTION_IA_PD) {
 		/*
 		 * FIXME: this has to be done much earlier, not here!!
 		 */
@@ -643,12 +617,12 @@ ni_dhcp6_option_put_ia(ni_buffer_t *bp, struct ni_dhcp6_ia *ia)
 		value32 = htonl(ia->rebind_time);
 		if (ni_buffer_put(&data, &value32, sizeof(value32)) < 0)
 			goto failure;
-	} else if (ia->type != NI_DHCP6_IA_TA_TYPE)
+	} else if (ia->type != NI_DHCP6_OPTION_IA_TA)
 		goto failure;
 
 	for (iadr = ia->addrs; iadr; iadr = iadr->next) {
-		if ((ia->type == NI_DHCP6_IA_PD_TYPE && iadr->plen == 0) ||
-		    (ia->type != NI_DHCP6_IA_PD_TYPE && iadr->plen > 0))
+		if ((ia->type == NI_DHCP6_OPTION_IA_PD && iadr->plen == 0) ||
+		    (ia->type != NI_DHCP6_OPTION_IA_PD && iadr->plen > 0))
 			goto failure;
 
 		if (ni_dhcp6_option_put_ia_address(&data, iadr) < 0)
@@ -667,7 +641,7 @@ ni_dhcp6_option_put_ia(ni_buffer_t *bp, struct ni_dhcp6_ia *ia)
 #endif
 	}
 
-	if (ni_dhcp6_option_put(bp, option, NULL, ni_buffer_count(&data)) < 0)
+	if (ni_dhcp6_option_put(bp, ia->type, NULL, ni_buffer_count(&data)) < 0)
 		goto failure;
 
 	return 0;
@@ -1213,7 +1187,7 @@ ni_dhcp6_build_message(ni_dhcp6_device_t *dev,
 			goto cleanup;
 
 		ia = ia_list = xcalloc(1, sizeof(*ia));
-		ia->type = NI_DHCP6_IA_NA_TYPE;
+		ia->type = NI_DHCP6_OPTION_IA_NA;
 		ia->iaid = dev->iaid;
 		if (dev->config->lease_time && dev->config->lease_time != ~0)
 			ia->renewal_time = dev->config->lease_time / 2;
@@ -1387,7 +1361,7 @@ ni_dhcp6_ia_list_destroy(struct ni_dhcp6_ia **list)
 }
 
 static int
-ni_dhcp6_option_parse_ia_address(ni_buffer_t *bp, struct ni_dhcp6_ia *ia, uint16_t addr_type)
+ni_dhcp6_option_parse_ia_address(ni_buffer_t *bp, struct ni_dhcp6_ia *ia, uint16_t option)
 {
 	struct ni_dhcp6_ia_addr *ap;
 	ni_sockaddr_t addr;
@@ -1395,7 +1369,7 @@ ni_dhcp6_option_parse_ia_address(ni_buffer_t *bp, struct ni_dhcp6_ia *ia, uint16
 	if ((ap = calloc(1, sizeof(*ap))) == NULL)
 		goto failure;
 
-	if (ia->type == NI_DHCP6_IA_PD_TYPE) {
+	if (ia->type == NI_DHCP6_OPTION_IA_PD) {
 		if (ni_dhcp6_option_get32(bp, &ap->preferred_lft) < 0)
 			goto failure;
 
@@ -1412,8 +1386,8 @@ ni_dhcp6_option_parse_ia_address(ni_buffer_t *bp, struct ni_dhcp6_ia *ia, uint16
 		memcpy(&ap->addr, &addr.six.sin6_addr, sizeof(ap->addr));
 #if 0
 		ni_trace("%s.%s: %s/%u, pref-life: %u, valid_life: %u",
-			ni_dhcp6_ia_type_name(ia->type),
-			ni_dhcp6_option_name(addr_type),
+			ni_dhcp6_option_name(ia->type),
+			ni_dhcp6_option_name(option),
 			ni_sockaddr_print(&addr), ap->plen,
 			ap->preferred_lft, ap->valid_lft);
 #endif
@@ -1431,8 +1405,8 @@ ni_dhcp6_option_parse_ia_address(ni_buffer_t *bp, struct ni_dhcp6_ia *ia, uint16
 			goto failure;
 #if 0
 		ni_trace("%s.%s: %s, pref-life: %u, valid_life: %u",
-			ni_dhcp6_ia_type_name(ia->type),
-			ni_dhcp6_option_name(addr_type),
+			ni_dhcp6_option_name(ia->type),
+			ni_dhcp6_option_name(option),
 			ni_sockaddr_print(&addr),
 			ap->preferred_lft, ap->valid_lft);
 #endif
@@ -1516,7 +1490,7 @@ ni_dhcp6_client_parse_ia_options(ni_buffer_t *bp,  struct ni_dhcp6_ia *ia)
 #if 0
 		__ni_dhcp6_hexdump(&hexbuf, &optbuf);
 		ni_trace("%s option %s data: %s",
-			ni_dhcp6_ia_type_name(ia->type),
+			ni_dhcp6_option_name(ia->type),
 			ni_dhcp6_option_name(option),
 			hexbuf.string);
 		ni_stringbuf_destroy(&hexbuf);
@@ -1524,7 +1498,7 @@ ni_dhcp6_client_parse_ia_options(ni_buffer_t *bp,  struct ni_dhcp6_ia *ia)
 
 		switch (option) {
 		case NI_DHCP6_OPTION_IAADDR:
-			if (ia->type == NI_DHCP6_IA_PD_TYPE)
+			if (ia->type == NI_DHCP6_OPTION_IA_PD)
 				goto failure;
 
 			if (ni_dhcp6_option_parse_ia_address(&optbuf, ia, option) < 0)
@@ -1532,7 +1506,7 @@ ni_dhcp6_client_parse_ia_options(ni_buffer_t *bp,  struct ni_dhcp6_ia *ia)
 		break;
 
 		case NI_DHCP6_OPTION_IA_PREFIX:
-			if (ia->type != NI_DHCP6_IA_PD_TYPE)
+			if (ia->type != NI_DHCP6_OPTION_IA_PD)
 				goto failure;
 
 			if (ni_dhcp6_option_parse_ia_address(&optbuf, ia, option) < 0)
@@ -1549,7 +1523,7 @@ ni_dhcp6_client_parse_ia_options(ni_buffer_t *bp,  struct ni_dhcp6_ia *ia)
 		default:
 #if 0
 			ni_trace("%s option %s: ignored",
-					ni_dhcp6_ia_type_name(ia->type),
+					ni_dhcp6_option_name(ia->type),
 					ni_dhcp6_option_name(option));
 #endif
 		break;
@@ -1557,12 +1531,12 @@ ni_dhcp6_client_parse_ia_options(ni_buffer_t *bp,  struct ni_dhcp6_ia *ia)
 
 		if (optbuf.underflow) {
 			ni_trace("%s option %s: %u byte of data is too short",
-				ni_dhcp6_ia_type_name(ia->type),
+				ni_dhcp6_option_name(ia->type),
 				ni_dhcp6_option_name(option),
 				ni_buffer_count(&optbuf));
 		} else if(ni_buffer_count(&optbuf)) {
 			ni_trace("%s option %s: is too long - %u bytes left",
-				ni_dhcp6_ia_type_name(ia->type),
+				ni_dhcp6_option_name(ia->type),
 				ni_dhcp6_option_name(option),
 				ni_buffer_count(&optbuf));
 		}
@@ -1583,7 +1557,7 @@ ni_dhcp6_client_parse_ia(ni_buffer_t *bp,  struct ni_dhcp6_ia **ia_na_list, uint
 		goto failure;
 
 	ia->type = type;
-	if (ia->type != NI_DHCP6_IA_TA_TYPE) {
+	if (ia->type != NI_DHCP6_OPTION_IA_TA) {
 		if (ni_dhcp6_option_get32(bp, &ia->iaid) < 0)
 			goto failure;
 		if (ni_dhcp6_option_get32(bp, &ia->renewal_time) < 0)
@@ -1598,7 +1572,7 @@ ni_dhcp6_client_parse_ia(ni_buffer_t *bp,  struct ni_dhcp6_ia **ia_na_list, uint
 	}
 #if 0
 	ni_trace("%s: iaid=%u, renew=%u, rebind=%u",
-		ni_dhcp6_ia_type_name(ia->type),
+		ni_dhcp6_option_name(ia->type),
 		ia->iaid, ia->renewal_time, ia->rebind_time);
 #endif
 	if(ni_dhcp6_client_parse_ia_options(bp, ia) < 0)
@@ -1672,13 +1646,13 @@ ni_dhcp6_client_parse_options(ni_dhcp6_device_t *dev, ni_buffer_t *buffer, ni_ad
 		break;
 
 		case NI_DHCP6_OPTION_IA_NA:
-			ni_dhcp6_client_parse_ia(&optbuf, &lease->dhcp6.ia_list, NI_DHCP6_IA_NA_TYPE);
+			ni_dhcp6_client_parse_ia(&optbuf, &lease->dhcp6.ia_list, NI_DHCP6_OPTION_IA_NA);
 		break;
 		case NI_DHCP6_OPTION_IA_TA:
-			ni_dhcp6_client_parse_ia(&optbuf, &lease->dhcp6.ia_list, NI_DHCP6_IA_TA_TYPE);
+			ni_dhcp6_client_parse_ia(&optbuf, &lease->dhcp6.ia_list, NI_DHCP6_OPTION_IA_TA);
 		break;
 		case NI_DHCP6_OPTION_IA_PD:
-			ni_dhcp6_client_parse_ia(&optbuf, &lease->dhcp6.ia_list, NI_DHCP6_IA_PD_TYPE);
+			ni_dhcp6_client_parse_ia(&optbuf, &lease->dhcp6.ia_list, NI_DHCP6_OPTION_IA_PD);
 		break;
 
 		case NI_DHCP6_OPTION_DNS_SERVERS:
@@ -1753,7 +1727,7 @@ ni_dhcp6_client_parse_options(ni_dhcp6_device_t *dev, ni_buffer_t *buffer, ni_ad
 		ni_address_list_destroy(&lease->addrs);
 		lease->addrs = NULL;
 		for (ia = lease->dhcp6.ia_list; ia; ia = ia->next) {
-			if (ia->type != NI_DHCP6_IA_NA_TYPE)
+			if (ia->type != NI_DHCP6_OPTION_IA_NA)
 				continue; /* Hmm... */
 
 			if (ia->status && ia->status->code != NI_DHCP6_STATUS_SUCCESS)
@@ -1975,22 +1949,6 @@ ni_dhcp6_option_name(unsigned int option)
 		name = namebuf;
 	}
 	return name;
-}
-
-const char *
-ni_dhcp6_ia_type_name(unsigned int ia_type)
-{
-	switch (ia_type) {
-	case NI_DHCP6_IA_NA_TYPE:
-		return ni_dhcp6_option_name(NI_DHCP6_OPTION_IA_NA);
-	case NI_DHCP6_IA_TA_TYPE:
-		return ni_dhcp6_option_name(NI_DHCP6_OPTION_IA_TA);
-	case NI_DHCP6_IA_PD_TYPE:
-		return ni_dhcp6_option_name(NI_DHCP6_OPTION_IA_PD);
-	default:
-		break;
-	}
-	return NULL;
 }
 
 static const char *	__dhcp6_message_names[__NI_DHCP6_MSG_TYPE_MAX] = {

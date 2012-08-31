@@ -193,12 +193,6 @@ enum NI_DHCP6_STATUS_CODE {
 	__NI_DHCP6_STATUS_MAX
 };
 
-enum ni_dhcp6_ia_type {
-	NI_DHCP6_IA_NA_TYPE			= 0x01,
-	NI_DHCP6_IA_TA_TYPE			= 0x02,
-	NI_DHCP6_IA_PD_TYPE			= 0x04,
-};
-
 /*
  * DHCPv6 Timings
  *
