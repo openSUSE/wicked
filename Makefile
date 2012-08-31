@@ -141,6 +141,7 @@ CLIENTSRCS = \
 	  client/nanny.c \
 	  client/compat.c \
 	  client/compat-suse.c \
+	  client/compat-redhat.c \
 	  client/reachable.c
 SERVERSRCS = \
 	  server/main.c

@@ -1107,6 +1107,7 @@ do_convert(int argc, char **argv)
 		xml_document_print(result, stdout);
 	} else
 	if (ni_isdir(opt_output)) {
+		unsigned int seq = 0;
 		xml_node_t *ifnode;
 
 		/* Write resulting XML document as a bunch of files, one per interface */
@@ -1117,9 +1118,17 @@ do_convert(int argc, char **argv)
 			FILE *fp;
 
 			namenode = xml_node_get_child(ifnode, "name");
-			ifname = namenode->cdata;
+			if ((ifname = namenode->cdata) != NULL) {
+				snprintf(pathbuf, sizeof(pathbuf), "%s/%s.xml", opt_output, ifname);
+			} else {
+				const char *ns;
 
-			snprintf(pathbuf, sizeof(pathbuf), "%s/%s.xml", opt_output, ifname);
+				if (!(ns = xml_node_get_attr(namenode, "namespace")))
+					ni_fatal("interface node has invalid <name> element");
+				snprintf(pathbuf, sizeof(pathbuf), "%s/id-%s-%u.xml",
+						opt_output, ns, seq++);
+			}
+
 			if ((fp = fopen(pathbuf, "w")) == NULL)
 				ni_fatal("unable to open %s for writing: %m", pathbuf);
 			xml_node_print(ifnode, fp);

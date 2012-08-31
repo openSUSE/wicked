@@ -44,6 +44,9 @@ __ni_compat_get_interfaces(const char *format, const char *path, xml_document_t 
 	if (ni_string_eq(format, "suse"))
 		rv = __ni_suse_get_interfaces(path, &array);
 	else
+	if (ni_string_eq(format, "redhat"))
+		rv = __ni_redhat_get_interfaces(path, &array);
+	else
 		ni_fatal("Unsupported configuration file format %s", format);
 
 	if (rv) {
@@ -60,6 +63,9 @@ __ni_compat_get_interfaces(const char *format, const char *path, xml_document_t 
 	return rv;
 }
 
+/*
+ * Array handling functions
+ */
 void
 ni_compat_netdev_array_append(ni_compat_netdev_array_t *array, ni_compat_netdev_t *compat)
 {
@@ -79,6 +85,38 @@ ni_compat_netdev_array_destroy(ni_compat_netdev_array_t *array)
 	}
 	free(array->data);
 	memset(array, 0, sizeof(*array));
+}
+
+ni_compat_netdev_t *
+ni_compat_netdev_by_name(ni_compat_netdev_array_t *array, const char *name)
+{
+	unsigned int i;
+
+	if (array == NULL || name == NULL)
+		return NULL;
+	for (i = 0; i < array->count; ++i) {
+		ni_compat_netdev_t *compat = array->data[i];
+
+		if (ni_string_eq(name, compat->dev->name))
+			return compat;
+	}
+	return NULL;
+}
+
+ni_compat_netdev_t *
+ni_compat_netdev_by_hwaddr(ni_compat_netdev_array_t *array, const ni_hwaddr_t *hwaddr)
+{
+	unsigned int i;
+
+	if (array == NULL || hwaddr == NULL || hwaddr->type == 0)
+		return NULL;
+	for (i = 0; i < array->count; ++i) {
+		ni_compat_netdev_t *compat = array->data[i];
+
+		if (ni_link_address_equal(hwaddr, &compat->identify.hwaddr))
+			return compat;
+	}
+	return NULL;
 }
 
 void
@@ -153,29 +191,26 @@ __ni_compat_generate_bridge(xml_node_t *ifnode, const ni_compat_netdev_t *compat
 		break;
 	}
 
-	if (bridge->forward_delay)
+	if (bridge->forward_delay != NI_BRIDGE_VALUE_NOT_SET)
 		xml_node_new_element("forward-delay", child, ni_sprint_uint(bridge->forward_delay));
-	if (bridge->ageing_time)
+	if (bridge->ageing_time != NI_BRIDGE_VALUE_NOT_SET)
 		xml_node_new_element("aging-time", child, ni_sprint_uint(bridge->ageing_time));
-	if (bridge->hello_time)
+	if (bridge->hello_time != NI_BRIDGE_VALUE_NOT_SET)
 		xml_node_new_element("hello-time", child, ni_sprint_uint(bridge->hello_time));
-	if (bridge->max_age)
+	if (bridge->max_age != NI_BRIDGE_VALUE_NOT_SET)
 		xml_node_new_element("max-age", child, ni_sprint_uint(bridge->max_age));
-	if (bridge->priority)
+	if (bridge->priority != NI_BRIDGE_VALUE_NOT_SET)
 		xml_node_new_element("priority", child, ni_sprint_uint(bridge->priority));
 
 	for (i = 0; i < bridge->ports.count; ++i) {
 		const ni_bridge_port_t *port = bridge->ports.data[i];
+		xml_node_t *portnode = xml_node_new("port", child);
 
-		while (port != NULL) {
-			xml_node_t *portnode = xml_node_new("port", child);
-
-			xml_node_new_element("device", portnode, port->ifname);
-			if (port->priority)
-				xml_node_new_element("priority", portnode, ni_sprint_uint(port->priority));
-			if (port->path_cost)
-				xml_node_new_element("path-cost", portnode, ni_sprint_uint(port->path_cost));
-		}
+		xml_node_new_element("device", portnode, port->ifname);
+		if (port->priority != NI_BRIDGE_VALUE_NOT_SET)
+			xml_node_new_element("priority", portnode, ni_sprint_uint(port->priority));
+		if (port->path_cost != NI_BRIDGE_VALUE_NOT_SET)
+			xml_node_new_element("path-cost", portnode, ni_sprint_uint(port->path_cost));
 	}
 
 	return TRUE;
@@ -266,6 +301,8 @@ __ni_compat_generate_static_address_list(xml_node_t *ifnode, ni_address_t *addr_
 			xml_node_new_element("peer", anode, ni_address_print(&ap->peer_addr));
 		if (ap->bcast_addr.ss_family != AF_UNSPEC)
 			xml_node_new_element("broadcast", anode, ni_address_print(&ap->bcast_addr));
+		if (ap->label[0])
+			xml_node_new_element("label", anode, ap->label);
 	}
 
 	return aconf;
@@ -398,10 +435,18 @@ __ni_compat_generate_interface(xml_node_t *ifnode, const ni_compat_netdev_t *com
 xml_node_t *
 ni_compat_generate_interface(const ni_compat_netdev_t *compat, xml_document_t *doc)
 {
-	xml_node_t *ifnode;
+	xml_node_t *ifnode, *namenode;
 
 	ifnode = xml_node_new("interface", doc->root);
-	xml_node_new_element("name", ifnode, compat->dev->name);
+
+	namenode = xml_node_new("name", ifnode);
+	if (compat->identify.hwaddr.type == NI_IFTYPE_ETHERNET) {
+		xml_node_add_attr(namenode, "namespace", "ethernet");
+		xml_node_new_element("permanent-address", namenode,
+				ni_link_address_print(&compat->identify.hwaddr));
+	} else {
+		xml_node_set_cdata(namenode, compat->dev->name);
+	}
 
 	__ni_compat_generate_interface(ifnode, compat);
 	return ifnode;

@@ -27,7 +27,7 @@
 
 static ni_compat_netdev_t *__ni_suse_read_interface(const char *, const char *);
 static ni_bool_t	__ni_suse_read_globals(const char *path);
-static ni_bool_t	__ni_suse_sysconfig2xml(ni_sysconfig_t *, ni_compat_netdev_t *);
+static ni_bool_t	__ni_suse_sysconfig_read(ni_sysconfig_t *, ni_compat_netdev_t *);
 static ni_bool_t	__process_indexed_variables(const ni_sysconfig_t *, ni_netdev_t *, const char *,
 				void (*)(const ni_sysconfig_t *, ni_netdev_t *, const char *));
 static ni_var_t *	__find_indexed_variable(const ni_sysconfig_t *, const char *, const char *);
@@ -249,7 +249,7 @@ __ni_suse_read_interface(const char *filename, const char *ifname)
 	}
 
 	compat = ni_compat_netdev_new(ifname);
-	if (__ni_suse_sysconfig2xml(sc, compat) < 0)
+	if (__ni_suse_sysconfig_read(sc, compat) < 0)
 		goto error;
 
 	ni_sysconfig_destroy(sc);
@@ -327,11 +327,6 @@ try_ethernet(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 
 	dev->link.type = NI_IFTYPE_ETHERNET;
 	eth = ni_netdev_get_ethernet(dev);
-
-	if ((value = ni_sysconfig_get_value(sc, "LLADDR")) != NULL
-	 && ni_link_address_parse(&dev->link.hwaddr, NI_IFTYPE_ETHERNET, value) < 0) {
-		ni_warn("cannot parse LLADDR=%s", value);
-	}
 
 	if ((value = ni_sysconfig_get_value(sc, "ETHTOOL_OPTIONS")) != NULL) {
 		/* ETHTOOL_OPTIONS comes in two flavors
@@ -712,22 +707,25 @@ __ni_suse_addrconf_dhcp4(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 }
 
 /*
- * Convert an ifcfg file to XML
+ * Read an ifcfg file
  */
 ni_bool_t
-__ni_suse_sysconfig2xml(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+__ni_suse_sysconfig_read(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 {
 	ni_netdev_t *dev = compat->dev;
 	const char *value;
-	unsigned int mtu = 0;
 
 	if ((value = ni_sysconfig_get_value(sc, "STARTMODE")) != NULL)
 		compat->control = __ni_suse_startmode(value);
 	else
 		compat->control = __ni_suse_startmode(NULL);
 
-	if (ni_sysconfig_get_integer(sc, "MTU", &mtu) && mtu)
-		compat->dev->link.mtu = mtu;
+	ni_sysconfig_get_integer(sc, "MTU", &dev->link.mtu);
+
+	if ((value = ni_sysconfig_get_value(sc, "LLADDR")) != NULL
+	 && ni_link_address_parse(&dev->link.hwaddr, NI_IFTYPE_ETHERNET, value) < 0) {
+		ni_warn("cannot parse LLADDR=%s", value);
+	}
 
 	if (!try_ethernet(sc, compat)
 	 && !try_bonding(sc, compat)
