@@ -14,7 +14,6 @@
 #include <wicked/logging.h>
 #include <wicked/dbus-errors.h>
 #include <wicked/ethernet.h>
-#include <wicked/ibft.h>
 #include <wicked/modem.h>
 #include "dbus-common.h"
 #include "model.h"
@@ -180,31 +179,9 @@ static ni_objectmodel_ns_t ni_objectmodel_modem_ns = {
 	.match_attr	= ni_objectmodel_modem_match_attr,
 };
 
-/*
- * The ibft naming service just uses the node name (ethernetX)
- */
-static ni_dbus_object_t *
-ni_objectmodel_ibft_lookup_by_name(ni_objectmodel_ns_t *ns, const char *name)
-{
-#ifdef notyet
-	ni_netconfig_t *nc = ni_global_state_handle(0);
-
-	return ni_netdev_by_ibft_nodename(nc, name);
-#else
-	ni_warn("%s(%s): not implemented", __func__, name);
-	return NULL;
-#endif
-}
-
-static ni_objectmodel_ns_t ni_objectmodel_ibft_ns = {
-	.name		= "ibft",
-	.lookup_by_name	= ni_objectmodel_ibft_lookup_by_name,
-};
-
 void
 ni_objectmodel_register_ns_builtin(void)
 {
 	ni_objectmodel_register_ns(&ni_objectmodel_ether_ns);
-	ni_objectmodel_register_ns(&ni_objectmodel_ibft_ns);
 	ni_objectmodel_register_ns(&ni_objectmodel_modem_ns);
 }

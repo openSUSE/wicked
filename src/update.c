@@ -124,7 +124,7 @@ ni_objectmodel_updater_add_source(unsigned int kind, const ni_addrconf_lease_t *
 {
 	static unsigned int addrconf_weight[__NI_ADDRCONF_MAX] = {
 	[NI_ADDRCONF_DHCP]	= 5,
-	[NI_ADDRCONF_IBFT]	= 10,
+	/* [NI_ADDRCONF_IBFT]	= 10, */
 	};
 	ni_updater_source_t **pos, *up;
 

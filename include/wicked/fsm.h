@@ -88,6 +88,14 @@ typedef enum {
 	NI_IFWORKER_TYPE_MODEM,
 } ni_ifworker_type_t;
 
+typedef struct ni_ifworker_control {
+	char *			mode;
+	char *			boot_stage;
+	ni_bool_t		mandatory;	/* not used yet */
+	ni_bool_t		link_required;
+	unsigned int		link_timeout;
+} ni_ifworker_control_t;
+
 struct ni_ifworker {
 	unsigned int		refcount;
 
@@ -107,12 +115,7 @@ struct ni_ifworker {
 				done		: 1,
 				kickstarted	: 1;
 
-	struct {
-		char *		mode;
-		char *		boot_stage;
-		ni_bool_t	link_required;
-		unsigned int	link_timeout;
-	} control;
+	ni_ifworker_control_t	control;
 
 	struct {
 		char *		origin;

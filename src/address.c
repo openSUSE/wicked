@@ -32,21 +32,17 @@
 static const unsigned char *__ni_address_data(const ni_sockaddr_t *, unsigned int *);
 
 ni_address_t *
-ni_address_new(ni_netdev_t *dev, int af, unsigned int prefix_len, const ni_sockaddr_t *local_addr)
+ni_netdev_add_address(ni_netdev_t *dev, int af, unsigned int prefix_len, const ni_sockaddr_t *local_addr)
 {
-	return __ni_address_new(&dev->addrs, af, prefix_len, local_addr);
+	return ni_address_new(af, prefix_len, local_addr, &dev->addrs);
 }
 
 ni_address_t *
-__ni_address_new(ni_address_t **list_head, int af, unsigned int prefix_len, const ni_sockaddr_t *local_addr)
+ni_address_new(int af, unsigned int prefix_len, const ni_sockaddr_t *local_addr, ni_address_t **list_head)
 {
-	ni_address_t *ap, **tail;
+	ni_address_t *ap;
 
 	ni_assert(!local_addr || local_addr->ss_family == af);
-
-	tail = list_head;
-	while ((ap = *tail) != NULL)
-		tail = &ap->next;
 
 	ap = calloc(1, sizeof(*ap));
 	ap->family = af;
@@ -61,13 +57,20 @@ __ni_address_new(ni_address_t **list_head, int af, unsigned int prefix_len, cons
 		ap->bcast_addr.sin.sin_addr.s_addr |= htonl(0xFFFFFFFFUL >> prefix_len);
 	}
 
-	*tail = ap;
+	if (list_head) {
+		ni_address_t **tail = list_head;
+		while (*tail != NULL)
+			tail = &(*tail)->next;
+
+		*tail = ap;
+	}
 	return ap;
 }
 
 void
 ni_address_free(ni_address_t *ap)
 {
+	ni_string_free(&ap->label);
 	free(ap);
 }
 
@@ -79,17 +82,20 @@ ni_address_list_append(ni_address_t **list, ni_address_t *ap)
 	*list = ap;
 }
 
-int
-__ni_address_list_dedup(ni_address_t **list)
+void
+ni_address_list_dedup(ni_address_t **list)
 {
 	ni_address_t **pos, *ap;
 	ni_address_t **pos2, *ap2;
 
 	for (pos = list; (ap = *pos) != NULL; pos = &ap->next) {
 		for (pos2 = &ap->next; (ap2 = *pos2) != NULL; ) {
-			if (ni_address_equal(&ap->local_addr, &ap2->local_addr)) {
-				if (memcmp(ap, ap2, sizeof(*ap)) != 0)
-					return -1; // duplicate address
+			if (ni_sockaddr_equal(&ap->local_addr, &ap2->local_addr)) {
+				if (ap->prefixlen != ap2->prefixlen
+				 || ap->scope != ap2->scope) {
+					ni_warn("%s(): duplicate address %s with prefix or scope mismatch",
+							__func__, ni_sockaddr_print(&ap->local_addr));
+				}
 				*pos2 = ap2->next;
 				ni_address_free(ap2);
 			} else {
@@ -97,17 +103,15 @@ __ni_address_list_dedup(ni_address_t **list)
 			}
 		}
 	}
-
-	return 0;
 }
 
 ni_address_t *
-__ni_address_list_find(ni_address_t *list, const ni_sockaddr_t *addr)
+ni_address_list_find(ni_address_t *list, const ni_sockaddr_t *addr)
 {
 	ni_address_t *ap;
 
 	for (ap = list; ap != NULL; ap = ap->next) {
-		if (ni_address_equal(&ap->local_addr, addr))
+		if (ni_sockaddr_equal(&ap->local_addr, addr))
 			return ap;
 	}
 	return NULL;
@@ -140,7 +144,7 @@ ni_address_list_destroy(ni_address_t **list)
 }
 
 ni_bool_t
-__ni_address_info(int af, unsigned int *offset, unsigned int *len)
+ni_af_sockaddr_info(int af, unsigned int *offset, unsigned int *len)
 {
 	switch (af) {
 	case AF_INET:
@@ -164,14 +168,14 @@ __ni_address_data(const ni_sockaddr_t *ss, unsigned int *len)
 	*len = 0;
 	if (ss == NULL)
 		return NULL;
-	if (!__ni_address_info(ss->ss_family, &offset, len))
+	if (!ni_af_sockaddr_info(ss->ss_family, &offset, len))
 		return NULL;
 
 	return ((const unsigned char *) ss) + offset;
 }
 
 unsigned int
-ni_address_length(int af)
+ni_af_address_length(int af)
 {
 	switch (af) {
 	case AF_INET:
@@ -201,7 +205,7 @@ ni_sockaddr_set_ipv6(ni_sockaddr_t *ap, struct in6_addr ipv6, uint16_t port)
 }
 
 ni_bool_t
-ni_address_prefix_match(unsigned int prefix_bits, const ni_sockaddr_t *laddr, const ni_sockaddr_t *gw)
+ni_sockaddr_prefix_match(unsigned int prefix_bits, const ni_sockaddr_t *laddr, const ni_sockaddr_t *gw)
 {
 	const unsigned char *laddr_ptr, *gw_ptr;
 	unsigned int offset = 0, len;
@@ -240,7 +244,7 @@ ni_address_can_reach(const ni_address_t *laddr, const ni_sockaddr_t *gw)
 		return FALSE;
 
 	/* if (laddr->peer_addr.ss_family != AF_UNSPEC) { ... } */
-	return ni_address_prefix_match(laddr->prefixlen, &laddr->local_addr, gw);
+	return ni_sockaddr_prefix_match(laddr->prefixlen, &laddr->local_addr, gw);
 }
 
 ni_bool_t
@@ -280,7 +284,7 @@ ni_address_is_duplicate(const ni_address_t *laddr)
 }
 
 ni_bool_t
-ni_address_equal(const ni_sockaddr_t *ss1, const ni_sockaddr_t *ss2)
+ni_sockaddr_equal(const ni_sockaddr_t *ss1, const ni_sockaddr_t *ss2)
 {
 	const unsigned char *ap1, *ap2;
 	unsigned int len;
@@ -324,7 +328,7 @@ ni_address_probably_dynamic(const ni_address_t *ap)
 }
 
 const char *
-ni_address_format(const ni_sockaddr_t *ss, char *abuf, size_t buflen)
+ni_sockaddr_format(const ni_sockaddr_t *ss, char *abuf, size_t buflen)
 {
 	switch (ss->ss_family) {
 	case AF_INET:
@@ -345,13 +349,47 @@ ni_address_format(const ni_sockaddr_t *ss, char *abuf, size_t buflen)
 }
 
 const char *
-ni_address_print(const ni_sockaddr_t *ss)
+ni_sockaddr_print(const ni_sockaddr_t *ss)
 {
 	static char abuf[128];
 
-	if (ni_address_format(ss, abuf, sizeof(abuf)) < 0)
+	if (ni_sockaddr_format(ss, abuf, sizeof(abuf)) < 0)
 		return NULL;
 	return abuf;
+}
+
+const char *
+ni_sockaddr_prefix_print(const ni_sockaddr_t *ss, unsigned int pfxlen)
+{
+	static char abuf[128];
+	const char *s;
+
+	if (!(s = ni_sockaddr_print(ss)))
+		return NULL;
+
+	snprintf(abuf, sizeof(abuf), "%s/%u", s, pfxlen);
+	return abuf;
+}
+
+ni_bool_t
+ni_sockaddr_prefix_parse(const char *address_string, ni_sockaddr_t *addr, unsigned int *prefixlen)
+{
+	char *string, *sp;
+	ni_bool_t rv = FALSE;
+
+	string = xstrdup(address_string);
+	if ((sp = strchr(string, '/')) != NULL) {
+		*sp++ = '\0';
+		*prefixlen = strtoul(sp, NULL, 0);
+	} else {
+		*prefixlen = ~0U;
+	}
+
+	if (ni_sockaddr_parse(addr, string, AF_UNSPEC) >= 0)
+		rv = TRUE;
+
+	free(string);
+	return rv;
 }
 
 static int
@@ -377,12 +415,13 @@ __ni_parse_ipv4shorthand(ni_sockaddr_t *ss, const char *string)
 		}
 	}
 
+	in_addr.s_addr = htonl(in_addr.s_addr);
 	ni_sockaddr_set_ipv4(ss, in_addr, 0);
 	return 0;
 }
 
 int
-ni_address_parse(ni_sockaddr_t *ss, const char *string, int af)
+ni_sockaddr_parse(ni_sockaddr_t *ss, const char *string, int af)
 {
 	memset(ss, 0, sizeof(*ss));
 
@@ -412,12 +451,12 @@ ni_address_parse(ni_sockaddr_t *ss, const char *string, int af)
 }
 
 unsigned int
-ni_netmask_bits(const ni_sockaddr_t *mask)
+ni_sockaddr_netmask_bits(const ni_sockaddr_t *mask)
 {
 	unsigned int	offset, len, i, bits = 0;
 	unsigned char	*raw;
 
-	if (!__ni_address_info(mask->ss_family, &offset, &len))
+	if (!ni_af_sockaddr_info(mask->ss_family, &offset, &len))
 		return 0;
 
 	raw = &((unsigned char *) mask)[offset];
@@ -439,7 +478,7 @@ ni_netmask_bits(const ni_sockaddr_t *mask)
 }
 
 int
-ni_build_netmask(int af, unsigned int prefix_len, ni_sockaddr_t *mask)
+ni_sockaddr_build_netmask(int af, unsigned int prefix_len, ni_sockaddr_t *mask)
 {
 	unsigned int	offset, len, i, bits;
 	unsigned char	*raw;
@@ -447,7 +486,7 @@ ni_build_netmask(int af, unsigned int prefix_len, ni_sockaddr_t *mask)
 	memset(mask, 0, sizeof(*mask));
 	mask->ss_family = af;
 
-	if (!__ni_address_info(af, &offset, &len))
+	if (!ni_af_sockaddr_info(af, &offset, &len))
 		return -1;
 
 	raw = &((unsigned char *) mask)[offset];
@@ -592,7 +631,7 @@ ni_link_address_get_broadcast(int iftype, ni_hwaddr_t *hwa)
 }
 
 ni_route_t *
-__ni_route_new(ni_route_t **list, unsigned int prefixlen, const ni_sockaddr_t *dest, const ni_sockaddr_t *gw)
+ni_route_new(unsigned int prefixlen, const ni_sockaddr_t *dest, const ni_sockaddr_t *gw, ni_route_t **list)
 {
 	static const ni_sockaddr_t null_addr;
 	ni_route_t *rp;
@@ -639,18 +678,56 @@ __ni_route_new(ni_route_t **list, unsigned int prefixlen, const ni_sockaddr_t *d
 	rp->table = RT_TABLE_MAIN;
 
 	if (list)
-		__ni_route_list_append(list, rp);
+		ni_route_list_append(list, rp);
 
 	return rp;
 }
 
 ni_route_t *
-ni_route_new(ni_netconfig_t *nc, unsigned int prefixlen, const ni_sockaddr_t *dest, const ni_sockaddr_t *gw)
+ni_route_clone(const ni_route_t *src)
 {
 	ni_route_t *rp;
+	ni_route_nexthop_t *nh;
+	const ni_route_nexthop_t *srcnh;
 
-	if ((rp = __ni_route_new(NULL, prefixlen, dest, gw)) != NULL)
-		ni_netconfig_route_append(nc, rp);
+	rp = xcalloc(1, sizeof(*rp));
+
+#define C(x)	rp->x = src->x
+	C(family);
+	C(prefixlen);
+	C(destination);
+
+	C(type);
+	C(scope);
+	C(protocol);
+	C(table);
+	C(tos);
+	C(metric);
+	C(mtu);
+	C(priority);
+	C(advmss);
+	C(rtt);
+	C(rttvar);
+	C(window);
+	C(cwnd);
+	C(initcwnd);
+	C(ssthresh);
+	C(realms);
+	C(rto_min);
+	C(hoplimit);
+#undef C
+
+	for (nh = &rp->nh, srcnh = &src->nh; srcnh; srcnh = srcnh->next, nh = nh->next) {
+		nh->gateway = srcnh->gateway;
+		nh->weight = srcnh->weight;
+		nh->flags = srcnh->flags;
+		if (srcnh->device)
+			ni_string_dup(&nh->device, srcnh->device);
+
+		if (srcnh->next)
+			nh->next = xcalloc(1, sizeof(*nh));
+	}
+
 	return rp;
 }
 
@@ -678,7 +755,7 @@ ni_route_list_destroy(ni_route_t **list)
 }
 
 void
-__ni_route_list_append(ni_route_t **list, ni_route_t *new_route)
+ni_route_list_append(ni_route_t **list, ni_route_t *new_route)
 {
 	ni_route_t *rp;
 
@@ -694,7 +771,7 @@ ni_route_equal(const ni_route_t *r1, const ni_route_t *r2)
 	const ni_route_nexthop_t *nh1, *nh2;
 
 	if (r1->prefixlen != r2->prefixlen
-	 || !ni_address_equal(&r1->destination, &r2->destination))
+	 || !ni_sockaddr_equal(&r1->destination, &r2->destination))
 		return FALSE;
 
 	if (r1->priority != r2->priority)
@@ -703,7 +780,7 @@ ni_route_equal(const ni_route_t *r1, const ni_route_t *r2)
 	nh1 = &r1->nh;
 	nh2 = &r2->nh;
 	while (nh1 && nh2) {
-		if (!ni_address_equal(&nh1->gateway, &nh2->gateway))
+		if (!ni_sockaddr_equal(&nh1->gateway, &nh2->gateway))
 			return FALSE;
 		nh1 = nh1->next;
 		nh2 = nh2->next;
@@ -721,12 +798,12 @@ ni_route_print(const ni_route_t *rp)
 	if (rp->prefixlen == 0) {
 		dest = "default";
 	} else {
-		ni_address_format(&rp->destination, destbuf, sizeof(destbuf));
+		ni_sockaddr_format(&rp->destination, destbuf, sizeof(destbuf));
 	}
 
 	if (rp->nh.gateway.ss_family) {
 		snprintf(abuf, sizeof(abuf), "%s via %s", dest,
-				ni_address_format(&rp->nh.gateway, gwbuf, sizeof(gwbuf)));
+				ni_sockaddr_format(&rp->nh.gateway, gwbuf, sizeof(gwbuf)));
 	} else {
 		snprintf(abuf, sizeof(abuf), "%s", dest);
 	}

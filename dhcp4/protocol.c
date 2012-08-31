@@ -568,7 +568,7 @@ ni_dhcp_decode_csr(ni_buffer_t *bp, ni_route_t **route_list)
 		if (ni_dhcp_option_get_sockaddr(bp, &gateway) < 0)
 			return -1;
 
-		__ni_route_new(route_list, prefix_len, &destination, &gateway);
+		ni_route_new(prefix_len, &destination, &gateway, route_list);
 	}
 
 	if (bp->underflow)
@@ -676,10 +676,10 @@ ni_dhcp_decode_static_routes(ni_buffer_t *bp, ni_route_t **route_list)
 		 || ni_dhcp_option_get_sockaddr(bp, &gateway) < 0)
 			return -1;
 
-		__ni_route_new(route_list,
-				guess_prefix_len_sockaddr(&destination),
+		ni_route_new(guess_prefix_len_sockaddr(&destination),
 				&destination,
-				&gateway);
+				&gateway,
+				route_list);
 	}
 
 	return 0;
@@ -701,7 +701,7 @@ ni_dhcp_decode_routers(ni_buffer_t *bp, ni_route_t **route_list)
 		if (ni_dhcp_option_get_sockaddr(bp, &gateway) < 0)
 			return -1;
 
-		__ni_route_new(route_list, 0, &destination, &gateway);
+		ni_route_new(0, &destination, &gateway, route_list);
 	}
 
 	return 0;
@@ -989,9 +989,9 @@ parse_more:
 		memset(&local_addr, 0, sizeof(local_addr));
 		local_addr.sin.sin_family = AF_INET;
 		local_addr.sin.sin_addr = lease->dhcp.address;
-		ap = __ni_address_new(&lease->addrs, AF_INET,
+		ap = ni_address_new(AF_INET,
 				__count_net_bits(ntohl(lease->dhcp.netmask.s_addr)),
-				&local_addr);
+				&local_addr, &lease->addrs);
 
 		memset(&ap->bcast_addr, 0, sizeof(ap->bcast_addr));
 		ap->bcast_addr.sin.sin_family = AF_INET;

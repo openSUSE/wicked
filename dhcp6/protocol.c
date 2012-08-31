@@ -128,7 +128,7 @@ __ni_dhcp6_socket_open(ni_dhcp6_device_t *dev)
 		ni_error("link layer address not (yet) available");
 		return -1;
 	}
-	ni_trace("link local address is %s", ni_address_print(&dev->config->client_addr));
+	ni_trace("link local address is %s", ni_sockaddr_print(&dev->config->client_addr));
 
 	if ((fd = socket (PF_INET6, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
 		ni_error("socket(INET6, DGRAM, UDP): %m");
@@ -171,7 +171,7 @@ __ni_dhcp6_socket_open(ni_dhcp6_device_t *dev)
 	 *   so this should catch it ...
 	 */
 	if (bind(fd, &saddr.sa, sizeof(saddr.six)) == -1) {
-		ni_error("bind(%s): %m", ni_address_print(&saddr));
+		ni_error("bind(%s): %m", ni_sockaddr_print(&saddr));
 		close(fd);
 		return -1;
 	}
@@ -184,7 +184,7 @@ __ni_dhcp6_socket_open(ni_dhcp6_device_t *dev)
 		ni_error("setsockopt(IPV6_MULTICAST_IF, %d: %m", on);
 
 	ni_debug_dhcp("%s: bound DHCPv6 socket to [%s%%%u]:%u",
-		dev->ifname, ni_address_print(&saddr), saddr.six.sin6_scope_id,
+		dev->ifname, ni_sockaddr_print(&saddr), saddr.six.sin6_scope_id,
 		ntohs(saddr.six.sin6_port));
 
 	return fd;
@@ -364,7 +364,7 @@ ni_dhcp6_address_print(const struct in6_addr *ipv6)
 	addr.ss_family = AF_INET6;
 	memcpy(&addr.six.sin6_addr, ipv6, sizeof(addr.six.sin6_addr));
 
-	return ni_address_print(&addr);
+	return ni_sockaddr_print(&addr);
 }
 
 static int
@@ -525,7 +525,7 @@ ni_dhcp6_option_put_ia_address(ni_buffer_t *bp, struct ni_dhcp6_ia_addr *iadr)
 		memcpy(&addr.six.sin6_addr, &iadr->addr, sizeof(addr.six.sin6_addr));
 #if 0
 		ni_trace("ia prefix: %s/%u, preferred_lft: %u, valid_lft: %u",
-				ni_address_print(&addr), iadr->plen,
+				ni_sockaddr_print(&addr), iadr->plen,
 				iadr->preferred_lft, iadr->valid_lft);
 #endif
 		option = NI_DHCP6_OPTION_IA_PREFIX;
@@ -544,7 +544,7 @@ ni_dhcp6_option_put_ia_address(ni_buffer_t *bp, struct ni_dhcp6_ia_addr *iadr)
 		memcpy(&addr.six.sin6_addr, &iadr->addr, sizeof(addr.six.sin6_addr));
 #if 0
 		ni_trace("ia address: %s, preferred_lft: %u, valid_lft: %u",
-				ni_address_print(&addr),
+				ni_sockaddr_print(&addr),
 				iadr->preferred_lft, iadr->valid_lft);
 #endif
 		option = NI_DHCP6_OPTION_IAADDR;
@@ -1007,7 +1007,7 @@ ni_dhcp6_decode_address_list(ni_buffer_t *bp, ni_string_array_t *list)
 		if (ni_dhcp6_option_get_sockaddr(bp, &addr) < 0)
 			return -1;
 
-		ni_string_array_append(list, ni_address_print(&addr));
+		ni_string_array_append(list, ni_sockaddr_print(&addr));
 	}
 
 	if (bp->underflow)
@@ -1427,7 +1427,7 @@ ni_dhcp6_option_parse_ia_address(ni_buffer_t *bp, struct ni_dhcp6_ia *ia, uint16
 		ni_trace("%s.%s: %s/%u, pref-life: %u, valid_life: %u",
 			ni_dhcp6_ia_type_name(ia->type),
 			ni_dhcp6_option_name(addr_type),
-			ni_address_print(&addr), ap->plen,
+			ni_sockaddr_print(&addr), ap->plen,
 			ap->preferred_lft, ap->valid_lft);
 #endif
 	} else {
@@ -1446,7 +1446,7 @@ ni_dhcp6_option_parse_ia_address(ni_buffer_t *bp, struct ni_dhcp6_ia *ia, uint16
 		ni_trace("%s.%s: %s, pref-life: %u, valid_life: %u",
 			ni_dhcp6_ia_type_name(ia->type),
 			ni_dhcp6_option_name(addr_type),
-			ni_address_print(&addr),
+			ni_sockaddr_print(&addr),
 			ap->preferred_lft, ap->valid_lft);
 #endif
 	}
@@ -1781,13 +1781,13 @@ ni_dhcp6_client_parse_options(ni_dhcp6_device_t *dev, ni_buffer_t *buffer, ni_ad
 				 * FIXME: lookup if iadr matches some RA prefix for this interface
 				 *        and use prefix lenght of the RA prefix...
 				 */
-				ap = __ni_address_new(&lease->addrs, AF_INET6, 64, &laddr);
+				ap = ni_address_new(AF_INET6, 64, &laddr, &lease->addrs);
 				ap->ipv6_cache_info.preferred_lft = iaddr->preferred_lft;
 				ap->ipv6_cache_info.valid_lft = iaddr->valid_lft;
 
 				ni_trace("%s: added IPv6 address %s/%u to lease candidate",
 						dev->ifname,
-						ni_address_print(&ap->local_addr), ap->prefixlen);
+						ni_sockaddr_print(&ap->local_addr), ap->prefixlen);
 			}
 		}
 	}

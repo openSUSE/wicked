@@ -11,6 +11,7 @@
 #include <limits.h>
 
 #include <wicked/netinfo.h>
+#include <wicked/route.h>
 #include <wicked/addrconf.h>
 #include <wicked/bridge.h>
 #include <wicked/bonding.h>
@@ -350,7 +351,7 @@ ni_netconfig_modem_append(ni_netconfig_t *nc, ni_modem_t *modem)
 void
 ni_netconfig_route_append(ni_netconfig_t *nc, ni_route_t *rp)
 {
-	__ni_route_list_append(&nc->routes, rp);
+	ni_route_list_append(&nc->routes, rp);
 }
 
 /*

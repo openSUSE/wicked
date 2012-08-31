@@ -51,7 +51,6 @@ ni_config_new()
 	conf->addrconf.default_allow_update = ~0;
 	conf->addrconf.dhcp.allow_update = ~0;
 	conf->addrconf.dhcp6.allow_update = ~0;
-	conf->addrconf.ibft.allow_update = ~0;
 	conf->addrconf.autoip.allow_update = ~0;
 
 	conf->recv_max = 64 * 1024;
@@ -249,7 +248,7 @@ ni_config_parse_addrconf_dhcp(struct ni_config_dhcp *dhcp, xml_node_t *node)
 			}
 
 			pref = &dhcp->preferred_server[dhcp->num_preferred_servers++];
-			if (ni_address_parse(&pref->address, attrval, AF_INET) < 0) {
+			if (ni_sockaddr_parse(&pref->address, attrval, AF_INET) < 0) {
 				ni_error("config: unable to parse <prefer-server ip=\"%s\"",
 						attrval);
 				return FALSE;
@@ -543,7 +542,7 @@ ni_config_parse_addrconf_dhcp6(struct ni_config_dhcp6 *dhcp6, xml_node_t *node)
 
 			pref = &dhcp6->preferred_server[dhcp6->num_preferred_servers++];
 
-			if (ip && ni_address_parse(&pref->address, ip, AF_INET6) < 0) {
+			if (ip && ni_sockaddr_parse(&pref->address, ip, AF_INET6) < 0) {
 				ni_error("config: unable to parse <prefer-server ip=\"%s\"",
 						ip);
 				return FALSE;

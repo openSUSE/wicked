@@ -1279,7 +1279,7 @@ __ni_notation_netaddr_parse(const char *string_value, unsigned char **retbuf, un
 	ni_sockaddr_t sockaddr;
 	ni_opaque_t pack;
 
-	if (ni_address_parse(&sockaddr, string_value, AF_UNSPEC) < 0)
+	if (ni_sockaddr_parse(&sockaddr, string_value, AF_UNSPEC) < 0)
 		return FALSE;
 	if (!ni_sockaddr_pack(&sockaddr, &pack))
 		return FALSE;
@@ -1296,7 +1296,7 @@ __ni_notation_netaddr_print(const unsigned char *data_ptr, unsigned int data_len
 	ni_opaque_set(&pack, data_ptr, data_len);
 	if (!ni_sockaddr_unpack(&sockaddr, &pack))
 		return NULL;
-	return ni_address_format(&sockaddr, buffer, size);
+	return ni_sockaddr_format(&sockaddr, buffer, size);
 }
 
 static ni_bool_t
@@ -1319,7 +1319,7 @@ __ni_notation_netaddr_prefix_parse(const char *string_value, unsigned char **ret
 		prefix = value;
 	}
 
-	if (ni_address_parse(&sockaddr, copy, AF_UNSPEC) >= 0) {
+	if (ni_sockaddr_parse(&sockaddr, copy, AF_UNSPEC) >= 0) {
 		ni_opaque_t pack;
 
 		if (!ni_sockaddr_prefix_pack(&sockaddr, prefix, &pack))
@@ -1343,7 +1343,7 @@ __ni_notation_netaddr_prefix_print(const unsigned char *data_ptr, unsigned int d
 	if (!ni_sockaddr_prefix_unpack(&sockaddr, &prefix, &pack))
 		return NULL;
 
-	snprintf(buffer, size, "%s/%u", ni_address_print(&sockaddr), prefix);
+	snprintf(buffer, size, "%s/%u", ni_sockaddr_print(&sockaddr), prefix);
 	return buffer;
 }
 

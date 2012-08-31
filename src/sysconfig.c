@@ -13,7 +13,7 @@
 
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
-#include "sysconfig.h"
+#include <wicked/sysconfig.h>
 #include "util_priv.h"
 
 static int	unquote(char *);
@@ -36,6 +36,10 @@ ni_sysconfig_new(const char *pathname)
 	return sc;
 }
 
+/*
+ * Destroy the sysconfig object
+ * FIXME: should be called ni_sysconfig_free
+ */
 void
 ni_sysconfig_destroy(ni_sysconfig_t *sc)
 {
@@ -100,17 +104,11 @@ __ni_sysconfig_read(const char *filename, const char **varnames)
 		if (!unquote(value))
 			continue;
 
-		if (ni_sysconfig_set(sc, name, value) < 0)
-			goto error;
+		ni_sysconfig_set(sc, name, value);
 	}
 
 	fclose(fp);
 	return sc;
-
-error:
-	ni_sysconfig_destroy(sc);
-	fclose(fp);
-	return NULL;
 }
 
 /*
@@ -336,25 +334,25 @@ quote(char *string)
 	return quoted;
 }
 
-int
+void
 ni_sysconfig_set(ni_sysconfig_t *sc, const char *name, const char *value)
 {
-	return ni_var_array_set(&sc->vars, name, value);
+	ni_var_array_set(&sc->vars, name, value);
 }
 
-int
+void
 ni_sysconfig_set_integer(ni_sysconfig_t *sc, const char *name, unsigned int value)
 {
 	char buffer[32];
 
 	snprintf(buffer, sizeof(buffer), "%u", value);
-	return ni_sysconfig_set(sc, name, buffer);
+	ni_sysconfig_set(sc, name, buffer);
 }
 
-int
+void
 ni_sysconfig_set_boolean(ni_sysconfig_t *sc, const char *name, int value)
 {
-	return ni_sysconfig_set(sc, name, value? "yes" : "no");
+	ni_sysconfig_set(sc, name, value? "yes" : "no");
 }
 
 ni_var_t *
@@ -364,7 +362,7 @@ ni_sysconfig_get(const ni_sysconfig_t *sc, const char *name)
 }
 
 int
-ni_sysconfig_find_matching(ni_sysconfig_t *sc, const char *prefix,
+ni_sysconfig_find_matching(const ni_sysconfig_t *sc, const char *prefix,
 		ni_string_array_t *res)
 {
 	unsigned int i, pfxlen;
@@ -380,36 +378,52 @@ ni_sysconfig_find_matching(ni_sysconfig_t *sc, const char *prefix,
 	return res->count;
 }
 
-int
-ni_sysconfig_get_string(const ni_sysconfig_t *sc, const char *name, char **p)
+const char *
+ni_sysconfig_get_value(const ni_sysconfig_t *sc, const char *name)
 {
 	ni_var_t *var;
 
-	ni_string_free(p);
-	if ((var = ni_sysconfig_get(sc, name)) != NULL)
-		ni_string_dup(p, var->value);
-	return 0;
+	if ((var = ni_sysconfig_get(sc, name)) != NULL && var->value && var->value[0])
+		return var->value;
+	return NULL;
 }
 
-int
+ni_bool_t
+ni_sysconfig_get_string(const ni_sysconfig_t *sc, const char *name, const char **p)
+{
+	ni_var_t *var;
+
+	if ((var = ni_sysconfig_get(sc, name)) == NULL)
+		return FALSE;
+
+	*p = var->value;
+	return TRUE;
+}
+
+ni_bool_t
 ni_sysconfig_get_integer(const ni_sysconfig_t *sc, const char *name, unsigned int *p)
 {
 	ni_var_t *var;
+	char *end;
 
 	*p = 0;
-	if ((var = ni_sysconfig_get(sc, name)) != NULL)
-		*p = strtoul(var->value, NULL, 0);
-	return 0;
+	if ((var = ni_sysconfig_get(sc, name)) == NULL)
+		return FALSE;
+
+	*p = strtoul(var->value, &end, 0);
+	if (*end != '\0')
+		return FALSE;
+	return TRUE;
 }
 
-int
-ni_sysconfig_get_boolean(const ni_sysconfig_t *sc, const char *name, int *p)
+ni_bool_t
+ni_sysconfig_get_boolean(const ni_sysconfig_t *sc, const char *name, ni_bool_t *p)
 {
 	*p = ni_sysconfig_test_boolean(sc, name);
-	return 0;
+	return TRUE;
 }
 
-int
+ni_bool_t
 ni_sysconfig_test_boolean(const ni_sysconfig_t *sc, const char *name)
 {
 	ni_var_t *var;
@@ -418,43 +432,34 @@ ni_sysconfig_test_boolean(const ni_sysconfig_t *sc, const char *name)
 		if (!strcasecmp(var->value, "on")
 		 || !strcasecmp(var->value, "true")
 		 || !strcasecmp(var->value, "yes"))
-			return 1;
+			return TRUE;
 	}
-	return 0;
+	return FALSE;
 }
 
-int
-ni_sysconfig_get_string_optional(const ni_sysconfig_t *sc, const char *name, char **p)
+ni_bool_t
+ni_sysconfig_get_string_optional(const ni_sysconfig_t *sc, const char *name, const char **p)
 {
-	ni_var_t *var;
+	const char *value;
 
-	if ((var = ni_sysconfig_get(sc, name)) != NULL && var->value && var->value[0])
-		ni_string_dup(p, var->value);
-	return 0;
+	if ((value = ni_sysconfig_get_value(sc, name)) != NULL && *value)
+		*p = value;
+	return TRUE;
 }
 
-int
+ni_bool_t
 ni_sysconfig_get_integer_optional(const ni_sysconfig_t *sc, const char *name, unsigned int *p)
 {
 	ni_var_t *var;
 
 	if ((var = ni_sysconfig_get(sc, name)) != NULL && var->value && var->value[0])
 		*p = strtoul(var->value, NULL, 0);
-	return 0;
+	return TRUE;
 }
 
-int
-ni_sysconfig_get_boolean_optional(const ni_sysconfig_t *sc, const char *name, int *p)
+ni_bool_t
+ni_sysconfig_get_boolean_optional(const ni_sysconfig_t *sc, const char *name, ni_bool_t *p)
 {
-	ni_var_t *var;
-
-	if ((var = ni_sysconfig_get(sc, name)) != NULL && var->value && var->value[0]) {
-		if (!strcasecmp(var->value, "on")
-		 || !strcasecmp(var->value, "true")
-		 || !strcasecmp(var->value, "yes"))
-			*p = 1;
-		else
-			*p = 0;
-	}
-	return 0;
+	*p = ni_sysconfig_test_boolean(sc, name);
+	return TRUE;
 }

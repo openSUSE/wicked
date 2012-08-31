@@ -333,17 +333,14 @@ ni_var_array_get(const ni_var_array_t *nva, const char *name)
 	return NULL;
 }
 
-int
+void
 ni_var_array_set(ni_var_array_t *nva, const char *name, const char *value)
 {
 	ni_var_t *var;
 
 	if ((var = ni_var_array_get(nva, name)) == NULL) {
-		if ((nva->count & 15) == 0) {
-			nva->data = realloc(nva->data, (nva->count + 16) * sizeof(ni_var_t));
-			if (!nva->data)
-				return -1;
-		}
+		if ((nva->count & 15) == 0)
+			nva->data = xrealloc(nva->data, (nva->count + 16) * sizeof(ni_var_t));
 
 		var = &nva->data[nva->count++];
 		var->name = xstrdup(name);
@@ -351,7 +348,6 @@ ni_var_array_set(ni_var_array_t *nva, const char *name, const char *value)
 	}
 
 	ni_string_dup(&var->value, value);
-	return 0;
 }
 
 int
@@ -395,37 +391,37 @@ ni_var_array_get_boolean(ni_var_array_t *nva, const char *name, int *p)
 	return 0;
 }
 
-int
+void
 ni_var_array_set_integer(ni_var_array_t *nva, const char *name, unsigned int value)
 {
 	char buffer[32];
 
 	snprintf(buffer, sizeof(buffer), "%u", value);
-	return ni_var_array_set(nva, name, buffer);
+	ni_var_array_set(nva, name, buffer);
 }
 
-int
+void
 ni_var_array_set_long(ni_var_array_t *nva, const char *name, unsigned long value)
 {
 	char buffer[32];
 
 	snprintf(buffer, sizeof(buffer), "%lu", value);
-	return ni_var_array_set(nva, name, buffer);
+	ni_var_array_set(nva, name, buffer);
 }
 
-int
+void
 ni_var_array_set_double(ni_var_array_t *nva, const char *name, double value)
 {
 	char buffer[32];
 
 	snprintf(buffer, sizeof(buffer), "%g", value);
-	return ni_var_array_set(nva, name, buffer);
+	ni_var_array_set(nva, name, buffer);
 }
 
-int
+void
 ni_var_array_set_boolean(ni_var_array_t *nva, const char *name, int value)
 {
-	return ni_var_array_set(nva, name, value? "yes" : "no");
+	ni_var_array_set(nva, name, value? "yes" : "no");
 }
 
 
@@ -619,6 +615,29 @@ ni_file_executable(const char *filename)
 	return access(filename, X_OK) == 0;
 }
 
+extern ni_bool_t
+ni_isdir(const char *path)
+{
+	struct stat stb;
+
+	if (stat(path, &stb) < 0)
+		return FALSE;
+	return S_ISDIR(stb.st_mode);
+}
+
+extern ni_bool_t
+ni_isreg(const char *path)
+{
+	struct stat stb;
+
+	if (stat(path, &stb) < 0)
+		return FALSE;
+	return S_ISREG(stb.st_mode);
+}
+
+/*
+ * String handling
+ */
 void
 ni_string_free(char **pp)
 {
@@ -1398,7 +1417,96 @@ ni_basename(const char *path)
 
 	if ((sp = strrchr(path, '/')) == NULL)
 		return path;
+
+	/* FIXME: return error if path ends with a slash */
 	return sp + 1;
+}
+
+/*
+ * Return the dirname of a file path
+ */
+ni_bool_t
+__ni_dirname(const char *path, char *result, size_t size)
+{
+	const char *sp;
+
+	if (!path)
+		return FALSE;
+
+	if ((sp = strrchr(path, '/')) == NULL) {
+		if (size < 2)
+			return FALSE;
+		strcpy(result, ".");
+		return TRUE;
+	}
+
+	while (sp > path && sp[-1] == '/')
+		--sp;
+
+	if (sp - path >= size) {
+		ni_error("%s(%s): buffer too small", __func__, path);
+		return FALSE;
+	}
+
+	memset(result, 0, size);
+	strncpy(result, path, sp - path);
+	return TRUE;
+}
+
+const char *
+ni_dirname(const char *path)
+{
+	static char buffer[PATH_MAX];
+
+	if (!__ni_dirname(path, buffer, sizeof(buffer)))
+		return NULL;
+	return buffer;
+}
+
+/*
+ * Given a path name /foo/bar/baz, and a relative file name "blubber",
+ * build /foo/bar/blubber
+ */
+const char *
+ni_sibling_path(const char *path, const char *file)
+{
+	static char buffer[PATH_MAX];
+	unsigned int len;
+
+	if (!__ni_dirname(path, buffer, sizeof(buffer)))
+		return NULL;
+
+	len = strlen(buffer);
+	if (len + 2 + strlen(file) >= sizeof(buffer)) {
+		ni_error("%s(%s, %s): path name too long", __func__, path, file);
+		return FALSE;
+	}
+
+	snprintf(buffer + len, sizeof(buffer) - len, "/%s", file);
+	return buffer;
+}
+
+const char *
+ni_sibling_path_printf(const char *path, const char *fmt, ...)
+{
+	va_list ap;
+	char *filename = NULL;
+	const char *ret;
+
+	va_start(ap, fmt);
+	vasprintf(&filename, fmt, ap);
+	va_end(ap);
+
+	if (!filename) {
+		ni_error("%s(%s, %s): vasprintf failed: %m",
+				__func__, path, fmt);
+		return NULL;
+	}
+
+	ret = ni_sibling_path(path, filename);
+	free(filename);
+
+	return ret;
 }
 
 /*

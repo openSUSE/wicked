@@ -7,6 +7,9 @@
  <define name="assigned-address" class="dict">
    <local type="network-address-prefix"/>
    <peer type="network-address"/>
+   <anycast type="network-address"/>
+   <broadcast type="network-address"/>
+   <label type="string"/>
 
    <cache-info class="dict">
      <valid-lifetime type="uint32" />
@@ -52,7 +55,9 @@
     <forwarding type="boolean" />
  </define>
 
- <!-- Properties of an interface start here -->
+ <!-- =====================================
+      Properties of an interface start here
+      ===================================== -->
  <name type="string"/>
 
  <!-- These bits must match the definitions in netinfo.h -->
@@ -96,6 +101,7 @@
 <service name="interface-list" interface="org.opensuse.Network.InterfaceList">
   <method name="identifyDevice">
     <arguments>
+      <namespace type="string"/>
       <query class="dict"/>
     </arguments>
     <return>
@@ -146,7 +152,9 @@
 
   <method name="linkUp">
     <arguments>
-      <request type="link-request" />
+      <request type="link-request">
+        <meta:mapping document-node="/link" skip-unless-present="true" />
+      </request>
     </arguments>
     <return>
       <callback-info/>

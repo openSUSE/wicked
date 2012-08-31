@@ -34,7 +34,6 @@ extern ni_netdev_t **	ni_netconfig_device_list_head(ni_netconfig_t *);
 extern void		ni_netconfig_route_append(ni_netconfig_t *, ni_route_t *);
 extern void		ni_netconfig_modem_append(ni_netconfig_t *, ni_modem_t *);
 
-extern ni_netdev_t *	__ni_netdev_new(const char *name, unsigned int index);
 extern void		__ni_netdev_list_append(ni_netdev_t **, ni_netdev_t *);
 extern void		__ni_netdev_list_destroy(ni_netdev_t **);
 extern ni_addrconf_lease_t *__ni_netdev_find_lease(ni_netdev_t *, int, ni_addrconf_mode_t, int);
@@ -44,17 +43,9 @@ extern void		__ni_netdev_track_ipv6_autoconf(ni_netdev_t *, int);
 extern unsigned int	__ni_netdev_translate_ifflags(unsigned int);
 extern void		__ni_netdev_event(ni_netconfig_t *, ni_netdev_t *, ni_event_t);
 
-extern ni_route_t *	__ni_route_new(ni_route_t **, unsigned int prefix_len,
-				const ni_sockaddr_t *, const ni_sockaddr_t *);
-extern void		__ni_route_list_append(ni_route_t **, ni_route_t *);
-extern void		__ni_route_list_destroy(ni_route_t **);
 extern void		__ni_routes_clear(ni_netconfig_t *);
 
-extern ni_address_t *	__ni_address_new(ni_address_t **, int, unsigned int,
-				const ni_sockaddr_t *);
-extern int		__ni_address_list_dedup(ni_address_t **);
 extern ni_bool_t	__ni_address_list_remove(ni_address_t **, ni_address_t *);
-extern ni_address_t *	__ni_address_list_find(ni_address_t *, const ni_sockaddr_t *);
 
 extern int		__ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list);
 extern int		__ni_system_refresh_interfaces(ni_netconfig_t *nc);

@@ -7,6 +7,9 @@
 #ifndef __WICKED_CLIENT_H__
 #define __WICKED_CLIENT_H__
 
+#include <wicked/dbus.h>
+#include <wicked/objectmodel.h>
+
 typedef struct ni_call_error_context ni_call_error_context_t;
 typedef int			ni_call_error_handler_t(ni_call_error_context_t *, const DBusError *);
 
@@ -17,8 +20,8 @@ extern ni_dbus_object_t *	ni_call_get_netif_list_object(void);
 extern ni_dbus_object_t *	ni_call_get_modem_list_object(void);
 
 extern ni_dbus_object_t *	ni_call_create_client(void);
-extern char *			ni_call_identify_device(const xml_node_t *query);
-extern char *			ni_call_identify_modem(const xml_node_t *query);
+extern char *			ni_call_identify_device(const char *namespace, const xml_node_t *query);
+extern char *			ni_call_identify_modem(const char *namespace, const xml_node_t *query);
 extern char *			ni_call_device_new_xml(const ni_dbus_service_t *, const char *, xml_node_t *);
 extern int			ni_call_common_xml(ni_dbus_object_t *,
 					const ni_dbus_service_t *, const ni_dbus_method_t *,

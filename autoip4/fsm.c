@@ -14,8 +14,8 @@
 
 #include <wicked/netinfo.h>
 #include <wicked/addrconf.h>
+#include <wicked/route.h>
 #include <wicked/logging.h>
-#include "netinfo_priv.h"
 #include "autoip.h"
 
 /* The IPv4LL address range is 169.254.1.0 to 169.254.254.255 inclusive */
@@ -155,10 +155,10 @@ ni_autoip_fsm_build_lease(ni_autoip_device_t *dev)
 	memset(&addr, 0, sizeof(addr));
 	addr.sin.sin_family = AF_INET;
 	addr.sin.sin_addr = dev->autoip.candidate;
-	__ni_address_new(&lease->addrs, AF_INET, 16, &addr);
+	ni_address_new(AF_INET, 16, &addr, &lease->addrs);
 
-	ni_address_parse(&addr, "169.254.0.0", AF_INET);
-	__ni_route_new(&lease->routes, 16, &addr, NULL);
+	ni_sockaddr_parse(&addr, "169.254.0.0", AF_INET);
+	ni_route_new(16, &addr, NULL, &lease->routes);
 
 	lease->state = NI_ADDRCONF_STATE_GRANTED;
 	ni_autoip_device_set_lease(dev, lease);

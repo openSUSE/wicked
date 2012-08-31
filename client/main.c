@@ -68,6 +68,7 @@ extern int		do_nanny(int, char **);
 extern int		do_lease(int, char **);
 extern int		do_check(int, char **);
 static int		do_xpath(int, char **);
+static int		do_convert(int, char **);
 
 int
 main(int argc, char **argv)
@@ -171,6 +172,9 @@ main(int argc, char **argv)
 
 	if (!strcmp(cmd, "check"))
 		return do_check(argc - optind, argv + optind);
+
+	if (!strcmp(cmd, "convert"))
+		return do_convert(argc - optind, argv + optind);
 
 	fprintf(stderr, "Unsupported command %s\n", cmd);
 	goto usage;
@@ -477,7 +481,7 @@ do_show(int argc, char **argv)
 			printf("\n");
 
 			for (ap = ifp->addrs; ap; ap = ap->next)
-				printf("  addr:   %s/%u\n", ni_address_print(&ap->local_addr), ap->prefixlen);
+				printf("  addr:   %s/%u\n", ni_sockaddr_print(&ap->local_addr), ap->prefixlen);
 
 			for (rp = ifp->routes; rp; rp = rp->next) {
 				const ni_route_nexthop_t *nh;
@@ -485,13 +489,13 @@ do_show(int argc, char **argv)
 				printf("  route: ");
 
 				if (rp->prefixlen)
-					printf(" %s/%u", ni_address_print(&rp->destination), rp->prefixlen);
+					printf(" %s/%u", ni_sockaddr_print(&rp->destination), rp->prefixlen);
 				else
 					printf(" default");
 
 				if (rp->nh.gateway.ss_family != AF_UNSPEC) {
 					for (nh = &rp->nh; nh; nh = nh->next)
-						printf("; via %s", ni_address_print(&nh->gateway));
+						printf("; via %s", ni_sockaddr_print(&nh->gateway));
 				}
 
 				printf("\n");
@@ -718,11 +722,11 @@ add_conflict:
 		if (opt_netmask) {
 			ni_sockaddr_t addr;
 
-			if (ni_address_parse(&addr, opt_netmask, AF_UNSPEC) < 0) {
+			if (ni_sockaddr_parse(&addr, opt_netmask, AF_UNSPEC) < 0) {
 				ni_error("cannot parse netmask \"%s\"", opt_netmask);
 				return 1;
 			}
-			prefixlen = ni_netmask_bits(&addr);
+			prefixlen = ni_sockaddr_netmask_bits(&addr);
 		}
 
 		node = doc->root;
@@ -963,14 +967,14 @@ do_check(int argc, char **argv)
 			}
 
 			if (ni_string_eq(opt_cmd, "resolve")) {
-				printf("%s %s\n", hostname, ni_address_print(addr));
+				printf("%s %s\n", hostname, ni_sockaddr_print(addr));
 				continue;
 			}
 
 			if (ni_string_eq(opt_cmd, "route")) {
 				switch (ni_host_is_reachable(hostname, addr)) {
 				case 1:
-					printf("%s %s reachable\n", hostname, ni_address_print(addr));
+					printf("%s %s reachable\n", hostname, ni_sockaddr_print(addr));
 					break;
 
 				case 0:
@@ -983,7 +987,7 @@ do_check(int argc, char **argv)
 					/* fallthrough */
 
 				default:
-					ni_error("%s %s not reached", hostname, ni_address_print(addr));
+					ni_error("%s %s not reached", hostname, ni_sockaddr_print(addr));
 					failed++;
 				}
 
@@ -1039,3 +1043,106 @@ write_dbus_error(const char *filename, const char *name, const char *fmt, ...)
 
 	xml_document_free(doc);
 }
+
+/*
+ * Read native sysconfig files and display resulting XML
+ */
+int
+do_convert(int argc, char **argv)
+{
+	enum { OPT_FORMAT, OPT_OUTPUT };
+	static struct option options[] = {
+		{ "format",	required_argument, NULL, OPT_FORMAT },
+		{ "output",	required_argument, NULL, OPT_OUTPUT },
+		{ NULL }
+	};
+	const char *opt_format = NULL;
+	const char *opt_output = NULL;
+	xml_document_t *result = NULL;
+	int c;
+
+	optind = 1;
+	while ((c = getopt_long(argc, argv, "", options, NULL)) != EOF) {
+		switch (c) {
+		case OPT_FORMAT:
+			opt_format = optarg;
+			break;
+
+		case OPT_OUTPUT:
+			opt_output = optarg;
+			break;
+
+		default:
+			fprintf(stderr,
+				"Usage: wicked convert [options] [path ...]\n"
+				"\n"
+				"This will parse one or more files/directories in legacy format,\n"
+				"and render their content as XML.\n"
+				"If no path is given, a format-specific default path is used.\n"
+				"\n"
+				"Supported options:\n"
+				"  --format <name>\n"
+				"        Specify the file format (suse, redhat, ...)\n"
+				"  --output <path>\n"
+				"        Specify output file\n"
+			       );
+			return 1;
+		}
+	}
+
+	result = xml_document_new();
+	if (optind == argc) {
+		if (!__ni_compat_get_interfaces(opt_format, NULL, result))
+			ni_fatal("conversion of default files failed");
+	} else {
+		while (optind < argc) {
+			const char *path = argv[optind++];
+
+			if (!__ni_compat_get_interfaces(opt_format, path, result))
+				ni_fatal("%s: conversion failed", path);
+		}
+	}
+
+	if (opt_output == NULL) {
+		xml_document_print(result, stdout);
+	} else
+	if (ni_isdir(opt_output)) {
+		unsigned int seq = 0;
+		xml_node_t *ifnode;
+
+		/* Write resulting XML document as a bunch of files, one per interface */
+		for (ifnode = result->root->children; ifnode; ifnode = ifnode->next) {
+			char pathbuf[4096];
+			xml_node_t *namenode;
+			const char *ifname;
+			FILE *fp;
+
+			namenode = xml_node_get_child(ifnode, "name");
+			if ((ifname = namenode->cdata) != NULL) {
+				snprintf(pathbuf, sizeof(pathbuf), "%s/%s.xml", opt_output, ifname);
+			} else {
+				const char *ns;
+
+				if (!(ns = xml_node_get_attr(namenode, "namespace")))
+					ni_fatal("interface node has invalid <name> element");
+				snprintf(pathbuf, sizeof(pathbuf), "%s/id-%s-%u.xml",
+						opt_output, ns, seq++);
+			}
+
+			if ((fp = fopen(pathbuf, "w")) == NULL)
+				ni_fatal("unable to open %s for writing: %m", pathbuf);
+			xml_node_print(ifnode, fp);
+			fclose(fp);
+		}
+	} else {
+		FILE *fp;
+
+		if ((fp = fopen(opt_output, "w")) == NULL)
+			ni_fatal("unable to open %s for writing: %m", opt_output);
+		xml_document_print(result, fp);
+		fclose(fp);
+	}
+	xml_document_free(result);
+	return 0;
+}
+

@@ -59,7 +59,7 @@ ni_fsm_require_check_reachable(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_require_t
 
 	if (ni_host_is_reachable(check->hostname, &check->address) <= 0) {
 		ni_debug_application("check reachability: %s not reachable at %s",
-				check->hostname, ni_address_print(&check->address));
+				check->hostname, ni_sockaddr_print(&check->address));
 		return FALSE;
 	}
 

@@ -49,8 +49,6 @@ extern ni_dbus_service_t	ni_objectmodel_addrconf_ipv6_static_service;
 extern ni_dbus_service_t	ni_objectmodel_addrconf_ipv4_dhcp_service;
 extern ni_dbus_service_t	ni_objectmodel_addrconf_ipv6_dhcp_service;
 extern ni_dbus_service_t	ni_objectmodel_addrconf_ipv4ll_service;
-extern ni_dbus_service_t	ni_objectmodel_addrconf_ipv4_ibft_service;
-extern ni_dbus_service_t	ni_objectmodel_addrconf_ipv6_ibft_service;
 extern ni_dbus_service_t	ni_objectmodel_wireless_service;
 static ni_dbus_property_t	ni_objectmodel_netif_request_properties[];
 
@@ -98,8 +96,6 @@ ni_objectmodel_register_netif_services(void)
 	ni_objectmodel_register_netif_service(NI_IFTYPE_UNKNOWN, &ni_objectmodel_addrconf_ipv4_dhcp_service);
 	ni_objectmodel_register_netif_service(NI_IFTYPE_UNKNOWN, &ni_objectmodel_addrconf_ipv6_dhcp_service);
 	ni_objectmodel_register_netif_service(NI_IFTYPE_UNKNOWN, &ni_objectmodel_addrconf_ipv4ll_service);
-//	ni_objectmodel_register_netif_service(NI_IFTYPE_UNKNOWN, &ni_objectmodel_addrconf_ipv4_ibft_service);
-//	ni_objectmodel_register_netif_service(NI_IFTYPE_UNKNOWN, &ni_objectmodel_addrconf_ipv6_ibft_service);
 
 	ni_objectmodel_register_netif_service(NI_IFTYPE_ETHERNET, &ni_objectmodel_ethernet_service);
 	ni_objectmodel_register_netif_service(NI_IFTYPE_VLAN, &ni_objectmodel_vlan_service);
@@ -197,11 +193,10 @@ ni_objectmodel_netif_list_refresh(ni_dbus_object_t *object)
  * FIXME: move this to model.c
  */
 ni_dbus_object_t *
-ni_objectmodel_resolve_name(ni_dbus_object_t *parent, const char *naming_service, const char *attribute, const ni_dbus_variant_t *var)
+ni_objectmodel_resolve_name(ni_dbus_object_t *parent, const char *naming_service, const ni_dbus_variant_t *var)
 {
 	ni_dbus_object_t *result = NULL;
 	ni_objectmodel_ns_t *ns;
-	ni_var_array_t attrs = { 0, NULL };
 	const char *key, *value;
 
 	if (!(ns = ni_objectmodel_get_ns(naming_service))) {
@@ -210,36 +205,25 @@ ni_objectmodel_resolve_name(ni_dbus_object_t *parent, const char *naming_service
 	}
 
 	if (ni_dbus_variant_get_string(var, &value)) {
-		if (attribute == NULL) {
-			if (ns->lookup_by_name == NULL)
-				return NULL;
-			return ns->lookup_by_name(ns, value);
-		}
-
-		/* A single attribute.
-		 * <foo:bar>blabla</foo:bar> is a shorthand for
-		 * "query naming service foo, asking for interfaces with
-		 * attribute "bar" equal to "blabla". This is the same as
-		 *  <foo>
-		 *    <bar>blabla</bar>
-		 *  </foo>
-		 */
-		ni_var_array_set(&attrs, attribute, value);
+		if (ns->lookup_by_name == NULL)
+			return NULL;
+		result = ns->lookup_by_name(ns, value);
 	} else {
 		/* Loop over all dict entries and append them to the var array */
+		ni_var_array_t attrs = NI_VAR_ARRAY_INIT;
 		const ni_dbus_variant_t *dict = var;
 		unsigned int i = 0;
 
 		while ((var = ni_dbus_dict_get_entry(dict, i++, &key)) != NULL) {
 			if (!ni_dbus_variant_get_string(var, &value))
-				return NULL;
+				goto done;
 			ni_var_array_set(&attrs, key, value);
 		}
+
+		result = ni_objectmodel_lookup_by_attrs(parent, ns, &attrs);
+done:
+		ni_var_array_destroy(&attrs);
 	}
-
-	result = ni_objectmodel_lookup_by_attrs(parent, ns, &attrs);
-	ni_var_array_destroy(&attrs);
-
 	return result;
 }
 
@@ -251,49 +235,34 @@ ni_objectmodel_netif_list_identify_device(ni_dbus_object_t *object, const ni_dbu
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
-	const ni_dbus_variant_t *dict, *var;
-	const char *name;
-	char *copy, *naming_service, *attribute;
+	const char *namespace;
 	ni_dbus_object_t *found;
 
-	ni_assert(argc == 1);
-	if (argc != 1 || !ni_dbus_variant_is_dict(&argv[0]))
+	if (argc != 2
+	 || !ni_dbus_variant_get_string(&argv[0], &namespace)
+	 || (!ni_dbus_variant_is_dict(&argv[1]) && argv[1].type != DBUS_TYPE_STRING))
 		return ni_dbus_error_invalid_args(error, object->path, method->name);
-	dict = &argv[0];
 
-	if ((var = ni_dbus_dict_get_entry(dict, 0, &name)) == NULL)
-		goto invalid_args;
-
-	ni_debug_dbus("%s(name=%s)", __func__, name);
-	copy = naming_service = strdup(name);
-	if ((attribute = strchr(copy, ':')) != NULL)
-		*attribute++ = '\0';
-
-	found = ni_objectmodel_resolve_name(object, naming_service, attribute, var);
-	free(copy);
-
+	found = ni_objectmodel_resolve_name(object, namespace, &argv[1]);
 	if (found == NULL) {
 		dbus_set_error(error, NI_DBUS_ERROR_DEVICE_NOT_KNOWN,
-				"unable to identify interface via %s", name);
+				"unable to identify interface via %s", namespace);
 		return FALSE;
 	}
 
 	if (ni_objectmodel_unwrap_netif(found, NULL) == NULL) {
 		dbus_set_error(error, NI_DBUS_ERROR_DEVICE_NOT_KNOWN,
 				"failed to identify interface via %s - naming service returned "
-				"a %s object", name, found->class->name);
+				"a %s object", namespace, found->class->name);
 		return FALSE;
 	}
 
 	ni_dbus_message_append_string(reply, found->path);
 	return TRUE;
-
-invalid_args:
-	return ni_dbus_error_invalid_args(error, object->path, method->name);
 }
 
 static ni_dbus_method_t		ni_objectmodel_netif_list_methods[] = {
-	{ "identifyDevice",	"a{sv}",	ni_objectmodel_netif_list_identify_device },
+	{ "identifyDevice",	"sa{sv}",	ni_objectmodel_netif_list_identify_device },
 	{ NULL }
 };
 
@@ -430,7 +399,7 @@ ni_objectmodel_get_netif_argument(const ni_dbus_variant_t *dict, ni_iftype_t ift
 	ni_netdev_t *dev;
 	dbus_bool_t rv;
 
-	dev = ni_netdev_new(NULL, NULL, 0);
+	dev = ni_netdev_new(NULL, 0);
 	dev->link.type = iftype;
 
 	dev_object = ni_objectmodel_wrap_netif(dev);
@@ -881,7 +850,7 @@ static void
 ni_objectmodel_netif_initialize(ni_dbus_object_t *object)
 {
 	ni_assert(object->handle == NULL);
-	object->handle = ni_netdev_new(NULL, NULL, 0);
+	object->handle = ni_netdev_new(NULL, 0);
 }
 
 /*

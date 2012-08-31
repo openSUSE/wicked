@@ -1,0 +1,348 @@
+
+		Why Did You Do This?!
+
+
+Do we really need yet another network management thing?
+=======================================================
+
+
+No, not really. We already have the good old ifup/ifdown scripts, which
+are doing their job nicely. If you don't strain them too much or try to
+teach them new tricks (like integrating with systemd). Of all the
+tunables and knobs the kernel supports for each network interface, we're
+covering maybe 10%, but what was good enough for grandpa should be
+good enough for me as well, right?
+
+We've got udev messing around with network interface names, because
+users don't like it when what's called eth0 today is called eth15
+on the next boot. Which works nicely except when it fails, for one
+or the other weird reason.
+
+We've got Network Manager, which is also doing it's job nicely and won't
+give you any headaches if you prevent it from stepping on anybody else's
+toes. Or try to make it manage a thousand devices, like on System z.
+
+Then we've got libvirt and netcf, which do kind of an okay job if you
+manage to frob netcf enough that it deals with configuration files other
+than RedHat's, and as long as your network configuration doesn't get too
+complicated. Which happens quickly in a virtualization environment.
+
+Beyond these, there are things like openvswitch, which is crucial in
+a cloud environment but not at all integrated with any of the other
+components.
+
+So no, we don't really need yet another network management thingy.
+
+We need a management thingy that replaces a lot of this stuff.
+
+
+
+Yeah, but it kind of works, why should we mess with it
+======================================================
+
+Quick, using any of the existing frameworks, can you tell me how to...
+
+ - ... disable IPv6 on a specific interface?
+ - ... set up an interface for DHCPv4 and DHCPv6?
+ - ... change the link speed on an Ethernet interface?
+ - ... reconfigure a bonding device without bringing it down?
+ - ... set up a bridge using two bonded NICs as one of its ports?
+ - ... the same as above, with VLAN tagging?
+ - ... change the firewall rules on your UMTS modem?
+ - ... set up 802.1x authentication for your Ethernet NIC?
+ - ... set up persistent names for your System z devices?
+
+If you could answer all of them at the snap of a finger, please send me your CV.
+
+
+
+So, what properties should a new network management framework have?
+===================================================================
+
+Obviously, there are a number of aspects of the existing systems that
+make them useful to people; retaining these is worthwhile.
+
+For instance, having a command line interface is crucial to many
+people. You need to be able to change your network settings from an ssh
+session; and you want to be able to script network management tasks, too.
+
+Similarly, people like NetworkManager because it allows them to set up
+network interfaces in response to various events, and it does so more
+or less automatically, and without the user having to be root.
+
+From a maintenance perspective, extensibility and debugging are critical,
+too. While shell scripts are certainly not the latest in Software Engineering,
+it is certainly easy to extend an existing script (provided you understand
+what it's doing), and to insert debug output, etc.
+
+Beyond such aspects, there are a number of desirable properties.
+
+One, a modern network management framework should run as a service. The
+kernel offers a plethora of notifications via rtnetlink, and increasingly
+expects user space to react to these (for instance in the IPv6 area).
+Running a network management daemon allows us to track the state, detect
+changes, and react to them appropriately.
+
+Two, a modern network management framework should be layered - both in
+its implementation, and its configuration. One of the reasons why the
+existing ifcfg files are such a mess are the inherent limitations of
+shell scripts and shell variables dealing with complex types.
+
+	BOOTPROTO='static'
+	STARTMODE='auto'
+	NAME='82566DM-2 Gigabit Network Connection'
+	ETHTOOL_OPTIONS=''
+	USERCONTROL='no'
+	IPADDR='1.2.3.4/24'
+	IPADDR_0='1.2.8.17/24'
+
+This mixes - in random order - address configuration, hardware configuration,
+behavior control, and UI information. And things will become worse the moment
+you start to support additional parameters for your network devices - because
+you will quickly end up with VERY_LONG_VARIABLE_NAMES_NOBODY_WILL_EVER_REMEMBER.
+And some things are just tough to do using shell variables (while still maintaining
+a certain level of sanity), so that auxiliary file formats had to be invented -
+viz the ifcfg-routes file in opensuse.
+
+Ideally, the configuration file format should structure options into logical
+units - having syntactic groups for lumps of data that belong together;
+being able to organize several instances of the same type of data (such
+as say a static route) into a list; etc.
+
+Layering is also crucial for the implementation, because it makes sure you
+support a uniform set of features across all types of devices. Today, setting
+up a firewall on a serial PPP device is very different from doing it on an Ethernet
+interface, and that again is very different from doing it on a UMTS PPP session
+started by NetworkManager.
+
+Three, a modern network management framework should support a way to identify
+network devices by means other than their name. That name is really secondary;
+and tools should not rely on it. Instead, the management framework should provide
+naming facilities that allow you to identify interfaces by a set of attributes -
+for instance, it should be possible to identify a UMTS stick by the IMEI of
+its GSM card. Or it should be possible to identify a hotplug Ethernet card
+by the PCI ID of its enclosure, which ensures that when you replace the card,
+the new one will receive the same configuration as the old one.
+
+Four, a modern network management framework should model interface dependencies.
+Consider a bridge sitting on top of a VLAN built on a pair of bonded NICs.
+Before bringing up any of these, the management framework should bring up the
+lower-layer device. This doesn't really happen with today's scripts.
+
+Five, a modern network management framework should provide triggers for all sorts
+of things. For instance, if you have an NFS mount, wouldn't it be nice if you
+could tell the management framework to notify you as soon as the server's host
+name can be resolved, and the address is known to be reachable?
+
+
+Why don't you use tool XYZ?
+===========================
+
+We looked at all of the available tools, but we didn't come across anything
+that had similar goals to the ones above. Some went a long way, but they were
+either very much focused on a desktop-like use case with few devices (mostly
+Ethernet, WLAN and UMTS), or they were focused on the Enterprise end of the
+spectrum with little support for the needs of the single end user.
+
+So, I started to work on something I called wicked initially, which was a REST
+based service. If you haven't guess so far, I have a passion for really cheesy
+puns - REST for the wicked was something I couldn't pass up.
+
+The thing evolved quite a bit over time, moving from REST to a dbus
+based transport, among others - and it keeps evolving. Among other
+things, it'll probably change its name in the not too distant future,
+because people keep confusing wicked with WICD. I just need to come up
+with another cheesy pun.
+
+
+Basic architecture
+==================
+
+The basic architecture of the whole service is rather simple. There's
+a daemon process, wickedd, passively monitoring all interfaces, without
+touching any of them unless told otherwise.
+
+It offers a view of these devices via DBus, with a number of DBus
+interfaces attached to each of them.
+
+Clients can talk to this service and request a specific operation on any
+such device.
+
+There is a command line client called wicked whose main purpose it is
+to act as a backend to ifup and ifdown. This client can configure any
+number of interfaces in parallel, and also takes care of dependencies
+between interfaces.
+
+There is another application called network-nanny, which tries to do what
+NetworkManager is currently doing, using the Wicked service. It is fairly
+tightly integrated with the other components of management framework,
+and shares a significant amount of code with the command line client.
+
+
+
+Oh my god, it uses XML!!!
+=========================
+
+The desire to use a layered approach goes hand in hand with the need to
+have a less unstructured configuration file format. There are a number of
+different formats, including json and XML.
+
+I ended up picking XML as the primary configuration file format. Mentioning
+XML always tends to cause some eyebrows to go up - like mentioning that
+you're really a vi aficionado in a crowd of emacs users. But really,
+there's nothing particularly special about XML as long as you don't go
+religious about it. Other formats offer a similar set of structural
+features - you're free to add support for such format and send me
+the patch.
+
+A simple network configuration file for an Ethernet device with DHCP
+enabled looks like this:
+
+<interface>
+  <name>eth0</name>
+  <ipv4:dhcp>
+    <enabled>true</enabled>
+  </ipv4:dhcp>
+</interface>
+
+The same, but showing the layering at work:
+
+<interface>
+  <name>eth0</name>
+
+  <control>
+    <mode>boot</mode>
+    <link-detection>
+      <timeout>60</timeout>
+      <require-link />
+    </link-detection>
+  </control>
+
+  <ethernet>
+    <port-type>tp</port-type>
+    <link-speed>1000</link-speed>
+    <offload>
+      <tso>disable</tso>
+    </offload>
+  </ethernet>
+
+  <link>
+    <mtu>8000</mtu>
+    <txqlen>50</txqlen>
+  </link>
+
+  <firewall>
+    <zone>secure</zone>
+  </firewall>
+
+  <ipv4:dhcp>
+    <enabled>true</enabled>
+    <acquire-timeout>15</acquire-timeout>
+  </ipv4:dhcp>
+</interface>
+
+As you can see, options specific to the physical device are grouped in
+one XML element, generic link-layer options in another, and firewall
+settings in yet another element. Options controlling the process of bringing
+up the device are grouped below the <control> element.
+
+
+Layering at Work
+================
+
+All server-side operations are always specific a certain device and to
+a certain layer - for instance, configuring the firewall settings of
+a device, or setting its device level properties. So there are no complex
+operations like "here's the configuration file, now bring up the interface".
+
+Instead, the client decomposes the bring-up procedure into distinct steps,
+layer by layer. For instance, when bringing up an Ethernet device, it first
+sets all Ethernet-specific options, then it sets the generic link layer
+options (like the MTU), then brings up the firewall, and configures all
+addresses.
+
+If you match this against the configuration file, you will notice that
+there's a 1:1 correspondence between the different elements in the file,
+and the steps taken to bring up the device. Which is no coincidence -
+by choosing this structure, it is possible to keep the client completely
+ignorant of the semantics of the configuration data it sends along,
+by and large. The only pieces it really needs to understand include
+identification of the device (in the example above, via the <name>
+element), and the behavior settings contained in the <control> element.
+
+
+Device Identification
+=====================
+
+Naming of network devices in the kernel is a pain. Of course, it's not
+intentionally made painful, but from a user's perspective, it is - if
+you've ever run a server with several Ethernet interfaces in it, you know
+what I'm talking about.
+
+udev goes a long way to help with making device names persistent, if you
+install a set of rules that tries to rename your interfaces appropriately
+every time your machine boots. These rules have to be maintained manually
+or via a script. Unfortunately, this solution is sometimes a bit brittle;
+for instance, when you replace a card you have to update your udev rules.
+
+As an alternative, wicked lets you specify a device by means other than
+its kernel name. To do this, you can use a <name> element and select a
+specific naming class in the configuration file, such as this:
+
+<interface>
+  <name namespace="ethernet">
+   <permanent-address>00:11:22:33:44:55</permanent-address>
+  </name>
+  ...
+</interface>
+
+or this:
+
+<modem>
+  <name namespace="modem">
+   <!-- For a GSM modem, this would usually be its IMEI -->
+   <equipment-id>213908325</equipment-id>
+  </name>
+</modem>
+
+In this format, the <name> element can contain one or more attributes.
+The client will call the server to resolve these key/value pairs.
+On the server side, a "naming service" is selected, based on the
+name space you specified. There exist some built-in naming services,
+like the ones shown above, but additional ones can be provided (e.g.
+via a shared library). This makes this approach very flexible, and
+allows for platform-specific extensions.
+
+
+Parallel Execution
+==================
+
+In order to keep things simple, the DBus services are designed so that
+all calls to the server return immediately.  If an operation does not
+complete immediately (for instance, requesting a DHCP lease), a callback
+notifier is returned to the client, so that it knows that it should wait
+for the operation to complete before proceeding to the next stage.
+
+In the meantime, however, the wicked client is able to proceed setting up
+other interfaces, enhancing parallelism. Also, some layers offer more than
+one service - the prime example being address configuration, which is usually
+the last step in device-bringup. Here, nothing prevents us from trying to
+obtain a DHCPv4 and a DHCPv6 lease in parallel.
+
+
+Trigger Scripts
+===============
+
+These hooks don't exist yet, but will be implemented soonishly.
+
+
+
+Where can I find it?
+====================
+
+Currently, you can find the source at https://git.gitorious.org/wicked/wicked.git
+Packages for testing on openSUSE are work in progress.
+
+
+28. August 2012
+Olaf Kirch

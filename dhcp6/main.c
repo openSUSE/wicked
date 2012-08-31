@@ -539,7 +539,7 @@ dhcp6_interface_addr_event(ni_netdev_t *ifp, ni_event_t event, const ni_address_
 	case NI_EVENT_ADDRESS_DELETE:
 		ni_debug_events("%s[%u]: received interface address event: %s %s",
 			dev->ifname, dev->link.ifindex, ni_event_type_to_name(event),
-			ni_address_print(&ap->local_addr));
+			ni_sockaddr_print(&ap->local_addr));
 		ni_dhcp6_device_address_event(ifp, dev, event, ap);
 		break;
 	default:

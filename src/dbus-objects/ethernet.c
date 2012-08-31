@@ -66,7 +66,7 @@ __ni_objectmodel_ethernet_device_arg(const ni_dbus_variant_t *dict)
 	ni_netdev_t *dev;
 	dbus_bool_t rv;
 
-	dev = ni_netdev_new(NULL, NULL, 0);
+	dev = ni_netdev_new(NULL, 0);
 	dev->link.type = NI_IFTYPE_ETHERNET;
 
 	dev_object = ni_objectmodel_wrap_netif(dev);

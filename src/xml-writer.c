@@ -66,7 +66,7 @@ xml_document_print(const xml_document_t *doc, FILE *fp)
 {
 	xml_writer_t writer;
 
-	if (xml_writer_init_file(&writer, fp) < 0)
+	if (xml_writer_init_file(&writer, fp? fp : stdout) < 0)
 		return -1;
 
 	xml_document_output(doc, &writer);

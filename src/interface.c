@@ -34,7 +34,7 @@
  * Takes interface name and ifindex.
  */
 ni_netdev_t *
-__ni_netdev_new(const char *name, unsigned int index)
+ni_netdev_new(const char *name, unsigned int index)
 {
 	ni_netdev_t *dev;
 
@@ -51,18 +51,6 @@ __ni_netdev_new(const char *name, unsigned int index)
 	if (name)
 		dev->name = xstrdup(name);
 
-	return dev;
-}
-
-ni_netdev_t *
-ni_netdev_new(ni_netconfig_t *nc, const char *name, unsigned int index)
-{
-	ni_netdev_t *dev;
-
-	dev = __ni_netdev_new(name, index);
-	if (nc && dev)
-		ni_netconfig_device_append(nc, dev);
-	
 	return dev;
 }
 
@@ -147,7 +135,7 @@ ni_netdev_add_route(ni_netdev_t *dev,
 				const ni_sockaddr_t *dest,
 				const ni_sockaddr_t *gw)
 {
-	return __ni_route_new(&dev->routes, prefix_len, dest, gw);
+	return ni_route_new(prefix_len, dest, gw, &dev->routes);
 }
 
 /*
@@ -447,7 +435,7 @@ __ni_lease_owns_address(const ni_addrconf_lease_t *lease, const ni_address_t *ma
 		for (rp = lease->routes; rp; rp = rp->next) {
 			if (rp->prefixlen != match->prefixlen)
 				continue;
-			if (ni_address_prefix_match(rp->prefixlen, &rp->destination, &match->local_addr))
+			if (ni_sockaddr_prefix_match(rp->prefixlen, &rp->destination, &match->local_addr))
 				return TRUE;
 		}
 	}
@@ -460,15 +448,15 @@ __ni_lease_owns_address(const ni_addrconf_lease_t *lease, const ni_address_t *ma
 		 * address prefix only; the address that will eventually be picked
 		 * by the autoconf logic will be different */
 		if (lease->family == AF_INET6 && lease->type == NI_ADDRCONF_AUTOCONF) {
-			if (!ni_address_prefix_match(match->prefixlen, &ap->local_addr, &match->local_addr))
+			if (!ni_sockaddr_prefix_match(match->prefixlen, &ap->local_addr, &match->local_addr))
 				continue;
 		} else {
-			if (!ni_address_equal(&ap->local_addr, &match->local_addr))
+			if (!ni_sockaddr_equal(&ap->local_addr, &match->local_addr))
 				continue;
 		}
 
-		if (ni_address_equal(&ap->peer_addr, &match->peer_addr)
-		 && ni_address_equal(&ap->anycast_addr, &match->anycast_addr))
+		if (ni_sockaddr_equal(&ap->peer_addr, &match->peer_addr)
+		 && ni_sockaddr_equal(&ap->anycast_addr, &match->anycast_addr))
 			return TRUE;
 	}
 	return FALSE;
@@ -490,7 +478,7 @@ __ni_netdev_route_to_lease(ni_netdev_t *dev, const ni_route_t *rp)
 		/* First, check if this is an interface route */
 		for (ap = lease->addrs; ap; ap = ap->next) {
 			if (rp->prefixlen == ap->prefixlen
-			 && ni_address_prefix_match(ap->prefixlen, &rp->destination, &ap->local_addr))
+			 && ni_sockaddr_prefix_match(ap->prefixlen, &rp->destination, &ap->local_addr))
 				return lease;
 		}
 

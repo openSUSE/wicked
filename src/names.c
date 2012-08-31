@@ -63,7 +63,6 @@ static ni_intmap_t __addrconf_names[] = {
 	{ "dhcp",	NI_ADDRCONF_DHCP	},
 	{ "static",	NI_ADDRCONF_STATIC	},
 	{ "auto",	NI_ADDRCONF_AUTOCONF	},
-	{ "ibft",	NI_ADDRCONF_IBFT	},
 	{ "intrinsic",	NI_ADDRCONF_INTRINSIC	},
 
 	{ NULL }

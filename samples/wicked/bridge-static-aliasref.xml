@@ -14,15 +14,11 @@
      -->
     <ports>
      <p>
-      <device>
-        <alias>vlan-42</alias>
-      </device>
+      <device namespace="alias">vlan-42</device>
       <path-cost>16</path-cost>
      </p>
      <p>
-      <device>
-        <alias>vlan-41</alias>
-      </device>
+      <device namespace="alias">vlan-41</device>
       <priority>63</priority>
      </p>
     </ports>

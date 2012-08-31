@@ -131,7 +131,9 @@ __ni_rtevent_newlink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 		old_flags = old->link.ifflags;
 		dev = old;
 	} else {
-		dev = ni_netdev_new(nc, ifname, ifi->ifi_index);
+		dev = ni_netdev_new(ifname, ifi->ifi_index);
+		if (dev)
+			ni_netconfig_device_append(nc, dev);
 	}
 	if (__ni_netdev_process_newlink(dev, h, ifi, nc) < 0) {
 		ni_error("Problem parsing RTM_NEWLINK message for %s", ifname);
@@ -289,7 +291,7 @@ __ni_rtevent_deladdr(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 		return -1;
 	}
 
-	if ((ap = __ni_address_list_find(dev->addrs, &tmp.local_addr)) != NULL) {
+	if ((ap = ni_address_list_find(dev->addrs, &tmp.local_addr)) != NULL) {
 		__ni_netdev_addr_event(dev, NI_EVENT_ADDRESS_DELETE, ap);
 
 		__ni_address_list_remove(&dev->addrs, ap);
