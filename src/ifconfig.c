@@ -1035,7 +1035,6 @@ __ni_rtnl_send_newaddr(ni_netdev_t *dev, const ni_address_t *ap, int flags)
 {
 	struct ifaddrmsg ifa;
 	struct nl_msg *msg;
-	int len;
 
 	ni_debug_ifconfig("%s(%s/%u)", __FUNCTION__, ni_sockaddr_print(&ap->local_addr), ap->prefixlen);
 
@@ -1075,8 +1074,9 @@ __ni_rtnl_send_newaddr(ni_netdev_t *dev, const ni_address_t *ap, int flags)
 	 && addattr_sockaddr(msg, IFA_ANYCAST, &ap->anycast_addr))
 		goto nla_put_failure;
 
-	len = strlen(ap->label);
-	if (len) {
+	if (ap->label) {
+		unsigned int len = strlen(ap->label);
+
 		if (memcmp(ap->label, dev->name, len) != 0) {
 			ni_error("when specifying an interface label, the device name must "
 			   "be a prefix of the label");
@@ -1420,7 +1420,7 @@ __ni_netdev_update_addrs(ni_netdev_t *dev,
 		if (new_addr != NULL) {
 			/* Check whether we need to update */
 			if ((new_addr->scope == -1 || ap->scope == new_addr->scope)
-			 && (new_addr->label[0] == '\0' || !strcmp(ap->label, new_addr->label))
+			 && (new_addr->label == NULL || ni_string_eq(ap->label, new_addr->label))
 			 && ni_sockaddr_equal(&ap->bcast_addr, &new_addr->bcast_addr)
 			 && ni_sockaddr_equal(&ap->anycast_addr, &new_addr->anycast_addr)) {
 				/* Current address as configured, no need to change. */

@@ -301,7 +301,7 @@ __ni_compat_generate_static_address_list(xml_node_t *ifnode, ni_address_t *addr_
 			xml_node_new_element("peer", anode, ni_sockaddr_print(&ap->peer_addr));
 		if (ap->bcast_addr.ss_family != AF_UNSPEC)
 			xml_node_new_element("broadcast", anode, ni_sockaddr_print(&ap->bcast_addr));
-		if (ap->label[0])
+		if (ap->label)
 			xml_node_new_element("label", anode, ap->label);
 	}
 

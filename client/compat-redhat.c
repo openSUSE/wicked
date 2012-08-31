@@ -385,7 +385,7 @@ __ni_redhat_addrconf_static(ni_sysconfig_t *sc, ni_compat_netdev_t *compat, cons
 		return FALSE;
 
 	if (label)
-		strncpy(ap->label, label, sizeof(ap->label) - 1);
+		ni_string_dup(&ap->label, label);
 
 	if ((value = ni_sysconfig_get_value(sc, "BROADCAST")) != NULL) {
 		if (ni_sockaddr_parse(&ap->bcast_addr, value, AF_INET) < 0)

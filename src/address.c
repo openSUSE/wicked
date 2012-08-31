@@ -70,6 +70,7 @@ ni_address_new(int af, unsigned int prefix_len, const ni_sockaddr_t *local_addr,
 void
 ni_address_free(ni_address_t *ap)
 {
+	ni_string_free(&ap->label);
 	free(ap);
 }
 

@@ -890,12 +890,8 @@ __ni_rtnl_parse_newaddr(unsigned ifflags, struct nlmsghdr *h, struct ifaddrmsg *
 		ap->ipv6_cache_info.preferred_lft = ci->ifa_prefered;
 	}
 
-	if (tb[IFA_LABEL] != NULL) {
-		const char *label = nla_get_string(tb[IFA_LABEL]);
-
-		if (label)
-			strncpy(ap->label, label, sizeof(ap->label) - 1);
-	}
+	if (tb[IFA_LABEL] != NULL)
+		ni_string_dup(&ap->label, nla_get_string(tb[IFA_LABEL]));
 
 	return 0;
 }

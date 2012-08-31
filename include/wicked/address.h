@@ -36,7 +36,7 @@ typedef struct ni_address {
 	ni_sockaddr_t		peer_addr;
 	ni_sockaddr_t		anycast_addr;
 	ni_sockaddr_t		bcast_addr;
-	char			label[IFNAMSIZ];
+	char *			label;
 
 	ni_ipv6_cache_info_t	ipv6_cache_info;
 } ni_address_t;
