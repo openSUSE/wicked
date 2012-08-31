@@ -1,0 +1,10 @@
+<!-- Configuration file for network-nanny -->
+<config>
+  <include name="common.xml"/>
+
+  <nanny>
+    <enable class="modem"/>
+    <enable link-layer="ethernet" />
+    <enable link-layer="wireless" />
+  </nanny>
+</config>
