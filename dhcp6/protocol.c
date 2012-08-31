@@ -1938,12 +1938,10 @@ ni_dhcp6_option_parse_ia_pd(ni_buffer_t *bp,  ni_dhcp6_ia_t **ia_pd_list, uint32
 		goto failure;
 
 	/* rfc3633#section-9
-	 *
-	 * If a requesting router receives an IA_PD with T1 greater than T2, and
-	 * both T1 and T2 are greater than 0, the client discards the IA_PD
-	 * option and processes the remainder of the message as though the
-	 * delegating router had not included the IA_PD option.
-	 *
+	 *   If a requesting router receives an IA_PD with T1 greater than T2, and
+	 *   both T1 and T2 are greater than 0, the requesting router discards the
+	 *   IA_PD option and processes the remainder of the message as though the
+	 *   delegating router had not included the IA_PD option.
 	 */
 	if (ia->renewal_time && ia->rebind_time && ia->renewal_time > ia->rebind_time) {
 		ni_debug_dhcp("%s: discarding due to invalid times: T1 %u > T2 %u",
