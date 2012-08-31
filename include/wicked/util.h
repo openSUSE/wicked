@@ -95,17 +95,17 @@ extern int		ni_string_array_is_uniq(const ni_string_array_t *);
 extern void		ni_var_array_init(ni_var_array_t *);
 extern void		ni_var_array_destroy(ni_var_array_t *);
 extern ni_var_t *	ni_var_array_get(const ni_var_array_t *, const char *name);
-extern int		ni_var_array_set(ni_var_array_t *, const char *name, const char *value);
+extern void		ni_var_array_set(ni_var_array_t *, const char *name, const char *value);
 
 extern int		ni_var_array_get_string(ni_var_array_t *, const char *, char **);
 extern int		ni_var_array_get_integer(ni_var_array_t *, const char *, unsigned int *);
 extern int		ni_var_array_get_long(ni_var_array_t *, const char *, unsigned long *);
 extern int		ni_var_array_get_double(ni_var_array_t *, const char *, double *);
 extern int		ni_var_array_get_boolean(ni_var_array_t *, const char *, int *);
-extern int		ni_var_array_set_integer(ni_var_array_t *, const char *name, unsigned int);
-extern int		ni_var_array_set_long(ni_var_array_t *, const char *name, unsigned long);
-extern int		ni_var_array_set_double(ni_var_array_t *, const char *name, double);
-extern int		ni_var_array_set_boolean(ni_var_array_t *, const char *name, int);
+extern void		ni_var_array_set_integer(ni_var_array_t *, const char *name, unsigned int);
+extern void		ni_var_array_set_long(ni_var_array_t *, const char *name, unsigned long);
+extern void		ni_var_array_set_double(ni_var_array_t *, const char *name, double);
+extern void		ni_var_array_set_boolean(ni_var_array_t *, const char *name, int);
 
 extern void		ni_stringbuf_set(ni_stringbuf_t *, const char *);
 extern void		ni_stringbuf_init(ni_stringbuf_t *);

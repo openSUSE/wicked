@@ -333,7 +333,7 @@ ni_var_array_get(const ni_var_array_t *nva, const char *name)
 	return NULL;
 }
 
-int
+void
 ni_var_array_set(ni_var_array_t *nva, const char *name, const char *value)
 {
 	ni_var_t *var;
@@ -348,7 +348,6 @@ ni_var_array_set(ni_var_array_t *nva, const char *name, const char *value)
 	}
 
 	ni_string_dup(&var->value, value);
-	return 0;
 }
 
 int
@@ -392,37 +391,37 @@ ni_var_array_get_boolean(ni_var_array_t *nva, const char *name, int *p)
 	return 0;
 }
 
-int
+void
 ni_var_array_set_integer(ni_var_array_t *nva, const char *name, unsigned int value)
 {
 	char buffer[32];
 
 	snprintf(buffer, sizeof(buffer), "%u", value);
-	return ni_var_array_set(nva, name, buffer);
+	ni_var_array_set(nva, name, buffer);
 }
 
-int
+void
 ni_var_array_set_long(ni_var_array_t *nva, const char *name, unsigned long value)
 {
 	char buffer[32];
 
 	snprintf(buffer, sizeof(buffer), "%lu", value);
-	return ni_var_array_set(nva, name, buffer);
+	ni_var_array_set(nva, name, buffer);
 }
 
-int
+void
 ni_var_array_set_double(ni_var_array_t *nva, const char *name, double value)
 {
 	char buffer[32];
 
 	snprintf(buffer, sizeof(buffer), "%g", value);
-	return ni_var_array_set(nva, name, buffer);
+	ni_var_array_set(nva, name, buffer);
 }
 
-int
+void
 ni_var_array_set_boolean(ni_var_array_t *nva, const char *name, int value)
 {
-	return ni_var_array_set(nva, name, value? "yes" : "no");
+	ni_var_array_set(nva, name, value? "yes" : "no");
 }
 
 
