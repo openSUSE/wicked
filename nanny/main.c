@@ -251,7 +251,7 @@ ni_nanny_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_m
 		// we were the ones who took it up - so bring it down
 		// again
 		if (mdev->selected_policy != NULL && mdev->monitor)
-			ni_nanny_schedule_recheck(mgr, w);
+			ni_nanny_schedule_down(mgr, w);
 		break;
 
 	case NI_EVENT_LINK_ASSOCIATION_LOST:
