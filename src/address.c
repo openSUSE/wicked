@@ -284,6 +284,24 @@ ni_address_is_duplicate(const ni_address_t *laddr)
 }
 
 ni_bool_t
+ni_address_is_temporary(const ni_address_t *laddr)
+{
+	return laddr->flags & IFA_F_TEMPORARY;
+}
+
+ni_bool_t
+ni_address_is_permanent(const ni_address_t *laddr)
+{
+	return laddr->flags & IFA_F_PERMANENT;
+}
+
+ni_bool_t
+ni_address_is_deprecated(const ni_address_t *laddr)
+{
+	return laddr->flags & IFA_F_DEPRECATED;
+}
+
+ni_bool_t
 ni_sockaddr_equal(const ni_sockaddr_t *ss1, const ni_sockaddr_t *ss2)
 {
 	const unsigned char *ap1, *ap2;

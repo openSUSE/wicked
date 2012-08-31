@@ -196,6 +196,10 @@ extern ni_bool_t	ni_address_is_loopback(const ni_address_t *laddr);
 extern ni_bool_t	ni_address_is_linklocal(const ni_address_t *laddr);
 extern ni_bool_t	ni_address_is_duplicate(const ni_address_t *laddr);
 extern ni_bool_t	ni_address_is_tentative(const ni_address_t *laddr);
+extern ni_bool_t	ni_address_is_temporary(const ni_address_t *laddr);
+extern ni_bool_t	ni_address_is_permanent(const ni_address_t *laddr);
+extern ni_bool_t	ni_address_is_deprecated(const ni_address_t *laddr);
+
 extern ni_bool_t	ni_address_probably_dynamic(const ni_address_t *);
 
 extern int		ni_link_address_format(const ni_hwaddr_t *ss,
