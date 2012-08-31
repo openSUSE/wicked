@@ -39,6 +39,7 @@ extern void		ni_dhcp6_device_drop_best_offer(ni_dhcp6_device_t *);
 
 extern unsigned int	ni_dhcp6_device_uptime(const ni_dhcp6_device_t *, unsigned int);
 extern int		ni_dhcp6_device_iaid(const ni_dhcp6_device_t *dev, uint32_t *iaid);
+extern void		ni_dhcp6_device_address_event(ni_netdev_t *, ni_dhcp6_device_t *, ni_event_t, const ni_address_t *);
 
 /* config access [/etc/wicked/config.xml, node /config/addrconf/dhcp6] */
 extern const char *	ni_dhcp6_config_default_duid(ni_opaque_t *);

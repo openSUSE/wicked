@@ -84,20 +84,12 @@ static char *			opt_state_file;
 static ni_dbus_server_t *	dhcp6_dbus_server;
 
 static void			dhcp6_interface_event(ni_netdev_t *, ni_event_t);
-static void			dhcp6_interface_addr_event(ni_netdev_t *, ni_event_t, const ni_address_t *);
-
 static void			dhcp6_supplicant(void);
-
-extern ni_dhcp6_request_t *	ni_dhcp6_request_new(void);
-static void			dhcp6_client_request_info(const char *ifname);
-static void			dhcp6_client_request_lease(const char *ifname);
-static void			dhcp6_client_release_lease(const char *ifname);
 
 int
 main(int argc, char **argv)
 {
 	const char *ifname = NULL;
-	int action = OPT_DBUS;
 	int c;
 
 	program_name = ni_basename(argv[0]);
@@ -117,12 +109,6 @@ main(int argc, char **argv)
 				"        Do not background the service.\n"
 				"  --norecover\n"
 				"        Disable automatic recovery of leases.\n"
-				"  --request-info <ifname>\n"
-				"        Send info request on interface and show it\n"
-				"  --request-lease <ifname>\n"
-				"        Send lease request on interface and show it\n"
-				"  --release-lease <ifname>\n"
-				"        Send lease release on interface and show it\n"
 				, program_name
 			       );
 			return 1;
@@ -150,19 +136,6 @@ main(int argc, char **argv)
 		case OPT_NORECOVER:
 			opt_recover_leases = 0;
 			break;
-
-		case OPT_INFO_REQUEST:
-			action = OPT_INFO_REQUEST;
-			ifname = optarg;
-			break;
-		case OPT_LEASE_REQUEST:
-			action = OPT_LEASE_REQUEST;
-			ifname = optarg;
-			break;
-		case OPT_LEASE_RELEASE:
-			action = OPT_LEASE_RELEASE;
-			ifname = optarg;
-			break;
 		}
 	}
 
@@ -183,141 +156,9 @@ main(int argc, char **argv)
 	/* We're using randomized timeouts. Seed the RNG */
 	ni_srandom();
 
-	switch(action) {
-		case OPT_INFO_REQUEST:
-			dhcp6_client_request_info(ifname);
-		break;
-
-		case OPT_LEASE_REQUEST:
-			dhcp6_client_request_lease(ifname);
-		break;
-
-		case OPT_LEASE_RELEASE:
-			dhcp6_client_release_lease(ifname);
-		break;
-
-		default:
-			dhcp6_supplicant();
-		break;
-	}
+	dhcp6_supplicant();
 
 	return 0;
-}
-
-/*
- * Just some test code...
- */
-static void
-dhcp6_client_request_info(const char *ifname)
-{
-	ni_dhcp6_device_t *dev;
-	ni_netconfig_t *nc;
-	ni_netdev_t *ifp;
-	//ni_duid_t *duid;
-	ni_dhcp6_request_t *req;
-
-	if (!(nc = ni_global_state_handle(1)))
-		ni_fatal("cannot refresh interface list!");
-
-	/* open global RTNL socket to listen for kernel events */
-	if (ni_server_listen_interface_events(dhcp6_interface_event) < 0)
-		ni_fatal("unable to initialize netlink listener");
-
-	if (ni_server_enable_interface_addr_events(dhcp6_interface_addr_event) < 0)
-		ni_fatal("unable to initialize netlink address update listener");
-
-	ifp = ni_netdev_by_name(nc, ifname);
-	if (!ifp)
-		ni_fatal("unable to find interface with name %s", ifname);
-
-	dev = ni_dhcp6_device_new(ifp->name, &ifp->link);
-	if (!dev) {
-		ni_fatal("Cannot create dhcp6 device for %s", ifp->name);
-	}
-
-	req = ni_dhcp6_request_new();
-	if(!req) {
-		ni_fatal("Cannot construct dhcp request for %s", ifp->name);
-	}
-
-	/*
-	 * FIXME:
-	 * Init request parameter, e.g. client-id, oro list, ... you'd like to see.
-	 */
-	req->info_only = TRUE;
-	if(ni_dhcp6_acquire(dev, req) < 0) {
-		ni_dhcp6_request_free(req);
-		ni_fatal("Failed to schedule dhcp6 request");
-	}
-
-	while (!ni_caught_terminal_signal()) {
-		long timeout;
-
-		timeout = ni_timer_next_timeout();
-		ni_trace("next timeout in %ld", timeout);
-		if (ni_socket_wait(timeout) < 0)
-			ni_fatal("ni_socket_wait failed");
-	}
-}
-
-static void
-dhcp6_client_request_lease(const char *ifname)
-{
-	ni_dhcp6_device_t *dev;
-	ni_netconfig_t *nc;
-	ni_netdev_t *ifp;
-	//ni_duid_t *duid;
-	ni_dhcp6_request_t *req;
-
-	if (!(nc = ni_global_state_handle(1)))
-		ni_fatal("cannot refresh interface list!");
-
-	/* open global RTNL socket to listen for kernel events */
-	if (ni_server_listen_interface_events(dhcp6_interface_event) < 0)
-		ni_fatal("unable to initialize netlink listener");
-
-	if (ni_server_enable_interface_addr_events(dhcp6_interface_addr_event) < 0)
-		ni_fatal("unable to initialize netlink address update listener");
-
-	ifp = ni_netdev_by_name(nc, ifname);
-	if (!ifp)
-		ni_fatal("unable to find interface with name %s", ifname);
-
-	dev = ni_dhcp6_device_new(ifp->name, &ifp->link);
-	if (!dev) {
-		ni_fatal("Cannot create dhcp6 device for %s", ifp->name);
-	}
-
-	req = ni_dhcp6_request_new();
-	if(!req) {
-		ni_fatal("Cannot construct dhcp request for %s", ifp->name);
-	}
-
-	/*
-	 * FIXME:
-	 * Init request parameter, e.g. client-id, oro list, ... you'd like to see.
-	 */
-	req->info_only = FALSE;
-	if(ni_dhcp6_acquire(dev, req) < 0) {
-		ni_dhcp6_request_free(req);
-		ni_fatal("Failed to schedule dhcp6 request");
-	}
-	ni_dhcp6_device_set_request(dev, req);
-
-	while (!ni_caught_terminal_signal()) {
-		long timeout;
-
-		timeout = ni_timer_next_timeout();
-		ni_trace("next timeout in %ld", timeout);
-		if (ni_socket_wait(timeout) < 0)
-			ni_fatal("ni_socket_wait failed");
-	}
-}
-
-static void
-dhcp6_client_release_lease(const char *ifname)
-{
-	ni_fatal("Not implemented yet");
 }
 
 /*
@@ -427,7 +268,7 @@ dhcp6_supplicant(void)
 	if (ni_server_listen_interface_events(dhcp6_interface_event) < 0)
 		ni_fatal("unable to initialize netlink listener");
 
-	if (ni_server_enable_interface_addr_events(dhcp6_interface_addr_event) < 0)
+	if (ni_server_enable_interface_addr_events(ni_dhcp6_address_event) < 0)
 		ni_fatal("unable to initialize netlink address update listener");
 
 	if (!opt_foreground) {
@@ -524,27 +365,6 @@ dhcp6_interface_event(ni_netdev_t *ifp, ni_event_t event)
         default:
         break;
         }
-}
-
-static void
-dhcp6_interface_addr_event(ni_netdev_t *ifp, ni_event_t event, const ni_address_t *ap)
-{
-	ni_dhcp6_device_t *dev;
-
-	if ((dev = ni_dhcp6_device_by_index(ifp->link.ifindex)) == NULL)
-		return;
-
-	switch (event) {
-	case NI_EVENT_ADDRESS_UPDATE:
-	case NI_EVENT_ADDRESS_DELETE:
-		ni_debug_events("%s[%u]: received interface address event: %s %s",
-			dev->ifname, dev->link.ifindex, ni_event_type_to_name(event),
-			ni_sockaddr_print(&ap->local_addr));
-		ni_dhcp6_device_address_event(ifp, dev, event, ap);
-		break;
-	default:
-		break;
-	}
 }
 
 static void

@@ -26,7 +26,7 @@
 
 #include <sys/time.h>
 #include <net/if_arp.h>
-#include <linux/if_addr.h>
+#include <linux/rtnetlink.h>	/* address flags, TODO: get rid of them */
 #include <arpa/inet.h>
 
 #include <wicked/util.h>
@@ -367,12 +367,48 @@ ni_dhcp6_device_iaid(const ni_dhcp6_device_t *dev, uint32_t *iaid)
 	return -1;
 }
 
+void
+ni_dhcp6_device_show_addrs(ni_dhcp6_device_t *dev)
+{
+	ni_netconfig_t *nc;
+	ni_netdev_t *ifp;
+	ni_address_t *ap;
+	unsigned int nr = 0;
+
+	nc = ni_global_state_handle(0);
+	if(!nc || !(ifp = ni_netdev_by_index(nc, dev->link.ifindex))) {
+		ni_error("%s[%u]: Unable to find network interface by index",
+			dev->ifname, dev->link.ifindex);
+		return;
+	}
+
+	for (ap = ifp->addrs; ap; ap = ap->next) {
+		ni_debug_dhcp("%s[%u]: address[%u] %s/%u%s, scope=%s, flags%s%s%s%s%s",
+				dev->ifname, dev->link.ifindex, nr++,
+				ni_sockaddr_print(&ap->local_addr), ap->prefixlen,
+				(ni_address_is_linklocal(ap) ? " [link-local]" : ""),
+				(ap->scope == RT_SCOPE_HOST ? "host" :
+				 (ap->scope == RT_SCOPE_LINK ? "link" :
+				  (ap->scope == RT_SCOPE_SITE ? "site" : "universe"))),
+				(ni_address_is_temporary(ap) ? " temporary"  : ""),
+				(ni_address_is_permanent(ap) ? " permanent"  : " dynamic"),
+				(ni_address_is_deprecated(ap) ? " deprecated"  : ""),
+				(ni_address_is_tentative(ap) ? " tentative " : ""),
+				(ni_address_is_duplicate(ap) ? " duplicate " : "")
+		);
+	}
+}
 
 int
 ni_dhcp6_device_start(ni_dhcp6_device_t *dev)
 {
-	if (!dev->config)
+	if (!dev->config) {
+		ni_error("%s[%u]: Cannot start DHCPv6 without config",
+			dev->ifname, dev->link.ifindex);
 		return -1;
+	}
+
+	ni_dhcp6_device_show_addrs(dev);
 
 	dev->failed = 0;
 	ni_dhcp6_device_alloc_buffer(dev);
@@ -458,48 +494,60 @@ ni_dhcp6_device_find_lladdr(ni_dhcp6_device_t *dev, ni_dhcp6_config_t *config)
 }
 
 static void
-__handle_address_update(ni_netdev_t *ifp, ni_dhcp6_device_t *dev, const ni_address_t *addr)
+__ni_dhcp6_device_lladdr_update(ni_netdev_t *ifp, ni_dhcp6_device_t *dev, const ni_address_t *addr)
 {
 	ni_address_t *ap;
 	unsigned int tentative = 0;
+	unsigned int addresses = 0;
 
-	switch (dev->fsm.state) {
-	case NI_DHCP6_STATE_WAIT_READY:
-		if (!dev->config) {
-			ni_error("%s[%u]: BUG -- wait ready without config",
-					dev->ifname, dev->link.ifindex);
-
-			ni_dhcp6_device_stop(dev);
-			return;
+	if (dev->config->client_addr.ss_family != AF_INET6 &&
+	    addr->family == AF_INET6 && ni_address_is_linklocal(addr)) {
+		if( ni_dhcp6_device_set_lladdr(dev, dev->config, addr) == 0) {
+			/*
+			 * OK, this is what we require to continue,
+			 * so disable failure.
+			 */
+			dev->fsm.fail_on_timeout = 0;
 		}
+	}
 
-		if (addr->family == AF_INET6 && ni_address_is_linklocal(addr)) {
-			if( ni_dhcp6_device_set_lladdr(dev, dev->config, addr) == 0)
-				dev->fsm.fail_on_timeout = 0;
-		}
+	for (ap = ifp->addrs; ap; ap = ap->next) {
+		if (ap->family != AF_INET6)
+			continue;
 
-		for (ap = ifp->addrs; ap; ap = ap->next) {
-			if (ap->family != AF_INET6)
-				continue;
-			if (ni_address_is_duplicate(ap))
-				continue;
-			if (ni_address_is_tentative(ap))
-				tentative++;
-		}
+		addresses++;
+		if (ni_address_is_duplicate(ap))
+			continue;
+		if (ni_address_is_tentative(ap))
+			tentative++;
+	}
 
-		if (tentative == 0) {
-			ni_dhcp6_fsm_set_timeout_msec(dev, 0);
-			ni_dhcp6_device_start(dev);
-		}
-		break;
+	/* When we have a link local address and there are no another tentative
+	 * addresses, cancel timeout & start. Otherwise continue to wait and
+	 * start via timeout handler.
+	 */
+	if (dev->config->client_addr.ss_family == AF_INET6 && !tentative) {
+		ni_dhcp6_fsm_set_timeout_msec(dev, 0);
+		ni_dhcp6_device_start(dev);
 	}
 }
 
 void
-ni_dhcp6_device_address_event(ni_netdev_t *ifp, ni_dhcp6_device_t *dev, ni_event_t ev, const ni_address_t *ap)
+ni_dhcp6_device_address_event(ni_netdev_t *ifp, ni_dhcp6_device_t *dev, ni_event_t event, const ni_address_t *addr)
 {
-	if (ev == NI_EVENT_ADDRESS_UPDATE)
-		__handle_address_update(ifp, dev, ap);
+	ni_dhcp6_device_show_addrs(dev);
+
+	switch (event) {
+	case NI_EVENT_ADDRESS_UPDATE:
+		__ni_dhcp6_device_lladdr_update(ifp, dev, addr);
+		break;
+
+	case NI_EVENT_ADDRESS_DELETE:
+		break;
+
+	default:
+		break;
+	}
 }
 
 int
@@ -651,7 +699,7 @@ ni_dhcp6_device_retransmit_disarm(ni_dhcp6_device_t *dev)
 	ni_timer_get_time(&now);
 
 	ni_debug_dhcp("%s: disarming retransmission at %s",
-			dev->ifname, ni_dhcp6_format_time(&now));
+			dev->ifname, ni_dhcp6_print_timeval(&now));
 
 	memset(&dev->retrans, 0, sizeof(dev->retrans));
 }
@@ -693,7 +741,7 @@ ni_dhcp6_device_retransmit_advance(ni_dhcp6_device_t *dev)
 				dev->retrans.params.timeout,
 				dev->retrans.params.jitter.min,
 				dev->retrans.params.jitter.max,
-				ni_dhcp6_format_time(&dev->retrans.deadline));
+				ni_dhcp6_print_timeval(&dev->retrans.deadline));
 
 		return TRUE;
 	}
@@ -819,6 +867,7 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *info)
 	ni_dhcp6_config_vendor_class(&config->vendor_class.en, &config->vendor_class.data);
 	ni_dhcp6_config_vendor_opts(&config->vendor_opts.en, &config->vendor_opts.data);
 
+	ni_dhcp6_device_show_addrs(dev);
 	rv = ni_dhcp6_device_find_lladdr(dev, config);
 	if (rv < 0) {
 		__ni_dhcp6_device_config_free(config);
@@ -826,14 +875,14 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *info)
 	}
 
 	ni_dhcp6_device_set_config(dev, config);
+
+	/* OK, then let's start when lladdr is ready or set timer when not */
 	if (rv > 0) {
 		dev->fsm.state = NI_DHCP6_STATE_WAIT_READY;
 		ni_dhcp6_fsm_set_timeout_msec(dev, NI_DHCP6_WAIT_READY_MSEC);
 		dev->fsm.fail_on_timeout = 1;
 		return rv;
 	}
-
-	/* OK, then let's start */
 	return ni_dhcp6_device_start(dev);
 
 #if 0
@@ -1120,7 +1169,7 @@ ni_dhcp6_device_transmit(ni_dhcp6_device_t *dev)
 		ni_timer_get_time(&now);
 		ni_debug_dhcp("%s: %s message #%u with %zu of %zd bytes sent at %s",
 			dev->ifname, ni_dhcp6_message_name(header->type),
-			dev->retrans.count, rv, cnt, ni_dhcp6_format_time(&now));
+			dev->retrans.count, rv, cnt, ni_dhcp6_print_timeval(&now));
 
 		ni_dhcp6_device_clear_buffer(dev);
 		return 0;

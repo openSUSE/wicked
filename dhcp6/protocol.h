@@ -53,6 +53,13 @@
 #define NI_DHCP6_SERVER_SERVICE		"dhcpv6-server"
 
 /*
+ * "Infinity" life time
+ *
+ * http://tools.ietf.org/html/rfc3315#section-5.6
+ */
+#define NI_DHCP6_INFINITE_LIFETIME	0xffffffff
+
+/*
  * DHCPv6 Message Types
  *
  * http://tools.ietf.org/html/rfc3315#section-5.3
@@ -308,16 +315,63 @@ extern int		ni_dhcp6_build_message( ni_dhcp6_device_t *, unsigned int,
 extern ni_int_range_t	ni_dhcp6_jitter_rebase(unsigned int msec, int lower, int upper);
 extern ni_bool_t	ni_dhcp6_set_message_timing(ni_dhcp6_device_t *dev, unsigned int msg_type);
 
+
+extern int		ni_dhcp6_parse_client_header(ni_buffer_t *msgbuf,
+							unsigned int *msg_type, unsigned int *msg_xid);
+
+extern int		ni_dhcp6_parse_client_options(ni_dhcp6_device_t *dev, ni_buffer_t *buffer,
+							ni_addrconf_lease_t *lease);
+
+extern int		ni_dhcp6_check_client_header(ni_dhcp6_device_t *dev, const struct in6_addr *sender,
+							unsigned int msg_type, unsigned int msg_xid);
+
+extern int		ni_dhcp6_check_message_duids(ni_dhcp6_device_t *dev, const struct in6_addr *sender,
+							unsigned int msg_type, unsigned int msg_xid,
+							ni_addrconf_lease_t *msg_lease);
+
+
+#if 0
+extern int		ni_dhcp6_client_parse_header(ni_buffer_t *msgbuf,
+						     unsigned int *msg_type, unsigned int *msg_xid);
+
+extern int		ni_dhcp6_client_check_header(ni_dhcp6_device_t *dev, const struct in6_addr *from,
+						     unsigned int msg_type, unsigned int msg_xid);
+
 extern int		ni_dhcp6_client_parse_response(ni_dhcp6_device_t *, ni_buffer_t *,
+							const struct in6_addr *,
 							unsigned int *, unsigned int *,
 							ni_addrconf_lease_t **);
+#endif
 
-/* FIXME: */
-extern void		ni_dhcp6_status_free(struct ni_dhcp6_status *status);
-extern void		ni_dhcp6_ia_list_destroy(struct ni_dhcp6_ia **list);
+/* FIXME: cleanup */
+extern ni_dhcp6_status_t *ni_dhcp6_status_new(void);
+extern void		ni_dhcp6_status_clear(struct ni_dhcp6_status *);
+extern void		ni_dhcp6_status_destroy(struct ni_dhcp6_status **);
+
+extern ni_dhcp6_ia_t *	ni_dhcp6_ia_new(unsigned int);
+extern void		ni_dhcp6_ia_destroy(ni_dhcp6_ia_t *);
+extern void		ni_dhcp6_ia_list_append(ni_dhcp6_ia_t **, ni_dhcp6_ia_t *);
+extern void		ni_dhcp6_ia_list_destroy(ni_dhcp6_ia_t **);
+
+extern ni_dhcp6_ia_addr_t *ni_dhcp6_ia_addr_new(struct in6_addr, unsigned int);
+extern void		ni_dhcp6_ia_addr_destory(ni_dhcp6_ia_addr_t *);
+
+extern void		ni_dhcp6_ia_addr_list_append(ni_dhcp6_ia_addr_t **,
+							ni_dhcp6_ia_addr_t *);
+extern void		ni_dhcp6_ia_addr_list_destroy(ni_dhcp6_ia_addr_t **);
+
+extern void		ni_dhcp6_ia_addr_mark(ni_dhcp6_ia_addr_t *, unsigned int);
+extern void		ni_dhcp6_ia_addr_unmark(ni_dhcp6_ia_addr_t *, unsigned int);
+extern ni_bool_t	ni_dhcp6_ia_addr_is_marked(ni_dhcp6_ia_addr_t *, unsigned int);
+
+extern unsigned int	ni_dhcp6_ia_release_matching(ni_dhcp6_ia_t *, struct in6_addr *,
+									unsigned int);
+
 extern void		ni_addrconf_dhcp6_lease_free(ni_addrconf_lease_t *);
 
-extern const char *	ni_dhcp6_format_time(const struct timeval *);
+extern const char *	ni_dhcp6_print_timeval(const struct timeval *);
+extern const char *	ni_dhcp6_print_time(time_t);
+
 extern const char *	ni_dhcp6_address_print(const struct in6_addr *);
 extern int		ni_dhcp6_check_domain_name(const char *, size_t, int);
 extern int		ni_dhcp6_check_domain_list(const char *, size_t, int);
