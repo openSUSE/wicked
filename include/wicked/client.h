@@ -7,6 +7,9 @@
 #ifndef __WICKED_CLIENT_H__
 #define __WICKED_CLIENT_H__
 
+#include <wicked/dbus.h>
+#include <wicked/objectmodel.h>
+
 typedef struct ni_call_error_context ni_call_error_context_t;
 typedef int			ni_call_error_handler_t(ni_call_error_context_t *, const DBusError *);
 
