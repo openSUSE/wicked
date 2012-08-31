@@ -481,7 +481,7 @@ do_show(int argc, char **argv)
 			printf("\n");
 
 			for (ap = ifp->addrs; ap; ap = ap->next)
-				printf("  addr:   %s/%u\n", ni_address_print(&ap->local_addr), ap->prefixlen);
+				printf("  addr:   %s/%u\n", ni_sockaddr_print(&ap->local_addr), ap->prefixlen);
 
 			for (rp = ifp->routes; rp; rp = rp->next) {
 				const ni_route_nexthop_t *nh;
@@ -489,13 +489,13 @@ do_show(int argc, char **argv)
 				printf("  route: ");
 
 				if (rp->prefixlen)
-					printf(" %s/%u", ni_address_print(&rp->destination), rp->prefixlen);
+					printf(" %s/%u", ni_sockaddr_print(&rp->destination), rp->prefixlen);
 				else
 					printf(" default");
 
 				if (rp->nh.gateway.ss_family != AF_UNSPEC) {
 					for (nh = &rp->nh; nh; nh = nh->next)
-						printf("; via %s", ni_address_print(&nh->gateway));
+						printf("; via %s", ni_sockaddr_print(&nh->gateway));
 				}
 
 				printf("\n");
@@ -722,11 +722,11 @@ add_conflict:
 		if (opt_netmask) {
 			ni_sockaddr_t addr;
 
-			if (ni_address_parse(&addr, opt_netmask, AF_UNSPEC) < 0) {
+			if (ni_sockaddr_parse(&addr, opt_netmask, AF_UNSPEC) < 0) {
 				ni_error("cannot parse netmask \"%s\"", opt_netmask);
 				return 1;
 			}
-			prefixlen = ni_netmask_bits(&addr);
+			prefixlen = ni_sockaddr_netmask_bits(&addr);
 		}
 
 		node = doc->root;
@@ -967,14 +967,14 @@ do_check(int argc, char **argv)
 			}
 
 			if (ni_string_eq(opt_cmd, "resolve")) {
-				printf("%s %s\n", hostname, ni_address_print(addr));
+				printf("%s %s\n", hostname, ni_sockaddr_print(addr));
 				continue;
 			}
 
 			if (ni_string_eq(opt_cmd, "route")) {
 				switch (ni_host_is_reachable(hostname, addr)) {
 				case 1:
-					printf("%s %s reachable\n", hostname, ni_address_print(addr));
+					printf("%s %s reachable\n", hostname, ni_sockaddr_print(addr));
 					break;
 
 				case 0:
@@ -987,7 +987,7 @@ do_check(int argc, char **argv)
 					/* fallthrough */
 
 				default:
-					ni_error("%s %s not reached", hostname, ni_address_print(addr));
+					ni_error("%s %s not reached", hostname, ni_sockaddr_print(addr));
 					failed++;
 				}
 

@@ -985,7 +985,7 @@ addattr_sockaddr(struct nl_msg *msg, int type, const ni_sockaddr_t *addr)
 {
 	unsigned int offset, len;
 
-	if (!__ni_address_info(addr->ss_family, &offset, &len))
+	if (!ni_af_sockaddr_info(addr->ss_family, &offset, &len))
 		return -1;
 
 	return nla_put(msg, type, len, ((const caddr_t) addr) + offset);
@@ -1007,7 +1007,7 @@ __ni_netdev_address_list_contains(ni_address_t *list, const ni_address_t *ap)
 			if (sin1->sin_addr.s_addr != sin2->sin_addr.s_addr)
 				continue;
 
-			if (!ni_address_equal(&ap->peer_addr, &ap2->peer_addr))
+			if (!ni_sockaddr_equal(&ap->peer_addr, &ap2->peer_addr))
 				continue;
 
 			return ap2;
@@ -1037,7 +1037,7 @@ __ni_rtnl_send_newaddr(ni_netdev_t *dev, const ni_address_t *ap, int flags)
 	struct nl_msg *msg;
 	int len;
 
-	ni_debug_ifconfig("%s(%s/%u)", __FUNCTION__, ni_address_print(&ap->local_addr), ap->prefixlen);
+	ni_debug_ifconfig("%s(%s/%u)", __FUNCTION__, ni_sockaddr_print(&ap->local_addr), ap->prefixlen);
 
 	memset(&ifa, 0, sizeof(ifa));
 	ifa.ifa_index = dev->link.ifindex;
@@ -1098,7 +1098,7 @@ __ni_rtnl_send_newaddr(ni_netdev_t *dev, const ni_address_t *ap, int flags)
 
 	if (ni_nl_talk(msg) < 0) {
 		ni_error("%s(%s/%u): ni_nl_talk failed", __func__,
-				ni_address_print(&ap->local_addr),
+				ni_sockaddr_print(&ap->local_addr),
 				ap->prefixlen);
 		goto failed;
 	}
@@ -1119,7 +1119,7 @@ __ni_rtnl_send_deladdr(ni_netdev_t *dev, const ni_address_t *ap)
 	struct ifaddrmsg ifa;
 	struct nl_msg *msg;
 
-	ni_debug_ifconfig("%s(%s/%u)", __FUNCTION__, ni_address_print(&ap->local_addr), ap->prefixlen);
+	ni_debug_ifconfig("%s(%s/%u)", __FUNCTION__, ni_sockaddr_print(&ap->local_addr), ap->prefixlen);
 
 	memset(&ifa, 0, sizeof(ifa));
 	ifa.ifa_index = dev->link.ifindex;
@@ -1143,7 +1143,7 @@ __ni_rtnl_send_deladdr(ni_netdev_t *dev, const ni_address_t *ap)
 
 	if (ni_nl_talk(msg) < 0) {
 		ni_error("%s(%s/%u): rtnl_talk failed", __func__,
-				ni_address_print(&ap->local_addr),
+				ni_sockaddr_print(&ap->local_addr),
 				ap->prefixlen);
 		goto failed;
 	}
@@ -1338,7 +1338,7 @@ __ni_netdev_route_list_contains(ni_route_t *list, const ni_route_t *rp)
 		 || rp->prefixlen != rp2->prefixlen)
 			continue;
 
-		if (rp->prefixlen && !ni_address_equal(&rp->destination, &rp2->destination))
+		if (rp->prefixlen && !ni_sockaddr_equal(&rp->destination, &rp2->destination))
 			continue;
 
 		if (rp->family == AF_INET) {
@@ -1410,7 +1410,7 @@ __ni_netdev_update_addrs(ni_netdev_t *dev,
 			if (new_addr != NULL) {
 				ni_warn("%s: address %s covered by a %s lease",
 					dev->name,
-					ni_address_print(&ap->local_addr),
+					ni_sockaddr_print(&ap->local_addr),
 					ni_addrconf_type_to_name(ap->config_lease->type));
 			}
 
@@ -1421,17 +1421,17 @@ __ni_netdev_update_addrs(ni_netdev_t *dev,
 			/* Check whether we need to update */
 			if ((new_addr->scope == -1 || ap->scope == new_addr->scope)
 			 && (new_addr->label[0] == '\0' || !strcmp(ap->label, new_addr->label))
-			 && ni_address_equal(&ap->bcast_addr, &new_addr->bcast_addr)
-			 && ni_address_equal(&ap->anycast_addr, &new_addr->anycast_addr)) {
+			 && ni_sockaddr_equal(&ap->bcast_addr, &new_addr->bcast_addr)
+			 && ni_sockaddr_equal(&ap->anycast_addr, &new_addr->anycast_addr)) {
 				/* Current address as configured, no need to change. */
 				ni_debug_ifconfig("address %s/%u exists; no need to reconfigure",
-					ni_address_print(&ap->local_addr), ap->prefixlen);
+					ni_sockaddr_print(&ap->local_addr), ap->prefixlen);
 				new_addr->seq = __ni_global_seqno;
 				continue;
 			}
 
 			ni_debug_ifconfig("existing address %s/%u needs to be reconfigured",
-					ni_address_print(&ap->local_addr),
+					ni_sockaddr_print(&ap->local_addr),
 					ap->prefixlen);
 		}
 
@@ -1447,7 +1447,7 @@ __ni_netdev_update_addrs(ni_netdev_t *dev,
 			continue;
 
 		ni_debug_ifconfig("Adding new interface address %s/%u",
-				ni_address_print(&ap->local_addr),
+				ni_sockaddr_print(&ap->local_addr),
 				ap->prefixlen);
 		if ((rv = __ni_rtnl_send_newaddr(dev, ap, NLM_F_CREATE)) < 0)
 			return rv;

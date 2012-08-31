@@ -41,17 +41,15 @@ typedef struct ni_address {
 	ni_ipv6_cache_info_t	ipv6_cache_info;
 } ni_address_t;
 
-/* FIXME: rename these to ni_sockaddr_* */
-extern const char *	ni_address_format(const ni_sockaddr_t *ss, char *abuf, size_t buflen);
-extern const char *	ni_address_print(const ni_sockaddr_t *ss);
-extern int		ni_address_parse(ni_sockaddr_t *ss, const char *string, int af);
-extern unsigned int	ni_address_length(int af);
-extern unsigned int	ni_netmask_bits(const ni_sockaddr_t *mask);
-extern int		ni_build_netmask(int, unsigned int, ni_sockaddr_t *);
-extern ni_bool_t	ni_address_prefix_match(unsigned int, const ni_sockaddr_t *,
-				const ni_sockaddr_t *);
-extern ni_bool_t	ni_address_equal(const ni_sockaddr_t *, const ni_sockaddr_t *);
-extern ni_bool_t	__ni_address_info(int, unsigned int *, unsigned int *);
+extern const char *	ni_sockaddr_format(const ni_sockaddr_t *ss, char *abuf, size_t buflen);
+extern const char *	ni_sockaddr_print(const ni_sockaddr_t *ss);
+extern int		ni_sockaddr_parse(ni_sockaddr_t *ss, const char *string, int af);
+extern unsigned int	ni_sockaddr_netmask_bits(const ni_sockaddr_t *mask);
+extern int		ni_sockaddr_build_netmask(int, unsigned int, ni_sockaddr_t *);
+extern ni_bool_t	ni_sockaddr_prefix_match(unsigned int, const ni_sockaddr_t *, const ni_sockaddr_t *);
+extern ni_bool_t	ni_sockaddr_equal(const ni_sockaddr_t *, const ni_sockaddr_t *);
+extern unsigned int	ni_af_address_length(int af);
+extern ni_bool_t	ni_af_sockaddr_info(int, unsigned int *, unsigned int *);
 
 extern void		ni_sockaddr_set_ipv4(ni_sockaddr_t *, struct in_addr, uint16_t);
 extern void		ni_sockaddr_set_ipv6(ni_sockaddr_t *, struct in6_addr, uint16_t);
@@ -64,8 +62,8 @@ extern const char *	ni_sockaddr_prefix_print(const ni_sockaddr_t *, unsigned int
 extern ni_bool_t	ni_sockaddr_prefix_parse(const char *, ni_sockaddr_t *, unsigned int *);
 
 extern ni_address_t *	ni_address_new(int af, unsigned int prefix_len,
-				const ni_sockaddr_t *local_addr,
-				ni_address_t **list);
+					const ni_sockaddr_t *local_addr,
+					ni_address_t **list);
 extern void		ni_address_list_append(ni_address_t **, ni_address_t *);
 extern void		ni_address_list_destroy(ni_address_t **);
 extern void		ni_address_list_dedup(ni_address_t **);

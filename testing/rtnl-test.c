@@ -84,7 +84,7 @@ rtnl_test_interface_event(ni_netdev_t *dev, ni_event_t event)
 			for (ap = dev->addrs; ap ; ap = ap->next) {
 				ni_trace("%s[%u]: found address %s: flags%s%s [%02x]",
 					dev->name, dev->link.ifindex,
-					ni_address_print(&ap->local_addr),
+					ni_sockaddr_print(&ap->local_addr),
 					(ap->flags & IFA_F_TENTATIVE)?   " tentative" : "",
 					(ap->flags & IFA_F_DADFAILED)?   " dadfailed" : "",
 					(unsigned)ap->flags);
@@ -101,6 +101,6 @@ rtnl_test_interface_addr_event(ni_netdev_t *dev, ni_event_t ev, const ni_address
 {
 	ni_trace("%s[%u]: received interface address event: %s %s",
 		dev->name, dev->link.ifindex, ni_event_type_to_name(ev),
-		ni_address_print(&ap->local_addr));
+		ni_sockaddr_print(&ap->local_addr));
 }
 

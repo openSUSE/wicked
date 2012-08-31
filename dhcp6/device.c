@@ -403,19 +403,19 @@ ni_dhcp6_device_set_lladdr(ni_dhcp6_device_t *dev, ni_dhcp6_config_t *config, co
 	if (ni_address_is_duplicate(addr)) {
 		ni_error("%s[%u]: Link-local IPv6 address is marked duplicate: %s",
 			dev->ifname, dev->link.ifindex,
-			ni_address_print(&addr->local_addr));
+			ni_sockaddr_print(&addr->local_addr));
 		return -1;
 	}
 	if (ni_address_is_tentative(addr)) {
 		ni_debug_dhcp("%s[%u]: Link-local IPv6 address is tentative: %s",
 			dev->ifname, dev->link.ifindex,
-			ni_address_print(&addr->local_addr));
+			ni_sockaddr_print(&addr->local_addr));
 		return 1;
 	}
 
 	ni_debug_dhcp("%s[%u]: Found usable link-local IPv6 address: %s",
 		dev->ifname, dev->link.ifindex,
-		ni_address_print(&addr->local_addr));
+		ni_sockaddr_print(&addr->local_addr));
 
 	memcpy(&config->client_addr, &addr->local_addr, sizeof(config->client_addr));
 	return 0;
@@ -1092,7 +1092,7 @@ ni_dhcp6_device_transmit(ni_dhcp6_device_t *dev)
 #if 0
 	ni_debug_dhcp("%s: sending %s with xid 0x%x to %s using socket #%d",
 		dev->ifname, ni_dhcp6_message_name(header->type),
-		dev->dhcp6.xid, ni_address_print(&dev->config->server_addr),
+		dev->dhcp6.xid, ni_sockaddr_print(&dev->config->server_addr),
 		dev->sock->__fd);
 #endif
 

@@ -795,31 +795,31 @@ __ni_sysfs_ibft_nic_parse(const char *node)
 	}
 
 	if (__ni_sysfs_ibft_nic_get_string(node, "ip-addr", &temp) == 0 && temp) {
-		if (ni_address_parse(&nic->ipaddr, temp, AF_UNSPEC) != 0)
+		if (ni_sockaddr_parse(&nic->ipaddr, temp, AF_UNSPEC) != 0)
 			goto error;
 	}
 	if (__ni_sysfs_ibft_nic_get_string(node, "subnet-mask", &temp) == 0 && temp) {
 		/* The ibft module in 3.0.x kernels prints the ibft prefix
 		   lenght as ipv4 netmask; I guess nobody ever used IPv6 */
 		ni_sockaddr_t mask;
-		if (ni_address_parse(&mask, temp, AF_UNSPEC) != 0)
+		if (ni_sockaddr_parse(&mask, temp, AF_UNSPEC) != 0)
 			goto error;
-		nic->prefix_len = ni_netmask_bits(&mask);
+		nic->prefix_len = ni_sockaddr_netmask_bits(&mask);
 	}
 	if (__ni_sysfs_ibft_nic_get_string(node, "dhcp", &temp) == 0 && temp) {
-		if (ni_address_parse(&nic->dhcp, temp, AF_UNSPEC) != 0)
+		if (ni_sockaddr_parse(&nic->dhcp, temp, AF_UNSPEC) != 0)
 			goto error;
 	}
 	if (__ni_sysfs_ibft_nic_get_string(node, "gateway", &temp) == 0 && temp) {
-		if (ni_address_parse(&nic->gateway, temp, AF_UNSPEC) != 0)
+		if (ni_sockaddr_parse(&nic->gateway, temp, AF_UNSPEC) != 0)
 			goto error;
 	}
 	if (__ni_sysfs_ibft_nic_get_string(node, "primary-dns", &temp) == 0 && temp) {
-		if (ni_address_parse(&nic->primary_dns, temp, AF_UNSPEC) != 0)
+		if (ni_sockaddr_parse(&nic->primary_dns, temp, AF_UNSPEC) != 0)
 			goto error;
 	}
 	if (__ni_sysfs_ibft_nic_get_string(node, "secondary-dns", &temp) == 0 && temp) {
-		if (ni_address_parse(&nic->secondary_dns, temp, AF_UNSPEC) != 0)
+		if (ni_sockaddr_parse(&nic->secondary_dns, temp, AF_UNSPEC) != 0)
 			goto error;
 	}
 	__ni_sysfs_ibft_nic_get_string(node, "hostname", &nic->hostname);

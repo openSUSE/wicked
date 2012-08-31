@@ -818,11 +818,11 @@ __ni_netdev_add_autoconf_prefix(ni_netdev_t *dev, const ni_sockaddr_t *addr, uns
 	ni_addrconf_lease_t *lease;
 	ni_route_t *rp;
 
-	ni_debug_ifconfig("%s(dev=%s, prefix=%s/%u", __func__, dev->name, ni_address_print(addr), pfxlen);
+	ni_debug_ifconfig("%s(dev=%s, prefix=%s/%u", __func__, dev->name, ni_sockaddr_print(addr), pfxlen);
 
 	lease = __ni_netdev_get_autoconf_lease(dev, addr->ss_family);
 	for (rp = lease->routes; rp; rp = rp->next) {
-		if (rp->prefixlen == pfxlen && ni_address_prefix_match(pfxlen, &rp->destination, addr))
+		if (rp->prefixlen == pfxlen && ni_sockaddr_prefix_match(pfxlen, &rp->destination, addr))
 			break;
 	}
 
@@ -952,7 +952,7 @@ __ni_netdev_process_newaddr_event(ni_netdev_t *dev, struct nlmsghdr *h, struct i
 #if 0
 	ni_debug_ifconfig("%s[%u]: address %s scope %s, flags%s%s%s%s%s%s%s%s [%02x], lft{%u,%u}, owned by %s",
 			dev->name, dev->link.ifindex,
-			ni_address_print(&ap->local_addr),
+			ni_sockaddr_print(&ap->local_addr),
 			(ap->scope == RT_SCOPE_HOST)? "host" :
 			 (ap->scope == RT_SCOPE_LINK)? "link" :
 			  (ap->scope == RT_SCOPE_SITE)? "site" :
@@ -1049,9 +1049,9 @@ __ni_netdev_process_newroute(ni_netdev_t *dev, struct nlmsghdr *h,
 	if (dst_addr.ss_family == AF_UNSPEC)
 		printf("Add route dst=default");
 	else
-		printf("Add route dst=%s/%u", ni_address_print(&dst_addr), rtm->rtm_dst_len);
+		printf("Add route dst=%s/%u", ni_sockaddr_print(&dst_addr), rtm->rtm_dst_len);
 	if (gw_addr.ss_family != AF_UNSPEC)
-		printf(" gw=%s", ni_address_print(&gw_addr));
+		printf(" gw=%s", ni_sockaddr_print(&gw_addr));
 	if (dev && dev->link.ifindex)
 		printf(" oif=%u", dev->link.ifindex);
 	printf("\n");
@@ -1135,7 +1135,7 @@ __ni_netdev_get_autoconf_lease(ni_netdev_t *dev, int af)
 		if (af == AF_INET6) {
 			ni_sockaddr_t prefix;
 
-			ni_address_parse(&prefix, "fe80::", AF_INET6);
+			ni_sockaddr_parse(&prefix, "fe80::", AF_INET6);
 			ni_route_new(64, &prefix, NULL, &lease->routes);
 		}
 	}

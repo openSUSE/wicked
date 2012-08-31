@@ -157,7 +157,7 @@ ni_autoip_fsm_build_lease(ni_autoip_device_t *dev)
 	addr.sin.sin_addr = dev->autoip.candidate;
 	ni_address_new(AF_INET, 16, &addr, &lease->addrs);
 
-	ni_address_parse(&addr, "169.254.0.0", AF_INET);
+	ni_sockaddr_parse(&addr, "169.254.0.0", AF_INET);
 	ni_route_new(16, &addr, NULL, &lease->routes);
 
 	lease->state = NI_ADDRCONF_STATE_GRANTED;

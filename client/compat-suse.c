@@ -164,7 +164,7 @@ __ni_suse_read_routes(const char *filename)
 			 * "127/8" in it. */
 			memset(&gw_addr, 0, sizeof(gw_addr));
 		} else
-		if (ni_address_parse(&gw_addr, gw, AF_UNSPEC) < 0) {
+		if (ni_sockaddr_parse(&gw_addr, gw, AF_UNSPEC) < 0) {
 			ni_error("%s: cannot parse gw addr \"%s\"",
 					filename, gw);
 			goto error;
@@ -181,7 +181,7 @@ __ni_suse_read_routes(const char *filename)
 				*sp++ = '\0';
 				prefixlen = strtoul(sp, NULL, 10);
 			}
-			if (ni_address_parse(&dest_addr, dest, AF_UNSPEC) < 0) {
+			if (ni_sockaddr_parse(&dest_addr, dest, AF_UNSPEC) < 0) {
 				ni_error("%s: cannot parse dest addr \"%s\"",
 						filename, dest);
 				goto error;
@@ -191,15 +191,15 @@ __ni_suse_read_routes(const char *filename)
 					/* No prefix and no mask given - assume the destination
 					   is a single address. Use the full address length
 					   as prefix. */
-					prefixlen = ni_address_length(dest_addr.ss_family) * 8;
+					prefixlen = ni_af_address_length(dest_addr.ss_family) * 8;
 				} else {
 					/* We have a mask. Try to parse it and count the bits. */
-					if (ni_address_parse(&mask_addr, mask, AF_UNSPEC) < 0) {
+					if (ni_sockaddr_parse(&mask_addr, mask, AF_UNSPEC) < 0) {
 						ni_error("%s: cannot parse mask addr \"%s\"",
 								filename, mask);
 						goto error;
 					}
-					prefixlen = ni_netmask_bits(&mask_addr);
+					prefixlen = ni_sockaddr_netmask_bits(&mask_addr);
 				}
 			}
 		}
@@ -539,12 +539,12 @@ cannot_parse:
 		} else
 		if (local_addr.ss_family == AF_INET
 		 && (var = __find_indexed_variable(sc, "NETMASK", suffix)) != NULL
-		 && ni_address_parse(&netmask, var->value, AF_INET) >= 0) {
-			prefixlen = ni_netmask_bits(&netmask);
+		 && ni_sockaddr_parse(&netmask, var->value, AF_INET) >= 0) {
+			prefixlen = ni_sockaddr_netmask_bits(&netmask);
 		} else {
 			unsigned int dummy, len;
 
-			if (!__ni_address_info(local_addr.ss_family, &dummy, &len))
+			if (!ni_af_sockaddr_info(local_addr.ss_family, &dummy, &len))
 				goto cannot_parse;
 			prefixlen = len * 8;
 		}
@@ -554,7 +554,7 @@ cannot_parse:
 	if (ap->family == AF_INET) {
 		var = __find_indexed_variable(sc, "BROADCAST", suffix);
 		if (var) {
-			ni_address_parse(&ap->bcast_addr, var->value, AF_INET);
+			ni_sockaddr_parse(&ap->bcast_addr, var->value, AF_INET);
 			if (ap->bcast_addr.ss_family != ap->family) {
 				ni_error("%s: ignoring BROADCAST%s=%s (wrong address family)",
 						sc->pathname, suffix, var->value);
@@ -568,7 +568,7 @@ cannot_parse:
 
 	var = __find_indexed_variable(sc, "REMOTE_IPADDR", suffix);
 	if (var) {
-		ni_address_parse(&ap->peer_addr, var->value, AF_UNSPEC);
+		ni_sockaddr_parse(&ap->peer_addr, var->value, AF_UNSPEC);
 		if (ap->peer_addr.ss_family != ap->family) {
 			ni_error("%s: ignoring REMOTE_IPADDR%s=%s (wrong address family)",
 					sc->pathname, suffix, var->value);
@@ -607,11 +607,11 @@ __ni_suse_addrconf_static(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	if (!strcmp(dev->name, "lo")) {
 		ni_sockaddr_t local_addr;
 
-		ni_address_parse(&local_addr, "127.0.0.1", AF_INET);
+		ni_sockaddr_parse(&local_addr, "127.0.0.1", AF_INET);
 		if (ni_address_list_find(dev->addrs, &local_addr) == NULL)
 			ni_address_new(AF_INET, 8, &local_addr, &dev->addrs);
 
-		ni_address_parse(&local_addr, "::1", AF_INET6);
+		ni_sockaddr_parse(&local_addr, "::1", AF_INET6);
 		if (ni_address_list_find(dev->addrs, &local_addr) == NULL)
 			ni_address_new(AF_INET6, 128, &local_addr, &dev->addrs);
 	}

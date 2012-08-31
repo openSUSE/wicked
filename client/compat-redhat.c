@@ -368,7 +368,7 @@ __ni_redhat_addrconf_static(ni_sysconfig_t *sc, ni_compat_netdev_t *compat, cons
 	ni_address_t *ap;
 
 	if ((value = ni_sysconfig_get_value(sc, "IPADDR")) == NULL
-	 || ni_address_parse(&address, value, AF_INET) < 0)
+	 || ni_sockaddr_parse(&address, value, AF_INET) < 0)
 		return FALSE;
 
 	/* Not clear what an empty NETMASK means on RH. Probably default
@@ -376,9 +376,9 @@ __ni_redhat_addrconf_static(ni_sysconfig_t *sc, ni_compat_netdev_t *compat, cons
 	prefix_len = 24;
 
 	if ((value = ni_sysconfig_get_value(sc, "NETMASK")) != NULL) {
-		if (ni_address_parse(&netmask, value, AF_INET) < 0)
+		if (ni_sockaddr_parse(&netmask, value, AF_INET) < 0)
 			return FALSE;
-		prefix_len = ni_netmask_bits(&netmask);
+		prefix_len = ni_sockaddr_netmask_bits(&netmask);
 	}
 
 	if (!(ap = ni_address_new(address.ss_family, prefix_len, &address, &dev->addrs)))
@@ -388,14 +388,14 @@ __ni_redhat_addrconf_static(ni_sysconfig_t *sc, ni_compat_netdev_t *compat, cons
 		strncpy(ap->label, label, sizeof(ap->label) - 1);
 
 	if ((value = ni_sysconfig_get_value(sc, "BROADCAST")) != NULL) {
-		if (ni_address_parse(&ap->bcast_addr, value, AF_INET) < 0)
+		if (ni_sockaddr_parse(&ap->bcast_addr, value, AF_INET) < 0)
 			return FALSE;
 	}
 
 	if ((value = ni_sysconfig_get_value(sc, "GATEWAY")) != NULL) {
 		ni_sockaddr_t gateway;
 
-		if (ni_address_parse(&gateway, value, AF_INET) < 0)
+		if (ni_sockaddr_parse(&gateway, value, AF_INET) < 0)
 			return FALSE;
 		ni_route_new(0, NULL, &gateway, &dev->routes);
 	}

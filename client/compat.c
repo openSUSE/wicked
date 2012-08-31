@@ -263,7 +263,7 @@ __ni_compat_generate_static_route(xml_node_t *aconf, const ni_route_t *rp)
 		if (nh->gateway.ss_family != AF_UNSPEC) {
 			nhnode = xml_node_new("nexthop", rnode);
 			xml_node_new_element("gateway", nhnode,
-				ni_address_print(&nh->gateway));
+				ni_sockaddr_print(&nh->gateway));
 		}
 	}
 }
@@ -298,9 +298,9 @@ __ni_compat_generate_static_address_list(xml_node_t *ifnode, ni_address_t *addr_
 		xml_node_new_element("local", anode, ni_sockaddr_prefix_print(&ap->local_addr, ap->prefixlen));
 
 		if (ap->peer_addr.ss_family != AF_UNSPEC)
-			xml_node_new_element("peer", anode, ni_address_print(&ap->peer_addr));
+			xml_node_new_element("peer", anode, ni_sockaddr_print(&ap->peer_addr));
 		if (ap->bcast_addr.ss_family != AF_UNSPEC)
-			xml_node_new_element("broadcast", anode, ni_address_print(&ap->bcast_addr));
+			xml_node_new_element("broadcast", anode, ni_sockaddr_print(&ap->bcast_addr));
 		if (ap->label[0])
 			xml_node_new_element("label", anode, ap->label);
 	}
