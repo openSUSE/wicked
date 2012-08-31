@@ -89,7 +89,6 @@ static void			dhcp6_supplicant(void);
 int
 main(int argc, char **argv)
 {
-	const char *ifname = NULL;
 	int c;
 
 	program_name = ni_basename(argv[0]);
