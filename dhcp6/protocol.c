@@ -622,7 +622,7 @@ ni_dhcp6_option_put_ia(ni_buffer_t *bp, struct ni_dhcp6_ia *ia)
 	if (ni_buffer_put(&data, &value32, sizeof(value32)) < 0)
 		goto failure;
 
-	if (ia->type != NI_DHCP6_IA_TA_TYPE) {
+	if (ia->type == NI_DHCP6_IA_NA_TYPE || ia->type == NI_DHCP6_IA_PD_TYPE) {
 		/*
 		 * FIXME: this has to be done much earlier, not here!!
 		 */
@@ -643,7 +643,8 @@ ni_dhcp6_option_put_ia(ni_buffer_t *bp, struct ni_dhcp6_ia *ia)
 		value32 = htonl(ia->rebind_time);
 		if (ni_buffer_put(&data, &value32, sizeof(value32)) < 0)
 			goto failure;
-	}
+	} else if (ia->type != NI_DHCP6_IA_TA_TYPE)
+		goto failure;
 
 	for (iadr = ia->addrs; iadr; iadr = iadr->next) {
 		if ((ia->type == NI_DHCP6_IA_PD_TYPE && iadr->plen == 0) ||
@@ -1229,21 +1230,7 @@ ni_dhcp6_build_message(ni_dhcp6_device_t *dev,
 
 	case NI_DHCP6_REQUEST:
 		// clientid, elapsed_time, oro, serverid, ia_na,ia_ta,ia_pd
-		for (ia = lease->dhcp6.ia_na; ia; ia = ia->next) {
-			if (ia->type != NI_DHCP6_IA_NA_TYPE)
-				return -1;
-			if (ni_dhcp6_option_put_ia(msg_buf, ia) < 0)
-				return -1;
-		}
-		for (ia = lease->dhcp6.ia_ta; ia; ia = ia->next) {
-			if (ia->type != NI_DHCP6_IA_TA_TYPE)
-				return -1;
-			if (ni_dhcp6_option_put_ia(msg_buf, ia) < 0)
-				return -1;
-		}
-		for (ia = lease->dhcp6.ia_pd; ia; ia = ia->next) {
-			if (ia->type != NI_DHCP6_IA_PD_TYPE)
-				return -1;
+		for (ia = lease->dhcp6.ia_list; ia; ia = ia->next) {
 			if (ni_dhcp6_option_put_ia(msg_buf, ia) < 0)
 				return -1;
 		}
@@ -1685,13 +1672,13 @@ ni_dhcp6_client_parse_options(ni_dhcp6_device_t *dev, ni_buffer_t *buffer, ni_ad
 		break;
 
 		case NI_DHCP6_OPTION_IA_NA:
-			ni_dhcp6_client_parse_ia(&optbuf, &lease->dhcp6.ia_na, NI_DHCP6_IA_NA_TYPE);
+			ni_dhcp6_client_parse_ia(&optbuf, &lease->dhcp6.ia_list, NI_DHCP6_IA_NA_TYPE);
 		break;
 		case NI_DHCP6_OPTION_IA_TA:
-			ni_dhcp6_client_parse_ia(&optbuf, &lease->dhcp6.ia_ta, NI_DHCP6_IA_TA_TYPE);
+			ni_dhcp6_client_parse_ia(&optbuf, &lease->dhcp6.ia_list, NI_DHCP6_IA_TA_TYPE);
 		break;
 		case NI_DHCP6_OPTION_IA_PD:
-			ni_dhcp6_client_parse_ia(&optbuf, &lease->dhcp6.ia_pd, NI_DHCP6_IA_PD_TYPE);
+			ni_dhcp6_client_parse_ia(&optbuf, &lease->dhcp6.ia_list, NI_DHCP6_IA_PD_TYPE);
 		break;
 
 		case NI_DHCP6_OPTION_DNS_SERVERS:
@@ -1765,7 +1752,7 @@ ni_dhcp6_client_parse_options(ni_dhcp6_device_t *dev, ni_buffer_t *buffer, ni_ad
 
 		ni_address_list_destroy(&lease->addrs);
 		lease->addrs = NULL;
-		for (ia = lease->dhcp6.ia_na; ia; ia = ia->next) {
+		for (ia = lease->dhcp6.ia_list; ia; ia = ia->next) {
 			if (ia->type != NI_DHCP6_IA_NA_TYPE)
 				continue; /* Hmm... */
 
@@ -1897,9 +1884,7 @@ ni_addrconf_dhcp6_lease_free(ni_addrconf_lease_t *lease)
 	if (lease) {
 		ni_dhcp6_status_free(lease->dhcp6.status);
 		lease->dhcp6.status = NULL;
-		ni_dhcp6_ia_list_destroy(&lease->dhcp6.ia_na);
-		ni_dhcp6_ia_list_destroy(&lease->dhcp6.ia_ta);
-		ni_dhcp6_ia_list_destroy(&lease->dhcp6.ia_pd);
+		ni_dhcp6_ia_list_destroy(&lease->dhcp6.ia_list);
 		ni_addrconf_lease_free(lease);
 	}
 }
