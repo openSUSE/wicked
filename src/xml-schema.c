@@ -881,12 +881,7 @@ ni_xs_process_define(xml_node_t *node, ni_xs_scope_t *scope)
 			return -1;
 		}
 
-		if (ni_xs_scope_typedef(scope, nameAttr, newType) < 0) {
-			ni_error("%s: attempt to redefine type <%s>", xml_node_location(node), nameAttr);
-			ni_xs_type_release(newType);
-			return -1;
-		}
-		ni_xs_type_release(newType);
+		refType = newType;
 	} else
 	if ((typeAttr = xml_node_get_attr(node, "type")) != NULL) {
 		/* check for type aliasing - take one type, and define it by another name.
@@ -903,12 +898,6 @@ ni_xs_process_define(xml_node_t *node, ni_xs_scope_t *scope)
 					xml_node_location(node), nameAttr, typeAttr);
 			return -1;
 		}
-
-		if (ni_xs_scope_typedef(scope, nameAttr, refType) < 0) {
-			ni_error("%s: attempt to redefine type <%s>", xml_node_location(node), nameAttr);
-			return -1;
-		}
-		ni_xs_type_release(refType);
 	} else if (node->children != NULL) {
 		/*
 		 * <define> <type/> </define>
@@ -918,13 +907,6 @@ ni_xs_process_define(xml_node_t *node, ni_xs_scope_t *scope)
 			return -1;
 
 		/* FIXME: build constraints if there are any */
-
-		if (ni_xs_scope_typedef(scope, nameAttr, refType) < 0) {
-			ni_error("%s: attempt to redefine type <%s>", xml_node_location(node), nameAttr);
-			ni_xs_type_release(refType);
-			return -1;
-		}
-		ni_xs_type_release(refType);
 	} else {
 		const char *value;
 
@@ -932,7 +914,15 @@ ni_xs_process_define(xml_node_t *node, ni_xs_scope_t *scope)
 			value = "";
 
 		ni_var_array_set(&scope->constants, nameAttr, value);
+		return 0;
 	}
+
+	if (ni_xs_scope_typedef(scope, nameAttr, refType) < 0) {
+		ni_error("%s: attempt to redefine type <%s>", xml_node_location(node), nameAttr);
+		ni_xs_type_release(refType);
+		return -1;
+	}
+	ni_xs_type_release(refType);
 
 	return 0;
 }
