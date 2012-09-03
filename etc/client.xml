@@ -1,0 +1,11 @@
+<!-- Client-specific configuration file -->
+<config>
+  <include name="common.xml"/>
+
+  <!-- This specifies the location of the script that the client
+       uses when discovering devices managed by ibft
+    -->
+  <netif-firmware-discovery>
+    <script name="ibft" command="/etc/wicked/extensions/ibft" />
+  </netif-firmware-discovery>
+</config>

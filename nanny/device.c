@@ -360,7 +360,7 @@ ni_managed_device_down_done(ni_ifworker_t *w)
 	}
 	ni_managed_device_set_policy(mdev, NULL, NULL);
 
-	if (mdev->user_controlled && w->type == NI_IFWORKER_TYPE_NETDEV) {
+	if (mdev->monitor && w->type == NI_IFWORKER_TYPE_NETDEV) {
 		/* Re-enable wireless scanning and ethernet link status monitoring */
 		ni_managed_netdev_enable(mdev);
 	}

@@ -34,7 +34,10 @@ struct ni_managed_device {
 	ni_nanny_t *		nanny;		// back pointer at mgr
 	ni_dbus_object_t *	object;		// server object
 	ni_ifworker_t *		worker;
-	ni_bool_t		user_controlled;
+
+	ni_bool_t		allowed;	// true iff user is allowed to enable it
+	ni_bool_t		monitor;	// true iff we're monitoring it
+
 	ni_bool_t		rfkill_blocked;
 	ni_bool_t		missing_secrets;
 
@@ -67,6 +70,22 @@ struct ni_managed_policy {
 	xml_document_t *	doc;
 };
 
+typedef struct ni_nanny_devmatch ni_nanny_devmatch_t;
+enum {
+	NI_NANNY_DEVMATCH_CLASS,
+	NI_NANNY_DEVMATCH_DEVICE,
+};
+
+struct ni_nanny_devmatch {
+	 ni_nanny_devmatch_t *	next;
+
+	 unsigned int		type;
+	 char *			value;
+	 ni_bool_t		auto_enable;
+
+	 const ni_dbus_class_t *class;	/* if type is NI_NANNY_DEVMATCH_CLASS */
+};
+
 struct ni_nanny {
 	ni_dbus_server_t *	server;
 	ni_fsm_t *		fsm;
@@ -79,6 +98,8 @@ struct ni_nanny {
 	ni_ifworker_array_t	down;
 
 	ni_nanny_user_t *	users;
+
+	ni_nanny_devmatch_t *	enable;
 };
 
 extern ni_dbus_class_t		ni_objectmodel_managed_netdev_class;
@@ -91,6 +112,7 @@ extern ni_dbus_service_t	ni_objectmodel_managed_policy_service;
 extern ni_dbus_service_t	ni_objectmodel_nanny_service;
 
 extern ni_nanny_t *		ni_nanny_new(void);
+extern void			ni_nanny_start(ni_nanny_t *);
 extern void			ni_nanny_free(ni_nanny_t *);
 extern void			ni_nanny_schedule_recheck(ni_nanny_t *, ni_ifworker_t *);
 extern void			ni_nanny_recheck_do(ni_nanny_t *mgr);

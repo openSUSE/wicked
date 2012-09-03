@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=org.opensuse.Network.AUTO4
+Exec=/sbin/autoip4-supplicant
+User=root

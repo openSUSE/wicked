@@ -506,7 +506,6 @@ ni_dbus_object_get_managed_objects(ni_dbus_object_t *proxy, DBusError *error, ni
 		if (!dbus_message_iter_next(&iter_dict_entry))
 			goto bad_reply;
 
-		ni_debug_dbus("received remote object %s", object_path);
 		descendant = ni_dbus_object_create(proxy, object_path, NULL, NULL);
 
 		/* On the client side, we may have to assign classes to newly created

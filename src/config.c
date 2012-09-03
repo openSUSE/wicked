@@ -24,19 +24,19 @@
 #include "appconfig.h"
 #include "xml-schema.h"
 
-static int		ni_config_parse_addrconf_dhcp(struct ni_config_dhcp *, xml_node_t *);
-static int		ni_config_parse_addrconf_dhcp6(struct ni_config_dhcp6 *, xml_node_t *);
-static int		ni_config_parse_afconfig(struct ni_afconfig *, const char *, xml_node_t *);
-static int		ni_config_parse_update_targets(unsigned int *, const xml_node_t *);
-static int		ni_config_parse_fslocation(ni_config_fslocation_t *, const char *, xml_node_t *);
-static int		ni_config_parse_objectmodel_extension(ni_extension_t **, xml_node_t *);
-static int		ni_config_parse_objectmodel_netif_ns(ni_extension_t **, xml_node_t *);
-static int		ni_config_parse_objectmodel_firmware_discovery(ni_extension_t **, xml_node_t *);
-static int		ni_config_parse_system_updater(ni_extension_t **, xml_node_t *);
-static int		ni_config_parse_extension(ni_extension_t *, xml_node_t *);
+static ni_bool_t	ni_config_parse_addrconf_dhcp(struct ni_config_dhcp *, xml_node_t *);
+static ni_bool_t	ni_config_parse_addrconf_dhcp6(struct ni_config_dhcp6 *, xml_node_t *);
+static void		ni_config_parse_update_targets(unsigned int *, const xml_node_t *);
+static void		ni_config_parse_fslocation(ni_config_fslocation_t *, xml_node_t *);
+static ni_bool_t	ni_config_parse_objectmodel_extension(ni_extension_t **, xml_node_t *);
+static ni_bool_t	ni_config_parse_objectmodel_netif_ns(ni_extension_t **, xml_node_t *);
+static ni_bool_t	ni_config_parse_objectmodel_firmware_discovery(ni_extension_t **, xml_node_t *);
+static ni_bool_t	ni_config_parse_system_updater(ni_extension_t **, xml_node_t *);
+static ni_bool_t	ni_config_parse_extension(ni_extension_t *, xml_node_t *);
 static ni_c_binding_t *	ni_c_binding_new(ni_c_binding_t **, const char *name, const char *lib, const char *symbol);
 static void		ni_config_fslocation_init(ni_config_fslocation_t *, const char *path, unsigned int mode);
 static void		ni_config_fslocation_destroy(ni_config_fslocation_t *);
+static const char *	ni_config_build_include(const char *, const char *);
 
 /*
  * Create an empty config object
@@ -47,8 +47,6 @@ ni_config_new()
 	ni_config_t *conf;
 
 	conf = calloc(1, sizeof(*conf));
-	conf->ipv4.enabled = TRUE;
-	conf->ipv6.enabled = TRUE;
 
 	conf->addrconf.default_allow_update = ~0;
 	conf->addrconf.dhcp.allow_update = ~0;
@@ -77,12 +75,11 @@ ni_config_free(ni_config_t *conf)
 	free(conf);
 }
 
-ni_config_t *
-ni_config_parse(const char *filename)
+ni_bool_t
+__ni_config_parse(ni_config_t *conf, const char *filename, ni_init_appdata_callback_t *cb, void *appdata)
 {
 	xml_document_t *doc;
 	xml_node_t *node, *child;
-	ni_config_t *conf = NULL;
 
 	ni_debug_wicked("Reading config file %s", filename);
 	doc = xml_document_read(filename);
@@ -97,65 +94,72 @@ ni_config_parse(const char *filename)
 		goto failed;
 	}
 
-	conf = ni_config_new();
-
-	if (ni_config_parse_afconfig(&conf->ipv4, "ipv4", node) < 0
-	 || ni_config_parse_afconfig(&conf->ipv6, "ipv6", node) < 0
-	 || ni_config_parse_fslocation(&conf->statedir, "statedir", node) < 0)
-		goto failed;
-
-	child = xml_node_get_child(node, "dbus");
-	if (child) {
-		const char *attrval;
-
-		if ((attrval = xml_node_get_attr(child, "name")) != NULL)
-			ni_string_dup(&conf->dbus_name, attrval);
-		if ((attrval = xml_node_get_attr(child, "type")) != NULL)
-			ni_string_dup(&conf->dbus_type, attrval);
-	}
-
-	child = xml_node_get_child(node, "schema");
-	if (child) {
-		const char *attrval;
-
-		if ((attrval = xml_node_get_attr(child, "name")) != NULL)
-			ni_string_dup(&conf->dbus_xml_schema_file, attrval);
-	}
-
-	child = xml_node_get_child(node, "addrconf");
-	if (child) {
-		for (child = child->children; child; child = child->next) {
-			if (!strcmp(child->name, "default-allow-update")
-			 && ni_config_parse_update_targets(&conf->addrconf.default_allow_update, child) < 0)
-				goto failed;
-
-			if (!strcmp(child->name, "dhcp")
-			 && ni_config_parse_addrconf_dhcp(&conf->addrconf.dhcp, child) < 0)
-				goto failed;
-
-			if (!strcmp(child->name, "dhcp6")
-			 && ni_config_parse_addrconf_dhcp6(&conf->addrconf.dhcp6, child) < 0)
-				goto failed;
-		}
-	}
-
-	/* Parse extensions */
+	/* Loop over all elements in the config file */
 	for (child = node->children; child; child = child->next) {
+		if (strcmp(child->name, "include") == 0) {
+			const char *attrval, *path;
+
+			if ((attrval = xml_node_get_attr(child, "name")) == NULL) {
+				ni_error("%s: <include> element lacks filename", xml_node_location(child));
+				goto failed;
+			}
+			if (!(path = ni_config_build_include(filename, attrval)))
+				goto failed;
+			if (!__ni_config_parse(conf, path, cb, appdata))
+				goto failed;
+		} else
+		if (strcmp(child->name, "statedir") == 0) {
+			ni_config_parse_fslocation(&conf->statedir, node);
+		} else
+		if (strcmp(child->name, "dbus") == 0) {
+			const char *attrval;
+
+			if ((attrval = xml_node_get_attr(child, "name")) != NULL)
+				ni_string_dup(&conf->dbus_name, attrval);
+			if ((attrval = xml_node_get_attr(child, "type")) != NULL)
+				ni_string_dup(&conf->dbus_type, attrval);
+		} else 
+		if (strcmp(child->name, "schema") == 0) {
+			const char *attrval;
+
+			if ((attrval = xml_node_get_attr(child, "name")) != NULL)
+				ni_string_dup(&conf->dbus_xml_schema_file, attrval);
+		} else
+		if (strcmp(child->name, "addrconf") == 0) {
+			xml_node_t *gchild;
+
+			for (gchild = child->children; gchild; gchild = gchild->next) {
+				if (!strcmp(gchild->name, "default-allow-update"))
+					ni_config_parse_update_targets(&conf->addrconf.default_allow_update, gchild);
+
+				if (!strcmp(gchild->name, "dhcp")
+				 && !ni_config_parse_addrconf_dhcp(&conf->addrconf.dhcp, gchild))
+					goto failed;
+
+				if (!strcmp(gchild->name, "dhcp6")
+				 && !ni_config_parse_addrconf_dhcp6(&conf->addrconf.dhcp6, gchild))
+					goto failed;
+			}
+		} else
 		if (strcmp(child->name, "extension") == 0
 		 || strcmp(child->name, "dbus-service") == 0) {
-			if (ni_config_parse_objectmodel_extension(&conf->dbus_extensions, child) < 0)
+			if (!ni_config_parse_objectmodel_extension(&conf->dbus_extensions, child))
 				goto failed;
 		} else
 		if (strcmp(child->name, "netif-naming-services") == 0) {
-			if (ni_config_parse_objectmodel_netif_ns(&conf->ns_extensions, child) < 0)
+			if (!ni_config_parse_objectmodel_netif_ns(&conf->ns_extensions, child))
 				goto failed;
 		} else
 		if (strcmp(child->name, "netif-firmware-discovery") == 0) {
-			if (ni_config_parse_objectmodel_firmware_discovery(&conf->fw_extensions, child) < 0)
+			if (!ni_config_parse_objectmodel_firmware_discovery(&conf->fw_extensions, child))
 				goto failed;
 		} else
 		if (strcmp(child->name, "system-updater") == 0) {
-			if (ni_config_parse_system_updater(&conf->updater_extensions, child) < 0)
+			if (!ni_config_parse_system_updater(&conf->updater_extensions, child))
+				goto failed;
+		} else
+		if (cb != NULL) {
+			if (!cb(appdata, child))
 				goto failed;
 		}
 	}
@@ -168,17 +172,58 @@ ni_config_parse(const char *filename)
 	}
 
 	xml_document_free(doc);
-	return conf;
+	return TRUE;
 
 failed:
-	if (conf)
-		ni_config_free(conf);
 	if (doc)
 		xml_document_free(doc);
+	return FALSE;
+}
+
+ni_config_t *
+ni_config_parse(const char *filename, ni_init_appdata_callback_t *cb, void *appdata)
+{
+	ni_config_t *conf;
+
+	conf = ni_config_new();
+	if (!__ni_config_parse(conf, filename, cb, appdata)) {
+		ni_config_free(conf);
+		return NULL;
+	}
+
+	return conf;
+}
+
+const char *
+ni_config_build_include(const char *parent_filename, const char *incl_filename)
+{
+	char fullname[PATH_MAX + 1];
+
+	if (incl_filename[0] != '/') {
+		unsigned int i;
+
+		i = strlen(parent_filename);
+		if (i >= PATH_MAX)
+			goto too_long;
+		strcpy(fullname, parent_filename);
+
+		while (i && fullname[i-1] != '/')
+			--i;
+		fullname[i] = '\0';
+
+		if (i + strlen(incl_filename) >= PATH_MAX)
+			goto too_long;
+		strcpy(&fullname[i], incl_filename);
+		incl_filename = fullname;
+	}
+	return incl_filename;
+
+too_long:
+	ni_error("unable to include \"%s\" - path too long", incl_filename);
 	return NULL;
 }
 
-int
+ni_bool_t
 ni_config_parse_addrconf_dhcp(struct ni_config_dhcp *dhcp, xml_node_t *node)
 {
 	xml_node_t *child;
@@ -206,7 +251,7 @@ ni_config_parse_addrconf_dhcp(struct ni_config_dhcp *dhcp, xml_node_t *node)
 			if (ni_sockaddr_parse(&pref->address, attrval, AF_INET) < 0) {
 				ni_error("config: unable to parse <prefer-server ip=\"%s\"",
 						attrval);
-				return -1;
+				return FALSE;
 			}
 
 			pref->weight = 100;
@@ -229,7 +274,7 @@ ni_config_parse_addrconf_dhcp(struct ni_config_dhcp *dhcp, xml_node_t *node)
 		if (!strcmp(child->name, "allow-update"))
 			ni_config_parse_update_targets(&dhcp->allow_update, child);
 	}
-	return 0;
+	return TRUE;
 }
 
 static int
@@ -403,7 +448,7 @@ __ni_config_parse_dhcp6_vendor_opts_nodes(xml_node_t *node, ni_var_array_t *opts
 	return 0;
 }
 
-int
+ni_bool_t
 ni_config_parse_addrconf_dhcp6(struct ni_config_dhcp6 *dhcp6, xml_node_t *node)
 {
 	xml_node_t *child;
@@ -419,7 +464,7 @@ ni_config_parse_addrconf_dhcp6(struct ni_config_dhcp6 *dhcp6, xml_node_t *node)
 
 			if (__ni_config_parse_dhcp6_class_data_nodes(child, &dhcp6->user_class_data) < 0) {
 				ni_string_array_destroy(&dhcp6->user_class_data);
-				return -1; /* errors reported */
+				return FALSE;
 			}
 
 			if (dhcp6->user_class_data.count == 0) {
@@ -435,13 +480,13 @@ ni_config_parse_addrconf_dhcp6(struct ni_config_dhcp6 *dhcp6, xml_node_t *node)
 			if (*err != '\0' || num < 0 || num >= 0xffffffff) {
 				ni_error("config: unable to parse <vendor-class enterprise-number=\"%s\"",
 						attrval);
-				return -1;
+				return FALSE;
 			}
 
 			ni_string_array_destroy(&dhcp6->vendor_class_data);
 			if (__ni_config_parse_dhcp6_class_data_nodes(child, &dhcp6->vendor_class_data) < 0) {
 				ni_string_array_destroy(&dhcp6->vendor_class_data);
-				return -1; /* errors reported */
+				return FALSE;
 			}
 
 			if (dhcp6->vendor_class_data.count == 0) {
@@ -459,7 +504,7 @@ ni_config_parse_addrconf_dhcp6(struct ni_config_dhcp6 *dhcp6, xml_node_t *node)
 			if (*err != '\0' || num < 0 || num >= 0xffffffff) {
 				ni_error("config: unable to parse <vendor-class enterprise-number=\"%s\"",
 						attrval);
-				return -1;
+				return FALSE;
 			}
 
 			ni_var_array_destroy(&dhcp6->vendor_opts_data);
@@ -500,7 +545,7 @@ ni_config_parse_addrconf_dhcp6(struct ni_config_dhcp6 *dhcp6, xml_node_t *node)
 			if (ip && ni_sockaddr_parse(&pref->address, ip, AF_INET6) < 0) {
 				ni_error("config: unable to parse <prefer-server ip=\"%s\"",
 						ip);
-				return -1;
+				return FALSE;
 			}
 
 			if (id) {
@@ -515,7 +560,7 @@ ni_config_parse_addrconf_dhcp6(struct ni_config_dhcp6 *dhcp6, xml_node_t *node)
 				if ((len = ni_parse_hex(id, pref->serverid.data, len)) <= 4) {
 					ni_error("config: unable to parse <prefer-server id=\"%s\"",
 							id);
-					return -1;
+					return FALSE;
 				}
 				pref->serverid.len = (size_t)len;
 			}
@@ -541,10 +586,10 @@ ni_config_parse_addrconf_dhcp6(struct ni_config_dhcp6 *dhcp6, xml_node_t *node)
 			ni_config_parse_update_targets(&dhcp6->allow_update, child);
 		}
 	}
-	return 0;
+	return TRUE;
 }
 
-int
+void
 ni_config_parse_update_targets(unsigned int *update_mask, const xml_node_t *node)
 {
 	const xml_node_t *child;
@@ -564,40 +609,17 @@ ni_config_parse_update_targets(unsigned int *update_mask, const xml_node_t *node
 			ni_warn("ignoring unknown addrconf update target \"%s\"", child->name);
 		}
 	}
-	return 0;
 }
 
-int
-ni_config_parse_afconfig(struct ni_afconfig *afi, const char *afname, xml_node_t *node)
-{
-	/* No config data for this address family? use defaults. */
-	if (!(node = xml_node_get_child(node, afname)))
-		return 0;
-
-	if (xml_node_get_child(node, "enabled"))
-		afi->enabled = 1;
-	else if (xml_node_get_child(node, "disabled"))
-		afi->enabled = 0;
-
-	if (xml_node_get_child(node, "forwarding"))
-		afi->forwarding = 1;
-
-	return 0;
-}
-
-int
-ni_config_parse_fslocation(ni_config_fslocation_t *fsloc, const char *name, xml_node_t *node)
+void
+ni_config_parse_fslocation(ni_config_fslocation_t *fsloc, xml_node_t *node)
 {
 	const char *attrval;
-
-	if (!(node = xml_node_get_child(node, name)))
-		return 0;
 
 	if ((attrval = xml_node_get_attr(node, "path")) != NULL)
 		ni_string_dup(&fsloc->path, attrval);
 	if ((attrval = xml_node_get_attr(node, "mode")) != NULL)
 		ni_parse_int(attrval, &fsloc->mode);
-	return 0;
 }
 
 /*
@@ -614,7 +636,7 @@ ni_config_parse_fslocation(ni_config_fslocation_t *fsloc, const char *name, xml_
  *  <putenv name="WICKED_INTERFACE_INDEX" value="$property:index"/>
  * </extension>
  */
-int
+ni_bool_t
 ni_config_parse_objectmodel_extension(ni_extension_t **list, xml_node_t *node)
 {
 	ni_extension_t *ex;
@@ -623,7 +645,7 @@ ni_config_parse_objectmodel_extension(ni_extension_t **list, xml_node_t *node)
 	if (!(name = xml_node_get_attr(node, "interface"))) {
 		ni_error("%s: <%s> element lacks interface attribute",
 				node->name, xml_node_location(node));
-		return -1;
+		return FALSE;
 	}
 
 	ex = ni_extension_new(list, name);
@@ -631,7 +653,7 @@ ni_config_parse_objectmodel_extension(ni_extension_t **list, xml_node_t *node)
 	return ni_config_parse_extension(ex, node);
 }
 
-static int
+static ni_bool_t
 ni_config_parse_extension(ni_extension_t *ex, xml_node_t *node)
 {
 	xml_node_t *child;
@@ -642,26 +664,26 @@ ni_config_parse_extension(ni_extension_t *ex, xml_node_t *node)
 
 			if (!(name = xml_node_get_attr(child, "name"))) {
 				ni_error("action element without name attribute");
-				return -1;
+				return FALSE;
 			}
 			if (!(command = xml_node_get_attr(child, "command"))) {
 				ni_error("action element without command attribute");
-				return -1;
+				return FALSE;
 			}
 
 			if (!ni_extension_script_new(ex, name, command))
-				return -1;
+				return FALSE;
 		} else
 		if (!strcmp(child->name, "builtin")) {
 			const char *name, *library, *symbol;
 
 			if (!(name = xml_node_get_attr(child, "name"))) {
 				ni_error("builtin element without name attribute");
-				return -1;
+				return FALSE;
 			}
 			if (!(symbol = xml_node_get_attr(child, "symbol"))) {
 				ni_error("action element without command attribute");
-				return -1;
+				return FALSE;
 			}
 			library = xml_node_get_attr(child, "library");
 
@@ -673,14 +695,14 @@ ni_config_parse_extension(ni_extension_t *ex, xml_node_t *node)
 			if (!(name = xml_node_get_attr(child, "name"))) {
 				ni_error("%s: <putenv> element without name attribute",
 						xml_node_location(child));
-				return -1;
+				return FALSE;
 			}
 			value = xml_node_get_attr(child, "value");
 			ni_var_array_set(&ex->environment, name, value);
 		}
 	}
 
-	return 0;
+	return TRUE;
 }
 
 /*
@@ -694,7 +716,7 @@ ni_config_parse_extension(ni_extension_t *ex, xml_node_t *node)
  *  ...
  * </netif-naming-services>
  */
-int
+ni_bool_t
 ni_config_parse_objectmodel_netif_ns(ni_extension_t **list, xml_node_t *node)
 {
 	ni_extension_t *ex;
@@ -713,7 +735,7 @@ ni_config_parse_objectmodel_netif_ns(ni_extension_t **list, xml_node_t *node)
  *  ...
  * </netif-firmware-discovery>
  */
-int
+ni_bool_t
 ni_config_parse_objectmodel_firmware_discovery(ni_extension_t **list, xml_node_t *node)
 {
 	ni_extension_t *ex;
@@ -733,7 +755,7 @@ ni_config_parse_objectmodel_firmware_discovery(ni_extension_t **list, xml_node_t
  *  ...
  * </system-updater>
  */
-int
+ni_bool_t
 ni_config_parse_system_updater(ni_extension_t **list, xml_node_t *node)
 {
 	ni_extension_t *ex;
@@ -742,7 +764,7 @@ ni_config_parse_system_updater(ni_extension_t **list, xml_node_t *node)
 	if (!(name = xml_node_get_attr(node, "name"))) {
 		ni_error("%s: <%s> element lacks name attribute",
 				node->name, xml_node_location(node));
-		return -1;
+		return FALSE;
 	}
 
 	ex = ni_extension_new(list, name);

@@ -1,15 +1,13 @@
+<!--
+     Server-specific configuration file.
+     This file sources common configuration options from common.xml.
+
+     Above and beyond this, it defines various extensions, and the
+     handling of resolver and other information received from 
+     addrconf supplicants like dhcp.
+  -->
 <config>
-  <ipv4>
-    <enabled/>
-  </ipv4>
-  <ipv6>
-    <enabled/>
-  </ipv6>
-
-  <statedir path="/var/run/wicked" mode="0755"/>
-
-  <dbus name="org.opensuse.Network" />
-  <schema name="/etc/wicked/schema/wicked.xml"/>
+  <include name="common.xml"/>
 
   <netif-naming-services>
     <!-- This is just an example; the library itself isn't implemented yet -->
@@ -17,10 +15,6 @@
     <builtin name="biosdevname" library="libwicked-biosname.so" symbol="biosdevname_ns"/>
      -->
   </netif-naming-services>
-
-  <netif-firmware-discovery>
-    <script name="ibft" command="/etc/wicked/extensions/ibft" />
-  </netif-firmware-discovery>
 
   <dbus-service interface="org.opensuse.Network.Ethernet">
    <!-- default environment for all calls to this extension script -->

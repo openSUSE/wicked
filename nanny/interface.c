@@ -55,7 +55,7 @@ ni_managed_netdev_enable(ni_managed_device_t *mdev)
 
 	if (mdev->rfkill_blocked) {
 		ni_debug_nanny("%s: radio disabled, will enable scanning later", w->name);
-		mdev->user_controlled = TRUE;
+		mdev->monitor = TRUE;
 		return TRUE;
 	}
 
@@ -74,7 +74,7 @@ ni_managed_netdev_enable(ni_managed_device_t *mdev)
 	}
 
 	ni_nanny_schedule_recheck(mdev->nanny, mdev->worker);
-	mdev->user_controlled = TRUE;
+	mdev->monitor = TRUE;
 	return TRUE;
 }
 
@@ -84,9 +84,9 @@ ni_managed_netdev_enable(ni_managed_device_t *mdev)
 ni_bool_t
 ni_managed_netdev_disable(ni_managed_device_t *mdev)
 {
-	if (mdev->user_controlled)
+	if (mdev->monitor)
 		ni_nanny_schedule_down(mdev->nanny, mdev->worker);
-	mdev->user_controlled = FALSE;
+	mdev->monitor = FALSE;
 	return TRUE;
 }
 
@@ -157,13 +157,20 @@ ni_dbus_class_t			ni_objectmodel_managed_netdev_class = {
  */
 static dbus_bool_t
 ni_objectmodel_managed_netdev_enable(ni_dbus_object_t *object, const ni_dbus_method_t *method,
-					unsigned int argc, const ni_dbus_variant_t *argv,
+					unsigned int argc, const ni_dbus_variant_t *argv, uid_t caller_uid,
 					ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_managed_device_t *mdev;
 
 	if ((mdev = ni_objectmodel_managed_netdev_unwrap(object, error)) == NULL)
 		return FALSE;
+
+	/* root user should always be allowed to enable a device */
+	if (caller_uid != 0 && !mdev->allowed) {
+		dbus_set_error(error, DBUS_ERROR_ACCESS_DENIED,
+				"you are not permitted to enable this device");
+		return FALSE;
+	}
 
 	if (argc != 0)
 		return ni_dbus_error_invalid_args(error, ni_dbus_object_get_path(object), method->name);
@@ -185,13 +192,20 @@ ni_objectmodel_managed_netdev_enable(ni_dbus_object_t *object, const ni_dbus_met
  */
 static dbus_bool_t
 ni_objectmodel_managed_netdev_disable(ni_dbus_object_t *object, const ni_dbus_method_t *method,
-					unsigned int argc, const ni_dbus_variant_t *argv,
+					unsigned int argc, const ni_dbus_variant_t *argv, uid_t caller_uid,
 					ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_managed_device_t *mdev;
 
 	if ((mdev = ni_objectmodel_managed_netdev_unwrap(object, error)) == NULL)
 		return FALSE;
+
+	/* root user should always be allowed to disable a device */
+	if (caller_uid != 0 && !mdev->allowed) {
+		dbus_set_error(error, DBUS_ERROR_ACCESS_DENIED,
+				"you are not permitted to disable this device");
+		return FALSE;
+	}
 
 	if (argc != 0)
 		return ni_dbus_error_invalid_args(error, ni_dbus_object_get_path(object), method->name);
@@ -205,8 +219,8 @@ ni_objectmodel_managed_netdev_disable(ni_dbus_object_t *object, const ni_dbus_me
 }
 
 static ni_dbus_method_t		ni_objectmodel_managed_netdev_methods[] = {
-	{ "enable",		"",		ni_objectmodel_managed_netdev_enable	},
-	{ "disable",		"",		ni_objectmodel_managed_netdev_disable	},
+	{ "enable",		"",		.handler_ex = ni_objectmodel_managed_netdev_enable	},
+	{ "disable",		"",		.handler_ex = ni_objectmodel_managed_netdev_disable	},
 	{ NULL }
 };
 
@@ -219,11 +233,15 @@ ni_objectmodel_get_managed_device(const ni_dbus_object_t *object, DBusError *err
 	return ni_objectmodel_managed_netdev_unwrap(object, error);
 }
 
+#define MANAGED_NETIF_UINT_PROPERTY(dbus_name, name, rw) \
+	NI_DBUS_GENERIC_UINT_PROPERTY(managed_device, dbus_name, name, rw)
 #define MANAGED_NETIF_BOOL_PROPERTY(dbus_name, name, rw) \
 	NI_DBUS_GENERIC_BOOL_PROPERTY(managed_device, dbus_name, name, rw)
 
 static ni_dbus_property_t	ni_objectmodel_managed_netdev_properties[] = {
-	MANAGED_NETIF_BOOL_PROPERTY(user-controlled, user_controlled, RW),
+	MANAGED_NETIF_BOOL_PROPERTY(allowed, allowed, RW),
+	MANAGED_NETIF_BOOL_PROPERTY(monitor, monitor, RW),
+	MANAGED_NETIF_UINT_PROPERTY(state, state, RO),
 	{ NULL }
 };
 

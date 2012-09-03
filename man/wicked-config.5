@@ -2,15 +2,24 @@
 .SH NAME
 wicked-config.xml \- wicked configuration file
 .SH SYNOPSIS
-.B /etc/wicked/config.xml
+.B /etc/wicked/common.xml
+.br
+.B /etc/wicked/server.xml
+.br
+.B /etc/wicked/client.xml
+.br
 .SH DESCRIPTION
-This file contains the global configuration options for the \fBwicked\fP
-network management service. Mostly, these options apply to the server side,
-but some are used by client applications as well.
+These files contain the global configuration options for the \fBwicked\fP
+network management service. \fBCommon.xml\fP contains common definitions
+that should be used by all applications, whereas \fBclient.xml\fP and
+\fBserver.xml\fP contain client- and server-specific configuration data,
+respectively.
 .PP
 The configuration file is an XML document; its root node must be called
 \fB<config>\fP.
 .PP
+.\" --------------------------------------------------------
+.SH GENERAL OPTIONS
 .\" --------------------------------------------------------
 .SS Server pathnames
 .TP
@@ -50,9 +59,8 @@ so it's best to leave this option untouched.
 .nf
 .B "  <schema name=\(dq/etc/wicked/schema/wicked.xml\(dq />
 .fi
-.TP
 .\" --------------------------------------------------------
-.SH Extensions
+.SH EXTENSIONS
 The functionality of \fBwickedd\fP can be extended in various ways.
 All of these extensions are declared in \fBconfig.xml\fP, and all
 of them follow the same pattern.

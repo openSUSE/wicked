@@ -739,9 +739,9 @@ ni_ifworker_add_callbacks(ni_fsm_transition_t *action, ni_objectmodel_callback_i
 	ni_objectmodel_callback_info_t **pos, *cb;
 
 	if (ni_debug & NI_TRACE_DBUS) {
-		ni_trace("%s waiting for callbacks:", ifname);
+		ni_trace("%s: waiting for callbacks:", ifname);
 		for (cb = callback_list; cb; cb = cb->next) {
-			ni_trace(" %s event=%s",
+			ni_trace("        %s event=%s",
 				ni_uuid_print(&cb->uuid),
 				cb->event);
 		}
@@ -804,7 +804,7 @@ ni_ifworker_set_state(ni_ifworker_t *w, unsigned int new_state)
 	if (prev_state != new_state) {
 		w->fsm.state = new_state;
 
-		ni_debug_application("device %s changed state %s -> %s%s",
+		ni_debug_application("%s: changed state %s -> %s%s",
 				w->name,
 				ni_ifworker_state_name(prev_state),
 				ni_ifworker_state_name(new_state),
@@ -1628,7 +1628,7 @@ ni_fsm_destroy_worker(ni_fsm_t *fsm, ni_ifworker_t *w)
 {
 	ni_ifworker_get(w);
 
-	ni_trace("%s(%s)", __func__, w->name);
+	ni_debug_application("%s(%s)", __func__, w->name);
 	if (!ni_fsm_ifworker_array_remove(&fsm->workers, w)) {
 		ni_ifworker_release(w);
 		return FALSE;
@@ -1662,7 +1662,7 @@ ni_ifworker_start(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned long timeout)
 				ni_ifworker_state_name(max_state));
 		return -1;
 	}
-	ni_trace("%s: target state min=%s max=%s",
+	ni_debug_application("%s: target state min=%s max=%s",
 				w->name,
 				ni_ifworker_state_name(min_state),
 				ni_ifworker_state_name(max_state));
@@ -2088,6 +2088,7 @@ ni_fsm_refresh_state(ni_fsm_t *fsm)
 		w = fsm->workers.data[i];
 
 		if (w->object == NULL) {
+			ni_debug_application("device %s (%s) disappeared", w->name, w->object_path);
 			ni_ifworker_update_state(w, NI_FSM_STATE_NONE, NI_FSM_STATE_DEVICE_DOWN);
 
 			if (w->device) {
@@ -2163,7 +2164,7 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 		if (ni_netdev_link_is_up(dev))
 			ni_ifworker_update_state(found, NI_FSM_STATE_LINK_UP, __NI_FSM_STATE_MAX);
 		else
-			ni_ifworker_update_state(found, 0, NI_FSM_STATE_DEVICE_UP);
+			ni_ifworker_update_state(found, 0, NI_FSM_STATE_LINK_UP - 1);
 	}
 
 	return found;
@@ -2634,14 +2635,13 @@ ni_ifworker_do_common(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t *acti
 		struct ni_fsm_transition_binding *bind = &action->binding[i];
 		ni_objectmodel_callback_info_t *callback_list = NULL;
 
-		ni_trace("%s(%s, %s, %s)", __func__, w->name,
-				bind->service? bind->service->name : "NIL",
-				bind->method? bind->method->name : "NIL");
 		if (bind->method == NULL)
 			continue;
 
 		if (bind->skip_call)
 			continue;
+
+		ni_debug_application("%s: %s.%s()", w->name, bind->service->name, bind->method->name);
 
 		rv = ni_call_common_xml(w->object, bind->service, bind->method, bind->config,
 				&callback_list, ni_ifworker_error_handler);
@@ -2659,7 +2659,6 @@ ni_ifworker_do_common(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t *acti
 	if (w->fsm.wait_for != NULL)
 		return 0;
 
-	ni_trace("%s: setting worker state to %s", __func__, ni_ifworker_state_name(action->next_state));
 	ni_ifworker_set_state(w, action->next_state);
 	return 0;
 }
@@ -2749,7 +2748,6 @@ ni_ifworker_call_device_factory(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transiti
 		ni_fsm_schedule_bind_methods(fsm, w);
 	}
 
-	ni_trace("%s: setting worker state to %s", __func__, ni_ifworker_state_name(action->next_state));
 	ni_ifworker_set_state(w, action->next_state);
 	return 0;
 }
@@ -2992,11 +2990,6 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 				continue;
 			}
 
-			ni_debug_application("%s: state=%s want=%s, trying to transition to %s", w->name,
-				ni_ifworker_state_name(w->fsm.state),
-				ni_ifworker_state_name(w->target_state),
-				ni_ifworker_state_name(w->fsm.next_action->next_state));
-
 			action = w->fsm.next_action;
 			if (action->next_state == NI_FSM_STATE_NONE)
 				w->fsm.state = w->target_state;
@@ -3006,6 +2999,11 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 				made_progress = 1;
 				continue;
 			}
+
+			ni_debug_application("%s: state=%s want=%s, trying to transition to %s", w->name,
+				ni_ifworker_state_name(w->fsm.state),
+				ni_ifworker_state_name(w->target_state),
+				ni_ifworker_state_name(w->fsm.next_action->next_state));
 
 			if (!action->bound) {
 				ni_ifworker_fail(w, "failed to bind services and methods for %s()",

@@ -141,7 +141,7 @@ main(int argc, char **argv)
 	if (optind != argc)
 		goto usage;
 
-	if (ni_init() < 0)
+	if (ni_init(program_name) < 0)
 		return 1;
 
 	if (opt_state_file == NULL) {

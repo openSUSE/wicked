@@ -72,6 +72,13 @@ ni_nanny_new(void)
 	ni_nanny_t *mgr;
 
 	mgr = calloc(1, sizeof(*mgr));
+	return mgr;
+}
+
+void
+ni_nanny_start(ni_nanny_t *mgr)
+{
+	ni_nanny_devmatch_t *match;
 
 	mgr->server = ni_server_listen_dbus(NI_OBJECTMODEL_DBUS_BUS_NAME_NANNY);
 	if (!mgr->server)
@@ -84,7 +91,20 @@ ni_nanny_new(void)
 	ni_objectmodel_nanny_init(mgr);
 	ni_objectmodel_register_all();
 
-	return mgr;
+	/* Resolve all class references in <enable> config elements,
+	 * so that we don't have to do this again for every new device we
+	 * discover.
+	 */
+	for (match = mgr->enable; match; match = match->next) {
+		switch (match->type) {
+		case NI_NANNY_DEVMATCH_CLASS:
+			match->class = ni_objectmodel_get_class(match->value);
+			if (!match->class)
+				ni_error("cannot enable devices of class \"%s\" - no such class",
+						match->value);
+			break;
+		}
+	}
 }
 
 void
@@ -128,7 +148,7 @@ ni_nanny_recheck_do(ni_nanny_t *mgr)
 		ni_managed_device_t *mdev;
 
 		for (mdev = mgr->device_list; mdev; mdev = mdev->next) {
-			if (mdev->user_controlled)
+			if (mdev->monitor)
 				ni_nanny_schedule_recheck(mgr, mdev->worker);
 		}
 	}
@@ -253,7 +273,7 @@ ni_nanny_rfkill_event(ni_nanny_t *mgr, ni_rfkill_type_t type, ni_bool_t blocked)
 			} else {
 				/* Re-enable scanning */
 				ni_debug_nanny("%s: radio re-enabled, resume monitoring", w->name);
-				if (mdev->user_controlled) {
+				if (mdev->monitor) {
 					ni_managed_netdev_enable(mdev);
 					ni_nanny_schedule_recheck(mgr, w);
 				}
@@ -269,6 +289,8 @@ void
 ni_nanny_register_device(ni_nanny_t *mgr, ni_ifworker_t *w)
 {
 	ni_managed_device_t *mdev;
+	const ni_dbus_class_t *dev_class = NULL;
+	ni_nanny_devmatch_t *match;
 
 	if (ni_nanny_get_device(mgr, w) != NULL)
 		return;
@@ -276,13 +298,41 @@ ni_nanny_register_device(ni_nanny_t *mgr, ni_ifworker_t *w)
 	mdev = ni_managed_device_new(mgr, w, &mgr->device_list);
 	if (w->type == NI_IFWORKER_TYPE_NETDEV) {
 		mdev->object = ni_objectmodel_register_managed_netdev(mgr->server, mdev);
+		dev_class = ni_objectmodel_link_class(w->device->link.type);
 	} else
 	if (w->type == NI_IFWORKER_TYPE_MODEM) {
 		mdev->object = ni_objectmodel_register_managed_modem(mgr->server, mdev);
-
-		/* FIXME: for now, we allow users to control all modems */
-		mdev->user_controlled = TRUE;
+		dev_class = ni_objectmodel_modem_get_class(w->modem->type);
 	}
+
+
+	for (match = mgr->enable; match; match = match->next) {
+		switch (match->type) {
+		case NI_NANNY_DEVMATCH_CLASS:
+			if (match->class == NULL || dev_class == NULL
+			 || !ni_dbus_class_is_subclass(dev_class, match->class))
+				continue;
+			ni_trace("devmatch class %s: %p", match->value, match->class);
+			break;
+
+		case NI_NANNY_DEVMATCH_DEVICE:
+			if (!ni_string_eq(w->name, match->value))
+				continue;
+			break;
+		}
+
+		mdev->allowed = TRUE;
+		if (match->auto_enable)
+			mdev->monitor = TRUE;
+	}
+
+	ni_debug_nanny("new device %s, class %s%s%s", w->name,
+			mdev->object->class->name,
+			mdev->allowed? ", user control allowed" : "",
+			mdev->monitor? ", auto-enabled" : "");
+
+	if (mdev->monitor)
+		ni_nanny_schedule_recheck(mgr, w);
 }
 
 /*

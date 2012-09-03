@@ -231,7 +231,7 @@ install-lib: $(TGTLIBS)
 
 install-data: $(GENFILES)
 	install -d -m 755 $(DESTDIR)$(wickedconfigdir)
-	install -m 644 etc/config.xml $(DESTDIR)$(wickedconfigdir)
+	install -m 644 etc/*.xml $(DESTDIR)$(wickedconfigdir)
 	install -d -m 755 $(DESTDIR)$(dbus_systemdir)
 	install -c -m 444 etc/*.conf $(DESTDIR)$(dbus_systemdir)
 	install -d -m 755 $(DESTDIR)$(wickedconfigdir)/schema

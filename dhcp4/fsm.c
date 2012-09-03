@@ -636,7 +636,6 @@ ni_dhcp_fsm_commit_lease(ni_dhcp_device_t *dev, ni_addrconf_lease_t *lease)
 				sizeof(lease->dhcp.client_id)-1);
 
 		/* If the user requested a specific route metric, apply it now */
-		ni_trace("=== route priority %u ===", dev->config->route_priority);
 		if (dev->config && dev->config->route_priority) {
 			ni_route_t *rp;
 

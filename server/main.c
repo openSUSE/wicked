@@ -114,7 +114,7 @@ main(int argc, char **argv)
 		}
 	}
 
-	if (ni_init() < 0)
+	if (ni_init("server") < 0)
 		return 1;
 
 	if (opt_state_file == NULL) {
