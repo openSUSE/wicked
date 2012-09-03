@@ -213,10 +213,10 @@ __ni_rtevent_dellink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 		ni_error("bad RTM_DELLINK message for unknown interface index %d", ifi->ifi_index);
 		return -1;
 	} else {
-		dev->link.ifindex = 0;
 		dev->link.ifflags = __ni_netdev_translate_ifflags(ifi->ifi_flags);
 
 		__ni_netdev_event(nc, dev, NI_EVENT_DEVICE_DELETE);
+
 		ni_netconfig_device_remove(nc, dev);
 	}
 
