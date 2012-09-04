@@ -30,6 +30,8 @@ static void		ni_xs_name_type_array_destroy(ni_xs_name_type_array_t *);
 static ni_xs_type_t *	ni_xs_build_one_type(xml_node_t *, ni_xs_scope_t *);
 static void		ni_xs_service_free(ni_xs_service_t *);
 static ni_bool_t	ni_xs_type_build_constraints(ni_xs_type_t **, const xml_node_t *, ni_xs_group_array_t *);
+static const char *	ni_xs_get_description(const xml_node_t *);
+static ni_xs_type_t *	ni_xs_type_set_description(ni_xs_type_t *, const xml_node_t *);
 static ni_xs_intmap_t *	ni_xs_build_bitmap_constraint(const xml_node_t *);
 static ni_xs_intmap_t *	ni_xs_build_enum_constraint(const xml_node_t *);
 static ni_xs_range_t *	ni_xs_build_range_constraint(const xml_node_t *);
@@ -60,11 +62,12 @@ __ni_xs_type_new(unsigned int class)
 }
 
 ni_xs_type_t *
-ni_xs_scalar_new(unsigned int scalar_type)
+ni_xs_scalar_new(const char *basic_name, unsigned int scalar_type)
 {
 	ni_xs_type_t *type = __ni_xs_type_new(NI_XS_TYPE_SCALAR);
 
 	type->u.scalar_info = xcalloc(1, sizeof(ni_xs_scalar_info_t));
+	type->u.scalar_info->basic_name = basic_name;
 	type->u.scalar_info->type = scalar_type;
 	return type;
 }
@@ -116,7 +119,7 @@ ni_xs_type_clone(const ni_xs_type_t *src)
 		{
 			ni_xs_scalar_info_t *scalar_info = src->u.scalar_info;
 
-			dst = ni_xs_scalar_new(scalar_info->type);
+			dst = ni_xs_scalar_new(scalar_info->basic_name, scalar_info->type);
 
 			/* we clone the constraints as well */
 			ni_xs_scalar_set_bitmap(dst, scalar_info->constraint.bitmap);
@@ -234,6 +237,7 @@ ni_xs_type_free(ni_xs_type_t *type)
 		xml_node_free(type->meta);
 	type->meta = NULL;
 
+	ni_string_free(&type->description);
 	ni_string_free(&type->name);
 	free(type);
 }
@@ -289,7 +293,7 @@ ni_xs_name_type_array_free(ni_xs_name_type_array_t *array)
 }
 
 void
-ni_xs_name_type_array_append(ni_xs_name_type_array_t *array, const char *name, ni_xs_type_t *type)
+ni_xs_name_type_array_append(ni_xs_name_type_array_t *array, const char *name, ni_xs_type_t *type, const char *description)
 {
 	ni_xs_name_type_t *def;
 
@@ -299,6 +303,7 @@ ni_xs_name_type_array_append(ni_xs_name_type_array_t *array, const char *name, n
 	def = &array->data[array->count++];
 	def->name = xstrdup(name);
 	def->type = ni_xs_type_hold(type);
+	def->description = xstrdup(description);
 }
 
 void
@@ -310,7 +315,7 @@ ni_xs_name_type_array_copy(ni_xs_name_type_array_t *dst, const ni_xs_name_type_a
 	if (dst->count)
 		ni_xs_name_type_array_destroy(dst);
 	for (i = 0, def = src->data; i < src->count; ++i, ++def)
-		ni_xs_name_type_array_append(dst, def->name, def->type);
+		ni_xs_name_type_array_append(dst, def->name, def->type, def->description);
 }
 
 static ni_xs_type_t *
@@ -439,7 +444,7 @@ ni_xs_scope_lookup(const ni_xs_scope_t *dict, const char *name)
 }
 
 int
-ni_xs_scope_typedef(ni_xs_scope_t *dict, const char *name, ni_xs_type_t *type)
+ni_xs_scope_typedef(ni_xs_scope_t *dict, const char *name, ni_xs_type_t *type, const char *description)
 {
 	if (ni_xs_scope_lookup_local(dict, name) != NULL)
 		return -1;
@@ -447,7 +452,12 @@ ni_xs_scope_typedef(ni_xs_scope_t *dict, const char *name, ni_xs_type_t *type)
 #ifdef DEBUG_VERBOSE
 	ni_debug_xml("define type %s in scope %s", name, dict->name?: "<anon>");
 #endif
-	ni_xs_name_type_array_append(&dict->types, name, type);
+	ni_xs_name_type_array_append(&dict->types, name, type, description);
+
+	if (type->origdef.scope == NULL) {
+		type->origdef.scope = dict;
+		type->origdef.name = dict->types.data[dict->types.count-1].name;
+	}
 	return 0;
 }
 
@@ -473,6 +483,7 @@ static void
 ni_xs_method_free(ni_xs_method_t *method)
 {
 	ni_string_free(&method->name);
+	ni_string_free(&method->description);
 	ni_xs_name_type_array_destroy(&method->arguments);
 
 	if (method->retval)
@@ -513,6 +524,7 @@ ni_xs_service_free(ni_xs_service_t *service)
 	}
 	ni_string_free(&service->name);
 	ni_string_free(&service->interface);
+	ni_string_free(&service->description);
 
 	free(service);
 }
@@ -648,6 +660,7 @@ ni_xs_process_service(xml_node_t *node, ni_xs_scope_t *scope)
 	ni_debug_dbus("define schema for service %s (interface=%s) in scope %s", nameAttr, intfAttr, scope->name);
 #endif
 	service = ni_xs_service_new(nameAttr, intfAttr, scope);
+	sub_scope->defined_by.service = service;
 
 	/* Copy all service attributes we don't deal with here */
 	{
@@ -677,6 +690,9 @@ ni_xs_process_service(xml_node_t *node, ni_xs_scope_t *scope)
 		if (!strcmp(child->name, "signal")) {
 			if ((rv = ni_xs_process_signal(child, service, sub_scope)) < 0)
 				return rv;
+		} else
+		if (!strcmp(child->name, "description")) {
+			ni_string_dup(&service->description, child->cdata);
 		} else {
 			ni_warn("%s: ignoring unknown element <%s>", xml_node_location(child), child->name);
 		}
@@ -728,6 +744,9 @@ ni_xs_process_method(xml_node_t *node, ni_xs_service_t *service, ni_xs_scope_t *
 			}
 			method->retval = ni_xs_type_hold(type);
 		} else
+		if (ni_string_eq(child->name, "description")) {
+			ni_string_dup(&method->description, child->cdata);
+		} else
 		if (ni_string_eq(child->name, "meta")) {
 			xml_node_detach(child);
 			method->meta = child;
@@ -751,7 +770,7 @@ ni_xs_process_signal(xml_node_t *node, ni_xs_service_t *service, ni_xs_scope_t *
 {
 	const char *nameAttr;
 	ni_xs_method_t *signal;
-	xml_node_t *child;
+	xml_node_t *child, *next;
 
 	if (!(nameAttr = xml_node_get_attr(node, "name"))) {
 		ni_error("%s: <%s> element lacks name attribute", xml_node_location(node), node->name);
@@ -759,16 +778,23 @@ ni_xs_process_signal(xml_node_t *node, ni_xs_service_t *service, ni_xs_scope_t *
 	}
 
 	signal = ni_xs_method_new(&service->signals, nameAttr);
-	if ((child = xml_node_get_child(node, "arguments")) != NULL) {
+	for (child = node->children; child; child = next) {
 		ni_xs_scope_t *temp_scope;
 
-		temp_scope = ni_xs_scope_new(scope, NULL);
-		if (ni_xs_build_typelist(child, &signal->arguments, temp_scope, TRUE, NULL) < 0) {
-			ni_xs_scope_free(temp_scope);
-			return -1;
-		}
+		next = child->next;
 
-		ni_xs_scope_free(temp_scope);
+		if (ni_string_eq(child->name, "arguments")) {
+			temp_scope = ni_xs_scope_new(scope, NULL);
+			if (ni_xs_build_typelist(child, &signal->arguments, temp_scope, TRUE, NULL) < 0) {
+				ni_xs_scope_free(temp_scope);
+				return -1;
+			}
+
+			ni_xs_scope_free(temp_scope);
+		} else
+		if (ni_string_eq(child->name, "description")) {
+			ni_string_dup(&signal->description, child->cdata);
+		}
 	}
 
 	return 0;
@@ -917,13 +943,15 @@ ni_xs_process_define(xml_node_t *node, ni_xs_scope_t *scope)
 		return 0;
 	}
 
-	if (ni_xs_scope_typedef(scope, nameAttr, refType) < 0) {
+	refType = ni_xs_type_set_description(refType, node);
+
+	if (ni_xs_scope_typedef(scope, nameAttr, refType, NULL) < 0) {
 		ni_error("%s: attempt to redefine type <%s>", xml_node_location(node), nameAttr);
 		ni_xs_type_release(refType);
 		return -1;
 	}
-	ni_xs_type_release(refType);
 
+	ni_xs_type_release(refType);
 	return 0;
 }
 
@@ -947,6 +975,9 @@ ni_xs_build_typelist(xml_node_t *node, ni_xs_name_type_array_t *result, ni_xs_sc
 				return -1;
 			continue;
 		}
+
+		if (!strcmp(child->name, "description"))
+			continue;
 
 		if (ni_xs_is_class_name(child->name)) {
 			/* <struct ...> <dict ...> or <array ...> */
@@ -1015,7 +1046,7 @@ ni_xs_build_typelist(xml_node_t *node, ni_xs_name_type_array_t *result, ni_xs_sc
 			}
 		}
 
-		ni_xs_name_type_array_append(result, memberName, memberType);
+		ni_xs_name_type_array_append(result, memberName, memberType, ni_xs_get_description(child));
 		ni_xs_type_release(memberType);
 	}
 
@@ -1149,6 +1180,9 @@ ni_xs_build_complex_type(xml_node_t *node, const char *className, ni_xs_scope_t 
 		ni_error("%s: unknown class=\"%s\"", xml_node_location(node), className);
 		return NULL;
 	}
+
+	if (type)
+		type = ni_xs_type_set_description(type, node);
 
 	return type;
 }
@@ -1498,6 +1532,34 @@ ni_xs_scalar_set_range(ni_xs_type_t *type, ni_xs_range_t *range)
 	scalar_info->constraint.range = range;
 }
 
+const char *
+ni_xs_get_description(const xml_node_t *node)
+{
+	const char *description;
+	xml_node_t *dnode;
+
+	if ((description = xml_node_get_attr(node, "description")) != NULL)
+		return description;
+
+	if ((dnode = xml_node_get_child(node, "description")) != NULL)
+		return dnode->cdata;
+
+	return NULL;
+}
+
+ni_xs_type_t *
+ni_xs_type_set_description(ni_xs_type_t *type, const xml_node_t *node)
+{
+	const char *description;
+
+	if ((description = ni_xs_get_description(node)) != NULL) {
+		type = ni_xs_type_clone_and_release(type);
+		ni_string_dup(&type->description, description);
+	}
+
+	return type;
+}
+
 /*
  * Handling of group constraints
  */
@@ -1607,6 +1669,8 @@ ni_xs_build_one_type(xml_node_t *node, ni_xs_scope_t *scope)
 				goto error;
 			continue;
 		}
+		if (!strcmp(child->name, "description"))
+			continue;
 		if (result != NULL) {
 			ni_error("%s: definition of type is ambiguous", xml_node_location(node));
 			goto error;

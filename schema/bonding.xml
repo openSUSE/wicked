@@ -1,4 +1,14 @@
 <service name="bonding" interface="org.opensuse.Network.Bond" object-class="netif-bond">
+ <description>
+   This link-layer service is provided by all bonding devices.
+   
+   Since there isn't a lot
+   to tune about a VLAN once it has been created, this DBus interface doesn't offer
+   a changeDevice() method.
+
+   VLAN devices can be created through the org.opensuse.Network.VLAN.Factory factory interface.
+ </description>
+
  <!-- This is the device-info returned in interface reports -->
  <define name="device-info" class="dict">
    <mode type="builtin-bonding-mode"/>
@@ -18,16 +28,18 @@
      -- error. If both are present, the behavior is undefined.
      -->
    <arpmon class="dict">
-     <interval type="uint32"/>
+     <interval type="uint32" description="ARP link monitoring frequency in milliseconds."/>
      <validate type="builtin-bonding-validate"/>
      <target class="array" element-type="ipv4-address" minlen="1"/>
    </arpmon>
 
    <miimon class="dict">
-     <frequency type="uint32"/>
-     <validate type="uint32"/>
-     <updelay type="uint32"/>
-     <downdelay type="uint32"/>
+     <frequency type="uint32" description="Specifies the MII link monitoring frequency in milliseconds.
+             This determines how often the link state of each slave is inspected for link failures."/>
+     <updelay type="uint32" description="Specifies the time, in milliseconds, to wait before enabling a
+             slave after a link recovery has been detected."/>
+     <downdelay type="uint32" description="Specifies the time, in milliseconds, to wait before disabling
+             a slave after a link failure has been detected."/>
 
      <!-- Move this to constants.xml -->
      <define name="carrier-detect" type="string" constraint="enum">
@@ -35,11 +47,19 @@
        <netif value="1"/>
      </define>
 
-     <carrier type="carrier-detect"/>
+     <carrier type="carrier-detect" description=""/>
    </miimon>
  </define>
 
  <define name="properties" type="device-info"/>
+
+ <method name="changeDevice">
+  <arguments>
+    <config type="bonding:device-info">
+      <meta:mapping document-node="/bond"/>
+    </config>
+  </arguments>
+ </method>
 
  <method name="addSlave">
   <arguments>

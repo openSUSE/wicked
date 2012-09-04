@@ -1132,7 +1132,7 @@ ni_dbus_define_scalar_types(ni_xs_scope_t *typedict)
 	}, *tp;
 
 	for (tp = dbus_xml_types; tp->name; ++tp)
-		ni_xs_scope_typedef(typedict, tp->name, ni_xs_scalar_new(tp->dbus_type));
+		ni_xs_scope_typedef(typedict, tp->name, ni_xs_scalar_new(tp->name, tp->dbus_type), NULL);
 }
 
 /*

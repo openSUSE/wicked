@@ -156,6 +156,7 @@ typedef struct ni_xs_name_type	ni_xs_name_type_t;
 struct ni_xs_name_type {
 	char *			name;
 	ni_xs_type_t *		type;
+	char *			description;
 };
 
 typedef struct ni_xs_name_type_array {
@@ -229,6 +230,7 @@ struct ni_xs_struct_info {
 
 typedef struct ni_xs_scalar_info ni_xs_scalar_info_t;
 struct ni_xs_scalar_info {
+	const char *		basic_name;
 	unsigned int		type;
 
 	struct {
@@ -242,11 +244,17 @@ struct ni_xs_type {
 	unsigned int		refcount;
 	unsigned int		class;
 	char *			name;
+	char *			description;
 
 	struct {
 		ni_bool_t	mandatory;
 		ni_xs_group_t *	group;
 	} constraint;
+
+	struct {
+		const char *		name;
+		const ni_xs_scope_t *	scope;
+	} origdef;
 
 	union {
 		ni_xs_scalar_info_t *	scalar_info;
@@ -262,6 +270,8 @@ struct ni_xs_type {
 struct ni_xs_method {
 	ni_xs_method_t *	next;
 	char *			name;
+	char *			description;
+
 	ni_xs_name_type_array_t	arguments;
 	ni_xs_type_t *		retval;
 
@@ -273,6 +283,7 @@ struct ni_xs_service {
 	ni_xs_service_t *	next;
 	char *			name;
 	char *			interface;
+	char *			description;
 
 	ni_var_array_t		attributes;
 
@@ -298,6 +309,10 @@ struct ni_xs_scope {
 	ni_var_array_t		constants;
 
 	ni_xs_scope_t *		children;
+
+	struct {
+		const ni_xs_service_t *service;
+	} defined_by;
 };
 
 extern ni_xs_scope_t *	ni_xs_scope_new(ni_xs_scope_t *, const char *);
@@ -309,8 +324,8 @@ extern ni_xs_type_t *	ni_xs_scope_lookup_local(const ni_xs_scope_t *, const char
 extern int		ni_xs_process_schema_file(const char *, ni_xs_scope_t *);
 extern int		ni_xs_process_schema(xml_node_t *, ni_xs_scope_t *);
 
-extern ni_xs_type_t *	ni_xs_scalar_new(unsigned int);
-extern int		ni_xs_scope_typedef(ni_xs_scope_t *, const char *, ni_xs_type_t *);
+extern ni_xs_type_t *	ni_xs_scalar_new(const char *, unsigned int);
+extern int		ni_xs_scope_typedef(ni_xs_scope_t *, const char *, ni_xs_type_t *, const char *);
 extern void		ni_xs_type_free(ni_xs_type_t *type);
 
 const ni_xs_type_t *	ni_xs_name_type_array_find(const ni_xs_name_type_array_t *, const char *);

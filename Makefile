@@ -25,7 +25,7 @@ LDCOMMON= $(LIBDL_LIBS) $(LIBNL_LIBS) $(LIBANL_LIBS) $(LIBDBUS_LIBS) $(LIBGCRYPT
 APPS	= wicked wickedd network-nanny \
 	  dhcp4-supplicant autoip4-supplicant \
 	  dhcp6-supplicant
-UTILS	= mkconst
+UTILS	= mkconst schema2html
 APPBINS	= $(addprefix $(BIN)/,$(APPS) $(UTILS))
 TGTLIBS	= $(LIBNAME).so
 
@@ -170,7 +170,7 @@ DHCP6OBJS= $(addprefix $(OBJ)/,$(DHCP6SRCS:.c=.o))
 CLIENTOBJS= $(addprefix $(OBJ)/,$(CLIENTSRCS:.c=.o))
 SERVEROBJS= $(addprefix $(OBJ)/,$(SERVERSRCS:.c=.o))
 NANNYOBJS= $(addprefix $(OBJ)/,$(NANNYSRCS:.c=.o))
-UTILSRCS= util/mkconst.c
+UTILSRCS= util/mkconst.c util/schema2html.c
 
 SOURCES= $(LIBSRCS) $(DHCP4SRCS) $(AUTO4SRCS) $(DHCP6SRCS) \
 	 $(CLIENTSRCS) $(SERVERSRCS) $(NANNYSRCS)
@@ -184,6 +184,11 @@ dist: Makefile.vars wicked.spec $(DIST_ARCHIVE)
 
 tags:
 	@-ctags -f tags $$(find $(TAGDIRS) -type f -name "*.[ch]")
+
+htmldoc: bin/schema2html
+	@rm -rf html
+	@mkdir html
+	./bin/schema2html --outdir html --config etc/server.xml
 
 distclean clean::
 	rm -f *~ *.o libwicked.* core LOG
@@ -301,6 +306,12 @@ $(BIN)/dhcp6-supplicant: $(DHCP6OBJS) $(TGTLIBS)
 $(BIN)/mkconst: LDFLAGS += -L. -lwicked -lm $(LIBS)
 $(BIN)/mkconst: LDFLAGS += $(LDCOMMON)
 $(BIN)/mkconst: $(OBJ)/util/mkconst.o $(TGTLIBS)
+	@mkdir -p bin
+	$(CC) -o $@ $(CFLAGS) $< $(LDFLAGS)
+
+$(BIN)/schema2html: LDFLAGS += -L. -lwicked -lm $(LIBS)
+$(BIN)/schema2html: LDFLAGS += $(LDCOMMON)
+$(BIN)/schema2html: $(OBJ)/util/schema2html.o $(TGTLIBS)
 	@mkdir -p bin
 	$(CC) -o $@ $(CFLAGS) $< $(LDFLAGS)
 

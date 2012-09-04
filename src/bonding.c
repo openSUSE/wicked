@@ -28,6 +28,7 @@ ni_bonding_new(void)
 	bonding->monitoring = NI_BOND_MONITOR_ARP;
 	bonding->arpmon.interval = 2000;
 	bonding->arpmon.validate = NI_BOND_VALIDATE_ACTIVE;
+	bonding->miimon.carrier_detect = NI_BOND_CARRIER_DETECT_NETIF;
 	bonding->xmit_hash_policy = NI_BOND_XMIT_HASH_LAYER2;
 
 	return bonding;

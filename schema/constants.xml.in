@@ -64,6 +64,10 @@
   <@@BONDING_MODE_NAME@@ value="@@BONDING_MODE_VALUE@@"/>
 </define>
 <define name="builtin-bonding-validate" type="uint32" constraint="enum">
+  <description>
+   Specifies whether or not ARP probes and replies should be
+   validated in the active-backup mode.
+  </description>
   <@@BONDING_VALIDATE_NAME@@ value="@@BONDING_VALIDATE_VALUE@@"/>
 </define>
 <define name="builtin-bonding-xmit-hash-policy" type="uint32" constraint="enum">

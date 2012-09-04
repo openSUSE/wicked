@@ -5,7 +5,7 @@
 <define name="network-interface" class="dict">
  <!-- An address assigned to a network interface -->
  <define name="assigned-address" class="dict">
-   <local type="network-address-prefix"/>
+   <local type="network-address-prefix" />
    <peer type="network-address"/>
    <anycast type="network-address"/>
    <broadcast type="network-address"/>
@@ -56,16 +56,28 @@
  </define>
 
  <!-- =====================================
+      Description
+      ===================================== -->
+ <description>
+   This defines the state of a network interface from the kernel's perspective.
+
+ </description>
+
+ <!-- =====================================
       Properties of an interface start here
       ===================================== -->
- <name type="string"/>
+ <name type="string" description="The kernel name of the interface" />
 
  <!-- These bits must match the definitions in netinfo.h -->
- <status type="builtin-ifflags" />
+ <status type="builtin-ifflags" description="The interface status flags. NOTE: These are not the kernel flags"/>
 
- <link-type type="builtin-iftype"/>
+ <link-type type="builtin-iftype" description="The link-layer type of this interface"/>
 
  <define name="client-info-type" class="dict">
+   <description>
+    This can be used by the client to store a "fingerprint" of the configured state.
+    This data is not interpreted by the server.
+   </description>
    <config-origin type="string"/>
    <config-uuid type="uuid-type"/>
    <state type="string"/>
@@ -73,7 +85,7 @@
 
  <client-info type="client-info-type" />
 
- <index type="uint32"/>
+ <index type="uint32" description="The interface index. The index is also used in the DBus name of the DBus netif object"/>
  <metric type="uint32"/>
  <txqlen type="uint32"/>
  <mtu type="uint32"/>
@@ -83,8 +95,8 @@
  <ipv4 type="af-info"/>
  <ipv6 type="af-info"/>
 
- <addresses type="assigned-address-list" />
- <routes type="assigned-route-list" />
+ <addresses type="assigned-address-list" description="The list of network addresses currently assigned to the interface"/>
+ <routes type="assigned-route-list" description="The list of network routes currently assigned to the interface"/>
 </define>
 
 
@@ -126,6 +138,12 @@
 
   <define name="callback-info" class="dict">
    <!-- We can return one or more these callback elements in a single dict -->
+   <description>
+    Methods for network or modem devices that are unable to complete the request
+    immediately (for instance, a DHCP supplicant needs to broadcast for a lease, etc),
+    the server will return callback information. This is a list of one or more
+    callbacks to wait for.
+   </description>
    <callback class="dict">
      <uuid type="uuid-type"/>
      <event type="string"/>
@@ -133,6 +151,13 @@
   </define>
 
   <define name="link-request" class="dict">
+   <description>
+    This describes the requested change(s) to the link layer. It is passed to the
+    linkUp() method.
+
+    For keys that are omitted, the existing setting of the network interface
+    remains unchanged.
+   </description>
    <status type="builtin-ifflags"/>
 
    <metric type="uint32"/>
@@ -151,6 +176,15 @@
   </define>
 
   <method name="linkUp">
+    <description>
+     This method initiaties link negotiation. This may include link-specific activities;
+     for instance, when bringing up a wireless device, this will start wireless
+     authentication.
+
+     When the link negotiation is complete by the time this method is done,
+     we will return an empty callback-info dict. If the link negotiation is still
+     in process, a callback-info dict is returned.
+    </description>
     <arguments>
       <request type="link-request">
         <meta:mapping document-node="/link" skip-unless-present="false" />
@@ -162,18 +196,27 @@
   </method>
 
   <method name="linkDown">
+    <description>
+     This method takes the link down by clearing its IFF_UP flag.
+    </description>
     <return>
       <callback-info/>
     </return>
   </method>
 
   <method name="linkAuth">
+    <description>
+     Do not use
+    </description>
     <arguments>
       <!-- to be defined -->
     </arguments>
   </method>
 
   <method name="networkChange">
+    <description>
+     Do not use
+    </description>
     <arguments>
       <!-- to be defined -->
     </arguments>
@@ -198,24 +241,111 @@
   </method>
 
   <method name="setClientInfo">
+    <description>
+      This method can be used by clients to record the state of a device
+      configuration. The argument includes a string describing the state,
+      and a hash of the configuration data used in bringing up the device.
+    </description>
     <arguments>
       <arg type="network-interface:client-info-type" />
     </arguments>
   </method>
 
   <!-- Signals emitted by this interface -->
-  <signal name="deviceCreate" />
-  <signal name="deviceDelete" />
-  <signal name="deviceUp" />
-  <signal name="deviceDown" />
-  <signal name="linkUp" />
-  <signal name="linkAssociated" />
-  <signal name="linkAssociationLost" />
-  <signal name="linkScanUpdated" />
-  <signal name="linkDown" />
-  <signal name="networkUp" />
-  <signal name="networkDown" />
-  <signal name="addressAcquired" />
-  <signal name="addressReleased" />
-  <signal name="addressLost" />
+  <signal name="deviceCreate">
+    <description>
+     This signal is emitted whenever a new device is created or discovered.
+    </description>
+  </signal>
+  <signal name="deviceDelete">
+    <description>
+     This signal is emitted whenever a device is destroyed or otherwise disappeared from the system
+     (for instance, by hot removal).
+    </description>
+  </signal>
+  <signal name="deviceUp">
+    <description>
+     This signal is emitted whenever a device's IFF_UP flag is set.
+    </description>
+  </signal>
+  <signal name="deviceDown">
+    <description>
+     This signal is emitted whenever a device's IFF_UP flag is cleared.
+    </description>
+  </signal>
+  <signal name="linkUp">
+    <description>
+     This signal is emitted whenever a device completes link negotiation (ie when its IFF_UP and
+     IFF_LOWER_UP flag is set)
+    </description>
+  </signal>
+  <signal name="linkDown">
+    <description>
+     This signal is emitted whenever a device loses its link (ie when its IFF_UP and/or
+     IFF_LOWER_UP flag is cleared).
+    </description>
+  </signal>
+  <signal name="linkAssociated">
+    <description>
+     Emitted whenever a device (re-)associates with a different access point.
+     Used by wireless devices.
+    </description>
+  </signal>
+  <signal name="linkAssociationLost">
+    <description>
+     Emitted whenever a device loses its association with an access point.
+    </description>
+  </signal>
+  <signal name="linkScanUpdated">
+    <description>
+     Emitted by wireless devices when a scan completed and the set of visible APs or
+     networks changed.
+    </description>
+  </signal>
+  <signal name="networkUp">
+    <description>
+     This signal shadows linkUp, and may be removed in the future.
+    </description>
+  </signal>
+  <signal name="networkDown">
+    <description>
+     This signal shadows linkDown, and may be removed in the future.
+    </description>
+  </signal>
+  <signal name="addressAcquired">
+    <description>
+     Emitted whenever an address was acquired through an addrconf service.
+
+     Addrconf services like dhcp4 or dhcp6 are unable to grant a requested lease immediately.
+     In response to a requestLease() call, they will return callback information containing
+     a uuid, and the event name addressAcquired. Once the address negotiation with the DHCP
+     server succeeds, wickedd will emit an addressAcquired event with the uuid specified in
+     the callback info.
+
+     If the DHCP supplicant is unable to obtain the requested lease, an addressLost signal is
+     generated instead.
+    </description>
+  </signal>
+  <signal name="addressReleased">
+    <description>
+     Emitted whenever an address previously acquired through an addrconf service is released.
+
+     Addrconf services like dhcp4 or dhcp6 should release their leases gracefully when the
+     interface is taken down.
+     In response to a dropLease() call, they will return callback information containing
+     a uuid, and the event name addressReleased. Once the we have successfully informed
+     the DHCP server and released the lease, wickedd will emit an addressReleased event with
+     the uuid specified in the callback info.
+
+     This signal is also emitted spontaneously when an addrconf service released a lease.
+     For instance, if an interface is taken down manually using "ifconfig down", the DHCP
+     supplicant will discard the lease it held for this interface, and subsequently,
+     an addressReleased() event is emitted.
+    </description>
+  </signal>
+  <signal name="addressLost">
+    <description>
+      Emitted whenever an addrconf service failed to renew a previously acquired lease.
+    </description>
+  </signal>
 </service>

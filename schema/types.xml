@@ -25,10 +25,27 @@
   -- IPv4 and IPv6 addresses (other formats currently not supported).
   -- On the wire, the address is represented in a packed format. -->
 <define name="network-address">
+  <description>
+   This is a network address of any support address family.
+   On the wire, it is represented as uint16 containing the address family,
+   followed by the raw address bytes in network byte order.
+
+   In the XML representation, an unambiguous "natural" representation is used,
+   e.g.  dotted quad for IPv4.
+  </description>
   <array element-type="byte" notation="net-address" />
 </define>
 
 <define name="network-address-prefix">
+  <description>
+   This is a network address in addr/prefix notation.
+   On the wire, it is represented as uint16 containing the prefix length,
+   followed by a uint16 containing the address family, and eventually
+   the raw address bytes in network byte order.
+
+   In the XML representation, an unambiguous "natural" representation is used,
+   e.g.  dotted quad for IPv4, followed by a slash and the prefixlen.
+  </description>
   <array element-type="byte" notation="net-address-prefix" />
 </define>
 
@@ -37,6 +54,14 @@
 </define>
 
 <define name="external-file">
+  <description>
+    This type can be used in a schema definition. It is used to "splice"
+    the contents of a file as raw binary data into the configuration that
+    is passed to the server.
+
+    The purpose of this is to be able to keep things like cryptographic
+    keys in a separate file.
+  </description>
   <array element-type="byte" notation="external-file"/>
 </define>
 

@@ -2,6 +2,14 @@
   -- VLAN Service definition
   -->
 <service name="vlan" interface="org.opensuse.Network.VLAN" object-class="netif-vlan">
+ <description>
+   This link-layer service is provided by all VLAN devices. Since there isn't a lot
+   to tune about a VLAN once it has been created, this DBus interface doesn't offer
+   a changeDevice() method.
+
+   VLAN devices can be created through the org.opensuse.Network.VLAN.Factory factory interface.
+ </description>
+
  <!-- This is the linkinfo returned in interface reports -->
  <define name="linkinfo" class="dict">
   <device type="string">
