@@ -250,14 +250,8 @@ ni_address_can_reach(const ni_address_t *laddr, const ni_sockaddr_t *gw)
 ni_bool_t
 ni_address_is_loopback(const ni_address_t *laddr)
 {
-	if (laddr->family == AF_INET && laddr->local_addr.ss_family == AF_INET) {
-		uint32_t inaddr;
-
-		inaddr = ntohl(laddr->local_addr.sin.sin_addr.s_addr);
-		return (inaddr >> 24) == IN_LOOPBACKNET;
-	}
-	if (laddr->family == AF_INET6 && laddr->local_addr.ss_family == AF_INET6)
-		return IN6_IS_ADDR_LOOPBACK(&laddr->local_addr.six.sin6_addr);
+	if (laddr->family == laddr->local_addr.ss_family)
+		return ni_sockaddr_is_loopback(&laddr->local_addr);
 
 	return FALSE;
 }
@@ -265,8 +259,8 @@ ni_address_is_loopback(const ni_address_t *laddr)
 ni_bool_t
 ni_address_is_linklocal(const ni_address_t *laddr)
 {
-	if (laddr->family == AF_INET6 && laddr->local_addr.ss_family == AF_INET6)
-		return IN6_IS_ADDR_LINKLOCAL(&laddr->local_addr.six.sin6_addr);
+	if (laddr->family == laddr->local_addr.ss_family)
+		return ni_sockaddr_is_linklocal(&laddr->local_addr);
 
 	return FALSE;
 }
@@ -299,6 +293,76 @@ ni_bool_t
 ni_address_is_deprecated(const ni_address_t *laddr)
 {
 	return laddr->flags & IFA_F_DEPRECATED;
+}
+
+ni_bool_t
+ni_sockaddr_is_ipv4_loopback(const ni_sockaddr_t *saddr)
+{
+	if (saddr->ss_family == AF_INET) {
+		uint32_t inaddr;
+
+		inaddr = ntohl(saddr->sin.sin_addr.s_addr);
+		return (inaddr >> 24) == IN_LOOPBACKNET;
+	}
+	return FALSE;
+}
+
+ni_bool_t
+ni_sockaddr_is_ipv6_loopback(const ni_sockaddr_t *saddr)
+{
+	if (saddr->ss_family == AF_INET6) {
+		return IN6_IS_ADDR_LOOPBACK(&saddr->six.sin6_addr);
+	}
+	return FALSE;
+}
+
+ni_bool_t
+ni_sockaddr_is_loopback(const ni_sockaddr_t *saddr)
+{
+	switch (saddr->ss_family) {
+	case AF_INET:
+		return ni_sockaddr_is_ipv4_loopback(saddr);
+	case AF_INET6:
+		return ni_sockaddr_is_ipv6_loopback(saddr);
+	default:
+		return FALSE;
+	}
+}
+
+ni_bool_t
+ni_sockaddr_is_ipv4_linklocal(const ni_sockaddr_t *saddr)
+{
+	if (saddr->ss_family == AF_INET) {
+		uint32_t inaddr;
+
+		inaddr = ntohl(saddr->sin.sin_addr.s_addr);
+
+		/* rfc3927, 169.254.0.0/16 */
+		return (inaddr >> 16) == 0xa9fe;
+	}
+	return FALSE;
+}
+
+ni_bool_t
+ni_sockaddr_is_ipv6_linklocal(const ni_sockaddr_t *saddr)
+{
+	if (saddr->ss_family == AF_INET6) {
+		return IN6_IS_ADDR_LINKLOCAL(&saddr->six.sin6_addr);
+	}
+	return FALSE;
+}
+
+ni_bool_t
+ni_sockaddr_is_linklocal(const ni_sockaddr_t *saddr)
+{
+	switch (saddr->ss_family) {
+	case AF_INET:
+		return ni_sockaddr_is_ipv4_linklocal(saddr);
+	case AF_INET6:
+		return ni_sockaddr_is_ipv6_linklocal(saddr);
+	default:
+		return FALSE;
+	}
 }
 
 ni_bool_t
