@@ -57,12 +57,27 @@ struct ni_dhcp6_status {
  * of lease ia address "states".
  *
  * TODO: move to another header file?
+ * Do we ever need a bitmask?
  */
 enum ni_dhcp6_ia_addr_flags {
-	NI_DHCP6_IA_ADDR_DEPREF		= 1U<<0,
-	NI_DHCP6_IA_ADDR_EXPIRED	= 1U<<1,
-	NI_DHCP6_IA_ADDR_DECLINE	= 1U<<2,
-	NI_DHCP6_IA_ADDR_RELEASE	= 1U<<3,
+	NI_DHCP6_IA_ADDR_EXPIRED	= 1U<<0,	/* expired -> garbage   */
+	NI_DHCP6_IA_ADDR_DECLINE	= 1U<<1,	/* decline this address */
+	NI_DHCP6_IA_ADDR_RELEASE	= 1U<<2,	/* release this address */
+};
+
+/*
+ * Flag constants we use for recording
+ * of lease ia "states".
+ *
+ * TODO: move to another header file?
+ * Do we ever need a bitmask?
+ */
+enum ni_dhcp6_ia_flags {
+	NI_DHCP6_IA_RENEW		= 1U<<0,	/* IA needs renew       */
+	NI_DHCP6_IA_REBIND		= 1U<<1,	/* IA needs rebind      */
+#if 0
+	NI_DHCP6_IA_CONFIRM		= 1U<<2,	/* IA needs confirm     */
+#endif
 };
 
 struct ni_dhcp6_ia_addr {
@@ -78,6 +93,7 @@ struct ni_dhcp6_ia_addr {
 
 struct ni_dhcp6_ia {
 	ni_dhcp6_ia_t *		next;
+	unsigned int		flags;
 
 	uint16_t		type;
 	uint32_t		iaid;
@@ -142,11 +158,11 @@ struct ni_dhcp6_config {
 	ni_bool_t		info_only;
 	ni_bool_t		rapid_commit;
 
-	ni_opaque_t		client_duid;	/* our own raw client id	*/
-	ni_sockaddr_t		client_addr;	/* our own address (link-local)	*/
-
+	ni_opaque_t		client_duid;	/* raw client id to use		*/
 	ni_opaque_t		server_duid;	/* destination raw server id	*/
+#if 1
 	ni_sockaddr_t		server_addr;	/* multicast or server unicast  */
+#endif
 
 	char			hostname[256];
 	ni_string_array_t	user_class;
@@ -176,15 +192,20 @@ struct ni_dhcp6_device {
 	struct ni_dhcp6_device *next;
 	unsigned int		users;
 
-	char *			ifname;
-	ni_linkinfo_t		link;
-	uint32_t		iaid;
+	char *			ifname;		/* cached interface name	*/
+	struct {
+	    unsigned int	ifindex;	/* interface index		*/
+	    ni_sockaddr_t	addr;		/* cached link-local address	*/
+	    //ni_bool_t		ready;		/* device,link,network are up	*/
+	}			link;
+
+	uint32_t		iaid;		/* default IA interface-id	*/
 
 	ni_socket_t *		sock;
 
-	ni_dhcp6_request_t *	request;	/* the wicked request params/info   */
-	ni_dhcp6_config_t *	config;		/* config built from request info   */
-	ni_addrconf_lease_t *	lease;		/* last acquired lease		    */
+	ni_dhcp6_request_t *	request;	/* the wicked request params	*/
+	ni_dhcp6_config_t *	config;		/* config built from request	*/
+	ni_addrconf_lease_t *	lease;		/* last acquired lease		*/
 
 	struct {
 	    int			state;
@@ -234,10 +255,9 @@ extern ni_dhcp6_device_t *	ni_dhcp6_device_get(ni_dhcp6_device_t *);
 extern void			ni_dhcp6_device_put(ni_dhcp6_device_t *);
 
 extern ni_dhcp6_device_t *	ni_dhcp6_device_by_index(unsigned int);
+extern ni_dhcp6_device_t *	ni_dhcp6_device_by_index_show_all(unsigned int);
 
 extern void			ni_dhcp6_device_stop(ni_dhcp6_device_t *);
-
-extern void			ni_dhcp6_device_event(ni_dhcp6_device_t *dev, ni_event_t event);
 
 extern void			ni_dhcp6_device_set_request(ni_dhcp6_device_t *, ni_dhcp6_request_t *);
 
@@ -256,6 +276,20 @@ typedef void			ni_dhcp6_event_handler_t(enum ni_dhcp6_event,
 
 extern void			ni_dhcp6_set_event_handler(ni_dhcp6_event_handler_t);
 
-extern void			ni_dhcp6_address_event(ni_netdev_t *, ni_event_t, const ni_address_t *);
+extern void			ni_dhcp6_device_event(ni_dhcp6_device_t *, ni_netdev_t *, ni_event_t);
+extern void			ni_dhcp6_address_event(ni_dhcp6_device_t *, ni_netdev_t *, ni_event_t, const ni_address_t *);
+
+extern ni_dhcp6_ia_t *		ni_dhcp6_ia_na_new(unsigned int iaid);
+extern ni_dhcp6_ia_t *		ni_dhcp6_ia_ta_new(unsigned int iaid);
+extern ni_dhcp6_ia_t *		ni_dhcp6_ia_pd_new(unsigned int iaid);
+
+extern ni_bool_t		ni_dhcp6_ia_type_na(ni_dhcp6_ia_t *);
+extern ni_bool_t		ni_dhcp6_ia_type_ta(ni_dhcp6_ia_t *);
+extern ni_bool_t		ni_dhcp6_ia_type_pd(ni_dhcp6_ia_t *);
+
+extern void			ni_dhcp6_ia_destroy(ni_dhcp6_ia_t *);
+extern void			ni_dhcp6_ia_list_append(ni_dhcp6_ia_t **, ni_dhcp6_ia_t *);
+extern void			ni_dhcp6_ia_list_destroy(ni_dhcp6_ia_t **);
+
 
 #endif /* __WICKED_DHCP6_SUPPLICANT_H__ */

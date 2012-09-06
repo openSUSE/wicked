@@ -84,6 +84,7 @@ static char *			opt_state_file;
 static ni_dbus_server_t *	dhcp6_dbus_server;
 
 static void			dhcp6_interface_event(ni_netdev_t *, ni_event_t);
+static void			dhcp6_interface_addr_event(ni_netdev_t *, ni_event_t, const ni_address_t *);
 static void			dhcp6_supplicant(void);
 
 int
@@ -204,12 +205,14 @@ dhcp6_device_create(ni_dbus_server_t *server, const ni_netdev_t *ifp)
 
 	dev = ni_dhcp6_device_new(ifp->name, &ifp->link);
 	if (!dev) {
-		ni_error("Cannot create dhcp device for %s", ifp->name);
+		ni_error("%s[%u]: Cannot allocate dhcp6 device",
+			ifp->name, ifp->link.ifindex);
 		return FALSE;
 	}
 
 	ni_objectmodel_register_dhcp6_device(server, dev);
-	ni_debug_dhcp("Created device for %s", ifp->name);
+	ni_debug_dhcp("%s[%u]: Created dhcp6 device",
+			ifp->name, ifp->link.ifindex);
 	return TRUE;
 }
 
@@ -221,7 +224,9 @@ dhcp6_device_destroy(ni_dbus_server_t *server, const ni_netdev_t *ifp)
 {
         ni_dhcp6_device_t *dev;
 
-        ni_debug_dhcp("%s(%s, ifindex %d)", __func__, ifp->name, ifp->link.ifindex);
+	ni_debug_dhcp("%s: Destroying dhcp6 device with index %u",
+			ifp->name, ifp->link.ifindex);
+
         if ((dev = ni_dhcp6_device_by_index(ifp->link.ifindex)) != NULL)
                 ni_dbus_server_unregister_object(server, dev);
 }
@@ -236,7 +241,7 @@ dhcp6_discover_devices(ni_dbus_server_t *server)
 	ni_netdev_t *	ifp;
 
 	if (!(nc = ni_global_state_handle(1)))
-		ni_fatal("cannot refresh interface list!");
+		ni_fatal("Cannot refresh interface list!");
 
 	for (ifp = ni_netconfig_devlist(nc); ifp; ifp = ifp->next) {
 
@@ -265,14 +270,14 @@ dhcp6_supplicant(void)
 
 	/* open global RTNL socket to listen for kernel events */
 	if (ni_server_listen_interface_events(dhcp6_interface_event) < 0)
-		ni_fatal("unable to initialize netlink listener");
+		ni_fatal("Unable to initialize netlink listener");
 
-	if (ni_server_enable_interface_addr_events(ni_dhcp6_address_event) < 0)
-		ni_fatal("unable to initialize netlink address update listener");
+	if (ni_server_enable_interface_addr_events(dhcp6_interface_addr_event) < 0)
+		ni_fatal("Unable to initialize netlink address update listener");
 
 	if (!opt_foreground) {
 		if (ni_server_background(program_name) < 0)
-			ni_fatal("unable to background server");
+			ni_fatal("Unable to background server");
 		ni_log_destination_syslog(program_name);
 	}
 
@@ -324,46 +329,56 @@ dhcp6_interface_event(ni_netdev_t *ifp, ni_event_t event)
 	ni_netdev_t *ofp;
 
 	ni_debug_events("%s[%u]: received interface event: %s",
-			ifp->name, ifp->link.ifindex, ni_event_type_to_name(event));
+			ifp->name, ifp->link.ifindex,
+			ni_event_type_to_name(event));
 
-        switch (event) {
-        case NI_EVENT_DEVICE_CREATE:
-        	/* check for duplicate ifindex */
-        	ofp = ni_netdev_by_index(nc, ifp->link.ifindex);
-        	if (ofp && ofp != ifp) {
-        		ni_warn("duplicate ifindex in device-create event");
-        		return;
-        	}
+	switch (event) {
+	case NI_EVENT_DEVICE_CREATE:
+		/* check for duplicate ifindex */
+		ofp = ni_netdev_by_index(nc, ifp->link.ifindex);
+		if (ofp && ofp != ifp) {
+			/*
+			 * FIXME: how/when can this happen?
+			 */
+			ni_warn("duplicate ifindex in device-create event");
+			return;
+		}
 
-        	/* Create dbus object */
-        	dhcp6_device_create(dhcp6_dbus_server, ifp);
-        break;
-
-        case NI_EVENT_DEVICE_DELETE:
-        	/* Delete dbus device object */
-        	dhcp6_device_destroy(dhcp6_dbus_server, ifp);
-        break;
-
-        case NI_EVENT_LINK_DOWN:
-        case NI_EVENT_LINK_UP:
-        	dev = ni_dhcp6_device_by_index(ifp->link.ifindex);
-        	if (dev != NULL)
-        		ni_dhcp6_device_event(dev, event);
-        break;
-
-        case NI_EVENT_DEVICE_DOWN:
-        	/* Someone has taken the interface down completely. Which means
-		 * we shouldn't pretend we're still owning this device. So forget
-		 * all leases and shut up. */
-        	ni_debug_dhcp("device %s went down: discard any leases", ifp->name);
-        	dev = ni_dhcp6_device_by_index(ifp->link.ifindex);
-        	if (dev != NULL)
-        		ni_dhcp6_device_stop(dev);
+		/* Create dbus object */
+		dhcp6_device_create(dhcp6_dbus_server, ifp);
 	break;
 
-        default:
-        break;
-        }
+	case NI_EVENT_DEVICE_DELETE:
+		/* Delete dbus device object */
+		dhcp6_device_destroy(dhcp6_dbus_server, ifp);
+	break;
+
+	case NI_EVENT_DEVICE_DOWN:
+	case NI_EVENT_DEVICE_UP:
+	case NI_EVENT_NETWORK_DOWN:
+	case NI_EVENT_NETWORK_UP:
+	case NI_EVENT_LINK_DOWN:
+	case NI_EVENT_LINK_UP:
+		dev = ni_dhcp6_device_by_index(ifp->link.ifindex);
+		if (dev != NULL) {
+			ni_dhcp6_device_event(dev, ifp, event);
+		}
+break;
+
+default:
+break;
+}
+}
+
+static void
+dhcp6_interface_addr_event(ni_netdev_t *ifp, ni_event_t event, const ni_address_t *addr)
+{
+	ni_dhcp6_device_t *dev;
+
+	dev = ni_dhcp6_device_by_index(ifp->link.ifindex);
+	if (dev != NULL) {
+		ni_dhcp6_address_event(dev, ifp, event, addr);
+	}
 }
 
 static void
@@ -379,8 +394,8 @@ dhcp6_protocol_event(enum ni_dhcp6_event ev, const ni_dhcp6_device_t *dev, ni_ad
 
 	dev_object = ni_dbus_server_find_object_by_handle(dhcp6_dbus_server, dev);
 	if (dev_object == NULL) {
-		ni_warn("%s: no dbus object for device %s!", __func__,
-				dev->ifname);
+		ni_warn("%s(%s): no dbus object for dhcp6 device!",
+			__func__, dev->ifname);
 		return;
 	}
 
@@ -400,7 +415,8 @@ dhcp6_protocol_event(enum ni_dhcp6_event ev, const ni_dhcp6_device_t *dev, ni_ad
 	ni_dbus_variant_init_dict(var);
 	if (lease) {
 		if (!ni_objectmodel_get_addrconf_lease(lease, var)) {
-			ni_warn("%s: could not extract lease data", __func__);
+			ni_warn("%s(%s): could not extract lease data",
+				__func__, dev->ifname);
 			goto done;
 		}
 	}
@@ -408,8 +424,8 @@ dhcp6_protocol_event(enum ni_dhcp6_event ev, const ni_dhcp6_device_t *dev, ni_ad
 	switch (ev) {
 	case NI_DHCP6_EVENT_ACQUIRED:
 		if (lease == NULL) {
-			ni_error("BUG: cannot send %s event without a lease handle",
-					NI_OBJECTMODEL_LEASE_ACQUIRED_SIGNAL);
+			ni_error("%s: BUG not send %s event without a lease handle",
+				dev->ifname, NI_OBJECTMODEL_LEASE_ACQUIRED_SIGNAL);
 			goto done;
 		}
 		ni_dbus_server_send_signal(dhcp6_dbus_server, dev_object,

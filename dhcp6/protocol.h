@@ -31,6 +31,16 @@
 #define NI_DHCP6_WBUF_SIZE		1280		/* initial size     */
 
 /*
+ * We use the preferred lifetime (== lease time) to adjust
+ * all the life / renew / rebind times.
+ *
+ * T1 / renew : preferred * 0.5		(30 -> renew  after 15 sec)
+ * T2 / rebind: preferred * 0.8		(30 -> rebind after 24 sec)
+ */
+#define NI_DHCP6_PREFERRED_LIFETIME	(3600*10)	/* 10 hours */
+#define NI_DHCP6_MIN_PREF_LIFETIME	(30)		/* min. accepted from config */
+
+/*
  * Client/Server Message Formats, transaction-id
  * http://tools.ietf.org/html/rfc3315#section-6
  */
@@ -302,7 +312,6 @@ typedef struct ni_dhcp6_option_request {
 extern const char *	ni_dhcp6_message_name(unsigned int);
 extern const char *	ni_dhcp6_option_name(unsigned int);
 const char *		ni_dhcp6_status_name(unsigned int);
-extern const char *	ni_dhcp6_ia_type_name(unsigned int);
 
 //extern int		ni_dhcp6_socket_open(ni_dhcp6_device_t *);
 
@@ -325,33 +334,14 @@ extern int		ni_dhcp6_parse_client_options(ni_dhcp6_device_t *dev, ni_buffer_t *b
 extern int		ni_dhcp6_check_client_header(ni_dhcp6_device_t *dev, const struct in6_addr *sender,
 							unsigned int msg_type, unsigned int msg_xid);
 
-extern int		ni_dhcp6_check_message_duids(ni_dhcp6_device_t *dev, const struct in6_addr *sender,
-							unsigned int msg_type, unsigned int msg_xid,
-							ni_addrconf_lease_t *msg_lease);
-
-
-#if 0
-extern int		ni_dhcp6_client_parse_header(ni_buffer_t *msgbuf,
-						     unsigned int *msg_type, unsigned int *msg_xid);
-
-extern int		ni_dhcp6_client_check_header(ni_dhcp6_device_t *dev, const struct in6_addr *from,
-						     unsigned int msg_type, unsigned int msg_xid);
-
-extern int		ni_dhcp6_client_parse_response(ni_dhcp6_device_t *, ni_buffer_t *,
-							const struct in6_addr *,
-							unsigned int *, unsigned int *,
-							ni_addrconf_lease_t **);
-#endif
 
 /* FIXME: cleanup */
-extern ni_dhcp6_status_t *ni_dhcp6_status_new(void);
+extern ni_dhcp6_status_t *ni_dhcp6_status_new();
 extern void		ni_dhcp6_status_clear(struct ni_dhcp6_status *);
 extern void		ni_dhcp6_status_destroy(struct ni_dhcp6_status **);
 
-extern ni_dhcp6_ia_t *	ni_dhcp6_ia_new(unsigned int);
-extern void		ni_dhcp6_ia_destroy(ni_dhcp6_ia_t *);
-extern void		ni_dhcp6_ia_list_append(ni_dhcp6_ia_t **, ni_dhcp6_ia_t *);
-extern void		ni_dhcp6_ia_list_destroy(ni_dhcp6_ia_t **);
+extern ni_dhcp6_ia_t *	ni_dhcp6_ia_new(unsigned int, unsigned int);
+extern int		ni_dhcp6_ia_list_copy(ni_dhcp6_ia_t **, ni_dhcp6_ia_t *, ni_bool_t);
 
 extern ni_dhcp6_ia_addr_t *ni_dhcp6_ia_addr_new(struct in6_addr, unsigned int);
 extern void		ni_dhcp6_ia_addr_destory(ni_dhcp6_ia_addr_t *);
@@ -360,12 +350,19 @@ extern void		ni_dhcp6_ia_addr_list_append(ni_dhcp6_ia_addr_t **,
 							ni_dhcp6_ia_addr_t *);
 extern void		ni_dhcp6_ia_addr_list_destroy(ni_dhcp6_ia_addr_t **);
 
-extern void		ni_dhcp6_ia_addr_mark(ni_dhcp6_ia_addr_t *, unsigned int);
-extern void		ni_dhcp6_ia_addr_unmark(ni_dhcp6_ia_addr_t *, unsigned int);
-extern ni_bool_t	ni_dhcp6_ia_addr_is_marked(ni_dhcp6_ia_addr_t *, unsigned int);
+extern ni_bool_t	ni_dhcp6_ia_addr_is_usable(ni_dhcp6_ia_addr_t *);
+extern int		ni_dhcp6_ia_addr_list_copy(ni_dhcp6_ia_addr_t **, ni_dhcp6_ia_addr_t *, ni_bool_t);
 
 extern unsigned int	ni_dhcp6_ia_release_matching(ni_dhcp6_ia_t *, struct in6_addr *,
 									unsigned int);
+extern void		ni_dhcp6_ia_set_default_lifetimes(ni_dhcp6_ia_t *, unsigned int);
+
+extern unsigned int	ni_dhcp6_ia_min_preferred_lft(ni_dhcp6_ia_t *);
+extern unsigned int	ni_dhcp6_ia_max_preferred_lft(ni_dhcp6_ia_t *);
+extern unsigned int	ni_dhcp6_ia_max_valid_lft(ni_dhcp6_ia_t *);
+
+extern unsigned int	ni_dhcp6_ia_get_rebind_time(ni_dhcp6_ia_t *);
+extern unsigned int	ni_dhcp6_ia_get_renewal_time(ni_dhcp6_ia_t *);
 
 extern void		ni_addrconf_dhcp6_lease_free(ni_addrconf_lease_t *);
 
