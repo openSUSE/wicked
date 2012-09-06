@@ -105,6 +105,17 @@ ni_address_list_dedup(ni_address_t **list)
 	}
 }
 
+unsigned int
+ni_address_list_count(ni_address_t *list)
+{
+	unsigned int count = 0;
+	ni_address_t *ap;
+
+	for (ap = list; ap != NULL; ap = ap->next)
+		count++;
+	return count;
+}
+
 ni_address_t *
 ni_address_list_find(ni_address_t *list, const ni_sockaddr_t *addr)
 {
