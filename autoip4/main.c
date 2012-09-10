@@ -210,18 +210,30 @@ autoip4_register_services(ni_dbus_server_t *server)
 /*
  * Add a newly discovered device
  */
-static void
+static ni_bool_t
 autoip4_device_create(ni_dbus_server_t *server, const ni_netdev_t *ifp)
 {
 	ni_autoip_device_t *dev;
+	ni_bool_t rv = FALSE;
 
 	dev = ni_autoip_device_new(ifp->name, &ifp->link);
-	if (!dev)
-		ni_fatal("Cannot create ipv4ll device for %s", ifp->name);
-	dev->link.ifindex = ifp->link.ifindex;
+	if (!dev) {
+		ni_error("Cannot allocate autoip4 device for '%s' and index %u",
+			ifp->name, ifp->link.ifindex);
+		return rv;
+	}
 
-	ni_objectmodel_register_autoip4_device(server, dev);
-	ni_debug_dhcp("Created device for %s", ifp->name);
+	if (ni_objectmodel_register_autoip4_device(server, dev) == NULL) {
+		ni_debug_autoip("Created autoip4 device for '%s' and index %u",
+				ifp->name, ifp->link.ifindex);
+		rv = TRUE;
+	}
+
+	/* either register autoip4 device was successful and obtained
+	 * an own reference or we can drop ours here anyway ... */
+	ni_autoip_device_put(dev);
+
+	return rv;
 }
 
 /*
