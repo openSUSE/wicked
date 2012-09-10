@@ -15,6 +15,8 @@
 #include <netlink/msg.h>
 
 #include <wicked/netinfo.h>
+#include <wicked/ipv4.h>
+#include <wicked/ipv6.h>
 #include <wicked/addrconf.h>
 #include <wicked/route.h>
 #include <wicked/bridge.h>
@@ -23,7 +25,6 @@
 #include <wicked/vlan.h>
 #include <wicked/wireless.h>
 #include <wicked/linkstats.h>
-#include <wicked/xml.h>
 
 #include "netinfo_priv.h"
 #include "sysfs.h"

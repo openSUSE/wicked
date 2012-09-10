@@ -9,6 +9,7 @@
 
 #include <wicked/netinfo.h>
 #include <wicked/ipv4.h>
+#include <wicked/ipv6.h>
 #include <wicked/logging.h>
 
 #include "util_priv.h"

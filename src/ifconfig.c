@@ -33,6 +33,7 @@
 #include <wicked/system.h>
 #include <wicked/wireless.h>
 #include <wicked/ppp.h>
+#include <wicked/ipv4.h>
 #include <wicked/ipv6.h>
 
 #include "netinfo_priv.h"

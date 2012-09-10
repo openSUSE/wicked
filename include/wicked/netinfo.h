@@ -13,8 +13,6 @@
 #include <wicked/types.h>
 #include <wicked/constants.h>
 #include <wicked/util.h>
-#include <wicked/ipv6.h> /* for now */
-#include <wicked/ipv4.h> /* for now */
 #include <wicked/address.h>
 
 typedef struct ni_link_stats	ni_link_stats_t;

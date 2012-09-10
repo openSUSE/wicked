@@ -22,6 +22,7 @@
 #include <wicked/dbus-errors.h>
 #include <wicked/dbus-service.h>
 #include <wicked/system.h>
+#include <wicked/ipv4.h>
 #include "netinfo_priv.h"
 #include "dbus-common.h"
 #include "model.h"

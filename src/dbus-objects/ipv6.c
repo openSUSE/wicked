@@ -23,6 +23,7 @@
 #include <wicked/dbus-errors.h>
 #include <wicked/dbus-service.h>
 #include <wicked/system.h>
+#include <wicked/ipv6.h>
 #include "netinfo_priv.h"
 #include "dbus-common.h"
 #include "model.h"
