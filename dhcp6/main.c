@@ -206,13 +206,13 @@ dhcp6_device_create(ni_dbus_server_t *server, const ni_netdev_t *ifp)
 
 	dev = ni_dhcp6_device_new(ifp->name, &ifp->link);
 	if (!dev) {
-		ni_error("%s[%u]: Cannot allocate dhcp6 device",
+		ni_error("Cannot allocate dhcp6 device for '%s' and index %u",
 			ifp->name, ifp->link.ifindex);
 		return rv;
 	}
 
 	if (ni_objectmodel_register_dhcp6_device(server, dev) != NULL) {
-		ni_debug_dhcp("%s[%u]: Created dhcp6 device",
+		ni_debug_dhcp("Created dhcp6 device for '%s' and index %u",
 				ifp->name, ifp->link.ifindex);
 		rv = TRUE;
 	}

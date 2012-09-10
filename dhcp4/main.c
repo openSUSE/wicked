@@ -227,13 +227,14 @@ dhcp4_device_create(ni_dbus_server_t *server, const ni_netdev_t *ifp)
 
 	dev = ni_dhcp_device_new(ifp->name, &ifp->link);
 	if (!dev) {
-		ni_error("%s[%u]: Cannot allocate dhcp device",
+		ni_error("Cannot allocate dhcp4 device for '%s' and index %u",
 			ifp->name, ifp->link.ifindex);
 		return rv;
 	}
 
 	if (ni_objectmodel_register_dhcp4_device(server, dev) == NULL) {
-		ni_debug_dhcp("Created dhcp device for %s", ifp->name);
+		ni_debug_dhcp("Created dhcp4 device for '%s' and index %u",
+				ifp->name, ifp->link.ifindex);
 		rv = TRUE;
 	}
 
