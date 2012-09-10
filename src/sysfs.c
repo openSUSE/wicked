@@ -12,6 +12,8 @@
 
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
+#include <wicked/pci.h>
+#include "util_priv.h"
 #include "sysfs.h"
 
 #define _PATH_SYS_CLASS_NET		"/sys/class/net"
@@ -859,4 +861,59 @@ ni_sysfs_ibft_scan_nics(ni_ibft_nic_array_t *nics)
 	ni_string_array_destroy(&nodes);
 
 	return nics->count;
+}
+
+/*
+ * Identify a network PCI device
+ */
+ni_pci_dev_t *
+ni_pci_dev_new(const char *path)
+{
+	ni_pci_dev_t *pci_dev;
+
+	pci_dev = xcalloc(1, sizeof(*pci_dev));
+	ni_string_dup(&pci_dev->path, path);
+	return pci_dev;
+}
+
+void
+ni_pci_dev_free(ni_pci_dev_t *pci_dev)
+{
+	ni_string_free(&pci_dev->path);
+	free(pci_dev);
+}
+
+ni_pci_dev_t *
+ni_sysfs_netdev_get_pci(const char *ifname)
+{
+	char pathbuf[PATH_MAX], device_link[PATH_MAX], *pci_path, *s;
+	ni_pci_dev_t *pci = NULL;
+	const char *attr;
+
+	snprintf(pathbuf, sizeof(pathbuf), "%s/%s", _PATH_SYS_CLASS_NET, ifname);
+	if (readlink(pathbuf, device_link, sizeof(device_link)) < 0)
+		return NULL;
+
+	if (strncmp(device_link, "../../devices/", 14))
+		return NULL;
+	pci_path = device_link + 14;
+	if ((s = strstr(pci_path, "/net/")) == NULL)
+		return NULL;
+	*s = '\0';
+	pci = ni_pci_dev_new(pci_path);
+
+	if ((attr = __ni_sysfs_netif_get_attr(ifname, "device/vendor")) == NULL)
+		goto failed;
+	pci->vendor = strtoul(attr, NULL, 0);
+
+	if ((attr = __ni_sysfs_netif_get_attr(ifname, "device/device")) == NULL)
+		goto failed;
+	pci->device = strtoul(attr, NULL, 0);
+
+	return pci;
+
+failed:
+	if (pci)
+		ni_pci_dev_free(pci);
+	return NULL;
 }

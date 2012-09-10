@@ -708,7 +708,7 @@ ni_parse_int(const char *input, unsigned int *result)
 {
 	char *end;
 
-	if (!input)
+	if (!input || !*input)
 		return -1;
 	*result = strtoul(input, (char **) &end, 0);
 	if (*end == '\0')

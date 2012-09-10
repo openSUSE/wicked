@@ -87,6 +87,7 @@ struct ni_netdev {
 	ni_ppp_t *		ppp;
 
 	ni_ibft_nic_t *		ibft_nic;
+	ni_pci_dev_t *		pci_dev;
 };
 
 struct ni_netdev_req {
@@ -178,6 +179,7 @@ extern void		ni_netdev_set_wireless(ni_netdev_t *, ni_wireless_t *);
 extern void		ni_netdev_set_openvpn(ni_netdev_t *, ni_openvpn_t *);
 extern void		ni_netdev_set_ppp(ni_netdev_t *, ni_ppp_t *);
 extern void		ni_netdev_set_ibft_nic(ni_netdev_t *, ni_ibft_nic_t *);
+extern void		ni_netdev_set_pci(ni_netdev_t *, ni_pci_dev_t *);
 extern void		ni_netdev_set_client_info(ni_netdev_t *, ni_device_clientinfo_t *);
 extern ni_ipv6_devinfo_t *ni_netdev_get_ipv6(ni_netdev_t *);
 extern ni_ipv4_devinfo_t *ni_netdev_get_ipv4(ni_netdev_t *);

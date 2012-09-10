@@ -26,6 +26,7 @@
 #include <wicked/ibft.h>
 #include <wicked/ipv4.h>
 #include <wicked/ipv6.h>
+#include <wicked/pci.h>
 #include "netinfo_priv.h"
 #include "appconfig.h"
 
@@ -93,6 +94,8 @@ ni_netdev_free(ni_netdev_t *dev)
 
 	ni_netdev_set_ipv4(dev, NULL);
 	ni_netdev_set_ipv6(dev, NULL);
+
+	ni_netdev_set_pci(dev, NULL);
 
 	ni_addrconf_lease_list_destroy(&dev->leases);
 
@@ -302,6 +305,17 @@ ni_netdev_set_ibft_nic(ni_netdev_t *dev, ni_ibft_nic_t *nic)
 		ni_ibft_nic_free(dev->ibft_nic);
 
 	dev->ibft_nic = nic;
+}
+
+/*
+ * Set the PCI device info
+ */
+void
+ni_netdev_set_pci(ni_netdev_t *dev, ni_pci_dev_t *pci_dev)
+{
+	if (dev->pci_dev)
+		ni_pci_dev_free(dev->pci_dev);
+	dev->pci_dev = pci_dev;
 }
 
 /*

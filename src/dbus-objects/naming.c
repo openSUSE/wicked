@@ -15,6 +15,7 @@
 #include <wicked/dbus-errors.h>
 #include <wicked/ethernet.h>
 #include <wicked/modem.h>
+#include <wicked/pci.h>
 #include "dbus-common.h"
 #include "model.h"
 #include "appconfig.h"
@@ -116,6 +117,19 @@ __match_hwaddr(const ni_hwaddr_t *hwaddr, const char *string)
 	return ni_link_address_equal(hwaddr, &match);
 }
 
+static ni_bool_t
+__match_uint(unsigned int device_value, const char *query_string)
+{
+	unsigned int query_value;
+
+	if (ni_parse_int(query_string, &query_value) < 0)
+		return FALSE;
+	return device_value == query_value;
+}
+
+/*
+ * Identify device by ethernet attributes
+ */
 static dbus_bool_t
 ni_objectmodel_ether_match_attr(const ni_dbus_object_t *object, const char *name, const char *value)
 {
@@ -141,6 +155,49 @@ ni_objectmodel_ether_match_attr(const ni_dbus_object_t *object, const char *name
 static ni_objectmodel_ns_t ni_objectmodel_ether_ns = {
 	.name		= "ethernet",
 	.match_attr	= ni_objectmodel_ether_match_attr,
+};
+
+/*
+ * Identify a device by PCI attributes
+ */
+static dbus_bool_t
+ni_objectmodel_pci_match_attr(const ni_dbus_object_t *object, const char *name, const char *value)
+{
+	ni_netdev_t *dev;
+	ni_pci_dev_t *pci_dev;
+
+	if (!(dev = ni_objectmodel_unwrap_netif(object, NULL)))
+		return FALSE;
+
+	if (!(pci_dev = dev->pci_dev))
+		return FALSE;
+
+	if (ni_string_eq(name, "path"))
+		return ni_string_eq(pci_dev->path, value);
+
+	/* Bridge means, we match if the query string is a prefix of the device's path */
+	if (ni_string_eq(name, "bridge")) {
+		unsigned int len;
+
+		if (!value)
+			return FALSE;
+		len = strlen(value);
+		return strncmp(pci_dev->path, value, len) == 0 && pci_dev->path[len] == '/';
+	}
+
+	if (ni_string_eq(name, "vendor"))
+		return __match_uint(pci_dev->vendor, value);
+
+	if (ni_string_eq(name, "device"))
+		return __match_uint(pci_dev->device, value);
+
+	ni_warn("%s: unsupported query attribute %s", __func__, name);
+	return FALSE;
+}
+
+static ni_objectmodel_ns_t ni_objectmodel_pci_ns = {
+	.name		= "pci",
+	.match_attr	= ni_objectmodel_pci_match_attr,
 };
 
 /*
@@ -183,5 +240,6 @@ void
 ni_objectmodel_register_ns_builtin(void)
 {
 	ni_objectmodel_register_ns(&ni_objectmodel_ether_ns);
+	ni_objectmodel_register_ns(&ni_objectmodel_pci_ns);
 	ni_objectmodel_register_ns(&ni_objectmodel_modem_ns);
 }
