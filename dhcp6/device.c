@@ -209,16 +209,20 @@ ni_dhcp6_device_free(ni_dhcp6_device_t *dev)
 	ni_dhcp6_device_t **pos;
 
 	ni_assert(dev->users == 0);
+	ni_debug_dhcp("%s: Deleting dhcp6 device with index %u",
+			dev->ifname, dev->link.ifindex);
+
 	ni_dhcp6_device_drop_buffer(dev);
 	ni_dhcp6_device_drop_lease(dev);
 	ni_dhcp6_device_drop_best_offer(dev);
 	ni_dhcp6_device_close(dev);
 
-	ni_string_free(&dev->ifname);
-
 	/* Drop existing config and request */
 	ni_dhcp6_device_set_config(dev, NULL);
 	ni_dhcp6_device_set_request(dev, NULL);
+
+	ni_string_free(&dev->ifname);
+	dev->link.ifindex = 0;
 
 	for (pos = &ni_dhcp6_active; *pos; pos = &(*pos)->next) {
 		if (*pos == dev) {
@@ -226,6 +230,7 @@ ni_dhcp6_device_free(ni_dhcp6_device_t *dev)
 			break;
 		}
 	}
+
 	free(dev);
 }
 
