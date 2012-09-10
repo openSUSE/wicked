@@ -251,6 +251,17 @@
     </arguments>
   </method>
 
+  <method name="linkMonitor">
+    <description>
+      This method sets up the device for monitoring, so that link status
+      changes (for Ethernet interfaces) or changes in the wireless
+      neighborhood (for Wireless interfaces) can be reported via
+      signals.
+
+      This method is primarily used by network-nanny.
+    </description>
+  </method>
+
   <!-- Signals emitted by this interface -->
   <signal name="deviceCreate">
     <description>
