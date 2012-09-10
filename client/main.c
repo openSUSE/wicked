@@ -68,6 +68,7 @@ extern int		do_nanny(int, char **);
 extern int		do_lease(int, char **);
 extern int		do_check(int, char **);
 static int		do_xpath(int, char **);
+static int		do_get_names(int, char **);
 static int		do_convert(int, char **);
 
 int
@@ -172,6 +173,9 @@ main(int argc, char **argv)
 
 	if (!strcmp(cmd, "check"))
 		return do_check(argc - optind, argv + optind);
+
+	if (!strcmp(cmd, "getnames"))
+		return do_get_names(argc - optind, argv + optind);
 
 	if (!strcmp(cmd, "convert"))
 		return do_convert(argc - optind, argv + optind);
@@ -856,6 +860,106 @@ failed:
 	if (doc)
 		xml_document_free(doc);
 	return 1;
+}
+
+/*
+ * Get list of <name> elements identifying a device
+ */
+int
+do_get_names(int argc, char **argv)
+{
+	enum { OPT_XML, OPT_MODEMS };
+	static struct option local_options[] = {
+		{ "xml", no_argument, NULL, OPT_XML },
+		{ "modem", no_argument, NULL, OPT_MODEMS },
+		{ NULL }
+	};
+	ni_dbus_object_t *list_object;
+	int opt_xml = 0;
+	int opt_modems = 0;
+	int c, rv = 1;
+
+	optind = 1;
+	while ((c = getopt_long(argc, argv, "", local_options, NULL)) != EOF) {
+		switch (c) {
+		case OPT_XML:
+			opt_xml = 1;
+			break;
+
+		case OPT_MODEMS:
+			opt_modems = 1;
+			break;
+
+		default:
+		usage:
+			fprintf(stderr,
+				"wicked [options] getnames ifname ...\n"
+				"\nSupported options:\n"
+				"  --modems\n"
+				"      Query for modem device, rather than network device\n"
+				);
+			return 1;
+		}
+	}
+
+	ni_objectmodel_init(NULL);
+	if (!opt_modems) {
+		if (!(list_object = ni_call_get_netif_list_object()))
+			goto out;
+	} else {
+		if (!(list_object = ni_call_get_modem_list_object()))
+			goto out;
+	}
+
+	if (optind < argc) {
+		DBusError error = DBUS_ERROR_INIT;
+
+		while (optind < argc) {
+			const char *ifname = argv[optind++];
+			ni_dbus_variant_t result = NI_DBUS_VARIANT_INIT;
+			ni_dbus_object_t *dev_object;
+			xml_node_t *names;
+			char *object_path;
+
+			object_path = ni_call_device_by_name(list_object, ifname);
+			if (object_path == NULL)
+				continue;
+
+			ni_trace("%s %s", ifname, object_path);
+			dev_object = ni_dbus_object_create(list_object, object_path,
+						ni_objectmodel_get_class(NI_OBJECTMODEL_NETIF_CLASS),
+						NULL);
+
+			if (!ni_dbus_object_call_variant(dev_object,
+					NI_OBJECTMODEL_NETIF_INTERFACE, "getNames",
+					0, NULL,
+					1, &result, &error)) {
+				ni_dbus_print_error(&error, "%s.getNames() failed", object_path);
+				dbus_error_free(&error);
+				goto out;
+			}
+
+			names = xml_node_new("names", NULL);
+			xml_node_add_attr(names, "device", ifname);
+			if (!ni_objectmodel_set_name_array(names, &result))
+				ni_error("%s.getNames(): cannot parse response", object_path);
+			else {
+				xml_node_print(names, NULL);
+			}
+
+			xml_node_free(names);
+			ni_dbus_variant_destroy(&result);
+			ni_string_free(&object_path);
+		}
+	} else {
+		ni_error("No interface name specified");
+		goto usage;
+	}
+
+	rv = 0;
+
+out:
+	return rv;
 }
 
 /*
