@@ -68,13 +68,40 @@ ni_objectmodel_wireless_change_device(ni_dbus_object_t *object, const ni_dbus_me
 
 		was_up = (ifp->wireless->assoc.state == NI_WIRELESS_ESTABLISHED);
 
-		if (net->keymgmt_proto == NI_WIRELESS_KEY_MGMT_PSK
-		 && net->wpa_psk.key.len == 0
-		 && net->wpa_psk.passphrase == NULL) {
-			dbus_set_error(error, NI_DBUS_ERROR_AUTH_INFO_MISSING,
-					"wpa-psk.passphrase|PASSWORD|%.*s",
-					net->essid.len, net->essid.data);
-			goto error;
+		switch (net->keymgmt_proto) {
+		case NI_WIRELESS_KEY_MGMT_PSK:
+			if (net->wpa_psk.key.len == 0
+			 && net->wpa_psk.passphrase == NULL) {
+				dbus_set_error(error, NI_DBUS_ERROR_AUTH_INFO_MISSING,
+						"wpa-psk.passphrase|PASSWORD|%.*s",
+						net->essid.len, net->essid.data);
+				goto error;
+			}
+			break;
+
+		case NI_WIRELESS_KEY_MGMT_EAP:
+			if (net->wpa_eap.method == NI_WIRELESS_EAP_NONE) {
+				/* error */
+			}
+			if (net->wpa_eap.identity == NULL) {
+				dbus_set_error(error, NI_DBUS_ERROR_AUTH_INFO_MISSING,
+						"wpa-eap.identity|USERNAME|%.*s",
+						net->essid.len, net->essid.data);
+				goto error;
+			}
+			if (net->wpa_eap.phase2.method != NI_WIRELESS_EAP_NONE
+			 && net->wpa_eap.phase2.password == NULL) {
+				dbus_set_error(error, NI_DBUS_ERROR_AUTH_INFO_MISSING,
+						"wpa-eap.phase2.password|PASSWORD|%.*s",
+						net->essid.len, net->essid.data);
+				goto error;
+			}
+			break;
+
+		case NI_WIRELESS_KEY_MGMT_802_1X:
+			/* FIXME: handle 802.1x */
+
+		default: ;
 		}
 
 		/* We're asked to associate with the given network */
@@ -180,6 +207,31 @@ ni_objectmodel_get_wireless_request(ni_wireless_network_t *net,
 			if (!ni_dbus_variant_get_byte_array_minmax(attr, key->data, &key_len, 64, 64))
 				return FALSE;
 			key->len = key_len;
+		}
+	} else
+	if ((child = ni_dbus_dict_get(var, "wpa-eap")) != NULL) {
+		ni_dbus_variant_t *gchild;
+		uint32_t value;
+
+		net->auth_proto = NI_WIRELESS_AUTH_WPA2;
+		net->keymgmt_proto = NI_WIRELESS_KEY_MGMT_EAP;
+		if (ni_dbus_dict_get_string(child, "identity", &string))
+			ni_string_dup(&net->wpa_eap.identity, string);
+		if (ni_dbus_dict_get_uint32(child, "method", &value))
+			net->wpa_eap.method = value;
+
+		gchild = ni_dbus_dict_get(child, "phase2");
+		if (gchild && ni_dbus_variant_is_dict(gchild)) {
+			if (ni_dbus_dict_get_uint32(gchild, "method", &value))
+				net->wpa_eap.phase2.method = value;
+			if (ni_dbus_dict_get_string(gchild, "password", &string))
+				ni_string_dup(&net->wpa_eap.phase2.password, string);
+		}
+
+		gchild = ni_dbus_dict_get(child, "tls");
+		if (gchild && ni_dbus_variant_is_dict(gchild)) {
+			/* FIXME: handle optional CA cert, keys and such.
+			 * If not provided, use system certs */
 		}
 	}
 

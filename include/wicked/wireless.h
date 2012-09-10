@@ -48,6 +48,7 @@ typedef enum ni_wireless_key_mgmt {
 } ni_wireless_key_mgmt_t;
 
 typedef enum ni_wireless_eap_method {
+	NI_WIRELESS_EAP_NONE,
 	NI_WIRELESS_EAP_MD5,
 	NI_WIRELESS_EAP_TLS,
 	NI_WIRELESS_EAP_MSCHAPV2,
@@ -111,6 +112,12 @@ typedef struct ni_wireless_ssid {
 	unsigned char			data[32];
 } ni_wireless_ssid_t;
 
+typedef struct ni_wireless_blob {
+	char *				name;
+	size_t				size;
+	unsigned char *			data;
+} ni_wireless_blob_t;
+
 #define NI_WIRELESS_BITRATES_MAX	32
 
 struct ni_wireless_network {
@@ -119,9 +126,11 @@ struct ni_wireless_network {
 
 	ni_wireless_ssid_t		essid;
 	unsigned int			essid_encode_index;
+	ni_bool_t			scan_ssid;
 	ni_hwaddr_t			access_point;
 	ni_wireless_mode_t		mode;
 	unsigned int			channel;
+	unsigned int			fragment_size;		/* used with EAP */
 
 	struct ni_wireless_scan_info {
 		time_t			timestamp;
@@ -146,7 +155,6 @@ struct ni_wireless_network {
 	ni_wireless_cipher_t		cipher;
 	ni_wireless_cipher_t		pairwise_cipher;
 	ni_wireless_cipher_t		group_cipher;
-	ni_wireless_eap_method_t	eap_method;
 
 	struct {
 		ni_wireless_security_t	mode;
@@ -162,6 +170,22 @@ struct ni_wireless_network {
 		char *			passphrase;
 		ni_opaque_t		key;
 	} wpa_psk;
+
+	struct ni_wireless_wpa_eap {
+		ni_wireless_eap_method_t method;
+		char *			identity;
+
+		struct {
+			ni_wireless_eap_method_t method;
+			char *		password;
+		} phase2;
+
+		struct {
+			ni_wireless_blob_t *ca_cert;
+			ni_wireless_blob_t *client_cert;
+			ni_wireless_blob_t *client_key;
+		} tls;
+	} wpa_eap;
 
 };
 

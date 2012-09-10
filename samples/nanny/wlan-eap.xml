@@ -1,0 +1,48 @@
+<!--
+     Sample policy file for network-nanny.
+
+     This will configure any WLAN device in your system that
+     discovers a network with essid okirnet.
+
+     You need to take these steps to enable this policy:
+
+	     wicked nanny enable wlan0
+	     wicked nanny addpolicy samples/nanny/wlan.xml
+	     wicked nanny addsecret wireless:essid=okirnet \
+				/interface/wireless/wpa-psk/passphrase \
+				$YOUR_PASSPHRASE
+
+     Caveat: at this stage of development, you still need to be root
+     to do these things.
+
+  -->
+
+<policy name="wlan_eap">
+  <match>
+    <link-type>wireless</link-type>
+    <wireless:essid>okirnet</wireless:essid>
+  </match>
+
+  <merge>
+    <wireless>
+      <essid>okirnet</essid>
+
+      <!-- This wpa-eap element requests that we should authenticate
+           using EAP. The password is not provided here; we will be prompted
+	   for it later. -->
+      <wpa-eap>
+        <method>ttls</method>
+	<identity>okir@suse.com</identity>
+	<phase2>
+	  <method>mschapv2</method>
+	</phase2>
+      </wpa-eap>
+    </wireless>
+
+    <ipv4:dhcp>
+      <enabled>true</enabled>
+      <acquire-timeout>15</acquire-timeout>
+    </ipv4:dhcp>
+  </merge>
+</policy>
+

@@ -34,9 +34,13 @@
   </define>
 
   <define name="link-request" class="dict">
-    <essid type="string"/>
+    <description>
+     This type contains the requested wireless link configuration.
+    </description>
+
+    <essid type="string" description="SSID of the network to connect to"/>
     <mode type="builtin-wireless-mode"/>
-    <access-point type="ethernet-address"/>
+    <access-point type="ethernet-address" description="Address of AP to connect to"/>
 
     <wpa-psk class="dict" constraint="exclusive:wpa-auth-data">
       <passphrase type="string" constraint="required">
@@ -46,7 +50,30 @@
     </wpa-psk>
 
     <wpa-eap class="dict" constraint="exclusive:wpa-auth-data">
-      <!-- TBD: add eap members -->
+      <method type="builtin-eap-method" constraint="required"/>
+
+      <identity type="string" constraint="required">
+        <meta:user-input type="username" prompt="please enter WPA EAP identity"/>
+      </identity>
+
+      <phase2 class="dict">
+	<description>
+	  When using eg TTLS with a secondary authentication step, it can be
+	  configured here.
+	</description>
+
+	<!-- Mark the following elements as required. Which means if
+	     the <phase2> element exists, we require these two child
+	     elements to be there, too. -->
+        <method type="builtin-eap-method" constraint="required"/>
+        <password type="string" constraint="required">
+          <meta:user-input type="password" prompt="please enter WPA EAP password"/>
+        </password>
+      </phase2>
+
+      <tls class="dict">
+        <ca-cert type="external-file" description="For TLS based methods, this can be used to specify a CA certificate"/>
+      </tls>
     </wpa-eap>
   </define>
 

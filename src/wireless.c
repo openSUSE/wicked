@@ -253,6 +253,22 @@ ni_wireless_set_network(ni_netdev_t *dev, ni_wireless_network_t *net)
 	if (!(wpa_dev = ni_wireless_bind_supplicant(dev)))
 		return -1;
 
+	if (net->keymgmt_proto == NI_WIRELESS_KEY_MGMT_EAP) {
+		if (net->wpa_eap.tls.ca_cert) {
+			/* FIXME: store this as a blob */
+		}
+		if (net->wpa_eap.tls.client_cert) {
+			/* FIXME: store this as a blob */
+		}
+		if (net->wpa_eap.tls.client_key) {
+			/* FIXME: store this as a blob */
+		}
+
+		/* Copied from NetworkManager */
+		net->fragment_size = 1300;
+		net->scan_ssid = 1;
+	}
+
 	/* Make sure we drop our exsting association */
 	/* FIXME: we should only do this if the new association
 	 * request is different. */
@@ -580,6 +596,7 @@ ni_wireless_key_management_to_name(ni_wireless_key_mgmt_t mode)
 }
 
 static ni_intmap_t __ni_wireless_eap_method_names[] = {
+	{ "none",	NI_WIRELESS_EAP_NONE	},
 	{ "md5",	NI_WIRELESS_EAP_MD5	},
 	{ "tls",	NI_WIRELESS_EAP_TLS	},
 	{ "mschapv2",	NI_WIRELESS_EAP_MSCHAPV2},

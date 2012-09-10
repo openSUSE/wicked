@@ -1393,6 +1393,48 @@ __wpa_dbus_bss_set_psk(ni_dbus_object_t *object, const ni_dbus_property_t *prope
 }
 
 static dbus_bool_t
+__wpa_dbus_bss_get_scan_ssid(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		ni_dbus_variant_t *argument, DBusError *error)
+{
+	ni_wireless_network_t *net = __wpa_get_network(object);
+
+	ni_dbus_variant_set_int32(argument, net->scan_ssid);
+	return TRUE;
+}
+
+static dbus_bool_t
+__wpa_dbus_bss_set_scan_ssid(ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		const ni_dbus_variant_t *argument, DBusError *error)
+{
+	ni_wireless_network_t *net = __wpa_get_network(object);
+	unsigned int temp;
+
+	if (ni_dbus_variant_get_uint(argument, &temp))
+		return FALSE;
+	net->scan_ssid = temp;
+	return TRUE;
+}
+
+static dbus_bool_t
+__wpa_dbus_bss_get_fragment_size(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		ni_dbus_variant_t *argument, DBusError *error)
+{
+	ni_wireless_network_t *net = __wpa_get_network(object);
+
+	ni_dbus_variant_set_int32(argument, net->fragment_size);
+	return TRUE;
+}
+
+static dbus_bool_t
+__wpa_dbus_bss_set_fragment_size(ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		const ni_dbus_variant_t *argument, DBusError *error)
+{
+	ni_wireless_network_t *net = __wpa_get_network(object);
+
+	return ni_dbus_variant_get_uint(argument, &net->fragment_size);
+}
+
+static dbus_bool_t
 __wpa_dbus_bss_get_eap(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
 		ni_dbus_variant_t *argument, DBusError *error)
 {
@@ -1403,7 +1445,7 @@ __wpa_dbus_bss_get_eap(const ni_dbus_object_t *object, const ni_dbus_property_t 
 	 && net->keymgmt_proto != NI_WIRELESS_KEY_MGMT_802_1X)
 		return __ni_dbus_property_not_present_error(error, property);
 
-	if (!(value = ni_wpa_eap_method_as_string(net->eap_method, error)))
+	if (!(value = ni_wpa_eap_method_as_string(net->wpa_eap.method, error)))
 		return FALSE;
 	ni_dbus_variant_set_string(argument, value);
 	return TRUE;
@@ -1419,7 +1461,125 @@ __wpa_dbus_bss_set_eap(ni_dbus_object_t *object, const ni_dbus_property_t *prope
 	if (!ni_dbus_variant_get_string(argument, &value))
 		return FALSE;
 
-	return ni_wpa_eap_method_from_string(value, &net->eap_method, error);
+	return ni_wpa_eap_method_from_string(value, &net->wpa_eap.method, error);
+}
+
+static dbus_bool_t
+__wpa_dbus_bss_get_identity(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		ni_dbus_variant_t *argument, DBusError *error)
+{
+	ni_wireless_network_t *net = __wpa_get_network(object);
+
+	if (net->keymgmt_proto != NI_WIRELESS_KEY_MGMT_EAP
+	 && net->keymgmt_proto != NI_WIRELESS_KEY_MGMT_802_1X)
+		return __ni_dbus_property_not_present_error(error, property);
+
+	if (net->wpa_eap.identity == NULL)
+		return __ni_dbus_property_not_present_error(error, property);
+
+	ni_dbus_variant_set_string(argument, net->wpa_eap.identity);
+	return TRUE;
+}
+
+static dbus_bool_t
+__wpa_dbus_bss_set_identity(ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		const ni_dbus_variant_t *argument, DBusError *error)
+{
+	ni_wireless_network_t *net = __wpa_get_network(object);
+	const char *value;
+
+	if (!ni_dbus_variant_get_string(argument, &value))
+		return FALSE;
+
+	ni_string_dup(&net->wpa_eap.identity, value);
+	return TRUE;
+}
+
+static dbus_bool_t
+__wpa_dbus_bss_get_password(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		ni_dbus_variant_t *argument, DBusError *error)
+{
+	ni_wireless_network_t *net = __wpa_get_network(object);
+
+	if (net->keymgmt_proto != NI_WIRELESS_KEY_MGMT_EAP
+	 && net->keymgmt_proto != NI_WIRELESS_KEY_MGMT_802_1X)
+		return __ni_dbus_property_not_present_error(error, property);
+
+	if (net->wpa_eap.phase2.method == NI_WIRELESS_EAP_NONE
+	 || net->wpa_eap.phase2.password == NULL)
+		return __ni_dbus_property_not_present_error(error, property);
+
+	ni_dbus_variant_set_string(argument, net->wpa_eap.phase2.password);
+	return TRUE;
+}
+
+static dbus_bool_t
+__wpa_dbus_bss_set_password(ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		const ni_dbus_variant_t *argument, DBusError *error)
+{
+	ni_wireless_network_t *net = __wpa_get_network(object);
+	const char *value;
+
+	if (!ni_dbus_variant_get_string(argument, &value))
+		return FALSE;
+
+	ni_string_dup(&net->wpa_eap.phase2.password, value);
+	return TRUE;
+}
+
+static dbus_bool_t
+__wpa_dbus_bss_get_phase2(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		ni_dbus_variant_t *argument, DBusError *error)
+{
+	ni_wireless_network_t *net = __wpa_get_network(object);
+
+	if (net->keymgmt_proto == NI_WIRELESS_KEY_MGMT_EAP
+	 && net->wpa_eap.phase2.method) {
+		const char *eap_name;
+		char buffer[64];
+
+		eap_name = ni_wireless_eap_method_to_name(net->wpa_eap.phase2.method);
+		if (eap_name == NULL)
+			goto not_present;
+		snprintf(buffer, sizeof(buffer), "auth=%s", eap_name);
+		ni_dbus_variant_set_string(argument, eap_name);
+		return TRUE;
+	}
+
+not_present:
+	return __ni_dbus_property_not_present_error(error, property);
+}
+
+static dbus_bool_t
+__wpa_dbus_bss_set_phase2(ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		const ni_dbus_variant_t *argument, DBusError *error)
+{
+	return FALSE;
+}
+
+static dbus_bool_t
+__wpa_dbus_bss_get_ca_path(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		ni_dbus_variant_t *argument, DBusError *error)
+{
+	ni_wireless_network_t *net = __wpa_get_network(object);
+
+	if (net->keymgmt_proto != NI_WIRELESS_KEY_MGMT_EAP
+	 && net->keymgmt_proto != NI_WIRELESS_KEY_MGMT_802_1X)
+		return __ni_dbus_property_not_present_error(error, property);
+
+	if (net->wpa_eap.tls.ca_cert == NULL
+	 || net->wpa_eap.tls.ca_cert->name == NULL)
+		return __ni_dbus_property_not_present_error(error, property);
+
+	ni_dbus_variant_set_string(argument, net->wpa_eap.tls.ca_cert->name);
+	return TRUE;
+}
+
+static dbus_bool_t
+__wpa_dbus_bss_set_ca_path(ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		const ni_dbus_variant_t *argument, DBusError *error)
+{
+	return FALSE;
 }
 
 
@@ -1437,6 +1597,7 @@ static ni_dbus_property_t	wpa_bss_properties[] = {
 	WPA_BSS_PROPERTY(INT32, quality, RO),
 	WPA_BSS_PROPERTY(INT32, maxrate, RO),
 	WPA_BSS_PROPERTY(UINT16, capabilities, RO),
+
 	WPA_BSS_PROPERTY_SIGNATURE(DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING, wpaie, RO),
 	WPA_BSS_PROPERTY_SIGNATURE(DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING, wpsie, RO),
 	WPA_BSS_PROPERTY_SIGNATURE(DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING, rsnie, RO),
@@ -1481,10 +1642,18 @@ static ni_dbus_property_t	wpa_network_properties[] = {
 	WPA_BSS_PROPERTY(STRING, pairwise, RO),
 	WPA_BSS_PROPERTY(STRING, group, RO),
 	WPA_BSS_PROPERTY(STRING, auth_alg, RO),
+
+	WPA_BSS_PROPERTY(INT32, scan_ssid, RO),
+	WPA_BSS_PROPERTY(INT32, fragment_size, RO),
+
 	WPA_BSS_PROPERTY(STRING, eap, RO),
-//	WPA_BSS_PROPERTY(STRING, identity, RO),
+	WPA_BSS_PROPERTY(STRING, phase2, RO),
+	/* The following three are encoded as a byte array by NetworkManager */
+	WPA_BSS_PROPERTY(STRING, identity, RO),
+	WPA_BSS_PROPERTY(STRING, password, RO),
+	WPA_BSS_PROPERTY(STRING, ca_path, RO),
+
 //	WPA_BSS_PROPERTY(STRING, anonymous_identity, RO),
-//	WPA_BSS_PROPERTY(DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING, password, RO),
 //	WPA_BSS_PROPERTY(STRING, wep_key0, RO),
 //	WPA_BSS_PROPERTY(STRING, wep_key1, RO),
 //	WPA_BSS_PROPERTY(STRING, wep_key2, RO),
