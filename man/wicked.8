@@ -10,9 +10,11 @@ wicked \- network management utility
 .br
 .BI "wicked [" global-options "] show-xml [" options "] [" interface "]
 .br
-.BI "wicked [" global-options "] convert [" options "] " format ...
+.BI "wicked [" global-options "] convert [" options "] [" file " ... ]
 .br
 .BI "wicked [" global-options "] xpath [" options "] " format ...
+.br
+.BI "wicked [" global-options "] getnames [" options "] " device ...
 .br
 .PP
 .\" ----------------------------------------
@@ -216,7 +218,7 @@ This behavior can be fine-tuned using the following options:
 .TP
 .BI "\-\-format " format
 Rather than having wicked determine the distribution on its own, this lets you
-specify the expected file format. Currently, \fBwicked\dP will recognize
+specify the expected file format. Currently, \fBwicked\fP will recognize
 format names \fBsuse\fP and \fBredhat\fP.
 .TP
 .BI "\-\-output " path
@@ -224,6 +226,24 @@ By default, \fBwicked\fP will write the XML document to its standard output. Usi
 this option, you can instruct it to write to a different file instead. If the specified
 \fIpath\fP is a directory, the XML document will be split into separate files, one for
 each interface.
+.PP
+.\" ----------------------------------------
+.SH getnames - obtain different names for an interface
+\fBwicked\fP can identify network devices via a number of different
+mechanisms, in addition to the usual interface name.  For instance,
+you can identify an Ethernet device using the \fIpermanent MAC address\fP
+programmed into the card's EEPROM, or via its PCI topology.
+.PP
+For the convenience of management applications, \fBwicked\fP provides
+a function to retrieve all possible names for an interface names as
+XML. For each device specified on the command line, a \fB<names>\fP
+is printed, with zero or more \fB<name>\fP elements.
+.PP
+The \fBgetnames\fP command supports the following options:
+.TP
+.BI "\-\-modem "
+Instead of querying network devices, interpret the given interface name
+as a modem device.
 .PP
 .\" ----------------------------------------
 .SH xpath - retrieve data from an XML blob
@@ -268,7 +288,7 @@ an XML interface description):
 .fi
 .PP
 Given a VLAN interface definition, this will expand to the contents 
-of the \fB<tag>\fB element of the VLAN definition. The "path-like"
+of the \fB<tag>\fP element of the VLAN definition. The "path-like"
 syntax specifies how to traverse the XML tree to find the desired node.
 Assuming the tag is 42, the above command will print \fBvlan_tag=42\fP.
 In case the document contains several VLAN interface definitions,
@@ -290,8 +310,8 @@ As a different example, consider a bridge definition like the following:
      <priority>1</priority>
     </e>
     <e>
-     <device>eth0</device>
-     <priority>1</priority>
+     <device>eth1</device>
+     <priority>0</priority>
     </e>
   </ports>
 </bridge>
