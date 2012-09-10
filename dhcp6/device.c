@@ -164,11 +164,17 @@ ni_dhcp6_device_put(ni_dhcp6_device_t *dev)
  * Cleanup functions
  */
 static void
-ni_dhcp6_device_close(ni_dhcp6_device_t *dev)
+ni_dhcp6_socket_close(ni_dhcp6_device_t *dev)
 {
 	if (dev->sock)
 		ni_socket_close(dev->sock);
 	dev->sock = NULL;
+}
+
+static void
+ni_dhcp6_device_close(ni_dhcp6_device_t *dev)
+{
+	ni_dhcp6_socket_close(dev);
 
 	if (dev->fsm.timer) {
 		ni_warn("%s: timer active for while close", dev->ifname);
@@ -1188,6 +1194,7 @@ ni_dhcp6_device_transmit(ni_dhcp6_device_t *dev)
 			dev->ifname,
 			ni_dhcp6_message_name(header->type), dev->retrans.count + 1);
 
+		ni_dhcp6_socket_close(dev);
 		ni_dhcp6_device_clear_buffer(dev);
 		return -1;
 	} else {
