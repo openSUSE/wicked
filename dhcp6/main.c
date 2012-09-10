@@ -210,9 +210,15 @@ dhcp6_device_create(ni_dbus_server_t *server, const ni_netdev_t *ifp)
 		return FALSE;
 	}
 
-	ni_objectmodel_register_dhcp6_device(server, dev);
-	ni_debug_dhcp("%s[%u]: Created dhcp6 device",
-			ifp->name, ifp->link.ifindex);
+	if (ni_objectmodel_register_dhcp6_device(server, dev) != NULL) {
+		ni_debug_dhcp("%s[%u]: Created dhcp6 device",
+				ifp->name, ifp->link.ifindex);
+	}
+
+	/* either register dhcp6 device was successful and obtained
+	 * an own reference or we can drop ours here anyway ... */
+	ni_dhcp6_device_put(dev);
+
 	return TRUE;
 }
 
