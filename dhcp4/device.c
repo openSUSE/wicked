@@ -44,6 +44,7 @@ ni_dhcp_device_new(const char *ifname, const ni_linkinfo_t *link)
 	ni_string_dup(&dev->ifname, ifname);
 	dev->users = 1;
 	dev->listen_fd = -1;
+	dev->link.ifindex = link->ifindex;
 
 	if (ni_capture_devinfo_init(&dev->system, ifname, link) < 0) {
 		ni_error("%s: cannot set up %s for DHCP", __func__, ifname);
