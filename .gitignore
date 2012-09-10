@@ -23,3 +23,4 @@ wicked.pc
 wicked.spec
 etc/init.d/wicked
 etc/init.d/network
+html
