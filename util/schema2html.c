@@ -568,23 +568,11 @@ describe_typedefs(FILE *fp, const ni_xs_scope_t *scope)
 	for (i = 0; i < scope->types.count; ++i) {
 		ni_xs_name_type_t *nt = &scope->types.data[i];
 		ni_xs_type_t *type = nt->type;
-		const char *kind;
 
 		if (ni_string_eq(nt->name, "properties"))
 			continue;
 
-		switch (type->class) {
-		case NI_XS_TYPE_SCALAR:
-			kind = type->u.scalar_info->basic_name; break;
-		case NI_XS_TYPE_STRUCT:
-			kind = "struct"; break;
-		case NI_XS_TYPE_ARRAY:
-			kind = "array"; break;
-		case NI_XS_TYPE_DICT:
-			kind = "dict"; break;
-		}
-
-		fprintf(fp, "<tr><td>%s</td><td>%s</td>", nt->name, kind);
+		fprintf(fp, "<tr><td>%s</td><td>%s</td>", nt->name, type_class(type));
 		if (type->origdef.scope == scope)
 			fprintf(fp, "<td>below</td>");
 		else
