@@ -127,6 +127,34 @@ ni_call_get_modem_list_object(void)
 }
 
 /*
+ * Identify an interface by name
+ */
+char *
+ni_call_device_by_name(ni_dbus_object_t *list_object, const char *name)
+{
+	DBusError error = DBUS_ERROR_INIT;
+	ni_dbus_variant_t arg = NI_DBUS_VARIANT_INIT;
+	ni_dbus_variant_t res = NI_DBUS_VARIANT_INIT;
+	char *result = NULL;
+
+	ni_dbus_variant_set_string(&arg, name);
+	if (ni_dbus_object_call_variant(list_object, NULL, "deviceByName", 1, &arg, 1, &res, &error)) {
+		const char *value;
+
+		if (ni_dbus_variant_get_string(&res, &value))
+			result = strdup(value);
+	} else {
+		ni_dbus_print_error(&error, "%s.deviceByName(%s): failed",
+				list_object->path, name);
+		dbus_error_free(&error);
+	}
+
+	ni_dbus_variant_destroy(&arg);
+	ni_dbus_variant_destroy(&res);
+	return result;
+}
+
+/*
  * This works a lot like the serialization code in xml-dbus, except we're not defining a
  * schema for this.
  * Used by the device identification code below.

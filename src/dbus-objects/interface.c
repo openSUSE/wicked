@@ -232,6 +232,31 @@ done:
  * InterfaceList.identifyDevice
  */
 static dbus_bool_t
+ni_objectmodel_netif_list_device_by_name(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_netconfig_t *nc;
+	const char *name;
+	ni_netdev_t *dev;
+
+	if (argc != 1 || !ni_dbus_variant_get_string(&argv[0], &name))
+		return ni_dbus_error_invalid_args(error, object->path, method->name);
+
+	if (!(nc = ni_global_state_handle(0)) || !(dev = ni_netdev_by_name(nc, name))) {
+		dbus_set_error(error, NI_DBUS_ERROR_DEVICE_NOT_KNOWN,
+				"failed to identify interface %s", name);
+		return FALSE;
+	}
+
+	ni_dbus_message_append_string(reply, ni_objectmodel_netif_full_path(dev));
+	return TRUE;
+}
+
+/*
+ * InterfaceList.identifyDevice
+ */
+static dbus_bool_t
 ni_objectmodel_netif_list_identify_device(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
@@ -263,6 +288,7 @@ ni_objectmodel_netif_list_identify_device(ni_dbus_object_t *object, const ni_dbu
 }
 
 static ni_dbus_method_t		ni_objectmodel_netif_list_methods[] = {
+	{ "deviceByName",	"s",		ni_objectmodel_netif_list_device_by_name },
 	{ "identifyDevice",	"sa{sv}",	ni_objectmodel_netif_list_identify_device },
 	{ NULL }
 };

@@ -20,6 +20,7 @@ extern ni_dbus_object_t *	ni_call_get_netif_list_object(void);
 extern ni_dbus_object_t *	ni_call_get_modem_list_object(void);
 
 extern ni_dbus_object_t *	ni_call_create_client(void);
+extern char *			ni_call_device_by_name(ni_dbus_object_t *, const char *);
 extern char *			ni_call_identify_device(const char *namespace, const xml_node_t *query);
 extern char *			ni_call_identify_modem(const char *namespace, const xml_node_t *query);
 extern char *			ni_call_device_new_xml(const ni_dbus_service_t *, const char *, xml_node_t *);

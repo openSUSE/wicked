@@ -106,6 +106,7 @@ extern dbus_bool_t		ni_objectmodel_netif_factory_result(ni_dbus_server_t *, ni_d
 						ni_netdev_t *, const ni_dbus_class_t *,
 						DBusError *);
 extern const char *		ni_objectmodel_netif_path(const ni_netdev_t *);
+extern const char *		ni_objectmodel_netif_full_path(const ni_netdev_t *);
 extern const char *		ni_objectmodel_interface_full_path(const ni_netdev_t *);
 
 extern dbus_bool_t		__ni_objectmodel_set_hwaddr(const ni_dbus_variant_t *, ni_hwaddr_t *);
