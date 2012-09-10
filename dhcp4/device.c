@@ -129,6 +129,9 @@ ni_dhcp_device_free(ni_dhcp_device_t *dev)
 	ni_dhcp_device_t **pos;
 
 	ni_assert(dev->users == 0);
+	ni_debug_dhcp("%s: Deleting dhcp4 device with index %u",
+			dev->ifname, dev->link.ifindex);
+
 	ni_dhcp_device_drop_buffer(dev);
 	ni_dhcp_device_drop_lease(dev);
 	ni_dhcp_device_drop_best_offer(dev);
