@@ -22,6 +22,7 @@
 #include <wicked/route.h>
 #include <wicked/addrconf.h>
 #include <wicked/resolver.h>
+#include <wicked/xml.h>
 #include "netinfo_priv.h"
 #include "dbus-common.h"
 #include "model.h"
@@ -837,6 +838,67 @@ ni_objectmodel_marshal_security_id(const ni_security_id_t *security_id, ni_dbus_
 
 		if (!ni_string_eq(var->name, "class"))
 		ni_dbus_dict_add_string(argument, var->name, var->value);
+	}
+
+	return TRUE;
+}
+
+/*
+ * Handle an array of names
+ */
+dbus_bool_t
+ni_objectmodel_get_name_array(const xml_node_t *names, ni_dbus_variant_t *result)
+{
+	const xml_node_t *name;
+
+	ni_dbus_dict_array_init(result);
+	if (names == NULL)
+		return TRUE;
+
+	for (name = names->children; name; name = name->next) {
+		ni_dbus_variant_t *dict;
+		const xml_node_t *attr;
+
+		dict = ni_dbus_dict_array_add(result);
+		ni_dbus_dict_add_string(dict, "namespace",
+				xml_node_get_attr(name, "namespace"));
+
+		dict = ni_dbus_dict_add(dict, "name");
+		ni_dbus_variant_init_dict(dict);
+		for (attr = name->children; attr; attr = attr->next)
+			ni_dbus_dict_add_string(dict, attr->name, attr->cdata);
+	}
+
+	return TRUE;
+}
+
+dbus_bool_t
+ni_objectmodel_set_name_array(xml_node_t *names, const ni_dbus_variant_t *argument)
+{
+	unsigned int i, j;
+	xml_node_t *name;
+
+	if (!ni_dbus_variant_is_dict_array(argument))
+		return FALSE;
+
+	for (i = 0; i < argument->array.len; ++i) {
+		const ni_dbus_variant_t *dict, *child = NULL;
+		const char *key, *value;
+
+		dict = &argument->variant_array_value[i];
+		if (!(ni_dbus_dict_get_string(dict, "namespace", &value)))
+			continue;
+
+		name = xml_node_new("name", names);
+		xml_node_add_attr(name, "namespace", value);
+
+		if (!(dict = ni_dbus_dict_get(dict, "name")))
+			continue;
+
+		for (j = 0; (child = ni_dbus_dict_get_entry(dict, j, &key)) != NULL; ++j) {
+			if (ni_dbus_variant_get_string(child, &value))
+				xml_node_new_element(key, name, value);
+		}
 	}
 
 	return TRUE;

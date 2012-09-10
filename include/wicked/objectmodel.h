@@ -139,6 +139,10 @@ extern dbus_bool_t		ni_objectmodel_unmarshal_netdev_request(ni_netdev_req_t *, c
 extern dbus_bool_t		ni_objectmodel_marshal_security_id(const ni_security_id_t *, ni_dbus_variant_t *);
 extern dbus_bool_t		ni_objectmodel_unmarshal_security_id(ni_security_id_t *, const ni_dbus_variant_t *);
 
+extern dbus_bool_t		ni_objectmodel_get_name_array(const xml_node_t *names, ni_dbus_variant_t *);
+extern dbus_bool_t		ni_objectmodel_set_name_array(xml_node_t *names, const ni_dbus_variant_t *);
+
+
 extern ni_event_t		ni_objectmodel_signal_to_event(const char *);
 extern const char *		ni_objectmodel_event_to_signal(ni_event_t);
 
@@ -157,7 +161,8 @@ struct ni_objectmodel_ns {
 	const char *		name;
 	ni_dbus_object_t *	(*lookup_by_name)(ni_objectmodel_ns_t *, const char *);
 	ni_dbus_object_t *	(*lookup_by_attrs)(ni_objectmodel_ns_t *, const ni_var_array_t *);
-	dbus_bool_t		(*match_attr)(const ni_dbus_object_t *, const char *, const char *);
+	ni_bool_t		(*match_attr)(const ni_dbus_object_t *, const char *, const char *);
+	ni_bool_t		(*describe)(const ni_objectmodel_ns_t *, const ni_dbus_object_t *, xml_node_t *);
 };
 
 extern void			ni_objectmodel_register_ns(ni_objectmodel_ns_t *);
@@ -166,6 +171,7 @@ extern void			ni_objectmodel_register_ns_dynamic(void);
 extern ni_objectmodel_ns_t *	ni_objectmodel_get_ns(const char *);
 extern ni_dbus_object_t *	ni_objectmodel_lookup_by_attrs(ni_dbus_object_t *list_object,
 					ni_objectmodel_ns_t *, const ni_var_array_t *);
+extern xml_node_t *		ni_objectmodel_get_names(const ni_dbus_object_t *object);
 
 
 #endif /* __WICKED_OBJECTMODEL_H__ */

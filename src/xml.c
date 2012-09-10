@@ -253,6 +253,24 @@ xml_node_set_cdata(xml_node_t *node, const char *cdata)
 }
 
 void
+xml_node_set_uint(xml_node_t *node, unsigned int value)
+{
+	char buffer[32];
+
+	snprintf(buffer, sizeof(buffer), "%u", value);
+	ni_string_dup(&node->cdata, buffer);
+}
+
+void
+xml_node_set_uint_hex(xml_node_t *node, unsigned int value)
+{
+	char buffer[32];
+
+	snprintf(buffer, sizeof(buffer), "0x%x", value);
+	ni_string_dup(&node->cdata, buffer);
+}
+
+void
 xml_node_add_attr(xml_node_t *node, const char *name, const char *value)
 {
 	ni_var_array_set(&node->attrs, name, value);

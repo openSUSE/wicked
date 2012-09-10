@@ -22,6 +22,7 @@
 #include <wicked/dbus-errors.h>
 #include <wicked/dbus-service.h>
 #include <wicked/system.h>
+#include <wicked/xml.h>
 #include "netinfo_priv.h"
 #include "dbus-common.h"
 #include "model.h"
@@ -586,6 +587,47 @@ ni_objectmodel_netif_link_monitor(ni_dbus_object_t *object, const ni_dbus_method
 }
 
 /*
+ * Interface.getNames()
+ *
+ * Bring up the network interface, and assign the requested addresses.
+ * In the case of virtual interfaces like VLANs or bridges, the interface
+ * must have been created and configured prior to this call.
+ *
+ * The options dictionary contains interface properties.
+ */
+static dbus_bool_t
+ni_objectmodel_netif_get_names(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_dbus_variant_t result = NI_DBUS_VARIANT_INIT;
+	ni_netdev_t *dev;
+	xml_node_t *names;
+	dbus_bool_t rv = FALSE;
+
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
+		return FALSE;
+
+	NI_TRACE_ENTER_ARGS("dev=%s", dev->name);
+
+	/* Create an interface_request object and extract configuration from dict */
+	if (argc != 0)
+		return ni_dbus_error_invalid_args(error, object->path, method->name);
+
+	names = ni_objectmodel_get_names(object);
+
+	ni_objectmodel_get_name_array(names, &result);
+	rv = ni_dbus_message_serialize_variants(reply, 1, &result, error);
+	ni_dbus_variant_destroy(&result);
+
+	/* Destroy the XML object last - the results dict will reference the
+	 * attribute name strings while it's around */
+	if (names)
+		xml_node_free(names);
+	return rv;
+}
+
+/*
  * Interface.linkUp(dict options)
  *
  * Bring up the network interface, and wait for link negotiation to complete.
@@ -875,6 +917,7 @@ static ni_dbus_method_t		ni_objectmodel_netif_methods[] = {
 	{ "installLease",	"a{sv}",		ni_objectmodel_netif_install_lease },
 	{ "setClientInfo",	"a{sv}",		ni_objectmodel_netif_set_client_info },
 	{ "linkMonitor",	"",			ni_objectmodel_netif_link_monitor },
+	{ "getNames",		"",			ni_objectmodel_netif_get_names },
 	{ NULL }
 };
 

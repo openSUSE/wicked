@@ -16,6 +16,7 @@
 #include <wicked/ethernet.h>
 #include <wicked/modem.h>
 #include <wicked/pci.h>
+#include <wicked/xml.h>
 #include "dbus-common.h"
 #include "model.h"
 #include "appconfig.h"
@@ -90,7 +91,7 @@ ni_objectmodel_lookup_by_attrs(ni_dbus_object_t *list_object, ni_objectmodel_ns_
 		return NULL;
 
 	for (obj = list_object->children; obj; obj = obj->next) {
-		dbus_bool_t match = TRUE;
+		ni_bool_t match = TRUE;
 		ni_var_t *ap;
 		unsigned int i;
 
@@ -104,6 +105,36 @@ ni_objectmodel_lookup_by_attrs(ni_dbus_object_t *list_object, ni_objectmodel_ns_
 	return NULL;
 }
 
+/*
+ * Provide all possible descriptions of a device.
+ */
+xml_node_t *
+ni_objectmodel_get_names(const ni_dbus_object_t *object)
+{
+	xml_node_t *result;
+	unsigned int i;
+	ni_bool_t ok = FALSE;
+
+	result = xml_node_new(NULL, NULL);
+	for (i = 0; i < ni_objectmodel_ns_count; ++i) {
+		ni_objectmodel_ns_t *ns;
+
+		ns = ni_objectmodel_ns_list[i];
+		if (ns->describe && ns->describe(ns, object, result))
+			ok = TRUE;
+	}
+
+	if (!ok) {
+		xml_node_free(result);
+		result = NULL;
+	}
+
+	return result;
+}
+
+/*
+ * Helper functions for matching naming attributes
+ */
 static ni_bool_t
 __match_hwaddr(const ni_hwaddr_t *hwaddr, const char *string)
 {
@@ -128,9 +159,21 @@ __match_uint(unsigned int device_value, const char *query_string)
 }
 
 /*
+ * Helper function for creating <name> elements for ns->describe()
+ */
+static xml_node_t *
+__describe(const ni_objectmodel_ns_t *ns, xml_node_t *parent)
+{
+	xml_node_t *node = xml_node_new("name", parent);
+
+	xml_node_add_attr(node, "namespace", ns->name);
+	return node;
+}
+
+/*
  * Identify device by ethernet attributes
  */
-static dbus_bool_t
+static ni_bool_t
 ni_objectmodel_ether_match_attr(const ni_dbus_object_t *object, const char *name, const char *value)
 {
 	ni_netdev_t *dev;
@@ -152,15 +195,38 @@ ni_objectmodel_ether_match_attr(const ni_dbus_object_t *object, const char *name
 	return FALSE;
 }
 
+static ni_bool_t
+ni_objectmodel_ether_describe(const ni_objectmodel_ns_t *ns, const ni_dbus_object_t *object, xml_node_t *parent)
+{
+	ni_netdev_t *dev;
+	ni_ethernet_t *eth;
+	xml_node_t *node;
+
+	if (!(dev = ni_objectmodel_unwrap_netif(object, NULL)))
+		return FALSE;
+
+	if (!(eth = dev->ethernet))
+		return FALSE;
+
+	if (eth->permanent_address.type != NI_IFTYPE_UNKNOWN) {
+		node = __describe(ns, parent);
+		xml_node_new_element("permanent-address", node,
+				ni_link_address_print(&eth->permanent_address));
+	}
+
+	return TRUE;
+}
+
 static ni_objectmodel_ns_t ni_objectmodel_ether_ns = {
 	.name		= "ethernet",
 	.match_attr	= ni_objectmodel_ether_match_attr,
+	.describe	= ni_objectmodel_ether_describe,
 };
 
 /*
  * Identify a device by PCI attributes
  */
-static dbus_bool_t
+static ni_bool_t
 ni_objectmodel_pci_match_attr(const ni_dbus_object_t *object, const char *name, const char *value)
 {
 	ni_netdev_t *dev;
@@ -195,15 +261,51 @@ ni_objectmodel_pci_match_attr(const ni_dbus_object_t *object, const char *name, 
 	return FALSE;
 }
 
+static ni_bool_t
+ni_objectmodel_pci_describe(const ni_objectmodel_ns_t *ns, const ni_dbus_object_t *object, xml_node_t *parent)
+{
+	ni_netdev_t *dev;
+	ni_pci_dev_t *pci_dev;
+	xml_node_t *node;
+	char *copy, *s;
+
+	if (!(dev = ni_objectmodel_unwrap_netif(object, NULL)))
+		return FALSE;
+
+	if (!(pci_dev = dev->pci_dev))
+		return FALSE;
+
+	/* Describe by path */
+	node = __describe(ns, parent);
+	xml_node_new_element("path", node, pci_dev->path);
+
+	/* Describe by vendor/device */
+	node = __describe(ns, parent);
+	xml_node_set_uint_hex(xml_node_new("vendor", node), pci_dev->vendor);
+	xml_node_set_uint_hex(xml_node_new("device", node), pci_dev->device);
+
+	/* Describe by bridge */
+	copy = strdup(pci_dev->path);
+	if ((s = strrchr(copy, '/')) != NULL) {
+		*s = '\0';
+		node = __describe(ns, parent);
+		xml_node_new_element("bridge", node, copy);
+	}
+	free(copy);
+
+	return TRUE;
+}
+
 static ni_objectmodel_ns_t ni_objectmodel_pci_ns = {
 	.name		= "pci",
 	.match_attr	= ni_objectmodel_pci_match_attr,
+	.describe	= ni_objectmodel_pci_describe,
 };
 
 /*
  * Match modem devices
  */
-static dbus_bool_t
+static ni_bool_t
 ni_objectmodel_modem_match_attr(const ni_dbus_object_t *object, const char *name, const char *match)
 {
 	ni_modem_t *modem;

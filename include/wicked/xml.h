@@ -97,6 +97,8 @@ extern int		xml_node_print_fn(const xml_node_t *, void (*)(const char *, void *)
 extern int		xml_node_print_debug(const xml_node_t *, unsigned int facility);
 extern xml_node_t *	xml_node_scan(FILE *fp);
 extern void		xml_node_set_cdata(xml_node_t *, const char *);
+extern void		xml_node_set_uint(xml_node_t *, unsigned int);
+extern void		xml_node_set_uint_hex(xml_node_t *, unsigned int);
 extern void		xml_node_add_attr(xml_node_t *, const char *, const char *);
 extern void		xml_node_add_attr_uint(xml_node_t *, const char *, unsigned int);
 extern void		xml_node_add_attr_ulong(xml_node_t *, const char *, unsigned long);
