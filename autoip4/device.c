@@ -38,6 +38,7 @@ ni_autoip_device_new(const char *ifname, const ni_linkinfo_t *link)
 
 	dev = calloc(1, sizeof(*dev));
 	ni_string_dup(&dev->ifname, ifname);
+	dev->link.ifindex = link->ifindex;
 	dev->users = 1;
 	dev->fsm.state = NI_AUTOIP_STATE_INIT;
 
