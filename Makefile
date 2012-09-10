@@ -188,7 +188,7 @@ tags:
 htmldoc: bin/schema2html
 	@rm -rf html
 	@mkdir html
-	./bin/schema2html --outdir html --config etc/server.xml
+	LD_LIBRARY_PATH=. ./bin/schema2html --outdir html --config etc/server.xml
 
 distclean clean::
 	rm -f *~ *.o libwicked.* core LOG
