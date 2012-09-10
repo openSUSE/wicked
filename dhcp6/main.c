@@ -230,11 +230,25 @@ dhcp6_device_destroy(ni_dbus_server_t *server, const ni_netdev_t *ifp)
 {
         ni_dhcp6_device_t *dev;
 
-	ni_debug_dhcp("%s: Destroying dhcp6 device with index %u",
-			ifp->name, ifp->link.ifindex);
-
-        if ((dev = ni_dhcp6_device_by_index(ifp->link.ifindex)) != NULL)
+	if ((dev = ni_dhcp6_device_by_index(ifp->link.ifindex)) != NULL) {
+		ni_debug_dhcp("%s: Destroying dhcp6 device with index %u",
+				ifp->name, ifp->link.ifindex);
                 ni_dbus_server_unregister_object(server, dev);
+	}
+}
+
+static void
+dhcp6_device_destroy_all(ni_dbus_server_t *server)
+{
+	ni_netconfig_t *nc;
+	ni_netdev_t *   ifp;
+
+	if (!(nc = ni_global_state_handle(0)))
+		return;
+
+	for (ifp = ni_netconfig_devlist(nc); ifp; ifp = ifp->next) {
+		dhcp6_device_destroy(server, ifp);
+	}
 }
 
 /*
@@ -293,7 +307,10 @@ dhcp6_supplicant(void)
 	while (!ni_caught_terminal_signal()) {
 		long timeout;
 
-		timeout = ni_timer_next_timeout();
+		do {
+			timeout = ni_timer_next_timeout();
+		} while(ni_dbus_objects_garbage_collect());
+
 		if (ni_socket_wait(timeout) < 0)
 			ni_fatal("ni_socket_wait failed");
 	}
@@ -301,7 +318,12 @@ dhcp6_supplicant(void)
 	ni_objectmodel_save_state(opt_state_file);
 	*/
 
-	exit(0);
+	ni_server_deactivate_interface_events();
+
+	dhcp6_device_destroy_all(dhcp6_dbus_server);
+	ni_dbus_objects_garbage_collect();
+
+	ni_socket_deactivate_all();
 }
 
 /*
