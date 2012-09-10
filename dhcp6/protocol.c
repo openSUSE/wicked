@@ -174,14 +174,19 @@ ni_dhcp6_socket_open(ni_dhcp6_device_t *dev)
 {
 	int fd;
 
-	if (dev->sock != NULL)
-		return 0;
+	if (dev->sock != NULL) {
+		if (dev->sock->active && !dev->sock->error)
+			return 0;
+
+		ni_socket_close(dev->sock);
+		dev->sock = NULL;
+	}
 
 	if ((fd = __ni_dhcp6_socket_open(dev)) == -1)
 		return -1;
 
 	if ((dev->sock = ni_socket_wrap(fd, SOCK_DGRAM)) != NULL) {
-		dev->sock->user_data = ni_dhcp6_device_get(dev);
+		dev->sock->user_data = dev;
 		dev->sock->receive = ni_dhcp6_socket_recv;
 		dev->sock->get_timeout = ni_dhcp6_socket_get_timeout;
 		dev->sock->check_timeout = ni_dhcp6_socket_check_timeout;
