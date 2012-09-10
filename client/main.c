@@ -121,7 +121,7 @@ main(int argc, char **argv)
 		case OPT_DEBUG:
 			if (!strcmp(optarg, "help")) {
 				printf("Supported debug facilities:\n");
-				ni_debug_help(stdout);
+				ni_debug_help();
 				return 0;
 			}
 			if (ni_enable_debug(optarg) < 0) {

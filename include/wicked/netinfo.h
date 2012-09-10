@@ -123,14 +123,6 @@ extern const char *	ni_config_backupdir(void);
 
 extern ni_dbus_client_t *ni_create_dbus_client(const char *bus_name);
 
-extern int		ni_enable_debug(const char *);
-extern void		ni_debug_help(FILE *);
-extern const char * 	ni_debug_facility_to_name(unsigned int);
-extern int		ni_debug_name_to_facility(const char *, unsigned int *);
-extern const char *	ni_debug_facility_to_description(int);
-
-extern void		ni_log_destination_syslog(const char *program);
-
 extern ni_netconfig_t * ni_netconfig_new(void);
 extern void		ni_netconfig_free(ni_netconfig_t *);
 extern void		ni_netconfig_init(ni_netconfig_t *);

@@ -15,11 +15,19 @@
 # define __noreturn	/* */
 #endif
 
-extern void	ni_warn(const char *, ...) __fmtattr;
-extern void	ni_error(const char *, ...) __fmtattr;
-extern void	ni_error_extra(const char *, ...) __fmtattr;
-extern void	ni_trace(const char *, ...) __fmtattr;
-extern void	ni_fatal(const char *, ...) __fmtattr __noreturn;
+extern void		ni_warn(const char *, ...) __fmtattr;
+extern void		ni_error(const char *, ...) __fmtattr;
+extern void		ni_error_extra(const char *, ...) __fmtattr;
+extern void		ni_trace(const char *, ...) __fmtattr;
+extern void		ni_fatal(const char *, ...) __fmtattr __noreturn;
+
+extern int		ni_enable_debug(const char *);
+extern void		ni_debug_help(void);
+extern const char * 	ni_debug_facility_to_name(unsigned int);
+extern int		ni_debug_name_to_facility(const char *, unsigned int *);
+extern const char *	ni_debug_facility_to_description(unsigned int);
+
+extern void		ni_log_destination_syslog(const char *program);
 
 enum {
 	NI_TRACE_IFCONFIG	= 0x000001,

@@ -126,12 +126,12 @@ ni_enable_debug(const char *fac)
 }
 
 void
-ni_debug_help(FILE *fp)
+ni_debug_help(void)
 {
 	unsigned int i;
 
 	for (i = 0; __debug_flags_descriptions[i].name; ++i) {
-		fprintf(fp, "  %-10s\t%s\n",
+		printf("  %-10s\t%s\n",
 				ni_debug_facility_to_name(__debug_flags_descriptions[i].value),
 				__debug_flags_descriptions[i].name);
 	}
