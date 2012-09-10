@@ -85,7 +85,7 @@ static int	ni_dhcp6_option_get_duid(ni_buffer_t *bp, ni_opaque_t *duid);
 
 
 /*
- * Open a socket bound to dhcp6 client port for sending unicasts.
+ * Open a socket bound to link-local address and dhcp6 client port.
  *
  */
 static int
@@ -95,9 +95,6 @@ __ni_dhcp6_socket_open(ni_dhcp6_device_t *dev)
 	int fd, on;
 
 	/*
-	 * FIXME: Error handling in case link-layer address is missed,
-	 *        in tentative or even in dad-failed state, ....
-	 *
 	 * http://tools.ietf.org/html/rfc3315#section-13
 	 *   13. Transmission of Messages by a Client
 	 *   [...]
@@ -114,21 +111,14 @@ __ni_dhcp6_socket_open(ni_dhcp6_device_t *dev)
 	 *   address in the header of the IP datagram.
 	 *   [...]
 	 *
-	 * Further:
-	 * Unicasts only after receiving the server unicast option from server.
+	 * Further TODO:
+	 *   Maybe we should add an addr parameter? Note: Unicast can be used
+	 *   only after receiving the server unicast option from server, ...
 	 */
-	if (!dev->link.ifindex) {
-		ni_error("interface index not set");
+	if ( !ni_dhcp6_device_is_ready(dev, NULL)) {
+		ni_error("%s: interface not yet ready", dev->ifname);
 		return -1;
 	}
-	if (dev->config->client_addr.ss_family != AF_INET6 ||
-	    !IN6_IS_ADDR_LINKLOCAL(&dev->config->client_addr.six.sin6_addr)) {
-		ni_error("link layer address not (yet) available");
-		return -1;
-	}
-#if 0
-	ni_trace("link-local address is %s", ni_sockaddr_print(&dev->config->client_addr));
-#endif
 
 	if ((fd = socket (PF_INET6, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
 		ni_error("socket(INET6, DGRAM, UDP): %m");
@@ -152,24 +142,10 @@ __ni_dhcp6_socket_open(ni_dhcp6_device_t *dev)
 		ni_error("fcntl(SETDF, CLOEXEC): %m");
 
 
-	/*
-	 * Should we use dev->config->client_addr directly?
-	 */
-	ni_sockaddr_set_ipv6(&saddr, dev->config->client_addr.six.sin6_addr,
+	ni_sockaddr_set_ipv6(&saddr, dev->link.addr.six.sin6_addr,
 					NI_DHCP6_CLIENT_PORT);
 	saddr.six.sin6_scope_id = dev->link.ifindex;
 
-	/*
-	 * TODO: Tests needed.
-	 *
-	 *   When the interface has been just brought up, the kernel may
-	 *   not yet finished DAD for the link-local address (tentative)
-	 *   wicked has to wait until it powers up dhcpv6.
-	 *
-	 *   We should create open the dhcp6 socket _after_ NETLINK has
-	 *   provided RA/managed net/prefix info to user space anyway,
-	 *   so this should catch it ...
-	 */
 	if (bind(fd, &saddr.sa, sizeof(saddr.six)) == -1) {
 		ni_error("bind(%s): %m", ni_sockaddr_print(&saddr));
 		close(fd);
@@ -210,6 +186,7 @@ ni_dhcp6_socket_open(ni_dhcp6_device_t *dev)
 		dev->sock->get_timeout = ni_dhcp6_socket_get_timeout;
 		dev->sock->check_timeout = ni_dhcp6_socket_check_timeout;
 
+		/* TODO: review this. rfc2460#section-5, Packet Size Issues */
 		ni_buffer_init_dynamic(&dev->sock->rbuf, NI_DHCP6_RBUF_SIZE);
 
 		ni_socket_activate(dev->sock);
@@ -282,12 +259,12 @@ ni_dhcp6_socket_recv(ni_socket_t *sock)
 	}
 
 	if (pinfo == NULL) {
-		ni_error("%s: failed to get packet info on socket %d",
-			 dev->ifname, sock->__fd);
+		ni_error("%s: discarding packet without packet info on socket %d",
+			dev->ifname, sock->__fd);
 		return;
 	}
 	if(dev->link.ifindex != pinfo->ipi6_ifindex) {
-		ni_error("%s: received packet with interface index %u instead of %u",
+		ni_error("%s: discarding packet with interface index %u instead %u",
 			dev->ifname, pinfo->ipi6_ifindex, dev->link.ifindex);
 		return;
 	}
@@ -295,7 +272,8 @@ ni_dhcp6_socket_recv(ni_socket_t *sock)
 	ni_buffer_push_tail(rbuf, bytes);
 #ifdef	NI_DHCP6_ENABLE_HEXDUMP
 	ni_debug_socket("%s: received %zd byte packet from %s: %s",
-			dev->ifname, bytes, ni_dhcp6_address_print(&pinfo->ipi6_addr),
+			dev->ifname, bytes,
+			ni_dhcp6_address_print(&pinfo->ipi6_addr),
 			__ni_dhcp6_hexdump(&hexbuf, rbuf));
 	ni_stringbuf_destroy(&hexbuf);
 #endif
@@ -308,6 +286,8 @@ static int
 ni_dhcp6_process_packet(ni_dhcp6_device_t *dev, ni_buffer_t *msgbuf, const struct in6_addr *sender)
 {
 	ni_dhcp6_packet_header_t *header;
+	unsigned int msg = 0;
+	unsigned int xid = 0;
 	int rv = -1;
 
 	/*
@@ -328,13 +308,24 @@ ni_dhcp6_process_packet(ni_dhcp6_device_t *dev, ni_buffer_t *msgbuf, const struc
 		case NI_DHCP6_ADVERTISE:
 		case NI_DHCP6_REPLY:
 		case NI_DHCP6_RECONFIGURE:
-			rv = ni_dhcp6_fsm_process_client_packet(dev, msgbuf, sender);
+			if (ni_dhcp6_parse_client_header(msgbuf, &msg, &xid) < 0) {
+				ni_error("%s: short DHCP6 client packet (%u bytes) from %s",
+						dev->ifname, ni_buffer_count(msgbuf),
+						ni_dhcp6_address_print(sender));
+				return rv;
+			}
+
+			if (ni_dhcp6_check_client_header(dev, sender, msg, xid) < 0)
+				return rv;
+
+			rv = ni_dhcp6_fsm_process_client_message(dev, msg, xid, msgbuf, sender);
 		break;
 
 		/* and discard any other msgs  */
 		default:
 			ni_debug_dhcp("%s: received %s message in state %s from %s: discarding",
-					dev->ifname, ni_dhcp6_message_name(header->type),
+					dev->ifname,
+					ni_dhcp6_message_name(header->type),
 					ni_dhcp6_fsm_state_name(dev->fsm.state),
 					ni_dhcp6_address_print(sender));
 		break;
@@ -433,6 +424,7 @@ ni_dhcp6_option_put(ni_buffer_t *bp, int code, const void *data, size_t len)
 		.code = htons(code),
 		.len = htons(len),
 	};
+	/* TODO: review this. rfc2460#section-5, Packet Size Issues */
 	/*ni_buffer_ensure_tailroom(bp, sizeof(opt) + len);*/
 	if(ni_buffer_put(bp, &opt, sizeof(opt)) < 0)
 		return -1;
@@ -605,16 +597,11 @@ ni_dhcp6_option_put_ia(ni_buffer_t *bp, ni_dhcp6_ia_t *ia)
 		goto failure;
 
 	if (ia->type == NI_DHCP6_OPTION_IA_NA || ia->type == NI_DHCP6_OPTION_IA_PD) {
-		/*
-		 * FIXME: this has to be done much earlier, not here!!
-		 */
-		if ((ia->renewal_time / 2) == 0)
-			ia->renewal_time = 3600;
-
 		if ( ia->rebind_time <= ia->renewal_time)
 			ia->rebind_time = ia->renewal_time + (ia->renewal_time / 2);
 #if 0
 		ni_trace("ia->renewal_time: %u", ia->renewal_time);
+		ni_trace("ia->rebind_time: %u", ia->rebind_time);
 #endif
 		value32 = htonl(ia->renewal_time);
 		if (ni_buffer_put(&data, &value32, sizeof(value32)) < 0)
@@ -1148,34 +1135,28 @@ ni_dhcp6_build_reparse(ni_dhcp6_device_t *dev, void *data, size_t len)
 	return rv;
 }
 
-static int
-__ni_dhcp6_build_ia_addr(ni_dhcp6_ia_addr_t **iadr_ret, unsigned int msg_type, ni_dhcp6_ia_addr_t *iadr)
+static ni_dhcp6_ia_addr_t *
+__ni_dhcp6_build_ia_addr(unsigned int msg_type, ni_dhcp6_ia_addr_t *iadr)
 {
 	ni_dhcp6_ia_addr_t *iadr_new = NULL;
 
-	*iadr_ret = iadr_new = NULL;
 	switch (msg_type) {
 	case NI_DHCP6_DECLINE:
 		if (!(iadr->flags & NI_DHCP6_IA_ADDR_DECLINE))
-			return 1;
+			return NULL;
 	break;
 	case NI_DHCP6_RELEASE:
 		if (!(iadr->flags & NI_DHCP6_IA_ADDR_RELEASE))
-			return 1;
+			return NULL;
 	break;
 	default:
 		if ((iadr->flags & NI_DHCP6_IA_ADDR_DECLINE) ||
 		    (iadr->flags & NI_DHCP6_IA_ADDR_EXPIRED))
-			return 1;
+			return NULL;
 	break;
 	}
 
-	if ((iadr_new = ni_dhcp6_ia_addr_new(iadr->addr, iadr->plen)) == NULL)
-		return -1;
-
-	iadr_new->preferred_lft = iadr->preferred_lft;
-	iadr_new->valid_lft = iadr->valid_lft;
-
+	iadr_new = ni_dhcp6_ia_addr_new(iadr->addr, iadr->plen);
 	switch (msg_type) {
 	case NI_DHCP6_CONFIRM:
 		iadr_new->preferred_lft = 0;
@@ -1187,21 +1168,31 @@ __ni_dhcp6_build_ia_addr(ni_dhcp6_ia_addr_t **iadr_ret, unsigned int msg_type, n
 		iadr_new->valid_lft = iadr->valid_lft;
 	break;
 	}
-
-	*iadr_ret = iadr_new;
-	return 0;
+	return iadr_new;
 }
 
-static int
-__ni_dhcp6_build_ia(ni_dhcp6_ia_t **ia_ret, unsigned int msg_type, ni_dhcp6_ia_t *ia)
+static ni_dhcp6_ia_t *
+__ni_dhcp6_build_ia(unsigned int msg_type, ni_dhcp6_ia_t *ia)
 {
 	ni_dhcp6_ia_addr_t *iadr_new, *iadr;
 	ni_dhcp6_ia_t *ia_new;
 
-	if ((ia_new = ni_dhcp6_ia_new(ia->type)) == NULL)
-		goto failure;
+	switch (msg_type) {
+	case NI_DHCP6_RENEW:
+		if (!(ia->flags & NI_DHCP6_IA_RENEW))
+			return NULL;
+	break;
+	case NI_DHCP6_REBIND:
+		/* also all marked for renew in the meantime */
+		if (!((ia->flags & NI_DHCP6_IA_REBIND) || (ia->flags & NI_DHCP6_IA_RENEW)))
+			return NULL;
+	break;
 
-	ia_new->iaid = ia->iaid;
+	default:
+	break;
+	}
+
+	ia_new = ni_dhcp6_ia_new(ia->type, ia->iaid);
 	if (msg_type == NI_DHCP6_CONFIRM || ia->type == NI_DHCP6_OPTION_IA_TA) {
 		ia_new->renewal_time = 0;
 		ia_new->rebind_time = 0;
@@ -1211,44 +1202,27 @@ __ni_dhcp6_build_ia(ni_dhcp6_ia_t **ia_ret, unsigned int msg_type, ni_dhcp6_ia_t
 	}
 
 	for (iadr = ia->addrs; iadr; iadr = iadr->next) {
-		iadr_new = NULL;
-		if (__ni_dhcp6_build_ia_addr(&iadr_new, msg_type, iadr) < 0)
-			goto failure;
-
+		iadr_new = __ni_dhcp6_build_ia_addr(msg_type, iadr);
 		if (iadr_new)
 			ni_dhcp6_ia_addr_list_append(&ia_new->addrs, iadr_new);
 	}
 
-	*ia_ret = ia_new;
-	return 0;
-
-failure:
-	if (ia_new)
-		ni_dhcp6_ia_destroy(ia_new);
-	return -1;
+	return ia_new;
 }
 
-static int
-__ni_dhcp6_build_ia_list(ni_dhcp6_ia_t **ia_list_ret, unsigned int msg_type, ni_dhcp6_ia_t *ia_list)
+static ni_dhcp6_ia_t *
+__ni_dhcp6_build_ia_list(unsigned int msg_type, ni_dhcp6_ia_t *ia_list)
 {
 	ni_dhcp6_ia_t *ia_list_new, *ia_new, *ia;
 
 	ia_list_new = NULL;
 	for (ia = ia_list; ia; ia = ia->next) {
-		if (__ni_dhcp6_build_ia(&ia_new, msg_type, ia) < 0)
-			goto failure;
+		ia_new = __ni_dhcp6_build_ia(msg_type, ia);
 
 		if (ia_new)
 			ni_dhcp6_ia_list_append(&ia_list_new, ia_new);
 	}
-
-	*ia_list_ret = ia_list_new;
-	return 0;
-
-failure:
-	if (ia_list_new)
-		ni_dhcp6_ia_list_destroy(&ia_list_new);
-	return -1;
+	return ia_list_new;
 }
 
 int
@@ -1271,7 +1245,7 @@ ni_dhcp6_build_message(ni_dhcp6_device_t *dev,
 			&dev->config->client_duid.data, dev->config->client_duid.len) < 0)
 		goto cleanup;
 
-	if (lease->dhcp6.server_id.len) {
+	if (msg_type != NI_DHCP6_REBIND && lease->dhcp6.server_id.len) {
 		if (ni_dhcp6_option_put(msg_buf, NI_DHCP6_OPTION_SERVERID,
 				lease->dhcp6.server_id.data, lease->dhcp6.server_id.len) < 0)
 			goto cleanup;
@@ -1305,22 +1279,6 @@ ni_dhcp6_build_message(ni_dhcp6_device_t *dev,
 				goto cleanup;
 		}
 
-		if (lease->dhcp6.ia_list == NULL) {
-			ia = ni_dhcp6_ia_new(NI_DHCP6_OPTION_IA_NA);
-			ia->iaid = dev->iaid;
-			if (dev->config->lease_time && dev->config->lease_time != ~0)
-				ia->renewal_time = dev->config->lease_time / 2;
-			else
-				ia->renewal_time = 3600;
-			ia->rebind_time = ia->renewal_time + (ia->renewal_time / 2);
-
-			if (ni_dhcp6_option_put_ia(msg_buf, ia) < 0) {
-				ni_dhcp6_ia_destroy(ia);
-				goto cleanup;
-			}
-			ni_dhcp6_ia_destroy(ia);
-		}
-
 		if (dev->config->hostname[0])
 			ni_dhcp6_option_put_fqdn(msg_buf, dev->config->hostname, TRUE, TRUE);
 	break;
@@ -1347,19 +1305,23 @@ ni_dhcp6_build_message(ni_dhcp6_device_t *dev,
 	break;
 	}
 
-	/* build request ia_na,ia_ta,ia_pd set from lease */
+	/* put ia's */
 	switch (msg_type) {
 	case NI_DHCP6_SOLICIT:
+		for (ia = dev->config->ia_list; ia; ia = ia->next) {
+			if (ni_dhcp6_option_put_ia(msg_buf, ia) < 0) {
+				goto cleanup;
+			}
+		}
+	break;
+
 	case NI_DHCP6_CONFIRM:
 	case NI_DHCP6_REQUEST:
 	case NI_DHCP6_RENEW:
 	case NI_DHCP6_REBIND:
 	case NI_DHCP6_DECLINE:
 	case NI_DHCP6_RELEASE:
-		ia_list = NULL;
-		if (__ni_dhcp6_build_ia_list(&ia_list, msg_type, lease->dhcp6.ia_list) < 0)
-			goto cleanup;
-
+		ia_list = __ni_dhcp6_build_ia_list(msg_type, lease->dhcp6.ia_list);
 		for (ia = ia_list; ia; ia = ia->next) {
 			/* put non-empty ia's only */
 			if (ia->addrs == NULL)
@@ -1449,7 +1411,8 @@ ni_dhcp6_init_message(ni_dhcp6_device_t *dev, unsigned int msg_code, const ni_ad
 #endif
 	if(inet_pton(AF_INET6, NI_DHCP6_ALL_RAGENTS,
 				&dev->config->server_addr.six.sin6_addr) != 1) {
-		ni_error("%s: Unable to prepare DHCP6 destination address", dev->ifname);
+		ni_error("%s: Unable to prepare DHCP6 destination address",
+				dev->ifname);
 		return -1;
 	}
 
@@ -1469,7 +1432,7 @@ transient_failure:
 ni_dhcp6_status_t *
 ni_dhcp6_status_new(void)
 {
-	return calloc(1, sizeof(ni_dhcp6_status_t));
+	return xcalloc(1, sizeof(ni_dhcp6_status_t));
 }
 
 void
@@ -1490,14 +1453,160 @@ ni_dhcp6_status_destroy(ni_dhcp6_status_t **status)
 }
 
 ni_dhcp6_ia_t *
-ni_dhcp6_ia_new(unsigned int type)
+ni_dhcp6_ia_new(unsigned int type, unsigned int iaid)
 {
 	ni_dhcp6_ia_t *ia;
 
-	if ((ia = calloc(1, sizeof(*ia))) == NULL)
-		return NULL;
+	ia = xcalloc(1, sizeof(*ia));
 	ia->type = type;
+	ia->iaid = iaid;
 	return ia;
+}
+ni_dhcp6_ia_t *
+ni_dhcp6_ia_na_new(unsigned int iaid)
+{
+	return ni_dhcp6_ia_new(NI_DHCP6_OPTION_IA_NA, iaid);
+}
+ni_dhcp6_ia_t *
+ni_dhcp6_ia_ta_new(unsigned int iaid)
+{
+	return ni_dhcp6_ia_new(NI_DHCP6_OPTION_IA_TA, iaid);
+}
+ni_dhcp6_ia_t *
+ni_dhcp6_ia_pd_new(unsigned int iaid)
+{
+	return ni_dhcp6_ia_new(NI_DHCP6_OPTION_IA_PD, iaid);
+}
+
+ni_bool_t
+ni_dhcp6_ia_type_na(ni_dhcp6_ia_t *ia)
+{
+	return ia->type == NI_DHCP6_OPTION_IA_NA;
+}
+ni_bool_t
+ni_dhcp6_ia_type_ta(ni_dhcp6_ia_t *ia)
+{
+	return ia->type == NI_DHCP6_OPTION_IA_TA;
+}
+ni_bool_t
+ni_dhcp6_ia_type_pd(ni_dhcp6_ia_t *ia)
+{
+	return ia->type == NI_DHCP6_OPTION_IA_PD;
+}
+
+unsigned int
+ni_dhcp6_ia_min_preferred_lft(ni_dhcp6_ia_t *ia)
+{
+	unsigned int lft = 0;
+	ni_dhcp6_ia_addr_t *iadr;
+
+	for (iadr = ia->addrs; iadr; iadr = iadr->next) {
+		if (iadr->preferred_lft == 0)
+			continue;
+
+		if (lft == 0 || lft > iadr->preferred_lft)
+			lft = iadr->preferred_lft;
+	}
+	return lft;
+}
+
+unsigned int
+ni_dhcp6_ia_max_preferred_lft(ni_dhcp6_ia_t *ia)
+{
+	unsigned int lft = 0;
+	ni_dhcp6_ia_addr_t *iadr;
+
+	for (iadr = ia->addrs; iadr; iadr = iadr->next) {
+		if (iadr->preferred_lft == 0)
+			continue;
+
+		if (lft < iadr->preferred_lft)
+			lft = iadr->preferred_lft;
+	}
+	return lft;
+}
+
+unsigned int
+ni_dhcp6_ia_max_valid_lft(ni_dhcp6_ia_t *ia)
+{
+	unsigned int lft = 0;
+	ni_dhcp6_ia_addr_t *iadr;
+
+	for (iadr = ia->addrs; iadr; iadr = iadr->next) {
+		if (iadr->valid_lft == 0)
+			continue;
+
+		if (lft < iadr->valid_lft)
+			lft = iadr->valid_lft;
+	}
+	return lft;
+
+}
+
+unsigned int
+ni_dhcp6_ia_get_renewal_time(ni_dhcp6_ia_t *ia)
+{
+	unsigned int lft;
+
+	if (!ni_dhcp6_ia_type_ta(ia) && ia->renewal_time > 0)
+		return ia->renewal_time;
+
+	lft = ni_dhcp6_ia_min_preferred_lft(ia);
+	if (lft > 0 && lft != NI_DHCP6_INFINITE_LIFETIME)
+		lft /= 2;
+	return lft;
+}
+
+unsigned int
+ni_dhcp6_ia_get_rebind_time(ni_dhcp6_ia_t *ia)
+{
+	unsigned int lft;
+
+	if (!ni_dhcp6_ia_type_ta(ia) && ia->rebind_time > 0)
+		return ia->rebind_time;
+
+	lft = ni_dhcp6_ia_min_preferred_lft(ia);
+	if (lft > 0 && lft != NI_DHCP6_INFINITE_LIFETIME)
+		lft = (lft * 4) / 5;
+	return lft;
+}
+
+static void
+__ni_dhcp6_ia_set_default_lifetimes(ni_dhcp6_ia_t *ia, unsigned int pref_time)
+{
+	if (ni_dhcp6_ia_type_ta(ia)) {
+		/* ia-ta's do not have explicit renew,rebind */
+		ia->renewal_time = 0;
+		ia->rebind_time = 0;
+	} else
+	if (pref_time == NI_DHCP6_INFINITE_LIFETIME) {
+		ia->renewal_time = NI_DHCP6_INFINITE_LIFETIME;
+		ia->rebind_time = NI_DHCP6_INFINITE_LIFETIME;
+	} else
+	if (pref_time >= NI_DHCP6_MIN_PREF_LIFETIME) {
+		ia->renewal_time = pref_time / 2;
+		ia->rebind_time = (pref_time * 4) / 5;
+	} else {
+		ia->renewal_time = NI_DHCP6_PREFERRED_LIFETIME / 2;
+		ia->rebind_time = (NI_DHCP6_PREFERRED_LIFETIME * 4) / 5;
+	}
+}
+
+void
+ni_dhcp6_ia_set_default_lifetimes(ni_dhcp6_ia_t *ia, unsigned int pref_time)
+{
+	unsigned int renew, rebind;
+
+	renew = ni_dhcp6_ia_get_renewal_time(ia);
+	if (renew >= NI_DHCP6_MIN_PREF_LIFETIME) {
+		ia->renewal_time = renew;
+		rebind = ni_dhcp6_ia_get_rebind_time(ia);
+		if (rebind > renew)
+			ia->rebind_time = rebind;
+		else
+			ia->rebind_time = (renew * 8) / 5;
+	}
+	__ni_dhcp6_ia_set_default_lifetimes(ia, pref_time);
 }
 
 void
@@ -1506,14 +1615,6 @@ ni_dhcp6_ia_destroy(ni_dhcp6_ia_t *ia)
 	ni_dhcp6_status_clear(&ia->status);
 	ni_dhcp6_ia_addr_list_destroy(&ia->addrs);
 	free(ia);
-}
-
-void
-ni_dhcp6_ia_list_append(ni_dhcp6_ia_t **list, ni_dhcp6_ia_t *ia)
-{
-	while (*list)
-		list = &(*list)->next;
-	*list = ia;
 }
 
 void
@@ -1526,14 +1627,50 @@ ni_dhcp6_ia_list_destroy(ni_dhcp6_ia_t **list)
 	}
 }
 
+void
+ni_dhcp6_ia_list_append(ni_dhcp6_ia_t **list, ni_dhcp6_ia_t *ia)
+{
+	while (*list)
+		list = &(*list)->next;
+	*list = ia;
+}
+
+int
+ni_dhcp6_ia_list_copy(ni_dhcp6_ia_t **dst, ni_dhcp6_ia_t *src, ni_bool_t clean)
+{
+	ni_dhcp6_ia_t *ia, *nia;
+
+	/* TODO: Merge multiple ia's of same type into one? */
+	ni_dhcp6_ia_list_destroy(dst);
+	for (ia = src; ia; ia = ia->next) {
+		if ((nia = ni_dhcp6_ia_new(ia->type, ia->iaid)) == NULL)
+			goto failure;
+
+		if( !clean) {
+			nia->rebind_time = ia->rebind_time;
+			nia->renewal_time = ia->renewal_time;
+			nia->time_acquired = ia->time_acquired;
+			nia->status.code = ia->status.code;
+			nia->status.message = xstrdup(ia->status.message);
+		}
+		if (ni_dhcp6_ia_addr_list_copy(&nia->addrs, ia->addrs, clean) < 0)
+			goto failure;
+
+		ni_dhcp6_ia_list_append(dst, nia);
+	}
+	return 0;
+
+failure:
+	ni_dhcp6_ia_list_destroy(dst);
+	return -1;
+}
 
 ni_dhcp6_ia_addr_t *
 ni_dhcp6_ia_addr_new(struct in6_addr addr, unsigned int plen)
 {
 	ni_dhcp6_ia_addr_t *iadr;
 
-	if ((iadr = calloc(1, sizeof(*iadr))) == NULL)
-		return NULL;
+	iadr = xcalloc(1, sizeof(*iadr));
 	iadr->addr = addr;
 	iadr->plen = plen;
 	return iadr;
@@ -1547,14 +1684,6 @@ ni_dhcp6_ia_addr_destory(ni_dhcp6_ia_addr_t *iadr)
 }
 
 void
-ni_dhcp6_ia_addr_list_append(ni_dhcp6_ia_addr_t **list, ni_dhcp6_ia_addr_t *iadr)
-{
-	while (*list)
-		list = &(*list)->next;
-	*list = iadr;
-}
-
-void
 ni_dhcp6_ia_addr_list_destroy(ni_dhcp6_ia_addr_t **list)
 {
 	ni_dhcp6_ia_addr_t *iadr;
@@ -1565,21 +1694,47 @@ ni_dhcp6_ia_addr_list_destroy(ni_dhcp6_ia_addr_t **list)
 }
 
 void
-ni_dhcp6_ia_addr_mark(ni_dhcp6_ia_addr_t *iadr, unsigned int flag)
+ni_dhcp6_ia_addr_list_append(ni_dhcp6_ia_addr_t **list, ni_dhcp6_ia_addr_t *iadr)
 {
-	iadr->flags |= flag;
+	while (*list)
+		list = &(*list)->next;
+	*list = iadr;
 }
 
-void
-ni_dhcp6_ia_addr_unmark(ni_dhcp6_ia_addr_t *iadr, unsigned int flag)
+int
+ni_dhcp6_ia_addr_list_copy(ni_dhcp6_ia_addr_t **dst, ni_dhcp6_ia_addr_t *src, ni_bool_t clean)
 {
-	iadr->flags &= ~flag;
+	ni_dhcp6_ia_addr_t *iadr, *nadr;
+
+	ni_dhcp6_ia_addr_list_destroy(dst);
+	for (iadr = src; iadr; iadr = iadr->next) {
+		nadr = ni_dhcp6_ia_addr_new(iadr->addr, iadr->plen);
+		if (!clean) {
+			nadr->flags = iadr->flags;
+			nadr->valid_lft = iadr->valid_lft;
+			nadr->preferred_lft = iadr->preferred_lft;
+			nadr->status.code = iadr->status.code;
+			nadr->status.message = xstrdup(iadr->status.message);
+		}
+		ni_dhcp6_ia_addr_list_append(dst, nadr);
+	}
+	return 0;
 }
 
 ni_bool_t
-ni_dhcp6_ia_addr_is_marked(ni_dhcp6_ia_addr_t *iadr, unsigned int flag)
+ni_dhcp6_ia_addr_is_usable(ni_dhcp6_ia_addr_t *iadr)
 {
-	return iadr->flags & flag;
+	/* This is a stop using this IP order from server */
+	if (iadr->preferred_lft == 0 || iadr->valid_lft == 0)
+		return FALSE;
+
+	/* This is some well-known nonsense we reject...  */
+	if (IN6_IS_ADDR_UNSPECIFIED(&iadr->addr) ||
+	    IN6_IS_ADDR_LOOPBACK(&iadr->addr) ||
+	    IN6_IS_ADDR_LINKLOCAL(&iadr->addr) ||
+	    IN6_IS_ADDR_MULTICAST(&iadr->addr))
+		return FALSE;
+	return TRUE;
 }
 
 unsigned int
@@ -1592,11 +1747,11 @@ ni_dhcp6_ia_release_matching(ni_dhcp6_ia_t *list, struct in6_addr *addr, unsigne
 	for (ia = list; ia; ia = ia->next) {
 		for (iadr = ia->addrs; iadr; iadr = iadr->next) {
 			if (addr == NULL) {
-				ni_dhcp6_ia_addr_mark(iadr, NI_DHCP6_IA_ADDR_RELEASE);
+				iadr->flags |= NI_DHCP6_IA_ADDR_RELEASE;
 				count++;
 			}
 			else if (plen == iadr->plen && IN6_ARE_ADDR_EQUAL(addr, &iadr->addr)) {
-				ni_dhcp6_ia_addr_mark(iadr, NI_DHCP6_IA_ADDR_RELEASE);
+				iadr->flags |= NI_DHCP6_IA_ADDR_RELEASE;
 				count++;
 			}
 		}
@@ -1610,8 +1765,7 @@ ni_dhcp6_option_parse_ia_address(ni_buffer_t *bp, ni_dhcp6_ia_t *ia, uint16_t ad
 	ni_dhcp6_ia_addr_t *iadr;
 	uint8_t value8;
 
-	if ((iadr = calloc(1, sizeof(*iadr))) == NULL)
-		return -1;
+	iadr = xcalloc(1, sizeof(*iadr));
 
 	if (ia->type == NI_DHCP6_OPTION_IA_PD) {
 		if (ni_dhcp6_option_get32(bp, &iadr->preferred_lft) < 0)
@@ -1835,11 +1989,8 @@ static int
 ni_dhcp6_option_parse_ia_na(ni_buffer_t *bp,  ni_dhcp6_ia_t **ia_na_list, uint32_t time_acquired)
 {
 	ni_dhcp6_ia_t *ia;
-	int rv = -1;
 
-	if ((ia = calloc(1, sizeof(*ia))) == NULL)
-		return rv;
-
+	ia = xcalloc(1, sizeof(*ia));
 	ia->type = NI_DHCP6_OPTION_IA_NA;
 	ia->time_acquired = time_acquired;
 
@@ -1887,9 +2038,7 @@ ni_dhcp6_option_parse_ia_ta(ni_buffer_t *bp,  ni_dhcp6_ia_t **ia_ta_list, uint32
 {
 	ni_dhcp6_ia_t *ia;
 
-	if ((ia = calloc(1, sizeof(*ia))) == NULL)
-		return -1;
-
+	ia = xcalloc(1, sizeof(*ia));
 	ia->type = NI_DHCP6_OPTION_IA_TA;
 	ia->time_acquired = time_acquired;
 
@@ -1916,9 +2065,7 @@ ni_dhcp6_option_parse_ia_pd(ni_buffer_t *bp,  ni_dhcp6_ia_t **ia_pd_list, uint32
 {
 	ni_dhcp6_ia_t *ia;
 
-	if ((ia = calloc(1, sizeof(*ia))) == NULL)
-		return -1;
-
+	ia = xcalloc(1, sizeof(*ia));
 	ia->type = NI_DHCP6_OPTION_IA_PD;
 	ia->time_acquired = time_acquired;
 
@@ -1957,6 +2104,45 @@ ni_dhcp6_option_parse_ia_pd(ni_buffer_t *bp,  ni_dhcp6_ia_t **ia_pd_list, uint32
 failure:
 	ni_dhcp6_ia_destroy(ia);
 	return -1;
+}
+
+static unsigned int
+__copy_ia_na_to_lease_addrs(const ni_dhcp6_device_t *dev, ni_addrconf_lease_t *lease)
+{
+	ni_address_t * ap;
+	ni_dhcp6_ia_t * ia;
+	ni_dhcp6_ia_addr_t * iadr;
+	ni_sockaddr_t sadr;
+	unsigned int count = 0;
+
+	for (ia = lease->dhcp6.ia_list; ia; ia = ia->next) {
+		if (ia->type != NI_DHCP6_OPTION_IA_NA)
+			continue;
+
+		if (ia->status.code != NI_DHCP6_STATUS_SUCCESS)
+			continue;
+
+		for (iadr = ia->addrs; iadr ; iadr = iadr->next) {
+			if (iadr->status.code != NI_DHCP6_STATUS_SUCCESS)
+				continue;
+
+			if (!ni_dhcp6_ia_addr_is_usable(iadr))
+				continue;
+
+			count++;
+
+			ni_sockaddr_set_ipv6(&sadr, iadr->addr, 0);
+
+			ap = ni_address_new(AF_INET6, 64, &sadr, &lease->addrs);
+			ap->ipv6_cache_info.preferred_lft = iadr->preferred_lft;
+			ap->ipv6_cache_info.valid_lft = iadr->valid_lft;
+
+			ni_trace("%s: added IPv6 address %s/%u to lease candidate",
+				dev->ifname, ni_sockaddr_print(&ap->local_addr),
+				ap->prefixlen);
+		}
+	}
+	return count;
 }
 
 int
@@ -2122,58 +2308,22 @@ ni_dhcp6_parse_client_options(ni_dhcp6_device_t *dev, ni_buffer_t *buffer, ni_ad
 		if (optbuf.underflow) {
 			ni_trace("%s: dhcp6 option %s: %u byte data is too short: %s",
 				dev->ifname, ni_dhcp6_option_name(option),
-				ni_buffer_count(&optbuf), __ni_dhcp6_hexdump(&hexbuf, &optbuf));
+				ni_buffer_count(&optbuf),
+				__ni_dhcp6_hexdump(&hexbuf, &optbuf));
 			ni_stringbuf_destroy(&hexbuf);
 			/* goto failure; */
 		} else if(ni_buffer_count(&optbuf)) {
 			ni_trace("%s: dhcp6 option %s: data is too long - %u bytes left: %s",
 				dev->ifname, ni_dhcp6_option_name(option),
-				ni_buffer_count(&optbuf), __ni_dhcp6_hexdump(&hexbuf, &optbuf));
+				ni_buffer_count(&optbuf),
+				__ni_dhcp6_hexdump(&hexbuf, &optbuf));
 			ni_stringbuf_destroy(&hexbuf);
 			/* goto failure; */
 		}
 	}
 
-#if 1	/* FIXME: too early here -- do it after parsing depending on the state */
-	if (!lease->dhcp6.status || lease->dhcp6.status->code == NI_DHCP6_STATUS_SUCCESS) {
-		ni_sockaddr_t       laddr;
-		ni_dhcp6_ia_addr_t *iaddr;
-		ni_dhcp6_ia_t *     ia;
-		ni_address_t *      ap;
-
-		ni_address_list_destroy(&lease->addrs);
-		lease->addrs = NULL;
-		for (ia = lease->dhcp6.ia_list; ia; ia = ia->next) {
-			if (ia->type != NI_DHCP6_OPTION_IA_NA)
-				continue;
-
-			if (ia->status.code != NI_DHCP6_STATUS_SUCCESS)
-				continue;
-
-			for (iaddr = ia->addrs; iaddr ; iaddr = iaddr->next) {
-				if (iaddr->status.code != NI_DHCP6_STATUS_SUCCESS)
-					continue;
-
-				/* This is a stop using this IP order from server */
-				if (iaddr->preferred_lft == 0 || iaddr->valid_lft == 0)
-					continue;
-
-				ni_sockaddr_set_ipv6(&laddr, iaddr->addr, 0);
-				/*
-				 * FIXME: lookup if iadr matches some RA prefix for this interface
-				 *        and use prefix lenght of the RA prefix...
-				 */
-				ap = ni_address_new(AF_INET6, 64, &laddr, &lease->addrs);
-				ap->ipv6_cache_info.preferred_lft = iaddr->preferred_lft;
-				ap->ipv6_cache_info.valid_lft = iaddr->valid_lft;
-
-				ni_trace("%s: added IPv6 address %s/%u to lease candidate",
-						dev->ifname,
-						ni_sockaddr_print(&ap->local_addr), ap->prefixlen);
-			}
-		}
-	}
-#endif
+	/* FIXME: too early here -- do it after parsing depending on the state? */
+	__copy_ia_na_to_lease_addrs(dev, lease);
 
 	return 0;
 
@@ -2205,13 +2355,16 @@ ni_dhcp6_check_client_header(ni_dhcp6_device_t *dev, const struct in6_addr *send
 	case NI_DHCP6_ADVERTISE:
 		if (dev->dhcp6.xid == 0) {
 			ni_error("%s: ignoring unexpected %s message xid 0x%06x from %s",
-				dev->ifname, ni_dhcp6_message_name(msg_type), msg_xid,
+				dev->ifname,
+				ni_dhcp6_message_name(msg_type), msg_xid,
 				ni_dhcp6_address_print(sender));
 			return -1;
 		}
 		if (dev->dhcp6.xid != msg_xid) {
 			ni_error("%s: ignoring unexpected %s message xid 0x%06x (expecting 0x%06x) from %s",
-				dev->ifname, ni_dhcp6_message_name(msg_type), msg_xid, dev->dhcp6.xid,
+				dev->ifname,
+				ni_dhcp6_message_name(msg_type),
+				msg_xid, dev->dhcp6.xid,
 				ni_dhcp6_address_print(sender));
 			return -1;
 		}
@@ -2220,7 +2373,8 @@ ni_dhcp6_check_client_header(ni_dhcp6_device_t *dev, const struct in6_addr *send
 	case NI_DHCP6_RECONFIGURE:
 		if (dev->dhcp6.xid != 0) {
 			ni_error("%s: ignoring unexpected %s message xid 0x%06x from %s",
-				dev->ifname, ni_dhcp6_message_name(msg_type), msg_xid,
+				dev->ifname,
+				ni_dhcp6_message_name(msg_type), msg_xid,
 				ni_dhcp6_address_print(sender));
 			return -1;
 		}
@@ -2228,36 +2382,10 @@ ni_dhcp6_check_client_header(ni_dhcp6_device_t *dev, const struct in6_addr *send
 #endif
 	default:
 		ni_error("%s: ignoring unexpected %s message xid 0x%06x from %s",
-				dev->ifname, ni_dhcp6_message_name(msg_type), msg_xid,
+				dev->ifname,
+				ni_dhcp6_message_name(msg_type), msg_xid,
 				ni_dhcp6_address_print(sender));
 	return -1;
-	}
-
-	return 0;
-}
-
-int
-ni_dhcp6_check_message_duids(ni_dhcp6_device_t *dev, const struct in6_addr *sender,
-				unsigned int msg_type, unsigned int msg_xid,
-				ni_addrconf_lease_t *msg_lease)
-{
-	if (msg_lease->dhcp6.client_id.len == 0) {
-		ni_error("%s: ignoring %s message xid 0x%06x from %s: client-id missed",
-			dev->ifname, ni_dhcp6_message_name(msg_type), msg_xid,
-			ni_dhcp6_address_print(sender));
-		return -1;
-	}
-	if (msg_lease->dhcp6.server_id.len == 0) {
-		ni_error("%s: ignoring %s message xid 0x%06x from %s: server-id missed",
-			dev->ifname, ni_dhcp6_message_name(msg_type), msg_xid,
-			ni_dhcp6_address_print(sender));
-		return -1;
-	}
-	if (!ni_opaque_eq(&dev->config->client_duid, &msg_lease->dhcp6.client_id)) {
-		ni_error("%s: ignoring %s message xid 0x%06x from %s: client-id differs",
-			dev->ifname, ni_dhcp6_message_name(msg_type), msg_xid,
-			ni_dhcp6_address_print(sender));
-		return -1;
 	}
 
 	return 0;

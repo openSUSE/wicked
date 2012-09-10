@@ -48,8 +48,12 @@ extern unsigned int	ni_sockaddr_netmask_bits(const ni_sockaddr_t *mask);
 extern int		ni_sockaddr_build_netmask(int, unsigned int, ni_sockaddr_t *);
 extern ni_bool_t	ni_sockaddr_prefix_match(unsigned int, const ni_sockaddr_t *, const ni_sockaddr_t *);
 extern ni_bool_t	ni_sockaddr_equal(const ni_sockaddr_t *, const ni_sockaddr_t *);
-extern unsigned int	ni_af_address_length(int af);
-extern ni_bool_t	ni_af_sockaddr_info(int, unsigned int *, unsigned int *);
+extern ni_bool_t	ni_sockaddr_is_ipv4_loopback(const ni_sockaddr_t *);
+extern ni_bool_t	ni_sockaddr_is_ipv6_loopback(const ni_sockaddr_t *);
+extern ni_bool_t	ni_sockaddr_is_loopback(const ni_sockaddr_t *);
+extern ni_bool_t	ni_sockaddr_is_ipv4_linklocal(const ni_sockaddr_t *);
+extern ni_bool_t	ni_sockaddr_is_ipv6_linklocal(const ni_sockaddr_t *);
+extern ni_bool_t	ni_sockaddr_is_linklocal(const ni_sockaddr_t *);
 
 extern void		ni_sockaddr_set_ipv4(ni_sockaddr_t *, struct in_addr, uint16_t);
 extern void		ni_sockaddr_set_ipv6(ni_sockaddr_t *, struct in6_addr, uint16_t);
@@ -61,6 +65,9 @@ extern ni_sockaddr_t *	ni_sockaddr_prefix_unpack(ni_sockaddr_t *, unsigned int *
 extern const char *	ni_sockaddr_prefix_print(const ni_sockaddr_t *, unsigned int);
 extern ni_bool_t	ni_sockaddr_prefix_parse(const char *, ni_sockaddr_t *, unsigned int *);
 
+extern ni_bool_t	ni_af_sockaddr_info(int, unsigned int *, unsigned int *);
+extern unsigned int	ni_af_address_length(int af);
+
 extern ni_address_t *	ni_address_new(int af, unsigned int prefix_len,
 					const ni_sockaddr_t *local_addr,
 					ni_address_t **list);
@@ -68,6 +75,7 @@ extern void		ni_address_list_append(ni_address_t **, ni_address_t *);
 extern void		ni_address_list_destroy(ni_address_t **);
 extern void		ni_address_list_dedup(ni_address_t **);
 extern ni_address_t *	ni_address_list_find(ni_address_t *, const ni_sockaddr_t *);
+extern unsigned int	ni_address_list_count(ni_address_t *list);
 extern void		ni_address_free(ni_address_t *);
 
 

@@ -73,8 +73,8 @@ __ni_objectmodel_dhcp6_device_build_object(ni_dbus_server_t *server, ni_dhcp6_de
 	char object_path[256];
 
 	if (dev->link.ifindex <= 0) {
-		ni_error("%s: dhcp6 device %s has bad ifindex %d", __func__,
-				dev->ifname, dev->link.ifindex);
+		ni_error("%s: dhcp6 device has invalid interface index %u",
+			dev->ifname, dev->link.ifindex);
 		return NULL;
 	}
 
@@ -90,7 +90,8 @@ __ni_objectmodel_dhcp6_device_build_object(ni_dbus_server_t *server, ni_dhcp6_de
 	}
 
 	if (object == NULL)
-		ni_fatal("Unable to create dbus object for dhcp6 device %s", dev->ifname);
+		ni_fatal("%s: Unable to create dbus object for dhcp6 device",
+			dev->ifname);
 
 	ni_objectmodel_bind_compatible_interfaces(object);
 	return object;
@@ -146,7 +147,7 @@ __ni_objectmodel_dhcp6_device_release(ni_dbus_object_t *object)
  * Server side method implementation
  */
 static dbus_bool_t
-__ni_objectmodel_dhcp6_acquire_svc(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+ni_objectmodel_dhcp6_acquire_svc(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
@@ -215,7 +216,7 @@ failed:
  * Drop a DHCP lease
  */
 static dbus_bool_t
-__ni_objectmodel_dhcp6_drop_svc(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+ni_objectmodel_dhcp6_drop_svc(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
@@ -242,7 +243,7 @@ __ni_objectmodel_dhcp6_drop_svc(ni_dbus_object_t *object, const ni_dbus_method_t
 
 	if ((rv = ni_dhcp6_release(dev, &uuid)) < 0) {
 		ni_dbus_set_error_from_code(error, rv,
-				"Unable to drop DHCP lease for interface %s",
+				"Unable to drop DHCPv6 lease for interface %s",
 				dev->ifname);
 		goto failed;
 	}
@@ -254,8 +255,8 @@ failed:
 }
 
 static ni_dbus_method_t		ni_objectmodel_dhcp6_methods[] = {
-	{ "acquire",		"aya{sv}",		__ni_objectmodel_dhcp6_acquire_svc },
-	{ "drop",		"ay",			__ni_objectmodel_dhcp6_drop_svc },
+	{ "acquire",		"aya{sv}",		ni_objectmodel_dhcp6_acquire_svc },
+	{ "drop",		"ay",			ni_objectmodel_dhcp6_drop_svc },
 	{ NULL }
 };
 
@@ -289,6 +290,7 @@ ni_dhcp6_request_free(ni_dhcp6_request_t *req)
 	if(req) {
 		ni_string_free(&req->hostname);
 		ni_string_free(&req->clientid);
+		ni_dhcp6_ia_list_destroy(&req->ia_list);
 		/*
 		 * req->vendor_class
 		 * ....

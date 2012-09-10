@@ -31,6 +31,7 @@ extern int		ni_dhcp6_device_transmit(ni_dhcp6_device_t *);
 extern int		ni_dhcp6_device_retransmit(ni_dhcp6_device_t *);
 extern void		ni_dhcp6_device_retransmit_disarm(ni_dhcp6_device_t *);
 
+extern ni_bool_t	ni_dhcp6_device_is_ready(const ni_dhcp6_device_t *, const ni_netdev_t *);
 extern int		ni_dhcp6_device_start(ni_dhcp6_device_t *);
 
 extern void		ni_dhcp6_device_set_lease(ni_dhcp6_device_t *,  ni_addrconf_lease_t *);
@@ -39,7 +40,6 @@ extern void		ni_dhcp6_device_drop_best_offer(ni_dhcp6_device_t *);
 
 extern unsigned int	ni_dhcp6_device_uptime(const ni_dhcp6_device_t *, unsigned int);
 extern int		ni_dhcp6_device_iaid(const ni_dhcp6_device_t *dev, uint32_t *iaid);
-extern void		ni_dhcp6_device_address_event(ni_netdev_t *, ni_dhcp6_device_t *, ni_event_t, const ni_address_t *);
 
 /* config access [/etc/wicked/config.xml, node /config/addrconf/dhcp6] */
 extern const char *	ni_dhcp6_config_default_duid(ni_opaque_t *);
