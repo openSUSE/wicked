@@ -202,24 +202,26 @@ static ni_bool_t
 dhcp6_device_create(ni_dbus_server_t *server, const ni_netdev_t *ifp)
 {
 	ni_dhcp6_device_t *dev;
+	ni_bool_t rv = FALSE;
 
 	dev = ni_dhcp6_device_new(ifp->name, &ifp->link);
 	if (!dev) {
 		ni_error("%s[%u]: Cannot allocate dhcp6 device",
 			ifp->name, ifp->link.ifindex);
-		return FALSE;
+		return rv;
 	}
 
 	if (ni_objectmodel_register_dhcp6_device(server, dev) != NULL) {
 		ni_debug_dhcp("%s[%u]: Created dhcp6 device",
 				ifp->name, ifp->link.ifindex);
+		rv = TRUE;
 	}
 
 	/* either register dhcp6 device was successful and obtained
 	 * an own reference or we can drop ours here anyway ... */
 	ni_dhcp6_device_put(dev);
 
-	return TRUE;
+	return rv;
 }
 
 /*
