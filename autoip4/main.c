@@ -223,7 +223,7 @@ autoip4_device_create(ni_dbus_server_t *server, const ni_netdev_t *ifp)
 		return rv;
 	}
 
-	if (ni_objectmodel_register_autoip4_device(server, dev) == NULL) {
+	if (ni_objectmodel_register_autoip4_device(server, dev) != NULL) {
 		ni_debug_autoip("Created autoip4 device for '%s' and index %u",
 				ifp->name, ifp->link.ifindex);
 		rv = TRUE;
