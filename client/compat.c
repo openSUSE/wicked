@@ -8,6 +8,7 @@
 #include <wicked/objectmodel.h>
 #include <wicked/dbus.h>
 #include <wicked/netinfo.h>
+#include <wicked/addrconf.h>
 #include <wicked/route.h>
 #include <wicked/ethernet.h>
 #include <wicked/bonding.h>
@@ -338,12 +339,42 @@ __ni_compat_generate_static_addrconf(xml_node_t *ifnode, const ni_compat_netdev_
 }
 
 static xml_node_t *
+__ni_compat_generate_dynamic_addrconf(xml_node_t *ifnode, const char *name, ni_bool_t required, unsigned int update)
+{
+	xml_node_t *aconf;
+
+	aconf = xml_node_new(name, ifnode);
+	xml_node_new_element("enabled", aconf, "true");
+
+	if (!required)
+		xml_node_new_element("optional", aconf, "true");
+
+	if (update) {
+		xml_node_t *child = xml_node_new("update", aconf);
+		unsigned int i;
+
+		for (i = 0; update != 0; ++i, update >>= 1) {
+			if (update & 1) {
+				const char *key = ni_addrconf_update_target_to_name(i);
+
+				if (key)
+					xml_node_new(key, child);
+			}
+		}
+	}
+
+	return aconf;
+}
+
+static xml_node_t *
 __ni_compat_generate_dhcp4_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 {
 	xml_node_t *dhcp;
 
-	dhcp = xml_node_new("ipv4:dhcp", ifnode);
-	xml_node_new_element("enabled", dhcp, "true");
+	if (!compat->dhcp4.enabled)
+		return NULL;
+
+	dhcp = __ni_compat_generate_dynamic_addrconf(ifnode, "ipv4:dhcp", compat->dhcp4.required, compat->dhcp4.update);
 
 	if (compat->dhcp4.hostname)
 		xml_node_dict_set(dhcp, "hostname", compat->dhcp4.hostname);
@@ -368,6 +399,18 @@ __ni_compat_generate_dhcp4_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t
 	   DHCLIENT_SET_DEFAULT_ROUTE
 	 */
 
+	return dhcp;
+}
+
+static xml_node_t *
+__ni_compat_generate_dhcp6_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
+{
+	xml_node_t *dhcp;
+
+	if (!compat->dhcp4.enabled)
+		return NULL;
+
+	dhcp = __ni_compat_generate_dynamic_addrconf(ifnode, "ipv6:dhcp", compat->dhcp6.required, compat->dhcp6.update);
 	return dhcp;
 }
 
@@ -428,8 +471,8 @@ __ni_compat_generate_interface(xml_node_t *ifnode, const ni_compat_netdev_t *com
 
 	__ni_compat_generate_static_addrconf(ifnode, compat);
 
-	if (compat->dhcp4.enabled)
-		__ni_compat_generate_dhcp4_addrconf(ifnode, compat);
+	__ni_compat_generate_dhcp4_addrconf(ifnode, compat);
+	__ni_compat_generate_dhcp6_addrconf(ifnode, compat);
 
 	return TRUE;
 }

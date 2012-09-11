@@ -27,7 +27,7 @@
 #include "wicked-client.h"
 
 
-#define _PATH_NETCONFIG_DIR		"/etc/sysconfig/network"
+#define _PATH_NETCONFIG_DIR		"/etc/sysconfig/network-scripts"
 
 static ni_compat_netdev_t *__ni_redhat_read_interface(const char *, const char *, ni_compat_netdev_array_t *);
 static ni_bool_t	__ni_redhat_define_interface(ni_sysconfig_t *, ni_compat_netdev_t *, ni_compat_netdev_array_t *);
@@ -44,6 +44,11 @@ __ni_redhat_get_interfaces(const char *path, ni_compat_netdev_array_t *result)
 
 	if (path == NULL)
 		path = _PATH_NETCONFIG_DIR;
+
+	if (!ni_file_exists(path)) {
+		ni_error("%s: file or directory does not exist", path);
+		goto done;
+	}
 
 	if (ni_isdir(path)) {
 		int i;
@@ -64,7 +69,7 @@ __ni_redhat_get_interfaces(const char *path, ni_compat_netdev_array_t *result)
 				goto done;
 		}
 	} else {
-		ni_error("not yet implemented");
+		ni_error("%s: cannot handle regular files yet", path);
 	}
 
 	success = TRUE;
@@ -91,10 +96,6 @@ __ni_redhat_read_interface(const char *filename, const char *ifname, ni_compat_n
 	/* RH expects the DEVICE=... to take precedence over whatever is
 	 * specified in the filename */
 	ifname = ni_sysconfig_get_value(sc, "DEVICE");
-	if (ifname == NULL) {
-		ni_error("%s: no DEVICE specified", filename);
-		goto error;
-	}
 
 	/* HWADDR is used to identify the interface by its MAC address. */
 	if ((value = ni_sysconfig_get_value(sc, "HWADDR")) != NULL) {
@@ -110,6 +111,8 @@ __ni_redhat_read_interface(const char *filename, const char *ifname, ni_compat_n
 			compat = ni_compat_netdev_new(ifname);
 			compat->identify.hwaddr = hwaddr;
 			ni_compat_netdev_array_append(known_devices, compat);
+		} else if (ifname) {
+			ni_warn("%s: file specifies DEVICE and HWADDR", sc->pathname);
 		}
 	}
 
@@ -117,10 +120,10 @@ __ni_redhat_read_interface(const char *filename, const char *ifname, ni_compat_n
 	 * on the fly, so we cannot create the netdev directly here,
 	 * but have to consult the list of devices we've learned so far.
 	 */
-	if (compat == NULL)
+	if (compat == NULL && ifname)
 		compat = ni_compat_netdev_by_name(known_devices, ifname);
 
-	if (compat == NULL) {
+	if (compat == NULL && ifname) {
 		/* Handle eth0:0 alias devices */
 		if (strchr(ifname, ':') != NULL) {
 			compat = __ni_redhat_define_alias(sc, ifname, known_devices);
@@ -132,6 +135,16 @@ __ni_redhat_read_interface(const char *filename, const char *ifname, ni_compat_n
 			goto error;
 		}
 		ni_compat_netdev_array_append(known_devices, compat);
+	}
+
+	if (compat == NULL) {
+		ni_error("%s: no DEVICE and no HWADDR specified", filename);
+		goto error;
+	}
+
+	if (compat->identify.hwaddr.type && compat->dev->name) {
+		ni_warn("%s: device naming conflict - have both name and Ethernet MAC",
+				compat->dev->name);
 	}
 
 	if (__ni_redhat_define_interface(sc, compat, known_devices) < 0)
@@ -416,6 +429,36 @@ __ni_redhat_addrconf_dhcp(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	compat->dhcp4.enabled = TRUE;
 	if ((value = ni_sysconfig_get_value(sc, "DHCP_HOSTNAME")) != NULL)
 		ni_string_dup(&compat->dhcp4.hostname, value);
+
+	if (ni_sysconfig_test_boolean(sc, "DEFROUTE"))
+		compat->dhcp4.update |= (1 << NI_ADDRCONF_UPDATE_DEFAULT_ROUTE);
+	if (ni_sysconfig_test_boolean(sc, "PEERDNS"))
+		compat->dhcp4.update |= (1 << NI_ADDRCONF_UPDATE_RESOLVER);
+#if 0
+	if (ni_sysconfig_test_boolean(sc, "PEERROUTES"))
+		compat->dhcp4.update |= (1 << NI_ADDRCONF_UPDATE_ROUTES);
+#endif
+
+	if (ni_sysconfig_test_boolean(sc, "IPV4_FAILURE_FATAL"))
+		compat->dhcp4.required = TRUE;
+
+	if (ni_sysconfig_test_boolean(sc, "IPV6INIT")) {
+		if ((value = ni_sysconfig_get_value(sc, "IPV6_AUTOCONF")) != NULL)
+			/* TBD */;
+
+		compat->dhcp6.enabled = TRUE;
+		if (ni_sysconfig_test_boolean(sc, "IPV6_DEFROUTE"))
+			compat->dhcp6.update |= (1 << NI_ADDRCONF_UPDATE_DEFAULT_ROUTE);
+		if (ni_sysconfig_test_boolean(sc, "IPV6_PEERDNS"))
+			compat->dhcp6.update |= (1 << NI_ADDRCONF_UPDATE_RESOLVER);
+#if 0
+		if (ni_sysconfig_test_boolean(sc, "IPV6_PEERROUTES"))
+			compat->dhcp6.update |= (1 << NI_ADDRCONF_UPDATE_ROUTES);
+#endif
+
+		if (ni_sysconfig_test_boolean(sc, "IPV4_FAILURE_FATAL"))
+			compat->dhcp6.required = TRUE;
+	}
 
 	return TRUE;
 }

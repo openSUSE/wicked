@@ -34,13 +34,22 @@ typedef struct ni_compat_netdev {
 
 	struct {
 		ni_bool_t	enabled;
+		ni_bool_t	required;
 
 		char *		hostname;
 		char *		client_id;
 		char *		vendor_class;
 		unsigned int	acquire_timeout;
 		unsigned int	lease_time;
+
+		unsigned int	update;
 	} dhcp4;
+	struct {
+		ni_bool_t	enabled;
+		ni_bool_t	required;
+
+		unsigned int	update;
+	} dhcp6;
 } ni_compat_netdev_t;
 
 typedef struct ni_compat_netdev_array {
