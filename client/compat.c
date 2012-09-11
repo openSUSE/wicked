@@ -242,6 +242,8 @@ __ni_compat_generate_wireless(xml_node_t *ifnode, const ni_compat_netdev_t *comp
 	child = xml_node_create(ifnode, "wireless");
 
 	/* TBD */
+	(void) child;
+	(void) wireless;
 	return TRUE;
 }
 

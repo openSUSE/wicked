@@ -461,12 +461,11 @@ ni_nanny_add_secret(ni_nanny_t *mgr, uid_t caller_uid,
 {
 	ni_managed_device_t *mdev;
 	ni_nanny_user_t *user;
-	ni_secret_t *sec;
 
 	if (!(user = ni_nanny_create_user(mgr, caller_uid)))
 		return;
 
-	sec = ni_secret_db_update(user->secret_db, security_id, path, value);
+	ni_secret_db_update(user->secret_db, security_id, path, value);
 
 	ni_debug_nanny("%s: secret for %s updated", ni_security_id_print(security_id), path);
 	for (mdev = mgr->device_list; mdev; mdev = mdev->next) {

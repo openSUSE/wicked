@@ -189,6 +189,7 @@ try_ethernet(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 
 	if ((value = ni_sysconfig_get_value(sc, "ETHTOOL_OPTS")) != NULL) {
 		/* TBD - parse and translate to xml */
+		(void) eth;
 	}
 
 	return TRUE;
@@ -310,6 +311,7 @@ try_bonding_master(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 
 	if ((value = ni_sysconfig_get_value(sc, "BONDING_OPTS")) != NULL) {
 		/* Parse bonding module options */
+		(void) bonding;
 	}
 
 	return TRUE;

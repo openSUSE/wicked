@@ -34,13 +34,13 @@
 void
 ni_objectmodel_managed_policy_init(ni_dbus_server_t *server)
 {
-	ni_dbus_object_t *root_object, *list_object;
+	ni_dbus_object_t *root_object;
 
 	ni_objectmodel_register_class(&ni_objectmodel_managed_policy_class);
 	ni_objectmodel_register_service(&ni_objectmodel_managed_policy_service);
 
 	root_object = ni_dbus_server_get_root_object(server);
-	list_object = ni_dbus_object_create(root_object, "Policy", NULL, NULL);
+	ni_dbus_object_create(root_object, "Policy", NULL, NULL);
 }
 
 /*

@@ -875,17 +875,12 @@ do_get_names(int argc, char **argv)
 		{ NULL }
 	};
 	ni_dbus_object_t *list_object;
-	int opt_xml = 0;
 	int opt_modems = 0;
 	int c, rv = 1;
 
 	optind = 1;
 	while ((c = getopt_long(argc, argv, "", local_options, NULL)) != EOF) {
 		switch (c) {
-		case OPT_XML:
-			opt_xml = 1;
-			break;
-
 		case OPT_MODEMS:
 			opt_modems = 1;
 			break;

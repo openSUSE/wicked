@@ -179,6 +179,7 @@ do_nanny_recheck(int argc, char **argv)
 	}
 
 	ifname = argv[optind++];
+	(void) ifname;
 	ni_error("%s: not implemented yet", __func__);
 	return 1;
 }
@@ -265,13 +266,12 @@ ni_nanny_create_client(ni_dbus_object_t **root_p)
 ni_bool_t
 ni_nanny_call_add_policy(const char *name, xml_node_t *node)
 {
-	ni_dbus_client_t *client;
 	ni_dbus_object_t *root_object, *proxy;
 	const char *relative_path;
 	char *policy_path, *doc_string;
 	int rv;
 
-	client = ni_nanny_create_client(&root_object);
+	ni_nanny_create_client(&root_object);
 
 	rv = ni_dbus_object_call_simple(root_object,
 					NI_OBJECTMODEL_NANNY_INTERFACE, "createPolicy",
@@ -318,11 +318,10 @@ ni_bool_t
 ni_nanny_call_add_secret(const ni_security_id_t *security_id, const char *path, const char *value)
 {
 	DBusError error = DBUS_ERROR_INIT;
-	ni_dbus_client_t *client;
 	ni_dbus_object_t *root_object;
 	ni_dbus_variant_t argv[3];
 
-	client = ni_nanny_create_client(&root_object);
+	ni_nanny_create_client(&root_object);
 
 	memset(argv, 0, sizeof(argv));
 	ni_objectmodel_marshal_security_id(security_id, &argv[0]);
@@ -346,13 +345,12 @@ ni_nanny_call_add_secret(const ni_security_id_t *security_id, const char *path, 
 ni_dbus_object_t *
 ni_nanny_call_get_device(const char *ifname)
 {
-	ni_dbus_client_t *client;
 	ni_dbus_object_t *root_object;
 	const char *relative_path;
 	char *object_path;
 	int rv;
 
-	client = ni_nanny_create_client(&root_object);
+	ni_nanny_create_client(&root_object);
 
 	rv = ni_dbus_object_call_simple(root_object,
 					NI_OBJECTMODEL_NANNY_INTERFACE, "getDevice",

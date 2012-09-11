@@ -212,6 +212,8 @@ __ni_suse_read_routes(const char *filename)
 
 		if (ifname && strcmp(ifname, "-"))
 			ni_string_dup(&rp->nh.device, ifname);
+
+		(void) type; /* currently ignored */
 	}
 
 	fclose(fp);
@@ -334,6 +336,7 @@ try_ethernet(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		 *   - otherwise: this is a paramater to be passed to "-s ifname"
 		 */
 		/* TBD - parse and translate to xml */
+		(void) eth;
 	}
 
 	return TRUE;
