@@ -4,7 +4,7 @@
 -include Makefile.vars
 
 # Hmm.. devellibdir=/usr/%_lib libdir=/%_lib
-devellibdir		= ${exec_prefix}${libdir}
+devellibdir		= ${libdir}
 
 wickedconfigdir		= ${sysconfdir}/wicked
 wickedpiddir		= ${localstatedir}/run/wicked
@@ -215,7 +215,7 @@ install: Makefile.vars install-no-devel install-devel
 
 install-devel: install-devel-lib install-devel-data
 
-install-no-devel: install-lib install-bin install-init install-data install-man
+install-no-devel: install-lib install-bin install-data install-man
 
 install-init: install-bin
 	install -d -m 755 $(DESTDIR)$(sysvinitdir)
