@@ -886,6 +886,14 @@ ni_dbus_generic_property_get_bool(const ni_dbus_object_t *obj, const ni_dbus_pro
 		return FALSE;
 
 	vptr = __property_data(prop, handle, bool);
+
+	/* More recent dbus libraries get fuzzy with what they accept in
+	 * a boolean.
+	 * However, some variables we use (such as ipv6/use_tempaddr) may
+	 * have a value of -1 or 0xFF to signal "not possible".
+	 * For now, work around this issue by using this hack. */
+	if (*vptr != FALSE && *vptr != TRUE)
+		return ni_dbus_error_property_not_present(error, obj->path, prop->name);
 	return ni_dbus_variant_assign_bool(var, *vptr);
 }
 
