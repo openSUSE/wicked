@@ -34,7 +34,7 @@ rc_reset
 # Check for missing binary/config (stale symlinks should not happen)
 # Note: Special treatment of stop/status for LSB conformance
 wicked_DAEMON_BIN=@sbindir@/wickedd
-wicked_CONFIG=@sysconfdir@/wicked/config.xml
+wicked_CONFIG=@sysconfdir@/wicked/server.xml
 wicked_RUNDIR=/var/run/wicked
 wicked_PIDFILE=/var/run/wicked.pid
 
