@@ -32,8 +32,13 @@
 #include <unistd.h>
 
 #include <linux/filter.h>
-#include <netpacket/packet.h>
 #define bpf_insn sock_filter
+
+#if defined(HAVE_LINUX_IF_PACKET_H)
+#include <linux/if_packet.h>
+#else
+#include <netpacket/packet.h>
+#endif
 
 #include <wicked/logging.h>
 #include <wicked/socket.h>
@@ -43,6 +48,19 @@
 
 #define MTU_MAX			1500
 #define DHCP_CLIENT_PORT	68
+
+/* in case we have old headers files */
+#if defined(PACKET_AUXDATA) && !defined(HAVE_STRUCT_TPACKET_AUXDATA)
+struct tpacket_auxdata {
+	__u32	tp_status;
+	__u32	tp_len;
+	__u32	tp_snaplen;
+	__u16	tp_mac;
+	__u16	tp_net;
+	__u16	tp_vlan_tci;
+	__u16	tp_padding;
+};
+#endif
 
 /*
  * Credit where credit is due :)
@@ -228,7 +246,8 @@ ni_capture_build_udp_header(ni_buffer_t *bp,
 }
 
 static void *
-ni_capture_inspect_udp_header(unsigned char *data, size_t bytes, size_t *payload_len)
+ni_capture_inspect_udp_header(unsigned char *data, size_t bytes, size_t *payload_len,
+				ni_bool_t partial_checksum)
 {
 	struct ip *iph = (struct ip *) data;
 	struct udphdr *uh;
@@ -272,7 +291,7 @@ ni_capture_inspect_udp_header(unsigned char *data, size_t bytes, size_t *payload
 	data += sizeof(*uh);
 	bytes -= sizeof(*uh);
 
-	if (ipudp_checksum(iph, uh, data, bytes) != 0) {
+	if (!partial_checksum && ipudp_checksum(iph, uh, data, bytes) != 0) {
 		ni_debug_socket("bad UDP checksum, ignoring");
 		return NULL;
 	}
@@ -374,23 +393,70 @@ __ni_capture_socket_check_timeout(ni_socket_t *sock, const struct timeval *now)
  * Capture receive handling
  */
 int
+__ni_capture_recv(int fd, void *buf, size_t len, ni_bool_t *partial_csum)
+{
+#if defined(PACKET_AUXDATA)
+	/* use 2 times bigger buffer to catch possible additions... */
+	unsigned char cbuf[CMSG_SPACE(sizeof(struct tpacket_auxdata)*2)];
+	struct iovec iov = {
+		.iov_base = buf,
+		.iov_len  = len,
+	};
+	struct msghdr msg = {
+		.msg_iov = &iov,
+		.msg_iovlen = 1,
+		.msg_control = cbuf,
+		.msg_controllen = sizeof(cbuf),
+	};
+	struct cmsghdr *cmsg;
+	struct tpacket_auxdata *aux;
+	ssize_t bytes;
+
+	if ((bytes = recvmsg (fd, &msg, 0)) < 0)
+		return bytes;
+
+	*partial_csum = FALSE;
+	for (cmsg = CMSG_FIRSTHDR(&msg); cmsg; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
+		if (cmsg->cmsg_level == SOL_PACKET &&
+		    cmsg->cmsg_type == PACKET_AUXDATA) {
+			aux = (void *)CMSG_DATA(cmsg);
+			*partial_csum = aux->tp_status & TP_STATUS_CSUMNOTREADY;
+			break;
+		}
+	}
+
+	return bytes;
+#else
+	*partial_csum = FALSE;
+
+	return read(fd, buf, len);
+#endif
+}
+
+int
 ni_capture_recv(ni_capture_t *capture, ni_buffer_t *bp)
 {
 	void *payload;
 	size_t payload_len;
 	ssize_t bytes;
+	ni_bool_t partial_checksum = FALSE;
 
-	ni_debug_socket("%s: incoming packet", capture->ifname);
-	bytes = read(capture->sock->__fd, capture->buffer, capture->mtu);
+	bytes = __ni_capture_recv(capture->sock->__fd, capture->buffer,
+				  capture->mtu, &partial_checksum);
+
 	if (bytes < 0) {
 		ni_error("%s: cannot read from socket: %m", __FUNCTION__);
 		return -1;
 	}
 
+	ni_debug_socket("%s: incoming packet%s", capture->ifname,
+			(partial_checksum ? " with partial checksum" : ""));
+
 	switch (capture->protocol) {
 	case ETHERTYPE_IP:
 		/* Make sure IP and UDP header are sane */
-		payload = ni_capture_inspect_udp_header(capture->buffer, bytes, &payload_len);
+		payload = ni_capture_inspect_udp_header(capture->buffer, bytes,
+						&payload_len, partial_checksum);
 		if (payload == NULL) {
 			ni_debug_socket("bad IP/UDP packet header");
 			return -1;
@@ -488,6 +554,20 @@ ni_capture_devinfo_refresh(ni_capture_devinfo_t *devinfo, const ni_linkinfo_t *l
  * install a packet filter for DHCP. We need to get this out of the system at
  * some point.
  */
+static void
+__ni_capture_enable_packet_auxdata(int fd)
+{
+#if defined(PACKET_AUXDATA)
+	int on = 1;
+
+	if (setsockopt (fd, SOL_PACKET, PACKET_AUXDATA, &on, sizeof(on)) < 0) {
+		if (errno != ENOPROTOOPT) {
+			ni_error("cannot enable packet auxdata: %m");
+		}
+	}
+#endif
+}
+
 ni_capture_t *
 ni_capture_open(const ni_capture_devinfo_t *devinfo, int protocol, void (*receive)(ni_socket_t *))
 {
@@ -536,6 +616,8 @@ ni_capture_open(const ni_capture_devinfo_t *devinfo, int protocol, void (*receiv
 		ni_error("bind: %m");
 		goto failed;
 	}
+
+	__ni_capture_enable_packet_auxdata(fd);
 
 	capture->mtu = devinfo->mtu;
 	if (capture->mtu == 0)

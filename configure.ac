@@ -64,6 +64,7 @@ PKG_CHECK_MODULES(LIBDBUS, [dbus-1])
 AC_CHECK_HEADERS([arpa/inet.h fcntl.h limits.h netdb.h netinet/in.h])
 AC_CHECK_HEADERS([stdint.h stdlib.h string.h sys/ioctl.h sys/param.h])
 AC_CHECK_HEADERS([sys/socket.h sys/time.h syslog.h unistd.h])
+AC_CHECK_HEADERS([linux/filter.h linux/if_packet.h netpacket/packet.h])
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_TYPE_UID_T
@@ -88,6 +89,12 @@ AC_CHECK_FUNCS([dup2 gethostname getpass gettimeofday inet_ntoa memmove])
 AC_CHECK_FUNCS([memset mkdir rmdir sethostname socket strcasecmp strchr])
 AC_CHECK_FUNCS([strcspn strdup strerror strrchr strstr strtol strtoul])
 AC_CHECK_FUNCS([strtoull])
+
+if test "$ac_cv_header_linux_if_packet_h" = "yes" ; then
+	AC_CHECK_TYPES([struct tpacket_auxdata], [], [],
+		[[#include <linux/if_packet.h>]]
+	)
+fi
 
 AC_CONFIG_FILES([
 	Makefile.vars
