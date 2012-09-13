@@ -317,7 +317,8 @@ ni_call_device_new_xml(const ni_dbus_service_t *service,
 }
 
 /*
- * Bring the link of an interface up
+ * Place a generic call to a device. This call will optionally return a
+ * callback list.
  */
 static int
 ni_call_device_method_common(ni_dbus_object_t *object,
@@ -467,6 +468,22 @@ ni_call_link_monitor(ni_dbus_object_t *object)
 	int rv;
 
 	if ((rv = ni_get_device_method(object, "linkMonitor", &service, &method)) < 0)
+		return rv;
+
+	return ni_call_device_method_common(object, service, method, 0, NULL, NULL, NULL);
+}
+
+/*
+ * Clear the event filters of a device
+ */
+int
+ni_call_clear_event_filters(ni_dbus_object_t *object)
+{
+	const ni_dbus_service_t *service;
+	const ni_dbus_method_t *method;
+	int rv;
+
+	if ((rv = ni_get_device_method(object, "clearEventFilters", &service, &method)) < 0)
 		return rv;
 
 	return ni_call_device_method_common(object, service, method, 0, NULL, NULL, NULL);

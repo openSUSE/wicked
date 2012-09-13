@@ -654,6 +654,29 @@ ni_objectmodel_netif_get_names(ni_dbus_object_t *object, const ni_dbus_method_t 
 }
 
 /*
+ * Interface.clearEventFilters()
+ */
+static dbus_bool_t
+ni_objectmodel_netif_clear_event_filters(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_netdev_t *dev;
+
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
+		return FALSE;
+
+	NI_TRACE_ENTER_ARGS("dev=%s", dev->name);
+
+	/* Create an interface_request object and extract configuration from dict */
+	if (argc != 0)
+		return ni_dbus_error_invalid_args(error, object->path, method->name);
+
+	ni_netdev_clear_event_filters(dev);
+	return TRUE;
+}
+
+/*
  * Interface.linkUp(dict options)
  *
  * Bring up the network interface, and wait for link negotiation to complete.
@@ -945,6 +968,7 @@ static ni_dbus_method_t		ni_objectmodel_netif_methods[] = {
 	{ "setClientInfo",	"a{sv}",		ni_objectmodel_netif_set_client_info },
 	{ "linkMonitor",	"",			ni_objectmodel_netif_link_monitor },
 	{ "getNames",		"",			ni_objectmodel_netif_get_names },
+	{ "clearEventFilters",	"",			ni_objectmodel_netif_clear_event_filters },
 	{ NULL }
 };
 

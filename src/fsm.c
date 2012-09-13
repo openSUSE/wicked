@@ -2975,8 +2975,10 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 			if (!w->kickstarted) {
 				if (!ni_ifworker_device_bound(w))
 					ni_ifworker_set_state(w, NI_FSM_STATE_DEVICE_DOWN);
-				else if (w->object)
+				else if (w->object) {
+					ni_call_clear_event_filters(w->object);
 					ni_ifworker_update_client_info(w);
+				}
 				w->kickstarted = TRUE;
 			}
 
