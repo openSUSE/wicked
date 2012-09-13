@@ -52,11 +52,11 @@ ni_objectmodel_wireless_change_device(ni_dbus_object_t *object, const ni_dbus_me
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
-	ni_netdev_t *ifp;
+	ni_netdev_t *dev;
 	ni_wireless_network_t *net;
 	dbus_bool_t rv = FALSE;
 
-	if (!(ifp = ni_objectmodel_unwrap_netif(object, error)))
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return FALSE;
 
 	net = ni_wireless_network_new();
@@ -66,7 +66,7 @@ ni_objectmodel_wireless_change_device(ni_dbus_object_t *object, const ni_dbus_me
 	if (net->essid.len != 0) {
 		dbus_bool_t was_up = FALSE;
 
-		was_up = (ifp->wireless->assoc.state == NI_WIRELESS_ESTABLISHED);
+		was_up = (dev->wireless->assoc.state == NI_WIRELESS_ESTABLISHED);
 
 		switch (net->keymgmt_proto) {
 		case NI_WIRELESS_KEY_MGMT_PSK:
@@ -105,37 +105,43 @@ ni_objectmodel_wireless_change_device(ni_dbus_object_t *object, const ni_dbus_me
 		}
 
 		/* We're asked to associate with the given network */
-		if (ni_wireless_set_network(ifp, net) < 0) {
+		if (ni_wireless_set_network(dev, net) < 0) {
 			dbus_set_error(error, DBUS_ERROR_FAILED,
 					"could not associate");
 			goto error;
 		}
 
-		if (!was_up || ifp->wireless->assoc.state == NI_WIRELESS_ESTABLISHED) {
+		if (!was_up || dev->wireless->assoc.state == NI_WIRELESS_ESTABLISHED) {
 			rv = TRUE;
 		} else {
+			const ni_uuid_t *uuid;
+
 			/* Link is not associated yet. Tell the caller to wait for an event. */
-			if (ni_uuid_is_null(&ifp->link.event_uuid))
-				ni_uuid_generate(&ifp->link.event_uuid);
+			uuid = ni_netdev_add_event_filter(dev,
+						(1 << NI_EVENT_LINK_ASSOCIATED) |
+						(1 << NI_EVENT_LINK_ASSOCIATION_LOST));
 			rv =  __ni_objectmodel_return_callback_info(reply, NI_EVENT_LINK_ASSOCIATED,
-					&ifp->link.event_uuid, error);
+						uuid, error);
 		}
 	} else {
 		/* We're asked to disconnect */
-		if (ni_wireless_disconnect(ifp) < 0) {
+		if (ni_wireless_disconnect(dev) < 0) {
 			dbus_set_error(error, DBUS_ERROR_FAILED,
 					"could not disconnect from wireless network");
 			goto error;
 		}
 
-		if (ifp->wireless->assoc.state == NI_WIRELESS_NOT_ASSOCIATED) {
+		if (dev->wireless->assoc.state == NI_WIRELESS_NOT_ASSOCIATED) {
 			rv = TRUE;
 		} else {
-			/* Link is not associated yet. Tell the caller to wait for an event. */
-			if (ni_uuid_is_null(&ifp->link.event_uuid))
-				ni_uuid_generate(&ifp->link.event_uuid);
+			const ni_uuid_t *uuid;
+
+			/* Link is associated. Tell the caller to wait for an event. */
+			uuid = ni_netdev_add_event_filter(dev,
+						(1 << NI_EVENT_LINK_ASSOCIATED) |
+						(1 << NI_EVENT_LINK_ASSOCIATION_LOST));
 			rv =  __ni_objectmodel_return_callback_info(reply, NI_EVENT_LINK_ASSOCIATION_LOST,
-					&ifp->link.event_uuid, error);
+						uuid, error);
 		}
 	}
 

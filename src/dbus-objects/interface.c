@@ -697,10 +697,11 @@ ni_objectmodel_netif_link_up(ni_dbus_object_t *object, const ni_dbus_method_t *m
 
 	/* If the link is up, there's nothing to return */
 	if (!(dev->link.ifflags & NI_IFF_LINK_UP)) {
+		const ni_uuid_t *uuid;
+
 		/* Link is not up yet. Tell the caller to wait for an event. */
-		if (ni_uuid_is_null(&dev->link.event_uuid))
-			ni_uuid_generate(&dev->link.event_uuid);
-		ret = __ni_objectmodel_return_callback_info(reply, NI_EVENT_LINK_UP, &dev->link.event_uuid, error);
+		uuid = ni_netdev_add_event_filter(dev, (1 << NI_EVENT_LINK_UP) | (1 << NI_EVENT_LINK_DOWN));
+		ret = __ni_objectmodel_return_callback_info(reply, NI_EVENT_LINK_UP, uuid, error);
 	}
 
 failed:

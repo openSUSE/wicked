@@ -39,10 +39,6 @@ struct ni_linkinfo {
 
 	ni_link_stats_t *	stats;
 	ni_ethtool_stats_t *	ethtool_stats;
-
-	/* When someone is waiting for the next link change
-	 * event, this will be non-NULL */
-	ni_uuid_t		event_uuid;
 };
 
 /*

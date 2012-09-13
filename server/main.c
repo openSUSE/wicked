@@ -283,9 +283,10 @@ handle_interface_event(ni_netdev_t *dev, ni_event_t event)
 			ni_objectmodel_unregister_netif(dbus_server, dev);
 
 			/* Delete dbus object and emit event */
-			if (!ni_uuid_is_null(&dev->link.event_uuid))
-				event_uuid = &dev->link.event_uuid;
-			ni_objectmodel_send_netif_event(dbus_server, object, NI_EVENT_DEVICE_DOWN, event_uuid);
+			while ((event_uuid = ni_netdev_get_event_uuid(dev, event)) != NULL)
+				ni_objectmodel_send_netif_event(dbus_server, object, NI_EVENT_DEVICE_DOWN, event_uuid);
+
+			ni_objectmodel_send_netif_event(dbus_server, object, NI_EVENT_DEVICE_DOWN, NULL);
 			ni_objectmodel_send_netif_event(dbus_server, object, NI_EVENT_DEVICE_DELETE, NULL);
 			break;
 
@@ -296,12 +297,10 @@ handle_interface_event(ni_netdev_t *dev, ni_event_t event)
 			while ((event_uuid = ni_netdev_get_event_uuid(dev, event)) != NULL)
 				ni_objectmodel_send_netif_event(dbus_server, object, event, event_uuid);
 
-			if (!ni_uuid_is_null(&dev->link.event_uuid))
-				event_uuid = &dev->link.event_uuid;
 			/* fallthru */
 
 		default:
-			ni_objectmodel_send_netif_event(dbus_server, object, event, event_uuid);
+			ni_objectmodel_send_netif_event(dbus_server, object, event, NULL);
 			break;
 		}
 	}
