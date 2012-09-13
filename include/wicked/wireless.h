@@ -285,6 +285,7 @@ extern ni_wireless_eap_method_t ni_wireless_name_to_eap_method(const char *);
 typedef void		ni_rfkill_event_handler_t(ni_rfkill_type_t, ni_bool_t, void *user_data);
 extern int		ni_rfkill_open(ni_rfkill_event_handler_t *, void *user_data);
 extern const char *	ni_rfkill_type_string(ni_rfkill_type_t type);
+extern ni_bool_t	ni_rfkill_disabled(ni_rfkill_type_t);
 
 static inline ni_wireless_network_t *
 ni_wireless_network_get(ni_wireless_network_t *net)

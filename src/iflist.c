@@ -736,7 +736,12 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 	if (dev->link.type == NI_IFTYPE_BOND)
 		__ni_discover_bond(dev);
 	if (dev->link.type == NI_IFTYPE_WIRELESS) {
-		if (ni_wireless_interface_refresh(dev) < 0)
+		rv = ni_wireless_interface_refresh(dev);
+		if (rv == -NI_ERROR_RADIO_DISABLED) {
+			ni_debug_ifconfig("%s: radio disabled, not refreshing wireless info", dev->name);
+			ni_netdev_set_wireless(dev, NULL);
+		} else 
+		if (rv < 0)
 			ni_error("%s: failed to refresh wireless info", dev->name);
 	}
 

@@ -82,6 +82,9 @@ ni_wireless_interface_refresh(ni_netdev_t *dev)
 	ni_wpa_interface_t *wif;
 	ni_wireless_t *wlan;
 
+	if (ni_rfkill_disabled(NI_RFKILL_TYPE_WIRELESS))
+		return -NI_ERROR_RADIO_DISABLED;
+
 	if (!(wif = ni_wireless_bind_supplicant(dev)))
 		return -1;
 
@@ -166,6 +169,8 @@ __ni_wireless_do_scan(ni_netdev_t *dev)
 	if (!ni_netdev_device_is_up(dev))
 		return 0;
 
+	if (ni_rfkill_disabled(NI_RFKILL_TYPE_WIRELESS))
+		return -NI_ERROR_RADIO_DISABLED;
 	if (!(wpa_dev = ni_wireless_bind_supplicant(dev)))
 		return -1;
 
@@ -250,6 +255,8 @@ ni_wireless_set_network(ni_netdev_t *dev, ni_wireless_network_t *net)
 		return -1;
 	}
 
+	if (ni_rfkill_disabled(NI_RFKILL_TYPE_WIRELESS))
+		return -NI_ERROR_RADIO_DISABLED;
 	if (!(wpa_dev = ni_wireless_bind_supplicant(dev)))
 		return -1;
 
@@ -296,6 +303,8 @@ ni_wireless_connect(ni_netdev_t *dev)
 	if (wlan->assoc.network == NULL)
 		return 0;
 
+	if (ni_rfkill_disabled(NI_RFKILL_TYPE_WIRELESS))
+		return -NI_ERROR_RADIO_DISABLED;
 	if (!(wpa_dev = ni_wireless_bind_supplicant(dev)))
 		return -1;
 
@@ -316,6 +325,8 @@ ni_wireless_disconnect(ni_netdev_t *dev)
 		return -1;
 	}
 
+	if (ni_rfkill_disabled(NI_RFKILL_TYPE_WIRELESS))
+		return -NI_ERROR_RADIO_DISABLED;
 	if (!(wpa_dev = ni_wireless_bind_supplicant(dev)))
 		return -1;
 

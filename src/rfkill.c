@@ -170,3 +170,13 @@ ni_rfkill_type_string(ni_rfkill_type_t type)
 
 	return "unknown";
 }
+
+ni_bool_t
+ni_rfkill_disabled(ni_rfkill_type_t type)
+{
+	if (type >= __NI_RFKILL_TYPE_MAX)
+		return FALSE;
+
+	return ni_rfkill_state[type];
+}
+
