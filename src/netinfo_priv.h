@@ -20,6 +20,13 @@ typedef struct __ni_netlink	ni_netlink_t;
 extern ni_netlink_t *		__ni_global_netlink;
 extern int			__ni_global_iocfd;
 
+struct ni_event_filter {
+	ni_event_filter_t *	next;
+
+	unsigned int		event_mask;
+	ni_uuid_t		uuid;
+};
+
 /*
  * These constants describe why/how the interface has been brought up
  */

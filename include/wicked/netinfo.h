@@ -88,6 +88,8 @@ struct ni_netdev {
 
 	ni_ibft_nic_t *		ibft_nic;
 	ni_pci_dev_t *		pci_dev;
+
+	ni_event_filter_t *	event_filter;
 };
 
 struct ni_netdev_req {
@@ -186,6 +188,10 @@ extern ni_ipv4_devinfo_t *ni_netdev_get_ipv4(ni_netdev_t *);
 
 extern void             ni_netdev_clear_addresses(ni_netdev_t *);
 extern void             ni_netdev_clear_routes(ni_netdev_t *);
+extern void		ni_netdev_clear_event_filters(ni_netdev_t *);
+
+extern const ni_uuid_t *ni_netdev_add_event_filter(ni_netdev_t *, unsigned int mask);
+extern const ni_uuid_t *ni_netdev_get_event_uuid(ni_netdev_t *, ni_event_t);
 
 extern ni_netdev_req_t *ni_netdev_req_new(void);
 extern void		ni_netdev_req_free(ni_netdev_req_t *req);

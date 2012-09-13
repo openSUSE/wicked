@@ -252,7 +252,7 @@ recover_addrconf(const char *filename)
 void
 handle_interface_event(ni_netdev_t *dev, ni_event_t event)
 {
-	ni_uuid_t *event_uuid = NULL;
+	const ni_uuid_t *event_uuid = NULL;
 
 	if (dbus_server) {
 		ni_dbus_object_t *object;
@@ -293,6 +293,9 @@ handle_interface_event(ni_netdev_t *dev, ni_event_t event)
 		case NI_EVENT_LINK_ASSOCIATION_LOST:
 		case NI_EVENT_LINK_UP:
 		case NI_EVENT_LINK_DOWN:
+			while ((event_uuid = ni_netdev_get_event_uuid(dev, event)) != NULL)
+				ni_objectmodel_send_netif_event(dbus_server, object, event, event_uuid);
+
 			if (!ni_uuid_is_null(&dev->link.event_uuid))
 				event_uuid = &dev->link.event_uuid;
 			/* fallthru */

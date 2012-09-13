@@ -96,6 +96,7 @@ ni_netdev_free(ni_netdev_t *dev)
 	ni_netdev_set_ipv6(dev, NULL);
 
 	ni_netdev_set_pci(dev, NULL);
+	ni_netdev_clear_event_filters(dev);
 
 	ni_addrconf_lease_list_destroy(&dev->leases);
 
@@ -349,6 +350,68 @@ ni_device_clientinfo_free(ni_device_clientinfo_t *client_info)
 	ni_string_free(&client_info->state);
 	ni_string_free(&client_info->config_origin);
 	free(client_info);
+}
+
+/*
+ * Handle event filters
+ */
+static ni_event_filter_t *
+__ni_event_filter_new(unsigned int mask)
+{
+	ni_event_filter_t *efp;
+
+	efp = xcalloc(1, sizeof(*efp));
+	ni_uuid_generate(&efp->uuid);
+	efp->event_mask = mask;
+
+	return efp;
+}
+
+static void
+__ni_event_filter_free(ni_event_filter_t *efp)
+{
+	free(efp);
+}
+
+void
+ni_netdev_clear_event_filters(ni_netdev_t *dev)
+{
+	ni_event_filter_t *efp;
+
+	for (efp = dev->event_filter; efp; efp = efp->next) {
+		dev->event_filter = efp->next;
+		__ni_event_filter_free(efp);
+	}
+}
+
+const ni_uuid_t *
+ni_netdev_add_event_filter(ni_netdev_t *dev, unsigned int mask)
+{
+	ni_event_filter_t *efp = __ni_event_filter_new(mask);
+
+	efp->next = dev->event_filter;
+	dev->event_filter = efp;
+
+	return &efp->uuid;
+}
+
+const ni_uuid_t *
+ni_netdev_get_event_uuid(ni_netdev_t *dev, ni_event_t ev)
+{
+	ni_event_filter_t **pos, *efp;
+
+	for (pos = &dev->event_filter; (efp = *pos) != NULL; pos = &efp->next) {
+		if (efp->event_mask & (1 << ev)) {
+			static ni_uuid_t ret_uuid;
+			
+			ret_uuid = efp->uuid;
+			*pos = efp->next;
+			__ni_event_filter_free(efp);
+			return &ret_uuid;
+		}
+	}
+
+	return NULL;
 }
 
 /*
