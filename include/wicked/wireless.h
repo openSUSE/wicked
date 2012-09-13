@@ -71,13 +71,14 @@ typedef enum ni_wireless_eap_method {
  * file so we can reuse stuff for 802.1x
  */
 typedef enum ni_wireless_auth_mode {
-	NI_WIRELESS_AUTH_NONE,
+	NI_WIRELESS_AUTH_MODE_NONE,
 	NI_WIRELESS_AUTH_WPA1,
 	NI_WIRELESS_AUTH_WPA2,
 	NI_WIRELESS_AUTH_UNKNOWN,
 } ni_wireless_auth_mode_t;
 
 typedef enum ni_wireless_auth_algo {
+	NI_WIRELESS_AUTH_ALGO_NONE,
 	NI_WIRELESS_AUTH_OPEN,
 	NI_WIRELESS_AUTH_SHARED,
 	NI_WIRELESS_AUTH_LEAP,

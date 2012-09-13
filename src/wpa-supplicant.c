@@ -1542,7 +1542,7 @@ __wpa_dbus_bss_get_phase2(const ni_dbus_object_t *object, const ni_dbus_property
 		if (eap_name == NULL)
 			goto not_present;
 		snprintf(buffer, sizeof(buffer), "auth=%s", eap_name);
-		ni_dbus_variant_set_string(argument, eap_name);
+		ni_dbus_variant_set_string(argument, buffer);
 		return TRUE;
 	}
 
@@ -1820,6 +1820,10 @@ ni_wpa_auth_protocol_as_string(ni_wireless_auth_mode_t auth_mode, DBusError *err
 {
 	const char *res;
 
+	if (auth_mode == NI_WIRELESS_AUTH_MODE_NONE) {
+		dbus_set_error(error, NI_DBUS_ERROR_PROPERTY_NOT_PRESENT, "auth-mode property not set");
+		return FALSE;
+	}
 	if (!(res = ni_format_int_mapped(auth_mode, __ni_wpa_protocol_names))) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
 				"cannot render auth protocol %u(%s)",
@@ -1847,6 +1851,10 @@ ni_wpa_auth_algorithm_as_string(ni_wireless_auth_algo_t auth_algo, DBusError *er
 {
 	const char *res;
 
+	if (auth_algo == NI_WIRELESS_AUTH_ALGO_NONE) {
+		dbus_set_error(error, NI_DBUS_ERROR_PROPERTY_NOT_PRESENT, "auth-algo property not set");
+		return FALSE;
+	}
 	if (!(res = ni_format_int_mapped(auth_algo, __ni_wpa_auth_names))) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
 				"cannot render auth algorithm %u(%s)",

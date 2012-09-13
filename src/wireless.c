@@ -528,7 +528,7 @@ ni_wireless_name_to_security(const char *string)
 }
 
 static ni_intmap_t __ni_wireless_auth_mode_names[] = {
-	{ "default",		NI_WIRELESS_AUTH_NONE },
+	{ "default",		NI_WIRELESS_AUTH_MODE_NONE },
 	{ "wpa1",		NI_WIRELESS_AUTH_WPA1 },
 	{ "wpa2",		NI_WIRELESS_AUTH_WPA2 },
 	{ "unknown",		NI_WIRELESS_AUTH_UNKNOWN },
@@ -905,6 +905,8 @@ ni_wireless_network_new(void)
 
 	net = xcalloc(1, sizeof(ni_wireless_network_t));
 	net->refcount = 1;
+	net->auth_algo = NI_WIRELESS_AUTH_ALGO_NONE;
+	net->auth_proto = NI_WIRELESS_AUTH_MODE_NONE;
 	return net;
 }
 
