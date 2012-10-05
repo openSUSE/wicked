@@ -880,6 +880,50 @@ __ni_netdev_process_newlink_ipv6(ni_netdev_t *dev, struct nlmsghdr *h, struct if
 }
 
 /*
+ * Parse IPv6 prefixes received via router advertisements
+ */
+int
+__ni_rtnl_parse_newprefix(const char *ifname, struct nlmsghdr *h, struct prefixmsg *pfx,
+				ni_ipv6_ra_pinfo_t *pi)
+{
+	struct nlattr *tb[PREFIX_MAX+1];
+	const struct prefix_cacheinfo *cache_info = NULL;
+
+	if (pfx->prefix_family != AF_INET6) {
+		ni_error("%s: not a rtnl IPv6 prefix info message", ifname);
+		return -1;
+	}
+	if (nlmsg_parse(h, sizeof(*pfx), tb, PREFIX_MAX, NULL) < 0) {
+		ni_error("%s: unable to parse rtnl PREFIX message", ifname);
+		return -1;
+	}
+
+	if (tb[PREFIX_ADDRESS] == NULL) {
+		ni_error("%s: rtnl NEWPREFIX message without address", ifname);
+		return -1;
+	}
+	__ni_nla_get_addr(pfx->prefix_family, &pi->prefix, tb[PREFIX_ADDRESS]);
+	if (pi->prefix.ss_family != AF_INET6) {
+		ni_error("%s: unable to parse rtnl PREFIX address", ifname);
+		return -1;
+	}
+
+	if (tb[PREFIX_CACHEINFO]) {
+		cache_info = (struct prefix_cacheinfo *) tb[PREFIX_CACHEINFO];
+		pi->lifetime.preferred_lft = cache_info->preferred_time;
+		pi->lifetime.valid_lft = cache_info->valid_time;
+	} else {
+		ni_error("%s: rtnl PREFIX message without lifetimes", ifname);
+		return -1;
+	}
+
+	pi->length = pfx->prefix_len;
+	pi->on_link = pfx->prefix_flags & IF_PREFIX_ONLINK;
+	pi->autoconf = pfx->prefix_flags & IF_PREFIX_AUTOCONF;
+	return 0;
+}
+
+/*
  * Record IPv6 prefixes received via router advertisements
  */
 int

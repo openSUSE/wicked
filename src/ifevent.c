@@ -21,6 +21,7 @@
 
 #include "netinfo_priv.h"
 #include "socket_priv.h"
+#include "ipv6_priv.h"
 #include "sysfs.h"
 #include "kernel.h"
 #include "appconfig.h"
@@ -57,6 +58,13 @@ __ni_netdev_addr_event(ni_netdev_t *dev, ni_event_t ev, const ni_address_t *ap)
 {
 	if (ni_global.interface_addr_event)
 		ni_global.interface_addr_event(dev, ev, ap);
+}
+
+static inline void
+__ni_netdev_prefix_event(ni_netdev_t *dev, ni_event_t ev, const ni_ipv6_ra_pinfo_t *pi)
+{
+	if (ni_global.interface_prefix_event)
+		ni_global.interface_prefix_event(dev, ev, pi);
 }
 
 /*
@@ -178,10 +186,13 @@ __ni_rtevent_newlink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 		for (i = 0, edge = flag_transitions; edge->flag; ++i, ++edge) {
 			if ((flags_changed & edge->flag) == 0)
 				continue;
-			if (new_flags & edge->flag)
+			if (new_flags & edge->flag) {
 				__ni_netdev_event(nc, dev, edge->event_up);
-			else
+			} else {
+				if (dev->ipv6)
+					ni_ipv6_ra_info_flush(&dev->ipv6->radv);
 				__ni_netdev_event(nc, dev, edge->event_down);
+			}
 		}
 	} else {
 		__ni_netdev_event(nc, dev, NI_EVENT_DEVICE_CREATE);
@@ -233,8 +244,9 @@ int
 __ni_rtevent_newprefix(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struct nlmsghdr *h)
 {
 	struct prefixmsg *pfx;
-	ni_netdev_t *dev;
 	ni_ipv6_devinfo_t *ipv6;
+	ni_ipv6_ra_pinfo_t *pi, *old = NULL;
+	ni_netdev_t *dev;
 
 	if (!(pfx = ni_rtnl_prefixmsg(h, RTM_NEWPREFIX)))
 		return -1;
@@ -249,14 +261,51 @@ __ni_rtevent_newprefix(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, str
 	 * the ra managed/other config flags aren't set until
 	 * the first ra (and prefix) arrive, so reread them.
 	 */
-	__ni_device_refresh_ipv6_link_info(nc, dev);
+	if (ipv6->radv.pinfo == NULL)
+		__ni_device_refresh_ipv6_link_info(nc, dev);
 
-	/* TODO: process prefix into ipv6->radv */
-	(void)ipv6;
+	pi = xcalloc(1, sizeof(*pi));
+	if (__ni_rtnl_parse_newprefix(dev->name, h, pfx, pi) < 0) {
+		free(pi);
+		return -1;
+	}
 
+	ni_debug_events("%s: RA<%s>, Prefix<%s/%u %s %s>[%u, %u]", dev->name,
+			(ipv6->radv.managed_addr ? "managed-address" :
+			(ipv6->radv.other_config ? "other-config" : "unmanaged")),
+			ni_sockaddr_print(&pi->prefix), pi->length,
+			(pi->on_link ? "onlink," : "not-onlink,"),
+			(pi->autoconf ? "autoconf" : "no-autoconf"),
+			pi->lifetime.preferred_lft, pi->lifetime.valid_lft);
+
+	if ((old = ni_ipv6_ra_pinfo_list_remove(&ipv6->radv.pinfo, pi)) != NULL) {
+		if (pi->lifetime.valid_lft > 0) {
+			/* Replace with updated prefix info - most recent in front */
+			ni_ipv6_ra_pinfo_list_prepend(&ipv6->radv.pinfo, pi);
+			__ni_netdev_prefix_event(dev, NI_EVENT_PREFIX_UPDATE, pi);
+		} else {
+			/* A lifetime of 0 means the router requests a prefix remove;
+			 * at least 3.0.x kernel set valid lft to 0 and keep pref. */
+			free(pi);
+			__ni_netdev_prefix_event(dev, NI_EVENT_PREFIX_DELETE, old);
+		}
+		free(old);
+	} else if (pi->lifetime.valid_lft > 0) {
+		/* Add prefix info - most recent in front */
+		ni_ipv6_ra_pinfo_list_prepend(&ipv6->radv.pinfo, pi);
+		__ni_netdev_prefix_event(dev, NI_EVENT_PREFIX_UPDATE, pi);
+	} else {
+		/* Request to remove unhandled prefix (missed event?), ignore it. */
+		free(pi);
+	}
+
+	/* FIXME: __ni_netdev_add_autoconf_prefix fakes routes, so it is better
+	 *        to subscribe to routes and then compare & mark when the route
+	 *        is added/deleted by the kernel => TODO.
+	 */
 	if (__ni_netdev_process_newprefix(dev, h, pfx) < 0) {
 		ni_error("Problem parsing RTM_NEWPREFIX message for %s", dev->name);
-		return -1;
+		/* return -1; */
 	}
 	return 0;
 }
@@ -486,6 +535,21 @@ ni_server_enable_interface_addr_events(void (*ifaddr_handler)(ni_netdev_t *, ni_
 	return 0;
 }
 
+int
+ni_server_enable_interface_prefix_events(void (*ifprefix_handler)(ni_netdev_t *, ni_event_t, const ni_ipv6_ra_pinfo_t *))
+{
+	if (!__ni_rtevent_sock || ni_global.interface_prefix_event) {
+		ni_error("Interface prefix event handler already set");
+		return -1;
+	}
+
+	/* We always subscribe to rtnl prefix group, just a question
+	 * whether the app wants to receive update events or not... */
+
+	ni_global.interface_prefix_event = ifprefix_handler;
+	return 0;
+}
+
 void
 ni_server_deactivate_interface_events(void)
 {
@@ -494,6 +558,7 @@ ni_server_deactivate_interface_events(void)
 
 		ni_global.interface_event = NULL;
 		ni_global.interface_addr_event = NULL;
+		ni_global.interface_prefix_event = NULL;
 		ni_socket_release(__ni_rtevent_sock);
 		__ni_rtevent_sock = NULL;
 	}

@@ -135,6 +135,7 @@ typedef struct ni_global {
 
 	void			(*interface_event)(ni_netdev_t *, ni_event_t);
 	void			(*interface_addr_event)(ni_netdev_t *, ni_event_t, const ni_address_t *);
+	void			(*interface_prefix_event)(ni_netdev_t *, ni_event_t, const ni_ipv6_ra_pinfo_t *);
 	void			(*other_event)(ni_event_t);
 } ni_global_t;
 

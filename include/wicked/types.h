@@ -41,7 +41,6 @@ typedef struct ni_ipv4_devinfo	ni_ipv4_devinfo_t;
 typedef struct ni_ipv4_devconf	ni_ipv4_devconf_t;
 typedef struct ni_ipv6_devinfo	ni_ipv6_devinfo_t;
 typedef struct ni_ipv6_devconf	ni_ipv6_devconf_t;
-typedef struct ni_ipv6_ra_info	ni_ipv6_ra_info_t;
 typedef struct ni_event_filter	ni_event_filter_t;
 typedef struct ni_modem		ni_modem_t;
 typedef struct ni_pci_dev	ni_pci_dev_t;
@@ -123,5 +122,11 @@ typedef struct ni_ipv6_cache_info {
 	unsigned int		valid_lft;
 	unsigned int		preferred_lft;
 } ni_ipv6_cache_info_t;
+
+/*
+ * Prototypes for ipv6 devinfo RA details
+ */
+typedef struct ni_ipv6_ra_info	ni_ipv6_ra_info_t;
+typedef struct ni_ipv6_ra_pinfo	ni_ipv6_ra_pinfo_t;
 
 #endif /* __WICKED_TYPES_H__ */

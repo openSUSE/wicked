@@ -25,9 +25,22 @@ struct ni_ipv6_devconf {
 	unsigned int		privacy; /* -1 for lo & p-t-p otherwise 0, 1, >1 */
 };
 
+struct ni_ipv6_ra_pinfo {
+	ni_ipv6_ra_pinfo_t *	next;
+
+	ni_sockaddr_t		prefix;
+	unsigned int		length;
+
+	ni_bool_t		on_link;
+	ni_bool_t		autoconf;
+	ni_ipv6_cache_info_t	lifetime;
+};
+
 struct ni_ipv6_ra_info {
 	ni_bool_t		managed_addr;	/* address config available via DHCPv6  */
 	ni_bool_t		other_config;	/* non-address config only via DHCPv6   */
+
+	ni_ipv6_ra_pinfo_t *	pinfo;
 };
 
 struct ni_ipv6_devinfo {

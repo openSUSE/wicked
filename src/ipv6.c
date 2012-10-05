@@ -8,10 +8,9 @@
 #endif
 
 #include <wicked/netinfo.h>
-#include <wicked/types.h>
-#include <wicked/ipv6.h>
 #include <wicked/logging.h>
 
+#include "ipv6_priv.h"
 #include "util_priv.h"
 #include "sysfs.h"
 
@@ -36,6 +35,8 @@ __ni_ipv6_ra_info_reset(ni_ipv6_ra_info_t *radv)
 {
 	radv->managed_addr = FALSE;
 	radv->other_config = FALSE;
+
+	ni_ipv6_ra_pinfo_list_destroy(&radv->pinfo);
 }
 
 /*
@@ -167,5 +168,46 @@ ni_system_ipv6_devinfo_set(ni_netdev_t *dev, const ni_ipv6_devconf_t *conf)
 		rv = -1;
 
 	return rv;
+}
+
+void
+ni_ipv6_ra_info_flush(ni_ipv6_ra_info_t *radv)
+{
+	ni_ipv6_ra_pinfo_list_destroy(&radv->pinfo);
+}
+
+void
+ni_ipv6_ra_pinfo_list_prepend(ni_ipv6_ra_pinfo_t **list, ni_ipv6_ra_pinfo_t *pi)
+{
+	pi->next = *list;
+	*list = pi;
+}
+
+void
+ni_ipv6_ra_pinfo_list_destroy(ni_ipv6_ra_pinfo_t **list)
+{
+	ni_ipv6_ra_pinfo_t *pi;
+
+	while ((pi = *list) != NULL) {
+		*list = pi->next;
+		free(pi);
+	}
+}
+
+ni_ipv6_ra_pinfo_t *
+ni_ipv6_ra_pinfo_list_remove(ni_ipv6_ra_pinfo_t **list, const ni_ipv6_ra_pinfo_t *pi)
+{
+	ni_ipv6_ra_pinfo_t **pos, *cur;
+
+	for (pos = list; (cur = *pos) != NULL; pos = &cur->next) {
+		if (cur->length != pi->length)
+			continue;
+		if (ni_sockaddr_equal(&cur->prefix, &pi->prefix)) {
+			*pos = cur->next;
+			cur->next = NULL;
+			return cur;
+		}
+	}
+	return NULL;
 }
 

@@ -15,6 +15,8 @@
 #define __user /* unclean header file */
 #include <wireless.h>
 
+#include <wicked/types.h>
+
 struct __ni_netlink {
 	struct nl_handle *	nl_handle;
 	struct nl_cache *	nl_cache;
@@ -123,6 +125,7 @@ ni_rtnl_prefixmsg(struct nlmsghdr *h, int expected_type)
 }
 
 extern int	__ni_rtnl_parse_newaddr(unsigned, struct nlmsghdr *, struct ifaddrmsg *, ni_address_t *);
+extern int	__ni_rtnl_parse_newprefix(const char *, struct nlmsghdr *, struct prefixmsg *, ni_ipv6_ra_pinfo_t *);
 
 extern int	__ni_netdev_process_newlink(ni_netdev_t *, struct nlmsghdr *, struct ifinfomsg *, ni_netconfig_t *);
 extern int	__ni_netdev_process_newlink_ipv6(ni_netdev_t *, struct nlmsghdr *, struct ifinfomsg *);
