@@ -64,7 +64,6 @@ extern int		__ni_system_interface_delete(ni_netconfig_t *, const char *);
 extern int		__ni_system_interface_stats_refresh(ni_netconfig_t *, ni_netdev_t *);
 extern int		__ni_system_ethernet_refresh(ni_netdev_t *);
 extern int		__ni_system_ethernet_update(ni_netdev_t *, const ni_ethernet_t *);
-extern int		__ni_rtevent_refresh_all(ni_netconfig_t *, ni_netdev_t **del_list);
 
 /* FIXME: These should go elsewhere, maybe runtime.h */
 extern int		__ni_system_interface_update_lease(ni_netdev_t *, ni_addrconf_lease_t **);
