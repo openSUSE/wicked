@@ -123,6 +123,20 @@ ni_rtnl_query_link(struct ni_rtnl_query *q, int ifindex)
 	return 0;
 }
 
+static int
+ni_rtnl_query_ipv6_link(struct ni_rtnl_query *q, int ifindex)
+{
+	memset(q, 0, sizeof(*q));
+	q->ifindex = ifindex;
+
+	if (__ni_rtnl_query(&q->ipv6_info, AF_INET6, RTM_GETLINK) < 0) {
+		ni_rtnl_query_destroy(q);
+		return -1;
+	}
+
+	return 0;
+}
+
 static inline struct ifinfomsg *
 ni_rtnl_query_next_link_info(struct ni_rtnl_query *q, struct nlmsghdr **hp)
 {
@@ -449,6 +463,46 @@ done:
 }
 
 /*
+ * Refresh the ipv6 link info of one interface
+ */
+int
+__ni_device_refresh_ipv6_link_info(ni_netconfig_t *nc, ni_netdev_t *dev)
+{
+	struct ni_rtnl_query query;
+	struct nlmsghdr *h;
+	int rv = 0;
+
+	(void)nc; /* unused */
+
+	__ni_global_seqno++;
+
+	if ((rv = ni_rtnl_query_ipv6_link(&query, dev->link.ifindex)) < 0)
+		goto done;
+
+	while (1) {
+		struct ifinfomsg *ifi;
+
+		if (!(ifi = ni_rtnl_query_next_ipv6_link_info(&query, &h)))
+			break;
+
+		if (ifi->ifi_family != AF_INET6)
+			continue;
+		if (ifi->ifi_index != (int)dev->link.ifindex)
+			continue;
+
+		if ((rv = __ni_netdev_process_newlink_ipv6(dev, h, ifi)) < 0) {
+			ni_error("Problem parsing IPv6 RTM_NEWLINK message for %s",
+				dev->name);
+			goto done;
+		}
+	}
+
+done:
+	ni_rtnl_query_destroy(&query);
+	return rv;
+}
+
+/*
  * Refresh interface statistics.
  * We assume that IFLA_STATS have already been covered by a generic ni_refresh;
  * all we want to do here is potentially retrieve additional stats eg via
@@ -510,26 +564,13 @@ __ni_netdev_translate_ifflags(unsigned int ifflags)
 }
 
 /*
- * Refresh interface link layer given a RTM_NEWLINK message
+ * Refresh interface link layer given a parsed RTM_NEWLINK message attrs
  */
-int
-__ni_process_ifinfomsg(ni_linkinfo_t *link, struct nlmsghdr *h,
+static int
+__ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
+				struct nlattr **tb, struct nlmsghdr *h,
 				struct ifinfomsg *ifi, ni_netconfig_t *nc)
 {
-	struct nlattr *tb[IFLA_MAX+1];
-	char *ifname;
-
-	memset(tb, 0, sizeof(tb));
-	if (nlmsg_parse(h, sizeof(*ifi), tb, IFLA_MAX, NULL) < 0) {
-		ni_error("unable to parse rtnl LINK message");
-		return -1;
-	}
-
-	if ((ifname = (char *) nla_data(tb[IFLA_IFNAME])) == NULL) {
-		ni_warn("RTM_NEWLINK message without IFNAME");
-		return -1;
-	}
-
 	link->arp_type = ifi->ifi_type;
 	link->ifflags = __ni_netdev_translate_ifflags(ifi->ifi_flags);
 	link->type = NI_IFTYPE_UNKNOWN; /* FIXME: we do we reset this?! */
@@ -696,20 +737,81 @@ __ni_process_ifinfomsg(ni_linkinfo_t *link, struct nlmsghdr *h,
 	return 0;
 }
 
+/*
+ * Refresh interface ipv6 protocol info given a parsed RTM_NEWLINK message attr
+ */
+static int
+__ni_process_ifinfomsg_ipv6info(ni_netdev_t *dev, struct nlattr *ifla_protinfo)
+{
+	if (ifla_protinfo) {
+		struct nlattr *ipv6info[IFLA_INET6_MAX + 1];
+		unsigned int flags = 0;
+
+		nla_parse_nested(ipv6info, IFLA_INET6_MAX, ifla_protinfo, NULL);
+		if (ipv6info[IFLA_INET6_FLAGS])
+			flags = nla_get_u32(ipv6info[IFLA_INET6_FLAGS]);
+
+		if (flags & IF_RA_MANAGED) {
+			ni_debug_ifconfig("%s: obtain addrconf via DHCPv6", dev->name);
+		} else
+		if (flags & IF_RA_OTHERCONF) {
+			ni_debug_ifconfig("%s: obtain additional config via DHCPv6", dev->name);
+		} else {
+			ni_debug_ifconfig("%s: no DHCPv6 config suggestion in RA", dev->name);
+		}
+	}
+	return 0;
+}
+
+/*
+ * Refresh interface link layer given a RTM_NEWLINK message
+ */
+int
+__ni_process_ifinfomsg(ni_linkinfo_t *link, struct nlmsghdr *h,
+				struct ifinfomsg *ifi, ni_netconfig_t *nc)
+{
+	struct nlattr *tb[IFLA_MAX+1];
+	char *ifname;
+
+	memset(tb, 0, sizeof(tb));
+	if (nlmsg_parse(h, sizeof(*ifi), tb, IFLA_MAX, NULL) < 0) {
+		ni_error("unable to parse rtnl LINK message");
+		return -1;
+	}
+
+	if ((ifname = (char *) nla_data(tb[IFLA_IFNAME])) == NULL) {
+		ni_warn("RTM_NEWLINK message without IFNAME");
+		return -1;
+	}
+
+	return __ni_process_ifinfomsg_linkinfo(link, ifname, tb, h, ifi, nc);
+}
+
+
+/*
+ * Refresh complete interface link info given a RTM_NEWLINK message
+ */
 int
 __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 				struct ifinfomsg *ifi, ni_netconfig_t *nc)
 {
-	struct nlattr *nla;
+	struct nlattr *tb[IFLA_MAX+1];
+	char *ifname;
 	int rv;
 
-	if ((nla = nlmsg_find_attr(h, sizeof(*ifi), IFLA_IFNAME)) == NULL) {
-		ni_warn("RTM_NEWLINK message without IFNAME");
-		return 0;
+	memset(tb, 0, sizeof(tb));
+	if (nlmsg_parse(h, sizeof(*ifi), tb, IFLA_MAX, NULL) < 0) {
+		ni_error("unable to parse rtnl LINK message");
+		return -1;
 	}
-	ni_string_dup(&dev->name, (char *) nla_data(nla));
 
-	rv = __ni_process_ifinfomsg(&dev->link, h, ifi, nc);
+	if ((ifname = (char *) nla_data(tb[IFLA_IFNAME])) == NULL) {
+		ni_warn("RTM_NEWLINK message without IFNAME");
+		return -1;
+	}
+	ni_string_dup(&dev->name, ifname);
+
+	rv = __ni_process_ifinfomsg_linkinfo(&dev->link, dev->name, tb, h, ifi, nc);
 	if (rv < 0)
 		return rv;
 
@@ -727,6 +829,8 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 
 	ni_system_ipv4_devinfo_get(dev, NULL);
 	ni_system_ipv6_devinfo_get(dev, NULL);
+
+	__ni_process_ifinfomsg_ipv6info(dev, tb[IFLA_PROTINFO]);
 
 	if (dev->link.type == NI_IFTYPE_ETHERNET)
 		__ni_system_ethernet_refresh(dev);
@@ -764,23 +868,7 @@ __ni_netdev_process_newlink_ipv6(ni_netdev_t *dev, struct nlmsghdr *h, struct if
 		return -1;
 	}
 
-	if (tb[IFLA_PROTINFO]) {
-		struct nlattr *protinfo[IFLA_INET6_MAX + 1];
-		unsigned int flags = 0;
-
-		nla_parse_nested(protinfo, IFLA_INET6_MAX, tb[IFLA_PROTINFO], NULL);
-
-		if (protinfo[IFLA_INET6_FLAGS])
-			flags = nla_get_u32(protinfo[IFLA_INET6_FLAGS]);
-		if (flags & IF_RA_MANAGED) {
-			ni_debug_ifconfig("%s: obtain addrconf via DHCPv6", dev->name);
-		} else
-		if (flags & IF_RA_OTHERCONF) {
-			ni_debug_ifconfig("%s: obtain additional config via DHCPv6", dev->name);
-		}
-	}
-
-	return 0;
+	return __ni_process_ifinfomsg_ipv6info(dev, tb[IFLA_PROTINFO]);
 }
 
 /*

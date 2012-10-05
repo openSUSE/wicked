@@ -58,6 +58,7 @@ extern int		__ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list);
 extern int		__ni_system_refresh_interfaces(ni_netconfig_t *nc);
 extern int		__ni_system_refresh_interface(ni_netconfig_t *, ni_netdev_t *);
 extern int		__ni_device_refresh_link_info(ni_netconfig_t *, ni_linkinfo_t *);
+extern int		__ni_device_refresh_ipv6_link_info(ni_netconfig_t *, ni_netdev_t *);
 extern int		__ni_system_interface_configure(ni_netconfig_t *, ni_netdev_t *, const ni_netdev_t *);
 extern int		__ni_system_interface_delete(ni_netconfig_t *, const char *);
 extern int		__ni_system_interface_stats_refresh(ni_netconfig_t *, ni_netdev_t *);

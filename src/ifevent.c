@@ -406,6 +406,7 @@ ni_server_listen_interface_events(void (*ifevent_handler)(ni_netdev_t *, ni_even
 
 #define nl_mgrp(x)	(1 << ((x) - 1))
 	groups = nl_mgrp(RTNLGRP_LINK) |
+		 nl_mgrp(RTNLGRP_IPV6_IFINFO) |
 		 nl_mgrp(RTNLGRP_IPV6_PREFIX);
 
 	nl_join_groups(handle, groups);
