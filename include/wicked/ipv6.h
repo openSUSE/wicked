@@ -25,8 +25,14 @@ struct ni_ipv6_devconf {
 	unsigned int		privacy; /* -1 for lo & p-t-p otherwise 0, 1, >1 */
 };
 
+struct ni_ipv6_ra_info {
+	ni_bool_t		managed_addr;	/* address config available via DHCPv6  */
+	ni_bool_t		other_config;	/* non-address config only via DHCPv6   */
+};
+
 struct ni_ipv6_devinfo {
 	ni_ipv6_devconf_t	conf;
+	ni_ipv6_ra_info_t	radv;
 };
 
 extern ni_ipv6_devinfo_t *	ni_netdev_get_ipv6(ni_netdev_t *);

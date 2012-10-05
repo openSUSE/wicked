@@ -746,17 +746,25 @@ __ni_process_ifinfomsg_ipv6info(ni_netdev_t *dev, struct nlattr *ifla_protinfo)
 	if (ifla_protinfo) {
 		struct nlattr *ipv6info[IFLA_INET6_MAX + 1];
 		unsigned int flags = 0;
+		ni_ipv6_devinfo_t *ipv6;
 
 		nla_parse_nested(ipv6info, IFLA_INET6_MAX, ifla_protinfo, NULL);
 		if (ipv6info[IFLA_INET6_FLAGS])
 			flags = nla_get_u32(ipv6info[IFLA_INET6_FLAGS]);
 
+		ipv6 = ni_netdev_get_ipv6(dev);
 		if (flags & IF_RA_MANAGED) {
+			ipv6->radv.managed_addr = TRUE;
+			ipv6->radv.other_config = TRUE;
 			ni_debug_ifconfig("%s: obtain addrconf via DHCPv6", dev->name);
 		} else
 		if (flags & IF_RA_OTHERCONF) {
+			ipv6->radv.managed_addr = FALSE;
+			ipv6->radv.other_config = TRUE;
 			ni_debug_ifconfig("%s: obtain additional config via DHCPv6", dev->name);
 		} else {
+			ipv6->radv.managed_addr = FALSE;
+			ipv6->radv.other_config = FALSE;
 			ni_debug_ifconfig("%s: no DHCPv6 config suggestion in RA", dev->name);
 		}
 	}

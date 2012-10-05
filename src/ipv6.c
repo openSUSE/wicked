@@ -29,6 +29,16 @@ __ni_ipv6_devconf_reset(ni_ipv6_devconf_t *conf)
 }
 
 /*
+ * Reset to ipv6 config defaults
+ */
+static void
+__ni_ipv6_ra_info_reset(ni_ipv6_ra_info_t *radv)
+{
+	radv->managed_addr = FALSE;
+	radv->other_config = FALSE;
+}
+
+/*
  * Set the interface's ipv6 info
  */
 ni_ipv6_devinfo_t *
@@ -58,12 +68,15 @@ ni_ipv6_devinfo_new(void)
 
 	ipv6 = xcalloc(1, sizeof(*ipv6));
 	__ni_ipv6_devconf_reset(&ipv6->conf);
+	__ni_ipv6_ra_info_reset(&ipv6->radv);
 	return ipv6;
 }
 
 void
 ni_ipv6_devinfo_free(ni_ipv6_devinfo_t *ipv6)
 {
+	if (ipv6)
+		__ni_ipv6_ra_info_reset(&ipv6->radv);
 	free(ipv6);
 }
 
@@ -105,6 +118,7 @@ ni_system_ipv6_devinfo_get(ni_netdev_t *dev, ni_ipv6_devinfo_t *ipv6)
 	} else {
 		/* Reset to defaults */
 		__ni_ipv6_devconf_reset(&ipv6->conf);
+		__ni_ipv6_ra_info_reset(&ipv6->radv);
 	}
 
 	return 0;
@@ -137,8 +151,10 @@ ni_system_ipv6_devinfo_set(ni_netdev_t *dev, const ni_ipv6_devconf_t *conf)
 		return -1;
 
 	/* If we're disabling IPv6 on this interface, we're done! */
-	if (!conf->enabled)
+	if (!conf->enabled) {
+		__ni_ipv6_ra_info_reset(&dev->ipv6->radv);
 		return 0;
+	}
 
 	if (__ni_system_ipv6_devinfo_change_uint(dev->name, "autoconf",
 						conf->autoconf) < 0

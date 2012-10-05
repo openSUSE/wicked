@@ -13,9 +13,11 @@
 #include <string.h>
 #include <netlink/msg.h>
 
+#include <wicked/types.h>
 #include <wicked/netinfo.h>
 #include <wicked/addrconf.h>
 #include <wicked/socket.h>
+#include <wicked/ipv6.h>
 
 #include "netinfo_priv.h"
 #include "socket_priv.h"
@@ -232,6 +234,7 @@ __ni_rtevent_newprefix(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, str
 {
 	struct prefixmsg *pfx;
 	ni_netdev_t *dev;
+	ni_ipv6_devinfo_t *ipv6;
 
 	if (!(pfx = ni_rtnl_prefixmsg(h, RTM_NEWPREFIX)))
 		return -1;
@@ -239,6 +242,17 @@ __ni_rtevent_newprefix(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, str
 	dev = ni_netdev_by_index(nc, pfx->prefix_ifindex);
 	if (dev == NULL)
 		return 0;
+
+	ipv6 = ni_netdev_get_ipv6(dev);
+	/*
+	 * When this is the first time the link were set up,
+	 * the ra managed/other config flags aren't set until
+	 * the first ra (and prefix) arrive, so reread them.
+	 */
+	__ni_device_refresh_ipv6_link_info(nc, dev);
+
+	/* TODO: process prefix into ipv6->radv */
+	(void)ipv6;
 
 	if (__ni_netdev_process_newprefix(dev, h, pfx) < 0) {
 		ni_error("Problem parsing RTM_NEWPREFIX message for %s", dev->name);
