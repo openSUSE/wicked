@@ -32,6 +32,8 @@
 
 #include <wicked/types.h>
 #include <wicked/util.h>
+#include <wicked/address.h>
+#include <wicked/ipv6.h>
 #include <wicked/netinfo.h>
 #include <wicked/objectmodel.h>
 #include <wicked/logging.h>
@@ -85,6 +87,7 @@ static ni_dbus_server_t *	dhcp6_dbus_server;
 
 static void			dhcp6_interface_event(ni_netdev_t *, ni_event_t);
 static void			dhcp6_interface_addr_event(ni_netdev_t *, ni_event_t, const ni_address_t *);
+static void			dhcp6_interface_prefix_event(ni_netdev_t *, ni_event_t, const ni_ipv6_ra_pinfo_t *);
 static void			dhcp6_supplicant(void);
 
 int
@@ -297,6 +300,9 @@ dhcp6_supplicant(void)
 	if (ni_server_enable_interface_addr_events(dhcp6_interface_addr_event) < 0)
 		ni_fatal("Unable to initialize netlink address update listener");
 
+	if (ni_server_enable_interface_prefix_events(dhcp6_interface_prefix_event) < 0)
+		ni_fatal("Unable to initialize netlink address update listener");
+
 	if (!opt_foreground) {
 		if (ni_server_background(program_name) < 0)
 			ni_fatal("Unable to background server");
@@ -409,6 +415,19 @@ dhcp6_interface_addr_event(ni_netdev_t *ifp, ni_event_t event, const ni_address_
 	if (dev != NULL) {
 		ni_dhcp6_address_event(dev, ifp, event, addr);
 	}
+}
+
+static void
+dhcp6_interface_prefix_event(ni_netdev_t *dev, ni_event_t event, const ni_ipv6_ra_pinfo_t *pi)
+{
+	ni_trace("%s: RA<%s> %s prefix %s/%u <%s,%s> [%d,%d]", dev->name,
+		 (dev->ipv6->radv.managed_addr ? "managed-address" :
+		  (dev->ipv6->radv.other_config ? "managed-config" : "unmanaged")),
+		 (event == NI_EVENT_PREFIX_UPDATE ? "update" : "delete"),
+		 ni_sockaddr_print(&pi->prefix), pi->length,
+		 (pi->on_link ? "onlink," : "not-onlink,"),
+		 (pi->autoconf ? "autoconf" : "no-autoconf"),
+		 pi->lifetime.preferred_lft, pi->lifetime.valid_lft);
 }
 
 static void
