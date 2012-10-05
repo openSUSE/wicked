@@ -16,6 +16,17 @@
 #include "sysfs.h"
 
 /*
+ * Reset to ipv4 config defaults
+ */
+static void
+__ni_ipv4_devconf_reset(ni_ipv4_devconf_t *conf)
+{
+	conf->enabled = TRUE;
+	conf->forwarding = FALSE;
+	conf->accept_redirects = FALSE;
+}
+
+/*
  * Set the interface's ipv4 info
  */
 ni_ipv4_devinfo_t *
@@ -27,11 +38,15 @@ ni_netdev_get_ipv4(ni_netdev_t *dev)
 }
 
 void
-ni_netdev_set_ipv4(ni_netdev_t *dev, ni_ipv4_devinfo_t *ipv4)
+ni_netdev_set_ipv4(ni_netdev_t *dev, ni_ipv4_devconf_t *conf)
 {
-	if (dev->ipv4)
+	if (conf != NULL) {
+		ni_netdev_get_ipv4(dev);
+		dev->ipv4->conf = *conf;
+	} else if (dev->ipv4) {
 		ni_ipv4_devinfo_free(dev->ipv4);
-	dev->ipv4 = ipv4;
+		dev->ipv4 = NULL;
+	}
 }
 
 ni_ipv4_devinfo_t *
@@ -40,9 +55,7 @@ ni_ipv4_devinfo_new(void)
 	ni_ipv4_devinfo_t *ipv4;
 
 	ipv4 = xcalloc(1, sizeof(*ipv4));
-	ipv4->enabled = TRUE;
-	ipv4->forwarding = FALSE;
-	ipv4->accept_redirects = FALSE;
+	__ni_ipv4_devconf_reset(&ipv4->conf);
 	return ipv4;
 }
 
@@ -65,13 +78,13 @@ ni_system_ipv4_devinfo_get(ni_netdev_t *dev, ni_ipv4_devinfo_t *ipv4)
 		unsigned int val;
 
 		if (ni_sysctl_ipv4_ifconfig_get_uint(dev->name, "forwarding", &val) >= 0)
-			ipv4->forwarding = val;
+			ipv4->conf.forwarding = val;
 
 		if (ni_sysctl_ipv4_ifconfig_get_uint(dev->name, "accept_redirects", &val) >= 0)
-			ipv4->accept_redirects = val;
+			ipv4->conf.accept_redirects = val;
 	} else {
 		/* Reset to defaults */
-		ni_netdev_set_ipv4(dev, ni_ipv4_devinfo_new());
+		__ni_ipv4_devconf_reset(&ipv4->conf);
 	}
 
 	return 0;
@@ -95,12 +108,14 @@ __ni_system_ipv4_devinfo_change_uint(const char *ifname, const char *attr, unsig
 }
 
 int
-ni_system_ipv4_devinfo_set(ni_netdev_t *dev, const ni_ipv4_devinfo_t *ipv4)
+ni_system_ipv4_devinfo_set(ni_netdev_t *dev, const ni_ipv4_devconf_t *conf)
 {
 	int rv = 0;
 
-	if (__ni_system_ipv4_devinfo_change_uint(dev->name, "forwarding", ipv4->forwarding) < 0
-	 || __ni_system_ipv4_devinfo_change_uint(dev->name, "accept_redirects", ipv4->accept_redirects) < 0)
+	if (__ni_system_ipv4_devinfo_change_uint(dev->name, "forwarding",
+						conf->forwarding) < 0
+	 || __ni_system_ipv4_devinfo_change_uint(dev->name, "accept_redirects",
+						conf->accept_redirects) < 0)
 		rv = -1;
 
 	return rv;

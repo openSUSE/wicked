@@ -31,10 +31,10 @@
 <service name="ipv6" interface="org.opensuse.Network.Protocol.IPv6" object-class="netif">
   <define name="properties" class="dict">
     <enabled type="boolean" />
-    <forwarding type="uint32" />
+    <forwarding type="boolean" />
     <autoconf type="boolean" />
     <accept-redirects type="boolean" />
-    <privacy type="boolean" />
+    <privacy type="uint32" />
   </define>
 
   <method name="changeProtocol">

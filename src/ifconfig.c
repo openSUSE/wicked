@@ -776,7 +776,7 @@ ni_system_ppp_delete(ni_netdev_t *dev)
  * Update the IPv4 sysctl settings for the given interface
  */
 int
-ni_system_ipv4_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_ipv4_devinfo_t *ipv4)
+ni_system_ipv4_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_ipv4_devconf_t *ipv4)
 {
 	return ni_system_ipv4_devinfo_set(dev, ipv4);
 }
@@ -785,7 +785,7 @@ ni_system_ipv4_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_ipv4_devinfo
  * Update the IPv6 sysctl settings for the given interface
  */
 int
-ni_system_ipv6_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_ipv6_devinfo_t *ipv6)
+ni_system_ipv6_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_ipv6_devconf_t *ipv6)
 {
 	int brought_up = 0;
 	int rv = -1;

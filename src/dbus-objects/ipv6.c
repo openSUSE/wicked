@@ -54,7 +54,7 @@ ni_objectmodel_ipv6_change_protocol(ni_dbus_object_t *object, const ni_dbus_meth
 		goto out;
 	}
 
-	if (ni_system_ipv6_setup(nc, dev, cfg->ipv6) < 0) {
+	if (ni_system_ipv6_setup(nc, dev, &cfg->ipv6->conf) < 0) {
 		dbus_set_error(error, DBUS_ERROR_FAILED, "failed to set up ethernet device");
 		goto out;
 	}
@@ -117,11 +117,11 @@ ni_objectmodel_get_ipv6_devinfo(const ni_dbus_object_t *object, DBusError *error
 	NI_DBUS_GENERIC_BOOL_PROPERTY(ipv6_devinfo, dbus_name, member_name, rw)
 
 const ni_dbus_property_t	ni_objectmodel_ipv6_property_table[] = {
-	IPV6_BOOL_PROPERTY(enabled, enabled, RO),
-	IPV6_UINT_PROPERTY(forwarding, forwarding, RO),
-	IPV6_BOOL_PROPERTY(autoconf, autoconf, RO),
-	IPV6_UINT_PROPERTY(accept-redirects, accept_redirects, RO),
-	IPV6_BOOL_PROPERTY(privacy, privacy, RO),
+	IPV6_BOOL_PROPERTY(enabled, conf.enabled, RO),
+	IPV6_BOOL_PROPERTY(forwarding, conf.forwarding, RO),
+	IPV6_BOOL_PROPERTY(autoconf, conf.autoconf, RO),
+	IPV6_UINT_PROPERTY(accept-redirects, conf.accept_redirects, RO),
+	IPV6_UINT_PROPERTY(privacy, conf.privacy, RO),
 
 	{ NULL }
 };

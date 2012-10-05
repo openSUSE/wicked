@@ -53,7 +53,7 @@ ni_objectmodel_ipv4_change_protocol(ni_dbus_object_t *object, const ni_dbus_meth
 		goto out;
 	}
 
-	if (ni_system_ipv4_setup(nc, dev, cfg->ipv4) < 0) {
+	if (ni_system_ipv4_setup(nc, dev, &cfg->ipv4->conf) < 0) {
 		dbus_set_error(error, DBUS_ERROR_FAILED, "failed to set up ethernet device");
 		goto out;
 	}
@@ -116,8 +116,8 @@ ni_objectmodel_get_ipv4_devinfo(const ni_dbus_object_t *object, DBusError *error
 	NI_DBUS_GENERIC_BOOL_PROPERTY(ipv4_devinfo, dbus_name, member_name, rw)
 
 const ni_dbus_property_t	ni_objectmodel_ipv4_property_table[] = {
-	IPV4_UINT_PROPERTY(forwarding, forwarding, RO),
-	IPV4_BOOL_PROPERTY(accept-redirects, accept_redirects, RO),
+	IPV4_UINT_PROPERTY(forwarding, conf.forwarding, RO),
+	IPV4_BOOL_PROPERTY(accept-redirects, conf.accept_redirects, RO),
 
 	{ NULL }
 };

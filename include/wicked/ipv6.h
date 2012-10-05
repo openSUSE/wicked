@@ -16,22 +16,27 @@
 
 #define NI_IPV6_KERNEL_DEFAULT	~0U
 
-struct ni_ipv6_devinfo {
+struct ni_ipv6_devconf {
 	ni_bool_t		enabled;
-	unsigned int		forwarding;
+	ni_bool_t		forwarding;
 	ni_bool_t		autoconf;
 
 	unsigned int		accept_redirects;
-	ni_bool_t		privacy;
+	unsigned int		privacy; /* -1 for lo & p-t-p otherwise 0, 1, >1 */
+};
+
+struct ni_ipv6_devinfo {
+	ni_ipv6_devconf_t	conf;
 };
 
 extern ni_ipv6_devinfo_t *	ni_netdev_get_ipv6(ni_netdev_t *);
-extern void			ni_netdev_set_ipv6(ni_netdev_t *, ni_ipv6_devinfo_t *);
+extern void			ni_netdev_set_ipv6(ni_netdev_t *, ni_ipv6_devconf_t *);
+
 extern ni_ipv6_devinfo_t *	ni_ipv6_devinfo_new(void);
 extern void			ni_ipv6_devinfo_free(ni_ipv6_devinfo_t *);
 
 extern int			ni_system_ipv6_devinfo_get(ni_netdev_t *, ni_ipv6_devinfo_t *);
-extern int			ni_system_ipv6_devinfo_set(ni_netdev_t *, const ni_ipv6_devinfo_t *);
+extern int			ni_system_ipv6_devinfo_set(ni_netdev_t *, const ni_ipv6_devconf_t *);
 
 
 #endif /* __WICKED_IPv6_H__ */
