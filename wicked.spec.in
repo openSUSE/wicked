@@ -126,13 +126,13 @@ install -d -m755 ${RPM_BUILD_ROOT}%_prefix%_sbindir
 ln -s %_sysconfdir/init.d/wicked ${RPM_BUILD_ROOT}%_prefix%_sbindir/rcwicked
 ln -s %_sysconfdir/init.d/network ${RPM_BUILD_ROOT}%_prefix%_sbindir/rcnetwork
 
-%post
+%post sysvinit
 %{fillup_and_insserv wicked}
 
-%preun
+%preun sysvinit
 %stop_on_removal wicked
 
-%postun
+%postun sysvinit
 %restart_on_update wicked
 %insserv_cleanup
 
