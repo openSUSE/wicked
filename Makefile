@@ -12,7 +12,7 @@ wickedpiddir		= ${localstatedir}/run/wicked
 # ---------------------------------------------------------------
 
 CFLAGS	?= -g -O2
-CFLAGS	+= -Wall -Werror
+CFLAGS	+= -Wall
 
 LDFLAGS	+=
 
