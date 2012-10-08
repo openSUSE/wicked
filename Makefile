@@ -3,9 +3,6 @@
 #
 -include Makefile.vars
 
-# Hmm.. devellibdir=/usr/%_lib libdir=/%_lib
-devellibdir		= ${libdir}
-
 wickedconfigdir		= ${sysconfdir}/wicked
 wickedpiddir		= ${localstatedir}/run/wicked
 
@@ -252,11 +249,7 @@ install-man:
 
 install-devel-lib: install-lib
 	install -d -m 755 $(DESTDIR)$(devellibdir)
-ifeq ($(devellibdir),$(libdir))
-	ln -sf $(LIBSONAME) $(DESTDIR)$(devellibdir)/$(LIBNAME).so
-else
 	ln -sf $(libdir)/$(LIBSONAME) $(DESTDIR)$(devellibdir)/$(LIBNAME).so
-endif
 
 install-devel-data: wicked.pc
 	install -d -m 755 $(DESTDIR)$(includedir)/wicked

@@ -24,6 +24,12 @@ AC_SUBST(dbus_systemdir, '${sysconfdir}/dbus-1/system.d')
 # Define pkg-config data directory
 AC_SUBST(pkgconfigdir, '${datarootdir}/pkgconfig')
 
+# Allow to specify different libdir for devel library
+AC_ARG_WITH([devellibdir], [AS_HELP_STRING([--with-devel-libdir@<:@=PATH@:>@],
+	    [install devel library into specified directory])],,
+	    [with_devellibdir='${libdir}'])
+AC_SUBST(devellibdir, $with_devellibdir)
+
 # Enable system extensions (e.g. _GNU_SOURCE)
 AC_USE_SYSTEM_EXTENSIONS
 

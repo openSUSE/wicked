@@ -11,6 +11,7 @@ includedir		= @includedir@
 datarootdir		= @datarootdir@
 localstatedir		= @localstatedir@
 
+devellibdir		= @devellibdir@
 sysvinitdir		= @sysvinitdir@
 pkgconfigdir		= @pkgconfigdir@
 dbus_systemdir		= @dbus_systemdir@

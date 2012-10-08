@@ -29,7 +29,7 @@ PreReq:         %fillup_prereq %insserv_prereq
 
 %define         _sbindir	/sbin
 %define         _libdir		/%_lib
-%define         _devellibdir	%_libdir
+%define         _devellibdir	%_prefix%_libdir
 
 %description
 Wicked is a network configuration infrastructure incorporating a number
@@ -116,7 +116,8 @@ This package provides the wicked system V init scripts.
 
 %build
 export CFLAGS="$RPM_OPT_FLAGS"
-%configure
+%configure \
+	--with-devellibdir=%_devellibdir
 make %{?_smp_mflags}
 
 %install
