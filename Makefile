@@ -245,7 +245,8 @@ install-data: $(GENFILES)
 	install -c -m 555 extensions/* $(DESTDIR)$(wickedconfigdir)/extensions
 
 install-man:
-	install -d -m 755 $(DESTDIR)$(mandir)/man{7,8}
+	install -d -m 755 $(DESTDIR)$(mandir)/man{5,7,8}
+	install -c -m 444 man/*.5 $(DESTDIR)$(mandir)/man5
 	install -c -m 444 man/*.7 $(DESTDIR)$(mandir)/man7
 	install -c -m 444 man/*.8 $(DESTDIR)/$(mandir)/man8
 

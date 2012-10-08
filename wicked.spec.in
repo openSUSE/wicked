@@ -162,7 +162,7 @@ ln -s %_sysconfdir/init.d/network ${RPM_BUILD_ROOT}%_prefix%_sbindir/rcnetwork
 %config(noreplace) %_sysconfdir/dbus-1/system.d/wicked-dhcp6.conf
 %config(noreplace) %_sysconfdir/dbus-1/system.d/wicked-dhcp4.conf
 %config(noreplace) %_sysconfdir/dbus-1/system.d/wicked-autoip4.conf
-#%_mandir/man5/wicked*
+%_mandir/man5/wicked*
 %_mandir/man8/wicked*
 %ghost %dir %_localstatedir/run/wicked
 
