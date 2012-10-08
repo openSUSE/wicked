@@ -72,13 +72,19 @@ ni_init_ex(const char *appname, ni_init_appdata_callback_t *cb, void *appdata)
 			 */
 			appname = "config";
 		}
-		asprintf(&ni_global.config_path, "%s/%s.xml", WICKED_CONFIGDIR, appname);
+		if (asprintf(&ni_global.config_path, "%s/%s.xml", WICKED_CONFIGDIR, appname) < 0) {
+			ni_global.config_path = NULL;
+			return -1;
+		}
 
 		/* If the application-specific config file does not exist, fall
 		 * back to common.xml */
 		if (!ni_file_exists(ni_global.config_path)) {
 			ni_string_free(&ni_global.config_path);
-			asprintf(&ni_global.config_path, "%s/common.xml", WICKED_CONFIGDIR);
+			if (asprintf(&ni_global.config_path, "%s/common.xml", WICKED_CONFIGDIR) < 0) {
+				ni_global.config_path = NULL;
+				return -1;
+			}
 		}
 
 		explicit_config = 0;
