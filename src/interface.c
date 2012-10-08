@@ -378,7 +378,7 @@ ni_netdev_clear_event_filters(ni_netdev_t *dev)
 {
 	ni_event_filter_t *efp;
 
-	for (efp = dev->event_filter; efp; efp = efp->next) {
+	while ((efp = dev->event_filter) != NULL) {
 		dev->event_filter = efp->next;
 		__ni_event_filter_free(efp);
 	}
