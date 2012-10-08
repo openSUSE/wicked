@@ -29,8 +29,7 @@ PreReq:         %fillup_prereq %insserv_prereq
 
 %define         _sbindir	/sbin
 %define         _libdir		/%_lib
-%define         _devellibdir	%{_prefix}/%{_lib}
-%define         _varrundir	%_localstatedir/run/%name
+%define         _devellibdir	%_libdir
 
 %description
 Wicked is a network configuration infrastructure incorporating a number
@@ -50,6 +49,20 @@ of existing frameworks into a unified architecture, providing a REST
 interface to network configuration.
 
 This package provides the wicked client.
+
+%package nanny
+License:        GPL-2.0
+Group:          System/Management
+Summary:        Network configuration infrastructure - Nanny
+Requires:       libwicked@LIBWICKED_PACKAGE_SUFFIX@ = %{version}
+Requires:       %name = %{version}
+
+%description nanny
+Wicked is a network configuration infrastructure incorporating a number
+of existing frameworks into a unified architecture, providing a REST
+interface to network configuration.
+
+This package provides the wicked nanny.
 
 %package devel
 License:        GPL-2.0
@@ -83,6 +96,21 @@ interface to network configuration.
 
 This package provides the wicked shared library.
 
+%package sysvinit
+License:        GPL-2.0
+Group:          System/Management
+Summary:        Network configuration infrastructure - SysV-Init Scripts
+Requires:       libwicked@LIBWICKED_PACKAGE_SUFFIX@ = %{version}
+Requires:       %name = %{version}
+
+%description sysvinit
+Wicked is a network configuration infrastructure incorporating a number
+of existing frameworks into a unified architecture, providing a REST
+interface to network configuration.
+
+This package provides the wicked system V init scripts.
+
+
 %prep
 %setup
 
@@ -93,6 +121,7 @@ make %{?_smp_mflags}
 
 %install
 make install DESTDIR=${RPM_BUILD_ROOT}
+make install-init DESTDIR=${RPM_BUILD_ROOT}
 install -d -m755 ${RPM_BUILD_ROOT}%_prefix%_sbindir
 ln -s %_sysconfdir/init.d/wicked ${RPM_BUILD_ROOT}%_prefix%_sbindir/rcwicked
 ln -s %_sysconfdir/init.d/network ${RPM_BUILD_ROOT}%_prefix%_sbindir/rcnetwork
@@ -113,9 +142,6 @@ ln -s %_sysconfdir/init.d/network ${RPM_BUILD_ROOT}%_prefix%_sbindir/rcnetwork
 %postun -n libwicked@LIBWICKED_PACKAGE_SUFFIX@
 /sbin/ldconfig
 
-
-## BASE
-
 %files
 %defattr (-,root,root)
 %doc ChangeLog ANNOUNCE COPYING README TODO samples
@@ -123,30 +149,40 @@ ln -s %_sysconfdir/init.d/network ${RPM_BUILD_ROOT}%_prefix%_sbindir/rcnetwork
 %_sbindir/dhcp4-supplicant
 %_sbindir/dhcp6-supplicant
 %_sbindir/autoip4-supplicant
-%_sysconfdir/init.d/wicked
-%_prefix%_sbindir/rcwicked
-%_sysconfdir/init.d/network
-%_prefix%_sbindir/rcnetwork
 %dir %_sysconfdir/wicked
-%config(noreplace) %_sysconfdir/wicked/*.xml
+%config(noreplace) %_sysconfdir/wicked/common.xml
+%config(noreplace) %_sysconfdir/wicked/server.xml
 %dir %_sysconfdir/wicked/schema
 %config(noreplace) %_sysconfdir/wicked/schema/*.xml
 %dir %_sysconfdir/wicked/extensions
 %config(noreplace) %_sysconfdir/wicked/extensions/*
 %dir %_sysconfdir/dbus-1
 %dir %_sysconfdir/dbus-1/system.d
-%config(noreplace) %_sysconfdir/dbus-1/system.d/wicked*.conf
-%{_mandir}/man7/wicked*
-%{_mandir}/man8/wicked*
+%config(noreplace) %_sysconfdir/dbus-1/system.d/wicked.conf
+%config(noreplace) %_sysconfdir/dbus-1/system.d/wicked-dhcp6.conf
+%config(noreplace) %_sysconfdir/dbus-1/system.d/wicked-dhcp4.conf
+%config(noreplace) %_sysconfdir/dbus-1/system.d/wicked-autoip4.conf
+#%_mandir/man5/wicked*
+%_mandir/man8/wicked*
 %ghost %dir %_localstatedir/run/wicked
 
-## CLIENT
+%files sysvinit
+%defattr (-,root,root)
+%_sysconfdir/init.d/wicked
+%_prefix%_sbindir/rcwicked
+%_sysconfdir/init.d/network
+%_prefix%_sbindir/rcnetwork
 
 %files client
 %defattr (-,root,root)
+%config(noreplace) %_sysconfdir/wicked/client.xml
 %_sbindir/wicked
 
-## DEVEL
+%files nanny
+%defattr (-,root,root)
+%config(noreplace) %{_sysconfdir}/wicked/network-nanny.xml
+%_sysconfdir/dbus-1/system.d/network-nanny.conf
+%_sbindir/network-nanny
 
 %files devel
 %defattr (-,root,root)
@@ -154,13 +190,10 @@ ln -s %_sysconfdir/init.d/network ${RPM_BUILD_ROOT}%_prefix%_sbindir/rcnetwork
 %_includedir/wicked/*
 %_devellibdir/libwicked*.so
 %_datadir/pkgconfig/wicked.pc
-
-## LIBRARY
+%_mandir/man7/wicked*
 
 %files -n libwicked@LIBWICKED_PACKAGE_SUFFIX@
 %defattr (-,root,root)
 %_libdir/libwicked*.so.*
-
-## CHANGELOG
 
 %changelog
