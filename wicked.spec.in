@@ -175,13 +175,17 @@ ln -s %_sysconfdir/init.d/network ${RPM_BUILD_ROOT}%_prefix%_sbindir/rcnetwork
 
 %files client
 %defattr (-,root,root)
+%dir %_sysconfdir/wicked
 %config(noreplace) %_sysconfdir/wicked/client.xml
 %_sbindir/wicked
 
 %files nanny
 %defattr (-,root,root)
+%dir %_sysconfdir/wicked
 %config(noreplace) %{_sysconfdir}/wicked/network-nanny.xml
-%_sysconfdir/dbus-1/system.d/network-nanny.conf
+%dir %_sysconfdir/dbus-1
+%dir %_sysconfdir/dbus-1/system.d
+%config(noreplace) %_sysconfdir/dbus-1/system.d/network-nanny.conf
 %_sbindir/network-nanny
 
 %files devel
