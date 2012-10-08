@@ -215,7 +215,7 @@ install: Makefile.vars install-no-devel install-devel
 
 install-devel: install-devel-lib install-devel-data
 
-install-no-devel: install-lib install-bin install-data install-man
+install-no-devel: install-bin install-data install-man
 
 install-init: install-bin
 	install -d -m 755 $(DESTDIR)$(sysvinitdir)
