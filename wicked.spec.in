@@ -143,6 +143,9 @@ ln -s %_sysconfdir/init.d/network ${RPM_BUILD_ROOT}%_prefix%_sbindir/rcnetwork
 %postun -n libwicked@LIBWICKED_PACKAGE_SUFFIX@
 /sbin/ldconfig
 
+%post
+%__mkdir_p %_localstatedir/run/wicked
+
 %files
 %defattr (-,root,root)
 %doc ChangeLog ANNOUNCE COPYING README TODO samples
