@@ -16,6 +16,8 @@
 
 #define NI_IPV6_KERNEL_DEFAULT	~0U
 
+typedef struct ni_ipv6_ra_rdnss	ni_ipv6_ra_rdnss_t;
+
 struct ni_ipv6_devconf {
 	ni_bool_t		enabled;
 	ni_bool_t		forwarding;
@@ -36,11 +38,19 @@ struct ni_ipv6_ra_pinfo {
 	ni_ipv6_cache_info_t	lifetime;
 };
 
+struct ni_ipv6_ra_rdnss {
+	unsigned int		lifetime;
+
+	unsigned int		count;
+	ni_sockaddr_t *		addrs;
+};
+
 struct ni_ipv6_ra_info {
 	ni_bool_t		managed_addr;	/* address config available via DHCPv6  */
 	ni_bool_t		other_config;	/* non-address config only via DHCPv6   */
 
 	ni_ipv6_ra_pinfo_t *	pinfo;
+	ni_ipv6_ra_rdnss_t *	rdnss;
 };
 
 struct ni_ipv6_devinfo {

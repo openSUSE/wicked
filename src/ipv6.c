@@ -14,6 +14,8 @@
 #include "util_priv.h"
 #include "sysfs.h"
 
+#define NI_IPV6_RA_RDNSS_ADDRS_CHUNK	4
+
 /*
  * Reset to ipv6 config defaults
  */
@@ -37,6 +39,8 @@ __ni_ipv6_ra_info_reset(ni_ipv6_ra_info_t *radv)
 	radv->other_config = FALSE;
 
 	ni_ipv6_ra_pinfo_list_destroy(&radv->pinfo);
+	ni_ipv6_ra_rdnss_free(radv->rdnss);
+	radv->rdnss = NULL;
 }
 
 /*
@@ -209,5 +213,51 @@ ni_ipv6_ra_pinfo_list_remove(ni_ipv6_ra_pinfo_t **list, const ni_ipv6_ra_pinfo_t
 		}
 	}
 	return NULL;
+}
+
+ni_ipv6_ra_rdnss_t *
+ni_ipv6_ra_rdnss_new()
+{
+	return xcalloc(1, sizeof(ni_ipv6_ra_rdnss_t));
+}
+
+void
+ni_ipv6_ra_rdnss_free(ni_ipv6_ra_rdnss_t *rdnss)
+{
+	if (rdnss) {
+		free(rdnss->addrs);
+		free(rdnss);
+	}
+}
+
+void
+ni_ipv6_ra_rdnss_reset(ni_ipv6_ra_rdnss_t *rdnss)
+{
+	rdnss->lifetime = 0;
+	while (rdnss->count > 0) {
+		rdnss->count--;
+		memset(&rdnss->addrs[rdnss->count], 0, sizeof(ni_sockaddr_t));
+	}
+}
+
+static void
+__ni_ipv6_ra_rdnss_realloc(ni_ipv6_ra_rdnss_t *rdnss, unsigned int newsize)
+{
+	unsigned int i;
+
+	newsize = newsize + NI_IPV6_RA_RDNSS_ADDRS_CHUNK;
+	rdnss->addrs = xrealloc(rdnss->addrs, newsize * sizeof(ni_sockaddr_t));
+
+	for (i = rdnss->count; i < newsize; ++i)
+		memset(&rdnss->addrs[i], 0, sizeof(ni_sockaddr_t));
+}
+
+void
+ni_ipv6_ra_rdnss_add_server(ni_ipv6_ra_rdnss_t *rdnss, const struct in6_addr *ipv6)
+{
+	if ((rdnss->count & (NI_IPV6_RA_RDNSS_ADDRS_CHUNK - 1)) == 0)
+		__ni_ipv6_ra_rdnss_realloc(rdnss, rdnss->count);
+
+	ni_sockaddr_set_ipv6(&rdnss->addrs[rdnss->count++], *ipv6, 0);
 }
 

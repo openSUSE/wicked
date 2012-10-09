@@ -112,6 +112,7 @@ extern int		ni_server_background(const char *);
 extern int		ni_server_listen_interface_events(void (*handler)(ni_netdev_t *, ni_event_t));
 extern int		ni_server_enable_interface_addr_events(void (*handler)(ni_netdev_t *, ni_event_t, const ni_address_t *));
 extern int		ni_server_enable_interface_prefix_events(void (*handler)(ni_netdev_t *, ni_event_t, const ni_ipv6_ra_pinfo_t *));
+extern int		ni_server_enable_interface_nduseropt_events(void (*handler)(ni_netdev_t *, ni_event_t));
 extern void		ni_server_deactivate_interface_events(void);
 extern void		ni_server_listen_other_events(void (*handler)(ni_event_t));
 extern ni_dbus_server_t *ni_server_listen_dbus(const char *bus_name);

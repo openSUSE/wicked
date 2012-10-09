@@ -20,4 +20,11 @@ extern void			ni_ipv6_ra_pinfo_list_prepend(ni_ipv6_ra_pinfo_t **,
 extern ni_ipv6_ra_pinfo_t *	ni_ipv6_ra_pinfo_list_remove(ni_ipv6_ra_pinfo_t **,
 							const ni_ipv6_ra_pinfo_t *);
 
+
+extern ni_ipv6_ra_rdnss_t *	ni_ipv6_ra_rdnss_new(void);
+extern void			ni_ipv6_ra_rdnss_free(ni_ipv6_ra_rdnss_t *);
+extern void			ni_ipv6_ra_rdnss_reset(ni_ipv6_ra_rdnss_t *);
+extern void			ni_ipv6_ra_rdnss_add_server(ni_ipv6_ra_rdnss_t *,
+							const struct in6_addr *);
+
 #endif /* __IPV6_PRIV_H__ */

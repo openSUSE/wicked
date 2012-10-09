@@ -12,6 +12,7 @@
 #include <errno.h>
 #include <string.h>
 #include <netlink/msg.h>
+#include <netinet/icmp6.h>
 
 #include <wicked/types.h>
 #include <wicked/netinfo.h>
@@ -26,6 +27,23 @@
 #include "kernel.h"
 #include "appconfig.h"
 
+/* RFC 5006, RFC 6106 */
+#if defined(ND_OPT_RDNSS_INFORMATION)
+#define NI_ND_OPT_RDNSS_INFORMATION	ND_OPT_RDNSS_INFORMATION
+#else
+#define NI_ND_OPT_RDNSS_INFORMATION	25
+#endif
+
+struct ni_nd_opt_rdnss_info_p
+{
+	uint8_t		nd_opt_rdnss_type;
+	uint8_t		nd_opt_rdnss_len;
+	uint16_t	nd_opt_rdnss_resserved1;
+	uint32_t	nd_opt_rdnss_lifetime;
+	/* followed by one or more IPv6 addresses */
+	struct in6_addr	nd_opt_rdnss_addr[];
+};
+
 /*
  * TODO: Move the socket somewhere else & add cleanup...
  */
@@ -37,6 +55,7 @@ static int	__ni_rtevent_dellink(ni_netconfig_t *, const struct sockaddr_nl *, st
 static int	__ni_rtevent_newprefix(ni_netconfig_t *, const struct sockaddr_nl *, struct nlmsghdr *);
 static int	__ni_rtevent_newaddr(ni_netconfig_t *, const struct sockaddr_nl *, struct nlmsghdr *);
 static int	__ni_rtevent_deladdr(ni_netconfig_t *, const struct sockaddr_nl *, struct nlmsghdr *);
+static int	__ni_rtevent_nduseropt(ni_netconfig_t *, const struct sockaddr_nl *, struct nlmsghdr *);
 
 static const char *	__ni_rtevent_msg_name(unsigned int);
 
@@ -65,6 +84,13 @@ __ni_netdev_prefix_event(ni_netdev_t *dev, ni_event_t ev, const ni_ipv6_ra_pinfo
 {
 	if (ni_global.interface_prefix_event)
 		ni_global.interface_prefix_event(dev, ev, pi);
+}
+
+static inline void
+__ni_netdev_nduseropt_event(ni_netdev_t *dev, ni_event_t ev)
+{
+	if (ni_global.interface_nduseropt_event)
+		ni_global.interface_nduseropt_event(dev, ev);
 }
 
 /*
@@ -103,6 +129,10 @@ __ni_rtevent_process(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 
 	case RTM_DELADDR:
 		rv = __ni_rtevent_deladdr(nc, nladdr, h);
+		break;
+
+	case RTM_NEWNDUSEROPT:
+		rv = __ni_rtevent_nduseropt(nc, nladdr, h);
 		break;
 
 	default:
@@ -363,6 +393,128 @@ __ni_rtevent_deladdr(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 	return 0;
 }
 
+static int
+__ni_rtevent_process_rdnss_info(ni_netdev_t *dev, const struct nd_opt_hdr *opt,
+				size_t len)
+{
+	const struct ni_nd_opt_rdnss_info_p *rdnss;
+	const struct in6_addr* addr;
+	ni_ipv6_devinfo_t *ipv6;
+
+	if (opt == NULL || len < (sizeof(*rdnss) + sizeof(*addr)))
+		return -1;
+
+	rdnss = (const struct ni_nd_opt_rdnss_info_p *)opt;
+
+	ipv6 = ni_netdev_get_ipv6(dev);
+	if (ipv6->radv.rdnss == NULL)
+		ipv6->radv.rdnss = ni_ipv6_ra_rdnss_new();
+	else
+		ni_ipv6_ra_rdnss_reset(ipv6->radv.rdnss);
+
+	ipv6->radv.rdnss->lifetime = ntohl(rdnss->nd_opt_rdnss_lifetime);
+	if (ipv6->radv.rdnss->lifetime == 0xffffffff)
+		ni_debug_events("%s: rdnss lifetime: infinite", dev->name);
+	else
+		ni_debug_events("%s: rdnss lifetime: %u", dev->name,
+				ipv6->radv.rdnss->lifetime);
+
+	len -= sizeof(*rdnss);
+	addr = &rdnss->nd_opt_rdnss_addr[0];
+	for ( ; len >= sizeof(*addr); len -= sizeof(*addr), ++addr) {
+		if (IN6_IS_ADDR_LOOPBACK(addr) || IN6_IS_ADDR_UNSPECIFIED(addr))
+			continue;
+
+		ni_ipv6_ra_rdnss_add_server(ipv6->radv.rdnss, addr);
+
+		ni_debug_events("%s: rdnss address: %s", dev->name,
+			ni_sockaddr_print(&ipv6->radv.rdnss->addrs
+				[ipv6->radv.rdnss->count-1]));
+	}
+	__ni_netdev_nduseropt_event(dev, NI_EVENT_RDNSS_UPDATE);
+	return 0;
+}
+
+static int
+__ni_rtevent_process_nd_radv_opts(ni_netdev_t *dev, const struct nd_opt_hdr *opt, size_t len)
+{
+	while (len > 0) {
+		size_t opt_len;
+
+		if (len < 2) {
+			ni_error("%s: nd user option length too short", dev->name);
+			return -1;
+		}
+
+		opt_len = (opt->nd_opt_len << 3);
+		if (opt_len == 0) {
+			ni_error("%s: zero length nd user option", dev->name);
+			return -1;
+		}
+		else if (opt_len > len) {
+			ni_error("%s: nd user option length exceeds total length",
+				dev->name);
+			return -1;
+		}
+
+		switch(opt->nd_opt_type) {
+		case NI_ND_OPT_RDNSS_INFORMATION:
+			if (__ni_rtevent_process_rdnss_info(dev, opt, opt_len) < 0) {
+				ni_error("%s: Cannot process RDNSS info option",
+					dev->name);
+				return -1;
+			}
+		break;
+
+		default:
+			/* kernels up to at least 3.4 do not provide other */
+			ni_debug_events("%s: unhandled nd user option %d",
+					dev->name, opt->nd_opt_type);
+		break;
+		}
+
+		len -= opt_len;
+		opt = (struct nd_opt_hdr *)(((uint8_t *)opt) + opt_len);
+	}
+	return 0;
+}
+
+static int
+__ni_rtevent_nduseropt(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struct nlmsghdr *h)
+{
+	struct nduseroptmsg *msg;
+	struct nd_opt_hdr *opt;
+	ni_netdev_t *dev;
+
+	if (!(msg = ni_rtnl_nduseroptmsg(h, RTM_NEWNDUSEROPT)))
+		return -1;
+
+	dev = ni_netdev_by_index(nc, msg->nduseropt_ifindex);
+	if (dev == NULL)
+		return 0;
+
+	if (msg->nduseropt_icmp_type != ND_ROUTER_ADVERT ||
+	    msg->nduseropt_icmp_code != 0 ||
+	    msg->nduseropt_family    != AF_INET6) {
+		ni_debug_events("%s: unknown rtnetlink nd user option message"
+				" type %d, code %d, family %d", dev->name,
+				msg->nduseropt_icmp_type,
+				msg->nduseropt_icmp_code,
+				msg->nduseropt_family);
+		return 0;
+	}
+
+	if (!nlmsg_valid_hdr(h, sizeof(struct nduseroptmsg) + msg->nduseropt_opts_len)) {
+		ni_debug_events("%s: invalid rtnetlink nd user radv option length %d",
+				dev->name, msg->nduseropt_opts_len);
+		return -1;
+	}
+
+	opt = (struct nd_opt_hdr *)(msg + 1);
+
+	return __ni_rtevent_process_nd_radv_opts(dev, opt, msg->nduseropt_opts_len);
+}
+
 /*
  * Receive events from netlink socket and generate events.
  */
@@ -403,7 +555,7 @@ __ni_rtevent_msg_name(unsigned int nlmsg_type)
 	_t2n(RTM_NEWLINK),	_t2n(RTM_DELLINK),
 	_t2n(RTM_NEWADDR),	_t2n(RTM_DELADDR),
 	_t2n(RTM_NEWROUTE),	_t2n(RTM_DELROUTE),
-	_t2n(RTM_NEWPREFIX),
+	_t2n(RTM_NEWPREFIX),	_t2n(RTM_NEWNDUSEROPT),
 	};
 #undef _t2n
 
@@ -547,6 +699,27 @@ ni_server_enable_interface_prefix_events(void (*ifprefix_handler)(ni_netdev_t *,
 	 * whether the app wants to receive update events or not... */
 
 	ni_global.interface_prefix_event = ifprefix_handler;
+	return 0;
+}
+
+int
+ni_server_enable_interface_nduseropt_events(void (*ifnduseropt_handler)(ni_netdev_t *, ni_event_t))
+{
+	struct nl_handle *handle;
+
+	if (!__ni_rtevent_sock || ni_global.interface_nduseropt_event) {
+		ni_error("Interface ND user opt event handler already set");
+		return -1;
+	}
+
+	handle = __ni_rtevent_sock->user_data;
+
+	if (nl_socket_add_membership(handle, RTNLGRP_ND_USEROPT) < 0) {
+		ni_error("Cannot add rtnetlink nd user opt event membership: %m");
+		return -1;
+	}
+
+	ni_global.interface_nduseropt_event = ifnduseropt_handler;
 	return 0;
 }
 
