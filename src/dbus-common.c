@@ -53,18 +53,29 @@ ni_dbus_message_get_args(ni_dbus_message_t *msg, ...)
 		goto done;
 	}
 
-	while (type) {
-		char **data = va_arg(ap, char **);
+	/* Reset va_list */
+	va_end(ap);
+	va_start(ap, msg);
 
+	while (TRUE) {
+		char **data;
+
+		type = va_arg(ap, int);
 		switch (type) {
+		case DBUS_TYPE_INVALID:
+			goto done;
+
 		case DBUS_TYPE_STRING:
 		case DBUS_TYPE_OBJECT_PATH:
+			data = va_arg(ap, char **);
 			if (data && *data)
 				*data = xstrdup(*data);
 			break;
-		}
 
-		type = va_arg(ap, int);
+		default:
+			(void) va_arg(ap, void *);
+			break;
+		}
 	}
 
 done:
