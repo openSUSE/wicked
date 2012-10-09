@@ -95,7 +95,7 @@ __ni_rtnl_msgdata(struct nlmsghdr *h, int expected_type, size_t min_size)
 {
 	if (expected_type >= 0 && h->nlmsg_type != expected_type)
 		return NULL;
-	if (h->nlmsg_len < min_size)
+	if (h->nlmsg_len < NLMSG_LENGTH(min_size))
 		return NULL;
 	return NLMSG_DATA(h);
 }
