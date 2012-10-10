@@ -22,6 +22,11 @@ union ni_sockaddr {
 	struct sockaddr_in6	six;
 };
 
+typedef struct ni_sockaddr_array {
+	unsigned int		count;
+	ni_sockaddr_t *		data;
+} ni_sockaddr_array_t;
+
 typedef struct ni_address {
 	struct ni_address *	next;
 
@@ -61,6 +66,10 @@ extern ni_opaque_t *	ni_sockaddr_pack(const ni_sockaddr_t *, ni_opaque_t *);
 extern ni_sockaddr_t *	ni_sockaddr_unpack(ni_sockaddr_t *, const ni_opaque_t *);
 extern ni_opaque_t *	ni_sockaddr_prefix_pack(const ni_sockaddr_t *, unsigned int, ni_opaque_t *);
 extern ni_sockaddr_t *	ni_sockaddr_prefix_unpack(ni_sockaddr_t *, unsigned int *, const ni_opaque_t *);
+
+extern void		ni_sockaddr_array_init(ni_sockaddr_array_t *);
+extern void		ni_sockaddr_array_destroy(ni_sockaddr_array_t *);
+extern void		ni_sockaddr_array_append(ni_sockaddr_array_t *, const ni_sockaddr_t *);
 
 extern const char *	ni_sockaddr_prefix_print(const ni_sockaddr_t *, unsigned int);
 extern ni_bool_t	ni_sockaddr_prefix_parse(const char *, ni_sockaddr_t *, unsigned int *);

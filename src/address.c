@@ -22,6 +22,7 @@
 #include <wicked/route.h>
 #include <wicked/addrconf.h>
 #include "netinfo_priv.h"
+#include "util_priv.h"
 
 
 #ifndef offsetof
@@ -1020,5 +1021,30 @@ ni_sockaddr_prefix_unpack(ni_sockaddr_t *sockaddr, unsigned int *prefix, const n
 
 	*prefix = ntohs(pfx_netaddr.prefix);
 	return __ni_netaddr_to_sockaddr(&pfx_netaddr.netaddr, sockaddr);
+}
+
+/*
+ * Handle sockaddr arrays
+ */
+void
+ni_sockaddr_array_init(ni_sockaddr_array_t *array)
+{
+	memset(array, 0, sizeof(array));
+}
+
+void
+ni_sockaddr_array_destroy(ni_sockaddr_array_t *array)
+{
+	if (array->data)
+		free(array->data);
+	memset(array, 0, sizeof(array));
+}
+
+void
+ni_sockaddr_array_append(ni_sockaddr_array_t *array, const ni_sockaddr_t *sa)
+{
+	if ((array->count % 4) == 0)
+		array->data = xrealloc(array->data, (array->count + 4) * sizeof(array->data[0]));
+	array->data[array->count++] = *sa;
 }
 
