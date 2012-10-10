@@ -1031,22 +1031,12 @@ ni_daemonize(const char *pidfile, unsigned int permissions)
 	if (pidfile && ni_pidfile_write(pidfile, permissions, getpid()) < 0)
 		return -1;
 
-	pid = fork();
-	if (pid < 0) {
-		ni_error("unable to fork: %m");
-		return -1;
-	}
-
-	/* parent process */
-	if (pid != 0) {
-		if (pidfile)
-			__ni_pidfile_write(pidfile, permissions, pid, 0);
-		exit(0);
-	}
-
-	/* chdir to root and close fds */
+	/* fork, chdir to root and close fds */
 	if (daemon(0, 0) < 0)
 		ni_fatal("unable to background process! daemon() failed: %m");
+
+	if (pidfile)
+		__ni_pidfile_write(pidfile, permissions, getpid(), 0);
 
 	return 0;
 }
