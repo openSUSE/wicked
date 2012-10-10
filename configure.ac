@@ -106,7 +106,7 @@ AC_CONFIG_FILES([
 	Makefile.vars
 	wicked.pc
 	wicked.spec
-	etc/init.d/wicked
+	etc/init.d/wickedd
 	etc/init.d/network
 ])
 AC_OUTPUT

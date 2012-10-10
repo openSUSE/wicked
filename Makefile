@@ -196,7 +196,7 @@ distclean clean::
 distclean::
 	rm -f .depend tags
 	rm -f config.h wicked.pc
-	rm -f etc/init.d/wicked
+	rm -f etc/init.d/wickedd
 	rm -f etc/init.d/network
 
 realclean maintainer-clean: distclean
@@ -216,7 +216,7 @@ install-no-devel: install-bin install-data install-man
 
 install-init: install-bin
 	install -d -m 755 $(DESTDIR)$(sysvinitdir)
-	install -c -m 755 etc/init.d/wicked  $(DESTDIR)$(sysvinitdir)/wicked
+	install -c -m 755 etc/init.d/wickedd $(DESTDIR)$(sysvinitdir)/wickedd
 	install -c -m 755 etc/init.d/network $(DESTDIR)$(sysvinitdir)/network
 
 install-bin: $(APPBINS) install-lib

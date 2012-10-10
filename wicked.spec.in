@@ -124,17 +124,17 @@ make %{?_smp_mflags}
 make install DESTDIR=${RPM_BUILD_ROOT}
 make install-init DESTDIR=${RPM_BUILD_ROOT}
 install -d -m755 ${RPM_BUILD_ROOT}%_prefix%_sbindir
-ln -s %_sysconfdir/init.d/wicked ${RPM_BUILD_ROOT}%_prefix%_sbindir/rcwicked
+ln -s %_sysconfdir/init.d/wickedd ${RPM_BUILD_ROOT}%_prefix%_sbindir/rcwickedd
 ln -s %_sysconfdir/init.d/network ${RPM_BUILD_ROOT}%_prefix%_sbindir/rcnetwork
 
 %post sysvinit
-%{fillup_and_insserv wicked}
+%{fillup_and_insserv wickedd}
 
 %preun sysvinit
-%stop_on_removal wicked
+%stop_on_removal wickedd
 
 %postun sysvinit
-%restart_on_update wicked
+%restart_on_update wickedd
 %insserv_cleanup
 
 %post -n libwicked@LIBWICKED_PACKAGE_SUFFIX@
@@ -172,8 +172,8 @@ ln -s %_sysconfdir/init.d/network ${RPM_BUILD_ROOT}%_prefix%_sbindir/rcnetwork
 
 %files sysvinit
 %defattr (-,root,root)
-%_sysconfdir/init.d/wicked
-%_prefix%_sbindir/rcwicked
+%_sysconfdir/init.d/wickedd
+%_prefix%_sbindir/rcwickedd
 %_sysconfdir/init.d/network
 %_prefix%_sbindir/rcnetwork
 

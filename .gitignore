@@ -21,6 +21,6 @@ configure
 wicked-*
 wicked.pc
 wicked.spec
-etc/init.d/wicked
+etc/init.d/wickedd
 etc/init.d/network
 html

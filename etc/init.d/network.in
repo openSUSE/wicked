@@ -30,7 +30,7 @@
 #
 ### BEGIN INIT INFO
 # Provides:		network
-# Required-Start:	wicked
+# Required-Start:	wickedd
 # Should-Start:		isdn openibd
 # Required-Stop:	wicked
 # Should-Stop:		isdn openibd
