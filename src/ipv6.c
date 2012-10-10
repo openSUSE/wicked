@@ -225,7 +225,7 @@ void
 ni_ipv6_ra_rdnss_free(ni_ipv6_ra_rdnss_t *rdnss)
 {
 	if (rdnss) {
-		free(rdnss->addrs);
+		ni_sockaddr_array_destroy(&rdnss->addrs);
 		free(rdnss);
 	}
 }
@@ -234,30 +234,15 @@ void
 ni_ipv6_ra_rdnss_reset(ni_ipv6_ra_rdnss_t *rdnss)
 {
 	rdnss->lifetime = 0;
-	while (rdnss->count > 0) {
-		rdnss->count--;
-		memset(&rdnss->addrs[rdnss->count], 0, sizeof(ni_sockaddr_t));
-	}
-}
-
-static void
-__ni_ipv6_ra_rdnss_realloc(ni_ipv6_ra_rdnss_t *rdnss, unsigned int newsize)
-{
-	unsigned int i;
-
-	newsize = newsize + NI_IPV6_RA_RDNSS_ADDRS_CHUNK;
-	rdnss->addrs = xrealloc(rdnss->addrs, newsize * sizeof(ni_sockaddr_t));
-
-	for (i = rdnss->count; i < newsize; ++i)
-		memset(&rdnss->addrs[i], 0, sizeof(ni_sockaddr_t));
+	ni_sockaddr_array_destroy(&rdnss->addrs);
 }
 
 void
 ni_ipv6_ra_rdnss_add_server(ni_ipv6_ra_rdnss_t *rdnss, const struct in6_addr *ipv6)
 {
-	if ((rdnss->count & (NI_IPV6_RA_RDNSS_ADDRS_CHUNK - 1)) == 0)
-		__ni_ipv6_ra_rdnss_realloc(rdnss, rdnss->count);
+	ni_sockaddr_t sockaddr;
 
-	ni_sockaddr_set_ipv6(&rdnss->addrs[rdnss->count++], *ipv6, 0);
+	ni_sockaddr_set_ipv6(&sockaddr, *ipv6, 0);
+	ni_sockaddr_array_append(&rdnss->addrs, &sockaddr);
 }
 

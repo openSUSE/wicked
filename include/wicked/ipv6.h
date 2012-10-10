@@ -40,9 +40,7 @@ struct ni_ipv6_ra_pinfo {
 
 struct ni_ipv6_ra_rdnss {
 	unsigned int		lifetime;
-
-	unsigned int		count;
-	ni_sockaddr_t *		addrs;
+	ni_sockaddr_array_t	addrs;
 };
 
 struct ni_ipv6_ra_info {

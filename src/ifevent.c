@@ -427,9 +427,12 @@ __ni_rtevent_process_rdnss_info(ni_netdev_t *dev, const struct nd_opt_hdr *opt,
 
 		ni_ipv6_ra_rdnss_add_server(ipv6->radv.rdnss, addr);
 
-		ni_debug_events("%s: rdnss address: %s", dev->name,
-			ni_sockaddr_print(&ipv6->radv.rdnss->addrs
-				[ipv6->radv.rdnss->count-1]));
+		if (ni_debug & NI_TRACE_EVENTS) {
+			const ni_sockaddr_array_t *addrs = &ipv6->radv.rdnss->addrs;
+
+			ni_debug_events("%s: rdnss address: %s", dev->name,
+					ni_sockaddr_print(&addrs->data[addrs->count-1]));
+		}
 	}
 	__ni_netdev_nduseropt_event(dev, NI_EVENT_RDNSS_UPDATE);
 	return 0;
