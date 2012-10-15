@@ -9,7 +9,7 @@ Source0:	%{name}-%{version}.tar.bz2
 Buildroot:	%{_tmppath}/%{name}%{version}-buildroot/
 Requires:       libwicked@LIBWICKED_PACKAGE_SUFFIX@ = %{version}
 
-%if 0%{?suse_version} > 1210
+%if 0%{?suse_version} >= 1210
 BuildRequires:  libnl-1_1-devel
 %else
 BuildRequires:  libnl-devel
