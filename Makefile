@@ -195,13 +195,14 @@ distclean clean::
 
 distclean::
 	rm -f .depend tags
-	rm -f config.h wicked.pc
+	rm -f *.log *.scan
+	rm -rf autom4te.cache
+	rm -f config.* wicked.pc
 	rm -f etc/init.d/wickedd
 	rm -f etc/init.d/network
 
 realclean maintainer-clean: distclean
-	rm -rf autom4te.cache *.log *.scan
-	rm -f aclocal.m4 configure config.*
+	rm -f aclocal.m4 configure
 	rm -f Makefile.vars wicked.spec
 	rm -f $(DIST_ARCHIVE)
 
@@ -326,7 +327,7 @@ $(LIBNAME).so: $(SHLIBOBJS)
 	$(CC) $(CFLAGS) -shared -Wl,-soname,$(LIBSONAME) $(LDFLAGS) -o $@ $(SHLIBOBJS)
 	ln -sf $@ $(LIBSONAME)
 
-depend: config.h $(SOURCES)
+depend: $(SOURCES)
 	$(CC) $(CPPFLAGS) -MM $(LIBSRCS) | \
 		sed 's@^\([^.]*\)\.o: src/\([-a-z0-9/]*\)\1.c@obj/lib/\2&@' > .depend
 	$(CC) $(CPPFLAGS) -MM $(LIBSRCS) | \
@@ -391,16 +392,18 @@ $(DIST_ARCHIVE): wicked.spec
 	mv "$${tmpdir}/$@" . && rmdir "$${tmpdir}"
 
 config.h: config.h.in
+	./config.status $@
 
-config.h.in config.status: configure
+config.h.in: configure
+config.status: configure
 
 configure: configure.ac
-	test -f $@ && ./config.status --recheck || ./autogen.sh
+	test -f ./config.status && ./config.status --recheck || ./autogen.sh
 
 Makefile: Makefile.vars
 
-Makefile.vars config.h wicked.pc wicked.spec: config.status
-	./config.status $@
+Makefile.vars wicked.pc wicked.spec: config.status
+	test -f ./config.status && ./config.status $@ || ./autogen.sh
 
 -include .depend
 
