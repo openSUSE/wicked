@@ -1897,3 +1897,143 @@ failed:
 	ni_stringbuf_destroy(&buf);
 	return NULL;
 }
+
+/**
+ * Check for valid a domain name
+ *
+ * dots  < 0: no dots allowed at all
+ * dots == 0: any number of dots allowed
+ * dots  > 0: specified number of dots required at least
+ */
+ni_bool_t
+ni_check_domain_name(const char *ptr, size_t len, int dots)
+{
+	const char *p;
+
+	/* not empty or complete length not over 255 characters
+	   additionally, we allow a [.] at the end ('foo.bar.')   */
+	if (!ptr || len == 0 || len >= 256)
+		return FALSE;
+
+	/* consists of [[:alnum:]-]+ labels separated by [.]      */
+	/* a [_] is against RFC but seems to be "widely used"...  */
+	for (p=ptr; *p && len-- > 0; p++) {
+		if ( *p == '-' || *p == '_') {
+			/* not allowed at begin or end of a label */
+			if ((p - ptr) == 0 || len == 0 || p[1] == '.')
+				return FALSE;
+		} else if ( *p == '.') {
+			/* each label has to be 1-63 characters;
+			   we allow [.] at the end ('foo.bar.')   */
+			ssize_t d = (ssize_t)(p - ptr);
+			if( d <= 0 || d >= 64)
+				return FALSE;
+			ptr = p + 1; /* jump to the next label    */
+			if(dots > 0 && len > 0)
+				dots--;
+		} else if ( !isalnum((unsigned char)*p)) {
+			/* also numbers at the begin are fine     */
+			return FALSE;
+		}
+	}
+	return dots ? FALSE : TRUE;
+}
+
+ni_bool_t
+ni_check_pathname(const char *path, size_t len)
+{
+	const unsigned char *ptr = (const unsigned char *)path;
+
+	if (!path || len == 0)
+		return FALSE;
+
+	for (; *ptr && len-- > 0; ++ptr) {
+		switch (*ptr) {
+			case '#': case '%':
+			case '+': case '-':
+			case '_': case ':':
+			case '.': case ',':
+			case '@': case '~':
+			case '[': case ']':
+			case '=': case ' ':
+			case '/': case '\\':
+			break;
+			default:
+				if(!isalnum(*ptr))
+					return FALSE;
+			break;
+		}
+	}
+
+	return TRUE;
+}
+
+ni_bool_t
+ni_check_printable(const char *str, size_t len)
+{
+	const unsigned char *ptr = (const unsigned char *)str;
+
+	if (!str || len == 0)
+		return FALSE;
+
+	/* printable character including simple space and \t tab */
+	for ( ; *ptr && len-- > 0; ++ptr) {
+		switch (*ptr) {
+			case ' ': case '\t':
+			break;
+			default:
+				if(!isgraph(*ptr))
+					return FALSE;
+			break;
+		}
+	}
+
+	return TRUE;
+}
+
+const char *
+ni_print_suspect(const char *str, size_t len)
+{
+	static char buf[256] = {'\0'};
+	unsigned char *ptr;
+	size_t pos, end, cnt;
+
+	end = sizeof(buf) - 1;
+	ptr = (unsigned char *)str;
+	for ( pos = 0; len > 0; --len, ++ptr) {
+		switch (*ptr) {
+			case '.': case ':':
+			case '-': case '_':
+			case '+': case '/':
+			case '~': case '=':
+			case '%': case '@':
+				cnt = 1;
+			break;
+			default:
+				if (isalnum(*ptr))
+					cnt = 1;
+				else
+					cnt = 3;
+			break;
+		}
+		if (pos + cnt > end)
+			break;
+
+		if (cnt == 1) {
+			buf[pos++] = *ptr;
+		} else {
+			snprintf(buf+pos, end - pos, "#%02x", *ptr);
+			pos += cnt;
+		}
+	}
+
+	buf[pos] = '\0';
+	if (len > 0) {
+		buf[end--] = '\0';
+		buf[end--] = '.';
+		buf[end--] = '.';
+		buf[end--] = '.';
+	}
+	return buf;
+}
+

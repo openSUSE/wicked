@@ -260,13 +260,15 @@ ni_dhcp_option_get32(ni_buffer_t *bp, uint32_t *var)
 }
 
 static int
-ni_dhcp_option_get_string(ni_buffer_t *bp, char **var)
+ni_dhcp_option_get_string(ni_buffer_t *bp, char **var, unsigned int *lenp)
 {
 	unsigned int len = ni_buffer_count(bp);
 
 	if (len == 0)
 		return -1;
 
+	if (lenp)
+		*lenp = len;
 	if (*var)
 		free(*var);
 	*var = malloc(len + 1);
@@ -480,15 +482,16 @@ failed:
  * Decode an RFC3397 DNS search order option.
  */
 static int
-ni_dhcp_decode_dnssearch(ni_buffer_t *optbuf, ni_string_array_t *list)
+ni_dhcp_decode_dnssearch(ni_buffer_t *optbuf, ni_string_array_t *list, const char *what)
 {
+	ni_stringbuf_t namebuf = NI_STRINGBUF_INIT_DYNAMIC;
 	unsigned char *base = ni_buffer_head(optbuf);
 	unsigned int base_offset = optbuf->head;
+	size_t len;
 
 	ni_string_array_destroy(list);
 
 	while (ni_buffer_count(optbuf) && !optbuf->underflow) {
-		ni_stringbuf_t namebuf = NI_STRINGBUF_INIT_DYNAMIC;
 		ni_buffer_t *bp = optbuf;
 		ni_buffer_t jumpbuf;
 
@@ -499,7 +502,7 @@ ni_dhcp_decode_dnssearch(ni_buffer_t *optbuf, ni_string_array_t *list)
 			int length;
 
 			if ((length = ni_buffer_getc(bp)) < 0)
-				return -1; /* unexpected EOF */
+				goto failure; /* unexpected EOF */
 
 			if (length == 0)
 				break;	/* end of this name */
@@ -508,9 +511,9 @@ ni_dhcp_decode_dnssearch(ni_buffer_t *optbuf, ni_string_array_t *list)
 			case 0:
 				/* Plain name component */
 				if (ni_buffer_get(bp, label, length) < 0)
-					return -1;
-				label[length] = '\0';
+					goto failure;
 
+				label[length] = '\0';
 				if (!ni_stringbuf_empty(&namebuf))
 					ni_stringbuf_putc(&namebuf, '.');
 				ni_stringbuf_puts(&namebuf, label);
@@ -520,10 +523,11 @@ ni_dhcp_decode_dnssearch(ni_buffer_t *optbuf, ni_string_array_t *list)
 				/* Pointer */
 				pointer = (length & 0x3F) << 8;
 				if ((length = ni_buffer_getc(bp)) < 0)
-					return -1;
+					goto failure;
+
 				pointer |= length;
 				if (pointer >= pos)
-					return -1;
+					goto failure;
 
 				ni_buffer_init_reader(&jumpbuf, base, pos);
 				jumpbuf.head = pointer;
@@ -531,17 +535,30 @@ ni_dhcp_decode_dnssearch(ni_buffer_t *optbuf, ni_string_array_t *list)
 				break;
 
 			default:
-				return -1;
+				goto failure;
 			}
 
 		}
 
-		if (!ni_stringbuf_empty(&namebuf))
-			ni_string_array_append(list, namebuf.string);
+		if (!ni_stringbuf_empty(&namebuf)) {
+
+			len = ni_string_len(namebuf.string);
+			if (ni_check_domain_name(namebuf.string, len, 0)) {
+				ni_string_array_append(list, namebuf.string);
+			} else {
+				ni_debug_dhcp("Discarded suspect %s: %s", what,
+					ni_print_suspect(namebuf.string, len));
+			}
+		}
 		ni_stringbuf_destroy(&namebuf);
 	}
 
 	return 0;
+
+failure:
+	ni_stringbuf_destroy(&namebuf);
+	ni_string_array_destroy(list);
+	return -1;
 }
 
 /*
@@ -606,7 +623,7 @@ ni_dhcp_decode_sipservers(ni_buffer_t *bp, ni_string_array_t *list)
 		return -1;
 
 	case 0:
-		return ni_dhcp_decode_dnssearch(bp, list);
+		return ni_dhcp_decode_dnssearch(bp, list, "sip-server name");
 
 	case 1:
 		return ni_dhcp_decode_address_list(bp, list);
@@ -707,6 +724,72 @@ ni_dhcp_decode_routers(ni_buffer_t *bp, ni_route_t **route_list)
 	return 0;
 }
 
+static int
+ni_dhcp_option_get_domain(ni_buffer_t *bp, char **var, const char *what)
+{
+	unsigned int len;
+	char *tmp = NULL;
+
+	if (ni_dhcp_option_get_string(bp, &tmp, &len) < 0)
+		return -1;
+
+	if (!ni_check_domain_name(tmp, len, 0)) {
+		ni_debug_dhcp("Discarded suspect %s: %s", what,
+			ni_print_suspect(tmp, len));
+		free(tmp);
+		return -1;
+	}
+
+	if (*var)
+		free(*var);
+	*var = tmp;
+	return 0;
+}
+
+static int
+ni_dhcp_option_get_pathname(ni_buffer_t *bp, char **var, const char *what)
+{
+	unsigned int len;
+	char *tmp = NULL;
+
+	if (ni_dhcp_option_get_string(bp, &tmp, &len) < 0)
+		return -1;
+
+	if (!ni_check_pathname(tmp, len)) {
+		ni_debug_dhcp("Discarded suspect %s: %s", what,
+			ni_print_suspect(tmp, len));
+		free(tmp);
+		return -1;
+	}
+
+	if (*var)
+		free(*var);
+	*var = tmp;
+	return 0;
+}
+
+static int
+ni_dhcp_option_get_printable(ni_buffer_t *bp, char **var, const char *what)
+{
+	unsigned int len;
+	char *tmp = NULL;
+
+	if (ni_dhcp_option_get_string(bp, &tmp, &len) < 0)
+		return -1;
+
+	if (ni_check_printable(tmp, len)) {
+		ni_debug_dhcp("Discarded non-printable %s: %s", what,
+			ni_print_suspect(tmp, len));
+		free(tmp);
+		return -1;
+	}
+
+	if (*var)
+		free(*var);
+	*var = tmp;
+	return 0;
+}
+
 /*
  * Parse a DHCP response.
  * FIXME: RFC2131 states that the server is allowed to split a DHCP option into
@@ -728,6 +811,8 @@ ni_dhcp_parse_response(const ni_dhcp_message_t *message, ni_buffer_t *options, n
 	char *dnsdomain = NULL;
 	int opt_overload = 0;
 	int msg_type = -1;
+	int use_bootserver = 1;
+	int use_bootfile = 1;
 
 	lease = ni_addrconf_lease_new(NI_ADDRCONF_DHCP, AF_INET);
 
@@ -739,9 +824,6 @@ ni_dhcp_parse_response(const ni_dhcp_message_t *message, ni_buffer_t *options, n
 	lease->dhcp.address.s_addr = message->yiaddr;
 	lease->dhcp.serveraddress.s_addr = message->siaddr;
 	lease->dhcp.address.s_addr = message->yiaddr;
-
-	assert(sizeof(lease->dhcp.servername) == sizeof(message->servername));
-	memcpy(lease->dhcp.servername, message->servername, sizeof(lease->dhcp.servername));
 
 parse_more:
 	/* Loop as long as we still have data in the buffer. */
@@ -805,25 +887,30 @@ parse_more:
 			}
 			break;
 		case DHCP_HOSTNAME:
-			ni_dhcp_option_get_string(&buf, &lease->hostname);
+			ni_dhcp_option_get_domain(&buf, &lease->hostname,
+							"hostname");
 			break;
 		case DHCP_DNSDOMAIN:
-			ni_dhcp_option_get_string(&buf, &dnsdomain);
+			ni_dhcp_option_get_domain(&buf, &dnsdomain,
+							"dns-domain");
 			break;
 		case DHCP_MESSAGE:
-			ni_dhcp_option_get_string(&buf, &lease->dhcp.message);
+			ni_dhcp_option_get_printable(&buf, &lease->dhcp.message,
+							"dhcp-message");
 			break;
 		case DHCP_ROOTPATH:
-			ni_dhcp_option_get_string(&buf, &lease->dhcp.rootpath);
+			ni_dhcp_option_get_pathname(&buf, &lease->dhcp.rootpath,
+							"root-path");
 			break;
 		case DHCP_NISDOMAIN:
-			ni_dhcp_option_get_string(&buf, &nisdomain);
+			ni_dhcp_option_get_domain(&buf, &nisdomain,
+							"nis-domain");
 			break;
 		case DHCP_NETBIOSNODETYPE:
-			ni_dhcp_option_get_string(&buf, &lease->netbios_domain);
 			break;
 		case DHCP_NETBIOSSCOPE:
-			ni_dhcp_option_get_string(&buf, &lease->netbios_scope);
+			ni_dhcp_option_get_domain(&buf, &lease->netbios_scope,
+							"netbios-scope");
 			break;
 		case DHCP_DNSSERVER:
 			ni_dhcp_decode_address_list(&buf, &dns_servers);
@@ -847,7 +934,7 @@ parse_more:
 			ni_dhcp_decode_address_list(&buf, &lease->netbios_dd_servers);
 			break;
 		case DHCP_DNSSEARCH:
-			ni_dhcp_decode_dnssearch(&buf, &dns_search);
+			ni_dhcp_decode_dnssearch(&buf, &dns_search, "dns-search domain");
 			break;
 
 		case DHCP_CSR:
@@ -911,11 +998,13 @@ parse_more:
 		size_t size = 0;
 
 		if (opt_overload & DHCP_OVERLOAD_BOOTFILE) {
+			use_bootfile = 0;
 			more_data = message->bootfile;
 			size = sizeof(message->bootfile);
 			opt_overload &= ~DHCP_OVERLOAD_BOOTFILE;
 		} else
 		if (opt_overload & DHCP_OVERLOAD_SERVERNAME) {
+			use_bootserver = 0;
 			more_data = message->servername;
 			size = sizeof(message->servername);
 			opt_overload &= ~DHCP_OVERLOAD_SERVERNAME;
@@ -926,6 +1015,37 @@ parse_more:
 			ni_buffer_init_reader(&overload_buf, (void *) more_data, size);
 			options = &overload_buf;
 			goto parse_more;
+		}
+	}
+
+	if (use_bootserver && message->servername[0]) {
+		char tmp[sizeof(message->servername)];
+		size_t len;
+
+		assert(sizeof(lease->dhcp.servername) == sizeof(message->servername));
+		memcpy(tmp, message->servername, sizeof(tmp));
+		tmp[sizeof(tmp)-1] = '\0';
+
+		len = ni_string_len(tmp);
+		if (len > 0 && ni_check_domain_name(tmp, len, 0)) {
+			memcpy(lease->dhcp.servername, tmp, sizeof(lease->dhcp.servername));
+		} else {
+			ni_debug_dhcp("Discarded suspect boot-server name: %s",
+					ni_print_suspect(tmp, len));
+		}
+	}
+	if (use_bootfile && message->bootfile[0]) {
+		char tmp[sizeof(message->bootfile)];
+		size_t len;
+
+		memcpy(tmp, message->bootfile, sizeof(tmp));
+		tmp[sizeof(tmp)-1] = '\0';
+		len = ni_string_len(tmp);
+		if (len > 0 && ni_check_pathname(tmp, len)) {
+			ni_string_dup(&lease->dhcp.bootfile, tmp);
+		} else {
+			ni_debug_dhcp("Discarded suspect boot-file name: %s",
+					ni_print_suspect(tmp, len));
 		}
 	}
 

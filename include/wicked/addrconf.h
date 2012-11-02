@@ -97,6 +97,7 @@ struct ni_addrconf_lease {
 		uint32_t		rebind_time;
 
 		char *			message;
+		char *			bootfile;
 		char *			rootpath;
 	    } dhcp;
 	    struct ni_addrconf_lease_dhcp6 {

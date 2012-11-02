@@ -814,7 +814,8 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *info)
 {
 	ni_dhcp6_config_t *config;
 	ni_dhcp6_ia_t *ia;
-        int rv;
+	size_t len;
+	int rv;
 
 	config = xcalloc(1, sizeof(*config));
 	config->uuid = info->uuid;
@@ -845,8 +846,13 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *info)
 		}
 	}
 
-	if (info->hostname) {
-		strncpy(config->hostname, info->hostname, sizeof(config->hostname) - 1);
+	if ((len = ni_string_len(info->hostname)) > 0) {
+		if (ni_check_domain_name(info->hostname, len, 0)) {
+			ni_debug_dhcp("Discarded request to use suspect hostname: %s",
+				ni_print_suspect(info->hostname, len));
+		} else {
+			strncpy(config->hostname, info->hostname, sizeof(config->hostname) - 1);
+		}
 	}
 
 	/* TODO: get from req info */

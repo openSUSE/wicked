@@ -370,8 +370,6 @@ extern const char *	ni_dhcp6_print_timeval(const struct timeval *);
 extern const char *	ni_dhcp6_print_time(time_t);
 
 extern const char *	ni_dhcp6_address_print(const struct in6_addr *);
-extern int		ni_dhcp6_check_domain_name(const char *, size_t, int);
-extern int		ni_dhcp6_check_domain_list(const char *, size_t, int);
 
 extern void		ni_dhcp6_option_request_init(ni_dhcp6_option_request_t *);
 extern int		ni_dhcp6_option_request_append(ni_dhcp6_option_request_t *, uint16_t);

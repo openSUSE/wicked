@@ -246,5 +246,13 @@ extern int		ni_hashctx_get_digest(ni_hashctx_t *, void *, size_t);
 extern void		ni_hashctx_puts(ni_hashctx_t *, const char *);
 
 
+/*
+ * Sanity check functions
+ */
+extern ni_bool_t	ni_check_domain_name(const char *, size_t, int);
+extern ni_bool_t	ni_check_pathname(const char *, size_t);
+extern ni_bool_t	ni_check_printable(const char *, size_t);
+extern const char *	ni_print_suspect(const char *, size_t);
+
 #endif /* __WICKED_UTIL_H__ */
 

@@ -554,6 +554,7 @@ ni_addrconf_lease_destroy(ni_addrconf_lease_t *lease)
 	switch (lease->type) {
 	case NI_ADDRCONF_DHCP:
 		ni_string_free(&lease->dhcp.message);
+		ni_string_free(&lease->dhcp.bootfile);
 		ni_string_free(&lease->dhcp.rootpath);
 		break;
 

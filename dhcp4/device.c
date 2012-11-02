@@ -245,6 +245,7 @@ ni_dhcp_acquire(ni_dhcp_device_t *dev, const ni_dhcp4_request_t *info)
 {
 	ni_dhcp_config_t *config;
 	const char *classid;
+	size_t len;
 	int rv;
 
 	if ((rv = ni_dhcp_device_refresh(dev)) < 0)
@@ -264,8 +265,14 @@ ni_dhcp_acquire(ni_dhcp_device_t *dev, const ni_dhcp4_request_t *info)
 	if (info->lease_time && info->lease_time < config->max_lease_time)
 		config->max_lease_time = info->lease_time;
 
-	if (info->hostname)
-		strncpy(config->hostname, info->hostname, sizeof(config->hostname) - 1);
+	if ((len = ni_string_len(info->hostname)) > 0) {
+		if (ni_check_domain_name(info->hostname, len, 0)) {
+			ni_debug_dhcp("Discarded request to use suspect hostname: %s",
+				ni_print_suspect(info->hostname, len));
+		} else {
+			strncpy(config->hostname, info->hostname, sizeof(config->hostname) - 1);
+		}
+	}
 
 	if (info->clientid) {
 		strncpy(config->client_id, info->clientid, sizeof(config->client_id)-1);

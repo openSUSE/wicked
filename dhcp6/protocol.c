@@ -653,70 +653,6 @@ failure:
 	return -1;
 }
 
-int
-ni_dhcp6_check_domain_name(const char *ptr, size_t len, int dots)
-{
-	const char *p;
-
-	/* dots  < 0: no dots allowed at all
-	   dots == 0: any number of dots allowed
-	   dots  > 0: specified number of dots required at least  */
-
-	/* not empty or complete length not over 255 characters
-	   additionally, we allow a [.] at the end ('foo.bar.')   */
-	if (!ptr || len == 0 || len >= 256)
-		return -1;
-
-	/* consists of [[:alnum:]-]+ labels separated by [.]      */
-	/* a [_] is against RFC but seems to be "widely used"...  */
-	for (p=ptr; *p && len-- > 0; p++) {
-		if ( *p == '-' || *p == '_') {
-			/* not allowed at begin or end of a label */
-			if ((p - ptr) == 0 || len == 0 || p[1] == '.')
-				return -1;
-		} else if ( *p == '.') {
-			/* each label has to be 1-63 characters;
-			   we allow [.] at the end ('foo.bar.')   */
-			ssize_t d = (ssize_t)(p - ptr);
-			if( d <= 0 || d >= 64)
-				return -1;
-			ptr = p + 1; /* jump to the next label    */
-			if(dots > 0 && len > 0)
-				dots--;
-		} else if ( !isalnum((unsigned char)*p)) {
-			/* also numbers at the begin are fine     */
-			return -1;
-		}
-	}
-	return dots ? -1 : 0;
-}
-
-int
-ni_dhcp6_check_domain_list(const char *ptr, size_t len, int dots)
-{
-	const char *p;
-	int ret = -1; /* at least one needed */
-
-	if (!ptr || len == 0)
-		return ret;
-
-	for (p=ptr; (*p != 0) && (len > 0); p++, len--) {
-		if (*p != ' ')
-			continue;
-		if (p > ptr) {
-			if (ni_dhcp6_check_domain_name(ptr, p - ptr, dots) != 0)
-				return -1;
-			ret = 0;
-		}
-		ptr = p + 1;
-	}
-
-	if (p > ptr)
-		return ni_dhcp6_check_domain_name(ptr, p - ptr, dots);
-	else
-		return ret;
-}
-
 static int
 ni_dhcp6_fqdn_encode(ni_buffer_t *bp, const char *fqdn)
 {
@@ -996,17 +932,21 @@ ni_dhcp6_decode_address_list(ni_buffer_t *bp, ni_string_array_t *list)
 
 /*
  * FIXME: See http://tools.ietf.org/html/rfc3315#section-8
+ *        Move to src/dhcputils.c ?
  *
  * Decode an RFC3397 DNS search order option.
  */
 static int
-ni_dhcp6_decode_dnssearch(ni_buffer_t *optbuf, ni_string_array_t *list)
+ni_dhcp6_decode_dnssearch(ni_buffer_t *optbuf, ni_string_array_t *list, const char *what)
 {
+	ni_stringbuf_t namebuf = NI_STRINGBUF_INIT_DYNAMIC;
 	unsigned char *base = ni_buffer_head(optbuf);
 	unsigned int base_offset = optbuf->head;
+	size_t len;
+
+	ni_string_array_destroy(list);
 
 	while (ni_buffer_count(optbuf) && !optbuf->underflow) {
-		ni_stringbuf_t namebuf = NI_STRINGBUF_INIT_DYNAMIC;
 		ni_buffer_t *bp = optbuf;
 		ni_buffer_t jumpbuf;
 
@@ -1017,7 +957,7 @@ ni_dhcp6_decode_dnssearch(ni_buffer_t *optbuf, ni_string_array_t *list)
 			int length;
 
 			if ((length = ni_buffer_getc(bp)) < 0)
-				return -1; /* unexpected EOF */
+				goto failure; /* unexpected EOF */
 
 			if (length == 0)
 				break;	/* end of this name */
@@ -1026,9 +966,9 @@ ni_dhcp6_decode_dnssearch(ni_buffer_t *optbuf, ni_string_array_t *list)
 			case 0:
 				/* Plain name component */
 				if (ni_buffer_get(bp, label, length) < 0)
-					return -1;
-				label[length] = '\0';
+					goto failure;
 
+				label[length] = '\0';
 				if (!ni_stringbuf_empty(&namebuf))
 					ni_stringbuf_putc(&namebuf, '.');
 				ni_stringbuf_puts(&namebuf, label);
@@ -1038,10 +978,11 @@ ni_dhcp6_decode_dnssearch(ni_buffer_t *optbuf, ni_string_array_t *list)
 				/* Pointer */
 				pointer = (length & 0x3F) << 8;
 				if ((length = ni_buffer_getc(bp)) < 0)
-					return -1;
+					goto failure;
+
 				pointer |= length;
 				if (pointer >= pos)
-					return -1;
+					goto failure;
 
 				ni_buffer_init_reader(&jumpbuf, base, pos);
 				jumpbuf.head = pointer;
@@ -1049,17 +990,30 @@ ni_dhcp6_decode_dnssearch(ni_buffer_t *optbuf, ni_string_array_t *list)
 				break;
 
 			default:
-				return -1;
+				goto failure;
 			}
 
 		}
 
-		if (!ni_stringbuf_empty(&namebuf))
-			ni_string_array_append(list, namebuf.string);
+		if (!ni_stringbuf_empty(&namebuf)) {
+
+			len = ni_string_len(namebuf.string);
+			if (ni_check_domain_name(namebuf.string, len, 0)) {
+				ni_debug_dhcp("Discarded suspect %s: %s", what,
+					ni_print_suspect(namebuf.string, len));
+			} else {
+				ni_string_array_append(list, namebuf.string);
+			}
+		}
 		ni_stringbuf_destroy(&namebuf);
 	}
 
 	return 0;
+
+failure:
+	ni_stringbuf_destroy(&namebuf);
+	ni_string_array_destroy(list);
+	return -1;
 }
 
 /*
@@ -1834,8 +1788,22 @@ ni_dhcp6_option_parse_ia_address(ni_buffer_t *bp, ni_dhcp6_ia_t *ia, uint16_t ad
 
 		switch (option) {
 		case NI_DHCP6_OPTION_STATUS_CODE:
-			if (ni_dhcp6_option_get_status(&optbuf, &iadr->status) < 0)
+			if (ni_dhcp6_option_get_status(&optbuf, &iadr->status) < 0) {
 				goto failure;
+			} else {
+				size_t len = ni_string_len(iadr->status.message);
+
+				if (!ni_check_printable(iadr->status.message, len)) {
+					ni_debug_dhcp("%s.%s.%s: discarded non-printable"
+							" status message: %s",
+						ni_dhcp6_option_name(ia->type),
+						ni_dhcp6_option_name(addr_type),
+						ni_dhcp6_option_name(option),
+						ni_print_suspect(iadr->status.message,
+								len));
+					ni_string_free(&iadr->status.message);
+				}
+			}
 		break;
 
 		default:
@@ -1955,8 +1923,21 @@ __ni_dhcp6_option_parse_ia_options(ni_buffer_t *bp,  ni_dhcp6_ia_t *ia)
 		break;
 
 		case NI_DHCP6_OPTION_STATUS_CODE:
-			if (ni_dhcp6_option_get_status(&optbuf, &ia->status) < 0)
+			if (ni_dhcp6_option_get_status(&optbuf, &ia->status) < 0) {
 				goto failure;
+			} else {
+				size_t len = ni_string_len(ia->status.message);
+
+				if (!ni_check_printable(ia->status.message, len)) {
+					ni_debug_dhcp("%s.%s: discarded non-printable"
+							" status message: %s",
+						ni_dhcp6_option_name(ia->type),
+						ni_dhcp6_option_name(option),
+						ni_print_suspect(ia->status.message,
+								len));
+					ni_string_free(&ia->status.message);
+				}
+			}
 		break;
 
 		default:
@@ -2207,6 +2188,16 @@ ni_dhcp6_parse_client_options(ni_dhcp6_device_t *dev, ni_buffer_t *buffer, ni_ad
 			}
 
 			if (ni_dhcp6_option_get_status(&optbuf, lease->dhcp6.status) == 0) {
+				size_t len = ni_string_len(lease->dhcp6.status->message);
+
+				if (!ni_check_printable(lease->dhcp6.status->message, len)) {
+					ni_debug_dhcp("%s: discarded non-printable"
+							" status message: %s",
+						ni_dhcp6_option_name(option),
+						ni_print_suspect(lease->dhcp6.status->message,
+								len));
+					ni_string_free(&lease->dhcp6.status->message);
+				}
 				ni_debug_dhcp("%s: %u [%s]", ni_dhcp6_option_name(option),
 						lease->dhcp6.status->code,
 						lease->dhcp6.status->message);
@@ -2264,7 +2255,7 @@ ni_dhcp6_parse_client_options(ni_dhcp6_device_t *dev, ni_buffer_t *buffer, ni_ad
 				}
 			}
 
-			if (ni_dhcp6_decode_dnssearch(&optbuf, &temp) == 0) {
+			if (ni_dhcp6_decode_dnssearch(&optbuf, &temp, "dns-search domain") == 0) {
 				for (i = 0; i < temp.count; ++i) {
 					ni_debug_dhcp("%s: %s", ni_dhcp6_option_name(option),
 							temp.data[i]);
@@ -2286,7 +2277,7 @@ ni_dhcp6_parse_client_options(ni_dhcp6_device_t *dev, ni_buffer_t *buffer, ni_ad
 			ni_string_array_destroy(&temp);
 		break;
 		case NI_DHCP6_OPTION_SIP_SERVER_D:
-			if (ni_dhcp6_decode_dnssearch(&optbuf, &temp) == 0) {
+			if (ni_dhcp6_decode_dnssearch(&optbuf, &temp, "sip-server name") == 0) {
 				for (i = 0; i < temp.count; ++i) {
 					ni_debug_dhcp("%s: %s", ni_dhcp6_option_name(option),
 							temp.data[i]);
