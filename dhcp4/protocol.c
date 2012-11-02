@@ -456,6 +456,7 @@ ni_dhcp_build_message(const ni_dhcp_device_t *dev,
 			ni_buffer_putc(msgbuf, DHCP_LOGSERVER);
 			ni_buffer_putc(msgbuf, DHCP_NETBIOSNAMESERVER);
 			ni_buffer_putc(msgbuf, DHCP_NETBIOSDDSERVER);
+			ni_buffer_putc(msgbuf, DHCP_NETBIOSNODETYPE);
 			ni_buffer_putc(msgbuf, DHCP_NETBIOSSCOPE);
 		}
 
@@ -790,6 +791,28 @@ ni_dhcp_option_get_printable(ni_buffer_t *bp, char **var, const char *what)
 	return 0;
 }
 
+static int
+ni_dhcp_option_get_netbios_type(ni_buffer_t *bp, unsigned int *type)
+{
+	unsigned int len = ni_buffer_count(bp);
+
+	if (len != 1)
+		return -1;
+
+	*type = (unsigned int)ni_buffer_getc(bp);
+	switch (*type) {
+		case 0x1:	/* B-node */
+		case 0x2:	/* P-node */
+		case 0x4:	/* M-node */
+		case 0x8:	/* H-node */
+			return 0;
+		default:
+			break;
+	}
+	*type = 0;
+	return -1;
+}
+
 /*
  * Parse a DHCP response.
  * FIXME: RFC2131 states that the server is allowed to split a DHCP option into
@@ -907,6 +930,7 @@ parse_more:
 							"nis-domain");
 			break;
 		case DHCP_NETBIOSNODETYPE:
+			ni_dhcp_option_get_netbios_type(&buf, &lease->netbios_type);
 			break;
 		case DHCP_NETBIOSSCOPE:
 			ni_dhcp_option_get_domain(&buf, &lease->netbios_scope,

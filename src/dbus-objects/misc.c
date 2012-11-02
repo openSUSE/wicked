@@ -623,6 +623,34 @@ __ni_objectmodel_route_from_dict(ni_route_t **list, const ni_dbus_variant_t *dic
 	return rp;
 }
 
+static const ni_intmap_t __ni_netbios_node_types[] = {
+	{ "B-node",	0x1 },
+	{ "P-node",	0x2 },
+	{ "M-node",	0x4 },
+	{ "H-node",	0x8 },
+	{ NULL,		0x0 }
+};
+
+static const char *
+ni_netbios_node_type_to_name(unsigned int code)
+{
+	return ni_format_int_mapped(code, __ni_netbios_node_types);
+}
+
+static unsigned int
+ni_netbios_node_type_to_code(const char *name)
+{
+	unsigned int val;
+
+	/* allow parsing as number, ... */
+	if (ni_parse_int_mapped(name, __ni_netbios_node_types, &val) < 0)
+		return 0;
+	/* but verify it's a valid type */
+	if (ni_format_int_mapped(val, __ni_netbios_node_types) == NULL)
+		return 0;
+	return val;
+}
+
 /*
  * Build a DBus dict from an addrconf lease
  */
@@ -680,8 +708,9 @@ __ni_objectmodel_get_addrconf_lease(const ni_addrconf_lease_t *lease,
 
 	__ni_objectmodel_set_string_array(result, "netbios-name-servers", &lease->netbios_name_servers);
 	__ni_objectmodel_set_string_array(result, "netbios-dd-servers", &lease->netbios_dd_servers);
-	if (lease->netbios_domain)
-		ni_dbus_dict_add_string(result, "netbios-domain", lease->netbios_domain);
+	if (lease->netbios_type)
+		ni_dbus_dict_add_string(result, "netbios-node-type",
+				ni_netbios_node_type_to_name(lease->netbios_type));
 	if (lease->netbios_scope)
 		ni_dbus_dict_add_string(result, "netbios-scope", lease->netbios_scope);
 
@@ -781,8 +810,8 @@ __ni_objectmodel_set_addrconf_lease(ni_addrconf_lease_t *lease,
 	if ((child = ni_dbus_dict_get(argument, "netbios-dd-servers")) != NULL
 	 && !__ni_objectmodel_get_string_array(&lease->netbios_dd_servers, child, error))
 		return FALSE;
-	if (ni_dbus_dict_get_string(argument, "netbios-domain", &string_value))
-		ni_string_dup(&lease->netbios_domain, string_value);
+	if (ni_dbus_dict_get_string(argument, "netbios-node-type", &string_value))
+		lease->netbios_type = ni_netbios_node_type_to_code(string_value);
 	if (ni_dbus_dict_get_string(argument, "netbios-scope", &string_value))
 		ni_string_dup(&lease->netbios_scope, string_value);
 

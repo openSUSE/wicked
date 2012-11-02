@@ -44,7 +44,7 @@
 
     <netbios-name-servers class="array" element-type="string" />
     <netbios-dd-servers class="array" element-type="string" />
-    <netbios-domain type="string" />
+    <netbios-node-type type="string" />
     <netbios-scope type="string" />
   </define>
 

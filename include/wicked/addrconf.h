@@ -73,8 +73,8 @@ struct ni_addrconf_lease {
 	ni_string_array_t	ntp_servers;
 	ni_string_array_t	netbios_name_servers;
 	ni_string_array_t	netbios_dd_servers;
-	char *			netbios_domain;
 	char *			netbios_scope;
+	unsigned int 		netbios_type;
 	ni_string_array_t	slp_servers;
 	ni_string_array_t	slp_scopes;
 	ni_string_array_t	sip_servers;
