@@ -57,7 +57,7 @@ out:
 }
 
 /*
- * Common helper function to extract bonding device info from a dbus dict
+ * Common helper function to extract ethernet device info from a dbus dict
  */
 static ni_netdev_t *
 __ni_objectmodel_ethernet_device_arg(const ni_dbus_variant_t *dict)
@@ -67,7 +67,14 @@ __ni_objectmodel_ethernet_device_arg(const ni_dbus_variant_t *dict)
 	dbus_bool_t rv;
 
 	dev = ni_netdev_new(NULL, 0);
+	if (!dev)
+		return NULL;
+
 	dev->link.type = NI_IFTYPE_ETHERNET;
+	if (!ni_netdev_get_ethernet(dev)) {
+		ni_netdev_put(dev);
+		return NULL;
+	}
 
 	dev_object = ni_objectmodel_wrap_netif(dev);
 	rv = ni_dbus_object_set_properties_from_dict(dev_object, &ni_objectmodel_ethernet_service, dict, NULL);
