@@ -241,6 +241,8 @@ install-data: $(GENFILES)
 	install -c -m 444 schema/*.xml $(DESTDIR)$(wickedconfigdir)/schema
 	install -d -m 755 $(DESTDIR)$(wickedconfigdir)/extensions
 	install -c -m 555 extensions/* $(DESTDIR)$(wickedconfigdir)/extensions
+	install -d -m 755 $(DESTDIR)$(dbus_servicedir)
+	install -c -m 755 etc/*.service $(DESTDIR)$(dbus_servicedir)
 
 install-man:
 	install -d -m 755 $(DESTDIR)$(mandir)/man{5,7,8}

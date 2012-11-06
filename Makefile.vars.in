@@ -15,6 +15,7 @@ devellibdir		= @devellibdir@
 sysvinitdir		= @sysvinitdir@
 pkgconfigdir		= @pkgconfigdir@
 dbus_systemdir		= @dbus_systemdir@
+dbus_servicedir		= @dbus_servicedir@
 
 PACKAGE_URL		= @PACKAGE_URL@
 PACKAGE_NAME		= @PACKAGE_NAME@

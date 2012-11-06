@@ -18,8 +18,11 @@ AC_PREFIX_DEFAULT([/usr])
 # Define sys-v init script directory
 AC_SUBST(sysvinitdir, '${sysconfdir}/init.d')
 
-# Define dbus-1/system.d directory
+# Define /etc/dbus-1/system.d directory
 AC_SUBST(dbus_systemdir, '${sysconfdir}/dbus-1/system.d')
+
+# Define /usr/share/dbus-1/system-services directory
+AC_SUBST(dbus_servicedir, '${datarootdir}/dbus-1/system-services')
 
 # Define pkg-config data directory
 AC_SUBST(pkgconfigdir, '${datarootdir}/pkgconfig')
