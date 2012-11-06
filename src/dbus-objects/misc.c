@@ -16,6 +16,7 @@
 #include <signal.h>
 #include <getopt.h>
 #include <errno.h>
+#include <arpa/inet.h>
 
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
@@ -190,6 +191,125 @@ __ni_objectmodel_get_string_array(ni_string_array_t *ap, const ni_dbus_variant_t
 
 	for (i = 0; i < len; ++i)
 		ni_string_array_append(ap, var->string_array_value[i]);
+	return TRUE;
+}
+
+dbus_bool_t
+__ni_objectmodel_get_domain_string(const ni_dbus_variant_t *dict, const char *key, const char **value)
+{
+	const char *string_value = NULL;
+	size_t len;
+
+	if (ni_dbus_dict_get_string(dict, key, &string_value)) {
+		len = ni_string_len(string_value);
+		if (ni_check_domain_name(string_value, len, 0)) {
+			*value = string_value;
+			return TRUE;
+		}
+		ni_debug_objectmodel("Discarded suspect objectmodel %s: %s",
+					key, ni_print_suspect(string_value, len));
+	}
+	return FALSE;
+}
+
+static inline dbus_bool_t
+__ni_objectmodel_get_domain_array(ni_string_array_t *ap, const ni_dbus_variant_t *var, DBusError *error, const char *key)
+{
+	unsigned int i, len;
+	const char *vstr;
+	size_t vlen;
+
+	if (!ni_dbus_variant_is_string_array(var))
+		return FALSE;
+
+	if ((len = var->array.len) > 64)
+		len = 64;
+
+	for (i = 0; i < len; ++i) {
+		vstr = var->string_array_value[i];
+		vlen = ni_string_len(vstr);
+
+		if (ni_check_domain_name(vstr, vlen, 0)) {
+			ni_string_array_append(ap, vstr);
+			continue;
+		}
+		ni_debug_objectmodel("Discarded suspect objectmodel %s: %s",
+				key, ni_print_suspect(vstr, vlen));
+	}
+	return TRUE;
+}
+
+static inline dbus_bool_t
+__ni_objectmodel_get_server_array(ni_string_array_t *ap, const ni_dbus_variant_t *var, DBusError *error, const char *key)
+{
+	unsigned int i, len;
+	ni_sockaddr_t addr;
+	const char *vstr;
+	size_t vlen;
+
+	if (!ni_dbus_variant_is_string_array(var))
+		return FALSE;
+
+	if ((len = var->array.len) > 64)
+		len = 64;
+
+	for (i = 0; i < len; ++i) {
+		vstr = var->string_array_value[i];
+		vlen = ni_string_len(vstr);
+
+		if (vlen > 0 && strchr(vstr, ':') != NULL) {
+			/* IPv6 address */
+			if (inet_pton(AF_INET6, vstr, &addr.six.sin6_addr) == 1) {
+				ni_string_array_append(ap, vstr);
+				continue;
+			}
+		} else if (ni_check_domain_name(vstr, vlen, 0)) {
+			/* IPv4 address or FQDN */
+			ni_string_array_append(ap, vstr);
+			continue;
+		}
+
+		ni_debug_objectmodel("Discarded suspect objectmodel %s: %s",
+				key, ni_print_suspect(vstr, vlen));
+	}
+	return TRUE;
+}
+
+static inline dbus_bool_t
+__ni_objectmodel_get_address_array(ni_string_array_t *ap, const ni_dbus_variant_t *var, DBusError *error, const char *key)
+{
+	unsigned int i, len;
+	ni_sockaddr_t addr;
+	const char *vstr;
+	size_t vlen;
+
+	if (!ni_dbus_variant_is_string_array(var))
+		return FALSE;
+
+	if ((len = var->array.len) > 64)
+		len = 64;
+
+	for (i = 0; i < len; ++i) {
+		vstr = var->string_array_value[i];
+		vlen = ni_string_len(vstr);
+
+		if (vlen > 0 && strchr(vstr, ':') != NULL) {
+			/* IPv6 address */
+			if (inet_pton(AF_INET6, vstr, &addr.six.sin6_addr) == 1) {
+				ni_string_array_append(ap, vstr);
+				continue;
+			}
+		} else if (vlen > 0) {
+			/* IPv4 address */
+			if (inet_pton(AF_INET, vstr, &addr.sin.sin_addr) == 1) {
+				ni_string_array_append(ap, vstr);
+				continue;
+			}
+		}
+
+		ni_debug_objectmodel("Discarded suspect objectmodel %s: %s",
+				key, ni_print_suspect(vstr, vlen));
+	}
 	return TRUE;
 }
 
@@ -752,7 +872,7 @@ __ni_objectmodel_set_addrconf_lease(ni_addrconf_lease_t *lease,
 	else
 		lease->update = ~0;
 
-	if (ni_dbus_dict_get_string(argument, "hostname", &string_value))
+	if (__ni_objectmodel_get_domain_string(argument, "hostname", &string_value))
 		ni_string_dup(&lease->hostname, string_value);
 
 	if ((child = ni_dbus_dict_get(argument, "uuid")) != NULL
@@ -772,47 +892,58 @@ __ni_objectmodel_set_addrconf_lease(ni_addrconf_lease_t *lease,
 		ni_dbus_variant_t *list;
 
 		lease->resolver = resolv;
-		if (ni_dbus_dict_get_string(child, "default-domain", &string_value))
+		if (__ni_objectmodel_get_domain_string(child, "default-domain",
+								&string_value))
 			ni_string_dup(&resolv->default_domain, string_value);
 
 		if ((list = ni_dbus_dict_get(child, "servers")) != NULL
-		 && !__ni_objectmodel_get_string_array(&resolv->dns_servers, list, error))
+		 && !__ni_objectmodel_get_address_array(&resolv->dns_servers, list,
+							error, "dns-servers"))
 			return FALSE;
 		if ((list = ni_dbus_dict_get(child, "search")) != NULL
-		 && !__ni_objectmodel_get_string_array(&resolv->dns_search, list, error))
+		 && !__ni_objectmodel_get_domain_array(&resolv->dns_search, list,
+							error, "dns-search"))
 			return FALSE;
 	}
 
 	/* TBD: NIS information */
 
 	if ((child = ni_dbus_dict_get(argument, "log-servers")) != NULL
-	 && !__ni_objectmodel_get_string_array(&lease->log_servers, child, error))
+	 && !__ni_objectmodel_get_address_array(&lease->log_servers, child, error,
+						"log-servers"))
 		return FALSE;
 	if ((child = ni_dbus_dict_get(argument, "ntp-servers")) != NULL
-	 && !__ni_objectmodel_get_string_array(&lease->ntp_servers, child, error))
+	 && !__ni_objectmodel_get_address_array(&lease->ntp_servers, child, error,
+						"ntp-servers"))
 		return FALSE;
 	if ((child = ni_dbus_dict_get(argument, "slp-servers")) != NULL
-	 && !__ni_objectmodel_get_string_array(&lease->slp_servers, child, error))
+	 && !__ni_objectmodel_get_address_array(&lease->slp_servers, child, error,
+						"slp-servers"))
 		return FALSE;
 	if ((child = ni_dbus_dict_get(argument, "slp-scopes")) != NULL
-	 && !__ni_objectmodel_get_string_array(&lease->slp_scopes, child, error))
+	 && !__ni_objectmodel_get_domain_array(&lease->slp_scopes, child, error,
+						"slp-scopes"))
 		return FALSE;
 	if ((child = ni_dbus_dict_get(argument, "sip-servers")) != NULL
-	 && !__ni_objectmodel_get_string_array(&lease->sip_servers, child, error))
+	 && !__ni_objectmodel_get_server_array(&lease->sip_servers, child, error,
+						"sip-servers"))
 		return FALSE;
 	if ((child = ni_dbus_dict_get(argument, "lpr-servers")) != NULL
-	 && !__ni_objectmodel_get_string_array(&lease->lpr_servers, child, error))
+	 && !__ni_objectmodel_get_address_array(&lease->lpr_servers, child, error,
+						"lpr-servers"))
 		return FALSE;
 
 	if ((child = ni_dbus_dict_get(argument, "netbios-name-servers")) != NULL
-	 && !__ni_objectmodel_get_string_array(&lease->netbios_name_servers, child, error))
+	 && !__ni_objectmodel_get_address_array(&lease->netbios_name_servers, child,
+						error, "netbios-name-servers"))
 		return FALSE;
 	if ((child = ni_dbus_dict_get(argument, "netbios-dd-servers")) != NULL
-	 && !__ni_objectmodel_get_string_array(&lease->netbios_dd_servers, child, error))
+	 && !__ni_objectmodel_get_address_array(&lease->netbios_dd_servers, child,
+						error, "netbios-dd-servers"))
 		return FALSE;
 	if (ni_dbus_dict_get_string(argument, "netbios-node-type", &string_value))
 		lease->netbios_type = ni_netbios_node_type_to_code(string_value);
-	if (ni_dbus_dict_get_string(argument, "netbios-scope", &string_value))
+	if (__ni_objectmodel_get_domain_string(argument, "netbios-scope", &string_value))
 		ni_string_dup(&lease->netbios_scope, string_value);
 
 	return TRUE;
