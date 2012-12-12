@@ -49,6 +49,7 @@ extern ni_ppp_t *		ni_ppp_new(const char *);
 extern void			ni_ppp_close(ni_ppp_t *);
 extern void			ni_ppp_free(ni_ppp_t *);
 extern int			ni_ppp_write_config(const ni_ppp_t *);
+extern ni_bool_t		ni_ppp_check_config(const ni_ppp_t *);
 
 extern ni_ppp_config_t *	ni_ppp_config_new(void);
 extern void			ni_ppp_config_free(ni_ppp_config_t *);

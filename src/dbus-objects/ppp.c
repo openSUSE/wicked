@@ -150,7 +150,7 @@ __ni_objectmodel_ppp_device_arg(const ni_dbus_variant_t *dict, DBusError *error)
 	}
 
 	ppp = ni_netdev_get_ppp(ppp_dev);
-	if (!ppp || !ppp->config || !(device_path = ppp->config->device.object_path)) {
+	if (!ni_ppp_check_config(ppp) || !(device_path = ppp->config->device.object_path)) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "No or incomplete PPP device configuration");
 		return NULL;
 	}

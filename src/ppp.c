@@ -129,6 +129,7 @@ ni_ppp_write_config(const ni_ppp_t *ppp)
 {
 	ni_ppp_config_t *conf;
 	char *configpath;
+	char *quoted = NULL;
 	FILE *fp;
 
 	if ((conf = ppp->config) == NULL) {
@@ -172,12 +173,21 @@ ni_ppp_write_config(const ni_ppp_t *ppp)
 			return -1;
 		}
 
-		if (auth->hostname)
-			fprintf(fp, "name %s\n", auth->hostname);
-		if (auth->username)
-			fprintf(fp, "user %s\n", auth->username);
-		if (auth->password)
-			fprintf(fp, "password %s\n", auth->password);
+		if (auth->hostname) {
+			quoted = ni_quote(auth->hostname, "");
+			fprintf(fp, "name %s\n", quoted);
+			ni_string_free(&quoted);
+		}
+		if (auth->username) {
+			quoted = ni_quote(auth->username, "");
+			fprintf(fp, "user %s\n", quoted);
+			ni_string_free(&quoted);
+		}
+		if (auth->password) {
+			quoted = ni_quote(auth->password, "");
+			fprintf(fp, "password %s\n", quoted);
+			ni_string_free(&quoted);
+		}
 	}
 
 	if (fp)
@@ -197,3 +207,80 @@ __ni_ppp_tag_to_index(const char *tag, unsigned int *indexp)
 		return FALSE;
 	return ni_parse_int(tag + prefixlen, indexp) >= 0;
 }
+
+static ni_bool_t
+__ni_ppp_check_username(const char *username, size_t  len)
+{
+	if (!username || len == 0 || len >= 256)
+		return FALSE;
+
+	/*
+	 * Hmm... ppp seems to allow almost everything;
+	 * let's check it is printable + simple space
+	 * and tab for now...
+	 */
+	return ni_check_printable(username, len);
+}
+
+static ni_bool_t
+__ni_ppp_check_password(const char *password, size_t  len)
+{
+	if (!password || len == 0 || len >= 256)
+		return FALSE;
+
+	/*
+	 * Hmm... ppp seems to allow almost everything;
+	 * let's check if it is printable + simple space
+	 * and tab for now...
+	 */
+	return ni_check_printable(password, len);
+}
+
+static ni_bool_t
+__ni_ppp_check_authconfig(const ni_ppp_authconfig_t *auth)
+{
+	size_t len;
+
+	if (!auth)
+		return FALSE;
+
+	if ((len = ni_string_len(auth->username)) > 0) {
+		if(!__ni_ppp_check_username(auth->username, len))
+			return FALSE;
+	} else {
+		return FALSE;	/* mandatory */
+	}
+
+	if ((len = ni_string_len(auth->password)) > 0) {
+		if(!__ni_ppp_check_password(auth->password, len))
+			return FALSE;
+	} else {
+		return FALSE;	/* mandatory */
+	}
+
+	if (auth->hostname) {
+		len = ni_string_len(auth->hostname);
+		if(!ni_check_domain_name(auth->hostname, len, 0))
+			return FALSE;
+	}
+	return TRUE;
+}
+
+static ni_bool_t
+__ni_ppp_check_config(const ni_ppp_config_t *conf)
+{
+	if (!conf)
+		return FALSE;
+
+	return __ni_ppp_check_authconfig(conf->auth);
+}
+
+ni_bool_t
+ni_ppp_check_config(const ni_ppp_t *ppp)
+{
+	if (!ppp)
+		return FALSE;
+
+	return __ni_ppp_check_config(ppp->config);
+}
+
