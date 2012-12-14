@@ -11,6 +11,7 @@
 #include <getopt.h>
 #include <wicked/netinfo.h>
 #include <wicked/xpath.h>
+#include <wicked/logging.h>
 
 enum {
 	OPT_DEBUG,
