@@ -16,20 +16,24 @@
 /*
  * ====================================================================
  */
-static int	term_sig = 0;
-static void	catch_term_signal(int);
+static int		term_sig = 0;
+static void		catch_term_signal(int);
+static const char *	program_name;
 
-static void	rtnl_test_interface_event(ni_netdev_t *, ni_event_t);
-static void	rtnl_test_interface_addr_event(ni_netdev_t *, ni_event_t, const ni_address_t *);
+static void		rtnl_test_interface_event(ni_netdev_t *, ni_event_t);
+static void		rtnl_test_interface_addr_event(ni_netdev_t *, ni_event_t,
+							const ni_address_t *);
 
-int main(void)
+int main(int argc, char **argv)
 {
 	signal(SIGTERM, catch_term_signal);
 	signal(SIGINT,  catch_term_signal);
 
+	program_name = ni_basename(argv[0]);
+
 	ni_enable_debug("all");
 
-	if (ni_init() < 0)
+	if (ni_init(program_name) < 0)
 		return 1;
 
 	ni_srandom();
