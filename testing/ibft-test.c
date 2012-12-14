@@ -36,12 +36,12 @@ int main(void)
 
 		ni_link_address_format(&nic->hwaddr, buf, sizeof(buf));
 		printf(" hwaddr   : %s\n", buf);
-		printf(" ipaddr   : %s/%u\n", ni_address_format(&nic->ipaddr, buf, sizeof(buf)), nic->prefix_len);
+		printf(" ipaddr   : %s/%u\n", ni_sockaddr_format(&nic->ipaddr, buf, sizeof(buf)), nic->prefix_len);
 
-		printf(" dhcp     : %s\n", ni_address_format(&nic->dhcp, buf, sizeof(buf)));
-		printf(" gateway  : %s\n", ni_address_format(&nic->gateway, buf, sizeof(buf)));
-		printf(" pri_dns  : %s\n", ni_address_format(&nic->primary_dns, buf, sizeof(buf)));
-		printf(" sec_dns  : %s\n", ni_address_format(&nic->secondary_dns, buf, sizeof(buf)));
+		printf(" dhcp     : %s\n", ni_sockaddr_format(&nic->dhcp, buf, sizeof(buf)));
+		printf(" gateway  : %s\n", ni_sockaddr_format(&nic->gateway, buf, sizeof(buf)));
+		printf(" pri_dns  : %s\n", ni_sockaddr_format(&nic->primary_dns, buf, sizeof(buf)));
+		printf(" sec_dns  : %s\n", ni_sockaddr_format(&nic->secondary_dns, buf, sizeof(buf)));
 
 		printf(" hostname: %s\n", nic->hostname);
 
