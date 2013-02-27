@@ -67,7 +67,7 @@ __ni_suse_get_interfaces(const char *path, ni_compat_netdev_array_t *result)
 			ni_compat_netdev_array_append(result, compat);
 		}
 	} else {
-		char *basedir;
+		char *basedir = NULL;
 		ni_compat_netdev_t *compat;
 
 		ni_string_dup(&basedir, ni_dirname(path));

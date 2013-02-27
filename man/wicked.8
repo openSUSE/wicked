@@ -47,7 +47,7 @@ supports a set of options common to all subcommands. These options
 must precede the subcommand, as in
 .PP
 .nf
-.B " # wicked --dry-run ifup eth0
+.B "     # wicked --dry-run ifup eth0
 .fi
 .PP
 Currently, \fBwicked\fP supports the following list of options:
@@ -85,7 +85,7 @@ In its simples form, you just give it the name of an interface, and
 it will bring up the interface using the stored system configuration:
 .PP
 .nf
-.B " wicked ifup eth0
+.B "    # wicked ifup eth0
 .fi
 .PP
 This invocation makes \fBwicked\fP read all network configuration files
@@ -109,13 +109,21 @@ interface to bring up, or \fBall\fP
 to bring up all interfaces described in the file:
 .PP
 .nf
-.B " wicked ifup --ifconfig bridgecfg.xml all
+.B "    # wicked ifup --ifconfig bridgecfg.xml all
 .fi
 .PP
 Note that \fBwicked\fP attempts to bring up interfaces in a "reasonable
 order": for virtual interfaces like VLANs, bridges or bonds, it will
 always make sure that all subordinate devices are in the required state
 before bringing up the virtual device itself.
+.PP
+For the ease of migration, \fBwicked\fP also offers a compatibility mode in
+which it will try to read and interpret configuration files in the old-style
+ifcfg syntax described in \fBifcfg\fP(5):
+.PP
+.nf
+.B "    # wicked ifup --ifconfig compat:/etc/sysconfig/network eth0
+.fi
 .PP
 The \fBifup\fP command supports the following options:
 .TP
@@ -124,9 +132,18 @@ Specify an alternative source of network configuration, instead of
 obtaining the system's interface configuration.
 .IP
 When specifying the path of a file, it must contain an XML definition
-of the interface(s). When \fIpathname\fP refers to a directory,
+of the interface(s) by default. When \fIpathname\fP refers to a directory,
 \fBwicked\fP will scan it for files having a \fB.xml\fP suffix and
 parse these.
+.IP
+If the file name starts with the string \fBcompat:\fP, \fBwicked\fP is
+instructed to load the interface configuration from files in the
+old-style "ifcfg" syntax, as described by the \fBifcfg\fP(5) manual page.
+The string following the \fBcompat:\fP prefix is interpreted as a
+path name. If this path name refers to a directory,
+\fBwicked\fP will scan it for files with names matching \fBifcfg-*\fP.
+If the path name refers to a regular file, it will parse this file, assuming
+it is an ifcfg file.
 .IP
 The special name \fBFIRMWARE\fP can be used to obtain the interface
 definition(s) from firmware services like iBFT.
