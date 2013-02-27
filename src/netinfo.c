@@ -36,8 +36,7 @@ struct ni_netconfig {
 	struct ni_route *	routes;		/* should kill this */
 	ni_modem_t *		modems;
 
-	unsigned char		ibft_nics_init;
-	ni_ibft_nic_array_t	ibft_nics;
+	unsigned char		initialized;
 };
 
 /*
@@ -241,19 +240,15 @@ ni_global_state_handle(int refresh)
 	}
 
 	if (refresh) {
-		int first_time = (nc->ibft_nics_init == 0);
-
-		nc->ibft_nics_init = 1;
-		if (first_time)
-			ni_sysfs_ibft_scan_nics(&nc->ibft_nics);
-
 		if (__ni_system_refresh_interfaces(nc) < 0) {
 			ni_error("failed to refresh interface list");
 			return NULL;
 		}
 
-		if (first_time)
+		if (!nc->initialized) {
 			ni_openvpn_discover(nc);
+			nc->initialized = 1;
+		}
 	}
 
 	return nc;
@@ -428,40 +423,6 @@ ni_netdev_by_vlan_name_and_tag(ni_netconfig_t *nc, const char *physdev_name, uin
 		 && dev->link.vlan->physdev_name
 		 && !strcmp(dev->link.vlan->physdev_name, physdev_name))
 			return dev;
-	}
-
-	return NULL;
-}
-
-/*
- * Find ethernet interface by its ibft node name (ethernet0, ...)
- */
-ni_netdev_t *
-ni_netdev_by_ibft_nodename(ni_netconfig_t *nc, const char *nodename)
-{
-	ni_netdev_t *dev;
-
-	for (dev = nc->interfaces; dev; dev = dev->next) {
-		ni_ibft_nic_t *nic;
-
-		if ((nic = dev->ibft_nic) != NULL
-		 && ni_string_eq(nic->node, nodename))
-			return dev;
-	}
-
-	return NULL;
-}
-
-ni_ibft_nic_t *
-ni_ibft_nic_by_index(ni_netconfig_t *nc, unsigned int ifindex)
-{
-	unsigned int i;
-
-	for (i = 0; i < nc->ibft_nics.count; ++i) {
-		ni_ibft_nic_t *nic = nc->ibft_nics.data[i];
-
-		if (nic->ifindex == ifindex)
-			return nic;
 	}
 
 	return NULL;
