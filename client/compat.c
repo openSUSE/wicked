@@ -437,7 +437,7 @@ __ni_compat_generate_interface(xml_node_t *ifnode, const ni_compat_netdev_t *com
 				xml_node_new_element("timeout", linkdet,
 						ni_sprint_timeout(control->link_timeout));
 			if (control->link_required)
-				(void) xml_node_new("link-required", linkdet);
+				(void) xml_node_new("require-link", linkdet);
 		}
 	}
 
