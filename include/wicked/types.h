@@ -31,8 +31,6 @@ typedef struct ni_wireless_scan	ni_wireless_scan_t;
 typedef struct ni_ethernet	ni_ethernet_t;
 typedef struct ni_openvpn	ni_openvpn_t;
 typedef struct ni_ppp		ni_ppp_t;
-typedef struct ni_ibft_nic	ni_ibft_nic_t;
-typedef struct ni_ibft_nic_array ni_ibft_nic_array_t;
 typedef struct ni_nis_info	ni_nis_info_t;
 typedef struct ni_resolver_info	ni_resolver_info_t;
 typedef struct ni_addrconf_lease  ni_addrconf_lease_t;

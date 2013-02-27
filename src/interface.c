@@ -23,7 +23,6 @@
 #include <wicked/resolver.h>
 #include <wicked/nis.h>
 #include <wicked/route.h>
-#include <wicked/ibft.h>
 #include <wicked/ipv4.h>
 #include <wicked/ipv6.h>
 #include <wicked/pci.h>
@@ -89,7 +88,6 @@ ni_netdev_free(ni_netdev_t *dev)
 	ni_netdev_set_wireless(dev, NULL);
 	ni_netdev_set_openvpn(dev, NULL);
 	ni_netdev_set_ppp(dev, NULL);
-	ni_netdev_set_ibft_nic(dev, NULL);
 	ni_netdev_set_client_info(dev, NULL);
 
 	ni_netdev_set_ipv4(dev, NULL);
@@ -292,20 +290,6 @@ ni_netdev_set_link_stats(ni_netdev_t *dev, ni_link_stats_t *stats)
 	if (dev->link.stats)
 		free(dev->link.stats);
 	dev->link.stats = stats;
-}
-
-/*
- * Set the interface's ibft nic info
- */
-void
-ni_netdev_set_ibft_nic(ni_netdev_t *dev, ni_ibft_nic_t *nic)
-{
-	if (nic)
-		nic = ni_ibft_nic_ref(nic);
-	if (dev->ibft_nic)
-		ni_ibft_nic_free(dev->ibft_nic);
-
-	dev->ibft_nic = nic;
 }
 
 /*

@@ -82,7 +82,6 @@ struct ni_netdev {
 	ni_openvpn_t *		openvpn;
 	ni_ppp_t *		ppp;
 
-	ni_ibft_nic_t *		ibft_nic;
 	ni_pci_dev_t *		pci_dev;
 
 	ni_event_filter_t *	event_filter;
@@ -137,7 +136,6 @@ extern ni_netconfig_t *	ni_global_state_handle(int);
 extern ni_netdev_t *	ni_netdev_by_name(ni_netconfig_t *nic, const char *name);
 extern ni_netdev_t *	ni_netdev_by_index(ni_netconfig_t *nic, unsigned int index);
 extern ni_netdev_t *	ni_netdev_by_hwaddr(ni_netconfig_t *nic, const ni_hwaddr_t *lla);
-extern ni_netdev_t *	ni_netdev_by_ibft_nodename(ni_netconfig_t *, const char *);
 extern ni_netdev_t *	ni_netdev_by_vlan_name_and_tag(ni_netconfig_t *nc,
 				const char *physdev, uint16_t tag);
 extern const char *	ni_netdev_make_name(ni_netconfig_t *, const char *);
@@ -178,7 +176,6 @@ extern void		ni_netdev_set_link_stats(ni_netdev_t *, ni_link_stats_t *);
 extern void		ni_netdev_set_wireless(ni_netdev_t *, ni_wireless_t *);
 extern void		ni_netdev_set_openvpn(ni_netdev_t *, ni_openvpn_t *);
 extern void		ni_netdev_set_ppp(ni_netdev_t *, ni_ppp_t *);
-extern void		ni_netdev_set_ibft_nic(ni_netdev_t *, ni_ibft_nic_t *);
 extern void		ni_netdev_set_pci(ni_netdev_t *, ni_pci_dev_t *);
 extern void		ni_netdev_set_client_info(ni_netdev_t *, ni_device_clientinfo_t *);
 extern ni_ipv6_devinfo_t *ni_netdev_get_ipv6(ni_netdev_t *);

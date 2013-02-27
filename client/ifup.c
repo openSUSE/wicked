@@ -76,6 +76,31 @@ ni_ifconfig_file_load(ni_fsm_t *fsm, const char *filename)
 	return TRUE;
 }
 
+/*
+ * Read old-style /etc/sysconfig ifcg file(s)
+ */
+static dbus_bool_t
+ni_ifconfig_compat_load(ni_fsm_t *fsm, const char *filename)
+{
+	xml_document_t *config_doc;
+
+	ni_debug_readwrite("%s(%s)", __func__, filename);
+
+	config_doc = xml_document_new();
+	if (!__ni_compat_get_interfaces(NULL, filename, config_doc)) {
+		ni_error("unable to load interface definition from %s", filename);
+		xml_document_free(config_doc);
+		return FALSE;
+	}
+
+	ni_fsm_workers_from_xml(fsm, config_doc, NULL);
+
+	/* Do *not* delete config_doc; we are keeping references to its
+	 * descendant nodes in the ifworkers */
+	return TRUE;
+}
+
+
 static dbus_bool_t
 ni_ifconfig_load(ni_fsm_t *fsm, const char *pathname)
 {
@@ -84,6 +109,9 @@ ni_ifconfig_load(ni_fsm_t *fsm, const char *pathname)
 
 	if (!strcmp(pathname, "FIRMWARE"))
 		return ni_ifconfig_firmware_load(fsm);
+
+	if (!strncasecmp(pathname, "compat:", 7))
+		return ni_ifconfig_compat_load(fsm, pathname + 7);
 
 	if (opt_global_rootdir) {
 		snprintf(chroot_namebuf, sizeof(chroot_namebuf), "%s/%s", opt_global_rootdir, pathname);

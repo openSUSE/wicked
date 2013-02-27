@@ -59,7 +59,6 @@ __LIBSRCS= \
 	  kernel.c \
 	  address.c \
 	  sysconfig.c \
-	  ibft.c \
 	  sysfs.c \
 	  firmware.c \
 	  nis.c \
