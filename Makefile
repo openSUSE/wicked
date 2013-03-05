@@ -387,7 +387,6 @@ $(DIST_ARCHIVE): wicked.spec
 		--exclude="autom4te.cache"   \
 		--exclude="Makefile.vars"    \
 		--exclude="testing/xml-test"   \
-		--exclude="testing/ibft-test"  \
 		--exclude="testing/xpath-test" \
 		-- . && \
 	mv "$${tmpdir}/$@" . && rmdir "$${tmpdir}"
