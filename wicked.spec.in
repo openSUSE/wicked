@@ -117,15 +117,16 @@ This package provides the wicked system V init scripts.
 %build
 export CFLAGS="$RPM_OPT_FLAGS"
 %configure \
+	--disable-static	\
 	--with-devellibdir=%_devellibdir
 make %{?_smp_mflags}
 
 %install
 make install DESTDIR=${RPM_BUILD_ROOT}
-make install-init DESTDIR=${RPM_BUILD_ROOT}
-install -d -m755 ${RPM_BUILD_ROOT}%_prefix%_sbindir
-ln -s %_sysconfdir/init.d/wickedd ${RPM_BUILD_ROOT}%_prefix%_sbindir/rcwickedd
-ln -s %_sysconfdir/init.d/network ${RPM_BUILD_ROOT}%_prefix%_sbindir/rcnetwork
+# remove libwicked.a and la
+%__rm -f ${RPM_BUILD_ROOT}%_libdir/libwicked*.*a
+# create ghost directory
+%__mkdir_p -m 0750 ${RPM_BUILD_ROOT}%_localstatedir/run/wicked
 
 %post sysvinit
 %{fillup_and_insserv wickedd}
@@ -144,7 +145,7 @@ ln -s %_sysconfdir/init.d/network ${RPM_BUILD_ROOT}%_prefix%_sbindir/rcnetwork
 /sbin/ldconfig
 
 %post
-%__mkdir_p %_localstatedir/run/wicked
+%__mkdir_p -m 0750 %_localstatedir/run/wicked
 
 %files
 %defattr (-,root,root)
@@ -171,14 +172,14 @@ ln -s %_sysconfdir/init.d/network ${RPM_BUILD_ROOT}%_prefix%_sbindir/rcnetwork
 %_datadir/dbus-1/system-services/org.opensuse.Network.*.service
 %_mandir/man5/wicked*
 %_mandir/man8/wicked*
-%ghost %dir %_localstatedir/run/wicked
+%attr(0750,root,root) %dir %ghost %_localstatedir/run/wicked
 
 %files sysvinit
 %defattr (-,root,root)
 %_sysconfdir/init.d/wickedd
-%_prefix%_sbindir/rcwickedd
 %_sysconfdir/init.d/network
-%_prefix%_sbindir/rcnetwork
+%_sbindir/rcwickedd
+%_sbindir/rcnetwork
 
 %files client
 %defattr (-,root,root)
