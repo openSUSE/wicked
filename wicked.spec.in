@@ -102,6 +102,9 @@ Group:          System/Management
 Summary:        Network configuration infrastructure - SysV-Init Scripts
 Requires:       libwicked@LIBWICKED_PACKAGE_SUFFIX@ = %{version}
 Requires:       %name = %{version}
+Requires:       sysconfig >= 0.81.0
+Conflicts:      sysconfig < 0.81.0
+Conflicts:      otherproviders(sysvinit(network))
 
 %description sysvinit
 Wicked is a network configuration infrastructure incorporating a number
