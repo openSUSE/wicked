@@ -3,7 +3,7 @@
 # Network interface configuration
 #
 # Copyright (c) 2001-2002 SuSE Linux AG, Nuernberg, Germany.
-# Copyright (c) 2003-2012 SUSE LINUX Products GmbH, Nuernberg, Germany.
+# Copyright (c) 2003-2013 SUSE LINUX Products GmbH, Nuernberg, Germany.
 #
 # This program is free software; you can redistribute it and/or modify it under
 # the terms of the GNU General Public License as published by the Free Software
@@ -24,54 +24,59 @@
 #         Marius Tomaschewski <mt@suse.de>
 #         Olaf Kirch <okir@suse.de>
 #
-# $Id: network 1925 2009-10-06 12:46:15Z mt $
-#
 # /etc/init.d/network
 #
 ### BEGIN INIT INFO
 # Provides:		network
-# Required-Start:	wickedd
-# Should-Start:		isdn openibd
-# Required-Stop:	wicked
-# Should-Stop:		isdn openibd
-# Default-Start:	2 3 5
+# Required-Start:	$local_fs wickedd
+# Should-Start:		isdn openibd SuSEfirewall2_init
+# Required-Stop:	$local_fs wickedd
+# Should-Stop:		isdn openibd SuSEfirewall2_init
+# Default-Start:	3 5
 # Default-Stop:		
-# Short-Description:	Configure the localfs depending network interfaces
-# Description:		Configure the localfs depending network interfaces
-#                       and set up routing
+# X-Systemd-RemainAfterExit: true
+# Short-Description:	Configure network interfaces
+# Description:		Configure network interfaces and set up routing
 ### END INIT INFO
 
 WICKED_CLIENT_BIN=@sbindir@/wicked
 
-ROOTDIR=${0%etc/*}
-
 . /etc/rc.status
 rc_reset
 
-cd $ROOTDIR/etc/sysconfig/network
-test -f ./config && . ./config
-if ! . scripts/functions 2>/dev/null; then
-	echo -n "Network: file /etc/sysconfig/network/scripts/functions is missing."
+if test -f /etc/sysconfig/network/config ; then
+	. /etc/sysconfig/network/config
+else
+	echo -n "Network: file /etc/sysconfig/network/config is missing."
 	rc_failed
 	rc_status -v
 	rc_exit
 fi
 
-test "$DEBUG" = "EXTRA" && . scripts/extradebug
-
+# TODO: The 'onboot' mode caused to wait until interfaces are
+#       set up. Under systemd, it were always active because
+#       systemd does not call 'status' action but is using the
+#       return code... Also all users and yast2 expects, that
+#       when the network script finished, interface are up.
+#       So basically, this is either obsolete or needs do be
+#       handled correctly. For now, it's IMO safer to wait.
+#       Local-fs vs. remote-fs is gone, /usr on nfs is mounted
+#       by the initrd since SLE-11-SP2 / 12.x at least.
+#
 # Only use ifup option 'onboot' if booting or changing runlevel
 # Therefore we check if we were called from init
+MODE=onboot
 BOOT_STAGE=""
-if [ -n "$INIT_VERSION" -a -z "$YAST_IS_RUNNING" ] ; then
-	MODE=onboot
-	BOOT_STAGE=localfs
-fi
+#if [ -n "$INIT_VERSION" -a -z "$YAST_IS_RUNNING" ] ; then
+#	MODE=onboot
+#	BOOT_STAGE=localfs
+#fi
 
 ######################################################################
 # Command line parsing
 #
 SCRIPTNAME=${0##*/}
-debug $*
+#debug $*
 
 ACTION=$1; shift
 
@@ -90,42 +95,43 @@ while [ $# -gt 0 ]; do
 	case $1 in
 		boot|onboot) MODE=onboot ;;
 		manual)      MODE=manual ;;
-		check)       CHECK=check ;;
 		debug)       DEBUG=yes ;;
-		type=*)      TYPE=${1#type=} ;;
 		fake)        FAKE=echo ;;
-		skip=*)      SKIP=${1#skip=} ;;
-		localfs)     BOOT_STAGE=localfs  ;;
-		remotefs)    BOOT_STAGE=remotefs ;;
-		*)           mesg "Unknown option '$1'"
-		             mesg "options: {[on]boot,hotplug,manual,check,debug,type=<typelist>,fake,localfs,remotefs}"
-			     exit 1 ;;
+		type=*)      : TYPE=${1#type=} ;;
+		skip=*)      : SKIP=${1#skip=} ;;
+		localfs)     : BOOT_STAGE=localfs  ;;
+		remotefs)    : BOOT_STAGE=remotefs ;;
+		*)
+			mesg "Unknown option '$1'"
+			mesg "options: {[on]boot,manual,debug,type=<typelist>,skip=<skip list>,fake}"
+			exit 1
+		;;
 	esac
 	shift
 done
 
 case $ACTION in
 start)
-	IFUP_ARGS=""
+	IFUP_ARGS="--ifconfig=compat:/etc/sysconfig/network"
 
 	# Bring up interfaces that have a bios config
-	$WICKED_CLIENT_BIN ifup $IFUP_ARGS --ifconfig FIRMWARE all
+	$FAKE $WICKED_CLIENT_BIN ifup $IFUP_ARGS --ifconfig FIRMWARE all
 
 	if [ "$MODE" = "onboot" ]; then
 		IFUP_ARGS+=" --mode boot"
 	fi
-	if [ -n "$BOOT_STAGE" ]; then
-		IFUP_ARGS+=" --boot-stage $BOOT_STAGE"
-	fi
+	#if [ -n "$BOOT_STAGE" ]; then
+	#	IFUP_ARGS+=" --boot-stage $BOOT_STAGE"
+	#fi
 	IFUP_ARGS+=" --skip-origin firmware"
 
-	$WICKED_CLIENT_BIN ifup $IFUP_ARGS all
+	$FAKE $WICKED_CLIENT_BIN ifup $IFUP_ARGS all
 
 	rc_status -v
 	;;
 
 stop)
-	$WICKED_CLIENT_BIN ifdown all
+	$FAKE $WICKED_CLIENT_BIN ifdown all
 	rc_status -v
 	;;
 
@@ -160,7 +166,7 @@ reload)
 status)
 	echo -n "Checking for service network "
 	# Dummy:
-	$WICKED_CLIENT_BIN show-xml &>/dev/null
+	$FAKE $WICKED_CLIENT_BIN show-xml &>/dev/null
 	rc_status -v
 	;;
 
