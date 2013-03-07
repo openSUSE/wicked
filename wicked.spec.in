@@ -6,6 +6,7 @@ License:	GPL-2.0
 Summary:	Network configuration infrastructure
 Url:            @PACKAGE_URL@
 Source0:	%{name}-%{version}.tar.bz2
+Source1:        wicked-rpmlintrc
 Buildroot:	%{_tmppath}/%{name}%{version}-buildroot/
 Requires:       libwicked@LIBWICKED_PACKAGE_SUFFIX@ = %{version}
 

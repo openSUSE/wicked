@@ -16,8 +16,9 @@ wicked_doc_data			= README TODO COPYING ANNOUNCE		\
 				  Documentation/WhyWicked.txt
 #wicked_doc_DATA		= $(wicked_doc_data)
 
-EXTRA_DIST			= VERSION wicked.pc.in wicked.spec.in	\
-				  wicked.spec $(wicked_doc_data) samples
+EXTRA_DIST			= VERSION wicked.pc.in wicked-rpmlintrc	\
+				  wicked.spec.in wicked.spec samples	\
+				  $(wicked_doc_data)
 
 
 # Build test RPMs, no checks

@@ -1,0 +1,2 @@
+# See https://bugzilla.novell.com/show_bug.cgi?id=783932
+setBadness("suse-dbus-unauthorized-service", 0)
