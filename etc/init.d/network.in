@@ -65,7 +65,7 @@ fi
 #
 # Only use ifup option 'onboot' if booting or changing runlevel
 # Therefore we check if we were called from init
-MODE=onboot
+MODE=""
 BOOT_STAGE=""
 #if [ -n "$INIT_VERSION" -a -z "$YAST_IS_RUNNING" ] ; then
 #	MODE=onboot
@@ -112,7 +112,7 @@ done
 
 case $ACTION in
 start)
-	IFUP_ARGS="--ifconfig=compat:/etc/sysconfig/network"
+	IFUP_ARGS="--ifconfig compat:/etc/sysconfig/network"
 
 	# Bring up interfaces that have a bios config
 	$FAKE $WICKED_CLIENT_BIN ifup $IFUP_ARGS --ifconfig FIRMWARE all
