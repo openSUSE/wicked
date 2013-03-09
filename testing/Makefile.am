@@ -12,9 +12,9 @@ INCLUDES			= -I$(top_srcdir)	\
 
 CFLAGS				= $(LIBNL_CFLAGS)	\
 				  $(LIBDBUS_CFLAGS)	\
-				  $(LIBGCRYPT_FLAGS)
-LDFLAGS				= $(top_builddir)/src/libwicked.la
-DEPENDENCIES			= $(top_builddir)/src/libwicked.la
+				  $(LIBGCRYPT_CFLAGS)
+LDFLAGS				= -rdynamic
+LDADD				= $(top_builddir)/src/libwicked.la
 
 rtnl_test_SOURCES		= rtnl-test.c
 

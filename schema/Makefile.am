@@ -29,6 +29,9 @@ wicked_schema_sources		= constants.xml.in
 EXTRA_DIST			= $(wicked_schema_files)	\
 				  $(wicked_schema_sources)
 
+$(top_builddir)/util/mkconst:
+	cd $(top_builddir)/util && $(MAKE) mkconst
+
 constants.xml: constants.xml.in $(top_builddir)/util/mkconst
 	$(top_builddir)/util/mkconst < $< > $@
 

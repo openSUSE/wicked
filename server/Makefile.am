@@ -9,9 +9,9 @@ INCLUDES			= -I$(top_srcdir)/src	\
 
 wickedd_CFLAGS			= $(LIBNL_CFLAGS)	\
 				  $(LIBDBUS_CFLAGS)	\
-				  $(LIBGCRYPT_FLAGS)
-wickedd_LDFLAGS			= $(top_builddir)/src/libwicked.la
-wickedd_DEPENDENCIES		= $(top_builddir)/src/libwicked.la
+				  $(LIBGCRYPT_CFLAGS)
+wickedd_LDFLAGS			= -rdynamic
+wickedd_LDADD			= $(top_builddir)/src/libwicked.la
 wickedd_SOURCES			= \
 	main.c
 

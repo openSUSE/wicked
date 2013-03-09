@@ -9,9 +9,9 @@ INCLUDES			= -I$(top_srcdir)/src	\
 
 network_nanny_CFLAGS		= $(LIBNL_CFLAGS)	\
 				  $(LIBDBUS_CFLAGS)	\
-				  $(LIBGCRYPT_FLAGS)
-network_nanny_LDFLAGS		= $(top_builddir)/src/libwicked.la
-network_nanny_DEPENDENCIES	= $(top_builddir)/src/libwicked.la
+				  $(LIBGCRYPT_CFLAGS)
+network_nanny_LDFLAGS		= -rdynamic
+network_nanny_LDADD		= $(top_builddir)/src/libwicked.la
 network_nanny_SOURCES		= \
 	device.c	\
 	interface.c	\

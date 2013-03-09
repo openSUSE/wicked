@@ -10,9 +10,9 @@ INCLUDES			= -I$(top_srcdir)	\
 
 dhcp6_supplicant_CFLAGS		= $(LIBNL_CFLAGS)	\
 				  $(LIBDBUS_CFLAGS)	\
-				  $(LIBGCRYPT_FLAGS)
-dhcp6_supplicant_LDFLAGS	= $(top_builddir)/src/libwicked.la
-dhcp6_supplicant_DEPENDENCIES	= $(top_builddir)/src/libwicked.la
+				  $(LIBGCRYPT_CFLAGS)
+dhcp6_supplicant_LDFLAGS	= -rdynamic
+dhcp6_supplicant_LDADD		= $(top_builddir)/src/libwicked.la
 dhcp6_supplicant_SOURCES	= \
 	dbus-api.c	\
 	device.c	\

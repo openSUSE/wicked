@@ -10,7 +10,7 @@ noinst_LTLIBRARIES		= libwicked-dbus-objects.la
 
 libwicked_la_CFLAGS		= $(LIBNL_CFLAGS)	\
 				  $(LIBDBUS_CFLAGS)	\
-				  $(LIBGCRYPT_FLAGS)
+				  $(LIBGCRYPT_CFLAGS)
 
 libwicked_la_CPPFLAGS		= -DWICKED_CONFIGDIR=\"$(wicked_configdir)\"
 libwicked_la_LDFLAGS		= -lm			\
@@ -20,7 +20,7 @@ libwicked_la_LDFLAGS		= -lm			\
 				  $(LIBDBUS_LIBS)	\
 				  $(LIBGCRYPT_LIBS)	\
 				  $(LIBWICKED_LTLINK_VERSION)
-libwicked_la_LIBADD		= $(noinst_LTLIBRARIES)
+libwicked_la_LIBADD		= libwicked-dbus-objects.la
 libwicked_la_SOURCES		= \
 	address.c		\
 	arp.c			\
@@ -87,7 +87,6 @@ libwicked_la_SOURCES		= \
 
 libwicked_dbus_objects_la_CFLAGS	= $(libwicked_la_CFLAGS)
 libwicked_dbus_objects_la_CPPFLAGS	= $(libwicked_la_CPPFLAGS)
-libwicked_dbus_objects_la_LDFLAGS	= $(libwicked_la_LDFLAGS)
 libwicked_dbus_objects_la_SOURCES	= \
 	dbus-objects/addrconf.c	\
 	dbus-objects/bonding.c	\

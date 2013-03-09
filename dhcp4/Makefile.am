@@ -10,9 +10,9 @@ INCLUDES			= -I$(top_srcdir)	\
 
 dhcp4_supplicant_CFLAGS		= $(LIBNL_CFLAGS)	\
 				  $(LIBDBUS_CFLAGS)	\
-				  $(LIBGCRYPT_FLAGS)
-dhcp4_supplicant_LDFLAGS	= $(top_builddir)/src/libwicked.la
-dhcp4_supplicant_DEPENDENCIES	= $(top_builddir)/src/libwicked.la
+				  $(LIBGCRYPT_CFLAGS)
+dhcp4_supplicant_LDFLAGS	= -rdynamic
+dhcp4_supplicant_LDADD		= $(top_builddir)/src/libwicked.la
 dhcp4_supplicant_SOURCES	= \
 	dbus-api.c	\
 	device.c	\

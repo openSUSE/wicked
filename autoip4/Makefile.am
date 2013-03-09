@@ -10,9 +10,9 @@ INCLUDES			= -I$(top_srcdir)	\
 
 autoip4_supplicant_CFLAGS	= $(LIBNL_CFLAGS)	\
 				  $(LIBDBUS_CFLAGS)	\
-				  $(LIBGCRYPT_FLAGS)
-autoip4_supplicant_LDFLAGS	= $(top_builddir)/src/libwicked.la
-autoip4_supplicant_DEPENDENCIES	= $(top_builddir)/src/libwicked.la
+				  $(LIBGCRYPT_CFLAGS)
+autoip4_supplicant_LDFLAGS	= -rdynamic
+autoip4_supplicant_LDADD	= $(top_builddir)/src/libwicked.la
 autoip4_supplicant_SOURCES	= \
 	dbus-api.c	\
 	device.c	\

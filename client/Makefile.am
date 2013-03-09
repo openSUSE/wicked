@@ -10,9 +10,9 @@ INCLUDES			= -I$(top_srcdir)	\
 
 wicked_CFLAGS			= $(LIBNL_CFLAGS)	\
 				  $(LIBDBUS_CFLAGS)	\
-				  $(LIBGCRYPT_FLAGS)
-wicked_LDFLAGS			= $(top_builddir)/src/libwicked.la
-wicked_DEPENDENCIES		= $(top_builddir)/src/libwicked.la
+				  $(LIBGCRYPT_CFLAGS)
+wicked_LDFLAGS			= -rdynamic
+wicked_LDADD			= $(top_builddir)/src/libwicked.la
 wicked_SOURCES			= \
 	compat.c		\
 	compat-redhat.c		\
