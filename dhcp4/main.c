@@ -376,11 +376,12 @@ dhcp4_interface_event(ni_netdev_t *ifp, ni_event_t event)
 		dhcp4_device_destroy(dhcp4_dbus_server, ifp);
 		break;
 
+	case NI_EVENT_DEVICE_UP:
 	case NI_EVENT_LINK_DOWN:
 	case NI_EVENT_LINK_UP:
 		dev = ni_dhcp_device_by_index(ifp->link.ifindex);
 		if (dev != NULL)
-			ni_dhcp_device_event(dev, event);
+			ni_dhcp_device_event(dev, ifp, event);
 		break;
 
 	case NI_EVENT_DEVICE_DOWN:

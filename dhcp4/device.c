@@ -46,7 +46,7 @@ ni_dhcp_device_new(const char *ifname, const ni_linkinfo_t *link)
 	dev->listen_fd = -1;
 	dev->link.ifindex = link->ifindex;
 
-	if (ni_capture_devinfo_init(&dev->system, ifname, link) < 0) {
+	if (ni_capture_devinfo_init(&dev->system, dev->ifname, link) < 0) {
 		ni_error("%s: cannot set up %s for DHCP", __func__, ifname);
 		ni_dhcp_device_put(dev);
 		return NULL;
@@ -136,6 +136,7 @@ ni_dhcp_device_free(ni_dhcp_device_t *dev)
 	ni_dhcp_device_drop_lease(dev);
 	ni_dhcp_device_drop_best_offer(dev);
 	ni_dhcp_device_close(dev);
+	ni_string_free(&dev->system.ifname);
 	ni_string_free(&dev->ifname);
 
 	/* Drop existing config and request */
@@ -233,7 +234,7 @@ ni_dhcp_device_refresh(ni_dhcp_device_t *dev)
 		return rv;
 	}
 
-	return ni_capture_devinfo_refresh(&dev->system, &dev->link);
+	return ni_capture_devinfo_refresh(&dev->system, dev->ifname, &dev->link);
 }
 
 /*
@@ -440,9 +441,18 @@ ni_dhcp_release(ni_dhcp_device_t *dev, const ni_uuid_t *lease_uuid)
  * Handle link up/down events
  */
 void
-ni_dhcp_device_event(ni_dhcp_device_t *dev, ni_event_t event)
+ni_dhcp_device_event(ni_dhcp_device_t *dev, ni_netdev_t *ifp, ni_event_t event)
 {
 	switch (event) {
+	case NI_EVENT_DEVICE_UP:
+		if (!ni_string_eq(dev->ifname, ifp->name)) {
+			ni_debug_dhcp("%s: Updating interface name to %s",
+					dev->ifname, ifp->name);
+			ni_string_dup(&dev->ifname, ifp->name);
+		}
+		ni_capture_devinfo_refresh(&dev->system, dev->ifname, &dev->link);
+		break;
+
 	case NI_EVENT_LINK_DOWN:
 		ni_dhcp_fsm_link_down(dev);
 		break;

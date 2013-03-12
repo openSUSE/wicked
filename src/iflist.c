@@ -678,6 +678,7 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 		case ARPHRD_ETHER:
 		case ARPHRD_NONE:	/* tun driver uses this */
 			link->type = NI_IFTYPE_ETHERNET;
+			memset(&drv_info, 0, sizeof(drv_info));
 			if (__ni_ethtool(ifname, ETHTOOL_GDRVINFO, &drv_info) >= 0) {
 				const char *driver = drv_info.driver;
 
@@ -812,8 +813,9 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 	if ((ifname = (char *) nla_data(tb[IFLA_IFNAME])) == NULL) {
 		ni_warn("RTM_NEWLINK message without IFNAME");
 		return -1;
+	} else if (!dev->name || !ni_string_eq(dev->name, ifname)) {
+		ni_string_dup(&dev->name, ifname);
 	}
-	ni_string_dup(&dev->name, ifname);
 
 	rv = __ni_process_ifinfomsg_linkinfo(&dev->link, dev->name, tb, h, ifi, nc);
 	if (rv < 0)
@@ -1061,6 +1063,10 @@ __ni_netdev_process_newaddr_event(ni_netdev_t *dev, struct nlmsghdr *h, struct i
 	ap->bcast_addr = tmp.bcast_addr;
 	ap->anycast_addr = tmp.anycast_addr;
 	ap->ipv6_cache_info = tmp.ipv6_cache_info;
+	if (!ni_string_eq(ap->label, tmp.label)) {
+		ni_string_dup(&ap->label, tmp.label);
+	}
+	ni_string_free(&tmp.label);
 
 	if (ap->config_lease == NULL)
 		lease = __ni_netdev_address_to_lease(dev, ap);

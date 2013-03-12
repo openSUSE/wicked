@@ -113,7 +113,7 @@ struct ni_capture {
 	int			protocol;
 	struct sockaddr_ll	sll;
 
-	const char *		ifname;
+	char *			ifname;
 
 	void *			buffer;
 	size_t			mtu;
@@ -412,15 +412,19 @@ __ni_capture_recv(int fd, void *buf, size_t len, ni_bool_t *partial_csum)
 	struct tpacket_auxdata *aux;
 	ssize_t bytes;
 
+	*partial_csum = FALSE;
+	memset(cbuf, 0, sizeof(cbuf));
+
 	if ((bytes = recvmsg (fd, &msg, 0)) < 0)
 		return bytes;
 
-	*partial_csum = FALSE;
 	for (cmsg = CMSG_FIRSTHDR(&msg); cmsg; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
 		if (cmsg->cmsg_level == SOL_PACKET &&
-		    cmsg->cmsg_type == PACKET_AUXDATA) {
+		    cmsg->cmsg_type == PACKET_AUXDATA &&
+		    cmsg->cmsg_len >= CMSG_LEN(sizeof(struct tpacket_auxdata))) {
 			aux = (void *)CMSG_DATA(cmsg);
-			*partial_csum = aux->tp_status & TP_STATUS_CSUMNOTREADY;
+			if (aux->tp_status & TP_STATUS_CSUMNOTREADY)
+				*partial_csum = TRUE;
 			break;
 		}
 	}
@@ -510,7 +514,7 @@ int
 ni_capture_devinfo_init(ni_capture_devinfo_t *devinfo, const char *ifname, const ni_linkinfo_t *link)
 {
 	memset(devinfo, 0, sizeof(devinfo));
-	devinfo->ifname = ifname;
+	ni_string_dup(&devinfo->ifname, ifname);
 	devinfo->iftype = link->type;
 	devinfo->ifindex = link->ifindex;
 	devinfo->mtu = link->mtu? link->mtu : MTU_MAX;
@@ -530,8 +534,12 @@ ni_capture_devinfo_init(ni_capture_devinfo_t *devinfo, const char *ifname, const
 }
 
 int
-ni_capture_devinfo_refresh(ni_capture_devinfo_t *devinfo, const ni_linkinfo_t *link)
+ni_capture_devinfo_refresh(ni_capture_devinfo_t *devinfo, const char *ifname, const ni_linkinfo_t *link)
 {
+	if (!ni_string_eq(devinfo->ifname, ifname)) {
+		ni_string_dup(&devinfo->ifname, ifname);
+	}
+
 	if (devinfo->iftype != link->type) {
 		ni_error("%s: reconfig changes device type!", devinfo->ifname);
 		return -1;
@@ -593,7 +601,7 @@ ni_capture_open(const ni_capture_devinfo_t *devinfo, int protocol, void (*receiv
 	fcntl(fd, F_SETFD, FD_CLOEXEC);
 
 	capture = calloc(1, sizeof(*capture));
-	capture->ifname = devinfo->ifname;
+	ni_string_dup(&capture->ifname, devinfo->ifname);
 	capture->sock = ni_socket_wrap(fd, SOCK_DGRAM);
 	capture->protocol = protocol;
 
@@ -622,7 +630,7 @@ ni_capture_open(const ni_capture_devinfo_t *devinfo, int protocol, void (*receiv
 	capture->mtu = devinfo->mtu;
 	if (capture->mtu == 0)
 		capture->mtu = MTU_MAX;
-	capture->buffer = malloc(capture->mtu);
+	capture->buffer = xmalloc(capture->mtu);
 
 	capture->sock->receive = receive;
 	capture->sock->get_timeout = __ni_capture_socket_get_timeout;
@@ -719,6 +727,7 @@ ni_capture_free(ni_capture_t *capture)
 		ni_socket_close(capture->sock);
 	if (capture->buffer)
 		free(capture->buffer);
+	ni_string_free(&capture->ifname);
 	free(capture);
 }
 

@@ -142,6 +142,7 @@ ni_autoip_device_free(ni_autoip_device_t *dev)
 	ni_autoip_device_drop_lease(dev);
 	ni_autoip_device_close(dev);
 
+	ni_string_free(&dev->devinfo.ifname);
 	ni_string_free(&dev->ifname);
 	dev->link.ifindex = 0;
 
@@ -188,7 +189,7 @@ ni_autoip_device_refresh(ni_autoip_device_t *dev)
 		return rv;
 	}
 
-	return ni_capture_devinfo_refresh(&dev->devinfo, &dev->link);
+	return ni_capture_devinfo_refresh(&dev->devinfo, dev->ifname, &dev->link);
 }
 
 int
