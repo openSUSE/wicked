@@ -1079,6 +1079,8 @@ ni_dhcp6_build_reparse(ni_dhcp6_device_t *dev, void *data, size_t len)
 	ni_buffer_t          buf;
 	int                  rv;
 
+	ni_assert(dev != NULL && data != NULL && len != 0);
+
 	ni_buffer_init_reader(&buf, data, len);
 	if ((rv = ni_dhcp6_parse_client_header(&buf, &type, &xid)) < 0)
 		return rv;
@@ -1088,7 +1090,7 @@ ni_dhcp6_build_reparse(ni_dhcp6_device_t *dev, void *data, size_t len)
 	lease->type = NI_ADDRCONF_DHCP;
 	lease->time_acquired = time(NULL);
 
-	rv = ni_dhcp6_parse_client_options(dev, ni_buffer_head(&buf), lease);
+	rv = ni_dhcp6_parse_client_options(dev, &buf, lease);
 	ni_addrconf_dhcp6_lease_free(lease);
 
 	return rv;
@@ -1319,7 +1321,8 @@ ni_dhcp6_build_message(ni_dhcp6_device_t *dev,
 
 #if 1
 	if (ni_dhcp6_build_reparse(dev, ni_buffer_head(msg_buf), ni_buffer_count(msg_buf)) < 0) {
-		ni_trace("unable to reparse dhcp6 %s message: %s", ni_dhcp6_message_name(msg_type),
+		ni_error("Unable to reparse dhcp6 %s message: %s",
+			ni_dhcp6_message_name(msg_type),
 			ni_print_hex(ni_buffer_head(msg_buf), ni_buffer_count(msg_buf)));
 		goto cleanup;
 	}
