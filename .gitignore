@@ -9,6 +9,7 @@
 .*
 core
 tags
+TAGS
 bin
 Makefile
 Makefile.in
