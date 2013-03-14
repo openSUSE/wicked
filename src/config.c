@@ -56,7 +56,9 @@ ni_config_new()
 
 	conf->recv_max = 64 * 1024;
 
-	ni_config_fslocation_init(&conf->statedir, "/var/run/wicked", 0755);
+	ni_config_fslocation_init(&conf->piddir,   WICKED_PIDDIR,   0755);
+	ni_config_fslocation_init(&conf->statedir, WICKED_STATEDIR, 0755);
+	ni_config_fslocation_init(&conf->storedir, WICKED_STOREDIR, 0755);
 
 	return conf;
 }
@@ -71,6 +73,8 @@ ni_config_free(ni_config_t *conf)
 	ni_string_free(&conf->dbus_name);
 	ni_string_free(&conf->dbus_type);
 	ni_string_free(&conf->dbus_xml_schema_file);
+	ni_config_fslocation_destroy(&conf->piddir);
+	ni_config_fslocation_destroy(&conf->storedir);
 	ni_config_fslocation_destroy(&conf->statedir);
 	ni_config_fslocation_destroy(&conf->backupdir);
 	free(conf);
@@ -109,8 +113,14 @@ __ni_config_parse(ni_config_t *conf, const char *filename, ni_init_appdata_callb
 			if (!__ni_config_parse(conf, path, cb, appdata))
 				goto failed;
 		} else
+		if (strcmp(child->name, "piddir") == 0) {
+			ni_config_parse_fslocation(&conf->piddir, child);
+		} else
 		if (strcmp(child->name, "statedir") == 0) {
-			ni_config_parse_fslocation(&conf->statedir, node);
+			ni_config_parse_fslocation(&conf->statedir, child);
+		} else
+		if (strcmp(child->name, "storedir") == 0) {
+			ni_config_parse_fslocation(&conf->storedir, child);
 		} else
 		if (strcmp(child->name, "dbus") == 0) {
 			const char *attrval;

@@ -62,6 +62,8 @@ typedef struct ni_server_preference {
 } ni_server_preference_t;
 
 typedef struct ni_config {
+	ni_config_fslocation_t	piddir;
+	ni_config_fslocation_t	storedir;
 	ni_config_fslocation_t	statedir;
 	ni_config_fslocation_t	backupdir;
 	unsigned int		recv_max;

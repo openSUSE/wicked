@@ -116,7 +116,9 @@ extern void		ni_server_deactivate_interface_events(void);
 extern void		ni_server_listen_other_events(void (*handler)(ni_event_t));
 extern ni_dbus_server_t *ni_server_listen_dbus(const char *bus_name);
 extern ni_xs_scope_t *	ni_server_dbus_xml_schema(void);
+extern const char *	ni_config_piddir(void);
 extern const char *	ni_config_statedir(void);
+extern const char *	ni_config_storedir(void);
 extern const char *	ni_config_backupdir(void);
 
 extern ni_dbus_client_t *ni_create_dbus_client(const char *bus_name);

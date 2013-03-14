@@ -12,7 +12,11 @@ libwicked_la_CFLAGS		= $(LIBNL_CFLAGS)	\
 				  $(LIBDBUS_CFLAGS)	\
 				  $(LIBGCRYPT_CFLAGS)
 
-libwicked_la_CPPFLAGS		= -DWICKED_CONFIGDIR=\"$(wicked_configdir)\"
+
+libwicked_la_CPPFLAGS		= -DWICKED_CONFIGDIR=\"$(wicked_configdir)\" \
+				  -DWICKED_STOREDIR=\"$(wicked_storedir)\" \
+				  -DWICKED_STATEDIR=\"$(wicked_statedir)\" \
+				  -DWICKED_PIDDIR=\"$(wicked_piddir)\"
 libwicked_la_LDFLAGS		= -lm			\
 				  $(LIBDL_LIBS)		\
 				  $(LIBNL_LIBS)		\
@@ -86,7 +90,6 @@ libwicked_la_SOURCES		= \
 	xpath-fmt.c
 
 libwicked_dbus_objects_la_CFLAGS	= $(libwicked_la_CFLAGS)
-libwicked_dbus_objects_la_CPPFLAGS	= $(libwicked_la_CPPFLAGS)
 libwicked_dbus_objects_la_SOURCES	= \
 	dbus-objects/addrconf.c	\
 	dbus-objects/bonding.c	\
