@@ -54,7 +54,7 @@ Currently, \fBwicked\fP supports the following list of options:
 .TP
 .BI "\-\-config " filename
 By default, the daemon reads its configuration from
-\fB/etc/wicked/common.xml\fP.
+\fB@wicked_configdir@/common.xml\fP.
 The
 .B \-\-config
 options allows you to specify a different configuration file.

@@ -2,11 +2,11 @@
 .SH NAME
 wicked-config.xml \- wicked configuration file
 .SH SYNOPSIS
-.B /etc/wicked/common.xml
+.B @wicked_configdir@/common.xml
 .br
-.B /etc/wicked/server.xml
+.B @wicked_configdir@/server.xml
 .br
-.B /etc/wicked/client.xml
+.B @wicked_configdir@/client.xml
 .br
 .SH DESCRIPTION
 These files contain the global configuration options for the \fBwicked\fP
@@ -21,7 +21,21 @@ The configuration file is an XML document; its root node must be called
 .\" --------------------------------------------------------
 .SH GENERAL OPTIONS
 .\" --------------------------------------------------------
-.SS Server pathnames
+.SS Common pathnames
+.TP
+.B piddir
+This element specifies the directory used to write pid files.
+.IP
+The \fBpath\fP attribute of this element contains the path to this
+directory. The optional \fBmode\fP attribute can be used to specify
+the permissions of this directory.
+.IP
+The default is to use \fB@wicked_piddir@\fP, mode \fB0755\fP.
+.IP
+.nf
+.B "  <statedir path=\(dq@wicked_statedir@\(dq mode=\(dq0755\(dq />
+.fi
+.PP
 .TP
 .B statedir
 This element specifies the location of the directory containing various
@@ -32,10 +46,26 @@ The \fBpath\fP attribute of this element contains the path to this
 directory. The optional \fBmode\fP attribute can be used to specify
 the permissions of this directory.
 .IP
-The default is to use \fB/var/run/wicked\fP, mode \fB0755\fP.
+The default is to use \fB@wicked_statedir@\fP, mode \fB0755\fP.
 .IP
 .nf
-.B "  <statedir path=\(dq/var/run/wicked\(dq mode=\(dq0755\(dq />
+.B "  <statedir path=\(dq@wicked_statedir@\(dq mode=\(dq0755\(dq />
+.fi
+.PP
+.TP
+.B storedir
+This element specifies the location of the directory containing various
+(reboot) persistent data. For instance, the DHCP DUID and lease files
+are is stored in this directory.
+.IP
+The \fBpath\fP attribute of this element contains the path to this
+directory. The optional \fBmode\fP attribute can be used to specify
+the permissions of this directory.
+.IP
+The default is to use \fB@wicked_storedir@\fP, mode \fB0755\fP.
+.IP
+.nf
+.B "  <statedir path=\(dq@wicked_storedir@\(dq mode=\(dq0755\(dq />
 .fi
 .PP
 .\" --------------------------------------------------------
@@ -57,12 +87,12 @@ arguments. The schema files do not contain user-serviceable parts,
 so it's best to leave this option untouched.
 .IP
 .nf
-.B "  <schema name=\(dq/etc/wicked/schema/wicked.xml\(dq />
+.B "  <schema name=\(dq@wicked_schemadir@/wicked.xml\(dq />
 .fi
 .\" --------------------------------------------------------
 .SH EXTENSIONS
 The functionality of \fBwickedd\fP can be extended in various ways.
-All of these extensions are declared in \fBconfig.xml\fP, and all
+All of these extensions are declared in \fBserver.xml\fP, and all
 of them follow the same pattern.
 .PP
 Generally, two extension methods are supported \(em through external
@@ -99,7 +129,7 @@ An example would look like this:
 .IP
 .nf
 .B "  <script name=\(dqinstall\(dq
-.B "          command=\(dq/etc/wicked/extensions/hostname install\(dq/>
+.B "          command=\(dq@wicked_extensionsdir@/hostname install\(dq/>
 .fi
 .IP
 When defininig script extensions, it is possible to define additional environment
@@ -120,9 +150,9 @@ The configuration for the resolver might look like this:
 .PP
 .nf
 .B "  <system-updater name="resolver">
-.B "    <script name=\(dqbackup\(dq command=\(dq/etc/wicked/extensions/resolver backup\(dq/>
-.B "    <script name=\(dqrestore\(dq command=\(dq/etc/wicked/extensions/resolver restore\(dq/>
-.B "    <script name=\(dqinstall\(dq command=\(dq/etc/wicked/extensions/resolver install\(dq/>
+.B "    <script name=\(dqbackup\(dq command=\(dq@wicked_extensionsdir@/resolver backup\(dq/>
+.B "    <script name=\(dqrestore\(dq command=\(dq@wicked_extensionsdir@/resolver restore\(dq/>
+.B "    <script name=\(dqinstall\(dq command=\(dq@wicked_extensionsdir@/resolver install\(dq/>
 .B "  </system-updater>
 .fi
 .PP
@@ -139,7 +169,7 @@ configuration through firmware discovery extensions.
 .PP
 .nf
 .B "  <netif-firmware-discovery>
-.B "    <script name="ibft" command="/etc/wicked/extensions/ibft" />
+.B "    <script name="ibft" command="@wicked_extensionsdir@/ibft" />
 .B "  </netif-firmware-discovery>
 .fi
 .PP

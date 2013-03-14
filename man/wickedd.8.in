@@ -17,7 +17,7 @@ interfaces, bring them up or take them down.
 .TP
 .BI "\-\-config " filename
 By default, the daemon reads its configuration from
-\fB/etc/wicked/config.xml\fP. The \fB\-\-config\fP
+\fB@wicked_configdir@/server.xml\fP. The \fB\-\-config\fP
 options allows you to specify a different configuration file.
 .TP
 .BI "\-\-debug " facility
@@ -43,14 +43,13 @@ given interface. By specifying this option, this behavior is suppressed.
 .\" ----------------------------------------
 .SH FILES
 .TP
-.B /etc/wicked/config.xml
+.B @wicked_configdir@/server.xml
 specifies the global configuration of the daemon. This file may pull
 in additional configuration data from the same directory.
 .TP
-.B /var/run/wicked.pid
+.B @wicked_piddir@/wicked.pid
 Location of the PID file written by the daemon when backgrounding
-itself.
-Can be changed in the configuration file.
+itself. The pid directory be changed in the configuration file.
 .SH "SEE ALSO"
 \fBwicked\fP(8), \fBwicked\fP(7), \fBwicked-config\fP(5), \fBwicked\fP(5).
 .SH AUTHORS
