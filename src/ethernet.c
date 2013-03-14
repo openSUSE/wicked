@@ -12,6 +12,7 @@
 
 #include <wicked/ethernet.h>
 #include "netinfo_priv.h"
+#include "util_priv.h"
 #include "kernel.h"
 
 static int	__ni_system_ethernet_get(const char *, ni_ethernet_t *);
@@ -174,6 +175,7 @@ __ni_ethtool_get_value(const char *ifname, __ni_ioctl_info_t *ioc)
 {
 	struct ethtool_value eval;
 
+	memset(&eval, 0, sizeof(eval));
 	if (__ni_ethtool_do(ifname, ioc, &eval) < 0)
 		return -1;
 
@@ -185,6 +187,7 @@ __ni_ethtool_set_value(const char *ifname, __ni_ioctl_info_t *ioc, int value)
 {
 	struct ethtool_value eval;
 
+	memset(&eval, 0, sizeof(eval));
 	eval.data = value;
 	return __ni_ethtool_do(ifname, ioc, &eval);
 }
@@ -200,7 +203,7 @@ __ni_ethtool_get_strings(const char *ifname, int set_id, unsigned int num, struc
 	eth_gstring *strings;
 	unsigned int i;
 
-	ap = malloc(sizeof(*ap) + num * ETH_GSTRING_LEN);
+	ap = xcalloc(1, sizeof(*ap) + num * ETH_GSTRING_LEN);
 	ap->string_set = set_id;
 	ap->len = num;
 
@@ -225,7 +228,7 @@ __ni_ethtool_get_stats(const char *ifname, unsigned int num, struct ni_ethtool_c
 	unsigned int i;
 	uint64_t *stats;
 
-	sp = malloc(sizeof(*sp) + num * sizeof(uint64_t));
+	sp = xcalloc(1, sizeof(*sp) + num * sizeof(uint64_t));
 	sp->n_stats = num;
 
 	if (__ni_ethtool_do(ifname, &__ethtool_gstats, sp) < 0)
@@ -272,9 +275,9 @@ __ni_ethtool_stats_init(const char *ifname, const struct ethtool_drvinfo *drv_in
 {
 	ni_ethtool_stats_t *stats;
 
-	stats = calloc(1, sizeof(*stats));
+	stats = xcalloc(1, sizeof(*stats));
 	stats->count = drv_info->n_stats;
-	stats->data = calloc(stats->count, sizeof(struct ni_ethtool_counter));
+	stats->data = xcalloc(stats->count, sizeof(struct ni_ethtool_counter));
 
 	if (__ni_ethtool_get_strings(ifname, ETH_SS_STATS, stats->count, stats->data) < 0) {
 		__ni_ethtool_stats_free(stats);
@@ -325,6 +328,7 @@ __ni_system_ethernet_get(const char *ifname, ni_ethernet_t *ether)
 	struct ethtool_cmd ecmd;
 	int mapped, value;
 
+	memset(&ecmd, 0, sizeof(ecmd));
 	if (__ni_ethtool(ifname, ETHTOOL_GSET, &ecmd) < 0) {
 		if (errno != EOPNOTSUPP)
 			ni_error("%s: ETHTOOL_GSET failed: %m", ifname);
@@ -377,6 +381,7 @@ __ni_system_ethernet_get(const char *ifname, ni_ethernet_t *ether)
 			unsigned char data[NI_MAXHWADDRLEN];
 		} parm;
 
+		memset(&parm, 0, sizeof(parm));
 		parm.h.size = sizeof(parm.data);
 		if (__ni_ethtool(ifname, ETHTOOL_GPERMADDR, &parm) < 0) {
 			ni_warn("%s: ETHTOOL_GPERMADDR failed", ifname);
@@ -410,6 +415,7 @@ __ni_system_ethernet_set(const char *ifname, const ni_ethernet_t *ether)
 	struct ethtool_cmd ecmd;
 	int mapped, value;
 
+	memset(&ecmd, 0, sizeof(ecmd));
 	if (__ni_ethtool(ifname, ETHTOOL_GSET, &ecmd) < 0) {
 		if (errno != EOPNOTSUPP)
 			ni_error("%s: ETHTOOL_GSET failed: %m", ifname);

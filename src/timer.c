@@ -10,6 +10,7 @@
 #include <sys/time.h>
 #include <wicked/socket.h>
 #include "netinfo_priv.h"
+#include "util_priv.h"
 
 struct ni_timer {
 	ni_timer_t *		next;

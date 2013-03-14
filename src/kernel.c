@@ -28,6 +28,7 @@
 #include <netlink/genl/family.h>
 
 #include "netinfo_priv.h"
+#include "util_priv.h"
 #include "sysfs.h"
 #include "kernel.h"
 #include <wicked/ppp.h>

@@ -38,7 +38,7 @@ __ni_dbus_object_new(const ni_dbus_class_t *class, const char *path)
 {
 	ni_dbus_object_t *object;
 
-	object = calloc(1, sizeof(*object));
+	object = xcalloc(1, sizeof(*object));
 	ni_string_dup(&object->path, path);
 	object->class = class;
 	return object;

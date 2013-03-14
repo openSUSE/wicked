@@ -57,7 +57,7 @@ ni_dbus_client_open(const char *bus_type, const char *bus_name)
 	if (busconn == NULL)
 		return NULL;
 
-	dbc = calloc(1, sizeof(*dbc));
+	dbc = xcalloc(1, sizeof(*dbc));
 	ni_string_dup(&dbc->bus_name, bus_name);
 	dbc->connection = busconn;
 	dbc->call_timeout = 10000;
@@ -74,6 +74,7 @@ ni_dbus_client_free(ni_dbus_client_t *dbc)
 
 	ni_dbus_connection_free(dbc->connection);
 	dbc->connection = NULL;
+	ni_string_free(&dbc->bus_name);
 	free(dbc);
 }
 
@@ -85,7 +86,7 @@ __ni_dbus_client_object_init(ni_dbus_object_t *object, ni_dbus_client_t *client,
 {
 	ni_dbus_client_object_t *cob;
 
-	cob = calloc(1, sizeof(*cob));
+	cob = xcalloc(1, sizeof(*cob));
 	cob->client = client;
 	ni_string_dup(&cob->default_interface, interface);
 	object->client_object = cob;

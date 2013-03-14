@@ -23,6 +23,7 @@
 #include <wicked/resolver.h>
 #include <wicked/nis.h>
 #include "netinfo_priv.h"
+#include "util_priv.h"
 #include "dbus-server.h"
 #include "appconfig.h"
 #include "xml-schema.h"
@@ -262,7 +263,7 @@ ni_netconfig_new(void)
 {
 	ni_netconfig_t *nc;
 
-	nc = calloc(1, sizeof(*nc));
+	nc = xcalloc(1, sizeof(*nc));
 	return nc;
 }
 

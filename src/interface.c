@@ -27,6 +27,7 @@
 #include <wicked/ipv6.h>
 #include <wicked/pci.h>
 #include "netinfo_priv.h"
+#include "util_priv.h"
 #include "appconfig.h"
 
 /*

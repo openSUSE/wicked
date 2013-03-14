@@ -54,7 +54,7 @@ static void		ni_xs_scalar_set_range(ni_xs_type_t *, ni_xs_range_t *);
 static ni_xs_type_t *
 __ni_xs_type_new(unsigned int class)
 {
-	ni_xs_type_t *type = calloc(1, sizeof(*type));
+	ni_xs_type_t *type = xcalloc(1, sizeof(*type));
 
 	type->refcount = 1;
 	type->class = class;
@@ -99,7 +99,7 @@ ni_xs_array_new(ni_xs_type_t *elementType, unsigned long minlen, unsigned long m
 {
 	ni_xs_type_t *type = __ni_xs_type_new(NI_XS_TYPE_ARRAY);
 
-	type->u.array_info = calloc(1, sizeof(struct ni_xs_array_info));
+	type->u.array_info = xcalloc(1, sizeof(struct ni_xs_array_info));
 	type->u.array_info->element_type = ni_xs_type_hold(elementType);
 	type->u.array_info->minlen = minlen;
 	type->u.array_info->maxlen = maxlen;
@@ -257,7 +257,7 @@ void
 ni_xs_type_array_append(ni_xs_type_array_t *array, ni_xs_type_t *type)
 {
 	if ((array->count % 32) == 0)
-		array->data = realloc(array->data, (array->count + 32) * sizeof(array->data[0]));
+		array->data = xrealloc(array->data, (array->count + 32) * sizeof(array->data[0]));
 	array->data[array->count++] = ni_xs_type_hold(type);
 }
 
@@ -267,7 +267,7 @@ ni_xs_type_array_append(ni_xs_type_array_t *array, ni_xs_type_t *type)
 ni_xs_name_type_array_t *
 ni_xs_name_type_array_new(void)
 {
-	ni_xs_name_type_array_t *array = calloc(1, sizeof(*array));
+	ni_xs_name_type_array_t *array = xcalloc(1, sizeof(*array));
 	return array;
 }
 
@@ -298,7 +298,7 @@ ni_xs_name_type_array_append(ni_xs_name_type_array_t *array, const char *name, n
 	ni_xs_name_type_t *def;
 
 	if ((array->count % 32) == 0) {
-		array->data = realloc(array->data, (array->count + 32) * sizeof(array->data[0]));
+		array->data = xrealloc(array->data, (array->count + 32) * sizeof(array->data[0]));
 	}
 	def = &array->data[array->count++];
 	def->name = xstrdup(name);
@@ -343,7 +343,7 @@ ni_xs_name_type_array_find(const ni_xs_name_type_array_t *array, const char *nam
 ni_xs_scope_t *
 ni_xs_scope_new(ni_xs_scope_t *parent, const char *name)
 {
-	ni_xs_scope_t *scope = calloc(1, sizeof(ni_xs_scope_t));
+	ni_xs_scope_t *scope = xcalloc(1, sizeof(ni_xs_scope_t));
 
 	scope->parent = parent;
 	ni_string_dup(&scope->name, name);
@@ -818,7 +818,7 @@ ni_xs_process_include(xml_node_t *node, ni_xs_scope_t *scope)
 		struct xml_location *loc = node->location;
 
 		if (loc && loc->shared) {
-			char *copy = strdup(loc->shared->filename), *s;
+			char *copy = xstrdup(loc->shared->filename), *s;
 
 			if ((s = strrchr(copy, '/')) != NULL)
 				*s = '\0';
@@ -1433,7 +1433,7 @@ ni_xs_range_new(unsigned long min, unsigned long max)
 {
 	ni_xs_range_t *range;
 
-	range = calloc(1, sizeof(*range));
+	range = xcalloc(1, sizeof(*range));
 	range->refcount = 1;
 	range->min = min;
 	range->max = max;
@@ -1568,7 +1568,7 @@ ni_xs_group_new(int kind, const char *name)
 {
 	ni_xs_group_t *group;
 
-	group = calloc(1, sizeof(*group));
+	group = xcalloc(1, sizeof(*group));
 	ni_string_dup(&group->name, name);
 	group->relation = kind;
 	group->refcount = 1;
@@ -1590,7 +1590,7 @@ ni_xs_group_clone(ni_xs_group_t *group)
 void
 ni_xs_group_array_append(ni_xs_group_array_t *group_array, ni_xs_group_t *group)
 {
-	group_array->data = realloc(group_array->data, (group_array->count + 1) * sizeof(group));
+	group_array->data = xrealloc(group_array->data, (group_array->count + 1) * sizeof(group));
 	group_array->data[group_array->count++] = ni_xs_group_clone(group);
 }
 

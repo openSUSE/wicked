@@ -21,6 +21,7 @@
 #include <wicked/xpath.h>
 #include <wicked/dbus.h>
 #include "netinfo_priv.h"
+#include "util_priv.h"
 #include "appconfig.h"
 #include "xml-schema.h"
 

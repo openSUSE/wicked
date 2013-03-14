@@ -934,7 +934,7 @@ ni_stringbuf_printf(ni_stringbuf_t *sb, const char *fmt, ...)
 int
 ni_stringbuf_vprintf(ni_stringbuf_t *sb, const char *fmt, va_list ap)
 {
-	char *s;
+	char *s = NULL;
 	int n;
 
 	n = vasprintf(&s, fmt, ap);
@@ -1482,12 +1482,13 @@ ni_sibling_path_printf(const char *path, const char *fmt, ...)
 	va_list ap;
 	char *filename = NULL;
 	const char *ret;
+	int err;
 
 	va_start(ap, fmt);
-	vasprintf(&filename, fmt, ap);
+	err = vasprintf(&filename, fmt, ap);
 	va_end(ap);
 
-	if (!filename) {
+	if (err == -1 || !filename) {
 		ni_error("%s(%s, %s): vasprintf failed: %m",
 				__func__, path, fmt);
 		return NULL;

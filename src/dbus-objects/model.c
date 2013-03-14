@@ -21,7 +21,7 @@
 #include <wicked/logging.h>
 #include <wicked/xml.h>
 #include <wicked/dbus-errors.h>
-#include "netinfo_priv.h"
+#include "util_priv.h"
 #include "dbus-common.h"
 #include "xml-schema.h"
 #include "model.h"

@@ -15,6 +15,7 @@
 #include "dbus-object.h"
 #include "dbus-dict.h"
 #include "debug.h"
+#include "util_priv.h"
 
 
 struct ni_dbus_server_object {
@@ -46,7 +47,7 @@ ni_dbus_server_open(const char *bus_type, const char *bus_name, void *root_objec
 
 	ni_debug_dbus("%s(%s)", __FUNCTION__, bus_name);
 
-	server = calloc(1, sizeof(*server));
+	server = xcalloc(1, sizeof(*server));
 	server->connection = ni_dbus_connection_open(bus_type, bus_name);
 	if (server->connection == NULL) {
 		ni_dbus_server_free(server);

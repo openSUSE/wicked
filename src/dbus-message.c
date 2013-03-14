@@ -9,8 +9,9 @@
 
 #include <wicked/util.h>
 #include <wicked/dbus.h>
+#include <wicked/logging.h>
 
-#include "netinfo_priv.h"
+#include "util_priv.h"
 #include "dbus-common.h"
 #include "dbus-dict.h"
 #include "debug.h"

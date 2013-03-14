@@ -161,11 +161,4 @@ extern int		ni_arp_send_reply(ni_arp_socket_t *, struct in_addr,
 extern int		ni_arp_send_grat_reply(ni_arp_socket_t *, struct in_addr);
 extern int		ni_arp_send(ni_arp_socket_t *, const ni_arp_packet_t *);
 
-/*
- * Allocation helpers
- */
-extern void *		xcalloc(unsigned int, size_t);
-extern char *		xstrdup(const char *);
-
-
 #endif /* __NETINFO_PRIV_H__ */

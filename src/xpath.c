@@ -29,7 +29,7 @@
 #include <wicked/logging.h>
 #include <wicked/xml.h>
 #include <wicked/xpath.h>
-#include "netinfo_priv.h"
+#include "util_priv.h"
 
 #undef XPATH_DEBUG
 

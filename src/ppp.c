@@ -13,6 +13,7 @@
 #include <wicked/ppp.h>
 #include <wicked/modem.h>
 #include "netinfo_priv.h"
+#include "util_priv.h"
 
 #define NI_PPPDEV_TAG	"pppdev"
 

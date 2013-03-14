@@ -34,7 +34,7 @@ xml_document_new()
 {
 	xml_document_t *doc;
 
-	doc = calloc(1, sizeof(*doc));
+	doc = xcalloc(1, sizeof(*doc));
 	doc->root = xml_node_new(NULL, NULL);
 	return doc;
 }
@@ -137,7 +137,7 @@ xml_node_new(const char *ident, xml_node_t *parent)
 {
 	xml_node_t *node;
 
-	node = calloc(1, sizeof(xml_node_t));
+	node = xcalloc(1, sizeof(xml_node_t));
 	if (ident)
 		node->name = xstrdup(ident);
 
