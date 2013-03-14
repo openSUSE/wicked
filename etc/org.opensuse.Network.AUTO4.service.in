@@ -1,4 +1,4 @@
 [D-BUS Service]
 Name=org.opensuse.Network.AUTO4
-Exec=/sbin/autoip4-supplicant
+Exec=@wicked_sbindir@/autoip4-supplicant
 User=root

@@ -6,6 +6,6 @@
        uses when discovering devices managed by ibft
     -->
   <netif-firmware-discovery>
-    <script name="ibft" command="/etc/wicked/extensions/ibft" />
+    <script name="ibft" command="@wicked_extensionsdir@/ibft" />
   </netif-firmware-discovery>
 </config>
