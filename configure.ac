@@ -95,6 +95,21 @@ AC_ARG_WITH([extensionsdir], [AS_HELP_STRING([--with-extensionsdir@<:@=DIR@:>@],
 	    [with_extensionsdir="${sysconfdir}/wicked/extensions"])
 AC_SUBST(wicked_extensionsdir,	"$with_extensionsdir")
 
+AC_ARG_WITH([storedir], [AS_HELP_STRING([--with-storedir@<:@=DIR@:>@],
+	    [wicked persistent store directory [${localstatedir}/lib/wicked]])],,
+	    [with_storedir="${localstatedir}/lib/wicked"])
+AC_SUBST(wicked_storedir,  "$with_storedir")
+
+AC_ARG_WITH([statedir], [AS_HELP_STRING([--with-statedir@<:@=DIR@:>@],
+	    [wicked runtime state directory [${localstatedir}/run/wicked]])],,
+	    [with_statedir="${localstatedir}/run/wicked"])
+AC_SUBST(wicked_statedir,  "$with_statedir")
+
+AC_ARG_WITH([piddir], [AS_HELP_STRING([--with-piddir@<:@=DIR@:>@],
+	    [wicked pid file directory [${wicked_statedir}]])],,
+	    [with_piddir="${wicked_statedir}"])
+AC_SUBST(wicked_piddir,  "$with_piddir")
+
 # Hmm... '${libexec}/wicked' ?
 AC_ARG_WITH([supplicantdir], [AS_HELP_STRING([--with-supplicantdir@<:@=DIR@:>@],
 	    [wicked supplicant directory [${sbindir}]])],,
