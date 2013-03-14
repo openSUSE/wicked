@@ -217,12 +217,19 @@ AC_CONFIG_FILES([
 	man/wicked.8
 	man/wickedd.8
 	etc/Makefile
+	etc/client.xml
+	etc/common.xml
+	etc/server.xml
+	etc/network-nanny.xml
+	etc/init.d/wickedd
+	etc/init.d/network
+	etc/org.opensuse.Network.AUTO4.service
+	etc/org.opensuse.Network.DHCP4.service
+	etc/org.opensuse.Network.DHCP6.service
 	extensions/Makefile
 	testing/Makefile
 	wicked.pc
 	wicked.spec
-	etc/init.d/wickedd
-	etc/init.d/network
 ])
 AC_OUTPUT
 
