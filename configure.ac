@@ -85,14 +85,14 @@ AC_SUBST(wicked_configdir,	"$with_configdir")
 
 # Schema files are read-only -> '${datarootdir}/wicked/schema' ?
 AC_ARG_WITH([schemadir], [AS_HELP_STRING([--with-schemadir@<:@=DIR@:>@],
-	    [wicked schema directory [${sysconfdir}/wicked/schema]])],,
-	    [with_schemadir="${sysconfdir}/wicked/schema"])
+	    [wicked schema directory [${wicked_configdir}/schema]])],,
+	    [with_schemadir="${wicked_configdir}/schema"])
 AC_SUBST(wicked_schemadir,	"$with_schemadir")
 
 # User editable extension scripts -> config seems OK
 AC_ARG_WITH([extensionsdir], [AS_HELP_STRING([--with-extensionsdir@<:@=DIR@:>@],
-	    [wicked extensions directory [${sysconfdir}/wicked/extensions]])],,
-	    [with_extensionsdir="${sysconfdir}/wicked/extensions"])
+	    [wicked extensions directory [${wicked_configdir}/extensions]])],,
+	    [with_extensionsdir="${wicked_configdir}/extensions"])
 AC_SUBST(wicked_extensionsdir,	"$with_extensionsdir")
 
 AC_ARG_WITH([storedir], [AS_HELP_STRING([--with-storedir@<:@=DIR@:>@],
