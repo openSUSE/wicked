@@ -212,6 +212,10 @@ AC_CONFIG_FILES([
 	dhcp6/Makefile
 	autoip4/Makefile
 	man/Makefile
+	man/wicked-config.5
+	man/wicked.7
+	man/wicked.8
+	man/wickedd.8
 	etc/Makefile
 	extensions/Makefile
 	testing/Makefile
