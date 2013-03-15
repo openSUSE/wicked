@@ -206,8 +206,9 @@ ni_duid_format_hex(char **hex, const ni_opaque_t *duid)
 	ni_string_free(hex);
 
 	if (duid->len > 0) {
-		*hex = xcalloc(1, duid->len * 3);
-		ni_format_hex(duid->data, duid->len, *hex, duid->len * 3);
+		size_t len = duid->len * 3 + 1;
+		*hex = xcalloc(1, len);
+		ni_format_hex(duid->data, duid->len, *hex, len);
 	}
 	return *hex;
 }
