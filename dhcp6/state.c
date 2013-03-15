@@ -54,7 +54,7 @@ ni_dhcp6_load_duid(ni_opaque_t *duid, const char *filename)
 
 	if (!filename) {
 		snprintf(path, sizeof(path), "%s/%s",
-				ni_config_statedir(),
+				ni_config_storedir(),
 				CONFIG_DHCP6_DUID_FILE);
 		filename = path;
 	} else {
@@ -115,7 +115,7 @@ ni_dhcp6_save_duid(const ni_opaque_t *duid, const char *filename)
 
 	if (!filename) {
 		snprintf(path, sizeof(path), "%s/%s",
-				ni_config_statedir(),
+				ni_config_storedir(),
 				CONFIG_DHCP6_DUID_FILE);
 		filename = path;
 	} else {
