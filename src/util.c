@@ -501,12 +501,13 @@ ni_scandir(const char *dirname, const char *pattern, ni_string_array_t *res)
 	const char *match_prefix = NULL;
 	const char *match_suffix = NULL;
 	unsigned int pfxlen, sfxlen;
-	unsigned int rv = 0;
+	unsigned int count, rv = 0;
 	DIR *dir;
 
 	dir = opendir(dirname);
 	if (dir == NULL) {
-		perror(dirname);
+		ni_debug_readwrite("Unable to open directory '%s': %m",
+				dirname);
 		return 0;
 	}
 
@@ -525,6 +526,7 @@ ni_scandir(const char *dirname, const char *pattern, ni_string_array_t *res)
 			match_suffix = s;
 	}
 
+	count  = res->count;
 	pfxlen = match_prefix? strlen(match_prefix) : 0;
 	sfxlen = match_suffix? strlen(match_suffix) : 0;
 	while ((dp = readdir(dir)) != NULL) {
@@ -544,7 +546,7 @@ ni_scandir(const char *dirname, const char *pattern, ni_string_array_t *res)
 		}
 		ni_string_array_append(res, name);
 	}
-	rv = res->count;
+	rv = res->count - count;
 
 out:
 	closedir(dir);
