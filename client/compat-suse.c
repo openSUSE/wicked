@@ -6,6 +6,7 @@
  */
 
 #include <limits.h>
+#include <ctype.h>
 #include <errno.h>
 
 #include <wicked/address.h>
@@ -27,14 +28,116 @@
 
 static ni_compat_netdev_t *__ni_suse_read_interface(const char *, const char *);
 static ni_bool_t	__ni_suse_read_globals(const char *path);
+static void		__ni_suse_free_globals(void);
 static ni_bool_t	__ni_suse_sysconfig_read(ni_sysconfig_t *, ni_compat_netdev_t *);
 static ni_bool_t	__process_indexed_variables(const ni_sysconfig_t *, ni_netdev_t *, const char *,
 				void (*)(const ni_sysconfig_t *, ni_netdev_t *, const char *));
 static ni_var_t *	__find_indexed_variable(const ni_sysconfig_t *, const char *, const char *);
 static ni_route_t *	__ni_suse_read_routes(const char *);
 
-static ni_sysconfig_t *	__ni_suse_dhcp_defaults;
-static ni_route_t *	__ni_suse_global_routes = NULL;
+static ni_sysconfig_t *	__ni_suse_config_defaults = NULL;
+static ni_sysconfig_t *	__ni_suse_dhcp_defaults   = NULL;
+static ni_route_t *	__ni_suse_global_routes   = NULL;
+
+
+#define __NI_SUSE_SYSCONFIG_NETWORK_DIR		"/etc/sysconfig/network"
+#define __NI_SUSE_CONFIG_IFPREFIX		"ifcfg-"
+#define __NI_SUSE_CONFIG_GLOBAL			"config"
+#define __NI_SUSE_CONFIG_DHCP			"dhcp"
+#define __NI_SUSE_ROUTES_IFPREFIX		"ifroute-"
+#define __NI_SUSE_ROUTES_GLOBAL			"routes"
+
+#define __NI_VLAN_TAG_MAX			4094
+
+static ni_bool_t
+__ni_suse_ifcfg_valid_suffix(const char *name, size_t pfxlen)
+{
+	const char *blacklist[] = {
+		"~", ".old", ".bak", ".orig", ".scpmbackup",
+		".rpmnew", ".rpmsave", ".rpmorig",
+	};
+	size_t nlen, slen, i;
+
+	nlen = ni_string_len(name);
+	if (nlen <= pfxlen)
+		return FALSE;
+
+	for (i = 0; i < sizeof(blacklist)/sizeof(blacklist[0]); ++i) {
+		const char *suffix = blacklist[i];
+
+		slen = ni_string_len(suffix);
+		if (nlen < slen)
+			continue;
+
+		if (ni_string_eq(suffix, name + (nlen - slen)))
+			return FALSE;
+	}
+	return TRUE;
+}
+
+static ni_bool_t
+__ni_suse_ifcfg_valid_prefix(const char *basename, const char *prefix)
+{
+	size_t pfxlen;
+
+	if (!basename || !prefix)
+		return FALSE;
+
+	pfxlen = strlen(prefix);
+	if (strncmp(basename, prefix, pfxlen))
+		return FALSE;
+
+	return TRUE;
+}
+
+static int
+__ni_suse_valid_ifname(const char *ifname)
+{
+	size_t i, len = ni_string_len(ifname);
+
+	if (!len || len >= IFNAMSIZ)
+		return FALSE;
+
+	if (!isalnum((unsigned char)ifname[0]))
+		return FALSE;
+
+	for(i = 1; i < len; ++i) {
+		if(isalnum((unsigned char)ifname[i]) ||
+			ifname[i] == '-' ||
+			ifname[i] == '_' ||
+			ifname[i] == '.')
+			continue;
+		return FALSE;
+	}
+	return TRUE;
+}
+
+static int
+__ni_suse_ifcfg_scan_files(const char *dirname, ni_string_array_t *res)
+{
+	ni_string_array_t files = NI_STRING_ARRAY_INIT;
+	const char *pattern = __NI_SUSE_CONFIG_IFPREFIX"*";
+	size_t pfxlen = sizeof(__NI_SUSE_CONFIG_IFPREFIX)-1;
+	unsigned int i, count = res->count;
+
+	if( !ni_scandir(dirname, pattern, &files))
+		return 0;
+
+	for(i = 0; i < files.count; ++i) {
+		const char *file = files.data[i];
+
+		if (!__ni_suse_ifcfg_valid_suffix(file, pfxlen)) {
+			ni_debug_readwrite("Ignoring blacklisted %sfile: %s",
+					__NI_SUSE_CONFIG_IFPREFIX, file);
+			continue;
+		}
+
+		ni_string_array_append(res, file);
+	}
+	ni_string_array_destroy(&files);
+
+	return res->count - count;
+}
 
 ni_bool_t
 __ni_suse_get_interfaces(const char *path, ni_compat_netdev_array_t *result)
@@ -44,20 +147,20 @@ __ni_suse_get_interfaces(const char *path, ni_compat_netdev_array_t *result)
 	int i;
 
 	if (ni_string_len(path) == 0)
-		path = "/etc/sysconfig/network";
+		path = __NI_SUSE_SYSCONFIG_NETWORK_DIR;
 
 	if (ni_isdir(path)) {
 		if (!__ni_suse_read_globals(path))
 			goto done;
 
-		if (!ni_scandir(path, "ifcfg-*", &files)) {
+		if (!__ni_suse_ifcfg_scan_files(path, &files)) {
 			ni_error("No ifcfg files found");
 			goto done;
 		}
 
 		for (i = 0; i < files.count; ++i) {
 			const char *filename = files.data[i];
-			const char *ifname = filename + 6;
+			const char *ifname = filename + (sizeof(__NI_SUSE_CONFIG_IFPREFIX)-1);
 			char pathbuf[PATH_MAX];
 			ni_compat_netdev_t *compat;
 
@@ -71,7 +174,7 @@ __ni_suse_get_interfaces(const char *path, ni_compat_netdev_array_t *result)
 		ni_compat_netdev_t *compat;
 
 		ni_string_dup(&basedir, ni_dirname(path));
-		if (!__ni_suse_read_globals(path)) {
+		if (!__ni_suse_read_globals(basedir)) {
 			ni_string_free(&basedir);
 			goto done;
 		}
@@ -85,10 +188,7 @@ __ni_suse_get_interfaces(const char *path, ni_compat_netdev_array_t *result)
 	success = TRUE;
 
 done:
-	ni_route_list_destroy(&__ni_suse_global_routes);
-	if (__ni_suse_dhcp_defaults)
-		ni_sysconfig_destroy(__ni_suse_dhcp_defaults);
-
+	__ni_suse_free_globals();
 	ni_string_array_destroy(&files);
 	return success;
 }
@@ -96,7 +196,7 @@ done:
 /*
  * Read global ifconfig files like ifcfg-routes and dhcp
  */
-ni_bool_t
+static ni_bool_t
 __ni_suse_read_globals(const char *path)
 {
 	char pathbuf[PATH_MAX];
@@ -106,7 +206,18 @@ __ni_suse_read_globals(const char *path)
 		return FALSE;
 	}
 
-	snprintf(pathbuf, sizeof(pathbuf), "%s/dhcp", path);
+	__ni_suse_free_globals();
+
+	snprintf(pathbuf, sizeof(pathbuf), "%s/%s", path, __NI_SUSE_CONFIG_GLOBAL);
+	if (ni_file_exists(pathbuf)) {
+		__ni_suse_config_defaults = ni_sysconfig_read(pathbuf);
+		if (__ni_suse_config_defaults == NULL) {
+			ni_error("unable to parse %s", pathbuf);
+			return FALSE;
+		}
+	}
+
+	snprintf(pathbuf, sizeof(pathbuf), "%s/%s", path, __NI_SUSE_CONFIG_DHCP);
 	if (ni_file_exists(pathbuf)) {
 		__ni_suse_dhcp_defaults = ni_sysconfig_read(pathbuf);
 		if (__ni_suse_dhcp_defaults == NULL) {
@@ -115,13 +226,25 @@ __ni_suse_read_globals(const char *path)
 		}
 	}
 
-	snprintf(pathbuf, sizeof(pathbuf), "%s/routes", path);
+	snprintf(pathbuf, sizeof(pathbuf), "%s/%s", path, __NI_SUSE_ROUTES_GLOBAL);
 	if (ni_file_exists(pathbuf)) {
 		if ((__ni_suse_global_routes = __ni_suse_read_routes(pathbuf)) == NULL)
 			return FALSE;
 	}
 
 	return TRUE;
+}
+
+static void
+__ni_suse_free_globals(void)
+{
+	if (__ni_suse_config_defaults)
+		ni_sysconfig_destroy(__ni_suse_config_defaults);
+
+	if (__ni_suse_dhcp_defaults)
+		ni_sysconfig_destroy(__ni_suse_dhcp_defaults);
+
+	ni_route_list_destroy(&__ni_suse_global_routes);
 }
 
 /*
@@ -231,23 +354,29 @@ error:
 static ni_compat_netdev_t *
 __ni_suse_read_interface(const char *filename, const char *ifname)
 {
+	const char *basename = ni_basename(filename);
+	size_t pfxlen = sizeof(__NI_SUSE_CONFIG_IFPREFIX)-1;
 	ni_compat_netdev_t *compat = NULL;
 	ni_sysconfig_t *sc;
+
+	if (ni_string_len(ifname) == 0) {
+		if (!__ni_suse_ifcfg_valid_prefix(basename, __NI_SUSE_CONFIG_IFPREFIX) ||
+		    !__ni_suse_ifcfg_valid_suffix(basename, pfxlen)) {
+			ni_error("Rejecting blacklisted %sfile: %s",
+				__NI_SUSE_CONFIG_IFPREFIX, filename);
+			return NULL;
+		}
+		ifname = basename + pfxlen;
+	}
+
+	if (!__ni_suse_valid_ifname(ifname)) {
+		ni_error("Rejecting suspect interface name: %s", ifname);
+		return NULL;
+	}
 
 	if (!(sc = ni_sysconfig_read(filename))) {
 		ni_error("unable to parse %s", filename);
 		goto error;
-	}
-
-	if (ifname == NULL) {
-		const char *basename = ni_basename(filename);
-
-		if (!strncmp(basename, "ifcfg-", 6))
-			ifname = basename + 6;
-	}
-	if (ifname == NULL) {
-		ni_error("%s: cannot determine interface name", filename);
-		return FALSE;
 	}
 
 	compat = ni_compat_netdev_new(ifname);
@@ -282,29 +411,34 @@ ni_compat_netdev_new(const char *ifname)
 static const ni_ifworker_control_t *
 __ni_suse_startmode(const char *mode)
 {
-	static struct __ni_control_params {
+	static const struct __ni_control_params {
 		const char *		name;
 		ni_ifworker_control_t	control;
 	} __ni_suse_control_params[] = {
+		/* manual is the default in ifcfg */
 		{ "manual",	{ NULL,		NULL,		TRUE,	FALSE,	30	} },
-		{ "auto",	{ "auto",	NULL,		TRUE,	TRUE,	30	} },
-		{ "hotplug",	{ NULL,		NULL,		FALSE,	TRUE,	30	} },
+
+		{ "auto",	{ "boot",	NULL,		FALSE,	TRUE,	30	} },
+		{ "boot",	{ "boot",	NULL,		FALSE,	TRUE,	30	} },
+		{ "onboot",	{ "boot",	NULL,		FALSE,	TRUE,	30	} },
+		{ "on",		{ "boot",	NULL,		FALSE,	TRUE,	30	} },
+
+		{ "hotplug",	{ "boot",	NULL,		FALSE,	FALSE,	30	} },
 		{ "ifplugd",	{ "ignore",	NULL,		FALSE,	FALSE,	30	} },
+
 		{ "nfsroot",	{ "boot",	"localfs",	TRUE,	TRUE,	NI_IFWORKER_INFINITE_TIMEOUT	} },
 		{ "off",	{ "off",	NULL,		FALSE,	FALSE,	0	} },
+
 		{ NULL }
 	};
-	struct __ni_control_params *p, *params = NULL;
+	const struct __ni_control_params *p, *params = NULL;
 
-	if (ni_string_eq(mode, "on")
-	 || ni_string_eq(mode, "boot")
-	 || ni_string_eq(mode, "onboot"))
-		mode = "auto";
-
-	for (p = __ni_suse_control_params; p->name; ++p) {
-		if (ni_string_eq(p->name, mode)) {
-			params = p;
-			break;
+	if (mode != NULL) {
+		for (p = __ni_suse_control_params; p->name; ++p) {
+			if (ni_string_eq(p->name, mode)) {
+				params = p;
+				break;
+			}
 		}
 	}
 
@@ -312,6 +446,22 @@ __ni_suse_startmode(const char *mode)
 		params = &__ni_suse_control_params[0];
 
 	return &params->control;
+}
+
+/*
+ * Try loopback interface
+ */
+static ni_bool_t
+try_loopback(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+{
+	ni_netdev_t *dev = compat->dev;
+
+	/* Consider "lo" as a reserved name for loopback. */
+	if (strcmp(dev->name, "lo"))
+		return FALSE;
+
+	dev->link.type = NI_IFTYPE_LOOPBACK;
+	return TRUE;
 }
 
 /*
@@ -324,18 +474,15 @@ try_ethernet(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	ni_ethernet_t *eth;
 	const char *value;
 
-	if (strncmp(dev->name, "eth", 3))
-		return FALSE;
-
-	dev->link.type = NI_IFTYPE_ETHERNET;
-	eth = ni_netdev_get_ethernet(dev);
-
+	/* FIXME: this is an array ETHTOOL_OPTIONS[SUFFIX] */
 	if ((value = ni_sysconfig_get_value(sc, "ETHTOOL_OPTIONS")) != NULL) {
 		/* ETHTOOL_OPTIONS comes in two flavors
 		 *   - starting with a dash: this is "-$option ifname $stuff"
 		 *   - otherwise: this is a paramater to be passed to "-s ifname"
 		 */
-		/* TBD - parse and translate to xml */
+		/* FIXME: parse and translate to xml */
+		dev->link.type = NI_IFTYPE_ETHERNET;
+		eth = ni_netdev_get_ethernet(dev);
 		(void) eth;
 	}
 
@@ -456,6 +603,20 @@ try_bridge(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	return TRUE;
 }
 
+static ni_bool_t
+__try_vlan_tag_parse(const char *str, unsigned int *tag)
+{
+	char *end = NULL;
+
+	if (!ni_string_len(str) || !isdigit((unsigned char)str[0]))
+		return FALSE;
+
+	*tag = strtoul(str, &end, 10);
+	if (!end || *end != '\0')
+		return FALSE;
+
+	return TRUE;
+}
 
 /*
  * VLAN interfaces are recognized by their name (vlan<N>)
@@ -466,22 +627,58 @@ try_vlan(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	ni_netdev_t *dev = compat->dev;
 	ni_vlan_t *vlan;
 	const char *etherdev = NULL;
+	const char *vlantag = NULL;
+	unsigned int tag;
+	size_t len;
 
-	/* SLES and openSUSE currently use the vlan<TAG> naming
-	 * convention for VLAN interfaces. */
-	if (strncmp(dev->name, "vlan", 4))
+	if ((etherdev = ni_sysconfig_get_value(sc, "ETHERDEVICE")) == NULL)
 		return FALSE;
 
-	if ((etherdev = ni_sysconfig_get_value(sc, "ETHERDEVICE")) != NULL) {
-		ni_warn("%s: missing ETHERDEVICE", dev->name);
+	if (!strcmp(dev->name, etherdev)) {
+		ni_error("%s: ifcfg ETHERDEVICE=\"%s\" self-reference",
+			dev->name, etherdev);
 		return FALSE;
 	}
 
-	dev->link.type = NI_IFTYPE_VLAN;
+	if ((vlantag = ni_sysconfig_get_value(sc, "VLAN_ID")) != NULL) {
+		if (!__try_vlan_tag_parse(vlantag, &tag)) {
+			ni_error("%s: Cannot parse ifcfg VLAN_ID=\"%s\"",
+				dev->name, vlantag);
+			return FALSE;
+		}
+	} else {
+		if ((vlantag = strrchr(dev->name, '.')) != NULL) {
+			/* name.<TAG> */
+			++vlantag;
+		} else {
+			/* name<TAG> */
+			len = strlen(dev->name);
+			vlantag = &dev->name[len];
+			while(len > 0 && isdigit((unsigned char)vlantag[-1]))
+				vlantag--;
+		}
+		if (!__try_vlan_tag_parse(vlantag, &tag)) {
+			ni_error("%s: Cannot parse vlan-tag from interface name",
+				dev->name);
+			return FALSE;
+		}
+	}
+	if (tag > __NI_VLAN_TAG_MAX) {
+		ni_error("%s: VLAN tag %u is out of numerical range",
+			dev->name, tag);
+		return FALSE;
+#if 0
+	} else if (tag == 0) {
+		ni_warn("%s: VLAN tag 0 disables VLAN filter and is probably not what you want",
+			dev->name, tag);
+#endif
+	}
 
+	dev->link.type = NI_IFTYPE_VLAN;
 	vlan = ni_netdev_get_vlan(dev);
 	ni_string_dup(&vlan->physdev_name, etherdev);
-	vlan->tag = strtoul(dev->name + 4, NULL, 0);
+	vlan->tag = tag;
+
 	return TRUE;
 }
 
@@ -500,6 +697,38 @@ try_wireless(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	dev->link.type = NI_IFTYPE_WIRELESS;
 	ni_warn("%s: conversion of wireless interfaces not yet supported", dev->name);
 
+	return TRUE;
+}
+
+/*
+ * Handle Tunnel interfaces
+ */
+static ni_bool_t
+try_tunnel(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+{
+	ni_netdev_t *dev = compat->dev;
+	const char *value;
+	static const ni_intmap_t __tunnel_types[] = {
+		{ "tun",	NI_IFTYPE_TUN		},
+		{ "tap",	NI_IFTYPE_TAP		},
+		{ "sit",	NI_IFTYPE_SIT		},
+		{ "gre",	NI_IFTYPE_GRE		},
+		{ "ipip",	NI_IFTYPE_TUNNEL	},
+		{ "ip6tnl",	NI_IFTYPE_TUNNEL6	},
+		{ NULL,		NI_IFTYPE_UNKNOWN	},
+	};
+
+	/* FIXME: this are just the types... */
+	if ((value = ni_sysconfig_get_value(sc, "TUNNEL")) != NULL) {
+		const ni_intmap_t *map;
+
+		for (map = __tunnel_types; map->name; ++map) {
+			if (!strcmp(map->name, value)) {
+				dev->link.type = (ni_iftype_t)value;
+				return TRUE;
+			}
+		}
+	}
 	return TRUE;
 }
 
@@ -668,7 +897,7 @@ __ni_suse_addrconf_static(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
  * Process DHCPv4 addrconf
  */
 static ni_bool_t
-__ni_suse_addrconf_dhcp_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+__ni_suse_addrconf_dhcp4_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 {
 	const char *string;
 	unsigned int uint;
@@ -696,16 +925,141 @@ __ni_suse_addrconf_dhcp_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *co
 	return TRUE;
 }
 
+/*
+ * Process DHCPv6 addrconf
+ */
+static ni_bool_t
+__ni_suse_addrconf_dhcp6_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+{
+	(void)sc;
+	(void)compat;
+
+#if 0	/* FIXME: Use defaults for now */
+	const char *string;
+	unsigned int uint;
+
+	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT6_HOSTNAME_OPTION")) && strcasecmp(string, "auto"))
+		ni_string_dup(&compat->dhcp4.hostname, string);
+	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT6_CLIENT_ID")) != NULL)
+		ni_string_dup(&compat->dhcp4.client_id, string);
+	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT6_VENDOR_CLASS_ID")) != NULL)
+		ni_string_dup(&compat->dhcp4.vendor_class, string);
+
+	if (ni_sysconfig_get_integer(sc, "DHCLIENT6_WAIT_AT_BOOT", &uint))
+		compat->dhcp4.acquire_timeout = uint? uint : NI_IFWORKER_INFINITE_TIMEOUT;
+	if (ni_sysconfig_get_integer(sc, "DHCLIENT6_LEASE_TIME", &uint))
+		compat->dhcp4.lease_time = ((int) uint >= 0)? uint : NI_IFWORKER_INFINITE_TIMEOUT;
+
+	/* Ignored for now:
+	   DHCLIENT_USE_LAST_LEASE
+	   WRITE_HOSTNAME_TO_HOSTS
+	   DHCLIENT_MODIFY_SMB_CONF
+	   DHCLIENT_SET_HOSTNAME
+	   DHCLIENT_SET_DEFAULT_ROUTE
+	 */
+#endif
+	return TRUE;
+}
+
 static ni_bool_t
 __ni_suse_addrconf_dhcp4(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 {
+	if (compat->dhcp4.enabled)
+		return TRUE;
+
 	if (__ni_suse_dhcp_defaults)
-		__ni_suse_addrconf_dhcp_options(__ni_suse_dhcp_defaults, compat);
+		__ni_suse_addrconf_dhcp4_options(__ni_suse_dhcp_defaults, compat);
 
 	/* overwrite DHCP defaults with parameters from this ifcfg file */
-	__ni_suse_addrconf_dhcp_options(sc, compat);
+	__ni_suse_addrconf_dhcp4_options(sc, compat);
 
 	compat->dhcp4.enabled = TRUE;
+	return TRUE;
+}
+
+static ni_bool_t
+__ni_suse_addrconf_dhcp6(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+{
+	if (compat->dhcp6.enabled)
+		return TRUE;
+
+	if (__ni_suse_dhcp_defaults)
+		__ni_suse_addrconf_dhcp6_options(__ni_suse_dhcp_defaults, compat);
+
+	/* overwrite DHCP defaults with parameters from this ifcfg file */
+	__ni_suse_addrconf_dhcp6_options(sc, compat);
+
+	compat->dhcp6.enabled = TRUE;
+	return TRUE;
+}
+
+static ni_bool_t
+__ni_suse_addrconf_autoip4(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+{
+	(void)sc;
+	(void)compat;
+
+	/* TODO */
+	return TRUE;
+}
+
+static ni_bool_t
+__ni_suse_bootproto(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+{
+	ni_netdev_t *dev = compat->dev;
+	const char *value;
+	char *bp, *s, *p;
+
+	if ((value = ni_sysconfig_get_value(sc, "BOOTPROTO")) == NULL)
+		value = "static";
+	else if (!value[0] || ni_string_eq(dev->name, "lo"))
+		value = "static";
+
+	/* Hmm... bonding slave -- set ethtool, but no link up */
+	if (ni_string_eq_nocase(value, "none")) {
+		return TRUE;
+	}
+
+	/* Hmm... ignore this config completely -> ibft firmware */
+	if (ni_string_eq_nocase(value, "ibft")) {
+		return TRUE;
+	}
+
+	if (ni_string_eq_nocase(value, "6to4")) {
+		__ni_suse_addrconf_static(sc, compat);
+		return TRUE;
+	}
+
+	if (ni_string_eq_nocase(value, "static")) {
+		__ni_suse_addrconf_static(sc, compat);
+		return TRUE;
+	}
+
+	bp = p = NULL;
+	ni_string_dup(&bp, value);
+	for (s = strtok_r(bp, "+", &p); s; s = strtok_r(NULL, "+", &p)) {
+		if(!strcasecmp(s, "dhcp")) {
+			__ni_suse_addrconf_dhcp4(sc, compat);
+			__ni_suse_addrconf_dhcp6(sc, compat);
+		}
+		else if (ni_string_eq(value, "dhcp4")) {
+			__ni_suse_addrconf_dhcp4(sc, compat);
+		}
+		else if (ni_string_eq(value, "dhcp6")) {
+			__ni_suse_addrconf_dhcp6(sc, compat);
+		}
+		else if (ni_string_eq(value, "autoip")) {
+			__ni_suse_addrconf_autoip4(sc, compat);
+		}
+		else {
+			ni_warn("%s: Unknown ifcfg BOOTPROTO value \"%s\"",
+				dev->name, s);
+		}
+	}
+	ni_string_free(&bp);
+
+	/* static is included in the "+" variants */
+	__ni_suse_addrconf_static(sc, compat);
 	return TRUE;
 }
 
@@ -727,29 +1081,21 @@ __ni_suse_sysconfig_read(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 
 	if ((value = ni_sysconfig_get_value(sc, "LLADDR")) != NULL
 	 && ni_link_address_parse(&dev->link.hwaddr, NI_IFTYPE_ETHERNET, value) < 0) {
-		ni_warn("cannot parse LLADDR=%s", value);
+		ni_warn("%s: Cannot parse ifcfg LLADDR=%s",
+				dev->name, value);
 	}
 
-	if (!try_ethernet(sc, compat)
+	if (!try_loopback(sc, compat)
 	 && !try_bonding(sc, compat)
 	 && !try_bridge(sc, compat)
 	 && !try_vlan(sc, compat)
 	 && !try_wireless(sc, compat)
+	 && !try_tunnel(sc, compat)
+	 && !try_ethernet(sc, compat)
 	 )
 		;
 
-	if ((value = ni_sysconfig_get_value(sc, "BOOTPROTO")) == NULL) {
-		if (ni_string_eq(dev->name, "lo"))
-			value = "static";
-		else
-			value = "dhcp";
-	}
-
-	if (ni_string_eq(value, "static"))
-		__ni_suse_addrconf_static(sc, compat);
-	else if (ni_string_eq(value, "dhcp"))
-		__ni_suse_addrconf_dhcp4(sc, compat);
-
+	__ni_suse_bootproto(sc, compat);
 	/* FIXME: What to do with these:
 		NAME
 		USERCONTROL
