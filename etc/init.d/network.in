@@ -39,13 +39,13 @@
 # Description:		Configure network interfaces and set up routing
 ### END INIT INFO
 
-WICKED_CLIENT_BIN=@sbindir@/wicked
+WICKED_CLIENT_BIN=@wicked_sbindir@/wicked
 
 . /etc/rc.status
 rc_reset
 
 if test -f /etc/sysconfig/network/config ; then
-	. /etc/sysconfig/network/config
+	 . /etc/sysconfig/network/config
 else
 	echo -n "Network: file /etc/sysconfig/network/config is missing."
 	rc_failed
@@ -65,7 +65,7 @@ fi
 #
 # Only use ifup option 'onboot' if booting or changing runlevel
 # Therefore we check if we were called from init
-MODE=""
+MODE="onboot"
 BOOT_STAGE=""
 #if [ -n "$INIT_VERSION" -a -z "$YAST_IS_RUNNING" ] ; then
 #	MODE=onboot
@@ -112,20 +112,21 @@ done
 
 case $ACTION in
 start)
-	IFUP_ARGS="--ifconfig compat:/etc/sysconfig/network"
-
-	# Bring up interfaces that have a bios config
-	$FAKE $WICKED_CLIENT_BIN ifup $IFUP_ARGS --ifconfig FIRMWARE all
-
+	IFUP_ARGS=""
+	if [ "$DEBUG" = "yes" ]; then
+		WICKED_DEBUG="--debug ${WICKED_DEBUG_LEVEL:-most}"
+	fi
 	if [ "$MODE" = "onboot" ]; then
 		IFUP_ARGS+=" --mode boot"
 	fi
 	#if [ -n "$BOOT_STAGE" ]; then
 	#	IFUP_ARGS+=" --boot-stage $BOOT_STAGE"
 	#fi
-	IFUP_ARGS+=" --skip-origin firmware"
 
-	$FAKE $WICKED_CLIENT_BIN ifup $IFUP_ARGS all
+	# FIXME: remove it
+	ulimit -c unlimited
+
+	$FAKE $WICKED_CLIENT_BIN $WICKED_DEBUG ifup $IFUP_ARGS all
 
 	rc_status -v
 	;;
