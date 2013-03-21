@@ -42,7 +42,7 @@ __ni_redhat_get_interfaces(const char *path, ni_compat_netdev_array_t *result)
 	ni_string_array_t files = NI_STRING_ARRAY_INIT;
 	ni_bool_t success = FALSE;
 
-	if (path == NULL)
+	if (ni_string_len(path) == 0)
 		path = _PATH_NETCONFIG_DIR;
 
 	if (!ni_file_exists(path)) {

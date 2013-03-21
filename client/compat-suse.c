@@ -43,7 +43,7 @@ __ni_suse_get_interfaces(const char *path, ni_compat_netdev_array_t *result)
 	ni_bool_t success = FALSE;
 	int i;
 
-	if (path == NULL)
+	if (ni_string_len(path) == 0)
 		path = "/etc/sysconfig/network";
 
 	if (ni_isdir(path)) {

@@ -32,15 +32,15 @@
 #include "wicked-client.h"
 
 
-#define WICKED_IFCONFIG_DIR_PATH	"/etc/sysconfig/network"
-
 /*
  * Read firmware ifconfig (eg iBFT)
  */
 static ni_bool_t
-ni_ifconfig_firmware_load(ni_fsm_t *fsm)
+ni_ifconfig_firmware_load(ni_fsm_t *fsm, const char *pathname)
 {
 	xml_document_t *config_doc;
+
+	(void)pathname;
 
 	ni_debug_readwrite("%s()", __func__);
 	if (!(config_doc = ni_netconfig_firmware_discovery())) {
@@ -58,7 +58,7 @@ ni_ifconfig_firmware_load(ni_fsm_t *fsm)
 /*
  * Read ifconfig file(s)
  */
-static dbus_bool_t
+static ni_bool_t
 ni_ifconfig_file_load(ni_fsm_t *fsm, const char *filename)
 {
 	xml_document_t *config_doc;
@@ -79,16 +79,16 @@ ni_ifconfig_file_load(ni_fsm_t *fsm, const char *filename)
 /*
  * Read old-style /etc/sysconfig ifcg file(s)
  */
-static dbus_bool_t
-ni_ifconfig_compat_load(ni_fsm_t *fsm, const char *filename)
+static ni_bool_t
+ni_ifconfig_compat_load(ni_fsm_t *fsm, const char *pathname)
 {
 	xml_document_t *config_doc;
 
-	ni_debug_readwrite("%s(%s)", __func__, filename);
+	ni_debug_readwrite("%s(%s)", __func__, pathname);
 
 	config_doc = xml_document_new();
-	if (!__ni_compat_get_interfaces(NULL, filename, config_doc)) {
-		ni_error("unable to load interface definition from %s", filename);
+	if (!__ni_compat_get_interfaces(NULL, pathname, config_doc)) {
+		ni_error("unable to load interface definition from %s", pathname);
 		xml_document_free(config_doc);
 		return FALSE;
 	}
@@ -100,25 +100,13 @@ ni_ifconfig_compat_load(ni_fsm_t *fsm, const char *filename)
 	return TRUE;
 }
 
-
-static dbus_bool_t
-ni_ifconfig_load(ni_fsm_t *fsm, const char *pathname)
+static ni_bool_t
+ni_ifconfig_native_load(ni_fsm_t *fsm, const char *pathname)
 {
-	char chroot_namebuf[PATH_MAX];
 	struct stat stb;
 
-	if (!strcmp(pathname, "FIRMWARE"))
-		return ni_ifconfig_firmware_load(fsm);
-
-	if (!strncasecmp(pathname, "compat:", 7))
-		return ni_ifconfig_compat_load(fsm, pathname + 7);
-
-	if (opt_global_rootdir) {
-		snprintf(chroot_namebuf, sizeof(chroot_namebuf), "%s/%s", opt_global_rootdir, pathname);
-		pathname = chroot_namebuf;
-	}
-
 	ni_debug_readwrite("%s(%s)", __func__, pathname);
+
 	if (stat(pathname, &stb) < 0) {
 		ni_error("%s: %m", pathname);
 		return FALSE;
@@ -150,6 +138,43 @@ ni_ifconfig_load(ni_fsm_t *fsm, const char *pathname)
 	return FALSE;
 }
 
+static ni_bool_t
+ni_ifconfig_load(ni_fsm_t *fsm, const char *pathname)
+{
+	char chroot_namebuf[PATH_MAX];
+	size_t len;
+
+	len = sizeof("firmware:")-1;
+	if (!strncasecmp(pathname, "firmware:", len)) {
+		pathname += len;
+
+		return ni_ifconfig_firmware_load(fsm, pathname);
+	}
+
+	len = sizeof("compat:")-1;
+	if (!strncasecmp(pathname, "compat:", len)) {
+		pathname += len;
+
+		return ni_ifconfig_compat_load(fsm, pathname);
+	}
+
+	len = sizeof("wicked:")-1;
+	if (!strncasecmp(pathname, "wicked:", len))
+		pathname += len;
+
+	if (ni_string_len(pathname) == 0) {
+		ni_error("Neider a directory nor a config file provided");
+		return FALSE;
+	}
+
+	if (opt_global_rootdir) {
+		snprintf(chroot_namebuf, sizeof(chroot_namebuf), "%s/%s",
+				opt_global_rootdir, pathname);
+		pathname = chroot_namebuf;
+	}
+	return ni_ifconfig_native_load(fsm, pathname);
+}
+
 static ni_fsm_t *
 ni_ifup_down_init(void)
 {
@@ -177,15 +202,15 @@ do_ifup(int argc, char **argv)
 		{ NULL }
 	};
 	ni_uint_range_t state_range = { .min = NI_FSM_STATE_ADDRCONF_UP, .max = __NI_FSM_STATE_MAX };
-	const char *opt_ifconfig = WICKED_IFCONFIG_DIR_PATH;
+	ni_string_array_t opt_ifconfig = NI_STRING_ARRAY_INIT;
 	const char *opt_ifpolicy = NULL;
 	const char *opt_control_mode = NULL;
 	const char *opt_boot_stage = NULL;
 	const char *opt_skip_origin = NULL;
 	ni_bool_t opt_skip_active = FALSE;
-	unsigned int nmarked;
+	unsigned int nmarked, i;
 	ni_fsm_t *fsm;
-	int c;
+	int c, status = 1;
 
 	fsm = ni_ifup_down_init();
 
@@ -193,7 +218,12 @@ do_ifup(int argc, char **argv)
 	while ((c = getopt_long(argc, argv, "", ifup_options, NULL)) != EOF) {
 		switch (c) {
 		case OPT_IFCONFIG:
-			opt_ifconfig = optarg;
+			if (opt_ifconfig.count != 0) {
+				/* Hmm... Allow more than one? */
+				ni_error("ifup: only ine --ifconfig option allowed");
+				goto usage;
+			}
+			ni_string_array_append(&opt_ifconfig, optarg);
 			break;
 
 		case OPT_IFPOLICY:
@@ -250,7 +280,7 @@ usage:
 				"  --timeout <nsec>\n"
 				"      Timeout after <nsec> seconds\n"
 				);
-			return 1;
+			goto cleanup;
 		}
 	}
 
@@ -260,18 +290,34 @@ usage:
 	}
 
 	if (!ni_fsm_create_client(fsm))
-		return 1;
+		goto cleanup;
 
 	ni_fsm_refresh_state(fsm);
 
-	if (!ni_ifconfig_load(fsm, opt_ifconfig))
-		return 1;
+	if (opt_ifconfig.count == 0) {
+		const ni_string_array_t *sources = ni_config_sources("ifconfig");
+
+		if (sources && sources->count)
+			ni_string_array_copy(&opt_ifconfig, sources);
+
+		if (opt_ifconfig.count == 0) {
+			ni_error("ifup: unable to load interface config source list");
+			goto cleanup;
+		}
+	}
+
+	for (i = 0; i < opt_ifconfig.count; ++i) {
+		if (!ni_ifconfig_load(fsm, opt_ifconfig.data[i]))
+			goto cleanup;
+	}
 
 	if (opt_ifpolicy && !ni_ifconfig_load(fsm, opt_ifpolicy))
-		return 1;
+		goto cleanup;
 
-	if (ni_fsm_build_hierarchy(fsm) < 0)
-		ni_fatal("ifup: unable to build device hierarchy");
+	if (ni_fsm_build_hierarchy(fsm) < 0) {
+		ni_error("ifup: unable to build device hierarchy");
+		goto cleanup;
+	}
 
 	nmarked = 0;
 	while (optind < argc) {
@@ -294,15 +340,19 @@ usage:
 		nmarked += ni_fsm_mark_matching_workers(fsm, &ifmatch, &state_range);
 	}
 	if (nmarked == 0) {
-		printf("No matching interfaces\n");
-		return 0;
+		printf("ifup: no matching interfaces");
+		status = 0;
+	} else {
+		if (ni_fsm_schedule(fsm) != 0)
+			ni_fsm_mainloop(fsm);
+
+		/* return an error code if at least one of the devices failed */
+		status = ni_fsm_fail_count(fsm) != 0;
 	}
 
-	if (ni_fsm_schedule(fsm) != 0)
-		ni_fsm_mainloop(fsm);
-
-	/* return an error code if at least one of the devices failed */
-	return ni_fsm_fail_count(fsm) != 0;
+cleanup:
+	ni_string_array_destroy(&opt_ifconfig);
+	return status;
 }
 
 int
@@ -317,11 +367,11 @@ do_ifdown(int argc, char **argv)
 	};
 	static ni_ifmatcher_t ifmatch;
 	ni_uint_range_t target_range = { .min = NI_FSM_STATE_NONE, .max = NI_FSM_STATE_DEVICE_UP };
-	const char *opt_ifconfig = WICKED_IFCONFIG_DIR_PATH;
-	unsigned int nmarked;
+	ni_string_array_t opt_ifconfig = NI_STRING_ARRAY_INIT;
+	unsigned int nmarked, i;
 	/* int opt_delete = 0; */
 	ni_fsm_t *fsm;
-	int c;
+	int c, status = 1;
 
 	fsm = ni_ifup_down_init();
 
@@ -331,7 +381,12 @@ do_ifdown(int argc, char **argv)
 	while ((c = getopt_long(argc, argv, "", ifdown_options, NULL)) != EOF) {
 		switch (c) {
 		case OPT_IFCONFIG:
-			opt_ifconfig = optarg;
+			if (opt_ifconfig.count != 0) {
+				/* Hmm... Allow more than one? */
+				ni_error("ifdown: only ine --ifconfig option allowed");
+				goto usage;
+			}
+			ni_string_array_append(&opt_ifconfig, optarg);
 			break;
 
 		case OPT_DELETE:
@@ -363,7 +418,7 @@ usage:
 				"  --timeout <nsec>\n"
 				"      Timeout after <nsec> seconds\n"
 				);
-			return 1;
+			goto cleanup;
 		}
 	}
 
@@ -372,11 +427,29 @@ usage:
 		goto usage;
 	}
 
-	if (!ni_ifconfig_load(fsm, opt_ifconfig))
-		return 1;
+	/*
+	 * FIXME: This should shut down all interfaces we've started,
+	 *        even somebody changed or deleted the config ...
+	 */
+	if (opt_ifconfig.count == 0) {
+		const ni_string_array_t *sources = ni_config_sources("ifconfig");
+
+		if (sources && sources->count)
+			ni_string_array_copy(&opt_ifconfig, sources);
+
+		if (opt_ifconfig.count == 0) {
+			ni_error("ifdown: unable to load interface config source list");
+			goto cleanup;
+		}
+	}
+
+	for (i = 0; i < opt_ifconfig.count; ++i) {
+		if (!ni_ifconfig_load(fsm, opt_ifconfig.data[i]))
+			goto cleanup;
+	}
 
 	if (!ni_fsm_create_client(fsm))
-		return 1;
+		goto cleanup;
 
 	ni_fsm_refresh_state(fsm);
 
@@ -387,14 +460,18 @@ usage:
 	}
 	if (nmarked == 0) {
 		printf("No matching interfaces\n");
-		return 0;
+		status = 0;
+	} else {
+		if (ni_fsm_schedule(fsm) != 0)
+			ni_fsm_mainloop(fsm);
+
+		/* return an error code if at least one of the devices failed */
+		status = ni_fsm_fail_count(fsm) != 0;
 	}
 
-	if (ni_fsm_schedule(fsm) != 0)
-		ni_fsm_mainloop(fsm);
-
-	/* return an error code if at least one of the devices failed */
-	return ni_fsm_fail_count(fsm) != 0;
+cleanup:
+	ni_string_array_destroy(&opt_ifconfig);
+	return status;
 }
 
 int
@@ -409,11 +486,12 @@ do_ifcheck(int argc, char **argv)
 		{ NULL }
 	};
 	static ni_ifmatcher_t ifmatch;
-	const char *opt_ifconfig = WICKED_IFCONFIG_DIR_PATH;
+	ni_string_array_t opt_ifconfig = NI_STRING_ARRAY_INIT;
 	/* unsigned int nmarked; */
 	ni_bool_t opt_check_changed = FALSE;
 	ni_bool_t opt_quiet = FALSE;
 	const char *opt_state = NULL;
+	unsigned int i;
 	ni_fsm_t *fsm;
 	int c, status = 0;
 
@@ -425,7 +503,12 @@ do_ifcheck(int argc, char **argv)
 	while ((c = getopt_long(argc, argv, "", ifcheck_options, NULL)) != EOF) {
 		switch (c) {
 		case OPT_IFCONFIG:
-			opt_ifconfig = optarg;
+			if (opt_ifconfig.count != 0) {
+				/* Hmm... Allow more than one? */
+				ni_error("ifdown: only ine --ifconfig option allowed");
+				goto usage;
+			}
+			ni_string_array_append(&opt_ifconfig, optarg);
 			break;
 
 		case OPT_STATE:
@@ -457,7 +540,7 @@ usage:
 				"  --quiet\n"
 				"      Do not print out errors, but just signal the result through exit status\n"
 				);
-			return 1;
+			goto cleanup;
 		}
 	}
 
@@ -466,11 +549,25 @@ usage:
 		goto usage;
 	}
 
-	if (!ni_ifconfig_load(fsm, opt_ifconfig))
-		return 1;
+	if (opt_ifconfig.count == 0) {
+		const ni_string_array_t *sources = ni_config_sources("ifconfig");
+
+		if (sources && sources->count)
+			ni_string_array_copy(&opt_ifconfig, sources);
+
+		if (opt_ifconfig.count == 0) {
+			ni_error("ifdown: unable to load interface config source list");
+			goto cleanup;
+		}
+	}
+
+	for (i = 0; i < opt_ifconfig.count; ++i) {
+		if (!ni_ifconfig_load(fsm, opt_ifconfig.data[i]))
+			goto cleanup;
+	}
 
 	if (!ni_fsm_create_client(fsm))
-		return 1;
+		goto cleanup;
 
 	ni_fsm_refresh_state(fsm);
 
@@ -529,5 +626,8 @@ usage:
 		}
 	}
 
+cleanup:
+	ni_string_array_destroy(&opt_ifconfig);
 	return status;
 }
+
