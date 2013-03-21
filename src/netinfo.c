@@ -178,6 +178,22 @@ ni_config_backupdir(void)
 	return fsloc->path;
 }
 
+const ni_string_array_t *
+ni_config_sources(const char *type)
+{
+	ni_string_array_t *retval = NULL;
+
+	if (ni_string_eq(type, "ifconfig")) {
+		retval = &ni_global.config->sources.ifconfig;
+		if (retval->count == 0) {
+			ni_string_array_append(retval, "firmware:");
+			ni_string_array_append(retval, "compat:");
+			ni_string_array_append(retval, "wicked:"WICKED_CONFIGDIR"/ifconfig");
+		}
+	}
+	return retval;
+}
+
 /*
  * Utility functions for starting/stopping the wicked daemon,
  * and for connecting to it
