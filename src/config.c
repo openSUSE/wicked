@@ -34,6 +34,7 @@ static ni_bool_t	ni_config_parse_objectmodel_netif_ns(ni_extension_t **, xml_nod
 static ni_bool_t	ni_config_parse_objectmodel_firmware_discovery(ni_extension_t **, xml_node_t *);
 static ni_bool_t	ni_config_parse_system_updater(ni_extension_t **, xml_node_t *);
 static ni_bool_t	ni_config_parse_extension(ni_extension_t *, xml_node_t *);
+static ni_bool_t	ni_config_parse_sources(ni_config_t *, xml_node_t *);
 static ni_c_binding_t *	ni_c_binding_new(ni_c_binding_t **, const char *name, const char *lib, const char *symbol);
 static void		ni_config_fslocation_init(ni_config_fslocation_t *, const char *path, unsigned int mode);
 static void		ni_config_fslocation_destroy(ni_config_fslocation_t *);
@@ -47,7 +48,7 @@ ni_config_new()
 {
 	ni_config_t *conf;
 
-	conf = calloc(1, sizeof(*conf));
+	conf = xcalloc(1, sizeof(*conf));
 
 	conf->addrconf.default_allow_update = ~0;
 	conf->addrconf.dhcp.allow_update = ~0;
@@ -66,6 +67,7 @@ ni_config_new()
 void
 ni_config_free(ni_config_t *conf)
 {
+	ni_string_array_destroy(&conf->sources.ifconfig);
 	ni_extension_list_destroy(&conf->dbus_extensions);
 	ni_extension_list_destroy(&conf->ns_extensions);
 	ni_extension_list_destroy(&conf->fw_extensions);
@@ -151,6 +153,10 @@ __ni_config_parse(ni_config_t *conf, const char *filename, ni_init_appdata_callb
 				 && !ni_config_parse_addrconf_dhcp6(&conf->addrconf.dhcp6, gchild))
 					goto failed;
 			}
+		} else
+		if (strcmp(child->name, "sources") == 0) {
+			if (!ni_config_parse_sources(conf, child))
+				goto failed;
 		} else
 		if (strcmp(child->name, "extension") == 0
 		 || strcmp(child->name, "dbus-service") == 0) {
@@ -781,6 +787,41 @@ ni_config_parse_system_updater(ni_extension_t **list, xml_node_t *node)
 	ex = ni_extension_new(list, name);
 	return ni_config_parse_extension(ex, node);
 }
+
+/*
+ * This specifies sources of client configuration.
+ *
+ * The ifconfig source specifies the type, location and the
+ * priority / load order of the interface configurations.
+ *
+ * <sources>
+ *   <ifconfig location="firmware:" />
+ *   <ifconfig location="compat:" />
+ *   <ifconfig location="wicked:/etc/wicked/ifconfig" />
+ * </sources>
+ *
+ */
+static void
+__ni_config_parse_ifconfig_source(ni_string_array_t *sources, xml_node_t *node)
+{
+	const char *attrval;
+
+	if ((attrval = xml_node_get_attr(node, "location")) != NULL && *attrval)
+		ni_string_array_append(sources, attrval);
+}
+ni_bool_t
+ni_config_parse_sources(ni_config_t *conf, xml_node_t *sources)
+{
+	xml_node_t *child;
+
+	for (child = sources->children; child && child->name; child = child->next) {
+		if (!strcmp(child->name, "ifconfig")) {
+			__ni_config_parse_ifconfig_source(&conf->sources.ifconfig, child);
+		}
+	}
+	return TRUE;
+}
+
 
 /*
  * Extension handling

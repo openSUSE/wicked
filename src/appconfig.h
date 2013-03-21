@@ -108,6 +108,10 @@ typedef struct ni_config {
 	ni_extension_t *	fw_extensions;
 	ni_extension_t *	updater_extensions;
 
+	struct {
+	    ni_string_array_t	ifconfig;
+	} sources;
+
 	char *			dbus_name;
 	char *			dbus_type;
 } ni_config_t;
