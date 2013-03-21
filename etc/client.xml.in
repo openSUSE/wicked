@@ -8,4 +8,15 @@
   <netif-firmware-discovery>
     <script name="ibft" command="@wicked_extensionsdir@/ibft" />
   </netif-firmware-discovery>
+
+  <!-- This specifies sources of client configuration.
+
+       The ifconfig source specifies the type, location and the
+       priority/order of the interface configurations.
+    -->
+  <sources>
+    <ifconfig location="firmware:" />
+    <ifconfig location="compat:" />
+    <ifconfig location="wicked:@wicked_configdir@/ifconfig" />
+  </sources>
 </config>
