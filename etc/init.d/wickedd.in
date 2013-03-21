@@ -32,10 +32,13 @@ rc_reset
 
 # Check for missing binary/config (stale symlinks should not happen)
 # Note: Special treatment of stop/status for LSB conformance
-wicked_DAEMON_BIN=@sbindir@/wickedd
-wicked_CONFIG=@sysconfdir@/wicked/server.xml
-wicked_RUNDIR=/var/run/wicked
-wicked_PIDFILE=/var/run/wicked.pid
+wicked_CONFIG=@wicked_configdir@/server.xml
+wicked_DAEMON_BIN=@wicked_sbindir@/wickedd
+wicked_PIDFILE=@wicked_piddir@/wicked.pid
+
+# for WICKED_DEBUG_LEVEL only
+test -f /etc/sysconfig/network/config && \
+      . /etc/sysconfig/network/config
 
 function check_executable {
 
@@ -117,6 +120,9 @@ case $ACTION in
 	fi
 
 	echo -n "Starting"
+
+	# FIXME: remove it
+	ulimit -c unlimited
 
 	start_one @sbindir@/autoip4-supplicant $COMMON_ARGS
 	start_one @sbindir@/dhcp4-supplicant $COMMON_ARGS
