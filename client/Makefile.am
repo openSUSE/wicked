@@ -25,4 +25,7 @@ wicked_SOURCES			= \
 EXTRA_DIST			= \
 	wicked-client.h
 
+install-data-hook:
+	$(mkinstalldirs) "$(DESTDIR)$(wicked_configdir)/ifconfig"
+
 # vim: ai

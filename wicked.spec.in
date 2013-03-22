@@ -189,6 +189,7 @@ make install DESTDIR=${RPM_BUILD_ROOT}
 %files client
 %defattr (-,root,root)
 %dir %_sysconfdir/wicked
+%dir %_sysconfdir/wicked/ifconfig
 %config(noreplace) %_sysconfdir/wicked/client.xml
 %_sbindir/wicked
 %_mandir/man8/wicked
