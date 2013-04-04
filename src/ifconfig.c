@@ -41,6 +41,14 @@
 #include "kernel.h"
 #include "appconfig.h"
 #include "debug.h"
+#include "modprobe.h"
+
+#ifndef BONDING_MODULE_NAME
+#define BONDING_MODULE_NAME "bonding"
+#endif
+#ifndef BONDING_MODULE_ARGS
+#define BONDING_MODULE_ARGS "max_bonds=0"
+#endif
 
 static int	__ni_netdev_update_addrs(ni_netdev_t *dev,
 				const ni_addrconf_lease_t *old_lease,
@@ -476,13 +484,11 @@ ni_system_bond_create(ni_netconfig_t *nc, const char *ifname, const ni_bonding_t
 	if (!ni_sysfs_bonding_available()) {
 		unsigned int i, success = 0;
 
-#if 0
 		/* Load the bonding module */
-		if (ni_modprobe("bonding") < 0)
+		if (ni_modprobe(BONDING_MODULE_NAME, BONDING_MODULE_ARGS) < 0)
 			return -1;
-#endif
 
-		/* Wait for bonding_masters to appear */
+		/* FIXME: Wait for bonding_masters to appear */
 		for (i = 0; i < 400; ++i) {
 			if ((success = ni_sysfs_bonding_available()) != 0)
 				break;
