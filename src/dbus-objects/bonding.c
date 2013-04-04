@@ -80,6 +80,10 @@ __ni_objectmodel_bond_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusErro
 	ni_string_dup(&cfg_ifp->name, ifname);
 
 	if ((rv = ni_system_bond_create(nc, cfg_ifp->name, bond, &new_ifp)) < 0) {
+		dbus_set_error(error, DBUS_ERROR_FAILED,
+				"Unable to create bonding interface '%s'", cfg_ifp->name);
+		goto out;
+#if 0
 		if (rv != -NI_ERROR_DEVICE_EXISTS
 		 && (ifname != NULL && strcmp(ifname, new_ifp->name))) {
 			dbus_set_error(error,
@@ -89,6 +93,7 @@ __ni_objectmodel_bond_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusErro
 			goto out;
 		}
 		ni_debug_dbus("Bonding interface exists (and name matches)");
+#endif
 	}
 
 	if (new_ifp->link.type != NI_IFTYPE_BOND) {
