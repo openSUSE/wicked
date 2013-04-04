@@ -360,8 +360,12 @@ __ni_suse_read_interface(const char *filename, const char *ifname)
 	ni_sysconfig_t *sc;
 
 	if (ni_string_len(ifname) == 0) {
-		if (!__ni_suse_ifcfg_valid_prefix(basename, __NI_SUSE_CONFIG_IFPREFIX) ||
-		    !__ni_suse_ifcfg_valid_suffix(basename, pfxlen)) {
+		if (!__ni_suse_ifcfg_valid_prefix(basename, __NI_SUSE_CONFIG_IFPREFIX)) {
+			ni_error("Rejecting file without '%s' prefix: %s",
+				__NI_SUSE_CONFIG_IFPREFIX, filename);
+			return NULL;
+		}
+		if (!__ni_suse_ifcfg_valid_suffix(basename, pfxlen)) {
 			ni_error("Rejecting blacklisted %sfile: %s",
 				__NI_SUSE_CONFIG_IFPREFIX, filename);
 			return NULL;
