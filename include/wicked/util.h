@@ -220,6 +220,8 @@ ni_string_len(const char *s)
 
 extern const char *	ni_string_strip_prefix(const char *string, const char *prefix);
 extern char *		ni_string_strip_suffix(char *string, const char *suffix);
+extern const char *	ni_string_join(char **str, const ni_string_array_t *nsa, const char *sep);
+extern unsigned int	ni_string_split(ni_string_array_t *nsa, const char *str, const char *sep);
 
 /*
  * When we allocate temporary resources (such as tempfiles)

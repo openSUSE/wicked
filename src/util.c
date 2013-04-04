@@ -705,6 +705,48 @@ ni_string_strip_suffix(char *string, const char *suffix)
 	return string;
 }
 
+unsigned int
+ni_string_split(ni_string_array_t *nsa, const char *str, const char *sep)
+{
+	unsigned int count;
+	char *tmp, *s, *p = NULL;
+
+	if (nsa == NULL || ni_string_len(sep) == 0 || ni_string_len(str) == 0)
+		return 0;
+
+	if ((tmp = strdup(str)) == NULL)
+		return 0;
+
+	count = nsa->count;
+
+	for (s = strtok_r(tmp, sep, &p); s; s = strtok_r(NULL, sep, &p))
+		ni_string_array_append(nsa, s);
+	free(tmp);
+
+	return nsa->count - count;
+}
+
+const char *
+ni_string_join(char **str, const ni_string_array_t *nsa, const char *sep)
+{
+	ni_stringbuf_t buf;
+	unsigned int i;
+
+	if (nsa == NULL || sep == NULL || str == NULL)
+		return NULL;
+
+	ni_stringbuf_init(&buf);
+	for (i=0; i < nsa->count; ++i) {
+		if (i)
+			ni_stringbuf_puts(&buf, sep);
+		ni_stringbuf_puts(&buf, nsa->data[i]);
+	}
+	ni_string_dup(str, buf.string);
+	ni_stringbuf_destroy(&buf);
+
+	return *str;
+}
+
 int
 ni_parse_int(const char *input, unsigned int *result)
 {
