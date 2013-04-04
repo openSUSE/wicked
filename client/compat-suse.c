@@ -518,6 +518,10 @@ try_bonding(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 {
 	ni_netdev_t *dev = compat->dev;
 	const char *module_opts;
+	ni_bool_t enabled;
+
+	if (!ni_sysconfig_get_boolean(sc, "BONDING_MASTER", &enabled) || !enabled)
+		return FALSE;
 
 	if (!__process_indexed_variables(sc, dev, "BONDING_SLAVE", try_add_bonding_slave))
 		return FALSE;
@@ -541,7 +545,7 @@ try_bridge(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	ni_bool_t enabled;
 	const char *value;
 
-	if (ni_sysconfig_get_boolean(sc, "BRIDGE", &enabled) || !enabled)
+	if (!ni_sysconfig_get_boolean(sc, "BRIDGE", &enabled) || !enabled)
 		return FALSE;
 
 	dev->link.type = NI_IFTYPE_BRIDGE;
