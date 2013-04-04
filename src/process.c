@@ -23,17 +23,84 @@ static int				__ni_process_run(ni_process_t *, int *);
 static ni_socket_t *			__ni_process_get_output(ni_process_t *, int);
 static const ni_string_array_t *	__ni_default_environment(void);
 
+static inline ni_bool_t
+__ni_shellcmd_parse(ni_string_array_t *argv, const char *command)
+{
+	if (ni_string_split(argv, command, " \t") == 0)
+		return FALSE;
+	return TRUE;
+}
+
+static inline const char *
+__ni_shellcmd_format(char **cmd, const ni_string_array_t *argv)
+{
+	return ni_string_join(cmd, argv, " ");
+}
+
+static void
+__ni_shellcmd_free(ni_shellcmd_t *proc)
+{
+	ni_string_array_destroy(&proc->environ);
+	ni_string_free(&proc->command);
+	free(proc);
+}
+
+
 /*
  * Create a process description
  */
 ni_shellcmd_t *
-ni_shellcmd_new(const char *command)
+ni_shellcmd_new(const ni_string_array_t *argv)
+{
+	ni_shellcmd_t *proc;
+	unsigned int i;
+
+	ni_assert(argv != NULL);
+
+	proc = xcalloc(1, sizeof(*proc));
+
+	for (i = 0; i < argv->count; ++i) {
+		const char *arg = argv->data[i];
+
+		if (ni_string_len(arg) == 0)
+			continue;	/* fail ?! */
+
+		if (ni_string_array_append(&proc->argv, arg) < 0) {
+			__ni_shellcmd_free(proc);
+			return NULL;
+		}
+	}
+	if (__ni_shellcmd_format(&proc->command, &proc->argv) == NULL) {
+		__ni_shellcmd_free(proc);
+		return NULL;
+	}
+	if (ni_string_array_copy(&proc->environ, __ni_default_environment()) < 0) {
+		__ni_shellcmd_free(proc);
+		return NULL;
+	}
+
+	proc->refcount = 1;
+	return proc;
+}
+
+ni_shellcmd_t *
+ni_shellcmd_parse(const char *command)
 {
 	ni_shellcmd_t *proc;
 
-	proc = calloc(1, sizeof(*proc));
+	ni_assert(command != NULL);
+
+	proc = xcalloc(1, sizeof(*proc));
+
 	ni_string_dup(&proc->command, command);
-	ni_string_array_copy(&proc->environ, __ni_default_environment());
+	if (!__ni_shellcmd_parse(&proc->argv, proc->command)) {
+		__ni_shellcmd_free(proc);
+		return NULL;
+	}
+	if (ni_string_array_copy(&proc->environ, __ni_default_environment()) < 0) {
+		__ni_shellcmd_free(proc);
+		return NULL;
+	}
 
 	proc->refcount = 1;
 	return proc;
@@ -43,24 +110,35 @@ void
 ni_shellcmd_free(ni_shellcmd_t *proc)
 {
 	ni_assert(proc->refcount == 0);
-	ni_string_array_destroy(&proc->environ);
-	ni_string_free(&proc->command);
-	free(proc);
+	__ni_shellcmd_free(proc);
+}
+
+ni_bool_t
+ni_shellcmd_add_arg(ni_shellcmd_t *proc, const char *arg)
+{
+	if (proc == NULL || ni_string_len(arg) == 0)
+		return FALSE;
+
+	if (ni_string_array_append(&proc->argv, arg) < 0)
+		return FALSE;
+
+	if (__ni_shellcmd_format(&proc->command, &proc->argv) == NULL)
+		return FALSE;
+
+	return TRUE;
 }
 
 ni_process_t *
 ni_process_new(ni_shellcmd_t *proc)
 {
 	ni_process_t *pi;
-	char *cmd, *s;
 
-	pi = calloc(1, sizeof(*pi));
+	pi = xcalloc(1, sizeof(*pi));
+
 	pi->process = ni_shellcmd_hold(proc);
 
-	cmd = strdup(proc->command);
-	for (s = strtok(cmd, " \t"); s; s = strtok(NULL, " \t"))
-		ni_string_array_append(&pi->argv, s);
-	free(cmd);
+	/* Copy the command array */
+	ni_string_array_copy(&pi->argv, &proc->argv);
 
 	/* Copy the environment */
 	ni_string_array_copy(&pi->environ, &proc->environ);
@@ -487,3 +565,4 @@ __ni_process_get_output(ni_process_t *pi, int fd)
 	sock->user_data = pi;
 	return sock;
 }
+

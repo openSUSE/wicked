@@ -15,6 +15,8 @@ struct ni_shellcmd {
 	unsigned int		refcount;
 
 	char *			command;
+
+	ni_string_array_t	argv;
 	ni_string_array_t	environ;
 
 	unsigned int		timeout;
@@ -36,7 +38,10 @@ struct ni_process {
 	void *			user_data;
 };
 
-extern ni_shellcmd_t *		ni_shellcmd_new(const char *);
+extern ni_shellcmd_t *		ni_shellcmd_new(const ni_string_array_t *argv);
+extern ni_shellcmd_t *		ni_shellcmd_parse(const char *command);
+extern ni_bool_t		ni_shellcmd_add_arg(ni_shellcmd_t *, const char *);
+
 extern ni_process_t *		ni_process_new(ni_shellcmd_t *);
 extern int			ni_process_run(ni_process_t *);
 extern int			ni_process_run_and_wait(ni_process_t *);

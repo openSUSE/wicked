@@ -149,7 +149,7 @@ ni_extension_script_new(ni_extension_t *extension, const char *name, const char 
 	ni_script_action_t *script;
 
 	script = __ni_script_action_new(name, &extension->actions);
-	script->process = ni_shellcmd_new(command);
+	script->process = ni_shellcmd_parse(command);
 
 	return script->process;
 }
