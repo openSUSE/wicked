@@ -63,6 +63,7 @@ libwicked_la_SOURCES		= \
 	logging.c		\
 	md5sum.c		\
 	modem-manager.c		\
+	modprobe.c		\
 	names.c			\
 	netinfo.c		\
 	nis.c			\
@@ -122,6 +123,7 @@ EXTRA_DIST			= \
 	ipv6_priv.h		\
 	kernel.h		\
 	modem-manager.h		\
+	modprobe.h		\
 	netinfo_priv.h		\
 	process.h		\
 	socket_priv.h		\
