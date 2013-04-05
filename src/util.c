@@ -767,31 +767,46 @@ ni_parse_int(const char *input, unsigned int *result, int base)
 int
 ni_parse_int_mapped(const char *input, const ni_intmap_t *map, unsigned int *result)
 {
-	char *end;
-
-	if (!input)
+	if (!map || !input || !result)
 		return -1;
-	if (isdigit(input[0])) {
-		*result = strtoul(input, (char **) &end, 0);
-		if (*end == '\0')
-			return 0;
-	}
 
-	if (!map)
-		return -1;
 	for (; map->name; ++map) {
 		if (!strcasecmp(map->name, input)) {
 			*result = map->value;
 			return 0;
 		}
 	}
+	return -1;
+}
 
+int
+ni_parse_int_maybe_mapped(const char *input, const ni_intmap_t *map, unsigned int *result, int base)
+{
+	if (!map || !input || !result)
+		return -1;
+
+	if (ni_parse_int_mapped(input, map, result) == 0)
+		return 0;
+
+	/* base 0 hex numbers have 0x prefix */
+	if (isdigit((unsigned char)input[0])) {
+		if (ni_parse_int(input, result, base) < 0)
+			return -1;
+
+		if (ni_format_int_mapped(*result, map) == NULL)
+			return 1;
+
+		return 0;
+	}
 	return -1;
 }
 
 const char *
 ni_format_int_mapped(unsigned int value, const ni_intmap_t *map)
 {
+	if (!map)
+		return NULL;
+
 	for (; map->name; ++map) {
 		if (map->value == value)
 			return map->name;
@@ -805,6 +820,9 @@ ni_format_int_maybe_mapped(unsigned int value, const ni_intmap_t *map)
 {
 	static char buffer[20];
 	const char *name;
+
+	if (!map)
+		return NULL;
 
 	if (!(name = ni_format_int_mapped(value, map))) {
 		snprintf(buffer, sizeof(buffer), "%u", value);

@@ -156,7 +156,7 @@ __ni_bonding_set_module_option_mode(ni_bonding_t *bonding, char *value)
 	value[strcspn(value, " \t\n")] = '\0';
 	rv = ni_parse_int_mapped(value, __kernel_bonding_mode_names, &bonding->mode);
 	if (rv < 0)
-		ni_error("bonding: kernel reports unknown arp_validate mode \"%s\"", value);
+		ni_error("bonding: kernel reports unknown mode \"%s\"", value);
 	return rv;
 }
 

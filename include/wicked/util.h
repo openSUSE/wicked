@@ -145,6 +145,7 @@ extern int		ni_mkdir_maybe(const char *pathname, unsigned int mode);
 
 extern int		ni_parse_int(const char *, unsigned int *, int);
 extern int		ni_parse_int_mapped(const char *, const struct ni_intmap *, unsigned int *);
+extern int		ni_parse_int_maybe_mapped(const char *, const struct ni_intmap *, unsigned int *, int);
 extern const char *	ni_format_int_mapped(unsigned int, const ni_intmap_t *);
 extern const char *	ni_format_int_maybe_mapped(unsigned int, const ni_intmap_t *);
 extern int		ni_parse_double(const char *, double *);

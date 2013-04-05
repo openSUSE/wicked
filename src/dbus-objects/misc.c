@@ -762,13 +762,10 @@ ni_netbios_node_type_to_code(const char *name)
 {
 	unsigned int val;
 
-	/* allow parsing as number, ... */
-	if (ni_parse_int_mapped(name, __ni_netbios_node_types, &val) < 0)
-		return 0;
-	/* but verify it's a valid type */
-	if (ni_format_int_mapped(val, __ni_netbios_node_types) == NULL)
-		return 0;
-	return val;
+	/* allow parsing as number, ... but verify it's a valid type */
+	if (ni_parse_int_maybe_mapped(name, __ni_netbios_node_types, &val, 0) == 0)
+		return val;
+	return 0;
 }
 
 /*

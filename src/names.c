@@ -405,7 +405,7 @@ ni_route_type_name_to_type(const char *name)
 {
 	unsigned int value;
 
-	if (ni_parse_int_mapped(name, __ni_route_type_names, &value) < 0)
+	if (ni_parse_int_maybe_mapped(name, __ni_route_type_names, &value, 10) < 0)
 		return -1;
 	return value;
 }
@@ -443,7 +443,7 @@ ni_route_protocol_name_to_type(const char *name)
 {
 	unsigned int value;
 
-	if (ni_parse_int_mapped(name, __ni_route_protocol_names, &value) < 0)
+	if (ni_parse_int_maybe_mapped(name, __ni_route_protocol_names, &value, 10) < 0)
 		return -1;
 	return value;
 }
@@ -472,7 +472,7 @@ ni_route_scope_name_to_type(const char *name)
 {
 	unsigned int value;
 
-	if (ni_parse_int_mapped(name, __ni_route_scope_names, &value) < 0)
+	if (ni_parse_int_maybe_mapped(name, __ni_route_scope_names, &value, 10) < 0)
 		return -1;
 	return value;
 }
@@ -501,7 +501,7 @@ ni_route_table_name_to_type(const char *name)
 {
 	unsigned int value;
 
-	if (ni_parse_int_mapped(name, __ni_route_table_names, &value) < 0)
+	if (ni_parse_int_maybe_mapped(name, __ni_route_table_names, &value, 10) < 0)
 		return -1;
 	return value;
 }
