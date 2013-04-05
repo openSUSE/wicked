@@ -307,7 +307,7 @@ __ni_ppp_create_device(ni_ppp_t *ppp, const char *ifname)
 	/* If we're asked to create a device named pppN, assume we should be
 	 * creating the device with the specified ppp unit N */
 	if (ifname && !strncmp(ifname, "ppp", 3)
-	 && ni_parse_int(ifname + 3, (unsigned int *) &ifunit) >= 0)
+	 && ni_parse_int(ifname + 3, (unsigned int *) &ifunit, 10) >= 0)
 		ifname = NULL;
 
 	if (ioctl(devfd, PPPIOCNEWUNIT, &ifunit) < 0) {

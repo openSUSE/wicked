@@ -1015,7 +1015,7 @@ do_check(int argc, char **argv)
 	while ((c = getopt_long(argc, argv, "", options, NULL)) != EOF) {
 		switch (c) {
 		case OPT_TIMEOUT:
-			if (ni_parse_int(optarg, &opt_timeout) < 0)
+			if (ni_parse_int(optarg, &opt_timeout, 10) < 0)
 				ni_fatal("cannot parse timeout value \"%s\"", optarg);
 			break;
 

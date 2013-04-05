@@ -153,7 +153,7 @@ __match_uint(unsigned int device_value, const char *query_string)
 {
 	unsigned int query_value;
 
-	if (ni_parse_int(query_string, &query_value) < 0)
+	if (ni_parse_int(query_string, &query_value, 0) < 0)
 		return FALSE;
 	return device_value == query_value;
 }

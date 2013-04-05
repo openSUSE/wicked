@@ -99,7 +99,7 @@ ni_objectmodel_addrconf_path_to_device(const char *path)
 		return NULL;
 	path += 10;
 
-	if (ni_parse_int(path, &ifindex) < 0)
+	if (ni_parse_int(path, &ifindex, 10) < 0)
 		return NULL;
 
 	nc = ni_global_state_handle(1);

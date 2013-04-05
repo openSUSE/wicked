@@ -636,7 +636,7 @@ ni_config_parse_fslocation(ni_config_fslocation_t *fsloc, xml_node_t *node)
 	if ((attrval = xml_node_get_attr(node, "path")) != NULL)
 		ni_string_dup(&fsloc->path, attrval);
 	if ((attrval = xml_node_get_attr(node, "mode")) != NULL)
-		ni_parse_int(attrval, &fsloc->mode);
+		ni_parse_int(attrval, &fsloc->mode, 8);
 }
 
 /*

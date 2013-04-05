@@ -338,26 +338,26 @@ ni_bonding_parse_sysfs_attribute(ni_bonding_t *bonding, const char *attr, char *
 		if (__ni_bonding_set_module_option_mode(bonding, value) < 0)
 			return -1;
 	} else if (!strcmp(attr, "miimon")) {
-		if (ni_parse_int(value, &bonding->miimon.frequency) < 0)
+		if (ni_parse_int(value, &bonding->miimon.frequency, 10) < 0)
 			return -1;
 		if (bonding->miimon.frequency != 0)
 			bonding->monitoring = NI_BOND_MONITOR_MII;
 		else
 			bonding->monitoring = NI_BOND_MONITOR_ARP;
 	} else if (!strcmp(attr, "updelay")) {
-		if (ni_parse_int(value, &bonding->miimon.updelay) < 0)
+		if (ni_parse_int(value, &bonding->miimon.updelay, 10) < 0)
 			return -1;
 	} else if (!strcmp(attr, "downdelay")) {
-		if (ni_parse_int(value, &bonding->miimon.downdelay) < 0)
+		if (ni_parse_int(value, &bonding->miimon.downdelay, 10) < 0)
 			return -1;
 	} else if (!strcmp(attr, "use_carrier")) {
-		if (ni_parse_int(value, &bonding->miimon.carrier_detect) < 0)
+		if (ni_parse_int(value, &bonding->miimon.carrier_detect, 10) < 0)
 			return -1;
 	} else if (!strcmp(attr, "arp_validate")) {
 		if (__ni_bonding_set_module_option_arp_validate(bonding, value) < 0)
 			return -1;
 	} else if (!strcmp(attr, "arp_interval")) {
-		if (ni_parse_int(value, &bonding->arpmon.interval) < 0)
+		if (ni_parse_int(value, &bonding->arpmon.interval, 10) < 0)
 			return -1;
 	} else if (!strcmp(attr, "arp_ip_target")) {
 		char *s, *saveptr = NULL;

@@ -143,8 +143,8 @@ extern int		ni_file_write(FILE *, const void *, size_t);
 extern ni_bool_t	ni_file_remove_recursively(const char *path);
 extern int		ni_mkdir_maybe(const char *pathname, unsigned int mode);
 
+extern int		ni_parse_int(const char *, unsigned int *, int);
 extern int		ni_parse_int_mapped(const char *, const struct ni_intmap *, unsigned int *);
-extern int		ni_parse_int(const char *, unsigned int *);
 extern const char *	ni_format_int_mapped(unsigned int, const ni_intmap_t *);
 extern const char *	ni_format_int_maybe_mapped(unsigned int, const ni_intmap_t *);
 extern int		ni_parse_double(const char *, double *);

@@ -748,17 +748,20 @@ ni_string_join(char **str, const ni_string_array_t *nsa, const char *sep)
 }
 
 int
-ni_parse_int(const char *input, unsigned int *result)
+ni_parse_int(const char *input, unsigned int *result, int base)
 {
+	unsigned int value;
 	char *end;
 
-	if (!input || !*input)
+	if (!input || !*input || !result)
 		return -1;
-	*result = strtoul(input, (char **) &end, 0);
-	if (*end == '\0')
-		return 0;
 
-	return -1;
+	value = strtoul(input, (char **) &end, base);
+	if (*end != '\0')
+		return -1;
+
+	*result = value;
+	return 0;
 }
 
 int
