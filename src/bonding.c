@@ -14,6 +14,33 @@
 #include <wicked/bonding.h>
 #include "netinfo_priv.h"
 #include "sysfs.h"
+#include "modprobe.h"
+
+
+#ifndef BONDING_MODULE_NAME
+#define BONDING_MODULE_NAME "bonding"
+#endif
+#ifndef BONDING_MODULE_OPTS
+#define BONDING_MODULE_OPTS "max_bonds=0"
+#endif
+
+
+/*
+ * Load bonding module with specified arguments.
+ *
+ * Default is max_bonds=1 that automatically creates a bond0
+ * interface. We use max_bonds=0 option as default to avoid
+ * an automatic bond0 interface creation. They're requested
+ * explicitly by the factory, which may need another name.
+ */
+int
+ni_bonding_load(const char *options)
+{
+	if (options == NULL)
+		options = BONDING_MODULE_OPTS;
+
+	return ni_modprobe(BONDING_MODULE_NAME, options);
+}
 
 /*
  * Create a bonding config

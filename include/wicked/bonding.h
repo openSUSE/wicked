@@ -60,6 +60,8 @@ struct ni_bonding {
 	ni_string_array_t	slave_names;
 };
 
+extern int		ni_bonding_load(const char *options);
+
 extern ni_bonding_t *	ni_bonding_new(void);
 extern void		ni_bonding_free(ni_bonding_t *);
 extern void		ni_bonding_add_slave(ni_bonding_t *, const char *);
