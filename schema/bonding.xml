@@ -25,13 +25,14 @@
         error. If both are present, the behavior is undefined.
      -->
    <arpmon class="dict">
-     <interval type="uint32" description="ARP link monitoring frequency in milliseconds."/>
+     <interval type="uint32" constraint="required" description="ARP link monitoring frequency in milliseconds." />
      <validate type="builtin-bonding-arp-validate"/>
-     <target class="array" element-type="ipv4-address" minlen="1"/>
+     <!-- targets class="array" element-type="ipv4-address" minlen="1"/ -->
+     <targets class="array" constraint="required" minlen="1" element-type="string" />
    </arpmon>
 
    <miimon class="dict">
-     <frequency type="uint32" description="Specifies the MII link monitoring frequency in milliseconds.
+     <frequency type="uint32" constraint="required" description="Specifies the MII link monitoring frequency in milliseconds.
              This determines how often the link state of each slave is inspected for link failures."/>
      <updelay type="uint32" description="Specifies the time, in milliseconds, to wait before enabling a
              slave after a link recovery has been detected."/>
@@ -48,15 +49,15 @@
 
    <all-slaves-active type="boolean" description="Enable to deliver duplicate frames received on inactive slaves when enabled instead of dropping them." />
    <min-links type="uint32" description="Specifies the minimum number of links that must be active before asserting carrier."/>
-   <num-grat-arp type="uint32" description="Specify the number of peer notifications using gratuitous ARPs to be issued after a failover event. Default is 1" constraint="range">
+   <num-grat-arp type="uint32" constraint="range" description="Specify the number of peer notifications using gratuitous ARPs to be issued after a failover event. Default is 1">
     <min value="0"/>
     <max value="255"/>
    </num-grat-arp>
-   <num-unsol-na type="uint32" description="Specify the number of peer notifications usingunsolicited IPv6 Neighbor Advertisements to be issued after a failover event. Default is 1" constraint="range">
+   <num-unsol-na type="uint32" constraint="range" description="Specify the number of peer notifications usingunsolicited IPv6 Neighbor Advertisements to be issued after a failover event. Default is 1">
      <min value="0"/>
      <max value="255"/>
    </num-unsol-na>
-   <resend-igmp type="uint32" description="Specify the number of IGMP membership reports to be issued after a failover event." constraint="range">
+   <resend-igmp type="uint32" constraint="range" description="Specify the number of IGMP membership reports to be issued after a failover event.">
      <min value="0"/>
      <max value="255"/>
    </resend-igmp>
