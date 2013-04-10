@@ -207,6 +207,9 @@ ni_bonding_validate(const ni_bonding_t *bonding)
 	 */
 	switch (bonding->monitoring) {
 	case NI_BOND_MONITOR_ARP:
+		if (bonding->miimon.frequency > 0)
+			return "invalid arp/mii monitoring mix";
+
 		if (bonding->arpmon.interval == 0)
 			return "invalid arpmon interval";
 
@@ -226,7 +229,24 @@ ni_bonding_validate(const ni_bonding_t *bonding)
 		break;
 
 	case NI_BOND_MONITOR_MII:
-		/* FIXME: validate frequency, updelay, downdelay */
+		if (bonding->arpmon.interval > 0 ||
+		    bonding->arpmon.targets.count > 0)
+			return "invalid mii/arp monitoring mix";
+
+		if (bonding->miimon.frequency == 0)
+			return "invalid miimon frequency";
+
+		/*
+		 * Both should be a multiple of frequency...
+		 * rounded down with warning by the kernel.
+		 */
+		if (bonding->miimon.updelay &&
+				(bonding->miimon.updelay < bonding->miimon.frequency))
+			return "miimon updelay is smaller than frequency";
+		if (bonding->miimon.downdelay &&
+				(bonding->miimon.downdelay < bonding->miimon.frequency))
+			return "miimon downdelay is smaller than frequency";
+
 		switch (bonding->miimon.carrier_detect) {
 		case NI_BOND_MII_CARRIER_DETECT_IOCTL:
 		case NI_BOND_MII_CARRIER_DETECT_NETIF:
@@ -239,8 +259,61 @@ ni_bonding_validate(const ni_bonding_t *bonding)
 		break;
 
 	default:
-		return "unsupported monitoring mode";
+		return "unsupported, insufficient monitoring settings";
 	}
+
+	switch (bonding->xmit_hash_policy) {
+	case NI_BOND_XMIT_HASH_LAYER2:
+	case NI_BOND_XMIT_HASH_LAYER2_3:
+	case NI_BOND_XMIT_HASH_LAYER3_4:
+		break;
+	default:
+		return "unsupported xmit hash policy";
+	}
+
+	switch (bonding->lacp_rate) {
+	case NI_BOND_LACP_RATE_SLOW:
+	case NI_BOND_LACP_RATE_FAST:
+		break;
+	default:
+		return "unsupported lacp-rate setting";
+	}
+
+	switch (bonding->ad_select) {
+	case NI_BOND_AD_SELECT_STABLE:
+	case NI_BOND_AD_SELECT_BANDWIDTH:
+	case NI_BOND_AD_SELECT_COUNT:
+		break;
+	default:
+		return "unsupported ad-select setting";
+	}
+
+	switch (bonding->fail_over_mac) {
+	case NI_BOND_FAIL_OVER_MAC_NONE:
+	case NI_BOND_FAIL_OVER_MAC_ACTIVE:
+	case NI_BOND_FAIL_OVER_MAC_FOLLOW:
+		break;
+	default:
+		return "unsupported fail-over-mac setting";
+	}
+
+	switch (bonding->primary_reselect) {
+	case NI_BOND_PRIMARY_RESELECT_ALWAYS:
+	case NI_BOND_PRIMARY_RESELECT_BETTER:
+	case NI_BOND_PRIMARY_RESELECT_FAILURE:
+		break;
+	default:
+		return "unsupported primary reselect setting";
+	}
+
+	if (bonding->num_grat_arp > 255)
+		return "gratuitous ARP count not in range 0-255";
+
+	if (bonding->num_unsol_na > 255)
+		return "unsolicited IPv6-NA count not in range 0-255";
+
+	if (bonding->resend_igmp > 255)
+		return "resend IGMP count not in range 0-255";
 
 	return NULL;
 }
