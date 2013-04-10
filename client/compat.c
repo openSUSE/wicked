@@ -163,8 +163,8 @@ __ni_compat_generate_bonding(xml_node_t *ifnode, const ni_compat_netdev_t *compa
 			ni_bonding_mode_type_to_name(bond->mode));
 
 	if (bond->monitoring == NI_BOND_MONITOR_ARP) {
-		xml_node_t *targets;
 		xml_node_t *arpmon;
+		xml_node_t *targets;
 
 		arpmon = xml_node_create(child, "arpmon");
 		xml_node_new_element("interval", arpmon,
@@ -172,7 +172,7 @@ __ni_compat_generate_bonding(xml_node_t *ifnode, const ni_compat_netdev_t *compa
 		xml_node_new_element("validate", arpmon,
 				ni_bonding_arp_validate_type_to_name(bond->arpmon.validate));
 
-		targets = xml_node_create(child, "targets");
+		targets = xml_node_create(arpmon, "targets");
 		for (i = 0; i < bond->arpmon.targets.count; ++i) {
 			xml_node_new_element("ipv4-address", targets,
 					bond->arpmon.targets.data[i]);
