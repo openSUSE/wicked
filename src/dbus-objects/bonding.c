@@ -239,6 +239,7 @@ __ni_objectmodel_bonding_set_miimon(ni_dbus_object_t *object,
 	ni_dbus_dict_get_uint32(result, "updelay", &bond->miimon.updelay);
 	ni_dbus_dict_get_uint32(result, "downdelay", &bond->miimon.downdelay);
 	ni_dbus_dict_get_uint32(result, "carrier-detect", &bond->miimon.carrier_detect);
+
 	return TRUE;
 }
 
@@ -282,6 +283,7 @@ __ni_objectmodel_bonding_set_arpmon(ni_dbus_object_t *object,
 		return FALSE;
 
 	bond->monitoring = NI_BOND_MONITOR_ARP;
+
 	ni_dbus_dict_get_uint32(result, "interval", &bond->arpmon.interval);
 	ni_dbus_dict_get_uint32(result, "validate", &bond->arpmon.validate);
 	if ((var = ni_dbus_dict_get(result, "targets")) != NULL) {
@@ -386,6 +388,8 @@ __ni_objectmodel_bonding_set_slaves(ni_dbus_object_t *object,
 	NI_DBUS_GENERIC_STRING_PROPERTY(bonding, dbus_name, member_name, rw)
 #define BONDING_UINT_PROPERTY(dbus_name, member_name, rw) \
 	NI_DBUS_GENERIC_UINT_PROPERTY(bonding, dbus_name, member_name, rw)
+#define BONDING_BOOL_PROPERTY(dbus_name, member_name, rw) \
+	NI_DBUS_GENERIC_BOOL_PROPERTY(bonding, dbus_name, member_name, rw)
 #define BONDING_STRING_ARRAY_PROPERTY(dbus_name, member_name, rw) \
 	NI_DBUS_GENERIC_STRING_ARRAY_PROPERTY(bonding, dbus_name, member_name, rw)
 
@@ -393,6 +397,15 @@ static ni_dbus_property_t	ni_objectmodel_bond_properties[] = {
 	BONDING_UINT_PROPERTY(mode, mode, RO),
 	BONDING_STRING_PROPERTY(primary, primary, RO),
 	BONDING_UINT_PROPERTY(xmit-hash-policy, xmit_hash_policy, RO),
+	BONDING_UINT_PROPERTY(lacp-rate, lacp_rate, RO),
+	BONDING_UINT_PROPERTY(ad-select, ad_select, RO),
+	BONDING_UINT_PROPERTY(min-links, min_links, RO),
+	BONDING_UINT_PROPERTY(primary-reselect, primary_reselect, RO),
+	BONDING_UINT_PROPERTY(fail-over-mac, fail_over_mac, RO),
+	BONDING_UINT_PROPERTY(num-grat-arp, num_grat_arp, RO),
+	BONDING_UINT_PROPERTY(num-unsol-na, num_unsol_na, RO),
+	BONDING_UINT_PROPERTY(resend-igmp, resend_igmp, RO),
+	BONDING_BOOL_PROPERTY(all-slaves-active, all_slaves_active, RO),
 
 	__NI_DBUS_PROPERTY(
 			DBUS_TYPE_ARRAY_AS_STRING NI_DBUS_DICT_SIGNATURE,
