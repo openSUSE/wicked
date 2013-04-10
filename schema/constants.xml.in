@@ -63,15 +63,60 @@
 <define name="builtin-bonding-mode" type="uint32" constraint="enum">
   <@@BONDING_MODE_NAME@@ value="@@BONDING_MODE_VALUE@@"/>
 </define>
-<define name="builtin-bonding-validate" type="uint32" constraint="enum">
+<define name="builtin-bonding-arp-validate" type="uint32" constraint="enum">
   <description>
-   Specifies whether or not ARP probes and replies should be
-   validated in the active-backup mode.
+    Specifies whether or not ARP probes and replies should be validated in the
+    active-backup mode.
   </description>
-  <@@BONDING_VALIDATE_NAME@@ value="@@BONDING_VALIDATE_VALUE@@"/>
+  <@@BONDING_ARP_VALIDATE_NAME@@ value="@@BONDING_ARP_VALIDATE_VALUE@@"/>
+</define>
+<define name="builtin-bonding-mii-carrier-detect" type="uint32" constraint="enum">
+  <description>
+    Specifies whether the MII monitor will use the netif network interface carrier
+    or the deprecated MII / ETHTOOL ioctls to determine the status of the slaves.
+    Default is to query netif carrier, but when the MII monitor fails to detect
+    carrier loss (e.g. disconnected cable) of a slave or it appears that the MII
+    monitor is very slow in detecting link failures, try specifying ioctl.
+  </description>
+  <@@BONDING_MII_CARRIER_DETECT_NAME@@ value="@@BONDING_MII_CARRIER_DETECT_VALUE@@"/>
 </define>
 <define name="builtin-bonding-xmit-hash-policy" type="uint32" constraint="enum">
+  <description>
+    Selects the transmit hash policy to use for slave selection in balance-xor
+    and 802.3ad modes. The policies layer2 and layer23 are ieee802-3ad compliant.
+  </description>
   <@@BONDING_XMIT_HASH_NAME@@ value="@@BONDING_XMIT_HASH_VALUE@@"/>
+</define>
+<define name="builtin-bonding-lacp-rate" type="uint32" constraint="enum">
+  <description>
+    Option specifying the rate in which the bond interface will ask the link
+    partner to transmit LACPDU packets in 802.3ad mode.
+  </description>
+  <@@BONDING_LACP_RATE_NAME@@ value="@@BONDING_LACP_RATE_VALUE@@"/>
+</define>
+<define name="builtin-bonding-ad-select" type="uint32" constraint="enum">
+  <description>
+    Specifies the 802.3ad aggregation selection logic to use.
+  </description>
+  <@@BONDING_AD_SELECT_NAME@@ value="@@BONDING_AD_SELECT_VALUE@@"/>
+</define>
+<define name="builtin-bonding-fail-over-mac" type="uint32" constraint="enum">
+  <description>
+    Specifies whether active-backup mode should set all slaves to the same
+    MAC address at enslavement, or perform special handling of the bond's
+    MAC address in accordance with the selected policy.
+  </description>
+  <@@BONDING_FAIL_OVER_MAC_NAME@@ value="@@BONDING_FAIL_OVER_MAC_VALUE@@"/>
+</define>
+<define name="builtin-bonding-primary-reselect" type="uint32" constraint="enum">
+  <description>
+    Specifies the reselection policy for the primary slave. This affects how
+    the primary slave is chosen to become the active slave when failure of
+    the active slave or recovery of the primary slave occurs. This option
+    is designed to prevent flip-flopping between the primary slave and other
+    slaves.
+  </description>
+  <@@BONDING_PRIMARY_RESELECT_NAME@@ value="@@BONDING_PRIMARY_RESELECT_VALUE@@"/>
 </define>
 
 <!-- Built-in route type/scope/table/protocol -->
