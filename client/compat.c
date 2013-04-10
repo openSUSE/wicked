@@ -170,7 +170,7 @@ __ni_compat_generate_bonding(xml_node_t *ifnode, const ni_compat_netdev_t *compa
 		xml_node_new_element("interval", arpmon,
 				ni_sprint_uint(bond->arpmon.interval));
 		xml_node_new_element("validate", arpmon,
-				ni_bonding_validate_type_to_name(bond->arpmon.validate));
+				ni_bonding_arp_validate_type_to_name(bond->arpmon.validate));
 
 		targets = xml_node_create(child, "targets");
 		for (i = 0; i < bond->arpmon.targets.count; ++i) {
@@ -192,8 +192,8 @@ __ni_compat_generate_bonding(xml_node_t *ifnode, const ni_compat_netdev_t *compa
 			xml_node_new_element("downdelay", miimon,
 				ni_sprint_uint(bond->miimon.downdelay));
 		}
-		xml_node_new_element("carrier-detect", miimon,
-			ni_bonding_carrier_detect_name(bond->miimon.carrier_detect));
+		xml_node_new_element("carrier", miimon,
+			ni_bonding_mii_carrier_detect_name(bond->miimon.carrier_detect));
 	}
 
 	slaves = xml_node_create(child, "slaves");
@@ -214,41 +214,41 @@ __ni_compat_generate_bonding(xml_node_t *ifnode, const ni_compat_netdev_t *compa
 	if (bond->mode == NI_BOND_MODE_802_3AD ||
 	    bond->mode == NI_BOND_MODE_BALANCE_XOR) {
 		if (verbose || bond->xmit_hash_policy) {
-			xml_node_new_element("xmit_hash_policy", child,
+			xml_node_new_element("xmit-hash-policy", child,
 				ni_bonding_xmit_hash_policy_to_name(bond->xmit_hash_policy));
 		}
 	}
 
 	if (bond->mode == NI_BOND_MODE_802_3AD) {
 		if (verbose || bond->lacp_rate) {
-			xml_node_new_element("lacp_rate", child,
+			xml_node_new_element("lacp-rate", child,
 				ni_bonding_lacp_rate_name(bond->lacp_rate));
 		}
 		if (verbose || bond->ad_select) {
-			xml_node_new_element("ad_select", child,
+			xml_node_new_element("ad-select", child,
 				ni_bonding_ad_select_name(bond->ad_select));
 		}
 		if (verbose || bond->min_links > 0) {
-			xml_node_new_element("min_links", child,
+			xml_node_new_element("min-links", child,
 					ni_sprint_uint(bond->min_links));
 		}
 	}
 
 	if (bond->mode == NI_BOND_MODE_ACTIVE_BACKUP) {
 		if (verbose || bond->primary_reselect) {
-			xml_node_new_element("primary_reselect", child,
+			xml_node_new_element("primary-reselect", child,
 				ni_bonding_primary_reselect_name(bond->primary_reselect));
 		}
 		if (verbose || bond->fail_over_mac) {
-			xml_node_new_element("fail_over_mac", child,
+			xml_node_new_element("fail-over-mac", child,
 				ni_bonding_fail_over_mac_name(bond->fail_over_mac));
 		}
 		if (verbose || bond->num_grat_arp != 1) {
-			xml_node_new_element("num_grat_arp", child,
+			xml_node_new_element("num-grat-arp", child,
 				ni_sprint_uint(bond->num_grat_arp));
 		}
 		if (verbose || bond->num_unsol_na != 1) {
-			xml_node_new_element("num_unsol_na", child,
+			xml_node_new_element("num-unsol-na", child,
 				ni_sprint_uint(bond->num_unsol_na));
 		}
 	}
@@ -257,9 +257,14 @@ __ni_compat_generate_bonding(xml_node_t *ifnode, const ni_compat_netdev_t *compa
 	    bond->mode == NI_BOND_MODE_BALANCE_TLB   ||
 	    bond->mode == NI_BOND_MODE_BALANCE_ALB) {
 		if (verbose || bond->resend_igmp != 1) {
-			xml_node_new_element("resend_igmp", child,
+			xml_node_new_element("resend-igmp", child,
 				ni_sprint_uint(bond->resend_igmp));
 		}
+	}
+
+	if (verbose || bond->all_slaves_active) {
+		xml_node_new_element("all-slaves-active", child,
+			(bond->all_slaves_active ? "true" : "false"));
 	}
 
 	return TRUE;

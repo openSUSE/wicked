@@ -39,10 +39,10 @@ static const ni_intmap_t	__map_kern_mode[] = {
 	{ NULL }
 };
 static const ni_intmap_t	__map_kern_arp_validate[] = {
-	{ "none",		NI_BOND_VALIDATE_NONE   },
-	{ "active",		NI_BOND_VALIDATE_ACTIVE },
-	{ "backup",		NI_BOND_VALIDATE_BACKUP },
-	{ "all",		NI_BOND_VALIDATE_ALL    },
+	{ "none",		NI_BOND_ARP_VALIDATE_NONE   },
+	{ "active",		NI_BOND_ARP_VALIDATE_ACTIVE },
+	{ "backup",		NI_BOND_ARP_VALIDATE_BACKUP },
+	{ "all",		NI_BOND_ARP_VALIDATE_ALL    },
 	{ NULL }
 };
 static const ni_intmap_t	__map_kern_xmit_hash_policy[] = {
@@ -103,8 +103,8 @@ static const ni_intmap_t	__map_user_xmit_hash_policy[] = {
  * This setting is used in the schema; the kernel wants use_carrier=0/1.
  */
 static const ni_intmap_t	__map_user_carrier_detect[] = {
-	{ "ioctl",		NI_BOND_CARRIER_DETECT_IOCTL },
-	{ "netif",		NI_BOND_CARRIER_DETECT_NETIF },
+	{ "ioctl",		NI_BOND_MII_CARRIER_DETECT_IOCTL },
+	{ "netif",		NI_BOND_MII_CARRIER_DETECT_NETIF },
 	{ NULL }
 };
 
@@ -133,7 +133,7 @@ static inline void
 __ni_bonding_init(ni_bonding_t *bonding)
 {
 	/* Apply non-zero kernel defaults */
-	bonding->miimon.carrier_detect = NI_BOND_CARRIER_DETECT_NETIF;
+	bonding->miimon.carrier_detect = NI_BOND_MII_CARRIER_DETECT_NETIF;
 	bonding->num_grat_arp = 1;
 	bonding->num_unsol_na = 1;
 	bonding->resend_igmp = 1;
@@ -211,10 +211,10 @@ ni_bonding_validate(const ni_bonding_t *bonding)
 			return "invalid arpmon interval";
 
 		switch (bonding->arpmon.validate) {
-		case NI_BOND_VALIDATE_NONE:
-		case NI_BOND_VALIDATE_ACTIVE:
-		case NI_BOND_VALIDATE_BACKUP:
-		case NI_BOND_VALIDATE_ALL:
+		case NI_BOND_ARP_VALIDATE_NONE:
+		case NI_BOND_ARP_VALIDATE_ACTIVE:
+		case NI_BOND_ARP_VALIDATE_BACKUP:
+		case NI_BOND_ARP_VALIDATE_ALL:
 			break;
 
 		default:
@@ -228,8 +228,8 @@ ni_bonding_validate(const ni_bonding_t *bonding)
 	case NI_BOND_MONITOR_MII:
 		/* FIXME: validate frequency, updelay, downdelay */
 		switch (bonding->miimon.carrier_detect) {
-		case NI_BOND_CARRIER_DETECT_IOCTL:
-		case NI_BOND_CARRIER_DETECT_NETIF:
+		case NI_BOND_MII_CARRIER_DETECT_IOCTL:
+		case NI_BOND_MII_CARRIER_DETECT_NETIF:
 			break;
 
 		default:
@@ -346,19 +346,35 @@ __ni_bonding_get_module_option_arp_validate(const ni_bonding_t *bonding, char *b
 }
 
 const char *
-ni_bonding_validate_type_to_name(unsigned int value)
+ni_bonding_arp_validate_type_to_name(unsigned int value)
 {
 	return ni_format_int_mapped(value, __map_kern_arp_validate);
 }
 
 int
-ni_bonding_validate_name_to_type(const char *name)
+ni_bonding_arp_validate_name_to_type(const char *name)
 {
 	unsigned int value;
 
 	if (ni_parse_int_mapped(name, __map_kern_arp_validate, &value) < 0)
 		return -1;
 	return value;
+}
+
+const char *
+ni_bonding_mii_carrier_detect_name(unsigned int type)
+{
+	return ni_format_int_mapped(type, __map_user_carrier_detect);
+}
+
+int
+ni_bonding_mii_carrier_detect_type(const char *name)
+{
+	unsigned int type;
+
+	if (ni_parse_int_mapped(name, __map_user_carrier_detect, &type) < 0)
+		return -1;
+	return type;
 }
 
 /*
@@ -474,22 +490,6 @@ ni_bonding_fail_over_mac_mode(const char *name)
 	if (ni_parse_int_maybe_mapped(name, __map_kern_fail_over_mac, &value, 10) < 0)
 		return -1;
 	return value;
-}
-
-const char *
-ni_bonding_carrier_detect_name(unsigned int type)
-{
-	return ni_format_int_mapped(type, __map_user_carrier_detect);
-}
-
-int
-ni_bonding_carrier_detect_type(const char *name)
-{
-	unsigned int type;
-
-	if (ni_parse_int_mapped(name, __map_user_carrier_detect, &type) < 0)
-		return -1;
-	return type;
 }
 
 /*
@@ -787,7 +787,7 @@ ni_bonding_set_option(ni_bonding_t *bond, const char *option, const char *value)
 		if (ni_parse_int(value, &tmp, 10) < 0)
 			return FALSE;
 
-		if (tmp > NI_BOND_CARRIER_DETECT_NETIF)
+		if (tmp > NI_BOND_MII_CARRIER_DETECT_NETIF)
 			return FALSE;
 
 		bond->miimon.carrier_detect = tmp;

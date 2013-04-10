@@ -22,14 +22,14 @@ enum {
 	NI_BOND_MODE_BALANCE_ALB = 6,
 };
 enum {
-	NI_BOND_VALIDATE_NONE = 0,
-	NI_BOND_VALIDATE_ACTIVE = 1,
-	NI_BOND_VALIDATE_BACKUP = 2,
-	NI_BOND_VALIDATE_ALL = 3,
+	NI_BOND_ARP_VALIDATE_NONE = 0,
+	NI_BOND_ARP_VALIDATE_ACTIVE = 1,
+	NI_BOND_ARP_VALIDATE_BACKUP = 2,
+	NI_BOND_ARP_VALIDATE_ALL = 3,
 };
 enum {
-	NI_BOND_CARRIER_DETECT_IOCTL = 0,
-	NI_BOND_CARRIER_DETECT_NETIF = 1,
+	NI_BOND_MII_CARRIER_DETECT_IOCTL = 0,
+	NI_BOND_MII_CARRIER_DETECT_NETIF = 1,
 };
 enum {
 	NI_BOND_XMIT_HASH_LAYER2 = 0,
@@ -76,7 +76,7 @@ struct ni_bonding {
 	unsigned int		lacp_rate;
 	unsigned int		ad_select;
 	unsigned int		min_links;
-	unsigned int		all_slaves_active;
+	ni_bool_t		all_slaves_active;
 	unsigned int		primary_reselect;
 	unsigned int		fail_over_mac;
 	unsigned int		num_grat_arp;
@@ -108,8 +108,11 @@ extern const char *	ni_bonding_validate(const ni_bonding_t *bonding);
 extern const char *	ni_bonding_mode_type_to_name(unsigned int);
 extern int		ni_bonding_mode_name_to_type(const char *);
 
-extern const char *	ni_bonding_validate_type_to_name(unsigned int);
-extern int		ni_bonding_validate_name_to_type(const char *);
+extern const char *	ni_bonding_arp_validate_type_to_name(unsigned int);
+extern int		ni_bonding_arp_validate_name_to_type(const char *);
+
+extern const char *	ni_bonding_mii_carrier_detect_name(unsigned int);
+extern int		ni_bonding_mii_carrier_detect_type(const char *);
 
 extern const char *	ni_bonding_xmit_hash_policy_to_name(unsigned int);
 extern int		ni_bonding_xmit_hash_name_to_policy(const char *);
@@ -125,9 +128,6 @@ extern int		ni_bonding_primary_reselect_mode(const char *);
 
 extern const char *	ni_bonding_fail_over_mac_name(unsigned int);
 extern int		ni_bonding_fail_over_mac_mode(const char *);
-
-extern const char *	ni_bonding_carrier_detect_name(unsigned int);
-extern int		ni_bonding_carrier_detect_type(const char *);
 
 
 #endif /* __WICKED_BONDING_H__ */

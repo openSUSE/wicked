@@ -1,35 +1,32 @@
 <service name="bonding" interface="org.opensuse.Network.Bond" object-class="netif-bond">
  <description>
    This link-layer service is provided by all bonding devices.
-   
-   Since there isn't a lot
-   to tune about a VLAN once it has been created, this DBus interface doesn't offer
-   a changeDevice() method.
 
-   VLAN devices can be created through the org.opensuse.Network.VLAN.Factory factory interface.
+   Bons devices can be created through the org.opensuse.Network.Bond.Factory
+   factory interface.
  </description>
 
  <!-- This is the device-info returned in interface reports -->
  <define name="device-info" class="dict">
    <mode type="builtin-bonding-mode"/>
 
-   <!-- One or more slave elements can occur.
-     -- At most one of them may be marked as primary.
+   <!-- One or more slave elements have to occur.
+        At most one of them may be marked as primary for active-backup mode.
      -->
    <define name="slave" class="dict">
      <device type="string"/>
      <primary type="boolean"/>
    </define>
-   <slaves class="array" element-type="slave"/>
+   <slaves class="array" element-type="slave" minlen="1"/>
 
    <!-- Link monitoring options.
-     -- There must be exactly one of either arpmon or miimon present,
-     -- which selects either mii or arp monitoring. Lack of both is an
-     -- error. If both are present, the behavior is undefined.
+        There must be exactly one of either arpmon or miimon present,
+        which selects either mii or arp monitoring. Lack of both is an
+        error. If both are present, the behavior is undefined.
      -->
    <arpmon class="dict">
      <interval type="uint32" description="ARP link monitoring frequency in milliseconds."/>
-     <validate type="builtin-bonding-validate"/>
+     <validate type="builtin-bonding-arp-validate"/>
      <target class="array" element-type="ipv4-address" minlen="1"/>
    </arpmon>
 
@@ -39,16 +36,30 @@
      <updelay type="uint32" description="Specifies the time, in milliseconds, to wait before enabling a
              slave after a link recovery has been detected."/>
      <downdelay type="uint32" description="Specifies the time, in milliseconds, to wait before disabling
-             a slave after a link failure has been detected."/>
-
-     <!-- Move this to constants.xml -->
-     <define name="carrier-detect" type="string" constraint="enum">
-       <ioctl value="0"/>
-       <netif value="1"/>
-     </define>
-
-     <carrier type="carrier-detect" description=""/>
+	     a slave after a link failure has been detected."/>
+     <carrier type="builtin-bonding-mii-carrier-detect"/>
    </miimon>
+
+   <xmit-hash-policy type="builtin-bonding-xmit-hash-policy"/>
+   <lacp-rate type="builtin-bonding-lacp-rate"/>
+   <ad-select type="builtin-bonding-ad-select"/>
+   <fail-over-mac type="builtin-bonding-fail-over-mac"/>
+   <primary-reselect type="builtin-bonding-primary-reselect"/>
+
+   <all-slaves-active type="boolean" description="Enable to deliver duplicate frames received on inactive slaves when enabled instead of dropping them." />
+   <min-links type="uint32" description="Specifies the minimum number of links that must be active before asserting carrier."/>
+   <num-grat-arp type="uint32" description="Specify the number of peer notifications using gratuitous ARPs to be issued after a failover event. Default is 1" constraint="range">
+    <min value="0"/>
+    <max value="255"/>
+   </num-grat-arp>
+   <num-unsol-na type="uint32" description="Specify the number of peer notifications usingunsolicited IPv6 Neighbor Advertisements to be issued after a failover event. Default is 1" constraint="range">
+     <min value="0"/>
+     <max value="255"/>
+   </num-unsol-na>
+   <resend-igmp type="uint32" description="Specify the number of IGMP membership reports to be issued after a failover event." constraint="range">
+     <min value="0"/>
+     <max value="255"/>
+   </resend-igmp>
  </define>
 
  <define name="properties" type="device-info"/>
