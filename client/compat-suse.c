@@ -31,7 +31,7 @@ static ni_bool_t	__ni_suse_read_globals(const char *path);
 static void		__ni_suse_free_globals(void);
 static ni_bool_t	__ni_suse_sysconfig_read(ni_sysconfig_t *, ni_compat_netdev_t *);
 static ni_bool_t	__process_indexed_variables(const ni_sysconfig_t *, ni_netdev_t *, const char *,
-				void (*)(const ni_sysconfig_t *, ni_netdev_t *, const char *));
+				ni_bool_t (*)(const ni_sysconfig_t *, ni_netdev_t *, const char *));
 static ni_var_t *	__find_indexed_variable(const ni_sysconfig_t *, const char *, const char *);
 static ni_route_t *	__ni_suse_read_routes(const char *);
 
@@ -501,7 +501,7 @@ try_ethernet(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
  *
  * Global bonding configuration is contained in BONDING_MODULE_OPTS
  */
-static void
+static ni_bool_t
 try_add_bonding_slave(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *suffix)
 {
 	ni_bonding_t *bond;
@@ -509,19 +509,59 @@ try_add_bonding_slave(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *su
 
 	var = __find_indexed_variable(sc, "BONDING_SLAVE", suffix);
 	if (!var || !var->value)
-		return;
+		return FALSE;
 
 	dev->link.type = NI_IFTYPE_BOND;
 
-	bond = ni_netdev_get_bonding(dev);
-	ni_bonding_add_slave(bond, var->value);
+	if ((bond = ni_netdev_get_bonding(dev)) == NULL)
+		return FALSE;
+
+	return ni_bonding_add_slave(bond, var->value);
+}
+
+static ni_bool_t
+try_set_bonding_options(ni_netdev_t *dev, const char *options)
+{
+	ni_string_array_t temp;
+	ni_bonding_t * bond;
+	unsigned int i;
+	ni_bool_t ret = TRUE;
+
+	if ((bond = ni_netdev_get_bonding(dev)) == NULL)
+		return FALSE;
+
+	ni_string_array_init(&temp);
+	ni_string_split(&temp, options, " \t", 0);
+	for (i = 0; i < temp.count; ++i) {
+		char *key = temp.data[i];
+		char *val = strchr(key, '=');
+
+		if (val != NULL)
+			*val++ = '\0';
+
+		if (!ni_string_len(key) || !ni_string_len(val)) {
+			ni_error("%s: Unable to parse ifcfg bonding options",
+				dev->name);
+			ret = FALSE;
+			break;
+		}
+		if (!ni_bonding_set_option(bond, key, val)) {
+			ni_error("%s: Unable to parse ifcfg bonding option: %s=%s",
+				dev->name, key, val);
+			ret = FALSE;
+			break;
+		}
+	}
+	ni_string_array_destroy(&temp);
+
+	return ret;
 }
 
 static ni_bool_t
 try_bonding(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 {
 	ni_netdev_t *dev = compat->dev;
-	const char *module_opts;
+	const char *module_opts, *err;
 	ni_bool_t enabled;
 
 	if (!ni_sysconfig_get_boolean(sc, "BONDING_MASTER", &enabled) || !enabled)
@@ -530,9 +570,15 @@ try_bonding(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	if (!__process_indexed_variables(sc, dev, "BONDING_SLAVE", try_add_bonding_slave))
 		return FALSE;
 
-
 	if ((module_opts = ni_sysconfig_get_value(sc, "BONDING_MODULE_OPTS")) != NULL) {
-		// ni_bonding_parse_module_options(module_opts);
+		if (!try_set_bonding_options(dev, module_opts))
+			return FALSE;
+	}
+
+	if ((err = ni_bonding_validate(ni_netdev_get_bonding(dev))) != NULL) {
+		ni_error("%s: ifcfg bonding: %s",
+			dev->name, err);
+		return FALSE;
 	}
 
 	return TRUE;
@@ -1121,7 +1167,7 @@ __ni_suse_sysconfig_read(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 static ni_bool_t
 __process_indexed_variables(const ni_sysconfig_t *sc, ni_netdev_t *dev,
 				const char *basename,
-				void (*func)(const ni_sysconfig_t *, ni_netdev_t *, const char *))
+				ni_bool_t (*func)(const ni_sysconfig_t *, ni_netdev_t *, const char *))
 {
 	ni_string_array_t names = NI_STRING_ARRAY_INIT;
 	unsigned int i, pfxlen;
@@ -1130,8 +1176,12 @@ __process_indexed_variables(const ni_sysconfig_t *sc, ni_netdev_t *dev,
 		return FALSE;
 
 	pfxlen = strlen(basename);
-	for (i = 0; i < names.count; ++i)
-		func(sc, dev, names.data[i] + pfxlen);
+	for (i = 0; i < names.count; ++i) {
+		if (!func(sc, dev, names.data[i] + pfxlen)) {
+			ni_string_array_destroy(&names);
+			return FALSE;
+		}
+	}
 	ni_string_array_destroy(&names);
 	return TRUE;
 }

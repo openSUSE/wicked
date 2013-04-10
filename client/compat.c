@@ -151,20 +151,116 @@ __ni_compat_generate_ethernet(xml_node_t *ifnode, const ni_compat_netdev_t *comp
 static ni_bool_t
 __ni_compat_generate_bonding(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 {
-	ni_bonding_t *bond = ni_netdev_get_bonding(compat->dev);
-	xml_node_t *child, *slave;
+	ni_bonding_t *bond;
+	xml_node_t *child, *slaves, *slave;
 	unsigned int i;
+	int verbose = 0; /* do not supress defaults */
 
+	bond = ni_netdev_get_bonding(compat->dev);
 	child = xml_node_create(ifnode, "bond");
 
+	xml_node_new_element("mode", child,
+			ni_bonding_mode_type_to_name(bond->mode));
+
+	if (bond->monitoring == NI_BOND_MONITOR_ARP) {
+		xml_node_t *targets;
+		xml_node_t *arpmon;
+
+		arpmon = xml_node_create(child, "arpmon");
+		xml_node_new_element("interval", arpmon,
+				ni_sprint_uint(bond->arpmon.interval));
+		xml_node_new_element("validate", arpmon,
+				ni_bonding_validate_type_to_name(bond->arpmon.validate));
+
+		targets = xml_node_create(child, "targets");
+		for (i = 0; i < bond->arpmon.targets.count; ++i) {
+			xml_node_new_element("ipv4-address", targets,
+					bond->arpmon.targets.data[i]);
+		}
+	} else
+	if (bond->monitoring == NI_BOND_MONITOR_MII) {
+		xml_node_t *miimon;
+
+		miimon = xml_node_create(child, "miimon");
+		xml_node_new_element("frequency", miimon,
+			ni_sprint_uint(bond->miimon.frequency));
+		if (verbose || bond->miimon.updelay) {
+			xml_node_new_element("updelay", miimon,
+				ni_sprint_uint(bond->miimon.updelay));
+		}
+		if (verbose || bond->miimon.downdelay) {
+			xml_node_new_element("downdelay", miimon,
+				ni_sprint_uint(bond->miimon.downdelay));
+		}
+		xml_node_new_element("carrier-detect", miimon,
+			ni_bonding_carrier_detect_name(bond->miimon.carrier_detect));
+	}
+
+	slaves = xml_node_create(child, "slaves");
 	for (i = 0; i < bond->slave_names.count; ++i) {
 		const char *slave_name = bond->slave_names.data[i];
 
-		slave = xml_node_new("slave", child);
+		slave = xml_node_new("slave", slaves);
 		xml_node_new_element("device", slave, slave_name);
+
+		if (bond->mode == NI_BOND_MODE_ACTIVE_BACKUP) {
+			if ((bond->primary == NULL && i == 0) ||
+			    ni_string_eq(bond->primary, slave_name)) {
+				xml_node_new_element("primary", slave, "true");
+			}
+		}
 	}
 
-	/* May add <primary>true</primary> if the slave is the primary slave */
+	if (bond->mode == NI_BOND_MODE_802_3AD ||
+	    bond->mode == NI_BOND_MODE_BALANCE_XOR) {
+		if (verbose || bond->xmit_hash_policy) {
+			xml_node_new_element("xmit_hash_policy", child,
+				ni_bonding_xmit_hash_policy_to_name(bond->xmit_hash_policy));
+		}
+	}
+
+	if (bond->mode == NI_BOND_MODE_802_3AD) {
+		if (verbose || bond->lacp_rate) {
+			xml_node_new_element("lacp_rate", child,
+				ni_bonding_lacp_rate_name(bond->lacp_rate));
+		}
+		if (verbose || bond->ad_select) {
+			xml_node_new_element("ad_select", child,
+				ni_bonding_ad_select_name(bond->ad_select));
+		}
+		if (verbose || bond->min_links > 0) {
+			xml_node_new_element("min_links", child,
+					ni_sprint_uint(bond->min_links));
+		}
+	}
+
+	if (bond->mode == NI_BOND_MODE_ACTIVE_BACKUP) {
+		if (verbose || bond->primary_reselect) {
+			xml_node_new_element("primary_reselect", child,
+				ni_bonding_primary_reselect_name(bond->primary_reselect));
+		}
+		if (verbose || bond->fail_over_mac) {
+			xml_node_new_element("fail_over_mac", child,
+				ni_bonding_fail_over_mac_name(bond->fail_over_mac));
+		}
+		if (verbose || bond->num_grat_arp != 1) {
+			xml_node_new_element("num_grat_arp", child,
+				ni_sprint_uint(bond->num_grat_arp));
+		}
+		if (verbose || bond->num_unsol_na != 1) {
+			xml_node_new_element("num_unsol_na", child,
+				ni_sprint_uint(bond->num_unsol_na));
+		}
+	}
+	if (bond->mode == NI_BOND_MODE_ACTIVE_BACKUP ||
+	    bond->mode == NI_BOND_MODE_BALANCE_RR    ||
+	    bond->mode == NI_BOND_MODE_BALANCE_TLB   ||
+	    bond->mode == NI_BOND_MODE_BALANCE_ALB) {
+		if (verbose || bond->resend_igmp != 1) {
+			xml_node_new_element("resend_igmp", child,
+				ni_sprint_uint(bond->resend_igmp));
+		}
+	}
 
 	return TRUE;
 }
