@@ -706,7 +706,8 @@ ni_string_strip_suffix(char *string, const char *suffix)
 }
 
 unsigned int
-ni_string_split(ni_string_array_t *nsa, const char *str, const char *sep)
+ni_string_split(ni_string_array_t *nsa, const char *str, const char *sep,
+		unsigned int limit)
 {
 	unsigned int count;
 	char *tmp, *s, *p = NULL;
@@ -719,8 +720,11 @@ ni_string_split(ni_string_array_t *nsa, const char *str, const char *sep)
 
 	count = nsa->count;
 
-	for (s = strtok_r(tmp, sep, &p); s; s = strtok_r(NULL, sep, &p))
+	for (s = strtok_r(tmp, sep, &p); s; s = strtok_r(NULL, sep, &p)) {
+		if (limit && (nsa->count - count) >= limit)
+			break;
 		ni_string_array_append(nsa, s);
+	}
 	free(tmp);
 
 	return nsa->count - count;

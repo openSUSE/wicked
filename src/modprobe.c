@@ -33,7 +33,7 @@ ni_modprobe(const char *module, const char *options)
 	    ni_string_array_append(&argv, NI_MODPROBE_OPT) < 0 ||
 	    ni_string_array_append(&argv, "--") < 0 ||
 	    ni_string_array_append(&argv, module) < 0 ||
-	    (options && ni_string_split(&argv, options, " \t") == 0)) {
+	    (options && ni_string_split(&argv, options, " \t", 0) == 0)) {
 		ni_string_array_destroy(&argv);
 		return -1;
 	}

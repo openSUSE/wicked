@@ -26,7 +26,7 @@ static const ni_string_array_t *	__ni_default_environment(void);
 static inline ni_bool_t
 __ni_shellcmd_parse(ni_string_array_t *argv, const char *command)
 {
-	if (ni_string_split(argv, command, " \t") == 0)
+	if (ni_string_split(argv, command, " \t", 0) == 0)
 		return FALSE;
 	return TRUE;
 }
