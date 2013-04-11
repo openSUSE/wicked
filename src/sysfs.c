@@ -304,7 +304,8 @@ ni_sysfs_bonding_set_list_attr(const char *ifname, const char *attr_name, const 
 	unsigned int i;
 	int rv = -1;
 
-	snprintf(pathbuf, sizeof(pathbuf), "%s/%s/bonding/%s", _PATH_SYS_CLASS_NET, ifname, attr_name);
+	snprintf(pathbuf, sizeof(pathbuf), "%s/%s/bonding/%s",
+			_PATH_SYS_CLASS_NET, ifname, attr_name);
 
 	ni_string_array_init(&current);
 	if (__ni_sysfs_read_list(pathbuf, &current) < 0)
@@ -320,7 +321,8 @@ ni_sysfs_bonding_set_list_attr(const char *ifname, const char *attr_name, const 
 			&unchanged);	/* common to both */
 
 	if (add.count == 0 && delete.count == 0) {
-		ni_debug_ifconfig("%s: attr list %s unchanged", ifname, attr_name);
+		ni_debug_ifconfig("%s: attr list %s unchanged",
+				ifname, attr_name);
 		rv = 0;
 		goto done;
 	}
@@ -332,16 +334,7 @@ ni_sysfs_bonding_set_list_attr(const char *ifname, const char *attr_name, const 
 		for (i = 0; i < add.count; ++i)
 			ni_trace("    add %s", add.data[i]);
 		for (i = 0; i < unchanged.count; ++i)
-			ni_trace("    leave %s", add.data[i]);
-	}
-
-	for (i = 0; i < delete.count; ++i) {
-		if (__ni_sysfs_printf(pathbuf, "-%s\n", delete.data[i]) < 0) {
-			ni_error("%s: could not remove %s %s",
-					ifname, attr_name,
-					delete.data[i]);
-			goto done;
-		}
+			ni_trace("    leave %s", unchanged.data[i]);
 	}
 
 	for (i = 0; i < add.count; ++i) {
@@ -353,13 +346,22 @@ ni_sysfs_bonding_set_list_attr(const char *ifname, const char *attr_name, const 
 		}
 	}
 
+	for (i = 0; i < delete.count; ++i) {
+		if (__ni_sysfs_printf(pathbuf, "-%s\n", delete.data[i]) < 0) {
+			ni_error("%s: could not remove %s %s",
+					ifname, attr_name,
+					delete.data[i]);
+			goto done;
+		}
+	}
+
 	rv = 0;
 
 done:
-	ni_string_array_init(&current);
-	ni_string_array_init(&delete);
-	ni_string_array_init(&add);
-	ni_string_array_init(&unchanged);
+	ni_string_array_destroy(&unchanged);
+	ni_string_array_destroy(&current);
+	ni_string_array_destroy(&delete);
+	ni_string_array_destroy(&add);
 	return rv;
 }
 
