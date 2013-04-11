@@ -95,6 +95,7 @@ extern ni_bonding_t *	ni_bonding_new(void);
 extern void		ni_bonding_free(ni_bonding_t *);
 
 extern ni_bool_t	ni_bonding_add_slave(ni_bonding_t *, const char *);
+extern ni_bool_t	ni_bonding_has_slave(ni_bonding_t *, const char *);
 extern ni_bool_t	ni_bonding_set_option(ni_bonding_t *, const char *, const char *);
 
 extern int		ni_bonding_parse_sysfs_attrs(const char *, ni_bonding_t *);

@@ -319,10 +319,10 @@ ni_bonding_validate(const ni_bonding_t *bonding)
 }
 
 /*
- * Add a slave device to the bond
+ * Report if the bond contains a slave device
  */
 ni_bool_t
-ni_bonding_add_slave(ni_bonding_t *bonding, const char *ifname)
+ni_bonding_has_slave(ni_bonding_t *bonding, const char *ifname)
 {
 	unsigned int i;
 
@@ -331,8 +331,23 @@ ni_bonding_add_slave(ni_bonding_t *bonding, const char *ifname)
 
 	for (i = 0; i < bonding->slave_names.count; ++i) {
 		if (ni_string_eq(bonding->slave_names.data[i], ifname))
-			return FALSE;
+			return TRUE;
 	}
+	return FALSE;
+}
+
+/*
+ * Add a slave device to the bond
+ */
+ni_bool_t
+ni_bonding_add_slave(ni_bonding_t *bonding, const char *ifname)
+{
+	if (!bonding || !ifname || !*ifname)
+		return FALSE;
+
+	if (ni_bonding_has_slave(bonding, ifname))
+		return FALSE;
+
 	return ni_string_array_append(&bonding->slave_names, ifname) == 0;
 }
 
