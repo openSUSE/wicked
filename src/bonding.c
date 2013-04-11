@@ -329,7 +329,7 @@ ni_bonding_add_slave(ni_bonding_t *bonding, const char *ifname)
 	if (!bonding || !ifname || !*ifname)
 		return FALSE;
 
-	for (i = 0; bonding->slave_names.count; ++i) {
+	for (i = 0; i < bonding->slave_names.count; ++i) {
 		if (ni_string_eq(bonding->slave_names.data[i], ifname))
 			return FALSE;
 	}
