@@ -340,7 +340,7 @@ usage:
 		nmarked += ni_fsm_mark_matching_workers(fsm, &ifmatch, &state_range);
 	}
 	if (nmarked == 0) {
-		printf("ifup: no matching interfaces");
+		printf("ifup: no matching interfaces\n");
 		status = 0;
 	} else {
 		if (ni_fsm_schedule(fsm) != 0)
@@ -459,7 +459,7 @@ usage:
 		nmarked += ni_fsm_mark_matching_workers(fsm, &ifmatch, &target_range);
 	}
 	if (nmarked == 0) {
-		printf("No matching interfaces\n");
+		printf("ifdown: no matching interfaces\n");
 		status = 0;
 	} else {
 		if (ni_fsm_schedule(fsm) != 0)
