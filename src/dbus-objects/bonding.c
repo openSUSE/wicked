@@ -233,13 +233,6 @@ __ni_objectmodel_bonding_set_miimon(ni_dbus_object_t *object,
 	if (!(bond = __ni_objectmodel_get_bonding(object, error)))
 		return FALSE;
 
-	if (bond->monitoring && bond->monitoring != NI_BOND_MONITOR_MII) {
-		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-				"%s: exactly one of either arpmon or miimon must be present",
-				object->path);
-		return FALSE;
-	}
-
 	bond->monitoring = NI_BOND_MONITOR_MII;
 
 	ni_dbus_dict_get_uint32(result, "frequency", &bond->miimon.frequency);
@@ -289,12 +282,6 @@ __ni_objectmodel_bonding_set_arpmon(ni_dbus_object_t *object,
 	if (!(bond = __ni_objectmodel_get_bonding(object, error)))
 		return FALSE;
 
-	if (bond->monitoring && bond->monitoring != NI_BOND_MONITOR_ARP) {
-		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-				"%s: exactly one of either arpmon or miimon must be present",
-				object->path);
-		return FALSE;
-	}
 	bond->monitoring = NI_BOND_MONITOR_ARP;
 
 	ni_dbus_dict_get_uint32(result, "interval", &bond->arpmon.interval);
