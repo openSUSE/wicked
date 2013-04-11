@@ -28,7 +28,6 @@ extern int	ni_sysfs_bonding_delete_master(const char *);
 extern int	ni_sysfs_bonding_get_slaves(const char *, ni_string_array_t *);
 extern int	ni_sysfs_bonding_add_slave(const char *, const char *);
 extern int	ni_sysfs_bonding_delete_slave(const char *, const char *);
-extern int	ni_sysfs_bonding_get_slaves(const char *, ni_string_array_t *);
 extern int	ni_sysfs_bonding_get_attr(const char *, const char *, char **);
 extern int	ni_sysfs_bonding_set_attr(const char *, const char *, const char *);
 extern int	ni_sysfs_bonding_get_arp_targets(const char *, ni_string_array_t *);
