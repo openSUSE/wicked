@@ -233,7 +233,7 @@ __ni_objectmodel_bonding_set_miimon(ni_dbus_object_t *object,
 	if (!(bond = __ni_objectmodel_get_bonding(object, error)))
 		return FALSE;
 
-	bond->monitoring = NI_BOND_MONITOR_MII;
+	bond->monitoring |= NI_BOND_MONITOR_MII;
 
 	ni_dbus_dict_get_uint32(result, "frequency", &bond->miimon.frequency);
 	ni_dbus_dict_get_uint32(result, "updelay", &bond->miimon.updelay);
@@ -282,11 +282,12 @@ __ni_objectmodel_bonding_set_arpmon(ni_dbus_object_t *object,
 	if (!(bond = __ni_objectmodel_get_bonding(object, error)))
 		return FALSE;
 
-	bond->monitoring = NI_BOND_MONITOR_ARP;
+	bond->monitoring |= NI_BOND_MONITOR_ARP;
 
 	ni_dbus_dict_get_uint32(result, "interval", &bond->arpmon.interval);
 	ni_dbus_dict_get_uint32(result, "validate", &bond->arpmon.validate);
 	if ((var = ni_dbus_dict_get(result, "targets")) != NULL) {
+		ni_bool_t valid = TRUE;
 		unsigned int i;
 
 		if (!ni_dbus_variant_is_string_array(var)) {
@@ -299,7 +300,19 @@ __ni_objectmodel_bonding_set_arpmon(ni_dbus_object_t *object,
 		for (i = 0; i < var->array.len; ++i) {
 			const char *s = var->string_array_value[i];
 
+			if (!ni_bonding_is_valid_arp_ip_target(s)) {
+				valid = FALSE;
+				break;
+			}
 			ni_string_array_append(&bond->arpmon.targets, s);
+		}
+
+		if (!valid) {
+			ni_string_array_destroy(&bond->arpmon.targets);
+			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"%s.%s property - invalid arp ip target adddress",
+				object->path, property->name);
+			return FALSE;
 		}
 	}
 
@@ -329,8 +342,10 @@ __ni_objectmodel_bonding_get_slaves(const ni_dbus_object_t *object,
 		slave = ni_dbus_dict_array_add(result);
 
 		ni_dbus_dict_add_string(slave, "device", slave_name);
-		if (bond->primary && ni_string_eq(bond->primary, slave_name))
+		if (bond->primary_slave && ni_string_eq(bond->primary_slave, slave_name))
 			ni_dbus_dict_add_bool(slave, "primary", TRUE);
+		if (bond->active_slave && ni_string_eq(bond->active_slave, slave_name))
+			ni_dbus_dict_add_bool(slave, "active", TRUE);
 	}
 
 	return TRUE;
@@ -356,9 +371,10 @@ __ni_objectmodel_bonding_set_slaves(ni_dbus_object_t *object,
 		return FALSE;
 	}
 
-	ni_string_free(&bond->primary);
+	ni_string_free(&bond->primary_slave);
 	for (i = 0, var = result->variant_array_value; i < result->array.len; ++i, ++var) {
 		dbus_bool_t is_primary = FALSE;
+		dbus_bool_t is_active = FALSE;
 		const char *slave_name;
 
 		if (!ni_dbus_dict_get_string(var, "device", &slave_name)) {
@@ -370,13 +386,22 @@ __ni_objectmodel_bonding_set_slaves(ni_dbus_object_t *object,
 		ni_string_array_append(&bond->slave_names, slave_name);
 
 		if (ni_dbus_dict_get_bool(var, "primary", &is_primary) && is_primary) {
-			if (bond->primary) {
+			if (bond->primary_slave) {
 				dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
 					"%s.%s property - duplicate primary device",
 					object->path, property->name);
 				return FALSE;
 			}
-			ni_string_dup(&bond->primary, slave_name);
+			ni_string_dup(&bond->primary_slave, slave_name);
+		}
+		if (ni_dbus_dict_get_bool(var, "active", &is_active) && is_active) {
+			if (bond->active_slave) {
+				dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+					"%s.%s property - duplicate active device",
+					object->path, property->name);
+				return FALSE;
+			}
+			ni_string_dup(&bond->active_slave, slave_name);
 		}
 	}
 	return TRUE;
@@ -395,16 +420,15 @@ __ni_objectmodel_bonding_set_slaves(ni_dbus_object_t *object,
 
 static ni_dbus_property_t	ni_objectmodel_bond_properties[] = {
 	BONDING_UINT_PROPERTY(mode, mode, RO),
-	BONDING_STRING_PROPERTY(primary, primary, RO),
 	BONDING_UINT_PROPERTY(xmit-hash-policy, xmit_hash_policy, RO),
 	BONDING_UINT_PROPERTY(lacp-rate, lacp_rate, RO),
 	BONDING_UINT_PROPERTY(ad-select, ad_select, RO),
 	BONDING_UINT_PROPERTY(min-links, min_links, RO),
-	BONDING_UINT_PROPERTY(primary-reselect, primary_reselect, RO),
-	BONDING_UINT_PROPERTY(fail-over-mac, fail_over_mac, RO),
+	BONDING_UINT_PROPERTY(resend-igmp, resend_igmp, RO),
 	BONDING_UINT_PROPERTY(num-grat-arp, num_grat_arp, RO),
 	BONDING_UINT_PROPERTY(num-unsol-na, num_unsol_na, RO),
-	BONDING_UINT_PROPERTY(resend-igmp, resend_igmp, RO),
+	BONDING_UINT_PROPERTY(fail-over-mac, fail_over_mac, RO),
+	BONDING_UINT_PROPERTY(primary-reselect, primary_reselect, RO),
 	BONDING_BOOL_PROPERTY(all-slaves-active, all_slaves_active, RO),
 
 	__NI_DBUS_PROPERTY(
@@ -427,6 +451,8 @@ static ni_dbus_method_t		ni_objectmodel_bond_methods[] = {
 #if 0
 	{ "addSlave",		DBUS_TYPE_OJECT_AS_STRING,	__ni_objectmodel_bond_add_slave },
 	{ "removeSlave",	DBUS_TYPE_OJECT_AS_STRING,	__ni_objectmodel_bond_remove_slave },
+	{ "setActive",		DBUS_TYPE_OJECT_AS_STRING,	__ni_objectmodel_bond_add_active },
+	{ "setPrimary",		DBUS_TYPE_OJECT_AS_STRING,	__ni_objectmodel_bond_set_primary },
 #endif
 	{ NULL }
 };
