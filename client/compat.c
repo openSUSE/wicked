@@ -203,20 +203,30 @@ __ni_compat_generate_bonding(xml_node_t *ifnode, const ni_compat_netdev_t *compa
 		slave = xml_node_new("slave", slaves);
 		xml_node_new_element("device", slave, slave_name);
 
-		if (bond->mode == NI_BOND_MODE_ACTIVE_BACKUP) {
-			if ((bond->primary == NULL && i == 0) ||
-			    ni_string_eq(bond->primary, slave_name)) {
+		switch (bond->mode) {
+		case NI_BOND_MODE_ACTIVE_BACKUP:
+		case NI_BOND_MODE_BALANCE_TLB:
+		case NI_BOND_MODE_BALANCE_ALB:
+			if (ni_string_eq(bond->primary_slave, slave_name)) {
 				xml_node_new_element("primary", slave, "true");
 			}
+			if (ni_string_eq(bond->active_slave, slave_name)) {
+				xml_node_new_element("active", slave, "true");
+			}
+		default:
+			break;
 		}
 	}
 
-	if (bond->mode == NI_BOND_MODE_802_3AD ||
-	    bond->mode == NI_BOND_MODE_BALANCE_XOR) {
+	switch (bond->mode) {
+	case NI_BOND_MODE_802_3AD:
+	case NI_BOND_MODE_BALANCE_XOR:
 		if (verbose || bond->xmit_hash_policy) {
 			xml_node_new_element("xmit-hash-policy", child,
 				ni_bonding_xmit_hash_policy_to_name(bond->xmit_hash_policy));
 		}
+	default:
+		break;
 	}
 
 	if (bond->mode == NI_BOND_MODE_802_3AD) {
@@ -252,14 +262,18 @@ __ni_compat_generate_bonding(xml_node_t *ifnode, const ni_compat_netdev_t *compa
 				ni_sprint_uint(bond->num_unsol_na));
 		}
 	}
-	if (bond->mode == NI_BOND_MODE_ACTIVE_BACKUP ||
-	    bond->mode == NI_BOND_MODE_BALANCE_RR    ||
-	    bond->mode == NI_BOND_MODE_BALANCE_TLB   ||
-	    bond->mode == NI_BOND_MODE_BALANCE_ALB) {
+
+	switch (bond->mode) {
+	case NI_BOND_MODE_ACTIVE_BACKUP:
+	case NI_BOND_MODE_BALANCE_RR:
+	case NI_BOND_MODE_BALANCE_TLB:
+	case NI_BOND_MODE_BALANCE_ALB:
 		if (verbose || bond->resend_igmp != 1) {
 			xml_node_new_element("resend-igmp", child,
 				ni_sprint_uint(bond->resend_igmp));
 		}
+	default:
+		break;
 	}
 
 	if (verbose || bond->all_slaves_active) {

@@ -11,14 +11,18 @@
    <mode type="builtin-bonding-mode"/>
 
    <!-- At least one slave element has to occur.
-        At most one of them may be marked as primary for active-backup mode.
-        Bonding requires at least one available slave at start time, others
-        can be added later (hotplugged).
+        Bonding requires at least one available slave at start time,
+        other slaves can be added later (hotplugged).
+
+        At most one of them may be marked as primary or active in
+        active-backup, balance-tlb or balance-alb modes. This forces
+        the use as primary or active and overwries kernels choice.
      -->
    <define name="slave" class="dict">
      <device type="string">
        <meta:netif-reference shared="false" />
      </device>
+     <active type="boolean"/>
      <primary type="boolean"/>
    </define>
    <slaves class="array" element-type="slave" minlen="1"/>
@@ -77,17 +81,38 @@
   </arguments>
  </method>
 
+<!-- Later, not implemented yet
  <method name="addSlave">
   <arguments>
    <name type="string" />
   </arguments>
  </method>
+-->
 
+<!-- Later, not implemented yet
  <method name="removeSlave">
   <arguments>
    <name type="string" />
   </arguments>
  </method>
+-->
+
+<!-- Later, not implemented yet
+ <method name="setActive">
+  <arguments>
+   <name type="string" />
+  </arguments>
+ </method>
+-->
+
+<!-- Later, not implemented yet:
+ <method name="setPrimary">
+  <arguments>
+   <name type="string" />
+  </arguments>
+ </method>
+-->
+
 </service>
 
 <service name="bonding-factory" interface="org.opensuse.Network.Bond.Factory" object-class="netif-list">

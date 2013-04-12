@@ -76,15 +76,15 @@ struct ni_bonding {
 	unsigned int		lacp_rate;
 	unsigned int		ad_select;
 	unsigned int		min_links;
-	ni_bool_t		all_slaves_active;
-	unsigned int		primary_reselect;
-	unsigned int		fail_over_mac;
+	unsigned int		resend_igmp;
 	unsigned int		num_grat_arp;
 	unsigned int		num_unsol_na;
-	unsigned int		resend_igmp;
+	unsigned int		fail_over_mac;
+	unsigned int		primary_reselect;
+	ni_bool_t		all_slaves_active;
 
-	char *			primary;
-	char *			requested_primary;
+	char *			primary_slave;
+	char *			active_slave;
 
 	ni_string_array_t	slave_names;
 };
@@ -94,15 +94,17 @@ extern int		ni_bonding_load(const char *options);
 extern ni_bonding_t *	ni_bonding_new(void);
 extern void		ni_bonding_free(ni_bonding_t *);
 
-extern ni_bool_t	ni_bonding_add_slave(ni_bonding_t *, const char *);
 extern ni_bool_t	ni_bonding_has_slave(ni_bonding_t *, const char *);
+extern ni_bool_t	ni_bonding_add_slave(ni_bonding_t *, const char *);
 extern ni_bool_t	ni_bonding_set_option(ni_bonding_t *, const char *, const char *);
 
 extern int		ni_bonding_parse_sysfs_attrs(const char *, ni_bonding_t *);
 extern int		ni_bonding_write_sysfs_attrs(const char *ifname,
 						const ni_bonding_t *cfg_bond,
 						const ni_bonding_t *cur_bond,
-						int state);
+						ni_bool_t is_up, ni_bool_t has_slaves);
+
+extern ni_bool_t	ni_bonding_is_valid_arp_ip_target(const char *);
 
 extern const char *	ni_bonding_validate(const ni_bonding_t *bonding);
 

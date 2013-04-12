@@ -8,6 +8,7 @@
 #endif
 
 #include <arpa/inet.h>
+#include <limits.h>
 
 #include <wicked/netinfo.h>
 #include <wicked/bridge.h>
@@ -18,12 +19,19 @@
 #include "modprobe.h"
 
 
+/*
+ * Kernel module and default parameter.
+ *
+ * The max_bonds=0 parameter is used by default to avoid automatic
+ * "bond0" interface creation at load time. We may need another one.
+ */
 #ifndef BONDING_MODULE_NAME
 #define BONDING_MODULE_NAME "bonding"
 #endif
 #ifndef BONDING_MODULE_OPTS
 #define BONDING_MODULE_OPTS "max_bonds=0"
 #endif
+
 
 /*
  * Maps of kernel/sysctl named bonding option settings
@@ -145,7 +153,8 @@ __ni_bonding_init(ni_bonding_t *bonding)
 static inline void
 __ni_bonding_clear(ni_bonding_t *bonding)
 {
-	ni_string_free(&bonding->primary);
+	ni_string_free(&bonding->active_slave);
+	ni_string_free(&bonding->primary_slave);
 	ni_string_array_destroy(&bonding->slave_names);
 	ni_string_array_destroy(&bonding->arpmon.targets);
 	memset(bonding, 0, sizeof(*bonding));
@@ -183,6 +192,8 @@ ni_bonding_free(ni_bonding_t *bonding)
 const char *
 ni_bonding_validate(const ni_bonding_t *bonding)
 {
+	unsigned int i;
+
 	if (bonding == NULL)
 		return "uninitialized bonding options";
 
@@ -201,49 +212,67 @@ ni_bonding_validate(const ni_bonding_t *bonding)
 	}
 
 	/*
+	 * Bonding without monitoring is nonsense/unsupported:
+	 *
 	 * "[...] It is critical that either the miimon or arp_interval and
 	 *  arp_ip_target parameters be specified, otherwise serious network
 	 *  degradation will occur during link failures. [...]"
+	 *
+	 * While miimon can be used in any mode, arpmon is not usable in
+	 * balance-tlb/-alb and arp-validate limited to active-bacup only.
 	 */
 	switch (bonding->monitoring) {
 	case NI_BOND_MONITOR_ARP:
 		if (bonding->miimon.frequency > 0)
-			return "invalid arp/mii monitoring mix";
+			return "invalid arp and mii monitoring option mix";
 
-		if (bonding->arpmon.interval == 0)
-			return "invalid arpmon interval";
+		if (bonding->mode == NI_BOND_MODE_BALANCE_TLB ||
+		    bonding->mode == NI_BOND_MODE_BALANCE_ALB)
+			return "invalid arp monitoring in balance-tlb/-alb mode";
+
+		if (bonding->arpmon.interval == 0 ||
+		    bonding->arpmon.interval > INT_MAX)
+			return "invalid arp monitoring interval";
 
 		switch (bonding->arpmon.validate) {
 		case NI_BOND_ARP_VALIDATE_NONE:
 		case NI_BOND_ARP_VALIDATE_ACTIVE:
 		case NI_BOND_ARP_VALIDATE_BACKUP:
 		case NI_BOND_ARP_VALIDATE_ALL:
-			break;
-
+			if (bonding->mode == NI_BOND_MODE_ACTIVE_BACKUP)
+				break;
+			return "arp validate is valid in active-backup mode only";
 		default:
-			return "invalid arpmon validate setting";
+			return "invalid arp validate setting";
 		}
 
 		if (bonding->arpmon.targets.count == 0)
 			return "no targets for arp monitoring";
+
+		for (i = 0; i < bonding->arpmon.targets.count; ++i) {
+			const char *target = bonding->arpmon.targets.data[i];
+			if (!ni_bonding_is_valid_arp_ip_target(target))
+				return "invalid arp ip target address";
+		}
 		break;
 
 	case NI_BOND_MONITOR_MII:
 		if (bonding->arpmon.interval > 0 ||
 		    bonding->arpmon.targets.count > 0)
-			return "invalid mii/arp monitoring mix";
+			return "invalid mii and arp monitoring option mix";
 
 		if (bonding->miimon.frequency == 0)
-			return "invalid miimon frequency";
+			return "invalid mii monitoring frequency";
 
 		/*
-		 * Both should be a multiple of frequency...
-		 * rounded down with warning by the kernel.
+		 * Both should be a multiple of frequency and are rounded down
+		 * with a warning from the kernel driver. That is, when they're
+		 * smaller than miimon, they're rounded down to 0 / disabled.
 		 */
-		if (bonding->miimon.updelay &&
+		if (bonding->miimon.updelay > 0 &&
 				(bonding->miimon.updelay < bonding->miimon.frequency))
 			return "miimon updelay is smaller than frequency";
-		if (bonding->miimon.downdelay &&
+		if (bonding->miimon.downdelay > 0 &&
 				(bonding->miimon.downdelay < bonding->miimon.frequency))
 			return "miimon downdelay is smaller than frequency";
 
@@ -251,72 +280,148 @@ ni_bonding_validate(const ni_bonding_t *bonding)
 		case NI_BOND_MII_CARRIER_DETECT_IOCTL:
 		case NI_BOND_MII_CARRIER_DETECT_NETIF:
 			break;
-
 		default:
 			return "invalid miimon carrier detect setting";
-
 		}
 		break;
+
+	case NI_BOND_MONITOR_MII|NI_BOND_MONITOR_ARP:
+		return "unsupported mii / arp monintoring mix";
 
 	default:
 		return "unsupported, insufficient monitoring settings";
 	}
 
-	switch (bonding->xmit_hash_policy) {
-	case NI_BOND_XMIT_HASH_LAYER2:
-	case NI_BOND_XMIT_HASH_LAYER2_3:
-	case NI_BOND_XMIT_HASH_LAYER3_4:
+	switch(bonding->mode) {
+	case NI_BOND_MODE_BALANCE_XOR:
+	case NI_BOND_MODE_802_3AD:
+		switch (bonding->xmit_hash_policy) {
+		case NI_BOND_XMIT_HASH_LAYER2:
+		case NI_BOND_XMIT_HASH_LAYER2_3:
+		case NI_BOND_XMIT_HASH_LAYER3_4:
+			break;
+		default:
+			return "unsupported xmit hash policy";
+		}
 		break;
 	default:
-		return "unsupported xmit hash policy";
+		if (bonding->xmit_hash_policy != NI_BOND_XMIT_HASH_LAYER2)
+			return "invalid xmit hash policy and mode combination";
 	}
 
-	switch (bonding->lacp_rate) {
-	case NI_BOND_LACP_RATE_SLOW:
-	case NI_BOND_LACP_RATE_FAST:
+	if (bonding->mode == NI_BOND_MODE_802_3AD) {
+		switch (bonding->lacp_rate) {
+		case NI_BOND_LACP_RATE_SLOW:
+		case NI_BOND_LACP_RATE_FAST:
+			break;
+		default:
+			return "unsupported ieee802-3ad lacp-rate setting";
+		}
+
+		switch (bonding->ad_select) {
+		case NI_BOND_AD_SELECT_STABLE:
+		case NI_BOND_AD_SELECT_BANDWIDTH:
+		case NI_BOND_AD_SELECT_COUNT:
+			break;
+		default:
+			return "unsupported ieee802-3ad ad-select setting";
+		}
+
+		if (bonding->min_links > INT_MAX)
+			return "ieee802-3ad min-links option not in range 0-INT_MAX";
+	} else {
+		if (bonding->lacp_rate != NI_BOND_LACP_RATE_SLOW)
+			return "lacp rate only valid in ieee802-3ad mode";
+		if (bonding->ad_select != NI_BOND_AD_SELECT_STABLE)
+			return "ad-select only valid in ieee802-3ad mode";
+		if (bonding->min_links > 0)
+			return "min-links option valid only in ieee802-3ad mode";
+	}
+
+	switch (bonding->mode) {
+	case NI_BOND_MODE_ACTIVE_BACKUP:
+	case NI_BOND_MODE_BALANCE_RR:
+	case NI_BOND_MODE_BALANCE_TLB:
+	case NI_BOND_MODE_BALANCE_ALB:
+		if (bonding->resend_igmp > 255)
+			return "resend IGMP count not in range 0-255";
 		break;
 	default:
-		return "unsupported lacp-rate setting";
+		if (bonding->resend_igmp > 0)
+			return "resend IGMP count is not valid in this mode";
+		break;
 	}
 
-	switch (bonding->ad_select) {
-	case NI_BOND_AD_SELECT_STABLE:
-	case NI_BOND_AD_SELECT_BANDWIDTH:
-	case NI_BOND_AD_SELECT_COUNT:
+	if (bonding->mode == NI_BOND_MODE_ACTIVE_BACKUP) {
+		switch (bonding->fail_over_mac) {
+		case NI_BOND_FAIL_OVER_MAC_NONE:
+		case NI_BOND_FAIL_OVER_MAC_ACTIVE:
+		case NI_BOND_FAIL_OVER_MAC_FOLLOW:
+			break;
+		default:
+			return "unsupported fail-over-mac setting";
+		}
+		if (bonding->num_grat_arp > 255)
+			return "gratuitous ARP count not in range 0-255";
+
+		if (bonding->num_unsol_na > 255)
+			return "unsolicited IPv6-NA count not in range 0-255";
+	} else {
+		if (bonding->fail_over_mac != NI_BOND_FAIL_OVER_MAC_NONE)
+			return "fail-over-mac only valid in active-backup mode";
+		if (bonding->num_grat_arp > 0)
+			return "gratuitous ARP count valid in active-backup only ";
+		if (bonding->num_unsol_na > 0)
+			return "unsolicited IPv6-NA count valid in active-backup only";
+	}
+
+	switch (bonding->mode) {
+	case NI_BOND_MODE_ACTIVE_BACKUP:
+	case NI_BOND_MODE_BALANCE_TLB:
+	case NI_BOND_MODE_BALANCE_ALB:
+		switch (bonding->primary_reselect) {
+		case NI_BOND_PRIMARY_RESELECT_ALWAYS:
+		case NI_BOND_PRIMARY_RESELECT_BETTER:
+		case NI_BOND_PRIMARY_RESELECT_FAILURE:
+			break;
+		default:
+			return "unsupported primary reselect setting";
+		}
 		break;
 	default:
-		return "unsupported ad-select setting";
-	}
-
-	switch (bonding->fail_over_mac) {
-	case NI_BOND_FAIL_OVER_MAC_NONE:
-	case NI_BOND_FAIL_OVER_MAC_ACTIVE:
-	case NI_BOND_FAIL_OVER_MAC_FOLLOW:
+		if (bonding->primary_reselect != NI_BOND_PRIMARY_RESELECT_ALWAYS)
+			return "primary reselect is not supported in current bonding mode";
+		if (bonding->primary_slave != NULL)
+			return "primary slave is not supported in current bonding mode";
+		if (bonding->active_slave != NULL)
+			return "active slave is not supported in current bonding mode";
 		break;
-	default:
-		return "unsupported fail-over-mac setting";
 	}
 
-	switch (bonding->primary_reselect) {
-	case NI_BOND_PRIMARY_RESELECT_ALWAYS:
-	case NI_BOND_PRIMARY_RESELECT_BETTER:
-	case NI_BOND_PRIMARY_RESELECT_FAILURE:
-		break;
-	default:
-		return "unsupported primary reselect setting";
-	}
-
-	if (bonding->num_grat_arp > 255)
-		return "gratuitous ARP count not in range 0-255";
-
-	if (bonding->num_unsol_na > 255)
-		return "unsolicited IPv6-NA count not in range 0-255";
-
-	if (bonding->resend_igmp > 255)
-		return "resend IGMP count not in range 0-255";
+	if (bonding->all_slaves_active > 1)
+		return "invalid all slaves active flag";
 
 	return NULL;
 }
+
+ni_bool_t
+ni_bonding_is_valid_arp_ip_target(const char *target)
+{
+	struct in_addr addr;
+
+	if (!target || inet_pton(AF_INET, target, &addr) != 1)
+		return FALSE;
+
+	if (addr.s_addr == INADDR_ANY || addr.s_addr == INADDR_NONE)
+		return FALSE;
+
+#if 0	/* senseless, but the kernel does not check it either */
+	if ((addr.s_addr >> 24) == IN_LOOPBACKNET)
+		return FALSE;
+#endif
+	return TRUE;
+}
+
 
 /*
  * Report if the bond contains a slave device
@@ -381,6 +486,7 @@ __ni_bonding_get_module_option_mode(const ni_bonding_t *bonding, char *buffer, s
 		return -1;
 	}
 	strncpy(buffer, name, bufsize - 1);
+	buffer[bufsize - 1] = '\0';
 	return 0;
 }
 
@@ -589,13 +695,51 @@ ni_bonding_parse_sysfs_attribute(ni_bonding_t *bonding, const char *attr, char *
 	if (!strcmp(attr, "mode")) {
 		if (__ni_bonding_set_module_option_mode(bonding, value) < 0)
 			return -1;
+	} else if (!strcmp(attr, "fail_over_mac")) {
+		value[strcspn(value, " \t\n")] = '\0';
+		if (ni_parse_int_mapped(value, __map_kern_fail_over_mac,
+					&bonding->fail_over_mac) < 0)
+			return -1;
+	} else if (!strcmp(attr, "primary_reselect")) {
+		value[strcspn(value, " \t\n")] = '\0';
+		if (ni_parse_int_mapped(value, __map_kern_primary_reselect,
+					&bonding->primary_reselect) < 0)
+			return -1;
+	} else if (!strcmp(attr, "xmit_hash_policy")) {
+		if (__ni_bonding_set_module_option_xmit_hash_policy(bonding, value) < 0)
+			return -1;
+	} else if (!strcmp(attr, "lacp_rate")) {
+		value[strcspn(value, " \t\n")] = '\0';
+		if (ni_parse_int_mapped(value, __map_kern_lacp_rate,
+					&bonding->lacp_rate) < 0)
+			return -1;
+	} else if (!strcmp(attr, "ad_select")) {
+		value[strcspn(value, " \t\n")] = '\0';
+		if (ni_parse_int_mapped(value, __map_kern_ad_select,
+					&bonding->ad_select) < 0)
+			return -1;
+	} else if (!strcmp(attr, "min_links")) {
+		if (ni_parse_int(value, &bonding->min_links, 10) < 0)
+			return -1;
+	} else if (!strcmp(attr, "num_grat_arp")) {
+		if (ni_parse_int(value, &bonding->num_grat_arp, 10) < 0)
+			return -1;
+	} else if (!strcmp(attr, "num_unsol_na")) {
+		if (ni_parse_int(value, &bonding->num_unsol_na, 10) < 0)
+			return -1;
+	} else if (!strcmp(attr, "resend_igmp")) {
+		if (ni_parse_int(value, &bonding->resend_igmp, 10) < 0)
+			return -1;
+	} else if (!strcmp(attr, "all_slaves_active")) {
+		unsigned int tmp;
+		if (ni_parse_int(value, &tmp, 10) < 0)
+			return -1;
+		bonding->all_slaves_active = tmp;
 	} else if (!strcmp(attr, "miimon")) {
 		if (ni_parse_int(value, &bonding->miimon.frequency, 10) < 0)
 			return -1;
-		if (bonding->miimon.frequency != 0)
+		if (bonding->miimon.frequency > 0)
 			bonding->monitoring = NI_BOND_MONITOR_MII;
-		else
-			bonding->monitoring = NI_BOND_MONITOR_ARP;
 	} else if (!strcmp(attr, "updelay")) {
 		if (ni_parse_int(value, &bonding->miimon.updelay, 10) < 0)
 			return -1;
@@ -611,21 +755,18 @@ ni_bonding_parse_sysfs_attribute(ni_bonding_t *bonding, const char *attr, char *
 	} else if (!strcmp(attr, "arp_interval")) {
 		if (ni_parse_int(value, &bonding->arpmon.interval, 10) < 0)
 			return -1;
+		if (bonding->arpmon.interval > 0)
+			bonding->monitoring = NI_BOND_MONITOR_ARP;
 	} else if (!strcmp(attr, "arp_ip_target")) {
-		char *s, *saveptr = NULL;
-
-		for (s = strtok_r(value, ",", &saveptr); s; s = strtok_r(NULL, ",", &saveptr)) {
-			struct in_addr dummy;
-
-			if (inet_aton(value, &dummy) == 0)
-				return -1;
-			ni_string_array_append(&bonding->arpmon.targets, s);
+		char *s, *p = NULL;
+		for (s = strtok_r(value, ",", &p); s; s = strtok_r(NULL, ",", &p)) {
+			if (ni_bonding_is_valid_arp_ip_target(s))
+				ni_string_array_append(&bonding->arpmon.targets, s);
 		}
 	} else if (!strcmp(attr, "primary")) {
-		ni_string_dup(&bonding->primary, value);
-	} else if (!strcmp(attr, "xmit_hash_policy")) {
-		if (__ni_bonding_set_module_option_xmit_hash_policy(bonding, value) < 0)
-			return -1;
+		ni_string_dup(&bonding->primary_slave, value);
+	} else if (!strcmp(attr, "active_slave")) {
+		ni_string_dup(&bonding->active_slave, value);
 	} else {
 		return -2;
 	}
@@ -639,12 +780,41 @@ ni_bonding_parse_sysfs_attribute(ni_bonding_t *bonding, const char *attr, char *
 static int
 ni_bonding_format_sysfs_attribute(const ni_bonding_t *bonding, const char *attr, char *buffer, size_t bufsize)
 {
+	const char *ptr;
+
 	memset(buffer, 0, bufsize);
 	if (!strcmp(attr, "mode")) {
 		return __ni_bonding_get_module_option_mode(bonding, buffer, bufsize);
+	} else if (!strcmp(attr, "fail_over_mac")) {
+		if ((ptr = ni_bonding_fail_over_mac_name(bonding->fail_over_mac)) == NULL)
+			return -1;
+		snprintf(buffer, bufsize, "%s", ptr);
+	} else if (!strcmp(attr, "primary_reselect")) {
+		if ((ptr = ni_bonding_primary_reselect_name(bonding->primary_reselect)) == NULL)
+			return -1;
+		snprintf(buffer, bufsize, "%s", ptr);
+	} else if (!strcmp(attr, "xmit_hash_policy")) {
+		return __ni_bonding_get_module_option_xmit_hash_policy(bonding, buffer, bufsize);
+	} else if (!strcmp(attr, "lacp_rate")) {
+		if ((ptr = ni_bonding_lacp_rate_name(bonding->lacp_rate)) == NULL)
+			return -1;
+		snprintf(buffer, bufsize, "%s", ptr);
+	} else if (!strcmp(attr, "ad_select")) {
+		if ((ptr = ni_bonding_ad_select_name(bonding->ad_select)) == NULL)
+			return -1;
+		snprintf(buffer, bufsize, "%s", ptr);
+	} else if (!strcmp(attr, "min_links")) {
+		snprintf(buffer, bufsize, "%u", bonding->min_links);
+	} else if (!strcmp(attr, "num_grat_arp")) {
+		snprintf(buffer, bufsize, "%u", bonding->num_grat_arp);
+	} else if (!strcmp(attr, "num_unsol_na")) {
+		snprintf(buffer, bufsize, "%u", bonding->num_unsol_na);
+	} else if (!strcmp(attr, "resend_igmp")) {
+		snprintf(buffer, bufsize, "%u", bonding->resend_igmp);
+	} else if (!strcmp(attr, "all_slaves_active")) {
+		snprintf(buffer, bufsize, "%u", bonding->all_slaves_active);
 	} else if (!strcmp(attr, "miimon")) {
 		unsigned int freq = 0;
-
 		if (bonding->monitoring == NI_BOND_MONITOR_MII)
 			freq = bonding->miimon.frequency;
 		snprintf(buffer, bufsize, "%u", freq);
@@ -668,12 +838,14 @@ ni_bonding_format_sysfs_attribute(const ni_bonding_t *bonding, const char *attr,
 		if (bonding->monitoring != NI_BOND_MONITOR_ARP)
 			return 0;
 		snprintf(buffer, bufsize, "%u", bonding->arpmon.interval);
-	} else if (!strcmp(attr, "primary")) {
-		if (!bonding->primary)
+	} else if (!strcmp(attr, "active_slave")) {
+		if (!bonding->active_slave)
 			return 0;
-		strncpy(buffer, bonding->primary, bufsize - 1);
-	} else if (!strcmp(attr, "xmit_hash_policy")) {
-		return __ni_bonding_get_module_option_xmit_hash_policy(bonding, buffer, bufsize);
+		snprintf(buffer, bufsize, "%s", bonding->active_slave);
+	} else if (!strcmp(attr, "primary")) {
+		if (!bonding->primary_slave)
+			return 0;
+		snprintf(buffer, bufsize, "%s", bonding->primary_slave);
 	} else {
 		return -1;
 	}
@@ -689,14 +861,24 @@ ni_bonding_parse_sysfs_attrs(const char *ifname, ni_bonding_t *bonding)
 {
 	const char *attrs[] = {
 		"mode",
-		"miimon",
+		"fail_over_mac",
+		"primary_reselect",
 		"xmit_hash_policy",
-		"arp_validate",
-		"arp_interval",
+		"lacp_rate",
+		"ad_select",
+		"min_links",
+		"num_grat_arp",
+		"num_unsol_na",
+		"resend_igmp",
+		"all_slaves_active",
+		"active_slave",
+		"primary",
+		"miimon",
 		"updelay",
 		"downdelay",
 		"use_carrier",
-		"primary",
+		"arp_validate",
+		"arp_interval",
 		NULL,
 	};
 	char *attrval = NULL;
@@ -751,20 +933,22 @@ ni_bonding_write_one_sysfs_attr(const char *ifname, const ni_bonding_t *bonding,
 		return -1;
 	}
 
+#if 0
+	ni_debug_ifconfig("%s: checking  attr %s: cur=%s cfg=%s", ifname, attrname,
+				current_value, config_value);
+#endif
+
 	if (config_value[0] == '\0') {
-		ni_debug_ifconfig("%s: attr %s ignored", ifname, attrname);
+		ni_debug_ifconfig("%s: ignoring  attr: %s", ifname, attrname);
 		return 0;
 	}
 
 	if (!strcmp(current_value, config_value)) {
-		ni_debug_ifconfig("%s: attr %s unchanged", ifname, attrname);
+		ni_debug_ifconfig("%s: unchanged attr: %s", ifname, attrname);
 		return 0;
 	}
 
-	/* FIXME: for stage 0 attributes, we should verify that the device is down.
-	 * For stage 1 attributes, we should verify that it is up */
-
-	ni_debug_ifconfig("%s: setting attr %s=%s", ifname, attrname, config_value);
+	ni_debug_ifconfig("%s: setting   attr: %s=%s", ifname, attrname, config_value);
 	if (ni_sysfs_bonding_set_attr(ifname, attrname, config_value) < 0) {
 		ni_error("%s: cannot set bonding attribute %s=%s", ifname, attrname, config_value);
 		return -1;
@@ -775,45 +959,89 @@ ni_bonding_write_one_sysfs_attr(const char *ifname, const ni_bonding_t *bonding,
 
 /*
  * Write bonding configuration to sysfs.
- * This happens in two stages; the first stage happens prior to enslaving interfaces,
- * the other happens afterwards.
+ * This happens in two stages, prior to enslaving interfaces and after,
+ * as well as in dependency of the bonding up/down state and slave count.
  */
 int
-ni_bonding_write_sysfs_attrs(const char *ifname, const ni_bonding_t *bonding, const ni_bonding_t *current, int stage)
+ni_bonding_write_sysfs_attrs(const char *ifname, const ni_bonding_t *bonding, const ni_bonding_t *current, ni_bool_t is_up, ni_bool_t has_slaves)
 {
-	const char *stage0_attrs[] = {
-		"mode",
-		"miimon",
-		"xmit_hash_policy",
-
-		/* ignored for ARP monitoring: */
-		"updelay",
-		"downdelay",
-		"use_carrier",
-
-		/* ignored for MII monitoring: */
-		"arp_interval",
-		"arp_validate",
-		NULL,
+	/*
+	 * option		up/down	slaves		modes
+	 * -------------------------------------------------------------
+	 * mode:		down	!slaves
+	 * fail_over_mac:		!slaves		AB
+	 * xmit_hash_policy:	down			3AD, XOR
+	 * lacp_rate:		down			3AD
+	 * ad_select:		down			3AD
+	 * min_links:		(down)			3AD
+	 * num_grat_arp:				AB
+	 * num_unsol_na:				AB
+	 * resend_igmp:					AB, TLB, ALB, RR
+	 * all_slaves_active:
+	 * primary_reselect:				AB, TLB, ALB
+	 * primary:					AB, TLB, ALB
+	 * active_slave:	up	slaves		AB, TLB, ALB
+	 * arp_interval:				!TLB, !ALB, !3AD
+	 *   arp_ip_target:				!TLB, !ALB, !3AD
+	 *   arp_validate:				BAK
+	 * miimon:
+	 *   updelay:
+	 *   downdelay:
+	 *   use_carrier:
+	 */
+	struct attr_matrix {
+		const char *	name;
+		int		bstate;	/* 1: bond down, 2: bond up      */
+		int		slaves;	/* 1: no slaves, 2: wants slaves */
+		int		islist; /* 1: list value (arp_ip_target) */
 	};
-	const char *stage1_attrs[] = {
-		"primary",
-		NULL,
+	const struct attr_matrix attr_matrix[] = {
+		{ "mode",		1,	1,	0 },
+		{ "fail_over_mac",	0,	1,	0 },
+		{ "primary_reselect",	0,	0,	0 },
+		{ "xmit_hash_policy",	1,	0,	0 },
+		{ "lacp_rate",		1,	0,	0 },
+		{ "ad_select",		1,	0,	0 },
+		{ "min_links",		1,	0,	0 },
+		{ "num_grat_arp",	0,	0,	0 },
+		{ "num_unsol_na",	0,	0,	0 },
+		{ "resend_igmp",	0,	0,	0 },
+		{ "all_slaves_active",	0,	0,	0 },
+		{ "active_slave",	2,	2,	0 },
+		{ "primary",		0,	0,	0 },
+		{ "miimon",		0,	0,	0 },
+		{ "updelay",		0,	0,	0 },
+		{ "downdelay",		0,	0,	0 },
+		{ "use_carrier",	0,	0,	0 },
+		{ "arp_ip_target",	0,	0,	1 },
+		{ "arp_interval",	0,	0,	0 },
+		{ "arp_validate",	0,	0,	0 },
+		{ NULL,			0,	0,	0 },
 	};
-	const char **attrs;
+	const struct attr_matrix *attrs;
 	unsigned int i;
 
+	attrs = attr_matrix;
+	for (i = 0; attrs[i].name; ++i) {
+		if (attrs[i].bstate == 1 && is_up)
+			continue;
+		if (attrs[i].bstate == 2 && !is_up)
+			continue;
+		if (attrs[i].slaves == 1 && has_slaves)
+			continue;
+		if (attrs[i].slaves == 2 && !has_slaves)
+			continue;
 
-	attrs = (stage == 0)? stage0_attrs : stage1_attrs;
-	for (i = 0; attrs[i]; ++i) {
-		if (ni_bonding_write_one_sysfs_attr(ifname, bonding, current, attrs[i]) < 0)
-			return -1;
+		if (attrs[i].islist) {
+			if (ni_sysfs_bonding_set_list_attr(ifname, attrs[i].name,
+					&bonding->arpmon.targets) < 0)
+				return -1;
+		} else {
+			if (ni_bonding_write_one_sysfs_attr(ifname, bonding,
+						current, attrs[i].name) < 0)
+				return -1;
+		}
 	}
-
-	/* arp_ip_target is special, since it's a list of addrs */
-	if (stage == 0 && bonding->monitoring == NI_BOND_MONITOR_ARP
-	 && ni_sysfs_bonding_set_list_attr(ifname, "arp_ip_target", &bonding->arpmon.targets) < 0)
-		return -1;
 
 	return 0;
 }
@@ -841,95 +1069,21 @@ ni_bonding_set_option(ni_bonding_t *bond, const char *option, const char *value)
 		return TRUE;
 	} else
 
-	if (strcmp(option, "miimon") == 0) {
-		if (ni_parse_int(value, &tmp, 10) < 0)
-			return FALSE;
-
-		bond->miimon.frequency = tmp;
-		if (bond->miimon.frequency > 0) {
-			bond->monitoring = NI_BOND_MONITOR_MII;
-		} else
-		if (bond->monitoring == NI_BOND_MONITOR_MII) {
-			bond->monitoring = 0;
-		}
-		return TRUE;
-	} else
-
-	if (strcmp(option, "updelay") == 0) {
-		if (ni_parse_int(value, &tmp, 10) < 0)
-			return FALSE;
-
-		bond->miimon.updelay = tmp;
-		return TRUE;
-	} else
-
-	if (strcmp(option, "downdelay") == 0) {
-		if (ni_parse_int(value, &tmp, 10) < 0)
-			return FALSE;
-
-		bond->miimon.downdelay = tmp;
-		return TRUE;
-	} else
-
-	if (strcmp(option, "use_carrier") == 0) {
-		if (ni_parse_int(value, &tmp, 10) < 0)
-			return FALSE;
-
-		if (tmp > NI_BOND_MII_CARRIER_DETECT_NETIF)
-			return FALSE;
-
-		bond->miimon.carrier_detect = tmp;
-		return TRUE;
-	} else
-
-	if (strcmp(option, "arp_interval") == 0) {
-		if (ni_parse_int(value, &tmp, 10) < 0)
-			return FALSE;
-
-		bond->arpmon.interval = tmp;
-		if (bond->arpmon.interval > 0 &&
-		    bond->arpmon.targets.count > 0) {
-			bond->monitoring = NI_BOND_MONITOR_ARP;
-		} else
-		if (bond->monitoring == NI_BOND_MONITOR_ARP) {
-			bond->monitoring = 0;
-		}
-		return TRUE;
-	} else
-
-	if (strcmp(option, "arp_ip_target") == 0) {
-		unsigned int i;
-
-		ni_string_array_destroy(&bond->arpmon.targets);
-		if (ni_string_split(&bond->arpmon.targets, value, ",", 16) == 0)
-			return FALSE;
-
-		for (i = 0; i < bond->arpmon.targets.count; ++i) {
-			struct in_addr dummy;
-
-			if (inet_aton(bond->arpmon.targets.data[i], &dummy) != 0)
-				continue;
-
-			ni_string_array_destroy(&bond->arpmon.targets);
-			return FALSE;
-		}
-
-		if (bond->arpmon.interval > 0 &&
-		    bond->arpmon.targets.count > 0) {
-			bond->monitoring = NI_BOND_MONITOR_ARP;
-		} else
-		if (bond->monitoring == NI_BOND_MONITOR_ARP) {
-			bond->monitoring = 0;
-		}
-		return TRUE;
-	} else
-
-	if (strcmp(option, "arp_validate") == 0) {
+	if (strcmp(option, "fail_over_mac") == 0) {
 		if (ni_parse_int_maybe_mapped(value,
-				__map_kern_arp_validate, &tmp, 10) != 0)
+				__map_kern_fail_over_mac, &tmp, 10) != 0)
 			return FALSE;
 
-		bond->arpmon.validate = tmp;
+		bond->fail_over_mac = tmp;
+		return TRUE;
+	} else
+
+	if (strcmp(option, "primary_reselect") == 0) {
+		if (ni_parse_int_maybe_mapped(value,
+				__map_kern_primary_reselect, &tmp, 10) != 0)
+			return FALSE;
+
+		bond->primary_reselect = tmp;
 		return TRUE;
 	} else
 
@@ -1000,26 +1154,86 @@ ni_bonding_set_option(ni_bonding_t *bond, const char *option, const char *value)
 		return TRUE;
 	} else
 
-	if (strcmp(option, "fail_over_mac") == 0) {
-		if (ni_parse_int_maybe_mapped(value,
-				__map_kern_fail_over_mac, &tmp, 10) != 0)
+	if (strcmp(option, "miimon") == 0 || tmp > INT_MAX) {
+		if (ni_parse_int(value, &tmp, 10) < 0)
 			return FALSE;
 
-		bond->fail_over_mac = tmp;
+		bond->miimon.frequency = tmp;
+		bond->monitoring |= NI_BOND_MONITOR_MII;
 		return TRUE;
 	} else
 
-	if (strcmp(option, "primary_reselect") == 0) {
-		if (ni_parse_int_maybe_mapped(value,
-				__map_kern_primary_reselect, &tmp, 10) != 0)
+	if (strcmp(option, "updelay") == 0) {
+		if (ni_parse_int(value, &tmp, 10) < 0 || tmp > INT_MAX)
 			return FALSE;
 
-		bond->primary_reselect = tmp;
+		bond->miimon.updelay = tmp;
+		return TRUE;
+	} else
+
+	if (strcmp(option, "downdelay") == 0) {
+		if (ni_parse_int(value, &tmp, 10) < 0 || tmp > INT_MAX)
+			return FALSE;
+
+		bond->miimon.downdelay = tmp;
+		return TRUE;
+	} else
+
+	if (strcmp(option, "use_carrier") == 0) {
+		if (ni_parse_int(value, &tmp, 10) < 0)
+			return FALSE;
+
+		if (tmp > NI_BOND_MII_CARRIER_DETECT_NETIF)
+			return FALSE;
+
+		bond->miimon.carrier_detect = tmp;
+		return TRUE;
+	} else
+
+	if (strcmp(option, "arp_interval") == 0) {
+		if (ni_parse_int(value, &tmp, 10) < 0 || tmp > INT_MAX)
+			return FALSE;
+
+		bond->arpmon.interval = tmp;
+		bond->monitoring |= NI_BOND_MONITOR_ARP;
+		return TRUE;
+	} else
+
+	if (strcmp(option, "arp_ip_target") == 0) {
+		unsigned int i;
+
+		ni_string_array_destroy(&bond->arpmon.targets);
+		if (ni_string_split(&bond->arpmon.targets, value, ",", 16) == 0)
+			return FALSE;
+
+		for (i = 0; i < bond->arpmon.targets.count; ++i) {
+			const char *target = bond->arpmon.targets.data[i];
+
+			if (ni_bonding_is_valid_arp_ip_target(target))
+				continue;
+
+			ni_string_array_destroy(&bond->arpmon.targets);
+			return FALSE;
+		}
+		return TRUE;
+	} else
+
+	if (strcmp(option, "arp_validate") == 0) {
+		if (ni_parse_int_maybe_mapped(value,
+				__map_kern_arp_validate, &tmp, 10) != 0)
+			return FALSE;
+
+		bond->arpmon.validate = tmp;
 		return TRUE;
 	} else
 
 	if (strcmp(option, "primary") == 0) {
-		ni_string_dup(&bond->primary, value);
+		ni_string_dup(&bond->primary_slave, value);
+		return TRUE;
+	}
+
+	if (strcmp(option, "active_slave") == 0) {
+		ni_string_dup(&bond->active_slave, value);
 		return TRUE;
 	}
 
