@@ -678,6 +678,28 @@ ni_string_set(char **pp, const char *value, unsigned int len)
 }
 
 const char *
+ni_string_printf(char **str, const char *fmt, ...)
+{
+	va_list ap;
+	char *tmp = NULL;
+	int ret;
+
+	if (!str || !fmt)
+		return NULL;
+
+	va_start(ap, fmt);
+	ret = vasprintf(&tmp, fmt, ap);
+	va_end(ap);
+	if (ret < 0)
+		return NULL;
+
+	if (*str != NULL)
+		free(*str);
+	*str = tmp;
+	return tmp;
+}
+
+const char *
 ni_string_strip_prefix(const char *prefix, const char *string)
 {
 	unsigned int len;
