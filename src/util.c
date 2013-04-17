@@ -777,13 +777,16 @@ int
 ni_parse_int(const char *input, unsigned int *result, int base)
 {
 	unsigned int value;
-	char *end;
+	char *end = NULL;
 
-	if (!input || !*input || !result)
+	if (!input || !*input || !result) {
+		errno = EINVAL;
 		return -1;
+	}
 
+	errno = 0;
 	value = strtoul(input, (char **) &end, base);
-	if (*end != '\0')
+	if (errno || *end != '\0')
 		return -1;
 
 	*result = value;
@@ -860,15 +863,21 @@ ni_format_int_maybe_mapped(unsigned int value, const ni_intmap_t *map)
 int
 ni_parse_double(const char *input, double *result)
 {
-	char *end;
+	double value;
+	char *end = NULL;
 
-	if (!input)
+	if (!input || !*input || !result) {
+		errno = EINVAL;
 		return -1;
-	*result = strtod(input, (char **) &end);
-	if (*end == '\0')
-		return 0;
+	}
 
-	return -1;
+	errno = 0;
+	value = strtod(input, (char **) &end);
+	if (errno || *end != '\0')
+		return -1;
+
+	*result = value;
+	return 0;
 }
 
 /*
