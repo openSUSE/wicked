@@ -96,15 +96,18 @@
  *	Note that only sibling members are taken into consideration.
  *
  * Arrays are represented like this:
- *   <array element-type="..." minlen="..." maxlen="..."/>
+ *   <array element-type="..." element-name="..." minlen="..." maxlen="..."/>
  * or
- *   <array minlen="..." maxlen="...">
+ *   <array element-name="..." minlen="..." maxlen="...">
  *    <type...>
  *   </array>
  * The latter form can be used for arrays of complex types, such as a dict,
  * without having to define a named type for the array element type.
  *
- * Note that the minlen/maxlen attributes are optional.
+ * Note that the element-name/minlen/maxlen attributes are optional.
+ * When the array definition does not specify an element-name attibute, the
+ * name of the element type is used for xml deserialization / displaying
+ * purposes with fallback to anonymous "e" element nodes.
  *
  * Structs can be represented either as
  *   <struct>
@@ -212,6 +215,7 @@ struct ni_xs_notation {
 typedef struct ni_xs_array_info ni_xs_array_info_t;
 struct ni_xs_array_info {
 	ni_xs_type_t *		element_type;
+	char *			element_name;
 	unsigned long		minlen;
 	unsigned long		maxlen;
 	const ni_xs_notation_t *notation;

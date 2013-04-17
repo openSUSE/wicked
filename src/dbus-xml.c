@@ -837,14 +837,20 @@ ni_dbus_deserialize_xml_array(ni_dbus_variant_t *var, const ni_xs_type_t *type, 
 		}
 
 		for (i = 0; i < array_len; ++i) {
-			const char *string;
+			const char *string, *name = "e";
 			xml_node_t *child;
 
 			if (!(string = ni_dbus_variant_array_print_element(var, i))) {
 				ni_error("%s: cannot represent array element", __func__);
 				return FALSE;
 			}
-			child = xml_node_new("e", node);
+
+			if (array_info->element_name != NULL)
+				name = array_info->element_name;
+			else if (element_type->origdef.name != NULL)
+				name = element_type->origdef.name;
+
+			child = xml_node_new(name, node);
 			xml_node_set_cdata(child, string);
 		}
 	} else if (element_type->class == NI_XS_TYPE_DICT) {
@@ -858,8 +864,14 @@ ni_dbus_deserialize_xml_array(ni_dbus_variant_t *var, const ni_xs_type_t *type, 
 		for (i = 0; i < array_len; ++i) {
 			ni_dbus_variant_t *element = &var->variant_array_value[i];
 			xml_node_t *child;
+			const char *name = "e";
 
-			child = xml_node_new("e", node);
+			if (array_info->element_name != NULL)
+				name = array_info->element_name;
+			else if (element_type->origdef.name != NULL)
+				name = element_type->origdef.name;
+
+			child = xml_node_new(name, node);
 			if (!ni_dbus_deserialize_xml(element, element_type, child))
 				return FALSE;
 		}

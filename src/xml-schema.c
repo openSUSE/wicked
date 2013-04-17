@@ -95,12 +95,13 @@ ni_xs_dict_new(ni_xs_name_type_array_t *children)
 }
 
 ni_xs_type_t *
-ni_xs_array_new(ni_xs_type_t *elementType, unsigned long minlen, unsigned long maxlen)
+ni_xs_array_new(ni_xs_type_t *elementType, const char *elementName, unsigned long minlen, unsigned long maxlen)
 {
 	ni_xs_type_t *type = __ni_xs_type_new(NI_XS_TYPE_ARRAY);
 
 	type->u.array_info = xcalloc(1, sizeof(struct ni_xs_array_info));
 	type->u.array_info->element_type = ni_xs_type_hold(elementType);
+	type->u.array_info->element_name = xstrdup(elementName);
 	type->u.array_info->minlen = minlen;
 	type->u.array_info->maxlen = maxlen;
 	return type;
@@ -150,6 +151,7 @@ ni_xs_type_clone(const ni_xs_type_t *src)
 			ni_xs_array_info_t *src_array_info = src->u.array_info;
 
 			dst = ni_xs_array_new(src_array_info->element_type,
+					src_array_info->element_name,
 					src_array_info->minlen,
 					src_array_info->maxlen);
 			dst->u.array_info->notation = src_array_info->notation;
@@ -209,6 +211,7 @@ ni_xs_type_free(ni_xs_type_t *type)
 			ni_xs_array_info_t *array_info = type->u.array_info;
 
 			ni_xs_type_release(array_info->element_type);
+			ni_string_free(&array_info->element_name);
 			free(array_info);
 			type->u.array_info = NULL;
 			break;
@@ -1099,6 +1102,7 @@ ni_xs_build_complex_type(xml_node_t *node, const char *className, ni_xs_scope_t 
 		unsigned long minlen = 0, maxlen = ULONG_MAX;
 		const ni_xs_notation_t *notation = NULL;
 		const char *attrValue;
+		const char *elementName = NULL;
 
 		if ((typeAttr = xml_node_get_attr(node, "element-type")) != NULL) {
 			elementType = ni_xs_scope_lookup(scope, typeAttr);
@@ -1113,6 +1117,8 @@ ni_xs_build_complex_type(xml_node_t *node, const char *className, ni_xs_scope_t 
 				return NULL;
 		}
 
+		if ((attrValue = xml_node_get_attr(node, "element-name")) != NULL && *attrValue)
+			elementName = attrValue;
 		if ((attrValue = xml_node_get_attr(node, "minlen")) != NULL)
 			minlen = strtoul(attrValue, NULL, 0);
 		if ((attrValue = xml_node_get_attr(node, "maxlen")) != NULL)
@@ -1133,7 +1139,7 @@ ni_xs_build_complex_type(xml_node_t *node, const char *className, ni_xs_scope_t 
 			}
 		}
 
-		type = ni_xs_array_new(elementType, minlen, maxlen);
+		type = ni_xs_array_new(elementType, elementName, minlen, maxlen);
 		type->u.array_info->notation = notation;
 		ni_xs_type_release(elementType);
 	} else
