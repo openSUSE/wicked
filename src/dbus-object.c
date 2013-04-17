@@ -935,6 +935,40 @@ ni_dbus_generic_property_update_bool(ni_dbus_object_t *obj, const ni_dbus_proper
 }
 
 dbus_bool_t
+ni_dbus_generic_property_get_int(const ni_dbus_object_t *obj, const ni_dbus_property_t *prop,
+					ni_dbus_variant_t *var, DBusError *error)
+{
+	const int *vptr;
+	const void *handle;
+
+	if (!(handle = prop->generic.get_handle(obj, error)))
+		return FALSE;
+
+	vptr = __property_data(prop, handle, int);
+	return ni_dbus_variant_set_int(var, *vptr);
+}
+
+dbus_bool_t
+ni_dbus_generic_property_set_int(ni_dbus_object_t *obj, const ni_dbus_property_t *prop,
+					const ni_dbus_variant_t *var, DBusError *error)
+{
+	int *vptr;
+	void *handle;
+
+	if (!(handle = prop->generic.get_handle(obj, error)))
+		return FALSE;
+
+	vptr = __property_data(prop, handle, int);
+	return ni_dbus_variant_get_int(var, vptr);
+}
+
+dbus_bool_t
+ni_dbus_generic_property_parse_int(const ni_dbus_property_t *prop, ni_dbus_variant_t *var, const char *string)
+{
+	return ni_dbus_variant_parse(var, string, prop->signature);
+}
+
+dbus_bool_t
 ni_dbus_generic_property_get_uint(const ni_dbus_object_t *obj, const ni_dbus_property_t *prop,
 					ni_dbus_variant_t *var, DBusError *error)
 {
@@ -964,6 +998,41 @@ ni_dbus_generic_property_set_uint(ni_dbus_object_t *obj, const ni_dbus_property_
 
 dbus_bool_t
 ni_dbus_generic_property_parse_uint(const ni_dbus_property_t *prop, ni_dbus_variant_t *var, const char *string)
+{
+	return ni_dbus_variant_parse(var, string, prop->signature);
+}
+
+dbus_bool_t
+ni_dbus_generic_property_get_int16(const ni_dbus_object_t *obj, const ni_dbus_property_t *prop,
+					ni_dbus_variant_t *var, DBusError *error)
+{
+	const int16_t *vptr;
+	const void *handle;
+
+	if (!(handle = prop->generic.get_handle(obj, error)))
+		return FALSE;
+
+	vptr = __property_data(prop, handle, int16);
+	ni_dbus_variant_set_int16(var, *vptr);
+	return TRUE;
+}
+
+dbus_bool_t
+ni_dbus_generic_property_set_int16(ni_dbus_object_t *obj, const ni_dbus_property_t *prop,
+					const ni_dbus_variant_t *var, DBusError *error)
+{
+	int16_t *vptr;
+	void *handle;
+
+	if (!(handle = prop->generic.get_handle(obj, error)))
+		return FALSE;
+
+	vptr = __property_data(prop, handle, int16);
+	return ni_dbus_variant_get_int16(var, vptr);
+}
+
+dbus_bool_t
+ni_dbus_generic_property_parse_int16(const ni_dbus_property_t *prop, ni_dbus_variant_t *var, const char *string)
 {
 	return ni_dbus_variant_parse(var, string, prop->signature);
 }
@@ -999,6 +1068,111 @@ ni_dbus_generic_property_set_uint16(ni_dbus_object_t *obj, const ni_dbus_propert
 
 dbus_bool_t
 ni_dbus_generic_property_parse_uint16(const ni_dbus_property_t *prop, ni_dbus_variant_t *var, const char *string)
+{
+	return ni_dbus_variant_parse(var, string, prop->signature);
+}
+
+dbus_bool_t
+ni_dbus_generic_property_get_int64(const ni_dbus_object_t *obj, const ni_dbus_property_t *prop,
+					ni_dbus_variant_t *var, DBusError *error)
+{
+	const int64_t *vptr;
+	const void *handle;
+
+	if (!(handle = prop->generic.get_handle(obj, error)))
+		return FALSE;
+
+	vptr = __property_data(prop, handle, int64);
+	ni_dbus_variant_set_int64(var, *vptr);
+	return TRUE;
+}
+
+dbus_bool_t
+ni_dbus_generic_property_set_int64(ni_dbus_object_t *obj, const ni_dbus_property_t *prop,
+					const ni_dbus_variant_t *var, DBusError *error)
+{
+	int64_t *vptr;
+	void *handle;
+
+	if (!(handle = prop->generic.get_handle(obj, error)))
+		return FALSE;
+
+	vptr = __property_data(prop, handle, int64);
+	return ni_dbus_variant_get_int64(var, vptr);
+}
+
+dbus_bool_t
+ni_dbus_generic_property_parse_int64(const ni_dbus_property_t *prop, ni_dbus_variant_t *var, const char *string)
+{
+	return ni_dbus_variant_parse(var, string, prop->signature);
+}
+
+dbus_bool_t
+ni_dbus_generic_property_get_uint64(const ni_dbus_object_t *obj, const ni_dbus_property_t *prop,
+					ni_dbus_variant_t *var, DBusError *error)
+{
+	const uint64_t *vptr;
+	const void *handle;
+
+	if (!(handle = prop->generic.get_handle(obj, error)))
+		return FALSE;
+
+	vptr = __property_data(prop, handle, uint64);
+	ni_dbus_variant_set_uint64(var, *vptr);
+	return TRUE;
+}
+
+dbus_bool_t
+ni_dbus_generic_property_set_uint64(ni_dbus_object_t *obj, const ni_dbus_property_t *prop,
+					const ni_dbus_variant_t *var, DBusError *error)
+{
+	uint64_t *vptr;
+	void *handle;
+
+	if (!(handle = prop->generic.get_handle(obj, error)))
+		return FALSE;
+
+	vptr = __property_data(prop, handle, uint64);
+	return ni_dbus_variant_get_uint64(var, vptr);
+}
+
+dbus_bool_t
+ni_dbus_generic_property_parse_uint64(const ni_dbus_property_t *prop, ni_dbus_variant_t *var, const char *string)
+{
+	return ni_dbus_variant_parse(var, string, prop->signature);
+}
+
+dbus_bool_t
+ni_dbus_generic_property_get_double(const ni_dbus_object_t *obj, const ni_dbus_property_t *prop,
+					ni_dbus_variant_t *var, DBusError *error)
+{
+	const double *vptr;
+	const void *handle;
+
+	if (!(handle = prop->generic.get_handle(obj, error)))
+		return FALSE;
+
+	vptr = __property_data(prop, handle, double);
+	ni_dbus_variant_set_double(var, *vptr);
+	return TRUE;
+}
+
+dbus_bool_t
+ni_dbus_generic_property_set_double(ni_dbus_object_t *obj, const ni_dbus_property_t *prop,
+					const ni_dbus_variant_t *var, DBusError *error)
+{
+	double *vptr;
+	void *handle;
+
+	if (!(handle = prop->generic.get_handle(obj, error)))
+		return FALSE;
+
+	vptr = __property_data(prop, handle, double);
+	return ni_dbus_variant_get_double(var, vptr);
+}
+
+dbus_bool_t
+ni_dbus_generic_property_parse_double(const ni_dbus_property_t *prop, ni_dbus_variant_t *var, const char *string)
 {
 	return ni_dbus_variant_parse(var, string, prop->signature);
 }
