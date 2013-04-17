@@ -32,7 +32,11 @@ struct ni_dbus_property	{
 			ni_bool_t *	bool_offset;
 			int *		int_offset;
 			unsigned int *	uint_offset;
+			int16_t *	int16_offset;
 			uint16_t *	uint16_offset;
+			int64_t *	int64_offset;
+			uint64_t *	uint64_offset;
+			double *	double_offset;
 			char **		string_offset;
 			ni_string_array_t *string_array_offset;
 			ni_uuid_t *	uuid_offset;
@@ -66,11 +70,35 @@ extern dbus_bool_t		ni_dbus_generic_property_set_uint(ni_dbus_object_t *, const 
 					const ni_dbus_variant_t *, DBusError *);
 extern dbus_bool_t		ni_dbus_generic_property_parse_uint(const ni_dbus_property_t *,
 					ni_dbus_variant_t *, const char *);
+extern dbus_bool_t		ni_dbus_generic_property_get_int16(const ni_dbus_object_t *, const ni_dbus_property_t *,
+					ni_dbus_variant_t *r, DBusError *);
+extern dbus_bool_t		ni_dbus_generic_property_set_int16(ni_dbus_object_t *, const ni_dbus_property_t *,
+					const ni_dbus_variant_t *, DBusError *);
+extern dbus_bool_t		ni_dbus_generic_property_parse_int16(const ni_dbus_property_t *,
+					ni_dbus_variant_t *, const char *);
 extern dbus_bool_t		ni_dbus_generic_property_get_uint16(const ni_dbus_object_t *, const ni_dbus_property_t *,
 					ni_dbus_variant_t *r, DBusError *);
 extern dbus_bool_t		ni_dbus_generic_property_set_uint16(ni_dbus_object_t *, const ni_dbus_property_t *,
 					const ni_dbus_variant_t *, DBusError *);
 extern dbus_bool_t		ni_dbus_generic_property_parse_uint16(const ni_dbus_property_t *,
+					ni_dbus_variant_t *, const char *);
+extern dbus_bool_t		ni_dbus_generic_property_get_int64(const ni_dbus_object_t *, const ni_dbus_property_t *,
+					ni_dbus_variant_t *r, DBusError *);
+extern dbus_bool_t		ni_dbus_generic_property_set_int64(ni_dbus_object_t *, const ni_dbus_property_t *,
+					const ni_dbus_variant_t *, DBusError *);
+extern dbus_bool_t		ni_dbus_generic_property_parse_int64(const ni_dbus_property_t *,
+					ni_dbus_variant_t *, const char *);
+extern dbus_bool_t		ni_dbus_generic_property_get_uint64(const ni_dbus_object_t *, const ni_dbus_property_t *,
+					ni_dbus_variant_t *r, DBusError *);
+extern dbus_bool_t		ni_dbus_generic_property_set_uint64(ni_dbus_object_t *, const ni_dbus_property_t *,
+					const ni_dbus_variant_t *, DBusError *);
+extern dbus_bool_t		ni_dbus_generic_property_parse_uint64(const ni_dbus_property_t *,
+					ni_dbus_variant_t *, const char *);
+extern dbus_bool_t		ni_dbus_generic_property_get_double(const ni_dbus_object_t *, const ni_dbus_property_t *,
+					ni_dbus_variant_t *r, DBusError *);
+extern dbus_bool_t		ni_dbus_generic_property_set_double(ni_dbus_object_t *, const ni_dbus_property_t *,
+					const ni_dbus_variant_t *, DBusError *);
+extern dbus_bool_t		ni_dbus_generic_property_parse_double(const ni_dbus_property_t *,
 					ni_dbus_variant_t *, const char *);
 extern dbus_bool_t		ni_dbus_generic_property_get_uuid(const ni_dbus_object_t *, const ni_dbus_property_t *,
 					ni_dbus_variant_t *r, DBusError *);
@@ -155,8 +183,20 @@ extern dbus_bool_t		ni_dbus_generic_property_parse_string_array(const ni_dbus_pr
 	__NI_DBUS_GENERIC_PROPERTY(struct_name, DBUS_TYPE_INT32_AS_STRING, dbus_name, int, member_name, rw)
 #define NI_DBUS_GENERIC_UINT_PROPERTY(struct_name, dbus_name, member_name, rw) \
 	__NI_DBUS_GENERIC_PROPERTY(struct_name, DBUS_TYPE_UINT32_AS_STRING, dbus_name, uint, member_name, rw)
+#define NI_DBUS_GENERIC_INT16_PROPERTY(struct_name, dbus_name, member_name, rw) \
+	__NI_DBUS_GENERIC_PROPERTY(struct_name, DBUS_TYPE_INT16_AS_STRING, dbus_name, int16, member_name, rw)
 #define NI_DBUS_GENERIC_UINT16_PROPERTY(struct_name, dbus_name, member_name, rw) \
 	__NI_DBUS_GENERIC_PROPERTY(struct_name, DBUS_TYPE_UINT16_AS_STRING, dbus_name, uint16, member_name, rw)
+#define NI_DBUS_GENERIC_INT32_PROPERTY(struct_name, dbus_name, member_name, rw) \
+	__NI_DBUS_GENERIC_PROPERTY(struct_name, DBUS_TYPE_INT32_AS_STRING, dbus_name, int, member_name, rw)
+#define NI_DBUS_GENERIC_UINT32_PROPERTY(struct_name, dbus_name, member_name, rw) \
+	__NI_DBUS_GENERIC_PROPERTY(struct_name, DBUS_TYPE_UINT32_AS_STRING, dbus_name, uint, member_name, rw)
+#define NI_DBUS_GENERIC_INT64_PROPERTY(struct_name, dbus_name, member_name, rw) \
+	__NI_DBUS_GENERIC_PROPERTY(struct_name, DBUS_TYPE_INT64_AS_STRING, dbus_name, int64, member_name, rw)
+#define NI_DBUS_GENERIC_UINT64_PROPERTY(struct_name, dbus_name, member_name, rw) \
+	__NI_DBUS_GENERIC_PROPERTY(struct_name, DBUS_TYPE_UINT64_AS_STRING, dbus_name, uint64, member_name, rw)
+#define NI_DBUS_GENERIC_DOUBLE_PROPERTY(struct_name, dbus_name, member_name, rw) \
+	__NI_DBUS_GENERIC_PROPERTY(struct_name, DBUS_TYPE_DOUBLE_AS_STRING, dbus_name, double, member_name, rw)
 #define NI_DBUS_GENERIC_UUID_PROPERTY(struct_name, dbus_name, member_name, rw) \
 	__NI_DBUS_GENERIC_PROPERTY(struct_name, \
 			NI_DBUS_BYTE_ARRAY_SIGNATURE, \
