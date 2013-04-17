@@ -347,7 +347,7 @@ ni_bonding_validate(const ni_bonding_t *bonding)
 			return "resend IGMP count not in range 0-255";
 		break;
 	default:
-		if (bonding->resend_igmp > 0)
+		if (bonding->resend_igmp > 1)
 			return "resend IGMP count is not valid in this mode";
 		break;
 	}
@@ -369,9 +369,9 @@ ni_bonding_validate(const ni_bonding_t *bonding)
 	} else {
 		if (bonding->fail_over_mac != NI_BOND_FAIL_OVER_MAC_NONE)
 			return "fail-over-mac only valid in active-backup mode";
-		if (bonding->num_grat_arp > 0)
+		if (bonding->num_grat_arp > 1)
 			return "gratuitous ARP count valid in active-backup only ";
-		if (bonding->num_unsol_na > 0)
+		if (bonding->num_unsol_na > 1)
 			return "unsolicited IPv6-NA count valid in active-backup only";
 	}
 
