@@ -602,55 +602,156 @@ try_bridge(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	bridge = ni_netdev_get_bridge(dev);
 
 	if ((value = ni_sysconfig_get_value(sc, "BRIDGE_STP")) != NULL) {
-		if (!strcasecmp(value, "off") || !strcasecmp(value, "no"))
-			bridge->stp = 0;
-		else
-		if (!strcasecmp(value, "on") || !strcasecmp(value, "yes"))
-			bridge->stp = 1;
-		else
-			bridge->stp = strtoul(value, NULL, 0);
+		if (!strcasecmp(value, "off") || !strcasecmp(value, "no")) {
+			bridge->stp = TRUE;
+		} else
+		if (!strcasecmp(value, "on") || !strcasecmp(value, "yes")) {
+			bridge->stp = FALSE;
+		} else {
+			ni_error("%s: Cannot parse ifcfg BRIDGE_STP='%s'",
+				dev->name, value);
+			return FALSE;
+		}
 	}
 
-	if ((value = ni_sysconfig_get_value(sc, "BRIDGE_FORWARDDELAY")) != NULL)
-		bridge->forward_delay = strtoul(value, NULL, 0);
-	if ((value = ni_sysconfig_get_value(sc, "BRIDGE_AGEINGTIME")) != NULL)
-		bridge->ageing_time = strtoul(value, NULL, 0);
-	if ((value = ni_sysconfig_get_value(sc, "BRIDGE_HELLOTIME")) != NULL)
-		bridge->hello_time = strtoul(value, NULL, 0);
-	if ((value = ni_sysconfig_get_value(sc, "BRIDGE_MAXAGE")) != NULL)
-		bridge->max_age = strtoul(value, NULL, 0);
-	if ((value = ni_sysconfig_get_value(sc, "BRIDGE_PRIORITY")) != NULL)
-		bridge->priority = strtoul(value, NULL, 0);
+	if ((value = ni_sysconfig_get_value(sc, "BRIDGE_PRIORITY")) != NULL) {
+		if (ni_parse_int(value, &bridge->priority, 0) < 0) {
+			ni_error("%s: Cannot parse ifcfg BRIDGE_PRIORITY='%s'",
+				dev->name, value);
+			return FALSE;
+		}
+		if (bridge->priority > USHRT_MAX) {
+			ni_error("%s: ifcfg BRIDGE_PRIORITY='%s' is out of 0-%u range",
+				dev->name, value, USHRT_MAX);
+			return FALSE;
+		}
+	}
+
+	if ((value = ni_sysconfig_get_value(sc, "BRIDGE_AGEINGTIME")) != NULL) {
+		if (ni_parse_double(value, &bridge->ageing_time) < 0) {
+			ni_error("%s: Cannot parse ifcfg BRIDGE_AGEINGTIME='%s'",
+				dev->name, value);
+			return FALSE;
+		}
+		/* TODO: range */
+	}
+
+	if ((value = ni_sysconfig_get_value(sc, "BRIDGE_FORWARDDELAY")) != NULL) {
+		if (ni_parse_double(value, &bridge->forward_delay) < 0) {
+			ni_error("%s: Cannot parse ifcfg BRIDGE_FORWARDDELAY='%s'",
+				dev->name, value);
+			return FALSE;
+		}
+		if ((bridge->forward_delay < 4.0 || bridge->forward_delay > 30.0) &&
+		    (bridge->stp || bridge->forward_delay != 0.0)) {
+			ni_error("%s: ifcfg BRIDGE_FORWARDDELAY='%s' is out of %.2f-%.2f range",
+				dev->name, value, 4.0, 30.0);
+			return FALSE;
+		}
+	}
+	if ((value = ni_sysconfig_get_value(sc, "BRIDGE_HELLOTIME")) != NULL) {
+		if (ni_parse_double(value, &bridge->hello_time) < 0) {
+			ni_error("%s: Cannot parse ifcfg BRIDGE_HELLOTIME='%s'",
+				dev->name, value);
+			return FALSE;
+		}
+		if ((bridge->hello_time < 1.0 || bridge->hello_time > 6.0) &&
+		    (bridge->stp || bridge->hello_time != 0.0)) {
+			ni_error("%s: ifcfg BRIDGE_HELLOTIME='%s' is out of %.2f-%.2f range",
+				dev->name, value, 1.0, 6.0);
+			return FALSE;
+		}
+	}
+
+	if ((value = ni_sysconfig_get_value(sc, "BRIDGE_MAXAGE")) != NULL) {
+		if (ni_parse_double(value, &bridge->max_age) < 0) {
+			ni_error("%s: Cannot parse ifcfg BRIDGE_MAXAGE='%s'",
+				dev->name, value);
+			return FALSE;
+		}
+		if ((bridge->hello_time < 6.0 || bridge->hello_time > 40.0) &&
+		    (bridge->stp || bridge->hello_time != 0.0)) {
+			ni_error("%s: ifcfg BRIDGE_MAXAGE='%s' is out of %.2f-%.2f range",
+				dev->name, value, 6.0, 40.0);
+			return FALSE;
+		}
+	}
 
 	if ((value = ni_sysconfig_get_value(sc, "BRIDGE_PORTS")) != NULL) {
 		char *portnames = NULL, *name_pos = NULL, *name = NULL;
-		char *portprios = NULL, *prio_pos = NULL, *prio = NULL;
-		char *portcosts = NULL, *cost_pos = NULL, *cost = NULL;
 
-		portnames = strdup(value);
-		if ((value = ni_sysconfig_get_value(sc, "BRIDGE_PORTPRIORITIES")) != NULL)
-			portprios = strdup(value);
-		if ((value = ni_sysconfig_get_value(sc, "BRIDGE_PATHCOSTS")) != NULL)
-			portcosts = strdup(value);
+		ni_string_dup(&portnames, value);
+		for (name = strtok_r(portnames, " \t", &name_pos);
+		     name != NULL;
+		     name = strtok_r(NULL, " \t", &name_pos)) {
 
-		name = strtok_r(portnames, " \t", &name_pos);
-		prio = strtok_r(portprios, " \t", &prio_pos);
-		cost = strtok_r(portcosts, " \t", &cost_pos);
+			if (!__ni_suse_valid_ifname(name)) {
+				ni_error("%s: ifcfg BRIDGE_PORTS='%s' "
+					 "rejecting suspect port name '%s'",
+					 dev->name, value, name);
+				free(portnames);
+				return FALSE;
+			}
 
-		while (name != NULL) {
-			ni_bridge_port_t *port = ni_bridge_port_new(bridge, name, 0);
-
-			if (prio)
-				port->priority = strtoul(prio, NULL, 0);
-			if (cost)
-				port->path_cost = strtoul(cost, NULL, 0);
-
-			name = strtok_r(NULL, " \t", &name_pos);
-			prio = strtok_r(NULL, " \t", &prio_pos);
-			cost = strtok_r(NULL, " \t", &cost_pos);
+			ni_bridge_port_new(bridge, name, 0);
 		}
 		ni_string_free(&portnames);
+	}
+
+	if ((value = ni_sysconfig_get_value(sc, "BRIDGE_PORTPRIORITIES")) != NULL) {
+		char *portprios = NULL, *prio_pos = NULL, *prio = NULL;
+		unsigned int tmp, i = 0;
+
+		ni_string_dup(&portprios, value);
+		for (prio = strtok_r(portprios, " \t", &prio_pos);
+		     prio != NULL && i < bridge->ports.count;
+		     prio = strtok_r(NULL, " \t", &prio_pos), ++i) {
+			ni_bridge_port_t *port = bridge->ports.data[i];
+
+			if (!strcmp("-", prio))
+				continue;
+
+			if (ni_parse_int(prio, &tmp, 0) < 0) {
+				ni_error("%s: ifcfg BRIDGE_PORTPRIORITIES='%s' "
+					 "unable to parse port '%s' priority '%s'",
+					 dev->name, value, port->ifname, prio);
+				free(portprios);
+				return FALSE;
+			}
+			if (tmp > 255) {
+				ni_error("%s: ifcfg BRIDGE_PORTPRIORITIES='%s' port "
+					 "'%s' priority '%s' is out of 0-255 range",
+					 dev->name, value, port->ifname, prio);
+				free(portprios);
+				return FALSE;
+			}
+			port->priority = tmp;
+		}
 		ni_string_free(&portprios);
+	}
+
+	if ((value = ni_sysconfig_get_value(sc, "BRIDGE_PATHCOSTS")) != NULL) {
+		char *portcosts = NULL, *cost_pos = NULL, *cost = NULL;
+		unsigned int tmp, i = 0;
+
+		ni_string_dup(&portcosts, value);
+		for (cost = strtok_r(portcosts, " \t", &cost_pos);
+		     cost != NULL && i < bridge->ports.count;
+		     cost = strtok_r(NULL, " \t", &cost_pos), ++i) {
+			ni_bridge_port_t *port = bridge->ports.data[i++];
+
+			if (!strcmp("-", cost))
+				continue;
+
+			if (ni_parse_int(cost, &tmp, 0) < 0) {
+				ni_error("%s: ifcfg BRIDGE_PATHCOSTS='%s' "
+					 "unable to parse port '%s' costs '%s'",
+					 dev->name, value, port->ifname, cost);
+				free(portcosts);
+				return FALSE;
+			}
+			port->path_cost = tmp;
+		}
 		ni_string_free(&portcosts);
 	}
 

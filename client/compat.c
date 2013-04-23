@@ -289,44 +289,58 @@ __ni_compat_generate_bridge(xml_node_t *ifnode, const ni_compat_netdev_t *compat
 {
 	ni_bridge_t *bridge;
 	xml_node_t *child;
+	xml_node_t *ports;
 	unsigned int i;
+	char *tmp = NULL;
 
 	bridge = ni_netdev_get_bridge(compat->dev);
 
-	child = xml_node_create(ifnode, "brigde");
+	child = xml_node_create(ifnode, "bridge");
 
-	switch (bridge->stp) {
-	case 0:
-		xml_node_new_element("stp", child, "off");
-		break;
-	case 1:
-		xml_node_new_element("stp", child, "on");
-		break;
-	default:
-		xml_node_new_element("stp", child, ni_sprint_uint(bridge->stp));
-		break;
+	xml_node_new_element("stp", child, bridge->stp ? "true" : "false");
+	if (bridge->priority != NI_BRIDGE_VALUE_NOT_SET &&
+	    ni_string_printf(&tmp, "%u", bridge->priority)) {
+		xml_node_new_element("priority", child, tmp);
+		ni_string_free(&tmp);
 	}
 
-	if (bridge->forward_delay != NI_BRIDGE_VALUE_NOT_SET)
-		xml_node_new_element("forward-delay", child, ni_sprint_uint(bridge->forward_delay));
-	if (bridge->ageing_time != NI_BRIDGE_VALUE_NOT_SET)
-		xml_node_new_element("aging-time", child, ni_sprint_uint(bridge->ageing_time));
-	if (bridge->hello_time != NI_BRIDGE_VALUE_NOT_SET)
-		xml_node_new_element("hello-time", child, ni_sprint_uint(bridge->hello_time));
-	if (bridge->max_age != NI_BRIDGE_VALUE_NOT_SET)
-		xml_node_new_element("max-age", child, ni_sprint_uint(bridge->max_age));
-	if (bridge->priority != NI_BRIDGE_VALUE_NOT_SET)
-		xml_node_new_element("priority", child, ni_sprint_uint(bridge->priority));
+	if (bridge->forward_delay != NI_BRIDGE_VALUE_NOT_SET &&
+	    ni_string_printf(&tmp, "%.2f", bridge->forward_delay)) {
+		xml_node_new_element("forward-delay", child, tmp);
+		ni_string_free(&tmp);
+	}
+	if (bridge->ageing_time != NI_BRIDGE_VALUE_NOT_SET &&
+	    ni_string_printf(&tmp, "%.2f", bridge->ageing_time)) {
+		xml_node_new_element("aging-time", child, tmp);
+		ni_string_free(&tmp);
+	}
+	if (bridge->hello_time != NI_BRIDGE_VALUE_NOT_SET &&
+	    ni_string_printf(&tmp, "%.2f", bridge->hello_time)) {
+		xml_node_new_element("hello-time", child, tmp);
+		ni_string_free(&tmp);
+	}
+	if (bridge->max_age != NI_BRIDGE_VALUE_NOT_SET &&
+	    ni_string_printf(&tmp, "%.2f", bridge->max_age)) {
+		xml_node_new_element("max-age", child, tmp);
+		ni_string_free(&tmp);
+	}
 
+	ports = xml_node_new("ports", child);
 	for (i = 0; i < bridge->ports.count; ++i) {
 		const ni_bridge_port_t *port = bridge->ports.data[i];
-		xml_node_t *portnode = xml_node_new("port", child);
+		xml_node_t *portnode = xml_node_new("port", ports);
 
 		xml_node_new_element("device", portnode, port->ifname);
-		if (port->priority != NI_BRIDGE_VALUE_NOT_SET)
-			xml_node_new_element("priority", portnode, ni_sprint_uint(port->priority));
-		if (port->path_cost != NI_BRIDGE_VALUE_NOT_SET)
-			xml_node_new_element("path-cost", portnode, ni_sprint_uint(port->path_cost));
+		if (port->priority != NI_BRIDGE_VALUE_NOT_SET &&
+		    ni_string_printf(&tmp, "%u", port->priority)) {
+			xml_node_new_element("priority", portnode, tmp);
+			ni_string_free(&tmp);
+		}
+		if (port->path_cost != NI_BRIDGE_VALUE_NOT_SET &&
+		    ni_string_printf(&tmp, "%u", port->path_cost)) {
+			xml_node_new_element("path-cost", portnode, tmp);
+			ni_string_free(&tmp);
+		}
 	}
 
 	return TRUE;

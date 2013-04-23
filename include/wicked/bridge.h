@@ -7,12 +7,12 @@
 #ifndef __WICKED_BRIDGE_H__
 #define __WICKED_BRIDGE_H__
 
-#define NI_BRIDGE_VALUE_NOT_SET		~0U
+#define NI_BRIDGE_VALUE_NOT_SET			-1
 
 typedef enum ni_bridge_stp {
-	NI_BRIDGE_NO_STP = 0,			/* no spanning tree */
-	NI_BRIDGE_STP,				/* old STP in kernel */
-	NI_BRIDGE_RSTP,				/* new RSTP in userspace */
+	NI_BRIDGE_NO_STP = 0,			/* no spanning tree    */
+	NI_BRIDGE_KERN_STP,			/* STP in the kernel   */
+	NI_BRIDGE_USER_STP,			/* (R)STP in userspace */
 } ni_bridge_stp_t;
 
 typedef struct ni_bridge_port_status {
@@ -54,6 +54,7 @@ typedef struct ni_bridge_port_array {
 } ni_bridge_port_array_t;
 
 typedef struct ni_bridge_status {
+	unsigned int		stp_state;
 	char *			root_id;
 	char *			bridge_id;
 	char *			group_addr;
@@ -70,14 +71,12 @@ typedef struct ni_bridge_status {
 } ni_bridge_status_t;
 
 struct ni_bridge {
+	ni_bool_t		stp;
 	unsigned int		priority;
-	ni_bridge_stp_t		stp;
-
-	/* The following should probably be changed to type double */
-	unsigned int		forward_delay;	/* time in 1/100 sec */
-	unsigned int		ageing_time;	/* time in 1/100 sec */
-	unsigned int		hello_time;	/* time in 1/100 sec */
-	unsigned int		max_age;	/* time in 1/100 sec */
+	double			forward_delay;
+	double			ageing_time;
+	double			hello_time;
+	double			max_age;
 
 	ni_bridge_status_t	status;
 	ni_bridge_port_array_t	ports;

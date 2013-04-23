@@ -203,20 +203,6 @@ ni_objectmodel_get_bridge(const ni_dbus_object_t *object, DBusError *error)
 	return br;
 }
 
-static dbus_bool_t
-__ni_objectmodel_bridge_parse_stp(const ni_dbus_property_t *property,
-				ni_dbus_variant_t *result,
-				const char *value)
-{
-	if (!value)
-		return FALSE;
-	if (!strcmp(value, "yes") || !strcmp(value, "on"))
-		return ni_dbus_variant_set_int(result, 1);
-	if (!strcmp(value, "no") || !strcmp(value, "off"))
-		return ni_dbus_variant_set_int(result, 0);
-	return ni_dbus_variant_parse(result, value, property->signature);
-}
-
 /*
  * Property ports
  */
@@ -296,6 +282,7 @@ __ni_objectmodel_bridge_port_to_dict(const ni_bridge_port_t *port, ni_dbus_varia
 	ni_dbus_dict_add_uint32(dict, "state", port->status.state);
 	ni_dbus_dict_add_uint32(dict, "port-id", port->status.port_id);
 	ni_dbus_dict_add_uint32(dict, "port-no", port->status.port_no);
+
 	return TRUE;
 }
 
@@ -309,6 +296,7 @@ __ni_objectmodel_bridge_port_from_dict(ni_bridge_port_t *port, const ni_dbus_var
 
 	if (dict->array.len == 0)
 		return TRUE;
+
 	/* FIXME: should expect object path here and map that to an ifindex */
 	if (ni_dbus_dict_get_string(dict, "device", &string))
 		ni_string_dup(&port->ifname, string);
@@ -317,6 +305,7 @@ __ni_objectmodel_bridge_port_from_dict(ni_bridge_port_t *port, const ni_dbus_var
 	if (ni_dbus_dict_get_uint32(dict, "path-cost", &value))
 		port->path_cost = value;
 
+	/* FIXME: Really? I don't think so... */
 	if (ni_dbus_dict_get_uint32(dict, "state", &value))
 		port->status.state = value;
 	if (ni_dbus_dict_get_uint32(dict, "port-id", &value))
@@ -331,18 +320,23 @@ __ni_objectmodel_bridge_port_from_dict(ni_bridge_port_t *port, const ni_dbus_var
 	NI_DBUS_GENERIC_INT_PROPERTY(bridge, dbus_name, member_name, rw)
 #define BRIDGE_UINT_PROPERTY(dbus_name, member_name, rw) \
 	NI_DBUS_GENERIC_UINT_PROPERTY(bridge, dbus_name, member_name, rw)
+#define BRIDGE_UINT16_PROPERTY(dbus_name, member_name, rw) \
+	NI_DBUS_GENERIC_UINT16_PROPERTY(bridge, dbus_name, member_name, rw)
+#define BRIDGE_BOOL_PROPERTY(dbus_name, member_name, rw) \
+	NI_DBUS_GENERIC_BOOL_PROPERTY(bridge, dbus_name, member_name, rw)
+#define BRIDGE_TIME_PROPERTY(dbus_name, member_name, rw) \
+	NI_DBUS_GENERIC_DOUBLE_PROPERTY(bridge, dbus_name, member_name, rw)
+
 #define WICKED_BRIDGE_PROPERTY_SIGNATURE(signature, __name, rw) \
 	__NI_DBUS_PROPERTY(signature, __name, __ni_objectmodel_bridge, rw)
 
 static const ni_dbus_property_t	ni_objectmodel_bridge_property_table[] = {
+	BRIDGE_BOOL_PROPERTY(stp, stp, RO),
 	BRIDGE_UINT_PROPERTY(priority, priority, RO),
-	/* This one needs a special parse function: */
-	__NI_DBUS_GENERIC_PROPERTY(bridge, DBUS_TYPE_UINT32_AS_STRING, stp, uint, stp, RO,
-			.parse = __ni_objectmodel_bridge_parse_stp),
-	BRIDGE_UINT_PROPERTY(forward-delay, forward_delay, RO),
-	BRIDGE_UINT_PROPERTY(aging-time, ageing_time, RO),
-	BRIDGE_UINT_PROPERTY(hello-time, hello_time, RO),
-	BRIDGE_UINT_PROPERTY(max-age, max_age, RO),
+	BRIDGE_TIME_PROPERTY(forward-delay, forward_delay, RO),
+	BRIDGE_TIME_PROPERTY(aging-time, ageing_time, RO),
+	BRIDGE_TIME_PROPERTY(hello-time, hello_time, RO),
+	BRIDGE_TIME_PROPERTY(max-age, max_age, RO),
 
 	/* ports is an array of dicts */
 	WICKED_BRIDGE_PROPERTY_SIGNATURE(DBUS_TYPE_ARRAY_AS_STRING NI_DBUS_DICT_SIGNATURE,

@@ -372,12 +372,22 @@ done:
 void
 ni_sysfs_bridge_get_config(const char *ifname, ni_bridge_t *bridge)
 {
-	ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_ATTR "/stp_state", &bridge->stp);
-	ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_ATTR "/priority", &bridge->priority);
-	ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_ATTR "/forward_delay", &bridge->forward_delay);
-	ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_ATTR "/ageing_time", &bridge->ageing_time);
-	ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_ATTR "/hello_time", &bridge->hello_time);
-	ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_ATTR "/max_age", &bridge->max_age);
+	unsigned int tmp;
+
+	if (ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_ATTR "/stp_state", &tmp) == 0)
+		bridge->stp = tmp ? TRUE : FALSE;
+
+	if (ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_ATTR "/priority", &tmp) == 0)
+		bridge->priority = tmp;
+
+	if (ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_ATTR "/forward_delay", &tmp) == 0)
+		bridge->forward_delay = (double)tmp / 100.0;
+	if (ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_ATTR "/ageing_time", &tmp) == 0)
+		bridge->ageing_time = (double)tmp / 100.0;
+	if (ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_ATTR "/hello_time", &tmp) == 0)
+		bridge->hello_time = (double)tmp / 100.0;
+	if (ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_ATTR "/max_age", &tmp) == 0)
+		bridge->max_age = (double)tmp / 100.0;
 }
 
 int
@@ -385,23 +395,31 @@ ni_sysfs_bridge_update_config(const char *ifname, const ni_bridge_t *bridge)
 {
 	int rv = 0;
 
-	if (bridge->stp != NI_BRIDGE_VALUE_NOT_SET
-	 && ni_sysfs_netif_put_uint(ifname, SYSFS_BRIDGE_ATTR "/stp_state", bridge->stp) < 0)
+	if (ni_sysfs_netif_put_uint(ifname, SYSFS_BRIDGE_ATTR "/stp_state", bridge->stp) < 0)
 		rv = -1;
-	if (bridge->priority != NI_BRIDGE_VALUE_NOT_SET
-	 && ni_sysfs_netif_put_uint(ifname, SYSFS_BRIDGE_ATTR "/priority", bridge->priority) < 0)
+
+	if (bridge->priority != NI_BRIDGE_VALUE_NOT_SET &&
+	    ni_sysfs_netif_put_uint(ifname, SYSFS_BRIDGE_ATTR "/priority", bridge->priority) < 0)
 		rv = -1;
-	if (bridge->forward_delay != NI_BRIDGE_VALUE_NOT_SET
-	 && ni_sysfs_netif_put_uint(ifname, SYSFS_BRIDGE_ATTR "/forward_delay", bridge->forward_delay) < 0)
+
+	if (bridge->forward_delay != NI_BRIDGE_VALUE_NOT_SET &&
+	    ni_sysfs_netif_put_uint(ifname, SYSFS_BRIDGE_ATTR "/forward_delay",
+				(unsigned int)(bridge->forward_delay * 100.0)) < 0)
 		rv = -1;
-	if (bridge->ageing_time != NI_BRIDGE_VALUE_NOT_SET
-	 && ni_sysfs_netif_put_uint(ifname, SYSFS_BRIDGE_ATTR "/ageing_time", bridge->ageing_time) < 0)
+
+	if (bridge->ageing_time != NI_BRIDGE_VALUE_NOT_SET &&
+	    ni_sysfs_netif_put_uint(ifname, SYSFS_BRIDGE_ATTR "/ageing_time",
+				(unsigned int)(bridge->ageing_time * 100.0)) < 0)
 		rv = -1;
-	if (bridge->hello_time != NI_BRIDGE_VALUE_NOT_SET
-	 && ni_sysfs_netif_put_uint(ifname, SYSFS_BRIDGE_ATTR "/hello_time", bridge->hello_time) < 0)
+
+	if (bridge->hello_time != NI_BRIDGE_VALUE_NOT_SET &&
+	    ni_sysfs_netif_put_uint(ifname, SYSFS_BRIDGE_ATTR "/hello_time",
+				(unsigned int)(bridge->hello_time * 100.0)) < 0)
 		rv = -1;
-	if (bridge->max_age != NI_BRIDGE_VALUE_NOT_SET
-	 && ni_sysfs_netif_put_uint(ifname, SYSFS_BRIDGE_ATTR "/max_age", bridge->max_age) < 0)
+
+	if (bridge->max_age != NI_BRIDGE_VALUE_NOT_SET &&
+	    ni_sysfs_netif_put_uint(ifname, SYSFS_BRIDGE_ATTR "/max_age",
+				(unsigned int)(bridge->max_age * 100.0)) < 0)
 		rv = -1;
 
 	return rv;
@@ -410,6 +428,7 @@ ni_sysfs_bridge_update_config(const char *ifname, const ni_bridge_t *bridge)
 void
 ni_sysfs_bridge_get_status(const char *ifname, ni_bridge_status_t *bs)
 {
+	ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_ATTR "/stp_state", &bs->stp_state);
 	ni_sysfs_netif_get_string(ifname, SYSFS_BRIDGE_ATTR "/root_id", &bs->root_id);
 	ni_sysfs_netif_get_string(ifname, SYSFS_BRIDGE_ATTR "/bridge_id", &bs->bridge_id);
 	ni_sysfs_netif_get_string(ifname, SYSFS_BRIDGE_ATTR "/group_addr", &bs->group_addr);

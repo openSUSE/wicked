@@ -33,6 +33,7 @@ ni_bridge_port_new(ni_bridge_t *bridge, const char *ifname, unsigned int ifindex
 
 	ni_string_dup(&port->ifname, ifname);
 	port->ifindex = ifindex;
+	/* apply "not set" defaults */
 	port->priority = NI_BRIDGE_VALUE_NOT_SET;
 	port->path_cost = NI_BRIDGE_VALUE_NOT_SET;
 
@@ -195,6 +196,20 @@ ni_bridge_del_port_ifindex(ni_bridge_t *bridge, int ifindex)
 	return -1;
 }
 
+void
+ni_bridge_get_port_names(const ni_bridge_t *bridge, ni_string_array_t *names)
+{
+	unsigned int i;
+
+	if (!bridge || !names)
+		return;
+	for (i = 0; i < bridge->ports.count; ++i) {
+		ni_bridge_port_t *port = bridge->ports.data[i];
+		if (port && port->ifname && *port->ifname)
+			ni_string_array_append(names, port->ifname);
+	}
+}
+
 /*
  * Bridge constructor and new operator
  */
@@ -202,6 +217,7 @@ static void
 __ni_bridge_init(ni_bridge_t *bridge)
 {
 	/* apply "not set" defaults */
+	bridge->stp = FALSE;
 	bridge->forward_delay = NI_BRIDGE_VALUE_NOT_SET;
 	bridge->ageing_time = NI_BRIDGE_VALUE_NOT_SET;
 	bridge->hello_time = NI_BRIDGE_VALUE_NOT_SET;
@@ -215,7 +231,8 @@ ni_bridge_new(void)
 	ni_bridge_t *bridge;
 
 	bridge = calloc(1, sizeof(*bridge));
-	__ni_bridge_init(bridge);
+	if (bridge)
+		__ni_bridge_init(bridge);
 	return bridge;
 }
 
