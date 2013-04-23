@@ -1,20 +1,22 @@
 
 <service name="bridge" interface="org.opensuse.Network.Bridge" object-class="netif-bridge">
 
-  <define name="port-type" class="dict">
+  <!-- This is the port-config containing the port configuration -->
+  <define name="port-config" class="dict"
+	  description="Bridge port configuration properties">
     <!-- The port interface.
-      -- It's marked as a netif-reference, meaning that the device name is
-      -- optionally resolved by wicked at run time. You can use "classic"
-      -- device names such as eth0, but you can also use and <identify>
-      -- element to use any of the supported netif naming services
+         It's marked as a netif-reference, meaning that the device name is
+         optionally resolved by wicked at run time. You can use "classic"
+         device names such as eth0, but you can also use and <identify>
+         element to use any of the supported netif naming services
       -->
     <device type="string">
       <meta:netif-reference shared="false"/>
       <meta:require check="netif-child-state" op="changeDevice" min-state="device-up" />
       <meta:require check="netif-child-state" op="login" min-state="link-authenticated" />
 
-      <!-- FIXME: are bridge ports allowed to have addresses configured?
-        -- If not, we would have to limit them via max-state="link-up"
+      <!-- FIXME: As bridge ports are allowed to have addresses configured,
+	          we should limit them via max-state="link-up" ...
 	-->
       <meta:require check="netif-child-state" op="linkUp" min-state="link-up" />
     </device>
@@ -24,47 +26,75 @@
       <max value="63"/>
     </priority>
     <path-cost type="uint32" />
+  </define>
 
-    <!-- The following fields contain status information only, and should
-      -- not appear in configuration files.
-      -- These values are ignored when creating a bridge port. -->
+  <!-- This is the port-status returned in bridge interface reports -->
+  <define name="port-status" class="dict" extends="bridge:port-config"
+          description="Bridge port configuration and status properties">
+     <!-- The following fields contain status information only,
+          and should not appear in configuration files.
+          These values are ignored when creating a bridge port.
+     -->
+
     <!-- FIXME: state is really asking for an enum -->
     <state type="uint32" />
     <port-no type="uint32" />
     <port-id type="uint32" />
   </define>
 
-  <!-- This is the linkconfig returned in interface reports -->
-  <define name="linkconfig" class="dict">
-    <priority type="uint32" />
-    <stp type="uint32" constraint="enum">
-      <none value="0" />
-      <stp value="1" />
-      <rstp value="2" />
-    </stp>
+  <!-- This is the bridge config without ports used to configure the bridge -->
+  <define name="bridge-config" class="dict"
+          description="Bridge interface configuration properties">
 
-    <!-- These are floating point values representing seconds -->
-    <forward-delay type="double" />
-    <aging-time type="double" />
-    <hello-time type="double" />
-    <max-age type="double" />
+    <!-- STP protocol related settings -->
+    <stp type="boolean"
+     description="Enables Spanning Tree Protocol to handle multiple hops and avoid cyclic routes"/>
 
-    <ports class="array" element-type="port-type" />
+    <priority type="uint32" constraint="range"
+      description="The bridge with the lowest priority will be elected as the 'central' root bridge in the spanning tree.">
+      <min value="0"/>
+      <max value="65535"/>
+    </priority>
+    <forward-delay type="double" description="Forwarding delay time is the time spent in each of the Listening and Learning states before the Forwarding state is entered." />
+    <hello-time type="double"    description="Periodically, a hello packet is sent out by the Root Bridge and the Designated Bridges to communicate information about the topology throughout." />
+    <max-age type="double"       description="If a another bridge in the spanning tree does not send out a hello packet for this period of time, it is assumed to be dead." />
+
+    <!-- Forwarding database related settings -->
+    <aging-time type="double"    description="Ethernet (MAC) address ageing time. Setting it to 0 makes all entries permanent." />
+    <gc-interval type="double"   description="Garbage collection interval for the bridge" />
   </define>
 
-  <define name="properties" class="dict" extends="linkconfig">
-    <!-- add more status information to this -->
+
+  <!-- This are bridge configuration properties inclusive ports -->
+  <define name="configuration" class="dict" extends="bridge:bridge-config"
+          description="Bridge and port configuration properties">
+    <ports class="array" element-type="bridge:port-config" element-name="port" />
+  </define>
+
+  <!-- This are all bridge properties returned in service interface reports -->
+  <define name="properties" class="dict" extends="bridge:bridge-config"
+          description="Bridge configuration and status properties">
+
+    <stp-state type="uint32" constraint="enum">
+      <none          value="0" description="STP is disabled"/>
+      <kernel-stp    value="1" description="Kernel built-in STP implementation"/>
+      <userspace-stp value="2" description="STP via /sbin/bridge-stp, e.g. RSTP"/>
+    </stp-state>
+
+    <!-- we may implement more status information properties here -->
+
+    <ports class="array" element-type="bridge:port-status" element-name="port" />
   </define>
 
   <method name="changeDevice">
     <arguments>
       <!-- First and only argument to changeDevice() method is a
-        -- "properties" dict.
-        -- The mapping info tells the client to take the device
-	-- configuration from the <bridge> element, and to skip the
-	-- call to changeDevice() if that element isn't there.
-	-->
-      <config type="properties">
+           configuration properties dict.
+           The mapping info tells the client to take the device
+           configuration from the <bridge> element, and to skip the
+           call to changeDevice() if that element isn't there.
+        -->
+      <config type="bridge:configuration">
        <meta:mapping document-node="/bridge" skip-unless-present="true" />
       </config>
     </arguments>
@@ -76,7 +106,7 @@
 
   <method name="addPort">
     <arguments>
-      <port type="port-type"/>
+      <port type="bridge:port-config"/>
     </arguments>
   </method>
 
@@ -91,7 +121,7 @@
   <method name="newDevice">
     <arguments>
      <name type="string"/>
-     <config type="bridge:linkconfig">
+     <config type="bridge:configuration">
       <meta:mapping document-node="/bridge"/>
      </config>
     </arguments>
@@ -100,3 +130,4 @@
     </return>
   </method>
 </service>
+
