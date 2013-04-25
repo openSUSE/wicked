@@ -52,7 +52,7 @@ ni_ethernet_name_to_port_type(const char *name)
 {
 	unsigned int value;
 
-	if (ni_parse_int_mapped(name, __ni_ethernet_port_types, &value) < 0)
+	if (ni_parse_uint_mapped(name, __ni_ethernet_port_types, &value) < 0)
 		return NI_ETHERNET_PORT_DEFAULT;
 	return value;
 }
@@ -60,7 +60,7 @@ ni_ethernet_name_to_port_type(const char *name)
 const char *
 ni_ethernet_port_type_to_name(ni_ether_port_t port_type)
 {
-	return ni_format_int_mapped(port_type, __ni_ethernet_port_types);
+	return ni_format_uint_mapped(port_type, __ni_ethernet_port_types);
 }
 
 /*

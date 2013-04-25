@@ -469,7 +469,7 @@ __ni_bonding_set_module_option_mode(ni_bonding_t *bonding, char *value)
 	/* When we parse /sys/net/class/<ifname>/bonding/mode, we end up
 	 * with "balance-rr 0" or similar; strip off the int value */
 	value[strcspn(value, " \t\n")] = '\0';
-	rv = ni_parse_int_mapped(value, __map_kern_mode, &bonding->mode);
+	rv = ni_parse_uint_mapped(value, __map_kern_mode, &bonding->mode);
 	if (rv < 0)
 		ni_error("bonding: kernel reports unknown mode \"%s\"", value);
 	return rv;
@@ -480,7 +480,7 @@ __ni_bonding_get_module_option_mode(const ni_bonding_t *bonding, char *buffer, s
 {
 	const char *name;
 
-	name = ni_format_int_mapped(bonding->mode, __map_kern_mode);
+	name = ni_format_uint_mapped(bonding->mode, __map_kern_mode);
 	if (name == NULL) {
 		ni_error("bonding: unsupported bonding mode %u", bonding->mode);
 		return -1;
@@ -493,7 +493,7 @@ __ni_bonding_get_module_option_mode(const ni_bonding_t *bonding, char *buffer, s
 const char *
 ni_bonding_mode_type_to_name(unsigned int mode)
 {
-	return ni_format_int_mapped(mode, __map_user_mode);
+	return ni_format_uint_mapped(mode, __map_user_mode);
 }
 
 int
@@ -501,7 +501,7 @@ ni_bonding_mode_name_to_type(const char *name)
 {
 	unsigned int value;
 
-	if (ni_parse_int_maybe_mapped(name, __map_user_mode, &value, 10) != 0)
+	if (ni_parse_uint_maybe_mapped(name, __map_user_mode, &value, 10) != 0)
 		return -1;
 	return value;
 }
@@ -517,7 +517,7 @@ __ni_bonding_set_module_option_arp_validate(ni_bonding_t *bonding, char *value)
 	/* When we parse /sys/net/class/<ifname>/bonding/arp_validate, we end up
 	 * with "none 0" or similar; strip off the int value */
 	value[strcspn(value, " \t\n")] = '\0';
-	rv = ni_parse_int_mapped(value, __map_kern_arp_validate,
+	rv = ni_parse_uint_mapped(value, __map_kern_arp_validate,
 					&bonding->arpmon.validate);
 	if (rv < 0)
 		ni_error("bonding: kernel reports unknown arp_validate mode \"%s\"", value);
@@ -529,7 +529,7 @@ __ni_bonding_get_module_option_arp_validate(const ni_bonding_t *bonding, char *b
 {
 	const char *name;
 
-	name = ni_format_int_mapped(bonding->arpmon.validate,
+	name = ni_format_uint_mapped(bonding->arpmon.validate,
 				__map_kern_arp_validate);
 	if (name == NULL) {
 		ni_error("bonding: unsupported arp_validate mode %u", bonding->arpmon.validate);
@@ -542,7 +542,7 @@ __ni_bonding_get_module_option_arp_validate(const ni_bonding_t *bonding, char *b
 const char *
 ni_bonding_arp_validate_type_to_name(unsigned int value)
 {
-	return ni_format_int_mapped(value, __map_kern_arp_validate);
+	return ni_format_uint_mapped(value, __map_kern_arp_validate);
 }
 
 int
@@ -550,7 +550,7 @@ ni_bonding_arp_validate_name_to_type(const char *name)
 {
 	unsigned int value;
 
-	if (ni_parse_int_mapped(name, __map_kern_arp_validate, &value) < 0)
+	if (ni_parse_uint_mapped(name, __map_kern_arp_validate, &value) < 0)
 		return -1;
 	return value;
 }
@@ -558,7 +558,7 @@ ni_bonding_arp_validate_name_to_type(const char *name)
 const char *
 ni_bonding_mii_carrier_detect_name(unsigned int type)
 {
-	return ni_format_int_mapped(type, __map_user_carrier_detect);
+	return ni_format_uint_mapped(type, __map_user_carrier_detect);
 }
 
 int
@@ -566,7 +566,7 @@ ni_bonding_mii_carrier_detect_type(const char *name)
 {
 	unsigned int type;
 
-	if (ni_parse_int_mapped(name, __map_user_carrier_detect, &type) < 0)
+	if (ni_parse_uint_mapped(name, __map_user_carrier_detect, &type) < 0)
 		return -1;
 	return type;
 }
@@ -580,7 +580,7 @@ __ni_bonding_set_module_option_xmit_hash_policy(ni_bonding_t *bonding, char *val
 	int rv;
 
 	value[strcspn(value, " \t\n")] = '\0';
-	rv = ni_parse_int_mapped(value, __map_kern_xmit_hash_policy,
+	rv = ni_parse_uint_mapped(value, __map_kern_xmit_hash_policy,
 					&bonding->xmit_hash_policy);
 	if (rv < 0)
 		ni_error("bonding: kernel reports unknown xmit_hash_policy mode \"%s\"", value);
@@ -592,7 +592,7 @@ __ni_bonding_get_module_option_xmit_hash_policy(const ni_bonding_t *bonding, cha
 {
 	const char *name;
 
-	name = ni_format_int_mapped(bonding->xmit_hash_policy,
+	name = ni_format_uint_mapped(bonding->xmit_hash_policy,
 				__map_kern_xmit_hash_policy);
 	if (name == NULL) {
 		ni_error("bonding: unsupported xmit_hash_policy %u", bonding->xmit_hash_policy);
@@ -609,7 +609,7 @@ __ni_bonding_get_module_option_xmit_hash_policy(const ni_bonding_t *bonding, cha
 const char *
 ni_bonding_xmit_hash_policy_to_name(unsigned int value)
 {
-	return ni_format_int_mapped(value, __map_user_xmit_hash_policy);
+	return ni_format_uint_mapped(value, __map_user_xmit_hash_policy);
 }
 
 int
@@ -617,7 +617,7 @@ ni_bonding_xmit_hash_policy_to_type(const char *name)
 {
 	unsigned int value;
 
-	if (ni_parse_int_mapped(name, __map_user_xmit_hash_policy, &value) < 0)
+	if (ni_parse_uint_mapped(name, __map_user_xmit_hash_policy, &value) < 0)
 		return -1;
 	return value;
 }
@@ -625,7 +625,7 @@ ni_bonding_xmit_hash_policy_to_type(const char *name)
 const char *
 ni_bonding_lacp_rate_name(unsigned int mode)
 {
-	return ni_format_int_mapped(mode, __map_kern_lacp_rate);
+	return ni_format_uint_mapped(mode, __map_kern_lacp_rate);
 }
 
 int
@@ -633,7 +633,7 @@ ni_bonding_lacp_rate_mode(const char *name)
 {
 	unsigned int value;
 
-	if (ni_parse_int_maybe_mapped(name, __map_kern_lacp_rate, &value, 10) < 0)
+	if (ni_parse_uint_maybe_mapped(name, __map_kern_lacp_rate, &value, 10) < 0)
 		return -1;
 	return value;
 }
@@ -641,7 +641,7 @@ ni_bonding_lacp_rate_mode(const char *name)
 const char *
 ni_bonding_ad_select_name(unsigned int mode)
 {
-	return ni_format_int_mapped(mode, __map_kern_ad_select);
+	return ni_format_uint_mapped(mode, __map_kern_ad_select);
 }
 
 int
@@ -649,7 +649,7 @@ ni_bonding_ad_select_mode(const char *name)
 {
 	unsigned int value;
 
-	if (ni_parse_int_maybe_mapped(name, __map_kern_ad_select, &value, 10) < 0)
+	if (ni_parse_uint_maybe_mapped(name, __map_kern_ad_select, &value, 10) < 0)
 		return -1;
 	return value;
 }
@@ -657,7 +657,7 @@ ni_bonding_ad_select_mode(const char *name)
 const char *
 ni_bonding_primary_reselect_name(unsigned int mode)
 {
-	return ni_format_int_mapped(mode, __map_kern_primary_reselect);
+	return ni_format_uint_mapped(mode, __map_kern_primary_reselect);
 }
 
 int
@@ -665,7 +665,7 @@ ni_bonding_primary_reselect_mode(const char *name)
 {
 	unsigned int value;
 
-	if (ni_parse_int_maybe_mapped(name, __map_kern_primary_reselect, &value, 10) < 0)
+	if (ni_parse_uint_maybe_mapped(name, __map_kern_primary_reselect, &value, 10) < 0)
 		return -1;
 	return value;
 }
@@ -673,7 +673,7 @@ ni_bonding_primary_reselect_mode(const char *name)
 const char *
 ni_bonding_fail_over_mac_name(unsigned int mode)
 {
-	return ni_format_int_mapped(mode, __map_kern_fail_over_mac);
+	return ni_format_uint_mapped(mode, __map_kern_fail_over_mac);
 }
 
 int
@@ -681,7 +681,7 @@ ni_bonding_fail_over_mac_mode(const char *name)
 {
 	unsigned int value;
 
-	if (ni_parse_int_maybe_mapped(name, __map_kern_fail_over_mac, &value, 10) < 0)
+	if (ni_parse_uint_maybe_mapped(name, __map_kern_fail_over_mac, &value, 10) < 0)
 		return -1;
 	return value;
 }
@@ -697,12 +697,12 @@ ni_bonding_parse_sysfs_attribute(ni_bonding_t *bonding, const char *attr, char *
 			return -1;
 	} else if (!strcmp(attr, "fail_over_mac")) {
 		value[strcspn(value, " \t\n")] = '\0';
-		if (ni_parse_int_mapped(value, __map_kern_fail_over_mac,
+		if (ni_parse_uint_mapped(value, __map_kern_fail_over_mac,
 					&bonding->fail_over_mac) < 0)
 			return -1;
 	} else if (!strcmp(attr, "primary_reselect")) {
 		value[strcspn(value, " \t\n")] = '\0';
-		if (ni_parse_int_mapped(value, __map_kern_primary_reselect,
+		if (ni_parse_uint_mapped(value, __map_kern_primary_reselect,
 					&bonding->primary_reselect) < 0)
 			return -1;
 	} else if (!strcmp(attr, "xmit_hash_policy")) {
@@ -710,50 +710,50 @@ ni_bonding_parse_sysfs_attribute(ni_bonding_t *bonding, const char *attr, char *
 			return -1;
 	} else if (!strcmp(attr, "lacp_rate")) {
 		value[strcspn(value, " \t\n")] = '\0';
-		if (ni_parse_int_mapped(value, __map_kern_lacp_rate,
+		if (ni_parse_uint_mapped(value, __map_kern_lacp_rate,
 					&bonding->lacp_rate) < 0)
 			return -1;
 	} else if (!strcmp(attr, "ad_select")) {
 		value[strcspn(value, " \t\n")] = '\0';
-		if (ni_parse_int_mapped(value, __map_kern_ad_select,
+		if (ni_parse_uint_mapped(value, __map_kern_ad_select,
 					&bonding->ad_select) < 0)
 			return -1;
 	} else if (!strcmp(attr, "min_links")) {
-		if (ni_parse_int(value, &bonding->min_links, 10) < 0)
+		if (ni_parse_uint(value, &bonding->min_links, 10) < 0)
 			return -1;
 	} else if (!strcmp(attr, "num_grat_arp")) {
-		if (ni_parse_int(value, &bonding->num_grat_arp, 10) < 0)
+		if (ni_parse_uint(value, &bonding->num_grat_arp, 10) < 0)
 			return -1;
 	} else if (!strcmp(attr, "num_unsol_na")) {
-		if (ni_parse_int(value, &bonding->num_unsol_na, 10) < 0)
+		if (ni_parse_uint(value, &bonding->num_unsol_na, 10) < 0)
 			return -1;
 	} else if (!strcmp(attr, "resend_igmp")) {
-		if (ni_parse_int(value, &bonding->resend_igmp, 10) < 0)
+		if (ni_parse_uint(value, &bonding->resend_igmp, 10) < 0)
 			return -1;
 	} else if (!strcmp(attr, "all_slaves_active")) {
 		unsigned int tmp;
-		if (ni_parse_int(value, &tmp, 10) < 0)
+		if (ni_parse_uint(value, &tmp, 10) < 0)
 			return -1;
 		bonding->all_slaves_active = tmp;
 	} else if (!strcmp(attr, "miimon")) {
-		if (ni_parse_int(value, &bonding->miimon.frequency, 10) < 0)
+		if (ni_parse_uint(value, &bonding->miimon.frequency, 10) < 0)
 			return -1;
 		if (bonding->miimon.frequency > 0)
 			bonding->monitoring = NI_BOND_MONITOR_MII;
 	} else if (!strcmp(attr, "updelay")) {
-		if (ni_parse_int(value, &bonding->miimon.updelay, 10) < 0)
+		if (ni_parse_uint(value, &bonding->miimon.updelay, 10) < 0)
 			return -1;
 	} else if (!strcmp(attr, "downdelay")) {
-		if (ni_parse_int(value, &bonding->miimon.downdelay, 10) < 0)
+		if (ni_parse_uint(value, &bonding->miimon.downdelay, 10) < 0)
 			return -1;
 	} else if (!strcmp(attr, "use_carrier")) {
-		if (ni_parse_int(value, &bonding->miimon.carrier_detect, 10) < 0)
+		if (ni_parse_uint(value, &bonding->miimon.carrier_detect, 10) < 0)
 			return -1;
 	} else if (!strcmp(attr, "arp_validate")) {
 		if (__ni_bonding_set_module_option_arp_validate(bonding, value) < 0)
 			return -1;
 	} else if (!strcmp(attr, "arp_interval")) {
-		if (ni_parse_int(value, &bonding->arpmon.interval, 10) < 0)
+		if (ni_parse_uint(value, &bonding->arpmon.interval, 10) < 0)
 			return -1;
 		if (bonding->arpmon.interval > 0)
 			bonding->monitoring = NI_BOND_MONITOR_ARP;
@@ -1061,7 +1061,7 @@ ni_bonding_set_option(ni_bonding_t *bond, const char *option, const char *value)
 		return FALSE;
 
 	if (strcmp(option, "mode") == 0) {
-		if (ni_parse_int_maybe_mapped(value,
+		if (ni_parse_uint_maybe_mapped(value,
 				__map_kern_mode, &tmp, 10) != 0)
 			return FALSE;
 
@@ -1070,7 +1070,7 @@ ni_bonding_set_option(ni_bonding_t *bond, const char *option, const char *value)
 	} else
 
 	if (strcmp(option, "fail_over_mac") == 0) {
-		if (ni_parse_int_maybe_mapped(value,
+		if (ni_parse_uint_maybe_mapped(value,
 				__map_kern_fail_over_mac, &tmp, 10) != 0)
 			return FALSE;
 
@@ -1079,7 +1079,7 @@ ni_bonding_set_option(ni_bonding_t *bond, const char *option, const char *value)
 	} else
 
 	if (strcmp(option, "primary_reselect") == 0) {
-		if (ni_parse_int_maybe_mapped(value,
+		if (ni_parse_uint_maybe_mapped(value,
 				__map_kern_primary_reselect, &tmp, 10) != 0)
 			return FALSE;
 
@@ -1088,7 +1088,7 @@ ni_bonding_set_option(ni_bonding_t *bond, const char *option, const char *value)
 	} else
 
 	if (strcmp(option, "xmit_hash_policy") == 0) {
-		if (ni_parse_int_maybe_mapped(value,
+		if (ni_parse_uint_maybe_mapped(value,
 				__map_kern_xmit_hash_policy, &tmp, 10) != 0)
 			return FALSE;
 
@@ -1097,7 +1097,7 @@ ni_bonding_set_option(ni_bonding_t *bond, const char *option, const char *value)
 	} else
 
 	if (strcmp(option, "lacp_rate") == 0) {
-		if (ni_parse_int_maybe_mapped(value,
+		if (ni_parse_uint_maybe_mapped(value,
 				__map_kern_lacp_rate, &tmp, 10) != 0)
 			return FALSE;
 
@@ -1106,7 +1106,7 @@ ni_bonding_set_option(ni_bonding_t *bond, const char *option, const char *value)
 	} else
 
 	if (strcmp(option, "ad_select") == 0) {
-		if (ni_parse_int_maybe_mapped(value,
+		if (ni_parse_uint_maybe_mapped(value,
 				__map_kern_ad_select, &tmp, 10) != 0)
 			return FALSE;
 
@@ -1115,7 +1115,7 @@ ni_bonding_set_option(ni_bonding_t *bond, const char *option, const char *value)
 	} else
 
 	if (strcmp(option, "min_links") == 0) {
-		if (ni_parse_int(value, &tmp, 10) < 0)
+		if (ni_parse_uint(value, &tmp, 10) < 0)
 			return FALSE;
 
 		bond->min_links = tmp;
@@ -1123,7 +1123,7 @@ ni_bonding_set_option(ni_bonding_t *bond, const char *option, const char *value)
 	} else
 
 	if (strcmp(option, "num_grat_arp") == 0) {
-		if (ni_parse_int(value, &tmp, 10) < 0 || tmp > 255)
+		if (ni_parse_uint(value, &tmp, 10) < 0 || tmp > 255)
 			return FALSE;
 
 		bond->num_grat_arp = tmp;
@@ -1131,7 +1131,7 @@ ni_bonding_set_option(ni_bonding_t *bond, const char *option, const char *value)
 	} else
 
 	if (strcmp(option, "num_unsol_na") == 0) {
-		if (ni_parse_int(value, &tmp, 10) < 0 || tmp > 255)
+		if (ni_parse_uint(value, &tmp, 10) < 0 || tmp > 255)
 			return FALSE;
 
 		bond->num_unsol_na = tmp;
@@ -1139,7 +1139,7 @@ ni_bonding_set_option(ni_bonding_t *bond, const char *option, const char *value)
 	} else
 
 	if (strcmp(option, "resend_igmp") == 0) {
-		if (ni_parse_int(value, &tmp, 10) < 0 || tmp > 255)
+		if (ni_parse_uint(value, &tmp, 10) < 0 || tmp > 255)
 			return FALSE;
 
 		bond->resend_igmp = tmp;
@@ -1147,7 +1147,7 @@ ni_bonding_set_option(ni_bonding_t *bond, const char *option, const char *value)
 	} else
 
 	if (strcmp(option, "all_slaves_active") == 0) {
-		if (ni_parse_int(value, &tmp, 10) < 0 || tmp > 1)
+		if (ni_parse_uint(value, &tmp, 10) < 0 || tmp > 1)
 			return FALSE;
 
 		bond->all_slaves_active = tmp;
@@ -1155,7 +1155,7 @@ ni_bonding_set_option(ni_bonding_t *bond, const char *option, const char *value)
 	} else
 
 	if (strcmp(option, "miimon") == 0 || tmp > INT_MAX) {
-		if (ni_parse_int(value, &tmp, 10) < 0)
+		if (ni_parse_uint(value, &tmp, 10) < 0)
 			return FALSE;
 
 		bond->miimon.frequency = tmp;
@@ -1164,7 +1164,7 @@ ni_bonding_set_option(ni_bonding_t *bond, const char *option, const char *value)
 	} else
 
 	if (strcmp(option, "updelay") == 0) {
-		if (ni_parse_int(value, &tmp, 10) < 0 || tmp > INT_MAX)
+		if (ni_parse_uint(value, &tmp, 10) < 0 || tmp > INT_MAX)
 			return FALSE;
 
 		bond->miimon.updelay = tmp;
@@ -1172,7 +1172,7 @@ ni_bonding_set_option(ni_bonding_t *bond, const char *option, const char *value)
 	} else
 
 	if (strcmp(option, "downdelay") == 0) {
-		if (ni_parse_int(value, &tmp, 10) < 0 || tmp > INT_MAX)
+		if (ni_parse_uint(value, &tmp, 10) < 0 || tmp > INT_MAX)
 			return FALSE;
 
 		bond->miimon.downdelay = tmp;
@@ -1180,7 +1180,7 @@ ni_bonding_set_option(ni_bonding_t *bond, const char *option, const char *value)
 	} else
 
 	if (strcmp(option, "use_carrier") == 0) {
-		if (ni_parse_int(value, &tmp, 10) < 0)
+		if (ni_parse_uint(value, &tmp, 10) < 0)
 			return FALSE;
 
 		if (tmp > NI_BOND_MII_CARRIER_DETECT_NETIF)
@@ -1191,7 +1191,7 @@ ni_bonding_set_option(ni_bonding_t *bond, const char *option, const char *value)
 	} else
 
 	if (strcmp(option, "arp_interval") == 0) {
-		if (ni_parse_int(value, &tmp, 10) < 0 || tmp > INT_MAX)
+		if (ni_parse_uint(value, &tmp, 10) < 0 || tmp > INT_MAX)
 			return FALSE;
 
 		bond->arpmon.interval = tmp;
@@ -1219,7 +1219,7 @@ ni_bonding_set_option(ni_bonding_t *bond, const char *option, const char *value)
 	} else
 
 	if (strcmp(option, "arp_validate") == 0) {
-		if (ni_parse_int_maybe_mapped(value,
+		if (ni_parse_uint_maybe_mapped(value,
 				__map_kern_arp_validate, &tmp, 10) != 0)
 			return FALSE;
 

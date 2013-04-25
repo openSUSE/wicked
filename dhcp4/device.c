@@ -394,7 +394,7 @@ __ni_dhcp_print_flags(unsigned int flags)
 
 		if ((flags & mask) == 0)
 			continue;
-		if (!(name = ni_format_int_mapped(mask, flag_names)))
+		if (!(name = ni_format_uint_mapped(mask, flag_names)))
 			continue;
 		snprintf(pos, buffer + sizeof(buffer) - pos, "%s%s",
 				(pos == buffer)? "" : ", ",

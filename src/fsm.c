@@ -403,7 +403,7 @@ static ni_intmap_t __state_names[] = {
 static const char *
 ni_ifworker_state_name(int state)
 {
-	return ni_format_int_mapped(state, __state_names);
+	return ni_format_uint_mapped(state, __state_names);
 }
 
 int
@@ -411,7 +411,7 @@ ni_ifworker_state_from_name(const char *name)
 {
 	unsigned int value;
 
-	if (ni_parse_int_mapped(name, __state_names, &value) < 0)
+	if (ni_parse_uint_mapped(name, __state_names, &value) < 0)
 		return -1;
 	return value;
 }
@@ -900,7 +900,7 @@ ni_ifworker_control_from_xml(ni_ifworker_t *w, xml_node_t *ctrlnode)
 			if (ni_string_eq(np->cdata, "infinite"))
 				w->control.link_timeout = NI_IFWORKER_INFINITE_TIMEOUT;
 			else
-				ni_parse_int(np->cdata, &w->control.link_timeout, 10);
+				ni_parse_uint(np->cdata, &w->control.link_timeout, 10);
 		}
 		if (xml_node_get_child(linknode, "require-link"))
 			w->control.link_required = TRUE;
@@ -1290,7 +1290,7 @@ __ni_ifworker_identify_device(ni_fsm_t *fsm, const char *namespace, const xml_no
 	if (type == NI_IFWORKER_TYPE_NETDEV && !strcmp(devnode->name, "ifindex")) {
 		unsigned int ifindex;
 
-		if (ni_parse_int(devnode->cdata, &ifindex, 10) < 0) {
+		if (ni_parse_uint(devnode->cdata, &ifindex, 10) < 0) {
 			ni_error("%s: cannot parse ifindex attribute", xml_node_location(devnode));
 			return NULL;
 		}

@@ -202,7 +202,7 @@ ni_nis_binding_name_to_type(const char *name)
 {
 	unsigned int value;
 
-	if (ni_parse_int_mapped(name, __nis_bindings, &value) < 0)
+	if (ni_parse_uint_mapped(name, __nis_bindings, &value) < 0)
 		return -1;
 	return value;
 }
@@ -210,5 +210,5 @@ ni_nis_binding_name_to_type(const char *name)
 const char *
 ni_nis_binding_type_to_name(nis_nis_binding_t mode)
 {
-	return ni_format_int_mapped(mode, __nis_bindings);
+	return ni_format_uint_mapped(mode, __nis_bindings);
 }

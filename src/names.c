@@ -45,7 +45,7 @@ ni_linktype_name_to_type(const char *name)
 {
 	unsigned int value;
 
-	if (ni_parse_int_mapped(name, __linktype_names, &value) < 0)
+	if (ni_parse_uint_mapped(name, __linktype_names, &value) < 0)
 		return -1;
 	return value;
 }
@@ -53,7 +53,7 @@ ni_linktype_name_to_type(const char *name)
 const char *
 ni_linktype_type_to_name(unsigned int type)
 {
-	return ni_format_int_mapped(type, __linktype_names);
+	return ni_format_uint_mapped(type, __linktype_names);
 }
 
 /*
@@ -73,7 +73,7 @@ ni_addrconf_name_to_type(const char *name)
 {
 	unsigned int value;
 
-	if (ni_parse_int_mapped(name, __addrconf_names, &value) < 0)
+	if (ni_parse_uint_mapped(name, __addrconf_names, &value) < 0)
 		return -1;
 	return value;
 }
@@ -81,7 +81,7 @@ ni_addrconf_name_to_type(const char *name)
 const char *
 ni_addrconf_type_to_name(unsigned int type)
 {
-	return ni_format_int_mapped(type, __addrconf_names);
+	return ni_format_uint_mapped(type, __addrconf_names);
 }
 
 /*
@@ -103,7 +103,7 @@ ni_addrconf_name_to_state(const char *name)
 {
 	unsigned int value;
 
-	if (ni_parse_int_mapped(name, __addrconf_states, &value) < 0)
+	if (ni_parse_uint_mapped(name, __addrconf_states, &value) < 0)
 		return -1;
 	return value;
 }
@@ -111,7 +111,7 @@ ni_addrconf_name_to_state(const char *name)
 const char *
 ni_addrconf_state_to_name(unsigned int type)
 {
-	return ni_format_int_mapped(type, __addrconf_states);
+	return ni_format_uint_mapped(type, __addrconf_states);
 }
 
 /*
@@ -136,7 +136,7 @@ ni_addrconf_name_to_update_target(const char *name)
 {
 	unsigned int value;
 
-	if (ni_parse_int_mapped(name, __addrconf_updates, &value) < 0)
+	if (ni_parse_uint_mapped(name, __addrconf_updates, &value) < 0)
 		return -1;
 	return value;
 }
@@ -144,7 +144,7 @@ ni_addrconf_name_to_update_target(const char *name)
 const char *
 ni_addrconf_update_target_to_name(unsigned int type)
 {
-	return ni_format_int_mapped(type, __addrconf_updates);
+	return ni_format_uint_mapped(type, __addrconf_updates);
 }
 
 /*
@@ -162,7 +162,7 @@ ni_addrfamily_name_to_type(const char *name)
 {
 	unsigned int value;
 
-	if (ni_parse_int_mapped(name, __addrfamily_names, &value) < 0)
+	if (ni_parse_uint_mapped(name, __addrfamily_names, &value) < 0)
 		return -1;
 	return value;
 }
@@ -170,7 +170,7 @@ ni_addrfamily_name_to_type(const char *name)
 const char *
 ni_addrfamily_type_to_name(unsigned int type)
 {
-	return ni_format_int_mapped(type, __addrfamily_names);
+	return ni_format_uint_mapped(type, __addrfamily_names);
 }
 
 /*
@@ -244,7 +244,7 @@ ni_arphrd_name_to_type(const char *name)
 {
 	unsigned int value;
 
-	if (ni_parse_int_mapped(name, __arphrd_names, &value) < 0)
+	if (ni_parse_uint_mapped(name, __arphrd_names, &value) < 0)
 		return -1;
 	return value;
 }
@@ -252,7 +252,7 @@ ni_arphrd_name_to_type(const char *name)
 const char *
 ni_arphrd_type_to_name(unsigned int type)
 {
-	return ni_format_int_mapped(type, __arphrd_names);
+	return ni_format_uint_mapped(type, __arphrd_names);
 }
 
 /*
@@ -288,7 +288,7 @@ ni_event_name_to_type(const char *name)
 {
 	unsigned int value;
 
-	if (ni_parse_int_mapped(name, __event_names, &value) < 0)
+	if (ni_parse_uint_mapped(name, __event_names, &value) < 0)
 		return -1;
 	return value;
 }
@@ -296,7 +296,7 @@ ni_event_name_to_type(const char *name)
 const char *
 ni_event_type_to_name(ni_event_t type)
 {
-	return ni_format_int_mapped(type, __event_names);
+	return ni_format_uint_mapped(type, __event_names);
 }
 
 /*
@@ -369,7 +369,7 @@ ni_oper_state_name_to_type(const char *name)
 {
 	unsigned int value;
 
-	if (ni_parse_int_mapped(name, __ni_operstate_names, &value) < 0)
+	if (ni_parse_uint_mapped(name, __ni_operstate_names, &value) < 0)
 		return -1;
 	return value;
 }
@@ -377,7 +377,7 @@ ni_oper_state_name_to_type(const char *name)
 const char *
 ni_oper_state_type_to_name(int type)
 {
-	return ni_format_int_mapped(type, __ni_operstate_names);
+	return ni_format_uint_mapped(type, __ni_operstate_names);
 }
 
 /*
@@ -405,7 +405,7 @@ ni_route_type_name_to_type(const char *name)
 {
 	unsigned int value;
 
-	if (ni_parse_int_maybe_mapped(name, __ni_route_type_names, &value, 10) < 0)
+	if (ni_parse_uint_maybe_mapped(name, __ni_route_type_names, &value, 10) < 0)
 		return -1;
 	return value;
 }
@@ -413,7 +413,7 @@ ni_route_type_name_to_type(const char *name)
 const char *
 ni_route_type_type_to_name(unsigned int type)
 {
-	return ni_format_int_maybe_mapped(type, __ni_route_type_names);
+	return ni_format_uint_maybe_mapped(type, __ni_route_type_names);
 }
 
 /*
@@ -443,7 +443,7 @@ ni_route_protocol_name_to_type(const char *name)
 {
 	unsigned int value;
 
-	if (ni_parse_int_maybe_mapped(name, __ni_route_protocol_names, &value, 10) < 0)
+	if (ni_parse_uint_maybe_mapped(name, __ni_route_protocol_names, &value, 10) < 0)
 		return -1;
 	return value;
 }
@@ -451,7 +451,7 @@ ni_route_protocol_name_to_type(const char *name)
 const char *
 ni_route_protocol_type_to_name(unsigned int type)
 {
-	return ni_format_int_maybe_mapped(type, __ni_route_protocol_names);
+	return ni_format_uint_maybe_mapped(type, __ni_route_protocol_names);
 }
 
 /*
@@ -472,7 +472,7 @@ ni_route_scope_name_to_type(const char *name)
 {
 	unsigned int value;
 
-	if (ni_parse_int_maybe_mapped(name, __ni_route_scope_names, &value, 10) < 0)
+	if (ni_parse_uint_maybe_mapped(name, __ni_route_scope_names, &value, 10) < 0)
 		return -1;
 	return value;
 }
@@ -480,7 +480,7 @@ ni_route_scope_name_to_type(const char *name)
 const char *
 ni_route_scope_type_to_name(unsigned int type)
 {
-	return ni_format_int_maybe_mapped(type, __ni_route_scope_names);
+	return ni_format_uint_maybe_mapped(type, __ni_route_scope_names);
 }
 
 /*
@@ -501,7 +501,7 @@ ni_route_table_name_to_type(const char *name)
 {
 	unsigned int value;
 
-	if (ni_parse_int_maybe_mapped(name, __ni_route_table_names, &value, 10) < 0)
+	if (ni_parse_uint_maybe_mapped(name, __ni_route_table_names, &value, 10) < 0)
 		return -1;
 	return value;
 }
@@ -509,6 +509,6 @@ ni_route_table_name_to_type(const char *name)
 const char *
 ni_route_table_type_to_name(unsigned int type)
 {
-	return ni_format_int_maybe_mapped(type, __ni_route_table_names);
+	return ni_format_uint_maybe_mapped(type, __ni_route_table_names);
 }
 

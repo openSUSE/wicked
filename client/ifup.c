@@ -241,7 +241,7 @@ do_ifup(int argc, char **argv)
 		case OPT_TIMEOUT:
 			if (!strcmp(optarg, "infinite")) {
 				fsm->worker_timeout = NI_IFWORKER_INFINITE_TIMEOUT;
-			} else if (ni_parse_int(optarg, &fsm->worker_timeout, 10) >= 0) {
+			} else if (ni_parse_uint(optarg, &fsm->worker_timeout, 10) >= 0) {
 				fsm->worker_timeout *= 1000; /* sec -> msec */
 			} else {
 				ni_error("ifup: cannot parse timeout option \"%s\"", optarg);
@@ -397,7 +397,7 @@ do_ifdown(int argc, char **argv)
 		case OPT_TIMEOUT:
 			if (!strcmp(optarg, "infinite")) {
 				fsm->worker_timeout = NI_IFWORKER_INFINITE_TIMEOUT;
-			} else if (ni_parse_int(optarg, &fsm->worker_timeout, 10) >= 0) {
+			} else if (ni_parse_uint(optarg, &fsm->worker_timeout, 10) >= 0) {
 				fsm->worker_timeout *= 1000; /* sec -> msec */
 			} else {
 				ni_error("ifdown: cannot parse timeout option \"%s\"", optarg);

@@ -206,7 +206,7 @@ __ni_ppp_tag_to_index(const char *tag, unsigned int *indexp)
 
 	if (strncmp(tag, NI_PPPDEV_TAG, prefixlen))
 		return FALSE;
-	return ni_parse_int(tag + prefixlen, indexp, 10) >= 0;
+	return ni_parse_uint(tag + prefixlen, indexp, 10) >= 0;
 }
 
 static ni_bool_t

@@ -491,7 +491,7 @@ static ni_intmap_t __ni_wireless_mode_names[] = {
 const char *
 ni_wireless_mode_to_name(ni_wireless_mode_t mode)
 {
-	return ni_format_int_mapped(mode, __ni_wireless_mode_names);
+	return ni_format_uint_mapped(mode, __ni_wireless_mode_names);
 }
 
 ni_wireless_mode_t
@@ -499,7 +499,7 @@ ni_wireless_name_to_mode(const char *string)
 {
 	unsigned int value;
 
-	if (ni_parse_int_mapped(string, __ni_wireless_mode_names, &value) < 0)
+	if (ni_parse_uint_mapped(string, __ni_wireless_mode_names, &value) < 0)
 		return NI_WIRELESS_MODE_UNKNOWN;
 	return value;
 }
@@ -514,7 +514,7 @@ static ni_intmap_t __ni_wireless_security_names[] = {
 const char *
 ni_wireless_security_to_name(ni_wireless_security_t mode)
 {
-	return ni_format_int_mapped(mode, __ni_wireless_security_names);
+	return ni_format_uint_mapped(mode, __ni_wireless_security_names);
 }
 
 ni_wireless_security_t
@@ -522,7 +522,7 @@ ni_wireless_name_to_security(const char *string)
 {
 	unsigned int value;
 
-	if (ni_parse_int_mapped(string, __ni_wireless_security_names, &value) < 0)
+	if (ni_parse_uint_mapped(string, __ni_wireless_security_names, &value) < 0)
 		return NI_WIRELESS_SECURITY_DEFAULT;
 	return value;
 }
@@ -538,7 +538,7 @@ static ni_intmap_t __ni_wireless_auth_mode_names[] = {
 const char *
 ni_wireless_auth_mode_to_name(ni_wireless_auth_mode_t mode)
 {
-	return ni_format_int_mapped(mode, __ni_wireless_auth_mode_names);
+	return ni_format_uint_mapped(mode, __ni_wireless_auth_mode_names);
 }
 
 ni_wireless_auth_mode_t
@@ -546,7 +546,7 @@ ni_wireless_name_to_auth_mode(const char *string)
 {
 	unsigned int value;
 
-	if (ni_parse_int_mapped(string, __ni_wireless_auth_mode_names, &value) < 0)
+	if (ni_parse_uint_mapped(string, __ni_wireless_auth_mode_names, &value) < 0)
 		return -1;
 	return value;
 }
@@ -561,7 +561,7 @@ static ni_intmap_t __ni_wireless_auth_algo_names[] = {
 const char *
 ni_wireless_auth_algo_to_name(ni_wireless_auth_algo_t algo)
 {
-	return ni_format_int_mapped(algo, __ni_wireless_auth_algo_names);
+	return ni_format_uint_mapped(algo, __ni_wireless_auth_algo_names);
 }
 
 ni_wireless_auth_algo_t
@@ -569,7 +569,7 @@ ni_wireless_name_to_auth_algo(const char *string)
 {
 	unsigned int value;
 
-	if (ni_parse_int_mapped(string, __ni_wireless_auth_algo_names, &value) < 0)
+	if (ni_parse_uint_mapped(string, __ni_wireless_auth_algo_names, &value) < 0)
 		return -1;
 	return value;
 }
@@ -588,7 +588,7 @@ static ni_intmap_t __ni_wireless_cipher_names[] = {
 const char *
 ni_wireless_cipher_to_name(ni_wireless_cipher_t mode)
 {
-	return ni_format_int_mapped(mode, __ni_wireless_cipher_names);
+	return ni_format_uint_mapped(mode, __ni_wireless_cipher_names);
 }
 
 static ni_intmap_t __ni_wireless_key_mgmt_names[] = {
@@ -603,7 +603,7 @@ static ni_intmap_t __ni_wireless_key_mgmt_names[] = {
 const char *
 ni_wireless_key_management_to_name(ni_wireless_key_mgmt_t mode)
 {
-	return ni_format_int_mapped(mode, __ni_wireless_key_mgmt_names);
+	return ni_format_uint_mapped(mode, __ni_wireless_key_mgmt_names);
 }
 
 static ni_intmap_t __ni_wireless_eap_method_names[] = {
@@ -630,7 +630,7 @@ static ni_intmap_t __ni_wireless_eap_method_names[] = {
 const char *
 ni_wireless_eap_method_to_name(ni_wireless_eap_method_t mode)
 {
-	return ni_format_int_mapped(mode, __ni_wireless_eap_method_names);
+	return ni_format_uint_mapped(mode, __ni_wireless_eap_method_names);
 }
 
 ni_wireless_eap_method_t
@@ -638,7 +638,7 @@ ni_wireless_name_to_eap_method(const char *string)
 {
 	unsigned int value;
 
-	if (ni_parse_int_mapped(string, __ni_wireless_eap_method_names, &value) < 0)
+	if (ni_parse_uint_mapped(string, __ni_wireless_eap_method_names, &value) < 0)
 		return -1;
 	return value;
 }

@@ -615,7 +615,7 @@ try_bridge(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	}
 
 	if ((value = ni_sysconfig_get_value(sc, "BRIDGE_PRIORITY")) != NULL) {
-		if (ni_parse_int(value, &bridge->priority, 0) < 0) {
+		if (ni_parse_uint(value, &bridge->priority, 0) < 0) {
 			ni_error("ifcfg-%s: Cannot parse BRIDGE_PRIORITY='%s'",
 				dev->name, value);
 			return FALSE;
@@ -687,7 +687,7 @@ try_bridge(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 			if (!strcmp("-", prio))
 				continue;
 
-			if (ni_parse_int(prio, &tmp, 0) < 0) {
+			if (ni_parse_uint(prio, &tmp, 0) < 0) {
 				ni_error("ifcfg-%s: BRIDGE_PORTPRIORITIES='%s' "
 					 "unable to parse port '%s' priority '%s'",
 					 dev->name, value, port->ifname, prio);
@@ -712,7 +712,7 @@ try_bridge(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 			if (!strcmp("-", cost))
 				continue;
 
-			if (ni_parse_int(cost, &tmp, 0) < 0) {
+			if (ni_parse_uint(cost, &tmp, 0) < 0) {
 				ni_error("ifcfg-%s: BRIDGE_PATHCOSTS='%s' "
 					 "unable to parse port '%s' costs '%s'",
 					 dev->name, value, port->ifname, cost);

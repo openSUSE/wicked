@@ -917,7 +917,7 @@ static ni_intmap_t	__ni_objectmodel_event_names[] = {
 const char *
 ni_objectmodel_event_to_signal(ni_event_t event)
 {
-	return ni_format_int_mapped(event, __ni_objectmodel_event_names);
+	return ni_format_uint_mapped(event, __ni_objectmodel_event_names);
 }
 
 ni_event_t
@@ -928,7 +928,7 @@ ni_objectmodel_signal_to_event(const char *signal)
 	if (!signal)
 		return -1;
 
-	if (ni_parse_int_mapped(signal, __ni_objectmodel_event_names, &event) < 0)
+	if (ni_parse_uint_mapped(signal, __ni_objectmodel_event_names, &event) < 0)
 		return -1;
 
 	return event;

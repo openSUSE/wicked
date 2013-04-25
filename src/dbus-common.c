@@ -22,7 +22,7 @@ ni_dbus_translate_error(const DBusError *err, const ni_intmap_t *error_map)
 
 	ni_debug_dbus("%s(%s, msg=%s)", __func__, err->name, err->message);
 	/* allow parsing as number, ... but verify it's a valid error name */
-	if (ni_parse_int_maybe_mapped(err->name, error_map, &errcode, 10) == 0)
+	if (ni_parse_uint_maybe_mapped(err->name, error_map, &errcode, 10) == 0)
 		return -errcode;
 
 	return ni_dbus_get_error(err, NULL);

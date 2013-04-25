@@ -16,6 +16,7 @@
 #include <signal.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <limits.h>
 
 #include <wicked/util.h>
 #include <wicked/logging.h>
@@ -774,27 +775,99 @@ ni_string_join(char **str, const ni_string_array_t *nsa, const char *sep)
 }
 
 int
-ni_parse_int(const char *input, unsigned int *result, int base)
+ni_parse_long(const char *input, long *result, int base)
 {
-	unsigned int value;
+	long value;
 	char *end = NULL;
+	int off = 0;
 
 	if (!input || !*input || !result) {
 		errno = EINVAL;
 		return -1;
 	}
 
-	errno = 0;
-	value = strtoul(input, (char **) &end, base);
-	if (errno || *end != '\0')
+	if (input[off] == '-')
+		off++;
+
+	if ((base == 16 && !isxdigit((unsigned char)input[off])) ||
+	    (base != 16 && !isdigit((unsigned char)input[off]))) {
+		errno = EINVAL;
 		return -1;
+	}
+
+	errno = 0;
+	value = strtol(input, (char **) &end, base);
+	if(errno || *end != '\0') {
+		if (!errno)
+			errno = EINVAL;
+		return -1;
+	}
 
 	*result = value;
 	return 0;
 }
 
 int
-ni_parse_int_mapped(const char *input, const ni_intmap_t *map, unsigned int *result)
+ni_parse_int(const char *input, int *result, int base)
+{
+	long value;
+
+	if (ni_parse_long(input, &value, base) < 0)
+		return -1;
+
+	if (value > INT_MAX || value < INT_MIN) {
+		errno = ERANGE;
+		return -1;
+	}
+
+	*result = value;
+	return 0;
+}
+
+int
+ni_parse_ulong(const char *input, unsigned long *result, int base)
+{
+	unsigned long value;
+	char *end = NULL;
+
+	if (!result || !input || !*input || *input == '-' ||
+	    (base == 16 && !isxdigit((unsigned char)*input)) ||
+	    (base != 16 && !isdigit((unsigned char)*input))) {
+		errno = EINVAL;
+		return -1;
+	}
+
+	errno = 0;
+	value = strtoul(input, (char **) &end, base);
+	if(errno || *end != '\0') {
+		if (!errno)
+			errno = EINVAL;
+		return -1;
+	}
+
+	*result = value;
+	return 0;
+}
+
+int
+ni_parse_uint(const char *input, unsigned int *result, int base)
+{
+	unsigned long value;
+
+	if (ni_parse_ulong(input, &value, base) < 0)
+		return -1;
+
+	if (value > UINT_MAX) {
+		errno = ERANGE;
+		return -1;
+	}
+
+	*result = value;
+	return 0;
+}
+
+int
+ni_parse_uint_mapped(const char *input, const ni_intmap_t *map, unsigned int *result)
 {
 	if (!map || !input || !result)
 		return -1;
@@ -809,29 +882,25 @@ ni_parse_int_mapped(const char *input, const ni_intmap_t *map, unsigned int *res
 }
 
 int
-ni_parse_int_maybe_mapped(const char *input, const ni_intmap_t *map, unsigned int *result, int base)
+ni_parse_uint_maybe_mapped(const char *input, const ni_intmap_t *map, unsigned int *result, int base)
 {
 	if (!map || !input || !result)
 		return -1;
 
-	if (ni_parse_int_mapped(input, map, result) == 0)
+	if (ni_parse_uint_mapped(input, map, result) == 0)
 		return 0;
 
-	/* base 0 hex numbers have 0x prefix */
-	if (isdigit((unsigned char)input[0])) {
-		if (ni_parse_int(input, result, base) < 0)
-			return -1;
+	if (ni_parse_uint(input, result, base) < 0)
+		return -1;
 
-		if (ni_format_int_mapped(*result, map) == NULL)
-			return 1;
+	if (ni_format_uint_mapped(*result, map) == NULL)
+		return 1;
 
-		return 0;
-	}
-	return -1;
+	return 0;
 }
 
 const char *
-ni_format_int_mapped(unsigned int value, const ni_intmap_t *map)
+ni_format_uint_mapped(unsigned int value, const ni_intmap_t *map)
 {
 	if (!map)
 		return NULL;
@@ -845,7 +914,7 @@ ni_format_int_mapped(unsigned int value, const ni_intmap_t *map)
 }
 
 const char *
-ni_format_int_maybe_mapped(unsigned int value, const ni_intmap_t *map)
+ni_format_uint_maybe_mapped(unsigned int value, const ni_intmap_t *map)
 {
 	static char buffer[20];
 	const char *name;
@@ -853,7 +922,7 @@ ni_format_int_maybe_mapped(unsigned int value, const ni_intmap_t *map)
 	if (!map)
 		return NULL;
 
-	if (!(name = ni_format_int_mapped(value, map))) {
+	if (!(name = ni_format_uint_mapped(value, map))) {
 		snprintf(buffer, sizeof(buffer), "%u", value);
 		name = buffer;
 	}

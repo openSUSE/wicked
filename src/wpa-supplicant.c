@@ -502,7 +502,7 @@ ni_wpa_name_to_ifstate(const char *name)
 {
 	unsigned int res;
 
-	if (ni_parse_int_mapped(name, __ni_wpa_state_names, &res) < 0) {
+	if (ni_parse_uint_mapped(name, __ni_wpa_state_names, &res) < 0) {
 		ni_error("%s: could not map interface state %s", __func__, name);
 		return NI_WPA_IFSTATE_UNKNOWN;
 	}
@@ -512,7 +512,7 @@ ni_wpa_name_to_ifstate(const char *name)
 const char *
 ni_wpa_ifstate_to_name(ni_wpa_ifstate_t ifs)
 {
-	return ni_format_int_mapped(ifs, __ni_wpa_state_names);
+	return ni_format_uint_mapped(ifs, __ni_wpa_state_names);
 }
 
 /*
@@ -1755,7 +1755,7 @@ __ni_wpa_translate_caps(struct ni_dbus_dict_entry *entry, unsigned int *bits,
 		const char *name = variant->string_array_value[i];
 		unsigned int value;
 
-		if (ni_parse_int_mapped(name, names, &value) < 0)
+		if (ni_parse_uint_mapped(name, names, &value) < 0)
 			ni_warn("unable to translate %s %s", what, name);
 		else if (value < 8 * sizeof(*bits))
 			*bits |= (1 << value);
@@ -1824,7 +1824,7 @@ ni_wpa_auth_protocol_as_string(ni_wireless_auth_mode_t auth_mode, DBusError *err
 		dbus_set_error(error, NI_DBUS_ERROR_PROPERTY_NOT_PRESENT, "auth-mode property not set");
 		return FALSE;
 	}
-	if (!(res = ni_format_int_mapped(auth_mode, __ni_wpa_protocol_names))) {
+	if (!(res = ni_format_uint_mapped(auth_mode, __ni_wpa_protocol_names))) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
 				"cannot render auth protocol %u(%s)",
 				auth_mode, ni_wireless_auth_mode_to_name(auth_mode));
@@ -1837,7 +1837,7 @@ ni_wpa_auth_protocol_from_string(const char *string, ni_wireless_auth_mode_t *au
 {
 	unsigned int value;
 
-	if (ni_parse_int_mapped(string, __ni_wpa_protocol_names, &value) < 0) {
+	if (ni_parse_uint_mapped(string, __ni_wpa_protocol_names, &value) < 0) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
 				"auth protocol \"%s\" not understood", string);
 		return FALSE;
@@ -1855,7 +1855,7 @@ ni_wpa_auth_algorithm_as_string(ni_wireless_auth_algo_t auth_algo, DBusError *er
 		dbus_set_error(error, NI_DBUS_ERROR_PROPERTY_NOT_PRESENT, "auth-algo property not set");
 		return FALSE;
 	}
-	if (!(res = ni_format_int_mapped(auth_algo, __ni_wpa_auth_names))) {
+	if (!(res = ni_format_uint_mapped(auth_algo, __ni_wpa_auth_names))) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
 				"cannot render auth algorithm %u(%s)",
 				auth_algo, ni_wireless_auth_algo_to_name(auth_algo));
@@ -1868,7 +1868,7 @@ ni_wpa_auth_algorithm_from_string(const char *string, ni_wireless_auth_algo_t *a
 {
 	unsigned int value;
 
-	if (ni_parse_int_mapped(string, __ni_wpa_auth_names, &value) < 0) {
+	if (ni_parse_uint_mapped(string, __ni_wpa_auth_names, &value) < 0) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
 				"auth algorithm \"%s\" not understood", string);
 		return FALSE;
@@ -1882,7 +1882,7 @@ ni_wpa_keymgmt_protocol_as_string(ni_wireless_key_mgmt_t proto, DBusError *error
 {
 	const char *res;
 
-	if (!(res = ni_format_int_mapped(proto, __ni_wpa_keymgmt_names))) {
+	if (!(res = ni_format_uint_mapped(proto, __ni_wpa_keymgmt_names))) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
 				"cannot render keymgmt protocol %u(%s)",
 				proto, ni_wireless_key_management_to_name(proto));
@@ -1895,7 +1895,7 @@ ni_wpa_keymgmt_protocol_from_string(const char *string, ni_wireless_key_mgmt_t *
 {
 	unsigned int value;
 
-	if (ni_parse_int_mapped(string, __ni_wpa_keymgmt_names, &value) < 0) {
+	if (ni_parse_uint_mapped(string, __ni_wpa_keymgmt_names, &value) < 0) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
 				"keymgmt protocol \"%s\" not understood", string);
 		return FALSE;
@@ -1909,7 +1909,7 @@ ni_wpa_cipher_as_string(ni_wireless_cipher_t proto, DBusError *error)
 {
 	const char *res;
 
-	if (!(res = ni_format_int_mapped(proto, __ni_wpa_cipher_names))) {
+	if (!(res = ni_format_uint_mapped(proto, __ni_wpa_cipher_names))) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
 				"cannot render cipher %u(%s)",
 				proto, ni_wireless_cipher_to_name(proto));
@@ -1922,7 +1922,7 @@ ni_wpa_cipher_from_string(const char *string, ni_wireless_cipher_t *proto, DBusE
 {
 	unsigned int value;
 
-	if (ni_parse_int_mapped(string, __ni_wpa_cipher_names, &value) < 0) {
+	if (ni_parse_uint_mapped(string, __ni_wpa_cipher_names, &value) < 0) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
 				"cipher \"%s\" not understood", string);
 		return FALSE;
@@ -1936,7 +1936,7 @@ ni_wpa_eap_method_as_string(ni_wireless_eap_method_t proto, DBusError *error)
 {
 	const char *res;
 
-	if (!(res = ni_format_int_mapped(proto, __ni_wpa_eap_method_names))) {
+	if (!(res = ni_format_uint_mapped(proto, __ni_wpa_eap_method_names))) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
 				"cannot render eap method %u(%s)",
 				proto, ni_wireless_eap_method_to_name(proto));
@@ -1949,7 +1949,7 @@ ni_wpa_eap_method_from_string(const char *string, ni_wireless_eap_method_t *prot
 {
 	unsigned int value;
 
-	if (ni_parse_int_mapped(string, __ni_wpa_eap_method_names, &value) < 0) {
+	if (ni_parse_uint_mapped(string, __ni_wpa_eap_method_names, &value) < 0) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
 				"eap method \"%s\" not understood", string);
 		return FALSE;
@@ -1984,7 +1984,7 @@ __wpa_set_capabilities(const ni_dbus_variant_t *variant, unsigned int *bits,
 		const char *name = variant->string_array_value[i];
 		unsigned int value;
 
-		if (ni_parse_int_mapped(name, names, &value) < 0)
+		if (ni_parse_uint_mapped(name, names, &value) < 0)
 			ni_warn("unable to translate %s %s", what, name);
 		else if (value < 8 * sizeof(*bits))
 			*bits |= (1 << value);

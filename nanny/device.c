@@ -410,7 +410,7 @@ ni_managed_state_to_string(ni_managed_state_t state)
 {
 	const char *name;
 
-	if ((name = ni_format_int_mapped(state, __managed_state_names)) == NULL)
+	if ((name = ni_format_uint_mapped(state, __managed_state_names)) == NULL)
 		name = "unknown";
 	return name;
 }

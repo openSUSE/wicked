@@ -180,7 +180,7 @@ build_ifflag_bits_map(void)
 	for (i = 0; i < 32; ++i) {
 		const char *name;
 
-		name = ni_format_int_mapped(1 << i, mask_map);
+		name = ni_format_uint_mapped(1 << i, mask_map);
 		if (name) {
 			bits_map[j].name = name;
 			bits_map[j].value = i;

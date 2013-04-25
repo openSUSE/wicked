@@ -521,7 +521,7 @@ ni_dbus_serialize_xml_bitmap(const xml_node_t *node, const ni_xs_scalar_info_t *
 	for (child = node->children; child; child = child->next) {
 		unsigned int bb;
 
-		if (ni_parse_int_mapped(child->name, bits, &bb) < 0 || bb >= 32) {
+		if (ni_parse_uint_mapped(child->name, bits, &bb) < 0 || bb >= 32) {
 			ni_error("%s: unknown or bad bit value <%s>", xml_node_location(node), child->name);
 			return FALSE;
 		}
@@ -539,7 +539,7 @@ ni_dbus_serialize_xml_enum(const xml_node_t *node, const ni_xs_scalar_info_t *sc
 	const ni_intmap_t *names = scalar_info->constraint.enums->bits;
 	unsigned int value;
 
-	if (ni_parse_int_mapped(node->cdata, names, &value) < 0) {
+	if (ni_parse_uint_mapped(node->cdata, names, &value) < 0) {
 		ni_error("%s: unknown enum value \"%s\"", xml_node_location(node), node->cdata);
 		return FALSE;
 	}
@@ -642,7 +642,7 @@ ni_dbus_deserialize_xml_scalar(ni_dbus_variant_t *var, const ni_xs_type_t *type,
 			if ((value & (1 << bb)) == 0)
 				continue;
 
-			if ((bitname = ni_format_int_mapped(bb, bits)) != NULL) {
+			if ((bitname = ni_format_uint_mapped(bb, bits)) != NULL) {
 				xml_node_new(bitname, node);
 			} else {
 				ni_warn("unable to represent bit%u in <%s>", bb, node->name);
@@ -661,7 +661,7 @@ ni_dbus_deserialize_xml_scalar(ni_dbus_variant_t *var, const ni_xs_type_t *type,
 			return FALSE;
 		}
 
-		enum_name = ni_format_int_mapped(value, scalar_info->constraint.enums->bits);
+		enum_name = ni_format_uint_mapped(value, scalar_info->constraint.enums->bits);
 		if (enum_name != NULL) {
 			xml_node_set_cdata(node, enum_name);
 		} else {

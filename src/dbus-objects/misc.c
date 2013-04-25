@@ -754,7 +754,7 @@ static const ni_intmap_t __ni_netbios_node_types[] = {
 static const char *
 ni_netbios_node_type_to_name(unsigned int code)
 {
-	return ni_format_int_mapped(code, __ni_netbios_node_types);
+	return ni_format_uint_mapped(code, __ni_netbios_node_types);
 }
 
 static unsigned int
@@ -763,7 +763,7 @@ ni_netbios_node_type_to_code(const char *name)
 	unsigned int val;
 
 	/* allow parsing as number, ... but verify it's a valid type */
-	if (ni_parse_int_maybe_mapped(name, __ni_netbios_node_types, &val, 0) == 0)
+	if (ni_parse_uint_maybe_mapped(name, __ni_netbios_node_types, &val, 0) == 0)
 		return val;
 	return 0;
 }

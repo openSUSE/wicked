@@ -100,7 +100,7 @@ ni_updater_name(unsigned int kind)
 	{ NULL }
 	};
 
-	return ni_format_int_mapped(kind, names);
+	return ni_format_uint_mapped(kind, names);
 }
 
 static inline ni_bool_t

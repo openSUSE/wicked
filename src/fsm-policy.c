@@ -179,7 +179,7 @@ __ni_fsm_policy_from_xml(ni_fsm_policy_t *policy, xml_node_t *node)
 	}
 
 	if ((attr = xml_node_get_attr(node, "weight")) != NULL) {
-		if (ni_parse_int(attr, &policy->weight, 10) < 0) {
+		if (ni_parse_uint(attr, &policy->weight, 10) < 0) {
 			ni_error("%s: cannot parse weight=\"%s\" attribute",
 						xml_node_location(node), attr);
 			return FALSE;

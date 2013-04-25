@@ -80,19 +80,19 @@ static ni_intmap_t __debug_flags_descriptions[] = {
 const char *
 ni_debug_facility_to_name(unsigned int facility)
 {
-	return ni_format_int_mapped(facility, __debug_flags_names);
+	return ni_format_uint_mapped(facility, __debug_flags_names);
 }
 
 int
 ni_debug_name_to_facility(const char *name, unsigned int *fac)
 {
-	return ni_parse_int_mapped(name, __debug_flags_names, fac);
+	return ni_parse_uint_mapped(name, __debug_flags_names, fac);
 }
 
 const char *
 ni_debug_facility_to_description(unsigned int facility)
 {
-	return ni_format_int_mapped(facility, __debug_flags_descriptions);
+	return ni_format_uint_mapped(facility, __debug_flags_descriptions);
 }
 
 int

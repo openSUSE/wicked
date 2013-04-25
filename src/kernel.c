@@ -306,9 +306,12 @@ __ni_ppp_create_device(ni_ppp_t *ppp, const char *ifname)
 
 	/* If we're asked to create a device named pppN, assume we should be
 	 * creating the device with the specified ppp unit N */
-	if (ifname && !strncmp(ifname, "ppp", 3)
-	 && ni_parse_int(ifname + 3, (unsigned int *) &ifunit, 10) >= 0)
-		ifname = NULL;
+	if (ifname && !strncmp(ifname, "ppp", 3)) {
+		if(ni_parse_int(ifname + 3, &ifunit, 10) >= 0 && ifunit >= 0)
+			ifname = NULL;
+		else
+			ifunit = -1;
+	}
 
 	if (ioctl(devfd, PPPIOCNEWUNIT, &ifunit) < 0) {
 		ni_error("unable to create new PPP network device: %m");
