@@ -372,22 +372,23 @@ done:
 void
 ni_sysfs_bridge_get_config(const char *ifname, ni_bridge_t *bridge)
 {
-	unsigned int tmp;
+	unsigned int  ui;
+	unsigned long ul;
 
-	if (ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_ATTR "/stp_state", &tmp) == 0)
-		bridge->stp = tmp ? TRUE : FALSE;
+	if (ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_ATTR "/stp_state", &ui) == 0)
+		bridge->stp = ui ? TRUE : FALSE;
 
-	if (ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_ATTR "/priority", &tmp) == 0)
-		bridge->priority = tmp;
+	if (ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_ATTR "/priority", &ui) == 0)
+		bridge->priority = ui;
 
-	if (ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_ATTR "/forward_delay", &tmp) == 0)
-		bridge->forward_delay = (double)tmp / 100.0;
-	if (ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_ATTR "/ageing_time", &tmp) == 0)
-		bridge->ageing_time = (double)tmp / 100.0;
-	if (ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_ATTR "/hello_time", &tmp) == 0)
-		bridge->hello_time = (double)tmp / 100.0;
-	if (ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_ATTR "/max_age", &tmp) == 0)
-		bridge->max_age = (double)tmp / 100.0;
+	if (ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_ATTR "/forward_delay", &ui) == 0)
+		bridge->forward_delay = (double)ui / 100.0;
+	if (ni_sysfs_netif_get_ulong(ifname, SYSFS_BRIDGE_ATTR "/ageing_time", &ul) == 0)
+		bridge->ageing_time = (double)ui / 100.0;
+	if (ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_ATTR "/hello_time", &ui) == 0)
+		bridge->hello_time = (double)ui / 100.0;
+	if (ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_ATTR "/max_age", &ui) == 0)
+		bridge->max_age = (double)ui / 100.0;
 }
 
 int
@@ -408,8 +409,8 @@ ni_sysfs_bridge_update_config(const char *ifname, const ni_bridge_t *bridge)
 		rv = -1;
 
 	if (bridge->ageing_time != NI_BRIDGE_VALUE_NOT_SET &&
-	    ni_sysfs_netif_put_uint(ifname, SYSFS_BRIDGE_ATTR "/ageing_time",
-				(unsigned int)(bridge->ageing_time * 100.0)) < 0)
+	    ni_sysfs_netif_put_ulong(ifname, SYSFS_BRIDGE_ATTR "/ageing_time",
+				(unsigned long)(bridge->ageing_time * 100.0)) < 0)
 		rv = -1;
 
 	if (bridge->hello_time != NI_BRIDGE_VALUE_NOT_SET &&
