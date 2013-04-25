@@ -540,13 +540,13 @@ try_set_bonding_options(ni_netdev_t *dev, const char *options)
 			*val++ = '\0';
 
 		if (!ni_string_len(key) || !ni_string_len(val)) {
-			ni_error("%s: Unable to parse ifcfg bonding options",
-				dev->name);
+			ni_error("ifcfg-%s: Unable to parse bonding options '%s'",
+				dev->name, options);
 			ret = FALSE;
 			break;
 		}
 		if (!ni_bonding_set_option(bond, key, val)) {
-			ni_error("%s: Unable to parse ifcfg bonding option: %s=%s",
+			ni_error("ifcfg-%s: Unable to parse bonding option: %s=%s",
 				dev->name, key, val);
 			ret = FALSE;
 			break;
@@ -576,7 +576,7 @@ try_bonding(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	}
 
 	if ((err = ni_bonding_validate(ni_netdev_get_bonding(dev))) != NULL) {
-		ni_error("%s: ifcfg bonding: %s",
+		ni_error("ifcfg-%s: bonding validation: %s",
 			dev->name, err);
 		return FALSE;
 	}
@@ -608,7 +608,7 @@ try_bridge(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		if (!strcasecmp(value, "on") || !strcasecmp(value, "yes")) {
 			bridge->stp = FALSE;
 		} else {
-			ni_error("%s: Cannot parse ifcfg BRIDGE_STP='%s'",
+			ni_error("ifcfg-%s: Cannot parse BRIDGE_STP='%s'",
 				dev->name, value);
 			return FALSE;
 		}
@@ -616,63 +616,39 @@ try_bridge(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 
 	if ((value = ni_sysconfig_get_value(sc, "BRIDGE_PRIORITY")) != NULL) {
 		if (ni_parse_int(value, &bridge->priority, 0) < 0) {
-			ni_error("%s: Cannot parse ifcfg BRIDGE_PRIORITY='%s'",
+			ni_error("ifcfg-%s: Cannot parse BRIDGE_PRIORITY='%s'",
 				dev->name, value);
-			return FALSE;
-		}
-		if (bridge->priority > USHRT_MAX) {
-			ni_error("%s: ifcfg BRIDGE_PRIORITY='%s' is out of 0-%u range",
-				dev->name, value, USHRT_MAX);
 			return FALSE;
 		}
 	}
 
 	if ((value = ni_sysconfig_get_value(sc, "BRIDGE_AGEINGTIME")) != NULL) {
 		if (ni_parse_double(value, &bridge->ageing_time) < 0) {
-			ni_error("%s: Cannot parse ifcfg BRIDGE_AGEINGTIME='%s'",
+			ni_error("ifcfg-%s: Cannot parse BRIDGE_AGEINGTIME='%s'",
 				dev->name, value);
 			return FALSE;
 		}
-		/* TODO: range */
 	}
 
 	if ((value = ni_sysconfig_get_value(sc, "BRIDGE_FORWARDDELAY")) != NULL) {
 		if (ni_parse_double(value, &bridge->forward_delay) < 0) {
-			ni_error("%s: Cannot parse ifcfg BRIDGE_FORWARDDELAY='%s'",
+			ni_error("ifcfg-%s: Cannot parse BRIDGE_FORWARDDELAY='%s'",
 				dev->name, value);
-			return FALSE;
-		}
-		if ((bridge->forward_delay < 4.0 || bridge->forward_delay > 30.0) &&
-		    (bridge->stp || bridge->forward_delay != 0.0)) {
-			ni_error("%s: ifcfg BRIDGE_FORWARDDELAY='%s' is out of %.2f-%.2f range",
-				dev->name, value, 4.0, 30.0);
 			return FALSE;
 		}
 	}
 	if ((value = ni_sysconfig_get_value(sc, "BRIDGE_HELLOTIME")) != NULL) {
 		if (ni_parse_double(value, &bridge->hello_time) < 0) {
-			ni_error("%s: Cannot parse ifcfg BRIDGE_HELLOTIME='%s'",
+			ni_error("ifcfg-%s: Cannot parse BRIDGE_HELLOTIME='%s'",
 				dev->name, value);
-			return FALSE;
-		}
-		if ((bridge->hello_time < 1.0 || bridge->hello_time > 6.0) &&
-		    (bridge->stp || bridge->hello_time != 0.0)) {
-			ni_error("%s: ifcfg BRIDGE_HELLOTIME='%s' is out of %.2f-%.2f range",
-				dev->name, value, 1.0, 6.0);
 			return FALSE;
 		}
 	}
 
 	if ((value = ni_sysconfig_get_value(sc, "BRIDGE_MAXAGE")) != NULL) {
 		if (ni_parse_double(value, &bridge->max_age) < 0) {
-			ni_error("%s: Cannot parse ifcfg BRIDGE_MAXAGE='%s'",
+			ni_error("ifcfg-%s: Cannot parse BRIDGE_MAXAGE='%s'",
 				dev->name, value);
-			return FALSE;
-		}
-		if ((bridge->hello_time < 6.0 || bridge->hello_time > 40.0) &&
-		    (bridge->stp || bridge->hello_time != 0.0)) {
-			ni_error("%s: ifcfg BRIDGE_MAXAGE='%s' is out of %.2f-%.2f range",
-				dev->name, value, 6.0, 40.0);
 			return FALSE;
 		}
 	}
@@ -686,7 +662,7 @@ try_bridge(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		     name = strtok_r(NULL, " \t", &name_pos)) {
 
 			if (!__ni_suse_valid_ifname(name)) {
-				ni_error("%s: ifcfg BRIDGE_PORTS='%s' "
+				ni_error("ifcfg-%s: BRIDGE_PORTS='%s' "
 					 "rejecting suspect port name '%s'",
 					 dev->name, value, name);
 				free(portnames);
@@ -712,15 +688,8 @@ try_bridge(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 				continue;
 
 			if (ni_parse_int(prio, &tmp, 0) < 0) {
-				ni_error("%s: ifcfg BRIDGE_PORTPRIORITIES='%s' "
+				ni_error("ifcfg-%s: BRIDGE_PORTPRIORITIES='%s' "
 					 "unable to parse port '%s' priority '%s'",
-					 dev->name, value, port->ifname, prio);
-				free(portprios);
-				return FALSE;
-			}
-			if (tmp > 255) {
-				ni_error("%s: ifcfg BRIDGE_PORTPRIORITIES='%s' port "
-					 "'%s' priority '%s' is out of 0-255 range",
 					 dev->name, value, port->ifname, prio);
 				free(portprios);
 				return FALSE;
@@ -744,7 +713,7 @@ try_bridge(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 				continue;
 
 			if (ni_parse_int(cost, &tmp, 0) < 0) {
-				ni_error("%s: ifcfg BRIDGE_PATHCOSTS='%s' "
+				ni_error("ifcfg-%s: BRIDGE_PATHCOSTS='%s' "
 					 "unable to parse port '%s' costs '%s'",
 					 dev->name, value, port->ifname, cost);
 				free(portcosts);
@@ -755,6 +724,10 @@ try_bridge(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		ni_string_free(&portcosts);
 	}
 
+	if ((value = ni_bridge_validate(bridge)) != NULL) {
+		ni_error("ifcfg-%s: bridge validation: %s", dev->name, value);
+		return FALSE;
+	}
 	return TRUE;
 }
 
@@ -790,14 +763,14 @@ try_vlan(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		return FALSE;
 
 	if (!strcmp(dev->name, etherdev)) {
-		ni_error("%s: ifcfg ETHERDEVICE=\"%s\" self-reference",
+		ni_error("ifcfg-%s: ETHERDEVICE=\"%s\" self-reference",
 			dev->name, etherdev);
 		return FALSE;
 	}
 
 	if ((vlantag = ni_sysconfig_get_value(sc, "VLAN_ID")) != NULL) {
 		if (!__try_vlan_tag_parse(vlantag, &tag)) {
-			ni_error("%s: Cannot parse ifcfg VLAN_ID=\"%s\"",
+			ni_error("ifcfg-%s: Cannot parse VLAN_ID=\"%s\"",
 				dev->name, vlantag);
 			return FALSE;
 		}
@@ -813,13 +786,13 @@ try_vlan(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 				vlantag--;
 		}
 		if (!__try_vlan_tag_parse(vlantag, &tag)) {
-			ni_error("%s: Cannot parse vlan-tag from interface name",
+			ni_error("ifcfg-%s: Cannot parse vlan-tag from interface name",
 				dev->name);
 			return FALSE;
 		}
 	}
 	if (tag > __NI_VLAN_TAG_MAX) {
-		ni_error("%s: VLAN tag %u is out of numerical range",
+		ni_error("ifcfg-%s: VLAN tag %u is out of numerical range",
 			dev->name, tag);
 		return FALSE;
 #if 0
@@ -850,7 +823,7 @@ try_wireless(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		return FALSE;
 
 	dev->link.type = NI_IFTYPE_WIRELESS;
-	ni_warn("%s: conversion of wireless interfaces not yet supported", dev->name);
+	ni_warn("ifcfg-%s: conversion of wireless interfaces not yet supported", dev->name);
 
 	return TRUE;
 }
@@ -1207,7 +1180,7 @@ __ni_suse_bootproto(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 			__ni_suse_addrconf_autoip4(sc, compat);
 		}
 		else {
-			ni_warn("%s: Unknown ifcfg BOOTPROTO value \"%s\"",
+			ni_warn("ifcfg-%s: Unknown BOOTPROTO value \"%s\"",
 				dev->name, s);
 		}
 	}
@@ -1236,7 +1209,7 @@ __ni_suse_sysconfig_read(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 
 	if ((value = ni_sysconfig_get_value(sc, "LLADDR")) != NULL
 	 && ni_link_address_parse(&dev->link.hwaddr, NI_IFTYPE_ETHERNET, value) < 0) {
-		ni_warn("%s: Cannot parse ifcfg LLADDR=%s",
+		ni_warn("ifcfg-%s: Cannot parse LLADDR=\"%s\"",
 				dev->name, value);
 	}
 

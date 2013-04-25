@@ -121,6 +121,7 @@ ni_objectmodel_bridge_setup(ni_dbus_object_t *object, const ni_dbus_method_t *me
 	ni_netconfig_t *nc = ni_global_state_handle(0);
 	ni_netdev_t *ifp, *cfg;
 	dbus_bool_t rv = FALSE;
+	const char *err;
 
 	/* we've already checked that argv matches our signature */
 	ni_assert(argc == 1);
@@ -130,6 +131,12 @@ ni_objectmodel_bridge_setup(ni_dbus_object_t *object, const ni_dbus_method_t *me
 
 	if (!(cfg = __ni_objectmodel_bridge_device_arg(&argv[0]))) {
 		ni_dbus_error_invalid_args(error, object->path, method->name);
+		goto out;
+	}
+
+	if ((err = ni_bridge_validate(cfg->bridge)) != NULL) {
+		dbus_set_error(error, DBUS_ERROR_FAILED, "invalid configuration for %s: %s",
+				ifp->name, err);
 		goto out;
 	}
 

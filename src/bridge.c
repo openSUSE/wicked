@@ -10,6 +10,8 @@
 #include <wicked/netinfo.h>
 #include <wicked/bridge.h>
 #include "netinfo_priv.h"
+#include "util_priv.h"
+#include "limits.h"
 
 #define NI_BRIDGE_PORT_ARRAY_CHUNK	16
 
@@ -21,16 +23,12 @@ static int			__ni_bridge_port_array_append(ni_bridge_port_array_t *,
 					ni_bridge_port_t *);
 
 
-
 ni_bridge_port_t *
 ni_bridge_port_new(ni_bridge_t *bridge, const char *ifname, unsigned int ifindex)
 {
 	ni_bridge_port_t *port;
 
-	port = calloc(1, sizeof(ni_bridge_port_t));
-	if (!port)
-		ni_fatal("%s: out of memory", __FUNCTION__);
-
+	port = xcalloc(1, sizeof(ni_bridge_port_t));
 	ni_string_dup(&port->ifname, ifname);
 	port->ifindex = ifindex;
 	/* apply "not set" defaults */
@@ -72,10 +70,7 @@ __ni_bridge_port_array_realloc(ni_bridge_port_array_t *array, unsigned int newsi
 	unsigned int i;
 
 	newsize = (newsize + NI_BRIDGE_PORT_ARRAY_CHUNK);
-	newdata = realloc(array->data, newsize * sizeof(ni_bridge_port_t));
-	if (!newdata)
-		ni_fatal("%s: out of memory", __FUNCTION__);
-
+	newdata = xrealloc(array->data, newsize * sizeof(ni_bridge_port_t));
 	array->data = newdata;
 	for (i = array->count; i < newsize; ++i)
 		array->data[i] = NULL;
@@ -230,9 +225,8 @@ ni_bridge_new(void)
 {
 	ni_bridge_t *bridge;
 
-	bridge = calloc(1, sizeof(*bridge));
-	if (bridge)
-		__ni_bridge_init(bridge);
+	bridge = xcalloc(1, sizeof(*bridge));
+	__ni_bridge_init(bridge);
 	return bridge;
 }
 
@@ -274,3 +268,146 @@ ni_bridge_ports_destroy(ni_bridge_t *bridge)
 {
 	ni_bridge_port_array_destroy(&bridge->ports);
 }
+
+/*
+ * From IEEE 802.1D-1998, 8.10.2 (STP):
+ * 				Recommended	Fixed value	Range
+ * 	Bridge Hello Time:	 2.0		--		1.0 - 10.0
+ * 	Bridge Max Age:		20.0		--		6.0 - 40.0
+ * 	Bridge Forward Delay:	15.0		--		4.0 - 30.0
+ * 	Hold Time:		--		1.0		--
+ *
+ * 	Bridge Priority:	32 768		0 - 65535
+ * 	Port Priority:		128		0 - 255
+
+ * 	Port Path Cost is 16bit, depends on link speed, range: 1-65535
+ *
+ * From IEEE 802.1D-2004, 17.14 (RSTP):
+ * 				Recommended	Permitted	Compatibility
+ * 	Migrate Time:		 3.0		--		--
+ * 	Bridge Hello Time:	 2.0		--		1.0 -  2.0
+ * 	Bridge Max Age:		20.0		6.0 - 40.0	6.0 - 40.0
+ * 	Bridge Forward Delay:	15.0		4.0 - 30.0	4.0 - 30.0
+ * 	Transmit Hold Count:	 6		1   - 10	1   - 10
+ *
+ * 				Recommended	Range
+ * 	Bridge Priority:	32 768		0 - 61440 in steps of 4096
+ * 	Port Priority:		128		0 - 240   in steps of 16
+ *
+ * 	Port Path Cost is 32bit, range: 1-200 000 000
+ *
+ * Linux kernel 3.7.10 bridge v2.3:
+ * 				Default		Permitted:
+ * 	Bridge Hello Time:	  2 HZ		1 - 10 HZ
+ * 	Bridge Forward Delay:	 15 HZ		2 - 30 HZ
+ * 	Bridge Max Age:		 20 HZ		6 - 60 HZ
+ *
+ *	Port Count:		-		1024
+ * 	Port Priority:		128		0 - 63
+ * 	Port Path Cost is 16bit, range: 1-65535
+ *
+ * The following are the "hard-coded" limits we use:
+ */
+#define NI_BRIDGE_PRIORITY_MIN		0
+#define NI_BRIDGE_PRIORITY_MAX		USHRT_MAX
+
+#define NI_BRIDGE_AGEING_TIME_MIN	0
+#define NI_BRIDGE_AGEING_TIME_MAX	UINT_MAX/100
+
+#define NI_BRIDGE_FORWARD_DELAY_MIN	2
+#define NI_BRIDGE_FORWARD_DELAY_MAX	30
+
+#define NI_BRIDGE_HELLO_TIME_MIN	1
+#define NI_BRIDGE_HELLO_TIME_MAX	10
+
+#define NI_BRIDGE_MAX_AGE_MIN		6
+#define NI_BRIDGE_MAX_AGE_MAX		60
+
+#define NI_BRIDGE_PORT_PRIORITY_MIN	0
+#define NI_BRIDGE_PORT_PRIORITY_MAX	63	/* kernel */
+
+#define NI_BRIDGE_PORT_PATH_COST_MIN	1
+#define NI_BRIDGE_PORT_PATH_COST_MAX	USHRT_MAX
+
+#define NI_BRIDGE_PORT_MAX_COUNT	1024
+
+const char *
+ni_bridge_port_validate(const ni_bridge_port_t *port)
+{
+	if (!port || !port->ifname)
+		return "uninitialized port configuration";
+
+	if (port->priority != NI_BRIDGE_VALUE_NOT_SET &&
+	   (port->priority < NI_BRIDGE_PORT_PRIORITY_MIN ||
+	    port->priority < NI_BRIDGE_PORT_PRIORITY_MAX))
+		return "bridge port priority is out of supported range (0-63)";
+
+	if (port->path_cost != NI_BRIDGE_VALUE_NOT_SET &&
+	   (port->path_cost < NI_BRIDGE_PORT_PATH_COST_MIN ||
+	    port->path_cost > NI_BRIDGE_PORT_PATH_COST_MAX))
+		return "bridge port priority is out of supported range (0-65535)";
+
+	return NULL;
+}
+
+const char *
+ni_bridge_validate(const ni_bridge_t *bridge)
+{
+	unsigned int i;
+
+	if (!bridge)
+		return "uninitialized bridge configuration";
+
+	if (bridge->priority != NI_BRIDGE_VALUE_NOT_SET &&
+	    bridge->priority > NI_BRIDGE_PRIORITY_MAX)
+		return "bridge priority is out of 0-65535 range";
+
+	if (bridge->ageing_time != NI_BRIDGE_VALUE_NOT_SET &&
+	   (bridge->ageing_time < NI_BRIDGE_AGEING_TIME_MIN ||
+	    bridge->ageing_time > NI_BRIDGE_AGEING_TIME_MAX))
+		return "bridge ageing-time is out of supported range (0-UINT_MAX)";
+
+	if (bridge->stp) {
+		if (bridge->forward_delay != NI_BRIDGE_VALUE_NOT_SET &&
+		   (bridge->forward_delay < NI_BRIDGE_FORWARD_DELAY_MIN ||
+		    bridge->forward_delay > NI_BRIDGE_FORWARD_DELAY_MAX))
+			return "bridge forward-delay is out of supported range (2.0-30.0)";
+
+		if (bridge->hello_time != NI_BRIDGE_VALUE_NOT_SET &&
+		   (bridge->hello_time < NI_BRIDGE_HELLO_TIME_MIN ||
+		    bridge->hello_time > NI_BRIDGE_HELLO_TIME_MAX))
+			return "bridge hello-time is out of supported range (0.0-10.0)";
+
+		if (bridge->max_age != NI_BRIDGE_VALUE_NOT_SET &&
+		   (bridge->max_age < NI_BRIDGE_MAX_AGE_MIN ||
+		    bridge->max_age > NI_BRIDGE_MAX_AGE_MAX))
+			return "bridge max-age is out of supported range (0.0-60.0)";
+	} else {
+		if (bridge->forward_delay != NI_BRIDGE_VALUE_NOT_SET &&
+		   (bridge->forward_delay < 0 ||
+		    bridge->forward_delay > NI_BRIDGE_FORWARD_DELAY_MAX))
+			return "bridge forward-delay is out of supported range (0.0-30.0)";
+
+		if (bridge->hello_time != NI_BRIDGE_VALUE_NOT_SET &&
+		   (bridge->hello_time < 0 ||
+		    bridge->hello_time > NI_BRIDGE_HELLO_TIME_MAX))
+			return "bridge hello-time is out of supported range (0.0-10.0)";
+
+		if (bridge->max_age != NI_BRIDGE_VALUE_NOT_SET &&
+		   (bridge->max_age < 0 ||
+		    bridge->max_age > NI_BRIDGE_MAX_AGE_MAX))
+			return "bridge max-age is out of supported range (0.0-60.0)";
+	}
+
+	if (bridge->ports.count > NI_BRIDGE_PORT_MAX_COUNT)
+		return "bridge port count is higher than supported (0-1024)";
+
+	for (i = 0; bridge->ports.count; ++i) {
+		const char *err = ni_bridge_port_validate(bridge->ports.data[i]);
+		if (err != NULL)
+			return err;
+	}
+
+	return NULL;
+}
+

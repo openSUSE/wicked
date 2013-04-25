@@ -97,4 +97,8 @@ extern ni_bridge_port_t *ni_bridge_port_by_index(const ni_bridge_t *br, unsigned
 extern ni_bridge_port_t *ni_bridge_port_by_name(const ni_bridge_t *br, const char *ifname);
 extern void		ni_bridge_port_free(ni_bridge_port_t *port);
 
+
+extern const char *	ni_bridge_port_validate(const ni_bridge_port_t *);
+extern const char *	ni_bridge_validate(const ni_bridge_t *);
+
 #endif /* __WICKED_BRIDGE_H__ */
