@@ -88,7 +88,7 @@ ni_ifconfig_compat_load(ni_fsm_t *fsm, const char *pathname)
 
 	config_doc = xml_document_new();
 	if (!__ni_compat_get_interfaces(NULL, pathname, config_doc)) {
-		ni_error("unable to load interface definition from %s", pathname);
+		/* error should be already reported by compat function */
 		xml_document_free(config_doc);
 		return FALSE;
 	}
@@ -127,8 +127,10 @@ ni_ifconfig_native_load(ni_fsm_t *fsm, const char *pathname)
 			const char *name = files.data[i];
 
 			snprintf(namebuf, sizeof(namebuf), "%s/%s", pathname, name);
-			if (!ni_ifconfig_file_load(fsm, namebuf))
+			if (!ni_ifconfig_file_load(fsm, namebuf)) {
+				ni_string_array_destroy(&files);
 				return FALSE;
+			}
 		}
 		ni_string_array_destroy(&files);
 		return TRUE;

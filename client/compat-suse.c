@@ -154,7 +154,7 @@ __ni_suse_get_interfaces(const char *path, ni_compat_netdev_array_t *result)
 			goto done;
 
 		if (!__ni_suse_ifcfg_scan_files(path, &files)) {
-			ni_error("No ifcfg files found");
+			ni_error("No ifcfg files found in %s", path);
 			goto done;
 		}
 
@@ -165,8 +165,10 @@ __ni_suse_get_interfaces(const char *path, ni_compat_netdev_array_t *result)
 			ni_compat_netdev_t *compat;
 
 			snprintf(pathbuf, sizeof(pathbuf), "%s/%s", path, filename);
-			if (!(compat = __ni_suse_read_interface(pathbuf, ifname)))
+			if (!(compat = __ni_suse_read_interface(pathbuf, ifname))) {
+				ni_error("Unable to load %s", pathbuf);
 				goto done;
+			}
 			ni_compat_netdev_array_append(result, compat);
 		}
 	} else {
@@ -180,8 +182,10 @@ __ni_suse_get_interfaces(const char *path, ni_compat_netdev_array_t *result)
 		}
 		ni_string_free(&basedir);
 
-		if (!(compat = __ni_suse_read_interface(path, NULL)))
+		if (!(compat = __ni_suse_read_interface(path, NULL))) {
+			ni_error("Unable to load %s", path);
 			goto done;
+		}
 		ni_compat_netdev_array_append(result, compat);
 	}
 
@@ -384,7 +388,7 @@ __ni_suse_read_interface(const char *filename, const char *ifname)
 	}
 
 	compat = ni_compat_netdev_new(ifname);
-	if (__ni_suse_sysconfig_read(sc, compat) < 0)
+	if (!compat || !__ni_suse_sysconfig_read(sc, compat))
 		goto error;
 
 	ni_sysconfig_destroy(sc);
@@ -403,8 +407,8 @@ ni_compat_netdev_new(const char *ifname)
 {
 	ni_compat_netdev_t *compat;
 
-	compat = calloc(1, sizeof(*compat));
-	compat->dev = ni_netdev_new(ifname, 0);
+	if ((compat = calloc(1, sizeof(*compat))))
+		compat->dev = ni_netdev_new(ifname, 0);
 
 	return compat;
 }
@@ -455,23 +459,29 @@ __ni_suse_startmode(const char *mode)
 /*
  * Try loopback interface
  */
-static ni_bool_t
+static int
 try_loopback(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 {
 	ni_netdev_t *dev = compat->dev;
 
 	/* Consider "lo" as a reserved name for loopback. */
 	if (strcmp(dev->name, "lo"))
-		return FALSE;
+		return 1;
+
+	if (dev->link.type != NI_IFTYPE_UNKNOWN) {
+		ni_error("ifcfg-%s: %s config is using loopback interface name",
+			dev->name, ni_linktype_type_to_name(dev->link.type));
+		return -1;
+	}
 
 	dev->link.type = NI_IFTYPE_LOOPBACK;
-	return TRUE;
+	return 0;
 }
 
 /*
  * Handle Ethernet devices
  */
-static ni_bool_t
+static int
 try_ethernet(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 {
 	ni_netdev_t *dev = compat->dev;
@@ -485,12 +495,12 @@ try_ethernet(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		 *   - otherwise: this is a paramater to be passed to "-s ifname"
 		 */
 		/* FIXME: parse and translate to xml */
-		dev->link.type = NI_IFTYPE_ETHERNET;
-		eth = ni_netdev_get_ethernet(dev);
-		(void) eth;
+		(void)value;
+		(void)dev;
+		(void)eth;
 	}
 
-	return TRUE;
+	return 1; /* We do not set type to ethernet (yet) */
 }
 
 /*
@@ -557,7 +567,7 @@ try_set_bonding_options(ni_netdev_t *dev, const char *options)
 	return ret;
 }
 
-static ni_bool_t
+static int
 try_bonding(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 {
 	ni_netdev_t *dev = compat->dev;
@@ -565,29 +575,38 @@ try_bonding(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	ni_bool_t enabled;
 
 	if (!ni_sysconfig_get_boolean(sc, "BONDING_MASTER", &enabled) || !enabled)
-		return FALSE;
+		return 1;
+
+	if (dev->link.type != NI_IFTYPE_UNKNOWN) {
+		ni_error("ifcfg-%s: %s config contains bonding variables",
+			dev->name, ni_linktype_type_to_name(dev->link.type));
+		return -1;
+	}
+
+	dev->link.type = NI_IFTYPE_BOND;
+	(void)ni_netdev_get_bonding(dev);
 
 	if (!__process_indexed_variables(sc, dev, "BONDING_SLAVE", try_add_bonding_slave))
-		return FALSE;
+		return -1;
 
 	if ((module_opts = ni_sysconfig_get_value(sc, "BONDING_MODULE_OPTS")) != NULL) {
 		if (!try_set_bonding_options(dev, module_opts))
-			return FALSE;
+			return -1;
 	}
 
 	if ((err = ni_bonding_validate(ni_netdev_get_bonding(dev))) != NULL) {
 		ni_error("ifcfg-%s: bonding validation: %s",
 			dev->name, err);
-		return FALSE;
+		return -1;
 	}
 
-	return TRUE;
+	return 0;
 }
 
 /*
  * Bridge devices are recognized by BRIDGE=yes
  */
-static ni_bool_t
+static int
 try_bridge(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 {
 	ni_netdev_t *dev = compat->dev;
@@ -596,7 +615,13 @@ try_bridge(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	const char *value;
 
 	if (!ni_sysconfig_get_boolean(sc, "BRIDGE", &enabled) || !enabled)
-		return FALSE;
+		return 1;
+
+	if (dev->link.type != NI_IFTYPE_UNKNOWN) {
+		ni_error("ifcfg-%s: %s config contains bridge variables",
+			dev->name, ni_linktype_type_to_name(dev->link.type));
+		return -1;
+	}
 
 	dev->link.type = NI_IFTYPE_BRIDGE;
 	bridge = ni_netdev_get_bridge(dev);
@@ -610,7 +635,7 @@ try_bridge(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		} else {
 			ni_error("ifcfg-%s: Cannot parse BRIDGE_STP='%s'",
 				dev->name, value);
-			return FALSE;
+			return -1;
 		}
 	}
 
@@ -618,7 +643,7 @@ try_bridge(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		if (ni_parse_uint(value, &bridge->priority, 0) < 0) {
 			ni_error("ifcfg-%s: Cannot parse BRIDGE_PRIORITY='%s'",
 				dev->name, value);
-			return FALSE;
+			return -1;
 		}
 	}
 
@@ -626,7 +651,7 @@ try_bridge(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		if (ni_parse_double(value, &bridge->ageing_time) < 0) {
 			ni_error("ifcfg-%s: Cannot parse BRIDGE_AGEINGTIME='%s'",
 				dev->name, value);
-			return FALSE;
+			return -1;
 		}
 	}
 
@@ -634,14 +659,14 @@ try_bridge(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		if (ni_parse_double(value, &bridge->forward_delay) < 0) {
 			ni_error("ifcfg-%s: Cannot parse BRIDGE_FORWARDDELAY='%s'",
 				dev->name, value);
-			return FALSE;
+			return -1;
 		}
 	}
 	if ((value = ni_sysconfig_get_value(sc, "BRIDGE_HELLOTIME")) != NULL) {
 		if (ni_parse_double(value, &bridge->hello_time) < 0) {
 			ni_error("ifcfg-%s: Cannot parse BRIDGE_HELLOTIME='%s'",
 				dev->name, value);
-			return FALSE;
+			return -1;
 		}
 	}
 
@@ -649,7 +674,7 @@ try_bridge(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		if (ni_parse_double(value, &bridge->max_age) < 0) {
 			ni_error("ifcfg-%s: Cannot parse BRIDGE_MAXAGE='%s'",
 				dev->name, value);
-			return FALSE;
+			return -1;
 		}
 	}
 
@@ -666,7 +691,7 @@ try_bridge(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 					 "rejecting suspect port name '%s'",
 					 dev->name, value, name);
 				free(portnames);
-				return FALSE;
+				return -1;
 			}
 
 			ni_bridge_port_new(bridge, name, 0);
@@ -692,7 +717,7 @@ try_bridge(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 					 "unable to parse port '%s' priority '%s'",
 					 dev->name, value, port->ifname, prio);
 				free(portprios);
-				return FALSE;
+				return -1;
 			}
 			port->priority = tmp;
 		}
@@ -717,7 +742,7 @@ try_bridge(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 					 "unable to parse port '%s' costs '%s'",
 					 dev->name, value, port->ifname, cost);
 				free(portcosts);
-				return FALSE;
+				return -1;
 			}
 			port->path_cost = tmp;
 		}
@@ -726,53 +751,48 @@ try_bridge(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 
 	if ((value = ni_bridge_validate(bridge)) != NULL) {
 		ni_error("ifcfg-%s: bridge validation: %s", dev->name, value);
-		return FALSE;
+		return -1;
 	}
-	return TRUE;
-}
 
-static ni_bool_t
-__try_vlan_tag_parse(const char *str, unsigned int *tag)
-{
-	char *end = NULL;
-
-	if (!ni_string_len(str) || !isdigit((unsigned char)str[0]))
-		return FALSE;
-
-	*tag = strtoul(str, &end, 10);
-	if (!end || *end != '\0')
-		return FALSE;
-
-	return TRUE;
+	return 0;
 }
 
 /*
  * VLAN interfaces are recognized by their name (vlan<N>)
  */
-static ni_bool_t
+static int
 try_vlan(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 {
 	ni_netdev_t *dev = compat->dev;
 	ni_vlan_t *vlan;
 	const char *etherdev = NULL;
 	const char *vlantag = NULL;
-	unsigned int tag;
+	unsigned int tag = 0;
 	size_t len;
 
 	if ((etherdev = ni_sysconfig_get_value(sc, "ETHERDEVICE")) == NULL)
-		return FALSE;
+		return 1;
+
+	if (dev->link.type != NI_IFTYPE_UNKNOWN) {
+		ni_error("ifcfg-%s: %s config contains vlan variables",
+			dev->name, ni_linktype_type_to_name(dev->link.type));
+		return -1;
+	}
+
+	dev->link.type = NI_IFTYPE_VLAN;
+	vlan = ni_netdev_get_vlan(dev);
 
 	if (!strcmp(dev->name, etherdev)) {
 		ni_error("ifcfg-%s: ETHERDEVICE=\"%s\" self-reference",
 			dev->name, etherdev);
-		return FALSE;
+		return -1;
 	}
 
 	if ((vlantag = ni_sysconfig_get_value(sc, "VLAN_ID")) != NULL) {
-		if (!__try_vlan_tag_parse(vlantag, &tag)) {
+		if (!ni_parse_uint(vlantag, &tag, 10) < 0) {
 			ni_error("ifcfg-%s: Cannot parse VLAN_ID=\"%s\"",
 				dev->name, vlantag);
-			return FALSE;
+			return -1;
 		}
 	} else {
 		if ((vlantag = strrchr(dev->name, '.')) != NULL) {
@@ -785,16 +805,16 @@ try_vlan(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 			while(len > 0 && isdigit((unsigned char)vlantag[-1]))
 				vlantag--;
 		}
-		if (!__try_vlan_tag_parse(vlantag, &tag)) {
+		if (!ni_parse_uint(vlantag, &tag, 10) < 0) {
 			ni_error("ifcfg-%s: Cannot parse vlan-tag from interface name",
 				dev->name);
-			return FALSE;
+			return -1;
 		}
 	}
 	if (tag > __NI_VLAN_TAG_MAX) {
 		ni_error("ifcfg-%s: VLAN tag %u is out of numerical range",
 			dev->name, tag);
-		return FALSE;
+		return -1;
 #if 0
 	} else if (tag == 0) {
 		ni_warn("%s: VLAN tag 0 disables VLAN filter and is probably not what you want",
@@ -802,36 +822,41 @@ try_vlan(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 #endif
 	}
 
-	dev->link.type = NI_IFTYPE_VLAN;
-	vlan = ni_netdev_get_vlan(dev);
 	ni_string_dup(&vlan->physdev_name, etherdev);
 	vlan->tag = tag;
 
-	return TRUE;
+	return 0;
 }
 
 /*
  * Handle Wireless devices
  * Not yet implemented
  */
-static ni_bool_t
+static int
 try_wireless(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 {
 	ni_netdev_t *dev = compat->dev;
 
 	if (ni_sysconfig_get(sc, "WIRELESS_ESSID") == NULL)
-		return FALSE;
+		return 1;
+
+	if (dev->link.type != NI_IFTYPE_UNKNOWN) {
+		ni_error("ifcfg-%s: %s config contains wireless variables",
+			dev->name, ni_linktype_type_to_name(dev->link.type));
+		return -1;
+	}
 
 	dev->link.type = NI_IFTYPE_WIRELESS;
-	ni_warn("ifcfg-%s: conversion of wireless interfaces not yet supported", dev->name);
+	ni_warn("ifcfg-%s: conversion of wireless interfaces not yet supported",
+		dev->name);
 
-	return TRUE;
+	return 0;
 }
 
 /*
  * Handle Tunnel interfaces
  */
-static ni_bool_t
+static int
 try_tunnel(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 {
 	ni_netdev_t *dev = compat->dev;
@@ -845,19 +870,33 @@ try_tunnel(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		{ "ip6tnl",	NI_IFTYPE_TUNNEL6	},
 		{ NULL,		NI_IFTYPE_UNKNOWN	},
 	};
+	const ni_intmap_t *map;
 
 	/* FIXME: this are just the types... */
-	if ((value = ni_sysconfig_get_value(sc, "TUNNEL")) != NULL) {
-		const ni_intmap_t *map;
+	if ((value = ni_sysconfig_get_value(sc, "TUNNEL")) == NULL)
+		return 1;
 
-		for (map = __tunnel_types; map->name; ++map) {
-			if (!strcmp(map->name, value)) {
-				dev->link.type = (ni_iftype_t)value;
-				return TRUE;
-			}
-		}
+	for (map = __tunnel_types; map->name; ++map) {
+		if (!strcmp(map->name, value))
+			break;
 	}
-	return TRUE;
+	if (map->name == NULL) {
+		ni_error("ifcfg-%s: unsupported tunnel type '%s'",
+			dev->name, value);
+		return -1;
+	}
+
+	if (dev->link.type != NI_IFTYPE_UNKNOWN) {
+		ni_error("ifcfg-%s: %s config contains tunnel variables",
+			dev->name, ni_linktype_type_to_name(dev->link.type));
+		return -1;
+	}
+
+	dev->link.type = map->value;
+	ni_warn("ifcfg-%s: conversion of tunnel interfaces not yet supported",
+		dev->name);
+
+	return 0;
 }
 
 /*
@@ -1213,15 +1252,15 @@ __ni_suse_sysconfig_read(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 				dev->name, value);
 	}
 
-	if (!try_loopback(sc, compat)
-	 && !try_bonding(sc, compat)
-	 && !try_bridge(sc, compat)
-	 && !try_vlan(sc, compat)
-	 && !try_wireless(sc, compat)
-	 && !try_tunnel(sc, compat)
-	 && !try_ethernet(sc, compat)
-	 )
-		;
+
+	if (try_loopback(sc, compat)   < 0 ||
+	    try_bonding(sc, compat)    < 0 ||
+	    try_bridge(sc, compat)     < 0 ||
+	    try_vlan(sc, compat)       < 0 ||
+	    try_tunnel(sc, compat)     < 0 ||
+	    try_wireless(sc, compat)   < 0 ||
+	    try_ethernet(sc, compat)   < 0)
+		return FALSE;
 
 	__ni_suse_bootproto(sc, compat);
 	/* FIXME: What to do with these:
@@ -1229,7 +1268,7 @@ __ni_suse_sysconfig_read(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		USERCONTROL
 	 */
 
-	return 0;
+	return TRUE;
 }
 
 /*
