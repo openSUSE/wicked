@@ -73,9 +73,7 @@ __ni_string_array_realloc(ni_string_array_t *nsa, unsigned int newsize)
 	unsigned int i;
 
 	newsize = (newsize + NI_STRINGARRAY_CHUNK) + 1;
-	newdata = realloc(nsa->data, newsize * sizeof(char *));
-	if (!newdata)
-		ni_fatal("%s: out of memory", __FUNCTION__);
+	newdata = xrealloc(nsa->data, newsize * sizeof(char *));
 
 	nsa->data = newdata;
 	for (i = nsa->count; i < newsize; ++i)
@@ -672,7 +670,7 @@ ni_string_set(char **pp, const char *value, unsigned int len)
 	}
 
 	if (len) {
-		*pp = malloc(len + 1);
+		*pp = xmalloc(len + 1);
 		memcpy(*pp, value, len);
 		(*pp)[len] = '\0';
 	}
@@ -1049,8 +1047,7 @@ __ni_stringbuf_realloc(ni_stringbuf_t *sb, size_t len)
 		ni_assert(sb->dynamic);
 
 		size = __ni_stringbuf_size(sb, len + 1);
-		data = realloc(sb->string, size);
-		ni_assert(data != NULL);
+		data = xrealloc(sb->string, size);
 
 		sb->string = data;
 		sb->size = size;
@@ -1932,7 +1929,7 @@ ni_tempstate_new(const char *tag)
 {
 	ni_tempstate_t *ts;
 
-	ts = calloc(1, sizeof(*ts));
+	ts = xcalloc(1, sizeof(*ts));
 	ni_string_dup(&ts->ident, tag);
 	return ts;
 }
