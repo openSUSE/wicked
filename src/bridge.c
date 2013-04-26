@@ -402,7 +402,7 @@ ni_bridge_validate(const ni_bridge_t *bridge)
 	if (bridge->ports.count > NI_BRIDGE_PORT_MAX_COUNT)
 		return "bridge port count is higher than supported (0-1024)";
 
-	for (i = 0; bridge->ports.count; ++i) {
+	for (i = 0; i < bridge->ports.count; ++i) {
 		const char *err = ni_bridge_port_validate(bridge->ports.data[i]);
 		if (err != NULL)
 			return err;
