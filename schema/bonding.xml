@@ -2,7 +2,7 @@
  <description>
    This link-layer service is provided by all bonding devices.
 
-   Bons devices can be created through the org.opensuse.Network.Bond.Factory
+   Bond devices can be created through the org.opensuse.Network.Bond.Factory
    factory interface.
  </description>
 
