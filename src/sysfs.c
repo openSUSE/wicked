@@ -42,7 +42,6 @@
 static const char *	__ni_sysfs_netif_attrpath(const char *ifname, const char *attr);
 static const char *	__ni_sysfs_netif_get_attr(const char *ifname, const char *attr);
 static int		__ni_sysfs_netif_put_attr(const char *, const char *, const char *);
-static int		__ni_sysfs_netif_printf_attr(const char *, const char *, const char *, ...);
 static int		__ni_sysfs_printf(const char *, const char *, ...);
 static int		__ni_sysfs_read_list(const char *, ni_string_array_t *);
 static int		__ni_sysfs_read_string(const char *, char **);
@@ -119,27 +118,51 @@ ni_sysfs_netif_get_string(const char *ifname, const char *attr_name, char **resu
 int
 ni_sysfs_netif_put_int(const char *ifname, const char *attr_name, int result)
 {
-	return __ni_sysfs_netif_printf_attr(ifname, attr_name, "%d", result);
+	return ni_sysfs_netif_printf(ifname, attr_name, "%d", result);
 }
 
 int
 ni_sysfs_netif_put_long(const char *ifname, const char *attr_name, long result)
 {
-	return __ni_sysfs_netif_printf_attr(ifname, attr_name, "%ld", result);
+	return ni_sysfs_netif_printf(ifname, attr_name, "%ld", result);
 }
 
 int
 ni_sysfs_netif_put_uint(const char *ifname, const char *attr_name, unsigned int result)
 {
-	return __ni_sysfs_netif_printf_attr(ifname, attr_name, "%u", result);
+	return ni_sysfs_netif_printf(ifname, attr_name, "%u", result);
 }
 
 int
 ni_sysfs_netif_put_ulong(const char *ifname, const char *attr_name, unsigned long result)
 {
-	return __ni_sysfs_netif_printf_attr(ifname, attr_name, "%lu", result);
+	return ni_sysfs_netif_printf(ifname, attr_name, "%lu", result);
 }
 
+int
+ni_sysfs_netif_put_string(const char *ifname, const char *attr_name, const char *attr_value)
+{
+	return __ni_sysfs_netif_put_attr(ifname, attr_name, attr_value);
+}
+
+int
+ni_sysfs_netif_printf(const char *ifname, const char *attr_name, const char *fmt, ...)
+{
+	char *attr_value = NULL;
+	va_list ap;
+	int ret;
+
+	va_start(ap, fmt);
+	ret = vasprintf(&attr_value, fmt, ap);
+	va_end(ap);
+
+	if (ret < 0)
+		return -1;
+
+	ret = __ni_sysfs_netif_put_attr(ifname, attr_name, attr_value);
+	free(attr_value);
+	return ret;
+}
 
 static const char *
 __ni_sysfs_netif_get_attr(const char *ifname, const char *attr_name)
@@ -184,19 +207,6 @@ __ni_sysfs_netif_put_attr(const char *ifname, const char *attr_name, const char 
 	}
 	fclose(fp);
 	return rv;
-}
-
-static int
-__ni_sysfs_netif_printf_attr(const char *ifname, const char *attr_name, const char *fmt, ...)
-{
-	char attr_value[256];
-	va_list ap;
-
-	va_start(ap, fmt);
-	vsnprintf(attr_value, sizeof(attr_value), fmt, ap);
-	va_end(ap);
-
-	return __ni_sysfs_netif_put_attr(ifname, attr_name, attr_value);
 }
 
 static const char *
