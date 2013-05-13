@@ -32,6 +32,7 @@
 #include <wicked/vlan.h>
 #include <wicked/system.h>
 #include <wicked/wireless.h>
+#include <wicked/infiniband.h>
 #include <wicked/ppp.h>
 #include <wicked/ipv4.h>
 #include <wicked/ipv6.h>
@@ -218,8 +219,14 @@ ni_system_interface_delete(ni_netconfig_t *nc, const char *ifname)
 	case NI_IFTYPE_ETHERNET:
 	case NI_IFTYPE_WIRELESS:
 	case NI_IFTYPE_DUMMY:
+	case NI_IFTYPE_INFINIBAND:
 		ni_error("cannot destroy %s interfaces", ni_linktype_type_to_name(dev->link.type));
 		return -1;
+
+	case NI_IFTYPE_INFINIBAND_CHILD:
+		if (ni_system_infiniband_child_delete(dev) < 0)
+			return -1;
+		break;
 
 	case NI_IFTYPE_VLAN:
 		if (__ni_rtnl_link_down(dev, RTM_DELLINK)) {
@@ -325,6 +332,138 @@ ni_system_vlan_delete(ni_netdev_t *dev)
 	}
 	return 0;
 }
+
+/*
+ * Setup infiniband interface
+ */
+int
+__ni_system_infiniband_setup(const char *ifname, unsigned int mode, unsigned int umcast)
+{
+	const char *mstr = ni_infiniband_get_mode_name(mode);
+	int ret = 0;
+
+	if (mstr &&
+	    ni_sysfs_netif_put_string(ifname, "mode", mstr) < 0) {
+		ni_error("%s: Cannot set infiniband IPoIB connection-mode '%s'",
+			ifname, mstr);
+		ret = -1;
+	}
+
+	if ((umcast == 0 || umcast == 1) &&
+	    ni_sysfs_netif_put_uint(ifname, "umcast", umcast) < 0) {
+		ni_error("%s: Cannot set infiniband IPoIB user-multicast '%s' (%u)",
+			ifname, ni_infiniband_get_umcast_name(umcast), umcast);
+		ret = -1;
+	}
+
+	return ret;
+}
+
+int
+ni_system_infiniband_setup(ni_netconfig_t *nc, ni_netdev_t *dev,
+				const ni_infiniband_t *cfg)
+{
+	if (!dev || !dev->name) {
+		ni_error("Cannot setup infiniband interface without name");
+		return -1;
+	}
+	if (dev->link.type != NI_IFTYPE_INFINIBAND &&
+	    dev->link.type != NI_IFTYPE_INFINIBAND_CHILD) {
+		ni_error("%s: %s is not infiniband interface", __func__, dev->name);
+		return -1;
+	}
+
+	return __ni_system_infiniband_setup(dev->name, cfg->mode, cfg->umcast);
+}
+
+/*
+ * Create infinband child interface
+ */
+int
+ni_system_infiniband_child_create(ni_netconfig_t *nc, const char *ifname,
+		const ni_infiniband_t *cfg, ni_netdev_t **dev_ret)
+{
+	unsigned int i, success = 0;
+	char *tmpname = NULL;
+
+	if (!cfg || !cfg->parent.name || !*cfg->parent.name) {
+		ni_error("%s: Invalid parent reference in infiniband child",
+			ifname);
+		return -1;
+	}
+
+	if (!ni_string_printf(&tmpname, "%s.%04x", cfg->parent.name, cfg->pkey)) {
+		ni_error("%s: Unable to construct temporary interface name", ifname);
+		return -1;
+	}
+
+	if (ni_sysfs_netif_printf(cfg->parent.name, "create_child", "0x%04x", cfg->pkey) < 0) {
+		ni_error("%s: Cannot create infiniband child interface", ifname);
+		ni_string_free(&tmpname);
+		return -1;
+	}
+
+	/* TODO: Avoid to wait for interface to appear ...
+	 *       but we need it for object path in factory.
+	 */
+	for (i = 0; i < 400; ++i) {
+		if (!ni_sysfs_netif_exists(tmpname, "ifindex"))
+			usleep(25000);
+		success = 1;
+		break;
+	}
+	if (!success) {
+		ni_error("%s: Infiniband child %s did not appear after 10 sec",
+			ifname, tmpname);
+		ni_string_free(&tmpname);
+		return -1;
+	} else if (__ni_netdev_rename(tmpname, ifname) < 0) {
+		/* error reported */
+		ni_string_free(&tmpname);
+		return -1;
+	}
+	ni_string_free(&tmpname);
+
+	ni_debug_ifconfig("%s: infiniband child interface created", ifname);
+
+	if (__ni_system_infiniband_setup(ifname, cfg->mode, cfg->umcast) < 0)
+		return -1; /* error reported */
+
+	if (dev_ret != NULL) {
+		/* Refresh interface status */
+		__ni_system_refresh_interfaces(nc);
+
+		*dev_ret = ni_netdev_by_name(nc, ifname);
+		if (*dev_ret == NULL) {
+			ni_error("tried to create interface %s; unable to find it",
+				ifname);
+			return -1;
+		}
+	}
+	return 0;
+}
+
+/*
+ * Delete infinband child interface
+ */
+int
+ni_system_infiniband_child_delete(ni_netdev_t *dev)
+{
+	ni_infiniband_t *ib = dev ? dev->infiniband : NULL;
+
+	if (!ib || !ib->parent.name || dev->link.type != NI_IFTYPE_INFINIBAND_CHILD) {
+		ni_error("Cannot destroy infiniband child interface without parent and key name");
+		return -1;
+	}
+
+	if (ni_sysfs_netif_printf(ib->parent.name, "delete_child", "0x%04x", ib->pkey) < 0) {
+		ni_error("%s: Cannot destroy infiniband child interface (parent %s, key %04x)",
+			dev->name, ib->parent.name, ib->pkey);
+		return -1;
+	}
+	return 0;
+}
+
 
 /*
  * Create a bridge interface

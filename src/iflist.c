@@ -13,6 +13,7 @@
 #include <net/if_arp.h>
 #include <netlink/attr.h>
 #include <netlink/msg.h>
+#include <errno.h>
 
 #include <wicked/netinfo.h>
 #include <wicked/ipv4.h>
@@ -24,6 +25,7 @@
 #include <wicked/system.h>
 #include <wicked/vlan.h>
 #include <wicked/wireless.h>
+#include <wicked/infiniband.h>
 #include <wicked/linkstats.h>
 
 #include "netinfo_priv.h"
@@ -40,6 +42,7 @@ static int		__ni_netdev_process_newroute(ni_netdev_t *, struct nlmsghdr *,
 static int		__ni_discover_bridge(ni_netdev_t *);
 static int		__ni_discover_bond(ni_netdev_t *);
 static int		__ni_discover_addrconf(ni_netdev_t *);
+static int		__ni_discover_infiniband(ni_netdev_t *);
 static ni_route_t *	__ni_netdev_add_autoconf_prefix(ni_netdev_t *, const ni_sockaddr_t *, unsigned int, const struct prefix_cacheinfo *);
 static ni_addrconf_lease_t *__ni_netdev_get_autoconf_lease(ni_netdev_t *, int);
 
@@ -708,7 +711,9 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 
 		case ARPHRD_INFINIBAND:
 			link->type = NI_IFTYPE_INFINIBAND;
-			if (strchr(ifname, '.') != NULL)
+			if (ni_sysfs_bonding_is_master(ifname))
+				link->type = NI_IFTYPE_BOND;
+			else if (ni_sysfs_netif_exists(ifname, "parent"))
 				link->type = NI_IFTYPE_INFINIBAND_CHILD;
 			break;
 
@@ -838,14 +843,24 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 
 	__ni_process_ifinfomsg_ipv6info(dev, tb[IFLA_PROTINFO]);
 
-	if (dev->link.type == NI_IFTYPE_ETHERNET)
+	switch (dev->link.type) {
+	case NI_IFTYPE_ETHERNET:
 		__ni_system_ethernet_refresh(dev);
+		break;
 
-	if (dev->link.type == NI_IFTYPE_BRIDGE)
+	case NI_IFTYPE_INFINIBAND:
+	case NI_IFTYPE_INFINIBAND_CHILD:
+		__ni_discover_infiniband(dev);
+		break;
+
+	case NI_IFTYPE_BRIDGE:
 		__ni_discover_bridge(dev);
-	if (dev->link.type == NI_IFTYPE_BOND)
+		break;
+	case NI_IFTYPE_BOND:
 		__ni_discover_bond(dev);
-	if (dev->link.type == NI_IFTYPE_WIRELESS) {
+		break;
+
+	case NI_IFTYPE_WIRELESS:
 		rv = ni_wireless_interface_refresh(dev);
 		if (rv == -NI_ERROR_RADIO_DISABLED) {
 			ni_debug_ifconfig("%s: radio disabled, not refreshing wireless info", dev->name);
@@ -853,6 +868,10 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 		} else 
 		if (rv < 0)
 			ni_error("%s: failed to refresh wireless info", dev->name);
+		break;
+
+	default:
+		break;
 	}
 
 	/* Check if we have DHCP running for this interface */
@@ -1362,6 +1381,63 @@ __ni_discover_bond(ni_netdev_t *dev)
 	}
 
 	return 0;
+}
+
+/*
+ * Discover infiniband configuration
+ */
+static int
+__ni_discover_infiniband(ni_netdev_t *dev)
+{
+	ni_infiniband_t *ib;
+	char *value = NULL;
+	unsigned int pkey;
+	int ret = 0;
+
+	if (dev->link.type != NI_IFTYPE_INFINIBAND &&
+	    dev->link.type != NI_IFTYPE_INFINIBAND_CHILD)
+		return 0;
+
+	if (!(ib = ni_netdev_get_infiniband(dev)))
+		return -1;
+
+	if (ni_sysfs_netif_get_string(dev->name, "mode", &value) < 0) {
+		ni_error("%s: unable to retrieve infiniband mode attribute from sysfs",
+			dev->name);
+		ret = -1;
+	} else {
+		ib->mode = ni_infiniband_get_mode_flag(value);
+	}
+	ni_string_free(&value);
+
+	if (ni_sysfs_netif_get_uint(dev->name, "umcast", &ib->umcast) < 0) {
+		ni_error("%s: unable to retrieve infiniband umcast attribute from sysfs",
+			dev->name);
+		ret = -1;
+	}
+
+	if (ni_sysfs_netif_get_uint(dev->name, "pkey", &pkey) < 0) {
+		ni_error("%s: unable to retrieve infiniband paritition key from sysfs",
+			dev->name);
+		ret = -1;
+	}
+	ib->pkey = pkey;
+
+	if (dev->link.type != NI_IFTYPE_INFINIBAND_CHILD)
+		return ret;
+
+	if (ni_sysfs_netif_get_string(dev->name, "parent", &value) < 0) {
+		ni_error("%s: unable to retrieve infiniband child's parent interface name",
+			dev->name);
+		ret = -1;
+	} else if (!ni_string_eq(ib->parent.name, value)) {
+		ni_string_free(&ib->parent.name);
+		ib->parent.name = value;
+	} else {
+		ni_string_free(&value);
+	}
+
+	return ret;
 }
 
 /*

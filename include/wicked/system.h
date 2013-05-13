@@ -20,6 +20,11 @@ extern int		ni_system_ipv4_setup(ni_netconfig_t *, ni_netdev_t *dev, const ni_ip
 extern int		ni_system_ipv6_setup(ni_netconfig_t *, ni_netdev_t *dev, const ni_ipv6_devconf_t *conf);
 extern int		ni_system_ethernet_setup(ni_netconfig_t *nc, ni_netdev_t *ifp, 
 				const ni_ethernet_t *dev_cfg);
+extern int		ni_system_infiniband_setup(ni_netconfig_t *nc, ni_netdev_t *ifp,
+				const ni_infiniband_t *ib_cfg);
+extern int		ni_system_infiniband_child_create(ni_netconfig_t *nc, const char *ifname,
+				const ni_infiniband_t *ib_cfg, ni_netdev_t **dev_ret);
+extern int		ni_system_infiniband_child_delete(ni_netdev_t *dev);
 extern int		ni_system_vlan_create(ni_netconfig_t *nc, const char *ifname,
 				const ni_vlan_t *cfg_vlan, ni_netdev_t **ifpp);
 extern int		ni_system_vlan_delete(ni_netdev_t *ifp);
