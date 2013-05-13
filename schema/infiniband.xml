@@ -1,36 +1,63 @@
 <!--
-  -- Infiniband Service definition
+     Infiniband Service definition
   -->
 <service name="infiniband" interface="org.opensuse.Network.Infiniband" object-class="netif-infiniband">
-  <define name="mode_t" type="uint32" constraint="enum">
-      <default value="0"/>
-      <connected value="1"/>
-      <datagram value="2"/>
-  </define>
-  <define name="multicast_t" type="uint32" constraint="enum">
-    <default value="0" />
-    <enabled value="1" />
-    <disabled value="2" />
+      
+  <define name="configuration" class="dict" description="Infiniband interface configuration">
+
+    <mode type="uint32" constraint="enum">
+      <connected value="0"/>
+      <datagram value="1"/>
+    </mode>
+
+    <multicast type="uint32" constraint="enum">
+      <disallow value="0" />
+      <allow value="1" />
+    </multicast>
+
   </define>
 
-  <define name="properties" class="dict">
-    <mode type="mode_t"/>
-    <multicast type="multicast_t"/>
+  <define name="properties" class="dict" extends="infiniband:configuration">
+
+    <!-- read-only on ib-parent -->
+    <pkey type="uint16" description="Infiniband partition key"/>
+
   </define>
 
   <method name="changeDevice">
     <arguments>
-      <properties />
+      <config type="infiniband:configuration">
+        <meta:mapping document-node="/infiniband" />
+      </config>
     </arguments>
   </method>
 </service>
 
 <service name="infiniband-child" interface="org.opensuse.Network.InfinibandChild" object-class="netif-infiniband-child">
-  <define name="linkinfo" class="dict">
-    <device type="string" />
-    <mode type="infiniband:mode_t"/>
-    <multicast type="infiniband:multicast_t"/>
+
+  <define name="configuration"  class="dict" extends="infiniband:configuration"
+          description="Infiniband child interface configuration">
+
+    <parent type="string" description="Infiniband parent interface reference">
+      <meta:netif-reference shared="true"/>
+      <!-- meta:require check="netif-child-state" op="newDevice" min-state="device-exists" / -->
+    </parent>
+
+    <pkey type="uint16" description="Infiniband partition key"/>
+
   </define>
+
+  <define name="properties" type="infiniband-child:configuration">
+    <!-- Add more info properties here -->
+  </define>
+
+  <method name="changeDevice">
+    <arguments>
+      <config type="infiniband-child:configuration">
+        <meta:mapping document-node="/infiniband-child" />
+      </config>
+    </arguments>
+  </method>
 
   <method name="deleteDevice" />
 </service>
@@ -40,8 +67,8 @@
   <method name="newDevice">
     <arguments>
       <name type="string"/>
-      <config type="infiniband-child:linkinfo">
-       <meta:mapping document-node="/infiniband-child"/>
+      <config type="infiniband-child:configuration">
+        <meta:mapping document-node="/infiniband-child"/>
       </config>
     </arguments>
     <return>
