@@ -174,9 +174,8 @@ make install DESTDIR=${RPM_BUILD_ROOT}
 %dir %_datadir/dbus-1
 %dir %_datadir/dbus-1/system-services
 %_datadir/dbus-1/system-services/org.opensuse.Network.*.service
-%_mandir/man5/wicked*
-%_mandir/man8/wickedd
-%_mandir/man8/wicked-config
+%_mandir/man5/wicked-config.5*
+%_mandir/man8/wickedd.8*
 %attr(0750,root,root) %dir %ghost %_localstatedir/run/wicked
 
 %files sysvinit
@@ -192,7 +191,7 @@ make install DESTDIR=${RPM_BUILD_ROOT}
 %dir %_sysconfdir/wicked/ifconfig
 %config(noreplace) %_sysconfdir/wicked/client.xml
 %_sbindir/wicked
-%_mandir/man8/wicked
+%_mandir/man8/wicked.8*
 
 %files nanny
 %defattr (-,root,root)
@@ -209,7 +208,7 @@ make install DESTDIR=${RPM_BUILD_ROOT}
 %_includedir/wicked/*
 %_devellibdir/libwicked*.so
 %_datadir/pkgconfig/wicked.pc
-%_mandir/man7/wicked*
+%_mandir/man7/wicked.7*
 
 %files -n libwicked@LIBWICKED_PACKAGE_SUFFIX@
 %defattr (-,root,root)
