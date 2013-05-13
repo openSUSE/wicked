@@ -164,6 +164,7 @@ PKG_CHECK_MODULES(LIBNL, [libnl-1])
 PKG_CHECK_MODULES(LIBDBUS, [dbus-1])
 
 # Checks for header files.
+AC_CHECK_HEADER([wireless.h],[],[AC_MSG_ERROR([Please install libiw-devel to get wireless.h])])
 AC_CHECK_HEADERS([arpa/inet.h fcntl.h limits.h netdb.h netinet/in.h])
 AC_CHECK_HEADERS([stdint.h stdlib.h string.h sys/ioctl.h sys/param.h])
 AC_CHECK_HEADERS([sys/socket.h sys/time.h syslog.h unistd.h])
