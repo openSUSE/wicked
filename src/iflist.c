@@ -291,11 +291,11 @@ __ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list)
 	}
 
 	for (dev = ni_netconfig_devlist(nc); dev; dev = dev->next) {
-		if (dev->link.vlan && ni_vlan_bind_ifindex(dev->link.vlan, nc) < 0) {
+		if (dev->link.vlan && ni_netdev_ref_bind_ifindex(&dev->link.vlan->parent, nc) < 0) {
 			ni_error("VLAN interface %s references unknown base interface (ifindex %u)",
-				dev->name, dev->link.vlan->physdev_index);
+				dev->name, dev->link.vlan->parent.index);
 			/* Ignore error and proceed */
-			ni_string_dup(&dev->link.vlan->physdev_name, "unknown");
+			ni_string_dup(&dev->link.vlan->parent.name, "unknown");
 		}
 	}
 
@@ -650,20 +650,20 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 			link->type = NI_IFTYPE_VLAN;
 
 			if (!(vlan = link->vlan))
-				link->vlan = vlan = __ni_vlan_new();
+				link->vlan = vlan = ni_vlan_new();
 
 			/* IFLA_LINK contains the ifindex of the real ether dev */
 			if (tb[IFLA_LINK]) {
-				vlan->physdev_index = nla_get_u32(tb[IFLA_LINK]);
+				vlan->parent.index = nla_get_u32(tb[IFLA_LINK]);
 
-				if (ni_vlan_bind_ifindex(vlan, nc) < 0) {
+				if (ni_netdev_ref_bind_ifindex(&vlan->parent, nc) < 0) {
 					ni_error("VLAN interface %s references unknown base interface (ifindex %u)",
-							ifname, vlan->physdev_index);
+							ifname, vlan->parent.index);
 					/* Ignore error and proceed */
-					ni_string_dup(&vlan->physdev_name, "unknown");
+					ni_string_dup(&vlan->parent.name, "unknown");
 				}
 			} else {
-				__ni_vlan_destroy(vlan);
+				ni_netdev_ref_destroy(&vlan->parent);
 			}
 
 			if (nla_parse_nested(vlan_info, IFLA_VLAN_MAX, nl_linkinfo[IFLA_INFO_DATA], NULL) >= 0)

@@ -456,18 +456,18 @@ ni_netdev_by_hwaddr(ni_netconfig_t *nc, const ni_hwaddr_t *lla)
  * Find VLAN interface by its tag
  */
 ni_netdev_t *
-ni_netdev_by_vlan_name_and_tag(ni_netconfig_t *nc, const char *physdev_name, uint16_t tag)
+ni_netdev_by_vlan_name_and_tag(ni_netconfig_t *nc, const char *parent_name, uint16_t tag)
 {
 	ni_netdev_t *dev;
 
-	if (!physdev_name || !tag)
+	if (!parent_name || !tag)
 		return NULL;
 	for (dev = nc->interfaces; dev; dev = dev->next) {
 		if (dev->link.type == NI_IFTYPE_VLAN
 		 && dev->link.vlan
 		 && dev->link.vlan->tag == tag
-		 && dev->link.vlan->physdev_name
-		 && !strcmp(dev->link.vlan->physdev_name, physdev_name))
+		 && dev->link.vlan->parent.name
+		 && !strcmp(dev->link.vlan->parent.name, parent_name))
 			return dev;
 	}
 

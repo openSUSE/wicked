@@ -364,7 +364,7 @@ try_vlan(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	vlan = ni_netdev_get_vlan(dev);
 	vlan->tag = vlan_tag;
 
-	if(asprintf(&vlan->physdev_name, "eth%u", eth_num) == -1) {
+	if(asprintf(&vlan->parent.name, "eth%u", eth_num) == -1) {
 		ni_error("%s: unable to allocate VLAN base interface name",
 			dev->name);
 		free(vlan);

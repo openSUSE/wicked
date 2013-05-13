@@ -264,17 +264,17 @@ ni_system_vlan_create(ni_netconfig_t *nc, const char *ifname, const ni_vlan_t *c
 
 	*dev_ret = NULL;
 
-	dev = ni_netdev_by_vlan_name_and_tag(nc, cfg_vlan->physdev_name, cfg_vlan->tag);
+	dev = ni_netdev_by_vlan_name_and_tag(nc, cfg_vlan->parent.name, cfg_vlan->tag);
 	if (dev != NULL) {
 		/* This is not necessarily an error */
 		*dev_ret = dev;
 		return -NI_ERROR_DEVICE_EXISTS;
 	}
 
-	phys_dev = ni_netdev_by_name(nc, cfg_vlan->physdev_name);
+	phys_dev = ni_netdev_by_name(nc, cfg_vlan->parent.name);
 	if (!phys_dev || !phys_dev->link.ifindex) {
 		ni_error("Cannot create VLAN interface %s: interface %s does not exist",
-				ifname, cfg_vlan->physdev_name);
+				ifname, cfg_vlan->parent.name);
 		return -NI_ERROR_DEVICE_NOT_KNOWN;
 	}
 
@@ -287,7 +287,7 @@ ni_system_vlan_create(ni_netconfig_t *nc, const char *ifname, const ni_vlan_t *c
 	/* Refresh interface status */
 	__ni_system_refresh_interfaces(nc);
 
-	dev = ni_netdev_by_vlan_name_and_tag(nc, cfg_vlan->physdev_name, cfg_vlan->tag);
+	dev = ni_netdev_by_vlan_name_and_tag(nc, cfg_vlan->parent.name, cfg_vlan->tag);
 	if (dev == NULL) {
 		ni_error("tried to create interface %s; still not found", ifname);
 		return -1;
@@ -299,12 +299,12 @@ ni_system_vlan_create(ni_netconfig_t *nc, const char *ifname, const ni_vlan_t *c
 	{
 		ni_netdev_t *real_dev;
 
-		if (!cfg_vlan->physdev_name)
+		if (!cfg_vlan->parent.name)
 			return -1;
-		real_dev = ni_netdev_by_name(nc, cfg_vlan->physdev_name);
+		real_dev = ni_netdev_by_name(nc, cfg_vlan->parent.name);
 		if (!real_dev || !real_dev->link.ifindex) {
 			ni_error("Cannot bring up VLAN interface %s: %s does not exist",
-					ifname, cfg_vlan->physdev_name);
+					ifname, cfg_vlan->parent.name);
 			return -NI_ERROR_DEVICE_NOT_KNOWN;
 		}
 	}
@@ -916,7 +916,7 @@ __ni_rtnl_link_create_vlan(const char *ifname, const ni_vlan_t *vlan, unsigned i
 	 *  LINK must contain the link ID of the real ethernet device
 	 */
 	ni_debug_ifconfig("__ni_rtnl_link_create(%s, vlan, %u, %s)",
-			ifname, vlan->tag, vlan->physdev_name);
+			ifname, vlan->tag, vlan->parent.name);
 
 	if (!(linkinfo = nla_nest_start(msg, IFLA_LINKINFO)))
 		return -1;

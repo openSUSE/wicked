@@ -85,9 +85,6 @@ extern int		__ni_system_resolver_restore(void);
 extern ni_bool_t	__ni_lease_owns_address(const ni_addrconf_lease_t *, const ni_address_t *);
 extern ni_route_t *	__ni_lease_owns_route(const ni_addrconf_lease_t *, const ni_route_t *);
 
-extern ni_vlan_t *	__ni_vlan_new(void);
-extern void		__ni_vlan_destroy(ni_vlan_t *);
-
 extern int		__ni_wireless_link_event(ni_netconfig_t *, ni_netdev_t *, void *, size_t);
 
 static inline void

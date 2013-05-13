@@ -64,13 +64,13 @@ __ni_objectmodel_vlan_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusErro
 	int rv;
 
 	vlan = ni_netdev_get_vlan(cfg_ifp);
-	if (!vlan || !vlan->tag || !vlan->physdev_name) {
+	if (!vlan || !vlan->tag || !vlan->parent.name) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
 				"Incomplete arguments (need VLAN tag and interface name)");
 		goto out;
 	}
 
-	ni_debug_dbus("VLAN.newDevice(name=%s, dev=%s, tag=%u)", ifname, vlan->physdev_name, vlan->tag);
+	ni_debug_dbus("VLAN.newDevice(name=%s, dev=%s, tag=%u)", ifname, vlan->parent.name, vlan->tag);
 
 	if (ifname == NULL && !(ifname = ni_netdev_make_name(nc, "vlan"))) {
 		dbus_set_error(error, DBUS_ERROR_FAILED, "Unable to create vlan - too many interfaces");
@@ -154,7 +154,7 @@ ni_objectmodel_get_vlan(const ni_dbus_object_t *object, DBusError *error)
 	NI_DBUS_GENERIC_UINT16_PROPERTY(vlan, dbus_type, type, rw)
 
 const ni_dbus_property_t	ni_objectmodel_vlan_property_table[] = {
-	VLAN_STRING_PROPERTY(device, physdev_name, RO),
+	VLAN_STRING_PROPERTY(device, parent.name, RO),
 	VLAN_UINT16_PROPERTY(tag, tag, RO),
 	{ NULL }
 };

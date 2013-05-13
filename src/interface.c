@@ -148,7 +148,7 @@ ni_vlan_t *
 ni_netdev_get_vlan(ni_netdev_t *dev)
 {
 	if (!dev->link.vlan)
-		dev->link.vlan = __ni_vlan_new();
+		dev->link.vlan = ni_vlan_new();
 	return dev->link.vlan;
 }
 

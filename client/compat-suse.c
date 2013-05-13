@@ -821,7 +821,7 @@ try_vlan(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 #endif
 	}
 
-	ni_string_dup(&vlan->physdev_name, etherdev);
+	ni_string_dup(&vlan->parent.name, etherdev);
 	vlan->tag = tag;
 
 	return 0;
