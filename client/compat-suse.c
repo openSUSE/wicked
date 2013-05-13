@@ -33,7 +33,7 @@ static ni_bool_t	__ni_suse_sysconfig_read(ni_sysconfig_t *, ni_compat_netdev_t *
 static ni_bool_t	__process_indexed_variables(const ni_sysconfig_t *, ni_netdev_t *, const char *,
 				ni_bool_t (*)(const ni_sysconfig_t *, ni_netdev_t *, const char *));
 static ni_var_t *	__find_indexed_variable(const ni_sysconfig_t *, const char *, const char *);
-static ni_route_t *	__ni_suse_read_routes(const char *);
+static ni_bool_t	__ni_suse_read_routes(ni_route_t **, const char *);
 
 static ni_sysconfig_t *	__ni_suse_config_defaults = NULL;
 static ni_sysconfig_t *	__ni_suse_dhcp_defaults   = NULL;
@@ -232,7 +232,7 @@ __ni_suse_read_globals(const char *path)
 
 	snprintf(pathbuf, sizeof(pathbuf), "%s/%s", path, __NI_SUSE_ROUTES_GLOBAL);
 	if (ni_file_exists(pathbuf)) {
-		if ((__ni_suse_global_routes = __ni_suse_read_routes(pathbuf)) == NULL)
+		if (!__ni_suse_read_routes(&__ni_suse_global_routes, pathbuf))
 			return FALSE;
 	}
 
@@ -254,16 +254,15 @@ __ni_suse_free_globals(void)
 /*
  * Read the routing information from sysconfig/network/routes.
  */
-ni_route_t *
-__ni_suse_read_routes(const char *filename)
+ni_bool_t
+__ni_suse_read_routes(ni_route_t **route_list, const char *filename)
 {
-	ni_route_t *route_list = NULL;
 	char buffer[512];
 	FILE *fp;
 
 	if ((fp = fopen(filename, "r")) == NULL) {
 		ni_error("unable to open %s: %m", filename);
-		return NULL;
+		return FALSE;
 	}
 
 	while (fgets(buffer, sizeof(buffer), fp) != NULL) {
@@ -331,7 +330,7 @@ __ni_suse_read_routes(const char *filename)
 			}
 		}
 
-		rp = ni_route_new(prefixlen, &dest_addr, &gw_addr, &route_list);
+		rp = ni_route_new(prefixlen, &dest_addr, &gw_addr, route_list);
 		if (rp == NULL) {
 			ni_error("Unable to add route %s %s %s", dest, gw, mask?: "-");
 			goto error;
@@ -344,12 +343,12 @@ __ni_suse_read_routes(const char *filename)
 	}
 
 	fclose(fp);
-	return route_list;
+	return TRUE;
 
 error:
-	ni_route_list_destroy(&route_list);
+	ni_route_list_destroy(route_list);
 	fclose(fp);
-	return NULL;
+	return FALSE;
 }
 
 /*
@@ -1015,11 +1014,12 @@ __ni_suse_addrconf_static(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 			ni_address_new(AF_INET6, 128, &local_addr, &dev->addrs);
 	}
 
+	if (dev->routes != NULL)
+		ni_route_list_destroy(&dev->routes);
+
 	routespath = ni_sibling_path_printf(sc->pathname, "ifroute-%s", dev->name);
 	if (routespath && ni_file_exists(routespath)) {
-		dev->routes = __ni_suse_read_routes(routespath);
-		if (dev->routes == NULL)
-			ni_warn("unable to parse %s", routespath);
+		__ni_suse_read_routes(&dev->routes, routespath);
 	}
 
 	if (__ni_suse_global_routes) {
