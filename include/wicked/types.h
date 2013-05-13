@@ -44,6 +44,12 @@ typedef struct ni_modem		ni_modem_t;
 typedef struct ni_pci_dev	ni_pci_dev_t;
 typedef struct ni_device_clientinfo ni_device_clientinfo_t;
 
+typedef struct ni_netdev_ref {
+	unsigned int		index;	/* by ifindex */
+	char *			name;	/* by ifname  */
+	ni_netdev_t *		dev;	/* bound ref  */
+} ni_netdev_ref_t;
+
 typedef struct ni_dbus_server	ni_dbus_server_t;
 typedef struct ni_dbus_client	ni_dbus_client_t;
 
