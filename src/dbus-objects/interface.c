@@ -105,12 +105,15 @@ ni_objectmodel_register_netif_services(void)
 	ni_objectmodel_register_netif_service(NI_IFTYPE_WIRELESS, &ni_objectmodel_wireless_service);
 	ni_objectmodel_register_netif_service(NI_IFTYPE_TUN, &ni_objectmodel_tun_service);
 	ni_objectmodel_register_netif_service(NI_IFTYPE_TUN, &ni_objectmodel_openvpn_service);
+	ni_objectmodel_register_netif_service(NI_IFTYPE_INFINIBAND, &ni_objectmodel_ibparent_service);
+	ni_objectmodel_register_netif_service(NI_IFTYPE_INFINIBAND_CHILD, &ni_objectmodel_ibchild_service);
 
 	ni_objectmodel_register_netif_factory_service(&ni_objectmodel_bond_factory_service);
 	ni_objectmodel_register_netif_factory_service(&ni_objectmodel_bridge_factory_service);
 	ni_objectmodel_register_netif_factory_service(&ni_objectmodel_vlan_factory_service);
 	ni_objectmodel_register_netif_factory_service(&ni_objectmodel_tun_factory_service);
 	ni_objectmodel_register_netif_factory_service(&ni_objectmodel_openvpn_factory_service);
+	ni_objectmodel_register_netif_factory_service(&ni_objectmodel_ibchild_factory_service);
 
 	/* Register all builtin naming services */
 	ni_objectmodel_register_ns_builtin();

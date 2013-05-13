@@ -97,6 +97,7 @@ libwicked_dbus_objects_la_SOURCES	= \
 	dbus-objects/bonding.c	\
 	dbus-objects/bridge.c	\
 	dbus-objects/ethernet.c	\
+	dbus-objects/infiniband.c\
 	dbus-objects/interface.c\
 	dbus-objects/ipv4.c	\
 	dbus-objects/ipv6.c	\
