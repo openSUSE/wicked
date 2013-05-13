@@ -21,6 +21,7 @@ extern int	ni_sysfs_netif_put_uint(const char *, const char *, unsigned int);
 extern int	ni_sysfs_netif_put_ulong(const char *, const char *, unsigned long);
 extern int	ni_sysfs_netif_put_string(const char *, const char *, const char *);
 extern int	ni_sysfs_netif_printf(const char *, const char *, const char *, ...);
+extern ni_bool_t ni_sysfs_netif_exists(const char *, const char *);
 extern int	ni_sysfs_bonding_available(void);
 extern int	ni_sysfs_bonding_get_masters(ni_string_array_t *list);
 extern int	ni_sysfs_bonding_is_master(const char *);

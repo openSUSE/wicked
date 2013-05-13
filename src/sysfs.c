@@ -164,6 +164,12 @@ ni_sysfs_netif_printf(const char *ifname, const char *attr_name, const char *fmt
 	return ret;
 }
 
+ni_bool_t
+ni_sysfs_netif_exists(const char *ifname, const char *attr_name)
+{
+	return ni_file_exists(__ni_sysfs_netif_attrpath(ifname, attr_name));
+}
+
 static const char *
 __ni_sysfs_netif_get_attr(const char *ifname, const char *attr_name)
 {
