@@ -11,6 +11,7 @@
 #include <wicked/addrconf.h>
 #include <wicked/route.h>
 #include <wicked/ethernet.h>
+#include <wicked/infiniband.h>
 #include <wicked/bonding.h>
 #include <wicked/bridge.h>
 #include <wicked/vlan.h>
@@ -144,6 +145,35 @@ __ni_compat_generate_ethernet(xml_node_t *ifnode, const ni_compat_netdev_t *comp
 		xml_node_new_element("address", child, ni_link_address_print(&dev->link.hwaddr));
 
 	/* generate offload and other information */
+
+	return TRUE;
+}
+
+static ni_bool_t
+__ni_compat_generate_infiniband(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
+{
+	ni_infiniband_t *ib = ni_netdev_get_infiniband(compat->dev);
+	xml_node_t *child;
+	const char *value;
+	char *pkey = NULL;
+
+	if (!(child = xml_node_new("infiniband", ifnode)))
+		return FALSE;
+
+	if ((value = ni_infiniband_get_mode_name(ib->mode)))
+		xml_node_new_element("mode", child, value);
+
+	if ((value = ni_infiniband_get_umcast_name(ib->umcast)))
+		xml_node_new_element("multicast", child, value);
+
+	if (ib->parent.name) {
+		if (!ni_string_printf(&pkey, "0x%04x", ib->pkey))
+			return FALSE;
+
+		xml_node_new_element("parent", child, ib->parent.name);
+		xml_node_new_element("pkey",   child, pkey);
+		ni_string_free(&pkey);
+	}
 
 	return TRUE;
 }
@@ -573,6 +603,11 @@ __ni_compat_generate_interface(xml_node_t *ifnode, const ni_compat_netdev_t *com
 	switch (dev->link.type) {
 	case NI_IFTYPE_ETHERNET:
 		__ni_compat_generate_ethernet(ifnode, compat);
+		break;
+
+	case NI_IFTYPE_INFINIBAND:
+	case NI_IFTYPE_INFINIBAND_CHILD:
+		__ni_compat_generate_infiniband(ifnode, compat);
 		break;
 
 	case NI_IFTYPE_BOND:

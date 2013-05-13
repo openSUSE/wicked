@@ -17,6 +17,7 @@
 #include <wicked/route.h>
 #include <wicked/xml.h>
 #include <wicked/ethernet.h>
+#include <wicked/infiniband.h>
 #include <wicked/bonding.h>
 #include <wicked/bridge.h>
 #include <wicked/vlan.h>
@@ -474,6 +475,74 @@ try_loopback(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	}
 
 	dev->link.type = NI_IFTYPE_LOOPBACK;
+	return 0;
+}
+
+/*
+ * Handle infiniband devices
+ */
+static ni_bool_t
+__maybe_infiniband(const char *ifname)
+{
+	if (ni_string_len(ifname) > 2 &&
+	    strncmp(ifname, "ib", 2) == 0 &&
+	    isdigit((unsigned char)ifname[2]))
+		return TRUE;
+	return FALSE;
+}
+
+static int
+try_infiniband(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+{
+	ni_netdev_t *dev = compat->dev;
+	const char *umcast;
+	const char *mode;
+	const char *pkey;
+	ni_infiniband_t *ib;
+
+	mode   = ni_sysconfig_get_value(sc, "IPOIB_MODE");
+	umcast = ni_sysconfig_get_value(sc, "IPOIB_UMCAST");
+
+	if (!mode && !umcast && !__maybe_infiniband(dev->name))
+		return 1;
+
+	if (dev->link.type != NI_IFTYPE_UNKNOWN) {
+		ni_error("ifcfg-%s: %s config is using infiniband interface name",
+			dev->name, ni_linktype_type_to_name(dev->link.type));
+		return -1;
+	}
+
+	dev->link.type = NI_IFTYPE_INFINIBAND;
+	ib = ni_netdev_get_infiniband(dev);
+
+	if ((pkey = strchr(dev->name, '.')) != NULL) {
+		dev->link.type = NI_IFTYPE_INFINIBAND_CHILD;
+		unsigned long tmp = ~0UL;
+
+		if (ni_parse_ulong(pkey + 1, &tmp, 16) < 0 || tmp > 0xffff) {
+			ni_error("ifcfg-%s: Cannot parse infiniband child key number",
+				dev->name);
+			return -1;
+		}
+
+		ib->pkey = tmp;
+		ni_string_set(&ib->parent.name, dev->name, pkey - dev->name);
+	}
+
+	if (mode && (ib->mode = ni_infiniband_get_mode_flag(mode)) < 0) {
+		ni_error("ifcfg-%s: Cannot parse infiniband IPOIB_MODE=\"%s\"",
+			dev->name, mode);
+		return -1;
+	}
+	if (umcast &&
+		(ib->umcast = ni_infiniband_get_umcast_flag(umcast)) < 0 &&
+		(ni_parse_uint(umcast, &ib->umcast, 10) < 0 ||
+		 !ni_infiniband_get_umcast_name(ib->umcast))) {
+		ni_error("ifcfg-%s: Cannot parse infiniband IPOIB_UMCAST=\"%s\"",
+			dev->name, umcast);
+		return -1;
+	}
+
 	return 0;
 }
 
@@ -1259,6 +1328,7 @@ __ni_suse_sysconfig_read(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	    try_vlan(sc, compat)       < 0 ||
 	    try_tunnel(sc, compat)     < 0 ||
 	    try_wireless(sc, compat)   < 0 ||
+	    try_infiniband(sc, compat) < 0 ||
 	    try_ethernet(sc, compat)   < 0)
 		return FALSE;
 
