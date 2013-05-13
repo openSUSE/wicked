@@ -15,6 +15,7 @@
 #include <wicked/bridge.h>
 #include <wicked/bonding.h>
 #include <wicked/ethernet.h>
+#include <wicked/infiniband.h>
 #include <wicked/wireless.h>
 #include <wicked/vlan.h>
 #include <wicked/openvpn.h>
@@ -83,6 +84,7 @@ ni_netdev_free(ni_netdev_t *dev)
 	ni_netdev_clear_routes(dev);
 	ni_netdev_set_link_stats(dev, NULL);
 	ni_netdev_set_ethernet(dev, NULL);
+	ni_netdev_set_infiniband(dev, NULL);
 	ni_netdev_set_bonding(dev, NULL);
 	ni_netdev_set_bridge(dev, NULL);
 	ni_netdev_set_vlan(dev, NULL);
@@ -221,6 +223,28 @@ ni_netdev_set_ethernet(ni_netdev_t *dev, ni_ethernet_t *ethernet)
 	if (dev->ethernet)
 		ni_ethernet_free(dev->ethernet);
 	dev->ethernet = ethernet;
+}
+
+/*
+ * Get the interface's infiniband information
+ */
+ni_infiniband_t *
+ni_netdev_get_infiniband(ni_netdev_t *dev)
+{
+	if (dev->link.type != NI_IFTYPE_INFINIBAND &&
+	    dev->link.type != NI_IFTYPE_INFINIBAND_CHILD)
+		return NULL;
+	if (!dev->infiniband)
+		dev->infiniband = ni_infiniband_new();
+	return dev->infiniband;
+}
+
+void
+ni_netdev_set_infiniband(ni_netdev_t *dev, ni_infiniband_t *infiniband)
+{
+	if (dev->infiniband)
+		ni_infiniband_free(dev->infiniband);
+	dev->infiniband = infiniband;
 }
 
 /*

@@ -78,6 +78,7 @@ struct ni_netdev {
 	ni_bonding_t *		bonding;
 	ni_bridge_t *		bridge;
 	ni_ethernet_t *		ethernet;
+	ni_infiniband_t *	infiniband;
 	ni_wireless_t *		wireless;
 	ni_openvpn_t *		openvpn;
 	ni_ppp_t *		ppp;
@@ -165,6 +166,7 @@ extern ni_address_t *	ni_netdev_add_address(ni_netdev_t *ifp, int af,
 
 extern ni_address_t *	ni_netdev_get_addresses(ni_netdev_t *, int af);
 extern ni_ethernet_t *	ni_netdev_get_ethernet(ni_netdev_t *);
+extern ni_infiniband_t *ni_netdev_get_infiniband(ni_netdev_t *);
 extern ni_bonding_t *	ni_netdev_get_bonding(ni_netdev_t *);
 extern ni_vlan_t *	ni_netdev_get_vlan(ni_netdev_t *);
 extern ni_bridge_t *	ni_netdev_get_bridge(ni_netdev_t *);
@@ -175,6 +177,7 @@ extern void		ni_netdev_set_bonding(ni_netdev_t *, ni_bonding_t *);
 extern void		ni_netdev_set_vlan(ni_netdev_t *, ni_vlan_t *);
 extern void		ni_netdev_set_bridge(ni_netdev_t *, ni_bridge_t *);
 extern void		ni_netdev_set_ethernet(ni_netdev_t *, ni_ethernet_t *);
+extern void		ni_netdev_set_infiniband(ni_netdev_t *, ni_infiniband_t *);
 extern void		ni_netdev_set_link_stats(ni_netdev_t *, ni_link_stats_t *);
 extern void		ni_netdev_set_wireless(ni_netdev_t *, ni_wireless_t *);
 extern void		ni_netdev_set_openvpn(ni_netdev_t *, ni_openvpn_t *);

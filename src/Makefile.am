@@ -55,6 +55,7 @@ libwicked_la_SOURCES		= \
 	ifconfig.c		\
 	ifevent.c		\
 	iflist.c		\
+	infiniband.c		\
 	interface.c		\
 	ipv4.c			\
 	ipv6.c			\

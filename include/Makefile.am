@@ -14,6 +14,7 @@ wicked_include_HEADERS		= \
 	wicked/dbus-service.h	\
 	wicked/ethernet.h	\
 	wicked/fsm.h		\
+	wicked/infiniband.h	\
 	wicked/ipv4.h		\
 	wicked/ipv6.h		\
 	wicked/linkstats.h	\

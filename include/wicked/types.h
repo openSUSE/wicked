@@ -29,6 +29,7 @@ typedef struct ni_bonding	ni_bonding_t;
 typedef struct ni_wireless	ni_wireless_t;
 typedef struct ni_wireless_scan	ni_wireless_scan_t;
 typedef struct ni_ethernet	ni_ethernet_t;
+typedef struct ni_infiniband	ni_infiniband_t;
 typedef struct ni_openvpn	ni_openvpn_t;
 typedef struct ni_ppp		ni_ppp_t;
 typedef struct ni_nis_info	ni_nis_info_t;
