@@ -157,7 +157,17 @@ __ni_compat_generate_infiniband(xml_node_t *ifnode, const ni_compat_netdev_t *co
 	const char *value;
 	char *pkey = NULL;
 
-	if (!(child = xml_node_new("infiniband", ifnode)))
+	switch (compat->dev->link.type) {
+	case NI_IFTYPE_INFINIBAND:
+		value = "infiniband";
+		break;
+	case NI_IFTYPE_INFINIBAND_CHILD:
+		value = "infiniband-child";
+		break;
+	default:
+		return FALSE;
+	}
+	if (!(child = xml_node_new(value, ifnode)))
 		return FALSE;
 
 	if ((value = ni_infiniband_get_mode_name(ib->mode)))
