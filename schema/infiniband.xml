@@ -6,8 +6,8 @@
   <define name="configuration" class="dict" description="Infiniband interface configuration">
 
     <mode type="uint32" constraint="enum">
-      <connected value="0"/>
-      <datagram value="1"/>
+      <datagram value="0"/>
+      <connected value="1"/>
     </mode>
 
     <multicast type="uint32" constraint="enum">

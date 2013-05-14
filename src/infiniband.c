@@ -82,3 +82,34 @@ ni_infiniband_get_umcast_flag(const char *umcast)
 	return flag;
 }
 
+const char *
+ni_infiniband_validate(ni_iftype_t iftype, const ni_infiniband_t *ib)
+{
+	if (!ib)
+		return "Uninitialized infiniband configuration";
+
+	switch (iftype) {
+	default:
+		return "Not a valid infiniband interface type";
+
+	case NI_IFTYPE_INFINIBAND:
+		if (ib->pkey != 0xffff)
+			return "Infiniband partition key supported for child interfaces only";
+		if (ib->parent.name != NULL)
+			return "Infiniband parent supported for child interfaces only";
+		break;
+
+	case NI_IFTYPE_INFINIBAND_CHILD:
+		if (!ib->parent.name || !*ib->parent.name)
+			return "Infiniband parent name required for child interfaces";
+		break;
+	}
+
+	if (ib->mode != -1 && ni_infiniband_get_mode_name(ib->mode) == NULL)
+		return "Invalid/unsupported infiniband connection-mode";
+	if (ib->umcast != -1 && ni_infiniband_get_umcast_name(ib->umcast) == NULL)
+		return "Invalid/unsupported infiniband user-multicast policy";
+
+	return NULL;
+}
+

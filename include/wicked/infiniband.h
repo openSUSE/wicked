@@ -35,4 +35,6 @@ extern int		ni_infiniband_get_mode_flag(const char *);
 extern const char *	ni_infiniband_get_umcast_name(unsigned int);
 extern int		ni_infiniband_get_umcast_flag(const char *);
 
+extern const char *	ni_infiniband_validate(ni_iftype_t, const ni_infiniband_t *);
+
 #endif /* __WICKED_INFINIBAND_H__ */

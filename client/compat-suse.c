@@ -498,6 +498,7 @@ try_infiniband(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	const char *umcast;
 	const char *mode;
 	const char *pkey;
+	const char *err;
 	ni_infiniband_t *ib;
 
 	mode   = ni_sysconfig_get_value(sc, "IPOIB_MODE");
@@ -540,6 +541,11 @@ try_infiniband(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		 !ni_infiniband_get_umcast_name(ib->umcast))) {
 		ni_error("ifcfg-%s: Cannot parse infiniband IPOIB_UMCAST=\"%s\"",
 			dev->name, umcast);
+		return -1;
+	}
+
+	if ((err = ni_infiniband_validate(dev->link.type, ib))) {
+		ni_error("ifcfg-%s: %s", dev->name, err);
 		return -1;
 	}
 

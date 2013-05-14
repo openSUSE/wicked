@@ -44,6 +44,7 @@ __ni_objectmodel_ib_newchild(ni_netdev_t *cfg_ifp, const char *ifname, DBusError
 	ni_netconfig_t *nc = ni_global_state_handle(0);
 	ni_netdev_t *new_ifp = NULL;
 	const ni_infiniband_t *ib;
+	const char *err;
 	int rv;
 
 	if (!ifname) {
@@ -55,6 +56,11 @@ __ni_objectmodel_ib_newchild(ni_netdev_t *cfg_ifp, const char *ifname, DBusError
 	}
 
 	ib = ni_netdev_get_infiniband(cfg_ifp);
+	if ((err = ni_infiniband_validate(NI_IFTYPE_INFINIBAND_CHILD, ib)) != NULL) {
+		dbus_set_error(error, DBUS_ERROR_FAILED, "%s", err);
+		goto out;
+	}
+
 	if ((rv = ni_system_infiniband_child_create(nc, cfg_ifp->name, ib, &new_ifp)) < 0) {
 		dbus_set_error(error,
 				DBUS_ERROR_FAILED,
@@ -154,12 +160,21 @@ ni_objectmodel_ib_setup(ni_dbus_object_t *object, const ni_dbus_method_t *method
 		goto out;
 	}
 
-	/* when empty empty <infiniband/> node, skip setup */
-	if (cfg->infiniband && ni_system_infiniband_setup(nc, ifp, cfg->infiniband) < 0) {
-		dbus_set_error(error, DBUS_ERROR_FAILED,
-				"failed to configure infiniband device %s",
-				ifp->name);
-		goto out;
+	/* when <infiniband/> node is empty (defaults only), skip setup */
+	if (cfg->infiniband) {
+		const char *err;
+
+		if ((err = ni_infiniband_validate(ifp->link.type, cfg->infiniband))) {
+			dbus_set_error(error, DBUS_ERROR_FAILED, "%s", err);
+			goto out;
+		}
+
+		if (ni_system_infiniband_setup(nc, ifp, cfg->infiniband) < 0) {
+			dbus_set_error(error, DBUS_ERROR_FAILED,
+					"failed to configure infiniband device %s",
+					ifp->name);
+			goto out;
+		}
 	}
 
 	rv = TRUE;
