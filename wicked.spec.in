@@ -28,10 +28,6 @@ BuildRequires:  libgcrypt-devel
 PreReq:         %fillup_prereq %insserv_prereq
 %endif
 
-%define         _sbindir	/sbin
-%define         _libdir		/%_lib
-%define         _devellibdir	%_prefix%_libdir
-
 %description
 Wicked is a network configuration infrastructure incorporating a number
 of existing frameworks into a unified architecture, providing a REST
