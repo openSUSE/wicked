@@ -8,7 +8,12 @@ pushd "${srcdir}" >/dev/null
 autoreconf --force --install     || exit 1
 popd >/dev/null
 
-defaults=(--sysconfdir=/etc --sbindir=/sbin --localstatedir=/var)
+case "$(uname -m)" in
+	x86_64|s390x|ppc64|powerpc64) _lib=lib64 ;;
+	*) _lib=lib ;;
+esac
+
+defaults=(--sysconfdir=/etc --prefix=/usr --libdir=/usr/${_lib} --sbindir=/usr/sbin --localstatedir=/var)
 
 "${srcdir}/configure" "${@:-${defaults[@]}}"
 
