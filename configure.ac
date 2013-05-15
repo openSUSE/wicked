@@ -110,10 +110,9 @@ AC_ARG_WITH([piddir], [AS_HELP_STRING([--with-piddir@<:@=DIR@:>@],
 	    [with_piddir="${wicked_statedir}"])
 AC_SUBST(wicked_piddir,  "$with_piddir")
 
-# Hmm... '${libexec}/wicked' ?
 AC_ARG_WITH([supplicantdir], [AS_HELP_STRING([--with-supplicantdir@<:@=DIR@:>@],
-	    [wicked supplicant directory [${sbindir}]])],,
-	    [with_supplicantdir="${sbindir}"])
+	    [wicked supplicant directory [${libexecdir}/${PACKAGE_NAME}/bin]])],,
+	    [with_supplicantdir="${libexecdir}/${PACKAGE_NAME}/bin"])
 AC_SUBST(wicked_supplicantdir,	"$with_supplicantdir")
 
 # Enable system extensions (e.g. _GNU_SOURCE)

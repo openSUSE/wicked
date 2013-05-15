@@ -150,9 +150,9 @@ make install DESTDIR=${RPM_BUILD_ROOT}
 %defattr (-,root,root)
 %doc ChangeLog ANNOUNCE COPYING README TODO samples
 %_sbindir/wickedd
-%_sbindir/dhcp4-supplicant
-%_sbindir/dhcp6-supplicant
-%_sbindir/autoip4-supplicant
+%_libexecdir/%{name}/bin/dhcp4-supplicant
+%_libexecdir/%{name}/bin/dhcp6-supplicant
+%_libexecdir/%{name}/bin/autoip4-supplicant
 %dir %_sysconfdir/wicked
 %config(noreplace) %_sysconfdir/wicked/common.xml
 %config(noreplace) %_sysconfdir/wicked/server.xml
