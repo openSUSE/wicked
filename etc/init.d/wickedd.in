@@ -71,7 +71,7 @@ function start_one {
 
 	if [ -x $path ]; then
 		echo -n " ${path##*/}"
-		/sbin/startproc "$@"
+		startproc "$@"
 		rc_status
 	fi
 }
@@ -82,7 +82,7 @@ function stop_one {
 
 	if [ -x $path ]; then
 		echo -n " ${path##*/}"
-		/sbin/killproc -TERM "$@"
+		killproc -TERM "$@"
 		rc_status
 	fi
 }
@@ -93,7 +93,7 @@ function check_one {
 
 	if [ -x $path ]; then
 		echo -n " ${path##*/}"
-		/sbin/checkproc "$@"
+		checkproc "$@"
 		rc_status
 	fi
 }
