@@ -135,17 +135,4 @@ EXTRA_DIST			= \
 	wpa-supplicant.h	\
 	xml-schema.h
 
-install-data-hook:
-	if test "$(wicked_libdir)" != "$(wicked_devellibdir)" ; then     \
-		rm -f "$(DESTDIR)$(wicked_libdir)/libwicked.so"        ; \
-		$(mkinstalldirs) "$(DESTDIR)$(wicked_devellibdir)"     ; \
-		$(LN_S) -f "$(wicked_libdir)/libwicked.so.$(LIBWICKED_SOFILE_VERSION)" \
-			"$(DESTDIR)$(wicked_devellibdir)/libwicked.so" ; \
-	fi
-
-uninstall-hook:
-	if test "$(wicked_libdir)" != "$(wicked_devellibdir)" ; then     \
-		rm -f "$(DESTDIR)$(wicked_devellibdir)/libwicked.so"   ; \
-	fi
-
 # vim: ai

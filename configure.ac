@@ -116,12 +116,6 @@ AC_ARG_WITH([supplicantdir], [AS_HELP_STRING([--with-supplicantdir@<:@=DIR@:>@],
 	    [with_supplicantdir="${sbindir}"])
 AC_SUBST(wicked_supplicantdir,	"$with_supplicantdir")
 
-# Allow to install '/usr/$lib' while $libdir == '/$lib'
-AC_ARG_WITH([devellibdir], [AS_HELP_STRING([--with-devellibdir@<:@=DIR@:>@],
-	    [wicked devel library directory [${libdir}]])],,
-	    [with_devellibdir="${libdir}"])
-AC_SUBST(wicked_devellibdir,	"$with_devellibdir")
-
 # Enable system extensions (e.g. _GNU_SOURCE)
 AC_USE_SYSTEM_EXTENSIONS
 
