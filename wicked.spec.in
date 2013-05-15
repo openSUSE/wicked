@@ -117,8 +117,7 @@ This package provides the wicked system V init scripts.
 %build
 export CFLAGS="$RPM_OPT_FLAGS"
 %configure \
-	--disable-static	\
-	--with-devellibdir=%_devellibdir
+	--disable-static
 make %{?_smp_mflags}
 
 %install
@@ -202,7 +201,7 @@ make install DESTDIR=${RPM_BUILD_ROOT}
 %defattr (-,root,root)
 %dir %_includedir/wicked
 %_includedir/wicked/*
-%_devellibdir/libwicked*.so
+%_libdir/libwicked*.so
 %_datadir/pkgconfig/wicked.pc
 %_mandir/man7/wicked.7*
 
