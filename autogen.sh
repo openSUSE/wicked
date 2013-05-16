@@ -13,7 +13,7 @@ case "$(uname -m)" in
 	*) _lib=lib ;;
 esac
 
-defaults=(--sysconfdir=/etc --prefix=/usr --libdir=/usr/${_lib} --sbindir=/usr/sbin --localstatedir=/var)
+defaults=(--sysconfdir=/etc --prefix=/usr --libdir=/usr/${_lib} --datadir=/usr/share --localstatedir=/var)
 
 "${srcdir}/configure" "${@:-${defaults[@]}}"
 

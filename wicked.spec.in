@@ -231,8 +231,6 @@ fi
 %dir %_sysconfdir/wicked
 %config(noreplace) %_sysconfdir/wicked/common.xml
 %config(noreplace) %_sysconfdir/wicked/server.xml
-%dir %_sysconfdir/wicked/schema
-%config(noreplace) %_sysconfdir/wicked/schema/*.xml
 %dir %_sysconfdir/wicked/extensions
 %config(noreplace) %_sysconfdir/wicked/extensions/*
 %dir %_sysconfdir/dbus-1
@@ -246,6 +244,8 @@ fi
 %dir %_datadir/dbus-1/system-services
 %_datadir/dbus-1/system-services/org.opensuse.Network.*.service
 %endif
+%dir %_datadir/wicked/schema
+%config(noreplace) %_datadir/wicked/schema/*.xml
 %_mandir/man5/wicked-config.5*
 %_mandir/man8/wickedd.8*
 %attr(0750,root,root) %dir %ghost %_localstatedir/run/wicked

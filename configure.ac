@@ -86,10 +86,10 @@ AC_ARG_WITH([configdir], [AS_HELP_STRING([--with-configdir@<:@=DIR@:>@],
 	    [with_configdir="${sysconfdir}/wicked"])
 AC_SUBST(wicked_configdir,	"$with_configdir")
 
-# Schema files are read-only -> '${datarootdir}/wicked/schema' ?
+# Schema files are read-only
 AC_ARG_WITH([schemadir], [AS_HELP_STRING([--with-schemadir@<:@=DIR@:>@],
-	    [wicked schema directory [${wicked_configdir}/schema]])],,
-	    [with_schemadir="${wicked_configdir}/schema"])
+	    [wicked schema directory [${datadir}/${PACKAGE_NAME}/schema]])],,
+	    [with_schemadir="${datadir}/${PACKAGE_NAME}/schema"])
 AC_SUBST(wicked_schemadir,	"$with_schemadir")
 
 # User editable extension scripts -> config seems OK
