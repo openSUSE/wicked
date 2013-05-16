@@ -426,20 +426,14 @@ ni_sockaddr_format(const ni_sockaddr_t *ss, char *abuf, size_t buflen)
 {
 	switch (ss->ss_family) {
 	case AF_INET:
-		inet_ntop(AF_INET, &ss->sin.sin_addr, abuf, buflen);
-		break;
+		return inet_ntop(AF_INET, &ss->sin.sin_addr, abuf, buflen);
 
 	case AF_INET6:
-		inet_ntop(AF_INET6, &ss->six.sin6_addr, abuf, buflen);
-		break;
+		return inet_ntop(AF_INET6, &ss->six.sin6_addr, abuf, buflen);
 
 	default:
-		snprintf(abuf, buflen, "Unknown AF %d", ss->ss_family);
-		break;
+		return NULL;
 	}
-
-	return abuf;
-
 }
 
 const char *
@@ -447,8 +441,7 @@ ni_sockaddr_print(const ni_sockaddr_t *ss)
 {
 	static char abuf[128];
 
-	ni_sockaddr_format(ss, abuf, sizeof(abuf));
-	return abuf;
+	return ni_sockaddr_format(ss, abuf, sizeof(abuf));
 }
 
 const char *
