@@ -598,7 +598,7 @@ ni_system_bridge_add_port(ni_netconfig_t *nc, ni_netdev_t *brdev, ni_bridge_port
 	}
 
 	/* Now configure the newly added port */
-	if ((rv = ni_sysfs_bridge_port_update_config(brdev->name, port)) < 0) {
+	if ((rv = ni_sysfs_bridge_port_update_config(pif->name, port)) < 0) {
 		ni_error("%s: failed to configure port %s: %s", brdev->name, pif->name,
 				ni_strerror(rv));
 		return rv;
