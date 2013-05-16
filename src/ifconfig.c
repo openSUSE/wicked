@@ -613,7 +613,7 @@ ni_system_bridge_add_port(ni_netconfig_t *nc, ni_netdev_t *brdev, ni_bridge_port
  * ni_system_bridge_remove_port
  */
 int
-ni_system_bridge_remove_port(ni_netconfig_t *nc, ni_netdev_t *dev, int port_ifindex)
+ni_system_bridge_remove_port(ni_netconfig_t *nc, ni_netdev_t *dev, unsigned int port_ifindex)
 {
 	ni_bridge_t *bridge = ni_netdev_get_bridge(dev);
 	int rv;

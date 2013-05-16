@@ -176,7 +176,7 @@ ni_bridge_del_port(ni_bridge_t *bridge, unsigned int ifindex)
 }
 
 int
-ni_bridge_del_port_ifindex(ni_bridge_t *bridge, int ifindex)
+ni_bridge_del_port_ifindex(ni_bridge_t *bridge, unsigned int ifindex)
 {
 	ni_bridge_port_t **pp, *port;
 	unsigned int i;
