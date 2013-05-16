@@ -19,8 +19,8 @@ AC_CONFIG_HEADERS([config.h])
 AC_PREFIX_DEFAULT([/usr])
 
 # Whether to enable system-v init script installation
-AC_ARG_ENABLE([systemv], [AS_HELP_STRING([--disable-systemv],
-	      [do not install system-v init scripts])],,[enable_systemv=yes])
+AC_ARG_ENABLE([systemv], [AS_HELP_STRING([--enable-systemv],
+	      [install system-v init scripts])],,[enable_systemv=no])
 
 # Define system-v init script installation directory
 AC_ARG_WITH([systemv-initdir], [AS_HELP_STRING([--with-systemv-initdir@<:@=DIR@:>@],
@@ -32,8 +32,8 @@ AC_SUBST(systemv_initdir, "$with_systemv_initdir")
 AM_CONDITIONAL([systemv_service], [test "x$enable_systemv" = "xyes"])
 
 # Whether to enable system-v init script installation
-AC_ARG_ENABLE([systemd], [AS_HELP_STRING([--disable-systemd],
-	      [do not install system-d service files])],,[enable_systemd=yes])
+AC_ARG_ENABLE([systemd], [AS_HELP_STRING([--enable-systemd],
+	      [install system-d service files])],,[enable_systemd=no])
 
 # Define system-d service/unit directory
 AC_ARG_WITH([systemd-unitdir], [AS_HELP_STRING([--with-systemd-unitdir@<:@=DIR@:>@],
@@ -54,10 +54,13 @@ esac
 AC_SUBST(dbus_configdir,	"$with_dbus_configdir")
 
 # Define /usr/share/dbus-1/system-services service autostart directory
+# Disabled by default as it causes throuble because a) the first request
+# is not processed and b) dbus starts them in own cgroup under systemd.
 AC_ARG_WITH([dbus-servicedir], [AS_HELP_STRING([--with-dbus-servicedir@<:@=DIR@:>@],
 	    [dbus system service directory [${datarootdir}/dbus-1/system-services]])])
 case $with_dbus_servicedir in
-	yes|"") with_dbus_servicedir='${datarootdir}/dbus-1/system-services' ;;
+	yes)	with_dbus_servicedir="${datarootdir}/dbus-1/system-services" ;;
+	"")	with_dbus_servicedir="no"                                    ;;
 esac
 AC_SUBST(dbus_servicedir,	"$with_dbus_servicedir")
 # Hmm... add a --enable-dbus-autostart switch here?
@@ -217,6 +220,11 @@ AC_CONFIG_FILES([
 	etc/network-nanny.xml
 	etc/init.d/wickedd
 	etc/init.d/network
+	etc/systemd/wicked.service
+	etc/systemd/wickedd.service
+	etc/systemd/wicked-dhcp4.service
+	etc/systemd/wicked-dhcp6.service
+	etc/systemd/wicked-autoip4.service
 	etc/org.opensuse.Network.AUTO4.service
 	etc/org.opensuse.Network.DHCP4.service
 	etc/org.opensuse.Network.DHCP6.service

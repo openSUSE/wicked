@@ -23,7 +23,13 @@ if dbus_service
 dbus_service_DATA		= $(dbus_service_files)
 endif
 
-systemd_unit_files		=
+systemd_unit_files		= \
+	systemd/wicked.service		\
+	systemd/wickedd.service		\
+	systemd/wicked-dhcp4.service	\
+	systemd/wicked-dhcp6.service	\
+	systemd/wicked-autoip4.service
+
 if systemd_service
 systemd_unit_DATA		= $(systemd_unit_files)
 endif

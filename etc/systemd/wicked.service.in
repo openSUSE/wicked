@@ -1,0 +1,21 @@
+[Unit]
+Description=wicked managed network interfaces
+Requisite=wickedd.service
+Wants=network.target
+After=wickedd.service
+Before=network.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+LimitCORE=infinity
+EnvironmentFile=-/etc/sysconfig/network/config
+ExecStart=@wicked_sbindir@/wicked $WICKED_DEBUG_PARAM ifup $WICKED_IFUP_PARAM all
+ExecStop=@wicked_sbindir@/wicked $WICKED_DEBUG_PARAM ifdown $WICKED_IFDOWN_PARAM all
+ExecReload=@wicked_sbindir@/wicked $WICKED_DEBUG_PARAM ifup $WICKED_IFUP_PARAM all
+
+[Install]
+WantedBy=multi-user.target
+Alias=network.service
+Also=wickedd.service
+

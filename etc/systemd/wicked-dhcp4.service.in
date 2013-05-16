@@ -1,0 +1,17 @@
+[Unit]
+Description=wicked DHCPv4 supplicant service
+After=local-fs.target dbus.service wickedd.service
+Before=wicked.service
+PartOf=wickedd.service
+
+[Service]
+Type=dbus
+BusName=org.opensuse.Network.DHCP4
+LimitCORE=infinity
+EnvironmentFile=-/etc/sysconfig/network/config
+ExecStart=@wicked_supplicantdir@/wicked-dhcp4 $WICKED_DEBUG_PARAM --foreground
+StandardError=null
+
+[Install]
+WantedBy=wickedd.service
+

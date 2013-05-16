@@ -1,0 +1,18 @@
+[Unit]
+Description=wicked network management service daemon
+After=local-fs.target dbus.service isdn.service openibd.service
+Before=wicked.service
+
+[Service]
+Type=dbus
+BusName=org.opensuse.Network
+LimitCORE=infinity
+EnvironmentFile=-/etc/sysconfig/network/config
+ExecStart=@wicked_sbindir@/wickedd $WICKED_DEBUG_PARAM --foreground
+StandardError=null
+
+[Install]
+WantedBy=wicked.service
+Also=wicked-dhcp6.service
+Also=wicked-dhcp4.service
+Also=wicked-autoip4.service

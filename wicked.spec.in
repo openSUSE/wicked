@@ -10,6 +10,14 @@ Source1:        wicked-rpmlintrc
 Buildroot:	%{_tmppath}/%{name}%{version}-buildroot/
 Requires:       libwicked@LIBWICKED_PACKAGE_SUFFIX@ = %{version}
 
+%if 0%{?suse_version} >= 1230
+%bcond_without  systemd
+%bcond_with     dbusstart
+%else
+%bcond_with     systemd
+%bcond_with     dbusstart
+%endif
+
 %if 0%{?suse_version} >= 1210
 BuildRequires:  libnl-1_1-devel
 %else
@@ -24,13 +32,21 @@ BuildRequires:  dbus-1-devel
 BuildRequires:  pkg-config
 BuildRequires:  libgcrypt-devel
 
+%if %{with systemd}
+%{?systemd_requires}
+BuildRequires:  pkgconfig(systemd)
+%if 0%{?suse_version:1}
+Requires(pre):  %fillup_prereq
+%endif
+%else
 %if 0%{?suse_version:1}
 PreReq:         %fillup_prereq %insserv_prereq
+%endif
 %endif
 
 %description
 Wicked is a network configuration infrastructure incorporating a number
-of existing frameworks into a unified architecture, providing a REST
+of existing frameworks into a unified architecture, providing a DBUS
 interface to network configuration.
 
 %package client
@@ -42,7 +58,7 @@ Requires:       %name = %{version}
 
 %description client
 Wicked is a network configuration infrastructure incorporating a number
-of existing frameworks into a unified architecture, providing a REST
+of existing frameworks into a unified architecture, providing a DBUS
 interface to network configuration.
 
 This package provides the wicked client.
@@ -56,7 +72,7 @@ Requires:       %name = %{version}
 
 %description nanny
 Wicked is a network configuration infrastructure incorporating a number
-of existing frameworks into a unified architecture, providing a REST
+of existing frameworks into a unified architecture, providing a DBUS
 interface to network configuration.
 
 This package provides the wicked nanny.
@@ -76,7 +92,7 @@ Requires:       libnl-devel
 
 %description devel
 Wicked is a network configuration infrastructure incorporating a number
-of existing frameworks into a unified architecture, providing a REST
+of existing frameworks into a unified architecture, providing a DBUS
 interface to network configuration.
 
 This package provides the wicked development files.
@@ -88,10 +104,32 @@ Group:          System/Management
 
 %description -n libwicked@LIBWICKED_PACKAGE_SUFFIX@
 Wicked is a network configuration infrastructure incorporating a number
-of existing frameworks into a unified architecture, providing a REST
+of existing frameworks into a unified architecture, providing a DBUS
 interface to network configuration.
 
 This package provides the wicked shared library.
+
+%if %{with systemd}
+
+%package systemd
+License:        GPL-2.0
+Group:          System/Management
+Summary:        Network configuration infrastructure - System-D Services
+Requires:       libwicked@LIBWICKED_PACKAGE_SUFFIX@ = %{version}
+Requires:       %name = %{version}
+Requires:       sysconfig >= 0.81.0
+Obsoletes:      sysconfig < 0.81.0
+Conflicts:      otherproviders(sysvinit(network))
+Provides:       sysvinit(network)
+
+%description systemd
+Wicked is a network configuration infrastructure incorporating a number
+of existing frameworks into a unified architecture, providing a DBUS
+interface to network configuration.
+
+This package provides the wicked systemd service files.
+
+%else
 
 %package sysvinit
 License:        GPL-2.0
@@ -100,16 +138,17 @@ Summary:        Network configuration infrastructure - SysV-Init Scripts
 Requires:       libwicked@LIBWICKED_PACKAGE_SUFFIX@ = %{version}
 Requires:       %name = %{version}
 Requires:       sysconfig >= 0.81.0
-Conflicts:      sysconfig < 0.81.0
+Obsoletes:      sysconfig < 0.81.0
 Conflicts:      otherproviders(sysvinit(network))
 
 %description sysvinit
 Wicked is a network configuration infrastructure incorporating a number
-of existing frameworks into a unified architecture, providing a REST
+of existing frameworks into a unified architecture, providing a DBUS
 interface to network configuration.
 
 This package provides the wicked system V init scripts.
 
+%endif
 
 %prep
 %setup
@@ -117,6 +156,14 @@ This package provides the wicked system V init scripts.
 %build
 export CFLAGS="$RPM_OPT_FLAGS"
 %configure \
+%if %{with systemd}
+	--enable-systemd		\
+%else
+	--enable-systemv		\
+%endif
+%if ! %{with dbusstart}
+	--without-dbus-servicedir	\
+%endif
 	--disable-static
 make %{?_smp_mflags}
 
@@ -127,15 +174,41 @@ make install DESTDIR=${RPM_BUILD_ROOT}
 # create ghost directory
 %__mkdir_p -m 0750 ${RPM_BUILD_ROOT}%_localstatedir/run/wicked
 
+%if %{with systemd}
+
+%pre systemd
+%{service_add_pre wicked.service}
+
+%post systemd
+%{service_add_post wicked.service}
+
+%preun systemd
+# stop the daemons on removal
+%{service_del_preun wickedd.service}
+%{service_del_preun wicked-dhcp4.service}
+%{service_del_preun wicked-dhcp6.service}
+%{service_del_preun wicked-autoip4.service}
+
+%postun systemd
+%{service_del_postun wickedd.service}
+
+%else
+
 %post sysvinit
 %{fillup_and_insserv wickedd}
 
 %preun sysvinit
-%stop_on_removal wickedd
+if test -x /etc/init.d/wicked ; then
+	%stop_on_removal wickedd
+fi
 
 %postun sysvinit
-%restart_on_update wickedd
+if test -x /etc/init.d/wicked ; then
+	%restart_on_update wickedd
+fi
 %insserv_cleanup
+
+%endif
 
 %post -n libwicked@LIBWICKED_PACKAGE_SUFFIX@
 /sbin/ldconfig
@@ -168,12 +241,25 @@ make install DESTDIR=${RPM_BUILD_ROOT}
 %config(noreplace) %_sysconfdir/dbus-1/system.d/wicked-dhcp6.conf
 %config(noreplace) %_sysconfdir/dbus-1/system.d/wicked-dhcp4.conf
 %config(noreplace) %_sysconfdir/dbus-1/system.d/wicked-autoip4.conf
+%if %{with dbusstart}
 %dir %_datadir/dbus-1
 %dir %_datadir/dbus-1/system-services
 %_datadir/dbus-1/system-services/org.opensuse.Network.*.service
+%endif
 %_mandir/man5/wicked-config.5*
 %_mandir/man8/wickedd.8*
 %attr(0750,root,root) %dir %ghost %_localstatedir/run/wicked
+
+%if %{with systemd}
+%files systemd
+%defattr (-,root,root)
+%_unitdir/wicked-autoip4.service
+%_unitdir/wicked-dhcp4.service
+%_unitdir/wicked-dhcp6.service
+%_unitdir/wicked.service
+%_unitdir/wickedd.service
+
+%else
 
 %files sysvinit
 %defattr (-,root,root)
@@ -181,6 +267,8 @@ make install DESTDIR=${RPM_BUILD_ROOT}
 %_sysconfdir/init.d/network
 %_sbindir/rcwickedd
 %_sbindir/rcnetwork
+
+%endif
 
 %files client
 %defattr (-,root,root)
