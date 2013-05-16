@@ -1154,8 +1154,8 @@ ni_bonding_set_option(ni_bonding_t *bond, const char *option, const char *value)
 		return TRUE;
 	} else
 
-	if (strcmp(option, "miimon") == 0 || tmp > INT_MAX) {
-		if (ni_parse_uint(value, &tmp, 10) < 0)
+	if (strcmp(option, "miimon") == 0) {
+		if (ni_parse_uint(value, &tmp, 10) < 0 || tmp > INT_MAX)
 			return FALSE;
 
 		bond->miimon.frequency = tmp;
