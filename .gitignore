@@ -39,9 +39,9 @@ Makefile.in
 /etc/org.opensuse.Network.DHCP4.service
 /etc/org.opensuse.Network.DHCP6.service
 /schema/constants.xml
-/autoip4/autoip4-supplicant
-/dhcp4/dhcp4-supplicant
-/dhcp6/dhcp6-supplicant
+/autoip4/wicked-autoip4
+/dhcp4/wicked-dhcp4
+/dhcp6/wicked-dhcp6
 /nanny/network-nanny
 /client/wicked
 /server/wickedd

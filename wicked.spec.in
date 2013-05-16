@@ -152,9 +152,9 @@ make install DESTDIR=${RPM_BUILD_ROOT}
 %_sbindir/wickedd
 %dir %_libexecdir/%{name}
 %dir %_libexecdir/%{name}/bin
-%_libexecdir/%{name}/bin/dhcp4-supplicant
-%_libexecdir/%{name}/bin/dhcp6-supplicant
-%_libexecdir/%{name}/bin/autoip4-supplicant
+%_libexecdir/%{name}/bin/wicked-dhcp4
+%_libexecdir/%{name}/bin/wicked-dhcp6
+%_libexecdir/%{name}/bin/wicked-autoip4
 %dir %_sysconfdir/wicked
 %config(noreplace) %_sysconfdir/wicked/common.xml
 %config(noreplace) %_sysconfdir/wicked/server.xml

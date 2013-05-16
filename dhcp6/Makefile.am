@@ -2,18 +2,18 @@
 CLEANFILES			= *~
 MAINTAINERCLEANFILES		= Makefile.in
 
-wicked_supplicant_PROGRAMS	= dhcp6-supplicant
+wicked_supplicant_PROGRAMS	= wicked-dhcp6
 
 INCLUDES			= -I$(top_srcdir)	\
 				  -I$(top_srcdir)/src	\
 				  -I$(top_srcdir)/include
 
-dhcp6_supplicant_CFLAGS		= $(LIBNL_CFLAGS)	\
+wicked_dhcp6_CFLAGS		= $(LIBNL_CFLAGS)	\
 				  $(LIBDBUS_CFLAGS)	\
 				  $(LIBGCRYPT_CFLAGS)
-dhcp6_supplicant_LDFLAGS	= -rdynamic
-dhcp6_supplicant_LDADD		= $(top_builddir)/src/libwicked.la
-dhcp6_supplicant_SOURCES	= \
+wicked_dhcp6_LDFLAGS	= -rdynamic
+wicked_dhcp6_LDADD	= $(top_builddir)/src/libwicked.la
+wicked_dhcp6_SOURCES	= \
 	dbus-api.c	\
 	device.c	\
 	duid.c		\
