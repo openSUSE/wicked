@@ -447,8 +447,7 @@ ni_sockaddr_print(const ni_sockaddr_t *ss)
 {
 	static char abuf[128];
 
-	if (ni_sockaddr_format(ss, abuf, sizeof(abuf)) < 0)
-		return NULL;
+	ni_sockaddr_format(ss, abuf, sizeof(abuf));
 	return abuf;
 }
 
