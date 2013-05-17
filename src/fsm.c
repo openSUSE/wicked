@@ -972,7 +972,8 @@ ni_fsm_workers_from_xml(ni_fsm_t *fsm, xml_document_t *doc, const char *config_o
 			continue;
 		}
 
-		if ((type = ni_ifworker_type_from_string(ifnode->name)) < 0) {
+		type = ni_ifworker_type_from_string(ifnode->name);
+		if (type == NI_IFWORKER_TYPE_NONE) {
 			ni_warn("%s: ignoring non-interface element <%s>",
 					xml_node_location(ifnode),
 					ifnode->name);
@@ -1406,7 +1407,7 @@ ni_ifworker_apply_policies(ni_fsm_t *fsm, ni_ifworker_t *w)
 	return TRUE;
 }
 
-int
+ni_ifworker_type_t
 ni_ifworker_type_from_string(const char *s)
 {
 	if (ni_string_eq(s, "interface"))
@@ -1414,7 +1415,7 @@ ni_ifworker_type_from_string(const char *s)
 	if (ni_string_eq(s, "modem"))
 		return NI_IFWORKER_TYPE_MODEM;
 
-	return -1;
+	return NI_IFWORKER_TYPE_NONE;
 }
 
 const char *
