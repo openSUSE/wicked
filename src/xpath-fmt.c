@@ -150,7 +150,7 @@ xpath_format_eval(xpath_format_t *pieces, xml_node_t *xn, ni_string_array_t *res
 {
 	ni_stringbuf_t formatted;
 	const xpath_fnode_t *max_node = NULL;
-	unsigned int num_expansions = ~0;
+	unsigned int num_expansions = -1;
 	unsigned int m, n;
 
 	ni_stringbuf_init(&formatted);
@@ -195,7 +195,7 @@ xpath_format_eval(xpath_format_t *pieces, xml_node_t *xn, ni_string_array_t *res
 		}
 	}
 
-	if (num_expansions == ~0)
+	if (num_expansions == -1U)
 		num_expansions = 1;
 
 	for (n = 0; n < num_expansions; ++n) {
