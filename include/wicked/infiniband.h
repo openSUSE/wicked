@@ -9,6 +9,9 @@
 
 #include <wicked/types.h>
 
+#define	NI_INFINIBAND_DEFAULT_PKEY	0xffff
+#define	NI_INFINIBAND_VALUE_NOT_SET	-1U
+
 enum {
 	NI_INFINIBAND_MODE_DATAGRAM  = 0,
 	NI_INFINIBAND_MODE_CONNECTED = 1,

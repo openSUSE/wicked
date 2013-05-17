@@ -35,9 +35,9 @@ ni_infiniband_new(void)
 
 	ib = xcalloc(1, sizeof(*ib));
 	/* Apply "not set" defaults */
-	ib->pkey = 0xffff;
-	ib->mode = -1;
-	ib->umcast = -1;
+	ib->pkey = NI_INFINIBAND_DEFAULT_PKEY;
+	ib->mode = NI_INFINIBAND_VALUE_NOT_SET;
+	ib->umcast = NI_INFINIBAND_VALUE_NOT_SET;
 	return ib;
 }
 
@@ -59,7 +59,7 @@ ni_infiniband_get_mode_name(unsigned int mode)
 int
 ni_infiniband_get_mode_flag(const char *mode)
 {
-	unsigned int flag = ~0;
+	unsigned int flag = NI_INFINIBAND_VALUE_NOT_SET;
 
 	if (ni_parse_uint_mapped(mode, __map_ipoib_mode, &flag) < 0)
 		return -1;
@@ -75,7 +75,7 @@ ni_infiniband_get_umcast_name(unsigned int umcast)
 int
 ni_infiniband_get_umcast_flag(const char *umcast)
 {
-	unsigned int flag = ~0;
+	unsigned int flag = NI_INFINIBAND_VALUE_NOT_SET;
 
 	if (ni_parse_uint_mapped(umcast, __map_ipoib_umcast, &flag) < 0)
 		return -1;
@@ -93,7 +93,7 @@ ni_infiniband_validate(ni_iftype_t iftype, const ni_infiniband_t *ib)
 		return "Not a valid infiniband interface type";
 
 	case NI_IFTYPE_INFINIBAND:
-		if (ib->pkey != 0xffff)
+		if (ib->pkey != NI_INFINIBAND_DEFAULT_PKEY)
 			return "Infiniband partition key supported for child interfaces only";
 		if (ib->parent.name != NULL)
 			return "Infiniband parent supported for child interfaces only";
@@ -105,9 +105,11 @@ ni_infiniband_validate(ni_iftype_t iftype, const ni_infiniband_t *ib)
 		break;
 	}
 
-	if (ib->mode != -1 && ni_infiniband_get_mode_name(ib->mode) == NULL)
+	if (ib->mode != NI_INFINIBAND_VALUE_NOT_SET &&
+			ni_infiniband_get_mode_name(ib->mode) == NULL)
 		return "Invalid/unsupported infiniband connection-mode";
-	if (ib->umcast != -1 && ni_infiniband_get_umcast_name(ib->umcast) == NULL)
+	if (ib->umcast != -NI_INFINIBAND_VALUE_NOT_SET &&
+			ni_infiniband_get_umcast_name(ib->umcast) == NULL)
 		return "Invalid/unsupported infiniband user-multicast policy";
 
 	return NULL;
