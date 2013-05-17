@@ -47,7 +47,7 @@ typedef struct ni_dbus_addrconf_forwarder {
 	    const char *	object_path;
 	} supplicant;
 
-	int			addrfamily;
+	unsigned int		addrfamily;
 	ni_addrconf_mode_t	addrconf;
 
 	ni_dbus_class_t		class;
@@ -227,7 +227,7 @@ done:
  * Generic functions for static address configuration
  */
 static dbus_bool_t
-ni_objectmodel_addrconf_static_request(ni_dbus_object_t *object, int addrfamily,
+ni_objectmodel_addrconf_static_request(ni_dbus_object_t *object, unsigned int addrfamily,
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
@@ -273,7 +273,7 @@ ni_objectmodel_addrconf_static_request(ni_dbus_object_t *object, int addrfamily,
 }
 
 static dbus_bool_t
-ni_objectmodel_addrconf_static_drop(ni_dbus_object_t *object, int addrfamily,
+ni_objectmodel_addrconf_static_drop(ni_dbus_object_t *object, unsigned int addrfamily,
 			ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_addrconf_lease_t *lease = NULL;
@@ -656,7 +656,7 @@ ni_objectmodel_addrconf_ipv4ll_drop(ni_dbus_object_t *object, const ni_dbus_meth
  */
 static dbus_bool_t
 __ni_objectmodel_addrconf_generic_get_lease(const ni_dbus_object_t *object,
-				ni_addrconf_mode_t mode, int addrfamily,
+				ni_addrconf_mode_t mode, unsigned int addrfamily,
 				ni_dbus_variant_t *dict,
 				DBusError *error)
 {
@@ -680,7 +680,7 @@ __ni_objectmodel_addrconf_generic_get_lease(const ni_dbus_object_t *object,
 
 static dbus_bool_t
 __ni_objectmodel_addrconf_generic_set_lease(ni_dbus_object_t *object,
-				ni_addrconf_mode_t mode, int addrfamily,
+				ni_addrconf_mode_t mode, unsigned int addrfamily,
 				const ni_dbus_variant_t *dict,
 				DBusError *error)
 {

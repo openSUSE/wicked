@@ -33,7 +33,7 @@
 static const unsigned char *__ni_address_data(const ni_sockaddr_t *, unsigned int *);
 
 ni_address_t *
-ni_netdev_add_address(ni_netdev_t *dev, int af, unsigned int prefix_len, const ni_sockaddr_t *local_addr)
+ni_netdev_add_address(ni_netdev_t *dev, unsigned int af, unsigned int prefix_len, const ni_sockaddr_t *local_addr)
 {
 	return ni_address_new(af, prefix_len, local_addr, &dev->addrs);
 }

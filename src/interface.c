@@ -427,7 +427,7 @@ ni_netdev_get_event_uuid(ni_netdev_t *dev, ni_event_t ev)
  * Locate any lease for the same addrconf mechanism
  */
 ni_addrconf_lease_t *
-__ni_netdev_find_lease(ni_netdev_t *dev, int family, ni_addrconf_mode_t type, int remove)
+__ni_netdev_find_lease(ni_netdev_t *dev, unsigned int family, ni_addrconf_mode_t type, int remove)
 {
 	ni_addrconf_lease_t *lease, **pos;
 
@@ -461,7 +461,7 @@ ni_netdev_set_lease(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
 }
 
 int
-ni_netdev_unset_lease(ni_netdev_t *dev, int family, ni_addrconf_mode_t type)
+ni_netdev_unset_lease(ni_netdev_t *dev, unsigned int family, ni_addrconf_mode_t type)
 {
 	ni_addrconf_lease_t *lease;
 
@@ -471,7 +471,7 @@ ni_netdev_unset_lease(ni_netdev_t *dev, int family, ni_addrconf_mode_t type)
 }
 
 ni_addrconf_lease_t *
-ni_netdev_get_lease(ni_netdev_t *dev, int family, ni_addrconf_mode_t type)
+ni_netdev_get_lease(ni_netdev_t *dev, unsigned int family, ni_addrconf_mode_t type)
 {
 	return __ni_netdev_find_lease(dev, family, type, 0);
 }

@@ -44,7 +44,7 @@ static int		__ni_discover_bond(ni_netdev_t *);
 static int		__ni_discover_addrconf(ni_netdev_t *);
 static int		__ni_discover_infiniband(ni_netdev_t *);
 static ni_route_t *	__ni_netdev_add_autoconf_prefix(ni_netdev_t *, const ni_sockaddr_t *, unsigned int, const struct prefix_cacheinfo *);
-static ni_addrconf_lease_t *__ni_netdev_get_autoconf_lease(ni_netdev_t *, int);
+static ni_addrconf_lease_t *__ni_netdev_get_autoconf_lease(ni_netdev_t *, unsigned int);
 
 struct ni_rtnl_info {
 	struct ni_nlmsg_list	nlmsg_list;
@@ -1290,7 +1290,7 @@ __ni_netdev_process_newroute(ni_netdev_t *dev, struct nlmsghdr *h,
 }
 
 ni_addrconf_lease_t *
-__ni_netdev_get_autoconf_lease(ni_netdev_t *dev, int af)
+__ni_netdev_get_autoconf_lease(ni_netdev_t *dev, unsigned int af)
 {
 	ni_addrconf_lease_t *lease;
 

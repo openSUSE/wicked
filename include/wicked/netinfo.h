@@ -151,8 +151,8 @@ extern int		ni_netdev_update(ni_netdev_t *ifp);
 extern int		ni_netdev_guess_type(ni_netdev_t *ifp);
 
 extern int		ni_netdev_set_lease(ni_netdev_t *, ni_addrconf_lease_t *);
-extern int		ni_netdev_unset_lease(ni_netdev_t *, int af, ni_addrconf_mode_t type);
-ni_addrconf_lease_t *	ni_netdev_get_lease(ni_netdev_t *, int, ni_addrconf_mode_t);
+extern int		ni_netdev_unset_lease(ni_netdev_t *, unsigned int af, ni_addrconf_mode_t type);
+ni_addrconf_lease_t *	ni_netdev_get_lease(ni_netdev_t *, unsigned int, ni_addrconf_mode_t);
 ni_addrconf_lease_t *	ni_netdev_get_lease_by_owner(ni_netdev_t *, const char *);
 
 extern ni_route_t *	ni_netdev_add_route(ni_netdev_t *,
@@ -160,11 +160,11 @@ extern ni_route_t *	ni_netdev_add_route(ni_netdev_t *,
 				const ni_sockaddr_t *dest,
 				const ni_sockaddr_t *gw);
 
-extern ni_address_t *	ni_netdev_add_address(ni_netdev_t *ifp, int af,
+extern ni_address_t *	ni_netdev_add_address(ni_netdev_t *ifp, unsigned int af,
 				unsigned int prefix_len,
 				const ni_sockaddr_t *local_addr);
 
-extern ni_address_t *	ni_netdev_get_addresses(ni_netdev_t *, int af);
+extern ni_address_t *	ni_netdev_get_addresses(ni_netdev_t *, unsigned int af);
 extern ni_ethernet_t *	ni_netdev_get_ethernet(ni_netdev_t *);
 extern ni_infiniband_t *ni_netdev_get_infiniband(ni_netdev_t *);
 extern ni_bonding_t *	ni_netdev_get_bonding(ni_netdev_t *);
