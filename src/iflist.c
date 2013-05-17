@@ -1403,12 +1403,11 @@ __ni_discover_infiniband(ni_netdev_t *dev)
 	if (!(ib = ni_netdev_get_infiniband(dev)))
 		return -1;
 
-	if (ni_sysfs_netif_get_string(dev->name, "mode", &value) < 0) {
+	if (ni_sysfs_netif_get_string(dev->name, "mode", &value) < 0
+	   || !ni_infiniband_get_mode_flag(value, &ib->mode)) {
 		ni_error("%s: unable to retrieve infiniband mode attribute from sysfs",
 			dev->name);
 		ret = -1;
-	} else {
-		ib->mode = ni_infiniband_get_mode_flag(value);
 	}
 	ni_string_free(&value);
 

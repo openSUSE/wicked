@@ -56,14 +56,17 @@ ni_infiniband_get_mode_name(unsigned int mode)
 	return ni_format_uint_mapped(mode, __map_ipoib_mode);
 }
 
-int
-ni_infiniband_get_mode_flag(const char *mode)
+ni_bool_t
+ni_infiniband_get_mode_flag(const char *mode, unsigned int *fp)
 {
 	unsigned int flag = NI_INFINIBAND_VALUE_NOT_SET;
 
+	if (!mode || !fp)
+		return FALSE;
 	if (ni_parse_uint_mapped(mode, __map_ipoib_mode, &flag) < 0)
-		return -1;
-	return flag;
+		return FALSE;
+	*fp = flag;
+	return TRUE;
 }
 
 const char *
@@ -72,14 +75,17 @@ ni_infiniband_get_umcast_name(unsigned int umcast)
 	return ni_format_uint_mapped(umcast, __map_ipoib_umcast);
 }
 
-int
-ni_infiniband_get_umcast_flag(const char *umcast)
+ni_bool_t
+ni_infiniband_get_umcast_flag(const char *umcast, unsigned int *fp)
 {
 	unsigned int flag = NI_INFINIBAND_VALUE_NOT_SET;
 
+	if (!umcast || !fp)
+		return FALSE;
 	if (ni_parse_uint_mapped(umcast, __map_ipoib_umcast, &flag) < 0)
-		return -1;
-	return flag;
+		return FALSE;
+	*fp = flag;
+	return TRUE;
 }
 
 const char *

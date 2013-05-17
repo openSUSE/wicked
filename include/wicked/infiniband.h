@@ -33,10 +33,10 @@ extern ni_infiniband_t *ni_infiniband_new(void);
 extern void		ni_infiniband_free(ni_infiniband_t *);
 
 extern const char *	ni_infiniband_get_mode_name(unsigned int);
-extern int		ni_infiniband_get_mode_flag(const char *);
+extern ni_bool_t	ni_infiniband_get_mode_flag(const char *, unsigned int *);
 
 extern const char *	ni_infiniband_get_umcast_name(unsigned int);
-extern int		ni_infiniband_get_umcast_flag(const char *);
+extern ni_bool_t	ni_infiniband_get_umcast_flag(const char *, unsigned int *);
 
 extern const char *	ni_infiniband_validate(ni_iftype_t, const ni_infiniband_t *);
 

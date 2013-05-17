@@ -530,13 +530,12 @@ try_infiniband(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		ni_string_set(&ib->parent.name, dev->name, pkey - dev->name);
 	}
 
-	if (mode && (ib->mode = ni_infiniband_get_mode_flag(mode)) < 0) {
+	if (!ni_infiniband_get_mode_flag(mode, &ib->mode)) {
 		ni_error("ifcfg-%s: Cannot parse infiniband IPOIB_MODE=\"%s\"",
 			dev->name, mode);
 		return -1;
 	}
-	if (umcast &&
-		(ib->umcast = ni_infiniband_get_umcast_flag(umcast)) < 0 &&
+	if (!ni_infiniband_get_umcast_flag(umcast, &ib->umcast) &&
 		(ni_parse_uint(umcast, &ib->umcast, 10) < 0 ||
 		 !ni_infiniband_get_umcast_name(ib->umcast))) {
 		ni_error("ifcfg-%s: Cannot parse infiniband IPOIB_UMCAST=\"%s\"",
