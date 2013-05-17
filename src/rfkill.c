@@ -84,12 +84,12 @@ __ni_rfkill_recv(ni_socket_t *sock)
 	ni_rfkill_switch_t *sw;
 	ni_bool_t state[__NI_RFKILL_TYPE_MAX];
 	unsigned int type;
-	int n;
+	ssize_t n;
 
 	while ((n = read(sock->__fd, &ev, sizeof(ev))) >= 0) {
 		ni_rfkill_switch_t **pos;
 
-		if (n < sizeof(ev)) {
+		if ((size_t)n < sizeof(ev)) {
 			ni_error("cannot read rfkill event: short read");
 			ni_socket_deactivate(sock);
 			break;
