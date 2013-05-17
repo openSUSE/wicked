@@ -923,18 +923,19 @@ ni_objectmodel_event_to_signal(ni_event_t event)
 	return ni_format_uint_mapped(event, __ni_objectmodel_event_names);
 }
 
-ni_event_t
-ni_objectmodel_signal_to_event(const char *signal)
+int
+ni_objectmodel_signal_to_event(const char *signal, ni_event_t *ep)
 {
 	unsigned int event;
 
-	if (!signal)
+	if (!signal && !ep)
 		return -1;
 
 	if (ni_parse_uint_mapped(signal, __ni_objectmodel_event_names, &event) < 0)
 		return -1;
 
-	return event;
+	*ep = event;
+	return 0;
 }
 
 /*

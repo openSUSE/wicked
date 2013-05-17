@@ -201,7 +201,7 @@ ni_nanny_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_m
 	ni_managed_device_t *mdev;
 	ni_ifworker_t *w;
 
-	if ((event = ni_objectmodel_signal_to_event(signal_name)) < 0) {
+	if (ni_objectmodel_signal_to_event(signal_name, &event) < 0) {
 		ni_debug_nanny("received unknown signal \"%s\" from object \"%s\"",
 				signal_name, object_path);
 		return;
@@ -289,7 +289,7 @@ ni_nanny_modem_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_m
 	ni_event_t event;
 	ni_ifworker_t *w;
 
-	if ((event = ni_objectmodel_signal_to_event(signal_name)) < 0) {
+	if (ni_objectmodel_signal_to_event(signal_name, &event) < 0) {
 		ni_debug_nanny("received unknown signal \"%s\" from object \"%s\"",
 				signal_name, object_path);
 		return;
