@@ -29,7 +29,7 @@ static unsigned int		ni_ifworker_timeout_count;
 static ni_fsm_user_prompt_fn_t *ni_fsm_user_prompt_fn;
 static void *			ni_fsm_user_prompt_data;
 
-static const char *		ni_ifworker_state_name(int);
+static const char *		ni_ifworker_state_name(unsigned int);
 static ni_ifworker_t *		ni_ifworker_identify_device(ni_fsm_t *, const xml_node_t *, ni_ifworker_type_t);
 static ni_ifworker_t *		__ni_ifworker_identify_device(ni_fsm_t *, const char *, const xml_node_t *, ni_ifworker_type_t);
 static void			ni_ifworker_set_dependencies_xml(ni_ifworker_t *, xml_node_t *);
@@ -401,19 +401,21 @@ static ni_intmap_t __state_names[] = {
 };
 
 static const char *
-ni_ifworker_state_name(int state)
+ni_ifworker_state_name(unsigned int state)
 {
 	return ni_format_uint_mapped(state, __state_names);
 }
 
-int
-ni_ifworker_state_from_name(const char *name)
+ni_bool_t
+ni_ifworker_state_from_name(const char *name, unsigned int *state)
 {
 	unsigned int value;
 
 	if (ni_parse_uint_mapped(name, __state_names, &value) < 0)
-		return -1;
-	return value;
+		return FALSE;
+	if (state)
+		*state = value;
+	return TRUE;
 }
 
 void
@@ -1992,7 +1994,7 @@ ni_ifworker_netif_resolve_cb(xml_node_t *node, const ni_xs_type_t *type, const x
 				return FALSE;
 		} else
 		if (ni_string_eq(mchild->name, "require")) {
-			int min_state = NI_FSM_STATE_NONE, max_state = __NI_FSM_STATE_MAX;
+			unsigned int min_state = NI_FSM_STATE_NONE, max_state = __NI_FSM_STATE_MAX;
 			const char *method;
 
 			if ((attr = xml_node_get_attr(mchild, "check")) == NULL
@@ -2000,8 +2002,7 @@ ni_ifworker_netif_resolve_cb(xml_node_t *node, const ni_xs_type_t *type, const x
 				continue;
 
 			if ((attr = xml_node_get_attr(mchild, "min-state")) != NULL) {
-				min_state = ni_ifworker_state_from_name(attr);
-				if (min_state < 0) {
+				if (!ni_ifworker_state_from_name(attr, &min_state)) {
 					ni_error("%s: invalid state name min-state=\"%s\"",
 							xml_node_location(mchild), attr);
 					return FALSE;
@@ -2009,8 +2010,7 @@ ni_ifworker_netif_resolve_cb(xml_node_t *node, const ni_xs_type_t *type, const x
 			}
 
 			if ((attr = xml_node_get_attr(mchild, "max-state")) != NULL) {
-				max_state = ni_ifworker_state_from_name(attr);
-				if (max_state < 0) {
+				if (!ni_ifworker_state_from_name(attr, &max_state)) {
 					ni_error("%s: invalid state name max-state=\"%s\"",
 							xml_node_location(mchild), attr);
 					return FALSE;

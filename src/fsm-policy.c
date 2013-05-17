@@ -1246,9 +1246,9 @@ __ni_fsm_policy_min_device_state_check(const ni_ifcondition_t *cond, ni_ifworker
 static ni_ifcondition_t *
 ni_ifcondition_min_device_state(xml_node_t *node)
 {
-	int state;
+	unsigned int state;
 
-	if ((state = ni_ifworker_state_from_name(node->cdata)) < 0) {
+	if (!ni_ifworker_state_from_name(node->cdata, &state)) {
 		ni_error("%s: invalid device state \"%s\"", xml_node_location(node), node->cdata);
 		return NULL;
 	}

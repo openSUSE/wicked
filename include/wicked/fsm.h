@@ -48,8 +48,8 @@ typedef struct ni_fsm_transition ni_fsm_transition_t;
 
 typedef int			ni_fsm_transition_fn_t(ni_fsm_t *, ni_ifworker_t *, ni_fsm_transition_t *);
 struct ni_fsm_transition {
-	int			from_state;
-	int			next_state;
+	unsigned int		from_state;
+	unsigned int		next_state;
 	ni_fsm_transition_fn_t *bind_func;
 	ni_fsm_transition_fn_t *func;
 
@@ -109,7 +109,7 @@ struct ni_ifworker {
 	unsigned int		ifindex;
 
 	ni_uint_range_t		target_range;
-	int			target_state;
+	unsigned int		target_state;
 
 	unsigned int		dead		: 1,
 				failed		: 1,
@@ -151,7 +151,7 @@ struct ni_ifworker {
 	} device_api;
 
 	struct {
-		int		state;
+		unsigned int state;
 		ni_fsm_transition_t *wait_for;
 		ni_fsm_transition_t *next_action;
 		ni_fsm_transition_t *action_table;
@@ -248,7 +248,7 @@ extern ni_bool_t		ni_fsm_destroy_worker(ni_fsm_t *fsm, ni_ifworker_t *w);
 
 extern ni_ifworker_type_t	ni_ifworker_type_from_string(const char *);
 extern const char *		ni_ifworker_type_to_string(ni_ifworker_type_t);
-extern int			ni_ifworker_state_from_name(const char *);
+extern ni_bool_t		ni_ifworker_state_from_name(const char *, unsigned int *);
 extern ni_fsm_require_t *	ni_ifworker_reachability_check_new(xml_node_t *);
 extern ni_bool_t		ni_ifworker_match_alias(const ni_ifworker_t *w, const char *alias);
 extern void			ni_ifworker_set_config(ni_ifworker_t *, xml_node_t *, const char *);

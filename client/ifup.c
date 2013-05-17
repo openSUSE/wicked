@@ -514,7 +514,7 @@ do_ifcheck(int argc, char **argv)
 			break;
 
 		case OPT_STATE:
-			if (ni_ifworker_state_from_name(optarg) < 0)
+			if (!ni_ifworker_state_from_name(optarg, NULL))
 				ni_warn("unknown device state \"%s\"", optarg);
 			opt_state = optarg;
 			break;
