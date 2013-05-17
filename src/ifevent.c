@@ -184,7 +184,7 @@ __ni_rtevent_newlink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 		ni_netdev_t *conflict;
 
 		conflict = ni_netdev_by_name(nc, ifname);
-		if (conflict && conflict->link.ifindex != ifi->ifi_index) {
+		if (conflict && conflict->link.ifindex != (unsigned int)ifi->ifi_index) {
 			/* We probably missed a deletion event. Just clobber the old interface. */
 			ni_warn("linkchange event: found interface %s with different ifindex", ifname);
 

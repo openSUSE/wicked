@@ -56,7 +56,7 @@ struct ni_rtnl_query {
 	struct ni_rtnl_info	addr_info;
 	struct ni_rtnl_info	ipv6_info;
 	struct ni_rtnl_info	route_info;
-	int			ifindex;
+	unsigned int		ifindex;
 };
 
 /*
@@ -96,7 +96,7 @@ ni_rtnl_query_destroy(struct ni_rtnl_query *q)
 }
 
 static int
-ni_rtnl_query(struct ni_rtnl_query *q, int ifindex)
+ni_rtnl_query(struct ni_rtnl_query *q, unsigned int ifindex)
 {
 	memset(q, 0, sizeof(*q));
 	q->ifindex = ifindex;
@@ -113,7 +113,7 @@ ni_rtnl_query(struct ni_rtnl_query *q, int ifindex)
 }
 
 static int
-ni_rtnl_query_link(struct ni_rtnl_query *q, int ifindex)
+ni_rtnl_query_link(struct ni_rtnl_query *q, unsigned int ifindex)
 {
 	memset(q, 0, sizeof(*q));
 	q->ifindex = ifindex;
@@ -149,7 +149,7 @@ ni_rtnl_query_next_link_info(struct ni_rtnl_query *q, struct nlmsghdr **hp)
 		struct ifinfomsg *ifi;
 
 		if ((ifi = ni_rtnl_ifinfomsg(h, RTM_NEWLINK)) != NULL) {
-			if (q->ifindex < 0 || q->ifindex == ifi->ifi_index) {
+			if (!q->ifindex || q->ifindex == (unsigned int)ifi->ifi_index) {
 				*hp = h;
 				return ifi;
 			}
@@ -168,7 +168,7 @@ ni_rtnl_query_next_ipv6_link_info(struct ni_rtnl_query *q, struct nlmsghdr **hp)
 		struct ifinfomsg *ifi;
 
 		if ((ifi = ni_rtnl_ifinfomsg(h, RTM_NEWLINK)) != NULL) {
-			if (q->ifindex < 0 || q->ifindex == ifi->ifi_index) {
+			if (!q->ifindex || q->ifindex == (unsigned int)ifi->ifi_index) {
 				*hp = h;
 				return ifi;
 			}
@@ -187,7 +187,7 @@ ni_rtnl_query_next_addr_info(struct ni_rtnl_query *q, struct nlmsghdr **hp)
 		struct ifaddrmsg *ifa;
 
 		if ((ifa = ni_rtnl_ifaddrmsg(h, RTM_NEWADDR)) != NULL) {
-			if (q->ifindex < 0 || q->ifindex == ifa->ifa_index) {
+			if (!q->ifindex || q->ifindex == ifa->ifa_index) {
 				*hp = h;
 				return ifa;
 			}
@@ -197,12 +197,12 @@ ni_rtnl_query_next_addr_info(struct ni_rtnl_query *q, struct nlmsghdr **hp)
 }
 
 static inline struct rtmsg *
-ni_rtnl_query_next_route_info(struct ni_rtnl_query *q, struct nlmsghdr **hp, int *oif_idxp)
+ni_rtnl_query_next_route_info(struct ni_rtnl_query *q, struct nlmsghdr **hp, unsigned int *oif_idxp)
 {
 	struct nlmsghdr *h;
 
 	while ((h = __ni_rtnl_info_next(&q->route_info)) != NULL) {
-		int oif_index = -1;
+		unsigned oif_index = 0;
 		struct nlattr *rta;
 		struct rtmsg *rtm;
 
@@ -213,7 +213,7 @@ ni_rtnl_query_next_route_info(struct ni_rtnl_query *q, struct nlmsghdr **hp, int
 		if (rta != NULL)
 			oif_index = nla_get_u32(rta);
 
-		if (q->ifindex >= 0 && oif_index != q->ifindex)
+		if (q->ifindex && oif_index != q->ifindex)
 			continue;
 
 		if (oif_idxp)
@@ -245,7 +245,7 @@ __ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list)
 
 	seqno = ++__ni_global_seqno;
 
-	if (ni_rtnl_query(&query, -1) < 0)
+	if (ni_rtnl_query(&query, 0) < 0)
 		goto failed;
 
 	/* Find tail of iflist */
@@ -330,12 +330,12 @@ __ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list)
 
 	while (1) {
 		struct rtmsg *rtm;
-		int oif_index;
+		unsigned int oif_index = 0;
 
 		if (!(rtm = ni_rtnl_query_next_route_info(&query, &h, &oif_index)))
 			break;
 
-		if (oif_index >= 0) {
+		if (oif_index) {
 			dev = ni_netdev_by_index(nc, oif_index);
 			if (dev == NULL) {
 				ni_error("route specifies OIF=%u; not found!", oif_index);
@@ -486,7 +486,9 @@ __ni_device_refresh_ipv6_link_info(ni_netconfig_t *nc, ni_netdev_t *dev)
 
 		if (ifi->ifi_family != AF_INET6)
 			continue;
-		if (ifi->ifi_index != (int)dev->link.ifindex)
+		if (ifi->ifi_index <= 0)
+			continue;
+		if ((unsigned int)ifi->ifi_index != dev->link.ifindex)
 			continue;
 
 		if ((rv = __ni_netdev_process_newlink_ipv6(dev, h, ifi)) < 0) {
