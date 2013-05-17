@@ -102,6 +102,15 @@ ni_infiniband_validate(ni_iftype_t iftype, const ni_infiniband_t *ib)
 	case NI_IFTYPE_INFINIBAND_CHILD:
 		if (!ib->parent.name || !*ib->parent.name)
 			return "Infiniband parent name required for child interfaces";
+
+		/*
+		 * we currently use sysfs, that always ORs with 0x8000,
+		 * new rtnetlink code does not seem to constrain it and
+		 * the children inherit parent key as default (0xffff)
+		 * so we may remove this when switching to rtnetlink.
+		 */
+		if (ib->pkey < 0x8000 || ib->pkey == NI_INFINIBAND_DEFAULT_PKEY)
+			return "Infiniband partition key not in supported range (0x8000..0xffff)";
 		break;
 	}
 
