@@ -43,7 +43,7 @@ static void		ni_xs_group_free(ni_xs_group_t *group);
 static void		ni_xs_group_array_append(ni_xs_group_array_t *, ni_xs_group_t *);
 static void		ni_xs_group_array_copy(ni_xs_group_array_t *, const ni_xs_group_array_t *);
 static void		ni_xs_group_array_destroy(ni_xs_group_array_t *);
-static ni_xs_group_t *	ni_xs_group_get(ni_xs_group_array_t *, int, const char *);
+static ni_xs_group_t *	ni_xs_group_get(ni_xs_group_array_t *, unsigned int, const char *);
 static void		ni_xs_scalar_set_bitmap(ni_xs_type_t *, ni_xs_intmap_t *);
 static void		ni_xs_scalar_set_enum(ni_xs_type_t *, ni_xs_intmap_t *);
 static void		ni_xs_scalar_set_range(ni_xs_type_t *, ni_xs_range_t *);
@@ -1610,7 +1610,7 @@ ni_xs_group_array_copy(ni_xs_group_array_t *dst, const ni_xs_group_array_t *src)
 }
 
 ni_xs_group_t *
-ni_xs_group_get(ni_xs_group_array_t *group_array, int kind, const char *name)
+ni_xs_group_get(ni_xs_group_array_t *group_array, unsigned int kind, const char *name)
 {
 	ni_xs_group_t *group;
 	unsigned int i;
