@@ -1136,7 +1136,7 @@ void
 ni_stringbuf_trim_empty_lines(ni_stringbuf_t *sb)
 {
 	char *str = sb->string;
-	int n, trim;
+	ssize_t n, trim;
 
 	/* trim tail */
 	for (trim = n = sb->len; n; --n) {
@@ -1151,7 +1151,7 @@ ni_stringbuf_trim_empty_lines(ni_stringbuf_t *sb)
 	sb->len = trim;
 
 	/* trim head */
-	for (trim = n = 0; n < sb->len; ) {
+	for (trim = n = 0; (size_t)n < sb->len; ) {
 		char cc = str[n++];
 
 		if (cc == '\r' || cc == '\n')
@@ -1599,7 +1599,7 @@ __ni_dirname(const char *path, char *result, size_t size)
 	while (sp > path && sp[-1] == '/')
 		--sp;
 
-	if (sp - path >= size) {
+	if ((size_t)(sp - path) >= size) {
 		ni_error("%s(%s): buffer too small", __func__, path);
 		return FALSE;
 	}
