@@ -928,7 +928,7 @@ ni_objectmodel_signal_to_event(const char *signal, ni_event_t *ep)
 {
 	unsigned int event;
 
-	if (!signal && !ep)
+	if (!signal || !ep)
 		return -1;
 
 	if (ni_parse_uint_mapped(signal, __ni_objectmodel_event_names, &event) < 0)
