@@ -541,11 +541,11 @@ ni_capture_devinfo_refresh(ni_capture_devinfo_t *devinfo, const char *ifname, co
 	}
 
 	if (devinfo->iftype != link->type) {
-		ni_error("%s: reconfig changes device type!", devinfo->ifname);
+		ni_error("%s: reconfig changes device type! d%u l%u", devinfo->ifname, devinfo->iftype, link->type);
 		return -1;
 	}
 	if (devinfo->ifindex != link->ifindex) {
-		ni_error("%s: reconfig changes device index!", devinfo->ifname);
+		ni_error("%s: reconfig changes device index! d%u l%u", devinfo->ifname, devinfo->ifindex, link->ifindex);
 		return -1;
 	}
 
