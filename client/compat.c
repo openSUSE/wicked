@@ -441,7 +441,7 @@ __ni_compat_generate_static_route(xml_node_t *aconf, const ni_route_t *rp)
 }
 
 static xml_node_t *
-__ni_compat_generate_static_address_list(xml_node_t *ifnode, ni_address_t *addr_list, int af)
+__ni_compat_generate_static_address_list(xml_node_t *ifnode, ni_address_t *addr_list, unsigned int af)
 {
 	ni_address_t *ap;
 	const char *afname;
