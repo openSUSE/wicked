@@ -147,7 +147,7 @@ __ni_redhat_read_interface(const char *filename, const char *ifname, ni_compat_n
 				compat->dev->name);
 	}
 
-	if (__ni_redhat_define_interface(sc, compat, known_devices) < 0)
+	if (__ni_redhat_define_interface(sc, compat, known_devices) == FALSE)
 		goto error;
 
 done:
@@ -521,7 +521,7 @@ __ni_redhat_define_interface(ni_sysconfig_t *sc, ni_compat_netdev_t *compat, ni_
 		USERCONTROL
 	 */
 
-	return 0;
+	return TRUE;
 }
 
 static ni_compat_netdev_t *
