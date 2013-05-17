@@ -278,7 +278,7 @@ try_bonding_slave(ni_sysconfig_t *sc, ni_compat_netdev_t *compat, ni_compat_netd
 	ni_bonding_t *bonding;
 	const char *master_name;
 
-	if (ni_sysconfig_get_boolean(sc, "SLAVE", &is_slave) || !is_slave)
+	if (!ni_sysconfig_get_boolean(sc, "SLAVE", &is_slave) || !is_slave)
 		return FALSE;
 
 	if (!(master_name = ni_sysconfig_get_value(sc, "MASTER"))) {
@@ -351,7 +351,7 @@ try_vlan(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	ni_vlan_t *vlan;
 	ni_bool_t is_vlan = 0;
 
-	if (ni_sysconfig_get_boolean(sc, "VLAN", &is_vlan) < 0 || !is_vlan)
+	if (!ni_sysconfig_get_boolean(sc, "VLAN", &is_vlan) || !is_vlan)
 		return FALSE;
 
 	if (sscanf(dev->name, "eth%u.%u", &eth_num, &vlan_tag) != 2) {
