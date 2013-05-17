@@ -338,8 +338,7 @@ ni_bridge_port_validate(const ni_bridge_port_t *port)
 		return "uninitialized port configuration";
 
 	if (port->priority != NI_BRIDGE_VALUE_NOT_SET &&
-	   (port->priority < NI_BRIDGE_PORT_PRIORITY_MIN ||
-	    port->priority > NI_BRIDGE_PORT_PRIORITY_MAX))
+	    port->priority > NI_BRIDGE_PORT_PRIORITY_MAX)
 		return "bridge port priority is out of supported range (0-63)";
 
 	if (port->path_cost != NI_BRIDGE_VALUE_NOT_SET &&
