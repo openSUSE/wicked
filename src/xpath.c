@@ -47,7 +47,7 @@ typedef int __xpath_node_comp_fn_t(const xpath_node_t *, const xpath_node_t *);
 typedef struct xpath_operator {
 	const char *		name;
 	int			intype;
-	int			outtype;
+	xpath_node_type_t	outtype;
 	int			priority;
 	unsigned int		constant : 1;
 	const char *		(*print)(const xpath_enode_t *);
@@ -82,7 +82,7 @@ static xpath_operator_t *xpath_get_function(const char *);
 static xpath_result_t *	__xpath_expression_eval(const xpath_enode_t *, xpath_result_t *);
 static xpath_result_t *	__xpath_build_boolean(int);
 
-static xpath_enode_t *	__xpath_build_expr(const char **, char, unsigned int infixprio);
+static xpath_enode_t *	__xpath_build_expr(const char **, char, int infixprio);
 static int		__xpath_enode_assert_element(xpath_enode_t **);
 static const char *	__xpath_next_identifier(const char **);
 static void		__xpath_skipws(const char **);
@@ -193,7 +193,7 @@ xml_xpath_eval_string(xml_document_t *doc, xml_node_t *xn, const char *expr)
  * Sorry this is such a spaghetti code implementation :-(
  */
 static xpath_enode_t *
-__xpath_build_expr(const char **pp, char terminator, unsigned int infixprio)
+__xpath_build_expr(const char **pp, char terminator, int infixprio)
 {
 	xpath_enode_t *current = NULL;
 	const char *pos = *pp;
