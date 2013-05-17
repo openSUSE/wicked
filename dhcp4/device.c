@@ -642,7 +642,7 @@ ni_dhcp_parse_client_id(ni_opaque_t *raw, int iftype, const char *cooked)
 void
 ni_dhcp_set_client_id(ni_opaque_t *raw, const ni_hwaddr_t *hwa)
 {
-	if (hwa->len + 1 > sizeof(raw->data))
+	if ((size_t)hwa->len + 1 > sizeof(raw->data))
 		ni_fatal("%s: not enough room for MAC address", __FUNCTION__);
 	raw->data[0] = ni_iftype_to_arphrd_type(hwa->type);
 	memcpy(raw->data + 1, hwa->data, hwa->len);
