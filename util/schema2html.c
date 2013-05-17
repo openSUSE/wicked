@@ -156,7 +156,8 @@ render(void)
 		if (xs_service->name) {
 			snprintf(pathname, sizeof(pathname), "%s/%s.html", opt_outdir, xs_service->name);
 			snprintf(filename, sizeof(filename), "%s.html", xs_service->interface);
-			symlink(filename, pathname);
+			if (symlink(filename, pathname) < 0)
+				perror(pathname);
 		}
 
 		classname = ni_xs_service_get_attribute(xs_service, "object-class", NULL);
