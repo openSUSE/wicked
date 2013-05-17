@@ -106,10 +106,10 @@ __ni_addrconf_should_update(unsigned int mask, unsigned int bit)
 
 typedef struct ni_capture_devinfo {
 	char *			ifname;
-	int			ifindex;
-	int			iftype;
-	int			arp_type;
-	unsigned		mtu;
+	unsigned int		ifindex;
+	unsigned int		iftype;
+	unsigned int		arp_type;
+	unsigned int		mtu;
 	ni_hwaddr_t		hwaddr;
 } ni_capture_devinfo_t;
 
