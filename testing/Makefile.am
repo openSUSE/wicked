@@ -10,10 +10,10 @@ INCLUDES			= -I$(top_srcdir)	\
 				  -I$(top_srcdir)/src	\
 				  -I$(top_srcdir)/include
 
-CFLAGS				= $(LIBNL_CFLAGS)	\
-				  $(LIBDBUS_CFLAGS)	\
-				  $(LIBGCRYPT_CFLAGS)
-LDFLAGS				= -rdynamic
+CFLAGS				+= $(LIBNL_CFLAGS)	\
+				   $(LIBDBUS_CFLAGS)	\
+				   $(LIBGCRYPT_CFLAGS)
+LDFLAGS				+= -rdynamic
 LDADD				= $(top_builddir)/src/libwicked.la
 
 rtnl_test_SOURCES		= rtnl-test.c
