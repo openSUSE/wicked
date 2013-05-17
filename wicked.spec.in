@@ -244,6 +244,7 @@ fi
 %dir %_datadir/dbus-1/system-services
 %_datadir/dbus-1/system-services/org.opensuse.Network.*.service
 %endif
+%dir %_datadir/wicked
 %dir %_datadir/wicked/schema
 %config(noreplace) %_datadir/wicked/schema/*.xml
 %_mandir/man5/wicked-config.5*
