@@ -1083,7 +1083,8 @@ ni_ifcondition_type(xml_node_t *node)
 	ni_ifcondition_t *result;
 	ni_ifworker_type_t type;
 
-	if ((type = ni_ifworker_type_from_string(node->cdata)) < 0) {
+	type = ni_ifworker_type_from_string(node->cdata);
+	if (type == NI_IFWORKER_TYPE_NONE) {
 		ni_error("%s: unknown device type \"%s\"",
 				xml_node_location(node), node->cdata);
 		return NULL;
