@@ -194,7 +194,7 @@ ni_duid_parse_hex(ni_opaque_t *duid, const char *hex)
 	int len;
 
 	len = ni_parse_hex(hex, duid->data, sizeof(duid->data));
-	if (len <= sizeof(ni_duid_ll_t))
+	if (len < 0 || (size_t)len <= sizeof(ni_duid_ll_t))
 		return FALSE;
 
 	return (duid->len = len) > 0;
