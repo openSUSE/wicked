@@ -145,7 +145,7 @@ __ni_suse_get_interfaces(const char *path, ni_compat_netdev_array_t *result)
 {
 	ni_string_array_t files = NI_STRING_ARRAY_INIT;
 	ni_bool_t success = FALSE;
-	int i;
+	unsigned int i;
 
 	if (ni_string_len(path) == 0)
 		path = __NI_SUSE_SYSCONFIG_NETWORK_DIR;
