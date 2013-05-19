@@ -167,7 +167,7 @@ checksum(const void *data, uint16_t length)
 }
 
 static uint16_t
-ipudp_checksum(const struct ip *iph, const struct udphdr *uh,
+ipudp_checksum(const struct ip *iph, const struct udphdr *uhp,
 		const unsigned char *data, size_t length)
 {
 	struct {
@@ -175,17 +175,22 @@ ipudp_checksum(const struct ip *iph, const struct udphdr *uh,
 		uint8_t mbz, proto;
 		uint16_t length;
 	} fake_header;
+	struct udphdr uh = {
+		.uh_sport = uhp->uh_sport,
+		.uh_dport = uhp->uh_dport,
+		.uh_ulen = uhp->uh_ulen,
+	};
 	uint32_t csum;
 
 	memset(&fake_header, 0, sizeof(fake_header));
 	fake_header.src = iph->ip_src;
 	fake_header.dst = iph->ip_dst;
 	fake_header.proto = iph->ip_p;
-	fake_header.length = uh->uh_ulen;
+	fake_header.length = uhp->uh_ulen;
 	fake_header.mbz = 0;
 
 	csum = checksum_partial(0, &fake_header, sizeof(fake_header));
-	csum = checksum_partial(csum, uh, sizeof(*uh));
+	csum = checksum_partial(csum, &uh, sizeof(uh));
 	csum = checksum_partial(csum, data, length);
 
 	return checksum_fold(csum);
