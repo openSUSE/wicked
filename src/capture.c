@@ -168,7 +168,7 @@ checksum(const void *data, uint16_t length)
 
 static uint16_t
 ipudp_checksum(const struct ip *iph, const struct udphdr *uhp,
-		const unsigned char *data, size_t length)
+		const void *data, size_t length)
 {
 	struct {
 		struct in_addr src, dst;
@@ -244,17 +244,17 @@ ni_capture_build_udp_header(ni_buffer_t *bp,
 	ip->ip_sum = 0;
 
 	/* Finally, do the checksums */
-	ip->ip_sum = checksum((unsigned char *) ip, sizeof(*ip));
+	ip->ip_sum = checksum( ip, sizeof(*ip));
 	udp->uh_sum = ipudp_checksum(ip, udp, payload, payload_len);
 
 	return 0;
 }
 
 static void *
-ni_capture_inspect_udp_header(unsigned char *data, size_t bytes, size_t *payload_len,
+ni_capture_inspect_udp_header(void *data, size_t bytes, size_t *payload_len,
 				ni_bool_t partial_checksum)
 {
-	struct ip *iph = (struct ip *) data;
+	struct ip *iph = data;
 	struct udphdr *uh;
 	unsigned int ihl;
 
@@ -292,7 +292,7 @@ ni_capture_inspect_udp_header(unsigned char *data, size_t bytes, size_t *payload
 		return NULL;
 	}
 
-	uh = (struct udphdr *) data;
+	uh = data;
 	data += sizeof(*uh);
 	bytes -= sizeof(*uh);
 
