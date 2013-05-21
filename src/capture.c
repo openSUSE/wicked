@@ -134,16 +134,23 @@ static ssize_t		__ni_capture_broadcast(const ni_capture_t *, const ni_buffer_t *
 static uint32_t
 checksum_partial(uint32_t sum, const void *data, uint16_t len)
 {
+	union {
+		const uint16_t *s;
+		const uint8_t *c;
+	} u;
+
+	u.s = data;
 	while (len > 1) {
-		sum += *(uint16_t *) data;
-		data += 2;
+		sum += ntohs(*u.s++);
 		len -= 2;
+		if (sum > 0xffffU)
+			sum -= 0xffffU;
 	}
 
 	if (len == 1) {
-		uint16_t a = *(unsigned char *) data;
-
-		sum += htons(a << 8);
+		sum += u.c[0] << 8;
+		if (sum > 0xffffU)
+			sum -= 0xffffU;
 	}
 	return sum;
 }
@@ -154,7 +161,7 @@ checksum_fold(uint32_t sum)
 	sum = (sum >> 16) + (sum & 0xffff);
 	sum +=(sum >> 16);
 
-	return ~sum;
+	return htons(~sum);
 }
 
 static uint16_t
