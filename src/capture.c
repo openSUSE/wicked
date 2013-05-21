@@ -291,7 +291,7 @@ ni_capture_inspect_udp_header(void *data, size_t bytes, size_t *payload_len,
 	data += sizeof(*uh);
 	bytes -= sizeof(*uh);
 
-	if (!partial_checksum && ipudp_checksum(iph, uh, data, bytes) != 0) {
+	if (!partial_checksum && ipudp_checksum(iph, uh, data, bytes) != uh->uh_sum) {
 		ni_debug_socket("bad UDP checksum, ignoring");
 		return NULL;
 	}
