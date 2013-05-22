@@ -1254,7 +1254,8 @@ __ni_rtnl_send_newaddr(ni_netdev_t *dev, const ni_address_t *ap, int flags)
 	struct ifaddrmsg ifa;
 	struct nl_msg *msg;
 
-	ni_debug_ifconfig("%s(%s/%u)", __FUNCTION__, ni_sockaddr_print(&ap->local_addr), ap->prefixlen);
+	ni_debug_ifconfig("%s(%s/%u)", __FUNCTION__,
+			ni_sockaddr_print(&ap->local_addr), ap->prefixlen);
 
 	memset(&ifa, 0, sizeof(ifa));
 	ifa.ifa_index = dev->link.ifindex;
@@ -1267,51 +1268,66 @@ __ni_rtnl_send_newaddr(ni_netdev_t *dev, const ni_address_t *ap, int flags)
 	else if (ni_address_is_loopback(ap))
 		ifa.ifa_scope = RT_SCOPE_HOST;
 	else
-		ifa.ifa_scope = 0; /* aka global */
+		ifa.ifa_scope = RT_SCOPE_UNIVERSE;
 
 	msg = nlmsg_alloc_simple(RTM_NEWADDR, flags);
 	if (nlmsg_append(msg, &ifa, sizeof(ifa), NLMSG_ALIGNTO) < 0)
 		goto nla_put_failure;
 
-	if (addattr_sockaddr(msg, IFA_LOCAL, &ap->local_addr))
+	if (addattr_sockaddr(msg, IFA_LOCAL, &ap->local_addr) < 0)
 		goto nla_put_failure;
 
 	if (ap->peer_addr.ss_family != AF_UNSPEC) {
-		if (addattr_sockaddr(msg, IFA_ADDRESS, &ap->peer_addr))
+		if (addattr_sockaddr(msg, IFA_ADDRESS, &ap->peer_addr) < 0)
 			goto nla_put_failure;
 	} else {
-		if (addattr_sockaddr(msg, IFA_ADDRESS, &ap->local_addr))
+		if (addattr_sockaddr(msg, IFA_ADDRESS, &ap->local_addr) < 0)
 			goto nla_put_failure;
 	}
 
 	if (ap->bcast_addr.ss_family != AF_UNSPEC
-	 && addattr_sockaddr(msg, IFA_BROADCAST, &ap->bcast_addr))
+	 && addattr_sockaddr(msg, IFA_BROADCAST, &ap->bcast_addr) < 0)
 		goto nla_put_failure;
 
 	if (ap->anycast_addr.ss_family != AF_UNSPEC
-	 && addattr_sockaddr(msg, IFA_ANYCAST, &ap->anycast_addr))
+	 && addattr_sockaddr(msg, IFA_ANYCAST, &ap->anycast_addr) < 0)
 		goto nla_put_failure;
 
-	if (ap->label) {
-		unsigned int len = strlen(ap->label);
+	if (ap->family == AF_INET && ap->label) {
+		size_t len = strlen(dev->name);
 
-		if (memcmp(ap->label, dev->name, len) != 0) {
-			ni_error("when specifying an interface label, the device name must "
-			   "be a prefix of the label");
+		if (strncmp(ap->label, dev->name, len) != 0) {
+			ni_error("%s: device name must be a prefix of the ipv4 address label \"%s\"",
+				dev->name, ap->label);
+			goto failed;
+		} else if (strlen(ap->label) >= IFNAMSIZ) {
+			ni_error("%s: specified address label \"%s\" is too long",
+				dev->name, ap->label);
 			goto failed;
 		}
+
 		NLA_PUT_STRING(msg, IFA_LABEL, ap->label);
 	}
 
 	if (ap->family == AF_INET6
-	 && ap->ipv6_cache_info.valid_lft && ap->ipv6_cache_info.preferred_lft) {
+		&& ap->ipv6_cache_info.valid_lft
+		&& ap->ipv6_cache_info.preferred_lft)
+	{
 		struct ifa_cacheinfo ci;
 
 		memset(&ci, 0, sizeof(ci));
 		ci.ifa_valid = ap->ipv6_cache_info.valid_lft;
 		ci.ifa_prefered = ap->ipv6_cache_info.preferred_lft;
 
-		nla_put(msg, IFA_CACHEINFO, sizeof(ci), &ci);
+		if (ci.ifa_prefered > ci.ifa_valid) {
+			ni_error("ipv6 address prefered lifetime %u cannot "
+				 " be greater than the valid lifetime %u",
+				 ci.ifa_prefered, ci.ifa_valid);
+			goto failed;
+		}
+
+		if (nla_put(msg, IFA_CACHEINFO, sizeof(ci), &ci) < 0)
+			goto nla_put_failure;
 	}
 
 	if (ni_nl_talk(msg) < 0) {
