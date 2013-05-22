@@ -662,8 +662,8 @@ __ni_objectmodel_route_to_dict(const ni_route_t *rp, ni_dbus_variant_t *dict)
 			ni_dbus_variant_init_dict(nhdict);
 
 			__ni_dbus_dict_add_sockaddr(nhdict, "gateway", &nh->gateway);
-			if (nh->device)
-				ni_dbus_dict_add_string(nhdict, "device", nh->device);
+			if (nh->device.name)
+				ni_dbus_dict_add_string(nhdict, "device", nh->device.name);
 			if (nh->weight)
 				ni_dbus_dict_add_uint32(nhdict, "weight", nh->weight);
 			if (nh->flags)
@@ -728,7 +728,7 @@ __ni_objectmodel_route_from_dict(ni_route_t **list, const ni_dbus_variant_t *dic
 
 			nh->gateway = gateway;
 			if (ni_dbus_dict_get_string(nhdict, "device", &string))
-				ni_string_dup(&nh->device, string);
+				ni_string_dup(&nh->device.name, string);
 			if (ni_dbus_dict_get_uint32(nhdict, "weight", &value))
 				nh->weight = value;
 			if (ni_dbus_dict_get_uint32(nhdict, "flags", &value))

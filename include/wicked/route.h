@@ -19,7 +19,7 @@
 typedef struct ni_route_nexthop {
 	struct ni_route_nexthop *next;
 	ni_sockaddr_t		gateway;
-	char *                  device;
+	ni_netdev_ref_t		device;
 	unsigned int		weight;
 	unsigned int		flags;
 } ni_route_nexthop_t;
@@ -78,5 +78,13 @@ extern int		ni_route_protocol_name_to_type(const char *);
 extern const char *	ni_route_protocol_type_to_name(unsigned int);
 extern int		ni_route_scope_name_to_type(const char *);
 extern const char *	ni_route_scope_type_to_name(unsigned int);
+
+extern ni_route_nexthop_t *	ni_route_nexthop_new(void);
+extern void			ni_route_nexthop_copy(ni_route_nexthop_t *, const ni_route_nexthop_t *);
+extern void			ni_route_nexthop_free(ni_route_nexthop_t *);
+extern void			ni_route_nexthop_destroy(ni_route_nexthop_t *);
+
+extern void			ni_route_nexthop_list_append(ni_route_nexthop_t **, ni_route_nexthop_t*);
+extern void			ni_route_nexthop_list_destroy(ni_route_nexthop_t **);
 
 #endif /* __WICKED_ROUTE_H__ */

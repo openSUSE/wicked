@@ -338,7 +338,7 @@ __ni_suse_read_routes(ni_route_t **route_list, const char *filename)
 		}
 
 		if (ifname && strcmp(ifname, "-"))
-			ni_string_dup(&rp->nh.device, ifname);
+			ni_string_dup(&rp->nh.device.name, ifname);
 
 		(void) type; /* currently ignored */
 	}
@@ -1104,7 +1104,8 @@ __ni_suse_addrconf_static(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 
 			switch (rp->family) {
 			case AF_INET:
-				if (rp->nh.device && !ni_string_eq(rp->nh.device, dev->name))
+				if (rp->nh.device.name &&
+				    !ni_string_eq(rp->nh.device.name, dev->name))
 					continue;
 
 				for (ap = dev->addrs; ap; ap = ap->next) {
@@ -1119,7 +1120,8 @@ __ni_suse_addrconf_static(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 
 			case AF_INET6:
 				/* For IPv6, we add the route as long as the interface name matches */
-				if (!rp->nh.device || !ni_string_eq(rp->nh.device, dev->name))
+				if (!rp->nh.device.name ||
+				    !ni_string_eq(rp->nh.device.name, dev->name))
 					continue;
 
 				ni_route_list_append(&dev->routes, ni_route_clone(rp));
