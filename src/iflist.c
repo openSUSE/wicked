@@ -127,7 +127,7 @@ ni_rtnl_query_link(struct ni_rtnl_query *q, unsigned int ifindex)
 }
 
 static int
-ni_rtnl_query_ipv6_link(struct ni_rtnl_query *q, int ifindex)
+ni_rtnl_query_ipv6_link(struct ni_rtnl_query *q, unsigned int ifindex)
 {
 	memset(q, 0, sizeof(*q));
 	q->ifindex = ifindex;
