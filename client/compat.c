@@ -18,6 +18,8 @@
 #include <wicked/fsm.h>
 #include <wicked/xml.h>
 #include "wicked-client.h"
+#include <linux/rtnetlink.h>
+
 
 /* Helper functions */
 static const char *	ni_sprint_uint(unsigned int value);
@@ -417,26 +419,136 @@ __ni_compat_generate_wireless(xml_node_t *ifnode, const ni_compat_netdev_t *comp
 	return TRUE;
 }
 
-void
-__ni_compat_generate_static_route(xml_node_t *aconf, const ni_route_t *rp)
+static void
+__ni_compat_generate_static_route_hops(xml_node_t *rnode, const ni_route_nexthop_t *hops,
+					const char *ifname)
 {
-	xml_node_t *rnode;
 	const ni_route_nexthop_t *nh;
 
-	rnode = xml_node_new("route", aconf);
-	if (rp->destination.ss_family != AF_UNSPEC && rp->prefixlen != 0) {
-		xml_node_new_element("destination", rnode,
-				ni_sockaddr_prefix_print(&rp->destination, rp->prefixlen));
-	}
-
-	for (nh = &rp->nh; nh; nh = nh->next) {
+	for (nh = hops; nh; nh = nh->next) {
 		xml_node_t *nhnode;
 
+		if (nh->gateway.ss_family == AF_UNSPEC && !nh->device.name)
+			continue;
+
+		nhnode = xml_node_new("nexthop", rnode);
 		if (nh->gateway.ss_family != AF_UNSPEC) {
-			nhnode = xml_node_new("nexthop", rnode);
 			xml_node_new_element("gateway", nhnode,
 				ni_sockaddr_print(&nh->gateway));
 		}
+		if (nh->device.name && !ni_string_eq(ifname, nh->device.name)) {
+			xml_node_new_element("device", nhnode, nh->device.name);
+		}
+		if (hops->next) {
+			if (nh->weight > 0) {
+				xml_node_new_element("weight", nhnode,
+						ni_sprint_uint(nh->weight));
+			}
+			/*
+			 * FIXME: dead | pervasive | onlink
+			if (nh->flags > 0) {
+				xml_node_new_element("flags", nhnode,
+						ni_sprint_uint(nh->flags));
+			}
+			*/
+		}
+	}
+}
+
+void
+__ni_compat_generate_static_route(xml_node_t *aconf, const ni_route_t *rp, const char *ifname)
+{
+	xml_node_t *rnode;
+	char *tmp = NULL;
+
+	rnode = xml_node_new("route", aconf);
+
+	if (rp->table != RT_TABLE_UNSPEC && rp->table != RT_TABLE_MAIN) {
+		/* FIXME: */
+		xml_node_new_element("table", rnode, ni_sprint_uint(rp->table));
+	}
+
+	if (rp->type != RTN_UNSPEC && rp->type != RTN_UNICAST) {
+		/* FIXME: */
+		xml_node_new_element("type", rnode, ni_sprint_uint(rp->type));
+	}
+
+	if (rp->destination.ss_family != AF_UNSPEC && rp->prefixlen != 0) {
+		xml_node_new_element("destination", rnode,
+			ni_sockaddr_prefix_print(&rp->destination, rp->prefixlen));
+	}
+
+	/* singlepath route here */
+	if (rp->nh.next == NULL) {
+		__ni_compat_generate_static_route_hops(rnode, &rp->nh, ifname);
+	}
+
+	if (rp->scope != RT_SCOPE_UNIVERSE) {
+		/* FIXME: */
+		xml_node_new_element("scope", rnode, ni_sprint_uint(rp->scope));
+	}
+	if (rp->protocol != RTPROT_UNSPEC && rp->protocol != RTPROT_BOOT) {
+		xml_node_new_element("protocol", rnode, ni_sprint_uint(rp->protocol));
+	}
+	if (rp->realm > 0) {
+		xml_node_new_element("realm", rnode, ni_sprint_uint(rp->realm));
+	}
+	if (rp->source.ss_family != AF_UNSPEC) {
+		xml_node_new_element("source", rnode, ni_sockaddr_print(&rp->source));
+	}
+
+	if (rp->tos > 0 && ni_string_printf(&tmp, "0x%02x", rp->tos)) {
+		xml_node_new_element("tos", rnode, tmp);
+		ni_string_free(&tmp);
+	}
+	if (rp->metric > 0) {
+		xml_node_new_element("metric", rnode, ni_sprint_uint(rp->metric));
+	}
+	if (rp->mtu > 0) {
+		xml_node_new_element("mtu", rnode, ni_sprint_uint(rp->mtu));
+		if (rp->mtu_lock)
+			xml_node_new_element("mtu-lock", rnode, "true");
+	}
+	if (rp->priority > 0) {
+		xml_node_new_element("priority", rnode, ni_sprint_uint(rp->priority));
+	}
+	if (rp->advmss > 0) {
+		xml_node_new_element("advmss", rnode, ni_sprint_uint(rp->advmss));
+	}
+	if (rp->rtt > 0) {
+		xml_node_new_element("rtt", rnode, ni_sprint_uint(rp->rtt));
+	}
+	if (rp->rttvar > 0) {
+		xml_node_new_element("rttvar", rnode, ni_sprint_uint(rp->rttvar));
+	}
+	if (rp->window > 0) {
+		xml_node_new_element("window", rnode, ni_sprint_uint(rp->window));
+	}
+	if (rp->cwnd > 0) {
+		xml_node_new_element("cwnd", rnode, ni_sprint_uint(rp->cwnd));
+	}
+	if (rp->initcwnd > 0) {
+		xml_node_new_element("initcwnd", rnode, ni_sprint_uint(rp->initcwnd));
+	}
+	if (rp->initrwnd > 0) {
+		xml_node_new_element("initrwnd", rnode, ni_sprint_uint(rp->initrwnd));
+	}
+	if (rp->ssthresh > 0) {
+		xml_node_new_element("initrwnd", rnode, ni_sprint_uint(rp->ssthresh));
+	}
+	if (rp->rto_min > 0) {
+		xml_node_new_element("rto-min", rnode, ni_sprint_uint(rp->rto_min));
+	}
+	if (rp->hoplimit > 0) {
+		xml_node_new_element("hoplimit", rnode, ni_sprint_uint(rp->hoplimit));
+	}
+	if (rp->reordering > 0) {
+		xml_node_new_element("reordering", rnode, ni_sprint_uint(rp->reordering));
+	}
+
+	/* multipath hops at the end */
+	if (rp->nh.next != NULL) {
+		__ni_compat_generate_static_route_hops(rnode, &rp->nh, ifname);
 	}
 }
 
@@ -491,7 +603,7 @@ __ni_compat_generate_static_addrconf(xml_node_t *ifnode, const ni_compat_netdev_
 
 		for (rp = dev->routes; rp; rp = rp->next) {
 			if (rp->family == AF_INET)
-				__ni_compat_generate_static_route(aconf, rp);
+				__ni_compat_generate_static_route(aconf, rp, dev->name);
 		}
 	}
 
@@ -500,7 +612,7 @@ __ni_compat_generate_static_addrconf(xml_node_t *ifnode, const ni_compat_netdev_
 
 		for (rp = dev->routes; rp; rp = rp->next) {
 			if (rp->family == AF_INET6)
-				__ni_compat_generate_static_route(aconf, rp);
+				__ni_compat_generate_static_route(aconf, rp, dev->name);
 		}
 	}
 
