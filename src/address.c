@@ -841,6 +841,7 @@ ni_route_clone(const ni_route_t *src)
 	C(family);
 	C(prefixlen);
 	C(destination);
+	C(source);
 
 	C(type);
 	C(scope);
@@ -849,6 +850,7 @@ ni_route_clone(const ni_route_t *src)
 	C(tos);
 	C(metric);
 	C(mtu);
+	C(mtu_lock);
 	C(priority);
 	C(advmss);
 	C(rtt);
@@ -856,10 +858,12 @@ ni_route_clone(const ni_route_t *src)
 	C(window);
 	C(cwnd);
 	C(initcwnd);
+	C(initrwnd);
 	C(ssthresh);
-	C(realms);
+	C(realm);
 	C(rto_min);
 	C(hoplimit);
+	C(reordering);
 #undef C
 
 	for (nh = &rp->nh, srcnh = &src->nh; srcnh; srcnh = srcnh->next, nh = nh->next) {

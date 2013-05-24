@@ -33,6 +33,7 @@ struct ni_route {
 	unsigned int		family;
 	unsigned int		prefixlen;
 	ni_sockaddr_t		destination;
+	ni_sockaddr_t		source;
 	ni_route_nexthop_t	nh;
 
 	int			type;			/* RTN_* */
@@ -43,6 +44,7 @@ struct ni_route {
 	unsigned int		metric;
 
 	unsigned int		mtu;
+	ni_bool_t		mtu_lock;
 	unsigned int		priority;
 	unsigned int		advmss;
 	unsigned int		rtt;
@@ -50,10 +52,12 @@ struct ni_route {
 	unsigned int		window;
 	unsigned int		cwnd;
 	unsigned int		initcwnd;
+	unsigned int		initrwnd;
 	unsigned int		ssthresh;
-	unsigned int		realms;
+	unsigned int		realm;
 	unsigned int		rto_min;
 	unsigned int		hoplimit;
+	unsigned int		reordering;
 
 	ni_ipv6_cache_info_t	ipv6_cache_info;
 };
