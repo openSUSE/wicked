@@ -8,6 +8,7 @@
 #include <limits.h>
 #include <ctype.h>
 #include <errno.h>
+#include <linux/rtnetlink.h>
 
 #include <wicked/address.h>
 #include <wicked/util.h>
@@ -26,6 +27,8 @@
 #include <wicked/objectmodel.h>
 #include <wicked/dbus.h>
 #include "wicked-client.h"
+#include "util_priv.h"
+
 
 static ni_compat_netdev_t *__ni_suse_read_interface(const char *, const char *);
 static ni_bool_t	__ni_suse_read_globals(const char *path);
@@ -34,7 +37,7 @@ static ni_bool_t	__ni_suse_sysconfig_read(ni_sysconfig_t *, ni_compat_netdev_t *
 static ni_bool_t	__process_indexed_variables(const ni_sysconfig_t *, ni_netdev_t *, const char *,
 				ni_bool_t (*)(const ni_sysconfig_t *, ni_netdev_t *, const char *));
 static ni_var_t *	__find_indexed_variable(const ni_sysconfig_t *, const char *, const char *);
-static ni_bool_t	__ni_suse_read_routes(ni_route_t **, const char *);
+static ni_bool_t	__ni_suse_read_routes(ni_route_t **, const char *, const char *);
 
 static ni_sysconfig_t *	__ni_suse_config_defaults = NULL;
 static ni_sysconfig_t *	__ni_suse_dhcp_defaults   = NULL;
@@ -233,7 +236,7 @@ __ni_suse_read_globals(const char *path)
 
 	snprintf(pathbuf, sizeof(pathbuf), "%s/%s", path, __NI_SUSE_ROUTES_GLOBAL);
 	if (ni_file_exists(pathbuf)) {
-		if (!__ni_suse_read_routes(&__ni_suse_global_routes, pathbuf))
+		if (!__ni_suse_read_routes(&__ni_suse_global_routes, pathbuf, NULL))
 			return FALSE;
 	}
 
@@ -255,98 +258,531 @@ __ni_suse_free_globals(void)
 /*
  * Read the routing information from sysconfig/network/routes.
  */
-ni_bool_t
-__ni_suse_read_routes(ni_route_t **route_list, const char *filename)
+static inline const char *
+__get_route_opt(ni_string_array_t *opts, unsigned int i)
 {
-	char buffer[512];
+	return i < opts->count ? opts->data[i] : NULL;
+}
+
+int
+__ni_suse_parse_route_hops(ni_route_nexthop_t *nh, ni_string_array_t *opts,
+				unsigned int *pos, const char *ifname,
+				const char *filename, unsigned int line)
+{
+	const char *opt, *val;
+	unsigned int tmp;
+
+	/*
+	 * The routes/ifroute-<ifname> multipath syntax is:
+	 *
+	 * "192.168.0.0/24  -               -   -   table 42 \"
+	 * "                nexthop via 192.168.1.1 weight 2 \"
+	 * "                nexthop via 192.168.1.2 weight 3"
+	 *
+	 */
+	while ((opt = __get_route_opt(opts, (*pos)++))) {
+		if (!strcmp(opt, "dead")) {
+			if (nh->flags & RTNH_F_DEAD)
+				return -1;
+			nh->flags |= RTNH_F_DEAD;
+		} else
+		if (!strcmp(opt, "pervasive")) {
+			if (nh->flags & RTNH_F_PERVASIVE)
+				return -1;
+			nh->flags |= RTNH_F_PERVASIVE;
+		} else
+		if (!strcmp(opt, "onlink")) {
+			if (nh->flags & RTNH_F_ONLINK)
+				return -1;
+			nh->flags |= RTNH_F_ONLINK;
+		} else
+		if (!strcmp(opt, "via")) {
+			val = __get_route_opt(opts, (*pos)++);
+			if (!val || nh->gateway.ss_family != AF_UNSPEC)
+				return -1;
+			if (ni_sockaddr_parse(&nh->gateway, val, AF_UNSPEC) < 0)
+				return -1;
+		} else
+		if (!strcmp(opt, "dev")) {
+			val = __get_route_opt(opts, (*pos)++);
+			if (!val || nh->device.name)
+				return -1;
+			ni_string_dup(&nh->device.name, val);
+		} else
+		if (!strcmp(opt, "weight")) {
+			val = __get_route_opt(opts, (*pos)++);
+			if (!val || nh->weight)
+				return -1;
+			if (ni_parse_uint(val, &tmp, 10) < 0 || !tmp)
+				return -1;
+			nh->weight = tmp;
+		} else
+		if (!strcmp(opt, "nexthop")) {
+			ni_route_nexthop_t *next = ni_route_nexthop_new();
+			if (__ni_suse_parse_route_hops(next, opts, pos, ifname,
+							filename, line) < 0) {
+				ni_route_nexthop_free(next);
+				return -1;
+			}
+			if (nh->gateway.ss_family == AF_UNSPEC)
+				nh->gateway.ss_family = next->gateway.ss_family;
+			if (nh->gateway.ss_family != next->gateway.ss_family) {
+				ni_route_nexthop_free(next);
+				return -1;
+			}
+			nh->next = next;
+			break;
+		} else
+			return -1;
+	}
+
+	/* we need either ifname or gateway... */
+	if (!nh->device.name && nh->gateway.ss_family == AF_UNSPEC) {
+		return -1;
+	}
+
+	/* we can apply default ifname now...? */
+	if (!nh->device.name && ifname) {
+		ni_string_dup(&nh->device.name, ifname);
+	}
+
+	return 0;
+}
+
+static const ni_intmap_t __map_route_types[] = {
+	{ "unicast",		RTN_UNICAST	},
+	{ "local",		RTN_LOCAL	},
+	{ "broadcast",		RTN_BROADCAST	},
+/*	{ "anycast",		RTN_ANYCAST	},	*/
+	{ "multicast",		RTN_MULTICAST	},
+	{ "blackhole",		RTN_BLACKHOLE	},
+	{ "unreachable",	RTN_UNREACHABLE	},
+	{ "prohibit",		RTN_PROHIBIT	},
+	{ "throw",		RTN_THROW	},
+	{ "nat",		RTN_NAT		},
+/*	{ "xresolve",		RTN_XRESOLVE	},	*/
+	{ NULL,			RTN_UNSPEC	},
+};
+
+int
+__ni_suse_route_parse_opts(ni_route_t *rp, ni_string_array_t *opts,
+				unsigned int *pos, const char *ifname,
+				const char *filename, unsigned int line)
+{
+	const char *opt, *val;
+	unsigned int tmp;
+
+	while ((opt = __get_route_opt(opts, (*pos)++))) {
+		if (!strcmp(opt, "src")) {
+			val = __get_route_opt(opts, (*pos)++);
+			if (!val || rp->source.ss_family != AF_UNSPEC)
+				return -1;
+			if (ni_sockaddr_parse(&rp->source, val, AF_UNSPEC) < 0)
+				return -1;
+
+			if (rp->family == AF_UNSPEC)
+				rp->family = rp->source.ss_family;
+			if (rp->family != rp->source.ss_family) {
+				return -1;
+			}
+		} else
+		if (!strcmp(opt, "tos") || !strcmp(opt, "dsfield")) {
+			val = __get_route_opt(opts, (*pos)++);
+			if (ni_parse_uint(val, &tmp, 16) < 0 || tmp > 256)
+				return -1;
+			rp->tos = tmp;
+		} else
+		if (!strcmp(opt, "table")) {
+			val = __get_route_opt(opts, (*pos)++);
+			if (!val || rp->table != RT_TABLE_UNSPEC)
+				return -1;
+			if (ni_parse_uint(val, &tmp, 10) < 0)
+				return -1;
+			rp->table = tmp;
+		} else
+		if (!strcmp(opt, "proto") || !strcmp(opt, "protocol")) {
+			val = __get_route_opt(opts, (*pos)++);
+			if (!val || rp->protocol != RTPROT_UNSPEC)
+				return -1;
+			if (ni_parse_uint(val, &tmp, 10) < 0 || tmp > 255)
+				return -1;
+			rp->protocol = tmp;
+		} else
+		if (!strcmp(opt, "scope")) {
+			val = __get_route_opt(opts, (*pos)++);
+			if (ni_parse_uint(val, &tmp, 10) < 0 || tmp > RT_SCOPE_NOWHERE)
+				return -1;
+			rp->scope = tmp;
+		} else
+		if (!strcmp(opt, "realm")) {
+			val = __get_route_opt(opts, (*pos)++);
+			if (ni_parse_uint(val, &tmp, 10) < 0)
+				return -1;
+			rp->realm = tmp;
+		} else
+		if (!strcmp(opt, "metric") || !strcmp(opt, "preference")) {
+			val = __get_route_opt(opts, (*pos)++);
+			if (ni_parse_uint(val, &tmp, 10) < 0)
+				return -1;
+			rp->metric = tmp;
+		} else
+		if (!strcmp(opt, "mtu")) {
+			val = __get_route_opt(opts, (*pos)++);
+			if (ni_string_eq("lock", val)) {
+				rp->mtu_lock = TRUE;
+				val = __get_route_opt(opts, (*pos)++);
+			}
+			if (!val || ni_parse_uint(val, &tmp, 10) < 0 || tmp > 65536)
+				return -1;
+			rp->mtu = tmp;
+		} else
+		if (!strcmp(opt, "priority")) {
+			val = __get_route_opt(opts, (*pos)++);
+			if (ni_parse_uint(val, &tmp, 10) < 0)
+				return -1;
+			rp->priority = tmp;
+		} else
+		if (!strcmp(opt, "advmss")) {
+			val = __get_route_opt(opts, (*pos)++);
+			if (ni_parse_uint(val, &tmp, 10) < 0)
+				return -1;
+			rp->advmss = tmp;
+		} else
+		if (!strcmp(opt, "rtt")) {
+			val = __get_route_opt(opts, (*pos)++);
+			if (ni_parse_uint(val, &tmp, 10) < 0)
+				return -1;
+			rp->rtt = tmp;
+		} else
+		if (!strcmp(opt, "rttvar")) {
+			val = __get_route_opt(opts, (*pos)++);
+			if (ni_parse_uint(val, &tmp, 10) < 0)
+				return -1;
+			rp->rttvar = tmp;
+		} else
+		if (!strcmp(opt, "window")) {
+			val = __get_route_opt(opts, (*pos)++);
+			if (ni_parse_uint(val, &tmp, 10) < 0)
+				return -1;
+			rp->window = tmp;
+		} else
+		if (!strcmp(opt, "cwnd")) {
+			val = __get_route_opt(opts, (*pos)++);
+			if (ni_parse_uint(val, &tmp, 10) < 0)
+				return -1;
+			rp->cwnd = tmp;
+		} else
+		if (!strcmp(opt, "initcwnd")) {
+			val = __get_route_opt(opts, (*pos)++);
+			if (ni_parse_uint(val, &tmp, 10) < 0)
+				return -1;
+			rp->initcwnd = tmp;
+		} else
+		if (!strcmp(opt, "ssthresh")) {
+			val = __get_route_opt(opts, (*pos)++);
+			if (ni_parse_uint(val, &tmp, 10) < 0)
+				return -1;
+			rp->ssthresh = tmp;
+		} else
+		if (!strcmp(opt, "rto_min")) {
+			val = __get_route_opt(opts, (*pos)++);
+			if (ni_parse_uint(val, &tmp, 10) < 0)
+				return -1;
+			rp->rto_min = tmp;
+		} else
+		if (!strcmp(opt, "hoplimit")) {
+			val = __get_route_opt(opts, (*pos)++);
+			if (ni_parse_uint(val, &tmp, 10) < 0)
+				return -1;
+			rp->hoplimit = tmp;
+		} else
+		if (!strcmp(opt, "reordering")) {
+			val = __get_route_opt(opts, (*pos)++);
+			if (ni_parse_uint(val, &tmp, 10) < 0)
+				return -1;
+			rp->reordering = tmp;
+		} else
+		if (!strcmp(opt, "nexthop")) {
+			/* either single or multipath, not both? */
+			if (rp->nh.gateway.ss_family != AF_UNSPEC) {
+				return -1;
+			}
+
+			if (__ni_suse_parse_route_hops(&rp->nh, opts, pos,
+						ifname, filename, line) < 0) {
+				return -1;
+			}
+
+			if (rp->family == AF_UNSPEC)
+				rp->family = rp->nh.gateway.ss_family;
+			if (rp->family != rp->nh.gateway.ss_family) {
+				return -1;
+			}
+		} else {
+			/* try as route types */
+			if (ni_parse_uint_mapped(opt, __map_route_types, &tmp) == 0) {
+				if (rp->type != RTN_UNSPEC)
+					return -1;
+				rp->type = tmp;
+			} else {
+				/* ignore unknown assumming they've a value ? */
+				(*pos)++;
+			}
+		}
+	}
+
+	return 0;
+}
+
+int
+__ni_suse_route_parse(ni_route_t **routes, char *buffer, const char *ifname,
+			const char *filename, unsigned int line)
+{
+	char *dest, *gway, *mask = NULL, *name = NULL, *end = NULL;
+	unsigned int plen, i = 0;
+	ni_string_array_t opts = NI_STRING_ARRAY_INIT;
+	ni_route_t *rp;
+
+	ni_assert(routes != NULL);
+
+	dest = strtok_r(buffer, " \t", &end);
+	if (!dest)
+		return 0;	/* empty line */
+
+	gway = strtok_r(NULL, " \t", &end);
+	if (gway)
+		mask = strtok_r(NULL, " \t", &end);
+	if (mask)
+		name = strtok_r(NULL, " \t", &end);
+	if (name) {
+		ni_string_split(&opts, end, " \t", 0);
+
+		if (ni_string_eq(name, "-"))
+			name = NULL;
+
+		if (ifname == NULL)
+			ifname = name;
+	}
+
+	/*
+	 * Let's allocate a route and fill it directly
+	 */
+	rp = xcalloc(1, sizeof(ni_route_t));
+
+	/*
+	 * We need an address either in gateway or in destination
+	 * to get the address family.
+	 */
+	if (!gway || ni_string_eq(gway, "-")) {
+		/*
+		 * This is either a local interface route, e.g.
+		 * ifroute-lo contains just 127/8 in it, or a
+		 * multipath route where the hops are in opts.
+		 */
+		gway = NULL;
+	} else
+	if (ni_sockaddr_parse(&rp->nh.gateway, gway, AF_UNSPEC) < 0) {
+		ni_error("%s[%u]: Cannot parse route gateway address \"%s\"",
+			filename, line, gway);
+		goto failure;
+	}
+	if (rp->family == AF_UNSPEC) {
+		rp->family = rp->nh.gateway.ss_family;
+	}
+
+	if (__ni_suse_route_parse_opts(rp, &opts, &i, ifname, filename, line)) {
+		ni_error("%s[%u]: Cannot parse route options \"%s\"",
+			filename, line, end);
+		goto failure;
+	}
+
+	if (ni_string_eq(dest, "default")) {
+		/*
+		 * A default route with family from gateway
+		 */
+		rp->destination.ss_family = rp->family;
+		rp->prefixlen = 0;
+	} else {
+		rp->prefixlen = -1U;
+
+		if ((end = strchr(dest, '/'))) {
+			*end++ = '\0';
+			if (ni_parse_uint(end, &rp->prefixlen, 10) < 0) {
+				ni_error("%s[%u]: Cannot parse route destination length \"%s\"",
+					filename, line, end);
+				goto failure;
+			}
+		}
+		if (!ni_sockaddr_parse(&rp->destination, dest, AF_UNSPEC) < 0) {
+			ni_error("%s[%u]: Cannot parse route destination prefix \"%s\"",
+				filename, line, dest);
+			goto failure;
+		}
+		if (rp->family == AF_UNSPEC)
+			rp->family = rp->destination.ss_family;
+		if (rp->family != rp->destination.ss_family)
+			goto failure;
+
+		plen = ni_af_address_length(rp->destination.ss_family) * 8;
+		if (end == NULL) {
+			/*
+			 * Destination without prefix-length, parse mask field.
+			 */
+			if (!mask || ni_string_eq(mask, "-")) {
+				/*
+				 * No mask field is provided, assume the destination is
+				 * a single IP address -- use the full address length.
+				 */
+				rp->prefixlen = plen;
+			} else
+			if (strchr(mask, '.')) {
+				ni_sockaddr_t netmask;
+
+				/*
+				 * The mask field contains a IPv4 netmask in the standard
+				 * dotted-decimal format (we do not parse a IPv6 netmask).
+				 */
+				if (rp->destination.ss_family != AF_INET ||
+				    ni_sockaddr_parse(&netmask, mask, AF_INET) < 0) {
+					ni_error("%s[%u]: Cannot parse route netmask \"%s\"",
+						filename, line, mask);
+					goto failure;
+				}
+				rp->prefixlen = ni_sockaddr_netmask_bits(&netmask);
+			} else
+			if (ni_parse_uint(mask, &rp->prefixlen, 10) < 0) {
+				/*
+				 * The mask field contains a prefix length.
+				 */
+				ni_error("%s[%u]: Cannot parse route destination length \"%s\"",
+					filename, line, mask);
+				goto failure;
+			}
+		}
+		if (rp->prefixlen > plen) {
+			ni_error("%s[%u]: Cannot parse route destination length \"%s\"",
+				filename, line, mask);
+			goto failure;
+		}
+	}
+
+	if (rp->family == AF_UNSPEC) {
+		ni_error("%s[%u]: Cannot create route - unable to find out address family",
+			filename, line);
+		goto failure;
+	}
+
+	/* assign default interface name ... */
+	if (!rp->nh.device.name && ifname)
+		ni_string_dup(&rp->nh.device.name, ifname);
+
+	/* we need either ifname or gateway... */
+	if (!rp->nh.device.name && rp->nh.gateway.ss_family == AF_UNSPEC) {
+		ni_error("%s[%u]: Cannot create route - neither device nor gateway found",
+			filename, line);
+		goto failure;
+	}
+
+	/* apply defaults when needed */
+	if (rp->type == RT_TABLE_UNSPEC)
+		rp->type = RTN_UNICAST;
+	if (rp->table == RT_TABLE_UNSPEC)
+		rp->table = RT_TABLE_MAIN;
+	if (rp->protocol == RTPROT_UNSPEC)
+		rp->protocol = RTPROT_BOOT;
+
+	/*
+	 * OK, IMO that's it.
+	 */
+	ni_route_list_append(routes, rp);
+	return 0;
+
+failure:
+	if (rp) {
+		ni_route_free(rp);
+	}
+	return -1;
+}
+
+int
+__ni_suse_read_route_line(FILE *fp, ni_stringbuf_t *buff, unsigned int *line)
+{
+	char temp[512], *ptr, eol;
+	size_t len;
+
+	while (fgets(temp, sizeof(temp), fp) != NULL) {
+		(*line)++;
+
+		len = strcspn(temp, "\r\n");
+		eol = temp[len];
+		temp[len] = '\0';
+
+		if ((ptr = strchr(temp, '\\'))) {
+			len = ptr - temp;
+			*ptr++ = '\0';
+			/* continuation only! */
+			if (*ptr)
+				return -1;
+			eol = '\0';
+		}
+		if (len)
+			ni_stringbuf_puts(buff, temp);
+		if (eol)
+			return 0;
+	}
+
+	return 1;
+}
+
+ni_bool_t
+__ni_suse_read_routes(ni_route_t **route_list, const char *filename, const char *ifname)
+{
+	ni_stringbuf_t buff;
+	unsigned int line = 1, lcnt = 0;
+	char *ptr;
 	FILE *fp;
+	int done;
 
 	if ((fp = fopen(filename, "r")) == NULL) {
 		ni_error("unable to open %s: %m", filename);
 		return FALSE;
 	}
 
-	while (fgets(buffer, sizeof(buffer), fp) != NULL) {
-		char *dest, *gw, *mask = NULL, *ifname = NULL, *type = NULL;
-		ni_sockaddr_t dest_addr, gw_addr, mask_addr;
-		unsigned int prefixlen = 255;
-		ni_route_t *rp;
+	ni_stringbuf_init(&buff);
+	do {
+		ni_stringbuf_clear(&buff);
 
-		buffer[strcspn(buffer, "#\r\n")] = '\0';
-		
-		if (!(dest = strtok(buffer, " \t")))
+		line += lcnt;
+		lcnt = 0;
+
+		done = __ni_suse_read_route_line(fp, &buff, &lcnt);
+		if (done < 0) {
+			ni_error("%s[%u]: Cannot parse route line continuation",
+				filename, line - 1 + lcnt);
+			goto error;
+		}
+
+		if (ni_stringbuf_empty(&buff))
 			continue;
 
-		gw = strtok(NULL, " \t");
-		if (gw)
-			mask = strtok(NULL, " \t");
-		if (mask)
-			ifname = strtok(NULL, " \t");
-		if (ifname)
-			type = strtok(NULL, " \t");
+		/* truncate at first comment char */
+		if ((ptr = strchr(buff.string, '#')))
+			*ptr = '\0';
 
-		if (gw == NULL || !strcmp(gw, "-")) {
-			/* This is a local interface route.
-			 * Some SLES versions have an ifcfg-route with
-			 * "127/8" in it. */
-			memset(&gw_addr, 0, sizeof(gw_addr));
-		} else
-		if (ni_sockaddr_parse(&gw_addr, gw, AF_UNSPEC) < 0) {
-			ni_error("%s: cannot parse gw addr \"%s\"",
-					filename, gw);
-			goto error;
+		/* skip leading spaces */
+		ptr = buff.string + strspn(buff.string, " \t");
+		if (*ptr) {
+			if (__ni_suse_route_parse(route_list, ptr, ifname,
+						  filename, line) < 0)
+				goto error; /* ? */
 		}
-
-		if (!strcmp(dest, "default")) {
-			memset(&dest_addr, 0, sizeof(dest_addr));
-			dest_addr.ss_family = gw_addr.ss_family;
-			prefixlen = 0;
-		} else {
-			char *sp;
-
-			if ((sp = strchr(dest, '/')) != NULL) {
-				*sp++ = '\0';
-				prefixlen = strtoul(sp, NULL, 10);
-			}
-			if (ni_sockaddr_parse(&dest_addr, dest, AF_UNSPEC) < 0) {
-				ni_error("%s: cannot parse dest addr \"%s\"",
-						filename, dest);
-				goto error;
-			}
-			if (prefixlen == 255) {
-				if (!mask || !strcmp(mask, "-")) {
-					/* No prefix and no mask given - assume the destination
-					   is a single address. Use the full address length
-					   as prefix. */
-					prefixlen = ni_af_address_length(dest_addr.ss_family) * 8;
-				} else {
-					/* We have a mask. Try to parse it and count the bits. */
-					if (ni_sockaddr_parse(&mask_addr, mask, AF_UNSPEC) < 0) {
-						ni_error("%s: cannot parse mask addr \"%s\"",
-								filename, mask);
-						goto error;
-					}
-					prefixlen = ni_sockaddr_netmask_bits(&mask_addr);
-				}
-			}
-		}
-
-		rp = ni_route_new(prefixlen, &dest_addr, &gw_addr, route_list);
-		if (rp == NULL) {
-			ni_error("Unable to add route %s %s %s", dest, gw, mask?: "-");
-			goto error;
-		}
-
-		if (ifname && strcmp(ifname, "-"))
-			ni_string_dup(&rp->nh.device.name, ifname);
-
-		(void) type; /* currently ignored */
-	}
+	} while (!done);
 
 	fclose(fp);
 	return TRUE;
 
 error:
+	ni_stringbuf_destroy(&buff);
 	ni_route_list_destroy(route_list);
 	fclose(fp);
 	return FALSE;
@@ -1093,7 +1529,7 @@ __ni_suse_addrconf_static(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 
 	routespath = ni_sibling_path_printf(sc->pathname, "ifroute-%s", dev->name);
 	if (routespath && ni_file_exists(routespath)) {
-		__ni_suse_read_routes(&dev->routes, routespath);
+		__ni_suse_read_routes(&dev->routes, routespath, dev->name);
 	}
 
 	if (__ni_suse_global_routes) {
@@ -1101,20 +1537,42 @@ __ni_suse_addrconf_static(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 
 		for (rp = __ni_suse_global_routes; rp; rp = rp->next) {
 			ni_address_t *ap;
+			ni_route_nexthop_t *nh;
+			ni_bool_t match = FALSE;
 
 			switch (rp->family) {
 			case AF_INET:
-				if (rp->nh.device.name &&
-				    !ni_string_eq(rp->nh.device.name, dev->name))
-					continue;
-
-				for (ap = dev->addrs; ap; ap = ap->next) {
-					if (ap->family == AF_INET
-					 && rp->nh.gateway.ss_family == AF_INET
-					 && ni_address_can_reach(ap, &rp->nh.gateway)) {
-						ni_route_list_append(&dev->routes, ni_route_clone(rp));
-						break;
+				/*
+				 * FIXME: this is much more complex,
+				 *      + move into some functions...
+				 */
+				for (nh = &rp->nh; nh; nh = nh->next) {
+					/* check match by device name */
+					if (nh->device.name) {
+						if (ni_string_eq(nh->device.name, dev->name)) {
+							match = TRUE;
+							break;
+						}
+						continue;
 					}
+
+					/* match, when gw is on the same network:
+					 * e.g. ip 192.168.1.0/24, gw is 192.168.1.1
+					 */
+					for (ap = dev->addrs; !match && ap; ap = ap->next) {
+						if (ap->family == AF_INET &&
+						    ni_address_can_reach(ap, &nh->gateway))
+							match = TRUE;
+					}
+
+					/* match, when gw is on a previously added dev route
+					 * ip 192.168.1.0/24
+					 * route1: 192.168.2.0/24 dev $current
+					 * route2: 192.168.3.0/24 gw 192.168.2.1
+					 */
+				}
+				if (match) {
+					ni_route_list_append(&dev->routes, ni_route_clone(rp));
 				}
 				break;
 
