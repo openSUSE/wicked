@@ -132,8 +132,7 @@ extern dbus_bool_t		ni_dbus_generic_property_parse_string_array(const ni_dbus_pr
 	__NI_DBUS_PROPERTY_UPDATE_FN(fstem, __name)
 #define __NI_DBUS_PROPERTY_RWP(fstem, __name) \
 	__NI_DBUS_PROPERTY_RW(fstem, __name), \
-	__NI_DBUS_PROPERTY_PARSE_FN(fstem, __name), \
-	__NI_DBUS_PROPERTY_UPDATE_FN(fstem, __name)
+	__NI_DBUS_PROPERTY_PARSE_FN(fstem, __name)
 
 #define __NI_DBUS_PROPERTY_GET_FN(fstem, __name) \
 	.get = fstem ## _get_ ## __name
