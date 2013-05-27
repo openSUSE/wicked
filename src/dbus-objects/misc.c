@@ -708,7 +708,7 @@ __ni_objectmodel_route_from_dict(ni_route_t **list, const ni_dbus_variant_t *dic
 	uint32_t prefixlen, value;
 	ni_sockaddr_t dest;
 	ni_route_nexthop_t hops;
-	ni_route_t *rp;
+	ni_route_t *rp = NULL;
 
 	memset(&hops, 0, sizeof(hops));
 	if ((nhdict = ni_dbus_dict_get(dict, "nexthop")) != NULL) {
