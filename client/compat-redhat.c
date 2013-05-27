@@ -448,8 +448,10 @@ __ni_redhat_addrconf_dhcp(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		compat->dhcp4.required = TRUE;
 
 	if (ni_sysconfig_test_boolean(sc, "IPV6INIT")) {
+#if 0
 		if ((value = ni_sysconfig_get_value(sc, "IPV6_AUTOCONF")) != NULL)
 			/* TBD */;
+#endif
 
 		compat->dhcp6.enabled = TRUE;
 		if (ni_sysconfig_test_boolean(sc, "IPV6_DEFROUTE"))

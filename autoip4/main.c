@@ -338,7 +338,6 @@ void
 autoip4_interface_event(ni_netdev_t *ifp, ni_event_t event)
 {
 	ni_netconfig_t *nc = ni_global_state_handle(0);
-	ni_autoip_device_t *dev;
 	ni_netdev_t *ofp;
 
 	switch (event) {
@@ -359,14 +358,17 @@ autoip4_interface_event(ni_netdev_t *ifp, ni_event_t event)
 		autoip4_device_destroy(autoip4_dbus_server, ifp);
 		break;
 
+#if 0
 	case NI_EVENT_LINK_DOWN:
 	case NI_EVENT_LINK_UP:
+		ni_autoip_device_t *dev;
 		dev = ni_autoip_device_by_index(ifp->link.ifindex);
 		if (dev != NULL)
 			;
 #ifdef notyet
 			/* FIXME: */
 			ni_autoip_device_event(dev, event);
+#endif
 #endif
 		break;
 
