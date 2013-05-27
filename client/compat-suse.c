@@ -8,7 +8,7 @@
 #include <limits.h>
 #include <ctype.h>
 #include <errno.h>
-#include <linux/rtnetlink.h>
+#include <netlink/netlink.h>
 
 #include <wicked/address.h>
 #include <wicked/util.h>
