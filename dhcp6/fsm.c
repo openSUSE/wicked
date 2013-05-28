@@ -308,7 +308,7 @@ __fsm_select_best_offer(const ni_dhcp6_device_t *dev, const ni_addrconf_lease_t 
 }
 
 static int
-__fsm_select_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, ni_buffer_t *opts, ni_stringbuf_t *hint)
+__fsm_select_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, ni_buffer_t *opts, char **hint)
 {
 	int weight = 0;
 	int rv = 1;
@@ -320,7 +320,7 @@ __fsm_select_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, n
 
 
 		if (msg->lease->dhcp6.rapid_commit) {
-			ni_stringbuf_printf(hint, "advertise with rapid commit option");
+			ni_string_printf(hint, "advertise with rapid commit option");
 			goto cleanup;
 		}
 
@@ -329,7 +329,7 @@ __fsm_select_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, n
 		 * the another codes IMO don't fit here, so we discard all unsuccessful codes.
 		 */
 		if (msg->lease->dhcp6.status && msg->lease->dhcp6.status->code != NI_DHCP6_STATUS_SUCCESS) {
-			ni_stringbuf_printf(hint, "status %s - %s",
+			ni_string_printf(hint, "status %s - %s",
 					ni_dhcp6_status_name(msg->lease->dhcp6.status->code),
 					msg->lease->dhcp6.status->message);
 			goto cleanup;
@@ -343,7 +343,7 @@ __fsm_select_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, n
 		}
 
 		if (weight < 0) {
-			ni_stringbuf_printf(hint, "blacklisted server");
+			ni_string_printf(hint, "blacklisted server");
 			goto cleanup;
 		}
 
@@ -374,14 +374,14 @@ __fsm_select_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, n
 		 * Hmm...
 		 */
 		if (msg->lease->dhcp6.status && msg->lease->dhcp6.status->code != NI_DHCP6_STATUS_SUCCESS) {
-			ni_stringbuf_printf(hint, "status %s - %s",
+			ni_string_printf(hint, "status %s - %s",
 						ni_dhcp6_status_name(msg->lease->dhcp6.status->code),
 						msg->lease->dhcp6.status->message);
 			goto cleanup;
 		}
 
 		if (!msg->lease->dhcp6.rapid_commit) {
-			ni_stringbuf_printf(hint, "rapid commit not set");
+			ni_string_printf(hint, "rapid commit not set");
 			goto cleanup;
 		}
 
@@ -398,7 +398,7 @@ __fsm_select_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, n
 			weight = msg->lease->dhcp6.server_pref;
 		}
 		if (weight < 0) {
-			ni_stringbuf_printf(hint, "blacklisted server");
+			ni_string_printf(hint, "blacklisted server");
 			goto cleanup;
 		}
 
@@ -432,7 +432,7 @@ cleanup:
 }
 
 static int
-__fsm_request_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, ni_buffer_t *opts, ni_stringbuf_t *hint)
+__fsm_request_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, ni_buffer_t *opts, char **hint)
 {
 	int rv = 1;
 
@@ -442,7 +442,7 @@ __fsm_request_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, 
 			return -1;
 
 		if (!dev->best_offer.lease) {
-			ni_stringbuf_printf(hint, "lease request reply without request");
+			ni_string_printf(hint, "lease request reply without request");
 			goto cleanup;
 		}
 
@@ -452,12 +452,12 @@ __fsm_request_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, 
 		 */
 		if (!IN6_ARE_ADDR_EQUAL(&dev->best_offer.lease->dhcp6.server_addr, &msg->lease->dhcp6.server_addr) ||
 		    !ni_opaque_eq(&dev->best_offer.lease->dhcp6.server_id, &msg->lease->dhcp6.server_id)) {
-			ni_stringbuf_printf(hint, "lease request reply from another server");
+			ni_string_printf(hint, "lease request reply from another server");
 			goto cleanup;
 		}
 
 		if (msg->lease->dhcp6.status && msg->lease->dhcp6.status->code != NI_DHCP6_STATUS_SUCCESS) {
-			ni_stringbuf_printf(hint, "status %s - %s",
+			ni_string_printf(hint, "status %s - %s",
 						ni_dhcp6_status_name(msg->lease->dhcp6.status->code),
 						msg->lease->dhcp6.status->message);
 			goto cleanup;
@@ -488,7 +488,7 @@ cleanup:
 }
 
 static int
-__fsm_confirm_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, ni_buffer_t *opts, ni_stringbuf_t *hint)
+__fsm_confirm_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, ni_buffer_t *opts, char **hint)
 {
 	int rv = 1;
 
@@ -507,7 +507,7 @@ __fsm_confirm_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, 
 }
 
 static int
-__fsm_renew_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, ni_buffer_t *opts, ni_stringbuf_t *hint)
+__fsm_renew_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, ni_buffer_t *opts, char **hint)
 {
 	int rv = 1;
 
@@ -517,12 +517,12 @@ __fsm_renew_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, ni
 			return -1;
 
 		if (!dev->lease) {
-			ni_stringbuf_printf(hint, "renew reply without a lease");
+			ni_string_printf(hint, "renew reply without a lease");
 			goto cleanup;
 		}
 
 		if (msg->lease->dhcp6.status && msg->lease->dhcp6.status->code != NI_DHCP6_STATUS_SUCCESS) {
-			ni_stringbuf_printf(hint, "status %s - %s",
+			ni_string_printf(hint, "status %s - %s",
 						ni_dhcp6_status_name(msg->lease->dhcp6.status->code),
 						msg->lease->dhcp6.status->message);
 			goto cleanup;
@@ -533,7 +533,7 @@ __fsm_renew_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, ni
 		 */
 		if (!IN6_ARE_ADDR_EQUAL(&dev->lease->dhcp6.server_addr, &msg->lease->dhcp6.server_addr) ||
 		    !ni_opaque_eq(&dev->lease->dhcp6.server_id, &msg->lease->dhcp6.server_id)) {
-			ni_stringbuf_printf(hint, "renew reply from another server");
+			ni_string_printf(hint, "renew reply from another server");
 			goto cleanup;
 		}
 
@@ -564,7 +564,7 @@ cleanup:
 
 
 static int
-__fsm_rebind_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, ni_buffer_t *opts, ni_stringbuf_t *hint)
+__fsm_rebind_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, ni_buffer_t *opts, char **hint)
 {
 	int rv = 1;
 
@@ -574,12 +574,12 @@ __fsm_rebind_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, n
 			return -1;
 
 		if (!dev->lease) {
-			ni_stringbuf_printf(hint, "rebind reply without a lease");
+			ni_string_printf(hint, "rebind reply without a lease");
 			goto cleanup;
 		}
 
 		if (msg->lease->dhcp6.status && msg->lease->dhcp6.status->code != NI_DHCP6_STATUS_SUCCESS) {
-			ni_stringbuf_printf(hint, "status %s - %s",
+			ni_string_printf(hint, "status %s - %s",
 						ni_dhcp6_status_name(msg->lease->dhcp6.status->code),
 						msg->lease->dhcp6.status->message);
 			goto cleanup;
@@ -591,7 +591,7 @@ __fsm_rebind_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, n
 #if 1
 		if (!IN6_ARE_ADDR_EQUAL(&dev->lease->dhcp6.server_addr, &msg->lease->dhcp6.server_addr) ||
 		    !ni_opaque_eq(&dev->lease->dhcp6.server_id, &msg->lease->dhcp6.server_id)) {
-			ni_stringbuf_printf(hint, "renew reply from another server");
+			ni_string_printf(hint, "renew reply from another server");
 			goto cleanup;
 		}
 #else
@@ -602,7 +602,7 @@ __fsm_rebind_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, n
 			weight = msg->lease->dhcp6.server_pref;
 		}
 		if (weight < 0) {
-			ni_stringbuf_printf(hint, "blacklisted server");
+			ni_string_printf(hint, "blacklisted server");
 			goto cleanup;
 		}
 
@@ -651,7 +651,7 @@ cleanup:
 
 
 static int
-__fsm_decline_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, ni_buffer_t *opts, ni_stringbuf_t *hint)
+__fsm_decline_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, ni_buffer_t *opts, char **hint)
 {
 	int rv = 1;
 
@@ -661,7 +661,7 @@ __fsm_decline_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, 
 			return -1;
 
 		if (!dev->lease) {
-			ni_stringbuf_printf(hint, "decline reply without a lease");
+			ni_string_printf(hint, "decline reply without a lease");
 			goto cleanup;
 		}
 
@@ -676,7 +676,7 @@ cleanup:
 }
 
 static int
-__fsm_release_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, ni_buffer_t *opts, ni_stringbuf_t *hint)
+__fsm_release_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, ni_buffer_t *opts, char **hint)
 {
 	int rv = 1;
 
@@ -686,7 +686,7 @@ __fsm_release_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, 
 			return -1;
 
 		if (!dev->lease) {
-			ni_stringbuf_printf(hint, "release reply without a lease");
+			ni_string_printf(hint, "release reply without a lease");
 			goto cleanup;
 		}
 	break;
@@ -749,7 +749,7 @@ int
 ni_dhcp6_fsm_process_client_message(ni_dhcp6_device_t *dev, unsigned int msg_type, unsigned int msg_xid,
 					ni_buffer_t *options, const struct in6_addr *sender)
 {
-	ni_stringbuf_t hint = NI_STRINGBUF_INIT_DYNAMIC;
+	char * hint = NULL;
 	struct ni_dhcp6_message msg;
 	int state = dev->fsm.state;
 	int rv = 1;
@@ -764,7 +764,7 @@ ni_dhcp6_fsm_process_client_message(ni_dhcp6_device_t *dev, unsigned int msg_typ
 			ni_dhcp6_fsm_state_name(dev->fsm.state),
 			ni_dhcp6_address_print(&msg.sender));
 
-	ni_stringbuf_printf(&hint, "unexpected");
+	ni_string_printf(&hint, "unexpected");
 	switch (state) {
 	case NI_DHCP6_STATE_SELECTING:
 		rv = __fsm_select_process_msg(dev, &msg, options, &hint);
@@ -799,8 +799,9 @@ ni_dhcp6_fsm_process_client_message(ni_dhcp6_device_t *dev, unsigned int msg_typ
 		ni_debug_dhcp("%s: ignoring %s message xid 0x%06x in state %s from %s%s%s",
 			dev->ifname, ni_dhcp6_message_name(msg_type), msg_xid,
 			ni_dhcp6_fsm_state_name(state), ni_dhcp6_address_print(sender),
-			(hint.string ? ": " : ""), (hint.string ? hint.string : ""));
+			(hint ? ": " : ""), (hint ? hint : ""));
 	}
+	ni_string_free(&hint);
 
 	if (msg.lease != NULL && msg.lease != dev->lease)
 		ni_addrconf_dhcp6_lease_free(msg.lease);
