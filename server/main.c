@@ -30,6 +30,8 @@
 #include <wicked/modem.h>
 
 enum {
+	OPT_VERSION,
+	OPT_HELP,
 	OPT_CONFIGFILE,
 	OPT_DEBUG,
 	OPT_FOREGROUND,
@@ -38,6 +40,8 @@ enum {
 };
 
 static struct option	options[] = {
+	{ "version",		no_argument,		NULL,	OPT_VERSION },
+	{ "help",		no_argument,		NULL,	OPT_HELP },
 	{ "config",		required_argument,	NULL,	OPT_CONFIGFILE },
 	{ "debug",		required_argument,	NULL,	OPT_DEBUG },
 	{ "foreground",		no_argument,		NULL,	OPT_FOREGROUND },
@@ -73,16 +77,29 @@ main(int argc, char **argv)
 		switch (c) {
 		default:
 		usage:
+		case OPT_HELP:
 			fprintf(stderr,
 				"%s [options]\n"
 				"This command understands the following options\n"
+				"  --version\n"
+				"  --help\n"
 				"  --config filename\n"
 				"        Read configuration file <filename> instead of system default.\n"
+				"  --no-recovery\n"
+				"        Skip restart of address configuration daemons.\n"
+				"  --no-modem-manager\n"
+				"        Skip start of modem-manager.\n"
+				"  --foreground\n"
+				"        Tell the daemon to not background itself at startup.\n"
 				"  --debug facility\n"
 				"        Enable debugging for debug <facility>.\n",
 				program_name
 			       );
 			return 1;
+
+		case OPT_VERSION:
+			printf("%s %s\n", program_name, PACKAGE_VERSION);
+			return 0;
 
 		case OPT_CONFIGFILE:
 			ni_set_global_config_path(optarg);

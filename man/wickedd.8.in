@@ -15,6 +15,12 @@ interfaces, bring them up or take them down.
 .\" ----------------------------------------
 .SH OPTIONS
 .TP
+\fB\-\-help\fP
+Show available options and exit.
+.TP
+\fB\-\-version\fP
+Show name and version.
+.TP
 .BI "\-\-config " filename
 By default, the daemon reads its configuration from
 \fB@wicked_configdir@/server.xml\fP. The \fB\-\-config\fP
@@ -33,6 +39,9 @@ The list of available facilities can be obtained using
 .TP
 \fB\-\-foreground\fP
 Tell the daemon to not background itself at startup.
+.TP
+\fB\-\-no-modem-manager\fP
+Skip start of modem-manager.
 .TP
 \fB\-\-no-recovery\fP
 By default, \fBwickedd\fP will try to restart address configuration
