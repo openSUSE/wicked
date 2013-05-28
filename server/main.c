@@ -92,7 +92,8 @@ main(int argc, char **argv)
 				"  --foreground\n"
 				"        Tell the daemon to not background itself at startup.\n"
 				"  --debug facility\n"
-				"        Enable debugging for debug <facility>.\n",
+				"        Enable debugging for debug <facility>.\n"
+				"        Use '--debug help' for a list of facilities.\n",
 				program_name
 			       );
 			return 1;
