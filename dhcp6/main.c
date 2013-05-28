@@ -80,7 +80,7 @@ static struct option		options[] = {
 
 static const char *		program_name;
 static int			opt_foreground = 0;
-static int			opt_recover_leases = 0;
+static int			opt_no_recover_leases = 1;
 static char *			opt_state_file;
 
 static ni_dbus_server_t *	dhcp6_dbus_server;
@@ -137,7 +137,7 @@ main(int argc, char **argv)
 			break;
 
 		case OPT_NORECOVER:
-			opt_recover_leases = 0;
+			opt_no_recover_leases = 1;
 			break;
 		}
 	}
@@ -309,7 +309,7 @@ dhcp6_supplicant(void)
 		ni_log_destination_syslog(program_name);
 	}
 
-	if (opt_recover_leases)
+	if (!opt_no_recover_leases)
 		dhcp6_recover_addrconf(opt_state_file);
 
 	while (!ni_caught_terminal_signal()) {

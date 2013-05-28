@@ -46,7 +46,7 @@ static struct option	options[] = {
 
 static const char *	program_name;
 static int		opt_foreground = 0;
-static int		opt_recover_leases = 1;
+static int		opt_no_recover_leases = 0;
 static ni_dbus_server_t *autoip4_dbus_server;
 
 static void		autoip4_supplicant(void);
@@ -105,7 +105,7 @@ main(int argc, char **argv)
 			break;
 
 		case OPT_NORECOVER:
-			opt_recover_leases = 0;
+			opt_no_recover_leases = 1;
 			break;
 		}
 	}
@@ -280,7 +280,7 @@ autoip4_discover_devices(ni_dbus_server_t *server)
 	for (ifp = ni_netconfig_devlist(nc); ifp; ifp = ifp->next) {
 		autoip4_device_create(server, ifp);
 
-		if (opt_recover_leases)
+		if (!opt_no_recover_leases)
 			autoip4_recover_lease(ifp);
 	}
 }
