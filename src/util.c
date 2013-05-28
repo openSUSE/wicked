@@ -1107,9 +1107,6 @@ ni_stringbuf_vprintf(ni_stringbuf_t *sb, const char *fmt, va_list ap)
 	if (n < 0)
 		return -1;
 
-	if (sb->autoreset)
-		ni_stringbuf_destroy(sb);
-
 	if (sb->dynamic && sb->len == 0) {
 		sb->string = s;
 		sb->size = sb->len = n;

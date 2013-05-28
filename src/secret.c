@@ -270,9 +270,6 @@ ni_security_id_print(const ni_security_id_t *id)
 	static ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 	unsigned int i;
 
-	ni_stringbuf_destroy(&buf);
-	buf.autoreset = FALSE;
-
 	ni_stringbuf_printf(&buf, "%s:", id->class);
 	for (i = 0; i < id->attributes.count; ++i) {
 		ni_var_t *var = &id->attributes.data[i];
