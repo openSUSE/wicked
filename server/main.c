@@ -52,10 +52,10 @@ static struct option	options[] = {
 };
 
 static const char *	program_name;
-static int		opt_foreground = 0;
-static int		opt_no_recover_leases = 0;
-static int		opt_no_modem_manager = 0;
-static char *		opt_state_file = NULL;
+static int		opt_foreground;
+static int		opt_no_recover_leases;
+static int		opt_no_modem_manager;
+static char *		opt_state_file;
 static ni_dbus_server_t *dbus_server;
 
 static void		run_interface_server(void);

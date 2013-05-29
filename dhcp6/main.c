@@ -79,7 +79,7 @@ static struct option		options[] = {
 };
 
 static const char *		program_name;
-static int			opt_foreground = 0;
+static int			opt_foreground;
 static int			opt_no_recover_leases = 1;
 static char *			opt_state_file;
 

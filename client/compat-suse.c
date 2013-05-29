@@ -39,9 +39,9 @@ static ni_bool_t	__process_indexed_variables(const ni_sysconfig_t *, ni_netdev_t
 static ni_var_t *	__find_indexed_variable(const ni_sysconfig_t *, const char *, const char *);
 static ni_bool_t	__ni_suse_read_routes(ni_route_t **, const char *, const char *);
 
-static ni_sysconfig_t *	__ni_suse_config_defaults = NULL;
-static ni_sysconfig_t *	__ni_suse_dhcp_defaults   = NULL;
-static ni_route_t *	__ni_suse_global_routes   = NULL;
+static ni_sysconfig_t *	__ni_suse_config_defaults;
+static ni_sysconfig_t *	__ni_suse_dhcp_defaults;
+static ni_route_t *	__ni_suse_global_routes;
 
 
 #define __NI_SUSE_SYSCONFIG_NETWORK_DIR		"/etc/sysconfig/network"

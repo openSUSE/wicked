@@ -46,8 +46,8 @@ static struct option	options[] = {
 };
 
 static const char *	program_name;
-static int		opt_foreground = 0;
-static int		opt_no_modem_manager = 0;
+static int		opt_foreground;
+static int		opt_no_modem_manager;
 
 static void		babysit(void);
 static void		ni_nanny_discover_state(ni_nanny_t *);

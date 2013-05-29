@@ -20,8 +20,8 @@
 #define NI_TRACE_MOST	~(NI_TRACE_XPATH | NI_TRACE_WICKED_XML | NI_TRACE_DBUS)
 #define NI_TRACE_ALL	~0U
 
-unsigned int		ni_debug = 0;
-static unsigned int	ni_log_syslog = 0;
+unsigned int		ni_debug;
+static unsigned int	ni_log_syslog;
 
 /*
  * debug options short text representation

@@ -1887,7 +1887,7 @@ ni_opaque_free(ni_opaque_t *opaq)
 /*
  * Catch terminal signals
  */
-static int	__ni_terminal_signal = 0;
+static int	__ni_terminal_signal;
 
 static void
 __ni_catch_terminal_signal(int sig)

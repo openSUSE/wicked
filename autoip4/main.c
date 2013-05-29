@@ -45,8 +45,8 @@ static struct option	options[] = {
 };
 
 static const char *	program_name;
-static int		opt_foreground = 0;
-static int		opt_no_recover_leases = 0;
+static int		opt_foreground;
+static int		opt_no_recover_leases;
 static ni_dbus_server_t *autoip4_dbus_server;
 
 static void		autoip4_supplicant(void);

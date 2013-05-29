@@ -16,7 +16,7 @@
 /*
  * ====================================================================
  */
-static int		term_sig = 0;
+static int		term_sig;
 static void		catch_term_signal(int);
 static const char *	program_name;
 
