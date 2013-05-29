@@ -35,7 +35,7 @@ ni_objectmodel_save_object_state_xml(const ni_dbus_object_t *object, xml_node_t 
 	xml_node_add_attr(object_node, "path", object->path);
 
 	for (i = 0; rv && (service = object->interfaces[i]) != NULL; ++i) {
-		ni_dbus_variant_t dict;
+		ni_dbus_variant_t dict = NI_DBUS_VARIANT_INIT;
 		xml_node_t *prop_node;
 
 		ni_dbus_variant_init_dict(&dict);
