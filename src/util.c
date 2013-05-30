@@ -1139,6 +1139,33 @@ ni_stringbuf_truncate(ni_stringbuf_t *sb, size_t at)
 }
 
 void
+ni_stringbuf_trim_head(ni_stringbuf_t *sb, const char *reject)
+{
+	size_t trim;
+
+	ni_stringbuf_truncate(sb, sb->len);
+	trim = strspn(sb->string, reject);
+	if (trim) {
+		sb->len -= trim;
+		memmove(sb->string, sb->string + trim, sb->len + 1);
+	}
+}
+
+void
+ni_stringbuf_trim_tail(ni_stringbuf_t *sb, const char *reject)
+{
+	size_t n;
+
+	__ni_stringbuf_realloc(sb, sb->len);
+	for (n = strlen(sb->string); n; ) {
+		if (!strchr(reject, sb->string[--n]))
+			break;
+		sb->len = n;
+	}
+	sb->string[sb->len] = '\0';
+}
+
+void
 ni_stringbuf_trim_empty_lines(ni_stringbuf_t *sb)
 {
 	char *str = sb->string;

@@ -118,6 +118,8 @@ extern void		ni_stringbuf_move(ni_stringbuf_t *dest, ni_stringbuf_t *src);
 extern void		ni_stringbuf_clear(ni_stringbuf_t *);
 extern void		ni_stringbuf_destroy(ni_stringbuf_t *);
 extern void		ni_stringbuf_truncate(ni_stringbuf_t *, size_t);
+extern void		ni_stringbuf_trim_head(ni_stringbuf_t *, const char *);
+extern void		ni_stringbuf_trim_tail(ni_stringbuf_t *, const char *);
 extern void		ni_stringbuf_trim_empty_lines(ni_stringbuf_t *);
 extern ni_bool_t	ni_stringbuf_empty(const ni_stringbuf_t *);
 
