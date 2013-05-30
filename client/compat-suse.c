@@ -3,6 +3,7 @@
  * This support is not complete yet.
  *
  * Copyright (C) 2010-2012 Olaf Kirch <okir@suse.de>
+ * Copyright (C) 2013 Marius Tomaschewski <mt@suse.de>
  */
 
 #include <limits.h>
@@ -202,7 +203,7 @@ done:
 }
 
 /*
- * Read global ifconfig files like ifcfg-routes and dhcp
+ * Read global ifconfig files like config, dhcp and routes
  */
 static ni_bool_t
 __ni_suse_read_globals(const char *path)
@@ -256,7 +257,7 @@ __ni_suse_free_globals(void)
 }
 
 /*
- * Read the routing information from sysconfig/network/routes.
+ * Read the routing information from sysconfig/network/routes or ifroutes-<ifname>.
  */
 static inline const char *
 __get_route_opt(ni_string_array_t *opts, unsigned int i)
@@ -273,28 +274,29 @@ __ni_suse_parse_route_hops(ni_route_nexthop_t *nh, ni_string_array_t *opts,
 	unsigned int tmp;
 
 	/*
-	 * The routes/ifroute-<ifname> multipath syntax is:
+	 * The routes/ifroute-<nic> multipath syntax is:
 	 *
-	 * "192.168.0.0/24  -               -   -   table 42 \"
-	 * "                nexthop via 192.168.1.1 weight 2 \"
-	 * "                nexthop via 192.168.1.2 weight 3"
-	 *
+	 * "192.168.0.0/24  -           -   [nic|-]  table 42 \"
+	 * "                nexthop via 192.168.1.1 [dev nic] weight 2 \"
+	 * "                nexthop via 192.168.1.2 [dev nic] weight 3"
 	 */
 	while ((opt = __get_route_opt(opts, (*pos)++))) {
-		if (!strcmp(opt, "dead")) {
-			if (nh->flags & RTNH_F_DEAD)
+		if (!strcmp(opt, "nexthop")) {
+			ni_route_nexthop_t *next = ni_route_nexthop_new();
+			if (__ni_suse_parse_route_hops(next, opts, pos, ifname,
+							filename, line) < 0) {
+				ni_route_nexthop_free(next);
 				return -1;
-			nh->flags |= RTNH_F_DEAD;
-		} else
-		if (!strcmp(opt, "pervasive")) {
-			if (nh->flags & RTNH_F_PERVASIVE)
+			}
+			if (nh->gateway.ss_family == AF_UNSPEC)
+				nh->gateway.ss_family = next->gateway.ss_family;
+
+			if (nh->gateway.ss_family != next->gateway.ss_family) {
+				ni_route_nexthop_free(next);
 				return -1;
-			nh->flags |= RTNH_F_PERVASIVE;
-		} else
-		if (!strcmp(opt, "onlink")) {
-			if (nh->flags & RTNH_F_ONLINK)
-				return -1;
-			nh->flags |= RTNH_F_ONLINK;
+			}
+			nh->next = next;
+			break;
 		} else
 		if (!strcmp(opt, "via")) {
 			val = __get_route_opt(opts, (*pos)++);
@@ -317,34 +319,31 @@ __ni_suse_parse_route_hops(ni_route_nexthop_t *nh, ni_string_array_t *opts,
 				return -1;
 			nh->weight = tmp;
 		} else
-		if (!strcmp(opt, "nexthop")) {
-			ni_route_nexthop_t *next = ni_route_nexthop_new();
-			if (__ni_suse_parse_route_hops(next, opts, pos, ifname,
-							filename, line) < 0) {
-				ni_route_nexthop_free(next);
+		if (!strcmp(opt, "dead")) {
+			if (nh->flags & RTNH_F_DEAD)
 				return -1;
-			}
-			if (nh->gateway.ss_family == AF_UNSPEC)
-				nh->gateway.ss_family = next->gateway.ss_family;
-			if (nh->gateway.ss_family != next->gateway.ss_family) {
-				ni_route_nexthop_free(next);
-				return -1;
-			}
-			nh->next = next;
-			break;
+			nh->flags |= RTNH_F_DEAD;
 		} else
+		if (!strcmp(opt, "pervasive")) {
+			if (nh->flags & RTNH_F_PERVASIVE)
+				return -1;
+			nh->flags |= RTNH_F_PERVASIVE;
+		} else
+		if (!strcmp(opt, "onlink")) {
+			if (nh->flags & RTNH_F_ONLINK)
+				return -1;
+			nh->flags |= RTNH_F_ONLINK;
+		} else {
 			return -1;
+		}
 	}
 
-	/* we need either ifname or gateway... */
-	if (!nh->device.name && nh->gateway.ss_family == AF_UNSPEC) {
-		return -1;
-	}
-
-	/* we can apply default ifname now...? */
-	if (!nh->device.name && ifname) {
+	/* apply default ifname when available */
+	if (!nh->device.name && ifname)
 		ni_string_dup(&nh->device.name, ifname);
-	}
+
+	if (!nh->device.name && nh->gateway.ss_family == AF_UNSPEC)
+		return -1;
 
 	return 0;
 }
@@ -353,14 +352,14 @@ static const ni_intmap_t __map_route_types[] = {
 	{ "unicast",		RTN_UNICAST	},
 	{ "local",		RTN_LOCAL	},
 	{ "broadcast",		RTN_BROADCAST	},
-/*	{ "anycast",		RTN_ANYCAST	},	*/
+	{ "anycast",		RTN_ANYCAST	},
 	{ "multicast",		RTN_MULTICAST	},
 	{ "blackhole",		RTN_BLACKHOLE	},
 	{ "unreachable",	RTN_UNREACHABLE	},
 	{ "prohibit",		RTN_PROHIBIT	},
 	{ "throw",		RTN_THROW	},
 	{ "nat",		RTN_NAT		},
-/*	{ "xresolve",		RTN_XRESOLVE	},	*/
+	{ "xresolve",		RTN_XRESOLVE	},
 	{ NULL,			RTN_UNSPEC	},
 };
 
@@ -373,24 +372,24 @@ __ni_suse_route_parse_opts(ni_route_t *rp, ni_string_array_t *opts,
 	unsigned int tmp;
 
 	while ((opt = __get_route_opt(opts, (*pos)++))) {
-		if (!strcmp(opt, "src")) {
-			val = __get_route_opt(opts, (*pos)++);
-			if (!val || rp->source.ss_family != AF_UNSPEC)
+		if (!strcmp(opt, "nexthop")) {
+			/* either single or multipath, not both? */
+			if (rp->nh.gateway.ss_family != AF_UNSPEC)
 				return -1;
-			if (ni_sockaddr_parse(&rp->source, val, AF_UNSPEC) < 0)
+
+			if (__ni_suse_parse_route_hops(&rp->nh, opts, pos,
+						ifname, filename, line) < 0)
 				return -1;
 
 			if (rp->family == AF_UNSPEC)
-				rp->family = rp->source.ss_family;
-			if (rp->family != rp->source.ss_family) {
+				rp->family = rp->nh.gateway.ss_family;
+
+			if (rp->family != rp->nh.gateway.ss_family)
 				return -1;
-			}
 		} else
-		if (!strcmp(opt, "tos") || !strcmp(opt, "dsfield")) {
-			val = __get_route_opt(opts, (*pos)++);
-			if (ni_parse_uint(val, &tmp, 16) < 0 || tmp > 256)
-				return -1;
-			rp->tos = tmp;
+		if(!strcmp(opt, "via") || !strcmp(opt, "dev")) {
+			/* ifname and gw belong into their fields */
+			return -1;
 		} else
 		if (!strcmp(opt, "table")) {
 			val = __get_route_opt(opts, (*pos)++);
@@ -435,6 +434,24 @@ __ni_suse_route_parse_opts(ni_route_t *rp, ni_string_array_t *opts,
 			if (!val || ni_parse_uint(val, &tmp, 10) < 0 || tmp > 65536)
 				return -1;
 			rp->mtu = tmp;
+		} else
+		if (!strcmp(opt, "src")) {
+			val = __get_route_opt(opts, (*pos)++);
+			if (!val || rp->source.ss_family != AF_UNSPEC)
+				return -1;
+			if (ni_sockaddr_parse(&rp->source, val, AF_UNSPEC) < 0)
+				return -1;
+
+			if (rp->family == AF_UNSPEC)
+				rp->family = rp->source.ss_family;
+			if (rp->family != rp->source.ss_family)
+				return -1;
+		} else
+		if (!strcmp(opt, "tos") || !strcmp(opt, "dsfield")) {
+			val = __get_route_opt(opts, (*pos)++);
+			if (ni_parse_uint(val, &tmp, 16) < 0 || tmp > 256)
+				return -1;
+			rp->tos = tmp;
 		} else
 		if (!strcmp(opt, "priority")) {
 			val = __get_route_opt(opts, (*pos)++);
@@ -501,23 +518,6 @@ __ni_suse_route_parse_opts(ni_route_t *rp, ni_string_array_t *opts,
 			if (ni_parse_uint(val, &tmp, 10) < 0)
 				return -1;
 			rp->reordering = tmp;
-		} else
-		if (!strcmp(opt, "nexthop")) {
-			/* either single or multipath, not both? */
-			if (rp->nh.gateway.ss_family != AF_UNSPEC) {
-				return -1;
-			}
-
-			if (__ni_suse_parse_route_hops(&rp->nh, opts, pos,
-						ifname, filename, line) < 0) {
-				return -1;
-			}
-
-			if (rp->family == AF_UNSPEC)
-				rp->family = rp->nh.gateway.ss_family;
-			if (rp->family != rp->nh.gateway.ss_family) {
-				return -1;
-			}
 		} else {
 			/* try as route types */
 			if (ni_parse_uint_mapped(opt, __map_route_types, &tmp) == 0) {
@@ -541,6 +541,7 @@ __ni_suse_route_parse(ni_route_t **routes, char *buffer, const char *ifname,
 	char *dest, *gway, *mask = NULL, *name = NULL, *end = NULL;
 	unsigned int plen, i = 0;
 	ni_string_array_t opts = NI_STRING_ARRAY_INIT;
+	ni_route_nexthop_t *nh;
 	ni_route_t *rp;
 
 	ni_assert(routes != NULL);
@@ -555,13 +556,23 @@ __ni_suse_route_parse(ni_route_t **routes, char *buffer, const char *ifname,
 	if (mask)
 		name = strtok_r(NULL, " \t", &end);
 	if (name) {
-		ni_string_split(&opts, end, " \t", 0);
-
 		if (ni_string_eq(name, "-"))
 			name = NULL;
 
 		if (ifname == NULL)
 			ifname = name;
+
+		/*
+		 * ifname is set while reading per-interface routes;
+		 * do not allow another interfaces in the name field.
+		 */
+		if (ifname && name && !ni_string_eq(ifname, name)) {
+			ni_error("%s[%u]: Invalid (foreign) interface name \"%s\"",
+				filename, line, name);
+			return -1;
+		}
+
+		ni_string_split(&opts, end, " \t", 0);
 	}
 
 	/*
@@ -586,15 +597,15 @@ __ni_suse_route_parse(ni_route_t **routes, char *buffer, const char *ifname,
 			filename, line, gway);
 		goto failure;
 	}
-	if (rp->family == AF_UNSPEC) {
+	if (rp->family == AF_UNSPEC)
 		rp->family = rp->nh.gateway.ss_family;
-	}
 
 	if (__ni_suse_route_parse_opts(rp, &opts, &i, ifname, filename, line)) {
 		ni_error("%s[%u]: Cannot parse route options \"%s\"",
 			filename, line, end);
 		goto failure;
 	}
+	ni_string_array_destroy(&opts);
 
 	if (ni_string_eq(dest, "default")) {
 		/*
@@ -672,15 +683,33 @@ __ni_suse_route_parse(ni_route_t **routes, char *buffer, const char *ifname,
 		goto failure;
 	}
 
-	/* assign default interface name ... */
-	if (!rp->nh.device.name && ifname)
-		ni_string_dup(&rp->nh.device.name, ifname);
+	switch (rp->type) {
+	case RTN_UNREACHABLE:
+	case RTN_BLACKHOLE:
+	case RTN_PROHIBIT:
+	case RTN_THROW:
+		/* we need the destination only ...    */
+		if (rp->nh.gateway.ss_family != AF_UNSPEC ||
+		    rp->nh.device.name || rp->nh.next) {
+			ni_error("%s[%u]: Route type does not have a device or gateway",
+				filename, line);
+			goto failure;
+		}
+		break;
 
-	/* we need either ifname or gateway... */
-	if (!rp->nh.device.name && rp->nh.gateway.ss_family == AF_UNSPEC) {
-		ni_error("%s[%u]: Cannot create route - neither device nor gateway found",
-			filename, line);
-		goto failure;
+	default:
+		/* we need either ifname or gateway... */
+		for (nh = &rp->nh; nh; nh = nh->next) {
+			if (!nh->device.name && ifname) {
+				ni_string_dup(&nh->device.name, ifname);
+			}
+			if (!rp->nh.device.name && rp->nh.gateway.ss_family == AF_UNSPEC) {
+				ni_error("%s[%u]: Neither device nor gateway found",
+					filename, line);
+				goto failure;
+			}
+		}
+		break;
 	}
 
 	/* apply defaults when needed */
@@ -694,10 +723,55 @@ __ni_suse_route_parse(ni_route_t **routes, char *buffer, const char *ifname,
 	/*
 	 * OK, IMO that's it.
 	 */
+	{
+		ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
+
+		if (rp->type != RTN_UNICAST)
+			ni_stringbuf_printf(&buf, "type %u ", rp->type);
+
+		ni_stringbuf_printf(&buf, "to %s/%u",
+			ni_sockaddr_print(&rp->destination), rp->prefixlen);
+
+		for (nh = &rp->nh; nh; nh = nh->next) {
+			if (rp->nh.next) {
+				ni_stringbuf_printf(&buf, " nexthop");
+			}
+			if (nh->gateway.ss_family != AF_UNSPEC) {
+				ni_stringbuf_printf(&buf, " via %s",
+					ni_sockaddr_print(&nh->gateway));
+			}
+			if (nh->device.name) {
+				ni_stringbuf_printf(&buf, " dev %s", nh->device.name);
+			}
+			if (!rp->nh.next)
+				continue;
+			if (nh->weight) {
+				ni_stringbuf_printf(&buf, " weight %u", nh->weight);
+			}
+			if (nh->flags) {
+				ni_stringbuf_printf(&buf, " flags %u", nh->flags);
+			}
+		}
+		if (rp->source.ss_family != AF_UNSPEC) {
+			ni_stringbuf_printf(&buf, "src %s",
+				ni_sockaddr_print(&rp->source));
+		}
+		if (rp->table != RT_TABLE_MAIN)
+			ni_stringbuf_printf(&buf, " table %u", rp->table);
+		if (rp->scope != RT_SCOPE_UNIVERSE)
+			ni_stringbuf_printf(&buf, " scope %u", rp->scope);
+		if (rp->protocol != RTPROT_BOOT)
+			ni_stringbuf_printf(&buf, " protocol %u", rp->protocol);
+
+		ni_debug_readwrite("Parsed route %s", buf.string);
+		ni_stringbuf_destroy(&buf);
+	}
+
 	ni_route_list_append(routes, rp);
 	return 0;
 
 failure:
+	ni_string_array_destroy(&opts);
 	if (rp) {
 		ni_route_free(rp);
 	}
@@ -771,6 +845,7 @@ __ni_suse_read_routes(ni_route_t **route_list, const char *filename, const char 
 		ni_stringbuf_trim_head(&buff, " \t");
 
 		if (!ni_stringbuf_empty(&buff)) {
+			ni_debug_readwrite("Parsing route line: %s", buff.string);
 			if (__ni_suse_route_parse(route_list, buff.string,
 						  ifname, filename, line) < 0)
 				goto error; /* ? */
