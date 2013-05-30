@@ -737,9 +737,8 @@ __ni_suse_read_route_line(FILE *fp, ni_stringbuf_t *buff, unsigned int *line)
 ni_bool_t
 __ni_suse_read_routes(ni_route_t **route_list, const char *filename, const char *ifname)
 {
-	ni_stringbuf_t buff;
+	ni_stringbuf_t buff = NI_STRINGBUF_INIT_DYNAMIC;
 	unsigned int line = 1, lcnt = 0;
-	char *ptr;
 	FILE *fp;
 	int done;
 
@@ -748,9 +747,9 @@ __ni_suse_read_routes(ni_route_t **route_list, const char *filename, const char 
 		return FALSE;
 	}
 
-	ni_stringbuf_init(&buff);
+	ni_stringbuf_grow(&buff, 1023);
 	do {
-		ni_stringbuf_clear(&buff);
+		ni_stringbuf_truncate(&buff, 0);
 
 		line += lcnt;
 		lcnt = 0;
@@ -766,18 +765,19 @@ __ni_suse_read_routes(ni_route_t **route_list, const char *filename, const char 
 			continue;
 
 		/* truncate at first comment char */
-		if ((ptr = strchr(buff.string, '#')))
-			*ptr = '\0';
+		ni_stringbuf_truncate(&buff, strcspn(buff.string, "#"));
 
 		/* skip leading spaces */
-		ptr = buff.string + strspn(buff.string, " \t");
-		if (*ptr) {
-			if (__ni_suse_route_parse(route_list, ptr, ifname,
-						  filename, line) < 0)
+		ni_stringbuf_trim_head(&buff, " \t");
+
+		if (!ni_stringbuf_empty(&buff)) {
+			if (__ni_suse_route_parse(route_list, buff.string,
+						  ifname, filename, line) < 0)
 				goto error; /* ? */
 		}
 	} while (!done);
 
+	ni_stringbuf_destroy(&buff);
 	fclose(fp);
 	return TRUE;
 
