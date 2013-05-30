@@ -1130,6 +1130,15 @@ ni_stringbuf_move(ni_stringbuf_t *dest, ni_stringbuf_t *src)
 }
 
 void
+ni_stringbuf_truncate(ni_stringbuf_t *sb, size_t at)
+{
+	__ni_stringbuf_realloc(sb, at);
+
+	sb->string[at] = '\0';
+	sb->len = at;
+}
+
+void
 ni_stringbuf_trim_empty_lines(ni_stringbuf_t *sb)
 {
 	char *str = sb->string;
