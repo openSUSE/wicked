@@ -26,6 +26,7 @@
 #include <wicked/xml.h>
 #include "netinfo_priv.h"
 #include "dbus-common.h"
+#include "misc.h"
 #include "model.h"
 #include "debug.h"
 
@@ -38,7 +39,7 @@ static ni_route_t *		__ni_objectmodel_route_from_dict(ni_route_table_t **, const
 /*
  * Helper functions for getting and setting socket addresses
  */
-static inline dbus_bool_t
+dbus_bool_t
 __ni_dbus_variant_get_opaque(const ni_dbus_variant_t *var, ni_opaque_t *packed)
 {
 	unsigned int len;
@@ -49,7 +50,7 @@ __ni_dbus_variant_get_opaque(const ni_dbus_variant_t *var, ni_opaque_t *packed)
 	return TRUE;
 }
 
-static inline dbus_bool_t
+dbus_bool_t
 __ni_dbus_variant_set_sockaddr(ni_dbus_variant_t *var, const ni_sockaddr_t *sockaddr)
 {
 	ni_opaque_t packed;
@@ -61,7 +62,7 @@ __ni_dbus_variant_set_sockaddr(ni_dbus_variant_t *var, const ni_sockaddr_t *sock
 	return TRUE;
 }
 
-static inline dbus_bool_t
+dbus_bool_t
 __ni_dbus_variant_set_sockaddr_prefix(ni_dbus_variant_t *var, const ni_sockaddr_t *sockaddr, unsigned int prefix_len)
 {
 	ni_opaque_t packed;
@@ -73,7 +74,7 @@ __ni_dbus_variant_set_sockaddr_prefix(ni_dbus_variant_t *var, const ni_sockaddr_
 	return TRUE;
 }
 
-static inline dbus_bool_t
+dbus_bool_t
 __ni_dbus_variant_get_sockaddr(const ni_dbus_variant_t *var, ni_sockaddr_t *sockaddr)
 {
 	ni_opaque_t packed;
@@ -86,7 +87,7 @@ __ni_dbus_variant_get_sockaddr(const ni_dbus_variant_t *var, ni_sockaddr_t *sock
 	return TRUE;
 }
 
-static inline dbus_bool_t
+dbus_bool_t
 __ni_dbus_variant_get_sockaddr_prefix(const ni_dbus_variant_t *var, ni_sockaddr_t *sockaddr, unsigned int *prefixlen)
 {
 	ni_opaque_t packed;
@@ -99,7 +100,7 @@ __ni_dbus_variant_get_sockaddr_prefix(const ni_dbus_variant_t *var, ni_sockaddr_
 	return TRUE;
 }
 
-static inline dbus_bool_t
+dbus_bool_t
 __ni_dbus_dict_add_sockaddr(ni_dbus_variant_t *dict, const char *name, const ni_sockaddr_t *sockaddr)
 {
 	ni_dbus_variant_t *dst;
@@ -109,7 +110,7 @@ __ni_dbus_dict_add_sockaddr(ni_dbus_variant_t *dict, const char *name, const ni_
 	return __ni_dbus_variant_set_sockaddr(dst, sockaddr);
 }
 
-static inline dbus_bool_t
+dbus_bool_t
 __ni_dbus_dict_add_sockaddr_prefix(ni_dbus_variant_t *dict, const char *name, const ni_sockaddr_t *sockaddr, unsigned int prefix_len)
 {
 	ni_dbus_variant_t *dst;
@@ -120,7 +121,7 @@ __ni_dbus_dict_add_sockaddr_prefix(ni_dbus_variant_t *dict, const char *name, co
 	return __ni_dbus_variant_set_sockaddr_prefix(dst, sockaddr, prefix_len);
 }
 
-static inline dbus_bool_t
+dbus_bool_t
 __ni_dbus_dict_get_sockaddr(const ni_dbus_variant_t *dict, const char *name, ni_sockaddr_t *sockaddr)
 {
 	const ni_dbus_variant_t *var;
@@ -130,7 +131,7 @@ __ni_dbus_dict_get_sockaddr(const ni_dbus_variant_t *dict, const char *name, ni_
 	return __ni_dbus_variant_get_sockaddr(var, sockaddr);
 }
 
-static inline dbus_bool_t
+dbus_bool_t
 __ni_dbus_dict_get_sockaddr_prefix(const ni_dbus_variant_t *dict, const char *name, ni_sockaddr_t *sockaddr, unsigned int *prefixlen)
 {
 	const ni_dbus_variant_t *var;
