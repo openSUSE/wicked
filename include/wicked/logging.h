@@ -64,6 +64,7 @@ enum {
 	NI_TRACE_OBJECTMODEL	= 0x004000,
 	NI_TRACE_APPLICATION	= 0x008000,
 	NI_TRACE_MODEM		= 0x010000,
+	NI_TRACE_LLDP		= 0x020000,
 };
 
 extern unsigned int	ni_debug;
@@ -90,6 +91,7 @@ extern unsigned int	ni_log_level;
 #define ni_debug_objectmodel(fmt, args...)	__ni_debug(NI_TRACE_OBJECTMODEL, fmt, ##args)
 #define ni_debug_application(fmt, args...)	__ni_debug(NI_TRACE_APPLICATION, fmt, ##args)
 #define ni_debug_modem(fmt, args...)		__ni_debug(NI_TRACE_MODEM, fmt, ##args)
+#define ni_debug_lldp(fmt, args...)		__ni_debug(NI_TRACE_LLDP, fmt, ##args)
 
 #define ni_debug_nanny				ni_debug_application
 
