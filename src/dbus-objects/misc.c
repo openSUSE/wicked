@@ -122,6 +122,16 @@ __ni_objectmodel_dict_add_sockaddr_prefix(ni_dbus_variant_t *dict, const char *n
 }
 
 dbus_bool_t
+__ni_objectmodel_dict_add_hwaddr(ni_dbus_variant_t *dict, const char *name, const ni_hwaddr_t *hwaddr)
+{
+	ni_dbus_variant_t *dst;
+
+	if (!(dst = ni_dbus_dict_add(dict, name)))
+		return FALSE;
+	return __ni_objectmodel_get_hwaddr(dst, hwaddr);
+}
+
+dbus_bool_t
 __ni_objectmodel_dict_get_sockaddr(const ni_dbus_variant_t *dict, const char *name, ni_sockaddr_t *sockaddr)
 {
 	const ni_dbus_variant_t *var;
@@ -139,6 +149,16 @@ __ni_objectmodel_dict_get_sockaddr_prefix(const ni_dbus_variant_t *dict, const c
 	if (!(var = ni_dbus_dict_get(dict, name)))
 		return FALSE;
 	return __ni_objectmodel_get_sockaddr_prefix(var, sockaddr, prefixlen);
+}
+
+dbus_bool_t
+__ni_objectmodel_dict_get_hwaddr(const ni_dbus_variant_t *dict, const char *name, ni_hwaddr_t *hwaddr)
+{
+	const ni_dbus_variant_t *var;
+
+	if (!(var = ni_dbus_dict_get(dict, name)))
+		return FALSE;
+	return __ni_objectmodel_set_hwaddr(var, hwaddr);
 }
 
 /*
