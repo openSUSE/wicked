@@ -60,6 +60,7 @@ libwicked_la_SOURCES		= \
 	ipv6.c			\
 	kernel.c		\
 	leasefile.c		\
+	lldp.c			\
 	logging.c		\
 	md5sum.c		\
 	modem-manager.c		\
@@ -102,6 +103,7 @@ libwicked_dbus_objects_la_SOURCES	= \
 	dbus-objects/interface.c\
 	dbus-objects/ipv4.c	\
 	dbus-objects/ipv6.c	\
+	dbus-objects/lldp.c	\
 	dbus-objects/misc.c	\
 	dbus-objects/model.c	\
 	dbus-objects/modem.c	\

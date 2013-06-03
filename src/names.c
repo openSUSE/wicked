@@ -11,6 +11,7 @@
 
 #include <wicked/netinfo.h>
 #include <wicked/addrconf.h>
+#include <wicked/lldp.h>
 #include "kernel.h"
 
 /*
@@ -381,3 +382,29 @@ ni_oper_state_type_to_name(int type)
 }
 
 
+/*
+ * Names for LLDP destinations
+ */
+static ni_intmap_t		__ni_lldp_type_names[] = {
+	{ "nearest-bridge",		NI_LLDP_DEST_NEAREST_BRIDGE	},
+	{ "nearest-non-tmpr-bridge",	NI_LLDP_DEST_NEAREST_NON_TPMR_BRIDGE	},
+	{ "nearest-customer-bridge",	NI_LLDP_DEST_NEAREST_CUSTOMER_BRIDGE	},
+
+	{ NULL }
+};
+
+int
+ni_lldp_destination_name_to_type(const char *name)
+{
+	unsigned int value;
+
+	if (ni_parse_uint_maybe_mapped(name, __ni_lldp_type_names, &value, 10) < 0)
+		return -1;
+	return value;
+}
+
+const char *
+ni_lldp_destination_type_to_name(ni_lldp_destination_t type)
+{
+	return ni_format_uint_maybe_mapped(type, __ni_lldp_type_names);
+}

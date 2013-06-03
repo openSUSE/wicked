@@ -102,6 +102,7 @@ extern ni_dbus_service_t	ni_objectmodel_openvpn_factory_service;
 extern ni_dbus_service_t	ni_objectmodel_ibparent_service;
 extern ni_dbus_service_t	ni_objectmodel_ibchild_service;
 extern ni_dbus_service_t	ni_objectmodel_ibchild_factory_service;
+extern ni_dbus_service_t	ni_objectmodel_lldp_service;
 
 extern ni_netdev_t *		ni_objectmodel_get_netif_argument(const ni_dbus_variant_t *, ni_iftype_t,
 						const ni_dbus_service_t *);

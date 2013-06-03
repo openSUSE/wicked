@@ -394,6 +394,7 @@ static ni_intmap_t __state_names[] = {
 	{ "firewall-up",	NI_FSM_STATE_FIREWALL_UP	},
 	{ "link-up",		NI_FSM_STATE_LINK_UP		},
 	{ "link-authenticated",	NI_FSM_STATE_LINK_AUTHENTICATED	},
+	{ "lldp-up",		NI_FSM_STATE_LLDP_UP		},
 	{ "network-up",		NI_FSM_STATE_ADDRCONF_UP	},
 	{ "max",		__NI_FSM_STATE_MAX		},
 
@@ -2814,6 +2815,9 @@ static ni_fsm_transition_t	ni_iftransitions[] = {
 	 * the link_up step, or even do it prior to that. */
 	COMMON_TRANSITION_UP_TO(NI_FSM_STATE_LINK_AUTHENTICATED, "login", .call_overloading = TRUE),
 
+	/* This brings up LLDP sender and configures it */
+	COMMON_TRANSITION_UP_TO(NI_FSM_STATE_LLDP_UP, "lldpUp", .call_overloading = TRUE),
+
 	/* Configure all assigned addresses and bring up the network */
 	COMMON_TRANSITION_UP_TO(NI_FSM_STATE_ADDRCONF_UP, "requestLease"),
 
@@ -2822,6 +2826,9 @@ static ni_fsm_transition_t	ni_iftransitions[] = {
 	 * -------------------------------------- */
 	/* Remove all assigned addresses and bring down the network */
 	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_ADDRCONF_UP, "dropLease"),
+
+	/* Shut down the LLDP sender */
+	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_LLDP_UP, "lldpDown", .call_overloading = TRUE),
 
 	/* Shut down the link */
 	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_LINK_UP, "linkDown", .call_overloading = TRUE),

@@ -1,0 +1,53 @@
+<!--
+  -- LLDP Service definition
+  -->
+<service name="lldp" interface="org.opensuse.Network.LLDP" object-class="netif">
+ <description>
+   This service manages the LLDP agent on a single network interface.
+ </description>
+
+ <define name="lldp-request" class="dict">
+  <destination type="builtin-lldp-type"/>
+
+  <!-- Chassis-ID contains exactly one child element out of several possible. -->
+  <chassis-id class="dict">
+   <chassis-component type="string" constraint="exclusive:chassis-id"/>
+   <ifalias type="string" constraint="exclusive:chassis-id"/>
+   <port-component type="string" constraint="exclusive:chassis-id"/>
+   <mac-address type="ethernet-address" constraint="exclusive:chassis-id"/>
+   <net-address type="network-address" constraint="exclusive:chassis-id"/>
+   <ifname type="string" constraint="exclusive:chassis-id"/>
+  </chassis-id>
+
+  <!-- Port-ID contains exactly one child element out of several possible. -->
+  <port-id class="dict">
+   <ifalias type="string" constraint="exclusive:port-id"/>
+   <port-component type="string" constraint="exclusive:port-id"/>
+   <mac-address type="ethernet-address" constraint="exclusive:port-id"/>
+   <net-address type="network-address" constraint="exclusive:port-id"/>
+   <ifname type="string" constraint="exclusive:port-id"/>
+   <agent-circuit-id type="string" constraint="exclusive:port-id"/>
+  </port-id>
+
+  <ttl type="uint32"/>
+
+  <system class="dict">
+  </system>
+
+ </define>
+
+ <!-- the LLDP properties of a device: -->
+ <define name="properties" type="lldp-request"/>
+
+ <method name="lldpUp">
+   <arguments>
+     <config type="lldp-request">
+       <meta:mapping document-node="/lldp"/>
+     </config>
+   </arguments>
+ </method>
+
+ <method name="lldpDown">
+   <!-- no arguments, no return code -->
+ </method>
+</service>

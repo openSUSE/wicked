@@ -28,6 +28,7 @@
 #include <wicked/ipv4.h>
 #include <wicked/ipv6.h>
 #include <wicked/pci.h>
+#include <wicked/lldp.h>
 #include "netinfo_priv.h"
 #include "util_priv.h"
 #include "appconfig.h"
@@ -92,6 +93,7 @@ ni_netdev_free(ni_netdev_t *dev)
 	ni_netdev_set_wireless(dev, NULL);
 	ni_netdev_set_openvpn(dev, NULL);
 	ni_netdev_set_ppp(dev, NULL);
+	ni_netdev_set_lldp(dev, NULL);
 	ni_netdev_set_client_info(dev, NULL);
 
 	ni_netdev_set_ipv4(dev, NULL);
@@ -370,6 +372,25 @@ ni_device_clientinfo_free(ni_device_clientinfo_t *client_info)
 	ni_string_free(&client_info->state);
 	ni_string_free(&client_info->config_origin);
 	free(client_info);
+}
+
+/*
+ * Set the interface's lldp info
+ */
+ni_lldp_t *
+ni_netdev_get_lldp(ni_netdev_t *dev)
+{
+	if (!dev->lldp)
+		dev->lldp = ni_lldp_new();
+	return dev->lldp;
+}
+
+void
+ni_netdev_set_lldp(ni_netdev_t *dev, ni_lldp_t *lldp)
+{
+	if (dev->lldp)
+		ni_lldp_free(dev->lldp);
+	dev->lldp = lldp;
 }
 
 /*

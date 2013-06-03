@@ -120,6 +120,15 @@ typedef enum ni_event {
 	__NI_EVENT_MAX
 } ni_event_t;
 
+/*
+ * LLDP destination types
+ */
+typedef enum ni_lldp_destination {
+	NI_LLDP_DEST_NEAREST_BRIDGE,
+	NI_LLDP_DEST_NEAREST_NON_TPMR_BRIDGE,
+	NI_LLDP_DEST_NEAREST_CUSTOMER_BRIDGE,
+} ni_lldp_destination_t;
+
 typedef enum {
 	NI_SUCCESS = 0,
 

@@ -1,0 +1,36 @@
+<interface>
+  <name>eth0.42</name>
+  <description>VLAN 42</description>
+
+  <vlan>
+    <device>eth0</device>
+    <tag>42</tag>
+  </vlan>
+
+  <lldp>
+   <destination>nearest-bridge</destination>
+   <chassis-id>
+    <mac-address>00:11:22:33:44:55</mac-address>
+   </chassis-id>
+   <port-id>
+    <ifalias>foo</ifalias>
+   </port-id>
+  </lldp>
+
+  <ipv4:static>
+    <address>
+      <local>17.99.0.1/24</local>
+    </address>
+    <address>
+      <local>17.99.1.1/24</local>
+    </address>
+
+    <route>
+      <destination>17.99.12.0/24</destination>
+      <nexthop>
+        <gateway>17.99.0.254</gateway>
+      </nexthop>
+    </route>
+  </ipv4:static>
+</interface>
+

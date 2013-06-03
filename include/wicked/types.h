@@ -33,6 +33,7 @@ typedef struct ni_ethernet	ni_ethernet_t;
 typedef struct ni_infiniband	ni_infiniband_t;
 typedef struct ni_openvpn	ni_openvpn_t;
 typedef struct ni_ppp		ni_ppp_t;
+typedef struct ni_lldp		ni_lldp_t;
 typedef struct ni_nis_info	ni_nis_info_t;
 typedef struct ni_resolver_info	ni_resolver_info_t;
 typedef struct ni_addrconf_lease  ni_addrconf_lease_t;
