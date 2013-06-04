@@ -13,7 +13,7 @@ case "$(uname -m)" in
 	*) _lib=lib ;;
 esac
 
-export CFLAGS="${CFLAGS:- -O1 -g -D_FORTIFY_SOURCE=2 -fstack-protector -Wall -Wextra -Wno-missing-field-initializers}"
+export CFLAGS="${CFLAGS:- -O1 -g -D_FORTIFY_SOURCE=2 -fstack-protector -Wall -Wextra -Wno-missing-field-initializers -Wno-unused-parameter}"
 defaults=(--sysconfdir=/etc --prefix=/usr --libdir=/usr/${_lib} --libexecdir=/usr/${_lib} --datadir=/usr/share --localstatedir=/var)
 
 "${srcdir}/configure" "${@:-${defaults[@]}}"
