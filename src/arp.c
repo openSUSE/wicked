@@ -26,6 +26,7 @@ static int	ni_arp_parse(ni_arp_socket_t *, ni_buffer_t *, ni_arp_packet_t *);
 ni_arp_socket_t *
 ni_arp_socket_open(const ni_capture_devinfo_t *dev_info, ni_arp_callback_t *callback, void *calldata)
 {
+	ni_capture_protinfo_t prot_info;
 	ni_arp_socket_t *arph;
 
 	arph = calloc(1, sizeof(*arph));
@@ -33,7 +34,10 @@ ni_arp_socket_open(const ni_capture_devinfo_t *dev_info, ni_arp_callback_t *call
 	arph->callback = callback;
 	arph->user_data = calldata;
 
-	arph->capture = ni_capture_open(dev_info, ETHERTYPE_ARP, ni_arp_socket_recv);
+	memset(&prot_info, 0, sizeof(prot_info));
+	prot_info.eth_protocol = ETHERTYPE_ARP;
+
+	arph->capture = ni_capture_open(dev_info, &prot_info, ni_arp_socket_recv);
 	if (!arph->capture) {
 		ni_arp_socket_close(arph);
 		return NULL;

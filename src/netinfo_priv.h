@@ -112,9 +112,20 @@ typedef struct ni_capture_devinfo {
 	ni_hwaddr_t		hwaddr;
 } ni_capture_devinfo_t;
 
+typedef struct ni_capture_protinfo {
+	uint16_t		eth_protocol;
+	ni_hwaddr_t		eth_destaddr;
+
+	/* If eth_protocol is ETHERTYPE_IP */
+	uint8_t			ip_protocol;
+
+	/* If ip_protocol is IPPROT_UDP or TCP */
+	uint16_t		ip_port;
+} ni_capture_protinfo_t;
+
 extern int		ni_capture_devinfo_init(ni_capture_devinfo_t *, const char *, const ni_linkinfo_t *);
 extern int		ni_capture_devinfo_refresh(ni_capture_devinfo_t *, const char *, const ni_linkinfo_t *);
-extern ni_capture_t *	ni_capture_open(const ni_capture_devinfo_t *, int, void (*)(ni_socket_t *));
+extern ni_capture_t *	ni_capture_open(const ni_capture_devinfo_t *, const ni_capture_protinfo_t *, void (*)(ni_socket_t *));
 extern int		ni_capture_recv(ni_capture_t *, ni_buffer_t *);
 extern ssize_t		ni_capture_broadcast(ni_capture_t *, const ni_buffer_t *, const ni_timeout_param_t *);
 extern void		ni_capture_disarm_retransmit(ni_capture_t *);

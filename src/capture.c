@@ -127,8 +127,7 @@ struct ni_capture {
 	void *			user_data;
 };
 
-ni_capture_t *		ni_capture_open(const ni_capture_devinfo_t *, int, void (*)(ni_socket_t *));
-static int		ni_capture_set_filter(ni_capture_t *, int);
+static int		ni_capture_set_filter(ni_capture_t *, const ni_capture_protinfo_t *);
 static ssize_t		__ni_capture_broadcast(const ni_capture_t *, const ni_buffer_t *);
 
 static uint32_t
@@ -577,24 +576,31 @@ __ni_capture_enable_packet_auxdata(int fd)
 }
 
 ni_capture_t *
-ni_capture_open(const ni_capture_devinfo_t *devinfo, int protocol, void (*receive)(ni_socket_t *))
+ni_capture_open(const ni_capture_devinfo_t *devinfo, const ni_capture_protinfo_t *protinfo, void (*receive)(ni_socket_t *))
 {
 	struct sockaddr_ll sll;
 	ni_capture_t *capture = NULL;
-	ni_hwaddr_t brdaddr;
+	ni_hwaddr_t destaddr;
 	int fd = -1;
 
 	if (devinfo->ifindex == 0) {
 		ni_error("no ifindex for interface `%s'", devinfo->ifname);
 		return NULL;
 	}
+	if (protinfo->eth_protocol == 0) {
+		ni_error("%s: bad ethernet protocol for dev %s", __func__, devinfo->ifname);
+		return NULL;
+	}
 
-	if (ni_link_address_get_broadcast(devinfo->iftype, &brdaddr) < 0) {
+	/* Destination address defaults to broadcast */
+	destaddr = protinfo->eth_destaddr;
+	if (destaddr.len == 0
+	 && ni_link_address_get_broadcast(devinfo->iftype, &destaddr) < 0) {
 		ni_error("cannot get broadcast address for %s (bad iftype)", devinfo->ifname);
 		return NULL;
 	}
 
-	if ((fd = socket (PF_PACKET, SOCK_DGRAM, htons(protocol))) < 0) {
+	if ((fd = socket (PF_PACKET, SOCK_DGRAM, htons(protinfo->eth_protocol))) < 0) {
 		ni_error("socket: %m");
 		return NULL;
 	}
@@ -603,21 +609,21 @@ ni_capture_open(const ni_capture_devinfo_t *devinfo, int protocol, void (*receiv
 	capture = calloc(1, sizeof(*capture));
 	ni_string_dup(&capture->ifname, devinfo->ifname);
 	capture->sock = ni_socket_wrap(fd, SOCK_DGRAM);
-	capture->protocol = protocol;
+	capture->protocol = protinfo->eth_protocol;
 
 	capture->sll.sll_family = AF_PACKET;
-	capture->sll.sll_protocol = htons(protocol);
+	capture->sll.sll_protocol = htons(protinfo->eth_protocol);
 	capture->sll.sll_ifindex = devinfo->ifindex;
 	capture->sll.sll_hatype = htons(devinfo->arp_type);
-	capture->sll.sll_halen = brdaddr.len;
-	memcpy(&capture->sll.sll_addr, brdaddr.data, brdaddr.len);
+	capture->sll.sll_halen = destaddr.len;
+	memcpy(&capture->sll.sll_addr, destaddr.data, destaddr.len);
 
-	if (ni_capture_set_filter(capture, protocol) < 0)
+	if (ni_capture_set_filter(capture, protinfo) < 0)
 		goto failed;
 
 	memset(&sll, 0, sizeof(sll));
 	sll.sll_family = PF_PACKET;
-	sll.sll_protocol = htons(protocol);
+	sll.sll_protocol = htons(protinfo->eth_protocol);
 	sll.sll_ifindex = devinfo->ifindex;
 
 	if (bind(fd, (struct sockaddr *) &sll, sizeof(sll)) == -1) {
@@ -648,10 +654,13 @@ failed:
 }
 
 static int
-ni_capture_set_filter(ni_capture_t *cap, int protocol)
+ni_capture_set_filter(ni_capture_t *cap, const ni_capture_protinfo_t *protinfo)
 {
 	struct sock_fprog pf;
 	static int done = 0;
+
+	/* FIXME: We should really build a filter from scratch, based on
+	 * the protinfo we receive. */
 
 	/* Initialize packet filters if we haven't done so */
 	if (!done) {
@@ -670,7 +679,7 @@ ni_capture_set_filter(ni_capture_t *cap, int protocol)
 
 	/* Install the DHCP filter */
 	memset(&pf, 0, sizeof(pf));
-	if (protocol == ETHERTYPE_ARP) {
+	if (protinfo->eth_protocol == ETHERTYPE_ARP) {
 		pf.filter = arp_bpf_filter;
 		pf.len = sizeof(arp_bpf_filter) / sizeof(arp_bpf_filter[0]);
 	} else {

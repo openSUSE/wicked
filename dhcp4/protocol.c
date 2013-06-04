@@ -51,6 +51,7 @@ static void	ni_dhcp_socket_recv(ni_socket_t *);
 int
 ni_dhcp_socket_open(ni_dhcp_device_t *dev)
 {
+	ni_capture_protinfo_t prot_info;
 	ni_capture_t *capture;
 
 	/* We need to bind to a port, otherwise Linux will generate
@@ -96,6 +97,11 @@ ni_dhcp_socket_open(ni_dhcp_device_t *dev)
 		}
 	}
 
+	memset(&prot_info, 0, sizeof(prot_info));
+	prot_info.eth_protocol = ETHERTYPE_IP;
+	prot_info.ip_protocol = IPPROTO_UDP;
+	prot_info.ip_port = DHCP_CLIENT_PORT;
+
 	if ((capture = dev->capture) != NULL) {
 		if (ni_capture_is_valid(capture, ETHERTYPE_IP))
 			return 0;
@@ -104,7 +110,7 @@ ni_dhcp_socket_open(ni_dhcp_device_t *dev)
 		dev->capture = NULL;
 	}
 
-	dev->capture = ni_capture_open(&dev->system, ETHERTYPE_IP, ni_dhcp_socket_recv);
+	dev->capture = ni_capture_open(&dev->system, &prot_info, ni_dhcp_socket_recv);
 	if (!dev->capture)
 		return -1;
 
