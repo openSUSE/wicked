@@ -49,6 +49,10 @@
 #define MTU_MAX			1500
 #define DHCP_CLIENT_PORT	68
 
+#ifndef ETHERTYPE_LLDP
+# define ETHERTYPE_LLDP		0x88CC
+#endif
+
 /* in case we have old headers files */
 #if defined(PACKET_AUXDATA) && !defined(HAVE_STRUCT_TPACKET_AUXDATA)
 struct tpacket_auxdata {
@@ -93,17 +97,6 @@ static struct bpf_insn dhcp_bpf_filter [] = {
 	BPF_STMT(BPF_RET + BPF_K, 0),
 };
 
-static struct bpf_insn arp_bpf_filter [] = {
-	/* Make sure this is an ARP packet... */
-	BPF_STMT(BPF_LD + BPF_H + BPF_ABS, 12),
-	BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, ETHERTYPE_ARP, 0, 1),
-
-	/* If we passed all the tests, ask for the whole packet. */
-	BPF_STMT(BPF_RET + BPF_K, ~0U),
-
-	/* Otherwise, drop it. */
-	BPF_STMT(BPF_RET + BPF_K, 0),
-};
 
 /*
  * Platform specific
@@ -659,6 +652,13 @@ ni_capture_set_filter(ni_capture_t *cap, const ni_capture_protinfo_t *protinfo)
 	struct sock_fprog pf;
 	static int done = 0;
 
+	/* For pure link layer protocols, we do not need to install a
+	 * filter, as we've already bound to a sll address where
+	 * sll_protocol is set to the ethertype we want to match */
+	if (protinfo->eth_protocol == ETHERTYPE_ARP
+	 || protinfo->eth_protocol == ETHERTYPE_LLDP)
+		return 0;
+
 	/* FIXME: We should really build a filter from scratch, based on
 	 * the protinfo we receive. */
 
@@ -671,20 +671,22 @@ ni_capture_set_filter(ni_capture_t *cap, const ni_capture_protinfo_t *protinfo)
 		dhcp_bpf_filter[6].k -= ETH_HLEN;
 		dhcp_bpf_filter[7].k -= ETH_HLEN;
 
-		arp_bpf_filter[1].jf = 0; /* skip the IP packet type check */
-		arp_bpf_filter[2].k -= ETH_HLEN;
-
 		done = 1;
 	}
 
 	/* Install the DHCP filter */
 	memset(&pf, 0, sizeof(pf));
-	if (protinfo->eth_protocol == ETHERTYPE_ARP) {
-		pf.filter = arp_bpf_filter;
-		pf.len = sizeof(arp_bpf_filter) / sizeof(arp_bpf_filter[0]);
-	} else {
+	if (protinfo->eth_protocol != ETHERTYPE_IP) {
+		ni_error("cannot build capture filter for ether type 0x%04x: not supported", protinfo->eth_protocol);
+		return -1;
+	} else
+	if (protinfo->ip_protocol == IPPROTO_UDP && protinfo->ip_port == DHCP_CLIENT_PORT) {
 		pf.filter = dhcp_bpf_filter;
 		pf.len = sizeof(dhcp_bpf_filter) / sizeof(dhcp_bpf_filter[0]);
+	} else {
+		ni_error("cannot build capture filter for IP proto %d, port %d: not supported",
+				protinfo->ip_protocol, protinfo->ip_port);
+		return -1;
 	}
 
 	if (setsockopt(cap->sock->__fd, SOL_SOCKET, SO_ATTACH_FILTER, &pf, sizeof(pf)) < 0) {
