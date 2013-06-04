@@ -70,24 +70,20 @@ struct tpacket_auxdata {
  * Credit where credit is due :)
  * The below BPF filter is taken from ISC DHCP
  */
-static struct bpf_insn dhcp_bpf_filter [] = {
-	/* Make sure this is an IP packet... */
-	BPF_STMT(BPF_LD + BPF_H + BPF_ABS, 12),
-	BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, ETHERTYPE_IP, 0, 8),
-
+static struct bpf_insn std_ipv4_bpf_filter [] = {
 	/* Make sure it's a UDP packet... */
-	BPF_STMT(BPF_LD + BPF_B + BPF_ABS, 23),
+	BPF_STMT(BPF_LD + BPF_B + BPF_ABS, 9),
 	BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, IPPROTO_UDP, 0, 6),
 
 	/* Make sure this isn't a fragment... */
-	BPF_STMT(BPF_LD + BPF_H + BPF_ABS, 20),
+	BPF_STMT(BPF_LD + BPF_H + BPF_ABS, 6),
 	BPF_JUMP(BPF_JMP + BPF_JSET + BPF_K, 0x1fff, 4, 0),
 
 	/* Get the IP header length... */
-	BPF_STMT(BPF_LDX + BPF_B + BPF_MSH, 14),
+	BPF_STMT(BPF_LDX + BPF_B + BPF_MSH, 0),
 
 	/* Make sure it's to the right port... */
-	BPF_STMT(BPF_LD + BPF_H + BPF_IND, 16),
+	BPF_STMT(BPF_LD + BPF_H + BPF_IND, 2),
 	BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, DHCP_CLIENT_PORT, 0, 1),
 
 	/* If we passed all the tests, ask for the whole packet. */
@@ -650,42 +646,34 @@ static int
 ni_capture_set_filter(ni_capture_t *cap, const ni_capture_protinfo_t *protinfo)
 {
 	struct sock_fprog pf;
-	static int done = 0;
-
-	/* For pure link layer protocols, we do not need to install a
-	 * filter, as we've already bound to a sll address where
-	 * sll_protocol is set to the ethertype we want to match */
-	if (protinfo->eth_protocol == ETHERTYPE_ARP
-	 || protinfo->eth_protocol == ETHERTYPE_LLDP)
-		return 0;
-
-	/* FIXME: We should really build a filter from scratch, based on
-	 * the protinfo we receive. */
-
-	/* Initialize packet filters if we haven't done so */
-	if (!done) {
-		/* We need to massage the filters for Linux cooked packets */
-		dhcp_bpf_filter[1].jf = 0; /* skip the IP packet type check */
-		dhcp_bpf_filter[2].k -= ETH_HLEN;
-		dhcp_bpf_filter[4].k -= ETH_HLEN;
-		dhcp_bpf_filter[6].k -= ETH_HLEN;
-		dhcp_bpf_filter[7].k -= ETH_HLEN;
-
-		done = 1;
-	}
 
 	/* Install the DHCP filter */
 	memset(&pf, 0, sizeof(pf));
-	if (protinfo->eth_protocol != ETHERTYPE_IP) {
+
+	switch (protinfo->eth_protocol) {
+	case ETHERTYPE_ARP:
+	case ETHERTYPE_LLDP:
+		/* For pure link layer protocols, we do not need to install a
+		 * filter, as we've already bound to a sll address where
+		 * sll_protocol is set to the ethertype we want to match */
+		return 0;
+
+	case ETHERTYPE_IP:
+		if (protinfo->ip_protocol != IPPROTO_UDP && protinfo->ip_protocol != IPPROTO_TCP) {
+			ni_error("cannot build capture filter for IP proto %d, port %d: not supported",
+					protinfo->ip_protocol, protinfo->ip_port);
+			return -1;
+		}
+
+		std_ipv4_bpf_filter[1].k = protinfo->ip_protocol;
+		std_ipv4_bpf_filter[6].k = protinfo->ip_port;
+
+		pf.filter = std_ipv4_bpf_filter;
+		pf.len = sizeof(std_ipv4_bpf_filter) / sizeof(std_ipv4_bpf_filter[0]);
+		break;
+
+	default:
 		ni_error("cannot build capture filter for ether type 0x%04x: not supported", protinfo->eth_protocol);
-		return -1;
-	} else
-	if (protinfo->ip_protocol == IPPROTO_UDP && protinfo->ip_port == DHCP_CLIENT_PORT) {
-		pf.filter = dhcp_bpf_filter;
-		pf.len = sizeof(dhcp_bpf_filter) / sizeof(dhcp_bpf_filter[0]);
-	} else {
-		ni_error("cannot build capture filter for IP proto %d, port %d: not supported",
-				protinfo->ip_protocol, protinfo->ip_port);
 		return -1;
 	}
 
