@@ -132,6 +132,15 @@ ni_netdev_put(ni_netdev_t *dev)
 }
 
 /*
+ * This is a convenience function for adding addresses to an interface.
+ */
+ni_address_t *
+ni_netdev_add_address(ni_netdev_t *dev, unsigned int af, unsigned int prefix_len, const ni_sockaddr_t *local_addr)
+{
+	return ni_address_new(af, prefix_len, local_addr, &dev->addrs);
+}
+
+/*
  * This is a convenience function for adding routes to an interface.
  */
 ni_route_t *
