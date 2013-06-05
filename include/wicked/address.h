@@ -53,12 +53,24 @@ extern unsigned int	ni_sockaddr_netmask_bits(const ni_sockaddr_t *mask);
 extern int		ni_sockaddr_build_netmask(int, unsigned int, ni_sockaddr_t *);
 extern ni_bool_t	ni_sockaddr_prefix_match(unsigned int, const ni_sockaddr_t *, const ni_sockaddr_t *);
 extern ni_bool_t	ni_sockaddr_equal(const ni_sockaddr_t *, const ni_sockaddr_t *);
+
 extern ni_bool_t	ni_sockaddr_is_ipv4_loopback(const ni_sockaddr_t *);
-extern ni_bool_t	ni_sockaddr_is_ipv6_loopback(const ni_sockaddr_t *);
-extern ni_bool_t	ni_sockaddr_is_loopback(const ni_sockaddr_t *);
 extern ni_bool_t	ni_sockaddr_is_ipv4_linklocal(const ni_sockaddr_t *);
+extern ni_bool_t	ni_sockaddr_is_ipv4_broadcast(const ni_sockaddr_t *);
+extern ni_bool_t	ni_sockaddr_is_ipv4_specified(const ni_sockaddr_t *);
+extern ni_bool_t	ni_sockaddr_is_ipv4_unspecified(const ni_sockaddr_t *);
+extern ni_bool_t	ni_sockaddr_is_ipv6_loopback(const ni_sockaddr_t *);
 extern ni_bool_t	ni_sockaddr_is_ipv6_linklocal(const ni_sockaddr_t *);
+extern ni_bool_t	ni_sockaddr_is_ipv6_sitelocal(const ni_sockaddr_t *);
+extern ni_bool_t	ni_sockaddr_is_ipv6_multicast(const ni_sockaddr_t *);
+extern ni_bool_t	ni_sockaddr_is_ipv6_v4mapped(const ni_sockaddr_t *);
+extern ni_bool_t	ni_sockaddr_is_ipv6_v4compat(const ni_sockaddr_t *);
+extern ni_bool_t	ni_sockaddr_is_ipv6_specified(const ni_sockaddr_t *);
+extern ni_bool_t	ni_sockaddr_is_ipv6_unspecified(const ni_sockaddr_t *);
+extern ni_bool_t	ni_sockaddr_is_loopback(const ni_sockaddr_t *);
 extern ni_bool_t	ni_sockaddr_is_linklocal(const ni_sockaddr_t *);
+extern ni_bool_t	ni_sockaddr_is_specified(const ni_sockaddr_t *);
+extern ni_bool_t	ni_sockaddr_is_unspecified(const ni_sockaddr_t *);
 
 extern void		ni_sockaddr_set_ipv4(ni_sockaddr_t *, struct in_addr, uint16_t);
 extern void		ni_sockaddr_set_ipv6(ni_sockaddr_t *, struct in6_addr, uint16_t);
@@ -86,6 +98,5 @@ extern void		ni_address_list_dedup(ni_address_t **);
 extern ni_address_t *	ni_address_list_find(ni_address_t *, const ni_sockaddr_t *);
 extern unsigned int	ni_address_list_count(ni_address_t *list);
 extern void		ni_address_free(ni_address_t *);
-
 
 #endif /* __WICKED_ADDRESS_H__ */

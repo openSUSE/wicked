@@ -320,10 +320,118 @@ ni_sockaddr_is_ipv4_loopback(const ni_sockaddr_t *saddr)
 }
 
 ni_bool_t
+ni_sockaddr_is_ipv4_linklocal(const ni_sockaddr_t *saddr)
+{
+	if (saddr->ss_family == AF_INET) {
+		uint32_t inaddr;
+
+		inaddr = ntohl(saddr->sin.sin_addr.s_addr);
+
+		/* rfc3927, 169.254.0.0/16 */
+		return (inaddr >> 16) == 0xa9fe;
+	}
+	return FALSE;
+}
+
+ni_bool_t
+ni_sockaddr_is_ipv4_broadcast(const ni_sockaddr_t *saddr)
+{
+	if (saddr->ss_family == AF_INET) {
+		/* ntohl not needed here as all bytes are same */
+		return	saddr->sin.sin_addr.s_addr == INADDR_BROADCAST;
+	}
+	return FALSE;
+}
+
+ni_bool_t
+ni_sockaddr_is_ipv4_specified(const ni_sockaddr_t *saddr)
+{
+	if (saddr->ss_family == AF_INET) {
+		/* ntohl not needed here as all bytes are same */
+		return	saddr->sin.sin_addr.s_addr == INADDR_ANY ||
+			saddr->sin.sin_addr.s_addr == INADDR_BROADCAST;
+	}
+	return FALSE;
+}
+
+ni_bool_t
+ni_sockaddr_is_ipv4_unspecified(const ni_sockaddr_t *saddr)
+{
+	if (saddr->ss_family == AF_INET) {
+		/* ntohl not needed here as all bytes are same */
+		return	saddr->sin.sin_addr.s_addr == INADDR_ANY;
+	}
+	return FALSE;
+}
+
+ni_bool_t
 ni_sockaddr_is_ipv6_loopback(const ni_sockaddr_t *saddr)
 {
 	if (saddr->ss_family == AF_INET6) {
 		return IN6_IS_ADDR_LOOPBACK(&saddr->six.sin6_addr);
+	}
+	return FALSE;
+}
+
+ni_bool_t
+ni_sockaddr_is_ipv6_linklocal(const ni_sockaddr_t *saddr)
+{
+	if (saddr->ss_family == AF_INET6) {
+		return IN6_IS_ADDR_LINKLOCAL(&saddr->six.sin6_addr);
+	}
+	return FALSE;
+}
+
+ni_bool_t
+ni_sockaddr_is_ipv6_sitelocal(const ni_sockaddr_t *saddr)
+{
+	if (saddr->ss_family == AF_INET6) {
+		return	IN6_IS_ADDR_SITELOCAL(&saddr->six.sin6_addr);
+	}
+	return FALSE;
+}
+
+ni_bool_t
+ni_sockaddr_is_ipv6_multicast(const ni_sockaddr_t *saddr)
+{
+	if (saddr->ss_family == AF_INET6) {
+		return	IN6_IS_ADDR_MULTICAST(&saddr->six.sin6_addr);
+	}
+	return FALSE;
+}
+
+ni_bool_t
+ni_sockaddr_is_ipv6_v4mapped(const ni_sockaddr_t *saddr)
+{
+	if (saddr->ss_family == AF_INET6) {
+		return	IN6_IS_ADDR_V4MAPPED(&saddr->six.sin6_addr);
+	}
+	return FALSE;
+}
+
+ni_bool_t
+ni_sockaddr_is_ipv6_v4compat(const ni_sockaddr_t *saddr)
+{
+	if (saddr->ss_family == AF_INET6) {
+		return	IN6_IS_ADDR_V4COMPAT(&saddr->six.sin6_addr);
+	}
+	return FALSE;
+}
+
+ni_bool_t
+ni_sockaddr_is_ipv6_specified(const ni_sockaddr_t *saddr)
+{
+	if (saddr->ss_family == AF_INET6) {
+		return	!IN6_IS_ADDR_UNSPECIFIED(&saddr->six.sin6_addr);
+	}
+	return FALSE;
+}
+
+ni_bool_t
+ni_sockaddr_is_ipv6_unspecified(const ni_sockaddr_t *saddr)
+{
+	if (saddr->ss_family == AF_INET6) {
+		return	IN6_IS_ADDR_UNSPECIFIED(&saddr->six.sin6_addr);
 	}
 	return FALSE;
 }
@@ -342,29 +450,6 @@ ni_sockaddr_is_loopback(const ni_sockaddr_t *saddr)
 }
 
 ni_bool_t
-ni_sockaddr_is_ipv4_linklocal(const ni_sockaddr_t *saddr)
-{
-	if (saddr->ss_family == AF_INET) {
-		uint32_t inaddr;
-
-		inaddr = ntohl(saddr->sin.sin_addr.s_addr);
-
-		/* rfc3927, 169.254.0.0/16 */
-		return (inaddr >> 16) == 0xa9fe;
-	}
-	return FALSE;
-}
-
-ni_bool_t
-ni_sockaddr_is_ipv6_linklocal(const ni_sockaddr_t *saddr)
-{
-	if (saddr->ss_family == AF_INET6) {
-		return IN6_IS_ADDR_LINKLOCAL(&saddr->six.sin6_addr);
-	}
-	return FALSE;
-}
-
-ni_bool_t
 ni_sockaddr_is_linklocal(const ni_sockaddr_t *saddr)
 {
 	switch (saddr->ss_family) {
@@ -374,6 +459,32 @@ ni_sockaddr_is_linklocal(const ni_sockaddr_t *saddr)
 		return ni_sockaddr_is_ipv6_linklocal(saddr);
 	default:
 		return FALSE;
+	}
+}
+
+ni_bool_t
+ni_sockaddr_is_specified(const ni_sockaddr_t *saddr)
+{
+	switch (saddr->ss_family) {
+	case AF_INET:
+		return ni_sockaddr_is_ipv4_specified(saddr);
+	case AF_INET6:
+		return ni_sockaddr_is_ipv6_specified(saddr);
+	default:
+		return FALSE;
+	}
+}
+
+ni_bool_t
+ni_sockaddr_is_unspecified(const ni_sockaddr_t *saddr)
+{
+	switch (saddr->ss_family) {
+	case AF_INET:
+		return ni_sockaddr_is_ipv4_unspecified(saddr);
+	case AF_INET6:
+		return ni_sockaddr_is_ipv6_unspecified(saddr);
+	default:
+		return TRUE;
 	}
 }
 
