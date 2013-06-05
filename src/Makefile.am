@@ -73,6 +73,7 @@ libwicked_la_SOURCES		= \
 	process.c		\
 	resolver.c		\
 	rfkill.c		\
+	route.c			\
 	secret.c		\
 	socket.c		\
 	state.c			\
