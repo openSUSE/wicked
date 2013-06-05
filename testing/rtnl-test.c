@@ -3,7 +3,7 @@
 #endif
 #include <signal.h>
 #include <netinet/in.h>
-#include <linux/rtnetlink.h>
+#include <netlink/netlink.h>
 
 #include <wicked/logging.h>
 #include <wicked/socket.h>

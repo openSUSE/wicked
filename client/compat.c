@@ -18,7 +18,7 @@
 #include <wicked/fsm.h>
 #include <wicked/xml.h>
 #include "wicked-client.h"
-#include <linux/rtnetlink.h>
+#include <netlink/netlink.h>
 
 
 /* Helper functions */

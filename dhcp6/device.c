@@ -26,7 +26,7 @@
 
 #include <sys/time.h>
 #include <net/if_arp.h>
-#include <linux/rtnetlink.h>	/* address flags, TODO: get rid of them */
+#include <netlink/netlink.h>	/* address flags, TODO: get rid of them */
 #include <arpa/inet.h>
 
 #include <wicked/netinfo.h>

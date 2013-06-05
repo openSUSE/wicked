@@ -18,7 +18,7 @@
 #include <netinet/if_tr.h>
 #include <net/if_arp.h>
 #include <linux/if_infiniband.h>
-#include <linux/rtnetlink.h>
+#include <netlink/netlink.h>
 
 #include <wicked/logging.h>
 #include <wicked/netinfo.h>

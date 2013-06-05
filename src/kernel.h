@@ -9,7 +9,7 @@
 
 #include <net/if.h>
 #include <netlink/netlink.h>
-#include <linux/rtnetlink.h>
+#include <netlink/netlink.h>
 #include <linux/ethtool.h>
 
 #define __user /* unclean header file */
