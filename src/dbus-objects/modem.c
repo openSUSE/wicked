@@ -346,7 +346,7 @@ static ni_dbus_service_t	ni_objectmodel_modem_list_service = {
 /*
  * The modem proxy service. This is little more than a registry of
  * modem devices, re-exporting the ModemManager devices below
- * /com/suse/Wicked/Modem. The reason we introduce this indirection
+ * /org/opensuse/Network/Modem. The reason we introduce this indirection
  * is that we want to bring the modem link up and down using the same
  * verbs (methods) as for network devices.
  *

@@ -63,10 +63,10 @@ To illustrate this point, here's a rough overview of the current
 object hierarchy in wicked.
 
 Each network interface is represented via a child object of
-/com/suse/Wicked/Interfaces. The name of the child object is given by
-its ifindex, so e.g. the loopback interface, which usually gets
-ifindex 1, is /com/suse/Wicked/Interfaces/1, the first ethernet interface
-registered is /com/suse/Wicked/Interfaces/2, etc.
+/org/opensuse/Network/Interfaces. The name of the child object is given
+by its ifindex, so e.g. the loopback interface, which usually gets
+ifindex 1, is /org/opensuse/Network/Interfaces/1, the first ethernet
+interface registered is /org/opensuse/Network/Interfaces/2, etc.
 
 Each network interface has a "class" associated with it, which is
 used to select the dbus interfaces it supports. By default, each
@@ -74,14 +74,14 @@ network interface is of class "netif", and wickedd will automatically
 attach all interfaces compatible with this class. In the current
 implementation, this includes the following interfaces
 
-com.suse.Wicked.Interface
+org.opensuse.Network.Interface
 	Generic network interface functions, such as taking the link
 	up or down, assigning an MTU, etc.
 
-com.suse.Wicked.Addrconf.ipv4.dhcp
-com.suse.Wicked.Addrconf.ipv6.dhcp
-com.suse.Wicked.Addrconf.ipv4.auto
-com.suse.Wicked.Addrconf.ipv6.auto
+org.opensuse.Network.Addrconf.ipv4.dhcp
+org.opensuse.Network.Addrconf.ipv6.dhcp
+org.opensuse.Network.Addrconf.ipv4.auto
+org.opensuse.Network.Addrconf.ipv6.auto
 	Address configuration services for DHCP, ipv6 autoconf, ipv4
 	zeroconf, etc.
 
@@ -89,11 +89,10 @@ Beyond this, network interfaces may require/offer special configuration
 mechanisms. For instance, for an Ethernet device, you may want to be
 able to control the link speed, offloading of checksumming, etc. To
 achieve this, ethernet devices have a class of their own, called
-netif-ethernet, which is a subclass of netif. As a consequence, the
-dbus interfaces assigned to an ethernet interface include all the
-services listed above, plus com.suse.Wicked.Ethernet, whichis a service
-which is available only to object belonging to the netif-ethernet
-class.
+netif-ethernet, which is a subclass of netif. As a consequence, the dbus
+interfaces assigned to an ethernet interface include all the services
+listed above, plus org.opensuse.Network.Ethernet, whichis a service
+which is available only to object belonging to the netif-ethernet class.
 
 Similarly, there exist classes for interface types like bridges, vlans,
 bonds, or infiniband.
@@ -103,10 +102,10 @@ that needs to be created first - such as a VLAN, which is really a
 virtual network interface that sits on top of an ethernet device.
 
 For these, wicked defines factory interfaces, such as
-com.suse.Wicked.VLAN.Factory. Such a factory interface offers a single
-function that lets you create an interface of the requested type. These
-factory interfaces are attched to the /com/suse/Wicked/Interfaces list
-node.
+org.opensuse.Network.VLAN.Factory. Such a factory interface offers a
+single function that lets you create an interface of the requested type.
+These factory interfaces are attched to the
+/org/opensuse/Network/Interfaces list node.
 
 What's currently supported
 ==========================
