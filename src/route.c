@@ -18,68 +18,6 @@
 
 
 /*
- * ni_route_nexthop functions
- */
-ni_route_nexthop_t *
-ni_route_nexthop_new(void)
-{
-	return xcalloc(1, sizeof(ni_route_nexthop_t));
-}
-
-void
-ni_route_nexthop_destroy(ni_route_nexthop_t *hop)
-{
-	if (hop) {
-		ni_netdev_ref_destroy(&hop->device);
-	}
-}
-
-void
-ni_route_nexthop_free(ni_route_nexthop_t *hop)
-{
-	if (hop) {
-		ni_route_nexthop_destroy(hop);
-		free(hop);
-	}
-}
-
-void
-ni_route_nexthop_copy(ni_route_nexthop_t *dst, const ni_route_nexthop_t *src)
-{
-	if (src && dst) {
-		dst->gateway = src->gateway;
-		dst->weight  = src->weight;
-		dst->flags   = src->flags;
-		dst->device.index = src->device.index;
-		if (src->device.name)
-			ni_string_dup(&dst->device.name, src->device.name);
-		if (src->device.dev) /* never used/set, but ... */
-			dst->device.dev = ni_netdev_get(src->device.dev);
-	}
-}
-
-void
-ni_route_nexthop_list_append(ni_route_nexthop_t **list, ni_route_nexthop_t *nh)
-{
-	ni_route_nexthop_t *hop;
-
-	while ((hop = *list) != NULL)
-		list = &hop->next;
-	*list = nh;
-}
-
-void
-ni_route_nexthop_list_destroy(ni_route_nexthop_t **list)
-{
-	ni_route_nexthop_t *hop;
-
-	while ((hop = *list) != NULL) {
-		*list = hop->next;
-		ni_route_nexthop_free(hop);
-	}
-}
-
-/*
  * ni_route functions
  */
 ni_route_t *
@@ -203,28 +141,6 @@ ni_route_free(ni_route_t *rp)
 	free(rp);
 }
 
-void
-ni_route_list_destroy(ni_route_t **list)
-{
-	ni_route_t *rp;
-
-	while ((rp = *list) != NULL) {
-		*list = rp->next;
-		ni_route_free(rp);
-	}
-}
-
-void
-ni_route_list_append(ni_route_t **list, ni_route_t *new_route)
-{
-	ni_route_t *rp;
-
-	while ((rp = *list) != NULL)
-		list = &rp->next;
-	*list = new_route;
-}
-
-
 ni_bool_t
 ni_route_equal(const ni_route_t *r1, const ni_route_t *r2)
 {
@@ -268,5 +184,94 @@ ni_route_print(const ni_route_t *rp)
 		snprintf(abuf, sizeof(abuf), "%s", dest);
 	}
 	return abuf;
+}
+
+/*
+ * ni_route list functions
+ */
+void
+ni_route_list_destroy(ni_route_t **list)
+{
+	ni_route_t *rp;
+
+	while ((rp = *list) != NULL) {
+		*list = rp->next;
+		ni_route_free(rp);
+	}
+}
+
+void
+ni_route_list_append(ni_route_t **list, ni_route_t *new_route)
+{
+	ni_route_t *rp;
+
+	while ((rp = *list) != NULL)
+		list = &rp->next;
+	*list = new_route;
+}
+
+/*
+ * ni_route_nexthop functions
+ */
+ni_route_nexthop_t *
+ni_route_nexthop_new(void)
+{
+	return xcalloc(1, sizeof(ni_route_nexthop_t));
+}
+
+void
+ni_route_nexthop_destroy(ni_route_nexthop_t *hop)
+{
+	if (hop) {
+		ni_netdev_ref_destroy(&hop->device);
+	}
+}
+
+void
+ni_route_nexthop_free(ni_route_nexthop_t *hop)
+{
+	if (hop) {
+		ni_route_nexthop_destroy(hop);
+		free(hop);
+	}
+}
+
+void
+ni_route_nexthop_copy(ni_route_nexthop_t *dst, const ni_route_nexthop_t *src)
+{
+	if (src && dst) {
+		dst->gateway = src->gateway;
+		dst->weight  = src->weight;
+		dst->flags   = src->flags;
+		dst->device.index = src->device.index;
+		if (src->device.name)
+			ni_string_dup(&dst->device.name, src->device.name);
+		if (src->device.dev) /* never used/set, but ... */
+			dst->device.dev = ni_netdev_get(src->device.dev);
+	}
+}
+
+/*
+ * ni_route_nexthop list functions
+ */
+void
+ni_route_nexthop_list_append(ni_route_nexthop_t **list, ni_route_nexthop_t *nh)
+{
+	ni_route_nexthop_t *hop;
+
+	while ((hop = *list) != NULL)
+		list = &hop->next;
+	*list = nh;
+}
+
+void
+ni_route_nexthop_list_destroy(ni_route_nexthop_t **list)
+{
+	ni_route_nexthop_t *hop;
+
+	while ((hop = *list) != NULL) {
+		*list = hop->next;
+		ni_route_nexthop_free(hop);
+	}
 }
 
