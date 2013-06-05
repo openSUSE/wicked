@@ -46,13 +46,6 @@ typedef struct ni_address {
 	ni_ipv6_cache_info_t	ipv6_cache_info;
 } ni_address_t;
 
-extern const char *	ni_sockaddr_format(const ni_sockaddr_t *ss, char *abuf, size_t buflen);
-extern const char *	ni_sockaddr_print(const ni_sockaddr_t *ss);
-extern int		ni_sockaddr_parse(ni_sockaddr_t *ss, const char *string, int af);
-extern unsigned int	ni_sockaddr_netmask_bits(const ni_sockaddr_t *mask);
-extern int		ni_sockaddr_build_netmask(int, unsigned int, ni_sockaddr_t *);
-extern ni_bool_t	ni_sockaddr_prefix_match(unsigned int, const ni_sockaddr_t *, const ni_sockaddr_t *);
-extern ni_bool_t	ni_sockaddr_equal(const ni_sockaddr_t *, const ni_sockaddr_t *);
 
 extern ni_bool_t	ni_sockaddr_is_ipv4_loopback(const ni_sockaddr_t *);
 extern ni_bool_t	ni_sockaddr_is_ipv4_linklocal(const ni_sockaddr_t *);
@@ -71,9 +64,19 @@ extern ni_bool_t	ni_sockaddr_is_loopback(const ni_sockaddr_t *);
 extern ni_bool_t	ni_sockaddr_is_linklocal(const ni_sockaddr_t *);
 extern ni_bool_t	ni_sockaddr_is_specified(const ni_sockaddr_t *);
 extern ni_bool_t	ni_sockaddr_is_unspecified(const ni_sockaddr_t *);
+extern ni_bool_t	ni_sockaddr_equal(const ni_sockaddr_t *, const ni_sockaddr_t *);
+extern ni_bool_t	ni_sockaddr_prefix_match(unsigned int, const ni_sockaddr_t *, const ni_sockaddr_t *);
 
 extern void		ni_sockaddr_set_ipv4(ni_sockaddr_t *, struct in_addr, uint16_t);
 extern void		ni_sockaddr_set_ipv6(ni_sockaddr_t *, struct in6_addr, uint16_t);
+extern const char *	ni_sockaddr_format(const ni_sockaddr_t *ss, char *abuf, size_t buflen);
+extern const char *	ni_sockaddr_print(const ni_sockaddr_t *ss);
+extern const char *	ni_sockaddr_prefix_print(const ni_sockaddr_t *, unsigned int);
+extern int		ni_sockaddr_parse(ni_sockaddr_t *ss, const char *string, int af);
+extern ni_bool_t	ni_sockaddr_prefix_parse(const char *, ni_sockaddr_t *, unsigned int *);
+extern unsigned int	ni_sockaddr_netmask_bits(const ni_sockaddr_t *mask);
+extern int		ni_sockaddr_build_netmask(int, unsigned int, ni_sockaddr_t *);
+
 extern ni_opaque_t *	ni_sockaddr_pack(const ni_sockaddr_t *, ni_opaque_t *);
 extern ni_sockaddr_t *	ni_sockaddr_unpack(ni_sockaddr_t *, const ni_opaque_t *);
 extern ni_opaque_t *	ni_sockaddr_prefix_pack(const ni_sockaddr_t *, unsigned int, ni_opaque_t *);
@@ -82,9 +85,6 @@ extern ni_sockaddr_t *	ni_sockaddr_prefix_unpack(ni_sockaddr_t *, unsigned int *
 extern void		ni_sockaddr_array_init(ni_sockaddr_array_t *);
 extern void		ni_sockaddr_array_destroy(ni_sockaddr_array_t *);
 extern void		ni_sockaddr_array_append(ni_sockaddr_array_t *, const ni_sockaddr_t *);
-
-extern const char *	ni_sockaddr_prefix_print(const ni_sockaddr_t *, unsigned int);
-extern ni_bool_t	ni_sockaddr_prefix_parse(const char *, ni_sockaddr_t *, unsigned int *);
 
 extern ni_bool_t	ni_af_sockaddr_info(int, unsigned int *, unsigned int *);
 extern unsigned int	ni_af_address_length(int af);

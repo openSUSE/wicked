@@ -38,6 +38,9 @@ ni_netdev_add_address(ni_netdev_t *dev, unsigned int af, unsigned int prefix_len
 	return ni_address_new(af, prefix_len, local_addr, &dev->addrs);
 }
 
+/*
+ * ni_address functions
+ */
 ni_address_t *
 ni_address_new(int af, unsigned int prefix_len, const ni_sockaddr_t *local_addr, ni_address_t **list_head)
 {
@@ -75,6 +78,92 @@ ni_address_free(ni_address_t *ap)
 	free(ap);
 }
 
+ni_bool_t
+ni_address_is_loopback(const ni_address_t *laddr)
+{
+	if (laddr->family == laddr->local_addr.ss_family)
+		return ni_sockaddr_is_loopback(&laddr->local_addr);
+
+	return FALSE;
+}
+
+ni_bool_t
+ni_address_is_linklocal(const ni_address_t *laddr)
+{
+	if (laddr->family == laddr->local_addr.ss_family)
+		return ni_sockaddr_is_linklocal(&laddr->local_addr);
+
+	return FALSE;
+}
+
+ni_bool_t
+ni_address_is_tentative(const ni_address_t *laddr)
+{
+	return laddr->flags & IFA_F_TENTATIVE;
+}
+
+ni_bool_t
+ni_address_is_duplicate(const ni_address_t *laddr)
+{
+	return laddr->flags & IFA_F_DADFAILED;
+}
+
+ni_bool_t
+ni_address_is_temporary(const ni_address_t *laddr)
+{
+	return laddr->flags & IFA_F_TEMPORARY;
+}
+
+ni_bool_t
+ni_address_is_permanent(const ni_address_t *laddr)
+{
+	return laddr->flags & IFA_F_PERMANENT;
+}
+
+ni_bool_t
+ni_address_is_deprecated(const ni_address_t *laddr)
+{
+	return laddr->flags & IFA_F_DEPRECATED;
+}
+
+ni_bool_t
+ni_address_can_reach(const ni_address_t *laddr, const ni_sockaddr_t *gw)
+{
+	if (laddr->family != gw->ss_family)
+		return FALSE;
+
+	/* if (laddr->peer_addr.ss_family != AF_UNSPEC) { ... } */
+	return ni_sockaddr_prefix_match(laddr->prefixlen, &laddr->local_addr, gw);
+}
+
+ni_bool_t
+ni_address_probably_dynamic(const ni_address_t *ap)
+{
+	const unsigned char *addr;
+	unsigned int len;
+
+	switch (ap->family) {
+	case AF_INET6:
+		/* For IPv6 with static configuration, consider all link-local
+		 * prefixes as dynamic.
+		 */
+		if ((addr = __ni_sockaddr_data(&ap->local_addr, &len)) != NULL)
+			return addr[0] == 0xFE && addr[1] == 0x80;
+		break;
+
+	case AF_INET:
+		/* Consider all IPv4 zeroconf addresses (169.254/24) as autoconf */
+		if ((addr = __ni_sockaddr_data(&ap->local_addr, &len)) != NULL)
+			return addr[0] == 169 && addr[1] == 254;
+		break;
+	}
+
+	return 0;
+}
+
+/*
+ * ni_address list functions
+ */
 void
 ni_address_list_append(ni_address_t **list, ni_address_t *ap)
 {
@@ -155,6 +244,10 @@ ni_address_list_destroy(ni_address_t **list)
 	}
 }
 
+
+/*
+ * ni_af_sockaddr functions
+ */
 ni_bool_t
 ni_af_sockaddr_info(int af, unsigned int *offset, unsigned int *len)
 {
@@ -172,20 +265,6 @@ ni_af_sockaddr_info(int af, unsigned int *offset, unsigned int *len)
 	return FALSE;
 }
 
-static const unsigned char *
-__ni_sockaddr_data(const ni_sockaddr_t *ss, unsigned int *len)
-{
-	unsigned int offset;
-
-	*len = 0;
-	if (ss == NULL)
-		return NULL;
-	if (!ni_af_sockaddr_info(ss->ss_family, &offset, len))
-		return NULL;
-
-	return ((const unsigned char *) ss) + offset;
-}
-
 unsigned int
 ni_af_address_length(int af)
 {
@@ -198,115 +277,10 @@ ni_af_address_length(int af)
 	return 0;
 }
 
-void
-ni_sockaddr_set_ipv4(ni_sockaddr_t *ap, struct in_addr ipv4, uint16_t port)
-{
-	memset(ap, 0, sizeof(*ap));
-	ap->sin.sin_family = AF_INET;
-	ap->sin.sin_addr = ipv4;
-	ap->sin.sin_port = htons(port);
-}
 
-void
-ni_sockaddr_set_ipv6(ni_sockaddr_t *ap, struct in6_addr ipv6, uint16_t port)
-{
-	memset(ap, 0, sizeof(*ap));
-	ap->six.sin6_family = AF_INET6;
-	ap->six.sin6_addr = ipv6;
-	ap->six.sin6_port = htons(port);
-}
-
-ni_bool_t
-ni_sockaddr_prefix_match(unsigned int prefix_bits, const ni_sockaddr_t *laddr, const ni_sockaddr_t *gw)
-{
-	const unsigned char *laddr_ptr, *gw_ptr;
-	unsigned int offset = 0, len;
-	unsigned int cc;
-
-	laddr_ptr = __ni_sockaddr_data(laddr, &len);
-	gw_ptr = __ni_sockaddr_data(gw, &len);
-	if (!laddr_ptr || !gw_ptr || laddr->ss_family != gw->ss_family)
-		return FALSE;
-
-	if (prefix_bits > (len * 8))
-		prefix_bits = len * 8;
-
-	if (prefix_bits > 8) {
-		if (memcmp(laddr_ptr, gw_ptr, prefix_bits / 8))
-			return FALSE;
-		offset = prefix_bits / 8;
-		prefix_bits = prefix_bits % 8;
-	}
-
-	/* If the prefix length is not a multiple of 8, we need to check the
-	 * top N bits of the next octet. */
-	if (prefix_bits != 0) {
-		cc = laddr_ptr[offset] ^ gw_ptr[offset];
-		if ((0xFF00 & (cc << prefix_bits)) != 0)
-			return FALSE;
-	}
-
-	return TRUE;
-}
-
-ni_bool_t
-ni_address_can_reach(const ni_address_t *laddr, const ni_sockaddr_t *gw)
-{
-	if (laddr->family != gw->ss_family)
-		return FALSE;
-
-	/* if (laddr->peer_addr.ss_family != AF_UNSPEC) { ... } */
-	return ni_sockaddr_prefix_match(laddr->prefixlen, &laddr->local_addr, gw);
-}
-
-ni_bool_t
-ni_address_is_loopback(const ni_address_t *laddr)
-{
-	if (laddr->family == laddr->local_addr.ss_family)
-		return ni_sockaddr_is_loopback(&laddr->local_addr);
-
-	return FALSE;
-}
-
-ni_bool_t
-ni_address_is_linklocal(const ni_address_t *laddr)
-{
-	if (laddr->family == laddr->local_addr.ss_family)
-		return ni_sockaddr_is_linklocal(&laddr->local_addr);
-
-	return FALSE;
-}
-
-ni_bool_t
-ni_address_is_tentative(const ni_address_t *laddr)
-{
-	return laddr->flags & IFA_F_TENTATIVE;
-}
-
-ni_bool_t
-ni_address_is_duplicate(const ni_address_t *laddr)
-{
-	return laddr->flags & IFA_F_DADFAILED;
-}
-
-ni_bool_t
-ni_address_is_temporary(const ni_address_t *laddr)
-{
-	return laddr->flags & IFA_F_TEMPORARY;
-}
-
-ni_bool_t
-ni_address_is_permanent(const ni_address_t *laddr)
-{
-	return laddr->flags & IFA_F_PERMANENT;
-}
-
-ni_bool_t
-ni_address_is_deprecated(const ni_address_t *laddr)
-{
-	return laddr->flags & IFA_F_DEPRECATED;
-}
-
+/*
+ * ni_sockaddr functions
+ */
 ni_bool_t
 ni_sockaddr_is_ipv4_loopback(const ni_sockaddr_t *saddr)
 {
@@ -488,6 +462,20 @@ ni_sockaddr_is_unspecified(const ni_sockaddr_t *saddr)
 	}
 }
 
+static const unsigned char *
+__ni_sockaddr_data(const ni_sockaddr_t *ss, unsigned int *len)
+{
+	unsigned int offset;
+
+	*len = 0;
+	if (ss == NULL)
+		return NULL;
+	if (!ni_af_sockaddr_info(ss->ss_family, &offset, len))
+		return NULL;
+
+	return ((const unsigned char *) ss) + offset;
+}
+
 ni_bool_t
 ni_sockaddr_equal(const ni_sockaddr_t *ss1, const ni_sockaddr_t *ss2)
 {
@@ -507,29 +495,56 @@ ni_sockaddr_equal(const ni_sockaddr_t *ss1, const ni_sockaddr_t *ss2)
 	return !memcmp(ap1, ap2, len);
 }
 
+
 ni_bool_t
-ni_address_probably_dynamic(const ni_address_t *ap)
+ni_sockaddr_prefix_match(unsigned int prefix_bits, const ni_sockaddr_t *laddr, const ni_sockaddr_t *gw)
 {
-	const unsigned char *addr;
-	unsigned int len;
+	const unsigned char *laddr_ptr, *gw_ptr;
+	unsigned int offset = 0, len;
+	unsigned int cc;
 
-	switch (ap->family) {
-	case AF_INET6:
-		/* For IPv6 with static configuration, consider all link-local
-		 * prefixes as dynamic.
-		 */
-		if ((addr = __ni_sockaddr_data(&ap->local_addr, &len)) != NULL)
-			return addr[0] == 0xFE && addr[1] == 0x80;
-		break;
+	laddr_ptr = __ni_sockaddr_data(laddr, &len);
+	gw_ptr = __ni_sockaddr_data(gw, &len);
+	if (!laddr_ptr || !gw_ptr || laddr->ss_family != gw->ss_family)
+		return FALSE;
 
-	case AF_INET:
-		/* Consider all IPv4 zeroconf addresses (169.254/24) as autoconf */
-		if ((addr = __ni_sockaddr_data(&ap->local_addr, &len)) != NULL)
-			return addr[0] == 169 && addr[1] == 254;
-		break;
+	if (prefix_bits > (len * 8))
+		prefix_bits = len * 8;
+
+	if (prefix_bits > 8) {
+		if (memcmp(laddr_ptr, gw_ptr, prefix_bits / 8))
+			return FALSE;
+		offset = prefix_bits / 8;
+		prefix_bits = prefix_bits % 8;
 	}
 
-	return 0;
+	/* If the prefix length is not a multiple of 8, we need to check the
+	 * top N bits of the next octet. */
+	if (prefix_bits != 0) {
+		cc = laddr_ptr[offset] ^ gw_ptr[offset];
+		if ((0xFF00 & (cc << prefix_bits)) != 0)
+			return FALSE;
+	}
+
+	return TRUE;
+}
+
+void
+ni_sockaddr_set_ipv4(ni_sockaddr_t *ap, struct in_addr ipv4, uint16_t port)
+{
+	memset(ap, 0, sizeof(*ap));
+	ap->sin.sin_family = AF_INET;
+	ap->sin.sin_addr = ipv4;
+	ap->sin.sin_port = htons(port);
+}
+
+void
+ni_sockaddr_set_ipv6(ni_sockaddr_t *ap, struct in6_addr ipv6, uint16_t port)
+{
+	memset(ap, 0, sizeof(*ap));
+	ap->six.sin6_family = AF_INET6;
+	ap->six.sin6_addr = ipv6;
+	ap->six.sin6_port = htons(port);
 }
 
 const char *
@@ -566,27 +581,6 @@ ni_sockaddr_prefix_print(const ni_sockaddr_t *ss, unsigned int pfxlen)
 
 	snprintf(abuf, sizeof(abuf), "%s/%u", s, pfxlen);
 	return abuf;
-}
-
-ni_bool_t
-ni_sockaddr_prefix_parse(const char *address_string, ni_sockaddr_t *addr, unsigned int *prefixlen)
-{
-	char *string, *sp;
-	ni_bool_t rv = FALSE;
-
-	string = xstrdup(address_string);
-	if ((sp = strchr(string, '/')) != NULL) {
-		*sp++ = '\0';
-		*prefixlen = strtoul(sp, NULL, 0);
-	} else {
-		*prefixlen = ~0U;
-	}
-
-	if (ni_sockaddr_parse(addr, string, AF_UNSPEC) >= 0)
-		rv = TRUE;
-
-	free(string);
-	return rv;
 }
 
 static int
@@ -647,6 +641,27 @@ ni_sockaddr_parse(ni_sockaddr_t *ss, const char *string, int af)
 	return -1;
 }
 
+ni_bool_t
+ni_sockaddr_prefix_parse(const char *address_string, ni_sockaddr_t *addr, unsigned int *prefixlen)
+{
+	char *string, *sp;
+	ni_bool_t rv = FALSE;
+
+	string = xstrdup(address_string);
+	if ((sp = strchr(string, '/')) != NULL) {
+		*sp++ = '\0';
+		*prefixlen = strtoul(sp, NULL, 0);
+	} else {
+		*prefixlen = ~0U;
+	}
+
+	if (ni_sockaddr_parse(addr, string, AF_UNSPEC) >= 0)
+		rv = TRUE;
+
+	free(string);
+	return rv;
+}
+
 unsigned int
 ni_sockaddr_netmask_bits(const ni_sockaddr_t *mask)
 {
@@ -696,6 +711,153 @@ ni_sockaddr_build_netmask(int af, unsigned int prefix_len, ni_sockaddr_t *mask)
 	return prefix_len? -1 : 0;
 }
 
+
+/*
+ * Pack sockaddrs
+ */
+typedef union ni_packed_netaddr {
+	uint16_t	family;
+	unsigned char	sin[2 + 4];
+	unsigned char	six[2 + 16];
+	unsigned char	raw[2 + 62];
+} ni_packed_netaddr_t;
+
+typedef struct ni_packed_prefixed_netaddr {
+	uint16_t	prefix;
+	ni_packed_netaddr_t netaddr;
+} ni_packed_prefixed_netaddr_t;
+
+static int
+__ni_sockaddr_to_netaddr(const ni_sockaddr_t *sockaddr, ni_packed_netaddr_t *netaddr)
+{
+	const void *aptr;
+	unsigned int alen;
+
+	if (!(aptr = __ni_sockaddr_data(sockaddr, &alen)))
+		return -1;
+
+	if (2 + alen >= sizeof(netaddr->raw))
+		return -1;
+
+	netaddr->family = ntohs(sockaddr->ss_family);
+	memcpy(netaddr->raw + 2, aptr, alen);
+
+	return 2 + alen;
+}
+
+static ni_sockaddr_t *
+__ni_netaddr_to_sockaddr(const ni_packed_netaddr_t *netaddr, ni_sockaddr_t *sockaddr)
+{
+	const void *aptr;
+	unsigned int alen;
+
+	sockaddr->ss_family = ntohs(netaddr->family);
+	if (!(aptr = __ni_sockaddr_data(sockaddr, &alen)))
+		return NULL;
+	if (alen + 2 > sizeof(netaddr->raw))
+		return NULL;
+
+	memcpy((void *) aptr, netaddr->raw + 2, alen);
+	return sockaddr;
+}
+
+ni_opaque_t *
+ni_sockaddr_pack(const ni_sockaddr_t *sockaddr, ni_opaque_t *pack)
+{
+	ni_packed_netaddr_t netaddr;
+	int len;
+
+	ni_assert(sizeof(pack->data) >= sizeof(netaddr));
+	len = __ni_sockaddr_to_netaddr(sockaddr, &netaddr);
+	if (len < 0)
+		return NULL;
+	memcpy(pack->data, &netaddr, len);
+	pack->len = len;
+	return pack;
+}
+
+ni_sockaddr_t *
+ni_sockaddr_unpack(ni_sockaddr_t *sockaddr, const ni_opaque_t *pack)
+{
+	ni_packed_netaddr_t netaddr;
+
+	if (pack->len < 2 || pack->len > sizeof(netaddr))
+		return NULL;
+	memset(&netaddr, 0, sizeof(netaddr));
+	memcpy(&netaddr, pack->data, pack->len);
+
+	return __ni_netaddr_to_sockaddr(&netaddr, sockaddr);
+}
+
+ni_opaque_t *
+ni_sockaddr_prefix_pack(const ni_sockaddr_t *sockaddr, unsigned int prefix, ni_opaque_t *pack)
+{
+	ni_packed_prefixed_netaddr_t pfx_netaddr;
+	unsigned int max_prefix;
+	int len;
+
+	len = __ni_sockaddr_to_netaddr(sockaddr, &pfx_netaddr.netaddr);
+	if (len < 0)
+		return NULL;
+
+	/* Truncate the prefix len. This is also useful if the caller wants to
+	 * tell us "just use the entire address"
+	 */
+	max_prefix = 8 * (len - 2);
+	if (prefix >= max_prefix)
+		prefix = max_prefix;
+	pfx_netaddr.prefix = htons(prefix);
+
+	memcpy(pack->data, &pfx_netaddr, 2 + len);
+	pack->len = 2 + len;
+
+	return pack;
+}
+
+ni_sockaddr_t *
+ni_sockaddr_prefix_unpack(ni_sockaddr_t *sockaddr, unsigned int *prefix, const ni_opaque_t *pack)
+{
+	ni_packed_prefixed_netaddr_t pfx_netaddr;
+
+	if (pack->len < 4)
+		return NULL;
+	if (pack->len < 2 || pack->len > sizeof(pfx_netaddr))
+		return NULL;
+	memset(&pfx_netaddr, 0, sizeof(pfx_netaddr));
+	memcpy(&pfx_netaddr, pack->data, pack->len);
+
+	*prefix = ntohs(pfx_netaddr.prefix);
+	return __ni_netaddr_to_sockaddr(&pfx_netaddr.netaddr, sockaddr);
+}
+
+/*
+ * Handle sockaddr arrays
+ */
+void
+ni_sockaddr_array_init(ni_sockaddr_array_t *array)
+{
+	memset(array, 0, sizeof(array));
+}
+
+void
+ni_sockaddr_array_destroy(ni_sockaddr_array_t *array)
+{
+	if (array->data)
+		free(array->data);
+	memset(array, 0, sizeof(array));
+}
+
+void
+ni_sockaddr_array_append(ni_sockaddr_array_t *array, const ni_sockaddr_t *sa)
+{
+	if ((array->count % 4) == 0)
+		array->data = xrealloc(array->data, (array->count + 4) * sizeof(array->data[0]));
+	array->data[array->count++] = *sa;
+}
+
+/*
+ * ni_link_address functions
+ */
 int
 ni_link_address_format(const ni_hwaddr_t *hwa, char *abuf, size_t len)
 {
@@ -827,6 +989,9 @@ ni_link_address_get_broadcast(int iftype, ni_hwaddr_t *hwa)
 	return 0;
 }
 
+/*
+ * ni_route_nexthop functions
+ */
 ni_route_nexthop_t *
 ni_route_nexthop_new(void)
 {
@@ -886,6 +1051,9 @@ ni_route_nexthop_list_destroy(ni_route_nexthop_t **list)
 	}
 }
 
+/*
+ * ni_route functions
+ */
 ni_route_t *
 ni_route_new(unsigned int prefixlen, const ni_sockaddr_t *dest, const ni_sockaddr_t *gw, ni_route_t **list)
 {
@@ -1065,146 +1233,4 @@ ni_route_print(const ni_route_t *rp)
 }
 
 
-/*
- * Pack sockaddrs
- */
-typedef union ni_packed_netaddr {
-	uint16_t	family;
-	unsigned char	sin[2 + 4];
-	unsigned char	six[2 + 16];
-	unsigned char	raw[2 + 62];
-} ni_packed_netaddr_t;
-
-typedef struct ni_packed_prefixed_netaddr {
-	uint16_t	prefix;
-	ni_packed_netaddr_t netaddr;
-} ni_packed_prefixed_netaddr_t;
-
-static int
-__ni_sockaddr_to_netaddr(const ni_sockaddr_t *sockaddr, ni_packed_netaddr_t *netaddr)
-{
-	const void *aptr;
-	unsigned int alen;
-
-	if (!(aptr = __ni_sockaddr_data(sockaddr, &alen)))
-		return -1;
-
-	if (2 + alen >= sizeof(netaddr->raw))
-		return -1;
-
-	netaddr->family = ntohs(sockaddr->ss_family);
-	memcpy(netaddr->raw + 2, aptr, alen);
-
-	return 2 + alen;
-}
-
-static ni_sockaddr_t *
-__ni_netaddr_to_sockaddr(const ni_packed_netaddr_t *netaddr, ni_sockaddr_t *sockaddr)
-{
-	const void *aptr;
-	unsigned int alen;
-
-	sockaddr->ss_family = ntohs(netaddr->family);
-	if (!(aptr = __ni_sockaddr_data(sockaddr, &alen)))
-		return NULL;
-	if (alen + 2 > sizeof(netaddr->raw))
-		return NULL;
-
-	memcpy((void *) aptr, netaddr->raw + 2, alen);
-	return sockaddr;
-}
-
-ni_opaque_t *
-ni_sockaddr_pack(const ni_sockaddr_t *sockaddr, ni_opaque_t *pack)
-{
-	ni_packed_netaddr_t netaddr;
-	int len;
-
-	ni_assert(sizeof(pack->data) >= sizeof(netaddr));
-	len = __ni_sockaddr_to_netaddr(sockaddr, &netaddr);
-	if (len < 0)
-		return NULL;
-	memcpy(pack->data, &netaddr, len);
-	pack->len = len;
-	return pack;
-}
-
-ni_sockaddr_t *
-ni_sockaddr_unpack(ni_sockaddr_t *sockaddr, const ni_opaque_t *pack)
-{
-	ni_packed_netaddr_t netaddr;
-
-	if (pack->len < 2 || pack->len > sizeof(netaddr))
-		return NULL;
-	memset(&netaddr, 0, sizeof(netaddr));
-	memcpy(&netaddr, pack->data, pack->len);
-
-	return __ni_netaddr_to_sockaddr(&netaddr, sockaddr);
-}
-
-ni_opaque_t *
-ni_sockaddr_prefix_pack(const ni_sockaddr_t *sockaddr, unsigned int prefix, ni_opaque_t *pack)
-{
-	ni_packed_prefixed_netaddr_t pfx_netaddr;
-	unsigned int max_prefix;
-	int len;
-
-	len = __ni_sockaddr_to_netaddr(sockaddr, &pfx_netaddr.netaddr);
-	if (len < 0)
-		return NULL;
-
-	/* Truncate the prefix len. This is also useful if the caller wants to
-	 * tell us "just use the entire address"
-	 */
-	max_prefix = 8 * (len - 2);
-	if (prefix >= max_prefix)
-		prefix = max_prefix;
-	pfx_netaddr.prefix = htons(prefix);
-
-	memcpy(pack->data, &pfx_netaddr, 2 + len);
-	pack->len = 2 + len;
-
-	return pack;
-}
-
-ni_sockaddr_t *
-ni_sockaddr_prefix_unpack(ni_sockaddr_t *sockaddr, unsigned int *prefix, const ni_opaque_t *pack)
-{
-	ni_packed_prefixed_netaddr_t pfx_netaddr;
-
-	if (pack->len < 4)
-		return NULL;
-	if (pack->len < 2 || pack->len > sizeof(pfx_netaddr))
-		return NULL;
-	memset(&pfx_netaddr, 0, sizeof(pfx_netaddr));
-	memcpy(&pfx_netaddr, pack->data, pack->len);
-
-	*prefix = ntohs(pfx_netaddr.prefix);
-	return __ni_netaddr_to_sockaddr(&pfx_netaddr.netaddr, sockaddr);
-}
-
-/*
- * Handle sockaddr arrays
- */
-void
-ni_sockaddr_array_init(ni_sockaddr_array_t *array)
-{
-	memset(array, 0, sizeof(array));
-}
-
-void
-ni_sockaddr_array_destroy(ni_sockaddr_array_t *array)
-{
-	if (array->data)
-		free(array->data);
-	memset(array, 0, sizeof(array));
-}
-
-void
-ni_sockaddr_array_append(ni_sockaddr_array_t *array, const ni_sockaddr_t *sa)
-{
-	if ((array->count % 4) == 0)
-		array->data = xrealloc(array->data, (array->count + 4) * sizeof(array->data[0]));
-	array->data[array->count++] = *sa;
-}
 
