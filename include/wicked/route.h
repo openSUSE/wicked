@@ -41,11 +41,10 @@ struct ni_route {
 	int			protocol;		/* RTPROT_* */
 	int			table;			/* RT_TABLE_* */
 	unsigned int		tos;
-	unsigned int		metric;
+	unsigned int		priority;
 
 	unsigned int		mtu;
 	ni_bool_t		mtu_lock;
-	unsigned int		priority;
 	unsigned int		advmss;
 	unsigned int		rtt;
 	unsigned int		rttvar;

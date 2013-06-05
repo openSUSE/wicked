@@ -103,10 +103,9 @@ ni_route_clone(const ni_route_t *src)
 	C(protocol);
 	C(table);
 	C(tos);
-	C(metric);
+	C(priority);
 	C(mtu);
 	C(mtu_lock);
-	C(priority);
 	C(advmss);
 	C(rtt);
 	C(rttvar);

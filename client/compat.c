@@ -501,17 +501,15 @@ __ni_compat_generate_static_route(xml_node_t *aconf, const ni_route_t *rp, const
 		xml_node_new_element("tos", rnode, tmp);
 		ni_string_free(&tmp);
 	}
-	if (rp->metric > 0) {
-		xml_node_new_element("metric", rnode, ni_sprint_uint(rp->metric));
+	if (rp->priority > 0) {
+		xml_node_new_element("priority", rnode, ni_sprint_uint(rp->priority));
 	}
 	if (rp->mtu > 0) {
 		xml_node_new_element("mtu", rnode, ni_sprint_uint(rp->mtu));
 		if (rp->mtu_lock)
 			xml_node_new_element("mtu-lock", rnode, "true");
 	}
-	if (rp->priority > 0) {
-		xml_node_new_element("priority", rnode, ni_sprint_uint(rp->priority));
-	}
+
 	if (rp->advmss > 0) {
 		xml_node_new_element("advmss", rnode, ni_sprint_uint(rp->advmss));
 	}

@@ -419,11 +419,13 @@ __ni_suse_route_parse_opts(ni_route_t *rp, ni_string_array_t *opts,
 				return -1;
 			rp->realm = tmp;
 		} else
-		if (!strcmp(opt, "metric") || !strcmp(opt, "preference")) {
+		if (!strcmp(opt, "metric")   ||
+		    !strcmp(opt, "priority") ||
+		    !strcmp(opt, "preference")) {
 			val = __get_route_opt(opts, (*pos)++);
 			if (ni_parse_uint(val, &tmp, 10) < 0)
 				return -1;
-			rp->metric = tmp;
+			rp->priority = tmp;
 		} else
 		if (!strcmp(opt, "mtu")) {
 			val = __get_route_opt(opts, (*pos)++);
@@ -452,12 +454,6 @@ __ni_suse_route_parse_opts(ni_route_t *rp, ni_string_array_t *opts,
 			if (ni_parse_uint(val, &tmp, 16) < 0 || tmp > 256)
 				return -1;
 			rp->tos = tmp;
-		} else
-		if (!strcmp(opt, "priority")) {
-			val = __get_route_opt(opts, (*pos)++);
-			if (ni_parse_uint(val, &tmp, 10) < 0)
-				return -1;
-			rp->priority = tmp;
 		} else
 		if (!strcmp(opt, "advmss")) {
 			val = __get_route_opt(opts, (*pos)++);
