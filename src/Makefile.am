@@ -56,7 +56,6 @@ libwicked_la_SOURCES		= \
 	ifevent.c		\
 	iflist.c		\
 	infiniband.c		\
-	interface.c		\
 	ipv4.c			\
 	ipv6.c			\
 	kernel.c		\
@@ -66,6 +65,7 @@ libwicked_la_SOURCES		= \
 	modem-manager.c		\
 	modprobe.c		\
 	names.c			\
+	netdev.c		\
 	netinfo.c		\
 	nis.c			\
 	openvpn.c		\
