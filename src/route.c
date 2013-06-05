@@ -164,25 +164,123 @@ ni_route_equal(const ni_route_t *r1, const ni_route_t *r2)
 }
 
 const char *
-ni_route_print(const ni_route_t *rp)
+ni_route_print(ni_stringbuf_t *out, const ni_route_t *rp)
 {
-	char *dest, destbuf[128], gwbuf[128];
-	static char abuf[256];
+	const ni_route_nexthop_t *nh;
+	const char *ptr;
 
-	dest = destbuf;
-	if (rp->prefixlen == 0) {
-		dest = "default";
-	} else {
-		ni_sockaddr_format(&rp->destination, destbuf, sizeof(destbuf));
+	if (!out || !rp || rp->family == AF_UNSPEC ||
+	    rp->destination.ss_family != rp->family)
+		return NULL;
+
+	if ((ptr = ni_addrfamily_type_to_name(rp->family))) {
+		ni_stringbuf_printf(out, "%s ", ptr);
+	}
+	if (rp->type != RTN_UNSPEC &&
+	    (ptr = ni_route_type_type_to_name(rp->type))) {
+		ni_stringbuf_printf(out, "%s ", ptr);
 	}
 
-	if (rp->nh.gateway.ss_family) {
-		snprintf(abuf, sizeof(abuf), "%s via %s", dest,
-				ni_sockaddr_format(&rp->nh.gateway, gwbuf, sizeof(gwbuf)));
-	} else {
-		snprintf(abuf, sizeof(abuf), "%s", dest);
+	ni_stringbuf_printf(out, "%s/%u",
+		ni_sockaddr_print(&rp->destination), rp->prefixlen);
+
+	for (nh = &rp->nh; nh; nh = nh->next) {
+		if (rp->nh.next) {
+			ni_stringbuf_printf(out, " nexthop");
+		}
+		if (ni_sockaddr_is_specified(&nh->gateway)) {
+			ni_stringbuf_printf(out, " via %s",
+					ni_sockaddr_print(&nh->gateway));
+		}
+		if (nh->device.name) {
+			ni_stringbuf_printf(out, " dev %s", nh->device.name);
+		}
+		if (!rp->nh.next)
+			continue;
+
+		if (nh->weight) {
+			ni_stringbuf_printf(out, " weight %u", nh->weight);
+		}
+		if (nh->flags & RTNH_F_DEAD) {
+			ni_stringbuf_printf(out, " dead");
+		}
+		if (nh->flags & RTNH_F_PERVASIVE) {
+			ni_stringbuf_printf(out, " pervasive");
+		}
+		if (nh->flags & RTNH_F_ONLINK) {
+			ni_stringbuf_printf(out, " onlink");
+		}
 	}
-	return abuf;
+
+	if (rp->table != RT_TABLE_UNSPEC &&
+	    rp->table != RT_TABLE_MAIN &&
+	    (ptr = ni_route_table_type_to_name(rp->table))) {
+		ni_stringbuf_printf(out, " table %s", ptr);
+	}
+	if (rp->protocol != RTPROT_UNSPEC &&
+	    rp->protocol != RTPROT_BOOT &&
+	    (ptr = ni_route_protocol_type_to_name(rp->protocol))) {
+		ni_stringbuf_printf(out, " protocol %s", ptr);
+	}
+	if (rp->scope != RT_SCOPE_UNIVERSE &&
+	    (ptr = ni_route_scope_type_to_name(rp->scope))) {
+		ni_stringbuf_printf(out, " scope %s", ptr);
+	}
+	if (ni_sockaddr_is_specified(&rp->source)) {
+		ni_stringbuf_printf(out, " src %s",
+				ni_sockaddr_print(&rp->source));
+	}
+	if (rp->priority > 0) {
+		ni_stringbuf_printf(out, " priority %u", rp->priority);
+	}
+	if (rp->tos > 0) {
+		/* TODO: names */
+		ni_stringbuf_printf(out, " tos 0x%02x", rp->tos);
+	}
+	if (rp->mtu > 0) {
+		ni_stringbuf_printf(out, " mtu %u", rp->mtu);
+		if (rp->mtu_lock)
+			ni_stringbuf_printf(out, " lock");
+	}
+	if (rp->realm > 0) {
+		/* TODO: names */
+		ni_stringbuf_printf(out, " realm %u", rp->realm);
+	}
+	if (rp->advmss > 0) {
+		ni_stringbuf_printf(out, " advmss %u", rp->advmss);
+	}
+	if (rp->rtt > 0) {
+		ni_stringbuf_printf(out, " rtt %u", rp->rtt);
+	}
+	if (rp->rttvar > 0) {
+		ni_stringbuf_printf(out, " rttvar %u", rp->rttvar);
+	}
+	if (rp->window > 0) {
+		ni_stringbuf_printf(out, " window %u", rp->window);
+	}
+	if (rp->cwnd > 0) {
+		ni_stringbuf_printf(out, " cwnd %u", rp->cwnd);
+	}
+	if (rp->initcwnd > 0) {
+		ni_stringbuf_printf(out, " initcwnd %u", rp->initcwnd);
+	}
+	if (rp->initrwnd > 0) {
+		ni_stringbuf_printf(out, " initrwnd %u", rp->initrwnd);
+	}
+	if (rp->ssthresh > 0) {
+		ni_stringbuf_printf(out, " ssthresh %u", rp->ssthresh);
+	}
+	if (rp->rto_min > 0) {
+		ni_stringbuf_printf(out, " rto_min %u", rp->rto_min);
+	}
+	if (rp->hoplimit > 0) {
+		ni_stringbuf_printf(out, " hoplimit %u", rp->hoplimit);
+	}
+	if (rp->reordering > 0) {
+		ni_stringbuf_printf(out, " reordering %u", rp->reordering);
+	}
+
+	return out->string;
 }
 
 /*

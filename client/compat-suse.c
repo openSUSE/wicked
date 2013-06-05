@@ -727,45 +727,7 @@ __ni_suse_route_parse(ni_route_t **routes, char *buffer, const char *ifname,
 	 */
 	{
 		ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
-
-		if (rp->type != RTN_UNICAST)
-			ni_stringbuf_printf(&buf, "type %u ", rp->type);
-
-		ni_stringbuf_printf(&buf, "to %s/%u",
-			ni_sockaddr_print(&rp->destination), rp->prefixlen);
-
-		for (nh = &rp->nh; nh; nh = nh->next) {
-			if (rp->nh.next) {
-				ni_stringbuf_printf(&buf, " nexthop");
-			}
-			if (nh->gateway.ss_family != AF_UNSPEC) {
-				ni_stringbuf_printf(&buf, " via %s",
-					ni_sockaddr_print(&nh->gateway));
-			}
-			if (nh->device.name) {
-				ni_stringbuf_printf(&buf, " dev %s", nh->device.name);
-			}
-			if (!rp->nh.next)
-				continue;
-			if (nh->weight) {
-				ni_stringbuf_printf(&buf, " weight %u", nh->weight);
-			}
-			if (nh->flags) {
-				ni_stringbuf_printf(&buf, " flags %u", nh->flags);
-			}
-		}
-		if (rp->source.ss_family != AF_UNSPEC) {
-			ni_stringbuf_printf(&buf, "src %s",
-				ni_sockaddr_print(&rp->source));
-		}
-		if (rp->table != RT_TABLE_MAIN)
-			ni_stringbuf_printf(&buf, " table %u", rp->table);
-		if (rp->scope != RT_SCOPE_UNIVERSE)
-			ni_stringbuf_printf(&buf, " scope %u", rp->scope);
-		if (rp->protocol != RTPROT_BOOT)
-			ni_stringbuf_printf(&buf, " protocol %u", rp->protocol);
-
-		ni_debug_readwrite("Parsed route %s", buf.string);
+		ni_debug_readwrite("Parsed route: %s", ni_route_print(&buf, rp));
 		ni_stringbuf_destroy(&buf);
 	}
 

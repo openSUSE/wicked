@@ -1398,10 +1398,12 @@ failed:
 static int
 __ni_rtnl_send_newroute(ni_netdev_t *dev, ni_route_t *rp, int flags)
 {
+	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 	struct rtmsg rt;
 	struct nl_msg *msg;
 
-	ni_debug_ifconfig("%s(%s)", __FUNCTION__, ni_route_print(rp));
+	ni_debug_ifconfig("%s(%s)", __FUNCTION__, ni_route_print(&buf, rp));
+	ni_stringbuf_destroy(&buf);
 
 	memset(&rt, 0, sizeof(rt));
 
@@ -1497,7 +1499,9 @@ __ni_rtnl_send_newroute(ni_netdev_t *dev, ni_route_t *rp, int flags)
 	}
 
 	if (ni_nl_talk(msg) < 0) {
-		ni_error("%s(%s): rtnl_talk failed", __FUNCTION__, ni_route_print(rp));
+		ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
+		ni_error("%s(%s): rtnl_talk failed", __FUNCTION__, ni_route_print(&buf, rp));
+		ni_stringbuf_destroy(&buf);
 		goto failed;
 	}
 
@@ -1514,10 +1518,12 @@ failed:
 static int
 __ni_rtnl_send_delroute(ni_netdev_t *dev, ni_route_t *rp)
 {
+	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 	struct rtmsg rt;
 	struct nl_msg *msg;
 
-	ni_debug_ifconfig("%s(%s)", __FUNCTION__, ni_route_print(rp));
+	ni_debug_ifconfig("%s(%s)", __FUNCTION__, ni_route_print(&buf, rp));
+	ni_stringbuf_destroy(&buf);
 
 	memset(&rt, 0, sizeof(rt));
 	rt.rtm_family = rp->family;
@@ -1545,7 +1551,8 @@ __ni_rtnl_send_delroute(ni_netdev_t *dev, ni_route_t *rp)
 	NLA_PUT_U32(msg, RTA_OIF, dev->link.ifindex);
 
 	if (ni_nl_talk(msg) < 0) {
-		ni_error("%s(%s): rtnl_talk failed", __FUNCTION__, ni_route_print(rp));
+		ni_error("%s(%s): rtnl_talk failed", __FUNCTION__, ni_route_print(&buf, rp));
+		ni_stringbuf_destroy(&buf);
 		goto failed;
 	}
 
@@ -1695,6 +1702,7 @@ __ni_netdev_update_routes(ni_netdev_t *dev,
 				const ni_addrconf_lease_t *old_lease,
 				ni_route_t *cfg_route_list)
 {
+	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 	ni_route_t *rp, *next;
 	int rv = 0;
 
@@ -1740,8 +1748,9 @@ __ni_netdev_update_routes(ni_netdev_t *dev,
 			 */
 			if (new_route != NULL) {
 				ni_warn("route %s covered by a %s lease",
-					ni_route_print(rp),
+					ni_route_print(&buf, rp),
 					ni_addrconf_type_to_name(rp->config_lease->type));
+				ni_stringbuf_destroy(&buf);
 			}
 			continue;
 		}
@@ -1749,16 +1758,21 @@ __ni_netdev_update_routes(ni_netdev_t *dev,
 		if (new_route != NULL) {
 			if (__ni_rtnl_send_newroute(dev, new_route, NLM_F_REPLACE) >= 0) {
 				ni_debug_ifconfig("%s: successfully updated existing route %s",
-						dev->name, ni_route_print(rp));
+						dev->name, ni_route_print(&buf, rp));
+				ni_stringbuf_destroy(&buf);
 				new_route->seq = __ni_global_seqno;
 				continue;
 			}
 
-			ni_error("%s: failed to update route %s", dev->name, ni_route_print(rp));
+			ni_error("%s: failed to update route %s",
+				dev->name, ni_route_print(&buf, rp));
+			ni_stringbuf_destroy(&buf);
 		}
 
 		ni_debug_ifconfig("%s: trying to delete existing route %s",
-				dev->name, ni_route_print(rp));
+				dev->name, ni_route_print(&buf, rp));
+		ni_stringbuf_destroy(&buf);
+
 		if ((rv = __ni_rtnl_send_delroute(dev, rp)) < 0)
 			return rv;
 	}
@@ -1770,7 +1784,10 @@ __ni_netdev_update_routes(ni_netdev_t *dev,
 		if (rp->seq == __ni_global_seqno)
 			continue;
 
-		ni_debug_ifconfig("%s: adding new route %s", dev->name, ni_route_print(rp));
+		ni_debug_ifconfig("%s: adding new route %s",
+				dev->name, ni_route_print(&buf, rp));
+		ni_stringbuf_destroy(&buf);
+
 		if ((rv = __ni_rtnl_send_newroute(dev, rp, NLM_F_CREATE)) < 0)
 			return rv;
 	}
