@@ -495,6 +495,12 @@ __ni_suse_route_parse_opts(ni_route_t *rp, ni_string_array_t *opts,
 				return -1;
 			rp->initcwnd = tmp;
 		} else
+		if (!strcmp(opt, "initrwnd")) {
+			val = __get_route_opt(opts, (*pos)++);
+			if (ni_parse_uint(val, &tmp, 10) < 0)
+				return -1;
+			rp->initrwnd = tmp;
+		} else
 		if (!strcmp(opt, "ssthresh")) {
 			val = __get_route_opt(opts, (*pos)++);
 			if (ni_parse_uint(val, &tmp, 10) < 0)
