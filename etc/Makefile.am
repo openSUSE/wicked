@@ -1,6 +1,14 @@
 
 CLEANFILES			= *~
 MAINTAINERCLEANFILES		= Makefile.in
+DISTCLEANFILES			= $(BUILT_SOURCES)
+EXTRA_DIST			= $(dbus_config_DATA) $(templates)
+
+BUILT_SOURCES			= \
+	$(wicked_config_DATA)	\
+	$(dbus_service_DATA)	\
+	$(systemd_unit_DATA)	\
+	$(systemv_init_SCRIPTS)
 
 wicked_config_DATA		= \
 	common.xml		\
@@ -41,11 +49,48 @@ if systemv_service
 systemv_init_SCRIPTS		= $(systemv_init_files)
 endif
 
-EXTRA_DIST			= $(wicked_config_DATA) \
-				  $(dbus_config_DATA)	\
-				  $(dbus_service_files)	\
-				  $(systemd_unit_files)	\
-				  $(systemv_init_files)
+templates			= \
+	$(wicked_config_DATA:=.in)	\
+	$(dbus_service_files:=.in)	\
+	$(systemd_unit_files:=.in)	\
+	$(systemv_init_files:=.in)
+
+substitute_vars			= \
+	$(AM_V_GEN)sed						\
+	-e "s|[@]wicked_piddir[@]|$(wicked_piddir)|g"		\
+	-e "s|[@]wicked_sbindir[@]|$(wicked_sbindir)|g"		\
+	-e "s|[@]wicked_statedir[@]|$(wicked_statedir)|g"	\
+	-e "s|[@]wicked_storedir[@]|$(wicked_storedir)|g"	\
+	-e "s|[@]wicked_schemadir[@]|$(wicked_schemadir)|g"	\
+	-e "s|[@]wicked_configdir[@]|$(wicked_configdir)|g"	\
+	-e "s|[@]wicked_configdir[@]|$(wicked_configdir)|g"	\
+	-e "s|[@]wicked_supplicantdir[@]|$(wicked_supplicantdir)|g"\
+	-e "s|[@]wicked_extensionsdir[@]|$(wicked_extensionsdir)|g"
+
+%.xml: %.xml.in $(top_builddir)/config.status
+	@echo "substituting variables in $< > $@"
+	@rm -f $@ $@.tmp
+	@$(substitute_vars) < $< > $@.tmp && mv $@.tmp $@
+
+%.service: %.service.in $(top_builddir)/config.status
+	@echo "substituting variables in $< > $@"
+	@rm -f $@ $@.tmp
+	@$(substitute_vars) < $< > $@.tmp && mv $@.tmp $@
+
+systemd/%.service: systemd/%service.in $(top_builddir)/config.status
+	@echo "substituting variables in $< > $@"
+	@rm -f $@ $@.tmp
+	@$(substitute_vars) < $< > $@.tmp && mv $@.tmp $@
+
+init.d/wickedd: init.d/wickedd.in $(top_builddir)/config.status
+	@echo "substituting variables in $< > $@"
+	@rm -f $@ $@.tmp
+	@$(substitute_vars) < $< > $@.tmp && mv $@.tmp $@
+
+init.d/network: init.d/network.in $(top_builddir)/config.status
+	@echo "substituting variables in $< > $@"
+	@rm -f $@ $@.tmp
+	@$(substitute_vars) < $< > $@.tmp && mv $@.tmp $@
 
 install-data-hook:
 if systemv_service
@@ -60,7 +105,7 @@ if systemv_service
 	rm -f "$(DESTDIR)$(wicked_sbindir)/rcnetwork"
 endif
 
-check:
+check-local:
 	@for i in $(systemv_init_SCRIPTS) ; \
 	do \
 		bash -n "$(srcdir)/$$i" \

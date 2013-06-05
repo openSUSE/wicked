@@ -15,7 +15,7 @@ wicked_extensions_SCRIPTS	= \
 EXTRA_DIST			= $(wicked_extensions_DATA) \
 				  $(wicked_extensions_SCRIPTS)
 
-check:
+check-local:
 	@for i in $(wicked_extensions_DATA) $(wicked_extensions_SCRIPTS) ; \
 	do \
 		bash -n $(srcdir)/$$i \

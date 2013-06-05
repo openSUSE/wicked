@@ -209,25 +209,7 @@ AC_CONFIG_FILES([
 	dhcp6/Makefile
 	autoip4/Makefile
 	man/Makefile
-	man/wicked-config.5
-	man/wicked.7
-	man/wicked.8
-	man/wickedd.8
 	etc/Makefile
-	etc/client.xml
-	etc/common.xml
-	etc/server.xml
-	etc/network-nanny.xml
-	etc/init.d/wickedd
-	etc/init.d/network
-	etc/systemd/wicked.service
-	etc/systemd/wickedd.service
-	etc/systemd/wicked-dhcp4.service
-	etc/systemd/wicked-dhcp6.service
-	etc/systemd/wicked-autoip4.service
-	etc/org.opensuse.Network.AUTO4.service
-	etc/org.opensuse.Network.DHCP4.service
-	etc/org.opensuse.Network.DHCP6.service
 	extensions/Makefile
 	testing/Makefile
 	wicked.pc
