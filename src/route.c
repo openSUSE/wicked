@@ -83,7 +83,17 @@ ni_route_nexthop_list_destroy(ni_route_nexthop_t **list)
  * ni_route functions
  */
 ni_route_t *
-ni_route_new(unsigned int prefixlen, const ni_sockaddr_t *dest, const ni_sockaddr_t *gw, ni_route_t **list)
+ni_route_new(void)
+{
+	ni_route_t *rp;
+
+	rp = xcalloc(1, sizeof(ni_route_t));
+	return rp;
+}
+
+ni_route_t *
+ni_route_create(unsigned int prefixlen, const ni_sockaddr_t *dest,
+		const ni_sockaddr_t *gw, ni_route_t **list)
 {
 	static const ni_sockaddr_t null_addr;
 	ni_route_t *rp;
@@ -114,7 +124,7 @@ ni_route_new(unsigned int prefixlen, const ni_sockaddr_t *dest, const ni_sockadd
 		}
 	}
 
-	rp = xcalloc(1, sizeof(ni_route_t));
+	rp = ni_route_new();
 	rp->family = af;
 	rp->prefixlen = prefixlen;
 	rp->destination = *dest;
@@ -142,7 +152,7 @@ ni_route_clone(const ni_route_t *src)
 	ni_route_nexthop_t *nh;
 	const ni_route_nexthop_t *srcnh;
 
-	rp = xcalloc(1, sizeof(*rp));
+	rp = ni_route_new();
 
 #define C(x)	rp->x = src->x
 	C(family);

@@ -586,7 +586,7 @@ ni_dhcp_decode_csr(ni_buffer_t *bp, ni_route_t **route_list)
 		if (ni_dhcp_option_get_sockaddr(bp, &gateway) < 0)
 			return -1;
 
-		ni_route_new(prefix_len, &destination, &gateway, route_list);
+		ni_route_create(prefix_len, &destination, &gateway, route_list);
 	}
 
 	if (bp->underflow)
@@ -694,7 +694,7 @@ ni_dhcp_decode_static_routes(ni_buffer_t *bp, ni_route_t **route_list)
 		 || ni_dhcp_option_get_sockaddr(bp, &gateway) < 0)
 			return -1;
 
-		ni_route_new(guess_prefix_len_sockaddr(&destination),
+		ni_route_create(guess_prefix_len_sockaddr(&destination),
 				&destination,
 				&gateway,
 				route_list);
@@ -719,7 +719,7 @@ ni_dhcp_decode_routers(ni_buffer_t *bp, ni_route_t **route_list)
 		if (ni_dhcp_option_get_sockaddr(bp, &gateway) < 0)
 			return -1;
 
-		ni_route_new(0, &destination, &gateway, route_list);
+		ni_route_create(0, &destination, &gateway, route_list);
 	}
 
 	return 0;

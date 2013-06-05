@@ -743,7 +743,7 @@ __ni_objectmodel_route_from_dict(ni_route_t **list, const ni_dbus_variant_t *dic
 	 * Hmm... check device default route / default route without a gateway?
 	 */
 
-	if (!(rp = ni_route_new(prefixlen, &dest, &hops.gateway, NULL)))
+	if (!(rp = ni_route_create(prefixlen, &dest, &hops.gateway, NULL)))
 		goto failure;
 
 	/* copy first hop data and move next to its final place */

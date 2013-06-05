@@ -584,7 +584,7 @@ __ni_suse_route_parse(ni_route_t **routes, char *buffer, const char *ifname,
 	/*
 	 * Let's allocate a route and fill it directly
 	 */
-	rp = xcalloc(1, sizeof(ni_route_t));
+	rp = ni_route_new();
 
 	/*
 	 * We need an address either in gateway or in destination

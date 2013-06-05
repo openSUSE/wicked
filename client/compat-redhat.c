@@ -417,7 +417,7 @@ __ni_redhat_addrconf_static(ni_sysconfig_t *sc, ni_compat_netdev_t *compat, cons
 
 		if (ni_sockaddr_parse(&gateway, value, AF_INET) < 0)
 			return FALSE;
-		ni_route_new(0, NULL, &gateway, &dev->routes);
+		ni_route_create(0, NULL, &gateway, &dev->routes);
 	}
 
 	return TRUE;
