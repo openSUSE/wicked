@@ -127,7 +127,7 @@ case $ACTION in
 	start_one @wicked_supplicantdir@/wicked-autoip4 $COMMON_ARGS
 	start_one @wicked_supplicantdir@/wicked-dhcp4 $COMMON_ARGS
 	start_one @wicked_supplicantdir@/wicked-dhcp6 $COMMON_ARGS
-	start_one @sbindir@/wickedd $COMMON_ARGS
+	start_one @wicked_sbindir@/wickedd $COMMON_ARGS
 
 	rc_status -v
 	;;
@@ -135,7 +135,7 @@ case $ACTION in
     stop)
 	echo -n "Shutting down"
 
-	stop_one @sbindir@/wickedd
+	stop_one @wicked_sbindir@/wickedd
 	stop_one @wicked_supplicantdir@/wicked-dhcp4
 	stop_one @wicked_supplicantdir@/wicked-dhcp6
 	stop_one @wicked_supplicantdir@/wicked-autoip4
@@ -187,7 +187,7 @@ case $ACTION in
 	# 5--199 reserved (5--99 LSB, 100--149 distro, 150--199 appl.)
 	
 	echo -n "Checking for service"
-	check_one @sbindir@/wickedd
+	check_one @wicked_sbindir@/wickedd
 	check_one @wicked_supplicantdir@/wicked-dhcp4
 	check_one @wicked_supplicantdir@/wicked-dhcp6
 	check_one @wicked_supplicantdir@/wicked-autoip4

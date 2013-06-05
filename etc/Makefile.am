@@ -63,7 +63,6 @@ substitute_vars			= \
 	-e "s|[@]wicked_storedir[@]|$(wicked_storedir)|g"	\
 	-e "s|[@]wicked_schemadir[@]|$(wicked_schemadir)|g"	\
 	-e "s|[@]wicked_configdir[@]|$(wicked_configdir)|g"	\
-	-e "s|[@]wicked_configdir[@]|$(wicked_configdir)|g"	\
 	-e "s|[@]wicked_supplicantdir[@]|$(wicked_supplicantdir)|g"\
 	-e "s|[@]wicked_extensionsdir[@]|$(wicked_extensionsdir)|g"
 
