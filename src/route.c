@@ -343,8 +343,6 @@ ni_route_nexthop_copy(ni_route_nexthop_t *dst, const ni_route_nexthop_t *src)
 		dst->device.index = src->device.index;
 		if (src->device.name)
 			ni_string_dup(&dst->device.name, src->device.name);
-		if (src->device.dev) /* never used/set, but ... */
-			dst->device.dev = ni_netdev_get(src->device.dev);
 	}
 }
 

@@ -195,7 +195,7 @@ extern const ni_uuid_t *ni_netdev_add_event_filter(ni_netdev_t *, unsigned int m
 extern const ni_uuid_t *ni_netdev_get_event_uuid(ni_netdev_t *, ni_event_t);
 
 extern int		ni_netdev_ref_bind_ifindex(ni_netdev_ref_t *, ni_netconfig_t *);
-extern void		ni_netdev_ref_unbind(ni_netdev_ref_t *);
+extern int		ni_netdev_ref_bind_ifname (ni_netdev_ref_t *, ni_netconfig_t *);
 extern void		ni_netdev_ref_destroy(ni_netdev_ref_t *);
 
 extern ni_netdev_req_t *ni_netdev_req_new(void);

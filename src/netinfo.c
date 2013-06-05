@@ -496,7 +496,7 @@ ni_netdev_make_name(ni_netconfig_t *nc, const char *stem)
  * Bind/Unbind destroy netdev reference
  */
 int
-ni_netdev_ref_bind_ifindex(ni_netdev_ref_t *ref, ni_netconfig_t *nc)
+ni_netdev_ref_bind_ifname(ni_netdev_ref_t *ref, ni_netconfig_t *nc)
 {
 	ni_netdev_t *dev;
 
@@ -505,23 +505,25 @@ ni_netdev_ref_bind_ifindex(ni_netdev_ref_t *ref, ni_netconfig_t *nc)
 		return -1;
 
 	ni_string_dup(&ref->name, dev->name);
-	ref->dev = ni_netdev_get(dev);
 	return 0;
 }
 
-void
-ni_netdev_ref_unbind(ni_netdev_ref_t *ref)
+int
+ni_netdev_ref_bind_ifindex(ni_netdev_ref_t *ref, ni_netconfig_t *nc)
 {
-	if (ref && ref->dev) {
-		ni_netdev_put(ref->dev);
-		ref->dev = NULL;
-	}
+	ni_netdev_t *dev;
+
+	dev = ni_netdev_by_name(nc, ref->name);
+	if (dev == NULL)
+		return -1;
+
+	ref->index = dev->link.ifindex;
+	return 0;
 }
 
 void
 ni_netdev_ref_destroy(ni_netdev_ref_t *ref)
 {
-	ni_netdev_ref_unbind(ref);
 	ni_string_free(&ref->name);
 	ref->index = 0;
 }

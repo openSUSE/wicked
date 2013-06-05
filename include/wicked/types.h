@@ -48,7 +48,6 @@ typedef struct ni_device_clientinfo ni_device_clientinfo_t;
 typedef struct ni_netdev_ref {
 	unsigned int		index;	/* by ifindex */
 	char *			name;	/* by ifname  */
-	ni_netdev_t *		dev;	/* bound ref  */
 } ni_netdev_ref_t;
 
 typedef struct ni_dbus_server	ni_dbus_server_t;

@@ -661,11 +661,10 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 			if (tb[IFLA_LINK]) {
 				vlan->parent.index = nla_get_u32(tb[IFLA_LINK]);
 
-				if (ni_netdev_ref_bind_ifindex(&vlan->parent, nc) < 0) {
+				if (ni_netdev_ref_bind_ifname(&vlan->parent, nc) < 0) {
 					ni_error("VLAN interface %s references unknown base interface (ifindex %u)",
 							ifname, vlan->parent.index);
 					/* Ignore error and proceed */
-					ni_string_dup(&vlan->parent.name, "unknown");
 				}
 			} else {
 				ni_netdev_ref_destroy(&vlan->parent);
