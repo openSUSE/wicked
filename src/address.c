@@ -30,7 +30,7 @@
 	((unsigned long) &(((type *) NULL)->member))
 #endif
 
-static const unsigned char *__ni_address_data(const ni_sockaddr_t *, unsigned int *);
+static const unsigned char *__ni_sockaddr_data(const ni_sockaddr_t *, unsigned int *);
 
 ni_address_t *
 ni_netdev_add_address(ni_netdev_t *dev, unsigned int af, unsigned int prefix_len, const ni_sockaddr_t *local_addr)
@@ -173,7 +173,7 @@ ni_af_sockaddr_info(int af, unsigned int *offset, unsigned int *len)
 }
 
 static const unsigned char *
-__ni_address_data(const ni_sockaddr_t *ss, unsigned int *len)
+__ni_sockaddr_data(const ni_sockaddr_t *ss, unsigned int *len)
 {
 	unsigned int offset;
 
@@ -223,8 +223,8 @@ ni_sockaddr_prefix_match(unsigned int prefix_bits, const ni_sockaddr_t *laddr, c
 	unsigned int offset = 0, len;
 	unsigned int cc;
 
-	laddr_ptr = __ni_address_data(laddr, &len);
-	gw_ptr = __ni_address_data(gw, &len);
+	laddr_ptr = __ni_sockaddr_data(laddr, &len);
+	gw_ptr = __ni_sockaddr_data(gw, &len);
 	if (!laddr_ptr || !gw_ptr || laddr->ss_family != gw->ss_family)
 		return FALSE;
 
@@ -499,8 +499,8 @@ ni_sockaddr_equal(const ni_sockaddr_t *ss1, const ni_sockaddr_t *ss2)
 	if (ss1->ss_family == AF_UNSPEC)
 		return TRUE;
 
-	ap1 = __ni_address_data(ss1, &len);
-	ap2 = __ni_address_data(ss2, &len);
+	ap1 = __ni_sockaddr_data(ss1, &len);
+	ap2 = __ni_sockaddr_data(ss2, &len);
 	if (!ap1 || !ap2 || ss1->ss_family != ss2->ss_family)
 		return FALSE;
 
@@ -518,13 +518,13 @@ ni_address_probably_dynamic(const ni_address_t *ap)
 		/* For IPv6 with static configuration, consider all link-local
 		 * prefixes as dynamic.
 		 */
-		if ((addr = __ni_address_data(&ap->local_addr, &len)) != NULL)
+		if ((addr = __ni_sockaddr_data(&ap->local_addr, &len)) != NULL)
 			return addr[0] == 0xFE && addr[1] == 0x80;
 		break;
 
 	case AF_INET:
 		/* Consider all IPv4 zeroconf addresses (169.254/24) as autoconf */
-		if ((addr = __ni_address_data(&ap->local_addr, &len)) != NULL)
+		if ((addr = __ni_sockaddr_data(&ap->local_addr, &len)) != NULL)
 			return addr[0] == 169 && addr[1] == 254;
 		break;
 	}
@@ -1086,7 +1086,7 @@ __ni_sockaddr_to_netaddr(const ni_sockaddr_t *sockaddr, ni_packed_netaddr_t *net
 	const void *aptr;
 	unsigned int alen;
 
-	if (!(aptr = __ni_address_data(sockaddr, &alen)))
+	if (!(aptr = __ni_sockaddr_data(sockaddr, &alen)))
 		return -1;
 
 	if (2 + alen >= sizeof(netaddr->raw))
@@ -1105,7 +1105,7 @@ __ni_netaddr_to_sockaddr(const ni_packed_netaddr_t *netaddr, ni_sockaddr_t *sock
 	unsigned int alen;
 
 	sockaddr->ss_family = ntohs(netaddr->family);
-	if (!(aptr = __ni_address_data(sockaddr, &alen)))
+	if (!(aptr = __ni_sockaddr_data(sockaddr, &alen)))
 		return NULL;
 	if (alen + 2 > sizeof(netaddr->raw))
 		return NULL;
