@@ -1,6 +1,7 @@
+%define		release_prefix  %{?snapshot:%{snapshot}}%{!?snapshot:0}
 Name:		wicked
 Version:	@PACKAGE_VERSION@
-Release:	0
+Release:	%{release_prefix}.0.0
 Group:		System/Management
 License:	GPL-2.0
 Summary:	Network configuration infrastructure

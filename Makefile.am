@@ -20,13 +20,20 @@ EXTRA_DIST			= VERSION wicked.pc.in wicked-rpmlintrc	\
 				  wicked.spec.in wicked.spec samples	\
 				  $(wicked_doc_data)
 
+rpmbuild_opts			= -ta --define "snapshot $$(date +%Y%m%d%H%M%S)"
+
 
 # Build test RPMs, no checks
 rpmbuild: dist-bzip2
-	rpmbuild -ta $(distdir).tar.bz2
+	rpmbuild $(rpmbuild_opts) $(distdir).tar.bz2
 
 # Build source package with all checks enabled (unlike 'make dist')
 package: all check distcheck show-commit-state
+
+# Build rpm test package with all checks enabled
+rpmpackage: package
+	rpmbuild $(rpmbuild_opts) $(distdir).tar.bz2
+
 
 dist-hook: VERSION $(distdir)/wicked.spec $(distdir)/ChangeLog.git
 
