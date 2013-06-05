@@ -151,7 +151,7 @@ ni_arp_send(ni_arp_socket_t *arph, const ni_arp_packet_t *packet)
 	}
 	ni_buffer_put(&buf, &packet->tip, 4);
 
-	rv = ni_capture_broadcast(arph->capture, &buf, NULL);
+	rv = ni_capture_send(arph->capture, &buf, NULL);
 	free(buf.base);
 	return rv;
 }

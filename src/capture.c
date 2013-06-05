@@ -117,7 +117,7 @@ struct ni_capture {
 };
 
 static int		ni_capture_set_filter(ni_capture_t *, const ni_capture_protinfo_t *);
-static ssize_t		__ni_capture_broadcast(const ni_capture_t *, const ni_buffer_t *);
+static ssize_t		__ni_capture_send(const ni_capture_t *, const ni_buffer_t *);
 
 static uint32_t
 checksum_partial(uint32_t sum, const void *data, uint16_t len)
@@ -332,7 +332,7 @@ ni_capture_retransmit(ni_capture_t *capture)
 	}
 
 	ni_timeout_recompute(&capture->retrans.timeout);
-	rv = __ni_capture_broadcast(capture, capture->retrans.buffer);
+	rv = __ni_capture_send(capture, capture->retrans.buffer);
 
 	/* We don't care whether sending failed or not. Quite possibly
 	 * it's a temporary condition, so continue */
@@ -686,7 +686,7 @@ ni_capture_set_filter(ni_capture_t *cap, const ni_capture_protinfo_t *protinfo)
 }
 
 ssize_t
-__ni_capture_broadcast(const ni_capture_t *capture, const ni_buffer_t *buf)
+__ni_capture_send(const ni_capture_t *capture, const ni_buffer_t *buf)
 {
 	ssize_t rv;
 
@@ -704,11 +704,11 @@ __ni_capture_broadcast(const ni_capture_t *capture, const ni_buffer_t *buf)
 }
 
 ssize_t
-ni_capture_broadcast(ni_capture_t *capture, const ni_buffer_t *buf, const ni_timeout_param_t *tmo)
+ni_capture_send(ni_capture_t *capture, const ni_buffer_t *buf, const ni_timeout_param_t *tmo)
 {
 	ssize_t rv;
 
-	rv = __ni_capture_broadcast(capture, buf);
+	rv = __ni_capture_send(capture, buf);
 	if (tmo) {
 		capture->retrans.buffer = buf;
 		capture->retrans.timeout = *tmo;

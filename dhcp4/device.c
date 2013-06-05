@@ -540,7 +540,7 @@ ni_dhcp_device_send_message(ni_dhcp_device_t *dev, unsigned int msg_code, const 
 	switch (msg_code) {
 	case DHCP_DECLINE:
 	case DHCP_RELEASE:
-		rv = ni_capture_broadcast(dev->capture, &dev->message, NULL);
+		rv = ni_capture_send(dev->capture, &dev->message, NULL);
 		break;
 
 	case DHCP_DISCOVER:
@@ -555,7 +555,7 @@ ni_dhcp_device_send_message(ni_dhcp_device_t *dev, unsigned int msg_code, const 
 		timeout.max_timeout = NI_DHCP_RESEND_TIMEOUT_MAX;
 
 		/* FIXME: during renewal, we really want to unicast the request */
-		rv = ni_capture_broadcast(dev->capture, &dev->message, &timeout);
+		rv = ni_capture_send(dev->capture, &dev->message, &timeout);
 		break;
 
 	default:
