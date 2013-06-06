@@ -36,10 +36,10 @@ struct ni_route {
 	ni_sockaddr_t		source;
 	ni_route_nexthop_t	nh;
 
-	int			type;			/* RTN_* */
-	int			scope;			/* RT_SCOPE_* */
-	int			protocol;		/* RTPROT_* */
-	int			table;			/* RT_TABLE_* */
+	unsigned int		type;			/* RTN_* */
+	unsigned int		scope;			/* RT_SCOPE_* */
+	unsigned int		protocol;		/* RTPROT_* */
+	unsigned int		table;			/* RT_TABLE_* */
 	unsigned int		tos;
 	unsigned int		priority;
 

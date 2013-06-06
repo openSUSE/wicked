@@ -1412,17 +1412,17 @@ __ni_rtnl_send_newroute(ni_netdev_t *dev, ni_route_t *rp, int flags)
 	rt.rtm_protocol = RTPROT_BOOT;
 	rt.rtm_scope = RT_SCOPE_UNIVERSE;
 	rt.rtm_type = RTN_UNICAST;
-	rt.rtm_tos = rp->tos;
 
+	rt.rtm_tos = rp->tos;
 	rt.rtm_dst_len = rp->prefixlen;
 
-	if (rp->table >= 0)
+	if (rp->table != RT_TABLE_UNSPEC && rp->table != RT_TABLE_MAX)
 		rt.rtm_table = rp->table;
-	if (rp->protocol >= 0)
+	if (rp->protocol != RTPROT_UNSPEC)
 		rt.rtm_protocol = rp->protocol;
-	if (rp->scope >= 0)
+	if (rp->scope != RT_SCOPE_NOWHERE)
 		rt.rtm_scope = rp->scope;
-	if (rp->type >= 0)
+	if (rp->type < __RTN_MAX)
 		rt.rtm_type = rp->type;
 
 	if (rt.rtm_type == RTN_LOCAL ||
