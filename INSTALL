@@ -1,0 +1,35 @@
+
+Requirements
+----------------------------------------------------------------------
+
+These devel packages should be installed to compile wicked from source:
+
+  automake
+  autoconf
+  libtool
+  libnl-devel
+  libiw-devel
+  dbus-1-devel
+  pkg-config
+  libgcrypt-devel
+  systemd-devel
+
+
+Building
+----------------------------------------------------------------------
+
+Build the daemon, library and tools:
+
+  building from tarball     building from git
+  ---------------------     -----------------
+    ./configure               ./autogen.sh
+    make                      make
+    make install              make install
+
+Note: binaries will be installed into /usr per default!
+
+Building a rpm package:
+
+  make rpmbuild
+
+
