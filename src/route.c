@@ -16,6 +16,8 @@
 #include <wicked/route.h>
 #include "util_priv.h"
 
+#define NI_ROUTE_TABLE_ARRAY_CHUNK	16
+
 
 /*
  * ni_route functions
@@ -367,6 +369,146 @@ ni_route_nexthop_list_destroy(ni_route_nexthop_t **list)
 	while ((hop = *list) != NULL) {
 		*list = hop->next;
 		ni_route_nexthop_free(hop);
+	}
+}
+
+
+/*
+ * ni_route_table functions
+ */
+static inline ni_route_table_t *
+__ni_route_table_new(unsigned int tid)
+{
+	ni_route_table_t *tab;
+
+	tab = xcalloc(1, sizeof(*tab));
+	tab->tid = tid;
+	return tab;
+}
+
+ni_route_table_t *
+ni_route_table_new(unsigned int tid)
+{
+	if (tid == RT_TABLE_UNSPEC || tid == RT_TABLE_MAX)
+		return NULL;
+
+	return __ni_route_table_new(tid);
+}
+
+void
+ni_route_table_free(ni_route_table_t *tab)
+{
+	ni_route_table_clear(tab);
+	free(tab);
+}
+
+
+void
+ni_route_table_clear(ni_route_table_t *tab)
+{
+	if (tab && tab->count) {
+		while (tab->count--) {
+			ni_route_free(tab->routes[tab->count]);
+		}
+		free(tab->routes);
+		tab->routes = NULL;
+	}
+}
+
+static void
+__ni_route_table_realloc(ni_route_table_t *tab, unsigned int newsize)
+{
+	ni_route_t **newdata;
+	unsigned int i;
+
+	newsize = (newsize + NI_ROUTE_TABLE_ARRAY_CHUNK);
+	newdata = xrealloc(tab->routes, newsize * sizeof(ni_route_t *));
+
+	tab->routes = newdata;
+	for (i = tab->count; i < newsize; ++i) {
+		tab->routes[i] = NULL;
+	}
+}
+
+ni_bool_t
+ni_route_table_add_route(ni_route_table_t *tab, ni_route_t *rp)
+{
+	if(!tab || !rp || tab->tid != rp->table)
+		return FALSE;
+
+	/* Hmm.. should we sort them here? */
+	if((tab->count % NI_ROUTE_TABLE_ARRAY_CHUNK) == 0)
+		__ni_route_table_realloc(tab, tab->count);
+
+	tab->routes[tab->count++] = rp;
+	return TRUE;
+}
+
+ni_bool_t
+ni_route_table_del_route(ni_route_table_t *tab, unsigned int index)
+{
+	if(!tab || index >= tab->count)
+		return FALSE;
+
+	ni_route_free(tab->routes[index]);
+
+	/* Note: this also copies the NULL pointer following the last element */
+	memmove(&tab->routes[index], &tab->routes[index + 1],
+		(tab->count - index) * sizeof(ni_route_t *));
+	tab->count--;
+
+	/* Don't bother with shrinking the array. It's not worth the trouble */
+	return TRUE;
+}
+
+/*
+ * ni_route_table list functions
+ */
+ni_route_table_t *
+ni_route_table_list_get(ni_route_table_t **list, unsigned int tid)
+{
+	ni_route_table_t *pos, *tab;
+
+	if (!list || tid == RT_TABLE_UNSPEC || tid == RT_TABLE_MAX)
+		return NULL;
+
+	while ((pos = *list) != NULL) {
+		if (tid == pos->tid)
+			return pos;
+		if (tid <  pos->tid)
+			break;
+		list = &pos->next;
+	}
+
+	if ((tab = __ni_route_table_new(tid))) {
+		tab->next = pos;
+		*list = tab;
+	}
+	return tab;
+}
+
+ni_route_table_t *
+ni_route_table_list_find(ni_route_table_t **list, unsigned int tid)
+{
+	ni_route_table_t *tab;
+
+	if (list && tid != RT_TABLE_UNSPEC && tid != RT_TABLE_MAX) {
+		for (tab = *list; tab; tab = tab->next) {
+			if (tab->tid == tid)
+				return tab;
+		}
+	}
+	return NULL;
+}
+
+void
+ni_route_table_list_destroy(ni_route_table_t **list)
+{
+	ni_route_table_t *tab;
+
+	while ((tab = *list) != NULL) {
+		*list = tab->next;
+		ni_route_table_free(tab);
 	}
 }
 

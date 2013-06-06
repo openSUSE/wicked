@@ -22,6 +22,7 @@ typedef union ni_sockaddr	ni_sockaddr_t;
 typedef struct ni_netconfig	ni_netconfig_t;
 typedef struct ni_netdev	ni_netdev_t;
 typedef struct ni_route		ni_route_t;
+typedef struct ni_route_table	ni_route_table_t;
 typedef struct ni_vlan		ni_vlan_t;
 typedef struct ni_bridge	ni_bridge_t;
 typedef struct ni_bridge_port	ni_bridge_port_t;

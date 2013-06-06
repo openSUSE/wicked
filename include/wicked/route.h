@@ -61,6 +61,14 @@ struct ni_route {
 	ni_ipv6_cache_info_t	ipv6_cache_info;
 };
 
+struct ni_route_table {
+	ni_route_table_t *	next;
+
+	unsigned int		tid;
+	unsigned int		count;
+	ni_route_t **		routes;
+};
+
 
 extern ni_route_t *		ni_route_new(void);
 extern ni_route_t *		ni_route_create(unsigned int prefix_len,
@@ -84,6 +92,7 @@ extern const char *		ni_route_scope_type_to_name(unsigned int);
 extern void			ni_route_list_append(ni_route_t **, ni_route_t *);
 extern void			ni_route_list_destroy(ni_route_t **);
 
+
 extern ni_route_nexthop_t *	ni_route_nexthop_new(void);
 extern void			ni_route_nexthop_copy(ni_route_nexthop_t *, const ni_route_nexthop_t *);
 extern void			ni_route_nexthop_free(ni_route_nexthop_t *);
@@ -91,5 +100,17 @@ extern void			ni_route_nexthop_destroy(ni_route_nexthop_t *);
 
 extern void			ni_route_nexthop_list_append(ni_route_nexthop_t **, ni_route_nexthop_t*);
 extern void			ni_route_nexthop_list_destroy(ni_route_nexthop_t **);
+
+
+extern ni_route_table_t *	ni_route_table_new(unsigned int);
+extern void			ni_route_table_free(ni_route_table_t *);
+
+extern void			ni_route_table_clear(ni_route_table_t *);
+extern ni_bool_t		ni_route_table_add_route(ni_route_table_t *, ni_route_t *);
+extern ni_bool_t		ni_route_table_del_route(ni_route_table_t *, unsigned int);
+
+extern ni_route_table_t *	ni_route_table_list_get(ni_route_table_t **, unsigned int);
+extern ni_route_table_t *	ni_route_table_list_find(ni_route_table_t **, unsigned int);
+extern void			ni_route_table_list_destroy(ni_route_table_t **);
 
 #endif /* __WICKED_ROUTE_H__ */
