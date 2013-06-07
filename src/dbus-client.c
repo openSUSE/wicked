@@ -36,6 +36,9 @@ static dbus_bool_t	__ni_dbus_object_get_managed_object_interfaces(ni_dbus_object
 static dbus_bool_t	__ni_dbus_object_get_managed_object_properties(ni_dbus_object_t *proxy,
 					const ni_dbus_service_t *service,
 					DBusMessageIter *iter);
+static dbus_bool_t	__ni_dbus_object_refresh_property(ni_dbus_object_t *obj, const ni_dbus_service_t *service,
+				const ni_dbus_property_t *property_list,
+				const char *name, const ni_dbus_variant_t *value);
 static dbus_bool_t	__ni_dbus_object_refresh_properties(ni_dbus_object_t *proxy,
 					const ni_dbus_service_t *service,
 					DBusMessageIter *iter);
@@ -633,6 +636,68 @@ __ni_dbus_object_get_managed_object_properties(ni_dbus_object_t *proxy,
 	return __ni_dbus_object_refresh_properties(proxy, service, &iter_variant);
 }
 
+dbus_bool_t
+__ni_dbus_object_refresh_dict_property(ni_dbus_object_t *obj,
+					const ni_dbus_service_t *service,
+					const ni_dbus_property_t *prop,
+					const ni_dbus_variant_t *dict)
+{
+	const ni_dbus_property_t *property_list = prop->generic.u.dict_children;
+	unsigned int i;
+
+	if (!ni_dbus_variant_is_dict(dict))
+		return FALSE;
+
+	for (i = 0; i < dict->array.len; ++i) {
+		const ni_dbus_dict_entry_t *entry;
+
+		entry = &dict->dict_array_value[i];
+
+		if (!__ni_dbus_object_refresh_property(obj, service, property_list, entry->key, &entry->datum))
+			ni_debug_dbus("cannot refresh property %s.%s", prop->name, entry->key);
+	}
+
+	return TRUE;
+}
+
+
+/*  service->properties */
+static dbus_bool_t
+__ni_dbus_object_refresh_property(ni_dbus_object_t *obj, const ni_dbus_service_t *service,
+				const ni_dbus_property_t *property_list,
+				const char *name, const ni_dbus_variant_t *value)
+{
+	DBusError error = DBUS_ERROR_INIT;
+	const ni_dbus_property_t *property;
+
+	/* now set the object property */
+	if (!(property = __ni_dbus_service_get_property(property_list, name))) {
+		ni_debug_dbus("ignoring unknown %s property %s=%s",
+				service->name,
+				name, ni_dbus_variant_sprint(value));
+		return FALSE;
+	}
+
+	if (!strcmp(property->signature, NI_DBUS_DICT_SIGNATURE) && !property->set)
+		return __ni_dbus_object_refresh_dict_property(obj, service, property, value);
+
+	if (!property->set) {
+		ni_debug_dbus("ignoring read-only property %s=%s",
+				name, ni_dbus_variant_sprint(value));
+		return FALSE;
+	}
+
+	if (!property->set(obj, property, value, &error)) {
+		ni_debug_dbus("error setting property %s=%s (%s: %s)",
+				name, ni_dbus_variant_sprint(value),
+				error.name, error.message);
+		dbus_error_free(&error);
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
 static dbus_bool_t
 __ni_dbus_object_refresh_properties(ni_dbus_object_t *proxy, const ni_dbus_service_t *service, DBusMessageIter *iter)
 {
@@ -664,27 +729,7 @@ __ni_dbus_object_refresh_properties(ni_dbus_object_t *proxy, const ni_dbus_servi
 			continue;
 		}
 
-		/* now set the object property */
-		if (!(property = ni_dbus_service_get_property(service, property_name))) {
-			ni_debug_dbus("ignoring unknown %s property %s=%s",
-					service->name,
-					property_name, ni_dbus_variant_sprint(&value));
-			continue;
-		}
-
-		if (!property->set) {
-			ni_debug_dbus("ignoring read-only property %s=%s",
-					property_name, ni_dbus_variant_sprint(&value));
-			continue;
-		}
-
-		if (!property->set(proxy, property, &value, &error)) {
-			ni_debug_dbus("error setting property %s=%s (%s: %s)",
-					property_name, ni_dbus_variant_sprint(&value),
-					error.name, error.message);
-			dbus_error_free(&error);
-			continue;
-		}
+		__ni_dbus_object_refresh_property(proxy, service, service->properties, property_name, &value);
 
 #if 0
 		ni_debug_dbus("Setting property %s=%s", property_name, ni_dbus_variant_sprint(&value));
