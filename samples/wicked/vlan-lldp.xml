@@ -10,11 +10,21 @@
   <lldp>
    <destination>nearest-bridge</destination>
    <chassis-id>
-    <mac-address>00:11:22:33:44:55</mac-address>
+    <default-mac-address/>
    </chassis-id>
    <port-id>
     <ifalias>foo</ifalias>
    </port-id>
+
+   <port-description>VLAN 42 on eth0</port-description>
+
+   <system>
+    <name>system foo</name>
+    <descr>This is the foo machine</descr>
+    <capabilities>
+     <station-only/>
+    </capabilities>
+   </system>
   </lldp>
 
   <ipv4:static>

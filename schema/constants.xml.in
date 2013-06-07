@@ -152,3 +152,6 @@
 <define name="builtin-lldp-type" type="uint32" constraint="enum">
   <@@LLDP_DESTINATION_NAME@@ value="@@LLDP_DESTINATION_VALUE@@"/>
 </define>
+<define name="builtin-lldp-system-capabilities" type="uint32" constraint="bitmap">
+  <@@LLDP_SYSTEM_CAPABILITY_NAME@@ bit="@@LLDP_SYSTEM_CAPABILITY_VALUE@@"/>
+</define>

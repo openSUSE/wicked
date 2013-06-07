@@ -64,6 +64,7 @@ struct ni_fsm_transition {
 		xml_node_t *		config;
 
 		ni_bool_t		call_overloading;
+		ni_bool_t		may_fail;
 	} common;
 
 #define NI_IFTRANSITION_BINDINGS_MAX	32

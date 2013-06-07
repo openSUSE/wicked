@@ -408,3 +408,41 @@ ni_lldp_destination_type_to_name(ni_lldp_destination_t type)
 {
 	return ni_format_uint_maybe_mapped(type, __ni_lldp_type_names);
 }
+
+/*
+ * Names for LLDP System capabilities
+ */
+static ni_intmap_t		__ni_lldp_systemcap_names[] = {
+	{ "nearest-bridge",		NI_LLDP_DEST_NEAREST_BRIDGE	},
+	{ "nearest-non-tmpr-bridge",	NI_LLDP_DEST_NEAREST_NON_TPMR_BRIDGE	},
+	{ "nearest-customer-bridge",	NI_LLDP_DEST_NEAREST_CUSTOMER_BRIDGE	},
+	{ "other",			NI_LLDP_SYSCAP_OTHER },
+	{ "repeater",			NI_LLDP_SYSCAP_REPEATER },
+	{ "bridge",			NI_LLDP_SYSCAP_MAC_BRIDGE },
+	{ "wlan-ap",			NI_LLDP_SYSCAP_WLAN_AP },
+	{ "router",			NI_LLDP_SYSCAP_ROUTER },
+	{ "telephone",			NI_LLDP_SYSCAP_TELEPHONE },
+	{ "docsis-cable-device",	NI_LLDP_SYSCAP_DOCSIS_CABLE_DEV },
+	{ "station-only",		NI_LLDP_SYSCAP_STATION_ONLY },
+	{ "vlan-bridge-c-vlan",		NI_LLDP_SYSCAP_VLAN_BRIDGE_C_VLAN },
+	{ "vlan-bridge-s-vlan",		NI_LLDP_SYSCAP_VLAN_BRIDGE_S_VLAN },
+	{ "two-port-repeater",		NI_LLDP_SYSCAP_TPMR },
+
+	{ NULL }
+};
+
+int
+ni_lldp_system_capability_name_to_type(const char *name)
+{
+	unsigned int value;
+
+	if (ni_parse_uint_maybe_mapped(name, __ni_lldp_systemcap_names, &value, 10) < 0)
+		return -1;
+	return value;
+}
+
+const char *
+ni_lldp_system_capability_type_to_name(unsigned int type)
+{
+	return ni_format_uint_maybe_mapped(type, __ni_lldp_systemcap_names);
+}

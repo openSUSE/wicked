@@ -36,7 +36,7 @@ typedef enum ni_lldp_port_id_type {
 } ni_lldp_port_id_type_t;
 
 struct ni_lldp {
-	uint32_t				destination;
+	ni_lldp_destination_t			destination;
 
 	struct {
 		ni_lldp_chassis_id_type_t	type;
@@ -52,14 +52,23 @@ struct ni_lldp {
 		ni_sockaddr_t			net_addr_value;
 	} port_id;
 
+	char *					port_description;
+
+	struct {
+		char *				name;
+		char *				description;
+		unsigned int			capabilities;
+	} system;
+
 	uint32_t				ttl;
 };
 
 
 extern ni_lldp_t *	ni_lldp_new(void);
 extern void		ni_lldp_free(ni_lldp_t *);
-extern int		ni_system_lldp_setup(ni_netconfig_t *nc, ni_netdev_t *, const ni_lldp_t *);
+extern int		ni_system_lldp_setup(ni_netdev_t *, const ni_lldp_t *);
 
 extern const char *	ni_lldp_destination_type_to_name(ni_lldp_destination_t);
+extern const char *	ni_lldp_system_capability_type_to_name(ni_lldp_destination_t);
 
 #endif /* __WICKED_LLDP_H__ */

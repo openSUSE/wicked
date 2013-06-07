@@ -12,26 +12,39 @@
   <!-- Chassis-ID contains exactly one child element out of several possible. -->
   <chassis-id class="dict">
    <chassis-component type="string" constraint="exclusive:chassis-id"/>
-   <ifalias type="string" constraint="exclusive:chassis-id"/>
    <port-component type="string" constraint="exclusive:chassis-id"/>
    <mac-address type="ethernet-address" constraint="exclusive:chassis-id"/>
    <net-address type="network-address" constraint="exclusive:chassis-id"/>
-   <ifname type="string" constraint="exclusive:chassis-id"/>
+   <ifalias type="string" constraint="exclusive:chassis-id"/>
+
+   <default-ifname type="flag" constraint="exclusive:chassis-id"/>
+   <default-ifalias type="flag" constraint="exclusive:chassis-id"/>
+   <default-mac-address type="flag" constraint="exclusive:chassis-id"/>
+   <default-net-address type="flag" constraint="exclusive:chassis-id"/>
   </chassis-id>
 
   <!-- Port-ID contains exactly one child element out of several possible. -->
   <port-id class="dict">
-   <ifalias type="string" constraint="exclusive:port-id"/>
    <port-component type="string" constraint="exclusive:port-id"/>
-   <mac-address type="ethernet-address" constraint="exclusive:port-id"/>
-   <net-address type="network-address" constraint="exclusive:port-id"/>
-   <ifname type="string" constraint="exclusive:port-id"/>
    <agent-circuit-id type="string" constraint="exclusive:port-id"/>
+   <ifalias type="string" constraint="exclusive:port-id"/>
+
+   <default-ifname type="flag" constraint="exclusive:port-id"/>
+   <default-ifalias type="flag" constraint="exclusive:port-id"/>
+   <default-mac-address type="flag" constraint="exclusive:port-id"/>
+   <default-net-address type="flag" constraint="exclusive:port-id"/>
   </port-id>
 
   <ttl type="uint32"/>
 
+  <port-description type="string"/>
+
   <system class="dict">
+   <name type="string"/>
+   <!-- for now, we cannot call this "description" because the XML schema parser
+     -- thinks it's a reserved word. -->
+   <descr type="string"/>
+   <capabilities type="builtin-lldp-system-capabilities"/>
   </system>
 
  </define>

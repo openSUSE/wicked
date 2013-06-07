@@ -36,6 +36,7 @@
 #include <wicked/ppp.h>
 #include <wicked/ipv4.h>
 #include <wicked/ipv6.h>
+#include <wicked/lldp.h>
 
 #include "netinfo_priv.h"
 #include "sysfs.h"
@@ -88,6 +89,9 @@ ni_system_interface_link_change(ni_netdev_t *dev, const ni_netdev_req_t *ifp_req
 
 		if (dev->link.type == NI_IFTYPE_WIRELESS)
 			ni_wireless_disconnect(dev);
+
+		/* If an LLDP agent is active for this interface, shut it down, too */
+		ni_system_lldp_setup(dev, NULL);
 
 		/* Now take down the link for real */
 		ni_debug_ifconfig("shutting down interface %s", dev->name);

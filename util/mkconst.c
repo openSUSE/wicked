@@ -109,6 +109,7 @@ static struct generic_map	generic_maps[] = {
 	MAP(INFINIBAND_MODE, ni_infiniband_get_mode_name),
 	MAP(INFINIBAND_UMCAST, ni_infiniband_get_umcast_name),
 	MAP(LLDP_DESTINATION, ni_lldp_destination_type_to_name),
+	MAP(LLDP_SYSTEM_CAPABILITY, ni_lldp_system_capability_type_to_name),
 
 	{ NULL }
 };

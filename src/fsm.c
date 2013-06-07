@@ -2648,6 +2648,11 @@ ni_ifworker_do_common(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t *acti
 		rv = ni_call_common_xml(w->object, bind->service, bind->method, bind->config,
 				&callback_list, ni_ifworker_error_handler);
 		if (rv < 0) {
+			if (action->common.may_fail) {
+				ni_error("[ignored] %s: call to %s.%s() failed: %s",
+						bind->service->name, bind->method->name, ni_strerror(rv));
+				return 0;
+			}
 			ni_ifworker_fail(w, "call to %s.%s() failed: %s", bind->service->name, bind->method->name, ni_strerror(rv));
 			return rv;
 		}
@@ -2816,7 +2821,7 @@ static ni_fsm_transition_t	ni_iftransitions[] = {
 	COMMON_TRANSITION_UP_TO(NI_FSM_STATE_LINK_AUTHENTICATED, "login", .call_overloading = TRUE),
 
 	/* This brings up LLDP sender and configures it */
-	COMMON_TRANSITION_UP_TO(NI_FSM_STATE_LLDP_UP, "lldpUp", .call_overloading = TRUE),
+	COMMON_TRANSITION_UP_TO(NI_FSM_STATE_LLDP_UP, "lldpUp", .call_overloading = TRUE, .may_fail = TRUE),
 
 	/* Configure all assigned addresses and bring up the network */
 	COMMON_TRANSITION_UP_TO(NI_FSM_STATE_ADDRCONF_UP, "requestLease"),
@@ -2828,7 +2833,7 @@ static ni_fsm_transition_t	ni_iftransitions[] = {
 	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_ADDRCONF_UP, "dropLease"),
 
 	/* Shut down the LLDP sender */
-	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_LLDP_UP, "lldpDown", .call_overloading = TRUE),
+	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_LLDP_UP, "lldpDown", .call_overloading = TRUE, .may_fail = TRUE),
 
 	/* Shut down the link */
 	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_LINK_UP, "linkDown", .call_overloading = TRUE),
