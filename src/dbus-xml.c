@@ -565,6 +565,16 @@ ni_dbus_validate_xml_scalar(xml_node_t *node, const ni_xs_type_t *type, const ni
 	if (scalar_info->constraint.bitmap)
 		return ni_dbus_serialize_xml_bitmap(node, scalar_info, &value);
 
+	/* This signals a "flag" type element, ie we simply test for its presence or
+	 * absence. */
+	if (scalar_info->type == DBUS_TYPE_INVALID) {
+		if (node->cdata != NULL) {
+			ni_error("%s: invalid flag scalar <%s> - should be empty", xml_node_location(node), node->name);
+			return FALSE;
+		}
+		return TRUE;
+	}
+
 	if (node->cdata == NULL) {
 		ni_error("%s: unable to serialize scalar <%s> - no data", xml_node_location(node), node->name);
 		return FALSE;
@@ -581,6 +591,13 @@ dbus_bool_t
 ni_dbus_serialize_xml_scalar(xml_node_t *node, const ni_xs_type_t *type, ni_dbus_variant_t *var)
 {
 	ni_xs_scalar_info_t *scalar_info = ni_xs_scalar_info(type);
+
+	/* This signals a "flag" type element, ie we simply test for its presence or
+	 * absence. We encode it as a BYTE value. */
+	if (scalar_info->type == DBUS_TYPE_INVALID) {
+		ni_dbus_variant_set_byte(var, 0);
+		return TRUE;
+	}
 
 	if (scalar_info->constraint.bitmap) {
 		unsigned long value;
@@ -626,6 +643,17 @@ ni_dbus_deserialize_xml_scalar(ni_dbus_variant_t *var, const ni_xs_type_t *type,
 	if (var->type == DBUS_TYPE_ARRAY) {
 		ni_error("%s: expected a scalar, but got an array or dict", __func__);
 		return FALSE;
+	}
+
+	/* This signals a "flag" type element, ie we simply test for its presence or
+	 * absence. We encode it as a BYTE value. */
+	if (scalar_info->type == DBUS_TYPE_INVALID) {
+		if (var->type != DBUS_TYPE_BYTE) {
+			ni_error("%s: <%s> flag element encoded incorrectly",
+					__func__, node->name);
+			return FALSE;
+		}
+		return TRUE;
 	}
 
 	if (scalar_info->constraint.bitmap) {
@@ -1139,6 +1167,7 @@ ni_dbus_define_scalar_types(ni_xs_scope_t *typedict)
 		{ "int32",	DBUS_TYPE_INT32 },
 		{ "int64",	DBUS_TYPE_INT64 },
 		{ "object-path",DBUS_TYPE_OBJECT_PATH },
+		{ "flag",	DBUS_TYPE_INVALID },
 
 		{ NULL }
 	}, *tp;
