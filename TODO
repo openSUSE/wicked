@@ -20,6 +20,91 @@ wickedd:
 	- Add a naming service to identify a PCI hotplug device by its
 	  enclosure.
 
+	- route tables and improve routing support, implement routing
+	  tables/rules rules support to configure simple multihoming.
+	  Note: Our productive servers (dist.suse.de) require this.
+	- multipath routes nexthop routes over multiple links/gateways + weight
+
+	- sysctl: Implemented are: disable_ipv6, autoconf, forwarding,
+	  accept_redirects, use_tempaddr. Support more: for IPv6, there are more
+	  useful to e.g. to catch corner cases, e.g.: accept_ra, proxy-ndp, ...
+
+	- ethtool: Most are implemented (offload gso,gro,ufo,tso, …), but not
+	  all. Verify: Some (e.g. lro with netxen NIC) can be set after link is
+	  up only.
+
+	- hotplugging: there are some parts/mechanisms, status unknown. as
+	  wickedd does not read and execute interface configs itself, I suppose
+	  this has to be addressed (ifup supports physical interfaces & bonding
+	  slaves).
+
+	- interface match:
+	  - Wicked implements matching by other references than name, AFAIR by
+	    mac and by pci bus id currently [as alternative to udev rules]. How
+	    complete is the current “match” implementation [e.g. s390 specific
+	    things]?
+	  - Add biosdevname support [allow to use without udev rules renames]
+	  - Add support for PXE BOOTIF kernel parameter selected interface
+	    [Required by Adrian / build-system worker VMs; using udev rules does
+	    not work there!]
+
+	- Support for IBFT / ISCSI, FcoE, NFS, ...
+	  - Reading/using iBFT firmware as config is incomplete. fw parsing is
+	    implemented (shell/extension script) and contains config generation
+	    from firmware already, but is incomplete and IMO never tested; no
+	    support for e.g. iBFT dns servers yet.
+	  - Some mechanisms for “nfsroot” are there, IMO untested/incomplete
+	  - Provide solution for remote-device shutdown order problem:
+	    There is an shutdown order problem, especially with remotedevices,
+	    which are using e.g. LVM which is used also by local disks as well.
+	    Current “ifup solution” is that the ISCSI / FcoE scripts are putting
+	    interfaces into “nfsroot” mode “on the fly” until shutdown and
+	    overriding any STARTMODE setting in the ifcfg configs.  This causes
+	    to: start the dhcp clients in “persistent” mode, that is never
+	    remove any IP address from interface and reject to set link down.
+
+	- dhcpv4 support
+	  - write lease/state to disk [currently in memory only]
+	  - verification for infiniband required [client-id/DUID differs]
+	  - try to request (renew) iBFT provided address in iBFT-dhcp mode (but
+	    do newer remove it from the interface, even the dhcp server suggests
+	    other IP; add additionally instead) to not break iSCSI[, ...]
+	    devices.
+	  - Bug #657402: fix broadcast vs. unicast: dhcp renew is broadcasted
+	    [has to be unicast to server] are dropped on gateways/relays [e.g.
+	    cisco routers], when the server is behind a router. Further, AFAIR
+	    other requests were not correctly addressed, too.
+
+	- dhcpv6 support
+	  - write lease/state to disk [currently in memory only, discarded on
+	    restart]
+	  - verification for infiniband required [client-id/DUID differs]
+	  - try to request (renew) iBFT provided address in iBFT-dhcp mode, but
+	    do newer remove it from the interface, even dhcp server suggests
+	    other one as this could break mouted iSCSI volumes.
+	  - use „confirm“ on start [requires persistent state/lease] and when
+	    mandatory the link goes away and comes back
+	  - It is an initial implementation, not all features complete & enabled
+	    yet: currently requesting (and delivering back to wickedd) only
+	    non-temporary address and a very minimalistic set of options.
+	    Add/enable some important, DHCPv6 specific options and deliver to
+	    wicked. The dhcp client <-> server exchange is implemented in most
+	    cases, but then data gets discarded.
+	  - Code reading the netlink info from kernel is already there, but I've
+	    not finished it / events data is not processed at the moment: Finish
+	    “auto” mode to follow router-advertisment [network admin suggestion]
+	    and “info-only” mode [just options, no address needed for tahi?].  
+
+	- Autoipv4 / Zeroconf support
+	  - Implemented, status unknown (=“+autoip” in ifup)
+
+	- Autoipv6 Support [in the kernel + daemon directly]
+	  - Kernel netlink events are received in the daemon
+	  - Currently “autoip” code feels responsible for IP addresses which
+	    were provided by dhcpv6 and causes some confusion/conflicts/error
+	    messages [DHCPv4/v6 does not write leases].
+
+
 ifup replacement features:
 	- ifplugd: we could support this in the wicked client using
 	  some <policy> element.
@@ -34,6 +119,7 @@ ifup replacement features:
 
 	- Make interface selection less messy (unify all the --boot-* and --skip-*
 	  options and provide one generic expression mechanism)
+
 
 dbus:
 	- replace all those dbus_variant_t argv[...] arrays with a
@@ -62,7 +148,33 @@ extensions
 	- add support conversion to a different file format when running extensions
 	- escape/reject shell metacharacters when expanding start/stop command
 
-other link layers, totally unsupported as of yet
-	- infiniband
-	- token ring
-	- isdn, ppp, slip
+bonding:
+	- Almost complete implementation 
+	- Bug in bond factory breaks the creation and enslavement, 
+	  incomplete dbus interface implementation 
+	- Make sure to handle ib-bond vs. eth-bond: initially, a bond is using
+	  ethernet arp type and changes to the type of the first slave at
+	  enslave. While eth-bond can be used in bridges/vlan, ib-bond can't.
+	- Make sure option dependencies are handled correctly [AFAIR, there were
+	  some bugs]
+	- Ensure options are applied correctly: some bond interface options have
+	  to be applied before adding slaves, some after adding the [first]
+	  slave[s].
+	- Support complete set of bond options (active_slave, ad_select,
+	  all_slaves_active, primary_reselect, fail_over_mac, lacp_rate,
+	  num_grat_arp, num_unsol_na, resend_igmp, queue_id ).
+
+wireless:
+	- Incomplete. Working, but may not work in some cases (complex)
+
+other link layers:
+	- infiniband, needs testing
+	- totally unsupported as of yet:
+	  * token ring
+	  * isdn, ppp, slip
+	  * tunneling (SIT, GRE, IPIP)
+	  * Tun/Tap, Implemented as base for OpenVPN, other use cases unknown
+	  * VPN, Implemented, but untested
+	  * PPP, modeled, implemented as dummy not starting pppd yet
+	  * PPPoE, modeled, implemented as dummy not starting pppd yet
+	  * more?
