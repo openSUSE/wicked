@@ -23,9 +23,11 @@
 #include <wicked/netinfo.h> /* only for CONFIG_WICKED_STATEDIR */
 #include "util_priv.h"
 
-#define NI_STRINGARRAY_CHUNK	16
+#define NI_STRING_ARRAY_CHUNK	16
 #define NI_UINT_ARRAY_CHUNK	16
-#define NC_STRINGBUF_CHUNK	64
+#define NI_VAR_ARRAY_CHUNK	16
+
+#define NI_STRINGBUF_CHUNK	64
 
 
 static int		__ni_pidfile_write(const char *, unsigned int, pid_t, int);
@@ -73,7 +75,7 @@ __ni_string_array_realloc(ni_string_array_t *nsa, unsigned int newsize)
 	char **newdata;
 	unsigned int i;
 
-	newsize = (newsize + NI_STRINGARRAY_CHUNK) + 1;
+	newsize = (newsize + NI_STRING_ARRAY_CHUNK) + 1;
 	newdata = xrealloc(nsa->data, newsize * sizeof(char *));
 
 	nsa->data = newdata;
@@ -84,7 +86,7 @@ __ni_string_array_realloc(ni_string_array_t *nsa, unsigned int newsize)
 static int
 __ni_string_array_append(ni_string_array_t *nsa, char *str)
 {
-	if ((nsa->count % NI_STRINGARRAY_CHUNK) == 0)
+	if ((nsa->count % NI_STRING_ARRAY_CHUNK) == 0)
 		__ni_string_array_realloc(nsa, nsa->count);
 
 	nsa->data[nsa->count++] = str;
@@ -94,7 +96,7 @@ __ni_string_array_append(ni_string_array_t *nsa, char *str)
 static int
 __ni_string_array_insert(ni_string_array_t *nsa, unsigned int pos, char *str)
 {
-	if ((nsa->count % NI_STRINGARRAY_CHUNK) == 0)
+	if ((nsa->count % NI_STRING_ARRAY_CHUNK) == 0)
 		__ni_string_array_realloc(nsa, nsa->count);
 
 	if (pos >= nsa->count) {
@@ -393,14 +395,30 @@ ni_var_array_get(const ni_var_array_t *nva, const char *name)
 	return NULL;
 }
 
+static void
+__ni_var_array_realloc(ni_var_array_t *nva, unsigned int newsize)
+{
+	unsigned int i;
+	ni_var_t *newdata;
+
+	newsize = (newsize + NI_VAR_ARRAY_CHUNK);
+	newdata = xrealloc(nva->data, newsize * sizeof(ni_var_t));
+
+	nva->data = newdata;
+	for (i = nva->count; i < newsize; ++i) {
+		nva->data[i].name = NULL;
+		nva->data[i].value = NULL;
+	}
+}
+
 void
 ni_var_array_set(ni_var_array_t *nva, const char *name, const char *value)
 {
 	ni_var_t *var;
 
 	if ((var = ni_var_array_get(nva, name)) == NULL) {
-		if ((nva->count & 15) == 0)
-			nva->data = xrealloc(nva->data, (nva->count + 16) * sizeof(ni_var_t));
+		if ((nva->count % NI_VAR_ARRAY_CHUNK) == 0)
+			__ni_var_array_realloc(nva, nva->count);
 
 		var = &nva->data[nva->count++];
 		var->name = xstrdup(name);
@@ -1095,7 +1113,7 @@ ni_stringbuf_empty(const ni_stringbuf_t *sb)
 inline static size_t
 __ni_stringbuf_size(ni_stringbuf_t *sb, size_t len)
 {
-	return ((sb->len + len + (NC_STRINGBUF_CHUNK - 1)) & ~(NC_STRINGBUF_CHUNK - 1));
+	return ((sb->len + len + (NI_STRINGBUF_CHUNK - 1)) & ~(NI_STRINGBUF_CHUNK - 1));
 }
 
 static void

@@ -18,7 +18,7 @@ typedef struct ni_string_array {
 	char **		data;
 } ni_string_array_t;
 
-#define NI_STRING_ARRAY_INIT { .count = 0, .data = 0 }
+#define NI_STRING_ARRAY_INIT	{ .count = 0, .data = NULL }
 
 typedef struct ni_intmap {
 	const char *	name;
