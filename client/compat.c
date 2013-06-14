@@ -438,116 +438,173 @@ __ni_compat_generate_static_route_hops(xml_node_t *rnode, const ni_route_nexthop
 		}
 		if (nh->device.name && !ni_string_eq(ifname, nh->device.name)) {
 			xml_node_new_element("device", nhnode, nh->device.name);
+		} else if (ifname) {
+			xml_node_new_element("device", nhnode, ifname);
 		}
-		if (hops->next) {
-			if (nh->weight > 0) {
-				xml_node_new_element("weight", nhnode,
-						ni_sprint_uint(nh->weight));
-			}
-			/*
-			 * FIXME: dead | pervasive | onlink
-			if (nh->flags > 0) {
-				xml_node_new_element("flags", nhnode,
-						ni_sprint_uint(nh->flags));
-			}
-			*/
+		if (!hops->next)
+			continue;
+
+		if (nh->weight > 0) {
+			xml_node_new_element("weight", nhnode,
+					ni_sprint_uint(nh->weight));
 		}
+		if (nh->realm > 0) {
+			/* Hmm.. */
+			xml_node_new_element("realm", nhnode,
+					ni_sprint_uint(nh->realm));
+		}
+		if (nh->flags > 0) {
+			ni_string_array_t names = NI_STRING_ARRAY_INIT;
+			xml_node_t *fnode = NULL;
+			unsigned int i;
+
+			ni_route_nh_flags_get_names(nh->flags, &names);
+			for (i = 0; i < names.count; ++i) {
+				if (fnode == NULL)
+					fnode = xml_node_new("flags", nhnode);
+				xml_node_new(names.data[i], fnode);
+			}
+		}
+	}
+}
+
+void
+__ni_compat_generate_static_route_metrics(xml_node_t *mnode, const ni_route_t *rp)
+{
+	ni_string_array_t names = NI_STRING_ARRAY_INIT;
+	xml_node_t *lnode = NULL;
+	unsigned int i;
+
+	ni_route_metrics_lock_get_names(rp->lock, &names);
+	for (i = 0; i < names.count; ++i) {
+		if (lnode == NULL)
+			lnode = xml_node_new("lock", mnode);
+		xml_node_new(names.data[i], lnode);
+	}
+	if (rp->mtu > 0) {
+		xml_node_new_element("mtu", mnode, ni_sprint_uint(rp->mtu));
+	}
+	if (rp->window > 0) {
+		xml_node_new_element("window", mnode, ni_sprint_uint(rp->window));
+	}
+	if (rp->rtt > 0) {
+		xml_node_new_element("rtt", mnode, ni_sprint_uint(rp->rtt));
+	}
+	if (rp->rttvar > 0) {
+		xml_node_new_element("rttvar", mnode, ni_sprint_uint(rp->rttvar));
+	}
+	if (rp->ssthresh > 0) {
+		xml_node_new_element("ssthresh", mnode, ni_sprint_uint(rp->ssthresh));
+	}
+	if (rp->cwnd > 0) {
+		xml_node_new_element("cwnd", mnode, ni_sprint_uint(rp->cwnd));
+	}
+	if (rp->advmss > 0) {
+		xml_node_new_element("advmss", mnode, ni_sprint_uint(rp->advmss));
+	}
+	if (rp->reordering > 0) {
+		xml_node_new_element("reordering", mnode, ni_sprint_uint(rp->reordering));
+	}
+	if (rp->hoplimit > 0) {
+		xml_node_new_element("hoplimit", mnode, ni_sprint_uint(rp->hoplimit));
+	}
+	if (rp->initcwnd > 0) {
+		xml_node_new_element("initcwnd", mnode, ni_sprint_uint(rp->initcwnd));
+	}
+	if (rp->features > 0) {
+		xml_node_new_element("features", mnode, ni_sprint_uint(rp->features));
+	}
+	if (rp->rto_min > 0) {
+		xml_node_new_element("rto-min", mnode, ni_sprint_uint(rp->rto_min));
+	}
+	if (rp->initrwnd > 0) {
+		xml_node_new_element("initrwnd", mnode, ni_sprint_uint(rp->initrwnd));
 	}
 }
 
 void
 __ni_compat_generate_static_route(xml_node_t *aconf, const ni_route_t *rp, const char *ifname)
 {
-	xml_node_t *rnode;
+	xml_node_t *rnode, *mnode, *knode;
 	char *tmp = NULL;
+	const char *ptr;
 
 	rnode = xml_node_new("route", aconf);
-
-	if (rp->table != RT_TABLE_UNSPEC && rp->table != RT_TABLE_MAIN) {
-		/* FIXME: */
-		xml_node_new_element("table", rnode, ni_sprint_uint(rp->table));
-	}
-
-	if (rp->type != RTN_UNSPEC && rp->type != RTN_UNICAST) {
-		/* FIXME: */
-		xml_node_new_element("type", rnode, ni_sprint_uint(rp->type));
-	}
 
 	if (rp->destination.ss_family != AF_UNSPEC && rp->prefixlen != 0) {
 		xml_node_new_element("destination", rnode,
 			ni_sockaddr_prefix_print(&rp->destination, rp->prefixlen));
 	}
 
-	/* singlepath route here */
-	if (rp->nh.next == NULL) {
-		__ni_compat_generate_static_route_hops(rnode, &rp->nh, ifname);
-	}
+	__ni_compat_generate_static_route_hops(rnode, &rp->nh, ifname);
 
+	knode = NULL;
+	if (rp->table != RT_TABLE_UNSPEC && rp->table != RT_TABLE_MAIN) {
+		if (!(ptr = ni_route_table_type_to_name(rp->table)))
+			ptr = ni_sprint_uint(rp->table);
+		if (knode == NULL)
+			knode = xml_node_new("kern", rnode);
+		xml_node_new_element("table", knode, ptr);
+	}
+	if (rp->type != RTN_UNSPEC && rp->type != RTN_UNICAST) {
+		if (!(ptr = ni_route_type_type_to_name(rp->type)))
+			ptr = ni_sprint_uint(rp->type);
+		if (knode == NULL)
+			knode = xml_node_new("kern", rnode);
+		xml_node_new_element("type", knode, ptr);
+	}
 	if (rp->scope != RT_SCOPE_UNIVERSE) {
-		/* FIXME: */
-		xml_node_new_element("scope", rnode, ni_sprint_uint(rp->scope));
+		if (!(ptr = ni_route_scope_type_to_name(rp->scope)))
+			ptr = ni_sprint_uint(rp->scope);
+		if (knode == NULL)
+			knode = xml_node_new("kern", rnode);
+		xml_node_new_element("scope", knode, ptr);
 	}
 	if (rp->protocol != RTPROT_UNSPEC && rp->protocol != RTPROT_BOOT) {
-		xml_node_new_element("protocol", rnode, ni_sprint_uint(rp->protocol));
-	}
-	if (rp->realm > 0) {
-		xml_node_new_element("realm", rnode, ni_sprint_uint(rp->realm));
-	}
-	if (rp->source.ss_family != AF_UNSPEC) {
-		xml_node_new_element("source", rnode, ni_sockaddr_print(&rp->source));
+		if (!(ptr = ni_route_protocol_type_to_name(rp->protocol)))
+			ptr = ni_sprint_uint(rp->protocol);
+		if (knode == NULL)
+			knode = xml_node_new("kern", rnode);
+		xml_node_new_element("protocol", knode, ptr);
 	}
 
+	if (rp->priority > 0) {
+		xml_node_new_element("priority", rnode, ni_sprint_uint(rp->priority));
+	}
+	if (ni_sockaddr_is_specified(&rp->pref_src)) {
+		xml_node_new_element("source", rnode, ni_sockaddr_print(&rp->pref_src));
+	}
+	if (rp->realm > 0) {
+		/* Hmm */
+		xml_node_new_element("realm", rnode, ni_sprint_uint(rp->realm));
+	}
+	if (rp->mark > 0 && ni_string_printf(&tmp, "0x%02x", rp->mark)) {
+		xml_node_new_element("mark", rnode, tmp);
+		ni_string_free(&tmp);
+	}
+	if (rp->flags > 0) {
+		ni_string_array_t names = NI_STRING_ARRAY_INIT;
+		xml_node_t *fnode = NULL;
+		unsigned int i;
+
+		ni_route_flags_get_names(rp->flags, &names);
+		for (i = 0; i < names.count; ++i) {
+			if (fnode == NULL)
+				fnode = xml_node_new("flags", rnode);
+			xml_node_new(names.data[i], fnode);
+		}
+	}
 	if (rp->tos > 0 && ni_string_printf(&tmp, "0x%02x", rp->tos)) {
 		xml_node_new_element("tos", rnode, tmp);
 		ni_string_free(&tmp);
 	}
-	if (rp->priority > 0) {
-		xml_node_new_element("priority", rnode, ni_sprint_uint(rp->priority));
-	}
-	if (rp->mtu > 0) {
-		xml_node_new_element("mtu", rnode, ni_sprint_uint(rp->mtu));
-		if (rp->mtu_lock)
-			xml_node_new_element("mtu-lock", rnode, "true");
-	}
 
-	if (rp->advmss > 0) {
-		xml_node_new_element("advmss", rnode, ni_sprint_uint(rp->advmss));
-	}
-	if (rp->rtt > 0) {
-		xml_node_new_element("rtt", rnode, ni_sprint_uint(rp->rtt));
-	}
-	if (rp->rttvar > 0) {
-		xml_node_new_element("rttvar", rnode, ni_sprint_uint(rp->rttvar));
-	}
-	if (rp->window > 0) {
-		xml_node_new_element("window", rnode, ni_sprint_uint(rp->window));
-	}
-	if (rp->cwnd > 0) {
-		xml_node_new_element("cwnd", rnode, ni_sprint_uint(rp->cwnd));
-	}
-	if (rp->initcwnd > 0) {
-		xml_node_new_element("initcwnd", rnode, ni_sprint_uint(rp->initcwnd));
-	}
-	if (rp->initrwnd > 0) {
-		xml_node_new_element("initrwnd", rnode, ni_sprint_uint(rp->initrwnd));
-	}
-	if (rp->ssthresh > 0) {
-		xml_node_new_element("initrwnd", rnode, ni_sprint_uint(rp->ssthresh));
-	}
-	if (rp->rto_min > 0) {
-		xml_node_new_element("rto-min", rnode, ni_sprint_uint(rp->rto_min));
-	}
-	if (rp->hoplimit > 0) {
-		xml_node_new_element("hoplimit", rnode, ni_sprint_uint(rp->hoplimit));
-	}
-	if (rp->reordering > 0) {
-		xml_node_new_element("reordering", rnode, ni_sprint_uint(rp->reordering));
-	}
-
-	/* multipath hops at the end */
-	if (rp->nh.next != NULL) {
-		__ni_compat_generate_static_route_hops(rnode, &rp->nh, ifname);
-	}
+	mnode = xml_node_new("metrics", NULL);
+	__ni_compat_generate_static_route_metrics(mnode, rp);
+	if (mnode->children || mnode->attrs.count || mnode->cdata)
+		xml_node_add_child(rnode, mnode);
+	else
+		xml_node_free(mnode);
 }
 
 static xml_node_t *

@@ -319,6 +319,16 @@ __ni_suse_parse_route_hops(ni_route_nexthop_t *nh, ni_string_array_t *opts,
 				return -1;
 			nh->weight = tmp;
 		} else
+		if (!strcmp(opt, "realm")) {
+			val = __get_route_opt(opts, (*pos)++);
+			if (!val || nh->realm)
+				return -1;
+			/* TODO: */
+			if (ni_parse_uint(val, &tmp, 10) < 0 || tmp == 0 || tmp > 255)
+				return -1;
+			nh->realm = tmp;
+		} else
+#if 0		/* iproute2 does not allow to set them */
 		if (!strcmp(opt, "dead")) {
 			if (nh->flags & RTNH_F_DEAD)
 				return -1;
@@ -329,6 +339,7 @@ __ni_suse_parse_route_hops(ni_route_nexthop_t *nh, ni_string_array_t *opts,
 				return -1;
 			nh->flags |= RTNH_F_PERVASIVE;
 		} else
+#endif
 		if (!strcmp(opt, "onlink")) {
 			if (nh->flags & RTNH_F_ONLINK)
 				return -1;
@@ -347,21 +358,6 @@ __ni_suse_parse_route_hops(ni_route_nexthop_t *nh, ni_string_array_t *opts,
 
 	return 0;
 }
-
-static const ni_intmap_t __map_route_types[] = {
-	{ "unicast",		RTN_UNICAST	},
-	{ "local",		RTN_LOCAL	},
-	{ "broadcast",		RTN_BROADCAST	},
-	{ "anycast",		RTN_ANYCAST	},
-	{ "multicast",		RTN_MULTICAST	},
-	{ "blackhole",		RTN_BLACKHOLE	},
-	{ "unreachable",	RTN_UNREACHABLE	},
-	{ "prohibit",		RTN_PROHIBIT	},
-	{ "throw",		RTN_THROW	},
-	{ "nat",		RTN_NAT		},
-	{ "xresolve",		RTN_XRESOLVE	},
-	{ NULL,			RTN_UNSPEC	},
-};
 
 int
 __ni_suse_route_parse_opts(ni_route_t *rp, ni_string_array_t *opts,
@@ -391,33 +387,19 @@ __ni_suse_route_parse_opts(ni_route_t *rp, ni_string_array_t *opts,
 			/* ifname and gw belong into their fields */
 			return -1;
 		} else
-		if (!strcmp(opt, "table")) {
+
+		/* other attrs */
+		if (!strcmp(opt, "src")) {
 			val = __get_route_opt(opts, (*pos)++);
-			if (!val || rp->table != RT_TABLE_UNSPEC)
+			if (!val || rp->pref_src.ss_family != AF_UNSPEC)
 				return -1;
-			if (ni_parse_uint(val, &tmp, 10) < 0)
+			if (ni_sockaddr_parse(&rp->pref_src, val, AF_UNSPEC) < 0)
 				return -1;
-			rp->table = tmp;
-		} else
-		if (!strcmp(opt, "proto") || !strcmp(opt, "protocol")) {
-			val = __get_route_opt(opts, (*pos)++);
-			if (!val || rp->protocol != RTPROT_UNSPEC)
+
+			if (rp->family == AF_UNSPEC)
+				rp->family = rp->pref_src.ss_family;
+			if (rp->family != rp->pref_src.ss_family)
 				return -1;
-			if (ni_parse_uint(val, &tmp, 10) < 0 || tmp > 255)
-				return -1;
-			rp->protocol = tmp;
-		} else
-		if (!strcmp(opt, "scope")) {
-			val = __get_route_opt(opts, (*pos)++);
-			if (ni_parse_uint(val, &tmp, 10) < 0 || tmp > RT_SCOPE_NOWHERE)
-				return -1;
-			rp->scope = tmp;
-		} else
-		if (!strcmp(opt, "realm")) {
-			val = __get_route_opt(opts, (*pos)++);
-			if (ni_parse_uint(val, &tmp, 10) < 0)
-				return -1;
-			rp->realm = tmp;
 		} else
 		if (!strcmp(opt, "metric")   ||
 		    !strcmp(opt, "priority") ||
@@ -427,27 +409,18 @@ __ni_suse_route_parse_opts(ni_route_t *rp, ni_string_array_t *opts,
 				return -1;
 			rp->priority = tmp;
 		} else
-		if (!strcmp(opt, "mtu")) {
+		if (!strcmp(opt, "realm")) {
 			val = __get_route_opt(opts, (*pos)++);
-			if (ni_string_eq("lock", val)) {
-				rp->mtu_lock = TRUE;
-				val = __get_route_opt(opts, (*pos)++);
-			}
-			if (!val || ni_parse_uint(val, &tmp, 10) < 0 || tmp > 65536)
+			/* TODO: */
+			if (ni_parse_uint(val, &tmp, 10) < 0 || tmp == 0 || tmp > 255)
 				return -1;
-			rp->mtu = tmp;
+			rp->realm = tmp;
 		} else
-		if (!strcmp(opt, "src")) {
+		if (!strcmp(opt, "mark")) {
 			val = __get_route_opt(opts, (*pos)++);
-			if (!val || rp->source.ss_family != AF_UNSPEC)
+			if (ni_parse_uint(val, &tmp, 10) < 0)
 				return -1;
-			if (ni_sockaddr_parse(&rp->source, val, AF_UNSPEC) < 0)
-				return -1;
-
-			if (rp->family == AF_UNSPEC)
-				rp->family = rp->source.ss_family;
-			if (rp->family != rp->source.ss_family)
-				return -1;
+			rp->mark = tmp;
 		} else
 		if (!strcmp(opt, "tos") || !strcmp(opt, "dsfield")) {
 			val = __get_route_opt(opts, (*pos)++);
@@ -455,74 +428,183 @@ __ni_suse_route_parse_opts(ni_route_t *rp, ni_string_array_t *opts,
 				return -1;
 			rp->tos = tmp;
 		} else
-		if (!strcmp(opt, "advmss")) {
+
+		/* metrics attr dict */
+		if (!strcmp(opt, "mtu")) {
 			val = __get_route_opt(opts, (*pos)++);
+			if (ni_string_eq("lock", val)) {
+				if (!ni_route_metrics_lock_set(opt, &rp->lock))
+					return -1;
+				val = __get_route_opt(opts, (*pos)++);
+			}
+			if (!val || ni_parse_uint(val, &tmp, 10) < 0 || tmp > 65536)
+				return -1;
+			rp->mtu = tmp;
+		} else
+		if (!strcmp(opt, "window")) {
+			val = __get_route_opt(opts, (*pos)++);
+			if (ni_string_eq("lock", val)) {
+				if (!ni_route_metrics_lock_set(opt, &rp->lock))
+					return -1;
+				val = __get_route_opt(opts, (*pos)++);
+			}
 			if (ni_parse_uint(val, &tmp, 10) < 0)
 				return -1;
-			rp->advmss = tmp;
+			rp->window = tmp;
 		} else
 		if (!strcmp(opt, "rtt")) {
 			val = __get_route_opt(opts, (*pos)++);
+			if (ni_string_eq("lock", val)) {
+				if (!ni_route_metrics_lock_set(opt, &rp->lock))
+					return -1;
+				val = __get_route_opt(opts, (*pos)++);
+			}
 			if (ni_parse_uint(val, &tmp, 10) < 0)
 				return -1;
 			rp->rtt = tmp;
 		} else
 		if (!strcmp(opt, "rttvar")) {
 			val = __get_route_opt(opts, (*pos)++);
+			if (ni_string_eq("lock", val)) {
+				if (!ni_route_metrics_lock_set(opt, &rp->lock))
+					return -1;
+				val = __get_route_opt(opts, (*pos)++);
+			}
 			if (ni_parse_uint(val, &tmp, 10) < 0)
 				return -1;
 			rp->rttvar = tmp;
 		} else
-		if (!strcmp(opt, "window")) {
-			val = __get_route_opt(opts, (*pos)++);
-			if (ni_parse_uint(val, &tmp, 10) < 0)
-				return -1;
-			rp->window = tmp;
-		} else
-		if (!strcmp(opt, "cwnd")) {
-			val = __get_route_opt(opts, (*pos)++);
-			if (ni_parse_uint(val, &tmp, 10) < 0)
-				return -1;
-			rp->cwnd = tmp;
-		} else
-		if (!strcmp(opt, "initcwnd")) {
-			val = __get_route_opt(opts, (*pos)++);
-			if (ni_parse_uint(val, &tmp, 10) < 0)
-				return -1;
-			rp->initcwnd = tmp;
-		} else
-		if (!strcmp(opt, "initrwnd")) {
-			val = __get_route_opt(opts, (*pos)++);
-			if (ni_parse_uint(val, &tmp, 10) < 0)
-				return -1;
-			rp->initrwnd = tmp;
-		} else
 		if (!strcmp(opt, "ssthresh")) {
 			val = __get_route_opt(opts, (*pos)++);
+			if (ni_string_eq("lock", val)) {
+				if (!ni_route_metrics_lock_set(opt, &rp->lock))
+					return -1;
+				val = __get_route_opt(opts, (*pos)++);
+			}
 			if (ni_parse_uint(val, &tmp, 10) < 0)
 				return -1;
 			rp->ssthresh = tmp;
 		} else
-		if (!strcmp(opt, "rto_min")) {
+		if (!strcmp(opt, "cwnd")) {
 			val = __get_route_opt(opts, (*pos)++);
+			if (ni_string_eq("lock", val)) {
+				if (!ni_route_metrics_lock_set(opt, &rp->lock))
+					return -1;
+				val = __get_route_opt(opts, (*pos)++);
+			}
 			if (ni_parse_uint(val, &tmp, 10) < 0)
 				return -1;
-			rp->rto_min = tmp;
+			rp->cwnd = tmp;
+		} else
+		if (!strcmp(opt, "advmss")) {
+			val = __get_route_opt(opts, (*pos)++);
+			if (ni_string_eq("lock", val)) {
+				if (!ni_route_metrics_lock_set(opt, &rp->lock))
+					return -1;
+				val = __get_route_opt(opts, (*pos)++);
+			}
+			if (ni_parse_uint(val, &tmp, 10) < 0)
+				return -1;
+			rp->advmss = tmp;
+		} else
+		if (!strcmp(opt, "reordering")) {
+			val = __get_route_opt(opts, (*pos)++);
+			if (ni_string_eq("lock", val)) {
+				if (!ni_route_metrics_lock_set(opt, &rp->lock))
+					return -1;
+				val = __get_route_opt(opts, (*pos)++);
+			}
+			if (ni_parse_uint(val, &tmp, 10) < 0)
+				return -1;
+			rp->reordering = tmp;
 		} else
 		if (!strcmp(opt, "hoplimit")) {
 			val = __get_route_opt(opts, (*pos)++);
+			if (ni_string_eq("lock", val)) {
+				if (!ni_route_metrics_lock_set(opt, &rp->lock))
+					return -1;
+				val = __get_route_opt(opts, (*pos)++);
+			}
 			if (ni_parse_uint(val, &tmp, 10) < 0)
 				return -1;
 			rp->hoplimit = tmp;
 		} else
-		if (!strcmp(opt, "reordering")) {
+		if (!strcmp(opt, "initcwnd")) {
 			val = __get_route_opt(opts, (*pos)++);
+			if (ni_string_eq("lock", val)) {
+				if (!ni_route_metrics_lock_set(opt, &rp->lock))
+					return -1;
+				val = __get_route_opt(opts, (*pos)++);
+			}
 			if (ni_parse_uint(val, &tmp, 10) < 0)
 				return -1;
-			rp->reordering = tmp;
+			rp->initcwnd = tmp;
+		} else
+#if 0		/* iproute2 does not allow to set them */
+		if (!strcmp(opt, "features")) {
+			val = __get_route_opt(opts, (*pos)++);
+			if (ni_string_eq("lock", val)) {
+				if (!ni_route_metrics_lock_set(opt, &rp->lock))
+					return -1;
+				val = __get_route_opt(opts, (*pos)++);
+			}
+			if (ni_parse_uint(val, &tmp, 10) < 0)
+				return -1;
+			rp->hoplimit = tmp;
+		} else
+#endif
+		if (!strcmp(opt, "rto_min")) {
+			val = __get_route_opt(opts, (*pos)++);
+			if (ni_string_eq("lock", val)) {
+				if (!ni_route_metrics_lock_set(opt, &rp->lock))
+					return -1;
+				val = __get_route_opt(opts, (*pos)++);
+			}
+			if (ni_parse_uint(val, &tmp, 10) < 0)
+				return -1;
+			rp->rto_min = tmp;
+		} else
+		if (!strcmp(opt, "initrwnd")) {
+			val = __get_route_opt(opts, (*pos)++);
+			if (ni_string_eq("lock", val)) {
+				if (!ni_route_metrics_lock_set(opt, &rp->lock))
+					return -1;
+				val = __get_route_opt(opts, (*pos)++);
+			}
+			if (ni_parse_uint(val, &tmp, 10) < 0)
+				return -1;
+			rp->initrwnd = tmp;
+		} else
+
+		/* kern dict, except type */
+		if (!strcmp(opt, "table")) {
+			val = __get_route_opt(opts, (*pos)++);
+			if (!val || rp->table != RT_TABLE_UNSPEC)
+				return -1;
+			if (!ni_route_table_name_to_type(val, &tmp))
+				return -1;
+			if (tmp == RT_TABLE_UNSPEC || tmp == RT_TABLE_MAX)
+				return -1;
+			rp->table = tmp;
+		} else
+		if (!strcmp(opt, "scope")) {
+			val = __get_route_opt(opts, (*pos)++);
+			if (!ni_route_scope_name_to_type(val, &tmp))
+				return -1;
+			if (rp->scope != RT_SCOPE_UNIVERSE)
+				return -1;
+			rp->scope = tmp;
+		} else
+		if (!strcmp(opt, "proto") || !strcmp(opt, "protocol")) {
+			val = __get_route_opt(opts, (*pos)++);
+			if (!ni_route_protocol_name_to_type(val, &tmp) || tmp > 255)
+				return -1;
+			if (rp->protocol != RTPROT_UNSPEC)
+				return -1;
+			rp->protocol = tmp;
 		} else {
 			/* try as route types */
-			if (ni_parse_uint_mapped(opt, __map_route_types, &tmp) == 0) {
+			if (ni_route_type_name_to_type(opt, &tmp)) {
 				if (rp->type != RTN_UNSPEC)
 					return -1;
 				rp->type = tmp;

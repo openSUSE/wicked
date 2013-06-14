@@ -203,17 +203,20 @@ ni_route_clone(const ni_route_t *src)
 	C(family);
 	C(prefixlen);
 	C(destination);
-	C(source);
+	C(pref_src);
+	C(priority);
+	C(flags);
+	C(realm);
+	C(mark);
+	C(tos);
 
+	C(table);
 	C(type);
 	C(scope);
 	C(protocol);
-	C(table);
-	C(tos);
-	C(priority);
+
+	C(lock);
 	C(mtu);
-	C(mtu_lock);
-	C(advmss);
 	C(rtt);
 	C(rttvar);
 	C(window);
@@ -221,9 +224,10 @@ ni_route_clone(const ni_route_t *src)
 	C(initcwnd);
 	C(initrwnd);
 	C(ssthresh);
-	C(realm);
+	C(advmss);
 	C(rto_min);
 	C(hoplimit);
+	C(features);
 	C(reordering);
 #undef C
 
@@ -294,8 +298,25 @@ ni_route_equal(const ni_route_t *r1, const ni_route_t *r2)
 }
 
 const char *
+__ni_route_print_flags(ni_stringbuf_t *out, unsigned int flags,
+		const ni_intmap_t *map, const char *prefix, const char *sep)
+{
+	size_t beg = out->len;
+	unsigned int i;
+
+	for (i = 0; map && map->name; ++map) {
+		if (flags & (1 << map->value)) {
+			ni_stringbuf_puts(out, i++ ? sep : prefix);
+			ni_stringbuf_puts(out, map->name);
+		}
+	}
+	return out->string ? out->string + beg : NULL;
+}
+
+const char *
 ni_route_print(ni_stringbuf_t *out, const ni_route_t *rp)
 {
+	ni_netconfig_t *nc = ni_global_state_handle(0);
 	const ni_route_nexthop_t *nh;
 	const char *ptr;
 
@@ -306,15 +327,13 @@ ni_route_print(ni_stringbuf_t *out, const ni_route_t *rp)
 	if ((ptr = ni_addrfamily_type_to_name(rp->family))) {
 		ni_stringbuf_printf(out, "%s ", ptr);
 	}
-	if (rp->type != RTN_UNSPEC &&
-	    (ptr = ni_route_type_type_to_name(rp->type))) {
-		ni_stringbuf_printf(out, "%s ", ptr);
-	}
 
 	ni_stringbuf_printf(out, "%s/%u",
 		ni_sockaddr_print(&rp->destination), rp->prefixlen);
 
 	for (nh = &rp->nh; nh; nh = nh->next) {
+		ni_netdev_t *dev;
+
 		if (rp->nh.next) {
 			ni_stringbuf_printf(out, " nexthop");
 		}
@@ -324,6 +343,10 @@ ni_route_print(ni_stringbuf_t *out, const ni_route_t *rp)
 		}
 		if (nh->device.name) {
 			ni_stringbuf_printf(out, " dev %s", nh->device.name);
+		} else if ((dev = ni_netdev_by_index(nc, nh->device.index))) {
+			ni_stringbuf_printf(out, " dev %s", dev->name);
+		} else {
+			ni_stringbuf_printf(out, " dev %u", nh->device.index);
 		}
 		if (!rp->nh.next)
 			continue;
@@ -331,83 +354,142 @@ ni_route_print(ni_stringbuf_t *out, const ni_route_t *rp)
 		if (nh->weight) {
 			ni_stringbuf_printf(out, " weight %u", nh->weight);
 		}
-		if (nh->flags & RTNH_F_DEAD) {
-			ni_stringbuf_printf(out, " dead");
+		if (nh->realm > 0) {
+			ni_stringbuf_printf(out, " realm %u", nh->realm);
 		}
-		if (nh->flags & RTNH_F_PERVASIVE) {
-			ni_stringbuf_printf(out, " pervasive");
-		}
-		if (nh->flags & RTNH_F_ONLINK) {
-			ni_stringbuf_printf(out, " onlink");
+		if (nh->flags > 0) {
+			__ni_route_print_flags(out, nh->flags,
+					__ni_route_nh_flags_bits,
+					" flags ", "|");
 		}
 	}
 
-	if (rp->table != RT_TABLE_UNSPEC &&
-	    rp->table != RT_TABLE_MAIN &&
-	    (ptr = ni_route_table_type_to_name(rp->table))) {
-		ni_stringbuf_printf(out, " table %s", ptr);
+	/* kern */
+	if (rp->table != RT_TABLE_UNSPEC) {
+		if ((ptr = ni_route_table_type_to_name(rp->table))) {
+			ni_stringbuf_printf(out, " table %s", ptr);
+		} else {
+			ni_stringbuf_printf(out, " table %u", ptr);
+		}
 	}
-	if (rp->protocol != RTPROT_UNSPEC &&
-	    rp->protocol != RTPROT_BOOT &&
-	    (ptr = ni_route_protocol_type_to_name(rp->protocol))) {
-		ni_stringbuf_printf(out, " protocol %s", ptr);
+	if (rp->type != RTN_UNSPEC) {
+		if ((ptr = ni_route_type_type_to_name(rp->type))) {
+			ni_stringbuf_printf(out, " %s", ptr);
+		} else {
+			ni_stringbuf_printf(out, " type %u", rp->type);
+		}
 	}
-	if (rp->scope != RT_SCOPE_UNIVERSE &&
-	    (ptr = ni_route_scope_type_to_name(rp->scope))) {
+	if ((ptr = ni_route_scope_type_to_name(rp->scope))) {
 		ni_stringbuf_printf(out, " scope %s", ptr);
+	} else {
+		ni_stringbuf_printf(out, " scope %u", rp->scope);
 	}
-	if (ni_sockaddr_is_specified(&rp->source)) {
-		ni_stringbuf_printf(out, " src %s",
-				ni_sockaddr_print(&rp->source));
+	if (rp->protocol != RTPROT_UNSPEC) {
+		if ((ptr = ni_route_protocol_type_to_name(rp->protocol))) {
+			ni_stringbuf_printf(out, " protocol %s", ptr);
+		} else {
+			ni_stringbuf_printf(out, " protocol %u", rp->protocol);
+		}
+	}
+
+	/* other attrs */
+	if (rp->flags > 0) {
+		__ni_route_print_flags(out, rp->flags,
+				__ni_route_flags_bits, " flags ", "|");
+	}
+	if (ni_sockaddr_is_specified(&rp->pref_src)) {
+		ni_stringbuf_printf(out, " pref-src %s",
+				ni_sockaddr_print(&rp->pref_src));
 	}
 	if (rp->priority > 0) {
 		ni_stringbuf_printf(out, " priority %u", rp->priority);
+	}
+	if (rp->realm > 0) {
+		ni_stringbuf_printf(out, " realm %u", nh->realm);
 	}
 	if (rp->tos > 0) {
 		/* TODO: names */
 		ni_stringbuf_printf(out, " tos 0x%02x", rp->tos);
 	}
+
+	/* metrics */
 	if (rp->mtu > 0) {
-		ni_stringbuf_printf(out, " mtu %u", rp->mtu);
-		if (rp->mtu_lock)
-			ni_stringbuf_printf(out, " lock");
-	}
-	if (rp->realm > 0) {
-		/* TODO: names */
-		ni_stringbuf_printf(out, " realm %u", rp->realm);
-	}
-	if (rp->advmss > 0) {
-		ni_stringbuf_printf(out, " advmss %u", rp->advmss);
-	}
-	if (rp->rtt > 0) {
-		ni_stringbuf_printf(out, " rtt %u", rp->rtt);
-	}
-	if (rp->rttvar > 0) {
-		ni_stringbuf_printf(out, " rttvar %u", rp->rttvar);
+		if (rp->lock & (1<<RTAX_MTU))
+			ni_stringbuf_printf(out, " mtu lock %u", rp->mtu);
+		else
+			ni_stringbuf_printf(out, " mtu %u", rp->mtu);
 	}
 	if (rp->window > 0) {
-		ni_stringbuf_printf(out, " window %u", rp->window);
+		if (rp->lock & (1<<RTAX_WINDOW))
+			ni_stringbuf_printf(out, " window lock %u", rp->window);
+		else
+			ni_stringbuf_printf(out, " window %u", rp->window);
 	}
-	if (rp->cwnd > 0) {
-		ni_stringbuf_printf(out, " cwnd %u", rp->cwnd);
+	if (rp->rtt > 0) {
+		if (rp->lock & (1<<RTAX_RTT))
+			ni_stringbuf_printf(out, " rtt lock %u", rp->rtt);
+		else
+			ni_stringbuf_printf(out, " rtt %u", rp->rtt);
 	}
-	if (rp->initcwnd > 0) {
-		ni_stringbuf_printf(out, " initcwnd %u", rp->initcwnd);
-	}
-	if (rp->initrwnd > 0) {
-		ni_stringbuf_printf(out, " initrwnd %u", rp->initrwnd);
+	if (rp->rttvar > 0) {
+		if (rp->lock & (1<<RTAX_RTTVAR))
+			ni_stringbuf_printf(out, " rttvar %u", rp->rttvar);
+		else
+			ni_stringbuf_printf(out, " rttvar %u", rp->rttvar);
 	}
 	if (rp->ssthresh > 0) {
-		ni_stringbuf_printf(out, " ssthresh %u", rp->ssthresh);
+		if (rp->lock & (1<<RTAX_SSTHRESH))
+			ni_stringbuf_printf(out, " ssthresh lock %u", rp->ssthresh);
+		else
+			ni_stringbuf_printf(out, " ssthresh %u", rp->ssthresh);
 	}
-	if (rp->rto_min > 0) {
-		ni_stringbuf_printf(out, " rto_min %u", rp->rto_min);
+	if (rp->cwnd > 0) {
+		if (rp->lock & (1<<RTAX_CWND))
+			ni_stringbuf_printf(out, " cwnd lock %u", rp->cwnd);
+		else
+			ni_stringbuf_printf(out, " cwnd %u", rp->cwnd);
 	}
-	if (rp->hoplimit > 0) {
-		ni_stringbuf_printf(out, " hoplimit %u", rp->hoplimit);
+	if (rp->advmss > 0) {
+		if (rp->lock & (1<<RTAX_ADVMSS))
+			ni_stringbuf_printf(out, " advmss lock %u", rp->advmss);
+		else
+			ni_stringbuf_printf(out, " advmss %u", rp->advmss);
 	}
 	if (rp->reordering > 0) {
-		ni_stringbuf_printf(out, " reordering %u", rp->reordering);
+		if (rp->lock & (1<<RTAX_REORDERING))
+			ni_stringbuf_printf(out, " reordering lock %u", rp->reordering);
+		else
+			ni_stringbuf_printf(out, " reordering %u", rp->reordering);
+	}
+	if (rp->hoplimit > 0) {
+		if (rp->lock & (1<<RTAX_HOPLIMIT))
+			ni_stringbuf_printf(out, " hoplimit lock %u", rp->hoplimit);
+		else
+			ni_stringbuf_printf(out, " hoplimit %u", rp->hoplimit);
+	}
+	if (rp->initcwnd > 0) {
+		if (rp->lock & (1<<RTAX_INITCWND))
+			ni_stringbuf_printf(out, " initcwnd lock %u", rp->initcwnd);
+		else
+			ni_stringbuf_printf(out, " initcwnd %u", rp->initcwnd);
+	}
+	if (rp->features > 0) {
+		if (rp->lock & (1<<RTAX_FEATURES))
+			ni_stringbuf_printf(out, " features lock %u", rp->features);
+		else
+			ni_stringbuf_printf(out, " features %u", rp->features);
+	}
+	if (rp->rto_min > 0) {
+		if (rp->lock & (1<<RTAX_RTO_MIN))
+			ni_stringbuf_printf(out, " rto_min lock %u", rp->rto_min);
+		else
+			ni_stringbuf_printf(out, " rto_min %u", rp->rto_min);
+	}
+	if (rp->initrwnd > 0) {
+		if (rp->lock & (1<<RTAX_INITRWND))
+			ni_stringbuf_printf(out, " initrwnd lock %u", rp->initrwnd);
+		else
+			ni_stringbuf_printf(out, " initrwnd %u", rp->initrwnd);
 	}
 
 	return out->string;

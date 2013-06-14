@@ -26,6 +26,7 @@ typedef struct ni_route_nexthop {
 	ni_netdev_ref_t		device;
 	unsigned int		weight;
 	unsigned int		flags;
+	unsigned int		realm;
 } ni_route_nexthop_t;
 
 struct ni_route {
@@ -38,19 +39,22 @@ struct ni_route {
 	unsigned int		family;
 	unsigned int		prefixlen;
 	ni_sockaddr_t		destination;
-	ni_sockaddr_t		source;
+/*	ni_sockaddr_t		from_src;	*/	/* RTA_SRC, unsupported */
+	ni_sockaddr_t		pref_src;
+	unsigned int		priority;
+	unsigned int		flags;
+	unsigned int		realm;
+	unsigned int		mark;
+	unsigned int		tos;
 	ni_route_nexthop_t	nh;
 
+	unsigned int		table;			/* RT_TABLE_* */
 	unsigned int		type;			/* RTN_* */
 	unsigned int		scope;			/* RT_SCOPE_* */
 	unsigned int		protocol;		/* RTPROT_* */
-	unsigned int		table;			/* RT_TABLE_* */
-	unsigned int		tos;
-	unsigned int		priority;
 
+	unsigned int		lock;
 	unsigned int		mtu;
-	ni_bool_t		mtu_lock;
-	unsigned int		advmss;
 	unsigned int		rtt;
 	unsigned int		rttvar;
 	unsigned int		window;
@@ -58,9 +62,10 @@ struct ni_route {
 	unsigned int		initcwnd;
 	unsigned int		initrwnd;
 	unsigned int		ssthresh;
-	unsigned int		realm;
+	unsigned int		advmss;
 	unsigned int		rto_min;
 	unsigned int		hoplimit;
+	unsigned int		features;
 	unsigned int		reordering;
 
 	ni_ipv6_cache_info_t	ipv6_cache_info;
