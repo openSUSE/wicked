@@ -76,8 +76,7 @@ struct ni_route_table {
 	ni_route_table_t *	next;
 
 	unsigned int		tid;
-	unsigned int		count;
-	ni_route_t **		routes;
+	ni_route_array_t	routes;
 };
 
 

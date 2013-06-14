@@ -512,27 +512,8 @@ ni_route_table_free(ni_route_table_t *tab)
 void
 ni_route_table_clear(ni_route_table_t *tab)
 {
-	if (tab && tab->count) {
-		while (tab->count--) {
-			ni_route_free(tab->routes[tab->count]);
-		}
-		free(tab->routes);
-		tab->routes = NULL;
-	}
-}
-
-static void
-__ni_route_table_realloc(ni_route_table_t *tab, unsigned int newsize)
-{
-	ni_route_t **newdata;
-	unsigned int i;
-
-	newsize = (newsize + NI_ROUTE_TABLE_ARRAY_CHUNK);
-	newdata = xrealloc(tab->routes, newsize * sizeof(ni_route_t *));
-
-	tab->routes = newdata;
-	for (i = tab->count; i < newsize; ++i) {
-		tab->routes[i] = NULL;
+	if (tab) {
+		ni_route_array_destroy(&tab->routes);
 	}
 }
 
@@ -542,29 +523,16 @@ ni_route_table_add_route(ni_route_table_t *tab, ni_route_t *rp)
 	if(!tab || !rp || tab->tid != rp->table)
 		return FALSE;
 
-	/* Hmm.. should we sort them here? */
-	if((tab->count % NI_ROUTE_TABLE_ARRAY_CHUNK) == 0)
-		__ni_route_table_realloc(tab, tab->count);
-
-	tab->routes[tab->count++] = rp;
-	return TRUE;
+	return ni_route_array_append(&tab->routes, rp);
 }
 
 ni_bool_t
 ni_route_table_del_route(ni_route_table_t *tab, unsigned int index)
 {
-	if(!tab || index >= tab->count)
+	if(!tab)
 		return FALSE;
 
-	ni_route_free(tab->routes[index]);
-
-	/* Note: this also copies the NULL pointer following the last element */
-	memmove(&tab->routes[index], &tab->routes[index + 1],
-		(tab->count - index) * sizeof(ni_route_t *));
-	tab->count--;
-
-	/* Don't bother with shrinking the array. It's not worth the trouble */
-	return TRUE;
+	return ni_route_array_delete(&tab->routes, index);
 }
 
 /*
