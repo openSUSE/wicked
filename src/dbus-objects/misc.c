@@ -654,6 +654,19 @@ __ni_objectmodel_route_to_dict(const ni_route_t *rp, ni_dbus_variant_t *dict)
 	__ni_dbus_dict_add_sockaddr_prefix(dict, "destination",
 				&rp->destination, rp->prefixlen);
 
+	if (ni_sockaddr_is_specified(&rp->pref_src))
+		__ni_dbus_dict_add_sockaddr(dict, "pref-source", &rp->pref_src);
+	if (rp->priority)
+		ni_dbus_dict_add_uint32(dict, "priority", rp->priority);
+	if (rp->flags)
+		ni_dbus_dict_add_uint32(dict, "flags", rp->flags);
+	if (rp->realm)
+		ni_dbus_dict_add_uint32(dict, "realm", rp->realm);
+	if (rp->mark)
+		ni_dbus_dict_add_uint32(dict, "mark", rp->mark);
+	if (rp->tos)
+		ni_dbus_dict_add_uint32(dict, "tos", rp->tos);
+
 	if (rp->nh.gateway.ss_family != AF_UNSPEC) {
 		for (nh = &rp->nh; nh; nh = nh->next) {
 			ni_dbus_variant_t *nhdict;
@@ -668,27 +681,54 @@ __ni_objectmodel_route_to_dict(const ni_route_t *rp, ni_dbus_variant_t *dict)
 				ni_dbus_dict_add_uint32(nhdict, "weight", nh->weight);
 			if (nh->flags)
 				ni_dbus_dict_add_uint32(nhdict, "flags", nh->flags);
+			if (nh->realm)
+				ni_dbus_dict_add_uint32(nhdict, "realm", nh->realm);
 		}
 	}
 
-	if (rp->config_lease)
-		ni_dbus_dict_add_uint32(dict, "owner", rp->config_lease->type);
-	if (rp->mtu)
-		ni_dbus_dict_add_uint32(dict, "mtu", rp->mtu);
-	if (rp->tos)
-		ni_dbus_dict_add_uint32(dict, "tos", rp->tos);
-	if (rp->priority)
-		ni_dbus_dict_add_uint32(dict, "priority", rp->priority);
-
 	child = ni_dbus_dict_add(dict, "kern");
 	ni_dbus_variant_init_dict(child);
-	if (rp->type)
-		ni_dbus_dict_add_uint32(child, "rt-type", rp->type);
-	if (rp->protocol)
-		ni_dbus_dict_add_uint32(child, "rt-protocol", rp->protocol);
 	if (rp->table)
-		ni_dbus_dict_add_uint32(child, "rt-table", rp->table);
-	ni_dbus_dict_add_uint32(child, "rt-scope", rp->scope);
+		ni_dbus_dict_add_uint32(child, "table", rp->table);
+	if (rp->type)
+		ni_dbus_dict_add_uint32(child, "type", rp->type);
+	ni_dbus_dict_add_uint32(child, "scope", rp->scope);
+	if (rp->protocol)
+		ni_dbus_dict_add_uint32(child, "protocol", rp->protocol);
+
+	child = ni_dbus_dict_add(dict, "metrics");
+	ni_dbus_variant_init_dict(child);
+	if (rp->lock)
+		ni_dbus_dict_add_uint32(child, "lock", rp->lock);
+	if (rp->mtu)
+		ni_dbus_dict_add_uint32(child, "mtu", rp->mtu);
+	if (rp->window)
+		ni_dbus_dict_add_uint32(child, "window", rp->window);
+	if (rp->rtt)
+		ni_dbus_dict_add_uint32(child, "rtt", rp->rtt);
+	if (rp->rttvar)
+		ni_dbus_dict_add_uint32(child, "rttvar", rp->rttvar);
+	if (rp->ssthresh)
+		ni_dbus_dict_add_uint32(child, "ssthresh", rp->ssthresh);
+	if (rp->cwnd)
+		ni_dbus_dict_add_uint32(child, "cwnd", rp->cwnd);
+	if (rp->advmss)
+		ni_dbus_dict_add_uint32(child, "advmss", rp->advmss);
+	if (rp->reordering)
+		ni_dbus_dict_add_uint32(child, "reordering", rp->reordering);
+	if (rp->hoplimit)
+		ni_dbus_dict_add_uint32(child, "hoplimit", rp->hoplimit);
+	if (rp->initcwnd)
+		ni_dbus_dict_add_uint32(child, "initcwnd", rp->initcwnd);
+	if (rp->features)
+		ni_dbus_dict_add_uint32(child, "features", rp->features);
+	if (rp->rto_min)
+		ni_dbus_dict_add_uint32(child, "rto_min", rp->rto_min);
+	if (rp->initrwnd)
+		ni_dbus_dict_add_uint32(child, "initrwnd", rp->initrwnd);
+
+	if (rp->config_lease)
+		ni_dbus_dict_add_uint32(dict, "owner", rp->config_lease->type);
 
 	return TRUE;
 }
@@ -700,17 +740,22 @@ __ni_objectmodel_route_nexthop_from_dict(ni_route_nexthop_t *nh, const ni_dbus_v
 	uint32_t value;
 
 	if (!__ni_dbus_dict_get_sockaddr(nhdict, "gateway", &nh->gateway)) {
-		ni_debug_dbus("%s: bad nexthop gateway", __func__);
-		return FALSE;
+		if (!ni_dbus_dict_get_string(nhdict, "device", &string)) {
+			ni_debug_dbus("%s: route nexthop is missing gateway and device",
+					__func__);
+			return FALSE;
+		}
+		ni_string_dup(&nh->device.name, string);
+	} else if (ni_dbus_dict_get_string(nhdict, "device", &string)) {
+		ni_string_dup(&nh->device.name, string);
 	}
 
 	if (ni_dbus_dict_get_uint32(nhdict, "weight", &value))
 		nh->weight = value;
 	if (ni_dbus_dict_get_uint32(nhdict, "flags", &value))
 		nh->flags = value;
-
-	if (ni_dbus_dict_get_string(nhdict, "device", &string))
-		ni_string_dup(&nh->device.name, string);
+	if (ni_dbus_dict_get_uint32(nhdict, "realm", &value))
+		nh->realm = value;
 
 	return TRUE;
 }
@@ -719,21 +764,32 @@ ni_route_t *
 __ni_objectmodel_route_from_dict(ni_route_table_t **list, const ni_dbus_variant_t *dict)
 {
 	const ni_dbus_variant_t *nhdict, *child;
-	uint32_t prefixlen, value;
-	ni_sockaddr_t dest;
-	ni_route_nexthop_t hops;
+	uint32_t value;
 	ni_route_t *rp = NULL;
 
-	memset(&hops, 0, sizeof(hops));
-	if ((nhdict = ni_dbus_dict_get(dict, "nexthop")) != NULL) {
-		ni_route_nexthop_t *nh = &hops, **nhpos = &nh;
+	rp = ni_route_new();
+
+	if ((child = ni_dbus_dict_get(dict, "kern")) != NULL) {
+		if (ni_dbus_dict_get_uint32(child, "table", &value))
+			rp->table = value;
+		if (ni_dbus_dict_get_uint32(child, "type", &value))
+			rp->type = value;
+		if (ni_dbus_dict_get_uint32(child, "scope", &value))
+			rp->scope = value;
+		if (ni_dbus_dict_get_uint32(child, "protocol", &value))
+			rp->protocol = value;
+	}
+
+	if (ni_route_type_needs_nexthop(rp->type) &&
+	    (nhdict = ni_dbus_dict_get(dict, "nexthop")) != NULL) {
+		ni_route_nexthop_t *nh = &rp->nh, **nhpos = &nh;
 
 		while (nh) {
 			if (!__ni_objectmodel_route_nexthop_from_dict(nh, nhdict))
 				goto failure;
 
-			if (hops.gateway.ss_family != AF_UNSPEC &&
-			    hops.gateway.ss_family != nh->gateway.ss_family)
+			if (rp->nh.gateway.ss_family != AF_UNSPEC &&
+			    rp->nh.gateway.ss_family != nh->gateway.ss_family)
 				goto failure;
 
 			nhdict = ni_dbus_dict_get_next(dict, "nexthop", nhdict);
@@ -746,58 +802,84 @@ __ni_objectmodel_route_from_dict(ni_route_table_t **list, const ni_dbus_variant_
 		}
 	}
 
-	if (!__ni_dbus_dict_get_sockaddr_prefix(dict, "destination", &dest, &prefixlen)) {
+	if (!__ni_dbus_dict_get_sockaddr_prefix(dict, "destination",
+				&rp->destination, &rp->prefixlen)) {
 		/* omitted destination just means it is a default route */
-		memset(&dest, 0, sizeof(dest));
-		dest.ss_family = hops.gateway.ss_family;
-		prefixlen = 0;
+		rp->destination.ss_family = rp->nh.gateway.ss_family;
+		rp->prefixlen = 0;
 	}
 
 	/*
 	 * Hmm... check device default route / default route without a gateway?
 	 */
-
-	if (!(rp = ni_route_create(prefixlen, &dest, &hops.gateway, 0, NULL)))
+	if (rp->destination.ss_family == AF_UNSPEC) {
+		ni_debug_dbus("%s: unknown route destination family", __func__);
 		goto failure;
+	} else
+	if (rp->nh.gateway.ss_family != AF_UNSPEC &&
+	    rp->nh.gateway.ss_family != rp->destination.ss_family) {
+		ni_debug_dbus("%s: unknown route with destination/gateway family mix", __func__);
+		goto failure;
+	}
 
-	/* copy first hop data and move next to its final place */
-	ni_route_nexthop_copy(&rp->nh, &hops);
-	rp->nh.next = hops.next;
-	hops.next = NULL;
-	ni_route_nexthop_destroy(&hops);
+	rp->family = rp->destination.ss_family;
 
-	if (ni_dbus_dict_get_uint32(dict, "mtu", &value))
-		rp->mtu = value;
-	if (ni_dbus_dict_get_uint32(dict, "tos", &value))
-		rp->tos = value;
+	if (!__ni_dbus_dict_get_sockaddr(dict, "pref-source", &rp->pref_src))
+		goto failure;
 	if (ni_dbus_dict_get_uint32(dict, "priority", &value))
 		rp->priority = value;
+	if (ni_dbus_dict_get_uint32(dict, "flags", &value))
+		rp->flags = value;
+	if (ni_dbus_dict_get_uint32(dict, "realm", &value))
+		rp->realm = value;
+	if (ni_dbus_dict_get_uint32(dict, "mark", &value))
+		rp->mark = value;
+	if (ni_dbus_dict_get_uint32(dict, "tos", &value))
+		rp->tos = value;
+
+	if ((child = ni_dbus_dict_get(dict, "metrics")) != NULL) {
+		if (ni_dbus_dict_get_uint32(child, "lock", &value))
+			rp->lock = value;
+		if (ni_dbus_dict_get_uint32(child, "mtu", &value))
+			rp->mtu = value;
+		if (ni_dbus_dict_get_uint32(child, "window", &value))
+			rp->window = value;
+		if (ni_dbus_dict_get_uint32(child, "rtt", &value))
+			rp->rtt = value;
+		if (ni_dbus_dict_get_uint32(child, "rttvar", &value))
+			rp->rttvar = value;
+		if (ni_dbus_dict_get_uint32(child, "ssthresh", &value))
+			rp->ssthresh = value;
+		if (ni_dbus_dict_get_uint32(child, "cwnd", &value))
+			rp->cwnd = value;
+		if (ni_dbus_dict_get_uint32(child, "advmss", &value))
+			rp->advmss = value;
+		if (ni_dbus_dict_get_uint32(child, "reordering", &value))
+			rp->reordering = value;
+		if (ni_dbus_dict_get_uint32(child, "hoplimit", &value))
+			rp->hoplimit = value;
+		if (ni_dbus_dict_get_uint32(child, "initcwnd", &value))
+			rp->initcwnd = value;
+		if (ni_dbus_dict_get_uint32(child, "features", &value))
+			rp->features = value;
+		if (ni_dbus_dict_get_uint32(child, "rto_min", &value))
+			rp->rto_min = value;
+		if (ni_dbus_dict_get_uint32(child, "initrwnd", &value))
+			rp->initrwnd = value;
+	}
+
 #if 0
 	/* FIXME: need to create dummy lease here */
 	if (!ni_dbus_dict_get_uint32(dict, "owner", &value))
 		rp->config_method = value;
 #endif
 
-	if ((child = ni_dbus_dict_get(dict, "kern")) != NULL) {
-		if (ni_dbus_dict_get_uint32(dict, "rt-type", &value))
-			rp->type = value;
-		if (ni_dbus_dict_get_uint32(dict, "rt-protocol", &value))
-			rp->protocol = value;
-		if (ni_dbus_dict_get_uint32(dict, "rt-table", &value))
-			rp->table = value;
-		if (ni_dbus_dict_get_uint32(dict, "rt-scope", &value))
-			rp->scope = value;
-	}
-
-	ni_route_tables_add_route(list, rp);
-	return rp;
+	if (ni_route_tables_add_route(list, rp))
+		return rp;
 
 failure:
 	if (rp) {
 		ni_route_free(rp);
-	} else {
-		ni_route_nexthop_list_destroy(&hops.next);
-		ni_route_nexthop_destroy(&hops);
 	}
 	return NULL;
 }

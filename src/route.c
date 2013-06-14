@@ -666,6 +666,20 @@ ni_route_metrics_lock_set(const char *name, unsigned int *lock)
 	return TRUE;
 }
 
+ni_bool_t
+ni_route_type_needs_nexthop(unsigned int type)
+{
+	switch (type) {
+	case RTN_THROW:
+	case RTN_PROHIBIT:
+	case RTN_BLACKHOLE:
+	case RTN_UNREACHABLE:
+		return FALSE;
+	default:
+		return TRUE;
+	}
+}
+
 
 /*
  * ni_route_nexthop functions
@@ -700,6 +714,7 @@ ni_route_nexthop_copy(ni_route_nexthop_t *dst, const ni_route_nexthop_t *src)
 		dst->gateway = src->gateway;
 		dst->weight  = src->weight;
 		dst->flags   = src->flags;
+		dst->realm   = src->realm;
 		dst->device.index = src->device.index;
 		if (src->device.name)
 			ni_string_dup(&dst->device.name, src->device.name);

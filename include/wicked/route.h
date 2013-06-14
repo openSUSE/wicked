@@ -113,6 +113,7 @@ extern ni_bool_t		ni_route_flags_get_names(unsigned int, ni_string_array_t *);
 extern ni_bool_t		ni_route_nh_flags_get_names(unsigned int, ni_string_array_t *);
 extern ni_bool_t		ni_route_metrics_lock_get_names(unsigned int, ni_string_array_t *);
 extern ni_bool_t		ni_route_metrics_lock_set(const char *, unsigned int *);
+extern ni_bool_t		ni_route_type_needs_nexthop(unsigned int);
 
 
 extern ni_route_nexthop_t *	ni_route_nexthop_new(void);
