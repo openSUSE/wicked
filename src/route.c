@@ -18,6 +18,74 @@
 
 #define NI_ROUTE_ARRAY_CHUNK		16
 
+/*
+ * Names for route type
+ */
+static ni_intmap_t		__ni_route_type_names[] = {
+	{ "unspec",		RTN_UNSPEC		},
+	{ "unicast",		RTN_UNICAST		},
+	{ "local",		RTN_LOCAL		},
+	{ "broadcast",		RTN_BROADCAST		},
+	{ "anycast",		RTN_ANYCAST		},
+	{ "multicast",		RTN_MULTICAST		},
+	{ "blackhole",		RTN_BLACKHOLE		},
+	{ "unreachable",	RTN_UNREACHABLE		},
+	{ "prohibit",		RTN_PROHIBIT		},
+	{ "throw",		RTN_THROW		},
+	{ "nat",		RTN_NAT			},
+	{ "xresolve",		RTN_XRESOLVE		},
+
+	{ NULL }
+};
+
+/*
+ * Names for route protocol
+ */
+static ni_intmap_t		__ni_route_protocol_names[] = {
+	{ "unspec",		RTPROT_UNSPEC		},
+	{ "redirect",		RTPROT_REDIRECT		},
+	{ "kernel",		RTPROT_KERNEL		},
+	{ "boot",		RTPROT_BOOT		},
+	{ "static",		RTPROT_STATIC		},
+	{ "gated",		RTPROT_GATED		},
+	{ "ra",			RTPROT_RA		},
+	{ "mrt",		RTPROT_MRT		},
+	{ "zebra",		RTPROT_ZEBRA		},
+	{ "bird",		RTPROT_BIRD		},
+	{ "dnrouted",		RTPROT_DNROUTED		},
+	{ "xorp",		RTPROT_XORP		},
+	{ "ntk",		RTPROT_NTK		},
+	{ "dhcp",		RTPROT_DHCP		},
+
+	{ NULL }
+};
+
+/*
+ * Names for route scope
+ */
+static ni_intmap_t		__ni_route_scope_names[] = {
+	{ "universe",		RT_SCOPE_UNIVERSE	},
+	{ "site",		RT_SCOPE_SITE		},
+	{ "link",		RT_SCOPE_LINK		},
+	{ "host",		RT_SCOPE_HOST		},
+	{ "nowhere",		RT_SCOPE_NOWHERE	},
+
+	{ NULL }
+};
+
+/*
+ * Names for route table
+ */
+static ni_intmap_t		__ni_route_table_names[] = {
+	{ "unspec",		RT_TABLE_UNSPEC		},
+	{ "compat",		RT_TABLE_COMPAT		},
+	{ "default",		RT_TABLE_DEFAULT	},
+	{ "main",		RT_TABLE_MAIN		},
+	{ "local",		RT_TABLE_LOCAL		},
+
+	{ NULL }
+};
+
 
 /*
  * ni_route functions
@@ -308,6 +376,71 @@ ni_route_print(ni_stringbuf_t *out, const ni_route_t *rp)
 
 	return out->string;
 }
+
+int
+ni_route_type_name_to_type(const char *name)
+{
+	unsigned int value;
+
+	if (ni_parse_uint_maybe_mapped(name, __ni_route_type_names, &value, 10) < 0)
+		return -1;
+	return value;
+}
+
+const char *
+ni_route_type_type_to_name(unsigned int type)
+{
+	return ni_format_uint_maybe_mapped(type, __ni_route_type_names);
+}
+
+int
+ni_route_protocol_name_to_type(const char *name)
+{
+	unsigned int value;
+
+	if (ni_parse_uint_maybe_mapped(name, __ni_route_protocol_names, &value, 10) < 0)
+		return -1;
+	return value;
+}
+
+const char *
+ni_route_protocol_type_to_name(unsigned int type)
+{
+	return ni_format_uint_maybe_mapped(type, __ni_route_protocol_names);
+}
+
+int
+ni_route_scope_name_to_type(const char *name)
+{
+	unsigned int value;
+
+	if (ni_parse_uint_maybe_mapped(name, __ni_route_scope_names, &value, 10) < 0)
+		return -1;
+	return value;
+}
+
+const char *
+ni_route_scope_type_to_name(unsigned int type)
+{
+	return ni_format_uint_maybe_mapped(type, __ni_route_scope_names);
+}
+
+int
+ni_route_table_name_to_type(const char *name)
+{
+	unsigned int value;
+
+	if (ni_parse_uint_maybe_mapped(name, __ni_route_table_names, &value, 10) < 0)
+		return -1;
+	return value;
+}
+
+const char *
+ni_route_table_type_to_name(unsigned int type)
+{
+	return ni_format_uint_maybe_mapped(type, __ni_route_table_names);
+}
+
 
 /*
  * ni_route list functions
