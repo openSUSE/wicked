@@ -24,6 +24,7 @@
 #include "util_priv.h"
 
 #define NI_STRINGARRAY_CHUNK	16
+#define NI_UINT_ARRAY_CHUNK	16
 #define NC_STRINGBUF_CHUNK	64
 
 
@@ -295,6 +296,66 @@ ni_string_array_is_uniq(const ni_string_array_t *nsa)
 		}
 	}
 	return 1;
+}
+
+/*
+ * Array of unsigned integers
+ */
+void
+ni_uint_array_init(ni_uint_array_t *nua)
+{
+	memset(nua, 0, sizeof(*nua));
+}
+
+void
+ni_uint_array_destroy(ni_uint_array_t *nua)
+{
+	if (nua) {
+		nua->count = 0;
+		free(nua->data);
+		nua->data = NULL;
+	}
+}
+
+static void
+__ni_uint_array_realloc(ni_uint_array_t *nua, unsigned int newsize)
+{
+	unsigned int *newdata, i;
+
+	newsize = newsize + NI_UINT_ARRAY_CHUNK;
+	newdata = realloc(nua->data, newsize * sizeof(unsigned int));
+
+	nua->data = newdata;
+	for (i = nua->count; i < newsize; ++i) {
+		nua->data[i] = 0;
+	}
+}
+
+ni_bool_t
+ni_uint_array_append(ni_uint_array_t *nua, unsigned int num)
+{
+	if (!nua)
+		return FALSE;
+
+	if ((nua->count % NI_UINT_ARRAY_CHUNK) == 0)
+		__ni_uint_array_realloc(nua, nua->count);
+
+	nua->data[nua->count++] = num;
+	return TRUE;
+}
+
+ni_bool_t
+ni_uint_array_contains(ni_uint_array_t *nua, unsigned int num)
+{
+	unsigned int i;
+
+	if (nua) {
+		for (i = 0; i < nua->count; ++i) {
+			if (num == nua->data[i])
+				return TRUE;
+		}
+	}
+	return FALSE;
 }
 
 /*

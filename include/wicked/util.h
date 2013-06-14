@@ -25,6 +25,13 @@ typedef struct ni_intmap {
 	unsigned int	value;
 } ni_intmap_t;
 
+typedef struct ni_uint_arrray {
+	unsigned int	count;
+	unsigned int *	data;
+} ni_uint_array_t;
+
+#define NI_UINT_ARRAY_INIT	{ .count = 0, .data = NULL }
+
 typedef struct ni_variable	ni_var_t;
 struct ni_variable {
 	char *		name;
@@ -91,6 +98,11 @@ extern void		ni_string_array_comm(const ni_string_array_t *a, const ni_string_ar
 				ni_string_array_t *uniq_b,
 				ni_string_array_t *common);
 extern int		ni_string_array_is_uniq(const ni_string_array_t *);
+
+extern void		ni_uint_array_init(ni_uint_array_t *);
+extern void		ni_uint_array_destroy(ni_uint_array_t *);
+extern ni_bool_t	ni_uint_array_append(ni_uint_array_t *, unsigned int);
+extern ni_bool_t	ni_uint_array_contains(ni_uint_array_t *, unsigned int);
 
 extern void		ni_var_array_init(ni_var_array_t *);
 extern void		ni_var_array_destroy(ni_var_array_t *);
