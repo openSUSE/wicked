@@ -28,6 +28,7 @@ ni_route_new(void)
 	ni_route_t *rp;
 
 	rp = xcalloc(1, sizeof(ni_route_t));
+	rp->users = 1;
 	return rp;
 }
 
@@ -132,14 +133,37 @@ ni_route_clone(const ni_route_t *src)
 	return rp;
 }
 
+ni_route_t *
+ni_route_ref(ni_route_t *rp)
+{
+	if (!rp)
+		return NULL;
 
-void
-ni_route_free(ni_route_t *rp)
+	ni_assert(rp->users);
+	rp->users++;
+	return rp;
+}
+
+static inline void
+__ni_route_free(ni_route_t *rp)
 {
 	ni_route_nexthop_list_destroy(&rp->nh.next);
 	ni_route_nexthop_destroy(&rp->nh);
 
 	free(rp);
+}
+
+void
+ni_route_free(ni_route_t *rp)
+{
+	if (!rp)
+		return;
+
+	ni_assert(rp->users);
+	rp->users--;
+	if (rp->users == 0) {
+		__ni_route_free(rp);
+	}
 }
 
 ni_bool_t
@@ -477,6 +501,11 @@ ni_route_array_get(ni_route_array_t *nra, unsigned int index)
 	return nra->data[index];
 }
 
+ni_route_t *
+ni_route_array_ref(ni_route_array_t *nra, unsigned int index)
+{
+	return ni_route_ref(ni_route_array_get(nra, index));
+}
 
 /*
  * ni_route_table functions
@@ -539,8 +568,8 @@ ni_route_tables_add_routes(ni_route_table_t **list, ni_route_array_t *routes)
 	if (!list || !routes)
 		return FALSE;
 
-	for (i = 0; (rp = ni_route_array_get(routes, i)); ++i) {
-		if (!ni_route_tables_add_route(list, ni_route_clone(rp)))
+	for (i = 0; (rp = ni_route_array_ref(routes, i)); ++i) {
+		if (!ni_route_tables_add_route(list, rp))
 			return FALSE;
 	}
 	return TRUE;

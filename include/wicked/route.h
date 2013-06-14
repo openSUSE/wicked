@@ -17,7 +17,7 @@
 #include <wicked/util.h>
 
 
-#define NI_ROUTE_ARRAY_INIT    { .count = 0, .data = 0 }
+#define NI_ROUTE_ARRAY_INIT	{ .count = 0, .data = NULL }
 
 
 typedef struct ni_route_nexthop {
@@ -30,6 +30,7 @@ typedef struct ni_route_nexthop {
 
 struct ni_route {
 	struct ni_route *	next;
+	unsigned int		users;
 
 	const ni_addrconf_lease_t *config_lease;	/* configured through lease */
 
@@ -86,6 +87,7 @@ extern ni_route_t *		ni_route_create(unsigned int prefix_len,
 						const ni_sockaddr_t *gw,
 						ni_route_t **list);
 extern ni_route_t *		ni_route_clone(const ni_route_t *);
+extern ni_route_t *		ni_route_ref(ni_route_t *);
 extern void			ni_route_free(ni_route_t *);
 extern ni_bool_t		ni_route_equal(const ni_route_t *, const ni_route_t *);
 extern const char *		ni_route_print(ni_stringbuf_t *, const ni_route_t *);
@@ -120,6 +122,7 @@ extern ni_bool_t		ni_route_array_append(ni_route_array_t *, ni_route_t *);
 extern ni_bool_t		ni_route_array_delete(ni_route_array_t *, unsigned int);
 extern ni_route_t *		ni_route_array_remove(ni_route_array_t *, unsigned int);
 extern ni_route_t *		ni_route_array_get(ni_route_array_t *, unsigned int);
+extern ni_route_t *		ni_route_array_ref(ni_route_array_t *, unsigned int);
 
 
 extern ni_route_table_t *	ni_route_table_new(unsigned int);
