@@ -17,7 +17,6 @@
 #include "util_priv.h"
 
 #define NI_ROUTE_ARRAY_CHUNK		16
-#define NI_ROUTE_TABLE_ARRAY_CHUNK	16
 
 
 /*
@@ -517,29 +516,53 @@ ni_route_table_clear(ni_route_table_t *tab)
 	}
 }
 
-ni_bool_t
-ni_route_table_add_route(ni_route_table_t *tab, ni_route_t *rp)
-{
-	if(!tab || !rp || tab->tid != rp->table)
-		return FALSE;
-
-	return ni_route_array_append(&tab->routes, rp);
-}
-
-ni_bool_t
-ni_route_table_del_route(ni_route_table_t *tab, unsigned int index)
-{
-	if(!tab)
-		return FALSE;
-
-	return ni_route_array_delete(&tab->routes, index);
-}
-
 /*
- * ni_route_table list functions
+ * ni_route_tables list functions
  */
+ni_bool_t
+ni_route_tables_add_route(ni_route_table_t **list, ni_route_t *rp)
+{
+	ni_route_table_t *tab;
+
+	if (rp && (tab = ni_route_tables_get(list, rp->table))) {
+		return ni_route_array_append(&tab->routes, rp);
+	}
+	return FALSE;
+}
+
+ni_bool_t
+ni_route_tables_add_routes(ni_route_table_t **list, ni_route_array_t *routes)
+{
+	ni_route_t *rp;
+	unsigned int i;
+
+	if (!list || !routes)
+		return FALSE;
+
+	for (i = 0; (rp = ni_route_array_get(routes, i)); ++i) {
+		if (!ni_route_tables_add_route(list, ni_route_clone(rp)))
+			return FALSE;
+	}
+	return TRUE;
+}
+
 ni_route_table_t *
-ni_route_table_list_get(ni_route_table_t **list, unsigned int tid)
+ni_route_tables_find(ni_route_table_t *list, unsigned int tid)
+{
+	ni_route_table_t *tab;
+
+	if (!list || tid == RT_TABLE_UNSPEC || tid == RT_TABLE_MAX)
+		return NULL;
+
+	for (tab = list; tab; tab = tab->next) {
+		if (tab->tid == tid)
+			return tab;
+	}
+	return NULL;
+}
+
+ni_route_table_t *
+ni_route_tables_get(ni_route_table_t **list, unsigned int tid)
 {
 	ni_route_table_t *pos, *tab;
 
@@ -561,22 +584,8 @@ ni_route_table_list_get(ni_route_table_t **list, unsigned int tid)
 	return tab;
 }
 
-ni_route_table_t *
-ni_route_table_list_find(ni_route_table_t **list, unsigned int tid)
-{
-	ni_route_table_t *tab;
-
-	if (list && tid != RT_TABLE_UNSPEC && tid != RT_TABLE_MAX) {
-		for (tab = *list; tab; tab = tab->next) {
-			if (tab->tid == tid)
-				return tab;
-		}
-	}
-	return NULL;
-}
-
 void
-ni_route_table_list_destroy(ni_route_table_t **list)
+ni_route_tables_destroy(ni_route_table_t **list)
 {
 	ni_route_table_t *tab;
 

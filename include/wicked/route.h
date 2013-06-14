@@ -124,13 +124,13 @@ extern ni_route_t *		ni_route_array_get(ni_route_array_t *, unsigned int);
 
 extern ni_route_table_t *	ni_route_table_new(unsigned int);
 extern void			ni_route_table_free(ni_route_table_t *);
-
 extern void			ni_route_table_clear(ni_route_table_t *);
-extern ni_bool_t		ni_route_table_add_route(ni_route_table_t *, ni_route_t *);
-extern ni_bool_t		ni_route_table_del_route(ni_route_table_t *, unsigned int);
 
-extern ni_route_table_t *	ni_route_table_list_get(ni_route_table_t **, unsigned int);
-extern ni_route_table_t *	ni_route_table_list_find(ni_route_table_t **, unsigned int);
-extern void			ni_route_table_list_destroy(ni_route_table_t **);
+extern ni_bool_t		ni_route_tables_add_route(ni_route_table_t **, ni_route_t *);
+extern ni_bool_t		ni_route_tables_add_routes(ni_route_table_t **, ni_route_array_t *);
+
+extern ni_route_table_t *	ni_route_tables_find(ni_route_table_t *, unsigned int);
+extern ni_route_table_t *	ni_route_tables_get(ni_route_table_t **, unsigned int);
+extern void			ni_route_tables_destroy(ni_route_table_t **);
 
 #endif /* __WICKED_ROUTE_H__ */
