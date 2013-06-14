@@ -16,6 +16,7 @@
 #include <wicked/route.h>
 #include "util_priv.h"
 
+#define NI_ROUTE_ARRAY_CHUNK		16
 #define NI_ROUTE_TABLE_ARRAY_CHUNK	16
 
 
@@ -370,6 +371,111 @@ ni_route_nexthop_list_destroy(ni_route_nexthop_t **list)
 		*list = hop->next;
 		ni_route_nexthop_free(hop);
 	}
+}
+
+/*
+ * ni_route_array functions
+ */
+ni_route_array_t *
+ni_route_array_new(void)
+{
+	return xcalloc(1, sizeof(ni_route_array_t));
+}
+
+void
+ni_route_array_free(ni_route_array_t *nra)
+{
+	if (nra) {
+		ni_route_array_destroy(nra);
+		free(nra);
+	}
+}
+
+void
+ni_route_array_init(ni_route_array_t *nra)
+{
+	memset(nra, 0, sizeof(*nra));
+}
+
+void
+ni_route_array_destroy(ni_route_array_t *nra)
+{
+	if (nra) {
+		while (nra->count) {
+			nra->count--;
+			ni_route_free(nra->data[nra->count]);
+		}
+		free(nra->data);
+		nra->data = NULL;
+	}
+}
+
+static void
+__ni_route_array_realloc(ni_route_array_t *nra, unsigned int newsize)
+{
+	ni_route_t **newdata;
+	unsigned int i;
+
+	newsize = (newsize + NI_ROUTE_ARRAY_CHUNK);
+	newdata = xrealloc(nra->data, newsize * sizeof(ni_route_t *));
+
+	nra->data = newdata;
+	for (i = nra->count; i < newsize; ++i) {
+		nra->data[i] = NULL;
+	}
+}
+
+ni_bool_t
+ni_route_array_append(ni_route_array_t *nra, ni_route_t *rp)
+{
+	if (!nra || !rp)
+		return FALSE;
+
+	/* Hmm.. should we sort them here? */
+	if ((nra->count % NI_ROUTE_ARRAY_CHUNK) == 0)
+		__ni_route_array_realloc(nra, nra->count);
+
+	nra->data[nra->count++] = rp;
+	return TRUE;
+}
+
+ni_route_t *
+ni_route_array_remove(ni_route_array_t *nra, unsigned int index)
+{
+	ni_route_t *rp;
+
+	if(!nra || index >= nra->count)
+		return NULL;
+
+	rp = nra->data[index];
+
+	/* Note: this also copies the NULL pointer following the last element */
+	memmove(&nra->data[index], &nra->data[index + 1],
+		(nra->count - index) * sizeof(ni_route_t *));
+	nra->count--;
+
+	/* Don't bother with shrinking the array. It's not worth the trouble */
+	return rp;
+}
+
+ni_bool_t
+ni_route_array_delete(ni_route_array_t *nra, unsigned int index)
+{
+	ni_route_t *rp;
+
+	if ((rp = ni_route_array_remove(nra, index))) {
+		ni_route_free(rp);
+		return TRUE;
+	}
+	return FALSE;
+}
+
+ni_route_t *
+ni_route_array_get(ni_route_array_t *nra, unsigned int index)
+{
+	if (!nra || index >= nra->count)
+		return NULL;
+	return nra->data[index];
 }
 
 

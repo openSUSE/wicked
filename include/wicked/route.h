@@ -16,6 +16,10 @@
 #include <wicked/constants.h>
 #include <wicked/util.h>
 
+
+#define NI_ROUTE_ARRAY_INIT    { .count = 0, .data = 0 }
+
+
 typedef struct ni_route_nexthop {
 	struct ni_route_nexthop *next;
 	ni_sockaddr_t		gateway;
@@ -61,6 +65,13 @@ struct ni_route {
 	ni_ipv6_cache_info_t	ipv6_cache_info;
 };
 
+typedef struct ni_route_array  ni_route_array_t;
+
+struct ni_route_array {
+	unsigned int		count;
+	ni_route_t **		data;
+};
+
 struct ni_route_table {
 	ni_route_table_t *	next;
 
@@ -100,6 +111,16 @@ extern void			ni_route_nexthop_destroy(ni_route_nexthop_t *);
 
 extern void			ni_route_nexthop_list_append(ni_route_nexthop_t **, ni_route_nexthop_t*);
 extern void			ni_route_nexthop_list_destroy(ni_route_nexthop_t **);
+
+
+extern ni_route_array_t *	ni_route_array_new(void);
+extern void			ni_route_array_free(ni_route_array_t *);
+extern void			ni_route_array_init(ni_route_array_t *);
+extern void			ni_route_array_destroy(ni_route_array_t *);
+extern ni_bool_t		ni_route_array_append(ni_route_array_t *, ni_route_t *);
+extern ni_bool_t		ni_route_array_delete(ni_route_array_t *, unsigned int);
+extern ni_route_t *		ni_route_array_remove(ni_route_array_t *, unsigned int);
+extern ni_route_t *		ni_route_array_get(ni_route_array_t *, unsigned int);
 
 
 extern ni_route_table_t *	ni_route_table_new(unsigned int);
