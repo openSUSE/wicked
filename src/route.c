@@ -18,11 +18,11 @@
 
 #define NI_ROUTE_ARRAY_CHUNK		16
 
+
 /*
  * Names for route type
  */
-static ni_intmap_t		__ni_route_type_names[] = {
-	{ "unspec",		RTN_UNSPEC		},
+static const ni_intmap_t	__ni_route_type_names[] = {
 	{ "unicast",		RTN_UNICAST		},
 	{ "local",		RTN_LOCAL		},
 	{ "broadcast",		RTN_BROADCAST		},
@@ -35,18 +35,43 @@ static ni_intmap_t		__ni_route_type_names[] = {
 	{ "nat",		RTN_NAT			},
 	{ "xresolve",		RTN_XRESOLVE		},
 
-	{ NULL }
+	{ NULL,			RTN_UNSPEC		},
+};
+
+/*
+ * Names for route table
+ */
+static const ni_intmap_t	__ni_route_table_names[] = {
+	{ "compat",		RT_TABLE_COMPAT		},
+	{ "default",		RT_TABLE_DEFAULT	},
+	{ "main",		RT_TABLE_MAIN		},
+	{ "local",		RT_TABLE_LOCAL		},
+
+	{ NULL,			RT_TABLE_UNSPEC		},
+};
+
+/*
+ * Names for route scope
+ */
+static const ni_intmap_t	__ni_route_scope_names[] = {
+	{ "universe",		RT_SCOPE_UNIVERSE	},
+	{ "site",		RT_SCOPE_SITE		},
+	{ "link",		RT_SCOPE_LINK		},
+	{ "host",		RT_SCOPE_HOST		},
+	{ "nowhere",		RT_SCOPE_NOWHERE	},
+
+	{ NULL,			RT_SCOPE_UNIVERSE	}
 };
 
 /*
  * Names for route protocol
  */
-static ni_intmap_t		__ni_route_protocol_names[] = {
-	{ "unspec",		RTPROT_UNSPEC		},
+static const ni_intmap_t	__ni_route_protocol_names[] = {
 	{ "redirect",		RTPROT_REDIRECT		},
 	{ "kernel",		RTPROT_KERNEL		},
 	{ "boot",		RTPROT_BOOT		},
 	{ "static",		RTPROT_STATIC		},
+	/* protocols >= STATIC are not interpreted by the kernel */
 	{ "gated",		RTPROT_GATED		},
 	{ "ra",			RTPROT_RA		},
 	{ "mrt",		RTPROT_MRT		},
@@ -57,33 +82,44 @@ static ni_intmap_t		__ni_route_protocol_names[] = {
 	{ "ntk",		RTPROT_NTK		},
 	{ "dhcp",		RTPROT_DHCP		},
 
-	{ NULL }
+	{ NULL,			RTPROT_UNSPEC		}
 };
 
 /*
- * Names for route scope
+ * Names for bit numbers of route [next-hop] flags and lock bits.
+ * Note: We need the bits to generate a bitmap in constants.xml.
  */
-static ni_intmap_t		__ni_route_scope_names[] = {
-	{ "universe",		RT_SCOPE_UNIVERSE	},
-	{ "site",		RT_SCOPE_SITE		},
-	{ "link",		RT_SCOPE_LINK		},
-	{ "host",		RT_SCOPE_HOST		},
-	{ "nowhere",		RT_SCOPE_NOWHERE	},
+static const ni_intmap_t	__ni_route_flags_bits[] = {
+	{ "notify",		8  /* RTM_F_NOTIFY   */	},
+	{ "cloned",		9  /* RTM_F_CLONED   */	},
+	{ "equalize",		10 /* RTM_F_EQUALIZE */	},
+	{ "prefix",		11 /* RTM_F_PREFIX   */	},
 
-	{ NULL }
+	{ NULL,			0			}
 };
+static const ni_intmap_t	__ni_route_nh_flags_bits[] = {
+	{ "dead",		0  /* RTNH_F_DEAD     */},
+	{ "pervasive",		1  /* RTNH_F_PERVASIVE*/},
+	{ "online",		2  /* RTNH_F_ONLINK   */},
 
-/*
- * Names for route table
- */
-static ni_intmap_t		__ni_route_table_names[] = {
-	{ "unspec",		RT_TABLE_UNSPEC		},
-	{ "compat",		RT_TABLE_COMPAT		},
-	{ "default",		RT_TABLE_DEFAULT	},
-	{ "main",		RT_TABLE_MAIN		},
-	{ "local",		RT_TABLE_LOCAL		},
+	{ NULL,			0			}
+};
+static const ni_intmap_t	__ni_route_mxlock_bits[] = {
+	{ "mtu",		RTAX_MTU		},
+	{ "window",		RTAX_WINDOW		},
+	{ "rtt",		RTAX_RTT		},
+	{ "rttvar",		RTAX_RTTVAR		},
+	{ "ssthresh",		RTAX_SSTHRESH		},
+	{ "cwnd",		RTAX_CWND		},
+	{ "advmss",		RTAX_ADVMSS		},
+	{ "reordering",		RTAX_REORDERING		},
+	{ "hoplimit",		RTAX_HOPLIMIT		},
+	{ "initcwnd",		RTAX_INITCWND		},
+	{ "features",		RTAX_FEATURES		},
+	{ "rto_min",		RTAX_RTO_MIN		},
+	{ "initrwnd",		RTAX_INITRWND		},
 
-	{ NULL }
+	{ NULL,			0			},
 };
 
 
@@ -377,46 +413,16 @@ ni_route_print(ni_stringbuf_t *out, const ni_route_t *rp)
 	return out->string;
 }
 
-int
-ni_route_type_name_to_type(const char *name)
-{
-	unsigned int value;
-
-	if (ni_parse_uint_maybe_mapped(name, __ni_route_type_names, &value, 10) < 0)
-		return -1;
-	return value;
-}
-
 const char *
 ni_route_type_type_to_name(unsigned int type)
 {
 	return ni_format_uint_maybe_mapped(type, __ni_route_type_names);
 }
 
-int
-ni_route_protocol_name_to_type(const char *name)
-{
-	unsigned int value;
-
-	if (ni_parse_uint_maybe_mapped(name, __ni_route_protocol_names, &value, 10) < 0)
-		return -1;
-	return value;
-}
-
 const char *
-ni_route_protocol_type_to_name(unsigned int type)
+ni_route_table_type_to_name(unsigned int type)
 {
-	return ni_format_uint_maybe_mapped(type, __ni_route_protocol_names);
-}
-
-int
-ni_route_scope_name_to_type(const char *name)
-{
-	unsigned int value;
-
-	if (ni_parse_uint_maybe_mapped(name, __ni_route_scope_names, &value, 10) < 0)
-		return -1;
-	return value;
+	return ni_format_uint_maybe_mapped(type, __ni_route_table_names);
 }
 
 const char *
@@ -425,20 +431,150 @@ ni_route_scope_type_to_name(unsigned int type)
 	return ni_format_uint_maybe_mapped(type, __ni_route_scope_names);
 }
 
-int
-ni_route_table_name_to_type(const char *name)
+const char *
+ni_route_protocol_type_to_name(unsigned int type)
 {
-	unsigned int value;
-
-	if (ni_parse_uint_maybe_mapped(name, __ni_route_table_names, &value, 10) < 0)
-		return -1;
-	return value;
+	return ni_format_uint_maybe_mapped(type, __ni_route_protocol_names);
 }
 
 const char *
-ni_route_table_type_to_name(unsigned int type)
+ni_route_flag_bit_to_name(unsigned int bit)
 {
-	return ni_format_uint_maybe_mapped(type, __ni_route_table_names);
+	return ni_format_uint_mapped(bit, __ni_route_flags_bits);
+}
+
+const char *
+ni_route_nh_flag_bit_to_name(unsigned int bit)
+{
+	return ni_format_uint_mapped(bit, __ni_route_nh_flags_bits);
+}
+
+const char *
+ni_route_metrics_lock_bit_to_name(unsigned int bit)
+{
+	return ni_format_uint_mapped(bit, __ni_route_mxlock_bits);
+}
+
+ni_bool_t
+ni_route_type_name_to_type(const char *name, unsigned int *type)
+{
+	unsigned int value;
+
+	if (!type || !name)
+		return FALSE;
+
+	if (ni_parse_uint_maybe_mapped(name, __ni_route_type_names, &value, 10) < 0)
+		return FALSE;
+
+	*type = value;
+	return TRUE;
+}
+
+ni_bool_t
+ni_route_table_name_to_type(const char *name, unsigned int *table)
+{
+	unsigned int value;
+
+	if (!table || !name)
+		return FALSE;
+
+	if (ni_parse_uint_maybe_mapped(name, __ni_route_table_names, &value, 10) < 0)
+		return FALSE;
+
+	*table = value;
+	return TRUE;
+}
+
+ni_bool_t
+ni_route_scope_name_to_type(const char *name, unsigned int *scope)
+{
+	unsigned int value;
+
+	if (!scope || !name)
+		return FALSE;
+
+	if (ni_parse_uint_maybe_mapped(name, __ni_route_scope_names, &value, 10) < 0)
+		return FALSE;
+
+	*scope = value;
+	return TRUE;
+}
+
+ni_bool_t
+ni_route_protocol_name_to_type(const char *name, unsigned int *proto)
+{
+	unsigned int value;
+
+	if (!proto || !name)
+		return FALSE;
+
+	if (ni_parse_uint_maybe_mapped(name, __ni_route_protocol_names, &value, 10) < 0)
+		return FALSE;
+
+	*proto = value;
+	return TRUE;
+}
+
+ni_bool_t
+ni_route_flags_get_names(unsigned int flags, ni_string_array_t *names)
+{
+	const ni_intmap_t *map;
+
+	if (!names)
+		return FALSE;
+
+	ni_string_array_destroy(names);
+	for (map = __ni_route_flags_bits; map->name; ++map) {
+		if (flags & (1 << map->value)) {
+			ni_string_array_append(names, map->name);
+		}
+	}
+	return TRUE;
+}
+
+ni_bool_t
+ni_route_nh_flags_get_names(unsigned int flags, ni_string_array_t *names)
+{
+	const ni_intmap_t *map;
+
+	if (!names)
+		return FALSE;
+
+	ni_string_array_destroy(names);
+	for (map = __ni_route_nh_flags_bits; map->name; ++map) {
+		if (flags & (1 << map->value)) {
+			ni_string_array_append(names, map->name);
+		}
+	}
+	return TRUE;
+}
+
+ni_bool_t
+ni_route_metrics_lock_get_names(unsigned int lock, ni_string_array_t *names)
+{
+	const ni_intmap_t *map;
+	unsigned int n = 0;
+
+	for (map = __ni_route_mxlock_bits; map->name; ++map) {
+		if (lock & (1 << map->value)) {
+			ni_string_array_append(names, map->name);
+			++n;
+		}
+	}
+	return n;
+}
+
+ni_bool_t
+ni_route_metrics_lock_set(const char *name, unsigned int *lock)
+{
+	unsigned int bit = 0;
+
+	if (!lock || ni_parse_uint_mapped(name, __ni_route_mxlock_bits, &bit) < 0)
+		return FALSE;
+
+	*lock |= (1 << bit);
+
+	return TRUE;
 }
 
 

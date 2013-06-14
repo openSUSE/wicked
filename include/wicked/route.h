@@ -92,14 +92,23 @@ extern void			ni_route_free(ni_route_t *);
 extern ni_bool_t		ni_route_equal(const ni_route_t *, const ni_route_t *);
 extern const char *		ni_route_print(ni_stringbuf_t *, const ni_route_t *);
 
-extern int			ni_route_type_name_to_type(const char *);
 extern const char *		ni_route_type_type_to_name(unsigned int);
-extern int			ni_route_table_name_to_type(const char *);
 extern const char *		ni_route_table_type_to_name(unsigned int);
-extern int			ni_route_protocol_name_to_type(const char *);
-extern const char *		ni_route_protocol_type_to_name(unsigned int);
-extern int			ni_route_scope_name_to_type(const char *);
 extern const char *		ni_route_scope_type_to_name(unsigned int);
+extern const char *		ni_route_protocol_type_to_name(unsigned int);
+extern const char *		ni_route_flag_bit_to_name(unsigned int);
+extern const char *		ni_route_nh_flag_bit_to_name(unsigned int);
+extern const char *		ni_route_metrics_lock_bit_to_name(unsigned int);
+
+extern ni_bool_t		ni_route_type_name_to_type(const char *, unsigned int *);
+extern ni_bool_t		ni_route_table_name_to_type(const char *, unsigned int *);
+extern ni_bool_t		ni_route_scope_name_to_type(const char *, unsigned int *);
+extern ni_bool_t		ni_route_protocol_name_to_type(const char *, unsigned int *);
+extern ni_bool_t		ni_route_flags_get_names(unsigned int, ni_string_array_t *);
+extern ni_bool_t		ni_route_nh_flags_get_names(unsigned int, ni_string_array_t *);
+extern ni_bool_t		ni_route_metrics_lock_get_names(unsigned int, ni_string_array_t *);
+extern ni_bool_t		ni_route_metrics_lock_set(const char *, unsigned int *);
+
 
 extern void			ni_route_list_append(ni_route_t **, ni_route_t *);
 extern void			ni_route_list_destroy(ni_route_t **);
