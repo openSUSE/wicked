@@ -132,3 +132,12 @@
 <define name="builtin-route-table" type="uint32" constraint="enum">
   <@@ROUTE_TABLE_NAME@@ value="@@ROUTE_TABLE_VALUE@@"/>
 </define>
+<define name="builtin-route-flag-mask" type="uint32" constraint="bitmap">
+  <@@ROUTE_FLAG_NAME@@ bit="@@ROUTE_FLAG_VALUE@@"/>
+</define>
+<define name="builtin-route-nh-flag-mask" type="uint32" constraint="bitmap">
+  <@@ROUTE_NH_FLAG_NAME@@ bit="@@ROUTE_NH_FLAG_VALUE@@"/>
+</define>
+<define name="builtin-route-metrics-lock-mask" type="uint32" constraint="bitmap">
+  <@@ROUTE_METRICS_LOCK_NAME@@ bit="@@ROUTE_METRICS_LOCK_VALUE@@"/>
+</define>

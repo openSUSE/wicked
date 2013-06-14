@@ -24,24 +24,45 @@
 
  <!-- A route assigned to a network interface -->
  <define name="assigned-route" class="dict">
-   <destination type="network-address-prefix"/>
-   <mtu type="uint32" />
-   <tos type="uint32" />
-   <priority type="uint32" />
+   <destination  type="network-address-prefix"/>
+   <pref-source  type="network-address"/>
+   <priority     type="uint32" />
+   <flags        type="builtin-route-flag-mask" />
+   <realm        type="uint32" />
+   <mark         type="uint32" />
+   <tos          type="uint32" />
 
    <nexthop class="dict">
-     <gateway type="network-address"/>
-     <device type="string" />
-     <weight type="uint32" />
-     <flags type="uint32" />
+     <gateway    type="network-address"/>
+     <device     type="string" />
+     <weight     type="uint32" />
+     <realm      type="uint32" />
+     <flags      type="builtin-route-nh-flag-mask" />
    </nexthop>
 
    <kern class="dict">
-     <rt-type type="builtin-route-type"/>
-     <rt-scope type="builtin-route-scope"/>
-     <rt-table type="builtin-route-table"/>
-     <rt-protocol type="builtin-route-protocol"/>
+     <table      type="builtin-route-table"/>
+     <type       type="builtin-route-type"/>
+     <scope      type="builtin-route-scope"/>
+     <protocol   type="builtin-route-protocol"/>
    </kern>
+
+   <metrics class="dict">
+     <lock       type="builtin-route-metrics-lock-mask" />
+     <mtu        type="uint32" />
+     <window     type="uint32" />
+     <rtt        type="uint32" />
+     <rttvar     type="uint32" />
+     <ssthresh   type="uint32" />
+     <cwdn       type="uint32" />
+     <advmss     type="uint32" />
+     <reordering type="uint32" />
+     <hoplimit   type="uint32" />
+     <initcwnd   type="uint32" />
+     <features   type="uint32" />
+     <rto-min    type="uint32" />
+     <initrwnd   type="uint32" />
+   </metrics>
 
    <!-- This is the addrconf method that owns this address -->
    <owner type="builtin-addrconf" />
