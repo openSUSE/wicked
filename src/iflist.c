@@ -1228,12 +1228,6 @@ __ni_netdev_process_newroute(ni_netdev_t *dev, struct nlmsghdr *h,
 	rp = NULL;
 	if (dev) {
 		rp = ni_netdev_add_route(dev, rtm->rtm_dst_len, &dst_addr, &gw_addr);
-	} else if (nc != NULL) {
-		rp = ni_route_create(rtm->rtm_dst_len, &dst_addr, &gw_addr, NULL);
-		if (rp)
-			ni_netconfig_route_append(nc, rp);
-	} else {
-		return 0;
 	}
 	if (rp == NULL) {
 		ni_warn("error recording route");

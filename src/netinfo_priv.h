@@ -38,7 +38,6 @@ extern void		__ni_netlink_close(ni_netlink_t *);
 extern void		ni_netconfig_device_append(ni_netconfig_t *, ni_netdev_t *);
 extern void		ni_netconfig_device_remove(ni_netconfig_t *, ni_netdev_t *);
 extern ni_netdev_t **	ni_netconfig_device_list_head(ni_netconfig_t *);
-extern void		ni_netconfig_route_append(ni_netconfig_t *, ni_route_t *);
 extern void		ni_netconfig_modem_append(ni_netconfig_t *, ni_modem_t *);
 
 extern void		__ni_netdev_list_append(ni_netdev_t **, ni_netdev_t *);

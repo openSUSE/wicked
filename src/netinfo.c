@@ -33,7 +33,6 @@
 
 struct ni_netconfig {
 	ni_netdev_t *		interfaces;
-	struct ni_route *	routes;		/* should kill this */
 	ni_modem_t *		modems;
 
 	unsigned char		initialized;
@@ -329,7 +328,6 @@ void
 ni_netconfig_destroy(ni_netconfig_t *nc)
 {
 	__ni_netdev_list_destroy(&nc->interfaces);
-	ni_route_list_destroy(&nc->routes);
 	memset(nc, 0, sizeof(*nc));
 }
 
@@ -390,15 +388,6 @@ ni_netconfig_modem_append(ni_netconfig_t *nc, ni_modem_t *modem)
 
 	modem->list.prev = tail;
 	*tail = modem;
-}
-
-/*
- * Handle list of global routes
- */
-void
-ni_netconfig_route_append(ni_netconfig_t *nc, ni_route_t *rp)
-{
-	ni_route_list_append(&nc->routes, rp);
 }
 
 /*
@@ -583,7 +572,6 @@ ni_addrconf_lease_destroy(ni_addrconf_lease_t *lease)
 	ni_string_array_destroy(&lease->slp_servers);
 	ni_string_array_destroy(&lease->slp_scopes);
 	ni_address_list_destroy(&lease->addrs);
-	ni_route_list_destroy(&lease->routes);
 
 	if (lease->nis) {
 		ni_nis_info_free(lease->nis);
