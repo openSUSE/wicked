@@ -346,7 +346,7 @@ __ni_nla_get_addr(int af, ni_sockaddr_t *ss, struct nlattr *nla)
 	ss->ss_family = AF_UNSPEC;
 
 	if (!nla)
-		return 0;
+		return 1; /* empty attr */
 
 	alen = nla_len(nla);
 	if (alen > sizeof(*ss))
@@ -363,14 +363,14 @@ __ni_nla_get_addr(int af, ni_sockaddr_t *ss, struct nlattr *nla)
 		maxlen = 16;
 		break;
 
-	/* FIXME: support IPX and DECnet */
-
+	/* TODO: support IPX and DECnet */
 	default:
-		return 0;
+		return -1;
 	}
 
 	if (alen != maxlen)
-		return 0;
+		return -1;
+
 	memcpy(dst, nla_data(nla), alen);
 	ss->ss_family = af;
 	return 0;
