@@ -38,11 +38,11 @@ static ni_bool_t	__ni_suse_sysconfig_read(ni_sysconfig_t *, ni_compat_netdev_t *
 static ni_bool_t	__process_indexed_variables(const ni_sysconfig_t *, ni_netdev_t *, const char *,
 				ni_bool_t (*)(const ni_sysconfig_t *, ni_netdev_t *, const char *));
 static ni_var_t *	__find_indexed_variable(const ni_sysconfig_t *, const char *, const char *);
-static ni_bool_t	__ni_suse_read_routes(ni_route_t **, const char *, const char *);
+static ni_bool_t	__ni_suse_read_routes(ni_route_table_t **, const char *, const char *);
 
-static ni_sysconfig_t *	__ni_suse_config_defaults;
-static ni_sysconfig_t *	__ni_suse_dhcp_defaults;
-static ni_route_t *	__ni_suse_global_routes;
+static ni_sysconfig_t *		__ni_suse_config_defaults;
+static ni_sysconfig_t *		__ni_suse_dhcp_defaults;
+static ni_route_table_t *	__ni_suse_global_routes;
 
 
 #define __NI_SUSE_SYSCONFIG_NETWORK_DIR		"/etc/sysconfig/network"
@@ -253,7 +253,7 @@ __ni_suse_free_globals(void)
 	if (__ni_suse_dhcp_defaults)
 		ni_sysconfig_destroy(__ni_suse_dhcp_defaults);
 
-	ni_route_list_destroy(&__ni_suse_global_routes);
+	ni_route_tables_destroy(&__ni_suse_global_routes);
 }
 
 /*
@@ -619,7 +619,7 @@ __ni_suse_route_parse_opts(ni_route_t *rp, ni_string_array_t *opts,
 }
 
 int
-__ni_suse_route_parse(ni_route_t **routes, char *buffer, const char *ifname,
+__ni_suse_route_parse(ni_route_table_t **routes, char *buffer, const char *ifname,
 			const char *filename, unsigned int line)
 {
 	char *dest, *gway, *mask = NULL, *name = NULL, *end = NULL;
@@ -813,8 +813,8 @@ __ni_suse_route_parse(ni_route_t **routes, char *buffer, const char *ifname,
 		ni_stringbuf_destroy(&buf);
 	}
 
-	ni_route_list_append(routes, rp);
-	return 0;
+	if (ni_route_tables_add_route(routes, rp))
+		return 0;
 
 failure:
 	ni_string_array_destroy(&opts);
@@ -855,7 +855,7 @@ __ni_suse_read_route_line(FILE *fp, ni_stringbuf_t *buff, unsigned int *line)
 }
 
 ni_bool_t
-__ni_suse_read_routes(ni_route_t **route_list, const char *filename, const char *ifname)
+__ni_suse_read_routes(ni_route_table_t **routes, const char *filename, const char *ifname)
 {
 	ni_stringbuf_t buff = NI_STRINGBUF_INIT_DYNAMIC;
 	unsigned int line = 1, lcnt = 0;
@@ -892,7 +892,7 @@ __ni_suse_read_routes(ni_route_t **route_list, const char *filename, const char 
 
 		if (!ni_stringbuf_empty(&buff)) {
 			ni_debug_readwrite("Parsing route line: %s", buff.string);
-			if (__ni_suse_route_parse(route_list, buff.string,
+			if (__ni_suse_route_parse(routes, buff.string,
 						  ifname, filename, line) < 0)
 				goto error; /* ? */
 		}
@@ -904,7 +904,7 @@ __ni_suse_read_routes(ni_route_t **route_list, const char *filename, const char 
 
 error:
 	ni_stringbuf_destroy(&buff);
-	ni_route_list_destroy(route_list);
+	ni_route_tables_destroy(routes);
 	fclose(fp);
 	return FALSE;
 }
@@ -1646,7 +1646,7 @@ __ni_suse_addrconf_static(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	}
 
 	if (dev->routes != NULL)
-		ni_route_list_destroy(&dev->routes);
+		ni_route_tables_destroy(&dev->routes);
 
 	routespath = ni_sibling_path_printf(sc->pathname, "ifroute-%s", dev->name);
 	if (routespath && ni_file_exists(routespath)) {
@@ -1654,59 +1654,65 @@ __ni_suse_addrconf_static(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	}
 
 	if (__ni_suse_global_routes) {
-		ni_route_t *rp;
+		ni_route_table_t *tab;
+		unsigned int i;
 
-		for (rp = __ni_suse_global_routes; rp; rp = rp->next) {
-			ni_address_t *ap;
-			ni_route_nexthop_t *nh;
-			ni_bool_t match = FALSE;
+		for (tab = __ni_suse_global_routes; tab; tab = tab->next) {
+			for (i = 0; i < tab->routes.count; ++i) {
+				ni_route_t *rp = tab->routes.data[i];
+				ni_address_t *ap;
+				ni_route_nexthop_t *nh;
+				ni_bool_t match = FALSE;
 
-			switch (rp->family) {
-			case AF_INET:
-				/*
-				 * FIXME: this is much more complex,
-				 *      + move into some functions...
-				 */
-				for (nh = &rp->nh; nh; nh = nh->next) {
-					/* check match by device name */
-					if (nh->device.name) {
-						if (ni_string_eq(nh->device.name, dev->name)) {
-							match = TRUE;
-							break;
+				switch (rp->family) {
+				case AF_INET:
+					/*
+					 * FIXME: this is much more complex,
+					 *      + move into some functions...
+					 */
+					for (nh = &rp->nh; nh; nh = nh->next) {
+						/* check match by device name */
+						if (nh->device.name) {
+							if (ni_string_eq(nh->device.name, dev->name)) {
+								match = TRUE;
+								break;
+							}
+							continue;
 						}
+
+						/* match, when gw is on the same network:
+						 * e.g. ip 192.168.1.0/24, gw is 192.168.1.1
+						 */
+						for (ap = dev->addrs; !match && ap; ap = ap->next) {
+							if (ap->family == AF_INET &&
+							    ni_address_can_reach(ap, &nh->gateway))
+								match = TRUE;
+						}
+
+						/* match, when gw is on a previously added dev route
+						 * ip 192.168.1.0/24
+						 * route1: 192.168.2.0/24 dev $current
+						 * route2: 192.168.3.0/24 gw 192.168.2.1
+						 */
+					}
+					if (match) {
+						ni_route_tables_add_route(&dev->routes,
+								ni_route_clone(rp));
+					}
+				break;
+
+				case AF_INET6:
+					/* For IPv6, we add the route as long as the interface name matches */
+					if (!rp->nh.device.name ||
+					    !ni_string_eq(rp->nh.device.name, dev->name))
 						continue;
-					}
 
-					/* match, when gw is on the same network:
-					 * e.g. ip 192.168.1.0/24, gw is 192.168.1.1
-					 */
-					for (ap = dev->addrs; !match && ap; ap = ap->next) {
-						if (ap->family == AF_INET &&
-						    ni_address_can_reach(ap, &nh->gateway))
-							match = TRUE;
-					}
+					ni_route_tables_add_route(&dev->routes, ni_route_clone(rp));
+					break;
 
-					/* match, when gw is on a previously added dev route
-					 * ip 192.168.1.0/24
-					 * route1: 192.168.2.0/24 dev $current
-					 * route2: 192.168.3.0/24 gw 192.168.2.1
-					 */
+				default:
+					break;
 				}
-				if (match) {
-					ni_route_list_append(&dev->routes, ni_route_clone(rp));
-				}
-				break;
-
-			case AF_INET6:
-				/* For IPv6, we add the route as long as the interface name matches */
-				if (!rp->nh.device.name ||
-				    !ni_string_eq(rp->nh.device.name, dev->name))
-					continue;
-
-				ni_route_list_append(&dev->routes, ni_route_clone(rp));
-				break;
-
-			default: ;
 			}
 		}
 	}

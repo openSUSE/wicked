@@ -637,10 +637,17 @@ ni_dhcp_fsm_commit_lease(ni_dhcp_device_t *dev, ni_addrconf_lease_t *lease)
 
 		/* If the user requested a specific route metric, apply it now */
 		if (dev->config && dev->config->route_priority) {
+			ni_route_table_t *tab;
 			ni_route_t *rp;
+			unsigned int i;
 
-			for (rp = lease->routes; rp; rp = rp->next)
-				rp->priority = dev->config->route_priority;
+			for (tab = lease->routes; tab; tab = tab->next) {
+				for (i = 0; i < tab->routes.count; ++i) {
+					if ((rp = tab->routes.data[i]) == NULL)
+						continue;
+					rp->priority = dev->config->route_priority;
+				}
+			}
 		}
 
 		ni_dhcp_device_set_lease(dev, lease);

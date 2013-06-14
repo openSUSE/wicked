@@ -65,7 +65,7 @@ struct ni_netdev {
 	unsigned int		users;
 
 	ni_address_t *		addrs;
-	ni_route_t *		routes;
+	ni_route_table_t *	routes;
 
 	/* Network layer */
 	ni_ipv4_devinfo_t *	ipv4;
@@ -158,7 +158,8 @@ ni_addrconf_lease_t *	ni_netdev_get_lease_by_owner(ni_netdev_t *, const char *);
 extern ni_route_t *	ni_netdev_add_route(ni_netdev_t *,
 				unsigned int prefix_len,
 				const ni_sockaddr_t *dest,
-				const ni_sockaddr_t *gw);
+				const ni_sockaddr_t *gw,
+				unsigned int table);
 
 extern ni_address_t *	ni_netdev_add_address(ni_netdev_t *ifp, unsigned int af,
 				unsigned int prefix_len,

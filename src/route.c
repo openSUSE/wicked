@@ -138,7 +138,8 @@ ni_route_new(void)
 
 ni_route_t *
 ni_route_create(unsigned int prefixlen, const ni_sockaddr_t *dest,
-		const ni_sockaddr_t *gw, ni_route_t **list)
+		const ni_sockaddr_t *gw, unsigned int table,
+		ni_route_table_t **list)
 {
 	static const ni_sockaddr_t null_addr;
 	ni_route_t *rp;
@@ -182,11 +183,17 @@ ni_route_create(unsigned int prefixlen, const ni_sockaddr_t *dest,
 	rp->type = RTN_UNICAST;
 	rp->scope = RT_SCOPE_UNIVERSE;
 	rp->protocol = RTPROT_BOOT;
-	rp->table = RT_TABLE_MAIN;
+	if (table == RT_TABLE_UNSPEC)
+		rp->table = RT_TABLE_MAIN;
+	else
+		rp->table = table;
 
-	if (list)
-		ni_route_list_append(list, rp);
-
+	if (list) {
+		if (!ni_route_tables_add_route(list, rp)) {
+			ni_route_free(rp);
+			rp = NULL;
+		}
+	}
 	return rp;
 }
 
@@ -659,30 +666,6 @@ ni_route_metrics_lock_set(const char *name, unsigned int *lock)
 	return TRUE;
 }
 
-
-/*
- * ni_route list functions
- */
-void
-ni_route_list_destroy(ni_route_t **list)
-{
-	ni_route_t *rp;
-
-	while ((rp = *list) != NULL) {
-		*list = rp->next;
-		ni_route_free(rp);
-	}
-}
-
-void
-ni_route_list_append(ni_route_t **list, ni_route_t *new_route)
-{
-	ni_route_t *rp;
-
-	while ((rp = *list) != NULL)
-		list = &rp->next;
-	*list = new_route;
-}
 
 /*
  * ni_route_nexthop functions

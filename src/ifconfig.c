@@ -48,7 +48,7 @@ static int	__ni_netdev_update_addrs(ni_netdev_t *dev,
 				ni_address_t *cfg_addr_list);
 static int	__ni_netdev_update_routes(ni_netdev_t *dev,
 				const ni_addrconf_lease_t *old_lease,
-				ni_route_t *cfg_route_list);
+				ni_route_table_t *cfg_route_list);
 static int	__ni_rtnl_link_create_vlan(const char *, const ni_vlan_t *, unsigned int);
 static int	__ni_rtnl_link_up(const ni_netdev_t *, const ni_netdev_req_t *);
 static int	__ni_rtnl_link_down(const ni_netdev_t *, int);
@@ -1567,39 +1567,6 @@ failed:
 }
 
 /*
- * Check if a route already exists.
- */
-static ni_route_t *
-__ni_netdev_route_list_contains(ni_route_t *list, const ni_route_t *rp)
-{
-	ni_route_t *rp2;
-
-	for (rp2 = list; rp2; rp2 = rp2->next) {
-		if (rp->family != rp2->family
-		 || rp->prefixlen != rp2->prefixlen)
-			continue;
-
-		if (rp->prefixlen && !ni_sockaddr_equal(&rp->destination, &rp2->destination))
-			continue;
-
-		if (rp->family == AF_INET) {
-			/* ipv4 matches routing entries by [prefix, tos, priority] */
-			if (rp->tos == rp2->tos
-			 && rp->priority == rp2->priority)
-				return rp2;
-		} else 
-		if (rp->family == AF_INET6) {
-			/* ipv6 matches routing entries by [dst pfx, src pfx, priority] */
-			/* We don't support source routes yet. */
-			if (rp->priority == rp2->priority)
-				return rp2;
-		}
-	}
-
-	return NULL;
-}
-
-/*
  * Update the addresses and routes assigned to an interface
  * for a given addrconf method
  */
@@ -1697,99 +1664,151 @@ __ni_netdev_update_addrs(ni_netdev_t *dev,
 	return 0;
 }
 
+/*
+ * Check if a route already exists.
+ */
+static ni_route_t *
+__ni_netdev_route_table_contains(ni_route_table_t *tab, const ni_route_t *rp)
+{
+	unsigned int i;
+	ni_route_t *rp2;
+
+	for (i = 0; i < tab->routes.count; ++i) {
+		if ((rp2 = tab->routes.data[i]) == NULL)
+			continue;
+
+		if (rp->table != rp2->table)
+			continue;
+
+		if (rp->family != rp2->family
+		 || rp->prefixlen != rp2->prefixlen)
+			continue;
+
+		if (rp->prefixlen && !ni_sockaddr_equal(&rp->destination, &rp2->destination))
+			continue;
+
+		if (rp->family == AF_INET) {
+			/* ipv4 matches routing entries by [prefix, tos, priority] */
+			if (rp->tos == rp2->tos
+			 && rp->priority == rp2->priority)
+				return rp2;
+		} else
+		if (rp->family == AF_INET6) {
+			/* ipv6 matches routing entries by [dst pfx, src pfx, priority] */
+			/* We don't support source routes yet. */
+			if (rp->priority == rp2->priority)
+				return rp2;
+		}
+	}
+
+	return NULL;
+}
+
 static int
 __ni_netdev_update_routes(ni_netdev_t *dev,
 				const ni_addrconf_lease_t *old_lease,
-				ni_route_t *cfg_route_list)
+				ni_route_table_t *cfg_route_list)
 {
 	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
-	ni_route_t *rp, *next;
+	ni_route_table_t *tab, *cfg_tab;
+	ni_route_t *rp, *new_route;
+	unsigned int i;
 	int rv = 0;
 
-	/* Loop over all routes currently assigned to the interface.
+	/* Loop over all tables and routes currently assigned to the interface.
 	 * If the configuration no longer specifies it, delete it.
 	 * We need to mimic the kernel's matching behavior when modifying
 	 * the configuration of existing routes.
 	 */
-	for (rp = dev->routes; rp; rp = next) {
-		ni_route_t *new_route;
-
-		next = rp->next;
-
-		/* See if the config list contains the route we've found in the
-		 * system. */
-		new_route = __ni_netdev_route_list_contains(cfg_route_list, rp);
-
-		/* Do not touch route not managed by us. */
-		if (rp->config_lease == NULL) {
-			if (new_route == NULL)
+	for (tab = dev->routes; tab; tab = tab->next) {
+		for (i = 0; i < tab->routes.count; ++i) {
+			if ((rp = tab->routes.data[i]) == NULL)
 				continue;
 
-			/* Address was assigned to device, but we did not track it.
-			 * Could be due to a daemon restart - simply assume this
-			 * is ours now. */
-			rp->config_lease = old_lease;
-		}
+			/* See if the config list contains the route we've
+			 * found in the system. */
+			cfg_tab = ni_route_tables_find(cfg_route_list, rp->table);
+			if (cfg_tab)
+				new_route = __ni_netdev_route_table_contains(cfg_tab, rp);
+			else
+				new_route = NULL;
 
-		/* If the route was managed by us (ie its owned by a lease with
-		 * the same family/addrconf mode), then we want to check whether
-		 * it's owned by any other lease. It's possible that a route
-		 * is configured through different protocols. */
-		if (rp->config_lease == old_lease) {
-			ni_addrconf_lease_t *other;
+			/* Do not touch route not managed by us. */
+			if (rp->config_lease == NULL) {
+				if (new_route == NULL)
+					continue;
 
-			if ((other = __ni_netdev_route_to_lease(dev, rp)) != NULL)
-				rp->config_lease = other;
-		}
+				/* Address was assigned to device, but we did not track it.
+				 * Could be due to a daemon restart - simply assume this
+				 * is ours now. */
+				rp->config_lease = old_lease;
+			}
 
-		if (rp->config_lease != old_lease) {
-			/* The existing route is managed by a different
-			 * addrconf mode.
-			 */
+			/* If the route was managed by us (ie its owned by a lease with
+			 * the same family/addrconf mode), then we want to check whether
+			 * it's owned by any other lease. It's possible that a route
+			 * is configured through different protocols. */
+			if (rp->config_lease == old_lease) {
+				ni_addrconf_lease_t *other;
+
+				if ((other = __ni_netdev_route_to_lease(dev, rp)) != NULL)
+					rp->config_lease = other;
+			}
+
+			if (rp->config_lease != old_lease) {
+				/* The existing route is managed by a different
+				 * addrconf mode.
+				 */
+				if (new_route != NULL) {
+					ni_warn("route %s covered by a %s lease",
+						ni_route_print(&buf, rp),
+						ni_addrconf_type_to_name(rp->config_lease->type));
+					ni_stringbuf_destroy(&buf);
+				}
+				continue;
+			}
+
 			if (new_route != NULL) {
-				ni_warn("route %s covered by a %s lease",
-					ni_route_print(&buf, rp),
-					ni_addrconf_type_to_name(rp->config_lease->type));
+				if (__ni_rtnl_send_newroute(dev, new_route, NLM_F_REPLACE) >= 0) {
+					ni_debug_ifconfig("%s: successfully updated existing route %s",
+							dev->name, ni_route_print(&buf, rp));
+					ni_stringbuf_destroy(&buf);
+					new_route->seq = __ni_global_seqno;
+					continue;
+				}
+
+				ni_error("%s: failed to update route %s",
+					dev->name, ni_route_print(&buf, rp));
 				ni_stringbuf_destroy(&buf);
 			}
-			continue;
-		}
 
-		if (new_route != NULL) {
-			if (__ni_rtnl_send_newroute(dev, new_route, NLM_F_REPLACE) >= 0) {
-				ni_debug_ifconfig("%s: successfully updated existing route %s",
-						dev->name, ni_route_print(&buf, rp));
-				ni_stringbuf_destroy(&buf);
-				new_route->seq = __ni_global_seqno;
-				continue;
-			}
-
-			ni_error("%s: failed to update route %s",
-				dev->name, ni_route_print(&buf, rp));
+			ni_debug_ifconfig("%s: trying to delete existing route %s",
+					dev->name, ni_route_print(&buf, rp));
 			ni_stringbuf_destroy(&buf);
+
+			if ((rv = __ni_rtnl_send_delroute(dev, rp)) < 0)
+				return rv;
 		}
-
-		ni_debug_ifconfig("%s: trying to delete existing route %s",
-				dev->name, ni_route_print(&buf, rp));
-		ni_stringbuf_destroy(&buf);
-
-		if ((rv = __ni_rtnl_send_delroute(dev, rp)) < 0)
-			return rv;
 	}
 
-	/* Loop over all addresses in the configuration and create
-	 * those that don't exist yet.
+	/* Loop over all tables and routes in the configuration
+	 * and create those that don't exist yet.
 	 */
-	for (rp = cfg_route_list; rp; rp = rp->next) {
-		if (rp->seq == __ni_global_seqno)
-			continue;
+	for (tab = cfg_route_list; tab; tab = tab->next) {
+		for (i = 0; i < tab->routes.count; ++i) {
+			if ((rp = tab->routes.data[i]) == NULL)
+				continue;
 
-		ni_debug_ifconfig("%s: adding new route %s",
-				dev->name, ni_route_print(&buf, rp));
-		ni_stringbuf_destroy(&buf);
+			if (rp->seq == __ni_global_seqno)
+				continue;
 
-		if ((rv = __ni_rtnl_send_newroute(dev, rp, NLM_F_CREATE)) < 0)
-			return rv;
+			ni_debug_ifconfig("%s: adding new route %s",
+					dev->name, ni_route_print(&buf, rp));
+			ni_stringbuf_destroy(&buf);
+
+			if ((rv = __ni_rtnl_send_newroute(dev, rp, NLM_F_CREATE)) < 0)
+				return rv;
+		}
 	}
 
 	return rv;

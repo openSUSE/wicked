@@ -566,12 +566,13 @@ failure:
  * Decode a CIDR list option.
  */
 static int
-ni_dhcp_decode_csr(ni_buffer_t *bp, ni_route_t **route_list)
+ni_dhcp_decode_csr(ni_buffer_t *bp, ni_route_array_t *routes)
 {
 	while (ni_buffer_count(bp) && !bp->underflow) {
 		ni_sockaddr_t destination, gateway;
 		struct in_addr prefix = { 0 };
 		unsigned int prefix_len;
+		ni_route_t *rp;
 
 		prefix_len = ni_buffer_getc(bp);
 		if (prefix_len > 32) {
@@ -586,7 +587,8 @@ ni_dhcp_decode_csr(ni_buffer_t *bp, ni_route_t **route_list)
 		if (ni_dhcp_option_get_sockaddr(bp, &gateway) < 0)
 			return -1;
 
-		ni_route_create(prefix_len, &destination, &gateway, route_list);
+		rp = ni_route_create(prefix_len, &destination, &gateway, 0, NULL);
+		ni_route_array_append(routes, rp);
 	}
 
 	if (bp->underflow)
@@ -684,20 +686,21 @@ guess_prefix_len_sockaddr(const ni_sockaddr_t *ap)
  * List of network/gateway pairs.
  */
 static int
-ni_dhcp_decode_static_routes(ni_buffer_t *bp, ni_route_t **route_list)
+ni_dhcp_decode_static_routes(ni_buffer_t *bp, ni_route_array_t *routes)
 {
-	ni_route_list_destroy(route_list);
 	while (ni_buffer_count(bp) && !bp->underflow) {
 		ni_sockaddr_t destination, gateway;
+		ni_route_t *rp;
 
 		if (ni_dhcp_option_get_sockaddr(bp, &destination) < 0
 		 || ni_dhcp_option_get_sockaddr(bp, &gateway) < 0)
 			return -1;
 
-		ni_route_create(guess_prefix_len_sockaddr(&destination),
+		rp = ni_route_create(guess_prefix_len_sockaddr(&destination),
 				&destination,
 				&gateway,
-				route_list);
+				0, NULL);
+		ni_route_array_append(routes, rp);
 	}
 
 	return 0;
@@ -708,18 +711,19 @@ ni_dhcp_decode_static_routes(ni_buffer_t *bp, ni_route_t **route_list)
  * List of gateways for default route
  */
 static int
-ni_dhcp_decode_routers(ni_buffer_t *bp, ni_route_t **route_list)
+ni_dhcp_decode_routers(ni_buffer_t *bp, ni_route_array_t *routes)
 {
 	ni_sockaddr_t destination, gateway;
 
-	ni_route_list_destroy(route_list);
-
 	destination.ss_family = AF_UNSPEC;
 	while (ni_buffer_count(bp) && !bp->underflow) {
+		ni_route_t *rp;
+
 		if (ni_dhcp_option_get_sockaddr(bp, &gateway) < 0)
 			return -1;
 
-		ni_route_create(0, &destination, &gateway, route_list);
+		rp = ni_route_create(0, &destination, &gateway, 0, NULL);
+		ni_route_array_append(routes, rp);
 	}
 
 	return 0;
@@ -824,9 +828,9 @@ ni_dhcp_parse_response(const ni_dhcp_message_t *message, ni_buffer_t *options, n
 {
 	ni_buffer_t overload_buf;
 	ni_addrconf_lease_t *lease;
-	ni_route_t *default_routes = NULL;
-	ni_route_t *static_routes = NULL;
-	ni_route_t *classless_routes = NULL;
+	ni_route_array_t default_routes = NI_ROUTE_ARRAY_INIT;
+	ni_route_array_t static_routes = NI_ROUTE_ARRAY_INIT;
+	ni_route_array_t classless_routes = NI_ROUTE_ARRAY_INIT;
 	ni_string_array_t dns_servers = NI_STRING_ARRAY_INIT;
 	ni_string_array_t dns_search = NI_STRING_ARRAY_INIT;
 	ni_string_array_t nis_servers = NI_STRING_ARRAY_INIT;
@@ -963,7 +967,7 @@ parse_more:
 
 		case DHCP_CSR:
 		case DHCP_MSCSR:
-			ni_route_list_destroy(&classless_routes);
+			ni_route_array_destroy(&classless_routes);
 			if (ni_dhcp_decode_csr(&buf, &classless_routes) < 0)
 				goto error;
 			break;
@@ -973,11 +977,13 @@ parse_more:
 			break;
 
 		case DHCP_STATICROUTE:
+			ni_route_array_destroy(&static_routes);
 			if (ni_dhcp_decode_static_routes(&buf, &static_routes) < 0)
 				goto error;
 			break;
 
 		case DHCP_ROUTERS:
+			ni_route_array_destroy(&default_routes);
 			if (ni_dhcp_decode_routers(&buf, &default_routes) < 0)
 				goto error;
 			break;
@@ -1083,24 +1089,15 @@ parse_more:
 		lease->dhcp.broadcast.s_addr = lease->dhcp.address.s_addr | ~lease->dhcp.netmask.s_addr;
 	}
 
-	if (classless_routes) {
+	if (classless_routes.count) {
 		/* CSR and MSCSR take precedence over static routes */
-		lease->routes = classless_routes;
-		classless_routes = NULL;
+		ni_route_tables_add_routes(&lease->routes, &classless_routes);
+		ni_route_array_destroy(&classless_routes);
 	} else {
-		ni_route_t **tail = &lease->routes, *rp;
-
-		if (static_routes) {
-			*tail = static_routes;
-			while ((rp = *tail) != NULL)
-				tail = &rp->next;
-			static_routes = NULL;
-		}
-
-		if (default_routes) {
-			*tail = default_routes;
-			default_routes = NULL;
-		}
+		ni_route_tables_add_routes(&lease->routes, &static_routes);
+		ni_route_array_destroy(&static_routes);
+		ni_route_tables_add_routes(&lease->routes, &default_routes);
+		ni_route_array_destroy(&default_routes);
 	}
 
 	if (dns_servers.count != 0) {
@@ -1146,9 +1143,9 @@ parse_more:
 	lease = NULL;
 
 done:
-	ni_route_list_destroy(&default_routes);
-	ni_route_list_destroy(&static_routes);
-	ni_route_list_destroy(&classless_routes);
+	ni_route_array_destroy(&default_routes);
+	ni_route_array_destroy(&static_routes);
+	ni_route_array_destroy(&classless_routes);
 	ni_string_array_destroy(&nis_servers);
 	ni_string_array_destroy(&dns_servers);
 	ni_string_array_destroy(&dns_search);

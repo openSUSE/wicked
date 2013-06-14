@@ -975,6 +975,10 @@ __ni_netdev_process_newprefix(ni_netdev_t *dev, struct nlmsghdr *h, struct prefi
 
 	__ni_nla_get_addr(pfx->prefix_family, &address, tb[PREFIX_ADDRESS]);
 
+	/*
+	 * FIXME: I don't really see the reason to fake routes;
+	 *        the kernel creates routes and we receive them.
+	 */
 	if (__ni_netdev_add_autoconf_prefix(dev, &address, pfx->prefix_len, cache_info) == NULL)
 		return -1;
 	return 0;
@@ -984,18 +988,28 @@ ni_route_t *
 __ni_netdev_add_autoconf_prefix(ni_netdev_t *dev, const ni_sockaddr_t *addr, unsigned int pfxlen, const struct prefix_cacheinfo *cache_info)
 {
 	ni_addrconf_lease_t *lease;
-	ni_route_t *rp;
+	ni_route_table_t *tab;
+	ni_route_t *rp = NULL;
+	unsigned int i;
 
 	ni_debug_ifconfig("%s(dev=%s, prefix=%s/%u", __func__, dev->name, ni_sockaddr_print(addr), pfxlen);
 
 	lease = __ni_netdev_get_autoconf_lease(dev, addr->ss_family);
-	for (rp = lease->routes; rp; rp = rp->next) {
-		if (rp->prefixlen == pfxlen && ni_sockaddr_prefix_match(pfxlen, &rp->destination, addr))
-			break;
+	if ((tab = ni_route_tables_find(lease->routes, RT_TABLE_MAIN))) {
+		for (i = 0; i < tab->routes.count; ++i) {
+			rp = tab->routes.data[i];
+
+			if (rp->prefixlen == pfxlen
+			&& ni_sockaddr_prefix_match(pfxlen, &rp->destination, addr))
+				break;
+
+			rp = NULL;
+		}
 	}
 
-	if (rp == NULL)
-		rp = ni_route_create(pfxlen, addr, NULL, &lease->routes);
+	if (rp == NULL) {
+		rp = ni_route_create(pfxlen, addr, NULL, 0, &lease->routes);
+	}
 
 	if (cache_info && rp) {
 		rp->ipv6_cache_info.valid_lft = cache_info->valid_time;
@@ -1227,7 +1241,7 @@ __ni_netdev_process_newroute(ni_netdev_t *dev, struct nlmsghdr *h,
 
 	rp = NULL;
 	if (dev) {
-		rp = ni_netdev_add_route(dev, rtm->rtm_dst_len, &dst_addr, &gw_addr);
+		rp = ni_netdev_add_route(dev, rtm->rtm_dst_len, &dst_addr, &gw_addr, rtm->rtm_table);
 	}
 	if (rp == NULL) {
 		ni_warn("error recording route");
@@ -1298,7 +1312,7 @@ __ni_netdev_get_autoconf_lease(ni_netdev_t *dev, unsigned int af)
 			ni_sockaddr_t prefix;
 
 			ni_sockaddr_parse(&prefix, "fe80::", AF_INET6);
-			ni_route_create(64, &prefix, NULL, &lease->routes);
+			ni_route_create(64, &prefix, NULL, 0, &lease->routes);
 		}
 	}
 	return lease;

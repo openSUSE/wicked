@@ -33,7 +33,7 @@ static dbus_bool_t		__ni_objectmodel_callback_info_to_dict(const ni_objectmodel_
 static dbus_bool_t		__ni_objectmodel_address_to_dict(const ni_address_t *, ni_dbus_variant_t *);
 static ni_address_t *		__ni_objectmodel_address_from_dict(ni_address_t **, const ni_dbus_variant_t *);
 static dbus_bool_t		__ni_objectmodel_route_to_dict(const ni_route_t *, ni_dbus_variant_t *);
-static ni_route_t *		__ni_objectmodel_route_from_dict(ni_route_t **, const ni_dbus_variant_t *);
+static ni_route_t *		__ni_objectmodel_route_from_dict(ni_route_table_t **, const ni_dbus_variant_t *);
 
 /*
  * Helper functions for getting and setting socket addresses
@@ -519,25 +519,32 @@ __ni_objectmodel_address_from_dict(ni_address_t **list, const ni_dbus_variant_t 
  *  </array>
  */
 dbus_bool_t
-__ni_objectmodel_get_route_list(ni_route_t *list,
+__ni_objectmodel_get_route_list(ni_route_table_t *list,
 				ni_dbus_variant_t *result,
 				DBusError *error)
 {
+	const ni_route_table_t *tab;
 	const ni_route_t *rp;
+	unsigned int i;
 	dbus_bool_t rv = TRUE;
 
-	for (rp = list; rp && rv; rp = rp->next) {
-		ni_dbus_variant_t *dict;
+	for (tab = list; rv && tab; tab = tab->next) {
+		for (i = 0; rv && i < tab->routes.count; ++i) {
+			ni_dbus_variant_t *dict;
 
-		if (rp->family != rp->destination.ss_family)
-			continue;
+			if ((rp = tab->routes.data[i]) == NULL)
+				continue;
 
-		/* Append a new element to the array */
-		if (!(dict = ni_dbus_dict_array_add(result)))
-			return FALSE;
-		ni_dbus_variant_init_dict(dict);
+			if (rp->family != rp->destination.ss_family)
+				continue;
 
-		rv = __ni_objectmodel_route_to_dict(rp, dict);
+			/* Append a new element to the array */
+			if (!(dict = ni_dbus_dict_array_add(result)))
+				return FALSE;
+			ni_dbus_variant_init_dict(dict);
+
+			rv = __ni_objectmodel_route_to_dict(rp, dict);
+		}
 	}
 
 	return rv;
@@ -547,7 +554,7 @@ __ni_objectmodel_get_route_list(ni_route_t *list,
  * Build a route list from a dbus dict
  */
 dbus_bool_t
-__ni_objectmodel_set_route_list(ni_route_t **list,
+__ni_objectmodel_set_route_list(ni_route_table_t **list,
 				const ni_dbus_variant_t *argument,
 				DBusError *error)
 {
@@ -582,31 +589,38 @@ __ni_objectmodel_set_route_list(ni_route_t **list,
  *   </dict>
  */
 dbus_bool_t
-__ni_objectmodel_get_route_dict(ni_route_t *list,
+__ni_objectmodel_get_route_dict(ni_route_table_t *list,
 				ni_dbus_variant_t *result,
 				DBusError *error)
 {
+	const ni_route_table_t *tab;
 	const ni_route_t *rp;
+	unsigned int i;
 	dbus_bool_t rv = TRUE;
 
-	for (rp = list; rp && rv; rp = rp->next) {
-		ni_dbus_variant_t *dict;
+	for (tab = list; rv && tab; tab = tab->next) {
+		for (i = 0; rv && i < tab->routes.count; ++i) {
+			ni_dbus_variant_t *dict;
 
-		if (rp->family != rp->destination.ss_family)
-			continue;
+			if ((rp = tab->routes.data[i]) == NULL)
+				continue;
 
-		/* Append a new element to the array */
-		dict = ni_dbus_dict_add(result, "route");
-		ni_dbus_variant_init_dict(dict);
+			if (rp->family != rp->destination.ss_family)
+				continue;
 
-		rv = __ni_objectmodel_route_to_dict(rp, dict);
+			/* Append a new element to the array */
+			dict = ni_dbus_dict_add(result, "route");
+			ni_dbus_variant_init_dict(dict);
+
+			rv = __ni_objectmodel_route_to_dict(rp, dict);
+		}
 	}
 
 	return rv;
 }
 
 dbus_bool_t
-__ni_objectmodel_set_route_dict(ni_route_t **list,
+__ni_objectmodel_set_route_dict(ni_route_table_t **list,
 				const ni_dbus_variant_t *dict,
 				DBusError *error)
 {
@@ -702,7 +716,7 @@ __ni_objectmodel_route_nexthop_from_dict(ni_route_nexthop_t *nh, const ni_dbus_v
 }
 
 ni_route_t *
-__ni_objectmodel_route_from_dict(ni_route_t **list, const ni_dbus_variant_t *dict)
+__ni_objectmodel_route_from_dict(ni_route_table_t **list, const ni_dbus_variant_t *dict)
 {
 	const ni_dbus_variant_t *nhdict, *child;
 	uint32_t prefixlen, value;
@@ -743,7 +757,7 @@ __ni_objectmodel_route_from_dict(ni_route_t **list, const ni_dbus_variant_t *dic
 	 * Hmm... check device default route / default route without a gateway?
 	 */
 
-	if (!(rp = ni_route_create(prefixlen, &dest, &hops.gateway, NULL)))
+	if (!(rp = ni_route_create(prefixlen, &dest, &hops.gateway, 0, NULL)))
 		goto failure;
 
 	/* copy first hop data and move next to its final place */
@@ -775,7 +789,7 @@ __ni_objectmodel_route_from_dict(ni_route_t **list, const ni_dbus_variant_t *dic
 			rp->scope = value;
 	}
 
-	ni_route_list_append(list, rp);
+	ni_route_tables_add_route(list, rp);
 	return rp;
 
 failure:

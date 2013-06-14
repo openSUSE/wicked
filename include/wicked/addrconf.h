@@ -63,7 +63,7 @@ struct ni_addrconf_lease {
 
 	char *			hostname;
 	ni_address_t *		addrs;
-	ni_route_t *		routes;
+	ni_route_table_t *	routes;
 
 	/* Services discovered through the DHCP and similar */
 	ni_nis_info_t *		nis;

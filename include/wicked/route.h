@@ -30,7 +30,6 @@ typedef struct ni_route_nexthop {
 } ni_route_nexthop_t;
 
 struct ni_route {
-	struct ni_route *	next;
 	unsigned int		users;
 
 	const ni_addrconf_lease_t *config_lease;	/* configured through lease */
@@ -90,7 +89,8 @@ extern ni_route_t *		ni_route_new(void);
 extern ni_route_t *		ni_route_create(unsigned int prefix_len,
 						const ni_sockaddr_t *dest,
 						const ni_sockaddr_t *gw,
-						ni_route_t **list);
+						unsigned int table,
+						ni_route_table_t **list);
 extern ni_route_t *		ni_route_clone(const ni_route_t *);
 extern ni_route_t *		ni_route_ref(ni_route_t *);
 extern void			ni_route_free(ni_route_t *);
@@ -113,10 +113,6 @@ extern ni_bool_t		ni_route_flags_get_names(unsigned int, ni_string_array_t *);
 extern ni_bool_t		ni_route_nh_flags_get_names(unsigned int, ni_string_array_t *);
 extern ni_bool_t		ni_route_metrics_lock_get_names(unsigned int, ni_string_array_t *);
 extern ni_bool_t		ni_route_metrics_lock_set(const char *, unsigned int *);
-
-
-extern void			ni_route_list_append(ni_route_t **, ni_route_t *);
-extern void			ni_route_list_destroy(ni_route_t **);
 
 
 extern ni_route_nexthop_t *	ni_route_nexthop_new(void);

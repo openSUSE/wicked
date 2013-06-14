@@ -474,7 +474,9 @@ do_show(int argc, char **argv)
 		for (object = object->children; object; object = object->next) {
 			ni_netdev_t *ifp = object->handle;
 			ni_address_t *ap;
+			ni_route_table_t *tab;
 			ni_route_t *rp;
+			unsigned int i;
 
 			printf("%-12s %-10s %-10s",
 					ifp->name,
@@ -487,22 +489,15 @@ do_show(int argc, char **argv)
 			for (ap = ifp->addrs; ap; ap = ap->next)
 				printf("  addr:   %s/%u\n", ni_sockaddr_print(&ap->local_addr), ap->prefixlen);
 
-			for (rp = ifp->routes; rp; rp = rp->next) {
-				const ni_route_nexthop_t *nh;
+			for (tab = ifp->routes; tab; tab = tab->next) {
+				for (i = 0; i < tab->routes.count; ++i) {
+					ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
+					rp = tab->routes.data[i];
 
-				printf("  route: ");
-
-				if (rp->prefixlen)
-					printf(" %s/%u", ni_sockaddr_print(&rp->destination), rp->prefixlen);
-				else
-					printf(" default");
-
-				if (rp->nh.gateway.ss_family != AF_UNSPEC) {
-					for (nh = &rp->nh; nh; nh = nh->next)
-						printf("; via %s", ni_sockaddr_print(&nh->gateway));
+					ni_route_print(&buf, rp);
+					printf("  route: %s\n", buf.string);
+					ni_stringbuf_destroy(&buf);
 				}
-
-				printf("\n");
 			}
 		}
 	} else {

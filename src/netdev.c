@@ -9,6 +9,7 @@
 
 #include <ctype.h>
 #include <net/if_arp.h>
+#include <netlink/netlink.h>
 
 #include <wicked/netinfo.h>
 #include <wicked/addrconf.h>
@@ -68,7 +69,7 @@ ni_netdev_clear_addresses(ni_netdev_t *dev)
 void
 ni_netdev_clear_routes(ni_netdev_t *dev)
 {
-	ni_route_list_destroy(&dev->routes);
+	ni_route_tables_destroy(&dev->routes);
 }
 
 static void
@@ -147,9 +148,10 @@ ni_route_t *
 ni_netdev_add_route(ni_netdev_t *dev,
 				unsigned int prefix_len,
 				const ni_sockaddr_t *dest,
-				const ni_sockaddr_t *gw)
+				const ni_sockaddr_t *gw,
+				unsigned int table)
 {
-	return ni_route_create(prefix_len, dest, gw, &dev->routes);
+	return ni_route_create(prefix_len, dest, gw, table, &dev->routes);
 }
 
 /*
@@ -525,9 +527,14 @@ __ni_lease_owns_address(const ni_addrconf_lease_t *lease, const ni_address_t *ma
 	/* IPv6 autoconf is special; we record the IPv6 address prefixes in the
 	 * lease. */
 	if (lease->family == AF_INET6 && lease->type == NI_ADDRCONF_AUTOCONF) {
+		ni_route_table_t *tab;
 		ni_route_t *rp;
+		unsigned int i;
 
-		for (rp = lease->routes; rp; rp = rp->next) {
+		tab = ni_route_tables_find(lease->routes, RT_TABLE_MAIN);
+		for (i = 0; tab && i < tab->routes.count; ++i) {
+			rp = tab->routes.data[i];
+
 			if (rp->prefixlen != match->prefixlen)
 				continue;
 			if (ni_sockaddr_prefix_match(rp->prefixlen, &rp->destination, &match->local_addr))
@@ -587,14 +594,19 @@ __ni_netdev_route_to_lease(ni_netdev_t *dev, const ni_route_t *rp)
 ni_route_t *
 __ni_lease_owns_route(const ni_addrconf_lease_t *lease, const ni_route_t *rp)
 {
+	ni_route_table_t *tab;
 	ni_route_t *own;
+	unsigned int i;
 
 	if (!lease)
 		return 0;
 
-	for (own = lease->routes; own; own = own->next) {
-		if (ni_route_equal(own, rp))
-			return own;
+	if ((tab = ni_route_tables_find(lease->routes, rp->table))) {
+		for (i = 0; i < tab->routes.count; ++i) {
+			own = tab->routes.data[i];
+			if (own && ni_route_equal(own, rp))
+				return own;
+		}
 	}
 	return NULL;
 }

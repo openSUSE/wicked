@@ -651,23 +651,34 @@ xml_node_t *
 __ni_compat_generate_static_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 {
 	const ni_netdev_t *dev = compat->dev;
+	const ni_route_table_t *tab;
+	const ni_route_t *rp;
+	unsigned int i;
 	xml_node_t *aconf;
 
 	if ((aconf = __ni_compat_generate_static_address_list(ifnode, dev->addrs, AF_INET)) != NULL) {
-		const ni_route_t *rp;
+		for (tab = dev->routes; tab; tab = tab->next) {
+			for (i = 0; i < tab->routes.count; ++i) {
+				rp = tab->routes.data[i];
 
-		for (rp = dev->routes; rp; rp = rp->next) {
-			if (rp->family == AF_INET)
+				if( !rp || rp->family != AF_INET)
+					continue;
+
 				__ni_compat_generate_static_route(aconf, rp, dev->name);
+			}
 		}
 	}
 
 	if ((aconf = __ni_compat_generate_static_address_list(ifnode, dev->addrs, AF_INET6)) != NULL) {
-		const ni_route_t *rp;
+		for (tab = dev->routes; tab; tab = tab->next) {
+			for (i = 0; i < tab->routes.count; ++i) {
+				rp = tab->routes.data[i];
 
-		for (rp = dev->routes; rp; rp = rp->next) {
-			if (rp->family == AF_INET6)
+				if( !rp || rp->family != AF_INET)
+					continue;
+
 				__ni_compat_generate_static_route(aconf, rp, dev->name);
+			}
 		}
 	}
 
