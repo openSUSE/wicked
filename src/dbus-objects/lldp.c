@@ -124,7 +124,7 @@ ni_objectmodel_lldp_up(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return FALSE;
 
-	ni_trace("ni_objectmodel_lldp_up(%s -> %s)", object->path, dev->name);
+	ni_debug_lldp("ni_objectmodel_lldp_up(%s -> %s)", object->path, dev->name);
 	if (!(cfg = __ni_objectmodel_protocol_arg(&argv[0], &ni_objectmodel_lldp_service))) {
 		ni_dbus_error_invalid_args(error, object->path, method->name);
 		goto out;
@@ -221,30 +221,26 @@ try_set_default(const ni_dbus_variant_t *dict, const char *name)
 }
 
 static inline ni_bool_t
-try_set_string(const ni_dbus_variant_t *dict, const char *name, char **value)
+try_set_string(const ni_dbus_variant_t *var, char **value)
 {
-	const char *string_value;
+	const char *string_value = NULL;
 
 	ni_string_free(value);
-	if (try_set_default(dict, name))
-		return TRUE;
+	if (var != NULL && !ni_dbus_variant_get_string(var, &string_value))
+		return FALSE;
 
-	if (ni_dbus_dict_get_string(dict, name, &string_value)) {
-		ni_string_dup(value, string_value);
-		return TRUE;
-	}
-
-	return FALSE;
+	ni_string_dup(value, string_value);
+	return TRUE;
 }
 
 static inline ni_bool_t
-try_set_mac_address(const ni_dbus_variant_t *dict, const char *name, ni_hwaddr_t *value)
+try_set_mac_address(const ni_dbus_variant_t *var, ni_hwaddr_t *value)
 {
 	memset(value, 0, sizeof(*value));
-	if (try_set_default(dict, name))
-		return TRUE;
 
-	if (__ni_objectmodel_dict_get_hwaddr(dict, name, value) && value->len == 6) {
+	if (var == NULL)
+		return TRUE;
+	if (__ni_objectmodel_set_hwaddr(var, value) && value->len == 6) {
 		value->type = NI_IFTYPE_ETHERNET;
 		return TRUE;
 	}
@@ -253,15 +249,14 @@ try_set_mac_address(const ni_dbus_variant_t *dict, const char *name, ni_hwaddr_t
 }
 
 static inline ni_bool_t
-try_set_net_address(const ni_dbus_variant_t *dict, const char *name, ni_sockaddr_t *value)
+try_set_net_address(const ni_dbus_variant_t *var, ni_sockaddr_t *value)
 {
 	memset(value, 0, sizeof(*value));
-	if (try_set_default(dict, name))
-		return TRUE;
 
-	if (__ni_objectmodel_dict_get_sockaddr(dict, name, value)) {
+	if (var == NULL)
 		return TRUE;
-	}
+	if (__ni_objectmodel_get_sockaddr(var, value))
+		return TRUE;
 
 	return FALSE;
 }
@@ -308,6 +303,51 @@ get_net_address(ni_dbus_variant_t *dict, const char *name, const ni_sockaddr_t *
 		__ni_objectmodel_dict_add_sockaddr(dict, name + 8, value);
 }
 
+/*
+ * Map chassis-id and port-id discriminants
+ */
+static ni_intmap_t	__ni_objectmodel_chassis_id_kind[] = {
+	{ "ifname",		NI_LLDP_CHASSIS_ID_INTERFACE_NAME	},
+	{ "ifalias",		NI_LLDP_CHASSIS_ID_INTERFACE_ALIAS	},
+	{ "chassis-component",	NI_LLDP_CHASSIS_ID_CHASSIS_COMPONENT	},
+	{ "port-component",	NI_LLDP_CHASSIS_ID_PORT_COMPONENT	},
+	{ "mac-address",	NI_LLDP_CHASSIS_ID_MAC_ADDRESS		},
+	{ "net-address",	NI_LLDP_CHASSIS_ID_NETWORK_ADDRESS	},
+
+	{ NULL }
+};
+
+static int
+__ni_objectmodel_chassis_id_name_to_type(const char *name)
+{
+	unsigned int type;
+
+	if (ni_parse_uint_mapped(name, __ni_objectmodel_chassis_id_kind, &type) < 0)
+		return -1;
+	return type;
+}
+
+static ni_intmap_t	__ni_objectmodel_port_id_kind[] = {
+	{ "ifname",		NI_LLDP_PORT_ID_INTERFACE_NAME	},
+	{ "ifalias",		NI_LLDP_PORT_ID_INTERFACE_ALIAS	},
+	{ "port-component",	NI_LLDP_PORT_ID_PORT_COMPONENT	},
+	{ "mac-address",	NI_LLDP_PORT_ID_MAC_ADDRESS	},
+	{ "net-address",	NI_LLDP_PORT_ID_NETWORK_ADDRESS	},
+	{ "agent-circuit-id",	NI_LLDP_PORT_ID_AGENT_CIRCUIT_ID },
+
+	{ NULL }
+};
+
+static int
+__ni_objectmodel_port_id_name_to_type(const char *name)
+{
+	unsigned int type;
+
+	if (ni_parse_uint_mapped(name, __ni_objectmodel_port_id_kind, &type) < 0)
+		return -1;
+	return type;
+}
+
 
 static dbus_bool_t
 __ni_objectmodel_netif_get_chassis_id(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
@@ -315,6 +355,7 @@ __ni_objectmodel_netif_get_chassis_id(const ni_dbus_object_t *object, const ni_d
 {
 	ni_lldp_t *lldp;
 
+	/* FIXME: This is still broken */
 	if (!(lldp = ni_objectmodel_netif_lldp(object, property, FALSE, error)))
 		return FALSE;
 
@@ -357,35 +398,56 @@ __ni_objectmodel_netif_get_chassis_id(const ni_dbus_object_t *object, const ni_d
 /*
  * Query the chassis-id attribute
  */
-
 static dbus_bool_t
 __ni_objectmodel_netif_set_chassis_id(ni_dbus_object_t *object, const ni_dbus_property_t *property,
-		                                        const ni_dbus_variant_t *dict, DBusError *error)
+		                                        const ni_dbus_variant_t *strct, DBusError *error)
 {
+	ni_dbus_variant_t *member;
+	const char *kind;
 	ni_lldp_t *lldp;
+	int type;
 
 	if (!(lldp = ni_objectmodel_netif_lldp(object, property, TRUE, error)))
 		return FALSE;
 
-	if (try_set_string(dict, "ifname", &lldp->chassis_id.string_value)) {
-		lldp->chassis_id.type = NI_LLDP_CHASSIS_ID_INTERFACE_NAME;
-	} else
-	if (try_set_string(dict, "ifalias", &lldp->chassis_id.string_value)) {
-		lldp->chassis_id.type = NI_LLDP_CHASSIS_ID_INTERFACE_ALIAS;
-	} else
-	if (try_set_string(dict, "chassis-component", &lldp->chassis_id.string_value)) {
-		lldp->chassis_id.type = NI_LLDP_CHASSIS_ID_CHASSIS_COMPONENT;
-	} else
-	if (try_set_string(dict, "port-component", &lldp->chassis_id.string_value)) {
-		lldp->chassis_id.type = NI_LLDP_CHASSIS_ID_PORT_COMPONENT;
-	} else
-	if (try_set_mac_address(dict, "mac-address", &lldp->chassis_id.mac_addr_value)) {
-		lldp->chassis_id.type = NI_LLDP_CHASSIS_ID_MAC_ADDRESS;
-	} else
-	if (try_set_net_address(dict, "net-address", &lldp->chassis_id.net_addr_value)) {
-		lldp->chassis_id.type = NI_LLDP_CHASSIS_ID_NETWORK_ADDRESS;
+	if (!(member = ni_dbus_struct_get(strct, 0))
+	 || !ni_dbus_variant_get_string(member, &kind))
+		return FALSE;
+
+	if (!strncmp(kind, "default-", 8)) {
+		/* For "default-$foobar" types, there's no subsequent members in this struct */
+		member = NULL;
+		kind += 8;
 	} else {
-		ni_error("%s: don't know how to handle this", __func__);
+		if (!(member = ni_dbus_struct_get(strct, 1)))
+			return FALSE;
+	}
+
+	if ((type = __ni_objectmodel_chassis_id_name_to_type(kind)) < 0) {
+		/* FIXME: report unsupported union discriminant */
+		return FALSE;
+	}
+
+	switch (type) {
+	case NI_LLDP_CHASSIS_ID_INTERFACE_NAME:
+	case NI_LLDP_CHASSIS_ID_INTERFACE_ALIAS:
+	case NI_LLDP_CHASSIS_ID_CHASSIS_COMPONENT:
+	case NI_LLDP_CHASSIS_ID_PORT_COMPONENT:
+		if (!try_set_string(member, &lldp->chassis_id.string_value))
+			return FALSE;
+		break;
+
+	case NI_LLDP_CHASSIS_ID_MAC_ADDRESS:
+		if (!try_set_mac_address(member, &lldp->chassis_id.mac_addr_value))
+			return FALSE;
+		break;
+
+	case NI_LLDP_CHASSIS_ID_NETWORK_ADDRESS:
+		if (!try_set_net_address(member, &lldp->chassis_id.net_addr_value))
+			return FALSE;
+
+	default:
+		ni_error("%s: don't know how to handle chassis-id subtype %s", __func__, kind);
 		return FALSE;
 	}
 
@@ -398,6 +460,7 @@ __ni_objectmodel_netif_get_port_id(const ni_dbus_object_t *object, const ni_dbus
 {
 	ni_lldp_t *lldp;
 
+	/* FIXME: This is still broken */
 	if (!(lldp = ni_objectmodel_netif_lldp(object, property, FALSE, error)))
 		return FALSE;
 
@@ -439,32 +502,53 @@ __ni_objectmodel_netif_get_port_id(const ni_dbus_object_t *object, const ni_dbus
 
 static dbus_bool_t
 __ni_objectmodel_netif_set_port_id(ni_dbus_object_t *object, const ni_dbus_property_t *property,
-		                                        const ni_dbus_variant_t *dict, DBusError *error)
+		                                        const ni_dbus_variant_t *strct, DBusError *error)
 {
+	ni_dbus_variant_t *member;
+	const char *kind;
 	ni_lldp_t *lldp;
+	int type;
 
 	if (!(lldp = ni_objectmodel_netif_lldp(object, property, TRUE, error)))
 		return FALSE;
 
-	if (try_set_string(dict, "ifname", &lldp->port_id.string_value)) {
-		lldp->port_id.type = NI_LLDP_PORT_ID_INTERFACE_NAME;
-	} else
-	if (try_set_string(dict, "ifalias", &lldp->port_id.string_value)) {
-		lldp->port_id.type = NI_LLDP_PORT_ID_INTERFACE_ALIAS;
-	} else
-	if (try_set_string(dict, "port-component", &lldp->port_id.string_value)) {
-		lldp->port_id.type = NI_LLDP_PORT_ID_PORT_COMPONENT;
-	} else
-	if (try_set_string(dict, "agent-circuit-id", &lldp->port_id.string_value)) {
-		lldp->port_id.type = NI_LLDP_PORT_ID_AGENT_CIRCUIT_ID;
-	} else
-	if (try_set_mac_address(dict, "mac-address", &lldp->port_id.mac_addr_value)) {
-		lldp->port_id.type = NI_LLDP_PORT_ID_MAC_ADDRESS;
-	} else
-	if (try_set_net_address(dict, "net-address", &lldp->port_id.net_addr_value)) {
-		lldp->port_id.type = NI_LLDP_PORT_ID_NETWORK_ADDRESS;
+	if (!(member = ni_dbus_struct_get(strct, 0))
+	 || !ni_dbus_variant_get_string(member, &kind))
+		return FALSE;
+
+	if (!strncmp(kind, "default-", 8)) {
+		/* For "default-$foobar" types, there's no subsequent members in this struct */
+		member = NULL;
+		kind += 8;
 	} else {
-		ni_error("%s: don't know how to handle this", __func__);
+		if (!(member = ni_dbus_struct_get(strct, 1)))
+			return FALSE;
+	}
+
+	if ((type = __ni_objectmodel_port_id_name_to_type(kind)) < 0) {
+		/* FIXME: report unsupported union discriminant */
+		return FALSE;
+	}
+
+	switch (type) {
+	case NI_LLDP_PORT_ID_INTERFACE_NAME:
+	case NI_LLDP_PORT_ID_INTERFACE_ALIAS:
+	case NI_LLDP_PORT_ID_PORT_COMPONENT:
+		if (!try_set_string(member, &lldp->port_id.string_value))
+			return FALSE;
+		break;
+
+	case NI_LLDP_PORT_ID_MAC_ADDRESS:
+		if (!try_set_mac_address(member, &lldp->port_id.mac_addr_value))
+			return FALSE;
+		break;
+
+	case NI_LLDP_PORT_ID_NETWORK_ADDRESS:
+		if (!try_set_net_address(member, &lldp->port_id.net_addr_value))
+			return FALSE;
+
+	default:
+		ni_error("%s: don't know how to handle port-id subtype %s", __func__, kind);
 		return FALSE;
 	}
 
