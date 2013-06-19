@@ -774,7 +774,7 @@ ni_lldp_tlv_begin(ni_lldp_tlv_t *tlv, ni_buffer_t *bp, unsigned int type)
 	memset(tlv, 0, sizeof(*tlv));
 	tlv->bp = bp;
 	tlv->type = type;
-	tlv->begin = ni_buffer_head(bp);
+	tlv->begin = ni_buffer_tail(bp);
 
 	if (!ni_buffer_put(bp, &dummy, 2) < 0)
 		return -1;
@@ -816,7 +816,7 @@ __ni_lldp_tlv_error(const ni_lldp_tlv_t *tlv, const char *fmt, ...)
 static int
 ni_lldp_tlv_end(ni_lldp_tlv_t *tlv)
 {
-	unsigned char *end = ni_buffer_head(tlv->bp);
+	unsigned char *end = ni_buffer_tail(tlv->bp);
 	long len = end - tlv->begin;
 	uint16_t head;
 
