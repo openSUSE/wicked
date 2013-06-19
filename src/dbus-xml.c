@@ -1135,7 +1135,7 @@ ni_dbus_deserialize_xml_struct(ni_dbus_variant_t *var, const ni_xs_type_t *type,
  * Serialize a discriminated union
  */
 static inline const ni_xs_type_t *
-__ni_dbus_xml_union_type(xml_node_t *node, const ni_xs_type_t *type)
+__ni_dbus_xml_union_type(xml_node_t *node, const ni_xs_type_t *type, const char **kind_p)
 {
 	ni_xs_union_info_t *union_info = ni_xs_union_info(type);
 	const ni_xs_type_t *child_type;
@@ -1150,6 +1150,8 @@ __ni_dbus_xml_union_type(xml_node_t *node, const ni_xs_type_t *type)
 				node->name, union_info->discriminant);
 		return NULL;
 	}
+	if (kind_p)
+		*kind_p = kind;
 
 	child_type = ni_xs_union_info_find(union_info, kind);
 	if (child_type == NULL) {
@@ -1158,7 +1160,6 @@ __ni_dbus_xml_union_type(xml_node_t *node, const ni_xs_type_t *type)
 				node->name, union_info->discriminant, kind);
 		return NULL;
 	}
-
 	return child_type;
 }
 
@@ -1167,7 +1168,7 @@ ni_dbus_validate_xml_union(xml_node_t *node, const ni_xs_type_t *type, const ni_
 {
 	const ni_xs_type_t *child_type;
 
-	child_type = __ni_dbus_xml_union_type(node, type);
+	child_type = __ni_dbus_xml_union_type(node, type, NULL);
 	if (child_type == NULL)
 		return FALSE;
 
@@ -1179,16 +1180,18 @@ ni_dbus_serialize_xml_union(xml_node_t *node, const ni_xs_type_t *type, ni_dbus_
 {
 	const ni_xs_type_t *child_type;
 	ni_dbus_variant_t *child;
+	const char *kind;
 
-	child_type = __ni_dbus_xml_union_type(node, type);
+	child_type = __ni_dbus_xml_union_type(node, type, &kind);
 	if (child_type == NULL)
 		return FALSE;
 
+ni_trace("ni_dbus_serialize_xml_union: kind=%s", kind);
 	ni_dbus_variant_init_struct(var);
 
 	if (!(child = ni_dbus_struct_add(var)))
 		return FALSE;
-	ni_dbus_variant_set_string(child, child_type->name);
+	ni_dbus_variant_set_string(child, kind);
 
 	if (child_type->class == NI_XS_TYPE_VOID)
 		return TRUE;
@@ -1206,7 +1209,8 @@ ni_dbus_deserialize_xml_union(ni_dbus_variant_t *var, const ni_xs_type_t *type, 
 	ni_dbus_variant_t *child;
 	const char *kind;
 
-	child_type = __ni_dbus_xml_union_type(node, type);
+	/* This is wrong */
+	child_type = __ni_dbus_xml_union_type(node, type, NULL);
 	if (child_type == NULL)
 		return FALSE;
 
