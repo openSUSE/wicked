@@ -2651,6 +2651,7 @@ ni_ifworker_do_common(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t *acti
 			if (action->common.may_fail) {
 				ni_error("[ignored] %s: call to %s.%s() failed: %s", w->name,
 						bind->service->name, bind->method->name, ni_strerror(rv));
+				ni_ifworker_set_state(w, action->next_state);
 				return 0;
 			}
 			ni_ifworker_fail(w, "call to %s.%s() failed: %s", bind->service->name, bind->method->name, ni_strerror(rv));
