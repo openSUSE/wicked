@@ -141,3 +141,11 @@
 <define name="builtin-route-metrics-lock-mask" type="uint32" constraint="bitmap">
   <@@ROUTE_METRICS_LOCK_NAME@@ bit="@@ROUTE_METRICS_LOCK_VALUE@@"/>
 </define>
+
+<!-- Built-in infiniband ipoib mode/multicast types -->
+<define name="builtin-infiniband-mode" type="uint32" constraint="enum">
+  <@@INFINIBAND_MODE_NAME@@ value="@@INFINIBAND_MODE_VALUE@@"/>
+</define>
+<define name="builtin-infiniband-umcast" type="uint32" constraint="enum">
+  <@@INFINIBAND_UMCAST_NAME@@ value="@@INFINIBAND_UMCAST_VALUE@@"/>
+</define>

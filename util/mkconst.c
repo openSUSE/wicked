@@ -22,6 +22,7 @@
 #include <wicked/wireless.h>
 #include <wicked/bonding.h>
 #include <wicked/route.h>
+#include <wicked/infiniband.h>
 
 static ni_intmap_t *	build_ifflag_bits_map(void);
 static ni_intmap_t *	buildmap(const char *(*)(unsigned), unsigned int);
@@ -104,6 +105,8 @@ static struct generic_map	generic_maps[] = {
 	MAP(ROUTE_FLAG, ni_route_flag_bit_to_name),
 	MAP(ROUTE_NH_FLAG, ni_route_nh_flag_bit_to_name),
 	MAP(ROUTE_METRICS_LOCK, ni_route_metrics_lock_bit_to_name),
+	MAP(INFINIBAND_MODE, ni_infiniband_get_mode_name),
+	MAP(INFINIBAND_UMCAST, ni_infiniband_get_umcast_name),
 
 	{ NULL }
 };

@@ -5,15 +5,10 @@
       
   <define name="configuration" class="dict" description="Infiniband interface configuration">
 
-    <mode type="uint32" constraint="enum">
-      <datagram value="0"/>
-      <connected value="1"/>
-    </mode>
-
-    <multicast type="uint32" constraint="enum">
-      <disallow value="0" />
-      <allow value="1" />
-    </multicast>
+    <mode      type="builtin-infiniband-mode"
+               description="Infiniband IPoIB connection mode"/>
+    <multicast type="builtin-infiniband-umcast"
+               description="Infiniband IPoIB user multicasts policy"/>
 
   </define>
 
