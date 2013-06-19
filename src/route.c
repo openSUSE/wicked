@@ -117,7 +117,9 @@ static const ni_intmap_t	__ni_route_mxlock_bits[] = {
 	{ "initcwnd",		RTAX_INITCWND		},
 	{ "features",		RTAX_FEATURES		},
 	{ "rto_min",		RTAX_RTO_MIN		},
+#if defined(RTAX_INITRWND)
 	{ "initrwnd",		RTAX_INITRWND		},
+#endif
 
 	{ NULL,			0			},
 };
@@ -493,9 +495,11 @@ ni_route_print(ni_stringbuf_t *out, const ni_route_t *rp)
 			ni_stringbuf_printf(out, " rto_min %u", rp->rto_min);
 	}
 	if (rp->initrwnd > 0) {
+#if defined(RTAX_INITRWND)
 		if (rp->lock & (1<<RTAX_INITRWND))
 			ni_stringbuf_printf(out, " initrwnd lock %u", rp->initrwnd);
 		else
+#endif
 			ni_stringbuf_printf(out, " initrwnd %u", rp->initrwnd);
 	}
 

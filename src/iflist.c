@@ -32,6 +32,7 @@
 #include "sysfs.h"
 #include "kernel.h"
 #include "appconfig.h"
+#include <linux/version.h>
 
 static int		__ni_process_ifinfomsg(ni_linkinfo_t *link, struct nlmsghdr *h,
 					struct ifinfomsg *ifi, ni_netconfig_t *);
@@ -1325,8 +1326,10 @@ __ni_process_newroute_metrics(ni_route_t *rp, struct nlattr *metrics)
 		rp->features = nla_get_u32(rtax);
 	if ((rtax = rtattrs[RTAX_RTO_MIN]) != NULL)
 		rp->rto_min = nla_get_u32(rtax);
+#if defined(RTAX_INITRWND)
 	if ((rtax = rtattrs[RTAX_INITRWND]) != NULL)
 		rp->initrwnd = nla_get_u32(rtax);
+#endif
 
 	return 0;
 }
@@ -1468,8 +1471,10 @@ __ni_netdev_process_newroute(ni_netdev_t *dev, struct nlmsghdr *h,
 	if (tb[RTA_FLOW] != NULL)
 		rp->realm = nla_get_u32(tb[RTA_FLOW]);
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,36)
 	if (tb[RTA_MARK] != NULL)
 		rp->mark = nla_get_u32(tb[RTA_MARK]);
+#endif
 
 	if (tb[RTA_METRICS] != NULL) {
 		if (__ni_process_newroute_metrics(rp, tb[RTA_METRICS]) != 0)
