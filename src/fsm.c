@@ -2649,7 +2649,7 @@ ni_ifworker_do_common(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t *acti
 				&callback_list, ni_ifworker_error_handler);
 		if (rv < 0) {
 			if (action->common.may_fail) {
-				ni_error("[ignored] %s: call to %s.%s() failed: %s",
+				ni_error("[ignored] %s: call to %s.%s() failed: %s", w->name,
 						bind->service->name, bind->method->name, ni_strerror(rv));
 				return 0;
 			}
@@ -2969,7 +2969,7 @@ ni_fsm_schedule_bind_methods(ni_fsm_t *fsm, ni_ifworker_t *w)
 unsigned int
 ni_fsm_schedule(ni_fsm_t *fsm)
 {
-	unsigned int i, waiting;
+	unsigned int i, waiting, nrequested;
 
 	while (1) {
 		int made_progress = 0;
@@ -3067,17 +3067,33 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 		if (!made_progress)
 			break;
 
+		/* If all the requested workers are done (eg because they failed)
+		 * do not wait for any of the subordinate device which might still be
+		 * in the middle of being set up.
+		 */
+		for (i = nrequested = 0; i < fsm->workers.count; ++i) {
+			ni_ifworker_t *w = fsm->workers.data[i];
+
+			if (!ni_ifworker_complete(w) && w->config.node != NULL)
+				nrequested++;
+		}
+
+		if (nrequested == 0)
+			break;
 	}
 
-	for (i = waiting = 0; i < fsm->workers.count; ++i) {
+	for (i = waiting = nrequested = 0; i < fsm->workers.count; ++i) {
 		ni_ifworker_t *w = fsm->workers.data[i];
 
-		if (!w->failed && !ni_ifworker_complete(w))
+		if (!w->failed && !ni_ifworker_complete(w)) {
 			waiting++;
+			if (w->config.node != NULL)
+				nrequested++;
+		}
 	}
 
-	ni_debug_application("waiting for %u devices to become ready", waiting);
-	return waiting;
+	ni_debug_application("waiting for %u devices to become ready (%u explicitly requested)", waiting, nrequested);
+	return nrequested;
 }
 
 static void

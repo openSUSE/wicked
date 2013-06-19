@@ -177,7 +177,8 @@ __ni_dbus_variant_change_type(ni_dbus_variant_t *var, int new_type)
 	if (var->type != DBUS_TYPE_INVALID) {
 		if (var->type == DBUS_TYPE_STRING
 		 || var->type == DBUS_TYPE_OBJECT_PATH
-		 || var->type == DBUS_TYPE_ARRAY)
+		 || var->type == DBUS_TYPE_ARRAY
+		 || var->type == DBUS_TYPE_STRUCT)
 			ni_dbus_variant_destroy(var);
 	}
 	var->type = new_type;
@@ -1476,6 +1477,17 @@ ni_dbus_dict_array_add(ni_dbus_variant_t *var)
 
 	ni_dbus_variant_init_dict(dst);
 	return dst;
+}
+
+/*
+ * DBus struct type
+ */
+void
+ni_dbus_variant_init_struct(ni_dbus_variant_t *var)
+{
+	ni_dbus_variant_destroy(var);
+	var->type = DBUS_TYPE_STRUCT;
+	var->array.len = 0;
 }
 
 ni_dbus_variant_t *

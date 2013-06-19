@@ -9,30 +9,30 @@
  <define name="lldp-request" class="dict">
   <destination type="builtin-lldp-type"/>
 
-  <!-- Chassis-ID contains exactly one child element out of several possible. -->
-  <chassis-id class="dict">
-   <chassis-component type="string" constraint="exclusive:chassis-id"/>
-   <port-component type="string" constraint="exclusive:chassis-id"/>
-   <mac-address type="ethernet-address" constraint="exclusive:chassis-id"/>
-   <net-address type="network-address" constraint="exclusive:chassis-id"/>
-   <ifalias type="string" constraint="exclusive:chassis-id"/>
+  <!-- Chassis-ID is a discriminated union. -->
+  <chassis-id class="union" switch="subtype">
+   <chassis-component type="string"/>
+   <port-component type="string"/>
+   <mac-address type="ethernet-address"/>
+   <net-address type="network-address"/>
+   <ifalias type="string"/>
 
-   <default-ifname type="flag" constraint="exclusive:chassis-id"/>
-   <default-ifalias type="flag" constraint="exclusive:chassis-id"/>
-   <default-mac-address type="flag" constraint="exclusive:chassis-id"/>
-   <default-net-address type="flag" constraint="exclusive:chassis-id"/>
+   <default-ifname class="void"/>
+   <default-ifalias class="void"/>
+   <default-mac-address class="void"/>
+   <default-net-address class="void"/>
   </chassis-id>
 
-  <!-- Port-ID contains exactly one child element out of several possible. -->
-  <port-id class="dict">
-   <port-component type="string" constraint="exclusive:port-id"/>
-   <agent-circuit-id type="string" constraint="exclusive:port-id"/>
-   <ifalias type="string" constraint="exclusive:port-id"/>
+  <!-- Port-ID is a discriminated union. -->
+  <port-id class="union" switch="subtype">
+   <port-component type="string"/>
+   <agent-circuit-id type="string"/>
+   <ifalias type="string"/>
 
-   <default-ifname type="flag" constraint="exclusive:port-id"/>
-   <default-ifalias type="flag" constraint="exclusive:port-id"/>
-   <default-mac-address type="flag" constraint="exclusive:port-id"/>
-   <default-net-address type="flag" constraint="exclusive:port-id"/>
+   <default-ifname class="void"/>
+   <default-ifalias class="void"/>
+   <default-mac-address class="void"/>
+   <default-net-address class="void"/>
   </port-id>
 
   <ttl type="uint32"/>

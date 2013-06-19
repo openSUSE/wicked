@@ -27,18 +27,22 @@ static int		ni_dbus_xml_register_classes(ni_xs_scope_t *);
 static ni_dbus_method_t *ni_dbus_xml_register_methods(ni_xs_service_t *, ni_xs_method_t *, const ni_dbus_method_t *);
 
 static dbus_bool_t	ni_dbus_validate_xml(xml_node_t *, const ni_xs_type_t *, const ni_dbus_xml_validate_context_t *);
+static dbus_bool_t	ni_dbus_validate_xml_void(xml_node_t *, const ni_xs_type_t *, const ni_dbus_xml_validate_context_t *);
 static dbus_bool_t	ni_dbus_validate_xml_scalar(xml_node_t *, const ni_xs_type_t *, const ni_dbus_xml_validate_context_t *);
 static dbus_bool_t	ni_dbus_validate_xml_struct(xml_node_t *, const ni_xs_type_t *, const ni_dbus_xml_validate_context_t *);
+static dbus_bool_t	ni_dbus_validate_xml_union(xml_node_t *, const ni_xs_type_t *, const ni_dbus_xml_validate_context_t *);
 static dbus_bool_t	ni_dbus_validate_xml_array(xml_node_t *, const ni_xs_type_t *, const ni_dbus_xml_validate_context_t *);
 static dbus_bool_t	ni_dbus_validate_xml_dict(xml_node_t *, const ni_xs_type_t *, const ni_dbus_xml_validate_context_t *);
 static dbus_bool_t	ni_dbus_serialize_xml(xml_node_t *, const ni_xs_type_t *, ni_dbus_variant_t *);
 static dbus_bool_t	ni_dbus_serialize_xml_scalar(xml_node_t *, const ni_xs_type_t *, ni_dbus_variant_t *);
 static dbus_bool_t	ni_dbus_serialize_xml_struct(xml_node_t *, const ni_xs_type_t *, ni_dbus_variant_t *);
+static dbus_bool_t	ni_dbus_serialize_xml_union(xml_node_t *, const ni_xs_type_t *, ni_dbus_variant_t *);
 static dbus_bool_t	ni_dbus_serialize_xml_array(xml_node_t *, const ni_xs_type_t *, ni_dbus_variant_t *);
 static dbus_bool_t	ni_dbus_serialize_xml_dict(xml_node_t *, const ni_xs_type_t *, ni_dbus_variant_t *);
 static dbus_bool_t	ni_dbus_deserialize_xml(ni_dbus_variant_t *, const ni_xs_type_t *, xml_node_t *);
 static dbus_bool_t	ni_dbus_deserialize_xml_scalar(ni_dbus_variant_t *, const ni_xs_type_t *, xml_node_t *);
 static dbus_bool_t	ni_dbus_deserialize_xml_struct(ni_dbus_variant_t *, const ni_xs_type_t *, xml_node_t *);
+static dbus_bool_t	ni_dbus_deserialize_xml_union(ni_dbus_variant_t *, const ni_xs_type_t *, xml_node_t *);
 static dbus_bool_t	ni_dbus_deserialize_xml_array(ni_dbus_variant_t *, const ni_xs_type_t *, xml_node_t *);
 static dbus_bool_t	ni_dbus_deserialize_xml_dict(ni_dbus_variant_t *, const ni_xs_type_t *, xml_node_t *);
 static char *		__ni_xs_type_to_dbus_signature(const ni_xs_type_t *, char *, size_t);
@@ -422,11 +426,17 @@ ni_dbus_validate_xml(xml_node_t *node, const ni_xs_type_t *type, const ni_dbus_x
 	}
 
 	switch (type->class) {
+	case NI_XS_TYPE_VOID:
+		return ni_dbus_validate_xml_void(node, type, ctx);
+
 	case NI_XS_TYPE_SCALAR:
 		return ni_dbus_validate_xml_scalar(node, type, ctx);
 
 	case NI_XS_TYPE_STRUCT:
 		return ni_dbus_validate_xml_struct(node, type, ctx);
+
+	case NI_XS_TYPE_UNION:
+		return ni_dbus_validate_xml_union(node, type, ctx);
 
 	case NI_XS_TYPE_ARRAY:
 		return ni_dbus_validate_xml_array(node, type, ctx);
@@ -449,11 +459,17 @@ dbus_bool_t
 ni_dbus_serialize_xml(xml_node_t *node, const ni_xs_type_t *type, ni_dbus_variant_t *var)
 {
 	switch (type->class) {
+		case NI_XS_TYPE_VOID:
+			return TRUE;
+
 		case NI_XS_TYPE_SCALAR:
 			return ni_dbus_serialize_xml_scalar(node, type, var);
 
 		case NI_XS_TYPE_STRUCT:
 			return ni_dbus_serialize_xml_struct(node, type, var);
+
+		case NI_XS_TYPE_UNION:
+			return ni_dbus_serialize_xml_union(node, type, var);
 
 		case NI_XS_TYPE_ARRAY:
 			return ni_dbus_serialize_xml_array(node, type, var);
@@ -488,11 +504,17 @@ ni_dbus_deserialize_xml(ni_dbus_variant_t *var, const ni_xs_type_t *type, xml_no
 #endif
 
 	switch (type->class) {
+	case NI_XS_TYPE_VOID:
+		return TRUE;
+
 	case NI_XS_TYPE_SCALAR:
 		return ni_dbus_deserialize_xml_scalar(var, type, node);
 
 	case NI_XS_TYPE_STRUCT:
 		return ni_dbus_deserialize_xml_struct(var, type, node);
+
+	case NI_XS_TYPE_UNION:
+		return ni_dbus_deserialize_xml_union(var, type, node);
 
 	case NI_XS_TYPE_ARRAY:
 		return ni_dbus_deserialize_xml_array(var, type, node);
@@ -545,6 +567,23 @@ ni_dbus_serialize_xml_enum(const xml_node_t *node, const ni_xs_scalar_info_t *sc
 	}
 
 	*result = value;
+	return TRUE;
+}
+
+/*
+ * Validate a void node.
+ */
+dbus_bool_t
+ni_dbus_validate_xml_void(xml_node_t *node, const ni_xs_type_t *type, const ni_dbus_xml_validate_context_t *ctx)
+{
+	if (node->cdata) {
+		ni_error("%s: invalid void element <%s>: element has data", xml_node_location(node), node->name);
+		return FALSE;
+	}
+	if (node->children) {
+		ni_error("%s: invalid void element <%s>: element has children", xml_node_location(node), node->name);
+		return FALSE;
+	}
 	return TRUE;
 }
 
@@ -1090,6 +1129,99 @@ ni_dbus_deserialize_xml_struct(ni_dbus_variant_t *var, const ni_xs_type_t *type,
 {
 	ni_error("%s: not implemented yet", __func__);
 	return FALSE;
+}
+
+/*
+ * Serialize a discriminated union
+ */
+static inline const ni_xs_type_t *
+__ni_dbus_xml_union_type(xml_node_t *node, const ni_xs_type_t *type)
+{
+	ni_xs_union_info_t *union_info = ni_xs_union_info(type);
+	const ni_xs_type_t *child_type;
+	const char *kind;
+
+	ni_assert(union_info);
+
+	kind = xml_node_get_attr(node, union_info->discriminant);
+	if (kind == NULL) {
+		ni_error("%s: <%s> lacks %s attribute",
+				xml_node_location(node),
+				node->name, union_info->discriminant);
+		return NULL;
+	}
+
+	child_type = ni_xs_union_info_find(union_info, kind);
+	if (child_type == NULL) {
+		ni_error("%s: <%s> invalid attribute %s=\"%s\": discriminant type not known",
+				xml_node_location(node),
+				node->name, union_info->discriminant, kind);
+		return NULL;
+	}
+
+	return child_type;
+}
+
+dbus_bool_t
+ni_dbus_validate_xml_union(xml_node_t *node, const ni_xs_type_t *type, const ni_dbus_xml_validate_context_t *ctx)
+{
+	const ni_xs_type_t *child_type;
+
+	child_type = __ni_dbus_xml_union_type(node, type);
+	if (child_type == NULL)
+		return FALSE;
+
+	return ni_dbus_validate_xml(node, child_type, ctx);
+}
+
+dbus_bool_t
+ni_dbus_serialize_xml_union(xml_node_t *node, const ni_xs_type_t *type, ni_dbus_variant_t *var)
+{
+	const ni_xs_type_t *child_type;
+	ni_dbus_variant_t *child;
+
+	child_type = __ni_dbus_xml_union_type(node, type);
+	if (child_type == NULL)
+		return FALSE;
+
+	ni_dbus_variant_init_struct(var);
+
+	if (!(child = ni_dbus_struct_add(var)))
+		return FALSE;
+	ni_dbus_variant_set_string(child, child_type->name);
+
+	if (child_type->class == NI_XS_TYPE_VOID)
+		return TRUE;
+
+	if (!(child = ni_dbus_struct_add(var)))
+		return FALSE;
+
+	return ni_dbus_serialize_xml(node, child_type, child);
+}
+
+static dbus_bool_t
+ni_dbus_deserialize_xml_union(ni_dbus_variant_t *var, const ni_xs_type_t *type, xml_node_t *node)
+{
+	const ni_xs_type_t *child_type;
+	ni_dbus_variant_t *child;
+	const char *kind;
+
+	child_type = __ni_dbus_xml_union_type(node, type);
+	if (child_type == NULL)
+		return FALSE;
+
+	if (!(child = ni_dbus_struct_get(var, 0))
+	 || !ni_dbus_variant_get_string(child, &kind))
+		return FALSE;
+
+	xml_node_add_attr(node, child_type->name, kind);
+
+	if (child_type->class == NI_XS_TYPE_VOID)
+		return TRUE;
+
+	if (!(child = ni_dbus_struct_get(var, 1)))
+		return FALSE;
+	return ni_dbus_deserialize_xml(child, child_type, node);
 }
 
 /*

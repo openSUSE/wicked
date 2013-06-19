@@ -10,6 +10,7 @@
 #include <wicked/types.h>
 #include <wicked/constants.h>
 #include <wicked/address.h>
+#include <wicked/dcb.h>
 
 /* Chassis ID subtype */
 typedef enum ni_lldp_chassis_id_type {
@@ -34,6 +35,8 @@ typedef enum ni_lldp_port_id_type {
 	NI_LLDP_PORT_ID_AGENT_CIRCUIT_ID	= 6,
 	NI_LLDP_PORT_ID_LOCALLY_ASSIGNED	= 7,
 } ni_lldp_port_id_type_t;
+
+typedef struct ni_lldp_ieee_802_1 ni_lldp_ieee_802_1_t;
 
 struct ni_lldp {
 	ni_lldp_destination_t			destination;
@@ -61,12 +64,38 @@ struct ni_lldp {
 	} system;
 
 	uint32_t				ttl;
+
+	ni_lldp_ieee_802_1_t *			ieee_802_1;
+
+	/* 802.1 Qaz fields. Only used in the rx code; the
+	 * tx code builds the PDU from the data found in
+	 * the ni_dcbx_state attached to the agent.
+	 */
+	ni_dcb_attributes_t *			dcb_attributes;
 };
 
+/*
+ * IEEE 802.1 OUI TLV
+ */
+struct ni_lldp_ieee_802_1 {
+	uint16_t				pvid;		/* port VLAN ID */
+	uint16_t				ppvid;		/* port and protocol VLAN ID, default 0 */
+	unsigned char				ppvlan_flags;	/* port and protocol VLAN flags */
+
+	char *					vlan_name;	/* VLAN name */
+	uint16_t				mgmt_vid;	/* Management VID */
+
+	/* Not supported right now:
+	 *  - protocol identity
+	 *  - VID usage
+	 *  - link aggregation
+	 */
+};
 
 extern ni_lldp_t *	ni_lldp_new(void);
 extern void		ni_lldp_free(ni_lldp_t *);
-extern int		ni_system_lldp_setup(ni_netdev_t *, const ni_lldp_t *);
+extern int		ni_system_lldp_up(ni_netdev_t *, const ni_lldp_t *);
+extern int		ni_system_lldp_down(ni_netdev_t *);
 
 extern const char *	ni_lldp_destination_type_to_name(ni_lldp_destination_t);
 extern const char *	ni_lldp_system_capability_type_to_name(ni_lldp_destination_t);

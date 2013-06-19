@@ -9,11 +9,9 @@
 
   <lldp>
    <destination>nearest-bridge</destination>
-   <chassis-id>
-    <default-mac-address/>
-   </chassis-id>
-   <port-id>
-    <ifalias>foo</ifalias>
+   <chassis-id subtype="default-mac-address"/>
+   <port-id subtype="ifalias">
+    foo0
    </port-id>
 
    <port-description>VLAN 42 on eth0</port-description>

@@ -17,3 +17,26 @@ enum ni_lldp_basic_tlv {
 
 	NI_LLDP_TLV_ORGSPEC	= 127,
 };
+
+#define NI_LLDP_OUI_IEEE_8021	0x0080c2
+#define NI_LLDP_OUI_IEEE_8023	0x00120f
+
+enum ni_lldp_802_1_tlv {
+	NI_LLDP_IEEE_802_1_TLV_PVID	= 1,
+	NI_LLDP_IEEE_802_1_TLV_PPVID	= 2,
+	NI_LLDP_IEEE_802_1_TLV_VLAN_NAME= 3,
+	NI_LLDP_IEEE_802_1_TLV_PROTID	= 4,
+	NI_LLDP_IEEE_802_1_TLV_VID_USAGE= 5,
+	NI_LLDP_IEEE_802_1_TLV_MGMT_VID	= 6,
+	NI_LLDP_IEEE_802_1_TLV_AGGREG	= 7,
+
+	/* Not sure what happened to subtype 8 */
+
+	/* Subtypes 9 through 12 are defined in IEEE 802.1 Qaz
+	 * [KWatz!] said Ummon... */
+	NI_LLDP_IEEE_802_1QAZ_TLV_ETS_CFG= 9,
+	NI_LLDP_IEEE_802_1QAZ_TLV_ETS_REC= 10,
+	NI_LLDP_IEEE_802_1QAZ_TLV_PFC_CFG= 11,
+	NI_LLDP_IEEE_802_1QAZ_TLV_APP	= 12,
+
+};

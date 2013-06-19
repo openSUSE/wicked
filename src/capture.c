@@ -456,6 +456,7 @@ ni_capture_recv(ni_capture_t *capture, ni_buffer_t *bp)
 		break;
 
 	case ETHERTYPE_ARP:
+	case ETHERTYPE_LLDP:
 		payload = capture->buffer;
 		payload_len = bytes;
 		break;
