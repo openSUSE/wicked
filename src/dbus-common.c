@@ -1124,6 +1124,29 @@ ni_dbus_variant_signature(const ni_dbus_variant_t *var)
 				;
 		}
 		break;
+
+	case DBUS_TYPE_STRUCT:
+		{
+			static char *saved_sig = NULL;
+			ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
+			unsigned int i;
+
+			ni_stringbuf_putc(&buf, DBUS_STRUCT_BEGIN_CHAR);
+			for (i = 0; i < var->array.len; ++i) {
+				ni_dbus_variant_t *member = &var->struct_value[i];
+				const char *msig;
+				
+				if ((msig = ni_dbus_variant_signature(member)) == NULL) {
+					ni_stringbuf_destroy(&buf);
+					return NULL;
+				}
+				ni_stringbuf_puts(&buf, msig);
+			}
+			ni_stringbuf_putc(&buf, DBUS_STRUCT_END_CHAR);
+			ni_string_dup(&saved_sig, buf.string);
+			ni_stringbuf_destroy(&buf);
+			return saved_sig;
+		}
 	}
 
 	return NULL;

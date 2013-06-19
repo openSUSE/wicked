@@ -95,7 +95,13 @@ ni_dbus_message_iter_append_dict_entry(DBusMessageIter *iter,
 		return FALSE;
 
 	if (!ni_dbus_message_iter_append_variant(&iter_dict_entry, &entry->datum))
+	{
+		const ni_dbus_variant_t *v = &entry->datum;
+		ni_error("failed to append variant, type=%s/%c, value=\"%s\"",
+					ni_dbus_variant_signature(v), v->type,
+					ni_dbus_variant_sprint(v));
 		return FALSE;
+	}
 
 	if (!dbus_message_iter_close_container(iter, &iter_dict_entry))
 		return FALSE;
@@ -128,6 +134,29 @@ ni_dbus_message_iter_append_dict(DBusMessageIter *iter,
 		return FALSE;
 
 	return TRUE;
+}
+
+dbus_bool_t
+ni_dbus_message_iter_append_struct(DBusMessageIter *iter, const ni_dbus_variant_t *variant_array, unsigned int len)
+{
+	DBusMessageIter iter_array;
+	unsigned int i;
+	dbus_bool_t rv = TRUE;
+
+	if (!dbus_message_iter_open_container(iter, DBUS_TYPE_STRUCT,
+					      NULL,
+					      &iter_array))
+		return FALSE;
+
+	for (i = 0; rv && i < len; i++) {
+		rv = ni_dbus_message_iter_append_value(&iter_array,
+						    &variant_array[i], NULL);
+	}
+
+	if (!dbus_message_iter_close_container(iter, &iter_array))
+		rv = FALSE;
+
+	return rv;
 }
 
 dbus_bool_t
@@ -196,6 +225,7 @@ ni_dbus_message_iter_append_value(DBusMessageIter *iter, const ni_dbus_variant_t
 	if (signature[0] == DBUS_TYPE_VARIANT) {
 		if (!(signature = ni_dbus_variant_signature(variant)))
 			return FALSE;
+
 		if (!dbus_message_iter_open_container(iter, DBUS_TYPE_VARIANT, signature, &_iter_val))
 			return FALSE;
 		iter_val = &_iter_val;
@@ -246,6 +276,9 @@ ni_dbus_message_iter_append_value(DBusMessageIter *iter, const ni_dbus_variant_t
 		default:
 			ni_warn("%s: variant type %s not supported", __FUNCTION__, signature);
 		}
+	} else
+	if (variant->type == DBUS_TYPE_STRUCT) {
+		rv = ni_dbus_message_iter_append_struct(iter_val, variant->struct_value, variant->array.len);
 	} else {
 		ni_warn("%s: variant type %s not supported", __FUNCTION__, signature);
 	}
@@ -502,6 +535,9 @@ ni_dbus_message_serialize_variants(ni_dbus_message_t *msg,
 				ni_dbus_variant_sprint(&argv[i]));
 #endif
 		if (!ni_dbus_message_iter_append_value(&iter, &argv[i], NULL)) {
+			ni_error("error marshalling message, type=%s, value=\"%s\"",
+					ni_dbus_variant_signature(&argv[i]),
+					ni_dbus_variant_sprint(&argv[i]));
 			dbus_set_error(error,
 					DBUS_ERROR_FAILED,
 					"Error marshalling message arguments");
