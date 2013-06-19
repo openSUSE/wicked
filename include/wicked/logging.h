@@ -7,6 +7,8 @@
 #ifndef __WICKED_LOGGING_H__
 #define __WICKED_LOGGING_H__
 
+#include <wicked/types.h>
+
 #ifdef __GNUC__
 # define __fmtattr	__attribute__ ((format (printf, 1, 2)))
 # define __noreturn	__attribute__ ((noreturn))
@@ -15,6 +17,8 @@
 # define __noreturn	/* */
 #endif
 
+extern void		ni_info(const char *, ...) __fmtattr;
+extern void		ni_note(const char *, ...) __fmtattr;
 extern void		ni_warn(const char *, ...) __fmtattr;
 extern void		ni_error(const char *, ...) __fmtattr;
 extern void		ni_error_extra(const char *, ...) __fmtattr;
@@ -27,7 +31,20 @@ extern const char * 	ni_debug_facility_to_name(unsigned int);
 extern int		ni_debug_name_to_facility(const char *, unsigned int *);
 extern const char *	ni_debug_facility_to_description(unsigned int);
 
-extern void		ni_log_destination_syslog(const char *program);
+extern ni_bool_t	ni_log_level_set(const char *);
+extern unsigned int	ni_log_level_get(void);
+
+extern ni_bool_t	ni_log_destination(const char *program, const char *destination);
+extern void		ni_log_reopen(void);
+extern void		ni_log_close(void);
+
+enum {
+	NI_LOG_ERROR,
+	NI_LOG_WARNING,
+	NI_LOG_NOTICE,
+	NI_LOG_INFO,
+	NI_LOG_DEBUG
+};
 
 enum {
 	NI_TRACE_IFCONFIG	= 0x000001,
@@ -50,10 +67,11 @@ enum {
 };
 
 extern unsigned int	ni_debug;
+extern unsigned int	ni_log_level;
 
 #define __ni_debug(facility, fmt, args...) \
 	do { \
-		if (ni_debug & (facility)) \
+		if (ni_log_level >= NI_LOG_DEBUG && ni_debug & (facility)) \
 			ni_trace(fmt, ##args); \
 	} while (0)
 #define ni_debug_ifconfig(fmt, args...)		__ni_debug(NI_TRACE_IFCONFIG, fmt, ##args)
@@ -77,7 +95,7 @@ extern unsigned int	ni_debug;
 
 #define ni_debug_wicked_xml(xml_node, fmt, args...) \
 	do { \
-		if (ni_debug & NI_TRACE_WICKED_XML) { \
+		if (ni_log_level >= NI_LOG_DEBUG && ni_debug & NI_TRACE_WICKED_XML) { \
 			ni_trace(fmt, ##args); \
 			xml_node_print_debug(xml_node, NI_TRACE_WICKED_XML); \
 		} \

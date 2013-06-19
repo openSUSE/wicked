@@ -27,6 +27,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <getopt.h>
+#include <unistd.h>
 #include <limits.h>
 #include <net/if_arp.h>
 
@@ -42,43 +43,38 @@
 
 #define CONFIG_DHCP6_STATE_FILE	"dhcp6-state.xml"
 
-/* Hmm .. */
-#ifndef no_argument
-#define no_argument		0
-#endif
-#ifndef required_argument
-#define required_argument	1
-#endif
-#ifndef optional_argument
-#define optional_argument	2
-#endif
-
 enum {
+	OPT_HELP,
+	OPT_VERSION,
 	OPT_CONFIGFILE,
 	OPT_DEBUG,
+	OPT_LOG_LEVEL,
+	OPT_LOG_TARGET,
+
 	OPT_FOREGROUND,
-	OPT_NOFORK,
 	OPT_NORECOVER,
-	OPT_DBUS,
-	OPT_INFO_REQUEST,
-	OPT_LEASE_REQUEST,
-	OPT_LEASE_RELEASE,
 };
 
 static struct option		options[] = {
+	/* common */
+	{ "help",		no_argument,		NULL,	OPT_HELP },
+	{ "version",		no_argument,		NULL,	OPT_VERSION },
 	{ "config",		required_argument,	NULL,	OPT_CONFIGFILE },
 	{ "debug",		required_argument,	NULL,	OPT_DEBUG },
+	{ "log-level",		required_argument,	NULL,	OPT_LOG_LEVEL },
+	{ "log-target",		required_argument,	NULL,	OPT_LOG_TARGET },
+
+	/* daemon */
 	{ "foreground",		no_argument,		NULL,	OPT_FOREGROUND },
-	{ "no-fork",		no_argument,		NULL,	OPT_NOFORK },
+
+	/* specific */
 	{ "no-recovery",	no_argument,		NULL,	OPT_NORECOVER },
-	{ "request-info",	required_argument,	NULL,	OPT_INFO_REQUEST },
-	{ "request-lease",	required_argument,	NULL,	OPT_LEASE_REQUEST },
-	{ "release-lease",	required_argument,	NULL,	OPT_LEASE_RELEASE },
 
 	{ NULL,			no_argument,		NULL,	0 }
 };
 
 static const char *		program_name;
+static const char *		opt_log_target;
 static int			opt_foreground;
 static int			opt_no_recover_leases = 1;
 static char *			opt_state_file;
@@ -99,22 +95,34 @@ main(int argc, char **argv)
 
 	while ((c = getopt_long(argc, argv, "+", options, NULL)) != EOF) {
 		switch (c) {
+		case OPT_HELP:
 		default:
 		usage:
 			fprintf(stderr,
 				"%s [options]\n"
 				"This command understands the following options\n"
+				"  --help\n"
+				"  --version\n"
 				"  --config filename\n"
 				"        Read configuration file <filename> instead of system default.\n"
 				"  --debug facility\n"
 				"        Enable debugging for debug <facility>.\n"
+				"        Use '--debug help' for a list of facilities.\n"
+				"  --log-level level\n"
+				"        Set log level to <error|warning|notice|info|debug>.\n"
+				"  --log-target target\n"
+				"        Set log destination to <stderr|syslog>.\n"
 				"  --foreground\n"
 				"        Do not background the service.\n"
 				"  --norecover\n"
 				"        Disable automatic recovery of leases.\n"
 				, program_name
 			       );
-			return 1;
+			return (c == OPT_HELP ? 0 : 1);
+
+		case OPT_VERSION:
+			printf("%s %s\n", program_name, PACKAGE_VERSION);
+			return 0;
 
 		case OPT_CONFIGFILE:
 			ni_set_global_config_path(optarg);
@@ -132,6 +140,17 @@ main(int argc, char **argv)
 			}
 			break;
 
+		case OPT_LOG_LEVEL:
+			if (!ni_log_level_set(optarg)) {
+				fprintf(stderr, "Bad log level \%s\"\n", optarg);
+				return 1;
+			}
+			break;
+
+		case OPT_LOG_TARGET:
+			opt_log_target = optarg;
+			break;
+
 		case OPT_FOREGROUND:
 			opt_foreground = 1;
 			break;
@@ -144,6 +163,18 @@ main(int argc, char **argv)
 
 	if (optind != argc)
 		goto usage;
+
+	if (opt_log_target) {
+		if (!ni_log_destination(program_name, opt_log_target)) {
+			fprintf(stderr, "Bad log destination \%s\"\n",
+					opt_log_target);
+			return 1;
+		}
+	} else if (opt_foreground && getppid() != 1) {
+		ni_log_destination(program_name, "syslog:perror");
+	} else {
+		ni_log_destination(program_name, "syslog");
+	}
 
 	if (ni_init(program_name) < 0)
 		return 1;
@@ -160,7 +191,6 @@ main(int argc, char **argv)
 	ni_srandom();
 
 	dhcp6_supplicant();
-
 	return 0;
 }
 
@@ -306,7 +336,6 @@ dhcp6_supplicant(void)
 	if (!opt_foreground) {
 		if (ni_server_background(program_name) < 0)
 			ni_fatal("Unable to background server");
-		ni_log_destination_syslog(program_name);
 	}
 
 	if (!opt_no_recover_leases)

@@ -12,7 +12,6 @@
 #include <wicked/objectmodel.h>
 #include <wicked/fsm.h>
 
-extern const char *		program_name;
 extern int			opt_global_dryrun;
 extern char *			opt_global_rootdir;
 extern int			opt_global_progressmeter;

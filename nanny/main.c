@@ -30,22 +30,37 @@
 #include "nanny.h"
 
 enum {
+	OPT_HELP,
+	OPT_VERSION,
 	OPT_CONFIGFILE,
 	OPT_DEBUG,
+	OPT_LOG_LEVEL,
+	OPT_LOG_TARGET,
+
 	OPT_FOREGROUND,
 	OPT_NOMODEMMGR,
 };
 
 static struct option	options[] = {
+	/* common */
+	{ "help",		no_argument,		NULL,	OPT_HELP },
+	{ "version",		no_argument,		NULL,	OPT_VERSION },
 	{ "config",		required_argument,	NULL,	OPT_CONFIGFILE },
 	{ "debug",		required_argument,	NULL,	OPT_DEBUG },
+	{ "log-level",		required_argument,	NULL,	OPT_LOG_LEVEL },
+	{ "log-target",		required_argument,	NULL,	OPT_LOG_TARGET },
+
+	/* daemon */
 	{ "foreground",		no_argument,		NULL,	OPT_FOREGROUND },
+
+	/* specific */
 	{ "no-modem-manager",	no_argument,		NULL,	OPT_NOMODEMMGR },
 
 	{ NULL }
 };
 
 static const char *	program_name;
+static const char *	opt_log_target;
 static int		opt_foreground;
 static int		opt_no_modem_manager;
 
@@ -67,20 +82,33 @@ main(int argc, char **argv)
 
 	while ((c = getopt_long(argc, argv, "+", options, NULL)) != EOF) {
 		switch (c) {
+		case OPT_HELP:
 		default:
 		usage:
 			fprintf(stderr,
 				"%s [options]\n"
 				"This command understands the following options\n"
+				"  --help\n"
+				"  --version\n"
 				"  --config filename\n"
 				"        Read configuration file <filename> instead of system default.\n"
+				"  --debug facility\n"
+				"        Enable debugging for debug <facility>.\n"
+				"        Use '--debug help' for a list of debug facilities.\n"
+				"  --log-devel level\n"
+				"        Set log level to <error|warning|notice|info|debug>.\n"
+				"  --log-target target\n"
+				"        Set log destination to <stderr|syslog>.\n"
 				"  --foreground\n"
 				"        Run as a foreground process, rather than as a daemon.\n"
-				"  --debug facility\n"
-				"        Enable debugging for debug <facility>.\n",
-				program_name
-			       );
-			return 1;
+				"  --log-target target\n"
+				"        Set log destination target to <target>.\n"
+				, program_name);
+			return (c == OPT_HELP ? 0 : 1);
+
+		case OPT_VERSION:
+			printf("%s %s\n", program_name, PACKAGE_VERSION);
+			return 0;
 
 		case OPT_CONFIGFILE:
 			ni_set_global_config_path(optarg);
@@ -98,6 +126,17 @@ main(int argc, char **argv)
 			}
 			break;
 
+		case OPT_LOG_LEVEL:
+			if (!ni_log_level_set(optarg)) {
+				fprintf(stderr, "Bad log level \%s\"\n", optarg);
+				return 1;
+			}
+			break;
+
+		case OPT_LOG_TARGET:
+			opt_log_target = optarg;
+			break;
+
 		case OPT_FOREGROUND:
 			opt_foreground = 1;
 			break;
@@ -110,6 +149,18 @@ main(int argc, char **argv)
 
 	if (optind != argc)
 		goto usage;
+
+	if (opt_log_target) {
+		if (!ni_log_destination(program_name, opt_log_target)) {
+			fprintf(stderr, "Bad log destination \%s\"\n",
+				opt_log_target);
+		}
+		return 1;
+	} else if (opt_foreground && getppid() != 1) {
+		ni_log_destination(program_name, "syslog:perror");
+	} else {
+		ni_log_destination(program_name, "syslog");
+	}
 
 	babysit();
 	return 0;
@@ -134,7 +185,6 @@ babysit(void)
 	if (!opt_foreground) {
 		if (ni_server_background(program_name) < 0)
 			ni_fatal("unable to background server");
-		ni_log_destination_syslog(program_name);
 	}
 
 	ni_rfkill_open(handle_rfkill_event, mgr);

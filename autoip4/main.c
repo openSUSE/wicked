@@ -27,24 +27,37 @@
 #include "autoip4/autoip.h"
 
 enum {
+	OPT_HELP,
+	OPT_VERSION,
 	OPT_CONFIGFILE,
 	OPT_DEBUG,
+	OPT_LOG_LEVEL,
+	OPT_LOG_TARGET,
+
 	OPT_FOREGROUND,
-	OPT_NOFORK,
 	OPT_NORECOVER,
 };
 
 static struct option	options[] = {
+	/* common */
+	{ "help",		no_argument,		NULL,	OPT_HELP },
+	{ "version",		no_argument,		NULL,	OPT_VERSION },
 	{ "config",		required_argument,	NULL,	OPT_CONFIGFILE },
 	{ "debug",		required_argument,	NULL,	OPT_DEBUG },
+	{ "log-level",		required_argument,	NULL,	OPT_LOG_LEVEL },
+	{ "log-target",		required_argument,	NULL,	OPT_LOG_TARGET },
+
+	/* daemon */
 	{ "foreground",		no_argument,		NULL,	OPT_FOREGROUND },
-	{ "no-fork",		no_argument,		NULL,	OPT_NOFORK },
+
+	/* specific */
 	{ "no-recovery",	no_argument,		NULL,	OPT_NORECOVER },
 
 	{ NULL }
 };
 
 static const char *	program_name;
+static const char *	opt_log_target;
 static int		opt_foreground;
 static int		opt_no_recover_leases;
 static ni_dbus_server_t *autoip4_dbus_server;
@@ -67,22 +80,33 @@ main(int argc, char **argv)
 
 	while ((c = getopt_long(argc, argv, "+", options, NULL)) != EOF) {
 		switch (c) {
+		case OPT_HELP:
 		default:
 		usage:
 			fprintf(stderr,
 				"%s [options]\n"
 				"This command understands the following options\n"
+				"  --help\n"
+				"  --version\n"
 				"  --config filename\n"
 				"        Read configuration file <filename> instead of system default.\n"
 				"  --debug facility\n"
 				"        Enable debugging for debug <facility>.\n"
+				"        Use '--debug help' for a list of facilities.\n"
+				"  --log-level level\n"
+				"        Set log level to <error|warning|notice|info|debug>.\n"
+				"  --log-target target\n"
+				"        Set log destination to <stderr|syslog>.\n"
 				"  --foreground\n"
 				"        Do not background the service.\n"
 				"  --norecover\n"
 				"        Disable automatic recovery of leases.\n"
-				, program_name
-			       );
-			return 1;
+				, program_name);
+			return (c == OPT_HELP ? 0 : 1);
+
+		case OPT_VERSION:
+			printf("%s %s\n", program_name, PACKAGE_VERSION);
+			return 0;
 
 		case OPT_CONFIGFILE:
 			ni_set_global_config_path(optarg);
@@ -100,6 +124,16 @@ main(int argc, char **argv)
 			}
 			break;
 
+		case OPT_LOG_LEVEL:
+			if (!ni_log_level_set(optarg)) {
+				fprintf(stderr, "Bad log level \%s\"\n", optarg);
+				return 1;
+			}
+
+		case OPT_LOG_TARGET:
+			opt_log_target = optarg;
+			break;
+
 		case OPT_FOREGROUND:
 			opt_foreground = 1;
 			break;
@@ -110,11 +144,23 @@ main(int argc, char **argv)
 		}
 	}
 
-	if (ni_init(program_name) < 0)
-		return 1;
-
 	if (optind != argc)
 		goto usage;
+
+	if (opt_log_target) {
+		if (!ni_log_destination(program_name, opt_log_target)) {
+			fprintf(stderr, "Bad log destination \%s\"\n",
+					opt_log_target);
+			return 1;
+		}
+	} else if (opt_foreground && getppid() != 1) {
+		ni_log_destination(program_name, "syslog:perror");
+	} else {
+		ni_log_destination(program_name, "syslog");
+	}
+
+	if (ni_init(program_name) < 0)
+		return 1;
 
 	autoip4_supplicant();
 	return 0;
@@ -306,7 +352,6 @@ autoip4_supplicant(void)
 	if (!opt_foreground) {
 		if (ni_server_background(program_name) < 0)
 			ni_fatal("unable to background server");
-		ni_log_destination_syslog(program_name);
 	}
 
 	while (1) {
