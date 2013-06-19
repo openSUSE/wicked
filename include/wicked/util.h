@@ -239,6 +239,23 @@ ni_string_len(const char *s)
 	return s ? strlen(s) : 0;
 }
 
+/*
+ * type-safe min/max macros
+ */
+#define min_t(type, a, b) ({ \
+				type __res = a, __b = b; \
+				if (__res > __b) \
+					__res = __b; \
+				__res; \
+			  })
+#define max_t(type, a, b) ({ \
+				type __res = a, __b = b; \
+				if (__res < __b) \
+					__res = __b; \
+				__res; \
+			  })
+
+
 extern const char *	ni_string_strip_prefix(const char *string, const char *prefix);
 extern char *		ni_string_strip_suffix(char *string, const char *suffix);
 extern const char *	ni_string_join(char **str, const ni_string_array_t *nsa, const char *sep);
