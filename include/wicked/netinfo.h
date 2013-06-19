@@ -83,6 +83,7 @@ struct ni_netdev {
 	ni_openvpn_t *		openvpn;
 	ni_ppp_t *		ppp;
 	ni_lldp_t *		lldp;
+	ni_dcb_t *		dcb;
 
 	ni_pci_dev_t *		pci_dev;
 
@@ -185,6 +186,7 @@ extern void		ni_netdev_set_link_stats(ni_netdev_t *, ni_link_stats_t *);
 extern void		ni_netdev_set_wireless(ni_netdev_t *, ni_wireless_t *);
 extern void		ni_netdev_set_openvpn(ni_netdev_t *, ni_openvpn_t *);
 extern void		ni_netdev_set_ppp(ni_netdev_t *, ni_ppp_t *);
+extern void		ni_netdev_set_dcb(ni_netdev_t *, ni_dcb_t *);
 extern void		ni_netdev_set_lldp(ni_netdev_t *, ni_lldp_t *);
 extern void		ni_netdev_set_pci(ni_netdev_t *, ni_pci_dev_t *);
 extern void		ni_netdev_set_client_info(ni_netdev_t *, ni_device_clientinfo_t *);
