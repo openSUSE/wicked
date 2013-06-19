@@ -492,17 +492,6 @@ __ni_nl_talk(ni_netlink_t *nl, struct nl_msg *msg,
 	return err;
 }
 
-int
-ni_nl_talk(struct nl_msg *msg)
-{
-	if (!__ni_global_netlink) {
-		ni_error("%s: no netlink handle", __func__);
-		return -1;
-	}
-
-	return __ni_nl_talk(__ni_global_netlink, msg, NULL, NULL);
-}
-
 /*
  * Helper functions for storing all netlink responses in a list
  */
@@ -619,5 +608,29 @@ ni_nl_dump_store(int af, int type, struct ni_nlmsg_list *list)
 
 	nl_cb_put(cb);
 	return 0;
+}
+
+/*
+ * Send a message and capture the response message(s)
+ */
+int
+ni_nl_talk(struct nl_msg *msg, struct ni_nlmsg_list *list)
+{
+
+	if (!__ni_global_netlink) {
+		ni_error("%s: no netlink handle", __func__);
+		return -1;
+	}
+
+	if (list == NULL) {
+		return __ni_nl_talk(__ni_global_netlink, msg, NULL, NULL);
+	} else {
+		struct __ni_nl_dump_state data = {
+			.msg_type = -1,
+			.list = list,
+		};
+
+		return __ni_nl_talk(__ni_global_netlink, msg, __ni_nl_dump_valid, &data);
+	}
 }
 

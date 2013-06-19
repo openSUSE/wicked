@@ -1082,7 +1082,7 @@ __ni_rtnl_link_create_vlan(const char *ifname, const ni_vlan_t *vlan, unsigned i
 	}
 	NLA_PUT_STRING(msg, IFLA_IFNAME, ifname);
 
-	if (ni_nl_talk(msg) < 0)
+	if (ni_nl_talk(msg, NULL) < 0)
 		goto failed;
 
 	ni_debug_ifconfig("successfully created interface %s", ifname);
@@ -1110,7 +1110,7 @@ __ni_rtnl_simple(int msgtype, unsigned int flags, void *data, size_t len)
 	if (nlmsg_append(msg, data, len, NLMSG_ALIGNTO) < 0) {
 		ni_error("%s: nlmsg_append failed", __func__);
 	} else
-	if (ni_nl_talk(msg) < 0) {
+	if (ni_nl_talk(msg, NULL) < 0) {
 		ni_debug_ifconfig("%s: rtnl_talk failed", __func__);
 	} else {
 		rv = 0; /* success */
@@ -1185,7 +1185,7 @@ __ni_rtnl_link_up(const ni_netdev_t *dev, const ni_netdev_req_t *cfg)
 		/* FIXME: handle COST, QDISC, MASTER */
 	}
 
-	if ((rv = ni_nl_talk(msg)) < 0) {
+	if ((rv = ni_nl_talk(msg, NULL)) < 0) {
 		if (errno == ERFKILL)
 			rv = -NI_ERROR_RADIO_DISABLED;
 		else
@@ -1334,7 +1334,7 @@ __ni_rtnl_send_newaddr(ni_netdev_t *dev, const ni_address_t *ap, int flags)
 			goto nla_put_failure;
 	}
 
-	if (ni_nl_talk(msg) < 0) {
+	if (ni_nl_talk(msg, NULL) < 0) {
 		ni_error("%s(%s/%u): ni_nl_talk failed", __func__,
 				ni_sockaddr_print(&ap->local_addr),
 				ap->prefixlen);
@@ -1379,7 +1379,7 @@ __ni_rtnl_send_deladdr(ni_netdev_t *dev, const ni_address_t *ap)
 			goto nla_put_failure;
 	}
 
-	if (ni_nl_talk(msg) < 0) {
+	if (ni_nl_talk(msg, NULL) < 0) {
 		ni_error("%s(%s/%u): rtnl_talk failed", __func__,
 				ni_sockaddr_print(&ap->local_addr),
 				ap->prefixlen);
@@ -1502,7 +1502,7 @@ __ni_rtnl_send_newroute(ni_netdev_t *dev, ni_route_t *rp, int flags)
 		nla_nest_end(msg, mxrta);
 	}
 
-	if (ni_nl_talk(msg) < 0) {
+	if (ni_nl_talk(msg, NULL) < 0) {
 		ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 		ni_error("%s(%s): rtnl_talk failed", __FUNCTION__, ni_route_print(&buf, rp));
 		ni_stringbuf_destroy(&buf);
@@ -1554,7 +1554,7 @@ __ni_rtnl_send_delroute(ni_netdev_t *dev, ni_route_t *rp)
 
 	NLA_PUT_U32(msg, RTA_OIF, dev->link.ifindex);
 
-	if (ni_nl_talk(msg) < 0) {
+	if (ni_nl_talk(msg, NULL) < 0) {
 		ni_error("%s(%s): rtnl_talk failed", __FUNCTION__, ni_route_print(&buf, rp));
 		ni_stringbuf_destroy(&buf);
 		goto failed;
