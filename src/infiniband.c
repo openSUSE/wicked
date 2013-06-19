@@ -82,7 +82,7 @@ ni_infiniband_get_umcast_flag(const char *umcast, unsigned int *fp)
 
 	if (!umcast || !fp)
 		return FALSE;
-	if (ni_parse_uint_mapped(umcast, __map_ipoib_umcast, &flag) < 0)
+	if (ni_parse_uint_maybe_mapped(umcast, __map_ipoib_umcast, &flag, 10) != 0)
 		return FALSE;
 	*fp = flag;
 	return TRUE;
