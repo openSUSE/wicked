@@ -93,6 +93,7 @@ ni_netdev_free(ni_netdev_t *dev)
 	ni_netdev_set_wireless(dev, NULL);
 	ni_netdev_set_openvpn(dev, NULL);
 	ni_netdev_set_ppp(dev, NULL);
+	ni_netdev_set_dcb(dev, NULL);
 	ni_netdev_set_lldp(dev, NULL);
 	ni_netdev_set_client_info(dev, NULL);
 
@@ -317,6 +318,25 @@ ni_netdev_set_ppp(ni_netdev_t *dev, ni_ppp_t *ppp)
 	if (dev->ppp)
 		ni_ppp_free(dev->ppp);
 	dev->ppp = ppp;
+}
+
+/*
+ * Set the interface's ppp info
+ */
+ni_dcb_t *
+ni_netdev_get_dcb(ni_netdev_t *dev)
+{
+	if (dev->link.type != NI_IFTYPE_ETHERNET)
+		return NULL;
+	return dev->dcb;
+}
+
+void
+ni_netdev_set_dcb(ni_netdev_t *dev, ni_dcb_t *dcb)
+{
+	if (dev->dcb)
+		ni_dcb_free(dev->dcb);
+	dev->dcb = dcb;
 }
 
 /*

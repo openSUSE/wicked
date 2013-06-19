@@ -35,6 +35,7 @@ libwicked_la_SOURCES		= \
 	calls.c			\
 	capture.c		\
 	config.c		\
+	dcb.c			\
 	dbus-client.c		\
 	dbus-common.c		\
 	dbus-connection.c	\
