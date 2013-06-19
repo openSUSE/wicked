@@ -123,7 +123,7 @@ ni_infiniband_validate(ni_iftype_t iftype, const ni_infiniband_t *ib)
 	if (ib->mode != NI_INFINIBAND_VALUE_NOT_SET &&
 			ni_infiniband_get_mode_name(ib->mode) == NULL)
 		return "Invalid/unsupported infiniband connection-mode";
-	if (ib->umcast != -NI_INFINIBAND_VALUE_NOT_SET &&
+	if (ib->umcast != NI_INFINIBAND_VALUE_NOT_SET &&
 			ni_infiniband_get_umcast_name(ib->umcast) == NULL)
 		return "Invalid/unsupported infiniband user-multicast policy";
 
