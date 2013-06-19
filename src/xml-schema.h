@@ -198,10 +198,12 @@ typedef struct ni_xs_group_array {
 } ni_xs_group_array_t;
 
 enum {
+	NI_XS_TYPE_VOID,
 	NI_XS_TYPE_SCALAR,
 	NI_XS_TYPE_STRUCT,
 	NI_XS_TYPE_ARRAY,
 	NI_XS_TYPE_DICT,
+	NI_XS_TYPE_UNION,
 };
 
 typedef struct ni_xs_notation	ni_xs_notation_t;
@@ -229,6 +231,12 @@ struct ni_xs_dict_info {
 
 typedef struct ni_xs_struct_info ni_xs_struct_info_t;
 struct ni_xs_struct_info {
+	ni_xs_name_type_array_t children;
+};
+
+typedef struct ni_xs_union_info ni_xs_union_info_t;
+struct ni_xs_union_info {
+	char *			discriminant;
 	ni_xs_name_type_array_t children;
 };
 
@@ -264,6 +272,7 @@ struct ni_xs_type {
 		ni_xs_scalar_info_t *	scalar_info;
 		ni_xs_dict_info_t *	dict_info;
 		ni_xs_struct_info_t *	struct_info;
+		ni_xs_union_info_t *	union_info;
 		ni_xs_array_info_t *	array_info;
 	} u;
 
@@ -369,6 +378,14 @@ ni_xs_struct_info(const ni_xs_type_t *type)
 	return type->u.struct_info;
 }
 
+static inline ni_xs_union_info_t *
+ni_xs_union_info(const ni_xs_type_t *type)
+{
+	ni_assert(type->class == NI_XS_TYPE_UNION);
+	ni_assert(type->u.union_info);
+	return type->u.union_info;
+}
+
 static inline ni_xs_dict_info_t *
 ni_xs_dict_info(const ni_xs_type_t *type)
 {
@@ -395,6 +412,12 @@ static inline const ni_xs_type_t *
 ni_xs_struct_info_find(const ni_xs_struct_info_t *struct_info, const char *name)
 {
 	return ni_xs_name_type_array_find(&struct_info->children, name);
+}
+
+static inline const ni_xs_type_t *
+ni_xs_union_info_find(const ni_xs_union_info_t *union_info, const char *name)
+{
+	return ni_xs_name_type_array_find(&union_info->children, name);
 }
 
 #endif /* __WICKED_XML_SCHEMA_H__ */

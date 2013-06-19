@@ -84,6 +84,18 @@ ni_xs_struct_new(ni_xs_name_type_array_t *children)
 }
 
 ni_xs_type_t *
+ni_xs_union_new(ni_xs_name_type_array_t *children, const char *discriminant)
+{
+	ni_xs_type_t *type = __ni_xs_type_new(NI_XS_TYPE_UNION);
+
+	type->u.union_info = xcalloc(1, sizeof(ni_xs_union_info_t));
+	if (children)
+		ni_xs_name_type_array_copy(&type->u.union_info->children, children);
+	ni_string_dup(&type->u.union_info->discriminant, discriminant);
+	return type;
+}
+
+ni_xs_type_t *
 ni_xs_dict_new(ni_xs_name_type_array_t *children)
 {
 	ni_xs_type_t *type = __ni_xs_type_new(NI_XS_TYPE_DICT);
@@ -116,6 +128,9 @@ ni_xs_type_clone(const ni_xs_type_t *src)
 	ni_xs_type_t *dst = NULL;
 
 	switch (src->class) {
+	case NI_XS_TYPE_VOID:
+		break;
+
 	case NI_XS_TYPE_SCALAR:
 		{
 			ni_xs_scalar_info_t *scalar_info = src->u.scalar_info;
@@ -143,6 +158,14 @@ ni_xs_type_clone(const ni_xs_type_t *src)
 			ni_xs_struct_info_t *struct_info = src->u.struct_info;
 
 			dst = ni_xs_struct_new(&struct_info->children);
+			break;
+		}
+
+	case NI_XS_TYPE_UNION:
+		{
+			ni_xs_union_info_t *union_info = src->u.union_info;
+
+			dst = ni_xs_union_new(&union_info->children, union_info->discriminant);
 			break;
 		}
 
@@ -203,6 +226,17 @@ ni_xs_type_free(ni_xs_type_t *type)
 			ni_xs_name_type_array_destroy(&struct_info->children);
 			free(struct_info);
 			type->u.struct_info = NULL;
+			break;
+		}
+
+	case NI_XS_TYPE_UNION:
+		{
+			ni_xs_union_info_t *union_info = type->u.union_info;
+
+			ni_xs_name_type_array_destroy(&union_info->children);
+			ni_string_free(&union_info->discriminant);
+			free(union_info);
+			type->u.union_info = NULL;
 			break;
 		}
 
@@ -549,7 +583,7 @@ static int
 ni_xs_is_class_name(const char *name)
 {
 	static const char *class_names[] = {
-		"scalar", "dict", "struct", "array",
+		"scalar", "dict", "struct", "union", "array",
 		NULL
 	};
 
@@ -560,7 +594,7 @@ static int
 ni_xs_is_reserved_name(const char *name)
 {
 	static const char *reserved[] = {
-		"dict", "struct", "array", "define", "object-class",
+		"dict", "struct", "union", "array", "define", "object-class",
 		NULL
 	};
 
@@ -895,7 +929,7 @@ ni_xs_process_define(xml_node_t *node, ni_xs_scope_t *scope)
 
 	if ((typeAttr = xml_node_get_attr(node, "class")) != NULL) {
 		/* check for
-		 *   <define name="..." class="(dict|array|struct)">...</define>
+		 *   <define name="..." class="(dict|array|struct|union)">...</define>
 		 */
 		ni_xs_type_t *newType;
 		ni_xs_scope_t *context;
@@ -983,7 +1017,7 @@ ni_xs_build_typelist(xml_node_t *node, ni_xs_name_type_array_t *result, ni_xs_sc
 			continue;
 
 		if (ni_xs_is_class_name(child->name)) {
-			/* <struct ...> <dict ...> or <array ...> */
+			/* <struct ...> <union ...> <dict ...> or <array ...> */
 			ni_xs_scope_t *localdict;
 
 			/* Create an anonymous scope and destroy it afterwards */
@@ -998,7 +1032,7 @@ ni_xs_build_typelist(xml_node_t *node, ni_xs_name_type_array_t *result, ni_xs_sc
 			/* This can be either
 			 *   <u32/> (or any other scalar type)
 			 * or
-			 *   <somename class="(dict|struct|array)">
+			 *   <somename class="(dict|struct|union|array)">
 			 * or
 			 *   <somename type="othertype"/>
 			 */
@@ -1037,14 +1071,17 @@ ni_xs_build_typelist(xml_node_t *node, ni_xs_name_type_array_t *result, ni_xs_sc
 
 				if ((typeAttr = xml_node_get_attr(child, "class")) != NULL) {
 					memberType = ni_xs_build_complex_type(child, typeAttr, context);
+					if (memberType == NULL) {
+						ni_error("%s: unknown class \"%s\" in <%s>", xml_node_location(child), typeAttr, child->name);
+						return -1;
+					}
 				} else
 				if ((typeAttr = xml_node_get_attr(child, "type")) != NULL) {
 					memberType = ni_xs_build_simple_type(child, typeAttr, context, group_array);
-				}
-
-				if (memberType == NULL) {
-					ni_error("%s: unknown type <%s>", xml_node_location(child), child->name);
-					return -1;
+					if (memberType == NULL) {
+						ni_error("%s: unknown type \"%s\" in <%s>", xml_node_location(child), typeAttr, child->name);
+						return -1;
+					}
 				}
 			}
 		}
@@ -1093,6 +1130,20 @@ ni_xs_build_complex_type(xml_node_t *node, const char *className, ni_xs_scope_t 
 		}
 
 		if (ni_xs_build_typelist(node, &type->u.struct_info->children, scope, TRUE, NULL) < 0) {
+			ni_xs_type_free(type);
+			return NULL;
+		}
+	} else
+	if (!strcmp(className, "union")) {
+		const char *disc_name;
+
+		if ((disc_name = xml_node_get_attr(node, "switch")) == NULL) {
+			ni_error("%s: discriminated union lacking switch attribute",
+					xml_node_location(node));
+			return NULL;
+		}
+		type = ni_xs_union_new(NULL, disc_name);
+		if (ni_xs_build_typelist(node, &type->u.union_info->children, scope, TRUE, NULL) < 0) {
 			ni_xs_type_free(type);
 			return NULL;
 		}
@@ -1182,6 +1233,9 @@ ni_xs_build_complex_type(xml_node_t *node, const char *className, ni_xs_scope_t 
 				return NULL;
 			}
 		}
+	} else
+	if (!strcmp(className, "void")) {
+		type = __ni_xs_type_new(NI_XS_TYPE_VOID);
 	} else {
 		ni_error("%s: unknown class=\"%s\"", xml_node_location(node), className);
 		return NULL;
