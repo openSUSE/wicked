@@ -1528,7 +1528,7 @@ ni_dbus_struct_add(ni_dbus_variant_t *var)
 }
 
 ni_dbus_variant_t *
-ni_dbus_struct_get(ni_dbus_variant_t *var, unsigned int index)
+ni_dbus_struct_get(const ni_dbus_variant_t *var, unsigned int index)
 {
 	if (var->type != DBUS_TYPE_STRUCT || index >= var->array.len)
 		return NULL;

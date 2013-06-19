@@ -327,7 +327,7 @@ extern ni_dbus_variant_t *	ni_dbus_array_array_add(ni_dbus_variant_t *);
 
 extern void			ni_dbus_variant_init_struct(ni_dbus_variant_t *);
 extern ni_dbus_variant_t *	ni_dbus_struct_add(ni_dbus_variant_t *);
-extern ni_dbus_variant_t *	ni_dbus_struct_get(ni_dbus_variant_t *, unsigned int);
+extern ni_dbus_variant_t *	ni_dbus_struct_get(const ni_dbus_variant_t *, unsigned int);
 extern dbus_bool_t		ni_dbus_struct_get_string(ni_dbus_variant_t *, unsigned int, const char **);
 
 /*
