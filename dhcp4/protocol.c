@@ -719,16 +719,15 @@ ni_dhcp_decode_static_routes(ni_buffer_t *bp, ni_route_array_t *routes)
 static int
 ni_dhcp_decode_routers(ni_buffer_t *bp, ni_route_array_t *routes)
 {
-	ni_sockaddr_t destination, gateway;
+	ni_sockaddr_t gateway;
 
-	destination.ss_family = AF_UNSPEC;
 	while (ni_buffer_count(bp) && !bp->underflow) {
 		ni_route_t *rp;
 
 		if (ni_dhcp_option_get_sockaddr(bp, &gateway) < 0)
 			return -1;
 
-		rp = ni_route_create(0, &destination, &gateway, 0, NULL);
+		rp = ni_route_create(0, NULL, &gateway, 0, NULL);
 		ni_route_array_append(routes, rp);
 	}
 

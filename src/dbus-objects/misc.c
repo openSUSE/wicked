@@ -784,6 +784,7 @@ __ni_objectmodel_route_nexthop_from_dict(ni_route_nexthop_t *nh, const ni_dbus_v
 ni_route_t *
 __ni_objectmodel_route_from_dict(ni_route_table_t **list, const ni_dbus_variant_t *dict)
 {
+	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 	const ni_dbus_variant_t *nhdict, *child;
 	uint32_t value;
 	ni_route_t *rp = NULL;
@@ -810,8 +811,11 @@ __ni_objectmodel_route_from_dict(ni_route_table_t **list, const ni_dbus_variant_
 				goto failure;
 
 			if (rp->nh.gateway.ss_family != AF_UNSPEC &&
-			    rp->nh.gateway.ss_family != nh->gateway.ss_family)
+			    rp->nh.gateway.ss_family != nh->gateway.ss_family) {
+				ni_debug_dbus("%s: route nexthop with gateway family mix",
+						__func__);
 				goto failure;
+			}
 
 			nhdict = ni_dbus_dict_get_next(dict, "nexthop", nhdict);
 			if (nhdict) {
@@ -842,11 +846,9 @@ __ni_objectmodel_route_from_dict(ni_route_table_t **list, const ni_dbus_variant_
 		ni_debug_dbus("%s: unknown route with destination/gateway family mix", __func__);
 		goto failure;
 	}
-
 	rp->family = rp->destination.ss_family;
 
-	if (!__ni_objectmodel_dict_get_sockaddr(dict, "pref-source", &rp->pref_src))
-		goto failure;
+	__ni_objectmodel_dict_get_sockaddr(dict, "pref-source", &rp->pref_src);
 	if (ni_dbus_dict_get_uint32(dict, "priority", &value))
 		rp->priority = value;
 	if (ni_dbus_dict_get_uint32(dict, "flags", &value))
@@ -899,6 +901,9 @@ __ni_objectmodel_route_from_dict(ni_route_table_t **list, const ni_dbus_variant_
 		return rp;
 
 failure:
+	ni_debug_dbus("%s: Cannot get complete route from dbus dict (%s)",
+			__func__, ni_route_print(&buf, rp));
+	ni_stringbuf_destroy(&buf);
 	if (rp) {
 		ni_route_free(rp);
 	}
