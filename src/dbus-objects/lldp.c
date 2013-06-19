@@ -44,6 +44,70 @@ __ni_objectmodel_protocol_arg(const ni_dbus_variant_t *dict, const ni_dbus_servi
 }
 
 /*
+ * Verify the LLDP configuration sent by the client
+ */
+static dbus_bool_t
+__ni_objectmodel_lldp_verify(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			const ni_netdev_t *dev, const ni_lldp_t *lldp, DBusError *error)
+{
+	switch (lldp->chassis_id.type) {
+	case NI_LLDP_CHASSIS_ID_INTERFACE_NAME:
+		if (lldp->chassis_id.string_value != NULL
+		 && !ni_string_eq(lldp->chassis_id.string_value, dev->name)) {
+			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+						"bad arguments in call to %s.%s(): requesting interface name %s, "
+						"which does not match the device name. Consider using default-ifname",
+						object->path, method->name, lldp->chassis_id.string_value);
+			return FALSE;
+		}
+		break;
+
+	case NI_LLDP_CHASSIS_ID_INTERFACE_ALIAS:
+		if (lldp->chassis_id.string_value == NULL
+		 && dev->link.alias == NULL) {
+			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+						"bad arguments in call to %s.%s(): requesting default interface alias, "
+						"but no alias is set for this device",
+						object->path, method->name);
+			return FALSE;
+		}
+		break;
+
+	default:
+		break;
+	}
+
+	switch (lldp->port_id.type) {
+	case NI_LLDP_PORT_ID_INTERFACE_NAME:
+		if (lldp->port_id.string_value != NULL
+		 && !ni_string_eq(lldp->port_id.string_value, dev->name)) {
+			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+						"bad arguments in call to %s.%s(): requesting interface name %s, "
+						"which does not match the device name. Consider using default-ifname",
+						object->path, method->name, lldp->port_id.string_value);
+			return FALSE;
+		}
+		break;
+
+	case NI_LLDP_PORT_ID_INTERFACE_ALIAS:
+		if (lldp->port_id.string_value == NULL
+		 && dev->link.alias == NULL) {
+			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+						"bad arguments in call to %s.%s(): requesting default interface alias, "
+						"but no alias is set for this device",
+						object->path, method->name);
+			return FALSE;
+		}
+		break;
+
+	default:
+		break;
+	}
+
+	return TRUE;
+}
+
+/*
  * LLDP.lldpUp
  */
 static dbus_bool_t
@@ -66,59 +130,9 @@ ni_objectmodel_lldp_up(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 		goto out;
 	}
 
-	switch (cfg->lldp->chassis_id.type) {
-	case NI_LLDP_CHASSIS_ID_INTERFACE_NAME:
-		if (cfg->lldp->chassis_id.string_value != NULL
-		 && !ni_string_eq(cfg->lldp->chassis_id.string_value, dev->name)) {
-			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-						"bad arguments in call to %s.%s(): requesting interface name %s, "
-						"which does not match the device name. Consider using default-ifname",
-						object->path, method->name, cfg->lldp->chassis_id.string_value);
-			goto out;
-		}
-		break;
-
-	case NI_LLDP_CHASSIS_ID_INTERFACE_ALIAS:
-		if (cfg->lldp->chassis_id.string_value == NULL
-		 && dev->link.alias == NULL) {
-			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-						"bad arguments in call to %s.%s(): requesting default interface alias, "
-						"but no alias is set for this device",
-						object->path, method->name);
-			goto out;
-		}
-		break;
-
-	default:
-		break;
-	}
-
-	switch (cfg->lldp->port_id.type) {
-	case NI_LLDP_PORT_ID_INTERFACE_NAME:
-		if (cfg->lldp->port_id.string_value != NULL
-		 && !ni_string_eq(cfg->lldp->port_id.string_value, dev->name)) {
-			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-						"bad arguments in call to %s.%s(): requesting interface name %s, "
-						"which does not match the device name. Consider using default-ifname",
-						object->path, method->name, cfg->lldp->port_id.string_value);
-			goto out;
-		}
-		break;
-
-	case NI_LLDP_PORT_ID_INTERFACE_ALIAS:
-		if (cfg->lldp->port_id.string_value == NULL
-		 && dev->link.alias == NULL) {
-			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-						"bad arguments in call to %s.%s(): requesting default interface alias, "
-						"but no alias is set for this device",
-						object->path, method->name);
-			goto out;
-		}
-		break;
-
-	default:
-		break;
-	}
+	if (cfg->lldp
+	 && !__ni_objectmodel_lldp_verify(object, method, dev, cfg->lldp, error))
+		goto out;
 
 	if (ni_system_lldp_up(dev, cfg->lldp) < 0) {
 		dbus_set_error(error, DBUS_ERROR_FAILED, "failed to set up LLDP on device %s", dev->name);
