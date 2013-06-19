@@ -9,6 +9,7 @@
 #ifndef __WICKED_DHCP_BUFFER_H__
 #define __WICKED_DHCP_BUFFER_H__
 
+#include <arpa/inet.h>	/* for htonl and friends */
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -235,6 +236,38 @@ ni_buffer_pull_head(ni_buffer_t *bp, size_t count)
 	result = bp->base + bp->head;
 	bp->head += count;
 	return result;
+}
+
+static inline int
+ni_buffer_put_uint16(ni_buffer_t *bp, uint16_t value)
+{
+	value = htons(value);
+	return ni_buffer_put(bp, &value, sizeof(value));
+}
+
+static inline int
+ni_buffer_get_uint16(ni_buffer_t *bp, uint16_t *var)
+{
+	if (ni_buffer_put(bp, var, sizeof(*var)) < 0)
+		return -1;
+	*var = ntohs(*var);
+	return 0;
+}
+
+static inline int
+ni_buffer_put_uint32(ni_buffer_t *bp, uint32_t value)
+{
+	value = htonl(value);
+	return ni_buffer_put(bp, &value, sizeof(value));
+}
+
+static inline int
+ni_buffer_get_uint32(ni_buffer_t *bp, uint32_t *var)
+{
+	if (ni_buffer_put(bp, var, sizeof(*var)) < 0)
+		return -1;
+	*var = ntohl(*var);
+	return 0;
 }
 
 extern void		ni_buffer_ensure_tailroom(ni_buffer_t *, unsigned int);
