@@ -99,10 +99,10 @@ __ni_netdev_nduseropt_event(ni_netdev_t *dev, ni_event_t ev)
 int
 __ni_rtevent_process(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struct nlmsghdr *h)
 {
-	const char *rtnl_name;
 	int rv;
-
 #if 0
+	const char *rtnl_name;
+
 	if ((rtnl_name = __ni_rtevent_msg_name(h->nlmsg_type)) != NULL)
 		ni_debug_events("received %s event", rtnl_name);
 	else
