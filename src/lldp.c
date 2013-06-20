@@ -478,12 +478,6 @@ ni_lldp_agent_start(ni_netdev_t *dev, ni_lldp_t *lldp, ni_dcbx_state_t *dcbx)
 
 	ni_capture_set_user_data(capture, agent);
 
-	/* build packet and prime sender */
-	if (ni_lldp_pdu_build(agent->config, agent->dcbx, &agent->sendbuf) < 0) {
-		ni_error("LLDP: error building PDU");
-		return -1;
-	}
-
 	ni_lldp_agent_send(agent);
 	return 0;
 }
@@ -504,6 +498,13 @@ ni_lldp_agent_send(ni_lldp_agent_t *agent)
 {
 	struct timeval now;
 	ni_bool_t rv = FALSE;
+
+	/* build packet and prime sender */
+	if (ni_buffer_count(&agent->sendbuf) == 0
+	 && ni_lldp_pdu_build(agent->config, agent->dcbx, &agent->sendbuf) < 0) {
+		ni_error("%s: error building LLDP PDU", agent->dev->name);
+		return -1;
+	}
 
 	ni_timer_get_time(&now);
 	if (!timerisset(&agent->tx_timestamp)) {
@@ -677,7 +678,13 @@ ni_lldp_agent_update(ni_lldp_agent_t *agent, ni_lldp_t *lldp, const void *raw_id
 	if (agent->dcbx) {
 		if (lldp->dcb_attributes != NULL && npeers == 1) {
 			agent->dcbx->running = TRUE;
-			ni_dcbx_update_remote(agent->dcbx, lldp->dcb_attributes);
+
+			/* Pass the received DCBX attributes to the DCB driver.
+			 * If the function returns TRUE, the configuration changed
+			 * and we're supposed to rebuild the PDU on the next transmit
+			 */
+			if (ni_dcbx_update_remote(agent->dcbx, lldp->dcb_attributes))
+				ni_buffer_reset(&agent->sendbuf);
 		} else if (agent->dcbx->running) {
 			ni_debug_lldp("%s: more than one LLDP agent on the link, disabling DCBX",
 					agent->dev->name);

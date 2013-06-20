@@ -157,7 +157,7 @@ extern ni_bool_t		ni_dcbx_should_start(ni_netdev_t *);
 extern ni_dcbx_state_t *	ni_dcbx_new(void);
 extern void			ni_dcbx_free(ni_dcbx_state_t *);
 extern void			ni_dcbx_update_local(ni_dcbx_state_t *, const ni_dcb_attributes_t *);
-extern void			ni_dcbx_update_remote(ni_dcbx_state_t *, const ni_dcb_attributes_t *);
+extern ni_bool_t		ni_dcbx_update_remote(ni_dcbx_state_t *, const ni_dcb_attributes_t *);
 
 extern void			ni_dcb_app_priorities_destroy(ni_dcb_app_priorities_t *);
 extern void			ni_dcb_app_priorities_destroy_append(ni_dcb_app_priorities_t *dst, const struct dcb_app *);

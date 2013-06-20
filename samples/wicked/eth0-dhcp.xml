@@ -14,6 +14,12 @@
     <enabled>true</enabled>
     <acquire-timeout>15</acquire-timeout>
   </ipv4:dhcp>
+
+  <lldp>
+   <destination>nearest-bridge</destination>
+   <chassis-id subtype="default-mac-address"/>
+   <port-id subtype="default-mac-address"/>
+  </lldp>
 </interface>
 
 

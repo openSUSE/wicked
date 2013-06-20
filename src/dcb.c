@@ -229,12 +229,22 @@ ni_dcbx_update_local(ni_dcbx_state_t *dcbx, const ni_dcb_attributes_t *local)
 	ni_dcb_app_priorities_copy(&dcbx->app_priorities, &local->app_priorities);
 }
 
-void
+/*
+ * We received an LLDP PDU with DCBX attributes.
+ * Process them according to the state machine rules and apply them (ie reconfigure
+ * the NIC).
+ *
+ * This function should return TRUE if the local configuration changed.
+ * This tells the LLDP engine to rebuild the PDU on the next transmit
+ */
+ni_bool_t
 ni_dcbx_update_remote(ni_dcbx_state_t *dcbx, const ni_dcb_attributes_t *remote)
 {
 	ni_dcbx_recv_ets(dcbx, &remote->ets_recommended);
-
 	ni_dcbx_recv_pfc(dcbx, &remote->pfc_config);
+
+	/* For now, we tell LLDP to always rebuild the packet */
+	return TRUE;
 }
 
 static inline void
