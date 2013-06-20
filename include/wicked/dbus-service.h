@@ -21,13 +21,16 @@ typedef dbus_bool_t		ni_dbus_property_set_fn_t(ni_dbus_object_t *,
 typedef dbus_bool_t		ni_dbus_property_parse_fn_t(const ni_dbus_property_t *property,
 					ni_dbus_variant_t *var,
 					const char *value);
+typedef void *			ni_dbus_property_get_handle_fn_t(const ni_dbus_object_t *object,
+					ni_bool_t write_access,
+					DBusError *error);
 
 struct ni_dbus_property	{
 	const char *			name;
 	const char *			signature;
 
 	struct {
-		void *			(*get_handle)(const ni_dbus_object_t *object, ni_bool_t write_access, DBusError *error);
+		ni_dbus_property_get_handle_fn_t *get_handle;
 		union {
 			ni_bool_t *	bool_offset;
 			int *		int_offset;

@@ -707,6 +707,7 @@ __ni_dbus_object_get_properties_as_dict(const ni_dbus_object_t *object,
 					ni_dbus_variant_t *dict,
 					DBusError *error)
 {
+	ni_dbus_property_get_handle_fn_t *get_handle_failed = NULL;
 	const ni_dbus_property_t *property;
 
 	/* Loop over properties and add them here */
@@ -749,6 +750,24 @@ __ni_dbus_object_get_properties_as_dict(const ni_dbus_object_t *object,
 		if (property->get == NULL)
 			continue;
 
+		/* Quite often, we have a set of values attached to a netdev object
+		 * that is accessed through a pointer (dev->foobar).
+		 *
+		 * Generic properties use the get_handle function to retrieve that
+		 * pointer, and the operate on a variable at a specific offset.
+		 *
+		 * Now, if the device's pointer is not set, we could call each
+		 * property's get() function in turn, setting up a variant variable,
+		 * only to find that the get_handle() function returns NULL.
+		 *
+		 * We try to optimize this case slightly by checking this here, and
+		 * recording this failure.
+		 */
+		if (property->generic.get_handle
+		 && property->generic.get_handle == get_handle_failed)
+			continue;
+
+		get_handle_failed = NULL;
 		if (__ni_dbus_object_get_one_property(object, context, property, &value, error)) {
 			var = ni_dbus_dict_add(dict, property->name);
 			*var = value;
@@ -757,6 +776,16 @@ __ni_dbus_object_get_properties_as_dict(const ni_dbus_object_t *object,
 			if (error->name && !strcmp(error->name, NI_DBUS_ERROR_PROPERTY_NOT_PRESENT)) {
 				/* just ignore this error */
 				dbus_error_free(error);
+
+				/* Remember the get_handle function if there is one */
+				get_handle_failed = property->generic.get_handle;
+				if (get_handle_failed) {
+					/* The get() call may have failed for some other reason.
+					 * Verify that the get_handle() call really returned NULL. */
+					if (get_handle_failed(object, FALSE, error) != NULL)
+						get_handle_failed = NULL;
+					dbus_error_free(error);
+				}
 			} else {
 				ni_debug_dbus("%s: unable to get property %s.%s (error %s: %s)",
 						object->path,
