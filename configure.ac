@@ -19,8 +19,15 @@ AC_CONFIG_HEADERS([config.h])
 AC_PREFIX_DEFAULT([/usr])
 
 # Whether to enable system-v init script installation
-AC_ARG_ENABLE([systemv], [AS_HELP_STRING([--enable-systemv],
-	      [install system-v init scripts])],,[enable_systemv=no])
+AC_ARG_ENABLE([systemv],
+              [AS_HELP_STRING([--enable-systemv],
+	      [install system-v service files])],
+              [if test "$enableval" = yes; then
+                 if test "$enable_systemd" = yes; then
+                   AC_MSG_ERROR([[--enable-systemd and --enable-systemv are mutually exclusive]])
+                 fi
+               fi],
+              [enable_systemv=no])
 
 # Define system-v init script installation directory
 AC_ARG_WITH([systemv-initdir], [AS_HELP_STRING([--with-systemv-initdir@<:@=DIR@:>@],
@@ -32,8 +39,20 @@ AC_SUBST(systemv_initdir, "$with_systemv_initdir")
 AM_CONDITIONAL([systemv_service], [test "x$enable_systemv" = "xyes"])
 
 # Whether to enable system-v init script installation
-AC_ARG_ENABLE([systemd], [AS_HELP_STRING([--enable-systemd],
-	      [install system-d service files])],,[enable_systemd=no])
+AC_ARG_ENABLE([systemd],
+              [AS_HELP_STRING([--enable-systemd],
+	      [install system-d service files])],
+              [if test "$enableval" = yes; then
+                 if test "$enable_systemv" = yes; then
+                   AC_MSG_ERROR([[--enable-systemd and --enable-systemv are mutually exclusive]])
+                 fi
+               fi],
+              [if test "$enable_systemv" = yes; then
+                 enable_systemd=no
+               else
+                 enable_systemd=yes
+               fi
+             ])
 
 # Define system-d service/unit directory
 AC_ARG_WITH([systemd-unitdir], [AS_HELP_STRING([--with-systemd-unitdir@<:@=DIR@:>@],
