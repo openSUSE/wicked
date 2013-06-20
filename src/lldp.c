@@ -100,6 +100,7 @@ typedef int		ni_lldp_get_fn_t(ni_lldp_t *, ni_buffer_t *);
 static int		ni_lldp_agent_start(ni_netdev_t *, ni_lldp_t *, ni_dcbx_state_t *);
 static void		ni_lldp_agent_stop(ni_netdev_t *);
 static ni_bool_t	ni_lldp_agent_send(ni_lldp_agent_t *);
+static int		ni_lldp_agent_send_shutdown(ni_lldp_agent_t *);
 static void		ni_lldp_agent_free(ni_lldp_agent_t *);
 static int		ni_lldp_agent_update(ni_lldp_agent_t *, ni_lldp_t *, const void *, unsigned int);
 static void		ni_lldp_tx_timer_arm(ni_lldp_agent_t *);
@@ -350,6 +351,7 @@ ni_lldp_agent_free(ni_lldp_agent_t *agent)
 		ni_netdev_put(agent->dev);
 	if (agent->dcbx)
 		ni_dcbx_free(agent->dcbx);
+	ni_buffer_destroy(&agent->sendbuf);
 	while (agent->peers)
 		ni_lldp_peer_unlink_and_free(&agent->peers);
 	free(agent);
@@ -488,7 +490,9 @@ ni_lldp_agent_stop(ni_netdev_t *dev)
 	ni_lldp_agent_t *agent, **pos;
 
 	if ((agent = __ni_lldp_take_agent(dev->link.ifindex, &pos)) != NULL) {
-		/* FIXME: we should send an exit PDU */
+		/* While the device is still up, try to send a shutdown PDU */
+		if (ni_netdev_device_is_up(dev))
+			ni_lldp_agent_send_shutdown(agent);
 		ni_lldp_agent_free(agent);
 	}
 }
@@ -548,6 +552,21 @@ ni_lldp_agent_send(ni_lldp_agent_t *agent)
 	}
 
 	return rv;
+}
+
+int
+ni_lldp_agent_send_shutdown(ni_lldp_agent_t *agent)
+{
+	/* Broadtcase a 0 TTL */
+	agent->config->ttl = 0;
+
+	if (ni_lldp_pdu_build(agent->config, NULL, &agent->sendbuf) < 0) {
+		ni_error("%s: failed to build LLDP shutdown PDU", agent->dev->name);
+		return -1;
+	}
+
+	ni_capture_send(agent->capture, &agent->sendbuf, NULL);
+	return 0;
 }
 
 /*
@@ -1545,6 +1564,9 @@ ni_lldp_pdu_build(const ni_lldp_t *lldp, ni_dcbx_state_t *dcbx, ni_buffer_t *bp)
 	 || ni_lldp_tlv_put_port_id(lldp, bp) < 0
 	 || ni_lldp_tlv_put_ttl(lldp, bp) < 0)
 		return -1;
+
+	if (lldp->ttl == 0)
+		return 0;
 
 	/* Optional parts */
 	ni_trace("port_description=%s", lldp->port_description);
