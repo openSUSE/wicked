@@ -315,8 +315,8 @@ ni_sockaddr_is_ipv4_specified(const ni_sockaddr_t *saddr)
 {
 	if (saddr->ss_family == AF_INET) {
 		/* ntohl not needed here as all bytes are same */
-		return	saddr->sin.sin_addr.s_addr == INADDR_ANY ||
-			saddr->sin.sin_addr.s_addr == INADDR_BROADCAST;
+		return	saddr->sin.sin_addr.s_addr != INADDR_ANY &&
+			saddr->sin.sin_addr.s_addr != INADDR_BROADCAST;
 	}
 	return FALSE;
 }
