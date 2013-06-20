@@ -358,7 +358,7 @@ ni_lldp_agent_free(ni_lldp_agent_t *agent)
 }
 
 static ni_lldp_agent_t *
-__ni_lldp_take_agent(int ifindex, ni_lldp_agent_t ***pos_ret)
+__ni_lldp_take_agent(unsigned int ifindex, ni_lldp_agent_t ***pos_ret)
 {
 	ni_lldp_agent_t *agent, **pos;
 
@@ -1536,15 +1536,16 @@ ni_lldp_tlv_get_orgspec(ni_lldp_t *lldp, ni_buffer_t *bp)
 {
 	unsigned char data[4];
 	unsigned int oui, i, subtype;
+	int ret;
 
 	if (ni_buffer_get(bp, data, 4) < 0)
 		return -1;
 	for (oui = i = 0; i < 3; ++i)
 		oui = (oui << 8) | data[i];
 
-	if ((subtype = ni_buffer_getc(bp)) < 0)
+	if ((ret = ni_buffer_getc(bp)) < 0)
 		return -1;
-	subtype = data[4];
+	subtype = ret;
 
 	if (oui == NI_LLDP_OUI_IEEE_8021)
 		return ni_lldp_tlv_get_ieee_802_1(lldp, bp, subtype);
@@ -1613,12 +1614,14 @@ __ni_lldp_pdu_parse(ni_lldp_t *lldp, ni_buffer_t *bp,
 
 	for (index = 0; ni_buffer_count(bp) != 0; ++index) {
 		ni_buffer_t tvbuf;
-		int type;
+		unsigned int type;
+		int ret;
 		ni_lldp_get_fn_t *fn;
 
-		type = ni_lldp_tlv_get(bp, &tvbuf);
-		if (type < 0)
+		ret = ni_lldp_tlv_get(bp, &tvbuf);
+		if (ret < 0)
 			return -1;
+		type = ret;
 
 		if (required) {
 			if (*required != type) {

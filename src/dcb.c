@@ -17,6 +17,9 @@
 #include <netlink/msg.h>
 #include <linux/dcbnl.h>
 
+static int		ni_dcb_get_capabilities(const char *, ni_dcb_capabilities_t *);
+static int		ni_dcb_get_ieee(const char *, ni_dcb_attributes_t *);
+
 ni_dcb_attributes_t *
 ni_dcb_attributes_new(void)
 {
