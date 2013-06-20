@@ -295,6 +295,88 @@ struct ni_dbus_dict_entry {
 	ni_dbus_variant_t       datum;
 };
 
+static void	__dump_fake_xml(const ni_dbus_variant_t *, unsigned int, const char **);
+
+static const char *
+__fake_dbus_scalar_type(unsigned int type)
+{
+	static ni_intmap_t	__fake_dbus_types[] = {
+		{ "byte",		DBUS_TYPE_BYTE		},
+		{ "boolean",		DBUS_TYPE_BOOLEAN	},
+		{ "int16",		DBUS_TYPE_INT16		},
+		{ "uint16",		DBUS_TYPE_UINT16	},
+		{ "int32",		DBUS_TYPE_INT32		},
+		{ "uint32",		DBUS_TYPE_UINT32	},
+		{ "int64",		DBUS_TYPE_INT64		},
+		{ "uint64",		DBUS_TYPE_UINT64	},
+		{ "double",		DBUS_TYPE_DOUBLE	},
+		{ "string",		DBUS_TYPE_STRING	},
+		{ "object-path",	DBUS_TYPE_OBJECT_PATH	},
+		{ NULL },
+	};
+
+	return ni_format_uint_mapped(type, __fake_dbus_types);
+}
+
+static void
+__dump_fake_xml_element(const ni_dbus_variant_t *var, unsigned int indent,
+				const char *open_tag, const char *close_tag,
+				const char **dict_elements)
+{
+	if (var->type == DBUS_TYPE_STRUCT) {
+		unsigned int i;
+
+		/* Must be a struct or union */
+		printf("%*.*s<%s>\n", indent, indent, "", open_tag);
+		for (i = 0; i < var->array.len; ++i) {
+			ni_dbus_variant_t *member = &var->struct_value[i];
+			char open_tag_buf[128], *member_open_tag;
+			const char *basic_type;
+
+			basic_type = __fake_dbus_scalar_type(member->type);
+			if (basic_type == NULL) {
+				member_open_tag = "member";
+			} else {
+				snprintf(open_tag_buf, sizeof(open_tag_buf), "member type=\"%s\"", basic_type);
+				member_open_tag = open_tag_buf;
+			}
+
+			__dump_fake_xml_element(member, indent + 2, member_open_tag, "member", NULL);
+		}
+		printf("%*.*s</%s>\n", indent, indent, "", close_tag);
+	} else
+	if (var->type != DBUS_TYPE_ARRAY) {
+		/* Must be some type of scalar */
+		printf("%*.*s<%s>%s</%s>\n",
+				indent, indent, "",
+				open_tag,
+				ni_dbus_variant_sprint(var),
+				close_tag);
+	} else if(var->array.len == 0) {
+		printf("%*.*s<%s />\n", indent, indent, "", open_tag);
+	} else if (ni_dbus_variant_is_byte_array(var)) {
+		unsigned char value[64];
+		unsigned int num_bytes;
+		char display_buffer[128];
+		const char *display;
+
+		if (!ni_dbus_variant_get_byte_array_minmax(var, value, &num_bytes, 0, sizeof(value))) {
+			display = "<INVALID />";
+		} else {
+			display = ni_format_hex(value, num_bytes, display_buffer, sizeof(display_buffer));
+		}
+		printf("%*.*s<%s>%s</%s>\n",
+				indent, indent, "",
+				open_tag,
+				display,
+				close_tag);
+	} else {
+		printf("%*.*s<%s>\n", indent, indent, "", open_tag);
+		__dump_fake_xml(var, indent + 2, dict_elements);
+		printf("%*.*s</%s>\n", indent, indent, "", close_tag);
+	}
+}
+
 static void
 __dump_fake_xml(const ni_dbus_variant_t *variant, unsigned int indent, const char **dict_elements)
 {
@@ -319,36 +401,7 @@ __dump_fake_xml(const ni_dbus_variant_t *variant, unsigned int indent, const cha
 				open_tag = close_tag = entry->key;
 			}
 
-			if (child->type != DBUS_TYPE_ARRAY) {
-				/* Must be some type of scalar */
-				printf("%*.*s<%s>%s</%s>\n",
-						indent, indent, "",
-						open_tag,
-						ni_dbus_variant_sprint(child),
-						close_tag);
-			} else if(child->array.len == 0) {
-				printf("%*.*s<%s />\n", indent, indent, "", open_tag);
-			} else if (ni_dbus_variant_is_byte_array(child)) {
-				unsigned char value[64];
-				unsigned int num_bytes;
-				char display_buffer[128];
-				const char *display;
-
-				if (!ni_dbus_variant_get_byte_array_minmax(child, value, &num_bytes, 0, sizeof(value))) {
-					display = "<INVALID />";
-				} else {
-					display = ni_format_hex(value, num_bytes, display_buffer, sizeof(display_buffer));
-				}
-				printf("%*.*s<%s>%s</%s>\n",
-						indent, indent, "",
-						open_tag,
-						display,
-						close_tag);
-			} else {
-				printf("%*.*s<%s>\n", indent, indent, "", open_tag);
-				__dump_fake_xml(child, indent + 2, dict_elements);
-				printf("%*.*s</%s>\n", indent, indent, "", close_tag);
-			}
+			__dump_fake_xml_element(child, indent, open_tag, close_tag, dict_elements);
 		}
 	} else if (ni_dbus_variant_is_dict_array(variant)) {
 		const ni_dbus_variant_t *child;
