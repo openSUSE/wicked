@@ -152,6 +152,7 @@ typedef struct ni_dcbx_state {
 
 extern ni_dcb_attributes_t *	ni_dcb_attributes_new(void);
 extern void			ni_dcb_attributes_free(ni_dcb_attributes_t *);
+extern void			ni_dcb_free(ni_dcb_t *);
 
 extern ni_bool_t		ni_dcbx_should_start(ni_netdev_t *);
 extern ni_dcbx_state_t *	ni_dcbx_new(void);
