@@ -839,6 +839,9 @@ ni_dbus_variant_sprint(const ni_dbus_variant_t *var)
 		snprintf(buffer, sizeof(buffer), "%f", var->double_value);
 		break;
 
+	case DBUS_TYPE_STRUCT:
+		return "<struct>";
+
 	default:
 		return "<unknown type>";
 	}
@@ -1527,6 +1530,18 @@ ni_dbus_struct_add(ni_dbus_variant_t *var)
 	return dst;
 }
 
+ni_bool_t
+ni_dbus_struct_add_string(ni_dbus_variant_t *var, const char *string_value)
+{
+	ni_dbus_variant_t *member;
+
+	if (!(member = ni_dbus_struct_add(var)))
+		return FALSE;
+
+	ni_dbus_variant_set_string(member, string_value);
+	return TRUE;
+}
+
 ni_dbus_variant_t *
 ni_dbus_struct_get(const ni_dbus_variant_t *var, unsigned int index)
 {
@@ -1537,7 +1552,7 @@ ni_dbus_struct_get(const ni_dbus_variant_t *var, unsigned int index)
 }
 
 dbus_bool_t
-ni_dbus_struct_get_string(ni_dbus_variant_t *var, unsigned int index, const char **result)
+ni_dbus_struct_get_string(const ni_dbus_variant_t *var, unsigned int index, const char **result)
 {
 	ni_dbus_variant_t *member;
 
