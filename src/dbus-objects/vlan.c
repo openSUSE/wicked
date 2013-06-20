@@ -70,7 +70,7 @@ __ni_objectmodel_vlan_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusErro
 		goto out;
 	}
 
-	ni_debug_dbus("VLAN.newDevice(name=%s, dev=%s, tag=%u)", ifname, vlan->parent.name, vlan->tag);
+	ni_debug_dbus(1, "VLAN.newDevice(name=%s, dev=%s, tag=%u)", ifname, vlan->parent.name, vlan->tag);
 
 	if (ifname == NULL && !(ifname = ni_netdev_make_name(nc, "vlan"))) {
 		dbus_set_error(error, DBUS_ERROR_FAILED, "Unable to create vlan - too many interfaces");
@@ -86,7 +86,7 @@ __ni_objectmodel_vlan_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusErro
 					ni_strerror(rv));
 			goto failed;
 		}
-		ni_debug_dbus("VLAN interface exists (and name matches)");
+		ni_debug_dbus(1, "VLAN interface exists (and name matches)");
 	}
 
 	if (new_ifp->link.type != NI_IFTYPE_VLAN) {

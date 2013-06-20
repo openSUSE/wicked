@@ -67,13 +67,13 @@ ni_system_interface_link_change(ni_netdev_t *dev, const ni_netdev_req_t *ifp_req
 	if (dev == NULL)
 		return -NI_ERROR_INVALID_ARGS;
 
-	ni_debug_ifconfig("%s(%s)", __func__, dev->name);
+	ni_debug_ifconfig(1, "%s(%s)", __func__, dev->name);
 
 	/* FIXME: perform sanity check on configuration data */
 
 	ifflags = ifp_req? ifp_req->ifflags : 0;
 	if (ifflags & (NI_IFF_DEVICE_UP|NI_IFF_LINK_UP|NI_IFF_NETWORK_UP)) {
-		ni_debug_ifconfig("bringing up %s", dev->name);
+		ni_debug_ifconfig(1, "bringing up %s", dev->name);
 
 		if (__ni_rtnl_link_up(dev, ifp_req)) {
 			ni_error("%s: failed to bring up interface (rtnl error)", dev->name);
@@ -94,7 +94,7 @@ ni_system_interface_link_change(ni_netdev_t *dev, const ni_netdev_req_t *ifp_req
 		ni_system_lldp_down(dev);
 
 		/* Now take down the link for real */
-		ni_debug_ifconfig("shutting down interface %s", dev->name);
+		ni_debug_ifconfig(1, "shutting down interface %s", dev->name);
 		if (__ni_rtnl_link_down(dev, RTM_NEWLINK)) {
 			ni_error("unable to shut down interface %s", dev->name);
 			return -1;
@@ -115,7 +115,7 @@ ni_system_interface_link_monitor(ni_netdev_t *dev)
 	if (dev == NULL)
 		return -NI_ERROR_INVALID_ARGS;
 
-	ni_debug_ifconfig("%s(%s)", __func__, dev->name);
+	ni_debug_ifconfig(1, "%s(%s)", __func__, dev->name);
 
 	if ((rv = __ni_rtnl_link_up(dev, NULL)) < 0) {
 		ni_error("%s: failed to bring up interface (rtnl error)", dev->name);
@@ -140,7 +140,7 @@ __ni_system_interface_update_lease(ni_netdev_t *dev, ni_addrconf_lease_t **lease
 	ni_addrconf_lease_t *lease = *lease_p, *old_lease = NULL;
 	int res;
 
-	ni_debug_ifconfig("%s: received %s/%s lease update; state %s", dev->name,
+	ni_debug_ifconfig(1, "%s: received %s/%s lease update; state %s", dev->name,
 			ni_addrconf_type_to_name(lease->type),
 			ni_addrfamily_type_to_name(lease->family),
 			ni_addrconf_state_to_name(lease->state));
@@ -208,7 +208,7 @@ ni_system_interface_delete(ni_netconfig_t *nc, const char *ifname)
 {
 	ni_netdev_t *dev;
 
-	ni_debug_ifconfig("ni_system_interface_delete(%s)", ifname);
+	ni_debug_ifconfig(1, "ni_system_interface_delete(%s)", ifname);
 
 	/* FIXME: perform sanity check on configuration data */
 
@@ -289,7 +289,7 @@ ni_system_vlan_create(ni_netconfig_t *nc, const char *ifname, const ni_vlan_t *c
 		return -NI_ERROR_DEVICE_NOT_KNOWN;
 	}
 
-	ni_debug_ifconfig("%s: creating VLAN device", ifname);
+	ni_debug_ifconfig(1, "%s: creating VLAN device", ifname);
 	if (__ni_rtnl_link_create_vlan(ifname, cfg_vlan, phys_dev->link.ifindex)) {
 		ni_error("unable to create vlan interface %s", ifname);
 		return -1;
@@ -428,7 +428,7 @@ ni_system_infiniband_child_create(ni_netconfig_t *nc, const char *ifname,
 	}
 	ni_string_free(&tmpname);
 
-	ni_debug_ifconfig("%s: infiniband child interface created", ifname);
+	ni_debug_ifconfig(1, "%s: infiniband child interface created", ifname);
 
 	if (__ni_system_infiniband_setup(ifname, cfg->mode, cfg->umcast) < 0)
 		return -1; /* error reported */
@@ -478,7 +478,7 @@ ni_system_bridge_create(ni_netconfig_t *nc, const char *ifname,
 {
 	ni_netdev_t *dev;
 
-	ni_debug_ifconfig("%s: creating bridge interface", ifname);
+	ni_debug_ifconfig(1, "%s: creating bridge interface", ifname);
 	if (__ni_brioctl_add_bridge(ifname) < 0) {
 		ni_error("__ni_brioctl_add_bridge(%s) failed", ifname);
 		return -1;
@@ -666,7 +666,7 @@ ni_system_bond_create(ni_netconfig_t *nc, const char *ifname, const ni_bonding_t
 	if (!ni_sysfs_bonding_is_master(ifname)) {
 		int success = 0;
 
-		ni_debug_ifconfig("%s: creating bond master", ifname);
+		ni_debug_ifconfig(1, "%s: creating bond master", ifname);
 		if (ni_sysfs_bonding_add_master(ifname) >= 0) {
 			unsigned int i;
 
@@ -748,7 +748,7 @@ ni_system_bond_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_bonding_t *b
 		 * Most attributes need to be written prior to adding the first slave
 		 * or bringing up the bonding interface ...
 		 */
-		ni_debug_ifconfig("%s: configuring bonding device (stage 0.%u.%u)",
+		ni_debug_ifconfig(1, "%s: configuring bonding device (stage 0.%u.%u)",
 				dev->name, is_up, has_slaves);
 		if (ni_bonding_write_sysfs_attrs(dev->name, bond_cfg, bond,
 						is_up, has_slaves) < 0) {
@@ -769,7 +769,7 @@ ni_system_bond_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_bonding_t *b
 		/*
 		 * Stage 1 -- enslave:
 		 */
-		ni_debug_ifconfig("%s: configuring bonding slaves (stage 1.%u.%u)",
+		ni_debug_ifconfig(1, "%s: configuring bonding slaves (stage 1.%u.%u)",
 				dev->name, is_up, has_slaves);
 		/* Update the list of slave devices */
 		if (ni_sysfs_bonding_set_list_attr(dev->name, "slaves", &slaves) < 0) {
@@ -791,7 +791,7 @@ ni_system_bond_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_bonding_t *b
 		 * Some attributes as e.g. active_slave, can be set only when
 		 * the bond is running with at least one enslaved slaves.
 		 */
-		ni_debug_ifconfig("%s: configuring bonding device (stage 2.%u.%u)",
+		ni_debug_ifconfig(1, "%s: configuring bonding device (stage 2.%u.%u)",
 				dev->name, is_up, has_slaves);
 		if (ni_bonding_write_sysfs_attrs(dev->name, bond_cfg, bond,
 						is_up, has_slaves) < 0) {
@@ -902,7 +902,7 @@ ni_system_tun_create(ni_netconfig_t *nc, const char *ifname, ni_netdev_t **dev_r
 	ni_netdev_t *dev;
 	char *newname;
 
-	ni_debug_ifconfig("%s: creating tun interface", ifname);
+	ni_debug_ifconfig(1, "%s: creating tun interface", ifname);
 	if ((newname = __ni_tuntap_create_tun(ifname)) == NULL) {
 		ni_error("__ni_tuntap_create_tun(%s) failed", ifname);
 		return -1;
@@ -948,7 +948,7 @@ ni_system_ppp_create(ni_netconfig_t *nc, const char *ifname, ni_ppp_t *cfg, ni_n
 	ni_ppp_t *ppp;
 	char *newname;
 
-	ni_debug_ifconfig("%s: creating ppp interface", ifname);
+	ni_debug_ifconfig(1, "%s: creating ppp interface", ifname);
 
 	ppp = ni_ppp_new(NULL);
 	if ((newname = __ni_ppp_create_device(ppp, ifname)) == NULL) {
@@ -1058,7 +1058,7 @@ __ni_rtnl_link_create_vlan(const char *ifname, const ni_vlan_t *vlan, unsigned i
 	 *  INFO_DATA must contain VLAN_ID
 	 *  LINK must contain the link ID of the real ethernet device
 	 */
-	ni_debug_ifconfig("__ni_rtnl_link_create(%s, vlan, %u, %s)",
+	ni_debug_ifconfig(1, "__ni_rtnl_link_create(%s, vlan, %u, %s)",
 			ifname, vlan->tag, vlan->parent.name);
 
 	if (!(linkinfo = nla_nest_start(msg, IFLA_LINKINFO)))
@@ -1085,7 +1085,7 @@ __ni_rtnl_link_create_vlan(const char *ifname, const ni_vlan_t *vlan, unsigned i
 	if (ni_nl_talk(msg, NULL) < 0)
 		goto failed;
 
-	ni_debug_ifconfig("successfully created interface %s", ifname);
+	ni_debug_ifconfig(1, "successfully created interface %s", ifname);
 	nlmsg_free(msg);
 	return 0;
 
@@ -1111,7 +1111,7 @@ __ni_rtnl_simple(int msgtype, unsigned int flags, void *data, size_t len)
 		ni_error("%s: nlmsg_append failed", __func__);
 	} else
 	if (ni_nl_talk(msg, NULL) < 0) {
-		ni_debug_ifconfig("%s: rtnl_talk failed", __func__);
+		ni_debug_ifconfig(1, "%s: rtnl_talk failed", __func__);
 	} else {
 		rv = 0; /* success */
 	}
@@ -1190,7 +1190,7 @@ __ni_rtnl_link_up(const ni_netdev_t *dev, const ni_netdev_req_t *cfg)
 			rv = -NI_ERROR_RADIO_DISABLED;
 		else
 			rv = -NI_ERROR_GENERAL_FAILURE;
-		ni_debug_ifconfig("%s: rtnl_talk failed", __func__);
+		ni_debug_ifconfig(1, "%s: rtnl_talk failed", __func__);
 	}
 
 out:
@@ -1258,7 +1258,7 @@ __ni_rtnl_send_newaddr(ni_netdev_t *dev, const ni_address_t *ap, int flags)
 	struct ifaddrmsg ifa;
 	struct nl_msg *msg;
 
-	ni_debug_ifconfig("%s(%s/%u)", __FUNCTION__,
+	ni_debug_ifconfig(1, "%s(%s/%u)", __FUNCTION__,
 			ni_sockaddr_print(&ap->local_addr), ap->prefixlen);
 
 	memset(&ifa, 0, sizeof(ifa));
@@ -1357,7 +1357,7 @@ __ni_rtnl_send_deladdr(ni_netdev_t *dev, const ni_address_t *ap)
 	struct ifaddrmsg ifa;
 	struct nl_msg *msg;
 
-	ni_debug_ifconfig("%s(%s/%u)", __FUNCTION__, ni_sockaddr_print(&ap->local_addr), ap->prefixlen);
+	ni_debug_ifconfig(1, "%s(%s/%u)", __FUNCTION__, ni_sockaddr_print(&ap->local_addr), ap->prefixlen);
 
 	memset(&ifa, 0, sizeof(ifa));
 	ifa.ifa_index = dev->link.ifindex;
@@ -1406,7 +1406,7 @@ __ni_rtnl_send_newroute(ni_netdev_t *dev, ni_route_t *rp, int flags)
 	struct rtmsg rt;
 	struct nl_msg *msg;
 
-	ni_debug_ifconfig("%s(%s)", __FUNCTION__, ni_route_print(&buf, rp));
+	ni_debug_ifconfig(1, "%s(%s)", __FUNCTION__, ni_route_print(&buf, rp));
 	ni_stringbuf_destroy(&buf);
 
 	memset(&rt, 0, sizeof(rt));
@@ -1526,7 +1526,7 @@ __ni_rtnl_send_delroute(ni_netdev_t *dev, ni_route_t *rp)
 	struct rtmsg rt;
 	struct nl_msg *msg;
 
-	ni_debug_ifconfig("%s(%s)", __FUNCTION__, ni_route_print(&buf, rp));
+	ni_debug_ifconfig(1, "%s(%s)", __FUNCTION__, ni_route_print(&buf, rp));
 	ni_stringbuf_destroy(&buf);
 
 	memset(&rt, 0, sizeof(rt));
@@ -1636,13 +1636,13 @@ __ni_netdev_update_addrs(ni_netdev_t *dev,
 			 && ni_sockaddr_equal(&ap->bcast_addr, &new_addr->bcast_addr)
 			 && ni_sockaddr_equal(&ap->anycast_addr, &new_addr->anycast_addr)) {
 				/* Current address as configured, no need to change. */
-				ni_debug_ifconfig("address %s/%u exists; no need to reconfigure",
+				ni_debug_ifconfig(1, "address %s/%u exists; no need to reconfigure",
 					ni_sockaddr_print(&ap->local_addr), ap->prefixlen);
 				new_addr->seq = __ni_global_seqno;
 				continue;
 			}
 
-			ni_debug_ifconfig("existing address %s/%u needs to be reconfigured",
+			ni_debug_ifconfig(1, "existing address %s/%u needs to be reconfigured",
 					ni_sockaddr_print(&ap->local_addr),
 					ap->prefixlen);
 		}
@@ -1658,7 +1658,7 @@ __ni_netdev_update_addrs(ni_netdev_t *dev,
 		if (ap->seq == __ni_global_seqno)
 			continue;
 
-		ni_debug_ifconfig("Adding new interface address %s/%u",
+		ni_debug_ifconfig(1, "Adding new interface address %s/%u",
 				ni_sockaddr_print(&ap->local_addr),
 				ap->prefixlen);
 		if ((rv = __ni_rtnl_send_newaddr(dev, ap, NLM_F_CREATE)) < 0)
@@ -1774,7 +1774,7 @@ __ni_netdev_update_routes(ni_netdev_t *dev,
 
 			if (new_route != NULL) {
 				if (__ni_rtnl_send_newroute(dev, new_route, NLM_F_REPLACE) >= 0) {
-					ni_debug_ifconfig("%s: successfully updated existing route %s",
+					ni_debug_ifconfig(1, "%s: successfully updated existing route %s",
 							dev->name, ni_route_print(&buf, rp));
 					ni_stringbuf_destroy(&buf);
 					new_route->seq = __ni_global_seqno;
@@ -1786,7 +1786,7 @@ __ni_netdev_update_routes(ni_netdev_t *dev,
 				ni_stringbuf_destroy(&buf);
 			}
 
-			ni_debug_ifconfig("%s: trying to delete existing route %s",
+			ni_debug_ifconfig(1, "%s: trying to delete existing route %s",
 					dev->name, ni_route_print(&buf, rp));
 			ni_stringbuf_destroy(&buf);
 
@@ -1806,7 +1806,7 @@ __ni_netdev_update_routes(ni_netdev_t *dev,
 			if (rp->seq == __ni_global_seqno)
 				continue;
 
-			ni_debug_ifconfig("%s: adding new route %s",
+			ni_debug_ifconfig(1, "%s: adding new route %s",
 					dev->name, ni_route_print(&buf, rp));
 			ni_stringbuf_destroy(&buf);
 

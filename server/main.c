@@ -284,7 +284,7 @@ recover_addrconf(const char *filename)
 	};
 
 	if (!ni_file_exists(filename)) {
-		ni_debug_wicked("%s: %s does not exist, skip this", __func__, filename);
+		ni_debug_wicked(1, "%s: %s does not exist, skip this", __func__, filename);
 		return;
 	}
 
@@ -363,7 +363,7 @@ handle_interface_event(ni_netdev_t *dev, ni_event_t event)
 static void
 handle_other_event(ni_event_t event)
 {
-	ni_debug_events("%s(%s)", __func__, ni_event_type_to_name(event));
+	ni_debug_events(1, "%s(%s)", __func__, ni_event_type_to_name(event));
 	if (dbus_server)
 		ni_objectmodel_other_event(dbus_server, event, NULL);
 }
@@ -374,7 +374,7 @@ handle_other_event(ni_event_t event)
 static void
 handle_modem_event(ni_modem_t *modem, ni_event_t event)
 {
-	ni_debug_events("%s(%s, %s)", __func__, ni_event_type_to_name(event), modem->real_path);
+	ni_debug_events(1, "%s(%s, %s)", __func__, ni_event_type_to_name(event), modem->real_path);
 	if (dbus_server) {
 		ni_dbus_object_t *object;
 		ni_uuid_t *event_uuid = NULL;
@@ -429,6 +429,6 @@ handle_modem_event(ni_modem_t *modem, ni_event_t event)
 void
 handle_rfkill_event(ni_rfkill_type_t type, ni_bool_t blocked, void *user_data)
 {
-	ni_debug_application("rfkill: %s devices %s", ni_rfkill_type_string(type),
+	ni_debug_application(1, "rfkill: %s devices %s", ni_rfkill_type_string(type),
 			blocked? "blocked" : "enabled");
 }

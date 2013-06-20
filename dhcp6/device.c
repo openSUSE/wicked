@@ -209,7 +209,7 @@ ni_dhcp6_device_free(ni_dhcp6_device_t *dev)
 	ni_dhcp6_device_t **pos;
 
 	ni_assert(dev->users == 0);
-	ni_debug_dhcp("%s: Deleting dhcp6 device with index %u",
+	ni_debug_dhcp(1, "%s: Deleting dhcp6 device with index %u",
 			dev->ifname, dev->link.ifindex);
 
 	ni_dhcp6_device_drop_buffer(dev);
@@ -390,7 +390,7 @@ ni_dhcp6_device_show_addrs(ni_dhcp6_device_t *dev)
 	}
 #if 0
 	for (ap = ifp->addrs; ap; ap = ap->next) {
-		ni_debug_dhcp("%s: address[%u] %s/%u%s, scope=%s, flags%s%s%s%s%s",
+		ni_debug_dhcp(1, "%s: address[%u] %s/%u%s, scope=%s, flags%s%s%s%s%s",
 				dev->ifname, nr++,
 				ni_sockaddr_print(&ap->local_addr), ap->prefixlen,
 				(ni_address_is_linklocal(ap) ? " [link-local]" : ""),
@@ -449,12 +449,12 @@ ni_dhcp6_device_set_lladdr(ni_dhcp6_device_t *dev, const ni_address_t *addr)
 		return -1;
 	}
 	if (ni_address_is_tentative(addr)) {
-		ni_debug_dhcp("%s: Link-local IPv6 address is tentative: %s",
+		ni_debug_dhcp(1, "%s: Link-local IPv6 address is tentative: %s",
 			dev->ifname, ni_sockaddr_print(&addr->local_addr));
 		return 1;
 	}
 
-	ni_debug_dhcp("%s: Found usable link-local IPv6 address: %s",
+	ni_debug_dhcp(1, "%s: Found usable link-local IPv6 address: %s",
 		dev->ifname, ni_sockaddr_print(&addr->local_addr));
 
 	memcpy(&dev->link.addr, &addr->local_addr, sizeof(dev->link.addr));
@@ -491,7 +491,7 @@ ni_dhcp6_device_find_lladdr(ni_dhcp6_device_t *dev, ni_dhcp6_config_t *config)
 	}
 
 	if (cnt == 0) {
-		ni_debug_dhcp("%s: Link-local IPv6 address not (yet) available",
+		ni_debug_dhcp(1, "%s: Link-local IPv6 address not (yet) available",
 				dev->ifname);
 	}
 	return rv;
@@ -545,7 +545,7 @@ ni_dhcp6_device_transmit_arm_delay(ni_dhcp6_device_t *dev)
 	if (dev->retrans.delay == 0)
 		return FALSE;
 
-	ni_debug_dhcp("%s: setting initial transmit delay of %u [%d .. %d] msec",
+	ni_debug_dhcp(1, "%s: setting initial transmit delay of %u [%d .. %d] msec",
 			dev->ifname, dev->retrans.delay,
 			0 - dev->retrans.jitter,
 			0 + dev->retrans.jitter);
@@ -662,7 +662,7 @@ ni_dhcp6_device_retransmit_disarm(ni_dhcp6_device_t *dev)
 
 	ni_timer_get_time(&now);
 
-	ni_debug_dhcp("%s: disarming retransmission at %s",
+	ni_debug_dhcp(1, "%s: disarming retransmission at %s",
 			dev->ifname, ni_dhcp6_print_timeval(&now));
 
 	dev->dhcp6.xid = 0;
@@ -701,7 +701,7 @@ ni_dhcp6_device_retransmit_advance(ni_dhcp6_device_t *dev)
 				&dev->retrans.deadline,
 				&dev->retrans.params);
 
-		ni_debug_dhcp("%s: increased retransmission timeout from %u to %u [%d .. %d]: %s",
+		ni_debug_dhcp(1, "%s: increased retransmission timeout from %u to %u [%d .. %d]: %s",
 				dev->ifname, old_timeout,
 				dev->retrans.params.timeout,
 				dev->retrans.params.jitter.min,
@@ -853,7 +853,7 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *info)
 		if (ni_check_domain_name(info->hostname, len, 0)) {
 			strncpy(config->hostname, info->hostname, sizeof(config->hostname) - 1);
 		} else {
-			ni_debug_dhcp("Discarded request to use suspect hostname: %s",
+			ni_debug_dhcp(1, "Discarded request to use suspect hostname: %s",
 				ni_print_suspect(info->hostname, len));
 		}
 	}
@@ -1049,7 +1049,7 @@ ni_dhcp6_device_event(ni_dhcp6_device_t *dev, ni_netdev_t *ifp, ni_event_t event
 	switch (event) {
 	case NI_EVENT_DEVICE_UP:
 		if (!ni_string_eq(dev->ifname, ifp->name)) {
-			ni_debug_dhcp("%s: Updating interface name to %s",
+			ni_debug_dhcp(1, "%s: Updating interface name to %s",
 					dev->ifname, ifp->name);
 			ni_string_dup(&dev->ifname, ifp->name);
 		}
@@ -1057,7 +1057,7 @@ ni_dhcp6_device_event(ni_dhcp6_device_t *dev, ni_netdev_t *ifp, ni_event_t event
 
 	case NI_EVENT_DEVICE_DOWN:
 		/* Someone has taken the interface down completely. */
-		ni_debug_dhcp("%s: network interface went down", dev->ifname);
+		ni_debug_dhcp(1, "%s: network interface went down", dev->ifname);
 		ni_dhcp6_device_stop(dev);
 	break;
 
@@ -1070,12 +1070,12 @@ ni_dhcp6_device_event(ni_dhcp6_device_t *dev, ni_netdev_t *ifp, ni_event_t event
 	break;
 
 	case NI_EVENT_LINK_DOWN:
-		ni_debug_dhcp("received link down event");
+		ni_debug_dhcp(1, "received link down event");
 		//ni_dhcp6_fsm_link_down(dev);
 	break;
 
 	case NI_EVENT_LINK_UP:
-		ni_debug_dhcp("received link up event");
+		ni_debug_dhcp(1, "received link up event");
 		//ni_dhcp6_fsm_link_up(dev);
 	break;
 
@@ -1187,7 +1187,7 @@ ni_dhcp6_device_transmit(ni_dhcp6_device_t *dev)
 	header = ni_buffer_head(&dev->message);
 
 #if 0
-	ni_debug_dhcp("%s: sending %s with xid 0x%x to %s using socket #%d",
+	ni_debug_dhcp(1, "%s: sending %s with xid 0x%x to %s using socket #%d",
 		dev->ifname, ni_dhcp6_message_name(header->type),
 		dev->dhcp6.xid, ni_sockaddr_print(&dev->config->server_addr),
 		dev->sock->__fd);
@@ -1217,7 +1217,7 @@ ni_dhcp6_device_transmit(ni_dhcp6_device_t *dev)
 		dev->retrans.count++;
 
 		ni_timer_get_time(&now);
-		ni_debug_dhcp("%s: %s message #%u with %zu of %zd bytes sent at %s",
+		ni_debug_dhcp(1, "%s: %s message #%u with %zu of %zd bytes sent at %s",
 			dev->ifname, ni_dhcp6_message_name(header->type),
 			dev->retrans.count, rv, cnt, ni_dhcp6_print_timeval(&now));
 

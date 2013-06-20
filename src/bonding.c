@@ -934,21 +934,21 @@ ni_bonding_write_one_sysfs_attr(const char *ifname, const ni_bonding_t *bonding,
 	}
 
 #if 0
-	ni_debug_ifconfig("%s: checking  attr %s: cur=%s cfg=%s", ifname, attrname,
+	ni_debug_ifconfig(1, "%s: checking  attr %s: cur=%s cfg=%s", ifname, attrname,
 				current_value, config_value);
 #endif
 
 	if (config_value[0] == '\0') {
-		ni_debug_ifconfig("%s: ignoring  attr: %s", ifname, attrname);
+		ni_debug_ifconfig(1, "%s: ignoring  attr: %s", ifname, attrname);
 		return 0;
 	}
 
 	if (!strcmp(current_value, config_value)) {
-		ni_debug_ifconfig("%s: unchanged attr: %s", ifname, attrname);
+		ni_debug_ifconfig(1, "%s: unchanged attr: %s", ifname, attrname);
 		return 0;
 	}
 
-	ni_debug_ifconfig("%s: setting   attr: %s=%s", ifname, attrname, config_value);
+	ni_debug_ifconfig(1, "%s: setting   attr: %s=%s", ifname, attrname, config_value);
 	if (ni_sysfs_bonding_set_attr(ifname, attrname, config_value) < 0) {
 		ni_error("%s: cannot set bonding attribute %s=%s", ifname, attrname, config_value);
 		return -1;

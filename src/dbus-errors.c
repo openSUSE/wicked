@@ -48,7 +48,7 @@ ni_dbus_get_error(const DBusError *error, char **detail)
 	unsigned int code;
 
 	if (ni_parse_uint_mapped(error->name, __ni_dbus_errors, &code) < 0) {
-		ni_debug_dbus("unable to map DBus error %s, return GENERAL_FAILURE",
+		ni_debug_dbus(1, "unable to map DBus error %s, return GENERAL_FAILURE",
 				error->name);
 		return -NI_ERROR_GENERAL_FAILURE;
 	}

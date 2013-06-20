@@ -23,7 +23,7 @@ ni_nis_parse_yp_conf(const char *filename)
 	char buffer[256];
 	FILE *fp;
 
-	ni_debug_readwrite("%s(%s)", __FUNCTION__, filename);
+	ni_debug_readwrite(1, "%s(%s)", __FUNCTION__, filename);
 	if ((fp = fopen(filename, "r")) == NULL) {
 		ni_error("cannot open %s: %m", filename);
 		return NULL;

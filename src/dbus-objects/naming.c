@@ -73,7 +73,7 @@ ni_objectmodel_register_ns_dynamic(void)
 				continue;
 			}
 
-			ni_debug_objectmodel("trying to bind netif naming service \"%s\"", binding->name);
+			ni_debug_objectmodel(1, "trying to bind netif naming service \"%s\"", binding->name);
 			ni_objectmodel_register_ns((ni_objectmodel_ns_t *) addr);
 		}
 	}
@@ -98,7 +98,7 @@ ni_objectmodel_lookup_by_attrs(ni_dbus_object_t *list_object, ni_objectmodel_ns_
 		for (i = 0, ap = attrs->data; match && i < attrs->count; ++i, ++ap)
 			match = ns->match_attr(obj, ap->name, ap->value);
 		if (match) {
-			ni_debug_dbus("%s: found %s", __func__, obj->path);
+			ni_debug_dbus(1, "%s: found %s", __func__, obj->path);
 			return obj;
 		}
 	}

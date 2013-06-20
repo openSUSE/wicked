@@ -139,7 +139,7 @@ ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_messa
 
 	ifp = ni_objectmodel_addrconf_path_to_device(dbus_message_get_path(msg));
 	if (ifp == NULL) {
-		ni_debug_dbus("%s: received signal %s for unknown interface %s", __func__,
+		ni_debug_dbus(1, "%s: received signal %s for unknown interface %s", __func__,
 				signal_name, dbus_message_get_path(msg));
 		goto done;
 	}
@@ -153,7 +153,7 @@ ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_messa
 	}
 
 	if (argc == 2 && !ni_dbus_variant_get_uuid(&argv[optind++], &uuid)) {
-		ni_debug_dbus("%s: unable to parse uuid argument", __func__);
+		ni_debug_dbus(1, "%s: unable to parse uuid argument", __func__);
 		goto done;
 	}
 
@@ -163,7 +163,7 @@ ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_messa
 		goto done;
 	}
 
-	ni_debug_dbus("received signal %s for interface %s (ifindex %d), lease %s/%s, uuid=%s",
+	ni_debug_dbus(1, "received signal %s for interface %s (ifindex %d), lease %s/%s, uuid=%s",
 			signal_name, ifp->name, ifp->link.ifindex,
 			ni_addrconf_type_to_name(lease->type),
 			ni_addrfamily_type_to_name(lease->family),
@@ -413,13 +413,13 @@ ni_objectmodel_addrconf_forward_release(ni_dbus_addrconf_forwarder_t *forwarder,
 	if (!rv) {
 		switch (ni_dbus_get_error(error, NULL)) {
 		case -NI_ERROR_ADDRCONF_NO_LEASE:
-			ni_debug_objectmodel("%s: no %s/%s lease", dev->name,
+			ni_debug_objectmodel(1, "%s: no %s/%s lease", dev->name,
 				ni_addrconf_type_to_name(forwarder->addrconf),
 				ni_addrfamily_type_to_name(forwarder->addrfamily));
 			rv = TRUE;
 			break;
 		default:
-			ni_debug_objectmodel("%s: service returned %s (%s)", forwarder->supplicant.interface,
+			ni_debug_objectmodel(1, "%s: service returned %s (%s)", forwarder->supplicant.interface,
 				error->name, error->message);
 		}
 		return rv;
@@ -432,7 +432,7 @@ ni_objectmodel_addrconf_forward_release(ni_dbus_addrconf_forwarder_t *forwarder,
 	 */
 	if ((lease = ni_netdev_get_lease(dev, forwarder->addrfamily, forwarder->addrconf)) != NULL) {
 		/* Tell the client to wait for an addressReleased event with the given uuid */
-		ni_debug_objectmodel("%s/%s: found lease, waiting for drop notification from supplicant",
+		ni_debug_objectmodel(1, "%s/%s: found lease, waiting for drop notification from supplicant",
 				ni_addrconf_type_to_name(forwarder->addrconf),
 				ni_addrfamily_type_to_name(forwarder->addrfamily));
 		rv =  __ni_objectmodel_return_callback_info(reply, NI_EVENT_ADDRESS_RELEASED, &lease->uuid, error);

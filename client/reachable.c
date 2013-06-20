@@ -42,7 +42,7 @@ ni_fsm_require_check_reachable(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_require_t
 	/* Do not check too often. If the dhcp or routing info didn't change,
 	 * there is no point wasting time on another lookup. */
 	if (req->event_seq == fsm->last_event_seq[NI_EVENT_ADDRESS_ACQUIRED]) {
-		ni_debug_application("check reachability: %s SKIP", check->hostname);
+		ni_debug_application(1, "check reachability: %s SKIP", check->hostname);
 		return FALSE;
 	}
 	/* Force another lookup if the resolver was updated in the meantime */
@@ -52,18 +52,18 @@ ni_fsm_require_check_reachable(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_require_t
 
 	if (!check->address_valid
 	 && ni_resolve_hostname_timed(check->hostname, check->family, &check->address, 1) <= 0) {
-		ni_debug_application("check reachability: %s not resolvable", check->hostname);
+		ni_debug_application(1, "check reachability: %s not resolvable", check->hostname);
 		return FALSE;
 	}
 	check->address_valid = TRUE;
 
 	if (ni_host_is_reachable(check->hostname, &check->address) <= 0) {
-		ni_debug_application("check reachability: %s not reachable at %s",
+		ni_debug_application(1, "check reachability: %s not reachable at %s",
 				check->hostname, ni_sockaddr_print(&check->address));
 		return FALSE;
 	}
 
-	ni_debug_application("check reachability: %s OK", check->hostname);
+	ni_debug_application(1, "check reachability: %s OK", check->hostname);
 	return TRUE;
 }
 

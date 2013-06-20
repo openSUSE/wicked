@@ -67,7 +67,7 @@ __ni_objectmodel_ppp_newlink(ni_netdev_t *cfg, const char *ifname, DBusError *er
 	ni_netdev_t *new_dev = NULL;
 	int rv;
 
-	ni_debug_dbus("PPP.newDevice(name=%s)", ifname);
+	ni_debug_dbus(1, "PPP.newDevice(name=%s)", ifname);
 
 	if (ifname == NULL && !(ifname = ni_netdev_make_name(nc, "ppp"))) {
 		dbus_set_error(error, DBUS_ERROR_FAILED, "Unable to create ppp - too many interfaces");
@@ -82,7 +82,7 @@ __ni_objectmodel_ppp_newlink(ni_netdev_t *cfg, const char *ifname, DBusError *er
 					ifname);
 			return NULL;
 		}
-		ni_debug_dbus("PPP interface exists (and name matches)");
+		ni_debug_dbus(1, "PPP interface exists (and name matches)");
 	}
 
 	if (new_dev->link.type != NI_IFTYPE_PPP) {

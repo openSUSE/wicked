@@ -31,7 +31,7 @@
 #include <wicked/xpath.h>
 #include "util_priv.h"
 
-#undef XPATH_DEBUG
+#undef NI_TRACE_XPATH
 
 enum {
 	XPATH_INFIXPRIO_NONE = 0,
@@ -90,7 +90,7 @@ static void		__xpath_skipws(const char **);
 static xpath_enode_t *	xpath_enode_new(const xpath_operator_t *);
 static void		xpath_enode_free(xpath_enode_t *);
 
-#ifdef XPATH_DEBUG
+#ifdef NI_TRACE_XPATH
 # define xtrace		ni_debug_xpath
 #else
 # define xtrace		ni_debug_none
@@ -198,7 +198,7 @@ __xpath_build_expr(const char **pp, char terminator, int infixprio)
 	xpath_enode_t *current = NULL;
 	const char *pos = *pp;
 
-	xtrace("__xpath_build_expr(\"%s\", '%c', %d)", pos, terminator?: '^', infixprio);
+	xtrace(3, "__xpath_build_expr(\"%s\", '%c', %d)", pos, terminator?: '^', infixprio);
 	while (*pos != terminator) {
 		xpath_enode_t *newnode;
 		xpath_operator_t *ops = NULL;
@@ -206,7 +206,7 @@ __xpath_build_expr(const char **pp, char terminator, int infixprio)
 		const char *token_begin;
 
 		__xpath_skipws(&pos);
-		xtrace("     current %p - \"%s\"", current, pos);
+		xtrace(3, "     current %p - \"%s\"", current, pos);
 
 		if (*pos == '\0')
 			return NULL;
@@ -332,7 +332,7 @@ handle_infix_operator:
 				goto failed;
 			}
 
-			xtrace("     found infix operator %s - prio %u; current limit %u",
+			xtrace(3, "     found infix operator %s - prio %u; current limit %u",
 					ops->name, ops->priority, infixprio);
 			if (ops->priority <= infixprio) {
 				/* stop processing before the infix
@@ -591,7 +591,7 @@ cannot_convert:
 /*
  * Debug printing for EVAL tracing
  */
-#ifdef XPATH_DEBUG
+#ifdef NI_TRACE_XPATH
 static char *
 __xpath_node_array_print_short(const xpath_result_t *na)
 {
@@ -669,11 +669,11 @@ __xpath_expression_eval_print_input(const xpath_enode_t *enode,
 	if (right)
 		rightval = __xpath_node_array_print_short(right);
 	if (leftval == NULL)
-		xtrace("  EVAL %s []", name);
+		xtrace(3, "  EVAL %s []", name);
 	else if (rightval == NULL)
-		xtrace("  EVAL %s %s", name, leftval);
+		xtrace(3, "  EVAL %s %s", name, leftval);
 	else
-		xtrace("  EVAL %s %s %s", name, leftval, rightval);
+		xtrace(3, "  EVAL %s %s %s", name, leftval, rightval);
 
 	ni_string_free(&leftval);
 	ni_string_free(&rightval);
@@ -686,10 +686,10 @@ __xpath_expression_eval_print_output(const xpath_enode_t *enode,
 	char *rval = NULL;
 
 	if (result == NULL) {
-		xtrace("  ERROR");
+		xtrace(3, "  ERROR");
 	} else {
 		rval = __xpath_node_array_print_short(result);
-		xtrace("   => %s", rval);
+		xtrace(3, "   => %s", rval);
 		ni_string_free(&rval);
 	}
 }
@@ -981,7 +981,7 @@ __xpath_enode_getattr_evaluate(const xpath_enode_t *op, xpath_result_t *in)
 		const char *attrval;
 
 		if ((attrval = xml_node_get_attr(xn, attr_name)) != NULL) {
-			xtrace("  found node <%s %s=\"%s\">", xn->name, attr_name, attrval? : "");
+			xtrace(3, "  found node <%s %s=\"%s\">", xn->name, attr_name, attrval? : "");
 			xpath_result_append_string(result, attrval);
 		}
 	}
@@ -1030,7 +1030,7 @@ __xpath_enode_predicate_evaluate(const xpath_enode_t *enode, xpath_result_t *lef
 		xpath_integer_t index;
 
 		/* evaluate right expression once, then apply */
-		xtrace("    subscript expression is constant");
+		xtrace(3, "    subscript expression is constant");
 
 		right = __xpath_expression_eval(enode->right, left);
 		if (!right) {
@@ -1414,7 +1414,7 @@ __xpath_enode_generic_comparison(const xpath_enode_t *enode, xpath_result_t *lef
 	unsigned int m, n;
 	int bv = 1;
 
-	xtrace("   compare-%s(%s, %s)", enode->ops->name, xpath_node_type_name(left->type), xpath_node_type_name(right->type));
+	xtrace(3, "   compare-%s(%s, %s)", enode->ops->name, xpath_node_type_name(left->type), xpath_node_type_name(right->type));
 	if (left->type != right->type) {
 		/* Different types; convert everything to strings and compare those */
 		left = xpath_result_to_strings(left);

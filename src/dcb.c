@@ -105,14 +105,14 @@ ni_dcbx_should_start(ni_netdev_t *dev)
 
 	/* If this bit isn't set, the card wants to do its own DCBX */
 	if (!(dcb->capabilities.dcbx & DCB_CAP_DCBX_HOST)) {
-		ni_debug_lldp("%s: card wants to do its own DCBX nego", dev->name);
+		ni_debug_lldp(1, "%s: card wants to do its own DCBX nego", dev->name);
 		return FALSE;
 	}
 
 	if (ni_dcb_get_ieee(dev->name, &dev->dcb->attributes) < 0)
 		return FALSE;
 
-	ni_debug_lldp("%s: DCBX enabled (auto)", dev->name);
+	ni_debug_lldp(1, "%s: DCBX enabled (auto)", dev->name);
 	return TRUE;
 }
 

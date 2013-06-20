@@ -243,22 +243,22 @@ ni_capture_inspect_udp_header(void *data, size_t bytes, size_t *payload_len,
 
 	ihl = iph->ip_hl << 2;
 	if (iph->ip_v != 4 || ihl < 20) {
-		ni_debug_socket("bad IP header, ignoring");
+		ni_debug_socket(1, "bad IP header, ignoring");
 		return NULL;
 	}
 
 	if (bytes < ihl) {
-		ni_debug_socket("truncated IP header, ignoring");
+		ni_debug_socket(1, "truncated IP header, ignoring");
 		return NULL;
 	}
 
 	if (checksum(iph, ihl) != 0) {
-		ni_debug_socket("bad IP header checksum, ignoring");
+		ni_debug_socket(1, "bad IP header checksum, ignoring");
 		return NULL;
 	}
 
 	if (bytes < ntohs(iph->ip_len)) {
-		ni_debug_socket("truncated IP packet, ignoring");
+		ni_debug_socket(1, "truncated IP packet, ignoring");
 		return NULL;
 	}
 
@@ -266,12 +266,12 @@ ni_capture_inspect_udp_header(void *data, size_t bytes, size_t *payload_len,
 	bytes -= ihl;
 
 	if (iph->ip_p != IPPROTO_UDP) {
-		ni_debug_socket("unexpected IP protocol, ignoring");
+		ni_debug_socket(1, "unexpected IP protocol, ignoring");
 		return NULL;
 	}
 
 	if (bytes < sizeof(*uh)) {
-		ni_debug_socket("truncated IP packet, ignoring");
+		ni_debug_socket(1, "truncated IP packet, ignoring");
 		return NULL;
 	}
 
@@ -280,7 +280,7 @@ ni_capture_inspect_udp_header(void *data, size_t bytes, size_t *payload_len,
 	bytes -= sizeof(*uh);
 
 	if (!partial_checksum && ipudp_checksum(iph, uh, data, bytes) != uh->uh_sum) {
-		ni_debug_socket("bad UDP checksum, ignoring");
+		ni_debug_socket(1, "bad UDP checksum, ignoring");
 		return NULL;
 	}
 
@@ -323,7 +323,7 @@ ni_capture_retransmit(ni_capture_t *capture)
 {
 	int rv;
 
-	ni_debug_socket("%s: retransmit request", capture->ifname);
+	ni_debug_socket(1, "%s: retransmit request", capture->ifname);
 
 	if (capture->retrans.buffer == NULL) {
 		ni_error("ni_capture_retransmit: no message!?");
@@ -441,7 +441,7 @@ ni_capture_recv(ni_capture_t *capture, ni_buffer_t *bp)
 		return -1;
 	}
 
-	ni_debug_socket("%s: incoming packet%s", capture->ifname,
+	ni_debug_socket(1, "%s: incoming packet%s", capture->ifname,
 			(partial_checksum ? " with partial checksum" : ""));
 
 	switch (capture->protocol) {
@@ -450,7 +450,7 @@ ni_capture_recv(ni_capture_t *capture, ni_buffer_t *bp)
 		payload = ni_capture_inspect_udp_header(capture->buffer, bytes,
 						&payload_len, partial_checksum);
 		if (payload == NULL) {
-			ni_debug_socket("bad IP/UDP packet header");
+			ni_debug_socket(1, "bad IP/UDP packet header");
 			return -1;
 		}
 		break;

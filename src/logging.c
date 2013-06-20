@@ -100,6 +100,9 @@ static const ni_intmap_t	__log_level_names[] = {
 	{ "notice",	NI_LOG_NOTICE	},
 	{ "info",	NI_LOG_INFO	},
 	{ "debug",	NI_LOG_DEBUG	},
+	{ "debug1",	NI_LOG_DEBUG1	},
+	{ "debug2",	NI_LOG_DEBUG2	},
+	{ "debug3",	NI_LOG_DEBUG3	},
 	{ NULL,		0		}
 };
 

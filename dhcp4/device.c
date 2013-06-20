@@ -129,7 +129,7 @@ ni_dhcp_device_free(ni_dhcp_device_t *dev)
 	ni_dhcp_device_t **pos;
 
 	ni_assert(dev->users == 0);
-	ni_debug_dhcp("%s: Deleting dhcp4 device with index %u",
+	ni_debug_dhcp(1, "%s: Deleting dhcp4 device with index %u",
 			dev->ifname, dev->link.ifindex);
 
 	ni_dhcp_device_drop_buffer(dev);
@@ -270,7 +270,7 @@ ni_dhcp_acquire(ni_dhcp_device_t *dev, const ni_dhcp4_request_t *info)
 		if (ni_check_domain_name(info->hostname, len, 0)) {
 			strncpy(config->hostname, info->hostname, sizeof(config->hostname) - 1);
 		} else {
-			ni_debug_dhcp("Discarded request to use suspect hostname: %s",
+			ni_debug_dhcp(1, "Discarded request to use suspect hostname: %s",
 				ni_print_suspect(info->hostname, len));
 		}
 	}
@@ -316,7 +316,7 @@ ni_dhcp_acquire(ni_dhcp_device_t *dev, const ni_dhcp4_request_t *info)
 		if (!ni_addrconf_lease_is_valid(dev->lease)
 		 || (info->hostname && !ni_string_eq(info->hostname, dev->lease->hostname))
 		 || (info->clientid && !ni_string_eq(info->clientid, dev->lease->dhcp.client_id))) {
-			ni_debug_dhcp("%s: lease doesn't match request", dev->ifname);
+			ni_debug_dhcp(1, "%s: lease doesn't match request", dev->ifname);
 			ni_dhcp_device_drop_lease(dev);
 			dev->notify = 1;
 		}
@@ -446,7 +446,7 @@ ni_dhcp_device_event(ni_dhcp_device_t *dev, ni_netdev_t *ifp, ni_event_t event)
 	switch (event) {
 	case NI_EVENT_DEVICE_UP:
 		if (!ni_string_eq(dev->ifname, ifp->name)) {
-			ni_debug_dhcp("%s: Updating interface name to %s",
+			ni_debug_dhcp(1, "%s: Updating interface name to %s",
 					dev->ifname, ifp->name);
 			ni_string_dup(&dev->ifname, ifp->name);
 		}
@@ -525,7 +525,7 @@ ni_dhcp_device_send_message(ni_dhcp_device_t *dev, unsigned int msg_code, const 
 		goto transient_failure;
 	}
 
-	ni_debug_dhcp("sending %s with xid 0x%x", ni_dhcp_message_name(msg_code), dev->dhcp.xid);
+	ni_debug_dhcp(1, "sending %s with xid 0x%x", ni_dhcp_message_name(msg_code), dev->dhcp.xid);
 
 	/* Allocate an empty buffer */
 	ni_dhcp_device_alloc_buffer(dev);
@@ -563,7 +563,7 @@ ni_dhcp_device_send_message(ni_dhcp_device_t *dev, unsigned int msg_code, const 
 				ni_dhcp_message_name(msg_code));
 	}
 	if (rv < 0)
-		ni_debug_dhcp("unable to broadcast message");
+		ni_debug_dhcp(1, "unable to broadcast message");
 
 	return 0;
 

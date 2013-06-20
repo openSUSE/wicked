@@ -250,7 +250,7 @@ ni_system_updater_install(ni_updater_t *updater, const ni_addrconf_lease_t *leas
 	ni_bool_t result = FALSE;
 	int rv = 0;
 
-	ni_debug_ifconfig("Updating system %s settings from %s/%s lease",
+	ni_debug_ifconfig(1, "Updating system %s settings from %s/%s lease",
 					ni_updater_name(updater->type),
 					ni_addrconf_type_to_name(lease->type),
 					ni_addrfamily_type_to_name(lease->family));
@@ -308,7 +308,7 @@ ni_system_update_all(void)
 	ni_netdev_t *dev;
 	unsigned int kind;
 
-	ni_debug_ifconfig("%s()", __func__);
+	ni_debug_ifconfig(1, "%s()", __func__);
 	ni_system_updaters_init();
 
 	for (kind = 0; kind < __NI_ADDRCONF_UPDATE_MAX; ++kind) {

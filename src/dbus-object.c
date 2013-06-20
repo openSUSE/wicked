@@ -92,7 +92,7 @@ __ni_dbus_object_new_child(ni_dbus_object_t *parent, const ni_dbus_class_t *obje
 	if (child->class == NULL)
 		child->class = &ni_dbus_anonymous_class;
 
-	ni_debug_dbus("created %s as child of %s, class %s", child->path, parent->path, child->class->name);
+	ni_debug_dbus(1, "created %s as child of %s, class %s", child->path, parent->path, child->class->name);
 
 	return child;
 }
@@ -131,7 +131,7 @@ void
 ni_dbus_object_free(ni_dbus_object_t *object)
 {
 	if (object->pprev) {
-		ni_debug_dbus("%s: deferring deletion of active object %s",
+		ni_debug_dbus(1, "%s: deferring deletion of active object %s",
 				__FUNCTION__, object->path);
 		__ni_dbus_object_unlink(object);
 		object->parent = NULL;
@@ -149,7 +149,7 @@ ni_dbus_objects_garbage_collect(void)
 	if (!__ni_dbus_objects_trashcan)
 		return FALSE;
 
-	ni_debug_dbus("%s()", __func__);
+	ni_debug_dbus(1, "%s()", __func__);
 	while ((object = __ni_dbus_objects_trashcan) != NULL)
 		__ni_dbus_object_free(object);
 	return TRUE;
@@ -676,7 +676,7 @@ __ni_dbus_object_get_one_property(const ni_dbus_object_t *object,
 		 * and the like, without having to know exactly which type
 		 * is being used. */
 		if (!ni_dbus_variant_init_signature(var, property->signature)) {
-			ni_debug_dbus("%s: unable to initialize property %s.%s of type %s",
+			ni_debug_dbus(1, "%s: unable to initialize property %s.%s of type %s",
 				object->path,
 				context,
 				property->name,
@@ -787,7 +787,7 @@ __ni_dbus_object_get_properties_as_dict(const ni_dbus_object_t *object,
 					dbus_error_free(error);
 				}
 			} else {
-				ni_debug_dbus("%s: unable to get property %s.%s (error %s: %s)",
+				ni_debug_dbus(1, "%s: unable to get property %s.%s (error %s: %s)",
 						object->path,
 						context,
 						property->name,
@@ -847,7 +847,7 @@ __ni_dbus_object_set_properties_from_dict(ni_dbus_object_t *object,
 
 		/* now set the object property */
 		if (!(property = __ni_dbus_service_get_property(properties, entry->key))) {
-			ni_debug_dbus("%s: ignoring unknown property %s.%s=%s",
+			ni_debug_dbus(1, "%s: ignoring unknown property %s.%s=%s",
 					object->path, context, entry->key,
 					ni_dbus_variant_sprint(&entry->datum));
 			continue;
@@ -870,14 +870,14 @@ __ni_dbus_object_set_properties_from_dict(ni_dbus_object_t *object,
 		}
 
 		if (!property->set) {
-			ni_debug_dbus("%s: ignoring read-only property %s.%s=%s",
+			ni_debug_dbus(1, "%s: ignoring read-only property %s.%s=%s",
 					object->path, context, entry->key,
 					ni_dbus_variant_sprint(&entry->datum));
 			continue;
 		}
 
 		if (!property->set(object, property, &entry->datum, error)) {
-			ni_debug_dbus("%s: error setting property %s.%s=%s (%s: %s)",
+			ni_debug_dbus(1, "%s: error setting property %s.%s=%s (%s: %s)",
 					object->path, context, entry->key,
 					ni_dbus_variant_sprint(&entry->datum),
 					error->name, error->message);
@@ -886,7 +886,7 @@ __ni_dbus_object_set_properties_from_dict(ni_dbus_object_t *object,
 		}
 
 #if 0
-		ni_debug_dbus("Setting property %s=%s", entry->key, ni_dbus_variant_sprint(&entry->datum));
+		ni_debug_dbus(1, "Setting property %s=%s", entry->key, ni_dbus_variant_sprint(&entry->datum));
 #endif
 	}
 

@@ -157,7 +157,7 @@ ni_resolve_hostname_timed(const char *hostname, int af, ni_sockaddr_t *addr, uns
 	gaicb_free(cb);
 
 	if (gerr != 0) {
-		ni_debug_objectmodel("cannot resolve %s: %s", hostname, gai_strerror(gerr));
+		ni_debug_objectmodel(1, "cannot resolve %s: %s", hostname, gai_strerror(gerr));
 		return 0;
 	}
 

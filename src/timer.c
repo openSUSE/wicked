@@ -181,7 +181,7 @@ __ni_timeout_arm_msec(struct timeval *deadline, unsigned long timeout, const ni_
 {
 	timeout = ni_timeout_randomize(timeout, jitter);
 
-	ni_debug_socket("arming retransmit timer (%lu msec)", timeout);
+	ni_debug_socket(1, "arming retransmit timer (%lu msec)", timeout);
 	ni_timer_get_time(deadline);
 	deadline->tv_sec += timeout / 1000;
 	deadline->tv_usec += (timeout % 1000) * 1000;

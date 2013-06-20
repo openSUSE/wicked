@@ -553,7 +553,7 @@ ni_dhcp_decode_dnssearch(ni_buffer_t *optbuf, ni_string_array_t *list, const cha
 			if (ni_check_domain_name(namebuf.string, len, 0)) {
 				ni_string_array_append(list, namebuf.string);
 			} else {
-				ni_debug_dhcp("Discarded suspect %s: %s", what,
+				ni_debug_dhcp(1, "Discarded suspect %s: %s", what,
 					ni_print_suspect(namebuf.string, len));
 			}
 		}
@@ -628,7 +628,7 @@ ni_dhcp_decode_sipservers(ni_buffer_t *bp, ni_string_array_t *list)
 	encoding = ni_buffer_getc(bp);
 	switch (encoding) {
 	case -1:
-		ni_debug_dhcp("%s: missing data", __FUNCTION__);
+		ni_debug_dhcp(1, "%s: missing data", __FUNCTION__);
 		return -1;
 
 	case 0:
@@ -744,7 +744,7 @@ ni_dhcp_option_get_domain(ni_buffer_t *bp, char **var, const char *what)
 		return -1;
 
 	if (!ni_check_domain_name(tmp, len, 0)) {
-		ni_debug_dhcp("Discarded suspect %s: %s", what,
+		ni_debug_dhcp(1, "Discarded suspect %s: %s", what,
 			ni_print_suspect(tmp, len));
 		free(tmp);
 		return -1;
@@ -766,7 +766,7 @@ ni_dhcp_option_get_pathname(ni_buffer_t *bp, char **var, const char *what)
 		return -1;
 
 	if (!ni_check_pathname(tmp, len)) {
-		ni_debug_dhcp("Discarded suspect %s: %s", what,
+		ni_debug_dhcp(1, "Discarded suspect %s: %s", what,
 			ni_print_suspect(tmp, len));
 		free(tmp);
 		return -1;
@@ -788,7 +788,7 @@ ni_dhcp_option_get_printable(ni_buffer_t *bp, char **var, const char *what)
 		return -1;
 
 	if (!ni_check_printable(tmp, len)) {
-		ni_debug_dhcp("Discarded non-printable %s: %s", what,
+		ni_debug_dhcp(1, "Discarded non-printable %s: %s", what,
 			ni_print_suspect(tmp, len));
 		free(tmp);
 		return -1;
@@ -865,7 +865,7 @@ parse_more:
 
 		option = ni_dhcp_option_next(options, &buf);
 
-		//ni_debug_dhcp("handle option %s (%d)", ni_dhcp_option_name(option), option);
+		//ni_debug_dhcp(1, "handle option %s (%d)", ni_dhcp_option_name(option), option);
 		if (option == DHCP_PAD)
 			continue;
 
@@ -913,7 +913,7 @@ parse_more:
 			 * RFC 2132. In practise it's 576 which is the
 			 * minimum maximum message size. */
 			if (lease->dhcp.mtu < MTU_MIN) {
-				ni_debug_dhcp("MTU %u is too low, minimum is %d; ignoring",
+				ni_debug_dhcp(1, "MTU %u is too low, minimum is %d; ignoring",
 						lease->dhcp.mtu, MTU_MIN);
 				lease->dhcp.mtu = 0;
 			}
@@ -997,7 +997,7 @@ parse_more:
 			if (options != &overload_buf) {
 				opt_overload = ni_buffer_getc(&buf);
 			} else {
-				ni_debug_dhcp("DHCP: ignoring OVERLOAD option in overloaded data");
+				ni_debug_dhcp(1, "DHCP: ignoring OVERLOAD option in overloaded data");
 				(void) ni_buffer_getc(&buf);
 			}
 			break;
@@ -1007,16 +1007,16 @@ parse_more:
 			break;
 
 		default:
-			ni_debug_dhcp("ignoring unsupported DHCP code %u", option);
+			ni_debug_dhcp(1, "ignoring unsupported DHCP code %u", option);
 			break;
 		}
 
 		if (buf.underflow) {
-			ni_debug_dhcp("unable to parse DHCP option %s: too short",
+			ni_debug_dhcp(1, "unable to parse DHCP option %s: too short",
 					ni_dhcp_option_name(option));
 			goto error;
 		} else if (ni_buffer_count(&buf)) {
-			ni_debug_dhcp("excess data in DHCP option %s - %u bytes left",
+			ni_debug_dhcp(1, "excess data in DHCP option %s - %u bytes left",
 					ni_dhcp_option_name(option),
 					ni_buffer_count(&buf));
 		}
@@ -1024,7 +1024,7 @@ parse_more:
 	}
 
 	if (options->underflow) {
-		ni_debug_dhcp("unable to parse DHCP response: truncated packet");
+		ni_debug_dhcp(1, "unable to parse DHCP response: truncated packet");
 		goto error;
 	}
 
@@ -1065,7 +1065,7 @@ parse_more:
 		if (ni_check_domain_name(tmp, len, 0)) {
 			memcpy(lease->dhcp.servername, tmp, sizeof(lease->dhcp.servername));
 		} else {
-			ni_debug_dhcp("Discarded suspect boot-server name: %s",
+			ni_debug_dhcp(1, "Discarded suspect boot-server name: %s",
 					ni_print_suspect(tmp, len));
 		}
 	}
@@ -1079,7 +1079,7 @@ parse_more:
 		if (ni_check_pathname(tmp, len)) {
 			ni_string_dup(&lease->dhcp.bootfile, tmp);
 		} else {
-			ni_debug_dhcp("Discarded suspect boot-file name: %s",
+			ni_debug_dhcp(1, "Discarded suspect boot-file name: %s",
 					ni_print_suspect(tmp, len));
 		}
 	}

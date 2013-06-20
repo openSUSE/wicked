@@ -59,7 +59,7 @@ ni_autoip_fsm_select(ni_autoip_device_t *dev)
 	 * their first candidate when probing.
 	 */
 	if (dev->fsm.state == NI_AUTOIP_STATE_CLAIMED && dev->autoip.candidate.s_addr != 0) {
-		ni_debug_autoip("%s: trying to reclaim %s",
+		ni_debug_autoip(1, "%s: trying to reclaim %s",
 				dev->ifname, inet_ntoa(dev->autoip.candidate));
 	} else {
 		dev->autoip.candidate.s_addr = htonl(IPV4LL_ADDRESS_FIRST + (random() % IPV4LL_ADDRESS_RANGE));
@@ -69,7 +69,7 @@ ni_autoip_fsm_select(ni_autoip_device_t *dev)
 			inet_aton("169.254.102.187", &dev->autoip.candidate);
 		}
 #endif
-		ni_debug_autoip("%s: selected new candidate address %s",
+		ni_debug_autoip(1, "%s: selected new candidate address %s",
 				dev->ifname, inet_ntoa(dev->autoip.candidate));
 	}
 
@@ -131,7 +131,7 @@ ni_autoip_fsm_defend(ni_autoip_device_t *dev, const ni_hwaddr_t *hwa)
 	}
 
 	if (dev->autoip.last_defense && now - dev->autoip.last_defense < IPV4LL_DEFEND_INTERVAL) {
-		ni_debug_autoip("%s: failed to defend address %s (claimed by %s)", dev->ifname,
+		ni_debug_autoip(1, "%s: failed to defend address %s (claimed by %s)", dev->ifname,
 				inet_ntoa(dev->autoip.candidate),
 				ni_link_address_print(hwa));
 		ni_autoip_fsm_conflict(dev);
@@ -149,7 +149,7 @@ ni_autoip_fsm_build_lease(ni_autoip_device_t *dev)
 	ni_addrconf_lease_t *lease;
 	ni_sockaddr_t addr;
 
-	ni_debug_autoip("%s: building lease", dev->ifname);
+	ni_debug_autoip(1, "%s: building lease", dev->ifname);
 	lease = ni_addrconf_lease_new(NI_ADDRCONF_AUTOCONF, AF_INET);
 
 	memset(&addr, 0, sizeof(addr));
@@ -187,7 +187,7 @@ ni_autoip_send_arp(ni_autoip_device_t *dev)
 	}
 
 	if (dev->autoip.nprobes) {
-		ni_debug_autoip("arp_validate: probing for %s", inet_ntoa(claim));
+		ni_debug_autoip(1, "arp_validate: probing for %s", inet_ntoa(claim));
 		ni_arp_send_request(dev->arp_socket, null, claim);
 
 		dev->autoip.nprobes -= 1;
@@ -196,7 +196,7 @@ ni_autoip_send_arp(ni_autoip_device_t *dev)
 		else
 			ni_autoip_fsm_set_timeout(dev, IPV4LL_ANNOUNCE_DELAY, IPV4LL_ANNOUNCE_DELAY);
 	} else if (dev->autoip.nclaims) {
-		ni_debug_autoip("arp_validate: claiming %s", inet_ntoa(claim));
+		ni_debug_autoip(1, "arp_validate: claiming %s", inet_ntoa(claim));
 		ni_arp_send_grat_reply(dev->arp_socket, claim);
 
 		dev->autoip.nclaims -= 1;
@@ -204,7 +204,7 @@ ni_autoip_send_arp(ni_autoip_device_t *dev)
 			ni_autoip_fsm_set_timeout(dev, IPV4LL_ANNOUNCE_WAIT, IPV4LL_ANNOUNCE_WAIT);
 		} else {
 			/* Wow, we're done! */
-			ni_debug_autoip("%s: successfully claimed %s", dev->ifname, inet_ntoa(claim));
+			ni_debug_autoip(1, "%s: successfully claimed %s", dev->ifname, inet_ntoa(claim));
 
 			/* Build the lease */
 			ni_autoip_fsm_build_lease(dev);
@@ -237,7 +237,7 @@ ni_autoip_fsm_process_arp_packet(ni_arp_socket_t *arph, const ni_arp_packet_t *p
 
 	switch (dev->fsm.state) {
 	case NI_AUTOIP_STATE_CLAIMING:
-		ni_debug_autoip("address %s already in use by %s",
+		ni_debug_autoip(1, "address %s already in use by %s",
 				inet_ntoa(pkt->sip),
 				ni_link_address_print(&pkt->sha));
 		ni_autoip_fsm_conflict(dev);
@@ -261,7 +261,7 @@ ni_autoip_fsm_set_timeout(ni_autoip_device_t *dev, unsigned int wait_min, unsign
 		if (wait_min < wait_max)
 			wait += (unsigned int) random() % (wait_max - wait_min);
 
-		ni_debug_autoip("%s: setting timeout to %u ms", dev->ifname, wait);
+		ni_debug_autoip(1, "%s: setting timeout to %u ms", dev->ifname, wait);
 		if (dev->fsm.timer)
 			ni_timer_rearm(dev->fsm.timer, wait);
 		else

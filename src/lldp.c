@@ -268,7 +268,7 @@ ni_system_lldp_up(ni_netdev_t *dev, const ni_lldp_t *config)
 {
 	ni_dcbx_state_t *dcbx = NULL;
 
-	ni_debug_lldp("%s(%s, lldp=%p)", __func__, dev->name, config);
+	ni_debug_lldp(1, "%s(%s, lldp=%p)", __func__, dev->name, config);
 
 	if (dev->link.arp_type != ARPHRD_ETHER) {
 		ni_error("Cannot enable LLDP for device %s: incompatible layer 2 protocol", dev->name);
@@ -305,7 +305,7 @@ ni_system_lldp_up(ni_netdev_t *dev, const ni_lldp_t *config)
 int
 ni_system_lldp_down(ni_netdev_t *dev)
 {
-	ni_debug_lldp("%s(%s)", __func__, dev->name);
+	ni_debug_lldp(1, "%s(%s)", __func__, dev->name);
 
 	ni_netdev_set_lldp(dev, NULL);
 	ni_lldp_agent_stop(dev);
@@ -534,8 +534,8 @@ ni_lldp_agent_send(ni_lldp_agent_t *agent)
 	if (agent->txCredit > 0) {
 		ni_buffer_t *bp = &agent->sendbuf;
 
-		ni_debug_lldp("%s: sending LLDP packet (PDU len=%u)", agent->dev->name, ni_buffer_count(bp));
-		/* ni_debug_lldp(PDU=%s", ni_print_hex(ni_buffer_head(bp), ni_buffer_count(bp))); */
+		ni_debug_lldp(1, "%s: sending LLDP packet (PDU len=%u)", agent->dev->name, ni_buffer_count(bp));
+		/* ni_debug_lldp(1, PDU=%s", ni_print_hex(ni_buffer_head(bp), ni_buffer_count(bp))); */
 		ni_capture_send(agent->capture, &agent->sendbuf, NULL);
 		agent->txCredit--;
 
@@ -547,7 +547,7 @@ ni_lldp_agent_send(ni_lldp_agent_t *agent)
 		ni_lldp_tx_timer_arm(agent);
 		rv = TRUE;
 	} else {
-		ni_debug_lldp("%s: cannot send LLDP packet (no credits)", agent->dev->name);
+		ni_debug_lldp(1, "%s: cannot send LLDP packet (no credits)", agent->dev->name);
 		ni_lldp_tx_timer_arm_quick(agent);
 	}
 
@@ -662,7 +662,7 @@ ni_lldp_agent_update(ni_lldp_agent_t *agent, ni_lldp_t *lldp, const void *raw_id
 		found->data = NULL;
 	} else {
 		if (npeers >= NI_LLDP_MAX_PEERS) {
-			ni_debug_lldp("%s: too many LLDP peers, ignoring this PDU", __func__);
+			ni_debug_lldp(1, "%s: too many LLDP peers, ignoring this PDU", __func__);
 			return -1;
 		}
 		found = ni_lldp_peer_new(raw_id, raw_id_len);
@@ -705,7 +705,7 @@ ni_lldp_agent_update(ni_lldp_agent_t *agent, ni_lldp_t *lldp, const void *raw_id
 			if (ni_dcbx_update_remote(agent->dcbx, lldp->dcb_attributes))
 				ni_buffer_reset(&agent->sendbuf);
 		} else if (agent->dcbx->running) {
-			ni_debug_lldp("%s: more than one LLDP agent on the link, disabling DCBX",
+			ni_debug_lldp(1, "%s: more than one LLDP agent on the link, disabling DCBX",
 					agent->dev->name);
 			agent->dcbx->running = FALSE;
 		}
@@ -738,7 +738,7 @@ ni_lldp_receive(ni_socket_t *sock)
 
 		lldp = ni_lldp_new();
 		if (ni_lldp_pdu_parse(lldp, &buf) < 0) {
-			ni_debug_lldp("%s: failed to parse LLDP PDU", agent->dev->name);
+			ni_debug_lldp(1, "%s: failed to parse LLDP PDU", agent->dev->name);
 			ni_lldp_free(lldp);
 			return;
 		}
@@ -1032,7 +1032,7 @@ ni_lldp_tlv_get_mac(ni_buffer_t *bp, ni_hwaddr_t *mac)
 	void *data;
 
 	if (!(data = ni_buffer_pull_head(bp, 6))) {
-		ni_debug_lldp("%s: bad MAC address length %u", __func__, ni_buffer_count(bp));
+		ni_debug_lldp(1, "%s: bad MAC address length %u", __func__, ni_buffer_count(bp));
 		return -1;
 	}
 
@@ -1073,12 +1073,12 @@ ni_lldp_tlv_get_netaddr(ni_buffer_t *bp, ni_sockaddr_t *ap)
 		return -1;
 
 	if (!ni_af_sockaddr_info(af, &offset, &len)) {
-		ni_debug_lldp("%s: unsupported network address type %d", __func__, af);
+		ni_debug_lldp(1, "%s: unsupported network address type %d", __func__, af);
 		return -1;
 	}
 
 	if (ni_buffer_count(bp) < len) {
-		ni_debug_lldp("%s: truncated network address (af %d, len %u)", __func__, af, len);
+		ni_debug_lldp(1, "%s: truncated network address (af %d, len %u)", __func__, af, len);
 		return -1;
 	}
 
@@ -1354,7 +1354,7 @@ __ni_dcbx_get_ets(ni_lldp_t *lldp, ni_buffer_t *bp, ni_dcb_ets_t *ets, ni_bool_t
 			ets->cbs_supported = TRUE;
 		ets->num_tc_supported = octet & 0x07;
 	} else if (octet != 0) {
-		ni_debug_lldp("LLDP: discarding bad ETS_RECOMMENDED TLV (reserved octet is not 0)");
+		ni_debug_lldp(1, "LLDP: discarding bad ETS_RECOMMENDED TLV (reserved octet is not 0)");
 		return -1;
 	}
 
@@ -1550,7 +1550,7 @@ ni_lldp_tlv_get_orgspec(ni_lldp_t *lldp, ni_buffer_t *bp)
 	if (oui == NI_LLDP_OUI_IEEE_8021)
 		return ni_lldp_tlv_get_ieee_802_1(lldp, bp, subtype);
 
-	ni_debug_lldp("ignoring unknown org-specific TLV (oui=0x%06x)", oui);
+	ni_debug_lldp(1, "ignoring unknown org-specific TLV (oui=0x%06x)", oui);
 	return 0;
 }
 
@@ -1625,7 +1625,7 @@ __ni_lldp_pdu_parse(ni_lldp_t *lldp, ni_buffer_t *bp,
 
 		if (required) {
 			if (*required != type) {
-				ni_debug_lldp("LLDP: tlv%u - expected type %u but got %u",
+				ni_debug_lldp(1, "LLDP: tlv%u - expected type %u but got %u",
 						index, *required, type);
 				return -1;
 			}
@@ -1653,12 +1653,12 @@ __ni_lldp_pdu_parse(ni_lldp_t *lldp, ni_buffer_t *bp,
 			/* FIXME: if we received a TTL of 0, we should stop here */
 		} else {
 			/* ignore unknown TLV */
-			ni_debug_lldp("%s: tlv%u - ignoring unknown TLV type %u", __func__, index, type);
+			ni_debug_lldp(1, "%s: tlv%u - ignoring unknown TLV type %u", __func__, index, type);
 		}
 	}
 
 	if (end_allowed) {
-		ni_debug_lldp("%s: missing End of LLDPDU TLV", __func__);
+		ni_debug_lldp(1, "%s: missing End of LLDPDU TLV", __func__);
 		return -1;
 	}
 

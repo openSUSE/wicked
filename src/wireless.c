@@ -187,7 +187,7 @@ __ni_wireless_do_scan(ni_netdev_t *dev)
 	if (ni_wpa_interface_retrieve_scan(wpa_dev, scan)) {
 		ni_netconfig_t *nc = ni_global_state_handle(0);
 
-		ni_debug_wireless("%s: list of networks changed", dev->name);
+		ni_debug_wireless(1, "%s: list of networks changed", dev->name);
 		__ni_netdev_event(nc, dev, NI_EVENT_LINK_SCAN_UPDATED);
 	}
 
@@ -197,10 +197,10 @@ __ni_wireless_do_scan(ni_netdev_t *dev)
 		/* We can do this only if the device is up */
 		if (dev->link.ifflags & NI_IFF_DEVICE_UP) {
 			if (scan->timestamp)
-				ni_debug_wireless("%s: requesting wireless scan (last scan was %u seconds ago)",
+				ni_debug_wireless(1, "%s: requesting wireless scan (last scan was %u seconds ago)",
 						dev->name, (unsigned int) (now - scan->timestamp));
 			else
-				ni_debug_wireless("%s: requesting wireless scan", dev->name);
+				ni_debug_wireless(1, "%s: requesting wireless scan", dev->name);
 			ni_wpa_interface_request_scan(wpa_dev, scan);
 		}
 	}
@@ -356,7 +356,7 @@ __ni_wireless_association_timeout(void *ptr, const ni_timer_t *timer)
 	if (wlan->assoc.timer != timer)
 		return;
 
-	ni_debug_wireless("%s: association timed out", dev->name);
+	ni_debug_wireless(1, "%s: association timed out", dev->name);
 	wlan->assoc.timer = NULL;
 
 	__ni_netdev_event(nc, dev, NI_EVENT_LINK_DOWN);
@@ -427,7 +427,7 @@ ni_wireless_association_changed(unsigned int ifindex, ni_wireless_assoc_state_t 
 int
 __ni_wireless_link_event(ni_netconfig_t *nc, ni_netdev_t *dev, void *data, size_t len)
 {
-	/* ni_debug_wireless("%s: ignoring wireless event", dev->name); */
+	/* ni_debug_wireless(1, "%s: ignoring wireless event", dev->name); */
 	return 0;
 }
 
@@ -761,7 +761,7 @@ __ni_wireless_process_wpa1(ni_wireless_network_t *net, void *ptr, size_t len)
 		return -1;
 
 	if (memcmp(buffer, wpa1_oui, 3)) {
-		ni_debug_ifconfig("skipping non-WPA1 IE (OUI=%02x:%02x:%02x)",
+		ni_debug_ifconfig(1, "skipping non-WPA1 IE (OUI=%02x:%02x:%02x)",
 				buffer[0], buffer[1], buffer[0]);
 		return 0;
 	}
@@ -813,7 +813,7 @@ __ni_wireless_process_ie(ni_wireless_network_t *net, void *ptr, size_t len)
 			break;
 
 		default:
-			ni_debug_wireless("Skipping unsupported Informaton Element 0x%02x", type);
+			ni_debug_wireless(1, "Skipping unsupported Informaton Element 0x%02x", type);
 			continue;
 		}
 		if (rv < 0)
@@ -1090,6 +1090,6 @@ ni_wireless_parse_ssid(const char *string, ni_wireless_ssid_t *ssid)
 	return TRUE;
 
 bad_ssid:
-	ni_debug_wireless("unable to parse wireless ssid \"%s\"", string);
+	ni_debug_wireless(1, "unable to parse wireless ssid \"%s\"", string);
 	return FALSE;
 }

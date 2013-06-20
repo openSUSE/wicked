@@ -568,6 +568,6 @@ ni_call_error_context_get_retries(ni_call_error_context_t *error_context, const 
 int
 ni_call_install_lease_xml(ni_dbus_object_t *object, xml_node_t *node)
 {
-	ni_debug_objectmodel("%s(%s)", __func__, object->path);
+	ni_debug_objectmodel(1, "%s(%s)", __func__, object->path);
 	return ni_call_device_method_xml(object, "installLease", node, NULL);
 }

@@ -46,7 +46,7 @@ ni_ifpolicy_file_load(const char *filename)
 	xml_document_t *config_doc;
 	xml_node_t *node;
 
-	ni_debug_readwrite("%s(%s)", __func__, filename);
+	ni_debug_readwrite(1, "%s(%s)", __func__, filename);
 	if (!(config_doc = xml_document_read(filename))) {
 		ni_error("unable to load interface definition from %s", filename);
 		return NULL;

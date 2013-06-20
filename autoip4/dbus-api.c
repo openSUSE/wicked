@@ -115,7 +115,7 @@ __wicked_dbus_autoip4_acquire_svc(ni_dbus_object_t *object, const ni_dbus_method
 	dbus_bool_t ret = FALSE;
 	int rv;
 
-	ni_debug_dbus("%s(dev=%s)", __func__, dev->ifname);
+	ni_debug_dbus(1, "%s(dev=%s)", __func__, dev->ifname);
 
 	/* Ignore all arguments for now */
 	if ((rv = ni_autoip_acquire(dev)) < 0) {
@@ -149,7 +149,7 @@ __wicked_dbus_autoip4_drop_svc(ni_dbus_object_t *object, const ni_dbus_method_t 
 	ni_uuid_t uuid;
 	int rv;
 
-	ni_debug_dbus("%s(dev=%s)", __func__, dev->ifname);
+	ni_debug_dbus(1, "%s(dev=%s)", __func__, dev->ifname);
 
 	memset(&uuid, 0, sizeof(uuid));
 	if (argc == 1) {

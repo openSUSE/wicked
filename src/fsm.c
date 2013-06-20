@@ -684,7 +684,7 @@ ni_ifworker_resolve_reference(ni_fsm_t *fsm, xml_node_t *devnode, ni_ifworker_ty
 					devnode->name);
 		}
 
-		ni_debug_application("%s: identified device as \"%s\"",
+		ni_debug_application(1, "%s: identified device as \"%s\"",
 				xml_node_location(devnode),
 				child->name);
 		xml_node_set_cdata(devnode, child->name);
@@ -807,7 +807,7 @@ ni_ifworker_set_state(ni_ifworker_t *w, unsigned int new_state)
 	if (prev_state != new_state) {
 		w->fsm.state = new_state;
 
-		ni_debug_application("%s: changed state %s -> %s%s",
+		ni_debug_application(1, "%s: changed state %s -> %s%s",
 				w->name,
 				ni_ifworker_state_name(prev_state),
 				ni_ifworker_state_name(new_state),
@@ -1029,7 +1029,7 @@ ni_fsm_require_netif_resolve(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_require_t *
 	if (!(child_worker = ni_ifworker_resolve_reference(fsm, devnode, NI_IFWORKER_TYPE_NETDEV)))
 		return FALSE;
 
-	ni_debug_application("%s: resolved reference to subordinate device %s", w->name, child_worker->name);
+	ni_debug_application(1, "%s: resolved reference to subordinate device %s", w->name, child_worker->name);
 	if (!ni_ifworker_add_child(w, child_worker, devnode, FALSE))
 		return FALSE;
 
@@ -1063,7 +1063,7 @@ ni_fsm_require_modem_resolve(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_require_t *
 	if (!(child_worker = ni_ifworker_resolve_reference(fsm, devnode, NI_IFWORKER_TYPE_MODEM)))
 		return FALSE;
 
-	ni_debug_application("%s: resolved reference to subordinate device %s", w->name, child_worker->name);
+	ni_debug_application(1, "%s: resolved reference to subordinate device %s", w->name, child_worker->name);
 	if (!ni_ifworker_add_child(w, child_worker, devnode, FALSE))
 		return FALSE;
 
@@ -1172,7 +1172,7 @@ ni_ifworker_child_state_req_test(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_require
 		return FALSE;
 	}
 
-	ni_debug_application("%s: waiting for %s to reach state %s",
+	ni_debug_application(1, "%s: waiting for %s to reach state %s",
 				w->name, child->name,
 				ni_ifworker_state_name(wait_for_state));
 	return FALSE;
@@ -1226,7 +1226,7 @@ ni_ifworker_get_child_state_reqs_for_method(ni_ifworker_t *w, ni_fsm_transition_
 			continue;
 		}
 
-		ni_debug_application("%s: %s transition requires state of child %s to be in range [%s, %s]",
+		ni_debug_application(1, "%s: %s transition requires state of child %s to be in range [%s, %s]",
 				w->name, data->method, child->name,
 				ni_ifworker_state_name(min_state),
 				ni_ifworker_state_name(max_state));
@@ -1258,7 +1258,7 @@ ni_ifworker_check_dependencies(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transitio
 	if (!action->require.list)
 		return TRUE;
 
-	ni_debug_application("%s: checking requirements for %s -> %s transition",
+	ni_debug_application(1, "%s: checking requirements for %s -> %s transition",
 			w->name,
 			ni_ifworker_state_name(action->from_state),
 			ni_ifworker_state_name(action->next_state));
@@ -1318,7 +1318,7 @@ __ni_ifworker_identify_device(ni_fsm_t *fsm, const char *namespace, const xml_no
 	ni_string_free(&object_path);
 
 	if (found)
-		ni_debug_application("%s: identified device as %s (%s)",
+		ni_debug_application(1, "%s: identified device as %s (%s)",
 				xml_node_location(devnode), found->name, found->object_path);
 	return found;
 }
@@ -1363,7 +1363,7 @@ ni_ifworker_identify_device(ni_fsm_t *fsm, const xml_node_t *devnode, ni_ifworke
 	}
 
 	if (best)
-		ni_debug_application("%s: identified device as %s (%s)",
+		ni_debug_application(1, "%s: identified device as %s (%s)",
 				xml_node_location(devnode), best->name, best->object_path);
 	return best;
 }
@@ -1622,7 +1622,7 @@ ni_fsm_mark_matching_workers(ni_fsm_t *fsm, ni_ifmatcher_t *match, const ni_uint
 			count++;
 	}
 
-	ni_debug_application("marked %u interfaces", count);
+	ni_debug_application(1, "marked %u interfaces", count);
 	ni_ifworker_array_destroy(&marked);
 	return count;
 }
@@ -1632,7 +1632,7 @@ ni_fsm_destroy_worker(ni_fsm_t *fsm, ni_ifworker_t *w)
 {
 	ni_ifworker_get(w);
 
-	ni_debug_application("%s(%s)", __func__, w->name);
+	ni_debug_application(1, "%s(%s)", __func__, w->name);
 	if (!ni_fsm_ifworker_array_remove(&fsm->workers, w)) {
 		ni_ifworker_release(w);
 		return FALSE;
@@ -1666,7 +1666,7 @@ ni_ifworker_start(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned long timeout)
 				ni_ifworker_state_name(max_state));
 		return -1;
 	}
-	ni_debug_application("%s: target state min=%s max=%s",
+	ni_debug_application(1, "%s: target state min=%s max=%s",
 				w->name,
 				ni_ifworker_state_name(min_state),
 				ni_ifworker_state_name(max_state));
@@ -1701,7 +1701,7 @@ ni_ifworker_start(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned long timeout)
 			child->control.link_timeout = w->control.link_timeout;
 	}
 
-	ni_debug_application("%s: current state=%s target state=%s",
+	ni_debug_application(1, "%s: current state=%s target state=%s",
 				w->name,
 				ni_ifworker_state_name(w->fsm.state),
 				ni_ifworker_state_name(w->target_state));
@@ -1973,7 +1973,7 @@ ni_ifworker_netif_resolve_cb(xml_node_t *node, const ni_xs_type_t *type, const x
 			if ((attr = xml_node_get_attr(mchild, "shared")) != NULL)
 				shared = ni_string_eq(attr, "true");
 
-			ni_debug_application("%s: resolved reference to subordinate device %s", w->name, child_worker->name);
+			ni_debug_application(1, "%s: resolved reference to subordinate device %s", w->name, child_worker->name);
 			if (!ni_ifworker_add_child(w, child_worker, node, shared))
 				return FALSE;
 		} else
@@ -1990,7 +1990,7 @@ ni_ifworker_netif_resolve_cb(xml_node_t *node, const ni_xs_type_t *type, const x
 			if ((attr = xml_node_get_attr(mchild, "shared")) != NULL)
 				shared = ni_string_eq(attr, "true");
 
-			ni_debug_application("%s: resolved reference to subordinate device %s", w->name, child_worker->name);
+			ni_debug_application(1, "%s: resolved reference to subordinate device %s", w->name, child_worker->name);
 			if (!ni_ifworker_add_child(w, child_worker, node, shared))
 				return FALSE;
 		} else
@@ -2090,7 +2090,7 @@ ni_fsm_refresh_state(ni_fsm_t *fsm)
 		w = fsm->workers.data[i];
 
 		if (w->object == NULL) {
-			ni_debug_application("device %s (%s) disappeared", w->name, w->object_path);
+			ni_debug_application(1, "device %s (%s) disappeared", w->name, w->object_path);
 			ni_ifworker_update_state(w, NI_FSM_STATE_NONE, NI_FSM_STATE_DEVICE_DOWN);
 
 			if (w->device) {
@@ -2150,7 +2150,7 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 	if (!found)
 		found = ni_fsm_ifworker_by_object_path(fsm, object->path);
 	if (!found) {
-		ni_debug_application("received new device %s (%s)", dev->name, object->path);
+		ni_debug_application(1, "received new device %s (%s)", dev->name, object->path);
 		found = ni_ifworker_new(fsm, NI_IFWORKER_TYPE_NETDEV, dev->name);
 	}
 
@@ -2229,7 +2229,7 @@ ni_fsm_recv_new_modem(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 	if (!found)
 		found = ni_fsm_ifworker_by_object_path(fsm, object->path);
 	if (!found) {
-		ni_debug_application("received new modem %s (%s)", modem->device, object->path);
+		ni_debug_application(1, "received new modem %s (%s)", modem->device, object->path);
 		found = ni_ifworker_new(fsm, NI_IFWORKER_TYPE_MODEM, modem->device);
 	}
 
@@ -2276,7 +2276,7 @@ ni_ifworker_error_handler(ni_call_error_context_t *ctx, const DBusError *error)
 	char *detail = NULL;
 	int errcode;
 
-	ni_debug_dbus("%s(%s, %s)", __func__, error->name, error->message);
+	ni_debug_dbus(1, "%s(%s, %s)", __func__, error->name, error->message);
 	errcode = ni_dbus_get_error(error, &detail);
 	if (errcode == -NI_ERROR_AUTH_INFO_MISSING) {
 		ni_fsm_prompt_t prompt;
@@ -2643,7 +2643,7 @@ ni_ifworker_do_common(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t *acti
 		if (bind->skip_call)
 			continue;
 
-		ni_debug_application("%s: %s.%s()", w->name, bind->service->name, bind->method->name);
+		ni_debug_application(1, "%s: %s.%s()", w->name, bind->service->name, bind->method->name);
 
 		rv = ni_call_common_xml(w->object, bind->service, bind->method, bind->config,
 				&callback_list, ni_ifworker_error_handler);
@@ -2721,14 +2721,14 @@ ni_ifworker_call_device_factory(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transiti
 		}
 		bind = &action->binding[0];
 
-		ni_debug_application("%s: calling device factory", w->name);
+		ni_debug_application(1, "%s: calling device factory", w->name);
 		object_path = ni_call_device_new_xml(bind->service, w->name, bind->config);
 		if (object_path == NULL) {
 			ni_ifworker_fail(w, "failed to create interface");
 			return -1;
 		}
 
-		ni_debug_application("created device %s (path=%s)", w->name, object_path);
+		ni_debug_application(1, "created device %s (path=%s)", w->name, object_path);
 		ni_string_dup(&w->object_path, object_path);
 
 		relative_path = ni_string_strip_prefix(NI_OBJECTMODEL_OBJECT_PATH "/", object_path);
@@ -2862,7 +2862,7 @@ ni_fsm_schedule_init(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned int from_state, u
 	/* If the --delete option was given, but the specific device cannot
 	 * be deleted, then we don't try. */
 	if (target_state == NI_FSM_STATE_DEVICE_DOWN && !ni_ifworker_can_delete(w)) {
-		ni_debug_application("%s: cannot delete device, ignoring --delete option", w->name);
+		ni_debug_application(1, "%s: cannot delete device, ignoring --delete option", w->name);
 		target_state = NI_FSM_STATE_DEVICE_UP;
 	}
 
@@ -2871,7 +2871,7 @@ ni_fsm_schedule_init(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned int from_state, u
 	else
 		increment = -1;
 
-	ni_debug_application("%s: set up FSM from %s -> %s", w->name,
+	ni_debug_application(1, "%s: set up FSM from %s -> %s", w->name,
 			ni_ifworker_state_name(from_state),
 			ni_ifworker_state_name(target_state));
 	num_actions = 0;
@@ -2886,7 +2886,7 @@ do_it_again:
 			if (a->from_state == cur_state && a->next_state == next_state) {
 				if (w->fsm.action_table != NULL) {
 
-					ni_debug_application("  %s -> %s: %s()",
+					ni_debug_application(1, "  %s -> %s: %s()",
 						ni_ifworker_state_name(cur_state),
 						ni_ifworker_state_name(next_state),
 						a->common.method_name);
@@ -2934,7 +2934,7 @@ ni_fsm_schedule_bind_methods(ni_fsm_t *fsm, ni_ifworker_t *w)
 		const ni_fsm_policy_t *policies[MAX_POLICIES];
 		unsigned int count;
 
-		ni_debug_application("%s: applying policies", w->name);
+		ni_debug_application(1, "%s: applying policies", w->name);
 
 		count = ni_fsm_policy_get_applicable_policies(fsm, w, policies, MAX_POLICIES);
 
@@ -2945,7 +2945,7 @@ ni_fsm_schedule_bind_methods(ni_fsm_t *fsm, ni_ifworker_t *w)
 		ni_ifworker_control_from_xml(w, xml_node_get_child(w->config.node, "control"));
 	}
 
-	ni_debug_application("%s: binding dbus calls to FSM transitions", w->name);
+	ni_debug_application(1, "%s: binding dbus calls to FSM transitions", w->name);
 	for (action = w->fsm.action_table; action->func; ++action) {
 		if (action->bound)
 			continue;
@@ -2962,7 +2962,7 @@ ni_fsm_schedule_bind_methods(ni_fsm_t *fsm, ni_ifworker_t *w)
 	}
 
 	if (unbound)
-		ni_debug_application("  %u transitions not bound yet", unbound);
+		ni_debug_application(1, "  %u transitions not bound yet", unbound);
 
 	return 0;
 }
@@ -2975,7 +2975,7 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 	while (1) {
 		int made_progress = 0;
 
-		ni_debug_application("-- refreshing interface state --");
+		ni_debug_application(1, "-- refreshing interface state --");
 		ni_fsm_refresh_state(fsm);
 
 		for (i = 0; i < fsm->workers.count; ++i) {
@@ -2999,7 +2999,7 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 			/* We requested a change that takes time (such as acquiring
 			 * a DHCP lease). Wait for a notification from wickedd */
 			if (w->fsm.wait_for) {
-				ni_debug_application("%s: state=%s want=%s, wait-for=%s", w->name,
+				ni_debug_application(1, "%s: state=%s want=%s, wait-for=%s", w->name,
 					ni_ifworker_state_name(w->fsm.state),
 					ni_ifworker_state_name(w->target_state),
 					ni_ifworker_state_name(w->fsm.wait_for->next_state));
@@ -3016,7 +3016,7 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 				continue;
 			}
 
-			ni_debug_application("%s: state=%s want=%s, trying to transition to %s", w->name,
+			ni_debug_application(1, "%s: state=%s want=%s, trying to transition to %s", w->name,
 				ni_ifworker_state_name(w->fsm.state),
 				ni_ifworker_state_name(w->target_state),
 				ni_ifworker_state_name(w->fsm.next_action->next_state));
@@ -3028,7 +3028,7 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 			}
 
 			if (!ni_ifworker_check_dependencies(fsm, w, action)) {
-				ni_debug_application("%s: defer action (pending dependencies)", w->name);
+				ni_debug_application(1, "%s: defer action (pending dependencies)", w->name);
 				continue;
 			}
 
@@ -3044,12 +3044,12 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 					/* We should not have transitioned to the next state while
 					 * we were still waiting for some event. */
 					ni_assert(w->fsm.wait_for == NULL);
-					ni_debug_application("%s: successfully transitioned from %s to %s",
+					ni_debug_application(1, "%s: successfully transitioned from %s to %s",
 						w->name,
 						ni_ifworker_state_name(prev_state),
 						ni_ifworker_state_name(w->fsm.state));
 				} else {
-					ni_debug_application("%s: waiting for event in state %s",
+					ni_debug_application(1, "%s: waiting for event in state %s",
 						w->name,
 						ni_ifworker_state_name(w->fsm.state));
 					w->fsm.wait_for = action;
@@ -3093,7 +3093,7 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 		}
 	}
 
-	ni_debug_application("waiting for %u devices to become ready (%u explicitly requested)", waiting, nrequested);
+	ni_debug_application(1, "waiting for %u devices to become ready (%u explicitly requested)", waiting, nrequested);
 	return nrequested;
 }
 
@@ -3118,11 +3118,11 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 			return;
 		}
 		if (ni_dbus_variant_get_uuid(&result, &event_uuid))
-			ni_debug_dbus("%s: got signal %s from %s; event uuid=%s",
+			ni_debug_dbus(1, "%s: got signal %s from %s; event uuid=%s",
 					__func__, signal_name, object_path,
 					ni_uuid_print(&event_uuid));
 		else
-			ni_debug_dbus("%s: got signal %s from %s; event uuid=<>",
+			ni_debug_dbus(1, "%s: got signal %s from %s; event uuid=<>",
 					__func__, signal_name, object_path);
 		ni_dbus_variant_destroy(&result);
 	}
@@ -3138,9 +3138,9 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 			cb = ni_ifworker_get_callback(w, &event_uuid);
 			if (cb) {
 				if (ni_string_eq(cb->event, signal_name)) {
-					ni_debug_dbus("... great, we were expecting this event");
+					ni_debug_dbus(1, "... great, we were expecting this event");
 				} else {
-					ni_debug_dbus("%s: was waiting for %s event, but got %s",
+					ni_debug_dbus(1, "%s: was waiting for %s event, but got %s",
 							w->name, cb->event, signal_name);
 					ni_ifworker_fail(w, "got signal %s", signal_name);
 				}
@@ -3154,7 +3154,7 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 			 * complete until we've received *all* outstanding addressAcquired events.
 			 */
 			if (ni_ifworker_waiting_for_event(w, signal_name)) {
-				ni_debug_application("%s: waiting for more %s events...", w->name, signal_name);
+				ni_debug_application(1, "%s: waiting for more %s events...", w->name, signal_name);
 				goto done;
 			}
 		}
@@ -3241,7 +3241,7 @@ ni_fsm_mainloop(ni_fsm_t *fsm)
 			break;
 	}
 
-	ni_debug_application("finished with all devices.");
+	ni_debug_application(1, "finished with all devices.");
 }
 
 /*

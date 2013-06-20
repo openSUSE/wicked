@@ -45,11 +45,11 @@ ni_addrconf_lease_file_write(const char *ifname, ni_addrconf_lease_t *lease)
 
 	filename = __ni_addrconf_lease_file_path(lease->type, lease->family, ifname);
 	if (lease->state == NI_ADDRCONF_STATE_RELEASED) {
-		ni_debug_dhcp("removing %s", filename);
+		ni_debug_dhcp(1, "removing %s", filename);
 		return unlink(filename);
 	}
 
-	ni_debug_dhcp("writing lease to %s", filename);
+	ni_debug_dhcp(1, "writing lease to %s", filename);
 	if (ni_netcf_lease_to_xml(lease, NULL, &xml) < 0) {
 		ni_error("cannot store lease: unable to represent lease as XML");
 		goto failed;
@@ -86,7 +86,7 @@ ni_addrconf_lease_file_read(const char *ifname, int type, int family)
 
 	filename = __ni_addrconf_lease_file_path(type, family, ifname);
 
-	ni_debug_dhcp("reading lease from %s", filename);
+	ni_debug_dhcp(1, "reading lease from %s", filename);
 	if ((fp = fopen(filename, "r")) == NULL) {
 		if (errno != ENOENT)
 			ni_error("unable to open %s for reading: %m", filename);
@@ -131,7 +131,7 @@ ni_addrconf_lease_file_remove(const char *ifname, int type, int family)
 	const char *filename;
 
 	filename = __ni_addrconf_lease_file_path(type, family, ifname);
-	ni_debug_dhcp("removing %s", filename);
+	ni_debug_dhcp(1, "removing %s", filename);
 	unlink(filename);
 }
 

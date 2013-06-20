@@ -1068,13 +1068,13 @@ ni_host_is_reachable(const char *hostname, const ni_sockaddr_t *addr)
 
 	fd = socket(addr->ss_family, SOCK_DGRAM, 0);
 	if (fd < 0) {
-		ni_debug_objectmodel("%s: unable to open %s socket", hostname,
+		ni_debug_objectmodel(1, "%s: unable to open %s socket", hostname,
 				ni_addrfamily_type_to_name(addr->ss_family));
 		return -1;
 	}
 
 	if (connect(fd, (struct sockaddr *) addr, sizeof(*addr)) < 0) {
-		ni_debug_objectmodel("cannot connect to %s: %m", hostname);
+		ni_debug_objectmodel(1, "cannot connect to %s: %m", hostname);
 		rv = 0;
 	}
 

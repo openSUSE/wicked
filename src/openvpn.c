@@ -110,7 +110,7 @@ ni_openvpn_discover(ni_netconfig_t *nc)
 			ni_openvpn_t *openvpn;
 
 			if (!__ni_openvpn_is_running(tag)) {
-				ni_debug_ifconfig("removing stale openvpn config for %s", tag);
+				ni_debug_ifconfig(1, "removing stale openvpn config for %s", tag);
 				__ni_openvpn_cleanup(tag);
 				continue;
 			}
@@ -131,7 +131,7 @@ ni_openvpn_discover(ni_netconfig_t *nc)
 				continue;
 			}
 
-			ni_debug_ifconfig("discovered tunnel %s (dev %s)", tag, devname);
+			ni_debug_ifconfig(1, "discovered tunnel %s (dev %s)", tag, devname);
 			openvpn = ni_openvpn_new(tag);
 
 			ni_netdev_set_openvpn(dev, openvpn);

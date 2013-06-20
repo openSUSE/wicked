@@ -20,7 +20,7 @@ ni_dbus_translate_error(const DBusError *err, const ni_intmap_t *error_map)
 {
 	unsigned int errcode;
 
-	ni_debug_dbus("%s(%s, msg=%s)", __func__, err->name, err->message);
+	ni_debug_dbus(1, "%s(%s, msg=%s)", __func__, err->name, err->message);
 	/* allow parsing as number, ... but verify it's a valid error name */
 	if (ni_parse_uint_maybe_mapped(err->name, error_map, &errcode, 10) == 0)
 		return -errcode;
@@ -243,7 +243,7 @@ ni_dbus_variant_init_signature(ni_dbus_variant_t *var, const char *sig)
 	}
 
 sick_nature:
-	ni_debug_dbus("%s: cannot parse signature %s", __func__, sig_orig);
+	ni_debug_dbus(1, "%s: cannot parse signature %s", __func__, sig_orig);
 	return FALSE;
 }
 

@@ -92,7 +92,7 @@ __ni_objectmodel_bond_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusErro
 					ni_strerror(rv));
 			goto out;
 		}
-		ni_debug_dbus("Bonding interface exists (and name matches)");
+		ni_debug_dbus(1, "Bonding interface exists (and name matches)");
 #endif
 	}
 

@@ -43,7 +43,10 @@ enum {
 	NI_LOG_WARNING,
 	NI_LOG_NOTICE,
 	NI_LOG_INFO,
-	NI_LOG_DEBUG
+	NI_LOG_DEBUG1,
+	NI_LOG_DEBUG2,
+	NI_LOG_DEBUG3,
+	NI_LOG_DEBUG = NI_LOG_DEBUG1
 };
 
 enum {
@@ -70,39 +73,39 @@ enum {
 extern unsigned int	ni_debug;
 extern unsigned int	ni_log_level;
 
-#define __ni_debug(facility, fmt, args...) \
+#define __ni_debug(lvl, facility, fmt, args...) \
 	do { \
-		if (ni_log_level >= NI_LOG_DEBUG && ni_debug & (facility)) \
+		if (ni_log_level >= NI_LOG_DEBUG##lvl && ni_debug & (facility)) \
 			ni_trace(fmt, ##args); \
 	} while (0)
-#define ni_debug_ifconfig(fmt, args...)		__ni_debug(NI_TRACE_IFCONFIG, fmt, ##args)
-#define ni_debug_readwrite(fmt, args...)	__ni_debug(NI_TRACE_READWRITE, fmt, ##args)
-#define ni_debug_xpath(fmt, args...)		__ni_debug(NI_TRACE_XPATH, fmt, ##args)
-#define ni_debug_extension(fmt, args...)	__ni_debug(NI_TRACE_EXTENSION, fmt, ##args)
-#define ni_debug_wicked(fmt, args...)		__ni_debug(NI_TRACE_WICKED, fmt, ##args)
-#define ni_debug_events(fmt, args...)		__ni_debug(NI_TRACE_EVENTS, fmt, ##args)
-#define ni_debug_dhcp(fmt, args...)		__ni_debug(NI_TRACE_DHCP, fmt, ##args)
-#define ni_debug_ipv6(fmt, args...)		__ni_debug(NI_TRACE_IPV6, fmt, ##args)
-#define ni_debug_socket(fmt, args...)		__ni_debug(NI_TRACE_SOCKET, fmt, ##args)
-#define ni_debug_autoip(fmt, args...)		__ni_debug(NI_TRACE_AUTOIP, fmt, ##args)
-#define ni_debug_dbus(fmt, args...)		__ni_debug(NI_TRACE_DBUS, fmt, ##args)
-#define ni_debug_wireless(fmt, args...)		__ni_debug(NI_TRACE_WIRELESS, fmt, ##args)
-#define ni_debug_xml(fmt, args...)		__ni_debug(NI_TRACE_XML, fmt, ##args)
-#define ni_debug_objectmodel(fmt, args...)	__ni_debug(NI_TRACE_OBJECTMODEL, fmt, ##args)
-#define ni_debug_application(fmt, args...)	__ni_debug(NI_TRACE_APPLICATION, fmt, ##args)
-#define ni_debug_modem(fmt, args...)		__ni_debug(NI_TRACE_MODEM, fmt, ##args)
-#define ni_debug_lldp(fmt, args...)		__ni_debug(NI_TRACE_LLDP, fmt, ##args)
+#define ni_debug_ifconfig(lvl, fmt, args...)	__ni_debug(lvl, NI_TRACE_IFCONFIG, fmt, ##args)
+#define ni_debug_readwrite(lvl, fmt, args...)	__ni_debug(lvl, NI_TRACE_READWRITE, fmt, ##args)
+#define ni_debug_xpath(lvl, fmt, args...)	__ni_debug(lvl, NI_TRACE_XPATH, fmt, ##args)
+#define ni_debug_extension(lvl, fmt, args...)	__ni_debug(lvl, NI_TRACE_EXTENSION, fmt, ##args)
+#define ni_debug_wicked(lvl, fmt, args...)	__ni_debug(lvl, NI_TRACE_WICKED, fmt, ##args)
+#define ni_debug_events(lvl, fmt, args...)	__ni_debug(lvl, NI_TRACE_EVENTS, fmt, ##args)
+#define ni_debug_dhcp(lvl, fmt, args...)	__ni_debug(lvl, NI_TRACE_DHCP, fmt, ##args)
+#define ni_debug_ipv6(lvl, fmt, args...)	__ni_debug(lvl, NI_TRACE_IPV6, fmt, ##args)
+#define ni_debug_socket(lvl, fmt, args...)	__ni_debug(lvl, NI_TRACE_SOCKET, fmt, ##args)
+#define ni_debug_autoip(lvl, fmt, args...)	__ni_debug(lvl, NI_TRACE_AUTOIP, fmt, ##args)
+#define ni_debug_dbus(lvl, fmt, args...)	__ni_debug(lvl, NI_TRACE_DBUS, fmt, ##args)
+#define ni_debug_wireless(lvl, fmt, args...)	__ni_debug(lvl, NI_TRACE_WIRELESS, fmt, ##args)
+#define ni_debug_xml(lvl, fmt, args...)		__ni_debug(lvl, NI_TRACE_XML, fmt, ##args)
+#define ni_debug_objectmodel(lvl, fmt, args...)	__ni_debug(lvl, NI_TRACE_OBJECTMODEL, fmt, ##args)
+#define ni_debug_application(lvl, fmt, args...)	__ni_debug(lvl, NI_TRACE_APPLICATION, fmt, ##args)
+#define ni_debug_modem(lvl, fmt, args...)	__ni_debug(lvl, NI_TRACE_MODEM, fmt, ##args)
+#define ni_debug_lldp(lvl, fmt, args...)	__ni_debug(lvl, NI_TRACE_LLDP, fmt, ##args)
 
 #define ni_debug_nanny				ni_debug_application
 
-#define ni_debug_wicked_xml(xml_node, fmt, args...) \
+#define ni_debug_wicked_xml(lvl, xml_node, fmt, args...) \
 	do { \
-		if (ni_log_level >= NI_LOG_DEBUG && ni_debug & NI_TRACE_WICKED_XML) { \
+		if (ni_log_level >= NI_LOG_DEBUG##lvl && ni_debug & NI_TRACE_WICKED_XML) { \
 			ni_trace(fmt, ##args); \
 			xml_node_print_debug(xml_node, NI_TRACE_WICKED_XML); \
 		} \
 	} while (0)
-#define ni_debug_none(fmt, args...)		do { } while (0)
+#define ni_debug_none(lvl, fmt, args...)	do { } while (0)
 
 #define __ni_string(x) #x
 

@@ -429,7 +429,7 @@ __ni_nl_ack_handler(struct nl_msg *msg, void *arg)
 static int
 __ni_nl_error_handler(struct sockaddr_nl *sender, struct nlmsgerr *err, void *arg)
 {
-	ni_debug_ifconfig("netlink reports error %d", err->error);
+	ni_debug_ifconfig(1, "netlink reports error %d", err->error);
 	*(int *) arg = - err->error;
 	return NL_STOP;
 }
