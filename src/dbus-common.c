@@ -1165,6 +1165,14 @@ ni_dbus_variant_init_dict(ni_dbus_variant_t *var)
 	__ni_dbus_init_array(var, DBUS_TYPE_DICT_ENTRY);
 }
 
+dbus_bool_t
+ni_dbus_dict_is_empty(const ni_dbus_variant_t *var)
+{
+	if (!ni_dbus_variant_is_dict(var))
+		return FALSE;
+	return var->array.len == 0;
+}
+
 ni_dbus_variant_t *
 ni_dbus_dict_add(ni_dbus_variant_t *dict, const char *key)
 {
