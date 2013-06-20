@@ -102,10 +102,12 @@ __ni_rtevent_process(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 	const char *rtnl_name;
 	int rv;
 
+#if 0
 	if ((rtnl_name = __ni_rtevent_msg_name(h->nlmsg_type)) != NULL)
 		ni_debug_events("received %s event", rtnl_name);
 	else
 		ni_debug_events("received rtnetlink event %u", h->nlmsg_type);
+#endif
 
 	switch (h->nlmsg_type) {
 	case RTM_NEWLINK:
@@ -299,14 +301,15 @@ __ni_rtevent_newprefix(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, str
 		free(pi);
 		return -1;
 	}
-
-	ni_debug_events("%s: RA<%s>, Prefix<%s/%u %s %s>[%u, %u]", dev->name,
+#if 0
+	ni_debug_events("%s: RA<%s>, Prefix<%s/%u %s,%s>[%u, %u]", dev->name,
 			(ipv6->radv.managed_addr ? "managed-address" :
 			(ipv6->radv.other_config ? "other-config" : "unmanaged")),
 			ni_sockaddr_print(&pi->prefix), pi->length,
-			(pi->on_link ? "onlink," : "not-onlink,"),
+			(pi->on_link ? "onlink" : "not-onlink"),
 			(pi->autoconf ? "autoconf" : "no-autoconf"),
 			pi->lifetime.preferred_lft, pi->lifetime.valid_lft);
+#endif
 
 	if ((old = ni_ipv6_ra_pinfo_list_remove(&ipv6->radv.pinfo, pi)) != NULL) {
 		if (pi->lifetime.valid_lft > 0) {

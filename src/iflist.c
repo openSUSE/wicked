@@ -1371,7 +1371,7 @@ __ni_netdev_record_newroute(ni_netconfig_t *nc, ni_netdev_t *dev, ni_route_t *rp
 				nh->device.index);
 			ret = -1;
 		} else {
-#if 1
+#if 0
 			ni_debug_ifconfig("Route recorded for device %s[%u]: %s",
 				dev->name, dev->link.ifindex, ni_route_print(&buf, rp));
 			ni_stringbuf_destroy(&buf);

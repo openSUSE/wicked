@@ -1436,9 +1436,13 @@ __ni_dhcp6_fsm_address_update(ni_dhcp6_device_t *dev, ni_netdev_t *ifp, const ni
 void
 ni_dhcp6_fsm_address_event(ni_dhcp6_device_t *dev, ni_netdev_t *ifp, ni_event_t event, const ni_address_t *addr)
 {
-	ni_debug_events("%s: received interface address event: %s %s",
-		dev->ifname, ni_event_type_to_name(event),
-		ni_sockaddr_print(&addr->local_addr));
+#if 0
+	if (addr && addr->family == AF_INET6) {
+		ni_debug_events("%s: received interface ipv6 address event: %s %s",
+			dev->ifname, ni_event_type_to_name(event),
+			ni_sockaddr_print(&addr->local_addr));
+	}
+#endif
 
 	switch (event) {
 	case NI_EVENT_ADDRESS_UPDATE:

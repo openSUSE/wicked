@@ -449,14 +449,16 @@ dhcp6_interface_addr_event(ni_netdev_t *ifp, ni_event_t event, const ni_address_
 static void
 dhcp6_interface_prefix_event(ni_netdev_t *dev, ni_event_t event, const ni_ipv6_ra_pinfo_t *pi)
 {
-	ni_trace("%s: RA<%s> %s prefix %s/%u <%s,%s> [%d,%d]", dev->name,
+#if 0
+	ni_debug_events("%s: %s RA<%s> Prefix<%s/%u %s,%s> [%d,%d]", dev->name,
+		 (event == NI_EVENT_PREFIX_UPDATE ? "update" : "delete"),
 		 (dev->ipv6->radv.managed_addr ? "managed-address" :
 		  (dev->ipv6->radv.other_config ? "managed-config" : "unmanaged")),
-		 (event == NI_EVENT_PREFIX_UPDATE ? "update" : "delete"),
 		 ni_sockaddr_print(&pi->prefix), pi->length,
 		 (pi->on_link ? "onlink," : "not-onlink,"),
 		 (pi->autoconf ? "autoconf" : "no-autoconf"),
 		 pi->lifetime.preferred_lft, pi->lifetime.valid_lft);
+#endif
 }
 
 static void

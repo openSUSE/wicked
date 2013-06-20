@@ -377,8 +377,10 @@ ni_dhcp6_device_show_addrs(ni_dhcp6_device_t *dev)
 {
 	ni_netconfig_t *nc;
 	ni_netdev_t *ifp;
+#if 0
 	ni_address_t *ap;
 	unsigned int nr = 0;
+#endif
 
 	nc = ni_global_state_handle(0);
 	if(!nc || !(ifp = ni_netdev_by_index(nc, dev->link.ifindex))) {
@@ -386,7 +388,7 @@ ni_dhcp6_device_show_addrs(ni_dhcp6_device_t *dev)
 			dev->ifname, dev->link.ifindex);
 		return;
 	}
-
+#if 0
 	for (ap = ifp->addrs; ap; ap = ap->next) {
 		ni_debug_dhcp("%s: address[%u] %s/%u%s, scope=%s, flags%s%s%s%s%s",
 				dev->ifname, nr++,
@@ -402,6 +404,7 @@ ni_dhcp6_device_show_addrs(ni_dhcp6_device_t *dev)
 				(ni_address_is_duplicate(ap) ? " duplicate " : "")
 		);
 	}
+#endif
 }
 
 int
