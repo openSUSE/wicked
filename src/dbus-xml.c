@@ -1186,7 +1186,6 @@ ni_dbus_serialize_xml_union(xml_node_t *node, const ni_xs_type_t *type, ni_dbus_
 	if (child_type == NULL)
 		return FALSE;
 
-ni_trace("ni_dbus_serialize_xml_union: kind=%s", kind);
 	ni_dbus_variant_init_struct(var);
 
 	if (!(child = ni_dbus_struct_add(var)))
@@ -1205,20 +1204,20 @@ ni_trace("ni_dbus_serialize_xml_union: kind=%s", kind);
 static dbus_bool_t
 ni_dbus_deserialize_xml_union(ni_dbus_variant_t *var, const ni_xs_type_t *type, xml_node_t *node)
 {
+	ni_xs_union_info_t *union_info = ni_xs_union_info(type);
 	const ni_xs_type_t *child_type;
 	ni_dbus_variant_t *child;
 	const char *kind;
 
-	/* This is wrong */
+	/* Set the discriminant="kind" attribute first */
+	if (!ni_dbus_struct_get_string(var, 0, &kind))
+		return FALSE;
+	xml_node_add_attr(node, union_info->discriminant, kind);
+
+	/* Now we can look up the child type based on the discriminant */
 	child_type = __ni_dbus_xml_union_type(node, type, NULL);
 	if (child_type == NULL)
 		return FALSE;
-
-	if (!(child = ni_dbus_struct_get(var, 0))
-	 || !ni_dbus_variant_get_string(child, &kind))
-		return FALSE;
-
-	xml_node_add_attr(node, child_type->name, kind);
 
 	if (child_type->class == NI_XS_TYPE_VOID)
 		return TRUE;
