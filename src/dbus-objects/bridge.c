@@ -182,32 +182,40 @@ ni_objectmodel_delete_bridge(ni_dbus_object_t *object, const ni_dbus_method_t *m
  * Helper function to obtain bridge config from dbus object
  */
 static ni_bridge_t *
-__ni_objectmodel_bridge_handle(const ni_dbus_object_t *object, DBusError *error)
+__ni_objectmodel_bridge_handle(const ni_dbus_object_t *object, ni_bool_t write_access, DBusError *error)
 {
-	ni_netdev_t *ifp = ni_dbus_object_get_handle(object);
+	ni_netdev_t *dev = ni_objectmodel_unwrap_netif(object, error);
 	ni_bridge_t *bridge;
 
-	if (!(ifp = ni_objectmodel_unwrap_netif(object, error)))
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return NULL;
 
-	if (!(bridge = ni_netdev_get_bridge(ifp))) {
+	if (!write_access)
+		return dev->bridge;
+
+	if (!(bridge = ni_netdev_get_bridge(dev))) {
 		dbus_set_error(error, DBUS_ERROR_FAILED, "Error getting bridge handle for interface");
 		return NULL;
 	}
 	return bridge;
 }
 
-void *
-ni_objectmodel_get_bridge(const ni_dbus_object_t *object, DBusError *error)
+static ni_bridge_t *
+__ni_objectmodel_bridge_write_handle(const ni_dbus_object_t *object, DBusError *error)
 {
-	ni_netdev_t *ifp = ni_dbus_object_get_handle(object);
-	ni_bridge_t *br;
+	return __ni_objectmodel_bridge_handle(object, TRUE, error);
+}
 
-	if (!(br = ni_netdev_get_bridge(ifp))) {
-		dbus_set_error(error, DBUS_ERROR_FAILED, "Error getting bridge handle for interface");
-		return NULL;
-	}
-	return br;
+static const ni_bridge_t *
+__ni_objectmodel_bridge_read_handle(const ni_dbus_object_t *object, DBusError *error)
+{
+	return __ni_objectmodel_bridge_handle(object, FALSE, error);
+}
+
+void *
+ni_objectmodel_get_bridge(const ni_dbus_object_t *object, ni_bool_t write_access, DBusError *error)
+{
+	return __ni_objectmodel_bridge_handle(object, write_access, error);
 }
 
 /*
@@ -217,10 +225,10 @@ static dbus_bool_t
 __ni_objectmodel_bridge_get_ports(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
 				ni_dbus_variant_t *result, DBusError *error)
 {
-	ni_bridge_t *bridge;
+	const ni_bridge_t *bridge;
 	unsigned int i;
 
-	if (!(bridge = __ni_objectmodel_bridge_handle(object, error)))
+	if (!(bridge = __ni_objectmodel_bridge_read_handle(object, error)))
 		return FALSE;
 
 	ni_dbus_dict_array_init(result);
@@ -247,7 +255,7 @@ __ni_objectmodel_bridge_set_ports(ni_dbus_object_t *object, const ni_dbus_proper
 	ni_bridge_t *bridge;
 	unsigned int i;
 
-	if (!(bridge = __ni_objectmodel_bridge_handle(object, error)))
+	if (!(bridge = __ni_objectmodel_bridge_write_handle(object, error)))
 		return FALSE;
 
 	if (!ni_dbus_variant_is_dict_array(argument))

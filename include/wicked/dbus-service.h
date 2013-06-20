@@ -27,7 +27,7 @@ struct ni_dbus_property	{
 	const char *			signature;
 
 	struct {
-		void *			(*get_handle)(const ni_dbus_object_t *, DBusError *);
+		void *			(*get_handle)(const ni_dbus_object_t *object, ni_bool_t write_access, DBusError *error);
 		union {
 			ni_bool_t *	bool_offset;
 			int *		int_offset;

@@ -687,6 +687,10 @@ __ni_dbus_object_get_one_property(const ni_dbus_object_t *object,
 
 	if (!property->get(object, property, var, error)) {
 		ni_dbus_variant_destroy(var);
+
+		/* If get() fails without setting the error, this means the property is not present. */
+		if (!dbus_error_is_set(error))
+			ni_dbus_error_property_not_present(error, object->path, property->name);
 		return FALSE;
 	}
 
@@ -720,15 +724,25 @@ __ni_dbus_object_get_properties_as_dict(const ni_dbus_object_t *object,
 		if (!strcmp(property->signature, NI_DBUS_DICT_SIGNATURE)
 		 && property->generic.u.dict_children != NULL) {
 			const ni_dbus_property_t *child_properties = property->generic.u.dict_children;
-			ni_dbus_variant_t *child;
+			ni_dbus_variant_t *child, temp = NI_DBUS_VARIANT_INIT;
 			char subcontext[512];
 
-			child = ni_dbus_dict_add(dict, property->name);
-			ni_dbus_variant_init_dict(child);
+			ni_dbus_variant_init_dict(&temp);
 
 			snprintf(subcontext, sizeof(subcontext), "%s.%s", context, property->name);
-			if (!__ni_dbus_object_get_properties_as_dict(object, subcontext, child_properties, child, error))
+			if (!__ni_dbus_object_get_properties_as_dict(object, subcontext, child_properties, &temp, error)) {
+				ni_dbus_variant_destroy(&temp);
 				return FALSE;
+			}
+
+			if (ni_dbus_dict_is_empty(&temp)) {
+				/* If the child dict is empty, do not encode it at all */
+				ni_dbus_variant_destroy(&temp);
+			} else {
+				child = ni_dbus_dict_add(dict, property->name);
+				ni_assert(child);
+				*child = temp;
+			}
 			continue;
 		}
 
@@ -744,10 +758,11 @@ __ni_dbus_object_get_properties_as_dict(const ni_dbus_object_t *object,
 				/* just ignore this error */
 				dbus_error_free(error);
 			} else {
-				ni_debug_dbus("%s: unable to get property %s.%s",
+				ni_debug_dbus("%s: unable to get property %s.%s (error %s: %s)",
 						object->path,
 						context,
-						property->name);
+						property->name,
+						error->name, error->message);
 				return FALSE;
 			}
 		}
@@ -875,6 +890,27 @@ ni_dbus_object_set_properties_from_dict(ni_dbus_object_t *object,
 #define __property_data(prop, handle, type) \
 	(typeof(__property_offset(prop, type))) (handle + (unsigned long) __property_offset(prop, type))
 
+void *
+ni_dbus_generic_property_write_handle(const ni_dbus_object_t *obj, const ni_dbus_property_t *prop, DBusError *error)
+{
+	return prop->generic.get_handle(obj, TRUE, error);
+}
+
+const void *
+ni_dbus_generic_property_read_handle(const ni_dbus_object_t *obj, const ni_dbus_property_t *prop, DBusError *error)
+{
+	void *handle;
+
+	dbus_error_free(error);
+	handle = prop->generic.get_handle(obj, FALSE, error);
+
+	/* If the get_handle function returns NULL without setting the error,
+	 * this means the property is not present. */
+	if (handle == NULL && !dbus_error_is_set(error))
+		ni_dbus_error_property_not_present(error, obj->path, prop->name);
+	return handle;
+}
+
 dbus_bool_t
 ni_dbus_generic_property_get_bool(const ni_dbus_object_t *obj, const ni_dbus_property_t *prop,
 					ni_dbus_variant_t *var, DBusError *error)
@@ -882,7 +918,7 @@ ni_dbus_generic_property_get_bool(const ni_dbus_object_t *obj, const ni_dbus_pro
 	const ni_bool_t *vptr;
 	const void *handle;
 
-	if (!(handle = prop->generic.get_handle(obj, error)))
+	if (!(handle = ni_dbus_generic_property_read_handle(obj, prop, error)))
 		return FALSE;
 
 	vptr = __property_data(prop, handle, bool);
@@ -905,7 +941,7 @@ ni_dbus_generic_property_set_bool(ni_dbus_object_t *obj, const ni_dbus_property_
 	ni_bool_t *vptr;
 	void *handle;
 
-	if (!(handle = prop->generic.get_handle(obj, error)))
+	if (!(handle = ni_dbus_generic_property_write_handle(obj, prop, error)))
 		return FALSE;
 
 	vptr = __property_data(prop, handle, bool);
@@ -941,7 +977,7 @@ ni_dbus_generic_property_get_int(const ni_dbus_object_t *obj, const ni_dbus_prop
 	const int *vptr;
 	const void *handle;
 
-	if (!(handle = prop->generic.get_handle(obj, error)))
+	if (!(handle = ni_dbus_generic_property_read_handle(obj, prop, error)))
 		return FALSE;
 
 	vptr = __property_data(prop, handle, int);
@@ -955,7 +991,7 @@ ni_dbus_generic_property_set_int(ni_dbus_object_t *obj, const ni_dbus_property_t
 	int *vptr;
 	void *handle;
 
-	if (!(handle = prop->generic.get_handle(obj, error)))
+	if (!(handle = ni_dbus_generic_property_write_handle(obj, prop, error)))
 		return FALSE;
 
 	vptr = __property_data(prop, handle, int);
@@ -975,7 +1011,7 @@ ni_dbus_generic_property_get_uint(const ni_dbus_object_t *obj, const ni_dbus_pro
 	const unsigned int *vptr;
 	const void *handle;
 
-	if (!(handle = prop->generic.get_handle(obj, error)))
+	if (!(handle = ni_dbus_generic_property_read_handle(obj, prop, error)))
 		return FALSE;
 
 	vptr = __property_data(prop, handle, uint);
@@ -989,7 +1025,7 @@ ni_dbus_generic_property_set_uint(ni_dbus_object_t *obj, const ni_dbus_property_
 	unsigned int *vptr;
 	void *handle;
 
-	if (!(handle = prop->generic.get_handle(obj, error)))
+	if (!(handle = ni_dbus_generic_property_write_handle(obj, prop, error)))
 		return FALSE;
 
 	vptr = __property_data(prop, handle, uint);
@@ -1009,7 +1045,7 @@ ni_dbus_generic_property_get_int16(const ni_dbus_object_t *obj, const ni_dbus_pr
 	const int16_t *vptr;
 	const void *handle;
 
-	if (!(handle = prop->generic.get_handle(obj, error)))
+	if (!(handle = ni_dbus_generic_property_read_handle(obj, prop, error)))
 		return FALSE;
 
 	vptr = __property_data(prop, handle, int16);
@@ -1024,7 +1060,7 @@ ni_dbus_generic_property_set_int16(ni_dbus_object_t *obj, const ni_dbus_property
 	int16_t *vptr;
 	void *handle;
 
-	if (!(handle = prop->generic.get_handle(obj, error)))
+	if (!(handle = ni_dbus_generic_property_write_handle(obj, prop, error)))
 		return FALSE;
 
 	vptr = __property_data(prop, handle, int16);
@@ -1044,7 +1080,7 @@ ni_dbus_generic_property_get_uint16(const ni_dbus_object_t *obj, const ni_dbus_p
 	const uint16_t *vptr;
 	const void *handle;
 
-	if (!(handle = prop->generic.get_handle(obj, error)))
+	if (!(handle = ni_dbus_generic_property_read_handle(obj, prop, error)))
 		return FALSE;
 
 	vptr = __property_data(prop, handle, uint16);
@@ -1059,7 +1095,7 @@ ni_dbus_generic_property_set_uint16(ni_dbus_object_t *obj, const ni_dbus_propert
 	uint16_t *vptr;
 	void *handle;
 
-	if (!(handle = prop->generic.get_handle(obj, error)))
+	if (!(handle = ni_dbus_generic_property_write_handle(obj, prop, error)))
 		return FALSE;
 
 	vptr = __property_data(prop, handle, uint16);
@@ -1079,7 +1115,7 @@ ni_dbus_generic_property_get_int64(const ni_dbus_object_t *obj, const ni_dbus_pr
 	const int64_t *vptr;
 	const void *handle;
 
-	if (!(handle = prop->generic.get_handle(obj, error)))
+	if (!(handle = ni_dbus_generic_property_read_handle(obj, prop, error)))
 		return FALSE;
 
 	vptr = __property_data(prop, handle, int64);
@@ -1094,7 +1130,7 @@ ni_dbus_generic_property_set_int64(ni_dbus_object_t *obj, const ni_dbus_property
 	int64_t *vptr;
 	void *handle;
 
-	if (!(handle = prop->generic.get_handle(obj, error)))
+	if (!(handle = ni_dbus_generic_property_write_handle(obj, prop, error)))
 		return FALSE;
 
 	vptr = __property_data(prop, handle, int64);
@@ -1114,7 +1150,7 @@ ni_dbus_generic_property_get_uint64(const ni_dbus_object_t *obj, const ni_dbus_p
 	const uint64_t *vptr;
 	const void *handle;
 
-	if (!(handle = prop->generic.get_handle(obj, error)))
+	if (!(handle = ni_dbus_generic_property_read_handle(obj, prop, error)))
 		return FALSE;
 
 	vptr = __property_data(prop, handle, uint64);
@@ -1129,7 +1165,7 @@ ni_dbus_generic_property_set_uint64(ni_dbus_object_t *obj, const ni_dbus_propert
 	uint64_t *vptr;
 	void *handle;
 
-	if (!(handle = prop->generic.get_handle(obj, error)))
+	if (!(handle = ni_dbus_generic_property_write_handle(obj, prop, error)))
 		return FALSE;
 
 	vptr = __property_data(prop, handle, uint64);
@@ -1149,7 +1185,7 @@ ni_dbus_generic_property_get_double(const ni_dbus_object_t *obj, const ni_dbus_p
 	const double *vptr;
 	const void *handle;
 
-	if (!(handle = prop->generic.get_handle(obj, error)))
+	if (!(handle = ni_dbus_generic_property_read_handle(obj, prop, error)))
 		return FALSE;
 
 	vptr = __property_data(prop, handle, double);
@@ -1164,7 +1200,7 @@ ni_dbus_generic_property_set_double(ni_dbus_object_t *obj, const ni_dbus_propert
 	double *vptr;
 	void *handle;
 
-	if (!(handle = prop->generic.get_handle(obj, error)))
+	if (!(handle = ni_dbus_generic_property_write_handle(obj, prop, error)))
 		return FALSE;
 
 	vptr = __property_data(prop, handle, double);
@@ -1184,7 +1220,7 @@ ni_dbus_generic_property_get_string(const ni_dbus_object_t *obj, const ni_dbus_p
 	char **vptr;
 	const void *handle;
 
-	if (!(handle = prop->generic.get_handle(obj, error)))
+	if (!(handle = ni_dbus_generic_property_read_handle(obj, prop, error)))
 		return FALSE;
 
 	vptr = __property_data(prop, handle, string);
@@ -1204,7 +1240,7 @@ ni_dbus_generic_property_set_string(ni_dbus_object_t *obj, const ni_dbus_propert
 	char **vptr;
 	void *handle;
 
-	if (!(handle = prop->generic.get_handle(obj, error)))
+	if (!(handle = ni_dbus_generic_property_write_handle(obj, prop, error)))
 		return FALSE;
 
 	if (!ni_dbus_variant_get_string(var, &value))
@@ -1228,7 +1264,7 @@ ni_dbus_generic_property_get_uuid(const ni_dbus_object_t *obj, const ni_dbus_pro
 	const ni_uuid_t *vptr;
 	const void *handle;
 
-	if (!(handle = prop->generic.get_handle(obj, error)))
+	if (!(handle = ni_dbus_generic_property_read_handle(obj, prop, error)))
 		return FALSE;
 
 	vptr = __property_data(prop, handle, uuid);
@@ -1243,7 +1279,7 @@ ni_dbus_generic_property_set_uuid(ni_dbus_object_t *obj, const ni_dbus_property_
 	ni_uuid_t *vptr;
 	void *handle;
 
-	if (!(handle = prop->generic.get_handle(obj, error)))
+	if (!(handle = ni_dbus_generic_property_write_handle(obj, prop, error)))
 		return FALSE;
 
 	vptr = __property_data(prop, handle, uuid);
@@ -1264,7 +1300,7 @@ ni_dbus_generic_property_get_string_array(const ni_dbus_object_t *obj, const ni_
 	const void *handle;
 	unsigned int i;
 
-	if (!(handle = prop->generic.get_handle(obj, error)))
+	if (!(handle = ni_dbus_generic_property_read_handle(obj, prop, error)))
 		return FALSE;
 
 	vptr = __property_data(prop, handle, string_array);
@@ -1284,7 +1320,7 @@ ni_dbus_generic_property_set_string_array(ni_dbus_object_t *obj, const ni_dbus_p
 	unsigned int i;
 	void *handle;
 
-	if (!(handle = prop->generic.get_handle(obj, error)))
+	if (!(handle = ni_dbus_generic_property_write_handle(obj, prop, error)))
 		return FALSE;
 
 	vptr = __property_data(prop, handle, string_array);

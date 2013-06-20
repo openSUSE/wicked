@@ -336,7 +336,7 @@ __ni_objectmodel_get_dhcp6_request(const ni_dbus_object_t *object, DBusError *er
 }
 
 static void *
-ni_objectmodel_get_dhcp6_request(const ni_dbus_object_t *object, DBusError *error)
+ni_objectmodel_get_dhcp6_request(const ni_dbus_object_t *object, ni_bool_t write_access, DBusError *error)
 {
 	return __ni_objectmodel_get_dhcp6_request(object, error);
 }

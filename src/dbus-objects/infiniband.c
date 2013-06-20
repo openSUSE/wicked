@@ -188,18 +188,18 @@ out:
  * Helper function to obtain bridge config from dbus object
  */
 void *
-ni_objectmodel_get_infiniband(const ni_dbus_object_t *object, DBusError *error)
+__ni_objectmodel_infiniband_handle(const ni_dbus_object_t *object, ni_bool_t write_access, DBusError *error)
 {
-	ni_netdev_t *ifp;
+	ni_netdev_t *dev;
 	ni_infiniband_t *ib;
 
-	if (!(ifp = ni_objectmodel_unwrap_netif(object, error))) {
-		dbus_set_error(error, DBUS_ERROR_FAILED,
-			"%s: Cannot unwrap network interface from object",
-			(object ? object->path : NULL));
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return NULL;
-	}
-	if (!(ib = ni_netdev_get_infiniband(ifp))) {
+
+	if (!write_access)
+		return dev->infiniband;
+
+	if (!(ib = ni_netdev_get_infiniband(dev))) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
 			"Error getting infiniband handle for interface");
 		return NULL;
@@ -208,6 +208,11 @@ ni_objectmodel_get_infiniband(const ni_dbus_object_t *object, DBusError *error)
 	return ib;
 }
 
+void *
+ni_objectmodel_get_infiniband(const ni_dbus_object_t *object, ni_bool_t write_access, DBusError *error)
+{
+	return __ni_objectmodel_infiniband_handle(object, write_access, error);
+}
 
 #define IB_STRING_PROPERTY(dbus_type, type, rw) \
 	NI_DBUS_GENERIC_STRING_PROPERTY(infiniband, dbus_type, type, rw)

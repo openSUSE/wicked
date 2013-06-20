@@ -983,7 +983,7 @@ static ni_dbus_method_t		ni_objectmodel_netif_methods[] = {
  * Interface property handlers
  */
 static void *
-ni_objectmodel_get_netdev(const ni_dbus_object_t *object, DBusError *error)
+ni_objectmodel_get_netdev(const ni_dbus_object_t *object, ni_bool_t write_access, DBusError *error)
 {
 	return ni_objectmodel_unwrap_netif(object, error);
 }
@@ -1188,7 +1188,7 @@ static ni_dbus_service_t	ni_objectmodel_netif_service = {
  * These helper functions assist in marshalling InterfaceRequests
  */
 static void *
-ni_objectmodel_get_netdev_req(const ni_dbus_object_t *object, DBusError *error)
+ni_objectmodel_get_netdev_req(const ni_dbus_object_t *object, ni_bool_t write_access, DBusError *error)
 {
 	/* FIXME: check for object class */
 	return ni_dbus_object_get_handle(object);

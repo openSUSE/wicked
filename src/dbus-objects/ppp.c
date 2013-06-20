@@ -237,7 +237,7 @@ ni_objectmodel_pppoe_newlink(ni_dbus_object_t *factory_object, const ni_dbus_met
  * PPP device properties
  */
 static ni_ppp_config_t *
-__ni_objectmodel_get_ppp_config(const ni_dbus_object_t *object, DBusError *error)
+__ni_objectmodel_ppp_handle(const ni_dbus_object_t *object, ni_bool_t write_access, DBusError *error)
 {
 	ni_netdev_t *dev;
 	ni_ppp_t *ppp;
@@ -245,27 +245,45 @@ __ni_objectmodel_get_ppp_config(const ni_dbus_object_t *object, DBusError *error
 	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return NULL;
 
+	if (!write_access) {
+		if (!dev->ppp)
+			return NULL;
+		return dev->ppp->config;
+	}
+
 	ppp = ni_netdev_get_ppp(dev);
 	if (!ppp->config)
 		ppp->config = ni_ppp_config_new();
 	return ppp->config;
 }
 
-static void *
-ni_objectmodel_get_ppp_config(const ni_dbus_object_t *object, DBusError *error)
+static ni_ppp_config_t *
+__ni_objectmodel_ppp_write_handle(const ni_dbus_object_t *object, DBusError *error)
 {
-	return __ni_objectmodel_get_ppp_config(object, error);
+	return __ni_objectmodel_ppp_handle(object, TRUE, error);
+}
+
+static ni_ppp_config_t *
+__ni_objectmodel_ppp_read_handle(const ni_dbus_object_t *object, DBusError *error)
+{
+	return __ni_objectmodel_ppp_handle(object, FALSE, error);
 }
 
 static void *
-ni_objectmodel_get_ppp_authconfig(const ni_dbus_object_t *object, DBusError *error)
+ni_objectmodel_get_ppp_config(const ni_dbus_object_t *object, ni_bool_t write_access, DBusError *error)
+{
+	return __ni_objectmodel_ppp_handle(object, write_access, error);
+}
+
+static void *
+ni_objectmodel_get_ppp_authconfig(const ni_dbus_object_t *object, ni_bool_t write_access, DBusError *error)
 {
 	ni_ppp_config_t *ppp_config;
 
-	if (!(ppp_config = ni_objectmodel_get_ppp_config(object, error)))
+	if (!(ppp_config = __ni_objectmodel_ppp_handle(object, write_access, error)))
 		return NULL;
 
-	if (!ppp_config->auth)
+	if (!ppp_config->auth && write_access)
 		ppp_config->auth = ni_ppp_authconfig_new();
 	return ppp_config->auth;
 }

@@ -174,34 +174,39 @@ ni_objectmodel_lldp_down(ni_dbus_object_t *object, const ni_dbus_method_t *metho
 /*
  * Helper function to obtain LLDP config from dbus object
  */
-static void *
-ni_objectmodel_get_lldp(const ni_dbus_object_t *object, DBusError *error)
+static ni_lldp_t *
+__ni_objectmodel_lldp_handle(const ni_dbus_object_t *object, ni_bool_t write_access, DBusError *error)
 {
 	ni_netdev_t *dev;
+	ni_lldp_t *lldp;
 
 	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return NULL;
 
-	return ni_netdev_get_lldp(dev);
+	if (!write_access)
+		return dev->lldp;
+
+	if (!(lldp = ni_netdev_get_lldp(dev)))
+		dbus_set_error(error, DBUS_ERROR_FAILED, "Unable to get LLDP handle for device %s", dev->name);
+	return lldp;
 }
 
 static ni_lldp_t *
-ni_objectmodel_netif_lldp(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
-			dbus_bool_t write_access, DBusError *error)
+__ni_objectmodel_lldp_write_handle(const ni_dbus_object_t *object, DBusError *error)
 {
-	ni_netdev_t *dev;
+	return __ni_objectmodel_lldp_handle(object, TRUE, error);
+}
 
-	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
-		return NULL;
+static const ni_lldp_t *
+__ni_objectmodel_lldp_read_handle(const ni_dbus_object_t *object, DBusError *error)
+{
+	return __ni_objectmodel_lldp_handle(object, FALSE, error);
+}
 
-	if (write_access)
-		return ni_netdev_get_lldp(dev);
-
-	if (dev->lldp)
-		return dev->lldp;
-
-	ni_dbus_error_property_not_present(error, object->path, property->name);
-	return NULL;
+static void *
+ni_objectmodel_get_lldp(const ni_dbus_object_t *object, ni_bool_t write_access, DBusError *error)
+{
+	return __ni_objectmodel_lldp_handle(object, write_access, error);
 }
 
 /*
@@ -363,11 +368,11 @@ static dbus_bool_t
 __ni_objectmodel_netif_get_chassis_id(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
 		                                        ni_dbus_variant_t *strct, DBusError *error)
 {
-	ni_lldp_t *lldp;
+	const ni_lldp_t *lldp;
 	const char *kind;
 	char default_kind[64];
 
-	if (!(lldp = ni_objectmodel_netif_lldp(object, property, FALSE, error)))
+	if (!(lldp = __ni_objectmodel_lldp_read_handle(object, error)))
 		return FALSE;
 
 	if (lldp->chassis_id.type == NI_LLDP_CHASSIS_ID_INVALID)
@@ -434,7 +439,7 @@ __ni_objectmodel_netif_set_chassis_id(ni_dbus_object_t *object, const ni_dbus_pr
 	ni_lldp_t *lldp;
 	int type;
 
-	if (!(lldp = ni_objectmodel_netif_lldp(object, property, TRUE, error)))
+	if (!(lldp = __ni_objectmodel_lldp_write_handle(object, error)))
 		return FALSE;
 
 	if (!ni_dbus_struct_get_string(strct, 0, &kind))
@@ -486,11 +491,11 @@ static dbus_bool_t
 __ni_objectmodel_netif_get_port_id(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
 		                                        ni_dbus_variant_t *strct, DBusError *error)
 {
-	ni_lldp_t *lldp;
+	const ni_lldp_t *lldp;
 	const char *kind;
 	char default_kind[64];
 
-	if (!(lldp = ni_objectmodel_netif_lldp(object, property, FALSE, error)))
+	if (!(lldp = __ni_objectmodel_lldp_read_handle(object, error)))
 		return FALSE;
 
 	if (lldp->port_id.type == NI_LLDP_PORT_ID_INVALID)
@@ -554,7 +559,7 @@ __ni_objectmodel_netif_set_port_id(ni_dbus_object_t *object, const ni_dbus_prope
 	ni_lldp_t *lldp;
 	int type;
 
-	if (!(lldp = ni_objectmodel_netif_lldp(object, property, TRUE, error)))
+	if (!(lldp = __ni_objectmodel_lldp_write_handle(object, error)))
 		return FALSE;
 
 	if (!ni_dbus_struct_get_string(strct, 0, &kind))

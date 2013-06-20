@@ -245,27 +245,42 @@ ni_objectmodel_get_wireless_request(ni_wireless_network_t *net,
 }
 
 static ni_wireless_t *
-__ni_objectmodel_get_wireless(const ni_dbus_object_t *object, DBusError *error)
+__ni_objectmodel_wireless_handle(const ni_dbus_object_t *object, ni_bool_t write_access, DBusError *error)
 {
-	ni_netdev_t *ifp;
+	ni_netdev_t *dev;
 	ni_wireless_t *wlan;
 
-	if (!(ifp = ni_objectmodel_unwrap_netif(object, error)))
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return NULL;
 
-	if (!(wlan = ni_netdev_get_wireless(ifp))) {
+	if (!write_access)
+		return dev->wireless;
+
+	if (!(wlan = ni_netdev_get_wireless(dev))) {
 		dbus_set_error(error, DBUS_ERROR_FAILED, "Error getting wireless handle for interface");
 		return NULL;
 	}
 	return wlan;
 }
 
+static ni_wireless_t *
+__ni_objectmodel_wireless_write_handle(const ni_dbus_object_t *object, DBusError *error)
+{
+	return __ni_objectmodel_wireless_handle(object, TRUE, error);
+}
+
+static const ni_wireless_t *
+__ni_objectmodel_wireless_read_handle(const ni_dbus_object_t *object, DBusError *error)
+{
+	return __ni_objectmodel_wireless_handle(object, FALSE, error);
+}
+
 static ni_wireless_scan_t *
 __ni_objectmodel_get_scan(const ni_dbus_object_t *object, DBusError *error)
 {
-	ni_wireless_t *wlan;
+	const ni_wireless_t *wlan;
 
-	if (!(wlan = __ni_objectmodel_get_wireless(object, error)))
+	if (!(wlan = __ni_objectmodel_wireless_read_handle(object, error)))
 		return NULL;
 
 	return wlan->scan;
@@ -274,9 +289,9 @@ __ni_objectmodel_get_scan(const ni_dbus_object_t *object, DBusError *error)
 
 /* Same as above, except returns a void pointer */
 void *
-ni_objectmodel_get_wireless(const ni_dbus_object_t *object, DBusError *error)
+ni_objectmodel_get_wireless(const ni_dbus_object_t *object, ni_bool_t write_access, DBusError *error)
 {
-	return __ni_objectmodel_get_wireless(object, error);
+	return __ni_objectmodel_wireless_handle(object, write_access, error);
 }
 
 static dbus_bool_t
@@ -403,7 +418,7 @@ __ni_objectmodel_wireless_set_scan(ni_dbus_object_t *object,
 	const ni_dbus_variant_t *child;
 	uint32_t valu32;
 
-	if (!(wlan = __ni_objectmodel_get_wireless(object, error)))
+	if (!(wlan = __ni_objectmodel_wireless_write_handle(object, error)))
 		return FALSE;
 
 	if ((scan = wlan->scan) != NULL)

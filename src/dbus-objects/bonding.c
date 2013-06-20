@@ -177,25 +177,40 @@ __ni_objectmodel_delete_bond(ni_dbus_object_t *object, const ni_dbus_method_t *m
  * Helper function to obtain bonding config from dbus object
  */
 static ni_bonding_t *
-__ni_objectmodel_get_bonding(const ni_dbus_object_t *object, DBusError *error)
+__ni_objectmodel_bonding_handle(const ni_dbus_object_t *object, ni_bool_t write_access, DBusError *error)
 {
-	ni_netdev_t *ifp;
+	ni_netdev_t *dev;
 	ni_bonding_t *bond;
 
-	if (!(ifp = ni_objectmodel_unwrap_netif(object, error)))
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return NULL;
 
-	if (!(bond = ni_netdev_get_bonding(ifp))) {
+	if (!write_access)
+		return dev->bonding;
+
+	if (!(bond = ni_netdev_get_bonding(dev))) {
 		dbus_set_error(error, DBUS_ERROR_FAILED, "Error getting bonding handle for interface");
 		return NULL;
 	}
 	return bond;
 }
 
-static void *
-ni_objectmodel_get_bonding(const ni_dbus_object_t *object, DBusError *error)
+static ni_bonding_t *
+__ni_objectmodel_bonding_write_handle(const ni_dbus_object_t *object, DBusError *error)
 {
-	return __ni_objectmodel_get_bonding(object, error);
+	return __ni_objectmodel_bonding_handle(object, TRUE, error);
+}
+
+static const ni_bonding_t *
+__ni_objectmodel_bonding_read_handle(const ni_dbus_object_t *object, DBusError *error)
+{
+	return __ni_objectmodel_bonding_handle(object, FALSE, error);
+}
+
+static void *
+ni_objectmodel_get_bonding(const ni_dbus_object_t *object, ni_bool_t write_access, DBusError *error)
+{
+	return __ni_objectmodel_bonding_handle(object, write_access, error);
 }
 
 /*
@@ -207,9 +222,9 @@ __ni_objectmodel_bonding_get_miimon(const ni_dbus_object_t *object,
 				ni_dbus_variant_t *result,
 				DBusError *error)
 {
-	ni_bonding_t *bond;
+	const ni_bonding_t *bond;
 
-	if (!(bond = __ni_objectmodel_get_bonding(object, error)))
+	if (!(bond = __ni_objectmodel_bonding_read_handle(object, error)))
 		return FALSE;
 
 	if (bond->monitoring != NI_BOND_MONITOR_MII)
@@ -230,7 +245,7 @@ __ni_objectmodel_bonding_set_miimon(ni_dbus_object_t *object,
 {
 	ni_bonding_t *bond;
 
-	if (!(bond = __ni_objectmodel_get_bonding(object, error)))
+	if (!(bond = __ni_objectmodel_bonding_write_handle(object, error)))
 		return FALSE;
 
 	bond->monitoring |= NI_BOND_MONITOR_MII;
@@ -252,10 +267,10 @@ __ni_objectmodel_bonding_get_arpmon(const ni_dbus_object_t *object,
 				ni_dbus_variant_t *result,
 				DBusError *error)
 {
-	ni_bonding_t *bond;
+	const ni_bonding_t *bond;
 	ni_dbus_variant_t *var;
 
-	if (!(bond = __ni_objectmodel_get_bonding(object, error)))
+	if (!(bond = __ni_objectmodel_bonding_read_handle(object, error)))
 		return FALSE;
 
 	if (bond->monitoring != NI_BOND_MONITOR_ARP)
@@ -279,7 +294,7 @@ __ni_objectmodel_bonding_set_arpmon(ni_dbus_object_t *object,
 	ni_bonding_t *bond;
 	ni_dbus_variant_t *var;
 
-	if (!(bond = __ni_objectmodel_get_bonding(object, error)))
+	if (!(bond = __ni_objectmodel_bonding_write_handle(object, error)))
 		return FALSE;
 
 	bond->monitoring |= NI_BOND_MONITOR_ARP;
@@ -328,10 +343,10 @@ __ni_objectmodel_bonding_get_slaves(const ni_dbus_object_t *object,
 				ni_dbus_variant_t *result,
 				DBusError *error)
 {
-	ni_bonding_t *bond;
+	const ni_bonding_t *bond;
 	unsigned int i;
 
-	if (!(bond = __ni_objectmodel_get_bonding(object, error)))
+	if (!(bond = __ni_objectmodel_bonding_read_handle(object, error)))
 		return FALSE;
 
 	ni_dbus_dict_array_init(result);
@@ -361,7 +376,7 @@ __ni_objectmodel_bonding_set_slaves(ni_dbus_object_t *object,
 	ni_dbus_variant_t *var;
 	unsigned int i;
 
-	if (!(bond = __ni_objectmodel_get_bonding(object, error)))
+	if (!(bond = __ni_objectmodel_bonding_write_handle(object, error)))
 		return FALSE;
 
 	if (!ni_dbus_variant_is_dict_array(result)) {

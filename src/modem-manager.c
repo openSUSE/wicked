@@ -599,7 +599,7 @@ ni_modem_get_pin(ni_modem_t *modem, const char *tag)
  * Properties for org.freedesktop.ModemManager.Modem
  */
 static void *
-ni_objectmodel_get_modem(const ni_dbus_object_t *object, DBusError *error)
+ni_objectmodel_get_modem(const ni_dbus_object_t *object, ni_bool_t write_access, DBusError *error)
 {
 	return ni_objectmodel_unwrap_modem(object, error);
 }

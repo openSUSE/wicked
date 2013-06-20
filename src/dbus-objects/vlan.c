@@ -142,14 +142,17 @@ ni_objectmodel_vlan_delete(ni_dbus_object_t *object, const ni_dbus_method_t *met
  * Helper function to obtain VLAN config from dbus object
  */
 static void *
-ni_objectmodel_get_vlan(const ni_dbus_object_t *object, DBusError *error)
+ni_objectmodel_get_vlan(const ni_dbus_object_t *object, ni_bool_t write_access, DBusError *error)
 {
-	ni_netdev_t *ifp;
+	ni_netdev_t *dev;
 
-	if (!(ifp = ni_objectmodel_unwrap_netif(object, error)))
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return NULL;
 
-	return ni_netdev_get_vlan(ifp);
+	if (!write_access)
+		return dev->link.vlan;
+
+	return ni_netdev_get_vlan(dev);
 }
 
 #define VLAN_STRING_PROPERTY(dbus_type, type, rw) \

@@ -115,7 +115,7 @@ static ni_dbus_method_t		ni_objectmodel_managed_modem_methods[] = {
  * Handle object properties
  */
 static void *
-ni_objectmodel_get_managed_device(const ni_dbus_object_t *object, DBusError *error)
+ni_objectmodel_get_managed_device(const ni_dbus_object_t *object, ni_bool_t write_access, DBusError *error)
 {
 	return ni_objectmodel_managed_modem_unwrap(object, error);
 }

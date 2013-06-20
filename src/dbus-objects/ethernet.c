@@ -90,20 +90,41 @@ __ni_objectmodel_ethernet_device_arg(const ni_dbus_variant_t *dict)
 /*
  * Functions for dealing wit Ethernet properties
  */
-void *
-ni_objectmodel_get_ethernet(const ni_dbus_object_t *object, DBusError *error)
+static ni_ethernet_t *
+__ni_objectmodel_ethernet_handle(const ni_dbus_object_t *object, ni_bool_t write_access, DBusError *error)
 {
-	ni_netdev_t *ifp;
+	ni_netdev_t *dev;
 	ni_ethernet_t *eth;
 
-	if (!(ifp = ni_objectmodel_unwrap_netif(object, error)))
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return NULL;
 
-	if (!(eth = ni_netdev_get_ethernet(ifp))) {
+	if (!write_access)
+		return dev->ethernet;
+
+	if (!(eth = ni_netdev_get_ethernet(dev))) {
 		dbus_set_error(error, DBUS_ERROR_FAILED, "Error getting ethernet handle for interface");
 		return NULL;
 	}
 	return eth;
+}
+
+static ni_ethernet_t *
+__ni_objectmodel_ethernet_write_handle(const ni_dbus_object_t *object, DBusError *error)
+{
+	return __ni_objectmodel_ethernet_handle(object, TRUE, error);
+}
+
+static const ni_ethernet_t *
+__ni_objectmodel_ethernet_read_handle(const ni_dbus_object_t *object, DBusError *error)
+{
+	return __ni_objectmodel_ethernet_handle(object, FALSE, error);
+}
+
+void *
+ni_objectmodel_get_ethernet(const ni_dbus_object_t *object, ni_bool_t write_access, DBusError *error)
+{
+	return __ni_objectmodel_ethernet_handle(object, write_access, error);
 }
 
 /*
@@ -143,9 +164,9 @@ __ni_objectmodel_ethernet_get_permanent_address(const ni_dbus_object_t *object,
 				ni_dbus_variant_t *result,
 				DBusError *error)
 {
-	ni_ethernet_t *eth;
+	const ni_ethernet_t *eth;
 
-	if (!(eth = ni_objectmodel_get_ethernet(object, error)))
+	if (!(eth = __ni_objectmodel_ethernet_read_handle(object, error)))
 		return FALSE;
 	if (eth->permanent_address.type == NI_IFTYPE_UNKNOWN)
 		return ni_dbus_error_property_not_present(error, object->path, property->name);
@@ -161,7 +182,7 @@ __ni_objectmodel_ethernet_set_permanent_address(ni_dbus_object_t *object,
 {
 	ni_ethernet_t *eth;
 
-	if (!(eth = ni_objectmodel_get_ethernet(object, error)))
+	if (!(eth = __ni_objectmodel_ethernet_write_handle(object, error)))
 		return FALSE;
 	return __ni_objectmodel_set_hwaddr(argument, &eth->permanent_address);
 }
@@ -172,9 +193,9 @@ __ni_objectmodel_ethernet_get_offload(const ni_dbus_object_t *object,
 				ni_dbus_variant_t *result,
 				DBusError *error)
 {
-	ni_ethernet_t *eth;
+	const ni_ethernet_t *eth;
 	
-	if (!(eth = ni_objectmodel_get_ethernet(object, error)))
+	if (!(eth = __ni_objectmodel_ethernet_read_handle(object, error)))
 		return FALSE;
 
 	if (eth->offload.rx_csum != NI_ETHERNET_SETTING_DEFAULT)
@@ -205,7 +226,7 @@ __ni_objectmodel_ethernet_set_offload(ni_dbus_object_t *object,
 {
 	ni_ethernet_t *eth;
 	
-	if (!(eth = ni_objectmodel_get_ethernet(object, error)))
+	if (!(eth = __ni_objectmodel_ethernet_write_handle(object, error)))
 		return FALSE;
 
 	if (!ni_dbus_variant_is_dict(argument))

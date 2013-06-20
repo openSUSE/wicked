@@ -95,20 +95,28 @@ __ni_objectmodel_protocol_arg(const ni_dbus_variant_t *dict, const ni_dbus_servi
  * Functions for dealing with IPv6 properties
  */
 static ni_ipv6_devinfo_t *
-__ni_objectmodel_get_ipv6_devinfo(const ni_dbus_object_t *object, DBusError *error)
+__ni_objectmodel_ipv6_devinfo_handle(const ni_dbus_object_t *object, ni_bool_t write_access, DBusError *error)
 {
 	ni_netdev_t *dev;
+	ni_ipv6_devinfo_t *ipv6_info;
 
 	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return NULL;
 
-	return ni_netdev_get_ipv6(dev);
+	if (!write_access)
+		return dev->ipv6;
+
+	 if (!(ipv6_info = ni_netdev_get_ipv6(dev))) {
+		 dbus_set_error(error, DBUS_ERROR_FAILED, "Unable to get ipv6_devinfo handle for interface");
+		 return NULL;
+	 }
+	 return ipv6_info;
 }
 
 void *
-ni_objectmodel_get_ipv6_devinfo(const ni_dbus_object_t *object, DBusError *error)
+ni_objectmodel_get_ipv6_devinfo(const ni_dbus_object_t *object, ni_bool_t write_access, DBusError *error)
 {
-	return __ni_objectmodel_get_ipv6_devinfo(object, error);
+	return __ni_objectmodel_ipv6_devinfo_handle(object, write_access, error);
 }
 
 #define IPV6_UINT_PROPERTY(dbus_name, member_name, rw) \

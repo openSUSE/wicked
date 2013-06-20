@@ -591,7 +591,7 @@ ni_objectmodel_send_modem_event(ni_dbus_server_t *server, ni_dbus_object_t *obje
  * Properties of a modem object, as seen by a wicked client
  */
 static void *
-ni_objectmodel_get_modem(const ni_dbus_object_t *object, DBusError *error)
+ni_objectmodel_get_modem(const ni_dbus_object_t *object, ni_bool_t write_access, DBusError *error)
 {
 	return ni_objectmodel_unwrap_modem(object, error);
 }
