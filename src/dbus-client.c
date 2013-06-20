@@ -711,7 +711,6 @@ __ni_dbus_object_refresh_properties(ni_dbus_object_t *proxy, const ni_dbus_servi
 		DBusMessageIter iter_dict_entry;
 		ni_dbus_variant_t value = NI_DBUS_VARIANT_INIT;
 		const char *property_name;
-		const ni_dbus_property_t *property;
 
 		dbus_message_iter_recurse(&iter_dict, &iter_dict_entry);
 		dbus_message_iter_next(&iter_dict);
