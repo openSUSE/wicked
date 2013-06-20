@@ -145,13 +145,16 @@ ni_objectmodel_openvpn_delete(ni_dbus_object_t *object, const ni_dbus_method_t *
  * Helper function to obtain OpenVPN handle from dbus object
  */
 static void *
-ni_objectmodel_get_openvpn(const ni_dbus_object_t *object, DBusError *error)
+ni_objectmodel_get_openvpn(const ni_dbus_object_t *object, ni_bool_t write_access, DBusError *error)
 {
 	ni_netdev_t *dev;
 	ni_openvpn_t *vpn;
 
 	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return NULL;
+
+	if (!write_access)
+		return dev->openvpn;
 
 	if (!(vpn = ni_netdev_get_openvpn(dev))) {
 		vpn = ni_openvpn_new(NULL);

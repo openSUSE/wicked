@@ -257,6 +257,7 @@ __ni_objectmodel_ppp_handle(const ni_dbus_object_t *object, ni_bool_t write_acce
 	return ppp->config;
 }
 
+#if 0
 static ni_ppp_config_t *
 __ni_objectmodel_ppp_write_handle(const ni_dbus_object_t *object, DBusError *error)
 {
@@ -268,6 +269,7 @@ __ni_objectmodel_ppp_read_handle(const ni_dbus_object_t *object, DBusError *erro
 {
 	return __ni_objectmodel_ppp_handle(object, FALSE, error);
 }
+#endif
 
 static void *
 ni_objectmodel_get_ppp_config(const ni_dbus_object_t *object, ni_bool_t write_access, DBusError *error)

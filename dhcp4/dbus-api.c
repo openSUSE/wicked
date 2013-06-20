@@ -369,7 +369,7 @@ ni_objectmodel_dhcp4_request_from_dict(const ni_dbus_variant_t *dict)
  * Property name
  */
 static void *
-ni_objectmodel_get_dhcp_device(const ni_dbus_object_t *object, DBusError *error)
+ni_objectmodel_get_dhcp_device(const ni_dbus_object_t *object, ni_bool_t write_access, DBusError *error)
 {
 	ni_dhcp_device_t *dev;
 
