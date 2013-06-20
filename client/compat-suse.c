@@ -259,12 +259,6 @@ __ni_suse_free_globals(void)
 /*
  * Read the routing information from sysconfig/network/routes or ifroutes-<ifname>.
  */
-static inline const char *
-__get_route_opt(ni_string_array_t *opts, unsigned int i)
-{
-	return i < opts->count ? opts->data[i] : NULL;
-}
-
 int
 __ni_suse_parse_route_hops(ni_route_nexthop_t *nh, ni_string_array_t *opts,
 				unsigned int *pos, const char *ifname,
@@ -280,7 +274,7 @@ __ni_suse_parse_route_hops(ni_route_nexthop_t *nh, ni_string_array_t *opts,
 	 * "                nexthop via 192.168.1.1 [dev nic] weight 2 \"
 	 * "                nexthop via 192.168.1.2 [dev nic] weight 3"
 	 */
-	while ((opt = __get_route_opt(opts, (*pos)++))) {
+	while ((opt = ni_string_array_at(opts, (*pos)++))) {
 		if (!strcmp(opt, "nexthop")) {
 			ni_route_nexthop_t *next = ni_route_nexthop_new();
 			if (__ni_suse_parse_route_hops(next, opts, pos, ifname,
@@ -299,20 +293,20 @@ __ni_suse_parse_route_hops(ni_route_nexthop_t *nh, ni_string_array_t *opts,
 			break;
 		} else
 		if (!strcmp(opt, "via")) {
-			val = __get_route_opt(opts, (*pos)++);
+			val = ni_string_array_at(opts, (*pos)++);
 			if (!val || nh->gateway.ss_family != AF_UNSPEC)
 				return -1;
 			if (ni_sockaddr_parse(&nh->gateway, val, AF_UNSPEC) < 0)
 				return -1;
 		} else
 		if (!strcmp(opt, "dev")) {
-			val = __get_route_opt(opts, (*pos)++);
+			val = ni_string_array_at(opts, (*pos)++);
 			if (!val || nh->device.name)
 				return -1;
 			ni_string_dup(&nh->device.name, val);
 		} else
 		if (!strcmp(opt, "weight")) {
-			val = __get_route_opt(opts, (*pos)++);
+			val = ni_string_array_at(opts, (*pos)++);
 			if (!val || nh->weight)
 				return -1;
 			if (ni_parse_uint(val, &tmp, 10) < 0 || !tmp)
@@ -320,7 +314,7 @@ __ni_suse_parse_route_hops(ni_route_nexthop_t *nh, ni_string_array_t *opts,
 			nh->weight = tmp;
 		} else
 		if (!strcmp(opt, "realm")) {
-			val = __get_route_opt(opts, (*pos)++);
+			val = ni_string_array_at(opts, (*pos)++);
 			if (!val || nh->realm)
 				return -1;
 			/* TODO: */
@@ -367,7 +361,7 @@ __ni_suse_route_parse_opts(ni_route_t *rp, ni_string_array_t *opts,
 	const char *opt, *val;
 	unsigned int tmp;
 
-	while ((opt = __get_route_opt(opts, (*pos)++))) {
+	while ((opt = ni_string_array_at(opts, (*pos)++))) {
 		if (!strcmp(opt, "nexthop")) {
 			/* either single or multipath, not both? */
 			if (rp->nh.gateway.ss_family != AF_UNSPEC)
@@ -390,7 +384,7 @@ __ni_suse_route_parse_opts(ni_route_t *rp, ni_string_array_t *opts,
 
 		/* other attrs */
 		if (!strcmp(opt, "src")) {
-			val = __get_route_opt(opts, (*pos)++);
+			val = ni_string_array_at(opts, (*pos)++);
 			if (!val || rp->pref_src.ss_family != AF_UNSPEC)
 				return -1;
 			if (ni_sockaddr_parse(&rp->pref_src, val, AF_UNSPEC) < 0)
@@ -404,26 +398,26 @@ __ni_suse_route_parse_opts(ni_route_t *rp, ni_string_array_t *opts,
 		if (!strcmp(opt, "metric")   ||
 		    !strcmp(opt, "priority") ||
 		    !strcmp(opt, "preference")) {
-			val = __get_route_opt(opts, (*pos)++);
+			val = ni_string_array_at(opts, (*pos)++);
 			if (ni_parse_uint(val, &tmp, 10) < 0)
 				return -1;
 			rp->priority = tmp;
 		} else
 		if (!strcmp(opt, "realm")) {
-			val = __get_route_opt(opts, (*pos)++);
+			val = ni_string_array_at(opts, (*pos)++);
 			/* TODO: */
 			if (ni_parse_uint(val, &tmp, 10) < 0 || tmp == 0 || tmp > 255)
 				return -1;
 			rp->realm = tmp;
 		} else
 		if (!strcmp(opt, "mark")) {
-			val = __get_route_opt(opts, (*pos)++);
+			val = ni_string_array_at(opts, (*pos)++);
 			if (ni_parse_uint(val, &tmp, 10) < 0)
 				return -1;
 			rp->mark = tmp;
 		} else
 		if (!strcmp(opt, "tos") || !strcmp(opt, "dsfield")) {
-			val = __get_route_opt(opts, (*pos)++);
+			val = ni_string_array_at(opts, (*pos)++);
 			if (ni_parse_uint(val, &tmp, 16) < 0 || tmp > 256)
 				return -1;
 			rp->tos = tmp;
@@ -431,110 +425,110 @@ __ni_suse_route_parse_opts(ni_route_t *rp, ni_string_array_t *opts,
 
 		/* metrics attr dict */
 		if (!strcmp(opt, "mtu")) {
-			val = __get_route_opt(opts, (*pos)++);
+			val = ni_string_array_at(opts, (*pos)++);
 			if (ni_string_eq("lock", val)) {
 				if (!ni_route_metrics_lock_set(opt, &rp->lock))
 					return -1;
-				val = __get_route_opt(opts, (*pos)++);
+				val = ni_string_array_at(opts, (*pos)++);
 			}
 			if (!val || ni_parse_uint(val, &tmp, 10) < 0 || tmp > 65536)
 				return -1;
 			rp->mtu = tmp;
 		} else
 		if (!strcmp(opt, "window")) {
-			val = __get_route_opt(opts, (*pos)++);
+			val = ni_string_array_at(opts, (*pos)++);
 			if (ni_string_eq("lock", val)) {
 				if (!ni_route_metrics_lock_set(opt, &rp->lock))
 					return -1;
-				val = __get_route_opt(opts, (*pos)++);
+				val = ni_string_array_at(opts, (*pos)++);
 			}
 			if (ni_parse_uint(val, &tmp, 10) < 0)
 				return -1;
 			rp->window = tmp;
 		} else
 		if (!strcmp(opt, "rtt")) {
-			val = __get_route_opt(opts, (*pos)++);
+			val = ni_string_array_at(opts, (*pos)++);
 			if (ni_string_eq("lock", val)) {
 				if (!ni_route_metrics_lock_set(opt, &rp->lock))
 					return -1;
-				val = __get_route_opt(opts, (*pos)++);
+				val = ni_string_array_at(opts, (*pos)++);
 			}
 			if (ni_parse_uint(val, &tmp, 10) < 0)
 				return -1;
 			rp->rtt = tmp;
 		} else
 		if (!strcmp(opt, "rttvar")) {
-			val = __get_route_opt(opts, (*pos)++);
+			val = ni_string_array_at(opts, (*pos)++);
 			if (ni_string_eq("lock", val)) {
 				if (!ni_route_metrics_lock_set(opt, &rp->lock))
 					return -1;
-				val = __get_route_opt(opts, (*pos)++);
+				val = ni_string_array_at(opts, (*pos)++);
 			}
 			if (ni_parse_uint(val, &tmp, 10) < 0)
 				return -1;
 			rp->rttvar = tmp;
 		} else
 		if (!strcmp(opt, "ssthresh")) {
-			val = __get_route_opt(opts, (*pos)++);
+			val = ni_string_array_at(opts, (*pos)++);
 			if (ni_string_eq("lock", val)) {
 				if (!ni_route_metrics_lock_set(opt, &rp->lock))
 					return -1;
-				val = __get_route_opt(opts, (*pos)++);
+				val = ni_string_array_at(opts, (*pos)++);
 			}
 			if (ni_parse_uint(val, &tmp, 10) < 0)
 				return -1;
 			rp->ssthresh = tmp;
 		} else
 		if (!strcmp(opt, "cwnd")) {
-			val = __get_route_opt(opts, (*pos)++);
+			val = ni_string_array_at(opts, (*pos)++);
 			if (ni_string_eq("lock", val)) {
 				if (!ni_route_metrics_lock_set(opt, &rp->lock))
 					return -1;
-				val = __get_route_opt(opts, (*pos)++);
+				val = ni_string_array_at(opts, (*pos)++);
 			}
 			if (ni_parse_uint(val, &tmp, 10) < 0)
 				return -1;
 			rp->cwnd = tmp;
 		} else
 		if (!strcmp(opt, "advmss")) {
-			val = __get_route_opt(opts, (*pos)++);
+			val = ni_string_array_at(opts, (*pos)++);
 			if (ni_string_eq("lock", val)) {
 				if (!ni_route_metrics_lock_set(opt, &rp->lock))
 					return -1;
-				val = __get_route_opt(opts, (*pos)++);
+				val = ni_string_array_at(opts, (*pos)++);
 			}
 			if (ni_parse_uint(val, &tmp, 10) < 0)
 				return -1;
 			rp->advmss = tmp;
 		} else
 		if (!strcmp(opt, "reordering")) {
-			val = __get_route_opt(opts, (*pos)++);
+			val = ni_string_array_at(opts, (*pos)++);
 			if (ni_string_eq("lock", val)) {
 				if (!ni_route_metrics_lock_set(opt, &rp->lock))
 					return -1;
-				val = __get_route_opt(opts, (*pos)++);
+				val = ni_string_array_at(opts, (*pos)++);
 			}
 			if (ni_parse_uint(val, &tmp, 10) < 0)
 				return -1;
 			rp->reordering = tmp;
 		} else
 		if (!strcmp(opt, "hoplimit")) {
-			val = __get_route_opt(opts, (*pos)++);
+			val = ni_string_array_at(opts, (*pos)++);
 			if (ni_string_eq("lock", val)) {
 				if (!ni_route_metrics_lock_set(opt, &rp->lock))
 					return -1;
-				val = __get_route_opt(opts, (*pos)++);
+				val = ni_string_array_at(opts, (*pos)++);
 			}
 			if (ni_parse_uint(val, &tmp, 10) < 0)
 				return -1;
 			rp->hoplimit = tmp;
 		} else
 		if (!strcmp(opt, "initcwnd")) {
-			val = __get_route_opt(opts, (*pos)++);
+			val = ni_string_array_at(opts, (*pos)++);
 			if (ni_string_eq("lock", val)) {
 				if (!ni_route_metrics_lock_set(opt, &rp->lock))
 					return -1;
-				val = __get_route_opt(opts, (*pos)++);
+				val = ni_string_array_at(opts, (*pos)++);
 			}
 			if (ni_parse_uint(val, &tmp, 10) < 0)
 				return -1;
@@ -542,11 +536,11 @@ __ni_suse_route_parse_opts(ni_route_t *rp, ni_string_array_t *opts,
 		} else
 #if 0		/* iproute2 does not allow to set them */
 		if (!strcmp(opt, "features")) {
-			val = __get_route_opt(opts, (*pos)++);
+			val = ni_string_array_at(opts, (*pos)++);
 			if (ni_string_eq("lock", val)) {
 				if (!ni_route_metrics_lock_set(opt, &rp->lock))
 					return -1;
-				val = __get_route_opt(opts, (*pos)++);
+				val = ni_string_array_at(opts, (*pos)++);
 			}
 			if (ni_parse_uint(val, &tmp, 10) < 0)
 				return -1;
@@ -554,22 +548,22 @@ __ni_suse_route_parse_opts(ni_route_t *rp, ni_string_array_t *opts,
 		} else
 #endif
 		if (!strcmp(opt, "rto_min")) {
-			val = __get_route_opt(opts, (*pos)++);
+			val = ni_string_array_at(opts, (*pos)++);
 			if (ni_string_eq("lock", val)) {
 				if (!ni_route_metrics_lock_set(opt, &rp->lock))
 					return -1;
-				val = __get_route_opt(opts, (*pos)++);
+				val = ni_string_array_at(opts, (*pos)++);
 			}
 			if (ni_parse_uint(val, &tmp, 10) < 0)
 				return -1;
 			rp->rto_min = tmp;
 		} else
 		if (!strcmp(opt, "initrwnd")) {
-			val = __get_route_opt(opts, (*pos)++);
+			val = ni_string_array_at(opts, (*pos)++);
 			if (ni_string_eq("lock", val)) {
 				if (!ni_route_metrics_lock_set(opt, &rp->lock))
 					return -1;
-				val = __get_route_opt(opts, (*pos)++);
+				val = ni_string_array_at(opts, (*pos)++);
 			}
 			if (ni_parse_uint(val, &tmp, 10) < 0)
 				return -1;
@@ -578,7 +572,7 @@ __ni_suse_route_parse_opts(ni_route_t *rp, ni_string_array_t *opts,
 
 		/* kern dict, except type */
 		if (!strcmp(opt, "table")) {
-			val = __get_route_opt(opts, (*pos)++);
+			val = ni_string_array_at(opts, (*pos)++);
 			if (!val || rp->table != RT_TABLE_UNSPEC)
 				return -1;
 			if (!ni_route_table_name_to_type(val, &tmp))
@@ -588,7 +582,7 @@ __ni_suse_route_parse_opts(ni_route_t *rp, ni_string_array_t *opts,
 			rp->table = tmp;
 		} else
 		if (!strcmp(opt, "scope")) {
-			val = __get_route_opt(opts, (*pos)++);
+			val = ni_string_array_at(opts, (*pos)++);
 			if (!ni_route_scope_name_to_type(val, &tmp))
 				return -1;
 			if (rp->scope != RT_SCOPE_UNIVERSE)
@@ -596,7 +590,7 @@ __ni_suse_route_parse_opts(ni_route_t *rp, ni_string_array_t *opts,
 			rp->scope = tmp;
 		} else
 		if (!strcmp(opt, "proto") || !strcmp(opt, "protocol")) {
-			val = __get_route_opt(opts, (*pos)++);
+			val = ni_string_array_at(opts, (*pos)++);
 			if (!ni_route_protocol_name_to_type(val, &tmp) || tmp > 255)
 				return -1;
 			if (rp->protocol != RTPROT_UNSPEC)

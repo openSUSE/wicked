@@ -90,6 +90,7 @@ extern int		ni_string_array_append(ni_string_array_t *, const char *);
 extern int		ni_string_array_insert(ni_string_array_t *, unsigned int, const char *);
 extern int		ni_string_array_set(ni_string_array_t *, unsigned int, const char *);
 extern int		ni_string_array_get(ni_string_array_t *, unsigned int, char **);
+extern const char *	ni_string_array_at(ni_string_array_t *, unsigned int);
 extern int		ni_string_array_index(const ni_string_array_t *, const char *);
 extern int		ni_string_array_remove_index(ni_string_array_t *, unsigned int);
 extern int		ni_string_array_remove_match(ni_string_array_t *, const char *, unsigned int);
