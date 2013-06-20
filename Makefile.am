@@ -20,7 +20,8 @@ EXTRA_DIST			= VERSION wicked.pc.in wicked-rpmlintrc	\
 				  wicked.spec.in wicked.spec samples	\
 				  $(wicked_doc_data)
 
-rpmbuild_opts			= -ta --define "snapshot $$(date +%Y%m%d%H%M%S)"
+custom_rpmbuild_opts		= $(CUSTOM_RPMBUILD_OPTS)
+rpmbuild_opts			= $(custom_rpmbuild_opts) -ta --define "snapshot $$(date +%Y%m%d%H%M%S)"
 
 
 # Build test RPMs, no checks
