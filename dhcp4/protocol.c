@@ -787,7 +787,7 @@ ni_dhcp_option_get_printable(ni_buffer_t *bp, char **var, const char *what)
 	if (ni_dhcp_option_get_string(bp, &tmp, &len) < 0)
 		return -1;
 
-	if (ni_check_printable(tmp, len)) {
+	if (!ni_check_printable(tmp, len)) {
 		ni_debug_dhcp("Discarded non-printable %s: %s", what,
 			ni_print_suspect(tmp, len));
 		free(tmp);
@@ -1062,7 +1062,7 @@ parse_more:
 		tmp[sizeof(tmp)-1] = '\0';
 
 		len = ni_string_len(tmp);
-		if (len > 0 && ni_check_domain_name(tmp, len, 0)) {
+		if (ni_check_domain_name(tmp, len, 0)) {
 			memcpy(lease->dhcp.servername, tmp, sizeof(lease->dhcp.servername));
 		} else {
 			ni_debug_dhcp("Discarded suspect boot-server name: %s",
@@ -1076,7 +1076,7 @@ parse_more:
 		memcpy(tmp, message->bootfile, sizeof(tmp));
 		tmp[sizeof(tmp)-1] = '\0';
 		len = ni_string_len(tmp);
-		if (len > 0 && ni_check_pathname(tmp, len)) {
+		if (ni_check_pathname(tmp, len)) {
 			ni_string_dup(&lease->dhcp.bootfile, tmp);
 		} else {
 			ni_debug_dhcp("Discarded suspect boot-file name: %s",

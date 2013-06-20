@@ -999,10 +999,10 @@ ni_dhcp6_decode_dnssearch(ni_buffer_t *optbuf, ni_string_array_t *list, const ch
 
 			len = ni_string_len(namebuf.string);
 			if (ni_check_domain_name(namebuf.string, len, 0)) {
+				ni_string_array_append(list, namebuf.string);
+			} else {
 				ni_debug_dhcp("Discarded suspect %s: %s", what,
 					ni_print_suspect(namebuf.string, len));
-			} else {
-				ni_string_array_append(list, namebuf.string);
 			}
 		}
 		ni_stringbuf_destroy(&namebuf);

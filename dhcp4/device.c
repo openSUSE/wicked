@@ -268,10 +268,10 @@ ni_dhcp_acquire(ni_dhcp_device_t *dev, const ni_dhcp4_request_t *info)
 
 	if ((len = ni_string_len(info->hostname)) > 0) {
 		if (ni_check_domain_name(info->hostname, len, 0)) {
+			strncpy(config->hostname, info->hostname, sizeof(config->hostname) - 1);
+		} else {
 			ni_debug_dhcp("Discarded request to use suspect hostname: %s",
 				ni_print_suspect(info->hostname, len));
-		} else {
-			strncpy(config->hostname, info->hostname, sizeof(config->hostname) - 1);
 		}
 	}
 
