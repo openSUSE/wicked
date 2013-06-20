@@ -14,6 +14,7 @@ wicked_schema_files		= \
 	firewall.xml		\
 	infiniband.xml		\
 	interface.xml		\
+	lldp.xml		\
 	modem.xml		\
 	openvpn.xml		\
 	ppp.xml			\
