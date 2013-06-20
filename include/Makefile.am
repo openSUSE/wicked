@@ -12,12 +12,14 @@ wicked_include_HEADERS		= \
 	wicked/dbus.h		\
 	wicked/dbus-errors.h	\
 	wicked/dbus-service.h	\
+	wicked/dcb.h		\
 	wicked/ethernet.h	\
 	wicked/fsm.h		\
 	wicked/infiniband.h	\
 	wicked/ipv4.h		\
 	wicked/ipv6.h		\
 	wicked/linkstats.h	\
+	wicked/lldp.h		\
 	wicked/logging.h	\
 	wicked/modem.h		\
 	wicked/netinfo.h	\

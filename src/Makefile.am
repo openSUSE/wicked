@@ -123,11 +123,13 @@ EXTRA_DIST			= \
 	dbus-connection.h	\
 	dbus-dict.h		\
 	dbus-object.h		\
+	dbus-objects/misc.h	\
 	dbus-objects/model.h	\
 	dbus-server.h		\
 	debug.h			\
 	ipv6_priv.h		\
 	kernel.h		\
+	lldp-priv.h             \
 	modem-manager.h		\
 	modprobe.h		\
 	netinfo_priv.h		\
