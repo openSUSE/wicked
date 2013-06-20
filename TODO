@@ -63,6 +63,16 @@ wickedd:
 	    to: start the dhcp clients in “persistent” mode, that is never
 	    remove any IP address from interface and reject to set link down.
 
+	- LLDP and DCBX:
+	  - Basic LLDP code is there, as well as DCBX TLV encoding/decoding
+	    - Above all, this needs testing
+	    - There should be a global setting for enabling/disabling
+	      LLDP tx and rx.
+	    - When a NIC does not support DCB, we spit out an ugly error
+	      message. We should not do this
+	    - When receiving a DCBX message, we currently update the operating
+	      params, but never write them back to the kernel.
+
 	- dhcpv4 support
 	  - write lease/state to disk [currently in memory only]
 	  - verification for infiniband required [client-id/DUID differs]
