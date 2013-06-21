@@ -129,6 +129,7 @@ main(int argc, char **argv)
 				fprintf(stderr, "Bad log level \%s\"\n", optarg);
 				return 1;
 			}
+			break;
 
 		case OPT_LOG_TARGET:
 			opt_log_target = optarg;
