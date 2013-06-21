@@ -13,6 +13,7 @@
 				ni_debug_dbus("%s(" fmt ")", __FUNCTION__, ##args)
 #define NI_TP()			ni_debug_dbus("TP - %s:%u", __FUNCTION__, __LINE__)
 
+#define NI_XPATH_DEBUG_LEVEL	NI_LOG_DEBUG3
 
 #endif /* __WICKED_DEBUG_H__ */
 

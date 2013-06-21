@@ -31,7 +31,7 @@
 #include <wicked/xpath.h>
 #include "util_priv.h"
 
-#undef XPATH_DEBUG
+#include "debug.h"	/* NI_XPATH_DEBUG_LEVEL */
 
 enum {
 	XPATH_INFIXPRIO_NONE = 0,
@@ -90,10 +90,10 @@ static void		__xpath_skipws(const char **);
 static xpath_enode_t *	xpath_enode_new(const xpath_operator_t *);
 static void		xpath_enode_free(xpath_enode_t *);
 
-#ifdef XPATH_DEBUG
-# define xtrace		ni_debug_xpath
+#ifdef NI_XPATH_DEBUG_LEVEL
+# define xtrace(fmt, args...)	ni_debug_verbose(NI_XPATH_DEBUG_LEVEL, NI_TRACE_XPATH, fmt, ##args)
 #else
-# define xtrace		ni_debug_none
+# define xtrace			ni_debug_none
 #endif
 
 
@@ -591,7 +591,7 @@ cannot_convert:
 /*
  * Debug printing for EVAL tracing
  */
-#ifdef XPATH_DEBUG
+#ifdef NI_XPATH_DEBUG_LEVEL
 static char *
 __xpath_node_array_print_short(const xpath_result_t *na)
 {
