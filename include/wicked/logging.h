@@ -70,9 +70,11 @@ enum {
 extern unsigned int	ni_debug;
 extern unsigned int	ni_log_level;
 
+#define ni_log_level_at(level)			ni_log_level >= (level)
+
 #define __ni_debug(facility, fmt, args...) \
 	do { \
-		if (ni_log_level >= NI_LOG_DEBUG && ni_debug & (facility)) \
+		if (ni_log_level_at(NI_LOG_DEBUG) && ni_debug & (facility)) \
 			ni_trace(fmt, ##args); \
 	} while (0)
 #define ni_debug_ifconfig(fmt, args...)		__ni_debug(NI_TRACE_IFCONFIG, fmt, ##args)
@@ -97,7 +99,7 @@ extern unsigned int	ni_log_level;
 
 #define ni_debug_wicked_xml(xml_node, fmt, args...) \
 	do { \
-		if (ni_log_level >= NI_LOG_DEBUG && ni_debug & NI_TRACE_WICKED_XML) { \
+		if (ni_log_level_at(NI_LOG_DEBUG) && ni_debug & NI_TRACE_WICKED_XML) { \
 			ni_trace(fmt, ##args); \
 			xml_node_print_debug(xml_node, NI_TRACE_WICKED_XML); \
 		} \
