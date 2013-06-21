@@ -108,10 +108,14 @@ extern unsigned int	ni_log_level;
 			xml_node_print_debug(xml_node, NI_TRACE_WICKED_XML); \
 		} \
 	} while (0)
+
 #define ni_debug_none(fmt, args...)		do { } while (0)
 
-#define __ni_string(x) #x
+#define ni_debug_verbose(level, facility, fmt, args...) \
+		__ni_debug(level, facility, fmt, ##args)
 
+
+#define __ni_string(x) #x
 
 #include <stdlib.h>
 
