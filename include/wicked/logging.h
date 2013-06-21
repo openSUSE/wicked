@@ -98,9 +98,9 @@ extern unsigned int	ni_log_level;
 
 #define ni_debug_nanny				ni_debug_application
 
-#define ni_debug_wicked_xml(xml_node, fmt, args...) \
+#define ni_debug_wicked_xml(xml_node, level, fmt, args...) \
 	do { \
-		if (ni_log_level_at(NI_LOG_DEBUG) && ni_debug & NI_TRACE_WICKED_XML) { \
+		if (ni_log_level_at(level) && ni_debug & NI_TRACE_WICKED_XML) { \
 			ni_trace(fmt, ##args); \
 			xml_node_print_debug(xml_node, NI_TRACE_WICKED_XML); \
 		} \
