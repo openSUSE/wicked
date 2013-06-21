@@ -78,7 +78,7 @@ ni_objectmodel_save_state(const char *filename)
 	ni_bool_t rv = FALSE;
 	FILE *fp = NULL;
 
-	ni_debug_objectmodel(1, "saving server state to %s", filename);
+	ni_debug_objectmodel("saving server state to %s", filename);
 
 	doc = xml_document_new();
 	if (!ni_objectmodel_save_state_xml(doc->root, __ni_objectmodel_server))

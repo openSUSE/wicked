@@ -211,7 +211,7 @@ ni_wpa_interface_network_by_path(ni_wpa_interface_t *wpa_dev, const char *object
 		return NULL;
 	}
 	if (net_object->handle == NULL) {
-		ni_debug_wireless(1, "new object %s", net_object->path);
+		ni_debug_wireless("new object %s", net_object->path);
 		ni_dbus_object_set_default_interface(net_object, NI_WPA_BSS_INTERFACE);
 
 		net_object->handle = ni_wireless_network_new();
@@ -261,7 +261,7 @@ ni_wpa_interface_bind(ni_wpa_client_t *wpa, ni_netdev_t *dev)
 		if (rv != -NI_ERROR_DEVICE_NOT_KNOWN)
 			goto failed;
 
-		ni_debug_wireless(1, "%s: interface does not exist", dev->name);
+		ni_debug_wireless("%s: interface does not exist", dev->name);
 		rv = ni_wpa_add_interface(wpa, dev->name, dev->link.ifindex, &wpa_dev);
 		if (rv < 0)
 			goto failed;
@@ -754,7 +754,7 @@ ni_wpa_interface_associate(ni_wpa_interface_t *dev, ni_wireless_network_t *net)
 {
 	ni_dbus_object_t *net_object;
 
-	ni_debug_wireless(1, "%s(dev=%s, essid=%.*s)", __func__, dev->ifname,
+	ni_debug_wireless("%s(dev=%s, essid=%.*s)", __func__, dev->ifname,
 			net->essid.len, net->essid.data);
 
 	/* FIXME: make sure we have all the keys/pass phrases etc to
@@ -837,12 +837,12 @@ ni_wpa_interface_state_change_event(ni_wpa_client_t *wpa,
 
 	wpa_dev = ni_wpa_client_interface_by_path(wpa, object_path);
 	if (wpa_dev == NULL) {
-		ni_debug_wireless(1, "Ignore state change on untracked interface %s",
+		ni_debug_wireless("Ignore state change on untracked interface %s",
 				object_path);
 		return;
 	}
 
-	ni_debug_wireless(1, "%s: state changed %s -> %s",
+	ni_debug_wireless("%s: state changed %s -> %s",
 			wpa_dev->ifname,
 			ni_wpa_ifstate_to_name(from_state),
 			ni_wpa_ifstate_to_name(to_state));
@@ -938,11 +938,11 @@ ni_wpa_interface_scan_results_available_event(ni_wpa_client_t *wpa, const char *
 
 	wpa_dev = ni_wpa_client_interface_by_path(wpa, object_path);
 	if (wpa_dev == NULL || wpa_dev->proxy == NULL) {
-		ni_debug_wireless(1, "Ignore scan results on untracked interface %s", object_path);
+		ni_debug_wireless("Ignore scan results on untracked interface %s", object_path);
 		return;
 	}
 
-	ni_debug_wireless(1, "%s: scan results available - retrieving them", wpa_dev->ifname);
+	ni_debug_wireless("%s: scan results available - retrieving them", wpa_dev->ifname);
 	ni_dbus_object_call_async(wpa_dev->proxy,
 			ni_wpa_interface_scan_results,
 			"scanResults",
@@ -1692,7 +1692,7 @@ ni_wpa_bss_properties_result(ni_dbus_object_t *proxy, ni_dbus_message_t *msg)
 	if (!ni_dbus_object_set_properties_from_dict(proxy, &ni_wpa_bssid_service, &dict, NULL))
 		goto failed;
 
-	ni_debug_wireless(1, "Updated BSS %s, freq=%.3f GHz, quality=%.2f, noise=%u, level=%.2f dBm, maxrate=%u MB/s, essid=%.*s",
+	ni_debug_wireless("Updated BSS %s, freq=%.3f GHz, quality=%.2f, noise=%u, level=%.2f dBm, maxrate=%u MB/s, essid=%.*s",
 			ni_link_address_print(&net->access_point),
 			net->scan_info.frequency,
 			net->scan_info.quality,
@@ -1702,7 +1702,7 @@ ni_wpa_bss_properties_result(ni_dbus_object_t *proxy, ni_dbus_message_t *msg)
 			net->essid.len, net->essid.data);
 
 	if (net->notified && memcmp(&old_essid, &net->essid, sizeof(old_essid)) != 0) {
-		ni_debug_wireless(1, "%s: essid changed", ni_link_address_print(&net->access_point));
+		ni_debug_wireless("%s: essid changed", ni_link_address_print(&net->access_point));
 		net->notified = FALSE;
 	}
 	net->scan_info.timestamp = time(NULL);
@@ -2190,13 +2190,13 @@ ni_wpa_interface_get_capabilities(ni_wpa_client_t *wpa, ni_wpa_interface_t *wpa_
 	if (rv) {
 		ni_wireless_interface_capabilities_t *caps = &wpa_dev->capabilities;
 
-		ni_debug_wireless(1, "%s interface capabilities", wpa_dev->ifname);
-		ni_debug_wireless(1, "  eap methods: %s", __ni_print_string_array(&caps->eap_methods));
-		ni_debug_wireless(1, "  pairwise ciphers: %s", __ni_print_string_array(&caps->pairwise_ciphers));
-		ni_debug_wireless(1, "  group ciphers: %s", __ni_print_string_array(&caps->group_ciphers));
-		ni_debug_wireless(1, "  keymgmt: %s", __ni_print_string_array(&caps->keymgmt_algos));
-		ni_debug_wireless(1, "  auth: %s", __ni_print_string_array(&caps->auth_algos));
-		ni_debug_wireless(1, "  wpa protos: %s", __ni_print_string_array(&caps->wpa_protocols));
+		ni_debug_wireless("%s interface capabilities", wpa_dev->ifname);
+		ni_debug_wireless("  eap methods: %s", __ni_print_string_array(&caps->eap_methods));
+		ni_debug_wireless("  pairwise ciphers: %s", __ni_print_string_array(&caps->pairwise_ciphers));
+		ni_debug_wireless("  group ciphers: %s", __ni_print_string_array(&caps->group_ciphers));
+		ni_debug_wireless("  keymgmt: %s", __ni_print_string_array(&caps->keymgmt_algos));
+		ni_debug_wireless("  auth: %s", __ni_print_string_array(&caps->auth_algos));
+		ni_debug_wireless("  wpa protos: %s", __ni_print_string_array(&caps->wpa_protocols));
 	}
 #endif
 
@@ -2249,6 +2249,6 @@ ni_wpa_signal(ni_dbus_connection_t *connection, ni_dbus_message_t *msg, void *us
 	if (!strcmp(member, "ScanResultsAvailable")) {
 		ni_wpa_interface_scan_results_available_event(wpa, dbus_message_get_path(msg));
 	} else {
-		ni_debug_wireless(1, "%s signal received (not handled)", member);
+		ni_debug_wireless("%s signal received (not handled)", member);
 	}
 }

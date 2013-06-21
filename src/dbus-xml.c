@@ -110,7 +110,7 @@ ni_dbus_xml_register_services(ni_xs_scope_t *scope)
 			ni_string_dup(&service->name, xs_service->interface);
 			service->compatible = class;
 
-			ni_debug_dbus(1, "register dbus service description %s", service->name);
+			ni_debug_dbus("register dbus service description %s", service->name);
 			ni_objectmodel_register_service(service);
 		}
 
@@ -392,7 +392,7 @@ ni_dbus_serialize_return(const ni_dbus_method_t *method, ni_dbus_variant_t *resu
 	if ((xs_type = xs_method->retval) == NULL)
 		return 0;
 
-	ni_debug_dbus(1, "%s: serializing response (%s)", method->name, xs_type->name);
+	ni_debug_dbus("%s: serializing response (%s)", method->name, xs_type->name);
 	if (!ni_dbus_serialize_xml(node, xs_type, result))
 		return -NI_ERROR_CANNOT_MARSHAL;
 
@@ -1095,7 +1095,7 @@ ni_dbus_deserialize_xml_dict(ni_dbus_variant_t *var, const ni_xs_type_t *type, x
 
 		/* Silently ignore dict entries we have no schema information for */
 		if (!(child_type = ni_xs_dict_info_find(dict_info, entry->key))) {
-			ni_debug_dbus(1, "%s: ignoring unknown dict entry %s in node <%s>",
+			ni_debug_dbus("%s: ignoring unknown dict entry %s in node <%s>",
 					__func__, entry->key, node->name);
 			continue;
 		}

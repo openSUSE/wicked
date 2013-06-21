@@ -760,16 +760,16 @@ __ni_process_ifinfomsg_ipv6info(ni_netdev_t *dev, struct nlattr *ifla_protinfo)
 		if (flags & IF_RA_MANAGED) {
 			ipv6->radv.managed_addr = TRUE;
 			ipv6->radv.other_config = TRUE;
-			ni_debug_ifconfig(1, "%s: obtain addrconf via DHCPv6", dev->name);
+			ni_debug_ifconfig("%s: obtain addrconf via DHCPv6", dev->name);
 		} else
 		if (flags & IF_RA_OTHERCONF) {
 			ipv6->radv.managed_addr = FALSE;
 			ipv6->radv.other_config = TRUE;
-			ni_debug_ifconfig(1, "%s: obtain additional config via DHCPv6", dev->name);
+			ni_debug_ifconfig("%s: obtain additional config via DHCPv6", dev->name);
 		} else {
 			ipv6->radv.managed_addr = FALSE;
 			ipv6->radv.other_config = FALSE;
-			ni_debug_ifconfig(1, "%s: no DHCPv6 config suggestion in RA", dev->name);
+			ni_debug_ifconfig("%s: no DHCPv6 config suggestion in RA", dev->name);
 		}
 	}
 	return 0;
@@ -829,7 +829,7 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 		return rv;
 
 #if 0
-	ni_debug_ifconfig(1, "%s: ifi flags:%s%s%s, my flags:%s%s%s, oper_state=%d/%s", dev->name,
+	ni_debug_ifconfig("%s: ifi flags:%s%s%s, my flags:%s%s%s, oper_state=%d/%s", dev->name,
 		(ifi->ifi_flags & IFF_RUNNING)? " running" : "",
 		(ifi->ifi_flags & IFF_LOWER_UP)? " lower_up" : "",
 		(ifi->ifi_flags & IFF_UP)? " up" : "",
@@ -865,7 +865,7 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 	case NI_IFTYPE_WIRELESS:
 		rv = ni_wireless_interface_refresh(dev);
 		if (rv == -NI_ERROR_RADIO_DISABLED) {
-			ni_debug_ifconfig(1, "%s: radio disabled, not refreshing wireless info", dev->name);
+			ni_debug_ifconfig("%s: radio disabled, not refreshing wireless info", dev->name);
 			ni_netdev_set_wireless(dev, NULL);
 		} else 
 		if (rv < 0)
@@ -993,7 +993,7 @@ __ni_netdev_add_autoconf_prefix(ni_netdev_t *dev, const ni_sockaddr_t *addr, uns
 	ni_route_t *rp = NULL;
 	unsigned int i;
 
-	ni_debug_ifconfig(1, "%s(dev=%s, prefix=%s/%u", __func__, dev->name, ni_sockaddr_print(addr), pfxlen);
+	ni_debug_ifconfig("%s(dev=%s, prefix=%s/%u", __func__, dev->name, ni_sockaddr_print(addr), pfxlen);
 
 	lease = __ni_netdev_get_autoconf_lease(dev, addr->ss_family);
 	if ((tab = ni_route_tables_find(lease->routes, RT_TABLE_MAIN))) {
@@ -1133,7 +1133,7 @@ __ni_netdev_process_newaddr_event(ni_netdev_t *dev, struct nlmsghdr *h, struct i
 	ap->config_lease = lease;
 
 #if 0
-	ni_debug_ifconfig(1, "%s[%u]: address %s scope %s, flags%s%s%s%s%s%s%s%s [%02x], lft{%u,%u}, owned by %s",
+	ni_debug_ifconfig("%s[%u]: address %s scope %s, flags%s%s%s%s%s%s%s%s [%02x], lft{%u,%u}, owned by %s",
 			dev->name, dev->link.ifindex,
 			ni_sockaddr_print(&ap->local_addr),
 			(ap->scope == RT_SCOPE_HOST)? "host" :
@@ -1372,7 +1372,7 @@ __ni_netdev_record_newroute(ni_netconfig_t *nc, ni_netdev_t *dev, ni_route_t *rp
 			ret = -1;
 		} else {
 #if 0
-			ni_debug_ifconfig(1, "Route recorded for device %s[%u]: %s",
+			ni_debug_ifconfig("Route recorded for device %s[%u]: %s",
 				dev->name, dev->link.ifindex, ni_route_print(&buf, rp));
 			ni_stringbuf_destroy(&buf);
 #endif
@@ -1394,7 +1394,7 @@ __ni_netdev_process_newroute(ni_netdev_t *dev, struct nlmsghdr *h,
 	int ret = 1;
 
 #if 0
-	ni_debug_ifconfig(1, "RTM_NEWROUTE family=%d dstlen=%u srclen=%u type=%s proto=%s flags=0x%x table=%s scope=%s",
+	ni_debug_ifconfig("RTM_NEWROUTE family=%d dstlen=%u srclen=%u type=%s proto=%s flags=0x%x table=%s scope=%s",
 			rtm->rtm_family,
 			rtm->rtm_dst_len,
 			rtm->rtm_src_len,

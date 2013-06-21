@@ -38,7 +38,7 @@ __ni_netconfig_firmware_discovery(void)
 			ni_process_t *process;
 			int rv;
 
-			ni_debug_objectmodel(1, "trying to discover netif config via firmware service \"%s\"", script->name);
+			ni_debug_objectmodel("trying to discover netif config via firmware service \"%s\"", script->name);
 
 			/* Create an instance of this command */
 			process = ni_process_new(script->process);

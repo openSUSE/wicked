@@ -42,7 +42,7 @@ ni_ifconfig_firmware_load(ni_fsm_t *fsm, const char *pathname)
 
 	(void)pathname;
 
-	ni_debug_readwrite(1, "%s()", __func__);
+	ni_debug_readwrite("%s()", __func__);
 	if (!(config_doc = ni_netconfig_firmware_discovery())) {
 		ni_error("unable to get firmware interface definitions");
 		return FALSE;
@@ -63,7 +63,7 @@ ni_ifconfig_file_load(ni_fsm_t *fsm, const char *filename)
 {
 	xml_document_t *config_doc;
 
-	ni_debug_readwrite(1, "%s(%s)", __func__, filename);
+	ni_debug_readwrite("%s(%s)", __func__, filename);
 	if (!(config_doc = xml_document_read(filename))) {
 		ni_error("unable to load interface definition from %s", filename);
 		return FALSE;
@@ -84,7 +84,7 @@ ni_ifconfig_compat_load(ni_fsm_t *fsm, const char *pathname)
 {
 	xml_document_t *config_doc;
 
-	ni_debug_readwrite(1, "%s(%s)", __func__, pathname);
+	ni_debug_readwrite("%s(%s)", __func__, pathname);
 
 	config_doc = xml_document_new();
 	if (!__ni_compat_get_interfaces(NULL, pathname, config_doc)) {
@@ -105,7 +105,7 @@ ni_ifconfig_native_load(ni_fsm_t *fsm, const char *pathname)
 {
 	struct stat stb;
 
-	ni_debug_readwrite(1, "%s(%s)", __func__, pathname);
+	ni_debug_readwrite("%s(%s)", __func__, pathname);
 
 	if (stat(pathname, &stb) < 0) {
 		ni_error("%s: %m", pathname);
@@ -603,8 +603,8 @@ usage:
 				if (!client_info || !ni_uuid_equal(&client_info->config_uuid, &w->config.uuid)) {
 					if (!opt_quiet)
 						ni_error("%s: device configuration changed", w->name);
-					ni_debug_wicked(1, "%s: config file uuid is %s", w->name, ni_uuid_print(&w->config.uuid));
-					ni_debug_wicked(1, "%s: system dev. uuid is %s", w->name,
+					ni_debug_wicked("%s: config file uuid is %s", w->name, ni_uuid_print(&w->config.uuid));
+					ni_debug_wicked("%s: system dev. uuid is %s", w->name,
 							client_info? ni_uuid_print(&client_info->config_uuid) : "NOT SET");
 					status = 3;
 					continue;

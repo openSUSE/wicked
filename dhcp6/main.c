@@ -245,7 +245,7 @@ dhcp6_device_create(ni_dbus_server_t *server, const ni_netdev_t *ifp)
 	}
 
 	if (ni_objectmodel_register_dhcp6_device(server, dev) != NULL) {
-		ni_debug_dhcp(1, "Created dhcp6 device for '%s' and index %u",
+		ni_debug_dhcp("Created dhcp6 device for '%s' and index %u",
 				ifp->name, ifp->link.ifindex);
 		rv = TRUE;
 	}
@@ -266,7 +266,7 @@ dhcp6_device_destroy(ni_dbus_server_t *server, const ni_netdev_t *ifp)
         ni_dhcp6_device_t *dev;
 
 	if ((dev = ni_dhcp6_device_by_index(ifp->link.ifindex)) != NULL) {
-		ni_debug_dhcp(1, "%s: Destroying dhcp6 device with index %u",
+		ni_debug_dhcp("%s: Destroying dhcp6 device with index %u",
 				ifp->name, ifp->link.ifindex);
                 ni_dbus_server_unregister_object(server, dev);
 	}
@@ -370,7 +370,7 @@ void
 dhcp6_recover_addrconf(const char *filename)
 {
 	if (!ni_file_exists(filename)) {
-		ni_debug_dhcp(1, "%s: %s does not exist, skip this", __func__, filename);
+		ni_debug_dhcp("%s: %s does not exist, skip this", __func__, filename);
 		return;
 	}
 
@@ -393,7 +393,7 @@ dhcp6_interface_event(ni_netdev_t *ifp, ni_event_t event)
 	ni_dhcp6_device_t *dev;
 	ni_netdev_t *ofp;
 
-	ni_debug_events(1, "%s[%u]: received interface event: %s",
+	ni_debug_events("%s[%u]: received interface event: %s",
 			ifp->name, ifp->link.ifindex,
 			ni_event_type_to_name(event));
 
@@ -450,7 +450,7 @@ static void
 dhcp6_interface_prefix_event(ni_netdev_t *dev, ni_event_t event, const ni_ipv6_ra_pinfo_t *pi)
 {
 #if 0
-	ni_debug_events(1, "%s: %s RA<%s> Prefix<%s/%u %s,%s> [%d,%d]", dev->name,
+	ni_debug_events("%s: %s RA<%s> Prefix<%s/%u %s,%s> [%d,%d]", dev->name,
 		 (event == NI_EVENT_PREFIX_UPDATE ? "update" : "delete"),
 		 (dev->ipv6->radv.managed_addr ? "managed-address" :
 		  (dev->ipv6->radv.other_config ? "managed-config" : "unmanaged")),
@@ -469,7 +469,7 @@ dhcp6_protocol_event(enum ni_dhcp6_event ev, const ni_dhcp6_device_t *dev, ni_ad
 	ni_dbus_variant_t *var;
 	int argc = 0;
 
-	ni_debug_dhcp(1, "%s(ev=%u, dev=%d, uuid=%s)", __func__, ev, dev->link.ifindex,
+	ni_debug_dhcp("%s(ev=%u, dev=%d, uuid=%s)", __func__, ev, dev->link.ifindex,
 			/* dev->config? ni_print_hex(dev->config->uuid.octets, 16) : */ "<none>");
 
 	dev_object = ni_dbus_server_find_object_by_handle(dhcp6_dbus_server, dev);

@@ -28,7 +28,7 @@ ni_dbus_object_introspect(ni_dbus_object_t *object)
 	xml_node_t *node;
 	char *result = NULL;
 
-	ni_debug_dbus(1, "%s(%s)", __func__, object->path);
+	ni_debug_dbus("%s(%s)", __func__, object->path);
 
 	/* FIXME: we should really create an xml_document_t here, so that we
 	 * generate a proper DOCTYPE element.

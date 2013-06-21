@@ -54,7 +54,7 @@ ni_managed_netdev_enable(ni_managed_device_t *mdev)
 	ni_ifworker_t *w = mdev->worker;
 
 	if (mdev->rfkill_blocked) {
-		ni_debug_nanny(1, "%s: radio disabled, will enable scanning later", w->name);
+		ni_debug_nanny("%s: radio disabled, will enable scanning later", w->name);
 		mdev->monitor = TRUE;
 		return TRUE;
 	}

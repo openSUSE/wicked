@@ -227,7 +227,7 @@ __ni_objectmodel_get_domain_string(const ni_dbus_variant_t *dict, const char *ke
 			*value = string_value;
 			return TRUE;
 		}
-		ni_debug_objectmodel(1, "Discarded suspect objectmodel %s: %s",
+		ni_debug_objectmodel("Discarded suspect objectmodel %s: %s",
 					key, ni_print_suspect(string_value, len));
 	}
 	return FALSE;
@@ -254,7 +254,7 @@ __ni_objectmodel_get_domain_array(ni_string_array_t *ap, const ni_dbus_variant_t
 			ni_string_array_append(ap, vstr);
 			continue;
 		}
-		ni_debug_objectmodel(1, "Discarded suspect objectmodel %s: %s",
+		ni_debug_objectmodel("Discarded suspect objectmodel %s: %s",
 				key, ni_print_suspect(vstr, vlen));
 	}
 	return TRUE;
@@ -290,7 +290,7 @@ __ni_objectmodel_get_server_array(ni_string_array_t *ap, const ni_dbus_variant_t
 			continue;
 		}
 
-		ni_debug_objectmodel(1, "Discarded suspect objectmodel %s: %s",
+		ni_debug_objectmodel("Discarded suspect objectmodel %s: %s",
 				key, ni_print_suspect(vstr, vlen));
 	}
 	return TRUE;
@@ -328,7 +328,7 @@ __ni_objectmodel_get_address_array(ni_string_array_t *ap, const ni_dbus_variant_
 			}
 		}
 
-		ni_debug_objectmodel(1, "Discarded suspect objectmodel %s: %s",
+		ni_debug_objectmodel("Discarded suspect objectmodel %s: %s",
 				key, ni_print_suspect(vstr, vlen));
 	}
 	return TRUE;
@@ -762,7 +762,7 @@ __ni_objectmodel_route_nexthop_from_dict(ni_route_nexthop_t *nh, const ni_dbus_v
 
 	if (!__ni_objectmodel_dict_get_sockaddr(nhdict, "gateway", &nh->gateway)) {
 		if (!ni_dbus_dict_get_string(nhdict, "device", &string)) {
-			ni_debug_dbus(1, "%s: route nexthop is missing gateway and device",
+			ni_debug_dbus("%s: route nexthop is missing gateway and device",
 					__func__);
 			return FALSE;
 		}
@@ -812,7 +812,7 @@ __ni_objectmodel_route_from_dict(ni_route_table_t **list, const ni_dbus_variant_
 
 			if (rp->nh.gateway.ss_family != AF_UNSPEC &&
 			    rp->nh.gateway.ss_family != nh->gateway.ss_family) {
-				ni_debug_dbus(1, "%s: route nexthop with gateway family mix",
+				ni_debug_dbus("%s: route nexthop with gateway family mix",
 						__func__);
 				goto failure;
 			}
@@ -838,12 +838,12 @@ __ni_objectmodel_route_from_dict(ni_route_table_t **list, const ni_dbus_variant_
 	 * Hmm... check device default route / default route without a gateway?
 	 */
 	if (rp->destination.ss_family == AF_UNSPEC) {
-		ni_debug_dbus(1, "%s: unknown route destination family", __func__);
+		ni_debug_dbus("%s: unknown route destination family", __func__);
 		goto failure;
 	} else
 	if (rp->nh.gateway.ss_family != AF_UNSPEC &&
 	    rp->nh.gateway.ss_family != rp->destination.ss_family) {
-		ni_debug_dbus(1, "%s: unknown route with destination/gateway family mix", __func__);
+		ni_debug_dbus("%s: unknown route with destination/gateway family mix", __func__);
 		goto failure;
 	}
 	rp->family = rp->destination.ss_family;
@@ -901,7 +901,7 @@ __ni_objectmodel_route_from_dict(ni_route_table_t **list, const ni_dbus_variant_
 		return rp;
 
 failure:
-	ni_debug_dbus(1, "%s: Cannot get complete route from dbus dict (%s)",
+	ni_debug_dbus("%s: Cannot get complete route from dbus dict (%s)",
 			__func__, ni_route_print(&buf, rp));
 	ni_stringbuf_destroy(&buf);
 	if (rp) {

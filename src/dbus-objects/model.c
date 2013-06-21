@@ -385,7 +385,7 @@ ni_objectmodel_other_event(ni_dbus_server_t *server, ni_event_t event, const ni_
 		argc++;
 	}
 
-	ni_debug_dbus(1, "sending event \"%s\"", signal_name);
+	ni_debug_dbus("sending event \"%s\"", signal_name);
 	ni_dbus_server_send_signal(server,
 				ni_dbus_server_get_root_object(server),
 				ni_objectmodel_netif_root_interface.name,
@@ -435,7 +435,7 @@ ni_objectmodel_expand_environment(const ni_dbus_object_t *object, const ni_var_a
 			return -1;
 		}
 
-		ni_debug_dbus(1, "%s: expanded %s=%s -> \"%s\"", object->path, var->name, var->value, value);
+		ni_debug_dbus("%s: expanded %s=%s -> \"%s\"", object->path, var->name, var->value, value);
 		ni_process_setenv(process, var->name, value);
 
 		ni_dbus_variant_destroy(&variant);
@@ -537,7 +537,7 @@ ni_objectmodel_extension_call(ni_dbus_connection_t *connection,
 		return FALSE;
 	}
 
-	ni_debug_extension(1, "preparing to run extension script \"%s\"", command->command);
+	ni_debug_extension("preparing to run extension script \"%s\"", command->command);
 
 	/* Create an instance of this command */
 	process = ni_process_new(command);
@@ -680,7 +680,7 @@ ni_objectmodel_bind_extensions(void)
 			if (method->handler != NULL)
 				continue;
 			if (ni_extension_script_find(extension, method->name) != NULL) {
-				ni_debug_dbus(1, "binding method %s.%s to external command",
+				ni_debug_dbus("binding method %s.%s to external command",
 						service->name, method->name);
 				mod_method->async_handler = ni_objectmodel_extension_call;
 				mod_method->async_completion = ni_objectmodel_extension_completion;
@@ -694,7 +694,7 @@ ni_objectmodel_bind_extensions(void)
 					continue;
 				}
 
-				ni_debug_dbus(1, "binding method %s.%s to builtin %s",
+				ni_debug_dbus("binding method %s.%s to builtin %s",
 						service->name, method->name, binding->symbol);
 				mod_method->handler = addr;
 			}

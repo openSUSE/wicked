@@ -88,7 +88,7 @@ __ni_config_parse(ni_config_t *conf, const char *filename, ni_init_appdata_callb
 	xml_document_t *doc;
 	xml_node_t *node, *child;
 
-	ni_debug_wicked(1, "Reading config file %s", filename);
+	ni_debug_wicked("Reading config file %s", filename);
 	doc = xml_document_read(filename);
 	if (!doc) {
 		ni_error("%s: error parsing configuration file", filename);

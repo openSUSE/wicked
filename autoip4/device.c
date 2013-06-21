@@ -136,7 +136,7 @@ ni_autoip_device_free(ni_autoip_device_t *dev)
 	ni_autoip_device_t **pos;
 
 	ni_assert(dev->users == 0);
-	ni_debug_autoip(1, "%s: Deleting autoip4 device with index %u",
+	ni_debug_autoip("%s: Deleting autoip4 device with index %u",
 			dev->ifname, dev->link.ifindex);
 
 	ni_autoip_device_drop_lease(dev);

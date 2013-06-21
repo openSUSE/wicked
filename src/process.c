@@ -489,16 +489,16 @@ ni_process_reap(ni_process_t *pi)
 	}
 
 	if (WIFEXITED(pi->status))
-		ni_debug_extension(1, "subprocess %d (%s) exited with status %d",
+		ni_debug_extension("subprocess %d (%s) exited with status %d",
 				pi->pid, pi->process->command,
 				WEXITSTATUS(pi->status));
 	else if (WIFSIGNALED(pi->status))
-		ni_debug_extension(1, "subprocess %d (%s) died with signal %d%s",
+		ni_debug_extension("subprocess %d (%s) died with signal %d%s",
 				pi->pid, pi->process->command,
 				WTERMSIG(pi->status),
 				WCOREDUMP(pi->status)? " (core dumped)" : "");
 	else
-		ni_debug_extension(1, "subprocess %d (%s) transcended into nirvana",
+		ni_debug_extension("subprocess %d (%s) transcended into nirvana",
 				pi->pid, pi->process->command);
 	pi->pid = 0;
 

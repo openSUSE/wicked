@@ -153,7 +153,7 @@ ni_dhcp6_fsm_set_timeout_msec(ni_dhcp6_device_t *dev, unsigned long msec)
 {
 	dev->fsm.fail_on_timeout = 0;
 	if (msec != 0) {
-		ni_debug_dhcp(1, "%s: setting timeout to %lu msec", dev->ifname, msec);
+		ni_debug_dhcp("%s: setting timeout to %lu msec", dev->ifname, msec);
 		if (dev->fsm.timer) {
 			ni_timer_rearm(dev->fsm.timer, msec);
 		} else {
@@ -193,7 +193,7 @@ __ni_dhcp6_fsm_timeout(void *user_data, const ni_timer_t *timer)
 static void
 ni_dhcp6_fsm_timeout(ni_dhcp6_device_t *dev)
 {
-	ni_debug_dhcp(1, "%s: timeout in state %s%s",
+	ni_debug_dhcp("%s: timeout in state %s%s",
 			dev->ifname, ni_dhcp6_fsm_state_name(dev->fsm.state),
 			dev->fsm.fail_on_timeout? " (fatal failure)" : "");
 
@@ -759,7 +759,7 @@ ni_dhcp6_fsm_process_client_message(ni_dhcp6_device_t *dev, unsigned int msg_typ
 	msg.xid = msg_xid;
 	msg.lease = NULL;
 
-	ni_debug_dhcp(1, "%s: received %s message xid 0x%06x in state %s from %s",
+	ni_debug_dhcp("%s: received %s message xid 0x%06x in state %s from %s",
 			dev->ifname, ni_dhcp6_message_name(msg.type), msg.xid,
 			ni_dhcp6_fsm_state_name(dev->fsm.state),
 			ni_dhcp6_address_print(&msg.sender));
@@ -796,7 +796,7 @@ ni_dhcp6_fsm_process_client_message(ni_dhcp6_device_t *dev, unsigned int msg_typ
 	}
 
 	if (rv > 0) {
-		ni_debug_dhcp(1, "%s: ignoring %s message xid 0x%06x in state %s from %s%s%s",
+		ni_debug_dhcp("%s: ignoring %s message xid 0x%06x in state %s from %s%s%s",
 			dev->ifname, ni_dhcp6_message_name(msg_type), msg_xid,
 			ni_dhcp6_fsm_state_name(state), ni_dhcp6_address_print(sender),
 			(hint ? ": " : ""), (hint ? hint : ""));
@@ -840,7 +840,7 @@ __ni_dhcp6_fsm_solicit(ni_dhcp6_device_t *dev, int scan_offers)
 	}
 
 	if (dev->retrans.count == 0) {
-		ni_debug_dhcp(1, "%s: Initiating DHCPv6 Server Solicitation",
+		ni_debug_dhcp("%s: Initiating DHCPv6 Server Solicitation",
 				dev->ifname);
 
 		dev->dhcp6.xid = 0;
@@ -854,7 +854,7 @@ __ni_dhcp6_fsm_solicit(ni_dhcp6_device_t *dev, int scan_offers)
 
 		rv = ni_dhcp6_device_transmit_init(dev);
 	} else {
-		ni_debug_dhcp(1, "%s: Retransmitting DHCPv6 Server Solicitation",
+		ni_debug_dhcp("%s: Retransmitting DHCPv6 Server Solicitation",
 				dev->ifname);
 
 		if (ni_dhcp6_build_message(dev, NI_DHCP6_SOLICIT, &dev->message, lease) != 0)
@@ -879,7 +879,7 @@ ni_dhcp6_fsm_request_lease(ni_dhcp6_device_t *dev, const ni_addrconf_lease_t *le
 		return -1;
 
 	if (dev->retrans.count == 0) {
-		ni_debug_dhcp(1, "%s: Initiating DHCPv6 Lease Request",
+		ni_debug_dhcp("%s: Initiating DHCPv6 Lease Request",
 				dev->ifname);
 
 		dev->dhcp6.xid = 0;
@@ -889,7 +889,7 @@ ni_dhcp6_fsm_request_lease(ni_dhcp6_device_t *dev, const ni_addrconf_lease_t *le
 		dev->fsm.state = NI_DHCP6_STATE_REQUESTING;
 		rv = ni_dhcp6_device_transmit_init(dev);
 	} else {
-		ni_debug_dhcp(1, "%s: Retransmitting DHCPv6 Lease Request",
+		ni_debug_dhcp("%s: Retransmitting DHCPv6 Lease Request",
 				dev->ifname);
 
 		if (ni_dhcp6_build_message(dev, NI_DHCP6_REQUEST, &dev->message, lease) != 0)
@@ -906,7 +906,7 @@ ni_dhcp6_fsm_request_info(ni_dhcp6_device_t *dev)
 	int rv = -1;
 
 	if (dev->retrans.count == 0) {
-		ni_debug_dhcp(1, "%s: Initiating DHCPv6 Info Request",
+		ni_debug_dhcp("%s: Initiating DHCPv6 Info Request",
 				dev->ifname);
 
 		dev->dhcp6.xid = 0;
@@ -919,7 +919,7 @@ ni_dhcp6_fsm_request_info(ni_dhcp6_device_t *dev)
 		rv = ni_dhcp6_device_transmit_init(dev);
 	} else if (dev->fsm.state == NI_DHCP6_STATE_REQUESTING_INFO) {
 
-		ni_debug_dhcp(1, "%s: Retransmitting DHCPv6 Info Request",
+		ni_debug_dhcp("%s: Retransmitting DHCPv6 Info Request",
 				dev->ifname);
 
 		if (ni_dhcp6_build_message(dev, NI_DHCP6_INFO_REQUEST, &dev->message, NULL) != 0)
@@ -939,7 +939,7 @@ ni_dhcp6_fsm_confirm_lease(ni_dhcp6_device_t *dev, const ni_addrconf_lease_t *le
 		return -1;
 
 	if (dev->retrans.count == 0) {
-		ni_debug_dhcp(1, "%s: Initiating DHCPv6 Lease Confirmation",
+		ni_debug_dhcp("%s: Initiating DHCPv6 Lease Confirmation",
 				dev->ifname);
 
 		dev->dhcp6.xid = 0;
@@ -950,7 +950,7 @@ ni_dhcp6_fsm_confirm_lease(ni_dhcp6_device_t *dev, const ni_addrconf_lease_t *le
 		rv = ni_dhcp6_device_transmit_init(dev);
 	} else if (dev->fsm.state == NI_DHCP6_STATE_CONFIRMING) {
 
-		ni_debug_dhcp(1, "%s: Retransmitting DHCPv6 Lease Confirmation",
+		ni_debug_dhcp("%s: Retransmitting DHCPv6 Lease Confirmation",
 				dev->ifname);
 
 		if (ni_dhcp6_build_message(dev, NI_DHCP6_CONFIRM, &dev->message, lease) != 0)
@@ -984,7 +984,7 @@ ni_dhcp6_fsm_renew(ni_dhcp6_device_t *dev)
 		ni_timer_get_time(&now);
 		now.tv_sec += deadline;
 
-		ni_debug_dhcp(1, "%s: Initiating DHCPv6 Renew, duration %u sec until %s",
+		ni_debug_dhcp("%s: Initiating DHCPv6 Renew, duration %u sec until %s",
 				dev->ifname, deadline, ni_dhcp6_print_timeval(&now));
 
 		dev->dhcp6.xid = 0;
@@ -999,7 +999,7 @@ ni_dhcp6_fsm_renew(ni_dhcp6_device_t *dev)
 		/* Pickup more IA's that reached renewal time */
 		ni_dhcp6_fsm_mark_renew_ia(dev);
 
-		ni_debug_dhcp(1, "%s: Retransmitting DHCPv6 Renew", dev->ifname);
+		ni_debug_dhcp("%s: Retransmitting DHCPv6 Renew", dev->ifname);
 
 		if (ni_dhcp6_build_message(dev, NI_DHCP6_RENEW, &dev->message, dev->lease) != 0)
 			return -1;
@@ -1039,7 +1039,7 @@ ni_dhcp6_fsm_rebind(ni_dhcp6_device_t *dev)
 		ni_timer_get_time(&now);
 		now.tv_sec += deadline;
 
-		ni_debug_dhcp(1, "%s: Initiating DHCPv6 Rebind, duration %u sec until %s",
+		ni_debug_dhcp("%s: Initiating DHCPv6 Rebind, duration %u sec until %s",
 				dev->ifname, deadline, ni_dhcp6_print_timeval(&now));
 
 		dev->dhcp6.xid = 0;
@@ -1055,7 +1055,7 @@ ni_dhcp6_fsm_rebind(ni_dhcp6_device_t *dev)
 		ni_dhcp6_fsm_mark_renew_ia(dev);
 		ni_dhcp6_fsm_mark_rebind_ia(dev);
 
-		ni_debug_dhcp(1, "%s: Retransmitting DHCPv6 Rebind", dev->ifname);
+		ni_debug_dhcp("%s: Retransmitting DHCPv6 Rebind", dev->ifname);
 
 		if (ni_dhcp6_build_message(dev, NI_DHCP6_REBIND, &dev->message, dev->lease) != 0)
 			return -1;
@@ -1074,7 +1074,7 @@ ni_dhcp6_fsm_decline(ni_dhcp6_device_t *dev)
 		return -1;
 
 	if (dev->retrans.count == 0) {
-		ni_debug_dhcp(1, "%s: Initiating DHCPv6 Decline", dev->ifname);
+		ni_debug_dhcp("%s: Initiating DHCPv6 Decline", dev->ifname);
 
 		dev->dhcp6.xid = 0;
 		if (ni_dhcp6_init_message(dev, NI_DHCP6_DECLINE, dev->lease) != 0)
@@ -1083,7 +1083,7 @@ ni_dhcp6_fsm_decline(ni_dhcp6_device_t *dev)
 		dev->fsm.state = NI_DHCP6_STATE_DECLINING;
 		rv = ni_dhcp6_device_transmit_init(dev);
 	} else {
-		ni_debug_dhcp(1, "%s: Retransmitting DHCPv6 Decline", dev->ifname);
+		ni_debug_dhcp("%s: Retransmitting DHCPv6 Decline", dev->ifname);
 
 		if (ni_dhcp6_build_message(dev, NI_DHCP6_DECLINE, &dev->message, dev->lease) != 0)
 			return -1;
@@ -1102,7 +1102,7 @@ ni_dhcp6_fsm_release(ni_dhcp6_device_t *dev)
 		return -1;
 
 	if (dev->retrans.count == 0) {
-		ni_debug_dhcp(1, "%s: Initiating DHCPv6 Release", dev->ifname);
+		ni_debug_dhcp("%s: Initiating DHCPv6 Release", dev->ifname);
 
 		/* currently all addresses */
 		ni_dhcp6_ia_release_matching(dev->lease->dhcp6.ia_list, NULL, 0);
@@ -1114,7 +1114,7 @@ ni_dhcp6_fsm_release(ni_dhcp6_device_t *dev)
 		dev->fsm.state = NI_DHCP6_STATE_RELEASING;
 		rv = ni_dhcp6_device_transmit_init(dev);
 	} else {
-		ni_debug_dhcp(1, "%s: Retransmitting DHCPv6 Release", dev->ifname);
+		ni_debug_dhcp("%s: Retransmitting DHCPv6 Release", dev->ifname);
 
 		if (ni_dhcp6_build_message(dev, NI_DHCP6_RELEASE, &dev->message, dev->lease) != 0)
 			return -1;
@@ -1179,14 +1179,14 @@ ni_dhcp6_fsm_bound(ni_dhcp6_device_t *dev)
 
 		if (timeout == NI_DHCP6_INFINITE_LIFETIME) {
 			/* Hmm... */
-			ni_debug_dhcp(1, "%s: Reached %s state with infinite lifetime",
+			ni_debug_dhcp("%s: Reached %s state with infinite lifetime",
 					dev->ifname,
 					ni_dhcp6_fsm_state_name(dev->fsm.state));
 		} else {
 			ni_timer_get_time(&now);
 			now.tv_sec += timeout;
 
-			ni_debug_dhcp(1, "%s: Reached %s state, scheduled RENEW in %u sec at %s",
+			ni_debug_dhcp("%s: Reached %s state, scheduled RENEW in %u sec at %s",
 					dev->ifname, ni_dhcp6_fsm_state_name(dev->fsm.state),
 					timeout, ni_dhcp6_print_timeval(&now));
 
@@ -1383,14 +1383,14 @@ __ni_dhcp6_fsm_ia_addr_update(ni_netdev_t *ifp, ni_dhcp6_device_t *dev, const ni
 					duplicate++;
 
 					iadr->flags |= NI_DHCP6_IA_ADDR_DECLINE;
-					ni_debug_dhcp(1, "%s: address %s is duplicate, marked for decline",
+					ni_debug_dhcp("%s: address %s is duplicate, marked for decline",
 							dev->ifname,
 							ni_sockaddr_print(&ap->local_addr));
 				} else
 				if (ni_address_is_tentative(ap)) {
 					tentative++;
 
-					ni_debug_dhcp(1, "%s: address %s is marked tentative -> wait",
+					ni_debug_dhcp("%s: address %s is marked tentative -> wait",
 							dev->ifname,
 							ni_sockaddr_print(&ap->local_addr));
 				}
@@ -1438,7 +1438,7 @@ ni_dhcp6_fsm_address_event(ni_dhcp6_device_t *dev, ni_netdev_t *ifp, ni_event_t 
 {
 #if 0
 	if (addr && addr->family == AF_INET6) {
-		ni_debug_events(1, "%s: received interface ipv6 address event: %s %s",
+		ni_debug_events("%s: received interface ipv6 address event: %s %s",
 			dev->ifname, ni_event_type_to_name(event),
 			ni_sockaddr_print(&addr->local_addr));
 	}

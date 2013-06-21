@@ -337,7 +337,7 @@ ni_sysfs_bonding_set_list_attr(const char *ifname, const char *attr_name, const 
 			&unchanged);	/* common to both */
 
 	if (add.count == 0 && delete.count == 0) {
-		ni_debug_ifconfig(1, "%s: attr list %s unchanged",
+		ni_debug_ifconfig("%s: attr list %s unchanged",
 				ifname, attr_name);
 		rv = 0;
 		goto done;

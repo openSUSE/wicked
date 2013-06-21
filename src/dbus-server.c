@@ -45,7 +45,7 @@ ni_dbus_server_open(const char *bus_type, const char *bus_name, void *root_objec
 	ni_dbus_server_t *server;
 	ni_dbus_object_t *root;
 
-	ni_debug_dbus(1, "%s(%s)", __FUNCTION__, bus_name);
+	ni_debug_dbus("%s(%s)", __FUNCTION__, bus_name);
 
 	server = xcalloc(1, sizeof(*server));
 	server->connection = ni_dbus_connection_open(bus_type, bus_name);
@@ -447,7 +447,7 @@ __ni_dbus_object_properties_set(ni_dbus_object_t *object, const ni_dbus_method_t
 				&service, &property))
 		return FALSE;
 
-	ni_debug_dbus(1, "Set %s %s=%s", object->path, property->name,
+	ni_debug_dbus("Set %s %s=%s", object->path, property->name,
 			ni_dbus_variant_sprint(&argv[2]));
 
 	if (property->update == NULL) {
@@ -587,10 +587,10 @@ __ni_dbus_object_message(DBusConnection *conn, DBusMessage *call, void *user_dat
 		return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
 	}
 
-	ni_debug_dbus(1, "%s(path=%s, interface=%s, method=%s) called", __FUNCTION__, object->path, interface, method_name);
+	ni_debug_dbus("%s(path=%s, interface=%s, method=%s) called", __FUNCTION__, object->path, interface, method_name);
 	svc = ni_dbus_object_get_service(object, interface);
 	if (svc == NULL) {
-		ni_debug_dbus(1, "Unsupported service %s on object %s", interface, object->path);
+		ni_debug_dbus("Unsupported service %s on object %s", interface, object->path);
 		return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
 	}
 
@@ -616,7 +616,7 @@ __ni_dbus_object_message(DBusConnection *conn, DBusMessage *call, void *user_dat
 
 			if (!signature || strcmp(signature, method->call_signature)) {
 				/* Call signature mismatch */
-				ni_debug_dbus(1, "Mismatched call signature; expect=%s; got=%s",
+				ni_debug_dbus("Mismatched call signature; expect=%s; got=%s",
 						method->call_signature, signature);
 				dbus_set_error(&error,
 						DBUS_ERROR_INVALID_SIGNATURE,

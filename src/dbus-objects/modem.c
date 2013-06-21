@@ -222,7 +222,7 @@ dbus_bool_t
 ni_objectmodel_unregister_modem(ni_dbus_server_t *server, ni_modem_t *modem)
 {
 	if (ni_dbus_server_unregister_object(server, modem)) {
-		ni_debug_dbus(1, "unregistered modem %s", modem->real_path);
+		ni_debug_dbus("unregistered modem %s", modem->real_path);
 		return TRUE;
 	}
 

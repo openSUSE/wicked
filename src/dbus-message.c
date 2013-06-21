@@ -435,7 +435,7 @@ ni_dbus_message_iter_get_array(DBusMessageIter *iter, ni_dbus_variant_t *variant
 		success = ni_dbus_message_iter_get_variant_array(&iter_array, variant);
 		break;
 	default:
-		ni_debug_dbus(1, "%s: cannot decode array of type %c", __FUNCTION__, array_type);
+		ni_debug_dbus("%s: cannot decode array of type %c", __FUNCTION__, array_type);
 		break;
 	}
 
@@ -493,7 +493,7 @@ ni_dbus_message_iter_get_variant_data(DBusMessageIter *iter, ni_dbus_variant_t *
 			return FALSE;
 	} else {
 		/* FIXME: need to handle other types here */
-		ni_debug_dbus(1, "%s: cannot handle message with %c data", __func__, variant->type);
+		ni_debug_dbus("%s: cannot handle message with %c data", __func__, variant->type);
 		return FALSE;
 	}
 
@@ -530,7 +530,7 @@ ni_dbus_message_serialize_variants(ni_dbus_message_t *msg,
 	dbus_message_iter_init_append(msg, &iter);
 	for (i = 0; i < nargs; ++i) {
 #if 0
-		ni_debug_dbus(1, "  [%u]: type=%s, value=\"%s\"", i,
+		ni_debug_dbus("  [%u]: type=%s, value=\"%s\"", i,
 				ni_dbus_variant_signature(&argv[i]),
 				ni_dbus_variant_sprint(&argv[i]));
 #endif

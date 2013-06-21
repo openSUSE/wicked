@@ -132,7 +132,7 @@ __ni_suse_ifcfg_scan_files(const char *dirname, ni_string_array_t *res)
 		const char *file = files.data[i];
 
 		if (!__ni_suse_ifcfg_valid_suffix(file, pfxlen)) {
-			ni_debug_readwrite(1, "Ignoring blacklisted %sfile: %s",
+			ni_debug_readwrite("Ignoring blacklisted %sfile: %s",
 					__NI_SUSE_CONFIG_IFPREFIX, file);
 			continue;
 		}
@@ -803,7 +803,7 @@ __ni_suse_route_parse(ni_route_table_t **routes, char *buffer, const char *ifnam
 	 */
 	{
 		ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
-		ni_debug_readwrite(1, "Parsed route: %s", ni_route_print(&buf, rp));
+		ni_debug_readwrite("Parsed route: %s", ni_route_print(&buf, rp));
 		ni_stringbuf_destroy(&buf);
 	}
 
@@ -885,7 +885,7 @@ __ni_suse_read_routes(ni_route_table_t **routes, const char *filename, const cha
 		ni_stringbuf_trim_head(&buff, " \t");
 
 		if (!ni_stringbuf_empty(&buff)) {
-			ni_debug_readwrite(1, "Parsing route line: %s", buff.string);
+			ni_debug_readwrite("Parsing route line: %s", buff.string);
 			if (__ni_suse_route_parse(routes, buff.string,
 						  ifname, filename, line) < 0)
 				goto error; /* ? */

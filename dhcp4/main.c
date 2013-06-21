@@ -202,7 +202,7 @@ dhcp4_recover_lease(ni_netdev_t *ifp)
 
 	/* if lease expired, return and remove stale lease file */
 	if (!ni_addrconf_lease_is_valid(lease)) {
-		ni_debug_wicked(1, "%s: removing stale %s/%s lease file", ifp->name,
+		ni_debug_wicked("%s: removing stale %s/%s lease file", ifp->name,
 				ni_addrconf_type_to_name(lease->type),
 				ni_addrfamily_type_to_name(lease->family));
 		ni_addrconf_lease_file_remove(ifp->name, NI_ADDRCONF_DHCP, afi->family);
@@ -228,7 +228,7 @@ dhcp4_recover_lease(ni_netdev_t *ifp)
 		return;
 	}
 
-	ni_debug_wicked(1, "%s: initiated recovery of %s/%s lease", ifp->name,
+	ni_debug_wicked("%s: initiated recovery of %s/%s lease", ifp->name,
 				ni_addrconf_type_to_name(lease->type),
 				ni_addrfamily_type_to_name(lease->family));
 }
@@ -278,7 +278,7 @@ dhcp4_device_create(ni_dbus_server_t *server, const ni_netdev_t *ifp)
 	}
 
 	if (ni_objectmodel_register_dhcp4_device(server, dev) != NULL) {
-		ni_debug_dhcp(1, "Created dhcp4 device for '%s' and index %u",
+		ni_debug_dhcp("Created dhcp4 device for '%s' and index %u",
 				ifp->name, ifp->link.ifindex);
 		rv = TRUE;
 	}
@@ -299,7 +299,7 @@ dhcp4_device_destroy(ni_dbus_server_t *server, const ni_netdev_t *ifp)
 	ni_dhcp_device_t *dev;
 
 	if ((dev = ni_dhcp_device_by_index(ifp->link.ifindex)) != NULL) {
-		ni_debug_dhcp(1, "%s: Destroying dhcp4 device with index %u",
+		ni_debug_dhcp("%s: Destroying dhcp4 device with index %u",
 				ifp->name, ifp->link.ifindex);
 		ni_dbus_server_unregister_object(server, dev);
 	}
@@ -432,7 +432,7 @@ dhcp4_interface_event(ni_netdev_t *ifp, ni_event_t event)
 		/* Someone has taken the interface down completely. Which means
 		 * we shouldn't pretend we're still owning this device. So forget
 		 * all leases and shut up. */
-		ni_debug_dhcp(1, "device %s went down: discard any leases", ifp->name);
+		ni_debug_dhcp("device %s went down: discard any leases", ifp->name);
 		dev = ni_dhcp_device_by_index(ifp->link.ifindex);
 		if (dev != NULL)
 			ni_dhcp_device_stop(dev);
@@ -450,7 +450,7 @@ dhcp4_protocol_event(enum ni_dhcp_event ev, const ni_dhcp_device_t *dev, ni_addr
 	ni_dbus_variant_t *var;
 	int argc = 0;
 
-	ni_debug_dhcp(1, "%s(ev=%u, dev=%d, uuid=%s)", __func__, ev, dev->link.ifindex,
+	ni_debug_dhcp("%s(ev=%u, dev=%d, uuid=%s)", __func__, ev, dev->link.ifindex,
 			dev->config? ni_uuid_print(&dev->config->uuid) : "<none>");
 
 	dev_object = ni_dbus_server_find_object_by_handle(dhcp4_dbus_server, dev);
@@ -520,7 +520,7 @@ void
 dhcp4_recover_addrconf(const char *filename)
 {
 	if (!ni_file_exists(filename)) {
-		ni_debug_wicked(1, "%s: %s does not exist, skip this", __func__, filename);
+		ni_debug_wicked("%s: %s does not exist, skip this", __func__, filename);
 		return;
 	}
 

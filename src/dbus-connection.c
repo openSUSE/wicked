@@ -141,7 +141,7 @@ ni_dbus_connection_open(const char *bus_type_string, const char *bus_name)
 			ni_error("%s: failed to acquire dbus name %s (rv=%d) - service already running?", __func__, bus_name, rv);
 			goto failed;
 		}
-		ni_debug_dbus(1, "Successfully acquired bus name \"%s\"", bus_name);
+		ni_debug_dbus("Successfully acquired bus name \"%s\"", bus_name);
 	}
 
 	dbus_connection_add_filter(connection->conn, __ni_dbus_signal_filter, connection, NULL);
@@ -291,7 +291,7 @@ ni_dbus_connection_call(ni_dbus_connection_t *connection,
 
 	if (msgtype == DBUS_MESSAGE_TYPE_ERROR) {
 		dbus_set_error_from_message(error, reply);
-		ni_debug_dbus(1, "dbus error reply = %s (%s)", error->name, error->message);
+		ni_debug_dbus("dbus error reply = %s (%s)", error->name, error->message);
 	} else {
 		dbus_set_error(error, DBUS_ERROR_FAILED, "dbus: unexpected message type in reply");
 	}
@@ -480,7 +480,7 @@ ni_dbus_connection_unregister_object(ni_dbus_connection_t *connection, ni_dbus_o
 	const char *path = ni_dbus_object_get_path(object);
 
 	if (path) {
-		ni_debug_dbus(1, "dbus_connection_unregister_object_path(%s)", path);
+		ni_debug_dbus("dbus_connection_unregister_object_path(%s)", path);
 		dbus_connection_unregister_object_path(connection->conn, path);
 	}
 }
@@ -559,7 +559,7 @@ ni_dbus_async_server_call_run_command(ni_dbus_connection_t *conn,
 	if ((rv = ni_process_run(process)) < 0) {
 		const char *path = ni_dbus_object_get_path(object);
 
-		ni_debug_dbus(1, "%s: unable to run command \"%s\"", path, process->process->command);
+		ni_debug_dbus("%s: unable to run command \"%s\"", path, process->process->command);
 		return rv;
 	}
 
@@ -672,7 +672,7 @@ __ni_dbus_watch_handle(const char *func, ni_socket_t *sock, int flags)
 		found++;
 
 #ifdef DEBUG_WATCH_VERBOSE
-		ni_debug_dbus(1, "%s(watch=%p, fd=%d, flags=%s)",
+		ni_debug_dbus("%s(watch=%p, fd=%d, flags=%s)",
 				func, wd->watch, dbus_watch_get_socket(wd->watch),
 				__ni_dbus_watch_flags(flags));
 
@@ -693,7 +693,7 @@ __ni_dbus_watch_handle(const char *func, ni_socket_t *sock, int flags)
 
 #ifdef DEBUG_WATCH_VERBOSE
 		if (old_watch_flags != new_watch_flags) {
-			ni_debug_dbus(1, "%s: changing watch flags %s to %s",
+			ni_debug_dbus("%s: changing watch flags %s to %s",
 					__func__,
 					__ni_dbus_watch_flags(old_watch_flags),
 					__ni_dbus_watch_flags(new_watch_flags));
@@ -761,7 +761,7 @@ __ni_dbus_add_watch(DBusWatch *watch, void *data)
 		}
 	}
 
-	ni_debug_dbus(1, "%s(%p, connection=%p, fd=%d, reuse sock=%p)",
+	ni_debug_dbus("%s(%p, connection=%p, fd=%d, reuse sock=%p)",
 			__FUNCTION__, watch, connection, dbus_watch_get_socket(watch), sock);
 
 	if (!(wd = xcalloc(1, sizeof(*wd))))
@@ -793,7 +793,7 @@ __ni_dbus_remove_watch(DBusWatch *watch, void *dummy)
 {
 	ni_dbus_watch_data_t *wd, **pos;
 
-	ni_debug_dbus(1, "%s(%p)", __FUNCTION__, watch);
+	ni_debug_dbus("%s(%p)", __FUNCTION__, watch);
 	for (pos = &ni_dbus_watches; (wd = *pos) != NULL; pos = &wd->next) {
 		if (wd->watch == watch) {
 			*pos = wd->next;

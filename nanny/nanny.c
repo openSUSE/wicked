@@ -56,13 +56,13 @@ ni_objectmodel_nanny_init(ni_nanny_t *mgr)
 	{
 		unsigned int i;
 
-		ni_debug_nanny(1, "%s supports:", ni_dbus_object_get_path(root_object));
+		ni_debug_nanny("%s supports:", ni_dbus_object_get_path(root_object));
 		for (i = 0; root_object->interfaces[i]; ++i) {
 			const ni_dbus_service_t *service = root_object->interfaces[i];
 
-			ni_debug_nanny(1, "  %s", service->name);
+			ni_debug_nanny("  %s", service->name);
 		}
-		ni_debug_nanny(1, "(%u interfaces)", i);
+		ni_debug_nanny("(%u interfaces)", i);
 	}
 }
 
@@ -188,7 +188,7 @@ ni_nanny_recheck(ni_nanny_t *mgr, ni_ifworker_t *w)
 	 * changed. If it did, then we give it another try.
 	 */
 
-	ni_debug_nanny(1, "%s(%s)", __func__, w->name);
+	ni_debug_nanny("%s(%s)", __func__, w->name);
 	w->use_default_policies = TRUE;
 	if ((count = ni_fsm_policy_get_applicable_policies(mgr->fsm, w, policies, MAX_POLICIES)) == 0) {
 		/* Don't try to take down a FAILED device.
@@ -201,10 +201,10 @@ ni_nanny_recheck(ni_nanny_t *mgr, ni_ifworker_t *w)
 		 * to kill all leases and destroy all addresses.
 		 */
 		if (mdev->state != NI_MANAGED_STATE_STOPPED && mdev->state != NI_MANAGED_STATE_FAILED) {
-			ni_debug_nanny(1, "%s: taking down device", w->name);
+			ni_debug_nanny("%s: taking down device", w->name);
 			ni_managed_device_down(mdev);
 		} else {
-			ni_debug_nanny(1, "%s: no applicable policies", w->name);
+			ni_debug_nanny("%s: no applicable policies", w->name);
 		}
 		return;
 	}
@@ -269,10 +269,10 @@ ni_nanny_rfkill_event(ni_nanny_t *mgr, ni_rfkill_type_t type, ni_bool_t blocked)
 		if (ni_ifworker_get_rfkill_type(w) == type) {
 			mdev->rfkill_blocked = blocked;
 			if (blocked) {
-				ni_debug_nanny(1, "%s: radio disabled", w->name);
+				ni_debug_nanny("%s: radio disabled", w->name);
 			} else {
 				/* Re-enable scanning */
-				ni_debug_nanny(1, "%s: radio re-enabled, resume monitoring", w->name);
+				ni_debug_nanny("%s: radio re-enabled, resume monitoring", w->name);
 				if (mdev->monitor) {
 					ni_managed_netdev_enable(mdev);
 					ni_nanny_schedule_recheck(mgr, w);
@@ -326,7 +326,7 @@ ni_nanny_register_device(ni_nanny_t *mgr, ni_ifworker_t *w)
 			mdev->monitor = TRUE;
 	}
 
-	ni_debug_nanny(1, "new device %s, class %s%s%s", w->name,
+	ni_debug_nanny("new device %s, class %s%s%s", w->name,
 			mdev->object->class->name,
 			mdev->allowed? ", user control allowed" : "",
 			mdev->monitor? ", auto-enabled" : "");
@@ -392,7 +392,7 @@ ni_nanny_prompt(const ni_fsm_prompt_t *p, xml_node_t *node, void *user_data)
 	ni_secret_t *sec;
 	int rv = -1;
 
-	ni_debug_nanny(1, "%s: type=%u string=%s id=%s", __func__, p->type, p->string, p->id);
+	ni_debug_nanny("%s: type=%u string=%s id=%s", __func__, p->type, p->string, p->id);
 
 	ni_stringbuf_init(&path_buf);
 
@@ -437,7 +437,7 @@ ni_nanny_prompt(const ni_fsm_prompt_t *p, xml_node_t *node, void *user_data)
 		}
 #if 0
 		/* FIXME: Send out event that we need this piece of information */
-		ni_debug_nanny(1, "%s: prompting for type=%u id=%s path=%s",
+		ni_debug_nanny("%s: prompting for type=%u id=%s path=%s",
 				w->name, p->type, w->security_id, path_buf.string);
 #endif
 		goto done;
@@ -467,7 +467,7 @@ ni_nanny_add_secret(ni_nanny_t *mgr, uid_t caller_uid,
 
 	ni_secret_db_update(user->secret_db, security_id, path, value);
 
-	ni_debug_nanny(1, "%s: secret for %s updated", ni_security_id_print(security_id), path);
+	ni_debug_nanny("%s: secret for %s updated", ni_security_id_print(security_id), path);
 	for (mdev = mgr->device_list; mdev; mdev = mdev->next) {
 		ni_ifworker_t *w = mdev->worker;
 
@@ -482,11 +482,11 @@ ni_nanny_add_secret(ni_nanny_t *mgr, uid_t caller_uid,
 			}
 
 			if (missing) {
-				ni_debug_nanny(1, "%s: secret for %s still missing", w->name, missing->path);
+				ni_debug_nanny("%s: secret for %s still missing", w->name, missing->path);
 				continue;
 			}
 
-			ni_debug_nanny(1, "%s: secret for %s updated, rechecking", w->name, path);
+			ni_debug_nanny("%s: secret for %s updated, rechecking", w->name, path);
 			ni_nanny_schedule_recheck(mgr, w);
 		}
 	}

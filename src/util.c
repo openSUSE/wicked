@@ -593,7 +593,7 @@ ni_scandir(const char *dirname, const char *pattern, ni_string_array_t *res)
 
 	dir = opendir(dirname);
 	if (dir == NULL) {
-		ni_debug_readwrite(1, "Unable to open directory '%s': %m",
+		ni_debug_readwrite("Unable to open directory '%s': %m",
 				dirname);
 		return 0;
 	}
@@ -1627,11 +1627,11 @@ ni_backup_file_to(const char *srcpath, const char *backupdir)
 	if (ni_mkdir_maybe(backupdir, 0700) < 0)
 		return -1;
 	if (access(dstpath, F_OK) == 0) {
-		ni_debug_readwrite(1, "%s(%s, %s): backup copy already exists",
+		ni_debug_readwrite("%s(%s, %s): backup copy already exists",
 				__FUNCTION__, srcpath, backupdir);
 		return 0;
 	}
-	ni_debug_readwrite(1, "%s(%s, %s)", __FUNCTION__, srcpath, backupdir);
+	ni_debug_readwrite("%s(%s, %s)", __FUNCTION__, srcpath, backupdir);
 	return ni_copy_file_path(srcpath, dstpath);
 }
 
@@ -1647,7 +1647,7 @@ ni_restore_file_from(const char *dstpath, const char *backupdir)
 		return -1;
 	if (access(srcpath, R_OK) < 0) {
 		if (errno == ENOENT) {
-			ni_debug_readwrite(1, "%s(%s, %s): no backup copy to restore",
+			ni_debug_readwrite("%s(%s, %s): no backup copy to restore",
 				__FUNCTION__, dstpath, backupdir);
 			return 0;
 		}
@@ -1655,7 +1655,7 @@ ni_restore_file_from(const char *dstpath, const char *backupdir)
 		return -1;
 	}
 
-	ni_debug_readwrite(1, "%s(%s, %s)", __FUNCTION__, dstpath, backupdir);
+	ni_debug_readwrite("%s(%s, %s)", __FUNCTION__, dstpath, backupdir);
 	if (ni_copy_file_path(srcpath, dstpath) < 0)
 		return -1;
 
@@ -2032,7 +2032,7 @@ ni_caught_terminal_signal(void)
 	if (!__ni_terminal_signal)
 		return FALSE;
 
-	ni_debug_wicked(1, "caught signal %u, exiting", __ni_terminal_signal);
+	ni_debug_wicked("caught signal %u, exiting", __ni_terminal_signal);
 	return TRUE;
 }
 

@@ -101,7 +101,7 @@ __ni_rfkill_recv(ni_socket_t *sock)
 		}
 
 #if 0
-		ni_debug_wireless(1, "rfkill event, idx=%u, op=%u, type=%u, soft=%u, hard=%u",
+		ni_debug_wireless("rfkill event, idx=%u, op=%u, type=%u, soft=%u, hard=%u",
 				ev.idx, ev.op, ev.type, ev.soft, ev.hard);
 #endif
 

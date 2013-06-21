@@ -372,7 +372,7 @@ ni_modem_manager_add_modem(ni_modem_manager_client_t *modem_manager, const char 
 	const ni_dbus_class_t *class;
 	ni_modem_t *modem;
 
-	ni_debug_dbus(1, "%s(%s)", __func__, object_path);
+	ni_debug_dbus("%s(%s)", __func__, object_path);
 
 	modem = ni_modem_new();
 	ni_string_dup(&modem->real_path, object_path);
@@ -399,7 +399,7 @@ ni_modem_manager_add_modem(ni_modem_manager_client_t *modem_manager, const char 
 	if ((class = ni_objectmodel_mm_modem_get_class(modem->type)) != NULL)
 		modem_object->class = class;
 
-	ni_debug_dbus(1, "%s: dev=%s master=%s type=%u equipment-id=%s",
+	ni_debug_dbus("%s: dev=%s master=%s type=%u equipment-id=%s",
 			object_path, modem->device, modem->master_device, modem->type,
 			modem->identify.equipment);
 	ni_objectmodel_bind_compatible_interfaces(modem_object);
@@ -420,7 +420,7 @@ ni_modem_manager_remove_modem(ni_modem_manager_client_t *modem_manager, const ch
 	ni_dbus_object_t *modem_object;
 	ni_modem_t *modem;
 
-	ni_debug_dbus(1, "%s(%s)", __func__, object_path);
+	ni_debug_dbus("%s(%s)", __func__, object_path);
 
 	modem_object = ni_dbus_object_lookup(modem_manager->proxy, object_path);
 	if (modem_object == NULL) {
@@ -663,7 +663,7 @@ ni_modem_manager_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg, void
 	DBusMessageIter iter;
 	DBusError error = DBUS_ERROR_INIT;
 
-	ni_debug_dbus(1, "%s: %s", __func__, member);
+	ni_debug_dbus("%s: %s", __func__, member);
 	dbus_message_iter_init(msg, &iter);
 	if (!strcmp(member, NI_MM_SIGNAL_DEVICE_ADDED)) {
 		const char *object_path;
@@ -706,7 +706,7 @@ ni_modem_manager_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg, void
 		if (!dbus_message_get_args(msg, &error, DBUS_TYPE_UINT32, &quality, DBUS_TYPE_INVALID))
 			goto bad_vibes;
 
-		ni_debug_modem(1, "%s: quality changed %u -> %u", object_path, 
+		ni_debug_modem("%s: quality changed %u -> %u", object_path, 
 				modem->gsm.signal_quality, quality);
 		modem->gsm.signal_quality = quality;
 	} else
@@ -729,7 +729,7 @@ ni_modem_manager_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg, void
 						DBUS_TYPE_INVALID, NULL))
 				goto bad_vibes;
 
-			ni_debug_modem(1, "%s: reg info changed: status=%u, operator=%s (%s)",
+			ni_debug_modem("%s: reg info changed: status=%u, operator=%s (%s)",
 				object_path, status, oper_code, oper_name);
 
 			modem->gsm.reg_status = status;
@@ -755,7 +755,7 @@ ni_modem_manager_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg, void
 						DBUS_TYPE_INVALID, NULL))
 				goto bad_vibes;
 
-			ni_debug_modem(1, "%s: state changed: %u -> %u", object_path, old_state, new_state);
+			ni_debug_modem("%s: state changed: %u -> %u", object_path, old_state, new_state);
 
 			if (ni_modem_manager_event_handler) {
 				if (modem->state < MM_MODEM_STATE_REGISTERED && new_state >= MM_MODEM_STATE_REGISTERED)
@@ -785,10 +785,10 @@ ni_modem_manager_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg, void
 						DBUS_TYPE_INVALID, NULL))
 				goto bad_vibes;
 
-			ni_debug_modem(1, "%s: network mode changed: %u", object_path, mode);
+			ni_debug_modem("%s: network mode changed: %u", object_path, mode);
 		}
 	} else {
-		ni_debug_objectmodel(1, "%s signal received (not handled)", member);
+		ni_debug_objectmodel("%s signal received (not handled)", member);
 	}
 
 out:

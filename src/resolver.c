@@ -18,7 +18,7 @@ ni_resolver_parse_resolv_conf(const char *filename)
 	char buffer[256];
 	FILE *fp;
 
-	ni_debug_readwrite(1, "%s(%s)", __FUNCTION__, filename);
+	ni_debug_readwrite("%s(%s)", __FUNCTION__, filename);
 	if ((fp = fopen(filename, "r")) == NULL) {
 		ni_error("cannot open %s: %m", filename);
 		return NULL;
@@ -68,7 +68,7 @@ ni_resolver_write_resolv_conf(const char *filename, const ni_resolver_info_t *re
 	FILE *fp;
 	unsigned int i;
 
-	ni_debug_readwrite(1, "Writing resolver info to %s", filename);
+	ni_debug_readwrite("Writing resolver info to %s", filename);
 	if ((fp = fopen(filename, "w")) == NULL) {
 		ni_error("cannot open %s: %m", filename);
 		return -1;

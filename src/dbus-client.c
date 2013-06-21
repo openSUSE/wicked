@@ -260,7 +260,7 @@ ni_dbus_object_call_new_va(const ni_dbus_object_t *dbo, const char *method, va_l
 	}
 
 #if 0
-	ni_debug_dbus(1, "%s(obj=%s, intf=%s, method=%s)", __FUNCTION__, dbo->path, interface_name, method);
+	ni_debug_dbus("%s(obj=%s, intf=%s, method=%s)", __FUNCTION__, dbo->path, interface_name, method);
 #endif
 	msg = dbus_message_new_method_call(client->bus_name, dbo->path, interface_name, method);
 
@@ -331,7 +331,7 @@ ni_dbus_object_call_simple(const ni_dbus_object_t *proxy,
 			*res_string = xstrdup(*res_string);
 	}
 
-	ni_debug_dbus(1, "%s: %s.%s(%s) = %s", __func__, proxy->path, method,
+	ni_debug_dbus("%s: %s.%s(%s) = %s", __func__, proxy->path, method,
 			__ni_dbus_print_argument(arg_type, arg_ptr),
 			__ni_dbus_print_argument(res_type, res_ptr));
 
@@ -445,7 +445,7 @@ ni_dbus_object_call_async(ni_dbus_object_t *proxy,
 	va_list ap;
 	int rv = 0;
 
-	ni_debug_dbus(1, "%s(%s, %s)", __FUNCTION__, method, proxy->path);
+	ni_debug_dbus("%s(%s, %s)", __FUNCTION__, method, proxy->path);
 	va_start(ap, method);
 	call = ni_dbus_object_call_new_va(proxy, method, &ap);
 	va_end(ap);
@@ -586,7 +586,7 @@ __ni_dbus_object_get_managed_object_interfaces(ni_dbus_object_t *proxy, DBusMess
 		if (service == NULL)
 			service = ni_objectmodel_service_by_name(interface_name);
 		if (service == NULL) {
-			ni_debug_dbus(1, "%s: dbus service %s not known", proxy->path, interface_name);
+			ni_debug_dbus("%s: dbus service %s not known", proxy->path, interface_name);
 			continue;
 		}
 
@@ -609,7 +609,7 @@ __ni_dbus_object_get_managed_object_interfaces(ni_dbus_object_t *proxy, DBusMess
 				continue;
 			}
 			proxy->class = service->compatible;
-			ni_debug_dbus(1, "%s: specializing object as a %s", proxy->path, proxy->class->name);
+			ni_debug_dbus("%s: specializing object as a %s", proxy->path, proxy->class->name);
 		}
 
 		ni_dbus_object_register_service(proxy, service);
@@ -654,7 +654,7 @@ __ni_dbus_object_refresh_dict_property(ni_dbus_object_t *obj,
 		entry = &dict->dict_array_value[i];
 
 		if (!__ni_dbus_object_refresh_property(obj, service, property_list, entry->key, &entry->datum))
-			ni_debug_dbus(1, "cannot refresh property %s.%s", prop->name, entry->key);
+			ni_debug_dbus("cannot refresh property %s.%s", prop->name, entry->key);
 	}
 
 	return TRUE;
@@ -672,7 +672,7 @@ __ni_dbus_object_refresh_property(ni_dbus_object_t *obj, const ni_dbus_service_t
 
 	/* now set the object property */
 	if (!(property = __ni_dbus_service_get_property(property_list, name))) {
-		ni_debug_dbus(1, "ignoring unknown %s property %s=%s",
+		ni_debug_dbus("ignoring unknown %s property %s=%s",
 				service->name,
 				name, ni_dbus_variant_sprint(value));
 		return FALSE;
@@ -682,13 +682,13 @@ __ni_dbus_object_refresh_property(ni_dbus_object_t *obj, const ni_dbus_service_t
 		return __ni_dbus_object_refresh_dict_property(obj, service, property, value);
 
 	if (!property->set) {
-		ni_debug_dbus(1, "ignoring read-only property %s=%s",
+		ni_debug_dbus("ignoring read-only property %s=%s",
 				name, ni_dbus_variant_sprint(value));
 		return FALSE;
 	}
 
 	if (!property->set(obj, property, value, &error)) {
-		ni_debug_dbus(1, "error setting property %s=%s (%s: %s)",
+		ni_debug_dbus("error setting property %s=%s (%s: %s)",
 				name, ni_dbus_variant_sprint(value),
 				error.name, error.message);
 		dbus_error_free(&error);
@@ -723,7 +723,7 @@ __ni_dbus_object_refresh_properties(ni_dbus_object_t *proxy, const ni_dbus_servi
 			return FALSE;
 
 		if (!ni_dbus_message_iter_get_variant(&iter_dict_entry, &value)) {
-			ni_debug_dbus(1, "couldn't deserialize property %s.%s",
+			ni_debug_dbus("couldn't deserialize property %s.%s",
 					service->name, property_name);
 			continue;
 		}
@@ -731,7 +731,7 @@ __ni_dbus_object_refresh_properties(ni_dbus_object_t *proxy, const ni_dbus_servi
 		__ni_dbus_object_refresh_property(proxy, service, service->properties, property_name, &value);
 
 #if 0
-		ni_debug_dbus(1, "Setting property %s=%s", property_name, ni_dbus_variant_sprint(&value));
+		ni_debug_dbus("Setting property %s=%s", property_name, ni_dbus_variant_sprint(&value));
 #endif
 		ni_dbus_variant_destroy(&value);
 	}
@@ -764,7 +764,7 @@ __ni_dbus_object_purge_stale(ni_dbus_object_t *proxy)
 		next = child->next;
 
 		if (child->stale) {
-			ni_debug_dbus(1, "purging stale object %s", child->path);
+			ni_debug_dbus("purging stale object %s", child->path);
 			ni_dbus_object_free(child);
 		} else if (child->children) {
 			__ni_dbus_object_purge_stale(child);

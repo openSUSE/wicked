@@ -124,7 +124,7 @@ ni_objectmodel_lldp_up(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return FALSE;
 
-	ni_debug_lldp(1, "ni_objectmodel_lldp_up(%s -> %s)", object->path, dev->name);
+	ni_debug_lldp("ni_objectmodel_lldp_up(%s -> %s)", object->path, dev->name);
 	if (!(cfg = __ni_objectmodel_protocol_arg(&argv[0], &ni_objectmodel_lldp_service))) {
 		ni_dbus_error_invalid_args(error, object->path, method->name);
 		goto out;

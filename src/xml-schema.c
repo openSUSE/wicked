@@ -487,7 +487,7 @@ ni_xs_scope_typedef(ni_xs_scope_t *dict, const char *name, ni_xs_type_t *type, c
 		return -1;
 
 #ifdef DEBUG_VERBOSE
-	ni_debug_xml(1, "define type %s in scope %s", name, dict->name?: "<anon>");
+	ni_debug_xml("define type %s in scope %s", name, dict->name?: "<anon>");
 #endif
 	ni_xs_name_type_array_append(&dict->types, name, type, description);
 
@@ -609,7 +609,7 @@ ni_xs_process_schema_file(const char *filename, ni_xs_scope_t *scope)
 {
 	xml_document_t *doc = NULL;
 
-	ni_debug_xml(1, "ni_xs_process_schema_file(filename=%s)", filename);
+	ni_debug_xml("ni_xs_process_schema_file(filename=%s)", filename);
 	if (filename == NULL) {
 		ni_error("%s: NULL filename", __func__);
 		return -1;
@@ -694,7 +694,7 @@ ni_xs_process_service(xml_node_t *node, ni_xs_scope_t *scope)
 	sub_scope = ni_xs_scope_new(scope, nameAttr);
 
 #ifdef DEBUG_VERBOSE
-	ni_debug_dbus(1, "define schema for service %s (interface=%s) in scope %s", nameAttr, intfAttr, scope->name);
+	ni_debug_dbus("define schema for service %s (interface=%s) in scope %s", nameAttr, intfAttr, scope->name);
 #endif
 	service = ni_xs_service_new(nameAttr, intfAttr, scope);
 	sub_scope->defined_by.service = service;
@@ -865,7 +865,7 @@ ni_xs_process_include(xml_node_t *node, ni_xs_scope_t *scope)
 		}
 	}
 
-	ni_debug_xml(1, "trying to include %s", nameAttr);
+	ni_debug_xml("trying to include %s", nameAttr);
 	return ni_xs_process_schema_file(nameAttr, scope);
 }
 

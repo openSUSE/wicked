@@ -177,7 +177,7 @@ ni_objectmodel_dhcp6_acquire_svc(ni_dbus_object_t *object, const ni_dbus_method_
 		goto failed;
 	}
 
-	ni_debug_dhcp(1, "%s(dev=%s)", __func__, dev->ifname);
+	ni_debug_dhcp("%s(dev=%s)", __func__, dev->ifname);
 
 	/* Extract configuration from dict */
 	if (!(req = ni_objectmodel_dhcp6_request_from_dict(&argv[0]))) {
@@ -228,7 +228,7 @@ ni_objectmodel_dhcp6_drop_svc(ni_dbus_object_t *object, const ni_dbus_method_t *
 	if ((dev = ni_objectmodel_dhcp6_device_unwrap(object, error)) == NULL)
 		goto failed;
 
-	ni_debug_dhcp(1, "%s(dev=%s)", __func__, dev->ifname);
+	ni_debug_dhcp("%s(dev=%s)", __func__, dev->ifname);
 
 	memset(&uuid, 0, sizeof(uuid));
 	if (argc == 1) {

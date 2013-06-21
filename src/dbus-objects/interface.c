@@ -393,7 +393,7 @@ dbus_bool_t
 ni_objectmodel_unregister_netif(ni_dbus_server_t *server, ni_netdev_t *ifp)
 {
 	if (ni_dbus_server_unregister_object(server, ifp)) {
-		ni_debug_dbus(1, "unregistered interface %s", ifp->name);
+		ni_debug_dbus("unregistered interface %s", ifp->name);
 		return 1;
 	}
 
@@ -893,7 +893,7 @@ __ni_objectmodel_device_event(ni_dbus_server_t *server, ni_dbus_object_t *object
 		argc++;
 	}
 
-	ni_debug_dbus(1, "sending device event \"%s\" for %s", signal_name, ni_dbus_object_get_path(object));
+	ni_debug_dbus("sending device event \"%s\" for %s", signal_name, ni_dbus_object_get_path(object));
 	ni_dbus_server_send_signal(server, object, interface, signal_name, argc, &arg);
 
 	ni_dbus_variant_destroy(&arg);

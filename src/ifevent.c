@@ -66,7 +66,7 @@ static const char *	__ni_rtevent_msg_name(unsigned int);
 void
 __ni_netdev_event(ni_netconfig_t *nc, ni_netdev_t *dev, ni_event_t ev)
 {
-	ni_debug_events(1, "%s(%s, idx=%d, %s)", __FUNCTION__,
+	ni_debug_events("%s(%s, idx=%d, %s)", __FUNCTION__,
 			dev->name, dev->link.ifindex, ni_event_type_to_name(ev));
 	if (ni_global.interface_event)
 		ni_global.interface_event(dev, ev);
@@ -104,9 +104,9 @@ __ni_rtevent_process(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 	const char *rtnl_name;
 
 	if ((rtnl_name = __ni_rtevent_msg_name(h->nlmsg_type)) != NULL)
-		ni_debug_events(1, "received %s event", rtnl_name);
+		ni_debug_events("received %s event", rtnl_name);
 	else
-		ni_debug_events(1, "received rtnetlink event %u", h->nlmsg_type);
+		ni_debug_events("received rtnetlink event %u", h->nlmsg_type);
 #endif
 
 	switch (h->nlmsg_type) {
@@ -160,7 +160,7 @@ __ni_rtevent_newlink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 		return -1;
 
 	if (ifi->ifi_family == AF_BRIDGE) {
-		ni_debug_events(1, "Ignoring bridge NEWLINK event");
+		ni_debug_events("Ignoring bridge NEWLINK event");
 		return 0;
 	}
 
@@ -249,7 +249,7 @@ __ni_rtevent_dellink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 		return -1;
 
 	if (ifi->ifi_family == AF_BRIDGE) {
-		ni_debug_events(1, "Ignoring bridge DELLINK event");
+		ni_debug_events("Ignoring bridge DELLINK event");
 		return 0;
 	}
 
@@ -302,7 +302,7 @@ __ni_rtevent_newprefix(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, str
 		return -1;
 	}
 #if 0
-	ni_debug_events(1, "%s: RA<%s>, Prefix<%s/%u %s,%s>[%u, %u]", dev->name,
+	ni_debug_events("%s: RA<%s>, Prefix<%s/%u %s,%s>[%u, %u]", dev->name,
 			(ipv6->radv.managed_addr ? "managed-address" :
 			(ipv6->radv.other_config ? "other-config" : "unmanaged")),
 			ni_sockaddr_print(&pi->prefix), pi->length,
@@ -417,9 +417,9 @@ __ni_rtevent_process_rdnss_info(ni_netdev_t *dev, const struct nd_opt_hdr *opt,
 
 	ipv6->radv.rdnss->lifetime = ntohl(rdnss->nd_opt_rdnss_lifetime);
 	if (ipv6->radv.rdnss->lifetime == 0xffffffff)
-		ni_debug_events(1, "%s: rdnss lifetime: infinite", dev->name);
+		ni_debug_events("%s: rdnss lifetime: infinite", dev->name);
 	else
-		ni_debug_events(1, "%s: rdnss lifetime: %u", dev->name,
+		ni_debug_events("%s: rdnss lifetime: %u", dev->name,
 				ipv6->radv.rdnss->lifetime);
 
 	len -= sizeof(*rdnss);
@@ -433,7 +433,7 @@ __ni_rtevent_process_rdnss_info(ni_netdev_t *dev, const struct nd_opt_hdr *opt,
 		if (ni_debug & NI_TRACE_EVENTS) {
 			const ni_sockaddr_array_t *addrs = &ipv6->radv.rdnss->addrs;
 
-			ni_debug_events(1, "%s: rdnss address: %s", dev->name,
+			ni_debug_events("%s: rdnss address: %s", dev->name,
 					ni_sockaddr_print(&addrs->data[addrs->count-1]));
 		}
 	}
@@ -474,7 +474,7 @@ __ni_rtevent_process_nd_radv_opts(ni_netdev_t *dev, const struct nd_opt_hdr *opt
 
 		default:
 			/* kernels up to at least 3.4 do not provide other */
-			ni_debug_events(1, "%s: unhandled nd user option %d",
+			ni_debug_events("%s: unhandled nd user option %d",
 					dev->name, opt->nd_opt_type);
 		break;
 		}
@@ -502,7 +502,7 @@ __ni_rtevent_nduseropt(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, str
 	if (msg->nduseropt_icmp_type != ND_ROUTER_ADVERT ||
 	    msg->nduseropt_icmp_code != 0 ||
 	    msg->nduseropt_family    != AF_INET6) {
-		ni_debug_events(1, "%s: unknown rtnetlink nd user option message"
+		ni_debug_events("%s: unknown rtnetlink nd user option message"
 				" type %d, code %d, family %d", dev->name,
 				msg->nduseropt_icmp_type,
 				msg->nduseropt_icmp_code,
@@ -511,7 +511,7 @@ __ni_rtevent_nduseropt(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, str
 	}
 
 	if (!nlmsg_valid_hdr(h, sizeof(struct nduseroptmsg) + msg->nduseropt_opts_len)) {
-		ni_debug_events(1, "%s: invalid rtnetlink nd user radv option length %d",
+		ni_debug_events("%s: invalid rtnetlink nd user radv option length %d",
 				dev->name, msg->nduseropt_opts_len);
 		return -1;
 	}
@@ -542,7 +542,7 @@ __ni_rtevent_process_cb(struct nl_msg *msg, void *ptr)
 
 	nlh = nlmsg_hdr(msg);
 	if (__ni_rtevent_process(nc, sender, nlh) < 0) {
-		ni_debug_events(1, "ignoring %s rtnetlink event",
+		ni_debug_events("ignoring %s rtnetlink event",
 			__ni_rtevent_msg_name(nlh->nlmsg_type));
 		return NL_SKIP;
 	}

@@ -191,7 +191,7 @@ autoip4_recover_lease(ni_netdev_t *ifp)
 
 	/* if lease expired, return and remove stale lease file */
 	if (!ni_addrconf_lease_is_valid(lease)) {
-		ni_debug_wicked(1, "%s: removing stale %s/%s lease file", ifp->name,
+		ni_debug_wicked("%s: removing stale %s/%s lease file", ifp->name,
 				ni_addrconf_type_to_name(lease->type),
 				ni_addrfamily_type_to_name(lease->family));
 		ni_addrconf_lease_file_remove(ifp->name, NI_ADDRCONF_AUTOCONF, afi->family);
@@ -218,7 +218,7 @@ autoip4_recover_lease(ni_netdev_t *ifp)
 		return;
 	}
 
-	ni_debug_wicked(1, "%s: initiated recovery of %s/%s lease", ifp->name,
+	ni_debug_wicked("%s: initiated recovery of %s/%s lease", ifp->name,
 				ni_addrconf_type_to_name(lease->type),
 				ni_addrfamily_type_to_name(lease->family));
 #endif
@@ -270,7 +270,7 @@ autoip4_device_create(ni_dbus_server_t *server, const ni_netdev_t *ifp)
 	}
 
 	if (ni_objectmodel_register_autoip4_device(server, dev) != NULL) {
-		ni_debug_autoip(1, "Created autoip4 device for '%s' and index %u",
+		ni_debug_autoip("Created autoip4 device for '%s' and index %u",
 				ifp->name, ifp->link.ifindex);
 		rv = TRUE;
 	}
@@ -291,7 +291,7 @@ autoip4_device_destroy(ni_dbus_server_t *server, const ni_netdev_t *ifp)
 	ni_autoip_device_t *dev;
 
 	if ((dev = ni_autoip_device_by_index(ifp->link.ifindex)) != NULL) {
-		ni_debug_dhcp(1, "%s: Destroying autoip4 device with index %u",
+		ni_debug_dhcp("%s: Destroying autoip4 device with index %u",
 				ifp->name, ifp->link.ifindex);
 		ni_dbus_server_unregister_object(server, dev);
 	}
@@ -428,7 +428,7 @@ autoip4_protocol_event(enum ni_lease_event ev, const ni_autoip_device_t *dev, ni
 	ni_dbus_object_t *dev_object;
 	int argc = 0;
 
-	ni_debug_dhcp(1, "%s(ev=%u, dev=%d)", __func__, ev, dev->link.ifindex);
+	ni_debug_dhcp("%s(ev=%u, dev=%d)", __func__, ev, dev->link.ifindex);
 
 	dev_object = ni_dbus_server_find_object_by_handle(autoip4_dbus_server, dev);
 	if (dev_object == NULL) {

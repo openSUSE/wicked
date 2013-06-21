@@ -86,7 +86,7 @@ ni_managed_device_new(ni_nanny_t *mgr, ni_ifworker_t *w, ni_managed_device_t **l
 void
 ni_managed_device_free(ni_managed_device_t *mdev)
 {
-	ni_debug_nanny(1, "%s(%s): obj=%p", __func__,
+	ni_debug_nanny("%s(%s): obj=%p", __func__,
 			mdev->worker? mdev->worker->name : "anon",
 			mdev->object);
 	ni_assert(mdev->object == NULL);
@@ -151,7 +151,7 @@ ni_managed_device_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *m
 	case NI_MANAGED_STATE_RUNNING:
 	case NI_MANAGED_STATE_FAILED:
 		if (mdev->selected_policy == mpolicy && mdev->selected_policy_seq == mpolicy->seqno) {
-			ni_debug_nanny(1, "%s: keep using policy %s", w->name, ni_fsm_policy_name(policy));
+			ni_debug_nanny("%s: keep using policy %s", w->name, ni_fsm_policy_name(policy));
 			return;
 		}
 
@@ -164,7 +164,7 @@ ni_managed_device_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *m
 		return;
 	}
 
-	ni_debug_nanny(1, "%s: using policy %s", w->name, ni_fsm_policy_name(policy));
+	ni_debug_nanny("%s: using policy %s", w->name, ni_fsm_policy_name(policy));
 
 	/* This returns "modem" or "interface" */
 	type_name = ni_ifworker_type_to_string(w->type);
@@ -179,7 +179,7 @@ ni_managed_device_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *m
 			ni_nanny_schedule_down(mdev->nanny, w);
 		return;
 	}
-	ni_debug_nanny(1, "%s: using device config", w->name);
+	ni_debug_nanny("%s: using device config", w->name);
 	xml_node_print_debug(config, 0);
 
 	ni_managed_device_set_policy(mdev, mpolicy, config);
@@ -349,7 +349,7 @@ ni_managed_device_down_done(ni_ifworker_t *w)
 		mdev->fail_count++;
 		if (w->dead) {
 			/* Quietly ignore the problem */
-			ni_debug_nanny(1, "%s: failed to shut down device, device about to be removed", w->name);
+			ni_debug_nanny("%s: failed to shut down device, device about to be removed", w->name);
 		} else {
 			ni_error("%s: failed to shut down device", w->name);
 			mdev->state = NI_MANAGED_STATE_FAILED;

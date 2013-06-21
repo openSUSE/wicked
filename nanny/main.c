@@ -252,7 +252,7 @@ ni_nanny_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_m
 	ni_ifworker_t *w;
 
 	if (ni_objectmodel_signal_to_event(signal_name, &event) < 0) {
-		ni_debug_nanny(1, "received unknown signal \"%s\" from object \"%s\"",
+		ni_debug_nanny("received unknown signal \"%s\" from object \"%s\"",
 				signal_name, object_path);
 		return;
 	}
@@ -277,19 +277,19 @@ ni_nanny_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_m
 	ni_assert(w->device);
 
 	if (event == NI_EVENT_DEVICE_DELETE) {
-		ni_debug_nanny(1, "%s: received signal %s from %s", w->name, signal_name, object_path);
+		ni_debug_nanny("%s: received signal %s from %s", w->name, signal_name, object_path);
 		// delete the worker and the managed netif
 		ni_nanny_unregister_device(mgr, w);
 		return;
 	}
 
 	if ((mdev = ni_nanny_get_device(mgr, w)) == NULL) {
-		ni_debug_nanny(1, "%s: received signal %s from %s (not a managed device)",
+		ni_debug_nanny("%s: received signal %s from %s (not a managed device)",
 				w->name, signal_name, object_path);
 		return;
 	}
 
-	ni_debug_nanny(1, "%s: received signal %s; state=%s, policy=%s%s",
+	ni_debug_nanny("%s: received signal %s; state=%s, policy=%s%s",
 			w->name, signal_name,
 			ni_managed_state_to_string(mdev->state),
 			mdev->selected_policy? ni_fsm_policy_name(mdev->selected_policy->fsm_policy): "<none>",
@@ -340,7 +340,7 @@ ni_nanny_modem_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_m
 	ni_ifworker_t *w;
 
 	if (ni_objectmodel_signal_to_event(signal_name, &event) < 0) {
-		ni_debug_nanny(1, "received unknown signal \"%s\" from object \"%s\"",
+		ni_debug_nanny("received unknown signal \"%s\" from object \"%s\"",
 				signal_name, object_path);
 		return;
 	}
@@ -359,7 +359,7 @@ ni_nanny_modem_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_m
 		return;
 	}
 
-	ni_debug_nanny(1, "%s: received signal %s from %s", w->name, signal_name, object_path);
+	ni_debug_nanny("%s: received signal %s from %s", w->name, signal_name, object_path);
 	ni_assert(w->type == NI_IFWORKER_TYPE_MODEM);
 	ni_assert(w->modem);
 
@@ -376,7 +376,7 @@ handle_rfkill_event(ni_rfkill_type_t type, ni_bool_t blocked, void *user_data)
 {
 	ni_nanny_t *mgr = user_data;
 
-	ni_debug_application(1, "rfkill: %s devices %s", ni_rfkill_type_string(type),
+	ni_debug_application("rfkill: %s devices %s", ni_rfkill_type_string(type),
 			blocked? "blocked" : "enabled");
 
 	ni_nanny_rfkill_event(mgr, type, blocked);
@@ -424,7 +424,7 @@ ni_nanny_config_callback(void *appdata, const xml_node_t *node)
 			 && !strcasecmp(attrval, "true"))
 				match->auto_enable = TRUE;
 
-			ni_debug_nanny(1, "enable type=%u, value=%s%s", match->type, match->value,
+			ni_debug_nanny("enable type=%u, value=%s%s", match->type, match->value,
 						match->auto_enable? ", auto" : "");
 
 			*pos = match;
