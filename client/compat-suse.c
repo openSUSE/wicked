@@ -1782,7 +1782,7 @@ __ni_suse_addrconf_dhcp6_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *c
 }
 
 static ni_bool_t
-__ni_suse_addrconf_dhcp4(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+__ni_suse_addrconf_dhcp4(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat, ni_bool_t required)
 {
 	if (compat->dhcp4.enabled)
 		return TRUE;
@@ -1794,11 +1794,12 @@ __ni_suse_addrconf_dhcp4(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	__ni_suse_addrconf_dhcp4_options(sc, compat);
 
 	compat->dhcp4.enabled = TRUE;
+	compat->dhcp4.required = required;
 	return TRUE;
 }
 
 static ni_bool_t
-__ni_suse_addrconf_dhcp6(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+__ni_suse_addrconf_dhcp6(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat, ni_bool_t required)
 {
 	if (compat->dhcp6.enabled)
 		return TRUE;
@@ -1810,14 +1811,16 @@ __ni_suse_addrconf_dhcp6(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	__ni_suse_addrconf_dhcp6_options(sc, compat);
 
 	compat->dhcp6.enabled = TRUE;
+	compat->dhcp6.required = required;
 	return TRUE;
 }
 
 static ni_bool_t
-__ni_suse_addrconf_autoip4(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+__ni_suse_addrconf_autoip4(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat, ni_bool_t required)
 {
 	(void)sc;
 	(void)compat;
+	(void)required;
 
 	/* TODO */
 	return TRUE;
@@ -1827,6 +1830,7 @@ static ni_bool_t
 __ni_suse_bootproto(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 {
 	ni_netdev_t *dev = compat->dev;
+	ni_bool_t primary;
 	const char *value;
 	char *bp, *s, *p;
 
@@ -1855,30 +1859,42 @@ __ni_suse_bootproto(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		return TRUE;
 	}
 
+	/*
+	 * We should use a priority here I think, e.g.:
+	 *   lower prio for fallbacks (less important),
+	 *   same for an OR, priority 0 for optional...
+	 */
 	bp = p = NULL;
+	primary = TRUE;
 	ni_string_dup(&bp, value);
 	for (s = strtok_r(bp, "+", &p); s; s = strtok_r(NULL, "+", &p)) {
-		if(!strcasecmp(s, "dhcp")) {
-			__ni_suse_addrconf_dhcp4(sc, compat);
-			__ni_suse_addrconf_dhcp6(sc, compat);
+		ni_trace("BOOTPROTO[]=%s", s);
+		if(ni_string_eq(s, "dhcp")) {
+			/* dhcp4 or dhcp6 -> at least one required */
+			__ni_suse_addrconf_dhcp4(sc, compat, FALSE);
+			__ni_suse_addrconf_dhcp6(sc, compat, FALSE);
 		}
-		else if (ni_string_eq(value, "dhcp4")) {
-			__ni_suse_addrconf_dhcp4(sc, compat);
+		else if (ni_string_eq(s, "dhcp4")) {
+			/* dhcp4 requested -> required             */
+			__ni_suse_addrconf_dhcp4(sc, compat, TRUE);
 		}
-		else if (ni_string_eq(value, "dhcp6")) {
-			__ni_suse_addrconf_dhcp6(sc, compat);
+		else if (ni_string_eq(s, "dhcp6")) {
+			/* dhcp6 requested -> required             */
+			__ni_suse_addrconf_dhcp6(sc, compat, TRUE);
 		}
-		else if (ni_string_eq(value, "autoip")) {
-			__ni_suse_addrconf_autoip4(sc, compat);
+		else if (ni_string_eq(s, "autoip")) {
+			/* dhcp6 requested -> required when 1st    */
+			__ni_suse_addrconf_autoip4(sc, compat, primary);
 		}
 		else {
-			ni_warn("ifcfg-%s: Unknown BOOTPROTO value \"%s\"",
-				dev->name, s);
+			ni_debug_readwrite("ifcfg-%s: Unknown BOOTPROTO=\"%s\""
+					" value \"%s\"", dev->name, value, s);
 		}
+		primary = FALSE;
 	}
 	ni_string_free(&bp);
 
-	/* static is included in the "+" variants */
+	/* static is always included in the "+" variants */
 	__ni_suse_addrconf_static(sc, compat);
 	return TRUE;
 }
