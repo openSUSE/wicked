@@ -1250,10 +1250,10 @@ try_bridge(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 
 	if ((value = ni_sysconfig_get_value(sc, "BRIDGE_STP")) != NULL) {
 		if (!strcasecmp(value, "off") || !strcasecmp(value, "no")) {
-			bridge->stp = TRUE;
+			bridge->stp = FALSE;
 		} else
 		if (!strcasecmp(value, "on") || !strcasecmp(value, "yes")) {
-			bridge->stp = FALSE;
+			bridge->stp = TRUE;
 		} else {
 			ni_error("ifcfg-%s: Cannot parse BRIDGE_STP='%s'",
 				dev->name, value);
