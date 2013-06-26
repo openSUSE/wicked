@@ -29,6 +29,7 @@
 #include "xml-schema.h"
 #include "sysfs.h"
 #include "modem-manager.h"
+#include <gcrypt.h>
 
 
 struct ni_netconfig {
@@ -53,6 +54,27 @@ ni_init(const char *appname)
 	return ni_init_ex(appname, NULL, NULL);
 }
 
+static int
+__ni_init_gcrypt(void)
+{
+	if (!gcry_check_version(GCRYPT_VERSION)) {
+		ni_error("libgcrypt version mismatch");
+		return -1;
+	}
+
+	if (gcry_control (GCRYCTL_INITIALIZATION_FINISHED_P))
+		return 0;
+
+	gcry_control (GCRYCTL_SUSPEND_SECMEM_WARN);
+	gcry_control (GCRYCTL_INIT_SECMEM, 16384, 0);
+	gcry_control (GCRYCTL_RESUME_SECMEM_WARN);
+	gcry_control (GCRYCTL_INITIALIZATION_FINISHED, 0);
+	if (gcry_control (GCRYCTL_INITIALIZATION_FINISHED_P)) {
+		ni_error("Unable to initialize libgcrypt");
+		return -1;
+	}
+}
+
 int
 ni_init_ex(const char *appname, ni_init_appdata_callback_t *cb, void *appdata)
 {
@@ -62,6 +84,9 @@ ni_init_ex(const char *appname, ni_init_appdata_callback_t *cb, void *appdata)
 		ni_error("ni_init called twice");
 		return -1;
 	}
+
+	if (__ni_init_gcrypt() < 0)
+		return -1;
 
 	if (ni_global.config_path == NULL) {
 		if (appname == NULL) {
