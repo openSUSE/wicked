@@ -111,12 +111,20 @@ main(int argc, char **argv)
 				"        Use '--debug help' for a list of facilities.\n"
 				"  --dry-run\n"
 				"        Do not change the system in any way.\n"
+				"  --root-directory\n"
+				"        Search all config files below this directory.\n"
 				"\n"
 				"Supported commands:\n"
-				"  ifup [--boot] [--file xmlspec] ifname\n"
-				"  ifdown [--delete] ifname\n"
-				"  show-xml [ifname]\n"
-				"  delete ifname\n"
+				"  ifup [options] ifname\n"
+				"  ifdown [options] ifname\n"
+				"  ifcheck\n"
+				"  show [ifname}]\n"
+				"  show-xml [--raw] [--modem] [ifname]\n"
+				"  nanny [subcommand]\n"
+				"  lease [subcommand]\n"
+				"  check [subcommand]\n"
+				"  getnames [subcommand]\n"
+				"  convert [subcommand]\n"
 				"  xpath [options] expr ...\n"
 				);
 			return (c == OPT_HELP ? 0 : 1);
@@ -491,6 +499,8 @@ do_show_xml(int argc, char **argv)
 				"\nSupported options:\n"
 				"  --raw\n"
 				"      Show raw dbus reply in pseudo-xml, rather than using the schema\n"
+				"  --modem\n"
+				"      List Modems\n"
 				);
 			return 1;
 		}
@@ -1197,6 +1207,8 @@ usage:
 			"        Fail after n seconds.\n"
 			"  --af <address-family>\n"
 			"        Specify the address family (ipv4, ipv6, ...) to use when resolving hostnames.\n"
+			"  --write-dbus-error <filename>\n"
+			"        Write dbus error to <filename>.\n"
 		       );
 		return 1;
 		;

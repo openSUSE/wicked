@@ -537,7 +537,7 @@ usage:
 				"      Read interface configuration(s) from file rather than using system config\n"
 				"  --state <state-name>\n"
 				"      Verify that the interface(s) are in the given state\n"
-				"  --check-changed\n"
+				"  --changed\n"
 				"      Verify that the interface(s) use the current configuration\n"
 				"  --quiet\n"
 				"      Do not print out errors, but just signal the result through exit status\n"
