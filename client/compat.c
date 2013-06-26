@@ -754,7 +754,7 @@ __ni_compat_generate_dhcp6_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t
 {
 	xml_node_t *dhcp;
 
-	if (!compat->dhcp4.enabled)
+	if (!compat->dhcp6.enabled)
 		return NULL;
 
 	dhcp = __ni_compat_generate_dynamic_addrconf(ifnode, "ipv6:dhcp", compat->dhcp6.required, compat->dhcp6.update);
