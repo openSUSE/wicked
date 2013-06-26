@@ -45,7 +45,6 @@ enum {
 	OPT_DRYRUN,
 	OPT_ROOTDIR,
 	OPT_LINK_TIMEOUT,
-	OPT_NOPROGMETER,
 };
 
 static struct option	options[] = {
@@ -60,7 +59,6 @@ static struct option	options[] = {
 	/* specific */
 	{ "dryrun",		no_argument,		NULL,	OPT_DRYRUN },
 	{ "dry-run",		no_argument,		NULL,	OPT_DRYRUN },
-	{ "no-progress-meter",	no_argument,		NULL,	OPT_NOPROGMETER },
 	{ "root-directory",	required_argument,	NULL,	OPT_ROOTDIR },
 
 	{ NULL }
@@ -70,7 +68,6 @@ static const char *	program_name;
 static const char *	opt_log_target;
 int			opt_global_dryrun = 0;
 char *			opt_global_rootdir = NULL;
-int			opt_global_progressmeter = 1;
 
 static int		do_show(int, char **);
 static int		do_show_xml(int, char **);
@@ -162,10 +159,6 @@ main(int argc, char **argv)
 		case OPT_ROOTDIR:
 			opt_global_rootdir = optarg;
 			break;
-
-		case OPT_NOPROGMETER:
-			opt_global_progressmeter = 0;
-			break;
 		}
 	}
 
@@ -185,9 +178,6 @@ main(int argc, char **argv)
 	} else {
 		ni_log_destination(program_name, "syslog::user");
 	}
-
-	if (!isatty(1))
-		opt_global_progressmeter = 0;
 
 	if (ni_init("client") < 0)
 		return 1;
