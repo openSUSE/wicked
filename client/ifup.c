@@ -634,7 +634,7 @@ usage:
 				}
 			}
 
-			printf("%s: exists%s%s", w->name,
+			printf("%s: exists%s%s\n", w->name,
 					opt_check_changed? ", configuration unchanged" : "",
 					opt_state? ", interface state as expected" : "");
 		}
