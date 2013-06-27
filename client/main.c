@@ -66,8 +66,8 @@ static struct option	options[] = {
 
 static const char *	program_name;
 static const char *	opt_log_target;
-int			opt_global_dryrun = 0;
-char *			opt_global_rootdir = NULL;
+int			opt_global_dryrun;
+char *			opt_global_rootdir;
 
 static int		do_show(int, char **);
 static int		do_show_xml(int, char **);
