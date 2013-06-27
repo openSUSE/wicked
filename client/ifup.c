@@ -484,6 +484,18 @@ cleanup:
 	return status;
 }
 
+static void
+fill_state_string(char *buf, size_t len)
+{
+	int state = 0;
+	buf[0] = '\0';
+	do {
+		const char *str = ni_ifworker_state_name(state);
+		if (str)
+			snprintf(buf + strlen(buf), len - strlen(buf), "%s ", str);
+	} while (++state < __NI_FSM_STATE_MAX);
+}
+
 int
 do_ifcheck(int argc, char **argv)
 {
@@ -502,6 +514,7 @@ do_ifcheck(int argc, char **argv)
 	ni_bool_t opt_check_changed = FALSE;
 	ni_bool_t opt_quiet = FALSE;
 	const char *opt_state = NULL;
+	char state_string[256];
 	unsigned int i;
 	ni_fsm_t *fsm;
 	int c, status = 0;
@@ -539,6 +552,7 @@ do_ifcheck(int argc, char **argv)
 		default:
 		case OPT_HELP:
 usage:
+			fill_state_string(state_string, sizeof(state_string));
 			fprintf(stderr,
 				"wicked [options] ifcheck [ifcheck-options] all\n"
 				"wicked [options] ifcheck [ifcheck-options] <ifname> ...\n"
@@ -548,11 +562,13 @@ usage:
 				"  --ifconfig <filename>\n"
 				"      Read interface configuration(s) from file rather than using system config\n"
 				"  --state <state-name>\n"
-				"      Verify that the interface(s) are in the given state\n"
+				"      Verify that the interface(s) are in the given state. Possible states:\n"
+				"  %s\n"
 				"  --changed\n"
 				"      Verify that the interface(s) use the current configuration\n"
 				"  --quiet\n"
-				"      Do not print out errors, but just signal the result through exit status\n"
+				"      Do not print out errors, but just signal the result through exit status\n",
+				state_string
 				);
 			goto cleanup;
 		}

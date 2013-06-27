@@ -29,7 +29,6 @@ static unsigned int		ni_ifworker_timeout_count;
 static ni_fsm_user_prompt_fn_t *ni_fsm_user_prompt_fn;
 static void *			ni_fsm_user_prompt_data;
 
-static const char *		ni_ifworker_state_name(unsigned int);
 static ni_ifworker_t *		ni_ifworker_identify_device(ni_fsm_t *, const xml_node_t *, ni_ifworker_type_t);
 static ni_ifworker_t *		__ni_ifworker_identify_device(ni_fsm_t *, const char *, const xml_node_t *, ni_ifworker_type_t);
 static void			ni_ifworker_set_dependencies_xml(ni_ifworker_t *, xml_node_t *);
@@ -401,7 +400,7 @@ static ni_intmap_t __state_names[] = {
 	{ NULL }
 };
 
-static const char *
+const char *
 ni_ifworker_state_name(unsigned int state)
 {
 	return ni_format_uint_mapped(state, __state_names);
