@@ -192,8 +192,9 @@ ni_ifup_down_init(void)
 int
 do_ifup(int argc, char **argv)
 {
-	enum  { OPT_IFCONFIG, OPT_IFPOLICY, OPT_CONTROL_MODE, OPT_STAGE, OPT_TIMEOUT, OPT_SKIP_ACTIVE, OPT_SKIP_ORIGIN };
+	enum  { OPT_HELP, OPT_IFCONFIG, OPT_IFPOLICY, OPT_CONTROL_MODE, OPT_STAGE, OPT_TIMEOUT, OPT_SKIP_ACTIVE, OPT_SKIP_ORIGIN };
 	static struct option ifup_options[] = {
+		{ "help",	no_argument,       NULL,	OPT_HELP },
 		{ "ifconfig",	required_argument, NULL,	OPT_IFCONFIG },
 		{ "ifpolicy",	required_argument, NULL,	OPT_IFPOLICY },
 		{ "mode",	required_argument, NULL,	OPT_CONTROL_MODE },
@@ -260,11 +261,14 @@ do_ifup(int argc, char **argv)
 			break;
 
 		default:
+		case OPT_HELP:
 usage:
 			fprintf(stderr,
 				"wicked [options] ifup [ifup-options] all\n"
 				"wicked [options] ifup [ifup-options] <ifname> ...\n"
 				"\nSupported ifup-options:\n"
+				"  --help\n"
+				"      Show this help text.\n"
 				"  --ifconfig <pathname>\n"
 				"      Read interface configuration(s) from file/directory rather than using system config\n"
 				"  --ifpolicy <pathname>\n"
@@ -360,8 +364,9 @@ cleanup:
 int
 do_ifdown(int argc, char **argv)
 {
-	enum  { OPT_IFCONFIG, OPT_DELETE, OPT_TIMEOUT };
+	enum  { OPT_HELP, OPT_IFCONFIG, OPT_DELETE, OPT_TIMEOUT };
 	static struct option ifdown_options[] = {
+		{ "help",	no_argument, NULL,		OPT_HELP },
 		{ "ifconfig",	required_argument, NULL,	OPT_IFCONFIG },
 		{ "delete",	no_argument, NULL,		OPT_DELETE },
 		{ "timeout",	required_argument, NULL,	OPT_TIMEOUT },
@@ -408,11 +413,14 @@ do_ifdown(int argc, char **argv)
 			break;
 
 		default:
+		case OPT_HELP:
 usage:
 			fprintf(stderr,
 				"wicked [options] ifdown [ifdown-options] all\n"
 				"wicked [options] ifdown [ifdown-options] <ifname> [options ...]\n"
 				"\nSupported ifdown-options:\n"
+				"  --help\n"
+				"      Show this help text.\n"
 				"  --ifconfig <filename>\n"
 				"      Read interface configuration(s) from file rather than using system config\n"
 				"  --delete\n"
@@ -479,8 +487,9 @@ cleanup:
 int
 do_ifcheck(int argc, char **argv)
 {
-	enum  { OPT_QUIET, OPT_IFCONFIG, OPT_STATE, OPT_CHANGED };
+	enum  { OPT_HELP, OPT_QUIET, OPT_IFCONFIG, OPT_STATE, OPT_CHANGED };
 	static struct option ifcheck_options[] = {
+		{ "help",	no_argument, NULL,		OPT_HELP },
 		{ "quiet",	no_argument, NULL,		OPT_QUIET },
 		{ "ifconfig",	required_argument, NULL,	OPT_IFCONFIG },
 		{ "state",	required_argument, NULL,	OPT_STATE },
@@ -528,11 +537,14 @@ do_ifcheck(int argc, char **argv)
 			break;
 
 		default:
+		case OPT_HELP:
 usage:
 			fprintf(stderr,
 				"wicked [options] ifcheck [ifcheck-options] all\n"
 				"wicked [options] ifcheck [ifcheck-options] <ifname> ...\n"
 				"\nSupported ifcheck-options:\n"
+				"  --help\n"
+				"      Show this help text.\n"
 				"  --ifconfig <filename>\n"
 				"      Read interface configuration(s) from file rather than using system config\n"
 				"  --state <state-name>\n"

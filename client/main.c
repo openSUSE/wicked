@@ -467,8 +467,9 @@ __dump_schema_xml(const ni_dbus_variant_t *variant, ni_xs_scope_t *schema)
 int
 do_show_xml(int argc, char **argv)
 {
-	enum  { OPT_RAW, OPT_MODEMS, };
+	enum  { OPT_HELP, OPT_RAW, OPT_MODEMS, };
 	static struct option local_options[] = {
+		{ "help", no_argument, NULL, OPT_HELP },
 		{ "raw", no_argument, NULL, OPT_RAW },
 		{ "modem", no_argument, NULL, OPT_MODEMS },
 		{ NULL }
@@ -493,10 +494,13 @@ do_show_xml(int argc, char **argv)
 			break;
 
 		default:
+		case OPT_HELP:
 		usage:
 			fprintf(stderr,
 				"wicked [options] show-xml [ifname]\n"
 				"\nSupported options:\n"
+				"  --help\n"
+				"      Show this help text.\n"
 				"  --raw\n"
 				"      Show raw dbus reply in pseudo-xml, rather than using the schema\n"
 				"  --modem\n"
@@ -639,6 +643,7 @@ int
 do_xpath(int argc, char **argv)
 {
 	static struct option xpath_options[] = {
+		{ "help", no_argument, NULL, 'h' },
 		{ "reference", required_argument, NULL, 'r' },
 		{ "file", required_argument, NULL, 'f' },
 		{ NULL }
@@ -659,6 +664,7 @@ do_xpath(int argc, char **argv)
 			opt_file = optarg;
 			break;
 
+		case 'h':
 		default:
 			fprintf(stderr,
 				"wicked [options] xpath [--reference <expr>] [--file <path>] expr ...\n");
@@ -743,7 +749,7 @@ do_lease(int argc, char **argv)
 {
 	const char *opt_file, *opt_cmd;
 	xml_document_t *doc;
-	int c;
+	int c, ret = 1;
 
 	if (argc <= 2)
 		goto usage;
@@ -935,19 +941,23 @@ add_conflict:
 			ni_error("unable to install addrconf lease");
 			goto failed;
 		}
+	} else if (!strcmp(opt_cmd, "--help")) {
+		ret = 0;
+		goto usage;
 	} else {
 		ni_error("unsupported command wicked %s %s", argv[0], opt_cmd);
 usage:
 		fprintf(stderr,
 			"Usage: wicked lease <filename> cmd ...\n"
 			"Where cmd is one of the following:\n"
+			"  --help\n"
 			"  add --address <ipaddr> --netmask <ipmask> [--peer <ipaddr>]\n"
 			"  add --address <ipaddr>/<prefixlen> [--peer <ipaddr>\n"
 			"  add --route <network> --netmask <ipmask> [--gateway <ipaddr>]\n"
 			"  add --route <network>/<prefixlen> [--gateway <ipaddr>]\n"
 			"  install --device <object-path>\n"
 		       );
-		return 1;
+		return ret;
 	}
 
 	if (doc)
@@ -966,8 +976,9 @@ failed:
 int
 do_get_names(int argc, char **argv)
 {
-	enum { OPT_XML, OPT_MODEMS };
+	enum { OPT_HELP, OPT_XML, OPT_MODEMS };
 	static struct option local_options[] = {
+		{ "help", no_argument, NULL, OPT_HELP },
 		{ "xml", no_argument, NULL, OPT_XML },
 		{ "modem", no_argument, NULL, OPT_MODEMS },
 		{ NULL }
@@ -984,10 +995,13 @@ do_get_names(int argc, char **argv)
 			break;
 
 		default:
+		case OPT_HELP:
 		usage:
 			fprintf(stderr,
 				"wicked [options] getnames ifname ...\n"
 				"\nSupported options:\n"
+				"  --help\n"
+				"      Show this help text.\n"
 				"  --modems\n"
 				"      Query for modem device, rather than network device\n"
 				);
@@ -1090,8 +1104,9 @@ static void		write_dbus_error(const char *filename, const char *name, const char
 int
 do_check(int argc, char **argv)
 {
-	enum { OPT_TIMEOUT, OPT_AF, OPT_WRITE_DBUS_ERROR };
+	enum { OPT_HELP, OPT_TIMEOUT, OPT_AF, OPT_WRITE_DBUS_ERROR };
 	static struct option options[] = {
+		{ "help", no_argument, NULL, OPT_HELP },
 		{ "timeout", required_argument, NULL, OPT_TIMEOUT },
 		{ "af", required_argument, NULL, OPT_AF },
 		{ "write-dbus-error", required_argument, NULL, OPT_WRITE_DBUS_ERROR },
@@ -1128,6 +1143,7 @@ do_check(int argc, char **argv)
 			break;
 
 		default:
+		case OPT_HELP:
 			goto usage;
 		}
 	}
@@ -1203,6 +1219,8 @@ usage:
 			"  route [options ...] address ...\n"
 			"\n"
 			"Supported options:\n"
+			"  --help\n"
+			"      Show this help text.\n"
 			"  --timeout n\n"
 			"        Fail after n seconds.\n"
 			"  --af <address-family>\n"
@@ -1249,8 +1267,9 @@ write_dbus_error(const char *filename, const char *name, const char *fmt, ...)
 int
 do_convert(int argc, char **argv)
 {
-	enum { OPT_FORMAT, OPT_OUTPUT };
+	enum { OPT_HELP, OPT_FORMAT, OPT_OUTPUT };
 	static struct option options[] = {
+		{ "help",	no_argument, NULL, OPT_HELP },
 		{ "format",	required_argument, NULL, OPT_FORMAT },
 		{ "output",	required_argument, NULL, OPT_OUTPUT },
 		{ NULL }
@@ -1280,6 +1299,8 @@ do_convert(int argc, char **argv)
 				"If no path is given, a format-specific default path is used.\n"
 				"\n"
 				"Supported options:\n"
+				"  --help\n"
+				"      Show this help text.\n"
 				"  --format <name>\n"
 				"        Specify the file format (suse, redhat, ...)\n"
 				"  --output <path>\n"

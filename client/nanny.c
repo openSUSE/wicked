@@ -187,7 +187,9 @@ do_nanny_recheck(int argc, char **argv)
 int
 do_nanny(int argc, char **argv)
 {
+	enum  { OPT_HELP, };
 	static struct option nanny_options[] = {
+		{ "help", no_argument, NULL, OPT_HELP },
 		{ NULL }
 	};
 	const char *command;
@@ -196,11 +198,14 @@ do_nanny(int argc, char **argv)
 	optind = 1;
 	while ((c = getopt_long(argc, argv, "+", nanny_options, NULL)) != EOF) {
 		switch (c) {
+		case OPT_HELP:
 		default:
 usage:
 			fprintf(stderr,
 				"wicked [options] nanny <subcommand>\n"
 				"\nSupported subcommands:\n"
+				"  --help\n"
+				"      Show this help text.\n"
 				"  enable <device>\n"
 				"  disable <device>\n"
 				"  addpolicy <filename>\n"
