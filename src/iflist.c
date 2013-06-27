@@ -1389,7 +1389,7 @@ __ni_netdev_process_newroute(ni_netdev_t *dev, struct nlmsghdr *h,
 				struct rtmsg *rtm, ni_netconfig_t *nc)
 {
 	ni_addrconf_lease_t *lease;
-	struct nlattr *tb[RTN_MAX+1];
+	struct nlattr *tb[RTA_MAX+1];
 	ni_route_t *rp;
 	int ret = 1;
 
