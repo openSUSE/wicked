@@ -73,6 +73,7 @@ __ni_init_gcrypt(void)
 		ni_error("Unable to initialize libgcrypt");
 		return -1;
 	}
+	return 0;
 }
 
 int
