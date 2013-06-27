@@ -69,7 +69,7 @@ __ni_init_gcrypt(void)
 	gcry_control (GCRYCTL_INIT_SECMEM, 16384, 0);
 	gcry_control (GCRYCTL_RESUME_SECMEM_WARN);
 	gcry_control (GCRYCTL_INITIALIZATION_FINISHED, 0);
-	if (gcry_control (GCRYCTL_INITIALIZATION_FINISHED_P)) {
+	if (!gcry_control (GCRYCTL_INITIALIZATION_FINISHED_P)) {
 		ni_error("Unable to initialize libgcrypt");
 		return -1;
 	}
