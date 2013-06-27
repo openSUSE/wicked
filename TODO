@@ -234,9 +234,6 @@ firewall:
 
 source tree:
 	- Cleanup the code and carefully refactor a bit.
-	- Switch to use automake. Using autoconf + self written Makefile
-	  optional just causes needless work to fix/adopt the Makefile. Using
-	  automake is easy to me [done in one branch already :-)]
 	- Cleanup and document [--help] all options in [e.g. wicked client]
 	- Fix to use reetrant function variants. Most other code (yast2,
 	  libvirt, …) are threaded; the use of some functions or own nonreetrant
