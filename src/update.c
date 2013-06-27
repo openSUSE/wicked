@@ -337,16 +337,18 @@ ni_system_update_all(void)
 
 	for (kind = 0; kind < __NI_ADDRCONF_UPDATE_MAX; ++kind) {
 		ni_updater_t *updater = &updaters[kind];
-		ni_updater_source_t **pos;
+		ni_updater_source_t **pos = &updater->sources;
 
 		if (!updater->enabled)
 			continue;
 
 		/* Purge all updater sources for which the lease went away. */
-		for (pos = &updater->sources; (up = *pos) != NULL; pos = &up->next) {
+		while ((up = *pos)) {
 			if (up->lease == NULL) {
 				*pos = up->next;
 				free(up);
+			} else {
+				pos = &up->next;
 			}
 		}
 
