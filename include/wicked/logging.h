@@ -73,7 +73,7 @@ enum {
 extern unsigned int	ni_debug;
 extern unsigned int	ni_log_level;
 
-#define ni_log_level_at(level)			ni_log_level >= (level)
+#define ni_log_level_at(level)			(ni_log_level >= (level))
 
 #define __ni_debug(level, facility, fmt, args...) \
 	do { \
