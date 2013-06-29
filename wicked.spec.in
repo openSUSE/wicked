@@ -11,8 +11,13 @@ Source1:        wicked-rpmlintrc
 Buildroot:	%{_tmppath}/%{name}%{version}-buildroot/
 Requires:       libwicked@LIBWICKED_PACKAGE_SUFFIX@ = %{version}
 
+%if 0%{?suse_version} >= 1230
 %bcond_without  systemd
 %bcond_with     dbusstart
+%else
+%bcond_with     systemd
+%bcond_with     dbusstart
+%endif
 
 %if 0%{?suse_version} >= 1210
 BuildRequires:  libnl-1_1-devel
