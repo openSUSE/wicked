@@ -200,20 +200,6 @@ ni_dhcp6_fsm_timeout(ni_dhcp6_device_t *dev)
 	if (dev->fsm.fail_on_timeout) {
 		dev->fsm.fail_on_timeout = 0;
 
-		switch (dev->fsm.state) {
-		case NI_DHCP6_STATE_WAIT_READY:
-			/*
-			 * Link-layer address were not available in time...
-			 */
-			ni_error("%s: Unable to initialize DHCPv6 device",
-				dev->ifname);
-			break;
-
-		default:
-			ni_error("%s: TODO", dev->ifname);
-			break;
-		}
-
 		ni_dhcp6_device_stop(dev);
 		return;
 	}
@@ -221,16 +207,10 @@ ni_dhcp6_fsm_timeout(ni_dhcp6_device_t *dev)
 	if (dev->retrans.delay) {
 		dev->retrans.delay = 0;
 		ni_dhcp6_device_transmit_start(dev);
+		return;
 	}
 
 	switch (dev->fsm.state) {
-	case NI_DHCP6_STATE_WAIT_READY:
-		/*
-		 * Link-layer address is ready, but some another not...
-		 */
-		ni_dhcp6_device_start(dev);
-		break;
-
 	case NI_DHCP6_STATE_SELECTING:
 
 		/* the weight has maximum value, just accept this offer */
@@ -1415,12 +1395,6 @@ static void
 __ni_dhcp6_fsm_address_update(ni_dhcp6_device_t *dev, ni_netdev_t *ifp, const ni_address_t *addr)
 {
 	switch (dev->fsm.state) {
-	case NI_DHCP6_STATE_WAIT_READY:
-		if (dev->config && ni_dhcp6_device_is_ready(dev, ifp)) {
-			ni_dhcp6_device_start(dev);
-		}
-	break;
-
 	case NI_DHCP6_STATE_VALIDATING:
 		if (dev->lease) {
 			__ni_dhcp6_fsm_ia_addr_update(ifp, dev, addr);
@@ -1428,9 +1402,11 @@ __ni_dhcp6_fsm_address_update(ni_dhcp6_device_t *dev, ni_netdev_t *ifp, const ni
 	break;
 
 	default:
+		if (dev->config) {
+			ni_dhcp6_device_start(dev);
+		}
 	break;
 	}
-
 }
 
 void
@@ -1478,7 +1454,6 @@ ni_dhcp6_send_event(enum ni_dhcp6_event ev, const ni_dhcp6_device_t *dev, ni_add
  */
 static const char *__dhcp6_state_name[__NI_DHCP6_STATE_MAX] = {
 	[NI_DHCP6_STATE_INIT]           = "INIT",
-	[NI_DHCP6_STATE_WAIT_READY]	= "WAITING READY",
 	[NI_DHCP6_STATE_SELECTING]      = "SELECTING",
 	[NI_DHCP6_STATE_CONFIRMING]	= "CONFIRMING",
 	[NI_DHCP6_STATE_REQUESTING]     = "REQUESTING",

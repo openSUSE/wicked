@@ -74,11 +74,6 @@
 #define NI_DHCP6_VENDOR_VERSION_STRING		NI_DHCP6_PACKAGE_NAME"/"NI_DHCP6_PACKAGE_VERSION
 #endif
 
-/*
- * How long to wait until (link-layer) address is ready to use
- */
-#define NI_DHCP6_WAIT_READY_MSEC		2000
-
 
 extern int			ni_dhcp6_load_duid(ni_opaque_t *duid, const char *filename);
 extern int			ni_dhcp6_save_duid(const ni_opaque_t *duid, const char *filename);
@@ -368,10 +363,11 @@ ni_dhcp6_device_show_addrs(ni_dhcp6_device_t *dev)
 {
 	ni_netconfig_t *nc;
 	ni_netdev_t *ifp;
-#if 0
 	ni_address_t *ap;
-	unsigned int nr = 0;
-#endif
+	unsigned int nr;
+
+	if (!ni_log_level_at(NI_LOG_DEBUG2))
+		return;
 
 	nc = ni_global_state_handle(0);
 	if(!nc || !(ifp = ni_netdev_by_index(nc, dev->link.ifindex))) {
@@ -379,9 +375,13 @@ ni_dhcp6_device_show_addrs(ni_dhcp6_device_t *dev)
 			dev->ifname, dev->link.ifindex);
 		return;
 	}
-#if 0
-	for (ap = ifp->addrs; ap; ap = ap->next) {
-		ni_debug_dhcp("%s: address[%u] %s/%u%s, scope=%s, flags%s%s%s%s%s",
+
+	for (nr = 0, ap = ifp->addrs; ap; ap = ap->next) {
+		if (ap->family != AF_INET6)
+			continue;
+
+		ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_DHCP,
+				"%s: address[%u] %s/%u%s, scope=%s, flags%s%s%s%s%s",
 				dev->ifname, nr++,
 				ni_sockaddr_print(&ap->local_addr), ap->prefixlen,
 				(ni_address_is_linklocal(ap) ? " [link-local]" : ""),
@@ -395,18 +395,19 @@ ni_dhcp6_device_show_addrs(ni_dhcp6_device_t *dev)
 				(ni_address_is_duplicate(ap) ? " duplicate " : "")
 		);
 	}
-#endif
 }
 
 int
 ni_dhcp6_device_start(ni_dhcp6_device_t *dev)
 {
-	ni_dhcp6_device_show_addrs(dev);
-
 	if (!dev->config) {
 		ni_error("%s: Cannot start DHCPv6 without config", dev->ifname);
 		return -1;
 	}
+
+	ni_dhcp6_device_show_addrs(dev);
+	if (!ni_dhcp6_device_is_ready(dev, NULL))
+		return 1;
 
 	dev->failed = 0;
 	ni_dhcp6_device_alloc_buffer(dev);
@@ -453,7 +454,7 @@ ni_dhcp6_device_set_lladdr(ni_dhcp6_device_t *dev, const ni_address_t *addr)
 }
 
 static int
-ni_dhcp6_device_find_lladdr(ni_dhcp6_device_t *dev, ni_dhcp6_config_t *config)
+ni_dhcp6_device_find_lladdr(ni_dhcp6_device_t *dev)
 {
 	ni_netconfig_t *nc;
 	ni_netdev_t *ifp;
@@ -854,7 +855,7 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *info)
 	ni_dhcp6_config_vendor_opts(&config->vendor_opts.en, &config->vendor_opts.data);
 
 	ni_dhcp6_device_show_addrs(dev);
-	rv = ni_dhcp6_device_find_lladdr(dev, config);
+	rv = ni_dhcp6_device_find_lladdr(dev);
 	if (rv < 0) {
 		__ni_dhcp6_device_config_free(config);
 		return rv;
@@ -862,13 +863,6 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *info)
 
 	ni_dhcp6_device_set_config(dev, config);
 
-	/* OK, then let's start when lladdr is ready or set timer when not */
-	if (rv > 0) {
-		dev->fsm.state = NI_DHCP6_STATE_WAIT_READY;
-		ni_dhcp6_fsm_set_timeout_msec(dev, NI_DHCP6_WAIT_READY_MSEC);
-		dev->fsm.fail_on_timeout = 1;
-		return rv;
-	}
 	return ni_dhcp6_device_start(dev);
 
 #if 0
@@ -1045,36 +1039,35 @@ ni_dhcp6_device_event(ni_dhcp6_device_t *dev, ni_netdev_t *ifp, ni_event_t event
 			ni_string_dup(&dev->ifname, ifp->name);
 		}
 	break;
-
 	case NI_EVENT_DEVICE_DOWN:
 		/* Someone has taken the interface down completely. */
 		ni_debug_dhcp("%s: network interface went down", dev->ifname);
 		ni_dhcp6_device_stop(dev);
 	break;
 
-	case NI_EVENT_NETWORK_DOWN:
-		ni_trace("%s: received network down event", dev->ifname);
-	break;
-
 	case NI_EVENT_NETWORK_UP:
 		ni_trace("%s: received network up event", dev->ifname);
+		if (dev->config)
+			ni_dhcp6_device_start(dev);
 	break;
-
-	case NI_EVENT_LINK_DOWN:
-		ni_debug_dhcp("received link down event");
-		//ni_dhcp6_fsm_link_down(dev);
+	case NI_EVENT_NETWORK_DOWN:
+		ni_trace("%s: received network down event", dev->ifname);
+		ni_dhcp6_device_close(dev);
 	break;
 
 	case NI_EVENT_LINK_UP:
 		ni_debug_dhcp("received link up event");
-		//ni_dhcp6_fsm_link_up(dev);
+		/* ni_dhcp6_fsm_link_up(dev); */
+	break;
+	case NI_EVENT_LINK_DOWN:
+		ni_debug_dhcp("received link down event");
+		/* ni_dhcp6_fsm_link_down(dev); */
 	break;
 
 	default:
 		ni_trace("%s: received other event", dev->ifname);
 	break;
 	}
-	ni_dhcp6_device_show_addrs(dev);
 }
 
 void
@@ -1094,6 +1087,8 @@ ni_dhcp6_address_event(ni_dhcp6_device_t *dev, ni_netdev_t *ifp, ni_event_t even
 	case NI_EVENT_ADDRESS_DELETE:
 		if (addr->local_addr.ss_family == AF_INET6 &&
 		    ni_sockaddr_equal(&addr->local_addr, &dev->link.addr)) {
+			/* its the link-local address - socket is unusable now */
+			ni_dhcp6_device_close(dev);
 			memset(&dev->link.addr, 0, sizeof(dev->link.addr));
 		}
 
