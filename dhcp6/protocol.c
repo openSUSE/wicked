@@ -85,11 +85,11 @@ static int	ni_dhcp6_option_get_duid(ni_buffer_t *bp, ni_opaque_t *duid);
 
 
 /*
- * Open a socket bound to link-local address and dhcp6 client port.
+ * Open a multicast socket bound to link-local address and dhcp6 client port.
  *
  */
 static int
-__ni_dhcp6_mcast_socket_open(ni_dhcp6_device_t *dev)
+__ni_dhcp6_mcast_socket_open(const struct ni_dhcp6_link *link, const char *ifname)
 {
 	ni_sockaddr_t saddr;
 	int fd, on;
@@ -110,44 +110,35 @@ __ni_dhcp6_mcast_socket_open(ni_dhcp6_device_t *dev)
 	 *   for which it is requesting configuration information as the source
 	 *   address in the header of the IP datagram.
 	 *   [...]
-	 *
-	 * Further TODO:
-	 *   Maybe we should add an addr parameter? Note: Unicast can be used
-	 *   only after receiving the server unicast option from server, ...
 	 */
-	if ( !ni_dhcp6_device_is_ready(dev, NULL)) {
-		ni_error("%s: interface not yet ready", dev->ifname);
-		return -1;
-	}
-
 	if ((fd = socket (PF_INET6, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
-		ni_error("socket(INET6, DGRAM, UDP): %m");
+		ni_error("%s: Cannot open socket(INET6, DGRAM, UDP): %m", ifname);
 		return -1;
 	}
 
 	on = 1;
 	if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)) == -1)
-		ni_error("setsockopt(SO_REUSEADDR): %m");
+		ni_error("%s: Cannot set setsockopt(SO_REUSEADDR): %m", ifname);
 #if defined(SO_REUSEPORT)
 	if (setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &on, sizeof(on)) == -1)
-		ni_error("setsockopt(SO_REUSEPORT): %m");
+		ni_error("%s: Cannot set setsockopt(SO_REUSEPORT): %m", ifname);
 #endif
 	if (setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &on, sizeof(on)) == -1)
-		ni_error("setsockopt(SO_RCVBUF): %m");
+		ni_error("%s: Cannot set setsockopt(SO_RCVBUF): %m", ifname);
 
 	if (setsockopt(fd, IPPROTO_IPV6, IPV6_RECVPKTINFO, &on, sizeof(on)) != 0)
-		ni_error("setsockopt(IPV6_RECVPKTINFO): %m");
+		ni_error("%s: Cannot set setsockopt(IPV6_RECVPKTINFO): %m", ifname);
 
 	if (fcntl(fd, F_SETFD, FD_CLOEXEC) == -1)
-		ni_error("fcntl(SETDF, CLOEXEC): %m");
+		ni_error("%s: Cannot set fcntl(SETDF, CLOEXEC): %m", ifname);
 
 
-	ni_sockaddr_set_ipv6(&saddr, dev->link.addr.six.sin6_addr,
+	ni_sockaddr_set_ipv6(&saddr, link->addr.six.sin6_addr,
 					NI_DHCP6_CLIENT_PORT);
-	saddr.six.sin6_scope_id = dev->link.ifindex;
+	saddr.six.sin6_scope_id = link->ifindex;
 
 	if (bind(fd, &saddr.sa, sizeof(saddr.six)) == -1) {
-		ni_error("bind(%s): %m", ni_sockaddr_print(&saddr));
+		ni_error("%s: Cannot bind(%s): %m", ifname, ni_sockaddr_print(&saddr));
 		close(fd);
 		return -1;
 	}
@@ -155,12 +146,14 @@ __ni_dhcp6_mcast_socket_open(ni_dhcp6_device_t *dev)
 	/*
 	 * Set the device index for outgoing multicast packets on the socket.
 	 */
-	on = dev->link.ifindex;
-	if (setsockopt(fd, IPPROTO_IPV6, IPV6_MULTICAST_IF, &on, sizeof(on)) != 0)
-		ni_error("setsockopt(IPV6_MULTICAST_IF, %d: %m", on);
+	on = link->ifindex;
+	if (setsockopt(fd, IPPROTO_IPV6, IPV6_MULTICAST_IF, &on, sizeof(on)) != 0) {
+		ni_error("%s: Cannot set setsockopt(IPV6_MULTICAST_IF, %d: %m",
+			ifname, on);
+	}
 
 	ni_debug_dhcp("%s: bound DHCPv6 socket to [%s%%%u]:%u",
-		dev->ifname, ni_sockaddr_print(&saddr), saddr.six.sin6_scope_id,
+		ifname, ni_sockaddr_print(&saddr), saddr.six.sin6_scope_id,
 		ntohs(saddr.six.sin6_port));
 
 	return fd;
@@ -174,14 +167,27 @@ ni_dhcp6_mcast_socket_open(ni_dhcp6_device_t *dev)
 {
 	int fd;
 
+	/*
+	 * We call this function for verification before transmission.
+	 * When the socket is open but the device not ready anymore,
+	 * close the socket as it is bound to the link-local address
+	 * and return error.
+	 */
+	if ( !ni_dhcp6_device_is_ready(dev, NULL)) {
+		ni_debug_dhcp("%s: interface is not ready", dev->ifname);
+
+		/* transient error: close the socket and wait for
+		 * network-up and link-local address events ... */
+		ni_dhcp6_mcast_socket_close(dev);
+		return 1;
+	}
+
 	if (dev->mcast.sock != NULL) {
 		if (dev->mcast.sock->active && !dev->mcast.sock->error)
 			return 0;
 
 		/* there were a receive error, close and open again  */
-		if (dev->mcast.sock)
-			ni_socket_close(dev->mcast.sock);
-		dev->mcast.sock = NULL;
+		ni_dhcp6_mcast_socket_close(dev);
 	}
 
 	/* prepare the all servers and relay agents multicast address */
@@ -195,9 +201,10 @@ ni_dhcp6_mcast_socket_open(ni_dhcp6_device_t *dev)
 	dev->mcast.dest.six.sin6_scope_id = dev->link.ifindex;
 
 	/* open the socket an bind to the link-local address */
-	if ((fd = __ni_dhcp6_mcast_socket_open(dev)) == -1)
+	if ((fd = __ni_dhcp6_mcast_socket_open(&dev->link, dev->ifname)) == -1)
 		return -1;
 
+	/* finally wrap it and allocate receive buffer */
 	if ((dev->mcast.sock = ni_socket_wrap(fd, SOCK_DGRAM)) != NULL) {
 		dev->mcast.sock->user_data = dev;
 		dev->mcast.sock->receive = ni_dhcp6_socket_recv;
@@ -1466,30 +1473,29 @@ ni_dhcp6_init_message(ni_dhcp6_device_t *dev, unsigned int msg_code, const ni_ad
 		return -1;
 	}
 
-#if 0
-	if(ni_dhcp6_can_send_unicast(dev, msg_code, lease)) {
-		memcpy(&dev->server_addr.six.sin6_addr, &lease->dhcp6.server_unicast,
-			sizeof(dev->server_addr.six.sin6_addr));
-	} else
-#endif
-
-	if (ni_dhcp6_mcast_socket_open(dev) < 0) {
-		ni_error("%s: unable to open DHCP6 socket", dev->ifname);
-		goto transient_failure;
-	}
-
 	if(!ni_dhcp6_set_message_timing(dev, msg_code))
 		return -1;
 
-	return 0;
+#if 0
+	/*
+	 * W could prepare unicast renew socket bound to the leased address
+	 * and later try to send as unicast once with fallback to multicast
+	 * on any error or first timeout.
+	 *
+	 * In DHCPv6 the client has to query the server if it permits unicast
+	 * (to send directly without to involve any relays), but it is fine
+	 * to not do it and send multicasts only (renew with server-duid set,
+	 * the other servers have to drop messages with foreign server-duid).
+	 */
+	if(ni_dhcp6_can_send_unicast(dev, msg_code, lease)) {
+		/* dhcp6.server_unicast and address to renew from lease */
+	}
+#endif
 
-transient_failure:
-	/* We ran into a transient problem, such as being unable to open
-	 * a raw socket. We should schedule a "short" timeout after which
-	 * we should re-try the operation. */
-	/* FIXME: Not done yet. */
-	return 1;
+	/* Try to open multicast socket or defer when not ready */
+	return ni_dhcp6_mcast_socket_open(dev);
 }
+
 
 ni_dhcp6_status_t *
 ni_dhcp6_status_new(void)
@@ -2439,7 +2445,7 @@ ni_dhcp6_parse_client_header(ni_buffer_t *msgbuf, unsigned int *msg_type, unsign
 	header = ni_buffer_pull_head(msgbuf, sizeof(*header));
 	if (header) {
 		*msg_type = header->type;
-		*msg_xid  = ntohl(header->xid) & NI_DHCP6_XID_MASK;
+		*msg_xid  = ni_dhcp6_message_xid(header->xid);
 		return 0;
 	}
 	return -1;
@@ -2622,6 +2628,12 @@ ni_dhcp6_message_name(unsigned int type)
 		name = namebuf;
 	}
 	return name;
+}
+
+unsigned int
+ni_dhcp6_message_xid(unsigned int header_xid)
+{
+	return ntohl(header_xid) & NI_DHCP6_XID_MASK;
 }
 
 static const char *	__dhcp6_status_codes[__NI_DHCP6_STATUS_MAX] = {

@@ -190,7 +190,7 @@ struct ni_dhcp6_device {
 	unsigned int		users;
 
 	char *			ifname;		/* cached interface name	*/
-	struct {
+	struct ni_dhcp6_link {
 	    unsigned int	ifindex;	/* interface index		*/
 	    ni_sockaddr_t	addr;		/* cached link-local address	*/
 	    //ni_bool_t		ready;		/* device,link,network are up	*/

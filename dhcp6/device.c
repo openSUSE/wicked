@@ -1109,34 +1109,42 @@ ni_dhcp6_address_event(ni_dhcp6_device_t *dev, ni_netdev_t *ifp, ni_event_t even
 int
 ni_dhcp6_device_transmit(ni_dhcp6_device_t *dev)
 {
-	ni_dhcp6_packet_header_t *header;
-	ssize_t rv = -1;
+	const ni_dhcp6_client_header_t *header;
+	const char *name;
+	unsigned int xid;
+	ssize_t rv;
 	size_t cnt;
 
-	/* sanity check: verify we have at least the message type byte */
-	if (!ni_buffer_count(&dev->message)) {
+	/* sanity check: verify the message contains at least the header */
+	header = ni_buffer_peek_head(&dev->message, sizeof(*header));
+	if (!header) {
 		ni_error("%s: Cannot send empty DHCPv6 message packet",
-			dev->ifname);
+				dev->ifname);
+
+		/* Something went really wrong */
+		ni_dhcp6_device_stop(dev);
+		return -1;
+	}
+
+	/* get message length and header fields for logging */
+	cnt  = ni_buffer_count(&dev->message);
+	xid  = ni_dhcp6_message_xid(header->xid);
+	name = ni_dhcp6_message_name(header->type);
+
+	/* make sure the socket is open */
+	if ((rv = ni_dhcp6_mcast_socket_open(dev)) != 0) {
+		/* (transient) error already reported */
 		return rv;
 	}
 
-	/* peek message code only */
-	header = ni_buffer_head(&dev->message);
-
-#if 0
-	ni_debug_dhcp("%s: sending %s with xid 0x%x to %s using socket #%d",
-		dev->ifname, ni_dhcp6_message_name(header->type),
-		dev->dhcp6.xid, ni_sockaddr_print(&dev->config->server_addr),
-		dev->sock->__fd);
-#endif
-
-	cnt = ni_buffer_count(&dev->message);
 	rv = ni_dhcp6_socket_send(dev->mcast.sock, &dev->message, &dev->mcast.dest);
+	if (rv <= 0 || (size_t)rv != cnt) {
+		/* Hmm... advance retrans.count here? Use stop? */
 
-	if(rv < 0 || (size_t)rv != (ssize_t)ni_buffer_count(&dev->message)) {
-		ni_error("%s: Unable to send %s message #%u: %m",
-			dev->ifname,
-			ni_dhcp6_message_name(header->type), dev->retrans.count + 1);
+		ni_error("%s: Cannot send #%u %s message, xid 0x%x"
+				" with %zu byte to %s: %m",
+				dev->ifname, dev->retrans.count + 1, name, xid,
+				cnt, ni_sockaddr_print(&dev->mcast.dest));
 
 		ni_dhcp6_mcast_socket_close(dev);
 		ni_dhcp6_device_clear_buffer(dev);
@@ -1147,9 +1155,12 @@ ni_dhcp6_device_transmit(ni_dhcp6_device_t *dev)
 		dev->retrans.count++;
 
 		ni_timer_get_time(&now);
-		ni_debug_dhcp("%s: %s message #%u with %zu of %zd bytes sent at %s",
-			dev->ifname, ni_dhcp6_message_name(header->type),
-			dev->retrans.count, rv, cnt, ni_dhcp6_print_timeval(&now));
+		ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_DHCP,
+				"%s: %s message #%u, xid 0x%x sent with %zd of %zu"
+				" byte to %s at %s",
+				dev->ifname, name, dev->retrans.count, xid, rv, cnt,
+				ni_sockaddr_print(&dev->mcast.dest),
+				ni_dhcp6_print_timeval(&now));
 
 		ni_dhcp6_device_clear_buffer(dev);
 		return 0;

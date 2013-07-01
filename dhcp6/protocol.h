@@ -309,9 +309,11 @@ typedef struct ni_dhcp6_option_request {
 /*
  * functions used in device.c and fsm.c
  */
-extern const char *	ni_dhcp6_message_name(unsigned int);
 extern const char *	ni_dhcp6_option_name(unsigned int);
 const char *		ni_dhcp6_status_name(unsigned int);
+
+extern const char *	ni_dhcp6_message_name(unsigned int);
+extern unsigned int	ni_dhcp6_message_xid(unsigned int);
 
 extern int		ni_dhcp6_init_message(	ni_dhcp6_device_t *, unsigned int,
 						const ni_addrconf_lease_t *);
