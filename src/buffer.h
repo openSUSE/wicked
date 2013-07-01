@@ -223,6 +223,14 @@ ni_buffer_push_tail(ni_buffer_t *bp, size_t count)
 	return result;
 }
 
+static inline const void *
+ni_buffer_peek_head(const ni_buffer_t *bp, size_t count)
+{
+	if (bp->tail - bp->head < count)
+		return NULL;
+	return bp->base + bp->head;
+}
+
 static inline void *
 ni_buffer_pull_head(ni_buffer_t *bp, size_t count)
 {
