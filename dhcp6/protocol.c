@@ -55,6 +55,7 @@
 #include "buffer.h"
 #include "socket_priv.h"
 #include "netinfo_priv.h"
+#include "debug.h"
 
 
 /*
@@ -82,6 +83,9 @@ static void	ni_dhcp6_socket_check_timeout	(ni_socket_t *sock, const struct timev
 
 static int	ni_dhcp6_option_next(ni_buffer_t *options, ni_buffer_t *optbuf);
 static int	ni_dhcp6_option_get_duid(ni_buffer_t *bp, ni_opaque_t *duid);
+
+static int	__ni_dhcp6_parse_client_options(ni_dhcp6_device_t *dev, ni_buffer_t *buffer,
+						ni_addrconf_lease_t *lease, ni_bool_t request);
 
 
 /*
@@ -278,7 +282,7 @@ __ni_dhcp6_hexdump(ni_stringbuf_t *sbuf, const ni_buffer_t *packet)
 static void
 ni_dhcp6_socket_recv(ni_socket_t *sock)
 {
-#ifdef	NI_DHCP6_ENABLE_HEXDUMP
+#ifdef	NI_DHCP6_HEXDUMP_LEVEL
 	ni_stringbuf_t hexbuf = NI_STRINGBUF_INIT_DYNAMIC;
 #endif
 	ni_dhcp6_device_t * dev = sock->user_data;
@@ -339,8 +343,9 @@ ni_dhcp6_socket_recv(ni_socket_t *sock)
 	}
 
 	ni_buffer_push_tail(rbuf, bytes);
-#ifdef	NI_DHCP6_ENABLE_HEXDUMP
-	ni_debug_socket("%s: received %zd byte packet from %s: %s",
+#ifdef	NI_DHCP6_HEXDUMP_LEVEL
+	ni_debug_verbose(NI_DHCP6_HEXDUMP_LEVEL, NI_TRACE_SOCKET,
+			"%s: received %zd byte packet from %s: %s",
 			dev->ifname, bytes,
 			ni_dhcp6_address_print(&pinfo->ipi6_addr),
 			__ni_dhcp6_hexdump(&hexbuf, rbuf));
@@ -1119,47 +1124,6 @@ ni_dhcp6_option_request_append(ni_dhcp6_option_request_t *ora, uint16_t option)
 	return 0;
 }
 
-static inline int
-ni_dhcp6_build_client_header(ni_buffer_t *bp, unsigned int msg_type, unsigned int msg_xid)
-{
-	ni_dhcp6_client_header_t header;
-
-	header.type = msg_type;
-	header.xid &= htonl(~NI_DHCP6_XID_MASK);
-	header.xid |= htonl(msg_xid);
-
-	ni_buffer_ensure_tailroom(bp, sizeof(header));
-	if(ni_buffer_put(bp, &header, sizeof(header)) < 0)
-		return -1;
-	return 0;
-}
-
-static int
-ni_dhcp6_build_reparse(ni_dhcp6_device_t *dev, void *data, size_t len)
-{
-	ni_addrconf_lease_t *lease;
-	unsigned int         type;
-	unsigned int         xid;
-	ni_buffer_t          buf;
-	int                  rv;
-
-	ni_assert(dev != NULL && data != NULL && len != 0);
-
-	ni_buffer_init_reader(&buf, data, len);
-	if ((rv = ni_dhcp6_parse_client_header(&buf, &type, &xid)) < 0)
-		return rv;
-
-	lease = ni_addrconf_lease_new(NI_ADDRCONF_DHCP, AF_INET6);
-	lease->state = NI_ADDRCONF_STATE_GRANTED;
-	lease->type = NI_ADDRCONF_DHCP;
-	lease->time_acquired = time(NULL);
-
-	rv = ni_dhcp6_parse_client_options(dev, &buf, lease);
-	ni_addrconf_dhcp6_lease_free(lease);
-
-	return rv;
-}
-
 static ni_dhcp6_ia_addr_t *
 __ni_dhcp6_build_ia_addr(unsigned int msg_type, ni_dhcp6_ia_addr_t *iadr)
 {
@@ -1248,6 +1212,47 @@ __ni_dhcp6_build_ia_list(unsigned int msg_type, ni_dhcp6_ia_t *ia_list)
 			ni_dhcp6_ia_list_append(&ia_list_new, ia_new);
 	}
 	return ia_list_new;
+}
+
+static inline int
+ni_dhcp6_build_client_header(ni_buffer_t *bp, unsigned int msg_type, unsigned int msg_xid)
+{
+	ni_dhcp6_client_header_t header;
+
+	header.type = msg_type;
+	header.xid &= htonl(~NI_DHCP6_XID_MASK);
+	header.xid |= htonl(msg_xid);
+
+	ni_buffer_ensure_tailroom(bp, sizeof(header));
+	if(ni_buffer_put(bp, &header, sizeof(header)) < 0)
+		return -1;
+	return 0;
+}
+
+static int
+ni_dhcp6_build_reparse(ni_dhcp6_device_t *dev, void *data, size_t len)
+{
+	ni_addrconf_lease_t *lease;
+	unsigned int         type;
+	unsigned int         xid;
+	ni_buffer_t          buf;
+	int                  rv;
+
+	ni_assert(dev != NULL && data != NULL && len != 0);
+
+	ni_buffer_init_reader(&buf, data, len);
+	if ((rv = ni_dhcp6_parse_client_header(&buf, &type, &xid)) < 0)
+		return rv;
+
+	lease = ni_addrconf_lease_new(NI_ADDRCONF_DHCP, AF_INET6);
+	lease->state = NI_ADDRCONF_STATE_GRANTED;
+	lease->type = NI_ADDRCONF_DHCP;
+	lease->time_acquired = time(NULL);
+
+	rv = __ni_dhcp6_parse_client_options(dev, &buf, lease, TRUE);
+	ni_addrconf_dhcp6_lease_free(lease);
+
+	return rv;
 }
 
 int
@@ -1872,7 +1877,7 @@ ni_dhcp6_option_parse_ia_address(ni_buffer_t *bp, ni_dhcp6_ia_t *ia, uint16_t ad
 	}
 
 	while( ni_buffer_count(bp) && !bp->underflow) {
-#ifdef	NI_DHCP6_ENABLE_HEXDUMP
+#ifdef	NI_DHCP6_HEXDUMP_LEVEL
 		ni_stringbuf_t	hexbuf = NI_STRINGBUF_INIT_DYNAMIC;
 #endif
 		ni_buffer_t	optbuf;
@@ -1885,13 +1890,14 @@ ni_dhcp6_option_parse_ia_address(ni_buffer_t *bp, ni_dhcp6_ia_t *ia, uint16_t ad
 		if (option == 0)
 			break;
 
-#ifdef	NI_DHCP6_ENABLE_HEXDUMP
+#ifdef	NI_DHCP6_HEXDUMP_LEVEL
 		__ni_dhcp6_hexdump(&hexbuf, &optbuf);
-		ni_trace("%s.%s.%s hex dump: %s",
-			ni_dhcp6_option_name(ia->type),
-			ni_dhcp6_option_name(addr_type),
-			ni_dhcp6_option_name(option),
-			hexbuf.string);
+		ni_debug_verbose(NI_DHCP6_HEXDUMP_LEVEL, NI_TRACE_DHCP,
+				"%s.%s.%s hex dump: %s",
+				ni_dhcp6_option_name(ia->type),
+				ni_dhcp6_option_name(addr_type),
+				ni_dhcp6_option_name(option),
+				hexbuf.string);
 		ni_stringbuf_destroy(&hexbuf);
 #endif
 
@@ -1990,7 +1996,7 @@ failure:
 static int
 __ni_dhcp6_option_parse_ia_options(ni_buffer_t *bp,  ni_dhcp6_ia_t *ia)
 {
-#ifdef	NI_DHCP6_ENABLE_HEXDUMP
+#ifdef	NI_DHCP6_HEXDUMP_LEVEL
 	ni_stringbuf_t	hexbuf = NI_STRINGBUF_INIT_DYNAMIC;
 #endif
 
@@ -2005,12 +2011,13 @@ __ni_dhcp6_option_parse_ia_options(ni_buffer_t *bp,  ni_dhcp6_ia_t *ia)
 		if (option == 0)
 			break;
 
-#ifdef	NI_DHCP6_ENABLE_HEXDUMP
+#ifdef	NI_DHCP6_HEXDUMP_LEVEL
 		__ni_dhcp6_hexdump(&hexbuf, &optbuf);
-		ni_trace("%s.%s hex dump: %s",
-			ni_dhcp6_option_name(ia->type),
-			ni_dhcp6_option_name(option),
-			hexbuf.string);
+		ni_debug_verbose(NI_DHCP6_HEXDUMP_LEVEL, NI_TRACE_DHCP,
+				"%s.%s hex dump: %s",
+				ni_dhcp6_option_name(ia->type),
+				ni_dhcp6_option_name(option),
+				hexbuf.string);
 		ni_stringbuf_destroy(&hexbuf);
 #endif
 
@@ -2201,6 +2208,51 @@ failure:
 	return -1;
 }
 
+static int
+ni_dhcp6_option_request_parse(ni_buffer_t *optbuf, ni_dhcp6_option_request_t *oro)
+{
+	uint16_t opt;
+
+	if (!oro || !optbuf || optbuf->underflow)
+		return -1;
+
+	while (ni_buffer_count(optbuf) && !optbuf->underflow) {
+		if (ni_dhcp6_option_get16(optbuf, &opt) < 0)
+			return -1;
+		ni_dhcp6_option_request_append(oro, opt);
+	}
+
+	if (ni_buffer_count(optbuf) || optbuf->underflow)
+		return -1;
+	return 0;
+}
+
+static int
+ni_dhcp6_option_request_dump(ni_buffer_t *optbuf, ni_stringbuf_t *buf)
+{
+	ni_dhcp6_option_request_t oro;
+	unsigned int i, o;
+
+	if (!buf)
+		return -1;
+
+	ni_dhcp6_option_request_init(&oro);
+	if (ni_dhcp6_option_request_parse(optbuf, &oro) < 0) {
+		ni_dhcp6_option_request_destroy(&oro);
+		return -1;
+	}
+	for (i = 0; i < oro.count; ++i) {
+		o = ntohs(oro.options[i]); /* they're in network byte order */
+		if (buf->len) {
+			ni_stringbuf_printf(buf, ", %s", ni_dhcp6_option_name(o));
+		} else {
+			ni_stringbuf_printf(buf, "%s", ni_dhcp6_option_name(o));
+		}
+	}
+	ni_dhcp6_option_request_destroy(&oro);
+	return 0;
+}
+
 static unsigned int
 __copy_ia_na_to_lease_addrs(const ni_dhcp6_device_t *dev, ni_addrconf_lease_t *lease)
 {
@@ -2240,8 +2292,8 @@ __copy_ia_na_to_lease_addrs(const ni_dhcp6_device_t *dev, ni_addrconf_lease_t *l
 	return count;
 }
 
-int
-ni_dhcp6_parse_client_options(ni_dhcp6_device_t *dev, ni_buffer_t *buffer, ni_addrconf_lease_t *lease)
+static int
+__ni_dhcp6_parse_client_options(ni_dhcp6_device_t *dev, ni_buffer_t *buffer, ni_addrconf_lease_t *lease, ni_bool_t request)
 {
 	ni_stringbuf_t hexbuf = NI_STRINGBUF_INIT_DYNAMIC;
 	ni_string_array_t temp = NI_STRING_ARRAY_INIT;
@@ -2396,10 +2448,37 @@ ni_dhcp6_parse_client_options(ni_dhcp6_device_t *dev, ni_buffer_t *buffer, ni_ad
 			}
 			ni_string_array_destroy(&temp);
 		break;
+		case NI_DHCP6_OPTION_ORO:
+			if (request) {
+				ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
+
+				if (ni_dhcp6_option_request_dump(&optbuf, &buf) < 0) {
+#ifdef  NI_DHCP6_HEXDUMP_LEVEL
+					__ni_dhcp6_hexdump(&hexbuf, &optbuf);
+					ni_debug_verbose(NI_DHCP6_HEXDUMP_LEVEL, NI_TRACE_DHCP,
+							"Cannot parse option %s hexdump: %s",
+							ni_dhcp6_option_name(option),
+							hexbuf.string);
+					ni_stringbuf_destroy(&hexbuf);
+#else
+					ni_debug_dhcp("Cannot parse option %s",
+							ni_dhcp6_option_name(option));
+#endif
+				} else {
+					ni_debug_dhcp("%s: %s", ni_dhcp6_option_name(option),
+							buf.string);
+				}
+				ni_stringbuf_destroy(&buf);
+				break;
+			}
+
+			/* fall through */
+
 		default:
-#ifdef	NI_DHCP6_ENABLE_HEXDUMP
+#ifdef	NI_DHCP6_HEXDUMP_LEVEL
 			__ni_dhcp6_hexdump(&hexbuf, &optbuf);
-			ni_debug_dhcp("unsupported option %s hexdump: %s",
+			ni_debug_verbose(NI_DHCP6_HEXDUMP_LEVEL, NI_TRACE_DHCP,
+					"unsupported option %s hexdump: %s",
 					ni_dhcp6_option_name(option),
 					hexbuf.string);
 			ni_stringbuf_destroy(&hexbuf);
@@ -2436,6 +2515,11 @@ failure:
 	return -1;
 }
 
+int
+ni_dhcp6_parse_client_options(ni_dhcp6_device_t *dev, ni_buffer_t *buffer, ni_addrconf_lease_t *lease)
+{
+	return __ni_dhcp6_parse_client_options(dev, buffer, lease, FALSE);
+}
 
 int
 ni_dhcp6_parse_client_header(ni_buffer_t *msgbuf, unsigned int *msg_type, unsigned int *msg_xid)
