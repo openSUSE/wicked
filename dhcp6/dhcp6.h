@@ -160,9 +160,6 @@ struct ni_dhcp6_config {
 
 	ni_opaque_t		client_duid;	/* raw client id to use		*/
 	ni_opaque_t		server_duid;	/* destination raw server id	*/
-#if 1
-	ni_sockaddr_t		server_addr;	/* multicast or server unicast  */
-#endif
 
 	char			hostname[256];
 	ni_string_array_t	user_class;
@@ -201,7 +198,10 @@ struct ni_dhcp6_device {
 
 	uint32_t		iaid;		/* default IA interface-id	*/
 
-	ni_socket_t *		sock;
+	struct {
+	    ni_socket_t *	sock;		/* multicast socket		*/
+	    ni_sockaddr_t	dest;		/* relays & servers multicast	*/
+	} mcast;
 
 	ni_dhcp6_request_t *	request;	/* the wicked request params	*/
 	ni_dhcp6_config_t *	config;		/* config built from request	*/

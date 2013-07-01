@@ -41,7 +41,6 @@
 #include "dhcp6/fsm.h"
 
 #include "appconfig.h"
-#include "socket_priv.h"
 #include "util_priv.h"
 
 
@@ -164,17 +163,9 @@ ni_dhcp6_device_put(ni_dhcp6_device_t *dev)
  * Cleanup functions
  */
 static void
-ni_dhcp6_socket_close(ni_dhcp6_device_t *dev)
-{
-	if (dev->sock)
-		ni_socket_close(dev->sock);
-	dev->sock = NULL;
-}
-
-static void
 ni_dhcp6_device_close(ni_dhcp6_device_t *dev)
 {
-	ni_dhcp6_socket_close(dev);
+	ni_dhcp6_mcast_socket_close(dev);
 
 	if (dev->fsm.timer) {
 		ni_warn("%s: timer active for while close", dev->ifname);
@@ -1114,65 +1105,11 @@ ni_dhcp6_address_event(ni_dhcp6_device_t *dev, ni_netdev_t *ifp, ni_event_t even
 	}
 }
 
-#if 0
-static ni_bool_t
-ni_dhcp6_device_can_send_unicast(ni_dhcp6_device_t *dev, unsigned int msg_code, const ni_addrconf_lease_t *lease)
-{
-	(void)dev;
-	(void)msg_code;
-	(void)lease;
-#if 0
-	/*
-	 * We can send messages by unicast only if:
-	 *
-	 * - it is a Request, Renew, Release or Decline message
-	 */
-	switch(msg_code) {
-		case NI_DHCP6_RENEW:
-		case NI_DHCP6_REQUEST:
-		case NI_DHCP6_RELEASE:
-		case NI_DHCP6_DECLINE:
-		break;
-		default:
-			return FALSE;
-		break;
-	}
-
-	/*
-	 * - client has received a unicast option from server
-	 *   [the lease contains the server address then]
-	 */
-	if(lease == NULL ||
-		IN6_IS_ADDR_UNSPECIFIED(&lease->dhcp6.server_unicast) ||
-		IN6_IS_ADDR_MULTICAST(&lease->dhcp6.server_unicast) ||
-		IN6_IS_ADDR_LOOPBACK(&lease->dhcp6.server_unicast))
-		return FALSE;
-
-	/*
-	 * - TODO: client has a source address of sufficient scope
-	 *   to reach the server directly
-	 */
-
-	/* - TODO: initial message only, do not use for retransmits
-	 *   because it adds more problem than this optimization is
-	 *   worth (just waste of time when the server is down, has
-	 *   been replaced by other one, ...).
-	 *   In multicast mode, all relays and (directly attached)
-	 *   servers will be reached and the destination server for
-	 *   these messages is selected by server identifier (DUID);
-	 *   other servers will drop the message.
-	 */
-#endif
-	return FALSE;
-}
-#endif
-
 
 int
 ni_dhcp6_device_transmit(ni_dhcp6_device_t *dev)
 {
 	ni_dhcp6_packet_header_t *header;
-	int flags = 0;
 	ssize_t rv = -1;
 	size_t cnt;
 
@@ -1193,22 +1130,15 @@ ni_dhcp6_device_transmit(ni_dhcp6_device_t *dev)
 		dev->sock->__fd);
 #endif
 
-	if(IN6_IS_ADDR_MULTICAST(&dev->config->server_addr.six.sin6_addr) ||
-	   IN6_IS_ADDR_LINKLOCAL(&dev->config->server_addr.six.sin6_addr)) {
-		flags = MSG_DONTROUTE;
-	}
-
 	cnt = ni_buffer_count(&dev->message);
-	rv = sendto(dev->sock->__fd, ni_buffer_head(&dev->message),
-			ni_buffer_count(&dev->message), flags,
-			&dev->config->server_addr.sa, sizeof(dev->config->server_addr.six));
+	rv = ni_dhcp6_socket_send(dev->mcast.sock, &dev->message, &dev->mcast.dest);
 
 	if(rv < 0 || (size_t)rv != (ssize_t)ni_buffer_count(&dev->message)) {
 		ni_error("%s: Unable to send %s message #%u: %m",
 			dev->ifname,
 			ni_dhcp6_message_name(header->type), dev->retrans.count + 1);
 
-		ni_dhcp6_socket_close(dev);
+		ni_dhcp6_mcast_socket_close(dev);
 		ni_dhcp6_device_clear_buffer(dev);
 		return -1;
 	} else {

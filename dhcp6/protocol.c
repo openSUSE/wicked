@@ -89,7 +89,7 @@ static int	ni_dhcp6_option_get_duid(ni_buffer_t *bp, ni_opaque_t *duid);
  *
  */
 static int
-__ni_dhcp6_socket_open(ni_dhcp6_device_t *dev)
+__ni_dhcp6_mcast_socket_open(ni_dhcp6_device_t *dev)
 {
 	ni_sockaddr_t saddr;
 	int fd, on;
@@ -169,35 +169,92 @@ __ni_dhcp6_socket_open(ni_dhcp6_device_t *dev)
 /*
  * Open a DHCP6 socket for send and receive
  */
-static int
-ni_dhcp6_socket_open(ni_dhcp6_device_t *dev)
+int
+ni_dhcp6_mcast_socket_open(ni_dhcp6_device_t *dev)
 {
 	int fd;
 
-	if (dev->sock != NULL) {
-		if (dev->sock->active && !dev->sock->error)
+	if (dev->mcast.sock != NULL) {
+		if (dev->mcast.sock->active && !dev->mcast.sock->error)
 			return 0;
 
-		ni_socket_close(dev->sock);
-		dev->sock = NULL;
+		/* there were a receive error, close and open again  */
+		if (dev->mcast.sock)
+			ni_socket_close(dev->mcast.sock);
+		dev->mcast.sock = NULL;
 	}
 
-	if ((fd = __ni_dhcp6_socket_open(dev)) == -1)
+	/* prepare the all servers and relay agents multicast address */
+	if (ni_sockaddr_parse(&dev->mcast.dest, NI_DHCP6_ALL_RAGENTS, AF_INET6) < 0) {
+		memset(&dev->mcast.dest, 0, sizeof(dev->mcast.dest));
+		ni_error("%s: Unable to prepare DHCPv6 destination address %s",
+			dev->ifname, NI_DHCP6_ALL_RAGENTS);
+		return -1;
+	}
+	dev->mcast.dest.six.sin6_port = htons(NI_DHCP6_SERVER_PORT);
+	dev->mcast.dest.six.sin6_scope_id = dev->link.ifindex;
+
+	/* open the socket an bind to the link-local address */
+	if ((fd = __ni_dhcp6_mcast_socket_open(dev)) == -1)
 		return -1;
 
-	if ((dev->sock = ni_socket_wrap(fd, SOCK_DGRAM)) != NULL) {
-		dev->sock->user_data = dev;
-		dev->sock->receive = ni_dhcp6_socket_recv;
-		dev->sock->get_timeout = ni_dhcp6_socket_get_timeout;
-		dev->sock->check_timeout = ni_dhcp6_socket_check_timeout;
+	if ((dev->mcast.sock = ni_socket_wrap(fd, SOCK_DGRAM)) != NULL) {
+		dev->mcast.sock->user_data = dev;
+		dev->mcast.sock->receive = ni_dhcp6_socket_recv;
+		dev->mcast.sock->get_timeout = ni_dhcp6_socket_get_timeout;
+		dev->mcast.sock->check_timeout = ni_dhcp6_socket_check_timeout;
 
 		/* TODO: review this. rfc2460#section-5, Packet Size Issues */
-		ni_buffer_init_dynamic(&dev->sock->rbuf, NI_DHCP6_RBUF_SIZE);
+		ni_buffer_init_dynamic(&dev->mcast.sock->rbuf, NI_DHCP6_RBUF_SIZE);
 
-		ni_socket_activate(dev->sock);
+		ni_socket_activate(dev->mcast.sock);
+		return 0;
+	} else {
+		ni_error("%s: Unable to prepare DHCPv6 multicast socket",
+			dev->ifname);
+		close(fd);
+		return -1;
 	}
-	return 0;
 }
+
+void
+ni_dhcp6_mcast_socket_close(ni_dhcp6_device_t *dev)
+{
+	if (dev->mcast.sock)
+		ni_socket_close(dev->mcast.sock);
+	dev->mcast.sock = NULL;
+	memset(&dev->mcast.dest, 0, sizeof(dev->mcast.dest));
+}
+
+ssize_t
+ni_dhcp6_socket_send(ni_socket_t *sock, const ni_buffer_t *mesg, const ni_sockaddr_t *dest)
+{
+	int flags = 0;
+	size_t cnt;
+
+	if (!sock) {
+		errno = ENOTSOCK;
+		return -1;
+	}
+
+	if (!mesg || !(cnt = ni_buffer_count(mesg))) {
+		errno = EBADMSG;
+		return -1;
+	}
+
+	if (!dest || !ni_sockaddr_is_ipv6_specified(dest)) {
+		errno = EDESTADDRREQ;
+		return -1;
+	}
+
+	if (ni_sockaddr_is_ipv6_multicast(dest) ||
+	    ni_sockaddr_is_ipv6_linklocal(dest))
+		flags |= MSG_DONTROUTE;
+
+	return sendto(sock->__fd, ni_buffer_head(mesg), cnt,
+			flags, &dest->sa, sizeof(dest->six));
+}
+
 
 /*
  * This callback is invoked from the socket code when we
@@ -1335,15 +1392,64 @@ cleanup:
 	return rv;
 }
 
+#if 0
+static ni_bool_t
+ni_dhcp6_can_send_unicast(ni_dhcp6_device_t *dev, unsigned int msg_code, const ni_addrconf_lease_t *lease)
+{
+	(void)dev;
+	(void)msg_code;
+	(void)lease;
+#if 0
+	/*
+	 * We can send messages by unicast only if:
+	 *
+	 * - it is a Request, Renew, Release or Decline message
+	 */
+	switch(msg_code) {
+		case NI_DHCP6_RENEW:
+		case NI_DHCP6_REQUEST:
+		case NI_DHCP6_RELEASE:
+		case NI_DHCP6_DECLINE:
+		break;
+		default:
+			return FALSE;
+		break;
+	}
+
+	/*
+	 * - client has received a unicast option from server
+	 *   [the lease contains the server address then]
+	 */
+	if(lease == NULL ||
+		IN6_IS_ADDR_UNSPECIFIED(&lease->dhcp6.server_unicast) ||
+		IN6_IS_ADDR_MULTICAST(&lease->dhcp6.server_unicast) ||
+		IN6_IS_ADDR_LOOPBACK(&lease->dhcp6.server_unicast))
+		return FALSE;
+
+	/*
+	 * - TODO: client has a source address of sufficient scope
+	 *   to reach the server directly
+	 */
+
+	/* - TODO: initial message only, do not use for retransmits
+	 *   because it adds more problem than this optimization is
+	 *   worth (just waste of time when the server is down, has
+	 *   been replaced by other one, ...).
+	 *   In multicast mode, all relays and (directly attached)
+	 *   servers will be reached and the destination server for
+	 *   these messages is selected by server identifier (DUID);
+	 *   other servers will drop the message.
+	 */
+#endif
+	return FALSE;
+}
+#endif
+
+
 int
 ni_dhcp6_init_message(ni_dhcp6_device_t *dev, unsigned int msg_code, const ni_addrconf_lease_t *lease)
 {
 	int rv;
-
-	if (ni_dhcp6_socket_open(dev) < 0) {
-		ni_error("%s: unable to open DHCP6 socket", dev->ifname);
-		goto transient_failure;
-	}
 
 	/* Assign a new XID to this message */
 	while (dev->dhcp6.xid == 0) {
@@ -1360,22 +1466,16 @@ ni_dhcp6_init_message(ni_dhcp6_device_t *dev, unsigned int msg_code, const ni_ad
 		return -1;
 	}
 
-	memset(&dev->config->server_addr, 0, sizeof(dev->config->server_addr));
-	dev->config->server_addr.six.sin6_family = AF_INET6;
-	dev->config->server_addr.six.sin6_port = htons(NI_DHCP6_SERVER_PORT);
-	dev->config->server_addr.six.sin6_scope_id = dev->link.ifindex;
-
 #if 0
-	if(ni_dhcp6_device_can_send_unicast(dev, msg_code, lease)) {
+	if(ni_dhcp6_can_send_unicast(dev, msg_code, lease)) {
 		memcpy(&dev->server_addr.six.sin6_addr, &lease->dhcp6.server_unicast,
 			sizeof(dev->server_addr.six.sin6_addr));
 	} else
 #endif
-	if(inet_pton(AF_INET6, NI_DHCP6_ALL_RAGENTS,
-				&dev->config->server_addr.six.sin6_addr) != 1) {
-		ni_error("%s: Unable to prepare DHCP6 destination address",
-				dev->ifname);
-		return -1;
+
+	if (ni_dhcp6_mcast_socket_open(dev) < 0) {
+		ni_error("%s: unable to open DHCP6 socket", dev->ifname);
+		goto transient_failure;
 	}
 
 	if(!ni_dhcp6_set_message_timing(dev, msg_code))

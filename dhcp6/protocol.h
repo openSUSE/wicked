@@ -313,8 +313,6 @@ extern const char *	ni_dhcp6_message_name(unsigned int);
 extern const char *	ni_dhcp6_option_name(unsigned int);
 const char *		ni_dhcp6_status_name(unsigned int);
 
-//extern int		ni_dhcp6_socket_open(ni_dhcp6_device_t *);
-
 extern int		ni_dhcp6_init_message(	ni_dhcp6_device_t *, unsigned int,
 						const ni_addrconf_lease_t *);
 extern int		ni_dhcp6_build_message( ni_dhcp6_device_t *, unsigned int,
@@ -333,6 +331,10 @@ extern int		ni_dhcp6_parse_client_options(ni_dhcp6_device_t *dev, ni_buffer_t *b
 
 extern int		ni_dhcp6_check_client_header(ni_dhcp6_device_t *dev, const struct in6_addr *sender,
 							unsigned int msg_type, unsigned int msg_xid);
+
+extern int		ni_dhcp6_mcast_socket_open(ni_dhcp6_device_t *);
+extern void		ni_dhcp6_mcast_socket_close(ni_dhcp6_device_t *);
+extern ssize_t		ni_dhcp6_socket_send(ni_socket_t *, const ni_buffer_t *, const ni_sockaddr_t *);
 
 
 /* FIXME: cleanup */
