@@ -1,0 +1,5 @@
+[D-BUS Service]
+Name=org.opensuse.Network.AUTO4
+SystemdService=dbus-org.opensuse.Network.AUTO4.service
+# This service should not be bus activated if systemd isn't running.
+Exec=/bin/false

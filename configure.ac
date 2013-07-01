@@ -73,8 +73,9 @@ esac
 AC_SUBST(dbus_configdir,	"$with_dbus_configdir")
 
 # Define /usr/share/dbus-1/system-services service autostart directory
-# Disabled by default as it causes throuble because a) the first request
-# is not processed and b) dbus starts them in own cgroup under systemd.
+# Disabled by default as it causes more throuble than it is currently
+# worth, because the first request to the autostarted service is not
+# processed and causes a timeout (fixme).
 AC_ARG_WITH([dbus-servicedir], [AS_HELP_STRING([--with-dbus-servicedir@<:@=DIR@:>@],
 	    [dbus system service directory [${datarootdir}/dbus-1/system-services]])])
 case $with_dbus_servicedir in

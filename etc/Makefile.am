@@ -23,14 +23,6 @@ dbus_config_DATA		= \
 	wicked-dhcp6.conf	\
 	network-nanny.conf
 
-dbus_service_files		= \
-	org.opensuse.Network.AUTO4.service \
-	org.opensuse.Network.DHCP4.service \
-	org.opensuse.Network.DHCP6.service
-if dbus_service
-dbus_service_DATA		= $(dbus_service_files)
-endif
-
 systemd_unit_files		= \
 	systemd/wicked.service		\
 	systemd/wickedd.service		\
@@ -38,21 +30,41 @@ systemd_unit_files		= \
 	systemd/wicked-dhcp6.service	\
 	systemd/wicked-autoip4.service
 
-if systemd_service
-systemd_unit_DATA		= $(systemd_unit_files)
-endif
+systemd_dbus_files		= \
+	systemd/org.opensuse.Network.AUTO4.service \
+	systemd/org.opensuse.Network.DHCP4.service \
+	systemd/org.opensuse.Network.DHCP6.service
 
 systemv_init_files		= \
 	systemv/wickedd		\
 	systemv/network
+
+systemv_dbus_files		= \
+	systemv/org.opensuse.Network.AUTO4.service \
+	systemv/org.opensuse.Network.DHCP4.service \
+	systemv/org.opensuse.Network.DHCP6.service
+
+if systemd_service
+systemd_unit_DATA		= $(systemd_unit_files)
+
+if dbus_service
+dbus_service_DATA		= $(systemd_dbus_files)
+endif
+endif
+
 if systemv_service
 systemv_init_SCRIPTS		= $(systemv_init_files)
+
+if dbus_service
+dbus_service_DATA		= $(systemv_dbus_files)
+endif
 endif
 
 templates			= \
 	$(wicked_config_DATA:=.in)	\
-	$(dbus_service_files:=.in)	\
+	$(systemd_dbus_files:=.in)	\
 	$(systemd_unit_files:=.in)	\
+	$(systemv_dbus_files:=.in)	\
 	$(systemv_init_files:=.in)
 
 substitute_vars			= \
@@ -71,12 +83,12 @@ substitute_vars			= \
 	@rm -f $@ $@.tmp
 	@$(substitute_vars) < $< > $@.tmp && mv $@.tmp $@
 
-%.service: %.service.in $(top_builddir)/config.status
+systemd/%.service: systemd/%.service.in $(top_builddir)/config.status
 	@echo "substituting variables in $< > $@"
 	@rm -f $@ $@.tmp
 	@$(substitute_vars) < $< > $@.tmp && mv $@.tmp $@
 
-systemd/%.service: systemd/%service.in $(top_builddir)/config.status
+systemv/%.service: %.service.in $(top_builddir)/config.status
 	@echo "substituting variables in $< > $@"
 	@rm -f $@ $@.tmp
 	@$(substitute_vars) < $< > $@.tmp && mv $@.tmp $@
