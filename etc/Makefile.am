@@ -43,8 +43,8 @@ systemd_unit_DATA		= $(systemd_unit_files)
 endif
 
 systemv_init_files		= \
-	init.d/wickedd		\
-	init.d/network
+	systemv/wickedd		\
+	systemv/network
 if systemv_service
 systemv_init_SCRIPTS		= $(systemv_init_files)
 endif
@@ -81,12 +81,12 @@ systemd/%.service: systemd/%service.in $(top_builddir)/config.status
 	@rm -f $@ $@.tmp
 	@$(substitute_vars) < $< > $@.tmp && mv $@.tmp $@
 
-init.d/wickedd: init.d/wickedd.in $(top_builddir)/config.status
+systemv/wickedd: systemv/wickedd.in $(top_builddir)/config.status
 	@echo "substituting variables in $< > $@"
 	@rm -f $@ $@.tmp
 	@$(substitute_vars) < $< > $@.tmp && mv $@.tmp $@
 
-init.d/network: init.d/network.in $(top_builddir)/config.status
+systemv/network: systemv/network.in $(top_builddir)/config.status
 	@echo "substituting variables in $< > $@"
 	@rm -f $@ $@.tmp
 	@$(substitute_vars) < $< > $@.tmp && mv $@.tmp $@
