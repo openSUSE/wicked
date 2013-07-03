@@ -70,7 +70,8 @@ extern char *		__ni_ppp_create_device(ni_ppp_t *, const char *);
 
 extern int		__ni_netdev_rename(const char *old_name, const char *new_name);
 
-extern int		__ni_nla_get_addr(int, ni_sockaddr_t *, struct nlattr *);
+extern const void *	__ni_nla_get_data(size_t, const struct nlattr *);
+extern int		__ni_nla_get_addr(int, ni_sockaddr_t *, const struct nlattr *);
 extern struct nlattr *	__ni_nla_find(struct nlattr *, size_t len, int type);
 
 /*

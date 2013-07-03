@@ -336,16 +336,27 @@ __ni_ppp_create_device(ni_ppp_t *ppp, const char *ifname)
 /*
  * rtnetlink attribute handling
  */
-int
-__ni_nla_get_addr(int af, ni_sockaddr_t *ss, struct nlattr *nla)
+const void *
+__ni_nla_get_data(size_t minlen, const struct nlattr *nla)
 {
-	unsigned int alen, maxlen;
+	int len;
+
+	if (!nla || (len = nla_len(nla)) < 0 || (size_t)len < minlen)
+		return NULL;
+
+	return nla_data(nla);
+}
+
+int
+__ni_nla_get_addr(int af, ni_sockaddr_t *ss, const struct nlattr *nla)
+{
+	size_t alen, maxlen;
 	void *dst;
 
 	memset(ss, 0, sizeof(*ss));
 	ss->ss_family = AF_UNSPEC;
 
-	if (!nla)
+	if (!nla || nla_len(nla) < 0)
 		return 1; /* empty attr */
 
 	alen = nla_len(nla);
