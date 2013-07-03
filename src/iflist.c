@@ -928,9 +928,14 @@ __ni_rtnl_parse_newprefix(const char *ifname, struct nlmsghdr *h, struct prefixm
 	}
 
 	if (tb[PREFIX_CACHEINFO]) {
-		cache_info = (struct prefix_cacheinfo *) tb[PREFIX_CACHEINFO];
-		pi->lifetime.preferred_lft = cache_info->preferred_time;
-		pi->lifetime.valid_lft = cache_info->valid_time;
+		cache_info = __ni_nla_get_data(sizeof(*cache_info), tb[PREFIX_CACHEINFO]);
+		if (cache_info) {
+			pi->lifetime.preferred_lft = cache_info->preferred_time;
+			pi->lifetime.valid_lft = cache_info->valid_time;
+		} else {
+			ni_error("%s: cannot get rtnl PREFIX message lifetimes data", ifname);
+			return -1;
+		}
 	} else {
 		ni_error("%s: rtnl PREFIX message without lifetimes", ifname);
 		return -1;
@@ -970,9 +975,9 @@ __ni_netdev_process_newprefix(ni_netdev_t *dev, struct nlmsghdr *h, struct prefi
 		return -1;
 	}
 
-	if (tb[PREFIX_CACHEINFO])
-		cache_info = (struct prefix_cacheinfo *) tb[PREFIX_CACHEINFO];
-
+	if (tb[PREFIX_CACHEINFO]) {
+		cache_info = __ni_nla_get_data(sizeof(*cache_info), tb[PREFIX_CACHEINFO]);
+	}
 
 	__ni_nla_get_addr(pfx->prefix_family, &address, tb[PREFIX_ADDRESS]);
 
@@ -1067,10 +1072,12 @@ __ni_rtnl_parse_newaddr(unsigned ifflags, struct nlmsghdr *h, struct ifaddrmsg *
 	__ni_nla_get_addr(ifa->ifa_family, &ap->anycast_addr, tb[IFA_ANYCAST]);
 
 	if (tb[IFA_CACHEINFO]) {
-		struct ifa_cacheinfo *ci = (struct ifa_cacheinfo *) tb[IFA_CACHEINFO];
-
-		ap->ipv6_cache_info.valid_lft = ci->ifa_valid;
-		ap->ipv6_cache_info.preferred_lft = ci->ifa_prefered;
+		const struct ifa_cacheinfo *ci;
+		ci = __ni_nla_get_data(sizeof(*ci), tb[IFA_CACHEINFO]);
+		if (ci) {
+			ap->ipv6_cache_info.valid_lft = ci->ifa_valid;
+			ap->ipv6_cache_info.preferred_lft = ci->ifa_prefered;
+		}
 	}
 
 	if (tb[IFA_LABEL] != NULL)
