@@ -244,6 +244,8 @@ extern int		ni_addrconf_name_to_update_target(const char *);
 extern const char *	ni_addrconf_update_target_to_name(unsigned int);
 extern int		ni_addrfamily_name_to_type(const char *);
 extern const char *	ni_addrfamily_type_to_name(unsigned int);
+extern const char *	ni_dhcp6_mode_type_to_name(unsigned int);
+extern int		ni_dhcp6_mode_name_to_type(const char *, unsigned int *);
 extern int		ni_arphrd_name_to_type(const char *);
 extern const char *	ni_arphrd_type_to_name(unsigned int);
 extern unsigned int	ni_arphrd_type_to_iftype(unsigned int arp_type);

@@ -43,6 +43,17 @@ enum {
 	__NI_ADDRCONF_STATE_MAX
 };
 
+
+/*
+ * DHCP6 run/configuration mode
+ */
+typedef enum ni_dhcp6_mode {
+	NI_DHCP6_MODE_AUTO,		/* Follow router advertisement hint  */
+	NI_DHCP6_MODE_INFO,		/* Request configuration info only   */
+	NI_DHCP6_MODE_MANAGED		/* Request address and configuration */
+} ni_dhcp6_mode_t;
+
+
 struct ni_dhcp6_status;
 struct ni_dhcp6_ia;
 

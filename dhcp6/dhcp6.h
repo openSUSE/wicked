@@ -114,7 +114,7 @@ struct ni_dhcp6_request {
 	ni_bool_t		enabled;
 
 	/* Options controlling which and how to make the requests */
-	ni_bool_t		info_only;	/* stateless info request only  */
+	ni_dhcp6_mode_t		mode;		/* follow ra, request info/addr */
 	ni_bool_t		rapid_commit;	/* try to use rapid commit flow */
 
 	/* Options controlling what to put into the lease request */
@@ -155,7 +155,7 @@ extern void			ni_dhcp6_request_free(ni_dhcp6_request_t *);
 struct ni_dhcp6_config {
 	ni_uuid_t		uuid;
 
-	ni_bool_t		info_only;
+	ni_dhcp6_mode_t		mode;
 	ni_bool_t		rapid_commit;
 
 	ni_opaque_t		client_duid;	/* raw client id to use		*/

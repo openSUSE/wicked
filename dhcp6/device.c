@@ -424,7 +424,7 @@ ni_dhcp6_restart(void)
 		if (dev->request) {
 #if 0
 			ni_trace("restarting acquire %s on dev %s",
-				(dev->request->info_only ? "info" : "lease"),
+				ni_dhcp6_mode_type_to_name(dev->request->mode),
 				dev->ifname);
 #endif
 			ni_dhcp6_acquire(dev, dev->request);
@@ -469,8 +469,8 @@ ni_dhcp6_device_find_lladdr(ni_dhcp6_device_t *dev)
 	}
 
 	if (!ni_netdev_link_is_up(ifp)) {
-		ni_error("%s: Link is not up", dev->ifname);
-		return -1;
+		ni_error("%s: Link is not (yet) up", dev->ifname);
+		return 1;
 	}
 
 	for(addr = ifp->addrs; addr; addr = addr->next) {
@@ -815,8 +815,7 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *info)
 	config = xcalloc(1, sizeof(*config));
 	config->uuid = info->uuid;
 	config->update = info->update;
-
-	config->info_only = info->info_only;
+	config->mode = info->mode;
 	config->rapid_commit = info->rapid_commit;
 	config->lease_time = NI_DHCP6_PREFERRED_LIFETIME;
 
@@ -829,7 +828,7 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *info)
 		return -1;
 	}
 
-	if (!config->info_only) {
+	if (config->mode != NI_DHCP6_MODE_INFO) {
 		if (info->ia_list == NULL) {
 			ia = ni_dhcp6_ia_na_new(dev->iaid);
 			ni_dhcp6_ia_set_default_lifetimes(ia, config->lease_time);

@@ -46,6 +46,12 @@ typedef struct ni_compat_netdev {
 		ni_bool_t	enabled;
 		ni_bool_t	required;
 
+		unsigned int	mode;
+		ni_bool_t	rapid_commit;
+
+		char *		hostname;
+		char *		client_id;
+
 		unsigned int	update;
 	} dhcp6;
 } ni_compat_netdev_t;

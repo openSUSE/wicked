@@ -87,16 +87,18 @@ static ni_dhcp6_event_handler_t *ni_dhcp6_fsm_event_handler;
 int
 ni_dhcp6_fsm_start(ni_dhcp6_device_t *dev)
 {
+	if (!dev->config)
+		return -1;
 #if 0
-        if (dev->config->info_only) {
+	if (dev->config->mode == NI_DHCP6_MODE_INFO) {
 		return ni_dhcp6_fsm_request_info(dev);
-        }
-        else if(link_were_down_and_have_valid_lease(dev->lease)) {
+	}
+	else if(ni_addrconf_lease_is_valid(dev->lease)) {
 		return ni_dhcp6_fsm_confirm_lease(dev, dev->lease);
-        }
-        else {
+	}
+	else {
 		/* drop old lease here ? */
-        }
+	}
 #endif
 	ni_dhcp6_device_set_lease(dev, NULL);
 	ni_dhcp6_device_drop_best_offer(dev);

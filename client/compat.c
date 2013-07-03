@@ -735,12 +735,12 @@ __ni_compat_generate_dhcp4_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t
 
 	if (compat->dhcp4.client_id)
 		xml_node_dict_set(dhcp, "client-id", compat->dhcp4.client_id);
+
 	if (compat->dhcp4.vendor_class)
 		xml_node_dict_set(dhcp, "vendor-class", compat->dhcp4.vendor_class);
 
 	/* Ignored for now:
 	   DHCLIENT_USE_LAST_LEASE
-	   WRITE_HOSTNAME_TO_HOSTS
 	   DHCLIENT_MODIFY_SMB_CONF
 	   DHCLIENT_SET_HOSTNAME
 	   DHCLIENT_SET_DEFAULT_ROUTE
@@ -753,11 +753,39 @@ static xml_node_t *
 __ni_compat_generate_dhcp6_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 {
 	xml_node_t *dhcp;
+	const char *ptr;
 
 	if (!compat->dhcp6.enabled)
 		return NULL;
 
-	dhcp = __ni_compat_generate_dynamic_addrconf(ifnode, "ipv6:dhcp", compat->dhcp6.required, compat->dhcp6.update);
+	dhcp = __ni_compat_generate_dynamic_addrconf(ifnode, "ipv6:dhcp",
+			compat->dhcp6.required, compat->dhcp6.update);
+
+	if ((ptr = ni_dhcp6_mode_type_to_name(compat->dhcp6.mode)) != NULL)
+		xml_node_dict_set(dhcp, "mode", ptr);
+
+	if (compat->dhcp6.rapid_commit)
+		xml_node_dict_set(dhcp, "rapid-commit", "true");
+	else
+		xml_node_dict_set(dhcp, "rapid-commit", "false");
+
+	if (compat->dhcp6.hostname)
+		xml_node_dict_set(dhcp, "hostname", compat->dhcp6.hostname);
+#if 0
+	if (compat->dhcp6.acquire_timeout)
+		xml_node_dict_set(dhcp, "acquire-timeout",
+				ni_sprint_timeout(compat->dhcp6.acquire_timeout));
+
+	if (compat->dhcp6.lease_time)
+		xml_node_dict_set(dhcp, "lease-time",
+				ni_sprint_timeout(compat->dhcp6.lease_time));
+#endif
+	if (compat->dhcp6.client_id)
+		xml_node_dict_set(dhcp, "client-id", compat->dhcp6.client_id);
+#if 0
+	if (compat->dhcp6.vendor_class)
+		xml_node_dict_set(dhcp, "vendor-class", compat->dhcp6.vendor_class);
+#endif
 	return dhcp;
 }
 

@@ -17,6 +17,11 @@
   <@@ADDRCONF_STATE_NAME@@ value="@@ADDRCONF_STATE_VALUE@@"/>
 </define>
 
+<!-- Built-in dhcp6 run/configuration mode types -->
+<define name="builtin-dhcp6-mode" type="uint32" constraint="enum">
+  <@@DHCP6_MODE_NAME@@ value="@@DHCP6_MODE_VALUE@@"/>
+</define>
+
 <!-- Built-in interface status flags -->
 <define name="builtin-ifflags" type="uint32" constraint="bitmap">
   <@@IFFLAG_NAME@@ bit="@@IFFLAG_VALUE@@"/>

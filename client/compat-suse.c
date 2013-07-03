@@ -15,6 +15,7 @@
 #include <wicked/util.h>
 #include <wicked/logging.h>
 #include <wicked/sysconfig.h>
+#include <wicked/addrconf.h>
 #include <wicked/netinfo.h>
 #include <wicked/route.h>
 #include <wicked/xml.h>
@@ -40,12 +41,14 @@ static ni_bool_t	__process_indexed_variables(const ni_sysconfig_t *, ni_netdev_t
 static ni_var_t *	__find_indexed_variable(const ni_sysconfig_t *, const char *, const char *);
 static ni_bool_t	__ni_suse_read_routes(ni_route_table_t **, const char *, const char *);
 
+static char *			__ni_suse_default_hostname;
 static ni_sysconfig_t *		__ni_suse_config_defaults;
 static ni_sysconfig_t *		__ni_suse_dhcp_defaults;
 static ni_route_table_t *	__ni_suse_global_routes;
 
 
 #define __NI_SUSE_SYSCONFIG_NETWORK_DIR		"/etc/sysconfig/network"
+#define __NI_SUSE_HOSTNAME_FILE			"/etc/HOSTNAME"
 #define __NI_SUSE_CONFIG_IFPREFIX		"ifcfg-"
 #define __NI_SUSE_CONFIG_GLOBAL			"config"
 #define __NI_SUSE_CONFIG_DHCP			"dhcp"
@@ -203,6 +206,35 @@ done:
 }
 
 /*
+ * Read HOSTNAME file
+ */
+static const char *
+__ni_suse_read_default_hostname(char **hostname)
+{
+	char buff[256];
+	FILE *input;
+
+	if (!hostname)
+		return NULL;
+	ni_string_free(hostname);
+
+	input = ni_file_open(__NI_SUSE_HOSTNAME_FILE, "r", 0600);
+	if (!input)
+		return NULL;
+
+	if (fgets(buff, sizeof(buff)-1, input)) {
+		buff[strcspn(buff, " \t\r\n")] = '\0';
+
+		if (ni_check_domain_name(buff, strlen(buff), 0))
+			ni_string_dup(hostname, buff);
+	}
+	fclose(input);
+
+	return *hostname;
+}
+
+
+/*
  * Read global ifconfig files like config, dhcp and routes
  */
 static ni_bool_t
@@ -216,6 +248,8 @@ __ni_suse_read_globals(const char *path)
 	}
 
 	__ni_suse_free_globals();
+
+	__ni_suse_read_default_hostname(&__ni_suse_default_hostname);
 
 	snprintf(pathbuf, sizeof(pathbuf), "%s/%s", path, __NI_SUSE_CONFIG_GLOBAL);
 	if (ni_file_exists(pathbuf)) {
@@ -247,6 +281,8 @@ __ni_suse_read_globals(const char *path)
 static void
 __ni_suse_free_globals(void)
 {
+	ni_string_free(&__ni_suse_default_hostname);
+
 	if (__ni_suse_config_defaults)
 		ni_sysconfig_destroy(__ni_suse_config_defaults);
 
@@ -958,8 +994,12 @@ ni_compat_netdev_new(const char *ifname)
 {
 	ni_compat_netdev_t *compat;
 
-	if ((compat = calloc(1, sizeof(*compat))))
-		compat->dev = ni_netdev_new(ifname, 0);
+	compat = xcalloc(1, sizeof(*compat));
+	compat->dev = ni_netdev_new(ifname, 0);
+
+	/* Apply defaults */
+	compat->dhcp6.mode = NI_DHCP6_MODE_AUTO;
+	compat->dhcp6.rapid_commit = TRUE;
 
 	return compat;
 }
@@ -1721,9 +1761,20 @@ __ni_suse_addrconf_dhcp4_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *c
 {
 	const char *string;
 	unsigned int uint;
+	ni_bool_t ret;
 
-	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT_HOSTNAME_OPTION")) && strcasecmp(string, "auto"))
-		ni_string_dup(&compat->dhcp4.hostname, string);
+	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT_HOSTNAME_OPTION")) != NULL) {
+		if (!strcasecmp(string, "AUTO")) {
+			ni_string_dup(&compat->dhcp4.hostname, __ni_suse_default_hostname);
+		} else if (ni_check_domain_name(string, ni_string_len(string), 0)) {
+			ni_string_dup(&compat->dhcp4.hostname, string);
+		} else {
+			ni_warn("%s: Cannot parse DHCLIENT_HOSTNAME_OPTION='%s'",
+				ni_basename(sc->pathname), string);
+			ret = FALSE;
+		}
+	}
+
 	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT_CLIENT_ID")) != NULL)
 		ni_string_dup(&compat->dhcp4.client_id, string);
 	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT_VENDOR_CLASS_ID")) != NULL)
@@ -1742,7 +1793,7 @@ __ni_suse_addrconf_dhcp4_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *c
 	   DHCLIENT_SET_DEFAULT_ROUTE
 	 */
 
-	return TRUE;
+	return ret;
 }
 
 /*
@@ -1751,19 +1802,60 @@ __ni_suse_addrconf_dhcp4_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *c
 static ni_bool_t
 __ni_suse_addrconf_dhcp6_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 {
-	(void)sc;
-	(void)compat;
+	ni_bool_t ret = TRUE;
+	const char *string;
+
+	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT6_MODE")) != NULL) {
+		if (ni_dhcp6_mode_name_to_type(string, &compat->dhcp6.mode) != 0) {
+			ni_warn("%s: Cannot parse DHCLIENT6_MODE='%s'",
+				ni_basename(sc->pathname), string);
+			ret = FALSE;
+		}
+	}
+
+	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT6_RAPID_COMMIT")) != NULL) {
+		if (!strcasecmp(string, "yes")) {
+			compat->dhcp6.rapid_commit = TRUE;
+		} else
+		if (!strcasecmp(string, "no")) {
+			compat->dhcp6.rapid_commit = FALSE;
+		} else {
+			ni_warn("%s: Cannot parse DHCLIENT6_RAPID_COMMIT='%s'",
+				ni_basename(sc->pathname), string);
+			ret = FALSE;
+		}
+	}
+
+	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT6_HOSTNAME_OPTION")) != NULL) {
+		if (!strcasecmp(string, "AUTO")) {
+			ni_string_dup(&compat->dhcp6.hostname, __ni_suse_default_hostname);
+		} else if (ni_check_domain_name(string, ni_string_len(string), 0)) {
+			ni_string_dup(&compat->dhcp6.hostname, string);
+		} else {
+			ni_warn("%s: Cannot parse DHCLIENT6_HOSTNAME_OPTION='%s'",
+				ni_basename(sc->pathname), string);
+			ret = FALSE;
+		}
+	}
+
+	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT6_CLIENT_ID")) != NULL) {
+		ni_opaque_t duid;
+		int len;
+		/* Hmm... consider to move duid.[ch] to src ...
+		 * type (2) + hwtype (2) + hwaddr (6) => 10 for duid type 3 (LL)
+		 * type (2) + uuid (128)              => 130 for duid type 4 (UUID)
+		 */
+		len = ni_parse_hex(string, duid.data, sizeof(duid.data));
+		if (len >= 10 && len <= 130) {
+			ni_string_dup(&compat->dhcp6.client_id, string);
+		} else {
+			ni_warn("%s: Cannot parse DHCLIENT6_CLIENT_ID='%s' as DUID in hex",
+				ni_basename(sc->pathname), string);
+			ret = FALSE;
+		}
+	}
 
 #if 0	/* FIXME: Use defaults for now */
-	const char *string;
-	unsigned int uint;
-
-	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT6_HOSTNAME_OPTION")) && strcasecmp(string, "auto"))
-		ni_string_dup(&compat->dhcp4.hostname, string);
-	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT6_CLIENT_ID")) != NULL)
-		ni_string_dup(&compat->dhcp4.client_id, string);
-	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT6_VENDOR_CLASS_ID")) != NULL)
-		ni_string_dup(&compat->dhcp4.vendor_class, string);
 
 	if (ni_sysconfig_get_integer(sc, "DHCLIENT6_WAIT_AT_BOOT", &uint))
 		compat->dhcp4.acquire_timeout = uint? uint : NI_IFWORKER_INFINITE_TIMEOUT;
@@ -1772,13 +1864,12 @@ __ni_suse_addrconf_dhcp6_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *c
 
 	/* Ignored for now:
 	   DHCLIENT_USE_LAST_LEASE
-	   WRITE_HOSTNAME_TO_HOSTS
 	   DHCLIENT_MODIFY_SMB_CONF
 	   DHCLIENT_SET_HOSTNAME
 	   DHCLIENT_SET_DEFAULT_ROUTE
 	 */
 #endif
-	return TRUE;
+	return ret;
 }
 
 static ni_bool_t

@@ -175,6 +175,29 @@ ni_addrfamily_type_to_name(unsigned int type)
 }
 
 /*
+ * Map DHCP6 configuration modes
+ */
+static const ni_intmap_t	__dhcp6_modes[] = {
+	{ "auto",		NI_DHCP6_MODE_AUTO	},
+	{ "info",		NI_DHCP6_MODE_INFO	},
+	{ "managed",		NI_DHCP6_MODE_MANAGED	},
+
+	{ NULL,			NI_DHCP6_MODE_AUTO	}
+};
+
+const char *
+ni_dhcp6_mode_type_to_name(unsigned int type)
+{
+	return ni_format_uint_mapped(type, __dhcp6_modes);
+}
+
+int
+ni_dhcp6_mode_name_to_type(const char *name, unsigned int *type)
+{
+	return ni_parse_uint_mapped(name, __dhcp6_modes, type);
+}
+
+/*
  * Map ARPHRD_* constants to string
  */
 #define __ARPMAP(token, name) { #name, ARPHRD_##token }

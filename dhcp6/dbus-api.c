@@ -187,7 +187,6 @@ ni_objectmodel_dhcp6_acquire_svc(ni_dbus_object_t *object, const ni_dbus_method_
 		goto failed;
 	}
 	req->uuid = req_uuid;
-	req->info_only = FALSE;
 
 	if ((rv = ni_dhcp6_acquire(dev, req)) < 0) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
@@ -278,6 +277,10 @@ ni_dhcp6_request_new(void)
 
 	req = xcalloc(1, sizeof(*req));
 
+	/* Apply defaults */
+	req->mode = NI_DHCP6_MODE_AUTO;
+	req->rapid_commit = TRUE;
+
 	/* By default, we try to obtain all sorts of config from the server */
 	req->update = ~0;
 
@@ -344,6 +347,8 @@ ni_objectmodel_get_dhcp6_request(const ni_dbus_object_t *object, ni_bool_t write
 static ni_dbus_property_t	dhcp6_request_properties[] = {
 	DHCP6REQ_BOOL_PROPERTY(enabled, enabled, RO),
 	DHCP6REQ_UUID_PROPERTY(uuid, uuid, RO),
+	DHCP6REQ_UINT_PROPERTY(mode, mode, RO),
+	DHCP6REQ_BOOL_PROPERTY(rapid-commit, rapid_commit, RO),
 	//DHCP6REQ_UINT_PROPERTY(settle-timeout, settle_timeout, RO),
 	//DHCP6REQ_UINT_PROPERTY(acquire-timeout, acquire_timeout, RO),
 	DHCP6REQ_STRING_PROPERTY(hostname, hostname, RO),
