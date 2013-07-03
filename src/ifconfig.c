@@ -1570,6 +1570,34 @@ failed:
 	return -1;
 }
 
+static ni_bool_t
+__ni_netdev_addr_needs_update(ni_address_t *o, ni_address_t *n)
+{
+	if (n->scope != -1 && o->scope != n->scope)
+		return TRUE;
+
+	if (!ni_sockaddr_equal(&o->bcast_addr, &n->bcast_addr) ||
+	    !ni_sockaddr_equal(&o->anycast_addr, &n->anycast_addr))
+		return TRUE;
+
+	switch (o->family) {
+	case AF_INET:
+		if (!ni_string_eq(o->label, n->label))
+			return TRUE;
+		break;
+
+	case AF_INET6:
+		if (o->ipv6_cache_info.valid_lft != n->ipv6_cache_info.valid_lft ||
+		    o->ipv6_cache_info.preferred_lft != n->ipv6_cache_info.preferred_lft)
+			return TRUE;
+		break;
+
+	default:
+		break;
+	}
+	return FALSE;
+}
+
 /*
  * Update the addresses and routes assigned to an interface
  * for a given addrconf method
@@ -1618,6 +1646,8 @@ __ni_netdev_update_addrs(ni_netdev_t *dev,
 		if (ap->config_lease != old_lease) {
 			/* The existing address is managed by a different
 			 * addrconf mode.
+			 *
+			 * FIXME: auto6 lease steals all addrs of dhcp6.
 			 */
 			if (new_addr != NULL) {
 				ni_warn("%s: address %s covered by a %s lease",
@@ -1630,25 +1660,27 @@ __ni_netdev_update_addrs(ni_netdev_t *dev,
 		}
 
 		if (new_addr != NULL) {
+			/* mark it to skip in add loop */
+			new_addr->seq = __ni_global_seqno;
+
 			/* Check whether we need to update */
-			if ((new_addr->scope == -1 || ap->scope == new_addr->scope)
-			 && (new_addr->label == NULL || ni_string_eq(ap->label, new_addr->label))
-			 && ni_sockaddr_equal(&ap->bcast_addr, &new_addr->bcast_addr)
-			 && ni_sockaddr_equal(&ap->anycast_addr, &new_addr->anycast_addr)) {
-				/* Current address as configured, no need to change. */
+			if (!__ni_netdev_addr_needs_update(ap, new_addr)) {
 				ni_debug_ifconfig("address %s/%u exists; no need to reconfigure",
 					ni_sockaddr_print(&ap->local_addr), ap->prefixlen);
-				new_addr->seq = __ni_global_seqno;
 				continue;
 			}
 
 			ni_debug_ifconfig("existing address %s/%u needs to be reconfigured",
 					ni_sockaddr_print(&ap->local_addr),
 					ap->prefixlen);
-		}
 
-		if ((rv = __ni_rtnl_send_deladdr(dev, ap)) < 0)
-			return rv;
+			if ((rv = __ni_rtnl_send_newaddr(dev, new_addr, NLM_F_REPLACE)) < 0)
+				return rv;
+
+		} else {
+			if ((rv = __ni_rtnl_send_deladdr(dev, ap)) < 0)
+				return rv;
+		}
 	}
 
 	/* Loop over all addresses in the configuration and create
