@@ -1816,10 +1816,11 @@ ni_uuid_parse(ni_uuid_t *uuid, const char *string)
 	unsigned int nibbles = 0;
 	uint32_t word = 0;
 
-	if (string == NULL)
+	if (uuid == NULL || string == NULL)
 		return -1;
-	if (*string == 0) {
-		memset(uuid, 0, sizeof(uuid));
+
+	if (*string == '\0') {
+		memset(uuid, 0, sizeof(*uuid));
 		return 0;
 	}
 

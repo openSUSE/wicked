@@ -829,7 +829,7 @@ ni_sockaddr_prefix_unpack(ni_sockaddr_t *sockaddr, unsigned int *prefix, const n
 void
 ni_sockaddr_array_init(ni_sockaddr_array_t *array)
 {
-	memset(array, 0, sizeof(array));
+	memset(array, 0, sizeof(*array));
 }
 
 void
@@ -837,7 +837,7 @@ ni_sockaddr_array_destroy(ni_sockaddr_array_t *array)
 {
 	if (array->data)
 		free(array->data);
-	memset(array, 0, sizeof(array));
+	memset(array, 0, sizeof(*array));
 }
 
 void
