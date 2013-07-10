@@ -44,15 +44,16 @@ struct ni_dhcp6_message {
 
 static void			ni_dhcp6_fsm_timeout(ni_dhcp6_device_t *);
 static void             	__ni_dhcp6_fsm_timeout(void *, const ni_timer_t *);
+static void			ni_dhcp6_fsm_timer_cancel(ni_dhcp6_device_t *);
 
 static int			ni_dhcp6_fsm_solicit      (ni_dhcp6_device_t *);
 static int			__ni_dhcp6_fsm_solicit    (ni_dhcp6_device_t *, int);
+static int			__ni_dhcp6_fsm_release    (ni_dhcp6_device_t *, unsigned int);
 static int			ni_dhcp6_fsm_request_lease(ni_dhcp6_device_t *, const ni_addrconf_lease_t *);
 static int			ni_dhcp6_fsm_confirm_lease(ni_dhcp6_device_t *, const ni_addrconf_lease_t *);
 static int			ni_dhcp6_fsm_renew(ni_dhcp6_device_t *);
 static int			ni_dhcp6_fsm_rebind(ni_dhcp6_device_t *);
 static int			ni_dhcp6_fsm_decline(ni_dhcp6_device_t *);
-static int			ni_dhcp6_fsm_release(ni_dhcp6_device_t *);
 static int			ni_dhcp6_fsm_request_info (ni_dhcp6_device_t *);
 
 static int			ni_dhcp6_fsm_commit_lease (ni_dhcp6_device_t *, ni_addrconf_lease_t *);
@@ -70,6 +71,7 @@ static void			ni_dhcp6_send_event(enum ni_dhcp6_event, const ni_dhcp6_device_t *
 static int			__fsm_parse_client_options(ni_dhcp6_device_t *, struct ni_dhcp6_message *, ni_buffer_t *);
 
 
+
 /*
  * How long to wait until an address is ready to use
  * For now we use 2 sec: DAD default of 1 sec + time
@@ -83,33 +85,79 @@ static int			__fsm_parse_client_options(ni_dhcp6_device_t *, struct ni_dhcp6_mes
  */
 static ni_dhcp6_event_handler_t *ni_dhcp6_fsm_event_handler;
 
+static ni_bool_t
+ni_dhcp6_lease_with_active_address(const ni_addrconf_lease_t *lease)
+{
+	struct timeval now;
+
+	if (!ni_addrconf_lease_is_valid(lease))
+		return FALSE;
+
+	if (lease->type != NI_ADDRCONF_DHCP || lease->family != AF_INET6)
+		return FALSE;
+
+	if (ni_timer_get_time(&now) < 0)
+		return FALSE;
+
+	return ni_dhcp6_ia_list_count_active(lease->dhcp6.ia_list, &now) > 0;
+}
 
 int
 ni_dhcp6_fsm_start(ni_dhcp6_device_t *dev)
 {
 	if (!dev->config)
 		return -1;
-#if 0
-	if (dev->config->mode == NI_DHCP6_MODE_INFO) {
-		return ni_dhcp6_fsm_request_info(dev);
-	}
-	else if(ni_addrconf_lease_is_valid(dev->lease)) {
-		return ni_dhcp6_fsm_confirm_lease(dev, dev->lease);
-	}
-	else {
-		/* drop old lease here ? */
-	}
-#endif
-	ni_dhcp6_device_set_lease(dev, NULL);
-	ni_dhcp6_device_drop_best_offer(dev);
 
-	return ni_dhcp6_fsm_solicit(dev);
+	switch (dev->config->mode) {
+	default:
+		ni_error("%s: fsm start in invalid mode %u",
+			dev->ifname, dev->config->mode);
+		return -1;
+
+	case NI_DHCP6_MODE_AUTO:
+		/* this should not happen */
+		ni_warn("%s: fsm start in mode %s", dev->ifname,
+			ni_dhcp6_mode_type_to_name(dev->config->mode));
+		return 1;	/* not ready, wait for RA hint */
+
+	case NI_DHCP6_MODE_INFO:
+		ni_dhcp6_fsm_reset(dev);
+
+		if (ni_dhcp6_lease_with_active_address(dev->lease)) {
+			return __ni_dhcp6_fsm_release(dev, 0);
+		}
+
+		ni_dhcp6_device_drop_lease(dev);
+		return ni_dhcp6_fsm_request_info(dev);
+
+	case NI_DHCP6_MODE_MANAGED:
+		ni_dhcp6_fsm_reset(dev);
+
+		if (ni_dhcp6_lease_with_active_address(dev->lease)) {
+			return ni_dhcp6_fsm_confirm_lease(dev, dev->lease);
+		}
+
+		ni_dhcp6_device_drop_lease(dev);
+		return ni_dhcp6_fsm_solicit(dev);
+	}
+}
+
+void
+ni_dhcp6_fsm_reset(ni_dhcp6_device_t *dev)
+{
+	dev->fsm.state = NI_DHCP6_STATE_INIT;
+
+	ni_dhcp6_fsm_timer_cancel(dev);
+	ni_dhcp6_device_retransmit_disarm(dev);
+
+	/* device? It is temporary fsm data */
+	ni_dhcp6_device_drop_best_offer(dev);
 }
 
 static int
 ni_dhcp6_fsm_restart(ni_dhcp6_device_t *dev)
 {
-	/* do something here? */
+	ni_dhcp6_fsm_reset(dev);
 	return ni_dhcp6_fsm_start(dev);
 }
 
@@ -167,7 +215,7 @@ ni_dhcp6_fsm_set_timeout_msec(ni_dhcp6_device_t *dev, unsigned long msec)
 	}
 }
 
-void
+static void
 ni_dhcp6_fsm_timer_cancel(ni_dhcp6_device_t *dev)
 {
 	dev->fsm.fail_on_timeout = 0;
@@ -207,12 +255,30 @@ ni_dhcp6_fsm_timeout(ni_dhcp6_device_t *dev)
 	}
 
 	if (dev->retrans.delay) {
+		ni_debug_dhcp("%s: starting to transmit after initial delay",
+				dev->ifname);
 		dev->retrans.delay = 0;
 		ni_dhcp6_device_transmit_start(dev);
 		return;
 	}
 
 	switch (dev->fsm.state) {
+	case NI_DHCP6_STATE_INIT:
+		if (dev->config->mode == NI_DHCP6_MODE_AUTO) {
+			ni_addrconf_lease_t *lease;
+			/*
+			 * No DHCPv6 on the network in auto mode -- provide
+			 * a dummy lease, so wicked does not report failure.
+			 */
+			lease = ni_addrconf_lease_new(NI_ADDRCONF_DHCP, AF_INET6);
+			lease->state = NI_ADDRCONF_STATE_GRANTED;
+			lease->update = 0; /* dev->config->update; */
+			lease->time_acquired = time(NULL);
+			ni_dhcp6_fsm_commit_lease(dev, lease);
+			return;
+		}
+		break;
+
 	case NI_DHCP6_STATE_SELECTING:
 
 		/* the weight has maximum value, just accept this offer */
@@ -229,6 +295,32 @@ ni_dhcp6_fsm_timeout(ni_dhcp6_device_t *dev)
 		}
 		break;
 
+	case NI_DHCP6_STATE_CONFIRMING:
+		/*
+		 * http://tools.ietf.org/html/rfc3315#section-18.1.2
+		 *
+		 * "[...]
+		 * client SHOULD continue to use any IP addresses, using the
+		 * last known lifetimes [...] and SHOULD continue to use any
+		 * other previously obtained configuration parameters.
+		 * [...]"
+		 */
+		if (dev->lease) {
+			/*
+			 * Commit current lease to continue using it.
+			 *
+			 * TODO: Verify this.
+			 *   Currently we apply with original lifetimes,
+			 *   we may update IA addrs to remaining times.
+			 */
+			ni_dhcp6_fsm_reset(dev);
+			ni_dhcp6_fsm_commit_lease(dev, dev->lease);
+		} else {
+			/* Lease vanished?! Restart from request... */
+			ni_dhcp6_device_restart(dev);
+		}
+		break;
+
 	case NI_DHCP6_STATE_REQUESTING:
 		/* FIXME: */
 		break;
@@ -242,11 +334,12 @@ ni_dhcp6_fsm_timeout(ni_dhcp6_device_t *dev)
 		break;
 
 	case NI_DHCP6_STATE_RENEWING:
-		ni_dhcp6_device_retransmit_disarm(dev);
+		ni_dhcp6_fsm_reset(dev);
 		ni_dhcp6_fsm_rebind(dev);
 		break;
 
 	case NI_DHCP6_STATE_REBINDING:
+		ni_dhcp6_device_drop_lease(dev);
 		ni_dhcp6_fsm_restart(dev);
 		break;
 
@@ -255,7 +348,8 @@ ni_dhcp6_fsm_timeout(ni_dhcp6_device_t *dev)
 		break;
 
 	case NI_DHCP6_STATE_RELEASING:
-		/* FIXME: */
+		ni_dhcp6_device_drop_lease(dev);
+		ni_dhcp6_device_stop(dev);
 		break;
 
 	default:
@@ -472,19 +566,60 @@ cleanup:
 static int
 __fsm_confirm_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, ni_buffer_t *opts, char **hint)
 {
+
 	int rv = 1;
 
 	switch (msg->type) {
 	case NI_DHCP6_REPLY:
 		if (__fsm_parse_client_options(dev, msg, opts) < 0)
 			return -1;
+		/*
+		 * http://tools.ietf.org/html/rfc3315#section-18.1.8
+		 * "[...]
+		 * When the client receives a NotOnLink status from the server in
+		 * response to a Confirm message, the client performs DHCP server
+		 * solicitation, as described in section 17, and client-initiated
+		 * configuration as described in section 18. If the client receives
+		 * any Reply messages that do not indicate a NotOnLink status, the
+		 * client can use the addresses in the IA and ignore any messages
+		 * that indicate a NotOnLink status.[...]"
+		 *
+		 * Basically it means we have to use best_offer here and wait for
+		 * (success) message similar with solicit...
+		 */
+		if (!dev->lease) {
+			ni_string_printf(hint, "confirm reply without a lease?!");
+			goto cleanup;
+		}
+
+		if (msg->lease->dhcp6.status == NULL) {
+			ni_string_printf(hint, "confirm reply without status");
+			goto cleanup;
+		}
+
+		if (dev->lease &&
+		    msg->lease->dhcp6.status->code == NI_DHCP6_STATUS_SUCCESS) {
+			ni_dhcp6_fsm_reset(dev);
+			ni_dhcp6_fsm_commit_lease(dev, dev->lease);
+			rv = 0;
+		} else
+		if (msg->lease->dhcp6.status->code == NI_DHCP6_STATUS_NOTONLINK) {
+			ni_dhcp6_device_drop_lease(dev);
+			ni_dhcp6_device_restart(dev);
+			rv = 0;
+		} else {
+			ni_string_printf(hint, "status %s - %s",
+				ni_dhcp6_status_name(msg->lease->dhcp6.status->code),
+				msg->lease->dhcp6.status->message);
+			goto cleanup;
+		}
 	break;
 
 	default:
 	break;
 	}
 
-//cleanup:
+cleanup:
 	return rv;
 }
 
@@ -573,7 +708,7 @@ __fsm_rebind_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, n
 #if 1
 		if (!IN6_ARE_ADDR_EQUAL(&dev->lease->dhcp6.server_addr, &msg->lease->dhcp6.server_addr) ||
 		    !ni_opaque_eq(&dev->lease->dhcp6.server_id, &msg->lease->dhcp6.server_id)) {
-			ni_string_printf(hint, "renew reply from another server");
+			ni_string_printf(hint, "rebind reply from another server");
 			goto cleanup;
 		}
 #else
@@ -647,6 +782,7 @@ __fsm_decline_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, 
 			goto cleanup;
 		}
 
+		ni_error("Can't parse DECLINE message replies");
 	break;
 
 	default:
@@ -671,6 +807,76 @@ __fsm_release_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, 
 			ni_string_printf(hint, "release reply without a lease");
 			goto cleanup;
 		}
+
+		/*
+		 * check that the server in the reply matches the server we request the renew from.
+		 */
+		if (!IN6_ARE_ADDR_EQUAL(&dev->lease->dhcp6.server_addr, &msg->lease->dhcp6.server_addr) ||
+		    !ni_opaque_eq(&dev->lease->dhcp6.server_id, &msg->lease->dhcp6.server_id)) {
+			ni_string_printf(hint, "release reply from another server");
+			goto cleanup;
+		}
+
+		if (msg->lease->dhcp6.status == NULL) {
+			ni_string_printf(hint, "release reply without status");
+			goto cleanup;
+		}
+
+		if (msg->lease->dhcp6.status->code == NI_DHCP6_STATUS_SUCCESS ||
+		    msg->lease->dhcp6.status->code == NI_DHCP6_STATUS_NOTONLINK) {
+			ni_debug_dhcp("%s: Received release reply %s %s -- comitting release",
+					dev->ifname,
+					ni_dhcp6_status_name(msg->lease->dhcp6.status->code),
+					msg->lease->dhcp6.status->message);
+
+			ni_dhcp6_fsm_reset(dev);
+			if (dev->config->mode == NI_DHCP6_MODE_INFO) {
+				ni_dhcp6_device_drop_lease(dev);
+				ni_dhcp6_fsm_restart(dev);
+			} else {
+				ni_dhcp6_fsm_commit_lease(dev, NULL);
+			}
+			rv = 0;
+		} else {
+			ni_string_printf(hint, "status %s - %s",
+				ni_dhcp6_status_name(msg->lease->dhcp6.status->code),
+				msg->lease->dhcp6.status->message);
+			goto cleanup;
+		}
+
+	break;
+
+	default:
+	break;
+	}
+
+cleanup:
+	return rv;
+}
+
+static int
+__fsm_inforeq_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, ni_buffer_t *opts, char **hint)
+{
+	int rv = 1;
+
+	switch (msg->type) {
+	case NI_DHCP6_REPLY:
+		if (__fsm_parse_client_options(dev, msg, opts) < 0)
+			return -1;
+
+		if (msg->lease->dhcp6.status && msg->lease->dhcp6.status->code != NI_DHCP6_STATUS_SUCCESS) {
+			ni_string_printf(hint, "status %s - %s",
+						ni_dhcp6_status_name(msg->lease->dhcp6.status->code),
+						msg->lease->dhcp6.status->message);
+			goto cleanup;
+		}
+
+		ni_dhcp6_fsm_timer_cancel(dev);
+		ni_dhcp6_device_retransmit_disarm(dev);
+
+		ni_dhcp6_fsm_commit_lease(dev, msg->lease);
+		msg->lease = NULL;
+		rv = 0;
 	break;
 
 	default:
@@ -770,7 +976,7 @@ ni_dhcp6_fsm_process_client_message(ni_dhcp6_device_t *dev, unsigned int msg_typ
 		rv = __fsm_release_process_msg(dev, &msg, options, &hint);
 	break;
 	case NI_DHCP6_STATE_REQUESTING_INFO:
-		rv = __fsm_release_process_msg(dev, &msg, options, &hint);
+		rv = __fsm_inforeq_process_msg(dev, &msg, options, &hint);
 	break;
 
 	default:
@@ -1076,7 +1282,7 @@ ni_dhcp6_fsm_decline(ni_dhcp6_device_t *dev)
 }
 
 static int
-ni_dhcp6_fsm_release(ni_dhcp6_device_t *dev)
+__ni_dhcp6_fsm_release(ni_dhcp6_device_t *dev, unsigned int nretries)
 {
 	int rv = -1;
 
@@ -1095,6 +1301,9 @@ ni_dhcp6_fsm_release(ni_dhcp6_device_t *dev)
 
 		dev->fsm.state = NI_DHCP6_STATE_RELEASING;
 		rv = ni_dhcp6_device_transmit_init(dev);
+		if (nretries) {
+			dev->retrans.params.nretries = nretries;
+		}
 	} else {
 		ni_debug_dhcp("%s: Retransmitting DHCPv6 Release", dev->ifname);
 
@@ -1104,6 +1313,22 @@ ni_dhcp6_fsm_release(ni_dhcp6_device_t *dev)
 		rv = ni_dhcp6_device_transmit(dev);
 	}
 	return rv;
+}
+
+int
+ni_dhcp6_fsm_release(ni_dhcp6_device_t *dev)
+{
+	/* When all IA's are expired, just commit a release */
+	if (ni_dhcp6_lease_with_active_address(dev->lease)) {
+		return __ni_dhcp6_fsm_release(dev, 0);
+	}
+
+	if (dev->config->mode == NI_DHCP6_MODE_INFO) {
+		ni_dhcp6_device_drop_lease(dev);
+		return ni_dhcp6_fsm_restart(dev);
+	} else {
+		return ni_dhcp6_fsm_commit_lease(dev, NULL);
+	}
 }
 
 static int
@@ -1136,9 +1361,9 @@ ni_dhcp6_fsm_commit_lease(ni_dhcp6_device_t *dev, ni_addrconf_lease_t *lease)
 
 			ni_addrconf_lease_file_remove(dev->ifname, lease->type,
 							lease->family);
+
 			ni_dhcp6_device_drop_lease(dev);
-			ni_dhcp6_device_drop_best_offer(dev);
-			dev->fsm.state = NI_DHCP6_STATE_INIT;
+			ni_dhcp6_device_stop(dev);
 		}
 
 		ni_dhcp6_fsm_restart(dev);
@@ -1397,6 +1622,12 @@ static void
 __ni_dhcp6_fsm_address_update(ni_dhcp6_device_t *dev, ni_netdev_t *ifp, const ni_address_t *addr)
 {
 	switch (dev->fsm.state) {
+	case NI_DHCP6_STATE_INIT:
+		if (dev->config) {
+			ni_dhcp6_device_start(dev);
+		}
+	break;
+
 	case NI_DHCP6_STATE_VALIDATING:
 		if (dev->lease) {
 			__ni_dhcp6_fsm_ia_addr_update(ifp, dev, addr);
@@ -1404,9 +1635,6 @@ __ni_dhcp6_fsm_address_update(ni_dhcp6_device_t *dev, ni_netdev_t *ifp, const ni
 	break;
 
 	default:
-		if (dev->config) {
-			ni_dhcp6_device_start(dev);
-		}
 	break;
 	}
 }

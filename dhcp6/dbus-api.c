@@ -154,6 +154,7 @@ ni_objectmodel_dhcp6_acquire_svc(ni_dbus_object_t *object, const ni_dbus_method_
 	ni_dhcp6_device_t *dev;
 	ni_uuid_t req_uuid = NI_UUID_INIT;
 	ni_dhcp6_request_t *req = NULL;
+	char *errdetail = NULL;
 	int rv;
 
 	if ((dev = ni_objectmodel_dhcp6_device_unwrap(object, error)) == NULL)
@@ -188,19 +189,24 @@ ni_objectmodel_dhcp6_acquire_svc(ni_dbus_object_t *object, const ni_dbus_method_
 	}
 	req->uuid = req_uuid;
 
-	if ((rv = ni_dhcp6_acquire(dev, req)) < 0) {
+	if ((rv = ni_dhcp6_acquire(dev, req, &errdetail)) < 0) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
-				"cannot configure interface %s: %s",
-				dev->ifname,
+				"%s: DHCPv6 acquire request %s failed: %s%s[%s]",
+				dev->ifname, ni_uuid_print(&req->uuid),
+				(errdetail ? errdetail : ""),
+				(errdetail ? " " : ""),
 				ni_strerror(rv));
+		ni_string_free(&errdetail);
 		goto failed;
 	}
 
-	/* We've now initiated the DHCP exchange. It will complete
-	 * asynchronously, and when done, we will emit a signal that
-	 * notifies the sender of its results. */
-
-	/* remember request for a restart */
+	/*
+	 * We've now initiated the DHCPv6 exchange.
+	 * It will complete asynchronously, and when done, it will
+	 * emit a signal, that notifies the sender of its results.
+	 *
+	 * Remember request for restart and return success.
+	 */
 	ni_dhcp6_device_set_request(dev, req);
 	return TRUE;
 
@@ -242,8 +248,8 @@ ni_objectmodel_dhcp6_drop_svc(ni_dbus_object_t *object, const ni_dbus_method_t *
 
 	if ((rv = ni_dhcp6_release(dev, &uuid)) < 0) {
 		ni_dbus_set_error_from_code(error, rv,
-				"Unable to drop DHCPv6 lease for interface %s",
-				dev->ifname);
+				"%s: Unable to drop DHCPv6 lease with UUID %s",
+				dev->ifname, ni_uuid_print(&uuid));
 		goto failed;
 	}
 
@@ -349,8 +355,8 @@ static ni_dbus_property_t	dhcp6_request_properties[] = {
 	DHCP6REQ_UUID_PROPERTY(uuid, uuid, RO),
 	DHCP6REQ_UINT_PROPERTY(mode, mode, RO),
 	DHCP6REQ_BOOL_PROPERTY(rapid-commit, rapid_commit, RO),
+	DHCP6REQ_UINT_PROPERTY(acquire-timeout, acquire_timeout, RO),
 	//DHCP6REQ_UINT_PROPERTY(settle-timeout, settle_timeout, RO),
-	//DHCP6REQ_UINT_PROPERTY(acquire-timeout, acquire_timeout, RO),
 	DHCP6REQ_STRING_PROPERTY(hostname, hostname, RO),
 	DHCP6REQ_STRING_PROPERTY(client-id, clientid, RO),
 	//DHCP6REQ_STRING_PROPERTY(vendor-class, vendor_class, RO),

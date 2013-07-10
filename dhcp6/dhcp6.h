@@ -43,7 +43,7 @@ typedef struct ni_dhcp6_ia	ni_dhcp6_ia_t;
 /*
  * -- supplicant actions
  */
-extern int			ni_dhcp6_acquire(ni_dhcp6_device_t *, const ni_dhcp6_request_t *);
+extern int			ni_dhcp6_acquire(ni_dhcp6_device_t *, const ni_dhcp6_request_t *, char **);
 extern int			ni_dhcp6_release(ni_dhcp6_device_t *, const ni_uuid_t *);
 extern void			ni_dhcp6_restart(void);
 
@@ -114,8 +114,9 @@ struct ni_dhcp6_request {
 	ni_bool_t		enabled;
 
 	/* Options controlling which and how to make the requests */
-	ni_dhcp6_mode_t		mode;		/* follow ra, request info/addr */
-	ni_bool_t		rapid_commit;	/* try to use rapid commit flow */
+	ni_dhcp6_mode_t		mode;		 /* follow ra, request info/addr */
+	ni_bool_t		rapid_commit;	 /* try to use rapid commit flow */
+	unsigned int		acquire_timeout; /* how long we try before we give up */
 
 	/* Options controlling what to put into the lease request */
 	char *			hostname;
@@ -125,7 +126,6 @@ struct ni_dhcp6_request {
 	char *			vendor_class;
 
 	unsigned int		lease_time;
-	unsigned int		acquire_timeout; /* how long we try before we give up */
 	unsigned int		max_transmits;   /* how many times we try to acquire  */
 #endif
 
@@ -257,9 +257,8 @@ extern void			ni_dhcp6_device_put(ni_dhcp6_device_t *);
 extern ni_dhcp6_device_t *	ni_dhcp6_device_by_index(unsigned int);
 extern ni_dhcp6_device_t *	ni_dhcp6_device_by_index_show_all(unsigned int);
 
-extern void			ni_dhcp6_device_stop(ni_dhcp6_device_t *);
-
 extern void			ni_dhcp6_device_set_request(ni_dhcp6_device_t *, ni_dhcp6_request_t *);
+
 
 /*
  * -- events
@@ -278,6 +277,7 @@ extern void			ni_dhcp6_set_event_handler(ni_dhcp6_event_handler_t);
 
 extern void			ni_dhcp6_device_event(ni_dhcp6_device_t *, ni_netdev_t *, ni_event_t);
 extern void			ni_dhcp6_address_event(ni_dhcp6_device_t *, ni_netdev_t *, ni_event_t, const ni_address_t *);
+extern void			ni_dhcp6_prefix_event(ni_dhcp6_device_t *, ni_netdev_t *, ni_event_t, const ni_ipv6_ra_pinfo_t *);
 
 extern ni_dhcp6_ia_t *		ni_dhcp6_ia_na_new(unsigned int iaid);
 extern ni_dhcp6_ia_t *		ni_dhcp6_ia_ta_new(unsigned int iaid);

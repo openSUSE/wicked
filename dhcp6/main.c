@@ -325,13 +325,13 @@ dhcp6_supplicant(void)
 
 	/* open global RTNL socket to listen for kernel events */
 	if (ni_server_listen_interface_events(dhcp6_interface_event) < 0)
-		ni_fatal("Unable to initialize netlink listener");
+		ni_fatal("Unable to initialize netlink interface event listener");
 
 	if (ni_server_enable_interface_addr_events(dhcp6_interface_addr_event) < 0)
-		ni_fatal("Unable to initialize netlink address update listener");
+		ni_fatal("Unable to initialize netlink address event listener");
 
 	if (ni_server_enable_interface_prefix_events(dhcp6_interface_prefix_event) < 0)
-		ni_fatal("Unable to initialize netlink address update listener");
+		ni_fatal("Unable to initialize netlink prefix event listener");
 
 	if (!opt_foreground) {
 		if (ni_server_background(program_name) < 0)
@@ -447,18 +447,17 @@ dhcp6_interface_addr_event(ni_netdev_t *ifp, ni_event_t event, const ni_address_
 }
 
 static void
-dhcp6_interface_prefix_event(ni_netdev_t *dev, ni_event_t event, const ni_ipv6_ra_pinfo_t *pi)
+dhcp6_interface_prefix_event(ni_netdev_t *ifp, ni_event_t event, const ni_ipv6_ra_pinfo_t *pi)
 {
-#if 0
-	ni_debug_events("%s: %s RA<%s> Prefix<%s/%u %s,%s> [%d,%d]", dev->name,
-		 (event == NI_EVENT_PREFIX_UPDATE ? "update" : "delete"),
-		 (dev->ipv6->radv.managed_addr ? "managed-address" :
-		  (dev->ipv6->radv.other_config ? "managed-config" : "unmanaged")),
-		 ni_sockaddr_print(&pi->prefix), pi->length,
-		 (pi->on_link ? "onlink," : "not-onlink,"),
-		 (pi->autoconf ? "autoconf" : "no-autoconf"),
-		 pi->lifetime.preferred_lft, pi->lifetime.valid_lft);
-#endif
+	ni_dhcp6_device_t *dev;
+
+	if (!ifp || !pi)
+		return;
+
+	dev = ni_dhcp6_device_by_index(ifp->link.ifindex);
+	if (dev != NULL) {
+		ni_dhcp6_prefix_event(dev, ifp, event, pi);
+	}
 }
 
 static void
@@ -470,7 +469,7 @@ dhcp6_protocol_event(enum ni_dhcp6_event ev, const ni_dhcp6_device_t *dev, ni_ad
 	int argc = 0;
 
 	ni_debug_dhcp("%s(ev=%u, dev=%d, uuid=%s)", __func__, ev, dev->link.ifindex,
-			/* dev->config? ni_print_hex(dev->config->uuid.octets, 16) : */ "<none>");
+			dev->config ? ni_uuid_print(&dev->config->uuid) : "<none>");
 
 	dev_object = ni_dbus_server_find_object_by_handle(dhcp6_dbus_server, dev);
 	if (dev_object == NULL) {

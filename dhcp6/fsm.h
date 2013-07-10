@@ -55,6 +55,9 @@ extern int			ni_dhcp6_fsm_process_client_message(ni_dhcp6_device_t *,
 extern void			ni_dhcp6_fsm_set_timeout_msec(ni_dhcp6_device_t *, unsigned long);
 
 extern int			ni_dhcp6_fsm_start(ni_dhcp6_device_t *dev);
+extern void			ni_dhcp6_fsm_reset(ni_dhcp6_device_t *dev);
+extern int			ni_dhcp6_fsm_release(ni_dhcp6_device_t *dev);
+
 extern int			ni_dhcp6_fsm_retransmit(ni_dhcp6_device_t *dev);
 
 extern void			ni_dhcp6_fsm_address_event(ni_dhcp6_device_t *, ni_netdev_t *,

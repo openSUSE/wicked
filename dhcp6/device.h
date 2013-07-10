@@ -33,6 +33,8 @@ extern void		ni_dhcp6_device_retransmit_disarm(ni_dhcp6_device_t *);
 
 extern ni_bool_t	ni_dhcp6_device_is_ready(const ni_dhcp6_device_t *, const ni_netdev_t *);
 extern int		ni_dhcp6_device_start(ni_dhcp6_device_t *);
+extern int		ni_dhcp6_device_restart(ni_dhcp6_device_t *);
+extern void		ni_dhcp6_device_stop(ni_dhcp6_device_t *);
 
 extern void		ni_dhcp6_device_set_lease(ni_dhcp6_device_t *,  ni_addrconf_lease_t *);
 extern void		ni_dhcp6_device_drop_lease(ni_dhcp6_device_t *);

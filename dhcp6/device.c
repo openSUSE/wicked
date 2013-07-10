@@ -33,6 +33,7 @@
 #include <wicked/logging.h>
 #include <wicked/util.h>
 #include <wicked/vlan.h>
+#include <wicked/ipv6.h>
 
 #include "dhcp6/dhcp6.h"
 #include "dhcp6/device.h"
@@ -163,7 +164,7 @@ ni_dhcp6_device_close(ni_dhcp6_device_t *dev)
 	ni_dhcp6_mcast_socket_close(dev);
 
 	if (dev->fsm.timer) {
-		ni_warn("%s: timer active for while close", dev->ifname);
+		ni_warn("%s: timer active while close, disarming", dev->ifname);
 		ni_timer_cancel(dev->fsm.timer);
 		dev->fsm.timer = NULL;
 	}
@@ -172,21 +173,28 @@ ni_dhcp6_device_close(ni_dhcp6_device_t *dev)
 void
 ni_dhcp6_device_stop(ni_dhcp6_device_t *dev)
 {
-#if 0
-	/* Clear the lease. This will trigger an event to wickedd
-	 * with a lease that has state RELEASED. */
-	ni_dhcp6_fsm_commit_lease(dev, NULL);
-#else
-	ni_dhcp6_device_drop_lease(dev);
-	ni_dhcp6_device_drop_best_offer(dev);
-	dev->fsm.state = NI_DHCP6_STATE_INIT;
-#endif
+	/*
+	 * Reset FSM timers and go to init state
+	 */
+	ni_dhcp6_fsm_reset(dev);
 
+	/*
+	 * Close the sockets.
+	 *
+	 * Do not drop the lease -- it will be confirmed
+	 * (or released on config/mode change), when the
+	 * device comes up again.
+	 */
 	ni_dhcp6_device_close(dev);
 
-	/* Drop existing config and request */
+	/*
+	 * Drop existing config but not the request, that
+	 * we may need to restart after confirm failure.
+	 *
+	 * After, the device is stopped until an acquire
+	 * or restart arrives.
+	 */
 	ni_dhcp6_device_set_config(dev, NULL);
-	ni_dhcp6_device_set_request(dev, NULL);
 }
 
 static void
@@ -227,7 +235,7 @@ ni_dhcp6_device_free(ni_dhcp6_device_t *dev)
 void
 ni_dhcp6_device_set_request(ni_dhcp6_device_t *dev, ni_dhcp6_request_t *request)
 {
-	if(dev->request)
+	if(dev->request && dev->request != request)
 		ni_dhcp6_request_free(dev->request);
 	dev->request = request;
 }
@@ -250,7 +258,7 @@ __ni_dhcp6_device_config_free(ni_dhcp6_config_t *config)
 static void
 ni_dhcp6_device_set_config(ni_dhcp6_device_t *dev, ni_dhcp6_config_t *config)
 {
-	if (dev->config)
+	if (dev->config && dev->config != config)
 		__ni_dhcp6_device_config_free(dev->config);
 	dev->config = config;
 }
@@ -258,10 +266,9 @@ ni_dhcp6_device_set_config(ni_dhcp6_device_t *dev, ni_dhcp6_config_t *config)
 void
 ni_dhcp6_device_set_lease(ni_dhcp6_device_t *dev,  ni_addrconf_lease_t *lease)
 {
-	if (dev->lease != lease) {
+	if (dev->lease && dev->lease != lease)
 		ni_addrconf_dhcp6_lease_free(dev->lease);
-		dev->lease = lease;
-	}
+	dev->lease = lease;
 }
 
 static void
@@ -401,9 +408,13 @@ int
 ni_dhcp6_device_start(ni_dhcp6_device_t *dev)
 {
 	if (!dev->config) {
-		ni_error("%s: Cannot start DHCPv6 without config", dev->ifname);
+		ni_error("%s: Cannot start DHCPv6 without config",
+			dev->ifname);
 		return -1;
 	}
+
+	if (dev->config->mode == NI_DHCP6_MODE_AUTO)
+		return 1;
 
 	ni_dhcp6_device_show_addrs(dev);
 	if (!ni_dhcp6_device_is_ready(dev, NULL))
@@ -415,20 +426,42 @@ ni_dhcp6_device_start(ni_dhcp6_device_t *dev)
 	return ni_dhcp6_fsm_start(dev);
 }
 
+int
+ni_dhcp6_device_restart(ni_dhcp6_device_t *dev)
+{
+	char *err = NULL;
+	int rv = -1;
+
+	ni_dhcp6_device_stop(dev);
+
+	if (!dev->request)
+		return -1;
+
+	ni_debug_dhcp("%s: Restart DHCPv6 acquire request %s in mode %s",
+		dev->ifname, ni_uuid_print(&dev->request->uuid),
+		ni_dhcp6_mode_type_to_name(dev->request->mode));
+
+	if ((rv = ni_dhcp6_acquire(dev, dev->request, &err)) >= 0)
+		return rv;
+
+	ni_error("%s: Cannot restart DHCPv6 acquire request %s in mode %s%s%s",
+		dev->ifname, ni_uuid_print(&dev->request->uuid),
+		ni_dhcp6_mode_type_to_name(dev->request->mode),
+		(err ? ": " : ""), (err ? err : ""));
+	ni_string_free(&err);
+
+	/* Also discard the request */
+	ni_dhcp6_device_set_request(dev, NULL);
+	return rv;
+}
+
 void
 ni_dhcp6_restart(void)
 {
 	ni_dhcp6_device_t *dev;
 
 	for (dev = ni_dhcp6_active; dev; dev = dev->next) {
-		if (dev->request) {
-#if 0
-			ni_trace("restarting acquire %s on dev %s",
-				ni_dhcp6_mode_type_to_name(dev->request->mode),
-				dev->ifname);
-#endif
-			ni_dhcp6_acquire(dev, dev->request);
-		}
+		ni_dhcp6_device_restart(dev);
 	}
 }
 
@@ -489,19 +522,42 @@ ni_dhcp6_device_find_lladdr(ni_dhcp6_device_t *dev)
 	return rv;
 }
 
+static const ni_netdev_t *
+ni_dhcp6_device_netdev(const ni_dhcp6_device_t *dev)
+{
+	ni_netconfig_t *nc;
+	ni_netdev_t *ifp;
+
+	nc = ni_global_state_handle(0);
+	if (!nc || !(ifp = ni_netdev_by_index(nc, dev->link.ifindex))) {
+		ni_error("%s: Unable to find network interface by index %u",
+			dev->ifname, dev->link.ifindex);
+		return NULL;
+	}
+	return ifp;
+}
+
+static void
+ni_dhcp6_device_update_mode(ni_dhcp6_device_t *dev, const ni_netdev_t *ifp)
+{
+	if (!ifp && !(ifp = ni_dhcp6_device_netdev(dev)))
+		return;
+
+	if (ifp->ipv6 && dev->config) {
+		if (ifp->ipv6->radv.managed_addr)
+			dev->config->mode = NI_DHCP6_MODE_MANAGED;
+		else
+		if (ifp->ipv6->radv.other_config)
+			dev->config->mode = NI_DHCP6_MODE_INFO;
+	}
+}
+
 ni_bool_t
 ni_dhcp6_device_is_ready(const ni_dhcp6_device_t *dev, const ni_netdev_t *ifp)
 {
-	ni_netconfig_t *nc;
+	if (!ifp && !(ifp = ni_dhcp6_device_netdev(dev)))
+		return FALSE;
 
-	if (!ifp) {
-		nc = ni_global_state_handle(0);
-		if(!nc || !(ifp = ni_netdev_by_index(nc, dev->link.ifindex))) {
-			ni_error("%s: Unable to find network interface by index %u",
-				dev->ifname, dev->link.ifindex);
-			return FALSE;
-		}
-	}
 	return	ni_netdev_network_is_up(ifp) &&
 		ni_sockaddr_is_ipv6_linklocal(&dev->link.addr);
 }
@@ -805,47 +861,88 @@ ni_dhcp6_config_init_duid(ni_dhcp6_device_t *dev, ni_dhcp6_config_t *config, con
  * a new lease).
  */
 int
-ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *info)
+ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *req, char **err)
 {
 	ni_dhcp6_config_t *config;
-	ni_dhcp6_ia_t *ia;
+	const char *mode;
 	size_t len;
 	int rv;
 
-	config = xcalloc(1, sizeof(*config));
-	config->uuid = info->uuid;
-	config->update = info->update;
-	config->mode = info->mode;
-	config->rapid_commit = info->rapid_commit;
-	config->lease_time = NI_DHCP6_PREFERRED_LIFETIME;
-
-        /*
-         * Make sure we have a DUID for client-id
-         */
-	if(!ni_dhcp6_config_init_duid(dev, config, info->clientid)) {
-		ni_error("Unable to find usable or generate client duid");
-		__ni_dhcp6_device_config_free(config);
-		return -1;
+	if (!dev || !req || !err) {
+		return -NI_ERROR_INVALID_ARGS;
 	}
 
+	if (ni_uuid_is_null(&req->uuid)) {
+		ni_string_dup(err, "Null UUID");
+		return -NI_ERROR_INVALID_ARGS;
+	}
+
+	switch (req->mode) {
+	case NI_DHCP6_MODE_AUTO:
+	case NI_DHCP6_MODE_INFO:
+	case NI_DHCP6_MODE_MANAGED:
+		ni_debug_dhcp("%s: DHCPv6 acquire request %s in mode %s",
+				dev->ifname, ni_uuid_print(&req->uuid),
+				ni_dhcp6_mode_type_to_name(req->mode));
+		break;
+	default:
+		if ((mode = ni_dhcp6_mode_type_to_name(req->mode)) != NULL) {
+			ni_string_printf(err, "unsupported mode %s", mode);
+		} else {
+			ni_string_printf(err, "invalid mode %u", req->mode);
+		}
+		return -NI_ERROR_INVALID_ARGS;
+	}
+
+	config = xcalloc(1, sizeof(*config));
+	config->uuid = req->uuid;
+	config->mode = req->mode;
+	config->update = req->update;
+	config->rapid_commit = req->rapid_commit;
+	config->lease_time = NI_DHCP6_PREFERRED_LIFETIME;
+
+	/*
+         * Make sure we have a DUID for client-id
+	 * Hmm... Should we fail back to req->uuid?
+         */
+	if(!ni_dhcp6_config_init_duid(dev, config, req->clientid)) {
+		size_t len;
+
+		__ni_dhcp6_device_config_free(config);
+		if ((len = ni_string_len(req->clientid))) {
+			ni_string_printf(err, "Unable to parse hex client DUID '%s'",
+				ni_print_suspect(req->clientid, len));
+			return -NI_ERROR_INVALID_ARGS;
+		} else {
+			ni_string_printf(err, "Unable to generate a client DUID");
+			return -NI_ERROR_GENERAL_FAILURE;
+		}
+	}
+
+	/*
+	 * Hmm... in info mode we don't need any IA's,
+	 *        in auto mode, we don't know yet ...
+	 */
 	if (config->mode != NI_DHCP6_MODE_INFO) {
-		if (info->ia_list == NULL) {
-			ia = ni_dhcp6_ia_na_new(dev->iaid);
+		if (req->ia_list == NULL) {
+			ni_dhcp6_ia_t *ia = ni_dhcp6_ia_na_new(dev->iaid);
 			ni_dhcp6_ia_set_default_lifetimes(ia, config->lease_time);
 			ni_dhcp6_ia_list_append(&config->ia_list, ia);
 		} else {
 			/* TODO: Merge multiple ia's of same type into one?
 			 *       for tests we take it as is -- at the moment */
-			ni_dhcp6_ia_list_copy(&config->ia_list, info->ia_list, FALSE);
+			ni_dhcp6_ia_list_copy(&config->ia_list, req->ia_list, FALSE);
 		}
 	}
 
-	if ((len = ni_string_len(info->hostname)) > 0) {
-		if (ni_check_domain_name(info->hostname, len, 0)) {
-			strncpy(config->hostname, info->hostname, sizeof(config->hostname) - 1);
+	if ((len = ni_string_len(req->hostname)) > 0) {
+		if (ni_check_domain_name(req->hostname, len, 0)) {
+			strncpy(config->hostname, req->hostname, sizeof(config->hostname) - 1);
 		} else {
-			ni_debug_dhcp("Discarded request to use suspect hostname: %s",
-				ni_print_suspect(info->hostname, len));
+			ni_debug_dhcp(
+				"%s: Discarded suspect hostname in DHCPv6 acquire request %s: %s",
+				dev->ifname, ni_uuid_print(&req->uuid),
+				ni_print_suspect(req->hostname, len));
 		}
 	}
 
@@ -853,16 +950,44 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *info)
 	ni_dhcp6_config_vendor_class(&config->vendor_class.en, &config->vendor_class.data);
 	ni_dhcp6_config_vendor_opts(&config->vendor_opts.en, &config->vendor_opts.data);
 
+	/*
+	 * This basically fails only if we can't find netdev (any more)
+	 */
 	ni_dhcp6_device_show_addrs(dev);
 	rv = ni_dhcp6_device_find_lladdr(dev);
 	if (rv < 0) {
 		__ni_dhcp6_device_config_free(config);
-		return rv;
+		ni_string_dup(err, "Cannot read network device settings");
+		return -NI_ERROR_GENERAL_FAILURE;
 	}
 
 	ni_dhcp6_device_set_config(dev, config);
+	if (config->mode == NI_DHCP6_MODE_AUTO) {
+		/* OK, let's look if device already has a mode */
+		ni_dhcp6_device_update_mode(dev, NULL);
+		if (config->mode == NI_DHCP6_MODE_AUTO) {
+			unsigned int timeout = req->acquire_timeout;
 
-	return ni_dhcp6_device_start(dev);
+			/*
+			 * set timer to provide dummy lease to wicked
+			 * when there is no IPv6 RA on the network or
+			 * DHCPv6 is not used.
+			 */
+			timeout = timeout > 5 ? timeout - 1 : 5;
+			ni_dhcp6_fsm_set_timeout_msec(dev, timeout * 1000);
+		}
+	}
+
+	/*
+	 * This basically fails only if we can't find netdev (any more)
+	 */
+	rv = ni_dhcp6_device_start(dev);
+	if (rv < 0) {
+		ni_dhcp6_device_stop(dev);
+		ni_string_dup(err, "Cannot start DHCPv6 processing");
+		return -NI_ERROR_GENERAL_FAILURE;
+	}
+	return rv;
 
 #if 0
 	config->max_lease_time = ni_dhcp6_config_max_lease_time();
@@ -999,28 +1124,23 @@ __ni_dhcp6_print_flags(unsigned int flags)
 int
 ni_dhcp6_release(ni_dhcp6_device_t *dev, const ni_uuid_t *lease_uuid)
 {
-#if 0
 	int rv;
 
 	if (dev->lease == NULL) {
-		ni_error("%s(%s): no lease set", __func__, dev->ifname);
+		ni_error("%s: no lease set", dev->ifname);
 		return -NI_ERROR_ADDRCONF_NO_LEASE;
 	}
 
-	if (lease_uuid) {
-		/* FIXME: We should check the provided uuid against the
-		 * lease's uuid, and refuse the call if it doesn't match
-		 */
+	if (lease_uuid && !ni_uuid_equal(lease_uuid, &dev->lease->uuid)) {
+		ni_warn("%s: lease UUID %s to release does not match current lease UUID %s",
+			dev->ifname, ni_uuid_print(lease_uuid),
+			ni_uuid_print(&dev->lease->uuid));
+		return -NI_ERROR_ADDRCONF_NO_LEASE;
 	}
 
-	/* We just send out a singe RELEASE without waiting for the
-	 * server's reply. We just keep our fingers crossed that it's
-	 * getting out. If it doesn't, it's rather likely the network
-	 * is hosed anyway, so there's little point in delaying. */
 	if ((rv = ni_dhcp6_fsm_release(dev)) < 0)
 		return rv;
-	ni_dhcp6_device_stop(dev);
-#endif
+
 	return 0;
 }
 
@@ -1051,7 +1171,7 @@ ni_dhcp6_device_event(ni_dhcp6_device_t *dev, ni_netdev_t *ifp, ni_event_t event
 	break;
 	case NI_EVENT_NETWORK_DOWN:
 		ni_trace("%s: received network down event", dev->ifname);
-		ni_dhcp6_device_close(dev);
+		ni_dhcp6_device_stop(dev);
 	break;
 
 	case NI_EVENT_LINK_UP:
@@ -1070,7 +1190,8 @@ ni_dhcp6_device_event(ni_dhcp6_device_t *dev, ni_netdev_t *ifp, ni_event_t event
 }
 
 void
-ni_dhcp6_address_event(ni_dhcp6_device_t *dev, ni_netdev_t *ifp, ni_event_t event, const ni_address_t *addr)
+ni_dhcp6_address_event(ni_dhcp6_device_t *dev, ni_netdev_t *ifp, ni_event_t event,
+			const ni_address_t *addr)
 {
 	switch (event) {
 	case NI_EVENT_ADDRESS_UPDATE:
@@ -1086,7 +1207,11 @@ ni_dhcp6_address_event(ni_dhcp6_device_t *dev, ni_netdev_t *ifp, ni_event_t even
 	case NI_EVENT_ADDRESS_DELETE:
 		if (addr->local_addr.ss_family == AF_INET6 &&
 		    ni_sockaddr_equal(&addr->local_addr, &dev->link.addr)) {
-			/* its the link-local address - socket is unusable now */
+			/*
+			 * Multicast socket is bound to and unusable now; disarm
+			 * until a link-local address update event arrives ...
+			 */
+			ni_dhcp6_fsm_reset(dev);
 			ni_dhcp6_device_close(dev);
 			memset(&dev->link.addr, 0, sizeof(dev->link.addr));
 		}
@@ -1099,6 +1224,38 @@ ni_dhcp6_address_event(ni_dhcp6_device_t *dev, ni_netdev_t *ifp, ni_event_t even
 	}
 }
 
+void
+ni_dhcp6_prefix_event(ni_dhcp6_device_t *dev, ni_netdev_t *ifp, ni_event_t event,
+			const ni_ipv6_ra_pinfo_t *pi)
+{
+	ni_ipv6_devinfo_t *ipv6;
+
+	ipv6 = ni_netdev_get_ipv6(ifp);
+	if (ipv6 == NULL)
+		return;
+
+	ni_debug_events("%s: %s RA<%s> Prefix<%s/%u %s,%s> [%d,%d]", dev->ifname,
+			(event == NI_EVENT_PREFIX_UPDATE ? "update" : "delete"),
+			(ipv6->radv.managed_addr ? "managed-address" :
+			(ipv6->radv.other_config ? "managed-config" : "unmanaged")),
+			ni_sockaddr_print(&pi->prefix), pi->length,
+			(pi->on_link ? "onlink," : "not-onlink,"),
+			(pi->autoconf ? "autoconf" : "no-autoconf"),
+			pi->lifetime.preferred_lft, pi->lifetime.valid_lft);
+
+	switch (event) {
+	case NI_EVENT_PREFIX_UPDATE:
+		if (dev->config && dev->config->mode == NI_DHCP6_MODE_AUTO) {
+			ni_dhcp6_device_update_mode(dev, ifp);
+			ni_dhcp6_device_start(dev);
+		}
+		break;
+
+	case NI_EVENT_PREFIX_DELETE:
+	default:
+		break;
+	}
+}
 
 int
 ni_dhcp6_device_transmit(ni_dhcp6_device_t *dev)
@@ -1140,6 +1297,7 @@ ni_dhcp6_device_transmit(ni_dhcp6_device_t *dev)
 				dev->ifname, dev->retrans.count + 1, name, xid,
 				cnt, ni_sockaddr_print(&dev->mcast.dest));
 
+		/* Close and try reopen socket while next run */
 		ni_dhcp6_mcast_socket_close(dev);
 		ni_dhcp6_device_clear_buffer(dev);
 		return -1;

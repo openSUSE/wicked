@@ -1125,7 +1125,7 @@ ni_dhcp6_option_request_append(ni_dhcp6_option_request_t *ora, uint16_t option)
 }
 
 static ni_dhcp6_ia_addr_t *
-__ni_dhcp6_build_ia_addr(unsigned int msg_type, ni_dhcp6_ia_addr_t *iadr)
+__ni_dhcp6_build_ia_addr(unsigned int msg_type, const ni_dhcp6_ia_addr_t *iadr)
 {
 	ni_dhcp6_ia_addr_t *iadr_new = NULL;
 
@@ -1161,9 +1161,10 @@ __ni_dhcp6_build_ia_addr(unsigned int msg_type, ni_dhcp6_ia_addr_t *iadr)
 }
 
 static ni_dhcp6_ia_t *
-__ni_dhcp6_build_ia(unsigned int msg_type, ni_dhcp6_ia_t *ia)
+__ni_dhcp6_build_ia(unsigned int msg_type, const ni_dhcp6_ia_t *ia)
 {
-	ni_dhcp6_ia_addr_t *iadr_new, *iadr;
+	const ni_dhcp6_ia_addr_t *iadr;
+	ni_dhcp6_ia_addr_t *iadr_new;
 	ni_dhcp6_ia_t *ia_new;
 
 	switch (msg_type) {
@@ -1195,14 +1196,14 @@ __ni_dhcp6_build_ia(unsigned int msg_type, ni_dhcp6_ia_t *ia)
 		if (iadr_new)
 			ni_dhcp6_ia_addr_list_append(&ia_new->addrs, iadr_new);
 	}
-
 	return ia_new;
 }
 
 static ni_dhcp6_ia_t *
-__ni_dhcp6_build_ia_list(unsigned int msg_type, ni_dhcp6_ia_t *ia_list)
+__ni_dhcp6_build_ia_list(unsigned int msg_type, const ni_dhcp6_ia_t *ia_list)
 {
-	ni_dhcp6_ia_t *ia_list_new, *ia_new, *ia;
+	ni_dhcp6_ia_t *ia_list_new, *ia_new;
+	const ni_dhcp6_ia_t *ia;
 
 	ia_list_new = NULL;
 	for (ia = ia_list; ia; ia = ia->next) {
@@ -1255,138 +1256,436 @@ ni_dhcp6_build_reparse(ni_dhcp6_device_t *dev, void *data, size_t len)
 	return rv;
 }
 
+static int
+__ni_dhcp6_build_oro_opts(ni_dhcp6_device_t *dev,
+				unsigned int msg_type,
+				ni_dhcp6_option_request_t *oro,
+				const ni_addrconf_lease_t *lease)
+{
+	/*
+	 * TODO: use config->update or something else
+	 */
+	ni_dhcp6_option_request_append(oro, NI_DHCP6_OPTION_PREFERENCE);
+	ni_dhcp6_option_request_append(oro, NI_DHCP6_OPTION_DNS_SERVERS);
+	ni_dhcp6_option_request_append(oro, NI_DHCP6_OPTION_DNS_DOMAINS);
+	/* TODO:
+	ni_dhcp6_option_request_append(oro, NI_DHCP6_OPTION_NIS_SERVERS);
+	ni_dhcp6_option_request_append(oro, NI_DHCP6_OPTION_NIS_DOMAIN_NAME);
+	ni_dhcp6_option_request_append(oro, NI_DHCP6_OPTION_NISP_SERVERS);
+	ni_dhcp6_option_request_append(oro, NI_DHCP6_OPTION_NISP_DOMAIN_NAME);
+	ni_dhcp6_option_request_append(oro, NI_DHCP6_OPTION_POSIX_TIMEZONE);
+	ni_dhcp6_option_request_append(oro, NI_DHCP6_OPTION_POSIX_TIMEZONEDB);
+	ni_dhcp6_option_request_append(oro, NI_DHCP6_OPTION_BOOTFILE_URL);
+	ni_dhcp6_option_request_append(oro, NI_DHCP6_OPTION_BOOTFILE_PARAM);
+	*/
+	/*
+	 * TODO: ntp options envelope - AFAIR ISC dhcp does not support it yet.
+	ni_dhcp6_option_request_append(oro, NI_DHCP6_OPTION_NTP_SERVER);
+	 */
+	ni_dhcp6_option_request_append(oro, NI_DHCP6_OPTION_SNTP_SERVERS);
+	ni_dhcp6_option_request_append(oro, NI_DHCP6_OPTION_SIP_SERVER_D);
+	ni_dhcp6_option_request_append(oro, NI_DHCP6_OPTION_SIP_SERVER_A);
+	ni_dhcp6_option_request_append(oro, NI_DHCP6_OPTION_FQDN);
+
+	return oro->count > 0 ? 0 : -1;
+}
+
+static int
+__ni_dhcp6_build_solicit_opts(ni_dhcp6_device_t *dev,
+				unsigned int msg_type,
+				ni_buffer_t *msg_buf,
+				const ni_addrconf_lease_t *lease)
+{
+	ni_dhcp6_option_request_t oro = NI_DHCP6_OPTION_REQUEST_INIT;
+	ni_dhcp6_ia_t *ia;
+
+	/* Inform servers if we accept a rapit commit */
+	if (dev->config->rapid_commit &&
+	    ni_dhcp6_option_put_empty(msg_buf, NI_DHCP6_OPTION_RAPID_COMMIT) < 0)
+		goto cleanup;
+
+	/* Add option request options */
+	if (__ni_dhcp6_build_oro_opts(dev, msg_type, &oro, lease) < 0 ||
+	    ni_dhcp6_option_put(msg_buf, NI_DHCP6_OPTION_ORO, oro.options,
+				sizeof(uint16_t) * oro.count) < 0) {
+		goto cleanup;
+	}
+	ni_dhcp6_option_request_destroy(&oro);
+
+	/* Not a request yet, just to get answer what server can do */
+	if (ni_string_len(dev->config->hostname)) {
+		if (ni_dhcp6_option_put_fqdn(msg_buf, dev->config->hostname,
+						TRUE, TRUE) < 0)
+			goto cleanup;
+	}
+
+	/* TODO: user class, vendor class, vendor opts */
+
+	/* Init ia list if empty */
+	if (dev->config->ia_list == NULL) {
+		if (dev->iaid == 0 && ni_dhcp6_device_iaid(dev, &dev->iaid) < 0)
+			goto cleanup;
+
+		ni_dhcp6_ia_t *ia = ni_dhcp6_ia_na_new(dev->iaid);
+		ni_dhcp6_ia_set_default_lifetimes(ia, dev->config->lease_time);
+		ni_dhcp6_ia_list_append(&dev->config->ia_list, ia);
+	}
+	/* Add the IAs to the message */
+	for (ia = dev->config->ia_list; ia; ia = ia->next) {
+		/* empty IAs are fine here */
+		if (ni_dhcp6_option_put_ia(msg_buf, ia) < 0)
+			goto cleanup;
+	}
+
+	return 0;
+cleanup:
+	ni_dhcp6_option_request_destroy(&oro);
+	return -1;
+}
+
+static int
+__ni_dhcp6_build_request_opts(ni_dhcp6_device_t *dev,
+				unsigned int msg_type,
+				ni_buffer_t *msg_buf,
+				const ni_addrconf_lease_t *lease)
+{
+	ni_dhcp6_option_request_t oro = NI_DHCP6_OPTION_REQUEST_INIT;
+	ni_dhcp6_ia_t *ia, *ia_list = NULL;
+	unsigned int ia_count = 0;
+
+	/* The server-id we request it from (MUST) */
+	if (lease->dhcp6.server_id.len == 0 ||
+	    ni_dhcp6_option_put(msg_buf, NI_DHCP6_OPTION_SERVERID,
+				lease->dhcp6.server_id.data,
+				lease->dhcp6.server_id.len) < 0)
+		goto cleanup;
+
+	/* Add option request options */
+	if (__ni_dhcp6_build_oro_opts(dev, msg_type, &oro, lease) < 0 ||
+	    ni_dhcp6_option_put(msg_buf, NI_DHCP6_OPTION_ORO, oro.options,
+				sizeof(uint16_t) * oro.count) < 0) {
+		goto cleanup;
+	}
+	ni_dhcp6_option_request_destroy(&oro);
+
+	/* FQDN update request */
+	if (ni_string_len(dev->config->hostname)) {
+		if (ni_dhcp6_option_put_fqdn(msg_buf, dev->config->hostname,
+						TRUE, TRUE) < 0)
+			goto cleanup;
+	}
+
+	/* TODO: user class, vendor class, vendor opts */
+
+	/* Add the IA's we want to request */
+	ia_list = __ni_dhcp6_build_ia_list(msg_type, lease->dhcp6.ia_list);
+	for (ia = ia_list; ia; ia = ia->next) {
+		if (ia->addrs == NULL)
+			continue;
+
+		if (ni_dhcp6_option_put_ia(msg_buf, ia) < 0)
+			goto cleanup;
+		ia_count++;
+	}
+	if (!ia_count)
+		goto cleanup;
+	ni_dhcp6_ia_list_destroy(&ia_list);
+
+	return 0;
+cleanup:
+	ni_dhcp6_ia_list_destroy(&ia_list);
+	ni_dhcp6_option_request_destroy(&oro);
+	return -1;
+}
+
+static int
+__ni_dhcp6_build_renew_opts(ni_dhcp6_device_t *dev,
+				unsigned int msg_type,
+				ni_buffer_t *msg_buf,
+				const ni_addrconf_lease_t *lease)
+{
+	ni_dhcp6_option_request_t oro = NI_DHCP6_OPTION_REQUEST_INIT;
+	ni_dhcp6_ia_t *ia, *ia_list = NULL;
+	unsigned int ia_count = 0;
+
+	/* The server-id we've got the IAs before (MUST) */
+	if (lease->dhcp6.server_id.len == 0 ||
+	    ni_dhcp6_option_put(msg_buf, NI_DHCP6_OPTION_SERVERID,
+				lease->dhcp6.server_id.data,
+				lease->dhcp6.server_id.len) < 0)
+		goto cleanup;
+
+	/* Add option request options */
+	if (__ni_dhcp6_build_oro_opts(dev, msg_type, &oro, lease) < 0 ||
+	    ni_dhcp6_option_put(msg_buf, NI_DHCP6_OPTION_ORO, oro.options,
+				sizeof(uint16_t) * oro.count) < 0) {
+		goto cleanup;
+	}
+	ni_dhcp6_option_request_destroy(&oro);
+
+	/* FQDN update request */
+	if (ni_string_len(dev->config->hostname)) {
+		if (ni_dhcp6_option_put_fqdn(msg_buf, dev->config->hostname,
+						TRUE, TRUE) < 0)
+			goto cleanup;
+	}
+
+	/* TODO: user class, vendor class, vendor opts */
+
+	/* Add the IA's we want to renew / extend lifetimes for */
+	ia_list = __ni_dhcp6_build_ia_list(msg_type, lease->dhcp6.ia_list);
+	for (ia = ia_list; ia; ia = ia->next) {
+		if (ia->addrs == NULL)
+			continue;
+
+		if (ni_dhcp6_option_put_ia(msg_buf, ia) < 0)
+			goto cleanup;
+		ia_count++;
+	}
+	if (!ia_count)
+		goto cleanup;
+	ni_dhcp6_ia_list_destroy(&ia_list);
+
+	return 0;
+cleanup:
+	ni_dhcp6_ia_list_destroy(&ia_list);
+	ni_dhcp6_option_request_destroy(&oro);
+	return -1;
+}
+
+static int
+__ni_dhcp6_build_rebind_opts(ni_dhcp6_device_t *dev,
+				unsigned int msg_type,
+				ni_buffer_t *msg_buf,
+				const ni_addrconf_lease_t *lease)
+{
+	ni_dhcp6_option_request_t oro = NI_DHCP6_OPTION_REQUEST_INIT;
+	ni_dhcp6_ia_t *ia, *ia_list = NULL;
+	unsigned int ia_count = 0;
+
+	/* Add option request options */
+	if (__ni_dhcp6_build_oro_opts(dev, msg_type, &oro, lease) < 0 ||
+	    ni_dhcp6_option_put(msg_buf, NI_DHCP6_OPTION_ORO, oro.options,
+				sizeof(uint16_t) * oro.count) < 0) {
+		goto cleanup;
+	}
+	ni_dhcp6_option_request_destroy(&oro);
+
+	/* FQDN update request */
+	if (ni_string_len(dev->config->hostname)) {
+		if (ni_dhcp6_option_put_fqdn(msg_buf, dev->config->hostname,
+						TRUE, TRUE) < 0)
+			goto cleanup;
+	}
+
+	/* TODO: user class, vendor class, vendor opts */
+
+	/* Build and add the IAs to rebind to the message */
+	ia_list = __ni_dhcp6_build_ia_list(msg_type, lease->dhcp6.ia_list);
+	for (ia = ia_list; ia; ia = ia->next) {
+		if (ia->addrs == NULL)
+			continue;
+
+		if (ni_dhcp6_option_put_ia(msg_buf, ia) < 0)
+			goto cleanup;
+		ia_count++;
+	}
+	if (!ia_count)
+		goto cleanup;
+	ni_dhcp6_ia_list_destroy(&ia_list);
+
+	return 0;
+cleanup:
+	ni_dhcp6_ia_list_destroy(&ia_list);
+	return -1;
+}
+
+static int
+__ni_dhcp6_build_decline_opts(ni_dhcp6_device_t *dev,
+				unsigned int msg_type,
+				ni_buffer_t *msg_buf,
+				const ni_addrconf_lease_t *lease)
+{
+	ni_dhcp6_ia_t *ia, *ia_list = NULL;
+	unsigned int ia_count = 0;
+
+	/* The server that provided us an address dup */
+	if (lease->dhcp6.server_id.len == 0 ||
+	    ni_dhcp6_option_put(msg_buf, NI_DHCP6_OPTION_SERVERID,
+				lease->dhcp6.server_id.data,
+				lease->dhcp6.server_id.len) < 0)
+		goto cleanup;
+
+	/* Build and add the IAs to decline to the message */
+	ia_list = __ni_dhcp6_build_ia_list(msg_type, lease->dhcp6.ia_list);
+	for (ia = ia_list; ia; ia = ia->next) {
+		if (ia->addrs == NULL)
+			continue;
+
+		if (ni_dhcp6_option_put_ia(msg_buf, ia) < 0)
+			goto cleanup;
+		ia_count++;
+	}
+	if (!ia_count)
+		goto cleanup;
+	ni_dhcp6_ia_list_destroy(&ia_list);
+
+	return 0;
+cleanup:
+	ni_dhcp6_ia_list_destroy(&ia_list);
+	return -1;
+
+}
+
+static int
+__ni_dhcp6_build_release_opts(ni_dhcp6_device_t *dev,
+				unsigned int msg_type,
+				ni_buffer_t *msg_buf,
+				const ni_addrconf_lease_t *lease)
+{
+	ni_dhcp6_ia_t *ia, *ia_list = NULL;
+	unsigned int ia_count = 0;
+
+	/* The server where we have the IAs from */
+	if (lease->dhcp6.server_id.len == 0 ||
+	    ni_dhcp6_option_put(msg_buf, NI_DHCP6_OPTION_SERVERID,
+				lease->dhcp6.server_id.data,
+				lease->dhcp6.server_id.len) < 0)
+		goto cleanup;
+
+	/* Build and add the IAs to release to the message */
+	ia_list = __ni_dhcp6_build_ia_list(msg_type, lease->dhcp6.ia_list);
+	for (ia = ia_list; ia; ia = ia->next) {
+		if (ia->addrs == NULL)
+			continue;
+
+		if (ni_dhcp6_option_put_ia(msg_buf, ia) < 0)
+			goto cleanup;
+		ia_count++;
+	}
+	if (!ia_count)
+		goto cleanup;
+	ni_dhcp6_ia_list_destroy(&ia_list);
+
+	return 0;
+cleanup:
+	ni_dhcp6_ia_list_destroy(&ia_list);
+	return -1;
+}
+
+static int
+__ni_dhcp6_build_confirm_opts(ni_dhcp6_device_t *dev,
+				unsigned int msg_type,
+				ni_buffer_t *msg_buf,
+				const ni_addrconf_lease_t *lease)
+{
+	ni_dhcp6_ia_t *ia, *ia_list = NULL;
+	unsigned int ia_count = 0;
+
+	/* Build and add the IAs to confirm to the message */
+	ia_list = __ni_dhcp6_build_ia_list(msg_type, lease->dhcp6.ia_list);
+	for (ia = dev->config->ia_list; ia; ia = ia->next) {
+		if (ni_dhcp6_option_put_ia(msg_buf, ia) < 0)
+			goto cleanup;
+		ia_count++;
+	}
+	if (!ia_count)
+		goto cleanup;
+	ni_dhcp6_ia_list_destroy(&ia_list);
+
+	return 0;
+cleanup:
+	ni_dhcp6_ia_list_destroy(&ia_list);
+	return -1;
+}
+
+
+static int
+__ni_dhcp6_build_inforeq_opts(ni_dhcp6_device_t *dev,
+				unsigned int msg_type,
+				ni_buffer_t *msg_buf,
+				const ni_addrconf_lease_t *lease)
+{
+	ni_dhcp6_option_request_t oro = NI_DHCP6_OPTION_REQUEST_INIT;
+
+	/* Add option request options */
+	if (__ni_dhcp6_build_oro_opts(dev, msg_type, &oro, lease) < 0 ||
+	    ni_dhcp6_option_put(msg_buf, NI_DHCP6_OPTION_ORO, oro.options,
+				sizeof(uint16_t) * oro.count) < 0) {
+		goto cleanup;
+	}
+	ni_dhcp6_option_request_destroy(&oro);
+
+	return 0;
+cleanup:
+	ni_dhcp6_option_request_destroy(&oro);
+	return -1;
+}
+
 int
 ni_dhcp6_build_message(ni_dhcp6_device_t *dev,
 			unsigned int msg_type,
 			ni_buffer_t *msg_buf,
 			const ni_addrconf_lease_t *lease)
 {
-	ni_dhcp6_option_request_t oreq;
-	ni_dhcp6_ia_t *ia, *ia_list;
 	uint16_t elapsed_time = 0;
 	int rv = -1;
-
-	ni_dhcp6_option_request_init(&oreq);
 
 	if (ni_dhcp6_build_client_header(msg_buf, msg_type, dev->dhcp6.xid) < 0)
 		goto cleanup;
 
-	if (ni_dhcp6_option_put(msg_buf, NI_DHCP6_OPTION_CLIENTID,
-			&dev->config->client_duid.data, dev->config->client_duid.len) < 0)
-		goto cleanup;
-
-	if (msg_type != NI_DHCP6_REBIND && lease->dhcp6.server_id.len) {
-		if (ni_dhcp6_option_put(msg_buf, NI_DHCP6_OPTION_SERVERID,
-				lease->dhcp6.server_id.data, lease->dhcp6.server_id.len) < 0)
-			goto cleanup;
-	}
-
+	/* The elapsed time since transaction begin */
 	elapsed_time = ni_dhcp6_device_uptime(dev, 0xffff);
-	if (ni_dhcp6_option_put16(msg_buf, NI_DHCP6_OPTION_ELAPSED_TIME, elapsed_time) < 0)
+	if (ni_dhcp6_option_put16(msg_buf, NI_DHCP6_OPTION_ELAPSED_TIME,
+					elapsed_time) < 0)
 		goto cleanup;
 
-	if (dev->iaid == 0 && ni_dhcp6_device_iaid(dev, &dev->iaid) < 0)
+	/* Identify yourself */
+	if (ni_dhcp6_option_put(msg_buf, NI_DHCP6_OPTION_CLIENTID,
+				&dev->config->client_duid.data,
+				dev->config->client_duid.len) < 0)
 		goto cleanup;
 
 	switch (msg_type) {
+	case NI_DHCP6_SOLICIT:
+		rv = __ni_dhcp6_build_solicit_opts(dev, msg_type, msg_buf, lease);
+		break;
+
+	case NI_DHCP6_REQUEST:
+		rv = __ni_dhcp6_build_request_opts(dev, msg_type, msg_buf, lease);
+		break;
+
+	case NI_DHCP6_RENEW:
+		rv = __ni_dhcp6_build_renew_opts(dev, msg_type, msg_buf, lease);
+		break;
+
+	case NI_DHCP6_REBIND:
+		rv = __ni_dhcp6_build_rebind_opts(dev, msg_type, msg_buf, lease);
+		break;
+
+	case NI_DHCP6_DECLINE:
+		rv = __ni_dhcp6_build_decline_opts(dev, msg_type, msg_buf, lease);
+		break;
+
+	case NI_DHCP6_RELEASE:
+		rv = __ni_dhcp6_build_release_opts(dev, msg_type, msg_buf, lease);
+		break;
+
+	case NI_DHCP6_CONFIRM:
+		rv = __ni_dhcp6_build_confirm_opts(dev, msg_type, msg_buf, lease);
+		break;
+
 	case NI_DHCP6_INFO_REQUEST:
-		/* it's just an info
-		 *
-		ni_dhcp6_option_request_append(&oreq, NI_DHCP6_OPTION_UNICAST);
-		ni_dhcp6_option_request_append(&oreq, NI_DHCP6_OPTION_FQDN);
-		 */
-	break;
-
-	case NI_DHCP6_SOLICIT:
-		/* clientid, elapsed_time, oro	+ rapid commit (+ ia hint) */
-#if 0
-		if (dev->config->try_unicast)
-			ni_dhcp6_option_request_append(&oreq, NI_DHCP6_OPTION_UNICAST);
-#endif
-
-		if (dev->config->rapid_commit) {
-			if (ni_dhcp6_option_put_empty(msg_buf, NI_DHCP6_OPTION_RAPID_COMMIT) < 0)
-				goto cleanup;
-		}
-
-		if (dev->config->hostname[0])
-			ni_dhcp6_option_put_fqdn(msg_buf, dev->config->hostname, TRUE, TRUE);
-	break;
-
-	case NI_DHCP6_CONFIRM:
-	case NI_DHCP6_REQUEST:
-	case NI_DHCP6_RENEW:
-	case NI_DHCP6_REBIND:
-		/* clientid, serverid, elapsed_time, ia_na,ia_ta,ia_pd */
-
-		/* TODO: Hmm... for all these messages? */
-		if (dev->config->hostname[0])
-			ni_dhcp6_option_put_fqdn(msg_buf, dev->config->hostname, TRUE, TRUE);
-	break;
-
-	case NI_DHCP6_DECLINE:
-	case NI_DHCP6_RELEASE:
-		/* clientid, serverid, elapsed_time, oro, ia_na,ia_ta,ia_pd */
-	break;
+		rv = __ni_dhcp6_build_inforeq_opts(dev, msg_type, msg_buf, lease);
+		break;
 
 	default:
-		ni_error("Unable to construct %s messages", ni_dhcp6_message_name(msg_type));
+		ni_error("DHCPv6 message %s is not supported",
+			ni_dhcp6_message_name(msg_type));
+		break;
+	}
+	if (rv < 0)
 		goto cleanup;
-	break;
-	}
-
-	/* put ia's */
-	switch (msg_type) {
-	case NI_DHCP6_SOLICIT:
-		for (ia = dev->config->ia_list; ia; ia = ia->next) {
-			if (ni_dhcp6_option_put_ia(msg_buf, ia) < 0) {
-				goto cleanup;
-			}
-		}
-	break;
-
-	case NI_DHCP6_CONFIRM:
-	case NI_DHCP6_REQUEST:
-	case NI_DHCP6_RENEW:
-	case NI_DHCP6_REBIND:
-	case NI_DHCP6_DECLINE:
-	case NI_DHCP6_RELEASE:
-		ia_list = __ni_dhcp6_build_ia_list(msg_type, lease->dhcp6.ia_list);
-		for (ia = ia_list; ia; ia = ia->next) {
-			/* put non-empty ia's only */
-			if (ia->addrs == NULL)
-				continue;
-
-			if (ni_dhcp6_option_put_ia(msg_buf, ia) < 0) {
-				ni_dhcp6_ia_list_destroy(&ia_list);
-				goto cleanup;
-			}
-		}
-		ni_dhcp6_ia_list_destroy(&ia_list);
-	break;
-
-	default:
-	break;
-	}
-
-	/* put option requests */
-	switch (msg_type) {
-	case NI_DHCP6_DECLINE:
-	break;
-
-	default:
-		ni_dhcp6_option_request_append(&oreq, NI_DHCP6_OPTION_PREFERENCE);
-		ni_dhcp6_option_request_append(&oreq, NI_DHCP6_OPTION_DNS_SERVERS);
-		ni_dhcp6_option_request_append(&oreq, NI_DHCP6_OPTION_DNS_DOMAINS);
-		ni_dhcp6_option_request_append(&oreq, NI_DHCP6_OPTION_SIP_SERVER_D);
-		ni_dhcp6_option_request_append(&oreq, NI_DHCP6_OPTION_SIP_SERVER_A);
-		if (oreq.count > 0) {
-			if (ni_dhcp6_option_put(msg_buf, NI_DHCP6_OPTION_ORO, oreq.options,
-						sizeof(uint16_t) * oreq.count) < 0)
-				goto cleanup;
-		}
-	break;
-	}
 
 #if 1
 	if (ni_dhcp6_build_reparse(dev, ni_buffer_head(msg_buf), ni_buffer_count(msg_buf)) < 0) {
@@ -1398,9 +1697,7 @@ ni_dhcp6_build_message(ni_dhcp6_device_t *dev,
 #endif
 
 	rv = 0;
-
 cleanup:
-	ni_dhcp6_option_request_destroy(&oreq);
 	return rv;
 }
 
@@ -1590,9 +1887,6 @@ ni_dhcp6_ia_max_preferred_lft(ni_dhcp6_ia_t *ia)
 	ni_dhcp6_ia_addr_t *iadr;
 
 	for (iadr = ia->addrs; iadr; iadr = iadr->next) {
-		if (iadr->preferred_lft == 0)
-			continue;
-
 		if (lft < iadr->preferred_lft)
 			lft = iadr->preferred_lft;
 	}
@@ -1606,9 +1900,6 @@ ni_dhcp6_ia_max_valid_lft(ni_dhcp6_ia_t *ia)
 	ni_dhcp6_ia_addr_t *iadr;
 
 	for (iadr = ia->addrs; iadr; iadr = iadr->next) {
-		if (iadr->valid_lft == 0)
-			continue;
-
 		if (lft < iadr->valid_lft)
 			lft = iadr->valid_lft;
 	}
@@ -1642,6 +1933,34 @@ ni_dhcp6_ia_get_rebind_time(ni_dhcp6_ia_t *ia)
 	if (lft > 0 && lft != NI_DHCP6_INFINITE_LIFETIME)
 		lft = (lft * 4) / 5;
 	return lft;
+}
+
+ni_bool_t
+ni_dhcp6_ia_is_active(ni_dhcp6_ia_t *ia, struct timeval *now)
+{
+	unsigned int lft;
+
+	if (!now || !ia || ia->time_acquired == 0)
+		return FALSE;
+
+	lft = ni_dhcp6_ia_max_valid_lft(ia);
+	if (lft == NI_DHCP6_INFINITE_LIFETIME)
+		return TRUE;
+
+	return (uint64_t)ia->time_acquired + lft > (uint64_t)now->tv_sec + 1;
+}
+
+unsigned int
+ni_dhcp6_ia_list_count_active(ni_dhcp6_ia_t *list, struct timeval *now)
+{
+	unsigned int count;
+	ni_dhcp6_ia_t *ia;
+
+	for (count = 0, ia = list; ia; ia = ia->next) {
+		if (ni_dhcp6_ia_is_active(ia, now))
+			count++;
+	}
+	return count;
 }
 
 static void
@@ -1709,9 +2028,10 @@ ni_dhcp6_ia_list_append(ni_dhcp6_ia_t **list, ni_dhcp6_ia_t *ia)
 }
 
 int
-ni_dhcp6_ia_list_copy(ni_dhcp6_ia_t **dst, ni_dhcp6_ia_t *src, ni_bool_t clean)
+ni_dhcp6_ia_list_copy(ni_dhcp6_ia_t **dst, const ni_dhcp6_ia_t *src, ni_bool_t clean)
 {
-	ni_dhcp6_ia_t *ia, *nia;
+	const ni_dhcp6_ia_t *ia;
+	ni_dhcp6_ia_t *nia;
 
 	/* TODO: Merge multiple ia's of same type into one? */
 	ni_dhcp6_ia_list_destroy(dst);
@@ -1739,7 +2059,7 @@ failure:
 }
 
 ni_dhcp6_ia_addr_t *
-ni_dhcp6_ia_addr_new(struct in6_addr addr, unsigned int plen)
+ni_dhcp6_ia_addr_new(const struct in6_addr addr, unsigned int plen)
 {
 	ni_dhcp6_ia_addr_t *iadr;
 
@@ -1775,9 +2095,10 @@ ni_dhcp6_ia_addr_list_append(ni_dhcp6_ia_addr_t **list, ni_dhcp6_ia_addr_t *iadr
 }
 
 int
-ni_dhcp6_ia_addr_list_copy(ni_dhcp6_ia_addr_t **dst, ni_dhcp6_ia_addr_t *src, ni_bool_t clean)
+ni_dhcp6_ia_addr_list_copy(ni_dhcp6_ia_addr_t **dst, const ni_dhcp6_ia_addr_t *src, ni_bool_t clean)
 {
-	ni_dhcp6_ia_addr_t *iadr, *nadr;
+	const ni_dhcp6_ia_addr_t *iadr;
+	ni_dhcp6_ia_addr_t *nadr;
 
 	ni_dhcp6_ia_addr_list_destroy(dst);
 	for (iadr = src; iadr; iadr = iadr->next) {
@@ -1795,7 +2116,7 @@ ni_dhcp6_ia_addr_list_copy(ni_dhcp6_ia_addr_t **dst, ni_dhcp6_ia_addr_t *src, ni
 }
 
 ni_bool_t
-ni_dhcp6_ia_addr_is_usable(ni_dhcp6_ia_addr_t *iadr)
+ni_dhcp6_ia_addr_is_usable(const ni_dhcp6_ia_addr_t *iadr)
 {
 	/* This is a stop using this IP order from server */
 	if (iadr->preferred_lft == 0 || iadr->valid_lft == 0)
@@ -2297,6 +2618,9 @@ __ni_dhcp6_parse_client_options(ni_dhcp6_device_t *dev, ni_buffer_t *buffer, ni_
 {
 	ni_stringbuf_t hexbuf = NI_STRINGBUF_INIT_DYNAMIC;
 	ni_string_array_t temp = NI_STRING_ARRAY_INIT;
+	ni_string_array_t nis_servers = NI_STRING_ARRAY_INIT;
+	ni_string_array_t nis_domains = NI_STRING_ARRAY_INIT;
+	char *str = NULL;
 	struct timeval elapsed;
 	unsigned int i;
 
@@ -2448,6 +2772,53 @@ __ni_dhcp6_parse_client_options(ni_dhcp6_device_t *dev, ni_buffer_t *buffer, ni_
 			}
 			ni_string_array_destroy(&temp);
 		break;
+		case NI_DHCP6_OPTION_SNTP_SERVERS:
+			if (ni_dhcp6_decode_address_list(&optbuf, &temp) == 0) {
+				for (i = 0; i < temp.count; ++i) {
+					ni_debug_dhcp("%s: %s", ni_dhcp6_option_name(option),
+							temp.data[i]);
+					ni_string_array_append(&lease->ntp_servers,
+							temp.data[i]);
+				}
+			}
+			ni_string_array_destroy(&temp);
+		break;
+		case NI_DHCP6_OPTION_NIS_SERVERS:
+			if (ni_dhcp6_decode_address_list(&optbuf, &temp) == 0) {
+				for (i = 0; i < temp.count; ++i) {
+					ni_debug_dhcp("%s: %s", ni_dhcp6_option_name(option),
+							temp.data[i]);
+					/* TODO
+					ni_string_array_append(&nis_servers, temp.data[i]);
+					*/
+				}
+			}
+			ni_string_array_destroy(&temp);
+		break;
+		case NI_DHCP6_OPTION_NIS_DOMAIN_NAME:
+			if (ni_dhcp6_decode_dnssearch(&optbuf, &temp, "nis domain") == 0) {
+				for (i = 0; i < temp.count; ++i) {
+					ni_debug_dhcp("%s: %s", ni_dhcp6_option_name(option),
+							temp.data[i]);
+					/* TODO:
+					ni_string_array_append(&nis_domains, temp.data[i]);
+					*/
+				}
+			}
+			ni_string_array_destroy(&temp);
+		break;
+		case NI_DHCP6_OPTION_POSIX_TIMEZONE:
+			if (ni_dhcp6_option_gets(&optbuf, &str) == 0) {
+				ni_debug_dhcp("%s: %s", ni_dhcp6_option_name(option), str);
+				/* TODO */
+			}
+		break;
+		case NI_DHCP6_OPTION_POSIX_TIMEZONEDB:
+			if (ni_dhcp6_option_gets(&optbuf, &str) == 0) {
+				ni_debug_dhcp("%s: %s", ni_dhcp6_option_name(option), str);
+				/* TODO */
+			}
+		break;
 		case NI_DHCP6_OPTION_ORO:
 			if (request) {
 				ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
@@ -2506,12 +2877,20 @@ __ni_dhcp6_parse_client_options(ni_dhcp6_device_t *dev, ni_buffer_t *buffer, ni_
 		}
 	}
 
+	if (nis_domains.count) {
+		/* TODO */
+	}
+
 	/* FIXME: too early here -- do it after parsing depending on the state? */
 	__copy_ia_na_to_lease_addrs(dev, lease);
 
+	ni_string_array_destroy(&nis_servers);
+	ni_string_array_destroy(&nis_domains);
 	return 0;
 
 failure:
+	ni_string_array_destroy(&nis_servers);
+	ni_string_array_destroy(&nis_domains);
 	return -1;
 }
 
