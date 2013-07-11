@@ -1584,7 +1584,10 @@ __ni_dhcp6_build_confirm_opts(ni_dhcp6_device_t *dev,
 
 	/* Build and add the IAs to confirm to the message */
 	ia_list = __ni_dhcp6_build_ia_list(msg_type, lease->dhcp6.ia_list);
-	for (ia = dev->config->ia_list; ia; ia = ia->next) {
+	for (ia = ia_list; ia; ia = ia->next) {
+		if (ia->addrs == NULL)
+			continue;
+
 		if (ni_dhcp6_option_put_ia(msg_buf, ia) < 0)
 			goto cleanup;
 		ia_count++;
