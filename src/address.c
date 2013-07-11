@@ -55,11 +55,7 @@ ni_address_new(int af, unsigned int prefix_len, const ni_sockaddr_t *local_addr,
 	}
 
 	if (list_head) {
-		ni_address_t **tail = list_head;
-		while (*tail != NULL)
-			tail = &(*tail)->next;
-
-		*tail = ap;
+		ni_address_list_append(list_head, ap);
 	}
 	return ap;
 }

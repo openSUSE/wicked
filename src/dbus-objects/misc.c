@@ -495,7 +495,7 @@ __ni_objectmodel_address_from_dict(ni_address_t **list, const ni_dbus_variant_t 
 		const ni_dbus_variant_t *var;
 		const char *label;
 
-		ap = ni_address_new(local_addr.ss_family, prefixlen, &local_addr, list);
+		ap = ni_address_new(local_addr.ss_family, prefixlen, &local_addr, NULL);
 		if (!ap)
 			return NULL;
 
@@ -509,18 +509,26 @@ __ni_objectmodel_address_from_dict(ni_address_t **list, const ni_dbus_variant_t 
 		}
 
 		if ((var = ni_dbus_dict_get(dict, "cache-info")) != NULL) {
-			uint32_t value;
+			uint32_t prefered_lft = 0, valid_lft = 0;
 
-			if (ni_dbus_dict_get_uint32(var, "preferred-lifetime", &value))
-				ap->ipv6_cache_info.preferred_lft = value;
-			if (ni_dbus_dict_get_uint32(var, "valid-lifetime", &value))
-				ap->ipv6_cache_info.valid_lft = value;
+			ni_dbus_dict_get_uint32(var, "preferred-lifetime", &prefered_lft);
+			ni_dbus_dict_get_uint32(var, "valid-lifetime", &valid_lft);
+
+			/* as they're there, they've to be valid */
+			if (!valid_lft || prefered_lft > valid_lft) {
+				ni_address_free(ap);
+				return NULL;
+			}
+			ap->ipv6_cache_info.preferred_lft = prefered_lft;
+			ap->ipv6_cache_info.valid_lft = valid_lft;
 		}
 
 #if 0
 		if (ni_dbus_dict_get_uint32(dict, "owner", &value))
 			ap->config_method = value;
 #endif
+
+		ni_address_list_append(list, ap);
 	}
 
 	return ap;
