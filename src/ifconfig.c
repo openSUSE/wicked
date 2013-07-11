@@ -1571,24 +1571,31 @@ failed:
 }
 
 static ni_bool_t
-__ni_netdev_addr_needs_update(ni_address_t *o, ni_address_t *n)
+__ni_netdev_addr_needs_update(const char *ifname, ni_address_t *o, ni_address_t *n)
 {
 	if (n->scope != -1 && o->scope != n->scope)
 		return TRUE;
 
-	if (!ni_sockaddr_equal(&o->bcast_addr, &n->bcast_addr) ||
-	    !ni_sockaddr_equal(&o->anycast_addr, &n->anycast_addr))
+	if (!ni_sockaddr_equal(&o->bcast_addr, &n->bcast_addr))
+		return TRUE;
+
+	if (!ni_sockaddr_equal(&o->anycast_addr, &n->anycast_addr))
 		return TRUE;
 
 	switch (o->family) {
 	case AF_INET:
-		if (!ni_string_eq(o->label, n->label))
-			return TRUE;
+		if (n->label && !ni_string_eq(o->label, n->label))
+			return TRUE;	/* request to set it */
+		if (!n->label && !ni_string_eq(o->label, ifname))
+			return TRUE;	/* request to remove */
 		break;
 
 	case AF_INET6:
-		if (o->ipv6_cache_info.valid_lft != n->ipv6_cache_info.valid_lft ||
-		    o->ipv6_cache_info.preferred_lft != n->ipv6_cache_info.preferred_lft)
+		/* (invalid) 0 lifetimes mean unset/not provided by the lease;
+		 * kernel uses ~0 (infinity) / permanent address when omitted */
+		if ((n->ipv6_cache_info.valid_lft || n->ipv6_cache_info.preferred_lft) &&
+		    (o->ipv6_cache_info.valid_lft     != n->ipv6_cache_info.valid_lft ||
+		     o->ipv6_cache_info.preferred_lft != n->ipv6_cache_info.preferred_lft))
 			return TRUE;
 		break;
 
@@ -1664,7 +1671,7 @@ __ni_netdev_update_addrs(ni_netdev_t *dev,
 			new_addr->seq = __ni_global_seqno;
 
 			/* Check whether we need to update */
-			if (!__ni_netdev_addr_needs_update(ap, new_addr)) {
+			if (!__ni_netdev_addr_needs_update(dev->name, ap, new_addr)) {
 				ni_debug_ifconfig("address %s/%u exists; no need to reconfigure",
 					ni_sockaddr_print(&ap->local_addr), ap->prefixlen);
 				continue;
