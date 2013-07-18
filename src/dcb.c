@@ -96,6 +96,7 @@ ni_dcbx_should_start(ni_netdev_t *dev)
 	if ((dcb = dev->dcb) == NULL) {
 		ni_dcb_capabilities_t capabilities;
 
+		memset(&capabilities, 0, sizeof(capabilities));
 		if (ni_dcb_get_capabilities(dev->name, &capabilities) < 0)
 			return FALSE;
 
