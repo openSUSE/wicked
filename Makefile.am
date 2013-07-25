@@ -35,6 +35,8 @@ package: all check distcheck show-commit-state
 rpmpackage: package
 	rpmbuild $(rpmbuild_opts) $(distdir).tar.bz2
 
+tags:
+	ctags $(git ls-tree -r --full-tree --name-only HEAD )
 
 dist-hook: VERSION $(distdir)/wicked.spec $(distdir)/ChangeLog.git
 
