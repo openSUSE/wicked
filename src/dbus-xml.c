@@ -1550,7 +1550,7 @@ __ni_notation_external_file_print(const unsigned char *data_ptr, unsigned int da
 	FILE *fp;
 
 	if (__ni_dbus_xml_global_temp_state == NULL) {
-		snprintf(buffer, sizeof(buffer), "[[file data]]");
+		snprintf(buffer, size, "[[file data]]");
 		return buffer;
 	}
 
