@@ -1,0 +1,22 @@
+#!/bin/bash
+
+set -e
+cmd=$1; shift
+
+case $cmd in
+backup)
+	echo "$0 backup"
+	: ;;
+
+restore)
+	echo "$0 restore"
+	: ;;
+
+install)
+	echo "$0 install"
+	: ;;
+
+*)
+	echo "$0: command $cmd not supported" >&2
+	exit 1;;
+esac
