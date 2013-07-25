@@ -208,7 +208,7 @@ ni_system_updater_backup(ni_updater_t *updater)
 	if (!updater->proc_backup)
 		return TRUE;
 
-	if (!ni_system_updater_run(updater->proc_backup, NULL)) {
+	if (!ni_system_updater_run(updater->proc_backup, ni_updater_name(updater->type))) {
 		ni_error("failed to back up current %s settings",
 				ni_updater_name(updater->type));
 		return FALSE;
@@ -230,7 +230,7 @@ ni_system_updater_restore(ni_updater_t *updater)
 	if (!updater->proc_restore)
 		return TRUE;
 
-	if (!ni_system_updater_run(updater->proc_restore, NULL)) {
+	if (!ni_system_updater_run(updater->proc_restore, ni_updater_name(updater->type))) {
 		ni_error("failed to restore current %s settings",
 				ni_updater_name(updater->type));
 		return FALSE;
