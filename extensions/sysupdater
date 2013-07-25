@@ -1,22 +1,58 @@
 #!/bin/bash
 
-set -e
-cmd=$1; shift
+# Called like: sysupdater <cmd> <wickedd_updater_name> [<key=argument>, ...]
 
-case $cmd in
-backup)
-	echo "$0 backup"
-	: ;;
+scriptdir=`dirname $0`
+min_args=2      # wickedd_updater_name and cmd are required!
+#set -e 	# Exit if any command called exits with non-zero.
+script_name=$0
+updater_name="" # Place holder for wickedd updater that called us. Also doubles
+                # as this particular updater's script name.
+cmd=""          # Command to perform.
+cmd_args=""     # Array of arguments.
 
-restore)
-	echo "$0 restore"
-	: ;;
+print_array()
+{
+    local arr=("$@")
+    for (( i=0; i < ${#arr[*]}; i++ ))
+    do
+        echo "elem[$i]=${arr[$i]}"
+    done
+}
 
-install)
-	echo "$0 install"
-	: ;;
+init_env()
+{
+    local args=("$@")
+    if [ $# -lt $min_args ]
+    then
+        echo "$0 too few arguments received."
+        exit 1
+    fi
+    # called as: CMD UPDATER_NAME CMD_ARGS
+    updater_name=${args[1]}
+    cmd=${args[0]}
+    cmd_args=( ${args[@]:2} )
+}
 
-*)
-	echo "$0: command $cmd not supported" >&2
-	exit 1;;
+#print_array $@
+#echo "script_name=$script_name"
+#echo "updater_name=$updater_name"
+#echo "cmd=$cmd"
+#echo "cmd_args=${cmd_args[*]}"
+#print_array ${cmd_args[*]}
+init_env $@
+
+case $updater_name in
+    hostname)
+        echo "%%%%%%%%%%%%%%%%%% $0 HOSTNAME UPDATE"
+        ;;
+    resolver)
+        echo "%%%%%%%%%%%%%%%%%% $0 RESOLVER UPDATE"
+        bash ${scriptdir}/resolver $cmd ${cmd_args[*]}
+        echo "$?"
+        ;;
+    *)
+        echo "$0: updater $updater_name not supported." >&2
+        exit 1
 esac
+
