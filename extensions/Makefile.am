@@ -10,7 +10,8 @@ wicked_extensions_SCRIPTS	= \
 	firewall	\
 	ibft		\
 	openvpn		\
-	resolver
+	resolver	\
+	sysupdater
 
 EXTRA_DIST			= $(wicked_extensions_DATA) \
 				  $(wicked_extensions_SCRIPTS)
