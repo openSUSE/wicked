@@ -75,9 +75,9 @@
   <!-- Define the scripts for updating various system settings with
        data obtained from addrconf services, such as dhcp -->
   <system-updater name="resolver">
-    <action name="backup" command="@wicked_extensionsdir@/resolver backup"/>
-    <action name="restore" command="@wicked_extensionsdir@/resolver restore"/>
-    <action name="install" command="@wicked_extensionsdir@/resolver install"/>
+    <action name="backup" command="@wicked_extensionsdir@/sysupdater backup"/>
+    <action name="restore" command="@wicked_extensionsdir@/sysupdater restore"/>
+    <action name="install" command="@wicked_extensionsdir@/sysupdater install"/>
   </system-updater>
 
   <system-updater name="hostname">
