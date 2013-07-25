@@ -14,6 +14,7 @@
 #include <wicked/addrconf.h>
 #include <wicked/system.h>
 #include <wicked/resolver.h>
+#include <wicked/util.h>
 
 #include "netinfo_priv.h"
 #include "process.h"
@@ -241,12 +242,39 @@ ni_system_updater_restore(ni_updater_t *updater)
 }
 
 /*
+ * Populate a space separated, single string argument list in the form of:
+ *   "CMD UPDATER_NAME CMD_ARGS"
+ * for passing to system updater scripts. Variable argument list must all
+ * be character pointers and ni_stringbuf_t must be allocated as dynamic.
+ */
+static ni_stringbuf_t *
+ni_system_updater_populate_args(ni_stringbuf_t *args, int argnum, ...)
+{
+	va_list ap; /* Points to each unamed arg in turn. Thanks, K&R. */
+	int i;
+	if (!args || args->dynamic != 1) {
+		return NULL;
+	}
+	va_start(ap, argnum);
+	for (i = 0; i < argnum; i++) {
+		ni_stringbuf_puts(args, va_arg(ap, char *));
+		/* Toss in a space if not the last argument. */
+		if (i != argnum - 1) {
+			ni_stringbuf_puts(args, " ");
+		}
+	}
+	va_end(ap);
+	return args;
+}
+
+/*
  * Install information from a lease, and remember that we did
  */
 static ni_bool_t
 ni_system_updater_install(ni_updater_t *updater, const ni_addrconf_lease_t *lease)
 {
-	const char *tempname = NULL, *argument = NULL;
+	const char *tempname = NULL;
+	ni_stringbuf_t arguments = NI_STRINGBUF_INIT_DYNAMIC;
 	ni_bool_t result = FALSE;
 	int rv = 0;
 
@@ -257,13 +285,18 @@ ni_system_updater_install(ni_updater_t *updater, const ni_addrconf_lease_t *leas
 
 	if (!updater->have_backup && !ni_system_updater_backup(updater))
 		return FALSE;
-
 	/* FIXME: build a file containing the new configuration, and run the
 	 * indicated script with it */
 	switch (updater->type) {
 	case NI_ADDRCONF_UPDATE_RESOLVER:
-		argument = tempname = _PATH_RESOLV_CONF ".new";
-
+		tempname = _PATH_RESOLV_CONF ".new";
+		if (!ni_system_updater_populate_args(&arguments, 2,
+							ni_updater_name(updater->type),
+							tempname)) {
+			ni_error("failed to populate arguments for %s",
+					ni_updater_name(updater->type));
+			goto done;
+		}
 		if ((rv = ni_resolver_write_resolv_conf(tempname, lease->resolver, NULL)) < 0) {
 			ni_error("failed to write resolver info to temp file: %s",
 					ni_strerror(rv));
@@ -272,7 +305,7 @@ ni_system_updater_install(ni_updater_t *updater, const ni_addrconf_lease_t *leas
 		break;
 
 	case NI_ADDRCONF_UPDATE_HOSTNAME:
-		argument = lease->hostname;
+		//argument = lease->hostname;
 		break;
 
 	default:
@@ -282,7 +315,7 @@ ni_system_updater_install(ni_updater_t *updater, const ni_addrconf_lease_t *leas
 		return FALSE;
 	}
 
-	if (!ni_system_updater_run(updater->proc_install, argument)) {
+	if (!ni_system_updater_run(updater->proc_install, arguments.string)) {
 		ni_error("failed to install %s settings", ni_updater_name(updater->type));
 		goto done;
 	}
