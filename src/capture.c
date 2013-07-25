@@ -502,7 +502,7 @@ ni_capture_is_valid(const ni_capture_t *capture, int protocol)
 int
 ni_capture_devinfo_init(ni_capture_devinfo_t *devinfo, const char *ifname, const ni_linkinfo_t *link)
 {
-	memset(devinfo, 0, sizeof(devinfo));
+	memset(devinfo, 0, sizeof(*devinfo));
 	ni_string_dup(&devinfo->ifname, ifname);
 	devinfo->iftype = link->type;
 	devinfo->ifindex = link->ifindex;
