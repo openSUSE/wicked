@@ -124,7 +124,7 @@ extern void		ni_stringbuf_set(ni_stringbuf_t *, const char *);
 extern void		ni_stringbuf_init(ni_stringbuf_t *);
 extern void		ni_stringbuf_grow(ni_stringbuf_t *, size_t);
 extern void		ni_stringbuf_puts(ni_stringbuf_t *, const char *);
-extern void		ni_stringbuf_putc(ni_stringbuf_t *, char);
+extern void		ni_stringbuf_putc(ni_stringbuf_t *, int);
 extern int		ni_stringbuf_printf(ni_stringbuf_t *, const char *, ...);
 extern int		ni_stringbuf_vprintf(ni_stringbuf_t *, const char *, va_list);
 extern void		ni_stringbuf_move(ni_stringbuf_t *dest, ni_stringbuf_t *src);

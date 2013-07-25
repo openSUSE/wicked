@@ -179,7 +179,7 @@ ni_buffer_getc(ni_buffer_t *bp)
 }
 
 static inline int
-ni_buffer_ungetc(ni_buffer_t *bp, char cc)
+ni_buffer_ungetc(ni_buffer_t *bp, int cc)
 {
 	if (bp->head == 0 || bp->base[bp->head - 1] != cc)
 		return -1;

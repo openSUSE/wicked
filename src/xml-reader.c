@@ -58,7 +58,7 @@ typedef struct xml_reader {
 	ni_buffer_t *		in_buffer;
 
 	FILE *			file;
-	char *			buffer;		/* FIXME: use in_buffer for this as well */
+	unsigned char *		buffer;		/* FIXME: use in_buffer for this as well */
 
 	unsigned int		no_close : 1;
 
@@ -100,8 +100,8 @@ static int		xml_reader_init_file(xml_reader_t *xr, FILE *fp);
 static int		xml_reader_init_buffer(xml_reader_t *xr, ni_buffer_t *buf);
 static int		xml_reader_open(xml_reader_t *xr, const char *filename);
 static int		xml_reader_destroy(xml_reader_t *xr);
-static char		xml_getc(xml_reader_t *xr);
-static void		xml_ungetc(xml_reader_t *xr, char cc);
+static int		xml_getc(xml_reader_t *xr);
+static void		xml_ungetc(xml_reader_t *xr, int cc);
 
 /*
  * Document reader implementation
@@ -497,7 +497,7 @@ xml_token_type_t
 xml_get_token_initial(xml_reader_t *xr, ni_stringbuf_t *res)
 {
 	xml_token_type_t token;
-	char cc;
+	int cc;
 
 restart:
 	/* Eat initial white space and store it in @res */
@@ -585,7 +585,7 @@ restart:
 xml_token_type_t
 xml_get_token_tag(xml_reader_t *xr, ni_stringbuf_t *res)
 {
-	char cc, oc;
+	int cc, oc;
 
 	xml_skip_space(xr, NULL);
 
@@ -666,8 +666,7 @@ error:
 xml_token_type_t
 xml_skip_comment(xml_reader_t *xr)
 {
-	int match = 0;
-	char cc;
+	int match = 0, cc;
 
 	if (xml_getc(xr) != '-') {
 		xml_parse_error(xr, "Unexpected <!-...> element");
@@ -703,7 +702,7 @@ xml_expand_entity(xml_reader_t *xr, ni_stringbuf_t *res)
 {
 	char temp[128];
 	ni_stringbuf_t entity = NI_STRINGBUF_INIT_BUFFER(temp);
-	char cc, expanded;
+	int cc, expanded;
 
 	while ((cc = xml_getc(xr)) != ';') {
 		if (cc == EOF) {
@@ -750,7 +749,7 @@ good:
 void
 xml_skip_space(xml_reader_t *xr, ni_stringbuf_t *result)
 {
-	char cc;
+	int cc;
 
 	while ((cc = xml_getc(xr)) != EOF) {
 		if (!isspace(cc)) {
@@ -986,10 +985,10 @@ xml_reader_destroy(xml_reader_t *xr)
 	return rv;
 }
 
-char
+int
 xml_getc(xml_reader_t *xr)
 {
-	char cc;
+	int cc;
 
 	if (xr->in_buffer)
 		return ni_buffer_getc(xr->in_buffer);
@@ -1009,17 +1008,17 @@ xml_getc(xml_reader_t *xr)
 			break;
 		}
 
-		if (fgets(xr->buffer, XML_READER_BUFSZ, xr->file) == NULL)
+		if (fgets((char *)xr->buffer, XML_READER_BUFSZ, xr->file) == NULL)
 			break;
 
-		xr->pos = (unsigned char *) xr->buffer;
+		xr->pos = xr->buffer;
 	}
 
 	return EOF;
 }
 
 void
-xml_ungetc(xml_reader_t *xr, char cc)
+xml_ungetc(xml_reader_t *xr, int cc)
 {
 	if (xr->in_buffer) {
 		if (ni_buffer_ungetc(xr->in_buffer, cc) < 0)
@@ -1030,7 +1029,7 @@ xml_ungetc(xml_reader_t *xr, char cc)
 	}
 
 	if (xr->pos == NULL
-	 || xr->pos == (unsigned char *) xr->buffer
+	 || xr->pos == xr->buffer
 	 || xr->pos[-1] != cc) {
 		ni_error("xml_ungetc: cannot put back");
 		ni_error("  buffer=%p pos=%p *pos=0x%x cc=0x%x",

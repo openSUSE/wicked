@@ -1160,9 +1160,10 @@ __ni_stringbuf_put(ni_stringbuf_t *sb, const char *ptr, size_t len)
 }
 
 void
-ni_stringbuf_putc(ni_stringbuf_t *sb, char cc)
+ni_stringbuf_putc(ni_stringbuf_t *sb, int cc)
 {
-	__ni_stringbuf_put(sb, &cc, 1);
+	char c = cc;
+	__ni_stringbuf_put(sb, &c, 1);
 }
 
 void
@@ -2129,7 +2130,7 @@ ni_quote(const char *string, const char *sepa)
 {
 	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 	unsigned int n, m;
-	char cc;
+	int cc;
 
 	m = strcspn(string, sepa);
 	n = strcspn(string, "\"'");
@@ -2151,7 +2152,7 @@ ni_unquote(const char **stringp, const char *sepa)
 {
 	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 	const char *src = *stringp;
-	char cc;
+	int cc;
 
 	while ((cc = *src) != '\0') {
 		++src;
