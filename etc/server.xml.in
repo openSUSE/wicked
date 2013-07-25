@@ -81,9 +81,9 @@
   </system-updater>
 
   <system-updater name="hostname">
-    <action name="backup" command="@wicked_extensionsdir@/hostname backup"/>
-    <action name="restore" command="@wicked_extensionsdir@/hostname restore"/>
-    <action name="install" command="@wicked_extensionsdir@/hostname install"/>
+    <action name="backup" command="@wicked_extensionsdir@/sysupdater backup"/>
+    <action name="restore" command="@wicked_extensionsdir@/sysupdater restore"/>
+    <action name="install" command="@wicked_extensionsdir@/sysupdater install"/>
   </system-updater>
 
 </config>
