@@ -54,7 +54,11 @@ ni_dhcp_fsm_process_dhcp_packet(ni_dhcp_device_t *dev, ni_buffer_t *msgbuf)
 	int msg_code;
 
 	if (dev->fsm.state == NI_DHCP_STATE_VALIDATING) {
-		ni_error("%s: shouldn't get here in state VALIDATING", __FUNCTION__);
+		/* We arrive here, when some dhcp packet arrives after
+		 * we've got and processed an ACK already. Just ignore.
+		 */
+		ni_debug_dhcp("%s: ignoring dhcp packet arrived in state VALIDATING",
+				dev->ifname);
 		return -1;
 	}
 
@@ -182,7 +186,7 @@ ni_dhcp_fsm_process_dhcp_packet(ni_dhcp_device_t *dev, ni_buffer_t *msgbuf)
 	}
 
 out:
-	if (dev->lease != lease)
+	if (lease && dev->lease != lease)
 		ni_addrconf_lease_free(lease);
 
 	/* If we received a message other than NAK, reset the NAK
