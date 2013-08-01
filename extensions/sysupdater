@@ -34,22 +34,16 @@ init_env()
     cmd_args=( ${args[@]:2} )
 }
 
-#print_array $@
-#echo "script_name=$script_name"
-#echo "updater_name=$updater_name"
-#echo "cmd=$cmd"
-#echo "cmd_args=${cmd_args[*]}"
-#print_array ${cmd_args[*]}
 init_env $@
 
 case $updater_name in
     hostname)
-        echo "%%%%%%%%%%%%%%%%%% $0 HOSTNAME UPDATE"
+        echo "$0 HOSTNAME UPDATE"
         ;;
     resolver)
-        echo "%%%%%%%%%%%%%%%%%% $0 RESOLVER UPDATE"
+        echo "$0 RESOLVER UPDATE"
+        echo "$0 Running: ${scriptdir}/resolver $cmd ${cmd_args[*]}"
         bash ${scriptdir}/resolver $cmd ${cmd_args[*]}
-        echo "$?"
         ;;
     *)
         echo "$0: updater $updater_name not supported." >&2
