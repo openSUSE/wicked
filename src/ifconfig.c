@@ -1412,46 +1412,52 @@ __ni_rtnl_send_newroute(ni_netdev_t *dev, ni_route_t *rp, int flags)
 	memset(&rt, 0, sizeof(rt));
 
 	rt.rtm_family = rp->family;
-	rt.rtm_table = RT_TABLE_MAIN;
-	rt.rtm_protocol = RTPROT_BOOT;
-	rt.rtm_scope = RT_SCOPE_UNIVERSE;
-	rt.rtm_type = RTN_UNICAST;
-
-	rt.rtm_tos = rp->tos;
 	rt.rtm_dst_len = rp->prefixlen;
+	rt.rtm_tos = rp->tos;
 
-	if (rp->table != RT_TABLE_UNSPEC && rp->table != RT_TABLE_MAX)
-		rt.rtm_table = rp->table;
-	if (rp->protocol != RTPROT_UNSPEC)
-		rt.rtm_protocol = rp->protocol;
-	if (rp->scope != RT_SCOPE_NOWHERE)
-		rt.rtm_scope = rp->scope;
-	if (rp->type < __RTN_MAX)
+	rt.rtm_type = RTN_UNICAST;
+	if (rp->type != RTN_UNSPEC && rp->type < __RTN_MAX)
 		rt.rtm_type = rp->type;
 
-	if (rt.rtm_type == RTN_LOCAL ||
-	    rt.rtm_type == RTN_BROADCAST ||
-	    rt.rtm_type == RTN_NAT ||
-	    rt.rtm_type == RTN_ANYCAST)
-		rt.rtm_table = RT_TABLE_LOCAL;
+	rt.rtm_scope = RT_SCOPE_UNIVERSE;
+	if (rp->scope != RT_SCOPE_NOWHERE) {
+		rt.rtm_scope = rp->scope;
+	} else switch (rt.rtm_type) {
+		case RTN_LOCAL:
+		case RTN_NAT:
+			rt.rtm_scope = RT_SCOPE_HOST;
+			break;
 
-	switch (rt.rtm_type) {
-	case RTN_LOCAL:
-	case RTN_NAT:
-		rt.rtm_scope = RT_SCOPE_HOST;
-		break;
-
-	case RTN_BROADCAST:
-	case RTN_MULTICAST:
-	case RTN_ANYCAST:
-		rt.rtm_scope = RT_SCOPE_LINK;
-		break;
-
-	case RTN_UNICAST:
-	case RTN_UNSPEC:
-		if (rp->nh.gateway.ss_family == AF_UNSPEC)
+		case RTN_BROADCAST:
+		case RTN_MULTICAST:
+		case RTN_ANYCAST:
 			rt.rtm_scope = RT_SCOPE_LINK;
-		break;
+			break;
+
+		case RTN_UNICAST:
+		case RTN_UNSPEC:
+			if (rp->nh.gateway.ss_family == AF_UNSPEC)
+				rt.rtm_scope = RT_SCOPE_LINK;
+			break;
+	}
+
+	rt.rtm_protocol = RTPROT_BOOT;
+	if (rp->protocol != RTPROT_UNSPEC && rp->protocol < 256)
+		rt.rtm_protocol = rp->protocol;
+
+	rt.rtm_table = RT_TABLE_MAIN;
+	if (rp->table != RT_TABLE_UNSPEC && rp->table < RT_TABLE_MAX) {
+		if (rp->table > RT_TABLE_LOCAL)
+			rt.rtm_table = RT_TABLE_COMPAT;
+		else
+			rt.rtm_table = rp->table;
+	} else switch (rt.rtm_type) {
+		case RTN_LOCAL:
+		case RTN_BROADCAST:
+		case RTN_NAT:
+		case RTN_ANYCAST:
+			rt.rtm_table = RT_TABLE_LOCAL;
+			break;
 	}
 
 	msg = nlmsg_alloc_simple(RTM_NEWROUTE, flags);
@@ -1463,25 +1469,82 @@ __ni_rtnl_send_newroute(ni_netdev_t *dev, ni_route_t *rp, int flags)
 	} else if (addattr_sockaddr(msg, RTA_DST, &rp->destination))
 		goto nla_put_failure;
 
-	if (rp->nh.gateway.ss_family != AF_UNSPEC
-	 && addattr_sockaddr(msg, RTA_GATEWAY, &rp->nh.gateway))
+	if (rp->nh.next == NULL) {
+		if (rp->nh.gateway.ss_family != AF_UNSPEC &&
+		    addattr_sockaddr(msg, RTA_GATEWAY, &rp->nh.gateway))
+			goto nla_put_failure;
+
+		if (rp->nh.device.index)
+			NLA_PUT_U32(msg, RTA_OIF, rp->nh.device.index);
+		else if (dev && dev->link.ifindex)
+			NLA_PUT_U32(msg, RTA_OIF, dev->link.ifindex);
+
+		if (rp->realm)
+			NLA_PUT_U32(msg, RTA_FLOW, rp->realm);
+	} else {
+		struct nlattr *mp_head;
+		struct rtnexthop *rtnh;
+		ni_route_nexthop_t *nh;
+
+		mp_head = nla_nest_start(msg, RTA_MULTIPATH);
+		if (mp_head == NULL)
+			goto nla_put_failure;
+
+		for (nh = &rp->nh; nh; nh = nh->next) {
+			rtnh = nlmsg_reserve(msg, sizeof(*rtnh), NLMSG_ALIGNTO);
+			if (rtnh == NULL)
+				goto nla_put_failure;
+
+			memset(rtnh, 0, sizeof(*rtnh));
+			rtnh->rtnh_flags = nh->flags & 0xFF;
+			rtnh->rtnh_hops = nh->weight ? nh->weight - 1 : 0;
+
+			if (nh->device.index)
+				rtnh->rtnh_ifindex = nh->device.index;
+			else if (dev && dev->link.ifindex)
+				rtnh->rtnh_ifindex = dev->link.ifindex;
+			else
+				goto failed;
+
+			if (ni_sockaddr_is_specified(&nh->gateway) &&
+			    addattr_sockaddr(msg, RTA_GATEWAY, &nh->gateway))
+				goto nla_put_failure;
+
+			if (nh->realm)
+				NLA_PUT_U32(msg, RTA_FLOW, nh->realm);
+
+			rtnh->rtnh_len = nlmsg_tail(nlmsg_hdr(msg)) - (void *)rtnh;
+		}
+		nla_nest_end(msg, mp_head);
+	}
+
+	if (ni_sockaddr_is_specified(&rp->pref_src) &&
+	    addattr_sockaddr(msg, RTA_PREFSRC, &rp->pref_src))
 		goto nla_put_failure;
 
-	if (dev && dev->link.ifindex)
-		NLA_PUT_U32(msg, RTA_OIF, dev->link.ifindex);
+	if (rt.rtm_table == RT_TABLE_COMPAT && rp->table != RT_TABLE_COMPAT)
+		NLA_PUT_U32(msg, RTA_TABLE, rp->table);
 
 	if (rp->priority)
 		NLA_PUT_U32(msg, RTA_PRIORITY, rp->priority);
 
+	if (rp->mark)
+		NLA_PUT_U32(msg, RTA_MARK, rp->mark);
+
+
 	/* Add metrics if needed */
-	if (rp->mtu || rp->window || rp->rtt || rp->rttvar || rp->ssthresh
-	 || rp->cwnd || rp->rto_min || rp->advmss) {
+	if (rp->mtu || rp->window || rp->rtt || rp->rttvar || rp->ssthresh ||
+	    rp->cwnd || rp->advmss || rp->reordering || rp->hoplimit ||
+	    rp->initcwnd || rp->features || rp->rto_min || rp->initrwnd) {
+
 		struct nlattr *mxrta;
 
 		mxrta = nla_nest_start(msg, RTA_METRICS);
 		if (mxrta == NULL)
 			goto nla_put_failure;
 
+		if (rp->lock)
+			NLA_PUT_U32(msg, RTAX_LOCK, rp->lock);
 		if (rp->mtu)
 			NLA_PUT_U32(msg, RTAX_MTU, rp->mtu);
 		if (rp->window)
@@ -1494,10 +1557,20 @@ __ni_rtnl_send_newroute(ni_netdev_t *dev, ni_route_t *rp, int flags)
 			NLA_PUT_U32(msg, RTAX_SSTHRESH, rp->ssthresh);
 		if (rp->cwnd)
 			NLA_PUT_U32(msg, RTAX_CWND, rp->cwnd);
-		if (rp->rto_min)
-			NLA_PUT_U32(msg, RTAX_RTO_MIN, rp->rto_min);
 		if (rp->advmss)
 			NLA_PUT_U32(msg, RTAX_ADVMSS, rp->advmss);
+		if (rp->reordering)
+			NLA_PUT_U32(msg, RTAX_REORDERING, rp->reordering);
+		if (rp->hoplimit)
+			NLA_PUT_U32(msg, RTAX_HOPLIMIT, rp->hoplimit);
+		if (rp->initcwnd)
+			NLA_PUT_U32(msg, RTAX_INITCWND, rp->initcwnd);
+		if (rp->features)
+			NLA_PUT_U32(msg, RTAX_FEATURES, rp->features);
+		if (rp->rto_min)
+			NLA_PUT_U32(msg, RTAX_RTO_MIN, rp->rto_min);
+		if (rp->initrwnd)
+			NLA_PUT_U32(msg, RTAX_INITRWND, rp->initrwnd);
 
 		nla_nest_end(msg, mxrta);
 	}
