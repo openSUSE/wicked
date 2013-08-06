@@ -354,8 +354,8 @@ ni_route_print(ni_stringbuf_t *out, const ni_route_t *rp)
 			ni_stringbuf_printf(out, " dev %s", nh->device.name);
 		} else if ((dev = ni_netdev_by_index(nc, nh->device.index))) {
 			ni_stringbuf_printf(out, " dev %s", dev->name);
-		} else {
-			ni_stringbuf_printf(out, " dev %u", nh->device.index);
+		} else /* if (nh->device.index) */ {
+			ni_stringbuf_printf(out, " dev #%u", nh->device.index);
 		}
 		if (!rp->nh.next)
 			continue;
@@ -374,18 +374,18 @@ ni_route_print(ni_stringbuf_t *out, const ni_route_t *rp)
 	}
 
 	/* kern */
+	if (rp->type != RTN_UNSPEC) {
+		if ((ptr = ni_route_type_type_to_name(rp->type))) {
+			ni_stringbuf_printf(out, " type %s", ptr);
+		} else {
+			ni_stringbuf_printf(out, " type %u", rp->type);
+		}
+	}
 	if (rp->table != RT_TABLE_UNSPEC) {
 		if ((ptr = ni_route_table_type_to_name(rp->table))) {
 			ni_stringbuf_printf(out, " table %s", ptr);
 		} else {
-			ni_stringbuf_printf(out, " table %u", ptr);
-		}
-	}
-	if (rp->type != RTN_UNSPEC) {
-		if ((ptr = ni_route_type_type_to_name(rp->type))) {
-			ni_stringbuf_printf(out, " %s", ptr);
-		} else {
-			ni_stringbuf_printf(out, " type %u", rp->type);
+			ni_stringbuf_printf(out, " table %u", rp->table);
 		}
 	}
 	if ((ptr = ni_route_scope_type_to_name(rp->scope))) {
