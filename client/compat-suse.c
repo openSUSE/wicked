@@ -606,7 +606,7 @@ __ni_suse_route_parse_opts(ni_route_t *rp, ni_string_array_t *opts,
 			rp->initrwnd = tmp;
 		} else
 
-		/* kern dict, except type */
+		/* kern dict */
 		if (!strcmp(opt, "table")) {
 			val = ni_string_array_at(opts, (*pos)++);
 			if (!val || rp->table != RT_TABLE_UNSPEC)
@@ -632,16 +632,21 @@ __ni_suse_route_parse_opts(ni_route_t *rp, ni_string_array_t *opts,
 			if (rp->protocol != RTPROT_UNSPEC)
 				return -1;
 			rp->protocol = tmp;
+		} else
+		if (!strcmp(opt, "type")) {
+			val = ni_string_array_at(opts, (*pos)++);
+			if (!ni_route_type_name_to_type(val, &tmp) || tmp >= __RTN_MAX)
+				return -1;
+			if (rp->type != RTN_UNSPEC)
+				return -1;
+			rp->type = tmp;
 		} else {
-			/* try as route types */
-			if (ni_route_type_name_to_type(opt, &tmp)) {
-				if (rp->type != RTN_UNSPEC)
-					return -1;
-				rp->type = tmp;
-			} else {
-				/* ignore unknown assumming they've a value ? */
-				(*pos)++;
-			}
+			/* assume it is a route type name without keyword */
+			if (!ni_route_type_name_to_type(opt, &tmp) || tmp >= __RTN_MAX)
+				return -1;
+			if (rp->type != RTN_UNSPEC)
+				return -1;
+			rp->type = tmp;
 		}
 	}
 
@@ -827,7 +832,7 @@ __ni_suse_route_parse(ni_route_table_t **routes, char *buffer, const char *ifnam
 	}
 
 	/* apply defaults when needed */
-	if (rp->type == RT_TABLE_UNSPEC)
+	if (rp->type == RTN_UNSPEC)
 		rp->type = RTN_UNICAST;
 	if (rp->table == RT_TABLE_UNSPEC)
 		rp->table = RT_TABLE_MAIN;
