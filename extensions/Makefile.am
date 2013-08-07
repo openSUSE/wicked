@@ -9,6 +9,7 @@ wicked_extensions_SCRIPTS	= \
 	bridge		\
 	firewall	\
 	ibft		\
+	netconfig	\
 	openvpn		\
 	resolver	\
 	sysupdater
