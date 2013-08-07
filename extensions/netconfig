@@ -7,11 +7,11 @@ modify_netconfig()
 {
 	local resolv_file=$1
 	local restore=$2
-	local intf=$3 # TODO: replace with interface argument
+	local intf=$3
 	echo "resolv_file=${resolv_file} restore=${restore} intf=${intf}"
 	local dnsservers=""
 	local dnssearch=""
-	if [ -z "$restore" ]
+	if [ "$restore" = "no" ]
 	then
 		dnsservers=`grep "nameserver" $resolv_file | awk '{printf "%s ", $2}'`
 		dnssearch=`grep "search" $resolv_file | awk '{for (i=2; i<=NF; i++) print $i}'`
@@ -30,7 +30,7 @@ backup)
 
 restore)
 	echo "TODO: REPLACE WITH REMOVE CMD"
-	filename=""
+	filename="null"
 	intf="eth0"	# FIXME by passing correct params from update.c
 	restore="yes"
 	modify_netconfig $filename $restore $intf
@@ -40,7 +40,7 @@ install)
 	echo "INSTALL: $@"
 	filename=$1
 	intf=$2
-	restore=""
+	restore="no"
 	modify_netconfig $filename $restore $intf
 	: ;;
 
