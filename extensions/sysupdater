@@ -42,8 +42,10 @@ case $updater_name in
         ;;
     resolver)
         echo "$0 RESOLVER UPDATE"
-        echo "$0 Running: ${scriptdir}/resolver $cmd ${cmd_args[*]}"
-        bash ${scriptdir}/resolver $cmd ${cmd_args[*]}
+        #echo "$0 Running: ${scriptdir}/resolver $cmd ${cmd_args[*]}"
+        #bash ${scriptdir}/resolver $cmd ${cmd_args[*]}
+        echo "$0 Running: ${scriptdir}/netconfig $cmd ${cmd_args[*]}"
+        bash ${scriptdir}/netconfig $cmd ${cmd_args[*]}
         ;;
     *)
         echo "$0: updater $updater_name not supported." >&2
