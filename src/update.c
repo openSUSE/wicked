@@ -267,6 +267,26 @@ ni_system_updater_populate_args(ni_stringbuf_t *args, int argnum, ...)
 	return args;
 }
 
+static char *
+ni_system_updater_get_device_name_from_lease(ni_addrconf_lease_t *lease)
+{
+	ni_netconfig_t *nc = ni_global_state_handle(0);
+	ni_netdev_t *dev = NULL;
+	ni_addrconf_lease_t *lease_ptr = NULL;
+
+	for (dev = ni_netconfig_devlist(nc); dev; dev = dev->next) {
+		for (lease_ptr = dev->leases; lease_ptr; lease_ptr = lease_ptr->next) {
+			if (lease->seqno == lease_ptr->seqno) {
+				/* We've found our device to which this lease belongs. */
+				ni_debug_ifconfig("FOUND %s", dev->name);
+				return strdup(dev->name);
+			}
+		}
+	}
+	ni_debug_ifconfig("NOT FOUND");
+	return NULL; /* Device not found! */
+}
+
 /*
  * Install information from a lease, and remember that we did
  */
@@ -282,6 +302,7 @@ ni_system_updater_install(ni_updater_t *updater, const ni_addrconf_lease_t *leas
 					ni_updater_name(updater->type),
 					ni_addrconf_type_to_name(lease->type),
 					ni_addrfamily_type_to_name(lease->family));
+	char *devname = ni_system_updater_get_device_name_from_lease(lease);
 
 	if (!updater->have_backup && !ni_system_updater_backup(updater))
 		return FALSE;
@@ -290,9 +311,10 @@ ni_system_updater_install(ni_updater_t *updater, const ni_addrconf_lease_t *leas
 	switch (updater->type) {
 	case NI_ADDRCONF_UPDATE_RESOLVER:
 		tempname = _PATH_RESOLV_CONF ".new";
-		if (!ni_system_updater_populate_args(&arguments, 2,
+		if (!ni_system_updater_populate_args(&arguments, 3,
 							ni_updater_name(updater->type),
-							tempname)) {
+							tempname,
+							devname)) {
 			ni_error("failed to populate arguments for %s",
 					ni_updater_name(updater->type));
 			goto done;
