@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# disarm this resolver script
+test -e /etc/SuSE-release && exit 0
+
 backupdir=/var/run/wicked/backup
 
 filename=/etc/resolv.conf
