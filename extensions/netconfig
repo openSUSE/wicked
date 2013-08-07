@@ -1,0 +1,54 @@
+#!/bin/bash
+
+set -e
+cmd=$1; shift
+
+modify_netconfig()
+{
+	local resolv_file=$1
+	local restore=$2
+	local intf=$3 # TODO: replace with interface argument
+	echo "resolv_file=${resolv_file} restore=${restore} intf=${intf}"
+	local dnsservers=""
+	local dnssearch=""
+	if [ -z "$restore" ]
+	then
+		dnsservers=`grep "nameserver" $resolv_file | awk '{printf "%s ", $2}'`
+		dnssearch=`grep "search" $resolv_file | awk '{for (i=2; i<=NF; i++) print $i}'`
+	fi
+	{
+		echo "DNSSEARCH='$dnssearch'"
+		echo "DNSSERVERS='$dnsservers'"
+	} | /sbin/netconfig modify -s wicked -i "$intf"
+}
+
+case $cmd in
+backup)
+	# Back up the existing resolv.conf file
+	echo "TODO: NO BACKUP TO PERFORM YET"
+	: ;;
+
+restore)
+	echo "TODO: REPLACE WITH REMOVE CMD"
+	filename=""
+	intf="eth0"	# FIXME by passing correct params from update.c
+	restore="yes"
+	modify_netconfig $filename $restore $intf
+	: ;;
+
+install)
+	echo "INSTALL: $@"
+	filename=$1
+	intf=$2
+	restore=""
+	modify_netconfig $filename $restore $intf
+	: ;;
+
+remove)
+	echo "REMOVING... TODO"
+	: ;;
+
+*)
+	echo "$0: command $cmd not supported" >&2
+	exit 1;;
+esac
