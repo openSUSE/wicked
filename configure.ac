@@ -210,6 +210,8 @@ AC_CHECK_FUNCS([memset mkdir rmdir sethostname socket strcasecmp strchr])
 AC_CHECK_FUNCS([strcspn strdup strerror strrchr strstr strtol strtoul])
 AC_CHECK_FUNCS([strtoull])
 
+AC_CHECK_DECL([RTA_MARK], [AC_DEFINE([HAVE_RTA_MARK], [], [Have RTA_MARK])], [], [[#include <netlink/netlink.h>]])
+
 if test "$ac_cv_header_linux_if_packet_h" = "yes" ; then
 	AC_CHECK_TYPES([struct tpacket_auxdata], [], [],
 		[[#include <linux/if_packet.h>]]

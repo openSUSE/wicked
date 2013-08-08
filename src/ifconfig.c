@@ -1528,8 +1528,10 @@ __ni_rtnl_send_newroute(ni_netdev_t *dev, ni_route_t *rp, int flags)
 	if (rp->priority)
 		NLA_PUT_U32(msg, RTA_PRIORITY, rp->priority);
 
+#ifdef HAVE_RTA_MARK
 	if (rp->mark)
 		NLA_PUT_U32(msg, RTA_MARK, rp->mark);
+#endif
 
 
 	/* Add metrics if needed */
