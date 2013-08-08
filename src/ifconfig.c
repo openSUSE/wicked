@@ -1569,8 +1569,10 @@ __ni_rtnl_send_newroute(ni_netdev_t *dev, ni_route_t *rp, int flags)
 			NLA_PUT_U32(msg, RTAX_FEATURES, rp->features);
 		if (rp->rto_min)
 			NLA_PUT_U32(msg, RTAX_RTO_MIN, rp->rto_min);
+#ifdef RTAX_INITRWND
 		if (rp->initrwnd)
 			NLA_PUT_U32(msg, RTAX_INITRWND, rp->initrwnd);
+#endif
 
 		nla_nest_end(msg, mxrta);
 	}
