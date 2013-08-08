@@ -1251,7 +1251,7 @@ ni_dhcp6_build_reparse(ni_dhcp6_device_t *dev, void *data, size_t len)
 	lease->time_acquired = time(NULL);
 
 	rv = __ni_dhcp6_parse_client_options(dev, &buf, lease, TRUE);
-	ni_addrconf_dhcp6_lease_free(lease);
+	ni_addrconf_lease_free(lease);
 
 	return rv;
 }
@@ -2867,15 +2867,6 @@ ni_dhcp6_check_client_header(ni_dhcp6_device_t *dev, const struct in6_addr *send
 	return 0;
 }
 
-void
-ni_addrconf_dhcp6_lease_free(ni_addrconf_lease_t *lease)
-{
-	if (lease) {
-		ni_dhcp6_status_destroy(&lease->dhcp6.status);
-		ni_dhcp6_ia_list_destroy(&lease->dhcp6.ia_list);
-		ni_addrconf_lease_free(lease);
-	}
-}
 
 /*
  * Map DHCP6 options to names

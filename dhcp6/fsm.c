@@ -424,7 +424,7 @@ __fsm_select_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, n
 		}
 
 		if(__fsm_select_best_offer(dev, msg->lease, weight)) {
-			ni_addrconf_dhcp6_lease_free(dev->best_offer.lease);
+			ni_addrconf_lease_free(dev->best_offer.lease);
 			dev->best_offer.weight = weight;
 			dev->best_offer.lease = msg->lease;
 			msg->lease = NULL;
@@ -479,7 +479,7 @@ __fsm_select_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, n
 		}
 
 		if(__fsm_select_best_offer(dev, msg->lease, weight)) {
-			ni_addrconf_dhcp6_lease_free(dev->best_offer.lease);
+			ni_addrconf_lease_free(dev->best_offer.lease);
 			dev->best_offer.weight = weight;
 			dev->best_offer.lease = msg->lease;
 			msg->lease = NULL;
@@ -724,7 +724,7 @@ __fsm_rebind_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, n
 		}
 
 		if(__fsm_select_best_offer(dev, msg->lease, weight)) {
-			ni_addrconf_dhcp6_lease_free(dev->best_offer.lease);
+			ni_addrconf_lease_free(dev->best_offer.lease);
 			dev->best_offer.weight = weight;
 			dev->best_offer.lease = msg->lease;
 			msg->lease = NULL;
@@ -929,7 +929,7 @@ __fsm_parse_client_options(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg,
 	return 0;
 
 failure:
-	ni_addrconf_dhcp6_lease_free(lease);
+	ni_addrconf_lease_free(lease);
 	return -1;
 }
 
@@ -992,7 +992,7 @@ ni_dhcp6_fsm_process_client_message(ni_dhcp6_device_t *dev, unsigned int msg_typ
 	ni_string_free(&hint);
 
 	if (msg.lease != NULL && msg.lease != dev->lease)
-		ni_addrconf_dhcp6_lease_free(msg.lease);
+		ni_addrconf_lease_free(msg.lease);
 
 	return rv;
 }
@@ -1053,7 +1053,7 @@ __ni_dhcp6_fsm_solicit(ni_dhcp6_device_t *dev, int scan_offers)
 
 cleanup:
 	if (lease != dev->lease) {
-		ni_addrconf_dhcp6_lease_free(lease);
+		ni_addrconf_lease_free(lease);
 	}
 	return rv;
 }

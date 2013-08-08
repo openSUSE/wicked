@@ -29,6 +29,7 @@
 #include "xml-schema.h"
 #include "sysfs.h"
 #include "modem-manager.h"
+#include "dhcp6/options.h"
 #include <gcrypt.h>
 
 
@@ -610,9 +611,22 @@ ni_addrconf_lease_destroy(ni_addrconf_lease_t *lease)
 
 	switch (lease->type) {
 	case NI_ADDRCONF_DHCP:
-		ni_string_free(&lease->dhcp.message);
-		ni_string_free(&lease->dhcp.bootfile);
-		ni_string_free(&lease->dhcp.rootpath);
+
+		switch (lease->family) {
+		case AF_INET:
+			ni_string_free(&lease->dhcp.message);
+			ni_string_free(&lease->dhcp.bootfile);
+			ni_string_free(&lease->dhcp.rootpath);
+			break;
+
+		case AF_INET6:
+			ni_dhcp6_status_destroy(&lease->dhcp6.status);
+			ni_dhcp6_ia_list_destroy(&lease->dhcp6.ia_list);
+			break;
+
+		default: ;
+		}
+
 		break;
 
 	default: ;

@@ -267,7 +267,7 @@ void
 ni_dhcp6_device_set_lease(ni_dhcp6_device_t *dev,  ni_addrconf_lease_t *lease)
 {
 	if (dev->lease && dev->lease != lease)
-		ni_addrconf_dhcp6_lease_free(dev->lease);
+		ni_addrconf_lease_free(dev->lease);
 	dev->lease = lease;
 }
 
@@ -300,7 +300,7 @@ ni_dhcp6_device_drop_lease(ni_dhcp6_device_t *dev)
 
 	if ((lease = dev->lease) != NULL) {
 		ni_addrconf_lease_file_remove(dev->ifname, lease->type, lease->family);
-		ni_addrconf_dhcp6_lease_free(lease);
+		ni_addrconf_lease_free(lease);
 		dev->lease = NULL;
 	}
 }
@@ -310,7 +310,7 @@ ni_dhcp6_device_drop_best_offer(ni_dhcp6_device_t *dev)
 {
 	dev->best_offer.weight = -1;
 	if (dev->best_offer.lease)
-		ni_addrconf_dhcp6_lease_free(dev->best_offer.lease);
+		ni_addrconf_lease_free(dev->best_offer.lease);
 	dev->best_offer.lease = NULL;
 }
 
