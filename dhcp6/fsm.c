@@ -424,7 +424,8 @@ __fsm_select_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, n
 		}
 
 		if(__fsm_select_best_offer(dev, msg->lease, weight)) {
-			ni_addrconf_lease_free(dev->best_offer.lease);
+			if (dev->best_offer.lease)
+				ni_addrconf_lease_free(dev->best_offer.lease);
 			dev->best_offer.weight = weight;
 			dev->best_offer.lease = msg->lease;
 			msg->lease = NULL;
@@ -479,7 +480,8 @@ __fsm_select_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, n
 		}
 
 		if(__fsm_select_best_offer(dev, msg->lease, weight)) {
-			ni_addrconf_lease_free(dev->best_offer.lease);
+			if (dev->best_offer.lease)
+				ni_addrconf_lease_free(dev->best_offer.lease);
 			dev->best_offer.weight = weight;
 			dev->best_offer.lease = msg->lease;
 			msg->lease = NULL;
@@ -724,7 +726,8 @@ __fsm_rebind_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, n
 		}
 
 		if(__fsm_select_best_offer(dev, msg->lease, weight)) {
-			ni_addrconf_lease_free(dev->best_offer.lease);
+			if (dev->best_offer.lease)
+				ni_addrconf_lease_free(dev->best_offer.lease);
 			dev->best_offer.weight = weight;
 			dev->best_offer.lease = msg->lease;
 			msg->lease = NULL;
