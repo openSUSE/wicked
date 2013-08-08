@@ -26,7 +26,8 @@
 #include <wicked/netinfo.h>	/* FIXME: required by addrconf.h ... */
 #include <wicked/addrconf.h>
 #include <wicked/socket.h>
-#include <buffer.h>
+#include "dhcp6/options.h"
+#include "buffer.h"
 
 
 /*
@@ -36,73 +37,12 @@ typedef struct ni_dhcp6_request	ni_dhcp6_request_t;
 typedef struct ni_dhcp6_config	ni_dhcp6_config_t;
 typedef struct ni_dhcp6_device	ni_dhcp6_device_t;
 
-typedef struct ni_dhcp6_status	ni_dhcp6_status_t;
-typedef struct ni_dhcp6_ia_addr	ni_dhcp6_ia_addr_t;
-typedef struct ni_dhcp6_ia	ni_dhcp6_ia_t;
-
 /*
  * -- supplicant actions
  */
 extern int			ni_dhcp6_acquire(ni_dhcp6_device_t *, const ni_dhcp6_request_t *, char **);
 extern int			ni_dhcp6_release(ni_dhcp6_device_t *, const ni_uuid_t *);
 extern void			ni_dhcp6_restart(void);
-
-struct ni_dhcp6_status {
-	uint16_t		code;
-	char *			message;
-};
-
-/*
- * Flag constants we use for recording
- * of lease ia address "states".
- *
- * TODO: move to another header file?
- * Do we ever need a bitmask?
- */
-enum ni_dhcp6_ia_addr_flags {
-	NI_DHCP6_IA_ADDR_EXPIRED	= 1U<<0,	/* expired -> garbage   */
-	NI_DHCP6_IA_ADDR_DECLINE	= 1U<<1,	/* decline this address */
-	NI_DHCP6_IA_ADDR_RELEASE	= 1U<<2,	/* release this address */
-};
-
-/*
- * Flag constants we use for recording
- * of lease ia "states".
- *
- * TODO: move to another header file?
- * Do we ever need a bitmask?
- */
-enum ni_dhcp6_ia_flags {
-	NI_DHCP6_IA_RENEW		= 1U<<0,	/* IA needs renew       */
-	NI_DHCP6_IA_REBIND		= 1U<<1,	/* IA needs rebind      */
-#if 0
-	NI_DHCP6_IA_CONFIRM		= 1U<<2,	/* IA needs confirm     */
-#endif
-};
-
-struct ni_dhcp6_ia_addr {
-	ni_dhcp6_ia_addr_t *	next;
-	unsigned int		flags;
-
-	struct in6_addr		addr;
-	uint8_t			plen;
-	uint32_t		preferred_lft;
-	uint32_t		valid_lft;
-	ni_dhcp6_status_t	status;
-};
-
-struct ni_dhcp6_ia {
-	ni_dhcp6_ia_t *		next;
-	unsigned int		flags;
-
-	uint16_t		type;
-	uint32_t		iaid;
-	uint32_t		time_acquired;
-	uint32_t		renewal_time;
-	uint32_t		rebind_time;
-	ni_dhcp6_ia_addr_t *	addrs;
-	ni_dhcp6_status_t	status;
-};
 
 /*
  * -- supplicant request
@@ -279,6 +219,38 @@ extern void			ni_dhcp6_device_event(ni_dhcp6_device_t *, ni_netdev_t *, ni_event
 extern void			ni_dhcp6_address_event(ni_dhcp6_device_t *, ni_netdev_t *, ni_event_t, const ni_address_t *);
 extern void			ni_dhcp6_prefix_event(ni_dhcp6_device_t *, ni_netdev_t *, ni_event_t, const ni_ipv6_ra_pinfo_t *);
 
+/*
+ * -- dhcp6 ia-addr
+ *
+ * Flag constants we use for recording
+ * of lease ia address "states".
+ *
+ * TODO: move to another header file?
+ * Do we ever need a bitmask?
+ */
+enum ni_dhcp6_ia_addr_flags {
+	NI_DHCP6_IA_ADDR_EXPIRED	= 1U<<0,	/* expired -> garbage   */
+	NI_DHCP6_IA_ADDR_DECLINE	= 1U<<1,	/* decline this address */
+	NI_DHCP6_IA_ADDR_RELEASE	= 1U<<2,	/* release this address */
+};
+
+/*
+ * -- dhcp6 ia
+ *
+ * Flag constants we use for recording
+ * of lease ia "states".
+ *
+ * TODO: move to another header file?
+ * Do we ever need a bitmask?
+ */
+enum ni_dhcp6_ia_flags {
+	NI_DHCP6_IA_RENEW		= 1U<<0,	/* IA needs renew       */
+	NI_DHCP6_IA_REBIND		= 1U<<1,	/* IA needs rebind      */
+#if 0
+	NI_DHCP6_IA_CONFIRM		= 1U<<2,	/* IA needs confirm     */
+#endif
+};
+
 extern ni_dhcp6_ia_t *		ni_dhcp6_ia_na_new(unsigned int iaid);
 extern ni_dhcp6_ia_t *		ni_dhcp6_ia_ta_new(unsigned int iaid);
 extern ni_dhcp6_ia_t *		ni_dhcp6_ia_pd_new(unsigned int iaid);
@@ -286,10 +258,6 @@ extern ni_dhcp6_ia_t *		ni_dhcp6_ia_pd_new(unsigned int iaid);
 extern ni_bool_t		ni_dhcp6_ia_type_na(ni_dhcp6_ia_t *);
 extern ni_bool_t		ni_dhcp6_ia_type_ta(ni_dhcp6_ia_t *);
 extern ni_bool_t		ni_dhcp6_ia_type_pd(ni_dhcp6_ia_t *);
-
-extern void			ni_dhcp6_ia_destroy(ni_dhcp6_ia_t *);
-extern void			ni_dhcp6_ia_list_append(ni_dhcp6_ia_t **, ni_dhcp6_ia_t *);
-extern void			ni_dhcp6_ia_list_destroy(ni_dhcp6_ia_t **);
 
 
 #endif /* __WICKED_DHCP6_SUPPLICANT_H__ */

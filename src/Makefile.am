@@ -6,7 +6,8 @@ INCLUDES			= -I$(top_srcdir)	\
 				  -I$(top_srcdir)/include
 
 wicked_lib_LTLIBRARIES		= libwicked.la
-noinst_LTLIBRARIES		= libwicked-dbus-objects.la
+noinst_LTLIBRARIES		= libwicked-dbus-objects.la	\
+				  libwicked-dhcp6.la
 
 libwicked_la_CFLAGS		= $(LIBNL_CFLAGS)	\
 				  $(LIBDBUS_CFLAGS)	\
@@ -24,7 +25,8 @@ libwicked_la_LDFLAGS		= -lm			\
 				  $(LIBDBUS_LIBS)	\
 				  $(LIBGCRYPT_LIBS)	\
 				  $(LIBWICKED_LTLINK_VERSION)
-libwicked_la_LIBADD		= libwicked-dbus-objects.la
+libwicked_la_LIBADD		= libwicked-dbus-objects.la	\
+				  libwicked-dhcp6.la
 libwicked_la_SOURCES		= \
 	address.c		\
 	arp.c			\
@@ -116,6 +118,10 @@ libwicked_dbus_objects_la_SOURCES	= \
 	dbus-objects/vlan.c	\
 	dbus-objects/wireless.c
 
+libwicked_dhcp6_la_CFLAGS		= $(libwicked_la_CFLAGS)
+libwicked_dhcp6_la_SOURCES		= \
+	dhcp6/options.c
+
 EXTRA_DIST			= \
 	appconfig.h		\
 	buffer.h		\
@@ -127,6 +133,7 @@ EXTRA_DIST			= \
 	dbus-objects/model.h	\
 	dbus-server.h		\
 	debug.h			\
+	dhcp6/options.h		\
 	ipv6_priv.h		\
 	kernel.h		\
 	lldp-priv.h             \

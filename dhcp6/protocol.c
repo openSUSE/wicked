@@ -1802,39 +1802,6 @@ ni_dhcp6_init_message(ni_dhcp6_device_t *dev, unsigned int msg_code, const ni_ad
 }
 
 
-ni_dhcp6_status_t *
-ni_dhcp6_status_new(void)
-{
-	return xcalloc(1, sizeof(ni_dhcp6_status_t));
-}
-
-void
-ni_dhcp6_status_clear(ni_dhcp6_status_t *status)
-{
-	status->code = 0;
-	ni_string_free(&status->message);
-}
-
-void
-ni_dhcp6_status_destroy(ni_dhcp6_status_t **status)
-{
-	if (status && *status) {
-		ni_dhcp6_status_clear(*status);
-		free(*status);
-		*status = NULL;
-	}
-}
-
-ni_dhcp6_ia_t *
-ni_dhcp6_ia_new(unsigned int type, unsigned int iaid)
-{
-	ni_dhcp6_ia_t *ia;
-
-	ia = xcalloc(1, sizeof(*ia));
-	ia->type = type;
-	ia->iaid = iaid;
-	return ia;
-}
 ni_dhcp6_ia_t *
 ni_dhcp6_ia_na_new(unsigned int iaid)
 {
@@ -2004,32 +1971,6 @@ ni_dhcp6_ia_set_default_lifetimes(ni_dhcp6_ia_t *ia, unsigned int pref_time)
 	__ni_dhcp6_ia_set_default_lifetimes(ia, pref_time);
 }
 
-void
-ni_dhcp6_ia_destroy(ni_dhcp6_ia_t *ia)
-{
-	ni_dhcp6_status_clear(&ia->status);
-	ni_dhcp6_ia_addr_list_destroy(&ia->addrs);
-	free(ia);
-}
-
-void
-ni_dhcp6_ia_list_destroy(ni_dhcp6_ia_t **list)
-{
-	ni_dhcp6_ia_t *ia;
-	while ((ia = *list) != NULL) {
-		*list = ia->next;
-		ni_dhcp6_ia_destroy(ia);
-	}
-}
-
-void
-ni_dhcp6_ia_list_append(ni_dhcp6_ia_t **list, ni_dhcp6_ia_t *ia)
-{
-	while (*list)
-		list = &(*list)->next;
-	*list = ia;
-}
-
 int
 ni_dhcp6_ia_list_copy(ni_dhcp6_ia_t **dst, const ni_dhcp6_ia_t *src, ni_bool_t clean)
 {
@@ -2059,42 +2000,6 @@ ni_dhcp6_ia_list_copy(ni_dhcp6_ia_t **dst, const ni_dhcp6_ia_t *src, ni_bool_t c
 failure:
 	ni_dhcp6_ia_list_destroy(dst);
 	return -1;
-}
-
-ni_dhcp6_ia_addr_t *
-ni_dhcp6_ia_addr_new(const struct in6_addr addr, unsigned int plen)
-{
-	ni_dhcp6_ia_addr_t *iadr;
-
-	iadr = xcalloc(1, sizeof(*iadr));
-	iadr->addr = addr;
-	iadr->plen = plen;
-	return iadr;
-}
-
-void
-ni_dhcp6_ia_addr_destory(ni_dhcp6_ia_addr_t *iadr)
-{
-	ni_dhcp6_status_clear(&iadr->status);
-	free(iadr);
-}
-
-void
-ni_dhcp6_ia_addr_list_destroy(ni_dhcp6_ia_addr_t **list)
-{
-	ni_dhcp6_ia_addr_t *iadr;
-	while ((iadr = *list) != NULL) {
-		*list = iadr->next;
-		ni_dhcp6_ia_addr_destory(iadr);
-	}
-}
-
-void
-ni_dhcp6_ia_addr_list_append(ni_dhcp6_ia_addr_t **list, ni_dhcp6_ia_addr_t *iadr)
-{
-	while (*list)
-		list = &(*list)->next;
-	*list = iadr;
 }
 
 int

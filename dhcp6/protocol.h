@@ -343,20 +343,6 @@ extern ssize_t		ni_dhcp6_socket_send(ni_socket_t *, const ni_buffer_t *, const n
 
 
 /* FIXME: cleanup */
-extern ni_dhcp6_status_t *ni_dhcp6_status_new();
-extern void		ni_dhcp6_status_clear(struct ni_dhcp6_status *);
-extern void		ni_dhcp6_status_destroy(struct ni_dhcp6_status **);
-
-extern ni_dhcp6_ia_t *	ni_dhcp6_ia_new(unsigned int, unsigned int);
-extern int		ni_dhcp6_ia_list_copy(ni_dhcp6_ia_t **, const ni_dhcp6_ia_t *, ni_bool_t);
-
-extern ni_dhcp6_ia_addr_t *ni_dhcp6_ia_addr_new(const struct in6_addr, unsigned int);
-extern void		ni_dhcp6_ia_addr_destory(ni_dhcp6_ia_addr_t *);
-
-extern void		ni_dhcp6_ia_addr_list_append(ni_dhcp6_ia_addr_t **,
-							ni_dhcp6_ia_addr_t *);
-extern void		ni_dhcp6_ia_addr_list_destroy(ni_dhcp6_ia_addr_t **);
-
 extern ni_bool_t	ni_dhcp6_ia_addr_is_usable(const ni_dhcp6_ia_addr_t *);
 extern int		ni_dhcp6_ia_addr_list_copy(ni_dhcp6_ia_addr_t **, const ni_dhcp6_ia_addr_t *, ni_bool_t);
 
@@ -373,6 +359,7 @@ extern unsigned int	ni_dhcp6_ia_get_renewal_time(ni_dhcp6_ia_t *);
 
 extern ni_bool_t	ni_dhcp6_ia_is_active(ni_dhcp6_ia_t *, struct timeval *);
 extern unsigned int	ni_dhcp6_ia_list_count_active(ni_dhcp6_ia_t *, struct timeval *now);
+extern int		ni_dhcp6_ia_list_copy(ni_dhcp6_ia_t **, const ni_dhcp6_ia_t *, ni_bool_t);
 
 extern void		ni_addrconf_dhcp6_lease_free(ni_addrconf_lease_t *);
 
