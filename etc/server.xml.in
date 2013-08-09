@@ -78,12 +78,14 @@
     <action name="backup" command="@wicked_extensionsdir@/sysupdater backup"/>
     <action name="restore" command="@wicked_extensionsdir@/sysupdater restore"/>
     <action name="install" command="@wicked_extensionsdir@/sysupdater install"/>
+    <action name="remove" command="@wicked_extensionsdir@/sysupdater remove"/>
   </system-updater>
 
   <system-updater name="hostname">
     <action name="backup" command="@wicked_extensionsdir@/sysupdater backup"/>
     <action name="restore" command="@wicked_extensionsdir@/sysupdater restore"/>
     <action name="install" command="@wicked_extensionsdir@/sysupdater install"/>
+    <action name="remove" command="@wicked_extensionsdir@/sysupdater remove"/>
   </system-updater>
 
 </config>

@@ -40,6 +40,7 @@ typedef struct ni_updater {
 	ni_shellcmd_t *			proc_backup;
 	ni_shellcmd_t *			proc_restore;
 	ni_shellcmd_t *			proc_install;
+	ni_shellcmd_t *			proc_remove;
 } ni_updater_t;
 
 static ni_updater_t			updaters[__NI_ADDRCONF_UPDATE_MAX];
@@ -76,6 +77,7 @@ ni_system_updaters_init(void)
 		updater->proc_backup = ni_extension_script_find(ex, "backup");
 		updater->proc_restore = ni_extension_script_find(ex, "restore");
 		updater->proc_install = ni_extension_script_find(ex, "install");
+		updater->proc_remove = ni_extension_script_find(ex, "remove");
 
 		if (updater->proc_install == NULL) {
 			ni_warn("system-updater %s configured, but no install script defined", name);
@@ -285,6 +287,57 @@ ni_system_updater_get_device_name_from_lease(ni_addrconf_lease_t *lease)
 	}
 	ni_debug_ifconfig("NOT FOUND");
 	return NULL; /* Device not found! */
+}
+
+/*
+ * Remove information from a lease which has been released and already detached
+ * from a device.
+ */
+static ni_bool_t
+ni_system_updater_remove(ni_updater_t *updater, const ni_addrconf_lease_t *lease, char *devname)
+{
+	ni_stringbuf_t arguments = NI_STRINGBUF_INIT_DYNAMIC;
+	ni_bool_t result = FALSE;
+
+	ni_debug_ifconfig("Removing system %s settings from %s/%s lease",
+			ni_updater_name(updater->type),
+			ni_addrconf_type_to_name(lease->type),
+			ni_addrfamily_type_to_name(lease->family));
+	switch (updater->type) {
+	case NI_ADDRCONF_UPDATE_RESOLVER:
+		if (!ni_system_updater_populate_args(&arguments, 3,
+							ni_updater_name(updater->type),
+							"wicked", /* TODO: proper name */
+							devname)) {
+			ni_error("failed to populate arguments for %s",
+				ni_updater_name(updater->type));
+			goto done;
+		}
+		break;
+	case NI_ADDRCONF_UPDATE_HOSTNAME:
+		//argument = lease->hostname;
+		break;
+
+	default:
+		ni_error("cannot remove old %s settings - file format not understood",
+				ni_updater_name(updater->type));
+		updater->enabled = 0;
+		return FALSE;
+	}
+
+	if (!ni_system_updater_run(updater->proc_remove, arguments.string)) {
+		ni_error("failed to remove %s settings", ni_updater_name(updater->type));
+		goto done;
+	}
+
+	/* updater->seqno = lease->seqno; */ /* TODO: we're removing, so do we set this? */
+	result = TRUE;
+
+	if (ni_global.other_event)
+		ni_global.other_event(NI_EVENT_RESOLVER_UPDATED);
+
+done:
+	return result;
 }
 
 /*
