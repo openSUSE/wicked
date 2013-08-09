@@ -129,16 +129,12 @@ checksum_partial(uint32_t sum, const void *data, uint16_t len)
 
 	u.s = data;
 	while (len > 1) {
-		sum += ntohs(*u.s++);
+		sum += *u.s++;
 		len -= 2;
-		if (sum > 0xffffU)
-			sum -= 0xffffU;
 	}
 
 	if (len == 1) {
 		sum += u.c[0] << 8;
-		if (sum > 0xffffU)
-			sum -= 0xffffU;
 	}
 	return sum;
 }
