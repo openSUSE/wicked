@@ -144,6 +144,6 @@ extern int		ni_addrconf_lease_file_write(const char *, ni_addrconf_lease_t *);
 extern ni_addrconf_lease_t *ni_addrconf_lease_file_read(const char *, int, int);
 extern void		ni_addrconf_lease_file_remove(const char *, int, int);
 
-extern int		ni_system_update_from_lease(const ni_addrconf_lease_t *);
+extern int		ni_system_update_from_lease(const ni_addrconf_lease_t *, char *devname);
 
 #endif /* __WICKED_ADDRCONF_H__ */

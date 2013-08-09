@@ -270,7 +270,7 @@ ni_system_updater_populate_args(ni_stringbuf_t *args, int argnum, ...)
 }
 
 static char *
-ni_system_updater_get_device_name_from_lease(ni_addrconf_lease_t *lease)
+ni_system_updater_get_device_name_from_lease(const ni_addrconf_lease_t *lease)
 {
 	ni_netconfig_t *nc = ni_global_state_handle(0);
 	ni_netdev_t *dev = NULL;
@@ -355,6 +355,7 @@ ni_system_updater_install(ni_updater_t *updater, const ni_addrconf_lease_t *leas
 					ni_updater_name(updater->type),
 					ni_addrconf_type_to_name(lease->type),
 					ni_addrfamily_type_to_name(lease->family));
+	/* TODO: probably dont' need this anymore, just get it from _update_all(). */
 	char *devname = ni_system_updater_get_device_name_from_lease(lease);
 
 	if (!updater->have_backup && !ni_system_updater_backup(updater))
@@ -364,9 +365,10 @@ ni_system_updater_install(ni_updater_t *updater, const ni_addrconf_lease_t *leas
 	switch (updater->type) {
 	case NI_ADDRCONF_UPDATE_RESOLVER:
 		tempname = _PATH_RESOLV_CONF ".new";
-		if (!ni_system_updater_populate_args(&arguments, 3,
+		if (!ni_system_updater_populate_args(&arguments, 4,
 							ni_updater_name(updater->type),
 							tempname,
+							"wicked", /* TODO: proper name */
 							devname)) {
 			ni_error("failed to populate arguments for %s",
 					ni_updater_name(updater->type));
@@ -409,7 +411,7 @@ done:
 }
 
 ni_bool_t
-ni_system_update_all(void)
+ni_system_update_all(const ni_addrconf_lease_t *lease_to_remove, char *devname)
 {
 	ni_netconfig_t *nc = ni_global_state_handle(0);
 	ni_updater_source_t *up;
@@ -443,6 +445,21 @@ ni_system_update_all(void)
 		}
 	}
 
+	/* If lease_to_remove is present, add it to the necessary updaters so
+	 * that it's details may be removed by the system updater extension
+	 * scripts.
+	 */
+	if (lease_to_remove) {
+		if (can_update_hostname(lease_to_remove)) {
+			ni_objectmodel_updater_add_source(NI_ADDRCONF_UPDATE_HOSTNAME,
+							lease_to_remove);
+		}
+		if (can_update_resolver(lease_to_remove)) {
+			ni_objectmodel_updater_add_source(NI_ADDRCONF_UPDATE_RESOLVER,
+							lease_to_remove);
+		}
+	}
+
 	for (kind = 0; kind < __NI_ADDRCONF_UPDATE_MAX; ++kind) {
 		ni_updater_t *updater = &updaters[kind];
 		ni_updater_source_t **pos = &updater->sources;
@@ -468,7 +485,11 @@ ni_system_update_all(void)
 			ni_system_updater_restore(updater);
 		} else
 		if (updater->seqno != up->seqno) {
-			ni_system_updater_install(updater, up->lease);
+			if (up->lease && up->lease->state == NI_ADDRCONF_STATE_RELEASED) {
+				ni_system_updater_remove(updater, up->lease, devname);
+			} else {
+				ni_system_updater_install(updater, up->lease);
+			}
 		}
 	}
 
@@ -481,10 +502,17 @@ ni_system_update_all(void)
  * and the new one has been added.
  */
 int
-ni_system_update_from_lease(const ni_addrconf_lease_t *lease)
+ni_system_update_from_lease(const ni_addrconf_lease_t *lease, char *devname)
 {
-	if (!ni_system_update_all())
+	int res;
+	if (lease && lease->state == NI_ADDRCONF_STATE_RELEASED) {
+		res = ni_system_update_all(lease, devname);
+	} else {
+		res = ni_system_update_all(NULL, devname);
+	}
+	if (!res) {
 		return -1;
-
-	return 0;
+	} else {
+		return 0;
+	}
 }
