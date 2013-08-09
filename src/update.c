@@ -91,6 +91,39 @@ ni_system_updaters_init(void)
 }
 
 /*
+ * Get the name used for identifying a sysconfig/netconfig wicked service.
+ */
+static char *
+ni_netconfig_service_name(ni_addrconf_mode_t lease_type, unsigned int lease_family)
+{
+	char *service_name = NULL;
+	const char *wicked_name = "wicked"; /* TODO: check if this is already available. */
+	const char *addrconf_name = ni_addrconf_type_to_name(lease_type);
+	const char *addrfamily_name = ni_addrfamily_type_to_name(lease_family);
+
+	if (addrconf_name == NULL || addrfamily_name == NULL) {
+		ni_error("failed to generate netconfig service name.");
+	} else {
+		/* service_name: "wicked_name-addrconf_name-addrfamily_name\0" */
+		int full_service_name_len = strlen(wicked_name) + strlen(addrconf_name) +
+			strlen(addrfamily_name) + 3;
+		service_name = malloc(full_service_name_len * sizeof(char));
+		if ((snprintf(service_name, full_service_name_len, "%s-%s-%s",
+					wicked_name, addrconf_name,
+					addrfamily_name)) !=
+			full_service_name_len - 1) {
+			ni_error("derived invalid netconfig service_name: %s",
+				service_name);
+			service_name = NULL;
+		} else {
+			ni_debug_ifconfig("derived valid netconfig service_name: %s",
+					service_name);
+		}
+	}
+	return service_name;
+}
+
+/*
  * Get the name of an updater
  */
 static const char *
@@ -303,11 +336,16 @@ ni_system_updater_remove(ni_updater_t *updater, const ni_addrconf_lease_t *lease
 			ni_updater_name(updater->type),
 			ni_addrconf_type_to_name(lease->type),
 			ni_addrfamily_type_to_name(lease->family));
+	char *service_name = ni_netconfig_service_name(lease->type, lease->family);
+	if (!service_name) {
+		ni_error("failed to receive valid netconfig service name.");
+		goto done;
+	}
 	switch (updater->type) {
 	case NI_ADDRCONF_UPDATE_RESOLVER:
 		if (!ni_system_updater_populate_args(&arguments, 3,
 							ni_updater_name(updater->type),
-							"wicked", /* TODO: proper name */
+							service_name,
 							devname)) {
 			ni_error("failed to populate arguments for %s",
 				ni_updater_name(updater->type));
@@ -355,6 +393,11 @@ ni_system_updater_install(ni_updater_t *updater, const ni_addrconf_lease_t *leas
 					ni_updater_name(updater->type),
 					ni_addrconf_type_to_name(lease->type),
 					ni_addrfamily_type_to_name(lease->family));
+	char *service_name = ni_netconfig_service_name(lease->type, lease->family);
+	if (!service_name) {
+		ni_error("failed to receive valid netconfig service name.");
+		goto done;
+	}
 	/* TODO: probably dont' need this anymore, just get it from _update_all(). */
 	char *devname = ni_system_updater_get_device_name_from_lease(lease);
 
@@ -368,7 +411,7 @@ ni_system_updater_install(ni_updater_t *updater, const ni_addrconf_lease_t *leas
 		if (!ni_system_updater_populate_args(&arguments, 4,
 							ni_updater_name(updater->type),
 							tempname,
-							"wicked", /* TODO: proper name */
+							service_name,
 							devname)) {
 			ni_error("failed to populate arguments for %s",
 					ni_updater_name(updater->type));
