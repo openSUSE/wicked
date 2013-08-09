@@ -313,12 +313,13 @@ ni_system_updater_get_device_name_from_lease(const ni_addrconf_lease_t *lease)
 		for (lease_ptr = dev->leases; lease_ptr; lease_ptr = lease_ptr->next) {
 			if (lease->seqno == lease_ptr->seqno) {
 				/* We've found our device to which this lease belongs. */
-				ni_debug_ifconfig("FOUND %s", dev->name);
+				ni_debug_ifconfig("Found device %s matching this lease.",
+						dev->name);
 				return strdup(dev->name);
 			}
 		}
 	}
-	ni_debug_ifconfig("NOT FOUND");
+	ni_error("No device found matching this lease");
 	return NULL; /* Device not found! */
 }
 
