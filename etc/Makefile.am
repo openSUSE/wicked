@@ -85,21 +85,25 @@ substitute_vars			= \
 
 systemd/%.service: systemd/%.service.in $(top_builddir)/config.status
 	@echo "substituting variables in $< > $@"
+	@test -d $(@D) || $(MKDIR_P) $(@D)
 	@rm -f $@ $@.tmp
 	@$(substitute_vars) < $< > $@.tmp && mv $@.tmp $@
 
 systemv/%.service: %.service.in $(top_builddir)/config.status
 	@echo "substituting variables in $< > $@"
+	@test -d $(@D) || $(MKDIR_P) $(@D)
 	@rm -f $@ $@.tmp
 	@$(substitute_vars) < $< > $@.tmp && mv $@.tmp $@
 
 systemv/wickedd: systemv/wickedd.in $(top_builddir)/config.status
 	@echo "substituting variables in $< > $@"
+	@test -d $(@D) || $(MKDIR_P) $(@D)
 	@rm -f $@ $@.tmp
 	@$(substitute_vars) < $< > $@.tmp && mv $@.tmp $@
 
 systemv/network: systemv/network.in $(top_builddir)/config.status
 	@echo "substituting variables in $< > $@"
+	@test -d $(@D) || $(MKDIR_P) $(@D)
 	@rm -f $@ $@.tmp
 	@$(substitute_vars) < $< > $@.tmp && mv $@.tmp $@
 
