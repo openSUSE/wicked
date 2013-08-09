@@ -236,6 +236,7 @@ ni_capture_inspect_udp_header(void *data, size_t bytes, size_t *payload_len,
 	struct ip *iph = data;
 	struct udphdr *uh;
 	unsigned int ihl;
+	unsigned int ip_len = ntohs(iph->ip_len);
 
 	ihl = iph->ip_hl << 2;
 	if (iph->ip_v != 4 || ihl < 20) {
@@ -253,9 +254,14 @@ ni_capture_inspect_udp_header(void *data, size_t bytes, size_t *payload_len,
 		return NULL;
 	}
 
-	if (bytes < ntohs(iph->ip_len)) {
+	if (bytes < ip_len) {
 		ni_debug_socket("truncated IP packet, ignoring");
 		return NULL;
+	}
+
+	if (bytes > ip_len) {
+		ni_debug_socket("Received %x bytes, but ip_len is %x. Adjusting.", (int)bytes, ip_len);
+		bytes = ip_len;
 	}
 
 	data += ihl;
@@ -280,7 +286,7 @@ ni_capture_inspect_udp_header(void *data, size_t bytes, size_t *payload_len,
 		return NULL;
 	}
 
-	*payload_len = ntohs(iph->ip_len);
+	*payload_len = ip_len;
 	return data;
 }
 
