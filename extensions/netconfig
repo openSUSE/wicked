@@ -7,7 +7,8 @@ modify_netconfig()
 {
 	local resolv_file=$1
 	local restore=$2
-	local intf=$3
+	local service=$3
+	local intf=$4
 	echo "resolv_file=${resolv_file} restore=${restore} intf=${intf}"
 	local dnsservers=""
 	local dnssearch=""
@@ -19,7 +20,14 @@ modify_netconfig()
 	{
 		echo "DNSSEARCH='$dnssearch'"
 		echo "DNSSERVERS='$dnsservers'"
-	} | /sbin/netconfig modify -s wicked -i "$intf"
+	} | /sbin/netconfig modify -s "$service" -i "$intf"
+}
+
+remove_netconfig()
+{
+	local service=$1
+	local intf=$2
+	/sbin/netconfig remove -s "$service" -i "$intf"
 }
 
 case $cmd in
@@ -39,13 +47,17 @@ restore)
 install)
 	echo "INSTALL: $@"
 	filename=$1
-	intf=$2
+	service=$2
+	intf=$3
 	restore="no"
-	modify_netconfig $filename $restore $intf
+	modify_netconfig $filename $restore $service $intf
 	: ;;
 
 remove)
-	echo "REMOVING... TODO"
+	echo "REMOVE: $@"
+	service=$1
+	intf=$2
+	remove_netconfig $service $intf
 	: ;;
 
 *)
