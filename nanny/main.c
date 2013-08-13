@@ -177,7 +177,7 @@ babysit(void)
 
 	mgr = ni_nanny_new();
 
-	if (ni_init_ex(program_name, ni_nanny_config_callback, mgr) < 0)
+	if (ni_init_ex("nanny", ni_nanny_config_callback, mgr) < 0)
 		ni_fatal("error in configuration file");
 
 	ni_nanny_start(mgr);

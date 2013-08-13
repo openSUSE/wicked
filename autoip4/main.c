@@ -160,7 +160,7 @@ main(int argc, char **argv)
 		ni_log_destination(program_name, "syslog");
 	}
 
-	if (ni_init(program_name) < 0)
+	if (ni_init("auto4") < 0)
 		return 1;
 
 	autoip4_supplicant();

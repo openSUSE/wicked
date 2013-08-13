@@ -163,7 +163,7 @@ main(int argc, char **argv)
 		ni_log_destination(program_name, "syslog");
 	}
 
-	if (ni_init(program_name) < 0)
+	if (ni_init("dhcp4") < 0)
 		return 1;
 
 	if (opt_state_file == NULL) {
