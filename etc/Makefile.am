@@ -17,11 +17,11 @@ wicked_config_DATA		= \
 	network-nanny.xml
 
 dbus_config_DATA		= \
-	wicked.conf		\
-	wicked-autoip4.conf	\
-	wicked-dhcp4.conf	\
-	wicked-dhcp6.conf	\
-	network-nanny.conf
+	org.opensuse.Network.conf		\
+	org.opensuse.Network.AUTO4.conf		\
+	org.opensuse.Network.DHCP4.conf		\
+	org.opensuse.Network.DHCP6.conf		\
+	org.opensuse.Network.Nanny.conf
 
 systemd_unit_files		= \
 	systemd/wicked.service		\

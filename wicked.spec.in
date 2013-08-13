@@ -236,10 +236,10 @@ fi
 %config(noreplace) %_sysconfdir/wicked/extensions/*
 %dir %_sysconfdir/dbus-1
 %dir %_sysconfdir/dbus-1/system.d
-%config(noreplace) %_sysconfdir/dbus-1/system.d/wicked.conf
-%config(noreplace) %_sysconfdir/dbus-1/system.d/wicked-dhcp6.conf
-%config(noreplace) %_sysconfdir/dbus-1/system.d/wicked-dhcp4.conf
-%config(noreplace) %_sysconfdir/dbus-1/system.d/wicked-autoip4.conf
+%config(noreplace) %_sysconfdir/dbus-1/system.d/org.opensuse.Network.conf
+%config(noreplace) %_sysconfdir/dbus-1/system.d/org.opensuse.Network.AUTO4.conf
+%config(noreplace) %_sysconfdir/dbus-1/system.d/org.opensuse.Network.DHCP4.conf
+%config(noreplace) %_sysconfdir/dbus-1/system.d/org.opensuse.Network.DHCP6.conf
 %if %{with dbusstart}
 %dir %_datadir/dbus-1
 %dir %_datadir/dbus-1/system-services
@@ -286,7 +286,7 @@ fi
 %config(noreplace) %{_sysconfdir}/wicked/network-nanny.xml
 %dir %_sysconfdir/dbus-1
 %dir %_sysconfdir/dbus-1/system.d
-%config(noreplace) %_sysconfdir/dbus-1/system.d/network-nanny.conf
+%config(noreplace) %_sysconfdir/dbus-1/system.d/org.opensuse.Network.Nanny.conf
 %_sbindir/network-nanny
 
 %files devel
