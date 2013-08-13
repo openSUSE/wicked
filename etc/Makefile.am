@@ -26,9 +26,9 @@ dbus_config_DATA		= \
 systemd_unit_files		= \
 	systemd/wicked.service		\
 	systemd/wickedd.service		\
-	systemd/wicked-dhcp4.service	\
-	systemd/wicked-dhcp6.service	\
-	systemd/wicked-autoip4.service
+	systemd/wickedd-auto4.service	\
+	systemd/wickedd-dhcp4.service	\
+	systemd/wickedd-dhcp6.service
 
 systemd_dbus_files		= \
 	systemd/org.opensuse.Network.AUTO4.service \

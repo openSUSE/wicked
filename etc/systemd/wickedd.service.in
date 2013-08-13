@@ -13,6 +13,6 @@ StandardError=null
 
 [Install]
 WantedBy=wicked.service
-Also=wicked-dhcp6.service
-Also=wicked-dhcp4.service
-Also=wicked-autoip4.service
+Also=wickedd-auto4.service
+Also=wickedd-dhcp4.service
+Also=wickedd-dhcp6.service

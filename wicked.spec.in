@@ -186,9 +186,9 @@ make install DESTDIR=${RPM_BUILD_ROOT}
 %preun systemd
 # stop the daemons on removal
 %{service_del_preun wickedd.service}
-%{service_del_preun wicked-dhcp4.service}
-%{service_del_preun wicked-dhcp6.service}
-%{service_del_preun wicked-autoip4.service}
+%{service_del_preun wickedd-auto4.service}
+%{service_del_preun wickedd-dhcp4.service}
+%{service_del_preun wickedd-dhcp6.service}
 
 %postun systemd
 %{service_del_postun wickedd.service}
@@ -255,11 +255,11 @@ fi
 %if %{with systemd}
 %files systemd
 %defattr (-,root,root)
-%_unitdir/wicked-autoip4.service
-%_unitdir/wicked-dhcp4.service
-%_unitdir/wicked-dhcp6.service
-%_unitdir/wicked.service
+%_unitdir/wickedd-auto4.service
+%_unitdir/wickedd-dhcp4.service
+%_unitdir/wickedd-dhcp6.service
 %_unitdir/wickedd.service
+%_unitdir/wicked.service
 
 %else
 
