@@ -9,6 +9,7 @@
 #endif
 
 #include <stdlib.h>
+#include <limits.h>
 #include <netlink/netlink.h>
 
 #include <wicked/logging.h>
@@ -183,12 +184,12 @@ ni_route_create(unsigned int prefixlen, const ni_sockaddr_t *dest,
 	}
 
 	rp->type = RTN_UNICAST;
-	rp->scope = RT_SCOPE_UNIVERSE;
 	rp->protocol = RTPROT_BOOT;
-	if (table == RT_TABLE_UNSPEC)
-		rp->table = RT_TABLE_MAIN;
-	else
+	rp->scope = ni_route_guess_scope(rp);
+	if (ni_route_is_valid_table(table))
 		rp->table = table;
+	else
+		rp->table = ni_route_guess_table(rp);
 
 	if (list) {
 		if (!ni_route_tables_add_route(list, rp)) {
@@ -684,6 +685,72 @@ ni_route_type_needs_nexthop(unsigned int type)
 	}
 }
 
+unsigned int
+ni_route_guess_table(ni_route_t *rp)
+{
+	if (rp) {
+		switch (rp->type) {
+		case RTN_LOCAL:
+		case RTN_NAT:
+		case RTN_BROADCAST:
+		case RTN_ANYCAST:
+			return RT_TABLE_LOCAL;
+		break;
+
+		default: ;
+		}
+	}
+	return RT_TABLE_MAIN;
+}
+
+unsigned int
+ni_route_guess_scope(ni_route_t *rp)
+{
+	if (rp) {
+		switch (rp->type) {
+		case RTN_LOCAL:
+		case RTN_NAT:
+			return RT_SCOPE_HOST;
+
+		case RTN_BROADCAST:
+		case RTN_MULTICAST:
+		case RTN_ANYCAST:
+			return RT_SCOPE_LINK;
+
+		case RTN_UNICAST:
+		case RTN_UNSPEC:
+			if (rp->nh.gateway.ss_family == AF_UNSPEC)
+				return RT_SCOPE_LINK;
+		default: ;
+		}
+	}
+	return RT_SCOPE_UNIVERSE;
+}
+
+ni_bool_t
+ni_route_is_valid_type(unsigned int type)
+{
+	return type > RTN_UNSPEC && type <= RTN_MAX;
+}
+
+ni_bool_t
+ni_route_is_valid_table(unsigned int table)
+{
+	return table > RT_TABLE_UNSPEC && table < RT_TABLE_MAX;
+}
+
+ni_bool_t
+ni_route_is_valid_scope(unsigned int scope)
+{
+	return scope < RT_SCOPE_NOWHERE;
+}
+
+ni_bool_t
+ni_route_is_valid_protocol(unsigned int protocol)
+{
+	return protocol > RTPROT_UNSPEC && protocol <= UCHAR_MAX;
+}
+
 
 /*
  * ni_route_nexthop functions
@@ -876,7 +943,7 @@ __ni_route_table_new(unsigned int tid)
 ni_route_table_t *
 ni_route_table_new(unsigned int tid)
 {
-	if (tid == RT_TABLE_UNSPEC || tid == RT_TABLE_MAX)
+	if (!ni_route_is_valid_table(tid))
 		return NULL;
 
 	return __ni_route_table_new(tid);

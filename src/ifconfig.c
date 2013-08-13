@@ -1420,44 +1420,24 @@ __ni_rtnl_send_newroute(ni_netdev_t *dev, ni_route_t *rp, int flags)
 		rt.rtm_type = rp->type;
 
 	rt.rtm_scope = RT_SCOPE_UNIVERSE;
-	if (rp->scope != RT_SCOPE_NOWHERE) {
+	if (ni_route_is_valid_scope(rp->scope)) {
 		rt.rtm_scope = rp->scope;
-	} else switch (rt.rtm_type) {
-		case RTN_LOCAL:
-		case RTN_NAT:
-			rt.rtm_scope = RT_SCOPE_HOST;
-			break;
-
-		case RTN_BROADCAST:
-		case RTN_MULTICAST:
-		case RTN_ANYCAST:
-			rt.rtm_scope = RT_SCOPE_LINK;
-			break;
-
-		case RTN_UNICAST:
-		case RTN_UNSPEC:
-			if (rp->nh.gateway.ss_family == AF_UNSPEC)
-				rt.rtm_scope = RT_SCOPE_LINK;
-			break;
+	} else {
+		rt.rtm_scope = ni_route_guess_scope(rp);
 	}
 
 	rt.rtm_protocol = RTPROT_BOOT;
-	if (rp->protocol != RTPROT_UNSPEC && rp->protocol < 256)
+	if (ni_route_is_valid_protocol(rp->protocol))
 		rt.rtm_protocol = rp->protocol;
 
 	rt.rtm_table = RT_TABLE_MAIN;
-	if (rp->table != RT_TABLE_UNSPEC && rp->table < RT_TABLE_MAX) {
+	if (ni_route_is_valid_table(rp->table)) {
 		if (rp->table > RT_TABLE_LOCAL)
 			rt.rtm_table = RT_TABLE_COMPAT;
 		else
 			rt.rtm_table = rp->table;
-	} else switch (rt.rtm_type) {
-		case RTN_LOCAL:
-		case RTN_BROADCAST:
-		case RTN_NAT:
-		case RTN_ANYCAST:
-			rt.rtm_table = RT_TABLE_LOCAL;
-			break;
+	} else {
+		rt.rtm_table = ni_route_guess_table(rp);
 	}
 
 	msg = nlmsg_alloc_simple(RTM_NEWROUTE, flags);

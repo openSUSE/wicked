@@ -114,6 +114,12 @@ extern ni_bool_t		ni_route_nh_flags_get_names(unsigned int, ni_string_array_t *)
 extern ni_bool_t		ni_route_metrics_lock_get_names(unsigned int, ni_string_array_t *);
 extern ni_bool_t		ni_route_metrics_lock_set(const char *, unsigned int *);
 extern ni_bool_t		ni_route_type_needs_nexthop(unsigned int);
+extern ni_bool_t		ni_route_is_valid_type(unsigned int);
+extern ni_bool_t		ni_route_is_valid_table(unsigned int);
+extern ni_bool_t		ni_route_is_valid_scope(unsigned int);
+extern ni_bool_t		ni_route_is_valid_protocol(unsigned int);
+extern unsigned int		ni_route_guess_table(ni_route_t *);
+extern unsigned int		ni_route_guess_scope(ni_route_t *);
 
 
 extern ni_route_nexthop_t *	ni_route_nexthop_new(void);

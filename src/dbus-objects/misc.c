@@ -17,6 +17,7 @@
 #include <getopt.h>
 #include <errno.h>
 #include <arpa/inet.h>
+#include <netlink/netlink.h>
 
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
@@ -789,26 +790,68 @@ __ni_objectmodel_route_nexthop_from_dict(ni_route_nexthop_t *nh, const ni_dbus_v
 	return TRUE;
 }
 
+static ni_bool_t
+__ni_objectmodel_route_kern_from_dict(ni_route_t *rp, const ni_dbus_variant_t *rtkern,
+				ni_bool_t *table_ok, ni_bool_t *scope_ok)
+{
+	uint32_t value;
+
+	if (ni_dbus_dict_get_uint32(rtkern, "type", &value)) {
+		if (!ni_route_is_valid_type(value)) {
+			ni_debug_dbus("%s: invalid route type %u", __func__, value);
+			return FALSE;
+		}
+		rp->type = value;
+	}
+	if (ni_dbus_dict_get_uint32(rtkern, "table", &value)) {
+		if (!ni_route_is_valid_table(value)) {
+			ni_debug_dbus("%s: invalid route table %u", __func__, value);
+			return FALSE;
+		}
+		rp->table = value;
+		*table_ok = TRUE;
+	}
+	if (ni_dbus_dict_get_uint32(rtkern, "scope", &value)) {
+		if (!ni_route_is_valid_scope(value)) {
+			ni_debug_dbus("%s: invalid route scope %u", __func__, value);
+			return FALSE;
+		}
+		rp->scope = value;
+		*scope_ok = TRUE;
+	}
+	if (ni_dbus_dict_get_uint32(rtkern, "protocol", &value)) {
+		if (!ni_route_is_valid_protocol(value)) {
+			ni_debug_dbus("%s: invalid route protocol %u", __func__, value);
+			return FALSE;
+		}
+		rp->protocol = value;
+	}
+	return TRUE;
+}
+
 ni_route_t *
 __ni_objectmodel_route_from_dict(ni_route_table_t **list, const ni_dbus_variant_t *dict)
 {
 	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 	const ni_dbus_variant_t *nhdict, *child;
-	uint32_t value;
 	ni_route_t *rp = NULL;
+	uint32_t value;
+	ni_bool_t scope_ok = FALSE;
+	ni_bool_t table_ok = FALSE;
 
 	rp = ni_route_new();
+	rp->type = RTN_UNICAST;
+	rp->table = RT_TABLE_MAIN;
+	rp->scope = RT_SCOPE_NOWHERE;
+	rp->protocol = RTPROT_BOOT;
 
 	if ((child = ni_dbus_dict_get(dict, "kern")) != NULL) {
-		if (ni_dbus_dict_get_uint32(child, "table", &value))
-			rp->table = value;
-		if (ni_dbus_dict_get_uint32(child, "type", &value))
-			rp->type = value;
-		if (ni_dbus_dict_get_uint32(child, "scope", &value))
-			rp->scope = value;
-		if (ni_dbus_dict_get_uint32(child, "protocol", &value))
-			rp->protocol = value;
+		if (!__ni_objectmodel_route_kern_from_dict(rp, child, &table_ok, &scope_ok))
+			goto failure;
 	}
+
+	if (!table_ok)
+		rp->table = ni_route_guess_table(rp);
 
 	if (ni_route_type_needs_nexthop(rp->type) &&
 	    (nhdict = ni_dbus_dict_get(dict, "nexthop")) != NULL) {
@@ -834,6 +877,9 @@ __ni_objectmodel_route_from_dict(ni_route_table_t **list, const ni_dbus_variant_
 			}
 		}
 	}
+
+	if (!scope_ok)
+		rp->scope = ni_route_guess_scope(rp);
 
 	if (!__ni_objectmodel_dict_get_sockaddr_prefix(dict, "destination",
 				&rp->destination, &rp->prefixlen)) {
