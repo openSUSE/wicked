@@ -28,12 +28,14 @@ systemd_unit_files		= \
 	systemd/wickedd.service		\
 	systemd/wickedd-auto4.service	\
 	systemd/wickedd-dhcp4.service	\
-	systemd/wickedd-dhcp6.service
+	systemd/wickedd-dhcp6.service	\
+	systemd/wickedd-nanny.service
 
 systemd_dbus_files		= \
 	systemd/org.opensuse.Network.AUTO4.service \
 	systemd/org.opensuse.Network.DHCP4.service \
-	systemd/org.opensuse.Network.DHCP6.service
+	systemd/org.opensuse.Network.DHCP6.service \
+	systemd/org.opensuse.Network.Nanny.service
 
 systemv_init_files		= \
 	systemv/wickedd		\
@@ -42,7 +44,8 @@ systemv_init_files		= \
 systemv_dbus_files		= \
 	systemv/org.opensuse.Network.AUTO4.service \
 	systemv/org.opensuse.Network.DHCP4.service \
-	systemv/org.opensuse.Network.DHCP6.service
+	systemv/org.opensuse.Network.DHCP6.service \
+	systemv/org.opensuse.Network.Nanny.service
 
 if systemd_service
 systemd_unit_DATA		= $(systemd_unit_files)

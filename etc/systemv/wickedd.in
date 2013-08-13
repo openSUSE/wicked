@@ -139,6 +139,7 @@ case $ACTION in
 	stop_one @wicked_supplicantdir@/wickedd-auto4
 	stop_one @wicked_supplicantdir@/wickedd-dhcp4
 	stop_one @wicked_supplicantdir@/wickedd-dhcp6
+	stop_one @wicked_supplicantdir@/wickedd-nanny
 
 	rc_status -v
 	;;

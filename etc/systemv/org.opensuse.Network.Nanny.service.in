@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=org.opensuse.Network.Nanny
+Exec=@wicked_supplicantdir@/wickedd-nanny
+User=root

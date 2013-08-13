@@ -1,0 +1,18 @@
+[Unit]
+Description=wicked network nanny service
+After=local-fs.target dbus.service wickedd.service
+Before=wicked.service
+PartOf=wickedd.service
+
+[Service]
+Type=dbus
+BusName=org.opensuse.Network.Nanny
+LimitCORE=infinity
+EnvironmentFile=-/etc/sysconfig/network/config
+ExecStart=@wicked_sbindir@/wickedd-nanny $WICKED_DEBUG_PARAM --foreground
+StandardError=null
+
+[Install]
+#WantedBy=wickedd.service
+Alias=dbus-org.opensuse.Network.Nanny.service
+
