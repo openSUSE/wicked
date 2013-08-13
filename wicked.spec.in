@@ -64,20 +64,6 @@ interface to network configuration.
 
 This package provides the wicked client.
 
-%package nanny
-License:        GPL-2.0
-Group:          System/Management
-Summary:        Network configuration infrastructure - Nanny
-Requires:       libwicked@LIBWICKED_PACKAGE_SUFFIX@ = %{version}
-Requires:       %name = %{version}
-
-%description nanny
-Wicked is a network configuration infrastructure incorporating a number
-of existing frameworks into a unified architecture, providing a DBUS
-interface to network configuration.
-
-This package provides the wicked nanny.
-
 %package devel
 License:        GPL-2.0
 Group:          Development/Libraries/C and C++
@@ -225,6 +211,7 @@ fi
 %defattr (-,root,root)
 %doc ChangeLog ANNOUNCE COPYING README TODO samples
 %_sbindir/wickedd
+%_sbindir/wickedd-nanny
 %dir %_libexecdir/%{name}
 %dir %_libexecdir/%{name}/bin
 %_libexecdir/%{name}/bin/wickedd-auto4
@@ -233,6 +220,7 @@ fi
 %dir %_sysconfdir/wicked
 %config(noreplace) %_sysconfdir/wicked/common.xml
 %config(noreplace) %_sysconfdir/wicked/server.xml
+%config(noreplace) %_sysconfdir/wicked/nanny.xml
 %dir %_sysconfdir/wicked/extensions
 %config(noreplace) %_sysconfdir/wicked/extensions/*
 %dir %_sysconfdir/dbus-1
@@ -241,6 +229,7 @@ fi
 %config(noreplace) %_sysconfdir/dbus-1/system.d/org.opensuse.Network.AUTO4.conf
 %config(noreplace) %_sysconfdir/dbus-1/system.d/org.opensuse.Network.DHCP4.conf
 %config(noreplace) %_sysconfdir/dbus-1/system.d/org.opensuse.Network.DHCP6.conf
+%config(noreplace) %_sysconfdir/dbus-1/system.d/org.opensuse.Network.Nanny.conf
 %if %{with dbusstart}
 %dir %_datadir/dbus-1
 %dir %_datadir/dbus-1/system-services
@@ -281,15 +270,6 @@ fi
 %config(noreplace) %_sysconfdir/wicked/client.xml
 %_sbindir/wicked
 %_mandir/man8/wicked.8*
-
-%files nanny
-%defattr (-,root,root)
-%dir %_sysconfdir/wicked
-%config(noreplace) %{_sysconfdir}/wicked/nanny.xml
-%dir %_sysconfdir/dbus-1
-%dir %_sysconfdir/dbus-1/system.d
-%config(noreplace) %_sysconfdir/dbus-1/system.d/org.opensuse.Network.Nanny.conf
-%_sbindir/wickedd-nanny
 
 %files devel
 %defattr (-,root,root)
