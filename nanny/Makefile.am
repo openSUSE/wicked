@@ -2,17 +2,17 @@
 CLEANFILES			= *~
 MAINTAINERCLEANFILES		= Makefile.in
 
-wicked_sbin_PROGRAMS		= network-nanny
+wicked_sbin_PROGRAMS		= wickedd-nanny
 
 INCLUDES			= -I$(top_srcdir)/src	\
 				  -I$(top_srcdir)/include
 
-network_nanny_CFLAGS		= $(LIBNL_CFLAGS)	\
+wickedd_nanny_CFLAGS		= $(LIBNL_CFLAGS)	\
 				  $(LIBDBUS_CFLAGS)	\
 				  $(LIBGCRYPT_CFLAGS)
-network_nanny_LDFLAGS		= -rdynamic
-network_nanny_LDADD		= $(top_builddir)/src/libwicked.la
-network_nanny_SOURCES		= \
+wickedd_nanny_LDFLAGS		= -rdynamic
+wickedd_nanny_LDADD		= $(top_builddir)/src/libwicked.la
+wickedd_nanny_SOURCES		= \
 	device.c	\
 	interface.c	\
 	main.c		\

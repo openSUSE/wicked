@@ -283,11 +283,11 @@ fi
 %files nanny
 %defattr (-,root,root)
 %dir %_sysconfdir/wicked
-%config(noreplace) %{_sysconfdir}/wicked/network-nanny.xml
+%config(noreplace) %{_sysconfdir}/wicked/nanny.xml
 %dir %_sysconfdir/dbus-1
 %dir %_sysconfdir/dbus-1/system.d
 %config(noreplace) %_sysconfdir/dbus-1/system.d/org.opensuse.Network.Nanny.conf
-%_sbindir/network-nanny
+%_sbindir/wickedd-nanny
 
 %files devel
 %defattr (-,root,root)

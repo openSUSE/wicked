@@ -173,7 +173,7 @@ to act as a backend to ifup and ifdown. This client can configure any
 number of interfaces in parallel, and also takes care of dependencies
 between interfaces.
 
-There is another application called network-nanny, which tries to do what
+There is another application called wickedd-nanny, which tries to do what
 NetworkManager is currently doing, using the Wicked service. It is fairly
 tightly integrated with the other components of management framework,
 and shares a significant amount of code with the command line client.

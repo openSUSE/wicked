@@ -14,7 +14,7 @@ wicked_config_DATA		= \
 	common.xml		\
 	client.xml		\
 	server.xml		\
-	network-nanny.xml
+	nanny.xml
 
 dbus_config_DATA		= \
 	org.opensuse.Network.conf		\

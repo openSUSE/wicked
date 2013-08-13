@@ -59,7 +59,7 @@ extern ni_dbus_class_t *	ni_objectmodel_class_new(const char *, const ni_dbus_cl
 #define NI_OBJECTMODEL_OBJECT_PATH		NI_OBJECTMODEL_OBJECT_ROOT
 #define NI_OBJECTMODEL_NETIF_LIST_PATH		NI_OBJECTMODEL_OBJECT_ROOT "/Interface"
 #define NI_OBJECTMODEL_MODEM_LIST_PATH		NI_OBJECTMODEL_OBJECT_ROOT "/Modem"
-/* The following live in network-nanny */
+/* The following live in wickedd-nanny */
 #define NI_OBJECTMODEL_NANNY_PATH		NI_OBJECTMODEL_OBJECT_ROOT "/Nanny"
 #define NI_OBJECTMODEL_MANAGED_NETIF_LIST_PATH	NI_OBJECTMODEL_OBJECT_ROOT "/Nanny/Interface"
 #define NI_OBJECTMODEL_MANAGED_MODEM_LIST_PATH	NI_OBJECTMODEL_OBJECT_ROOT "/Nanny/Modem"
