@@ -2,9 +2,9 @@
 <config>
   <include name="common.xml"/>
 
-  <nanny>
+  <!-- nanny>
     <enable class="modem"/>
     <enable link-layer="ethernet" />
     <enable link-layer="wireless" />
-  </nanny>
+  </nanny -->
 </config>
