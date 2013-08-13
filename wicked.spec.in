@@ -50,6 +50,8 @@ Wicked is a network configuration infrastructure incorporating a number
 of existing frameworks into a unified architecture, providing a DBUS
 interface to network configuration.
 
+%if %{with systemd}
+
 %package service
 License:        GPL-2.0
 Group:          System/Management
@@ -60,8 +62,6 @@ Obsoletes:      sysconfig < 0.81.0
 Conflicts:      otherproviders(sysvinit(network))
 Provides:       sysvinit(network) /sbin/ifup
 
-%if %{with systemd}
-
 %description service
 Wicked is a network configuration infrastructure incorporating a number
 of existing frameworks into a unified architecture, providing a DBUS
@@ -70,6 +70,13 @@ interface to network configuration.
 This package provides the wicked systemd service files.
 
 %else
+
+%package service
+License:        GPL-2.0
+Group:          System/Management
+Summary:        wicked network configuration infrastructure service
+Requires(pre):  %name = %{version}
+Provides:       sysvinit(network) /sbin/ifup
 
 %description service
 Wicked is a network configuration infrastructure incorporating a number
