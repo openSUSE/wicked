@@ -1,0 +1,13 @@
+[Unit]
+Description=wicked managed network interface %i
+Requisite=wickedd.service
+PartOf=wicked.service
+BindsTo=sys-subsystem-net-devices-%i.device
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+LimitCORE=infinity
+EnvironmentFile=-/etc/sysconfig/network/config
+ExecStart=@wicked_sbindir@/wicked $WICKED_DEBUG_PARAM ifup $WICKED_IFUP_PARAM %i
+
