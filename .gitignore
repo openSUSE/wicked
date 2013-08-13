@@ -16,6 +16,8 @@ Makefile.in
 /m4/
 /aclocal.m4
 /autom4te.cache/
+/confdefs.h
+/conftest.*
 /config.*
 /configure
 /depcomp
@@ -32,7 +34,7 @@ Makefile.in
 /etc/common.xml
 /etc/client.xml
 /etc/server.xml
-/etc/network-nanny.xml
+/etc/nanny.xml
 /etc/init.d/wickedd
 /etc/init.d/network
 /etc/systemd/wicked*.service
@@ -40,10 +42,10 @@ Makefile.in
 /etc/org.opensuse.Network.DHCP4.service
 /etc/org.opensuse.Network.DHCP6.service
 /schema/constants.xml
-/autoip4/wicked-autoip4
-/dhcp4/wicked-dhcp4
-/dhcp6/wicked-dhcp6
-/nanny/network-nanny
+/autoip4/wickedd-auto4
+/dhcp4/wickedd-dhcp4
+/dhcp6/wickedd-dhcp6
+/nanny/wickedd-nanny
 /client/wicked
 /server/wickedd
 /util/mkconst
