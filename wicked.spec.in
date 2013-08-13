@@ -9,7 +9,7 @@ Url:            @PACKAGE_URL@
 Source0:	%{name}-%{version}.tar.bz2
 Source1:        wicked-rpmlintrc
 Buildroot:	%{_tmppath}/%{name}%{version}-buildroot/
-Requires:       libwicked@LIBWICKED_PACKAGE_SUFFIX@ = %{version}
+Requires(pre):  libwicked@LIBWICKED_PACKAGE_SUFFIX@ = %{version}
 
 %if 0%{?suse_version} >= 1230
 %bcond_without  systemd
@@ -50,6 +50,36 @@ Wicked is a network configuration infrastructure incorporating a number
 of existing frameworks into a unified architecture, providing a DBUS
 interface to network configuration.
 
+%package service
+License:        GPL-2.0
+Group:          System/Management
+Summary:        wicked network configuration infrastructure service
+Requires(pre):  %name = %{version}
+Requires:       sysconfig >= 0.81.0
+Obsoletes:      sysconfig < 0.81.0
+Conflicts:      otherproviders(sysvinit(network))
+Provides:       sysvinit(network) /sbin/ifup
+
+%if %{with systemd}
+
+%description service
+Wicked is a network configuration infrastructure incorporating a number
+of existing frameworks into a unified architecture, providing a DBUS
+interface to network configuration.
+
+This package provides the wicked systemd service files.
+
+%else
+
+%description service
+Wicked is a network configuration infrastructure incorporating a number
+of existing frameworks into a unified architecture, providing a DBUS
+interface to network configuration.
+
+This package provides the wicked system V init scripts.
+
+%endif
+
 %package devel
 License:        GPL-2.0
 Group:          Development/Libraries/C and C++
@@ -82,46 +112,6 @@ interface to network configuration.
 
 This package provides the wicked shared library.
 
-%if %{with systemd}
-
-%package systemd
-License:        GPL-2.0
-Group:          System/Management
-Summary:        Network configuration infrastructure - System-D Services
-Requires:       libwicked@LIBWICKED_PACKAGE_SUFFIX@ = %{version}
-Requires:       %name = %{version}
-Requires:       sysconfig >= 0.81.0
-Obsoletes:      sysconfig < 0.81.0
-Conflicts:      otherproviders(sysvinit(network))
-Provides:       sysvinit(network)
-
-%description systemd
-Wicked is a network configuration infrastructure incorporating a number
-of existing frameworks into a unified architecture, providing a DBUS
-interface to network configuration.
-
-This package provides the wicked systemd service files.
-
-%else
-
-%package sysvinit
-License:        GPL-2.0
-Group:          System/Management
-Summary:        Network configuration infrastructure - SysV-Init Scripts
-Requires:       libwicked@LIBWICKED_PACKAGE_SUFFIX@ = %{version}
-Requires:       %name = %{version}
-Requires:       sysconfig >= 0.81.0
-Obsoletes:      sysconfig < 0.81.0
-Conflicts:      otherproviders(sysvinit(network))
-
-%description sysvinit
-Wicked is a network configuration infrastructure incorporating a number
-of existing frameworks into a unified architecture, providing a DBUS
-interface to network configuration.
-
-This package provides the wicked system V init scripts.
-
-%endif
 
 %prep
 %setup
@@ -149,13 +139,13 @@ make install DESTDIR=${RPM_BUILD_ROOT}
 
 %if %{with systemd}
 
-%pre systemd
+%pre service
 %{service_add_pre wicked.service}
 
-%post systemd
+%post service
 %{service_add_post wicked.service}
 
-%preun systemd
+%preun service
 # stop the daemons on removal
 %{service_del_preun wickedd.service}
 %{service_del_preun wickedd-auto4.service}
@@ -163,20 +153,20 @@ make install DESTDIR=${RPM_BUILD_ROOT}
 %{service_del_preun wickedd-dhcp6.service}
 %{service_del_preun wickedd-nanny.service}
 
-%postun systemd
+%postun service
 %{service_del_postun wickedd.service}
 
 %else
 
-%post sysvinit
+%post service
 %{fillup_and_insserv wickedd}
 
-%preun sysvinit
+%preun service
 if test -x /etc/init.d/wicked ; then
 	%stop_on_removal wickedd
 fi
 
-%postun sysvinit
+%postun service
 if test -x /etc/init.d/wicked ; then
 	%restart_on_update wickedd
 fi
@@ -233,7 +223,8 @@ fi
 %attr(0750,root,root) %dir %ghost %_localstatedir/run/wicked
 
 %if %{with systemd}
-%files systemd
+
+%files service
 %defattr (-,root,root)
 %_unitdir/wickedd-auto4.service
 %_unitdir/wickedd-dhcp4.service
@@ -244,7 +235,7 @@ fi
 
 %else
 
-%files sysvinit
+%files service
 %defattr (-,root,root)
 %_sysconfdir/init.d/wickedd
 %_sysconfdir/init.d/network
