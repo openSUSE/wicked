@@ -50,20 +50,6 @@ Wicked is a network configuration infrastructure incorporating a number
 of existing frameworks into a unified architecture, providing a DBUS
 interface to network configuration.
 
-%package client
-License:        GPL-2.0
-Group:          System/Management
-Summary:        Network configuration infrastructure - Client
-Requires:       libwicked@LIBWICKED_PACKAGE_SUFFIX@ = %{version}
-Requires:       %name = %{version}
-
-%description client
-Wicked is a network configuration infrastructure incorporating a number
-of existing frameworks into a unified architecture, providing a DBUS
-interface to network configuration.
-
-This package provides the wicked client.
-
 %package devel
 License:        GPL-2.0
 Group:          Development/Libraries/C and C++
@@ -210,6 +196,7 @@ fi
 %files
 %defattr (-,root,root)
 %doc ChangeLog ANNOUNCE COPYING README TODO samples
+%_sbindir/wicked
 %_sbindir/wickedd
 %_sbindir/wickedd-nanny
 %dir %_libexecdir/%{name}
@@ -219,10 +206,12 @@ fi
 %_libexecdir/%{name}/bin/wickedd-dhcp6
 %dir %_sysconfdir/wicked
 %config(noreplace) %_sysconfdir/wicked/common.xml
+%config(noreplace) %_sysconfdir/wicked/client.xml
 %config(noreplace) %_sysconfdir/wicked/server.xml
 %config(noreplace) %_sysconfdir/wicked/nanny.xml
 %dir %_sysconfdir/wicked/extensions
 %config(noreplace) %_sysconfdir/wicked/extensions/*
+%dir %_sysconfdir/wicked/ifconfig
 %dir %_sysconfdir/dbus-1
 %dir %_sysconfdir/dbus-1/system.d
 %config(noreplace) %_sysconfdir/dbus-1/system.d/org.opensuse.Network.conf
@@ -239,6 +228,7 @@ fi
 %dir %_datadir/wicked/schema
 %config(noreplace) %_datadir/wicked/schema/*.xml
 %_mandir/man5/wicked-config.5*
+%_mandir/man8/wicked.8*
 %_mandir/man8/wickedd.8*
 %attr(0750,root,root) %dir %ghost %_localstatedir/run/wicked
 
@@ -262,14 +252,6 @@ fi
 %_sbindir/rcnetwork
 
 %endif
-
-%files client
-%defattr (-,root,root)
-%dir %_sysconfdir/wicked
-%dir %_sysconfdir/wicked/ifconfig
-%config(noreplace) %_sysconfdir/wicked/client.xml
-%_sbindir/wicked
-%_mandir/man8/wicked.8*
 
 %files devel
 %defattr (-,root,root)
