@@ -1,4 +1,4 @@
 [D-BUS Service]
 Name=org.opensuse.Network.DHCP6
-Exec=@wicked_supplicantdir@/wicked-dhcp6
+Exec=@wicked_supplicantdir@/wickedd-dhcp6
 User=root

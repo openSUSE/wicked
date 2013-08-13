@@ -226,9 +226,9 @@ fi
 %_sbindir/wickedd
 %dir %_libexecdir/%{name}
 %dir %_libexecdir/%{name}/bin
-%_libexecdir/%{name}/bin/wicked-dhcp4
-%_libexecdir/%{name}/bin/wicked-dhcp6
-%_libexecdir/%{name}/bin/wicked-autoip4
+%_libexecdir/%{name}/bin/wickedd-auto4
+%_libexecdir/%{name}/bin/wickedd-dhcp4
+%_libexecdir/%{name}/bin/wickedd-dhcp6
 %dir %_sysconfdir/wicked
 %config(noreplace) %_sysconfdir/wicked/common.xml
 %config(noreplace) %_sysconfdir/wicked/server.xml

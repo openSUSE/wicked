@@ -124,9 +124,9 @@ case $ACTION in
 	# FIXME: remove it
 	ulimit -c unlimited
 
-	start_one @wicked_supplicantdir@/wicked-autoip4 $COMMON_ARGS
-	start_one @wicked_supplicantdir@/wicked-dhcp4 $COMMON_ARGS
-	start_one @wicked_supplicantdir@/wicked-dhcp6 $COMMON_ARGS
+	start_one @wicked_supplicantdir@/wickedd-auto4 $COMMON_ARGS
+	start_one @wicked_supplicantdir@/wickedd-dhcp4 $COMMON_ARGS
+	start_one @wicked_supplicantdir@/wickedd-dhcp6 $COMMON_ARGS
 	start_one @wicked_sbindir@/wickedd $COMMON_ARGS
 
 	rc_status -v
@@ -136,9 +136,9 @@ case $ACTION in
 	echo -n "Shutting down"
 
 	stop_one @wicked_sbindir@/wickedd
-	stop_one @wicked_supplicantdir@/wicked-dhcp4
-	stop_one @wicked_supplicantdir@/wicked-dhcp6
-	stop_one @wicked_supplicantdir@/wicked-autoip4
+	stop_one @wicked_supplicantdir@/wickedd-auto4
+	stop_one @wicked_supplicantdir@/wickedd-dhcp4
+	stop_one @wicked_supplicantdir@/wickedd-dhcp6
 
 	rc_status -v
 	;;
@@ -188,9 +188,9 @@ case $ACTION in
 	
 	echo -n "Checking for service"
 	check_one @wicked_sbindir@/wickedd
-	check_one @wicked_supplicantdir@/wicked-dhcp4
-	check_one @wicked_supplicantdir@/wicked-dhcp6
-	check_one @wicked_supplicantdir@/wicked-autoip4
+	check_one @wicked_supplicantdir@/wickedd-auto4
+	check_one @wicked_supplicantdir@/wickedd-dhcp4
+	check_one @wicked_supplicantdir@/wickedd-dhcp6
 
 	# NOTE: rc_status knows that we called this init script with
 	# "status" option and adapts its messages accordingly.
