@@ -105,22 +105,16 @@ ni_netconfig_service_name(ni_addrconf_mode_t lease_type, unsigned int lease_fami
 		ni_error("failed to generate netconfig service name.");
 	} else {
 		/* service_name: "wicked_name-addrconf_name-addrfamily_name\0" */
-		int full_service_name_len = strlen(wicked_name) + strlen(addrconf_name) +
-			strlen(addrfamily_name) + 3;
-		service_name = malloc(full_service_name_len * sizeof(char));
-		if ((snprintf(service_name, full_service_name_len, "%s-%s-%s",
-					wicked_name, addrconf_name,
-					addrfamily_name)) !=
-			full_service_name_len - 1) {
+		if (!ni_string_printf(&service_name, "%s-%s-%s", wicked_name,
+					addrconf_name, addrfamily_name)) {
 			ni_error("derived invalid netconfig service_name: %s",
 				service_name);
-			service_name = NULL;
 		} else {
 			ni_debug_ifconfig("derived valid netconfig service_name: %s",
 					service_name);
 		}
 	}
-	return service_name;
+	return service_name; /* NULL if ni_string_printf() failed. */
 }
 
 /*
