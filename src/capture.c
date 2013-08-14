@@ -145,7 +145,7 @@ checksum_fold(uint32_t sum)
 	sum = (sum >> 16) + (sum & 0xffff);
 	sum +=(sum >> 16);
 
-	return htons(~sum);
+	return ~sum;
 }
 
 static uint16_t
