@@ -276,28 +276,6 @@ ni_system_updater_restore(ni_updater_t *updater)
 }
 
 /*
- * Populate a space separated string array argument list in the form of:
- *   "CMD UPDATER_NAME CMD_ARGS"
- * for passing to system updater scripts. Variable argument list must all
- * be character pointers.
- */
-static ni_string_array_t *
-ni_system_updater_populate_args(ni_string_array_t *args, int argnum, ...)
-{
-	va_list ap; /* Points to each unamed arg in turn. Thanks, K&R. */
-	int i;
-	va_start(ap, argnum);
-	for (i = 0; i < argnum; i++) {
-		ni_string_array_append(args, va_arg(ap, char *));
-		/* Toss in a space if not the last argument. */
-		if (i != argnum - 1) {
-			ni_string_array_append(args, " ");
-		}
-	}
-	va_end(ap);
-	return args;
-}
-
 static char *
 ni_system_updater_get_device_name_from_lease(const ni_addrconf_lease_t *lease)
 {
@@ -340,10 +318,12 @@ ni_system_updater_remove(ni_updater_t *updater, const ni_addrconf_lease_t *lease
 	}
 	switch (updater->type) {
 	case NI_ADDRCONF_UPDATE_RESOLVER:
-		if (!ni_system_updater_populate_args(&arguments, 3,
-							ni_updater_name(updater->type),
-							service_name,
-							devname)) {
+		if(!(service_name = ni_netconfig_service_name(lease->type, lease->family))) {
+			goto done;
+		}
+		if (ni_string_array_append(&arguments, ni_updater_name(updater->type)) != 0 ||
+			ni_string_array_append(&arguments, service_name) != 0 ||
+			ni_string_array_append(&arguments, devname) != 0) {
 			ni_error("failed to populate arguments for %s",
 				ni_updater_name(updater->type));
 			goto done;
@@ -407,13 +387,12 @@ ni_system_updater_install(ni_updater_t *updater, const ni_addrconf_lease_t *leas
 	switch (updater->type) {
 	case NI_ADDRCONF_UPDATE_RESOLVER:
 		tempname = _PATH_RESOLV_CONF ".new";
-		if (!ni_system_updater_populate_args(&arguments, 4,
-							ni_updater_name(updater->type),
-							tempname,
-							service_name,
-							devname)) {
+		if (ni_string_array_append(&arguments, ni_updater_name(updater->type)) != 0 ||
+			ni_string_array_append(&arguments, tempname) != 0 ||
+			ni_string_array_append(&arguments, service_name) != 0 ||
+			ni_string_array_append(&arguments, devname) != 0) {
 			ni_error("failed to populate arguments for %s",
-					ni_updater_name(updater->type));
+				ni_updater_name(updater->type));
 			goto done;
 		}
 		if ((rv = ni_resolver_write_resolv_conf(tempname, lease->resolver, NULL)) < 0) {
