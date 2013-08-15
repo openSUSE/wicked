@@ -276,8 +276,6 @@ ni_system_updater_restore(ni_updater_t *updater)
 }
 
 /*
-
-/*
  * Remove information from a lease which has been released and already detached
  * from a device.
  */
@@ -286,16 +284,13 @@ ni_system_updater_remove(ni_updater_t *updater, const ni_addrconf_lease_t *lease
 {
 	ni_string_array_t arguments = NI_STRING_ARRAY_INIT;
 	ni_bool_t result = FALSE;
+	char *service_name = NULL;
 
 	ni_debug_ifconfig("Removing system %s settings from %s/%s lease",
 			ni_updater_name(updater->type),
 			ni_addrconf_type_to_name(lease->type),
 			ni_addrfamily_type_to_name(lease->family));
-	char *service_name = ni_netconfig_service_name(lease->type, lease->family);
-	if (!service_name) {
-		ni_error("failed to receive valid netconfig service name.");
-		goto done;
-	}
+
 	switch (updater->type) {
 	case NI_ADDRCONF_UPDATE_RESOLVER:
 		if(!(service_name = ni_netconfig_service_name(lease->type, lease->family))) {
@@ -309,6 +304,7 @@ ni_system_updater_remove(ni_updater_t *updater, const ni_addrconf_lease_t *lease
 			goto done;
 		}
 		break;
+
 	case NI_ADDRCONF_UPDATE_HOSTNAME:
 		//argument = lease->hostname;
 		break;
@@ -345,6 +341,7 @@ ni_system_updater_install(ni_updater_t *updater, const ni_addrconf_lease_t *leas
 {
 	const char *tempname = NULL;
 	ni_string_array_t arguments = NI_STRING_ARRAY_INIT;
+	char *service_name = NULL;
 	ni_bool_t result = FALSE;
 	int rv = 0;
 
@@ -352,11 +349,6 @@ ni_system_updater_install(ni_updater_t *updater, const ni_addrconf_lease_t *leas
 					ni_updater_name(updater->type),
 					ni_addrconf_type_to_name(lease->type),
 					ni_addrfamily_type_to_name(lease->family));
-	char *service_name = ni_netconfig_service_name(lease->type, lease->family);
-	if (!service_name) {
-		ni_error("failed to receive valid netconfig service name.");
-		goto done;
-	}
 
 	if (!updater->have_backup && !ni_system_updater_backup(updater))
 		return FALSE;
@@ -364,6 +356,9 @@ ni_system_updater_install(ni_updater_t *updater, const ni_addrconf_lease_t *leas
 	 * indicated script with it */
 	switch (updater->type) {
 	case NI_ADDRCONF_UPDATE_RESOLVER:
+		if(!(service_name = ni_netconfig_service_name(lease->type, lease->family))) {
+			goto done;
+		}
 		tempname = _PATH_RESOLV_CONF ".new";
 		if (ni_string_array_append(&arguments, ni_updater_name(updater->type)) != 0 ||
 			ni_string_array_append(&arguments, tempname) != 0 ||
