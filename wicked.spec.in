@@ -125,6 +125,7 @@ This package provides the wicked shared library.
 %setup
 
 %build
+test -x ./configure || autoreconf --force --install
 export CFLAGS="$RPM_OPT_FLAGS"
 %configure \
 %if %{with systemd}
