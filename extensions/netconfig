@@ -3,56 +3,65 @@
 set -e
 cmd=$1; shift
 
-modify_netconfig()
+parse_resolv_conf()
 {
-	local resolv_file=$1
-	local service=$2
-	local intf=$3
-	echo "resolv_file=${resolv_file} service=${service} intf=${intf}"
-	local dnsservers=""
-	local dnssearch=""
-	dnsservers=(`awk -- '/nameserver/ {printf "%s ", $2}' < $resolv_file 2>/dev/null`)
-	dnssearch=(`awk -- '/search/ {for (i=2; i<=NF; i++) printf $i}' < $resolv_file 2>/dev/null`)
-	{
-		echo "DNSSEARCH='${dnssearch[*]}'"
-		echo "DNSSERVERS='${dnsservers[*]}'"
-	} | /sbin/netconfig modify -s "$service" -i "$intf"
-}
+	local resolvconf="$1"
+	local dns_domain=""
+	local dns_search=()
+	local dns_server=()
+	local key word
 
-remove_netconfig()
-{
-	local service=$1
-	local intf=$2
-	/sbin/netconfig remove -s "$service" -i "$intf"
+	test "x$resolvconf" != "x" -a -r "$resolvconf" && \
+	while read -sa word ; do
+		key=${word[0]}
+		unset word[0]
+		case $key in
+		domain)
+			dns_domain="${word[1]}"
+		;;
+		search)
+			for w in ${word[*]} ; do
+				for s in ${dns_search[*]} ; do
+					test "x$s" = "x$w" && continue 2
+				done
+				dns_search+=("$w")
+			done
+		;;
+		nameserver)
+			for w in ${word[*]} ; do
+				for s in ${dns_server[*]} ; do
+					test "x$s" = "x$w" && continue 2
+				done
+				dns_server+=("$w")
+			done
+		;;
+		esac
+	done < "$resolvconf"
+	echo "DNSDOMAIN='$dns_domain'"
+	echo "DNSSEARCH='${dns_search[*]}'"
+	echo "DNSSERVERS='${dns_server[*]}'"
 }
 
 case $cmd in
 backup)
-	# Back up the existing resolv.conf file
 	echo "TODO: NO BACKUP TO PERFORM YET"
 	: ;;
 
 restore)
-	echo "TODO: REPLACE WITH REMOVE CMD"
-	filename="null"
-	intf="eth0"	# FIXME by passing correct params from update.c
-	restore="yes"
-	modify_netconfig $filename $restore $intf
+	echo "TODO: NO RESTORE TO PERFORM YET"
 	: ;;
 
 install)
-	echo "INSTALL: $@"
 	filename=$1
 	service=$2
 	intf=$3
-	modify_netconfig $filename $service $intf
+	parse_resolv_conf "$filename" | netconfig modify -i $intf -s $service
 	: ;;
 
 remove)
-	echo "REMOVE: $@"
 	service=$1
 	intf=$2
-	remove_netconfig $service $intf
+	netconfig remove -i $intf -s $service
 	: ;;
 
 *)
