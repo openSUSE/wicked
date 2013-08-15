@@ -9,6 +9,7 @@ Url:            @PACKAGE_URL@
 Source0:	%{name}-%{version}.tar.bz2
 Source1:        wicked-rpmlintrc
 Buildroot:	%{_tmppath}/%{name}%{version}-buildroot/
+BuildRequires:  autoconf automake libtool make
 Requires(pre):  libwicked@LIBWICKED_PACKAGE_SUFFIX@ = %{version}
 
 %if 0%{?suse_version} >= 1230
