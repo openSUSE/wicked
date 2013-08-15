@@ -411,9 +411,10 @@ ni_xs_scope_free(ni_xs_scope_t *scope)
 	if (scope->children) {
 		ni_xs_scope_t *child;
 
-		for (child = scope->children; child; child = child->next) {
+		while ((child = scope->children) != NULL) {
 			scope->children = child->next;
 			child->parent = NULL; /* Skip the debug step when freeing the child scope */
+			child->next = NULL;
 			ni_xs_scope_free(child);
 		}
 	}
