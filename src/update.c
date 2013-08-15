@@ -276,26 +276,6 @@ ni_system_updater_restore(ni_updater_t *updater)
 }
 
 /*
-static char *
-ni_system_updater_get_device_name_from_lease(const ni_addrconf_lease_t *lease)
-{
-	ni_netconfig_t *nc = ni_global_state_handle(0);
-	ni_netdev_t *dev = NULL;
-	ni_addrconf_lease_t *lease_ptr = NULL;
-
-	for (dev = ni_netconfig_devlist(nc); dev; dev = dev->next) {
-		for (lease_ptr = dev->leases; lease_ptr; lease_ptr = lease_ptr->next) {
-			if (lease->seqno == lease_ptr->seqno) {
-				/* We've found our device to which this lease belongs. */
-				ni_debug_ifconfig("Found device %s matching this lease.",
-						dev->name);
-				return strdup(dev->name);
-			}
-		}
-	}
-	ni_error("No device found matching this lease");
-	return NULL; /* Device not found! */
-}
 
 /*
  * Remove information from a lease which has been released and already detached
@@ -361,7 +341,7 @@ done:
  * Install information from a lease, and remember that we did
  */
 static ni_bool_t
-ni_system_updater_install(ni_updater_t *updater, const ni_addrconf_lease_t *lease)
+ni_system_updater_install(ni_updater_t *updater, const ni_addrconf_lease_t *lease, char *devname)
 {
 	const char *tempname = NULL;
 	ni_string_array_t arguments = NI_STRING_ARRAY_INIT;
@@ -377,8 +357,6 @@ ni_system_updater_install(ni_updater_t *updater, const ni_addrconf_lease_t *leas
 		ni_error("failed to receive valid netconfig service name.");
 		goto done;
 	}
-	/* TODO: probably dont' need this anymore, just get it from _update_all(). */
-	char *devname = ni_system_updater_get_device_name_from_lease(lease);
 
 	if (!updater->have_backup && !ni_system_updater_backup(updater))
 		return FALSE;
@@ -510,7 +488,7 @@ ni_system_update_all(const ni_addrconf_lease_t *lease_to_remove, char *devname)
 			if (up->lease && up->lease->state == NI_ADDRCONF_STATE_RELEASED) {
 				ni_system_updater_remove(updater, up->lease, devname);
 			} else {
-				ni_system_updater_install(updater, up->lease);
+				ni_system_updater_install(updater, up->lease, devname);
 			}
 		}
 	}
