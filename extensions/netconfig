@@ -6,20 +6,16 @@ cmd=$1; shift
 modify_netconfig()
 {
 	local resolv_file=$1
-	local restore=$2
-	local service=$3
-	local intf=$4
-	echo "resolv_file=${resolv_file} restore=${restore} intf=${intf}"
+	local service=$2
+	local intf=$3
+	echo "resolv_file=${resolv_file} service=${service} intf=${intf}"
 	local dnsservers=""
 	local dnssearch=""
-	if [ "$restore" = "no" ]
-	then
-		dnsservers=`grep "nameserver" $resolv_file | awk '{printf "%s ", $2}'`
-		dnssearch=`grep "search" $resolv_file | awk '{for (i=2; i<=NF; i++) print $i}'`
-	fi
+	dnsservers=(`awk -- '/nameserver/ {printf "%s ", $2}' < $resolv_file 2>/dev/null`)
+	dnssearch=(`awk -- '/search/ {for (i=2; i<=NF; i++) printf $i}' < $resolv_file 2>/dev/null`)
 	{
-		echo "DNSSEARCH='$dnssearch'"
-		echo "DNSSERVERS='$dnsservers'"
+		echo "DNSSEARCH='${dnssearch[*]}'"
+		echo "DNSSERVERS='${dnsservers[*]}'"
 	} | /sbin/netconfig modify -s "$service" -i "$intf"
 }
 
@@ -49,8 +45,7 @@ install)
 	filename=$1
 	service=$2
 	intf=$3
-	restore="no"
-	modify_netconfig $filename $restore $service $intf
+	modify_netconfig $filename $service $intf
 	: ;;
 
 remove)
