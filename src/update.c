@@ -46,6 +46,7 @@ typedef struct ni_updater {
 static ni_updater_t			updaters[__NI_ADDRCONF_UPDATE_MAX];
 
 static const char *			ni_updater_name(unsigned int);
+static ni_string_array_t *		ni_system_updater_populate_args(ni_string_array_t *, int, ...);
 
 /*
  * Initialize the system updaters based on the data found in the config
@@ -275,25 +276,22 @@ ni_system_updater_restore(ni_updater_t *updater)
 }
 
 /*
- * Populate a space separated, single string argument list in the form of:
+ * Populate a space separated string array argument list in the form of:
  *   "CMD UPDATER_NAME CMD_ARGS"
  * for passing to system updater scripts. Variable argument list must all
- * be character pointers and ni_stringbuf_t must be allocated as dynamic.
+ * be character pointers.
  */
-static ni_stringbuf_t *
-ni_system_updater_populate_args(ni_stringbuf_t *args, int argnum, ...)
+static ni_string_array_t *
+ni_system_updater_populate_args(ni_string_array_t *args, int argnum, ...)
 {
 	va_list ap; /* Points to each unamed arg in turn. Thanks, K&R. */
 	int i;
-	if (!args || args->dynamic != 1) {
-		return NULL;
-	}
 	va_start(ap, argnum);
 	for (i = 0; i < argnum; i++) {
-		ni_stringbuf_puts(args, va_arg(ap, char *));
+		ni_string_array_append(args, va_arg(ap, char *));
 		/* Toss in a space if not the last argument. */
 		if (i != argnum - 1) {
-			ni_stringbuf_puts(args, " ");
+			ni_string_array_append(args, " ");
 		}
 	}
 	va_end(ap);
