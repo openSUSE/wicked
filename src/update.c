@@ -211,14 +211,18 @@ ni_objectmodel_updater_select_source(ni_updater_t *updater)
  * Run an extension script to update resolver, hostname etc.
  */
 static ni_bool_t
-ni_system_updater_run(ni_shellcmd_t *shellcmd, const char *filename)
+ni_system_updater_run(ni_shellcmd_t *shellcmd, ni_string_array_t *args)
 {
 	ni_process_t *pi;
 	int rv;
 
 	pi = ni_process_new(shellcmd);
-	if (filename)
-		ni_string_array_append(&pi->argv, filename);
+	if (args) {
+		int i;
+		for (i = 0; i < args->count; i++) {
+			ni_string_array_append(&pi->argv, args->data[i]);
+		}
+	}
 
 	rv = ni_process_run_and_wait(pi);
 	ni_process_free(pi);
