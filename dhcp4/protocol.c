@@ -222,7 +222,7 @@ ni_dhcp_option_next(ni_buffer_t *bp, ni_buffer_t *optbuf)
 		ni_buffer_init_reader(optbuf, bp->base + bp->head, count);
 		bp->head += count;
 	} else {
-		memset(optbuf, 0, sizeof(optbuf));
+		memset(optbuf, 0, sizeof(*optbuf));
 	}
 	return code;
 
