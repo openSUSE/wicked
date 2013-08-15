@@ -1861,7 +1861,7 @@ ni_uuid_is_null(const ni_uuid_t *uuid)
 int
 ni_uuid_equal(const ni_uuid_t *uuid1, const ni_uuid_t *uuid2)
 {
-	return !memcmp(uuid1, uuid2, sizeof(uuid1));
+	return !memcmp(uuid1, uuid2, sizeof(*uuid1));
 }
 
 /*
