@@ -372,9 +372,7 @@ ni_system_updater_remove(ni_updater_t *updater, const ni_addrconf_lease_t *lease
 		ni_global.other_event(NI_EVENT_RESOLVER_UPDATED);
 
 done:
-	if (service_name) {
-		free(service_name);
-	}
+	ni_string_free(&service_name);
 	ni_string_array_destroy(&arguments);
 	return result;
 }
@@ -450,12 +448,7 @@ ni_system_updater_install(ni_updater_t *updater, const ni_addrconf_lease_t *leas
 done:
 	if (tempname)
 		unlink(tempname);
-	if (service_name) {
-		free(service_name);
-	}
-	if (devname) {
-		free(devname);
-	}
+	ni_string_free(&service_name);
 	ni_string_array_destroy(&arguments);
 	return result;
 }
