@@ -219,7 +219,7 @@ ni_system_updater_run(ni_shellcmd_t *shellcmd, ni_string_array_t *args)
 
 	pi = ni_process_new(shellcmd);
 	if (args) {
-		int i;
+		unsigned int i;
 		for (i = 0; i < args->count; i++) {
 			ni_string_array_append(&pi->argv, args->data[i]);
 		}
