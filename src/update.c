@@ -326,7 +326,7 @@ ni_system_updater_get_device_name_from_lease(const ni_addrconf_lease_t *lease)
 static ni_bool_t
 ni_system_updater_remove(ni_updater_t *updater, const ni_addrconf_lease_t *lease, char *devname)
 {
-	ni_stringbuf_t arguments = NI_STRINGBUF_INIT_DYNAMIC;
+	ni_string_array_t arguments = NI_STRING_ARRAY_INIT;
 	ni_bool_t result = FALSE;
 
 	ni_debug_ifconfig("Removing system %s settings from %s/%s lease",
@@ -357,10 +357,10 @@ ni_system_updater_remove(ni_updater_t *updater, const ni_addrconf_lease_t *lease
 		ni_error("cannot remove old %s settings - file format not understood",
 				ni_updater_name(updater->type));
 		updater->enabled = 0;
-		return FALSE;
+		goto done;
 	}
 
-	if (!ni_system_updater_run(updater->proc_remove, arguments.string)) {
+	if (!ni_system_updater_run(updater->proc_remove, &arguments)) {
 		ni_error("failed to remove %s settings", ni_updater_name(updater->type));
 		goto done;
 	}
@@ -375,6 +375,7 @@ done:
 	if (service_name) {
 		free(service_name);
 	}
+	ni_string_array_destroy(&arguments);
 	return result;
 }
 
@@ -385,7 +386,7 @@ static ni_bool_t
 ni_system_updater_install(ni_updater_t *updater, const ni_addrconf_lease_t *lease)
 {
 	const char *tempname = NULL;
-	ni_stringbuf_t arguments = NI_STRINGBUF_INIT_DYNAMIC;
+	ni_string_array_t arguments = NI_STRING_ARRAY_INIT;
 	ni_bool_t result = FALSE;
 	int rv = 0;
 
@@ -435,7 +436,7 @@ ni_system_updater_install(ni_updater_t *updater, const ni_addrconf_lease_t *leas
 		goto done;
 	}
 
-	if (!ni_system_updater_run(updater->proc_install, arguments.string)) {
+	if (!ni_system_updater_run(updater->proc_install, &arguments)) {
 		ni_error("failed to install %s settings", ni_updater_name(updater->type));
 		goto done;
 	}
@@ -455,7 +456,7 @@ done:
 	if (devname) {
 		free(devname);
 	}
-
+	ni_string_array_destroy(&arguments);
 	return result;
 }
 
