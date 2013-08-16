@@ -168,7 +168,7 @@ ipudp_checksum(const struct ip *iph, const struct udphdr *uhp,
 	};
 	uint32_t csum;
 
-	csum = checksum_partial(htons(IPPROTO_UDP) + uh.uh_ulen, &iph->ip_src, 2* sizeof(iph->ip_src));
+	csum = checksum_partial((IPPROTO_UDP << 8) + uh.uh_ulen, &iph->ip_src, 2* sizeof(iph->ip_src));
 	csum = checksum_partial(csum, data, length);
 	csum = checksum_partial(csum, &uh, sizeof(uh));
 
