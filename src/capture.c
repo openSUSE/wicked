@@ -134,7 +134,7 @@ checksum_partial(uint32_t sum, const void *data, uint16_t len)
 	}
 
 	if (len == 1) {
-		sum += u.c[0] << 8;
+		sum += ntohs(u.c[0]) << 8;
 	}
 	return sum;
 }
