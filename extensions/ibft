@@ -2,20 +2,22 @@
 
 shopt -s nullglob
 
-function glob_first {
+err_base="extensions/ibft"
 
-	pattern="$1"
+function glob_first
+{
+	local pattern="$1"
 
 	# This works because we set nullglob above - if there's
 	# no match, the pattern word is removed
 	set -- $pattern
-	echo $1
+	echo "$1"
 }
 
-function ibft_get_ifindex {
-
-	devpath=$1
-	ifpath=
+function ibft_get_ifindex
+{
+	local devpath=$1
+	local ifpath=
 
 	if [ -d "$devpath/net/" ]; then
 		# normal reference, e.g. device/net/eth0
@@ -37,26 +39,24 @@ function ibft_get_ifindex {
 		fi
 	fi
 
-	echo "$devpath: unable to identify device" >&2
+	echo "$err_name: unable to identify devices at \"$devpath\"" >&2
 	return 1
 }
 
-function ibft_getattr {
-
-	path="$1"
+function ibft_getattr
+{
+	local path="$1"
 	if [ -f "$path" ]; then
 		cat "$path"
 	fi
 }
 
-function netmask2pfxlen {
+function netmask2pfxlen
+{
+	local netmask=$1
+	local OFS=$IFS
 
-	netmask=$1
-
-	OFS=$IFS
-	IFS=.
-	set $netmask
-	IFS=$OFS
+	IFS=. ; set -- $netmask ; IFS=$OFS
 
 	declare -i nbits=0
 	for octet; do
@@ -70,7 +70,7 @@ function netmask2pfxlen {
 		192)	nbits+=2;;
 		128)	nbits+=1;;
 		0)	: ;;
-		*)	echo "Invalid netmask $netmask" >&2
+		*)	echo "$err_name: Invalid netmask \"$netmask\"" >&2
 			return 1;;
 		esac
 	done
@@ -78,26 +78,60 @@ function netmask2pfxlen {
 	echo $nbits
 }
 
-set -- `getopt r: "$@"`
+function get_vlan_ifname
+{
+	local vid=$1 dev=$2 line=""
+	local conf="/proc/net/vlan/config"
+
+	test -f "$conf" && \
+	while read line ; do
+		case $line in
+		"VLAN Dev name"*|"Name-Type:"*) continue 2 ;;
+		esac
+		set -- ${line//|/ }
+		test "$dev" = "$3" || continue
+		test "$vid" = "$2" || continue
+		echo "$1"
+	done < "$conf" 2>/dev/null
+}
+
+# sysfs mountpoint
+opt_rootdir=""
+# relative ibft node
+opt_fw_path=""
+#set -- `getopt r:p: "$@"`
 while [ $# -gt 0 -a "$1" != "--" ]; do
 	opt=$1; shift;
 	case $opt in
 	-r)	opt_rootdir=$1; shift;;
-	*)	echo "Bad command line option $opt" >&2; exit 1;;
+	-p)	opt_fw_path=$1; shift;;
+	*)	echo "$err_base: Bad command line option \"$opt\"" >&2; exit 1;;
 	esac
 done
 
-IBFT_PATH=$opt_rootdir/sys/firmware/ibft
+IBFT_NICS="ethernet"
+IBFT_PATH="/sys/firmware/ibft"
+IBFT_ROOT="${opt_rootdir}/sys/firmware/ibft"
+for nicpath in "${IBFT_ROOT}/${IBFT_NICS}"*; do
+	[ "X$nicpath" != "X" -a -d "$nicpath" ]     || continue
 
-ibft_num=0
-for nicpath in $IBFT_PATH/ethernet*; do
-	[ -d "$nicpath" ] || continue
+	ibft_nic="${nicpath##*/}"
+	ibft_num="${ibft_nic##${IBFT_NICS}}"
+	[ -n "$ibft_num" ]                          || continue
+
+	[ "X$opt_fw_path" != "X" -a \
+	  "X$opt_fw_path" != "X${ibft_nic}" ]       && continue
+
+	err_name="$err_base/$ibft_nic"
+
+	nic_flags=`ibft_getattr "$nicpath/flags"`
+	[ -n "$nic_flags" ] && ((nic_flags & 0x01)) || continue
 
 	devpath=`readlink -f $nicpath/device`
-	[ -n "$devpath" ] || continue
+	[ -n "$devpath" ]                           || continue
 
 	set -- `ibft_get_ifindex $devpath`
-	[ $# -gt 0 ] || continue
+	[ $# -gt 0 ]                                || continue
 
 	nic_ifindex=$1
 	nic_name=$2
@@ -106,14 +140,25 @@ for nicpath in $IBFT_PATH/ethernet*; do
 	nic_mac=`ibft_getattr "$nicpath/mac"`
 
 	nic_ipaddr=`ibft_getattr "$nicpath/ip-addr"`
-	nic_prefixlen=
+	nic_prefixlen=""
 
+	# The kernel AFAIS currently supports only IPv4:
+	# it always converts the iBFT "Subnet Mask Prefix"
+	# byte (the prefix length) into a IPv4 netmask ...
 	netmask=`ibft_getattr "$nicpath/subnet-mask"`
-	if [ -n "$netmask" ]; then
-		nic_prefixlen=`netmask2pfxlen $netmask`
-		[ -n "$nic_prefixlen" ] || continue
-	fi
+	case "$netmask" in
+	*.*.*.*)
+		nic_prefixlen=`netmask2pfxlen "$netmask" 2>/dev/null`
+		;;
+	*)
+		nic_prefixlen="$netmask"
+		;;
+	esac
+	[ -n "$nic_prefixlen" ] || continue
 
+	# Enum: Other,Manual,WellKnown,Dhcp,RouterAdv
+	# Note: kvm/gPXE is using 0, even it is from dhcp
+	nic_origin=`ibft_getattr "$nicpath/edir/origin"`
 	nic_dhcp_server=`ibft_getattr "$nicpath/dhcp"`
 	nic_gateway=`ibft_getattr "$nicpath/gateway"`
 	nic_dns_server1=`ibft_getattr "$nicpath/primary-dns"`
@@ -122,26 +167,21 @@ for nicpath in $IBFT_PATH/ethernet*; do
 
 	cat <<-EOF
 	<interface>
-	  <!-- interface $nic_name -->
-	  <device>
-	    <identify>
-	      <ifindex>$nic_ifindex</ifindex>
-	    </identify>
-	  </device>
+	  <name namespace="ifindex">$nic_ifindex</name>
 EOF
 
-	if [ -n "$nic_vlan" ]; then
+	if [ -n "$nic_vlan" -a $((nic_vlan)) -gt 0 ]; then
+		vlan_ifname=`get_vlan_ifname "$nic_vlan" "$nic_name" 2>/dev/null`
+		if test "x$vlan_ifname" = x ; then
+			vlan_ifname="${nic_name}.${nic_vlan}"
+		fi
 		cat <<-EOF
 		</interface>
 
 		<interface>
-		  <name>$nic_name.$nic_vlan</name>
+		  <name>$vlan_ifname</name>
 		  <vlan>
-		    <device>
-		      <identify>
-		        <ifindex>$nic_ifindex</ifindex>
-		      </identify>
-		    </device>
+		    <device namespace="ifindex">$nic_ifindex</device>
 		    <tag>$nic_vlan</tag>
 		  </vlan>
 EOF
@@ -149,10 +189,18 @@ EOF
 
 	echo "  <alias>ibft$ibft_num</alias>"
 
-	if [ -n "$nic_ipaddr" ]; then
+	if [ -n "$nic_dhcp_server" ] ; then
+		# Default to DHCPv4
+		cat <<-EOF
+		  <ipv4:dhcp>
+		    <enabled>true</enabled>
+		  </ipv4:dhcp>
+EOF
+	elif [ -n "$nic_ipaddr" ]; then
 		default_route="<!-- no default route -->"
 		if [ -n "$nic_gateway" ]; then
-			$default_route="<route><nexthop><gateway>$nic_gateway</gateway></nexthop></route>"
+			default_route="<route><nexthop><gateway>$nic_gateway"
+			default_route="$default_route</gateway></nexthop></route>"
 		fi
 
 		# FIXME: we have no way yet to include other lease information
@@ -164,18 +212,9 @@ EOF
 		    $default_route
 		  </ipv4:static>
 EOF
-	else
-		# Default to DHCPv4
-		cat <<-EOF
-		  <ipv4:dhcp>
-		    <enabled>true</enabled>
-		  </ipv4:dhcp>
-EOF
 	fi
 
 	echo "</interface>"
-
-	ibftnum+=1
 done
 
 exit 0
