@@ -1290,7 +1290,7 @@ __ni_ifworker_identify_device(ni_fsm_t *fsm, const char *namespace, const xml_no
 	if (!strcmp(namespace, "alias"))
 		return ni_ifworker_by_alias(fsm, devnode->cdata);
 
-	if (type == NI_IFWORKER_TYPE_NETDEV && !strcmp(devnode->name, "ifindex")) {
+	if (type == NI_IFWORKER_TYPE_NETDEV && !strcmp(namespace, "ifindex")) {
 		unsigned int ifindex;
 
 		if (ni_parse_uint(devnode->cdata, &ifindex, 10) < 0) {
