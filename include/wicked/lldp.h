@@ -94,6 +94,7 @@ struct ni_lldp_ieee_802_1 {
 
 extern ni_lldp_t *	ni_lldp_new(void);
 extern void		ni_lldp_free(ni_lldp_t *);
+extern ni_bool_t	ni_system_lldp_available(ni_netdev_t *);
 extern int		ni_system_lldp_up(ni_netdev_t *, const ni_lldp_t *);
 extern int		ni_system_lldp_down(ni_netdev_t *);
 

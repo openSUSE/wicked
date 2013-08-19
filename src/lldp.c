@@ -258,6 +258,12 @@ ni_lldp_check_mac_address(ni_hwaddr_t *mac_addr, ni_netdev_t *dev, const char *w
 	return TRUE;
 }
 
+ni_bool_t
+ni_system_lldp_available(ni_netdev_t *dev)
+{
+	return dev->link.arp_type == ARPHRD_ETHER;
+}
+
 /*
  * Bring up an LLDP agent on this device.
  * A NULL config parameter means: no client-side configuration settings,
@@ -269,11 +275,6 @@ ni_system_lldp_up(ni_netdev_t *dev, const ni_lldp_t *config)
 	ni_dcbx_state_t *dcbx = NULL;
 
 	ni_debug_lldp("%s(%s, lldp=%p)", __func__, dev->name, config);
-
-	if (dev->link.arp_type != ARPHRD_ETHER) {
-		ni_error("Cannot enable LLDP for device %s: incompatible layer 2 protocol", dev->name);
-		return -1;
-	}
 
 	/* if the device is DCB capable, enable DCBX */
 	if (ni_dcbx_should_start(dev)) {
