@@ -43,7 +43,7 @@ ni_ifconfig_firmware_load(ni_fsm_t *fsm, const char *pathname)
 	(void)pathname;
 
 	ni_debug_readwrite("%s()", __func__);
-	if (!(config_doc = ni_netconfig_firmware_discovery())) {
+	if (!(config_doc = ni_netconfig_firmware_discovery(NULL, NULL, NULL))) {
 		ni_error("unable to get firmware interface definitions");
 		return FALSE;
 	}
