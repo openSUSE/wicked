@@ -633,9 +633,7 @@ __xml_node_array_realloc(xml_node_array_t *array, unsigned int newsize)
 	unsigned int i;
 
 	newsize = (newsize + XML_NODEARRAY_CHUNK) + 1;
-	newdata = realloc(array->data, newsize * sizeof(array->data[0]));
-	if (!newdata)
-		ni_fatal("%s: out of memory", __FUNCTION__);
+	newdata = xrealloc(array->data, newsize * sizeof(array->data[0]));
 
 	array->data = newdata;
 	for (i = array->count; i < newsize; ++i)

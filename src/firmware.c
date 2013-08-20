@@ -91,7 +91,7 @@ ni_netconfig_firmware_discovery(const char *root, const char *type, const char *
 		return NULL;
 
 	ni_trace("%s: buffer has %u bytes", __func__, ni_buffer_count(buffer));
-	doc = xml_document_from_buffer(buffer);
+	doc = xml_document_from_buffer(buffer, NULL);
 	ni_buffer_free(buffer);
 
 	if (doc == NULL)

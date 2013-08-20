@@ -26,6 +26,7 @@
 #endif
 
 #include <ctype.h>
+#include <sys/param.h>
 
 #include <wicked/xml.h>
 #include <wicked/logging.h>
@@ -96,8 +97,8 @@ static void		xml_debug(const char *, ...);
 #define xml_debug(fmt, ...) do { } while (0)
 #endif
 
-static int		xml_reader_init_file(xml_reader_t *xr, FILE *fp);
-static int		xml_reader_init_buffer(xml_reader_t *xr, ni_buffer_t *buf);
+static int		xml_reader_init_file(xml_reader_t *xr, FILE *fp, const char *location);
+static int		xml_reader_init_buffer(xml_reader_t *xr, ni_buffer_t *buf, const char *location);
 static int		xml_reader_open(xml_reader_t *xr, const char *filename);
 static int		xml_reader_destroy(xml_reader_t *xr);
 static int		xml_getc(xml_reader_t *xr);
@@ -113,7 +114,7 @@ xml_document_read(const char *filename)
 	xml_document_t *doc;
 
 	if (!strcmp(filename, "-")) {
-		if (xml_reader_init_file(&reader, stdin) < 0)
+		if (xml_reader_init_file(&reader, stdin, NULL) < 0)
 			return NULL;
 	} else
 	if (xml_reader_open(&reader, filename) < 0)
@@ -128,7 +129,7 @@ xml_document_read(const char *filename)
 }
 
 xml_document_t *
-xml_document_from_string(const char *string)
+xml_document_from_string(const char *string, const char *location)
 {
 	ni_buffer_t buf;
 
@@ -137,16 +138,16 @@ xml_document_from_string(const char *string)
 		return NULL;
 	}
 	ni_buffer_init_reader(&buf, (char *) string, strlen(string));
-	return xml_document_from_buffer(&buf);
+	return xml_document_from_buffer(&buf, location);
 }
 
 xml_document_t *
-xml_document_from_buffer(ni_buffer_t *in_buffer)
+xml_document_from_buffer(ni_buffer_t *in_buffer, const char *location)
 {
 	xml_reader_t reader;
 	xml_document_t *doc;
 
-	if (xml_reader_init_buffer(&reader, in_buffer) < 0)
+	if (xml_reader_init_buffer(&reader, in_buffer, location) < 0)
 		return NULL;
 
 	doc = xml_process_document(&reader);
@@ -158,12 +159,12 @@ xml_document_from_buffer(ni_buffer_t *in_buffer)
 }
 
 xml_document_t *
-xml_document_scan(FILE *fp)
+xml_document_scan(FILE *fp, const char *location)
 {
 	xml_reader_t reader;
 	xml_document_t *doc;
 
-	if (xml_reader_init_file(&reader, fp) < 0)
+	if (xml_reader_init_file(&reader, fp, location) < 0)
 		return NULL;
 
 	doc = xml_process_document(&reader);
@@ -196,12 +197,12 @@ xml_process_document(xml_reader_t *xr)
 }
 
 xml_node_t *
-xml_node_scan(FILE *fp)
+xml_node_scan(FILE *fp, const char *location)
 {
 	xml_reader_t reader;
 	xml_node_t *root = xml_node_new(NULL, NULL);
 
-	if (xml_reader_init_file(&reader, fp) < 0)
+	if (xml_reader_init_file(&reader, fp, location) < 0)
 		return NULL;
 
 	if (reader.shared_location)
@@ -847,7 +848,7 @@ xml_debug(const char *fmt, ...)
 const char *
 xml_node_location(const xml_node_t *node)
 {
-	static char buffer[256];
+	static char buffer[PATH_MAX];
 
 	if (node->location) {
 		snprintf(buffer, sizeof(buffer), "%s:%u",
@@ -865,7 +866,7 @@ xml_location_shared_new(const char *filename)
 	struct xml_location_shared *shared_location;
 
 	shared_location = xcalloc(1, sizeof(*shared_location));
-	shared_location->filename = strdup(filename);
+	shared_location->filename = xstrdup(filename);
 	shared_location->refcount = 1;
 
 	return shared_location;
@@ -924,7 +925,7 @@ xml_reader_open(xml_reader_t *xr, const char *filename)
 		return -1;
 	}
 
-	xr->buffer = malloc(XML_READER_BUFSZ);
+	xr->buffer = xmalloc(XML_READER_BUFSZ);
 	xr->state = Initial;
 	xr->lineCount = 1;
 	xr->shared_location = xml_location_shared_new(filename);
@@ -932,32 +933,38 @@ xml_reader_open(xml_reader_t *xr, const char *filename)
 }
 
 static int
-xml_reader_init_file(xml_reader_t *xr, FILE *fp)
+xml_reader_init_file(xml_reader_t *xr, FILE *fp, const char *location)
 {
+	if (ni_string_empty(location))
+		location = "<stdin>";
+
 	memset(xr, 0, sizeof(*xr));
-	xr->filename = "<unknown>";
+	xr->filename = location;
 	xr->file = fp;
 	xr->no_close = 1;
 
-	xr->buffer = malloc(XML_READER_BUFSZ);
+	xr->buffer = xmalloc(XML_READER_BUFSZ);
 	xr->state = Initial;
 	xr->lineCount = 1;
-	xr->shared_location = xml_location_shared_new("<stdin>");
+	xr->shared_location = xml_location_shared_new(location);
 
 	return 0;
 }
 
 static int
-xml_reader_init_buffer(xml_reader_t *xr, ni_buffer_t *buf)
+xml_reader_init_buffer(xml_reader_t *xr, ni_buffer_t *buf, const char *location)
 {
+	if (ni_string_empty(location))
+		location = "<buffer>";
+
 	memset(xr, 0, sizeof(*xr));
-	xr->filename = "<unknown>";
+	xr->filename = location;
 	xr->in_buffer = buf;
 	xr->no_close = 1;
 
 	xr->state = Initial;
 	xr->lineCount = 1;
-	xr->shared_location = xml_location_shared_new("<buffer>");
+	xr->shared_location = xml_location_shared_new(location);
 
 	return 0;
 }

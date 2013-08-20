@@ -66,7 +66,7 @@ ni_dhcp6_load_duid(ni_opaque_t *duid, const char *filename)
 			ni_error("unable to open %s for reading: %m", filename);
 		return -1;
 	}
-	xml = xml_node_scan(fp);
+	xml = xml_node_scan(fp, NULL);
 	fclose(fp);
 
 	if (xml == NULL) {

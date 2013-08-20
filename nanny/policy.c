@@ -125,7 +125,7 @@ ni_objectmodel_managed_policy_update(ni_dbus_object_t *object, const ni_dbus_met
 	if (argc != 1 || !ni_dbus_variant_get_string(&argv[0], &ifxml))
 		return ni_dbus_error_invalid_args(error, ni_dbus_object_get_path(object), method->name);
 
-	doc = xml_document_from_string(ifxml);
+	doc = xml_document_from_string(ifxml, NULL);
 	if (doc == NULL) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "Unable to parse document");
 		return FALSE;

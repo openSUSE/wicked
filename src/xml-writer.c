@@ -297,7 +297,7 @@ xml_escape_entities(const char *cdata, char **temp)
 	if (expand == 0)
 		return cdata;
 
-	copy = *temp = malloc(expand + strlen(cdata) + 1);
+	copy = *temp = xmalloc(expand + strlen(cdata) + 1);
 	for (pos = cdata; *pos; ++pos) {
 		const char *replace;
 
