@@ -19,6 +19,7 @@
 #include <wicked/xml.h>
 #include "wicked-client.h"
 #include <netlink/netlink.h>
+#include <sys/param.h>
 
 
 /* Helper functions */
@@ -27,18 +28,28 @@ static const char *	ni_sprint_timeout(unsigned int timeout);
 static xml_node_t *	xml_node_create(xml_node_t *, const char *);
 static void		xml_node_dict_set(xml_node_t *, const char *, const char *);
 
+static ni_bool_t
+__ni_compat_file_exists(const char *root, const char *file)
+{
+	char path[PATH_MAX] = {'\0'};
+
+	snprintf(path, sizeof(path), "%s%s", root ? root : "", file);
+	return ni_file_exists(path);
+}
+
 ni_bool_t
-__ni_compat_get_interfaces(const char *format, const char *path, xml_document_t *doc)
+__ni_compat_get_interfaces(const char *root, const char *format, const char *path,
+				xml_document_t *doc)
 {
 	ni_compat_netdev_array_t array = { 0, NULL };
 	ni_bool_t rv;
 
 	if (format == NULL) {
 		/* Guess what system we're on */
-		if (ni_file_exists("/etc/SuSE-release"))
+		if (__ni_compat_file_exists(root, "/etc/SuSE-release"))
 			format = "suse";
 		else
-		if (ni_file_exists("/etc/redhat-release"))
+		if (__ni_compat_file_exists(root, "/etc/redhat-release"))
 			format = "redhat";
 		else
 			ni_fatal("Cannot determine what file format to read");
@@ -46,12 +57,13 @@ __ni_compat_get_interfaces(const char *format, const char *path, xml_document_t 
 
 	/* TBD: add support for more formats */
 	if (ni_string_eq(format, "suse"))
-		rv = __ni_suse_get_interfaces(path, &array);
+		rv = __ni_suse_get_interfaces(root, path, &array);
 	else
 	if (ni_string_eq(format, "redhat"))
-		rv = __ni_redhat_get_interfaces(path, &array);
+		rv = __ni_redhat_get_interfaces(root, path, &array);
 	else
-		ni_fatal("Unsupported configuration file format %s", format);
+		ni_fatal("Unsupported compatibility configuration file format %s",
+				format);
 
 	if (rv) {
 		unsigned int i;

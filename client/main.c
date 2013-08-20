@@ -1312,13 +1312,13 @@ do_convert(int argc, char **argv)
 
 	result = xml_document_new();
 	if (optind == argc) {
-		if (!__ni_compat_get_interfaces(opt_format, NULL, result))
+		if (!__ni_compat_get_interfaces(NULL, opt_format, NULL, result))
 			ni_fatal("conversion of default files failed");
 	} else {
 		while (optind < argc) {
 			const char *path = argv[optind++];
 
-			if (!__ni_compat_get_interfaces(opt_format, path, result))
+			if (!__ni_compat_get_interfaces(NULL, opt_format, path, result))
 				ni_fatal("%s: conversion failed", path);
 		}
 	}

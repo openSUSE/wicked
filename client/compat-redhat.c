@@ -37,43 +37,60 @@ static ni_compat_netdev_t *__ni_redhat_define_alias(ni_sysconfig_t *, const char
  * Refresh network configuration by reading all ifcfg files.
  */
 ni_bool_t
-__ni_redhat_get_interfaces(const char *path, ni_compat_netdev_array_t *result)
+__ni_redhat_get_interfaces(const char *root, const char *path, ni_compat_netdev_array_t *result)
 {
 	ni_string_array_t files = NI_STRING_ARRAY_INIT;
 	ni_bool_t success = FALSE;
+	char *pathname = NULL;
 
-	if (ni_string_len(path) == 0)
+	if (ni_string_empty(path))
 		path = _PATH_NETCONFIG_DIR;
 
-	if (!ni_file_exists(path)) {
-		ni_error("%s: file or directory does not exist", path);
-		goto done;
-	}
+	if (ni_string_empty(root))
+		ni_string_dup(&pathname, path);
+	else
+		ni_string_printf(&pathname, "%s%s", root, path);
 
-	if (ni_isdir(path)) {
+
+	if (ni_isdir(pathname)) {
 		unsigned int i;
 
-		if (!ni_sysconfig_scandir(path, "ifcfg-*", &files)) {
-			ni_error("No ifcfg files found");
-			return FALSE;
+		if (!ni_sysconfig_scandir(pathname, "ifcfg-*", &files)) {
+			ni_error("No ifcfg files found in %s", pathname);
+			goto done;
 		}
 
 		for (i = 0; i < files.count; ++i) {
 			const char *filename = files.data[i];
-			const char *ifname = filename + 6;
+			const char *ifname = filename + sizeof("ifcfg-")-1;
 			char pathbuf[PATH_MAX];
 			ni_compat_netdev_t *compat;
 
-			snprintf(pathbuf, sizeof(pathbuf), "%s/%s", path, filename);
+			snprintf(pathbuf, sizeof(pathbuf), "%s/%s", pathname, filename);
 			if (!(compat = __ni_redhat_read_interface(pathbuf, ifname, result)))
 				goto done;
 		}
+	} else
+	if (ni_file_exists(pathname)) {
+		ni_compat_netdev_t *compat;
+		const char *filename = ni_basename(pathname);
+		const char *ifname = filename + sizeof("ifcfg-")-1;
+
+		if (strncmp("ifcfg-", filename, sizeof("ifcfg-")-1)) {
+			ni_error("File does not have ifcfg-prefix: %s", pathname);
+			goto done;
+		}
+
+		if (!(compat = __ni_redhat_read_interface(pathname, ifname, result)))
+			goto done;
 	} else {
-		ni_error("%s: cannot handle regular files yet", path);
+		ni_error("File or directory does not exist: %s", pathname);
+		goto done;
 	}
 
 	success = TRUE;
 done:
+	ni_string_free(&pathname);
 	ni_string_array_destroy(&files);
 	return success;
 }

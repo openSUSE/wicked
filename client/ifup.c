@@ -36,19 +36,80 @@
  * Read firmware ifconfig (eg iBFT)
  */
 static ni_bool_t
-ni_ifconfig_firmware_load(ni_fsm_t *fsm, const char *pathname)
+ni_ifconfig_firmware_load(ni_fsm_t *fsm, const char *root, const char *source)
 {
 	xml_document_t *config_doc;
+	char *temp = NULL;
+	char *type = NULL;
+	char *path = NULL;
 
-	(void)pathname;
+	/* Parse source as [firmware-type[:firmware-path]] */
+	if (!ni_string_empty(source)) {
+		ni_string_dup(&temp, source);
 
-	ni_debug_readwrite("%s()", __func__);
-	if (!(config_doc = ni_netconfig_firmware_discovery(NULL, NULL, NULL))) {
-		ni_error("unable to get firmware interface definitions");
+		if ((path = strchr(temp, ':')))
+			*path++ = '\0';
+
+		if (ni_string_empty(path))
+			path = NULL;
+
+		if (!ni_string_empty(temp))
+			type = temp;
+	}
+
+	ni_debug_readwrite("%s(%s)", __func__, source);
+	config_doc = ni_netconfig_firmware_discovery(root, type, path);
+	ni_string_free(&temp);
+
+	if (!config_doc) {
+		ni_error("unable to get firmware interface definitions%s%s",
+			(source ? "from " : ""), (source ? source : ""));
 		return FALSE;
 	}
 
 	ni_fsm_workers_from_xml(fsm, config_doc, "firmware");
+
+	/* Do *not* delete config_doc; we are keeping references to its
+	 * descendant nodes in the ifworkers */
+	return TRUE;
+}
+
+/*
+ * Read old-style /etc/sysconfig ifcg file(s)
+ */
+static ni_bool_t
+ni_ifconfig_compat_load(ni_fsm_t *fsm, const char *root, const char *source)
+{
+	xml_document_t *config_doc;
+	char *temp = NULL;
+	char *type = NULL;
+	char *path = NULL;
+
+	/* Parse source as [[ifcfg-format[:ifcfg-path]] */
+	if (!ni_string_empty(source)) {
+		ni_string_dup(&temp, source);
+
+		if ((path = strchr(temp, ':')))
+			*path++ = '\0';
+
+		if (ni_string_empty(path))
+			path = NULL;
+
+		if (!ni_string_empty(temp))
+			type = temp;
+	}
+
+	ni_debug_readwrite("%s(%s)", __func__, source);
+	config_doc = xml_document_new();
+	if (!__ni_compat_get_interfaces(root, type, path, config_doc)) {
+		/* error should be already reported by compat function */
+		ni_string_free(&temp);
+		xml_document_free(config_doc);
+		return FALSE;
+	}
+	ni_string_free(&temp);
+
+	ni_fsm_workers_from_xml(fsm, config_doc, NULL);
 
 	/* Do *not* delete config_doc; we are keeping references to its
 	 * descendant nodes in the ifworkers */
@@ -76,36 +137,17 @@ ni_ifconfig_file_load(ni_fsm_t *fsm, const char *filename)
 	return TRUE;
 }
 
-/*
- * Read old-style /etc/sysconfig ifcg file(s)
- */
 static ni_bool_t
-ni_ifconfig_compat_load(ni_fsm_t *fsm, const char *pathname)
+ni_ifconfig_native_load(ni_fsm_t *fsm, const char *root, const char *pathname)
 {
-	xml_document_t *config_doc;
-
-	ni_debug_readwrite("%s(%s)", __func__, pathname);
-
-	config_doc = xml_document_new();
-	if (!__ni_compat_get_interfaces(NULL, pathname, config_doc)) {
-		/* error should be already reported by compat function */
-		xml_document_free(config_doc);
-		return FALSE;
-	}
-
-	ni_fsm_workers_from_xml(fsm, config_doc, NULL);
-
-	/* Do *not* delete config_doc; we are keeping references to its
-	 * descendant nodes in the ifworkers */
-	return TRUE;
-}
-
-static ni_bool_t
-ni_ifconfig_native_load(ni_fsm_t *fsm, const char *pathname)
-{
+	char namebuf[PATH_MAX] = {'\0'};
 	struct stat stb;
 
 	ni_debug_readwrite("%s(%s)", __func__, pathname);
+	if (root) {
+		snprintf(namebuf, sizeof(namebuf), "%s/%s", root, pathname);
+		pathname = namebuf;
+	}
 
 	if (stat(pathname, &stb) < 0) {
 		ni_error("%s: %m", pathname);
@@ -141,40 +183,36 @@ ni_ifconfig_native_load(ni_fsm_t *fsm, const char *pathname)
 }
 
 static ni_bool_t
-ni_ifconfig_load(ni_fsm_t *fsm, const char *pathname)
+ni_ifconfig_load(ni_fsm_t *fsm, const char *root, const char *pathname)
 {
-	char chroot_namebuf[PATH_MAX];
 	size_t len;
 
 	len = sizeof("firmware:")-1;
 	if (!strncasecmp(pathname, "firmware:", len)) {
 		pathname += len;
 
-		return ni_ifconfig_firmware_load(fsm, pathname);
+		return ni_ifconfig_firmware_load(fsm, root, pathname);
 	}
 
 	len = sizeof("compat:")-1;
 	if (!strncasecmp(pathname, "compat:", len)) {
 		pathname += len;
 
-		return ni_ifconfig_compat_load(fsm, pathname);
+		return ni_ifconfig_compat_load(fsm, root, pathname);
 	}
 
 	len = sizeof("wicked:")-1;
 	if (!strncasecmp(pathname, "wicked:", len))
 		pathname += len;
 
-	if (ni_string_len(pathname) == 0) {
+	if (ni_string_empty(pathname)) {
 		ni_error("Neider a directory nor a config file provided");
 		return FALSE;
 	}
 
-	if (opt_global_rootdir) {
-		snprintf(chroot_namebuf, sizeof(chroot_namebuf), "%s/%s",
-				opt_global_rootdir, pathname);
-		pathname = chroot_namebuf;
-	}
-	return ni_ifconfig_native_load(fsm, pathname);
+	/* TODO: check unknown source "type:" prefix and bail out */
+
+	return ni_ifconfig_native_load(fsm, root, pathname);
 }
 
 static ni_fsm_t *
@@ -313,11 +351,11 @@ usage:
 	}
 
 	for (i = 0; i < opt_ifconfig.count; ++i) {
-		if (!ni_ifconfig_load(fsm, opt_ifconfig.data[i]))
+		if (!ni_ifconfig_load(fsm, opt_global_rootdir, opt_ifconfig.data[i]))
 			goto cleanup;
 	}
 
-	if (opt_ifpolicy && !ni_ifconfig_load(fsm, opt_ifpolicy))
+	if (opt_ifpolicy && !ni_ifconfig_load(fsm, opt_global_rootdir, opt_ifpolicy))
 		goto cleanup;
 
 	if (ni_fsm_build_hierarchy(fsm) < 0) {
@@ -453,8 +491,9 @@ usage:
 		}
 	}
 
+	/* FIXME: ifdown should not use config at all */
 	for (i = 0; i < opt_ifconfig.count; ++i) {
-		if (!ni_ifconfig_load(fsm, opt_ifconfig.data[i]))
+		if (!ni_ifconfig_load(fsm, NULL, opt_ifconfig.data[i]))
 			goto cleanup;
 	}
 
@@ -592,7 +631,8 @@ usage:
 	}
 
 	for (i = 0; i < opt_ifconfig.count; ++i) {
-		if (!ni_ifconfig_load(fsm, opt_ifconfig.data[i]))
+		/* TODO: root-dir */
+		if (!ni_ifconfig_load(fsm, NULL, opt_ifconfig.data[i]))
 			goto cleanup;
 	}
 

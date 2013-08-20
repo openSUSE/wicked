@@ -148,21 +148,27 @@ __ni_suse_ifcfg_scan_files(const char *dirname, ni_string_array_t *res)
 }
 
 ni_bool_t
-__ni_suse_get_interfaces(const char *path, ni_compat_netdev_array_t *result)
+__ni_suse_get_interfaces(const char *root, const char *path, ni_compat_netdev_array_t *result)
 {
 	ni_string_array_t files = NI_STRING_ARRAY_INIT;
 	ni_bool_t success = FALSE;
+	char *pathname = NULL;
 	unsigned int i;
 
-	if (ni_string_len(path) == 0)
+	if (ni_string_empty(path))
 		path = __NI_SUSE_SYSCONFIG_NETWORK_DIR;
 
-	if (ni_isdir(path)) {
-		if (!__ni_suse_read_globals(path))
+	if (ni_string_empty(root))
+		ni_string_dup(&pathname, path);
+	else
+		ni_string_printf(&pathname, "%s%s", root, path);
+
+	if (ni_isdir(pathname)) {
+		if (!__ni_suse_read_globals(pathname))
 			goto done;
 
-		if (!__ni_suse_ifcfg_scan_files(path, &files)) {
-			ni_error("No ifcfg files found in %s", path);
+		if (!__ni_suse_ifcfg_scan_files(pathname, &files)) {
+			ni_error("No ifcfg files found in %s", pathname);
 			goto done;
 		}
 
@@ -172,25 +178,21 @@ __ni_suse_get_interfaces(const char *path, ni_compat_netdev_array_t *result)
 			char pathbuf[PATH_MAX];
 			ni_compat_netdev_t *compat;
 
-			snprintf(pathbuf, sizeof(pathbuf), "%s/%s", path, filename);
+			snprintf(pathbuf, sizeof(pathbuf), "%s/%s", pathname, filename);
 			if (!(compat = __ni_suse_read_interface(pathbuf, ifname))) {
 				ni_error("Unable to load %s", pathbuf);
 				goto done;
 			}
 			ni_compat_netdev_array_append(result, compat);
 		}
-	} else {
-		char *basedir = NULL;
+	} else
+	if (ni_file_exists(pathname)) {
 		ni_compat_netdev_t *compat;
 
-		ni_string_dup(&basedir, ni_dirname(path));
-		if (!__ni_suse_read_globals(basedir)) {
-			ni_string_free(&basedir);
+		if (!__ni_suse_read_globals(ni_dirname(pathname)))
 			goto done;
-		}
-		ni_string_free(&basedir);
 
-		if (!(compat = __ni_suse_read_interface(path, NULL))) {
+		if (!(compat = __ni_suse_read_interface(pathname, NULL))) {
 			ni_error("Unable to load %s", path);
 			goto done;
 		}
@@ -200,6 +202,7 @@ __ni_suse_get_interfaces(const char *path, ni_compat_netdev_array_t *result)
 	success = TRUE;
 
 done:
+	ni_string_free(&pathname);
 	__ni_suse_free_globals();
 	ni_string_array_destroy(&files);
 	return success;

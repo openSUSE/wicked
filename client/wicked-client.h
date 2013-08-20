@@ -70,8 +70,8 @@ extern ni_compat_netdev_t *	ni_compat_netdev_by_hwaddr(ni_compat_netdev_array_t 
 
 extern xml_node_t *		ni_compat_generate_interface(const ni_compat_netdev_t *, xml_document_t *);
 
-extern ni_bool_t		__ni_compat_get_interfaces(const char *, const char *, xml_document_t *);
-extern ni_bool_t		__ni_suse_get_interfaces(const char *path, ni_compat_netdev_array_t *result);
-extern ni_bool_t		__ni_redhat_get_interfaces(const char *path, ni_compat_netdev_array_t *result);
+extern ni_bool_t		__ni_compat_get_interfaces(const char *, const char *, const char *, xml_document_t *);
+extern ni_bool_t		__ni_suse_get_interfaces(const char *, const char *, ni_compat_netdev_array_t *);
+extern ni_bool_t		__ni_redhat_get_interfaces(const char *, const char *, ni_compat_netdev_array_t *);
 
 #endif /* WICKED_CLIENT_H */
