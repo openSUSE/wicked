@@ -28,6 +28,7 @@
 #include <wicked/xml.h>
 #include <wicked/logging.h>
 #include "netinfo_priv.h"
+#include "buffer.h"
 
 typedef struct xml_writer {
 	FILE *		file;
