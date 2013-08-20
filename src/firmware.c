@@ -24,10 +24,10 @@ __ni_netconfig_firmware_discovery(const char *root, const char *type, const char
 	ni_config_t *config = ni_global.config;
 	ni_extension_t *ex;
 
-	result = xcalloc(1, sizeof(*result));
-	ni_buffer_init_dynamic(result, 1024);
-
 	ni_assert(config);
+
+	result = ni_buffer_new_dynamic(1024);
+
 	for (ex = config->fw_extensions; ex; ex = ex->next) {
 		ni_script_action_t *script;
 
@@ -39,7 +39,7 @@ __ni_netconfig_firmware_discovery(const char *root, const char *type, const char
 			int rv;
 
 			/* Check if requested to use specific type/name only (e.g. "ibft") */
-			if (!ni_string_empty(type) && !ni_string_eq_nocase(type, script->name))
+			if (type && !ni_string_eq_nocase(type, script->name))
 				continue;
 
 			ni_debug_objectmodel("trying to discover netif config via firmware service \"%s\"", script->name);
@@ -48,13 +48,13 @@ __ni_netconfig_firmware_discovery(const char *root, const char *type, const char
 			process = ni_process_new(script->process);
 
 			/* Add root directory argument if given */
-			if (!ni_string_empty(root)) {
+			if (root) {
 				ni_string_array_append(&process->argv, "-r");
 				ni_string_array_append(&process->argv, root);
 			}
 
-			/* Add firmware specific path argument if given */
-			if (!ni_string_empty(path)) {
+			/* Add firmware type specific path argument if given */
+			if (type && path) {
 				ni_string_array_append(&process->argv, "-p");
 				ni_string_array_append(&process->argv, path);
 			}
@@ -85,14 +85,28 @@ ni_netconfig_firmware_discovery(const char *root, const char *type, const char *
 {
 	ni_buffer_t *buffer;
 	xml_document_t *doc;
+	char *location = NULL;
+
+	/* sanity adjustments... */
+	if (ni_string_empty(root))
+		root = NULL;
+	if (ni_string_empty(type))
+		type = path = NULL;
+	else
+	if (ni_string_empty(path))
+		path = NULL;
 
 	buffer = __ni_netconfig_firmware_discovery(root, type, path);
 	if (buffer == NULL)
 		return NULL;
 
-	ni_trace("%s: buffer has %u bytes", __func__, ni_buffer_count(buffer));
-	doc = xml_document_from_buffer(buffer, NULL);
+	ni_string_printf(&location, "<firmware:%s:%s>",
+			(type ? type : ""), (path ? path : ""));
+
+	ni_trace("%s: buffer %s has %u bytes", __func__, location, ni_buffer_count(buffer));
+	doc = xml_document_from_buffer(buffer, location);
 	ni_buffer_free(buffer);
+	ni_string_free(&location);
 
 	if (doc == NULL)
 		ni_error("%s: error processing document", __func__);
