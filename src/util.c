@@ -1036,6 +1036,40 @@ ni_parse_double(const char *input, double *result)
 }
 
 /*
+ * Format hex data to (upper case) string using specified separator
+ */
+size_t
+ni_format_hex_data(const unsigned char *data, size_t data_len,
+		char *name_buf, size_t name_len,
+		const char *sep, ni_bool_t upper)
+{
+	size_t i, j, left, sep_len;
+	const char *fmt_hex = upper ? "%02X" : "%02x";
+
+	if (!sep)
+		sep = "";
+	sep_len = strlen(sep);
+
+	left = data_len;
+	if (sep_len && !ni_check_printable(sep, sep_len))
+		return left;
+
+	for (i = j = 0; i < data_len; ++i) {
+		if ((j + 3 + (i ? sep_len : 0)) > name_len)
+			return left;
+		left--;
+
+		if (i) {
+			snprintf(name_buf + j, name_len - j, "%s", sep);
+			j += sep_len;
+		}
+		snprintf(name_buf + j, name_len - j, fmt_hex, data[i]);
+		j += 2;
+	}
+	return left;
+}
+
+/*
  * Format and parse hex data as aa:bb:cc:... striung
  */
 const char *
