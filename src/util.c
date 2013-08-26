@@ -1070,6 +1070,59 @@ ni_format_hex_data(const unsigned char *data, size_t data_len,
 }
 
 /*
+ * Parse hex data with specified separator
+ */
+ssize_t
+ni_parse_hex_data(const char *string, unsigned char *data,
+		size_t data_size, const char *sep)
+{
+	size_t sep_len, out_len;
+
+	if (!data || !data_size || !string)
+		return -1;
+
+	if (!sep)
+		sep = "";
+
+	out_len = 0;
+	sep_len = strlen(sep);
+
+	if (sep_len && !ni_check_printable(sep, sep_len))
+		return -1;
+
+	if (sep_len && !strncmp(string, sep, sep_len))
+		string += sep_len;
+
+	while (*string != '\0') {
+		char hex[3] = { '\0', '\0', '\0' };
+		unsigned long octet;
+
+		if (!isxdigit((unsigned char)*string))
+			return -1;
+
+		hex[0] = *string++;
+		if (isxdigit((unsigned char)*string))
+			hex[1] = *string++;
+
+		octet = strtoul(hex, NULL, 16);
+		if (octet > 255)
+			return -1;
+
+		data[out_len++] = (unsigned char)octet;
+		if (*string == '\0')
+			break;
+
+		if (sep_len && strncmp(string, sep, sep_len))
+			return -1;
+		string += sep_len;
+
+		if (out_len >= data_size)
+			return -1;
+	}
+	return out_len;
+}
+
+/*
  * Format and parse hex data as aa:bb:cc:... striung
  */
 const char *

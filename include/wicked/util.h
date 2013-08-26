@@ -178,6 +178,8 @@ extern const char *	ni_print_hex(const unsigned char *data, unsigned int data_le
 extern size_t		ni_format_hex_data(const unsigned char *data, size_t data_len,
 						char *name_buf, size_t name_max,
 						const char *sep, ni_bool_t upper);
+extern ssize_t		ni_parse_hex_data(const char *string, unsigned char *data,
+						size_t data_size, const char *sep);
 
 extern const char *	ni_uuid_print(const ni_uuid_t *);
 extern int		ni_uuid_parse(ni_uuid_t *, const char *);
