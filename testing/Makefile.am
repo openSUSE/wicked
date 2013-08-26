@@ -3,6 +3,7 @@ CLEANFILES			= *~
 MAINTAINERCLEANFILES		= Makefile.in
 
 noinst_PROGRAMS			= rtnl-test	\
+				  hex-test	\
 				  xml-test	\
 				  xpath-test
 
@@ -17,7 +18,7 @@ LDFLAGS				+= -rdynamic
 LDADD				= $(top_builddir)/src/libwicked.la
 
 rtnl_test_SOURCES		= rtnl-test.c
-
+hex_test_SOURCES		= hex-test.c
 xml_test_SOURCES		= xml-test.c
 xpath_test_SOURCES		= xpath-test.c
 
