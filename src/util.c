@@ -860,6 +860,55 @@ ni_string_join(char **str, const ni_string_array_t *nsa, const char *sep)
 	return *str;
 }
 
+ni_bool_t
+ni_string_ishex(char *str)
+{
+	size_t i;
+
+	for (i = 0; i < ni_string_len(str); i++) {
+		if (!isxdigit((unsigned char)str[i]))
+			return FALSE;
+	}
+
+	return (i > 0);
+}
+
+int
+ni_string_remove_char(char *str, int c)
+{
+	int n = 0;
+	char *p;
+
+	if (!str)
+		return -1;
+
+	while ((p = strchr(str, c))) {
+		memmove(p, p+1, strlen(p));
+		n++;
+	}
+
+	return n;
+}
+
+char *
+ni_sprint_hex(const unsigned char *data, size_t len)
+{
+	char *buffer;
+	size_t hex_len;
+
+	if (!data || !len)
+		return NULL;
+
+	hex_len = (len << 1) + len + 1;
+
+	buffer = (char *) xmalloc(hex_len);
+
+	if (!ni_format_hex(data, len, buffer, hex_len))
+		return NULL;
+
+	return buffer;
+}
+
 int
 ni_parse_long(const char *input, long *result, int base)
 {
@@ -1123,7 +1172,7 @@ ni_parse_hex_data(const char *string, unsigned char *data,
 }
 
 /*
- * Format and parse hex data as aa:bb:cc:... striung
+ * Format and parse hex data as aa:bb:cc:... string
  */
 const char *
 ni_format_hex(const unsigned char *data, unsigned int datalen, char *namebuf, size_t namelen)

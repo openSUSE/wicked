@@ -267,6 +267,10 @@ extern const char *	ni_string_strip_prefix(const char *string, const char *prefi
 extern char *		ni_string_strip_suffix(char *string, const char *suffix);
 extern const char *	ni_string_join(char **str, const ni_string_array_t *nsa, const char *sep);
 extern unsigned int	ni_string_split(ni_string_array_t *nsa, const char *str, const char *sep, unsigned int);
+extern ni_bool_t	ni_string_ishex(char *);
+extern int		ni_string_remove_char(char *, int);
+
+extern char *		ni_sprint_hex(const unsigned char *, size_t);
 
 /*
  * When we allocate temporary resources (such as tempfiles)
