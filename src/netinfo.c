@@ -576,6 +576,7 @@ ni_addrconf_lease_new(int type, int family)
 	lease->seqno = __ni_global_seqno++;
 	lease->type = type;
 	lease->family = family;
+	lease->applied = FALSE;
 	return lease;
 }
 
