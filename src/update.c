@@ -33,7 +33,6 @@ typedef struct ni_updater {
 	ni_updater_source_t *		sources;
 
 	unsigned int			type;
-	unsigned int			seqno;
 	unsigned int			have_backup;
 	unsigned int			max_source_weight;
 
@@ -500,6 +499,9 @@ ni_system_update_all(const ni_addrconf_lease_t *lease_to_remove, char *devname)
 	for (kind = 0; kind < __NI_ADDRCONF_UPDATE_MAX; ++kind) {
 		ni_updater_t *updater = &updaters[kind];
 		ni_updater_source_t **pos = &updater->sources;
+		ni_updater_source_t **sources = NULL;
+		ni_updater_source_t *src = NULL;
+		int num_sources, i;
 
 		if (!updater->enabled)
 			continue;
@@ -518,14 +520,28 @@ ni_system_update_all(const ni_addrconf_lease_t *lease_to_remove, char *devname)
 		 * the system default.
 		 * If we do have, update the system only if the lease was updated.
 		 */
-		if ((up = ni_objectmodel_updater_select_source(updater)) == NULL) {
-			ni_system_updater_restore(updater);
-		} else
-		if (updater->seqno != up->seqno) {
-			if (up->lease && up->lease->state == NI_ADDRCONF_STATE_RELEASED) {
-				ni_system_updater_remove(updater, up->lease, devname);
-			} else {
-				ni_system_updater_install(updater, up->lease, devname);
+		if ((num_sources = ni_objectmodel_updater_select_sources(updater, &sources)) == 0) {
+			if (!ni_system_updater_restore(updater)) {
+				result = FALSE;
+			}
+		} else {
+			for (i = 0; i < num_sources; i++) {
+				src = sources[i];
+				if (src->lease && !(src->lease->applied)) {
+					ni_debug_ifconfig("Unapplied lease... Installing.");
+					if (!ni_system_updater_install(updater, src->lease, devname)) {
+						result = FALSE;
+					}
+				} else {
+					ni_debug_ifconfig("Applied lease already installed.");
+				}
+			}
+		}
+
+		if (sources) {
+			for (i = 0; i < num_sources; i++) {
+				sources[i] = NULL;
+				free(sources[i]);
 			}
 		}
 	}
