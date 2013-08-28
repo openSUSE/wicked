@@ -1,0 +1,70 @@
+#!/bin/bash
+
+set -e
+cmd=$1; shift
+
+parse_resolv_conf()
+{
+	local resolvconf="$1"
+	local dns_domain=""
+	local dns_search=()
+	local dns_server=()
+	local key word
+
+	test "x$resolvconf" != "x" -a -r "$resolvconf" && \
+	while read -sa word ; do
+		key=${word[0]}
+		unset word[0]
+		case $key in
+		domain)
+			dns_domain="${word[1]}"
+		;;
+		search)
+			for w in ${word[*]} ; do
+				for s in ${dns_search[*]} ; do
+					test "x$s" = "x$w" && continue 2
+				done
+				dns_search+=("$w")
+			done
+		;;
+		nameserver)
+			for w in ${word[*]} ; do
+				for s in ${dns_server[*]} ; do
+					test "x$s" = "x$w" && continue 2
+				done
+				dns_server+=("$w")
+			done
+		;;
+		esac
+	done < "$resolvconf"
+	echo "DNSDOMAIN='$dns_domain'"
+	echo "DNSSEARCH='${dns_search[*]}'"
+	echo "DNSSERVERS='${dns_server[*]}'"
+}
+
+case $cmd in
+backup)
+	echo "TODO: NO BACKUP TO PERFORM YET"
+	: ;;
+
+restore)
+	echo "TODO: NO RESTORE TO PERFORM YET"
+	: ;;
+
+install)
+	filename=$1
+	service=$2
+	intf=$3
+	parse_resolv_conf "$filename" | netconfig modify -i $intf -s $service
+	: ;;
+
+remove)
+	service=$1
+	intf=$2
+	netconfig remove -i $intf -s $service
+	: ;;
+
+*)
+	echo "$0: command $cmd not supported" >&2
+	exit 1;;
+esac
