@@ -144,7 +144,7 @@ main(int argc, char **argv)
 
 			for (map = generic_maps; map->prefix; ++map) {
 				if (!strncmp(atat + 2, map->prefix, map->prefix_len)
-				 && atat[2 + map->prefix_len] == '_') {
+				 && !strncmp(atat + 2 + map->prefix_len, "_NAME@@", 7)) {
 					generate(buffer, map->prefix,
 							buildmap(map->mapfunc, map->max_value));
 					goto found;
