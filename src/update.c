@@ -184,6 +184,40 @@ ni_objectmodel_updater_add_source(unsigned int kind, const ni_addrconf_lease_t *
 }
 
 /*
+ * Select the best sources for updating the system settings
+ */
+static int
+ni_objectmodel_updater_select_sources(ni_updater_t *updater, ni_updater_source_t ***sources)
+{
+	ni_updater_source_t *src;
+	int num_max_weighted;
+	int num_sources = 0;
+	for (num_max_weighted = 0, src = updater->sources; src; src = src->next) {
+		if (src->weight == updater->max_source_weight) {
+			num_max_weighted += 1;
+		}
+	}
+	// allocate array of pointers and assign only if we have valid sources
+	if (num_max_weighted) {
+		*sources = calloc(0, num_max_weighted * sizeof(ni_updater_source_t *));
+		if (!(*sources)) {
+			ni_error("Failed to allocate %d*%d sources", num_max_weighted,
+				sizeof(ni_updater_source_t *));
+			/* num_sources == 0 */
+		} else {
+			for (num_sources = 0, src = updater->sources;
+			     src, num_sources < num_max_weighted;
+			     src = src->next) {
+				if (src->weight == updater->max_source_weight) {
+					(*sources)[num_sources++] = src;
+				}
+			}
+		}
+	}
+	return num_sources;
+}
+
+/*
  * Select the best source for updating the system settings
  */
 static ni_updater_source_t *
