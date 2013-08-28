@@ -35,6 +35,7 @@ typedef struct ni_updater {
 	unsigned int			type;
 	unsigned int			seqno;
 	unsigned int			have_backup;
+	unsigned int			max_source_weight;
 
 	ni_bool_t			enabled;
 	ni_shellcmd_t *			proc_backup;
@@ -68,6 +69,7 @@ ni_system_updaters_init(void)
 		ni_extension_t *ex;
 
 		updater->type = kind;
+		updater->max_source_weight = 0;
 		if (name == NULL)
 			continue;
 
@@ -173,10 +175,10 @@ ni_objectmodel_updater_add_source(unsigned int kind, const ni_addrconf_lease_t *
 
 	if (lease->type < __NI_ADDRCONF_MAX)
 		up->weight = 10 * addrconf_weight[lease->type];
-	/* Prefer IPv4 over IPv6 for now. IPv6 dhcp servers
-	 * may not be terribly good for a couple of years to
-	 * come... */
-	up->weight += (lease->family == AF_INET)? 1 : 0;
+
+	if (up->weight > updaters[kind].max_source_weight) {
+		updaters[kind].max_source_weight = up->weight;
+	}
 
 	*pos = up;
 }
