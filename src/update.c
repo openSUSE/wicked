@@ -280,7 +280,7 @@ ni_system_updater_restore(ni_updater_t *updater)
  * from a device.
  */
 static ni_bool_t
-ni_system_updater_remove(ni_updater_t *updater, const ni_addrconf_lease_t *lease, char *devname)
+ni_system_updater_remove(ni_updater_t *updater, ni_addrconf_lease_t *lease, char *devname)
 {
 	ni_string_array_t arguments = NI_STRING_ARRAY_INIT;
 	ni_bool_t result = FALSE;
@@ -321,7 +321,7 @@ ni_system_updater_remove(ni_updater_t *updater, const ni_addrconf_lease_t *lease
 		goto done;
 	}
 
-	/* updater->seqno = lease->seqno; */ /* TODO: we're removing, so do we set this? */
+	lease->applied = FALSE;
 	result = TRUE;
 
 	if (ni_global.other_event)
@@ -337,7 +337,7 @@ done:
  * Install information from a lease, and remember that we did
  */
 static ni_bool_t
-ni_system_updater_install(ni_updater_t *updater, const ni_addrconf_lease_t *lease, char *devname)
+ni_system_updater_install(ni_updater_t *updater, ni_addrconf_lease_t *lease, char *devname)
 {
 	const char *tempname = NULL;
 	ni_string_array_t arguments = NI_STRING_ARRAY_INIT;
@@ -391,7 +391,7 @@ ni_system_updater_install(ni_updater_t *updater, const ni_addrconf_lease_t *leas
 		goto done;
 	}
 
-	updater->seqno = lease->seqno;
+	lease->applied = TRUE;
 	result = TRUE;
 
 	if (ni_global.other_event)
