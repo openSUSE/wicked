@@ -412,9 +412,29 @@ ni_system_update_all(const ni_addrconf_lease_t *lease_to_remove, char *devname)
 	ni_updater_source_t *up;
 	ni_netdev_t *dev;
 	unsigned int kind;
+	ni_bool_t result = TRUE;
 
 	ni_debug_ifconfig("%s()", __func__);
 	ni_system_updaters_init();
+
+	/* If lease_to_remove is present, remove it's information directly. */
+	if (lease_to_remove) {
+		if (can_update_hostname(lease_to_remove) &&
+			updaters[NI_ADDRCONF_UPDATE_HOSTNAME].enabled) {
+			if(!ni_system_updater_remove(&updaters[NI_ADDRCONF_UPDATE_HOSTNAME],
+							lease_to_remove, devname)) {
+				result = FALSE;
+			}
+		}
+		if (can_update_resolver(lease_to_remove) &&
+			updaters[NI_ADDRCONF_UPDATE_RESOLVER].enabled) {
+			if(!ni_system_updater_remove(&updaters[NI_ADDRCONF_UPDATE_RESOLVER],
+							lease_to_remove, devname)) {
+				result = FALSE;
+			}
+		}
+		/* After removal, let remainder of update happen. */
+	}
 
 	for (kind = 0; kind < __NI_ADDRCONF_UPDATE_MAX; ++kind) {
 		for (up = updaters[kind].sources; up; up = up->next)
@@ -440,20 +460,6 @@ ni_system_update_all(const ni_addrconf_lease_t *lease_to_remove, char *devname)
 		}
 	}
 
-	/* If lease_to_remove is present, add it to the necessary updaters so
-	 * that it's details may be removed by the system updater extension
-	 * scripts.
-	 */
-	if (lease_to_remove) {
-		if (can_update_hostname(lease_to_remove)) {
-			ni_objectmodel_updater_add_source(NI_ADDRCONF_UPDATE_HOSTNAME,
-							lease_to_remove);
-		}
-		if (can_update_resolver(lease_to_remove)) {
-			ni_objectmodel_updater_add_source(NI_ADDRCONF_UPDATE_RESOLVER,
-							lease_to_remove);
-		}
-	}
 
 	for (kind = 0; kind < __NI_ADDRCONF_UPDATE_MAX; ++kind) {
 		ni_updater_t *updater = &updaters[kind];
@@ -488,7 +494,7 @@ ni_system_update_all(const ni_addrconf_lease_t *lease_to_remove, char *devname)
 		}
 	}
 
-	return TRUE;
+	return result;
 }
 
 /*
