@@ -179,10 +179,9 @@ __ni_suse_get_interfaces(const char *root, const char *path, ni_compat_netdev_ar
 			ni_compat_netdev_t *compat;
 
 			snprintf(pathbuf, sizeof(pathbuf), "%s/%s", pathname, filename);
-			if (!(compat = __ni_suse_read_interface(pathbuf, ifname))) {
-				ni_error("Unable to load %s", pathbuf);
+			if (!(compat = __ni_suse_read_interface(pathbuf, ifname)))
 				goto done;
-			}
+
 			ni_compat_netdev_array_append(result, compat);
 		}
 	} else
@@ -192,10 +191,9 @@ __ni_suse_get_interfaces(const char *root, const char *path, ni_compat_netdev_ar
 		if (!__ni_suse_read_globals(ni_dirname(pathname)))
 			goto done;
 
-		if (!(compat = __ni_suse_read_interface(pathname, NULL))) {
-			ni_error("Unable to load %s", path);
+		if (!(compat = __ni_suse_read_interface(pathname, NULL)))
 			goto done;
-		}
+
 		ni_compat_netdev_array_append(result, compat);
 	}
 
@@ -977,10 +975,8 @@ __ni_suse_read_interface(const char *filename, const char *ifname)
 		return NULL;
 	}
 
-	if (!(sc = ni_sysconfig_read(filename))) {
-		ni_error("unable to parse %s", filename);
+	if (!(sc = ni_sysconfig_read(filename)))
 		goto error;
-	}
 
 	compat = ni_compat_netdev_new(ifname);
 	if (!compat || !__ni_suse_sysconfig_read(sc, compat))
