@@ -861,7 +861,7 @@ ni_string_join(char **str, const ni_string_array_t *nsa, const char *sep)
 }
 
 ni_bool_t
-ni_string_ishex(char *str)
+ni_string_ishex(const char *str)
 {
 	size_t i;
 
