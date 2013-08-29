@@ -36,7 +36,7 @@ static ni_compat_netdev_t *__ni_suse_read_interface(const char *, const char *);
 static ni_bool_t	__ni_suse_read_globals(const char *path);
 static void		__ni_suse_free_globals(void);
 static ni_bool_t	__ni_suse_sysconfig_read(ni_sysconfig_t *, ni_compat_netdev_t *);
-static ni_bool_t	__process_indexed_variables(const ni_sysconfig_t *, ni_netdev_t *, const char *,
+static int		__process_indexed_variables(const ni_sysconfig_t *, ni_netdev_t *, const char *,
 				ni_bool_t (*)(const ni_sysconfig_t *, ni_netdev_t *, const char *));
 static ni_var_t *	__find_indexed_variable(const ni_sysconfig_t *, const char *, const char *);
 static ni_bool_t	__ni_suse_read_routes(ni_route_table_t **, const char *, const char *);
@@ -1252,7 +1252,8 @@ try_bonding(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	dev->link.type = NI_IFTYPE_BOND;
 	(void)ni_netdev_get_bonding(dev);
 
-	if (!__process_indexed_variables(sc, dev, "BONDING_SLAVE", try_add_bonding_slave))
+	if (__process_indexed_variables(sc, dev, "BONDING_SLAVE",
+					try_add_bonding_slave) != 0)
 		return -1;
 
 	if ((module_opts = ni_sysconfig_get_value(sc, "BONDING_MODULE_OPTS")) != NULL) {
@@ -2042,7 +2043,7 @@ __ni_suse_sysconfig_read(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
  * for each. Note, this passes the variable suffix ("", "_0", "_1") rather than
  * the full variable name into the called function.
  */
-static ni_bool_t
+static int
 __process_indexed_variables(const ni_sysconfig_t *sc, ni_netdev_t *dev,
 				const char *basename,
 				ni_bool_t (*func)(const ni_sysconfig_t *, ni_netdev_t *, const char *))
@@ -2051,17 +2052,17 @@ __process_indexed_variables(const ni_sysconfig_t *sc, ni_netdev_t *dev,
 	unsigned int i, pfxlen;
 
 	if (!ni_sysconfig_find_matching(sc, basename, &names))
-		return FALSE;
+		return 1;
 
 	pfxlen = strlen(basename);
 	for (i = 0; i < names.count; ++i) {
 		if (!func(sc, dev, names.data[i] + pfxlen)) {
 			ni_string_array_destroy(&names);
-			return FALSE;
+			return -1;
 		}
 	}
 	ni_string_array_destroy(&names);
-	return TRUE;
+	return 0;
 }
 
 /*
