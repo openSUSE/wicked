@@ -433,10 +433,8 @@ __ni_compat_generate_wireless(xml_node_t *ifnode, const ni_compat_netdev_t *comp
 		return FALSE;
 	}
 
-	if (wlan->country[0] != '\0' && wlan->country[1] != '\0') {
-		ni_string_printf(&tmp, "%c%c", wlan->country[0], wlan->country[1]);
-		xml_node_new_element("country", wireless, tmp);
-		ni_string_free(&tmp);
+	if (ni_string_len(wlan->conf.country) == 2) {
+		xml_node_new_element("country", wireless, wlan->conf.country);
 	}
 
 	if (wlan->conf.ap_scan <= NI_WIRELESS_AP_SCAN_2 &&
@@ -445,13 +443,13 @@ __ni_compat_generate_wireless(xml_node_t *ifnode, const ni_compat_netdev_t *comp
 		ni_string_free(&tmp);
 	}
 
-	if (value = ni_wpa_driver_name_as_string(wlan->wpa_drv))
-		xml_node_new_element("wpa-driver", wireless, value);
+	if (!ni_string_empty(wlan->conf.driver))
+		xml_node_new_element("wpa-driver", wireless, wlan->conf.driver);
 
-	count = wlan->networks.count;
+	count = wlan->conf.networks.count;
 
 	for (i = 0; i < count; i++) {
-		net = wlan->networks.data[i];
+		net = wlan->conf.networks.data[i];
 		if (!(network = xml_node_new("network", wireless)))
 			return FALSE;
 
