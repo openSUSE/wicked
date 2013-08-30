@@ -2,21 +2,77 @@
   -- Wireless Service definition
   -->
 <service name="wireless" interface="org.opensuse.Network.Wireless" object-class="netif-wireless">
+
   <define name="network_t" class="dict">
-    <essid type="string"/>
-    <access-point type="ethernet-address"/>
-
+    <essid type="string" constraint="required" description="SSID of the network to connect to"/>
+    <scan-ssid type="boolean" description="Hidden SSID scan support enabled"/>
+    <priority type="uint32" description="Network priority"/>
     <mode type="builtin-wireless-mode"/>
+    <access-point type="ethernet-address" description="Address of AP to connect to"/>
     <channel type="uint32"/>
+    <fragment-size type="uint32"/>
     <frequency type="double"/>
+    <key-management type="builtin-key-mgmt"/>
 
-    <auth-info class="dict">
-      <mode type="builtin-wireless-auth"/>
-      <version type="uint32"/>
+    <wep class="dict">
+      <auth-algo type="builtin-wireless-auth-algo"/>
+      <default-key type="uint32" constraint="range">
+	<min value="0"/>
+	<max value="3"/>
+      </default-key>
+      <key class="dict"/>
+    </wep>
+
+    <wpa-psk class="dict" constraint="exclusive:wpa-auth-data">
+      <passphrase type="string" constraint="required">
+        <meta:user-input type="password" prompt="please enter WPA PSK passphrase"/>
+      </passphrase>
+      <auth-proto type="builtin-wireless-auth"/>
       <group-cipher type="builtin-wireless-cipher"/>
-      <pairwise-ciphers type="builtin-wireless-cipher-mask"/>
-      <key-management type="builtin-key-mgmt-mask"/>
-    </auth-info>
+      <pairwise-cipher type="builtin-wireless-cipher"/>
+    </wpa-psk>
+
+    <wpa-eap class="dict" constraint="exclusive:wpa-auth-data">
+      <method type="builtin-eap-method"/>
+      <auth-proto type="builtin-wireless-auth"/>
+      <group-cipher type="builtin-wireless-cipher"/>
+      <pairwise-cipher type="builtin-wireless-cipher"/>
+
+      <identity type="string" constraint="required">
+        <meta:user-input type="username" prompt="please enter WPA EAP identity"/>
+      </identity>
+
+      <phase1 class="dict">
+	<peap-version type="uint32" constraint="range">
+	  <min value="0"/>
+	  <max value="1"/>
+	</peap-version>
+      </phase1>
+
+      <phase2 class="dict">
+	<description>
+	  When using eg TTLS with a secondary authentication step, it can be
+	  configured here.
+	</description>
+	<!-- Mark the following elements as required. Which means if the <phase2> element exists, we require these two child elements to be there, too. -->
+
+        <method type="builtin-eap-method" constraint="required"/>
+        <password type="string" constraint="required">
+          <meta:user-input type="password" prompt="please enter WPA EAP password"/>
+        </password>
+      </phase2>
+
+      <anonid type="string"/>
+
+      <tls class="dict">
+	<ca-cert type="external-file" description="For TLS based methods, specify a CA certificate"/>
+	<client-cert type="external-file" description="For TLS based methods, specify a Client certificate"/>
+	<client-key type="external-file" description="For TLS based methods, specify a Client Key certificate"/>
+	<client-key-passwd type="string">
+	  <meta:user-input type="password" prompt="please enter Client Key password"/>
+	</client-key-passwd>
+      </tls>
+    </wpa-eap>
   </define>
 
   <define name="properties" class="dict">
@@ -26,7 +82,7 @@
     </scan>
 
     <eap-methods type="builtin-eap-method-mask"/>
-    <pairwise-ciphers type="builtin-wireless-cipher-mask"/>
+    <pairwise-cipher type="builtin-wireless-cipher-mask"/>
     <group-ciphers type="builtin-wireless-cipher-mask"/>
     <key-management type="builtin-key-mgmt-mask"/>
     <auth-methods type="builtin-wireless-auth-mask"/>
@@ -38,43 +94,15 @@
      This type contains the requested wireless link configuration.
     </description>
 
-    <essid type="string" description="SSID of the network to connect to"/>
-    <mode type="builtin-wireless-mode"/>
-    <access-point type="ethernet-address" description="Address of AP to connect to"/>
+    <ap-scan type="uint32" constraint="range" description="SSID scan mode to be used">
+      <min value="0"/>
+      <max value="2"/>
+    </ap-scan>
+    <wpa-driver type="string" description="WPA Driver to be used by wpa_supplicant - 'nl80211,wext'"/>
+    <country type="string" description="Regulatory domain"/>
 
-    <wpa-psk class="dict" constraint="exclusive:wpa-auth-data">
-      <passphrase type="string" constraint="required">
-        <meta:user-input type="password" prompt="please enter WPA PSK passphrase"/>
-      </passphrase>
-      <key class="array" element-type="byte" minlen="64" maxlen="64" notation="hwaddr"/>
-    </wpa-psk>
+    <network type="network_t"/>
 
-    <wpa-eap class="dict" constraint="exclusive:wpa-auth-data">
-      <method type="builtin-eap-method" constraint="required"/>
-
-      <identity type="string" constraint="required">
-        <meta:user-input type="username" prompt="please enter WPA EAP identity"/>
-      </identity>
-
-      <phase2 class="dict">
-	<description>
-	  When using eg TTLS with a secondary authentication step, it can be
-	  configured here.
-	</description>
-
-	<!-- Mark the following elements as required. Which means if
-	     the <phase2> element exists, we require these two child
-	     elements to be there, too. -->
-        <method type="builtin-eap-method" constraint="required"/>
-        <password type="string" constraint="required">
-          <meta:user-input type="password" prompt="please enter WPA EAP password"/>
-        </password>
-      </phase2>
-
-      <tls class="dict">
-        <ca-cert type="external-file" description="For TLS based methods, this can be used to specify a CA certificate"/>
-      </tls>
-    </wpa-eap>
   </define>
 
   <method name="changeDevice">
