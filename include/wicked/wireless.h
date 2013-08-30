@@ -320,8 +320,7 @@ extern ni_bool_t	ni_wireless_name_to_eap_method(const char *, unsigned int *);
 
 extern ni_bool_t		ni_wpa_driver_from_string(const char *, unsigned int *);
 extern const char *		ni_wpa_driver_as_string(ni_wireless_wpa_driver_t);
-extern ni_bool_t		ni_wpa_driver_check_name(const char *);
-
+extern ni_bool_t		ni_wpa_driver_string_validate(const char *);
 
 /* rfkill support */
 typedef void		ni_rfkill_event_handler_t(ni_rfkill_type_t, ni_bool_t, void *user_data);

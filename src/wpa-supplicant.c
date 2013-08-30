@@ -1839,7 +1839,7 @@ ni_wpa_driver_as_string(ni_wireless_wpa_driver_t drv)
 	return ni_format_uint_mapped(drv, __ni_wpa_driver_names);
 }
 
-ni_bool_t
+static ni_bool_t
 ni_wpa_driver_check_name(const char *name)
 {
 	ni_wireless_wpa_driver_t drv;
@@ -1849,6 +1849,34 @@ ni_wpa_driver_check_name(const char *name)
 			return TRUE;
 
 	return FALSE;
+}
+
+ni_bool_t
+ni_wpa_driver_string_validate(const char *string)
+{
+	unsigned int i;
+	ni_string_array_t drv;
+
+	if (!string)
+		return FALSE;
+
+	ni_string_array_init(&drv);
+	ni_string_split(&drv, string, ",", NI_WIRELESS_WPA_DRIVER_COUNT);
+
+	if (0 == drv.count) {
+		ni_string_array_destroy(&drv);
+		return FALSE;
+	}
+
+	for (i = 0; i < drv.count; i++) {
+		if (!ni_wpa_driver_check_name(drv.data[i])) {
+			ni_string_array_destroy(&drv);
+			return FALSE;
+		}
+	}
+
+	ni_string_array_destroy(&drv);
+	return TRUE;
 }
 
 static const char *

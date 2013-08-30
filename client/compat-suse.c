@@ -1553,22 +1553,15 @@ try_add_wireless(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *suffix)
 
 		/* Default is wpa_drv = "nl80211" */
 		if ((tmp = ni_sysconfig_get_value(sc, "WIRELESS_WPA_DRIVER"))) {
-			unsigned i;
-			ni_string_array_t drivers;
-			ni_string_array_init(&drivers);
-			ni_string_split(&drivers, tmp, ",", NI_WIRELESS_WPA_DRIVER_COUNT);
-			for (i = 0; i < drivers.count; i++) {
-				if (!ni_wpa_driver_check_name(drivers.data[i])) {
-					ni_string_array_destroy(&drivers);
-					ni_error("ifcfg-%s: wrong WIRELESS_WPA_DRIVER value",
-						dev->name);
-					goto failure_global;
-				}
-				else if (ni_string_eq_nocase(drivers.data[i], "nl80211")) {
-					check_country = TRUE;
-				}
+			if (!ni_wpa_driver_string_validate(tmp)) {
+				ni_error("ifcfg-%s: wrong WIRELESS_WPA_DRIVER value",
+					dev->name);
+				goto failure_global;
 			}
-			ni_string_array_destroy(&drivers);
+			else if (ni_string_contains(tmp, "80211")) {
+				check_country = TRUE;
+			}
+
 			ni_string_dup(&wlan->conf.driver, tmp);
 		}
 		else {

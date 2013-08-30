@@ -277,13 +277,15 @@ ni_objectmodel_get_wireless_request(ni_wireless_config_t *conf,
 		conf->ap_scan = value;
 	}
 
-	var = NULL;
-	while ((var = ni_dbus_dict_get_next(dict, "driver", var)) != NULL) {
-		if (!ni_dbus_variant_get_string(var, &string) || ni_string_empty(string)) {
-			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-					"invalid wireless driver %s", string);
+	if (ni_dbus_dict_get_string(dict, "wpa-driver", &string)) {
+		if (!ni_check_printable(string, ni_string_len(string)) ||
+			!ni_wpa_driver_string_validate(string)) {
+				dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+						"invalid wireless driver %s", string);
+				return FALSE;
 		}
-		ni_string_array_append(&conf->drivers, string);
+		ni_string_dup(&conf->driver, string);
+		string = NULL;
 	}
 
 	var = NULL;
