@@ -236,6 +236,14 @@ ni_string_eq_nocase(const char *a, const char *b)
 }
 
 static inline ni_bool_t
+ni_string_contains(const char *haystack, const char *needle)
+{
+	if (haystack == NULL || needle == NULL)
+		return haystack == needle;
+	return strstr(haystack, needle) != NULL;
+}
+
+static inline ni_bool_t
 ni_string_empty(const char *s)
 {
 	return s == NULL || *s == '\0';

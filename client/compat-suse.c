@@ -24,6 +24,7 @@
 #include <wicked/bonding.h>
 #include <wicked/bridge.h>
 #include <wicked/vlan.h>
+#include <wicked/wireless.h>
 #include <wicked/fsm.h>
 
 #include <wicked/objectmodel.h>
@@ -31,15 +32,26 @@
 #include "wicked-client.h"
 #include "util_priv.h"
 
+typedef ni_bool_t (*try_function_t)(const ni_sysconfig_t *, ni_netdev_t *, const char *);
 
-static ni_compat_netdev_t *__ni_suse_read_interface(const char *, const char *);
-static ni_bool_t	__ni_suse_read_globals(const char *path);
-static void		__ni_suse_free_globals(void);
-static ni_bool_t	__ni_suse_sysconfig_read(ni_sysconfig_t *, ni_compat_netdev_t *);
-static int		__process_indexed_variables(const ni_sysconfig_t *, ni_netdev_t *, const char *,
-				ni_bool_t (*)(const ni_sysconfig_t *, ni_netdev_t *, const char *));
-static ni_var_t *	__find_indexed_variable(const ni_sysconfig_t *, const char *, const char *);
-static ni_bool_t	__ni_suse_read_routes(ni_route_table_t **, const char *, const char *);
+static ni_compat_netdev_t *	__ni_suse_read_interface(const char *, const char *);
+static ni_bool_t		__ni_suse_read_globals(const char *path);
+static void			__ni_suse_free_globals(void);
+static ni_bool_t		__ni_suse_sysconfig_read(ni_sysconfig_t *, ni_compat_netdev_t *);
+static int			__process_indexed_variables(const ni_sysconfig_t *, ni_netdev_t *,
+							const char *, try_function_t);
+static ni_var_t *		__find_indexed_variable(const ni_sysconfig_t *, const char *, const char *);
+static ni_bool_t		__ni_suse_read_routes(ni_route_table_t **, const char *, const char *);
+static ni_bool_t		__ni_wireless_parse_wep_auth(const ni_sysconfig_t *, ni_wireless_network_t *,
+							const char *, const char *, ni_bool_t);
+static int			__ni_wireless_parse_auth_proto(const ni_sysconfig_t *, ni_wireless_auth_mode_t *,
+							const char *, const char *);
+static int			__ni_wireless_parse_cipher(const ni_sysconfig_t *, ni_wireless_cipher_t *,
+							const char *, const char *, const char *);
+static ni_bool_t		__ni_wireless_parse_psk_auth(const ni_sysconfig_t *, ni_wireless_network_t *,
+							const char *, const char *, ni_wireless_ap_scan_mode_t);
+static ni_bool_t		__ni_wireless_parse_eap_auth(const ni_sysconfig_t *, ni_wireless_network_t *,
+							const char *, const char *, ni_wireless_ap_scan_mode_t);
 
 static char *			__ni_suse_default_hostname;
 static ni_sysconfig_t *		__ni_suse_config_defaults;
@@ -56,6 +68,8 @@ static ni_route_table_t *	__ni_suse_global_routes;
 #define __NI_SUSE_ROUTES_GLOBAL			"routes"
 
 #define __NI_VLAN_TAG_MAX			4094
+#define __NI_WIRELESS_WPA_PSK_HEX_LEN	64
+#define __NI_WIRELESS_WPA_PSK_MIN_LEN	8
 
 static ni_bool_t
 __ni_suse_ifcfg_valid_suffix(const char *name, size_t pfxlen)
@@ -1497,25 +1511,608 @@ try_vlan(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 
 /*
  * Handle Wireless devices
- * Not yet implemented
  */
+static ni_bool_t
+try_add_wireless(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *suffix)
+{
+	ni_wireless_network_t *net;
+	ni_wireless_t *wlan;
+	ni_var_t *var;
+	const char *tmp = NULL;
+	ni_wireless_ssid_t essid;
+
+	/* Just skip networks with empty ESSID */
+	if (!(var = __find_indexed_variable(sc, "WIRELESS_ESSID", suffix))) {
+		ni_error("ifcfg-%s: empty WIRELESS_ESSID%s value",
+			dev->name, suffix);
+		return FALSE;
+	}
+
+	switch (dev->link.type) {
+	case NI_IFTYPE_UNKNOWN:
+		dev->link.type = NI_IFTYPE_WIRELESS;
+	case NI_IFTYPE_WIRELESS:
+		break;
+	default:
+		ni_error("ifcfg-%s: %s config contains wireless variables",
+			dev->name, ni_linktype_type_to_name(dev->link.type));
+		return FALSE;
+	}
+
+	if (!(wlan = dev->wireless)) {
+		ni_bool_t check_country = FALSE;
+
+		if ((wlan = ni_netdev_get_wireless(dev)) == NULL) {
+			ni_error("%s: no wireless info for device", dev->name);
+			return FALSE;
+		}
+
+		/* Default is ap_scan = 1 */
+		if ((tmp = ni_sysconfig_get_value(sc, "WIRELESS_AP_SCANMODE"))) {
+			if ((ni_parse_uint(tmp, &wlan->conf.ap_scan, 10) < 0) ||
+				(wlan->conf.ap_scan > NI_WIRELESS_AP_SCAN_SUPPLICANT_EXPLICIT_MATCH)) {
+				ni_error("ifcfg-%s: wrong WIRELESS_AP_SCANMODE value",
+					dev->name);
+				goto failure_global;
+			}
+		}
+
+		/* Default is wpa_drv = "nl80211" */
+		if ((tmp = ni_sysconfig_get_value(sc, "WIRELESS_WPA_DRIVER"))) {
+			if (!ni_wpa_driver_string_validate(tmp)) {
+				ni_error("ifcfg-%s: wrong WIRELESS_WPA_DRIVER value",
+					dev->name);
+				goto failure_global;
+			}
+			else if (ni_string_contains(tmp, "80211")) {
+				check_country = TRUE;
+			}
+
+			ni_string_dup(&wlan->conf.driver, tmp);
+		}
+		else {
+			check_country = TRUE;
+		}
+
+		/* Regulatory domain is supported by nl80211 wpa driver */
+		if (check_country) {
+			if ((tmp = ni_sysconfig_get_value(sc, "WIRELESS_REGULATORY_DOMAIN"))) {
+				if ((2 == ni_string_len(tmp)) &&
+					(isalpha((unsigned char) tmp[0])) &&
+					(isalpha((unsigned char) tmp[1]))) {
+						ni_string_dup(&wlan->conf.country, tmp);
+				}
+				else {
+					ni_error("ifcfg-%s: wrong WIRELESS_REGULATORY_DOMAIN value",
+						dev->name);
+					goto failure_global;
+				}
+			}
+		}
+	}
+
+	/* Check whether ESSID already exists */
+	if (!ni_wireless_parse_ssid(var->value, &essid)) {
+		if ( essid.len > NI_WIRELESS_ESSID_MAX_LEN)
+			ni_error("ifcfg-%s: too long WIRELESS_ESSID%s value",
+				dev->name, suffix);
+		goto failure_global;
+	}
+
+	if (ni_wireless_essid_already_exists(wlan, &essid)) {
+		ni_error("ifcfg-%s: double configuration of the same ESSID=%s",
+			dev->name, var->value);
+		goto failure_global;
+	}
+
+	/* Allocate new network object */
+	net = ni_wireless_network_new();
+
+	/* Write down the ESSID */
+	memcpy(net->essid.data, essid.data, essid.len);
+	net->essid.len = essid.len;
+
+	/* Default is scan_ssid = TRUE */
+	if ((var = __find_indexed_variable(sc, "WIRELESS_HIDDEN_SSID", suffix))) {
+		if (ni_string_eq_nocase(var->value, "no"))
+			net->scan_ssid = FALSE;
+		else if (ni_string_eq_nocase(var->value, "yes"))
+			net->scan_ssid = TRUE;
+		else {
+			ni_error("ifcfg-%s: wrong WIRELESS_HIDDEN_SSID%s value",
+				dev->name, suffix);
+			goto failure;
+		}
+	}
+
+	/* Default priority is an order of the networks in ifcfg file */
+	if (!net->scan_ssid) {
+		if ((var = __find_indexed_variable(sc, "WIRELESS_PRIORITY", suffix))) {
+			if (ni_parse_uint(var->value, &net->priority, 10) < 0) {
+				ni_error("ifcfg-%s: cannot parse WIRELESS_PRIORITY%s value",
+					dev->name, suffix);
+				goto failure;
+			}
+			else if (net->priority < 1) {
+				ni_error("ifcfg-%s: wrong WIRELESS_PRIORITY%s value",
+					dev->name, suffix);
+				goto failure;
+			}
+		}
+	}
+	else {
+		net->priority = wlan->conf.networks.count+1;
+	}
+
+	/* Default is mode = NI_WIRELESS_MODE_MANAGED */
+	if ((var = __find_indexed_variable(sc, "WIRELESS_MODE", suffix))) {
+		if (!ni_wireless_name_to_mode(var->value, &net->mode)) {
+			ni_error("ifcfg-%s: wrong WIRELESS_MODE%s value", dev->name, suffix);
+			goto failure;
+		}
+	}
+
+	/* Default is unset */
+	if ((var = __find_indexed_variable(sc, "WIRELESS_AP", suffix))) {
+		if (ni_parse_hex(var->value, net->access_point.data,
+					sizeof(net->access_point.data)) == 6) { //ETH_ALEN
+			net->access_point.type = NI_IFTYPE_WIRELESS;
+			net->access_point.len = 6; // ETH_ALEN;
+		}
+		else {
+			ni_error("ifcfg-%s: wrong WIRELESS_AP%s value", dev->name, suffix);
+			goto failure;
+		}
+	}
+
+	/* Default is unset */
+	if (NI_WIRELESS_MODE_ADHOC == net->mode ||
+		NI_WIRELESS_MODE_MASTER == net->mode) {
+		if ((var = __find_indexed_variable(sc, "WIRELESS_CHANNEL", suffix))) {
+			if (ni_parse_uint(var->value, &net->channel, 10) < 0) {
+				ni_error("ifcfg-%s: cannot parse WIRELESS_CHANNEL%s value",
+					dev->name, suffix);
+				goto failure;
+			}
+			else if (net->channel < 1) {
+				ni_error("ifcfg-%s: wrong WIRELESS_CHANNEL%s value",
+					dev->name, suffix);
+				goto failure;
+			}
+		}
+	}
+
+	/* Default is unset */
+	if ((var = __find_indexed_variable(sc, "WIRELESS_FRAG", suffix))) {
+		if (ni_string_eq_nocase(var->value, "auto") ||
+			ni_string_eq_nocase(var->value, "fixed") ||
+			ni_string_eq_nocase(var->value, "off")) {
+			ni_error("ifcfg-%s: not supported WIRELESS_FRAG%s value",
+				dev->name, suffix);
+			goto failure;
+		}
+		else if (ni_parse_uint(var->value, &net->fragment_size, 10) < 0) {
+			ni_error("ifcfg-%s: cannot parse WIRELESS_FRAG%s value",
+				dev->name, suffix);
+			goto failure;
+		}
+		else if (net->fragment_size < 1) {
+			ni_error("ifcfg-%s: wrong WIRELESS_FRAG%s value",
+				dev->name, suffix);
+			goto failure;
+		}
+	}
+
+	/* Default is unset - open */
+	var = __find_indexed_variable(sc, "WIRELESS_AUTH_MODE", suffix);
+	if (!var ||
+	    ni_string_eq("open", var->value) ||
+	    ni_string_eq("no-encryption", var->value)) {
+		if (!__ni_wireless_parse_wep_auth(sc, net, suffix, dev->name, FALSE))
+			goto failure;
+	}
+	else if (ni_string_eq("shared", var->value) ||
+			 ni_string_eq("sharedkey", var->value)) {
+		if (!__ni_wireless_parse_wep_auth(sc, net, suffix, dev->name, TRUE))
+			goto failure;
+	}
+	else if (ni_string_eq_nocase("psk", var->value) ||
+			 ni_string_eq_nocase("wpa-psk", var->value)) {
+		if (!__ni_wireless_parse_psk_auth(sc, net, suffix, dev->name, wlan->conf.ap_scan))
+			goto failure;
+	}
+	else if (ni_string_eq_nocase("eap", var->value) ||
+			 ni_string_eq_nocase("wpa-eap", var->value)) {
+		if (!__ni_wireless_parse_eap_auth(sc, net, suffix, dev->name, wlan->conf.ap_scan))
+			goto failure;
+	}
+	else {
+		ni_error("ifcfg-%s: wrong WIRELESS_AUTH_MODE%s value",
+			dev->name, suffix);
+		goto failure;
+	}
+
+	ni_wireless_network_array_append(&wlan->conf.networks, net);
+
+	return TRUE;
+
+failure:
+	ni_wireless_network_put(net);
+failure_global:
+	ni_netdev_set_wireless(dev, NULL);
+	return FALSE;
+}
+
+static ni_bool_t
+__ni_wireless_wep_key_len_is_valid(unsigned int len)
+{
+	switch(len) {
+	case NI_WIRELESS_WEP_KEY_LEN_40:
+	case NI_WIRELESS_WEP_KEY_LEN_64:
+	case NI_WIRELESS_WEP_KEY_LEN_104:
+	case NI_WIRELESS_WEP_KEY_LEN_128:
+		return TRUE;
+
+	default:
+		return FALSE;
+	}
+
+	return FALSE;
+}
+
+static ni_bool_t
+__ni_wireless_wep_key_validate(char *key)
+{
+	size_t len;
+
+	if (!key)
+		return FALSE;
+
+	len = ni_string_len(key);
+	if ('s' == key[0] && ':' == key[1]) { /* key ASCII representation */
+		/* 5 ASCII chars for 64 bit key ||from 6 to 13 ASCII chars for 128 bit key */
+		if ((len-2) < (NI_WIRELESS_WEP_KEY_LEN_40 >> 3) ||
+			(len-2) > (NI_WIRELESS_WEP_KEY_LEN_104 >> 3))
+			return FALSE;
+		else
+			return ni_check_printable(key, len);
+	}
+	else if ('h' == key[0] && ':' == key[1]) { /* passphrase representation to be hashed */
+		/* FIXME / ADDME - lwepgen - WEP generation */
+		/* key_len aka WIRELESS_KEY_LENGTH matters here */
+		return ni_check_printable(key, len);
+	}
+	else { /* HEX digits with or w/o dashes */
+		len -= ni_string_remove_char(key, '-'); /* Remove all dashes */
+		if ((NI_WIRELESS_WEP_KEY_LEN_104 >> 2) != len && /* 104/128 key length - 26 HEX digits*/
+			(NI_WIRELESS_WEP_KEY_LEN_40 >> 2) != len) /* 40/64 key length - 10 HEX digits */
+			return FALSE;
+		else
+			return ni_string_ishex(key);
+	}
+
+	return FALSE;
+}
+
+static ni_bool_t
+__ni_wireless_wpa_psk_key_validate(const char *key)
+{
+	size_t len;
+
+	if (!key)
+		return FALSE;
+
+	len = ni_string_len(key);
+
+	if (__NI_WIRELESS_WPA_PSK_HEX_LEN == len) {
+		return ni_string_ishex(key);
+	}
+	else if (len >= __NI_WIRELESS_WPA_PSK_MIN_LEN &&
+			 len < __NI_WIRELESS_WPA_PSK_HEX_LEN) {
+		return ni_check_printable(key, len);
+	}
+	else
+		return FALSE;
+
+	return FALSE;
+}
+
+static ni_bool_t
+__ni_wireless_parse_wep_auth(const ni_sysconfig_t *sc, ni_wireless_network_t *net, const char *suffix, const char *dev_name, ni_bool_t shared)
+{
+	ni_var_t *var;
+	const char *key_str[NI_WIRELESS_WEP_KEY_COUNT] = {
+		"WIRELESS_KEY_0",
+		"WIRELESS_KEY_1",
+		"WIRELESS_KEY_2",
+		"WIRELESS_KEY_3"
+	};
+	unsigned int key_len;
+	int i;
+
+	ni_assert(sc && net && suffix);
+
+	net->keymgmt_proto = NI_WIRELESS_KEY_MGMT_NONE;
+	if (shared)
+		net->auth_algo = NI_WIRELESS_AUTH_SHARED;
+	else
+		net->auth_algo = NI_WIRELESS_AUTH_OPEN;
+
+	/* Default key is 0 */
+	if ((var = __find_indexed_variable(sc,"WIRELESS_DEFAULT_KEY", suffix))) {
+		if(ni_parse_uint(var->value, &net->default_key, 10) < 0 ||
+		   net->default_key >= NI_WIRELESS_WEP_KEY_COUNT) {
+			ni_error("ifcfg-%s: wrong WIRELESS_DEFAULT_KEY%s value",
+				dev_name, suffix);
+			goto wep_failure;
+		}
+	}
+	else {
+		net->default_key = 0;
+	}
+
+	/* Default key length is 104 */
+	if ((var = __find_indexed_variable(sc,"WIRELESS_KEY_LENGTH", suffix))) {
+		if (ni_parse_uint(var->value, &key_len, 10) < 0 ||
+			!__ni_wireless_wep_key_len_is_valid(key_len)) {
+			ni_error("ifcfg-%s: wrong WIRELESS_KEY_LENGTH%s value",
+				dev_name, suffix);
+			goto wep_failure;
+		}
+	}
+	else {
+		key_len = NI_WIRELESS_WEP_KEY_LEN_104;
+	}
+
+	/* Default wep_key is unset */
+	for (i = 0; i < NI_WIRELESS_WEP_KEY_COUNT; i++) {
+		ni_assert(!net->wep_keys[i]);
+
+		if ((var = __find_indexed_variable(sc, key_str[i], suffix))) {
+			if(!__ni_wireless_wep_key_validate(var->value)) {
+				ni_error("ifcfg-%s: wrong WIRELESS_KEY_%d%s format",
+					dev_name, i, suffix);
+				goto wep_failure;
+			}
+
+			ni_string_dup(&net->wep_keys[i], var->value);
+		}
+	}
+
+	return TRUE;
+
+wep_failure:
+	return FALSE;
+}
+
+static int
+__ni_wireless_parse_auth_proto(const ni_sysconfig_t *sc, ni_wireless_auth_mode_t *auth_proto, const char *suffix, const char *dev_name)
+{
+	ni_var_t *var;
+
+	ni_assert(sc && auth_proto && suffix);
+
+	if((var = __find_indexed_variable(sc,"WIRELESS_WPA_PROTO", suffix))) {
+		if (!ni_wireless_name_to_auth_mode(var->value, auth_proto)) {
+			ni_error("ifcfg-%s: wrong WIRELESS_WPA_PROTO%s value",
+				dev_name, suffix);
+			return -1;
+		}
+
+		return 1; /* Present */
+	}
+
+	return 0;
+}
+
+static int
+__ni_wireless_parse_cipher(const ni_sysconfig_t *sc, ni_wireless_cipher_t *cipher, const char *variable, const char *suffix, const char *dev_name)
+{
+	ni_var_t *var;
+
+	ni_assert(sc && cipher && variable && suffix);
+
+	if((var = __find_indexed_variable(sc,variable, suffix))) {
+		if (!ni_wireless_name_to_cipher(var->value, cipher)) {
+			ni_error("ifcfg-%s: wrong %s%s value", dev_name, variable, suffix);
+			return -1;
+		}
+		return 1; /* Present */
+	}
+
+	return 0;
+}
+
+static ni_bool_t
+__ni_wireless_parse_psk_auth(const ni_sysconfig_t *sc, ni_wireless_network_t *net, const char *suffix, const char *dev_name, ni_wireless_ap_scan_mode_t ap_scan)
+{
+	ni_var_t *var;
+	const char *pairwise = "WIRELESS_CIPHER_PAIRWISE";
+	const char *group = "WIRELESS_CIPHER_GROUP";
+
+	ni_assert(sc && net && suffix);
+
+	net->keymgmt_proto = NI_WIRELESS_KEY_MGMT_PSK;
+
+	if((var = __find_indexed_variable(sc,"WIRELESS_WPA_PSK", suffix))) {
+		if (!__ni_wireless_wpa_psk_key_validate(var->value)) {
+			ni_error("ifcfg-%s: wrong WIRELESS_WPA_PSK%s value",
+				dev_name, suffix);
+			goto psk_failure;
+		}
+
+		ni_string_dup(&net->wpa_psk.passphrase, var->value);
+	}
+	else {
+		ni_error("ifcfg-%s: no WIRELESS_WPA_PSK%s value specified",
+			dev_name, suffix);
+		goto psk_failure;
+	}
+
+	/* wickedd: Default are both WPA and WPA2 */
+	if (__ni_wireless_parse_auth_proto(sc, &net->auth_proto, suffix, dev_name) < 0)
+		goto psk_failure;
+
+	/* wickedd: Default are both TKIP and CCMP */
+	if (__ni_wireless_parse_cipher(sc, &net->pairwise_cipher, pairwise, suffix, dev_name) < 0)
+		goto psk_failure;
+
+	/* wickedd: Default are both TKIP and CCMP */
+	if (__ni_wireless_parse_cipher(sc, &net->group_cipher, group, suffix, dev_name) < 0)
+		goto psk_failure;
+
+	if (NI_WIRELESS_AP_SCAN_SUPPLICANT_EXPLICIT_MATCH == ap_scan) {
+		if (net->auth_proto != NI_WIRELESS_AUTH_WPA2)
+			net->auth_proto = NI_WIRELESS_AUTH_WPA1;
+
+		if (net->pairwise_cipher != NI_WIRELESS_CIPHER_CCMP)
+			net->pairwise_cipher = NI_WIRELESS_CIPHER_TKIP;
+
+		if (net->group_cipher != NI_WIRELESS_CIPHER_CCMP)
+			net->group_cipher = NI_WIRELESS_CIPHER_TKIP;
+	}
+
+	return TRUE;
+
+psk_failure:
+	return FALSE;
+}
+
+static ni_bool_t
+__ni_wireless_parse_eap_auth(const ni_sysconfig_t *sc, ni_wireless_network_t *net, const char *suffix, const char *dev_name, ni_wireless_ap_scan_mode_t ap_scan)
+{
+	ni_var_t *var;
+	const char *pairwise = "WIRELESS_CIPHER_PAIRWISE";
+	const char *group = "WIRELESS_CIPHER_GROUP";
+
+	ni_assert(sc && net && suffix);
+
+	net->keymgmt_proto = NI_WIRELESS_KEY_MGMT_EAP;
+
+	/*wickedd: Default are TTLS PEAP TLS when not present */
+	if ((var = __find_indexed_variable(sc,"WIRELESS_EAP_MODE", suffix))) {
+		if (!ni_wireless_name_to_eap_method(var->value, &net->wpa_eap.method)) {
+			ni_error("ifcfg-%s: wrong WIRELESS_EAP_MODE%s value",
+				dev_name, suffix);
+			goto eap_failure;
+		}
+	}
+
+	/* wickedd: Default are both WPA and WPA2 */
+	if (__ni_wireless_parse_auth_proto(sc, &net->auth_proto, suffix, dev_name) < 0)
+		goto eap_failure;
+
+	/* wickedd: Default are both TKIP and CCMP */
+	if (__ni_wireless_parse_cipher(sc, &net->pairwise_cipher, pairwise, suffix, dev_name) < 0)
+		goto eap_failure;
+
+	/* wickedd: Default are both TKIP and CCMP */
+	if (__ni_wireless_parse_cipher(sc, &net->group_cipher, group, suffix, dev_name) < 0)
+		goto eap_failure;
+
+	if (NI_WIRELESS_AP_SCAN_SUPPLICANT_EXPLICIT_MATCH == ap_scan) {
+		if (net->auth_proto != NI_WIRELESS_AUTH_WPA2)
+			net->auth_proto = NI_WIRELESS_AUTH_WPA1;
+
+		if (net->pairwise_cipher != NI_WIRELESS_CIPHER_CCMP)
+			net->pairwise_cipher = NI_WIRELESS_CIPHER_TKIP;
+
+		if (net->group_cipher != NI_WIRELESS_CIPHER_CCMP)
+			net->group_cipher = NI_WIRELESS_CIPHER_TKIP;
+	}
+
+	if ((var = __find_indexed_variable(sc,"WIRELESS_WPA_IDENTITY", suffix))) {
+		ni_string_dup(&net->wpa_eap.identity, var->value);
+	} else {
+		ni_error("ifcfg-%s: no WIRELESS_WPA_IDENTITY%s value specified",
+			dev_name, suffix);
+		goto eap_failure;
+	}
+
+	if ((var = __find_indexed_variable(sc,"WIRELESS_WPA_PASSWORD", suffix))) {
+		ni_string_dup(&net->wpa_eap.phase2.password, var->value);
+	}
+	else {
+		ni_error("ifcfg-%s: no WIRELESS_WPA_PASSWORD%s value specified",
+			dev_name, suffix);
+		goto eap_failure;
+	}
+
+	/* wickedd: Default is 'anonymous' */
+	if ((var = __find_indexed_variable(sc,"WIRELESS_WPA_ANONID", suffix))) {
+		ni_string_dup(&net->wpa_eap.anonid, var->value);
+	}
+
+	/* FIXME Only path implemented so far */
+	if ((var = __find_indexed_variable(sc,"WIRELESS_CA_CERT", suffix))) {
+		net->wpa_eap.tls.ca_cert = ni_wireless_blob_new(var->value);
+	}
+
+	/* FIXME Only path implemented so far */
+	if ((var = __find_indexed_variable(sc,"WIRELESS_CLIENT_CERT", suffix))) {
+		net->wpa_eap.tls.client_cert = ni_wireless_blob_new(var->value);
+	}
+
+	/* FIXME Only path implemented so far */
+	if ((var = __find_indexed_variable(sc,"WIRELESS_CLIENT_KEY", suffix))) {
+		net->wpa_eap.tls.client_key = ni_wireless_blob_new(var->value);
+	}
+
+	if ((var = __find_indexed_variable(sc,"WIRELESS_CLIENT_KEY_PASSWORD", suffix))) {
+		ni_string_dup(&net->wpa_eap.tls.client_key_passwd, var->value);
+	}
+
+	/* wickedd: Default is to allow both version 0 and 1 */
+	if (NI_WIRELESS_EAP_PEAP == net->wpa_eap.method ||
+		NI_WIRELESS_EAP_NONE == net->wpa_eap.method) {
+		if ((var = __find_indexed_variable(sc,"WIRELESS_PEAP_VERSION", suffix))) {
+			if (ni_parse_uint(var->value, &net->wpa_eap.phase1.peapver, 10) < 0 ||
+				net->wpa_eap.phase1.peapver > 1) {
+				ni_error("ifcfg-%s: wrong WIRELESS_PEAP_VERSION%s value",
+					dev_name, suffix);
+				goto eap_failure;
+			}
+		}
+	}
+
+	/*wickedd: Default are TTLS PEAP TLS when not present and WIRELESS_AP_SCANMODE != 2 */
+	if ((var = __find_indexed_variable(sc,"WIRELESS_EAP_AUTH", suffix))) {
+		if (!ni_wireless_name_to_eap_method(var->value, &net->wpa_eap.phase2.method)) {
+			ni_error("ifcfg-%s: wrong WIRELESS_EAP_AUTH%s value",
+				dev_name, suffix);
+			goto eap_failure;
+		}
+	}
+	else if (NI_WIRELESS_AP_SCAN_SUPPLICANT_EXPLICIT_MATCH == ap_scan) {
+		ni_error("ifcfg-%s: WIRELESS_EAP_AUTH%s needed by WIRELESS_AP_SCANMODE=2",
+			dev_name, suffix);
+		goto eap_failure;
+	}
+
+	return TRUE;
+
+eap_failure:
+	return FALSE;
+}
+
+
 static int
 try_wireless(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 {
 	ni_netdev_t *dev = compat->dev;
+	int ret;
 
-	if (ni_sysconfig_get(sc, "WIRELESS_ESSID") == NULL)
+	/*
+	 * There is a WIRELESS=yes variable, but it is never set by yast2.
+	 * We check for non-empty ESSID[_X] vars as they're mandatory for
+	 * wpa supplicant wireless network blocks.
+	 */
+	if (ni_string_eq(ni_sysconfig_get_value(sc, "WIRELESS"), "no"))
 		return 1;
 
-	if (dev->link.type != NI_IFTYPE_UNKNOWN) {
-		ni_error("ifcfg-%s: %s config contains wireless variables",
-			dev->name, ni_linktype_type_to_name(dev->link.type));
-		return -1;
-	}
-
-	dev->link.type = NI_IFTYPE_WIRELESS;
-	ni_warn("ifcfg-%s: conversion of wireless interfaces not yet supported",
-		dev->name);
+	if ((ret = __process_indexed_variables(sc, dev, "WIRELESS_ESSID",
+						try_add_wireless)) != 0)
+		return ret;
 
 	return 0;
 }
@@ -1998,7 +2595,7 @@ __ni_suse_bootproto(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 /*
  * Read an ifcfg file
  */
-ni_bool_t
+static ni_bool_t
 __ni_suse_sysconfig_read(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 {
 	ni_netdev_t *dev = compat->dev;

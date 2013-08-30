@@ -74,7 +74,6 @@ typedef enum ni_wireless_auth_mode {
 	NI_WIRELESS_AUTH_MODE_NONE,
 	NI_WIRELESS_AUTH_WPA1,
 	NI_WIRELESS_AUTH_WPA2,
-	NI_WIRELESS_AUTH_UNKNOWN,
 } ni_wireless_auth_mode_t;
 
 typedef enum ni_wireless_auth_algo {
@@ -90,6 +89,21 @@ typedef enum ni_wireless_assoc_state {
 	NI_WIRELESS_AUTHENTICATING,
 	NI_WIRELESS_ESTABLISHED,
 } ni_wireless_assoc_state_t;
+
+typedef enum ni_wireless_wpa_driver {
+	NI_WIRELESS_WPA_DRIVER_WEXT,
+	NI_WIRELESS_WPA_DRIVER_NL80211,
+	NI_WIRELESS_WPA_DRIVER_HOSTAP,
+	NI_WIRELESS_WPA_DRIVER_WIRED,
+	NI_WIRELESS_WPA_DRIVER_RALINK,
+	NI_WIRELESS_WPA_DRIVER_COUNT,
+} ni_wireless_wpa_driver_t;
+
+typedef enum ni_wireless_ap_scan {
+	NI_WIRELESS_AP_SCAN_DRIVER = 0,
+	NI_WIRELESS_AP_SCAN_SUPPLICANT_AUTO,
+	NI_WIRELESS_AP_SCAN_SUPPLICANT_EXPLICIT_MATCH,
+} ni_wireless_ap_scan_mode_t;
 
 #define NI_WIRELESS_PAIRWISE_CIPHERS_MAX	4
 
@@ -108,9 +122,11 @@ typedef struct ni_wireless_auth_info_array {
 
 typedef struct ni_wireless_network ni_wireless_network_t;
 
+#define NI_WIRELESS_ESSID_MAX_LEN 32
+
 typedef struct ni_wireless_ssid {
 	unsigned int			len;
-	unsigned char			data[32];
+	unsigned char			data[NI_WIRELESS_ESSID_MAX_LEN];
 } ni_wireless_ssid_t;
 
 typedef struct ni_wireless_blob {
@@ -120,11 +136,20 @@ typedef struct ni_wireless_blob {
 } ni_wireless_blob_t;
 
 #define NI_WIRELESS_BITRATES_MAX	32
+#define NI_WIRELESS_WEP_KEY_COUNT	4
+
+enum ni_wireless_wep_key_len {
+	NI_WIRELESS_WEP_KEY_LEN_40 = 40,
+	NI_WIRELESS_WEP_KEY_LEN_64 = 64,
+	NI_WIRELESS_WEP_KEY_LEN_104 = 104,
+	NI_WIRELESS_WEP_KEY_LEN_128 = 128,
+};
 
 struct ni_wireless_network {
 	unsigned int			refcount;
 	ni_bool_t			notified;		/* did we send an event for this? */
 
+	unsigned int			priority;
 	ni_wireless_ssid_t		essid;
 	unsigned int			essid_encode_index;
 	ni_bool_t			scan_ssid;
@@ -151,30 +176,27 @@ struct ni_wireless_network {
 
 	ni_wireless_auth_mode_t		auth_proto;
 	ni_wireless_auth_algo_t		auth_algo;
-	ni_wireless_auth_algo_t		ath_algo;
 	ni_wireless_key_mgmt_t		keymgmt_proto;
 	ni_wireless_cipher_t		cipher;
 	ni_wireless_cipher_t		pairwise_cipher;
 	ni_wireless_cipher_t		group_cipher;
 
-	struct {
-		ni_wireless_security_t	mode;
-		unsigned int		key_required : 1,
-					key_present : 1;
-		unsigned int		key_index;
-
-		unsigned int		key_len;
-		unsigned char *		key_data;
-	} encode;
+	char *wep_keys[NI_WIRELESS_WEP_KEY_COUNT];
+	unsigned int default_key;
 
 	struct ni_wireless_wpa_psk {
 		char *			passphrase;
-		ni_opaque_t		key;
 	} wpa_psk;
 
 	struct ni_wireless_wpa_eap {
 		ni_wireless_eap_method_t method;
 		char *			identity;
+		char *			anonid;
+
+		struct {
+			unsigned int peapver;
+			ni_bool_t peaplabel;
+		} phase1;
 
 		struct {
 			ni_wireless_eap_method_t method;
@@ -185,10 +207,16 @@ struct ni_wireless_network {
 			ni_wireless_blob_t *ca_cert;
 			ni_wireless_blob_t *client_cert;
 			ni_wireless_blob_t *client_key;
+			char *client_key_passwd;
 		} tls;
 	} wpa_eap;
 
 };
+
+typedef struct ni_wireless_network_array {
+	unsigned int		count;
+	ni_wireless_network_t **data;
+} ni_wireless_network_array_t;
 
 typedef struct ni_wireless_interface_capabilities {
 	unsigned int		eap_methods;
@@ -199,26 +227,28 @@ typedef struct ni_wireless_interface_capabilities {
 	unsigned int		wpa_protocols;
 } ni_wireless_interface_capabilities_t;
 
-struct ni_wireless {
-	ni_wireless_interface_capabilities_t capabilities;
+typedef struct ni_wireless_config {
+	char *					country;
+	ni_wireless_ap_scan_mode_t			ap_scan;
+	char *					driver;
+	ni_wireless_network_array_t		networks;
+} ni_wireless_config_t;
 
-	ni_wireless_scan_t *	scan;
+struct ni_wireless {
+	ni_wireless_interface_capabilities_t	capabilities;
+
+	ni_wireless_config_t			conf;
+	ni_wireless_scan_t *			scan;
 
 	/* Association information */
 	struct {
-		const ni_timer_t *	timer;
-		unsigned int		fail_delay;
-		ni_wireless_assoc_state_t state;
-		ni_wireless_network_t *	network;
-		ni_hwaddr_t		access_point;
+		const ni_timer_t *		timer;
+		unsigned int			fail_delay;
+		ni_wireless_assoc_state_t	state;
+		ni_wireless_network_t *		network;
+		ni_hwaddr_t			access_point;
 	} assoc;
 };
-
-typedef struct ni_wireless_network_array {
-	unsigned int		count;
-	ni_wireless_network_t **data;
-} ni_wireless_network_array_t;
-
 
 #define NI_WIRELESS_DEFAUT_SCAN_INTERVAL	60
 #define NI_WIRELESS_ASSOC_FAIL_DELAY		60
@@ -247,10 +277,14 @@ extern void		ni_wireless_free(ni_wireless_t *);
 extern int		ni_wireless_set_network(ni_netdev_t *, ni_wireless_network_t *);
 extern int		ni_wireless_connect(ni_netdev_t *);
 extern int		ni_wireless_disconnect(ni_netdev_t *);
+extern void		ni_wireless_config_destroy(ni_wireless_config_t *);
 extern ni_wireless_scan_t *ni_wireless_scan_new(ni_netdev_t *, unsigned int);
 extern void		ni_wireless_scan_free(ni_wireless_scan_t *);
-extern void		ni_wireless_network_set_key(ni_wireless_network_t *, const unsigned char *, size_t);
+
+ni_wireless_blob_t *ni_wireless_blob_new(const char *);
+void ni_wireless_blob_free(ni_wireless_blob_t *);
 extern void		ni_wireless_network_free(ni_wireless_network_t *);
+void		ni_wireless_wep_key_array_destroy(char **);
 extern void		ni_wireless_network_array_init(ni_wireless_network_array_t *);
 extern void		ni_wireless_network_array_append(ni_wireless_network_array_t *, ni_wireless_network_t *);
 extern void		ni_wireless_network_array_destroy(ni_wireless_network_array_t *);
@@ -261,26 +295,31 @@ extern void		ni_wireless_auth_info_free(ni_wireless_auth_info_t *);
 extern void		ni_wireless_auth_info_array_init(ni_wireless_auth_info_array_t *);
 extern void		ni_wireless_auth_info_array_append(ni_wireless_auth_info_array_t *, ni_wireless_auth_info_t *);
 extern void		ni_wireless_auth_info_array_destroy(ni_wireless_auth_info_array_t *);
-
 extern void		ni_wireless_association_changed(unsigned int ifindex, ni_wireless_assoc_state_t new_state);
 
 extern const char *	ni_wireless_print_ssid(const ni_wireless_ssid_t *);
 extern ni_bool_t	ni_wireless_parse_ssid(const char *, ni_wireless_ssid_t *);
+extern ni_bool_t		ni_wireless_match_ssid(ni_wireless_ssid_t *, ni_wireless_ssid_t *);
+extern ni_bool_t		ni_wireless_essid_already_exists(ni_wireless_t *, ni_wireless_ssid_t *);
 
 extern const char *	ni_wireless_mode_to_name(ni_wireless_mode_t);
-extern ni_wireless_mode_t ni_wireless_name_to_mode(const char *);
+extern ni_bool_t	ni_wireless_name_to_mode(const char *, unsigned int *);
 extern const char *	ni_wireless_security_to_name(ni_wireless_security_t);
-extern ni_wireless_security_t ni_wireless_name_to_security(const char *);
+extern ni_bool_t	ni_wireless_name_to_security(const char *, unsigned int *);
 extern const char *	ni_wireless_auth_mode_to_name(ni_wireless_auth_mode_t);
-extern ni_wireless_auth_mode_t ni_wireless_name_to_auth_mode(const char *);
+extern ni_bool_t	ni_wireless_name_to_auth_mode(const char *, unsigned int *);
 extern const char *	ni_wireless_auth_algo_to_name(ni_wireless_auth_algo_t);
-extern ni_wireless_auth_algo_t ni_wireless_name_to_auth_algo(const char *);
+extern ni_bool_t	ni_wireless_name_to_auth_algo(const char *, unsigned int *);
 extern const char *	ni_wireless_cipher_to_name(ni_wireless_cipher_t);
-extern ni_wireless_cipher_t ni_wireless_name_to_cipher(const char *);
+extern ni_bool_t	ni_wireless_name_to_cipher(const char *, unsigned int *);
 extern const char *	ni_wireless_key_management_to_name(ni_wireless_key_mgmt_t);
-extern ni_wireless_key_mgmt_t ni_wireless_name_to_key_management(const char *);
+extern ni_bool_t	ni_wireless_name_to_key_management(const char *, unsigned int *);
 extern const char *	ni_wireless_eap_method_to_name(ni_wireless_eap_method_t);
-extern ni_wireless_eap_method_t ni_wireless_name_to_eap_method(const char *);
+extern ni_bool_t	ni_wireless_name_to_eap_method(const char *, unsigned int *);
+
+extern ni_bool_t		ni_wpa_driver_from_string(const char *, unsigned int *);
+extern const char *		ni_wpa_driver_as_string(ni_wireless_wpa_driver_t);
+extern ni_bool_t		ni_wpa_driver_string_validate(const char *);
 
 /* rfkill support */
 typedef void		ni_rfkill_event_handler_t(ni_rfkill_type_t, ni_bool_t, void *user_data);

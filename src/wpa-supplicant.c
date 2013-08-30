@@ -750,7 +750,7 @@ done:
  * The user asks us to configure the interface
  */
 int
-ni_wpa_interface_associate(ni_wpa_interface_t *dev, ni_wireless_network_t *net)
+ni_wpa_interface_associate(ni_wpa_interface_t *dev, ni_wireless_network_t *net, ni_wireless_ap_scan_mode_t ap_scan)
 {
 	ni_dbus_object_t *net_object;
 
@@ -760,7 +760,7 @@ ni_wpa_interface_associate(ni_wpa_interface_t *dev, ni_wireless_network_t *net)
 	/* FIXME: make sure we have all the keys/pass phrases etc to
 	 * associate. */
 
-	ni_wpa_interface_set_ap_scan(dev, 1);
+	ni_wpa_interface_set_ap_scan(dev, ap_scan);
 
 	if ((net_object = dev->requested_association.proxy) == NULL) {
 		char *object_path;
@@ -792,7 +792,7 @@ ni_wpa_interface_associate(ni_wpa_interface_t *dev, ni_wireless_network_t *net)
 }
 
 int
-ni_wpa_interface_disassociate(ni_wpa_interface_t *wpa_dev)
+ni_wpa_interface_disassociate(ni_wpa_interface_t *wpa_dev, ni_wireless_ap_scan_mode_t ap_scan)
 {
 	ni_dbus_object_t *net_object;
 
@@ -817,7 +817,7 @@ ni_wpa_interface_disassociate(ni_wpa_interface_t *wpa_dev)
 		wpa_dev->requested_association.config = NULL;
 	}
 
-	ni_wpa_interface_set_ap_scan(wpa_dev, 1);
+	ni_wpa_interface_set_ap_scan(wpa_dev, ap_scan);
 	return 0;
 }
 
@@ -1374,12 +1374,13 @@ __wpa_dbus_bss_get_psk(const ni_dbus_object_t *object, const ni_dbus_property_t 
 	 * string, and the key as a byte array. */
 	if (net->wpa_psk.passphrase) {
 		ni_dbus_variant_set_string(argument, net->wpa_psk.passphrase);
+/*	FIXME - passphrase needs to be converted depends on the size
 	} else
 	if (net->wpa_psk.key.len) {
 		ni_dbus_variant_set_byte_array(argument,
 				net->wpa_psk.key.data,
 				net->wpa_psk.key.len);
-	} else {
+*/	} else {
 		return __ni_dbus_property_not_present_error(error, property);
 	}
 	return TRUE;
@@ -1814,6 +1815,69 @@ static ni_intmap_t __ni_wpa_protocol_names[] = {
 
 	{ NULL }
 };
+
+static ni_intmap_t __ni_wpa_driver_names[] = {
+	{ "wext",		NI_WIRELESS_WPA_DRIVER_WEXT	},
+	{ "nl80211",	NI_WIRELESS_WPA_DRIVER_NL80211	},
+	{ "hostap",		NI_WIRELESS_WPA_DRIVER_HOSTAP	},
+	{ "wired",		NI_WIRELESS_WPA_DRIVER_WIRED	},
+	{ "ralink",		NI_WIRELESS_WPA_DRIVER_RALINK	},
+	{ NULL }
+};
+
+ni_bool_t
+ni_wpa_driver_from_string(const char *string, unsigned int *value)
+{
+	if (ni_parse_uint_mapped(string, __ni_wpa_driver_names, value) < 0)
+		return FALSE;
+	return TRUE;
+}
+
+const char *
+ni_wpa_driver_as_string(ni_wireless_wpa_driver_t drv)
+{
+	return ni_format_uint_mapped(drv, __ni_wpa_driver_names);
+}
+
+static ni_bool_t
+ni_wpa_driver_check_name(const char *name)
+{
+	ni_wireless_wpa_driver_t drv;
+
+	for (drv = NI_WIRELESS_WPA_DRIVER_WEXT; drv < NI_WIRELESS_WPA_DRIVER_COUNT; drv++)
+		if (ni_string_eq_nocase(name, ni_wpa_driver_as_string(drv)))
+			return TRUE;
+
+	return FALSE;
+}
+
+ni_bool_t
+ni_wpa_driver_string_validate(const char *string)
+{
+	unsigned int i;
+	ni_string_array_t drv;
+
+	if (!string)
+		return FALSE;
+
+	ni_string_array_init(&drv);
+	ni_string_split(&drv, string, ",", NI_WIRELESS_WPA_DRIVER_COUNT);
+
+	if (0 == drv.count) {
+		ni_string_array_destroy(&drv);
+		return FALSE;
+	}
+
+	for (i = 0; i < drv.count; i++) {
+		if (!ni_wpa_driver_check_name(drv.data[i])) {
+			ni_string_array_destroy(&drv);
+			return FALSE;
+		}
+	}
+
+	ni_string_array_destroy(&drv);
+	return TRUE;
+}
 
 static const char *
 ni_wpa_auth_protocol_as_string(ni_wireless_auth_mode_t auth_mode, DBusError *error)
