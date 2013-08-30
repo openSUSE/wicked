@@ -15,7 +15,7 @@
 #include "dbus-common.h"
 #include "model.h"
 
-static dbus_bool_t	ni_objectmodel_get_wireless_request(ni_wireless_network_t *,
+static dbus_bool_t	ni_objectmodel_get_wireless_request(ni_wireless_config_t *,
 				const ni_dbus_variant_t *, DBusError *);
 
 static dbus_bool_t
@@ -53,15 +53,24 @@ ni_objectmodel_wireless_change_device(ni_dbus_object_t *object, const ni_dbus_me
 			ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_netdev_t *dev;
+	ni_wireless_t *wlan;
 	ni_wireless_network_t *net;
 	dbus_bool_t rv = FALSE;
 
 	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return FALSE;
 
-	net = ni_wireless_network_new();
-	if (!ni_objectmodel_get_wireless_request(net, &argv[0], error))
-		goto error;
+	if (!(wlan = ni_netdev_get_wireless(dev))) {
+		dbus_set_error(error, DBUS_ERROR_FAILED,
+				"wireless change request on non-wireless interface");
+		return FALSE;
+	}
+
+	ni_wireless_config_destroy(&wlan->conf);
+	if (!ni_objectmodel_get_wireless_request(&wlan->conf, &argv[0], error)) {
+		ni_wireless_config_destroy(&wlan->conf);
+		return FALSE;
+	}
 
 	net = ni_wireless_network_get(wlan->conf.networks.data[0]);
 	if (net->essid.len != 0) {
@@ -153,8 +162,8 @@ error:
 	return FALSE;
 }
 
-dbus_bool_t
-ni_objectmodel_get_wireless_request(ni_wireless_network_t *net,
+static dbus_bool_t
+ni_objectmodel_get_wireless_request_net(ni_wireless_network_t *net,
 				const ni_dbus_variant_t *var, DBusError *error)
 {
 	const ni_dbus_variant_t *child;
@@ -232,6 +241,75 @@ ni_objectmodel_get_wireless_request(ni_wireless_network_t *net,
 		}
 	}
 
+	return TRUE;
+}
+
+dbus_bool_t
+ni_objectmodel_get_wireless_request(ni_wireless_config_t *conf,
+				const ni_dbus_variant_t *dict, DBusError *error)
+{
+	ni_wireless_network_t *net;
+	ni_dbus_variant_t *var;
+	const char *string = NULL;
+	uint32_t value;
+
+	if (!ni_dbus_variant_is_dict(dict)) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "expected dict argument");
+		return FALSE;
+	}
+
+	if (ni_dbus_dict_get_string(dict, "country", &string)) {
+		if (ni_string_len(string) != 2) {
+			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+					"invalid wireless country %s", string);
+			return FALSE;
+		}
+		ni_string_dup(&conf->country, string);
+		string = NULL;
+	}
+
+	if (ni_dbus_dict_get_uint32(dict, "ap-scan", &value)) {
+		if (value > NI_WIRELESS_AP_SCAN_2) {
+			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+					"invalid wireless ap-scan mode %u", value);
+			return FALSE;
+		}
+		conf->ap_scan = value;
+	}
+
+	var = NULL;
+	while ((var = ni_dbus_dict_get_next(dict, "driver", var)) != NULL) {
+		if (!ni_dbus_variant_get_string(var, &string) || ni_string_empty(string)) {
+			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+					"invalid wireless driver %s", string);
+		}
+		ni_string_array_append(&conf->drivers, string);
+	}
+
+	var = NULL;
+	while ((var = ni_dbus_dict_get_next(dict, "network", var)) != NULL) {
+		if (!ni_dbus_variant_is_dict(var))
+			return FALSE;
+
+		net = ni_wireless_network_new();
+		if (!ni_objectmodel_get_wireless_request_net(net, var, error)) {
+			ni_wireless_network_free(net);
+			return FALSE;
+		}
+		ni_wireless_network_array_append(&conf->networks, net);
+	}
+
+	/* TODO: Remove it? Allows to use wireless dict directly
+	 *       without any network in it for compatibility ...
+	 */
+	if (conf->networks.count == 0) {
+		net = ni_wireless_network_new();
+		if (!ni_objectmodel_get_wireless_request_net(net, var, error)) {
+			ni_wireless_network_free(net);
+			return FALSE;
+		}
+		ni_wireless_network_array_append(&conf->networks, net);
+	}
 	return TRUE;
 }
 
