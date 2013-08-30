@@ -63,6 +63,7 @@ ni_objectmodel_wireless_change_device(ni_dbus_object_t *object, const ni_dbus_me
 	if (!ni_objectmodel_get_wireless_request(net, &argv[0], error))
 		goto error;
 
+	net = ni_wireless_network_get(wlan->conf.networks.data[0]);
 	if (net->essid.len != 0) {
 		dbus_bool_t was_up = FALSE;
 
@@ -70,8 +71,7 @@ ni_objectmodel_wireless_change_device(ni_dbus_object_t *object, const ni_dbus_me
 
 		switch (net->keymgmt_proto) {
 		case NI_WIRELESS_KEY_MGMT_PSK:
-			if (net->wpa_psk.key.len == 0
-			 && net->wpa_psk.passphrase == NULL) {
+			if (net->wpa_psk.passphrase == NULL) {
 				dbus_set_error(error, NI_DBUS_ERROR_AUTH_INFO_MISSING,
 						"wpa-psk.passphrase|PASSWORD|%.*s",
 						net->essid.len, net->essid.data);
@@ -81,7 +81,7 @@ ni_objectmodel_wireless_change_device(ni_dbus_object_t *object, const ni_dbus_me
 
 		case NI_WIRELESS_KEY_MGMT_EAP:
 			if (net->wpa_eap.method == NI_WIRELESS_EAP_NONE) {
-				/* error */
+				/* TTLS PEAP TLS */
 			}
 			if (net->wpa_eap.identity == NULL) {
 				dbus_set_error(error, NI_DBUS_ERROR_AUTH_INFO_MISSING,
@@ -193,27 +193,18 @@ ni_objectmodel_get_wireless_request(ni_wireless_network_t *net,
 	}
 
 	if (ni_dbus_dict_get_string(var, "mode", &string)) {
-		net->mode = ni_wireless_name_to_mode(string);
-		if (net->mode == NI_WIRELESS_MODE_UNKNOWN)
+		if (!ni_wireless_name_to_mode(string, &net->mode))
 			return FALSE;
 	}
 
 	if ((child = ni_dbus_dict_get(var, "wpa-psk")) != NULL) {
-		ni_dbus_variant_t *attr;
-
 		net->auth_proto = NI_WIRELESS_AUTH_WPA2;
 		net->keymgmt_proto = NI_WIRELESS_KEY_MGMT_PSK;
+		/* 'key' member has been removed
+		 * do parsing a string here: may be a 64 len HEX digit string or a 8..63 ASCII char passphrase
+		*/
 		if (ni_dbus_dict_get_string(child, "passphrase", &string))
 			ni_string_dup(&net->wpa_psk.passphrase, string);
-
-		if ((attr = ni_dbus_dict_get(child, "key")) != NULL) {
-			ni_opaque_t *key = &net->wpa_psk.key;
-			unsigned int key_len;
-
-			if (!ni_dbus_variant_get_byte_array_minmax(attr, key->data, &key_len, 64, 64))
-				return FALSE;
-			key->len = key_len;
-		}
 	} else
 	if ((child = ni_dbus_dict_get(var, "wpa-eap")) != NULL) {
 		ni_dbus_variant_t *gchild;
