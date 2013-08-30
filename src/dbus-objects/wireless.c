@@ -252,6 +252,7 @@ ni_objectmodel_get_wireless_request(ni_wireless_config_t *conf,
 	ni_dbus_variant_t *var;
 	const char *string = NULL;
 	uint32_t value;
+	ni_string_array_t drv = NI_STRING_ARRAY_INIT;
 
 	if (!ni_dbus_variant_is_dict(dict)) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "expected dict argument");
@@ -279,12 +280,18 @@ ni_objectmodel_get_wireless_request(ni_wireless_config_t *conf,
 
 	var = NULL;
 	while ((var = ni_dbus_dict_get_next(dict, "driver", var)) != NULL) {
-		if (!ni_dbus_variant_get_string(var, &string) || ni_string_empty(string)) {
+		if (!ni_dbus_variant_get_string(var, &string) || ni_string_empty(string) ||
+		    strchr(string, ',') || !ni_check_printable(string, strlen(string))) {
 			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
 					"invalid wireless driver %s", string);
+			ni_string_array_destroy(&drv);
+			return FALSE;
 		}
-		ni_string_array_append(&conf->drivers, string);
+		ni_string_array_append(&drv, string);
 	}
+	if (drv.count > 0)
+		ni_string_join(&conf->driver, &drv, ",");
+	ni_string_array_destroy(&drv);
 
 	var = NULL;
 	while ((var = ni_dbus_dict_get_next(dict, "network", var)) != NULL) {
