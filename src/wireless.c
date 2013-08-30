@@ -282,14 +282,14 @@ ni_wireless_set_network(ni_netdev_t *dev, ni_wireless_network_t *net)
 	/* FIXME: we should only do this if the new association
 	 * request is different. */
 	if (wlan->assoc.state != NI_WIRELESS_NOT_ASSOCIATED)
-		ni_wpa_interface_disassociate(wpa_dev, wlan->ap_scan);
+		ni_wpa_interface_disassociate(wpa_dev, wlan->conf.ap_scan);
 
 	ni_wireless_set_assoc_network(wlan, net);
 
 	if (!link_was_up)
 		return 0;
 
-	return ni_wpa_interface_associate(wpa_dev, net, wlan->ap_scan);
+	return ni_wpa_interface_associate(wpa_dev, net, wlan->conf.ap_scan);
 }
 
 int
@@ -310,7 +310,7 @@ ni_wireless_connect(ni_netdev_t *dev)
 	if (!(wpa_dev = ni_wireless_bind_supplicant(dev)))
 		return -1;
 
-	return ni_wpa_interface_associate(wpa_dev, wlan->assoc.network, wlan->ap_scan);
+	return ni_wpa_interface_associate(wpa_dev, wlan->assoc.network, wlan->conf.ap_scan);
 }
 
 /*
@@ -334,7 +334,7 @@ ni_wireless_disconnect(ni_netdev_t *dev)
 
 	ni_wireless_set_assoc_network(wlan, NULL);
 
-	return ni_wpa_interface_disassociate(wpa_dev, wlan->ap_scan);
+	return ni_wpa_interface_disassociate(wpa_dev, wlan->conf.ap_scan);
 }
 
 /*
@@ -861,11 +861,10 @@ ni_wireless_new(ni_netdev_t *dev)
 	ni_assert(dev->wireless == NULL);
 	wlan = xcalloc(1, sizeof(ni_wireless_t));
 
+	wlan->conf.ap_scan = NI_WIRELESS_AP_SCAN_1;
+
 	if (__ni_wireless_scanning_enabled)
 		wlan->scan = ni_wireless_scan_new(dev, NI_WIRELESS_DEFAUT_SCAN_INTERVAL);
-
-	wlan->ap_scan = 1; /* Default wpa_supplicant ap_scan */
-	wlan->wpa_drv = NI_WIRELESS_WPA_DRIVER_NL80211; /* Default wpa drv since OpenSUSE 11.3) */
 
 	return wlan;
 }
@@ -877,7 +876,7 @@ ni_wireless_free(ni_wireless_t *wireless)
 	if (wireless->scan)
 		ni_wireless_scan_free(wireless->scan);
 	wireless->scan = NULL;
-	ni_wireless_network_array_destroy(&wireless->networks);
+	ni_wireless_config_destroy(&wireless->conf);
 	free(wireless);
 }
 
@@ -1225,8 +1224,8 @@ ni_wireless_essid_already_exists(ni_wireless_t *wlan, ni_wireless_ssid_t *essid)
 
 	ni_assert(wlan != NULL && essid != NULL);
 
-	for (i = 0, count = wlan->networks.count; i < count; i++) {
-		net = wlan->networks.data[i];
+	for (i = 0, count = wlan->conf.networks.count; i < count; i++) {
+		net = wlan->conf.networks.data[i];
 		if (ni_wireless_match_ssid(&net->essid, essid))
 			return TRUE;
 	}

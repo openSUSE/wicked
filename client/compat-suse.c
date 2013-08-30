@@ -1614,7 +1614,7 @@ try_add_wireless(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *suffix)
 	net->essid.len = essid.len;
 
 	/* Default is scan_ssid = TRUE */
-	if (var = __find_indexed_variable(sc, "WIRELESS_HIDDEN_SSID", suffix)) {
+	if ((var = __find_indexed_variable(sc, "WIRELESS_HIDDEN_SSID", suffix))) {
 		if (ni_string_eq_nocase(var->value, "no"))
 			net->scan_ssid = FALSE;
 		else if (ni_string_eq_nocase(var->value, "yes"))
@@ -1733,7 +1733,7 @@ try_add_wireless(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *suffix)
 		goto failure;
 	}
 
-	ni_wireless_network_array_append(&wlan->networks, net);
+	ni_wireless_network_array_append(&wlan->conf.networks, net);
 
 	return TRUE;
 

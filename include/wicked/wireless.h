@@ -234,24 +234,18 @@ typedef struct ni_wireless_config {
 } ni_wireless_config_t;
 
 struct ni_wireless {
-	ni_wireless_interface_capabilities_t capabilities;
+	ni_wireless_interface_capabilities_t	capabilities;
 
-	ni_wireless_scan_t *	scan;
-
-	char				country[2];
-	unsigned int			ap_scan;
-	ni_wireless_wpa_driver_t	wpa_drv;
-
-	/* Currently configured networks */
-	ni_wireless_network_array_t networks;
+	ni_wireless_config_t			conf;
+	ni_wireless_scan_t *			scan;
 
 	/* Association information */
 	struct {
-		const ni_timer_t *	timer;
-		unsigned int		fail_delay;
-		ni_wireless_assoc_state_t state;
-		ni_wireless_network_t *	network;
-		ni_hwaddr_t		access_point;
+		const ni_timer_t *		timer;
+		unsigned int			fail_delay;
+		ni_wireless_assoc_state_t	state;
+		ni_wireless_network_t *		network;
+		ni_hwaddr_t			access_point;
 	} assoc;
 };
 
@@ -282,6 +276,7 @@ extern void		ni_wireless_free(ni_wireless_t *);
 extern int		ni_wireless_set_network(ni_netdev_t *, ni_wireless_network_t *);
 extern int		ni_wireless_connect(ni_netdev_t *);
 extern int		ni_wireless_disconnect(ni_netdev_t *);
+extern void		ni_wireless_config_destroy(ni_wireless_config_t *);
 extern ni_wireless_scan_t *ni_wireless_scan_new(ni_netdev_t *, unsigned int);
 extern void		ni_wireless_scan_free(ni_wireless_scan_t *);
 
