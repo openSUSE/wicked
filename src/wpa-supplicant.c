@@ -750,7 +750,7 @@ done:
  * The user asks us to configure the interface
  */
 int
-ni_wpa_interface_associate(ni_wpa_interface_t *dev, ni_wireless_network_t *net, uint8_t ap_scan)
+ni_wpa_interface_associate(ni_wpa_interface_t *dev, ni_wireless_network_t *net, ni_wireless_ap_scan_mode_t ap_scan)
 {
 	ni_dbus_object_t *net_object;
 
@@ -792,7 +792,7 @@ ni_wpa_interface_associate(ni_wpa_interface_t *dev, ni_wireless_network_t *net, 
 }
 
 int
-ni_wpa_interface_disassociate(ni_wpa_interface_t *wpa_dev, uint8_t ap_scan)
+ni_wpa_interface_disassociate(ni_wpa_interface_t *wpa_dev, ni_wireless_ap_scan_mode_t ap_scan)
 {
 	ni_dbus_object_t *net_object;
 

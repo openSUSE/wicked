@@ -269,7 +269,7 @@ ni_objectmodel_get_wireless_request(ni_wireless_config_t *conf,
 	}
 
 	if (ni_dbus_dict_get_uint32(dict, "ap-scan", &value)) {
-		if (value > NI_WIRELESS_AP_SCAN_2) {
+		if (value > NI_WIRELESS_AP_SCAN_SUPPLICANT_EXPLICIT_MATCH) {
 			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
 					"invalid wireless ap-scan mode %u", value);
 			return FALSE;

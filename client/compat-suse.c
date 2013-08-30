@@ -32,20 +32,26 @@
 #include "wicked-client.h"
 #include "util_priv.h"
 
+typedef ni_bool_t (*try_function_t)(const ni_sysconfig_t *, ni_netdev_t *, const char *);
 
-static ni_compat_netdev_t *__ni_suse_read_interface(const char *, const char *);
-static ni_bool_t	__ni_suse_read_globals(const char *path);
-static void		__ni_suse_free_globals(void);
-static ni_bool_t	__ni_suse_sysconfig_read(ni_sysconfig_t *, ni_compat_netdev_t *);
-static int		__process_indexed_variables(const ni_sysconfig_t *, ni_netdev_t *, const char *,
-				ni_bool_t (*)(const ni_sysconfig_t *, ni_netdev_t *, const char *));
-static ni_var_t *	__find_indexed_variable(const ni_sysconfig_t *, const char *, const char *);
-static ni_bool_t	__ni_suse_read_routes(ni_route_table_t **, const char *, const char *);
-static ni_bool_t __ni_wireless_parse_wep_auth(const ni_sysconfig_t *, ni_wireless_network_t *, const char *, const char *, ni_bool_t);
-static int __ni_wireless_parse_auth_proto(const ni_sysconfig_t *, ni_wireless_auth_mode_t *, const char *, const char *);
-static int __ni_wireless_parse_cipher(const ni_sysconfig_t *, ni_wireless_cipher_t *, const char *, const char *, const char *);
-static ni_bool_t __ni_wireless_parse_psk_auth(const ni_sysconfig_t *, ni_wireless_network_t *, const char *, const char *, uint8_t);
-static ni_bool_t __ni_wireless_parse_eap_auth(const ni_sysconfig_t *, ni_wireless_network_t *, const char *, const char *, uint8_t);
+static ni_compat_netdev_t *	__ni_suse_read_interface(const char *, const char *);
+static ni_bool_t		__ni_suse_read_globals(const char *path);
+static void			__ni_suse_free_globals(void);
+static ni_bool_t		__ni_suse_sysconfig_read(ni_sysconfig_t *, ni_compat_netdev_t *);
+static int			__process_indexed_variables(const ni_sysconfig_t *, ni_netdev_t *,
+							const char *, try_function_t);
+static ni_var_t *		__find_indexed_variable(const ni_sysconfig_t *, const char *, const char *);
+static ni_bool_t		__ni_suse_read_routes(ni_route_table_t **, const char *, const char *);
+static ni_bool_t		__ni_wireless_parse_wep_auth(const ni_sysconfig_t *, ni_wireless_network_t *,
+							const char *, const char *, ni_bool_t);
+static int			__ni_wireless_parse_auth_proto(const ni_sysconfig_t *, ni_wireless_auth_mode_t *,
+							const char *, const char *);
+static int			__ni_wireless_parse_cipher(const ni_sysconfig_t *, ni_wireless_cipher_t *,
+							const char *, const char *, const char *);
+static ni_bool_t		__ni_wireless_parse_psk_auth(const ni_sysconfig_t *, ni_wireless_network_t *,
+							const char *, const char *, ni_wireless_ap_scan_mode_t);
+static ni_bool_t		__ni_wireless_parse_eap_auth(const ni_sysconfig_t *, ni_wireless_network_t *,
+							const char *, const char *, ni_wireless_ap_scan_mode_t);
 
 static char *			__ni_suse_default_hostname;
 static ni_sysconfig_t *		__ni_suse_config_defaults;
@@ -1544,7 +1550,7 @@ try_add_wireless(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *suffix)
 		/* Default is ap_scan = 1 */
 		if ((tmp = ni_sysconfig_get_value(sc, "WIRELESS_AP_SCANMODE"))) {
 			if ((ni_parse_uint(tmp, &wlan->conf.ap_scan, 10) < 0) ||
-				(wlan->conf.ap_scan > NI_WIRELESS_AP_SCAN_2)) {
+				(wlan->conf.ap_scan > NI_WIRELESS_AP_SCAN_SUPPLICANT_EXPLICIT_MATCH)) {
 				ni_error("ifcfg-%s: wrong WIRELESS_AP_SCANMODE value",
 					dev->name);
 				goto failure_global;
@@ -1738,6 +1744,23 @@ failure_global:
 }
 
 static ni_bool_t
+__ni_wireless_wep_key_len_is_valid(unsigned int len)
+{
+	switch(len) {
+	case NI_WIRELESS_WEP_KEY_LEN_40:
+	case NI_WIRELESS_WEP_KEY_LEN_64:
+	case NI_WIRELESS_WEP_KEY_LEN_104:
+	case NI_WIRELESS_WEP_KEY_LEN_128:
+		return TRUE;
+
+	default:
+		return FALSE;
+	}
+
+	return FALSE;
+}
+
+static ni_bool_t
 __ni_wireless_wep_key_validate(char *key)
 {
 	size_t len;
@@ -1830,7 +1853,8 @@ __ni_wireless_parse_wep_auth(const ni_sysconfig_t *sc, ni_wireless_network_t *ne
 
 	/* Default key length is 104 */
 	if ((var = __find_indexed_variable(sc,"WIRELESS_KEY_LENGTH", suffix))) {
-		if (!ni_wireless_name_to_wep_key_len(var->value, &key_len)) {
+		if (ni_parse_uint(var->value, &key_len, 10) < 0 ||
+			!__ni_wireless_wep_key_len_is_valid(key_len)) {
 			ni_error("ifcfg-%s: wrong WIRELESS_KEY_LENGTH%s value",
 				dev_name, suffix);
 			goto wep_failure;
@@ -1900,7 +1924,7 @@ __ni_wireless_parse_cipher(const ni_sysconfig_t *sc, ni_wireless_cipher_t *ciphe
 }
 
 static ni_bool_t
-__ni_wireless_parse_psk_auth(const ni_sysconfig_t *sc, ni_wireless_network_t *net, const char *suffix, const char *dev_name, uint8_t ap_scan)
+__ni_wireless_parse_psk_auth(const ni_sysconfig_t *sc, ni_wireless_network_t *net, const char *suffix, const char *dev_name, ni_wireless_ap_scan_mode_t ap_scan)
 {
 	ni_var_t *var;
 	const char *pairwise = "WIRELESS_CIPHER_PAIRWISE";
@@ -1937,7 +1961,7 @@ __ni_wireless_parse_psk_auth(const ni_sysconfig_t *sc, ni_wireless_network_t *ne
 	if (__ni_wireless_parse_cipher(sc, &net->group_cipher, group, suffix, dev_name) < 0)
 		goto psk_failure;
 
-	if (NI_WIRELESS_AP_SCAN_2 == ap_scan) {
+	if (NI_WIRELESS_AP_SCAN_SUPPLICANT_EXPLICIT_MATCH == ap_scan) {
 		if (net->auth_proto != NI_WIRELESS_AUTH_WPA2)
 			net->auth_proto = NI_WIRELESS_AUTH_WPA1;
 
@@ -1955,7 +1979,7 @@ psk_failure:
 }
 
 static ni_bool_t
-__ni_wireless_parse_eap_auth(const ni_sysconfig_t *sc, ni_wireless_network_t *net, const char *suffix, const char *dev_name, uint8_t ap_scan)
+__ni_wireless_parse_eap_auth(const ni_sysconfig_t *sc, ni_wireless_network_t *net, const char *suffix, const char *dev_name, ni_wireless_ap_scan_mode_t ap_scan)
 {
 	ni_var_t *var;
 	const char *pairwise = "WIRELESS_CIPHER_PAIRWISE";
@@ -1986,7 +2010,7 @@ __ni_wireless_parse_eap_auth(const ni_sysconfig_t *sc, ni_wireless_network_t *ne
 	if (__ni_wireless_parse_cipher(sc, &net->group_cipher, group, suffix, dev_name) < 0)
 		goto eap_failure;
 
-	if (NI_WIRELESS_AP_SCAN_2 == ap_scan) {
+	if (NI_WIRELESS_AP_SCAN_SUPPLICANT_EXPLICIT_MATCH == ap_scan) {
 		if (net->auth_proto != NI_WIRELESS_AUTH_WPA2)
 			net->auth_proto = NI_WIRELESS_AUTH_WPA1;
 
@@ -2059,7 +2083,7 @@ __ni_wireless_parse_eap_auth(const ni_sysconfig_t *sc, ni_wireless_network_t *ne
 			goto eap_failure;
 		}
 	}
-	else if (NI_WIRELESS_AP_SCAN_2 == ap_scan) {
+	else if (NI_WIRELESS_AP_SCAN_SUPPLICANT_EXPLICIT_MATCH == ap_scan) {
 		ni_error("ifcfg-%s: WIRELESS_EAP_AUTH%s needed by WIRELESS_AP_SCANMODE=2",
 			dev_name, suffix);
 		goto eap_failure;

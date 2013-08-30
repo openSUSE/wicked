@@ -46,9 +46,6 @@
 <define name="builtin-key-mgmt" type="uint32" constraint="enum">
   <@@WIRELESS_KEY_MGMT_NAME@@ value="@@WIRELESS_KEY_MGMT_VALUE@@"/>
 </define>
-<define name="builtin-wep-key-len" type="uint32" constraint="enum">
-  <@@WIRELESS_WEP_KEY_LEN_NAME@@ value="@@WIRELESS_WEP_KEY_LEN_VALUE@@"/>
-</define>
 <define name="builtin-eap-method" type="uint32" constraint="enum">
   <@@WIRELESS_EAP_METHOD_NAME@@ value="@@WIRELESS_EAP_METHOD_VALUE@@"/>
 </define>
@@ -69,9 +66,6 @@
 </define>
 <define name="builtin-key-mgmt-mask" type="uint32" constraint="bitmap">
   <@@WIRELESS_KEY_MGMT_NAME@@ bit="@@WIRELESS_KEY_MGMT_VALUE@@"/>
-</define>
-<define name="builtin-wep-key-len-mask" type="uint32" constraint="bitmap">
-  <@@WIRELESS_WEP_KEY_LEN_NAME@@ value="@@WIRELESS_WEP_KEY_LEN_VALUE@@"/>
 </define>
 <define name="builtin-eap-method-mask" type="uint32" constraint="bitmap">
   <@@WIRELESS_EAP_METHOD_NAME@@ bit="@@WIRELESS_EAP_METHOD_VALUE@@"/>

@@ -437,7 +437,7 @@ __ni_compat_generate_wireless(xml_node_t *ifnode, const ni_compat_netdev_t *comp
 		xml_node_new_element("country", wireless, wlan->conf.country);
 	}
 
-	if (wlan->conf.ap_scan <= NI_WIRELESS_AP_SCAN_2 &&
+	if (wlan->conf.ap_scan <= NI_WIRELESS_AP_SCAN_SUPPLICANT_EXPLICIT_MATCH &&
 		ni_string_printf(&tmp, "%u", wlan->conf.ap_scan)) {
 		xml_node_new_element("ap-scan", wireless, tmp);
 		ni_string_free(&tmp);

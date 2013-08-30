@@ -568,28 +568,6 @@ ni_wireless_name_to_auth_algo(const char *string, unsigned int *value)
 	return TRUE;
 }
 
-static ni_intmap_t __ni_wireless_wep_key_len_names[] = {
-	{ "40",			NI_WIRELESS_WEP_KEY_LEN_40},
-	{ "64",			NI_WIRELESS_WEP_KEY_LEN_40},
-	{ "104",		NI_WIRELESS_WEP_KEY_LEN_104},
-	{ "128",		NI_WIRELESS_WEP_KEY_LEN_104},
-	{ NULL }
-};
-
-const char *
-ni_wireless_wep_key_len_to_name(ni_wireless_wep_key_len_t key_len)
-{
-	return ni_format_uint_mapped(key_len, __ni_wireless_wep_key_len_names);
-}
-
-ni_bool_t
-ni_wireless_name_to_wep_key_len(const char *string, unsigned int *value)
-{
-	if (ni_parse_uint_mapped(string, __ni_wireless_wep_key_len_names, value) < 0)
-		return FALSE;
-	return TRUE;
-}
-
 static ni_intmap_t __ni_wireless_cipher_names[] = {
 	{ "none",		NI_WIRELESS_CIPHER_NONE },
 	{ "proprietary",	NI_WIRELESS_CIPHER_PROPRIETARY },
@@ -861,7 +839,7 @@ ni_wireless_new(ni_netdev_t *dev)
 	ni_assert(dev->wireless == NULL);
 	wlan = xcalloc(1, sizeof(ni_wireless_t));
 
-	wlan->conf.ap_scan = NI_WIRELESS_AP_SCAN_1;
+	wlan->conf.ap_scan = NI_WIRELESS_AP_SCAN_SUPPLICANT_AUTO;
 
 	if (__ni_wireless_scanning_enabled)
 		wlan->scan = ni_wireless_scan_new(dev, NI_WIRELESS_DEFAUT_SCAN_INTERVAL);
@@ -890,7 +868,7 @@ ni_wireless_config_destroy(ni_wireless_config_t *conf)
 
 		memset(conf, 0, sizeof(*conf));
 		/* reset to ap scan default again */
-		conf->ap_scan = NI_WIRELESS_AP_SCAN_1;
+		conf->ap_scan = NI_WIRELESS_AP_SCAN_SUPPLICANT_AUTO;
 	}
 }
 

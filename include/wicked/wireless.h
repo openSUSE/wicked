@@ -99,11 +99,11 @@ typedef enum ni_wireless_wpa_driver {
 	NI_WIRELESS_WPA_DRIVER_COUNT,
 } ni_wireless_wpa_driver_t;
 
-typedef enum ni_wireless_wep_key_len {
-	NI_WIRELESS_WEP_KEY_LEN_NONE,
-	NI_WIRELESS_WEP_KEY_LEN_40 = 40,
-	NI_WIRELESS_WEP_KEY_LEN_104 = 104,
-} ni_wireless_wep_key_len_t;
+typedef enum ni_wireless_ap_scan {
+	NI_WIRELESS_AP_SCAN_DRIVER = 0,
+	NI_WIRELESS_AP_SCAN_SUPPLICANT_AUTO,
+	NI_WIRELESS_AP_SCAN_SUPPLICANT_EXPLICIT_MATCH,
+} ni_wireless_ap_scan_mode_t;
 
 #define NI_WIRELESS_PAIRWISE_CIPHERS_MAX	4
 
@@ -137,6 +137,13 @@ typedef struct ni_wireless_blob {
 
 #define NI_WIRELESS_BITRATES_MAX	32
 #define NI_WIRELESS_WEP_KEY_COUNT	4
+
+enum ni_wireless_wep_key_len {
+	NI_WIRELESS_WEP_KEY_LEN_40 = 40,
+	NI_WIRELESS_WEP_KEY_LEN_64 = 64,
+	NI_WIRELESS_WEP_KEY_LEN_104 = 104,
+	NI_WIRELESS_WEP_KEY_LEN_128 = 128,
+};
 
 struct ni_wireless_network {
 	unsigned int			refcount;
@@ -220,15 +227,9 @@ typedef struct ni_wireless_interface_capabilities {
 	unsigned int		wpa_protocols;
 } ni_wireless_interface_capabilities_t;
 
-enum ni_wireless_ap_scan {
-	NI_WIRELESS_AP_SCAN_0,
-	NI_WIRELESS_AP_SCAN_1,
-	NI_WIRELESS_AP_SCAN_2,
-};
-
 typedef struct ni_wireless_config {
 	char *					country;
-	unsigned int				ap_scan;
+	ni_wireless_ap_scan_mode_t			ap_scan;
 	char *					driver;
 	ni_wireless_network_array_t		networks;
 } ni_wireless_config_t;
@@ -309,8 +310,6 @@ extern const char *	ni_wireless_auth_mode_to_name(ni_wireless_auth_mode_t);
 extern ni_bool_t	ni_wireless_name_to_auth_mode(const char *, unsigned int *);
 extern const char *	ni_wireless_auth_algo_to_name(ni_wireless_auth_algo_t);
 extern ni_bool_t	ni_wireless_name_to_auth_algo(const char *, unsigned int *);
-extern const char *	ni_wireless_wep_key_len_to_name(ni_wireless_wep_key_len_t);
-extern ni_bool_t	ni_wireless_name_to_wep_key_len(const char *, unsigned int *);
 extern const char *	ni_wireless_cipher_to_name(ni_wireless_cipher_t);
 extern ni_bool_t	ni_wireless_name_to_cipher(const char *, unsigned int *);
 extern const char *	ni_wireless_key_management_to_name(ni_wireless_key_mgmt_t);
