@@ -84,6 +84,10 @@ ni_system_updaters_init(void)
 		if (updater->proc_backup == NULL || updater->proc_restore == NULL) {
 			ni_warn("system-updater %s configured, but no backup/restore script defined", name);
 			updater->proc_backup = updater->proc_restore = NULL;
+		} else
+		if (updater->proc_remove == NULL) {
+			ni_warn("system-updater %s configured, but no remove script defined", name);
+			updater->enabled = 0;
 		}
 	}
 }
@@ -202,12 +206,16 @@ ni_system_updater_run(ni_shellcmd_t *shellcmd, ni_string_array_t *args)
  * Back up current configuration
  */
 static ni_bool_t
-ni_system_updater_backup(ni_updater_t *updater)
+ni_system_updater_backup(ni_updater_t *updater, const char *ifname)
 {
 	if (updater->have_backup)
 		return TRUE;
 
 	if (!updater->proc_backup)
+		return TRUE;
+
+	/* FIXME: something goes wrong here, disabled lo for now */
+	if(ni_string_eq("lo", ifname))
 		return TRUE;
 
 	if (!ni_system_updater_run(updater->proc_backup, NULL)) {
@@ -224,12 +232,16 @@ ni_system_updater_backup(ni_updater_t *updater)
  * Restore existing configuration
  */
 static ni_bool_t
-ni_system_updater_restore(ni_updater_t *updater)
+ni_system_updater_restore(ni_updater_t *updater, const char *ifname)
 {
 	if (!updater->have_backup)
 		return TRUE;
 
 	if (!updater->proc_restore)
+		return TRUE;
+
+	/* FIXME: something goes wrong here, disabled lo for now */
+	if(ni_string_eq("lo", ifname))
 		return TRUE;
 
 	if (!ni_system_updater_run(updater->proc_restore, NULL)) {
@@ -261,8 +273,21 @@ ni_system_updater_install(ni_updater_t *updater, const ni_addrconf_lease_t *leas
 	if (!updater->proc_install)
 		return TRUE;
 
-	if (!ifname || (!updater->have_backup && !ni_system_updater_backup(updater)))
+	/* FIXME: something goes wrong here, disabled lo for now */
+	if(ni_string_eq("lo", ifname))
+		return TRUE;
+
+	if (!ifname || (!updater->have_backup && !ni_system_updater_backup(updater, ifname)))
 		return FALSE;
+
+	ni_string_array_append(&arguments, "-i");
+	ni_string_array_append(&arguments, ifname);
+
+	ni_string_array_append(&arguments, "-t");
+	ni_string_array_append(&arguments, ni_addrconf_type_to_name(lease->type));
+
+	ni_string_array_append(&arguments, "-f");
+	ni_string_array_append(&arguments, ni_addrfamily_type_to_name(lease->family));
 
 	/* FIXME: build a file containing the new configuration, and run the
 	 * indicated script with it */
@@ -336,6 +361,10 @@ ni_system_updater_remove(ni_updater_t *updater, const ni_addrconf_lease_t *lease
 			ni_addrfamily_type_to_name(lease->family));
 
 	if (!updater->proc_remove)
+		return TRUE;
+
+	/* FIXME: something goes wrong here, disabled lo for now */
+	if(ni_string_eq("lo", ifname))
 		return TRUE;
 
 	ni_string_array_append(&arguments, "-i");
@@ -454,7 +483,7 @@ ni_system_update_all(const ni_addrconf_lease_t *lease, const char *ifname)
 		 * If we do have, update the system only if the lease was updated.
 		 */
 		num_sources = ni_objectmodel_updater_select_sources(updater, &sources);
-		if (num_sources == 0 && !ni_system_updater_restore(updater))
+		if (num_sources == 0 && !ni_system_updater_restore(updater, ifname))
 			result = FALSE;
 
 		for (i = 0; i < num_sources; i++) {

@@ -1,38 +1,170 @@
 #!/bin/bash
 
 backupdir=/var/run/wicked/backup
+resolverdir=/var/run/wicked/resolver
 
 filename=/etc/resolv.conf
 fileback=$backupdir/resolv.conf
 
+type=""
+family=""
+ifname=""
+
 set -e
+shopt -s nullglob
 cmd=$1; shift
 
-case $cmd in
-backup)
-	# Back up the existing resolv.conf file
-	if [ ! -f $fileback ]; then
-		mkdir -m755 -p $backupdir
-		cp -p $filename $fileback
-	fi
-	: ;;
+while [ $# -gt 0 ]
+do
+	case $1 in
+	-t) shift ; type=$1 ;;
+	-f) shift ; family=$1 ;;
+	-i) shift ; ifname=$1 ;;
+	--) shift ; break ;;
+	-*) echo "unknown option '$1'" >&2 ; exit 1 ;;
+	 *) break ;;
+	esac
+	shift
+done
 
-restore)
-	if [ -f $fileback ]; then
-		mv $fileback $filename
-	else
-		echo "$0: cannot restore $filename: no backup" >&2
+if test -x /sbin/netconfig
+then
+	parse_resolv_conf()
+	{
+		local resolvconf="$1"
+		local dns_domain=""
+		local dns_search=()
+		local dns_server=()
+		local key rest word
+
+		test "x$resolvconf" != "x" -a -r "$resolvconf" && \
+		while read -s key rest ; do
+			word=($rest)
+			case $key in
+			domain)
+				dns_domain="${word[0]}"
+			;;
+			search)
+				for w in ${word[*]} ; do
+					for s in ${dns_search[*]} ; do
+						test "x$s" = "x$w" && continue 2
+					done
+					dns_search+=("$w")
+				done
+			;;
+			nameserver)
+				for w in ${word[*]} ; do
+					for s in ${dns_server[*]} ; do
+						test "x$s" = "x$w" && continue 2
+					done
+					dns_server+=("$w")
+				done
+			;;
+			esac
+		done < "$resolvconf"
+		echo "DNSDOMAIN='$dns_domain'"
+		echo "DNSSEARCH='${dns_search[*]}'"
+		echo "DNSSERVERS='${dns_server[*]}'"
+	}
+
+	case $cmd in
+	backup)
+		: # netconfig takes to not overwrite manual setup
+	;;
+
+	restore)
+		rm -f "${resolverdir}/resolv.conf."* 2>/dev/null
+	;;
+
+	install)
+		filename=$1
+		if test -n "$filename" -a -f "$filename" ; then
+			parse_resolv_conf "$filename" | \
+			/sbin/netconfig modify	-i "$ifname" \
+						-s "wicked-$type-$family"
+		fi
+	;;
+
+	remove)
+		/sbin/netconfig remove -i "$ifname" -s "wicked-$type-$family"
+		rm -f "${resolverdir}/resolv.conf.${ifname}.${type}.${family}" 2>/dev/null
+	;;
+
+	*)
+		echo "$0: command '$cmd' not supported" >&2
 		exit 1
-	fi
-	: ;;
+	;;
+	esac
+else
+	install_prefered()
+	{
+		local newfile=$1
+		local candidate=""
+		local preference=0
 
-install)
-	newfile=$1
-	chmod 644 $newfile
-	mv $newfile $filename
-	: ;;
+		# check if there are settings we prefer
+		# or just use the specified new one...
+		for candidate in "${resolverdir}/resolv.conf."* ; do
+			case ${candidate##*/resolv.conf.} in
+			*.static.ipv4|*.static.ipv6)
+				# prefer static ipv4 from any interfaces
+				test $preference -lt 3 || continue
+				preference=3
+				newfile=$candidate
+			;;
+			*.dhcp.ipv4)
+				# or dhcp ipv4 from any interfaces
+				test $preference -lt 2 || continue
+				preference=2
+				newfile=$candidate
+			;;
+			*.dhcp.ipv6)
+				# or dhcp ipv4 from any interfaces
+				test $preference -lt 1 || continue
+				preference=1
+				newfile=$candidate
+			;;
+			esac
+		done
 
-*)
-	echo "$0: command $cmd not supported" >&2
-	exit 1;;
-esac
+		# apply the preferred file
+		if test -n "$newfile" -a -f "$newfile" ; then
+			cp -p "$newfile" "$filename"
+			chmod 644 "$filename"
+		fi
+	}
+
+	case $cmd in
+	backup)
+		# Back up the existing resolv.conf file
+		if [ ! -f "$fileback" ]; then
+			mkdir -m755 -p "$backupdir"
+			cp -p "$filename" "$fileback"
+		fi
+	;;
+
+	restore)
+		rm -f "${resolverdir}/resolv.conf."* 2>/dev/null
+		if [ -f "$fileback" ]; then
+			mv -f "$fileback" "$filename"
+		else
+			echo "$0: cannot restore '$filename': no backup" >&2
+			exit 1
+		fi
+	;;
+
+	install)
+		install_prefered "$1"
+	;;
+
+	remove)
+		rm -f "${resolverdir}/resolv.conf.${ifname}.${type}.${family}" 2>/dev/null
+		install_prefered "$fileback"
+	;;
+
+	*)
+		echo "$0: command '$cmd' not supported" >&2
+		exit 1
+	;;
+	esac
+fi

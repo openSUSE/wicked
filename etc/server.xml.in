@@ -78,6 +78,7 @@
     <action name="backup" command="@wicked_extensionsdir@/resolver backup"/>
     <action name="restore" command="@wicked_extensionsdir@/resolver restore"/>
     <action name="install" command="@wicked_extensionsdir@/resolver install"/>
+    <action name="remove" command="@wicked_extensionsdir@/resolver remove"/>
   </system-updater>
 
   <system-updater name="hostname">
