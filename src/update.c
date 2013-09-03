@@ -181,14 +181,23 @@ ni_objectmodel_updater_select_source(ni_updater_t *updater)
  * Run an extension script to update resolver, hostname etc.
  */
 static ni_bool_t
-ni_system_updater_run(ni_shellcmd_t *shellcmd, const char *filename)
+ni_system_updater_run(ni_shellcmd_t *shellcmd, ni_string_array_t *args)
 {
 	ni_process_t *pi;
 	int rv;
 
 	pi = ni_process_new(shellcmd);
-	if (filename)
-		ni_string_array_append(&pi->argv, filename);
+	if (args) {
+		unsigned int i;
+
+		for (i = 0; i < args->count; ++i) {
+			const char *arg = args->data[i];
+
+			if (arg == NULL)
+				arg = "";
+			ni_string_array_append(&pi->argv, arg);
+		}
+	}
 
 	rv = ni_process_run_and_wait(pi);
 	ni_process_free(pi);
@@ -246,7 +255,8 @@ ni_system_updater_restore(ni_updater_t *updater)
 static ni_bool_t
 ni_system_updater_install(ni_updater_t *updater, const ni_addrconf_lease_t *lease)
 {
-	const char *tempname = NULL, *argument = NULL;
+	ni_string_array_t arguments = NI_STRING_ARRAY_INIT;
+	const char *tempname = NULL;
 	ni_bool_t result = FALSE;
 	int rv = 0;
 
@@ -262,8 +272,9 @@ ni_system_updater_install(ni_updater_t *updater, const ni_addrconf_lease_t *leas
 	 * indicated script with it */
 	switch (updater->type) {
 	case NI_ADDRCONF_UPDATE_RESOLVER:
-		argument = tempname = _PATH_RESOLV_CONF ".new";
+		tempname = _PATH_RESOLV_CONF ".new";
 
+		ni_string_array_append(&arguments, tempname);
 		if ((rv = ni_resolver_write_resolv_conf(tempname, lease->resolver, NULL)) < 0) {
 			ni_error("failed to write resolver info to temp file: %s",
 					ni_strerror(rv));
@@ -272,7 +283,7 @@ ni_system_updater_install(ni_updater_t *updater, const ni_addrconf_lease_t *leas
 		break;
 
 	case NI_ADDRCONF_UPDATE_HOSTNAME:
-		argument = lease->hostname;
+		ni_string_array_append(&arguments, lease->hostname);
 		break;
 
 	default:
@@ -282,7 +293,7 @@ ni_system_updater_install(ni_updater_t *updater, const ni_addrconf_lease_t *leas
 		return FALSE;
 	}
 
-	if (!ni_system_updater_run(updater->proc_install, argument)) {
+	if (!ni_system_updater_run(updater->proc_install, &arguments)) {
 		ni_error("failed to install %s settings", ni_updater_name(updater->type));
 		goto done;
 	}
@@ -296,6 +307,7 @@ ni_system_updater_install(ni_updater_t *updater, const ni_addrconf_lease_t *leas
 done:
 	if (tempname)
 		unlink(tempname);
+	ni_string_array_destroy(&arguments);
 
 	return result;
 }
