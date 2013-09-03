@@ -141,10 +141,10 @@ make %{?_smp_mflags}
 %install
 make install DESTDIR=${RPM_BUILD_ROOT}
 # install /sbin/{ifup,ifown,ifstatus} links
-if test "%_sbindir" != "/sbin" ; then
+%if "%_sbindir" != "/sbin"
 %__mkdir_p -m 0755 ${RPM_BUILD_ROOT}/sbin
 %__ln_s %_sbindir/ifup	${RPM_BUILD_ROOT}/sbin/ifup
-fi
+%endif
 %__ln_s %_sbindir/ifup	${RPM_BUILD_ROOT}/sbin/ifdown
 %__ln_s %_sbindir/ifup	${RPM_BUILD_ROOT}/sbin/ifstatus
 # remove libwicked.a and la
@@ -260,7 +260,9 @@ fi
 %_unitdir/wicked@.service
 %_unitdir/wicked.service
 %_sbindir/ifup
+%if "%_sbindir" != "/sbin"
 /sbin/ifup
+%endif
 /sbin/ifdown
 /sbin/ifstatus
 
@@ -273,7 +275,9 @@ fi
 %_sbindir/rcwickedd
 %_sbindir/rcnetwork
 %_sbindir/ifup
+%if "%_sbindir" != "/sbin"
 /sbin/ifup
+%endif
 /sbin/ifdown
 /sbin/ifstatus
 
