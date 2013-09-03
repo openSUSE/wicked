@@ -3,9 +3,11 @@ CLEANFILES			= *~
 MAINTAINERCLEANFILES		= Makefile.in
 DISTCLEANFILES			= $(BUILT_SOURCES)
 EXTRA_DIST			= wicked-client.h	\
-				  $(templates)
-BUILT_SOURCES			= $(compat_scripts)
+				  scripts/ifup.in
 
+BUILT_SOURCES			= scripts/ifup
+
+wicked_sbin_SCRIPTS		= scripts/ifup
 
 wicked_sbin_PROGRAMS		= wicked
 
@@ -28,12 +30,6 @@ wicked_SOURCES			= \
 	nanny.c			\
 	reachable.c
 
-
-system_sbin_SCRIPTS		= $(compat_scripts)
-
-compat_scripts			= scripts/ifup
-templates			= $(compat_scripts:=.in)
-
 substitute_vars			= \
 	$(AM_V_GEN)sed						\
 	-e "s|[@]wicked_sbindir[@]|$(wicked_sbindir)|g"
@@ -44,19 +40,11 @@ scripts/ifup: scripts/ifup.in $(top_builddir)/config.status
 	@rm -f $@ $@.tmp
 	@$(substitute_vars) < $< > $@.tmp && mv $@.tmp $@
 
-
-install-data-hook:
-	$(mkinstalldirs) "$(DESTDIR)$(wicked_configdir)/ifconfig"
-	$(LN_S) -f ifup  "$(DESTDIR)$(system_sbindir)/ifdown"
-	$(LN_S) -f ifup  "$(DESTDIR)$(system_sbindir)/ifstatus"
-
-uninstall-hook:
-	rm -f "$(DESTDIR)$(system_sbindir)/ifdown"
-	rm -f "$(DESTDIR)$(system_sbindir)/ifstatus"
-
+install-data-local:
+	$(MKDIR_P) "$(DESTDIR)$(wicked_configdir)/ifconfig"
 
 check-local:
-	@for i in $(system_sbin_SCRIPTS) ; \
+	@for i in $(wicked_sbin_SCRIPTS) ; \
 	do \
 		bash -n "$(builddir)/$$i" \
 			&& printf 'client/%-30s %s\n' "$$i" "Syntax OK" \

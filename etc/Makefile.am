@@ -127,7 +127,7 @@ endif
 check-local:
 	@for i in $(systemv_init_SCRIPTS) ; \
 	do \
-		bash -n "$(srcdir)/$$i" \
+		bash -n "$(builddir)/$$i" \
 			&& printf 'etc/%-30s %s\n' "$$i" "Syntax OK" \
 			|| exit 1 ; \
 	done
