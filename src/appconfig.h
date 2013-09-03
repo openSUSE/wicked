@@ -66,6 +66,7 @@ typedef struct ni_config {
 	ni_config_fslocation_t	storedir;
 	ni_config_fslocation_t	statedir;
 	ni_config_fslocation_t	backupdir;
+	ni_config_fslocation_t	resolverdir;
 	unsigned int		recv_max;
 
 	struct {

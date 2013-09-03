@@ -79,6 +79,7 @@ ni_config_free(ni_config_t *conf)
 	ni_config_fslocation_destroy(&conf->storedir);
 	ni_config_fslocation_destroy(&conf->statedir);
 	ni_config_fslocation_destroy(&conf->backupdir);
+	ni_config_fslocation_destroy(&conf->resolverdir);
 	free(conf);
 }
 
@@ -186,6 +187,13 @@ __ni_config_parse(ni_config_t *conf, const char *filename, ni_init_appdata_callb
 
 		snprintf(pathname, sizeof(pathname), "%s/backup", conf->statedir.path);
 		ni_config_fslocation_init(&conf->backupdir, pathname, 0700);
+	}
+
+	if (conf->resolverdir.path == NULL) {
+		char pathname[PATH_MAX];
+
+		snprintf(pathname, sizeof(pathname), "%s/resolver", conf->statedir.path);
+		ni_config_fslocation_init(&conf->resolverdir, pathname, 0700);
 	}
 
 	xml_document_free(doc);

@@ -190,6 +190,21 @@ ni_config_statedir(void)
 }
 
 const char *
+ni_config_resolverdir(void)
+{
+	ni_config_fslocation_t *fsloc = &ni_global.config->resolverdir;
+	static ni_bool_t firsttime = TRUE;
+
+	if (firsttime) {
+		if (ni_mkdir_maybe(fsloc->path, fsloc->mode) < 0)
+			ni_fatal("Cannot create state directory \"%s\": %m", fsloc->path);
+		firsttime = FALSE;
+	}
+
+	return fsloc->path;
+}
+
+const char *
 ni_config_backupdir(void)
 {
 	ni_config_fslocation_t *fsloc = &ni_global.config->backupdir;

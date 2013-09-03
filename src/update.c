@@ -16,6 +16,7 @@
 #include <wicked/resolver.h>
 
 #include "netinfo_priv.h"
+#include "util_priv.h"
 #include "process.h"
 #include "appconfig.h"
 #include "debug.h"
@@ -24,7 +25,6 @@ typedef struct ni_updater_source	ni_updater_source_t;
 struct ni_updater_source {
 	ni_updater_source_t *		next;
 	unsigned int			seqno;		/* sequence number of lease */
-	unsigned int			weight;
 	const ni_addrconf_lease_t *	lease;
 };
 
@@ -32,13 +32,13 @@ typedef struct ni_updater {
 	ni_updater_source_t *		sources;
 
 	unsigned int			type;
-	unsigned int			seqno;
 	unsigned int			have_backup;
 
 	ni_bool_t			enabled;
 	ni_shellcmd_t *			proc_backup;
 	ni_shellcmd_t *			proc_restore;
 	ni_shellcmd_t *			proc_install;
+	ni_shellcmd_t *			proc_remove;
 } ni_updater_t;
 
 static ni_updater_t			updaters[__NI_ADDRCONF_UPDATE_MAX];
@@ -75,6 +75,7 @@ ni_system_updaters_init(void)
 		updater->proc_backup = ni_extension_script_find(ex, "backup");
 		updater->proc_restore = ni_extension_script_find(ex, "restore");
 		updater->proc_install = ni_extension_script_find(ex, "install");
+		updater->proc_remove = ni_extension_script_find(ex, "remove");
 
 		if (updater->proc_install == NULL) {
 			ni_warn("system-updater %s configured, but no install script defined", name);
@@ -122,10 +123,6 @@ can_update_resolver(const ni_addrconf_lease_t *lease)
 static void
 ni_objectmodel_updater_add_source(unsigned int kind, const ni_addrconf_lease_t *lease)
 {
-	static unsigned int addrconf_weight[__NI_ADDRCONF_MAX] = {
-	[NI_ADDRCONF_DHCP]	= 5,
-	/* [NI_ADDRCONF_IBFT]	= 10, */
-	};
 	ni_updater_source_t **pos, *up;
 
 	for (pos = &updaters[kind].sources; (up = *pos) != NULL; pos = &up->next) {
@@ -140,41 +137,37 @@ ni_objectmodel_updater_add_source(unsigned int kind, const ni_addrconf_lease_t *
 	up->seqno = lease->seqno;
 	up->lease = lease;
 
-	if (lease->type < __NI_ADDRCONF_MAX)
-		up->weight = 10 * addrconf_weight[lease->type];
-	/* Prefer IPv4 over IPv6 for now. IPv6 dhcp servers
-	 * may not be terribly good for a couple of years to
-	 * come... */
-	up->weight += (lease->family == AF_INET)? 1 : 0;
-
 	*pos = up;
 }
 
 /*
- * Select the best source for updating the system settings
+ * Select the best sources for updating the system settings
  */
-static ni_updater_source_t *
-ni_objectmodel_updater_select_source(ni_updater_t *updater)
+static unsigned int
+ni_objectmodel_updater_select_sources(ni_updater_t *updater, ni_updater_source_t ***sources)
 {
-	ni_updater_source_t *src, *best = NULL;
+	ni_updater_source_t *src;
+	unsigned int num_sources;
+	unsigned int i;
 
+	num_sources = 0;
 	for (src = updater->sources; src; src = src->next) {
-		if (best == NULL || src->weight > best->weight)
-			best = src;
+		num_sources += 1;
 	}
 
-#if 0
-	if (best == NULL)
-		ni_trace("%s: no source", ni_updater_name(updater->type));
-	else {
-		const ni_addrconf_lease_t *lease = best->lease;
+	*sources = NULL;
+	if (!num_sources)
+		return 0;
 
-		ni_trace("%s: select source %s/%s", ni_updater_name(updater->type),
-					ni_addrconf_type_to_name(lease->type),
-					ni_addrfamily_type_to_name(lease->family));
+	/* allocate array of pointers and assign only if we have valid sources */
+	*sources = xcalloc(num_sources, sizeof(ni_updater_source_t *));
+
+	for (i = 0, src = updater->sources;
+	     src && i < num_sources;
+	     src = src->next) {
+		(*sources)[i++] = src;
 	}
-#endif
-	return best;
+	return i;
 }
 
 /*
@@ -253,10 +246,10 @@ ni_system_updater_restore(ni_updater_t *updater)
  * Install information from a lease, and remember that we did
  */
 static ni_bool_t
-ni_system_updater_install(ni_updater_t *updater, const ni_addrconf_lease_t *lease)
+ni_system_updater_install(ni_updater_t *updater, const ni_addrconf_lease_t *lease, const char *ifname)
 {
 	ni_string_array_t arguments = NI_STRING_ARRAY_INIT;
-	const char *tempname = NULL;
+	char *file = NULL;
 	ni_bool_t result = FALSE;
 	int rv = 0;
 
@@ -265,24 +258,33 @@ ni_system_updater_install(ni_updater_t *updater, const ni_addrconf_lease_t *leas
 					ni_addrconf_type_to_name(lease->type),
 					ni_addrfamily_type_to_name(lease->family));
 
-	if (!updater->have_backup && !ni_system_updater_backup(updater))
+	if (!updater->proc_install)
+		return TRUE;
+
+	if (!ifname || (!updater->have_backup && !ni_system_updater_backup(updater)))
 		return FALSE;
 
 	/* FIXME: build a file containing the new configuration, and run the
 	 * indicated script with it */
 	switch (updater->type) {
 	case NI_ADDRCONF_UPDATE_RESOLVER:
-		tempname = _PATH_RESOLV_CONF ".new";
+		ni_string_printf(&file, "%s/resolv.conf.%s.%s.%s",
+				ni_config_resolverdir(), ifname,
+				ni_addrconf_type_to_name(lease->type),
+				ni_addrfamily_type_to_name(lease->family));
+		ni_string_array_append(&arguments, file);
 
-		ni_string_array_append(&arguments, tempname);
-		if ((rv = ni_resolver_write_resolv_conf(tempname, lease->resolver, NULL)) < 0) {
-			ni_error("failed to write resolver info to temp file: %s",
+		if ((rv = ni_resolver_write_resolv_conf(file, lease->resolver, NULL)) < 0) {
+			ni_error("failed to write resolver info to file: %s",
 					ni_strerror(rv));
 			goto done;
 		}
 		break;
 
 	case NI_ADDRCONF_UPDATE_HOSTNAME:
+		if (ni_string_empty(lease->hostname))
+			goto done;
+
 		ni_string_array_append(&arguments, lease->hostname);
 		break;
 
@@ -290,7 +292,7 @@ ni_system_updater_install(ni_updater_t *updater, const ni_addrconf_lease_t *leas
 		ni_error("cannot install new %s settings - file format not understood",
 				ni_updater_name(updater->type));
 		updater->enabled = 0;
-		return FALSE;
+		goto done;
 	}
 
 	if (!ni_system_updater_run(updater->proc_install, &arguments)) {
@@ -298,34 +300,114 @@ ni_system_updater_install(ni_updater_t *updater, const ni_addrconf_lease_t *leas
 		goto done;
 	}
 
-	updater->seqno = lease->seqno;
 	result = TRUE;
 
-	if (ni_global.other_event)
-		ni_global.other_event(NI_EVENT_RESOLVER_UPDATED);
+	switch (updater->type) {
+	case NI_ADDRCONF_UPDATE_RESOLVER:
+		if (ni_global.other_event)
+			ni_global.other_event(NI_EVENT_RESOLVER_UPDATED);
+		break;
+
+	default:
+		break;
+	}
 
 done:
-	if (tempname)
-		unlink(tempname);
+	if (file)
+		free(file);
 	ni_string_array_destroy(&arguments);
 
 	return result;
 }
 
-ni_bool_t
-ni_system_update_all(void)
+/*
+ * Remove information from a lease which has been released and already detached
+ * from a device.
+ */
+static ni_bool_t
+ni_system_updater_remove(ni_updater_t *updater, const ni_addrconf_lease_t *lease, const char *ifname)
+{
+	ni_string_array_t arguments = NI_STRING_ARRAY_INIT;
+	ni_bool_t result = FALSE;
+
+	ni_debug_ifconfig("Removing system %s settings from %s %s/%s lease",
+			ni_updater_name(updater->type), ifname,
+			ni_addrconf_type_to_name(lease->type),
+			ni_addrfamily_type_to_name(lease->family));
+
+	if (!updater->proc_remove)
+		return TRUE;
+
+	ni_string_array_append(&arguments, "-i");
+	ni_string_array_append(&arguments, ifname);
+
+	ni_string_array_append(&arguments, "-t");
+	ni_string_array_append(&arguments, ni_addrconf_type_to_name(lease->type));
+
+	ni_string_array_append(&arguments, "-f");
+	ni_string_array_append(&arguments, ni_addrfamily_type_to_name(lease->family));
+
+	switch (updater->type) {
+	case NI_ADDRCONF_UPDATE_RESOLVER:
+	case NI_ADDRCONF_UPDATE_HOSTNAME:
+		break;
+
+	default:
+		ni_error("cannot remove old %s settings - file format not understood",
+				ni_updater_name(updater->type));
+		updater->enabled = 0;
+		goto done;
+	}
+
+	if (!ni_system_updater_run(updater->proc_remove, &arguments)) {
+		ni_error("failed to remove %s settings", ni_updater_name(updater->type));
+		goto done;
+	}
+
+	result = TRUE;
+
+	switch (updater->type) {
+	case NI_ADDRCONF_UPDATE_RESOLVER:
+		if (ni_global.other_event)
+			ni_global.other_event(NI_EVENT_RESOLVER_UPDATED);
+		break;
+
+	default:
+		break;
+	}
+
+done:
+	ni_string_array_destroy(&arguments);
+	return result;
+}
+
+static ni_bool_t
+ni_system_update_all(const ni_addrconf_lease_t *lease, const char *ifname)
 {
 	ni_netconfig_t *nc = ni_global_state_handle(0);
 	ni_updater_source_t *up;
 	ni_netdev_t *dev;
 	unsigned int kind;
+	ni_bool_t result = TRUE;
 
 	ni_debug_ifconfig("%s()", __func__);
 	ni_system_updaters_init();
 
 	for (kind = 0; kind < __NI_ADDRCONF_UPDATE_MAX; ++kind) {
-		for (up = updaters[kind].sources; up; up = up->next)
+		for (up = updaters[kind].sources; up; up = up->next) {
+			/* If lease->seqno == the seqno of a lease we've recorded in
+			 * an updater's sources, this is an old lease that has been
+			 * detached from an interface and is destined for removal.
+			 */
+			if (up->lease && lease && up->lease->seqno == lease->seqno) {
+				ni_debug_ifconfig("Found lease with seqno %d to remove.",
+					up->lease->seqno);
+				if (!ni_system_updater_remove(&updaters[kind], up->lease, ifname)) {
+					result = FALSE;
+				}
+			}
 			up->lease = NULL;
+		}
 	}
 
 	for (dev = ni_netconfig_devlist(nc); dev; dev = dev->next) {
@@ -350,6 +432,9 @@ ni_system_update_all(void)
 	for (kind = 0; kind < __NI_ADDRCONF_UPDATE_MAX; ++kind) {
 		ni_updater_t *updater = &updaters[kind];
 		ni_updater_source_t **pos = &updater->sources;
+		ni_updater_source_t **sources = NULL;
+		ni_updater_source_t *src = NULL;
+		unsigned int num_sources, i;
 
 		if (!updater->enabled)
 			continue;
@@ -368,15 +453,30 @@ ni_system_update_all(void)
 		 * the system default.
 		 * If we do have, update the system only if the lease was updated.
 		 */
-		if ((up = ni_objectmodel_updater_select_source(updater)) == NULL) {
-			ni_system_updater_restore(updater);
-		} else
-		if (updater->seqno != up->seqno) {
-			ni_system_updater_install(updater, up->lease);
+		num_sources = ni_objectmodel_updater_select_sources(updater, &sources);
+		if (num_sources == 0 && !ni_system_updater_restore(updater))
+			result = FALSE;
+
+		for (i = 0; i < num_sources; i++) {
+			src = sources[i];
+
+			if (src->lease) {
+				if (!ni_system_updater_install(updater, src->lease, ifname))
+					result = FALSE;
+			} else {
+				ni_debug_ifconfig("Applied lease already installed.");
+			}
+		}
+
+		if (sources) {
+			for (i = 0; i < num_sources; i++) {
+				sources[i] = NULL;
+			}
+			free(sources);
 		}
 	}
 
-	return TRUE;
+	return result;
 }
 
 /*
@@ -385,9 +485,9 @@ ni_system_update_all(void)
  * and the new one has been added.
  */
 int
-ni_system_update_from_lease(const ni_addrconf_lease_t *lease)
+ni_system_update_from_lease(const ni_addrconf_lease_t *lease, const char *ifname)
 {
-	if (!ni_system_update_all())
+	if (!ni_system_update_all(lease, ifname))
 		return -1;
 
 	return 0;

@@ -123,6 +123,7 @@ extern const char *	ni_config_piddir(void);
 extern const char *	ni_config_statedir(void);
 extern const char *	ni_config_storedir(void);
 extern const char *	ni_config_backupdir(void);
+extern const char *	ni_config_resolverdir(void);
 extern const ni_string_array_t *ni_config_sources(const char *type);
 
 extern ni_dbus_client_t *ni_create_dbus_client(const char *bus_name);
