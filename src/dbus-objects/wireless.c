@@ -48,6 +48,29 @@ ni_objectmodel_wireless_set_scanning(ni_dbus_object_t *object, const ni_dbus_met
 }
 
 static dbus_bool_t
+__ni_objectmodel_wireless_net_disconnect(ni_netdev_t *dev, ni_dbus_message_t *reply, DBusError *error)
+{
+	if (ni_wireless_disconnect(dev) < 0) {
+		dbus_set_error(error, DBUS_ERROR_FAILED,
+				"could not disconnect from wireless network");
+		return FALSE;
+	}
+
+	if (dev->wireless->assoc.state != NI_WIRELESS_NOT_ASSOCIATED) {
+		const ni_uuid_t *uuid;
+
+		/* Link is associated. Tell the caller to wait for an event. */
+		uuid = ni_netdev_add_event_filter(dev,
+					(1 << NI_EVENT_LINK_ASSOCIATED) |
+					(1 << NI_EVENT_LINK_ASSOCIATION_LOST));
+		return __ni_objectmodel_return_callback_info(reply, NI_EVENT_LINK_ASSOCIATION_LOST,
+					uuid, error);
+	}
+
+	return TRUE;
+}
+
+static dbus_bool_t
 ni_objectmodel_wireless_change_device(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
@@ -72,86 +95,79 @@ ni_objectmodel_wireless_change_device(ni_dbus_object_t *object, const ni_dbus_me
 		return FALSE;
 	}
 
+	if (0 == wlan->conf.networks.count) {
+		if (wlan->assoc.state != NI_WIRELESS_NOT_ASSOCIATED) /* We're asked to disconnect */
+			return __ni_objectmodel_wireless_net_disconnect(dev, reply, error);
+		else
+			return TRUE; /* Accept wireless with no network configuration */
+	}
+
+	/* FIXME: Only one network supported - association to the first network in the networks array */
+	ni_assert(wlan->conf.networks.data && *wlan->conf.networks.data);
+
 	net = ni_wireless_network_get(wlan->conf.networks.data[0]);
-	if (net->essid.len != 0) {
-		dbus_bool_t was_up = FALSE;
+	if (0 == net->essid.len) {
+		dbus_set_error(error, DBUS_ERROR_FAILED,
+				"no essid specified for a given wireless network");
+		goto error;
+	}
 
-		was_up = (dev->wireless->assoc.state == NI_WIRELESS_ESTABLISHED);
+	dbus_bool_t was_up = FALSE;
+	was_up = (wlan->assoc.state == NI_WIRELESS_ESTABLISHED);
 
-		switch (net->keymgmt_proto) {
-		case NI_WIRELESS_KEY_MGMT_PSK:
-			if (net->wpa_psk.passphrase == NULL) {
-				dbus_set_error(error, NI_DBUS_ERROR_AUTH_INFO_MISSING,
-						"wpa-psk.passphrase|PASSWORD|%.*s",
-						net->essid.len, net->essid.data);
-				goto error;
-			}
-			break;
-
-		case NI_WIRELESS_KEY_MGMT_EAP:
-			if (net->wpa_eap.method == NI_WIRELESS_EAP_NONE) {
-				/* TTLS PEAP TLS */
-			}
-			if (net->wpa_eap.identity == NULL) {
-				dbus_set_error(error, NI_DBUS_ERROR_AUTH_INFO_MISSING,
-						"wpa-eap.identity|USERNAME|%.*s",
-						net->essid.len, net->essid.data);
-				goto error;
-			}
-			if (net->wpa_eap.phase2.method != NI_WIRELESS_EAP_NONE
-			 && net->wpa_eap.phase2.password == NULL) {
-				dbus_set_error(error, NI_DBUS_ERROR_AUTH_INFO_MISSING,
-						"wpa-eap.phase2.password|PASSWORD|%.*s",
-						net->essid.len, net->essid.data);
-				goto error;
-			}
-			break;
-
-		case NI_WIRELESS_KEY_MGMT_802_1X:
-			/* FIXME: handle 802.1x */
-
-		default: ;
-		}
-
-		/* We're asked to associate with the given network */
-		if (ni_wireless_set_network(dev, net) < 0) {
-			dbus_set_error(error, DBUS_ERROR_FAILED,
-					"could not associate");
+	switch (net->keymgmt_proto) {
+	case NI_WIRELESS_KEY_MGMT_PSK:
+		if (net->wpa_psk.passphrase == NULL) {
+			dbus_set_error(error, NI_DBUS_ERROR_AUTH_INFO_MISSING,
+					"wpa-psk.passphrase|PASSWORD|%.*s",
+					net->essid.len, net->essid.data);
 			goto error;
 		}
+		break;
 
-		if (!was_up || dev->wireless->assoc.state == NI_WIRELESS_ESTABLISHED) {
-			rv = TRUE;
-		} else {
-			const ni_uuid_t *uuid;
-
-			/* Link is not associated yet. Tell the caller to wait for an event. */
-			uuid = ni_netdev_add_event_filter(dev,
-						(1 << NI_EVENT_LINK_ASSOCIATED) |
-						(1 << NI_EVENT_LINK_ASSOCIATION_LOST));
-			rv =  __ni_objectmodel_return_callback_info(reply, NI_EVENT_LINK_ASSOCIATED,
-						uuid, error);
+	case NI_WIRELESS_KEY_MGMT_EAP:
+		if (net->wpa_eap.method == NI_WIRELESS_EAP_NONE) {
+			/* TTLS PEAP TLS */
 		}
+		if (net->wpa_eap.identity == NULL) {
+			dbus_set_error(error, NI_DBUS_ERROR_AUTH_INFO_MISSING,
+					"wpa-eap.identity|USERNAME|%.*s",
+					net->essid.len, net->essid.data);
+			goto error;
+		}
+		if (net->wpa_eap.phase2.method != NI_WIRELESS_EAP_NONE
+		 && net->wpa_eap.phase2.password == NULL) {
+			dbus_set_error(error, NI_DBUS_ERROR_AUTH_INFO_MISSING,
+					"wpa-eap.phase2.password|PASSWORD|%.*s",
+					net->essid.len, net->essid.data);
+			goto error;
+		}
+		break;
+
+	case NI_WIRELESS_KEY_MGMT_802_1X:
+		/* FIXME: handle 802.1x */
+
+	default: ;
+	}
+
+	/* We're asked to associate with the given network */
+	if (ni_wireless_set_network(dev, net) < 0) {
+		dbus_set_error(error, DBUS_ERROR_FAILED,
+				"could not associate");
+		goto error;
+	}
+
+	if (!was_up || wlan->assoc.state == NI_WIRELESS_ESTABLISHED) {
+		rv = TRUE;
 	} else {
-		/* We're asked to disconnect */
-		if (ni_wireless_disconnect(dev) < 0) {
-			dbus_set_error(error, DBUS_ERROR_FAILED,
-					"could not disconnect from wireless network");
-			goto error;
-		}
+		const ni_uuid_t *uuid;
 
-		if (dev->wireless->assoc.state == NI_WIRELESS_NOT_ASSOCIATED) {
-			rv = TRUE;
-		} else {
-			const ni_uuid_t *uuid;
-
-			/* Link is associated. Tell the caller to wait for an event. */
-			uuid = ni_netdev_add_event_filter(dev,
-						(1 << NI_EVENT_LINK_ASSOCIATED) |
-						(1 << NI_EVENT_LINK_ASSOCIATION_LOST));
-			rv =  __ni_objectmodel_return_callback_info(reply, NI_EVENT_LINK_ASSOCIATION_LOST,
-						uuid, error);
-		}
+		/* Link is not associated yet. Tell the caller to wait for an event. */
+		uuid = ni_netdev_add_event_filter(dev,
+					(1 << NI_EVENT_LINK_ASSOCIATED) |
+					(1 << NI_EVENT_LINK_ASSOCIATION_LOST));
+		rv =  __ni_objectmodel_return_callback_info(reply, NI_EVENT_LINK_ASSOCIATED,
+					uuid, error);
 	}
 
 	ni_wireless_network_put(net);
@@ -301,17 +317,6 @@ ni_objectmodel_get_wireless_request(ni_wireless_config_t *conf,
 		ni_wireless_network_array_append(&conf->networks, net);
 	}
 
-	/* TODO: Remove it? Allows to use wireless dict directly
-	 *       without any network in it for compatibility ...
-	 */
-	if (conf->networks.count == 0) {
-		net = ni_wireless_network_new();
-		if (!ni_objectmodel_get_wireless_request_net(net, var, error)) {
-			ni_wireless_network_free(net);
-			return FALSE;
-		}
-		ni_wireless_network_array_append(&conf->networks, net);
-	}
 	return TRUE;
 }
 
