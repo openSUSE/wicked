@@ -35,8 +35,8 @@ Makefile.in
 /etc/client.xml
 /etc/server.xml
 /etc/nanny.xml
-/etc/init.d/wickedd
-/etc/init.d/network
+/etc/systemv/wickedd
+/etc/systemv/network
 /etc/systemd/wicked*.service
 /etc/org.opensuse.Network.AUTO4.service
 /etc/org.opensuse.Network.DHCP4.service
