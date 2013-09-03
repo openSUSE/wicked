@@ -242,6 +242,9 @@ fi
 %_unitdir/wickedd.service
 %_unitdir/wicked@.service
 %_unitdir/wicked.service
+/sbin/ifup
+/sbin/ifdown
+/sbin/ifstatus
 
 %else
 
@@ -251,6 +254,9 @@ fi
 %_sysconfdir/init.d/network
 %_sbindir/rcwickedd
 %_sbindir/rcnetwork
+/sbin/ifup
+/sbin/ifdown
+/sbin/ifstatus
 
 %endif
 

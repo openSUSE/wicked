@@ -93,6 +93,8 @@ AC_ARG_WITH([pkgconfigdir], [AS_HELP_STRING([--with-pkgconfigdir@<:@=DIR@:>@],
 	    [with_pkgconfigdir='${datarootdir}/pkgconfig'])
 AC_SUBST(pkgconfigdir,		"$with_pkgconfigdir")
 
+# Define system /sbin directory
+AC_SUBST(system_sbindir,	"/sbin")
 
 # Wicked installation directories
 AC_SUBST(wicked_docdir,		"${docdir}")
