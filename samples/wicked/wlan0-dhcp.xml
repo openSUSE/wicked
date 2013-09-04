@@ -3,8 +3,9 @@
   <description>WLAN Device</description>
 
   <wireless>
-    <essid>okirnet</essid>
-    <wpa-psk>
+    <network>
+      <essid>okirnet</essid>
+      <wpa-psk>
       <!-- Configure the pre-shared-key.
         -- You can either specify a passphrase via the
 	-- <passphrase> element, which is then used to derive
@@ -14,9 +15,10 @@
 	-- prompt you for a passphrase
 	-->
       <!--
-      <passphrase>mysecretpassphrase</passphrase>
+        <passphrase>mysecretpassphrase</passphrase>
        -->
-    </wpa-psk>
+      </wpa-psk>
+    </network>
   </wireless>
 
   <ipv4:dhcp>

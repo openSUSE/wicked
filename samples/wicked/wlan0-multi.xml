@@ -1,0 +1,130 @@
+<interface>
+  <name>wlan0</name>
+  <description>WLAN Device with multiple different networks' configuration</description>
+
+  <control>
+    <mode>boot</mode>
+    <link-detection>
+      <timeout>30</timeout>
+      <require-link/>
+    </link-detection>
+  </control>
+
+  <wireless>
+    <ap-scan>1</ap-scan>
+    <wpa-driver>nl80211,wext</wpa-driver>
+
+    <network>
+      <essid>My SSID 1</essid>
+      <scan-ssid>true</scan-ssid>
+      <priority>1</priority>
+      <mode>managed</mode>
+      <key-management>wpa-eap</key-management>
+      <wpa-eap>
+        <method>peap</method>
+        <auth-proto>default</auth-proto>
+        <pairwise-cipher>none</pairwise-cipher>
+        <group-cipher>none</group-cipher>
+        <identity>my@identity.com</identity>
+        <phase1>
+          <peap-version>0</peap-version>
+        </phase1>
+        <phase2>
+          <method>mschapv2</method>
+          <password>mypassword</password>
+        </phase2>
+        <tls/>
+      </wpa-eap>
+    </network>
+
+    <network>
+      <essid>My SSID 2</essid>
+      <scan-ssid>true</scan-ssid>
+      <priority>2</priority>
+      <mode>managed</mode>
+      <access-point>DE:AD:BE:EF:DE:AD</access-point>
+      <key-management>none</key-management>
+      <wep>
+        <auth-algo>open</auth-algo>
+        <default-key>2</default-key>
+        <!-- Key's ASCII representation -->
+        <key>s:mykey</key>
+        <!-- Key's HEX representation - 26 HEX digits for 128 bits key -->
+        <key>DEADBEEFDEADBEEFDEADBEEFCC</key>
+      </wep>
+    </network>
+
+    <network>
+      <essid>My SSID 3</essid>
+      <scan-ssid>true</scan-ssid>
+      <priority>3</priority>
+      <mode>managed</mode>
+      <access-point>DE:AD:BE:EF:DE:AD</access-point>
+      <key-management>wpa-psk</key-management>
+      <wpa-psk>
+        <!-- Key's HEX representation - exactly 64 digits long -->
+        <passphrase>0011223344556677889900112233445566778899001122334455667788990011</passphrase>
+        <auth-proto>default</auth-proto>
+        <pairwise-cipher>none</pairwise-cipher>
+        <group-cipher>none</group-cipher>
+      </wpa-psk>
+    </network>
+
+    <network>
+      <essid>My SSID 4</essid>
+      <scan-ssid>true</scan-ssid>
+      <priority>4</priority>
+      <mode>managed</mode>
+      <access-point>DE:AD:BE:EF:DE:AD</access-point>
+      <key-management>wpa-eap</key-management>
+      <wpa-eap>
+        <method>peap</method>
+        <auth-proto>default</auth-proto>
+        <pairwise-cipher>none</pairwise-cipher>
+        <group-cipher>none</group-cipher>
+        <identity>my@identity.com</identity>
+        <phase1>
+          <peap-version>1</peap-version>
+        </phase1>
+        <phase2>
+          <method>mschapv2</method>
+          <password>mypassword</password>
+        </phase2>
+        <anonid>anonymous_id</anonid>
+        <tls>
+          <client-cert>/my/cert/path/file.cert</client-cert>
+          <client-key-passwd>cert_password</client-key-passwd>
+        </tls>
+      </wpa-eap>
+    </network>
+
+    <network>
+      <essid>My SSID 5</essid>
+      <scan-ssid>true</scan-ssid>
+      <priority>5</priority>
+      <mode>managed</mode>
+      <access-point>DE:AD:BE:EF:DE:AD</access-point>
+      <key-management>none</key-management>
+      <wep>
+        <auth-algo>shared</auth-algo>
+        <default-key>2</default-key>
+        <!-- Key's HEX representation - 10 HEX digits for 64 bits key -->
+        <key>0011223300</key>
+      </wep>
+    </network>
+  </wireless>
+
+  <link/>
+  <ipv4:dhcp>
+    <enabled>true</enabled>
+    <optional>true</optional>
+    <hostname>hostname</hostname>
+    <acquire-timeout>15</acquire-timeout>
+  </ipv4:dhcp>
+  <ipv6:dhcp>
+    <enabled>true</enabled>
+    <optional>true</optional>
+    <mode>auto</mode>
+    <rapid-commit>true</rapid-commit>
+  </ipv6:dhcp>
+</interface>

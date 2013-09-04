@@ -3,7 +3,9 @@
   <description>WLAN Device</description>
 
   <wireless>
-    <essid>Eurohotel</essid>
+    <network>
+      <essid>Eurohotel</essid>
+    </network>
   </wireless>
 
   <ipv4:dhcp>

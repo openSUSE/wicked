@@ -25,12 +25,14 @@
 
   <merge>
     <wireless>
-      <essid>okirnet</essid>
-      <!-- This empty wpa-psk element requests that we
-	   we should authenticate via PSK. The pass phrase
-	   or key is not provided here; we will be prompted
-	   for it later. -->
-      <wpa-psk />
+      <network>
+        <essid>okirnet</essid>
+        <!-- This empty wpa-psk element requests that we
+	     we should authenticate via PSK. The pass phrase
+	     or key is not provided here; we will be prompted
+	     for it later. -->
+        <wpa-psk />
+      </network>
     </wireless>
 
     <ipv4:dhcp>

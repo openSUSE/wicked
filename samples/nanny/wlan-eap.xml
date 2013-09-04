@@ -25,18 +25,20 @@
 
   <merge>
     <wireless>
-      <essid>okirnet</essid>
+      <network>
+        <essid>okirnet</essid>
 
-      <!-- This wpa-eap element requests that we should authenticate
-           using EAP. The password is not provided here; we will be prompted
-	   for it later. -->
-      <wpa-eap>
-        <method>ttls</method>
-	<identity>okir@suse.com</identity>
-	<phase2>
-	  <method>mschapv2</method>
-	</phase2>
-      </wpa-eap>
+        <!-- This wpa-eap element requests that we should authenticate
+             using EAP. The password is not provided here; we will be prompted
+	     for it later. -->
+        <wpa-eap>
+          <method>ttls</method>
+          <identity>okir@suse.com</identity>
+          <phase2>
+            <method>mschapv2</method>
+          </phase2>
+        </wpa-eap>
+      </network>
     </wireless>
 
     <ipv4:dhcp>
