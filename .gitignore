@@ -37,10 +37,8 @@ Makefile.in
 /etc/nanny.xml
 /etc/systemv/wickedd
 /etc/systemv/network
-/etc/systemd/wicked*.service
-/etc/org.opensuse.Network.AUTO4.service
-/etc/org.opensuse.Network.DHCP4.service
-/etc/org.opensuse.Network.DHCP6.service
+/etc/systemv/*.service
+/etc/systemd/*.service
 /schema/constants.xml
 /autoip4/wickedd-auto4
 /dhcp4/wickedd-dhcp4
