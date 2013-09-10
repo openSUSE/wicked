@@ -23,7 +23,9 @@
 
 typedef struct ni_updater_source	ni_updater_source_t;
 struct ni_updater_source {
+	unsigned int			users;
 	ni_updater_source_t *		next;
+
 	unsigned int			seqno;		/* sequence number of lease */
 	ni_netdev_ref_t			d_ref;
 	const ni_addrconf_lease_t *	lease;
@@ -45,6 +47,45 @@ typedef struct ni_updater {
 static ni_updater_t			updaters[__NI_ADDRCONF_UPDATE_MAX];
 
 static const char *			ni_updater_name(unsigned int);
+
+static ni_updater_source_t *
+ni_updater_source_new(void)
+{
+	ni_updater_source_t *src;
+
+	src = xcalloc(1, sizeof(*src));
+	src->users = 1;
+	return src;
+}
+
+static ni_updater_source_t *
+ni_updater_source_ref(ni_updater_source_t *src)
+{
+	if (src) {
+		ni_assert(src->users);
+		src->users++;
+
+		return src;
+	}
+	return NULL;
+}
+
+static void
+ni_updater_source_free(ni_updater_source_t *src)
+{
+	if (src) {
+		ni_assert(src->users);
+		src->users--;
+
+		if (src->users == 0) {
+			src->seqno = 0;
+			src->lease = NULL;
+			ni_netdev_ref_destroy(&src->d_ref);
+			free(src);
+		}
+	}
+}
+
 
 /*
  * Initialize the system updaters based on the data found in the config
