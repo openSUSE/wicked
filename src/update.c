@@ -214,10 +214,6 @@ ni_system_updater_backup(ni_updater_t *updater, const char *ifname)
 	if (!updater->proc_backup)
 		return TRUE;
 
-	/* FIXME: something goes wrong here, disabled lo for now */
-	if(ni_string_eq("lo", ifname))
-		return TRUE;
-
 	if (!ni_system_updater_run(updater->proc_backup, NULL)) {
 		ni_error("failed to back up current %s settings",
 				ni_updater_name(updater->type));
@@ -238,10 +234,6 @@ ni_system_updater_restore(ni_updater_t *updater, const char *ifname)
 		return TRUE;
 
 	if (!updater->proc_restore)
-		return TRUE;
-
-	/* FIXME: something goes wrong here, disabled lo for now */
-	if(ni_string_eq("lo", ifname))
 		return TRUE;
 
 	if (!ni_system_updater_run(updater->proc_restore, NULL)) {
@@ -271,10 +263,6 @@ ni_system_updater_install(ni_updater_t *updater, const ni_addrconf_lease_t *leas
 					ni_addrfamily_type_to_name(lease->family));
 
 	if (!updater->proc_install)
-		return TRUE;
-
-	/* FIXME: something goes wrong here, disabled lo for now */
-	if(ni_string_eq("lo", ifname))
 		return TRUE;
 
 	if (!ifname || (!updater->have_backup && !ni_system_updater_backup(updater, ifname)))
@@ -363,10 +351,6 @@ ni_system_updater_remove(ni_updater_t *updater, const ni_addrconf_lease_t *lease
 	if (!updater->proc_remove)
 		return TRUE;
 
-	/* FIXME: something goes wrong here, disabled lo for now */
-	if(ni_string_eq("lo", ifname))
-		return TRUE;
-
 	ni_string_array_append(&arguments, "-i");
 	ni_string_array_append(&arguments, ifname);
 
@@ -422,19 +406,22 @@ ni_system_update_all(const ni_addrconf_lease_t *lease, const char *ifname)
 	ni_debug_ifconfig("%s()", __func__);
 	ni_system_updaters_init();
 
+	/* if lease is released, remove it first. */
+	if (lease && lease->state == NI_ADDRCONF_STATE_RELEASED) {
+		if (can_update_hostname(lease)) {
+			if (!ni_system_updater_remove(&updaters[NI_ADDRCONF_UPDATE_HOSTNAME], lease, ifname)) {
+				result = FALSE;
+			}
+		}
+		if (can_update_resolver(lease)) {
+			if (!ni_system_updater_remove(&updaters[NI_ADDRCONF_UPDATE_RESOLVER], lease, ifname)) {
+				result = FALSE;
+			}
+		}
+	}
+
 	for (kind = 0; kind < __NI_ADDRCONF_UPDATE_MAX; ++kind) {
 		for (up = updaters[kind].sources; up; up = up->next) {
-			/* If lease->seqno == the seqno of a lease we've recorded in
-			 * an updater's sources, this is an old lease that has been
-			 * detached from an interface and is destined for removal.
-			 */
-			if (up->lease && lease && up->lease->seqno == lease->seqno) {
-				ni_debug_ifconfig("Found lease with seqno %d to remove.",
-					up->lease->seqno);
-				if (!ni_system_updater_remove(&updaters[kind], up->lease, ifname)) {
-					result = FALSE;
-				}
-			}
 			up->lease = NULL;
 		}
 	}
@@ -483,17 +470,18 @@ ni_system_update_all(const ni_addrconf_lease_t *lease, const char *ifname)
 		 * If we do have, update the system only if the lease was updated.
 		 */
 		num_sources = ni_objectmodel_updater_select_sources(updater, &sources);
-		if (num_sources == 0 && !ni_system_updater_restore(updater, ifname))
+		/* Only attempt to restore if lease received was a release. */
+		if (lease->state == NI_ADDRCONF_STATE_RELEASED && num_sources == 0 &&
+			!ni_system_updater_restore(updater, ifname))
 			result = FALSE;
 
 		for (i = 0; i < num_sources; i++) {
 			src = sources[i];
 
-			if (src->lease) {
+			if (src->lease && lease && lease->state == NI_ADDRCONF_STATE_GRANTED &&
+				src->lease->seqno == lease->seqno) {
 				if (!ni_system_updater_install(updater, src->lease, ifname))
 					result = FALSE;
-			} else {
-				ni_debug_ifconfig("Applied lease already installed.");
 			}
 		}
 

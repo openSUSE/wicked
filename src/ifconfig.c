@@ -192,11 +192,6 @@ __ni_system_interface_update_lease(ni_netdev_t *dev, ni_addrconf_lease_t **lease
 
 	lease->update &= ni_config_addrconf_update_mask(ni_global.config, lease->type);
 
-	/* Update from old_lease which was in state GRANTED signifies removal.
-	 * This needs to happen before update from the new lease occurs.
-	 */
-	if (old_lease && old_lease->state == NI_ADDRCONF_STATE_GRANTED)
-		ni_system_update_from_lease(old_lease, dev->name);
 	ni_system_update_from_lease(lease, dev->name);
 
 out:
