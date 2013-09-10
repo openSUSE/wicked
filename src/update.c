@@ -21,6 +21,9 @@
 #include "appconfig.h"
 #include "debug.h"
 
+#define	NI_UPDATER_SOURCE_ARRAY_CHUNK	4
+#define	NI_UPDATER_SOURCE_ARRAY_INIT	{ 0, NULL }
+
 typedef struct ni_updater_source	ni_updater_source_t;
 struct ni_updater_source {
 	unsigned int			users;
@@ -29,6 +32,12 @@ struct ni_updater_source {
 	unsigned int			seqno;		/* sequence number of lease */
 	ni_netdev_ref_t			d_ref;
 	const ni_addrconf_lease_t *	lease;
+};
+
+typedef struct ni_updater_source_array	ni_updater_source_array_t;
+struct ni_updater_source_array {
+	unsigned int			count;
+	ni_updater_source_t **		data;
 };
 
 typedef struct ni_updater {
@@ -84,6 +93,80 @@ ni_updater_source_free(ni_updater_source_t *src)
 			free(src);
 		}
 	}
+}
+
+static inline void
+ni_updater_source_array_init(ni_updater_source_array_t *usa)
+{
+	memset(usa, 0, sizeof(*usa));
+}
+
+static void
+ni_updater_source_array_destroy(ni_updater_source_array_t *usa)
+{
+	if (usa) {
+		while (usa->count) {
+			usa->count--;
+			ni_updater_source_free(usa->data[usa->count]);
+		}
+		ni_updater_source_array_init(usa);
+	}
+}
+
+static void
+__ni_updater_source_array_realloc(ni_updater_source_array_t *usa, unsigned int newsize)
+{
+	unsigned int i;
+
+	newsize = (newsize + NI_UPDATER_SOURCE_ARRAY_CHUNK);
+	usa->data = xrealloc(usa->data, newsize * sizeof(ni_updater_source_t *));
+
+	for (i = usa->count; i < newsize; ++i)
+		usa->data[i] = NULL;
+}
+
+static ni_bool_t
+ni_updater_source_array_append(ni_updater_source_array_t *usa, ni_updater_source_t *src)
+{
+	if (!usa || !src)
+		return FALSE;
+
+	if ((usa-> count % NI_UPDATER_SOURCE_ARRAY_CHUNK) == 0)
+		__ni_updater_source_array_realloc(usa, usa->count);
+
+	usa->data[usa->count++] = src;
+	return TRUE;
+}
+
+static ni_updater_source_t *
+ni_updater_source_array_remove(ni_updater_source_array_t *usa, unsigned int index)
+{
+	ni_updater_source_t *ptr;
+
+	if (!usa || index >= usa->count)
+		return NULL;
+
+	ptr = usa->data[index];
+
+	/* Note: this also copies the NULL pointer following the last element */
+	memmove(&usa->data[index], &usa->data[index + 1],
+		(usa->count - index) * sizeof(ni_updater_source_t *));
+	usa->count--;
+
+	/* Don't bother with shrinking the array. It's not worth the trouble */
+	return ptr;
+}
+
+static ni_bool_t
+ni_updater_source_array_delete(ni_updater_source_array_t *usa, unsigned int index)
+{
+	ni_updater_source_t *ptr;
+
+	if ((ptr = ni_updater_source_array_remove(usa, index))) {
+		ni_updater_source_free(ptr);
+		return TRUE;
+	}
+	return FALSE;
 }
 
 
