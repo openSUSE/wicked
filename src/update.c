@@ -27,7 +27,6 @@
 typedef struct ni_updater_source	ni_updater_source_t;
 struct ni_updater_source {
 	unsigned int			users;
-	ni_updater_source_t *		next;
 
 	unsigned int			seqno;		/* sequence number of lease */
 	ni_netdev_ref_t			d_ref;
@@ -41,7 +40,7 @@ struct ni_updater_source_array {
 };
 
 typedef struct ni_updater {
-	ni_updater_source_t *		sources;
+	ni_updater_source_array_t	sources;
 
 	unsigned int			type;
 	unsigned int			have_backup;
@@ -275,48 +274,35 @@ static void
 ni_objectmodel_updater_add_source(unsigned int kind, const ni_addrconf_lease_t *lease,
 				const unsigned int ifindex, const char *ifname)
 {
-	ni_updater_source_t **pos, *up;
+	ni_updater_source_t *up;
 
-	for (pos = &updaters[kind].sources; (up = *pos) != NULL; pos = &up->next)
-		;
-
-	up = calloc(1, sizeof(*up));
+	up = ni_updater_source_new();
 	up->seqno = lease->seqno;
 	up->lease = lease;
 	up->d_ref.index = ifindex;
 	ni_string_dup(&(up->d_ref.name), ifname);
 
-	*pos = up;
+	ni_updater_source_array_append(&updaters[kind].sources, up);
 }
 
 /*
  * Select the best sources for updating the system settings
  */
 static unsigned int
-ni_objectmodel_updater_select_sources(ni_updater_t *updater, ni_updater_source_t ***sources)
+ni_objectmodel_updater_select_sources(ni_updater_t *updater, ni_updater_source_array_t *sources)
 {
-	ni_updater_source_t *src;
-	unsigned int num_sources;
-	unsigned int i;
+	ni_updater_source_t *ref;
+	unsigned int i, cnt;
 
-	num_sources = 0;
-	for (src = updater->sources; src; src = src->next) {
-		num_sources += 1;
-	}
-
-	*sources = NULL;
-	if (!num_sources)
+	if (!updater || !updater->sources.count || !sources)
 		return 0;
 
-	/* allocate array of pointers and assign only if we have valid sources */
-	*sources = xcalloc(num_sources, sizeof(ni_updater_source_t *));
-
-	for (i = 0, src = updater->sources;
-	     src && i < num_sources;
-	     src = src->next) {
-		(*sources)[i++] = src;
+	cnt = sources->count;
+	for (i = 0; i < updater->sources.count; ++i) {
+		ref = ni_updater_source_ref(updater->sources.data[i]);
+		ni_updater_source_array_append(sources, ref);
 	}
-	return i;
+	return sources->count - cnt;
 }
 
 /*
@@ -543,8 +529,9 @@ ni_system_update_all(const ni_addrconf_lease_t *lease, const char *ifname)
 {
 	ni_netconfig_t *nc = ni_global_state_handle(0);
 	ni_updater_source_t *up;
+	ni_updater_t *updater;
 	ni_netdev_t *dev;
-	unsigned int kind;
+	unsigned int i, kind;
 	ni_bool_t result = TRUE;
 
 	ni_debug_ifconfig("%s()", __func__);
@@ -553,20 +540,25 @@ ni_system_update_all(const ni_addrconf_lease_t *lease, const char *ifname)
 	/* if lease is released, remove it first. */
 	if (lease && lease->state == NI_ADDRCONF_STATE_RELEASED) {
 		if (can_update_hostname(lease)) {
-			if (!ni_system_updater_remove(&updaters[NI_ADDRCONF_UPDATE_HOSTNAME], lease, ifname)) {
+			updater = &updaters[NI_ADDRCONF_UPDATE_HOSTNAME];
+
+			if (!ni_system_updater_remove(updater, lease, ifname))
 				result = FALSE;
-			}
 		}
 		if (can_update_resolver(lease)) {
-			if (!ni_system_updater_remove(&updaters[NI_ADDRCONF_UPDATE_RESOLVER], lease, ifname)) {
+			updater = &updaters[NI_ADDRCONF_UPDATE_RESOLVER];
+
+			if (!ni_system_updater_remove(updater, lease, ifname))
 				result = FALSE;
-			}
 		}
 	}
 
 	for (kind = 0; kind < __NI_ADDRCONF_UPDATE_MAX; ++kind) {
-		for (up = updaters[kind].sources; up; up = up->next) {
-			up->lease = NULL;
+		updater = &updaters[kind];
+		for (i = 0; i < updater->sources.count; ++i) {
+			up = updater->sources.data[i];
+			if (up && up->lease)
+				up->lease = NULL;
 		}
 	}
 
@@ -582,59 +574,60 @@ ni_system_update_all(const ni_addrconf_lease_t *lease, const char *ifname)
 					can_update_hostname(lease)? "YES" : "NO",
 					can_update_resolver(lease)? "YES" : "NO");
 #endif
-			if (can_update_hostname(lease))
-				ni_objectmodel_updater_add_source(NI_ADDRCONF_UPDATE_HOSTNAME, lease);
-			if (can_update_resolver(lease))
-				ni_objectmodel_updater_add_source(NI_ADDRCONF_UPDATE_RESOLVER, lease);
+			if (can_update_hostname(lease)) {
+				kind = NI_ADDRCONF_UPDATE_HOSTNAME;
+				ni_objectmodel_updater_add_source(kind, lease,
+						dev->link.ifindex, dev->name);
+			}
+			if (can_update_resolver(lease)) {
+				kind = NI_ADDRCONF_UPDATE_RESOLVER;
+				ni_objectmodel_updater_add_source(kind, lease,
+						dev->link.ifindex, dev->name);
+			}
 		}
 	}
 
 	for (kind = 0; kind < __NI_ADDRCONF_UPDATE_MAX; ++kind) {
 		ni_updater_t *updater = &updaters[kind];
-		ni_updater_source_t **pos = &updater->sources;
-		ni_updater_source_t **sources = NULL;
+		ni_updater_source_array_t sources = NI_UPDATER_SOURCE_ARRAY_INIT;
 		ni_updater_source_t *src = NULL;
-		unsigned int num_sources, i;
+		unsigned int i;
 
 		if (!updater->enabled)
 			continue;
 
 		/* Purge all updater sources for which the lease went away. */
-		while ((up = *pos)) {
-			if (up->lease == NULL) {
-				*pos = up->next;
-				free(up);
-			} else {
-				pos = &up->next;
+		for (i = 0; i < updater->sources.count; ) {
+			up = updater->sources.data[i];
+			if (!up || (up && up->lease)) {
+				if (ni_updater_source_array_delete(&updater->sources, i))
+					continue;
 			}
+			i++;
 		}
 
 		/* If we no longer have any lease data for this resource, restore
 		 * the system default.
 		 * If we do have, update the system only if the lease was updated.
 		 */
-		num_sources = ni_objectmodel_updater_select_sources(updater, &sources);
+		ni_objectmodel_updater_select_sources(updater, &sources);
+
 		/* Only attempt to restore if lease received was a release. */
-		if (lease->state == NI_ADDRCONF_STATE_RELEASED && num_sources == 0 &&
+		if (lease->state == NI_ADDRCONF_STATE_RELEASED && !sources.count &&
 			!ni_system_updater_restore(updater, ifname))
 			result = FALSE;
 
-		for (i = 0; i < num_sources; i++) {
-			src = sources[i];
-
-			if (src->lease && lease && lease->state == NI_ADDRCONF_STATE_GRANTED &&
+		for (i = 0; i < sources.count; ++i) {
+			src = sources.data[i];
+			if (src && src->lease && lease &&
+				lease->state == NI_ADDRCONF_STATE_GRANTED &&
 				src->lease->seqno == lease->seqno) {
 				if (!ni_system_updater_install(updater, src->lease, ifname))
 					result = FALSE;
 			}
 		}
 
-		if (sources) {
-			for (i = 0; i < num_sources; i++) {
-				sources[i] = NULL;
-			}
-			free(sources);
-		}
+		ni_updater_source_array_destroy(&sources);
 	}
 
 	return result;
@@ -647,16 +640,20 @@ ni_system_update_remove_matching_leases(ni_updater_t *updater,
 					const unsigned int ifindex,
 					const char *ifname)
 {
-	ni_updater_source_t **sources = &updater->sources;
+	ni_updater_source_array_t *sources = &updater->sources;
 	ni_updater_source_t *src = NULL;
+	unsigned int i;
 
-	if (!sources || !lease) {
+	if (!updater || !updater->sources.count || !lease) {
 		ni_error("Unintialized updater sources or lease.");
 		return FALSE;
 	}
 
-	while ((src = *sources)) {
-		if (src->lease && src->d_ref.index == ifindex &&
+	for (i = 0; i < sources->count; ) {
+		src = sources->data[i];
+
+		if (src && src->lease &&
+			src->d_ref.index == ifindex &&
 			src->lease->type == lease->type &&
 			src->lease->family == lease->family) {
 			/* Found an existing lease of interest to remove/replace with 'lease.'
@@ -665,31 +662,18 @@ ni_system_update_remove_matching_leases(ni_updater_t *updater,
 			 * Otherwise, it's a simple replacement/overwrite so no need to remove lease
 			 * information from the system.
 			 */
-			if (strcmp(src->d_ref.name, ifname) != 0 || lease->state != NI_ADDRCONF_STATE_GRANTED) {
+			if (!ni_string_eq(src->d_ref.name, ifname) ||
+			    lease->state != NI_ADDRCONF_STATE_GRANTED) {
 				ni_system_updater_remove(updater, src->lease, src->d_ref.name);
 			}
 
-			*sources = src->next;
-			ni_netdev_ref_destroy(&src->d_ref);
-			free(src);
-		} else {
-			sources = &src->next;
+			if (ni_updater_source_array_delete(sources, i))
+				continue;
 		}
+		i++;
 	}
 
 	return TRUE;
-}
-
-static void
-ni_system_update_free_selected_sources(ni_updater_source_t **sources, unsigned int num_sources)
-{
-       unsigned int i;
-       if (sources) {
-               for (i = 0; i < num_sources; i++) {
-                       sources[i] = NULL;
-               }
-               free(sources);
-       }
 }
 
 /*
@@ -702,7 +686,7 @@ ni_system_update_from_lease(const ni_addrconf_lease_t *lease, const unsigned int
 {
 	ni_bool_t res = TRUE;
 	int ret;
-	unsigned int num_sources, kind;
+	unsigned int kind;
 
 	ni_debug_ifconfig("%s()", __func__);
 	ni_system_updaters_init();
@@ -710,7 +694,7 @@ ni_system_update_from_lease(const ni_addrconf_lease_t *lease, const unsigned int
 	for (kind = 0; kind < __NI_ADDRCONF_UPDATE_MAX; ++kind) {
 		if (can_update_type(lease, kind)) {
 			ni_updater_t *updater = &updaters[kind];
-			ni_updater_source_t **sources = NULL;
+			ni_updater_source_array_t sources = NI_UPDATER_SOURCE_ARRAY_INIT;
 
 			if (!updater->enabled)
 				continue;
@@ -724,8 +708,8 @@ ni_system_update_from_lease(const ni_addrconf_lease_t *lease, const unsigned int
 					ni_error("Failed to remove any matching leases. Storing new lease anyway.");
 					res = FALSE;
 				}
-				ni_objectmodel_updater_add_source(NI_ADDRCONF_UPDATE_RESOLVER, lease,
-								ifindex, ifname);
+				ni_objectmodel_updater_add_source(NI_ADDRCONF_UPDATE_RESOLVER,
+									lease, ifindex, ifname);
 				break;
 			default:
 				if(!ni_system_update_remove_matching_leases(updater, lease, ifindex, ifname)) {
@@ -735,10 +719,12 @@ ni_system_update_from_lease(const ni_addrconf_lease_t *lease, const unsigned int
 				/* If we no longer have any lease data for this resource, restore
 				 * the system default.
 				 */
-				num_sources = ni_objectmodel_updater_select_sources(updater, &sources);
-				if (num_sources == 0 && !ni_system_updater_restore(updater, ifname))
-					res = FALSE;
-				ni_system_update_free_selected_sources(sources, num_sources);
+				if (!ni_objectmodel_updater_select_sources(updater, &sources)) {
+					if (!ni_system_updater_restore(updater, ifname))
+						res = FALSE;
+				}
+
+				ni_updater_source_array_destroy(&sources);
 				break;
 			}
 		}
