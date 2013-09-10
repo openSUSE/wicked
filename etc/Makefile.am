@@ -93,7 +93,7 @@ systemd/%.service: systemd/%.service.in $(top_builddir)/config.status
 	@rm -f $@ $@.tmp
 	@$(substitute_vars) < $< > $@.tmp && mv $@.tmp $@
 
-systemv/%.service: %.service.in $(top_builddir)/config.status
+systemv/%.service: systemv/%.service.in $(top_builddir)/config.status
 	@echo "substituting variables in $< > $@"
 	@test -d $(@D) || $(MKDIR_P) $(@D)
 	@rm -f $@ $@.tmp
