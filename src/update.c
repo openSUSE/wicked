@@ -640,17 +640,16 @@ ni_system_update_remove_matching_leases(ni_updater_t *updater,
 					const unsigned int ifindex,
 					const char *ifname)
 {
-	ni_updater_source_array_t *sources = &updater->sources;
 	ni_updater_source_t *src = NULL;
 	unsigned int i;
 
-	if (!updater || !updater->sources.count || !lease) {
+	if (!updater || !lease) {
 		ni_error("Unintialized updater sources or lease.");
 		return FALSE;
 	}
 
-	for (i = 0; i < sources->count; ) {
-		src = sources->data[i];
+	for (i = 0; i < updater->sources.count; ) {
+		src = updater->sources.data[i];
 
 		if (src && src->lease &&
 			src->d_ref.index == ifindex &&
@@ -667,7 +666,7 @@ ni_system_update_remove_matching_leases(ni_updater_t *updater,
 				ni_system_updater_remove(updater, src->lease, src->d_ref.name);
 			}
 
-			if (ni_updater_source_array_delete(sources, i))
+			if (ni_updater_source_array_delete(&updater->sources, i))
 				continue;
 		}
 		i++;
