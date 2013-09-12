@@ -145,7 +145,7 @@ path name. If this path name refers to a directory,
 If the path name refers to a regular file, it will parse this file, assuming
 it is an ifcfg file.
 .IP
-The special name \fBFIRMWARE\fP can be used to obtain the interface
+The special name \fBfirmware:\fP can be used to obtain the interface
 definition(s) from firmware services like iBFT.
 .TP
 .BI "\-\-ifpolicy " pathname

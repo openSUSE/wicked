@@ -157,7 +157,7 @@ The configuration for the resolver might look like this:
 .fi
 .PP
 Currently, \fBwicked\fP supports system updaters for \fBresolver\fP, and \fBhostname\fP,
-respectively.
+with the \fBhostname\fP updater still to be developed.
 .PP
 This extension class supports shell scripts only.
 .\" --------------------------------------------------------

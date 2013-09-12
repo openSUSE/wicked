@@ -6,7 +6,7 @@
   </link>
 
   <bridge>
-    <stp>none</stp>
+    <stp>true</stp>
     <forward-delay>15</forward-delay>
     <ports>
      <p>

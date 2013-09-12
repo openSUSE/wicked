@@ -75,15 +75,15 @@ attach all interfaces compatible with this class. In the current
 implementation, this includes the following interfaces
 
 org.opensuse.Network.Interface
-	Generic network interface functions, such as taking the link
-	up or down, assigning an MTU, etc.
+        Generic network interface functions, such as taking the link
+        up or down, assigning an MTU, etc.
 
 org.opensuse.Network.Addrconf.ipv4.dhcp
 org.opensuse.Network.Addrconf.ipv6.dhcp
 org.opensuse.Network.Addrconf.ipv4.auto
 org.opensuse.Network.Addrconf.ipv6.auto
-	Address configuration services for DHCP, ipv6 autoconf, ipv4
-	zeroconf, etc.
+        Address configuration services for DHCP, ipv6 autoconf, ipv4
+        zeroconf, etc.
 
 Beyond this, network interfaces may require/offer special configuration
 mechanisms. For instance, for an Ethernet device, you may want to be
@@ -91,8 +91,8 @@ able to control the link speed, offloading of checksumming, etc. To
 achieve this, ethernet devices have a class of their own, called
 netif-ethernet, which is a subclass of netif. As a consequence, the dbus
 interfaces assigned to an ethernet interface include all the services
-listed above, plus org.opensuse.Network.Ethernet, whichis a service
-which is available only to object belonging to the netif-ethernet class.
+listed above, plus org.opensuse.Network.Ethernet, which is a service
+available only to objects belonging to the netif-ethernet class.
 
 Similarly, there exist classes for interface types like bridges, vlans,
 bonds, or infiniband.
@@ -112,140 +112,165 @@ What's currently supported
 
 wicked currently supports
 
- -	configuration file backends to parse SUSE and RedHat style
- 	/etc/sysconfig/network files. Since I'm doing my development
-	on a SUSE installation, the former are probably significantly
-	more stable than the RedHat ones.
+ -      configuration file backends to parse SUSE and RedHat style
+        /etc/sysconfig/network files. Since the development is on
+        a SUSE installation, the former are probably significantly
+        more stable than the RedHat ones.
 
- -	a configuration file backend to represent network interface
- 	configuration in XML. The syntax evolved out of what netcf
-	uses.
+ -      a configuration file backend to represent network interface
+        configuration in XML. The syntax evolved out of what netcf
+        uses.
 
- -	bring-up and shutdown of "normal" network interfaces
- 	such as Ethernet, loopback, Token Ring etc, as well
-	as VLAN interfaces, bridges and bonding devices.
+ -      bring-up and shutdown of "normal" network interfaces
+        such as Ethernet, Infiniband etc, as well as VLAN,
+        bridges and bonding devices.
+        Bridging and bonding may still have some issues.
 
-	Bridging and bonding is not really tested yet, so
-	quite possibly still buggy.
+ -      Wireless, not yet complete and limited to one network.
 
-	Wireless is not supported yet.
+ -      A built-in DHCPv4 client
+ -      A built-in DHCPv6 client
 
- -	A built-in DHCPv4 client
+ -      There is some experimental code that should help to
+        automatically bring up interfaces as soon as a link
+        is detected.
 
- -	no DHCPv6 yet
-
- -	There is some experimental code that should help to
- 	automatically bring up interfaces as soon as a link
-	is detected.
-
- -	A homegrown XML reader/writer implementation, which is far
- 	from being fully standards conforming, but which has a
-	small footprint and seems reasonably fast.
-	This comes along with a (likewise, smallish) partial
-	implementation of XPATH 1.0, which lets you extract
-	information from an XML interface description without
-	having to do any XML parsing yourself.
+ -      A homegrown XML reader/writer implementation, which is far
+        from being fully standards conforming, but which has a
+        small footprint and seems reasonably fast.
+        This comes along with a (likewise, smallish) partial
+        implementation of XPATH 1.0, which lets you extract
+        information from an XML interface description without
+        having to do any XML parsing yourself.
 
 
 
 What you can do
 ===============
 
-To play around with wicked, first install sample configuration
-files by typing
+Enable wicked using:
 
-	make install-files
+        systemctl enable --force wicked
 
-Next, start the server process (again, as root):
+This enables the wicked services, creates the
+network.service -> wicked.service alias link and starts the
+network at the next boot.
 
-	./wickedd --debug most --foreground
+Start the server process (again, as root):
 
-This causes the server to run in debugging mode, printing trace
-information to stderr.
+        systemctl start wickedd.service
 
-You can then use the client utility to explore the REST interface:
+which starts wickedd (main server) and associated supplicants in
+debugging mode, printing trace information to syslog:
 
-	./wicked get /config/interface
-	./wicked get /system/interface
+        /usr/sbin/wickedd --foreground 
+        /usr/lib/wicked/bin/wickedd-dhcp4 --foreground
+        /usr/lib/wicked/bin/wickedd-auto4 --foreground
+        /usr/lib/wicked/bin/wickedd-dhcp6 --foreground
 
-These two commands should display the configuration of all network
-interfaces (as described in /etc/sysconfig/network), and their
-current system state, respectively. You can display individual
-interfaces by retrieving e.g. /system/interface/lo
+You may also bring up the network using:
 
-You can configure interfaces, too. Let's bring up a sample VLAN
-interface:
+        systemctl start wicked.service
 
-	./wicked ifup --file ./samples/netcf/vlan-static.xml eth0.42
+or via the network.service alias also:
 
-This should bring up a VLAN interface named "eth0.42", with a
-VLAN tag of 42, and a few statically assigned IP addresses. Try
-"ifconfig" to see whether it worked.
+        systemctl start network.service
 
-What the above command does, is essentially retrieving the
-description of all interfaces from the specified file, and bringing
-up the one named "eth0.42".
+These commands are using default/system configuration sources as
+defined in the /etc/wicked/client.xml file.
+
+To enable debugging, you can currently set the WICKED_DEBUG_PARAM
+variable in /etc/sysconfig/network/config file, e.g.:
+        WICKED_DEBUG_PARAM="--debug most"
+Note: this is a subject that may change in the furure.
+
+
+Showing interface status
+========================
+
+You can use the client utility to display interface information (xml):
+
+        wicked show-xml all
+        wicked show-xml <ifname>
+
+
+Bringing up one interface
+=========================
+
+You can configure interfaces, too. The easiest way is to call:
+
+        wicked ifup eth0
+        wicked ifup wlan0
+        ...
+
+since there is no configuration source specified, wicked client checks
+its default sources of configuration defined in /etc/wicked/client.xml
+that is:
+
+        1) firmware:    ibft firmware
+        2) compat:      ifcfg files - implemented for compatibility
+        3) wicked:PATH  native wicked xml configuration format stored
+                        under PATH (default: /etc/wicked/ifconfig)
+
+whatever it gets from those sources for a given interface is applied.
+The intended order of importance is firmware > compat > wicked. But
+this may be changed in the future, when ifcfg compatibility requirements
+are relaxed.
+
+Now let's bring up something interesting, e.g. a sample VLAN interface:
+
+        wicked ifup --ifconfig ./samples/wicked/vlan-static.xml eth0.42
+
+This should bring up a VLAN interface named "eth0.42", with a VLAN tag
+of 42, and a few statically assigned IP addresses.
+Try "ip addr show; ip route show" to see whether it worked.
+
+The above command retrieves the description of all interfaces from the
+specified file, and brings up the one named "eth0.42".
 
 Since the file contains only one interface, you could also have used
 "all" instead of the interface name. As the name implies, this brings
 up all interfaces listed in the file.
 
-Bringing up a single interface is easy - what really happens here is
-the client adds an XML element to the interface description
-tell the server that the desired interface state is "up", and
-sending the entire description to the server using a PUT call.
-Note that this operation will create the VLAN interface on
-the fly if it's not yet there.
+Bringing up a single interface is easy - what really happens here is the
+client executes several server methods and arguments from XML elements,
+telling the server to transition the desired interface state to "up".
+Note that this operation will create the VLAN interface on the fly if
+it's not yet there.
 
-You can also shut down and bring all interfaces configured on your
-system using things like
+The analogous approach can be used to bring down the interface.
+For your convenience, you could use:
 
-	./wicked ifdown all
-	./wicked ifup boot
+        wicked ifdown eth0.42
+
+To bring down and delete the interface, you could use:
+
+        wicked ifdown --delete --ifconfig ./samples/wicked/vlan-static.xml eth0.42
 
 Please refer to the wicked(8) manpage for details.
 
-The analogous approach can be used to bring down the interface
-again. For your convenience, you could use use
-
-	./wicked ifdown eth0.42
-
-but for the sake of the example, let's do it manually instead:
-
-	./wicked get /system/interface/eth0.42 |
-		sed 's:<status.*/>:<status network="down"/>:' > xxx
-	./wicked put /system/interface/eth0.42 < xxx
-
-This should shut down the VLAN device. In order to delete the
-VLAN interface again, use
-
-	./wicked delete /system/interface/eth0.42
 
 Bringing up multiple interfaces
 ===============================
 
-For bonds and bridges, it may make sense to define the entire
-device topology in one file, and bring it up in one go. This
-particularly makes sense for bonding, where you may need to
-create the slave devices (if they're virtual devices, such as
-VLANs).
+For bonds and bridges, it may make sense to define the entire device
+topology in one file, and bring it up in one go. This particularly
+makes sense for bonding, where you may need to create the slave
+devices first (if they're virtual devices, such as VLANs).
 
-For these, you simply define the device topology in one file,
-and tell wicked to bring up the whole configuration.
+For these, you simply define the device topology in one file, and tell
+wicked to bring up the whole configuration.
 
-As an example, take a look at samples/netcf/bond-vlan-static.xml
-This configuration defines an Ethernet bond built from two
-VLAN interfaces. To bring it up, simple call
+As an example, take a look at samples/wicked/bridge-static.xml
+This configuration defines an Ethernet Bridge built from two VLAN
+interfaces. To bring it up, simple call
 
-	./wicked ifup --file samples/netcf/bond-vlan-static.xml all
+        wicked ifup --ifconfig ./samples/wicked/bridge-static.xml all
 
-The client will bring up devices in the appropriate order (ie
-first create the two VLAN interfaces, then create the bond and
-enslave the two VLANs).
+The client will bring up devices in the appropriate order (ie.
+first create the two VLAN interfaces, then create the bridge and
+add the VLAN interfaces as ports to the bridge).
 
-Note, the ifdown command does not yet recognize the --file switch,
-so bringing down the bond and all its constituents still needs to
-be done manually. This will be fixed in a future version.
 
 Handling incremental changes
 ============================
@@ -254,7 +279,7 @@ With wicked, there is no need to actually take down an interface
 to reconfigure it (unless it's required by the kernel). For instance,
 in order to add another IP address or route to a statically configured
 network interface, simply add it to the interface definition, and do
-another "put" operation. The server will try hard to update only
+another "ifup" operation. The server will try hard to update only
 those settings that changed. This applies to link-level options such as
 the device mtu or the MAC address, as well as network level settings,
 such as addresses, routes, or even address configuration mode (when
@@ -265,8 +290,8 @@ real devices, like bridges or bonds. For bonded devices, it's not
 possible to change certain parameters while the device is up. Doing
 that will result in an error.
 
-However, things that should still work, is adding or removing child
-devices of a bond or bridge, or chooseing a bond's primary interface.
+However, what should still work, is the act of adding or removing the
+child devices of a bond or bridge, or choosing a bond's primary interface.
 
 
 Wicked extensions - address configuration
@@ -280,115 +305,66 @@ is still the most natural thing to do.
 For that reason, wicked is designed to be extensible via shell scripts.
 These extensions can be defined in the config.xml file.
 
-Currently, two classes of extensions are supported:
+Currently, several diffent classes of extensions are supported:
 
- *	link configuration: these are scripts responsible for setting
- 	up a device's link layer according to the configuration
-	provided by the client, and for tearing it down again.
+ *      link configuration: these are scripts responsible for setting
+        up a device's link layer according to the configuration
+        provided by the client, and for tearing it down again.
 
- *	address configruation: these are scripts responsible for
- 	managing a device's address configuration.
-	Static address configuration and DHCPv4 are managed by wicked
-	itself, but dynamic address configuration schemes such as DHCPv6
-	or IBFT need to be implemented via extensions.
+ *      address configruation: these are scripts responsible for
+        managing a device's address configuration.
+        Usually address configuration and DHCP are managed by wicked
+        itself, but can be implemented via extensions.
+
+ *      firewall extension: these scripts can apply firewall rules
 
 Typically, extensions have a start and a stop command, an optional
 "pid file", and a set of environment variables that get passed to
 the script.
 
 To illustrate how this is supposed to work, let's look at how a
-DHCPv6 extension is defined:
+firewall extension is defined in etc/server.xml:
 
-  <addrconf>
-    <extension name="dhcp6" type="dhcp" family="ipv6">
-      <action name="start" command="/etc/wicked/wicked-dhcp6 start %{@name}"/>
-      <action name="stop" command="/etc/wicked/wicked-dhcp6 stop %{@name}"/>
-      <pidfile path="/var/run/dhcpcd-%{@name}.pid"/>
-      <environment putenv="DHCP_TIMEOUT=%{/protocol[@family = 'ipv6']/dhcp/lease/@timeout}"/>
-      <environment putenv="DHCP_REQ_HOSTNAME=%{/protocol[@family = 'ipv6']/dhcp/request/@hostname}"/>
-    </extension>
-  </addrconf>
+  <dbus-service interface="org.opensuse.Network.Firewall">
+     <action name="firewallUp"   command="/etc/wicked/extensions/firewall up"/>
+     <action name="firewallDown" command="/etc/wicked/extensions/firewall down"/>
 
-First off, it's in the <addrconf> section, marking it as an address
-configuration extension.
+     <!-- default environment for all calls to this extension script -->
+     <putenv name="WICKED_OBJECT_PATH" value="$object-path"/>
+     <putenv name="WICKED_INTERFACE_NAME" value="$property:name"/>
+     <putenv name="WICKED_INTERFACE_INDEX" value="$property:index"/>
+  </dbus-service>
 
-The extension is of type "dhcp", ie it supports the DHCP address
-configuration mode (these names are reserved; if nothing else, wicked
-at least needs to know this configuration mode exists, and assign
-it a reserved name).
-
-The family attribute says this DHCP extension supports IPv6 only; if
-you create an extension supporting both IPv4 and IPv6, you would use
-"ipv4,ipv6".
-
-This extension shows how the start and stop scripts are defined, and the
-pid file. The latter is used to check whether the address configuration
-service is currently active for the given interface.  This allows "GET"
-requests to report what type of address configuration is currently in
-use for a system interface.
-
-Finally, there are several <environment> elements; these declare variables
-to be passed to the commands. This is currently the recommended way to
-pass configuration information to the extension.
-
-The strings used throughout the extension definition contain XPATH
-expressions enclosed in %{...}. These expressions get evaluated
-relative to the interface that needs to be managed. For instance,
-"%{@name}" will extract the <interface name="..."> attribute.
-
-A somewhat more complicated expression is shown in the environment
-definitions. "/protocol[@family = 'ipv6']" will search the
-<interface> element for a child named "protocol" with a "family"
-attribute of "ipv6". Relative to this element, it will then retrieve
-the "timeout" attribute from the <lease> element nested within <dhcp>.
-
-The XPATH syntax is admittedly a little awkward, but this approach
-allows you a high degree of flexibility. Since the XML interface
-definition from the "PUT" command is passed directly to the extension,
-you can add new elements or attributes to the schema without actually
-having to implement anything within wicked (apart from teaching it
-about the addrconf type).
-
-
-Wicked extensions - link layer configuration
-============================================
-
-Extensions for link layer configuration work pretty much the same as
-those for address configuration. As an example, check the extension
-for infiniband devices found in the sample config.xml file in the
-source distribution.
-
-For link configuration, any request to bring up an interface's
-link layer will invoke the "start" script. The "stop" script is
-used when the client asks for an interface to be deleted.
+The extension is attached to dbus-service interface and defines
+commands to execute for the actions of this interface. Further,
+the declaration can define and initialize environment variables
+passed to the actions.
 
 Wicked extensions - configuration files
 =======================================
 
-You can extend the handling of configuration with scripts, as well.
-For instance, when you configure the system's hostname by doing a
-PUT request on /config/hostname, by default it will write the provided
-name to /etc/HOSTNAME. You may want to trigger additional actions
-when this happens, for instance you may want to update the hosts file
-as well.
+You can extend the handling of configuration files with scripts as well.
+For example, DNS updates from leases are ultimately handled by the
+extensions/resolver script, with behavior configured in server.xml:
 
-This can be done by defining an extension in the <files> section:
+        <system-updater name="resolver">
+          <action name="backup" command="/etc/wicked/extensions/resolver backup"/>
+          <action name="restore" command="/etc/wicked/extensions/resolver restore"/>
+          <action name="install" command="/etc/wicked/extensions/resolver install"/>
+          <action name="remove" command="/etc/wicked/extensions/resolver remove"/>
+        </system-updater>
 
-  <files>
-   <extension name="config.hostname">
-    <action name="update" command="/sbin/netconfig hostname-updated" />
-   </extension>
-  </files>
+When an update arrives in wickedd, the system updater routines parse
+the lease and call the appropriate commands (ie. backup, install, etc)
+in the resolver script. This in turn configures the DNS settings
+using /sbin/netconfig (if it exists on the system), or by manually writing
+/etc/resolv.conf as a fallback.
 
 Future wickedness
 =================
 
 In the future, it may be useful to extend what wicked supports beyond
 the configuration of network interfaces itself.
-
-Some of that can probably be accomodated by supporting more path names
-in the REST API, for instance /system/resolver as an interface to modify
-the resolver file in a coherent fashion.
 
 
 A Note on the name

@@ -37,6 +37,12 @@ events, use \fB"all,-events"\fP.
 The list of available facilities can be obtained using
 \fB"\-\-debug help"\fP.
 .TP
+.BI "\-\-log-level " level
+Set log \fIlevel\fP to one of <error|warning|notice|info|debug>.
+.TP
+.BI "\-\-log-target " target
+Set log \fItarget\fP to one of <stderr|syslog>.
+.TP
 \fB\-\-foreground\fP
 Tell the daemon to not background itself at startup.
 .TP

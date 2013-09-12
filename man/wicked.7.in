@@ -65,9 +65,6 @@ Currently, the \fBwicked\fP client supports an XML based configuration
 file format, which was at one point inspired by what the netcf library
 uses, but quickly outgrew it.
 .PP
-At some future stage, we may add support for reading "legacy" network
-configuration files used by the current sysconfig-based implementations.
-.PP
 .SS Simple Ethernet Example
 In its simplest format, an interface description consists of little
 more than an \fB<interface>\fP element specifying the interface name

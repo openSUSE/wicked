@@ -19,15 +19,9 @@ extensible XML representation of the network configuration.
 Kind of the Grand Unified Theory of network configuration :-)
 
 Right now, this implementation uses a daemon service and a command
-line utility. These two communicate securely via a local UNIX socket,
-allowing the server to validate the client's user id.
-
-The server offers a REST interface to various aspects of network
-configuration. The client application uses REST calls to retrieve
-interface configuration and status, or to reconfigure interfaces.
-The path space used by the API can be extended to cover other aspects
-of network configuration as well, such as reading, writing and restoring
-the resolv.conf file.
+line utility. The client and server communicate with each other over DBus.
+For a conceptual overview of the supported DBus APIs, please refer
+to the README and wicked(7).
 
 After having hacked on this for a while, I want to release this to
 the community for feedback.
