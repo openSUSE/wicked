@@ -144,6 +144,45 @@ wicked currently supports
         having to do any XML parsing yourself.
 
 
+Where to get the sources/binaries
+=================================
+
+The git source repository is hosted at:
+
+	https://github.com/openSUSE/wicked
+
+Binary packages are build in the openSUSE build service in
+the network:wicked project tree and can be found via:
+
+	http://software.opensuse.org/package/wicked
+
+The actual git master is built in the network:wicked:master
+project automatically.
+
+
+Where to discuss or report bugs
+===============================
+
+Please take a look at:
+
+	http://bugs.opensuse.org
+
+where you can find links to bugzilla and user forums.
+
+There are currently two mailing lists:
+
+	wicked-devel@opensuse.org
+
+for discussions about development and
+
+	wicked-commit@opensuse.org
+
+to monitor git repository commits.
+
+GitHub offers also an issue tracker, where you can discuss pull
+requests and report git master issues, which are not yet in
+openSUSE:Factory or any repository for released products.
+
 
 What you can do
 ===============
