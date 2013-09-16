@@ -56,7 +56,7 @@ interface to network configuration.
 %package service
 License:        GPL-2.0
 Group:          System/Management
-Summary:        wicked network configuration infrastructure service
+Summary:        Network configuration infrastructure - systemd service
 Requires(pre):  %name = %{version}
 Requires:       sysconfig >= 0.81.0
 Provides:       sysvinit(network) /sbin/ifup
@@ -74,7 +74,7 @@ This package provides the wicked systemd service files.
 %package service
 License:        GPL-2.0
 Group:          System/Management
-Summary:        wicked network configuration infrastructure service
+Summary:        Network configuration infrastructure - SysVinit service
 Requires(pre):  %name = %{version}
 Provides:       sysvinit(network) /sbin/ifup
 
@@ -242,7 +242,7 @@ fi
 %endif
 %dir %_datadir/wicked
 %dir %_datadir/wicked/schema
-%config(noreplace) %_datadir/wicked/schema/*.xml
+%_datadir/wicked/schema/*.xml
 %_mandir/man5/wicked-config.5*
 %_mandir/man8/wicked.8*
 %_mandir/man8/wickedd.8*
