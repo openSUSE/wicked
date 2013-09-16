@@ -1,2 +1,3 @@
-# See https://bugzilla.novell.com/show_bug.cgi?id=783932
+# See https://bugzilla.novell.com/show_bug.cgi?id=783932#c18
+# the white-list in rpmlint config needs an update ...
 setBadness("suse-dbus-unauthorized-service", 0)
