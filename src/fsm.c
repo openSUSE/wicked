@@ -2629,8 +2629,11 @@ document_error:
 static int
 ni_ifworker_do_common(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t *action)
 {
-	unsigned int i;
+	unsigned int i, count = 0;
 	int rv;
+
+	/* Initially, enable waiting for this action */
+	w->fsm.wait_for = action;
 
 	for (i = 0; i < action->num_bindings; ++i) {
 		struct ni_fsm_transition_binding *bind = &action->binding[i];
@@ -2642,7 +2645,8 @@ ni_ifworker_do_common(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t *acti
 		if (bind->skip_call)
 			continue;
 
-		ni_debug_application("%s: %s.%s()", w->name, bind->service->name, bind->method->name);
+		ni_debug_application("%s: calling %s.%s()",
+				w->name, bind->service->name, bind->method->name);
 
 		rv = ni_call_common_xml(w->object, bind->service, bind->method, bind->config,
 				&callback_list, ni_ifworker_error_handler);
@@ -2653,15 +2657,22 @@ ni_ifworker_do_common(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t *acti
 				ni_ifworker_set_state(w, action->next_state);
 				return 0;
 			}
-			ni_ifworker_fail(w, "call to %s.%s() failed: %s", bind->service->name, bind->method->name, ni_strerror(rv));
+			ni_ifworker_fail(w, "call to %s.%s() failed: %s",
+					bind->service->name, bind->method->name, ni_strerror(rv));
 			return rv;
 		}
 
 		if (callback_list) {
+			ni_debug_application("%s: adding callback for %s.%s()",
+					w->name, bind->service->name, bind->method->name);
 			ni_ifworker_add_callbacks(action, callback_list, w->name);
-			w->fsm.wait_for = action;
+			count++;
 		}
 	}
+
+	/* Reset wait_for this action if there are no callbacks */
+	if (count == 0)
+		w->fsm.wait_for = NULL;
 
 	if (w->fsm.wait_for != NULL)
 		return 0;
