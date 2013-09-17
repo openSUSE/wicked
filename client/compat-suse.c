@@ -2256,14 +2256,13 @@ __ni_suse_addrconf_static(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		ni_string_array_t names = NI_STRING_ARRAY_INIT;
 		unsigned int i;
 
-		if (!ni_sysconfig_find_matching(sc, "IPADDR", &names))
-			return FALSE;
-
-		for (i = 0; i < names.count; ++i) {
-			if (!__get_ipaddr(sc, names.data[i] + 6, &dev->addrs))
-				return FALSE;
+		if (ni_sysconfig_find_matching(sc, "IPADDR", &names) > 0) {
+			for (i = 0; i < names.count; ++i) {
+				if (!__get_ipaddr(sc, names.data[i] + 6, &dev->addrs))
+					return FALSE;
+			}
+			ni_string_array_destroy(&names);
 		}
-		ni_string_array_destroy(&names);
 	}
 
 	/* Hack up the loopback interface */
