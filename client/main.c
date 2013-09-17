@@ -566,12 +566,16 @@ out:
 int
 do_show(int argc, char **argv)
 {
+	ni_dbus_object_t *root_object;
 	ni_dbus_object_t *object;
 
 	if (argc != 1 && argc != 2) {
 		ni_error("wicked show: missing interface name");
 		return 1;
 	}
+
+	if (!(root_object = ni_call_create_client()))
+		return 1;
 
 	if (argc == 1) {
 		object = get_netif_list_object();
