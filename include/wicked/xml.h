@@ -34,6 +34,13 @@ struct xml_document {
 	struct xml_node *	root;
 };
 
+typedef struct xml_document_array	xml_document_array_t;
+struct xml_document_array {
+	unsigned int		count;
+	xml_document_t **	data;
+};
+#define XML_DOCUMENT_ARRAY_INIT	{ 0, NULL }
+
 struct xml_location_shared {
 	unsigned int		refcount;
 	char *			filename;
@@ -125,6 +132,12 @@ extern ni_bool_t	xml_node_match_attrs(const xml_node_t *, const ni_var_array_t *
 extern const char *	xml_node_location(const xml_node_t *);
 extern void		xml_location_free(struct xml_location *);
 extern struct xml_location *xml_location_clone(const struct xml_location *);
+
+extern void		xml_document_array_init(xml_document_array_t *);
+extern void		xml_document_array_destroy(xml_document_array_t *);
+extern xml_document_array_t *		xml_document_array_new(void);
+extern void		xml_document_array_free(xml_document_array_t *);
+extern void		xml_document_array_append(xml_document_array_t *, xml_document_t *);
 
 extern void		xml_node_array_init(xml_node_array_t *);
 extern void		xml_node_array_destroy(xml_node_array_t *);

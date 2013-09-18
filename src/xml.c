@@ -27,7 +27,8 @@
 #include <wicked/logging.h>
 #include "util_priv.h"
 
-#define XML_NODEARRAY_CHUNK	8
+#define XML_DOCUMENTARRAY_CHUNK		1
+#define XML_NODEARRAY_CHUNK		8
 
 xml_document_t *
 xml_document_new()
@@ -586,6 +587,67 @@ xml_node_match_attrs(const xml_node_t *node, const ni_var_array_t *attrlist)
 		}
 	}
 	return TRUE;
+}
+
+/*
+ * XML document arrays
+ */
+void
+xml_document_array_init(xml_document_array_t *array)
+{
+	memset(array, 0, sizeof(*array));
+}
+
+void
+xml_document_array_destroy(xml_document_array_t *array)
+{
+	unsigned int i;
+
+	for (i = 0; i < array->count; ++i)
+		xml_document_free(array->data[i]);
+
+	if (array->data)
+		free(array->data);
+	memset(array, 0, sizeof(*array));
+}
+
+xml_document_array_t *
+xml_document_array_new(void)
+{
+	xml_document_array_t *array;
+
+	array = xcalloc(1, sizeof(*array));
+	return array;
+}
+
+void
+xml_document_array_free(xml_document_array_t *array)
+{
+	xml_document_array_destroy(array);
+	free(array);
+}
+
+static void
+__xml_document_array_realloc(xml_document_array_t *array, unsigned int newsize)
+{
+	xml_document_t **newdata;
+	unsigned int i;
+
+	newsize = (newsize + XML_DOCUMENTARRAY_CHUNK) + 1;
+	newdata = xrealloc(array->data, newsize * sizeof(xml_document_t *));
+
+	array->data = newdata;
+	for (i = array->count; i < newsize; ++i)
+		array->data[i] = NULL;
+}
+
+void
+xml_document_array_append(xml_document_array_t *array, xml_document_t *doc)
+{
+	if ((array->count % XML_DOCUMENTARRAY_CHUNK) == 0)
+		__xml_document_array_realloc(array, array->count);
+
+	array->data[array->count++] = doc;
 }
 
 /*
