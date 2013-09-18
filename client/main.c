@@ -134,7 +134,10 @@ main(int argc, char **argv)
 			return 0;
 
 		case OPT_CONFIGFILE:
-			ni_set_global_config_path(optarg);
+			if (!ni_set_global_config_path(optarg)) {
+				fprintf(stderr, "Unable to set config file '%s': %m\n", optarg);
+				return 1;
+			}
 			break;
 
 		case OPT_DEBUG:
