@@ -1877,6 +1877,25 @@ ni_dirname(const char *path)
 	return buffer;
 }
 
+const char *
+ni_realpath(const char *path, char **resolved)
+{
+	if (!path || !resolved)
+		return NULL;
+
+#if defined(_POSIX_C_SOURCE) && _POSIX_C_SOURCE >= 200809L
+	ni_string_free(resolved);
+	*resolved = realpath(path, NULL);
+#else
+	{
+		static char real[PATH_MAX + 1];
+
+		ni_string_dup(resolved, realpath(path, real));
+	}
+#endif
+	return *resolved;
+}
+
 /*
  * Given a path name /foo/bar/baz, and a relative file name "blubber",
  * build /foo/bar/blubber
