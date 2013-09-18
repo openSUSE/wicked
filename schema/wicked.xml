@@ -18,5 +18,5 @@
 <include name="ppp.xml"/>
 <include name="firewall.xml"/>
 <include name="addrconf.xml"/>
-<include name="openvpn.xml"/>
+<!-- include name="openvpn.xml"/ -->
 <include name="lldp.xml"/>
