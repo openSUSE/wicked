@@ -1,15 +1,36 @@
+#
+# spec file for package wicked
+#
+# Copyright (c) 2010-2013 SUSE LINUX Products GmbH, Nuernberg, Germany.
+#
+# All modifications and additions to the file contributed by third parties
+# remain the property of their copyright owners, unless otherwise agreed
+# upon. The license for this file, and modifications and additions to the
+# file, is the same license as for the pristine package itself (unless the
+# license for the pristine package is not an Open Source License, in which
+# case the license is the MIT License). An "Open Source License" is a
+# license that conforms to the Open Source Definition (Version 1.9)
+# published by the Open Source Initiative.
+
+# Please submit bugfixes or comments via http://bugs.opensuse.org/
+#
+
+
 %define		release_prefix  %{?snapshot:%{snapshot}}%{!?snapshot:0}
-Name:		wicked
-Version:	@PACKAGE_VERSION@
-Release:	%{release_prefix}.0.0
-Group:		System/Management
-License:	GPL-2.0
-Summary:	Network configuration infrastructure
+Name:           wicked
+Version:        @PACKAGE_VERSION@
+Release:        %{release_prefix}.0.0
+Summary:        Network configuration infrastructure
+License:        GPL-2.0
+Group:          System/Management
 Url:            @PACKAGE_URL@
-Source0:	%{name}-%{version}.tar.bz2
+Source0:        %{name}-%{version}.tar.bz2
 Source1:        wicked-rpmlintrc
-Buildroot:	%{_tmppath}/%{name}%{version}-buildroot/
-BuildRequires:  autoconf automake libtool make
+BuildRoot:      %{_tmppath}/%{name}-%{version}-build
+BuildRequires:  autoconf
+BuildRequires:  automake
+BuildRequires:  libtool
+BuildRequires:  make
 Requires(pre):  libwicked@LIBWICKED_PACKAGE_SUFFIX@ = %{version}
 
 %if 0%{?suse_version} >= 1230
@@ -31,8 +52,8 @@ BuildRequires:  libiw-devel
 BuildRequires:  wireless-tools
 %endif
 BuildRequires:  dbus-1-devel
-BuildRequires:  pkg-config
 BuildRequires:  libgcrypt-devel
+BuildRequires:  pkg-config
 
 %if %{with systemd}
 %{?systemd_requires}
@@ -54,12 +75,12 @@ interface to network configuration.
 %if %{with systemd}
 
 %package service
-License:        GPL-2.0
-Group:          System/Management
 Summary:        Network configuration infrastructure - systemd service
+Group:          System/Management
 Requires(pre):  %name = %{version}
 Requires:       sysconfig >= 0.81.0
-Provides:       sysvinit(network) /sbin/ifup
+Provides:       /sbin/ifup
+Provides:       sysvinit(network)
 Conflicts:      otherproviders(/sbin/ifup)
 
 %description service
@@ -72,11 +93,11 @@ This package provides the wicked systemd service files.
 %else
 
 %package service
-License:        GPL-2.0
-Group:          System/Management
 Summary:        Network configuration infrastructure - SysVinit service
+Group:          System/Management
 Requires(pre):  %name = %{version}
-Provides:       sysvinit(network) /sbin/ifup
+Provides:       /sbin/ifup
+Provides:       sysvinit(network)
 
 %description service
 Wicked is a network configuration infrastructure incorporating a number
@@ -88,12 +109,11 @@ This package provides the wicked system V init scripts.
 %endif
 
 %package devel
-License:        GPL-2.0
-Group:          Development/Libraries/C and C++
 Summary:        Network configuration infrastructure - Development files
-Requires:       libwicked@LIBWICKED_PACKAGE_SUFFIX@ = %{version}
+Group:          Development/Libraries/C and C++
 Requires:       dbus-1-devel
 Requires:       libnl-devel
+Requires:       libwicked@LIBWICKED_PACKAGE_SUFFIX@ = %{version}
 %if 0%{?suse_version} > 1210
 Requires:       libnl-1_1-devel
 %else
@@ -108,7 +128,6 @@ interface to network configuration.
 This package provides the wicked development files.
 
 %package -n     libwicked@LIBWICKED_PACKAGE_SUFFIX@
-License:        GPL-2.0
 Summary:        Network configuration infrastructure - Shared library
 Group:          System/Management
 
