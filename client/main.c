@@ -567,58 +567,104 @@ int
 do_show(int argc, char **argv)
 {
 	ni_dbus_object_t *root_object;
+	ni_dbus_object_t *list_object;
 	ni_dbus_object_t *object;
+	enum  { OPT_HELP, };
+	static struct option options[] = {
+		{ "help", no_argument, NULL, OPT_HELP },
+		{ NULL }
+	};
+	const char *ifname = NULL;
+	int c, rv = 1;
 
-	if (argc != 1 && argc != 2) {
-		ni_error("wicked show: missing interface name");
-		return 1;
+	optind = 1;
+	while ((c = getopt_long(argc, argv, "", options, NULL)) != EOF) {
+		switch (c) {
+		default:
+		case OPT_HELP:
+		usage:
+			fprintf(stderr,
+				"wicked [options] show [ifname]\n"
+				"\nSupported options:\n"
+				"  --help\n"
+				"      Show this help text.\n"
+				);
+			return (c == OPT_HELP ? 0 : 1);
+		}
 	}
+
+	if (optind < argc) {
+		ifname = argv[optind++];
+		if (ni_string_eq(ifname, "all"))
+			ifname = NULL;
+	}
+
+	if (optind != argc)
+		goto usage;
 
 	if (!(root_object = ni_call_create_client()))
 		return 1;
 
-	if (argc == 1) {
-		object = get_netif_list_object();
-		if (!object)
-			return 1;
+	if (!(list_object = get_netif_list_object()))
+		return 1;
 
-		for (object = object->children; object; object = object->next) {
-			ni_netdev_t *ifp = object->handle;
-			ni_address_t *ap;
-			ni_route_table_t *tab;
-			ni_route_t *rp;
-			unsigned int i;
+	for (object = list_object->children; object; object = object->next) {
+		ni_netdev_t *ifp = object->handle;
+		ni_address_t *ap;
+		ni_route_table_t *tab;
+		ni_route_t *rp;
+		unsigned int i;
 
-			printf("%-12s %-10s %-10s",
-					ifp->name,
-					(ifp->link.ifflags & NI_IFF_NETWORK_UP)? "up" :
-					 (ifp->link.ifflags & NI_IFF_LINK_UP)? "link-up" :
-					  (ifp->link.ifflags & NI_IFF_DEVICE_UP)? "device-up" : "down",
-					ni_linktype_type_to_name(ifp->link.type));
+		if (ifname && !ni_string_eq(ifname, ifp->name))
+			continue;
+
+		if (rv == 0)
 			printf("\n");
+		rv = 0;
 
-			for (ap = ifp->addrs; ap; ap = ap->next)
-				printf("  addr:   %s/%u\n", ni_sockaddr_print(&ap->local_addr), ap->prefixlen);
+		printf("%d: %-16s %s\n", ifp->link.ifindex, ifp->name,
+			(ifp->link.ifflags & NI_IFF_NETWORK_UP)? "up" :
+			 (ifp->link.ifflags & NI_IFF_LINK_UP)? "link-up" :
+			  (ifp->link.ifflags & NI_IFF_DEVICE_UP)? "device-up" : "down");
 
-			for (tab = ifp->routes; tab; tab = tab->next) {
-				for (i = 0; i < tab->routes.count; ++i) {
-					ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
-					rp = tab->routes.data[i];
+		printf("    %-8s %s", "link:", ni_linktype_type_to_name(ifp->link.type));
+		if (ifp->link.hwaddr.len) {
+			printf(" addr %s", ni_link_address_print(&ifp->link.hwaddr));
+		}
+		if (ifp->link.mtu > 0) {
+			printf(" mtu %d", ifp->link.mtu);
+		}
+		if (!ni_string_empty(ifp->link.alias)) {
+			printf(" alias %s", ifp->link.alias);
+		}
+		printf("\n");
 
-					ni_route_print(&buf, rp);
-					printf("  route: %s\n", buf.string);
-					ni_stringbuf_destroy(&buf);
-				}
+		for (ap = ifp->addrs; ap; ap = ap->next) {
+			printf("    %-8s %s %s/%u", "addr:",
+				ni_addrfamily_type_to_name(ap->family),
+				ni_sockaddr_print(&ap->local_addr), ap->prefixlen);
+			if (!ni_string_empty(ap->label) && !ni_string_eq(ap->label, ifp->name)) {
+				printf(" label %s", ap->label);
+			}
+			printf("\n");
+		}
+
+		for (tab = ifp->routes; tab; tab = tab->next) {
+			for (i = 0; i < tab->routes.count; ++i) {
+				ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
+				rp = tab->routes.data[i];
+
+				ni_route_print(&buf, rp);
+				printf("    %-8s %s\n", "route:", buf.string);
+				ni_stringbuf_destroy(&buf);
 			}
 		}
-	} else {
-		const char *ifname = argv[1];
-
-		object = get_netif_object(ifname);
-		if (!object)
-			return 1;
 	}
 
+	if (ifname && rv != 0) {
+		ni_error("%s: unknown network interface", ifname);
+		return rv;
+	}
 	return 0;
 }
 
