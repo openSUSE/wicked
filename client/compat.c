@@ -903,8 +903,10 @@ __ni_compat_generate_dynamic_addrconf(xml_node_t *ifnode, const char *name, ni_b
 	aconf = xml_node_new(name, ifnode);
 	xml_node_new_element("enabled", aconf, "true");
 
+#if 0	/* This is not yet implemented */
 	if (!required)
 		xml_node_new_element("optional", aconf, "true");
+#endif
 
 	if (update) {
 		xml_node_t *child = xml_node_new("update", aconf);
