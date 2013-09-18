@@ -100,7 +100,10 @@ struct ni_netdev_req {
 	char *			alias;
 };
 
-extern void		ni_set_global_config_path(const char *);
+extern ni_bool_t	ni_set_global_config_path(const char *);
+extern const char *	ni_get_global_config_path(void);
+extern const char *	ni_get_global_config_dir(void);
+
 extern int		ni_init(const char *appname);
 
 /*

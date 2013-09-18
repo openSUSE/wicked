@@ -9,6 +9,7 @@
 
 #include <signal.h>
 #include <limits.h>
+#include <errno.h>
 
 #include <wicked/netinfo.h>
 #include <wicked/route.h>
@@ -97,7 +98,9 @@ ni_init_ex(const char *appname, ni_init_appdata_callback_t *cb, void *appdata)
 			 */
 			appname = "config";
 		}
-		if (asprintf(&ni_global.config_path, "%s/%s.xml", WICKED_CONFIGDIR, appname) < 0) {
+
+		if (asprintf(&ni_global.config_path, "%s/%s.xml",
+					ni_get_global_config_dir(), appname) < 0) {
 			ni_global.config_path = NULL;
 			return -1;
 		}
@@ -106,7 +109,8 @@ ni_init_ex(const char *appname, ni_init_appdata_callback_t *cb, void *appdata)
 		 * back to common.xml */
 		if (!ni_file_exists(ni_global.config_path)) {
 			ni_string_free(&ni_global.config_path);
-			if (asprintf(&ni_global.config_path, "%s/common.xml", WICKED_CONFIGDIR) < 0) {
+			if (asprintf(&ni_global.config_path, "%s/common.xml",
+						ni_get_global_config_dir()) < 0) {
 				ni_global.config_path = NULL;
 				return -1;
 			}
@@ -138,10 +142,90 @@ ni_init_ex(const char *appname, ni_init_appdata_callback_t *cb, void *appdata)
 	return 0;
 }
 
-void
+const char *
+ni_get_global_config_dir(void)
+{
+	if (ni_global.config_dir == NULL)
+		return WICKED_CONFIGDIR;
+	else
+		return ni_global.config_dir;
+}
+
+const char *
+ni_get_global_config_path(void)
+{
+	return ni_global.config_path;
+}
+
+static ni_bool_t
+ni_set_global_config_dir(const char *pathname)
+{
+	if (pathname == NULL) {
+		ni_string_free(&ni_global.config_dir);
+		ni_string_free(&ni_global.config_path);
+		return TRUE;
+	}
+
+	if (ni_isdir(pathname)) {
+		char *real = NULL;
+
+		if (*pathname != '/') {
+			/* resolve to absolute path */
+			if (ni_realpath(pathname, &real) == NULL)
+				return FALSE;
+			pathname = real;
+		}
+
+		if (ni_string_eq(WICKED_CONFIGDIR, pathname))
+			pathname = NULL;
+
+		ni_string_dup(&ni_global.config_dir, pathname);
+		ni_string_free(&real);
+
+		return TRUE;
+	}
+	errno = ENOTDIR;
+	return FALSE;
+}
+
+ni_bool_t
 ni_set_global_config_path(const char *pathname)
 {
-	ni_string_dup(&ni_global.config_path, pathname);
+	char *real = NULL;
+
+	if (pathname == NULL) {
+		ni_string_free(&ni_global.config_dir);
+		ni_string_free(&ni_global.config_path);
+		return TRUE;
+	}
+
+	if (*pathname != '/') {
+		/* resolve to absolute path */
+		if (ni_realpath(pathname, &real) == NULL)
+			return FALSE;
+		pathname = real;
+	}
+
+	if (ni_isreg(pathname)) {
+		const char *dir;
+
+		if (!(dir = ni_dirname(pathname))) {
+			errno = ENAMETOOLONG;
+			return FALSE;
+		}
+
+		if (!ni_set_global_config_dir(dir))
+			return FALSE;
+
+		ni_string_dup(&ni_global.config_path, pathname);
+	} else {
+		if (!ni_set_global_config_dir(pathname))
+			return FALSE;
+
+		ni_string_free(&ni_global.config_path);
+	}
+	ni_string_free(&real);
+	return TRUE;
 }
 
 const char *

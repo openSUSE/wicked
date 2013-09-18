@@ -138,6 +138,7 @@ extern const ni_c_binding_t *ni_extension_find_c_binding(const ni_extension_t *,
 typedef struct ni_global {
 	int			initialized;
 	char *			config_path;
+	char *			config_dir;
 	ni_config_t *		config;
 
 	void			(*interface_event)(ni_netdev_t *, ni_event_t);
