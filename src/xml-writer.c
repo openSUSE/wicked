@@ -281,17 +281,18 @@ xml_escape_entities(const char *cdata, char **temp)
 		['>'] = "&gt;",
 		['&'] = "&amp;",
 	};
-	const char *pos;
-	unsigned int expand = 0;
+	const unsigned char *pos;
+	unsigned int expand = 0, idx;
 	char *copy = NULL;
 
 	if (!cdata)
 		return NULL;
 
-	for (pos = cdata; *pos; ++pos) {
+	for (pos = (const unsigned char *)cdata; *pos; ++pos) {
 		const char *replace;
 
-		if ((replace = escmap[(unsigned int) *pos]) != NULL)
+		idx = *pos;
+		if ((replace = escmap[idx]) != NULL)
 			expand += strlen(replace);
 	}
 
@@ -299,10 +300,11 @@ xml_escape_entities(const char *cdata, char **temp)
 		return cdata;
 
 	copy = *temp = xmalloc(expand + strlen(cdata) + 1);
-	for (pos = cdata; *pos; ++pos) {
+	for (pos = (const unsigned char *)cdata; *pos; ++pos) {
 		const char *replace;
 
-		if ((replace = escmap[(unsigned int) *pos]) != NULL) {
+		idx = *pos;
+		if ((replace = escmap[idx]) != NULL) {
 			strcpy(copy, replace);
 			copy += strlen(copy);
 		} else {
