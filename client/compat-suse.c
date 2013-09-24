@@ -298,11 +298,15 @@ __ni_suse_free_globals(void)
 {
 	ni_string_free(&__ni_suse_default_hostname);
 
-	if (__ni_suse_config_defaults)
+	if (__ni_suse_config_defaults) {
 		ni_sysconfig_destroy(__ni_suse_config_defaults);
+		__ni_suse_config_defaults = NULL;
+	}
 
-	if (__ni_suse_dhcp_defaults)
+	if (__ni_suse_dhcp_defaults) {
 		ni_sysconfig_destroy(__ni_suse_dhcp_defaults);
+		__ni_suse_dhcp_defaults = NULL;
+	}
 
 	ni_route_tables_destroy(&__ni_suse_global_routes);
 }
