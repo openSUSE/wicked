@@ -273,69 +273,87 @@ ni_log_reopen(void)
 	}
 }
 
-ni_bool_t
-__ni_stderr_parse_args(const char *args, unsigned int *options)
+static const ni_intmap_t *
+ni_find_mapped_nname(const ni_intmap_t *map, const char *name, size_t len)
+{
+	while (map->name) {
+		if (strlen(map->name) == len &&
+		    strncasecmp(map->name, name, len) == 0)
+			return map;
+		++map;
+	}
+	return NULL;
+}
+
+static ni_bool_t
+__ni_parse_flag_options(const ni_intmap_t *map, const char *args, unsigned int *options)
 {
 	unsigned int _options  = 0;
-	size_t beg, end, len;
+	const ni_intmap_t *opt;
+	size_t beg, end;
 
 	/*
 	 * [option[,option]]
 	 */
 	beg = 0;
-	end = strcspn(args, ",:");
+	end = strcspn(args, ",");
 	while (end > beg) {
-		len = end - beg;
-		if (!strncasecmp("pid", args+beg, len)) {
-			_options |= LOG_PID;
-		} else {
+		if (!(opt = ni_find_mapped_nname(map, args+beg, end-beg)))
 			return FALSE;
-		}
+
+		_options |= opt->value;
 		beg = end + strspn(args+end, ",");
-		end = beg + strcspn(args+beg, ",:");
+		end = beg + strcspn(args+beg, ",");
 	}
 
 	if (options)
 		*options = _options;
 	return TRUE;
+
+}
+
+ni_bool_t
+__ni_stderr_parse_args(const char *args, unsigned int *options)
+{
+	static const ni_intmap_t option_map[] = {
+		{ "pid",	LOG_PID	},
+		{ NULL,		0	}
+	};
+	return __ni_parse_flag_options(option_map, args, options);
 }
 
 ni_bool_t
 __ni_syslog_parse_args(const char *args, unsigned int *options, unsigned int *facility)
 {
+	static const ni_intmap_t *opt, option_map[] = {
+		{ "perror",	LOG_PERROR	},
+		{ "stderr",	LOG_PERROR	},
+		{ NULL,		0		}
+	};
 	unsigned int _options  = LOG_NDELAY | LOG_PID;
 	unsigned int _facility = LOG_DAEMON;
-	size_t beg, end, len;
+	size_t end;
 
 	/*
-	 * [option[,option]][:facility]
+	 * [[facility]:[option[,option]]
 	 */
 	end = strcspn(args, ":");
-	if (args[end] == ':' && args[end + 1]) {
-		if (ni_parse_uint_mapped(args + end + 1,
-					__syslog_facility_names,
-					&_facility) < 0)
+	if (args[end] == ':') {
+		if (!__ni_parse_flag_options(option_map, args+end+1, &_options))
 			return FALSE;
 	}
-
-	beg = 0;
-	end = strcspn(args, ",:");
-	while (end > beg) {
-		len = end - beg;
-		if (!strncasecmp("perror", args+beg, len) ||
-		    !strncasecmp("stderr", args+beg, len)) {
-			_options |= LOG_PERROR;
-		} else {
+	if (end) {
+		if (!(opt = ni_find_mapped_nname(__syslog_facility_names, args, end)))
 			return FALSE;
-		}
-		beg = end + strspn(args+end, ",");
-		end = beg + strcspn(args+beg, ",:");
+
+		_facility = opt->value;
 	}
 
 	if (options)
 		*options = _options;
 	if (facility)
 		*facility = _facility;
+
 	return TRUE;
 }
 
@@ -367,6 +385,14 @@ ni_log_destination_stderr(const char *progname, const char *args)
 ni_bool_t
 ni_log_destination(const char *progname, const char *destination)
 {
+	static const struct {
+		const char *name;
+		ni_bool_t (*func)(const char *, const char *);
+	} *dest, destination_map[] = {
+		{ "stderr", ni_log_destination_stderr },
+		{ "syslog", ni_log_destination_syslog },
+		{ NULL,     NULL                      }
+	};
 	const char *options = "";
 	size_t len;
 
@@ -374,21 +400,18 @@ ni_log_destination(const char *progname, const char *destination)
 		return FALSE;
 
 	/*
-	 * stderr[:options]
-	 * syslog[:options][:facility]
+	 * stderr[:[options]]
+	 * syslog[:[facility]:[options]]
 	 */
 	len = strcspn(destination, ":");
 	if (destination[len] == ':') {
 		options = destination + len + 1;
 	}
 
-	if (!strncasecmp("stderr", destination, len)) {
-		if (ni_log_destination_stderr(progname, options))
-			return TRUE;
-	} else
-	if (!strncasecmp("syslog", destination, len)) {
-		if (ni_log_destination_syslog(progname, options))
-			return TRUE;
+	for (dest = destination_map; dest->name; ++dest) {
+		if (ni_string_len(dest->name) == len &&
+		    !strncasecmp(dest->name, destination, len))
+			return dest->func(progname, options);
 	}
 	return FALSE;
 }

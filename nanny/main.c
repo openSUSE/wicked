@@ -160,7 +160,7 @@ main(int argc, char **argv)
 		}
 		return 1;
 	} else if (opt_foreground && getppid() != 1) {
-		ni_log_destination(program_name, "syslog:perror");
+		ni_log_destination(program_name, "syslog::perror");
 	} else {
 		ni_log_destination(program_name, "syslog");
 	}
