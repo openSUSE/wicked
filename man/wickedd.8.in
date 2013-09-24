@@ -38,10 +38,32 @@ The list of available facilities can be obtained using
 \fB"\-\-debug help"\fP.
 .TP
 .BI "\-\-log-level " level
-Set log \fIlevel\fP to one of <error|warning|notice|info|debug>.
+Set log \fIlevel\fP to one of
+<\fIerror\fP|\fIwarning\fP|\fInotice\fP|\fIinfo\fP|\fIdebug\fP>.
 .TP
 .BI "\-\-log-target " target
-Set log \fItarget\fP to one of <stderr|syslog>.
+Set log \fItarget\fP to one of <\fIstderr\fP|\fIsyslog\fP>,
+optionally followed by a colon and target specific details.
+
+.in +4n
+.IR stderr "[:" options "]"
+with the following options:
+.in +4n
+.I pid
+include program pid in each message
+.in
+
+.IR syslog "[:" facility "[:" options "]]"
+with following facilities:
+.in +4n
+.IR user ", " daemon ", " local0 " .. " local7
+.in
+and options:
+.in +4n
+.I perror
+log the message to stderr as well
+.in
+
 .TP
 \fB\-\-foreground\fP
 Tell the daemon to not background itself at startup.
