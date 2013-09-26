@@ -176,7 +176,7 @@ that have a \fB<boot-stage>\fP element containing the given identifier.
 If the interface does not specify a \fB<boot-stage>\fP element in its control
 section, then it defaults to \fBdefault\fP.
 .TP
-.BI "\-\-skip-origin " identifier
+.BI "\-\-skip-origin " config source
 This can be used to ignore interfaces that have already been configured.
 For instance, an interface that has been configured based on a firmware
 configuration (see option \fB\-\-ifconfig\fP above) will be marked as
