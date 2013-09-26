@@ -25,6 +25,13 @@
 #include "appconfig.h"
 #include "xml-schema.h"
 
+static const char *__ni_ifconfig_source_types[] = {
+	"firmware:",
+	"compat:",
+	"wicked:",
+	NULL
+};
+
 static ni_bool_t	ni_config_parse_addrconf_dhcp(struct ni_config_dhcp *, xml_node_t *);
 static ni_bool_t	ni_config_parse_addrconf_dhcp6(struct ni_config_dhcp6 *, xml_node_t *);
 static void		ni_config_parse_update_targets(unsigned int *, const xml_node_t *);
@@ -809,13 +816,25 @@ ni_config_parse_system_updater(ni_extension_t **list, xml_node_t *node)
  * </sources>
  *
  */
-static void
+static ni_bool_t
 __ni_config_parse_ifconfig_source(ni_string_array_t *sources, xml_node_t *node)
 {
-	const char *attrval;
+	const char *attrval = NULL;
+	unsigned int i;
 
-	if ((attrval = xml_node_get_attr(node, "location")) != NULL && *attrval)
-		ni_string_array_append(sources, attrval);
+	if ((attrval = xml_node_get_attr(node, "location")) != NULL && *attrval) {
+		const char **p = __ni_ifconfig_source_types;
+		for (i = 0; p[i]; i++) {
+			if (!strncasecmp(attrval, p[i], ni_string_len(p[i]))) {
+				ni_debug_readwrite("%s: Adding ifconfig %s\n", __func__, attrval);
+				ni_string_array_append(sources, attrval);
+				return TRUE;
+			}
+		}
+	}
+
+	ni_error("Unknown ifconfig location: %s", attrval);
+	return FALSE;
 }
 ni_bool_t
 ni_config_parse_sources(ni_config_t *conf, xml_node_t *sources)
@@ -824,12 +843,29 @@ ni_config_parse_sources(ni_config_t *conf, xml_node_t *sources)
 
 	for (child = sources->children; child && child->name; child = child->next) {
 		if (!strcmp(child->name, "ifconfig")) {
-			__ni_config_parse_ifconfig_source(&conf->sources.ifconfig, child);
+			 if (!__ni_config_parse_ifconfig_source(&conf->sources.ifconfig, child))
+				return FALSE;
 		}
 	}
+
 	return TRUE;
 }
 
+const ni_string_array_t *
+ni_config_sources(const char *type)
+{
+	ni_string_array_t *retval = NULL;
+	unsigned int i;
+
+	if (ni_string_eq(type, "ifconfig")) {
+		retval = &ni_global.config->sources.ifconfig;
+		if (retval->count == 0) {
+			for (i = 0; __ni_ifconfig_source_types[i]; i++)
+				ni_string_array_append(retval, __ni_ifconfig_source_types[i]);
+		}
+	}
+	return retval;
+}
 
 /*
  * Extension handling

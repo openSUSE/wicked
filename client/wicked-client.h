@@ -79,4 +79,6 @@ extern ni_bool_t		ni_ifconfig_read(xml_document_array_t *, const char *, const c
 extern ni_bool_t		__ni_suse_get_interfaces(const char *, const char *, ni_compat_netdev_array_t *);
 extern ni_bool_t		__ni_redhat_get_interfaces(const char *, const char *, ni_compat_netdev_array_t *);
 
+extern const ni_string_array_t *ni_config_sources(const char *);
+
 #endif /* WICKED_CLIENT_H */
