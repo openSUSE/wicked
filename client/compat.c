@@ -29,57 +29,6 @@ static const char *	ni_sprint_timeout(unsigned int timeout);
 static xml_node_t *	xml_node_create(xml_node_t *, const char *);
 static void		xml_node_dict_set(xml_node_t *, const char *, const char *);
 
-static ni_bool_t
-__ni_compat_file_exists(const char *root, const char *file)
-{
-	char path[PATH_MAX] = {'\0'};
-
-	snprintf(path, sizeof(path), "%s%s", root ? root : "", file);
-	return ni_file_exists(path);
-}
-
-ni_bool_t
-__ni_compat_get_interfaces(const char *root, const char *format, const char *path,
-				xml_document_t *doc)
-{
-	ni_compat_netdev_array_t array = { 0, NULL };
-	ni_bool_t rv;
-
-	if (format == NULL) {
-		/* Guess what system we're on */
-		if (__ni_compat_file_exists(root, "/etc/SuSE-release"))
-			format = "suse";
-		else
-		if (__ni_compat_file_exists(root, "/etc/redhat-release"))
-			format = "redhat";
-		else
-			ni_fatal("Cannot determine what file format to read");
-	}
-
-	/* TBD: add support for more formats */
-	if (ni_string_eq(format, "suse"))
-		rv = __ni_suse_get_interfaces(root, path, &array);
-	else
-	if (ni_string_eq(format, "redhat"))
-		rv = __ni_redhat_get_interfaces(root, path, &array);
-	else
-		ni_fatal("Unsupported compatibility configuration file format %s",
-				format);
-
-	if (rv) {
-		unsigned int i;
-
-		for (i = 0; i < array.count; ++i) {
-			ni_compat_netdev_t *compat = array.data[i];
-
-			ni_compat_generate_interface(compat, doc);
-		}
-	}
-
-	ni_compat_netdev_array_destroy(&array);
-	return rv;
-}
-
 /*
  * Array handling functions
  */
@@ -1002,8 +951,8 @@ __ni_compat_generate_dhcp6_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t
 }
 
 
-ni_bool_t
-__ni_compat_generate_interface(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
+static ni_bool_t
+__ni_compat_generate_ifcfg(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 {
 	const ni_netdev_t *dev = compat->dev;
 	xml_node_t *linknode;
@@ -1069,8 +1018,8 @@ __ni_compat_generate_interface(xml_node_t *ifnode, const ni_compat_netdev_t *com
 	return TRUE;
 }
 
-xml_node_t *
-ni_compat_generate_interface(const ni_compat_netdev_t *compat, xml_document_t *doc)
+static xml_node_t *
+ni_compat_generate_ifcfg(const ni_compat_netdev_t *compat, xml_document_t *doc)
 {
 	xml_node_t *ifnode, *namenode;
 
@@ -1085,8 +1034,28 @@ ni_compat_generate_interface(const ni_compat_netdev_t *compat, xml_document_t *d
 		xml_node_set_cdata(namenode, compat->dev->name);
 	}
 
-	__ni_compat_generate_interface(ifnode, compat);
+	__ni_compat_generate_ifcfg(ifnode, compat);
 	return ifnode;
+}
+
+unsigned int
+ni_compat_generate_interfaces(xml_document_array_t *array, ni_compat_ifconfig_t *ifcfg)
+{
+	xml_document_t *config_doc;
+	unsigned int i;
+
+	if (!ifcfg)
+		return 0;
+
+	for (i = 0; i < ifcfg->netdev_array.count; ++i) {
+		ni_compat_netdev_t *compat = ifcfg->netdev_array.data[i];
+
+		config_doc = xml_document_new();
+		ni_compat_generate_ifcfg(compat, config_doc);
+		xml_document_array_append(array, config_doc);
+	}
+
+	return i;
 }
 
 /*

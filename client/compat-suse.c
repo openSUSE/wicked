@@ -210,6 +210,8 @@ __ni_suse_get_interfaces(const char *root, const char *path, ni_compat_netdev_ar
 
 		ni_compat_netdev_array_append(result, compat);
 	}
+	else
+		goto done;
 
 	success = TRUE;
 

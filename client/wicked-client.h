@@ -61,6 +61,10 @@ typedef struct ni_compat_netdev_array {
 	ni_compat_netdev_t **	data;
 } ni_compat_netdev_array_t;
 
+typedef struct ni_compat_ifconfig {
+	ni_compat_netdev_array_t netdev_array;
+} ni_compat_ifconfig_t;
+
 extern ni_compat_netdev_t *	ni_compat_netdev_new(const char *);
 extern void			ni_compat_netdev_free(ni_compat_netdev_t *);
 extern void			ni_compat_netdev_array_append(ni_compat_netdev_array_t *, ni_compat_netdev_t *);
@@ -68,9 +72,10 @@ extern void			ni_compat_netdev_array_destroy(ni_compat_netdev_array_t *);
 extern ni_compat_netdev_t *	ni_compat_netdev_by_name(ni_compat_netdev_array_t *, const char *);
 extern ni_compat_netdev_t *	ni_compat_netdev_by_hwaddr(ni_compat_netdev_array_t *, const ni_hwaddr_t *);
 
-extern xml_node_t *		ni_compat_generate_interface(const ni_compat_netdev_t *, xml_document_t *);
+extern unsigned int		ni_compat_generate_interfaces(xml_document_array_t *, ni_compat_ifconfig_t *);
 
-extern ni_bool_t		__ni_compat_get_interfaces(const char *, const char *, const char *, xml_document_t *);
+extern ni_bool_t		ni_ifconfig_read(xml_document_array_t *, const char *, const char *);
+
 extern ni_bool_t		__ni_suse_get_interfaces(const char *, const char *, ni_compat_netdev_array_t *);
 extern ni_bool_t		__ni_redhat_get_interfaces(const char *, const char *, ni_compat_netdev_array_t *);
 

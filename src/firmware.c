@@ -81,27 +81,41 @@ __ni_netconfig_firmware_discovery(const char *root, const char *type, const char
  * as last argument to the discovery script.
  */
 xml_document_t *
-ni_netconfig_firmware_discovery(const char *root, const char *type, const char *path)
+ni_netconfig_firmware_discovery(const char *root, const char *type)
 {
 	ni_buffer_t *buffer;
 	xml_document_t *doc;
 	char *location = NULL;
+	char *source = NULL;
+	char *temp = NULL;
 
 	/* sanity adjustments... */
 	if (ni_string_empty(root))
 		root = NULL;
 	if (ni_string_empty(type))
-		type = path = NULL;
-	else
-	if (ni_string_empty(path))
-		path = NULL;
+		type = NULL;
+	else {
+		ni_string_dup(&temp, type);
 
-	buffer = __ni_netconfig_firmware_discovery(root, type, path);
-	if (buffer == NULL)
+		if ((source = strchr(temp, ':')))
+			*source++ = '\0';
+
+		if (ni_string_empty(source))
+			source = NULL;
+
+		if (!ni_string_empty(temp))
+			type = temp;
+	}
+
+	buffer = __ni_netconfig_firmware_discovery(root, type, source);
+	if (buffer == NULL) {
+		ni_string_free(&temp);
 		return NULL;
+	}
 
 	ni_string_printf(&location, "<firmware:%s:%s>",
-			(type ? type : ""), (path ? path : ""));
+			(type ? type : ""), (source ? source : ""));
+	ni_string_free(&temp);
 
 	ni_trace("%s: buffer %s has %u bytes", __func__, location, ni_buffer_count(buffer));
 	doc = xml_document_from_buffer(buffer, location);

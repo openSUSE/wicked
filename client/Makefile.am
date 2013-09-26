@@ -26,6 +26,7 @@ wicked_SOURCES			= \
 	compat-redhat.c		\
 	compat-suse.c		\
 	ifup.c			\
+	read-config.c		\
 	main.c			\
 	nanny.c			\
 	reachable.c
