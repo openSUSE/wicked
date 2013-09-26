@@ -724,6 +724,27 @@ ni_isreg(const char *path)
 	return S_ISREG(stb.st_mode);
 }
 
+extern ni_bool_t
+ni_file_exists_fmt(const char *fmt, ...)
+{
+	char *path = NULL;
+	ni_bool_t ret;
+	va_list ap;
+
+	if (!fmt)
+		return FALSE;
+
+	va_start(ap, fmt);
+	ret = vasprintf(&path, fmt, ap) > 0;
+	va_end(ap);
+	if (!ret)
+		return FALSE;
+
+	ret = ni_file_exists(path);
+	free(path);
+	return ret;
+}
+
 /*
  * String handling
  */
