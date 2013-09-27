@@ -302,6 +302,7 @@ ni_extension_statedir(const char *ex_name)
 			ni_config_statedir(), extension_dirname);
 		if (ni_mkdir_maybe(pathname, 0700) < 0)
 			ni_fatal("Cannot create extension state directory \"%s\": %m", pathname);
+		firsttime = FALSE;
 	}
 
 	if (!(ex = ni_config_find_system_updater(ni_global.config, ex_name)))
