@@ -400,6 +400,7 @@ ni_objectmodel_other_event(ni_dbus_server_t *server, ni_event_t event, const ni_
  */
 static ni_dbus_method_t		ni_objectmodel_netif_root_signals[] = {
 	{ "resolverUpdated",	"",		NULL },
+	{ "hostnameUpdated",	"",		NULL },
 
 	{ NULL }
 };

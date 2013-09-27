@@ -459,7 +459,10 @@ ni_system_updater_install(ni_updater_t *updater, const ni_addrconf_lease_t *leas
 		if (ni_global.other_event)
 			ni_global.other_event(NI_EVENT_RESOLVER_UPDATED);
 		break;
-
+	case NI_ADDRCONF_UPDATE_HOSTNAME:
+		if (ni_global.other_event)
+			ni_global.other_event(NI_EVENT_HOSTNAME_UPDATED);
+		break;
 	default:
 		break;
 	}
@@ -522,7 +525,10 @@ ni_system_updater_remove(ni_updater_t *updater, const ni_addrconf_lease_t *lease
 		if (ni_global.other_event)
 			ni_global.other_event(NI_EVENT_RESOLVER_UPDATED);
 		break;
-
+	case NI_ADDRCONF_UPDATE_HOSTNAME:
+		if (ni_global.other_event)
+			ni_global.other_event(NI_EVENT_HOSTNAME_UPDATED);
+		break;
 	default:
 		break;
 	}
@@ -709,15 +715,21 @@ ni_system_update_from_lease(const ni_addrconf_lease_t *lease, const unsigned int
 
 			switch(lease->state) {
 			case NI_ADDRCONF_STATE_GRANTED:
-				if(!ni_system_updater_install(updater, lease, ifname)) {
-					res = FALSE;
-				}
 				if(!ni_system_update_remove_matching_leases(updater, lease, ifindex, ifname)) {
 					ni_error("Failed to remove any matching leases. Storing new lease anyway.");
 					res = FALSE;
 				}
-				ni_objectmodel_updater_add_source(NI_ADDRCONF_UPDATE_RESOLVER,
-									lease, ifindex, ifname);
+				/* Remove matching leases before we install a new lease.
+				 * This is important for hostname updates in the case
+				 * where the interface name has changed. If we don't process
+				 * the resulting remove before we install, we will remove
+				 * the newly installed (or already present) hostname file
+				 * and thus restore the hostname to /etc/HOSTNAME.
+				 */
+				if(!ni_system_updater_install(updater, lease, ifname)) {
+					res = FALSE;
+				}
+				ni_objectmodel_updater_add_source(kind, lease, ifindex, ifname);
 				break;
 			default:
 				if(!ni_system_update_remove_matching_leases(updater, lease, ifindex, ifname)) {

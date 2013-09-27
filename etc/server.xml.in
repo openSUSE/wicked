@@ -89,6 +89,7 @@
     <action name="backup" command="@wicked_extensionsdir@/hostname backup"/>
     <action name="restore" command="@wicked_extensionsdir@/hostname restore"/>
     <action name="install" command="@wicked_extensionsdir@/hostname install"/>
+    <action name="remove" command="@wicked_extensionsdir@/hostname remove"/>
   </system-updater>
 
 </config>

@@ -1,0 +1,109 @@
+#!/bin/bash
+
+hostnamedir=/var/run/wicked/extension/hostname
+defaulthostname=/etc/HOSTNAME
+
+type=""
+family=""
+ifname=""
+
+set -e
+shopt -s nullglob
+cmd=$1; shift
+
+while [ $# -gt 0 ]
+do
+	case $1 in
+	-t) shift ; type=$1 ;;
+	-f) shift ; family=$1 ;;
+	-i) shift ; ifname=$1 ;;
+	--) shift ; break ;;
+	-*) echo "unkown option '$1'" >&2 ; exit 1 ;;
+	 *) break ;;
+	esac
+	shift
+done
+
+get_default_hostname()
+{
+	local h
+	test -s "$defaulthostname" && \
+	read -t 1 h < "$defaulthostname" 2>/dev/null && \
+	echo "${h%%.*}"
+}
+
+get_current_hostname()
+{
+	local h=`/bin/hostname 2>/dev/null`
+	echo "${h%%.*}"
+}
+
+case $cmd in
+backup)
+	: # /etc/HOSTNAME is not modified by `hostname`, so no need for explicit backup.
+;;
+
+restore)
+	# Remove any hostname files.
+	rm -f "${hostnamedir}/hostname."* 2>/dev/null
+
+	# Restore hostname to original.
+	if test -s "$defaulthostname" ; then
+		def_hostname=`get_default_hostname`
+		curr_hostname=`get_current_hostname`
+		if test "X${def_hostname}" != "X" -a "X${curr_hostname}" != "X${def_hostname}" ; then
+			/bin/hostname "${def_hostname}"
+		fi
+	fi
+;;
+
+install)
+	found=""
+	hostname=$1
+	hostnamefile="hostname.${ifname}.${type}.${family}"
+
+	# Check if hostname file exists
+	for f in "${hostnamedir}/hostname."* ; do
+		found=$f
+		break
+	done
+
+	if test "$found" = "" -o -e "${hostnamedir}/${hostnamefile}" ; then
+		# We've either not found any files, so we're first, or we're
+		# processing an update from the first lease which controls hostname.
+		curr_hostname=`get_current_hostname`
+		s_hostname="${hostname%%.*}"
+		if test "X${s_hostname}" != "X" -a "X${curr_hostname}" != "X${s_hostname}" ; then
+			# Only update the hostname it differs from the system.
+			/bin/hostname "${hostname}"
+		fi
+
+		# Store regardless of whether hostname differs from the system.
+		echo "${s_hostname}" > "${hostnamedir}/hostname.$ifname.$type.$family"
+	fi
+;;
+
+remove)
+	hostnamefile="hostname.${ifname}.${type}.${family}"
+
+	# First check if remove request is for correct lease/file.
+	if test -e "${hostnamedir}/${hostnamefile}" ; then
+		# Remove the requested file first.
+		rm -f "${hostnamedir}/hostname.${ifname}.${type}.${family}" 2>/dev/null
+
+		# Restore original hostname.
+		if test -s "$defaulthostname" ; then
+			def_hostname=`get_default_hostname`
+			curr_hostname=`get_current_hostname`
+			if test "X${def_hostname}" != "X" -a "X${curr_hostname}" != "X${def_hostname}" ; then
+				/bin/hostname "${def_hostname}"
+			fi
+		fi
+	fi
+;;
+
+*)
+	echo "$0: command '$cmd' not supported" >&2
+	exit 1
+;;
+esac

@@ -916,6 +916,7 @@ static ni_intmap_t	__ni_objectmodel_event_names[] = {
 	{ "addressReleased",		NI_EVENT_ADDRESS_RELEASED },
 	{ "addressLost",		NI_EVENT_ADDRESS_LOST },
 	{ "resolverUpdated",		NI_EVENT_RESOLVER_UPDATED },
+	{ "hostnameUpdated",		NI_EVENT_HOSTNAME_UPDATED },
 
 	{ NULL, 0 }
 };

@@ -8,6 +8,7 @@ wicked_extensions_DATA		= \
 wicked_extensions_SCRIPTS	= \
 	bridge		\
 	firewall	\
+	hostname	\
 	ibft		\
 	openvpn		\
 	resolver
