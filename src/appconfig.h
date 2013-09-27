@@ -26,6 +26,11 @@ struct ni_c_binding {
 	char *			symbol;
 };
 
+typedef struct ni_config_fslocation {
+	char *			path;
+	unsigned int		mode;
+} ni_config_fslocation_t;
+
 struct ni_extension {
 	ni_extension_t *	next;
 
@@ -47,12 +52,9 @@ struct ni_extension {
 	 *   $property:property-name
 	 */
 	ni_var_array_t		environment;
-};
 
-typedef struct ni_config_fslocation {
-	char *			path;
-	unsigned int		mode;
-} ni_config_fslocation_t;
+	ni_config_fslocation_t	statedir;
+};
 
 #define NI_DHCP_SERVER_PREFERENCES_MAX	16
 typedef struct ni_server_preference {
@@ -66,7 +68,6 @@ typedef struct ni_config {
 	ni_config_fslocation_t	storedir;
 	ni_config_fslocation_t	statedir;
 	ni_config_fslocation_t	backupdir;
-	ni_config_fslocation_t	resolverdir;
 	unsigned int		recv_max;
 
 	struct {
@@ -134,7 +135,8 @@ extern void *		ni_c_binding_get_address(const ni_c_binding_t *);
 extern ni_shellcmd_t *	ni_extension_script_new(ni_extension_t *, const char *name, const char *command);
 extern ni_shellcmd_t *	ni_extension_script_find(ni_extension_t *, const char *);
 extern const ni_c_binding_t *ni_extension_find_c_binding(const ni_extension_t *, const char *name);
-
+extern void		ni_config_fslocation_init(ni_config_fslocation_t *, const char *, unsigned int);
+extern void		ni_config_fslocation_destroy(ni_config_fslocation_t *);
 typedef struct ni_global {
 	int			initialized;
 	char *			config_path;

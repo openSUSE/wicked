@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <limits.h>
 
 #include <wicked/netinfo.h>
 #include <wicked/addrconf.h>
@@ -48,6 +49,9 @@ ni_extension_free(ni_extension_t *ex)
 
 	ni_string_free(&ex->name);
 	ni_string_free(&ex->interface);
+
+	ni_config_fslocation_destroy(&ex->statedir);
+
 	while ((act = ex->actions) != NULL) {
 		ex->actions = act->next;
 		__ni_script_action_free(act);

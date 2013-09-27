@@ -201,6 +201,9 @@ ni_system_updaters_init(void)
 		updater->proc_install = ni_extension_script_find(ex, "install");
 		updater->proc_remove = ni_extension_script_find(ex, "remove");
 
+		/* Create runtime directories for resolver and hostname extensions. */
+		ni_extension_statedir(name);
+
 		if (updater->proc_install == NULL) {
 			ni_warn("system-updater %s configured, but no install script defined", name);
 			updater->enabled = 0;
@@ -384,6 +387,7 @@ static ni_bool_t
 ni_system_updater_install(ni_updater_t *updater, const ni_addrconf_lease_t *lease, const char *ifname)
 {
 	ni_string_array_t arguments = NI_STRING_ARRAY_INIT;
+	const char *statedir = NULL;
 	char *file = NULL;
 	ni_bool_t result = FALSE;
 	int rv = 0;
@@ -412,8 +416,13 @@ ni_system_updater_install(ni_updater_t *updater, const ni_addrconf_lease_t *leas
 	 * indicated script with it */
 	switch (updater->type) {
 	case NI_ADDRCONF_UPDATE_RESOLVER:
+		statedir = ni_extension_statedir(ni_updater_name(updater->type));
+		if (!statedir) {
+			ni_error("failed to get %s statedir", ni_updater_name(updater->type));
+			goto done;
+		}
 		ni_string_printf(&file, "%s/resolv.conf.%s.%s.%s",
-				ni_config_resolverdir(), ifname,
+				statedir, ifname,
 				ni_addrconf_type_to_name(lease->type),
 				ni_addrfamily_type_to_name(lease->family));
 		ni_string_array_append(&arguments, file);

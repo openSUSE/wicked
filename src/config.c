@@ -43,8 +43,6 @@ static ni_bool_t	ni_config_parse_system_updater(ni_extension_t **, xml_node_t *)
 static ni_bool_t	ni_config_parse_extension(ni_extension_t *, xml_node_t *);
 static ni_bool_t	ni_config_parse_sources(ni_config_t *, xml_node_t *);
 static ni_c_binding_t *	ni_c_binding_new(ni_c_binding_t **, const char *name, const char *lib, const char *symbol);
-static void		ni_config_fslocation_init(ni_config_fslocation_t *, const char *path, unsigned int mode);
-static void		ni_config_fslocation_destroy(ni_config_fslocation_t *);
 static const char *	ni_config_build_include(const char *, const char *);
 
 /*
@@ -86,7 +84,6 @@ ni_config_free(ni_config_t *conf)
 	ni_config_fslocation_destroy(&conf->storedir);
 	ni_config_fslocation_destroy(&conf->statedir);
 	ni_config_fslocation_destroy(&conf->backupdir);
-	ni_config_fslocation_destroy(&conf->resolverdir);
 	free(conf);
 }
 
@@ -194,13 +191,6 @@ __ni_config_parse(ni_config_t *conf, const char *filename, ni_init_appdata_callb
 
 		snprintf(pathname, sizeof(pathname), "%s/backup", conf->statedir.path);
 		ni_config_fslocation_init(&conf->backupdir, pathname, 0700);
-	}
-
-	if (conf->resolverdir.path == NULL) {
-		char pathname[PATH_MAX];
-
-		snprintf(pathname, sizeof(pathname), "%s/resolver", conf->statedir.path);
-		ni_config_fslocation_init(&conf->resolverdir, pathname, 0700);
 	}
 
 	xml_document_free(doc);
@@ -800,6 +790,7 @@ ni_config_parse_system_updater(ni_extension_t **list, xml_node_t *node)
 	}
 
 	ex = ni_extension_new(list, name);
+
 	return ni_config_parse_extension(ex, node);
 }
 

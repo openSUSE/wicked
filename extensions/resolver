@@ -1,7 +1,7 @@
 #!/bin/bash
 
 backupdir=/var/run/wicked/backup
-resolverdir=/var/run/wicked/resolver
+resolverdir=/var/run/wicked/extension/resolver
 
 filename=/etc/resolv.conf
 fileback=$backupdir/resolv.conf
