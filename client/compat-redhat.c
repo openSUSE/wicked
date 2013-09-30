@@ -57,6 +57,7 @@ __ni_redhat_get_interfaces(const char *root, const char *path, ni_compat_netdev_
 
 		if (!ni_sysconfig_scandir(pathname, "ifcfg-*", &files)) {
 			ni_error("No ifcfg files found in %s", pathname);
+			success = TRUE;
 			goto done;
 		}
 

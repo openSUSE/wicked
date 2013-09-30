@@ -49,7 +49,7 @@ ni_ifconfig_load(ni_fsm_t *fsm, const char *root, const char *pathname)
 	/* Do not destroy xml documents as referenced by the fsm workers */
 	free(docs.data);
 
-	return i != 0;
+	return TRUE;
 }
 
 static ni_fsm_t *

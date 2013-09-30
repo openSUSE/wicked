@@ -183,6 +183,7 @@ __ni_suse_get_interfaces(const char *root, const char *path, ni_compat_netdev_ar
 
 		if (!__ni_suse_ifcfg_scan_files(pathname, &files)) {
 			ni_error("No ifcfg files found in %s", pathname);
+			success = TRUE;
 			goto done;
 		}
 
