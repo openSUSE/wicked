@@ -182,6 +182,8 @@ fi
 
 %post service
 %{service_add_post wicked.service}
+# See bnc#843526: presets do not apply for upgrade / are not sufficient
+#                 to handle sysconfig-network|wicked -> wicked migration
 _id=`/usr/bin/systemctl --no-pager -p Id show network.service 2>/dev/null` || :
 case "${_id#Id=}" in
 ""|wicked.service|network.service)
