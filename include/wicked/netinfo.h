@@ -193,6 +193,8 @@ extern void		ni_netdev_set_dcb(ni_netdev_t *, ni_dcb_t *);
 extern void		ni_netdev_set_lldp(ni_netdev_t *, ni_lldp_t *);
 extern void		ni_netdev_set_pci(ni_netdev_t *, ni_pci_dev_t *);
 extern void		ni_netdev_set_client_info(ni_netdev_t *, ni_device_clientinfo_t *);
+extern ni_device_clientinfo_t *	ni_netdev_get_client_info(ni_netdev_t *);
+
 extern ni_ipv6_devinfo_t *ni_netdev_get_ipv6(ni_netdev_t *);
 extern ni_ipv4_devinfo_t *ni_netdev_get_ipv4(ni_netdev_t *);
 

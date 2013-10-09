@@ -378,6 +378,12 @@ ni_netdev_set_client_info(ni_netdev_t *dev, ni_device_clientinfo_t *client_info)
 }
 
 ni_device_clientinfo_t *
+ni_netdev_get_client_info(ni_netdev_t *dev)
+{
+	return dev ? dev->client_info : NULL;
+}
+
+ni_device_clientinfo_t *
 ni_device_clientinfo_new(void)
 {
 	ni_device_clientinfo_t *client_info;

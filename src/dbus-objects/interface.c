@@ -848,6 +848,33 @@ ni_objectmodel_netif_set_client_info(ni_dbus_object_t *object, const ni_dbus_met
 	return TRUE;
 }
 
+static dbus_bool_t
+ni_objectmodel_netif_get_client_info(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_dbus_variant_t result = NI_DBUS_VARIANT_INIT;
+	ni_device_clientinfo_t *client_info;
+	ni_netdev_t *dev;
+	dbus_bool_t rv = FALSE;
+
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
+		return FALSE;
+
+	NI_TRACE_ENTER_ARGS("dev=%s", dev->name);
+
+	if (argc != 0)
+		return ni_dbus_error_invalid_args(error, object->path, method->name);
+
+	ni_dbus_variant_init_dict(&result);
+	if ((client_info = ni_netdev_get_client_info(dev)))
+		ni_objectmodel_netif_client_info_to_dict(client_info, &result);
+	rv = ni_dbus_message_serialize_variants(reply, 1, &result, error);
+	ni_dbus_variant_destroy(&result);
+
+	return rv;
+}
+
 /*
  * Broadcast an interface event
  * The optional uuid argument helps the client match e.g. notifications
@@ -973,6 +1000,7 @@ static ni_dbus_method_t		ni_objectmodel_netif_methods[] = {
 	{ "linkUp",		"a{sv}",		ni_objectmodel_netif_link_up },
 	{ "linkDown",		"",			ni_objectmodel_netif_link_down },
 	{ "installLease",	"a{sv}",		ni_objectmodel_netif_install_lease },
+	{ "getClientInfo",	"",			ni_objectmodel_netif_get_client_info },
 	{ "setClientInfo",	"a{sv}",		ni_objectmodel_netif_set_client_info },
 	{ "linkMonitor",	"",			ni_objectmodel_netif_link_monitor },
 	{ "getNames",		"",			ni_objectmodel_netif_get_names },

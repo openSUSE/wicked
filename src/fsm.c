@@ -840,6 +840,30 @@ ni_ifworker_update_state(ni_ifworker_t *w, unsigned int min_state, unsigned int 
 
 }
 
+static void
+ni_ifworker_refresh_client_info(ni_dbus_object_t *object, ni_ifworker_t *w)
+{
+	ni_device_clientinfo_t client_info;
+	unsigned int state;
+
+	ni_assert(object && w);
+
+	memset(&client_info, 0, sizeof(client_info));
+	ni_call_get_client_info(object, &client_info);
+	if (ni_ifworker_state_from_name(client_info.state, &state))
+		ni_ifworker_set_state(w, state);
+	if (client_info.config_origin)
+		w->config.origin = client_info.config_origin;
+	if (!ni_uuid_is_null(&client_info.config_uuid)) {
+		memcpy(w->config.uuid.words, client_info.config_uuid.words,
+			sizeof(w->config.uuid.words));
+	}
+
+	ni_string_free(&client_info.state);
+	ni_debug_application("refreshing previous config_origin (%s) and uuid (%s) for %s",
+		w->config.origin, ni_uuid_print(&w->config.uuid), object->path);
+}
+
 /*
  * Given the configuration for a device, generate a UUID that uniquely
  * identifies this configuration. We want to use this later to check
@@ -2151,6 +2175,7 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 	if (!found) {
 		ni_debug_application("received new device %s (%s)", dev->name, object->path);
 		found = ni_ifworker_new(fsm, NI_IFWORKER_TYPE_NETDEV, dev->name);
+		ni_ifworker_refresh_client_info(object, found);
 	}
 
 	if (!found->object_path)
