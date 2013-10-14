@@ -246,6 +246,14 @@ ni_string_contains(const char *haystack, const char *needle)
 }
 
 static inline ni_bool_t
+ni_string_startswith(const char *string, const char *with)
+{
+	if (string == NULL || with == NULL)
+		return string == with;
+	return !strncmp(string, with, strlen(with));
+}
+
+static inline ni_bool_t
 ni_string_empty(const char *s)
 {
 	return s == NULL || *s == '\0';
