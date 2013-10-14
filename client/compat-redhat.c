@@ -70,6 +70,8 @@ __ni_redhat_get_interfaces(const char *root, const char *path, ni_compat_netdev_
 			snprintf(pathbuf, sizeof(pathbuf), "%s/%s", pathname, filename);
 			if (!(compat = __ni_redhat_read_interface(pathbuf, ifname, result)))
 				goto done;
+
+			ni_compat_netdev_client_info_set(compat->dev, pathbuf);
 		}
 	} else
 	if (ni_file_exists(pathname)) {
@@ -84,6 +86,8 @@ __ni_redhat_get_interfaces(const char *root, const char *path, ni_compat_netdev_
 
 		if (!(compat = __ni_redhat_read_interface(pathname, ifname, result)))
 			goto done;
+
+		ni_compat_netdev_client_info_set(compat->dev, pathname);
 	} else {
 		ni_error("File or directory does not exist: %s", pathname);
 		goto done;

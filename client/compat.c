@@ -95,6 +95,15 @@ ni_compat_netdev_free(ni_compat_netdev_t *compat)
 	free(compat);
 }
 
+void
+ni_compat_netdev_client_info_set(ni_netdev_t *dev, const char *filename)
+{
+	if (dev) {
+		ni_netdev_set_client_info(dev,
+			ni_ifconfig_generate_client_info("compat", filename, NULL));
+	}
+}
+
 /*
  * Functions for generating XML
  */
@@ -1039,7 +1048,7 @@ ni_compat_generate_ifcfg(const ni_compat_netdev_t *compat, xml_document_t *doc)
 }
 
 unsigned int
-ni_compat_generate_interfaces(xml_document_array_t *array, ni_compat_ifconfig_t *ifcfg)
+ni_compat_generate_interfaces(xml_document_array_t *array, ni_compat_ifconfig_t *ifcfg, ni_bool_t raw)
 {
 	xml_document_t *config_doc;
 	unsigned int i;
@@ -1049,9 +1058,24 @@ ni_compat_generate_interfaces(xml_document_array_t *array, ni_compat_ifconfig_t 
 
 	for (i = 0; i < ifcfg->netdev_array.count; ++i) {
 		ni_compat_netdev_t *compat = ifcfg->netdev_array.data[i];
+		ni_device_clientinfo_t *client_info = compat->dev->client_info;
 
 		config_doc = xml_document_new();
 		ni_compat_generate_ifcfg(compat, config_doc);
+
+		if (client_info) {
+			const char *origin = client_info->config_origin;
+			if (!ni_string_empty(origin)) {
+				xml_location_set(config_doc->root, xml_location_create(origin, 0));
+				ni_debug_ifconfig("%s: location: %s, line: %u", __func__,
+						xml_node_get_location_filename(config_doc->root),
+						xml_node_get_location_line(config_doc->root));
+			}
+			if (!raw) {
+				ni_ifconfig_add_client_info(config_doc, client_info, NULL);
+			}
+		}
+
 		xml_document_array_append(array, config_doc);
 	}
 

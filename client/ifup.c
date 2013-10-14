@@ -32,18 +32,17 @@
 #include "wicked-client.h"
 
 static ni_bool_t
-ni_ifconfig_load(ni_fsm_t *fsm, const char *root, const char *pathname)
+ni_ifconfig_load(ni_fsm_t *fsm, const char *root, const char *location)
 {
 	xml_document_array_t docs = XML_DOCUMENT_ARRAY_INIT;
 	unsigned int i;
 
-	/* TODO: Add config source location */
-	if (!ni_ifconfig_read(&docs, root, pathname))
+	if (!ni_ifconfig_read(&docs, root, location, FALSE))
 		return FALSE;
 
 	for (i = 0; i < docs.count; i++) {
 		/* TODO: review ni_fsm_workers_from_xml return codes */
-		ni_fsm_workers_from_xml(fsm, docs.data[i], NULL);
+		ni_fsm_workers_from_xml(fsm, docs.data[i], location);
 	}
 
 	/* Do not destroy xml documents as referenced by the fsm workers */

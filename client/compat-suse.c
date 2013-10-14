@@ -197,6 +197,7 @@ __ni_suse_get_interfaces(const char *root, const char *path, ni_compat_netdev_ar
 			if (!(compat = __ni_suse_read_interface(pathbuf, ifname)))
 				goto done;
 
+			ni_compat_netdev_client_info_set(compat->dev, pathbuf);
 			ni_compat_netdev_array_append(result, compat);
 		}
 	} else
@@ -209,6 +210,7 @@ __ni_suse_get_interfaces(const char *root, const char *path, ni_compat_netdev_ar
 		if (!(compat = __ni_suse_read_interface(pathname, NULL)))
 			goto done;
 
+		ni_compat_netdev_client_info_set(compat->dev, pathname);
 		ni_compat_netdev_array_append(result, compat);
 	}
 	else

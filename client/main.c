@@ -121,7 +121,7 @@ main(int argc, char **argv)
 				"  ifcheck\n"
 				"  show [ifname}]\n"
 				"  show-xml [--raw] [--modem] [ifname]\n"
-				"  show-config [--mark] [source]\n"
+				"  show-config [--raw] [source]\n"
 				"  nanny [subcommand]\n"
 				"  lease [subcommand]\n"
 				"  check [subcommand]\n"
@@ -612,7 +612,7 @@ do_show_config(int argc, char **argv, const char *root_schema)
 				"  --help\n"
 				"      Show this help text.\n"
 				"  --raw\n"
-				"      Do not show the config source location.\n"
+				"      Display config file as it is. Do not generate and/or replace the <client-info> tag.\n"
 				"  --output <path>\n"
 				"        Specify output file\n"
 				);
@@ -627,7 +627,7 @@ do_show_config(int argc, char **argv, const char *root_schema)
 
 		for (i = 0; i < cs_array->count; i++) {
 			if (!root_schema || !strcmp(root_schema, cs_array->data[i])) {
-				if (!ni_ifconfig_read(&docs, opt_global_rootdir, cs_array->data[i])) {
+				if (!ni_ifconfig_read(&docs, opt_global_rootdir, cs_array->data[i], opt_raw)) {
 					ni_error("Unable to read config source from %s",
 						cs_array->data[i]);
 					return 1;
@@ -643,7 +643,7 @@ do_show_config(int argc, char **argv, const char *root_schema)
 			else
 				ni_string_printf(&path, "%s%s", root_schema, argv[optind++]);
 
-			if (!ni_ifconfig_read(&docs, opt_global_rootdir, path)) {
+			if (!ni_ifconfig_read(&docs, opt_global_rootdir, path, opt_raw)) {
 				ni_error("Unable to read config source from %s", path);
 				return 1;
 			}
@@ -654,14 +654,8 @@ do_show_config(int argc, char **argv, const char *root_schema)
 	}
 
 	if (opt_output == NULL) {
-		for (i = 0; i < docs.count; i++) {
-			/* FIXME: add config source location */
-			if (opt_raw) {
-				;
-			}
-
+		for (i = 0; i < docs.count; i++)
 			xml_node_print(docs.data[i]->root, stdout);
-		}
 	}
 	else if (ni_isdir(opt_output)) {
 		for (i = 0; i < docs.count; i++) {
@@ -701,12 +695,7 @@ do_show_config(int argc, char **argv, const char *root_schema)
 				if ((fp = fopen(pathbuf, "w")) == NULL)
 					ni_fatal("unable to open %s for writing: %m", pathbuf);
 
-				/* FIXME: add config source location */
-				if (opt_raw) {
-					;
-				}
 				xml_node_print(ifnode, fp);
-
 				fclose(fp);
 			}
 		}
@@ -717,15 +706,8 @@ do_show_config(int argc, char **argv, const char *root_schema)
 		if ((fp = fopen(opt_output, "w")) == NULL)
 			ni_fatal("unable to open %s for writing: %m", opt_output);
 
-		for (i = 0; i < docs.count; i++) {
-			/* FIXME: add config source location */
-			if (opt_raw) {
-				;
-			}
-
+		for (i = 0; i < docs.count; i++)
 			xml_node_print(docs.data[i]->root, fp);
-		}
-
 		fclose(fp);
 	}
 

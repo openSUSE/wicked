@@ -85,7 +85,6 @@ ni_netconfig_firmware_discovery(const char *root, const char *type)
 {
 	ni_buffer_t *buffer;
 	xml_document_t *doc;
-	char *location = NULL;
 	char *source = NULL;
 	char *temp = NULL;
 
@@ -112,15 +111,12 @@ ni_netconfig_firmware_discovery(const char *root, const char *type)
 		ni_string_free(&temp);
 		return NULL;
 	}
-
-	ni_string_printf(&location, "<firmware:%s:%s>",
-			(type ? type : ""), (source ? source : ""));
 	ni_string_free(&temp);
 
-	ni_trace("%s: buffer %s has %u bytes", __func__, location, ni_buffer_count(buffer));
-	doc = xml_document_from_buffer(buffer, location);
+	ni_trace("%s: buffer %s%s%s has %u bytes", __func__, (type ? type : ""),
+			(type ? ":" : ""), (source ? source : ""), ni_buffer_count(buffer));
+	doc = xml_document_from_buffer(buffer, NULL);
 	ni_buffer_free(buffer);
-	ni_string_free(&location);
 
 	if (doc == NULL)
 		ni_error("%s: error processing document", __func__);
