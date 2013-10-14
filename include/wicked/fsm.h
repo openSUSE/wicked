@@ -32,6 +32,13 @@ enum {
 	__NI_FSM_STATE_MAX
 };
 
+typedef enum ni_config_origin_prio {
+	NI_CONFIG_ORIGIN_PRIO_FIRMWARE,
+	NI_CONFIG_ORIGIN_PRIO_COMPAT,
+	NI_CONFIG_ORIGIN_PRIO_WICKED = 10,
+	NI_CONFIG_ORIGIN_PRIO_UNKNOWN = 100,
+} ni_config_origin_prio_t;
+
 #define NI_IFWORKER_DEFAULT_TIMEOUT	20000
 #define NI_IFWORKER_INFINITE_TIMEOUT	((unsigned int) -1)
 
@@ -237,7 +244,7 @@ extern void			ni_fsm_mainloop(ni_fsm_t *);
 extern unsigned int		ni_fsm_get_matching_workers(ni_fsm_t *, ni_ifmatcher_t *, ni_ifworker_array_t *);
 extern unsigned int		ni_fsm_mark_matching_workers(ni_fsm_t *, ni_ifmatcher_t *, const ni_uint_range_t *);
 extern int			ni_fsm_build_hierarchy(ni_fsm_t *);
-extern unsigned int		ni_fsm_workers_from_xml(ni_fsm_t *, xml_document_t *, const char *);
+extern unsigned int		ni_fsm_workers_from_xml(ni_fsm_t *, xml_document_t *);
 extern unsigned int		ni_fsm_fail_count(ni_fsm_t *);
 extern ni_ifworker_t *		ni_fsm_ifworker_by_object_path(ni_fsm_t *, const char *);
 extern ni_ifworker_t *		ni_fsm_ifworker_by_netdev(ni_fsm_t *, const ni_netdev_t *);

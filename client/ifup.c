@@ -42,7 +42,7 @@ ni_ifconfig_load(ni_fsm_t *fsm, const char *root, const char *location)
 
 	for (i = 0; i < docs.count; i++) {
 		/* TODO: review ni_fsm_workers_from_xml return codes */
-		ni_fsm_workers_from_xml(fsm, docs.data[i], location);
+		ni_fsm_workers_from_xml(fsm, docs.data[i]);
 	}
 
 	/* Do not destroy xml documents as referenced by the fsm workers */
