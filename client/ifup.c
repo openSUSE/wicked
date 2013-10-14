@@ -32,7 +32,7 @@
 #include "wicked-client.h"
 
 static ni_bool_t
-ni_ifconfig_load(ni_fsm_t *fsm, const char *root, const char *location)
+ni_ifconfig_load(ni_fsm_t *fsm, const char *root, const char *location, ni_bool_t force)
 {
 	xml_document_array_t docs = XML_DOCUMENT_ARRAY_INIT;
 	unsigned int i;
@@ -42,7 +42,7 @@ ni_ifconfig_load(ni_fsm_t *fsm, const char *root, const char *location)
 
 	for (i = 0; i < docs.count; i++) {
 		/* TODO: review ni_fsm_workers_from_xml return codes */
-		ni_fsm_workers_from_xml(fsm, docs.data[i]);
+		ni_fsm_workers_from_xml(fsm, docs.data[i], force);
 	}
 
 	/* Do not destroy xml documents as referenced by the fsm workers */
@@ -66,7 +66,7 @@ ni_ifup_down_init(void)
 int
 do_ifup(int argc, char **argv)
 {
-	enum  { OPT_HELP, OPT_IFCONFIG, OPT_IFPOLICY, OPT_CONTROL_MODE, OPT_STAGE, OPT_TIMEOUT, OPT_SKIP_ACTIVE, OPT_SKIP_ORIGIN };
+	enum  { OPT_HELP, OPT_IFCONFIG, OPT_IFPOLICY, OPT_CONTROL_MODE, OPT_STAGE, OPT_TIMEOUT, OPT_SKIP_ACTIVE, OPT_SKIP_ORIGIN, OPT_FORCE };
 	static struct option ifup_options[] = {
 		{ "help",	no_argument,       NULL,	OPT_HELP },
 		{ "ifconfig",	required_argument, NULL,	OPT_IFCONFIG },
@@ -76,6 +76,7 @@ do_ifup(int argc, char **argv)
 		{ "skip-active",required_argument, NULL,	OPT_SKIP_ACTIVE },
 		{ "skip-origin",required_argument, NULL,	OPT_SKIP_ORIGIN },
 		{ "timeout",	required_argument, NULL,	OPT_TIMEOUT },
+		{ "force",	no_argument, NULL,	OPT_FORCE },
 		{ NULL }
 	};
 	ni_uint_range_t state_range = { .min = NI_FSM_STATE_ADDRCONF_UP, .max = __NI_FSM_STATE_MAX };
@@ -84,6 +85,7 @@ do_ifup(int argc, char **argv)
 	const char *opt_control_mode = NULL;
 	const char *opt_boot_stage = NULL;
 	const char *opt_skip_origin = NULL;
+	ni_bool_t opt_force = FALSE;
 	ni_bool_t opt_skip_active = FALSE;
 	unsigned int nmarked, i;
 	ni_fsm_t *fsm;
@@ -134,6 +136,10 @@ do_ifup(int argc, char **argv)
 			opt_skip_active = 1;
 			break;
 
+		case OPT_FORCE:
+			opt_force = TRUE;
+			break;
+
 		default:
 		case OPT_HELP:
 usage:
@@ -159,6 +165,8 @@ usage:
 				"      touching interfaces that have been set up via firmware (like iBFT) previously\n"
 				"  --timeout <nsec>\n"
 				"      Timeout after <nsec> seconds\n"
+				"  --force\n"
+				"      Force reconfiguring the interface without checking the config origin\n"
 				);
 			goto cleanup;
 		}
@@ -187,11 +195,11 @@ usage:
 	}
 
 	for (i = 0; i < opt_ifconfig.count; ++i) {
-		if (!ni_ifconfig_load(fsm, opt_global_rootdir, opt_ifconfig.data[i]))
+		if (!ni_ifconfig_load(fsm, opt_global_rootdir, opt_ifconfig.data[i], opt_force))
 			goto cleanup;
 	}
 
-	if (opt_ifpolicy && !ni_ifconfig_load(fsm, opt_global_rootdir, opt_ifpolicy))
+	if (opt_ifpolicy && !ni_ifconfig_load(fsm, opt_global_rootdir, opt_ifpolicy, opt_force))
 		goto cleanup;
 
 	if (ni_fsm_build_hierarchy(fsm) < 0) {
@@ -238,18 +246,20 @@ cleanup:
 int
 do_ifdown(int argc, char **argv)
 {
-	enum  { OPT_HELP, OPT_IFCONFIG, OPT_DELETE, OPT_TIMEOUT };
+	enum  { OPT_HELP, OPT_IFCONFIG, OPT_DELETE, OPT_TIMEOUT, OPT_FORCE };
 	static struct option ifdown_options[] = {
 		{ "help",	no_argument, NULL,		OPT_HELP },
 		{ "ifconfig",	required_argument, NULL,	OPT_IFCONFIG },
 		{ "delete",	no_argument, NULL,		OPT_DELETE },
 		{ "timeout",	required_argument, NULL,	OPT_TIMEOUT },
+		{ "force",	no_argument, NULL,	OPT_FORCE },
 		{ NULL }
 	};
 	static ni_ifmatcher_t ifmatch;
 	ni_uint_range_t target_range = { .min = NI_FSM_STATE_NONE, .max = NI_FSM_STATE_DEVICE_UP };
 	ni_string_array_t opt_ifconfig = NI_STRING_ARRAY_INIT;
 	unsigned int nmarked, i;
+	ni_bool_t opt_force = FALSE;
 	/* int opt_delete = 0; */
 	ni_fsm_t *fsm;
 	int c, status = 1;
@@ -286,6 +296,10 @@ do_ifdown(int argc, char **argv)
 			}
 			break;
 
+		case OPT_FORCE:
+			opt_force = TRUE;
+			break;
+
 		default:
 		case OPT_HELP:
 usage:
@@ -301,6 +315,8 @@ usage:
 				"      Delete virtual interfaces\n"
 				"  --timeout <nsec>\n"
 				"      Timeout after <nsec> seconds\n"
+				"  --force\n"
+				"      Force reconfiguring the interface without checking the config origin\n"
 				);
 			goto cleanup;
 		}
@@ -329,7 +345,7 @@ usage:
 
 	/* FIXME: ifdown should not use config at all */
 	for (i = 0; i < opt_ifconfig.count; ++i) {
-		if (!ni_ifconfig_load(fsm, NULL, opt_ifconfig.data[i]))
+		if (!ni_ifconfig_load(fsm, NULL, opt_ifconfig.data[i], opt_force))
 			goto cleanup;
 	}
 
@@ -468,7 +484,7 @@ usage:
 
 	for (i = 0; i < opt_ifconfig.count; ++i) {
 		/* TODO: root-dir */
-		if (!ni_ifconfig_load(fsm, NULL, opt_ifconfig.data[i]))
+		if (!ni_ifconfig_load(fsm, NULL, opt_ifconfig.data[i], TRUE))
 			goto cleanup;
 	}
 

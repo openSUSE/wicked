@@ -1012,7 +1012,7 @@ ni_ifworker_origin_get_prio(ni_ifworker_t *w)
  * Given an XML document, build interface and modem objects, and policies from it.
  */
 unsigned int
-ni_fsm_workers_from_xml(ni_fsm_t *fsm, xml_document_t *doc)
+ni_fsm_workers_from_xml(ni_fsm_t *fsm, xml_document_t *doc, ni_bool_t force)
 {
 	xml_node_t *root, *ifnode;
 	unsigned int count = 0;
@@ -1063,7 +1063,8 @@ ni_fsm_workers_from_xml(ni_fsm_t *fsm, xml_document_t *doc)
 		}
 
 		/* FIXME: ifnode->location or ni_ifconfig_get_client_info() ? */
-		if (ni_ifworker_origin_get_prio(w) < ni_xml_origin_get_prio(root)) {
+		if (!force &&
+			ni_ifworker_origin_get_prio(w) < ni_xml_origin_get_prio(root)) {
 			ni_warn("Cannot overwrite %s config by %s config",
 					w->config.origin, xml_node_get_location_filename(root));
 			continue;
