@@ -168,6 +168,7 @@ for nicpath in "${IBFT_ROOT}/${IBFT_NICS}"*; do
 	cat <<-EOF
 	<interface>
 	  <name namespace="ifindex">$nic_ifindex</name>
+	  <alias>ibft${ibft_num}.0</alias>
 EOF
 
 	if [ -n "$nic_vlan" -a $((nic_vlan)) -gt 0 ]; then
@@ -175,11 +176,15 @@ EOF
 		if test "x$vlan_ifname" = x ; then
 			vlan_ifname="${nic_name}.${nic_vlan}"
 		fi
+		echo "  <client-info>"
+		echo "    <config-origin>firmware:ibft:$ibft_nic</config-origin>"
+		echo "  </client-info>"
 		cat <<-EOF
 		</interface>
 
 		<interface>
 		  <name>$vlan_ifname</name>
+		  <alias>ibft${ibft_num}.${nic_vlan}</alias>
 		  <vlan>
 		    <device namespace="ifindex">$nic_ifindex</device>
 		    <tag>$nic_vlan</tag>
@@ -187,7 +192,9 @@ EOF
 EOF
 	fi
 
-	echo "  <alias>ibft$ibft_num</alias>"
+	echo "  <client-info>"
+	echo "    <config-origin>firmware:ibft:$ibft_nic</config-origin>"
+	echo "  </client-info>"
 
 	if [ -n "$nic_dhcp_server" ] ; then
 		# Default to DHCPv4
