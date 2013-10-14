@@ -130,9 +130,13 @@ extern xml_node_t *	xml_node_get_next_named(xml_node_t *, const char *, xml_node
 
 extern ni_bool_t	xml_node_match_attrs(const xml_node_t *, const ni_var_array_t *);
 
+inline const char *	xml_node_get_location_filename(const xml_node_t *);
+inline unsigned int	xml_node_get_location_line(const xml_node_t *);
 extern const char *	xml_node_location(const xml_node_t *);
 extern void		xml_location_free(struct xml_location *);
 extern struct xml_location *xml_location_clone(const struct xml_location *);
+inline xml_location_t *	xml_location_create(const char *, unsigned int);
+void	xml_location_set(xml_node_t *, xml_location_t *);
 
 extern void		xml_document_array_init(xml_document_array_t *);
 extern void		xml_document_array_destroy(xml_document_array_t *);

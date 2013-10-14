@@ -71,6 +71,7 @@ typedef struct xpath_format xpath_format_t;
 typedef struct xpath_enode xpath_enode_t;
 typedef struct xml_document xml_document_t;
 typedef struct xml_node xml_node_t;
+typedef struct xml_location xml_location_t;
 typedef struct ni_xs_type	ni_xs_type_t;
 typedef struct ni_xs_scope	ni_xs_scope_t;
 typedef struct ni_xs_method	ni_xs_method_t;

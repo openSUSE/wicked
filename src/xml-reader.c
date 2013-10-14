@@ -89,7 +89,7 @@ static void		xml_parse_error(xml_reader_t *, const char *, ...);
 static const char *	xml_parser_state_name(xml_parser_state_t);
 static const char *	xml_token_name(xml_token_type_t token);
 
-static struct xml_location *xml_location_new(struct xml_location_shared *, unsigned int);
+static xml_location_t *	xml_location_new(struct xml_location_shared *, unsigned int);
 
 #ifdef XMLDEBUG_PARSER
 static void		xml_debug(const char *, ...);
@@ -845,6 +845,18 @@ xml_debug(const char *fmt, ...)
 /*
  * Location handling
  */
+inline const char *
+xml_node_get_location_filename(const xml_node_t *node)
+{
+	return node->location ? node->location->shared->filename : NULL;
+}
+
+inline unsigned int
+xml_node_get_location_line(const xml_node_t *node)
+{
+	return node->location ? node->location->line : 0;
+}
+
 const char *
 xml_node_location(const xml_node_t *node)
 {
@@ -882,10 +894,10 @@ xml_location_shared_release(struct xml_location_shared *sl)
 	}
 }
 
-struct xml_location *
+xml_location_t *
 xml_location_new(struct xml_location_shared *shared_location, unsigned int line)
 {
-	struct xml_location *location;
+	xml_location_t *location;
 
 	shared_location->refcount++;
 	location = xcalloc(1, sizeof(*location));
@@ -895,8 +907,26 @@ xml_location_new(struct xml_location_shared *shared_location, unsigned int line)
 	return location;
 }
 
-struct xml_location *
-xml_location_clone(const struct xml_location *loc)
+inline xml_location_t *
+xml_location_create(const char *filename, unsigned int line)
+{
+	return filename ?
+			xml_location_new(xml_location_shared_new(filename), line) : NULL;
+}
+
+void
+xml_location_set(xml_node_t *node, xml_location_t *loc)
+{
+	if (node->location == loc)
+		return;
+	if (node->location)
+		xml_location_free(node->location);
+
+	node->location = loc;
+}
+
+xml_location_t *
+xml_location_clone(const xml_location_t *loc)
 {
 	if (loc == NULL)
 		return NULL;
@@ -904,7 +934,7 @@ xml_location_clone(const struct xml_location *loc)
 }
 
 void
-xml_location_free(struct xml_location *loc)
+xml_location_free(xml_location_t *loc)
 {
 	xml_location_shared_release(loc->shared);
 	free(loc);
