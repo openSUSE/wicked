@@ -375,17 +375,24 @@ xml_node_get_attr_double(const xml_node_t *node, const char *name, double *valp)
  * Find a child element given its name
  */
 xml_node_t *
-xml_node_get_child(const xml_node_t *node, const char *name)
+xml_node_get_next_child(const xml_node_t *top, const char *name, const xml_node_t *cur)
 {
 	xml_node_t *child;
 
-	if (node == NULL)
+	if (top == NULL)
 		return NULL;
-	for (child = node->children; child; child = child->next) {
+	for (child = cur ? cur->next : top->children; child; child = child->next) {
 		if (!strcmp(child->name, name))
 			return child;
 	}
+
 	return NULL;
+}
+
+inline xml_node_t *
+xml_node_get_child(const xml_node_t *node, const char *name)
+{
+	return xml_node_get_next_child(node, name, NULL);
 }
 
 /*
