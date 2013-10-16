@@ -197,7 +197,7 @@ network at the next boot.
 
 Start the server process (again, as root):
 
-        systemctl start wickedd.service
+        systemctl start wicked.service
 
 which starts wickedd (main server) and associated supplicants in
 debugging mode, printing trace information to syslog:
