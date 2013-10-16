@@ -202,8 +202,9 @@ ni_system_updaters_init(void)
 		updater->proc_remove = ni_extension_script_find(ex, "remove");
 
 		/* Create runtime directories for resolver and hostname extensions. */
-		ni_extension_statedir(name);
-
+		if (!(ni_extension_statedir(name))) {
+			updater->enabled = 0;
+		} else
 		if (updater->proc_install == NULL) {
 			ni_warn("system-updater %s configured, but no install script defined", name);
 			updater->enabled = 0;

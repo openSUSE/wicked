@@ -287,23 +287,37 @@ ni_config_backupdir(void)
 	return fsloc->path;
 }
 
+static ni_bool_t
+ni_config_extension_statedir(const char *extension_dirname, const int mode)
+{
+	static ni_bool_t res = FALSE;
+	char pathname[PATH_MAX];
+
+	if (!res) {
+		snprintf(pathname, sizeof(pathname), "%s/%s",
+			ni_config_statedir(), extension_dirname);
+		if (ni_mkdir_maybe(pathname, mode) < 0) {
+			ni_error("Cannot create extension state directory \"%s\": %m", pathname);
+			res = FALSE;
+		} else {
+			res = TRUE;
+		}
+	}
+
+	return res;
+}
+
 const char *
 ni_extension_statedir(const char *ex_name)
 {
 	ni_extension_t *ex = NULL;
 	ni_config_fslocation_t *fsloc = NULL;
 	const char *extension_dirname = "extension";
+	const int mode = 0700;
 	char pathname[PATH_MAX];
-	static ni_bool_t firsttime = TRUE;
 
-	if (firsttime) {
-		/* First, create /var/run/wicked/extension */
-		snprintf(pathname, sizeof(pathname), "%s/%s",
-			ni_config_statedir(), extension_dirname);
-		if (ni_mkdir_maybe(pathname, 0700) < 0)
-			ni_fatal("Cannot create extension state directory \"%s\": %m", pathname);
-		firsttime = FALSE;
-	}
+	if (!(ni_config_extension_statedir(extension_dirname, mode)))
+		return NULL;
 
 	if (!(ex = ni_config_find_system_updater(ni_global.config, ex_name)))
 		return NULL;
@@ -313,10 +327,11 @@ ni_extension_statedir(const char *ex_name)
 	if (fsloc->path == NULL) {
 		snprintf(pathname, sizeof(pathname), "%s/%s/%s",
 			ni_config_statedir(), extension_dirname, ex->name);
-		ni_config_fslocation_init(fsloc, pathname, 0700);
-
-		if (ni_mkdir_maybe(fsloc->path, fsloc->mode) < 0)
-			ni_fatal("Cannot create extension state directory \"%s\": %m", fsloc->path);
+		if (ni_mkdir_maybe(pathname, mode) < 0) {
+			ni_error("Cannot create extension state directory \"%s\": %m", pathname);
+		} else {
+			ni_config_fslocation_init(fsloc, pathname, mode);
+		}
 	}
 
 	return fsloc->path;
