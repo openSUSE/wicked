@@ -433,7 +433,8 @@ __ni_netlink_close(ni_netlink_t *nl)
 static int
 __ni_nl_ack_handler(struct nl_msg *msg, void *arg)
 {
-	*(int *) arg = 0;
+	int *p = arg;
+	*p = 1;
 	return NL_STOP;
 }
 
@@ -469,7 +470,7 @@ __ni_nl_talk(ni_netlink_t *nl, struct nl_msg *msg,
 {
 	struct nl_handle *handle;
 	struct nl_cb *cb;
-	int err = 0;
+	int err = 0, ack = 0;
 
 	if (!(handle = nl->nl_handle)) {
 		ni_error("%s: no netlink handle", __func__);
@@ -485,7 +486,7 @@ __ni_nl_talk(ni_netlink_t *nl, struct nl_msg *msg,
 		return -1;
 
 	nl_cb_err(cb, NL_CB_CUSTOM, __ni_nl_error_handler, &err);
-	nl_cb_set(cb, NL_CB_ACK, NL_CB_CUSTOM, __ni_nl_ack_handler, &err);
+	nl_cb_set(cb, NL_CB_ACK, NL_CB_CUSTOM, __ni_nl_ack_handler, &ack);
 #if 0
 	nl_cb_set(cb, NL_CB_FINISH, NL_CB_CUSTOM, finish_handler, &err);
 #endif
@@ -493,11 +494,14 @@ __ni_nl_talk(ni_netlink_t *nl, struct nl_msg *msg,
 	if (valid_handler)
 		nl_cb_set(cb, NL_CB_VALID, NL_CB_CUSTOM, valid_handler, user_data);
 
-	if ((err = nl_recvmsgs(handle, cb)) < 0) {
-		ni_error("%s: recv failed: %s", __func__, nl_geterror());
-		if (err == -EEXIST)
-			err = 0;
-	}
+	/* libnl sets NLM_F_ACK per default, wait for ack before proceeding */
+	do {
+		if ((err = nl_recvmsgs(handle, cb)) < 0) {
+			ni_error("%s: recv failed: %s", __func__, nl_geterror());
+			if (err == -EEXIST)
+				err = 0;
+		}
+	} while (ack == 0);
 
 	nl_cb_put(cb);
 	return err;
