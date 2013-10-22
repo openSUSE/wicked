@@ -97,11 +97,6 @@ do_ifup(int argc, char **argv)
 	while ((c = getopt_long(argc, argv, "", ifup_options, NULL)) != EOF) {
 		switch (c) {
 		case OPT_IFCONFIG:
-			if (opt_ifconfig.count != 0) {
-				/* Hmm... Allow more than one? */
-				ni_error("ifup: only one --ifconfig option allowed");
-				goto usage;
-			}
 			ni_string_array_append(&opt_ifconfig, optarg);
 			break;
 
@@ -373,11 +368,6 @@ do_ifcheck(int argc, char **argv)
 	while ((c = getopt_long(argc, argv, "", ifcheck_options, NULL)) != EOF) {
 		switch (c) {
 		case OPT_IFCONFIG:
-			if (opt_ifconfig.count != 0) {
-				/* Hmm... Allow more than one? */
-				ni_error("ifdown: only ine --ifconfig option allowed");
-				goto usage;
-			}
 			ni_string_array_append(&opt_ifconfig, optarg);
 			break;
 
