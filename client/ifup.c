@@ -246,20 +246,16 @@ cleanup:
 int
 do_ifdown(int argc, char **argv)
 {
-	enum  { OPT_HELP, OPT_IFCONFIG, OPT_DELETE, OPT_TIMEOUT, OPT_FORCE };
+	enum  { OPT_HELP, OPT_DELETE, OPT_TIMEOUT };
 	static struct option ifdown_options[] = {
 		{ "help",	no_argument, NULL,		OPT_HELP },
-		{ "ifconfig",	required_argument, NULL,	OPT_IFCONFIG },
 		{ "delete",	no_argument, NULL,		OPT_DELETE },
 		{ "timeout",	required_argument, NULL,	OPT_TIMEOUT },
-		{ "force",	no_argument, NULL,	OPT_FORCE },
 		{ NULL }
 	};
 	static ni_ifmatcher_t ifmatch;
 	ni_uint_range_t target_range = { .min = NI_FSM_STATE_NONE, .max = NI_FSM_STATE_DEVICE_UP };
-	ni_string_array_t opt_ifconfig = NI_STRING_ARRAY_INIT;
-	unsigned int nmarked, i;
-	ni_bool_t opt_force = FALSE;
+	unsigned int nmarked;
 	/* int opt_delete = 0; */
 	ni_fsm_t *fsm;
 	int c, status = 1;
@@ -271,15 +267,6 @@ do_ifdown(int argc, char **argv)
 	optind = 1;
 	while ((c = getopt_long(argc, argv, "", ifdown_options, NULL)) != EOF) {
 		switch (c) {
-		case OPT_IFCONFIG:
-			if (opt_ifconfig.count != 0) {
-				/* Hmm... Allow more than one? */
-				ni_error("ifdown: only ine --ifconfig option allowed");
-				goto usage;
-			}
-			ni_string_array_append(&opt_ifconfig, optarg);
-			break;
-
 		case OPT_DELETE:
 			target_range.max = NI_FSM_STATE_DEVICE_DOWN;
 			/* opt_delete = 1; */
@@ -296,10 +283,6 @@ do_ifdown(int argc, char **argv)
 			}
 			break;
 
-		case OPT_FORCE:
-			opt_force = TRUE;
-			break;
-
 		default:
 		case OPT_HELP:
 usage:
@@ -309,16 +292,12 @@ usage:
 				"\nSupported ifdown-options:\n"
 				"  --help\n"
 				"      Show this help text.\n"
-				"  --ifconfig <filename>\n"
-				"      Read interface configuration(s) from file rather than using system config\n"
 				"  --delete\n"
 				"      Delete virtual interfaces\n"
 				"  --timeout <nsec>\n"
 				"      Timeout after <nsec> seconds\n"
-				"  --force\n"
-				"      Force reconfiguring the interface without checking the config origin\n"
 				);
-			goto cleanup;
+			return status;
 		}
 	}
 
@@ -327,30 +306,8 @@ usage:
 		goto usage;
 	}
 
-	/*
-	 * FIXME: This should shut down all interfaces we've started,
-	 *        even somebody changed or deleted the config ...
-	 */
-	if (opt_ifconfig.count == 0) {
-		const ni_string_array_t *sources = ni_config_sources("ifconfig");
-
-		if (sources && sources->count)
-			ni_string_array_copy(&opt_ifconfig, sources);
-
-		if (opt_ifconfig.count == 0) {
-			ni_error("ifdown: unable to load interface config source list");
-			goto cleanup;
-		}
-	}
-
-	/* FIXME: ifdown should not use config at all */
-	for (i = 0; i < opt_ifconfig.count; ++i) {
-		if (!ni_ifconfig_load(fsm, NULL, opt_ifconfig.data[i], opt_force))
-			goto cleanup;
-	}
-
 	if (!ni_fsm_create_client(fsm))
-		goto cleanup;
+		return status;
 
 	ni_fsm_refresh_state(fsm);
 
@@ -370,8 +327,6 @@ usage:
 		status = ni_fsm_fail_count(fsm) != 0;
 	}
 
-cleanup:
-	ni_string_array_destroy(&opt_ifconfig);
 	return status;
 }
 

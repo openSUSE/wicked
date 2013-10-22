@@ -2227,6 +2227,34 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 	found->ifindex = dev->link.ifindex;
 	found->object = object;
 
+	if (!found->config.node) {
+		extern ni_xs_scope_t *__ni_objectmodel_schema;
+		ni_dbus_variant_t dict = NI_DBUS_VARIANT_INIT;
+		const ni_dbus_service_t *service =
+			ni_objectmodel_service_by_name("org.opensuse.Network.Interface");
+
+		ni_dbus_variant_init_dict(&dict);
+		if (ni_dbus_object_get_properties_as_dict(object, service, &dict, NULL) &&
+			dict.array.len) {
+			/* serialize as XML */
+			found->config.node = ni_dbus_xml_deserialize_properties(
+						__ni_objectmodel_schema,
+						service->name,
+						&dict,
+						NULL);
+		}
+		ni_dbus_variant_destroy(&dict);
+
+		if (!found->config.node) {
+			ni_error("%s: no configuration node found for interface %s",
+					object->path, dev->name);
+			return NULL;
+		}
+
+		ni_debug_application("received xml config for ifworker %s (%s)",
+				object->path, dev->name);
+	}
+
 	/* Don't touch devices we're done with */
 	if (!found->done) {
 		if (ni_netdev_link_is_up(dev))
