@@ -1541,7 +1541,7 @@ ni_fsm_get_matching_workers(ni_fsm_t *fsm, ni_ifmatcher_t *match, ni_ifworker_ar
 
 			if ((dev = w->device) == 0
 			 || dev->client_info == NULL
-			 || !ni_string_eq(dev->client_info->config_origin, match->skip_origin))
+			 || !ni_string_startswith(dev->client_info->config_origin, match->skip_origin))
 				continue;
 		}
 
