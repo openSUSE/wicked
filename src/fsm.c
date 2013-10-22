@@ -52,6 +52,7 @@ ni_fsm_new(void)
 
 	fsm = calloc(1, sizeof(*fsm));
 	fsm->worker_timeout = NI_IFWORKER_DEFAULT_TIMEOUT;
+	fsm->readonly = FALSE;
 
 	ni_fsm_user_prompt_fn = ni_fsm_user_prompt_default;
 	return fsm;
@@ -163,6 +164,7 @@ ni_ifworker_reset(ni_ifworker_t *w)
 	w->failed = FALSE;
 	w->done = FALSE;
 	w->kickstarted = FALSE;
+	w->readonly = FALSE;
 }
 
 void
@@ -817,7 +819,7 @@ ni_ifworker_set_state(ni_ifworker_t *w, unsigned int new_state)
 		if (w->fsm.wait_for && w->fsm.wait_for->next_state == new_state)
 			w->fsm.wait_for = NULL;
 
-		if (w->object && new_state != NI_FSM_STATE_DEVICE_DOWN)
+		if (w->object && new_state != NI_FSM_STATE_DEVICE_DOWN && !w->readonly)
 			ni_ifworker_update_client_info(w);
 
 		if (w->target_state == new_state)
@@ -904,6 +906,7 @@ ni_ifworker_control_set_defaults(ni_ifworker_t *w)
 	ni_string_dup(&w->control.boot_stage, "default");
 	w->control.link_timeout = NI_IFWORKER_INFINITE_TIMEOUT;
 	w->control.link_required = FALSE;
+	w->readonly = FALSE;
 }
 
 /*
@@ -2146,6 +2149,9 @@ ni_fsm_refresh_state(ni_fsm_t *fsm)
 		/* Always clear the object - we don't know if it's still there
 		 * after we've called ni_dbus_object_refresh_children() */
 		w->object = NULL;
+
+		/* Set ifworkers to readonly if fsm is readonly */
+		w->readonly = fsm->readonly;
 	}
 
 	__ni_ifworker_refresh_netdevs(fsm);
@@ -2226,6 +2232,7 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 		found->device = ni_netdev_get(dev);
 	found->ifindex = dev->link.ifindex;
 	found->object = object;
+	found->readonly = fsm->readonly;
 
 	if (!found->config.node) {
 		extern ni_xs_scope_t *__ni_objectmodel_schema;
@@ -3096,7 +3103,8 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 					ni_ifworker_set_state(w, NI_FSM_STATE_DEVICE_DOWN);
 				else if (w->object) {
 					ni_call_clear_event_filters(w->object);
-					ni_ifworker_update_client_info(w);
+					if (!w->readonly)
+						ni_ifworker_update_client_info(w);
 				}
 				w->kickstarted = TRUE;
 			}

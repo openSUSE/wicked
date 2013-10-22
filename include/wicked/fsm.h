@@ -123,7 +123,8 @@ struct ni_ifworker {
 	unsigned int		dead		: 1,
 				failed		: 1,
 				done		: 1,
-				kickstarted	: 1;
+				kickstarted	: 1,
+				readonly	: 1;
 
 	ni_ifworker_control_t	control;
 
@@ -205,6 +206,7 @@ struct ni_fsm_require {
 struct ni_fsm {
 	ni_ifworker_array_t	workers;
 	unsigned int		worker_timeout;
+	ni_bool_t		readonly;
 
 	unsigned int		event_seq;
 	unsigned int		last_event_seq[__NI_EVENT_MAX];

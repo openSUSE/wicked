@@ -361,6 +361,7 @@ do_ifcheck(int argc, char **argv)
 	int c, status = 0;
 
 	fsm = ni_ifup_down_init();
+	fsm->readonly = TRUE;
 
 	memset(&ifmatch, 0, sizeof(ifmatch));
 
