@@ -397,7 +397,7 @@ usage:
 				"  --help\n"
 				"      Show this help text.\n"
 				"  --ifconfig <filename>\n"
-				"      Read interface configuration(s) from file rather than using system config\n"
+				"      Read interface configuration(s) from file\n"
 				"  --state <state-name>\n"
 				"      Verify that the interface(s) are in the given state. Possible states:\n"
 				"  %s\n"
@@ -416,21 +416,8 @@ usage:
 		goto usage;
 	}
 
-	if (opt_ifconfig.count == 0) {
-		const ni_string_array_t *sources = ni_config_sources("ifconfig");
-
-		if (sources && sources->count)
-			ni_string_array_copy(&opt_ifconfig, sources);
-
-		if (opt_ifconfig.count == 0) {
-			ni_error("ifdown: unable to load interface config source list");
-			goto cleanup;
-		}
-	}
-
 	for (i = 0; i < opt_ifconfig.count; ++i) {
-		/* TODO: root-dir */
-		if (!ni_ifconfig_load(fsm, NULL, opt_ifconfig.data[i], TRUE))
+		if (!ni_ifconfig_load(fsm, opt_global_rootdir, opt_ifconfig.data[i], TRUE))
 			goto cleanup;
 	}
 
