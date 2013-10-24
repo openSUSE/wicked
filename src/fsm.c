@@ -800,6 +800,13 @@ ni_ifworker_update_client_info(ni_ifworker_t *w)
 	ni_call_set_client_info(w->object, &client_info);
 }
 
+static inline ni_bool_t
+ni_ifworker_empty_config(ni_ifworker_t *w)
+{
+	ni_assert(w);
+	return ni_string_empty(w->config.origin);
+}
+
 static void
 ni_ifworker_set_state(ni_ifworker_t *w, unsigned int new_state)
 {
@@ -2234,7 +2241,7 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 	found->object = object;
 	found->readonly = fsm->readonly;
 
-	if (!found->config.node) {
+	if (!ni_ifworker_empty_config(found) && !found->config.node) {
 		extern ni_xs_scope_t *__ni_objectmodel_schema;
 		ni_dbus_variant_t dict = NI_DBUS_VARIANT_INIT;
 		const ni_dbus_service_t *service =
