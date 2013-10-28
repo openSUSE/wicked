@@ -402,8 +402,8 @@ __ni_netlink_open(int protocol)
 		goto failed;
 	}
 
-	nl->nl_handle = nl_handle_alloc_cb(nl->nl_cb);
-	if (nl_connect(nl->nl_handle, protocol) < 0) {
+	nl->nl_sock = nl_socket_alloc_cb(nl->nl_cb);
+	if (nl_connect(nl->nl_sock, protocol) < 0) {
 		ni_error("nl_connect failed: %m");
 		goto failed;
 	}
@@ -418,12 +418,8 @@ failed:
 void
 __ni_netlink_close(ni_netlink_t *nl)
 {
-	if (nl->nl_family)
-		genl_family_put(nl->nl_family);
-	if (nl->nl_cache)
-		nl_cache_free(nl->nl_cache);
-	if (nl->nl_handle)
-		nl_handle_destroy(nl->nl_handle);
+	if (nl->nl_sock)
+		nl_socket_free(nl->nl_sock);
 	if (nl->nl_cb)
 		nl_cb_put(nl->nl_cb);
 
@@ -454,7 +450,7 @@ __ni_nl_cb_clone(ni_netlink_t *nl)
 	if ((cb = nl->nl_cb) != NULL) {
 		cb = nl_cb_clone(cb);
 	} else {
-		ocb = nl_socket_get_cb(nl->nl_handle);
+		ocb = nl_socket_get_cb(nl->nl_sock);
 		cb = nl_cb_clone(ocb);
 		nl_cb_put(ocb);
 	}
@@ -468,16 +464,16 @@ int
 __ni_nl_talk(ni_netlink_t *nl, struct nl_msg *msg,
 		int (*valid_handler)(struct nl_msg *, void *), void *user_data)
 {
-	struct nl_handle *handle;
+	struct nl_sock *nl_sock;
 	struct nl_cb *cb;
 	int err = 0, ack = 0;
 
-	if (!(handle = nl->nl_handle)) {
-		ni_error("%s: no netlink handle", __func__);
+	if (!(nl_sock = nl->nl_sock)) {
+		ni_error("%s: no netlink socket", __func__);
 		return -1;
 	}
 
-	if (nl_send_auto_complete(handle, msg) < 0) {
+	if (nl_send_auto(nl_sock, msg) < 0) {
 		ni_error("%s: unable to send", __func__);
 		return -1;
 	}
@@ -496,8 +492,8 @@ __ni_nl_talk(ni_netlink_t *nl, struct nl_msg *msg,
 
 	/* libnl sets NLM_F_ACK per default, wait for ack before proceeding */
 	do {
-		if ((err = nl_recvmsgs(handle, cb)) < 0) {
-			ni_error("%s: recv failed: %s", __func__, nl_geterror());
+		if ((err = nl_recvmsgs(nl_sock, cb)) < 0) {
+			ni_error("%s: recv failed: %s", __func__, nl_geterror(err));
 			break;
 		}
 	} while (ack == 0);
@@ -592,19 +588,19 @@ __ni_nl_dump_valid(struct nl_msg *msg, void *p)
 int
 ni_nl_dump_store(int af, int type, struct ni_nlmsg_list *list)
 {
-	struct nl_handle *handle;
+	struct nl_sock *nl_sock;
 	struct __ni_nl_dump_state data = {
 		.msg_type = -1,
 		.list = list,
 	};
 	struct nl_cb *cb;
 
-	if (!__ni_global_netlink || !(handle = __ni_global_netlink->nl_handle)) {
-		ni_error("%s: no netlink handle", __func__);
+	if (!__ni_global_netlink || !(nl_sock = __ni_global_netlink->nl_sock)) {
+		ni_error("%s: no netlink socket", __func__);
 		return -1;
 	}
 
-	if (nl_rtgen_request(handle, type, af, NLM_F_DUMP) < 0) {
+	if (nl_rtgen_request(nl_sock, type, af, NLM_F_DUMP) < 0) {
 		ni_error("%s: failed to send request", __func__);
 		return -1;
 	}
@@ -614,7 +610,7 @@ ni_nl_dump_store(int af, int type, struct ni_nlmsg_list *list)
 
 	nl_cb_set(cb, NL_CB_VALID, NL_CB_CUSTOM, __ni_nl_dump_valid, &data);
 
-	if (nl_recvmsgs(handle, cb) < 0) {
+	if (nl_recvmsgs(nl_sock, cb) < 0) {
 		ni_error("%s: failed to receive response", __func__);
 		nl_cb_put(cb);
 		return -1;
@@ -632,7 +628,7 @@ ni_nl_talk(struct nl_msg *msg, struct ni_nlmsg_list *list)
 {
 
 	if (!__ni_global_netlink) {
-		ni_error("%s: no netlink handle", __func__);
+		ni_error("%s: no netlink socket", __func__);
 		return -1;
 	}
 

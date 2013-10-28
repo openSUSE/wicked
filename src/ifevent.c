@@ -578,10 +578,10 @@ __ni_rtevent_msg_name(unsigned int nlmsg_type)
 static void
 __ni_rtevent_receive(ni_socket_t *sock)
 {
-	struct nl_handle *handle = sock->user_data;
+	struct nl_sock *nl_sock = sock->user_data;
 	int status;
 
-	status = nl_recvmsgs_default(handle);
+	status = nl_recvmsgs_default(nl_sock);
 	if (status != 0) {
 		ni_error("netlink receive error: %m");
 		ni_error("shutting down event listener");
@@ -590,15 +590,15 @@ __ni_rtevent_receive(ni_socket_t *sock)
 }
 
 /*
- * Cleanup netlink handle inside of a socket.
+ * Cleanup netlink socket inside of our socket.
  */
 static void
 __ni_rtevent_close(ni_socket_t *sock)
 {
-	struct nl_handle *handle = sock->user_data;
+	struct nl_sock *nl_sock = sock->user_data;
 
-	if (handle) {
-		nl_handle_destroy(handle);
+	if (nl_sock) {
+		nl_socket_free(nl_sock);
 		sock->user_data = NULL;
 	}
 }
@@ -610,7 +610,7 @@ __ni_rtevent_close(ni_socket_t *sock)
 int
 ni_server_listen_interface_events(void (*ifevent_handler)(ni_netdev_t *, ni_event_t))
 {
-	struct nl_handle *handle;
+	struct nl_sock *nl_sock;
 	ni_socket_t *sock;
 	uint32_t groups = 0;
 	int fd;
@@ -620,8 +620,8 @@ ni_server_listen_interface_events(void (*ifevent_handler)(ni_netdev_t *, ni_even
 		return -1;
 	}
 
-	if ((handle = nl_handle_alloc()) == NULL) {
-		ni_error("Cannot allocate rtnetlink event handle: %m");
+	if ((nl_sock = nl_socket_alloc()) == NULL) {
+		ni_error("Cannot allocate rtnetlink event socket: %m");
 		return -1;
 	}
 
@@ -630,36 +630,36 @@ ni_server_listen_interface_events(void (*ifevent_handler)(ni_netdev_t *, ni_even
 		 nl_mgrp(RTNLGRP_IPV6_IFINFO) |
 		 nl_mgrp(RTNLGRP_IPV6_PREFIX);
 
-	nl_join_groups(handle, groups);
+	nl_join_groups(nl_sock, groups);
 #undef nl_mgrp
 
 	/*
 	 * Modify the callback for processing valid messages...
 	 * We may pass some kind of data (event filter?) too...
 	 */
-	nl_socket_modify_cb(handle, NL_CB_VALID, NL_CB_CUSTOM,
+	nl_socket_modify_cb(nl_sock, NL_CB_VALID, NL_CB_CUSTOM,
 				__ni_rtevent_process_cb, NULL);
 
 	/* Required to receive async event notifications */
-	nl_disable_sequence_check(handle);
+	nl_socket_disable_seq_check(nl_sock);
 
-	if (nl_connect(handle, NETLINK_ROUTE) < 0) {
+	if (nl_connect(nl_sock, NETLINK_ROUTE) < 0) {
 		ni_error("Cannot open rtnetlink: %m");
-		nl_handle_destroy(handle);
+		nl_socket_free(nl_sock);
 		return -1;
 	}
 
 	/* Enable non-blocking processing */
-	nl_socket_set_nonblocking(handle);
+	nl_socket_set_nonblocking(nl_sock);
 
-	fd = nl_socket_get_fd(handle);
+	fd = nl_socket_get_fd(nl_sock);
 	if ((sock = ni_socket_wrap(fd, SOCK_DGRAM)) == NULL) {
 		ni_error("Cannot wrap rtnetlink event socket: %m");
-		nl_handle_destroy(handle);
+		nl_socket_free(nl_sock);
 		return -1;
 	}
 
-	sock->user_data	= handle;
+	sock->user_data	= nl_sock;
 	sock->receive	= __ni_rtevent_receive;
 	sock->close	= __ni_rtevent_close;
 
@@ -674,17 +674,17 @@ ni_server_listen_interface_events(void (*ifevent_handler)(ni_netdev_t *, ni_even
 int
 ni_server_enable_interface_addr_events(void (*ifaddr_handler)(ni_netdev_t *, ni_event_t, const ni_address_t *))
 {
-	struct nl_handle *handle;
+	struct nl_sock *nl_sock;
 
 	if (!__ni_rtevent_sock || ni_global.interface_addr_event) {
 		ni_error("Interface address event handler already set");
 		return -1;
 	}
 
-	handle = __ni_rtevent_sock->user_data;
+	nl_sock = __ni_rtevent_sock->user_data;
 
-	if (nl_socket_add_membership(handle, RTNLGRP_IPV4_IFADDR) < 0 ||
-	    nl_socket_add_membership(handle, RTNLGRP_IPV6_IFADDR) < 0) {
+	if (nl_socket_add_membership(nl_sock, RTNLGRP_IPV4_IFADDR) < 0 ||
+	    nl_socket_add_membership(nl_sock, RTNLGRP_IPV6_IFADDR) < 0) {
 		ni_error("Cannot add rtnetlink address event membership: %m");
 		return -1;
 	}
@@ -711,16 +711,16 @@ ni_server_enable_interface_prefix_events(void (*ifprefix_handler)(ni_netdev_t *,
 int
 ni_server_enable_interface_nduseropt_events(void (*ifnduseropt_handler)(ni_netdev_t *, ni_event_t))
 {
-	struct nl_handle *handle;
+	struct nl_sock *nl_sock;
 
 	if (!__ni_rtevent_sock || ni_global.interface_nduseropt_event) {
 		ni_error("Interface ND user opt event handler already set");
 		return -1;
 	}
 
-	handle = __ni_rtevent_sock->user_data;
+	nl_sock = __ni_rtevent_sock->user_data;
 
-	if (nl_socket_add_membership(handle, RTNLGRP_ND_USEROPT) < 0) {
+	if (nl_socket_add_membership(nl_sock, RTNLGRP_ND_USEROPT) < 0) {
 		ni_error("Cannot add rtnetlink nd user opt event membership: %m");
 		return -1;
 	}
