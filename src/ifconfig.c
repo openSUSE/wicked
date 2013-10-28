@@ -22,6 +22,7 @@
 #include <net/if.h>
 #include <net/if_arp.h>
 #include <netlink/msg.h>
+#include <netlink/errno.h>
 #include <time.h>
 
 #include <wicked/netinfo.h>
@@ -1258,6 +1259,7 @@ __ni_rtnl_send_newaddr(ni_netdev_t *dev, const ni_address_t *ap, int flags)
 {
 	struct ifaddrmsg ifa;
 	struct nl_msg *msg;
+	int err;
 
 	ni_debug_ifconfig("%s(%s/%u)", __FUNCTION__,
 			ni_sockaddr_print(&ap->local_addr), ap->prefixlen);
@@ -1335,10 +1337,10 @@ __ni_rtnl_send_newaddr(ni_netdev_t *dev, const ni_address_t *ap, int flags)
 			goto nla_put_failure;
 	}
 
-	if (ni_nl_talk(msg, NULL) < 0) {
-		ni_error("%s(%s/%u): ni_nl_talk failed", __func__,
+	if ((err = ni_nl_talk(msg, NULL)) < 0 && err != -NLE_EXIST) {
+		ni_error("%s(%s/%u): ni_nl_talk failed [%d]", __func__,
 				ni_sockaddr_print(&ap->local_addr),
-				ap->prefixlen);
+				ap->prefixlen, err);
 		goto failed;
 	}
 
@@ -1406,6 +1408,7 @@ __ni_rtnl_send_newroute(ni_netdev_t *dev, ni_route_t *rp, int flags)
 	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 	struct rtmsg rt;
 	struct nl_msg *msg;
+	int err;
 
 	ni_debug_ifconfig("%s(%s)", __FUNCTION__, ni_route_print(&buf, rp));
 	ni_stringbuf_destroy(&buf);
@@ -1560,9 +1563,10 @@ __ni_rtnl_send_newroute(ni_netdev_t *dev, ni_route_t *rp, int flags)
 		nla_nest_end(msg, mxrta);
 	}
 
-	if (ni_nl_talk(msg, NULL) < 0) {
+	if ((err = ni_nl_talk(msg, NULL)) < 0 && err != -NLE_EXIST) {
 		ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
-		ni_error("%s(%s): rtnl_talk failed", __FUNCTION__, ni_route_print(&buf, rp));
+		ni_error("%s(%s): ni_nl_talk failed [%d]", __FUNCTION__,
+				ni_route_print(&buf, rp), err);
 		ni_stringbuf_destroy(&buf);
 		goto failed;
 	}
