@@ -41,11 +41,7 @@ Requires(pre):  libwicked@LIBWICKED_PACKAGE_SUFFIX@ = %{version}
 %bcond_with     dbusstart
 %endif
 
-%if 0%{?suse_version} >= 1210
-BuildRequires:  libnl-1_1-devel
-%else
-BuildRequires:  libnl-devel
-%endif
+BuildRequires:  libnl3-devel
 %if 0%{?suse_version} > 1110
 BuildRequires:  libiw-devel
 %else

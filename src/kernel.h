@@ -18,10 +18,8 @@
 #include <wicked/types.h>
 
 struct __ni_netlink {
-	struct nl_handle *	nl_handle;
-	struct nl_cache *	nl_cache;
+	struct nl_sock *	nl_sock;
 	struct nl_cb *		nl_cb;
-	struct genl_family *	nl_family;
 };
 
 static inline int

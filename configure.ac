@@ -175,7 +175,7 @@ AC_SUBST(LIBGCRYPT_LIBS)
 AC_MSG_RESULT([found.])
 
 # Checks for pkg-config modules.
-PKG_CHECK_MODULES(LIBNL, [libnl-1])
+PKG_CHECK_MODULES(LIBNL, [libnl-3.0 libnl-route-3.0])
 PKG_CHECK_MODULES(LIBDBUS, [dbus-1])
 
 # Checks for header files.
