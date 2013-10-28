@@ -498,8 +498,6 @@ __ni_nl_talk(ni_netlink_t *nl, struct nl_msg *msg,
 	do {
 		if ((err = nl_recvmsgs(handle, cb)) < 0) {
 			ni_error("%s: recv failed: %s", __func__, nl_geterror());
-			if (err == -EEXIST)
-				err = 0;
 			break;
 		}
 	} while (ack == 0);
