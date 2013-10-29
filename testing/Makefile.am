@@ -7,14 +7,15 @@ noinst_PROGRAMS			= rtnl-test	\
 				  xml-test	\
 				  xpath-test
 
-INCLUDES			= -I$(top_srcdir)	\
+AM_CPPFLAGS			= -I$(top_srcdir)	\
 				  -I$(top_srcdir)/src	\
 				  -I$(top_srcdir)/include
 
-CFLAGS				+= $(LIBNL_CFLAGS)	\
-				   $(LIBDBUS_CFLAGS)	\
-				   $(LIBGCRYPT_CFLAGS)
-LDFLAGS				+= -rdynamic
+AM_CFLAGS			= $(LIBNL_CFLAGS)	\
+				  $(LIBDBUS_CFLAGS)	\
+				  $(LIBGCRYPT_CFLAGS)
+
+AM_LDFLAGS			= -rdynamic
 LDADD				= $(top_builddir)/src/libwicked.la
 
 rtnl_test_SOURCES		= rtnl-test.c

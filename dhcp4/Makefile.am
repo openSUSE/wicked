@@ -4,13 +4,14 @@ MAINTAINERCLEANFILES		= Makefile.in
 
 wicked_supplicant_PROGRAMS	= wickedd-dhcp4
 
-INCLUDES			= -I$(top_srcdir)	\
+wickedd_dhcp4__CPPFLAGS		= -I$(top_srcdir)	\
 				  -I$(top_srcdir)/src	\
 				  -I$(top_srcdir)/include
 
 wickedd_dhcp4_CFLAGS		= $(LIBNL_CFLAGS)	\
 				  $(LIBDBUS_CFLAGS)	\
 				  $(LIBGCRYPT_CFLAGS)
+
 wickedd_dhcp4_LDFLAGS	= -rdynamic
 wickedd_dhcp4_LDADD	= $(top_builddir)/src/libwicked.la
 wickedd_dhcp4_SOURCES	= \

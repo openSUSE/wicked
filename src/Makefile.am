@@ -2,7 +2,7 @@
 CLEANFILES			= *~
 MAINTAINERCLEANFILES		= Makefile.in
 
-INCLUDES			= -I$(top_srcdir)	\
+AM_CPPFLAGS			= -I$(top_srcdir)	\
 				  -I$(top_srcdir)/include
 
 wicked_lib_LTLIBRARIES		= libwicked.la
@@ -13,11 +13,11 @@ libwicked_la_CFLAGS		= $(LIBNL_CFLAGS)	\
 				  $(LIBDBUS_CFLAGS)	\
 				  $(LIBGCRYPT_CFLAGS)
 
-
 libwicked_la_CPPFLAGS		= -DWICKED_CONFIGDIR=\"$(wicked_configdir)\" \
 				  -DWICKED_STOREDIR=\"$(wicked_storedir)\" \
 				  -DWICKED_STATEDIR=\"$(wicked_statedir)\" \
 				  -DWICKED_PIDDIR=\"$(wicked_piddir)\"
+
 libwicked_la_LDFLAGS		= -lm			\
 				  $(LIBDL_LIBS)		\
 				  $(LIBNL_LIBS)		\
@@ -25,6 +25,7 @@ libwicked_la_LDFLAGS		= -lm			\
 				  $(LIBDBUS_LIBS)	\
 				  $(LIBGCRYPT_LIBS)	\
 				  $(LIBWICKED_LTLINK_VERSION)
+
 libwicked_la_LIBADD		= libwicked-dbus-objects.la	\
 				  libwicked-dhcp6.la
 libwicked_la_SOURCES		= \

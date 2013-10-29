@@ -4,7 +4,7 @@ MAINTAINERCLEANFILES		= Makefile.in
 
 noinst_PROGRAMS			= mkconst schema2html
 
-INCLUDES			= -I$(top_srcdir)/src	\
+AM_CPPFLAGS			= -I$(top_srcdir)/src	\
 				  -I$(top_srcdir)/include
 
 mkconst_LDADD			= $(top_builddir)/src/libwicked.la
