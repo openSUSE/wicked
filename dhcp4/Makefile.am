@@ -4,7 +4,7 @@ MAINTAINERCLEANFILES		= Makefile.in
 
 wicked_supplicant_PROGRAMS	= wickedd-dhcp4
 
-wickedd_dhcp4__CPPFLAGS		= -I$(top_srcdir)	\
+wickedd_dhcp4_CPPFLAGS		= -I$(top_srcdir)	\
 				  -I$(top_srcdir)/src	\
 				  -I$(top_srcdir)/include
 

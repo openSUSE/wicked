@@ -7,8 +7,7 @@ noinst_PROGRAMS			= rtnl-test	\
 				  xml-test	\
 				  xpath-test
 
-AM_CPPFLAGS			= -I$(top_srcdir)	\
-				  -I$(top_srcdir)/src	\
+AM_CPPFLAGS			= -I$(top_srcdir)/src	\
 				  -I$(top_srcdir)/include
 
 AM_CFLAGS			= $(LIBNL_CFLAGS)	\

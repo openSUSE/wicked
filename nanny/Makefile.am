@@ -4,7 +4,8 @@ MAINTAINERCLEANFILES		= Makefile.in
 
 wicked_sbin_PROGRAMS		= wickedd-nanny
 
-wickedd_nanny_CPPFLAGS		= -I$(top_srcdir)/src	\
+wickedd_nanny_CPPFLAGS		= -I$(top_srcdir)	\
+				  -I$(top_srcdir)/src	\
 				  -I$(top_srcdir)/include
 
 wickedd_nanny_CFLAGS		= $(LIBNL_CFLAGS)	\
