@@ -14,6 +14,7 @@
 #include <wicked/addrconf.h>
 #include <wicked/system.h>
 #include <wicked/resolver.h>
+#include <wicked/leaseinfo.h>
 
 #include "netinfo_priv.h"
 #include "util_priv.h"
@@ -705,6 +706,16 @@ ni_system_update_from_lease(const ni_addrconf_lease_t *lease, const unsigned int
 
 	ni_debug_ifconfig("%s()", __func__);
 	ni_system_updaters_init();
+
+	switch (lease->state) {
+	case NI_ADDRCONF_STATE_GRANTED:
+		/* Write lease in dhcpcd-like format. */
+		ni_leaseinfo_dump(NULL, lease, ifname, NULL);
+		break;
+	default:
+		ni_leaseinfo_remove(ifname, lease->type, lease->family);
+		break;
+	}
 
 	for (kind = 0; kind < __NI_ADDRCONF_UPDATE_MAX; ++kind) {
 		if (can_update_type(lease, kind)) {

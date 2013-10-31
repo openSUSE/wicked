@@ -972,7 +972,7 @@ static const ni_intmap_t __ni_netbios_node_types[] = {
 	{ NULL,		0x0 }
 };
 
-static const char *
+const char *
 ni_netbios_node_type_to_name(unsigned int code)
 {
 	return ni_format_uint_mapped(code, __ni_netbios_node_types);
