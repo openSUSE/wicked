@@ -64,6 +64,7 @@ libwicked_la_SOURCES		= \
 	ipv6.c			\
 	kernel.c		\
 	leasefile.c		\
+	leaseinfo.c		\
 	lldp.c			\
 	logging.c		\
 	md5sum.c		\
