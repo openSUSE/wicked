@@ -64,9 +64,9 @@ static void		__ni_leaseinfo_dhcp6_dump(FILE *,
 				const ni_addrconf_lease_t *,
 				const char *);
 static void		__ni_leaseinfo_print_addrs(FILE *, const char *,
-					ni_address_t *);
+					ni_address_t *, unsigned int);
 static void		__ni_leaseinfo_print_routes(FILE *, const char *,
-					ni_route_table_t *);
+					ni_route_table_t *, unsigned int);
 static void		__ni_leaseinfo_print_nis(FILE *, const char *,
 					ni_nis_info_t *);
 static void		__ni_leaseinfo_print_resolver(FILE *, const char *,
@@ -145,7 +145,8 @@ __ni_leaseinfo_print_string_array(FILE *out, const char *prefix, const char *nam
 }
 
 static void
-__ni_leaseinfo_print_addrs(FILE *out, const char *prefix, ni_address_t *addrs)
+__ni_leaseinfo_print_addrs(FILE *out, const char *prefix, ni_address_t *addrs,
+				unsigned int family)
 {
 	ni_address_t *ap;
 	ni_sockaddr_t sa;
@@ -153,6 +154,9 @@ __ni_leaseinfo_print_addrs(FILE *out, const char *prefix, ni_address_t *addrs)
 	char *buf = NULL;
 
 	for (i = 0, ap = addrs; ap; ++i, ap = ap->next) {
+		if (family != AF_UNSPEC && family != ap->local_addr.ss_family)
+			continue;
+
 		switch (ap->local_addr.ss_family) {
 		case AF_INET:
 			__ni_leaseinfo_print_string(out, prefix, "IPADDR",
@@ -166,14 +170,21 @@ __ni_leaseinfo_print_addrs(FILE *out, const char *prefix, ni_address_t *addrs)
 			sa.sin.sin_addr.s_addr &= ap->local_addr.sin.sin_addr.s_addr;
 			__ni_leaseinfo_print_string(out, prefix, "NETWORK",
 						ni_sockaddr_print(&sa), NULL, i);
+
+			ni_string_printf(&buf, "%u", ap->prefixlen);
+			__ni_leaseinfo_print_string(out, prefix, "PREFIXLEN",
+						buf, NULL, i);
+			ni_string_free(&buf);
 			break;
 
 		case AF_INET6:
-			ni_string_printf(&buf, "%s/%u", ni_sockaddr_print(&ap->local_addr),
-					ap->prefixlen);
 			__ni_leaseinfo_print_string(out, prefix, "IPADDR",
-						buf,
+						ni_sockaddr_print(&ap->local_addr),
 						NULL, i);
+
+			ni_string_printf(&buf, "%u", ap->prefixlen);
+			__ni_leaseinfo_print_string(out, prefix, "PREFIXLEN",
+						buf, NULL, i);
 			ni_string_free(&buf);
 			break;
 
@@ -184,42 +195,85 @@ __ni_leaseinfo_print_addrs(FILE *out, const char *prefix, ni_address_t *addrs)
 }
 
 static void
-__ni_leaseinfo_print_routes(FILE *out, const char *prefix,
-			ni_route_table_t *routes)
+__ni_leaseinfo_format_route(ni_string_array_t *routes, ni_string_array_t *gates, ni_route_t *rp)
 {
-	ni_route_table_t *rtp = NULL;
-	ni_route_t *rp = NULL;
-	ni_sockaddr_t sa;
-	unsigned int i;
+	ni_route_nexthop_t *nh;
+	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
+	ni_sockaddr_t nogateway;
+	ni_sockaddr_t netmask;
+
+	memset(&nogateway, 0, sizeof(nogateway));
+	for (nh = &rp->nh; nh; nh = nh->next) {
+		if (ni_sockaddr_is_specified(&rp->destination)) {
+			/* (network) ROUTES + = 'dest,netmask/prefixlen,gateway' */
+			ni_stringbuf_puts(&buf, ni_sockaddr_print(&rp->destination));
+			ni_stringbuf_putc(&buf, ',');
+
+			switch (rp->family) {
+			case AF_INET:
+				ni_sockaddr_build_netmask(rp->family, rp->prefixlen,
+							&netmask);
+				ni_stringbuf_puts(&buf, ni_sockaddr_print(&netmask));
+				break;
+			case AF_INET6:
+				ni_stringbuf_printf(&buf, "%u", rp->prefixlen);
+				break;
+			default: ;
+			}
+			ni_stringbuf_putc(&buf, ',');
+
+			if (ni_sockaddr_is_specified(&nh->gateway)) {
+				ni_stringbuf_puts(&buf, ni_sockaddr_print(&nh->gateway));
+			} else {
+				nogateway.ss_family = rp->family;
+				ni_stringbuf_puts(&buf, ni_sockaddr_print(&nogateway));
+			}
+
+			if (!ni_string_empty(buf.string)) {
+				if (ni_string_array_index(routes, buf.string) == -1)
+					ni_string_array_append(routes, buf.string);
+			}
+		} else if (ni_sockaddr_is_specified(&nh->gateway)) {
+			/* (default) GATEWAYS += 'gateway' */
+			ni_stringbuf_puts(&buf, ni_sockaddr_print(&nh->gateway));
+			if (!ni_string_empty(buf.string)) {
+				if (ni_string_array_index(gates, buf.string) == -1)
+					ni_string_array_append(gates, buf.string);
+			}
+		}
+		ni_stringbuf_destroy(&buf);
+	}
+}
+
+static void
+__ni_leaseinfo_print_routes(FILE *out, const char *prefix,
+			ni_route_table_t *routes, unsigned int family)
+{
 	ni_string_array_t routes_entry_arr = NI_STRING_ARRAY_INIT;
-	char *route_entry = NULL;
 	ni_string_array_t gw_entry_arr = NI_STRING_ARRAY_INIT;
-	char *gw_entry = NULL;
+	ni_route_table_t *rtp;
+	ni_route_t *rp;
+	unsigned int i;
 
 	for (rtp = routes; rtp; rtp = rtp->next) {
+		if (!ni_string_eq(ni_route_table_type_to_name(rtp->tid), "main"))
+			continue;
+
 		for (i = 0; i < rtp->routes.count; ++i) {
+			const char *type;
+
 			rp = rtp->routes.data[i];
+			if (family != AF_UNSPEC && family != rp->family)
+				continue;
 
-			if (ni_sockaddr_is_specified(&rp->destination)) {
-				/* ROUTES = 'dest1,netmask1,gw1 dest2,netmask2,gw2 ... */
-				ni_sockaddr_build_netmask(rp->family,
-							rp->prefixlen, &sa);
+			if (rp->table != rtp->tid)
+				continue;
 
-				ni_string_array_append(&routes_entry_arr,
-						ni_string_printf(
-							&route_entry, "%s,%s,%s",
-							ni_sockaddr_print(
-								&rp->destination),
-							ni_sockaddr_print(&sa),
-							ni_sockaddr_print(
-								&rp->nh.gateway)));
-			} else {
-				/* GATEWAYS='gw1 gw2 ... */
-				ni_string_array_append(&gw_entry_arr,
-						ni_string_printf(
-							&gw_entry, "%s",
-							ni_sockaddr_print(
-								&rp->nh.gateway)));
+			type = ni_route_type_type_to_name(rp->type);
+			if (ni_string_eq(type, "unicast") ||
+			    ni_string_eq(type, "local")) {
+				__ni_leaseinfo_format_route(&routes_entry_arr,
+								&gw_entry_arr, rp);
 			}
 		}
 	}
@@ -229,8 +283,6 @@ __ni_leaseinfo_print_routes(FILE *out, const char *prefix,
 	__ni_leaseinfo_print_string_array(out, prefix, "GATEWAYS",
 					&gw_entry_arr, " ");
 
-	ni_string_free(&route_entry);
-	ni_string_free(&gw_entry);
 	ni_string_array_destroy(&routes_entry_arr);
 	ni_string_array_destroy(&gw_entry_arr);
 }
@@ -338,12 +390,16 @@ __ni_leaseinfo_dhcp4_dump(FILE *out, const ni_addrconf_lease_t *lease,
 				"", 0);
 #endif
 
-	/* Address and netmask specified as part of generic dump, so not
+	/*
+	 * Hmm...
+	 * Address and netmask specified as part of generic dump, so not
 	 * duplicating here.
 	 */
 	ni_sockaddr_set_ipv4(&sa, lease->dhcp.broadcast, 0);
-	__ni_leaseinfo_print_string(out, prefix, "BROADCAST",
-				ni_sockaddr_print(&sa), NULL, 0);
+	if (ni_sockaddr_is_specified(&sa)) {
+		__ni_leaseinfo_print_string(out, prefix, "BROADCAST",
+					ni_sockaddr_print(&sa), NULL, 0);
+	}
 
 #if 0
 	if (lease->dhcp.mtu) {
@@ -495,9 +551,9 @@ __ni_leaseinfo_dump(FILE *out, const ni_addrconf_lease_t *lease,
 				NULL, 0);
 #endif
 
-	__ni_leaseinfo_print_addrs(out, prefix, lease->addrs);
+	__ni_leaseinfo_print_addrs(out, prefix, lease->addrs, lease->family);
 
-	__ni_leaseinfo_print_routes(out, prefix, lease->routes);
+	__ni_leaseinfo_print_routes(out, prefix, lease->routes, lease->family);
 
 	/* Only applicable for ipv4. */
 	if (lease->family == AF_INET)
