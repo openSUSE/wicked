@@ -258,14 +258,6 @@ packaging:
 	- Move/link the repo to gitorious.org/opensuse/wicked ???  To increase
 	  the acceptance of the project (visible “opensuse”)?  
 
-security audit:
-	- Input validation for issues known from other dhcp/ppp,...  programs is
-	  done / applied in wicked.  We're waiting now until the security-team
-	  has the time to review the code and give us ACK for the dbus system
-	  service.  This is required to build packages in the BS; currently BS
-	  rejects our code / fails to build with:
-	  E: suse-dbus-unauthorized-service /etc/dbus1/system.d/*.conf
-	  bnc#783932
 dbus:
 	- replace all those dbus_variant_t argv[...] arrays with a
 	  ni_dbus_argv_t, with corresponding functions for initialization
