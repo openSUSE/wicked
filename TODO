@@ -300,7 +300,6 @@ wireless:
 	- Incomplete. Working, but may not work in some cases (complex)
 
 other link layers:
-	- infiniband, needs testing
 	- totally unsupported as of yet:
 	  * token ring
 	  * isdn, ppp, slip
