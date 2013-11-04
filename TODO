@@ -245,9 +245,6 @@ source tree:
 	- Review and fix / drop obsolete documentation [man pages, ...]
 
 packaging:
-	- Fix the package ($OBS/home:mtomaschewski:wicked/wicked) to work
-	  out-of-the-box and integrate under 12.3 / factory inclusive of the
-	  recent changes.
 	- Split sysconfig into sysconfig,udevmountd,sysconfig-network and add
 	  conflicts/provides/obsoletes to sysconfig-network; Perhaps adopt
 	  sysconfig somehow to make it easier.
@@ -255,8 +252,6 @@ packaging:
 	- Adopt yast2[-network]: I guess, there will be something to do
 	- Adopt all the other packages like Hyper-V, ppp scripts, avahi, … (or
 	  the we're going to replace netcontrol) as needed
-	- Move/link the repo to gitorious.org/opensuse/wicked ???  To increase
-	  the acceptance of the project (visible “opensuse”)?  
 
 dbus:
 	- replace all those dbus_variant_t argv[...] arrays with a
