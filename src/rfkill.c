@@ -50,7 +50,7 @@ ni_rfkill_open(ni_rfkill_event_handler_t *callback, void *user_data)
 		return 0;
 
 	if ((fd = open("/dev/rfkill", O_RDONLY | O_NONBLOCK)) < 0) {
-		ni_error("cannot open /dev/rfkill: %m");
+		ni_info("cannot open /dev/rfkill: %m");
 		return -1;
 	}
 
