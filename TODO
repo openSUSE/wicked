@@ -245,9 +245,6 @@ source tree:
 	- Review and fix / drop obsolete documentation [man pages, ...]
 
 packaging:
-	- Split sysconfig into sysconfig,udevmountd,sysconfig-network and add
-	  conflicts/provides/obsoletes to sysconfig-network; Perhaps adopt
-	  sysconfig somehow to make it easier.
 	- Adopt libnetcontrol to not check ifup state but wicked's
 	- Adopt yast2[-network]: I guess, there will be something to do
 	- Adopt all the other packages like Hyper-V, ppp scripts, avahi, … (or
