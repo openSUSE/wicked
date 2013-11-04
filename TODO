@@ -84,6 +84,7 @@ wickedd:
 	    [has to be unicast to server] are dropped on gateways/relays [e.g.
 	    cisco routers], when the server is behind a router. Further, AFAIR
 	    other requests were not correctly addressed, too.
+	  - fix save-state code
 
 	- dhcpv6 support
 	  - write lease/state to disk [currently in memory only, discarded on
@@ -255,9 +256,6 @@ dbus:
 	  ni_dbus_argv_t, with corresponding functions for initialization
 	  and destruction. Also taking care of the variant __magic cookie
 	  field.
-
-dhcp4:
-	- fix save-state code
 
 netinfo:
 	- Introduce an <access-provider> abstraction; this can be either
