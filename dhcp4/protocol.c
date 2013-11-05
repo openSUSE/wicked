@@ -313,8 +313,11 @@ ni_dhcp_build_message(const ni_dhcp_device_t *dev,
 	case DHCP_INFORM:
 		if (lease->dhcp.address.s_addr == 0 || lease->dhcp.serveraddress.s_addr == 0)
 			return -1;
-		src_addr = lease->dhcp.address;
-		dst_addr = lease->dhcp.serveraddress;
+
+		if (dev->fsm.state != NI_DHCP_STATE_REQUESTING) {
+			src_addr = lease->dhcp.address;
+			dst_addr = lease->dhcp.serveraddress;
+		}
 		break;
 	}
 
