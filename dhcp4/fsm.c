@@ -258,9 +258,8 @@ __ni_dhcp_fsm_discover(ni_dhcp_device_t *dev, int scan_offers)
 	if ((lease = dev->lease) == NULL)
 		lease = ni_addrconf_lease_new(NI_ADDRCONF_DHCP, AF_INET);
 
-	rv = ni_dhcp_device_send_message(dev, DHCP_DISCOVER, lease);
-
 	dev->fsm.state = NI_DHCP_STATE_SELECTING;
+	rv = ni_dhcp_device_send_message(dev, DHCP_DISCOVER, lease);
 
 	dev->dhcp.accept_any_offer = 1;
 	ni_debug_dhcp("valid lease: %d; have prefs: %d",
@@ -294,12 +293,13 @@ ni_dhcp_fsm_request(ni_dhcp_device_t *dev, const ni_addrconf_lease_t *lease)
 
 	ni_debug_dhcp("requesting lease for %s, timeout %d",
 			dev->ifname, dev->config->request_timeout);
+
+	dev->fsm.state = NI_DHCP_STATE_REQUESTING;
 	rv = ni_dhcp_device_send_message(dev, DHCP_REQUEST, lease);
 
 	/* Ignore the return value; sending the request may actually
 	 * fail transiently */
 	ni_dhcp_fsm_set_timeout(dev, dev->config->request_timeout);
-	dev->fsm.state = NI_DHCP_STATE_REQUESTING;
 
 	return rv;
 }
@@ -311,11 +311,11 @@ ni_dhcp_fsm_renewal(ni_dhcp_device_t *dev)
 
 	ni_debug_dhcp("trying to renew lease for %s", dev->ifname);
 
+	dev->fsm.state = NI_DHCP_STATE_RENEWING;
 	rv = ni_dhcp_device_send_message_unicast(dev, DHCP_REQUEST, dev->lease);
 
 	ni_dhcp_fsm_set_deadline(dev,
 			dev->lease->time_acquired + dev->lease->dhcp.rebind_time);
-	dev->fsm.state = NI_DHCP_STATE_RENEWING;
 	return rv;
 }
 
@@ -327,6 +327,7 @@ ni_dhcp_fsm_quick_renewal(ni_dhcp_device_t *dev)
 
 	ni_debug_dhcp("trying to perform quick lease renewal for %s", dev->ifname);
 
+	dev->fsm.state = NI_DHCP_STATE_RENEWING;
 	rv = ni_dhcp_device_send_message_unicast(dev, DHCP_REQUEST, dev->lease);
 
 	deadline = time(NULL) + 10;
@@ -335,7 +336,6 @@ ni_dhcp_fsm_quick_renewal(ni_dhcp_device_t *dev)
 
 	ni_dhcp_fsm_set_deadline(dev, deadline);
 	dev->fsm.fail_on_timeout = 1;
-	dev->fsm.state = NI_DHCP_STATE_RENEWING;
 	return rv;
 }
 
@@ -347,11 +347,11 @@ ni_dhcp_fsm_rebind(ni_dhcp_device_t *dev)
 	ni_debug_dhcp("trying to rebind lease for %s", dev->ifname);
 	dev->lease->dhcp.serveraddress.s_addr = 0;
 
+	dev->fsm.state = NI_DHCP_STATE_REBINDING;
 	rv = ni_dhcp_device_send_message(dev, DHCP_REQUEST, dev->lease);
 
 	ni_dhcp_fsm_set_deadline(dev,
 			dev->lease->time_acquired + dev->lease->dhcp.lease_time);
-	dev->fsm.state = NI_DHCP_STATE_REBINDING;
 	return rv;
 }
 
