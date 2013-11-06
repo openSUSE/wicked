@@ -169,7 +169,6 @@ struct ni_dhcp6_device {
 
 	struct {
 	    uint32_t		xid;
-	    unsigned int	accept_any_offer : 1;
 	} dhcp6;
 	ni_buffer_t		message;
 

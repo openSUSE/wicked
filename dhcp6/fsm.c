@@ -47,7 +47,6 @@ static void             	__ni_dhcp6_fsm_timeout(void *, const ni_timer_t *);
 static void			ni_dhcp6_fsm_timer_cancel(ni_dhcp6_device_t *);
 
 static int			ni_dhcp6_fsm_solicit      (ni_dhcp6_device_t *);
-static int			__ni_dhcp6_fsm_solicit    (ni_dhcp6_device_t *, int);
 static int			__ni_dhcp6_fsm_release    (ni_dhcp6_device_t *, unsigned int);
 static int			ni_dhcp6_fsm_request_lease(ni_dhcp6_device_t *, const ni_addrconf_lease_t *);
 static int			ni_dhcp6_fsm_confirm_lease(ni_dhcp6_device_t *, const ni_addrconf_lease_t *);
@@ -56,6 +55,7 @@ static int			ni_dhcp6_fsm_rebind(ni_dhcp6_device_t *);
 static int			ni_dhcp6_fsm_decline(ni_dhcp6_device_t *);
 static int			ni_dhcp6_fsm_request_info (ni_dhcp6_device_t *);
 
+static int			ni_dhcp6_fsm_accept_offer(ni_dhcp6_device_t *dev);
 static int			ni_dhcp6_fsm_commit_lease (ni_dhcp6_device_t *, ni_addrconf_lease_t *);
 static int			ni_dhcp6_fsm_bound(ni_dhcp6_device_t *);
 
@@ -166,7 +166,7 @@ ni_dhcp6_fsm_retransmit(ni_dhcp6_device_t *dev)
 {
 	switch (dev->fsm.state) {
 	case NI_DHCP6_STATE_SELECTING:
-		return __ni_dhcp6_fsm_solicit(dev, 0);
+		return ni_dhcp6_fsm_solicit(dev);
 
 	case NI_DHCP6_STATE_REQUESTING:
 		return ni_dhcp6_fsm_request_lease(dev, dev->best_offer.lease);
@@ -239,7 +239,6 @@ __ni_dhcp6_fsm_timeout(void *user_data, const ni_timer_t *timer)
 	ni_dhcp6_fsm_timeout(dev);
 }
 
-
 static void
 ni_dhcp6_fsm_timeout(ni_dhcp6_device_t *dev)
 {
@@ -281,17 +280,8 @@ ni_dhcp6_fsm_timeout(ni_dhcp6_device_t *dev)
 
 	case NI_DHCP6_STATE_SELECTING:
 
-		/* the weight has maximum value, just accept this offer */
 		if (dev->best_offer.lease) {
-			ni_dhcp6_device_retransmit_disarm(dev);
-
-			if (dev->best_offer.lease->dhcp6.rapid_commit) {
-				ni_dhcp6_fsm_commit_lease(dev, dev->best_offer.lease);
-				dev->best_offer.lease = NULL;
-				dev->best_offer.weight = -1;
-			} else {
-				ni_dhcp6_fsm_request_lease(dev, dev->best_offer.lease);
-			}
+			ni_dhcp6_fsm_accept_offer(dev);
 		}
 		break;
 
@@ -417,7 +407,6 @@ __fsm_select_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, n
 							&weight)) {
 			weight = msg->lease->dhcp6.server_pref;
 		}
-
 		if (weight < 0) {
 			ni_string_printf(hint, "blacklisted server");
 			goto cleanup;
@@ -429,16 +418,25 @@ __fsm_select_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, n
 			dev->best_offer.weight = weight;
 			dev->best_offer.lease = msg->lease;
 			msg->lease = NULL;
-		} else {
+			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+					"recorded regular offer with weight %d",
+					dev->best_offer.weight);
+		} else if (!dev->best_offer.lease) {
+			ni_string_printf(hint, "unacceptable regular offer with weight %d",
+						weight);
 			goto cleanup;
 		}
 
-		/* the weight has maximum value, just accept this offer */
-		if (dev->best_offer.weight >= 255) {
-			ni_dhcp6_fsm_timer_cancel(dev);
-			ni_dhcp6_device_retransmit_disarm(dev);
-
-			ni_dhcp6_fsm_request_lease(dev, dev->best_offer.lease);
+		if (dev->best_offer.lease) {
+			/* if the weight has maximum value, just accept this offer */
+			if (dev->best_offer.weight >= 255) {
+				ni_dhcp6_fsm_timer_cancel(dev);
+				rv = ni_dhcp6_fsm_accept_offer(dev);
+			} else {
+				ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+						"waiting for better offers than weight %d",
+						dev->best_offer.weight);
+			}
 		}
 		rv = 0;
 	break;
@@ -485,18 +483,25 @@ __fsm_select_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, n
 			dev->best_offer.weight = weight;
 			dev->best_offer.lease = msg->lease;
 			msg->lease = NULL;
-		} else {
+			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+					"recorded rapid-commit offer with weight %d",
+					dev->best_offer.weight);
+		} else if (!dev->best_offer.lease) {
+			ni_string_printf(hint, "unacceptable rapid-commmit offer with weight %d",
+						weight);
 			goto cleanup;
 		}
 
-		/* the weight has maximum value, just accept this lease */
-		if (dev->best_offer.weight >= 255) {
-			ni_dhcp6_fsm_timer_cancel(dev);
-			ni_dhcp6_device_retransmit_disarm(dev);
-
-			ni_dhcp6_fsm_commit_lease(dev, dev->best_offer.lease);
-			dev->best_offer.lease = NULL;
-			dev->best_offer.weight = -1;
+		if (dev->best_offer.lease) {
+			/* if the weight has maximum value, just accept this offer */
+			if (dev->best_offer.weight >= 255) {
+				ni_dhcp6_fsm_timer_cancel(dev);
+				rv = ni_dhcp6_fsm_accept_offer(dev);
+			} else {
+				ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+						"waiting for better offers than weight %d",
+						dev->best_offer.weight);
+			}
 		}
 		rv = 0;
 	break;
@@ -1003,13 +1008,7 @@ ni_dhcp6_fsm_process_client_message(ni_dhcp6_device_t *dev, unsigned int msg_typ
 static int
 ni_dhcp6_fsm_solicit(ni_dhcp6_device_t *dev)
 {
-	return __ni_dhcp6_fsm_solicit(dev, 1);
-}
-
-static int
-__ni_dhcp6_fsm_solicit(ni_dhcp6_device_t *dev, int scan_offers)
-{
-	ni_addrconf_lease_t *lease;
+	ni_addrconf_lease_t *lease = NULL;
 	int rv = -1;
 
 	/*
@@ -1024,38 +1023,45 @@ __ni_dhcp6_fsm_solicit(ni_dhcp6_device_t *dev, int scan_offers)
 	 *
 	 * If not, create a dummy lease with NULL fields.
 	 */
-	if ((lease = dev->lease) == NULL) {
-		lease = ni_addrconf_lease_new(NI_ADDRCONF_DHCP, AF_INET6);
-
-		/* TODO: add addrs from interface as hint */
-	}
-
 	if (dev->retrans.count == 0) {
 		ni_debug_dhcp("%s: Initiating DHCPv6 Server Solicitation",
 				dev->ifname);
 
+		if ((lease = dev->lease) == NULL) {
+			lease = ni_addrconf_lease_new(NI_ADDRCONF_DHCP, AF_INET6);
+
+			/* TODO: add addrs from interface as hint */
+		}
+
 		dev->dhcp6.xid = 0;
+		ni_dhcp6_device_drop_best_offer(dev);
 		if (ni_dhcp6_init_message(dev, NI_DHCP6_SOLICIT, lease) != 0)
 			goto cleanup;
 
 		dev->fsm.state = NI_DHCP6_STATE_SELECTING;
 
-		/* FIXME: */
-		dev->dhcp6.accept_any_offer = scan_offers;
-
 		rv = ni_dhcp6_device_transmit_init(dev);
-	} else {
+	} else
+	if (dev->best_offer.lease == NULL) {
 		ni_debug_dhcp("%s: Retransmitting DHCPv6 Server Solicitation",
 				dev->ifname);
+
+		if ((lease = dev->lease) == NULL) {
+			lease = ni_addrconf_lease_new(NI_ADDRCONF_DHCP, AF_INET6);
+
+			/* TODO: add addrs from interface as hint */
+		}
 
 		if (ni_dhcp6_build_message(dev, NI_DHCP6_SOLICIT, &dev->message, lease) != 0)
 			goto cleanup;
 
 		rv = ni_dhcp6_device_transmit(dev);
+	} else {
+		rv = ni_dhcp6_fsm_accept_offer(dev);
 	}
 
 cleanup:
-	if (lease != dev->lease) {
+	if (lease && lease != dev->lease) {
 		ni_addrconf_lease_free(lease);
 	}
 	return rv;
@@ -1105,7 +1111,6 @@ ni_dhcp6_fsm_request_info(ni_dhcp6_device_t *dev)
 			return -1;
 
 		dev->fsm.state = NI_DHCP6_STATE_REQUESTING_INFO;
-		dev->dhcp6.accept_any_offer = 1;
 
 		rv = ni_dhcp6_device_transmit_init(dev);
 	} else if (dev->fsm.state == NI_DHCP6_STATE_REQUESTING_INFO) {
@@ -1332,6 +1337,25 @@ ni_dhcp6_fsm_release(ni_dhcp6_device_t *dev)
 	} else {
 		return ni_dhcp6_fsm_commit_lease(dev, NULL);
 	}
+}
+
+static int
+ni_dhcp6_fsm_accept_offer(ni_dhcp6_device_t *dev)
+{
+	ni_assert(dev->best_offer.lease);
+
+	ni_debug_dhcp("accepting best offer with weight %d from server %s",
+			dev->best_offer.weight,
+			ni_duid_print_hex(&dev->best_offer.lease->dhcp6.server_id));
+
+	ni_dhcp6_device_retransmit_disarm(dev);
+	if (dev->best_offer.lease->dhcp6.rapid_commit) {
+		ni_dhcp6_fsm_commit_lease(dev, dev->best_offer.lease);
+		dev->best_offer.lease = NULL;
+		dev->best_offer.weight = -1;
+		return 0;
+	}
+	return ni_dhcp6_fsm_request_lease(dev, dev->best_offer.lease);
 }
 
 static int
