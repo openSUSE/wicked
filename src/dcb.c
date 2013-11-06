@@ -363,6 +363,7 @@ __ni_dcb_getdcb(const char *ifname, int cmd, struct nlattr **attrs, unsigned int
 	struct nl_msg *msg;
 	struct nlmsghdr *nlh;
 	struct nlattr *nla;
+	int err = -NLE_NOMEM;
 
 	ni_nlmsg_list_init(&nlmsg_list);
 	memset(attrs, 0, max_attrs * sizeof(attrs[0]));
@@ -372,7 +373,9 @@ __ni_dcb_getdcb(const char *ifname, int cmd, struct nlattr **attrs, unsigned int
 	dcb.dcb_family = AF_UNSPEC;
 
 	msg = nlmsg_alloc_simple(RTM_GETDCB, NLM_F_REQUEST);
-	if (nlmsg_append(msg, &dcb, sizeof(dcb), NLMSG_ALIGNTO) < 0)
+	if (!msg)
+		goto failed;
+	if ((err = nlmsg_append(msg, &dcb, sizeof(dcb), NLMSG_ALIGNTO)) < 0)
 		goto failed;
 
 	NLA_PUT_STRING(msg, DCB_ATTR_IFNAME, ifname);
@@ -382,11 +385,12 @@ __ni_dcb_getdcb(const char *ifname, int cmd, struct nlattr **attrs, unsigned int
 		nla_nest_end(msg, nla);
 	}
 
-	if (ni_nl_talk(msg, &nlmsg_list) < 0) {
-		ni_error("%s: RTM_GETDCB error", ifname);
+	if ((err = ni_nl_talk(msg, &nlmsg_list)) < 0) {
+		ni_debug_socket("%s: RTM_GETDCB error: %s", ifname,  nl_geterror(err));
 		goto failed;
 	}
 
+	err = -NLE_PARSE_ERR;
 	if (nlmsg_list.head == NULL) {
 		ni_error("%s: empty response from kernel", ifname);
 		goto failed;
@@ -400,7 +404,7 @@ __ni_dcb_getdcb(const char *ifname, int cmd, struct nlattr **attrs, unsigned int
 		goto failed;
 	}
 
-	if (nlmsg_parse(nlh, sizeof(struct dcbmsg), attrs, max_attrs, NULL) < 0) {
+	if ((err = nlmsg_parse(nlh, sizeof(struct dcbmsg), attrs, max_attrs, NULL)) < 0) {
 		ni_error("%s: unable to parse RTM_GETDCB reply", ifname);
 		goto failed;
 	}
@@ -413,7 +417,7 @@ nla_put_failure: ;
 failed:
 	ni_nlmsg_list_destroy(&nlmsg_list);
 	nlmsg_free(msg);
-	return -1;
+	return err;
 }
 
 int
