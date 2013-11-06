@@ -473,9 +473,9 @@ __ni_nl_talk(ni_netlink_t *nl, struct nl_msg *msg,
 		return -1;
 	}
 
-	if (nl_send_auto(nl_sock, msg) < 0) {
-		ni_error("%s: unable to send", __func__);
-		return -1;
+	if ((err = nl_send_auto(nl_sock, msg)) < 0) {
+		ni_error("%s: unable to send: %s", __func__, nl_geterror(err));
+		return err;
 	}
 
 	if (!(cb = __ni_nl_cb_clone(nl)))
