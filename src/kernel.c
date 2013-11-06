@@ -460,7 +460,7 @@ __ni_nl_cb_clone(ni_netlink_t *nl)
 /*
  * Handle a message exchange with the netlink layer.
  */
-int
+static int
 __ni_nl_talk(ni_netlink_t *nl, struct nl_msg *msg,
 		int (*valid_handler)(struct nl_msg *, void *), void *user_data)
 {
