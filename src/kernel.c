@@ -479,7 +479,7 @@ __ni_nl_talk(ni_netlink_t *nl, struct nl_msg *msg,
 	}
 
 	if (!(cb = __ni_nl_cb_clone(nl)))
-		return -1;
+		return -NLE_NOMEM;
 
 	nl_cb_err(cb, NL_CB_CUSTOM, __ni_nl_error_handler, &err);
 	nl_cb_set(cb, NL_CB_ACK, NL_CB_CUSTOM, __ni_nl_ack_handler, &ack);
@@ -606,7 +606,7 @@ ni_nl_dump_store(int af, int type, struct ni_nlmsg_list *list)
 	}
 
 	if (!(cb = __ni_nl_cb_clone(__ni_global_netlink)))
-		return -1;
+		return -NLE_NOMEM;
 
 	nl_cb_set(cb, NL_CB_VALID, NL_CB_CUSTOM, __ni_nl_dump_valid, &data);
 
