@@ -817,7 +817,7 @@ __ni_config_parse_ifconfig_source(ni_string_array_t *sources, xml_node_t *node)
 		const char **p = __ni_ifconfig_source_types;
 		for (i = 0; p[i]; i++) {
 			if (!strncasecmp(attrval, p[i], ni_string_len(p[i]))) {
-				ni_debug_readwrite("%s: Adding ifconfig %s\n", __func__, attrval);
+				ni_debug_readwrite("%s: Adding ifconfig %s", __func__, attrval);
 				ni_string_array_append(sources, attrval);
 				return TRUE;
 			}
