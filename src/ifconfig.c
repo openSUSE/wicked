@@ -1109,11 +1109,11 @@ __ni_rtnl_simple(int msgtype, unsigned int flags, void *data, size_t len)
 
 	msg = nlmsg_alloc_simple(msgtype, flags);
 
-	if (nlmsg_append(msg, data, len, NLMSG_ALIGNTO) < 0) {
-		ni_error("%s: nlmsg_append failed", __func__);
+	if ((rv = nlmsg_append(msg, data, len, NLMSG_ALIGNTO)) < 0) {
+		ni_error("%s: nlmsg_append failed: %s", __func__,  nl_geterror(rv));
 	} else
-	if (ni_nl_talk(msg, NULL) < 0) {
-		ni_debug_ifconfig("%s: rtnl_talk failed", __func__);
+	if ((rv = ni_nl_talk(msg, NULL)) < 0) {
+		ni_debug_ifconfig("%s: rtnl_talk failed: %s", __func__,  nl_geterror(rv));
 	} else {
 		rv = 0; /* success */
 	}
@@ -1338,9 +1338,9 @@ __ni_rtnl_send_newaddr(ni_netdev_t *dev, const ni_address_t *ap, int flags)
 	}
 
 	if ((err = ni_nl_talk(msg, NULL)) < 0 && err != -NLE_EXIST) {
-		ni_error("%s(%s/%u): ni_nl_talk failed [%d]", __func__,
+		ni_error("%s(%s/%u): ni_nl_talk failed [%s]", __func__,
 				ni_sockaddr_print(&ap->local_addr),
-				ap->prefixlen, err);
+				ap->prefixlen,  nl_geterror(err));
 		goto failed;
 	}
 
@@ -1359,6 +1359,7 @@ __ni_rtnl_send_deladdr(ni_netdev_t *dev, const ni_address_t *ap)
 {
 	struct ifaddrmsg ifa;
 	struct nl_msg *msg;
+	int err;
 
 	ni_debug_ifconfig("%s(%s/%u)", __FUNCTION__, ni_sockaddr_print(&ap->local_addr), ap->prefixlen);
 
@@ -1382,10 +1383,10 @@ __ni_rtnl_send_deladdr(ni_netdev_t *dev, const ni_address_t *ap)
 			goto nla_put_failure;
 	}
 
-	if (ni_nl_talk(msg, NULL) < 0) {
-		ni_error("%s(%s/%u): rtnl_talk failed", __func__,
+	if ((err = ni_nl_talk(msg, NULL)) < 0) {
+		ni_error("%s(%s/%u): rtnl_talk failed: %s", __func__,
 				ni_sockaddr_print(&ap->local_addr),
-				ap->prefixlen);
+				ap->prefixlen,  nl_geterror(err));
 		goto failed;
 	}
 
@@ -1565,8 +1566,8 @@ __ni_rtnl_send_newroute(ni_netdev_t *dev, ni_route_t *rp, int flags)
 
 	if ((err = ni_nl_talk(msg, NULL)) < 0 && err != -NLE_EXIST) {
 		ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
-		ni_error("%s(%s): ni_nl_talk failed [%d]", __FUNCTION__,
-				ni_route_print(&buf, rp), err);
+		ni_error("%s(%s): ni_nl_talk failed [%s]", __FUNCTION__,
+				ni_route_print(&buf, rp),  nl_geterror(err));
 		ni_stringbuf_destroy(&buf);
 		goto failed;
 	}
