@@ -493,7 +493,7 @@ __ni_nl_talk(ni_netlink_t *nl, struct nl_msg *msg,
 	/* libnl sets NLM_F_ACK per default, wait for ack before proceeding */
 	do {
 		if ((err = nl_recvmsgs(nl_sock, cb)) < 0) {
-			ni_error("%s: recv failed: %s", __func__, nl_geterror(err));
+			ni_debug_socket("%s: recv failed: %s", __func__, nl_geterror(err));
 			break;
 		}
 	} while (ack == 0);
