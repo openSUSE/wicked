@@ -13,11 +13,15 @@
 #include <string.h>
 #include <syslog.h>
 #include <unistd.h>
+#include <sys/time.h>
+#include <time.h>
 
 #include <wicked/logging.h>
 #include <wicked/util.h>
 #include "util_priv.h"
 
+#define NI_LOG_PID	(1 << 0)
+#define NI_LOG_TIME	(1 << 1)
 #define NI_TRACE_MINI	(NI_TRACE_IFCONFIG | NI_TRACE_READWRITE)
 #define NI_TRACE_MOST	~(NI_TRACE_XPATH | NI_TRACE_WICKED_XML | NI_TRACE_DBUS)
 #define NI_TRACE_ALL	~0U
@@ -316,8 +320,9 @@ ni_bool_t
 __ni_stderr_parse_args(const char *args, unsigned int *options)
 {
 	static const ni_intmap_t option_map[] = {
-		{ "pid",	LOG_PID	},
-		{ NULL,		0	}
+		{ "pid",	NI_LOG_PID	},
+		{ "time",	NI_LOG_TIME	},
+		{ NULL,		0		}
 	};
 	return __ni_parse_flag_options(option_map, args, options);
 }
@@ -419,7 +424,28 @@ ni_log_destination(const char *progname, const char *destination)
 static inline void
 __ni_log_stderr(const char *tag, const char *fmt, va_list ap, const char *end)
 {
-	if (ni_log_opts & LOG_PID)
+	/* rfc5424 / rfc3339 timestamp with ms precision, e.g.:
+	 * 	2013-11-07T19:29:38.663870+01:00
+	 */
+	if (ni_log_opts & NI_LOG_TIME) {
+		struct timeval tv;
+		struct tm lt;
+		char tzsign;
+
+		gettimeofday(&tv, NULL);
+		localtime_r(&tv.tv_sec, &lt);
+		if (lt.tm_gmtoff < 0) {
+			lt.tm_gmtoff *= -1;
+			tzsign = '-';
+		} else {
+			tzsign = '+';
+		}
+		fprintf(stderr, "%04d-%02d-%02dT%02d:%02d:%02d.%06ld%c%02ld:%02ld ",
+				lt.tm_year + 1900, lt.tm_mon + 1, lt.tm_mday,
+				lt.tm_hour, lt.tm_min, lt.tm_sec, tv.tv_usec,
+				tzsign, lt.tm_gmtoff/3600, (lt.tm_gmtoff%3600)/60);
+	}
+	if (ni_log_opts & NI_LOG_PID)
 		fprintf(stderr, "[%d] ", getpid());
 	fprintf(stderr, "%s", tag);
 	vfprintf(stderr, fmt, ap);
