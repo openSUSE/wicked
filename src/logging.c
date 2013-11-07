@@ -22,6 +22,7 @@
 
 #define NI_LOG_PID	(1 << 0)
 #define NI_LOG_TIME	(1 << 1)
+#define NI_LOG_IDENT	(1 << 2)
 #define NI_TRACE_MINI	(NI_TRACE_IFCONFIG | NI_TRACE_READWRITE)
 #define NI_TRACE_MOST	~(NI_TRACE_XPATH | NI_TRACE_WICKED_XML | NI_TRACE_DBUS)
 #define NI_TRACE_ALL	~0U
@@ -322,6 +323,7 @@ __ni_stderr_parse_args(const char *args, unsigned int *options)
 	static const ni_intmap_t option_map[] = {
 		{ "pid",	NI_LOG_PID	},
 		{ "time",	NI_LOG_TIME	},
+		{ "ident",	NI_LOG_IDENT	},
 		{ NULL,		0		}
 	};
 	return __ni_parse_flag_options(option_map, args, options);
@@ -381,7 +383,7 @@ ni_log_destination_stderr(const char *progname, const char *args)
 {
 	ni_log_close();
 
-	(void)progname;
+	ni_log_ident = progname;
 	if (!__ni_stderr_parse_args(args ? args : "", &ni_log_opts))
 		return FALSE;
 	return TRUE;
@@ -445,8 +447,16 @@ __ni_log_stderr(const char *tag, const char *fmt, va_list ap, const char *end)
 				lt.tm_hour, lt.tm_min, lt.tm_sec, tv.tv_usec,
 				tzsign, lt.tm_gmtoff/3600, (lt.tm_gmtoff%3600)/60);
 	}
-	if (ni_log_opts & NI_LOG_PID)
-		fprintf(stderr, "[%d] ", getpid());
+
+	if (ni_log_opts & NI_LOG_PID) {
+		if (ni_log_opts & NI_LOG_IDENT)
+			fprintf(stderr, "%s[%d]: ", ni_log_ident, getpid());
+		else
+			fprintf(stderr, "[%d]: ", getpid());
+	} else if (ni_log_opts & NI_LOG_IDENT) {
+		fprintf(stderr, "%s: ", ni_log_ident);
+	}
+
 	fprintf(stderr, "%s", tag);
 	vfprintf(stderr, fmt, ap);
 	fprintf(stderr, "%s\n", end);
