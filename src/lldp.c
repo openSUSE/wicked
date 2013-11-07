@@ -209,8 +209,7 @@ ni_lldp_peer_new(const void *raw_id, unsigned int raw_id_len)
 static void
 ni_lldp_peer_free(ni_lldp_peer_t *peer)
 {
-	if (peer->data)
-		ni_lldp_free(peer->data);
+	ni_lldp_free(peer->data);
 	free(peer);
 }
 static void
@@ -343,8 +342,7 @@ void
 ni_lldp_agent_free(ni_lldp_agent_t *agent)
 {
 	ni_capture_free(agent->capture);
-	if (agent->config)
-		ni_lldp_free(agent->config);
+	ni_lldp_free(agent->config);
 	if (agent->txTTR)
 		ni_timer_cancel(agent->txTTR);
 	if (agent->dev)
@@ -428,8 +426,7 @@ ni_lldp_agent_configure(ni_lldp_agent_t *agent, ni_netdev_t *dev, ni_lldp_t *lld
 		dcbx->running = (lldp->destination == NI_LLDP_DEST_NEAREST_BRIDGE);
 	}
 
-	if (agent->config)
-		ni_lldp_free(agent->config);
+	ni_lldp_free(agent->config);
 	agent->config = lldp;
 	agent->dcbx = dcbx;
 	return 0;
