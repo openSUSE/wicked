@@ -640,9 +640,8 @@ ni_capture_open(const ni_capture_devinfo_t *devinfo, const ni_capture_protinfo_t
 	return capture;
 
 failed:
-	if (capture)
-		ni_capture_free(capture);
-	else if (fd >= 0)
+	ni_capture_free(capture);
+	if (fd >= 0)
 		close(fd);
 	return NULL;
 }
@@ -727,6 +726,8 @@ ni_capture_send(ni_capture_t *capture, const ni_buffer_t *buf, const ni_timeout_
 void
 ni_capture_free(ni_capture_t *capture)
 {
+	if (!capture)
+		return;
 	if (capture->sock)
 		ni_socket_close(capture->sock);
 	if (capture->buffer)

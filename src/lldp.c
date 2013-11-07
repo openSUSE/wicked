@@ -342,8 +342,7 @@ ni_lldp_agent_new(ni_netdev_t *dev, unsigned int mtu)
 void
 ni_lldp_agent_free(ni_lldp_agent_t *agent)
 {
-	if (agent->capture)
-		ni_capture_free(agent->capture);
+	ni_capture_free(agent->capture);
 	if (agent->config)
 		ni_lldp_free(agent->config);
 	if (agent->txTTR)

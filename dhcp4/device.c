@@ -77,8 +77,7 @@ ni_dhcp_device_by_index(unsigned int ifindex)
 static void
 ni_dhcp_device_close(ni_dhcp_device_t *dev)
 {
-	if (dev->capture)
-		ni_capture_free(dev->capture);
+	ni_capture_free(dev->capture);
 	dev->capture = NULL;
 
 	if (dev->listen_fd >= 0)

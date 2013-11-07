@@ -625,8 +625,7 @@ ni_dhcp_process_ack(ni_dhcp_device_t *dev, ni_addrconf_lease_t *lease)
 int
 ni_dhcp_fsm_commit_lease(ni_dhcp_device_t *dev, ni_addrconf_lease_t *lease)
 {
-        if (dev->capture)
-		ni_capture_free(dev->capture);
+	ni_capture_free(dev->capture);
 	dev->capture = NULL;
 
 	if (lease) {
@@ -747,8 +746,7 @@ ni_dhcp_fsm_fail_lease(ni_dhcp_device_t *dev)
 	ni_debug_dhcp("%s: failing lease", dev->ifname);
 
 	ni_dhcp_fsm_restart(dev);
-        if (dev->capture)
-		ni_capture_free(dev->capture);
+	ni_capture_free(dev->capture);
 	dev->capture = NULL;
 
 	ni_dhcp_device_set_lease(dev, NULL);
