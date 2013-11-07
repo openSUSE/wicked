@@ -460,7 +460,7 @@ __ni_nl_cb_clone(ni_netlink_t *nl)
 /*
  * Handle a message exchange with the netlink layer.
  */
-int
+static int
 __ni_nl_talk(ni_netlink_t *nl, struct nl_msg *msg,
 		int (*valid_handler)(struct nl_msg *, void *), void *user_data)
 {
@@ -473,13 +473,13 @@ __ni_nl_talk(ni_netlink_t *nl, struct nl_msg *msg,
 		return -1;
 	}
 
-	if (nl_send_auto(nl_sock, msg) < 0) {
-		ni_error("%s: unable to send", __func__);
-		return -1;
+	if ((err = nl_send_auto(nl_sock, msg)) < 0) {
+		ni_error("%s: unable to send: %s", __func__, nl_geterror(err));
+		return err;
 	}
 
 	if (!(cb = __ni_nl_cb_clone(nl)))
-		return -1;
+		return -NLE_NOMEM;
 
 	nl_cb_err(cb, NL_CB_CUSTOM, __ni_nl_error_handler, &err);
 	nl_cb_set(cb, NL_CB_ACK, NL_CB_CUSTOM, __ni_nl_ack_handler, &ack);
@@ -493,7 +493,7 @@ __ni_nl_talk(ni_netlink_t *nl, struct nl_msg *msg,
 	/* libnl sets NLM_F_ACK per default, wait for ack before proceeding */
 	do {
 		if ((err = nl_recvmsgs(nl_sock, cb)) < 0) {
-			ni_error("%s: recv failed: %s", __func__, nl_geterror(err));
+			ni_debug_socket("%s: recv failed: %s", __func__, nl_geterror(err));
 			break;
 		}
 	} while (ack == 0);
@@ -606,7 +606,7 @@ ni_nl_dump_store(int af, int type, struct ni_nlmsg_list *list)
 	}
 
 	if (!(cb = __ni_nl_cb_clone(__ni_global_netlink)))
-		return -1;
+		return -NLE_NOMEM;
 
 	nl_cb_set(cb, NL_CB_VALID, NL_CB_CUSTOM, __ni_nl_dump_valid, &data);
 
