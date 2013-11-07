@@ -414,8 +414,7 @@ ni_netdev_get_lldp(ni_netdev_t *dev)
 void
 ni_netdev_set_lldp(ni_netdev_t *dev, ni_lldp_t *lldp)
 {
-	if (dev->lldp)
-		ni_lldp_free(dev->lldp);
+	ni_lldp_free(dev->lldp);
 	dev->lldp = lldp;
 }
 

@@ -50,8 +50,7 @@ ni_arp_socket_open(const ni_capture_devinfo_t *dev_info, ni_arp_callback_t *call
 void
 ni_arp_socket_close(ni_arp_socket_t *arph)
 {
-	if (arph->capture)
-		ni_capture_free(arph->capture);
+	ni_capture_free(arph->capture);
 	free(arph);
 }
 
