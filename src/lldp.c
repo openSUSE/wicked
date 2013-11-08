@@ -312,7 +312,7 @@ ni_system_lldp_down(ni_netdev_t *dev)
 	return 0;
 }
 
-ni_lldp_agent_t *
+static ni_lldp_agent_t *
 ni_lldp_agent_new(ni_netdev_t *dev, unsigned int mtu)
 {
 	ni_lldp_agent_t *agent;
