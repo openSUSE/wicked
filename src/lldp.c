@@ -979,6 +979,7 @@ ni_lldp_tlv_get_string(ni_buffer_t *bp, char **var)
 		return -1;
 	memcpy(string, ni_buffer_head(bp), len);
 	string[len] = '\0';
+	*var = string;
 
 	ni_buffer_pull_head(bp, len); /* consume the buffer */
 	return 0;
