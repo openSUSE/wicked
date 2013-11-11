@@ -18,6 +18,7 @@ wicked_include_HEADERS		= \
 	wicked/dcb.h		\
 	wicked/ethernet.h	\
 	wicked/fsm.h		\
+	wicked/ifstate.h        \
 	wicked/infiniband.h	\
 	wicked/ipv4.h		\
 	wicked/ipv6.h		\
