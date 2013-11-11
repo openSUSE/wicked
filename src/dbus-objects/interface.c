@@ -875,6 +875,11 @@ ni_objectmodel_netif_set_ifstate(ni_dbus_object_t *object, const ni_dbus_method_
 	}
 
 	ni_netdev_set_ifstate(dev, ifstate);
+	if (ni_netdev_get_ifstate(dev)) {
+		ni_ifstate_save(ifstate, dev->name);
+		ni_debug_dbus("saving ifstate structure into a file for %s", dev->name);
+	}
+
 	return TRUE;
 }
 

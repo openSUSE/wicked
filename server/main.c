@@ -265,8 +265,10 @@ discover_state(ni_dbus_server_t *server)
 		ni_fatal("failed to discover interface state");
 
 	if (server) {
-		for (ifp = ni_netconfig_devlist(nc); ifp; ifp = ifp->next)
+		for (ifp = ni_netconfig_devlist(nc); ifp; ifp = ifp->next) {
 			ni_objectmodel_register_netif(server, ifp, NULL);
+			ni_netdev_load_ifstate(ifp);
+		}
 
 		for (modem = ni_netconfig_modem_list(nc); modem; modem = modem->list.next)
 			ni_objectmodel_register_modem(server, modem);

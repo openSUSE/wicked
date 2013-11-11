@@ -423,6 +423,21 @@ ni_netdev_get_ifstate(ni_netdev_t *dev)
 	return dev ? dev->ifstate : NULL;
 }
 
+void
+ni_netdev_load_ifstate(ni_netdev_t *dev)
+{
+	ni_ifstate_t ifstate;
+
+	if (!ni_netdev_get_ifstate(dev)) {
+		if (ni_ifstate_load(&ifstate, dev->name)) {
+			ni_netdev_set_ifstate(dev, ni_ifstate_new(0));
+			*(dev->ifstate) = ifstate;
+			ni_debug_ifconfig("loading ifstate structure from a file for %s",
+				dev->name);
+		}
+	}
+}
+
 /*
  * Set the interface's lldp info
  */
