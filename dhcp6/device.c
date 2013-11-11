@@ -114,7 +114,6 @@ ni_dhcp6_device_new(const char *ifname, const ni_linkinfo_t *link)
 	/* FIXME: for now, we always generate one */
 	ni_dhcp6_device_iaid(dev, &dev->iaid);
 
-	ni_timer_get_time(&dev->start_time);
 	dev->fsm.state = NI_DHCP6_STATE_INIT;
 
 	/* append to end of list */
@@ -299,7 +298,6 @@ ni_dhcp6_device_drop_lease(ni_dhcp6_device_t *dev)
 	ni_addrconf_lease_t *lease;
 
 	if ((lease = dev->lease) != NULL) {
-		ni_addrconf_lease_file_remove(dev->ifname, lease->type, lease->family);
 		ni_addrconf_lease_free(lease);
 		dev->lease = NULL;
 	}
@@ -898,8 +896,12 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *req, char **e
 	config->uuid = req->uuid;
 	config->mode = req->mode;
 	config->update = req->update;
-	config->rapid_commit = req->rapid_commit;
+	config->dry_run = req->dry_run;
+	config->rapid_commit = !config->dry_run ? req->rapid_commit : FALSE;
+
 	config->lease_time = NI_DHCP6_PREFERRED_LIFETIME;
+	config->acquire_timeout = req->acquire_timeout;
+	ni_timer_get_time(&dev->start_time);
 
 	/*
          * Make sure we have a DUID for client-id
@@ -966,15 +968,18 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *req, char **e
 		/* OK, let's look if device already has a mode */
 		ni_dhcp6_device_update_mode(dev, NULL);
 		if (config->mode == NI_DHCP6_MODE_AUTO) {
-			unsigned int timeout = req->acquire_timeout;
+			unsigned int timeout = config->acquire_timeout;
 
 			/*
 			 * set timer to provide dummy lease to wicked
 			 * when there is no IPv6 RA on the network or
 			 * DHCPv6 is not used.
 			 */
-			timeout = timeout > 5 ? timeout - 1 : 5;
-			ni_dhcp6_fsm_set_timeout_msec(dev, timeout * 1000);
+			if (timeout > 5)
+				timeout = ((timeout - 1) * 1000) + 500;
+			else
+				timeout = 5000;
+			ni_dhcp6_fsm_set_timeout_msec(dev, timeout);
 		}
 	}
 
