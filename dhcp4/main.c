@@ -25,9 +25,13 @@
 #include <wicked/socket.h>
 #include <wicked/wireless.h>
 #include <wicked/objectmodel.h>
+#include <wicked/xml.h>
+#include <wicked/leaseinfo.h>
+
 #include "dhcp4/dhcp.h"
 
 enum {
+	/* common */
 	OPT_HELP,
 	OPT_VERSION,
 	OPT_CONFIGFILE,
@@ -35,8 +39,14 @@ enum {
 	OPT_LOG_LEVEL,
 	OPT_LOG_TARGET,
 
+	/* specific */
 	OPT_FOREGROUND,
 	OPT_NORECOVER,
+
+	/* test run */
+	OPT_TEST,
+	OPT_TEST_TIMEOUT,
+	OPT_TEST_REQUEST,
 };
 
 static struct option	options[] = {
@@ -54,7 +64,12 @@ static struct option	options[] = {
 	/* specific */
 	{ "no-recovery",	no_argument,		NULL,	OPT_NORECOVER },
 
-	{ NULL }
+	/* test run */
+	{ "test",		no_argument,		NULL,	OPT_TEST         },
+	{ "test-request",	required_argument,	NULL,	OPT_TEST_REQUEST },
+	{ "test-timeout",	required_argument,	NULL,	OPT_TEST_TIMEOUT },
+
+	{ NULL,			no_argument,		NULL,	0 }
 };
 
 static const char *	program_name;
@@ -74,15 +89,23 @@ static void		dhcp4_protocol_event(enum ni_dhcp_event, const ni_dhcp_device_t *, 
 // Hack
 extern ni_dbus_object_t *ni_objectmodel_register_dhcp4_device(ni_dbus_server_t *, ni_dhcp_device_t *);
 
+static int		dhcp4_test_status;
+static int		dhcp4_test_run(const char *ifname, const char *request,	unsigned int timeout);
+
 int
 main(int argc, char **argv)
 {
+	unsigned int opt_test_run = 0;
+	unsigned int opt_test_timeout = -1U;
+	const char * opt_test_request = NULL;
+	const char * opt_test_ifname = NULL;
 	int c;
 
 	program_name = ni_basename(argv[0]);
 
 	while ((c = getopt_long(argc, argv, "+", options, NULL)) != EOF) {
 		switch (c) {
+		/* common */
 		case OPT_HELP:
 		default:
 		usage:
@@ -104,6 +127,11 @@ main(int argc, char **argv)
 				"        Do not background the service.\n"
 				"  --norecover\n"
 				"        Disable automatic recovery of leases.\n"
+				"\n"
+				"  --test [test-options] <ifname>\n"
+				"    test-options:\n"
+				"       --test-request <request.xml>\n"
+				"       --test-timeout <timeout in sec> (default: 10)\n"
 				, program_name);
 			return (c == OPT_HELP ? 0 : 1);
 
@@ -141,16 +169,44 @@ main(int argc, char **argv)
 			opt_log_target = optarg;
 			break;
 
+		/* daemon */
 		case OPT_FOREGROUND:
 			opt_foreground = 1;
 			break;
 
+		/* specific */
 		case OPT_NORECOVER:
 			opt_no_recover_leases = 1;
+			break;
+
+		/* test run */
+		case OPT_TEST:
+			opt_foreground = 1;
+			opt_no_recover_leases = 1;
+			opt_test_run = 1;
+			break;
+
+		case OPT_TEST_TIMEOUT:
+			if (!opt_test_run || ni_parse_uint(optarg, &opt_test_timeout, 0) < 0)
+				goto usage;
+			break;
+
+		case OPT_TEST_REQUEST:
+			if (!opt_test_run || ni_string_empty(optarg))
+				goto usage;
+			opt_test_request = optarg;
 			break;
 		}
 	}
 
+	if (opt_test_run) {
+		if (optind < argc && !ni_string_empty(argv[optind])) {
+			opt_test_ifname = argv[optind++];
+		} else {
+			fprintf(stderr, "Missing interface argument\n");
+			goto usage;
+		}
+	}
 	if (optind != argc)
 		goto usage;
 
@@ -160,6 +216,8 @@ main(int argc, char **argv)
 					opt_log_target);
 			return 1;
 		}
+	} else if (opt_foreground && opt_test_run) {
+		ni_log_destination(program_name, "stderr");
 	} else if (opt_foreground && getppid() != 1) {
 		ni_log_destination(program_name, "syslog::perror");
 	} else {
@@ -176,8 +234,177 @@ main(int argc, char **argv)
 		opt_state_file = dirname;
 	}
 
-	dhcp4_supplicant();
-	return 0;
+	/* We're using randomized timeouts. Seed the RNG */
+	ni_srandom();
+
+	if (opt_test_run) {
+		return dhcp4_test_run(opt_test_ifname, opt_test_request, opt_test_timeout);
+	} else {
+		dhcp4_supplicant();
+		return 0;
+	}
+}
+
+static void
+dhcp4_test_protocol_event(enum ni_dhcp_event ev, const ni_dhcp_device_t *dev,
+		ni_addrconf_lease_t *lease)
+{
+	ni_debug_dhcp("%s(ev=%u, dev=%s[%u], config-uuid=%s)", __func__, ev,
+			dev->ifname, dev->link.ifindex,
+			dev->config ? ni_uuid_print(&dev->config->uuid) : "<none>");
+
+	switch (ev) {
+	case NI_DHCP_EVENT_ACQUIRED:
+		if (lease && lease->state == NI_ADDRCONF_STATE_GRANTED) {
+			ni_leaseinfo_dump(stdout, lease, dev->ifname, NULL);
+			dhcp4_test_status = 0;
+		}
+		break;
+	default:
+		break;
+	}
+}
+
+static ni_bool_t
+dhcp4_test_req_xml_init(ni_dhcp4_request_t *req, xml_document_t *doc)
+{
+	xml_node_t *xml, *child;
+
+	xml = xml_document_root(doc);
+	if (xml && !xml->name && xml->children)
+		xml = xml->children;
+
+	/* TODO: parse using /ipv4:dhcp/request xml schema? */
+	if (!xml || !ni_string_eq(xml->name, "request")) {
+		ni_error("Invalid dhcp4 request xml '%s'",
+				xml ? xml_node_location(xml) : NULL);
+		return FALSE;
+	}
+
+	for (child = xml->children; child; child = child->next) {
+		if (ni_string_eq(child->name, "uuid")) {
+			if (ni_uuid_parse(&req->uuid, child->cdata) != 0)
+				goto failure;
+		} else
+		if (ni_string_eq(child->name, "acquire-timeout")) {
+			if (ni_parse_uint(child->cdata, &req->acquire_timeout, 10) != 0)
+				goto failure;
+		} else
+		if (ni_string_eq(child->name, "hostname")) {
+			if (!ni_check_domain_name(child->cdata, ni_string_len(child->cdata), 0))
+				goto failure;
+			ni_string_dup(&req->hostname, child->cdata);
+		} else
+		if (ni_string_eq(child->name, "clientid")) {
+			ni_opaque_t duid;
+
+			if (ni_parse_hex(child->cdata, duid.data, sizeof(duid.data)) <= 0)
+				goto failure;
+			ni_string_dup(&req->clientid, child->cdata);
+		}
+	}
+
+	return TRUE;
+failure:
+	if (child) {
+		ni_error("Cannot parse dhcp4 request '%s': %s",
+				child->name, xml_node_location(child));
+	}
+	return FALSE;
+}
+
+static ni_bool_t
+dhcp4_test_req_init(ni_dhcp4_request_t *req, const char *request)
+{
+	/* Apply some defaults */
+	req->acquire_timeout = 10;
+
+	if (!ni_string_empty(request)) {
+		xml_document_t *doc;
+
+		if (!(doc = xml_document_read(request))) {
+			ni_error("Cannot parse dhcp4 request xml '%s'", request);
+			return FALSE;
+		}
+
+		if (!dhcp4_test_req_xml_init(req, doc)) {
+			xml_document_free(doc);
+			return FALSE;
+		}
+		xml_document_free(doc);
+	}
+
+	/* Always enter dry run mode */
+	req->dry_run = TRUE;
+	if (ni_uuid_is_null(&req->uuid))
+		ni_uuid_generate(&req->uuid);
+
+	return TRUE;
+}
+
+static int
+dhcp4_test_run(const char *ifname, const char *request, unsigned int timeout)
+{
+	ni_netconfig_t *nc;
+	ni_netdev_t *ifp;
+	ni_dhcp_device_t *dev;
+	ni_dhcp4_request_t *req;
+	int rv;
+
+	dhcp4_test_status = 2;
+
+	if (!(nc = ni_global_state_handle(1)))
+		ni_fatal("Cannot refresh interface list!");
+
+	if (!(ifp = ni_netdev_by_name(nc, ifname)))
+		ni_fatal("Cannot find interface with name '%s'", ifname);
+
+	switch (ifp->link.arp_type) {
+	case ARPHRD_ETHER:
+		break;
+	default:
+		ni_fatal("Interface type not supported yet");
+		break;
+	}
+
+	if (!(dev = ni_dhcp_device_new(ifp->name, &ifp->link)))
+		ni_fatal("Cannot allocate dhcp4 client for '%s'", ifname);
+
+	ni_dhcp_set_event_handler(dhcp4_test_protocol_event);
+
+	if (!(req = ni_dhcp4_request_new())) {
+		ni_error("Cannot allocate dhcp4 request");
+		goto failure;
+	}
+
+	if (!dhcp4_test_req_init(req, request))
+		goto failure;
+
+	if (timeout != -1U)
+		req->acquire_timeout = timeout;
+
+	if ((rv = ni_dhcp_acquire(dev, req)) < 0) {
+		ni_error("%s: DHCPv6 acquire request %s failed: %s",
+				dev->ifname, ni_uuid_print(&req->uuid),
+				ni_strerror(rv));
+		goto failure;
+	}
+
+	while (!ni_caught_terminal_signal()) {
+		long timeout;
+
+		timeout = ni_timer_next_timeout();
+
+		if (ni_socket_wait(timeout) < 0)
+			break;
+	}
+	ni_server_deactivate_interface_events();
+	ni_socket_deactivate_all();
+
+failure:
+	ni_dhcp_device_put(dev);
+	ni_dhcp4_request_free(req);
+	return dhcp4_test_status;
 }
 
 /*
@@ -185,6 +412,7 @@ main(int argc, char **argv)
  * If we have any live leases, restart address configuration for them.
  * This allows a daemon restart without losing lease state.
  */
+
 #if 0 /* broken right now */
 void
 dhcp4_recover_lease(ni_netdev_t *ifp)
@@ -364,9 +592,6 @@ dhcp4_supplicant(void)
 		if (ni_server_background(program_name) < 0)
 			ni_fatal("unable to background server");
 	}
-
-	/* We're using randomized timeouts. Seed the RNG */
-	ni_srandom();
 
 	if (!opt_no_recover_leases)
 		dhcp4_recover_addrconf(opt_state_file);

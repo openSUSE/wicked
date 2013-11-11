@@ -108,6 +108,7 @@ struct ni_dhcp4_request {
 	ni_uuid_t		uuid;
 	ni_bool_t		enabled;
 
+	ni_bool_t		dry_run;	/* discover but don't request + commit */
 	unsigned int		settle_timeout;	/* wait that long before starting DHCP */
 	unsigned int		acquire_timeout;/* how long we try before we give up */
 
@@ -132,6 +133,7 @@ struct ni_dhcp4_request {
  */
 struct ni_dhcp_config {
 	ni_uuid_t		uuid;
+	ni_bool_t		dry_run;
 
 	/* A combination of DHCP_DO_* flags above */
 	unsigned int		flags;

@@ -251,7 +251,8 @@ ni_dhcp_acquire(ni_dhcp_device_t *dev, const ni_dhcp4_request_t *info)
 	if ((rv = ni_dhcp_device_refresh(dev)) < 0)
 		return rv;
 
-	config = calloc(1, sizeof(*config));
+	config = xcalloc(1, sizeof(*config));
+	config->dry_run = info->dry_run;
 	config->resend_timeout = NI_DHCP_RESEND_TIMEOUT_INIT;
 	config->request_timeout = info->acquire_timeout?: NI_DHCP_REQUEST_TIMEOUT;
 	config->initial_discovery_timeout = NI_DHCP_DISCOVERY_TIMEOUT;
