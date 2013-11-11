@@ -400,7 +400,7 @@ do_ifcheck(int argc, char **argv)
 	ni_stringbuf_t sb = NI_STRINGBUF_INIT_DYNAMIC;
 	unsigned int i;
 	ni_fsm_t *fsm;
-	int c, status = 0;
+	int c, status = NI_RETURN_CODE_OK;
 
 	fsm = ni_ifup_down_init();
 	fsm->readonly = TRUE;
@@ -488,7 +488,7 @@ usage:
 		ifmatch.name = ifname;
 		if (ni_fsm_get_matching_workers(fsm, &ifmatch, &marked) == 0) {
 			ni_error("%s: no matching interfaces", ifname);
-			status = 1;
+			status = NI_RETURN_CODE_NO_INTERFACE;
 			continue;
 		}
 
@@ -498,9 +498,11 @@ usage:
 			ni_device_clientinfo_t *client_info;
 
 			if ((dev = w->device) == NULL) {
-				if (!opt_quiet)
-					ni_error("%s: device %s does not exist", ifname, w->object_path);
-				status = 2;
+				if (!opt_quiet) {
+					ni_error("%s: device from %s does not exist",
+						strcmp(ifname, "all") ? ifname : w->name, w->config.origin);
+				}
+				status = NI_RETURN_CODE_NO_DEVICE;
 				continue;
 			}
 
@@ -512,7 +514,7 @@ usage:
 					ni_debug_wicked("%s: config file uuid is %s", w->name, ni_uuid_print(&w->config.uuid));
 					ni_debug_wicked("%s: system dev. uuid is %s", w->name,
 							client_info? ni_uuid_print(&client_info->config_uuid) : "NOT SET");
-					status = 3;
+					status = NI_RETURN_CODE_CHANGED_CONFIG;
 					continue;
 				}
 			}
@@ -523,7 +525,7 @@ usage:
 						ni_error("%s: device has state %s, expected %s", w->name,
 								client_info? client_info->state : "NONE",
 								opt_state);
-					status = 4;
+					status = NI_RETURN_CODE_NOT_IN_STATE;
 					continue;
 				}
 			}
@@ -532,7 +534,7 @@ usage:
 				if (w->ifstate.persistent) {
 					if (!opt_quiet)
 						ni_error("%s: device configured in persistent mode", w->name);
-					status = 2;
+					status = NI_RETURN_CODE_PERSISTENT_ON;
 					continue;
 				}
 			}
