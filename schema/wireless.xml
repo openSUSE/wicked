@@ -85,7 +85,7 @@
     <pairwise-cipher type="builtin-wireless-cipher-mask"/>
     <group-ciphers type="builtin-wireless-cipher-mask"/>
     <key-management type="builtin-key-mgmt-mask"/>
-    <auth-methods type="builtin-wireless-auth-mask"/>
+    <auth-methods type="builtin-wireless-auth-algo-mask"/>
     <!-- <wpa-protocols type="builtin-wireless-protocol-mask"/> -->
   </define>
 
