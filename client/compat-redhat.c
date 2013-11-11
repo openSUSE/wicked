@@ -192,8 +192,8 @@ __ni_redhat_startmode(const char *mode)
 		const char *		name;
 		ni_ifworker_control_t	control;
 	} __ni_redhat_control_params[] = {
-		{ "manual",	{ NULL,		NULL,		TRUE,	FALSE,	30	} },
-		{ "onboot",	{ "auto",	NULL,		TRUE,	TRUE,	30	} },
+		{ "manual",	{ NULL,		NULL,		TRUE,	FALSE,	FALSE,	30	} },
+		{ "onboot",	{ "auto",	NULL,		TRUE,	TRUE,	FALSE,	30	} },
 		{ NULL }
 	};
 	struct __ni_control_params *p;
