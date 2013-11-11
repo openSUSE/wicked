@@ -1326,6 +1326,11 @@ __ni_dhcp6_fsm_release(ni_dhcp6_device_t *dev, unsigned int nretries)
 int
 ni_dhcp6_fsm_release(ni_dhcp6_device_t *dev)
 {
+	if (dev->config == NULL) {
+		ni_debug_dhcp("%s: not configured, dropping lease", dev->ifname);
+		return ni_dhcp6_fsm_commit_lease(dev, NULL);
+	}
+
 	/* When all IA's are expired, just commit a release */
 	if (ni_dhcp6_lease_with_active_address(dev->lease)) {
 		return __ni_dhcp6_fsm_release(dev, 0);
