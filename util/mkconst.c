@@ -25,6 +25,8 @@
 #include <wicked/infiniband.h>
 #include <wicked/lldp.h>
 
+extern const char *	ni_ifworker_state_name(unsigned int);
+
 static ni_intmap_t *	build_ifflag_bits_map(void);
 static ni_intmap_t *	buildmap(const char *(*)(unsigned), unsigned int);
 static void		generate(char *, const char *, const ni_intmap_t *);
@@ -85,6 +87,7 @@ static struct generic_map	generic_maps[] = {
 	MAPN(IFTYPENAME, ni_linktype_type_to_name, __NI_IFTYPE_MAX),
 	MAPN(ADDRCONF_MODE, ni_addrconf_type_to_name, __NI_ADDRCONF_MAX),
 	MAPN(ADDRCONF_STATE, ni_addrconf_state_to_name, __NI_ADDRCONF_STATE_MAX),
+	MAP(IFSTATENAME, ni_ifworker_state_name),
 	MAP(DHCP6_MODE, ni_dhcp6_mode_type_to_name),
 	MAP(WIRELESS_MODE, ni_wireless_mode_to_name),
 	MAP(WIRELESS_SECURITY, ni_wireless_security_to_name),
