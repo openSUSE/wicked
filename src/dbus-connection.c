@@ -58,12 +58,22 @@ struct ni_dbus_connection {
 	ni_bool_t		dispatching;
 };
 
+enum ni_dbus_wd_state {
+	DBUS_WD_STATE_UNKNOWN = 0,
+	DBUS_WD_STATE_ACTIVE,
+	DBUS_WD_STATE_CLOSED,
+	DBUS_WD_STATE_REMOVED,
+	DBUS_WD_STATE_MAX,
+};
+
 typedef struct ni_dbus_watch_data ni_dbus_watch_data_t;
 struct ni_dbus_watch_data {
 	ni_dbus_watch_data_t *	next;
 	ni_dbus_connection_t *	connection;
 	DBusWatch *		watch;
 	ni_socket_t *		socket;
+	unsigned int		refcount;
+	enum ni_dbus_wd_state	state;
 };
 static ni_dbus_watch_data_t *	ni_dbus_watches;
 
@@ -77,6 +87,37 @@ static DBusHandlerResult	__ni_dbus_signal_filter(DBusConnection *, DBusMessage *
 static void			__ni_dbus_connection_dispatch(ni_dbus_connection_t *);
 
 static int			ni_dbus_use_socket_mainloop = 1;
+
+#ifdef DEBUG_WATCH_VERBOSE
+static const char *
+__ni_dbus_wd_state_name(enum ni_dbus_wd_state state)
+{
+	switch (state) {
+	case DBUS_WD_STATE_UNKNOWN: return "unknown";
+	case DBUS_WD_STATE_ACTIVE: return "active";
+	case DBUS_WD_STATE_CLOSED: return "closed";
+	case DBUS_WD_STATE_REMOVED: return "removed";
+	default: return "???";
+	}
+}
+#endif
+
+static void
+__ni_get_dbus_watch_data(ni_dbus_watch_data_t *wd)
+{
+	wd->refcount++;
+}
+
+static void
+__ni_put_dbus_watch_data(ni_dbus_watch_data_t *wd)
+{
+	if (wd->refcount-- == 1 && wd->state == DBUS_WD_STATE_REMOVED) {
+#ifdef DEBUG_WATCH_VERBOSE
+		ni_debug_dbus("%s: releasing wd %p", __func__, wd);
+#endif
+		free(wd);
+	}
+}
 
 /*
  * Constructor for DBus connection handle
@@ -661,6 +702,7 @@ __ni_dbus_watch_handle(const char *func, ni_socket_t *sock, int flags)
 	 * per connection, so that for every socket state change, we need to
 	 * loop over all watches.
 	 */
+restart:
 	for (wd = ni_dbus_watches; wd; wd = wd->next) {
 		int new_watch_flags;
 #ifdef DEBUG_WATCH_VERBOSE
@@ -669,6 +711,7 @@ __ni_dbus_watch_handle(const char *func, ni_socket_t *sock, int flags)
 
 		if (wd->socket != sock)
 			continue;
+		__ni_get_dbus_watch_data(wd);
 		found++;
 
 #ifdef DEBUG_WATCH_VERBOSE
@@ -679,6 +722,15 @@ __ni_dbus_watch_handle(const char *func, ni_socket_t *sock, int flags)
 		old_watch_flags = dbus_watch_get_flags(wd->watch);
 #endif
 		dbus_watch_handle(wd->watch, flags);
+
+		if (wd->state == DBUS_WD_STATE_REMOVED) {
+#ifdef DEBUG_WATCH_VERBOSE
+			ni_debug_dbus("%s wd %p has state %s, releasing",__func__,
+					wd, __ni_dbus_wd_state_name(wd->state));
+#endif
+			__ni_put_dbus_watch_data(wd);
+			goto restart;
+		}
 
 		if (flags & (DBUS_WATCH_READABLE | DBUS_WATCH_WRITABLE))
 			__ni_dbus_connection_dispatch(wd->connection);
@@ -699,6 +751,7 @@ __ni_dbus_watch_handle(const char *func, ni_socket_t *sock, int flags)
 					__ni_dbus_watch_flags(new_watch_flags));
 		}
 #endif
+		__ni_put_dbus_watch_data(wd);
 	}
 
 	sock->poll_flags = poll_flags;
@@ -738,10 +791,18 @@ __ni_dbus_watch_close(ni_socket_t *sock)
 	NI_TRACE_ENTER();
 	for (wd = ni_dbus_watches; wd; wd = wd->next) {
 		if (wd->socket == sock) {
+			__ni_get_dbus_watch_data(wd);
 			/* Note, we're not explicitly closing the socket.
 			 * We may want to shut down the connection owning
 			 * us, however. */
 			wd->socket = NULL;
+#ifdef DEBUG_WATCH_VERBOSE
+			ni_debug_dbus("%s wd %p state changed from %s to %s",__func__,
+					wd, __ni_dbus_wd_state_name(wd->state),
+					__ni_dbus_wd_state_name(DBUS_WD_STATE_CLOSED));
+#endif
+			wd->state = DBUS_WD_STATE_CLOSED;
+			__ni_put_dbus_watch_data(wd);
 		}
 	}
 }
@@ -768,6 +829,10 @@ __ni_dbus_add_watch(DBusWatch *watch, void *data)
 		return 0;
 	wd->connection = connection;
 	wd->watch = watch;
+	wd->state = DBUS_WD_STATE_ACTIVE;
+#ifdef DEBUG_WATCH_VERBOSE
+	ni_debug_dbus("%s wd %p got state %s",__func__, wd, __ni_dbus_wd_state_name(wd->state));
+#endif
 	wd->next = ni_dbus_watches;
 	ni_dbus_watches = wd;
 
@@ -796,10 +861,17 @@ __ni_dbus_remove_watch(DBusWatch *watch, void *dummy)
 	ni_debug_dbus("%s(%p)", __FUNCTION__, watch);
 	for (pos = &ni_dbus_watches; (wd = *pos) != NULL; pos = &wd->next) {
 		if (wd->watch == watch) {
+			__ni_get_dbus_watch_data(wd);
 			*pos = wd->next;
 			if (wd->socket)
 				ni_socket_close(wd->socket);
-			free(wd);
+#ifdef DEBUG_WATCH_VERBOSE
+			ni_debug_dbus("%s wd %p state changed from %s to %s",__func__,
+					wd, __ni_dbus_wd_state_name(wd->state),
+					__ni_dbus_wd_state_name(DBUS_WD_STATE_REMOVED));
+#endif
+			wd->state = DBUS_WD_STATE_REMOVED;
+			__ni_put_dbus_watch_data(wd);
 			return;
 		}
 	}
