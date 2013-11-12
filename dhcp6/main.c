@@ -418,7 +418,7 @@ dhcp6_test_run(const char *ifname, const char *request, unsigned int timeout)
 
 		timeout = ni_timer_next_timeout();
 
-		if (ni_socket_wait(timeout) < 0)
+		if (ni_socket_wait(timeout) != 0)
 			break;
 	}
 	ni_server_deactivate_interface_events();
