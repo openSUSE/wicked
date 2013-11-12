@@ -312,7 +312,7 @@ ni_system_lldp_down(ni_netdev_t *dev)
 	return 0;
 }
 
-ni_lldp_agent_t *
+static ni_lldp_agent_t *
 ni_lldp_agent_new(ni_netdev_t *dev, unsigned int mtu)
 {
 	ni_lldp_agent_t *agent;
@@ -979,6 +979,7 @@ ni_lldp_tlv_get_string(ni_buffer_t *bp, char **var)
 		return -1;
 	memcpy(string, ni_buffer_head(bp), len);
 	string[len] = '\0';
+	*var = string;
 
 	ni_buffer_pull_head(bp, len); /* consume the buffer */
 	return 0;
