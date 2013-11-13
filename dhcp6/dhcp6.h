@@ -54,6 +54,7 @@ struct ni_dhcp6_request {
 	ni_bool_t		enabled;
 
 	/* Options controlling which and how to make the requests */
+	ni_bool_t		dry_run;         /* detect, but don't request+commit  */
 	ni_dhcp6_mode_t		mode;		 /* follow ra, request info/addr */
 	ni_bool_t		rapid_commit;	 /* try to use rapid commit flow */
 	unsigned int		acquire_timeout; /* how long we try before we give up */
@@ -96,7 +97,9 @@ struct ni_dhcp6_config {
 	ni_uuid_t		uuid;
 
 	ni_dhcp6_mode_t		mode;
+	ni_bool_t		dry_run;
 	ni_bool_t		rapid_commit;
+	unsigned int		acquire_timeout;
 
 	ni_opaque_t		client_duid;	/* raw client id to use		*/
 	ni_opaque_t		server_duid;	/* destination raw server id	*/
@@ -143,6 +146,7 @@ struct ni_dhcp6_device {
 	    ni_sockaddr_t	dest;		/* relays & servers multicast	*/
 	} mcast;
 
+	struct timeval		start_time;	/* when we started managing     */
 	ni_dhcp6_request_t *	request;	/* the wicked request params	*/
 	ni_dhcp6_config_t *	config;		/* config built from request	*/
 	ni_addrconf_lease_t *	lease;		/* last acquired lease		*/
@@ -153,7 +157,6 @@ struct ni_dhcp6_device {
 	    const ni_timer_t *	timer;
 	} fsm;
 
-	struct timeval		start_time;	/* when we started managing         */
 	struct {
 	    struct timeval	start;		/* when we've sent first msg        */
 	    unsigned int	count;		/* transfer count                   */

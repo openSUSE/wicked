@@ -38,8 +38,11 @@
 #include <wicked/netinfo.h>
 #include <wicked/objectmodel.h>
 #include <wicked/logging.h>
+#include <wicked/xml.h>
+#include <wicked/leaseinfo.h>
 
 #include "dhcp6/dbus-api.h"
+#include "dhcp6/duid.h"
 
 #define CONFIG_DHCP6_STATE_FILE	"dhcp6-state.xml"
 
@@ -53,6 +56,10 @@ enum {
 
 	OPT_FOREGROUND,
 	OPT_NORECOVER,
+
+	OPT_TEST,
+	OPT_TEST_TIMEOUT,
+	OPT_TEST_REQUEST,
 };
 
 static struct option		options[] = {
@@ -70,6 +77,11 @@ static struct option		options[] = {
 	/* specific */
 	{ "no-recovery",	no_argument,		NULL,	OPT_NORECOVER },
 
+	/* test run */
+	{ "test",		no_argument,		NULL,	OPT_TEST         },
+	{ "test-request",	required_argument,	NULL,	OPT_TEST_REQUEST },
+	{ "test-timeout",	required_argument,	NULL,	OPT_TEST_TIMEOUT },
+
 	{ NULL,			no_argument,		NULL,	0 }
 };
 
@@ -84,17 +96,26 @@ static ni_dbus_server_t *	dhcp6_dbus_server;
 static void			dhcp6_interface_event(ni_netdev_t *, ni_event_t);
 static void			dhcp6_interface_addr_event(ni_netdev_t *, ni_event_t, const ni_address_t *);
 static void			dhcp6_interface_prefix_event(ni_netdev_t *, ni_event_t, const ni_ipv6_ra_pinfo_t *);
+
 static void			dhcp6_supplicant(void);
+
+static int			dhcp6_test_status;
+static int			dhcp6_test_run(const char *ifname, const char *request, unsigned int timeout);
 
 int
 main(int argc, char **argv)
 {
+	unsigned int opt_test_run = 0;
+	unsigned int opt_test_timeout = -1U;
+	const char * opt_test_request = NULL;
+	const char * opt_test_ifname = NULL;
 	int c;
 
 	program_name = ni_basename(argv[0]);
 
 	while ((c = getopt_long(argc, argv, "+", options, NULL)) != EOF) {
 		switch (c) {
+		/* common */
 		case OPT_HELP:
 		default:
 		usage:
@@ -116,6 +137,11 @@ main(int argc, char **argv)
 				"        Do not background the service.\n"
 				"  --norecover\n"
 				"        Disable automatic recovery of leases.\n"
+				"\n"
+				"  --test [test-options] <ifname>\n"
+				"    test-options:\n"
+				"       --test-request <request.xml>\n"
+				"       --test-timeout <timeout in sec> (default: 10)\n"
 				, program_name
 			       );
 			return (c == OPT_HELP ? 0 : 1);
@@ -154,16 +180,44 @@ main(int argc, char **argv)
 			opt_log_target = optarg;
 			break;
 
+		/* daemon */
 		case OPT_FOREGROUND:
 			opt_foreground = 1;
 			break;
 
+		/* specific */
 		case OPT_NORECOVER:
 			opt_no_recover_leases = 1;
+			break;
+
+		/* test run */
+		case OPT_TEST:
+			opt_foreground = 1;
+			opt_no_recover_leases = 1;
+			opt_test_run = 1;
+			break;
+
+		case OPT_TEST_TIMEOUT:
+			if (!opt_test_run || ni_parse_uint(optarg, &opt_test_timeout, 0) < 0)
+				goto usage;
+			break;
+
+		case OPT_TEST_REQUEST:
+			if (!opt_test_run || ni_string_empty(optarg))
+				goto usage;
+			opt_test_request = optarg;
 			break;
 		}
 	}
 
+	if (opt_test_run) {
+		if (optind < argc && !ni_string_empty(argv[optind])) {
+			opt_test_ifname = argv[optind++];
+		} else {
+			fprintf(stderr, "Missing interface argument\n");
+			goto usage;
+		}
+	}
 	if (optind != argc)
 		goto usage;
 
@@ -173,6 +227,8 @@ main(int argc, char **argv)
 					opt_log_target);
 			return 1;
 		}
+	} else if (opt_foreground && opt_test_run) {
+		ni_log_destination(program_name, "stderr");
 	} else if (opt_foreground && getppid() != 1) {
 		ni_log_destination(program_name, "syslog::perror");
 	} else {
@@ -193,8 +249,185 @@ main(int argc, char **argv)
 	/* We're using randomized timeouts. Seed the RNG */
 	ni_srandom();
 
-	dhcp6_supplicant();
+	if (opt_test_run) {
+		return dhcp6_test_run(opt_test_ifname, opt_test_request, opt_test_timeout);
+	} else {
+		dhcp6_supplicant();
+	}
 	return 0;
+}
+
+static void
+dhcp6_test_protocol_event(enum ni_dhcp6_event ev, const ni_dhcp6_device_t *dev,
+		ni_addrconf_lease_t *lease)
+{
+	ni_debug_dhcp("%s(ev=%u, dev=%s[%u], config-uuid=%s)", __func__, ev,
+			dev->ifname, dev->link.ifindex,
+			dev->config ? ni_uuid_print(&dev->config->uuid) : "<none>");
+
+	switch (ev) {
+	case NI_DHCP6_EVENT_ACQUIRED:
+		if (lease && lease->state == NI_ADDRCONF_STATE_GRANTED) {
+			ni_leaseinfo_dump(stdout, lease, dev->ifname, NULL);
+			dhcp6_test_status = 0;
+		}
+		break;
+	default:
+		break;
+	}
+}
+
+static ni_bool_t
+dhcp6_test_req_xml_init(ni_dhcp6_request_t *req, xml_document_t *doc)
+{
+	xml_node_t *xml, *child;
+
+	xml = xml_document_root(doc);
+	if (xml && !xml->name && xml->children)
+		xml = xml->children;
+
+	/* TODO: parse using /ipv6:dhcp/request xml schema */
+	if (!xml || !ni_string_eq(xml->name, "request")) {
+		ni_error("Invalid dhcp6 request xml '%s'",
+			xml ? xml_node_location(xml) : NULL);
+		return FALSE;
+	}
+
+	for (child = xml->children; child; child = child->next) {
+		if (ni_string_eq(child->name, "uuid")) {
+			if (ni_uuid_parse(&req->uuid, child->cdata) != 0)
+				goto failure;
+		} else
+		if (ni_string_eq(child->name, "mode")) {
+			if (ni_dhcp6_mode_name_to_type(child->cdata, &req->mode) != 0)
+				goto failure;
+		} else
+		if (ni_string_eq(child->name, "acquire-timeout")) {
+			if (ni_parse_uint(child->cdata, &req->acquire_timeout, 10) != 0)
+				goto failure;
+		} else
+		if (ni_string_eq(child->name, "hostname")) {
+			if (!ni_check_domain_name(child->cdata, ni_string_len(child->cdata), 0))
+				goto failure;
+			ni_string_dup(&req->hostname, child->cdata);
+		} else
+		if (ni_string_eq(child->name, "clientid")) {
+			ni_opaque_t duid;
+
+			ni_duid_clear(&duid);
+			if (!ni_duid_parse_hex(&duid, child->cdata))
+				goto failure;
+			ni_string_dup(&req->clientid, child->cdata);
+		}
+	}
+
+	return TRUE;
+failure:
+	if (child) {
+		ni_error("Cannot parse dhcp6 request '%s': %s",
+			child->name, xml_node_location(child));
+	}
+	return FALSE;
+}
+
+static ni_bool_t
+dhcp6_test_req_init(ni_dhcp6_request_t *req, const char *request)
+{
+	/* Apply some defaults */
+	req->acquire_timeout = 10;
+	req->mode = NI_DHCP6_MODE_MANAGED;
+
+	if (!ni_string_empty(request)) {
+		xml_document_t *doc;
+
+		if (!(doc = xml_document_read(request))) {
+			ni_error("Cannot parse dhcp6 request xml '%s'", request);
+			return FALSE;
+		}
+
+		if (!dhcp6_test_req_xml_init(req, doc)) {
+			xml_document_free(doc);
+			return FALSE;
+		}
+		xml_document_free(doc);
+	}
+
+	/* Always enter dry run mode & disable rapid-commit */
+	req->dry_run = TRUE;
+	req->rapid_commit = FALSE;
+	if (ni_uuid_is_null(&req->uuid))
+		ni_uuid_generate(&req->uuid);
+
+	return TRUE;
+}
+
+static int
+dhcp6_test_run(const char *ifname, const char *request, unsigned int timeout)
+{
+	ni_netconfig_t *nc;
+	ni_netdev_t *ifp;
+	ni_dhcp6_device_t *dev;
+	ni_dhcp6_request_t *req;
+	char *errdetail = NULL;
+	int rv;
+
+	dhcp6_test_status = 2;
+
+	if (!(nc = ni_global_state_handle(1)))
+		ni_fatal("Cannot refresh interface list!");
+
+	if (!(ifp = ni_netdev_by_name(nc, ifname)))
+		ni_fatal("Cannot find interface with name '%s'", ifname);
+
+	switch (ifp->link.arp_type) {
+	case ARPHRD_ETHER:
+		break;
+	default:
+		ni_fatal("Interface type not supported yet");
+		break;
+	}
+
+	if (!(dev = ni_dhcp6_device_new(ifp->name, &ifp->link)))
+		ni_fatal("Cannot allocate dhcp6 client for '%s'", ifname);
+
+	ni_dhcp6_set_event_handler(dhcp6_test_protocol_event);
+
+	if (!(req = ni_dhcp6_request_new())) {
+		ni_error("Cannot allocate dhcp6 request");
+		goto failure;
+	}
+
+	if (!dhcp6_test_req_init(req, request))
+		goto failure;
+
+	if (timeout != -1U)
+		req->acquire_timeout = timeout;
+
+	if ((rv = ni_dhcp6_acquire(dev, req, &errdetail)) < 0) {
+		ni_error("%s: DHCPv6 acquire request %s failed: %s%s[%s]",
+				dev->ifname, ni_uuid_print(&req->uuid),
+				(errdetail ? errdetail : ""),
+				(errdetail ? " " : ""),
+				ni_strerror(rv));
+		ni_string_free(&errdetail);
+		goto failure;
+	}
+
+	while (!ni_caught_terminal_signal()) {
+		long timeout;
+
+		timeout = ni_timer_next_timeout();
+
+		if (ni_socket_wait(timeout) != 0)
+			break;
+	}
+	ni_server_deactivate_interface_events();
+	ni_socket_deactivate_all();
+
+failure:
+	ni_dhcp6_device_put(dev);
+	ni_dhcp6_request_free(req);
+	return dhcp6_test_status;
 }
 
 /*
@@ -351,7 +584,7 @@ dhcp6_supplicant(void)
 			timeout = ni_timer_next_timeout();
 		} while(ni_dbus_objects_garbage_collect());
 
-		if (ni_socket_wait(timeout) < 0)
+		if (ni_socket_wait(timeout) != 0)
 			ni_fatal("ni_socket_wait failed");
 	}
 	/*

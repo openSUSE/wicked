@@ -201,7 +201,7 @@ babysit(void)
 		ni_nanny_down_do(mgr);
 
 		ni_fsm_do(mgr->fsm, &timeout);
-		if (ni_socket_wait(timeout) < 0)
+		if (ni_socket_wait(timeout) != 0)
 			ni_fatal("ni_socket_wait failed");
 	}
 

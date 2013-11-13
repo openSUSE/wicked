@@ -137,10 +137,8 @@ __ni_dhcp6_mcast_socket_open(const struct ni_dhcp6_link *link, const char *ifnam
 		ni_error("%s: Cannot set fcntl(SETDF, CLOEXEC): %m", ifname);
 
 
-	ni_sockaddr_set_ipv6(&saddr, link->addr.six.sin6_addr,
-					NI_DHCP6_CLIENT_PORT);
+	ni_sockaddr_set_ipv6(&saddr, link->addr.six.sin6_addr, NI_DHCP6_CLIENT_PORT);
 	saddr.six.sin6_scope_id = link->ifindex;
-
 	if (bind(fd, &saddr.sa, sizeof(saddr.six)) == -1) {
 		ni_error("%s: Cannot bind(%s): %m", ifname, ni_sockaddr_print(&saddr));
 		close(fd);
@@ -936,10 +934,16 @@ static int
 ni_dhcp6_option_get_status(ni_buffer_t *bp, ni_dhcp6_status_t *status)
 {
 	ni_dhcp6_status_clear(status);
+
 	if (ni_dhcp6_option_get16(bp, &status->code) < 0)
 		return -1;
-	if (ni_dhcp6_option_gets(bp, &status->message) < 0)
-		return -1;
+
+	if (ni_buffer_count(bp)) {
+		if (ni_dhcp6_option_gets(bp, &status->message) < 0)
+			return -1;
+	} else {
+		ni_string_dup(&status->message, "");
+	}
 	return 0;
 }
 
@@ -2137,7 +2141,7 @@ ni_dhcp6_option_parse_ia_address(ni_buffer_t *bp, ni_dhcp6_ia_t *ia, uint16_t ad
 			} else {
 				size_t len = ni_string_len(iadr->status.message);
 
-				if (!ni_check_printable(iadr->status.message, len)) {
+				if (len && !ni_check_printable(iadr->status.message, len)) {
 					ni_debug_dhcp("%s.%s.%s: discarded non-printable"
 							" status message: %s",
 						ni_dhcp6_option_name(ia->type),
@@ -2273,7 +2277,7 @@ __ni_dhcp6_option_parse_ia_options(ni_buffer_t *bp,  ni_dhcp6_ia_t *ia)
 			} else {
 				size_t len = ni_string_len(ia->status.message);
 
-				if (!ni_check_printable(ia->status.message, len)) {
+				if (len && !ni_check_printable(ia->status.message, len)) {
 					ni_debug_dhcp("%s.%s: discarded non-printable"
 							" status message: %s",
 						ni_dhcp6_option_name(ia->type),
@@ -2583,7 +2587,7 @@ __ni_dhcp6_parse_client_options(ni_dhcp6_device_t *dev, ni_buffer_t *buffer, ni_
 			if (ni_dhcp6_option_get_status(&optbuf, lease->dhcp6.status) == 0) {
 				size_t len = ni_string_len(lease->dhcp6.status->message);
 
-				if (!ni_check_printable(lease->dhcp6.status->message, len)) {
+				if (len && !ni_check_printable(lease->dhcp6.status->message, len)) {
 					ni_debug_dhcp("%s: discarded non-printable"
 							" status message: %s",
 						ni_dhcp6_option_name(option),
@@ -2591,7 +2595,7 @@ __ni_dhcp6_parse_client_options(ni_dhcp6_device_t *dev, ni_buffer_t *buffer, ni_
 								len));
 					ni_string_free(&lease->dhcp6.status->message);
 				}
-				ni_debug_dhcp("%s: %u [%s]", ni_dhcp6_option_name(option),
+				ni_debug_dhcp("%s: %u '%s'", ni_dhcp6_option_name(option),
 						lease->dhcp6.status->code,
 						lease->dhcp6.status->message);
 			}

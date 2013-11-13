@@ -65,7 +65,7 @@ int main(int argc, char **argv)
 		}
 
 		timeout = ni_timer_next_timeout();
-		if (ni_socket_wait(timeout) < 0)
+		if (ni_socket_wait(timeout) != 0)
 			ni_fatal("ni_socket_wait failed");
 	}
 

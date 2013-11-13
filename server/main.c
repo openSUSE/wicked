@@ -239,7 +239,7 @@ run_interface_server(void)
 			timeout = ni_timer_next_timeout();
 		} while (ni_dbus_objects_garbage_collect());
 
-		if (ni_socket_wait(timeout) < 0)
+		if (ni_socket_wait(timeout) != 0)
 			ni_fatal("ni_socket_wait failed");
 	}
 

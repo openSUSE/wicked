@@ -3350,11 +3350,11 @@ ni_fsm_mainloop(ni_fsm_t *fsm)
 {
 	long timeout;
 
-	while (1) {
+	while (!ni_caught_terminal_signal()) {
 		if (!ni_fsm_do(fsm, &timeout))
 			break;
 
-		if (ni_socket_wait(timeout) < 0)
+		if (ni_socket_wait(timeout) != 0)
 			ni_fatal("ni_socket_wait failed");
 
 		if (ni_fsm_schedule(fsm) == 0)

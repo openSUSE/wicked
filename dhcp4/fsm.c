@@ -129,9 +129,8 @@ ni_dhcp_fsm_process_dhcp_packet(ni_dhcp_device_t *dev, ni_buffer_t *msgbuf)
 				if (dev->best_offer.weight < weight) {
 					if (dev->best_offer.lease != NULL)
 						ni_addrconf_lease_free(dev->best_offer.lease);
-					dev->best_offer.lease = NULL;
-					dev->best_offer.weight = weight;
 					dev->best_offer.lease = lease;
+					dev->best_offer.weight = weight;
 					return 0;
 				}
 				goto out;
@@ -578,7 +577,12 @@ ni_dhcp_process_offer(ni_dhcp_device_t *dev, ni_addrconf_lease_t *lease)
 	else
 		ni_debug_dhcp("Received offer for %s from %s", abuf1, abuf2);
 
-	ni_dhcp_fsm_request(dev, lease);
+	if (dev->config->dry_run) {
+		ni_dhcp_send_event(NI_DHCP_EVENT_ACQUIRED, dev, lease);
+		ni_dhcp_device_stop(dev);
+	} else {
+		ni_dhcp_fsm_request(dev, lease);
+	}
 	return 0;
 }
 
@@ -657,18 +661,24 @@ ni_dhcp_fsm_commit_lease(ni_dhcp_device_t *dev, ni_addrconf_lease_t *lease)
 		dev->fsm.state = NI_DHCP_STATE_BOUND;
 
 		/* Write the lease to lease cache */
-		ni_addrconf_lease_file_write(dev->ifname, lease);
+		if (!dev->config->dry_run) {
+			ni_addrconf_lease_file_write(dev->ifname, lease);
+		}
 
 		/* Notify anyone who cares that we've (re-)acquired the lease */
 		ni_dhcp_send_event(NI_DHCP_EVENT_ACQUIRED, dev, lease);
 	} else {
-		ni_debug_dhcp("%s: dropped lease", dev->ifname);
 
 		/* Delete old lease file */
 		if ((lease = dev->lease) != NULL) {
+			ni_debug_dhcp("%s: dropped lease", dev->ifname);
+
 			lease->state = NI_ADDRCONF_STATE_RELEASED;
 			ni_dhcp_send_event(NI_DHCP_EVENT_RELEASED, dev, lease);
-			ni_addrconf_lease_file_remove(dev->ifname, lease->type, lease->family);
+
+			if (!dev->config->dry_run) {
+				ni_addrconf_lease_file_remove(dev->ifname, lease->type, lease->family);
+			}
 			ni_dhcp_device_drop_lease(dev);
 			lease = NULL;
 		}

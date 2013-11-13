@@ -284,6 +284,7 @@ ni_dhcp6_request_new(void)
 	req = xcalloc(1, sizeof(*req));
 
 	/* Apply defaults */
+	req->enabled = TRUE; /* used by wickedd */
 	req->mode = NI_DHCP6_MODE_AUTO;
 	req->rapid_commit = TRUE;
 

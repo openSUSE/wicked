@@ -255,7 +255,8 @@ ni_dhcp4_request_new(void)
 {
 	ni_dhcp4_request_t *req;
 
-	req = calloc(1, sizeof(*req));
+	req = xcalloc(1, sizeof(*req));
+	req->enabled = TRUE; /* used by wickedd */
 
 	/* By default, we try to obtain all sorts of config from the server */
 	req->update = ~0;

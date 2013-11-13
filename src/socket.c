@@ -182,8 +182,8 @@ ni_socket_wait(long timeout)
 	}
 
 	if (socket_count == 0 && timeout < 0) {
-		ni_error("no sockets left to watch");
-		return -1;
+		ni_debug_socket("no sockets left to watch");
+		return 1;
 	}
 
 	if (poll(pfd, socket_count, timeout) < 0) {
