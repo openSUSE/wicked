@@ -373,7 +373,7 @@ __ni_lldp_take_agent(unsigned int ifindex, ni_lldp_agent_t ***pos_ret)
 }
 
 static int
-__ni_lldp_agent_configure(ni_lldp_agent_t *agent, ni_netdev_t *dev, ni_lldp_t *lldp)
+__ni_lldp_agent_configure(ni_netdev_t *dev, ni_lldp_t *lldp)
 {
 	switch (lldp->chassis_id.type) {
 	case NI_LLDP_CHASSIS_ID_INTERFACE_ALIAS:
@@ -416,7 +416,7 @@ ni_lldp_agent_configure(ni_lldp_agent_t *agent, ni_netdev_t *dev, ni_lldp_t *lld
 	if (lldp->ttl == 0)
 		lldp->ttl = agent->txTTL;
 
-	if (__ni_lldp_agent_configure(agent, dev, lldp) < 0) {
+	if (__ni_lldp_agent_configure(dev, lldp) < 0) {
 		ni_lldp_free(lldp);
 		return -1;
 	}
