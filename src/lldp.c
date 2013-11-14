@@ -290,7 +290,7 @@ ni_system_lldp_up(ni_netdev_t *dev, const ni_lldp_t *config)
 			return -1;
 
 		/* Record the LLDP config requested by the user */
-		ni_netdev_set_lldp(dev, ni_lldp_clone(config));
+		ni_netdev_set_lldp(dev, lldp);
 	} else {
 		/* Else: stop LLDP */
 		ni_netdev_set_lldp(dev, NULL);
