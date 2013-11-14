@@ -69,9 +69,9 @@ struct ni_lldp_agent {
 struct ni_lldp_peer {
 	ni_lldp_peer_t *	next;
 	time_t			expires;
-	void *			raw_id;
-	unsigned int		raw_id_len;
 	ni_lldp_t *		data;
+	unsigned int		raw_id_len;
+	unsigned char		raw_id[0];
 };
 
 static ni_lldp_agent_t *	ni_lldp_agents;
@@ -200,7 +200,6 @@ ni_lldp_peer_new(const void *raw_id, unsigned int raw_id_len)
 	ni_lldp_peer_t *peer;
 
 	peer = xcalloc(1, sizeof(*peer) + raw_id_len);
-	peer->raw_id = (void *) (peer + 1);
 	peer->raw_id_len = raw_id_len;
 	memcpy(peer->raw_id, raw_id, raw_id_len);
 	return peer;
