@@ -277,8 +277,6 @@ ni_system_lldp_up(ni_netdev_t *dev, const ni_lldp_t *config)
 
 	/* if the device is DCB capable, enable DCBX */
 	if (ni_dcbx_should_start(dev)) {
-		ni_dcbx_state_t *dcbx;
-
 		dcbx = ni_dcbx_new();
 		ni_dcbx_update_local(dcbx, &dev->dcb->attributes);
 	}
