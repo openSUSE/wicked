@@ -840,6 +840,8 @@ ni_lldp_tlv_end(ni_lldp_tlv_t *tlv)
 	long len = end - tlv->begin;
 	uint16_t head;
 
+	/* Compensate for offset added by ni_lldp_tlv_begin */
+	len -= 2;
 	if (len < 2 || len > 511)
 		return __ni_lldp_tlv_error(tlv, "bad TLV size %ld", len);
 
