@@ -69,9 +69,9 @@ struct ni_lldp_agent {
 struct ni_lldp_peer {
 	ni_lldp_peer_t *	next;
 	time_t			expires;
-	void *			raw_id;
-	unsigned int		raw_id_len;
 	ni_lldp_t *		data;
+	unsigned int		raw_id_len;
+	unsigned char		raw_id[0];
 };
 
 static ni_lldp_agent_t *	ni_lldp_agents;
@@ -200,7 +200,6 @@ ni_lldp_peer_new(const void *raw_id, unsigned int raw_id_len)
 	ni_lldp_peer_t *peer;
 
 	peer = xcalloc(1, sizeof(*peer) + raw_id_len);
-	peer->raw_id = (void *) (peer + 1);
 	peer->raw_id_len = raw_id_len;
 	memcpy(peer->raw_id, raw_id, raw_id_len);
 	return peer;
@@ -277,8 +276,6 @@ ni_system_lldp_up(ni_netdev_t *dev, const ni_lldp_t *config)
 
 	/* if the device is DCB capable, enable DCBX */
 	if (ni_dcbx_should_start(dev)) {
-		ni_dcbx_state_t *dcbx;
-
 		dcbx = ni_dcbx_new();
 		ni_dcbx_update_local(dcbx, &dev->dcb->attributes);
 	}
@@ -290,7 +287,7 @@ ni_system_lldp_up(ni_netdev_t *dev, const ni_lldp_t *config)
 			return -1;
 
 		/* Record the LLDP config requested by the user */
-		ni_netdev_set_lldp(dev, ni_lldp_clone(config));
+		ni_netdev_set_lldp(dev, lldp);
 	} else {
 		/* Else: stop LLDP */
 		ni_netdev_set_lldp(dev, NULL);
@@ -373,7 +370,7 @@ __ni_lldp_take_agent(unsigned int ifindex, ni_lldp_agent_t ***pos_ret)
 }
 
 static int
-__ni_lldp_agent_configure(ni_lldp_agent_t *agent, ni_netdev_t *dev, ni_lldp_t *lldp)
+__ni_lldp_agent_configure(ni_netdev_t *dev, ni_lldp_t *lldp)
 {
 	switch (lldp->chassis_id.type) {
 	case NI_LLDP_CHASSIS_ID_INTERFACE_ALIAS:
@@ -416,7 +413,7 @@ ni_lldp_agent_configure(ni_lldp_agent_t *agent, ni_netdev_t *dev, ni_lldp_t *lld
 	if (lldp->ttl == 0)
 		lldp->ttl = agent->txTTL;
 
-	if (__ni_lldp_agent_configure(agent, dev, lldp) < 0) {
+	if (__ni_lldp_agent_configure(dev, lldp) < 0) {
 		ni_lldp_free(lldp);
 		return -1;
 	}
