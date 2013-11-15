@@ -1529,11 +1529,11 @@ ni_lldp_tlv_get_ieee_802_1(ni_lldp_t *lldp, ni_buffer_t *bp, unsigned int subtyp
 static int
 ni_lldp_tlv_get_orgspec(ni_lldp_t *lldp, ni_buffer_t *bp)
 {
-	unsigned char data[4];
+	unsigned char data[3];
 	unsigned int oui, i, subtype;
 	int ret;
 
-	if (ni_buffer_get(bp, data, 4) < 0)
+	if (ni_buffer_get(bp, data, 3) < 0)
 		return -1;
 	for (oui = i = 0; i < 3; ++i)
 		oui = (oui << 8) | data[i];
