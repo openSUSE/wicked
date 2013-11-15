@@ -721,13 +721,15 @@ ni_lldp_receive(ni_socket_t *sock)
 	 * This is needed for DCBX tie-breaking among other things. */
 	if (ni_capture_recv(capture, &buf) >= 0) {
 		ni_lldp_agent_t *agent = ni_capture_get_user_data(capture);
+		ni_buffer_t raw_id_buf;
 		const void *raw_id;
 		unsigned int raw_id_len;
 		ni_lldp_t *lldp;
 
 		/* Get the chassis and port ID TLVs as a raw string
 		 * of bytes. */
-		if (ni_lldp_pdu_get_raw_id(&buf, &raw_id, &raw_id_len) < 0)
+		raw_id_buf = buf;
+		if (ni_lldp_pdu_get_raw_id(&raw_id_buf, &raw_id, &raw_id_len) < 0)
 			return;
 
 		lldp = ni_lldp_new();
