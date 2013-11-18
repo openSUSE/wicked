@@ -44,6 +44,9 @@ typedef struct ni_updater {
 	ni_updater_source_array_t	sources;
 
 	unsigned int			type;
+	int				format;		/* Data format the updater understands.
+							 * -1 if not applicable.
+							 */
 	unsigned int			have_backup;
 
 	ni_bool_t			enabled;
@@ -52,6 +55,12 @@ typedef struct ni_updater {
 	ni_shellcmd_t *			proc_install;
 	ni_shellcmd_t *			proc_remove;
 } ni_updater_t;
+
+static ni_intmap_t __ni_updater_format_names[] = {
+	{ "info",		NI_ADDRCONF_UPDATE_FORMAT_INFO	},
+
+	{ NULL }
+};
 
 static ni_updater_t			updaters[__NI_ADDRCONF_UPDATE_MAX];
 
@@ -169,6 +178,23 @@ ni_updater_source_array_delete(ni_updater_source_array_t *usa, unsigned int inde
 	return FALSE;
 }
 
+static int
+ni_updater_format(const char *updater_format_name)
+{
+	unsigned int val;
+
+	if (ni_parse_uint_mapped(updater_format_name, __ni_updater_format_names,
+					&val) < 0)
+		return -1;
+
+	return val;
+}
+
+static const char *
+ni_updater_format_name(const int updater_format)
+{
+	return ni_format_uint_mapped(updater_format, __ni_updater_format_names);
+}
 
 /*
  * Initialize the system updaters based on the data found in the config
@@ -196,6 +222,7 @@ ni_system_updaters_init(void)
 		if (!(ex = ni_config_find_system_updater(ni_global.config, name)))
 			continue;
 
+		updater->format = ni_updater_format(ex->format);
 		updater->enabled = 1;
 		updater->proc_backup = ni_extension_script_find(ex, "backup");
 		updater->proc_restore = ni_extension_script_find(ex, "restore");
@@ -230,6 +257,7 @@ ni_updater_name(unsigned int kind)
 	static ni_intmap_t names[] = {
 	{ "hostname",		NI_ADDRCONF_UPDATE_HOSTNAME	},
 	{ "resolver",		NI_ADDRCONF_UPDATE_RESOLVER	},
+	{ "generic",		NI_ADDRCONF_UPDATE_GENERIC	},
 
 	{ NULL }
 	};
@@ -261,6 +289,11 @@ can_update_type(const ni_addrconf_lease_t *lease, unsigned int kind)
 
 	case NI_ADDRCONF_UPDATE_RESOLVER:
 		res = lease->resolver ? TRUE : FALSE;
+		break;
+
+	case NI_ADDRCONF_UPDATE_GENERIC:
+		/* Always attempt generic update. */
+		res = TRUE;
 		break;
 
 	default:
@@ -414,9 +447,28 @@ ni_system_updater_install(ni_updater_t *updater, const ni_addrconf_lease_t *leas
 	ni_string_array_append(&arguments, "-f");
 	ni_string_array_append(&arguments, ni_addrfamily_type_to_name(lease->family));
 
-	/* FIXME: build a file containing the new configuration, and run the
-	 * indicated script with it */
 	switch (updater->type) {
+	case NI_ADDRCONF_UPDATE_GENERIC:
+		switch (updater->format) {
+		case NI_ADDRCONF_UPDATE_FORMAT_INFO:
+			ni_leaseinfo_dump(NULL, lease, ifname, NULL);
+			if (!(file = ni_leaseinfo_path(ifname, lease->type, lease->family))) {
+				ni_error("Unable to determine leaseinfo file path.");
+				goto done;
+			}
+			ni_string_array_append(&arguments, file);
+			break;
+
+		default:
+			ni_error("Unsupported %s updater data format.",
+				ni_updater_name(updater->type));
+			goto done;
+		}
+
+		ni_string_array_append(&arguments,
+				ni_updater_format_name(updater->format));
+		break;
+
 	case NI_ADDRCONF_UPDATE_RESOLVER:
 		statedir = ni_extension_statedir(ni_updater_name(updater->type));
 		if (!statedir) {
@@ -461,10 +513,17 @@ ni_system_updater_install(ni_updater_t *updater, const ni_addrconf_lease_t *leas
 		if (ni_global.other_event)
 			ni_global.other_event(NI_EVENT_RESOLVER_UPDATED);
 		break;
+
 	case NI_ADDRCONF_UPDATE_HOSTNAME:
 		if (ni_global.other_event)
 			ni_global.other_event(NI_EVENT_HOSTNAME_UPDATED);
 		break;
+
+	case NI_ADDRCONF_UPDATE_GENERIC:
+		if (ni_global.other_event)
+			ni_global.other_event(NI_EVENT_GENERIC_UPDATED);
+		break;
+
 	default:
 		break;
 	}
@@ -505,6 +564,19 @@ ni_system_updater_remove(ni_updater_t *updater, const ni_addrconf_lease_t *lease
 	ni_string_array_append(&arguments, ni_addrfamily_type_to_name(lease->family));
 
 	switch (updater->type) {
+	case NI_ADDRCONF_UPDATE_GENERIC:
+		switch (updater->format) {
+		case NI_ADDRCONF_UPDATE_FORMAT_INFO:
+			ni_leaseinfo_remove(ifname, lease->type, lease->family);
+			break;
+
+		default:
+			ni_error("Unsupported %s updater data format.",
+				ni_updater_name(updater->type));
+			break;
+		}
+		break;
+
 	case NI_ADDRCONF_UPDATE_RESOLVER:
 	case NI_ADDRCONF_UPDATE_HOSTNAME:
 		break;
@@ -527,10 +599,17 @@ ni_system_updater_remove(ni_updater_t *updater, const ni_addrconf_lease_t *lease
 		if (ni_global.other_event)
 			ni_global.other_event(NI_EVENT_RESOLVER_UPDATED);
 		break;
+
 	case NI_ADDRCONF_UPDATE_HOSTNAME:
 		if (ni_global.other_event)
 			ni_global.other_event(NI_EVENT_HOSTNAME_UPDATED);
 		break;
+
+	case NI_ADDRCONF_UPDATE_GENERIC:
+		if (ni_global.other_event)
+			ni_global.other_event(NI_EVENT_GENERIC_UPDATED);
+		break;
+
 	default:
 		break;
 	}
@@ -706,16 +785,6 @@ ni_system_update_from_lease(const ni_addrconf_lease_t *lease, const unsigned int
 
 	ni_debug_ifconfig("%s()", __func__);
 	ni_system_updaters_init();
-
-	switch (lease->state) {
-	case NI_ADDRCONF_STATE_GRANTED:
-		/* Write lease in dhcpcd-like format. */
-		ni_leaseinfo_dump(NULL, lease, ifname, NULL);
-		break;
-	default:
-		ni_leaseinfo_remove(ifname, lease->type, lease->family);
-		break;
-	}
 
 	for (kind = 0; kind < __NI_ADDRCONF_UPDATE_MAX; ++kind) {
 		if (can_update_type(lease, kind)) {

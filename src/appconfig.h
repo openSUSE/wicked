@@ -40,6 +40,9 @@ struct ni_extension {
 	/* Supported dbus interface */
 	char *			interface;
 
+	/* Format type. Only in use by system-updater. */
+	char *			format;
+
 	/* Shell commands */
 	ni_script_action_t *	actions;
 

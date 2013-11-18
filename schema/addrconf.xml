@@ -35,6 +35,12 @@
       <search class="array" element-type="string" />
     </resolver>
 
+    <nis class="dict">
+      <domainname type="string" />
+      <binding type="uint32" />
+      <servers class="array" element-type="string" />
+    </nis>
+
     <log-servers class="array" element-type="string" />
     <ntp-servers class="array" element-type="string" />
     <slp-servers class="array" element-type="string" />
