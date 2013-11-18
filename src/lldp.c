@@ -721,13 +721,15 @@ ni_lldp_receive(ni_socket_t *sock)
 	 * This is needed for DCBX tie-breaking among other things. */
 	if (ni_capture_recv(capture, &buf) >= 0) {
 		ni_lldp_agent_t *agent = ni_capture_get_user_data(capture);
+		ni_buffer_t raw_id_buf;
 		const void *raw_id;
 		unsigned int raw_id_len;
 		ni_lldp_t *lldp;
 
 		/* Get the chassis and port ID TLVs as a raw string
 		 * of bytes. */
-		if (ni_lldp_pdu_get_raw_id(&buf, &raw_id, &raw_id_len) < 0)
+		raw_id_buf = buf;
+		if (ni_lldp_pdu_get_raw_id(&raw_id_buf, &raw_id, &raw_id_len) < 0)
 			return;
 
 		lldp = ni_lldp_new();
@@ -840,6 +842,8 @@ ni_lldp_tlv_end(ni_lldp_tlv_t *tlv)
 	long len = end - tlv->begin;
 	uint16_t head;
 
+	/* Compensate for offset added by ni_lldp_tlv_begin */
+	len -= 2;
 	if (len < 2 || len > 511)
 		return __ni_lldp_tlv_error(tlv, "bad TLV size %ld", len);
 
@@ -1529,11 +1533,11 @@ ni_lldp_tlv_get_ieee_802_1(ni_lldp_t *lldp, ni_buffer_t *bp, unsigned int subtyp
 static int
 ni_lldp_tlv_get_orgspec(ni_lldp_t *lldp, ni_buffer_t *bp)
 {
-	unsigned char data[4];
+	unsigned char data[3];
 	unsigned int oui, i, subtype;
 	int ret;
 
-	if (ni_buffer_get(bp, data, 4) < 0)
+	if (ni_buffer_get(bp, data, 3) < 0)
 		return -1;
 	for (oui = i = 0; i < 3; ++i)
 		oui = (oui << 8) | data[i];
