@@ -25,6 +25,7 @@
 #include <wicked/addrconf.h>
 #include <wicked/resolver.h>
 #include <wicked/xml.h>
+#include <wicked/nis.h>
 #include "netinfo_priv.h"
 #include "dbus-common.h"
 #include "misc.h"
@@ -1035,7 +1036,17 @@ __ni_objectmodel_get_addrconf_lease(const ni_addrconf_lease_t *lease,
 		__ni_objectmodel_set_string_array(child, "search", &resolv->dns_search);
 	}
 
-	/* TBD: NIS information */
+	if (lease->nis) {
+		ni_nis_info_t *nis = lease->nis;
+
+		child = ni_dbus_dict_add(result, "nis");
+		ni_dbus_variant_init_dict(child);
+
+		if (nis->domainname)
+			ni_dbus_dict_add_string(child, "domainname", nis->domainname);
+		ni_dbus_dict_add_uint32(child, "default-binding", nis->default_binding);
+		__ni_objectmodel_set_string_array(child, "servers", &nis->default_servers);
+	}
 
 	__ni_objectmodel_set_string_array(result, "log-servers", &lease->log_servers);
 	__ni_objectmodel_set_string_array(result, "ntp-servers", &lease->ntp_servers);
@@ -1124,7 +1135,23 @@ __ni_objectmodel_set_addrconf_lease(ni_addrconf_lease_t *lease,
 			return FALSE;
 	}
 
-	/* TBD: NIS information */
+	if ((child = ni_dbus_dict_get(argument, "nis")) != NULL) {
+		ni_nis_info_t *nis = ni_nis_info_new();
+		ni_dbus_variant_t *list;
+
+		lease->nis = nis;
+		if (__ni_objectmodel_get_domain_string(child, "domainname",
+								&string_value))
+			ni_string_dup(&nis->domainname, string_value);
+
+		if (ni_dbus_dict_get_uint32(child, "binding", &value32))
+			nis->default_binding = value32;
+
+		if ((list = ni_dbus_dict_get(child, "servers")) != NULL
+		 && !__ni_objectmodel_get_address_array(&nis->default_servers, list,
+							error, "default-servers"))
+			return FALSE;
+	}
 
 	if ((child = ni_dbus_dict_get(argument, "log-servers")) != NULL
 	 && !__ni_objectmodel_get_address_array(&lease->log_servers, child, error,
