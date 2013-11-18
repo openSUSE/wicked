@@ -10,6 +10,7 @@ wicked_extensions_SCRIPTS	= \
 	firewall	\
 	hostname	\
 	ibft		\
+	netconfig	\
 	openvpn		\
 	resolver
 

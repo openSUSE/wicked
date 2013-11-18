@@ -304,6 +304,7 @@ static ni_intmap_t __event_names[] = {
 	{ "rdnss-updated",		NI_EVENT_RDNSS_UPDATE },
 	{ "resolver-updated",		NI_EVENT_RESOLVER_UPDATED },
 	{ "hostname-updated",		NI_EVENT_HOSTNAME_UPDATED },
+	{ "generic-updated",		NI_EVENT_GENERIC_UPDATED },
 
 	{ NULL }
 };

@@ -791,6 +791,9 @@ ni_config_parse_system_updater(ni_extension_t **list, xml_node_t *node)
 
 	ex = ni_extension_new(list, name);
 
+	/* If the updater has a format type, extract. */
+	ni_string_dup(&ex->format, xml_node_get_attr(node, "format"));
+
 	return ni_config_parse_extension(ex, node);
 }
 

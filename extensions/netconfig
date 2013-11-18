@@ -1,0 +1,63 @@
+#!/bin/bash
+
+backupdir=/var/run/wicked/backup
+updaterdir=/var/run/wicked/extension/generic
+
+type=""
+family=""
+ifname=""
+
+set -e
+shopt -s nullglob
+cmd=$1; shift
+
+while [ $# -gt 0 ]
+do
+	case $1 in
+	-t) shift ; type=$1 ;;
+	-f) shift ; family=$1 ;;
+	-i) shift ; ifname=$1 ;;
+	--) shift ; break ;;
+	-*) echo "unknown option '$1'" >&2 ; exit 1 ;;
+	 *) break ;;
+	esac
+	shift
+done
+
+case $cmd in
+backup)
+	: # netconfig takes to not overwrite manual setup.
+;;
+
+restore)
+	: # wicked to take care of removing any lease data files.
+;;
+
+install)
+	filename=$1
+	format=$2
+
+	if test -n "$filename" -a -f "$filename" ; then
+		case $format in
+		info)
+			/sbin/netconfig modify	-i "$ifname" -s "wicked-$type-$family" \
+									< "$filename"
+		;;
+
+		*)
+			echo "$0: Unsupported data format type." >&2
+		;;
+		esac
+	fi
+;;
+
+remove)
+	# wicked to take care of removing any lease data files.
+	/sbin/netconfig remove -i "$ifname" -s "wicked-$type-$family" 2>/dev/null
+;;
+
+*)
+	echo "$0: command '$cmd' not supported" >&2
+	exit 1
+;;
+esac
