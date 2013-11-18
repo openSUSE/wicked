@@ -78,18 +78,18 @@
 
   <!-- Define the scripts for updating various system settings with
        data obtained from addrconf services, such as dhcp -->
-  <system-updater name="resolver">
-    <action name="backup" command="@wicked_extensionsdir@/resolver backup"/>
-    <action name="restore" command="@wicked_extensionsdir@/resolver restore"/>
-    <action name="install" command="@wicked_extensionsdir@/resolver install"/>
-    <action name="remove" command="@wicked_extensionsdir@/resolver remove"/>
-  </system-updater>
-
   <system-updater name="hostname">
     <action name="backup" command="@wicked_extensionsdir@/hostname backup"/>
     <action name="restore" command="@wicked_extensionsdir@/hostname restore"/>
     <action name="install" command="@wicked_extensionsdir@/hostname install"/>
     <action name="remove" command="@wicked_extensionsdir@/hostname remove"/>
+  </system-updater>
+
+  <system-updater name="generic" format="info">
+    <action name="backup" command="@wicked_extensionsdir@/netconfig backup"/>
+    <action name="restore" command="@wicked_extensionsdir@/netconfig restore"/>
+    <action name="install" command="@wicked_extensionsdir@/netconfig install"/>
+    <action name="remove" command="@wicked_extensionsdir@/netconfig remove"/>
   </system-updater>
 
 </config>
