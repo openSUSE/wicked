@@ -602,6 +602,8 @@ __ni_lldp_tx_timer_arm(ni_lldp_agent_t *agent, unsigned int timeout)
 	/* Apply a jitter between 0 and 0.4 sec */
 	timeout = ni_timeout_randomize(timeout, &jitter);
 
+	if (agent->txTTR)
+		ni_timer_cancel(agent->txTTR);
 	agent->txTTR = ni_timer_register(timeout, ni_lldp_tx_timer_expires, agent);
 	if (agent->txTTR == NULL)
 		ni_error("%s: failed to arm LLDP timer", agent->dev->name);
