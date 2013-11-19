@@ -14,11 +14,11 @@
 #include "buffer.h"
 
 struct ni_socket {
-	unsigned int	refcount;
+	unsigned int		refcount;
+	ni_socket_array_t *	active;
 
 	int		__fd;
-	unsigned int	active : 1,
-			error  : 1;
+	unsigned int	error  : 1;
 	int		poll_flags;
 
 	ni_buffer_t	rbuf;
@@ -39,6 +39,24 @@ struct ni_socket {
 	void *		user_data;
 };
 
+struct ni_socket_array {
+	unsigned int	count;
+	ni_socket_t **	data;
+};
+
+#define NI_SOCKET_ARRAY_INIT	{ .count = 0, .data = NULL }
+
+extern void		ni_socket_array_init(ni_socket_array_t *);
+extern void		ni_socket_array_destroy(ni_socket_array_t *);
+extern void		ni_socket_array_cleanup(ni_socket_array_t *);
+
+extern ni_bool_t	ni_socket_array_append(ni_socket_array_t *, ni_socket_t *);
+extern ni_socket_t *	ni_socket_array_remove_at(ni_socket_array_t *, unsigned int);
+extern ni_socket_t *	ni_socket_array_remove(ni_socket_array_t *, ni_socket_t *);
+extern unsigned int	ni_socket_array_find(ni_socket_array_t *, ni_socket_t *);
+
+extern ni_bool_t	ni_socket_array_activate(ni_socket_array_t *, ni_socket_t *);
+extern ni_bool_t	ni_socket_array_deactivate(ni_socket_array_t *, ni_socket_t *);
 
 #endif /* __WICKED_SOCKET_PRIV_H__ */
 

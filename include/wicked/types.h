@@ -57,6 +57,7 @@ typedef struct ni_dbus_server	ni_dbus_server_t;
 typedef struct ni_dbus_client	ni_dbus_client_t;
 
 typedef struct ni_socket	ni_socket_t;
+typedef struct ni_socket_array	ni_socket_array_t;
 typedef struct ni_buffer	ni_buffer_t;
 typedef struct ni_extension	ni_extension_t;
 typedef struct ni_script_action	ni_script_action_t;

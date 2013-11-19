@@ -28,33 +28,23 @@
 #include "socket_priv.h"
 #include "appconfig.h"
 
+#define	NI_SOCKET_ARRAY_CHUNK	16
+
 static void			__ni_socket_close(ni_socket_t *);
 static void			__ni_socket_accept(ni_socket_t *);
 static void			__ni_default_error_handler(ni_socket_t *);
 static void			__ni_default_hangup_handler(ni_socket_t *);
 
-static unsigned int		__ni_socket_count;
-static ni_socket_t **		__ni_sockets;
+static ni_socket_array_t	__ni_sockets;
+
 
 /*
  * Install a socket so we check it for incoming data.
  */
-void
+ni_bool_t
 ni_socket_activate(ni_socket_t *sock)
 {
-	if (sock->active)
-		return;
-
-	if ((__ni_socket_count % 16) == 0) {
-		__ni_sockets = realloc(__ni_sockets, (__ni_socket_count + 16) * sizeof(ni_socket_t *));
-		if (__ni_sockets == NULL)
-			ni_fatal("%s: realloc failed", __FUNCTION__);
-	}
-
-	__ni_sockets[__ni_socket_count++] = sock;
-	sock->refcount++;
-	sock->active = 1;
-	sock->poll_flags = POLLIN;
+	return ni_socket_array_activate(&__ni_sockets, sock);
 }
 
 static inline void
@@ -63,37 +53,23 @@ __ni_socket_deactivate(ni_socket_t **slot)
 	ni_socket_t *sock = *slot;
 
 	*slot = NULL;
-	sock->active = 0;
+	sock->active = NULL;
 	ni_socket_release(sock);
 }
 
-void
+ni_bool_t
 ni_socket_deactivate(ni_socket_t *sock)
 {
-	unsigned int i;
+	if (!sock || !sock->active)
+		return FALSE;
 
-	if (!sock->active)
-		return;
-
-	for (i = 0; i < __ni_socket_count; ++i) {
-		if (__ni_sockets[i] == sock) {
-			__ni_socket_deactivate(&__ni_sockets[i]);
-			return;
-		}
-	}
-
-	ni_error("%s: socket not found", __FUNCTION__);
+	return ni_socket_array_deactivate(sock->active, sock);
 }
 
 void
 ni_socket_deactivate_all(void)
 {
-	unsigned int i;
-
-	for (i = 0; i < __ni_socket_count; ++i) {
-		if (__ni_sockets[i] != NULL)
-			__ni_socket_deactivate(&__ni_sockets[i]);
-	}
+	ni_socket_array_destroy(&__ni_sockets);
 }
 
 ni_socket_t *
@@ -108,8 +84,9 @@ ni_socket_hold(ni_socket_t *sock)
 void
 ni_socket_release(ni_socket_t *sock)
 {
-	if (sock->refcount == 0)
-		ni_fatal("refcounting error in ni_socket_release");
+	ni_assert(sock);
+	ni_assert(sock->refcount);
+
 	sock->refcount--;
 	if (sock->refcount == 0) {
 		__ni_socket_close(sock);
@@ -136,24 +113,24 @@ __ni_default_hangup_handler(ni_socket_t *sock)
  * Wait for incoming data on any of the sockets.
  */
 int
-ni_socket_wait(long timeout)
+ni_socket_array_wait(ni_socket_array_t *array, long timeout)
 {
-	struct pollfd pfd[__ni_socket_count];
+	struct pollfd pfd[array->count];
 	struct timeval now, expires;
-	unsigned int i, j, socket_count;
+	unsigned int i, socket_count;
 
-	/* First step - remove all inactive sockets from the array. */
-	for (i = j = 0; i < __ni_socket_count; ++i) {
-		if (__ni_sockets[i])
-			__ni_sockets[j++] = __ni_sockets[i];
-	}
-	__ni_socket_count = j;
+	/* First step - cleanup empty socket slots from the array. */
+	ni_socket_array_cleanup(array);
 
 	/* Second step - build pollfd array and get timeouts */
 	timerclear(&expires);
-	for (i = 0; i < __ni_socket_count; ++i) {
-		ni_socket_t *sock = __ni_sockets[i];
+	socket_count = 0;
+	for (i = 0; i < array->count; ++i) {
+		ni_socket_t *sock = array->data[i];
 		struct timeval socket_expires;
+
+		if (sock->active != array)
+			continue;
 
 		timerclear(&socket_expires);
 		if (sock->get_timeout && sock->get_timeout(sock, &socket_expires) == 0) {
@@ -161,10 +138,10 @@ ni_socket_wait(long timeout)
 				expires = socket_expires;
 		}
 
-		pfd[i].fd = sock->__fd;
-		pfd[i].events = sock->poll_flags;
+		pfd[socket_count].fd = sock->__fd;
+		pfd[socket_count].events = sock->poll_flags;
+		socket_count++;
 	}
-	socket_count = __ni_socket_count;
 
 	gettimeofday(&now, NULL);
 	if (timerisset(&expires)) {
@@ -194,15 +171,19 @@ ni_socket_wait(long timeout)
 	}
 
 	for (i = 0; i < socket_count; ++i) {
-		ni_socket_t *sock = __ni_sockets[i];
+		ni_socket_t *sock = array->data[i];
 
-		if (sock == NULL)
+		if (!sock || sock->active != array)
 			continue;
-		sock->refcount++;
+
+		if (pfd[i].fd != sock->__fd)
+			continue;
+
+		ni_socket_hold(sock);
 
 		if (pfd[i].revents & POLLERR) {
 			/* Deactivate socket */
-			__ni_socket_deactivate(&__ni_sockets[i]);
+			__ni_socket_deactivate(&array->data[i]);
 			sock->handle_error(sock);
 			goto done_with_this_socket;
 		}
@@ -210,7 +191,7 @@ ni_socket_wait(long timeout)
 		if (pfd[i].revents & POLLIN) {
 			if (sock->receive == NULL) {
 				ni_error("socket %d has no receive callback", sock->__fd);
-				__ni_socket_deactivate(&__ni_sockets[i]);
+				__ni_socket_deactivate(&array->data[i]);
 			} else {
 				sock->receive(sock);
 			}
@@ -228,7 +209,7 @@ ni_socket_wait(long timeout)
 		if (pfd[i].revents & POLLOUT) {
 			if (sock->transmit == NULL) {
 				ni_error("socket %d has no transmit callback", sock->__fd);
-				__ni_socket_deactivate(&__ni_sockets[i]);
+				__ni_socket_deactivate(&array->data[i]);
 			} else {
 				sock->transmit(sock);
 			}
@@ -240,13 +221,25 @@ done_with_this_socket:
 
 	gettimeofday(&now, NULL);
 	for (i = 0; i < socket_count; ++i) {
-		ni_socket_t *sock = __ni_sockets[i];
+		ni_socket_t *sock = array->data[i];
 
-		if (sock && sock->check_timeout)
+		if (!sock || sock->active != array)
+			continue;
+
+		if (sock->check_timeout)
 			sock->check_timeout(sock, &now);
 	}
 
+	/* Finally cleanup deactivated/released sockets */
+	ni_socket_array_cleanup(array);
+
 	return 0;
+}
+
+int
+ni_socket_wait(long timeout)
+{
+	return ni_socket_array_wait(&__ni_sockets, timeout);
 }
 
 /*
@@ -434,7 +427,7 @@ __ni_socket_accept(ni_socket_t *master)
 	sock = __ni_socket_wrap(fd, SOCK_STREAM);
 	if (master->accept == NULL || master->accept(sock, cred.uid, cred.gid) >= 0) {
 		ni_buffer_init_dynamic(&sock->rbuf, ni_global.config->recv_max);
-		ni_socket_activate(sock);
+		ni_socket_array_activate(master->active, sock);
 	}
 	ni_socket_release(sock);
 }
@@ -455,4 +448,158 @@ ni_local_socket_pair(ni_socket_t **p1, ni_socket_t **p2)
 	*p1 = ni_socket_wrap(fd[0], SOCK_DGRAM);
 	*p2 = ni_socket_wrap(fd[1], SOCK_DGRAM);
 	return 0;
+}
+
+/*
+ * Socket array manipulation functions
+ */
+void
+ni_socket_array_init(ni_socket_array_t *array)
+{
+	memset(array, 0, sizeof(*array));
+}
+
+void
+ni_socket_array_destroy(ni_socket_array_t *array)
+{
+	ni_socket_t *sock;
+
+	if (array) {
+		while (array->count--) {
+			sock = array->data[array->count];
+			array->data[array->count] = NULL;
+			if (sock) {
+				if (sock->active == array)
+					sock->active = NULL;
+				ni_socket_release(sock);
+			}
+		}
+		free(array->data);
+		memset(array, 0, sizeof(*array));
+	}
+}
+
+void
+ni_socket_array_cleanup(ni_socket_array_t *array)
+{
+	unsigned int i, j;
+
+	for (i = j = 0; i < array->count; ++i) {
+		if (array->data[i])
+			array->data[j++] = array->data[i];
+	}
+	array->count = j;
+}
+
+static inline void
+__ni_socket_array_realloc(ni_socket_array_t *array, unsigned int newsize)
+{
+	ni_socket_t **newdata;
+	unsigned int i;
+
+	newsize = (newsize + NI_SOCKET_ARRAY_CHUNK);
+	newdata = xrealloc(array->data, newsize * sizeof(ni_socket_t));
+
+	array->data = newdata;
+	for (i = array->count; i < newsize; ++i)
+		array->data[i] = NULL;
+}
+
+ni_bool_t
+ni_socket_array_append(ni_socket_array_t *array, ni_socket_t *sock)
+{
+	if (array && sock) {
+		if (ni_socket_array_find(array, sock) != -1U)
+			return TRUE;
+
+		if ((array->count % NI_SOCKET_ARRAY_CHUNK) == 0)
+			__ni_socket_array_realloc(array, array->count);
+
+		array->data[array->count++] = sock;
+		return TRUE;
+	}
+	return FALSE;
+}
+
+ni_socket_t *
+ni_socket_array_remove_at(ni_socket_array_t *array, unsigned int index)
+{
+	ni_socket_t *sock;
+
+	if (!array || index >= array->count)
+		return NULL;
+
+	sock = array->data[index];
+	memmove(&array->data[index], &array->data[index + 1],
+		(array->count - index) * sizeof(*sock));
+	array->count--;
+
+	if (sock && sock->active == array)
+		sock->active = NULL;
+	return sock;
+}
+
+ni_socket_t *
+ni_socket_array_remove(ni_socket_array_t *array, ni_socket_t *sock)
+{
+	unsigned int i;
+
+	if (array && sock) {
+		for (i = 0; i < array->count; ++i) {
+			if (sock != array->data[i])
+				continue;
+			return ni_socket_array_remove_at(array, i);
+		}
+	}
+	return NULL;
+}
+
+unsigned int
+ni_socket_array_find(ni_socket_array_t *array, ni_socket_t *sock)
+{
+	unsigned int i;
+
+	if (array && sock) {
+		for (i = 0; i < array->count; ++i) {
+			if (sock == array->data[i])
+				return i;
+		}
+	}
+	return -1U;
+}
+
+ni_bool_t
+ni_socket_array_activate(ni_socket_array_t *array, ni_socket_t *sock)
+{
+	if (!array || !sock)
+		return FALSE;
+
+	if (sock->active)
+		return sock->active == array;
+
+	if (!ni_socket_array_append(&__ni_sockets, sock))
+		return FALSE;
+
+	ni_socket_hold(sock);
+	sock->active = array;
+	sock->poll_flags = POLLIN;
+	return TRUE;
+}
+
+ni_bool_t
+ni_socket_array_deactivate(ni_socket_array_t *array, ni_socket_t *sock)
+{
+	unsigned int i;
+
+	if (!array || !sock || !sock->active || sock->active != array)
+		return FALSE;
+
+	for (i = 0; i < array->count; ++i) {
+		if (sock == array->data[i]) {
+			ni_socket_array_remove_at(array, i);
+			ni_socket_release(sock);
+			return TRUE;
+		}
+	}
+	return FALSE;
 }
