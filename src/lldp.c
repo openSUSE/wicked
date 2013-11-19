@@ -110,7 +110,6 @@ static ni_lldp_peer_t *	ni_lldp_peer_new(const void *raw_id, unsigned int raw_id
 static void		ni_lldp_peer_unlink_and_free(ni_lldp_peer_t **);
 static int		ni_lldp_pdu_build(const ni_lldp_t *, ni_dcbx_state_t *, ni_buffer_t *);
 static int		ni_lldp_pdu_parse(ni_lldp_t *, ni_buffer_t *);
-static int		ni_lldp_pdu_parse_nested(ni_lldp_t *, ni_buffer_t *, ni_lldp_get_fn_t **, unsigned int);
 static int		ni_lldp_pdu_get_raw_id(ni_buffer_t *, const void **, unsigned int *);
 
 static ni_lldp_ieee_802_1_t *ni_lldp_ieee_802_1_clone(const ni_lldp_ieee_802_1_t *);
@@ -1527,7 +1526,13 @@ ni_lldp_tlv_get_ieee_802_1(ni_lldp_t *lldp, ni_buffer_t *bp, unsigned int subtyp
 	[NI_LLDP_IEEE_802_1QAZ_TLV_APP]		= ni_dcbx_get_app_priorities,
 	};
 
-	return ni_lldp_pdu_parse_nested(lldp, bp, get_fn_table, NI_LLDP_IEEE_802_1_TLV_MAX);
+	if (subtype < NI_LLDP_IEEE_802_1_TLV_MAX) {
+		ni_lldp_get_fn_t *fn = get_fn_table[subtype];
+		if (fn)
+			return fn(lldp, bp);
+	}
+	ni_debug_lldp("%s: subtype %u not handled", __func__, subtype);
+	return 0;
 }
 
 static int
@@ -1682,12 +1687,6 @@ ni_lldp_pdu_parse(ni_lldp_t *lldp, ni_buffer_t *bp)
 	};
 
 	return __ni_lldp_pdu_parse(lldp, bp, get_fn_table, NI_LLDP_TLV_MAX, mandatory_part, TRUE);
-}
-
-static int
-ni_lldp_pdu_parse_nested(ni_lldp_t *lldp, ni_buffer_t *bp, ni_lldp_get_fn_t **get_fn_table, unsigned int get_fn_table_max_entries)
-{
-	return __ni_lldp_pdu_parse(lldp, bp, get_fn_table, get_fn_table_max_entries, NULL, FALSE);
 }
 
 int
