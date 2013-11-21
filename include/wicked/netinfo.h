@@ -199,6 +199,7 @@ extern void		ni_netdev_set_client_info(ni_netdev_t *, ni_device_clientinfo_t *);
 extern ni_device_clientinfo_t *	ni_netdev_get_client_info(ni_netdev_t *);
 extern void		ni_netdev_set_client_state(ni_netdev_t *, ni_client_state_t *);
 extern ni_client_state_t *	ni_netdev_get_client_state(ni_netdev_t *);
+extern void		ni_netdev_load_client_state(ni_netdev_t *);
 
 extern ni_ipv6_devinfo_t *ni_netdev_get_ipv6(ni_netdev_t *);
 extern ni_ipv4_devinfo_t *ni_netdev_get_ipv4(ni_netdev_t *);

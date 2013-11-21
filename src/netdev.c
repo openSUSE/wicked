@@ -423,6 +423,21 @@ ni_netdev_get_client_state(ni_netdev_t *dev)
 	return dev ? dev->client_state : NULL;
 }
 
+void
+ni_netdev_load_client_state(ni_netdev_t *dev)
+{
+	ni_client_state_t client_state;
+
+	if (!ni_netdev_get_client_state(dev)) {
+		ni_client_state_init(&client_state);
+		if (ni_client_state_load(&client_state, dev->name)) {
+			ni_netdev_set_client_state(dev, ni_client_state_clone(&client_state));
+			ni_debug_ifconfig("loading client-state structure from a file for %s",
+				dev->name);
+		}
+	}
+}
+
 /*
  * Set the interface's lldp info
  */

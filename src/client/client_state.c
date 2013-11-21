@@ -33,8 +33,7 @@ static void
 ni_client_state_filename(const char *ifname, char *path, size_t size)
 {
 	snprintf(path, size, "%s/state-%s.xml",
-			".",
-			//ni_config_statedir(),
+			ni_config_statedir(),
 			ifname);
 }
 
