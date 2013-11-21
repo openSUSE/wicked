@@ -387,6 +387,8 @@ __ni_objectmodel_bonding_set_slaves(ni_dbus_object_t *object,
 	}
 
 	ni_string_free(&bond->primary_slave);
+	ni_string_free(&bond->active_slave);
+	ni_string_array_destroy(&bond->slave_names);
 	for (i = 0, var = result->variant_array_value; i < result->array.len; ++i, ++var) {
 		dbus_bool_t is_primary = FALSE;
 		dbus_bool_t is_active = FALSE;
@@ -398,7 +400,12 @@ __ni_objectmodel_bonding_set_slaves(ni_dbus_object_t *object,
 					object->path, property->name);
 			return FALSE;
 		}
-		ni_string_array_append(&bond->slave_names, slave_name);
+		if (ni_string_array_index(&bond->slave_names, slave_name) != -1) {
+			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"%s.%s property - duplicate slave devices",
+				object->path, property->name);
+			return FALSE;
+		}
 
 		if (ni_dbus_dict_get_bool(var, "primary", &is_primary) && is_primary) {
 			if (bond->primary_slave) {
@@ -418,6 +425,8 @@ __ni_objectmodel_bonding_set_slaves(ni_dbus_object_t *object,
 			}
 			ni_string_dup(&bond->active_slave, slave_name);
 		}
+
+		ni_string_array_append(&bond->slave_names, slave_name);
 	}
 	return TRUE;
 }
