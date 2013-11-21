@@ -533,6 +533,7 @@ ni_socket_array_remove_at(ni_socket_array_t *array, unsigned int index)
 	memmove(&array->data[index], &array->data[index + 1],
 		(array->count - index) * sizeof(ni_socket_t *));
 	array->count--;
+	array->data[array->count] = NULL;
 
 	if (sock && sock->active == array)
 		sock->active = NULL;

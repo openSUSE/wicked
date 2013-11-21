@@ -896,6 +896,7 @@ ni_route_array_remove(ni_route_array_t *nra, unsigned int index)
 	memmove(&nra->data[index], &nra->data[index + 1],
 		(nra->count - index) * sizeof(ni_route_t *));
 	nra->count--;
+	nra->data[nra->count] = NULL;
 
 	/* Don't bother with shrinking the array. It's not worth the trouble */
 	return rp;

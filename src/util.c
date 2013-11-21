@@ -198,6 +198,7 @@ ni_string_array_remove_index(ni_string_array_t *nsa, unsigned int pos)
 	/* Note: this also copies the NULL pointer following the last element */
 	memmove(&nsa->data[pos], &nsa->data[pos + 1], (nsa->count - pos) * sizeof(char *));
 	nsa->count--;
+	nsa->data[nsa->count] = NULL;
 
 	/* Don't bother with shrinking the array. It's not worth the trouble */
 	return 0;
