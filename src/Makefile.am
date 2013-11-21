@@ -5,7 +5,8 @@ MAINTAINERCLEANFILES		= Makefile.in
 
 wicked_lib_LTLIBRARIES		= libwicked.la
 noinst_LTLIBRARIES		= libwicked-dbus-objects.la	\
-				  libwicked-dhcp6.la
+				  libwicked-dhcp6.la		\
+				  libwicked-client.la
 
 libwicked_la_CPPFLAGS		= -DWICKED_CONFIGDIR=\"$(wicked_configdir)\" \
 				  -DWICKED_STOREDIR=\"$(wicked_storedir)\" \
@@ -27,7 +28,8 @@ libwicked_la_LDFLAGS		= -lm			\
 				  $(LIBWICKED_LTLINK_VERSION)
 
 libwicked_la_LIBADD		= libwicked-dbus-objects.la	\
-				  libwicked-dhcp6.la
+				  libwicked-dhcp6.la		\
+				  libwicked-client.la
 libwicked_la_SOURCES		= \
 	address.c		\
 	arp.c			\
@@ -124,9 +126,14 @@ libwicked_dhcp6_la_CFLAGS		= $(libwicked_la_CFLAGS)
 libwicked_dhcp6_la_SOURCES		= \
 	dhcp6/options.c
 
+libwicked_client_la_CFLAGS		= $(libwicked_la_CFLAGS)
+libwicked_client_la_SOURCES		= \
+	client/client_state.c
+
 EXTRA_DIST			= \
 	appconfig.h		\
 	buffer.h		\
+	client/client_state.h	\
 	dbus-common.h		\
 	dbus-connection.h	\
 	dbus-dict.h		\
