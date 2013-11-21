@@ -1105,6 +1105,28 @@ ni_parse_double(const char *input, double *result)
 	return 0;
 }
 
+int
+ni_parse_boolean(const char *input, ni_bool_t *result)
+{
+	if (ni_string_empty(input) || !result) {
+		errno = EINVAL;
+		return -1;
+	}
+
+	if (ni_string_eq_nocase(input, "true") ||
+	    ni_string_eq_nocase(input, "1")) {
+		*result = TRUE;
+	}
+	else if (ni_string_eq_nocase(input, "false") ||
+		 ni_string_eq_nocase(input, "0")) {
+		*result = FALSE;
+	}
+	else
+		return 1;
+
+	return 0;
+}
+
 /*
  * Format hex data to (upper case) string using specified separator
  */

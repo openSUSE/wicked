@@ -167,6 +167,7 @@ extern int		ni_parse_long(const char *, long *, int);
 extern int		ni_parse_ulong(const char *, unsigned long *, int);
 extern int		ni_parse_double(const char *, double *);
 extern int		ni_parse_hex(const char *, unsigned char *, unsigned int);
+extern int		ni_parse_boolean(const char *, ni_bool_t *);
 
 extern int		ni_parse_uint_mapped(const char *, const struct ni_intmap *, unsigned int *);
 extern int		ni_parse_uint_maybe_mapped(const char *, const struct ni_intmap *, unsigned int *, int);
@@ -262,6 +263,15 @@ static inline size_t
 ni_string_len(const char *s)
 {
 	return s ? strlen(s) : 0;
+}
+
+/*
+ * Parse and format inline functions
+ */
+static inline const char *
+ni_format_boolean(ni_bool_t data)
+{
+	return (data ? "true" : "false");
 }
 
 /*
