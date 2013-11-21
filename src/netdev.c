@@ -96,6 +96,7 @@ ni_netdev_free(ni_netdev_t *dev)
 	ni_netdev_set_dcb(dev, NULL);
 	ni_netdev_set_lldp(dev, NULL);
 	ni_netdev_set_client_info(dev, NULL);
+	ni_netdev_set_client_state(dev, NULL);
 
 	ni_netdev_set_ipv4(dev, NULL);
 	ni_netdev_set_ipv6(dev, NULL);
@@ -398,6 +399,28 @@ ni_device_clientinfo_free(ni_device_clientinfo_t *client_info)
 	ni_string_free(&client_info->state);
 	ni_string_free(&client_info->config_origin);
 	free(client_info);
+}
+
+/*
+ * Set the interface's client_state structure.
+ * This information is not intepreted by the server at all, but
+ * we retain it for the client.
+ */
+void
+ni_netdev_set_client_state(ni_netdev_t *dev, ni_client_state_t *client_state)
+{
+	if (dev->client_state == client_state)
+		return;
+	if (dev->client_state)
+		ni_client_state_free(dev->client_state);
+
+	dev->client_state = client_state;
+}
+
+ni_client_state_t *
+ni_netdev_get_client_state(ni_netdev_t *dev)
+{
+	return dev ? dev->client_state : NULL;
 }
 
 /*

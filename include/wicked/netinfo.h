@@ -15,6 +15,8 @@
 #include <wicked/util.h>
 #include <wicked/address.h>
 
+#include "client/client_state.h"
+
 typedef struct ni_link_stats	ni_link_stats_t;
 typedef struct ni_ethtool_stats	ni_ethtool_stats_t;
 
@@ -61,6 +63,7 @@ struct ni_netdev {
 	ni_linkinfo_t		link;
 
 	ni_device_clientinfo_t *client_info;
+	ni_client_state_t *	client_state;
 
 	unsigned int		users;
 
@@ -194,6 +197,8 @@ extern void		ni_netdev_set_lldp(ni_netdev_t *, ni_lldp_t *);
 extern void		ni_netdev_set_pci(ni_netdev_t *, ni_pci_dev_t *);
 extern void		ni_netdev_set_client_info(ni_netdev_t *, ni_device_clientinfo_t *);
 extern ni_device_clientinfo_t *	ni_netdev_get_client_info(ni_netdev_t *);
+extern void		ni_netdev_set_client_state(ni_netdev_t *, ni_client_state_t *);
+extern ni_client_state_t *	ni_netdev_get_client_state(ni_netdev_t *);
 
 extern ni_ipv6_devinfo_t *ni_netdev_get_ipv6(ni_netdev_t *);
 extern ni_ipv4_devinfo_t *ni_netdev_get_ipv4(ni_netdev_t *);

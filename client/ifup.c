@@ -63,10 +63,25 @@ ni_ifup_down_init(void)
 	return fsm;
 }
 
+static void
+fill_state_string(ni_stringbuf_t *sb, const ni_uint_range_t *range)
+{
+	unsigned int state;
+
+	if (!sb)
+		return;
+
+	for (state = (range ? range->min : NI_FSM_STATE_NONE);
+	     state <= (range ? range->max : __NI_FSM_STATE_MAX - 1);
+	     state++) {
+		ni_stringbuf_printf(sb, "%s ", ni_ifworker_state_name(state));
+	}
+}
+
 int
 do_ifup(int argc, char **argv)
 {
-	enum  { OPT_HELP, OPT_IFCONFIG, OPT_IFPOLICY, OPT_CONTROL_MODE, OPT_STAGE, OPT_TIMEOUT, OPT_SKIP_ACTIVE, OPT_SKIP_ORIGIN, OPT_FORCE };
+	enum  { OPT_HELP, OPT_IFCONFIG, OPT_IFPOLICY, OPT_CONTROL_MODE, OPT_STAGE, OPT_TIMEOUT, OPT_SKIP_ACTIVE, OPT_SKIP_ORIGIN, OPT_FORCE, OPT_PERSISTENT };
 	static struct option ifup_options[] = {
 		{ "help",	no_argument,       NULL,	OPT_HELP },
 		{ "ifconfig",	required_argument, NULL,	OPT_IFCONFIG },
@@ -77,6 +92,7 @@ do_ifup(int argc, char **argv)
 		{ "skip-origin",required_argument, NULL,	OPT_SKIP_ORIGIN },
 		{ "timeout",	required_argument, NULL,	OPT_TIMEOUT },
 		{ "force",	no_argument, NULL,	OPT_FORCE },
+		{ "persistent",	no_argument, NULL,	OPT_PERSISTENT },
 		{ NULL }
 	};
 	ni_uint_range_t state_range = { .min = NI_FSM_STATE_ADDRCONF_UP, .max = __NI_FSM_STATE_MAX };
@@ -87,6 +103,7 @@ do_ifup(int argc, char **argv)
 	const char *opt_skip_origin = NULL;
 	ni_bool_t opt_force = FALSE;
 	ni_bool_t opt_skip_active = FALSE;
+	ni_bool_t opt_persistent = FALSE;
 	unsigned int nmarked, i;
 	ni_fsm_t *fsm;
 	int c, status = 1;
@@ -135,6 +152,10 @@ do_ifup(int argc, char **argv)
 			opt_force = TRUE;
 			break;
 
+		case OPT_PERSISTENT:
+			opt_persistent = TRUE;
+			break;
+
 		default:
 		case OPT_HELP:
 usage:
@@ -162,6 +183,8 @@ usage:
 				"      Timeout after <nsec> seconds\n"
 				"  --force\n"
 				"      Force reconfiguring the interface without checking the config origin\n"
+				"  --persistent\n"
+				"      Set interface into persistent mode (no regular ifdown allowed)\n"
 				);
 			goto cleanup;
 		}
@@ -202,19 +225,24 @@ usage:
 		goto cleanup;
 	}
 
+	ni_fsm_set_client_state(fsm, opt_persistent);
+
 	nmarked = 0;
 	while (optind < argc) {
 		static ni_ifmatcher_t ifmatch;
 
 		memset(&ifmatch, 0, sizeof(ifmatch));
 		ifmatch.name = argv[optind++];
+		/* Allow ifup on all interfaces we have config for */
+		ifmatch.require_configured = FALSE;
+		ifmatch.allow_persistent = TRUE;
+		ifmatch.require_config = TRUE;
 		ifmatch.skip_active = opt_skip_active;
 		ifmatch.skip_origin = opt_skip_origin;
 
 		if (!strcmp(ifmatch.name, "boot")) {
 			ifmatch.name = "all";
 			ifmatch.mode = "boot";
-			ifmatch.require_config = TRUE;
 		} else {
 			ifmatch.mode = opt_control_mode;
 			ifmatch.boot_stage = opt_boot_stage;
@@ -241,30 +269,44 @@ cleanup:
 int
 do_ifdown(int argc, char **argv)
 {
-	enum  { OPT_HELP, OPT_DELETE, OPT_TIMEOUT };
+	enum  { OPT_HELP, OPT_FORCE, OPT_TIMEOUT };
 	static struct option ifdown_options[] = {
 		{ "help",	no_argument, NULL,		OPT_HELP },
-		{ "delete",	no_argument, NULL,		OPT_DELETE },
+		{ "force",	required_argument, NULL,	OPT_FORCE },
 		{ "timeout",	required_argument, NULL,	OPT_TIMEOUT },
 		{ NULL }
 	};
 	static ni_ifmatcher_t ifmatch;
-	ni_uint_range_t target_range = { .min = NI_FSM_STATE_NONE, .max = NI_FSM_STATE_DEVICE_UP };
+	ni_uint_range_t target_range = { .min = NI_FSM_STATE_DEVICE_DOWN, .max = __NI_FSM_STATE_MAX - 2};
+	unsigned int force_state = NI_FSM_STATE_NONE;
 	unsigned int nmarked;
-	/* int opt_delete = 0; */
+	ni_stringbuf_t sb = NI_STRINGBUF_INIT_DYNAMIC;
 	ni_fsm_t *fsm;
 	int c, status = 1;
 
 	fsm = ni_ifup_down_init();
 
+	/* Allow ifdown only on non-persistent interfaces previously configured by ifup */
 	memset(&ifmatch, 0, sizeof(ifmatch));
+	ifmatch.require_configured = TRUE;
+	ifmatch.allow_persistent = FALSE;
+	ifmatch.require_config = FALSE;
 
 	optind = 1;
 	while ((c = getopt_long(argc, argv, "", ifdown_options, NULL)) != EOF) {
 		switch (c) {
-		case OPT_DELETE:
-			target_range.max = NI_FSM_STATE_DEVICE_DOWN;
-			/* opt_delete = 1; */
+		case OPT_FORCE:
+			if (!ni_ifworker_state_from_name(optarg, &force_state) ||
+			    !ni_ifworker_state_in_range(&target_range, force_state)) {
+				ni_error("ifdown: wrong force option \"%s\"", optarg);
+				goto usage;
+			}
+			target_range.min = NI_FSM_STATE_NONE;
+			target_range.max = force_state;
+			/* Allow ifdown on persistent, unconfigured interfaces */
+			ifmatch.require_configured = FALSE;
+			ifmatch.allow_persistent = TRUE;
+			ifmatch.require_config = FALSE;
 			break;
 
 		case OPT_TIMEOUT:
@@ -281,17 +323,21 @@ do_ifdown(int argc, char **argv)
 		default:
 		case OPT_HELP:
 usage:
+			fill_state_string(&sb, &target_range);
 			fprintf(stderr,
 				"wicked [options] ifdown [ifdown-options] all\n"
 				"wicked [options] ifdown [ifdown-options] <ifname> [options ...]\n"
 				"\nSupported ifdown-options:\n"
 				"  --help\n"
 				"      Show this help text.\n"
-				"  --delete\n"
-				"      Delete virtual interfaces\n"
+				"  --force <state>\n"
+				"      Force putting interface into the <state> state. Despite of persistent mode being set. Possible states:\n"
+				"  %s\n"
 				"  --timeout <nsec>\n"
-				"      Timeout after <nsec> seconds\n"
+				"      Timeout after <nsec> seconds\n",
+				sb.string
 				);
+			ni_stringbuf_destroy(&sb);
 			return status;
 		}
 	}
@@ -299,6 +345,12 @@ usage:
 	if (optind >= argc) {
 		fprintf(stderr, "Missing interface argument\n");
 		goto usage;
+	}
+
+	/* If no force_state - use default target states for ifdown */
+	if (NI_FSM_STATE_NONE == force_state) {
+		target_range.min = NI_FSM_STATE_NONE;
+		target_range.max = NI_FSM_STATE_DEVICE_UP;
 	}
 
 	if (!ni_fsm_create_client(fsm))
@@ -325,28 +377,17 @@ usage:
 	return status;
 }
 
-static void
-fill_state_string(char *buf, size_t len)
-{
-	int state = 0;
-	buf[0] = '\0';
-	do {
-		const char *str = ni_ifworker_state_name(state);
-		if (str)
-			snprintf(buf + strlen(buf), len - strlen(buf), "%s ", str);
-	} while (++state < __NI_FSM_STATE_MAX);
-}
-
 int
 do_ifcheck(int argc, char **argv)
 {
-	enum  { OPT_HELP, OPT_QUIET, OPT_IFCONFIG, OPT_STATE, OPT_CHANGED };
+	enum  { OPT_HELP, OPT_QUIET, OPT_IFCONFIG, OPT_STATE, OPT_CHANGED, OPT_PERSISTENT };
 	static struct option ifcheck_options[] = {
 		{ "help",	no_argument, NULL,		OPT_HELP },
 		{ "quiet",	no_argument, NULL,		OPT_QUIET },
 		{ "ifconfig",	required_argument, NULL,	OPT_IFCONFIG },
 		{ "state",	required_argument, NULL,	OPT_STATE },
 		{ "changed",	no_argument, NULL,		OPT_CHANGED },
+		{ "persistent",	no_argument, NULL,		OPT_PERSISTENT },
 		{ NULL }
 	};
 	static ni_ifmatcher_t ifmatch;
@@ -354,8 +395,9 @@ do_ifcheck(int argc, char **argv)
 	/* unsigned int nmarked; */
 	ni_bool_t opt_check_changed = FALSE;
 	ni_bool_t opt_quiet = FALSE;
+	ni_bool_t opt_persistent = FALSE;
 	const char *opt_state = NULL;
-	char state_string[256];
+	ni_stringbuf_t sb = NI_STRINGBUF_INIT_DYNAMIC;
 	unsigned int i;
 	ni_fsm_t *fsm;
 	int c, status = 0;
@@ -363,7 +405,11 @@ do_ifcheck(int argc, char **argv)
 	fsm = ni_ifup_down_init();
 	fsm->readonly = TRUE;
 
+	/* Allow ifcheck on persistent, unconfigured interfaces */
 	memset(&ifmatch, 0, sizeof(ifmatch));
+	ifmatch.require_configured = FALSE;
+	ifmatch.allow_persistent = TRUE;
+	ifmatch.require_config = FALSE;
 
 	optind = 1;
 	while ((c = getopt_long(argc, argv, "", ifcheck_options, NULL)) != EOF) {
@@ -386,10 +432,14 @@ do_ifcheck(int argc, char **argv)
 			opt_quiet = TRUE;
 			break;
 
+		case OPT_PERSISTENT:
+			opt_persistent = TRUE;
+			break;
+
 		default:
 		case OPT_HELP:
 usage:
-			fill_state_string(state_string, sizeof(state_string));
+			fill_state_string(&sb, NULL);
 			fprintf(stderr,
 				"wicked [options] ifcheck [ifcheck-options] all\n"
 				"wicked [options] ifcheck [ifcheck-options] <ifname> ...\n"
@@ -404,9 +454,12 @@ usage:
 				"  --changed\n"
 				"      Verify that the interface(s) use the current configuration\n"
 				"  --quiet\n"
-				"      Do not print out errors, but just signal the result through exit status\n",
-				state_string
+				"      Do not print out errors, but just signal the result through exit status\n"
+				"  --persistent\n"
+				"      Show whether interface is in persistent mode\n",
+				sb.string
 				);
+			ni_stringbuf_destroy(&sb);
 			goto cleanup;
 		}
 	}
@@ -475,9 +528,19 @@ usage:
 				}
 			}
 
-			printf("%s: exists%s%s\n", w->name,
+			if (opt_persistent) {
+				if (w->client_state.persistent) {
+					if (!opt_quiet)
+						ni_error("%s: device configured in persistent mode", w->name);
+					status = 2;
+					continue;
+				}
+			}
+
+			printf("%s: exists%s%s%s\n", w->name,
 					opt_check_changed? ", configuration unchanged" : "",
-					opt_state? ", interface state as expected" : "");
+					opt_state? ", interface state as expected" : "",
+					opt_persistent? ", persistent mode is not set" : "");
 		}
 	}
 

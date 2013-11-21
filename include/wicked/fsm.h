@@ -14,6 +14,8 @@
 #include <wicked/dbus.h>
 #include <wicked/xml.h>
 
+#include "client/client_state.h"
+
 /*
  * Interface state information
  */
@@ -128,6 +130,7 @@ struct ni_ifworker {
 
 	ni_ifworker_control_t	control;
 
+	ni_client_state_t client_state;
 	struct {
 		char *		origin;
 		ni_uuid_t	uuid;
@@ -221,8 +224,10 @@ typedef struct ni_ifmatcher {
 	const char *		mode;
 	const char *		boot_stage;
 	const char *		skip_origin;
-	unsigned int		require_config : 1,
-				skip_active    : 1;
+	unsigned int		require_config     : 1,
+				require_configured : 1,
+				allow_persistent   : 1,
+				skip_active        : 1;
 } ni_ifmatcher_t;
 
 
@@ -238,6 +243,7 @@ extern xml_node_t *		ni_fsm_policy_transform_document(xml_node_t *, const ni_fsm
 extern const char *		ni_fsm_policy_name(const ni_fsm_policy_t *);
 extern ni_bool_t		ni_fsm_policies_changed_since(const ni_fsm_t *, unsigned int *tstamp);
 
+extern void			ni_fsm_set_client_state(ni_fsm_t *, ni_bool_t);
 extern ni_dbus_client_t *	ni_fsm_create_client(ni_fsm_t *);
 extern void			ni_fsm_refresh_state(ni_fsm_t *);
 extern unsigned int		ni_fsm_schedule(ni_fsm_t *);
@@ -259,10 +265,11 @@ extern ni_bool_t		ni_fsm_destroy_worker(ni_fsm_t *fsm, ni_ifworker_t *w);
 
 extern ni_ifworker_type_t	ni_ifworker_type_from_string(const char *);
 extern const char *		ni_ifworker_type_to_string(ni_ifworker_type_t);
+extern inline ni_bool_t	ni_ifworker_state_in_range(const ni_uint_range_t *, const unsigned int);
 extern const char *		ni_ifworker_state_name(unsigned int state);
 extern ni_bool_t		ni_ifworker_state_from_name(const char *, unsigned int *);
 extern ni_fsm_require_t *	ni_ifworker_reachability_check_new(xml_node_t *);
-extern ni_bool_t		ni_ifworker_match_alias(const ni_ifworker_t *w, const char *alias);
+extern ni_bool_t		ni_ifworker_match_alias(const ni_ifworker_t *, const char *);
 extern void			ni_ifworker_set_config(ni_ifworker_t *, xml_node_t *, const char *);
 extern ni_bool_t		ni_ifworker_check_config(const ni_ifworker_t *, const xml_node_t *, const char *);
 extern void			ni_ifworker_reset(ni_ifworker_t *);

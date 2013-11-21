@@ -436,22 +436,6 @@ ni_call_device_method_xml(ni_dbus_object_t *object, const char *method_name, xml
 }
 
 int
-ni_call_get_client_info(const ni_dbus_object_t *object, ni_device_clientinfo_t *client_info)
-{
-	ni_dbus_variant_t dict = NI_DBUS_VARIANT_INIT;
-
-	if (!ni_dbus_object_call_variant(object, NI_OBJECTMODEL_NETIF_INTERFACE,
-		"getClientInfo", 0, NULL, 1, &dict, NULL)) {
-		return -1;
-	}
-
-	ni_objectmodel_netif_client_info_from_dict(client_info, &dict);
-	ni_dbus_variant_destroy(&dict);
-
-	return 0;
-}
-
-int
 ni_call_set_client_info(ni_dbus_object_t *object, const ni_device_clientinfo_t *client_info)
 {
 	const ni_dbus_service_t *service;
@@ -465,6 +449,28 @@ ni_call_set_client_info(ni_dbus_object_t *object, const ni_device_clientinfo_t *
 	memset(&dict, 0, sizeof(dict));
 	ni_dbus_variant_init_dict(&dict);
 	if (!ni_objectmodel_netif_client_info_to_dict(client_info, &dict))
+		return -1;
+
+	rv = ni_call_device_method_common(object, service, method, 1, &dict, NULL, NULL);
+
+	ni_dbus_variant_destroy(&dict);
+	return rv;
+}
+
+int
+ni_call_set_client_state(ni_dbus_object_t *object, const ni_client_state_t *client_state)
+{
+	const ni_dbus_service_t *service;
+	const ni_dbus_method_t *method;
+	ni_dbus_variant_t dict;
+	int rv;
+
+	if ((rv = ni_get_device_method(object, "setClientState", &service, &method)) < 0)
+		return rv;
+
+	memset(&dict, 0, sizeof(dict));
+	ni_dbus_variant_init_dict(&dict);
+	if (!ni_objectmodel_netif_client_state_to_dict(client_state, &dict))
 		return -1;
 
 	rv = ni_call_device_method_common(object, service, method, 1, &dict, NULL, NULL);
