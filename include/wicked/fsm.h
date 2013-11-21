@@ -105,6 +105,7 @@ typedef struct ni_ifworker_control {
 	char *			boot_stage;
 	ni_bool_t		mandatory;	/* not used yet */
 	ni_bool_t		link_required;
+	ni_bool_t		persistent;
 	unsigned int		link_timeout;
 } ni_ifworker_control_t;
 
