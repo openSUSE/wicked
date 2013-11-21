@@ -96,6 +96,7 @@ ni_netdev_free(ni_netdev_t *dev)
 	ni_netdev_set_dcb(dev, NULL);
 	ni_netdev_set_lldp(dev, NULL);
 	ni_netdev_set_client_info(dev, NULL);
+	ni_netdev_set_ifstate(dev, NULL);
 
 	ni_netdev_set_ipv4(dev, NULL);
 	ni_netdev_set_ipv6(dev, NULL);
@@ -398,6 +399,43 @@ ni_device_clientinfo_free(ni_device_clientinfo_t *client_info)
 	ni_string_free(&client_info->state);
 	ni_string_free(&client_info->config_origin);
 	free(client_info);
+}
+
+/*
+ * Set the interface's ifstate structure.
+ * This information is not intepreted by the server at all, but
+ * we retain it for the client.
+ */
+void
+ni_netdev_set_ifstate(ni_netdev_t *dev, ni_ifstate_t *ifstate)
+{
+	if (dev->ifstate == ifstate)
+		return;
+	if (dev->ifstate)
+		ni_ifstate_free(dev->ifstate);
+
+	dev->ifstate = ifstate;
+}
+
+ni_ifstate_t *
+ni_netdev_get_ifstate(ni_netdev_t *dev)
+{
+	return dev ? dev->ifstate : NULL;
+}
+
+void
+ni_netdev_load_ifstate(ni_netdev_t *dev)
+{
+	ni_ifstate_t ifstate;
+
+	if (!ni_netdev_get_ifstate(dev)) {
+		if (ni_ifstate_load(&ifstate, dev->name)) {
+			ni_netdev_set_ifstate(dev, ni_ifstate_new(0));
+			*(dev->ifstate) = ifstate;
+			ni_debug_ifconfig("loading ifstate structure from a file for %s",
+				dev->name);
+		}
+	}
 }
 
 /*

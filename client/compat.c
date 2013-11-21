@@ -18,6 +18,7 @@
 #include <wicked/wireless.h>
 #include <wicked/fsm.h>
 #include <wicked/xml.h>
+#include <wicked/ifstate.h>
 #include "wicked-client.h"
 #include <netlink/netlink.h>
 #include <sys/param.h>
@@ -983,6 +984,13 @@ __ni_compat_generate_ifcfg(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 						ni_sprint_timeout(control->link_timeout));
 			if (control->link_required)
 				(void) xml_node_new("require-link", linkdet);
+		}
+
+		/* <ifstate> node generation based on STARTMODE value parsed in control */
+		if (control->persistent) {
+			child = xml_node_create(ifnode, NI_IFSTATE_XML_STATE_NODE);
+			xml_node_new_element(NI_IFSTATE_XML_PERSISTENT_NODE, child,
+				ni_format_boolean(control->persistent));
 		}
 	}
 

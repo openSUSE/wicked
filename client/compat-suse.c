@@ -1042,18 +1042,18 @@ __ni_suse_startmode(const char *mode)
 		ni_ifworker_control_t	control;
 	} __ni_suse_control_params[] = {
 		/* manual is the default in ifcfg */
-		{ "manual",	{ NULL,		NULL,		TRUE,	FALSE,	30	} },
+		{ "manual",	{ NULL,		NULL,		TRUE,	FALSE,	FALSE,	30	} },
 
-		{ "auto",	{ "boot",	NULL,		FALSE,	TRUE,	30	} },
-		{ "boot",	{ "boot",	NULL,		FALSE,	TRUE,	30	} },
-		{ "onboot",	{ "boot",	NULL,		FALSE,	TRUE,	30	} },
-		{ "on",		{ "boot",	NULL,		FALSE,	TRUE,	30	} },
+		{ "auto",	{ "boot",	NULL,		FALSE,	TRUE,	FALSE,	30	} },
+		{ "boot",	{ "boot",	NULL,		FALSE,	TRUE,	FALSE,	30	} },
+		{ "onboot",	{ "boot",	NULL,		FALSE,	TRUE,	FALSE,	30	} },
+		{ "on",		{ "boot",	NULL,		FALSE,	TRUE,	FALSE,	30	} },
 
-		{ "hotplug",	{ "boot",	NULL,		FALSE,	FALSE,	30	} },
-		{ "ifplugd",	{ "ignore",	NULL,		FALSE,	FALSE,	30	} },
+		{ "hotplug",	{ "boot",	NULL,		FALSE,	FALSE,	FALSE,	30	} },
+		{ "ifplugd",	{ "ignore",	NULL,		FALSE,	FALSE,	FALSE,	30	} },
 
-		{ "nfsroot",	{ "boot",	"localfs",	TRUE,	TRUE,	NI_IFWORKER_INFINITE_TIMEOUT	} },
-		{ "off",	{ "off",	NULL,		FALSE,	FALSE,	0	} },
+		{ "nfsroot",	{ "boot",	"localfs",	TRUE,	TRUE,	TRUE,	NI_IFWORKER_INFINITE_TIMEOUT	} },
+		{ "off",	{ "off",	NULL,		FALSE,	FALSE,	FALSE,	0	} },
 
 		{ NULL }
 	};

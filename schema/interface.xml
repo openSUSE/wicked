@@ -106,6 +106,19 @@
 
  <client-info type="client-info-type" />
 
+ <define name="ifstate-type" class="dict">
+   <description>
+    This is used by the server and it's client to store the initial state of an interface,
+    ifup/ifreload related timestamps and allowed ifdown's target state of an given interface.
+   </description>
+   <persistent type="boolean" constraint="required"/>
+   <init-state type="builtin-ifstate"/>
+   <init-time type="string"/>
+   <last-time type="string"/>
+ </define>
+
+ <ifstate type="ifstate-type" />
+
  <index type="uint32" description="The interface index. The index is also used in the DBus name of the DBus netif object"/>
  <metric type="uint32"/>
  <txqlen type="uint32"/>
@@ -258,6 +271,20 @@
   <method name="installLease">
     <arguments>
       <arg type="intrinsic-lease"/>
+    </arguments>
+  </method>
+
+  <method name="setIfState">
+    <description>
+      This method can be used by client to set:
+	* initial state of an interface
+	* time of the initial ifup configuration
+	* time of the last ifup configuration
+	* persistent flag - allowing/disallowing ifdown operation
+      These values are permanent and could be stored in a filesystem.
+    </description>
+    <arguments>
+      <arg type="network-interface:ifstate-type" />
     </arguments>
   </method>
 

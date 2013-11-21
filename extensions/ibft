@@ -176,6 +176,10 @@ EOF
 		if test "x$vlan_ifname" = x ; then
 			vlan_ifname="${nic_name}.${nic_vlan}"
 		fi
+		echo "  <ifstate>"
+		echo "    <persistent>true</persistent>"
+		echo "  </ifstate>"
+
 		echo "  <client-info>"
 		echo "    <config-origin>firmware:ibft:$ibft_nic</config-origin>"
 		echo "  </client-info>"
@@ -191,6 +195,10 @@ EOF
 		  </vlan>
 EOF
 	fi
+
+	echo "  <ifstate>"
+	echo "    <persistent>true</persistent>"
+	echo "  </ifstate>"
 
 	echo "  <client-info>"
 	echo "    <config-origin>firmware:ibft:$ibft_nic</config-origin>"
