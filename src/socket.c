@@ -498,7 +498,7 @@ __ni_socket_array_realloc(ni_socket_array_t *array, unsigned int newsize)
 	unsigned int i;
 
 	newsize = (newsize + NI_SOCKET_ARRAY_CHUNK);
-	newdata = xrealloc(array->data, newsize * sizeof(ni_socket_t));
+	newdata = xrealloc(array->data, newsize * sizeof(ni_socket_t *));
 
 	array->data = newdata;
 	for (i = array->count; i < newsize; ++i)
