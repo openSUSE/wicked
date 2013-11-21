@@ -220,7 +220,7 @@ done_with_this_socket:
 	}
 
 	gettimeofday(&now, NULL);
-	for (i = 0; i < socket_count; ++i) {
+	for (i = 0; i < array->count && i < socket_count; ++i) {
 		ni_socket_t *sock = array->data[i];
 
 		if (!sock || sock->active != array)
@@ -498,7 +498,7 @@ __ni_socket_array_realloc(ni_socket_array_t *array, unsigned int newsize)
 	unsigned int i;
 
 	newsize = (newsize + NI_SOCKET_ARRAY_CHUNK);
-	newdata = xrealloc(array->data, newsize * sizeof(ni_socket_t));
+	newdata = xrealloc(array->data, newsize * sizeof(ni_socket_t *));
 
 	array->data = newdata;
 	for (i = array->count; i < newsize; ++i)
@@ -531,8 +531,9 @@ ni_socket_array_remove_at(ni_socket_array_t *array, unsigned int index)
 
 	sock = array->data[index];
 	memmove(&array->data[index], &array->data[index + 1],
-		(array->count - index) * sizeof(*sock));
+		(array->count - index) * sizeof(ni_socket_t *));
 	array->count--;
+	array->data[array->count] = NULL;
 
 	if (sock && sock->active == array)
 		sock->active = NULL;
