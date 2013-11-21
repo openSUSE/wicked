@@ -220,7 +220,7 @@ done_with_this_socket:
 	}
 
 	gettimeofday(&now, NULL);
-	for (i = 0; i < socket_count; ++i) {
+	for (i = 0; i < array->count && i < socket_count; ++i) {
 		ni_socket_t *sock = array->data[i];
 
 		if (!sock || sock->active != array)
