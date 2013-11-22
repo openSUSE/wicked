@@ -22,6 +22,7 @@
 #include <netlink/netlink.h>
 #include <sys/param.h>
 
+#include "client/client_state.h"
 
 /* Helper functions */
 static const char *	ni_sprint_uint(unsigned int value);
@@ -983,6 +984,13 @@ __ni_compat_generate_ifcfg(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 						ni_sprint_timeout(control->link_timeout));
 			if (control->link_required)
 				(void) xml_node_new("require-link", linkdet);
+		}
+
+		/* <client-state> node generation based on STARTMODE value parsed in control */
+		if (control->persistent) {
+			child = xml_node_create(ifnode, NI_CLIENT_STATE_XML_STATE_NODE);
+			xml_node_new_element(NI_CLIENT_STATE_XML_PERSISTENT_NODE, child,
+				ni_format_boolean(control->persistent));
 		}
 	}
 
