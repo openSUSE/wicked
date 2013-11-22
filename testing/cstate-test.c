@@ -6,11 +6,16 @@
 
 #include <wicked/fsm.h>
 
+#include "appconfig.h"
 #include "client/client_state.h"
+
+extern ni_global_t ni_global;
 
 int main(int argc, char **argv)
 {
 	ni_client_state_t *client_state;
+
+	ni_global.config = ni_config_new();
 
 	client_state = ni_client_state_new(NI_FSM_STATE_DEVICE_DOWN);
 	if (!client_state)
@@ -38,5 +43,6 @@ int main(int argc, char **argv)
 	ni_client_state_free(client_state);
 	ni_client_state_drop("bar");
 
+	ni_config_free(ni_global.config);
 	return 0;
 }
