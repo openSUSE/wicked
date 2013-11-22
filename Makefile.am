@@ -45,7 +45,7 @@ $(distdir)/wicked.spec: wicked.spec
 
 $(distdir)/ChangeLog.git: check-git-tool
 	@if  [ -d $(top_srcdir)/.git ]; then \
-	  LANG=C git log -- $(top_srcdir) > $(distdir)/ChangeLog.git ; \
+	  LANG=C git log --no-merges -- $(top_srcdir) > $(distdir)/ChangeLog.git ; \
 	fi
 
 show-commit-state: check-git-tool
