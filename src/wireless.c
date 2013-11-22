@@ -82,20 +82,17 @@ ni_wireless_bind_supplicant(ni_netdev_t *dev)
 int
 ni_wireless_interface_refresh(ni_netdev_t *dev)
 {
-	ni_wpa_interface_t *wif;
 	ni_wireless_t *wlan;
 
 	if (ni_rfkill_disabled(NI_RFKILL_TYPE_WIRELESS))
 		return -NI_ERROR_RADIO_DISABLED;
 
-	if (!(wif = ni_wireless_bind_supplicant(dev)))
-		return -1;
-
 	if ((wlan = dev->wireless) == NULL) {
 		dev->wireless = wlan = ni_wireless_new(dev);
-
-		wlan->capabilities = wif->capabilities;
 	}
+
+	if (!wlan->scan && __ni_wireless_scanning_enabled)
+		wlan->scan = ni_wireless_scan_new(dev, NI_WIRELESS_DEFAUT_SCAN_INTERVAL);
 
 	if (wlan->scan)
 		__ni_wireless_do_scan(dev);
@@ -176,6 +173,8 @@ __ni_wireless_do_scan(ni_netdev_t *dev)
 		return -NI_ERROR_RADIO_DISABLED;
 	if (!(wpa_dev = ni_wireless_bind_supplicant(dev)))
 		return -1;
+
+	wlan->capabilities = wpa_dev->capabilities;
 
 	/* We currently don't have a reasonable way to call back
 	 * to a higher level from the depths of the wpa-supplicant
@@ -840,9 +839,6 @@ ni_wireless_new(ni_netdev_t *dev)
 	wlan = xcalloc(1, sizeof(ni_wireless_t));
 
 	wlan->conf.ap_scan = NI_WIRELESS_AP_SCAN_SUPPLICANT_AUTO;
-
-	if (__ni_wireless_scanning_enabled)
-		wlan->scan = ni_wireless_scan_new(dev, NI_WIRELESS_DEFAUT_SCAN_INTERVAL);
 
 	return wlan;
 }
