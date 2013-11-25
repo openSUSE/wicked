@@ -802,6 +802,7 @@ ni_ifworker_update_client_info(ni_ifworker_t *w)
 {
 	ni_device_clientinfo_t client_info;
 
+	ni_assert(w->object);
 	memset(&client_info, 0, sizeof(client_info));
 	client_info.state = (char *) ni_ifworker_state_name(w->fsm.state);
 	client_info.config_origin = w->config.origin;
@@ -860,8 +861,11 @@ ni_ifworker_set_state(ni_ifworker_t *w, unsigned int new_state)
 		if (w->object && new_state != NI_FSM_STATE_DEVICE_DOWN && !w->readonly)
 			ni_ifworker_update_client_info(w);
 
-		if (w->target_state == new_state)
+		if (w->target_state == new_state) {
+			if (w->object && prev_state < new_state && !w->readonly)
+				ni_ifworker_update_client_state(w);
 			ni_ifworker_success(w);
+		}
 	}
 }
 
@@ -2284,7 +2288,7 @@ ni_fsm_refresh_state(ni_fsm_t *fsm)
 			if (ni_ifworker_active(w) && !w->device_api.factory_method)
 				ni_ifworker_fail(w, "device was deleted");
 			w->dead = TRUE;
-		} else
+		} else if (!w->done)
 			ni_ifworker_update_state(w, NI_FSM_STATE_DEVICE_EXISTS, __NI_FSM_STATE_MAX);
 	}
 }
@@ -3186,11 +3190,8 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 			if (!w->kickstarted) {
 				if (!ni_ifworker_device_bound(w))
 					ni_ifworker_set_state(w, NI_FSM_STATE_DEVICE_DOWN);
-				else if (w->object) {
+				else if (w->object)
 					ni_call_clear_event_filters(w->object);
-					if (!w->readonly)
-						ni_ifworker_update_client_info(w);
-				}
 				w->kickstarted = TRUE;
 			}
 
@@ -3246,8 +3247,6 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 						w->name,
 						ni_ifworker_state_name(prev_state),
 						ni_ifworker_state_name(w->fsm.state));
-					if (w->fsm.state == w->target_state && prev_state < w->fsm.state)
-						ni_ifworker_update_client_state(w);
 				} else {
 					ni_debug_application("%s: waiting for event in state %s",
 						w->name,
@@ -3371,8 +3370,6 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 				max_state = NI_FSM_STATE_ADDRCONF_UP - 1;
 
 			ni_ifworker_update_state(w, min_state, max_state);
-			if (ni_ifworker_complete(w) && min_state != NI_FSM_STATE_NONE)
-				ni_ifworker_update_client_state(w);
 		}
 	}
 
