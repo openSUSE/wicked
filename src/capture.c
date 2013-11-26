@@ -508,8 +508,9 @@ ni_capture_devinfo_init(ni_capture_devinfo_t *devinfo, const char *ifname, const
 	ni_string_dup(&devinfo->ifname, ifname);
 	devinfo->iftype = link->type;
 	devinfo->ifindex = link->ifindex;
-	devinfo->mtu = link->mtu? link->mtu : MTU_MAX;
+	devinfo->mtu = link->mtu ? link->mtu : MTU_MAX;
 	devinfo->arp_type = link->arp_type;
+	devinfo->hwaddr = link->hwaddr;
 
 	if (devinfo->arp_type == ARPHRD_NONE) {
 		ni_warn("%s: no arp_type, using ether for capturing", ifname);
@@ -540,7 +541,10 @@ ni_capture_devinfo_refresh(ni_capture_devinfo_t *devinfo, const char *ifname, co
 		return -1;
 	}
 
-	devinfo->mtu = link->mtu;
+	devinfo->mtu = link->mtu ? link->mtu : MTU_MAX;
+	devinfo->arp_type = link->arp_type;
+	if (devinfo->arp_type == ARPHRD_NONE)
+		devinfo->arp_type = ARPHRD_ETHER;
 	devinfo->hwaddr = link->hwaddr;
 
 	return 0;
@@ -573,6 +577,8 @@ ni_capture_open(const ni_capture_devinfo_t *devinfo, const ni_capture_protinfo_t
 	struct sockaddr_ll sll;
 	ni_capture_t *capture = NULL;
 	ni_hwaddr_t destaddr;
+	ni_iftype_t iftype;
+
 	int fd = -1;
 
 	if (devinfo->ifindex == 0) {
@@ -586,8 +592,17 @@ ni_capture_open(const ni_capture_devinfo_t *devinfo, const ni_capture_protinfo_t
 
 	/* Destination address defaults to broadcast */
 	destaddr = protinfo->eth_destaddr;
+
+	/* FIXME: catch bonding which chages it's ARP type */
+	if ((iftype = devinfo->iftype) == NI_IFTYPE_BOND) {
+		if (devinfo->arp_type == ARPHRD_INFINIBAND)
+			iftype = NI_IFTYPE_INFINIBAND;
+		else
+			iftype = NI_IFTYPE_ETHERNET;
+	}
+
 	if (destaddr.len == 0
-	 && ni_link_address_get_broadcast(devinfo->iftype, &destaddr) < 0) {
+	 && ni_link_address_get_broadcast(iftype, &destaddr) < 0) {
 		ni_error("cannot get broadcast address for %s (bad iftype)", devinfo->ifname);
 		return NULL;
 	}
