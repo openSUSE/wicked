@@ -142,7 +142,8 @@ __match_hwaddr(const ni_hwaddr_t *hwaddr, const char *string)
 
 	if (!string)
 		return FALSE;
-	if (ni_link_address_parse(&match, NI_IFTYPE_ETHERNET, string) < 0)
+
+	if (ni_link_address_parse(&match, hwaddr->type, string) < 0)
 		return FALSE;
 
 	return ni_link_address_equal(hwaddr, &match);
@@ -208,7 +209,7 @@ ni_objectmodel_ether_describe(const ni_objectmodel_ns_t *ns, const ni_dbus_objec
 	if (!(eth = dev->ethernet))
 		return FALSE;
 
-	if (eth->permanent_address.type != NI_IFTYPE_UNKNOWN) {
+	if (eth->permanent_address.len) {
 		node = __describe(ns, parent);
 		xml_node_new_element("permanent-address", node,
 				ni_link_address_print(&eth->permanent_address));

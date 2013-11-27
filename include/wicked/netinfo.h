@@ -229,6 +229,7 @@ extern ni_bool_t	ni_address_is_deprecated(const ni_address_t *laddr);
 
 extern ni_bool_t	ni_address_probably_dynamic(const ni_address_t *);
 
+extern void		ni_link_address_init(ni_hwaddr_t *);
 extern int		ni_link_address_format(const ni_hwaddr_t *ss,
 				char *abuf, size_t buflen);
 extern const char *	ni_link_address_print(const ni_hwaddr_t *ss);

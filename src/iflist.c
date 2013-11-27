@@ -565,6 +565,7 @@ __ni_netdev_translate_ifflags(unsigned int ifflags)
 	return retval;
 }
 
+
 /*
  * Refresh interface link layer given a parsed RTM_NEWLINK message attrs
  */
@@ -575,7 +576,47 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 {
 	link->arp_type = ifi->ifi_type;
 	link->ifflags = __ni_netdev_translate_ifflags(ifi->ifi_flags);
-	link->type = NI_IFTYPE_UNKNOWN; /* FIXME: we do we reset this?! */
+
+	/* map by it's main arp type */
+	switch (link->arp_type) {
+	case ARPHRD_LOOPBACK:
+		link->type = NI_IFTYPE_LOOPBACK;
+		break;
+	case ARPHRD_ETHER:
+		link->type = NI_IFTYPE_ETHERNET;
+		break;
+	case ARPHRD_INFINIBAND:
+		link->type = NI_IFTYPE_INFINIBAND;
+		break;
+	case ARPHRD_SIT:
+		link->type = NI_IFTYPE_SIT;
+		break;
+	case ARPHRD_IPGRE:
+		link->type = NI_IFTYPE_GRE;
+		break;
+	case ARPHRD_TUNNEL:
+		link->type = NI_IFTYPE_TUNNEL;
+		break;
+	case ARPHRD_TUNNEL6:
+		link->type = NI_IFTYPE_TUNNEL6;
+		break;
+	default:
+		/* FIXME: ok to reset this?! */
+		link->type = NI_IFTYPE_UNKNOWN;
+		break;
+	}
+
+	if (tb[IFLA_ADDRESS]) {
+		unsigned int alen = nla_len(tb[IFLA_ADDRESS]);
+		void *data = nla_data(tb[IFLA_ADDRESS]);
+
+		if (alen > sizeof(link->hwaddr.data))
+			alen = sizeof(link->hwaddr.data);
+
+		memcpy(link->hwaddr.data, data, alen);
+		link->hwaddr.len = alen;
+		link->hwaddr.type = link->arp_type;
+	}
 
 	if (tb[IFLA_MTU])
 		link->mtu = nla_get_u32(tb[IFLA_MTU]);
@@ -600,31 +641,32 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 
 		if (!link->stats)
 			link->stats = calloc(1, sizeof(*n));
-		n = link->stats;
 
-		n->rx_packets = s->rx_packets;
-		n->tx_packets = s->tx_packets;
-		n->rx_bytes = s->rx_bytes;
-		n->tx_bytes = s->tx_bytes;
-		n->rx_errors = s->rx_errors;
-		n->tx_errors = s->tx_errors;
-		n->rx_dropped = s->rx_dropped;
-		n->tx_dropped = s->tx_dropped;
-		n->multicast = s->multicast;
-		n->collisions = s->collisions;
-		n->rx_length_errors = s->rx_length_errors;
-		n->rx_over_errors = s->rx_over_errors;
-		n->rx_crc_errors = s->rx_crc_errors;
-		n->rx_frame_errors = s->rx_frame_errors;
-		n->rx_fifo_errors = s->rx_fifo_errors;
-		n->rx_missed_errors = s->rx_missed_errors;
-		n->tx_aborted_errors = s->tx_aborted_errors;
-		n->tx_carrier_errors = s->tx_carrier_errors;
-		n->tx_fifo_errors = s->tx_fifo_errors;
-		n->tx_heartbeat_errors = s->tx_heartbeat_errors;
-		n->tx_window_errors = s->tx_window_errors;
-		n->rx_compressed = s->rx_compressed;
-		n->tx_compressed = s->tx_compressed;
+		if ((n = link->stats)) {
+			n->rx_packets = s->rx_packets;
+			n->tx_packets = s->tx_packets;
+			n->rx_bytes = s->rx_bytes;
+			n->tx_bytes = s->tx_bytes;
+			n->rx_errors = s->rx_errors;
+			n->tx_errors = s->tx_errors;
+			n->rx_dropped = s->rx_dropped;
+			n->tx_dropped = s->tx_dropped;
+			n->multicast = s->multicast;
+			n->collisions = s->collisions;
+			n->rx_length_errors = s->rx_length_errors;
+			n->rx_over_errors = s->rx_over_errors;
+			n->rx_crc_errors = s->rx_crc_errors;
+			n->rx_frame_errors = s->rx_frame_errors;
+			n->rx_fifo_errors = s->rx_fifo_errors;
+			n->rx_missed_errors = s->rx_missed_errors;
+			n->tx_aborted_errors = s->tx_aborted_errors;
+			n->tx_carrier_errors = s->tx_carrier_errors;
+			n->tx_fifo_errors = s->tx_fifo_errors;
+			n->tx_heartbeat_errors = s->tx_heartbeat_errors;
+			n->tx_window_errors = s->tx_window_errors;
+			n->rx_compressed = s->rx_compressed;
+			n->tx_compressed = s->tx_compressed;
+		}
 	}
 
 	/* Extended link info.
@@ -647,14 +689,20 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 		}
 		ni_string_dup(&link->kind, nla_get_string(nl_linkinfo[IFLA_INFO_KIND]));
 
-		if (link->kind && !strcmp(link->kind, "vlan")) {
+		if (ni_string_empty(link->kind)) {
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG,
+				"%s: extended link-info without kind", ifname);
+		} else if (!strcmp(link->kind, "bridge")) {
+			link->type = NI_IFTYPE_BRIDGE;
+		} else if (!strcmp(link->kind, "bond")) {
+			link->type = NI_IFTYPE_BOND;
+		} else if (!strcmp(link->kind, "vlan")) {
 			struct nlattr *vlan_info[IFLA_VLAN_MAX+1];
 			ni_vlan_t *vlan;
 
 			/* There's more info in this LINKINFO; extract it in the caller
 			 * as we don't have access to the containing ni_netdev_t here */
 			link->type = NI_IFTYPE_VLAN;
-
 			if (!(vlan = link->vlan))
 				link->vlan = vlan = ni_vlan_new();
 
@@ -673,69 +721,69 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 
 			if (nla_parse_nested(vlan_info, IFLA_VLAN_MAX, nl_linkinfo[IFLA_INFO_DATA], NULL) >= 0)
 				vlan->tag = nla_get_u16(vlan_info[IFLA_VLAN_ID]);
+		} else if (!strcmp(link->kind, "tun")) {
+			if (link->arp_type == ARPHRD_ETHER)
+				link->type = NI_IFTYPE_TAP;
+			else
+				link->type = NI_IFTYPE_TUN;
+		} else if (!strcmp(link->kind, "dummy")) {
+			link->type = NI_IFTYPE_DUMMY;
 		}
 	}
 
-	if (link->type == NI_IFTYPE_UNKNOWN) {
-		struct ethtool_drvinfo drv_info;
+	switch (link->arp_type) {
+	case ARPHRD_ETHER:
+		{
+			struct ethtool_drvinfo drv_info;
 
-		switch (link->arp_type) {
-		case ARPHRD_ETHER:
-		case ARPHRD_NONE:	/* tun driver uses this */
-			link->type = NI_IFTYPE_ETHERNET;
 			memset(&drv_info, 0, sizeof(drv_info));
 			if (__ni_ethtool(ifname, ETHTOOL_GDRVINFO, &drv_info) >= 0) {
-				const char *driver = drv_info.driver;
 
-				if (!strcmp(driver, "tun")) {
-					/* tun/tap driver */
-					if (!strcmp(drv_info.bus_info, "tap"))
-						link->type = NI_IFTYPE_TAP;
-					else
-						link->type = NI_IFTYPE_TUN;
-				} else if (!strcmp(driver, "bridge")) {
-					link->type = NI_IFTYPE_BRIDGE;
-				} else if (!strcmp(driver, "bonding")) {
-					link->type = NI_IFTYPE_BOND;
+				/* Hmm... should be not needed any more */
+				if (link->type == NI_IFTYPE_ETHERNET) {
+					const char *driver = drv_info.driver;
+
+					if (!strcmp(driver, "tun")) {
+						/* tun/tap driver */
+						if (!strcmp(drv_info.bus_info, "tap"))
+							link->type = NI_IFTYPE_TAP;
+						else
+							link->type = NI_IFTYPE_TUN;
+					} else if (!strcmp(driver, "bridge")) {
+						link->type = NI_IFTYPE_BRIDGE;
+					} else if (!strcmp(driver, "bonding")) {
+						link->type = NI_IFTYPE_BOND;
+					}
 				}
 
 				if (drv_info.n_stats != 0 && link->ethtool_stats == NULL)
 					link->ethtool_stats = __ni_ethtool_stats_init(ifname, &drv_info);
 			}
-
-			/* Detect WLAN device.
-			 * The official way of doing this is to check whether
-			 * ioctl(SIOCGIWNAME) succeeds.
-			 */
-			if (__ni_wireless_get_name(ifname, NULL, 0) == 0)
-				link->type = NI_IFTYPE_WIRELESS;
-			break;
-
-		case ARPHRD_INFINIBAND:
-			link->type = NI_IFTYPE_INFINIBAND;
-			if (ni_sysfs_bonding_is_master(ifname))
-				link->type = NI_IFTYPE_BOND;
-			else if (ni_sysfs_netif_exists(ifname, "parent"))
-				link->type = NI_IFTYPE_INFINIBAND_CHILD;
-			break;
-
-		default:
-			link->type = ni_arphrd_type_to_iftype(link->arp_type);
-			break;
 		}
+
+		/* Detect WLAN device.
+		 * The official way of doing this is to check whether
+		 * ioctl(SIOCGIWNAME) succeeds.
+		 */
+		if (__ni_wireless_get_name(ifname, NULL, 0) == 0)
+			link->type = NI_IFTYPE_WIRELESS;
+
+		break;
+
+	case ARPHRD_INFINIBAND:
+		link->type = NI_IFTYPE_INFINIBAND;
+		if (ni_sysfs_bonding_is_master(ifname))
+			link->type = NI_IFTYPE_BOND;
+		else
+		if (ni_sysfs_netif_exists(ifname, "parent"))
+			link->type = NI_IFTYPE_INFINIBAND_CHILD;
+		break;
 	}
 
-	if (tb[IFLA_ADDRESS]) {
-		unsigned int alen = nla_len(tb[IFLA_ADDRESS]);
-		void *data = nla_data(tb[IFLA_ADDRESS]);
-
-		if (alen > sizeof(link->hwaddr.data))
-			alen = sizeof(link->hwaddr.data);
-		memcpy(link->hwaddr.data, data, alen);
-		link->hwaddr.len = alen;
-		link->hwaddr.type = link->type;
-	} else {
-		memset(&link->hwaddr, 0, sizeof(link->hwaddr));
+	if (link->type == NI_IFTYPE_UNKNOWN) {
+		ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG,
+			"%s: unable to discover link type, arp type is %u",
+			ifname, link->arp_type);
 	}
 
 	return 0;

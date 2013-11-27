@@ -350,7 +350,7 @@ static struct __ni_arptype_iftype_map {
       {	NI_IFTYPE_TAP,		ARPHRD_ETHER	},
       {	NI_IFTYPE_DUMMY,	ARPHRD_LOOPBACK	},
 
-      {	NI_IFTYPE_UNKNOWN, ARPHRD_NONE }
+      {	NI_IFTYPE_UNKNOWN,	ARPHRD_VOID	}
 };
 
 unsigned int
@@ -358,7 +358,7 @@ ni_arphrd_type_to_iftype(unsigned int arp_type)
 {
 	struct __ni_arptype_iftype_map *map;
 
-	for (map = __ni_arptype_iftype_map; map->arp_type != ARPHRD_NONE; ++map)
+	for (map = __ni_arptype_iftype_map; map->arp_type != ARPHRD_VOID; ++map)
 		if (map->arp_type == arp_type)
 			break;
 	return map->type;
@@ -369,7 +369,7 @@ ni_iftype_to_arphrd_type(unsigned int iftype)
 {
 	struct __ni_arptype_iftype_map *map;
 
-	for (map = __ni_arptype_iftype_map; map->arp_type != ARPHRD_NONE; ++map)
+	for (map = __ni_arptype_iftype_map; map->arp_type != ARPHRD_VOID; ++map)
 		if (map->type == iftype)
 			break;
 	return map->arp_type;
