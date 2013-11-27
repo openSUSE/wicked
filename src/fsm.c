@@ -2960,10 +2960,11 @@ ni_ifworker_call_device_factory(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transiti
 	return 0;
 }
 
-static int
+static inline ni_bool_t
 ni_ifworker_can_delete(const ni_ifworker_t *w)
 {
-	return !!ni_dbus_object_get_service_for_method(w->object, "deleteDevice");
+	return (!w->client_state.persistent &&
+		ni_dbus_object_get_service_for_method(w->object, "deleteDevice"));
 }
 
 /*
@@ -3059,17 +3060,19 @@ ni_fsm_schedule_init(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned int from_state, u
 	if (w->fsm.action_table != NULL)
 		return 0;
 
-	/* If the --delete option was given, but the specific device cannot
-	 * be deleted, then we don't try. */
-	if (target_state == NI_FSM_STATE_DEVICE_DOWN && !ni_ifworker_can_delete(w)) {
-		ni_debug_application("%s: cannot delete device, ignoring --delete option", w->name);
-		target_state = NI_FSM_STATE_DEVICE_UP;
-	}
-
 	if (from_state <= target_state)
 		increment = 1;
-	else
+	else {
 		increment = -1;
+
+		/* ifdown: when device cannot be deleted, don't try. */
+		if (NI_FSM_STATE_DEVICE_DOWN == target_state) {
+			if (!ni_ifworker_can_delete(w))
+				target_state -= increment; /* One up */
+			else
+				ni_debug_application("%s: Deleting device", w->name);
+		}
+	}
 
 	ni_debug_application("%s: set up FSM from %s -> %s", w->name,
 			ni_ifworker_state_name(from_state),
