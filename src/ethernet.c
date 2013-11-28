@@ -22,9 +22,12 @@ static int	__ni_system_ethernet_set(const char *, const ni_ethernet_t *);
  * Allocate ethernet struct
  */
 ni_ethernet_t *
-ni_ethernet_alloc(void)
+ni_ethernet_new(void)
 {
-	return xcalloc(1, sizeof(ni_ethernet_t));
+	ni_ethernet_t *ether;
+	ether = xcalloc(1, sizeof(ni_ethernet_t));
+	ni_link_address_init(&ether->permanent_address);
+	return ether;
 }
 
 void
@@ -312,7 +315,8 @@ __ni_system_ethernet_refresh(ni_netdev_t *dev)
 {
 	ni_ethernet_t *ether;
 
-	ether = ni_ethernet_alloc();
+	ether = ni_ethernet_new();
+	ether->permanent_address.type = dev->link.arp_type;
 	if (__ni_system_ethernet_get(dev->name, ether) < 0) {
 		ni_ethernet_free(ether);
 		return -1;
@@ -385,12 +389,11 @@ __ni_system_ethernet_get(const char *ifname, ni_ethernet_t *ether)
 		parm.h.size = sizeof(parm.data);
 		if (__ni_ethtool(ifname, ETHTOOL_GPERMADDR, &parm) < 0) {
 			ni_warn("%s: ETHTOOL_GPERMADDR failed", ifname);
-		} else {
-			unsigned int alen = parm.h.size;
-
-			if (alen > NI_MAXHWADDRLEN)
-				alen = NI_MAXHWADDRLEN;
-			ni_link_address_set(&ether->permanent_address, NI_IFTYPE_ETHERNET, parm.data, alen);
+		} else
+		if (ni_link_address_length(ether->permanent_address.type) == parm.h.size) {
+			ni_link_address_set(&ether->permanent_address,
+					ether->permanent_address.type,
+					parm.data, parm.h.size);
 		}
 	}
 

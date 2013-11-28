@@ -847,18 +847,25 @@ ni_sockaddr_array_append(ni_sockaddr_array_t *array, const ni_sockaddr_t *sa)
 /*
  * ni_link_address functions
  */
+void
+ni_link_address_init(ni_hwaddr_t *hwa)
+{
+	memset(hwa, 0, sizeof(*hwa));
+	hwa->type = ARPHRD_VOID;
+}
+
 int
 ni_link_address_format(const ni_hwaddr_t *hwa, char *abuf, size_t len)
 {
 	switch (hwa->type) {
-	case NI_IFTYPE_TUNNEL:
-	case NI_IFTYPE_SIT:
-	case NI_IFTYPE_GRE:
+	case ARPHRD_TUNNEL:
+	case ARPHRD_SIT:
+	case ARPHRD_IPGRE:
 		if (inet_ntop(AF_INET, hwa->data, abuf, len) == 0)
 			return -1;
 		return 0;
 
-	case NI_IFTYPE_TUNNEL6:
+	case ARPHRD_TUNNEL6:
 		if (inet_ntop(AF_INET6, hwa->data, abuf, len) == 0)
 			return -1;
 		return 0;
@@ -872,9 +879,9 @@ ni_link_address_format(const ni_hwaddr_t *hwa, char *abuf, size_t len)
 }
 
 int
-ni_link_address_set(ni_hwaddr_t *hwa, int iftype, const void *data, size_t len)
+ni_link_address_set(ni_hwaddr_t *hwa, int hwtype, const void *data, size_t len)
 {
-	memset(hwa, 0, sizeof(*hwa));
+	ni_link_address_init(hwa);
 	if (len > NI_MAXHWADDRLEN) {
 		ni_error("%s: link address too long (len = %lu)",
 				__FUNCTION__, (long) len);
@@ -882,7 +889,7 @@ ni_link_address_set(ni_hwaddr_t *hwa, int iftype, const void *data, size_t len)
 	}
 
 	memcpy(hwa->data, data, len);
-	hwa->type = iftype;
+	hwa->type = hwtype;
 	hwa->len = len;
 
 	return 0;
@@ -893,12 +900,12 @@ ni_link_address_parse(ni_hwaddr_t *hwa, unsigned int type, const char *string)
 {
 	int len;
 
-	memset(hwa, 0, sizeof(*hwa));
+	ni_link_address_init(hwa);
 	switch (type) {
-	case NI_IFTYPE_TUNNEL:
-	case NI_IFTYPE_SIT:
-	case NI_IFTYPE_GRE:
-	case NI_IFTYPE_TUNNEL6:
+	case ARPHRD_TUNNEL:
+	case ARPHRD_TUNNEL6:
+	case ARPHRD_SIT:
+	case ARPHRD_IPGRE:
 		ni_error("%s: setting tunnel addrs not yet implemented",
 				__FUNCTION__);
 		return -1;
@@ -933,22 +940,25 @@ ni_link_address_equal(const ni_hwaddr_t *hwa1, const ni_hwaddr_t *hwa2)
 }
 
 unsigned int
-ni_link_address_length(int iftype)
+ni_link_address_length(int hwtype)
 {
-	switch (iftype) {
-	case NI_IFTYPE_ETHERNET:
-	case NI_IFTYPE_WIRELESS:
-	case NI_IFTYPE_VLAN:
-	case NI_IFTYPE_BRIDGE:
+	switch (hwtype) {
+	case ARPHRD_ETHER:
 		return ETH_ALEN;
 
-	case NI_IFTYPE_TOKENRING:
+	case ARPHRD_IEEE802_TR:
+#		ifndef	TR_ALEN
+#		define	TR_ALEN		ETH_ALEN
+#		endif
 		return TR_ALEN;
 
-	case NI_IFTYPE_FIREWIRE:
-		return 8;	/* EUI64 */
+	case ARPHRD_IEEE1394:
+#		ifndef	FWNET_ALEN
+#		define	FWNET_ALEN	8	/* EUI64 */
+#		endif
+		return	FWNET_ALEN;
 
-	case NI_IFTYPE_INFINIBAND:
+	case ARPHRD_INFINIBAND:
 		return INFINIBAND_ALEN;
 	}
 
@@ -956,23 +966,30 @@ ni_link_address_length(int iftype)
 }
 
 int
-ni_link_address_get_broadcast(int iftype, ni_hwaddr_t *hwa)
+ni_link_address_get_broadcast(int hwtype, ni_hwaddr_t *hwa)
 {
-	hwa->type = iftype;
-	hwa->len = ni_link_address_length(iftype);
+	hwa->type = hwtype;
+	hwa->len = ni_link_address_length(hwtype);
+
 	if (hwa->len == 0)
 		return -1;
 
-	if (iftype == NI_IFTYPE_INFINIBAND) {
-		/* Broadcast address for IPoIB */
-		static const uint8_t ipoib_bcast_addr[] = {
-			0x00, 0xff, 0xff, 0xff,
-			0xff, 0x12, 0x40, 0x1b, 0x00, 0x00, 0x00, 0x00,
-			0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff
-		};
-		memcpy(hwa->data, ipoib_bcast_addr, hwa->len);
-	} else {
+	switch (hwtype) {
+	case ARPHRD_INFINIBAND:
+		{
+			/* Broadcast address for IPoIB */
+			static const uint8_t ipoib_bcast_addr[] = {
+				0x00, 0xff, 0xff, 0xff,
+				0xff, 0x12, 0x40, 0x1b, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff
+			};
+			memcpy(hwa->data, ipoib_bcast_addr, hwa->len);
+		}
+		break;
+	case ARPHRD_ETHER:
+	default:
 		memset(hwa->data, 0xff, hwa->len);
+		break;
 	}
 
 	return 0;

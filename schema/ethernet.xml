@@ -23,10 +23,8 @@
     <fibre/>
   </define>
 
-  <define name="properties" class="dict">
+  <define name="configuration" class="dict">
     <address type="ethernet-address"/>
-    <permanent-address type="ethernet-address"/>
-
     <link-speed type="uint32"/>
     <port-type type="port_t"/>
     <duplex type="duplex_t" />
@@ -44,6 +42,10 @@
     </offload>
   </define>
 
+  <define name="properties" class="dict" extends="ethernet:configuration">
+    <permanent-address type="ethernet-address"/>
+  </define>
+
   <method name="changeDevice">
     <arguments>
       <!-- First and only argument to changeDevice() method is a
@@ -52,7 +54,7 @@
 	-- configuration from the <ethernet> element, and to skip the
 	-- call to changeDevice() if that element isn't there.
 	-->
-      <config type="properties">
+      <config type="ethernet:configuration">
        <meta:mapping document-node="/ethernet" skip-unless-present="true" />
       </config>
     </arguments>

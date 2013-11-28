@@ -168,7 +168,8 @@ __ni_objectmodel_ethernet_get_permanent_address(const ni_dbus_object_t *object,
 
 	if (!(eth = __ni_objectmodel_ethernet_read_handle(object, error)))
 		return FALSE;
-	if (eth->permanent_address.type == NI_IFTYPE_UNKNOWN)
+
+	if (!eth->permanent_address.len)
 		return ni_dbus_error_property_not_present(error, object->path, property->name);
 
 	return __ni_objectmodel_get_hwaddr(result, &eth->permanent_address);
@@ -184,6 +185,7 @@ __ni_objectmodel_ethernet_set_permanent_address(ni_dbus_object_t *object,
 
 	if (!(eth = __ni_objectmodel_ethernet_write_handle(object, error)))
 		return FALSE;
+
 	return __ni_objectmodel_set_hwaddr(argument, &eth->permanent_address);
 }
 

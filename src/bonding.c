@@ -859,27 +859,30 @@ ni_bonding_format_sysfs_attribute(const ni_bonding_t *bonding, const char *attr,
 int
 ni_bonding_parse_sysfs_attrs(const char *ifname, ni_bonding_t *bonding)
 {
-	const char *attrs[] = {
-		"mode",
-		"fail_over_mac",
-		"primary_reselect",
-		"xmit_hash_policy",
-		"lacp_rate",
-		"ad_select",
-		"min_links",
-		"num_grat_arp",
-		"num_unsol_na",
-		"resend_igmp",
-		"all_slaves_active",
-		"active_slave",
-		"primary",
-		"miimon",
-		"updelay",
-		"downdelay",
-		"use_carrier",
-		"arp_validate",
-		"arp_interval",
-		NULL,
+	static const struct {
+		const char *name;
+		ni_bool_t   nofail;	/* don't fail, may be missed */
+	} attrs[] = {
+		{ "mode",		FALSE },
+		{ "fail_over_mac",	FALSE },
+		{ "primary_reselect",	FALSE },
+		{ "xmit_hash_policy",	FALSE },
+		{ "lacp_rate",		FALSE },
+		{ "ad_select",		FALSE },
+		{ "min_links",		TRUE  },
+		{ "num_grat_arp",	FALSE },
+		{ "num_unsol_na",	FALSE },
+		{ "resend_igmp",	FALSE },
+		{ "all_slaves_active",	FALSE },
+		{ "active_slave",	FALSE },
+		{ "primary",		FALSE },
+		{ "miimon",		FALSE },
+		{ "updelay",		FALSE },
+		{ "downdelay",		FALSE },
+		{ "use_carrier",	FALSE },
+		{ "arp_validate",	FALSE },
+		{ "arp_interval",	FALSE },
+		{ NULL,			FALSE },
 	};
 	char *attrval = NULL;
 	unsigned int i;
@@ -887,11 +890,14 @@ ni_bonding_parse_sysfs_attrs(const char *ifname, ni_bonding_t *bonding)
 	__ni_bonding_clear(bonding);
 	ni_sysfs_bonding_get_slaves(ifname, &bonding->slave_names);
 
-	for (i = 0; attrs[i]; ++i) {
-		const char *attrname = attrs[i];
+	for (i = 0; attrs[i].name; ++i) {
+		const char *attrname = attrs[i].name;
 		int rv;
 
 		if (ni_sysfs_bonding_get_attr(ifname, attrname, &attrval) < 0) {
+			if (attrs[i].nofail)
+				continue;
+
 			ni_error("%s: cannot get bonding attribute %s", ifname, attrname);
 			goto failed;
 		}
@@ -991,32 +997,33 @@ ni_bonding_write_sysfs_attrs(const char *ifname, const ni_bonding_t *bonding, co
 	 */
 	struct attr_matrix {
 		const char *	name;
-		int		bstate;	/* 1: bond down, 2: bond up      */
-		int		slaves;	/* 1: no slaves, 2: wants slaves */
-		int		islist; /* 1: list value (arp_ip_target) */
+		int		bstate;		/* 1: bond down, 2: bond up      */
+		int		slaves;		/* 1: no slaves, 2: wants slaves */
+		ni_bool_t	islist;	/* 1: list value (arp_ip_target) */
+		ni_bool_t		nofail;	/* 1: do not fail on set error   */
 	};
 	const struct attr_matrix attr_matrix[] = {
-		{ "mode",		1,	1,	0 },
-		{ "fail_over_mac",	0,	1,	0 },
-		{ "primary_reselect",	0,	0,	0 },
-		{ "xmit_hash_policy",	1,	0,	0 },
-		{ "lacp_rate",		1,	0,	0 },
-		{ "ad_select",		1,	0,	0 },
-		{ "min_links",		1,	0,	0 },
-		{ "num_grat_arp",	0,	0,	0 },
-		{ "num_unsol_na",	0,	0,	0 },
-		{ "resend_igmp",	0,	0,	0 },
-		{ "all_slaves_active",	0,	0,	0 },
-		{ "active_slave",	2,	2,	0 },
-		{ "primary",		0,	0,	0 },
-		{ "miimon",		0,	0,	0 },
-		{ "updelay",		0,	0,	0 },
-		{ "downdelay",		0,	0,	0 },
-		{ "use_carrier",	0,	0,	0 },
-		{ "arp_ip_target",	0,	0,	1 },
-		{ "arp_interval",	0,	0,	0 },
-		{ "arp_validate",	0,	0,	0 },
-		{ NULL,			0,	0,	0 },
+		{ "mode",		1,	1,	FALSE,	FALSE },
+		{ "fail_over_mac",	0,	1,	FALSE,	FALSE },
+		{ "primary_reselect",	0,	0,	FALSE,	FALSE },
+		{ "xmit_hash_policy",	1,	0,	FALSE,	FALSE },
+		{ "lacp_rate",		1,	0,	FALSE,	FALSE },
+		{ "ad_select",		1,	0,	FALSE,	FALSE },
+		{ "min_links",		1,	0,	FALSE,	TRUE  },
+		{ "num_grat_arp",	0,	0,	FALSE,	FALSE },
+		{ "num_unsol_na",	0,	0,	FALSE,	FALSE },
+		{ "resend_igmp",	0,	0,	FALSE,	FALSE },
+		{ "all_slaves_active",	0,	0,	FALSE,	FALSE },
+		{ "active_slave",	2,	2,	FALSE,	FALSE },
+		{ "primary",		0,	0,	FALSE,	FALSE },
+		{ "miimon",		0,	0,	FALSE,	FALSE },
+		{ "updelay",		0,	0,	FALSE,	FALSE },
+		{ "downdelay",		0,	0,	FALSE,	FALSE },
+		{ "use_carrier",	0,	0,	FALSE,	FALSE },
+		{ "arp_ip_target",	0,	0,	TRUE,	FALSE },
+		{ "arp_interval",	0,	0,	FALSE,	FALSE },
+		{ "arp_validate",	0,	0,	FALSE,	FALSE },
+		{ NULL,			0,	0,	FALSE,	FALSE },
 	};
 	const struct attr_matrix *attrs;
 	unsigned int i;
@@ -1034,11 +1041,13 @@ ni_bonding_write_sysfs_attrs(const char *ifname, const ni_bonding_t *bonding, co
 
 		if (attrs[i].islist) {
 			if (ni_sysfs_bonding_set_list_attr(ifname, attrs[i].name,
-					&bonding->arpmon.targets) < 0)
+						&bonding->arpmon.targets) < 0 &&
+					!attrs[i].nofail)
 				return -1;
 		} else {
 			if (ni_bonding_write_one_sysfs_attr(ifname, bonding,
-						current, attrs[i].name) < 0)
+						current, attrs[i].name) < 0 &&
+					!attrs[i].nofail)
 				return -1;
 		}
 	}

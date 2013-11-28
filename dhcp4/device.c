@@ -277,7 +277,7 @@ ni_dhcp_acquire(ni_dhcp_device_t *dev, const ni_dhcp4_request_t *info)
 
 	if (info->clientid) {
 		strncpy(config->client_id, info->clientid, sizeof(config->client_id)-1);
-		ni_dhcp_parse_client_id(&config->raw_client_id, dev->link.type, info->clientid);
+		ni_dhcp_parse_client_id(&config->raw_client_id, dev->system.hwaddr.type, info->clientid);
 	} else {
 		/* Set client ID from interface hwaddr */
 		strncpy(config->client_id, ni_link_address_print(&dev->system.hwaddr), sizeof(config->client_id)-1);
@@ -644,7 +644,7 @@ ni_dhcp_set_client_id(ni_opaque_t *raw, const ni_hwaddr_t *hwa)
 {
 	if ((size_t)hwa->len + 1 > sizeof(raw->data))
 		ni_fatal("%s: not enough room for MAC address", __FUNCTION__);
-	raw->data[0] = ni_iftype_to_arphrd_type(hwa->type);
+	raw->data[0] = hwa->type;
 	memcpy(raw->data + 1, hwa->data, hwa->len);
 	raw->len = hwa->len + 1;
 }

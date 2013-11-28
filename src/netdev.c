@@ -48,8 +48,8 @@ ni_netdev_new(const char *name, unsigned int index)
 
 	dev->users = 1;
 	dev->link.type = NI_IFTYPE_UNKNOWN;
-	dev->link.arp_type = ARPHRD_NONE;
-	dev->link.hwaddr.type = ARPHRD_NONE;
+	dev->link.arp_type = ARPHRD_VOID;
+	dev->link.hwaddr.type = ARPHRD_VOID;
 	dev->link.ifindex = index;
 
 	if (name)
@@ -228,7 +228,7 @@ ni_netdev_get_ethernet(ni_netdev_t *dev)
 	if (dev->link.type != NI_IFTYPE_ETHERNET)
 		return NULL;
 	if (!dev->ethernet)
-		dev->ethernet = calloc(1, sizeof(ni_ethernet_t));
+		dev->ethernet = ni_ethernet_new();
 	return dev->ethernet;
 }
 
