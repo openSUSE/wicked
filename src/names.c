@@ -24,6 +24,7 @@ static ni_intmap_t __linktype_names[] = {
 	{ "bridge",		NI_IFTYPE_BRIDGE },
 	{ "bond",		NI_IFTYPE_BOND },
 	{ "vlan",		NI_IFTYPE_VLAN },
+	{ "macvlan",		NI_IFTYPE_MACVLAN },
 	{ "wireless",		NI_IFTYPE_WIRELESS },
 	{ "infiniband",		NI_IFTYPE_INFINIBAND },
 	{ "infiniband-child",	NI_IFTYPE_INFINIBAND_CHILD },

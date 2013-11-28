@@ -26,6 +26,7 @@ wicked_include_HEADERS		= \
 	wicked/lldp.h		\
 	wicked/logging.h	\
 	wicked/modem.h		\
+	wicked/macvlan.h	\
 	wicked/netinfo.h	\
 	wicked/nis.h		\
 	wicked/objectmodel.h	\

@@ -1,0 +1,56 @@
+<!--
+  -- macvlan service definition
+  -->
+<service name="macvlan" interface="org.opensuse.Network.MACVLAN"
+			object-class="netif-macvlan">
+ <description>
+   This link-layer service is provided by all MACVLAN devices. Since there isn't a lot
+   to tune about a MACVLAN once it has been created, this DBus interface doesn't offer
+   an own changeDevice() method (yet).
+
+   MACVLAN devices can be created through the org.opensuse.Network.MACVLAN.Factory
+   factory interface.
+ </description>
+
+ <!-- This are the properties used to configure the macvlan -->
+ <define name="configuration" class="dict">
+  <device type="string">
+    <meta:netif-reference shared="true"/>
+    <meta:require check="netif-child-state" op="newDevice" min-state="device-exists" />
+    <!-- meta:require check="netif-child-state" op="linkUp"    min-state="device-up" / -->
+    <!-- meta:require check="netif-child-state" op="login"     min-state="link-authenticated" / -->
+  </device>
+  <mode type="uint32" constraint="enum">
+    <private      value="1"/>
+    <vepa         value="2"/>
+    <pass-through value="4"/>
+    <bridge       value="8"/>
+  </mode>
+  <flags type="uint16" constraint="bitmap">
+    <nopromisc    bit="1"/>
+  </flags>
+ </define>
+
+ <!-- The same properties are returned in interface state reports -->
+ <define name="properties" type="macvlan:configuration"/>
+
+ <method name="deleteDevice">
+   <!-- no arguments, no return code -->
+ </method>
+</service>
+
+<service name="macvlan-factory" interface="org.opensuse.Network.MACVLAN.Factory"
+				object-class="netif-list">
+ <method name="newDevice">
+  <arguments>
+   <name type="string"/>
+   <config type="macvlan:configuration">
+    <meta:mapping document-node="/macvlan"/>
+   </config>
+  </arguments>
+  <return>
+   <!-- this is really an object handle -->
+   <string/>
+  </return>
+ </method>
+</service>
