@@ -16,6 +16,7 @@ wicked_schema_files		= \
 	interface.xml		\
 	lldp.xml		\
 	modem.xml		\
+	macvlan.xml		\
 	openvpn.xml		\
 	ppp.xml			\
 	protocol.xml		\
