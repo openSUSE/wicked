@@ -262,6 +262,7 @@ ni_system_interface_delete(ni_netconfig_t *nc, const char *ifname)
 		return -1;
 	}
 
+	ni_client_state_drop(dev->name);
 	return 0;
 }
 
