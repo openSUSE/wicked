@@ -352,7 +352,6 @@ ni_system_macvlan_create(ni_netconfig_t *nc, const char *ifname,
 			const ni_macvlan_t *cfg, ni_netdev_t **dev_ret)
 {
 	ni_netdev_t *dev, *phys_dev;
-	ni_macvlan_t *cur = NULL;
 
 	*dev_ret = NULL;
 
@@ -392,7 +391,7 @@ ni_system_macvlan_create(ni_netconfig_t *nc, const char *ifname,
 		return -1;
 	}
 
-	if (!(cur = dev->macvlan) || dev->link.type != NI_IFTYPE_MACVLAN) {
+	if (!ni_netdev_get_macvlan(dev)) {
 		ni_error("found new interface name %s but with type %s",
 			ifname, ni_linktype_type_to_name(dev->link.type));
 		return -1;
