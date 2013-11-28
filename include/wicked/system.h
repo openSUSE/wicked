@@ -28,6 +28,9 @@ extern int		ni_system_infiniband_child_delete(ni_netdev_t *dev);
 extern int		ni_system_vlan_create(ni_netconfig_t *nc, const char *ifname,
 				const ni_vlan_t *cfg_vlan, ni_netdev_t **ifpp);
 extern int		ni_system_vlan_delete(ni_netdev_t *ifp);
+extern int		ni_system_macvlan_create(ni_netconfig_t *nc, const char *ifname,
+				const ni_macvlan_t *cfg_macvlan, ni_netdev_t **ifpp);
+extern int		ni_system_macvlan_delete(ni_netdev_t *ifp);
 extern int		ni_system_bridge_create(ni_netconfig_t *nc, const char *ifname,
 				const ni_bridge_t *cfg_bridge, ni_netdev_t **ifpp);
 extern int		ni_system_bridge_setup(ni_netconfig_t *nc, ni_netdev_t *ifp, 

@@ -24,6 +24,7 @@
 #include <wicked/bonding.h>
 #include <wicked/system.h>
 #include <wicked/vlan.h>
+#include <wicked/macvlan.h>
 #include <wicked/wireless.h>
 #include <wicked/infiniband.h>
 #include <wicked/linkstats.h>
@@ -44,6 +45,8 @@ static int		__ni_discover_bridge(ni_netdev_t *);
 static int		__ni_discover_bond(ni_netdev_t *);
 static int		__ni_discover_addrconf(ni_netdev_t *);
 static int		__ni_discover_infiniband(ni_netdev_t *);
+static int		__ni_discover_vlan(ni_netdev_t *, struct nlattr **, ni_netconfig_t *);
+static int		__ni_discover_macvlan(ni_netdev_t *, struct nlattr **, ni_netconfig_t *);
 static ni_route_t *	__ni_netdev_add_autoconf_prefix(ni_netdev_t *, const ni_sockaddr_t *, unsigned int, const struct prefix_cacheinfo *);
 static ni_addrconf_lease_t *__ni_netdev_get_autoconf_lease(ni_netdev_t *, unsigned int);
 
@@ -697,30 +700,9 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 		} else if (!strcmp(link->kind, "bond")) {
 			link->type = NI_IFTYPE_BOND;
 		} else if (!strcmp(link->kind, "vlan")) {
-			struct nlattr *vlan_info[IFLA_VLAN_MAX+1];
-			ni_vlan_t *vlan;
-
-			/* There's more info in this LINKINFO; extract it in the caller
-			 * as we don't have access to the containing ni_netdev_t here */
 			link->type = NI_IFTYPE_VLAN;
-			if (!(vlan = link->vlan))
-				link->vlan = vlan = ni_vlan_new();
-
-			/* IFLA_LINK contains the ifindex of the real ether dev */
-			if (tb[IFLA_LINK]) {
-				vlan->parent.index = nla_get_u32(tb[IFLA_LINK]);
-
-				if (ni_netdev_ref_bind_ifname(&vlan->parent, nc) < 0) {
-					ni_error("VLAN interface %s references unknown base interface (ifindex %u)",
-							ifname, vlan->parent.index);
-					/* Ignore error and proceed */
-				}
-			} else {
-				ni_netdev_ref_destroy(&vlan->parent);
-			}
-
-			if (nla_parse_nested(vlan_info, IFLA_VLAN_MAX, nl_linkinfo[IFLA_INFO_DATA], NULL) >= 0)
-				vlan->tag = nla_get_u16(vlan_info[IFLA_VLAN_ID]);
+		} else if (!strcmp(link->kind, "macvlan")) {
+			link->type = NI_IFTYPE_MACVLAN;
 		} else if (!strcmp(link->kind, "tun")) {
 			if (link->arp_type == ARPHRD_ETHER)
 				link->type = NI_IFTYPE_TAP;
@@ -910,6 +892,14 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 		__ni_discover_bond(dev);
 		break;
 
+	case NI_IFTYPE_VLAN:
+		__ni_discover_vlan(dev, tb, nc);
+		break;
+
+	case NI_IFTYPE_MACVLAN:
+		__ni_discover_macvlan(dev, tb, nc);
+		break;
+
 	case NI_IFTYPE_WIRELESS:
 		rv = ni_wireless_interface_refresh(dev);
 		if (rv == -NI_ERROR_RADIO_DISABLED) {
@@ -926,6 +916,93 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 
 	/* Check if we have DHCP running for this interface */
 	__ni_discover_addrconf(dev);
+
+	return 0;
+}
+
+int
+__ni_discover_vlan(ni_netdev_t *dev, struct nlattr **tb, ni_netconfig_t *nc)
+{
+	struct nlattr *link_info[IFLA_INFO_MAX+1];
+	struct nlattr *info_data[IFLA_VLAN_MAX+1];
+	ni_vlan_t *vlan;
+
+	if (!dev || !tb || !(vlan = ni_netdev_get_vlan(dev))) {
+		ni_error("%s: Unable to discover vlan interface details",
+			dev ? dev->name : NULL);
+		return -1;
+	}
+
+	if (nla_parse_nested(link_info, IFLA_INFO_MAX, tb[IFLA_LINKINFO], NULL) < 0) {
+		ni_error("%s: unable to parse IFLA_LINKINFO", dev->name);
+		return -1;
+	}
+
+	if (tb[IFLA_LINK]) {
+		vlan->parent.index = nla_get_u32(tb[IFLA_LINK]);
+		if (nc && ni_netdev_ref_bind_ifname(&vlan->parent, nc) < 0) {
+			ni_debug_ifconfig("%s: cannot bind vlan bind interface %u",
+						dev->name, vlan->parent.index);
+			ni_string_free(&vlan->parent.name);
+			/* Ignore error and proceed */
+		}
+	} else {
+		ni_error("%s: cannot find vlan interface base link reference",
+			dev->name);
+		ni_netdev_ref_destroy(&vlan->parent);
+	}
+
+	if (nla_parse_nested(info_data, IFLA_VLAN_MAX, link_info[IFLA_INFO_DATA], NULL) < 0) {
+		ni_error("%s: unable to parse vlan IFLA_INFO_DATA", dev->name);
+		return -1;
+	}
+
+	vlan->tag = nla_get_u16(info_data[IFLA_VLAN_ID]);
+	return 0;
+}
+
+int
+__ni_discover_macvlan(ni_netdev_t *dev, struct nlattr **tb, ni_netconfig_t *nc)
+{
+	struct nlattr *link_info[IFLA_INFO_MAX+1];
+	struct nlattr *info_data[IFLA_VLAN_MAX+1];
+	ni_macvlan_t *macvlan;
+
+	if (!dev || !tb || !(macvlan = ni_netdev_get_macvlan(dev))) {
+		ni_error("%s: Unable to discover macvlan interface details",
+			dev ? dev->name : NULL);
+		return -1;
+	}
+
+	if (nla_parse_nested(link_info, IFLA_INFO_MAX, tb[IFLA_LINKINFO], NULL) < 0) {
+		ni_error("%s: unable to parse IFLA_LINKINFO", dev->name);
+		return -1;
+	}
+
+	if (tb[IFLA_LINK]) {
+		macvlan->parent.index = nla_get_u32(tb[IFLA_LINK]);
+		if (nc && ni_netdev_ref_bind_ifname(&macvlan->parent, nc) < 0) {
+			ni_debug_ifconfig("%s: cannot bind macvlan bind interface %u",
+						dev->name, macvlan->parent.index);
+			ni_string_free(&macvlan->parent.name);
+			/* Ignore error and proceed */
+		}
+	} else {
+		ni_error("%s: cannot find macvlan interface base link reference",
+			dev->name);
+		ni_netdev_ref_destroy(&macvlan->parent);
+	}
+
+	if (nla_parse_nested(info_data, IFLA_MACVLAN_MAX, link_info[IFLA_INFO_DATA], NULL) < 0) {
+		ni_error("%s: unable to parse macvlan IFLA_INFO_DATA", dev->name);
+		return -1;
+	}
+
+	if (info_data[IFLA_MACVLAN_MODE])
+		macvlan->mode = nla_get_u32(info_data[IFLA_MACVLAN_MODE]);
+
+	if (info_data[IFLA_MACVLAN_FLAGS])
+		macvlan->flags = nla_get_u16(info_data[IFLA_MACVLAN_FLAGS]);
 
 	return 0;
 }

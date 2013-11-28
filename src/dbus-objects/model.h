@@ -91,6 +91,8 @@ extern ni_dbus_service_t	ni_objectmodel_bond_service;
 extern ni_dbus_service_t	ni_objectmodel_bond_factory_service;
 extern ni_dbus_service_t	ni_objectmodel_vlan_service;
 extern ni_dbus_service_t	ni_objectmodel_vlan_factory_service;
+extern ni_dbus_service_t	ni_objectmodel_macvlan_service;
+extern ni_dbus_service_t	ni_objectmodel_macvlan_factory_service;
 extern ni_dbus_service_t	ni_objectmodel_tun_service;
 extern ni_dbus_service_t	ni_objectmodel_tun_factory_service;
 extern ni_dbus_service_t	ni_objectmodel_ppp_base_service;

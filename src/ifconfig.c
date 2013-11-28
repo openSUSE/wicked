@@ -31,6 +31,7 @@
 #include <wicked/bridge.h>
 #include <wicked/bonding.h>
 #include <wicked/vlan.h>
+#include <wicked/macvlan.h>
 #include <wicked/system.h>
 #include <wicked/wireless.h>
 #include <wicked/infiniband.h>
@@ -52,6 +53,7 @@ static int	__ni_netdev_update_routes(ni_netdev_t *dev,
 				const ni_addrconf_lease_t *old_lease,
 				ni_route_table_t *cfg_route_list);
 static int	__ni_rtnl_link_create_vlan(const char *, const ni_vlan_t *, unsigned int);
+static int	__ni_rtnl_link_create_macvlan(const char *, const ni_macvlan_t *, unsigned int);
 static int	__ni_rtnl_link_up(const ni_netdev_t *, const ni_netdev_req_t *);
 static int	__ni_rtnl_link_down(const ni_netdev_t *, int);
 static int	__ni_rtnl_send_deladdr(ni_netdev_t *, const ni_address_t *);
@@ -224,7 +226,6 @@ ni_system_interface_delete(ni_netconfig_t *nc, const char *ifname)
 	case NI_IFTYPE_LOOPBACK:
 	case NI_IFTYPE_ETHERNET:
 	case NI_IFTYPE_WIRELESS:
-	case NI_IFTYPE_DUMMY:
 	case NI_IFTYPE_INFINIBAND:
 		ni_error("cannot destroy %s interfaces", ni_linktype_type_to_name(dev->link.type));
 		return -1;
@@ -234,9 +235,13 @@ ni_system_interface_delete(ni_netconfig_t *nc, const char *ifname)
 			return -1;
 		break;
 
+	case NI_IFTYPE_DUMMY:
 	case NI_IFTYPE_VLAN:
+	case NI_IFTYPE_MACVLAN:
 		if (__ni_rtnl_link_down(dev, RTM_DELLINK)) {
-			ni_error("could not destroy VLAN interface %s", dev->name);
+			ni_error("could not destroy %s interface %s",
+				ni_linktype_type_to_name(dev->link.type),
+				dev->name);
 			return -1;
 		}
 		break;
@@ -338,6 +343,78 @@ ni_system_vlan_delete(ni_netdev_t *dev)
 	}
 	return 0;
 }
+
+/*
+ * Create a macvlan interface
+ */
+int
+ni_system_macvlan_create(ni_netconfig_t *nc, const char *ifname,
+			const ni_macvlan_t *cfg, ni_netdev_t **dev_ret)
+{
+	ni_netdev_t *dev, *phys_dev;
+	ni_macvlan_t *cur = NULL;
+
+	*dev_ret = NULL;
+
+	dev = ni_netdev_by_name(nc, ifname);
+	if (dev != NULL) {
+		/* This is not necessarily an error */
+		if (dev->link.type == NI_IFTYPE_MACVLAN) {
+			ni_debug_ifconfig("A macvlan interface %s already exists",
+					dev->name);
+			*dev_ret = dev;
+		} else {
+			ni_error("A %s interface with the name %s already exists",
+				ni_linktype_type_to_name(dev->link.type), dev->name);
+		}
+		return -NI_ERROR_DEVICE_EXISTS;
+	}
+
+	phys_dev = ni_netdev_by_name(nc, cfg->parent.name);
+	if (!phys_dev || !phys_dev->link.ifindex) {
+		ni_error("Cannot create macvlan %s: cannot find base interface %s",
+				ifname, cfg->parent.name);
+		return -NI_ERROR_DEVICE_NOT_KNOWN;
+	}
+
+	ni_debug_ifconfig("%s: creating macvlan interface", ifname);
+	if (__ni_rtnl_link_create_macvlan(ifname, cfg, phys_dev->link.ifindex)) {
+		ni_error("unable to create macvlan interface %s", ifname);
+		return -1;
+	}
+
+	/* Refresh interface status */
+	__ni_system_refresh_interfaces(nc);
+
+	dev = ni_netdev_by_name(nc, ifname);
+	if (dev == NULL) {
+		ni_error("tried to create interface %s; still not found", ifname);
+		return -1;
+	}
+
+	if (!(cur = dev->macvlan) || dev->link.type != NI_IFTYPE_MACVLAN) {
+		ni_error("found new interface name %s but with type %s",
+			ifname, ni_linktype_type_to_name(dev->link.type));
+		return -1;
+	}
+
+	*dev_ret = dev;
+	return 0;
+}
+
+/*
+ * Delete a macvlan interface
+ */
+int
+ni_system_macvlan_delete(ni_netdev_t *dev)
+{
+	if (__ni_rtnl_link_down(dev, RTM_DELLINK)) {
+		ni_error("could not destroy macvlan interface %s", dev->name);
+		return -1;
+	}
+	return 0;
+}
+
 
 /*
  * Setup infiniband interface
@@ -1093,6 +1170,64 @@ __ni_rtnl_link_create_vlan(const char *ifname, const ni_vlan_t *vlan, unsigned i
 
 nla_put_failure:
 	ni_error("failed to encode netlink attr");
+failed:
+	nlmsg_free(msg);
+	return -1;
+}
+
+/*
+ * Create a macvlan interface via netlink
+ */
+static int
+__ni_rtnl_link_create_macvlan(const char *ifname, const ni_macvlan_t *cfg,
+				unsigned int phys_ifindex)
+{
+	struct nlattr *linkinfo;
+	struct nlattr *infodata;
+	struct ifinfomsg ifi;
+	struct nl_msg *msg;
+	size_t len;
+
+	len = ni_string_len(ifname);
+	if (!len || len >= IFNAMSIZ) {
+		ni_error("\"%s\" is not a valid device identifier", ifname);
+		return -1;
+	}
+
+	memset(&ifi, 0, sizeof(ifi));
+	ifi.ifi_family = AF_UNSPEC;
+
+	msg = nlmsg_alloc_simple(RTM_NEWLINK, NLM_F_CREATE | NLM_F_EXCL);
+	if (nlmsg_append(msg, &ifi, sizeof(ifi), NLMSG_ALIGNTO) < 0)
+		goto nla_put_failure;
+
+	if (!(linkinfo = nla_nest_start(msg, IFLA_LINKINFO)))
+		goto nla_put_failure;
+	NLA_PUT_STRING(msg, IFLA_INFO_KIND, "macvlan");
+
+	if (!(infodata = nla_nest_start(msg, IFLA_INFO_DATA)))
+		goto nla_put_failure;
+
+	if (cfg->mode)
+		NLA_PUT_U32(msg, IFLA_MACVLAN_MODE, cfg->mode);
+	if (cfg->flags)
+		NLA_PUT_U16(msg, IFLA_MACVLAN_FLAGS, cfg->flags);
+
+	nla_nest_end(msg, infodata);
+	nla_nest_end(msg, linkinfo);
+
+	NLA_PUT_U32(msg, IFLA_LINK, phys_ifindex);
+	NLA_PUT_STRING(msg, IFLA_IFNAME, ifname);
+
+	if (ni_nl_talk(msg, NULL) < 0)
+		goto failed;
+
+	ni_debug_ifconfig("successfully created macvlan interface %s", ifname);
+	nlmsg_free(msg);
+	return 0;
+
+nla_put_failure:
+	ni_error("failed to encode netlink attr for macvlan %s", ifname);
 failed:
 	nlmsg_free(msg);
 	return -1;

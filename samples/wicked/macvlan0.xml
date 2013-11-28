@@ -1,0 +1,9 @@
+<interface>
+  <name>macvlan0</name>
+
+  <macvlan>
+    <device>eth0</device>
+    <mode>bridge</mode>
+  </macvlan>
+
+</interface>
