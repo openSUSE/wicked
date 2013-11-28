@@ -326,56 +326,6 @@ ni_event_type_to_name(ni_event_t type)
 }
 
 /*
- * Map netinfo interface types to ARPHRD_ and vice versa
- */
-static struct __ni_arptype_iftype_map {
-	unsigned int	type;
-	unsigned int	arp_type;
-} __ni_arptype_iftype_map[] = {
-      {	NI_IFTYPE_LOOPBACK,	ARPHRD_LOOPBACK	},
-      {	NI_IFTYPE_ETHERNET,	ARPHRD_ETHER	},
-      {	NI_IFTYPE_BRIDGE,	ARPHRD_ETHER	},
-      {	NI_IFTYPE_BOND,		ARPHRD_ETHER	},
-      {	NI_IFTYPE_VLAN,		ARPHRD_ETHER	},
-      {	NI_IFTYPE_WIRELESS,	ARPHRD_ETHER	},
-      {	NI_IFTYPE_INFINIBAND,	ARPHRD_INFINIBAND },
-      {	NI_IFTYPE_PPP,		ARPHRD_PPP	},
-      {	NI_IFTYPE_SLIP,		ARPHRD_SLIP	},
-      {	NI_IFTYPE_SLIP,		ARPHRD_CSLIP	},
-      {	NI_IFTYPE_SIT,		ARPHRD_SIT	},
-      {	NI_IFTYPE_GRE,		ARPHRD_IPGRE	},
-      {	NI_IFTYPE_TUNNEL,	ARPHRD_TUNNEL	},
-      {	NI_IFTYPE_TUNNEL6,	ARPHRD_TUNNEL6	},
-      {	NI_IFTYPE_TUN,		ARPHRD_ETHER	},
-      {	NI_IFTYPE_TAP,		ARPHRD_ETHER	},
-      {	NI_IFTYPE_DUMMY,	ARPHRD_LOOPBACK	},
-
-      {	NI_IFTYPE_UNKNOWN,	ARPHRD_VOID	}
-};
-
-unsigned int
-ni_arphrd_type_to_iftype(unsigned int arp_type)
-{
-	struct __ni_arptype_iftype_map *map;
-
-	for (map = __ni_arptype_iftype_map; map->arp_type != ARPHRD_VOID; ++map)
-		if (map->arp_type == arp_type)
-			break;
-	return map->type;
-}
-
-unsigned int
-ni_iftype_to_arphrd_type(unsigned int iftype)
-{
-	struct __ni_arptype_iftype_map *map;
-
-	for (map = __ni_arptype_iftype_map; map->arp_type != ARPHRD_VOID; ++map)
-		if (map->type == iftype)
-			break;
-	return map->arp_type;
-}
-
-/*
  * Names for the kernel's oper_state values
  */
 static ni_intmap_t		__ni_operstate_names[] = {

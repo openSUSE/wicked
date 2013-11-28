@@ -260,12 +260,10 @@ extern const char *	ni_dhcp6_mode_type_to_name(unsigned int);
 extern int		ni_dhcp6_mode_name_to_type(const char *, unsigned int *);
 extern int		ni_arphrd_name_to_type(const char *);
 extern const char *	ni_arphrd_type_to_name(unsigned int);
-extern unsigned int	ni_arphrd_type_to_iftype(unsigned int arp_type);
 extern ni_event_t	ni_event_name_to_type(const char *);
 extern const char *	ni_event_type_to_name(ni_event_t);
 extern int		ni_oper_state_name_to_type(const char *);
 extern const char *	ni_oper_state_type_to_name(int);
-extern unsigned int	ni_iftype_to_arphrd_type(unsigned int iftype);
 
 extern const char *	ni_strerror(int errcode);
 
