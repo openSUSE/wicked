@@ -577,11 +577,11 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 				struct nlattr **tb, struct nlmsghdr *h,
 				struct ifinfomsg *ifi, ni_netconfig_t *nc)
 {
-	link->arp_type = ifi->ifi_type;
+	link->hwaddr.arp_type = ifi->ifi_type;
 	link->ifflags = __ni_netdev_translate_ifflags(ifi->ifi_flags);
 
 	/* map by it's main arp type */
-	switch (link->arp_type) {
+	switch (link->hwaddr.arp_type) {
 	case ARPHRD_LOOPBACK:
 		link->type = NI_IFTYPE_LOOPBACK;
 		break;
@@ -618,7 +618,6 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 
 		memcpy(link->hwaddr.data, data, alen);
 		link->hwaddr.len = alen;
-		link->hwaddr.type = link->arp_type;
 	}
 
 	if (tb[IFLA_MTU])
@@ -704,7 +703,7 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 		} else if (!strcmp(link->kind, "macvlan")) {
 			link->type = NI_IFTYPE_MACVLAN;
 		} else if (!strcmp(link->kind, "tun")) {
-			if (link->arp_type == ARPHRD_ETHER)
+			if (link->hwaddr.arp_type == ARPHRD_ETHER)
 				link->type = NI_IFTYPE_TAP;
 			else
 				link->type = NI_IFTYPE_TUN;
@@ -713,7 +712,7 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 		}
 	}
 
-	switch (link->arp_type) {
+	switch (link->hwaddr.arp_type) {
 	case ARPHRD_ETHER:
 		{
 			struct ethtool_drvinfo drv_info;
@@ -764,8 +763,8 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 
 	if (link->type == NI_IFTYPE_UNKNOWN) {
 		ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG,
-			"%s: unable to discover link type, arp type is %u",
-			ifname, link->arp_type);
+			"%s: unable to discover link type, arp type is 0x%x",
+			ifname, link->hwaddr.arp_type);
 	}
 
 	return 0;

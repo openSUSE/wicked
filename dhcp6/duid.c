@@ -96,7 +96,7 @@ typedef union ni_duid_data {
 
 
 ni_bool_t
-ni_duid_init_llt(ni_opaque_t *duid, unsigned int hwtype, const void *hwaddr, size_t len)
+ni_duid_init_llt(ni_opaque_t *duid, unsigned short arp_type, const void *hwaddr, size_t len)
 {
 	ni_duid_data_t *data;
 	time_t		now;
@@ -117,14 +117,14 @@ ni_duid_init_llt(ni_opaque_t *duid, unsigned int hwtype, const void *hwaddr, siz
 	u64 = (uint64_t)(now - NI_DUID_TIME_EPOCH);
 	data = (ni_duid_data_t *)&duid->data;
 	data->llt.type = htons((uint16_t)NI_DUID_TYPE_LLT);
-	data->llt.hwtype = htons((uint16_t)hwtype);
+	data->llt.hwtype = htons(arp_type);
 	data->llt.v6time = htonl((uint32_t)(u64 & 0xffffffff));
 	memcpy(data->llt.hwaddr, hwaddr, len);
 	return TRUE;
 }
 
 ni_bool_t
-ni_duid_init_ll (ni_opaque_t *duid, unsigned int hwtype, const void *hwaddr, size_t len)
+ni_duid_init_ll (ni_opaque_t *duid, unsigned short hwtype, const void *hwaddr, size_t len)
 {
 	ni_duid_data_t *data;
 
@@ -139,7 +139,7 @@ ni_duid_init_ll (ni_opaque_t *duid, unsigned int hwtype, const void *hwaddr, siz
 
 	data = (ni_duid_data_t *)&duid->data;
 	data->ll.type = htons((uint16_t)NI_DUID_TYPE_LL);
-	data->ll.hwtype = htons((uint16_t)hwtype);
+	data->ll.hwtype = htons(hwtype);
 	memcpy(data->ll.hwaddr, hwaddr, len);
 	return TRUE;
 }

@@ -794,7 +794,7 @@ ni_dhcp6_generate_duid(ni_dhcp6_device_t *dev, ni_opaque_t *duid)
 
 	/* try the current interface first */
 	if (ifp->link.hwaddr.len) {
-		if(ni_duid_init_llt(duid, ifp->link.arp_type,
+		if(ni_duid_init_llt(duid, ifp->link.hwaddr.arp_type,
 				ifp->link.hwaddr.data, ifp->link.hwaddr.len))
 			return;
 	}
@@ -804,12 +804,12 @@ ni_dhcp6_generate_duid(ni_dhcp6_device_t *dev, ni_opaque_t *duid)
 		if (ifp->link.ifindex == dev->link.ifindex)
 			continue;
 
-		switch(ifp->link.arp_type) {
+		switch(ifp->link.hwaddr.arp_type) {
 		case ARPHRD_ETHER:
 		case ARPHRD_IEEE802:
 		case ARPHRD_INFINIBAND:
 			if (ifp->link.hwaddr.len) {
-				if(ni_duid_init_llt(duid, ifp->link.arp_type,
+				if(ni_duid_init_llt(duid, ifp->link.hwaddr.arp_type,
 						ifp->link.hwaddr.data, ifp->link.hwaddr.len))
 					return;
 			}

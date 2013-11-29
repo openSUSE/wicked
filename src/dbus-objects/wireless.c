@@ -7,6 +7,7 @@
 #include "config.h"
 #endif
 
+#include <net/if_arp.h>
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
 #include <wicked/wireless.h>
@@ -213,7 +214,7 @@ ni_objectmodel_get_wireless_request_net(ni_wireless_network_t *net,
 
 		if (!ni_dbus_variant_get_byte_array_minmax(child, hwaddr->data, &len, 0, sizeof(hwaddr->data)))
 			return FALSE;
-		hwaddr->type = NI_IFTYPE_WIRELESS;
+		hwaddr->arp_type = ARPHRD_ETHER;
 		hwaddr->len = len;
 	}
 

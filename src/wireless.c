@@ -435,14 +435,6 @@ __ni_wireless_link_event(ni_netconfig_t *nc, ni_netdev_t *dev, void *data, size_
 /*
  * Helper function to set AP address
  */
-static inline void
-__ni_wireless_set_ap(ni_hwaddr_t *hwa, const void *ap_addr)
-{
-	hwa->type = NI_IFTYPE_WIRELESS;
-	hwa->len = ETH_ALEN;
-	memcpy(hwa->data, ap_addr, ETH_ALEN);
-}
-
 typedef struct __ni_kernel_map_t {
 	int		kernel_value;
 	int		wicked_value;

@@ -509,7 +509,6 @@ ni_capture_devinfo_init(ni_capture_devinfo_t *devinfo, const char *ifname, const
 	devinfo->iftype = link->type;
 	devinfo->ifindex = link->ifindex;
 	devinfo->mtu = link->mtu ? link->mtu : MTU_MAX;
-	devinfo->arp_type = link->arp_type;
 	devinfo->hwaddr = link->hwaddr;
 
 	if (devinfo->hwaddr.len == 0) {
@@ -517,16 +516,15 @@ ni_capture_devinfo_init(ni_capture_devinfo_t *devinfo, const char *ifname, const
 			ifname);
 		return -1;
 	}
-	if (devinfo->arp_type == ARPHRD_VOID || devinfo->hwaddr.type == ARPHRD_VOID) {
+	if (devinfo->hwaddr.arp_type == ARPHRD_VOID) {
 		ni_error("%s: void arp type, cannot do packet level networking yet",
 			ifname);
 		return -1;
 	}
 
-	if (devinfo->arp_type == ARPHRD_NONE || devinfo->hwaddr.type == ARPHRD_NONE) {
+	if (devinfo->hwaddr.arp_type == ARPHRD_NONE) {
 		ni_warn("%s: no arp type, trying to use ether for capturing", ifname);
-		devinfo->arp_type = ARPHRD_ETHER;
-		devinfo->hwaddr.type = devinfo->arp_type;
+		devinfo->hwaddr.arp_type = ARPHRD_ETHER;
 	}
 
 	return 0;
@@ -540,7 +538,6 @@ ni_capture_devinfo_refresh(ni_capture_devinfo_t *devinfo, const char *ifname, co
 	}
 
 	devinfo->mtu = link->mtu ? link->mtu : MTU_MAX;
-	devinfo->arp_type = link->arp_type;
 	devinfo->hwaddr = link->hwaddr;
 
 	if (devinfo->iftype != link->type) {
@@ -557,7 +554,7 @@ ni_capture_devinfo_refresh(ni_capture_devinfo_t *devinfo, const char *ifname, co
 			ifname);
 		return -1;
 	}
-	if (devinfo->arp_type == ARPHRD_VOID || devinfo->hwaddr.type == ARPHRD_VOID) {
+	if (devinfo->hwaddr.arp_type == ARPHRD_VOID) {
 		ni_error("%s: void arp type, cannot do packet level networking yet",
 			ifname);
 		return -1;
@@ -609,7 +606,7 @@ ni_capture_open(const ni_capture_devinfo_t *devinfo, const ni_capture_protinfo_t
 	destaddr = protinfo->eth_destaddr;
 
 	if (destaddr.len == 0
-	 && ni_link_address_get_broadcast(devinfo->hwaddr.type, &destaddr) < 0) {
+	 && ni_link_address_get_broadcast(devinfo->hwaddr.arp_type, &destaddr) < 0) {
 		ni_error("cannot get broadcast address for %s (bad iftype)", devinfo->ifname);
 		return NULL;
 	}
@@ -630,7 +627,7 @@ ni_capture_open(const ni_capture_devinfo_t *devinfo, const ni_capture_protinfo_t
 	capture->sll.sll_family = AF_PACKET;
 	capture->sll.sll_protocol = htons(protinfo->eth_protocol);
 	capture->sll.sll_ifindex = devinfo->ifindex;
-	capture->sll.sll_hatype = htons(devinfo->arp_type);
+	capture->sll.sll_hatype = htons(devinfo->hwaddr.arp_type);
 	capture->sll.sll_halen = destaddr.len;
 	memcpy(&capture->sll.sll_addr, destaddr.data, destaddr.len);
 

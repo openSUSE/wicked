@@ -57,8 +57,8 @@
 
 /* TODO: MAC based uuid duid, see http://tools.ietf.org/html/rfc4122#section-4.1.6  */
 
-extern ni_bool_t		ni_duid_init_llt(ni_opaque_t *duid, unsigned int hwtype, const void *hwaddr, size_t len);
-extern ni_bool_t		ni_duid_init_ll (ni_opaque_t *duid, unsigned int hwtype, const void *hwaddr, size_t len);
+extern ni_bool_t		ni_duid_init_llt(ni_opaque_t *duid, unsigned short arp_type, const void *hwaddr, size_t len);
+extern ni_bool_t		ni_duid_init_ll (ni_opaque_t *duid, unsigned short arp_type, const void *hwaddr, size_t len);
 extern ni_bool_t		ni_duid_init_en (ni_opaque_t *duid, unsigned int enumber, const void *identifier, size_t len);
 extern ni_bool_t		ni_duid_init_uuid(ni_opaque_t *duid, const ni_uuid_t *uuid);
 

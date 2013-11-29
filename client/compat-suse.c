@@ -9,6 +9,8 @@
 #include <limits.h>
 #include <ctype.h>
 #include <errno.h>
+#include <net/if_arp.h>
+#include <net/ethernet.h>
 #include <netlink/netlink.h>
 
 #include <wicked/address.h>
@@ -1664,9 +1666,9 @@ try_add_wireless(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *suffix)
 	/* Default is unset */
 	if ((var = __find_indexed_variable(sc, "WIRELESS_AP", suffix))) {
 		if (ni_parse_hex(var->value, net->access_point.data,
-					sizeof(net->access_point.data)) == 6) { //ETH_ALEN
-			net->access_point.type = NI_IFTYPE_WIRELESS;
-			net->access_point.len = 6; // ETH_ALEN;
+					sizeof(net->access_point.data)) == ETH_ALEN) {
+			net->access_point.arp_type = ARPHRD_ETHER;
+			net->access_point.len = ETH_ALEN;
 		}
 		else {
 			ni_error("ifcfg-%s: wrong WIRELESS_AP%s value", dev->name, suffix);
@@ -2617,7 +2619,7 @@ __ni_suse_sysconfig_read(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	ni_sysconfig_get_integer(sc, "MTU", &dev->link.mtu);
 
 	if ((value = ni_sysconfig_get_value(sc, "LLADDR")) != NULL
-	 && ni_link_address_parse(&dev->link.hwaddr, NI_IFTYPE_ETHERNET, value) < 0) {
+	 && ni_link_address_parse(&dev->link.hwaddr, ARPHRD_ETHER, value) < 0) {
 		ni_warn("ifcfg-%s: Cannot parse LLADDR=\"%s\"",
 				dev->name, value);
 	}
