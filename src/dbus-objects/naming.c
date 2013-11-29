@@ -143,7 +143,7 @@ __match_hwaddr(const ni_hwaddr_t *hwaddr, const char *string)
 	if (!string)
 		return FALSE;
 
-	if (ni_link_address_parse(&match, hwaddr->type, string) < 0)
+	if (ni_link_address_parse(&match, hwaddr->arp_type, string) < 0)
 		return FALSE;
 
 	return ni_link_address_equal(hwaddr, &match);

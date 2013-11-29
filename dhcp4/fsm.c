@@ -777,7 +777,7 @@ ni_dhcp_fsm_validate_lease(ni_dhcp_device_t *dev, ni_addrconf_lease_t *lease)
 	/* dhcpcd source code says:
 	 * IEEE1394 cannot set ARP target address according to RFC2734
 	 */
-	if (dev->system.arp_type == ARPHRD_IEEE1394)
+	if (dev->system.hwaddr.arp_type == ARPHRD_IEEE1394)
 		dev->arp.nclaims = 0;
 
 	if (lease)

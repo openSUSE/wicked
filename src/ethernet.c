@@ -316,7 +316,7 @@ __ni_system_ethernet_refresh(ni_netdev_t *dev)
 	ni_ethernet_t *ether;
 
 	ether = ni_ethernet_new();
-	ether->permanent_address.type = dev->link.arp_type;
+	ether->permanent_address.arp_type = dev->link.hwaddr.arp_type;
 	if (__ni_system_ethernet_get(dev->name, ether) < 0) {
 		ni_ethernet_free(ether);
 		return -1;
@@ -390,9 +390,9 @@ __ni_system_ethernet_get(const char *ifname, ni_ethernet_t *ether)
 		if (__ni_ethtool(ifname, ETHTOOL_GPERMADDR, &parm) < 0) {
 			ni_warn("%s: ETHTOOL_GPERMADDR failed", ifname);
 		} else
-		if (ni_link_address_length(ether->permanent_address.type) == parm.h.size) {
+		if (ni_link_address_length(ether->permanent_address.arp_type) == parm.h.size) {
 			ni_link_address_set(&ether->permanent_address,
-					ether->permanent_address.type,
+					ether->permanent_address.arp_type,
 					parm.data, parm.h.size);
 		}
 	}

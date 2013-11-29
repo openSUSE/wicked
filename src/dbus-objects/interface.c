@@ -15,6 +15,7 @@
 #include <signal.h>
 #include <getopt.h>
 #include <errno.h>
+#include <net/if_arp.h>
 
 #include <wicked/netinfo.h>
 #include <wicked/addrconf.h>
@@ -1046,6 +1047,53 @@ __ni_objectmodel_netif_get_hwaddr(const ni_dbus_object_t *object,
 	return TRUE;
 }
 
+static unsigned short
+__ni_iftype_2_arp_type(ni_iftype_t iftype)
+{
+	switch (iftype) {
+		case NI_IFTYPE_LOOPBACK:
+			return ARPHRD_LOOPBACK;
+		case NI_IFTYPE_ETHERNET:
+			return ARPHRD_ETHER;
+		case NI_IFTYPE_BRIDGE:
+			return ARPHRD_ETHER;
+		case NI_IFTYPE_BOND:
+			return ARPHRD_ETHER;
+		case NI_IFTYPE_VLAN:
+			return ARPHRD_ETHER;
+		case NI_IFTYPE_MACVLAN:
+			return ARPHRD_ETHER;
+		case NI_IFTYPE_WIRELESS:
+			return ARPHRD_ETHER;
+		case NI_IFTYPE_INFINIBAND:
+		case NI_IFTYPE_INFINIBAND_CHILD:
+			return ARPHRD_INFINIBAND;
+		case NI_IFTYPE_PPP:
+			return ARPHRD_PPP;
+		case NI_IFTYPE_SLIP:
+			return ARPHRD_SLIP;
+		case NI_IFTYPE_SIT:
+			return ARPHRD_SIT;
+		case NI_IFTYPE_GRE:
+			return ARPHRD_IPGRE;
+		case NI_IFTYPE_TUNNEL:
+			return ARPHRD_TUNNEL;
+		case NI_IFTYPE_TUNNEL6:
+			return ARPHRD_TUNNEL6;
+		case NI_IFTYPE_TOKENRING:
+			return ARPHRD_IEEE802_TR;
+		case NI_IFTYPE_FIREWIRE:
+			return ARPHRD_IEEE1394;
+
+		case NI_IFTYPE_TUN:
+		case NI_IFTYPE_TAP:
+		case NI_IFTYPE_DUMMY:
+		case NI_IFTYPE_ISDN:
+		default:
+			return ARPHRD_VOID;
+	}
+}
+
 static dbus_bool_t
 __ni_objectmodel_netif_set_hwaddr(ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
@@ -1058,7 +1106,7 @@ __ni_objectmodel_netif_set_hwaddr(ni_dbus_object_t *object,
 	if (!(ifp = ni_objectmodel_unwrap_netif(object, error)))
 		return FALSE;
 
-	ifp->link.hwaddr.type = ifp->link.type;
+	ifp->link.hwaddr.arp_type = __ni_iftype_2_arp_type(ifp->link.type);
 	if (!ni_dbus_variant_get_byte_array_minmax(argument,
 				ifp->link.hwaddr.data, &addrlen,
 				0, sizeof(ifp->link.hwaddr.data)))

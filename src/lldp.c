@@ -21,6 +21,7 @@
 #include <sys/time.h>
 #include <time.h>
 #include <net/if_arp.h>
+#include <net/ethernet.h>
 #include <stdarg.h>
 #include <linux/dcbnl.h>
 
@@ -78,18 +79,18 @@ static ni_lldp_agent_t *	ni_lldp_agents;
 
 static ni_hwaddr_t		ni_lldp_destaddr[__NI_LLDP_DEST_MAX] = {
 [NI_LLDP_DEST_NEAREST_BRIDGE] = {
-		.type = NI_IFTYPE_ETHERNET,
-		.len = 6,
+		.arp_type = ARPHRD_ETHER,
+		.len = ETH_ALEN,
 		.data = { 0x00, 0x80, 0xC2, 0x00, 0x00, 0x0E }
 	},
 [NI_LLDP_DEST_NEAREST_NON_TPMR_BRIDGE] = {
-		.type = NI_IFTYPE_ETHERNET,
-		.len = 6,
+		.arp_type = ARPHRD_ETHER,
+		.len = ETH_ALEN,
 		.data = { 0x00, 0x80, 0xC2, 0x00, 0x00, 0x03 }
 	},
 [NI_LLDP_DEST_NEAREST_CUSTOMER_BRIDGE] = {
-		.type = NI_IFTYPE_ETHERNET,
-		.len = 6,
+		.arp_type = ARPHRD_ETHER,
+		.len = ETH_ALEN,
 		.data = { 0x00, 0x80, 0xC2, 0x00, 0x00, 0x00 }
 	},
 };
@@ -258,7 +259,7 @@ ni_lldp_check_mac_address(ni_hwaddr_t *mac_addr, ni_netdev_t *dev, const char *w
 ni_bool_t
 ni_system_lldp_available(ni_netdev_t *dev)
 {
-	return dev->link.arp_type == ARPHRD_ETHER;
+	return dev->link.hwaddr.arp_type == ARPHRD_ETHER;
 }
 
 /*
@@ -1008,15 +1009,13 @@ ni_lldp_tlv_put_subtype_mac(ni_buffer_t *bp, unsigned int type, unsigned int sub
 	if (ni_lldp_tlv_begin_subtype(&tlv, bp, type, subtype) < 0)
 		return -1;
 
-	switch (mac->type) {
-	case NI_IFTYPE_ETHERNET:
-	case NI_IFTYPE_VLAN:
-	case NI_IFTYPE_WIRELESS:
-		if (mac->len == 6)
+	switch (mac->arp_type) {
+	case ARPHRD_ETHER:
+		if (mac->len == ETH_ALEN)
 			break;
 		/* fallthru */
 	default:
-		return __ni_lldp_tlv_error(&tlv, "invalid hwaddr type %u (0x%x)", mac->type, mac->type);
+		return __ni_lldp_tlv_error(&tlv, "invalid hwaddr arp_type 0x%x", mac->arp_type);
 	}
 
 	if (ni_lldp_tlv_add_data(&tlv, mac->data, mac->len) < 0
@@ -1031,14 +1030,14 @@ ni_lldp_tlv_get_mac(ni_buffer_t *bp, ni_hwaddr_t *mac)
 {
 	void *data;
 
-	if (!(data = ni_buffer_pull_head(bp, 6))) {
+	if (!(data = ni_buffer_pull_head(bp, ETH_ALEN))) {
 		ni_debug_lldp("%s: bad MAC address length %u", __func__, ni_buffer_count(bp));
 		return -1;
 	}
 
-	memcpy(mac->data, data, 6);
-	mac->len = 6;
-	mac->type = NI_IFTYPE_ETHERNET;
+	memcpy(mac->data, data, ETH_ALEN);
+	mac->len = ETH_ALEN;
+	mac->arp_type = ARPHRD_ETHER;
 	return 0;
 }
 

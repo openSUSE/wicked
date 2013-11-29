@@ -851,13 +851,13 @@ void
 ni_link_address_init(ni_hwaddr_t *hwa)
 {
 	memset(hwa, 0, sizeof(*hwa));
-	hwa->type = ARPHRD_VOID;
+	hwa->arp_type = ARPHRD_VOID;
 }
 
 int
 ni_link_address_format(const ni_hwaddr_t *hwa, char *abuf, size_t len)
 {
-	switch (hwa->type) {
+	switch (hwa->arp_type) {
 	case ARPHRD_TUNNEL:
 	case ARPHRD_SIT:
 	case ARPHRD_IPGRE:
@@ -879,7 +879,7 @@ ni_link_address_format(const ni_hwaddr_t *hwa, char *abuf, size_t len)
 }
 
 int
-ni_link_address_set(ni_hwaddr_t *hwa, int hwtype, const void *data, size_t len)
+ni_link_address_set(ni_hwaddr_t *hwa, unsigned short arp_type, const void *data, size_t len)
 {
 	ni_link_address_init(hwa);
 	if (len > NI_MAXHWADDRLEN) {
@@ -889,19 +889,19 @@ ni_link_address_set(ni_hwaddr_t *hwa, int hwtype, const void *data, size_t len)
 	}
 
 	memcpy(hwa->data, data, len);
-	hwa->type = hwtype;
+	hwa->arp_type = arp_type;
 	hwa->len = len;
 
 	return 0;
 }
 
 int
-ni_link_address_parse(ni_hwaddr_t *hwa, unsigned int type, const char *string)
+ni_link_address_parse(ni_hwaddr_t *hwa, unsigned short arp_type, const char *string)
 {
 	int len;
 
 	ni_link_address_init(hwa);
-	switch (type) {
+	switch (arp_type) {
 	case ARPHRD_TUNNEL:
 	case ARPHRD_TUNNEL6:
 	case ARPHRD_SIT:
@@ -915,7 +915,7 @@ ni_link_address_parse(ni_hwaddr_t *hwa, unsigned int type, const char *string)
 	if ((len = ni_parse_hex(string, hwa->data, NI_MAXHWADDRLEN)) < 0)
 		return len;
 
-	hwa->type = type;
+	hwa->arp_type = arp_type;
 	hwa->len = len;
 	return 0;
 }
@@ -933,16 +933,16 @@ ni_link_address_print(const ni_hwaddr_t *hwa)
 ni_bool_t
 ni_link_address_equal(const ni_hwaddr_t *hwa1, const ni_hwaddr_t *hwa2)
 {
-	if (hwa1->type != hwa2->type
+	if (hwa1->arp_type != hwa2->arp_type
 	 || hwa1->len != hwa2->len)
 		return FALSE;
 	return !memcmp(hwa1->data, hwa2->data, hwa1->len);
 }
 
 unsigned int
-ni_link_address_length(int hwtype)
+ni_link_address_length(unsigned short arp_type)
 {
-	switch (hwtype) {
+	switch (arp_type) {
 	case ARPHRD_ETHER:
 		return ETH_ALEN;
 
@@ -966,15 +966,15 @@ ni_link_address_length(int hwtype)
 }
 
 int
-ni_link_address_get_broadcast(int hwtype, ni_hwaddr_t *hwa)
+ni_link_address_get_broadcast(unsigned short arp_type, ni_hwaddr_t *hwa)
 {
-	hwa->type = hwtype;
-	hwa->len = ni_link_address_length(hwtype);
+	hwa->arp_type = arp_type;
+	hwa->len = ni_link_address_length(arp_type);
 
 	if (hwa->len == 0)
 		return -1;
 
-	switch (hwtype) {
+	switch (arp_type) {
 	case ARPHRD_INFINIBAND:
 		{
 			/* Broadcast address for IPoIB */

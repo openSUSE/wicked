@@ -49,8 +49,7 @@ ni_netdev_new(const char *name, unsigned int index)
 
 	dev->users = 1;
 	dev->link.type = NI_IFTYPE_UNKNOWN;
-	dev->link.arp_type = ARPHRD_VOID;
-	dev->link.hwaddr.type = ARPHRD_VOID;
+	dev->link.hwaddr.arp_type = ARPHRD_VOID;
 	dev->link.ifindex = index;
 
 	if (name)

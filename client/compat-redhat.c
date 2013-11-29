@@ -123,7 +123,7 @@ __ni_redhat_read_interface(const char *filename, const char *ifname, ni_compat_n
 	if ((value = ni_sysconfig_get_value(sc, "HWADDR")) != NULL) {
 		ni_hwaddr_t hwaddr;
 
-		if (ni_link_address_parse(&hwaddr, NI_IFTYPE_ETHERNET, value) < 0) {
+		if (ni_link_address_parse(&hwaddr, ARPHRD_ETHER, value) < 0) {
 			ni_warn("%s: cannot parse HWADDR=%s", sc->pathname, value);
 			return NULL;
 		}
@@ -164,7 +164,7 @@ __ni_redhat_read_interface(const char *filename, const char *ifname, ni_compat_n
 		goto error;
 	}
 
-	if (compat->identify.hwaddr.type && compat->dev->name) {
+	if (compat->identify.hwaddr.len && compat->dev->name) {
 		ni_warn("%s: device naming conflict - have both name and Ethernet MAC",
 				compat->dev->name);
 	}
@@ -514,12 +514,12 @@ __ni_redhat_define_interface(ni_sysconfig_t *sc, ni_compat_netdev_t *compat, ni_
 	 * MACADDR is used to reconfigure the device's MAC address at runtime
 	 */
 	if ((value = ni_sysconfig_get_value(sc, "HWADDR")) != NULL
-	 && ni_link_address_parse(&compat->identify.hwaddr, NI_IFTYPE_ETHERNET, value) < 0) {
+	 && ni_link_address_parse(&compat->identify.hwaddr, ARPHRD_ETHER, value) < 0) {
 		ni_warn("cannot parse HWADDR=%s", value);
 	}
 
 	if ((value = ni_sysconfig_get_value(sc, "MACADDR")) != NULL
-	 && ni_link_address_parse(&dev->link.hwaddr, NI_IFTYPE_ETHERNET, value) < 0) {
+	 && ni_link_address_parse(&dev->link.hwaddr, ARPHRD_ETHER, value) < 0) {
 		ni_warn("cannot parse MACADDR=%s", value);
 	}
 

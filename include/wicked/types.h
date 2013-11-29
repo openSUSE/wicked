@@ -95,7 +95,7 @@ typedef union ni_uuid {
  */
 #define NI_MAXHWADDRLEN		64
 typedef struct ni_hwaddr {
-	unsigned short		type;
+	unsigned short		arp_type;
 	unsigned short		len;
 	unsigned char		data[NI_MAXHWADDRLEN];
 } ni_hwaddr_t;
