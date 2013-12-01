@@ -616,12 +616,12 @@ ni_dhcp_device_arp_close(ni_dhcp_device_t *dev)
  * Parse a client id
  */
 void
-ni_dhcp_parse_client_id(ni_opaque_t *raw, int iftype, const char *cooked)
+ni_dhcp_parse_client_id(ni_opaque_t *raw, unsigned short arp_type, const char *cooked)
 {
 	ni_hwaddr_t hwaddr;
 
 	/* Check if it's a hardware address */
-	if (ni_link_address_parse(&hwaddr, iftype, cooked) == 0) {
+	if (ni_link_address_parse(&hwaddr, arp_type, cooked) == 0) {
 		ni_dhcp_set_client_id(raw, &hwaddr);
 	} else {
 		/* nope, use as-is */

@@ -30,6 +30,7 @@
 #endif
 
 #include <time.h>
+#include <net/if_arp.h>
 #include <wicked/util.h>
 #include <wicked/dbus-service.h>
 #include <wicked/dbus-errors.h>
@@ -997,7 +998,7 @@ __wpa_dbus_bss_set_bssid(ni_dbus_object_t *object, const ni_dbus_property_t *pro
 				net->access_point.data, &len,
 				0, sizeof(net->access_point.data)))
 		return FALSE;
-	net->access_point.type = NI_IFTYPE_WIRELESS;
+	net->access_point.type = ARPHRD_ETHER;
 	net->access_point.len = len;
 	return TRUE;
 }

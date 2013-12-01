@@ -1058,11 +1058,11 @@ __ni_objectmodel_netif_set_hwaddr(ni_dbus_object_t *object,
 	if (!(ifp = ni_objectmodel_unwrap_netif(object, error)))
 		return FALSE;
 
-	ifp->link.hwaddr.type = ifp->link.type;
 	if (!ni_dbus_variant_get_byte_array_minmax(argument,
 				ifp->link.hwaddr.data, &addrlen,
 				0, sizeof(ifp->link.hwaddr.data)))
 		return FALSE;
+
 	ifp->link.hwaddr.len = addrlen;
 	return TRUE;
 }

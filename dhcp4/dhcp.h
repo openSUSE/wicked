@@ -210,7 +210,7 @@ extern void		ni_dhcp_device_disarm_retransmit(ni_dhcp_device_t *dev);
 extern void		ni_dhcp_device_retransmit(ni_dhcp_device_t *);
 extern void		ni_dhcp_device_force_retransmit(ni_dhcp_device_t *, unsigned int);
 extern void		ni_dhcp_device_arp_close(ni_dhcp_device_t *);
-extern void		ni_dhcp_parse_client_id(ni_opaque_t *, int, const char *);
+extern void		ni_dhcp_parse_client_id(ni_opaque_t *, unsigned short, const char *);
 extern void		ni_dhcp_set_client_id(ni_opaque_t *, const ni_hwaddr_t *);
 extern void		ni_dhcp_device_drop_best_offer(ni_dhcp_device_t *);
 
