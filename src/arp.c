@@ -124,14 +124,14 @@ ni_arp_send(ni_arp_socket_t *arph, const ni_arp_packet_t *packet)
 	ni_buffer_t buf;
 	int rv;
 
-	hwlen = ni_link_address_length(arph->dev_info.iftype);
+	hwlen = ni_link_address_length(arph->dev_info.hwaddr.type);
 	pktlen = sizeof(*arp) + 2 * hwlen + 2 * 4;
 
 	arp = calloc(1, pktlen);
 	ni_buffer_init(&buf, arp, pktlen);
 
 	arp = ni_buffer_push_tail(&buf, sizeof(*arp));
-	arp->ar_hrd = htons(arph->dev_info.arp_type);
+	arp->ar_hrd = htons(arph->dev_info.hwaddr.type);
 	arp->ar_pro = htons(ETHERTYPE_IP);
 	arp->ar_hln = hwlen;
 	arp->ar_pln = 4;
@@ -168,8 +168,8 @@ ni_arp_parse(ni_arp_socket_t *arph, ni_buffer_t *bp, ni_arp_packet_t *p)
 		return -1;
 
 	p->op = arp->ar_op;
-	p->sha.type = arph->dev_info.iftype;
-	p->sha.len = ni_link_address_length(arph->dev_info.iftype);
+	p->sha.type = arph->dev_info.hwaddr.type;
+	p->sha.len = ni_link_address_length(arph->dev_info.hwaddr.type);
 	p->tha = p->sha;
 
 	if (ni_buffer_get(bp, p->sha.data, p->sha.len) < 0 || ni_buffer_get(bp, &p->sip, 4) < 0

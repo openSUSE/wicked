@@ -25,7 +25,6 @@ struct ni_linkinfo {
 	ni_iftype_t		type;
 	unsigned int		ifindex;
 	unsigned int		ifflags;
-	unsigned int		arp_type;
 	ni_hwaddr_t		hwaddr;
 	char *			alias;
 
@@ -236,11 +235,11 @@ extern void		ni_link_address_init(ni_hwaddr_t *);
 extern int		ni_link_address_format(const ni_hwaddr_t *ss,
 				char *abuf, size_t buflen);
 extern const char *	ni_link_address_print(const ni_hwaddr_t *ss);
-extern int		ni_link_address_parse(ni_hwaddr_t *, unsigned int, const char *);
+extern int		ni_link_address_parse(ni_hwaddr_t *, unsigned short, const char *);
 extern ni_bool_t	ni_link_address_equal(const ni_hwaddr_t *, const ni_hwaddr_t *);
-extern unsigned int	ni_link_address_length(int);
-extern int		ni_link_address_get_broadcast(int, ni_hwaddr_t *);
-extern int		ni_link_address_set(ni_hwaddr_t *, int iftype, const void *data, size_t len);
+extern unsigned int	ni_link_address_length(unsigned short);
+extern int		ni_link_address_get_broadcast(unsigned short, ni_hwaddr_t *);
+extern int		ni_link_address_set(ni_hwaddr_t *, unsigned short arp_type, const void *data, size_t len);
 
 extern ni_device_clientinfo_t *ni_device_clientinfo_new(void);
 extern void		ni_device_clientinfo_free(ni_device_clientinfo_t *);

@@ -4,6 +4,7 @@
  * Copyright (C) 2010-2012 Olaf Kirch <okir@suse.de>
  */
 
+#include <net/if_arp.h>
 #include <wicked/logging.h>
 #include <wicked/objectmodel.h>
 #include <wicked/dbus.h>
@@ -75,7 +76,7 @@ ni_compat_netdev_by_hwaddr(ni_compat_netdev_array_t *array, const ni_hwaddr_t *h
 {
 	unsigned int i;
 
-	if (array == NULL || hwaddr == NULL || hwaddr->type == 0)
+	if (array == NULL || hwaddr == NULL || hwaddr->len == 0)
 		return NULL;
 	for (i = 0; i < array->count; ++i) {
 		ni_compat_netdev_t *compat = array->data[i];
@@ -1043,7 +1044,8 @@ ni_compat_generate_ifcfg(const ni_compat_netdev_t *compat, xml_document_t *doc)
 	ifnode = xml_node_new("interface", doc->root);
 
 	namenode = xml_node_new("name", ifnode);
-	if (compat->identify.hwaddr.type == NI_IFTYPE_ETHERNET) {
+	if (compat->identify.hwaddr.len &&
+	    compat->identify.hwaddr.type == ARPHRD_ETHER) {
 		xml_node_add_attr(namenode, "namespace", "ethernet");
 		xml_node_new_element("permanent-address", namenode,
 				ni_link_address_print(&compat->identify.hwaddr));

@@ -359,7 +359,7 @@ dhcp4_test_run(const char *ifname, const char *request, unsigned int timeout)
 	if (!(ifp = ni_netdev_by_name(nc, ifname)))
 		ni_fatal("Cannot find interface with name '%s'", ifname);
 
-	switch (ifp->link.arp_type) {
+	switch (ifp->link.hwaddr.type) {
 	case ARPHRD_ETHER:
 		break;
 	default:
@@ -564,7 +564,7 @@ dhcp4_discover_devices(ni_dbus_server_t *server)
 		ni_fatal("cannot refresh interface list!");
 
 	for (ifp = ni_netconfig_devlist(nc); ifp; ifp = ifp->next) {
-		if (ifp->link.arp_type != ARPHRD_ETHER)
+		if (ifp->link.hwaddr.type != ARPHRD_ETHER)
 			continue;
 		dhcp4_device_create(server, ifp);
 	}

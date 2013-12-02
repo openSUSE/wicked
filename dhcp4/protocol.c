@@ -328,7 +328,7 @@ ni_dhcp_build_message(const ni_dhcp_device_t *dev,
 	message = ni_buffer_push_tail(msgbuf, sizeof(*message));
 
 	message->op = DHCP_BOOTREQUEST;
-	message->hwtype = dev->system.arp_type;
+	message->hwtype = dev->system.hwaddr.type;
 	message->xid = dev->dhcp.xid;
 	message->cookie = htonl(MAGIC_COOKIE);
 	message->secs = htons(ni_dhcp_device_uptime(dev, 0xFFFF));
@@ -338,7 +338,7 @@ ni_dhcp_build_message(const ni_dhcp_device_t *dev,
 	 || dev->fsm.state == NI_DHCP_STATE_REBINDING)
 		message->ciaddr = lease->dhcp.address.s_addr;
 
-	switch (dev->system.arp_type) {
+	switch (dev->system.hwaddr.type) {
 	case ARPHRD_ETHER:
 	case ARPHRD_IEEE802:
 		if (dev->system.hwaddr.len > sizeof(message->chaddr)) {
@@ -358,7 +358,7 @@ ni_dhcp_build_message(const ni_dhcp_device_t *dev,
 		break;
 
 	default:
-		ni_error("dhcp: unknown hardware type %d", dev->system.arp_type);
+		ni_error("dhcp: unknown hardware type 0x%x", dev->system.hwaddr.type);
 	}
 
 	ni_dhcp_option_put8(msgbuf, DHCP_MESSAGETYPE, msg_code);

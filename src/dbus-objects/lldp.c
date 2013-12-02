@@ -7,6 +7,8 @@
 #include "config.h"
 #endif
 
+#include <net/if_arp.h>
+#include <net/ethernet.h>
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
 #include <wicked/system.h>
@@ -256,8 +258,8 @@ try_set_mac_address(const ni_dbus_variant_t *var, ni_hwaddr_t *value)
 
 	if (var == NULL)
 		return TRUE;
-	if (__ni_objectmodel_set_hwaddr(var, value) && value->len == 6) {
-		value->type = NI_IFTYPE_ETHERNET;
+	if (__ni_objectmodel_set_hwaddr(var, value) && value->len == ETH_ALEN) {
+		value->type = ARPHRD_ETHER;
 		return TRUE;
 	}
 

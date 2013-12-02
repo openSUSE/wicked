@@ -7,6 +7,7 @@
 #include "config.h"
 #endif
 
+#include <net/if_arp.h>
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
 #include <wicked/wireless.h>
@@ -208,13 +209,14 @@ ni_objectmodel_get_wireless_request_net(ni_wireless_network_t *net,
 	}
 
 	if ((child = ni_dbus_dict_get(var, "access-point")) != NULL) {
-		ni_hwaddr_t *hwaddr = &net->access_point;
+		ni_hwaddr_t hwaddr;
 		unsigned int len;
 
-		if (!ni_dbus_variant_get_byte_array_minmax(child, hwaddr->data, &len, 0, sizeof(hwaddr->data)))
+		if (!ni_dbus_variant_get_byte_array_minmax(child, hwaddr.data, &len, 0, sizeof(hwaddr.data)) || ni_link_address_length(ARPHRD_ETHER) != len)
 			return FALSE;
-		hwaddr->type = NI_IFTYPE_WIRELESS;
-		hwaddr->len = len;
+		hwaddr.type = ARPHRD_ETHER;
+		hwaddr.len = len;
+		net->access_point = hwaddr;
 	}
 
 	if (ni_dbus_dict_get_string(var, "mode", &string)) {

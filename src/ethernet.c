@@ -316,7 +316,7 @@ __ni_system_ethernet_refresh(ni_netdev_t *dev)
 	ni_ethernet_t *ether;
 
 	ether = ni_ethernet_new();
-	ether->permanent_address.type = dev->link.arp_type;
+	ether->permanent_address.type = dev->link.hwaddr.type;
 	if (__ni_system_ethernet_get(dev->name, ether) < 0) {
 		ni_ethernet_free(ether);
 		return -1;

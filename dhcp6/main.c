@@ -379,7 +379,7 @@ dhcp6_test_run(const char *ifname, const char *request, unsigned int timeout)
 	if (!(ifp = ni_netdev_by_name(nc, ifname)))
 		ni_fatal("Cannot find interface with name '%s'", ifname);
 
-	switch (ifp->link.arp_type) {
+	switch (ifp->link.hwaddr.type) {
 	case ARPHRD_ETHER:
 		break;
 	default:
@@ -537,7 +537,7 @@ dhcp6_discover_devices(ni_dbus_server_t *server)
 	for (ifp = ni_netconfig_devlist(nc); ifp; ifp = ifp->next) {
 
 		/* currently ether type only */
-		if (ifp->link.arp_type != ARPHRD_ETHER)
+		if (ifp->link.hwaddr.type != ARPHRD_ETHER)
 			continue;
 
 		(void)dhcp6_device_create(server, ifp);
