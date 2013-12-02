@@ -203,6 +203,25 @@ ni_dhcp6_mode_name_to_type(const char *name, unsigned int *type)
  */
 #define __ARPMAP(token, name) { #name, ARPHRD_##token }
 
+#ifndef	ARPHRD_CAN
+#define	ARPHRD_CAN		280
+#endif
+#ifndef	ARPHRD_PHONET
+#define	ARPHRD_PHONET		820
+#endif
+#ifndef	ARPHRD_PHONET_PIPE
+#define	ARPHRD_PHONET_PIPE	821
+#endif
+#ifndef	ARPHRD_CAIF
+#define	ARPHRD_CAIF		822
+#endif
+#ifndef	ARPHRD_IP6GRE
+#define	ARPHRD_IP6GRE		823
+#endif
+#ifndef	ARPHRD_NETLINK
+#define	ARPHRD_NETLINK		824
+#endif
+
 static ni_intmap_t __arphrd_names[] = {
  __ARPMAP(NETROM,		netrom),
  __ARPMAP(ETHER,		ether),
@@ -228,6 +247,7 @@ static ni_intmap_t __arphrd_names[] = {
  __ARPMAP(ROSE,			rose),
  __ARPMAP(X25,			x25),
  __ARPMAP(HWX25,		hwx25),
+ __ARPMAP(CAN,			can),
  __ARPMAP(PPP,			ppp),
  __ARPMAP(HDLC,			hdlc),
  __ARPMAP(LAPB,			lapb),
@@ -238,7 +258,7 @@ static ni_intmap_t __arphrd_names[] = {
  __ARPMAP(FRAD,			frad),
  __ARPMAP(SKIP,			skip),
  __ARPMAP(LOOPBACK,		loopback),
- __ARPMAP(LOCALTLK,		localtlk),
+ __ARPMAP(LOCALTLK,		localtalk),
  __ARPMAP(FDDI,			fddi),
  __ARPMAP(BIF,			bif),
  __ARPMAP(SIT,			sit),
@@ -253,13 +273,19 @@ static ni_intmap_t __arphrd_names[] = {
  __ARPMAP(FCAL,			fcal),
  __ARPMAP(FCPL,			fcpl),
  __ARPMAP(FCFABRIC,		fcfabric),
- __ARPMAP(IEEE802_TR,		IEEE802_tr),
+ __ARPMAP(IEEE802_TR,		ieee802-tr),
  __ARPMAP(IEEE80211,		ieee80211),
- __ARPMAP(IEEE80211_PRISM,	IEEE80211_prism),
- __ARPMAP(IEEE80211_RADIOTAP,	IEEE80211_radiotap),
- __ARPMAP(VOID,			void),
+ __ARPMAP(IEEE80211_PRISM,	ieee80211-prism),
+ __ARPMAP(IEEE80211_RADIOTAP,	ieee80211-radiotap),
+ __ARPMAP(IEEE802154,		ieee802154),
+ __ARPMAP(IEEE802154_PHY,	ieee802154-monitor),
+ __ARPMAP(PHONET,		phonet),
+ __ARPMAP(PHONET_PIPE,		phonet-pipe),
+ __ARPMAP(CAIF,			caif),
+ __ARPMAP(IP6GRE,		ip6gre),
+ __ARPMAP(NETLINK,		netlink),
  __ARPMAP(NONE,			none),
- /* 65534 tun */
+ __ARPMAP(VOID,			void),
 
  { 0 }
 };
