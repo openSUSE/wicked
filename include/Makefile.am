@@ -2,10 +2,6 @@
 CLEANFILES			= *~
 MAINTAINERCLEANFILES		= Makefile.in
 
-noinst_HEADERS			= \
-	linux/if_link.h		\
-	linux/dcbnl.h
-
 wicked_include_HEADERS		= \
 	wicked/addrconf.h	\
 	wicked/address.h	\

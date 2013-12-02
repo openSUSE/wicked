@@ -184,6 +184,7 @@ AC_CHECK_HEADERS([arpa/inet.h fcntl.h limits.h netdb.h netinet/in.h])
 AC_CHECK_HEADERS([stdint.h stdlib.h string.h sys/ioctl.h sys/param.h])
 AC_CHECK_HEADERS([sys/socket.h sys/time.h syslog.h unistd.h])
 AC_CHECK_HEADERS([linux/filter.h linux/if_packet.h netpacket/packet.h])
+AC_CHECK_HEADERS([linux/dcbnl.h linux/if_link.h linux/rtnetlink.h])
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_TYPE_UID_T
@@ -209,7 +210,26 @@ AC_CHECK_FUNCS([memset mkdir rmdir sethostname socket strcasecmp strchr])
 AC_CHECK_FUNCS([strcspn strdup strerror strrchr strstr strtol strtoul])
 AC_CHECK_FUNCS([strtoull])
 
-AC_CHECK_DECL([RTA_MARK], [AC_DEFINE([HAVE_RTA_MARK], [], [Have RTA_MARK])], [], [[#include <netlink/netlink.h>]])
+AC_CHECK_DECL([RTA_MARK], [
+	       AC_DEFINE([HAVE_RTA_MARK], [],
+			 [Have RTA_MARK in netlink/netlink.h])
+	      ], [
+		  AS_UNSET([ac_cv_have_decl_RTA_MARK])
+		  AC_CHECK_DECL([RTA_MARK], [
+				 AC_DEFINE([HAVE_LINUX_RTA_MARK], [],
+					   [Have RTA_MARK in linux/rtnetlink.h])
+				], [], [[#include <linux/rtnetlink.h>]])
+	      ], [[#include <netlink/netlink.h>]])
+
+AC_CHECK_DECL([DCB_ATTR_IEEE_MAXRATE], [
+	       AC_DEFINE([HAVE_DCB_ATTR_IEEE_MAXRATE], [],
+			 [Have DCB_ATTR_IEEE_MAXRATE in linux/dcbnl.h])
+	      ], [], [[#include <linux/dcbnl.h>]])
+
+AC_CHECK_DECL([MACVLAN_FLAG_NOPROMISC], [
+	       AC_DEFINE([HAVE_MACVLAN_FLAG_NOPROMISC], [],
+			 [Have MACVLAN_FLAG_NOPROMISC in linux/if_link.h])
+	      ], [], [[#include <linux/if_link.h>]])
 
 if test "$ac_cv_header_linux_if_packet_h" = "yes" ; then
 	AC_CHECK_TYPES([struct tpacket_auxdata], [], [],
