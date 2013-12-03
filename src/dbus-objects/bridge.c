@@ -154,6 +154,29 @@ out:
 }
 
 /*
+ * Bridge.shutdown method
+ */
+static dbus_bool_t
+ni_objectmodel_shutdown_bridge(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_netdev_t *dev;
+
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
+		return FALSE;
+
+	NI_TRACE_ENTER_ARGS("dev=%s", dev->name);
+	if (ni_system_bridge_shutdown(dev) < 0) {
+		dbus_set_error(error, DBUS_ERROR_FAILED,
+				"Error shutting bridge interface down", dev->name);
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+/*
  * Bridge.delete method
  */
 static dbus_bool_t
@@ -162,19 +185,19 @@ ni_objectmodel_delete_bridge(ni_dbus_object_t *object, const ni_dbus_method_t *m
 			ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_netconfig_t *nc = ni_global_state_handle(0);
-	ni_netdev_t *ifp;
+	ni_netdev_t *dev;
 
-	if (!(ifp = ni_objectmodel_unwrap_netif(object, error)))
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return FALSE;
 
-	NI_TRACE_ENTER_ARGS("ifp=%s", ifp->name);
-	if (ni_system_bridge_delete(nc, ifp) < 0) {
+	NI_TRACE_ENTER_ARGS("dev=%s", dev->name);
+	if (ni_system_bridge_delete(nc, dev) < 0) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
-				"Error deleting bridge interface", ifp->name);
+				"Error deleting bridge interface", dev->name);
 		return FALSE;
 	}
 
-	ni_client_state_drop(ifp->link.ifindex);
+	ni_client_state_drop(dev->link.ifindex);
 	ni_dbus_object_free(object);
 	return TRUE;
 }
@@ -363,6 +386,7 @@ static const ni_dbus_property_t	ni_objectmodel_bridge_property_table[] = {
 
 static ni_dbus_method_t		ni_objectmodel_bridge_methods[] = {
 	{ "changeDevice",	"a{sv}",			ni_objectmodel_bridge_setup },
+	{ "shutdownDevice",	"",				ni_objectmodel_shutdown_bridge },
 	{ "deleteDevice",	"",				ni_objectmodel_delete_bridge },
 #if 0
 	{ "addPort",		DBUS_TYPE_OJECT_AS_STRING,	ni_objectmodel_bridge_add_port },

@@ -624,6 +624,28 @@ done:
 }
 
 /*
+ * Shutdown a bridge interface
+ */
+int
+ni_system_bridge_shutdown(ni_netdev_t *dev)
+{
+	ni_bridge_t *bridge = dev->bridge;
+	unsigned int i;
+	int rv = 0;
+
+	if (!bridge)
+		return -1;
+
+	for (i = 0; i < bridge->ports.count; ++i) {
+		ni_bridge_port_t *port = bridge->ports.data[i];
+		if ((rv = ni_system_bridge_remove_port(dev, port->ifindex)))
+			return rv;
+	}
+
+	return rv;
+}
+
+/*
  * Delete a bridge interface
  */
 int
@@ -696,7 +718,7 @@ ni_system_bridge_add_port(ni_netconfig_t *nc, ni_netdev_t *brdev, ni_bridge_port
  * ni_system_bridge_remove_port
  */
 int
-ni_system_bridge_remove_port(ni_netconfig_t *nc, ni_netdev_t *dev, unsigned int port_ifindex)
+ni_system_bridge_remove_port(ni_netdev_t *dev, unsigned int port_ifindex)
 {
 	ni_bridge_t *bridge = ni_netdev_get_bridge(dev);
 	int rv;
