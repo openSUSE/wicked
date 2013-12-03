@@ -987,17 +987,17 @@ __ni_discover_macvlan(ni_netdev_t *dev, struct nlattr **tb, ni_netconfig_t *nc)
 	}
 
 	if (tb[IFLA_LINK]) {
-		macvlan->parent.index = nla_get_u32(tb[IFLA_LINK]);
-		if (nc && ni_netdev_ref_bind_ifname(&macvlan->parent, nc) < 0) {
+		dev->link.lowerdev.index = nla_get_u32(tb[IFLA_LINK]);
+		if (nc && ni_netdev_ref_bind_ifname(&dev->link.lowerdev, nc) < 0) {
 			ni_debug_ifconfig("%s: cannot bind macvlan bind interface %u",
-						dev->name, macvlan->parent.index);
-			ni_string_free(&macvlan->parent.name);
+						dev->name, dev->link.lowerdev.index);
+			ni_string_free(&dev->link.lowerdev.name);
 			/* Ignore error and proceed */
 		}
 	} else {
 		ni_error("%s: cannot find macvlan interface base link reference",
 			dev->name);
-		ni_netdev_ref_destroy(&macvlan->parent);
+		ni_netdev_ref_destroy(&dev->link.lowerdev);
 	}
 
 	if (nla_parse_nested(info_data, IFLA_MACVLAN_MAX, link_info[IFLA_INFO_DATA], NULL) < 0) {
