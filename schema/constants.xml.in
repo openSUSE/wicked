@@ -1,10 +1,11 @@
-<!-- Not sure whether these constants are really needed -->
-<define name="@@IFTYPE_NAME@@">@@IFTYPE_VALUE@@</define>
-<define name="@@ARPHRD_NAME@@">@@ARPHRD_VALUE@@</define>
-
-<!-- Built-in interface types -->
+<!-- Built-in internal interface types -->
 <define name="builtin-iftype" type="uint32" constraint="enum">
-  <@@IFTYPENAME_NAME@@ value="@@IFTYPENAME_VALUE@@"/>
+  <@@IFTYPE_NAME@@ value="@@IFTYPE_VALUE@@"/>
+</define>
+
+<!-- Built-in interface hardware types -->
+<define name="builtin-hwtype" type="uint16" constraint="enum">
+  <@@ARPHRD_NAME@@ value="@@ARPHRD_VALUE@@"/>
 </define>
 
 <!-- Built-in address configuration classes -->

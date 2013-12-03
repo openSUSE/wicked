@@ -32,46 +32,6 @@ static ni_intmap_t *	buildmap(const char *(*)(unsigned), unsigned int);
 static void		generate(char *, const char *, const ni_intmap_t *);
 
 
-#define _(x)	{ #x, x }
-static ni_intmap_t	iftype_map[] = {
-	_(NI_IFTYPE_UNKNOWN),
-	_(NI_IFTYPE_LOOPBACK),
-	_(NI_IFTYPE_ETHERNET),
-	_(NI_IFTYPE_BRIDGE),
-	_(NI_IFTYPE_BOND),
-	_(NI_IFTYPE_VLAN),
-	_(NI_IFTYPE_WIRELESS),
-	_(NI_IFTYPE_INFINIBAND),
-	_(NI_IFTYPE_PPP),
-	_(NI_IFTYPE_SLIP),
-	_(NI_IFTYPE_SIT),
-	_(NI_IFTYPE_GRE),
-	_(NI_IFTYPE_ISDN),
-	_(NI_IFTYPE_TUNNEL),
-	_(NI_IFTYPE_TUNNEL6),
-	_(NI_IFTYPE_TOKENRING),
-	_(NI_IFTYPE_FIREWIRE),
-	_(NI_IFTYPE_TUN),
-	_(NI_IFTYPE_TAP),
-	_(NI_IFTYPE_DUMMY),
-
-	{ NULL }
-};
-static ni_intmap_t	arphrd_map[] = {
-	_(ARPHRD_NONE),
-	_(ARPHRD_LOOPBACK),
-	_(ARPHRD_ETHER),
-	_(ARPHRD_INFINIBAND),
-	_(ARPHRD_PPP),
-	_(ARPHRD_SLIP),
-	_(ARPHRD_SIT),
-	_(ARPHRD_IPGRE),
-	_(ARPHRD_TUNNEL),
-	_(ARPHRD_TUNNEL6),
-
-	{ NULL }
-};
-
 struct generic_map {
 	const char *		prefix;
 	unsigned int		prefix_len;
@@ -84,7 +44,8 @@ struct generic_map {
 #define MAPN(name, func, max) \
 	{ #name, sizeof(#name) - 1, func, max }
 static struct generic_map	generic_maps[] = {
-	MAPN(IFTYPENAME, ni_linktype_type_to_name, __NI_IFTYPE_MAX),
+	MAPN(IFTYPE, ni_linktype_type_to_name, __NI_IFTYPE_MAX),
+	MAPN(ARPHRD, ni_arphrd_type_to_name, ARPHRD_VOID),
 	MAPN(ADDRCONF_MODE, ni_addrconf_type_to_name, __NI_ADDRCONF_MAX),
 	MAPN(ADDRCONF_STATE, ni_addrconf_state_to_name, __NI_ADDRCONF_STATE_MAX),
 	MAP(CLIENT_STATE_NAME, ni_ifworker_state_name),
@@ -134,12 +95,6 @@ main(int argc, char **argv)
 			continue;
 		}
 
-		if (!strncmp(atat + 2, "IFTYPE_", 7)) {
-			generate(buffer, "IFTYPE", iftype_map);
-		} else
-		if (!strncmp(atat + 2, "ARPHRD_", 7)) {
-			generate(buffer, "ARPHRD", arphrd_map);
-		} else
 		if (!strncmp(atat + 2, "IFFLAG_", 7)) {
 			generate(buffer, "IFFLAG", build_ifflag_bits_map());
 		} else {
