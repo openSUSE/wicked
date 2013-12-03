@@ -3038,6 +3038,9 @@ static ni_fsm_transition_t	ni_iftransitions[] = {
 	/* Shut down the firewall */
 	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_FIREWALL_UP, "firewallDown"),
 
+	/* Shutdown the device */
+	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_DEVICE_UP, "shutdownDevice", .call_overloading = TRUE),
+
 	/* Delete the device */
 	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_DEVICE_EXISTS, "deleteDevice", .call_overloading = TRUE),
 

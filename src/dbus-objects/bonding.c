@@ -147,6 +147,31 @@ out:
 	return rv;
 }
 
+
+/*
+ * Bonding.shutdown method
+ */
+static dbus_bool_t
+__ni_objectmodel_shutdown_bond(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_netdev_t *dev;
+
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
+		return FALSE;
+
+	NI_TRACE_ENTER_ARGS("dev=%s", dev->name);
+	if (ni_system_bond_shutdown(dev) < 0) {
+		dbus_set_error(error, DBUS_ERROR_FAILED,
+				"Error shutting bonding interface down", dev->name);
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+
 /*
  * Bonding.delete method
  */
@@ -156,15 +181,15 @@ __ni_objectmodel_delete_bond(ni_dbus_object_t *object, const ni_dbus_method_t *m
 			ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_netconfig_t *nc = ni_global_state_handle(0);
-	ni_netdev_t *ifp;
+	ni_netdev_t *dev;
 
-	if (!(ifp = ni_objectmodel_unwrap_netif(object, error)))
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return FALSE;
 
-	NI_TRACE_ENTER_ARGS("ifp=%s", ifp->name);
-	if (ni_system_bond_delete(nc, ifp) < 0) {
+	NI_TRACE_ENTER_ARGS("dev=%s", dev->name);
+	if (ni_system_bond_delete(nc, dev) < 0) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
-				"Error deleting bonding interface", ifp->name);
+				"Error deleting bonding interface", dev->name);
 		return FALSE;
 	}
 
@@ -471,6 +496,7 @@ static ni_dbus_property_t	ni_objectmodel_bond_properties[] = {
 
 static ni_dbus_method_t		ni_objectmodel_bond_methods[] = {
 	{ "changeDevice",	"a{sv}",			ni_objectmodel_bond_setup },
+	{ "shutdownDevice",	"",				__ni_objectmodel_shutdown_bond },
 	{ "deleteDevice",	"",				__ni_objectmodel_delete_bond },
 #if 0
 	{ "addSlave",		DBUS_TYPE_OJECT_AS_STRING,	__ni_objectmodel_bond_add_slave },
