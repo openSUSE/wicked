@@ -853,7 +853,7 @@ ni_xs_process_include(xml_node_t *node, ni_xs_scope_t *scope)
 	}
 
 	if (nameAttr[0] != '/') {
-		struct xml_location *loc = node->location;
+		xml_location_t *loc = node->location;
 
 		if (loc && loc->shared) {
 			char *copy = xstrdup(loc->shared->filename), *s;

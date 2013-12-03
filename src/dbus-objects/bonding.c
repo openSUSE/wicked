@@ -168,6 +168,7 @@ __ni_objectmodel_delete_bond(ni_dbus_object_t *object, const ni_dbus_method_t *m
 		return FALSE;
 	}
 
+	ni_client_state_drop(ifp->name);
 	ni_dbus_object_free(object);
 	return TRUE;
 }

@@ -278,8 +278,7 @@ do_ifdown(int argc, char **argv)
 	};
 	static ni_ifmatcher_t ifmatch;
 	ni_uint_range_t target_range = { .min = NI_FSM_STATE_DEVICE_DOWN, .max = __NI_FSM_STATE_MAX - 2};
-	unsigned int force_state = NI_FSM_STATE_NONE;
-	unsigned int nmarked;
+	unsigned int nmarked, max_state = NI_FSM_STATE_DEVICE_DOWN;
 	ni_stringbuf_t sb = NI_STRINGBUF_INIT_DYNAMIC;
 	ni_fsm_t *fsm;
 	int c, status = 1;
@@ -296,13 +295,11 @@ do_ifdown(int argc, char **argv)
 	while ((c = getopt_long(argc, argv, "", ifdown_options, NULL)) != EOF) {
 		switch (c) {
 		case OPT_FORCE:
-			if (!ni_ifworker_state_from_name(optarg, &force_state) ||
-			    !ni_ifworker_state_in_range(&target_range, force_state)) {
+			if (!ni_ifworker_state_from_name(optarg, &max_state) ||
+			    !ni_ifworker_state_in_range(&target_range, max_state)) {
 				ni_error("ifdown: wrong force option \"%s\"", optarg);
 				goto usage;
 			}
-			target_range.min = NI_FSM_STATE_NONE;
-			target_range.max = force_state;
 			/* Allow ifdown on persistent, unconfigured interfaces */
 			ifmatch.require_configured = FALSE;
 			ifmatch.allow_persistent = TRUE;
@@ -347,11 +344,8 @@ usage:
 		goto usage;
 	}
 
-	/* If no force_state - use default target states for ifdown */
-	if (NI_FSM_STATE_NONE == force_state) {
-		target_range.min = NI_FSM_STATE_NONE;
-		target_range.max = NI_FSM_STATE_DEVICE_UP;
-	}
+	target_range.min = NI_FSM_STATE_NONE;
+	target_range.max = max_state;
 
 	if (!ni_fsm_create_client(fsm))
 		return status;
