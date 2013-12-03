@@ -887,6 +887,29 @@ ni_system_bond_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_bonding_t *b
 }
 
 /*
+ * Shutdown a bonding device
+ */
+int
+ni_system_bond_shutdown(ni_netdev_t *dev)
+{
+	ni_string_array_t list = NI_STRING_ARRAY_INIT;
+	unsigned int i;
+	int rv = 0;
+
+	if ((rv = ni_sysfs_bonding_get_slaves(dev->name, &list)))
+		goto cleanup;
+
+	for (i = 0; i < list.count; i++) {
+		if ((rv = ni_sysfs_bonding_delete_slave(dev->name, list.data[i])))
+			goto cleanup;
+	}
+
+cleanup:
+	ni_string_array_destroy(&list);
+	return rv;
+}
+
+/*
  * Delete a bonding device
  */
 int
