@@ -802,6 +802,7 @@ ni_ifworker_update_client_info(ni_ifworker_t *w)
 {
 	ni_device_clientinfo_t client_info;
 
+	ni_assert(w->object);
 	memset(&client_info, 0, sizeof(client_info));
 	client_info.state = (char *) ni_ifworker_state_name(w->fsm.state);
 	client_info.config_origin = w->config.origin;
@@ -860,8 +861,11 @@ ni_ifworker_set_state(ni_ifworker_t *w, unsigned int new_state)
 		if (w->object && new_state != NI_FSM_STATE_DEVICE_DOWN && !w->readonly)
 			ni_ifworker_update_client_info(w);
 
-		if (w->target_state == new_state)
+		if (w->target_state == new_state) {
+			if (w->object && prev_state < new_state && !w->readonly)
+				ni_ifworker_update_client_state(w);
 			ni_ifworker_success(w);
+		}
 	}
 }
 
@@ -2284,7 +2288,7 @@ ni_fsm_refresh_state(ni_fsm_t *fsm)
 			if (ni_ifworker_active(w) && !w->device_api.factory_method)
 				ni_ifworker_fail(w, "device was deleted");
 			w->dead = TRUE;
-		} else
+		} else if (!w->done)
 			ni_ifworker_update_state(w, NI_FSM_STATE_DEVICE_EXISTS, __NI_FSM_STATE_MAX);
 	}
 }
@@ -2956,10 +2960,11 @@ ni_ifworker_call_device_factory(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transiti
 	return 0;
 }
 
-static int
+static inline ni_bool_t
 ni_ifworker_can_delete(const ni_ifworker_t *w)
 {
-	return !!ni_dbus_object_get_service_for_method(w->object, "deleteDevice");
+	return (!w->client_state.persistent &&
+		ni_dbus_object_get_service_for_method(w->object, "deleteDevice"));
 }
 
 /*
@@ -3038,6 +3043,9 @@ static ni_fsm_transition_t	ni_iftransitions[] = {
 	/* Shut down the firewall */
 	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_FIREWALL_UP, "firewallDown"),
 
+	/* Shutdown the device */
+	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_DEVICE_UP, "shutdownDevice", .call_overloading = TRUE),
+
 	/* Delete the device */
 	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_DEVICE_EXISTS, "deleteDevice", .call_overloading = TRUE),
 
@@ -3055,17 +3063,19 @@ ni_fsm_schedule_init(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned int from_state, u
 	if (w->fsm.action_table != NULL)
 		return 0;
 
-	/* If the --delete option was given, but the specific device cannot
-	 * be deleted, then we don't try. */
-	if (target_state == NI_FSM_STATE_DEVICE_DOWN && !ni_ifworker_can_delete(w)) {
-		ni_debug_application("%s: cannot delete device, ignoring --delete option", w->name);
-		target_state = NI_FSM_STATE_DEVICE_UP;
-	}
-
 	if (from_state <= target_state)
 		increment = 1;
-	else
+	else {
 		increment = -1;
+
+		/* ifdown: when device cannot be deleted, don't try. */
+		if (NI_FSM_STATE_DEVICE_DOWN == target_state) {
+			if (!ni_ifworker_can_delete(w))
+				target_state -= increment; /* One up */
+			else
+				ni_debug_application("%s: Deleting device", w->name);
+		}
+	}
 
 	ni_debug_application("%s: set up FSM from %s -> %s", w->name,
 			ni_ifworker_state_name(from_state),
@@ -3186,11 +3196,8 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 			if (!w->kickstarted) {
 				if (!ni_ifworker_device_bound(w))
 					ni_ifworker_set_state(w, NI_FSM_STATE_DEVICE_DOWN);
-				else if (w->object) {
+				else if (w->object)
 					ni_call_clear_event_filters(w->object);
-					if (!w->readonly)
-						ni_ifworker_update_client_info(w);
-				}
 				w->kickstarted = TRUE;
 			}
 
@@ -3246,8 +3253,6 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 						w->name,
 						ni_ifworker_state_name(prev_state),
 						ni_ifworker_state_name(w->fsm.state));
-					if (w->fsm.state == w->target_state && prev_state < w->fsm.state)
-						ni_ifworker_update_client_state(w);
 				} else {
 					ni_debug_application("%s: waiting for event in state %s",
 						w->name,
@@ -3371,8 +3376,6 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 				max_state = NI_FSM_STATE_ADDRCONF_UP - 1;
 
 			ni_ifworker_update_state(w, min_state, max_state);
-			if (ni_ifworker_complete(w) && min_state != NI_FSM_STATE_NONE)
-				ni_ifworker_update_client_state(w);
 		}
 	}
 

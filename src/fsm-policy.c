@@ -328,6 +328,18 @@ ni_fsm_policy_name(const ni_fsm_policy_t *policy)
 }
 
 /*
+ * Get the policy's location (if set)
+ */
+xml_location_t *
+ni_fsm_policy_location(const ni_fsm_policy_t *policy)
+{
+	if (!policy || !policy->node)
+		return NULL;
+
+	return policy->node->location;
+}
+
+/*
  * Check whether policy applies to this ifworker
  */
 static ni_bool_t

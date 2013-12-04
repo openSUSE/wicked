@@ -34,10 +34,10 @@ extern const char *	ni_client_state_print(ni_client_state_t *, char **);
 extern ni_bool_t	ni_client_state_parse_timeval(const char *, struct timeval *);
 extern ni_bool_t	ni_client_state_print_xml(const ni_client_state_t *, xml_node_t *);
 extern ni_bool_t	ni_client_state_parse_xml(const xml_node_t *, ni_client_state_t *);
-extern ni_bool_t	ni_client_state_load(ni_client_state_t *, const char *);
-extern ni_bool_t	ni_client_state_save(const ni_client_state_t *, const char *);
-extern ni_bool_t	ni_client_state_move(const char *, const char *);
-extern ni_bool_t	ni_client_state_drop(const char *);
+extern ni_bool_t	ni_client_state_load(ni_client_state_t *, unsigned int);
+extern ni_bool_t	ni_client_state_save(const ni_client_state_t *, unsigned int);
+extern ni_bool_t	ni_client_state_move(unsigned int, unsigned int);
+extern ni_bool_t	ni_client_state_drop(unsigned int);
 
 /*
  * Static inline functions

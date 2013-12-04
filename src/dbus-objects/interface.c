@@ -878,7 +878,7 @@ ni_objectmodel_netif_set_client_state(ni_dbus_object_t *object, const ni_dbus_me
 
 	ni_netdev_set_client_state(dev, client_state);
 	if (ni_netdev_get_client_state(dev)) {
-		ni_client_state_save(client_state, dev->name);
+		ni_client_state_save(client_state, dev->link.ifindex);
 		ni_debug_dbus("saving client-state structure into a file for %s", dev->name);
 	}
 

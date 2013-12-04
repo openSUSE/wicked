@@ -267,6 +267,7 @@ ni_system_interface_delete(ni_netconfig_t *nc, const char *ifname)
 		return -1;
 	}
 
+	ni_client_state_drop(dev->link.ifindex);
 	return 0;
 }
 
@@ -623,6 +624,28 @@ done:
 }
 
 /*
+ * Shutdown a bridge interface
+ */
+int
+ni_system_bridge_shutdown(ni_netdev_t *dev)
+{
+	ni_bridge_t *bridge = dev->bridge;
+	unsigned int i;
+	int rv = 0;
+
+	if (!bridge)
+		return -1;
+
+	for (i = 0; i < bridge->ports.count; ++i) {
+		ni_bridge_port_t *port = bridge->ports.data[i];
+		if ((rv = ni_system_bridge_remove_port(dev, port->ifindex)))
+			return rv;
+	}
+
+	return rv;
+}
+
+/*
  * Delete a bridge interface
  */
 int
@@ -695,7 +718,7 @@ ni_system_bridge_add_port(ni_netconfig_t *nc, ni_netdev_t *brdev, ni_bridge_port
  * ni_system_bridge_remove_port
  */
 int
-ni_system_bridge_remove_port(ni_netconfig_t *nc, ni_netdev_t *dev, unsigned int port_ifindex)
+ni_system_bridge_remove_port(ni_netdev_t *dev, unsigned int port_ifindex)
 {
 	ni_bridge_t *bridge = ni_netdev_get_bridge(dev);
 	int rv;
@@ -884,6 +907,29 @@ ni_system_bond_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_bonding_t *b
 	}
 
 	return 0;
+}
+
+/*
+ * Shutdown a bonding device
+ */
+int
+ni_system_bond_shutdown(ni_netdev_t *dev)
+{
+	ni_string_array_t list = NI_STRING_ARRAY_INIT;
+	unsigned int i;
+	int rv = 0;
+
+	if ((rv = ni_sysfs_bonding_get_slaves(dev->name, &list)))
+		goto cleanup;
+
+	for (i = 0; i < list.count; i++) {
+		if ((rv = ni_sysfs_bonding_delete_slave(dev->name, list.data[i])))
+			goto cleanup;
+	}
+
+cleanup:
+	ni_string_array_destroy(&list);
+	return rv;
 }
 
 /*

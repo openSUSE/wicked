@@ -30,11 +30,11 @@
  * Internal utilities
  */
 static void
-ni_client_state_filename(const char *ifname, char *path, size_t size)
+ni_client_state_filename(unsigned int ifindex, char *path, size_t size)
 {
-	snprintf(path, size, "%s/state-%s.xml",
+	snprintf(path, size, "%s/state-%u.xml",
 			ni_config_statedir(),
-			ifname);
+			ifindex);
 }
 
 ni_bool_t
@@ -232,7 +232,7 @@ ni_client_state_print(ni_client_state_t *client_state, char **str)
 }
 
 ni_bool_t
-ni_client_state_save(const ni_client_state_t *client_state, const char *ifname)
+ni_client_state_save(const ni_client_state_t *client_state, unsigned int ifindex)
 {
 	char path[PATH_MAX] = {'\0'};
 	char temp[PATH_MAX] = {'\0'};
@@ -240,10 +240,10 @@ ni_client_state_save(const ni_client_state_t *client_state, const char *ifname)
 	FILE *fp = NULL;
 	int fd;
 
-	if (ni_string_empty(ifname) || !ni_client_state_is_valid(client_state))
+	if (!ni_client_state_is_valid(client_state))
 		return FALSE;
 
-	ni_client_state_filename(ifname, path, sizeof(path));
+	ni_client_state_filename(ifindex, path, sizeof(path));
 	snprintf(temp, sizeof(temp), "%s.XXXXXX", path);
 
 	if ((fd = mkstemp(temp)) < 0) {
@@ -291,17 +291,17 @@ failure:
 }
 
 ni_bool_t
-ni_client_state_load(ni_client_state_t *client_state, const char *ifname)
+ni_client_state_load(ni_client_state_t *client_state, unsigned int ifindex)
 {
 	char path[PATH_MAX] = {'\0'};
 	xml_node_t *xml;
 	xml_node_t *node;
 	FILE *fp;
 
-	if (ni_string_empty(ifname) || !client_state)
+	if (!client_state)
 		return FALSE;
 
-	ni_client_state_filename(ifname, path, sizeof(path));
+	ni_client_state_filename(ifindex, path, sizeof(path));
 	if (!(fp = fopen(path, "re"))) {
 		if (errno != ENOENT)
 			ni_error("Cannot open state file '%s': %m", path);
@@ -337,22 +337,21 @@ ni_client_state_load(ni_client_state_t *client_state, const char *ifname)
 
 
 ni_bool_t
-ni_client_state_move(const char *ifname_old, const char *ifname_new)
+ni_client_state_move(unsigned int ifindex_old, unsigned int ifindex_new)
 {
 	char path_old[PATH_MAX] = {'\0'};
 	char path_new[PATH_MAX] = {'\0'};
 
-	if (ni_string_empty(ifname_old) || ni_string_empty(ifname_new))
-		return FALSE;
+	if (ifindex_old == ifindex_new)
+		return TRUE;
 
-	ni_client_state_filename(ifname_old, path_old, sizeof(path_old));
-	ni_client_state_filename(ifname_new, path_new, sizeof(path_new));
+	ni_client_state_filename(ifindex_old, path_old, sizeof(path_old));
+	ni_client_state_filename(ifindex_new, path_new, sizeof(path_new));
 
 	if (rename(path_old, path_new) < 0) {
-		if (errno == ENOENT && !ni_file_exists(ifname_old)) {
+		if (errno == ENOENT && !ni_file_exists(path_old)) {
 			ni_debug_verbose(NI_LOG_DEBUG3, NI_TRACE_READWRITE,
-				"State %s does not exists, not renamed to %s",
-				ifname_old, ifname_new);
+				"%s does not exists, not renamed to %s", path_old, path_new);
 			return TRUE;
 		}
 		ni_error("Cannot rename state %s to %s", path_old, path_new);
@@ -362,14 +361,11 @@ ni_client_state_move(const char *ifname_old, const char *ifname_new)
 }
 
 ni_bool_t
-ni_client_state_drop(const char *ifname)
+ni_client_state_drop(unsigned int ifindex)
 {
 	char path[PATH_MAX] = {'\0'};
 
-	if (ni_string_empty(ifname))
-		return FALSE;
-
-	ni_client_state_filename(ifname, path, sizeof(path));
+	ni_client_state_filename(ifindex, path, sizeof(path));
 
 	if (unlink(path) < 0) {
 		if (errno == ENOENT)
