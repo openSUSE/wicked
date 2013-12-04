@@ -60,79 +60,75 @@ ni_objectmodel_macvlan_newlink(ni_dbus_object_t *factory_object,
 			ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_dbus_server_t *server = ni_dbus_object_get_server(factory_object);
-	ni_netdev_t *dev;
+	ni_netdev_t *cfg, *dev;
 	const char *ifname = NULL;
 
 	NI_TRACE_ENTER();
 
 	ni_assert(argc == 2);
 	if (!ni_dbus_variant_get_string(&argv[0], &ifname)
-	 || !(dev = __ni_objectmodel_macvlan_device_arg(&argv[1]))) {
+	 || !(cfg = __ni_objectmodel_macvlan_device_arg(&argv[1]))) {
 		return ni_dbus_error_invalid_args(error,
 						factory_object->path,
 						method->name);
 	}
 
-	if (!(dev = __ni_objectmodel_macvlan_newlink(dev, ifname, error)))
+	if (!(dev = __ni_objectmodel_macvlan_newlink(cfg, ifname, error))) {
+		ni_netdev_put(cfg);
 		return FALSE;
+	}
+	ni_netdev_put(cfg);
 
 	return ni_objectmodel_netif_factory_result(server, reply, dev, NULL, error);
 }
 
 static ni_netdev_t *
-__ni_objectmodel_macvlan_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusError *error)
+__ni_objectmodel_macvlan_newlink(ni_netdev_t *cfg, const char *ifname, DBusError *error)
 {
 	ni_netconfig_t *nc = ni_global_state_handle(0);
-	ni_netdev_t *new_ifp = NULL;
+	ni_netdev_t *dev = NULL;
 	const ni_macvlan_t *macvlan;
 	const char *err;
 	int rv;
 
-	macvlan = ni_netdev_get_macvlan(cfg_ifp);
+	macvlan = ni_netdev_get_macvlan(cfg);
 	if ((err = ni_macvlan_validate(macvlan))) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "%s", err);
-		goto out;
+		return NULL;
 	}
 
 	if (ni_string_empty(ifname)) {
-		if (ni_string_empty(cfg_ifp->name) &&
+		if (ni_string_empty(cfg->name) &&
 		    (ifname = ni_netdev_make_name(nc, "macvlan"))) {
-			ni_string_dup(&cfg_ifp->name, ifname);
+			ni_string_dup(&cfg->name, ifname);
 		} else {
 			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
 				"Unable to create macvlan interface - name argument missed");
-			goto out;
+			return NULL;
 		}
 		ifname = NULL;
-	} else if(!ni_string_eq(cfg_ifp->name, ifname)) {
-		ni_string_dup(&cfg_ifp->name, ifname);
+	} else if(!ni_string_eq(cfg->name, ifname)) {
+		ni_string_dup(&cfg->name, ifname);
 	}
 
-	if ((rv = ni_system_macvlan_create(nc, cfg_ifp, &new_ifp)) < 0) {
-		if (rv != -NI_ERROR_DEVICE_EXISTS || new_ifp == NULL
-		||  (ifname && new_ifp && !ni_string_eq(ifname, new_ifp->name))) {
+	if ((rv = ni_system_macvlan_create(nc, cfg, &dev)) < 0) {
+		if (rv != -NI_ERROR_DEVICE_EXISTS || dev == NULL
+		||  (ifname && dev && !ni_string_eq(ifname, dev->name))) {
 			dbus_set_error(error, DBUS_ERROR_FAILED,
 					"Unable to create macvlan interface: %s",
 					ni_strerror(rv));
-			if (new_ifp)
-				ni_netdev_put(new_ifp);
-			new_ifp = NULL;
-			goto out;
+			return NULL;
 		}
 	}
 
-	if (new_ifp->link.type != NI_IFTYPE_MACVLAN) {
+	if (dev && dev->link.type != NI_IFTYPE_MACVLAN) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
 				"Unable to create macvlan interface: new interface is of type %s",
-				ni_linktype_type_to_name(new_ifp->link.type));
-		ni_netdev_put(new_ifp);
-		new_ifp = NULL;
+				ni_linktype_type_to_name(dev->link.type));
+		return NULL;
 	}
 
-out:
-	if (cfg_ifp)
-		ni_netdev_put(cfg_ifp);
-	return new_ifp;
+	return dev;
 }
 
 /*

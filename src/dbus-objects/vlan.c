@@ -39,84 +39,77 @@ ni_objectmodel_vlan_newlink(ni_dbus_object_t *factory_object, const ni_dbus_meth
 			ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_dbus_server_t *server = ni_dbus_object_get_server(factory_object);
-	ni_netdev_t *ifp;
+	ni_netdev_t *cfg, *dev;
 	const char *ifname = NULL;
 
 	NI_TRACE_ENTER();
 
 	ni_assert(argc == 2);
 	if (!ni_dbus_variant_get_string(&argv[0], &ifname)
-	 || !(ifp = __ni_objectmodel_vlan_device_arg(&argv[1])))
+	 || !(cfg = __ni_objectmodel_vlan_device_arg(&argv[1])))
 		return ni_dbus_error_invalid_args(error, factory_object->path, method->name);
 
-	if (!(ifp = __ni_objectmodel_vlan_newlink(ifp, ifname, error)))
+	if (!(dev = __ni_objectmodel_vlan_newlink(cfg, ifname, error))) {
+		ni_netdev_put(cfg);
 		return FALSE;
+	}
+	ni_netdev_put(cfg);
 
-	return ni_objectmodel_netif_factory_result(server, reply, ifp, NULL, error);
+	return ni_objectmodel_netif_factory_result(server, reply, dev, NULL, error);
 }
 
 static ni_netdev_t *
-__ni_objectmodel_vlan_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusError *error)
+__ni_objectmodel_vlan_newlink(ni_netdev_t *cfg, const char *ifname, DBusError *error)
 {
 	ni_netconfig_t *nc = ni_global_state_handle(0);
-	ni_netdev_t *new_ifp = NULL;
+	ni_netdev_t *dev = NULL;
 	const ni_vlan_t *vlan;
 	int rv;
 
-	vlan = ni_netdev_get_vlan(cfg_ifp);
-	if (!vlan || !vlan->tag || !cfg_ifp->link.lowerdev.name) {
+	vlan = ni_netdev_get_vlan(cfg);
+	if (!vlan || !vlan->tag || !cfg->link.lowerdev.name) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
 				"Incomplete arguments (need VLAN tag and interface name)");
-		goto out;
+		return NULL;
 	}
 
 	if (ni_string_empty(ifname)) {
 		ifname = NULL;
-		if (ni_string_empty(cfg_ifp->name) &&
-		   !ni_string_printf(&cfg_ifp->name, "%s.%u",
-					cfg_ifp->link.lowerdev.name, vlan->tag)) {
+		if (ni_string_empty(cfg->name) &&
+		   !ni_string_printf(&cfg->name, "%s.%u",
+					cfg->link.lowerdev.name, vlan->tag)) {
 			dbus_set_error(error, DBUS_ERROR_FAILED, "Unable to create vlan - too many interfaces");
-			goto out;
+			return NULL;
 		}
 	} else
-	if (!ni_string_eq(cfg_ifp->name, ifname)) {
-		ni_string_dup(&cfg_ifp->name, ifname);
+	if (!ni_string_eq(cfg->name, ifname)) {
+		ni_string_dup(&cfg->name, ifname);
 	}
 
 	ni_debug_dbus("VLAN.newDevice(name=%s/%s, dev=%s, tag=%u)", ifname,
-			cfg_ifp->name, cfg_ifp->link.lowerdev.name, vlan->tag);
+			cfg->name, cfg->link.lowerdev.name, vlan->tag);
 
-	if ((rv = ni_system_vlan_create(nc, cfg_ifp, &new_ifp)) < 0) {
-		if (rv != -NI_ERROR_DEVICE_EXISTS || !new_ifp
-		||  (ifname && new_ifp && !ni_string_eq(ifname, new_ifp->name))) {
+	if ((rv = ni_system_vlan_create(nc, cfg, &dev)) < 0) {
+		if (rv != -NI_ERROR_DEVICE_EXISTS || !dev
+		||  (ifname && dev && !ni_string_eq(ifname, dev->name))) {
 			dbus_set_error(error,
 					DBUS_ERROR_FAILED,
 					"Unable to create VLAN interface: %s",
 					ni_strerror(rv));
-			goto failed;
+			return NULL;
 		}
 		ni_debug_dbus("VLAN interface exists (and name matches)");
 	}
 
-	if (new_ifp->link.type != NI_IFTYPE_VLAN) {
+	if (dev && dev->link.type != NI_IFTYPE_VLAN) {
 		dbus_set_error(error,
 				DBUS_ERROR_FAILED,
 				"Unable to create VLAN interface: new interface is of type %s",
-				ni_linktype_type_to_name(new_ifp->link.type));
-		goto failed;
+				ni_linktype_type_to_name(dev->link.type));
+		return NULL;
 	}
 
-out:
-	if (cfg_ifp)
-		ni_netdev_put(cfg_ifp);
-	return new_ifp;
-
-failed:
-	if (new_ifp)
-		ni_netdev_put(new_ifp);
-	if (cfg_ifp)
-		ni_netdev_put(cfg_ifp);
-	return NULL;
+	return dev;
 }
 
 /*
@@ -127,22 +120,22 @@ ni_objectmodel_vlan_delete(ni_dbus_object_t *object, const ni_dbus_method_t *met
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
-	ni_netdev_t *ifp;
+	ni_netdev_t *dev;
 	int rv;
 
-	if (!(ifp = ni_objectmodel_unwrap_netif(object, error)))
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return FALSE;
 
-	NI_TRACE_ENTER_ARGS("ifp=%s", ifp->name);
-	if ((rv = ni_system_vlan_delete(ifp)) < 0) {
+	NI_TRACE_ENTER_ARGS("dev=%s", dev->name);
+	if ((rv = ni_system_vlan_delete(dev)) < 0) {
 		dbus_set_error(error,
 				DBUS_ERROR_FAILED,
 				"Error deleting VLAN interface %s: %s",
-				ifp->name, ni_strerror(rv));
+				dev->name, ni_strerror(rv));
 		return FALSE;
 	}
 
-	ni_client_state_drop(ifp->link.ifindex);
+	ni_client_state_drop(dev->link.ifindex);
 	ni_dbus_object_free(object);
 	return TRUE;
 }
