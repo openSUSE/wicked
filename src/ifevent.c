@@ -264,7 +264,7 @@ __ni_rtevent_dellink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 
 		ni_netconfig_device_remove(nc, dev);
 
-		ni_client_state_drop(dev->name);
+		ni_client_state_drop(dev->link.ifindex);
 	}
 
 	return 0;

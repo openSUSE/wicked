@@ -138,7 +138,7 @@ ni_objectmodel_openvpn_delete(ni_dbus_object_t *object, const ni_dbus_method_t *
 		return FALSE;
 	}
 
-	ni_client_state_drop(dev->name);
+	ni_client_state_drop(dev->link.ifindex);
 	return TRUE;
 }
 

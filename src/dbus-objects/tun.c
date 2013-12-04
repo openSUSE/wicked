@@ -119,7 +119,7 @@ ni_objectmodel_tun_delete(ni_dbus_object_t *object, const ni_dbus_method_t *meth
 		return FALSE;
 	}
 
-	ni_client_state_drop(ifp->name);
+	ni_client_state_drop(ifp->link.ifindex);
 	ni_dbus_object_free(object);
 	return TRUE;
 }
