@@ -95,22 +95,22 @@ __ni_objectmodel_macvlan_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusE
 	}
 
 	if (ni_string_empty(ifname)) {
-		if (!ni_string_empty(cfg_ifp->name)) {
-			ifname = cfg_ifp->name;
-		} else
-		if ((ifname = ni_netdev_make_name(nc, "macvlan"))) {
+		if (ni_string_empty(cfg_ifp->name) &&
+		    (ifname = ni_netdev_make_name(nc, "macvlan"))) {
 			ni_string_dup(&cfg_ifp->name, ifname);
 		} else {
 			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
 				"Unable to create macvlan interface - name argument missed");
 			goto out;
 		}
+		ifname = NULL;
 	} else if(!ni_string_eq(cfg_ifp->name, ifname)) {
 		ni_string_dup(&cfg_ifp->name, ifname);
 	}
 
 	if ((rv = ni_system_macvlan_create(nc, cfg_ifp, &new_ifp)) < 0) {
-		if (rv != -NI_ERROR_DEVICE_EXISTS || new_ifp == NULL) {
+		if (rv != -NI_ERROR_DEVICE_EXISTS || new_ifp == NULL
+		||  (ifname && new_ifp && !ni_string_eq(ifname, new_ifp->name))) {
 			dbus_set_error(error, DBUS_ERROR_FAILED,
 					"Unable to create macvlan interface: %s",
 					ni_strerror(rv));
