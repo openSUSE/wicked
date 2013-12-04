@@ -450,8 +450,14 @@ __ni_system_infiniband_setup(const char *ifname, unsigned int mode, unsigned int
 
 int
 ni_system_infiniband_setup(ni_netconfig_t *nc, ni_netdev_t *dev,
-				const ni_infiniband_t *cfg)
+				const ni_netdev_t *cfg)
 {
+	ni_infiniband_t *ib;
+
+	if (!cfg || !(ib = cfg->infiniband)) {
+		ni_error("Cannot setup infiniband interface without config");
+		return -1;
+	}
 	if (!dev || !dev->name) {
 		ni_error("Cannot setup infiniband interface without name");
 		return -1;
@@ -462,32 +468,37 @@ ni_system_infiniband_setup(ni_netconfig_t *nc, ni_netdev_t *dev,
 		return -1;
 	}
 
-	return __ni_system_infiniband_setup(dev->name, cfg->mode, cfg->umcast);
+	return __ni_system_infiniband_setup(dev->name, ib->mode, ib->umcast);
 }
 
 /*
  * Create infinband child interface
  */
 int
-ni_system_infiniband_child_create(ni_netconfig_t *nc, const char *ifname,
-		const ni_infiniband_t *cfg, ni_netdev_t **dev_ret)
+ni_system_infiniband_child_create(ni_netconfig_t *nc,
+		const ni_netdev_t *cfg, ni_netdev_t **dev_ret)
 {
+	ni_infiniband_t *ib;
 	unsigned int i, success = 0;
 	char *tmpname = NULL;
 
-	if (!cfg || !cfg->parent.name || !*cfg->parent.name) {
-		ni_error("%s: Invalid parent reference in infiniband child",
-			ifname);
+	if (!cfg || ni_string_empty(cfg->name) || !(ib = cfg->infiniband)) {
+		ni_error("Cannot create infiniband child interface without config");
+		return -1;
+	}
+	if (ni_string_empty(cfg->link.lowerdev.name)) {
+		ni_error("%s: Invalid parent reference in infiniband child config",
+			cfg->name);
 		return -1;
 	}
 
-	if (!ni_string_printf(&tmpname, "%s.%04x", cfg->parent.name, cfg->pkey)) {
-		ni_error("%s: Unable to construct temporary interface name", ifname);
+	if (!ni_string_printf(&tmpname, "%s.%04x", cfg->link.lowerdev.name, ib->pkey)) {
+		ni_error("%s: Unable to construct temporary interface name", cfg->name);
 		return -1;
 	}
 
-	if (ni_sysfs_netif_printf(cfg->parent.name, "create_child", "0x%04x", cfg->pkey) < 0) {
-		ni_error("%s: Cannot create infiniband child interface", ifname);
+	if (ni_sysfs_netif_printf(cfg->link.lowerdev.name, "create_child", "0x%04x", ib->pkey) < 0) {
+		ni_error("%s: Cannot create infiniband child interface", cfg->name);
 		ni_string_free(&tmpname);
 		return -1;
 	}
@@ -503,29 +514,31 @@ ni_system_infiniband_child_create(ni_netconfig_t *nc, const char *ifname,
 	}
 	if (!success) {
 		ni_error("%s: Infiniband child %s did not appear after 10 sec",
-			ifname, tmpname);
+			cfg->name, tmpname);
 		ni_string_free(&tmpname);
 		return -1;
-	} else if (__ni_netdev_rename(tmpname, ifname) < 0) {
+	} else
+	/* rename just returns when the name equals */
+	if (__ni_netdev_rename(tmpname, cfg->name) < 0) {
 		/* error reported */
 		ni_string_free(&tmpname);
 		return -1;
 	}
 	ni_string_free(&tmpname);
 
-	ni_debug_ifconfig("%s: infiniband child interface created", ifname);
+	ni_debug_ifconfig("%s: infiniband child interface created", cfg->name);
 
-	if (__ni_system_infiniband_setup(ifname, cfg->mode, cfg->umcast) < 0)
+	if (__ni_system_infiniband_setup(cfg->name, ib->mode, ib->umcast) < 0)
 		return -1; /* error reported */
 
 	if (dev_ret != NULL) {
 		/* Refresh interface status */
 		__ni_system_refresh_interfaces(nc);
 
-		*dev_ret = ni_netdev_by_name(nc, ifname);
+		*dev_ret = ni_netdev_by_name(nc, cfg->name);
 		if (*dev_ret == NULL) {
 			ni_error("tried to create interface %s; unable to find it",
-				ifname);
+				cfg->name);
 			return -1;
 		}
 	}
@@ -540,14 +553,14 @@ ni_system_infiniband_child_delete(ni_netdev_t *dev)
 {
 	ni_infiniband_t *ib = dev ? dev->infiniband : NULL;
 
-	if (!ib || !ib->parent.name || dev->link.type != NI_IFTYPE_INFINIBAND_CHILD) {
+	if (!ib || !dev->link.lowerdev.name || dev->link.type != NI_IFTYPE_INFINIBAND_CHILD) {
 		ni_error("Cannot destroy infiniband child interface without parent and key name");
 		return -1;
 	}
 
-	if (ni_sysfs_netif_printf(ib->parent.name, "delete_child", "0x%04x", ib->pkey) < 0) {
+	if (ni_sysfs_netif_printf(dev->link.lowerdev.name, "delete_child", "0x%04x", ib->pkey) < 0) {
 		ni_error("%s: Cannot destroy infiniband child interface (parent %s, key %04x)",
-			dev->name, ib->parent.name, ib->pkey);
+			dev->name, dev->link.lowerdev.name, ib->pkey);
 		return -1;
 	}
 	return 0;

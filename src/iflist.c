@@ -51,7 +51,7 @@ static int		__ni_netdev_process_newroute(ni_netdev_t *, struct nlmsghdr *,
 static int		__ni_discover_bridge(ni_netdev_t *);
 static int		__ni_discover_bond(ni_netdev_t *);
 static int		__ni_discover_addrconf(ni_netdev_t *);
-static int		__ni_discover_infiniband(ni_netdev_t *);
+static int		__ni_discover_infiniband(ni_netdev_t *, ni_netconfig_t *);
 static int		__ni_discover_vlan(ni_netdev_t *, struct nlattr **, ni_netconfig_t *);
 static int		__ni_discover_macvlan(ni_netdev_t *, struct nlattr **, ni_netconfig_t *);
 static ni_route_t *	__ni_netdev_add_autoconf_prefix(ni_netdev_t *, const ni_sockaddr_t *, unsigned int, const struct prefix_cacheinfo *);
@@ -889,7 +889,7 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 
 	case NI_IFTYPE_INFINIBAND:
 	case NI_IFTYPE_INFINIBAND_CHILD:
-		__ni_discover_infiniband(dev);
+		__ni_discover_infiniband(dev, nc);
 		break;
 
 	case NI_IFTYPE_BRIDGE:
@@ -1740,7 +1740,7 @@ __ni_discover_bond(ni_netdev_t *dev)
  * Discover infiniband configuration
  */
 static int
-__ni_discover_infiniband(ni_netdev_t *dev)
+__ni_discover_infiniband(ni_netdev_t *dev, ni_netconfig_t *nc)
 {
 	ni_infiniband_t *ib;
 	char *value = NULL;
@@ -1782,9 +1782,10 @@ __ni_discover_infiniband(ni_netdev_t *dev)
 		ni_error("%s: unable to retrieve infiniband child's parent interface name",
 			dev->name);
 		ret = -1;
-	} else if (!ni_string_eq(ib->parent.name, value)) {
-		ni_string_free(&ib->parent.name);
-		ib->parent.name = value;
+	} else if (!ni_string_eq(dev->link.lowerdev.name, value)) {
+		ni_string_free(&dev->link.lowerdev.name);
+		dev->link.lowerdev.name = value;
+		ni_netdev_ref_bind_ifindex(&dev->link.lowerdev, nc);
 	} else {
 		ni_string_free(&value);
 	}

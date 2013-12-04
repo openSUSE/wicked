@@ -151,11 +151,11 @@ __ni_compat_generate_infiniband(xml_node_t *ifnode, const ni_compat_netdev_t *co
 	if ((value = ni_infiniband_get_umcast_name(ib->umcast)))
 		xml_node_new_element("multicast", child, value);
 
-	if (ib->parent.name) {
+	if (compat->dev->link.lowerdev.name) {
 		if (!ni_string_printf(&pkey, "0x%04x", ib->pkey))
 			return FALSE;
 
-		xml_node_new_element("parent", child, ib->parent.name);
+		xml_node_new_element("parent", child, compat->dev->link.lowerdev.name);
 		xml_node_new_element("pkey",   child, pkey);
 		ni_string_free(&pkey);
 	}

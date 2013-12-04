@@ -1147,7 +1147,7 @@ try_infiniband(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		}
 
 		ib->pkey = tmp;
-		ni_string_set(&ib->parent.name, dev->name, pkey - dev->name);
+		ni_string_set(&dev->link.lowerdev.name, dev->name, pkey - dev->name);
 	}
 
 	if (mode && !ni_infiniband_get_mode_flag(mode, &ib->mode)) {
@@ -1161,7 +1161,7 @@ try_infiniband(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		return -1;
 	}
 
-	if ((err = ni_infiniband_validate(dev->link.type, ib))) {
+	if ((err = ni_infiniband_validate(dev->link.type, ib, &dev->link.lowerdev))) {
 		ni_error("ifcfg-%s: %s", dev->name, err);
 		return -1;
 	}
