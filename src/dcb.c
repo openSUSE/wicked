@@ -15,7 +15,11 @@
 #include "kernel.h"
 
 #include <netlink/msg.h>
-#include <linux/dcbnl.h>
+#if defined(HAVE_DCB_ATTR_IEEE_MAXRATE) && defined(HAVE_LINUX_DCBNL_H)
+#  include <linux/dcbnl.h>
+#else
+#  include "linux/dcbnl.h"
+#endif
 
 static int		ni_dcb_get_capabilities(const char *, ni_dcb_capabilities_t *);
 static int		ni_dcb_get_ieee(const char *, ni_dcb_attributes_t *);

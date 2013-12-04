@@ -40,6 +40,21 @@
 #include <wicked/ipv6.h>
 #include <wicked/lldp.h>
 
+#if defined(HAVE_RTA_MARK)
+#  include <netlink/netlink.h>
+#elif defined(HAVE_LINUX_RTNETLINK_H) && defined(HAVE_LINUX_RTA_MARK)
+#  include <linux/rtnetlink.h>
+#  define  HAVE_RTA_MARK HAVE_LINUX_RTA_MARK
+#endif
+
+#if !defined(MACVLAN_FLAG_NOPROMISC)
+#  if defined(HAVE_MACVLAN_FLAG_NOPROMISC)
+#    include <linux/if_link.h>
+#  else
+#    include "linux/if_link.h"
+#  endif
+#endif
+
 #include "netinfo_priv.h"
 #include "sysfs.h"
 #include "kernel.h"

@@ -2,7 +2,6 @@
 CLEANFILES			= *~
 MAINTAINERCLEANFILES		= Makefile.in
 
-
 wicked_lib_LTLIBRARIES		= libwicked.la
 noinst_LTLIBRARIES		= libwicked-dbus-objects.la	\
 				  libwicked-dhcp6.la		\
@@ -131,6 +130,10 @@ libwicked_dhcp6_la_SOURCES		= \
 libwicked_client_la_CFLAGS		= $(libwicked_la_CFLAGS)
 libwicked_client_la_SOURCES		= \
 	client/client_state.c
+
+noinst_HEADERS			= \
+	linux/if_link.h		\
+	linux/dcbnl.h
 
 EXTRA_DIST			= \
 	appconfig.h		\

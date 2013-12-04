@@ -29,11 +29,18 @@
 #include <wicked/infiniband.h>
 #include <wicked/linkstats.h>
 
+#if defined(HAVE_RTA_MARK)
+#  include <netlink/netlink.h>
+#elif defined(HAVE_LINUX_RTNETLINK_H) && defined(HAVE_LINUX_RTA_MARK)
+#  include <linux/rtnetlink.h>
+#  define  HAVE_RTA_MARK HAVE_LINUX_RTA_MARK
+#endif
+
 #include "netinfo_priv.h"
 #include "sysfs.h"
 #include "kernel.h"
 #include "appconfig.h"
-#include <linux/version.h>
+
 
 static int		__ni_process_ifinfomsg(ni_linkinfo_t *link, struct nlmsghdr *h,
 					struct ifinfomsg *ifi, ni_netconfig_t *);
@@ -1602,7 +1609,7 @@ __ni_netdev_process_newroute(ni_netdev_t *dev, struct nlmsghdr *h,
 	if (tb[RTA_FLOW] != NULL)
 		rp->realm = nla_get_u32(tb[RTA_FLOW]);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,36)
+#if defined(HAVE_RTA_MARK)
 	if (tb[RTA_MARK] != NULL)
 		rp->mark = nla_get_u32(tb[RTA_MARK]);
 #endif
