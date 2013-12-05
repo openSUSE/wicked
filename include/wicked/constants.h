@@ -190,4 +190,67 @@ typedef enum {
 	__NI_ERROR_MAX
 } ni_error_t;
 
+typedef enum {
+	NI_LSB_RC_SUCCESS,			/* interface has been set up */
+	NI_LSB_RC_ERROR,			/* any unspecified error */
+	NI_LSB_RC_INTERNAL		= 1,	/* internal error, e.g. no config or missing scripts */
+	NI_LSB_RC_USAGE,			/* wrong usage */
+	NI_LSB_RC_NOT_IMPLEMENTED,		/* feature not implemented */
+	NI_LSB_RC_NOT_ALLOWED,			/* insufficient privilege */
+	NI_LSB_RC_INACTIVE,			/* the interface is not up and it should not */
+	NI_LSB_RC_NOT_CONFIGURED,		/* the bootmode does not match the current mode */
+	NI_LSB_RC_NOT_RUNNING,			/* the interface is not up but it should be up */
+	NI_LSB_RC_NO_DEVICE		= 7,	/* the given interface does not exist */
+	NI_LSB_RC_NO_CONFIG		= 9,	/* we could not find a matching configuration file */
+	NI_LSB_RC_BUSY,				/* the interface is busy and should not be shut down.
+						 * It will be used for 'ifstatus ... -o stop' or ifdown ... -o
+						 * check' or whatever we use for the check if a interface can
+						 * be shut down savely.
+						 */
+	NI_LSB_RC_LOCKED,			/* ifup/down is currently running on this interface */
+	NI_LSB_RC_DHCP_BG,			/* dhcp client is running in bg, but no address up to now
+						 * or setting up firewall is still in progress
+						 */
+	NI_LSB_RC_NOT_UP2DATE,			/* returned from ifprobe if configuration has changed */
+	NI_LSB_RC_PROPERTY_NOT_SET,		/* some property of the iface could not be set. */
+	NI_LSB_RC_NO_IFPLUGD,			/* ifplugd is not running despite configured */
+
+	/* Reserved for future LSB use section */
+	NI_LSB_RC_MAX			= 99,	/* 8 - 99 */
+
+	/* Reserved for distribution use section */
+	NI_DISTR_RC_MAX			= 149,	/* 100 - 149 */
+
+	/* Reserved for application use section */
+	NI_WICKED_RC_MAX		= 199,	/* 150 - 199 */
+
+	/* Reserved section */
+	NI_RESERVED_RC_MAX		= 254,	/* 200 - 254 */
+} ni_return_code_t;
+
+typedef enum {
+	NI_LSB_ST_OK,				/* program is running or service is OK */
+	NI_LSB_ST_DEAD_PID_FILE,		/* program is dead and /var/run pid file exists */
+	NI_LSB_ST_DEAD_LOCK_FILE,		/* program is dead and /var/lock lock file exists */
+	NI_LSB_ST_NOT_RUNNING,			/* program is not running */
+	NI_LSB_ST_UNKNOWN,			/* program or service status is unknown */
+
+	/* Reserved for future LSB use section */
+	NI_LSB_ST_MAX			= 99,	/* 5 - 99 */
+
+	/* Reserved for distribution use section */
+	NI_DISTR_ST_MAX			= 149,	/* 100 - 149 */
+
+	/* Reserved for application use section */
+	NI_WICKED_ST_NO_INTERFACE,
+	NI_WICKED_ST_NO_DEVICE,
+	NI_WICKED_ST_CHANGED_CONFIG,
+	NI_WICKED_ST_NOT_IN_STATE,
+	NI_WICKED_ST_PERSISTENT_ON,		/* interface is in persistent mode */
+	NI_WICKED_ST_MAX		= 199,	/* 150 - 199 */
+
+	/* Reserved section */
+	NI_RESERVED_ST_MAX		= 254,	/* 200 - 254 */
+} ni_status_code_t;
+
 #endif /* __WICKED_CONSTANTS_H__ */
