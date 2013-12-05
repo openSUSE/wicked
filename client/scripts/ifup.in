@@ -18,6 +18,7 @@
 # this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Authors: Marius Tomaschewski <mt@suse.de>
+#          Pawel Wieczorkiewicz <pwieczorkiewicz@suse.de>
 #
 ###
 
@@ -32,21 +33,43 @@ fi
 #
 R_SUCCESS=0		# interface has been set up
 R_ERROR=1		# any unspecified error
-R_INTERNAL=$R_ERROR	# internal error, e.g. no config or missing scripts
 R_USAGE=2		# wrong usage
-R_NOTIMPL=3		# feature not implemented (yet)
-R_INACTIVE=5		# the interface is not up and it should not
+R_NOTIMPL=3		# feature not implemented
+R_NOTALLOWED=4		# insufficient privilege
+
 R_NODEV=7		# the given interface does not exist
+R_NOTCONFIGURED=5	# the bootmode does not match the current mode
+R_INACTIVE=5		# the interface is not up and it should not
+R_NOTRUNNING=7		# the interface is not up but it should be up
+
+R_NOCONFIG=9		# we could not find a matching configuration file
+R_BUSY=10		# the interface is busy and should not be shut down.
+			# It will be used for 'ifstatus ... -o stop' or ifdown ... -o
+			# check' or whatever we use for the check if a interface can
+			# be shut down savely.
+R_LOCKED=11		# ifup/down is currently running on this interface
+R_DHCP_BG=12		# dhcp client is running in bg, but no address up to now
+			# or setting up firewall is still in progress
+R_INTERNAL=$R_ERROR	# internal error, e.g. no config or missing scripts
+R_NOT_UP2DATE=13	# returned from ifprobe if configuration has changed
+R_PROPERTY_NOT_SET=14	# some property of the iface could not be set.
+R_NO_IFPLUGD=15	# ifplugd is not running despite configured
 
 #
 # Helper functions
 #
 usage ()
 {
-	echo "Usage: if{up,down,status} [<config>] <interface> [-o <options>]"
+	echo "Usage: if{up,down,status,probe} [<config>] <interface> [-o <options>]"
 	echo ""
-	echo "Options are:"
+	echo "Common options are:"
 	echo "    debug    : be verbose"
+	echo ""
+	echo "Options for if{up,down} are:"
+	echo "    systemd  : Enables behavior required when called by wicked.service"
+	echo ""
+	echo "Options for if{status,probe} are:"
+	echo "    quiet    : Do not print out errors, but just signal the result through exit status"
 	echo ""
 	echo "Unknown options are simply ignored, so be careful."
 	echo ""
@@ -130,10 +153,14 @@ case $1 in
 esac
 OPTIONS=$@
 opt_debug=""
+opt_systemd=""
+opt_quiet=""
 while [ $# -gt 0 ]; do
 	case $1 in
 	debug)		DEBUG="yes" ; opt_debug="most"		;;
 	debug=*)	DEBUG="yes" ; opt_debug="${1#debug=}"	;;
+	systemd)	opt_systemd="--systemd"			;;
+	quiet)		opt_quiet="--quiet"			;;
 	*)		debug "unknown option \"$1\""		;;
 	esac
 	shift
@@ -144,52 +171,46 @@ case $SCRIPTNAME in
 	ifup)
 		$wicked_client \
 			${opt_debug:+--debug $opt_debug} \
-			ifup	 "$INTERFACE"
+			${opt_systemd} \
+			ifup "$INTERFACE"
 	;;
 	ifdown)
 		$wicked_client \
 			${opt_debug:+--debug $opt_debug} \
-			ifdown	 "$INTERFACE"
+			${opt_systemd} \
+			ifdown "$INTERFACE"
 	;;
 	ifstatus)
-		#
-		# FIXME: todo...
-		#
-		#$wicked_client \
-		#	${opt_debug:+--debug $opt_debug} \
-		#	ifstatus "$INTERFACE"
-		#
-
-		# Dummy report of the link status...
-		if test ! -d "/sys/class/net/$INTERFACE/" ; then
-			mesg "Interface '$INTERFACE' is not available"
-			exit $R_NODEV
+		if test -z ${opt_quiet} ; then
+			echo "Interface(s) state:"
 		fi
-		c=`cat /sys/class/net/${INTERFACE}/carrier 2>/dev/null`
-		d=`cat /sys/class/net/${INTERFACE}/dormant 2>/dev/null`
-		o=`cat /sys/class/net/${INTERFACE}/operstate 2>/dev/null`
-		debug "link ready ${INTERFACE}: carrier=$c, dormant=$d, operstate=$o"
-		if test "$INTERFACE" != "lo" -a "$c" != "1" ; then
-			echo "no carrier"
-			exit $R_INACTIVE
+		$wicked_client \
+			${opt_debug:+--debug $opt_debug} \
+			${opt_systemd} \
+			ifcheck \
+			  --state none \
+			  ${opt_quiet} \
+			  "$INTERFACE"
+		if test -z ${opt_quiet} ; then
+			echo ""
+			echo "Interfaces(s) persistent mode:"
 		fi
-		if test "$INTERFACE" != "lo" -a "$d" != "0" ; then
-			echo "dormant"
-			echo $R_INACTIVE
-		fi
-		if test "$o" != "up" -a "$o" != "unknown" ; then
-			echo "$o"
-			exit $R_INACTIVE
-		fi
-		# when this would be that easy...
-		echo "up"
-		exit $R_SUCCESS
+		$wicked_client \
+			${opt_debug:+--debug $opt_debug} \
+			${opt_systemd} \
+			ifcheck \
+			  --persistent \
+			  ${opt_quiet} \
+			  "$INTERFACE"
 	;;
 	ifprobe)
-		# TODO:
-		# probe reports if the config is newer or differs
-		# from the current setup state of the interface
-		exit $R_NOTIMPL
+		$wicked_client \
+			${opt_debug:+--debug $opt_debug} \
+			${opt_systemd} \
+			ifcheck \
+			  --changed \
+			  ${opt_quiet} \
+			  "$INTERFACE"
 	;;
 esac
 
