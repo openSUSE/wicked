@@ -2227,12 +2227,12 @@ static void
 __ni_ifworker_print_tree(const char *arrow, const ni_ifworker_t *w, const char *branches)
 {
 	if (w->children.count == 0) {
-		fprintf(stderr, "%s%s\n", arrow, w->name);
+		ni_debug_application("%s%s\n", arrow, w->name);
 	} else {
 		char buffer[128];
 		unsigned int i;
 
-		fprintf(stderr, "%s%-10s", arrow, w->name);
+		ni_debug_application("%s%-10s", arrow, w->name);
 
 		snprintf(buffer, sizeof(buffer), "%s%10s  |   ", branches, "");
 
@@ -2241,7 +2241,7 @@ __ni_ifworker_print_tree(const char *arrow, const ni_ifworker_t *w, const char *
 			ni_ifworker_t *child = w->children.data[i];
 
 			if (i != 0) {
-				fprintf(stderr, "%s%10s", branches, "");
+				ni_debug_application("%s%10s", branches, "");
 				if (i == w->children.count - 1)
 					arrow = " \\--> ";
 			}
