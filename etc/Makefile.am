@@ -25,7 +25,6 @@ dbus_config_DATA		= \
 
 systemd_unit_files		= \
 	systemd/wicked.service		\
-	systemd/wicked@.service		\
 	systemd/wickedd.service		\
 	systemd/wickedd-auto4.service	\
 	systemd/wickedd-dhcp4.service	\
