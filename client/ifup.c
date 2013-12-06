@@ -554,10 +554,12 @@ usage:
 				}
 			}
 
-			printf("%s: exists%s%s%s\n", w->name,
+			if (!opt_quiet) {
+				printf("%s: exists%s%s%s\n", w->name,
 					opt_check_changed? ", configuration unchanged" : "",
 					opt_state? ", interface state as expected" : "",
 					opt_persistent? ", persistent mode is not set" : "");
+			}
 		}
 	}
 
