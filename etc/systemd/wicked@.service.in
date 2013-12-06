@@ -1,13 +1,23 @@
+#
+# This is a template example intended to implement
+# a multi-stage network start.
+#
 [Unit]
-Description=wicked managed network interface %i
+Description=wicked managed network in stage %i
 Requisite=wickedd.service
-PartOf=wicked.service
-BindsTo=sys-subsystem-net-devices-%i.device
+#Wants=network.target
+#Before=network.target
+After=wickedd.service
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
 LimitCORE=infinity
 EnvironmentFile=-/etc/sysconfig/network/config
-ExecStart=@wicked_sbindir@/wicked $WICKED_DEBUG_PARAM ifup $WICKED_IFUP_PARAM %i
+ExecStart=@wicked_sbindir@/wicked $WICKED_DEBUG_PARAM ifup --boot-stage %i -- all
+ExecStop=@wicked_sbindir@/wicked $WICKED_DEBUG_PARAM ifdown --boot-stage %i -- all
+
+[Install]
+Also=wickedd.service
+#WantedBy=some.target
 

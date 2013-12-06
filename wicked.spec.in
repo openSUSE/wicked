@@ -274,7 +274,6 @@ fi
 %_unitdir/wickedd-dhcp6.service
 %_unitdir/wickedd-nanny.service
 %_unitdir/wickedd.service
-%_unitdir/wicked@.service
 %_unitdir/wicked.service
 %_sbindir/ifup
 %if "%_sbindir" != "/sbin"
