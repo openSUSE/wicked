@@ -49,7 +49,7 @@
   <method name="changeDevice">
     <arguments>
       <config type="infiniband-child:configuration">
-        <meta:mapping document-node="/infiniband-child" />
+        <meta:mapping document-node="/infiniband:child" />
       </config>
     </arguments>
   </method>
@@ -63,7 +63,7 @@
     <arguments>
       <name type="string"/>
       <config type="infiniband-child:configuration">
-        <meta:mapping document-node="/infiniband-child"/>
+        <meta:mapping document-node="/infiniband:child"/>
       </config>
     </arguments>
     <return>
