@@ -964,7 +964,14 @@ __ni_discover_vlan(ni_netdev_t *dev, struct nlattr **tb, ni_netconfig_t *nc)
 		return -1;
 	}
 
+	vlan->protocol = NI_VLAN_PROTOCOL_8021Q;
+#ifdef HAVE_IFLA_VLAN_PROTOCOL
+	if (info_data[IFLA_VLAN_PROTOCOL])
+		vlan->protocol = nla_get_u16(info_data[IFLA_VLAN_PROTOCOL]);
+#endif
+
 	vlan->tag = nla_get_u16(info_data[IFLA_VLAN_ID]);
+
 	return 0;
 }
 

@@ -1212,6 +1212,9 @@ __ni_rtnl_link_create_vlan(const char *ifname, const ni_vlan_t *vlan, unsigned i
 		return -1;
 
 	NLA_PUT_U16(msg, IFLA_VLAN_ID, vlan->tag);
+#ifdef HAVE_IFLA_VLAN_PROTOCOL
+	NLA_PUT_U16(msg, IFLA_VLAN_PROTOCOL, vlan->protocol);
+#endif
 	nla_nest_end(msg, data);
 	nla_nest_end(msg, linkinfo);
 

@@ -18,6 +18,7 @@
     <meta:require check="netif-child-state" op="login" min-state="link-authenticated" />
     <meta:require check="netif-child-state" op="linkUp" min-state="link-up" />
   </device>
+  <protocol type="builtin-vlan-protocol"/>
   <tag type="uint16"/>
  </define>
 

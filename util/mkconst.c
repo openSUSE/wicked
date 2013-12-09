@@ -23,6 +23,7 @@
 #include <wicked/bonding.h>
 #include <wicked/route.h>
 #include <wicked/infiniband.h>
+#include <wicked/vlan.h>
 #include <wicked/lldp.h>
 
 extern const char *	ni_ifworker_state_name(unsigned int);
@@ -74,6 +75,7 @@ static struct generic_map	generic_maps[] = {
 	MAP(ROUTE_METRICS_LOCK, ni_route_metrics_lock_bit_to_name),
 	MAP(INFINIBAND_MODE, ni_infiniband_get_mode_name),
 	MAP(INFINIBAND_UMCAST, ni_infiniband_get_umcast_name),
+	MAP(VLAN_PROTOCOL, ni_vlan_protocol_to_name),
 	MAP(LLDP_DESTINATION, ni_lldp_destination_type_to_name),
 	MAP(LLDP_SYSTEM_CAPABILITY, ni_lldp_system_capability_type_to_name),
 

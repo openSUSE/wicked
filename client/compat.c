@@ -372,6 +372,7 @@ __ni_compat_generate_vlan(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 	child = xml_node_create(ifnode, "vlan");
 
 	xml_node_new_element("device", child, compat->dev->link.lowerdev.name);
+	xml_node_new_element("protocol", child, ni_sprint_uint(vlan->protocol));
 	xml_node_new_element("tag", child, ni_sprint_uint(vlan->tag));
 	return TRUE;
 }

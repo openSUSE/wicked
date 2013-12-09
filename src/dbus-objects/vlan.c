@@ -64,12 +64,18 @@ __ni_objectmodel_vlan_newlink(ni_netdev_t *cfg, const char *ifname, DBusError *e
 	ni_netconfig_t *nc = ni_global_state_handle(0);
 	ni_netdev_t *dev = NULL;
 	const ni_vlan_t *vlan;
+	const char *err;
 	int rv;
 
-	vlan = ni_netdev_get_vlan(cfg);
-	if (!vlan || !vlan->tag || !cfg->link.lowerdev.name) {
+	if (ni_string_empty(cfg->link.lowerdev.name)) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-				"Incomplete arguments (need VLAN tag and interface name)");
+				"Incomplete arguments: need a lower device name");
+		return NULL;
+	}
+
+	vlan = ni_netdev_get_vlan(cfg);
+	if ((err = ni_vlan_validate(vlan))) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "%s", err);
 		return NULL;
 	}
 
@@ -78,12 +84,20 @@ __ni_objectmodel_vlan_newlink(ni_netdev_t *cfg, const char *ifname, DBusError *e
 		if (ni_string_empty(cfg->name) &&
 		   !ni_string_printf(&cfg->name, "%s.%u",
 					cfg->link.lowerdev.name, vlan->tag)) {
-			dbus_set_error(error, DBUS_ERROR_FAILED, "Unable to create vlan - too many interfaces");
+			dbus_set_error(error, DBUS_ERROR_FAILED,
+				"Unable to create vlan interface: "
+				"name argument missed, failed to construct");
 			return NULL;
 		}
 	} else
 	if (!ni_string_eq(cfg->name, ifname)) {
 		ni_string_dup(&cfg->name, ifname);
+	}
+	if (ni_string_eq(cfg->name, cfg->link.lowerdev.name)) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"Cannot to create vlan interface: "
+				"vlan name %s equal with lower device name");
+		return NULL;
 	}
 
 	ni_debug_dbus("VLAN.newDevice(name=%s/%s, dev=%s, tag=%u)", ifname,
@@ -171,6 +185,20 @@ __ni_objectmodel_vlan_handle(const ni_dbus_object_t *object, ni_bool_t write_acc
 }
 
 static dbus_bool_t
+__ni_objectmodel_vlan_get_protocol(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
+				ni_dbus_variant_t *result, DBusError *error)
+{
+	ni_vlan_t *vlan;
+
+	if (!(vlan = __ni_objectmodel_vlan_handle(object, FALSE, error)))
+		return FALSE;
+
+	ni_dbus_variant_set_uint16(result, vlan->protocol);
+
+	return TRUE;
+}
+
+static dbus_bool_t
 __ni_objectmodel_vlan_get_tag(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
 				ni_dbus_variant_t *result, DBusError *error)
 {
@@ -182,6 +210,18 @@ __ni_objectmodel_vlan_get_tag(const ni_dbus_object_t *object, const ni_dbus_prop
 	ni_dbus_variant_set_uint16(result, vlan->tag);
 
 	return TRUE;
+}
+
+static dbus_bool_t
+__ni_objectmodel_vlan_set_protocol(ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		const ni_dbus_variant_t *result, DBusError *error)
+{
+	ni_vlan_t *vlan;
+
+	if (!(vlan = __ni_objectmodel_vlan_handle(object, TRUE, error)))
+		return FALSE;
+
+	return ni_dbus_variant_get_uint16(result, &vlan->protocol);
 }
 
 static dbus_bool_t
@@ -204,6 +244,7 @@ __ni_objectmodel_vlan_set_tag(ni_dbus_object_t *object, const ni_dbus_property_t
 
 const ni_dbus_property_t	ni_objectmodel_vlan_property_table[] = {
 	NI_DBUS_GENERIC_STRING_PROPERTY(netdev,  device, link.lowerdev.name, RO),
+	VLAN_UINT16_PROPERTY(protocol, RO),
 	VLAN_UINT16_PROPERTY(tag, RO),
 
 	{ NULL }
