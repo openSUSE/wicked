@@ -91,14 +91,15 @@ const char *
 ni_infiniband_validate(ni_iftype_t iftype, const ni_infiniband_t *ib,
 					const ni_netdev_ref_t *lowerdev)
 {
-	if (!ib)
-		return "Uninitialized infiniband configuration";
 
 	switch (iftype) {
 	default:
 		return "Not a valid infiniband interface type";
 
 	case NI_IFTYPE_INFINIBAND:
+		if (!ib)
+			return "Invalid/empty infiniband configuration";
+
 		if (ib->pkey != NI_INFINIBAND_DEFAULT_PKEY)
 			return "Infiniband partition key supported for child interfaces only";
 		if (!lowerdev)
@@ -106,8 +107,11 @@ ni_infiniband_validate(ni_iftype_t iftype, const ni_infiniband_t *ib,
 		break;
 
 	case NI_IFTYPE_INFINIBAND_CHILD:
+		if (!ib)
+			return "Invalid/empty infiniband child configuration";
+
 		if (!lowerdev || ni_string_empty(lowerdev->name))
-			return "Infiniband parent name required for child interfaces";
+			return "Infiniband parent device name required for child interfaces";
 
 		/*
 		 * we currently use sysfs, that always ORs with 0x8000,

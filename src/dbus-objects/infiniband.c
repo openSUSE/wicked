@@ -48,8 +48,9 @@ __ni_objectmodel_ib_newchild(ni_netdev_t *cfg, const char *ifname, DBusError *er
 	int rv;
 
 	ib = ni_netdev_get_infiniband(cfg);
-	if ((err = ni_infiniband_validate(NI_IFTYPE_INFINIBAND_CHILD, ib, &cfg->link.lowerdev)) != NULL) {
-		dbus_set_error(error, DBUS_ERROR_FAILED, "%s", err);
+	if ((err = ni_infiniband_validate(NI_IFTYPE_INFINIBAND_CHILD,
+					ib, &cfg->link.lowerdev)) != NULL) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "%s", err);
 		return NULL;
 	}
 
@@ -58,7 +59,8 @@ __ni_objectmodel_ib_newchild(ni_netdev_t *cfg, const char *ifname, DBusError *er
 		    !ni_string_printf(&cfg->name, "%s.%04x",
 					cfg->link.lowerdev.name, ib->pkey)) {
 			dbus_set_error(error, DBUS_ERROR_FAILED,
-				"Unable to create infiniband child - name argument missed");
+				"Unable to create infiniband child: "
+				"name argument missed, failed to construct");
 			return NULL;
 		}
 		ifname = NULL;
@@ -66,13 +68,21 @@ __ni_objectmodel_ib_newchild(ni_netdev_t *cfg, const char *ifname, DBusError *er
 		ni_string_dup(&cfg->name, ifname);
 	}
 
+	if (ni_string_eq(cfg->name, cfg->link.lowerdev.name)) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+			"Cannot to create infiniband child: "
+			"child name %s equal with parent device name",
+			cfg->name);
+		return NULL;
+	}
+
 	if ((rv = ni_system_infiniband_child_create(nc, cfg, &dev)) < 0) {
 		if (rv != -NI_ERROR_DEVICE_EXISTS || !dev
 		||  (ifname && dev && !ni_string_eq(ifname, dev->name))) {
 			dbus_set_error(error,
-					DBUS_ERROR_FAILED,
-					"Unable to create infiniband child interface: %s",
-					ni_strerror(rv));
+				DBUS_ERROR_FAILED,
+				"Unable to create infiniband child interface: %s",
+				ni_strerror(rv));
 			return NULL;
 		}
 	}
