@@ -31,8 +31,8 @@ struct ni_linkinfo {
 	unsigned int		mtu;
 	unsigned int		metric;
 	unsigned int		txqlen;
-	unsigned int		master;		/* ifindex */
 	ni_netdev_ref_t		lowerdev;
+	ni_netdev_ref_t		masterdev;
 	unsigned int		oper_state;
 	char *			qdisc;
 	char *			kind;

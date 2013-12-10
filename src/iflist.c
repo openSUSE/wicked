@@ -637,7 +637,9 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 	if (tb[IFLA_QDISC])
 		ni_string_dup(&link->qdisc, nla_get_string(tb[IFLA_QDISC]));
 	if (tb[IFLA_MASTER])
-		link->master = nla_get_u32(tb[IFLA_MASTER]);
+		link->masterdev.index = nla_get_u32(tb[IFLA_MASTER]);
+	else
+		link->masterdev.index = 0;
 	if (tb[IFLA_IFALIAS])
 		ni_string_dup(&link->alias, nla_get_string(tb[IFLA_IFALIAS]));
 	if (tb[IFLA_OPERSTATE]) {
