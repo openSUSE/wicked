@@ -305,12 +305,19 @@ __ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list)
 	}
 
 	for (dev = ni_netconfig_devlist(nc); dev; dev = dev->next) {
-		if (dev->link.lowerdev.index && !dev->link.lowerdev.name
-		&&  ni_netdev_ref_bind_ifindex(&dev->link.lowerdev, nc) < 0) {
-			ni_error("Interface %s references unknown lower interface (ifindex %u)",
-				dev->name, dev->link.lowerdev.index);
+		if (dev->link.masterdev.index && !dev->link.masterdev.name) {
+			if (ni_netdev_ref_bind_ifname(&dev->link.lowerdev, nc) < 0) {
+				ni_warn("Interface %s references unknown master device (ifindex %u)",
+					dev->name, dev->link.masterdev.index);
+			}
 			/* Ignore error and proceed */
-			ni_string_dup(&dev->link.lowerdev.name, "unknown");
+		}
+		if (dev->link.lowerdev.index && !dev->link.lowerdev.name) {
+			if (ni_netdev_ref_bind_ifname(&dev->link.lowerdev, nc) < 0) {
+				ni_warn("Interface %s references unknown lower device (ifindex %u)",
+					dev->name, dev->link.lowerdev.index);
+			}
+			/* Ignore error and proceed */
 		}
 	}
 
@@ -636,10 +643,27 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 		link->metric = nla_get_u32(tb[IFLA_COST]);
 	if (tb[IFLA_QDISC])
 		ni_string_dup(&link->qdisc, nla_get_string(tb[IFLA_QDISC]));
-	if (tb[IFLA_MASTER])
+
+	if (tb[IFLA_LINK]) {
+		link->lowerdev.index = nla_get_u32(tb[IFLA_LINK]);
+		if (!nc || ni_netdev_ref_bind_ifname(&link->lowerdev, nc) < 0) {
+			/* Drop old ifname, we will try it again later */
+			ni_string_free(&link->lowerdev.name);
+		}
+	} else if (link->lowerdev.index) {
+		ni_netdev_ref_destroy(&link->lowerdev);
+	}
+
+	if (tb[IFLA_MASTER]) {
 		link->masterdev.index = nla_get_u32(tb[IFLA_MASTER]);
-	else
-		link->masterdev.index = 0;
+		if (!nc || ni_netdev_ref_bind_ifname(&link->masterdev, nc) < 0) {
+			/* Drop old ifname, we will try it again later */
+			ni_string_free(&link->masterdev.name);
+		}
+	} else if (link->masterdev.index) {
+		ni_netdev_ref_destroy(&link->masterdev);
+	}
+
 	if (tb[IFLA_IFALIAS])
 		ni_string_dup(&link->alias, nla_get_string(tb[IFLA_IFALIAS]));
 	if (tb[IFLA_OPERSTATE]) {
@@ -947,20 +971,6 @@ __ni_discover_vlan(ni_netdev_t *dev, struct nlattr **tb, ni_netconfig_t *nc)
 		return -1;
 	}
 
-	if (tb[IFLA_LINK]) {
-		dev->link.lowerdev.index = nla_get_u32(tb[IFLA_LINK]);
-		if (nc && ni_netdev_ref_bind_ifname(&dev->link.lowerdev, nc) < 0) {
-			ni_debug_ifconfig("%s: cannot bind vlan lower interface %u name",
-						dev->name, dev->link.lowerdev.index);
-			ni_string_free(&dev->link.lowerdev.name);
-			/* Ignore error and proceed */
-		}
-	} else {
-		ni_error("%s: cannot find vlan interface base link reference",
-			dev->name);
-		ni_netdev_ref_destroy(&dev->link.lowerdev);
-	}
-
 	if (nla_parse_nested(info_data, IFLA_VLAN_MAX, link_info[IFLA_INFO_DATA], NULL) < 0) {
 		ni_error("%s: unable to parse vlan IFLA_INFO_DATA", dev->name);
 		return -1;
@@ -993,20 +1003,6 @@ __ni_discover_macvlan(ni_netdev_t *dev, struct nlattr **tb, ni_netconfig_t *nc)
 	if (nla_parse_nested(link_info, IFLA_INFO_MAX, tb[IFLA_LINKINFO], NULL) < 0) {
 		ni_error("%s: unable to parse IFLA_LINKINFO", dev->name);
 		return -1;
-	}
-
-	if (tb[IFLA_LINK]) {
-		dev->link.lowerdev.index = nla_get_u32(tb[IFLA_LINK]);
-		if (nc && ni_netdev_ref_bind_ifname(&dev->link.lowerdev, nc) < 0) {
-			ni_debug_ifconfig("%s: cannot bind macvlan bind interface %u",
-						dev->name, dev->link.lowerdev.index);
-			ni_string_free(&dev->link.lowerdev.name);
-			/* Ignore error and proceed */
-		}
-	} else {
-		ni_error("%s: cannot find macvlan interface base link reference",
-			dev->name);
-		ni_netdev_ref_destroy(&dev->link.lowerdev);
 	}
 
 	if (nla_parse_nested(info_data, IFLA_MACVLAN_MAX, link_info[IFLA_INFO_DATA], NULL) < 0) {
