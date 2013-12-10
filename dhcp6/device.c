@@ -355,8 +355,8 @@ ni_dhcp6_device_iaid(const ni_dhcp6_device_t *dev, uint32_t *iaid)
 	if ((len = ni_string_len(dev->ifname))) {
 		memcpy(&tmp, dev->ifname, len % sizeof(tmp));
 		*iaid ^= tmp;
-		if (ifp->link.vlan && ifp->link.vlan->tag > 0)
-			*iaid ^= ifp->link.vlan->tag;
+		if (ifp->vlan && ifp->vlan->tag > 0)
+			*iaid ^= ifp->vlan->tag;
 		*iaid ^= dev->link.ifindex;
 		return 0;
 	}

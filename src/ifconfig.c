@@ -296,12 +296,12 @@ ni_system_vlan_create(ni_netconfig_t *nc, const ni_netdev_t *cfg,
 	ni_netdev_t *dev, *lowerdev;
 
 	if (!nc || !dev_ret || !cfg || !cfg->name
-	||  !cfg->link.vlan || !cfg->link.lowerdev.name)
+	||  !cfg->vlan || !cfg->link.lowerdev.name)
 		return -1;
 
 	*dev_ret = NULL;
 
-	dev = ni_netdev_by_vlan_name_and_tag(nc, cfg->link.lowerdev.name, cfg->link.vlan->tag);
+	dev = ni_netdev_by_vlan_name_and_tag(nc, cfg->link.lowerdev.name, cfg->vlan->tag);
 	if (dev != NULL) {
 		/* This is not necessarily an error */
 
@@ -317,7 +317,7 @@ ni_system_vlan_create(ni_netconfig_t *nc, const ni_netdev_t *cfg,
 	}
 
 	ni_debug_ifconfig("%s: creating VLAN device", cfg->name);
-	if (__ni_rtnl_link_create_vlan(cfg->name, cfg->link.vlan, lowerdev->link.ifindex)) {
+	if (__ni_rtnl_link_create_vlan(cfg->name, cfg->vlan, lowerdev->link.ifindex)) {
 		ni_error("unable to create vlan interface %s", cfg->name);
 		return -1;
 	}
@@ -325,7 +325,7 @@ ni_system_vlan_create(ni_netconfig_t *nc, const ni_netdev_t *cfg,
 	/* Refresh interface status */
 	__ni_system_refresh_interfaces(nc);
 
-	dev = ni_netdev_by_vlan_name_and_tag(nc, cfg->link.lowerdev.name, cfg->link.vlan->tag);
+	dev = ni_netdev_by_vlan_name_and_tag(nc, cfg->link.lowerdev.name, cfg->vlan->tag);
 	if (dev == NULL) {
 		ni_error("tried to create interface %s; still not found", cfg->name);
 		return -1;

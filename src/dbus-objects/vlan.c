@@ -174,7 +174,7 @@ __ni_objectmodel_vlan_handle(const ni_dbus_object_t *object, ni_bool_t write_acc
 		return NULL;
 
 	if (!write_access)
-		return dev->link.vlan;
+		return dev->vlan;
 
 	if (!(vlan = ni_netdev_get_vlan(dev))) {
 		dbus_set_error(error, DBUS_ERROR_FAILED, "Error getting vlan handle for interface");
