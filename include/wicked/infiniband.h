@@ -26,7 +26,6 @@ struct ni_infiniband {
 	unsigned int	mode;
 	unsigned int	umcast;
 	uint16_t 	pkey;
-	ni_netdev_ref_t	parent;
 };
 
 extern ni_infiniband_t *ni_infiniband_new(void);
@@ -38,6 +37,7 @@ extern ni_bool_t	ni_infiniband_get_mode_flag(const char *, unsigned int *);
 extern const char *	ni_infiniband_get_umcast_name(unsigned int);
 extern ni_bool_t	ni_infiniband_get_umcast_flag(const char *, unsigned int *);
 
-extern const char *	ni_infiniband_validate(ni_iftype_t, const ni_infiniband_t *);
+extern const char *	ni_infiniband_validate(ni_iftype_t, const ni_infiniband_t *,
+							    const ni_netdev_ref_t *);
 
 #endif /* __WICKED_INFINIBAND_H__ */

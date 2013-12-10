@@ -173,6 +173,13 @@
 <define name="builtin-infiniband-umcast" type="uint32" constraint="enum">
   <@@INFINIBAND_UMCAST_NAME@@ value="@@INFINIBAND_UMCAST_VALUE@@"/>
 </define>
+
+<!-- Built-in vlan protocol names -->
+<define name="builtin-vlan-protocol" type="uint16" constraint="enum">
+  <@@VLAN_PROTOCOL_NAME@@ value="@@VLAN_PROTOCOL_VALUE@@"/>
+</define>
+
+<!-- Built-in lldp types and capabilities -->
 <define name="builtin-lldp-type" type="uint32" constraint="enum">
   <@@LLDP_DESTINATION_NAME@@ value="@@LLDP_DESTINATION_VALUE@@"/>
 </define>

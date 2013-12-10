@@ -597,10 +597,10 @@ ni_netdev_by_vlan_name_and_tag(ni_netconfig_t *nc, const char *parent_name, uint
 		return NULL;
 	for (dev = nc->interfaces; dev; dev = dev->next) {
 		if (dev->link.type == NI_IFTYPE_VLAN
-		 && dev->link.vlan
-		 && dev->link.vlan->tag == tag
-		 && dev->link.vlan->parent.name
-		 && !strcmp(dev->link.vlan->parent.name, parent_name))
+		 && dev->vlan
+		 && dev->vlan->tag == tag
+		 && dev->link.lowerdev.name
+		 && !strcmp(dev->link.lowerdev.name, parent_name))
 			return dev;
 	}
 
@@ -637,7 +637,8 @@ ni_netdev_ref_bind_ifname(ni_netdev_ref_t *ref, ni_netconfig_t *nc)
 	if (dev == NULL)
 		return -1;
 
-	ni_string_dup(&ref->name, dev->name);
+	if (!ni_string_eq(ref->name, dev->name))
+		ni_string_dup(&ref->name, dev->name);
 	return 0;
 }
 

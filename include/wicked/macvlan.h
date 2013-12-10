@@ -41,7 +41,6 @@ enum {
 struct ni_macvlan {
 	unsigned int		mode;
 	uint16_t		flags;
-	ni_netdev_ref_t		parent;
 };
 
 extern ni_macvlan_t *	ni_macvlan_new(void);

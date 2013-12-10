@@ -47,6 +47,15 @@
 #  define  HAVE_RTA_MARK HAVE_LINUX_RTA_MARK
 #endif
 
+#if defined(HAVE_IFLA_VLAN_PROTOCOL)
+#  ifndef	ETH_P_8021Q
+#  define	ETH_P_8021Q	0x8100
+#  endif
+#  ifndef	ETH_P_8021AD
+#  define	ETH_P_8021AD	0x88A8
+#  endif
+#endif
+
 #if !defined(MACVLAN_FLAG_NOPROMISC)
 #  if defined(HAVE_MACVLAN_FLAG_NOPROMISC)
 #    include <linux/if_link.h>
@@ -288,59 +297,47 @@ ni_system_interface_delete(ni_netconfig_t *nc, const char *ifname)
 
 /*
  * Create a VLAN interface
- * ni_system_vlan_create
  */
 int
-ni_system_vlan_create(ni_netconfig_t *nc, const char *ifname, const ni_vlan_t *cfg_vlan, ni_netdev_t **dev_ret)
+ni_system_vlan_create(ni_netconfig_t *nc, const ni_netdev_t *cfg,
+						ni_netdev_t **dev_ret)
 {
-	ni_netdev_t *dev, *phys_dev;
-	ni_vlan_t *cur_vlan = NULL;
+	ni_netdev_t *dev, *lowerdev;
+
+	if (!nc || !dev_ret || !cfg || !cfg->name
+	||  !cfg->vlan || !cfg->link.lowerdev.name)
+		return -1;
 
 	*dev_ret = NULL;
 
-	dev = ni_netdev_by_vlan_name_and_tag(nc, cfg_vlan->parent.name, cfg_vlan->tag);
+	dev = ni_netdev_by_vlan_name_and_tag(nc, cfg->link.lowerdev.name, cfg->vlan->tag);
 	if (dev != NULL) {
 		/* This is not necessarily an error */
+
 		*dev_ret = dev;
 		return -NI_ERROR_DEVICE_EXISTS;
 	}
 
-	phys_dev = ni_netdev_by_name(nc, cfg_vlan->parent.name);
-	if (!phys_dev || !phys_dev->link.ifindex) {
-		ni_error("Cannot create VLAN interface %s: interface %s does not exist",
-				ifname, cfg_vlan->parent.name);
+	lowerdev = ni_netdev_by_name(nc, cfg->link.lowerdev.name);
+	if (!lowerdev || !lowerdev->link.ifindex) {
+		ni_error("Cannot create VLAN interface %s: lower interface %s does not exist",
+				cfg->name, cfg->link.lowerdev.name);
 		return -NI_ERROR_DEVICE_NOT_KNOWN;
 	}
 
-	ni_debug_ifconfig("%s: creating VLAN device", ifname);
-	if (__ni_rtnl_link_create_vlan(ifname, cfg_vlan, phys_dev->link.ifindex)) {
-		ni_error("unable to create vlan interface %s", ifname);
+	ni_debug_ifconfig("%s: creating VLAN device", cfg->name);
+	if (__ni_rtnl_link_create_vlan(cfg->name, cfg->vlan, lowerdev->link.ifindex)) {
+		ni_error("unable to create vlan interface %s", cfg->name);
 		return -1;
 	}
 
 	/* Refresh interface status */
 	__ni_system_refresh_interfaces(nc);
 
-	dev = ni_netdev_by_vlan_name_and_tag(nc, cfg_vlan->parent.name, cfg_vlan->tag);
+	dev = ni_netdev_by_vlan_name_and_tag(nc, cfg->link.lowerdev.name, cfg->vlan->tag);
 	if (dev == NULL) {
-		ni_error("tried to create interface %s; still not found", ifname);
+		ni_error("tried to create interface %s; still not found", cfg->name);
 		return -1;
-	}
-
-	if (!(cur_vlan = dev->link.vlan))
-		return -1;
-
-	{
-		ni_netdev_t *real_dev;
-
-		if (!cfg_vlan->parent.name)
-			return -1;
-		real_dev = ni_netdev_by_name(nc, cfg_vlan->parent.name);
-		if (!real_dev || !real_dev->link.ifindex) {
-			ni_error("Cannot bring up VLAN interface %s: %s does not exist",
-					ifname, cfg_vlan->parent.name);
-			return -NI_ERROR_DEVICE_NOT_KNOWN;
-		}
 	}
 
 	*dev_ret = dev;
@@ -364,14 +361,17 @@ ni_system_vlan_delete(ni_netdev_t *dev)
  * Create a macvlan interface
  */
 int
-ni_system_macvlan_create(ni_netconfig_t *nc, const char *ifname,
-			const ni_macvlan_t *cfg, ni_netdev_t **dev_ret)
+ni_system_macvlan_create(ni_netconfig_t *nc, const ni_netdev_t *cfg,
+						ni_netdev_t **dev_ret)
 {
-	ni_netdev_t *dev, *phys_dev;
+	ni_netdev_t *dev, *lowerdev;
+
+	if (!nc || !dev_ret || !cfg || !cfg->name
+	||  !cfg->macvlan || !cfg->link.lowerdev.name)
 
 	*dev_ret = NULL;
 
-	dev = ni_netdev_by_name(nc, ifname);
+	dev = ni_netdev_by_name(nc, cfg->name);
 	if (dev != NULL) {
 		/* This is not necessarily an error */
 		if (dev->link.type == NI_IFTYPE_MACVLAN) {
@@ -385,31 +385,31 @@ ni_system_macvlan_create(ni_netconfig_t *nc, const char *ifname,
 		return -NI_ERROR_DEVICE_EXISTS;
 	}
 
-	phys_dev = ni_netdev_by_name(nc, cfg->parent.name);
-	if (!phys_dev || !phys_dev->link.ifindex) {
-		ni_error("Cannot create macvlan %s: cannot find base interface %s",
-				ifname, cfg->parent.name);
+	lowerdev = ni_netdev_by_name(nc, cfg->link.lowerdev.name);
+	if (!lowerdev || !lowerdev->link.ifindex) {
+		ni_error("Cannot create macvlan %s: cannot find lower interface %s",
+				cfg->name, cfg->link.lowerdev.name);
 		return -NI_ERROR_DEVICE_NOT_KNOWN;
 	}
 
-	ni_debug_ifconfig("%s: creating macvlan interface", ifname);
-	if (__ni_rtnl_link_create_macvlan(ifname, cfg, phys_dev->link.ifindex)) {
-		ni_error("unable to create macvlan interface %s", ifname);
+	ni_debug_ifconfig("%s: creating macvlan interface", cfg->name);
+	if (__ni_rtnl_link_create_macvlan(cfg->name, cfg->macvlan, lowerdev->link.ifindex)) {
+		ni_error("unable to create macvlan interface %s", cfg->name);
 		return -1;
 	}
 
 	/* Refresh interface status */
 	__ni_system_refresh_interfaces(nc);
 
-	dev = ni_netdev_by_name(nc, ifname);
+	dev = ni_netdev_by_name(nc, cfg->name);
 	if (dev == NULL) {
-		ni_error("tried to create interface %s; still not found", ifname);
+		ni_error("tried to create interface %s; still not found", cfg->name);
 		return -1;
 	}
 
 	if (!ni_netdev_get_macvlan(dev)) {
 		ni_error("found new interface name %s but with type %s",
-			ifname, ni_linktype_type_to_name(dev->link.type));
+			cfg->name, ni_linktype_type_to_name(dev->link.type));
 		return -1;
 	}
 
@@ -459,8 +459,14 @@ __ni_system_infiniband_setup(const char *ifname, unsigned int mode, unsigned int
 
 int
 ni_system_infiniband_setup(ni_netconfig_t *nc, ni_netdev_t *dev,
-				const ni_infiniband_t *cfg)
+				const ni_netdev_t *cfg)
 {
+	ni_infiniband_t *ib;
+
+	if (!cfg || !(ib = cfg->infiniband)) {
+		ni_error("Cannot setup infiniband interface without config");
+		return -1;
+	}
 	if (!dev || !dev->name) {
 		ni_error("Cannot setup infiniband interface without name");
 		return -1;
@@ -471,32 +477,37 @@ ni_system_infiniband_setup(ni_netconfig_t *nc, ni_netdev_t *dev,
 		return -1;
 	}
 
-	return __ni_system_infiniband_setup(dev->name, cfg->mode, cfg->umcast);
+	return __ni_system_infiniband_setup(dev->name, ib->mode, ib->umcast);
 }
 
 /*
  * Create infinband child interface
  */
 int
-ni_system_infiniband_child_create(ni_netconfig_t *nc, const char *ifname,
-		const ni_infiniband_t *cfg, ni_netdev_t **dev_ret)
+ni_system_infiniband_child_create(ni_netconfig_t *nc,
+		const ni_netdev_t *cfg, ni_netdev_t **dev_ret)
 {
+	ni_infiniband_t *ib;
 	unsigned int i, success = 0;
 	char *tmpname = NULL;
 
-	if (!cfg || !cfg->parent.name || !*cfg->parent.name) {
-		ni_error("%s: Invalid parent reference in infiniband child",
-			ifname);
+	if (!cfg || ni_string_empty(cfg->name) || !(ib = cfg->infiniband)) {
+		ni_error("Cannot create infiniband child interface without config");
+		return -1;
+	}
+	if (ni_string_empty(cfg->link.lowerdev.name)) {
+		ni_error("%s: Invalid parent reference in infiniband child config",
+			cfg->name);
 		return -1;
 	}
 
-	if (!ni_string_printf(&tmpname, "%s.%04x", cfg->parent.name, cfg->pkey)) {
-		ni_error("%s: Unable to construct temporary interface name", ifname);
+	if (!ni_string_printf(&tmpname, "%s.%04x", cfg->link.lowerdev.name, ib->pkey)) {
+		ni_error("%s: Unable to construct temporary interface name", cfg->name);
 		return -1;
 	}
 
-	if (ni_sysfs_netif_printf(cfg->parent.name, "create_child", "0x%04x", cfg->pkey) < 0) {
-		ni_error("%s: Cannot create infiniband child interface", ifname);
+	if (ni_sysfs_netif_printf(cfg->link.lowerdev.name, "create_child", "0x%04x", ib->pkey) < 0) {
+		ni_error("%s: Cannot create infiniband child interface", cfg->name);
 		ni_string_free(&tmpname);
 		return -1;
 	}
@@ -512,29 +523,31 @@ ni_system_infiniband_child_create(ni_netconfig_t *nc, const char *ifname,
 	}
 	if (!success) {
 		ni_error("%s: Infiniband child %s did not appear after 10 sec",
-			ifname, tmpname);
+			cfg->name, tmpname);
 		ni_string_free(&tmpname);
 		return -1;
-	} else if (__ni_netdev_rename(tmpname, ifname) < 0) {
+	} else
+	/* rename just returns when the name equals */
+	if (__ni_netdev_rename(tmpname, cfg->name) < 0) {
 		/* error reported */
 		ni_string_free(&tmpname);
 		return -1;
 	}
 	ni_string_free(&tmpname);
 
-	ni_debug_ifconfig("%s: infiniband child interface created", ifname);
+	ni_debug_ifconfig("%s: infiniband child interface created", cfg->name);
 
-	if (__ni_system_infiniband_setup(ifname, cfg->mode, cfg->umcast) < 0)
+	if (__ni_system_infiniband_setup(cfg->name, ib->mode, ib->umcast) < 0)
 		return -1; /* error reported */
 
 	if (dev_ret != NULL) {
 		/* Refresh interface status */
 		__ni_system_refresh_interfaces(nc);
 
-		*dev_ret = ni_netdev_by_name(nc, ifname);
+		*dev_ret = ni_netdev_by_name(nc, cfg->name);
 		if (*dev_ret == NULL) {
 			ni_error("tried to create interface %s; unable to find it",
-				ifname);
+				cfg->name);
 			return -1;
 		}
 	}
@@ -549,14 +562,14 @@ ni_system_infiniband_child_delete(ni_netdev_t *dev)
 {
 	ni_infiniband_t *ib = dev ? dev->infiniband : NULL;
 
-	if (!ib || !ib->parent.name || dev->link.type != NI_IFTYPE_INFINIBAND_CHILD) {
+	if (!ib || !dev->link.lowerdev.name || dev->link.type != NI_IFTYPE_INFINIBAND_CHILD) {
 		ni_error("Cannot destroy infiniband child interface without parent and key name");
 		return -1;
 	}
 
-	if (ni_sysfs_netif_printf(ib->parent.name, "delete_child", "0x%04x", ib->pkey) < 0) {
+	if (ni_sysfs_netif_printf(dev->link.lowerdev.name, "delete_child", "0x%04x", ib->pkey) < 0) {
 		ni_error("%s: Cannot destroy infiniband child interface (parent %s, key %04x)",
-			dev->name, ib->parent.name, ib->pkey);
+			dev->name, dev->link.lowerdev.name, ib->pkey);
 		return -1;
 	}
 	return 0;
@@ -1176,7 +1189,7 @@ ni_system_ipv6_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_ipv6_devconf
  * Create a VLAN interface via netlink
  */
 static int
-__ni_rtnl_link_create_vlan(const char *ifname, const ni_vlan_t *vlan, unsigned int phys_ifindex)
+__ni_rtnl_link_create_vlan(const char *ifname, const ni_vlan_t *vlan, unsigned int lowerdev_index)
 {
 	struct nlattr *linkinfo;
 	struct nlattr *data;
@@ -1197,8 +1210,8 @@ __ni_rtnl_link_create_vlan(const char *ifname, const ni_vlan_t *vlan, unsigned i
 	 *  INFO_DATA must contain VLAN_ID
 	 *  LINK must contain the link ID of the real ethernet device
 	 */
-	ni_debug_ifconfig("__ni_rtnl_link_create(%s, vlan, %u, %s)",
-			ifname, vlan->tag, vlan->parent.name);
+	ni_debug_ifconfig("__ni_rtnl_link_create(%s, vlan, %u, %u)",
+			ifname, vlan->tag, lowerdev_index);
 
 	if (!(linkinfo = nla_nest_start(msg, IFLA_LINKINFO)))
 		return -1;
@@ -1208,13 +1221,24 @@ __ni_rtnl_link_create_vlan(const char *ifname, const ni_vlan_t *vlan, unsigned i
 		return -1;
 
 	NLA_PUT_U16(msg, IFLA_VLAN_ID, vlan->tag);
+#ifdef HAVE_IFLA_VLAN_PROTOCOL
+	switch (vlan->protocol) {
+	case NI_VLAN_PROTOCOL_8021Q:
+		NLA_PUT_U16(msg, IFLA_VLAN_PROTOCOL, htons(ETH_P_8021Q));
+		break;
+
+	case NI_VLAN_PROTOCOL_8021AD:
+		NLA_PUT_U16(msg, IFLA_VLAN_PROTOCOL, htons(ETH_P_8021AD));
+		break;
+	}
+#endif
 	nla_nest_end(msg, data);
 	nla_nest_end(msg, linkinfo);
 
 	/* Note, IFLA_LINK must be outside of IFLA_LINKINFO */
-	NLA_PUT_U32(msg, IFLA_LINK, phys_ifindex);
+	NLA_PUT_U32(msg, IFLA_LINK, lowerdev_index);
 
-	len = strlen(ifname) + 1;
+	len = ni_string_len(ifname) + 1;
 	if (len == 1 || len > IFNAMSIZ) {
 		ni_error("\"%s\" is not a valid device identifier", ifname);
 		return -1;

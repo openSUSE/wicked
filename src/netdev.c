@@ -165,17 +165,17 @@ ni_netdev_add_route(ni_netdev_t *dev,
 ni_vlan_t *
 ni_netdev_get_vlan(ni_netdev_t *dev)
 {
-	if (!dev->link.vlan)
-		dev->link.vlan = ni_vlan_new();
-	return dev->link.vlan;
+	if (!dev->vlan)
+		dev->vlan = ni_vlan_new();
+	return dev->vlan;
 }
 
 void
 ni_netdev_set_vlan(ni_netdev_t *dev, ni_vlan_t *vlan)
 {
-	if (dev->link.vlan)
-		ni_vlan_free(dev->link.vlan);
-	dev->link.vlan = vlan;
+	if (dev->vlan)
+		ni_vlan_free(dev->vlan);
+	dev->vlan = vlan;
 }
 
 /*

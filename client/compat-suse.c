@@ -1147,7 +1147,7 @@ try_infiniband(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		}
 
 		ib->pkey = tmp;
-		ni_string_set(&ib->parent.name, dev->name, pkey - dev->name);
+		ni_string_set(&dev->link.lowerdev.name, dev->name, pkey - dev->name);
 	}
 
 	if (mode && !ni_infiniband_get_mode_flag(mode, &ib->mode)) {
@@ -1161,7 +1161,7 @@ try_infiniband(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		return -1;
 	}
 
-	if ((err = ni_infiniband_validate(dev->link.type, ib))) {
+	if ((err = ni_infiniband_validate(dev->link.type, ib, &dev->link.lowerdev))) {
 		ni_error("ifcfg-%s: %s", dev->name, err);
 		return -1;
 	}
@@ -1458,6 +1458,7 @@ try_vlan(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	ni_netdev_t *dev = compat->dev;
 	ni_vlan_t *vlan;
 	const char *etherdev = NULL;
+	const char *vlanprot = NULL;
 	const char *vlantag = NULL;
 	unsigned int tag = 0;
 	size_t len;
@@ -1514,7 +1515,17 @@ try_vlan(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 #endif
 	}
 
-	ni_string_dup(&vlan->parent.name, etherdev);
+	if ((vlanprot = ni_sysconfig_get_value(sc, "VLAN_PROTOCOL")) != NULL) {
+		unsigned int protocol;
+		if (!ni_vlan_name_to_protocol(vlanprot, &protocol)) {
+			ni_error("ifcfg-%s: Unsupported VLAN_PROTOCOL=\"%s\"",
+				dev->name, vlanprot);
+			return -1;
+		}
+		vlan->protocol = protocol;
+	}
+
+	ni_string_dup(&dev->link.lowerdev.name, etherdev);
 	vlan->tag = tag;
 
 	return 0;

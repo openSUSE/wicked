@@ -31,12 +31,11 @@ struct ni_linkinfo {
 	unsigned int		mtu;
 	unsigned int		metric;
 	unsigned int		txqlen;
-	unsigned int		master;		/* ifindex */
+	ni_netdev_ref_t		lowerdev;
+	ni_netdev_ref_t		masterdev;
 	unsigned int		oper_state;
 	char *			qdisc;
 	char *			kind;
-
-	ni_vlan_t *		vlan;
 
 	ni_link_stats_t *	stats;
 	ni_ethtool_stats_t *	ethtool_stats;
@@ -77,6 +76,7 @@ struct ni_netdev {
 	ni_addrconf_lease_t *	leases;
 
 	/* link layer info specific to different device types. */
+	ni_vlan_t *		vlan;
 	ni_bonding_t *		bonding;
 	ni_bridge_t *		bridge;
 	ni_ethernet_t *		ethernet;
