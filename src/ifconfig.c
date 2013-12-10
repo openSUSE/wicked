@@ -327,7 +327,7 @@ ni_system_vlan_create(ni_netconfig_t *nc, const char *ifname, const ni_vlan_t *c
 		return -1;
 	}
 
-	if (!(cur_vlan = dev->link.vlan))
+	if (!(cur_vlan = dev->vlan))
 		return -1;
 
 	{

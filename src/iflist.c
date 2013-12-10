@@ -305,11 +305,11 @@ __ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list)
 	}
 
 	for (dev = ni_netconfig_devlist(nc); dev; dev = dev->next) {
-		if (dev->link.vlan && ni_netdev_ref_bind_ifindex(&dev->link.vlan->parent, nc) < 0) {
+		if (dev->vlan && ni_netdev_ref_bind_ifindex(&dev->vlan->parent, nc) < 0) {
 			ni_error("VLAN interface %s references unknown base interface (ifindex %u)",
-				dev->name, dev->link.vlan->parent.index);
+				dev->name, dev->vlan->parent.index);
 			/* Ignore error and proceed */
-			ni_string_dup(&dev->link.vlan->parent.name, "unknown");
+			ni_string_dup(&dev->vlan->parent.name, "unknown");
 		}
 	}
 

@@ -151,7 +151,7 @@ ni_objectmodel_get_vlan(const ni_dbus_object_t *object, ni_bool_t write_access, 
 		return NULL;
 
 	if (!write_access)
-		return dev->link.vlan;
+		return dev->vlan;
 
 	return ni_netdev_get_vlan(dev);
 }
