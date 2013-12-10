@@ -1284,6 +1284,8 @@ static ni_dbus_property_t	ni_objectmodel_netif_properties[] = {
 	NI_DBUS_GENERIC_UINT_PROPERTY(netdev, mtu, link.mtu, RO),
 	NI_DBUS_GENERIC_UINT_PROPERTY(netdev, txqlen, link.txqlen, RO),
 	NI_DBUS_GENERIC_STRING_PROPERTY(netdev, alias, link.alias, RO),
+	NI_DBUS_GENERIC_STRING_PROPERTY(netdev, master, link.masterdev.name, RO),
+
 	___NI_DBUS_PROPERTY(NI_DBUS_DICT_SIGNATURE,
 				client-info, client_info,
 				__ni_objectmodel_netif, RO),
