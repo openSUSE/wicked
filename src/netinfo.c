@@ -637,7 +637,8 @@ ni_netdev_ref_bind_ifname(ni_netdev_ref_t *ref, ni_netconfig_t *nc)
 	if (dev == NULL)
 		return -1;
 
-	ni_string_dup(&ref->name, dev->name);
+	if (!ni_string_eq(ref->name, dev->name))
+		ni_string_dup(&ref->name, dev->name);
 	return 0;
 }
 
