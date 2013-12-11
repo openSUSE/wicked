@@ -92,6 +92,7 @@ __ni_objectmodel_bridge_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusEr
 				DBUS_ERROR_FAILED,
 				"Unable to create bridging interface: %s",
 				ni_strerror(rv));
+		new_ifp = NULL;
 		goto out;
 	}
 
@@ -100,7 +101,6 @@ __ni_objectmodel_bridge_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusEr
 				DBUS_ERROR_FAILED,
 				"Unable to create bridging interface: new interface is of type %s",
 				ni_linktype_type_to_name(new_ifp->link.type));
-		ni_netdev_put(new_ifp);
 		new_ifp = NULL;
 	}
 

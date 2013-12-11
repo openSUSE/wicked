@@ -103,10 +103,12 @@ __ni_objectmodel_macvlan_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusE
 	}
 
 	if ((rv = ni_system_macvlan_create(nc, cfg_ifp->name, macvlan, &new_ifp)) < 0) {
-		if (rv != -NI_ERROR_DEVICE_EXISTS || new_ifp == NULL) {
+		if (rv != -NI_ERROR_DEVICE_EXISTS || new_ifp == NULL
+		|| (ifname && new_ifp && !ni_string_eq(new_ifp->name, ifname))) {
 			dbus_set_error(error, DBUS_ERROR_FAILED,
 					"Unable to create macvlan interface: %s",
 					ni_strerror(rv));
+			new_ifp = NULL;
 			goto out;
 		}
 	}
@@ -115,7 +117,6 @@ __ni_objectmodel_macvlan_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusE
 		dbus_set_error(error, DBUS_ERROR_FAILED,
 				"Unable to create macvlan interface: new interface is of type %s",
 				ni_linktype_type_to_name(new_ifp->link.type));
-		ni_netdev_put(new_ifp);
 		new_ifp = NULL;
 	}
 

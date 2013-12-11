@@ -78,13 +78,14 @@ __ni_objectmodel_vlan_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusErro
 	}
 
 	if ((rv = ni_system_vlan_create(nc, ifname, vlan, &new_ifp)) < 0) {
-		if (rv != -NI_ERROR_DEVICE_EXISTS
-		  || ifname == NULL || new_ifp == NULL || strcmp(ifname, new_ifp->name)) {
+		if (rv != -NI_ERROR_DEVICE_EXISTS || new_ifp == NULL
+		|| (ifname && new_ifp && !ni_string_eq(new_ifp->name, ifname))) {
 			dbus_set_error(error,
 					DBUS_ERROR_FAILED,
 					"Unable to create VLAN interface: %s",
 					ni_strerror(rv));
-			goto failed;
+			new_ifp = NULL;
+			goto out;
 		}
 		ni_debug_dbus("VLAN interface exists (and name matches)");
 	}
@@ -94,20 +95,14 @@ __ni_objectmodel_vlan_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusErro
 				DBUS_ERROR_FAILED,
 				"Unable to create VLAN interface: new interface is of type %s",
 				ni_linktype_type_to_name(new_ifp->link.type));
-		goto failed;
+		new_ifp = NULL;
+		goto out;
 	}
 
 out:
 	if (cfg_ifp)
 		ni_netdev_put(cfg_ifp);
 	return new_ifp;
-
-failed:
-	if (new_ifp)
-		ni_netdev_put(new_ifp);
-	if (cfg_ifp)
-		ni_netdev_put(cfg_ifp);
-	return NULL;
 }
 
 /*

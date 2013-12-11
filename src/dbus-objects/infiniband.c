@@ -66,6 +66,7 @@ __ni_objectmodel_ib_newchild(ni_netdev_t *cfg_ifp, const char *ifname, DBusError
 				DBUS_ERROR_FAILED,
 				"Unable to create infiniband child interface: %s",
 				ni_strerror(rv));
+		new_ifp = NULL;
 		goto out;
 	}
 
@@ -74,8 +75,7 @@ __ni_objectmodel_ib_newchild(ni_netdev_t *cfg_ifp, const char *ifname, DBusError
 			DBUS_ERROR_FAILED,
 			"Unable to create infiniband child interface: it exists with type %s",
 			ni_linktype_type_to_name(new_ifp->link.type));
-                ni_netdev_put(new_ifp);
-                new_ifp = NULL;
+		new_ifp = NULL;
         }
 
 out:
