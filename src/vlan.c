@@ -30,7 +30,6 @@ ni_vlan_new(void)
 void
 ni_vlan_free(ni_vlan_t *vlan)
 {
-	ni_netdev_ref_destroy(&vlan->parent);
 	free(vlan);
 }
 

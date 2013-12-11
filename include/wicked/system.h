@@ -25,8 +25,8 @@ extern int		ni_system_infiniband_setup(ni_netconfig_t *, ni_netdev_t *,
 extern int		ni_system_infiniband_child_create(ni_netconfig_t *, const char *,
 				const ni_infiniband_t *, ni_netdev_t **);
 extern int		ni_system_infiniband_child_delete(ni_netdev_t *);
-extern int		ni_system_vlan_create(ni_netconfig_t *, const char *,
-				const ni_vlan_t *, ni_netdev_t **);
+extern int		ni_system_vlan_create(ni_netconfig_t *,
+				const ni_netdev_t *, ni_netdev_t **);
 extern int		ni_system_vlan_delete(ni_netdev_t *);
 extern int		ni_system_macvlan_create(ni_netconfig_t *, const char *,
 				const ni_macvlan_t *, ni_netdev_t **);

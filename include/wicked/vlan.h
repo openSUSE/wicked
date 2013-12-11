@@ -12,7 +12,6 @@
 
 struct ni_vlan {
 	uint16_t		tag;
-	ni_netdev_ref_t		parent;
 };
 
 extern ni_vlan_t *	ni_vlan_new(void);

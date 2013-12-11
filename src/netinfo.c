@@ -599,8 +599,8 @@ ni_netdev_by_vlan_name_and_tag(ni_netconfig_t *nc, const char *parent_name, uint
 		if (dev->link.type == NI_IFTYPE_VLAN
 		 && dev->vlan
 		 && dev->vlan->tag == tag
-		 && dev->vlan->parent.name
-		 && !strcmp(dev->vlan->parent.name, parent_name))
+		 && dev->link.lowerdev.name
+		 && !strcmp(dev->link.lowerdev.name, parent_name))
 			return dev;
 	}
 

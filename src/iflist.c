@@ -305,11 +305,12 @@ __ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list)
 	}
 
 	for (dev = ni_netconfig_devlist(nc); dev; dev = dev->next) {
-		if (dev->vlan && ni_netdev_ref_bind_ifindex(&dev->vlan->parent, nc) < 0) {
-			ni_error("VLAN interface %s references unknown base interface (ifindex %u)",
-				dev->name, dev->vlan->parent.index);
+		if (dev->link.lowerdev.index && !dev->link.lowerdev.name
+		&&  ni_netdev_ref_bind_ifname(&dev->link.lowerdev, nc) < 0) {
+			ni_error("Interface %s references unknown lower interface (ifindex %u)",
+				dev->name, dev->link.lowerdev.index);
 			/* Ignore error and proceed */
-			ni_string_dup(&dev->vlan->parent.name, "unknown");
+			ni_string_dup(&dev->link.lowerdev.name, "unknown");
 		}
 	}
 
@@ -945,17 +946,17 @@ __ni_discover_vlan(ni_netdev_t *dev, struct nlattr **tb, ni_netconfig_t *nc)
 	}
 
 	if (tb[IFLA_LINK]) {
-		vlan->parent.index = nla_get_u32(tb[IFLA_LINK]);
-		if (nc && ni_netdev_ref_bind_ifname(&vlan->parent, nc) < 0) {
-			ni_debug_ifconfig("%s: cannot bind vlan bind interface %u",
-						dev->name, vlan->parent.index);
-			ni_string_free(&vlan->parent.name);
+		dev->link.lowerdev.index = nla_get_u32(tb[IFLA_LINK]);
+		if (nc && ni_netdev_ref_bind_ifname(&dev->link.lowerdev, nc) < 0) {
+			ni_debug_ifconfig("%s: cannot bind vlan lower interface %u name",
+						dev->name, dev->link.lowerdev.index);
+			ni_string_free(&dev->link.lowerdev.name);
 			/* Ignore error and proceed */
 		}
 	} else {
 		ni_error("%s: cannot find vlan interface base link reference",
 			dev->name);
-		ni_netdev_ref_destroy(&vlan->parent);
+		ni_netdev_ref_destroy(&dev->link.lowerdev);
 	}
 
 	if (nla_parse_nested(info_data, IFLA_VLAN_MAX, link_info[IFLA_INFO_DATA], NULL) < 0) {
