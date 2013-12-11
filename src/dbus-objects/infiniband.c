@@ -339,7 +339,7 @@ static ni_dbus_method_t		ni_objectmodel_ibparent_methods[] = {
 };
 
 const ni_dbus_property_t	ni_objectmodel_ibchild_property_table[] = {
-	NI_DBUS_GENERIC_STRING_PROPERTY(netdev, parent, link.lowerdev.name, RO),
+	NI_DBUS_GENERIC_STRING_PROPERTY(netdev, device, link.lowerdev.name, RO),
 	IB_UINT32_PROPERTY(mode,	RO),
 	IB_UINT32_PROPERTY(multicast,	RO),
 	IB_UINT16_PROPERTY(pkey,        RO),	/* read-write */
