@@ -137,7 +137,7 @@ __ni_compat_generate_infiniband(xml_node_t *ifnode, const ni_compat_netdev_t *co
 		value = "infiniband";
 		break;
 	case NI_IFTYPE_INFINIBAND_CHILD:
-		value = "infiniband-child";
+		value = "infiniband:child";
 		break;
 	default:
 		return FALSE;
