@@ -80,6 +80,7 @@ ni_netdev_free(ni_netdev_t *dev)
 	ni_string_free(&dev->link.qdisc);
 	ni_string_free(&dev->link.kind);
 	ni_string_free(&dev->link.alias);
+	ni_netdev_ref_destroy(&dev->link.lowerdev);
 	ni_netdev_ref_destroy(&dev->link.masterdev);
 
 	/* Clear out addresses, stats */
