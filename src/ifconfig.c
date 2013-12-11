@@ -352,14 +352,17 @@ ni_system_vlan_delete(ni_netdev_t *dev)
  * Create a macvlan interface
  */
 int
-ni_system_macvlan_create(ni_netconfig_t *nc, const char *ifname,
-			const ni_macvlan_t *cfg, ni_netdev_t **dev_ret)
+ni_system_macvlan_create(ni_netconfig_t *nc, const ni_netdev_t *cfg,
+						ni_netdev_t **dev_ret)
 {
-	ni_netdev_t *dev, *phys_dev;
+	ni_netdev_t *dev, *lowerdev;
+
+	if (!nc || !dev_ret || !cfg || !cfg->name
+	||  !cfg->macvlan || !cfg->link.lowerdev.name)
 
 	*dev_ret = NULL;
 
-	dev = ni_netdev_by_name(nc, ifname);
+	dev = ni_netdev_by_name(nc, cfg->name);
 	if (dev != NULL) {
 		/* This is not necessarily an error */
 		if (dev->link.type == NI_IFTYPE_MACVLAN) {
@@ -373,31 +376,31 @@ ni_system_macvlan_create(ni_netconfig_t *nc, const char *ifname,
 		return -NI_ERROR_DEVICE_EXISTS;
 	}
 
-	phys_dev = ni_netdev_by_name(nc, cfg->parent.name);
-	if (!phys_dev || !phys_dev->link.ifindex) {
-		ni_error("Cannot create macvlan %s: cannot find base interface %s",
-				ifname, cfg->parent.name);
+	lowerdev = ni_netdev_by_name(nc, cfg->link.lowerdev.name);
+	if (!lowerdev || !lowerdev->link.ifindex) {
+		ni_error("Cannot create macvlan %s: cannot find lower interface %s",
+				cfg->name, cfg->link.lowerdev.name);
 		return -NI_ERROR_DEVICE_NOT_KNOWN;
 	}
 
-	ni_debug_ifconfig("%s: creating macvlan interface", ifname);
-	if (__ni_rtnl_link_create_macvlan(ifname, cfg, phys_dev->link.ifindex)) {
-		ni_error("unable to create macvlan interface %s", ifname);
+	ni_debug_ifconfig("%s: creating macvlan interface", cfg->name);
+	if (__ni_rtnl_link_create_macvlan(cfg->name, cfg->macvlan, lowerdev->link.ifindex)) {
+		ni_error("unable to create macvlan interface %s", cfg->name);
 		return -1;
 	}
 
 	/* Refresh interface status */
 	__ni_system_refresh_interfaces(nc);
 
-	dev = ni_netdev_by_name(nc, ifname);
+	dev = ni_netdev_by_name(nc, cfg->name);
 	if (dev == NULL) {
-		ni_error("tried to create interface %s; still not found", ifname);
+		ni_error("tried to create interface %s; still not found", cfg->name);
 		return -1;
 	}
 
 	if (!ni_netdev_get_macvlan(dev)) {
 		ni_error("found new interface name %s but with type %s",
-			ifname, ni_linktype_type_to_name(dev->link.type));
+			cfg->name, ni_linktype_type_to_name(dev->link.type));
 		return -1;
 	}
 
