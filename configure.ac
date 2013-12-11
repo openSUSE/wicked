@@ -226,6 +226,11 @@ AC_CHECK_DECL([DCB_ATTR_IEEE_MAXRATE], [
 			 [Have DCB_ATTR_IEEE_MAXRATE in linux/dcbnl.h])
 	      ], [], [[#include <linux/dcbnl.h>]])
 
+AC_CHECK_DECL([IFLA_VLAN_PROTOCOL], [
+	       AC_DEFINE([HAVE_IFLA_VLAN_PROTOCOL], [],
+			 [Have MACVLAN_FLAG_NOPROMISC in linux/if_link.h])
+	      ], [], [[#include <linux/if_link.h>]])
+
 AC_CHECK_DECL([MACVLAN_FLAG_NOPROMISC], [
 	       AC_DEFINE([HAVE_MACVLAN_FLAG_NOPROMISC], [],
 			 [Have MACVLAN_FLAG_NOPROMISC in linux/if_link.h])

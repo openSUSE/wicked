@@ -36,6 +36,15 @@
 #  define  HAVE_RTA_MARK HAVE_LINUX_RTA_MARK
 #endif
 
+#if defined(HAVE_IFLA_VLAN_PROTOCOL)
+#  ifndef	ETH_P_8021Q
+#  define	ETH_P_8021Q	0x8100
+#  endif
+#  ifndef	ETH_P_8021AD
+#  define	ETH_P_8021AD	0x88A8
+#  endif
+#endif
+
 #include "netinfo_priv.h"
 #include "sysfs.h"
 #include "kernel.h"
@@ -964,7 +973,23 @@ __ni_discover_vlan(ni_netdev_t *dev, struct nlattr **tb, ni_netconfig_t *nc)
 		return -1;
 	}
 
+	vlan->protocol = NI_VLAN_PROTOCOL_8021Q;
+#ifdef HAVE_IFLA_VLAN_PROTOCOL
+	if (info_data[IFLA_VLAN_PROTOCOL]) {
+		uint16_t p = nla_get_u16(info_data[IFLA_VLAN_PROTOCOL]);
+		switch (ntohs(p)) {
+		case ETH_P_8021Q:
+			vlan->protocol = NI_VLAN_PROTOCOL_8021Q;
+			break;
+		case ETH_P_8021AD:
+			vlan->protocol = NI_VLAN_PROTOCOL_8021AD;
+			break;
+		}
+	}
+#endif
+
 	vlan->tag = nla_get_u16(info_data[IFLA_VLAN_ID]);
+
 	return 0;
 }
 

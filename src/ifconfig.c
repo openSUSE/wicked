@@ -47,6 +47,15 @@
 #  define  HAVE_RTA_MARK HAVE_LINUX_RTA_MARK
 #endif
 
+#if defined(HAVE_IFLA_VLAN_PROTOCOL)
+#  ifndef	ETH_P_8021Q
+#  define	ETH_P_8021Q	0x8100
+#  endif
+#  ifndef	ETH_P_8021AD
+#  define	ETH_P_8021AD	0x88A8
+#  endif
+#endif
+
 #if !defined(MACVLAN_FLAG_NOPROMISC)
 #  if defined(HAVE_MACVLAN_FLAG_NOPROMISC)
 #    include <linux/if_link.h>
@@ -1212,6 +1221,17 @@ __ni_rtnl_link_create_vlan(const char *ifname, const ni_vlan_t *vlan, unsigned i
 		return -1;
 
 	NLA_PUT_U16(msg, IFLA_VLAN_ID, vlan->tag);
+#ifdef HAVE_IFLA_VLAN_PROTOCOL
+	switch (vlan->protocol) {
+	case NI_VLAN_PROTOCOL_8021Q:
+		NLA_PUT_U16(msg, IFLA_VLAN_PROTOCOL, htons(ETH_P_8021Q));
+		break;
+
+	case NI_VLAN_PROTOCOL_8021AD:
+		NLA_PUT_U16(msg, IFLA_VLAN_PROTOCOL, htons(ETH_P_8021AD));
+		break;
+	}
+#endif
 	nla_nest_end(msg, data);
 	nla_nest_end(msg, linkinfo);
 

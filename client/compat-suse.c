@@ -1458,6 +1458,7 @@ try_vlan(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	ni_netdev_t *dev = compat->dev;
 	ni_vlan_t *vlan;
 	const char *etherdev = NULL;
+	const char *vlanprot = NULL;
 	const char *vlantag = NULL;
 	unsigned int tag = 0;
 	size_t len;
@@ -1512,6 +1513,16 @@ try_vlan(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		ni_warn("%s: VLAN tag 0 disables VLAN filter and is probably not what you want",
 			dev->name, tag);
 #endif
+	}
+
+	if ((vlanprot = ni_sysconfig_get_value(sc, "VLAN_PROTOCOL")) != NULL) {
+		unsigned int protocol;
+		if (!ni_vlan_name_to_protocol(vlanprot, &protocol)) {
+			ni_error("ifcfg-%s: Unsupported VLAN_PROTOCOL=\"%s\"",
+				dev->name, vlanprot);
+			return -1;
+		}
+		vlan->protocol = protocol;
 	}
 
 	ni_string_dup(&dev->link.lowerdev.name, etherdev);
