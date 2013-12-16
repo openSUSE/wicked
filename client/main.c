@@ -41,6 +41,7 @@ enum {
 	OPT_DEBUG,
 	OPT_LOG_LEVEL,
 	OPT_LOG_TARGET,
+	OPT_SYSTEMD,
 
 	OPT_DRYRUN,
 	OPT_ROOTDIR,
@@ -55,6 +56,7 @@ static struct option	options[] = {
 	{ "debug",		required_argument,	NULL,	OPT_DEBUG },
 	{ "log-level",		required_argument,	NULL,	OPT_LOG_LEVEL },
 	{ "log-target",		required_argument,	NULL,	OPT_LOG_TARGET },
+	{ "systemd", 		no_argument,		NULL,	OPT_SYSTEMD },
 
 	/* specific */
 	{ "dryrun",		no_argument,		NULL,	OPT_DRYRUN },
@@ -68,6 +70,7 @@ static const char *	program_name;
 static const char *	opt_log_target;
 int			opt_global_dryrun;
 char *			opt_global_rootdir;
+ni_bool_t		opt_systemd;
 
 static int		do_show(int, char **);
 static int		do_show_xml(int, char **);
@@ -86,7 +89,7 @@ int
 main(int argc, char **argv)
 {
 	char *cmd;
-	int c;
+	int c, status = NI_LSB_RC_USAGE;
 
 	mtrace();
 
@@ -94,6 +97,7 @@ main(int argc, char **argv)
 	while ((c = getopt_long(argc, argv, "+", options, NULL)) != EOF) {
 		switch (c) {
 		case OPT_HELP:
+			status = NI_LSB_RC_SUCCESS;
 		default:
 		usage:
 			fprintf(stderr,
@@ -114,6 +118,8 @@ main(int argc, char **argv)
 				"        Do not change the system in any way.\n"
 				"  --root-directory\n"
 				"        Search all config files below this directory.\n"
+				"  --systemd\n"
+				"      Enables behavior required by wicked.service under systemd\n"
 				"\n"
 				"Supported commands:\n"
 				"  ifup [options] ifname\n"
@@ -129,16 +135,19 @@ main(int argc, char **argv)
 				"  convert [subcommand]\n"
 				"  xpath [options] expr ...\n"
 				);
-			return (c == OPT_HELP ? 0 : 1);
+			goto done;
 
 		case OPT_VERSION:
 			printf("%s %s\n", program_name, PACKAGE_VERSION);
-			return 0;
+			status = NI_LSB_RC_SUCCESS;
+			goto done;
+			break;
 
 		case OPT_CONFIGFILE:
 			if (!ni_set_global_config_path(optarg)) {
 				fprintf(stderr, "Unable to set config file '%s': %m\n", optarg);
-				return 1;
+				status = NI_LSB_RC_ERROR;
+				goto checkup;
 			}
 			break;
 
@@ -146,11 +155,12 @@ main(int argc, char **argv)
 			if (!strcmp(optarg, "help")) {
 				printf("Supported debug facilities:\n");
 				ni_debug_help();
-				return 0;
+				status = NI_LSB_RC_SUCCESS;
+				goto done;
 			}
 			if (ni_enable_debug(optarg) < 0) {
 				fprintf(stderr, "Bad debug facility \"%s\"\n", optarg);
-				return 1;
+				goto checkup;
 			}
 			break;
 
@@ -161,7 +171,7 @@ main(int argc, char **argv)
 		case OPT_LOG_LEVEL:
 			if (!ni_log_level_set(optarg)) {
 				fprintf(stderr, "Bad log level \%s\"\n", optarg);
-				return 1;
+				goto checkup;
 			}
 			break;
 
@@ -171,6 +181,10 @@ main(int argc, char **argv)
 
 		case OPT_ROOTDIR:
 			opt_global_rootdir = optarg;
+			break;
+
+		case OPT_SYSTEMD:
+			opt_systemd = TRUE;
 			break;
 		}
 	}
@@ -184,16 +198,20 @@ main(int argc, char **argv)
 		if (!ni_log_destination(program_name, opt_log_target)) {
 			fprintf(stderr, "Bad log destination \%s\"\n",
 				opt_log_target);
-			return 1;
+			goto checkup;
 		}
-	} else if (getppid() != 1) {
-		ni_log_destination(program_name, "syslog:user:perror");
-	} else {
+	}
+	else if (opt_systemd || getppid() == 1) { /* syslog only */
 		ni_log_destination(program_name, "syslog:user");
 	}
+	else { /* syslog + stderr */
+		ni_log_destination(program_name, "syslog:user:perror");
+	}
 
-	if (ni_init("client") < 0)
-		return 1;
+	if (ni_init("client") < 0) {
+		status = NI_LSB_RC_ERROR;
+		goto done;
+	}
 
 	cmd = argv[optind];
 
@@ -201,43 +219,41 @@ main(int argc, char **argv)
 		goto usage;
 
 	if (!strcmp(cmd, "show"))
-		return do_show(argc - optind, argv + optind);
+		status = do_show(argc - optind, argv + optind);
+	else if (!strcmp(cmd, "show-xml"))
+		status = do_show_xml(argc - optind, argv + optind);
+	else if (!strcmp(cmd, "show-config"))
+		status = do_show_config(argc - optind, argv + optind, NULL);
+	else if (!strcmp(cmd, "ifup"))
+		status = do_ifup(argc - optind, argv + optind);
+	else if (!strcmp(cmd, "ifdown"))
+		status = do_ifdown(argc - optind, argv + optind);
+	else if (!strcmp(cmd, "ifcheck"))
+		status = do_ifcheck(argc - optind, argv + optind);
+	else if (!strcmp(cmd, "nanny"))
+		status = do_nanny(argc - optind, argv + optind);
+	else if (!strcmp(cmd, "xpath"))
+		status = do_xpath(argc - optind, argv + optind);
+	else if (!strcmp(cmd, "lease"))
+		status = do_lease(argc - optind, argv + optind);
+	else if (!strcmp(cmd, "check"))
+		status = do_check(argc - optind, argv + optind);
+	else if (!strcmp(cmd, "getnames"))
+		status = do_get_names(argc - optind, argv + optind);
+	else if (!strcmp(cmd, "convert"))
+		status = do_convert(argc - optind, argv + optind);
+	else {
+		fprintf(stderr, "Unsupported command %s\n", cmd);
+		goto usage;
+	}
 
-	if (!strcmp(cmd, "show-xml"))
-		return do_show_xml(argc - optind, argv + optind);
+checkup:
+	/* At this stage do not report errors in case of systemd execution */
+	if (opt_systemd)
+		status = NI_LSB_RC_SUCCESS;
 
-	if (!strcmp(cmd, "show-config"))
-		return do_show_config(argc - optind, argv + optind, NULL);
-
-	if (!strcmp(cmd, "ifup"))
-		return do_ifup(argc - optind, argv + optind);
-
-	if (!strcmp(cmd, "ifdown"))
-		return do_ifdown(argc - optind, argv + optind);
-
-	if (!strcmp(cmd, "ifcheck"))
-		return do_ifcheck(argc - optind, argv + optind);
-
-	if (!strcmp(cmd, "nanny"))
-		return do_nanny(argc - optind, argv + optind);
-
-	if (!strcmp(cmd, "xpath"))
-		return do_xpath(argc - optind, argv + optind);
-
-	if (!strcmp(cmd, "lease"))
-		return do_lease(argc - optind, argv + optind);
-
-	if (!strcmp(cmd, "check"))
-		return do_check(argc - optind, argv + optind);
-
-	if (!strcmp(cmd, "getnames"))
-		return do_get_names(argc - optind, argv + optind);
-
-	if (!strcmp(cmd, "convert"))
-		return do_convert(argc - optind, argv + optind);
-
-	fprintf(stderr, "Unsupported command %s\n", cmd);
-	goto usage;
+done:
+	return status;
 }
 
 /*
