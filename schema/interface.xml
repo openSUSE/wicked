@@ -124,6 +124,7 @@
  <txqlen type="uint32"/>
  <mtu type="uint32"/>
  <alias type="string"/>
+ <master type="string"/>
 
  <!-- General ipv4 and ipv6 specific settings -->
  <ipv4 type="af-info"/>

@@ -33,10 +33,10 @@
   <define name="configuration"  class="dict" extends="infiniband:configuration"
           description="Infiniband child interface configuration">
 
-    <parent type="string" description="Infiniband parent interface reference">
+      <device type="string" description="Infiniband parent / lower device reference">
       <meta:netif-reference shared="true"/>
       <!-- meta:require check="netif-child-state" op="newDevice" min-state="device-exists" / -->
-    </parent>
+    </device>
 
     <pkey type="uint16" description="Infiniband partition key"/>
 
@@ -49,7 +49,7 @@
   <method name="changeDevice">
     <arguments>
       <config type="infiniband-child:configuration">
-        <meta:mapping document-node="/infiniband-child" />
+        <meta:mapping document-node="/infiniband:child" />
       </config>
     </arguments>
   </method>
@@ -63,7 +63,7 @@
     <arguments>
       <name type="string"/>
       <config type="infiniband-child:configuration">
-        <meta:mapping document-node="/infiniband-child"/>
+        <meta:mapping document-node="/infiniband:child"/>
       </config>
     </arguments>
     <return>

@@ -71,11 +71,12 @@ __ni_objectmodel_tun_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusError
 	}
 
 	if ((rv = ni_system_tun_create(nc, ifname, &new_ifp)) < 0) {
-		if (rv != -NI_ERROR_DEVICE_EXISTS
-		 && (ifname != NULL && strcmp(ifname, new_ifp->name))) {
+		if (rv != -NI_ERROR_DEVICE_EXISTS || new_ifp == NULL
+		|| (ifname && new_ifp && !ni_string_eq(new_ifp->name, ifname))) {
 			ni_dbus_set_error_from_code(error, rv,
 					"unable to create TUN interface %s",
 					ifname);
+			new_ifp = NULL;
 			goto out;
 		}
 		ni_debug_dbus("TUN interface exists (and name matches)");
@@ -86,7 +87,6 @@ __ni_objectmodel_tun_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusError
 				DBUS_ERROR_FAILED,
 				"Unable to create TUN interface: new interface is of type %s",
 				ni_linktype_type_to_name(new_ifp->link.type));
-		ni_netdev_put(new_ifp);
 		new_ifp = NULL;
 	}
 

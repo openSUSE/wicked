@@ -36,6 +36,15 @@
 #  define  HAVE_RTA_MARK HAVE_LINUX_RTA_MARK
 #endif
 
+#if defined(HAVE_IFLA_VLAN_PROTOCOL)
+#  ifndef	ETH_P_8021Q
+#  define	ETH_P_8021Q	0x8100
+#  endif
+#  ifndef	ETH_P_8021AD
+#  define	ETH_P_8021AD	0x88A8
+#  endif
+#endif
+
 #include "netinfo_priv.h"
 #include "sysfs.h"
 #include "kernel.h"
@@ -51,7 +60,7 @@ static int		__ni_netdev_process_newroute(ni_netdev_t *, struct nlmsghdr *,
 static int		__ni_discover_bridge(ni_netdev_t *);
 static int		__ni_discover_bond(ni_netdev_t *);
 static int		__ni_discover_addrconf(ni_netdev_t *);
-static int		__ni_discover_infiniband(ni_netdev_t *);
+static int		__ni_discover_infiniband(ni_netdev_t *, ni_netconfig_t *);
 static int		__ni_discover_vlan(ni_netdev_t *, struct nlattr **, ni_netconfig_t *);
 static int		__ni_discover_macvlan(ni_netdev_t *, struct nlattr **, ni_netconfig_t *);
 static ni_route_t *	__ni_netdev_add_autoconf_prefix(ni_netdev_t *, const ni_sockaddr_t *, unsigned int, const struct prefix_cacheinfo *);
@@ -305,11 +314,19 @@ __ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list)
 	}
 
 	for (dev = ni_netconfig_devlist(nc); dev; dev = dev->next) {
-		if (dev->link.vlan && ni_netdev_ref_bind_ifindex(&dev->link.vlan->parent, nc) < 0) {
-			ni_error("VLAN interface %s references unknown base interface (ifindex %u)",
-				dev->name, dev->link.vlan->parent.index);
+		if (dev->link.masterdev.index && !dev->link.masterdev.name) {
+			if (ni_netdev_ref_bind_ifname(&dev->link.lowerdev, nc) < 0) {
+				ni_warn("Interface %s references unknown master device (ifindex %u)",
+					dev->name, dev->link.masterdev.index);
+			}
 			/* Ignore error and proceed */
-			ni_string_dup(&dev->link.vlan->parent.name, "unknown");
+		}
+		if (dev->link.lowerdev.index && !dev->link.lowerdev.name) {
+			if (ni_netdev_ref_bind_ifname(&dev->link.lowerdev, nc) < 0) {
+				ni_warn("Interface %s references unknown lower device (ifindex %u)",
+					dev->name, dev->link.lowerdev.index);
+			}
+			/* Ignore error and proceed */
 		}
 	}
 
@@ -635,8 +652,27 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 		link->metric = nla_get_u32(tb[IFLA_COST]);
 	if (tb[IFLA_QDISC])
 		ni_string_dup(&link->qdisc, nla_get_string(tb[IFLA_QDISC]));
-	if (tb[IFLA_MASTER])
-		link->master = nla_get_u32(tb[IFLA_MASTER]);
+
+	if (tb[IFLA_LINK]) {
+		link->lowerdev.index = nla_get_u32(tb[IFLA_LINK]);
+		if (!nc || ni_netdev_ref_bind_ifname(&link->lowerdev, nc) < 0) {
+			/* Drop old ifname, we will try it again later */
+			ni_string_free(&link->lowerdev.name);
+		}
+	} else if (link->lowerdev.index) {
+		ni_netdev_ref_destroy(&link->lowerdev);
+	}
+
+	if (tb[IFLA_MASTER]) {
+		link->masterdev.index = nla_get_u32(tb[IFLA_MASTER]);
+		if (!nc || ni_netdev_ref_bind_ifname(&link->masterdev, nc) < 0) {
+			/* Drop old ifname, we will try it again later */
+			ni_string_free(&link->masterdev.name);
+		}
+	} else if (link->masterdev.index) {
+		ni_netdev_ref_destroy(&link->masterdev);
+	}
+
 	if (tb[IFLA_IFALIAS])
 		ni_string_dup(&link->alias, nla_get_string(tb[IFLA_IFALIAS]));
 	if (tb[IFLA_OPERSTATE]) {
@@ -888,7 +924,7 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 
 	case NI_IFTYPE_INFINIBAND:
 	case NI_IFTYPE_INFINIBAND_CHILD:
-		__ni_discover_infiniband(dev);
+		__ni_discover_infiniband(dev, nc);
 		break;
 
 	case NI_IFTYPE_BRIDGE:
@@ -944,26 +980,28 @@ __ni_discover_vlan(ni_netdev_t *dev, struct nlattr **tb, ni_netconfig_t *nc)
 		return -1;
 	}
 
-	if (tb[IFLA_LINK]) {
-		vlan->parent.index = nla_get_u32(tb[IFLA_LINK]);
-		if (nc && ni_netdev_ref_bind_ifname(&vlan->parent, nc) < 0) {
-			ni_debug_ifconfig("%s: cannot bind vlan bind interface %u",
-						dev->name, vlan->parent.index);
-			ni_string_free(&vlan->parent.name);
-			/* Ignore error and proceed */
-		}
-	} else {
-		ni_error("%s: cannot find vlan interface base link reference",
-			dev->name);
-		ni_netdev_ref_destroy(&vlan->parent);
-	}
-
 	if (nla_parse_nested(info_data, IFLA_VLAN_MAX, link_info[IFLA_INFO_DATA], NULL) < 0) {
 		ni_error("%s: unable to parse vlan IFLA_INFO_DATA", dev->name);
 		return -1;
 	}
 
+	vlan->protocol = NI_VLAN_PROTOCOL_8021Q;
+#ifdef HAVE_IFLA_VLAN_PROTOCOL
+	if (info_data[IFLA_VLAN_PROTOCOL]) {
+		uint16_t p = nla_get_u16(info_data[IFLA_VLAN_PROTOCOL]);
+		switch (ntohs(p)) {
+		case ETH_P_8021Q:
+			vlan->protocol = NI_VLAN_PROTOCOL_8021Q;
+			break;
+		case ETH_P_8021AD:
+			vlan->protocol = NI_VLAN_PROTOCOL_8021AD;
+			break;
+		}
+	}
+#endif
+
 	vlan->tag = nla_get_u16(info_data[IFLA_VLAN_ID]);
+
 	return 0;
 }
 
@@ -983,20 +1021,6 @@ __ni_discover_macvlan(ni_netdev_t *dev, struct nlattr **tb, ni_netconfig_t *nc)
 	if (nla_parse_nested(link_info, IFLA_INFO_MAX, tb[IFLA_LINKINFO], NULL) < 0) {
 		ni_error("%s: unable to parse IFLA_LINKINFO", dev->name);
 		return -1;
-	}
-
-	if (tb[IFLA_LINK]) {
-		macvlan->parent.index = nla_get_u32(tb[IFLA_LINK]);
-		if (nc && ni_netdev_ref_bind_ifname(&macvlan->parent, nc) < 0) {
-			ni_debug_ifconfig("%s: cannot bind macvlan bind interface %u",
-						dev->name, macvlan->parent.index);
-			ni_string_free(&macvlan->parent.name);
-			/* Ignore error and proceed */
-		}
-	} else {
-		ni_error("%s: cannot find macvlan interface base link reference",
-			dev->name);
-		ni_netdev_ref_destroy(&macvlan->parent);
 	}
 
 	if (nla_parse_nested(info_data, IFLA_MACVLAN_MAX, link_info[IFLA_INFO_DATA], NULL) < 0) {
@@ -1739,7 +1763,7 @@ __ni_discover_bond(ni_netdev_t *dev)
  * Discover infiniband configuration
  */
 static int
-__ni_discover_infiniband(ni_netdev_t *dev)
+__ni_discover_infiniband(ni_netdev_t *dev, ni_netconfig_t *nc)
 {
 	ni_infiniband_t *ib;
 	char *value = NULL;
@@ -1781,9 +1805,10 @@ __ni_discover_infiniband(ni_netdev_t *dev)
 		ni_error("%s: unable to retrieve infiniband child's parent interface name",
 			dev->name);
 		ret = -1;
-	} else if (!ni_string_eq(ib->parent.name, value)) {
-		ni_string_free(&ib->parent.name);
-		ib->parent.name = value;
+	} else if (!ni_string_eq(dev->link.lowerdev.name, value)) {
+		ni_string_free(&dev->link.lowerdev.name);
+		dev->link.lowerdev.name = value;
+		ni_netdev_ref_bind_ifindex(&dev->link.lowerdev, nc);
 	} else {
 		ni_string_free(&value);
 	}

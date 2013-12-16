@@ -88,25 +88,33 @@ __ni_objectmodel_macvlan_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusE
 	const char *err;
 	int rv;
 
-	if (!ifname) {
-		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-			"Unable to create macvlan interface - name argument missed");
-		goto out;
-	} else if(!ni_string_eq(cfg_ifp->name, ifname)) {
-		ni_string_dup(&cfg_ifp->name, ifname);
-	}
-
 	macvlan = ni_netdev_get_macvlan(cfg_ifp);
 	if ((err = ni_macvlan_validate(macvlan))) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "%s", err);
 		goto out;
 	}
 
-	if ((rv = ni_system_macvlan_create(nc, cfg_ifp->name, macvlan, &new_ifp)) < 0) {
-		if (rv != -NI_ERROR_DEVICE_EXISTS || new_ifp == NULL) {
+	if (ni_string_empty(ifname)) {
+		if (ni_string_empty(cfg_ifp->name) &&
+		    (ifname = ni_netdev_make_name(nc, "macvlan"))) {
+			ni_string_dup(&cfg_ifp->name, ifname);
+		} else {
+			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"Unable to create macvlan interface - name argument missed");
+			goto out;
+		}
+		ifname = NULL;
+	} else if(!ni_string_eq(cfg_ifp->name, ifname)) {
+		ni_string_dup(&cfg_ifp->name, ifname);
+	}
+
+	if ((rv = ni_system_macvlan_create(nc, cfg_ifp, &new_ifp)) < 0) {
+		if (rv != -NI_ERROR_DEVICE_EXISTS || new_ifp == NULL
+		|| (ifname && new_ifp && !ni_string_eq(new_ifp->name, ifname))) {
 			dbus_set_error(error, DBUS_ERROR_FAILED,
 					"Unable to create macvlan interface: %s",
 					ni_strerror(rv));
+			new_ifp = NULL;
 			goto out;
 		}
 	}
@@ -115,7 +123,6 @@ __ni_objectmodel_macvlan_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusE
 		dbus_set_error(error, DBUS_ERROR_FAILED,
 				"Unable to create macvlan interface: new interface is of type %s",
 				ni_linktype_type_to_name(new_ifp->link.type));
-		ni_netdev_put(new_ifp);
 		new_ifp = NULL;
 	}
 
@@ -156,9 +163,16 @@ ni_objectmodel_macvlan_delete(ni_dbus_object_t *object, const ni_dbus_method_t *
  * Helper function to obtain macvlan config from dbus object
  */
 static void *
-ni_objectmodel_get_macvlan(const ni_dbus_object_t *object, ni_bool_t write_access, DBusError *error)
+ni_objectmodel_get_netdev(const ni_dbus_object_t *object, ni_bool_t write_access, DBusError *error)
+{
+	return ni_objectmodel_unwrap_netif(object, error);
+}
+
+static ni_macvlan_t *
+ni_objectmodel_macvlan_handle(const ni_dbus_object_t *object, ni_bool_t write_access, DBusError *error)
 {
 	ni_netdev_t *dev;
+	ni_macvlan_t *macvlan;
 
 	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return NULL;
@@ -166,20 +180,80 @@ ni_objectmodel_get_macvlan(const ni_dbus_object_t *object, ni_bool_t write_acces
 	if (!write_access)
 		return dev->macvlan;
 
-	return ni_netdev_get_macvlan(dev);
+	if (!(macvlan = ni_netdev_get_macvlan(dev))) {
+		dbus_set_error(error, DBUS_ERROR_FAILED,
+				"Error getting macvlan handle for interface");
+		return NULL;
+	}
+	return macvlan;
 }
 
-#define MACVLAN_STRING_PROPERTY(dbus_type, type, rw) \
-	NI_DBUS_GENERIC_STRING_PROPERTY(macvlan, dbus_type, type, rw)
-#define MACVLAN_UINT32_PROPERTY(dbus_type, type, rw) \
-	NI_DBUS_GENERIC_UINT_PROPERTY(macvlan, dbus_type, type, rw)
-#define MACVLAN_UINT16_PROPERTY(dbus_type, type, rw) \
-	NI_DBUS_GENERIC_UINT16_PROPERTY(macvlan, dbus_type, type, rw)
+static dbus_bool_t
+__ni_objectmodel_macvlan_get_mode(const ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				ni_dbus_variant_t *result, DBusError *error)
+{
+	ni_macvlan_t *macvlan;
+
+	if (!(macvlan = ni_objectmodel_macvlan_handle(object, FALSE, error)))
+		return FALSE;
+
+	ni_dbus_variant_set_uint32(result, macvlan->mode);
+	return TRUE;
+}
+
+static dbus_bool_t
+__ni_objectmodel_macvlan_get_flags(const ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				ni_dbus_variant_t *result, DBusError *error)
+{
+	ni_macvlan_t *macvlan;
+
+	if (!(macvlan = ni_objectmodel_macvlan_handle(object, FALSE, error)))
+		return FALSE;
+
+	ni_dbus_variant_set_uint16(result, macvlan->flags);
+	return TRUE;
+}
+
+static dbus_bool_t
+__ni_objectmodel_macvlan_set_mode(ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *result, DBusError *error)
+{
+	ni_macvlan_t *macvlan;
+
+	if (!(macvlan = ni_objectmodel_macvlan_handle(object, TRUE, error)))
+		return FALSE;
+
+	return ni_dbus_variant_get_uint32(result, &macvlan->mode);
+}
+
+static dbus_bool_t
+__ni_objectmodel_macvlan_set_flags(ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *result, DBusError *error)
+{
+	ni_macvlan_t *macvlan;
+
+	if (!(macvlan = ni_objectmodel_macvlan_handle(object, TRUE, error)))
+		return FALSE;
+
+	return ni_dbus_variant_get_uint16(result, &macvlan->flags);
+}
+
+
+#define	MACVLAN_PROPERTY_SIGNATURE(signature, dbus_name, rw) \
+		__NI_DBUS_PROPERTY(signature, dbus_name, __ni_objectmodel_macvlan, rw)
+#define MACVLAN_UINT32_PROPERTY(dbus_name, rw) \
+		MACVLAN_PROPERTY_SIGNATURE(DBUS_TYPE_UINT32_AS_STRING, dbus_name, rw)
+#define MACVLAN_UINT16_PROPERTY(dbus_name, rw) \
+		MACVLAN_PROPERTY_SIGNATURE(DBUS_TYPE_UINT16_AS_STRING, dbus_name, rw)
 
 const ni_dbus_property_t	ni_objectmodel_macvlan_property_table[] = {
-	MACVLAN_STRING_PROPERTY(device, parent.name, RO),
-	MACVLAN_UINT32_PROPERTY(mode, mode, RO),
-	MACVLAN_UINT16_PROPERTY(flags, flags, RO),
+	NI_DBUS_GENERIC_STRING_PROPERTY(netdev,  device, link.lowerdev.name, RO),
+	MACVLAN_UINT32_PROPERTY(mode, RO),
+	MACVLAN_UINT16_PROPERTY(flags, RO),
 	{ NULL }
 };
 

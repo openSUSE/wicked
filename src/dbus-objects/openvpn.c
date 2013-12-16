@@ -81,11 +81,12 @@ __ni_objectmodel_openvpn_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusE
 	}
 
 	if ((rv = ni_system_tun_create(nc, ifname, &new_dev)) < 0) {
-		if (rv != -NI_ERROR_DEVICE_EXISTS
-		 && (ifname != NULL && strcmp(ifname, new_dev->name))) {
+		if (rv != -NI_ERROR_DEVICE_EXISTS || new_dev == NULL
+		|| (ifname && new_dev && !ni_string_eq(new_dev->name, ifname))) {
 			ni_dbus_set_error_from_code(error, rv,
 					"unable to create OpenVPN interface %s",
 					ifname);
+			new_dev = NULL;
 			goto out;
 		}
 		ni_debug_dbus("OpenVPN interface exists (and name matches)");
@@ -96,10 +97,8 @@ __ni_objectmodel_openvpn_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusE
 				DBUS_ERROR_FAILED,
 				"Unable to create OpenVPN interface: new interface is of type %s",
 				ni_linktype_type_to_name(new_dev->link.type));
-		ni_netdev_put(new_dev);
 		new_dev = NULL;
-	}
-
+	} else
 	if (ni_netdev_get_openvpn(new_dev) == NULL) {
 		ni_openvpn_t *vpn = ni_openvpn_new(NULL);
 

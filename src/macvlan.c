@@ -63,7 +63,6 @@ void
 ni_macvlan_free(ni_macvlan_t *macvlan)
 {
 	if (macvlan) {
-		ni_netdev_ref_destroy(&macvlan->parent);
 		free(macvlan);
 	}
 }
@@ -73,9 +72,6 @@ ni_macvlan_validate(const ni_macvlan_t *macvlan)
 {
 	if (!macvlan)
 		return "Uninitialized macvlan configuration";
-
-	if (ni_string_empty(macvlan->parent.name))
-		return "Invalid macvlan parent name";
 
 	switch (macvlan->mode) {
 	default:
