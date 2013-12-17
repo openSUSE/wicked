@@ -113,7 +113,7 @@ main(int argc, char **argv)
 				"  --no-modem-manager\n"
 				"        Skip start of modem-manager.\n"
 				"  --systemd\n"
-				"        Enables behavior required by wicked.service under systemd\n"
+				"        Enables behavior required by systemd service\n"
 				, program_name);
 			return (c == OPT_HELP ? NI_LSB_RC_SUCCESS : NI_LSB_RC_USAGE);
 

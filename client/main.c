@@ -118,7 +118,7 @@ main(int argc, char **argv)
 				"  --root-directory\n"
 				"        Search all config files below this directory.\n"
 				"  --systemd\n"
-				"      Enables behavior required by wicked.service under systemd\n"
+				"        Enables behavior required by systemd service\n"
 				"\n"
 				"Supported commands:\n"
 				"  ifup [options] ifname\n"
