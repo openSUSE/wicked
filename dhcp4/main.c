@@ -131,7 +131,7 @@ main(int argc, char **argv)
 				"  --norecover\n"
 				"        Disable automatic recovery of leases.\n"
 				"  --systemd\n"
-				"        Enables behavior required by wicked.service under systemd\n"
+				"        Enables behavior required by systemd service\n"
 				"\n"
 				"  --test [test-options] <ifname>\n"
 				"    test-options:\n"

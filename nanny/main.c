@@ -107,7 +107,7 @@ main(int argc, char **argv)
 				"  --log-target target\n"
 				"        Set log destination target to <target>.\n"
 				"  --systemd\n"
-				"        Enables behavior required by wicked.service under systemd\n"
+				"        Enables behavior required by systemd service\n"
 				, program_name);
 			return (c == OPT_HELP ? NI_LSB_RC_SUCCESS : NI_LSB_RC_USAGE);
 
