@@ -33,6 +33,7 @@ enum {
 	OPT_DEBUG,
 	OPT_LOG_LEVEL,
 	OPT_LOG_TARGET,
+	OPT_SYSTEMD,
 
 	OPT_FOREGROUND,
 	OPT_NORECOVER,
@@ -46,6 +47,7 @@ static struct option	options[] = {
 	{ "debug",		required_argument,	NULL,	OPT_DEBUG },
 	{ "log-level",		required_argument,	NULL,	OPT_LOG_LEVEL },
 	{ "log-target",		required_argument,	NULL,	OPT_LOG_TARGET },
+	{ "systemd",		no_argument,		NULL,	OPT_SYSTEMD },
 
 	/* daemon */
 	{ "foreground",		no_argument,		NULL,	OPT_FOREGROUND },
@@ -58,8 +60,9 @@ static struct option	options[] = {
 
 static const char *	program_name;
 static const char *	opt_log_target;
-static int		opt_foreground;
-static int		opt_no_recover_leases;
+static ni_bool_t	opt_systemd;
+static ni_bool_t	opt_foreground;
+static ni_bool_t	opt_no_recover_leases;
 static ni_dbus_server_t *autoip4_dbus_server;
 
 static void		autoip4_supplicant(void);
@@ -101,17 +104,19 @@ main(int argc, char **argv)
 				"        Do not background the service.\n"
 				"  --norecover\n"
 				"        Disable automatic recovery of leases.\n"
+				"  --systemd\n"
+				"        Enables behavior required by wicked.service under systemd\n"
 				, program_name);
-			return (c == OPT_HELP ? 0 : 1);
+			return (c == OPT_HELP ? NI_LSB_RC_SUCCESS : NI_LSB_RC_USAGE);
 
 		case OPT_VERSION:
 			printf("%s %s\n", program_name, PACKAGE_VERSION);
-			return 0;
+			return NI_LSB_RC_SUCCESS;
 
 		case OPT_CONFIGFILE:
 			if (!ni_set_global_config_path(optarg)) {
 				fprintf(stderr, "Unable to set config file '%s': %m\n", optarg);
-				return 1;
+				return NI_LSB_RC_ERROR;
 			}
 			break;
 
@@ -119,18 +124,18 @@ main(int argc, char **argv)
 			if (!strcmp(optarg, "help")) {
 				printf("Supported debug facilities:\n");
 				ni_debug_help();
-				return 0;
+				return NI_LSB_RC_SUCCESS;
 			}
 			if (ni_enable_debug(optarg) < 0) {
 				fprintf(stderr, "Bad debug facility \"%s\"\n", optarg);
-				return 1;
+				goto usage;
 			}
 			break;
 
 		case OPT_LOG_LEVEL:
 			if (!ni_log_level_set(optarg)) {
 				fprintf(stderr, "Bad log level \%s\"\n", optarg);
-				return 1;
+				goto usage;
 			}
 			break;
 
@@ -139,11 +144,15 @@ main(int argc, char **argv)
 			break;
 
 		case OPT_FOREGROUND:
-			opt_foreground = 1;
+			opt_foreground = TRUE;
 			break;
 
 		case OPT_NORECOVER:
-			opt_no_recover_leases = 1;
+			opt_no_recover_leases = TRUE;
+			break;
+
+		case OPT_SYSTEMD:
+			opt_systemd = TRUE;
 			break;
 		}
 	}
@@ -155,19 +164,21 @@ main(int argc, char **argv)
 		if (!ni_log_destination(program_name, opt_log_target)) {
 			fprintf(stderr, "Bad log destination \%s\"\n",
 					opt_log_target);
-			return 1;
+			goto usage;
 		}
-	} else if (opt_foreground && getppid() != 1) {
-		ni_log_destination(program_name, "syslog::perror");
-	} else {
+	}
+	else if (opt_systemd || getppid() == 1 || !opt_foreground) { /* syslog only */
 		ni_log_destination(program_name, "syslog");
+	}
+	else { /* syslog + stderr */
+		ni_log_destination(program_name, "syslog::perror");
 	}
 
 	if (ni_init("auto4") < 0)
-		return 1;
+		return NI_LSB_RC_ERROR;
 
 	autoip4_supplicant();
-	return 0;
+	return NI_LSB_RC_SUCCESS;
 }
 
 /*

@@ -41,6 +41,7 @@ enum {
 	OPT_DEBUG,
 	OPT_LOG_LEVEL,
 	OPT_LOG_TARGET,
+	OPT_SYSTEMD,
 
 	OPT_DRYRUN,
 	OPT_ROOTDIR,
@@ -55,6 +56,7 @@ static struct option	options[] = {
 	{ "debug",		required_argument,	NULL,	OPT_DEBUG },
 	{ "log-level",		required_argument,	NULL,	OPT_LOG_LEVEL },
 	{ "log-target",		required_argument,	NULL,	OPT_LOG_TARGET },
+	{ "systemd", 		no_argument,		NULL,	OPT_SYSTEMD },
 
 	/* specific */
 	{ "dryrun",		no_argument,		NULL,	OPT_DRYRUN },
@@ -68,6 +70,7 @@ static const char *	program_name;
 static const char *	opt_log_target;
 int			opt_global_dryrun;
 char *			opt_global_rootdir;
+ni_bool_t		opt_systemd;
 
 static int		do_show(int, char **);
 static int		do_show_xml(int, char **);
@@ -114,6 +117,8 @@ main(int argc, char **argv)
 				"        Do not change the system in any way.\n"
 				"  --root-directory\n"
 				"        Search all config files below this directory.\n"
+				"  --systemd\n"
+				"      Enables behavior required by wicked.service under systemd\n"
 				"\n"
 				"Supported commands:\n"
 				"  ifup [options] ifname\n"
@@ -129,16 +134,16 @@ main(int argc, char **argv)
 				"  convert [subcommand]\n"
 				"  xpath [options] expr ...\n"
 				);
-			return (c == OPT_HELP ? 0 : 1);
+			return (c == OPT_HELP ? NI_WICKED_RC_SUCCESS : NI_WICKED_RC_USAGE);
 
 		case OPT_VERSION:
 			printf("%s %s\n", program_name, PACKAGE_VERSION);
-			return 0;
+			return NI_WICKED_RC_SUCCESS;
 
 		case OPT_CONFIGFILE:
 			if (!ni_set_global_config_path(optarg)) {
 				fprintf(stderr, "Unable to set config file '%s': %m\n", optarg);
-				return 1;
+				return NI_WICKED_RC_ERROR;
 			}
 			break;
 
@@ -146,11 +151,11 @@ main(int argc, char **argv)
 			if (!strcmp(optarg, "help")) {
 				printf("Supported debug facilities:\n");
 				ni_debug_help();
-				return 0;
+				return NI_WICKED_RC_SUCCESS;
 			}
 			if (ni_enable_debug(optarg) < 0) {
 				fprintf(stderr, "Bad debug facility \"%s\"\n", optarg);
-				return 1;
+				goto usage;
 			}
 			break;
 
@@ -161,7 +166,7 @@ main(int argc, char **argv)
 		case OPT_LOG_LEVEL:
 			if (!ni_log_level_set(optarg)) {
 				fprintf(stderr, "Bad log level \%s\"\n", optarg);
-				return 1;
+				goto usage;
 			}
 			break;
 
@@ -171,6 +176,10 @@ main(int argc, char **argv)
 
 		case OPT_ROOTDIR:
 			opt_global_rootdir = optarg;
+			break;
+
+		case OPT_SYSTEMD:
+			opt_systemd = TRUE;
 			break;
 		}
 	}
@@ -184,16 +193,18 @@ main(int argc, char **argv)
 		if (!ni_log_destination(program_name, opt_log_target)) {
 			fprintf(stderr, "Bad log destination \%s\"\n",
 				opt_log_target);
-			return 1;
+			goto usage;
 		}
-	} else if (getppid() != 1) {
-		ni_log_destination(program_name, "syslog:user:perror");
-	} else {
+	}
+	else if (opt_systemd || getppid() == 1) { /* syslog only */
 		ni_log_destination(program_name, "syslog:user");
+	}
+	else { /* syslog + stderr */
+		ni_log_destination(program_name, "syslog:user:perror");
 	}
 
 	if (ni_init("client") < 0)
-		return 1;
+		return NI_WICKED_RC_ERROR;
 
 	cmd = argv[optind];
 

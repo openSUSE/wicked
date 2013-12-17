@@ -14,6 +14,7 @@
 
 extern int			opt_global_dryrun;
 extern char *			opt_global_rootdir;
+extern ni_bool_t		opt_systemd;
 
 extern int			do_ifup(int argc, char **argv);
 extern int			do_ifdown(int argc, char **argv);
@@ -64,15 +65,6 @@ typedef struct ni_compat_netdev_array {
 typedef struct ni_compat_ifconfig {
 	ni_compat_netdev_array_t netdev_array;
 } ni_compat_ifconfig_t;
-
-enum return_codes {
-	NI_RETURN_CODE_OK,
-	NI_RETURN_CODE_NO_INTERFACE,
-	NI_RETURN_CODE_NO_DEVICE,
-	NI_RETURN_CODE_CHANGED_CONFIG,
-	NI_RETURN_CODE_NOT_IN_STATE,
-	NI_RETURN_CODE_PERSISTENT_ON,
-};
 
 extern ni_compat_netdev_t *	ni_compat_netdev_new(const char *);
 extern void			ni_compat_netdev_free(ni_compat_netdev_t *);

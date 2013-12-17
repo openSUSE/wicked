@@ -81,7 +81,8 @@ fill_state_string(ni_stringbuf_t *sb, const ni_uint_range_t *range)
 int
 do_ifup(int argc, char **argv)
 {
-	enum  { OPT_HELP, OPT_IFCONFIG, OPT_IFPOLICY, OPT_CONTROL_MODE, OPT_STAGE, OPT_TIMEOUT, OPT_SKIP_ACTIVE, OPT_SKIP_ORIGIN, OPT_FORCE, OPT_PERSISTENT };
+	enum  { OPT_HELP, OPT_IFCONFIG, OPT_IFPOLICY, OPT_CONTROL_MODE, OPT_STAGE,
+		OPT_TIMEOUT, OPT_SKIP_ACTIVE, OPT_SKIP_ORIGIN, OPT_FORCE, OPT_PERSISTENT };
 	static struct option ifup_options[] = {
 		{ "help",	no_argument,       NULL,	OPT_HELP },
 		{ "ifconfig",	required_argument, NULL,	OPT_IFCONFIG },
@@ -106,7 +107,7 @@ do_ifup(int argc, char **argv)
 	ni_bool_t opt_persistent = FALSE;
 	unsigned int nmarked, i;
 	ni_fsm_t *fsm;
-	int c, status = 1;
+	int c, status = NI_WICKED_RC_USAGE;
 
 	fsm = ni_ifup_down_init();
 
@@ -195,8 +196,11 @@ usage:
 		goto usage;
 	}
 
-	if (!ni_fsm_create_client(fsm))
+	if (!ni_fsm_create_client(fsm)) {
+		/* Severe error we always explicitly return */
+		status = NI_WICKED_RC_ERROR;
 		goto cleanup;
+	}
 
 	ni_fsm_refresh_state(fsm);
 
@@ -208,20 +212,27 @@ usage:
 
 		if (opt_ifconfig.count == 0) {
 			ni_error("ifup: unable to load interface config source list");
+			status = NI_WICKED_RC_NOT_CONFIGURED;
 			goto cleanup;
 		}
 	}
 
 	for (i = 0; i < opt_ifconfig.count; ++i) {
-		if (!ni_ifconfig_load(fsm, opt_global_rootdir, opt_ifconfig.data[i], opt_force))
+		if (!ni_ifconfig_load(fsm, opt_global_rootdir, opt_ifconfig.data[i], opt_force)) {
+			status = NI_WICKED_RC_NOT_CONFIGURED;
 			goto cleanup;
+		}
 	}
 
-	if (opt_ifpolicy && !ni_ifconfig_load(fsm, opt_global_rootdir, opt_ifpolicy, opt_force))
+	if (opt_ifpolicy && !ni_ifconfig_load(fsm, opt_global_rootdir, opt_ifpolicy, opt_force)) {
+		status = NI_WICKED_RC_NOT_CONFIGURED;
 		goto cleanup;
+	}
 
 	if (ni_fsm_build_hierarchy(fsm) < 0) {
 		ni_error("ifup: unable to build device hierarchy");
+		/* Severe error we always explicitly return */
+		status = NI_WICKED_RC_ERROR;
 		goto cleanup;
 	}
 
@@ -252,13 +263,21 @@ usage:
 	}
 	if (nmarked == 0) {
 		printf("ifup: no matching interfaces\n");
-		status = 0;
+		status = NI_WICKED_RC_SUCCESS;
 	} else {
 		if (ni_fsm_schedule(fsm) != 0)
 			ni_fsm_mainloop(fsm);
 
-		/* return an error code if at least one of the devices failed */
-		status = ni_fsm_fail_count(fsm) != 0;
+		/* No error if all interfaces were good */
+		status = ni_fsm_fail_count(fsm) ?
+			NI_WICKED_RC_ERROR : NI_WICKED_RC_SUCCESS;
+
+		/* Do not report any transient errors to systemd (e.g. dhcp
+		 * or whatever not ready in time) -- returning an error may
+		 * cause to stop the network completely.
+		 */
+		if (opt_systemd)
+			status = NI_LSB_RC_SUCCESS;
 	}
 
 cleanup:
@@ -281,7 +300,7 @@ do_ifdown(int argc, char **argv)
 	unsigned int nmarked, max_state = NI_FSM_STATE_DEVICE_DOWN;
 	ni_stringbuf_t sb = NI_STRINGBUF_INIT_DYNAMIC;
 	ni_fsm_t *fsm;
-	int c, status = 1;
+	int c, status = NI_WICKED_RC_USAGE;
 
 	fsm = ni_ifup_down_init();
 
@@ -348,7 +367,8 @@ usage:
 	target_range.max = max_state;
 
 	if (!ni_fsm_create_client(fsm))
-		return status;
+		/* Severe error we always explicitly return */
+		return NI_WICKED_RC_ERROR;
 
 	ni_fsm_refresh_state(fsm);
 
@@ -359,13 +379,21 @@ usage:
 	}
 	if (nmarked == 0) {
 		printf("ifdown: no matching interfaces\n");
-		status = 0;
+		status = NI_WICKED_RC_SUCCESS;
 	} else {
 		if (ni_fsm_schedule(fsm) != 0)
 			ni_fsm_mainloop(fsm);
 
-		/* return an error code if at least one of the devices failed */
-		status = ni_fsm_fail_count(fsm) != 0;
+		/* No error if all interfaces were good */
+		status = ni_fsm_fail_count(fsm) ?
+			NI_WICKED_RC_ERROR : NI_WICKED_RC_SUCCESS;
+
+		/* Do not report any transient errors to systemd (e.g. dhcp
+		 * or whatever not ready in time) -- returning an error may
+		 * cause to stop the network completely.
+		 */
+		if (opt_systemd)
+			status = NI_LSB_RC_SUCCESS;
 	}
 
 	return status;
@@ -394,7 +422,7 @@ do_ifcheck(int argc, char **argv)
 	ni_stringbuf_t sb = NI_STRINGBUF_INIT_DYNAMIC;
 	unsigned int i;
 	ni_fsm_t *fsm;
-	int c, status = NI_RETURN_CODE_OK;
+	int c, status = NI_WICKED_RC_USAGE;
 
 	fsm = ni_ifup_down_init();
 	fsm->readonly = TRUE;
@@ -463,15 +491,33 @@ usage:
 		goto usage;
 	}
 
-	for (i = 0; i < opt_ifconfig.count; ++i) {
-		if (!ni_ifconfig_load(fsm, opt_global_rootdir, opt_ifconfig.data[i], TRUE))
+	if (opt_ifconfig.count == 0) {
+		const ni_string_array_t *sources = ni_config_sources("ifconfig");
+
+		if (sources && sources->count)
+			ni_string_array_copy(&opt_ifconfig, sources);
+
+		if (opt_ifconfig.count == 0) {
+			ni_error("ifup: unable to load interface config source list");
+			status = NI_WICKED_RC_NOT_CONFIGURED;
 			goto cleanup;
+		}
 	}
 
-	if (!ni_fsm_create_client(fsm))
+	for (i = 0; i < opt_ifconfig.count; ++i) {
+		if (!ni_ifconfig_load(fsm, opt_global_rootdir, opt_ifconfig.data[i], TRUE)) {
+			status = NI_WICKED_RC_NOT_CONFIGURED;
+			goto cleanup;
+		}
+	}
+
+	if (!ni_fsm_create_client(fsm)) {
+		status = NI_WICKED_RC_ERROR;
 		goto cleanup;
+	}
 
 	ni_fsm_refresh_state(fsm);
+	status = NI_WICKED_ST_OK;
 
 	/* nmarked = 0; */
 	while (optind < argc) {
@@ -482,7 +528,7 @@ usage:
 		ifmatch.name = ifname;
 		if (ni_fsm_get_matching_workers(fsm, &ifmatch, &marked) == 0) {
 			ni_error("%s: no matching interfaces", ifname);
-			status = NI_RETURN_CODE_NO_INTERFACE;
+			status = NI_WICKED_RC_NO_DEVICE;
 			continue;
 		}
 
@@ -496,47 +542,53 @@ usage:
 					ni_error("%s: device from %s does not exist",
 						strcmp(ifname, "all") ? ifname : w->name, w->config.origin);
 				}
-				status = NI_RETURN_CODE_NO_DEVICE;
+				status = NI_WICKED_RC_NO_DEVICE;
 				continue;
 			}
 
+			if (!opt_quiet)
+				printf("wicked: %s: exists\n", w->name);
+
 			client_info = dev->client_info;
 			if (opt_check_changed) {
-				if (!client_info || !ni_uuid_equal(&client_info->config_uuid, &w->config.uuid)) {
+				if (client_info && ni_uuid_equal(&client_info->config_uuid, &w->config.uuid)) {
+					if (!opt_quiet)
+						printf("wicked: %s: configuration unchanged\n", w->name);
+				}
+				else {
 					if (!opt_quiet)
 						ni_error("%s: device configuration changed", w->name);
 					ni_debug_wicked("%s: config file uuid is %s", w->name, ni_uuid_print(&w->config.uuid));
 					ni_debug_wicked("%s: system dev. uuid is %s", w->name,
 							client_info? ni_uuid_print(&client_info->config_uuid) : "NOT SET");
-					status = NI_RETURN_CODE_CHANGED_CONFIG;
-					continue;
+					status = NI_WICKED_ST_CHANGED_CONFIG;
 				}
 			}
 
 			if (opt_state) {
-				if (!client_info || !ni_string_eq(client_info->state, opt_state)) {
+				char *state = (client_info ? client_info->state : "none");
+				if (ni_string_eq_nocase(opt_state, "none") || ni_string_eq(opt_state, state)) {
 					if (!opt_quiet)
-						ni_error("%s: device has state %s, expected %s", w->name,
-								client_info? client_info->state : "NONE",
-								opt_state);
-					status = NI_RETURN_CODE_NOT_IN_STATE;
-					continue;
+						printf("wicked: %s: device has state %s\n", w->name, state);
+				}
+				else {
+					if (!opt_quiet)
+						ni_error("%s: device has state %s, expected %s", w->name, state, opt_state);
+					status = NI_WICKED_ST_NOT_IN_STATE;
 				}
 			}
 
 			if (opt_persistent) {
-				if (w->client_state.persistent) {
+				if (!w->client_state.persistent) {
+					if (!opt_quiet)
+						printf("wicked: %s: persistent mode is not set\n", w->name);
+				}
+				else {
 					if (!opt_quiet)
 						ni_error("%s: device configured in persistent mode", w->name);
-					status = NI_RETURN_CODE_PERSISTENT_ON;
-					continue;
+					status = NI_WICKED_ST_PERSISTENT_ON;
 				}
 			}
-
-			printf("%s: exists%s%s%s\n", w->name,
-					opt_check_changed? ", configuration unchanged" : "",
-					opt_state? ", interface state as expected" : "",
-					opt_persistent? ", persistent mode is not set" : "");
 		}
 	}
 
