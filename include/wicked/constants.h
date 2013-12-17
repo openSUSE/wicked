@@ -190,4 +190,56 @@ typedef enum {
 	__NI_ERROR_MAX
 } ni_error_t;
 
+typedef enum {
+	/*
+	 * Init Script Action return codes defined in
+	 * Linux Standard Base Core Specification 4.1
+	 */
+	NI_LSB_RC_SUCCESS		= 0,	/*!< success				*/
+	NI_LSB_RC_ERROR			= 1,	/*!< generic or unspecified error	*/
+	NI_LSB_RC_USAGE			= 2,	/*!< invalid or excess argument(s)	*/
+	NI_LSB_RC_NOT_IMPLEMENTED	= 3,	/*!< unimplemented feature ("reload")	*/
+	NI_LSB_RC_NOT_ALLOWED		= 4,	/*!< user had insufficient privilege	*/
+	NI_LSB_RC_NOT_INSTALLED		= 5,	/*!< program is not installed		*/
+	NI_LSB_RC_NOT_CONFIGURED	= 6,	/*!< program is not configured		*/
+	NI_LSB_RC_NOT_RUNNING		= 7,	/*!< program is not running		*/
+
+	/*
+	 *   8-99       reserved for future LSB use
+	 * 100-149      reserved for distribution use
+	 * 150-199      reserved for application use
+	 * 200-254      reserved
+	 */
+
+	NI_WICKED_RC_SUCCESS		= NI_LSB_RC_SUCCESS,
+	NI_WICKED_RC_ERROR		= NI_LSB_RC_ERROR,
+	NI_WICKED_RC_USAGE		= NI_LSB_RC_USAGE,
+	NI_WICKED_RC_NOT_IMPLEMENTED	= NI_LSB_RC_NOT_IMPLEMENTED,
+	NI_WICKED_RC_NOT_ALLOWED	= NI_LSB_RC_NOT_ALLOWED,
+	NI_WICKED_RC_NOT_CONFIGURED	= NI_LSB_RC_NOT_CONFIGURED,
+	NI_WICKED_RC_NOT_RUNNING	= NI_LSB_RC_NOT_RUNNING,
+	NI_WICKED_RC_NO_DEVICE		= NI_LSB_RC_NOT_RUNNING,
+	NI_WICKED_RC_IN_PROGRESS	= 12,	/* this code is set to 12 due to SUSE's ifup compatibility reasons */
+ } ni_return_code_t;
+
+typedef enum {
+	NI_LSB_ST_OK,				/*!< program is running or service is OK		*/
+	NI_LSB_ST_DEAD_PID_FILE,		/*!< program is dead and /var/run pid file exists	*/
+	NI_LSB_ST_DEAD_LOCK_FILE,		/*!< program is dead and /var/lock lock file exists	*/
+	NI_LSB_ST_NOT_RUNNING,			/*!< program is not running				*/
+	NI_LSB_ST_UNKNOWN,			/*!< program or service status is unknown		*/
+
+	/*
+	 *   5-99       reserved for future LSB use
+	 * 100-149      reserved for distribution use
+	 * 150-199      reserved for application use
+	 * 200-254      reserved
+	 */
+
+	NI_WICKED_ST_OK				= NI_LSB_ST_OK,
+	NI_WICKED_ST_CHANGED_CONFIG		= 150,	/* configuration of an interface has been changed	*/
+	NI_WICKED_ST_NOT_IN_STATE		= 151,	/* interface is in different state than expected	*/
+	NI_WICKED_ST_PERSISTENT_ON		= 152,	/* interface is in persistent mode			*/
+} ni_status_code_t;
+
 #endif /* __WICKED_CONSTANTS_H__ */
