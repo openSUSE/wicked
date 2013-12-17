@@ -13,6 +13,6 @@ ExecStart=@wicked_sbindir@/wickedd-nanny $WICKED_DEBUG_PARAM --foreground
 StandardError=null
 
 [Install]
-#WantedBy=wickedd.service
+WantedBy=wickedd.service
 Alias=dbus-org.opensuse.Network.Nanny.service
 
