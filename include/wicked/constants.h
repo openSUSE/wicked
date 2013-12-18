@@ -237,6 +237,16 @@ typedef enum {
 	 */
 
 	NI_WICKED_ST_OK				= NI_LSB_ST_OK,
+	NI_WICKED_ST_IN_PROGRESS		= NI_WICKED_RC_IN_PROGRESS,
+	NI_WICKED_ST_INACTIVE			= 5,	/* interface is not up -
+							 * this code is set to 5 due to SUSE's ifup compatibility reasons
+							 */
+	NI_WICKED_ST_NOT_CONFIGURED		= 5,	/* interface is not configured -
+							 * this code is set to 5 due to SUSE's ifup compatibility reasons
+							 */
+	NI_WICKED_ST_BUSY			= 10,	/* interface is busy, there may be connection ongoing -
+							 * this code is set to 10 due to SUSE's ifup compatibility reasons
+							 */
 	NI_WICKED_ST_CHANGED_CONFIG		= 150,	/* configuration of an interface has been changed	*/
 	NI_WICKED_ST_NOT_IN_STATE		= 151,	/* interface is in different state than expected	*/
 	NI_WICKED_ST_PERSISTENT_ON		= 152,	/* interface is in persistent mode			*/
