@@ -420,7 +420,7 @@ do_ifcheck(int argc, char **argv)
 	ni_bool_t opt_persistent = FALSE;
 	const char *opt_state = NULL;
 	ni_stringbuf_t sb = NI_STRINGBUF_INIT_DYNAMIC;
-	unsigned int i;
+	unsigned int i, opt_state_val;
 	ni_fsm_t *fsm;
 	int c, status = NI_WICKED_RC_USAGE;
 
@@ -441,7 +441,7 @@ do_ifcheck(int argc, char **argv)
 			break;
 
 		case OPT_STATE:
-			if (!ni_ifworker_state_from_name(optarg, NULL))
+			if (!ni_ifworker_state_from_name(optarg, &opt_state_val))
 				ni_warn("unknown device state \"%s\"", optarg);
 			opt_state = optarg;
 			break;
@@ -566,8 +566,12 @@ usage:
 			}
 
 			if (opt_state) {
-				char *state = (client_info ? client_info->state : "none");
-				if (ni_string_eq_nocase(opt_state, "none") || ni_string_eq(opt_state, state)) {
+				unsigned int state_val;
+				char *state = client_info ? client_info->state : "none";
+				if (!ni_ifworker_state_from_name(state, &state_val))
+					state_val = NI_FSM_STATE_NONE;
+
+				if (NI_FSM_STATE_NONE == opt_state_val || state_val >= opt_state_val) {
 					if (!opt_quiet)
 						printf("wicked: %s: device has state %s\n", w->name, state);
 				}
