@@ -124,7 +124,7 @@ main(int argc, char **argv)
 				"  ifup [options] ifname\n"
 				"  ifdown [options] ifname\n"
 				"  ifcheck\n"
-				"  show [ifname}]\n"
+				"  ifstatus/show [ifname}]\n"
 				"  show-xml [--raw] [--modem] [ifname]\n"
 				"  show-config [--raw] [source]\n"
 				"  nanny [subcommand]\n"
@@ -211,7 +211,7 @@ main(int argc, char **argv)
 	if (!strcmp(cmd, "help"))
 		goto usage;
 
-	if (!strcmp(cmd, "show"))
+	if (!strcmp(cmd, "show") || !strcmp(cmd, "ifstatus"))
 		return do_show(argc - optind, argv + optind);
 
 	if (!strcmp(cmd, "show-xml"))
