@@ -166,14 +166,14 @@ reload)
 
 status)
 	echo -n "Checking for service network "
-	# Dummy:
-	$FAKE $WICKED_CLIENT_BIN show-xml &>/dev/null
+	$FAKE $WICKED_CLIENT_BIN ifstatus all
 	rc_status -v
 	;;
 
 probe)
-	#test /etc/wicked/config.xml -nt /var/run/wicked.pid &&
-	echo restart
+	echo -n "Probing network configuration "
+	$FAKE $WICKED_CLIENT_BIN ifprobe all
+	rc_status -v
 	;;
 
 *)
