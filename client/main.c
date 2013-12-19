@@ -124,7 +124,7 @@ main(int argc, char **argv)
 				"  ifup [options] ifname\n"
 				"  ifdown [options] ifname\n"
 				"  ifcheck\n"
-				"  show [ifname}]\n"
+				"  ifstatus/show [ifname}]\n"
 				"  show-xml [--raw] [--modem] [ifname]\n"
 				"  show-config [--raw] [source]\n"
 				"  nanny [subcommand]\n"
@@ -211,7 +211,7 @@ main(int argc, char **argv)
 	if (!strcmp(cmd, "help"))
 		goto usage;
 
-	if (!strcmp(cmd, "show"))
+	if (!strcmp(cmd, "show") || !strcmp(cmd, "ifstatus"))
 		return do_show(argc - optind, argv + optind);
 
 	if (!strcmp(cmd, "show-xml"))
@@ -292,9 +292,9 @@ get_netif_object(const char *ifname)
 			if (ni_string_eq(object->path, ifname))
 				return object;
 		} else {
-			ni_netdev_t *ifp = ni_objectmodel_unwrap_netif(object, NULL);
+			ni_netdev_t *dev = ni_objectmodel_unwrap_netif(object, NULL);
 
-			if (ifp && ifp->name && !strcmp(ifp->name, ifname))
+			if (dev && dev->name && !strcmp(dev->name, ifname))
 				return object;
 		}
 	}
@@ -732,27 +732,35 @@ do_show(int argc, char **argv)
 	ni_dbus_object_t *root_object;
 	ni_dbus_object_t *list_object;
 	ni_dbus_object_t *object;
-	enum  { OPT_HELP, };
+	enum  { OPT_HELP, OPT_QUIET, };
 	static struct option options[] = {
-		{ "help", no_argument, NULL, OPT_HELP },
+		{ "help",	no_argument, NULL, OPT_HELP },
+		{ "quiet",	no_argument, NULL, OPT_QUIET },
 		{ NULL }
 	};
 	const char *ifname = NULL;
-	int c, rv = 1;
+	ni_bool_t opt_quiet = FALSE;
+	int c, rv = NI_WICKED_RC_NO_DEVICE;
 
 	optind = 1;
 	while ((c = getopt_long(argc, argv, "", options, NULL)) != EOF) {
 		switch (c) {
-		default:
+		case OPT_QUIET:
+			opt_quiet = TRUE;
+			break;
+
 		case OPT_HELP:
+		default:
 		usage:
 			fprintf(stderr,
 				"wicked [options] show [ifname]\n"
 				"\nSupported options:\n"
 				"  --help\n"
 				"      Show this help text.\n"
+				"  --quiet\n"
+				"      Do not print out errors, but just signal the result through exit status\n"
 				);
-			return (c == OPT_HELP ? 0 : 1);
+			return (c == OPT_HELP ? NI_WICKED_RC_SUCCESS : NI_WICKED_RC_USAGE);
 		}
 	}
 
@@ -766,69 +774,132 @@ do_show(int argc, char **argv)
 		goto usage;
 
 	if (!(root_object = ni_call_create_client()))
-		return 1;
+		return NI_WICKED_RC_ERROR;
 
 	if (!(list_object = get_netif_list_object()))
-		return 1;
+		return NI_WICKED_RC_ERROR;
 
 	for (object = list_object->children; object; object = object->next) {
-		ni_netdev_t *ifp = object->handle;
+		ni_netdev_t *dev = object->handle;
+		ni_device_clientinfo_t *ci = dev->client_info;
+		ni_client_state_t *cs = dev->client_state;
 		ni_address_t *ap;
 		ni_route_table_t *tab;
 		ni_route_t *rp;
-		unsigned int i;
+		unsigned int i, state_val;
 
-		if (ifname && !ni_string_eq(ifname, ifp->name))
+		if (ifname && !ni_string_eq(ifname, dev->name))
 			continue;
 
-		if (rv == 0)
+		rv = NI_WICKED_ST_OK;
+
+		if (!opt_quiet) {
+			printf("%d: %-16s %s\n", dev->link.ifindex, dev->name,
+				(dev->link.ifflags & NI_IFF_NETWORK_UP) ? "up" :
+				 (dev->link.ifflags & NI_IFF_LINK_UP) ? "link-up" :
+				  (dev->link.ifflags & NI_IFF_DEVICE_UP) ? "device-up" : "down");
+		}
+
+		if (!opt_quiet) {
+			printf("    %-8s %s", "state:",
+				(ci && !ni_string_empty(ci->state)) ? ci->state : "none");
+		}
+
+		if (cs && cs->persistent) {
+			if (!opt_quiet)
+				printf(", persistent");
+			rv = NI_WICKED_ST_PERSISTENT_ON;
+		}
+		if (!opt_quiet)
 			printf("\n");
-		rv = 0;
 
-		printf("%d: %-16s %s\n", ifp->link.ifindex, ifp->name,
-			(ifp->link.ifflags & NI_IFF_NETWORK_UP)? "up" :
-			 (ifp->link.ifflags & NI_IFF_LINK_UP)? "link-up" :
-			  (ifp->link.ifflags & NI_IFF_DEVICE_UP)? "device-up" : "down");
+		if (!ci || !ni_ifworker_state_from_name(ci->state, &state_val))
+			state_val = NI_FSM_STATE_NONE;
 
-		printf("    %-8s %s", "link:", ni_linktype_type_to_name(ifp->link.type));
-		if (ifp->link.hwaddr.len) {
-			printf(" addr %s", ni_link_address_print(&ifp->link.hwaddr));
+		/* FIXME: there should be a query towards supplicants
+		 * checking whether we are in the middle of e.g. dhcp
+		 * transaction or not.
+		 * Currently we only check by FSM states.
+		 */
+		if ((!(dev->link.ifflags & NI_IFF_NETWORK_UP) &&
+		    !(dev->link.ifflags & NI_IFF_LINK_UP)) ||
+		    state_val <= NI_FSM_STATE_FIREWALL_UP) {
+			rv = NI_WICKED_ST_INACTIVE;
 		}
-		if (ifp->link.mtu > 0) {
-			printf(" mtu %d", ifp->link.mtu);
-		}
-		if (!ni_string_empty(ifp->link.alias)) {
-			printf(" alias %s", ifp->link.alias);
-		}
-		printf("\n");
 
-		for (ap = ifp->addrs; ap; ap = ap->next) {
-			printf("    %-8s %s %s/%u", "addr:",
-				ni_addrfamily_type_to_name(ap->family),
-				ni_sockaddr_print(&ap->local_addr), ap->prefixlen);
-			if (!ni_string_empty(ap->label) && !ni_string_eq(ap->label, ifp->name)) {
-				printf(" label %s", ap->label);
+		if (state_val >= NI_FSM_STATE_LINK_UP) {
+			ni_addrconf_lease_t *lease;
+
+			for (lease = dev->leases; lease; lease = lease->next) {
+				if (NI_ADDRCONF_STATE_RELEASING == lease->state ||
+				    NI_ADDRCONF_STATE_REQUESTING == lease->state) {
+					rv = NI_WICKED_ST_IN_PROGRESS;
+					break;
+				}
+			}
+		}
+
+		if (!opt_quiet) {
+			printf("    %-8s %s", "link:",
+				ni_linktype_type_to_name(dev->link.type));
+			if (dev->link.hwaddr.len) {
+				printf(" addr %s", ni_link_address_print(&dev->link.hwaddr));
+			}
+			if (dev->link.mtu > 0) {
+				printf(" mtu %d", dev->link.mtu);
+			}
+			if (!ni_string_empty(dev->link.alias)) {
+				printf(" alias %s", dev->link.alias);
 			}
 			printf("\n");
+
+			for (ap = dev->addrs; ap; ap = ap->next) {
+				printf("    %-8s %s %s/%u", "addr:",
+					ni_addrfamily_type_to_name(ap->family),
+					ni_sockaddr_print(&ap->local_addr), ap->prefixlen);
+				if (!ni_string_empty(ap->label) &&
+				    !ni_string_eq(ap->label, dev->name)) {
+					printf(" label %s", ap->label);
+				}
+				printf("\n");
+			}
+
+			for (tab = dev->routes; tab; tab = tab->next) {
+				for (i = 0; i < tab->routes.count; ++i) {
+					ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
+					rp = tab->routes.data[i];
+
+					ni_route_print(&buf, rp);
+					printf("    %-8s %s\n", "route:", buf.string);
+					ni_stringbuf_destroy(&buf);
+				}
+			}
 		}
 
-		for (tab = ifp->routes; tab; tab = tab->next) {
-			for (i = 0; i < tab->routes.count; ++i) {
-				ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
-				rp = tab->routes.data[i];
+		if (!opt_quiet) {
+			printf("    %-8s %s\n", "config:",
+				(ci && !ni_string_empty(ci->config_origin)) ?
+					ci->config_origin : "none");
+		}
 
-				ni_route_print(&buf, rp);
-				printf("    %-8s %s\n", "route:", buf.string);
-				ni_stringbuf_destroy(&buf);
-			}
+		if (!ci || ni_string_empty(ci->config_origin))
+			rv = NI_WICKED_ST_NOT_CONFIGURED;
+
+		if (!ifname && object->next && !opt_quiet)
+			printf("\n");
+	}
+
+	if (NI_WICKED_RC_NO_DEVICE == rv) {
+		/* No devices for ifstatus all is not an error */
+		if (!ifname)
+			rv = NI_WICKED_RC_SUCCESS;
+		else {
+			if (!opt_quiet)
+				ni_error("%s: unknown network interface", ifname);
 		}
 	}
 
-	if (ifname && rv != 0) {
-		ni_error("%s: unknown network interface", ifname);
-		return rv;
-	}
-	return 0;
+	return rv;
 }
 
 /*

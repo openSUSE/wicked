@@ -18,6 +18,7 @@
 # this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Authors: Marius Tomaschewski <mt@suse.de>
+#          Pawel Wieczorkiewicz <pwieczorkiewicz@suse.de>
 #
 ###
 
@@ -32,21 +33,20 @@ fi
 #
 R_SUCCESS=0		# interface has been set up
 R_ERROR=1		# any unspecified error
-R_INTERNAL=$R_ERROR	# internal error, e.g. no config or missing scripts
 R_USAGE=2		# wrong usage
-R_NOTIMPL=3		# feature not implemented (yet)
-R_INACTIVE=5		# the interface is not up and it should not
-R_NODEV=7		# the given interface does not exist
 
 #
 # Helper functions
 #
 usage ()
 {
-	echo "Usage: if{up,down,status} [<config>] <interface> [-o <options>]"
+	echo "Usage: if{up,down,status,probe} [<config>] <interface> [-o <options>]"
 	echo ""
-	echo "Options are:"
+	echo "Common options are:"
 	echo "    debug    : be verbose"
+	echo ""
+	echo "Options for if{status,probe} are:"
+	echo "    quiet    : Do not print out errors, but just signal the result through exit status"
 	echo ""
 	echo "Unknown options are simply ignored, so be careful."
 	echo ""
@@ -130,10 +130,12 @@ case $1 in
 esac
 OPTIONS=$@
 opt_debug=""
+opt_quiet=""
 while [ $# -gt 0 ]; do
 	case $1 in
 	debug)		DEBUG="yes" ; opt_debug="most"		;;
 	debug=*)	DEBUG="yes" ; opt_debug="${1#debug=}"	;;
+	quiet)		opt_quiet="--quiet"			;;
 	*)		debug "unknown option \"$1\""		;;
 	esac
 	shift
@@ -144,52 +146,27 @@ case $SCRIPTNAME in
 	ifup)
 		$wicked_client \
 			${opt_debug:+--debug $opt_debug} \
-			ifup	 "$INTERFACE"
+			ifup "$INTERFACE"
 	;;
 	ifdown)
 		$wicked_client \
 			${opt_debug:+--debug $opt_debug} \
-			ifdown	 "$INTERFACE"
+			ifdown "$INTERFACE"
 	;;
 	ifstatus)
-		#
-		# FIXME: todo...
-		#
-		#$wicked_client \
-		#	${opt_debug:+--debug $opt_debug} \
-		#	ifstatus "$INTERFACE"
-		#
-
-		# Dummy report of the link status...
-		if test ! -d "/sys/class/net/$INTERFACE/" ; then
-			mesg "Interface '$INTERFACE' is not available"
-			exit $R_NODEV
-		fi
-		c=`cat /sys/class/net/${INTERFACE}/carrier 2>/dev/null`
-		d=`cat /sys/class/net/${INTERFACE}/dormant 2>/dev/null`
-		o=`cat /sys/class/net/${INTERFACE}/operstate 2>/dev/null`
-		debug "link ready ${INTERFACE}: carrier=$c, dormant=$d, operstate=$o"
-		if test "$INTERFACE" != "lo" -a "$c" != "1" ; then
-			echo "no carrier"
-			exit $R_INACTIVE
-		fi
-		if test "$INTERFACE" != "lo" -a "$d" != "0" ; then
-			echo "dormant"
-			echo $R_INACTIVE
-		fi
-		if test "$o" != "up" -a "$o" != "unknown" ; then
-			echo "$o"
-			exit $R_INACTIVE
-		fi
-		# when this would be that easy...
-		echo "up"
-		exit $R_SUCCESS
+		$wicked_client \
+			${opt_debug:+--debug $opt_debug} \
+			ifstatus \
+			  ${opt_quiet} \
+			  "$INTERFACE"
 	;;
 	ifprobe)
-		# TODO:
-		# probe reports if the config is newer or differs
-		# from the current setup state of the interface
-		exit $R_NOTIMPL
+		$wicked_client \
+			${opt_debug:+--debug $opt_debug} \
+			ifcheck \
+			  --changed \
+			  ${opt_quiet} \
+			  "$INTERFACE"
 	;;
 esac
 

@@ -288,10 +288,12 @@ cleanup:
 int
 do_ifdown(int argc, char **argv)
 {
-	enum  { OPT_HELP, OPT_FORCE, OPT_TIMEOUT };
+	enum  { OPT_HELP, OPT_FORCE, OPT_DELETE, OPT_NO_DELETE, OPT_TIMEOUT };
 	static struct option ifdown_options[] = {
 		{ "help",	no_argument, NULL,		OPT_HELP },
 		{ "force",	required_argument, NULL,	OPT_FORCE },
+		{ "delete",	no_argument, NULL,	OPT_DELETE },
+		{ "no-delete",	no_argument, NULL,	OPT_NO_DELETE },
 		{ "timeout",	required_argument, NULL,	OPT_TIMEOUT },
 		{ NULL }
 	};
@@ -325,6 +327,22 @@ do_ifdown(int argc, char **argv)
 			ifmatch.require_config = FALSE;
 			break;
 
+		case OPT_DELETE:
+			max_state = NI_FSM_STATE_DEVICE_DOWN;
+			/* Allow ifdown on persistent, unconfigured interfaces */
+			ifmatch.require_configured = FALSE;
+			ifmatch.allow_persistent = TRUE;
+			ifmatch.require_config = FALSE;
+			break;
+
+		case OPT_NO_DELETE:
+			max_state = NI_FSM_STATE_DEVICE_EXISTS;
+			/* Allow ifdown only on non-persistent interfaces previously configured by ifup */
+			ifmatch.require_configured = TRUE;
+			ifmatch.allow_persistent = FALSE;
+			ifmatch.require_config = FALSE;
+			break;
+
 		case OPT_TIMEOUT:
 			if (!strcmp(optarg, "infinite")) {
 				fsm->worker_timeout = NI_IFWORKER_INFINITE_TIMEOUT;
@@ -349,6 +367,10 @@ usage:
 				"  --force <state>\n"
 				"      Force putting interface into the <state> state. Despite of persistent mode being set. Possible states:\n"
 				"  %s\n"
+				"  --delete\n"
+				"      Delete device. Despite of persistent mode being set\n"
+				"  --no-delete\n"
+				"      Do not attempt to delete a device, neither physical nor virtual\n"
 				"  --timeout <nsec>\n"
 				"      Timeout after <nsec> seconds\n",
 				sb.string
