@@ -34,6 +34,9 @@ fi
 R_SUCCESS=0		# interface has been set up
 R_ERROR=1		# any unspecified error
 R_USAGE=2		# wrong usage
+R_NOTALLOWED=4		# insufficient privilege
+R_NOTRUNNING=7		# the interface is not up but it should be up
+R_NOT_UP2DATE=13	# returned from ifprobe if configuration has changed
 
 #
 # Helper functions
@@ -146,19 +149,22 @@ case $SCRIPTNAME in
 	ifup)
 		$wicked_client \
 			${opt_debug:+--debug $opt_debug} \
-			ifup "$INTERFACE"
+			ifup "$INTERFACE" \
+		; rc=$?
 	;;
 	ifdown)
 		$wicked_client \
 			${opt_debug:+--debug $opt_debug} \
-			ifdown "$INTERFACE"
+			ifdown "$INTERFACE" \
+		; rc=$?
 	;;
 	ifstatus)
 		$wicked_client \
 			${opt_debug:+--debug $opt_debug} \
 			ifstatus \
 			  ${opt_quiet} \
-			  "$INTERFACE"
+			  "$INTERFACE" \
+		; rc=$?
 	;;
 	ifprobe)
 		$wicked_client \
@@ -166,7 +172,23 @@ case $SCRIPTNAME in
 			ifcheck \
 			  --changed \
 			  ${opt_quiet} \
-			  "$INTERFACE"
+			  "$INTERFACE" \
+		; rc=$?
 	;;
 esac
 
+# Compatibility return code mapping
+case $rc in
+	150) # NI_WICKED_ST_CHANGED_CONFIG
+		exit $R_NOT_UP2DATE
+	;;
+	151) # NI_WICKED_ST_NOT_IN_STATE
+		exit $R_NOTRUNNING
+	;;
+	152) # NI_WICKED_ST_PERSISTENT_ON
+		exit $R_NOTALLOWED
+	;;
+	*)
+		exit $rc
+	;;
+esac

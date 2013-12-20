@@ -161,8 +161,7 @@ do_ifup(int argc, char **argv)
 		case OPT_HELP:
 usage:
 			fprintf(stderr,
-				"wicked [options] ifup [ifup-options] all\n"
-				"wicked [options] ifup [ifup-options] <ifname> ...\n"
+				"wicked [options] ifup [ifup-options] <ifname ...>|all\n"
 				"\nSupported ifup-options:\n"
 				"  --help\n"
 				"      Show this help text.\n"
@@ -359,8 +358,7 @@ do_ifdown(int argc, char **argv)
 usage:
 			fill_state_string(&sb, &target_range);
 			fprintf(stderr,
-				"wicked [options] ifdown [ifdown-options] all\n"
-				"wicked [options] ifdown [ifdown-options] <ifname> [options ...]\n"
+				"wicked [options] ifdown [ifdown-options] <ifname ...>|all\n"
 				"\nSupported ifdown-options:\n"
 				"  --help\n"
 				"      Show this help text.\n"
@@ -485,8 +483,7 @@ do_ifcheck(int argc, char **argv)
 usage:
 			fill_state_string(&sb, NULL);
 			fprintf(stderr,
-				"wicked [options] ifcheck [ifcheck-options] all\n"
-				"wicked [options] ifcheck [ifcheck-options] <ifname> ...\n"
+				"wicked [options] ifcheck [ifcheck-options] <ifname ...>|all\n"
 				"\nSupported ifcheck-options:\n"
 				"  --help\n"
 				"      Show this help text.\n"

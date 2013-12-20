@@ -155,13 +155,14 @@ make %{?_smp_mflags}
 
 %install
 make install DESTDIR=${RPM_BUILD_ROOT}
-# install /sbin/{ifup,ifown,ifstatus} links
+# install /sbin/{ifup,ifown,ifstatus,ifprobe} links
 %if "%_sbindir" != "/sbin"
 %__mkdir_p -m 0755 ${RPM_BUILD_ROOT}/sbin
 %__ln_s %_sbindir/ifup	${RPM_BUILD_ROOT}/sbin/ifup
 %endif
 %__ln_s %_sbindir/ifup	${RPM_BUILD_ROOT}/sbin/ifdown
 %__ln_s %_sbindir/ifup	${RPM_BUILD_ROOT}/sbin/ifstatus
+%__ln_s %_sbindir/ifup  ${RPM_BUILD_ROOT}/sbin/ifprobe
 # remove libwicked.a and la
 %__rm -f ${RPM_BUILD_ROOT}%_libdir/libwicked*.*a
 # create ghost directory
@@ -281,6 +282,7 @@ fi
 %endif
 /sbin/ifdown
 /sbin/ifstatus
+/sbin/ifprobe
 
 %else
 
@@ -296,6 +298,7 @@ fi
 %endif
 /sbin/ifdown
 /sbin/ifstatus
+/sbin/ifprobe
 
 %endif
 

@@ -121,11 +121,11 @@ main(int argc, char **argv)
 				"        Enables behavior required by systemd service\n"
 				"\n"
 				"Supported commands:\n"
-				"  ifup [options] ifname\n"
-				"  ifdown [options] ifname\n"
-				"  ifcheck\n"
-				"  ifstatus/show [ifname}]\n"
-				"  show-xml [--raw] [--modem] [ifname]\n"
+				"  ifup [options] <ifname ...>|all\n"
+				"  ifdown [options] <ifname ...>|all\n"
+				"  ifcheck [options] <ifname ...>|all\n"
+				"  ifstatus|show <ifname|all>\n"
+				"  show-xml [--raw] [--modem] <ifname|all>\n"
 				"  show-config [--raw] [source]\n"
 				"  nanny [subcommand]\n"
 				"  lease [subcommand]\n"
@@ -515,7 +515,7 @@ do_show_xml(int argc, char **argv)
 		case OPT_HELP:
 		usage:
 			fprintf(stderr,
-				"wicked [options] show-xml [ifname]\n"
+				"wicked [options] show-xml <ifname|all>\n"
 				"\nSupported options:\n"
 				"  --help\n"
 				"      Show this help text.\n"
@@ -753,7 +753,7 @@ do_show(int argc, char **argv)
 		default:
 		usage:
 			fprintf(stderr,
-				"wicked [options] show [ifname]\n"
+				"wicked [options] show <ifname|all>\n"
 				"\nSupported options:\n"
 				"  --help\n"
 				"      Show this help text.\n"
