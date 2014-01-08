@@ -1,0 +1,2 @@
+.\" ifstatus to ifup manual page reference
+.so man8/ifup.8

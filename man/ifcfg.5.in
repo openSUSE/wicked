@@ -1,0 +1,247 @@
+.\" Process this file with
+.\" groff -man -Tascii foo.1
+.\"
+.TH IFCFG 5 "August 2004" "wicked" "Network configuration"
+.\" ...
+
+.SH NAME
+ifcfg \- common elements of network interface configuration
+.SH SYNOPSIS
+.B /etc/sysconfig/network/ifcfg-*
+.SH VARIABLES
+The following is a list of variables that can be put in the
+configuration file, with an
+example in parentheses.
+* marks the default.
+For the meaning of
+.IR suffix ,
+see the section
+.BR "Multiple addresses" .
+.\" How to keep this in sync with the comments in the sysconfig files?
+.\" FIXME: allowed values (see also ## Type:)
+.\" example in the following text
+.\" ---
+
+.TP
+.BR STARTMODE\  { manual* | auto | nfsroot | off }
+Choose when the interface should be set up.
+.RS
+.PD 0
+.TP
+.B manual
+.br
+Interface will be set up if ifup is called manually
+.TP
+.B auto
+.br
+Interface will be set up as soon as it is available (and service network was
+started). This either happens at boot time when network is starting or via
+hotplug when a interface is added to the system (by adding a device or loading a
+driver). To be backward compliant
+.B onboot\fP,
+.B on
+and
+.B boot
+are aliases for
+.B auto\fP.
+.TP
+.B nfsroot
+.br
+Nearly like
+.BR auto ,
+but interfaces with this startmode will be not shut down by default.
+Use this mode when you use a root filesystem via network or want to avoid interface shutdown.
+To force a nfsroot interface down, use ifdown <interface> -o force
+.TP
+.B off
+.br
+Will never be activated.
+.PD
+.RE
+
+.TP
+.BR BOOTPROTO\  { static* | dhcp | dhcp4 | dhcp6 | autoip | dhcp+autoip | none }
+Setup protocol. If this variable is empty or missing, it defaults to \fBstatic\fR.
+.RS
+.PD 0
+.TP
+.B static
+.br
+A fixed addresses specified in \fBIPADDR\fR and related variables and static
+routing as defined in \fBroutes\fR and \fBifroute-\fR<\fIinterface name\fR>
+files is configured.
+.TP
+.B dhcp4 dhcp6 dhcp
+.br
+A DHCPv4, DHCPv6 or both clients are started to configure the interface. The
+setup is considered successful, when at least one dhcp client configures the
+interface. Additionally to the dhcp client configuration, fixed addresses and
+routes may also be specified.
+.br
+.I Note:
+.br
+Static routes without explicit interfaces will also replace routes to the same
+destination (network) configured by dhcp clients on any interface!
+.br
+Static routes with explicit interface will also replace routes to the same
+destination (network) configured by dhcp clients on this interface.
+.TP
+.B autoip dhcp+autoip
+.br
+may be used for a IPv4 zeroconf setup or as fall back to autoip if dhcp fails.
+.TP
+.br
+.B none
+.br
+For bonding slaves, to skip the link-layer (MTU, MAC address) setup and IP
+configuration of the interface in ifup. The bonding script handles the link
+layer settings itself at enslave time. See also ifcfg-bonding(5) man page.
+Note:  Do not use to just skip the IP setup -- use BOOTPROTO="static"
+without any addresses in the IPADDR variables (or routes) instead.
+.PD
+.RE
+
+.TP
+.IR  \fBIPADDR\fR [ suffix ]\ { IPv4 | IPv6 }[ \fB/\fIPREFIXLEN ]
+IP address, either IPv4 or IPv6. You may add
+.B /<prefixlength>
+in both cases and omit
+.B NETMASK
+or
+.B PREFIXLEN.
+If you need more then one IP address use this variable multiple times with
+different suffixes added. See section
+.B Multiple addresses
+below. If no address is configured the interface will just be activated (UP).
+.TP
+.BR PREFIXLEN [ \fIsuffix\fR ]
+Number of bits in IPADDR that form the network
+address. Alternatively add a prefix-length to
+.B IPADDR
+or use
+.BR NETMASK .
+.B PREFIXLEN
+is preferred over
+.B NETMASK.
+but highest priority has a prefix-length added to the IP address in the variable
+.B IPADDR.
+.TP
+.BR NETMASK [ \fIsuffix\fR ]
+Network mask. Alternatively add a prefix-length to
+.B IPADDR
+or use
+.BR PREFIXLEN .
+This variable is ignored if a prefix-length is specified.
+.TP
+.BR BROADCAST [ \fIsuffix\fR ]
+Network broadcast. If you omit the broadcast address, it will be calculated from
+netmask or prefix-length. You can affect the calculation with the variable
+.B DEFAULT_BROADCAST
+in
+.I /etc/sysconfig/network/config.
+See the description there.
+.\" ---
+.TP
+.BR REMOTE_IPADDR [ \fIsuffix\fR ]
+The remote IP address of a point to point  connection
+.TP
+.BR LABEL [ \fIsuffix\fR ]
+Each address may be tagged with a label  string.   In  order  to preserve
+compatibility  with Linux-2.0 net aliases, this string must coincide with the
+name of the device or  must  be  prefixed with the device name followed by
+colon.
+This may be useful with
+.B Multiple addresses
+(see below).
+.TP
+.BR SCOPE [ \fIsuffix\fR ]
+The scope of the area where this address is valid.
+The available scopes are listed in file
+.IR "/etc/iproute2/rt_scopes" .
+Predefined scope values are:
+.in +8
+.B global
+- the address is globally valid.
+.sp
+.B site
+- (IPv6 only) the address is site local, i.e. it is
+valid inside this site.
+.sp
+.B link
+- the address is link local, i.e. it is valid only on this device.
+.sp
+.B host
+- the address is valid only inside this host.
+.in -8
+.TP
+.BR MTU
+Set the maximum transfer unit (MTU) for this interface.
+.TP
+.BR IP_OPTIONS [ \fIsuffix\fR ]
+Any other option you may want to give to the
+.B ip add add ...
+command. This string is appended to the command.
+.TP
+.B LLADDR
+Set an individual link layer address (MAC address).
+.TP
+.B LINK_OPTIONS
+Here you may add any option valid with
+.B ip link set up ...
+.TP
+.B INTERFACETYPE
+In case ifup cannot determine the interface type properly, you may
+specify the correct type in this variable to override the behavior
+and force ifup to handle the interface differently than it detected
+from system or config.
+Please always open a bug report when it is required to set the type.
+.TP
+.B ETHERDEVICE
+Needed only for virtual LANs (802.1q). It contains the real interface to use for the vlan
+interface. See
+.B ifcfg-vlan
+.BR (5)
+manual page.
+.TP
+.B BONDING_MASTER, BONDING_SLAVE_*, BONDING_OPTS, BONDING_MODULE_OPTS
+These are used to set up interface bonding. See
+.B ifcfg-bonding
+.BR (5)
+manual page.
+
+.SH Multiple addresses
+
+You can extend the variable name
+.B IPADDR
+by any string you like. For example
+.BR IPADDR_1 ,
+.B IPADDR-FOO
+or
+.BR IPADDRxxx.
+Use these variables for your IP addresses.
+If you need some additional parameters for these addresses, then just add
+the same extension to these variable names:
+.B BROADCAST, NETMASK, PREFIXLEN, REMOTE_IPADDR, LABEL, SCOPE, IP_OPTIONS.
+
+Example:
+   IPADDR_AAA=1.2.3.4
+   NETMASK_AAA=255.0.0.0
+   BROADCAST_AAA=1.2.3.55
+   IPADDR_BBB=10.10.2.3/16
+   LABEL_BBB=BBB
+   and so on ...
+.PP
+
+.SH BUGS
+Please report bugs at <http://www.suse.de/feedback>
+.SH AUTHOR
+.nf
+Michal Ludvig <mludvig@suse.cz> -- tunnel support
+Pawel Wieczorkiewicz <pwieczorkiewicz@suse.de> -- wicked
+.fi
+.SH "SEE ALSO"
+.BR /etc/sysconfig/network/ifcfg.template ,
+.BR ifcfg-bonding (5),
+.BR ifcfg-vlan (5),
+.BR ifcfg-wireless (5),
+.BR wicked (8).

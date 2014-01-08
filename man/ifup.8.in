@@ -1,0 +1,153 @@
+.\" Process this file with
+.\" groff -man -Tascii foo.1
+.\"
+.TH IFUP 8 "August 2004" "wicked" "Network configuration"
+.SH NAME
+ifup \- start a pre-configured network interface.
+.br
+ifdown \- stop a (pre-configured) network interface.
+.br
+ifstatus \- show the state of a (pre-configured) network interface.
+.br
+ifprobe \- checks if the configuration for the interface has changed
+
+.SH SYNOPSIS
+.B if{up,down,status,probe}
+.B [
+.I <configuration-name>
+.B ]
+.I <interface>
+.B [-o
+.I options
+.B ]
+
+.SH NOTATION
+We use the terms
+.B configuration, interface
+and
+.B device
+in a dedicated way. A
+.B device
+is always a piece of hardware representing a network interface, a PCI or
+PCMCIA card or a USB device. An
+.B interface
+then is the name of the network interface it gets from the kernel, when the
+device has been registered. A
+.B configuration
+is a set of
+parameters which can be assigned to an interface like IP addresses or routes.
+
+.SH DESCRIPTION
+.B ifup
+is used to bring up a pre-configured interface for networking. It is usually
+invoked by the network script at boot time or by the PCMCIA/hotplug system.
+It can also be used to start interfaces manually on the command line.
+It activates the link, adds addresses and other parameters and sets up the
+routes for an interface.
+.br
+Former iprenew operation is performed upon each successfull ifup call.
+.P
+.B ifdown
+is used to set down the interface and flush all its addresses. It is possible
+to let ifdown check the interface if it is still used before setting it down.
+If configured it may then get rid of the using processes or refuse setting it
+down. Have a look at
+.I /etc/sysconfig/network/config
+to enable this feature.
+.P
+.B ifstatus
+checks if the interface and its routes were set up properly.
+.P
+.B ifprobe
+checks if any of the configuration files for this interface have been changed
+since the interface is up.
+.P
+.B <interface>
+is the network interface name.
+.br
+The network interface names of physical network devices are assigned by
+the kernel and may be modified by
+.BR udev (7)
+rules.
+.P
+.I <configuration-name>
+This optional parameter exists for compatibility reasons only and is not used.
+
+.SH OPTIONS
+.IP "The following are options to be specified after the -o switch."
+.IP debug
+Be verbose.
+.IP quiet
+Silent mode. Feedback only via return code.
+
+.SH FILES
+.I /sbin/ifup
+.RS
+The script itself.
+.RE
+.I /etc/sysconfig/network/config
+.RS
+General configuration options. See section GENERAL VARIABLES below.
+.RE
+.I /etc/sysconfig/network/ifcfg- <configuration-name>
+.RS
+The files containing the configuration of the devices.
+An example that shows a typical configuration with the name
+.BR ifcfg-eth0 :
+.nf
+
+IPADDRESS=10.10.11.184
+NETMASK=255.255.0.0
+BROADCAST=10.10.255.255
+STARTMODE=onboot
+
+.fi
+.RE
+.I /etc/sysconfig/network/ifroute- <configuration-name>
+.RS
+You can specify individual routes for every configuration in these files. See
+routes (5) for a detailed description.
+.RE
+.I /etc/sysconfig/network/ifcfg.template
+.RS
+A template for writing ifcfg-* files.
+
+.SH GENERAL VARIABLES
+There are some general settings in the file
+.IR /etc/sysconfig/network/config .
+If needed you can also set every general variable as an individual variable in
+the
+.B ifcfg-*
+files.
+Please see the description of these variables in
+.IR /etc/sysconfig/network/config .
+.PP
+For dhcp there are additional global options in
+.IR /etc/sysconfig/network/dhcp .
+Also these are described there and can be used individually in
+.B ifcfg-*
+files.
+
+.SH DIAGNOSTICS
+.B ifstatus
+.I interface
+
+wicked generates debug output when called with
+.B debug
+option set to a particular facility (e.g. all). Please use it, when something wrong is happening.
+
+.SH BUGS
+Please report bugs at <http://www.suse.de/feedback>
+.SH AUTHOR
+.nf
+Michal Ludvig <mludvig@suse.cz> -- tunnel support
+Pawel Wieczorkiewicz <pwieczorkiewicz@suse.de> -- wicked
+.fi
+.SH "SEE ALSO"
+.BR ifcfg (5),
+.BR routes (5),
+.BR wicked (8),
+.BR ifcfg-wireless (5),
+.BR ifcfg-tunnel (5),
+.BR ifcfg-vlan (5),
+.BR ifcfg-bonding (5),

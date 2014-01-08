@@ -39,7 +39,7 @@ desired configuration.
 .PP
 The client and server communicate with each other over DBus. For a
 conceptual overview of the supported DBus APIs, please refer
-to \fBwicked\fP(7).
+to \fBwicked\fP(7), available after installing wicked-devel package.
 .\" ----------------------------------------
 .SH OPTIONS
 .B wicked

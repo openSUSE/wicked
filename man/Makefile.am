@@ -9,7 +9,16 @@ man_MANS			= \
 	wicked-config.5		\
 	wicked.7		\
 	wicked.8		\
-	wickedd.8
+	wickedd.8		\
+	ifcfg-bonding.5		\
+	ifcfg-bridge.5		\
+	ifcfg-vlan.5		\
+	ifcfg-wireless.5	\
+	ifcfg.5			\
+	ifdown.8		\
+	ifstatus.8		\
+	ifup.8
+
 
 templates			= $(man_MANS:=.in)
 
@@ -25,6 +34,11 @@ substitute_vars			= \
 	-e "s|[@]wicked_extensionsdir[@]|$(wicked_extensionsdir)|g"
 
 wicked%: wicked%.in $(top_builddir)/config.status
+	@echo "substituting variables in $< > $@"
+	@rm -f $@ $@.tmp
+	@$(substitute_vars) < $< > $@.tmp && mv $@.tmp $@
+
+if%: if%.in $(top_builddir)/config.status
 	@echo "substituting variables in $< > $@"
 	@rm -f $@ $@.tmp
 	@$(substitute_vars) < $< > $@.tmp && mv $@.tmp $@
