@@ -9,7 +9,7 @@ Type=dbus
 BusName=org.opensuse.Network.Nanny
 LimitCORE=infinity
 EnvironmentFile=-/etc/sysconfig/network/config
-ExecStart=@wicked_sbindir@/wickedd-nanny $WICKED_DEBUG_PARAM --foreground
+ExecStart=@wicked_sbindir@/wickedd-nanny $WICKED_DEBUG_PARAM --systemd --foreground
 StandardError=null
 
 [Install]

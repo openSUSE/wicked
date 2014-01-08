@@ -10,9 +10,9 @@ Type=oneshot
 RemainAfterExit=yes
 LimitCORE=infinity
 EnvironmentFile=-/etc/sysconfig/network/config
-ExecStart=@wicked_sbindir@/wicked $WICKED_DEBUG_PARAM ifup $WICKED_IFUP_PARAM all
-ExecStop=@wicked_sbindir@/wicked $WICKED_DEBUG_PARAM ifdown $WICKED_IFDOWN_PARAM all
-ExecReload=@wicked_sbindir@/wicked $WICKED_DEBUG_PARAM ifup $WICKED_IFUP_PARAM all
+ExecStart=@wicked_sbindir@/wicked $WICKED_DEBUG_PARAM --systemd ifup all
+ExecStop=@wicked_sbindir@/wicked $WICKED_DEBUG_PARAM --systemd ifdown all
+ExecReload=@wicked_sbindir@/wicked $WICKED_DEBUG_PARAM --systemd ifup all
 
 [Install]
 WantedBy=multi-user.target
