@@ -79,6 +79,8 @@ This optional parameter exists for compatibility reasons only and is not used.
 Be verbose.
 .IP quiet
 Silent mode. Feedback only via return code.
+.IP force
+Applicable to ifdown only. Forces persistent (nfsroot type) interface down.
 
 .SH FILES
 .I /sbin/ifup
