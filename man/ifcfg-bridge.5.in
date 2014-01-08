@@ -1,0 +1,101 @@
+.\" Process this file with
+.\" groff -man -Tascii foo.1
+.\"
+.TH IFCFG-BRIDGE 5 "Januar 2014" "wicked" "Network configuration"
+.\" ...
+
+.SH NAME
+ifcfg-bridge \- ethernet bridge interface configuration
+.SH SYNOPSIS
+.B /etc/sysconfig/network/ifcfg-*
+
+.SH CONFIGURATION
+To setup a bridge interface you need a configuration file
+.I ifcfg-<interface-name>
+with the usual network settings. But you must add additional variables:
+.TP
+.B BRIDGE <yes|no>
+This option must be set to 'yes' to identify this interface as a bridge interface.
+.TP
+.B BRIDGE_PORTS <interface1 interface2 ... interfaceN>
+This variable contains a space-separated list of N interfaces which take part in the
+bridging.
+
+.SH OPTIONAL VARIABLES
+.TP
+.B BRIDGE_AGEINGTIME <time>
+This option sets the ethernet address ageing time, in seconds. After <time>
+seconds of not having seen a frame coming from a certain address, the bridge will
+delete that address from the forwarding database. Setting ageing time to zero
+makes all entries permanent.
+.TP
+.B BRIDGE_FORWARDDELAY <time>
+Forwarding delay time is the time in seconds spent in each of the listening and
+learning states before the forwarding state is entered. This delay is so that when
+a new bridge comes onto a busy network it looks at some traffic before participating.
+.TP
+.B BRIDGE_HELLOTIME <time>
+Periodically, a hello packet is sent out by the root bridge and the designated bridges.
+Hello packets are used to communicate information about the topology throughout the
+entire bridged local area network.
+.TP
+.B BRIDGE_MAXAGE <time>
+If a another bridge in the spanning tree does not send out a hello packet for a long
+period of time, it is assumed to be dead. This timeout can be set with this variable.
+.TP
+.B BRIDGE_PATHCOSTS <costs1 costs2 ... costsN>
+This is a space-separated list of costs corresponding to the interfaces in BRIDGE_PORTS.
+Each interface in BRIDGE_PORTS could have a different speed and this value is used when
+deciding which link to use. Faster interfaces should have lower costs.
+Use '-' to skip setting of the path costs for a port in a non-empty cost list.
+.TP
+.B BRIDGE_PORTPRIORITIES <prio1 prio2 ... prioN>
+This is a space-separated list of priorities corresponding to the interfaces in BRIDGE_PORTS.
+The priority value is an unsigned 8-bit quantity (a number between 0 and 255), and has
+no dimension. This metric is used in the designated port and root port selection algorithms.
+Use '-' to skip setting of the priority for a port in a non-empty priority list.
+.TP
+.B BRIDGE_PRIORITY <priority>
+This option sets the bridge's priority to <priority>. The priority value is an
+unsigned 16-bit quantity (a number between 0 and 65535), and has no dimension.
+Lower priority values are 'better'. The bridge with the lowest priority will be
+elected 'root bridge'.
+.TP
+.B BRIDGE_STP <on|off>
+Multiple ethernet bridges can work together to create even larger networks
+of ethernets using the IEEE 802.1d spanning tree protocol. This protocol is
+used for finding the shortest path between  two  ethernets, and for eliminating
+loops from the topology.
+The spanning tree protocol can also be turned off (for those situations
+where it just doesn't make sense, for example when this linux box is
+the only bridge on the LAN, or when you know that there are no loops in
+the topology.)
+
+.SH EXAMPLE
+Minimal example for a bridge interface on eth0 and eth1, the bridge interface itself is configured via dhcp:
+
+.I ifcfg-br0
+.nf
+	STARTMODE='auto'
+	BOOTPROTO='dhcp'
+	BRIDGE='yes'
+	BRIDGE_STP='off'
+	BRIDGE_FORWARDDELAY='0'
+	BRIDGE_PORTS='eth0 eth1'
+.fi
+
+.SH ADDITIONAL INFORMATION
+
+For additional and more general information have a look into
+.BR <http://www.linuxfoundation.org/collaborate/workgroups/networking/bridge>.
+
+.SH BUGS
+Please report bugs at <https://bugzilla.novell.com/index.cgi>
+.SH AUTHOR
+.nf
+Stefan Scheler <sscheler@suse.de> -- ifup-bridge
+.fi
+.SH "SEE ALSO"
+.BR ifcfg (5),
+.BR wicked (8),
+.BR brctl (8).

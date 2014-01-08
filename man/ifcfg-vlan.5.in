@@ -1,0 +1,112 @@
+.\" Process this file with
+.\" groff -man -Tascii foo.1
+.\"
+.TH IFCFG-VLAN 5 "January 2014" "wicked" "Network configuration"
+.\" ...
+
+.SH NAME
+ifcfg-vlan \- virtual LAN interface configuration
+.SH SYNOPSIS
+.B /etc/sysconfig/network/ifcfg-*
+
+.SH Virtual LANs (802.1q)
+To setup a vlan interface you need a configuration file that contains at
+least the mandatory
+.TP
+.B ETHERDEVICE
+variable with the real interface used for the virtual LAN.
+
+.PP
+Further, it may contain the optional
+.TP
+.B VLAN_ID
+variable that specifies the VLAN ID.
+
+.PP
+By default and when the \fBVLAN_ID\fR variable is \fInot\fR set, the
+number at the end of the interface name is the VLAN ID.
+
+Preferably the interface name and the configuration file follow the
+VLAN interface name schemes (types), that is either:
+.RS
+.PD 0
+.P
+ifcfg-\fBname\fR.<\fBVLAN-ID\fR> (e.g. ifcfg-\fIeth0.42\fR)
+
+or
+
+.P
+ifcfg-\fBvlan\fR<\fBVLAN-ID\fR> (e.g. ifcfg-\fIvlan42\fR)
+.PD
+.RE
+
+The ifcfg-\fBname\fR.<\fBVLAN-ID\fR> scheme is default on Linux.
+Note also, that the ifcfg-\fBvlan\fR<\fBVLAN-ID\fR> scheme makes
+it impossible to use same VLAN-ID on more than one interface
+(e.g. ifcfg-eth\fI0\fR.42 and ifcfg-eth\fI1\fR.42).
+
+The VLAN-ID can be also 0-padded (e.g. ifcfg-vlan0042 or ifcfg-eth0.0042).
+
+Also in case of custom names, trailing digits are interpreted as VLAN-ID
+by default (e.g. ifcfg-dmz42). When \fBVLAN_ID\fR is set in the config,
+the interface name can have any name (e.g. ifcfg-foobar).
+
+Note: The drawback of custom interface names and VLAN_ID usage is,
+that a rename of the interface is required and that they violate
+the vlan name scheme.
+
+.PP
+The real interface will be set UP automatically and doesn't need a config
+file in case of a physical interface. But without a config file wicked will
+consider this interface as unused, if will not follow hotplug events and
+you're unable to apply any settings, e.g. ETHTOOL_OPTIONS. To avoid these
+problems, it is strongly recommended to provide a config file with at
+least STARTMODE='auto' for the physical interface as well.
+
+The rest of the VLAN interface IP and routes configuration do not differ
+from ordinary interfaces. See also \fIman\ ifcfg\fR and \fIman\ routes\fR
+for details.
+
+.SH EXAMPLES
+.TP
+Sets up \fIeth0.3\fR vlan interface on top of \fBeth0\fR:
+
+.I ifcfg-eth0.3
+.nf
+   STARTMODE='auto'
+   ETHERDEVICE='\fBeth0\fR'
+   IPADDR='192.168.3.27/24'
+.fi
+
+.TP
+Sets up \fIvlan3\fR vlan interface on top of \fBeth0\fR:
+
+.I ifcfg-vlan3
+.nf
+   STARTMODE='auto'
+   ETHERDEVICE='\fBeth0\fR'
+   IPADDR='192.168.3.27/24'
+.fi
+
+.TP
+Sets up \fIlan1\fR vlan interface with ID \fB42\fR on top of \fBeth0\fR:
+
+.I ifcfg-lan1
+.nf
+   STARTMODE='auto'
+   ETHERDEVICE='\fBeth0\fR'
+   VLAN_ID='\fB42\fR'
+   IPADDR='192.168.3.27/24'
+.fi
+
+.SH BUGS
+Please report bugs at <http://www.suse.de/feedback>
+.SH AUTHOR
+.nf
+Mads Martin Joergensen <mmj@suse.de>
+Marius Tomaschewski <mt@suse.de>
+.fi
+.SH "SEE ALSO"
+.BR routes (5),
+.BR ifcfg (5),
+.BR wicked (8).

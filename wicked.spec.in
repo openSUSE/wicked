@@ -262,8 +262,16 @@ fi
 %dir %_datadir/wicked/schema
 %_datadir/wicked/schema/*.xml
 %_mandir/man5/wicked-config.5*
+%_mandir/man5/ifcfg-bonding.5*
+%_mandir/man5/ifcfg-bridge.5*
+%_mandir/man5/ifcfg-vlan.5*
+%_mandir/man5/ifcfg-wireless.5*
+%_mandir/man5/ifcfg.5*
 %_mandir/man8/wicked.8*
 %_mandir/man8/wickedd.8*
+%_mandir/man8/ifdown.8*
+%_mandir/man8/ifstatus.8*
+%_mandir/man8/ifup.8*
 %attr(0750,root,root) %dir %ghost %_localstatedir/run/wicked
 
 %if %{with systemd}

@@ -51,6 +51,9 @@ usage ()
 	echo "Options for if{status,probe} are:"
 	echo "    quiet    : Do not print out errors, but just signal the result through exit status"
 	echo ""
+	echo "Options for ifdown are:"
+	echo "    force    : Forces persistent (nfsroot type) interface down"
+	echo ""
 	echo "Unknown options are simply ignored, so be careful."
 	echo ""
 	exit $R_USAGE
@@ -134,11 +137,13 @@ esac
 OPTIONS=$@
 opt_debug=""
 opt_quiet=""
+opt_force=""
 while [ $# -gt 0 ]; do
 	case $1 in
 	debug)		DEBUG="yes" ; opt_debug="most"		;;
 	debug=*)	DEBUG="yes" ; opt_debug="${1#debug=}"	;;
 	quiet)		opt_quiet="--quiet"			;;
+	force)          opt_force="--force device-exists"	;;
 	*)		debug "unknown option \"$1\""		;;
 	esac
 	shift
@@ -155,7 +160,9 @@ case $SCRIPTNAME in
 	ifdown)
 		$wicked_client \
 			${opt_debug:+--debug $opt_debug} \
-			ifdown "$INTERFACE" \
+			ifdown \
+			  ${opt_force} \
+			  "$INTERFACE" \
 		; rc=$?
 	;;
 	ifstatus)
