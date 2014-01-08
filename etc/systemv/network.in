@@ -171,9 +171,11 @@ status)
 	;;
 
 probe)
-	echo -n "Probing network configuration "
-	$FAKE $WICKED_CLIENT_BIN ifprobe all
-	rc_status -v
+	## Optional / not part of LSB: Probe for the necessity of a reload,
+	## print out the argument to this init script which is required for
+	## a reload (or restart when reload not supported).
+	$FAKE $WICKED_CLIENT_BIN ifcheck --changed --quiet all &>/dev/null || \
+		echo restart
 	;;
 
 *)
