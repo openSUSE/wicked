@@ -31,6 +31,7 @@ Makefile.in
 /wicked.spec
 !wicked-rpmlintrc
 /man/wicked*.[0-9]
+/man/if*.[0-9]
 /etc/common.xml
 /etc/client.xml
 /etc/server.xml
