@@ -57,6 +57,7 @@ BuildRequires:  pkgconfig(systemd)
 %if 0%{?suse_version:1}
 Requires(pre):  %fillup_prereq
 %endif
+Requires:       %{name}-service = %{version}
 %else
 %if 0%{?suse_version:1}
 PreReq:         %fillup_prereq %insserv_prereq
