@@ -1,7 +1,7 @@
 #
 # spec file for package wicked
 #
-# Copyright (c) 2010-2013 SUSE LINUX Products GmbH, Nuernberg, Germany.
+# Copyright (c) 2010-2014 SUSE LINUX Products GmbH, Nuernberg, Germany.
 #
 # All modifications and additions to the file contributed by third parties
 # remain the property of their copyright owners, unless otherwise agreed
@@ -79,6 +79,7 @@ Requires:       sysconfig >= 0.81.0
 Provides:       /sbin/ifup
 Provides:       sysvinit(network)
 Conflicts:      otherproviders(/sbin/ifup)
+Obsoletes:      sysconfig-network
 
 %description service
 Wicked is a network configuration infrastructure incorporating a number
@@ -95,6 +96,7 @@ Group:          System/Management
 Requires(pre):  %name = %{version}
 Provides:       /sbin/ifup
 Provides:       sysvinit(network)
+# sysvinit test package only, unsupported -> no more deps
 
 %description service
 Wicked is a network configuration infrastructure incorporating a number
