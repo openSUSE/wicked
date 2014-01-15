@@ -16,9 +16,6 @@ extern int			opt_global_dryrun;
 extern char *			opt_global_rootdir;
 extern ni_bool_t		opt_systemd;
 
-extern int			do_ifup(int argc, char **argv);
-extern int			do_ifdown(int argc, char **argv);
-
 /* We may want to move this into the library. */
 extern int			ni_resolve_hostname_timed(const char *, int, ni_sockaddr_t *, unsigned int);
 extern int			ni_host_is_reachable(const char *, const ni_sockaddr_t *);
@@ -77,6 +74,7 @@ extern void			ni_compat_netdev_client_info_set(ni_netdev_t *, const char *);
 extern unsigned int		ni_compat_generate_interfaces(xml_document_array_t *, ni_compat_ifconfig_t *, ni_bool_t);
 
 extern ni_bool_t		ni_ifconfig_read(xml_document_array_t *, const char *, const char *, ni_bool_t);
+extern ni_bool_t		ni_ifconfig_load(ni_fsm_t *, const char *, const char *, ni_bool_t);
 
 extern ni_bool_t		__ni_suse_get_interfaces(const char *, const char *, ni_compat_netdev_array_t *);
 extern ni_bool_t		__ni_redhat_get_interfaces(const char *, const char *, ni_compat_netdev_array_t *);

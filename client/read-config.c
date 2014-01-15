@@ -149,6 +149,26 @@ static const ni_ifconfig_type_t	__ni_ifconfig_types[] = {
 };
 
 ni_bool_t
+ni_ifconfig_load(ni_fsm_t *fsm, const char *root, const char *location, ni_bool_t force)
+{
+	xml_document_array_t docs = XML_DOCUMENT_ARRAY_INIT;
+	unsigned int i;
+
+	if (!ni_ifconfig_read(&docs, root, location, FALSE))
+		return FALSE;
+
+	for (i = 0; i < docs.count; i++) {
+		/* TODO: review ni_fsm_workers_from_xml return codes */
+		ni_fsm_workers_from_xml(fsm, docs.data[i], force);
+	}
+
+	/* Do not destroy xml documents as referenced by the fsm workers */
+	free(docs.data);
+
+	return TRUE;
+}
+
+ni_bool_t
 ni_ifconfig_read(xml_document_array_t *array, const char *root, const char *path, ni_bool_t raw)
 {
 	const ni_ifconfig_type_t *map;

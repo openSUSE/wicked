@@ -13,26 +13,26 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdarg.h>
-#include <unistd.h>
-#include <mcheck.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <getopt.h>
 #include <signal.h>
+#include <mcheck.h>
 
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
-#include <wicked/wicked.h>
 #include <wicked/addrconf.h>
 #include <wicked/route.h>
-#include <wicked/bonding.h>
-#include <wicked/bridge.h>
-#include <wicked/xml.h>
-#include <wicked/xpath.h>
+#include <wicked/resolver.h>
 #include <wicked/objectmodel.h>
 #include <wicked/dbus-errors.h>
-#include <wicked/resolver.h>
+#include <wicked/xml.h>
+#include <wicked/xpath.h>
 
 #include "client/wicked-client.h"
+#include "ifup.h"
+#include "ifdown.h"
+#include "ifcheck.h"
 
 enum {
 	OPT_HELP,
@@ -75,9 +75,6 @@ ni_bool_t		opt_systemd;
 static int		do_show(int, char **);
 static int		do_show_xml(int, char **);
 static int		do_show_config(int, char **, const char *);
-extern int		do_ifup(int, char **);
-extern int		do_ifdown(int, char **);
-extern int		do_ifcheck(int, char **);
 extern int		do_nanny(int, char **);
 extern int		do_lease(int, char **);
 extern int		do_check(int, char **);
@@ -211,7 +208,19 @@ main(int argc, char **argv)
 	if (!strcmp(cmd, "help"))
 		goto usage;
 
-	if (!strcmp(cmd, "show") || !strcmp(cmd, "ifstatus"))
+	if (!strcmp(cmd, "ifup"))
+		return ni_do_ifup(argc - optind, argv + optind);
+
+	if (!strcmp(cmd, "ifdown"))
+		return ni_do_ifdown(argc - optind, argv + optind);
+
+	if (!strcmp(cmd, "ifcheck"))
+		return ni_do_ifcheck(argc - optind, argv + optind);
+
+	if (!strcmp(cmd, "ifstatus"))
+		return do_show(argc - optind, argv + optind);
+
+	if (!strcmp(cmd, "show"))
 		return do_show(argc - optind, argv + optind);
 
 	if (!strcmp(cmd, "show-xml"))
@@ -219,15 +228,6 @@ main(int argc, char **argv)
 
 	if (!strcmp(cmd, "show-config"))
 		return do_show_config(argc - optind, argv + optind, NULL);
-
-	if (!strcmp(cmd, "ifup"))
-		return do_ifup(argc - optind, argv + optind);
-
-	if (!strcmp(cmd, "ifdown"))
-		return do_ifdown(argc - optind, argv + optind);
-
-	if (!strcmp(cmd, "ifcheck"))
-		return do_ifcheck(argc - optind, argv + optind);
 
 	if (!strcmp(cmd, "nanny"))
 		return do_nanny(argc - optind, argv + optind);
