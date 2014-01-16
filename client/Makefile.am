@@ -2,7 +2,7 @@
 CLEANFILES			= *~
 MAINTAINERCLEANFILES		= Makefile.in
 DISTCLEANFILES			= $(BUILT_SOURCES)
-EXTRA_DIST			= wicked-client.h	\
+EXTRA_DIST			= $(wicked_headers) \
 				  scripts/ifup.in
 
 BUILT_SOURCES			= scripts/ifup
@@ -26,10 +26,21 @@ wicked_SOURCES			= \
 	compat-redhat.c		\
 	compat-suse.c		\
 	ifup.c			\
+	ifdown.c		\
+	ifcheck.c		\
+	ifstatus.c		\
 	read-config.c		\
 	main.c			\
 	nanny.c			\
 	reachable.c
+
+wicked_headers			= \
+	ifup.h			\
+	ifdown.h		\
+	ifcheck.h		\
+	ifstatus.h		\
+	reachable.h		\
+	wicked-client.h
 
 substitute_vars			= \
 	$(AM_V_GEN)sed						\

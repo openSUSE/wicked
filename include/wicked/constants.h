@@ -194,6 +194,13 @@ typedef enum {
 	/*
 	 * Init Script Action return codes defined in
 	 * Linux Standard Base Core Specification 4.1
+	 * for all actions except status:
+	 *
+	 *   0-7        defined LSB return codes
+	 *   8-99       reserved for future LSB use
+	 * 100-149      reserved for distribution use
+	 * 150-199      reserved for application use
+	 * 200-254      reserved
 	 */
 	NI_LSB_RC_SUCCESS		= 0,	/*!< success				*/
 	NI_LSB_RC_ERROR			= 1,	/*!< generic or unspecified error	*/
@@ -205,12 +212,8 @@ typedef enum {
 	NI_LSB_RC_NOT_RUNNING		= 7,	/*!< program is not running		*/
 
 	/*
-	 *   8-99       reserved for future LSB use
-	 * 100-149      reserved for distribution use
-	 * 150-199      reserved for application use
-	 * 200-254      reserved
+	 * Wicked return codes:
 	 */
-
 	NI_WICKED_RC_SUCCESS		= NI_LSB_RC_SUCCESS,
 	NI_WICKED_RC_ERROR		= NI_LSB_RC_ERROR,
 	NI_WICKED_RC_USAGE		= NI_LSB_RC_USAGE,
@@ -219,37 +222,51 @@ typedef enum {
 	NI_WICKED_RC_NOT_CONFIGURED	= NI_LSB_RC_NOT_CONFIGURED,
 	NI_WICKED_RC_NOT_RUNNING	= NI_LSB_RC_NOT_RUNNING,
 	NI_WICKED_RC_NO_DEVICE		= NI_LSB_RC_NOT_RUNNING,
-	NI_WICKED_RC_IN_PROGRESS	= 12,	/* this code is set to 12 due to SUSE's ifup compatibility reasons */
+	NI_WICKED_RC_IN_PROGRESS	= 12,	/*!< 12 for SUSE's ifup compatibility	*/
  } ni_return_code_t;
 
 typedef enum {
-	NI_LSB_ST_OK,				/*!< program is running or service is OK		*/
-	NI_LSB_ST_DEAD_PID_FILE,		/*!< program is dead and /var/run pid file exists	*/
-	NI_LSB_ST_DEAD_LOCK_FILE,		/*!< program is dead and /var/lock lock file exists	*/
-	NI_LSB_ST_NOT_RUNNING,			/*!< program is not running				*/
-	NI_LSB_ST_UNKNOWN,			/*!< program or service status is unknown		*/
-
 	/*
+	 * Init Script Action return codes defined in
+	 * Linux Standard Base Core Specification 4.1
+	 * for status action:
+	 *
+	 *   0-4        defined LSB status codes
 	 *   5-99       reserved for future LSB use
 	 * 100-149      reserved for distribution use
 	 * 150-199      reserved for application use
 	 * 200-254      reserved
 	 */
+	NI_LSB_ST_OK			= 0,	/*!< running / service is OK		*/
+	NI_LSB_ST_DEAD_PID_FILE		= 1,	/*!< dead and /var/run pid file exists	*/
+	NI_LSB_ST_DEAD_LOCK_FILE	= 2,	/*!< dead and /var/lock lock file exists*/
+	NI_LSB_ST_NOT_RUNNING		= 3,	/*!< program / service is not running	*/
+	NI_LSB_ST_UNKNOWN		= 4,	/*!< status is unknown			*/
 
-	NI_WICKED_ST_OK				= NI_LSB_ST_OK,
-	NI_WICKED_ST_IN_PROGRESS		= NI_WICKED_RC_IN_PROGRESS,
-	NI_WICKED_ST_INACTIVE			= 5,	/* interface is not up -
-							 * this code is set to 5 due to SUSE's ifup compatibility reasons
-							 */
-	NI_WICKED_ST_NOT_CONFIGURED		= 5,	/* interface is not configured -
-							 * this code is set to 5 due to SUSE's ifup compatibility reasons
-							 */
-	NI_WICKED_ST_BUSY			= 10,	/* interface is busy, there may be connection ongoing -
-							 * this code is set to 10 due to SUSE's ifup compatibility reasons
-							 */
-	NI_WICKED_ST_CHANGED_CONFIG		= 150,	/* configuration of an interface has been changed	*/
-	NI_WICKED_ST_NOT_IN_STATE		= 151,	/* interface is in different state than expected	*/
-	NI_WICKED_ST_PERSISTENT_ON		= 152,	/* interface is in persistent mode			*/
+	/*
+	 * Wicked mapped status codes:
+	 */
+	NI_WICKED_ST_OK			= NI_LSB_ST_OK,			/* all fine	*/
+	NI_WICKED_ST_ERROR		= NI_LSB_ST_DEAD_PID_FILE,	/* wickedd down	*/
+	NI_WICKED_ST_FAILED		= NI_LSB_ST_DEAD_LOCK_FILE,	/* setup failed	*/
+	NI_WICKED_ST_UNUSED		= NI_LSB_ST_NOT_RUNNING,	/* dev unused	*/
+	NI_WICKED_ST_USAGE		= NI_LSB_ST_UNKNOWN,		/* usage error	*/
+
+	/*
+	 * Wicked extended status/check codes:
+	 */
+	NI_WICKED_ST_DISABLED		= 155,	/*!< dev activation is disabled		*/
+	NI_WICKED_ST_NOT_STARTED	= 156,	/*!< dev is not yet set up / started	*/
+
+	NI_WICKED_ST_NO_DEVICE		= 157,	/*!< dev does not exist yet		*/
+	NI_WICKED_ST_NOT_RUNNING	= 158,	/*!< dev is started, but set up failed	*/
+
+	NI_WICKED_ST_NO_CONFIG		= 159,	/*!< no configuration found		*/
+	NI_WICKED_ST_IN_PROGRESS	= 162,	/*!< dev is up, but setup is incomplete */
+	NI_WICKED_ST_CHANGED_CONFIG	= 163,	/*!< up, config changed, reload advised	*/
+
+	NI_WICKED_ST_NOT_IN_STATE	= 165,	/*!< ifcheck state lower than expected	*/
+	NI_WICKED_ST_PERSISTENT_ON	= 166,	/*!< interface is in persistent mode	*/
 } ni_status_code_t;
 
 #endif /* __WICKED_CONSTANTS_H__ */

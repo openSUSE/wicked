@@ -1,23 +1,39 @@
 /*
- * No REST for the wicked!
+ *	wicked client (compat) interface config
  *
- * Copyright (C) 2010-2012 Olaf Kirch <okir@suse.de>
+ *	Copyright (C) 2010-2014 SUSE LINUX Products GmbH, Nuernberg, Germany.
+ *
+ *	This program is free software; you can redistribute it and/or modify
+ *	it under the terms of the GNU General Public License as published by
+ *	the Free Software Foundation; either version 2 of the License, or
+ *	(at your option) any later version.
+ *
+ *	This program is distributed in the hope that it will be useful,
+ *	but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *	GNU General Public License for more details.
+ *
+ *	You should have received a copy of the GNU General Public License along
+ *	with this program; if not, see <http://www.gnu.org/licenses/> or write
+ *	to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
+ *	Boston, MA 02110-1301 USA.
+ *
+ *	Authors:
+ *		Olaf Kirch <okir@suse.de>
+ *		Marius Tomaschewski <mt@suse.de>
+ *		Pawel Wieczorkiewicz <pwieczorkiewicz@suse.de>
+ *
  */
-
 #ifndef WICKED_CLIENT_H
 #define WICKED_CLIENT_H
 
 #include <wicked/client.h>
-#include <wicked/fsm.h>
 #include <wicked/objectmodel.h>
 #include <wicked/fsm.h>
 
 extern int			opt_global_dryrun;
 extern char *			opt_global_rootdir;
 extern ni_bool_t		opt_systemd;
-
-extern int			do_ifup(int argc, char **argv);
-extern int			do_ifdown(int argc, char **argv);
 
 /* We may want to move this into the library. */
 extern int			ni_resolve_hostname_timed(const char *, int, ni_sockaddr_t *, unsigned int);
@@ -77,6 +93,7 @@ extern void			ni_compat_netdev_client_info_set(ni_netdev_t *, const char *);
 extern unsigned int		ni_compat_generate_interfaces(xml_document_array_t *, ni_compat_ifconfig_t *, ni_bool_t);
 
 extern ni_bool_t		ni_ifconfig_read(xml_document_array_t *, const char *, const char *, ni_bool_t);
+extern ni_bool_t		ni_ifconfig_load(ni_fsm_t *, const char *, const char *, ni_bool_t);
 
 extern ni_bool_t		__ni_suse_get_interfaces(const char *, const char *, ni_compat_netdev_array_t *);
 extern ni_bool_t		__ni_redhat_get_interfaces(const char *, const char *, ni_compat_netdev_array_t *);
