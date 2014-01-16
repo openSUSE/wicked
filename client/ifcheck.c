@@ -43,7 +43,127 @@
 #include "ifup.h"
 #include "ifcheck.h"
 
+/*
+ * ifcheck utilities
+ */
+ni_bool_t
+ni_ifcheck_device_configured(ni_netdev_t *dev)
+{
+	ni_device_clientinfo_t *ci;
 
+	if (!dev || !(ci = dev->client_info) || ni_string_empty(ci->config_origin))
+		return FALSE;
+	return TRUE;
+}
+
+ni_bool_t
+ni_ifcheck_device_is_up(ni_netdev_t *dev)
+{
+	return dev && !!(dev->link.ifflags & NI_IFF_DEVICE_UP);
+}
+
+ni_bool_t
+ni_ifcheck_device_link_is_up(ni_netdev_t *dev)
+{
+	return dev && !!(dev->link.ifflags & NI_IFF_LINK_UP);
+}
+
+ni_bool_t
+ni_ifcheck_device_network_is_up(ni_netdev_t *dev)
+{
+	return dev && !!(dev->link.ifflags & NI_IFF_NETWORK_UP);
+}
+
+unsigned int
+__ifcheck_device_fsm_state(ni_netdev_t *dev)
+{
+	ni_device_clientinfo_t *ci;
+
+	if (dev && (ci = dev->client_info)) {
+		unsigned int state;
+
+		if (ni_ifworker_state_from_name(ci->state, &state))
+			return state;
+	}
+	return NI_FSM_STATE_NONE;
+}
+
+ni_bool_t
+ni_ifcheck_device_fsm_is_up(ni_netdev_t *dev)
+{
+	return __ifcheck_device_fsm_state(dev) >= NI_FSM_STATE_DEVICE_UP;
+}
+
+ni_bool_t
+ni_ifcheck_device_fsm_link_is_up(ni_netdev_t *dev)
+{
+	return __ifcheck_device_fsm_state(dev) >= NI_FSM_STATE_LINK_UP;
+}
+
+ni_bool_t
+ni_ifcheck_device_is_persistent(ni_netdev_t *dev)
+{
+	return dev && dev->client_state && dev->client_state->persistent;
+}
+
+ni_bool_t
+ni_ifcheck_worker_device_exists(ni_ifworker_t *w)
+{
+	return w && w->device;
+}
+
+ni_bool_t
+ni_ifcheck_worker_device_enabled(ni_ifworker_t *w)
+{
+#if 0
+	/* Hmm... STARTMODE=manual|off */
+
+	if (!w || !w->control.enabled)
+		return FALSE;
+#endif
+	return TRUE;
+}
+
+ni_bool_t
+ni_ifcheck_worker_device_is_mandatory(ni_ifworker_t *w)
+{
+	return w && w->control.mandatory;
+}
+
+ni_bool_t
+ni_ifcheck_worker_device_link_required(ni_ifworker_t *w)
+{
+	return w && w->control.link_required;
+}
+
+ni_bool_t
+ni_ifcheck_worker_device_is_persistent(ni_ifworker_t *w)
+{
+	return w && w->control.persistent;
+}
+
+ni_bool_t
+ni_ifcheck_worker_config_exists(ni_ifworker_t *w)
+{
+	return w && w->config.node;
+}
+
+ni_bool_t
+ni_ifcheck_worker_config_matches(ni_ifworker_t *w)
+{
+	ni_netdev_t *dev;
+
+	if (w && w->config.node && (dev = w->device)) {
+		ni_device_clientinfo_t *ci = dev->client_info;
+
+		return ci && ni_uuid_equal(&ci->config_uuid, &w->config.uuid);
+	}
+	return FALSE;
+}
+
+/*
+ * ifcheck action
+ */
 int
 ni_do_ifcheck(int argc, char **argv)
 {

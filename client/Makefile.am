@@ -28,6 +28,7 @@ wicked_SOURCES			= \
 	ifup.c			\
 	ifdown.c		\
 	ifcheck.c		\
+	ifstatus.c		\
 	read-config.c		\
 	main.c			\
 	nanny.c			\
@@ -37,6 +38,7 @@ wicked_headers			= \
 	ifup.h			\
 	ifdown.h		\
 	ifcheck.h		\
+	ifstatus.h		\
 	reachable.h		\
 	wicked-client.h
 

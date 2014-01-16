@@ -165,8 +165,9 @@ reload)
 	;;
 
 status)
-	echo -n "Checking for service network "
-	$FAKE $WICKED_CLIENT_BIN ifstatus all
+	echo "Checking for service network:"
+	$FAKE $WICKED_CLIENT_BIN ifstatus --brief all
+	echo -n "Status of service network "
 	rc_status -v
 	;;
 

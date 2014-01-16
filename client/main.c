@@ -53,6 +53,7 @@
 #include "ifup.h"
 #include "ifdown.h"
 #include "ifcheck.h"
+#include "ifstatus.h"
 
 enum {
 	OPT_HELP,
@@ -92,7 +93,6 @@ int			opt_global_dryrun;
 char *			opt_global_rootdir;
 ni_bool_t		opt_systemd;
 
-static int		do_show(int, char **);
 static int		do_show_xml(int, char **);
 static int		do_show_config(int, char **, const char *);
 extern int		do_nanny(int, char **);
@@ -138,18 +138,19 @@ main(int argc, char **argv)
 				"        Enables behavior required by systemd service\n"
 				"\n"
 				"Supported commands:\n"
-				"  ifup [options] <ifname ...>|all\n"
-				"  ifdown [options] <ifname ...>|all\n"
-				"  ifcheck [options] <ifname ...>|all\n"
-				"  ifstatus|show <ifname|all>\n"
-				"  show-xml [--raw] [--modem] <ifname|all>\n"
+				"  ifup        [options] <ifname ...>|all\n"
+				"  ifdown      [options] <ifname ...>|all\n"
+				"  ifcheck     [options] <ifname ...>|all\n"
+				"  ifstatus    [options] <ifname ...>|all\n"
+				"  show        [options] <ifname ...>|all\n"
+				"  show-xml    [--raw] [--modem] <ifname|all>\n"
 				"  show-config [--raw] [source]\n"
-				"  nanny [subcommand]\n"
-				"  lease [subcommand]\n"
-				"  check [subcommand]\n"
-				"  getnames [subcommand]\n"
-				"  convert [subcommand]\n"
-				"  xpath [options] expr ...\n"
+				"  nanny       [subcommand]\n"
+				"  lease       [subcommand]\n"
+				"  check       [subcommand]\n"
+				"  getnames    [subcommand]\n"
+				"  convert     [subcommand]\n"
+				"  xpath       [options] expr ...\n"
 				);
 			return (c == OPT_HELP ? NI_WICKED_RC_SUCCESS : NI_WICKED_RC_USAGE);
 
@@ -238,10 +239,10 @@ main(int argc, char **argv)
 		return ni_do_ifcheck(argc - optind, argv + optind);
 
 	if (!strcmp(cmd, "ifstatus"))
-		return do_show(argc - optind, argv + optind);
+		return ni_do_ifstatus(argc - optind, argv + optind);
 
 	if (!strcmp(cmd, "show"))
-		return do_show(argc - optind, argv + optind);
+		return ni_do_ifstatus(argc - optind, argv + optind);
 
 	if (!strcmp(cmd, "show-xml"))
 		return do_show_xml(argc - optind, argv + optind);
@@ -744,182 +745,6 @@ do_show_config(int argc, char **argv, const char *root_schema)
 
 	xml_document_array_destroy(&docs);
 	return 0;
-}
-
-int
-do_show(int argc, char **argv)
-{
-	ni_dbus_object_t *root_object;
-	ni_dbus_object_t *list_object;
-	ni_dbus_object_t *object;
-	enum  { OPT_HELP, OPT_QUIET, };
-	static struct option options[] = {
-		{ "help",	no_argument, NULL, OPT_HELP },
-		{ "quiet",	no_argument, NULL, OPT_QUIET },
-		{ NULL }
-	};
-	const char *ifname = NULL;
-	ni_bool_t opt_quiet = FALSE;
-	int c, rv = NI_WICKED_RC_NO_DEVICE;
-
-	optind = 1;
-	while ((c = getopt_long(argc, argv, "", options, NULL)) != EOF) {
-		switch (c) {
-		case OPT_QUIET:
-			opt_quiet = TRUE;
-			break;
-
-		case OPT_HELP:
-		default:
-		usage:
-			fprintf(stderr,
-				"wicked [options] show <ifname|all>\n"
-				"\nSupported options:\n"
-				"  --help\n"
-				"      Show this help text.\n"
-				"  --quiet\n"
-				"      Do not print out errors, but just signal the result through exit status\n"
-				);
-			return (c == OPT_HELP ? NI_WICKED_RC_SUCCESS : NI_WICKED_RC_USAGE);
-		}
-	}
-
-	if (optind < argc) {
-		ifname = argv[optind++];
-		if (ni_string_eq(ifname, "all"))
-			ifname = NULL;
-	}
-
-	if (optind != argc)
-		goto usage;
-
-	if (!(root_object = ni_call_create_client()))
-		return NI_WICKED_RC_ERROR;
-
-	if (!(list_object = get_netif_list_object()))
-		return NI_WICKED_RC_ERROR;
-
-	for (object = list_object->children; object; object = object->next) {
-		ni_netdev_t *dev = object->handle;
-		ni_device_clientinfo_t *ci = dev->client_info;
-		ni_client_state_t *cs = dev->client_state;
-		ni_address_t *ap;
-		ni_route_table_t *tab;
-		ni_route_t *rp;
-		unsigned int i, state_val;
-
-		if (ifname && !ni_string_eq(ifname, dev->name))
-			continue;
-
-		rv = NI_WICKED_ST_OK;
-
-		if (!opt_quiet) {
-			printf("%d: %-16s %s\n", dev->link.ifindex, dev->name,
-				(dev->link.ifflags & NI_IFF_NETWORK_UP) ? "up" :
-				 (dev->link.ifflags & NI_IFF_LINK_UP) ? "link-up" :
-				  (dev->link.ifflags & NI_IFF_DEVICE_UP) ? "device-up" : "down");
-		}
-
-		if (!opt_quiet) {
-			printf("    %-8s %s", "state:",
-				(ci && !ni_string_empty(ci->state)) ? ci->state : "none");
-		}
-
-		if (cs && cs->persistent) {
-			if (!opt_quiet)
-				printf(", persistent");
-			rv = NI_WICKED_ST_PERSISTENT_ON;
-		}
-		if (!opt_quiet)
-			printf("\n");
-
-		if (!ci || !ni_ifworker_state_from_name(ci->state, &state_val))
-			state_val = NI_FSM_STATE_NONE;
-
-		/* FIXME: there should be a query towards supplicants
-		 * checking whether we are in the middle of e.g. dhcp
-		 * transaction or not.
-		 * Currently we only check by FSM states.
-		 */
-		if ((!(dev->link.ifflags & NI_IFF_NETWORK_UP) &&
-		    !(dev->link.ifflags & NI_IFF_LINK_UP)) ||
-		    state_val <= NI_FSM_STATE_FIREWALL_UP) {
-			rv = NI_WICKED_ST_INACTIVE;
-		}
-
-		if (state_val >= NI_FSM_STATE_LINK_UP) {
-			ni_addrconf_lease_t *lease;
-
-			for (lease = dev->leases; lease; lease = lease->next) {
-				if (NI_ADDRCONF_STATE_RELEASING == lease->state ||
-				    NI_ADDRCONF_STATE_REQUESTING == lease->state) {
-					rv = NI_WICKED_ST_IN_PROGRESS;
-					break;
-				}
-			}
-		}
-
-		if (!opt_quiet) {
-			printf("    %-8s %s", "link:",
-				ni_linktype_type_to_name(dev->link.type));
-			if (dev->link.hwaddr.len) {
-				printf(" addr %s", ni_link_address_print(&dev->link.hwaddr));
-			}
-			if (dev->link.mtu > 0) {
-				printf(" mtu %d", dev->link.mtu);
-			}
-			if (!ni_string_empty(dev->link.alias)) {
-				printf(" alias %s", dev->link.alias);
-			}
-			printf("\n");
-
-			for (ap = dev->addrs; ap; ap = ap->next) {
-				printf("    %-8s %s %s/%u", "addr:",
-					ni_addrfamily_type_to_name(ap->family),
-					ni_sockaddr_print(&ap->local_addr), ap->prefixlen);
-				if (!ni_string_empty(ap->label) &&
-				    !ni_string_eq(ap->label, dev->name)) {
-					printf(" label %s", ap->label);
-				}
-				printf("\n");
-			}
-
-			for (tab = dev->routes; tab; tab = tab->next) {
-				for (i = 0; i < tab->routes.count; ++i) {
-					ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
-					rp = tab->routes.data[i];
-
-					ni_route_print(&buf, rp);
-					printf("    %-8s %s\n", "route:", buf.string);
-					ni_stringbuf_destroy(&buf);
-				}
-			}
-		}
-
-		if (!opt_quiet) {
-			printf("    %-8s %s\n", "config:",
-				(ci && !ni_string_empty(ci->config_origin)) ?
-					ci->config_origin : "none");
-		}
-
-		if (!ci || ni_string_empty(ci->config_origin))
-			rv = NI_WICKED_ST_NOT_CONFIGURED;
-
-		if (!ifname && object->next && !opt_quiet)
-			printf("\n");
-	}
-
-	if (NI_WICKED_RC_NO_DEVICE == rv) {
-		/* No devices for ifstatus all is not an error */
-		if (!ifname)
-			rv = NI_WICKED_RC_SUCCESS;
-		else {
-			if (!opt_quiet)
-				ni_error("%s: unknown network interface", ifname);
-		}
-	}
-
-	return rv;
 }
 
 /*

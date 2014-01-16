@@ -35,8 +35,14 @@ R_SUCCESS=0		# interface has been set up
 R_ERROR=1		# any unspecified error
 R_USAGE=2		# wrong usage
 R_NOTALLOWED=4		# insufficient privilege
+R_INACTIVE=5		# the interface is not up and it should not
+R_NOTCONFIGURED=5	# the bootmode does not match the current mode
+R_NODEV=7		# the given interface does not exist
 R_NOTRUNNING=7		# the interface is not up but it should be up
+R_NOCONFIG=9		# we could not find a matching configuration file
+R_DHCP_BG=12		# [dhcp client is running], but no address up to now
 R_NOT_UP2DATE=13	# returned from ifprobe if configuration has changed
+R_PROPERTY_NOT_SET=14	# some property of the iface could not be set.
 
 #
 # Helper functions
@@ -149,29 +155,101 @@ while [ $# -gt 0 ]; do
 	shift
 done
 
+# Map wicked return codes to compatibility codes
+rc_map_return()
+{
+	case $1 in
+	6)	# NI_WICKED_RC_NOT_CONFIGURED
+		return $R_NOTCONFIGURED
+	;;
+	*)
+		return ${1:-1}
+	;;
+	esac
+}
+
+# Map wicked status codes to compatibility codes
+#
+# Note: wicked ifstatus returns mapped LSB 0..4 for "ifstatus all"
+# and > 150 for "ifstatus <ifname>", but without to reduce most of
+# the codes to 5,7,9 and 12 as sysconfig ifstatus does (see above),
+# thus a simple $(($1 - 150)) is not enough. We map it separately.
+#
+rc_map_status()
+{
+	case $1 in
+	0)	# NI_WICKED_ST_OK
+		return $R_SUCCESS
+	;;
+	1)	# NI_WICKED_ST_ERROR
+		return $R_ERROR
+	;;
+	2)	# NI_WICKED_ST_FAILED
+		return $R_NOTRUNNING
+	;;
+	3)	# NI_WICKED_ST_UNUSED
+		return $_NOTCONFIGURED
+	;;
+	4)	# NI_WICKED_ST_USAGE
+		return $R_USAGE
+	;;
+	155)	# NI_WICKED_ST_DISABLED
+		return $R_INACTIVE
+	;;
+	156)	# NI_WICKED_ST_NOT_STARTED
+		return $R_NOTCONFIGURED
+	;;
+	157)	# NI_WICKED_ST_NO_DEVICE
+		return $R_NODEV
+	;;
+	158)	# NI_WICKED_ST_NOT_RUNNING
+		return $R_NOTRUNNING
+	;;
+	159)	# NI_WICKED_ST_NO_CONFIG
+		return $R_NOCONFIG
+	;;
+	162)	# NI_WICKED_ST_IN_PROGRESS
+		return $R_DHCP_BG
+	;;
+	164)	# NI_WICKED_ST_CHANGED_CONFIG
+		return $R_NOT_UP2DATE
+	;;
+	165)	# NI_WICKED_ST_NOT_IN_STATE
+		return $R_NOTRUNNING
+	;;
+	166)	# NI_WICKED_ST_PERSISTENT_ON
+		return $R_NOTALLOWED
+	;;
+	*)	# any other
+		return ${1:-1}
+	;;
+	esac
+}
+
+rc=$R_SUCCESS
 wicked_client="@wicked_sbindir@/wicked"
 case $SCRIPTNAME in
 	ifup)
 		$wicked_client \
 			${opt_debug:+--debug $opt_debug} \
-			ifup "$INTERFACE" \
-		; rc=$?
+			ifup "$INTERFACE"
+		rc=$(rc_map_return "$?")
 	;;
 	ifdown)
 		$wicked_client \
 			${opt_debug:+--debug $opt_debug} \
 			ifdown \
 			  ${opt_force} \
-			  "$INTERFACE" \
-		; rc=$?
+			  "$INTERFACE"
+		rc=$(rc_map_return "$?")
 	;;
 	ifstatus)
 		$wicked_client \
 			${opt_debug:+--debug $opt_debug} \
 			ifstatus \
 			  ${opt_quiet} \
-			  "$INTERFACE" \
-		; rc=$?
+			  "$INTERFACE"
+		rc=$(rc_map_status "$?")
 	;;
 	ifprobe)
 		$wicked_client \
@@ -180,22 +258,8 @@ case $SCRIPTNAME in
 			  --changed \
 			  ${opt_quiet} \
 			  "$INTERFACE" \
-		; rc=$?
+		rc=$(rc_map_status "$?")
 	;;
 esac
 
-# Compatibility return code mapping
-case $rc in
-	150) # NI_WICKED_ST_CHANGED_CONFIG
-		exit $R_NOT_UP2DATE
-	;;
-	151) # NI_WICKED_ST_NOT_IN_STATE
-		exit $R_NOTRUNNING
-	;;
-	152) # NI_WICKED_ST_PERSISTENT_ON
-		exit $R_NOTALLOWED
-	;;
-	*)
-		exit $rc
-	;;
-esac
+exit $rc
