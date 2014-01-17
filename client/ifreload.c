@@ -178,10 +178,16 @@ usage:
 			ni_ifworker_t *w = temp.data[i];
 			ni_netdev_t *dev = w->device;
 
-			/* check for duplicates */
+			/* skip duplicate matches */
 			if (ni_ifworker_array_index(&marked, w) != -1)
 				continue;
 
+			/* skip unused devices without config */
+			if (!ni_ifcheck_worker_config_exists(w) &&
+			    !ni_ifcheck_device_configured(dev))
+				continue;
+
+			/* skip if config changed somehow */
 			if (ni_ifcheck_worker_config_matches(w))
 				continue;
 
