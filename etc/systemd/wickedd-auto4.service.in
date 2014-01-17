@@ -11,6 +11,7 @@ LimitCORE=infinity
 EnvironmentFile=-/etc/sysconfig/network/config
 ExecStart=@wicked_supplicantdir@/wickedd-auto4 $WICKED_DEBUG_PARAM --systemd --foreground
 StandardError=null
+Restart=on-abort
 
 [Install]
 WantedBy=wickedd.service
