@@ -176,7 +176,7 @@ probe)
 	## print out the argument to this init script which is required for
 	## a reload (or restart when reload not supported).
 	$FAKE $WICKED_CLIENT_BIN $WICKED_DEBUG ifcheck --changed --quiet all \
-		&>/dev/null && echo reload
+		&>/dev/null || echo reload
 	;;
 
 *)
