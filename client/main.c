@@ -53,6 +53,7 @@
 #include "ifup.h"
 #include "ifdown.h"
 #include "ifcheck.h"
+#include "ifreload.h"
 #include "ifstatus.h"
 
 enum {
@@ -141,6 +142,7 @@ main(int argc, char **argv)
 				"  ifup        [options] <ifname ...>|all\n"
 				"  ifdown      [options] <ifname ...>|all\n"
 				"  ifcheck     [options] <ifname ...>|all\n"
+				"  ifreload    [options] <ifname ...>|all\n"
 				"  ifstatus    [options] <ifname ...>|all\n"
 				"  show        [options] <ifname ...>|all\n"
 				"  show-xml    [--raw] [--modem] <ifname|all>\n"
@@ -237,6 +239,9 @@ main(int argc, char **argv)
 
 	if (!strcmp(cmd, "ifcheck"))
 		return ni_do_ifcheck(argc - optind, argv + optind);
+
+	if (!strcmp(cmd, "ifreload"))
+		return ni_do_ifreload(argc - optind, argv + optind);
 
 	if (!strcmp(cmd, "ifstatus"))
 		return ni_do_ifstatus(argc - optind, argv + optind);

@@ -253,6 +253,8 @@ extern ni_bool_t		ni_fsm_do(ni_fsm_t *fsm, long *timeout_p);
 extern void			ni_fsm_mainloop(ni_fsm_t *);
 extern unsigned int		ni_fsm_get_matching_workers(ni_fsm_t *, ni_ifmatcher_t *, ni_ifworker_array_t *);
 extern unsigned int		ni_fsm_mark_matching_workers(ni_fsm_t *, ni_ifmatcher_t *, const ni_uint_range_t *);
+extern unsigned int		ni_fsm_start_matching_workers(ni_fsm_t *, ni_ifworker_array_t *);
+extern void			ni_fsm_reset_matching_workers(ni_fsm_t *, ni_ifworker_array_t *, const ni_uint_range_t *, ni_bool_t);
 extern int			ni_fsm_build_hierarchy(ni_fsm_t *);
 extern unsigned int		ni_fsm_workers_from_xml(ni_fsm_t *, xml_document_t *, ni_bool_t);
 extern unsigned int		ni_fsm_fail_count(ni_fsm_t *);
