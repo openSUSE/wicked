@@ -476,7 +476,7 @@ ni_ifworker_array_find(ni_ifworker_array_t *array, ni_ifworker_type_t type, cons
 }
 
 static ni_bool_t
-ni_fsm_ifworker_array_remove(ni_ifworker_array_t *array, ni_ifworker_t *w)
+ni_ifworker_array_remove(ni_ifworker_array_t *array, ni_ifworker_t *w)
 {
 	unsigned int i, j;
 	ni_bool_t found = FALSE;
@@ -1782,12 +1782,24 @@ ni_fsm_mark_matching_workers(ni_fsm_t *fsm, ni_ifmatcher_t *match, const ni_uint
 		w->target_range = *target_range;
 	}
 
-	/* Collect all workers in the device graph, and sort them by increasing
-	 * depth. */
-	ni_ifworkers_flatten(&marked);
+	count = ni_fsm_start_matching_workers(fsm, &marked);
+	ni_debug_application("marked %u interfaces", count);
+	ni_ifworker_array_destroy(&marked);
+	return count;
+}
 
-	for (i = 0; i < marked.count; ++i) {
-		ni_ifworker_t *w = marked.data[i];
+unsigned int
+ni_fsm_start_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked)
+{
+	unsigned int i, count = 0;
+
+	/* Collect all workers in the device graph, and sort them
+	 * by increasing depth.
+	 */
+	ni_ifworkers_flatten(marked);
+
+	for (i = 0; i < marked->count; ++i) {
+		ni_ifworker_t *w = marked->data[i];
 		int rv;
 
 		if (w->failed)
@@ -1802,10 +1814,82 @@ ni_fsm_mark_matching_workers(ni_fsm_t *fsm, ni_ifmatcher_t *match, const ni_uint
 			count++;
 		}
 	}
-
-	ni_debug_application("marked %u interfaces", count);
-	ni_ifworker_array_destroy(&marked);
 	return count;
+}
+
+void
+ni_fsm_reset_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked,
+			const ni_uint_range_t *target_range, ni_bool_t hard)
+{
+	unsigned int i;
+
+	for (i = 0; i < marked->count; ++i) {
+		ni_ifworker_t *w = marked->data[i];
+
+		if ((w->done || w->failed) &&
+		    (w->target_range.max == NI_FSM_STATE_DEVICE_DOWN)) {
+			ni_fsm_destroy_worker(fsm, w);
+			if (ni_ifworker_array_remove(marked, w))
+				--i;
+			continue;
+		}
+
+		if (hard) {
+			ni_ifworker_reset(w);
+			if (target_range) {
+				w->target_range = *target_range;
+			}
+			continue;
+		}
+
+		w->done = FALSE;
+		w->failed = FALSE;
+		w->kickstarted = FALSE;
+
+		w->target_state = NI_FSM_STATE_NONE;
+		if (target_range) {
+			w->target_range = *target_range;
+		} else {
+			w->target_range.min = NI_FSM_STATE_NONE;
+			w->target_range.max = __NI_FSM_STATE_MAX;
+		}
+
+		/* When detaching children, clear their shared/exclusive ownership info */
+		if (w->children.count != 0) {
+			unsigned int i;
+
+			for (i = 0; i < w->children.count; ++i) {
+				ni_ifworker_t *child_worker = w->children.data[i];
+
+				if (child_worker->exclusive_owner == w) {
+					child_worker->exclusive_owner = NULL;
+				} else {
+					ni_assert(child_worker->exclusive_owner == NULL);
+					ni_assert(child_worker->shared_users);
+					child_worker->shared_users -= 1;
+				}
+			}
+		}
+		ni_ifworker_array_destroy(&w->children);
+
+		if (w->fsm.action_table) {
+			ni_fsm_transition_t *action;
+
+			for (action = w->fsm.action_table; action->next_state; action++)
+				ni_fsm_require_list_destroy(&action->require.list);
+			free(w->fsm.action_table);
+			w->fsm.action_table = NULL;
+		}
+
+		if (w->fsm.timer) {
+			ni_timer_cancel(w->fsm.timer);
+		}
+
+		ni_fsm_require_list_destroy(&w->fsm.child_state_req_list);
+
+		memset(&w->fsm, 0, sizeof(w->fsm));
+		memset(&w->device_api, 0, sizeof(w->device_api));
+	}
 }
 
 ni_bool_t
@@ -1814,7 +1898,7 @@ ni_fsm_destroy_worker(ni_fsm_t *fsm, ni_ifworker_t *w)
 	ni_ifworker_get(w);
 
 	ni_debug_application("%s(%s)", __func__, w->name);
-	if (!ni_fsm_ifworker_array_remove(&fsm->workers, w)) {
+	if (!ni_ifworker_array_remove(&fsm->workers, w)) {
 		ni_ifworker_release(w);
 		return FALSE;
 	}

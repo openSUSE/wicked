@@ -110,12 +110,13 @@ while [ $# -gt 0 ]; do
 	shift
 done
 
+if [ "$DEBUG" = "yes" ]; then
+	WICKED_DEBUG="--debug ${WICKED_DEBUG_LEVEL:-most}"
+fi
+
 case $ACTION in
 start)
 	IFUP_ARGS=""
-	if [ "$DEBUG" = "yes" ]; then
-		WICKED_DEBUG="--debug ${WICKED_DEBUG_LEVEL:-most}"
-	fi
 	if [ "$MODE" = "onboot" ]; then
 		IFUP_ARGS+=" --mode boot"
 	fi
@@ -132,7 +133,7 @@ start)
 	;;
 
 stop)
-	$FAKE $WICKED_CLIENT_BIN ifdown all
+	$FAKE $WICKED_CLIENT_BIN $WICKED_DEBUG ifdown all
 	rc_status -v
 	;;
 
@@ -159,14 +160,13 @@ force-reload)
 	;;
 
 reload)
-	# Not yet
-	rc_failed 3
+	$FAKE $WICKED_CLIENT_BIN $WICKED_DEBUG ifreload all
 	rc_status -v
 	;;
 
 status)
 	echo "Checking for service network:"
-	$FAKE $WICKED_CLIENT_BIN ifstatus --brief all
+	$FAKE $WICKED_CLIENT_BIN $WICKED_DEBUG ifstatus --brief all
 	echo -n "Status of service network "
 	rc_status -v
 	;;
@@ -175,8 +175,8 @@ probe)
 	## Optional / not part of LSB: Probe for the necessity of a reload,
 	## print out the argument to this init script which is required for
 	## a reload (or restart when reload not supported).
-	$FAKE $WICKED_CLIENT_BIN ifcheck --changed --quiet all &>/dev/null || \
-		echo restart
+	$FAKE $WICKED_CLIENT_BIN $WICKED_DEBUG ifcheck --changed --quiet all \
+		&>/dev/null || echo reload
 	;;
 
 *)

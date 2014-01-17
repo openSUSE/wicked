@@ -12,7 +12,7 @@ LimitCORE=infinity
 EnvironmentFile=-/etc/sysconfig/network/config
 ExecStart=@wicked_sbindir@/wicked $WICKED_DEBUG_PARAM --systemd ifup all
 ExecStop=@wicked_sbindir@/wicked $WICKED_DEBUG_PARAM --systemd ifdown all
-ExecReload=@wicked_sbindir@/wicked $WICKED_DEBUG_PARAM --systemd ifup all
+ExecReload=@wicked_sbindir@/wicked $WICKED_DEBUG_PARAM --systemd ifreload all
 
 [Install]
 WantedBy=multi-user.target
