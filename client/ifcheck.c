@@ -43,6 +43,7 @@
 #include "ifup.h"
 #include "ifcheck.h"
 
+static ni_bool_t opt_quiet;
 /*
  * ifcheck utilities
  */
@@ -161,32 +162,75 @@ ni_ifcheck_worker_config_matches(ni_ifworker_t *w)
 	return FALSE;
 }
 
+ni_bool_t
+ni_ifcheck_worker_not_in_state(ni_ifworker_t *w, unsigned int state_val)
+{
+	unsigned int state_dev;
+
+	ni_assert(w);
+	state_dev = __ifcheck_device_fsm_state(w->device);
+
+	if (state_val < NI_FSM_STATE_DEVICE_EXISTS && state_dev > state_val)
+		return TRUE;
+	if (state_dev < state_val)
+		return TRUE;
+	return FALSE;
+}
+
+static void
+if_printf(const char *dev, const char *flag, const char *fmt, ...)
+{
+	va_list ap;
+
+	if (opt_quiet)
+		return;
+	if (!ni_string_empty(dev)) {
+		printf("%-15s", dev);
+	} else {
+		printf("%-6s", "");
+	}
+	if (!ni_string_empty(flag) && !ni_string_empty(fmt)) {
+		printf(" %-22s = ", flag);
+		va_start(ap, fmt);
+		vprintf(fmt, ap);
+		va_end(ap);
+	}
+	printf("\n");
+}
+
+static inline void
+set_status(int *status, unsigned int code)
+{
+	if (NI_WICKED_ST_OK == *status)
+		*status = code;
+}
+
 /*
  * ifcheck action
  */
 int
 ni_do_ifcheck(int argc, char **argv)
 {
-	enum  { OPT_HELP, OPT_QUIET, OPT_IFCONFIG, OPT_STATE, OPT_CHANGED, OPT_PERSISTENT };
+	enum { OPT_HELP, OPT_QUIET, OPT_IFCONFIG, OPT_MISSED, OPT_CHANGED, OPT_STATE, OPT_PERSISTENT };
 	static struct option ifcheck_options[] = {
 		{ "help",	no_argument, NULL,		OPT_HELP },
 		{ "quiet",	no_argument, NULL,		OPT_QUIET },
 		{ "ifconfig",	required_argument, NULL,	OPT_IFCONFIG },
-		{ "state",	required_argument, NULL,	OPT_STATE },
+		{ "missed",	no_argument, NULL,		OPT_MISSED },
 		{ "changed",	no_argument, NULL,		OPT_CHANGED },
+		{ "state",	required_argument, NULL,	OPT_STATE },
 		{ "persistent",	no_argument, NULL,		OPT_PERSISTENT },
 		{ NULL }
 	};
 	static ni_ifmatcher_t ifmatch;
 	ni_string_array_t opt_ifconfig = NI_STRING_ARRAY_INIT;
-	/* unsigned int nmarked; */
-	ni_bool_t opt_check_changed = FALSE;
-	ni_bool_t opt_quiet = FALSE;
-	ni_bool_t opt_persistent = FALSE;
-	const char *opt_state = NULL;
+	ni_string_array_t ifnames = NI_STRING_ARRAY_INIT;
+	ni_uint_array_t checks = NI_UINT_ARRAY_INIT;
 	ni_stringbuf_t sb = NI_STRINGBUF_INIT_DYNAMIC;
-	unsigned int i, opt_state_val;
+	const char *opt_state = NULL;
+	ni_bool_t multiple = FALSE;
 	ni_fsm_t *fsm;
+	unsigned int i, opt_state_val;
 	int c, status = NI_WICKED_RC_USAGE;
 
 	fsm = ni_fsm_new();
@@ -206,27 +250,36 @@ ni_do_ifcheck(int argc, char **argv)
 			ni_string_array_append(&opt_ifconfig, optarg);
 			break;
 
-		case OPT_STATE:
-			if (!ni_ifworker_state_from_name(optarg, &opt_state_val))
-				ni_warn("unknown device state \"%s\"", optarg);
-			opt_state = optarg;
+		case OPT_MISSED:
+			ni_uint_array_append(&checks, OPT_MISSED);
 			break;
 
 		case OPT_CHANGED:
-			opt_check_changed = TRUE;
+			ni_uint_array_append(&checks, OPT_CHANGED);
+			break;
+
+		case OPT_STATE:
+			if (!ni_ifworker_state_from_name(optarg, &opt_state_val)) {
+				ni_error("Invalid device state \"%s\"", optarg);
+				goto usage;
+			}
+			ni_uint_array_append(&checks, OPT_STATE);
+			opt_state = optarg;
+			break;
+
+		case OPT_PERSISTENT:
+			ni_uint_array_append(&checks, OPT_PERSISTENT);
 			break;
 
 		case OPT_QUIET:
 			opt_quiet = TRUE;
+
 			break;
 
-		case OPT_PERSISTENT:
-			opt_persistent = TRUE;
-			break;
-
-		default:
 		case OPT_HELP:
-usage:
+			status = NI_WICKED_RC_SUCCESS;
+		default:
+		usage:
 			ni_fsm_fill_state_string(&sb, NULL);
 			fprintf(stderr,
 				"wicked [options] ifcheck [ifcheck-options] <ifname ...>|all\n"
@@ -235,24 +288,27 @@ usage:
 				"      Show this help text.\n"
 				"  --ifconfig <filename>\n"
 				"      Read interface configuration(s) from file\n"
-				"  --state <state-name>\n"
-				"      Verify that the interface(s) are in the given state. Possible states:\n"
-				"  %s\n"
-				"  --changed\n"
-				"      Verify that the interface(s) use the current configuration\n"
 				"  --quiet\n"
 				"      Do not print out errors, but just signal the result through exit status\n"
+				"  --missed\n"
+				"      Check if the interface is missed\n"
+				"  --changed\n"
+				"      Check if the interface's configuration is changed\n"
+				"  --state <state-name>\n"
+				"      Check if the interface is in the given state. Possible states:\n"
+				"  %s\n"
 				"  --persistent\n"
-				"      Show whether interface is in persistent mode\n",
-				sb.string
-				);
+				"      Check if the interface is in persistent mode\n"
+				, sb.string);
 			ni_stringbuf_destroy(&sb);
 			goto cleanup;
 		}
 	}
 
 	if (optind >= argc) {
-		ni_error("missing interface argument\n");
+		goto usage;
+	} else for (c = optind; c < argc; ++c) {
+		if (ni_string_empty(argv[c]))
 		goto usage;
 	}
 
@@ -284,85 +340,91 @@ usage:
 	ni_fsm_refresh_state(fsm);
 	status = NI_WICKED_ST_OK;
 
+	if (0 == checks.count)
+		ni_uint_array_append(&checks, OPT_MISSED);
 	/* nmarked = 0; */
 	while (optind < argc) {
 		ni_ifworker_array_t marked = { 0, NULL };
 		const char *ifname = argv[optind++];
-		unsigned int i;
 
 		ifmatch.name = ifname;
 		if (ni_fsm_get_matching_workers(fsm, &ifmatch, &marked) == 0) {
-			ni_error("%s: no matching interfaces", ifname);
-			status = NI_WICKED_RC_NO_DEVICE;
+			if_printf(ifname, "device exists", "no");
+			set_status(&status, NI_WICKED_RC_NO_DEVICE);
 			continue;
 		}
+		if (ni_string_eq(ifmatch.name, "all"))
+			multiple = TRUE;
 
 		for (i = 0; i < marked.count; ++i) {
 			ni_ifworker_t *w = marked.data[i];
-			ni_netdev_t *dev;
-			ni_device_clientinfo_t *client_info;
+			ni_netdev_t *dev = w->device;
+			ni_device_clientinfo_t *client_info =
+				dev ? dev->client_info : NULL;
+			unsigned int j;
 
-			if ((dev = w->device) == NULL) {
-				if (!opt_quiet) {
-					ni_error("%s: device from %s does not exist",
-						strcmp(ifname, "all") ? ifname : w->name, w->config.origin);
-				}
-				status = NI_WICKED_RC_NO_DEVICE;
+			if (ni_string_array_index(&ifnames, w->name) != -1)
 				continue;
+			multiple = ifnames.count ? TRUE : multiple;
+			ni_string_array_append(&ifnames, w->name);
+
+			for (j = 0; j < checks.count; j++) {
+				switch (checks.data[j]) {
+					ni_bool_t changed, not_in_state, persistent;
+
+					default:
+					case OPT_MISSED:
+						if_printf(w->name, "device exists", (dev ? "yes" : "no"));
+
+						if (!dev)
+							set_status(&status, NI_WICKED_RC_NO_DEVICE);
+						break;
+
+					case OPT_CHANGED:
+						changed = FALSE;
+						if (ni_ifcheck_device_configured(dev) ||
+						     (ni_ifcheck_worker_config_exists(w) &&
+						      ni_ifcheck_worker_device_exists(w)))
+							changed = !ni_ifcheck_worker_config_matches(w);
+
+						if_printf(w->name, "configuration changed",
+								(changed ? "yes" : "no"));
+						if (changed) {
+							ni_debug_wicked("%s: config file uuid is %s", w->name,
+							ni_uuid_print(&w->config.uuid));
+							ni_debug_wicked("%s: system dev. uuid is %s", w->name,
+								client_info? ni_uuid_print(&client_info->config_uuid) : "NOT SET");
+							set_status(&status, NI_WICKED_ST_CHANGED_CONFIG);
+						}
+						break;
+
+					case OPT_STATE:
+						not_in_state = ni_ifcheck_worker_not_in_state(w, opt_state_val);
+
+						if_printf(w->name, "queried state", "%s (%s)",
+							(not_in_state ? "no" : "yes"), opt_state);
+						if (not_in_state)
+							set_status(&status, NI_WICKED_ST_NOT_IN_STATE);
+						break;
+
+					case OPT_PERSISTENT:
+						persistent = ni_ifcheck_device_is_persistent(dev);
+
+						if_printf(w->name, "persistent", (persistent ? "yes" : "no"));
+						if (persistent)
+							set_status(&status, NI_WICKED_ST_PERSISTENT_ON);
+						break;
+				}
 			}
-
-			if (!opt_quiet)
-				printf("wicked: %s: exists\n", w->name);
-
-			client_info = dev->client_info;
-			if (opt_check_changed) {
-				if (client_info && ni_uuid_equal(&client_info->config_uuid, &w->config.uuid)) {
-					if (!opt_quiet)
-						printf("wicked: %s: configuration unchanged\n", w->name);
-				}
-				else {
-					if (!opt_quiet)
-						ni_error("%s: device configuration changed", w->name);
-					ni_debug_wicked("%s: config file uuid is %s", w->name, ni_uuid_print(&w->config.uuid));
-					ni_debug_wicked("%s: system dev. uuid is %s", w->name,
-							client_info? ni_uuid_print(&client_info->config_uuid) : "NOT SET");
-					status = NI_WICKED_ST_CHANGED_CONFIG;
-				}
-			}
-
-			if (opt_state) {
-				unsigned int state_val;
-				char *state = client_info ? client_info->state : "none";
-				if (!ni_ifworker_state_from_name(state, &state_val))
-					state_val = NI_FSM_STATE_NONE;
-
-				if (NI_FSM_STATE_NONE == opt_state_val || state_val >= opt_state_val) {
-					if (!opt_quiet)
-						printf("wicked: %s: device has state %s\n", w->name, state);
-				}
-				else {
-					if (!opt_quiet)
-						ni_error("%s: device has state %s, expected %s", w->name, state, opt_state);
-					status = NI_WICKED_ST_NOT_IN_STATE;
-				}
-			}
-
-			if (opt_persistent) {
-				if (!w->client_state.persistent) {
-					if (!opt_quiet)
-						printf("wicked: %s: persistent mode is not set\n", w->name);
-				}
-				else {
-					if (!opt_quiet)
-						ni_error("%s: device configured in persistent mode", w->name);
-					status = NI_WICKED_ST_PERSISTENT_ON;
-				}
-			}
+			if (opt_quiet && status)
+				goto cleanup;
 		}
 	}
 
 cleanup:
 	ni_string_array_destroy(&opt_ifconfig);
+	ni_string_array_destroy(&ifnames);
+	ni_uint_array_destroy(&checks);
 	return status;
 }
 
