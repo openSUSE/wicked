@@ -42,7 +42,7 @@
 #include <wicked/logging.h>
 #include <wicked/sysconfig.h>
 
-#include "wicked-client.h"
+#include "client/wicked-client.h"
 
 
 #define _PATH_NETCONFIG_DIR		"/etc/sysconfig/network-scripts"

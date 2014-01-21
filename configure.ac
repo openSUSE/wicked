@@ -137,6 +137,24 @@ AC_ARG_WITH([supplicantdir], [AS_HELP_STRING([--with-supplicantdir@<:@=DIR@:>@],
 	    [with_supplicantdir="${libexecdir}/${PACKAGE_NAME}/bin"])
 AC_SUBST(wicked_supplicantdir,	"$with_supplicantdir")
 
+AC_ARG_WITH([compat], [AS_HELP_STRING([--with-compat@<:@=TYPE@:>@],
+	    [install wicked compatibility scripts/config])],,
+	    [with_compat="detect"])
+test "X$with_compat" = "Xdetect" -a -f /etc/SuSE-release   && with_compat=suse
+test "X$with_compat" = "Xdetect"                           && with_compat=auto
+case $with_compat in
+suse|redhat|auto)
+	AC_SUBST(wicked_compat,	"$with_compat")
+	test "x$with_compat" != "xsuse" && \
+	AC_MSG_WARN([unsupported compatibility mode "$with_compat"])
+;;
+""|no)	;;
+*)	AC_MSG_ERROR([invalid compatibility mode "$with_compat"]) ;;
+esac
+AM_CONDITIONAL([wicked_compat_auto],	[test "X$with_compat" = "Xauto"])
+AM_CONDITIONAL([wicked_compat_suse],	[test "X$with_compat" = "Xsuse"])
+AM_CONDITIONAL([wicked_compat_redhat],	[test "X$with_compat" = "Xredhat"])
+
 # Enable system extensions (e.g. _GNU_SOURCE)
 AC_USE_SYSTEM_EXTENSIONS
 
@@ -249,6 +267,8 @@ AC_CONFIG_FILES([
 	util/Makefile
 	schema/Makefile
 	client/Makefile
+	client/suse/Makefile
+	client/redhat/Makefile
 	server/Makefile
 	nanny/Makefile
 	dhcp4/Makefile

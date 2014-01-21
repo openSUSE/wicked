@@ -145,6 +145,7 @@ This package provides the wicked shared library.
 test -x ./configure || autoreconf --force --install
 export CFLAGS="$RPM_OPT_FLAGS"
 %configure \
+	--with-compat=suse		\
 %if %{with systemd}
 	--enable-systemd		\
 %else
@@ -287,6 +288,7 @@ fi
 %_unitdir/wickedd-nanny.service
 %_unitdir/wickedd.service
 %_unitdir/wicked.service
+%attr(0600,root,root) %config /etc/sysconfig/network/ifcfg-lo
 %_sbindir/ifup
 %if "%_sbindir" != "/sbin"
 /sbin/ifup
@@ -303,6 +305,7 @@ fi
 %_sysconfdir/init.d/network
 %_sbindir/rcwickedd
 %_sbindir/rcnetwork
+%attr(0600,root,root) %config /etc/sysconfig/network/ifcfg-lo
 %_sbindir/ifup
 %if "%_sbindir" != "/sbin"
 /sbin/ifup

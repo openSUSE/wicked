@@ -49,8 +49,8 @@
 
 #include <wicked/objectmodel.h>
 #include <wicked/dbus.h>
-#include "wicked-client.h"
 #include "util_priv.h"
+#include "client/wicked-client.h"
 
 typedef ni_bool_t (*try_function_t)(const ni_sysconfig_t *, ni_netdev_t *, const char *);
 
@@ -1034,21 +1034,6 @@ error:
 	if (compat)
 		ni_compat_netdev_free(compat);
 	return NULL;
-}
-
-ni_compat_netdev_t *
-ni_compat_netdev_new(const char *ifname)
-{
-	ni_compat_netdev_t *compat;
-
-	compat = xcalloc(1, sizeof(*compat));
-	compat->dev = ni_netdev_new(ifname, 0);
-
-	/* Apply defaults */
-	compat->dhcp6.mode = NI_DHCP6_MODE_AUTO;
-	compat->dhcp6.rapid_commit = TRUE;
-
-	return compat;
 }
 
 /*

@@ -2,18 +2,36 @@
 CLEANFILES			= *~
 MAINTAINERCLEANFILES		= Makefile.in
 DISTCLEANFILES			= $(BUILT_SOURCES)
-EXTRA_DIST			= $(wicked_headers) \
-				  scripts/ifup.in
+EXTRA_DIST			= $(wicked_headers)
 
-BUILT_SOURCES			= scripts/ifup
-
-wicked_sbin_SCRIPTS		= scripts/ifup
+SUBDIRS				=
+if wicked_compat_auto
+SUBDIRS				+= suse redhat
+else
+if wicked_compat_suse
+SUBDIRS				+= suse
+endif
+if wicked_compat_redhat
+SUBDIRS				+= redhat
+endif
+endif
 
 wicked_sbin_PROGRAMS		= wicked
 
-wicked_CPPFLAGS			= -I$(top_srcdir)	\
+wicked_CPPFLAGS			= \
+				  -I$(top_srcdir)	\
 				  -I$(top_srcdir)/src	\
 				  -I$(top_srcdir)/include
+if wicked_compat_auto
+wicked_CPPFLAGS			+= -DCOMPAT_AUTO
+else
+if wicked_compat_suse
+wicked_CPPFLAGS			+= -DCOMPAT_SUSE
+endif
+if wicked_compat_redhat
+wicked_CPPFLAGS			+= -DCOMPAT_REDHAT
+endif
+endif
 
 wicked_CFLAGS			= $(LIBNL_CFLAGS)	\
 				  $(LIBDBUS_CFLAGS)	\
@@ -21,10 +39,20 @@ wicked_CFLAGS			= $(LIBNL_CFLAGS)	\
 
 wicked_LDFLAGS			= -rdynamic
 wicked_LDADD			= $(top_builddir)/src/libwicked.la
+if wicked_compat_auto
+wicked_LDADD			+= $(builddir)/suse/libwicked-client-suse.la
+wicked_LDADD			+= $(builddir)/redhat/libwicked-client-redhat.la
+else
+if wicked_compat_suse
+wicked_LDADD			+= $(builddir)/suse/libwicked-client-suse.la
+endif
+if wicked_compat_redhat
+wicked_LDADD			+= $(builddir)/redhat/libwicked-client-redhat.la
+endif
+endif
+
 wicked_SOURCES			= \
 	compat.c		\
-	compat-redhat.c		\
-	compat-suse.c		\
 	ifup.c			\
 	ifdown.c		\
 	ifcheck.c		\
@@ -44,25 +72,7 @@ wicked_headers			= \
 	reachable.h		\
 	wicked-client.h
 
-substitute_vars			= \
-	$(AM_V_GEN)sed						\
-	-e "s|[@]wicked_sbindir[@]|$(wicked_sbindir)|g"
-
-scripts/ifup: scripts/ifup.in $(top_builddir)/config.status
-	@echo "substituting variables in $< > $@"
-	@test -d $(@D) || $(MKDIR_P) $(@D)
-	@rm -f $@ $@.tmp
-	@$(substitute_vars) < $< > $@.tmp && mv $@.tmp $@
-
 install-data-local:
 	$(MKDIR_P) "$(DESTDIR)$(wicked_configdir)/ifconfig"
-
-check-local:
-	@for i in $(wicked_sbin_SCRIPTS) ; \
-	do \
-		bash -n "$(builddir)/$$i" \
-			&& printf 'client/%-30s %s\n' "$$i" "Syntax OK" \
-			|| exit 1 ; \
-	done
 
 # vim: ai

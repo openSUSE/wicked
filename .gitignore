@@ -46,7 +46,7 @@ Makefile.in
 /dhcp6/wickedd-dhcp6
 /nanny/wickedd-nanny
 /client/wicked
-/client/scripts/ifup
+/client/suse/scripts/ifup
 /server/wickedd
 /util/mkconst
 /util/schema2html

@@ -42,6 +42,16 @@
 #include <wicked/netinfo.h>
 #include "wicked-client.h"
 
+#if defined(COMPAT_AUTO) || defined(COMPAT_SUSE)
+extern ni_bool_t	__ni_suse_get_interfaces(const char *, const char *,
+						ni_compat_netdev_array_t *);
+#endif
+#if defined(COMPAT_AUTO) || defined(COMPAT_REDHAT)
+extern ni_bool_t	__ni_redhat_get_interfaces(const char *, const char *,
+						ni_compat_netdev_array_t *);
+#endif
+
+
 typedef struct ni_ifconfig_type	ni_ifconfig_type_t;
 struct ni_ifconfig_type {
 	const char *			name;
@@ -72,16 +82,20 @@ static ni_bool_t	ni_ifconfig_read_compat(xml_document_array_t *,
 						const char *,
 						const char *,
 						ni_bool_t);
+#if defined(COMPAT_AUTO) || defined(COMPAT_SUSE)
 static ni_bool_t	ni_ifconfig_read_compat_suse(xml_document_array_t *,
 						const char *,
 						const char *,
 						const char *,
 						ni_bool_t);
+#endif
+#if defined(COMPAT_AUTO) || defined(COMPAT_REDHAT)
 static ni_bool_t	ni_ifconfig_read_compat_redhat(xml_document_array_t *,
 						const char *,
 						const char *,
 						const char *,
 						ni_bool_t);
+#endif
 static ni_bool_t	ni_ifconfig_read_firmware(xml_document_array_t *,
 						const char *,
 						const char *,
@@ -123,11 +137,19 @@ ni_ifconfig_guess_compat_type(const ni_ifconfig_type_t *map,
 {
 	(void)path;
 
+#ifdef COMPAT_SUSE
+	return __ni_ifconfig_find_map(map, "suse", sizeof("suse")-1);
+#endif
+#ifdef COMPAT_REDHAT
+	return __ni_ifconfig_find_map(map, "redhat", sizeof("redhat")-1);
+#endif
+#ifdef COMPAT_AUTO
 	if (ni_file_exists_fmt("%s%s", (root ? root : ""), "/etc/SuSE-release"))
 		return __ni_ifconfig_find_map(map, "suse", sizeof("suse")-1);
 
 	if (ni_file_exists_fmt("%s%s", (root ? root : ""), "/etc/redhat-release"))
 		return __ni_ifconfig_find_map(map, "redhat", sizeof("redhat")-1);
+#endif
 
 	return NULL;
 }
@@ -152,8 +174,12 @@ static const ni_ifconfig_type_t	__ni_ifconfig_types_wicked[] = {
 };
 
 static const ni_ifconfig_type_t	__ni_ifconfig_types_compat[] = {
+#if defined(COMPAT_AUTO) || defined(COMPAT_SUSE)
 	{ "suse",	{ .read = ni_ifconfig_read_compat_suse	} },
+#endif
+#if defined(COMPAT_AUTO) || defined(COMPAT_REDHAT)
 	{ "redhat",	{ .read = ni_ifconfig_read_compat_redhat} },
+#endif
 	{ NULL,		{ .guess= ni_ifconfig_guess_compat_type } },
 };
 
@@ -323,6 +349,7 @@ ni_ifconfig_read_wicked(xml_document_array_t *array, const char *type,
 /*
  * Read old-style ifcfg file(s)
  */
+#if defined(COMPAT_AUTO) || defined(COMPAT_SUSE)
 ni_bool_t
 ni_ifconfig_read_compat_suse(xml_document_array_t *array, const char *type,
 			const char *root, const char *path, ni_bool_t raw)
@@ -337,7 +364,9 @@ ni_ifconfig_read_compat_suse(xml_document_array_t *array, const char *type,
 	ni_compat_netdev_array_destroy(&ifcfg.netdev_array);
 	return rv;
 }
+#endif
 
+#if defined(COMPAT_AUTO) || defined(COMPAT_REDHAT)
 ni_bool_t
 ni_ifconfig_read_compat_redhat(xml_document_array_t *array, const char *type,
 			const char *root, const char *path, ni_bool_t raw)
@@ -352,6 +381,7 @@ ni_ifconfig_read_compat_redhat(xml_document_array_t *array, const char *type,
 	ni_compat_netdev_array_destroy(&ifcfg.netdev_array);
 	return rv;
 }
+#endif
 
 ni_bool_t
 ni_ifconfig_read_compat(xml_document_array_t *array, const char *type,
