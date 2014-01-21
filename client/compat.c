@@ -35,6 +35,7 @@
 #include <wicked/bonding.h>
 #include <wicked/bridge.h>
 #include <wicked/vlan.h>
+#include <wicked/macvlan.h>
 #include <wicked/wireless.h>
 #include <wicked/fsm.h>
 #include <wicked/xml.h>
@@ -393,6 +394,25 @@ __ni_compat_generate_vlan(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 	xml_node_new_element("device", child, compat->dev->link.lowerdev.name);
 	xml_node_new_element("protocol", child, ni_vlan_protocol_to_name(vlan->protocol));
 	xml_node_new_element("tag", child, ni_sprint_uint(vlan->tag));
+	return TRUE;
+}
+
+static ni_bool_t
+__ni_compat_generate_macvlan(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
+{
+	ni_macvlan_t *macvlan;
+	xml_node_t *child;
+
+	macvlan = ni_netdev_get_macvlan(compat->dev);
+
+	child = xml_node_create(ifnode, "macvlan");
+
+	xml_node_new_element("device", child, compat->dev->link.lowerdev.name);
+	xml_node_new_element("mode", child, ni_macvlan_mode_to_name(macvlan->mode));
+	if (macvlan->flags) {
+		xml_node_new_element("flags", child, ni_macvlan_flag_to_name(macvlan->flags));
+	}
+
 	return TRUE;
 }
 
@@ -1035,6 +1055,10 @@ __ni_compat_generate_ifcfg(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 
 	case NI_IFTYPE_VLAN:
 		__ni_compat_generate_vlan(ifnode, compat);
+		break;
+
+	case NI_IFTYPE_MACVLAN:
+		__ni_compat_generate_macvlan(ifnode, compat);
 		break;
 
 	case NI_IFTYPE_WIRELESS:
