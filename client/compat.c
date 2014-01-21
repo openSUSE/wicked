@@ -44,12 +44,29 @@
 #include <sys/param.h>
 
 #include "client/client_state.h"
+#include "util_priv.h"
+
 
 /* Helper functions */
 static const char *	ni_sprint_uint(unsigned int value);
 static const char *	ni_sprint_timeout(unsigned int timeout);
 static xml_node_t *	xml_node_create(xml_node_t *, const char *);
 static void		xml_node_dict_set(xml_node_t *, const char *, const char *);
+
+ni_compat_netdev_t *
+ni_compat_netdev_new(const char *ifname)
+{
+	ni_compat_netdev_t *compat;
+
+	compat = xcalloc(1, sizeof(*compat));
+	compat->dev = ni_netdev_new(ifname, 0);
+
+	/* Apply defaults */
+	compat->dhcp6.mode = NI_DHCP6_MODE_AUTO;
+	compat->dhcp6.rapid_commit = TRUE;
+
+	return compat;
+}
 
 /*
  * Array handling functions
